@@ -1,0 +1,6 @@
+# Build outputs (dist/*.dsk are kept: ready-to-run disks)
+build/
+dev/tools/a2shot/a2shot
+
+# macOS
+.DS_Store
