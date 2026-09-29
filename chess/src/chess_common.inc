@@ -89,16 +89,13 @@ CR_BLACK_Q = $08
 SIDE_WHITE = $00
 SIDE_BLACK = $80
 
-; --- AI strategy codes (selected by the 'D' command at the prompt) ---------
-; NAIVE = original v0.4 behaviour (1-ply greedy material; deterministic).
-; SMART = adds three layers on top of v0.4 without going past 1-ply:
-;          * MVV-LVA tie-break between equal-scored captures
-;          * Static Exchange Evaluation on the destination — refuses moves
-;            that hang the moving piece for a less-valuable attacker
-;          * 8-bit LFSR reservoir sampler for genuine ties (MVV-LVA equal),
-;            so two AvA runs from a fresh boot diverge by move 2-3.
+; --- AI strategy codes (ai_strategy; the P key cycles them) ---------------
+; NAIVE = 1-ply material. SMART = 2-ply negamax. DEEP = 3-ply negamax.
+; Ties between equal moves are broken by a positional score plus an LFSR
+; jitter, so AI-vs-AI games diverge from game to game.
 AI_STRATEGY_NAIVE = 0
 AI_STRATEGY_SMART = 1
+AI_STRATEGY_DEEP  = 2      ; 3-ply search (see chess_engine.asm)
 
 ; --- Error codes returned by apply_user_move ------------------------------
 ERR_EMPTY        = 1

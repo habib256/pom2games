@@ -24,7 +24,7 @@
 ; Controls:
 ;   I/J/K/L or arrows  move cursor    SPACE or RETURN  pick source / target
 ;   ESC      cancel selection   M  cycle mode     N  new game
-;   U        undo last move     P  toggle AI strategy (FAST 1-ply / STRONG 2-ply)
+;   U        undo last move     P  AI level: 1, 2 or 3 plies (L1 / L2 / L3)
 ; Modes (M cycles): HVH, WAI (white=you/black=AI), BAI, AVA (auto self-play).
 ;
 ; Apple II vs Apple-1 / GEN2:
@@ -316,10 +316,13 @@ cycle_mode:
         STA printed_side
         JMP game_loop
 
-toggle_strategy:
-        LDA ai_strategy
-        EOR #1
-        STA ai_strategy
+toggle_strategy:                ; P: NAIVE -> SMART -> DEEP -> NAIVE
+        LDX ai_strategy
+        INX
+        CPX #AI_STRATEGY_DEEP + 1
+        BCC @set
+        LDX #AI_STRATEGY_NAIVE
+@set:   STX ai_strategy
         JMP game_loop
 
 do_undo:
@@ -329,7 +332,11 @@ do_undo:
 @no:    JMP game_loop
 
 new_game:
+        LDA ai_strategy         ; init_board resets it: keep the player's level
+        PHA
         JSR init_board
+        PLA
+        STA ai_strategy
         LDA #0
         STA sel_active
         STA movecount
@@ -909,7 +916,8 @@ clear_movelist:
         STA move_row
         RTS
 
-; update_status: side to move + mode at the top of the right panel (row 0).
+; update_status: side to move, mode and AI level at the top of the right
+;   panel (row 0), e.g. "W AVA L2".
 update_status:
         LDA #MLCOL
         STA tx_col
@@ -928,7 +936,15 @@ update_status:
         STA sptr_lo
         LDA modestr_hi,X
         STA sptr_hi
-        JMP puts_hgr            ; tail
+        JSR puts_hgr
+        LDA #' '                ; AI level = search depth in plies
+        JSR putc_hgr
+        LDA #'L'
+        JSR putc_hgr
+        LDA ai_strategy
+        CLC
+        ADC #'1'
+        JMP putc_hgr            ; tail
 
 ; draw_coords: rank digits (left column) + file letters (above the board).
 draw_coords:

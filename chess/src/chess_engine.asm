@@ -82,10 +82,13 @@ saved_ep:               .res 1
 saved_castling:         .res 1
 saved_halfmove:         .res 1
 saved_king_sq:          .res 1      ; king_sq for moving side, if king moved
-scan_sq:                .res 1      ; persistent scan-loop pos for is_attacked_runner
+scan_sq:                .res 1      ; board scan position (mat_recount)
+mat_tot:                .res 2      ; material of white, black (mat_simple units)
 saved_castle_rook_from: .res 1      ; rook origin square (for castling undo)
 saved_castle_rook_to:   .res 1      ; rook destination square (for castling undo)
 castle_passthru_save:   .res 1      ; saves king piece byte during pass-through test
+castle_passthru_ksq:    .res 1      ; saves the king square cache meanwhile (NOT tmp:
+                                    ; in_check's atk_* helpers use tmp as scratch)
                                     ; (in_check clobbers ce_piece, can't use that)
 
 ; --- AI / perft scratch ---
@@ -110,26 +113,6 @@ see_min_sq:             .res 1      ; that attacker's square
 see_value:              .res 1      ; signed 8-bit net gain from see_estimate
 see_victim:             .res 1      ; raw victim value (mat_simple lookup) for adjustment
 see_mover:              .res 1      ; our piece byte at mv_to (cached for SEE)
-
-; --- 2-ply (negamax) search state. The outer move is preserved across the
-;     inner opponent-reply search via a 2nd undo buffer + a move snapshot, so
-;     make_move/unmake_move (single-level) can nest exactly one level deep. ---
-saved2_captured:        .res 1
-saved2_ep:              .res 1
-saved2_castling:        .res 1
-saved2_halfmove:        .res 1
-saved2_king_sq:         .res 1
-saved2_crf:             .res 1      ; mirror of saved_castle_rook_from
-saved2_crt:             .res 1      ; mirror of saved_castle_rook_to
-m_from:                 .res 1      ; outer move snapshot (inner search reuses mv_*)
-m_to:                   .res 1
-m_flags:                .res 1
-m_promo:                .res 1
-m_score:                .res 1      ; opponent's best reply eval (their perspective)
-best_reply:             .res 1      ; running max inside best_reply_eval
-reply_found:            .res 1      ; 1 once a legal opponent reply has been seen
-rscan_x:                .res 1      ; inner reply from-square iterator
-rscan_y:                .res 1      ; inner reply to-square iterator
 
 .ifdef CHESS_SMART_EVAL
 ; Enriched-evaluation scratch (evaluate_positional pre-pass): pawn counts per
@@ -177,10 +160,57 @@ ce_dir_ptr:     .res 1      ; index into knight_offsets / king_offsets etc.
 ce_match:       .res 1      ; 1 if a pseudo-legal match for (mv_from,mv_to)
 attacker_color: .res 1      ; colour byte of attacker (for is_attacked)
 attacked_sq:    .res 1      ; square being tested for attack
-atk_piece:      .res 1      ; piece byte of CURRENT attacker (separate from ce_piece
-                            ; so move-gen callers' ce_piece survives in_check)
+ia_dir:         .res 1      ; is_attacked_runner: current ray offset
+s_ply:          .res 1      ; search_node: current slot
+s_leaf:         .res 1      ;   slot scored statically
+s_cut:          .res 1      ;   root cut (root_cut)
+s_val:          .res 1      ;   score scratch
+gt_from:        .res 1      ; gen_targets: from square
+gt_color:       .res 1      ;   colour of the moving piece
+gt_base:        .res 1      ;   list start in tgt_buf
+gt_end:         .res 1      ;   list end (one past the last entry)
+gt_new:         .res 1      ;   square being inserted (gt_add)
+gt_di:          .res 1      ;   direction index
+gt_dend:        .res 1      ;   one past the last direction index
+gt_dstep:       .res 1      ;   direction index step (sliders)
+gt_dir:         .res 1      ;   current slide offset
+gt_type:        .res 1      ;   piece type
+gt_mode:        .res 1      ;   GT_UNSORTED / GT_MATERIAL (0 = sorted, all)
 
 .export mv_from, mv_to, mv_promo, mv_flags  ; redeclare for textual cite
+
+; Destination lists from gen_targets: root moves at GT_ROOT, each search
+; slot at sn_base. BSS (not BOARDST: that page is nearly full).
+SEARCH_PLIES = 3            ; search slots below the root (DEEP uses 2)
+ROOT_SLOT    = SEARCH_PLIES ; p_* slot parking the root move
+.segment "BSS"
+tgt_buf:        .res 32 * (SEARCH_PLIES + 1)
+ai_tend:        .res 1      ; end of the root list (gt_end is reused below)
+ai_pass:        .res 1      ; root pass: 0 material moves, 1 others, AI_PASS_ALL
+AI_PASS_ALL = 2
+; search_node, per slot: from-square iterator, list index / end, best score,
+; cut, legal-move-seen flag, pass.
+n_from:         .res SEARCH_PLIES
+n_idx:          .res SEARCH_PLIES
+n_end:          .res SEARCH_PLIES
+n_best:         .res SEARCH_PLIES
+n_cut:          .res SEARCH_PLIES
+n_found:        .res SEARCH_PLIES
+n_pass:         .res SEARCH_PLIES   ; 0 = material moves, 1 = the others
+n_stat:         .res SEARCH_PLIES   ; leaf: material as it stands
+n_first:        .res SEARCH_PLIES   ; pass searched first
+; save_ply / restore_ply: the move and make_move's undo slots, per slot.
+p_from:         .res SEARCH_PLIES + 1
+p_to:           .res SEARCH_PLIES + 1
+p_flags:        .res SEARCH_PLIES + 1
+p_promo:        .res SEARCH_PLIES + 1
+p_cap:          .res SEARCH_PLIES + 1
+p_ep:           .res SEARCH_PLIES + 1
+p_castling:     .res SEARCH_PLIES + 1
+p_half:         .res SEARCH_PLIES + 1
+p_ksq:          .res SEARCH_PLIES + 1
+p_crf:          .res SEARCH_PLIES + 1
+p_crt:          .res SEARCH_PLIES + 1
 
 ; The engine code lives in its own segment so the linker can place it
 ; in the upper-bank ($E000-$EFFF) on stock 8 KB Apple-1 (Parmegiani's
@@ -257,7 +287,7 @@ init_board:
         ; The 'D' command at the prompt cycles between NAIVE and SMART.
         LDA #AI_STRATEGY_SMART
         STA ai_strategy
-        RTS
+        JMP mat_recount
 
 ; ============================================================================
 ; piece_at -- A = board[X]
@@ -486,22 +516,22 @@ castle_try:
         LDA side_to_move
         BNE @pt_b
         LDA king_sq_white
-        STA tmp
+        STA castle_passthru_ksq
         LDA ce_target
         STA king_sq_white
         JSR in_check
         STA tmp2
-        LDA tmp
+        LDA castle_passthru_ksq
         STA king_sq_white
         JMP @pt_restore
 @pt_b:
         LDA king_sq_black
-        STA tmp
+        STA castle_passthru_ksq
         LDA ce_target
         STA king_sq_black
         JSR in_check
         STA tmp2
-        LDA tmp
+        LDA castle_passthru_ksq
         STA king_sq_black
 @pt_restore:
         ; Restore board: clear intermediate, put king back at mv_from.
@@ -861,6 +891,176 @@ slide_check:
         RTS
 
 ; ============================================================================
+; gen_targets -- destination squares of the piece on square X
+; ============================================================================
+; Walks the piece's own directions instead of testing all 64 squares with
+; is_pseudo_legal. Input: X = from square (a piece of the side to move),
+; Y = list base (GT_ROOT, or sn_base for a search slot), gt_mode:
+;   0             every target, ascending -- the order the old from x to scan
+;                 visited them, so the root meets moves (and steps the LFSR on
+;                 ties) exactly as before
+;   GT_UNSORTED   any order (search nodes: the order changes no score)
+;   GT_MATERIAL   only targets that can change the material: captures, pawn
+;                 diagonals (en passant) and pushes onto the last rank
+; Output: tgt_buf[base .. gt_end-1]. Own-colour squares are left out.
+; Knight / bishop / rook / queen / king entries are pseudo-legal as listed.
+; Pawn entries are the 4 candidates (push, double push, 2 captures): the
+; caller still runs is_pseudo_legal on them (rank, emptiness, en passant,
+; promotion). Castling is not listed (try_one_castle). Clobbers A, X, Y.
+GT_ROOT  = 0
+GT_PLY0  = 32                   ; a queen has at most 27 targets
+GT_KING  = 8                    ; gt_offsets: knight 0, king 8, pawns 16 / 20
+GT_BPAWN = 20
+GT_UNSORTED = $80               ; gt_mode bits
+GT_MATERIAL = $40
+
+gen_targets:
+        STX gt_from
+        STY gt_base
+        STY gt_end              ; empty list
+        LDA board,X
+        AND #COLOR_MASK
+        STA gt_color
+        LDA board,X
+        AND #PIECE_MASK
+        STA gt_type
+        TAX
+        LDA gt_first-1,X        ; gt_offsets range for this piece type
+        STA gt_di
+        LDA gt_last-1,X
+        STA gt_dend
+        CPX #PIECE_PAWN
+        BNE @notp
+        BIT gt_color
+        BPL gt_leap             ; white pawn
+        LDA #GT_BPAWN           ; black pawn: its own 4 steps
+        STA gt_di
+        LDA #GT_BPAWN+4
+        STA gt_dend
+        BNE gt_leap             ; always
+@notp:  CPX #PIECE_KNIGHT
+        BEQ gt_leap
+        CPX #PIECE_KING
+        BEQ gt_leap
+        ; Bishop / rook / queen: slide along the king steps. Rook = even
+        ; entries (N E S W), bishop = odd (diagonals), queen = all 8.
+        LDA gt_step-PIECE_BISHOP,X
+        STA gt_dstep
+@dir:   LDX gt_di
+        LDA gt_offsets+GT_KING,X
+        STA gt_dir
+        LDA gt_from
+@ray:   CLC
+        ADC gt_dir
+        TAX
+        AND #OFFBOARD_MASK
+        BNE @ndir               ; off the board
+        LDA board,X
+        BEQ @empty
+        EOR gt_color
+        BPL @ndir               ; own piece: stop before it
+        TXA                     ; enemy piece: take it, then stop
+        JSR gt_add
+        JMP @ndir
+@empty: BIT gt_mode
+        BVS @pass               ; material only: an empty square never is
+        TXA
+        JSR gt_add
+@pass:  TXA
+        JMP @ray
+@ndir:  LDA gt_di
+        CLC
+        ADC gt_dstep
+        STA gt_di
+        CMP gt_dend
+        BCC @dir
+        RTS
+
+; Knight, king, pawn: one step per gt_offsets entry.
+gt_leap:
+@l:     LDX gt_di
+        LDA gt_from
+        CLC
+        ADC gt_offsets,X
+        TAX
+        AND #OFFBOARD_MASK
+        BNE @next
+        LDA board,X
+        BEQ @empty
+        EOR gt_color
+        BPL @next               ; own piece
+@add:   TXA
+        JSR gt_add
+@next:  INC gt_di
+        LDA gt_di
+        CMP gt_dend
+        BCC @l
+        RTS
+@empty: BIT gt_mode
+        BVC @add
+        LDA gt_type             ; material only: an empty square counts for a
+        CMP #PIECE_PAWN         ;   pawn diagonal (en passant) or a push onto
+        BNE @next               ;   the last rank (promotion)
+        LDY gt_di
+        LDA gt_offsets,Y
+        AND #$0F
+        BNE @add                ; diagonal
+        TXA
+        AND #$70
+        BEQ @add                ; rank 1
+        CMP #$70
+        BEQ @add                ; rank 8
+        BNE @next               ; always
+
+; gt_add -- add square A to the list tgt_buf[gt_base..gt_end), in ascending
+; order unless gt_mode has GT_UNSORTED. Keeps X.
+gt_add:
+        STA gt_new
+        LDY gt_end
+        BIT gt_mode
+        BMI @put                ; unsorted: append
+@shift: CPY gt_base
+        BEQ @put
+        LDA tgt_buf-1,Y
+        CMP gt_new
+        BCC @put                ; smaller entry below: insert here
+        STA tgt_buf,Y
+        DEY
+        JMP @shift
+@put:   LDA gt_new
+        STA tgt_buf,Y
+        INC gt_end
+        RTS
+
+; gt_check -- set up move tgt_buf[Y] from mv_from (ce_piece = its piece).
+; CC = pseudo-legal (pawn candidates go through is_pseudo_legal), CS = not.
+gt_check:
+        LDA tgt_buf,Y
+        STA mv_to
+        LDA #$00
+        STA mv_promo
+        STA mv_flags
+        LDA ce_piece
+        AND #PIECE_MASK
+        CMP #PIECE_PAWN
+        BEQ @pawn
+        CLC
+        RTS
+@pawn:  JMP is_pseudo_legal
+
+; gt_offsets ranges per piece type (pawn .. king; a black pawn is patched to
+; GT_BPAWN in gen_targets) and the slide step (bishop, rook, queen).
+gt_offsets:
+        .byte $1F, $21, $0E, $12, $E1, $DF, $F2, $EE    ;  0 knight
+        .byte $10, $11, $01, $F1, $F0, $EF, $FF, $0F    ;  8 king: N NE E SE S SW W NW
+        .byte $0F, $10, $11, $20                        ; 16 white pawn
+        .byte $E0, $EF, $F0, $F1                        ; 20 black pawn
+; Leapers index gt_offsets directly; sliders index its king block (0..7).
+gt_first: .byte 16, 0, 1, 0, 0, GT_KING
+gt_last:  .byte 20, 8, 8, 8, 8, GT_KING+8
+gt_step:  .byte 2, 2, 1
+
+; ============================================================================
 ; make_move -- apply the move (mv_from, mv_to, mv_promo, mv_flags) to the board
 ; ============================================================================
 ; Saves enough state for unmake_move (single-level undo).
@@ -1029,6 +1229,21 @@ make_move:
         LDA #$00
         STA board,X
 @no_ep_cap:
+
+        ; --- 5b. Material totals (evaluate_material) ---
+        LDA saved_captured
+        BEQ @no_mat_cap
+        JSR mat_take            ; captured piece leaves its side's total
+@no_mat_cap:
+        LDA mv_promo
+        BEQ @no_mat_promo
+        LDA tmp                 ; the promoted piece joins, the pawn leaves
+        JSR mat_give
+        LDA tmp
+        AND #COLOR_MASK
+        ORA #PIECE_PAWN
+        JSR mat_take
+@no_mat_promo:
 
         ; --- 6. Update ep_square ---
         ; Set if this was a pawn double push, else clear.
@@ -1208,10 +1423,13 @@ unmake_move:
         STA tmp                 ; current piece on to-square
         LDA mv_promo
         BEQ @no_unp
+        LDA tmp                 ; promoted piece leaves, the pawn comes back
+        JSR mat_take
         LDA tmp
         AND #COLOR_MASK
         ORA #PIECE_PAWN
         STA tmp
+        JSR mat_give
 @no_unp:
         LDX mv_from
         LDA tmp
@@ -1250,6 +1468,10 @@ unmake_move:
         LDA saved_captured
         STA board,X
 @restore_state:
+        LDA saved_captured      ; captured piece rejoins its side's total
+        BEQ @no_mat_cap
+        JSR mat_give
+@no_mat_cap:
         ; Restore game state.
         LDA saved_ep
         STA ep_square
@@ -1328,264 +1550,133 @@ in_check:
         STA attacker_color
         ; fall through
 
-; is_attacked_runner: scan board[] for any attacker_color piece that can
-; reach attacked_sq. Returns A = 0 (not attacked) or A = 1 (attacked).
-;
-; Implementation note: the attack-test helpers (atk_rook, atk_bishop,
-; atk_knight, atk_king) all use X as their direction-loop counter, which
-; would clobber our scan square. We persist the scan square in `scan_sq`
-; (BSS) and reload X from it after every JSR.
+; is_attacked_runner: is attacked_sq attacked by a piece of attacker_color?
+; Returns A = 0 (no) or 1 (yes), Z set accordingly. Looks outward from the
+; square -- pawn and knight and king steps, then the 8 rays up to the first
+; piece -- instead of scanning the board for attackers. Keeps ce_piece, tmp,
+; tmp2, mv_* and the search iterators; clobbers X, Y and ia_dir.
+; A board byte EOR attacker_color equals the bare piece type exactly when the
+; piece has the attacker's colour (an empty square gives $80 or $00 -- never
+; a piece type).
 is_attacked_runner:
-        LDA #$00
-        STA scan_sq
-@bloop:
-        LDX scan_sq
-        TXA
-        AND #OFFBOARD_MASK
-        BNE @next
-        LDA board,X
-        BEQ @next
-        ; Must be the attacker colour.
+        ; Pawns: a white pawn attacks up (+$0F / +$11), so it sits at
+        ; attacked_sq - $0F / - $11; a black one at + $0F / + $11.
+        LDX #$00
+        LDA attacker_color
+        BEQ @pw
+        LDX #$02
+@pw:    LDA attacked_sq
+        CLC
+        ADC ia_pawn,X
         TAY
-        AND #COLOR_MASK
-        CMP attacker_color
-        BNE @next
-        ; Test if this piece attacks attacked_sq. Use atk_piece (NOT ce_piece)
-        ; so move-gen callers' ce_piece survives across in_check.
-        STX ce_sq               ; attacker's square
+        AND #OFFBOARD_MASK
+        BNE @pn
+        LDA board,Y
+        EOR attacker_color
+        CMP #PIECE_PAWN
+        BEQ @hit
+@pn:    TXA
+        LSR A                   ; second entry done?
+        BCS @kn
+        INX
+        BNE @pw                 ; always
+        ; Knights (entries 0-7) then king (8-15): both step sets are symmetric.
+@kn:    LDX #$0F
+@kl:    LDA attacked_sq
+        CLC
+        ADC gt_offsets,X
+        TAY
+        AND #OFFBOARD_MASK
+        BNE @kx
+        LDA board,Y
+        EOR attacker_color
+        CMP ia_leaper,X
+        BEQ @hit
+@kx:    DEX
+        BPL @kl
+        ; Rays: N NE E SE S SW W NW. The first piece met attacks if it is a
+        ; queen, or a rook on an even ray / a bishop on an odd one.
+        LDX #$07
+@ray:   LDA gt_offsets+GT_KING,X
+        STA ia_dir
+        LDA attacked_sq
+@step:  CLC
+        ADC ia_dir
+        TAY
+        AND #OFFBOARD_MASK
+        BNE @rx
+        LDA board,Y
+        BNE @piece
         TYA
-        STA atk_piece
-        JSR attacks_target
-        BCC @hit
-@next:
-        INC scan_sq
-        BNE @bloop
+        JMP @step
+@piece: EOR attacker_color
+        CMP #PIECE_QUEEN
+        BEQ @hit
+        CMP ia_slider,X
+        BEQ @hit
+@rx:    DEX
+        BPL @ray
         LDA #$00                ; not attacked
         RTS
 @hit:   LDA #$01                ; attacked
         RTS
 
-; attacks_target: does the piece at ce_sq (full byte ce_piece) attack
-; the square attacked_sq? Returns CC=yes, CS=no.
-attacks_target:
-        LDA atk_piece
-        AND #PIECE_MASK
-        CMP #PIECE_PAWN
-        BNE @nop
-        JMP atk_pawn
-@nop:   CMP #PIECE_KNIGHT
-        BNE @non
-        JMP atk_knight
-@non:   CMP #PIECE_KING
-        BNE @nok
-        JMP atk_king
-@nok:   CMP #PIECE_BISHOP
-        BNE @nob
-        JMP atk_bishop
-@nob:   CMP #PIECE_ROOK
-        BNE @noq
-        JMP atk_rook
-@noq:   ; Queen
-        JSR atk_rook
-        BCC @qok
-        JMP atk_bishop
-@qok:   RTS
-
-atk_pawn:
-        ; Pawn attacks two diagonal forward squares.
-        LDA atk_piece
-        AND #COLOR_MASK
-        BEQ @wp
-        ; Black pawn attacks ce_sq + (-$11) and (-$0F)
-        LDA ce_sq
-        CLC
-        ADC #$EF
-        CMP attacked_sq
-        BEQ @ok
-        LDA ce_sq
-        CLC
-        ADC #$F1
-        CMP attacked_sq
-        BEQ @ok
-        SEC
-        RTS
-@wp:    ; White pawn attacks ce_sq + ($0F) and ($11)
-        LDA ce_sq
-        CLC
-        ADC #$0F
-        CMP attacked_sq
-        BEQ @ok
-        LDA ce_sq
-        CLC
-        ADC #$11
-        CMP attacked_sq
-        BEQ @ok
-        SEC
-        RTS
-@ok:    CLC
-        RTS
-
-atk_knight:
-        LDA attacked_sq
-        SEC
-        SBC ce_sq
-        STA tmp
-        LDX #$08
-@l:     LDA knight_offsets-1,X
-        CMP tmp
-        BEQ @ok
-        DEX
-        BNE @l
-        SEC
-        RTS
-@ok:    CLC
-        RTS
-
-atk_king:
-        LDA attacked_sq
-        SEC
-        SBC ce_sq
-        STA tmp
-        LDX #$08
-@l:     LDA king_offsets-1,X
-        CMP tmp
-        BEQ @ok
-        DEX
-        BNE @l
-        SEC
-        RTS
-@ok:    CLC
-        RTS
-
-atk_bishop:
-        LDX #$00
-@dloop:
-        LDA bishop_offsets,X
-        STA ce_dir
-        LDA ce_sq
-        STA tmp                 ; current scan square
-@step:
-        LDA tmp
-        CLC
-        ADC ce_dir
-        STA tmp
-        AND #OFFBOARD_MASK
-        BNE @next
-        LDA tmp
-        CMP attacked_sq
-        BEQ @hit
-        TAY
-        LDA board,Y
-        BEQ @step
-        ; Blocked
-@next:  INX
-        CPX #$04
-        BNE @dloop
-        SEC
-        RTS
-@hit:   CLC
-        RTS
-
-atk_rook:
-        LDX #$00
-@dloop:
-        LDA rook_offsets,X
-        STA ce_dir
-        LDA ce_sq
-        STA tmp
-@step:
-        LDA tmp
-        CLC
-        ADC ce_dir
-        STA tmp
-        AND #OFFBOARD_MASK
-        BNE @next
-        LDA tmp
-        CMP attacked_sq
-        BEQ @hit
-        TAY
-        LDA board,Y
-        BEQ @step
-@next:  INX
-        CPX #$04
-        BNE @dloop
-        SEC
-        RTS
-@hit:   CLC
-        RTS
+ia_pawn:   .byte $F1, $EF, $0F, $11     ; white attacker, black attacker
+ia_leaper: .byte PIECE_KNIGHT, PIECE_KNIGHT, PIECE_KNIGHT, PIECE_KNIGHT
+           .byte PIECE_KNIGHT, PIECE_KNIGHT, PIECE_KNIGHT, PIECE_KNIGHT
+           .byte PIECE_KING, PIECE_KING, PIECE_KING, PIECE_KING
+           .byte PIECE_KING, PIECE_KING, PIECE_KING, PIECE_KING
+ia_slider: .byte PIECE_ROOK, PIECE_BISHOP, PIECE_ROOK, PIECE_BISHOP
+           .byte PIECE_ROOK, PIECE_BISHOP, PIECE_ROOK, PIECE_BISHOP
 
 ; ============================================================================
 ; game_status -- 0 ongoing, 1 white-mate, 2 black-mate, 3 stalemate
 ; ============================================================================
-; v0.1: brute-force "any legal move" check. Iterates all (from, to) pairs
-; for the side to move and tests pseudo-legality + safety. Slow (O(64*64))
-; but correct, runs once per move (~few hundred ms at 1 MHz). Polished in
-; v1.2 with proper move-list iteration.
+; Looks for any legal move of the side to move (gen_targets + own-king-safe
+; test), castling included. Uses ai_scan_* and the GT_ROOT list: not callable
+; from inside ai_play_move.
 ;
 ; Returns A = status code, Z reflects A.
 game_status:
-        ; Try every from/to pair until we find a legal move.
-        LDX #$00
+        ; Try every move of the side to move until one is legal.
+        LDA #$00
+        STA ai_scan_x
 @floop:
+        LDX ai_scan_x
         TXA
         AND #OFFBOARD_MASK
         BNE @nextf
-        STX mv_from
         LDA board,X
         BEQ @nextf
         AND #COLOR_MASK
         CMP side_to_move
         BNE @nextf
-        STA tmp                 ; (unused, just preserved)
-        ; Re-load piece into ce_piece for is_pseudo_legal.
+        STX mv_from
         LDA board,X
         STA ce_piece
-        LDY #$00
-@tloop:
-        TYA
-        AND #OFFBOARD_MASK
-        BNE @nextt
-        STY mv_to
-        ; Skip same square.
-        CPY mv_from
-        BEQ @nextt
-        ; Skip own-colour destination.
-        LDA board,Y
-        BEQ @testit
-        AND #COLOR_MASK
-        CMP side_to_move
-        BEQ @nextt
-@testit:
+        LDY #GT_ROOT
         LDA #$00
-        STA mv_promo            ; ignore promotion choice during scan
-        STA mv_flags            ; clear castling/ep flags from prior user move
-        ; Save then test: is_pseudo_legal + make + in_check + unmake.
-        TXA
-        PHA                     ; save X across calls
-        TYA
-        PHA
-        JSR is_pseudo_legal
-        BCS @undo_y
+        STA gt_mode             ; every target, ascending
+        JSR gen_targets
+        LDA #GT_ROOT
+        STA ai_scan_y           ; index into tgt_buf
+@tloop:
+        LDY ai_scan_y
+        CPY gt_end
+        BCS @nextf
+        JSR gt_check            ; clears mv_promo / mv_flags
+        BCS @nextt
         JSR make_move
         JSR in_check
         BNE @bad
         ; Found a legal move → game ongoing.
         JSR unmake_move
-        PLA
-        TAY
-        PLA
-        TAX
         LDA #$00
         RTS
 @bad:   JSR unmake_move
-@undo_y:
-        PLA
-        TAY
-        PLA
-        TAX
-@nextt: INY
-        BNE @tloop
-@nextf: INX
+@nextt: INC ai_scan_y
+        JMP @tloop
+@nextf: INC ai_scan_x
         BNE @floop
         ; No NORMAL legal move was found. Castling isn't produced by the
         ; (from,to) scan, so a castle could still be the only legal move — test
@@ -1620,46 +1711,72 @@ game_status:
 ; ============================================================================
 ; Simple material count, scaled to fit in signed 8-bit:
 ;   pawn=1, knight=3, bishop=3, rook=5, queen=9, king=0 (always equal).
-; Returned in score_lo (BSS). Range +/-39 for normal positions.
+; Returned in score_lo (BSS). Range +/-39 for normal positions. Read from the
+; running totals mat_tot (white, black) instead of a board scan.
 ;
 ; "Our" = side_to_move at evaluation time.
 .export evaluate_material
 .export score_lo
 evaluate_material:
-        LDA #$00
+        LDA side_to_move
+        BNE @black
+        LDA mat_tot
+        SEC
+        SBC mat_tot+1
         STA score_lo
-        LDX #$00
-@elp:
+        RTS
+@black: LDA mat_tot+1
+        SEC
+        SBC mat_tot
+        STA score_lo
+        RTS
+
+; mat_tot upkeep: make_move / unmake_move adjust it for captures and
+; promotions; init_board (and anything else that sets up a board) calls
+; mat_recount.
+.export mat_recount
+mat_recount:
+        LDA #$00
+        STA mat_tot
+        STA mat_tot+1
+        STA scan_sq
+@l:     LDX scan_sq
         TXA
         AND #OFFBOARD_MASK
-        BNE @ent
+        BNE @n
         LDA board,X
-        BEQ @ent
-        STA tmp                 ; tmp = piece byte
-        AND #PIECE_MASK
-        TAY                     ; Y = piece type
-        LDA mat_simple,Y        ; A = piece value (table below)
-        STA tmp2
-        LDA tmp
-        AND #COLOR_MASK
-        CMP side_to_move
-        BNE @sub
-        ; Same colour as side_to_move → add to score
+        BEQ @n
+        JSR mat_give
+@n:     INC scan_sq
+        BPL @l                  ; squares $00-$7F
+        RTS
+
+; mat_give / mat_take -- add / remove piece A (full byte) to / from its
+; side's total. Clobber A, X, Y.
+mat_give:
+        JSR mat_split
+        LDA mat_tot,X
         CLC
-        LDA score_lo
-        ADC tmp2
-        STA score_lo
-        JMP @ent
-@sub:
-        ; Opposite colour → subtract
+        ADC mat_simple,Y
+        STA mat_tot,X
+        RTS
+mat_take:
+        JSR mat_split
+        LDA mat_tot,X
         SEC
-        LDA score_lo
-        SBC tmp2
-        STA score_lo
-@ent:
-        INX
-        BNE @elp
-        LDA score_lo
+        SBC mat_simple,Y
+        STA mat_tot,X
+        RTS
+; A = piece byte -> X = 0 white / 1 black, Y = piece type.
+mat_split:
+        TAY
+        ASL A                   ; C = colour bit
+        LDA #$00
+        ROL A
+        TAX
+        TYA
+        AND #PIECE_MASK
+        TAY
         RTS
 
 ; Compact material table (signed 8-bit safe sums):
@@ -2111,17 +2228,23 @@ ai_rng_step:
         RTS
 
 ; ============================================================================
-; 2-ply (negamax) move search — replaces the old 1-ply + Static-Exchange
-; heuristic. ai_strategy selects depth: NAIVE = 1-ply material (fast), SMART
-; (default) = 2-ply minimax. Depth 2 sees the opponent's immediate reply, so it
-; stops hanging pieces, grabs free material, finds mate-in-1 and refuses to give
-; it — a large strength jump over the destination-only SEE it replaces.
+; Negamax search with cutoffs. ai_strategy selects the depth: NAIVE = 1 ply
+; (material after our move), SMART = 2 plies (sees the opponent's reply: stops
+; hanging pieces, finds and refuses mate-in-1), DEEP = 3 plies (also sees our
+; answer to that reply).
 ;
-; Nesting our move (outer) over the opponent's reply (inner) needs make_move to
-; nest one level. make_move/unmake_move keep a single saved_* slot, so the outer
-; move's undo info is copied to saved2_* across the inner reply loop (push_saved
-; / pop_saved) and the outer move bytes are snapshotted in m_* (the inner loop
-; reuses mv_from/mv_to/mv_flags).
+; The root (ai_play_move) keeps its own loop for the tie-breaks; each root move
+; is scored by search_node on the opponent's side. Below the root, every ply
+; has its own slot in the p_* / n_* arrays: the move and make_move's undo
+; slots (saved_*) are parked there while deeper plies reuse them.
+;
+; Cutoffs: a node gets a cut and returns as soon as its best score exceeds it
+; (the value is then only a bound, high enough for the caller to reject the
+; move). A child's cut is -(parent's best)-1: past it, the parent would not
+; take the move. At the root the cut comes from ai_best_score, so a cut root
+; move is always strictly worse than the current best -- consider_move rejects
+; it without touching the LFSR, and the chosen move is exactly the one a full
+; search would pick.
 ; ============================================================================
 
 ; Positional bonus (pawn-equivalents) added to a castling move's score so the
@@ -2129,156 +2252,298 @@ ai_rng_step:
 ; yields to a real capture/promotion of equal-or-greater value.
 CASTLE_BONUS = 1
 
-; push_saved / pop_saved — copy the make_move undo slots to / from the 2nd
-; buffer so one nested make_move can't destroy the outer move's undo info.
-push_saved:
+; save_ply / restore_ply -- X = slot (ply, or ROOT_SLOT): park / restore the
+; move in mv_* and make_move's undo slots.
+save_ply:
+        LDA mv_from
+        STA p_from,X
+        LDA mv_to
+        STA p_to,X
+        LDA mv_flags
+        STA p_flags,X
+        LDA mv_promo
+        STA p_promo,X
         LDA saved_captured
-        STA saved2_captured
+        STA p_cap,X
         LDA saved_ep
-        STA saved2_ep
+        STA p_ep,X
         LDA saved_castling
-        STA saved2_castling
+        STA p_castling,X
         LDA saved_halfmove
-        STA saved2_halfmove
+        STA p_half,X
         LDA saved_king_sq
-        STA saved2_king_sq
+        STA p_ksq,X
         LDA saved_castle_rook_from
-        STA saved2_crf
+        STA p_crf,X
         LDA saved_castle_rook_to
-        STA saved2_crt
+        STA p_crt,X
         RTS
-pop_saved:
-        LDA saved2_captured
+restore_ply:
+        LDA p_from,X
+        STA mv_from
+        LDA p_to,X
+        STA mv_to
+        LDA p_flags,X
+        STA mv_flags
+        LDA p_promo,X
+        STA mv_promo
+        LDA p_cap,X
         STA saved_captured
-        LDA saved2_ep
+        LDA p_ep,X
         STA saved_ep
-        LDA saved2_castling
+        LDA p_castling,X
         STA saved_castling
-        LDA saved2_halfmove
+        LDA p_half,X
         STA saved_halfmove
-        LDA saved2_king_sq
+        LDA p_ksq,X
         STA saved_king_sq
-        LDA saved2_crf
+        LDA p_crf,X
         STA saved_castle_rook_from
-        LDA saved2_crt
+        LDA p_crt,X
         STA saved_castle_rook_to
         RTS
 
-
-; best_reply_eval — side_to_move is the OPPONENT and the board reflects our
-; move. Scan the opponent's legal replies; return A = the opponent's best
-; evaluate_material (their perspective = their material - ours): the most they
-; can do to us in one reply. No legal reply: A = -127 if the opponent is in
-; check (we just mated them), else 0 (stalemate). Single-level make/unmake here.
-best_reply_eval:
-        LDA #$80
-        STA best_reply          ; -128: any real reply beats it
-        LDA #$00
-        STA reply_found
-        STA rscan_x
-@rfloop:
-        LDX rscan_x
-        TXA
-        AND #OFFBOARD_MASK
-        BNE @rskipf
-        LDA board,X
-        BEQ @rskipf
-        AND #COLOR_MASK
-        CMP side_to_move
-        BEQ @rprocf             ; only the side-to-move's (opponent's) pieces
-@rskipf:
-        JMP @rnextf             ; trampoline (inner loop below is > 127 B)
-@rprocf:
-        STX mv_from
-        LDA board,X
-        STA ce_piece
-        LDA #$00
-        STA rscan_y
-@rtloop:
-        LDY rscan_y
-        TYA
-        AND #OFFBOARD_MASK
-        BNE @rnextt
-        STY mv_to
-        CPY mv_from
-        BEQ @rnextt
-        LDA board,Y
-        BEQ @rtest
-        AND #COLOR_MASK
-        CMP side_to_move
-        BEQ @rnextt             ; can't capture own piece
-@rtest:
-        LDA #$00
-        STA mv_promo
-        STA mv_flags
-        JSR is_pseudo_legal
-        BCS @rnextt
-.ifdef CHESS_SMART_EVAL
-        LDY mv_to               ; is this reply a capture? (piece on the target)
-        LDA board,Y
-        STA see_victim          ; 0 = quiet reply
+; root_cut -- A = the lowest score a root move needs to still be adopted
+; (signed). Sets s_cut = -A: the reply search may stop once the opponent's
+; best exceeds it. A = -128 or -127: every move counts, s_cut = +127 (never).
+root_cut:
+.ifdef CHESS_NO_CUTOFF
+        LDA #$7F                ; test build: full search (test/Makefile exact)
+        STA s_cut
+        RTS
 .endif
+        CMP #$80
+        BEQ @none
+        CMP #$81
+        BEQ @none
+        EOR #$FF
+        CLC
+        ADC #$01
+        STA s_cut
+        RTS
+@none:  LDA #$7F
+        STA s_cut
+        RTS
+
+; search_node -- the side to move answers the move just made. In: A = cut,
+; s_ply = this node's slot, s_leaf = the slot whose moves are scored
+; statically. Out: A = the side to move's best score (their material minus
+; the other side's), exact when <= cut, else some value > cut.
+; Leaf score: material after the move, less the moved piece when it captured
+; on a defended square (qsee_adjust). No legal move: -127 if in check (mated),
+; 0 if stalemate; a castle -- only tried then -- scores its material.
+; Moves come in two passes: first those that change the material (captures,
+; en passant, promotions: a strong answer early means earlier cutoffs), then
+; the others. At the leaf every quiet move scores the material as it stands
+; (n_stat), so the quiet pass only looks for one legal quiet move, and only
+; when n_stat would beat the best material move -- or first, when n_stat alone
+; beats the cut.
+search_node:
+        LDX s_ply
+        STA n_cut,X
+        LDA #$80
+        STA n_best,X            ; -128: any real move beats it
+        LDA #$00
+        STA n_found,X
+        STA n_pass,X            ; material moves first: earlier cutoffs
+        CPX s_leaf
+        BNE @start
+        JSR evaluate_material   ; leaf: score of any quiet move
+        LDX s_ply
+        STA n_stat,X
+        EOR #$80
+        STA tmp
+        LDA n_cut,X
+        EOR #$80
+        CMP tmp
+        BCS @start              ; cut >= static
+        INC n_pass,X            ; static > cut: one legal quiet move is a
+@start: LDA n_pass,X            ;   cutoff -- look for it first
+        STA n_first,X
+        JMP @newpass
+@skipf: JMP @nextf              ; (loop body > 127 B)
+@skipt: JMP @nextt
+@floop:                         ; X = s_ply, Y = n_from = a piece of ours
+        LDA n_pass,X            ; pass 0: material moves only
+        BNE @allm
+        LDA #GT_UNSORTED | GT_MATERIAL
+        .byte $2C               ; BIT abs: skip the next LDA
+@allm:  LDA #GT_UNSORTED
+        STA gt_mode
+        TYA
+        PHA
+        LDA sn_base,X
+        TAY                     ; Y = this slot's list
+        PLA
+        TAX                     ; X = from
+        JSR gen_targets
+        LDX s_ply
+        LDA gt_end
+        STA n_end,X
+        LDA sn_base,X
+        STA n_idx,X
+@tloop:
+        LDX s_ply
+        LDA n_idx,X
+        CMP n_end,X
+        BCS @skipf
+        LDY n_from,X            ; deeper plies clobber mv_from / ce_piece
+        STY mv_from
+        LDA board,Y
+        STA ce_piece
+        LDY n_idx,X
+        JSR gt_check
+        BCS @skipt
+        LDY mv_to               ; a capture? (also for qsee_adjust at the leaf)
+        LDA board,Y
+        STA see_victim
+        ORA mv_promo            ; material move: capture, promotion or
+        STA tmp                 ;   en passant
+        LDA mv_flags
+        AND #MV_FLAG_ENPASSANT
+        ORA tmp
+        CMP #$01                ; C = material move
+        LDA #$00
+        ROL A
+        LDX s_ply
+        EOR n_pass,X            ; pass 0 takes material moves, pass 1 the rest
+        BEQ @skipt
         JSR make_move
-        JSR in_check            ; opponent's own king left in check?
-        BNE @rillegal
+        JSR in_check            ; own king left in check?
+        BEQ @legal
+        JMP @illegal
+@legal: LDX s_ply
         LDA #$01
-        STA reply_found
-        JSR evaluate_material   ; A = opp - us (opponent perspective)
+        STA n_found,X
+        CPX s_leaf
+        BNE @inner
+        LDA n_pass,X
+        BNE @leafq
+        JSR evaluate_material   ; leaf: A = mover's material - other's
 .ifdef CHESS_SMART_EVAL
-        STA see_value           ; quiescence (SEE-1): credit our recapture of a
-        JSR qsee_adjust         ;   defended capture, so exchanges aren't miscounted
+        STA see_value
+        JSR qsee_adjust
         LDA see_value
 .endif
-        TAX                     ; preserve candidate
-        CLC
-        ADC #$80
-        STA tmp                 ; biased candidate
-        LDA best_reply
-        CLC
-        ADC #$80
-        CMP tmp                 ; biased best vs biased candidate
-        BCS @rnotbetter         ; best >= candidate -> keep
-        STX best_reply          ; candidate > best -> adopt
-@rnotbetter:
+        JMP @score
+@inner:
+        JSR save_ply            ; X = s_ply
+        LDX s_ply
+        LDA n_best,X
+        EOR #$FF                ; child's cut = -best - 1
+.ifdef CHESS_NO_CUTOFF
+        LDA #$7F
+.endif
+        PHA
+        JSR toggle_side
+        INC s_ply
+        PLA
+        JSR search_node
+        DEC s_ply
+        STA s_val
+        JSR toggle_side
+        LDX s_ply
+        JSR restore_ply
+        SEC
+        LDA #$00
+        SBC s_val               ; our score = -(their best)
+@score:
+        STA s_val
+        EOR #$80                ; signed compare via the +$80 bias
+        STA tmp
+        LDX s_ply
+        LDA n_best,X
+        EOR #$80
+        CMP tmp
+        BCS @keep               ; best >= score
+        LDA s_val
+        STA n_best,X
+@keep:  JSR unmake_move
+        LDX s_ply
+        LDA n_cut,X
+        EOR #$80
+        STA tmp
+        LDA n_best,X
+        EOR #$80
+        CMP tmp
+        BCC @nextt              ; best < cut
+        BEQ @nextt              ; best = cut
+        LDA n_best,X            ; best > cut: the caller rejects this line
+        RTS
+@leafq: JSR unmake_move       ; leaf, quiet move: it scores the material as
+        LDX s_ply               ;   it stands, and so would every other quiet
+        LDA n_stat,X            ;   move -- one legal one is enough
+        STA s_val
+        EOR #$80
+        STA tmp
+        LDA n_best,X
+        EOR #$80
+        CMP tmp
+        BCS @lq                 ; best >= static
+        LDA s_val
+        STA n_best,X
+@lq:    LDA n_best,X
+        RTS
+@illegal:
         JSR unmake_move
-        JMP @rnextt
-@rillegal:
-        JSR unmake_move
-@rnextt:
-        INC rscan_y
-        BEQ @rnextf
-        JMP @rtloop              ; trampoline (loop body > 127 B)
-@rnextf:
-        INC rscan_x
-        BEQ @rdonescan
-        JMP @rfloop              ; trampoline
-@rdonescan:
-        LDA reply_found
-        BNE @rhave
-        ; No normal reply — a castle could be the opponent's only legal move.
-        LDA #MV_FLAG_CASTLE_K
+@nextt: LDX s_ply
+        INC n_idx,X
+        JMP @tloop
+@newpass:
+        LDA #$FF
+        STA n_from,X
+@nextf: LDX s_ply               ; next piece of ours; off-board squares of
+        LDY n_from,X            ;   board[] are always 0
+@scan:  INY
+        CPY #$78                ; past h8
+        BCS @pass
+        LDA board,Y
+        BEQ @scan
+        EOR side_to_move
+        BMI @scan               ; the other side's piece
+        TYA
+        STA n_from,X
+        JMP @floop
+@pass:  LDA n_pass,X
+        CMP n_first,X
+        BNE @done               ; both passes done
+        EOR #$01
+        STA n_pass,X
+        BEQ @newpass            ; leaf without a legal quiet move: material now
+        CPX s_leaf
+        BNE @newpass
+        LDA n_stat,X            ; leaf: a quiet move can only score the
+        EOR #$80                ;   material as it stands -- skip them when
+        STA tmp                 ;   that can't beat best
+        LDA n_best,X
+        EOR #$80
+        CMP tmp
+        BCC @newpass
+@done:  LDA n_found,X
+        BEQ @nomove
+        LDA n_best,X
+        RTS
+@nomove:
+        LDA #MV_FLAG_CASTLE_K   ; a castle could be the only legal move
         JSR try_one_castle
-        BCC @rcastle
+        BCC @castle
         LDA #MV_FLAG_CASTLE_Q
         JSR try_one_castle
-        BCS @rnomove
-@rcastle:
-        JSR evaluate_material   ; castle is material-neutral; opp perspective
-        STA best_reply
+        BCS @none
+@castle:
+        JSR evaluate_material   ; castle is material-neutral
+        STA s_val
         JSR unmake_move
-        LDA best_reply
+        LDA s_val
         RTS
-@rnomove:
-        JSR in_check            ; opponent has NO legal move
-        BEQ @rstale
-        LDA #$81                ; -127: opponent is checkmated (we win)
+@none:  JSR in_check
+        BEQ @stale
+        LDA #$81                ; -127: mated
         RTS
-@rstale:
-        LDA #$00                ; stalemate ~ draw
+@stale: LDA #$00                ; stalemate ~ draw
         RTS
-@rhave:
-        LDA best_reply
-        RTS
+
+sn_base: .byte GT_PLY0, GT_PLY0+32, GT_PLY0+64     ; tgt_buf list per slot
 
 ; qsee_adjust — quiescence (SEE-1). The opponent's reply is MADE on the board;
 ;   see_victim = the piece it captured (0 if quiet), see_value = the static eval.
@@ -2311,38 +2576,32 @@ qsee_adjust:
 
 ; score_move — the move in mv_* is currently MADE on the board (our king already
 ; verified safe). Return A = its score from our perspective. NAIVE = material
-; after the move; SMART = -(opponent's best reply) (2-ply). The board stays MADE
-; (caller unmakes); SMART restores saved_*/mv_* before returning.
+; after the move; SMART / DEEP = -(opponent's best answer), searched with the
+; cut in s_cut (root_cut). The board stays MADE (caller unmakes); mv_* and
+; saved_* are restored before returning.
 score_move:
         LDA ai_strategy
-        BNE @sm_smart
+        BNE @sm_search
         JMP evaluate_material   ; tail: A = our - their
-@sm_smart:
-        JSR push_saved
-        LDA mv_from
-        STA m_from
-        LDA mv_to
-        STA m_to
-        LDA mv_flags
-        STA m_flags
-        LDA mv_promo
-        STA m_promo
+@sm_search:
+        LDX #ROOT_SLOT
+        JSR save_ply
+        LDA ai_strategy         ; SMART: leaf = slot 0, DEEP: slot 1
+        SEC
+        SBC #AI_STRATEGY_SMART
+        STA s_leaf
+        LDA #$00
+        STA s_ply
         JSR toggle_side         ; opponent to move
-        JSR best_reply_eval
-        STA m_score
+        LDA s_cut
+        JSR search_node
+        STA s_val
         JSR toggle_side         ; back to us
-        LDA m_from
-        STA mv_from
-        LDA m_to
-        STA mv_to
-        LDA m_flags
-        STA mv_flags
-        LDA m_promo
-        STA mv_promo
-        JSR pop_saved
+        LDX #ROOT_SLOT
+        JSR restore_ply
         SEC
         LDA #$00
-        SBC m_score             ; A = -(opponent best) = our negamax score
+        SBC s_val               ; A = -(opponent best) = our negamax score
         RTS
 
 ; consider_move — A = candidate score for the move in mv_*. Replace ai_best_* if
@@ -2427,52 +2686,70 @@ ai_play_move:
         LDA #$80                ; -128: worst
         STA ai_best_score
         STA ai_best_pos         ; -128: worst positional too
+        LDA #AI_PASS_ALL        ; NAIVE / SMART: one pass, square order (the
+        LDX ai_strategy         ;   order their games were played in)
+        CPX #AI_STRATEGY_DEEP
+        BNE @pass
+        LDA #$00                ; DEEP: material moves first, so a good score
+@pass:  STA ai_pass             ;   -- and root cutoffs -- come early
         LDA #$00
         STA ai_scan_x
+        BEQ @floop              ; always
+@skipf: JMP @nextf              ; (loop body > 127 B)
 @floop:
         LDX ai_scan_x
         TXA
         AND #OFFBOARD_MASK
-        BNE @nextf
+        BNE @skipf
         LDA board,X
-        BEQ @nextf
+        BEQ @skipf
         AND #COLOR_MASK
         CMP side_to_move
-        BNE @nextf
+        BNE @skipf
         STX mv_from
+        LDY #GT_ROOT
         LDA #$00
-        STA ai_scan_y
+        STA gt_mode             ; every target, ascending
+        JSR gen_targets
+        LDA gt_end
+        STA ai_tend             ; gt_end is reused by the reply search
+        LDA #GT_ROOT
+        STA ai_scan_y           ; index into tgt_buf
 @tloop:
         LDY ai_scan_y
-        TYA
-        AND #OFFBOARD_MASK
-        BNE @nextt
-        STY mv_to
-        CPY mv_from
-        BEQ @nextt
-        LDA board,Y
-        BEQ @testit
-        AND #COLOR_MASK
-        CMP side_to_move
-        BEQ @nextt              ; own piece on destination
-@testit:
-        ; Re-establish ce_piece every destination: the SMART reply search
-        ; (best_reply_eval) overwrites it while iterating the opponent's pieces.
+        CPY ai_tend
+        BCS @nextf
+        ; Re-establish ce_piece every destination: the reply search
+        ; (search_node) overwrites it while iterating the opponent's pieces.
         LDX mv_from
         LDA board,X
         STA ce_piece
-        LDA #$00
-        STA mv_promo
-        STA mv_flags
-        JSR is_pseudo_legal
+        JSR gt_check
         BCS @nextt
-        JSR make_move
+        LDA ai_pass
+        CMP #AI_PASS_ALL
+        BEQ @make
+        LDY mv_to               ; material move: capture, promotion or
+        LDA board,Y             ;   en passant
+        ORA mv_promo
+        STA tmp
+        LDA mv_flags
+        AND #MV_FLAG_ENPASSANT
+        ORA tmp
+        CMP #$01                ; C = material move
+        LDA #$00
+        ROL A
+        EOR ai_pass             ; pass 0 takes material moves, pass 1 the rest
+        BEQ @nextt
+@make:  JSR make_move
         JSR in_check            ; does the move leave OUR king in check?
         BNE @bad                ; illegal — discard
         JSR evaluate_positional ; board = after our move; tie-break score
         STA cand_pos
         JSR jitter_pos          ; small random jitter for game variety
-        JSR score_move          ; A = material score (1- or 2-ply)
+        LDA ai_best_score       ; below it the move can't be adopted
+        JSR root_cut
+        JSR score_move          ; A = material score (1-, 2- or 3-ply)
         JSR consider_move       ; maybe adopt as best
         JSR unmake_move
         JMP @nextt
@@ -2480,12 +2757,20 @@ ai_play_move:
         JSR unmake_move
 @nextt:
         INC ai_scan_y
-        BNE @tloop
+        JMP @tloop
 @nextf:
         INC ai_scan_x
-        BNE @floop
-
-        ; --- Castling candidates (not produced by the from/to scan). ---
+        BEQ @endscan
+        JMP @floop
+@endscan:
+        LDA ai_pass
+        BNE @castles
+        INC ai_pass             ; DEEP: material moves done, now the others
+        LDA #$00
+        STA ai_scan_x
+        JMP @floop
+@castles:
+        ; --- Castling candidates (not produced by gen_targets). ---
         LDA #MV_FLAG_CASTLE_K
         JSR try_one_castle
         BCS @try_qs
@@ -2518,6 +2803,13 @@ ai_play_move:
         JSR evaluate_positional ; board = after the castle
         STA cand_pos
         JSR jitter_pos
+        LDA ai_best_score       ; the castle gets CASTLE_BONUS on top
+        CMP #$80
+        BEQ @cc_cut
+        SEC
+        SBC #CASTLE_BONUS
+@cc_cut:
+        JSR root_cut
         JSR score_move
         CLC
         ADC #CASTLE_BONUS
@@ -2551,26 +2843,17 @@ perft1:
         STX mv_from
         LDA board,X
         STA ce_piece
+        LDY #GT_ROOT
         LDA #$00
-        STA ai_scan_y
+        STA gt_mode             ; every target, ascending
+        JSR gen_targets
+        LDA #GT_ROOT
+        STA ai_scan_y           ; index into tgt_buf
 @tloop:
         LDY ai_scan_y
-        TYA
-        AND #OFFBOARD_MASK
-        BNE @nextt
-        STY mv_to
-        CPY mv_from
-        BEQ @nextt
-        LDA board,Y
-        BEQ @ptest
-        AND #COLOR_MASK
-        CMP side_to_move
-        BEQ @nextt
-@ptest:
-        LDA #$00
-        STA mv_promo
-        STA mv_flags
-        JSR is_pseudo_legal
+        CPY gt_end
+        BCS @nextf
+        JSR gt_check
         BCS @nextt
         JSR make_move
         JSR in_check
@@ -2586,11 +2869,11 @@ perft1:
         JSR unmake_move
 @nextt:
         INC ai_scan_y
-        BNE @tloop
+        JMP @tloop
 @nextf:
         INC ai_scan_x
         BNE @floop
-        ; Castling isn't emitted by the (from,to) scan — add each legal castle
+        ; Castling isn't emitted by gen_targets — add each legal castle
         ; to the count so perft(1) matches a reference generator.
         LDA #MV_FLAG_CASTLE_K
         JSR try_one_castle
