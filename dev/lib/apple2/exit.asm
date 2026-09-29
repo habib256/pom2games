@@ -15,6 +15,11 @@
 ;                   Ctrl-RESET vector ($03F2-$03F4) at apple2_exit, so RESET
 ;                   also leaves cleanly instead of handing DOS/BASIC a zero
 ;                   page full of game state. Clobbers A, X.
+;   apple2_return   the same restore, then RTS to whoever called the program
+;                   (a BASIC CALL): the stack pointer saved by the first
+;                   apple2_zp_save is put back first. Use it with
+;                   APPLE2_PREAMBLE_CALL. Ctrl-RESET still goes to DOS.
+;
 ;   apple2_exit     put the RESET vector and the snapshot back (the live
 ;                   text window and cursor, $20-$29, are kept: a program
 ;                   that switched 40/80 columns leaves DOS a consistent
@@ -38,6 +43,7 @@ _EXIT_ASM_LOADED_ = 1
 
 .segment "BSS"
 apple2_zp_buf:  .res 256
+apple2_entry_sp: .res 1         ; caller's stack pointer (for apple2_return)
 apple2_rst_buf: .res 3          ; $03F2-$03F4 as DOS left them
 
 .segment "CODE"
@@ -45,6 +51,10 @@ apple2_rst_buf: .res 3          ; $03F2-$03F4 as DOS left them
 apple2_zp_save:
         JSR     exit_armed      ; already saved? keep that snapshot
         BEQ     @done
+        TSX                     ; the caller's stack pointer: ours + our
+        INX                     ; own return address
+        INX
+        STX     apple2_entry_sp
         LDX     #$00
 @lp:    LDA     $00,X
         STA     apple2_zp_buf,X
@@ -73,6 +83,18 @@ exit_armed:
 @no:    RTS
 
 apple2_exit:
+        JSR     exit_restore
+        JMP     DOSWARM
+
+apple2_return:
+        JSR     exit_restore
+        LDX     apple2_entry_sp ; back on the caller's stack, then return to it
+        TXS
+        RTS
+
+; exit_restore: RESET vector + zero page (live text window and cursor kept) +
+;   a clean text display. Shared by apple2_exit / apple2_return.
+exit_restore:
         JSR     exit_armed      ; no snapshot: nothing to put back
         BNE     @text
         LDX     #2
@@ -95,6 +117,6 @@ apple2_exit:
         BIT     LOWSCR
         BIT     LORES
         BIT     KBDSTRB
-        JMP     DOSWARM
+        RTS
 
 .endif  ; _EXIT_ASM_LOADED_

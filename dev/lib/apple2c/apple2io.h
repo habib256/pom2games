@@ -53,6 +53,8 @@ void a2_print_hexword(unsigned w);       /* print a 16-bit word as four digits  
 void a2_home(void);                      /* clear the text screen               */
 void a2_text(void);                      /* TEXT + full screen + page 1         */
 void a2_dos(void);                       /* restore ZP, back to DOS (no return) */
+void a2_wait(unsigned char a);           /* Monitor WAIT: ~(26+27a+5a*a)/2 cycles */
+#define A2_WAIT_FRAME 80u                /* a2_wait(80) ~ 17 000 cycles = 1 frame */
 
 /* ---- Keyboard ($C000 latch / $C010 strobe) ---- */
 unsigned char apple2_iskeypressed(void); /* nonzero (bit 7) if a key is waiting */

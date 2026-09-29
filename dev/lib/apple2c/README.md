@@ -28,6 +28,7 @@ passe par COUT (`$FDED`) sur la page texte, l'entrée lit le verrou clavier
 | `woz_mon()` | `a2_dos()` | retour au prompt DOS `]`, ZP restaurée |
 | — | `a2_home()` | efface l'écran texte |
 | — | `a2_text()` | TEXT + plein écran + page 1 |
+| — | `a2_wait(a)` | pause Moniteur `WAIT` (`a2_wait(A2_WAIT_FRAME)` ≈ une trame) |
 | `apple1_iskeypressed()` | `apple2_iskeypressed()` | ≠ 0 si une touche attend |
 | `apple1_getkey()` | `apple2_getkey()` | attend une touche, `& 0x7F`, majuscule |
 | `apple1_readkey()` | `apple2_readkey()` | 0 ou la touche, sans attendre |

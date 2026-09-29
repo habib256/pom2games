@@ -15,7 +15,8 @@ POM2    ?= /Applications/POM2.app/Contents/MacOS/POM2
 SYSTEM  ?= $(DEV)/tools/dos33_system.bin
 
 APPLE2C := $(DEV)/lib/apple2c
-GEN2C   := src/gen2c
+GEN2C   := $(DEV)/lib/hgrc
+GFX     := $(DEV)/lib/gfx
 CFG     := $(DEV)/cc65/apple2_hgr_c.cfg
 BUILD   := build
 DIST    := dist
@@ -23,7 +24,7 @@ DISK    := $(DIST)/SNAKE.dsk
 BIN     := $(BUILD)/snake.bin
 LOAD    := 0x6000
 
-CFLAGS  := -t none -Oirs -I $(GEN2C) -I $(APPLE2C)
+CFLAGS  := -t none -Oirs -I $(GEN2C) -I $(APPLE2C) -I $(GFX)
 AFLAGS  := -t none -I $(DEV)/lib/apple2 -I $(GEN2C)
 
 # crt0_apple2 FIRST: it provides __STARTUP__ / _exit instead of none.lib's crt0.
@@ -32,12 +33,12 @@ C_SRCS  := snake.c gen2_init.c gen2_rect.c gen2_text.c gen2_text_num.c \
 S_SRCS  := crt0_apple2.s gen2_blit.s apple2io_asm.s
 OBJS    := $(BUILD)/crt0_apple2.o $(addprefix $(BUILD)/,$(filter-out crt0_apple2.o,$(S_SRCS:.s=.o)) $(C_SRCS:.c=.o))
 
-vpath %.c src $(GEN2C) $(APPLE2C)
+vpath %.c src $(GEN2C) $(GFX) $(APPLE2C)
 vpath %.s $(DEV)/cc65 $(GEN2C) $(APPLE2C)
 
 all: $(DISK)
 
-$(BUILD)/%.o: %.c $(GEN2C)/gen2.h $(GEN2C)/gen2_internal.h $(GEN2C)/gen2_bbfont.inc $(APPLE2C)/apple2io.h
+$(BUILD)/%.o: %.c $(GEN2C)/gen2.h $(GEN2C)/gen2_internal.h $(GEN2C)/gen2_bbfont.inc $(GFX)/gfx.h $(APPLE2C)/apple2io.h
 	@mkdir -p $(BUILD)
 	$(CL65) $(CFLAGS) -c -o $@ $<
 

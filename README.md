@@ -14,6 +14,7 @@ naturel.
 | [`maze3d/`](maze3d/) | Dungeon crawler 3D en fil de fer, double tampon HGR | Apple II+ | `dist/MAZE3D.dsk` |
 | [`snake/`](snake/) | Snake en C (cc65) | Apple II+ | `dist/SNAKE.dsk` |
 | [`logo/`](logo/) | LOGO V2.6 : tortue HGR, texte / mixte / graphique, 40 ou 80 colonnes | Apple //e (80 col.) ou II+ (40 col.) | `dist/LOGO.dsk` |
+| [`demos/`](demos/) | Menu de 5 démos : BOUNCES, ANIMALS, LIFE, PRESHIFT, FONT | Apple II+ | `dist/DEMO.dsk` |
 
 Les disquettes sont prêtes à l'emploi : on démarre dessus et le programme se
 lance. Chaque dossier a son `README.md` (commandes, différences avec
@@ -34,8 +35,9 @@ Le dépôt ne dépend d'aucun autre dossier.
 bibliothèques Apple-1 de POM1 :
 
 - `dev/lib/apple2` et `dev/lib/apple2c` : clavier, texte, HGR, retour propre à
-  DOS, en assembleur et en C ;
-- `dev/lib/hgr` : texte, sprites et tables HGR ;
+  DOS ou à un menu BASIC, en assembleur et en C ;
+- `dev/lib/hgr` : texte, sprites et tables HGR (assembleur) ;
+- `dev/lib/hgrc` et `dev/lib/gfx` : runtime graphique C et géométrie ;
 - `dev/cc65` : configurations de l'éditeur de liens et démarrage C ;
 - `dev/tools/dos33.py` : fabrique les disquettes DOS 3.3 ;
 - `dev/tools/a2shot` : fait tourner une disquette sans fenêtre sur le cœur de

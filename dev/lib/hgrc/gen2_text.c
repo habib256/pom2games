@@ -19,13 +19,16 @@
  * can't drift from the asm table, and the TMS9918 side gets the same font from the
  * same master (bbfont_tms.inc). bit 0 = leftmost pixel, rows top->bottom; values
  * stay <= 0x7F so each glyph fits HGR's 7 px/byte. */
+#if !defined(HGRC_NO_TEXT16) || !defined(HGRC_NO_TEXT8)   /* both text families gone: no font */
 static const unsigned char kBBFontAscii[96u * 8u] = {
 #include "gen2_bbfont.inc"
 };
+#endif
 
 /* See note in gen2_rect.c: gen2_set_carrier is duplicated as static so a text-
  * only program does not pull gen2_rect.c, and a graphics-only program does not
  * pull gen2_text.c. */
+#ifndef HGRC_NO_TEXT16   /* puts / puts_color: 16x16 doubled glyphs */
 static unsigned char gen2_set_carrier(unsigned char color)
 {
     switch (color) {
@@ -86,6 +89,9 @@ void gen2_hgr_puts_color(unsigned x, unsigned char y, const char *s, unsigned ch
 
 /* Draw a string at the font's NATIVE 8x8 size (no pixel doubling) — half the
  * height/width of gen2_hgr_puts, so ~3-4x more text per line and faster to draw. */
+#endif /* HGRC_NO_TEXT16 */
+
+#ifndef HGRC_NO_TEXT8   /* puts8: native 8x8 glyphs */
 void gen2_hgr_puts8(unsigned x, unsigned char y, const char *s)
 {
     gen2_build_tables();
@@ -98,3 +104,4 @@ void gen2_hgr_puts8(unsigned x, unsigned char y, const char *s)
     gen2_t_font = kBBFontAscii;
     gen2_puts_run8();
 }
+#endif /* HGRC_NO_TEXT8 */

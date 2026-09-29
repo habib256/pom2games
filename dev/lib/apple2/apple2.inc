@@ -106,4 +106,11 @@ SOFTEV   = $03F2        ; RESET vector (low, high), $03F4 = power-up byte
         txs
 .endmacro
 
+; APPLE2_PREAMBLE_CALL: for a program started by CALL (a BASIC menu doing
+; BLOAD + CALL) that returns with apple2_return. The caller's hardware stack
+; holds BASIC's return path, so it must NOT be reset.
+.macro APPLE2_PREAMBLE_CALL
+        cld
+.endmacro
+
 .endif  ; _APPLE2_INC_LOADED_

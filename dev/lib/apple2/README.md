@@ -13,7 +13,9 @@ intégrée à l'Apple II) et `exit.asm` (rendre la main à DOS proprement).
 
 ## Fichiers
 
-- **`apple2.inc`** — équates matériel + ROM + DOS, macro `APPLE2_PREAMBLE`.
+- **`apple2.inc`** — équates matériel + ROM + DOS, macros `APPLE2_PREAMBLE`
+  (programme `BRUN`) et `APPLE2_PREAMBLE_CALL` (programme lancé par `CALL`, qui
+  ne touche pas à la pile).
 - **`zp.inc`** — les 8 octets de ZP partagés (`tmp`, `tmp2`, `print_ptr_*`,
   `mul_*`, `prng_*`), en tête du segment ZEROPAGE.
 - **`print.asm`** — `print_str_ax` : chaîne ASCIIZ via COUT.
@@ -38,6 +40,7 @@ intégrée à l'Apple II) et `exit.asm` (rendre la main à DOS proprement).
 | `text_restore` | `hgr.asm` | — | TEXT + plein écran + PAGE1 | A | — |
 | `apple2_zp_save` | `exit.asm` | — | copie $00-$FF (256 o de BSS), RESET → `apple2_exit` | A, X | — |
 | `apple2_exit` | `exit.asm` | — | vecteur RESET et ZP restaurés (fenêtre texte et curseur `$20-$29` gardés), écran texte, `JMP $03D0` | tout | — |
+| `apple2_return` | `exit.asm` | — | même restauration, puis `RTS` sur la pile de l'appelant (programme lancé par `CALL`, avec `APPLE2_PREAMBLE_CALL`) | tout | — |
 
 ## apple2.inc — symboles publics
 

@@ -1,5 +1,17 @@
 ; gen2_blit.s — fast 8x8 glyph blitter for Uncle Bernie's GEN2 HGR (cc65).
 ;
+; Apple II edition (dev/lib/hgrc). Every routine family can be left out of a
+; tight build with a -D flag (ld65 strips per object, and this is one object):
+;   HGRC_NO_TEXT16   _gen2_blit_glyph(_color) + _gen2_puts_run   (gen2_hgr_puts*)
+;   HGRC_NO_TEXT8    _gen2_blit_glyph8 + _gen2_puts_run8          (gen2_hgr_puts8)
+;   HGRC_NO_UTOA     _gen2_utoa                                   (gen2_hgr_putu*)
+;   HGRC_NO_BLIT     _gen2_blit_run                               (gen2_hgr_blit)
+;   HGRC_NO_PRESHIFT _gen2_xs_run + _gen2_preshift_xor_run        (gen2_hgr_sprite*)
+;   HGRC_NO_PLOT     _gen2_plot_asm / _gen2_unplot_asm            (gen2_hgr_plot)
+;   HGRC_NO_PIXRECT  _gen2_pixrect_asm + _gen2_cell_asm           (pixrect, cell, h/vline)
+;   HGRC_NO_COLORIZE _gen2_colorize_asm                           (gen2_hgr_colorize)
+; Pass the same flags to the C modules. Nothing defined = the full runtime.
+;
 ; Hand-written 6502 replacement for the inner pixel loop of gen2_hgr_puts. The
 ; pure-C version computed px/7 and px%7 (software division — cc65 has no DIV)
 ; for EVERY plotted pixel: ~4 divisions per lit pixel, hundreds of cycles each,
@@ -31,20 +43,44 @@
         .export   _gen2_lores_init
         .export   _gen2_text_restore
         .export   _gen2_hgr_clear
+.ifndef HGRC_NO_TEXT16
         .export   _gen2_blit_glyph
+.endif
+.ifndef HGRC_NO_TEXT16
         .export   _gen2_blit_glyph_color
+.endif
+.ifndef HGRC_NO_TEXT8
         .export   _gen2_blit_glyph8
+.endif
+.ifndef HGRC_NO_TEXT8
         .export   _gen2_puts_run8
+.endif
         .export   _gen2_fill_rect_asm
+.ifndef HGRC_NO_PLOT
         .export   _gen2_plot_asm, _gen2_unplot_asm
+.endif
+.ifndef HGRC_NO_PIXRECT
         .export   _gen2_pixrect_asm
+.endif
+.ifndef HGRC_NO_COLORIZE
         .export   _gen2_colorize_asm
+.endif
+.ifndef HGRC_NO_TEXT16
         .export   _gen2_puts_run
+.endif
+.ifndef HGRC_NO_UTOA
         .export   _gen2_utoa
+.endif
+.ifndef HGRC_NO_BLIT
         .export   _gen2_blit_run
+.endif
         .export   _gen2_blit7_run
+.ifndef HGRC_NO_PRESHIFT
         .export   _gen2_preshift_xor_run
+.endif
+.ifndef HGRC_NO_PRESHIFT
         .export   _gen2_xs_run
+.endif
         .exportzp _gen2_xs_x, _gen2_xs_y, _gen2_xs_spr
         .exportzp _gen2_b_col, _gen2_b_mask, _gen2_b_w, _gen2_b_h
         .exportzp _gen2_b_stride, _gen2_b_y, _gen2_b_mode, _gen2_b_src
@@ -182,6 +218,7 @@ _gen2_lores_init:
         rts
 
 ; --- plot one pixel at (curcol, curmask) on BOTH scanlines, then advance ------
+.if .not (.defined(HGRC_NO_TEXT16) .and .defined(HGRC_NO_BLIT))
 plot_one:
         ldy curcol
         lda curmask
@@ -205,6 +242,8 @@ advance:
         rts
 
 ; --- _gen2_blit_glyph : draw the 8x8 glyph, pixel-doubled to 16x16 -----------
+.endif
+.ifndef HGRC_NO_TEXT16
 _gen2_blit_glyph:
         lda #0
         sta rowcnt
@@ -528,6 +567,8 @@ _gen2_puts_run:
 ; glyph is a 7px cell; gen2_puts_run8 advances the pen 8px (one blank column =
 ; inter-char gap). One source bit -> one screen pixel on ONE scanline (vs.
 ; gen2_blit_glyph's 2x2 doubling). Same gen2_g_glyph/col/mask/y param block.
+.endif
+.ifndef HGRC_NO_TEXT8
 _gen2_blit_glyph8:
         lda #0
         sta rowcnt
@@ -655,6 +696,8 @@ _gen2_puts_run8:
 ; --- _gen2_utoa : 16-bit unsigned (gen2_u_lo/hi) -> decimal ASCII at gen2_u_ptr
 ; NUL-terminated, no leading zeros ("0" for zero). Division-free: subtract each
 ; power of ten as many times as it fits. Replaces cc65's 16-bit software /10+%10.
+.endif
+.ifndef HGRC_NO_UTOA
 _gen2_utoa:
         ldx #0                  ; power index 0..4
         lda #0
@@ -709,6 +752,8 @@ utoa_pw_hi: .byte $27, $03, $00, $00, $00   ; 10000, 1000, 100, 10, 1  (high byt
 ; wrapper right-clips so the pen never leaves col 0..39), then step source by
 ; gen2_b_stride and y by 1. XOR mode makes a moving sprite erasable by re-blitting
 ; (draw, then draw again at the old spot) — no save/restore, no flicker.
+.endif
+.ifndef HGRC_NO_BLIT
 _gen2_blit_run:
 @row:
         ldy _gen2_b_y           ; ptr1 = scanline base
@@ -796,6 +841,7 @@ blit_apply:
 ; specialised row loops (macro-generated so they can't drift), instead of the
 ; old inner loop's per-byte `ldx b_mode / beq / cpx #2 / beq` (~9 wasted cycles
 ; on every byte). ~30% faster for every blit7 caller.
+.endif
 .macro  BLIT7_LOOP m
         .local  row, col, nyc
 row:    ldy     _gen2_b_y               ; ptr1 = rowbase(y) + col
@@ -850,6 +896,7 @@ blit7_xor:
 ; fall straight through into the XOR row loop. This keeps a sprite draw to a few
 ; hundred cycles so a single-buffer erase+redraw pair fits inside V-blank (no
 ; beam-race tearing). XOR mode only; clips to the right/bottom edges.
+.ifndef HGRC_NO_PRESHIFT
 _gen2_xs_run:
         ; col = gen2_col7[x] -> _gen2_b_col ; phase = gen2_phase7[x] -> tmp1
         lda _gen2_xs_x+1
@@ -989,6 +1036,7 @@ _gen2_preshift_xor_run:
 ; routines in this file never read _gen2_hgr_base: they go through the
 ; _gen2_rowlo/_gen2_rowhi tables, and every C wrapper that JSRs them calls
 ; gen2_build_tables() first, which fixes the base.
+.endif
 _gen2_hgr_clear:
         ldx _gen2_hgr_base   ; draw-page high byte ($20 page1 / $40 page2)
         bne @baseok          ; 0 = unset (BSS) -> default to page 1
@@ -1043,6 +1091,7 @@ _gen2_fill_rect_asm:
 ; and the gen2_rowlo / gen2_rowhi scanline table. x is split into two ranges
 ; because a 6502 index is 8-bit: x<256 indexes the LUT directly, x>=256 (only
 ; 256..279 on a 280-wide screen) indexes it at +256 with the low byte (0..23).
+.ifndef HGRC_NO_PLOT
 gen2_pixsetup:
         lda _gen2_p_x+1      ; x high byte
         bne @hi
@@ -1088,6 +1137,8 @@ _gen2_unplot_asm:
 ; helper — and FALL THROUGH into _gen2_pixrect_asm. No clip: grid cells are
 ; always on-screen (cx<=34 -> xr<=277 ; cy<=23 -> y0+5<=189). gen2_hgr_cell()
 ; builds the tables before calling, so the col7/mask7/row LUTs are ready.
+.endif
+.ifndef HGRC_NO_PIXRECT
         .export   _gen2_cell_asm
 _gen2_cell_asm:
         lda     _gen2_c_cx
@@ -1269,6 +1320,8 @@ _gen2_pixrect_asm:
 ; this pass masks each byte down to the chosen colour's carrier and sets the high
 ; bit: b = (b & carrier[col&1]) | hibit. carrier alternates by ABSOLUTE byte
 ; column parity (the artifact phase flips every 7px byte). See gen2_hgr_puts_color.
+.endif
+.ifndef HGRC_NO_COLORIZE
 _gen2_colorize_asm:
         lda _gen2_z_y0
         sta tmp1             ; current scanline
@@ -1301,3 +1354,5 @@ _gen2_colorize_asm:
         dec tmp2
         bne @zrow
         rts
+
+.endif

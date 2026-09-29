@@ -28,6 +28,7 @@ void gen2_hgr_fill_rect(unsigned char y0, unsigned char rows,
 /* Shared core for fill_pixrect (set=1, white) and clear_pixrect (set=0, erase).
  * The C side only clips the rectangle to the screen and picks the mode; the asm
  * derives the byte columns and edge masks (col7/mask7 LUTs) and does the fill. */
+#ifndef HGRC_NO_PIXRECT   /* fill/clear_pixrect + cell */
 static void gen2_pixrect(unsigned x, unsigned char y,
                          unsigned char w, unsigned char h, unsigned char set)
 {
@@ -77,6 +78,9 @@ void gen2_hgr_cell(unsigned char cx, unsigned char cy, unsigned char set)
  * gen2_rect.c, and a graphics-only program does not pull gen2_text.c. The
  * function is ~30 bytes after cc65 codegen — duplicating costs less than
  * either module being force-linked. */
+#endif /* HGRC_NO_PIXRECT */
+
+#ifndef HGRC_NO_COLORIZE   /* colorize */
 static unsigned char gen2_set_carrier(unsigned char color)
 {
     switch (color) {
@@ -119,3 +123,4 @@ void gen2_hgr_colorize(unsigned x, unsigned char y, unsigned char w,
     gen2_z_rows  = h;
     gen2_colorize_asm();
 }
+#endif /* HGRC_NO_COLORIZE */

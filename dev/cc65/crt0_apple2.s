@@ -5,7 +5,10 @@
 ; link line: its __STARTUP__ / _exit definitions keep none.lib's crt0.o out,
 ; while zerobss / copydata / initlib / donelib still come from none.lib.
 ;
-;   CLD, LDX #$FF / TXS     clean flags and hardware stack
+;   CLD, LDX #$FF / TXS     clean flags and hardware stack -- skipped when the
+;                           cfg sets __EXIT_RTS__ = 1: the program is started by
+;                           a BASIC CALL and returns to it (main's return / exit()
+;                           then RTS on the caller's stack instead of JMP $03D0)
 ;   save $00-$FF            the zero page belongs to the Monitor, DOS and
 ;                           Applesoft; it is put back on exit
 ;   RESET -> _exit          $03F2-$03F4 saved and pointed at _exit, so
@@ -21,7 +24,7 @@
 
         .export         __STARTUP__ : absolute = 1
         .export         _exit
-        .import         __STACKSTART__
+        .import         __STACKSTART__, __EXIT_RTS__
         .import         zerobss, copydata, initlib, donelib
         .import         _main
         .importzp       sp
@@ -37,9 +40,13 @@ LORES   = $C056
 .segment "STARTUP"
 
         cld
+        tsx
+        stx     entry_sp        ; caller's stack (CALL from BASIC)
+        lda     #<__EXIT_RTS__
+        bne     @keep
         ldx     #$FF
         txs
-        inx                     ; X = 0
+@keep:  ldx     #0
 @save:  lda     $00,x
         sta     zp_save,x
         inx
@@ -49,9 +56,9 @@ LORES   = $C056
         sta     rst_save,x
         dex
         bpl     @rsv
-        lda     #<_exit
+        lda     #<reset_exit
         sta     SOFTEV
-        lda     #>_exit
+        lda     #>reset_exit
         sta     SOFTEV+1
         eor     #$A5            ; power-up byte
         sta     SOFTEV+2
@@ -64,6 +71,21 @@ LORES   = $C056
         jsr     initlib
         jsr     _main
 _exit:  jsr     donelib
+        jsr     restore
+        lda     #<__EXIT_RTS__
+        beq     @dos
+        ldx     entry_sp        ; back to the BASIC CALL that started us
+        txs
+        rts
+@dos:   jmp     DOSWARM
+
+; Ctrl-RESET: the stack is unknown, always leave through DOS.
+reset_exit:
+        jsr     restore
+        jmp     DOSWARM
+
+; restore: RESET vector, zero page (live text window + cursor kept), text.
+restore:
         ldx     #2
 @rrv:   lda     rst_save,x
         sta     SOFTEV,x
@@ -84,8 +106,9 @@ _exit:  jsr     donelib
         bit     LOWSCR
         bit     LORES
         bit     KBDSTRB
-        jmp     DOSWARM
+        rts
 
 .segment "ZPSAVE"
 zp_save:        .res 256
 rst_save:       .res 3
+entry_sp:       .res 1

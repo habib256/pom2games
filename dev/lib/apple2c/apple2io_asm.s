@@ -7,13 +7,14 @@
 ; cc65 calling convention: an `unsigned char` argument arrives in A, a char
 ; return value leaves in A (X cleared so an int promotion reads it right).
 ; ----------------------------------------------------------------------------
-        .export _a2_putc, _a2_print_hex, _a2_home, _a2_text, _a2_dos
+        .export _a2_putc, _a2_print_hex, _a2_home, _a2_text, _a2_dos, _a2_wait
         .export _apple2_iskeypressed, _apple2_getkey, _apple2_readkey
         .import _exit
 
 COUT    = $FDED
 PRBYTE  = $FDDA
 HOME    = $FC58
+WAIT    = $FCA8
 KBD     = $C000
 KBDSTRB = $C010
 TXTSET  = $C051
@@ -40,6 +41,9 @@ _a2_text:
 
 _a2_dos:
         jmp     _exit           ; crt0_apple2.s: restore ZP, text, DOS prompt
+
+_a2_wait:
+        jmp     WAIT            ; A = delay code (clobbers A)
 
 _apple2_iskeypressed:
         lda     KBD

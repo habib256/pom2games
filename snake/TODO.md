@@ -48,5 +48,5 @@ vérifie avec `../dev/tools/a2shot` (captures, `peek`, mesure en trames).
 
 ## 4. Technique
 
-- [ ] **Déplacer le runtime C HGR dans `../dev/lib`** (à côté de `apple2c`)
-  pour qu'il serve à d'autres jeux en C, au lieu de la copie dans `src/gen2c`.
+- [x] **Déplacer le runtime C HGR dans `../dev/lib`** : fait, `../dev/lib/hgrc`
+  (partagé avec les démos C de `../demos`).

@@ -28,11 +28,11 @@ Améliorations prévues : voir [`TODO.md`](TODO.md).
 ## Contenu
 
     src/snake.c          le jeu
-    src/gen2c/           runtime C HGR de POM1 (dev/lib/gen2c), version Apple II
     src/hello.bas        HELLO : 10 PRINT CHR$(4);"BRUN SNAKE"
     dist/SNAKE.dsk       l'image produite
 
-Bibliothèques : `../dev/lib/apple2c` (clavier), `../dev/lib/apple2/hgr.asm`
+Bibliothèques : `../dev/lib/hgrc` (runtime C HGR, version Apple II du gen2c
+de POM1), `../dev/lib/gfx`, `../dev/lib/apple2c` (clavier), `../dev/lib/apple2/hgr.asm`
 (commutateurs), `../dev/cc65/crt0_apple2.s` + `apple2_hgr_c.cfg`,
 `../dev/tools/dos33.py`.
 
@@ -40,8 +40,9 @@ Bibliothèques : `../dev/lib/apple2c` (clavier), `../dev/lib/apple2/hgr.asm`
 
 - La télémétrie POM1 (`$C440-$C443`) est retirée : sur un Apple II c'est
   l'espace d'entrées/sorties du slot 4, où vit une Mockingboard.
-- `src/gen2c` : commutateurs en `$C050` au lieu de `$C250`, plus de
-  `gen2_wait_vbl` (pas de V-blank sur un II+). Les noms `gen2_*` sont gardés.
+- Runtime C HGR (`../dev/lib/hgrc`) : commutateurs en `$C050` au lieu de
+  `$C250`, plus de `gen2_wait_vbl` (pas de V-blank sur un II+). Les noms
+  `gen2_*` sont gardés.
 - Clavier Apple II et flèches ; titre « APPLE II ».
 - La réinitialisation du mode vidéo à chaque trame (contournement propre à
   l'émulateur POM1) est retirée.
