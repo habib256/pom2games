@@ -108,17 +108,26 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
 
 ## 5. Progression
 
-- [ ] **Choix direct du niveau** : écran de sélection par collection (grille
-  paginée, manche ou flèches) ou saisie du numéro, au lieu de N/P un par un.
-- [ ] **Sauvegarde sur la disquette** : niveaux résolus et meilleur score
-  par niveau (coups, poussées) dans un fichier `SOKOSAVE`, écrit par `BSAVE`
-  via la routine `COUT` de l'étape 2. Le fichier est créé vide par le
-  `Makefile` (`dos33.py --bin SOKOSAVE=…`) pour que le premier `BLOAD` ne
-  puisse pas échouer. Au démarrage, reprendre au premier niveau non résolu ;
-  marquer les niveaux terminés dans l'écran de sélection ; afficher le
-  record dans le HUD.
-- [ ] **Écran de fin** après le dernier niveau de chaque collection, avec les
-  totaux, au lieu du retour silencieux au niveau 1.
+- [x] **Choix direct du niveau** : G (ou « GO TO LEVEL » dans le menu)
+  ouvre une grille de 10 × 8 numéros d'origine par page, niveaux résolus
+  soulignés en vert, curseur en vidéo inverse ; manche / IJKL pour bouger
+  (les pages suivent), N / P pour changer de collection, RETURN / bouton 0
+  pour jouer, ESC / bouton 1 pour revenir. L'en-tête compte les niveaux
+  résolus.
+- [x] **Sauvegarde sur la disquette** : `SOKOSAVE` (« SOK1 », dernier niveau
+  résolu, puis coups et poussées du record de chaque niveau, 0 = non résolu ;
+  590 octets pour 146 niveaux), créé vide par le `Makefile`, lu par `BLOAD`
+  sous l'écran titre et réécrit par `BSAVE` après chaque niveau résolu
+  (« SAVING » en bas à droite). Un record est battu avec moins de coups, ou
+  autant de coups et moins de poussées. Au démarrage, le jeu reprend au
+  premier niveau non résolu ; le HUD montre le record en bas à droite
+  (`B:0033`) ; l'écran de succès donne coups, poussées et « NEW RECORD » ou le
+  record en place. Disquette protégée en écriture : la sauvegarde est sautée
+  (capteur du Disk II lu avant le `BSAVE`, slot 6), sinon DOS arrêterait le
+  jeu sur WRITE PROTECTED.
+- [x] **Écran de fin** après le dernier niveau d'une collection : « BRAVO »,
+  niveaux résolus sur le total, sommes des records (coups, poussées), puis
+  retour au premier niveau de la collection suivante (ou de la même).
 
 ## 6. Sons
 

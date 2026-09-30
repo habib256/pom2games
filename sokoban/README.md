@@ -27,6 +27,7 @@ Prérequis : cc65 (`brew install cc65`) et python3. L'image est écrite par
 |                                   | N / P                            | niveau suivant / précédent |
 | bouton 1                          | H ou ESC                         | menu (aide)                |
 | manche haut/bas + bouton          | I/K + RETURN ou ESPACE           | choisir dans le menu       |
+|                                   | G (ou menu)                      | choisir le niveau (grille) |
 |                                   | C (menu)                         | alerte « coin mort » oui/non |
 |                                   | Q (menu)                         | quitter vers DOS           |
 
@@ -35,7 +36,15 @@ Ctrl-RESET quitte aussi proprement vers DOS (page zéro restaurée).
 
 Le HUD occupe les quatre coins (3 cases chacun) : coups en haut à gauche,
 poussées en haut à droite, niveau en bas à gauche (collection et numéro
-d'origine : `I:067` est le 67ᵉ niveau de Microban). L'historique garde les
+d'origine : `I:067` est le 67ᵉ niveau de Microban), record en bas à droite
+une fois le niveau résolu (`B:0033`).
+
+Les records (coups, puis poussées) sont gardés sur la disquette, dans
+`SOKOSAVE`, réécrit après chaque niveau résolu ; au démarrage, le jeu
+reprend au premier niveau non résolu. Sur une disquette protégée en écriture,
+on joue sans sauvegarde. Dans la grille de choix (G), les niveaux résolus
+sont soulignés en vert ; après le dernier niveau d'une collection, un écran
+fait le bilan. L'historique garde les
 1024 derniers coups ; au-delà, R recharge le niveau au lieu de le rembobiner.
 Sons : un clic par pas, un bip aigu quand une caisse arrive sur une cible,
 deux notes graves quand une caisse entre dans un coin sans cible (option C),

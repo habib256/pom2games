@@ -20,7 +20,7 @@
  *   a2run --disk GAME.dsk wait:900 key:" " wait:60 shot:title.png
  *
  * The disk image given with --disk is never modified: writes by the guest
- * stay in memory until a dsk: step. ROMs: ../a2shot/roms next to this binary
+ * stay in memory until a dsk: step. --wp makes the disk write protected. ROMs: ../a2shot/roms next to this binary
  * (apple2p.rom, disk2.rom) or --roms DIR.
  *
  * Emulated: 6502 (NMOS), 48 KB RAM, keyboard latch, speaker, video soft
@@ -63,7 +63,8 @@ static uint64_t ptrig_at;
 static uint8_t track_nib[TRACKS][TRACK_LEN];
 static int halftrack, head_pos, motor, q6, q7, phases;
 static uint64_t motor_off_at;
-static int latch_phase;   /* the controller keeps the motor on ~1 s after $C088 */
+static int latch_phase;
+static int write_protect;       /* --wp: the disk's write-protect notch is covered */   /* the controller keeps the motor on ~1 s after $C088 */
 
 static int spinning(void) { return motor || cpu.cycles < motor_off_at; }
 
@@ -210,7 +211,7 @@ static uint8_t disk_io(int reg, int write, uint8_t val)
     }
     int t = halftrack >> 1;
     if (write && q7 && (reg == 0xD || reg == 0xF)) {
-        if (spinning()) {                          /* RWTS: STA Q6H / Q7H = one nibble */
+        if (spinning() && !write_protect) {                          /* RWTS: STA Q6H / Q7H = one nibble */
             track_nib[t][head_pos] = val;
             head_pos = (head_pos + 1) % TRACK_LEN;
         }
@@ -227,7 +228,7 @@ static uint8_t disk_io(int reg, int write, uint8_t val)
         head_pos = (head_pos + 1) % TRACK_LEN;
         return v;
     }
-    if (reg == 0xD && !q7) return 0x00;            /* write-protect sense: not protected */
+    if (reg == 0xE && q6) return write_protect ? 0x80 : 0x00;   /* Q6H then Q7L: sense */
     return 0;
 }
 
@@ -460,11 +461,12 @@ int main(int argc, char **argv)
     int i = 1;
     for (; i < argc; i++) {
         if (!strcmp(argv[i], "--disk") && i + 1 < argc) disk = argv[++i];
+        else if (!strcmp(argv[i], "--wp")) write_protect = 1;
         else if (!strcmp(argv[i], "--roms") && i + 1 < argc) snprintf(roms, sizeof roms, "%s", argv[++i]);
         else break;
     }
     if (!disk) {
-        fprintf(stderr, "usage: a2run [--roms DIR] --disk X.dsk step...\n");
+        fprintf(stderr, "usage: a2run [--roms DIR] [--wp] --disk X.dsk step...\n");
         return 2;
     }
     char path[1200];

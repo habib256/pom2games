@@ -84,7 +84,8 @@ ACT_SELECT  = 10        ; RETURN / SPACE
 ACT_QUIT    = 11        ; Q key (acted on in the menu only)
 ACT_REDO    = 12        ; Y key / button 0 held + stick right
 ACT_CORNERS = 13        ; C key (acted on in the menu only)
-ACT_OTHER   = 14        ; any other key
+ACT_GOTO    = 14        ; G key: level selection
+ACT_OTHER   = 15        ; any other key
 
 ; --- Joystick tuning ---
 ; read_stick counts 24-cycle iterations while each paddle timer is charging:
@@ -98,9 +99,10 @@ MENU_RESUME  = 0
 MENU_RESET   = 1
 MENU_NEXT    = 2
 MENU_PREV    = 3
-MENU_CORNERS = 4        ; toggled in place, never returned
-MENU_QUIT    = 5
-MENU_COUNT   = 6
+MENU_GOTO    = 4
+MENU_CORNERS = 5        ; toggled in place, never returned
+MENU_QUIT    = 6
+MENU_COUNT   = 7
 MENU_ROW0    = 5        ; tile row of the first menu entry (cursor = player tile)
 MENU_CURSOR_COL = 4
 MENU_TEXT_COL   = $0B   ; byte column of the entry texts
@@ -110,6 +112,16 @@ HUD_TOP_SL = 4
 HUD_BOT_SL = 11 * 16 + 4
 HUD_LEFT   = 0          ; byte columns: 6 glyphs = 3 tiles per corner
 HUD_RIGHT  = 34
+
+; --- Save file SOKOSAVE: "SOK1", collection and level last solved, then 4
+; bytes per level (best moves, best pushes; 0 = unsolved), SAVE_LEN in all.
+SAVE_HDR   = 6
+
+; --- Level selection: pages of 10 x 8 numbers, 4 byte columns each ---
+SEL_COLS   = 10
+SEL_PAGE   = 80
+SEL_SL0    = 24         ; scanline of the first row of numbers
+SEL_DY     = 18         ; scanlines from one row to the next
 
 ; =============================================================================
 ; Zero page ($50+, see ../dev/cc65/apple2_hgr.cfg)
@@ -165,6 +177,9 @@ quiet:           .res 1  ; 1 = no drawing, no sound (restart rewind)
 replaying:       .res 1  ; 1 = execute_move is a redo (history not rewritten)
 num_lo:          .res 1  ; print_num argument
 num_hi:          .res 1
+sel_coll:        .res 1  ; level selection: collection, level, first of page
+sel_idx:         .res 1
+sel_first:       .res 1
 
 ; =============================================================================
 ; LOWBSS ($1000-$1FFF, not in the file)
@@ -188,9 +203,25 @@ title_col_start: .res 1
 title_scanline:  .res 1
 big_byte0:       .res 1
 big_byte1:       .res 1
-num_col:         .res 1          ; print_num: byte column, scanline, power index
+num_col:         .res 1          ; text cursor: byte column, scanline, advance
 num_sl:          .res 1
-num_pow:         .res 1
+num_step:        .res 1
+num_pow:         .res 1          ; print_num power index
+str_ix:          .res 1
+save_buf:        .res SAVE_LEN   ; SOKOSAVE, BLOADed at start
+new_record:      .res 1          ; 1 = the level just solved beat its record
+best_lo:         .res 1          ; the record before that
+best_hi:         .res 1
+tot_moves_lo:    .res 1          ; end screen totals
+tot_moves_hi:    .res 1
+tot_pushes_lo:   .res 1
+tot_pushes_hi:   .res 1
+tot_solved:      .res 1
+sel_prev:        .res 1
+tot_i:           .res 1
+sel_c:           .res 1          ; draw_select: column, scanline, level
+sel_sl:          .res 1
+sel_lvl:         .res 1
 dirty_n:         .res 1          ; dirty-tile queue (max 3 per move)
 dirty_row:       .res 4
 dirty_col:       .res 4
@@ -240,7 +271,9 @@ main:
         JSR begin_screen
         JSR draw_title
         JSR show_screen
-        JSR find_level                  ; BLOAD the first pack under the title
+        JSR load_save                   ; under the title: the save file,
+        JSR first_unsolved              ; where to resume,
+        JSR find_level                  ; and that level's pack
         JSR wait_any                    ; any key / any button starts
 
 game_loop:
@@ -279,7 +312,15 @@ move_loop:
         BEQ key_prev
         CMP #ACT_MENU
         BEQ key_menu
+        CMP #ACT_GOTO
+        BEQ key_goto
         JMP move_loop                   ; ignore the rest
+
+key_goto:
+        JSR run_select                  ; C = 1: cur_coll / cur_lvl chosen
+        BCC @back
+        JMP game_loop
+@back:  JMP redraw_level
 
 key_undo:
         JSR execute_undo
@@ -297,6 +338,8 @@ key_menu:
         BEQ key_next
         CMP #MENU_PREV
         BEQ key_prev
+        CMP #MENU_GOTO
+        BEQ key_goto
         CMP #MENU_QUIT
         BNE @resume
         JMP apple2_exit                 ; ZP + text screen back, DOS prompt
@@ -348,12 +391,22 @@ check_done:
         LDA boxes_left
         BNE move_loop_j                 ; not solved yet
 
-        ; Level complete
+        ; Level complete: record, success screen, save, then the end screen
+        ; if it was the last level of the collection
+        JSR record_solution
         JSR begin_screen
         JSR draw_success
         JSR show_screen
         JSR play_fanfare
+        JSR write_save
         JSR wait_any
+        LDX cur_coll
+        LDA cur_lvl
+        CLC
+        ADC #$01
+        CMP coll_count,X
+        BCC advance_level
+        JSR end_screen
 
 ; advance_level: next level; after the last, the next collection.
 advance_level:
@@ -496,6 +549,7 @@ key_tbl:
         .byte 'U', ACT_UNDO, 'Y', ACT_REDO, 'R', ACT_RESET
         .byte 'N', ACT_NEXT, 'P', ACT_PREV
         .byte 'H', ACT_MENU, $1B, ACT_MENU, 'Q', ACT_QUIT, 'C', ACT_CORNERS
+        .byte 'G', ACT_GOTO
         .byte $0D, ACT_SELECT, ' ', ACT_SELECT
         .byte 0
 
@@ -566,6 +620,8 @@ run_menu:
         BEQ @quit
         CMP #ACT_CORNERS
         BEQ @corners
+        CMP #ACT_GOTO
+        BEQ @goto
         CMP #ACT_SELECT
         BEQ @select
         LDX in_src
@@ -582,6 +638,8 @@ run_menu:
 @prev:  LDA #MENU_PREV
         RTS
 @quit:  LDA #MENU_QUIT
+        RTS
+@goto:  LDA #MENU_GOTO
         RTS
 @resume:
         LDA #MENU_RESUME
@@ -850,51 +908,273 @@ find_level:
 ; a few seconds: "LOADING" shows bottom right of the screen meanwhile.
 load_pack:
         LDA #<str_loading
+        LDY #>str_loading
+        JSR show_status
+        JSR cmd_new
+        LDA #<bload_str
+        LDY #>bload_str
+        JSR cmd_add
+        LDX loaded_pack
+        LDA pack_name_lo,X
+        LDY pack_name_hi,X
+        JSR cmd_add
+        LDA #<pack_at_str
+        LDY #>pack_at_str
+        JSR cmd_add
+        JMP dos_cmd
+
+; show_status: the glyph string at A/Y (lo/hi) bottom right of the screen on
+; show, packed (7-pixel glyphs), right-aligned on a 7-glyph field.
+show_status:
         STA sptr_lo
-        LDA #>str_loading
-        STA sptr_hi
+        STY sptr_hi
+        LDA #1
+        STA num_step
         LDA #HUD_RIGHT-1
         STA num_col
-@msg:   LDY #$00
-        LDA (sptr_lo),Y
-        CMP #$FF
-        BEQ @cmd
-        LDX num_col
-        LDY #HUD_BOT_SL
-        JSR draw_title_glyph
-        INC num_col
-        INC sptr_lo                     ; (a short string: no page cross)
-        BNE @msg
-@cmd:   LDX loaded_pack
-        LDA pack_name_lo,X
-        STA sptr_lo
-        LDA pack_name_hi,X
-        STA sptr_hi
-        LDX #$00
-@pre:   LDA bload_cmd,X
-        STA cmd_buf,X
-        BEQ @name
-        INX
-        BNE @pre
-@name:  LDY #$00
-@nm:    LDA (sptr_lo),Y
-        STA cmd_buf,X
-        BEQ @addr
-        INX
-        INY
-        BNE @nm
-@addr:  LDY #$00
-@ad:    LDA bload_addr,Y
-        STA cmd_buf,X
-        BEQ @run
-        INX
-        INY
-        BNE @ad
-@run:   JMP dos_cmd
+        LDA #HUD_BOT_SL
+        STA num_sl
+        JMP draw_str
 
-bload_cmd:  .byte "BLOAD ", 0
-bload_addr: .byte ",A$1000", 0
-.assert PACK_ADDR = $1000, error, "bload_addr must match PACK_ADDR"
+; --- DOS command builder: cmd_new, then cmd_add (0-terminated ASCII string
+; at A/Y) and cmd_hex (A as two hex digits); cmd_buf stays 0-terminated.
+cmd_new:
+        LDA #$00
+        STA cmd_ix
+        STA cmd_buf
+        RTS
+
+cmd_add:
+        STA sptr_lo
+        STY sptr_hi
+        LDY #$00
+@lp:    LDX cmd_ix
+        LDA (sptr_lo),Y                 ; (Z from this load: STA keeps it)
+        STA cmd_buf,X
+        BEQ @done
+        INC cmd_ix
+        INY
+        BNE @lp
+@done:  RTS
+
+cmd_hex:
+        PHA
+        LSR A
+        LSR A
+        LSR A
+        LSR A
+        JSR @nib
+        PLA
+        AND #$0F
+@nib:   CMP #10
+        BCC @dig
+        ADC #6                          ; C = 1: + 7, 'A'..'F'
+@dig:   ADC #'0'
+        LDX cmd_ix
+        STA cmd_buf,X
+        INX
+        LDA #$00
+        STA cmd_buf,X
+        STX cmd_ix
+        RTS
+
+bload_str:   .byte "BLOAD ", 0
+pack_at_str: .byte ",A$1000", 0
+.assert PACK_ADDR = $1000, error, "pack_at_str must match PACK_ADDR"
+save_load_str: .byte "BLOAD SOKOSAVE,A$", 0
+save_save_str: .byte "BSAVE SOKOSAVE,A$", 0
+len_str:       .byte ",L$", 0
+save_magic:    .byte "SOK1"
+
+; =============================================================================
+; Save file. load_save BLOADs SOKOSAVE into save_buf (a missing or foreign
+; content is wiped); write_save BSAVEs it, unless the disk is write
+; protected (DOS would stop the game with WRITE PROTECTED).
+; =============================================================================
+load_save:
+        JSR cmd_new
+        LDA #<save_load_str
+        LDY #>save_load_str
+        JSR cmd_add
+        LDA #>save_buf
+        JSR cmd_hex
+        LDA #<save_buf
+        JSR cmd_hex
+        JSR dos_cmd
+        LDX #3
+@magic: LDA save_buf,X
+        CMP save_magic,X
+        BNE @wipe
+        DEX
+        BPL @magic
+        RTS
+@wipe:  LDA #<save_buf
+        STA sptr_lo
+        LDA #>save_buf
+        STA sptr_hi
+        LDX #>SAVE_LEN                  ; whole pages, then the rest
+        LDY #$00
+        TYA
+@page:  CPX #$00
+        BEQ @rest
+@pg:    STA (sptr_lo),Y
+        INY
+        BNE @pg
+        INC sptr_hi
+        DEX
+        JMP @page
+@rest:  CPY #<SAVE_LEN
+        BEQ @hdr
+        STA (sptr_lo),Y
+        INY
+        BNE @rest
+@hdr:   LDX #3
+@m:     LDA save_magic,X
+        STA save_buf,X
+        DEX
+        BPL @m
+        RTS
+
+write_save:
+        LDA cur_coll                    ; header: the level just solved
+        STA save_buf+4
+        LDA cur_lvl
+        STA save_buf+5
+        JSR disk_protected
+        BCS @done
+        LDA #<str_saving
+        LDY #>str_saving
+        JSR show_status
+        JSR cmd_new
+        LDA #<save_save_str
+        LDY #>save_save_str
+        JSR cmd_add
+        LDA #>save_buf
+        JSR cmd_hex
+        LDA #<save_buf
+        JSR cmd_hex
+        LDA #<len_str
+        LDY #>len_str
+        JSR cmd_add
+        LDA #>SAVE_LEN
+        JSR cmd_hex
+        LDA #<SAVE_LEN
+        JSR cmd_hex
+        JSR dos_cmd
+        LDA #<str_blank7                ; wipe "SAVING"
+        LDY #>str_blank7
+        JSR show_status
+@done:  RTS
+
+; disk_protected: C = 1 if the disk in slot 6 is write protected (the Disk
+; II sense: Q6 high, then Q7 low reads it in bit 7, motor on).
+disk_protected:
+        LDA $C0E9                       ; motor on
+        LDA $C0ED                       ; Q6H
+        LDA $C0EE                       ; Q7L: bit 7 = write protect
+        ASL A
+        LDA $C0E8                       ; motor off (the drive spins ~1 s more)
+        RTS
+
+; first_unsolved: cur_coll / cur_lvl := the first level without a record
+; (the very first if every level is solved).
+first_unsolved:
+        LDA #$00
+        STA cur_coll
+        STA cur_lvl
+@lp:    JSR slot_cur
+        LDY #$00
+        LDA (sptr_lo),Y
+        INY
+        ORA (sptr_lo),Y
+        BEQ @done
+        INC cur_lvl
+        LDX cur_coll
+        LDA cur_lvl
+        CMP coll_count,X
+        BCC @lp
+        LDA #$00
+        STA cur_lvl
+        INC cur_coll
+        LDA cur_coll
+        CMP #NUM_COLLS
+        BCC @lp
+        LDA #$00
+        STA cur_coll
+@done:  RTS
+
+; slot_ptr: sptr := save slot of level A of collection X; slot_cur: of the
+; level being played. Clobbers A.
+slot_cur:
+        LDX cur_coll
+        LDA cur_lvl
+slot_ptr:
+        CLC
+        ADC coll_base_lo,X
+        STA sptr_lo
+        LDA coll_base_hi,X
+        ADC #$00
+        STA sptr_hi
+        ASL sptr_lo
+        ROL sptr_hi
+        ASL sptr_lo
+        ROL sptr_hi
+        LDA sptr_lo
+        CLC
+        ADC #<(save_buf + SAVE_HDR)
+        STA sptr_lo
+        LDA sptr_hi
+        ADC #>(save_buf + SAVE_HDR)
+        STA sptr_hi
+        RTS
+
+; record_solution: the level is solved with moves / pushes. Keep it if the
+; slot is empty or it takes fewer moves (fewer pushes on a tie). new_record,
+; best_lo/hi (the previous best moves) tell the success screen.
+record_solution:
+        JSR slot_cur
+        LDA #$00
+        STA new_record
+        LDY #$00
+        LDA (sptr_lo),Y
+        STA best_lo
+        INY
+        LDA (sptr_lo),Y
+        STA best_hi
+        ORA best_lo
+        BEQ @new                        ; first time solved
+        LDA moves_hi                    ; moves < best?
+        CMP best_hi
+        BCC @new
+        BNE @keep
+        LDA moves_lo
+        CMP best_lo
+        BCC @new
+        BNE @keep
+        LDY #3                          ; same moves: pushes < best pushes?
+        LDA pushes_hi
+        CMP (sptr_lo),Y
+        BCC @new
+        BNE @keep
+        DEY
+        LDA pushes_lo
+        CMP (sptr_lo),Y
+        BCS @keep
+@new:   LDA #$01
+        STA new_record
+        LDY #$00
+        LDA moves_lo
+        STA (sptr_lo),Y
+        INY
+        LDA moves_hi
+        STA (sptr_lo),Y
+        INY
+        LDA pushes_lo
+        STA (sptr_lo),Y
+        INY
+        LDA pushes_hi
+        STA (sptr_lo),Y
+@keep:  RTS
 
 ; =============================================================================
 ; dos_cmd: have DOS 3.3 run the command in cmd_buf (ASCII, 0-terminated), the
@@ -1482,113 +1762,162 @@ dir_dy_tbl: .byte $FF, $01, $00, $00    ; DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT
 dir_dx_tbl: .byte $00, $00, $FF, $01
 
 ; =============================================================================
-; HUD: moves top left, pushes top right, level bottom left. 7-pixel glyphs,
-; one per byte column; nothing is drawn while quiet.
+; HUD: moves top left, pushes top right, level bottom left, record bottom
+; right (once solved). 7-pixel glyphs, one per byte column; nothing is drawn
+; while quiet.
 ; =============================================================================
 draw_hud:
         LDA quiet
         BEQ @draw
         RTS
 @draw:
+        LDA #1
+        STA num_step
+        LDA #HUD_TOP_SL
+        STA num_sl
+        LDA #HUD_LEFT
+        STA num_col
         LDA #G_M
-        LDX #HUD_LEFT
-        LDY #HUD_TOP_SL
-        JSR draw_title_glyph
+        JSR put_glyph
         LDA #G_COLON
-        LDX #HUD_LEFT+1
-        LDY #HUD_TOP_SL
-        JSR draw_title_glyph
+        JSR put_glyph
         LDA moves_lo
         STA num_lo
         LDA moves_hi
         STA num_hi
-        LDX #HUD_LEFT+2
-        LDY #HUD_TOP_SL
         LDA #4
         JSR print_num
 
+        LDA #HUD_RIGHT
+        STA num_col
         LDA #G_P
-        LDX #HUD_RIGHT
-        LDY #HUD_TOP_SL
-        JSR draw_title_glyph
+        JSR put_glyph
         LDA #G_COLON
-        LDX #HUD_RIGHT+1
-        LDY #HUD_TOP_SL
-        JSR draw_title_glyph
+        JSR put_glyph
         LDA pushes_lo
         STA num_lo
         LDA pushes_hi
         STA num_hi
-        LDX #HUD_RIGHT+2
-        LDY #HUD_TOP_SL
         LDA #4
         JSR print_num
 
-        LDX cur_coll                    ; "I:001": collection, original number
+        LDA #HUD_BOT_SL                 ; "I:001": collection, original number
+        STA num_sl
+        LDA #HUD_LEFT
+        STA num_col
+        LDX cur_coll
         LDA coll_hud_lo,X
         STA sptr_lo
         LDA coll_hud_hi,X
         STA sptr_hi
-        LDA #HUD_LEFT
-        STA num_col
-@coll:  LDY #$00
-        LDA (sptr_lo),Y
-        CMP #$FF
-        BEQ @colon
-        LDX num_col
-        LDY #HUD_BOT_SL
-        JSR draw_title_glyph
-        INC num_col
-        INC sptr_lo                     ; (a short string: no page cross)
-        BNE @coll
-@colon: LDA #G_COLON
-        LDX num_col
-        LDY #HUD_BOT_SL
-        JSR draw_title_glyph
-        INC num_col
+        JSR draw_str
+        LDA #G_COLON
+        JSR put_glyph
         JSR orig_number
         STA num_lo
         LDA #$00
         STA num_hi
-        LDX num_col
-        LDY #HUD_BOT_SL
         LDA #3
+        JSR print_num
+
+        JSR slot_cur                    ; "B:0033": best moves, if solved
+        LDY #$00
+        LDA (sptr_lo),Y
+        STA num_lo
+        INY
+        LDA (sptr_lo),Y
+        STA num_hi
+        ORA num_lo
+        BEQ @none
+        LDA #HUD_RIGHT
+        STA num_col
+        LDA #G_B
+        JSR put_glyph
+        LDA #G_COLON
+        JSR put_glyph
+        LDA #4
         JMP print_num
+@none:  RTS
 
 ; orig_number: A = original number of level (cur_coll, cur_lvl).
 orig_number:
         LDX cur_coll
+        LDY cur_lvl
+; orig_of: A = original number of level Y of collection X.
+orig_of:
         LDA coll_orig_lo,X
         STA sptr_lo
         LDA coll_orig_hi,X
         STA sptr_hi
-        LDY cur_lvl
         LDA (sptr_lo),Y
         RTS
 
-; print_num: num_hi:num_lo as A decimal digits (1..4, leading zeros), capped
-; at 9999, one glyph per byte from column X on scanline Y. Clobbers num.
+; =============================================================================
+; Text. Glyphs are 7x8, one byte column; the cursor is (num_col, num_sl) and
+; num_step the advance: 1 = packed (HUD), 2 = the 14-pixel screen spacing.
+;   put_glyph   draw glyph A, advance
+;   draw_str    the $FF-terminated glyph string at sptr
+;   print_num   num_hi:num_lo as A digits (1..5, leading zeros; 4 digits
+;               are capped at 9999). Clobbers num.
+; TEXT col, sl, string: set the cursor and draw a string, at the current
+; num_step.
+; =============================================================================
+.macro TEXT col, sl, str
+        LDA #col
+        STA num_col
+        LDA #sl
+        STA num_sl
+        LDA #<str
+        STA sptr_lo
+        LDA #>str
+        STA sptr_hi
+        JSR draw_str
+.endmacro
+
+put_glyph:
+        LDX num_col
+        LDY num_sl
+        JSR draw_title_glyph
+        LDA num_col
+        CLC
+        ADC num_step
+        STA num_col
+        RTS
+
+draw_str:
+        LDY #$00
+        STY str_ix
+@lp:    LDY str_ix
+        LDA (sptr_lo),Y
+        CMP #$FF
+        BEQ @done
+        JSR put_glyph
+        INC str_ix
+        BNE @lp
+@done:  RTS
+
 print_num:
-        STX num_col
-        STY num_sl
-        EOR #$FF                        ; power index = 4 - digits (0 = 1000)
-        SEC
-        ADC #$04
         STA num_pow
-        LDA num_hi                      ; cap at 9999 = $270F
+        CMP #4
+        BNE @index
+        LDA num_hi                      ; 4 digits: cap at 9999 = $270F
         CMP #>10000
-        BCC @digits
+        BCC @index
         BNE @cap
         LDA num_lo
         CMP #<10000
-        BCC @digits
+        BCC @index
 @cap:   LDA #<9999
         STA num_lo
         LDA #>9999
         STA num_hi
+@index: LDA #5                          ; power index = 5 - digits (0 = 10000)
+        SEC
+        SBC num_pow
+        STA num_pow
 @digits:
         LDX num_pow
-        CPX #$03
+        CPX #$04
         BCS @last
         LDY #$00                        ; digit = how many times pow fits
 @sub:   LDA num_lo
@@ -1603,18 +1932,15 @@ print_num:
         STA num_lo
         INY
         BNE @sub
-@put:   TYA
-        JSR @glyph
+@put:   TYA                             ; digit glyphs are 0..9
+        JSR put_glyph
         INC num_pow
         JMP @digits
 @last:  LDA num_lo                      ; units
-@glyph: LDX num_col                     ; digit glyphs are 0..9
-        LDY num_sl
-        INC num_col
-        JMP draw_title_glyph
+        JMP put_glyph
 
-pow10_lo: .byte <1000, <100, <10
-pow10_hi: .byte >1000, >100, >10
+pow10_lo: .byte <10000, <1000, <100, <10
+pow10_hi: .byte >10000, >1000, >100, >10
 
 ; --- HUD/title font (Beautiful Boot subset, bit 0 = left pixel) ---
 .include "bbfont_subset.inc"
@@ -1646,11 +1972,428 @@ draw_help:
         STA tbl_hi
         JMP draw_from_table
 
+; draw_success: "SUCCESS", the moves and pushes of the solution, and
+; "NEW RECORD" or the record it did not beat.
 draw_success:
         LDA #<success_table
         STA tbl_lo
         LDA #>success_table
         STA tbl_hi
+        JSR draw_from_table
+        LDA #2
+        STA num_step
+        LDA #22
+        STA num_col
+        LDA #80
+        STA num_sl
+        LDA moves_lo
+        STA num_lo
+        LDA moves_hi
+        STA num_hi
+        LDA #4
+        JSR print_num
+        LDA #22
+        STA num_col
+        LDA #96
+        STA num_sl
+        LDA pushes_lo
+        STA num_lo
+        LDA pushes_hi
+        STA num_hi
+        LDA #4
+        JSR print_num
+        LDA new_record
+        BEQ @old
+        TEXT 10, 120, str_new_record
+        RTS
+@old:   TEXT 8, 120, str_record
+        LDA #22
+        STA num_col
+        LDA best_lo
+        STA num_lo
+        LDA best_hi
+        STA num_hi
+        LDA #4
+        JMP print_num
+
+; =============================================================================
+; end_screen: after the last level of a collection -- how many levels have
+; a record, and the sum of the records (moves, pushes).
+; =============================================================================
+end_screen:
+        LDA cur_coll
+        STA sel_coll
+        JSR coll_totals
+        JSR begin_screen
+        LDA #<end_table
+        STA tbl_lo
+        LDA #>end_table
+        STA tbl_hi
+        JSR draw_from_table
+        LDA #2
+        STA num_step
+        LDA #56                         ; "MICROBAN" + collection
+        STA num_sl
+        LDA #26
+        STA num_col
+        LDX cur_coll
+        LDA coll_hud_lo,X
+        STA sptr_lo
+        LDA coll_hud_hi,X
+        STA sptr_hi
+        JSR draw_str
+        LDA #84                         ; solved / levels
+        STA num_sl
+        LDA #20
+        STA num_col
+        JSR print_solved
+        LDA #100
+        STA num_sl
+        LDA #20
+        STA num_col
+        LDA tot_moves_lo
+        STA num_lo
+        LDA tot_moves_hi
+        STA num_hi
+        LDA #5
+        JSR print_num
+        LDA #116
+        STA num_sl
+        LDA #20
+        STA num_col
+        LDA tot_pushes_lo
+        STA num_lo
+        LDA tot_pushes_hi
+        STA num_hi
+        LDA #5
+        JSR print_num
+        JSR show_screen
+        JSR play_fanfare
+        JMP wait_any
+
+; print_solved: "NNN/NNN", levels with a record / levels of sel_coll.
+print_solved:
+        LDA tot_solved
+        STA num_lo
+        LDA #$00
+        STA num_hi
+        LDA #3
+        JSR print_num
+        LDA #G_SLASH
+        JSR put_glyph
+        LDX sel_coll
+        LDA coll_count,X
+        STA num_lo
+        LDA #$00
+        STA num_hi
+        LDA #3
+        JMP print_num
+
+; coll_totals: over collection sel_coll, tot_solved = levels with a record,
+; tot_moves / tot_pushes = sums of the records (saturating at 65535).
+coll_totals:
+        LDA #$00
+        STA tot_solved
+        STA tot_moves_lo
+        STA tot_moves_hi
+        STA tot_pushes_lo
+        STA tot_pushes_hi
+        STA tot_i
+@lp:    LDX sel_coll
+        LDA tot_i
+        JSR slot_ptr
+        LDY #$00
+        LDA (sptr_lo),Y
+        INY
+        ORA (sptr_lo),Y
+        BEQ @next
+        INC tot_solved
+        LDY #$00
+        CLC
+        LDA tot_moves_lo
+        ADC (sptr_lo),Y
+        STA tot_moves_lo
+        INY
+        LDA tot_moves_hi
+        ADC (sptr_lo),Y
+        STA tot_moves_hi
+        BCC @m_ok
+        LDA #$FF
+        STA tot_moves_lo
+        STA tot_moves_hi
+@m_ok:  INY
+        CLC
+        LDA tot_pushes_lo
+        ADC (sptr_lo),Y
+        STA tot_pushes_lo
+        INY
+        LDA tot_pushes_hi
+        ADC (sptr_lo),Y
+        STA tot_pushes_hi
+        BCC @next
+        LDA #$FF
+        STA tot_pushes_lo
+        STA tot_pushes_hi
+@next:  INC tot_i
+        LDX sel_coll
+        LDA tot_i
+        CMP coll_count,X
+        BCC @lp
+        RTS
+
+; =============================================================================
+; run_select: level selection. Pages of 10 x 8 original numbers, levels with
+; a record underlined in green, the cursor in inverse video. Stick / IJKL
+; move, N / P change collection, RETURN / button 0 plays, ESC / button 1
+; goes back. Returns C = 1 with cur_coll / cur_lvl set, C = 0 on ESC.
+; =============================================================================
+run_select:
+        LDA cur_coll
+        STA sel_coll
+        LDA cur_lvl
+        STA sel_idx
+@page:  LDA #$00                        ; sel_first = the page of sel_idx
+        STA sel_first
+@pf:    LDA sel_idx
+        SEC
+        SBC sel_first
+        CMP #SEL_PAGE
+        BCC @pf_ok
+        LDA sel_first
+        CLC
+        ADC #SEL_PAGE
+        STA sel_first
+        BNE @pf
+@pf_ok: JSR draw_select
+@cur:   LDA sel_idx
+        STA sel_prev
+        JSR sel_cursor
+@loop:  JSR get_input
+        BEQ @loop
+        CMP #ACT_SELECT
+        BEQ @pick
+        CMP #ACT_MENU
+        BEQ @cancel
+        CMP #ACT_UNDO
+        BNE @keys
+        LDX in_src                      ; button 0 picks, the U key does not
+        BNE @pick
+        BEQ @loop
+@keys:  LDX sel_coll
+        CMP #ACT_LEFT
+        BEQ @left
+        CMP #ACT_RIGHT
+        BEQ @right
+        CMP #ACT_UP
+        BEQ @up
+        CMP #ACT_DOWN
+        BEQ @down
+        CMP #ACT_NEXT
+        BEQ @next_coll
+        CMP #ACT_PREV
+        BEQ @prev_coll
+        JMP @loop
+@pick:  LDA sel_coll
+        STA cur_coll
+        LDA sel_idx
+        STA cur_lvl
+        SEC
+        RTS
+@cancel:
+        CLC
+        RTS
+@left:  LDA sel_idx
+        BEQ @loop
+        DEC sel_idx
+        JMP @moved
+@right: LDA sel_idx
+        CLC
+        ADC #$01
+        CMP coll_count,X
+        BCS @loop
+        STA sel_idx
+        JMP @moved
+@up:    LDA sel_idx
+        SEC
+        SBC #SEL_COLS
+        BCC @loop
+        STA sel_idx
+        JMP @moved
+@down:  LDA sel_idx
+        CLC
+        ADC #SEL_COLS
+        CMP coll_count,X
+        BCS @loop
+        STA sel_idx
+        JMP @moved
+@next_coll:
+        INX
+        CPX #NUM_COLLS
+        BCC @coll
+        LDX #$00
+        BEQ @coll
+@prev_coll:
+        DEX
+        BPL @coll
+        LDX #NUM_COLLS-1
+@coll:  STX sel_coll
+        LDA #$00
+        STA sel_idx
+        JMP @page
+@moved: LDA sel_idx                     ; still on this page?
+        SEC
+        SBC sel_first
+        CMP #SEL_PAGE
+        BCS @new_page                   ; (below sel_first wraps high too)
+        LDA sel_prev                    ; erase the old cursor
+        JSR sel_cursor_at
+        JMP @cur
+@new_page:
+        JMP @page
+
+; sel_cursor(_at): EOR the cell of level sel_idx (A) on the page on screen.
+sel_cursor:
+        LDA sel_idx
+sel_cursor_at:
+        SEC
+        SBC sel_first
+        LDX #$00                        ; X = row, A = column
+@div:   CMP #SEL_COLS
+        BCC @rc
+        SBC #SEL_COLS
+        INX
+        BNE @div
+@rc:    ASL A
+        ASL A
+        STA temp                        ; byte column = 4 * column
+        LDA #SEL_SL0 - 1
+@row:   DEX
+        BMI @sl
+        CLC
+        ADC #SEL_DY
+        BNE @row
+@sl:    STA temp2
+        LDA #10
+        STA str_ix                      ; lines left
+@ln:    LDY temp2
+        LDA hgr_lo,Y
+        CLC
+        ADC temp
+        STA ptr_lo
+        LDA hgr_hi,Y
+        ADC #$00
+        STA ptr_hi
+        LDY #$02
+@b:     LDA (ptr_lo),Y
+        EOR #$7F
+        STA (ptr_lo),Y
+        DEY
+        BPL @b
+        INC temp2
+        DEC str_ix
+        BNE @ln
+        RTS
+
+; draw_select: header (collection, levels solved), the page of numbers,
+; help line; drawn on the hidden page, then shown.
+draw_select:
+        JSR begin_screen
+        JSR coll_totals
+        LDA #1
+        STA num_step
+        TEXT 0, 4, str_microban
+        LDX sel_coll
+        LDA coll_hud_lo,X
+        STA sptr_lo
+        LDA coll_hud_hi,X
+        STA sptr_hi
+        JSR draw_str
+        TEXT 19, 4, str_solved
+        JSR print_solved
+        TEXT 0, HUD_BOT_SL, str_sel_help
+
+        LDA #$00
+        STA tot_i                       ; cell 0..79
+        LDA #$00
+        STA sel_c
+        LDA #SEL_SL0
+        STA sel_sl
+@cell:  LDA sel_first
+        CLC
+        ADC tot_i
+        LDX sel_coll
+        CMP coll_count,X
+        BCS @shown
+        STA sel_lvl
+        TAY
+        JSR orig_of                     ; X = collection
+        STA num_lo
+        LDA #$00
+        STA num_hi
+        LDA sel_c
+        ASL A
+        ASL A
+        STA num_col
+        LDA sel_sl
+        STA num_sl
+        LDA #3
+        JSR print_num
+        LDX sel_coll                    ; solved: green line under the number
+        LDA sel_lvl
+        JSR slot_ptr
+        LDY #$00
+        LDA (sptr_lo),Y
+        INY
+        ORA (sptr_lo),Y
+        BEQ @next
+        LDA sel_sl
+        CLC
+        ADC #9
+        JSR sel_bar
+        LDA sel_sl
+        CLC
+        ADC #10
+        JSR sel_bar
+@next:  INC tot_i
+        INC sel_c
+        LDA sel_c
+        CMP #SEL_COLS
+        BCC @same
+        LDA #$00
+        STA sel_c
+        LDA sel_sl
+        CLC
+        ADC #SEL_DY
+        STA sel_sl
+@same:  LDA tot_i
+        CMP #SEL_PAGE
+        BCC @cell
+@shown: JMP show_screen
+
+; sel_bar: a green line on scanline A under the number of column sel_c
+; (green = odd pixels, bit 7 clear: $2A on an even byte column, $55 on an
+; odd one).
+sel_bar:
+        TAY
+        LDA sel_c
+        ASL A
+        ASL A
+        CLC
+        ADC hgr_lo,Y
+        STA ptr_lo
+        LDA hgr_hi,Y
+        ADC #$00
+        STA ptr_hi
+        LDY #$00
+        LDA #$2A
+        STA (ptr_lo),Y
+        INY
+        LDA #$55
+        STA (ptr_lo),Y
+        INY
+        LDA #$2A
+        STA (ptr_lo),Y
+        RTS
 
 draw_from_table:
 @entry:
@@ -1710,12 +2453,24 @@ help_table:
         .byte <menu_reset,     >menu_reset,     MENU_TEXT_COL, (MENU_ROW0+MENU_RESET)*16+4, $00
         .byte <menu_next,      >menu_next,      MENU_TEXT_COL, (MENU_ROW0+MENU_NEXT)*16+4, $00
         .byte <menu_prev_str,  >menu_prev_str,  MENU_TEXT_COL, (MENU_ROW0+MENU_PREV)*16+4, $00
+        .byte <menu_goto,      >menu_goto,      MENU_TEXT_COL, (MENU_ROW0+MENU_GOTO)*16+4, $00
         .byte <menu_quit,      >menu_quit,      MENU_TEXT_COL, (MENU_ROW0+MENU_QUIT)*16+4, $00
         .byte $FF
 
 success_table:
-        .byte <title_success,  >title_success,  $0D, 56, $01
-        .byte <title_press,    >title_press,    $07, 96, $00
+        .byte <title_success,  >title_success,  $0D, 40, $01
+        .byte <str_moves,      >str_moves,      $08, 80, $00
+        .byte <str_pushes,     >str_pushes,     $08, 96, $00
+        .byte <title_press,    >title_press,    $07, 160, $00
+        .byte $FF
+
+end_table:
+        .byte <str_bravo,      >str_bravo,      $0F, 20, $01
+        .byte <str_microban,   >str_microban,   $08, 56, $00
+        .byte <str_solved,     >str_solved,     $04, 84, $00
+        .byte <str_moves,      >str_moves,      $04, 100, $00
+        .byte <str_pushes,     >str_pushes,     $04, 116, $00
+        .byte <title_press,    >title_press,    $07, 160, $00
         .byte $FF
 
 ; draw_title_line: small glyphs, byte_col = title_col_start + ix*2.
@@ -1891,6 +2646,16 @@ title_press:    GSTR "KEY OR BUTTON"
 title_h_help:   GSTR "H HELP"
 title_success:  GSTR "SUCCESS"
 str_loading:    GSTR "LOADING"
+str_saving:     GSTR " SAVING"
+str_blank7:     GSTR "       "
+str_moves:      GSTR "MOVES"
+str_pushes:     GSTR "PUSHES"
+str_record:     GSTR "RECORD"
+str_new_record: GSTR "NEW RECORD"
+str_bravo:      GSTR "BRAVO"
+str_microban:   GSTR "MICROBAN "
+str_solved:     GSTR "SOLVED "
+str_sel_help:   GSTR "RETURN PLAY   ESC BACK   N/P SET"
 
 help_big_title: GSTR "HELP"
 help_move:      GSTR "MOVE STICK OR IJKL"
@@ -1902,6 +2667,7 @@ menu_resume:    GSTR "RESUME"
 menu_reset:     GSTR "RESTART (R)"
 menu_next:      GSTR "NEXT LEVEL (N)"
 menu_prev_str:  GSTR "PREV LEVEL (P)"
+menu_goto:      GSTR "GO TO LEVEL (G)"
 menu_corners_on:  GSTR "CORNERS: ON (C)"
 menu_corners_off: GSTR "CORNERS:OFF (C)"
 menu_quit:      GSTR "QUIT TO DOS (Q)"

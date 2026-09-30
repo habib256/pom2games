@@ -38,10 +38,10 @@ $(LEVELS): tools/sokoban_levels.py $(wildcard levels/*.xsb) Makefile
 
 $(BUILD)/sokoban.o: src/sokoban.s src/bbfont_subset.inc $(LEVELS) $(wildcard $(DEV)/lib/apple2/*)
 	@mkdir -p $(BUILD)
-	$(CA65) -t none $(INCS) -l $(BUILD)/sokoban.lst -o $@ $<
+	$(CA65) -t none -g $(INCS) -l $(BUILD)/sokoban.lst -o $@ $<
 
 $(BIN): $(BUILD)/sokoban.o $(CFG)
-	$(LD65) -C $(CFG) -m $(BUILD)/sokoban.map -o $@ $<
+	$(LD65) -C $(CFG) -m $(BUILD)/sokoban.map -Ln $(BUILD)/sokoban.lbl -o $@ $<
 	@echo "binary: $$(wc -c < $@) bytes at $(LOAD)"
 
 # The level packs (MB1A, MB1B, ...) and an empty save file go on the disk
