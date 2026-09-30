@@ -5,3 +5,4 @@ dev/tools/a2run/a2run
 
 # macOS
 .DS_Store
+__pycache__/
