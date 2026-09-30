@@ -18,14 +18,14 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
 
 ## 1. Lisibilité (bitmaps seulement)
 
-- [ ] **Murs bleus** : bit 7 à 1, pixels pairs allumés (`$D5,$AA` au lieu de
+- [x] **Murs bleus** : bit 7 à 1, pixels pairs allumés (`$D5,$AA` au lieu de
   `$AA,$D5`). Aujourd'hui, murs et caisses sont tous les deux orange et se
   confondent. Les caisses restent orange, les caisses placées vertes.
-- [ ] **Joueur vert sur une cible** (tuile 6) : même silhouette que la tuile 5,
+- [x] **Joueur vert sur une cible** (tuile 6) : même silhouette que la tuile 5,
   mais seulement les pixels impairs avec le bit 7 à 0 (vert), à la place du
-  trait vert sous les pieds, qui se voit mal. Vérifier que la silhouette reste
-  lisible une fois réduite à un pixel sur deux (au besoin, l'épaissir d'un
-  pixel).
+  trait vert sous les pieds, qui se voit mal. Fait : silhouette redessinée
+  sur la grille des pixels impairs, symétrique autour du pixel 6 (la
+  silhouette blanche, centrée sur 5,5, ne se réduit pas proprement).
 
 ## 2. Base technique
 

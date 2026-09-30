@@ -369,9 +369,9 @@ static void print_text(void)
 }
 
 /* HGR in colour: an isolated dot takes its column colour (even: violet/blue,
- * odd: green/orange, by the byte's bit 7), two adjacent dots are white, and a
- * gap between two dots of the same colour is filled -- what an NTSC monitor
- * shows for the classic 1010 patterns. */
+ * odd: green/orange, by the byte's bit 7) and spans two pixels, one colour
+ * period, so 1010 patterns show as solid colour; two adjacent dots are
+ * white -- roughly what an NTSC monitor shows. */
 static int shot(const char *path)
 {
     enum { W = 280, H = 192 };
@@ -396,8 +396,9 @@ static int shot(const char *path)
                 if (on[x + 1]) col[x] = (on[x] || on[x + 2]) ? 0xFFFFFF : pal[hi[x]][x & 1];
                 else col[x] = 0;
             }
-            for (int x = 1; x < W - 1; x++) {
-                if (!on[x + 1] && on[x] && on[x + 2] && col[x - 1] == col[x + 1] && col[x - 1] != 0xFFFFFF)
+            /* a colour dot is two pixels wide on screen (one colour period) */
+            for (int x = W - 1; x > 0; x--) {
+                if (!on[x + 1] && on[x] && col[x - 1] != 0xFFFFFF)
                     col[x] = col[x - 1];
             }
             for (int x = 0; x < W; x++) {

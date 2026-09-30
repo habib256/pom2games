@@ -1585,11 +1585,12 @@ tile_bitmaps:
         .byte $00,$00, $00,$00, $00,$00, $00,$00
         .byte $00,$00, $00,$00, $00,$00, $00,$00
         .byte $00,$00, $00,$00, $00,$00, $00,$00
-; Tile 1: WALL — orange bricks, black mortar every 4th line
-        .byte $AA,$D5, $AA,$D5, $AA,$D5, $80,$80
-        .byte $AA,$D5, $AA,$D5, $AA,$D5, $80,$80
-        .byte $AA,$D5, $AA,$D5, $AA,$D5, $80,$80
-        .byte $AA,$D5, $AA,$D5, $AA,$D5, $80,$80
+; Tile 1: WALL — blue bricks (even pixels, bit 7 set), black mortar every
+; 4th line. Blue keeps walls apart from the orange boxes.
+        .byte $D5,$AA, $D5,$AA, $D5,$AA, $80,$80
+        .byte $D5,$AA, $D5,$AA, $D5,$AA, $80,$80
+        .byte $D5,$AA, $D5,$AA, $D5,$AA, $80,$80
+        .byte $D5,$AA, $D5,$AA, $D5,$AA, $80,$80
 ; Tile 2: TARGET — small green square (pixels 3,5,7,9 on rows 5..10)
         .byte $00,$00, $00,$00, $00,$00, $00,$00
         .byte $00,$00, $28,$05, $28,$05, $28,$05
@@ -1610,11 +1611,14 @@ tile_bitmaps:
         .byte $70,$01, $7C,$07, $7E,$0F, $70,$01
         .byte $70,$01, $78,$03, $0C,$06, $0C,$06
         .byte $0C,$06, $0E,$0E, $00,$00, $00,$00
-; Tile 6: PLAYER ON TARGET — figure + green line under the feet
-        .byte $70,$01, $78,$03, $18,$03, $78,$03
-        .byte $70,$01, $7C,$07, $7E,$0F, $70,$01
-        .byte $70,$01, $78,$03, $0C,$06, $0C,$06
-        .byte $0C,$06, $0E,$0E, $28,$15, $00,$00
+; Tile 6: PLAYER ON TARGET — the figure in green. Green is odd pixels only
+; (bit 7 clear), each dot two pixels wide on screen, so the figure is redrawn
+; on that grid, symmetric about pixel 6 (the white one is centred on 5.5,
+; which no odd-pixel grid can mirror): head 5,7 / arms 1..11 / legs 3 and 9.
+        .byte $20,$01, $20,$01, $20,$01, $20,$01
+        .byte $20,$01, $28,$05, $2A,$15, $20,$01
+        .byte $20,$01, $28,$05, $08,$04, $08,$04
+        .byte $08,$04, $0A,$14, $00,$00, $00,$00
 
 ; --- Level data (RLE compressed, Microban I) ---
 .include "sokoban_levels.inc"

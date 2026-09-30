@@ -42,7 +42,8 @@ Améliorations prévues : voir [`TODO.md`](TODO.md).
 - Pas de V-blank sur un II+ : les tuiles sont dessinées directement (2-3 par coup).
 - Lecture des deux paddles dans une seule boucle de durée fixe (6 ms), boutons
   détectés sur front, répétition du manche toutes les ~200 ms.
-- Tuiles en couleur HGR (murs orange, caisses orange, caisses placées et cibles
-  vertes, joueur blanc) ; l'écran texte Apple-1 est remplacé par le menu HGR.
+- Tuiles en couleur HGR (murs bleus, caisses orange, caisses placées et cibles
+  vertes, joueur blanc, vert quand il est sur une cible) ; l'écran texte
+  Apple-1 est remplacé par le menu HGR.
 - Les 72 niveaux tiennent en RAM (7 Ko de binaire), zéro page limitée à
   $80-$9F comme la cible apple2 de cc65.
