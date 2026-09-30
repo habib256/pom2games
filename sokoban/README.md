@@ -15,17 +15,27 @@ Prérequis : cc65 (`brew install cc65`) et python3. L'image est écrite par
 
 ## Commandes
 
-| Manette                      | Clavier                          | Action                     |
-|------------------------------|----------------------------------|----------------------------|
-| manche (répétition auto)     | I J K L, W A S D, flèches        | déplacer / pousser         |
-| bouton 0                     | U                                | annuler le dernier coup    |
-| bouton 1                     | H ou ESC                         | menu (aide)                |
-|                              | Q (dans le menu)                 | quitter vers DOS           |
-| manche haut/bas + bouton     | I/K + RETURN ou ESPACE           | choisir dans le menu       |
-|                              | R / N / P                        | recommencer / niveau suivant / précédent |
+| Manette                           | Clavier                          | Action                     |
+|-----------------------------------|----------------------------------|----------------------------|
+| manche (répétition auto)          | I J K L, W A S D, flèches        | déplacer / pousser         |
+| bouton 0 (tapé)                   | U                                | annuler un coup            |
+| bouton 0 maintenu + manche ← / →  | U / Y                            | annuler / rejouer (en continu) |
+|                                   | R                                | recommencer (annulable : Y rejoue) |
+|                                   | N / P                            | niveau suivant / précédent |
+| bouton 1                          | H ou ESC                         | menu (aide)                |
+| manche haut/bas + bouton          | I/K + RETURN ou ESPACE           | choisir dans le menu       |
+|                                   | C (menu)                         | alerte « coin mort » oui/non |
+|                                   | Q (menu)                         | quitter vers DOS           |
 
 Sur l'écran titre et l'écran de succès : n'importe quelle touche ou bouton.
 Ctrl-RESET quitte aussi proprement vers DOS (page zéro restaurée).
+
+Le HUD occupe les quatre coins (3 cases chacun) : coups en haut à gauche,
+poussées en haut à droite, niveau en bas à gauche. L'historique garde les
+1024 derniers coups ; au-delà, R recharge le niveau au lieu de le rembobiner.
+Sons : un clic par pas, un bip aigu quand une caisse arrive sur une cible,
+deux notes graves quand une caisse entre dans un coin sans cible (option C),
+un choc sourd quand le coup est impossible, une fanfare en fin de niveau.
 
 Améliorations prévues : voir [`TODO.md`](TODO.md).
 

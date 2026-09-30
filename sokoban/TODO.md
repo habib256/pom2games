@@ -49,24 +49,28 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
 
 ## 3. Gameplay
 
-- [ ] **Annulation sur plusieurs coups** : 3 bits par coup (direction +
-  « a poussé une caisse »), deux coups par octet, soit 510 coups dans 256
-  octets de BSS. Tampon **circulaire** : au-delà, les plus anciens coups sont
-  oubliés au lieu de bloquer le jeu. U / bouton 0 remonte le tampon.
-- [ ] **Rejouer (redo)** : garder le sommet du tampon après une annulation
-  tant qu'aucun nouveau coup n'est joué. Nouvelle touche (par ex. Y), et
-  bouton 0 + manche vers la droite à la manette.
-- [ ] **Compteurs complets** : coups sur 16 bits et compteur de poussées
+- [x] **Annulation sur plusieurs coups** — fait autrement que prévu : un
+  octet par coup (direction + « a poussé une caisse ») dans un anneau de
+  1024 coups en LOWBSS, où 4 Ko sont libres depuis le passage sur `../dev` ;
+  compacter à deux coups par octet ne gagnait rien. Au-delà de 1024 coups, les
+  plus anciens sont oubliés. U / bouton 0 (tapé) annule.
+- [x] **Rejouer (redo)** : le sommet de l'anneau est gardé après une
+  annulation tant qu'aucun nouveau coup n'est joué. Y au clavier ; à la
+  manette, bouton 0 maintenu + manche à gauche / à droite = annuler / rejouer
+  en continu (un bouton 0 tapé sans manche annule, au relâchement).
+- [x] **Compteurs complets** : coups sur 16 bits et compteur de poussées
   affiché dans le HUD. Les deux reculent avec l'annulation.
-- [ ] **Compteur de caisses restantes** (`boxes_left`) : initialisé par
+- [x] **Compteur de caisses restantes** (`boxes_left`) : initialisé par
   `init_level`, mis à jour par `execute_move` / `execute_undo`. Il remplace
-  le parcours de `check_win` et peut s'afficher dans le HUD.
-- [ ] **Recommencer (R) sans perte irréversible** : soit demander une
-  confirmation, soit garder le tampon d'annulation pour pouvoir revenir en
-  arrière après R.
-- [ ] **Cases mortes** : à la fin de `init_level`, marquer les coins sans
-  cible (une caisse y est bloquée pour toujours). Son grave quand une caisse y
-  arrive ; option dans le menu. Détection volontairement partielle : elle ne
+  le parcours de `check_win` (non affiché : le HUD garde ses quatre coins
+  pour coups, poussées, niveau et, plus tard, le record).
+- [x] **Recommencer (R) sans perte irréversible** : R rembobine le niveau
+  par l'historique, sans dessin ni son, puis Y rejoue tout. Si l'anneau a
+  oublié le début (plus de 1024 coups), R recharge le niveau.
+- [x] **Cases mortes** : testé au moment de la poussée (pas de table) : une
+  caisse posée hors cible avec un mur au-dessus ou en dessous ET à gauche ou
+  à droite est bloquée pour toujours. Deux notes graves ; option C dans le
+  menu (« CORNERS: ON/OFF »). Détection volontairement partielle : elle ne
   voit pas les blocages le long d'un mur ni entre deux caisses.
 
 ## 4. Niveaux : Microban I et II complets
@@ -115,6 +119,6 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
 
 ## 6. Sons
 
-- [ ] **Sons plus parlants** avec la routine `beep` existante : caisse posée
+- [x] **Sons plus parlants** avec la routine `beep` existante : caisse posée
   sur une cible, niveau réussi, annulation, déplacement impossible, caisse
   sur une case morte.
