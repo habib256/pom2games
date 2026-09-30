@@ -1,8 +1,10 @@
 # Sokoban — TODO
 
 Améliorations proposées le 2026-09-15, révisées le 2026-09-30, par ordre
-conseillé. Chaque étape se vérifie avec `../dev/tools/a2shot` (captures,
-`peek`, `joy`/`btn` pour la manette).
+conseillé. Chaque étape se vérifie avec `../dev/tools/a2shot` ou
+`../dev/tools/a2run` (captures, `peek`, `joy`/`btn` pour la manette, `dsk:`
+pour relire la disquette après une sauvegarde) ; `tools/test_levels.py` résout
+des niveaux et fait jouer les solutions au jeu.
 
 État au moment de la rédaction (`src/sokoban.s`) : annulation d'un seul coup
 (`prev_player_row`, `undo_avail`) ; compteur de coups sur 8 bits plafonné à 255,
@@ -40,11 +42,12 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
 - [x] **Double tampon HGR1/HGR2** pour les changements d'écran (niveau, titre,
   aide, succès), comme Maze3D. Le rendu par tuiles modifiées pendant le jeu
   peut rester sur la page affichée.
-- [ ] **Commandes DOS depuis l'assembleur** : une routine qui envoie
-  `CHR$(4)` + commande + CR par `COUT` (`$FDED`), les crochets DOS restant en
-  place. La sortie va dans la page texte `$400`, invisible en HGR plein écran.
-  Elle sert au chargement des paquets de niveaux (étape 4) et à la sauvegarde
-  (étape 5). Tout fichier lu par `BLOAD` doit exister sur la disquette dès
+- [x] **Commandes DOS depuis l'assembleur** (`dos_cmd`) : RETURN, Ctrl-D,
+  commande, RETURN par `COUT` (`$FDED`), après `JSR $03EA` (crochets DOS).
+  Notre page zéro est mise de côté et celle de DOS (l'instantané d'`exit.asm`)
+  remise en place le temps de la commande. La sortie va dans la page texte
+  `$400`, invisible en HGR plein écran. Elle sert au chargement des paquets
+  de niveaux (étape 4) et à la sauvegarde (étape 5). Tout fichier lu par `BLOAD` doit exister sur la disquette dès
   la construction : un `FILE NOT FOUND` sans `ONERR` renvoie à l'invite BASIC.
 
 ## 3. Gameplay
@@ -75,33 +78,33 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
 
 ## 4. Niveaux : Microban I et II complets
 
-- [ ] **Outil de conversion dans ce dépôt** : `tools/sokoban_rle.py` n'existe
-  que dans POM1. Le reprendre ici (`sokoban/tools/`), avec en entrée les
-  fichiers texte des collections (format `.sok`/XSB standard). Il produit
-  les fichiers `.inc` (ou les paquets binaires) et un rapport des niveaux
-  écartés.
-- [ ] **Intégrer tout Microban I (155 niveaux) et Microban II (135 niveaux)**
-  de David W. Skinner, en conservant leur numérotation d'origine dans le
-  rapport de conversion.
-- [ ] **Retirer les niveaux trop grands** (pas de défilement). L'outil écarte
-  tout niveau qui ne respecte pas, après recadrage sur ses murs :
-  - largeur ≤ 20 et hauteur ≤ 12 tuiles ;
-  - largeur × hauteur ≤ 255 (`load_level` calcule `w*h` sur 8 bits et
-    `LEVEL_BUF` fait 256 octets), sauf à élargir ces deux points ;
-  - aucune case non vide sous le HUD (ligne 0, colonnes 0-5 : `M:NNN` ;
-    ligne 11, colonnes 16-19 : `L:NN`), en essayant les décalages possibles
-    avant d'écarter le niveau, ou en déplaçant le HUD.
-  Les niveaux carrés tournés de 90° ne sont pas une solution : garder les
-  niveaux tels que publiés.
-- [ ] **Chargement par paquets depuis la disquette** : environ 290 niveaux
-  ne tiennent pas en RAM à côté du code (`$6000-$95FF`, environ 13,5 Ko).
-  Un fichier binaire par paquet (par ex. `MB1A`, `MB1B`, `MB2A`…), chargé
-  par `BLOAD` (étape 2) dans une zone fixe, avec en tête sa table de
-  pointeurs.
-- [ ] **Numérotation au-delà de 255** : `level_idx` passe à un couple
-  (collection, numéro) ou à 16 bits ; le HUD affiche `I:NNN` / `II:NNN` (ou
-  équivalent) au lieu de `L:NN`. Mettre à jour l'écran titre (`MICROBAN 72
-  LEVELS`), le README et les crédits.
+- [x] **Outil de conversion dans ce dépôt** : `tools/sokoban_levels.py`
+  (XSB → paquets + `build/lv/levels.inc` + `build/lv/report.txt`).
+- [x] **Intégrer Microban I** (155 niveaux, `levels/microban.xsb`, copie
+  verbatim de la source notée dans `levels/README.md`), numéros d'origine
+  gardés (HUD `I:067`, rapport).
+- [ ] **Microban II** (135 niveaux) : le site de référence (sneezingtiger.com,
+  comme les autres sites Sokoban essayés) est refusé par la politique réseau
+  de l'environnement de développement, et aucun miroir n'a été trouvé. Tout
+  est prêt : déposer le fichier en `levels/microban2.xsb`, le `Makefile` en
+  fait la deuxième collection (`MB2A`…, « II » dans le HUD). Vérifier alors
+  la place sur la disquette et le rapport.
+- [x] **Retirer les niveaux trop grands** (pas de défilement) : l'outil
+  écarte, après recadrage sur les murs, tout niveau de plus de 20 × 12, ou
+  sans placement qui laisse les quatre coins du HUD (3 cases chacun, lignes 0
+  et 11) hors des murs ; le placement le plus centré gagne. Pas de rotation.
+  Microban : 146 gardés, 9 écartés (66, 99, 101, 109, 112, 113, 143, 154,
+  155, tous trop hauts ou trop larges). La limite `w*h ≤ 255` a disparu avec
+  `LEVEL_BUF` : les plages sont décodées directement dans la grille.
+- [x] **Chargement par paquets depuis la disquette** : paquets de 4 Ko au
+  plus (`MB1A` 101 niveaux, `MB1B` 45), `BLOAD` en `$1000` (LOWBSS) quand le
+  jeu passe dans un autre paquet ; « LOADING » s'affiche pendant les ~3 s de
+  lecture, et le premier paquet est lu sous l'écran titre. Codage : une plage
+  par octet (type sur 3 bits, longueur sur 5), 6,5 Ko pour Microban au lieu
+  de 8,8 Ko avec l'ancien RLE ; le binaire passe de 8 à 5 Ko.
+- [x] **Numérotation** : un niveau est un couple (collection, rang parmi les
+  niveaux gardés) ; le HUD montre la collection et le numéro d'origine,
+  l'écran titre le nombre de niveaux (généré).
 
 ## 5. Progression
 

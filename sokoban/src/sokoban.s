@@ -24,28 +24,32 @@
 ; hidden HGR page and shown with one page flip.
 ; HUD: 7-pixel glyphs in the four screen corners, 3 tiles each (moves top
 ; left, pushes top right, level bottom left); levels keep those cells empty.
-; Levels: Microban I (David W. Skinner), 72 levels, RLE compressed.
+; Levels: Microban (David W. Skinner) -- every level that fits the screen,
+; converted by tools/sokoban_levels.py into packs of up to 4 KB (MB1A, MB1B,
+; ...) that are BLOADed into LOWBSS when play crosses into another pack. A
+; level is (collection, index); the HUD shows the collection and the level's
+; original number.
 ;
 ; History: every move is one byte (direction + "pushed a box") in a
-; 1024-move ring in LOWBSS. Undo walks it back, redo forward; restart (R)
+; 1024-move ring. Undo walks it back, redo forward; restart (R)
 ; rewinds the whole level through it, so R can be redone with Y. Past 1024
 ; moves the oldest are forgotten, and R then reloads the level instead.
 ;
 ; Apple II+ specifics vs the Apple-1/GEN2 original:
 ;   - no V-blank signal on a II+ ($C019 is a //e thing) -> draws are immediate
-;   - ../dev layout: code+data at $6000 above both HGR pages, big tables in
-;     LOWBSS ($1000), zero page at $50 (saved at start, restored on quit)
+;   - ../dev layout: code+data at $6000 above both HGR pages, the level pack
+;     in LOWBSS ($1000), zero page at $50 (saved at start, restored on quit)
 ;   - the game port replaces the Apple-1 text-screen echo
 ; =============================================================================
 
 .include "apple2.inc"            ; ../dev/lib/apple2: I/O equates, preamble
+.include "levels.inc"            ; generated: collections, packs, numbers
 
 PAGE2_EOR = $60                 ; hgr_hi of page 1 ($20-$3F) EOR this = page 2
 
 ; --- Game constants ---
 NCOLS      = 20
 NROWS      = 12
-NUM_LEVELS = 72
 STATE_GRID_LEN = 240
 HIST_LEN   = 1024               ; moves kept for undo / redo (a power of two)
 
@@ -123,13 +127,17 @@ tbl_lo:          .res 1  ; screen-table pointer
 tbl_hi:          .res 1
 hptr_lo:         .res 1  ; history ring pointer
 hptr_hi:         .res 1
-level_idx:       .res 1
+cur_coll:        .res 1  ; collection being played
+cur_lvl:         .res 1  ; level in it, 0-based (index in the kept levels)
 player_row:      .res 1
 player_col:      .res 1
 lvl_w:           .res 1
 lvl_h:           .res 1
 row_offset:      .res 1
 col_offset:      .res 1
+parse_row:       .res 1  ; init_level decoder position
+parse_col:       .res 1
+run_len:         .res 1
 new_row:         .res 1
 new_col:         .res 1
 box_row:         .res 1
@@ -162,14 +170,18 @@ num_hi:          .res 1
 ; LOWBSS ($1000-$1FFF, not in the file)
 ; =============================================================================
 .segment "LOWBSS"
-hist:            .res HIST_LEN   ; move history ring (must stay page aligned)
-LEVEL_BUF:       .res 256        ; RLE-expanded level (w*h <= 255)
-STATE_GRID:      .res 240        ; 20x12 playfield, one tile code per cell
+pack_buf:        .res PACK_MAX   ; the level pack in use, BLOADed at PACK_ADDR
 
 ; =============================================================================
 ; BSS (after the code, not part of the BRUN file)
 ; =============================================================================
 .bss
+hist:            .res HIST_LEN   ; move history ring
+STATE_GRID:      .res 240        ; 20x12 playfield, one tile code per cell
+zp_game:         .res 256        ; our zero page while DOS runs a command
+cmd_buf:         .res 40         ; DOS command, ASCII, 0-terminated
+cmd_ix:          .res 1
+loaded_pack:     .res 1          ; pack in pack_buf, $FF = none
 title_ix:        .res 1
 title_glyph:     .res 1
 title_col_start: .res 1
@@ -211,13 +223,16 @@ main:
         STA btn0_prev
         STA btn1_prev
         STA joy_hold
-        STA level_idx
+        STA cur_coll
+        STA cur_lvl
         STA quiet
         STA replaying
         STA front_page                  ; page 1 on screen, drawing on page 1
         JSR set_draw_page
         LDA #$01
         STA corners_on
+        LDA #$FF
+        STA loaded_pack
 
         ; Blank-first: page 1 is cleared while the display still shows text,
         ; then the title is drawn on page 2 and flipped in.
@@ -225,6 +240,7 @@ main:
         JSR begin_screen
         JSR draw_title
         JSR show_screen
+        JSR find_level                  ; BLOAD the first pack under the title
         JSR wait_any                    ; any key / any button starts
 
 game_loop:
@@ -312,13 +328,20 @@ key_reset:
 key_next:
         JMP advance_level
 
+; key_prev: previous level; before the first, the last of the previous
+; collection.
 key_prev:
-        LDA level_idx
+        LDA cur_lvl
         BNE @dec
-        LDA #NUM_LEVELS
+        LDX cur_coll
+        DEX
+        BPL @coll
+        LDX #NUM_COLLS-1
+@coll:  STX cur_coll
+        LDA coll_count,X
 @dec:   SEC
         SBC #$01
-        STA level_idx
+        STA cur_lvl
         JMP game_loop
 
 check_done:
@@ -332,13 +355,20 @@ check_done:
         JSR play_fanfare
         JSR wait_any
 
+; advance_level: next level; after the last, the next collection.
 advance_level:
-        INC level_idx
-        LDA level_idx
-        CMP #NUM_LEVELS
+        INC cur_lvl
+        LDX cur_coll
+        LDA cur_lvl
+        CMP coll_count,X
         BCC game_loop_j
         LDA #$00
-        STA level_idx
+        STA cur_lvl
+        INX
+        CPX #NUM_COLLS
+        BCC @coll
+        LDX #$00
+@coll:  STX cur_coll
 game_loop_j:
         JMP game_loop
 move_loop_j:
@@ -689,76 +719,223 @@ bump_sound:
 @done:  RTS
 
 ; =============================================================================
-; init_level: RLE-expand the level into STATE_GRID, find the player, count
-; the boxes that are not on a target.
+; init_level: decode level (cur_coll, cur_lvl) into STATE_GRID, loading its
+; pack first if needed; find the player, count the boxes off target.
+; A level record is w, h, row, col, then runs: tile << 5 | (length - 1), in
+; row-major order over the w x h box (tools/sokoban_levels.py).
 ; =============================================================================
 init_level:
-        JSR load_level                  ; fills LEVEL_BUF, sets lvl_w/h + offsets
+        JSR find_level                  ; sptr -> the record, pack loaded
 
         LDY #$00
         TYA
 @clr:   STA STATE_GRID,Y
         INY
-        CPY #240
+        CPY #STATE_GRID_LEN
         BNE @clr
-
-        LDA #$00
-        STA temp                        ; temp = parse_row
-        STA sptr_lo                     ; reuse sptr_lo as flat LEVEL_BUF index
         STA boxes_left
-@rowlp:
-        LDY #$00                        ; Y = parse_col
-@collp:
-        LDX sptr_lo
-        LDA LEVEL_BUF,X
-        JSR ascii_to_tile               ; A = tile type
-        PHA
+        STA parse_row
+        STA parse_col
 
-        CMP #TILE_BOX
-        BNE @no_box
-        INC boxes_left
-@no_box:
-        CMP #TILE_PLAYER
-        BEQ @save_player
-        CMP #TILE_PLAYER_TARGET
-        BNE @no_player
-@save_player:
-        TYA
+        TAY                             ; Y = 0: the record header
+        LDA (sptr_lo),Y
+        STA lvl_w
+        INY
+        LDA (sptr_lo),Y
+        STA lvl_h
+        INY
+        LDA (sptr_lo),Y
+        STA row_offset
+        INY
+        LDA (sptr_lo),Y
+        STA col_offset
+        INY
+@run:   LDA (sptr_lo),Y
+        INY
+        STY temp                        ; record offset (levels < 256 bytes)
+        PHA
+        AND #$1F
+        STA run_len
+        INC run_len                     ; length 1..32
+        PLA
+        LSR A
+        LSR A
+        LSR A
+        LSR A
+        LSR A
+        STA temp2                       ; tile
+@cell:  LDA parse_row                   ; STATE_GRID[(row+r0)*20 + col+c0]
+        CLC
+        ADC row_offset
+        TAY
+        LDA row_x20,Y
+        CLC
+        ADC parse_col
         CLC
         ADC col_offset
-        STA player_col
-        LDA temp
+        TAX
+        LDA temp2
+        STA STATE_GRID,X
+        CMP #TILE_BOX
+        BNE @nobox
+        INC boxes_left
+@nobox: CMP #TILE_PLAYER
+        BEQ @player
+        CMP #TILE_PLAYER_TARGET
+        BNE @next
+@player:
+        LDA parse_row
         CLC
         ADC row_offset
         STA player_row
-@no_player:
-        ; cell_index = (temp+row_offset)*20 + (Y+col_offset)
-        LDA temp
-        CLC
-        ADC row_offset
-        TAX
-        LDA row_x20,X
-        STA temp2
-        TYA
+        LDA parse_col
         CLC
         ADC col_offset
-        CLC
-        ADC temp2
-        TAX
-        PLA
-        STA STATE_GRID,X
-
-        INC sptr_lo
-        INY
-        CPY lvl_w
-        BCC @collp
-
-        INC temp
-        LDA temp
+        STA player_col
+@next:  INC parse_col
+        LDA parse_col
+        CMP lvl_w
+        BCC @same_row
+        LDA #$00
+        STA parse_col
+        INC parse_row
+        LDA parse_row
         CMP lvl_h
-        BCS @init_done
-        JMP @rowlp
-@init_done:
+        BCS @done
+@same_row:
+        DEC run_len
+        BNE @cell
+        LDY temp
+        JMP @run
+@done:  RTS
+
+; find_level: sptr := record of level (cur_coll, cur_lvl) in pack_buf,
+; BLOADing its pack if another one is loaded.
+find_level:
+        LDX cur_coll
+        LDA coll_first_pack,X
+        STA temp                        ; candidate pack
+        LDA coll_npacks,X
+        STA temp2                       ; packs left to try
+@find:  LDX temp
+        LDA cur_lvl
+        SEC
+        SBC pack_first,X
+        CMP pack_count,X
+        BCC @found                      ; A = index in the pack
+        INC temp
+        DEC temp2
+        BNE @find
+        LDA #$00                        ; (not reached: the tables cover it)
+@found: PHA
+        CPX loaded_pack
+        BEQ @ready
+        STX loaded_pack
+        JSR load_pack
+@ready: PLA
+        TAX                             ; sptr = pack_buf + offset[index]
+        LDA pack_buf+1,X                ; offset low (pack_buf is page aligned)
+        STA sptr_lo
+        TXA
+        CLC
+        ADC pack_buf                    ; + n: the high bytes follow the lows
+        TAX
+        LDA pack_buf+1,X
+        CLC
+        ADC #>pack_buf
+        STA sptr_hi
+        RTS
+
+; load_pack: "BLOAD <name>,A$1000" for pack loaded_pack. A 4 KB pack takes
+; a few seconds: "LOADING" shows bottom right of the screen meanwhile.
+load_pack:
+        LDA #<str_loading
+        STA sptr_lo
+        LDA #>str_loading
+        STA sptr_hi
+        LDA #HUD_RIGHT-1
+        STA num_col
+@msg:   LDY #$00
+        LDA (sptr_lo),Y
+        CMP #$FF
+        BEQ @cmd
+        LDX num_col
+        LDY #HUD_BOT_SL
+        JSR draw_title_glyph
+        INC num_col
+        INC sptr_lo                     ; (a short string: no page cross)
+        BNE @msg
+@cmd:   LDX loaded_pack
+        LDA pack_name_lo,X
+        STA sptr_lo
+        LDA pack_name_hi,X
+        STA sptr_hi
+        LDX #$00
+@pre:   LDA bload_cmd,X
+        STA cmd_buf,X
+        BEQ @name
+        INX
+        BNE @pre
+@name:  LDY #$00
+@nm:    LDA (sptr_lo),Y
+        STA cmd_buf,X
+        BEQ @addr
+        INX
+        INY
+        BNE @nm
+@addr:  LDY #$00
+@ad:    LDA bload_addr,Y
+        STA cmd_buf,X
+        BEQ @run
+        INX
+        INY
+        BNE @ad
+@run:   JMP dos_cmd
+
+bload_cmd:  .byte "BLOAD ", 0
+bload_addr: .byte ",A$1000", 0
+.assert PACK_ADDR = $1000, error, "bload_addr must match PACK_ADDR"
+
+; =============================================================================
+; dos_cmd: have DOS 3.3 run the command in cmd_buf (ASCII, 0-terminated), the
+; way a BASIC program does: RETURN, Ctrl-D, the command, RETURN through COUT.
+; DOS and the Monitor expect their own page zero, so ours is set aside and
+; the snapshot taken at start (exit.asm) put back for the duration; DOS's
+; page zero after the command becomes the new snapshot. Any DOS error
+; (missing file...) would stop the game at the BASIC prompt: the files
+; used are all written on the disk by the Makefile.
+; =============================================================================
+dos_cmd:
+        LDX #$00
+@in:    LDA $00,X
+        STA zp_game,X
+        LDA apple2_zp_buf,X
+        STA $00,X
+        INX
+        BNE @in
+        JSR $03EA                       ; DOS: reconnect the I/O hooks
+        LDA #$8D
+        JSR COUT
+        LDA #$84                        ; Ctrl-D
+        JSR COUT
+        LDA #$00
+        STA cmd_ix
+@ch:    LDX cmd_ix
+        LDA cmd_buf,X
+        BEQ @end
+        ORA #$80
+        JSR COUT
+        INC cmd_ix
+        BNE @ch
+@end:   LDA #$8D                        ; DOS runs the command here
+        JSR COUT
+        LDX #$00
+@out:   LDA $00,X
+        STA apple2_zp_buf,X
+        LDA zp_game,X
+        STA $00,X
+        INX
+        BNE @out
         RTS
 
 ; =============================================================================
@@ -1103,7 +1280,6 @@ check_corner:
 ; =============================================================================
 ; History ring: hist[hist_pos] is the next free slot; the undo_n moves
 ; before it can be undone, the redo_n moves from it on can be redone.
-; hist is page aligned, so the slot address is hist + hist_pos.
 ; =============================================================================
 ; hist_put: store A at hist_pos, then advance. Clobbers A, Y.
 hist_put:
@@ -1135,9 +1311,10 @@ hist_advance:
 ; hist_ptr: hptr = hist + hist_pos.
 hist_ptr:
         LDA hist_pos_lo
+        CLC
+        ADC #<hist
         STA hptr_lo
         LDA hist_pos_hi
-        CLC
         ADC #>hist
         STA hptr_hi
         RTS
@@ -1347,23 +1524,47 @@ draw_hud:
         LDA #4
         JSR print_num
 
-        LDA #G_L
-        LDX #HUD_LEFT
+        LDX cur_coll                    ; "I:001": collection, original number
+        LDA coll_hud_lo,X
+        STA sptr_lo
+        LDA coll_hud_hi,X
+        STA sptr_hi
+        LDA #HUD_LEFT
+        STA num_col
+@coll:  LDY #$00
+        LDA (sptr_lo),Y
+        CMP #$FF
+        BEQ @colon
+        LDX num_col
         LDY #HUD_BOT_SL
         JSR draw_title_glyph
-        LDA #G_COLON
-        LDX #HUD_LEFT+1
+        INC num_col
+        INC sptr_lo                     ; (a short string: no page cross)
+        BNE @coll
+@colon: LDA #G_COLON
+        LDX num_col
         LDY #HUD_BOT_SL
         JSR draw_title_glyph
-        LDX level_idx                   ; 1-based
-        INX
-        STX num_lo
+        INC num_col
+        JSR orig_number
+        STA num_lo
         LDA #$00
         STA num_hi
-        LDX #HUD_LEFT+2
+        LDX num_col
         LDY #HUD_BOT_SL
         LDA #3
         JMP print_num
+
+; orig_number: A = original number of level (cur_coll, cur_lvl).
+orig_number:
+        LDX cur_coll
+        LDA coll_orig_lo,X
+        STA sptr_lo
+        LDA coll_orig_hi,X
+        STA sptr_hi
+        LDY cur_lvl
+        LDA (sptr_lo),Y
+        RTS
 
 ; print_num: num_hi:num_lo as A decimal digits (1..4, leading zeros), capped
 ; at 9999, one glyph per byte from column X on scanline Y. Clobbers num.
@@ -1489,7 +1690,7 @@ draw_from_table:
 title_table:
         .byte <title_sokoban,  >title_sokoban,  $0D, $08, $01    ; big
         .byte <title_apple,    >title_apple,    $0C, $30, $00    ; APPLE II
-        .byte <title_levels,   >title_levels,   $02, $40, $00    ; MICROBAN 72 LEVELS
+        .byte <title_levels,   >title_levels,   LEVELS_TITLE_COL, $40, $00
         .byte <title_author,   >title_author,   $02, $50, $00    ; BY VERHILLE ARNAUD
         .byte <title_ctrl,     >title_ctrl,     $04, $70, $00    ; JOYSTICK OR IJKL
         .byte <title_press,    >title_press,    $07, $90, $00    ; KEY OR BUTTON
@@ -1683,12 +1884,13 @@ draw_title_glyph:
 ; --- Strings: glyph indices, $FF terminated (GSTR, see bbfont_subset.inc) ---
 title_sokoban:  GSTR "SOKOBAN"
 title_apple:    GSTR "APPLE II"
-title_levels:   GSTR "MICROBAN 72 LEVELS"
+title_levels:   LEVELS_TITLE
 title_author:   GSTR "BY VERHILLE ARNAUD"
 title_ctrl:     GSTR "JOYSTICK OR IJKL"
 title_press:    GSTR "KEY OR BUTTON"
 title_h_help:   GSTR "H HELP"
 title_success:  GSTR "SUCCESS"
+str_loading:    GSTR "LOADING"
 
 help_big_title: GSTR "HELP"
 help_move:      GSTR "MOVE STICK OR IJKL"
@@ -1705,36 +1907,8 @@ menu_corners_off: GSTR "CORNERS:OFF (C)"
 menu_quit:      GSTR "QUIT TO DOS (Q)"
 
 ; =============================================================================
-; Shared Sokoban plumbing (from sokoban_common.inc, minus the Apple-1 I/O)
+; Tile transitions
 ; =============================================================================
-ascii_to_tile:
-        CMP #'#'
-        BEQ @wall
-        CMP #'.'
-        BEQ @target
-        CMP #'$'
-        BEQ @box
-        CMP #'*'
-        BEQ @box_t
-        CMP #'@'
-        BEQ @player
-        CMP #'+'
-        BEQ @player_t
-        LDA #TILE_FLOOR
-        RTS
-@wall:     LDA #TILE_WALL
-        RTS
-@target:   LDA #TILE_TARGET
-        RTS
-@box:      LDA #TILE_BOX
-        RTS
-@box_t:    LDA #TILE_BOX_TARGET
-        RTS
-@player:   LDA #TILE_PLAYER
-        RTS
-@player_t: LDA #TILE_PLAYER_TARGET
-        RTS
-
 ; leave_tile / enter_player / enter_as_box preserve X (cell index).
 leave_tile:
         TAY
@@ -1747,74 +1921,6 @@ enter_player:
 enter_as_box:
         TAY
         LDA enter_box_tbl,Y
-        RTS
-
-; load_level: expand level level_idx (RLE) into LEVEL_BUF, set lvl_w/h + offsets.
-; RLE: byte < $80 literal; byte >= $80 -> (byte & $7F) copies of the next byte.
-load_level:
-        LDX level_idx
-        LDA level_ptrs_lo,X
-        STA sptr_lo
-        LDA level_ptrs_hi,X
-        STA sptr_hi
-
-        LDY #$00
-        LDA (sptr_lo),Y
-        STA lvl_w
-        INY
-        LDA (sptr_lo),Y
-        STA lvl_h
-        INY
-        LDA (sptr_lo),Y
-        STA row_offset
-        INY
-        LDA (sptr_lo),Y
-        STA col_offset
-
-        CLC
-        LDA sptr_lo
-        ADC #$04
-        STA sptr_lo
-        LDA sptr_hi
-        ADC #$00
-        STA sptr_hi
-
-        LDA #$00                        ; temp = w*h
-        STA temp
-        LDY lvl_h
-        BEQ @decode
-@mul:
-        CLC
-        LDA temp
-        ADC lvl_w
-        STA temp
-        DEY
-        BNE @mul
-
-@decode:
-        LDY #$00
-        LDX #$00
-@main:
-        LDA (sptr_lo),Y
-        INY
-        CMP #$80
-        BCC @literal
-        AND #$7F
-        STA temp2
-        LDA (sptr_lo),Y
-        INY
-@runlp:
-        STA LEVEL_BUF,X
-        INX
-        DEC temp2
-        BNE @runlp
-        JMP @chk
-@literal:
-        STA LEVEL_BUF,X
-        INX
-@chk:
-        CPX temp
-        BCC @main
         RTS
 
 leave_tbl:        .byte 0, 1, 2, 0, 2, 0, 2
@@ -1951,20 +2057,7 @@ tile_bitmaps:
         .byte $20,$01, $28,$05, $08,$04, $08,$04
         .byte $08,$04, $0A,$14, $00,$00, $00,$00
 
-; --- Level data (RLE compressed, Microban I) ---
-.include "sokoban_levels.inc"
-.include "sokoban_levels_ext.inc"
-
-level_ptrs_lo:
-.repeat NUM_LEVELS, I
-        .byte <.ident(.sprintf("level%d", I+1))
-.endrepeat
-level_ptrs_hi:
-.repeat NUM_LEVELS, I
-        .byte >.ident(.sprintf("level%d", I+1))
-.endrepeat
-
-.assert <hist = 0, error, "hist must be page aligned"
+.assert pack_buf = PACK_ADDR, error, "the packs are BLOADed at PACK_ADDR"
 
 ; =============================================================================
 ; ../dev/lib/apple2 modules (textual includes: they pick their own segments)
