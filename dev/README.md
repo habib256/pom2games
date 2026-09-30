@@ -122,4 +122,28 @@ Apple //e (+ ROM caractères) et Disk II, copiés depuis POM2 (`--roms DIR` pour
 libslirp (brew) et zlib viennent du système.
 Un DOS 3.3 met environ 900 trames à lancer un jeu de 8-12 Ko.
 
+## a2run
+
+L'équivalent portable d'a2shot (Linux et macOS, C99 + zlib, sans le cœur de
+POM2) : un 6502 NMOS (validé par la suite de tests fonctionnels de Klaus
+Dormann), 48 Ko, clavier, haut-parleur, manette et un Disk II au niveau des
+quartets, en lecture **et en écriture**. Mêmes ROM (`a2shot/roms`), même
+syntaxe de script, plus quelques étapes pour les tests :
+
+    cd tools/a2run && make
+    ./a2run --disk ../../../sokoban/dist/SOKOBAN.dsk \
+        wait:900 shot:titre.png key:" " wait:30 key:LLK spk dsk:apres.dsk
+
+| Étape             | Effet                                              |
+|-------------------|----------------------------------------------------|
+| `wait:N`, `key:`, `shot:`, `peek:`, `joy:`, `btn:`, `reset`, `pc` | comme a2shot (`\^` `\v` : flèches haut/bas) |
+| `text`            | affiche la page texte 40×24                        |
+| `poke:ADR:VAL`    | écrit un octet en RAM                              |
+| `spk`             | nombre de basculements du haut-parleur depuis le dernier `spk` |
+| `dsk:F.dsk`       | écrit la disquette telle que le programme l'a laissée (sauvegardes) |
+
+Le disque passé à `--disk` n'est jamais modifié. Un DOS 3.3 met environ
+400 trames à lancer un jeu. Pas de carte langage, pas de 80 colonnes : pour
+LOGO sur //e, a2shot reste l'outil.
+
 Licence : GPL v3, comme les sources POM1 dont ces bibliothèques dérivent.

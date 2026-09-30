@@ -43,6 +43,8 @@ bibliothèques Apple-1 de POM1 :
 - `dev/tools/a2shot` : fait tourner une disquette sans fenêtre sur le cœur de
   POM2, tape au clavier et prend des captures — c'est ainsi que les ports sont
   testés ;
+- `dev/tools/a2run` : la même chose en C portable (Linux, macOS), avec
+  l'écriture disque pour vérifier les sauvegardes ;
 - `dev/examples/hello` : programme de départ en assembleur et en C.
 
 ## Licences et crédits
