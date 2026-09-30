@@ -274,7 +274,10 @@ main:
         JSR load_save                   ; under the title: the save file,
         JSR first_unsolved              ; where to resume,
         JSR find_level                  ; and that level's pack
-        JSR wait_any                    ; any key / any button starts
+        JSR wait_any                    ; any key / any button starts,
+        CMP #ACT_GOTO                   ; G goes to the level grid first
+        BNE game_loop
+        JSR run_select                  ; (ESC: the resume level)
 
 game_loop:
         JSR init_level
@@ -2434,10 +2437,11 @@ title_table:
         .byte <title_sokoban,  >title_sokoban,  $0D, $08, $01    ; big
         .byte <title_apple,    >title_apple,    $0C, $30, $00    ; APPLE II
         .byte <title_levels,   >title_levels,   LEVELS_TITLE_COL, $40, $00
-        .byte <title_author,   >title_author,   $02, $50, $00    ; BY VERHILLE ARNAUD
-        .byte <title_ctrl,     >title_ctrl,     $04, $70, $00    ; JOYSTICK OR IJKL
-        .byte <title_press,    >title_press,    $07, $90, $00    ; KEY OR BUTTON
-        .byte <title_h_help,   >title_h_help,   $0E, $B8, $00    ; H HELP
+        .byte <title_skinner,  >title_skinner,  $01, $50, $00    ; BY DAVID W. SKINNER
+        .byte <title_author,   >title_author,   $00, $68, $00    ; PORT VERHILLE ARNAUD
+        .byte <title_ctrl,     >title_ctrl,     $04, $80, $00    ; JOYSTICK OR IJKL
+        .byte <title_press,    >title_press,    $07, $98, $00    ; KEY OR BUTTON
+        .byte <title_h_help,   >title_h_help,   $02, $AA, $00    ; H HELP   G LEVELS (clear of LOADING)
         .byte $FF
 
 ; Help: title, the controls, then the menu entries on tile rows
@@ -2640,10 +2644,11 @@ draw_title_glyph:
 title_sokoban:  GSTR "SOKOBAN"
 title_apple:    GSTR "APPLE II"
 title_levels:   LEVELS_TITLE
-title_author:   GSTR "BY VERHILLE ARNAUD"
+title_skinner:  GSTR "BY DAVID W. SKINNER"
+title_author:   GSTR "PORT VERHILLE ARNAUD"
 title_ctrl:     GSTR "JOYSTICK OR IJKL"
 title_press:    GSTR "KEY OR BUTTON"
-title_h_help:   GSTR "H HELP"
+title_h_help:   GSTR "H HELP    G LEVELS"
 title_success:  GSTR "SUCCESS"
 str_loading:    GSTR "LOADING"
 str_saving:     GSTR " SAVING"
