@@ -15,20 +15,22 @@ DEV     ?= ../dev
 POM2    ?= /Applications/POM2.app/Contents/MacOS/POM2
 SYSTEM  ?= $(DEV)/tools/dos33_system.bin
 
+INCS    := -I src -I $(DEV)/lib/apple2
+CFG     := $(DEV)/cc65/apple2_hgr.cfg
 BUILD   := build
 DIST    := dist
 DISK    := $(DIST)/SOKOBAN.dsk
 BIN     := $(BUILD)/sokoban.bin
-LOAD    := 0x4000
+LOAD    := 0x6000
 
 all: $(DISK)
 
-$(BUILD)/sokoban.o: src/sokoban.s src/sokoban_levels.inc src/sokoban_levels_ext.inc src/bbfont_subset.inc
+$(BUILD)/sokoban.o: src/sokoban.s src/sokoban_levels.inc src/sokoban_levels_ext.inc src/bbfont_subset.inc $(wildcard $(DEV)/lib/apple2/*)
 	@mkdir -p $(BUILD)
-	$(CA65) -t none -I src -l $(BUILD)/sokoban.lst -o $@ $<
+	$(CA65) -t none $(INCS) -l $(BUILD)/sokoban.lst -o $@ $<
 
-$(BIN): $(BUILD)/sokoban.o src/apple2_dos33.cfg
-	$(LD65) -C src/apple2_dos33.cfg -m $(BUILD)/sokoban.map -o $@ $<
+$(BIN): $(BUILD)/sokoban.o $(CFG)
+	$(LD65) -C $(CFG) -m $(BUILD)/sokoban.map -o $@ $<
 	@echo "binary: $$(wc -c < $@) bytes at $(LOAD)"
 
 $(DISK): $(BIN) src/hello.bas $(DEV)/tools/dos33.py $(SYSTEM)

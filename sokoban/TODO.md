@@ -29,15 +29,15 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
 
 ## 2. Base technique
 
-- [ ] **Passer Sokoban sur `../dev`**, comme les autres jeux : binaire à
+- [x] **Passer Sokoban sur `../dev`**, comme les autres jeux : binaire à
   `$6000` (config `dev/cc65/apple2_hgr.cfg` ou dérivée) pour libérer HGR2,
   zéro-page en `$50+`, et `apple2.inc`, `kbd.asm`, `hgr.asm`, `exit.asm` à
   la place des équivalents locaux. Garder la lecture de la manette. À faire
   **avant** les étapes 3 à 5 : la carte mémoire change, et l'annulation, les
   paquets de niveaux et la sauvegarde en dépendent.
-- [ ] **Quitter vers DOS depuis le menu**, via `apple2_zp_save` /
+- [x] **Quitter vers DOS depuis le menu**, via `apple2_zp_save` /
   `apple2_exit` (page zéro restaurée, Ctrl-RESET protégé).
-- [ ] **Double tampon HGR1/HGR2** pour les changements d'écran (niveau, titre,
+- [x] **Double tampon HGR1/HGR2** pour les changements d'écran (niveau, titre,
   aide, succès), comme Maze3D. Le rendu par tuiles modifiées pendant le jeu
   peut rester sur la page affichée.
 - [ ] **Commandes DOS depuis l'assembleur** : une routine qui envoie

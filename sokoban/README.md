@@ -20,20 +20,21 @@ Prérequis : cc65 (`brew install cc65`) et python3. L'image est écrite par
 | manche (répétition auto)     | I J K L, W A S D, flèches        | déplacer / pousser         |
 | bouton 0                     | U                                | annuler le dernier coup    |
 | bouton 1                     | H ou ESC                         | menu (aide)                |
+|                              | Q (dans le menu)                 | quitter vers DOS           |
 | manche haut/bas + bouton     | I/K + RETURN ou ESPACE           | choisir dans le menu       |
 |                              | R / N / P                        | recommencer / niveau suivant / précédent |
 
 Sur l'écran titre et l'écran de succès : n'importe quelle touche ou bouton.
+Ctrl-RESET quitte aussi proprement vers DOS (page zéro restaurée).
 
 Améliorations prévues : voir [`TODO.md`](TODO.md).
 
 ## Contenu
 
-    src/sokoban.s              le jeu (ca65), BRUN à $4000
+    src/sokoban.s              le jeu (ca65), BRUN à $6000
     src/sokoban_levels.inc     niveaux 1-45  (RLE, repris de POM1)
     src/sokoban_levels_ext.inc niveaux 46-72 (RLE, repris de POM1)
     src/bbfont_subset.inc      police du HUD (Beautiful Boot, sous-ensemble)
-    src/apple2_dos33.cfg       config ld65 : ZP $80-$9F, code+données à $4000
     src/hello.bas              HELLO : 10 PRINT CHR$(4);"BRUN SOKOBAN"
     dist/SOKOBAN.dsk           l'image produite
 
@@ -45,5 +46,10 @@ Améliorations prévues : voir [`TODO.md`](TODO.md).
 - Tuiles en couleur HGR (murs bleus, caisses orange, caisses placées et cibles
   vertes, joueur blanc, vert quand il est sur une cible) ; l'écran texte
   Apple-1 est remplacé par le menu HGR.
-- Les 72 niveaux tiennent en RAM (7 Ko de binaire), zéro page limitée à
-  $80-$9F comme la cible apple2 de cc65.
+- Disposition `../dev` : binaire à `$6000` (config `dev/cc65/apple2_hgr.cfg`),
+  au-dessus des deux pages HGR, zéro page en `$50` sauvegardée au démarrage
+  et restaurée en quittant (`dev/lib/apple2/exit.asm`).
+- Double tampon : les écrans complets (niveau, titre, aide, succès) sont
+  dessinés sur la page HGR cachée puis affichés d'un coup ; pendant le jeu,
+  les 2-3 tuiles d'un coup sont dessinées sur la page affichée.
+- Les 72 niveaux tiennent en RAM (7,5 Ko de binaire).

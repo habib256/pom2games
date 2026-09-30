@@ -4,43 +4,33 @@
 ; Licence: GPL v3 (same as the upstream sketch)
 ; =============================================================================
 ; Assemble with cc65:   make          (see ../Makefile)
-; Output: SOKOBAN, a DOS 3.3 binary file, BRUN at $4000.
+; Output: SOKOBAN, a DOS 3.3 binary file, BRUN at $6000 (../dev layout).
 ;
 ; Controls
 ;   Joystick  : stick = move (auto-repeats while held)
 ;               button 0 = undo last move
-;               button 1 = menu (resume / reset level / next / previous)
+;               button 1 = menu (resume / reset / next / previous / quit)
 ;   Keyboard  : I J K L or W A S D or arrows = move
 ;               U undo    R reset level    N next    P previous
 ;               H or ESC  = menu        RETURN/SPACE = select in menu
+;               Q (in the menu) = quit to DOS; Ctrl-RESET also quits cleanly
 ;
-; Playfield: 20 cols x 12 rows of 14x16 pixel tiles on HGR page 1 ($2000).
-; Delta rendering: a move only redraws the 2-3 affected tiles.
+; Playfield: 20 cols x 12 rows of 14x16 pixel tiles.
+; Delta rendering: a move only redraws the 2-3 affected tiles, on the page
+; on screen. Whole screens (level, title, help, success) are drawn on the
+; hidden HGR page and shown with one page flip.
 ; Levels: Microban I (David W. Skinner), 72 levels, RLE compressed.
 ;
 ; Apple II+ specifics vs the Apple-1/GEN2 original:
 ;   - no V-blank signal on a II+ ($C019 is a //e thing) -> draws are immediate
-;   - everything lives in one 48 KB bank: code+data at $4000, BSS after it
-;   - zero page trimmed to $80-$9F (pointers + hot scalars); the rest is BSS
+;   - ../dev layout: code+data at $6000 above both HGR pages, big tables in
+;     LOWBSS ($1000), zero page at $50 (saved at start, restored on quit)
 ;   - the game port replaces the Apple-1 text-screen echo
 ; =============================================================================
 
-; --- Apple II soft switches / I/O ---
-KBD     = $C000         ; keyboard data, bit 7 = key ready
-KBDSTRB = $C010         ; clear keyboard strobe
-SPKR    = $C030         ; speaker toggle
-TXTCLR  = $C050         ; graphics
-TXTSET  = $C051         ; text
-MIXCLR  = $C052         ; full screen
-LOWSCR  = $C054         ; page 1
-HIRES   = $C057         ; hi-res
-BUTN0   = $C061         ; game port button 0 (bit 7)
-BUTN1   = $C062         ; game port button 1 (bit 7)
-PADDL0  = $C064         ; paddle 0 timer (bit 7 while charging)
-PADDL1  = $C065         ; paddle 1 timer
-PTRIG   = $C070         ; trigger the paddle timers
+.include "apple2.inc"            ; ../dev/lib/apple2: I/O equates, preamble
 
-HGR_BASE = $2000
+PAGE2_EOR = $60                 ; hgr_hi of page 1 ($20-$3F) EOR this = page 2
 
 ; --- Game constants ---
 NCOLS      = 20
@@ -69,7 +59,8 @@ ACT_NEXT   = 7          ; N key
 ACT_PREV   = 8          ; P key
 ACT_MENU   = 9          ; H / ESC key / button 1
 ACT_SELECT = 10         ; RETURN / SPACE
-ACT_OTHER  = 11         ; any other key
+ACT_QUIT   = 11         ; Q key (acted on in the menu only)
+ACT_OTHER  = 12         ; any other key
 
 ; --- Joystick tuning ---
 ; read_stick counts 24-cycle iterations while each paddle timer is charging:
@@ -83,12 +74,13 @@ MENU_RESUME = 0
 MENU_RESET  = 1
 MENU_NEXT   = 2
 MENU_PREV   = 3
-MENU_COUNT  = 4
-MENU_ROW0   = 7         ; tile row of the first menu entry (cursor = player tile)
+MENU_QUIT   = 4
+MENU_COUNT  = 5
+MENU_ROW0   = 6         ; tile row of the first menu entry (cursor = player tile)
 MENU_CURSOR_COL = 4
 
 ; =============================================================================
-; Zero page ($80-$9F, 32 bytes)
+; Zero page ($50+, see ../dev/cc65/apple2_hgr.cfg)
 ; =============================================================================
 .zeropage
 temp:            .res 1
@@ -152,6 +144,7 @@ menu_sel:        .res 1
 menu_prev:       .res 1
 beep_len:        .res 1
 beep_period:     .res 1
+front_page:      .res 1          ; page on screen: 0 = page 1, PAGE2_EOR = page 2
 
 ; =============================================================================
 .code
@@ -160,33 +153,34 @@ beep_period:     .res 1
 ; MAIN — entry point (BRUN)
 ; =============================================================================
 main:
-        CLD
+        APPLE2_PREAMBLE
+        JSR apple2_zp_save              ; ZP is DOS/Applesoft's: restored on quit
         LDA #$00
         STA btn0_prev
         STA btn1_prev
         STA joy_hold
         STA level_idx
+        STA front_page                  ; page 1 on screen, drawing on page 1
+        JSR set_draw_page
 
-        ; Blank-first: clear the page while the display is still on text,
-        ; then flip to full-screen HGR page 1.
-        JSR clear_hgr
-        LDA TXTCLR
-        LDA HIRES
-        LDA LOWSCR
-        LDA MIXCLR
-
+        ; Blank-first: page 1 is cleared while the display still shows text,
+        ; then the title is drawn on page 2 and flipped in.
+        JSR hgr_init_clear
+        JSR begin_screen
         JSR draw_title
+        JSR show_screen
         JSR wait_any                    ; any key / any button starts
 
 game_loop:
         JSR init_level
-        JSR clear_hgr
+        JSR begin_screen
         JSR render_all
         LDA #$00                        ; reset undo + move counter
         STA undo_avail
         STA had_push
         STA moves
         JSR draw_hud
+        JSR show_screen
 
 move_loop:
         JSR get_input
@@ -223,10 +217,15 @@ key_menu:
         BEQ key_next
         CMP #MENU_PREV
         BEQ key_prev
+        CMP #MENU_QUIT
+        BNE @resume
+        JMP apple2_exit                 ; ZP + text screen back, DOS prompt
+@resume:
         ; MENU_RESUME: repaint the playfield and carry on
-        JSR clear_hgr
+        JSR begin_screen
         JSR render_all
         JSR draw_hud
+        JSR show_screen
         JMP move_loop
 
 key_up:
@@ -280,7 +279,9 @@ do_move:
         BEQ move_loop_j                 ; not won yet
 
         ; Level complete
+        JSR begin_screen
         JSR draw_success
+        JSR show_screen
         JSR play_fanfare
         JSR wait_any
 
@@ -308,16 +309,9 @@ move_loop_j:
 get_input:
         LDA #$00
         STA in_src
-        LDA KBD
-        BPL @stick
-        BIT KBDSTRB                     ; clear the strobe
-        AND #$7F
-        CMP #'a'                        ; fold lowercase (a //e would send it)
-        BCC @map
-        CMP #'z'+1
-        BCS @map
-        AND #$DF
-@map:   LDX #$00
+        JSR poll_key                    ; kbd.asm: A = key, upper-cased, or 0
+        BEQ @stick
+        LDX #$00
 @ml:    LDY key_tbl,X
         BEQ @other                      ; end of table
         CMP key_tbl,X
@@ -396,7 +390,7 @@ key_tbl:
         .byte 'W', ACT_UP,   'S', ACT_DOWN, 'A', ACT_LEFT, 'D', ACT_RIGHT
         .byte $0B, ACT_UP,   $0A, ACT_DOWN, $08, ACT_LEFT, $15, ACT_RIGHT
         .byte 'U', ACT_UNDO, 'R', ACT_RESET, 'N', ACT_NEXT, 'P', ACT_PREV
-        .byte 'H', ACT_MENU, $1B, ACT_MENU
+        .byte 'H', ACT_MENU, $1B, ACT_MENU, 'Q', ACT_QUIT
         .byte $0D, ACT_SELECT, ' ', ACT_SELECT
         .byte 0
 
@@ -444,7 +438,9 @@ wait_any:
 ; MENU — help text + cursor-driven choice. Returns A = MENU_*.
 ; =============================================================================
 run_menu:
+        JSR begin_screen
         JSR draw_help
+        JSR show_screen                 ; the cursor is drawn on the page shown
         LDA #MENU_RESUME
         STA menu_sel
         JSR menu_draw_cursor
@@ -460,6 +456,8 @@ run_menu:
         BEQ @next
         CMP #ACT_PREV
         BEQ @prev
+        CMP #ACT_QUIT
+        BEQ @quit
         CMP #ACT_SELECT
         BEQ @select
         LDX in_src
@@ -474,6 +472,8 @@ run_menu:
 @next:  LDA #MENU_NEXT
         RTS
 @prev:  LDA #MENU_PREV
+        RTS
+@quit:  LDA #MENU_QUIT
         RTS
 @resume:
         LDA #MENU_RESUME
@@ -620,7 +620,8 @@ init_level:
         RTS
 
 ; =============================================================================
-; render_all: draw all 240 tiles
+; render_all: draw the 240 cells on a freshly cleared draw page. Floor is
+; all black, so floor cells are skipped (most of the grid).
 ; =============================================================================
 render_all:
         LDA #$00
@@ -634,8 +635,9 @@ render_all:
         ADC draw_col
         TAX
         LDA STATE_GRID,X
+        BEQ @skip                       ; TILE_FLOOR: already black
         JSR draw_tile
-        INC draw_col
+@skip:  INC draw_col
         LDA draw_col
         CMP #NCOLS
         BCC @collp
@@ -1142,7 +1144,6 @@ draw_title:
         JMP draw_from_table
 
 draw_help:
-        JSR clear_hgr
         LDA #<help_table
         STA tbl_lo
         LDA #>help_table
@@ -1150,7 +1151,6 @@ draw_help:
         JMP draw_from_table
 
 draw_success:
-        JSR clear_hgr
         LDA #<success_table
         STA tbl_lo
         LDA #>success_table
@@ -1206,11 +1206,12 @@ help_table:
         .byte <help_move,      >help_move,      $02, $28, $00    ; MOVE STICK OR IJKL
         .byte <help_undo,      >help_undo,      $02, $38, $00    ; UNDO BUTTON 0 OR U
         .byte <help_menu,      >help_menu,      $02, $48, $00    ; MENU BUTTON 1 OR H
-        ; menu entries: tile rows 7..10 (scanlines 112..160), cursor at col 4
-        .byte <menu_resume,    >menu_resume,    $0B, 112+4, $00
-        .byte <menu_reset,     >menu_reset,     $0B, 128+4, $00
-        .byte <menu_next,      >menu_next,      $0B, 144+4, $00
-        .byte <menu_prev_str, >menu_prev_str,      $0B, 160+4, $00
+        ; menu entries: tile rows 6..10 (scanlines 96..160), cursor at col 4
+        .byte <menu_resume,    >menu_resume,    $0B,  96+4, $00
+        .byte <menu_reset,     >menu_reset,     $0B, 112+4, $00
+        .byte <menu_next,      >menu_next,      $0B, 128+4, $00
+        .byte <menu_prev_str,  >menu_prev_str,  $0B, 144+4, $00
+        .byte <menu_quit,      >menu_quit,      $0B, 160+4, $00
         .byte <help_select,    >help_select,    $05, $B8, $00    ; BUTTON SELECTS
         .byte $FF
 
@@ -1404,6 +1405,7 @@ menu_resume:    .byte 20,21,13,30,10,21, $FF                             ; RESUM
 menu_reset:     .byte 20,21,13,21,26,23,22,21,11,21,22,23,36,20,37, $FF  ; RESET LEVEL (R)
 menu_next:      .byte 18,21,35,26,23,22,21,11,21,22,23,36,18,37, $FF     ; NEXT LEVEL (N)
 menu_prev_str:  .byte 19,20,21,11,23,22,21,11,21,22,23,36,19,37, $FF     ; PREV LEVEL (P)
+menu_quit:      .byte 31,30,29,26,23,26,14,23,27,14,13,23,36,31,37, $FF  ; QUIT TO DOS (Q)
 help_select:    .byte 16,30,26,26,14,18,23,13,21,22,21,34,26,13, $FF     ; BUTTON SELECTS
 
 ; =============================================================================
@@ -1540,37 +1542,87 @@ enter_player_tbl: .byte 5, 0, 6, 0, 0, 0, 0
 enter_box_tbl:    .byte 3, 0, 4, 0, 0, 0, 0
 
 ; =============================================================================
-; clear_hgr: zero HGR page 1 ($2000-$3FFF). No zero page used.
+; Double buffering. All drawing goes through hgr_lo / hgr_hi, and hgr_hi is
+; rewritten in place to address the draw page (set_draw_page), as Maze3D does.
+;   begin_screen  draw page := the hidden page, cleared
+;   show_screen   display the draw page; it stays the draw page, so the
+;                 per-move tile updates land on the page on screen
 ; =============================================================================
-clear_hgr:
+begin_screen:
+        LDA front_page
+        EOR #PAGE2_EOR                  ; the page that is not on screen
+        JSR set_draw_page
+        JMP clear_draw_page
+
+show_screen:
+        LDA draw_page
+        STA front_page
+        BNE @p2
+        LDA LOWSCR
+        RTS
+@p2:    LDA HISCR
+        RTS
+
+; set_draw_page: A = 0 (page 1) or PAGE2_EOR (page 2). Clobbers A, X.
+set_draw_page:
+        CMP draw_page
+        BEQ @done
+        STA draw_page
+        LDX #191
+@lp:    LDA hgr_hi,X
+        EOR #PAGE2_EOR
+        STA hgr_hi,X
+        DEX
+        CPX #$FF
+        BNE @lp
+@done:  RTS
+
+; clear_draw_page: zero the 8 KB of the draw page. No zero page used.
+clear_draw_page:
         LDA #$00
         TAX
-@clr:
+        BIT draw_page
+        BVS @clr2                       ; PAGE2_EOR has bit 6 set
+@clr1:
 .repeat 32, I
-        STA HGR_BASE + (I * $100), X
+        STA HGR1 + (I * $100), X
 .endrepeat
         INX
-        BNE @clr
+        BNE @clr1
+        RTS
+@clr2:
+.repeat 32, I
+        STA HGR2 + (I * $100), X
+.endrepeat
+        INX
+        BNE @clr2
         RTS
 
 ; =============================================================================
 ; DATA
 ; =============================================================================
+.data
+
+draw_page:
+        .byte 0                         ; 0 = hgr_hi addresses page 1, PAGE2_EOR = page 2
+
+; hgr_hi is rewritten by set_draw_page: it lives in DATA, not RODATA.
+; HGR scanline address tables (Apple II interleave), page 1 at load time
+hgr_lo:
+.repeat 192, I
+        .byte <(HGR1 + (I & 7) * $400 + ((I >> 3) & 7) * $80 + (I >> 6) * $28)
+.endrepeat
+hgr_hi:
+.repeat 192, I
+        .byte >(HGR1 + (I & 7) * $400 + ((I >> 3) & 7) * $80 + (I >> 6) * $28)
+.endrepeat
+
 .rodata
 
 row_x20:
         .byte   0,  20,  40,  60,  80, 100, 120, 140
         .byte 160, 180, 200, 220
 
-; HGR page 1 scanline address tables (Apple II interleave)
-hgr_lo:
-.repeat 192, I
-        .byte <(HGR_BASE + (I & 7) * $400 + ((I >> 3) & 7) * $80 + (I >> 6) * $28)
-.endrepeat
-hgr_hi:
-.repeat 192, I
-        .byte >(HGR_BASE + (I & 7) * $400 + ((I >> 3) & 7) * $80 + (I >> 6) * $28)
-.endrepeat
 
 ; --- Tile bitmaps: 7 tiles x 16 scanlines x 2 bytes ---
 ; Colour on a real Apple II: tiles start on an even pixel column, so within a
@@ -1632,3 +1684,10 @@ level_ptrs_hi:
 .repeat NUM_LEVELS, I
         .byte >.ident(.sprintf("level%d", I+1))
 .endrepeat
+
+; =============================================================================
+; ../dev/lib/apple2 modules (textual includes: they pick their own segments)
+; =============================================================================
+.include "kbd.asm"               ; poll_key
+.include "hgr.asm"               ; hgr_init_clear
+.include "exit.asm"              ; apple2_zp_save, apple2_exit
