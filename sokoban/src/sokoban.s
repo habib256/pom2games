@@ -4,49 +4,54 @@
 ; Licence: GPL v3 (same as the upstream sketch)
 ; =============================================================================
 ; Assemble with cc65:   make          (see ../Makefile)
-; Output: SOKOBAN, a DOS 3.3 binary file, BRUN at $4000.
+; Output: SOKOBAN, a DOS 3.3 binary file, BRUN at $6000 (../dev layout).
 ;
 ; Controls
 ;   Joystick  : stick = move (auto-repeats while held)
-;               button 0 = undo last move
-;               button 1 = menu (resume / reset level / next / previous)
+;               button 0 tapped = undo; button 0 held + stick left/right =
+;               undo / redo (auto-repeat)
+;               button 1 = menu
 ;   Keyboard  : I J K L or W A S D or arrows = move
-;               U undo    R reset level    N next    P previous
+;               U undo    Y redo    R restart (undoable: Y replays)
+;               N next    P previous
 ;               H or ESC  = menu        RETURN/SPACE = select in menu
+;               in the menu: C = dead-corner warning on/off, Q = quit to DOS
+;               Ctrl-RESET also quits cleanly
 ;
-; Playfield: 20 cols x 12 rows of 14x16 pixel tiles on HGR page 1 ($2000).
-; Delta rendering: a move only redraws the 2-3 affected tiles.
-; Levels: Microban I (David W. Skinner), 72 levels, RLE compressed.
+; Playfield: 20 cols x 12 rows of 14x16 pixel tiles.
+; Delta rendering: a move only redraws the 2-3 affected tiles, on the page
+; on screen. Whole screens (level, title, help, success) are drawn on the
+; hidden HGR page and shown with one page flip.
+; HUD: 7-pixel glyphs in the four screen corners, 3 tiles each (moves top
+; left, pushes top right, level bottom left); levels keep those cells empty.
+; Levels: Microban (David W. Skinner) -- every level that fits the screen,
+; converted by tools/sokoban_levels.py into packs of up to 4 KB (MB1A, MB1B,
+; ...) that are BLOADed into LOWBSS when play crosses into another pack. A
+; level is (collection, index); the HUD shows the collection and the level's
+; original number.
+;
+; History: every move is one byte (direction + "pushed a box") in a
+; 1024-move ring. Undo walks it back, redo forward; restart (R)
+; rewinds the whole level through it, so R can be redone with Y. Past 1024
+; moves the oldest are forgotten, and R then reloads the level instead.
 ;
 ; Apple II+ specifics vs the Apple-1/GEN2 original:
 ;   - no V-blank signal on a II+ ($C019 is a //e thing) -> draws are immediate
-;   - everything lives in one 48 KB bank: code+data at $4000, BSS after it
-;   - zero page trimmed to $80-$9F (pointers + hot scalars); the rest is BSS
+;   - ../dev layout: code+data at $6000 above both HGR pages, the level pack
+;     in LOWBSS ($1000), zero page at $50 (saved at start, restored on quit)
 ;   - the game port replaces the Apple-1 text-screen echo
 ; =============================================================================
 
-; --- Apple II soft switches / I/O ---
-KBD     = $C000         ; keyboard data, bit 7 = key ready
-KBDSTRB = $C010         ; clear keyboard strobe
-SPKR    = $C030         ; speaker toggle
-TXTCLR  = $C050         ; graphics
-TXTSET  = $C051         ; text
-MIXCLR  = $C052         ; full screen
-LOWSCR  = $C054         ; page 1
-HIRES   = $C057         ; hi-res
-BUTN0   = $C061         ; game port button 0 (bit 7)
-BUTN1   = $C062         ; game port button 1 (bit 7)
-PADDL0  = $C064         ; paddle 0 timer (bit 7 while charging)
-PADDL1  = $C065         ; paddle 1 timer
-PTRIG   = $C070         ; trigger the paddle timers
+.include "apple2.inc"            ; ../dev/lib/apple2: I/O equates, preamble
+.include "levels.inc"            ; generated: collections, packs, numbers
 
-HGR_BASE = $2000
+PAGE2_EOR = $60                 ; hgr_hi of page 1 ($20-$3F) EOR this = page 2
 
 ; --- Game constants ---
 NCOLS      = 20
 NROWS      = 12
-NUM_LEVELS = 72
 STATE_GRID_LEN = 240
+HIST_LEN   = 1024               ; moves kept for undo / redo (a power of two)
 
 ; --- Tile types ---
 TILE_FLOOR         = 0
@@ -57,19 +62,30 @@ TILE_BOX_TARGET    = 4
 TILE_PLAYER        = 5
 TILE_PLAYER_TARGET = 6
 
+; --- Directions (history codes, bits 0-1; bit 2 = pushed a box) ---
+DIR_UP     = 0
+DIR_DOWN   = 1
+DIR_LEFT   = 2
+DIR_RIGHT  = 3
+HIST_PUSH  = 4
+
 ; --- Input actions (get_input return codes) ---
-ACT_NONE   = 0
-ACT_UP     = 1
-ACT_DOWN   = 2
-ACT_LEFT   = 3
-ACT_RIGHT  = 4
-ACT_UNDO   = 5          ; U key / button 0
-ACT_RESET  = 6          ; R key
-ACT_NEXT   = 7          ; N key
-ACT_PREV   = 8          ; P key
-ACT_MENU   = 9          ; H / ESC key / button 1
-ACT_SELECT = 10         ; RETURN / SPACE
-ACT_OTHER  = 11         ; any other key
+ACT_NONE    = 0
+ACT_UP      = 1
+ACT_DOWN    = 2
+ACT_LEFT    = 3
+ACT_RIGHT   = 4
+ACT_UNDO    = 5         ; U key / button 0
+ACT_RESET   = 6         ; R key
+ACT_NEXT    = 7         ; N key
+ACT_PREV    = 8         ; P key
+ACT_MENU    = 9         ; H / ESC key / button 1
+ACT_SELECT  = 10        ; RETURN / SPACE
+ACT_QUIT    = 11        ; Q key (acted on in the menu only)
+ACT_REDO    = 12        ; Y key / button 0 held + stick right
+ACT_CORNERS = 13        ; C key (acted on in the menu only)
+ACT_GOTO    = 14        ; G key: level selection
+ACT_OTHER   = 15        ; any other key
 
 ; --- Joystick tuning ---
 ; read_stick counts 24-cycle iterations while each paddle timer is charging:
@@ -78,17 +94,37 @@ JOY_LO     = 30         ; count below this  = left / up
 JOY_HI     = 90         ; count above this  = right / down
 JOY_REPEAT = 32         ; get_input calls (~6 ms each) between auto-repeats
 
-; --- Menu entries ---
-MENU_RESUME = 0
-MENU_RESET  = 1
-MENU_NEXT   = 2
-MENU_PREV   = 3
-MENU_COUNT  = 4
-MENU_ROW0   = 7         ; tile row of the first menu entry (cursor = player tile)
+; --- Menu entries (one per tile row from MENU_ROW0) ---
+MENU_RESUME  = 0
+MENU_RESET   = 1
+MENU_NEXT    = 2
+MENU_PREV    = 3
+MENU_GOTO    = 4
+MENU_CORNERS = 5        ; toggled in place, never returned
+MENU_QUIT    = 6
+MENU_COUNT   = 7
+MENU_ROW0    = 5        ; tile row of the first menu entry (cursor = player tile)
 MENU_CURSOR_COL = 4
+MENU_TEXT_COL   = $0B   ; byte column of the entry texts
+
+; --- HUD: 7-pixel glyphs, 8 lines centred in the top / bottom tile rows ---
+HUD_TOP_SL = 4
+HUD_BOT_SL = 11 * 16 + 4
+HUD_LEFT   = 0          ; byte columns: 6 glyphs = 3 tiles per corner
+HUD_RIGHT  = 34
+
+; --- Save file SOKOSAVE: "SOK1", collection and level last solved, then 4
+; bytes per level (best moves, best pushes; 0 = unsolved), SAVE_LEN in all.
+SAVE_HDR   = 6
+
+; --- Level selection: pages of 10 x 8 numbers, 4 byte columns each ---
+SEL_COLS   = 10
+SEL_PAGE   = 80
+SEL_SL0    = 24         ; scanline of the first row of numbers
+SEL_DY     = 18         ; scanlines from one row to the next
 
 ; =============================================================================
-; Zero page ($80-$9F, 32 bytes)
+; Zero page ($50+, see ../dev/cc65/apple2_hgr.cfg)
 ; =============================================================================
 .zeropage
 temp:            .res 1
@@ -101,42 +137,91 @@ sptr_lo:         .res 1  ; scratch pointer (level data, strings)
 sptr_hi:         .res 1
 tbl_lo:          .res 1  ; screen-table pointer
 tbl_hi:          .res 1
-level_idx:       .res 1
+hptr_lo:         .res 1  ; history ring pointer
+hptr_hi:         .res 1
+cur_coll:        .res 1  ; collection being played
+cur_lvl:         .res 1  ; level in it, 0-based (index in the kept levels)
 player_row:      .res 1
 player_col:      .res 1
 lvl_w:           .res 1
 lvl_h:           .res 1
 row_offset:      .res 1
 col_offset:      .res 1
+parse_row:       .res 1  ; init_level decoder position
+parse_col:       .res 1
+run_len:         .res 1
 new_row:         .res 1
 new_col:         .res 1
 box_row:         .res 1
 box_col:         .res 1
+dir_code:        .res 1  ; DIR_* of the move being played / undone
 dir_dy:          .res 1  ; signed: -1, 0, 1
 dir_dx:          .res 1
 draw_row:        .res 1
 draw_col:        .res 1
-prev_player_row: .res 1  ; single-step undo state
-prev_player_col: .res 1
-undo_avail:      .res 1  ; 1 = execute_undo is valid
-had_push:        .res 1  ; 1 = last move pushed a box
-moves:           .res 1  ; move counter (saturates at 255)
-str_lo:          .res 1  ; (unused pair kept for symmetry / future text)
-str_hi:          .res 1
+had_push:        .res 1  ; 1 = the move pushed a box
+on_target:       .res 1  ; 1 = that box landed on a target
+dead_corner:     .res 1  ; 1 = that box landed in a target-less corner
+moves_lo:        .res 1  ; move / push counters, 16 bits
+moves_hi:        .res 1
+pushes_lo:       .res 1
+pushes_hi:       .res 1
+boxes_left:      .res 1  ; boxes not on a target: 0 = solved
+hist_pos_lo:     .res 1  ; next history slot, 0..HIST_LEN-1
+hist_pos_hi:     .res 1
+undo_n_lo:       .res 1  ; moves that can be undone (<= HIST_LEN)
+undo_n_hi:       .res 1
+redo_n_lo:       .res 1  ; moves that can be redone
+redo_n_hi:       .res 1
+quiet:           .res 1  ; 1 = no drawing, no sound (restart rewind)
+replaying:       .res 1  ; 1 = execute_move is a redo (history not rewritten)
+num_lo:          .res 1  ; print_num argument
+num_hi:          .res 1
+sel_coll:        .res 1  ; level selection: collection, level, first of page
+sel_idx:         .res 1
+sel_first:       .res 1
+
+; =============================================================================
+; LOWBSS ($1000-$1FFF, not in the file)
+; =============================================================================
+.segment "LOWBSS"
+pack_buf:        .res PACK_MAX   ; the level pack in use, BLOADed at PACK_ADDR
 
 ; =============================================================================
 ; BSS (after the code, not part of the BRUN file)
 ; =============================================================================
 .bss
-LEVEL_BUF:       .res 256        ; RLE-expanded level (max level 117 cells)
+hist:            .res HIST_LEN   ; move history ring
 STATE_GRID:      .res 240        ; 20x12 playfield, one tile code per cell
+zp_game:         .res 256        ; our zero page while DOS runs a command
+cmd_buf:         .res 40         ; DOS command, ASCII, 0-terminated
+cmd_ix:          .res 1
+loaded_pack:     .res 1          ; pack in pack_buf, $FF = none
 title_ix:        .res 1
 title_glyph:     .res 1
 title_col_start: .res 1
 title_scanline:  .res 1
 big_byte0:       .res 1
 big_byte1:       .res 1
-hud_base_sl:     .res 1
+num_col:         .res 1          ; text cursor: byte column, scanline, advance
+num_sl:          .res 1
+num_step:        .res 1
+num_pow:         .res 1          ; print_num power index
+str_ix:          .res 1
+save_buf:        .res SAVE_LEN   ; SOKOSAVE, BLOADed at start
+new_record:      .res 1          ; 1 = the level just solved beat its record
+best_lo:         .res 1          ; the record before that
+best_hi:         .res 1
+tot_moves_lo:    .res 1          ; end screen totals
+tot_moves_hi:    .res 1
+tot_pushes_lo:   .res 1
+tot_pushes_hi:   .res 1
+tot_solved:      .res 1
+sel_prev:        .res 1
+tot_i:           .res 1
+sel_c:           .res 1          ; draw_select: column, scanline, level
+sel_sl:          .res 1
+sel_lvl:         .res 1
 dirty_n:         .res 1          ; dirty-tile queue (max 3 per move)
 dirty_row:       .res 4
 dirty_col:       .res 4
@@ -147,11 +232,14 @@ joy_y:           .res 1
 joy_hold:        .res 1          ; auto-repeat countdown while the stick is held
 btn0_prev:       .res 1          ; button edge detection
 btn1_prev:       .res 1
+b0_used:         .res 1          ; 1 = the stick moved while button 0 was held
 stick_cnt:       .res 1
 menu_sel:        .res 1
 menu_prev:       .res 1
 beep_len:        .res 1
 beep_period:     .res 1
+front_page:      .res 1          ; page on screen: 0 = page 1, PAGE2_EOR = page 2
+corners_on:      .res 1          ; 1 = warn when a box goes into a dead corner
 
 ; =============================================================================
 .code
@@ -160,47 +248,65 @@ beep_period:     .res 1
 ; MAIN — entry point (BRUN)
 ; =============================================================================
 main:
-        CLD
+        APPLE2_PREAMBLE
+        JSR apple2_zp_save              ; ZP is DOS/Applesoft's: restored on quit
         LDA #$00
         STA btn0_prev
         STA btn1_prev
         STA joy_hold
-        STA level_idx
+        STA cur_coll
+        STA cur_lvl
+        STA quiet
+        STA replaying
+        STA front_page                  ; page 1 on screen, drawing on page 1
+        JSR set_draw_page
+        LDA #$01
+        STA corners_on
+        LDA #$FF
+        STA loaded_pack
 
-        ; Blank-first: clear the page while the display is still on text,
-        ; then flip to full-screen HGR page 1.
-        JSR clear_hgr
-        LDA TXTCLR
-        LDA HIRES
-        LDA LOWSCR
-        LDA MIXCLR
-
+        ; Blank-first: page 1 is cleared while the display still shows text,
+        ; then the title is drawn on page 2 and flipped in.
+        JSR hgr_init_clear
+        JSR begin_screen
         JSR draw_title
-        JSR wait_any                    ; any key / any button starts
+        JSR show_screen
+        JSR load_save                   ; under the title: the save file,
+        JSR first_unsolved              ; where to resume,
+        JSR find_level                  ; and that level's pack
+        JSR wait_any                    ; any key / any button starts,
+        CMP #ACT_GOTO                   ; G goes to the level grid first
+        BNE game_loop
+        JSR run_select                  ; (ESC: the resume level)
 
 game_loop:
         JSR init_level
-        JSR clear_hgr
+        LDA #$00                        ; fresh counters and history
+        STA moves_lo
+        STA moves_hi
+        STA pushes_lo
+        STA pushes_hi
+        STA hist_pos_lo
+        STA hist_pos_hi
+        STA undo_n_lo
+        STA undo_n_hi
+        STA redo_n_lo
+        STA redo_n_hi
+redraw_level:
+        JSR begin_screen
         JSR render_all
-        LDA #$00                        ; reset undo + move counter
-        STA undo_avail
-        STA had_push
-        STA moves
         JSR draw_hud
+        JSR show_screen
 
 move_loop:
         JSR get_input
         BEQ move_loop                   ; ACT_NONE
-        CMP #ACT_UP
-        BEQ key_up
-        CMP #ACT_DOWN
-        BEQ key_down
-        CMP #ACT_LEFT
-        BEQ key_left
-        CMP #ACT_RIGHT
-        BEQ key_right
+        CMP #ACT_RIGHT+1
+        BCC key_dir                     ; ACT_UP..ACT_RIGHT
         CMP #ACT_UNDO
         BEQ key_undo
+        CMP #ACT_REDO
+        BEQ key_redo
         CMP #ACT_RESET
         BEQ key_reset
         CMP #ACT_NEXT
@@ -209,11 +315,23 @@ move_loop:
         BEQ key_prev
         CMP #ACT_MENU
         BEQ key_menu
+        CMP #ACT_GOTO
+        BEQ key_goto
         JMP move_loop                   ; ignore the rest
+
+key_goto:
+        JSR run_select                  ; C = 1: cur_coll / cur_lvl chosen
+        BCC @back
+        JMP game_loop
+@back:  JMP redraw_level
 
 key_undo:
         JSR execute_undo
         JMP move_loop
+
+key_redo:
+        JSR execute_redo
+        JMP check_done                  ; a redo can finish the level
 
 key_menu:
         JSR run_menu                    ; returns A = MENU_* choice
@@ -223,74 +341,90 @@ key_menu:
         BEQ key_next
         CMP #MENU_PREV
         BEQ key_prev
-        ; MENU_RESUME: repaint the playfield and carry on
-        JSR clear_hgr
-        JSR render_all
-        JSR draw_hud
-        JMP move_loop
+        CMP #MENU_GOTO
+        BEQ key_goto
+        CMP #MENU_QUIT
+        BNE @resume
+        JMP apple2_exit                 ; ZP + text screen back, DOS prompt
+@resume:
+        JMP redraw_level                ; MENU_RESUME: repaint and carry on
 
-key_up:
-        LDA #$FF                        ; dy = -1
-        STA dir_dy
-        LDA #$00
-        STA dir_dx
-        JMP do_move
-key_down:
-        LDA #$01
-        STA dir_dy
-        LDA #$00
-        STA dir_dx
-        JMP do_move
-key_left:
-        LDA #$00
-        STA dir_dy
-        LDA #$FF                        ; dx = -1
-        STA dir_dx
-        JMP do_move
-key_right:
-        LDA #$00
-        STA dir_dy
-        LDA #$01
-        STA dir_dx
-        JMP do_move
+key_dir:
+        SEC                             ; ACT_UP..ACT_RIGHT -> DIR_UP..DIR_RIGHT
+        SBC #ACT_UP
+        STA dir_code
+        JSR execute_move
+        JMP check_done
 
+; key_reset: rewind the level through the history, silently, so the whole
+; restart can be redone. If the ring has forgotten the first moves, the
+; counters do not reach 0: reload the level instead (history lost).
 key_reset:
-        JMP game_loop
+        LDA #$01
+        STA quiet
+@rew:   JSR execute_undo
+        BNE @rew                        ; A = 1 while something was undone
+        LDA #$00
+        STA quiet
+        LDA moves_lo
+        ORA moves_hi
+        BNE game_loop_j
+        JMP redraw_level
 
 key_next:
         JMP advance_level
 
+; key_prev: previous level; before the first, the last of the previous
+; collection.
 key_prev:
-        LDA level_idx
+        LDA cur_lvl
         BNE @dec
-        LDA #NUM_LEVELS
+        LDX cur_coll
+        DEX
+        BPL @coll
+        LDX #NUM_COLLS-1
+@coll:  STX cur_coll
+        LDA coll_count,X
 @dec:   SEC
         SBC #$01
-        STA level_idx
+        STA cur_lvl
         JMP game_loop
 
-do_move:
-        JSR execute_move
-        CMP #$00
-        BEQ move_loop_j                 ; blocked, no move
-        LDA SPKR                        ; tiny click per step
+check_done:
+        LDA boxes_left
+        BNE move_loop_j                 ; not solved yet
 
-        JSR check_win
-        CMP #$00
-        BEQ move_loop_j                 ; not won yet
-
-        ; Level complete
+        ; Level complete: record, success screen, save, then the end screen
+        ; if it was the last level of the collection
+        JSR record_solution
+        JSR begin_screen
         JSR draw_success
+        JSR show_screen
         JSR play_fanfare
+        JSR write_save
         JSR wait_any
+        LDX cur_coll
+        LDA cur_lvl
+        CLC
+        ADC #$01
+        CMP coll_count,X
+        BCC advance_level
+        JSR end_screen
 
+; advance_level: next level; after the last, the next collection.
 advance_level:
-        INC level_idx
-        LDA level_idx
-        CMP #NUM_LEVELS
+        INC cur_lvl
+        LDX cur_coll
+        LDA cur_lvl
+        CMP coll_count,X
         BCC game_loop_j
         LDA #$00
-        STA level_idx
+        STA cur_lvl
+        INX
+        CPX #NUM_COLLS
+        BCC @coll
+        LDX #$00
+@coll:  STX cur_coll
 game_loop_j:
         JMP game_loop
 move_loop_j:
@@ -300,24 +434,18 @@ move_loop_j:
 ; INPUT
 ; =============================================================================
 ; get_input: non-blocking poll of keyboard then joystick.
-; Returns A = ACT_* (0 = nothing). in_src = 0 keyboard / 1 joystick.
-; Joystick buttons are edge-triggered; the stick auto-repeats every
-; JOY_REPEAT calls while held.
+; Returns A = ACT_* (0 = nothing), Z set on 0. in_src = 0 keyboard / 1 joystick.
+; Button 1 fires on press. Button 0 fires ACT_UNDO on release, unless the
+; stick was pushed while it was held: then stick left / right are undo / redo
+; (auto-repeat). The stick alone moves, auto-repeating every JOY_REPEAT calls.
 ; Clobbers A, X, Y.
 ; =============================================================================
 get_input:
         LDA #$00
         STA in_src
-        LDA KBD
-        BPL @stick
-        BIT KBDSTRB                     ; clear the strobe
-        AND #$7F
-        CMP #'a'                        ; fold lowercase (a //e would send it)
-        BCC @map
-        CMP #'z'+1
-        BCS @map
-        AND #$DF
-@map:   LDX #$00
+        JSR poll_key                    ; kbd.asm: A = key, upper-cased, or 0
+        BEQ @stick
+        LDX #$00
 @ml:    LDY key_tbl,X
         BEQ @other                      ; end of table
         CMP key_tbl,X
@@ -333,32 +461,57 @@ get_input:
 @stick:
         LDA #$01
         STA in_src
-        ; --- button 0 (edge) ---
-        LDA BUTN0
-        BMI @b0_down
-        LDA #$00
-        STA btn0_prev
-        BEQ @b1
-@b0_down:
-        LDA btn0_prev
-        BNE @b1                         ; still held from last time
-        LDA #$01
-        STA btn0_prev
-        LDA #ACT_UNDO
-        RTS
-@b1:    ; --- button 1 (edge) ---
+        ; --- button 1 (press edge) ---
         LDA BUTN1
         BMI @b1_down
         LDA #$00
         STA btn1_prev
-        BEQ @axes
+        BEQ @b0
 @b1_down:
         LDA btn1_prev
-        BNE @axes
+        BNE @b0
         LDA #$01
         STA btn1_prev
         LDA #ACT_MENU
         RTS
+@b0:    ; --- button 0 ---
+        LDA BUTN0
+        BMI @b0_down
+        LDA btn0_prev
+        BEQ @axes                       ; not held before either
+        LDA #$00                        ; released
+        STA btn0_prev
+        LDA b0_used
+        BNE @axes                       ; it was a tape shuttle, not a tap
+        LDA #ACT_UNDO
+        RTS
+@b0_down:
+        LDA btn0_prev
+        BNE @shuttle
+        LDA #$01                        ; just pressed
+        STA btn0_prev
+        LDA #$00
+        STA b0_used
+        STA joy_hold
+@shuttle:
+        JSR read_stick
+        LDA joy_x
+        CMP #JOY_LO
+        BCC @sh_undo
+        CMP #JOY_HI+1
+        BCS @sh_redo
+        LDA #$00                        ; centred: nothing, rearm the repeat
+        STA joy_hold
+        RTS
+@sh_undo:
+        LDA #ACT_UNDO
+        BNE @sh
+@sh_redo:
+        LDA #ACT_REDO
+@sh:    LDX #$01
+        STX b0_used
+        BNE @dir
+
 @axes:  JSR read_stick
         LDA joy_y
         CMP #JOY_LO
@@ -388,6 +541,7 @@ get_input:
         RTS
 @fire:  LDX #JOY_REPEAT
         STX joy_hold
+        CMP #$00                        ; Z clear: an action
         RTS
 
 ; Keyboard map: (ASCII, action) pairs, 0-terminated.
@@ -395,8 +549,10 @@ key_tbl:
         .byte 'I', ACT_UP,   'K', ACT_DOWN, 'J', ACT_LEFT, 'L', ACT_RIGHT
         .byte 'W', ACT_UP,   'S', ACT_DOWN, 'A', ACT_LEFT, 'D', ACT_RIGHT
         .byte $0B, ACT_UP,   $0A, ACT_DOWN, $08, ACT_LEFT, $15, ACT_RIGHT
-        .byte 'U', ACT_UNDO, 'R', ACT_RESET, 'N', ACT_NEXT, 'P', ACT_PREV
-        .byte 'H', ACT_MENU, $1B, ACT_MENU
+        .byte 'U', ACT_UNDO, 'Y', ACT_REDO, 'R', ACT_RESET
+        .byte 'N', ACT_NEXT, 'P', ACT_PREV
+        .byte 'H', ACT_MENU, $1B, ACT_MENU, 'Q', ACT_QUIT, 'C', ACT_CORNERS
+        .byte 'G', ACT_GOTO
         .byte $0D, ACT_SELECT, ' ', ACT_SELECT
         .byte 0
 
@@ -444,7 +600,10 @@ wait_any:
 ; MENU — help text + cursor-driven choice. Returns A = MENU_*.
 ; =============================================================================
 run_menu:
+        JSR begin_screen
         JSR draw_help
+        JSR draw_corners_entry
+        JSR show_screen                 ; the cursor is drawn on the page shown
         LDA #MENU_RESUME
         STA menu_sel
         JSR menu_draw_cursor
@@ -460,6 +619,12 @@ run_menu:
         BEQ @next
         CMP #ACT_PREV
         BEQ @prev
+        CMP #ACT_QUIT
+        BEQ @quit
+        CMP #ACT_CORNERS
+        BEQ @corners
+        CMP #ACT_GOTO
+        BEQ @goto
         CMP #ACT_SELECT
         BEQ @select
         LDX in_src
@@ -475,12 +640,24 @@ run_menu:
         RTS
 @prev:  LDA #MENU_PREV
         RTS
+@quit:  LDA #MENU_QUIT
+        RTS
+@goto:  LDA #MENU_GOTO
+        RTS
 @resume:
         LDA #MENU_RESUME
         RTS
 @select:
         LDA menu_sel
+        CMP #MENU_CORNERS
+        BEQ @corners
         RTS
+@corners:
+        LDA corners_on
+        EOR #$01
+        STA corners_on
+        JSR draw_corners_entry
+        JMP @loop
 @up:    LDA menu_sel
         STA menu_prev
         BEQ @wrap_last
@@ -520,6 +697,23 @@ menu_draw_cursor:
         LDA #TILE_PLAYER
         JMP draw_tile
 
+; draw_corners_entry: "CORNERS: ON (C)" / "CORNERS:OFF (C)", same width, so
+; one draw over the other replaces it.
+draw_corners_entry:
+        LDX #<menu_corners_on
+        LDY #>menu_corners_on
+        LDA corners_on
+        BNE @on
+        LDX #<menu_corners_off
+        LDY #>menu_corners_off
+@on:    STX sptr_lo
+        STY sptr_hi
+        LDA #MENU_TEXT_COL
+        STA title_col_start
+        LDA #(MENU_ROW0 + MENU_CORNERS) * 16 + 4
+        STA title_scanline
+        JMP draw_title_line
+
 ; =============================================================================
 ; SOUND
 ; =============================================================================
@@ -534,93 +728,502 @@ beep:
         BNE @t
         RTS
 
+; tone: A = toggles, X = half-period delay. Clobbers A, X, Y.
+tone:
+        STA beep_len
+        STX beep_period
+        JMP beep
+
 ; play_fanfare: three rising notes on level completion.
 play_fanfare:
         LDA #$60
-        STA beep_len
-        LDA #$C0
-        STA beep_period
-        JSR beep
+        LDX #$C0
+        JSR tone
         LDA #$80
-        STA beep_len
-        LDA #$90
-        STA beep_period
-        JSR beep
+        LDX #$90
+        JSR tone
         LDA #$C0
-        STA beep_len
-        LDA #$60
-        STA beep_period
-        JMP beep
+        LDX #$60
+        JMP tone
+
+; move_sounds: after a move. A click per step; a bright blip when a box lands
+; on a target; two low notes when it lands in a dead corner (if enabled).
+move_sounds:
+        LDA quiet
+        BNE @done
+        LDA SPKR
+        LDA on_target
+        BEQ @corner
+        LDA #$30
+        LDX #$28
+        JMP tone
+@corner:
+        LDA dead_corner
+        BEQ @done
+        LDA corners_on
+        BEQ @done
+        LDA #$20
+        LDX #$C0
+        JSR tone
+        LDA #$18
+        LDX #$F0
+        JMP tone
+@done:  RTS
+
+; bump_sound: a short dull thud when a move is blocked.
+bump_sound:
+        LDA quiet
+        BNE @done
+        LDA #$06
+        LDX #$FF
+        JMP tone
+@done:  RTS
 
 ; =============================================================================
-; init_level: RLE-expand the level into STATE_GRID
+; init_level: decode level (cur_coll, cur_lvl) into STATE_GRID, loading its
+; pack first if needed; find the player, count the boxes off target.
+; A level record is w, h, row, col, then runs: tile << 5 | (length - 1), in
+; row-major order over the w x h box (tools/sokoban_levels.py).
 ; =============================================================================
 init_level:
-        JSR load_level                  ; fills LEVEL_BUF, sets lvl_w/h + offsets
+        JSR find_level                  ; sptr -> the record, pack loaded
 
         LDY #$00
         TYA
 @clr:   STA STATE_GRID,Y
         INY
-        CPY #240
+        CPY #STATE_GRID_LEN
         BNE @clr
+        STA boxes_left
+        STA parse_row
+        STA parse_col
 
-        LDA #$00
-        STA temp                        ; temp = parse_row
-        STA sptr_lo                     ; reuse sptr_lo as flat LEVEL_BUF index
-@rowlp:
-        LDY #$00                        ; Y = parse_col
-@collp:
-        LDX sptr_lo
-        LDA LEVEL_BUF,X
-        JSR ascii_to_tile               ; A = tile type
+        TAY                             ; Y = 0: the record header
+        LDA (sptr_lo),Y
+        STA lvl_w
+        INY
+        LDA (sptr_lo),Y
+        STA lvl_h
+        INY
+        LDA (sptr_lo),Y
+        STA row_offset
+        INY
+        LDA (sptr_lo),Y
+        STA col_offset
+        INY
+@run:   LDA (sptr_lo),Y
+        INY
+        STY temp                        ; record offset (levels < 256 bytes)
         PHA
-
-        CMP #TILE_PLAYER
-        BEQ @save_player
-        CMP #TILE_PLAYER_TARGET
-        BNE @no_player
-@save_player:
-        TYA
+        AND #$1F
+        STA run_len
+        INC run_len                     ; length 1..32
+        PLA
+        LSR A
+        LSR A
+        LSR A
+        LSR A
+        LSR A
+        STA temp2                       ; tile
+@cell:  LDA parse_row                   ; STATE_GRID[(row+r0)*20 + col+c0]
+        CLC
+        ADC row_offset
+        TAY
+        LDA row_x20,Y
+        CLC
+        ADC parse_col
         CLC
         ADC col_offset
-        STA player_col
-        LDA temp
+        TAX
+        LDA temp2
+        STA STATE_GRID,X
+        CMP #TILE_BOX
+        BNE @nobox
+        INC boxes_left
+@nobox: CMP #TILE_PLAYER
+        BEQ @player
+        CMP #TILE_PLAYER_TARGET
+        BNE @next
+@player:
+        LDA parse_row
         CLC
         ADC row_offset
         STA player_row
-@no_player:
-        ; cell_index = (temp+row_offset)*20 + (Y+col_offset)
-        LDA temp
-        CLC
-        ADC row_offset
-        TAX
-        LDA row_x20,X
-        STA temp2
-        TYA
+        LDA parse_col
         CLC
         ADC col_offset
-        CLC
-        ADC temp2
-        TAX
-        PLA
-        STA STATE_GRID,X
-
-        INC sptr_lo
-        INY
-        CPY lvl_w
-        BCC @collp
-
-        INC temp
-        LDA temp
+        STA player_col
+@next:  INC parse_col
+        LDA parse_col
+        CMP lvl_w
+        BCC @same_row
+        LDA #$00
+        STA parse_col
+        INC parse_row
+        LDA parse_row
         CMP lvl_h
-        BCS @init_done
-        JMP @rowlp
-@init_done:
+        BCS @done
+@same_row:
+        DEC run_len
+        BNE @cell
+        LDY temp
+        JMP @run
+@done:  RTS
+
+; find_level: sptr := record of level (cur_coll, cur_lvl) in pack_buf,
+; BLOADing its pack if another one is loaded.
+find_level:
+        LDX cur_coll
+        LDA coll_first_pack,X
+        STA temp                        ; candidate pack
+        LDA coll_npacks,X
+        STA temp2                       ; packs left to try
+@find:  LDX temp
+        LDA cur_lvl
+        SEC
+        SBC pack_first,X
+        CMP pack_count,X
+        BCC @found                      ; A = index in the pack
+        INC temp
+        DEC temp2
+        BNE @find
+        LDA #$00                        ; (not reached: the tables cover it)
+@found: PHA
+        CPX loaded_pack
+        BEQ @ready
+        STX loaded_pack
+        JSR load_pack
+@ready: PLA
+        TAX                             ; sptr = pack_buf + offset[index]
+        LDA pack_buf+1,X                ; offset low (pack_buf is page aligned)
+        STA sptr_lo
+        TXA
+        CLC
+        ADC pack_buf                    ; + n: the high bytes follow the lows
+        TAX
+        LDA pack_buf+1,X
+        CLC
+        ADC #>pack_buf
+        STA sptr_hi
+        RTS
+
+; load_pack: "BLOAD <name>,A$1000" for pack loaded_pack. A 4 KB pack takes
+; a few seconds: "LOADING" shows bottom right of the screen meanwhile.
+load_pack:
+        LDA #<str_loading
+        LDY #>str_loading
+        JSR show_status
+        JSR cmd_new
+        LDA #<bload_str
+        LDY #>bload_str
+        JSR cmd_add
+        LDX loaded_pack
+        LDA pack_name_lo,X
+        LDY pack_name_hi,X
+        JSR cmd_add
+        LDA #<pack_at_str
+        LDY #>pack_at_str
+        JSR cmd_add
+        JMP dos_cmd
+
+; show_status: the glyph string at A/Y (lo/hi) bottom right of the screen on
+; show, packed (7-pixel glyphs), right-aligned on a 7-glyph field.
+show_status:
+        STA sptr_lo
+        STY sptr_hi
+        LDA #1
+        STA num_step
+        LDA #HUD_RIGHT-1
+        STA num_col
+        LDA #HUD_BOT_SL
+        STA num_sl
+        JMP draw_str
+
+; --- DOS command builder: cmd_new, then cmd_add (0-terminated ASCII string
+; at A/Y) and cmd_hex (A as two hex digits); cmd_buf stays 0-terminated.
+cmd_new:
+        LDA #$00
+        STA cmd_ix
+        STA cmd_buf
+        RTS
+
+cmd_add:
+        STA sptr_lo
+        STY sptr_hi
+        LDY #$00
+@lp:    LDX cmd_ix
+        LDA (sptr_lo),Y                 ; (Z from this load: STA keeps it)
+        STA cmd_buf,X
+        BEQ @done
+        INC cmd_ix
+        INY
+        BNE @lp
+@done:  RTS
+
+cmd_hex:
+        PHA
+        LSR A
+        LSR A
+        LSR A
+        LSR A
+        JSR @nib
+        PLA
+        AND #$0F
+@nib:   CMP #10
+        BCC @dig
+        ADC #6                          ; C = 1: + 7, 'A'..'F'
+@dig:   ADC #'0'
+        LDX cmd_ix
+        STA cmd_buf,X
+        INX
+        LDA #$00
+        STA cmd_buf,X
+        STX cmd_ix
+        RTS
+
+bload_str:   .byte "BLOAD ", 0
+pack_at_str: .byte ",A$1000", 0
+.assert PACK_ADDR = $1000, error, "pack_at_str must match PACK_ADDR"
+save_load_str: .byte "BLOAD SOKOSAVE,A$", 0
+save_save_str: .byte "BSAVE SOKOSAVE,A$", 0
+len_str:       .byte ",L$", 0
+save_magic:    .byte "SOK1"
+
+; =============================================================================
+; Save file. load_save BLOADs SOKOSAVE into save_buf (a missing or foreign
+; content is wiped); write_save BSAVEs it, unless the disk is write
+; protected (DOS would stop the game with WRITE PROTECTED).
+; =============================================================================
+load_save:
+        JSR cmd_new
+        LDA #<save_load_str
+        LDY #>save_load_str
+        JSR cmd_add
+        LDA #>save_buf
+        JSR cmd_hex
+        LDA #<save_buf
+        JSR cmd_hex
+        JSR dos_cmd
+        LDX #3
+@magic: LDA save_buf,X
+        CMP save_magic,X
+        BNE @wipe
+        DEX
+        BPL @magic
+        RTS
+@wipe:  LDA #<save_buf
+        STA sptr_lo
+        LDA #>save_buf
+        STA sptr_hi
+        LDX #>SAVE_LEN                  ; whole pages, then the rest
+        LDY #$00
+        TYA
+@page:  CPX #$00
+        BEQ @rest
+@pg:    STA (sptr_lo),Y
+        INY
+        BNE @pg
+        INC sptr_hi
+        DEX
+        JMP @page
+@rest:  CPY #<SAVE_LEN
+        BEQ @hdr
+        STA (sptr_lo),Y
+        INY
+        BNE @rest
+@hdr:   LDX #3
+@m:     LDA save_magic,X
+        STA save_buf,X
+        DEX
+        BPL @m
+        RTS
+
+write_save:
+        LDA cur_coll                    ; header: the level just solved
+        STA save_buf+4
+        LDA cur_lvl
+        STA save_buf+5
+        JSR disk_protected
+        BCS @done
+        LDA #<str_saving
+        LDY #>str_saving
+        JSR show_status
+        JSR cmd_new
+        LDA #<save_save_str
+        LDY #>save_save_str
+        JSR cmd_add
+        LDA #>save_buf
+        JSR cmd_hex
+        LDA #<save_buf
+        JSR cmd_hex
+        LDA #<len_str
+        LDY #>len_str
+        JSR cmd_add
+        LDA #>SAVE_LEN
+        JSR cmd_hex
+        LDA #<SAVE_LEN
+        JSR cmd_hex
+        JSR dos_cmd
+        LDA #<str_blank7                ; wipe "SAVING"
+        LDY #>str_blank7
+        JSR show_status
+@done:  RTS
+
+; disk_protected: C = 1 if the disk in slot 6 is write protected (the Disk
+; II sense: Q6 high, then Q7 low reads it in bit 7, motor on).
+disk_protected:
+        LDA $C0E9                       ; motor on
+        LDA $C0ED                       ; Q6H
+        LDA $C0EE                       ; Q7L: bit 7 = write protect
+        ASL A
+        LDA $C0E8                       ; motor off (the drive spins ~1 s more)
+        RTS
+
+; first_unsolved: cur_coll / cur_lvl := the first level without a record
+; (the very first if every level is solved).
+first_unsolved:
+        LDA #$00
+        STA cur_coll
+        STA cur_lvl
+@lp:    JSR slot_cur
+        LDY #$00
+        LDA (sptr_lo),Y
+        INY
+        ORA (sptr_lo),Y
+        BEQ @done
+        INC cur_lvl
+        LDX cur_coll
+        LDA cur_lvl
+        CMP coll_count,X
+        BCC @lp
+        LDA #$00
+        STA cur_lvl
+        INC cur_coll
+        LDA cur_coll
+        CMP #NUM_COLLS
+        BCC @lp
+        LDA #$00
+        STA cur_coll
+@done:  RTS
+
+; slot_ptr: sptr := save slot of level A of collection X; slot_cur: of the
+; level being played. Clobbers A.
+slot_cur:
+        LDX cur_coll
+        LDA cur_lvl
+slot_ptr:
+        CLC
+        ADC coll_base_lo,X
+        STA sptr_lo
+        LDA coll_base_hi,X
+        ADC #$00
+        STA sptr_hi
+        ASL sptr_lo
+        ROL sptr_hi
+        ASL sptr_lo
+        ROL sptr_hi
+        LDA sptr_lo
+        CLC
+        ADC #<(save_buf + SAVE_HDR)
+        STA sptr_lo
+        LDA sptr_hi
+        ADC #>(save_buf + SAVE_HDR)
+        STA sptr_hi
+        RTS
+
+; record_solution: the level is solved with moves / pushes. Keep it if the
+; slot is empty or it takes fewer moves (fewer pushes on a tie). new_record,
+; best_lo/hi (the previous best moves) tell the success screen.
+record_solution:
+        JSR slot_cur
+        LDA #$00
+        STA new_record
+        LDY #$00
+        LDA (sptr_lo),Y
+        STA best_lo
+        INY
+        LDA (sptr_lo),Y
+        STA best_hi
+        ORA best_lo
+        BEQ @new                        ; first time solved
+        LDA moves_hi                    ; moves < best?
+        CMP best_hi
+        BCC @new
+        BNE @keep
+        LDA moves_lo
+        CMP best_lo
+        BCC @new
+        BNE @keep
+        LDY #3                          ; same moves: pushes < best pushes?
+        LDA pushes_hi
+        CMP (sptr_lo),Y
+        BCC @new
+        BNE @keep
+        DEY
+        LDA pushes_lo
+        CMP (sptr_lo),Y
+        BCS @keep
+@new:   LDA #$01
+        STA new_record
+        LDY #$00
+        LDA moves_lo
+        STA (sptr_lo),Y
+        INY
+        LDA moves_hi
+        STA (sptr_lo),Y
+        INY
+        LDA pushes_lo
+        STA (sptr_lo),Y
+        INY
+        LDA pushes_hi
+        STA (sptr_lo),Y
+@keep:  RTS
+
+; =============================================================================
+; dos_cmd: have DOS 3.3 run the command in cmd_buf (ASCII, 0-terminated), the
+; way a BASIC program does: RETURN, Ctrl-D, the command, RETURN through COUT.
+; DOS and the Monitor expect their own page zero, so ours is set aside and
+; the snapshot taken at start (exit.asm) put back for the duration; DOS's
+; page zero after the command becomes the new snapshot. Any DOS error
+; (missing file...) would stop the game at the BASIC prompt: the files
+; used are all written on the disk by the Makefile.
+; =============================================================================
+dos_cmd:
+        LDX #$00
+@in:    LDA $00,X
+        STA zp_game,X
+        LDA apple2_zp_buf,X
+        STA $00,X
+        INX
+        BNE @in
+        JSR $03EA                       ; DOS: reconnect the I/O hooks
+        LDA #$8D
+        JSR COUT
+        LDA #$84                        ; Ctrl-D
+        JSR COUT
+        LDA #$00
+        STA cmd_ix
+@ch:    LDX cmd_ix
+        LDA cmd_buf,X
+        BEQ @end
+        ORA #$80
+        JSR COUT
+        INC cmd_ix
+        BNE @ch
+@end:   LDA #$8D                        ; DOS runs the command here
+        JSR COUT
+        LDX #$00
+@out:   LDA $00,X
+        STA apple2_zp_buf,X
+        LDA zp_game,X
+        STA $00,X
+        INX
+        BNE @out
         RTS
 
 ; =============================================================================
-; render_all: draw all 240 tiles
+; render_all: draw the 240 cells on a freshly cleared draw page. Floor is
+; all black, so floor cells are skipped (most of the grid).
 ; =============================================================================
 render_all:
         LDA #$00
@@ -634,8 +1237,9 @@ render_all:
         ADC draw_col
         TAX
         LDA STATE_GRID,X
+        BEQ @skip                       ; TILE_FLOOR: already black
         JSR draw_tile
-        INC draw_col
+@skip:  INC draw_col
         LDA draw_col
         CMP #NCOLS
         BCC @collp
@@ -647,16 +1251,18 @@ render_all:
 
 ; =============================================================================
 ; Dirty-tile queue: a move records the cells it touches, flush_dirty then
-; redraws them all from their final state.
+; redraws them all from their final state. Nothing is queued while quiet.
 ; =============================================================================
 queue_tile:
+        LDA quiet
+        BNE @done
         LDX dirty_n
         LDA draw_row
         STA dirty_row,X
         LDA draw_col
         STA dirty_col,X
         INC dirty_n
-        RTS
+@done:  RTS
 
 flush_dirty:
         LDA dirty_n
@@ -747,12 +1353,31 @@ draw_tile:
         RTS
 
 ; =============================================================================
-; execute_move: try to move the player along (dir_dy, dir_dx).
-; Returns A=0 blocked, A!=0 moved. Updates STATE_GRID + redraws the delta.
+; Cell helpers. cell_index: A = row*20 + col for (Y = row, X = col).
+; =============================================================================
+cell_index:
+        TXA
+        CLC
+        ADC row_x20,Y
+        RTS
+
+; =============================================================================
+; execute_move: play direction dir_code (DIR_*). Returns A = 1 if the player
+; moved, A = 0 if blocked (Z flag set accordingly). Updates STATE_GRID, the
+; counters, boxes_left, the history (unless replaying) and the screen.
 ; =============================================================================
 execute_move:
+        LDX dir_code
+        LDA dir_dy_tbl,X
+        STA dir_dy
+        LDA dir_dx_tbl,X
+        STA dir_dx
         LDA #$00
         STA dirty_n
+        STA had_push
+        STA on_target
+        STA dead_corner
+
         LDA player_row
         CLC
         ADC dir_dy
@@ -769,22 +1394,18 @@ execute_move:
         CMP #NCOLS
         BCS @blk_tr
 
-        LDX new_row
-        LDA row_x20,X
-        CLC
-        ADC new_col
+        LDY new_row
+        LDX new_col
+        JSR cell_index
         TAX
         LDA STATE_GRID,X
-
         CMP #TILE_WALL
         BEQ @blk_tr
         CMP #TILE_BOX
         BEQ @try_push
         CMP #TILE_BOX_TARGET
         BEQ @try_push
-        LDA #$00
-        STA had_push
-        JMP @simple_move                ; floor or target
+        JMP @step                       ; floor or target
 
 @blk_tr:
         JMP @blocked
@@ -806,43 +1427,53 @@ execute_move:
         CMP #NCOLS
         BCS @blk_tr
 
-        LDX box_row
-        LDA row_x20,X
-        CLC
-        ADC box_col
+        LDY box_row
+        LDX box_col
+        JSR cell_index
         TAX
         LDA STATE_GRID,X
-
-        CMP #TILE_FLOOR
-        BEQ @push_floor
         CMP #TILE_TARGET
-        BEQ @push_target
-        JMP @blocked
-
-@push_floor:
+        BEQ @to_target
+        CMP #TILE_FLOOR
+        BNE @blk_tr
+        ; box onto plain floor: off target now; a dead corner?
+        INC boxes_left
         LDA #TILE_BOX
         STA STATE_GRID,X
+        JSR check_corner
+        JMP @box_placed
+@to_target:
         LDA #$01
-        STA had_push
-        JMP @box_done
-@push_target:
+        STA on_target
         LDA #TILE_BOX_TARGET
         STA STATE_GRID,X
+@box_placed:
         LDA #$01
         STA had_push
-@box_done:
         LDA box_row
         STA draw_row
         LDA box_col
         STA draw_col
         JSR queue_tile
 
-@simple_move:
+        ; the box leaves new_row/new_col
+        LDY new_row
+        LDX new_col
+        JSR cell_index
+        TAX
+        LDA STATE_GRID,X
+        CMP #TILE_BOX
+        BNE @left_target
+        DEC boxes_left                  ; an off-target box moved on
+@left_target:
+        JSR leave_tile
+        STA STATE_GRID,X
+
+@step:
         ; --- leave old player cell ---
-        LDX player_row
-        LDA row_x20,X
-        CLC
-        ADC player_col
+        LDY player_row
+        LDX player_col
+        JSR cell_index
         TAX
         LDA STATE_GRID,X
         JSR leave_tile
@@ -854,113 +1485,225 @@ execute_move:
         JSR queue_tile
 
         ; --- enter new player cell ---
-        LDX new_row
-        LDA row_x20,X
-        CLC
-        ADC new_col
+        LDY new_row
+        LDX new_col
+        JSR cell_index
         TAX
-        LDA STATE_GRID,X
-        CMP #TILE_BOX
-        BEQ @strip_floor
-        CMP #TILE_BOX_TARGET
-        BEQ @strip_target
-        JMP @enter
-@strip_floor:
-        LDA #TILE_FLOOR
-        STA STATE_GRID,X
-        JMP @enter
-@strip_target:
-        LDA #TILE_TARGET
-        STA STATE_GRID,X
-@enter:
         LDA STATE_GRID,X
         JSR enter_player
         STA STATE_GRID,X
         LDA new_row
+        STA player_row
         STA draw_row
         LDA new_col
+        STA player_col
         STA draw_col
         JSR queue_tile
 
-        LDA player_row                  ; undo state
-        STA prev_player_row
-        LDA player_col
-        STA prev_player_col
-        LDA #$01
-        STA undo_avail
-
-        LDA new_row
-        STA player_row
-        LDA new_col
-        STA player_col
-
-        INC moves                       ; saturate at 255
-        BNE @no_sat
-        LDA #$FF
-        STA moves
-@no_sat:
+        ; --- counters ---
+        INC moves_lo                    ; 16 bits (65535 moves is plenty)
+        BNE @m_ok
+        INC moves_hi
+@m_ok:  LDA had_push
+        BEQ @p_ok
+        INC pushes_lo
+        BNE @p_ok
+        INC pushes_hi
+@p_ok:
+        ; --- history ---
+        LDA replaying
+        BNE @replay
+        LDA had_push                    ; code = dir | HIST_PUSH if pushed
+        ASL A
+        ASL A
+        ORA dir_code
+        JSR hist_put
+        LDA #$00                        ; a new move drops the redo branch
+        STA redo_n_lo
+        STA redo_n_hi
+        JMP @hist_done
+@replay:
+        JSR hist_advance
+        LDA redo_n_lo                   ; redo_n--
+        BNE @r_lo
+        DEC redo_n_hi
+@r_lo:  DEC redo_n_lo
+@hist_done:
         JSR flush_dirty
         JSR draw_hud
+        JSR move_sounds
         LDA #$01
         RTS
 
 @blocked:
+        JSR bump_sound
         LDA #$00
         RTS
 
+; check_corner: X = cell of a box just put on plain floor. dead_corner := 1
+; if a wall is above or below it AND left or right of it: it can never move
+; again, and it is not on a target. Preserves X.
+check_corner:
+        LDA STATE_GRID-NCOLS,X
+        CMP #TILE_WALL
+        BEQ @vert
+        LDA STATE_GRID+NCOLS,X
+        CMP #TILE_WALL
+        BNE @no
+@vert:  LDA STATE_GRID-1,X
+        CMP #TILE_WALL
+        BEQ @dead
+        LDA STATE_GRID+1,X
+        CMP #TILE_WALL
+        BNE @no
+@dead:  LDA #$01
+        STA dead_corner
+@no:    RTS
+
 ; =============================================================================
-; execute_undo: reverse the last successful move (single step).
+; History ring: hist[hist_pos] is the next free slot; the undo_n moves
+; before it can be undone, the redo_n moves from it on can be redone.
+; =============================================================================
+; hist_put: store A at hist_pos, then advance. Clobbers A, Y.
+hist_put:
+        PHA
+        JSR hist_ptr
+        PLA
+        LDY #$00
+        STA (hptr_lo),Y
+        ; fall through
+; hist_advance: hist_pos++ (mod HIST_LEN), undo_n++ (saturates at HIST_LEN:
+; the oldest move is then forgotten).
+hist_advance:
+        INC hist_pos_lo
+        BNE @pos_ok
+        LDA hist_pos_hi
+        CLC
+        ADC #$01
+        AND #>(HIST_LEN - 1)
+        STA hist_pos_hi
+@pos_ok:
+        LDA undo_n_hi
+        CMP #>HIST_LEN
+        BEQ @full
+        INC undo_n_lo
+        BNE @full
+        INC undo_n_hi
+@full:  RTS
+
+; hist_ptr: hptr = hist + hist_pos.
+hist_ptr:
+        LDA hist_pos_lo
+        CLC
+        ADC #<hist
+        STA hptr_lo
+        LDA hist_pos_hi
+        ADC #>hist
+        STA hptr_hi
+        RTS
+
+; =============================================================================
+; execute_undo: take back the last move of the history. Returns A = 1 (Z
+; clear) if a move was undone, A = 0 if there was nothing to undo.
 ; =============================================================================
 execute_undo:
-        LDA undo_avail
-        BNE @do_undo
+        LDA undo_n_lo
+        ORA undo_n_hi
+        BNE @go
+        JSR bump_sound
+        LDA #$00
         RTS
-@do_undo:
+@go:
+        ; hist_pos--, undo_n--, redo_n++
+        LDA hist_pos_lo
+        BNE @p_lo
+        LDA hist_pos_hi
+        SEC
+        SBC #$01
+        AND #>(HIST_LEN - 1)
+        STA hist_pos_hi
+@p_lo:  DEC hist_pos_lo
+        LDA undo_n_lo
+        BNE @u_lo
+        DEC undo_n_hi
+@u_lo:  DEC undo_n_lo
+        INC redo_n_lo
+        BNE @r_ok
+        INC redo_n_hi
+@r_ok:
+        JSR hist_ptr
+        LDY #$00
+        LDA (hptr_lo),Y
+        STA temp2                       ; history code
+        AND #$03
+        TAX
+        LDA dir_dy_tbl,X
+        STA dir_dy
+        LDA dir_dx_tbl,X
+        STA dir_dx
         LDA #$00
         STA dirty_n
-        LDA had_push
-        BEQ @skip_box
 
-        ; box = 2*player - prev_player
+        ; previous player cell = player - d
         LDA player_row
-        ASL A
         SEC
-        SBC prev_player_row
-        STA box_row
+        SBC dir_dy
+        STA new_row
         LDA player_col
-        ASL A
         SEC
-        SBC prev_player_col
-        STA box_col
+        SBC dir_dx
+        STA new_col
 
-        LDX box_row
-        LDA row_x20,X
+        LDA temp2
+        AND #HIST_PUSH
+        BEQ @no_box
+
+        ; the box at player + d comes back onto the player's cell
+        LDA player_row
         CLC
-        ADC box_col
-        TAX
-        LDA STATE_GRID,X
-        JSR leave_tile
-        STA STATE_GRID,X
-        LDA box_row
+        ADC dir_dy
+        STA box_row
         STA draw_row
-        LDA box_col
-        STA draw_col
-        JSR queue_tile
-@skip_box:
-        LDX player_row
-        LDA row_x20,X
+        LDA player_col
         CLC
-        ADC player_col
+        ADC dir_dx
+        STA box_col
+        STA draw_col
+        LDY box_row
+        LDX box_col
+        JSR cell_index
+        TAX
+        LDA STATE_GRID,X
+        CMP #TILE_BOX
+        BNE @was_on
+        DEC boxes_left
+@was_on:
+        JSR leave_tile
+        STA STATE_GRID,X
+        JSR queue_tile
+
+        LDA pushes_lo
+        BNE @pu_lo
+        DEC pushes_hi
+@pu_lo: DEC pushes_lo
+
+@no_box:
+        LDY player_row
+        LDX player_col
+        JSR cell_index
         TAX
         LDA STATE_GRID,X
         JSR leave_tile
         STA STATE_GRID,X
-
-        LDA had_push
+        LDA temp2
+        AND #HIST_PUSH
         BEQ @draw_cur
         LDA STATE_GRID,X
         JSR enter_as_box
         STA STATE_GRID,X
+        CMP #TILE_BOX
+        BNE @draw_cur
+        INC boxes_left
 @draw_cur:
         LDA player_row
         STA draw_row
@@ -968,155 +1711,239 @@ execute_undo:
         STA draw_col
         JSR queue_tile
 
-        LDX prev_player_row
-        LDA row_x20,X
-        CLC
-        ADC prev_player_col
+        LDY new_row
+        LDX new_col
+        JSR cell_index
         TAX
         LDA STATE_GRID,X
         JSR enter_player
         STA STATE_GRID,X
-        LDA prev_player_row
+        LDA new_row
+        STA player_row
         STA draw_row
-        LDA prev_player_col
+        LDA new_col
+        STA player_col
         STA draw_col
         JSR queue_tile
 
-        LDA prev_player_row
-        STA player_row
-        LDA prev_player_col
-        STA player_col
+        LDA moves_lo
+        BNE @mv_lo
+        DEC moves_hi
+@mv_lo: DEC moves_lo
 
-        LDA moves
-        BEQ @no_dec
-        DEC moves
-@no_dec:
         JSR flush_dirty
         JSR draw_hud
-        LDA #$00
-        STA undo_avail
-        STA had_push
+        LDA quiet
+        BNE @q
+        LDA SPKR
+@q:     LDA #$01
         RTS
 
 ; =============================================================================
-; draw_hud: "MV:NNN" top-left (row 0) and "L:NN" bottom-right (row 11).
+; execute_redo: replay the move at hist_pos. Returns A = 1 if replayed.
 ; =============================================================================
-HUD_G_M  = 10
-HUD_G_V  = 11
-HUD_G_CL = 12
-HUD_G_L  = 22
+execute_redo:
+        LDA redo_n_lo
+        ORA redo_n_hi
+        BNE @go
+        JSR bump_sound
+        LDA #$00
+        RTS
+@go:    JSR hist_ptr
+        LDY #$00
+        LDA (hptr_lo),Y
+        AND #$03
+        STA dir_code
+        LDA #$01
+        STA replaying
+        JSR execute_move                ; cannot be blocked: it was played
+        LDX #$00
+        STX replaying
+        RTS
 
+dir_dy_tbl: .byte $FF, $01, $00, $00    ; DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT
+dir_dx_tbl: .byte $00, $00, $FF, $01
+
+; =============================================================================
+; HUD: moves top left, pushes top right, level bottom left, record bottom
+; right (once solved). 7-pixel glyphs, one per byte column; nothing is drawn
+; while quiet.
+; =============================================================================
 draw_hud:
-        LDA #$00
-        STA hud_base_sl
-        LDA #HUD_G_M
-        LDX #$00
-        JSR draw_hud_cell
-        LDA #HUD_G_V
-        LDX #$01
-        JSR draw_hud_cell
-        LDA #HUD_G_CL
-        LDX #$02
-        JSR draw_hud_cell
-
-        LDA moves                       ; hundreds
-        LDX #$00
-@h100:  CMP #100
-        BCC @h100d
-        SBC #100
-        INX
-        JMP @h100
-@h100d: PHA
-        TXA
-        LDX #$03
-        JSR draw_hud_cell
-        PLA
-
-        LDX #$00                        ; tens
-@t10:   CMP #$0A
-        BCC @t10d
-        SBC #$0A
-        INX
-        JMP @t10
-@t10d:  PHA
-        TXA
-        LDX #$04
-        JSR draw_hud_cell
-        PLA
-
-        LDX #$05                        ; ones
-        JSR draw_hud_cell
-
-        LDA #176                        ; bottom-right: L:NN
-        STA hud_base_sl
-        LDA #HUD_G_L
-        LDX #$10
-        JSR draw_hud_cell
-        LDA #HUD_G_CL
-        LDX #$11
-        JSR draw_hud_cell
-
-        LDA level_idx                   ; 1-based, 2 digits
-        CLC
-        ADC #$01
-        LDX #$00
-@lt10:  CMP #$0A
-        BCC @lt10d
-        SBC #$0A
-        INX
-        JMP @lt10
-@lt10d: PHA
-        TXA
-        LDX #$12
-        JSR draw_hud_cell
-        PLA
-        LDX #$13
-        JMP draw_hud_cell
-
-; draw_hud_cell: one 14x16 cell, glyph in the left byte, rest blank.
-; Input: A = glyph index, X = cell column (0..19)
-draw_hud_cell:
-        STX temp
-        ASL A
-        ASL A
-        ASL A
-        STA temp2                       ; glyph base offset (idx*8)
-        LDX #$00
-@sc:
-        TXA
-        CLC
-        ADC hud_base_sl
-        TAY
-        LDA hgr_lo,Y
-        STA ptr_lo
-        LDA hgr_hi,Y
-        STA ptr_hi
-
-        CPX #$08
-        BCS @blank
-        TXA
-        CLC
-        ADC temp2
-        TAY
-        LDA hud_font,Y
-        JMP @write
-@blank:
-        LDA #$00
-@write:
-        PHA
-        LDA temp
-        ASL A
-        TAY
-        PLA
-        STA (ptr_lo),Y
-        INY
-        LDA #$00
-        STA (ptr_lo),Y
-
-        INX
-        CPX #$10
-        BCC @sc
+        LDA quiet
+        BEQ @draw
         RTS
+@draw:
+        LDA #1
+        STA num_step
+        LDA #HUD_TOP_SL
+        STA num_sl
+        LDA #HUD_LEFT
+        STA num_col
+        LDA #G_M
+        JSR put_glyph
+        LDA #G_COLON
+        JSR put_glyph
+        LDA moves_lo
+        STA num_lo
+        LDA moves_hi
+        STA num_hi
+        LDA #4
+        JSR print_num
+
+        LDA #HUD_RIGHT
+        STA num_col
+        LDA #G_P
+        JSR put_glyph
+        LDA #G_COLON
+        JSR put_glyph
+        LDA pushes_lo
+        STA num_lo
+        LDA pushes_hi
+        STA num_hi
+        LDA #4
+        JSR print_num
+
+        LDA #HUD_BOT_SL                 ; "I:001": collection, original number
+        STA num_sl
+        LDA #HUD_LEFT
+        STA num_col
+        LDX cur_coll
+        LDA coll_hud_lo,X
+        STA sptr_lo
+        LDA coll_hud_hi,X
+        STA sptr_hi
+        JSR draw_str
+        LDA #G_COLON
+        JSR put_glyph
+        JSR orig_number
+        STA num_lo
+        LDA #$00
+        STA num_hi
+        LDA #3
+        JSR print_num
+
+        JSR slot_cur                    ; "B:0033": best moves, if solved
+        LDY #$00
+        LDA (sptr_lo),Y
+        STA num_lo
+        INY
+        LDA (sptr_lo),Y
+        STA num_hi
+        ORA num_lo
+        BEQ @none
+        LDA #HUD_RIGHT
+        STA num_col
+        LDA #G_B
+        JSR put_glyph
+        LDA #G_COLON
+        JSR put_glyph
+        LDA #4
+        JMP print_num
+@none:  RTS
+
+; orig_number: A = original number of level (cur_coll, cur_lvl).
+orig_number:
+        LDX cur_coll
+        LDY cur_lvl
+; orig_of: A = original number of level Y of collection X.
+orig_of:
+        LDA coll_orig_lo,X
+        STA sptr_lo
+        LDA coll_orig_hi,X
+        STA sptr_hi
+        LDA (sptr_lo),Y
+        RTS
+
+; =============================================================================
+; Text. Glyphs are 7x8, one byte column; the cursor is (num_col, num_sl) and
+; num_step the advance: 1 = packed (HUD), 2 = the 14-pixel screen spacing.
+;   put_glyph   draw glyph A, advance
+;   draw_str    the $FF-terminated glyph string at sptr
+;   print_num   num_hi:num_lo as A digits (1..5, leading zeros; 4 digits
+;               are capped at 9999). Clobbers num.
+; TEXT col, sl, string: set the cursor and draw a string, at the current
+; num_step.
+; =============================================================================
+.macro TEXT col, sl, str
+        LDA #col
+        STA num_col
+        LDA #sl
+        STA num_sl
+        LDA #<str
+        STA sptr_lo
+        LDA #>str
+        STA sptr_hi
+        JSR draw_str
+.endmacro
+
+put_glyph:
+        LDX num_col
+        LDY num_sl
+        JSR draw_title_glyph
+        LDA num_col
+        CLC
+        ADC num_step
+        STA num_col
+        RTS
+
+draw_str:
+        LDY #$00
+        STY str_ix
+@lp:    LDY str_ix
+        LDA (sptr_lo),Y
+        CMP #$FF
+        BEQ @done
+        JSR put_glyph
+        INC str_ix
+        BNE @lp
+@done:  RTS
+
+print_num:
+        STA num_pow
+        CMP #4
+        BNE @index
+        LDA num_hi                      ; 4 digits: cap at 9999 = $270F
+        CMP #>10000
+        BCC @index
+        BNE @cap
+        LDA num_lo
+        CMP #<10000
+        BCC @index
+@cap:   LDA #<9999
+        STA num_lo
+        LDA #>9999
+        STA num_hi
+@index: LDA #5                          ; power index = 5 - digits (0 = 10000)
+        SEC
+        SBC num_pow
+        STA num_pow
+@digits:
+        LDX num_pow
+        CPX #$04
+        BCS @last
+        LDY #$00                        ; digit = how many times pow fits
+@sub:   LDA num_lo
+        SEC
+        SBC pow10_lo,X
+        STA temp2
+        LDA num_hi
+        SBC pow10_hi,X
+        BCC @put
+        STA num_hi
+        LDA temp2
+        STA num_lo
+        INY
+        BNE @sub
+@put:   TYA                             ; digit glyphs are 0..9
+        JSR put_glyph
+        INC num_pow
+        JMP @digits
+@last:  LDA num_lo                      ; units
+        JMP put_glyph
+
+pow10_lo: .byte <10000, <1000, <100, <10
+pow10_hi: .byte >10000, >1000, >100, >10
 
 ; --- HUD/title font (Beautiful Boot subset, bit 0 = left pixel) ---
 .include "bbfont_subset.inc"
@@ -1142,19 +1969,434 @@ draw_title:
         JMP draw_from_table
 
 draw_help:
-        JSR clear_hgr
         LDA #<help_table
         STA tbl_lo
         LDA #>help_table
         STA tbl_hi
         JMP draw_from_table
 
+; draw_success: "SUCCESS", the moves and pushes of the solution, and
+; "NEW RECORD" or the record it did not beat.
 draw_success:
-        JSR clear_hgr
         LDA #<success_table
         STA tbl_lo
         LDA #>success_table
         STA tbl_hi
+        JSR draw_from_table
+        LDA #2
+        STA num_step
+        LDA #22
+        STA num_col
+        LDA #80
+        STA num_sl
+        LDA moves_lo
+        STA num_lo
+        LDA moves_hi
+        STA num_hi
+        LDA #4
+        JSR print_num
+        LDA #22
+        STA num_col
+        LDA #96
+        STA num_sl
+        LDA pushes_lo
+        STA num_lo
+        LDA pushes_hi
+        STA num_hi
+        LDA #4
+        JSR print_num
+        LDA new_record
+        BEQ @old
+        TEXT 10, 120, str_new_record
+        RTS
+@old:   TEXT 8, 120, str_record
+        LDA #22
+        STA num_col
+        LDA best_lo
+        STA num_lo
+        LDA best_hi
+        STA num_hi
+        LDA #4
+        JMP print_num
+
+; =============================================================================
+; end_screen: after the last level of a collection -- how many levels have
+; a record, and the sum of the records (moves, pushes).
+; =============================================================================
+end_screen:
+        LDA cur_coll
+        STA sel_coll
+        JSR coll_totals
+        JSR begin_screen
+        LDA #<end_table
+        STA tbl_lo
+        LDA #>end_table
+        STA tbl_hi
+        JSR draw_from_table
+        LDA #2
+        STA num_step
+        LDA #56                         ; "MICROBAN" + collection
+        STA num_sl
+        LDA #26
+        STA num_col
+        LDX cur_coll
+        LDA coll_hud_lo,X
+        STA sptr_lo
+        LDA coll_hud_hi,X
+        STA sptr_hi
+        JSR draw_str
+        LDA #84                         ; solved / levels
+        STA num_sl
+        LDA #20
+        STA num_col
+        JSR print_solved
+        LDA #100
+        STA num_sl
+        LDA #20
+        STA num_col
+        LDA tot_moves_lo
+        STA num_lo
+        LDA tot_moves_hi
+        STA num_hi
+        LDA #5
+        JSR print_num
+        LDA #116
+        STA num_sl
+        LDA #20
+        STA num_col
+        LDA tot_pushes_lo
+        STA num_lo
+        LDA tot_pushes_hi
+        STA num_hi
+        LDA #5
+        JSR print_num
+        JSR show_screen
+        JSR play_fanfare
+        JMP wait_any
+
+; print_solved: "NNN/NNN", levels with a record / levels of sel_coll.
+print_solved:
+        LDA tot_solved
+        STA num_lo
+        LDA #$00
+        STA num_hi
+        LDA #3
+        JSR print_num
+        LDA #G_SLASH
+        JSR put_glyph
+        LDX sel_coll
+        LDA coll_count,X
+        STA num_lo
+        LDA #$00
+        STA num_hi
+        LDA #3
+        JMP print_num
+
+; coll_totals: over collection sel_coll, tot_solved = levels with a record,
+; tot_moves / tot_pushes = sums of the records (saturating at 65535).
+coll_totals:
+        LDA #$00
+        STA tot_solved
+        STA tot_moves_lo
+        STA tot_moves_hi
+        STA tot_pushes_lo
+        STA tot_pushes_hi
+        STA tot_i
+@lp:    LDX sel_coll
+        LDA tot_i
+        JSR slot_ptr
+        LDY #$00
+        LDA (sptr_lo),Y
+        INY
+        ORA (sptr_lo),Y
+        BEQ @next
+        INC tot_solved
+        LDY #$00
+        CLC
+        LDA tot_moves_lo
+        ADC (sptr_lo),Y
+        STA tot_moves_lo
+        INY
+        LDA tot_moves_hi
+        ADC (sptr_lo),Y
+        STA tot_moves_hi
+        BCC @m_ok
+        LDA #$FF
+        STA tot_moves_lo
+        STA tot_moves_hi
+@m_ok:  INY
+        CLC
+        LDA tot_pushes_lo
+        ADC (sptr_lo),Y
+        STA tot_pushes_lo
+        INY
+        LDA tot_pushes_hi
+        ADC (sptr_lo),Y
+        STA tot_pushes_hi
+        BCC @next
+        LDA #$FF
+        STA tot_pushes_lo
+        STA tot_pushes_hi
+@next:  INC tot_i
+        LDX sel_coll
+        LDA tot_i
+        CMP coll_count,X
+        BCC @lp
+        RTS
+
+; =============================================================================
+; run_select: level selection. Pages of 10 x 8 original numbers, levels with
+; a record underlined in green, the cursor in inverse video. Stick / IJKL
+; move, N / P change collection, RETURN / button 0 plays, ESC / button 1
+; goes back. Returns C = 1 with cur_coll / cur_lvl set, C = 0 on ESC.
+; =============================================================================
+run_select:
+        LDA cur_coll
+        STA sel_coll
+        LDA cur_lvl
+        STA sel_idx
+@page:  LDA #$00                        ; sel_first = the page of sel_idx
+        STA sel_first
+@pf:    LDA sel_idx
+        SEC
+        SBC sel_first
+        CMP #SEL_PAGE
+        BCC @pf_ok
+        LDA sel_first
+        CLC
+        ADC #SEL_PAGE
+        STA sel_first
+        BNE @pf
+@pf_ok: JSR draw_select
+@cur:   LDA sel_idx
+        STA sel_prev
+        JSR sel_cursor
+@loop:  JSR get_input
+        BEQ @loop
+        CMP #ACT_SELECT
+        BEQ @pick
+        CMP #ACT_MENU
+        BEQ @cancel
+        CMP #ACT_UNDO
+        BNE @keys
+        LDX in_src                      ; button 0 picks, the U key does not
+        BNE @pick
+        BEQ @loop
+@keys:  LDX sel_coll
+        CMP #ACT_LEFT
+        BEQ @left
+        CMP #ACT_RIGHT
+        BEQ @right
+        CMP #ACT_UP
+        BEQ @up
+        CMP #ACT_DOWN
+        BEQ @down
+        CMP #ACT_NEXT
+        BEQ @next_coll
+        CMP #ACT_PREV
+        BEQ @prev_coll
+        JMP @loop
+@pick:  LDA sel_coll
+        STA cur_coll
+        LDA sel_idx
+        STA cur_lvl
+        SEC
+        RTS
+@cancel:
+        CLC
+        RTS
+@left:  LDA sel_idx
+        BEQ @loop
+        DEC sel_idx
+        JMP @moved
+@right: LDA sel_idx
+        CLC
+        ADC #$01
+        CMP coll_count,X
+        BCS @loop
+        STA sel_idx
+        JMP @moved
+@up:    LDA sel_idx
+        SEC
+        SBC #SEL_COLS
+        BCC @loop
+        STA sel_idx
+        JMP @moved
+@down:  LDA sel_idx
+        CLC
+        ADC #SEL_COLS
+        CMP coll_count,X
+        BCS @loop
+        STA sel_idx
+        JMP @moved
+@next_coll:
+        INX
+        CPX #NUM_COLLS
+        BCC @coll
+        LDX #$00
+        BEQ @coll
+@prev_coll:
+        DEX
+        BPL @coll
+        LDX #NUM_COLLS-1
+@coll:  STX sel_coll
+        LDA #$00
+        STA sel_idx
+        JMP @page
+@moved: LDA sel_idx                     ; still on this page?
+        SEC
+        SBC sel_first
+        CMP #SEL_PAGE
+        BCS @new_page                   ; (below sel_first wraps high too)
+        LDA sel_prev                    ; erase the old cursor
+        JSR sel_cursor_at
+        JMP @cur
+@new_page:
+        JMP @page
+
+; sel_cursor(_at): EOR the cell of level sel_idx (A) on the page on screen.
+sel_cursor:
+        LDA sel_idx
+sel_cursor_at:
+        SEC
+        SBC sel_first
+        LDX #$00                        ; X = row, A = column
+@div:   CMP #SEL_COLS
+        BCC @rc
+        SBC #SEL_COLS
+        INX
+        BNE @div
+@rc:    ASL A
+        ASL A
+        STA temp                        ; byte column = 4 * column
+        LDA #SEL_SL0 - 1
+@row:   DEX
+        BMI @sl
+        CLC
+        ADC #SEL_DY
+        BNE @row
+@sl:    STA temp2
+        LDA #10
+        STA str_ix                      ; lines left
+@ln:    LDY temp2
+        LDA hgr_lo,Y
+        CLC
+        ADC temp
+        STA ptr_lo
+        LDA hgr_hi,Y
+        ADC #$00
+        STA ptr_hi
+        LDY #$02
+@b:     LDA (ptr_lo),Y
+        EOR #$7F
+        STA (ptr_lo),Y
+        DEY
+        BPL @b
+        INC temp2
+        DEC str_ix
+        BNE @ln
+        RTS
+
+; draw_select: header (collection, levels solved), the page of numbers,
+; help line; drawn on the hidden page, then shown.
+draw_select:
+        JSR begin_screen
+        JSR coll_totals
+        LDA #1
+        STA num_step
+        TEXT 0, 4, str_microban
+        LDX sel_coll
+        LDA coll_hud_lo,X
+        STA sptr_lo
+        LDA coll_hud_hi,X
+        STA sptr_hi
+        JSR draw_str
+        TEXT 19, 4, str_solved
+        JSR print_solved
+        TEXT 0, HUD_BOT_SL, str_sel_help
+
+        LDA #$00
+        STA tot_i                       ; cell 0..79
+        LDA #$00
+        STA sel_c
+        LDA #SEL_SL0
+        STA sel_sl
+@cell:  LDA sel_first
+        CLC
+        ADC tot_i
+        LDX sel_coll
+        CMP coll_count,X
+        BCS @shown
+        STA sel_lvl
+        TAY
+        JSR orig_of                     ; X = collection
+        STA num_lo
+        LDA #$00
+        STA num_hi
+        LDA sel_c
+        ASL A
+        ASL A
+        STA num_col
+        LDA sel_sl
+        STA num_sl
+        LDA #3
+        JSR print_num
+        LDX sel_coll                    ; solved: green line under the number
+        LDA sel_lvl
+        JSR slot_ptr
+        LDY #$00
+        LDA (sptr_lo),Y
+        INY
+        ORA (sptr_lo),Y
+        BEQ @next
+        LDA sel_sl
+        CLC
+        ADC #9
+        JSR sel_bar
+        LDA sel_sl
+        CLC
+        ADC #10
+        JSR sel_bar
+@next:  INC tot_i
+        INC sel_c
+        LDA sel_c
+        CMP #SEL_COLS
+        BCC @same
+        LDA #$00
+        STA sel_c
+        LDA sel_sl
+        CLC
+        ADC #SEL_DY
+        STA sel_sl
+@same:  LDA tot_i
+        CMP #SEL_PAGE
+        BCC @cell
+@shown: JMP show_screen
+
+; sel_bar: a green line on scanline A under the number of column sel_c
+; (green = odd pixels, bit 7 clear: $2A on an even byte column, $55 on an
+; odd one).
+sel_bar:
+        TAY
+        LDA sel_c
+        ASL A
+        ASL A
+        CLC
+        ADC hgr_lo,Y
+        STA ptr_lo
+        LDA hgr_hi,Y
+        ADC #$00
+        STA ptr_hi
+        LDY #$00
+        LDA #$2A
+        STA (ptr_lo),Y
+        INY
+        LDA #$55
+        STA (ptr_lo),Y
+        INY
+        LDA #$2A
+        STA (ptr_lo),Y
+        RTS
 
 draw_from_table:
 @entry:
@@ -1194,29 +2436,45 @@ draw_from_table:
 title_table:
         .byte <title_sokoban,  >title_sokoban,  $0D, $08, $01    ; big
         .byte <title_apple,    >title_apple,    $0C, $30, $00    ; APPLE II
-        .byte <title_levels,   >title_levels,   $02, $40, $00    ; MICROBAN 72 LEVELS
-        .byte <title_author,   >title_author,   $02, $50, $00    ; BY VERHILLE ARNAUD
-        .byte <title_ctrl,     >title_ctrl,     $04, $70, $00    ; JOYSTICK OR IJKL
-        .byte <title_press,    >title_press,    $07, $90, $00    ; KEY OR BUTTON
-        .byte <title_h_help,   >title_h_help,   $0E, $B8, $00    ; H HELP
+        .byte <title_levels,   >title_levels,   LEVELS_TITLE_COL, $40, $00
+        .byte <title_skinner,  >title_skinner,  $01, $50, $00    ; BY DAVID W. SKINNER
+        .byte <title_author,   >title_author,   $00, $68, $00    ; PORT VERHILLE ARNAUD
+        .byte <title_ctrl,     >title_ctrl,     $04, $80, $00    ; JOYSTICK OR IJKL
+        .byte <title_press,    >title_press,    $07, $98, $00    ; KEY OR BUTTON
+        .byte <title_h_help,   >title_h_help,   $02, $AA, $00    ; H HELP   G LEVELS (clear of LOADING)
         .byte $FF
 
+; Help: title, the controls, then the menu entries on tile rows
+; MENU_ROW0.. (text 4 lines below the row top), cursor at column 4.
 help_table:
-        .byte <help_big_title, >help_big_title, $10, $04, $01    ; HELP (big)
-        .byte <help_move,      >help_move,      $02, $28, $00    ; MOVE STICK OR IJKL
-        .byte <help_undo,      >help_undo,      $02, $38, $00    ; UNDO BUTTON 0 OR U
-        .byte <help_menu,      >help_menu,      $02, $48, $00    ; MENU BUTTON 1 OR H
-        ; menu entries: tile rows 7..10 (scanlines 112..160), cursor at col 4
-        .byte <menu_resume,    >menu_resume,    $0B, 112+4, $00
-        .byte <menu_reset,     >menu_reset,     $0B, 128+4, $00
-        .byte <menu_next,      >menu_next,      $0B, 144+4, $00
-        .byte <menu_prev_str, >menu_prev_str,      $0B, 160+4, $00
-        .byte <help_select,    >help_select,    $05, $B8, $00    ; BUTTON SELECTS
+        .byte <help_big_title, >help_big_title, $10,  2, $01    ; HELP (big)
+        .byte <help_move,      >help_move,      $02, 22, $00
+        .byte <help_undo,      >help_undo,      $02, 32, $00
+        .byte <help_redo,      >help_redo,      $02, 42, $00
+        .byte <help_menu,      >help_menu,      $02, 52, $00
+        .byte <help_select,    >help_select,    $05, 64, $00
+        .byte <menu_resume,    >menu_resume,    MENU_TEXT_COL, (MENU_ROW0+MENU_RESUME)*16+4, $00
+        .byte <menu_reset,     >menu_reset,     MENU_TEXT_COL, (MENU_ROW0+MENU_RESET)*16+4, $00
+        .byte <menu_next,      >menu_next,      MENU_TEXT_COL, (MENU_ROW0+MENU_NEXT)*16+4, $00
+        .byte <menu_prev_str,  >menu_prev_str,  MENU_TEXT_COL, (MENU_ROW0+MENU_PREV)*16+4, $00
+        .byte <menu_goto,      >menu_goto,      MENU_TEXT_COL, (MENU_ROW0+MENU_GOTO)*16+4, $00
+        .byte <menu_quit,      >menu_quit,      MENU_TEXT_COL, (MENU_ROW0+MENU_QUIT)*16+4, $00
         .byte $FF
 
 success_table:
-        .byte <title_success,  >title_success,  $0D, 56, $01
-        .byte <title_press,    >title_press,    $07, 96, $00
+        .byte <title_success,  >title_success,  $0D, 40, $01
+        .byte <str_moves,      >str_moves,      $08, 80, $00
+        .byte <str_pushes,     >str_pushes,     $08, 96, $00
+        .byte <title_press,    >title_press,    $07, 160, $00
+        .byte $FF
+
+end_table:
+        .byte <str_bravo,      >str_bravo,      $0F, 20, $01
+        .byte <str_microban,   >str_microban,   $08, 56, $00
+        .byte <str_solved,     >str_solved,     $04, 84, $00
+        .byte <str_moves,      >str_moves,      $04, 100, $00
+        .byte <str_pushes,     >str_pushes,     $04, 116, $00
+        .byte <title_press,    >title_press,    $07, 160, $00
         .byte $FF
 
 ; draw_title_line: small glyphs, byte_col = title_col_start + ix*2.
@@ -1382,61 +2640,46 @@ draw_title_glyph:
         BCC @sc
         RTS
 
-; --- Strings: glyph indices, $FF terminated ---
-;   0..9 = '0'..'9'
-;   10=M  11=V  12=:  13=S  14=O  15=K  16=B  17=A  18=N  19=P
-;   20=R  21=E  22=L  23=space  24=G  25=H  26=T  27=D  28=Y  29=I
-;   30=U  31=Q  32=W  33=Z  34=C  35=X  36=(  37=)  38=J
-title_sokoban:  .byte 13,14,15,14,16,17,18, $FF                          ; SOKOBAN
-title_apple:    .byte 17,19,19,22,21,23,29,29, $FF                       ; APPLE II
-title_levels:   .byte 10,29,34,20,14,16,17,18,23,7,2,23,22,21,11,21,22,13, $FF ; MICROBAN 72 LEVELS
-title_author:   .byte 16,28,23,11,21,20,25,29,22,22,21,23,17,20,18,17,30,27, $FF ; BY VERHILLE ARNAUD
-title_ctrl:     .byte 38,14,28,13,26,29,34,15,23,14,20,23,29,38,15,22, $FF ; JOYSTICK OR IJKL
-title_press:    .byte 15,21,28,23,14,20,23,16,30,26,26,14,18, $FF          ; KEY OR BUTTON
-title_h_help:   .byte 25,23,25,21,22,19, $FF                             ; H HELP
-title_success:  .byte 13,30,34,34,21,13,13, $FF                          ; SUCCESS
+; --- Strings: glyph indices, $FF terminated (GSTR, see bbfont_subset.inc) ---
+title_sokoban:  GSTR "SOKOBAN"
+title_apple:    GSTR "APPLE II"
+title_levels:   LEVELS_TITLE
+title_skinner:  GSTR "BY DAVID W. SKINNER"
+title_author:   GSTR "PORT VERHILLE ARNAUD"
+title_ctrl:     GSTR "JOYSTICK OR IJKL"
+title_press:    GSTR "KEY OR BUTTON"
+title_h_help:   GSTR "H HELP    G LEVELS"
+title_success:  GSTR "SUCCESS"
+str_loading:    GSTR "LOADING"
+str_saving:     GSTR " SAVING"
+str_blank7:     GSTR "       "
+str_moves:      GSTR "MOVES"
+str_pushes:     GSTR "PUSHES"
+str_record:     GSTR "RECORD"
+str_new_record: GSTR "NEW RECORD"
+str_bravo:      GSTR "BRAVO"
+str_microban:   GSTR "MICROBAN "
+str_solved:     GSTR "SOLVED "
+str_sel_help:   GSTR "RETURN PLAY   ESC BACK   N/P SET"
 
-help_big_title: .byte 25,21,22,19, $FF                                   ; HELP
-help_move:      .byte 10,14,11,21,23,13,26,29,34,15,23,14,20,23,29,38,15,22, $FF ; MOVE STICK OR IJKL
-help_undo:      .byte 30,18,27,14,23,16,30,26,26,14,18,23,0,23,14,20,23,30, $FF  ; UNDO BUTTON 0 OR U
-help_menu:      .byte 10,21,18,30,23,16,30,26,26,14,18,23,1,23,14,20,23,25, $FF  ; MENU BUTTON 1 OR H
-menu_resume:    .byte 20,21,13,30,10,21, $FF                             ; RESUME
-menu_reset:     .byte 20,21,13,21,26,23,22,21,11,21,22,23,36,20,37, $FF  ; RESET LEVEL (R)
-menu_next:      .byte 18,21,35,26,23,22,21,11,21,22,23,36,18,37, $FF     ; NEXT LEVEL (N)
-menu_prev_str:  .byte 19,20,21,11,23,22,21,11,21,22,23,36,19,37, $FF     ; PREV LEVEL (P)
-help_select:    .byte 16,30,26,26,14,18,23,13,21,22,21,34,26,13, $FF     ; BUTTON SELECTS
+help_big_title: GSTR "HELP"
+help_move:      GSTR "MOVE STICK OR IJKL"
+help_undo:      GSTR "UNDO BUTTON 0 OR U"
+help_redo:      GSTR "REDO B0+RIGHT OR Y"
+help_menu:      GSTR "MENU BUTTON 1 OR H"
+help_select:    GSTR "BUTTON SELECTS"
+menu_resume:    GSTR "RESUME"
+menu_reset:     GSTR "RESTART (R)"
+menu_next:      GSTR "NEXT LEVEL (N)"
+menu_prev_str:  GSTR "PREV LEVEL (P)"
+menu_goto:      GSTR "GO TO LEVEL (G)"
+menu_corners_on:  GSTR "CORNERS: ON (C)"
+menu_corners_off: GSTR "CORNERS:OFF (C)"
+menu_quit:      GSTR "QUIT TO DOS (Q)"
 
 ; =============================================================================
-; Shared Sokoban plumbing (from sokoban_common.inc, minus the Apple-1 I/O)
+; Tile transitions
 ; =============================================================================
-ascii_to_tile:
-        CMP #'#'
-        BEQ @wall
-        CMP #'.'
-        BEQ @target
-        CMP #'$'
-        BEQ @box
-        CMP #'*'
-        BEQ @box_t
-        CMP #'@'
-        BEQ @player
-        CMP #'+'
-        BEQ @player_t
-        LDA #TILE_FLOOR
-        RTS
-@wall:     LDA #TILE_WALL
-        RTS
-@target:   LDA #TILE_TARGET
-        RTS
-@box:      LDA #TILE_BOX
-        RTS
-@box_t:    LDA #TILE_BOX_TARGET
-        RTS
-@player:   LDA #TILE_PLAYER
-        RTS
-@player_t: LDA #TILE_PLAYER_TARGET
-        RTS
-
 ; leave_tile / enter_player / enter_as_box preserve X (cell index).
 leave_tile:
         TAY
@@ -1451,126 +2694,91 @@ enter_as_box:
         LDA enter_box_tbl,Y
         RTS
 
-; check_win: A=1 if no target is left uncovered by a box.
-check_win:
-        LDY #$00
-@loop:  LDA STATE_GRID,Y
-        CMP #TILE_TARGET
-        BEQ @no
-        CMP #TILE_PLAYER_TARGET
-        BEQ @no
-        INY
-        CPY #STATE_GRID_LEN
-        BNE @loop
-        LDA #$01
-        RTS
-@no:    LDA #$00
-        RTS
-
-; load_level: expand level level_idx (RLE) into LEVEL_BUF, set lvl_w/h + offsets.
-; RLE: byte < $80 literal; byte >= $80 -> (byte & $7F) copies of the next byte.
-load_level:
-        LDX level_idx
-        LDA level_ptrs_lo,X
-        STA sptr_lo
-        LDA level_ptrs_hi,X
-        STA sptr_hi
-
-        LDY #$00
-        LDA (sptr_lo),Y
-        STA lvl_w
-        INY
-        LDA (sptr_lo),Y
-        STA lvl_h
-        INY
-        LDA (sptr_lo),Y
-        STA row_offset
-        INY
-        LDA (sptr_lo),Y
-        STA col_offset
-
-        CLC
-        LDA sptr_lo
-        ADC #$04
-        STA sptr_lo
-        LDA sptr_hi
-        ADC #$00
-        STA sptr_hi
-
-        LDA #$00                        ; temp = w*h
-        STA temp
-        LDY lvl_h
-        BEQ @decode
-@mul:
-        CLC
-        LDA temp
-        ADC lvl_w
-        STA temp
-        DEY
-        BNE @mul
-
-@decode:
-        LDY #$00
-        LDX #$00
-@main:
-        LDA (sptr_lo),Y
-        INY
-        CMP #$80
-        BCC @literal
-        AND #$7F
-        STA temp2
-        LDA (sptr_lo),Y
-        INY
-@runlp:
-        STA LEVEL_BUF,X
-        INX
-        DEC temp2
-        BNE @runlp
-        JMP @chk
-@literal:
-        STA LEVEL_BUF,X
-        INX
-@chk:
-        CPX temp
-        BCC @main
-        RTS
-
 leave_tbl:        .byte 0, 1, 2, 0, 2, 0, 2
 enter_player_tbl: .byte 5, 0, 6, 0, 0, 0, 0
 enter_box_tbl:    .byte 3, 0, 4, 0, 0, 0, 0
 
 ; =============================================================================
-; clear_hgr: zero HGR page 1 ($2000-$3FFF). No zero page used.
+; Double buffering. All drawing goes through hgr_lo / hgr_hi, and hgr_hi is
+; rewritten in place to address the draw page (set_draw_page), as Maze3D does.
+;   begin_screen  draw page := the hidden page, cleared
+;   show_screen   display the draw page; it stays the draw page, so the
+;                 per-move tile updates land on the page on screen
 ; =============================================================================
-clear_hgr:
+begin_screen:
+        LDA front_page
+        EOR #PAGE2_EOR                  ; the page that is not on screen
+        JSR set_draw_page
+        JMP clear_draw_page
+
+show_screen:
+        LDA draw_page
+        STA front_page
+        BNE @p2
+        LDA LOWSCR
+        RTS
+@p2:    LDA HISCR
+        RTS
+
+; set_draw_page: A = 0 (page 1) or PAGE2_EOR (page 2). Clobbers A, X.
+set_draw_page:
+        CMP draw_page
+        BEQ @done
+        STA draw_page
+        LDX #191
+@lp:    LDA hgr_hi,X
+        EOR #PAGE2_EOR
+        STA hgr_hi,X
+        DEX
+        CPX #$FF
+        BNE @lp
+@done:  RTS
+
+; clear_draw_page: zero the 8 KB of the draw page. No zero page used.
+clear_draw_page:
         LDA #$00
         TAX
-@clr:
+        BIT draw_page
+        BVS @clr2                       ; PAGE2_EOR has bit 6 set
+@clr1:
 .repeat 32, I
-        STA HGR_BASE + (I * $100), X
+        STA HGR1 + (I * $100), X
 .endrepeat
         INX
-        BNE @clr
+        BNE @clr1
+        RTS
+@clr2:
+.repeat 32, I
+        STA HGR2 + (I * $100), X
+.endrepeat
+        INX
+        BNE @clr2
         RTS
 
 ; =============================================================================
 ; DATA
 ; =============================================================================
+.data
+
+draw_page:
+        .byte 0                         ; 0 = hgr_hi addresses page 1, PAGE2_EOR = page 2
+
+; hgr_hi is rewritten by set_draw_page: it lives in DATA, not RODATA.
+; HGR scanline address tables (Apple II interleave), page 1 at load time
+hgr_lo:
+.repeat 192, I
+        .byte <(HGR1 + (I & 7) * $400 + ((I >> 3) & 7) * $80 + (I >> 6) * $28)
+.endrepeat
+hgr_hi:
+.repeat 192, I
+        .byte >(HGR1 + (I & 7) * $400 + ((I >> 3) & 7) * $80 + (I >> 6) * $28)
+.endrepeat
+
 .rodata
 
 row_x20:
         .byte   0,  20,  40,  60,  80, 100, 120, 140
         .byte 160, 180, 200, 220
-
-; HGR page 1 scanline address tables (Apple II interleave)
-hgr_lo:
-.repeat 192, I
-        .byte <(HGR_BASE + (I & 7) * $400 + ((I >> 3) & 7) * $80 + (I >> 6) * $28)
-.endrepeat
-hgr_hi:
-.repeat 192, I
-        .byte >(HGR_BASE + (I & 7) * $400 + ((I >> 3) & 7) * $80 + (I >> 6) * $28)
-.endrepeat
 
 ; --- Tile bitmaps: 7 tiles x 16 scanlines x 2 bytes ---
 ; Colour on a real Apple II: tiles start on an even pixel column, so within a
@@ -1585,11 +2793,12 @@ tile_bitmaps:
         .byte $00,$00, $00,$00, $00,$00, $00,$00
         .byte $00,$00, $00,$00, $00,$00, $00,$00
         .byte $00,$00, $00,$00, $00,$00, $00,$00
-; Tile 1: WALL — orange bricks, black mortar every 4th line
-        .byte $AA,$D5, $AA,$D5, $AA,$D5, $80,$80
-        .byte $AA,$D5, $AA,$D5, $AA,$D5, $80,$80
-        .byte $AA,$D5, $AA,$D5, $AA,$D5, $80,$80
-        .byte $AA,$D5, $AA,$D5, $AA,$D5, $80,$80
+; Tile 1: WALL — blue bricks (even pixels, bit 7 set), black mortar every
+; 4th line. Blue keeps walls apart from the orange boxes.
+        .byte $D5,$AA, $D5,$AA, $D5,$AA, $80,$80
+        .byte $D5,$AA, $D5,$AA, $D5,$AA, $80,$80
+        .byte $D5,$AA, $D5,$AA, $D5,$AA, $80,$80
+        .byte $D5,$AA, $D5,$AA, $D5,$AA, $80,$80
 ; Tile 2: TARGET — small green square (pixels 3,5,7,9 on rows 5..10)
         .byte $00,$00, $00,$00, $00,$00, $00,$00
         .byte $00,$00, $28,$05, $28,$05, $28,$05
@@ -1610,21 +2819,20 @@ tile_bitmaps:
         .byte $70,$01, $7C,$07, $7E,$0F, $70,$01
         .byte $70,$01, $78,$03, $0C,$06, $0C,$06
         .byte $0C,$06, $0E,$0E, $00,$00, $00,$00
-; Tile 6: PLAYER ON TARGET — figure + green line under the feet
-        .byte $70,$01, $78,$03, $18,$03, $78,$03
-        .byte $70,$01, $7C,$07, $7E,$0F, $70,$01
-        .byte $70,$01, $78,$03, $0C,$06, $0C,$06
-        .byte $0C,$06, $0E,$0E, $28,$15, $00,$00
+; Tile 6: PLAYER ON TARGET — the figure in green. Green is odd pixels only
+; (bit 7 clear), each dot two pixels wide on screen, so the figure is redrawn
+; on that grid, symmetric about pixel 6 (the white one is centred on 5.5,
+; which no odd-pixel grid can mirror): head 5,7 / arms 1..11 / legs 3 and 9.
+        .byte $20,$01, $20,$01, $20,$01, $20,$01
+        .byte $20,$01, $28,$05, $2A,$15, $20,$01
+        .byte $20,$01, $28,$05, $08,$04, $08,$04
+        .byte $08,$04, $0A,$14, $00,$00, $00,$00
 
-; --- Level data (RLE compressed, Microban I) ---
-.include "sokoban_levels.inc"
-.include "sokoban_levels_ext.inc"
+.assert pack_buf = PACK_ADDR, error, "the packs are BLOADed at PACK_ADDR"
 
-level_ptrs_lo:
-.repeat NUM_LEVELS, I
-        .byte <.ident(.sprintf("level%d", I+1))
-.endrepeat
-level_ptrs_hi:
-.repeat NUM_LEVELS, I
-        .byte >.ident(.sprintf("level%d", I+1))
-.endrepeat
+; =============================================================================
+; ../dev/lib/apple2 modules (textual includes: they pick their own segments)
+; =============================================================================
+.include "kbd.asm"               ; poll_key
+.include "hgr.asm"               ; hgr_init_clear
+.include "exit.asm"              ; apple2_zp_save, apple2_exit

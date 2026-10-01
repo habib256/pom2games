@@ -16,26 +16,43 @@ POM2    ?= /Applications/POM2.app/Contents/MacOS/POM2
 SYSTEM  ?= $(DEV)/tools/dos33_system.bin
 
 BUILD   := build
+INCS    := -I src -I $(DEV)/lib/apple2 -I $(BUILD)/lv
+CFG     := $(DEV)/cc65/apple2_hgr.cfg
 DIST    := dist
 DISK    := $(DIST)/SOKOBAN.dsk
 BIN     := $(BUILD)/sokoban.bin
-LOAD    := 0x4000
+LOAD    := 0x6000
+
+# Level collections, PREFIX:HUD:FILE (see tools/sokoban_levels.py). Microban
+# II joins as the second collection as soon as levels/microban2.xsb exists.
+COLLS   := MB1:I:levels/microban.xsb
+ifneq ($(wildcard levels/microban2.xsb),)
+COLLS   += MB2:II:levels/microban2.xsb
+endif
+LEVELS  := $(BUILD)/lv/levels.inc
 
 all: $(DISK)
 
-$(BUILD)/sokoban.o: src/sokoban.s src/sokoban_levels.inc src/sokoban_levels_ext.inc src/bbfont_subset.inc
-	@mkdir -p $(BUILD)
-	$(CA65) -t none -I src -l $(BUILD)/sokoban.lst -o $@ $<
+$(LEVELS): tools/sokoban_levels.py $(wildcard levels/*.xsb) Makefile
+	$(PYTHON) tools/sokoban_levels.py --out $(BUILD)/lv $(COLLS)
 
-$(BIN): $(BUILD)/sokoban.o src/apple2_dos33.cfg
-	$(LD65) -C src/apple2_dos33.cfg -m $(BUILD)/sokoban.map -o $@ $<
+$(BUILD)/sokoban.o: src/sokoban.s src/bbfont_subset.inc $(LEVELS) $(wildcard $(DEV)/lib/apple2/*)
+	@mkdir -p $(BUILD)
+	$(CA65) -t none -g $(INCS) -l $(BUILD)/sokoban.lst -o $@ $<
+
+$(BIN): $(BUILD)/sokoban.o $(CFG)
+	$(LD65) -C $(CFG) -m $(BUILD)/sokoban.map -Ln $(BUILD)/sokoban.lbl -o $@ $<
 	@echo "binary: $$(wc -c < $@) bytes at $(LOAD)"
 
-$(DISK): $(BIN) src/hello.bas $(DEV)/tools/dos33.py $(SYSTEM)
+# The level packs (MB1A, MB1B, ...) and an empty save file go on the disk
+# next to the game: it BLOADs / BSAVEs them while it runs.
+$(DISK): $(BIN) $(LEVELS) src/hello.bas $(DEV)/tools/dos33.py $(SYSTEM)
 	@mkdir -p $(DIST)
 	$(PYTHON) $(DEV)/tools/dos33.py --master $(SYSTEM) --out $@ \
 	    --bas HELLO=src/hello.bas \
 	    --bin SOKOBAN=$(BIN)@$(LOAD) \
+	    $$(cat $(BUILD)/lv/packs.args) \
+	    --bin SOKOSAVE=$(BUILD)/lv/sokosave.bin@0x0000 \
 	    --catalog
 
 run: $(DISK)

@@ -16,7 +16,7 @@
 ; =============================================================================
 
 BBFONT_SOKOBAN_BYTES_PER_GLYPH = 8
-BBFONT_SOKOBAN_GLYPH_COUNT     = 39
+BBFONT_SOKOBAN_GLYPH_COUNT     = 45
 
 HGR_Sokoban_bbfont:
         .byte $1E, $33, $33, $33, $33, $33, $1E, $00  ; 0 '0'
@@ -58,5 +58,78 @@ HGR_Sokoban_bbfont:
         .byte $38, $1C, $0E, $0E, $0E, $1C, $38, $00  ; 36 '('
         .byte $07, $0E, $1C, $1C, $1C, $0E, $07, $00  ; 37 ')'
         .byte $30, $30, $30, $30, $33, $3F, $1E, $00  ; 38 'J' (from bbfont_cp437 $4A)
+; Apple II port additions (drawn in the same style: 6 px, 2-px strokes)
+        .byte $3F, $3F, $03, $1F, $03, $03, $03, $00  ; 39 'F'
+        .byte $00, $0C, $0C, $3F, $3F, $0C, $0C, $00  ; 40 '+'
+        .byte $00, $00, $00, $3F, $3F, $00, $00, $00  ; 41 '-'
+        .byte $30, $30, $18, $0C, $06, $03, $03, $00  ; 42 '/'
+        .byte $1E, $3F, $33, $18, $0C, $00, $0C, $00  ; 43 '?'
+        .byte $00, $00, $00, $00, $00, $0C, $0C, $00  ; 44 '.'
 
 .assert (* - HGR_Sokoban_bbfont) = (BBFONT_SOKOBAN_GLYPH_COUNT * BBFONT_SOKOBAN_BYTES_PER_GLYPH), error
+
+; --- Glyph indices, and GSTR "TEXT": the text as glyph indices + $FF ---
+G_M = 10
+G_V = 11
+G_COLON = 12
+G_S = 13
+G_O = 14
+G_K = 15
+G_B = 16
+G_A = 17
+G_N = 18
+G_P = 19
+G_R = 20
+G_E = 21
+G_L = 22
+G_SPACE = 23
+G_G = 24
+G_H = 25
+G_T = 26
+G_D = 27
+G_Y = 28
+G_I = 29
+G_U = 30
+G_Q = 31
+G_W = 32
+G_Z = 33
+G_C = 34
+G_X = 35
+G_LPAREN = 36
+G_RPAREN = 37
+G_J = 38
+G_F = 39
+G_PLUS = 40
+G_MINUS = 41
+G_SLASH = 42
+G_QUEST = 43
+G_DOT = 44
+
+.macro GSTR str
+.repeat .strlen(str), I
+  .if .strat(str, I) >= '0' .and .strat(str, I) <= '9'
+        .byte .strat(str, I) - '0'
+  .elseif .strat(str, I) = ' '
+        .byte G_SPACE
+  .elseif .strat(str, I) = ':'
+        .byte G_COLON
+  .elseif .strat(str, I) = '('
+        .byte G_LPAREN
+  .elseif .strat(str, I) = ')'
+        .byte G_RPAREN
+  .elseif .strat(str, I) = '+'
+        .byte G_PLUS
+  .elseif .strat(str, I) = '-'
+        .byte G_MINUS
+  .elseif .strat(str, I) = '/'
+        .byte G_SLASH
+  .elseif .strat(str, I) = '?'
+        .byte G_QUEST
+  .elseif .strat(str, I) = '.'
+        .byte G_DOT
+  .else
+        .byte .ident(.sprintf("G_%c", .strat(str, I)))
+  .endif
+.endrepeat
+        .byte $FF
+.endmacro
