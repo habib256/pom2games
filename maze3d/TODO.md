@@ -9,6 +9,11 @@ le double tampon HGR1/HGR2.
 est déclaré mais jamais créé ; l'or n'a aucun usage ; la carte montre tout le
 labyrinthe.
 
+Son, manette et sauvegarde : partir des modules communs sortis de Sokoban,
+`../dev/lib/apple2/sound.asm` (`tone`), `joy.asm` (`read_stick`,
+`stick_dir`) et `dos.asm` (`dos_cmd_*`, `disk_protected`), plutôt que
+d'écrire une nouvelle version.
+
 ## 1. Vitesse + son
 
 - [ ] **Dessin 3D plus rapide** (objectif : 2 à 3 fois).

@@ -6,8 +6,9 @@ L'équivalent Apple II de l'arbre `dev/` de [POM1](https://github.com/habib256/p
 `../snake`, `../sokoban`, `../logo`, `../demos`) l'utilisent.
 
     dev/
-      lib/apple2/      asm : équivalent de dev/lib/apple1 (+ HGR et sortie DOS)
-      lib/apple2c/     C   : équivalent de dev/lib/apple1c
+      lib/apple2/      asm : équivalent de dev/lib/apple1 (+ HGR, sortie DOS,
+                       son, manette, commandes DOS)
+      lib/apple2c/     C   : équivalent de dev/lib/apple1c (+ son, manette, DOS)
       lib/hgr/         modules HGR repris tels quels de dev/lib/gen2
       lib/hgrc/        runtime C HGR : le gen2c de POM1 en version Apple II
       lib/gfx/         géométrie C (lignes, rectangles, cercles) pour hgrc
@@ -15,15 +16,18 @@ L'équivalent Apple II de l'arbre `dev/` de [POM1](https://github.com/habib256/p
       tools/dos33.py   fabrique une image DOS 3.3 amorçable (.dsk)
       tools/dos33_system.bin  pistes système DOS 3.3 (0-2) du disque maître Apple
       tools/a2shot/    exécutions sans interface, scriptées, avec captures PNG
+      tools/a2run/     la même chose en C portable, avec écriture disque
       examples/hello/  programme de départ asm + C sur un disque
 
 ## Démarrer
 
     cd examples/hello
-    make            # -> dist/HELLO.dsk (HELLOASM au boot, puis BRUN HELLOC)
+    make            # -> ../../../dist/HELLO.dsk (HELLOASM au boot, puis BRUN HELLOC)
     make run        # dans POM2, profil Apple ][+
 
-Copier `examples/hello` pour commencer un nouveau programme.
+Copier `examples/hello` pour commencer un nouveau programme ; à côté de
+`sokoban/`, mettre `DEV ?= ../dev` et `DIST ?= ../dist` dans son `Makefile`
+pour que la disquette rejoigne les autres dans `dist/`.
 
 `pom2games` ne dépend d'aucun autre dossier : il suffit de cc65 et de python3
 pour construire les disques (et de libslirp pour a2shot). `make run` lance POM2
@@ -97,7 +101,7 @@ Démarre un disque sur un Apple II+ émulé (cœur de POM2, sans fenêtre, sans
 horloge murale, donc déterministe) et déroule un script :
 
     cd tools/a2shot && make
-    ./a2shot --disk ../../../chess/dist/CHESS.dsk \
+    ./a2shot --disk ../../../dist/CHESS.dsk \
         wait:900 shot:menu.png key:2 wait:60 shot:board.png peek:0800:2
 
 | Étape             | Effet                                              |
@@ -131,7 +135,7 @@ quartets, en lecture **et en écriture**. Mêmes ROM (`a2shot/roms`), même
 syntaxe de script, plus quelques étapes pour les tests :
 
     cd tools/a2run && make
-    ./a2run --disk ../../../sokoban/dist/SOKOBAN.dsk \
+    ./a2run --disk ../../../dist/SOKOBAN.dsk \
         wait:900 shot:titre.png key:" " wait:30 key:LLK spk dsk:apres.dsk
 
 | Étape             | Effet                                              |

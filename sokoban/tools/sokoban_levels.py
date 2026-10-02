@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """sokoban_levels.py -- XSB level collections -> Sokoban disk packs.
 
-    sokoban_levels.py --out build  MB1:I:levels/microban.xsb  [MB2:II:levels/microban2.xsb]
+    sokoban_levels.py --out build [--solutions levels/solutions.txt --demo I:1,I:7]
+                      MB1:I:levels/microban.xsb  [MB2:II:levels/microban2.xsb]
 
 Each argument is PREFIX:HUD:FILE -- the pack file prefix on the disk (MB1 ->
 MB1A, MB1B, ...), the collection name shown in the HUD (roman numerals, drawn
@@ -11,8 +12,11 @@ A level is kept when it fits the screen without scrolling:
   - 20 x 12 tiles at most (after cropping to its walls),
   - and a placement exists that leaves the HUD cells outside the walls: three
     tiles in each screen corner (rows 0 and 11, columns 0-2 and 17-19).
-The placement closest to the centre wins. Everything else is reported and
-left out; the original level numbers are kept for the HUD and the report.
+The placement closest to the centre wins. A level that does not fit upright
+but fits once turned a quarter clockwise (9 x 13 -> 13 x 9) is kept turned:
+the puzzle and its solution are the same, rotated. Everything else is
+reported and left out; the original level numbers are kept for the HUD and
+the report, which also lists the turned levels.
 
 Outputs in --out:
   levels.inc     ca65 tables: collections, packs, original numbers
@@ -23,9 +27,16 @@ Outputs in --out:
                  order over the w x h box; the tile types are the game's
                  TILE_* codes (0 floor/outside, 1 wall, 2 target, 3 box,
                  4 box on target, 5 player, 6 player on target).
-  sokosave.bin   the empty save file (see SAVE_* in levels.inc)
+  sokosave.bin   the empty save file: "SOK2", last collection and level
+                 solved, one 16-bit fingerprint per collection, then 4 bytes
+                 per kept level (best moves, best pushes; 0 = unsolved)
   packs.args     the --bin arguments for dos33.py
   report.txt     what was kept and what was left out, and why
+
+--demo lists the levels (HUD:original number) the title-screen demo plays,
+with their solutions from --solutions (tools/make_solutions.py), packed
+four moves a byte into levels.inc (demo_* tables, DIR_* codes: up, down,
+left, right = 0-3, first move in the low bits).
 """
 import argparse
 import os
@@ -36,7 +47,28 @@ HUD_CELLS = [(r, c) for r in (0, ROWS - 1) for c in (0, 1, 2, COLS - 3, COLS - 2
 PACK_MAX = 4096
 PACK_ADDR = 0x1000
 TILE = {' ': 0, '#': 1, '.': 2, '$': 3, '*': 4, '@': 5, '+': 6}
-SAVE_MAGIC = b'SOK1'
+SAVE_MAGIC = b'SOK2'
+
+
+def crc16(data, crc=0xFFFF):
+    """CRC-16/CCITT-FALSE."""
+    for b in data:
+        crc ^= b << 8
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x1021) if crc & 0x8000 else crc << 1
+            crc &= 0xFFFF
+    return crc
+
+
+def fingerprint(kept):
+    """16 bits that change when the kept levels of a collection change:
+    which levels (original numbers), their order, cells, turn and placement.
+    The save file keeps one per collection; the game wipes the records of a
+    collection whose fingerprint differs (they would land on wrong levels)."""
+    crc = 0xFFFF
+    for num, data in kept:
+        crc = crc16(bytes([num & 0xFF, num >> 8, len(data) & 0xFF]) + data, crc)
+    return crc
 
 
 def parse_xsb(path):
@@ -93,6 +125,44 @@ def place(outside, w, h):
     return None
 
 
+def rotate(rows):
+    """The rows turned a quarter clockwise."""
+    w = max(len(r) for r in rows)
+    grid = [r.ljust(w) for r in rows]
+    return [''.join(grid[len(grid) - 1 - y][x] for y in range(len(grid))).rstrip() for x in range(w)]
+
+
+def fit(rows):
+    """How a level goes on screen: (grid, outside, w, h, pos, turned, why).
+    pos is None and why says why when it does not fit, upright or turned."""
+    grid, outside, w, h = analyse(rows)
+    why = check(grid)
+    if why:
+        return grid, outside, w, h, None, False, why
+    pos = place(outside, w, h)
+    if pos:
+        return grid, outside, w, h, pos, False, None
+    g2, o2, w2, h2 = analyse(rotate(rows))
+    pos2 = place(o2, w2, h2)
+    if pos2:
+        return g2, o2, w2, h2, pos2, True, None
+    if w > COLS or h > ROWS:
+        why = '%dx%d, larger than %dx%d (turned too)' % (w, h, COLS, ROWS)
+    else:
+        why = '%dx%d, no placement clear of the HUD corners (turned either)' % (w, h)
+    return grid, outside, w, h, None, False, why
+
+
+def kept_levels(path):
+    """[(number, grid)] of the levels of an XSB file the game keeps, as drawn."""
+    out = []
+    for num, title, rows in parse_xsb(path):
+        grid, _, _, _, pos, _, _ = fit(rows)
+        if pos:
+            out.append((num, grid))
+    return out
+
+
 def encode(grid, outside, w, h, r0, c0):
     cells = [0 if outside[y][x] else TILE[grid[y][x]] for y in range(h) for x in range(w)]
     runs, i = [], 0
@@ -117,6 +187,41 @@ def check(grid):
     if boxes - flat.count('*') > 255:
         return 'too many boxes'
     return None
+
+
+def demo_tables(a, colls):
+    """levels.inc lines for the title-screen demo."""
+    wanted = [d.split(':') for d in a.demo.split(',') if d]
+    sols = {}
+    if wanted:
+        for row in open(a.solutions):
+            if row.strip() and not row.startswith(';'):
+                hud, num, _, moves = row.split()
+                sols[(hud, int(num))] = moves.lower()
+    L = ['', 'DEMO_COUNT = %d' % len(wanted)]
+    cs, ls, lens, data = [], [], [], []
+    for k, (hud, num) in enumerate(wanted):
+        num = int(num)
+        ci = next(i for i, c in enumerate(colls) if c['hud'] == hud)
+        rank = [n for n, _ in colls[ci]['kept']].index(num)
+        moves = sols[(hud, num)]
+        codes = ['udlr'.index(m) for m in moves]
+        packed = [sum(c << (2 * j) for j, c in enumerate(codes[i:i + 4])) for i in range(0, len(codes), 4)]
+        cs.append(ci)
+        ls.append(rank)
+        lens.append(len(codes))
+        data.append('demo_%d:          ; %s:%d, %d moves' % (k, hud, num, len(codes)))
+        for i in range(0, len(packed), 16):
+            data.append('        .byte %s' % ', '.join('$%02X' % b for b in packed[i:i + 16]))
+    if wanted:
+        L.append('demo_coll:       .byte %s' % ', '.join(map(str, cs)))
+        L.append('demo_lvl:        .byte %s' % ', '.join(map(str, ls)))
+        L.append('demo_len_lo:     .byte %s' % ', '.join('<%d' % n for n in lens))
+        L.append('demo_len_hi:     .byte %s' % ', '.join('>%d' % n for n in lens))
+        L.append('demo_ptr_lo:     .byte %s' % ', '.join('<demo_%d' % k for k in range(len(wanted))))
+        L.append('demo_ptr_hi:     .byte %s' % ', '.join('>demo_%d' % k for k in range(len(wanted))))
+        L.extend(data)
+    return L
 
 
 def make_packs(prefix, records):
@@ -150,6 +255,8 @@ def make_packs(prefix, records):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--out', required=True)
+    ap.add_argument('--solutions')
+    ap.add_argument('--demo', default='')
     ap.add_argument('collections', nargs='+', help='PREFIX:HUD:FILE')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
@@ -158,31 +265,31 @@ def main():
     for spec in a.collections:
         prefix, hud, path = spec.split(':', 2)
         levels = parse_xsb(path)
-        kept, dropped = [], []
+        kept, dropped, turned = [], [], []
         for num, title, rows in levels:
-            grid, outside, w, h = analyse(rows)
-            why = check(grid)
-            pos = None if why else place(outside, w, h)
-            if why is None and pos is None:
-                if w > COLS or h > ROWS:
-                    why = '%dx%d, larger than %dx%d' % (w, h, COLS, ROWS)
-                else:
-                    why = '%dx%d, no placement clear of the HUD corners' % (w, h)
+            grid, outside, w, h, pos, rot, why = fit(rows)
             if why:
                 dropped.append((num, title, why))
                 continue
+            if rot:
+                turned.append(num)
             kept.append((num, encode(grid, outside, w, h, *pos)))
         packs = make_packs(prefix, kept)
         colls.append(dict(prefix=prefix, hud=hud, path=path, total=len(levels),
                           kept=kept, dropped=dropped, packs=packs))
-        report.append('%s (%s): %d levels, %d kept, %d left out, %d bytes in %d packs'
-                      % (path, hud, len(levels), len(kept), len(dropped),
+        report.append('%s (%s): %d levels, %d kept (%d turned), %d left out, %d bytes in %d packs'
+                      % (path, hud, len(levels), len(kept), len(turned), len(dropped),
                          sum(len(p[2]) for p in packs), len(packs)))
+        if turned:
+            report.append('  turned a quarter clockwise: %s' % ', '.join(map(str, turned)))
         for num, title, why in dropped:
             report.append('  - level %d%s: %s' % (num, ' (%s)' % title if title and title != str(num) else '', why))
 
     total = sum(len(c['kept']) for c in colls)
-    save_len = len(SAVE_MAGIC) + 2 + 4 * total
+    save_hdr = len(SAVE_MAGIC) + 2 + 2 * len(colls)
+    save_len = save_hdr + 4 * total
+    for c in colls:
+        c['fp'] = fingerprint(c['kept'])
 
     # --- pack files, dos33.py arguments, empty save ---
     args = []
@@ -192,7 +299,8 @@ def main():
                 f.write(blob)
             args.append('--bin %s=%s@0x%04X' % (name, os.path.join(a.out, name + '.bin'), PACK_ADDR))
     with open(os.path.join(a.out, 'sokosave.bin'), 'wb') as f:
-        f.write(SAVE_MAGIC + bytes(save_len - len(SAVE_MAGIC)))
+        hdr = SAVE_MAGIC + bytes(2) + b''.join(bytes([c['fp'] & 0xFF, c['fp'] >> 8]) for c in colls)
+        f.write(hdr + bytes(save_len - len(hdr)))
     with open(os.path.join(a.out, 'packs.args'), 'w') as f:
         f.write(' '.join(args) + '\n')
 
@@ -204,8 +312,9 @@ def main():
     L.append('TOTAL_LEVELS = %d' % total)
     L.append('PACK_ADDR    = $%04X' % PACK_ADDR)
     L.append('PACK_MAX     = %d' % PACK_MAX)
-    L.append('SAVE_LEN     = %d          ; "SOK1", last collection, last level, then' % save_len)
-    L.append('                            ; per level: best moves, best pushes (0 = unsolved)')
+    L.append('SAVE_HDR     = %d            ; "SOK2", last collection, last level, then one' % save_hdr)
+    L.append('                            ; fingerprint per collection (lo, hi)')
+    L.append('SAVE_LEN     = %d          ; then per level: best moves, best pushes (0 = unsolved)' % save_len)
     L.append('')
     if len(colls) == 1:
         title = 'MICROBAN %d LEVELS' % total
@@ -230,6 +339,8 @@ def main():
     L.append('coll_base_hi:    .byte %s' % ', '.join('>%d' % b for b in bases))
     L.append('coll_first_pack: .byte %s' % ', '.join(str(f) for f in firsts))
     L.append('coll_npacks:     .byte %s' % ', '.join(str(len(c['packs'])) for c in colls))
+    L.append('coll_fp_lo:      .byte %s      ; fingerprints of the kept levels' % ', '.join('$%02X' % (c['fp'] & 0xFF) for c in colls))
+    L.append('coll_fp_hi:      .byte %s' % ', '.join('$%02X' % (c['fp'] >> 8) for c in colls))
     L.append('coll_orig_lo:    .byte %s' % ', '.join('<orig_%d' % i for i in range(len(colls))))
     L.append('coll_orig_hi:    .byte %s' % ', '.join('>orig_%d' % i for i in range(len(colls))))
     L.append('coll_hud_lo:     .byte %s' % ', '.join('<coll_hud_%d' % i for i in range(len(colls))))
@@ -259,6 +370,7 @@ def main():
         L.append('orig_%d:          ; original level numbers' % i)
         for k in range(0, len(nums), 16):
             L.append('        .byte %s' % ', '.join(str(n) for n in nums[k:k + 16]))
+    L.extend(demo_tables(a, colls))
     with open(os.path.join(a.out, 'levels.inc'), 'w') as f:
         f.write('\n'.join(L) + '\n')
 

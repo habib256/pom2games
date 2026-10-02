@@ -13,6 +13,8 @@
 ;                           Applesoft; it is put back on exit
 ;   RESET -> _exit          $03F2-$03F4 saved and pointed at _exit, so
 ;                           Ctrl-RESET leaves cleanly too (restored on exit)
+;                           (exported as apple2_zp_buf, the name exit.asm
+;                           gives it, so dos.asm runs DOS commands from C too)
 ;   sp := __STACKSTART__    cc65 argument stack (top of free RAM, $9600)
 ;   zerobss / copydata / initlib / main
 ;   _exit: donelib, restore ZP (live text window + cursor kept), TEXT + full screen + page 1 + lores latch,
@@ -24,6 +26,7 @@
 
         .export         __STARTUP__ : absolute = 1
         .export         _exit
+        .export         apple2_zp_buf   ; DOS's page zero (dev/lib/apple2/dos.asm)
         .import         __STACKSTART__, __EXIT_RTS__
         .import         zerobss, copydata, initlib, donelib
         .import         _main
@@ -109,6 +112,7 @@ restore:
         rts
 
 .segment "ZPSAVE"
-zp_save:        .res 256
+zp_save:
+apple2_zp_buf:  .res 256        ; same name as exit.asm's snapshot
 rst_save:       .res 3
 entry_sp:       .res 1

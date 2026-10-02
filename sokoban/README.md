@@ -3,12 +3,12 @@
 Port Apple II du sketch `sketchs/gen2/game_sokoban` de
 [POM1](https://github.com/habib256/pom1) (HGR_Sokoban, VERHILLE Arnaud).
 Le jeu tourne sur un Apple II+ 48 Ko (et tout modèle ultérieur), en HGR,
-et se joue à la manette ou au clavier. Niveaux : **Microban** de David W.
-Skinner, tous ceux qui tiennent à l'écran sans défilement (146 sur 155 ;
-Microban II s'ajoute dès que `levels/microban2.xsb` existe, voir
-[`levels/README.md`](levels/README.md)).
+et se joue à la manette ou au clavier. Niveaux : **Microban** et
+**Microban II** de David W. Skinner, tous ceux qui tiennent à l'écran sans
+défilement, au besoin couchés : 150 sur 155 et 122 sur 135, soit 272 niveaux
+(voir [`levels/README.md`](levels/README.md)).
 
-    make            # -> dist/SOKOBAN.dsk  (image DOS 3.3 5"1/4 amorçable)
+    make            # -> ../dist/SOKOBAN.dsk  (image DOS 3.3 5"1/4 amorçable)
     make run        # démarre l'image dans POM2 (profil Apple ][+)
 
 Prérequis : cc65 (`brew install cc65`) et python3. L'image est écrite par
@@ -28,10 +28,13 @@ Prérequis : cc65 (`brew install cc65`) et python3. L'image est écrite par
 | bouton 1                          | H ou ESC                         | menu (aide)                |
 | manche haut/bas + bouton          | I/K + RETURN ou ESPACE           | choisir dans le menu       |
 |                                   | G (ou menu)                      | choisir le niveau (grille) |
-|                                   | C (menu)                         | alerte « coin mort » oui/non |
+|                                   | C (menu)                         | alerte « case morte » oui/non |
 |                                   | Q (menu)                         | quitter vers DOS           |
 
 Sur l'écran titre et l'écran de succès : n'importe quelle touche ou bouton.
+Après 10 s sans touche ni bouton sur l'écran titre, une démo joue quatre
+niveaux de Microban (1, 3, 12, 23) avec leurs solutions, puis revient au
+titre ; une touche ou un bouton l'interrompt. La démo n'enregistre rien.
 Ctrl-RESET quitte aussi proprement vers DOS (page zéro restaurée).
 
 Le HUD occupe les quatre coins (3 cases chacun) : coups en haut à gauche,
@@ -42,12 +45,17 @@ une fois le niveau résolu (`B:0033`).
 Les records (coups, puis poussées) sont gardés sur la disquette, dans
 `SOKOSAVE`, réécrit après chaque niveau résolu ; au démarrage, le jeu
 reprend au premier niveau non résolu. Sur une disquette protégée en écriture,
-on joue sans sauvegarde. Dans la grille de choix (G), les niveaux résolus
+on joue sans sauvegarde. Le fichier porte une empreinte de chaque collection
+(niveaux gardés, ordre, contenu, rotation) : si une nouvelle version du jeu
+change les niveaux d'une collection, ses records sont effacés plutôt
+qu'attribués à d'autres niveaux ; ceux des autres collections restent. Dans la grille de choix (G), les niveaux résolus
 sont soulignés en vert ; après le dernier niveau d'une collection, un écran
 fait le bilan. L'historique garde les
 1024 derniers coups ; au-delà, R recharge le niveau au lieu de le rembobiner.
 Sons : un clic par pas, un bip aigu quand une caisse arrive sur une cible,
-deux notes graves quand une caisse entre dans un coin sans cible (option C),
+deux notes graves quand une caisse arrive sur une case morte (option C,
+« DEADLOCK » : une case d'où aucune suite de poussées ne la mènera à une
+cible, calculée au chargement du niveau),
 un choc sourd quand le coup est impossible, une fanfare en fin de niveau.
 
 Améliorations prévues : voir [`TODO.md`](TODO.md).
@@ -58,20 +66,29 @@ Améliorations prévues : voir [`TODO.md`](TODO.md).
     src/bbfont_subset.inc      police du HUD (Beautiful Boot, sous-ensemble + F + - / ? .)
     src/hello.bas              HELLO : 10 PRINT CHR$(4);"BRUN SOKOBAN"
     levels/microban.xsb        Microban, David W. Skinner (source XSB, voir levels/README.md)
-    tools/sokoban_levels.py    XSB -> paquets de niveaux + tables ca65 (build/lv)
-    dist/SOKOBAN.dsk           l'image produite
+    levels/microban2.xsb       Microban II, idem
+    tools/sokoban_levels.py    XSB -> paquets de niveaux + tables ca65 (build/lv), démo
+    tools/solver.py            solveur (A*, cases mortes, gel) ; même règle des cases mortes que le jeu
+    tools/make_solutions.py    une solution vérifiée par niveau -> levels/solutions.txt
+    tools/test_levels.py       joue les solutions dans le vrai jeu (a2run) : make test
+    levels/solutions.txt       les 272 solutions (démo et tests)
+    ../dist/SOKOBAN.dsk        l'image produite
 
-Sur la disquette : `SOKOBAN` (le jeu), `MB1A`, `MB1B` (les paquets de
-niveaux, 4 Ko au plus, chargés par `BLOAD` en `$1000` quand on passe d'un
+Sur la disquette : `SOKOBAN` (le jeu), `MB1A`, `MB1B`, `MB2A`, `MB2B` (les
+paquets de niveaux, 4 Ko au plus, chargés par `BLOAD` en `$1000` quand on passe d'un
 paquet à l'autre) et `SOKOSAVE` (la sauvegarde).
 
 `tools/sokoban_levels.py` écarte les niveaux qui ne tiennent pas dans
 20 × 12 cases ou dont aucun placement ne laisse les quatre coins du HUD hors
-des murs, et écrit la liste dans `build/lv/report.txt`. Pour Microban :
-niveaux 66, 99, 101, 109, 112, 113, 143, 154 et 155 (tous trop hauts ou trop
-larges). Un niveau est codé en plages d'un octet (type de case sur 3 bits,
-longueur sur 5) : 6,5 Ko pour les 146 niveaux, contre 8,8 Ko avec l'ancien
-RLE sur l'ASCII.
+des murs, et écrit la liste dans `build/lv/report.txt`. Un niveau trop haut
+qui tient couché est tourné d'un quart de tour horaire (le puzzle et sa
+solution sont les mêmes, tournés ; le HUD garde le numéro d'origine) :
+Microban 66, 109, 112, 143 ; Microban II 55, 86, 87, 91, 93, 100, 102, 104,
+110, 119, 121. Restent écartés, pour Microban : 99, 101, 113, 154 et 155 ;
+pour Microban II : 66, 85, 114, 115, 120 (15 × 12 mais murs dans un coin du
+HUD), 125, 126 et 130 à 135 (de 18 × 17 à 47 × 41). Un niveau est codé en plages
+d'un octet (type de case sur 3 bits, longueur sur 5) : 6,6 Ko pour les 150
+niveaux de Microban, 5,8 Ko pour les 122 de Microban II.
 
 ## Différences avec l'original Apple-1 / GEN2
 

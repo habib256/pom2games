@@ -14,7 +14,7 @@
  *   - keyboard through the $C000 latch (dev/lib/apple2c), arrow keys added;
  *   - the per-frame GEN2 mode re-assert (a POM1 renderer workaround) is gone.
  *
- *   Build : make            -> dist/SNAKE.dsk
+ *   Build : make            -> ../dist/SNAKE.dsk
  *   Run   : make run        (POM2, Apple ][+ profile)
  *
  * Controls: I J K L or the arrow keys (left/right on a II+, all four on a //e).

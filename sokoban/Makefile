@@ -1,8 +1,11 @@
 # Sokoban — Apple II+ / DOS 3.3 build
 #
-#   make            -> dist/SOKOBAN.dsk (bootable 5.25" DOS 3.3 image)
+#   make            -> ../dist/SOKOBAN.dsk (bootable 5.25" DOS 3.3 image)
 #   make run        -> boot it in POM2 as an Apple II+
-#   make clean
+#   make test       -> play the checked solution of every level (all 272,
+#                      levels/solutions.txt) in a2run, headless
+#   make clean      -> remove build/ (the disk stays)
+#   make distclean  -> remove build/ and the disk
 #
 # Needs cc65 (ca65/ld65) and python3 only: the disk tool and the DOS 3.3
 # system tracks come from the shared ../dev tree. `make run` uses the
@@ -12,29 +15,31 @@ CA65    ?= ca65
 LD65    ?= ld65
 PYTHON  ?= python3
 DEV     ?= ../dev
+A2RUN   ?= $(DEV)/tools/a2run/a2run
 POM2    ?= /Applications/POM2.app/Contents/MacOS/POM2
 SYSTEM  ?= $(DEV)/tools/dos33_system.bin
 
 BUILD   := build
 INCS    := -I src -I $(DEV)/lib/apple2 -I $(BUILD)/lv
 CFG     := $(DEV)/cc65/apple2_hgr.cfg
-DIST    := dist
+DIST    ?= ../dist
 DISK    := $(DIST)/SOKOBAN.dsk
 BIN     := $(BUILD)/sokoban.bin
 LOAD    := 0x6000
 
-# Level collections, PREFIX:HUD:FILE (see tools/sokoban_levels.py). Microban
-# II joins as the second collection as soon as levels/microban2.xsb exists.
-COLLS   := MB1:I:levels/microban.xsb
-ifneq ($(wildcard levels/microban2.xsb),)
-COLLS   += MB2:II:levels/microban2.xsb
-endif
+# Level collections, PREFIX:HUD:FILE (see tools/sokoban_levels.py).
+COLLS   := MB1:I:levels/microban.xsb MB2:II:levels/microban2.xsb
+# Levels of the title-screen demo (HUD:original number), from the checked
+# solutions of tools/make_solutions.py. All in the first pack of Microban,
+# which is loaded under the title: no disk access during the demo.
+SOLUTIONS := levels/solutions.txt
+DEMO    := I:1,I:3,I:12,I:23
 LEVELS  := $(BUILD)/lv/levels.inc
 
 all: $(DISK)
 
-$(LEVELS): tools/sokoban_levels.py $(wildcard levels/*.xsb) Makefile
-	$(PYTHON) tools/sokoban_levels.py --out $(BUILD)/lv $(COLLS)
+$(LEVELS): tools/sokoban_levels.py $(wildcard levels/*.xsb) $(SOLUTIONS) Makefile
+	$(PYTHON) tools/sokoban_levels.py --out $(BUILD)/lv --solutions $(SOLUTIONS) --demo $(DEMO) $(COLLS)
 
 $(BUILD)/sokoban.o: src/sokoban.s src/bbfont_subset.inc $(LEVELS) $(wildcard $(DEV)/lib/apple2/*)
 	@mkdir -p $(BUILD)
@@ -55,10 +60,20 @@ $(DISK): $(BIN) $(LEVELS) src/hello.bas $(DEV)/tools/dos33.py $(SYSTEM)
 	    --bin SOKOSAVE=$(BUILD)/lv/sokosave.bin@0x0000 \
 	    --catalog
 
+$(A2RUN): $(wildcard $(DEV)/tools/a2run/*.[ch])
+	$(MAKE) -C $(DEV)/tools/a2run
+
+test: $(DISK) $(A2RUN)
+	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --all
+	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --coll 2 --all
+
 run: $(DISK)
 	$(POM2) --preset ii+ $(DISK)
 
 clean:
-	rm -rf $(BUILD) $(DIST)
+	rm -rf $(BUILD)
 
-.PHONY: all run clean
+distclean: clean
+	rm -f $(DISK)
+
+.PHONY: all run test clean distclean

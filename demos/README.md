@@ -1,9 +1,9 @@
 # DEMO — cinq démos Apple II sur une disquette
 
 Ports Apple II de démos GEN2 de [POM1](https://github.com/habib256/pom1)
-(VERHILLE Arnaud), réunies sur `dist/DEMO.dsk` avec un menu au démarrage.
+(VERHILLE Arnaud), réunies sur `../dist/DEMO.dsk` avec un menu au démarrage.
 
-    make            # -> dist/DEMO.dsk  (image DOS 3.3 5"1/4 amorçable)
+    make            # -> ../dist/DEMO.dsk  (image DOS 3.3 5"1/4 amorçable)
     make run        # démarre l'image dans POM2 (profil Apple ][+)
 
 Prérequis : cc65 (`brew install cc65`) et python3. Tout le reste est dans
@@ -55,7 +55,7 @@ pour ANIMALS) et `HIMEM: 4096` (ses chaînes restent sous `$1000`), et remet
     src/life.s               LIFE
     src/font.s               FONT
     src/demo_c.cfg           config ld65 des démos C (ci-dessous)
-    dist/DEMO.dsk            l'image produite
+    ../dist/DEMO.dsk         l'image produite
 
 LIFE et FONT utilisent `../dev/cc65/apple2_hgr.cfg` (code à `$6000`).
 

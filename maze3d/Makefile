@@ -1,8 +1,9 @@
 # Maze 3D — Apple II+ / DOS 3.3 build
 #
-#   make            -> dist/MAZE3D.dsk (bootable 5.25" DOS 3.3 image)
+#   make            -> ../dist/MAZE3D.dsk (bootable 5.25" DOS 3.3 image)
 #   make run        -> boot it in POM2 as an Apple II+
-#   make clean
+#   make clean      -> remove build/ (the disk stays)
+#   make distclean  -> remove build/ and the disk
 #
 # Needs cc65 (ca65/ld65) and python3 only: the shared ../dev tree has the rest,
 # DOS 3.3 system tracks included. `make run` uses the installed POM2 app.
@@ -16,7 +17,7 @@ SYSTEM  ?= $(DEV)/tools/dos33_system.bin
 
 INCS    := -I src -I $(DEV)/lib/apple2 -I $(DEV)/lib/hgr
 BUILD   := build
-DIST    := dist
+DIST    ?= ../dist
 DISK    := $(DIST)/MAZE3D.dsk
 BIN     := $(BUILD)/maze3d.bin
 LOAD    := 0x6000
@@ -47,6 +48,9 @@ run: $(DISK)
 	$(POM2) --preset ii+ $(DISK)
 
 clean:
-	rm -rf $(BUILD) $(DIST)
+	rm -rf $(BUILD)
 
-.PHONY: all run clean
+distclean: clean
+	rm -f $(DISK)
+
+.PHONY: all run clean distclean

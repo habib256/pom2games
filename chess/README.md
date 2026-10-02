@@ -7,7 +7,7 @@ promotion, échec et mat, pat) contre l'ordinateur (1, 2 ou 3 demi-coups) ou à
 deux, en HGR page 1. Pièces de cc65-Chess (Stefan Wessels, portage Apple II
 Oliver Schmidt, dessins Frank Gebhart).
 
-    make            # -> dist/CHESS.dsk  (image DOS 3.3 5"1/4 amorçable)
+    make            # -> ../dist/CHESS.dsk  (image DOS 3.3 5"1/4 amorçable)
     make run        # démarre l'image dans POM2 (profil Apple ][+)
 
 Prérequis : cc65 (`brew install cc65`) et python3. Tout le reste est dans
@@ -44,7 +44,7 @@ Améliorations prévues : voir [`TODO.md`](TODO.md).
     src/chess_tables.inc tables du moteur
     src/chess.cfg        config ld65 : ZP $50-$FF, BSS $1000, plateau $1400, code $6000
     src/hello.bas        HELLO : 10 PRINT CHR$(4);"BRUN CHESS"
-    dist/CHESS.dsk       l'image produite
+    ../dist/CHESS.dsk    l'image produite
     test/                banc du moteur seul sur le cœur POM2 (cycles exacts) :
                          `make perft | best | undo | play | prof | exact` ; comparer deux
                          versions du moteur en diffant la sortie
