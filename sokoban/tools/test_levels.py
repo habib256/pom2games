@@ -103,11 +103,7 @@ def main():
     if a.xsb is None:
         a.xsb = os.path.join(HERE, '..', 'levels', 'microban.xsb' if a.coll == 1 else 'microban2.xsb')
 
-    kept = []
-    for num, title, rows in sl.parse_xsb(a.xsb):
-        grid, outside, w, h = sl.analyse(rows)
-        if sl.check(grid) is None and sl.place(outside, w, h):
-            kept.append((num, grid))
+    kept = sl.kept_levels(a.xsb)         # as the game draws them (turned or not)
     cur_coll = zp_address(a.lst, 'cur_coll')
     cur_lvl = zp_address(a.lst, 'cur_lvl')
     moves = zp_address(a.lst, 'moves_lo')

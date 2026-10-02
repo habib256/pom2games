@@ -5,8 +5,8 @@ Port Apple II du sketch `sketchs/gen2/game_sokoban` de
 Le jeu tourne sur un Apple II+ 48 Ko (et tout modèle ultérieur), en HGR,
 et se joue à la manette ou au clavier. Niveaux : **Microban** et
 **Microban II** de David W. Skinner, tous ceux qui tiennent à l'écran sans
-défilement : 146 sur 155 et 111 sur 135, soit 257 niveaux (voir
-[`levels/README.md`](levels/README.md)).
+défilement, au besoin couchés : 150 sur 155 et 122 sur 135, soit 272 niveaux
+(voir [`levels/README.md`](levels/README.md)).
 
     make            # -> ../dist/SOKOBAN.dsk  (image DOS 3.3 5"1/4 amorçable)
     make run        # démarre l'image dans POM2 (profil Apple ][+)
@@ -68,13 +68,15 @@ paquet à l'autre) et `SOKOSAVE` (la sauvegarde).
 
 `tools/sokoban_levels.py` écarte les niveaux qui ne tiennent pas dans
 20 × 12 cases ou dont aucun placement ne laisse les quatre coins du HUD hors
-des murs, et écrit la liste dans `build/lv/report.txt`. Pour Microban :
-niveaux 66, 99, 101, 109, 112, 113, 143, 154 et 155 (tous trop hauts ou trop
-larges). Pour Microban II : 24 niveaux, 55, 66, 85, 86, 87, 91, 93, 100, 102,
-104, 110, 114, 115, 119, 120 (15 × 12 mais murs dans un coin du HUD), 121,
-125, 126 et 130 à 135 (de 18 × 17 à 47 × 41). Un niveau est codé en plages
-d'un octet (type de case sur 3 bits, longueur sur 5) : 6,5 Ko pour les 146
-niveaux de Microban, 5,1 Ko pour les 111 de Microban II.
+des murs, et écrit la liste dans `build/lv/report.txt`. Un niveau trop haut
+qui tient couché est tourné d'un quart de tour horaire (le puzzle et sa
+solution sont les mêmes, tournés ; le HUD garde le numéro d'origine) :
+Microban 66, 109, 112, 143 ; Microban II 55, 86, 87, 91, 93, 100, 102, 104,
+110, 119, 121. Restent écartés, pour Microban : 99, 101, 113, 154 et 155 ;
+pour Microban II : 66, 85, 114, 115, 120 (15 × 12 mais murs dans un coin du
+HUD), 125, 126 et 130 à 135 (de 18 × 17 à 47 × 41). Un niveau est codé en plages
+d'un octet (type de case sur 3 bits, longueur sur 5) : 6,6 Ko pour les 150
+niveaux de Microban, 5,8 Ko pour les 122 de Microban II.
 
 ## Différences avec l'original Apple-1 / GEN2
 

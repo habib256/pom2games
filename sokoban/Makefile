@@ -17,7 +17,7 @@ PYTHON  ?= python3
 DEV     ?= ../dev
 A2RUN   ?= $(DEV)/tools/a2run/a2run
 TEST_LEVELS ?= $(shell seq 1 30)
-TEST_LEVELS2 ?= $(shell seq 1 10) 111
+TEST_LEVELS2 ?= $(shell seq 1 10) 122
 POM2    ?= /Applications/POM2.app/Contents/MacOS/POM2
 SYSTEM  ?= $(DEV)/tools/dos33_system.bin
 

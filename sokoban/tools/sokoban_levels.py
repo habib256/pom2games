@@ -11,8 +11,11 @@ A level is kept when it fits the screen without scrolling:
   - 20 x 12 tiles at most (after cropping to its walls),
   - and a placement exists that leaves the HUD cells outside the walls: three
     tiles in each screen corner (rows 0 and 11, columns 0-2 and 17-19).
-The placement closest to the centre wins. Everything else is reported and
-left out; the original level numbers are kept for the HUD and the report.
+The placement closest to the centre wins. A level that does not fit upright
+but fits once turned a quarter clockwise (9 x 13 -> 13 x 9) is kept turned:
+the puzzle and its solution are the same, rotated. Everything else is
+reported and left out; the original level numbers are kept for the HUD and
+the report, which also lists the turned levels.
 
 Outputs in --out:
   levels.inc     ca65 tables: collections, packs, original numbers
@@ -93,6 +96,44 @@ def place(outside, w, h):
     return None
 
 
+def rotate(rows):
+    """The rows turned a quarter clockwise."""
+    w = max(len(r) for r in rows)
+    grid = [r.ljust(w) for r in rows]
+    return [''.join(grid[len(grid) - 1 - y][x] for y in range(len(grid))).rstrip() for x in range(w)]
+
+
+def fit(rows):
+    """How a level goes on screen: (grid, outside, w, h, pos, turned, why).
+    pos is None and why says why when it does not fit, upright or turned."""
+    grid, outside, w, h = analyse(rows)
+    why = check(grid)
+    if why:
+        return grid, outside, w, h, None, False, why
+    pos = place(outside, w, h)
+    if pos:
+        return grid, outside, w, h, pos, False, None
+    g2, o2, w2, h2 = analyse(rotate(rows))
+    pos2 = place(o2, w2, h2)
+    if pos2:
+        return g2, o2, w2, h2, pos2, True, None
+    if w > COLS or h > ROWS:
+        why = '%dx%d, larger than %dx%d (turned too)' % (w, h, COLS, ROWS)
+    else:
+        why = '%dx%d, no placement clear of the HUD corners (turned either)' % (w, h)
+    return grid, outside, w, h, None, False, why
+
+
+def kept_levels(path):
+    """[(number, grid)] of the levels of an XSB file the game keeps, as drawn."""
+    out = []
+    for num, title, rows in parse_xsb(path):
+        grid, _, _, _, pos, _, _ = fit(rows)
+        if pos:
+            out.append((num, grid))
+    return out
+
+
 def encode(grid, outside, w, h, r0, c0):
     cells = [0 if outside[y][x] else TILE[grid[y][x]] for y in range(h) for x in range(w)]
     runs, i = [], 0
@@ -158,26 +199,23 @@ def main():
     for spec in a.collections:
         prefix, hud, path = spec.split(':', 2)
         levels = parse_xsb(path)
-        kept, dropped = [], []
+        kept, dropped, turned = [], [], []
         for num, title, rows in levels:
-            grid, outside, w, h = analyse(rows)
-            why = check(grid)
-            pos = None if why else place(outside, w, h)
-            if why is None and pos is None:
-                if w > COLS or h > ROWS:
-                    why = '%dx%d, larger than %dx%d' % (w, h, COLS, ROWS)
-                else:
-                    why = '%dx%d, no placement clear of the HUD corners' % (w, h)
+            grid, outside, w, h, pos, rot, why = fit(rows)
             if why:
                 dropped.append((num, title, why))
                 continue
+            if rot:
+                turned.append(num)
             kept.append((num, encode(grid, outside, w, h, *pos)))
         packs = make_packs(prefix, kept)
         colls.append(dict(prefix=prefix, hud=hud, path=path, total=len(levels),
                           kept=kept, dropped=dropped, packs=packs))
-        report.append('%s (%s): %d levels, %d kept, %d left out, %d bytes in %d packs'
-                      % (path, hud, len(levels), len(kept), len(dropped),
+        report.append('%s (%s): %d levels, %d kept (%d turned), %d left out, %d bytes in %d packs'
+                      % (path, hud, len(levels), len(kept), len(turned), len(dropped),
                          sum(len(p[2]) for p in packs), len(packs)))
+        if turned:
+            report.append('  turned a quarter clockwise: %s' % ', '.join(map(str, turned)))
         for num, title, why in dropped:
             report.append('  - level %d%s: %s' % (num, ' (%s)' % title if title and title != str(num) else '', why))
 

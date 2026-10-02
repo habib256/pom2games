@@ -16,8 +16,9 @@ ligne vide entre deux niveaux). `../tools/sokoban_levels.py` les convertit en
 paquets pour la disquette et écarte ceux qui ne tiennent pas à l'écran.
 
 Les fichiers sont gardés entiers, numérotation d'origine comprise : c'est
-`sokoban_levels.py` qui écarte, à la construction, les niveaux qui ne tiennent
-pas à l'écran (le HUD montre le numéro d'origine, `II:056`).
+`sokoban_levels.py` qui, à la construction, couche d'un quart de tour horaire
+les niveaux trop hauts qui tiennent ainsi, et écarte ceux qui ne tiennent
+toujours pas à l'écran (le HUD montre le numéro d'origine, `II:056`).
 
 **Vérification de Microban II.** Le site de référence (sneezingtiger.com) et
 les sites Sokoban habituels sont refusés par la politique réseau de
@@ -33,6 +34,9 @@ indépendantes y ont été comparées :
   pour téléphone a retiré les niveaux trop grands, ici les 130 à 135.
 
 Les 129 niveaux communs sont identiques, dans le même ordre. En jeu
-(`../tools/test_levels.py --coll 2`, 16 min) : 81 des 111 niveaux gardés sont
-résolus par le solveur puis joués jusqu'au niveau suivant, sans échec ; les
-30 autres sont trop gros pour son BFS et n'ont pas été rejoués.
+(`../tools/test_levels.py --coll 2`, 16 min, avant la rotation) : 81 des 111
+niveaux debout sont résolus par le solveur puis joués jusqu'au niveau
+suivant, sans échec ; les 30 autres sont trop gros pour son BFS et n'ont pas
+été rejoués. Des 15 niveaux couchés (4 + 11), 3 sont joués (I:066, II:055,
+II:093) ; pour tous, la grille chargée par le jeu est comparée case par case
+à la version tournée.
