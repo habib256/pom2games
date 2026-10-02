@@ -31,7 +31,11 @@ Prérequis : cc65 (`brew install cc65`) et python3. L'image est écrite par
 |                                   | C (menu)                         | alerte « case morte » oui/non |
 |                                   | Q (menu)                         | quitter vers DOS           |
 
-Sur l'écran titre et l'écran de succès : n'importe quelle touche ou bouton.
+L'écran titre montre le nombre de niveaux résolus (toutes collections) et
+celui où la partie reprend (`CONTINUE III:056`), sous un petit entrepôt
+animé où le joueur pousse une caisse sur sa cible. N'importe quelle touche ou
+bouton lance la partie ; H l'ouvre sur l'aide, G sur la grille des niveaux.
+Sur l'écran de succès : n'importe quelle touche ou bouton.
 Après 10 s sans touche ni bouton sur l'écran titre, une démo joue quatre
 niveaux de Microban (1, 3, 12, 23) avec leurs solutions, puis revient au
 titre ; une touche ou un bouton l'interrompt. La démo n'enregistre rien.

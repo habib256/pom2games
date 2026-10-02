@@ -189,3 +189,12 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
   ne déplace aucun niveau de I et II (empreintes inchangées : les records
   restent). Solutions : 421 par `solver.py`, 33 par YASS ; `make test` joue
   les 454 (~1 min 30).
+- [x] **Écran titre** : « SOKOBAN » en orange (pixels impairs, bit 7 : la
+  couleur des caisses), bandeau de murs, petit entrepôt animé (le joueur
+  pousse une caisse sur sa cible, un clic par poussée, le bip de la cible,
+  ~0,4 s par étape pendant `title_wait`), « KEY OR BUTTON » qui clignote,
+  niveaux résolus sur 454 et niveau de reprise (`CONTINUE III:056`), lus
+  dans `SOKOSAVE`. « APPLE II » et « JOYSTICK OR IJKL » laissent la place
+  (les commandes sont dans l'aide). Corrigés au passage : H sur le titre
+  ouvre bien l'aide (il lançait seulement la partie) et « LOADING » ne
+  reste plus affiché une fois le premier paquet lu.
