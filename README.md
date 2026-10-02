@@ -9,7 +9,7 @@ naturel.
 
 | Dossier | Programme | Machine | Disquette |
 |---|---|---|---|
-| [`sokoban/`](sokoban/) | Sokoban, 146 niveaux Microban, records sauvegardés, manette ou clavier | Apple II+ | `dist/SOKOBAN.dsk` |
+| [`sokoban/`](sokoban/) | Sokoban, 257 niveaux Microban I et II, records sauvegardés, manette ou clavier | Apple II+ | `dist/SOKOBAN.dsk` |
 | [`chess/`](chess/) | Échecs contre l'ordinateur ou à deux | Apple II+ | `dist/CHESS.dsk` |
 | [`maze3d/`](maze3d/) | Dungeon crawler 3D en fil de fer, double tampon HGR | Apple II+ | `dist/MAZE3D.dsk` |
 | [`snake/`](snake/) | Snake en C (cc65) | Apple II+ | `dist/SNAKE.dsk` |
@@ -26,7 +26,7 @@ d'améliorations prévues.
     make                 # toutes les disquettes, dans dist/
     make -C chess        # une seule (elle va aussi dans dist/)
     make -C chess run    # la lancer dans POM2 installé (/Applications/POM2.app)
-    make test            # Sokoban : niveaux 1-30 résolus et joués dans a2run
+    make test            # Sokoban : niveaux résolus et joués dans a2run (I et II)
     make check           # tout reconstruire, échouer si dist/ ne correspond pas
     make clean           # efface les build/ (les disquettes restent)
     make distclean       # efface aussi dist/*.dsk

@@ -83,12 +83,19 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
 - [x] **Intégrer Microban I** (155 niveaux, `levels/microban.xsb`, copie
   verbatim de la source notée dans `levels/README.md`), numéros d'origine
   gardés (HUD `I:067`, rapport).
-- [ ] **Microban II** (135 niveaux) : le site de référence (sneezingtiger.com,
-  comme les autres sites Sokoban essayés) est refusé par la politique réseau
-  de l'environnement de développement, et aucun miroir n'a été trouvé. Tout
-  est prêt : déposer le fichier en `levels/microban2.xsb`, le `Makefile` en
-  fait la deuxième collection (`MB2A`…, « II » dans le HUD). Vérifier alors
-  la place sur la disquette et le rapport.
+- [x] **Microban II** (135 niveaux) : `levels/microban2.xsb`, copie verbatim
+  depuis GitHub (`OMerkel/Sokoban`), recoupée avec une seconde copie
+  indépendante (voir `levels/README.md`). 111 niveaux gardés, 24 écartés ;
+  paquets `MB2A` (4 Ko) et `MB2B`, `SOKOSAVE` passe à 1034 octets, 409
+  secteurs libres sur la disquette. `test_levels.py --coll 2` joue la
+  collection II.
+- [ ] **Rotation des niveaux trop hauts** : un niveau de 9 × 13 ou 10 × 16
+  tiendrait couché (13 × 9, 16 × 10). En tournant de 90° ceux qui ne
+  tiennent pas debout, on récupérerait 4 niveaux de Microban I (66, 109,
+  112, 143) et 11 de Microban II (55, 86, 87, 91, 93, 100, 102, 104, 110,
+  119, 121), calcul fait avec les règles de `sokoban_levels.py`. La solution reste valable
+  (rotation du plateau), mais le niveau n'a plus l'orientation voulue par
+  l'auteur : à décider.
 - [x] **Retirer les niveaux trop grands** (pas de défilement) : l'outil
   écarte, après recadrage sur les murs, tout niveau de plus de 20 × 12, ou
   sans placement qui laisse les quatre coins du HUD (3 cases chacun, lignes 0

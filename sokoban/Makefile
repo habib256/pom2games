@@ -2,7 +2,8 @@
 #
 #   make            -> ../dist/SOKOBAN.dsk (bootable 5.25" DOS 3.3 image)
 #   make run        -> boot it in POM2 as an Apple II+
-#   make test       -> solve levels 1-30 and play them in a2run (headless)
+#   make test       -> solve Microban levels 1-30, Microban II levels 1-10 and
+#                      the last one, and play them in a2run (headless)
 #   make clean      -> remove build/ (the disk stays)
 #   make distclean  -> remove build/ and the disk
 #
@@ -16,6 +17,7 @@ PYTHON  ?= python3
 DEV     ?= ../dev
 A2RUN   ?= $(DEV)/tools/a2run/a2run
 TEST_LEVELS ?= $(shell seq 1 30)
+TEST_LEVELS2 ?= $(shell seq 1 10) 111
 POM2    ?= /Applications/POM2.app/Contents/MacOS/POM2
 SYSTEM  ?= $(DEV)/tools/dos33_system.bin
 
@@ -27,12 +29,8 @@ DISK    := $(DIST)/SOKOBAN.dsk
 BIN     := $(BUILD)/sokoban.bin
 LOAD    := 0x6000
 
-# Level collections, PREFIX:HUD:FILE (see tools/sokoban_levels.py). Microban
-# II joins as the second collection as soon as levels/microban2.xsb exists.
-COLLS   := MB1:I:levels/microban.xsb
-ifneq ($(wildcard levels/microban2.xsb),)
-COLLS   += MB2:II:levels/microban2.xsb
-endif
+# Level collections, PREFIX:HUD:FILE (see tools/sokoban_levels.py).
+COLLS   := MB1:I:levels/microban.xsb MB2:II:levels/microban2.xsb
 LEVELS  := $(BUILD)/lv/levels.inc
 
 all: $(DISK)
@@ -64,6 +62,7 @@ $(A2RUN): $(wildcard $(DEV)/tools/a2run/*.[ch])
 
 test: $(DISK) $(A2RUN)
 	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) $(TEST_LEVELS)
+	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --coll 2 $(TEST_LEVELS2)
 
 run: $(DISK)
 	$(POM2) --preset ii+ $(DISK)
