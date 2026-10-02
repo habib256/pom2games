@@ -87,7 +87,7 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
   depuis GitHub (`OMerkel/Sokoban`), recoupée avec une seconde copie
   indépendante (voir `levels/README.md`). 111 niveaux gardés, 24 écartés (122
   et 13 avec la rotation, plus bas) ; paquets `MB2A` (4 Ko) et `MB2B`,
-  `SOKOSAVE` passe à 1034 octets (1094 avec la rotation), 405 secteurs libres
+  `SOKOSAVE` passe à 1034 octets (1094 avec la rotation), 409 secteurs libres
   (405 avec la rotation) sur la disquette. `test_levels.py --coll 2` joue la
   collection II.
 - [x] **Rotation des niveaux trop hauts** : un niveau qui ne tient pas debout
