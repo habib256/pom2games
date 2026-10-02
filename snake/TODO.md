@@ -21,6 +21,12 @@ vérifie avec `../dev/tools/a2shot` (captures, `peek`, mesure en trames).
 - Le runtime C HGR n'est plus une copie propre à Snake : le jeu utilise
   `../dev/lib/hgrc`, `../dev/lib/gfx` et `../dev/lib/apple2c`, comme les démos.
 
+Son, manette et sauvegarde : partir des modules communs sortis de Sokoban,
+`../dev/lib/apple2/sound.asm` (`tone`), `joy.asm` (`read_stick`,
+`stick_dir`) et `dos.asm` (`dos_cmd_*`, `disk_protected`) ; en C :
+`apple2game.h` et `apple2dos.h` dans `../dev/lib/apple2c`, plutôt que
+d'écrire une nouvelle version.
+
 ## 1. Jouabilité
 
 - [ ] **File de directions** : lire le clavier aussi pendant `throttle` et

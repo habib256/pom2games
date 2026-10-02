@@ -24,6 +24,14 @@ intégrée à l'Apple II) et `exit.asm` (rendre la main à DOS proprement).
 - **`delay.asm`** — `delay_ms_a` : ~A millisecondes à 1,0205 MHz.
 - **`hgr.asm`** — `hgr_init`, `hgr_init_clear`, `hgr_page1/2`, `text_restore`.
 - **`exit.asm`** — `apple2_zp_save`, `apple2_exit`.
+- **`sound.asm`** — `tone` : bip carré sur le haut-parleur.
+- **`joy.asm`** — `read_stick`, `stick_dir` : manette (deux paddles).
+- **`dos.asm`** — `dos_cmd_*`, `disk_protected` : commandes DOS 3.3 (BLOAD,
+  BSAVE…) depuis un programme BRUN ; suppose `exit.asm`.
+
+Les trois derniers sont sortis de Sokoban pour que les autres jeux (sons,
+manette, sauvegarde dans leurs `TODO.md`) partagent le même code ; leur miroir
+C est dans [`../apple2c/`](../apple2c/) (`apple2game.h`, `apple2dos.h`).
 
 ## Routines
 
@@ -40,6 +48,14 @@ intégrée à l'Apple II) et `exit.asm` (rendre la main à DOS proprement).
 | `text_restore` | `hgr.asm` | — | TEXT + plein écran + PAGE1 | A | — |
 | `apple2_zp_save` | `exit.asm` | — | copie $00-$FF (256 o de BSS), RESET → `apple2_exit` | A, X | — |
 | `apple2_exit` | `exit.asm` | — | vecteur RESET et ZP restaurés (fenêtre texte et curseur `$20-$29` gardés), écran texte, `JMP $03D0` | tout | — |
+| `tone` | `sound.asm` | A = bascules (0 → 256), X = demi-période (0 → 256) ; ~(13 + 5·X) cycles par bascule | — | A, X, Y | — |
+| `read_stick` | `joy.asm` | — | `joy_x`, `joy_y` = 0 (gauche / haut) … ~60 (centre) … ~120 ; ~6 ms | A, X, Y | — |
+| `stick_dir` | `joy.asm` | `joy_x`, `joy_y` | A = `JOY_NONE` (0, Z = 1) / `JOY_UP` / `JOY_DOWN` / `JOY_LEFT` / `JOY_RIGHT` ; zone morte `JOY_LO`–`JOY_HI` (30–90, à définir avant l'include pour changer) ; la verticale l'emporte | A | — |
+| `dos_cmd_new` | `dos.asm` | — | tampon de commande vide | A | — |
+| `dos_cmd_add` | `dos.asm` | A = lo, Y = hi (ASCIIZ) | chaîne ajoutée | A, X, Y | — |
+| `dos_cmd_hex` | `dos.asm` | A = octet | deux chiffres hexadécimaux ajoutés | A, X | — |
+| `dos_cmd_run` | `dos.asm` | tampon | DOS exécute la commande, page zéro de DOS remise pendant ce temps | tout | — |
+| `disk_protected` | `dos.asm` | — | C = 1 si la disquette du slot 6 est protégée en écriture | A | — |
 | `apple2_return` | `exit.asm` | — | même restauration, puis `RTS` sur la pile de l'appelant (programme lancé par `CALL`, avec `APPLE2_PREAMBLE_CALL`) | tout | — |
 
 ## apple2.inc — symboles publics
@@ -73,6 +89,37 @@ de marcher. Un programme qui revient à DOS appelle `apple2_zp_save` en tout
 premier, et sort par `apple2_exit`. Entre les deux, Ctrl-RESET passe aussi par
 `apple2_exit` : sans cela DOS reprendrait la main avec la page zéro du jeu, y
 compris sur la routine CHRGET d'Applesoft (`$B1-$C8`).
+
+## Son, manette, DOS
+
+```asm
+        LDA #$30                ; bip aigu court : $30 bascules, période $28
+        LDX #$28
+        JSR tone
+
+        JSR read_stick          ; manette -> joy_x / joy_y
+        JSR stick_dir           ; A = JOY_UP.. ou 0
+        BEQ @centre
+        LDA BUTN0               ; bouton 0 : bit 7 = 1 tant qu'il est enfoncé
+        BMI @feu
+
+        JSR dos_cmd_new         ; "BSAVE SCORE,A$1000,L$04"
+        LDA #<str_bsave         ; .byte "BSAVE SCORE,A$1000,L$", 0
+        LDY #>str_bsave
+        JSR dos_cmd_add
+        LDA #$04
+        JSR dos_cmd_hex         ; ajoute "04"
+        JSR disk_protected      ; disquette protégée : DOS arrêterait le jeu
+        BCS @pas_de_sauvegarde  ; sur WRITE PROTECTED, on saute
+        JSR dos_cmd_run
+```
+
+Pendant `dos_cmd_run`, DOS retrouve la page zéro sauvée au démarrage par
+`apple2_zp_save` (obligatoire avant la première commande) ; celle du programme
+est mise de côté dans 256 octets de BSS puis remise. Une erreur DOS (fichier
+absent…) arrête le programme au prompt : le `Makefile` met sur la disquette
+tous les fichiers lus, et `disk_protected` est testé avant d'écrire. Sokoban
+s'en sert pour ses paquets de niveaux (`BLOAD`) et `SOKOSAVE`.
 
 ## Exemple
 

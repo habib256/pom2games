@@ -20,6 +20,11 @@ vérifie avec `../dev/tools/a2shot` (captures, `peek`, mesure en trames).
   derniers coups sont réaffichés quand la colonne déborde.
 - Pas de son, pas de manette, pas de sauvegarde.
 
+Son, manette et sauvegarde : partir des modules communs sortis de Sokoban,
+`../dev/lib/apple2/sound.asm` (`tone`), `joy.asm` (`read_stick`,
+`stick_dir`) et `dos.asm` (`dos_cmd_*`, `disk_protected`), plutôt que
+d'écrire une nouvelle version.
+
 ## 1. Moteur
 
 - [x] **IA STRONG plus rapide** (objectif : moins de 5 s). Mesures avec

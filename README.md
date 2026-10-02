@@ -47,7 +47,8 @@ L'intégration continue (`.github/workflows/build.yml`) lance `make check` puis
 bibliothèques Apple-1 de POM1 :
 
 - `dev/lib/apple2` et `dev/lib/apple2c` : clavier, texte, HGR, retour propre à
-  DOS ou à un menu BASIC, en assembleur et en C ;
+  DOS ou à un menu BASIC, son, manette, commandes DOS (BLOAD / BSAVE), en
+  assembleur et en C ;
 - `dev/lib/hgr` : texte, sprites et tables HGR (assembleur) ;
 - `dev/lib/hgrc` et `dev/lib/gfx` : runtime graphique C et géométrie ;
 - `dev/cc65` : configurations de l'éditeur de liens et démarrage C ;

@@ -13,3 +13,9 @@
 
 APPLE2C_SRCS := $(APPLE2C)/apple2io.c $(APPLE2C)/apple2io_asm.s
 APPLE2C_INCS := -I $(APPLE2C)
+
+# Opt-in objects (assemble them with $(APPLE2C_AFLAGS)): speaker + joystick,
+# and DOS commands (256 + 41 bytes of BSS). Add them to SRCS only if used.
+APPLE2C_GAME_SRCS := $(APPLE2C)/apple2game_asm.s
+APPLE2C_DOS_SRCS  := $(APPLE2C)/apple2dos_asm.s
+APPLE2C_AFLAGS    := -I $(APPLE2C)/../apple2

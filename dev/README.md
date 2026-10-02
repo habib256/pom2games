@@ -6,8 +6,9 @@ L'équivalent Apple II de l'arbre `dev/` de [POM1](https://github.com/habib256/p
 `../snake`, `../sokoban`, `../logo`, `../demos`) l'utilisent.
 
     dev/
-      lib/apple2/      asm : équivalent de dev/lib/apple1 (+ HGR et sortie DOS)
-      lib/apple2c/     C   : équivalent de dev/lib/apple1c
+      lib/apple2/      asm : équivalent de dev/lib/apple1 (+ HGR, sortie DOS,
+                       son, manette, commandes DOS)
+      lib/apple2c/     C   : équivalent de dev/lib/apple1c (+ son, manette, DOS)
       lib/hgr/         modules HGR repris tels quels de dev/lib/gen2
       lib/hgrc/        runtime C HGR : le gen2c de POM1 en version Apple II
       lib/gfx/         géométrie C (lignes, rectangles, cercles) pour hgrc
@@ -15,6 +16,7 @@ L'équivalent Apple II de l'arbre `dev/` de [POM1](https://github.com/habib256/p
       tools/dos33.py   fabrique une image DOS 3.3 amorçable (.dsk)
       tools/dos33_system.bin  pistes système DOS 3.3 (0-2) du disque maître Apple
       tools/a2shot/    exécutions sans interface, scriptées, avec captures PNG
+      tools/a2run/     la même chose en C portable, avec écriture disque
       examples/hello/  programme de départ asm + C sur un disque
 
 ## Démarrer

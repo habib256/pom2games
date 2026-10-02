@@ -88,8 +88,9 @@ ACT_GOTO    = 14        ; G key: level selection
 ACT_OTHER   = 15        ; any other key
 
 ; --- Joystick tuning ---
-; read_stick counts 24-cycle iterations while each paddle timer is charging:
-; PDL 0 -> 0, PDL 127 (centered) -> ~60, PDL 255 -> ~120.
+; read_stick (joy.asm) counts 24-cycle iterations while each paddle timer is
+; charging: PDL 0 -> 0, PDL 127 (centered) -> ~60, PDL 255 -> ~120. JOY_LO /
+; JOY_HI set the dead zone of stick_dir (joy.asm), defined here first.
 JOY_LO     = 30         ; count below this  = left / up
 JOY_HI     = 90         ; count above this  = right / down
 JOY_REPEAT = 32         ; get_input calls (~6 ms each) between auto-repeats
@@ -193,9 +194,6 @@ pack_buf:        .res PACK_MAX   ; the level pack in use, BLOADed at PACK_ADDR
 .bss
 hist:            .res HIST_LEN   ; move history ring
 STATE_GRID:      .res 240        ; 20x12 playfield, one tile code per cell
-zp_game:         .res 256        ; our zero page while DOS runs a command
-cmd_buf:         .res 40         ; DOS command, ASCII, 0-terminated
-cmd_ix:          .res 1
 loaded_pack:     .res 1          ; pack in pack_buf, $FF = none
 title_ix:        .res 1
 title_glyph:     .res 1
@@ -227,17 +225,12 @@ dirty_row:       .res 4
 dirty_col:       .res 4
 flush_ix:        .res 1
 in_src:          .res 1          ; 0 = last action came from keyboard, 1 = joystick
-joy_x:           .res 1          ; read_stick results (0..~120)
-joy_y:           .res 1
 joy_hold:        .res 1          ; auto-repeat countdown while the stick is held
 btn0_prev:       .res 1          ; button edge detection
 btn1_prev:       .res 1
 b0_used:         .res 1          ; 1 = the stick moved while button 0 was held
-stick_cnt:       .res 1
 menu_sel:        .res 1
 menu_prev:       .res 1
-beep_len:        .res 1
-beep_period:     .res 1
 front_page:      .res 1          ; page on screen: 0 = page 1, PAGE2_EOR = page 2
 corners_on:      .res 1          ; 1 = warn when a box goes into a dead corner
 
@@ -513,27 +506,10 @@ get_input:
         BNE @dir
 
 @axes:  JSR read_stick
-        LDA joy_y
-        CMP #JOY_LO
-        BCC @up
-        CMP #JOY_HI+1
-        BCS @down
-        LDA joy_x
-        CMP #JOY_LO
-        BCC @left
-        CMP #JOY_HI+1
-        BCS @right
-        ; centered
-        LDA #$00
-        STA joy_hold
+        JSR stick_dir                   ; JOY_UP..JOY_RIGHT = ACT_UP..ACT_RIGHT
+        BNE @dir
+        STA joy_hold                    ; centered: A = 0, rearm the repeat
         RTS
-@up:    LDA #ACT_UP
-        BNE @dir
-@down:  LDA #ACT_DOWN
-        BNE @dir
-@left:  LDA #ACT_LEFT
-        BNE @dir
-@right: LDA #ACT_RIGHT
 @dir:   LDX joy_hold
         BEQ @fire
         DEC joy_hold
@@ -555,30 +531,6 @@ key_tbl:
         .byte 'G', ACT_GOTO
         .byte $0D, ACT_SELECT, ' ', ACT_SELECT
         .byte 0
-
-; -----------------------------------------------------------------------------
-; read_stick: sample both paddle timers in one fixed-length loop (256 x 24
-; cycles = 6 ms, longer than the 2.8 ms a fully deflected paddle charges).
-; Reading both every iteration sidesteps the classic "second paddle read too
-; soon after the first" bug. joy_x / joy_y = iterations spent charging.
-; Clobbers A, X, Y.
-; -----------------------------------------------------------------------------
-read_stick:
-        LDX #$00
-        LDY #$00
-        STX stick_cnt
-        LDA PTRIG
-@lp:    LDA PADDL0
-        BPL @xd
-        INX
-@xd:    LDA PADDL1
-        BPL @yd
-        INY
-@yd:    DEC stick_cnt
-        BNE @lp
-        STX joy_x
-        STY joy_y
-        RTS
 
 ; -----------------------------------------------------------------------------
 ; wait_any: block until a key (any) or a joystick button press. Stick
@@ -717,23 +669,6 @@ draw_corners_entry:
 ; =============================================================================
 ; SOUND
 ; =============================================================================
-; beep: toggle the speaker beep_len times with beep_period delay. Clobbers A,X,Y.
-beep:
-        LDY beep_len
-@t:     LDA SPKR
-        LDX beep_period
-@d:     DEX
-        BNE @d
-        DEY
-        BNE @t
-        RTS
-
-; tone: A = toggles, X = half-period delay. Clobbers A, X, Y.
-tone:
-        STA beep_len
-        STX beep_period
-        JMP beep
-
 ; play_fanfare: three rising notes on level completion.
 play_fanfare:
         LDA #$60
@@ -913,18 +848,18 @@ load_pack:
         LDA #<str_loading
         LDY #>str_loading
         JSR show_status
-        JSR cmd_new
+        JSR dos_cmd_new
         LDA #<bload_str
         LDY #>bload_str
-        JSR cmd_add
+        JSR dos_cmd_add
         LDX loaded_pack
         LDA pack_name_lo,X
         LDY pack_name_hi,X
-        JSR cmd_add
+        JSR dos_cmd_add
         LDA #<pack_at_str
         LDY #>pack_at_str
-        JSR cmd_add
-        JMP dos_cmd
+        JSR dos_cmd_add
+        JMP dos_cmd_run
 
 ; show_status: the glyph string at A/Y (lo/hi) bottom right of the screen on
 ; show, packed (7-pixel glyphs), right-aligned on a 7-glyph field.
@@ -938,48 +873,6 @@ show_status:
         LDA #HUD_BOT_SL
         STA num_sl
         JMP draw_str
-
-; --- DOS command builder: cmd_new, then cmd_add (0-terminated ASCII string
-; at A/Y) and cmd_hex (A as two hex digits); cmd_buf stays 0-terminated.
-cmd_new:
-        LDA #$00
-        STA cmd_ix
-        STA cmd_buf
-        RTS
-
-cmd_add:
-        STA sptr_lo
-        STY sptr_hi
-        LDY #$00
-@lp:    LDX cmd_ix
-        LDA (sptr_lo),Y                 ; (Z from this load: STA keeps it)
-        STA cmd_buf,X
-        BEQ @done
-        INC cmd_ix
-        INY
-        BNE @lp
-@done:  RTS
-
-cmd_hex:
-        PHA
-        LSR A
-        LSR A
-        LSR A
-        LSR A
-        JSR @nib
-        PLA
-        AND #$0F
-@nib:   CMP #10
-        BCC @dig
-        ADC #6                          ; C = 1: + 7, 'A'..'F'
-@dig:   ADC #'0'
-        LDX cmd_ix
-        STA cmd_buf,X
-        INX
-        LDA #$00
-        STA cmd_buf,X
-        STX cmd_ix
-        RTS
 
 bload_str:   .byte "BLOAD ", 0
 pack_at_str: .byte ",A$1000", 0
@@ -995,15 +888,15 @@ save_magic:    .byte "SOK1"
 ; protected (DOS would stop the game with WRITE PROTECTED).
 ; =============================================================================
 load_save:
-        JSR cmd_new
+        JSR dos_cmd_new
         LDA #<save_load_str
         LDY #>save_load_str
-        JSR cmd_add
+        JSR dos_cmd_add
         LDA #>save_buf
-        JSR cmd_hex
+        JSR dos_cmd_hex
         LDA #<save_buf
-        JSR cmd_hex
-        JSR dos_cmd
+        JSR dos_cmd_hex
+        JSR dos_cmd_run
         LDX #3
 @magic: LDA save_buf,X
         CMP save_magic,X
@@ -1048,36 +941,26 @@ write_save:
         LDA #<str_saving
         LDY #>str_saving
         JSR show_status
-        JSR cmd_new
+        JSR dos_cmd_new
         LDA #<save_save_str
         LDY #>save_save_str
-        JSR cmd_add
+        JSR dos_cmd_add
         LDA #>save_buf
-        JSR cmd_hex
+        JSR dos_cmd_hex
         LDA #<save_buf
-        JSR cmd_hex
+        JSR dos_cmd_hex
         LDA #<len_str
         LDY #>len_str
-        JSR cmd_add
+        JSR dos_cmd_add
         LDA #>SAVE_LEN
-        JSR cmd_hex
+        JSR dos_cmd_hex
         LDA #<SAVE_LEN
-        JSR cmd_hex
-        JSR dos_cmd
+        JSR dos_cmd_hex
+        JSR dos_cmd_run
         LDA #<str_blank7                ; wipe "SAVING"
         LDY #>str_blank7
         JSR show_status
 @done:  RTS
-
-; disk_protected: C = 1 if the disk in slot 6 is write protected (the Disk
-; II sense: Q6 high, then Q7 low reads it in bit 7, motor on).
-disk_protected:
-        LDA $C0E9                       ; motor on
-        LDA $C0ED                       ; Q6H
-        LDA $C0EE                       ; Q7L: bit 7 = write protect
-        ASL A
-        LDA $C0E8                       ; motor off (the drive spins ~1 s more)
-        RTS
 
 ; first_unsolved: cur_coll / cur_lvl := the first level without a record
 ; (the very first if every level is solved).
@@ -1178,48 +1061,6 @@ record_solution:
         LDA pushes_hi
         STA (sptr_lo),Y
 @keep:  RTS
-
-; =============================================================================
-; dos_cmd: have DOS 3.3 run the command in cmd_buf (ASCII, 0-terminated), the
-; way a BASIC program does: RETURN, Ctrl-D, the command, RETURN through COUT.
-; DOS and the Monitor expect their own page zero, so ours is set aside and
-; the snapshot taken at start (exit.asm) put back for the duration; DOS's
-; page zero after the command becomes the new snapshot. Any DOS error
-; (missing file...) would stop the game at the BASIC prompt: the files
-; used are all written on the disk by the Makefile.
-; =============================================================================
-dos_cmd:
-        LDX #$00
-@in:    LDA $00,X
-        STA zp_game,X
-        LDA apple2_zp_buf,X
-        STA $00,X
-        INX
-        BNE @in
-        JSR $03EA                       ; DOS: reconnect the I/O hooks
-        LDA #$8D
-        JSR COUT
-        LDA #$84                        ; Ctrl-D
-        JSR COUT
-        LDA #$00
-        STA cmd_ix
-@ch:    LDX cmd_ix
-        LDA cmd_buf,X
-        BEQ @end
-        ORA #$80
-        JSR COUT
-        INC cmd_ix
-        BNE @ch
-@end:   LDA #$8D                        ; DOS runs the command here
-        JSR COUT
-        LDX #$00
-@out:   LDA $00,X
-        STA apple2_zp_buf,X
-        LDA zp_game,X
-        STA $00,X
-        INX
-        BNE @out
-        RTS
 
 ; =============================================================================
 ; render_all: draw the 240 cells on a freshly cleared draw page. Floor is
@@ -2836,3 +2677,7 @@ tile_bitmaps:
 .include "kbd.asm"               ; poll_key
 .include "hgr.asm"               ; hgr_init_clear
 .include "exit.asm"              ; apple2_zp_save, apple2_exit
+.include "sound.asm"             ; tone
+.include "joy.asm"               ; read_stick, stick_dir (JOY_LO/HI above)
+.include "dos.asm"               ; dos_cmd_*: BLOAD packs, B(LOAD|SAVE) SOKOSAVE
+.assert ACT_UP = JOY_UP && ACT_DOWN = JOY_DOWN && ACT_LEFT = JOY_LEFT && ACT_RIGHT = JOY_RIGHT, error, "get_input passes stick_dir's result on as an action"
