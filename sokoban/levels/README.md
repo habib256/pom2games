@@ -32,6 +32,7 @@ indépendantes y ont été comparées :
   4 caisse, 5 caisse sur cible, 6 joueur, 7 joueur sur cible). Ce portage
   pour téléphone a retiré les niveaux trop grands, ici les 130 à 135.
 
-Les 129 niveaux communs sont identiques, dans le même ordre. En jeu, tous
-ceux que le solveur de `../tools/test_levels.py` sait résoudre sont résolus
-(`--coll 2`).
+Les 129 niveaux communs sont identiques, dans le même ordre. En jeu
+(`../tools/test_levels.py --coll 2`, 16 min) : 81 des 111 niveaux gardés sont
+résolus par le solveur puis joués jusqu'au niveau suivant, sans échec ; les
+30 autres sont trop gros pour son BFS et n'ont pas été rejoués.
