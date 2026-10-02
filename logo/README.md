@@ -11,7 +11,7 @@ Tortue HGR, procédures avec paramètres et récursion terminale, `REPEAT`,
 `SAY`, `LIST` / `EDIT`, démos `DEMO` et `DEM2`. Le manuel complet de la V2.6 est
 dans [`doc/`](doc/) (français et anglais).
 
-    make            # -> dist/LOGO.dsk  (image DOS 3.3 5"1/4 amorçable)
+    make            # -> ../dist/LOGO.dsk  (image DOS 3.3 5"1/4 amorçable)
     make run        # démarre l'image dans POM2 (profil Apple //e)
 
 Prérequis : cc65 (`brew install cc65`) et python3. Tout le reste est dans
@@ -91,7 +91,7 @@ précédent.
     src/logo.cfg          config ld65 (plan mémoire ci-dessous)
     src/hello.bas         HELLO : 10 PRINT CHR$(4);"BRUN LOGO"
     doc/                  manuels V2.6 (FR / EN) et README d'origine
-    dist/LOGO.dsk         l'image produite
+    ../dist/LOGO.dsk      l'image produite
 
 Bibliothèques : `../dev/lib/apple2` (clavier, impression, sortie DOS),
 `../dev/lib/hgr` (tables de lignes et de colonnes, police 8x8),

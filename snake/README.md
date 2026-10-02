@@ -6,7 +6,7 @@ C (cc65). Le serpent traverse les bords gauche/droite, meurt contre les murs du
 haut et du bas ; chaque pomme vaut 5 points et accélère le jeu, une gemme bonus
 (20 points) apparaît toutes les 4 pommes pour un temps limité.
 
-    make            # -> dist/SNAKE.dsk  (image DOS 3.3 5"1/4 amorçable)
+    make            # -> ../dist/SNAKE.dsk  (image DOS 3.3 5"1/4 amorçable)
     make run        # démarre l'image dans POM2 (profil Apple ][+)
 
 Prérequis : cc65 (`brew install cc65`) et python3. Tout le reste est dans
@@ -29,7 +29,7 @@ Améliorations prévues : voir [`TODO.md`](TODO.md).
 
     src/snake.c          le jeu
     src/hello.bas        HELLO : 10 PRINT CHR$(4);"BRUN SNAKE"
-    dist/SNAKE.dsk       l'image produite
+    ../dist/SNAKE.dsk    l'image produite
 
 Bibliothèques : `../dev/lib/hgrc` (runtime C HGR, version Apple II du gen2c
 de POM1), `../dev/lib/gfx`, `../dev/lib/apple2c` (clavier), `../dev/lib/apple2/hgr.asm`

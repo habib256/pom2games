@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """test_levels.py -- solve levels, play the solutions in the real game.
 
-    test_levels.py [--a2run ../dev/tools/a2run/a2run] [--disk dist/SOKOBAN.dsk]
+    test_levels.py [--a2run ../dev/tools/a2run/a2run] [--disk ../dist/SOKOBAN.dsk]
                    [--max-states N] LEVEL...
 
 LEVEL is a 1-based index in the kept levels of the first collection (the
@@ -90,7 +90,7 @@ def zp_address(lst, name):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--a2run', default=os.path.join(HERE, '..', '..', 'dev', 'tools', 'a2run', 'a2run'))
-    ap.add_argument('--disk', default=os.path.join(HERE, '..', 'dist', 'SOKOBAN.dsk'))
+    ap.add_argument('--disk', default=os.path.join(HERE, '..', '..', 'dist', 'SOKOBAN.dsk'))
     ap.add_argument('--xsb', default=os.path.join(HERE, '..', 'levels', 'microban.xsb'))
     ap.add_argument('--lst', default=os.path.join(HERE, '..', 'build', 'sokoban.lst'))
     ap.add_argument('--max-states', type=int, default=200000)

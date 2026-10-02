@@ -1,9 +1,10 @@
 # hello — the two starter programs for dev/lib (asm + C) on one DOS 3.3 disk
 #
-#   make            -> dist/HELLO.dsk   (boots into HELLOASM; then BRUN HELLOC)
+#   make            -> ../../../dist/HELLO.dsk   (boots into HELLOASM; then BRUN HELLOC)
 #   make run        -> boot it in POM2 as an Apple II+
 #
-# Copy this folder to start a new Apple II program.
+# Copy this folder to start a new Apple II program. Copied next to sokoban/,
+# set DEV ?= ../dev and DIST ?= ../dist so the disk joins the others.
 
 CA65    ?= ca65
 CL65    ?= cl65
@@ -18,7 +19,7 @@ APPLE2C := $(DEV)/lib/apple2c
 include $(APPLE2C)/apple2c.mk
 
 BUILD   := build
-DIST    := dist
+DIST    ?= ../../../dist
 DISK    := $(DIST)/HELLO.dsk
 LOAD    := 0x6000
 
@@ -64,6 +65,9 @@ run: $(DISK)
 	$(POM2) --preset ii+ $(DISK)
 
 clean:
-	rm -rf $(BUILD) $(DIST)
+	rm -rf $(BUILD)
 
-.PHONY: all run clean
+distclean: clean
+	rm -f $(DISK)
+
+.PHONY: all run clean distclean

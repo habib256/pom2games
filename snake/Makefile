@@ -1,8 +1,9 @@
 # Snake — Apple II+ / DOS 3.3 build (cc65 C)
 #
-#   make            -> dist/SNAKE.dsk (bootable 5.25" DOS 3.3 image)
+#   make            -> ../dist/SNAKE.dsk (bootable 5.25" DOS 3.3 image)
 #   make run        -> boot it in POM2 as an Apple II+
-#   make clean
+#   make clean      -> remove build/ (the disk stays)
+#   make distclean  -> remove build/ and the disk
 #
 # Needs cc65 (cl65/ca65) and python3 only: the shared ../dev tree has the rest,
 # DOS 3.3 system tracks included. `make run` uses the installed POM2 app.
@@ -19,7 +20,7 @@ GEN2C   := $(DEV)/lib/hgrc
 GFX     := $(DEV)/lib/gfx
 CFG     := $(DEV)/cc65/apple2_hgr_c.cfg
 BUILD   := build
-DIST    := dist
+DIST    ?= ../dist
 DISK    := $(DIST)/SNAKE.dsk
 BIN     := $(BUILD)/snake.bin
 LOAD    := 0x6000
@@ -61,6 +62,9 @@ run: $(DISK)
 	$(POM2) --preset ii+ $(DISK)
 
 clean:
-	rm -rf $(BUILD) $(DIST)
+	rm -rf $(BUILD)
 
-.PHONY: all run clean
+distclean: clean
+	rm -f $(DISK)
+
+.PHONY: all run clean distclean

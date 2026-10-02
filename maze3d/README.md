@@ -7,7 +7,7 @@ DFS, vue 3D avec ombrage, carte vue de dessus, niveaux d'expérience et combats
 au tour par tour contre gobelins, orcs et mages noirs. Sprites SCROLL-O-SPRITES
 de Quale (CC-BY-3.0).
 
-    make            # -> dist/MAZE3D.dsk  (image DOS 3.3 5"1/4 amorçable)
+    make            # -> ../dist/MAZE3D.dsk  (image DOS 3.3 5"1/4 amorçable)
     make run        # démarre l'image dans POM2 (profil Apple ][+)
 
 Prérequis : cc65 (`brew install cc65`) et python3. Tout le reste est dans
@@ -40,7 +40,7 @@ Améliorations prévues : voir [`TODO.md`](TODO.md).
     src/sprites_characters.asm mage noir (idem)
     src/maze3d.cfg             config ld65 : ZP $50-$FF, labyrinthe $1000, code $6000
     src/hello.bas              HELLO : 10 PRINT CHR$(4);"BRUN MAZE3D"
-    dist/MAZE3D.dsk            l'image produite
+    ../dist/MAZE3D.dsk         l'image produite
 
 Bibliothèques : `../dev/lib/apple2` (HGR, sortie DOS), `../dev/lib/hgr` (texte
 8x8, sprites 16x16, tables de lignes), `../dev/tools/dos33.py`.

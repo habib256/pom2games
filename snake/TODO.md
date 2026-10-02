@@ -18,7 +18,8 @@ vérifie avec `../dev/tools/a2shot` (captures, `peek`, mesure en trames).
   signaler.
 - Pas de pause, pas de retour à DOS, pas de son, pas de manette, pas de
   meilleur score ; seuls les murs du haut et du bas existent.
-- Le runtime C HGR (`src/gen2c`) est une copie propre à Snake.
+- Le runtime C HGR n'est plus une copie propre à Snake : le jeu utilise
+  `../dev/lib/hgrc`, `../dev/lib/gfx` et `../dev/lib/apple2c`, comme les démos.
 
 ## 1. Jouabilité
 

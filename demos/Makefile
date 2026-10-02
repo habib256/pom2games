@@ -1,8 +1,9 @@
 # DEMO — five Apple II demos on one DOS 3.3 disk, with a menu
 #
-#   make            -> dist/DEMO.dsk
+#   make            -> ../dist/DEMO.dsk
 #   make run        -> boot it in POM2 as an Apple II+
-#   make clean
+#   make clean      -> remove build/ (the disk stays)
+#   make distclean  -> remove build/ and the disk
 #
 # Needs cc65 (cl65/ca65/ld65/ar65) and python3 only: the shared ../dev tree has
 # the rest. The C demos rebuild the hgrc runtime with their own -D HGRC_NO_*
@@ -24,7 +25,7 @@ APPLE2C := $(DEV)/lib/apple2c
 APPLE2  := $(DEV)/lib/apple2
 HGR     := $(DEV)/lib/hgr
 BUILD   := build
-DIST    := dist
+DIST    ?= ../dist
 DISK    := $(DIST)/DEMO.dsk
 LOAD    := 0x6000
 
@@ -109,6 +110,9 @@ run: $(DISK)
 	$(POM2) --preset ii+ $(DISK)
 
 clean:
-	rm -rf $(BUILD) $(DIST)
+	rm -rf $(BUILD)
 
-.PHONY: all run clean
+distclean: clean
+	rm -f $(DISK)
+
+.PHONY: all run clean distclean

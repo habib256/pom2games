@@ -16,18 +16,30 @@ naturel.
 | [`logo/`](logo/) | LOGO V2.6 : tortue HGR, texte / mixte / graphique, 40 ou 80 colonnes | Apple //e (80 col.) ou II+ (40 col.) | `dist/LOGO.dsk` |
 | [`demos/`](demos/) | Menu de 5 démos : BOUNCES, ANIMALS, LIFE, PRESHIFT, FONT | Apple II+ | `dist/DEMO.dsk` |
 
-Les disquettes sont prêtes à l'emploi : on démarre dessus et le programme se
-lance. Chaque dossier a son `README.md` (commandes, différences avec
-l'original) et, pour les jeux, un `TODO.md` d'améliorations prévues.
+Toutes les disquettes sont rangées dans [`dist/`](dist/), prêtes à l'emploi : on
+démarre dessus et le programme se lance. Chaque dossier a son `README.md`
+(commandes, différences avec l'original) et, pour les jeux, un `TODO.md`
+d'améliorations prévues.
 
 ## Construire
 
-    make                # toutes les disquettes
-    make -C chess        # une seule
+    make                 # toutes les disquettes, dans dist/
+    make -C chess        # une seule (elle va aussi dans dist/)
     make -C chess run    # la lancer dans POM2 installé (/Applications/POM2.app)
+    make test            # Sokoban : niveaux 1-30 résolus et joués dans a2run
+    make check           # tout reconstruire, échouer si dist/ ne correspond pas
+    make clean           # efface les build/ (les disquettes restent)
+    make distclean       # efface aussi dist/*.dsk
 
-Prérequis : [cc65](https://cc65.github.io/) (`brew install cc65`) et python3.
-Le dépôt ne dépend d'aucun autre dossier.
+Prérequis : [cc65](https://cc65.github.io/) (`brew install cc65`, ou
+`apt install cc65`) et python3 ; un compilateur C et zlib pour `make test`.
+Le dépôt ne dépend d'aucun autre dossier. La construction est déterministe : les
+images de `dist/`, faites sous macOS, se reconstruisent à l'octet près avec le
+cc65 2.19 d'Ubuntu 24.04.
+
+L'intégration continue (`.github/workflows/build.yml`) lance `make check` puis
+`make test` sous Ubuntu à chaque push : une modification des sources sans
+`dist/` reconstruit et commité fait échouer le build.
 
 ## dev/
 

@@ -8,7 +8,7 @@ Skinner, tous ceux qui tiennent à l'écran sans défilement (146 sur 155 ;
 Microban II s'ajoute dès que `levels/microban2.xsb` existe, voir
 [`levels/README.md`](levels/README.md)).
 
-    make            # -> dist/SOKOBAN.dsk  (image DOS 3.3 5"1/4 amorçable)
+    make            # -> ../dist/SOKOBAN.dsk  (image DOS 3.3 5"1/4 amorçable)
     make run        # démarre l'image dans POM2 (profil Apple ][+)
 
 Prérequis : cc65 (`brew install cc65`) et python3. L'image est écrite par
@@ -59,7 +59,7 @@ Améliorations prévues : voir [`TODO.md`](TODO.md).
     src/hello.bas              HELLO : 10 PRINT CHR$(4);"BRUN SOKOBAN"
     levels/microban.xsb        Microban, David W. Skinner (source XSB, voir levels/README.md)
     tools/sokoban_levels.py    XSB -> paquets de niveaux + tables ca65 (build/lv)
-    dist/SOKOBAN.dsk           l'image produite
+    ../dist/SOKOBAN.dsk        l'image produite
 
 Sur la disquette : `SOKOBAN` (le jeu), `MB1A`, `MB1B` (les paquets de
 niveaux, 4 Ko au plus, chargés par `BLOAD` en `$1000` quand on passe d'un

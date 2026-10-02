@@ -1,8 +1,9 @@
 # LOGO — Apple II / DOS 3.3 build (APPLE-1 LOGO V2.6, GEN2 HGR edition)
 #
-#   make            -> dist/LOGO.dsk (bootable 5.25" DOS 3.3 image)
+#   make            -> ../dist/LOGO.dsk (bootable 5.25" DOS 3.3 image)
 #   make run        -> boot it in POM2 as an Apple //e (80 columns)
-#   make clean
+#   make clean      -> remove build/ (the disk stays)
+#   make distclean  -> remove build/ and the disk
 #
 # Needs cc65 (ca65/ld65) and python3 only: the shared ../dev tree has the rest,
 # DOS 3.3 system tracks included. `make run` uses the installed POM2 app.
@@ -19,7 +20,7 @@ SYSTEM  ?= $(DEV)/tools/dos33_system.bin
 DEFS    := -D CODETANK_BUILD -D LOGO_GEN2
 INCS    := -I src -I $(DEV)/lib/apple2 -I $(DEV)/lib/hgr
 BUILD   := build
-DIST    := dist
+DIST    ?= ../dist
 DISK    := $(DIST)/LOGO.dsk
 BIN     := $(BUILD)/logo.bin
 LOAD    := 0x4000
@@ -54,6 +55,9 @@ run: $(DISK)
 	$(POM2) --preset iie $(DISK)
 
 clean:
-	rm -rf $(BUILD) $(DIST)
+	rm -rf $(BUILD)
 
-.PHONY: all run clean
+distclean: clean
+	rm -f $(DISK)
+
+.PHONY: all run clean distclean
