@@ -1,0 +1,136 @@
+#!/usr/bin/env python3
+"""make_solutions.py -- a checked solution for every level on the disk.
+
+    make_solutions.py [--out levels/solutions.txt] [--extra FILE.sok]...
+                      [--export-unsolved FILE.xsb] HUD:FILE.xsb...
+
+For each level the game keeps (sokoban_levels.kept_levels: as drawn, turned
+or not), solver.py looks for a solution. The few it cannot find come from
+--extra files: solutions in the usual .sok layout (a title line "HUD NUM",
+the board, "Solution", the LURD lines), as written by an outside solver.
+--export-unsolved writes the levels still missing, titled that way, for
+such a solver; for the record, the missing Microban ones were solved with
+YASS 2.153 by Brian Damgaard (GPL-3, github.com/joriswit/YASS, built as a
+console program with Free Pascal):
+
+    make_solutions.py --export-unsolved hard.xsb I:levels/microban.xsb ...
+    YASS hard.xsb -prompt no -maxtime 120       # -> "hard, YASS ... Solutions.sok"
+    make_solutions.py --extra "hard, YASS ... Solutions.sok" I:... II:...
+
+Every solution, whatever its source, is replayed by solver.check() before
+it is written. Output, one level per line, in the kept order:
+
+    HUD NUM SOURCE MOVES        e.g.  I 1 solver rdddlluruulDrdrrruulLuL...
+
+MOVES are u / d / l / r player steps, upper case for a push (the game counts
+every step as a move). tools/test_levels.py types them into the real game;
+the title-screen demo plays a few of them.
+"""
+import argparse
+import os
+import re
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import sokoban_levels as sl  # noqa: E402
+import solver  # noqa: E402
+
+
+def read_sok(path):
+    """{title: moves} from a .sok solutions file."""
+    out, title, lines, in_sol = {}, None, [], False
+    with open(path, encoding='latin-1') as f:
+        rows = f.read().splitlines() + ['']
+    for row in rows:
+        s = row.strip()
+        if in_sol:
+            if re.fullmatch(r'[udlrUDLR]+', s):
+                lines.append(s)
+                continue
+            out[title] = ''.join(lines)
+            in_sol, lines = False, []
+        if s == 'Solution' and title:
+            in_sol = True
+        elif s and not set(s) <= set('#@$.*+ -_') and not s.startswith(('Solution', 'Statistics')):
+            title = s.lstrip(';').strip()
+    return out
+
+
+def mark_pushes(grid, moves):
+    """The moves with pushes in upper case (and None if they fail)."""
+    walls, goals, boxes, p = solver.parse(grid)
+    bx, out = set(boxes), []
+    for d in moves.lower():
+        dy, dx = solver.DIRS[d]
+        n = (p[0] + dy, p[1] + dx)
+        if n in walls:
+            return None
+        if n in bx:
+            to = (n[0] + dy, n[1] + dx)
+            if to in walls or to in bx:
+                return None
+            bx.remove(n)
+            bx.add(to)
+            d = d.upper()
+        out.append(d)
+        p = n
+    return ''.join(out) if bx <= goals else None
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('--out', default=os.path.join(HERE, '..', 'levels', 'solutions.txt'))
+    ap.add_argument('--extra', action='append', default=[])
+    ap.add_argument('--export-unsolved')
+    ap.add_argument('--max-nodes', type=int, default=200000)
+    ap.add_argument('collections', nargs='+', help='HUD:FILE.xsb')
+    a = ap.parse_args()
+
+    extra = {}
+    for path in a.extra:
+        extra.update(read_sok(path))
+    old = {}                                        # keep earlier answers when they still work
+    if os.path.exists(a.out):
+        for row in open(a.out):
+            if row.strip() and not row.startswith(';'):
+                hud, num, src, moves = row.split()
+                old[(hud, int(num))] = (src, moves)
+
+    lines, missing = [], []
+    for spec in a.collections:
+        hud, path = spec.split(':', 1)
+        for num, grid in sl.kept_levels(path):
+            got = None
+            for src, moves in ([old[(hud, num)]] if (hud, num) in old else []) + \
+                    ([('yass', extra['%s %d' % (hud, num)])] if '%s %d' % (hud, num) in extra else []):
+                marked = mark_pushes(grid, moves)
+                if marked:
+                    got = (src, marked)
+                    break
+            if not got:
+                moves = solver.solve(grid, a.max_nodes, weight=3)
+                marked = moves and mark_pushes(grid, moves)
+                if marked:
+                    got = ('solver', marked)
+            if got:
+                lines.append('%s %d %s %s' % (hud, num, got[0], got[1]))
+            else:
+                missing.append((hud, num, grid))
+            print('%s %d: %s' % (hud, num, '%s, %d moves' % (got[0], len(got[1])) if got else 'MISSING'),
+                  flush=True)
+
+    with open(a.out, 'w') as f:
+        f.write('; solutions.txt -- generated by tools/make_solutions.py, checked by replay.\n')
+        f.write('; HUD NUM SOURCE MOVES (u/d/l/r, upper case = push), levels as the game draws them.\n')
+        f.write('\n'.join(lines) + '\n')
+    if a.export_unsolved and missing:
+        with open(a.export_unsolved, 'w') as f:
+            for hud, num, grid in missing:
+                f.write('; %s %d\n\n%s\n\n' % (hud, num, '\n'.join(r.rstrip() for r in grid)))
+    print('%d solutions, %d missing' % (len(lines), len(missing)))
+    sys.exit(1 if missing else 0)
+
+
+if __name__ == '__main__':
+    main()

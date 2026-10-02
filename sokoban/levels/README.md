@@ -33,10 +33,14 @@ indépendantes y ont été comparées :
   4 caisse, 5 caisse sur cible, 6 joueur, 7 joueur sur cible). Ce portage
   pour téléphone a retiré les niveaux trop grands, ici les 130 à 135.
 
-Les 129 niveaux communs sont identiques, dans le même ordre. En jeu
-(`../tools/test_levels.py --coll 2`, 16 min, avant la rotation) : 81 des 111
-niveaux debout sont résolus par le solveur puis joués jusqu'au niveau
-suivant, sans échec ; les 30 autres sont trop gros pour son BFS et n'ont pas
-été rejoués. Des 15 niveaux couchés (4 + 11), 3 sont joués (I:066, II:055,
-II:093) ; pour tous, la grille chargée par le jeu est comparée case par case
-à la version tournée.
+Les 129 niveaux communs sont identiques, dans le même ordre.
+
+**Solutions.** `solutions.txt` donne une solution pour chacun des 272
+niveaux gardés, tels que le jeu les dessine (couchés compris) :
+`../tools/make_solutions.py` les cherche avec `../tools/solver.py` (263
+niveaux) ; les 9 plus durs (Microban 93, 139, 144, 146, 153 ; Microban II
+102, 104, 109, 124) ont été résolus par YASS 2.153 de Brian Damgaard (GPL-3,
+<https://github.com/joriswit/YASS>, compilé en programme console avec Free
+Pascal). Chaque solution est rejouée et vérifiée avant d'être écrite, puis
+`make test` les fait toutes jouer au vrai jeu dans a2run (~1 min) : les 272
+niveaux sont résolus jusqu'au niveau suivant.

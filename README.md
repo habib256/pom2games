@@ -26,7 +26,7 @@ d'améliorations prévues.
     make                 # toutes les disquettes, dans dist/
     make -C chess        # une seule (elle va aussi dans dist/)
     make -C chess run    # la lancer dans POM2 installé (/Applications/POM2.app)
-    make test            # Sokoban : niveaux résolus et joués dans a2run (I et II)
+    make test            # Sokoban : les 272 niveaux joués dans a2run (~1 min)
     make check           # tout reconstruire, échouer si dist/ ne correspond pas
     make clean           # efface les build/ (les disquettes restent)
     make distclean       # efface aussi dist/*.dsk

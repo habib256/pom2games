@@ -28,10 +28,13 @@ Prérequis : cc65 (`brew install cc65`) et python3. L'image est écrite par
 | bouton 1                          | H ou ESC                         | menu (aide)                |
 | manche haut/bas + bouton          | I/K + RETURN ou ESPACE           | choisir dans le menu       |
 |                                   | G (ou menu)                      | choisir le niveau (grille) |
-|                                   | C (menu)                         | alerte « coin mort » oui/non |
+|                                   | C (menu)                         | alerte « case morte » oui/non |
 |                                   | Q (menu)                         | quitter vers DOS           |
 
 Sur l'écran titre et l'écran de succès : n'importe quelle touche ou bouton.
+Après 10 s sans touche ni bouton sur l'écran titre, une démo joue quatre
+niveaux de Microban (1, 3, 12, 23) avec leurs solutions, puis revient au
+titre ; une touche ou un bouton l'interrompt. La démo n'enregistre rien.
 Ctrl-RESET quitte aussi proprement vers DOS (page zéro restaurée).
 
 Le HUD occupe les quatre coins (3 cases chacun) : coups en haut à gauche,
@@ -50,7 +53,9 @@ sont soulignés en vert ; après le dernier niveau d'une collection, un écran
 fait le bilan. L'historique garde les
 1024 derniers coups ; au-delà, R recharge le niveau au lieu de le rembobiner.
 Sons : un clic par pas, un bip aigu quand une caisse arrive sur une cible,
-deux notes graves quand une caisse entre dans un coin sans cible (option C),
+deux notes graves quand une caisse arrive sur une case morte (option C,
+« DEADLOCK » : une case d'où aucune suite de poussées ne la mènera à une
+cible, calculée au chargement du niveau),
 un choc sourd quand le coup est impossible, une fanfare en fin de niveau.
 
 Améliorations prévues : voir [`TODO.md`](TODO.md).
@@ -62,7 +67,11 @@ Améliorations prévues : voir [`TODO.md`](TODO.md).
     src/hello.bas              HELLO : 10 PRINT CHR$(4);"BRUN SOKOBAN"
     levels/microban.xsb        Microban, David W. Skinner (source XSB, voir levels/README.md)
     levels/microban2.xsb       Microban II, idem
-    tools/sokoban_levels.py    XSB -> paquets de niveaux + tables ca65 (build/lv)
+    tools/sokoban_levels.py    XSB -> paquets de niveaux + tables ca65 (build/lv), démo
+    tools/solver.py            solveur (A*, cases mortes, gel) ; même règle des cases mortes que le jeu
+    tools/make_solutions.py    une solution vérifiée par niveau -> levels/solutions.txt
+    tools/test_levels.py       joue les solutions dans le vrai jeu (a2run) : make test
+    levels/solutions.txt       les 272 solutions (démo et tests)
     ../dist/SOKOBAN.dsk        l'image produite
 
 Sur la disquette : `SOKOBAN` (le jeu), `MB1A`, `MB1B`, `MB2A`, `MB2B` (les

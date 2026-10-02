@@ -15,7 +15,7 @@
 ;               U undo    Y redo    R restart (undoable: Y replays)
 ;               N next    P previous
 ;               H or ESC  = menu        RETURN/SPACE = select in menu
-;               in the menu: C = dead-corner warning on/off, Q = quit to DOS
+;               in the menu: C = dead-square warning on/off, Q = quit to DOS
 ;               Ctrl-RESET also quits cleanly
 ;
 ; Playfield: 20 cols x 12 rows of 14x16 pixel tiles.
@@ -83,7 +83,7 @@ ACT_MENU    = 9         ; H / ESC key / button 1
 ACT_SELECT  = 10        ; RETURN / SPACE
 ACT_QUIT    = 11        ; Q key (acted on in the menu only)
 ACT_REDO    = 12        ; Y key / button 0 held + stick right
-ACT_CORNERS = 13        ; C key (acted on in the menu only)
+ACT_DEADWARN = 13        ; C key (acted on in the menu only)
 ACT_GOTO    = 14        ; G key: level selection
 ACT_OTHER   = 15        ; any other key
 
@@ -101,7 +101,7 @@ MENU_RESET   = 1
 MENU_NEXT    = 2
 MENU_PREV    = 3
 MENU_GOTO    = 4
-MENU_CORNERS = 5        ; toggled in place, never returned
+MENU_DEADWARN = 5        ; toggled in place, never returned
 MENU_QUIT    = 6
 MENU_COUNT   = 7
 MENU_ROW0    = 5        ; tile row of the first menu entry (cursor = player tile)
@@ -121,6 +121,13 @@ HUD_RIGHT  = 34
 ; so a collection whose levels changed (fingerprint) loses its records
 ; instead of passing them to other levels.
 SAVE_FP    = 6          ; offset of the fingerprints in the file
+
+; --- Title-screen demo. Times in poll_start calls, ~6.3 ms each (the
+; stick read): 10 s on the title without a key or a button starts it.
+TITLE_IDLE = 1590       ; ~10 s
+DEMO_START = 120        ; ~0.8 s on the level before the first move
+DEMO_STEP  = 22         ; ~0.15 s between two moves (plus the drawing)
+DEMO_END   = 255        ; ~1.6 s on the solved level
 
 ; --- Level selection: pages of 10 x 8 numbers, 4 byte columns each ---
 SEL_COLS   = 10
@@ -166,7 +173,7 @@ draw_row:        .res 1
 draw_col:        .res 1
 had_push:        .res 1  ; 1 = the move pushed a box
 on_target:       .res 1  ; 1 = that box landed on a target
-dead_corner:     .res 1  ; 1 = that box landed in a target-less corner
+dead_square:     .res 1  ; 1 = that box landed on a dead square (dead_tbl)
 moves_lo:        .res 1  ; move / push counters, 16 bits
 moves_hi:        .res 1
 pushes_lo:       .res 1
@@ -185,6 +192,8 @@ num_hi:          .res 1
 sel_coll:        .res 1  ; level selection: collection, level, first of page
 sel_idx:         .res 1
 sel_first:       .res 1
+demo_src_lo:     .res 1  ; run_demo: next byte of the moves
+demo_src_hi:     .res 1
 
 ; =============================================================================
 ; LOWBSS ($1000-$1FFF, not in the file)
@@ -210,6 +219,22 @@ num_sl:          .res 1
 num_step:        .res 1
 num_pow:         .res 1          ; print_num power index
 str_ix:          .res 1
+dead_tbl:        .res 240        ; 1 = a box here can never reach a target
+dead_q:          .res 240        ; find_dead: cells to look around (queue)
+dq_head:         .res 1
+dq_tail:         .res 1
+dq_cell:         .res 1
+dq_to:           .res 1
+demo_i:          .res 1          ; run_demo: demo level being played
+demo_left_lo:    .res 1          ; moves left
+demo_left_hi:    .res 1
+demo_byte:       .res 1          ; packed moves, low bits first
+demo_nbits:      .res 1          ; moves left in demo_byte
+demo_wait:       .res 1          ; demo_pause countdown
+demo_sv_coll:    .res 1          ; the level to resume after the demo
+demo_sv_lvl:     .res 1
+idle_lo:         .res 1          ; title_wait countdown
+idle_hi:         .res 1
 fp_coll:         .res 1          ; load_save: collection being checked
 fp_n:            .res 1          ; levels left to wipe
 new_record:      .res 1          ; 1 = the level just solved beat its record
@@ -237,7 +262,7 @@ b0_used:         .res 1          ; 1 = the stick moved while button 0 was held
 menu_sel:        .res 1
 menu_prev:       .res 1
 front_page:      .res 1          ; page on screen: 0 = page 1, PAGE2_EOR = page 2
-corners_on:      .res 1          ; 1 = warn when a box goes into a dead corner
+deadwarn_on:      .res 1          ; 1 = warn when a box goes onto a dead square
 
 ; =============================================================================
 .code
@@ -259,7 +284,7 @@ main:
         STA front_page                  ; page 1 on screen, drawing on page 1
         JSR set_draw_page
         LDA #$01
-        STA corners_on
+        STA deadwarn_on
         LDA #$FF
         STA loaded_pack
 
@@ -272,29 +297,23 @@ main:
         JSR load_save                   ; under the title: the save file,
         JSR first_unsolved              ; where to resume,
         JSR find_level                  ; and that level's pack
-        JSR wait_any                    ; any key / any button starts,
-        CMP #ACT_GOTO                   ; G goes to the level grid first
+title_loop:
+        JSR title_wait                  ; any key / any button starts,
+        BNE @start
+        JSR run_demo                    ; ~10 s without one: the demo,
+        JSR find_level                  ; (the resume level's pack again)
+        JSR begin_screen                ; then the title again
+        JSR draw_title
+        JSR show_screen
+        JMP title_loop
+@start: CMP #ACT_GOTO                   ; G goes to the level grid first
         BNE game_loop
         JSR run_select                  ; (ESC: the resume level)
 
 game_loop:
-        JSR init_level
-        LDA #$00                        ; fresh counters and history
-        STA moves_lo
-        STA moves_hi
-        STA pushes_lo
-        STA pushes_hi
-        STA hist_pos_lo
-        STA hist_pos_hi
-        STA undo_n_lo
-        STA undo_n_hi
-        STA redo_n_lo
-        STA redo_n_hi
+        JSR start_level
 redraw_level:
-        JSR begin_screen
-        JSR render_all
-        JSR draw_hud
-        JSR show_screen
+        JSR draw_level
 
 move_loop:
         JSR get_input
@@ -532,7 +551,7 @@ key_tbl:
         .byte $0B, ACT_UP,   $0A, ACT_DOWN, $08, ACT_LEFT, $15, ACT_RIGHT
         .byte 'U', ACT_UNDO, 'Y', ACT_REDO, 'R', ACT_RESET
         .byte 'N', ACT_NEXT, 'P', ACT_PREV
-        .byte 'H', ACT_MENU, $1B, ACT_MENU, 'Q', ACT_QUIT, 'C', ACT_CORNERS
+        .byte 'H', ACT_MENU, $1B, ACT_MENU, 'Q', ACT_QUIT, 'C', ACT_DEADWARN
         .byte 'G', ACT_GOTO
         .byte $0D, ACT_SELECT, ' ', ACT_SELECT
         .byte 0
@@ -543,15 +562,162 @@ key_tbl:
 ; does not skip the screen.
 ; -----------------------------------------------------------------------------
 wait_any:
-        JSR get_input
+        JSR poll_start
         BEQ wait_any
+        RTS
+
+; poll_start: one look at the keyboard and the buttons. A = the action, Z
+; clear, or A = 0. Any key counts; on the joystick only the buttons do (an
+; unplugged stick reads as held right and down). ~6.3 ms without a key.
+poll_start:
+        JSR get_input
+        BEQ @none
         LDX in_src
-        BEQ @done                       ; keyboard: anything goes
+        BEQ @yes                        ; keyboard: anything goes
         CMP #ACT_UNDO                   ; joystick: buttons only
-        BEQ @done
+        BEQ @yes
         CMP #ACT_MENU
-        BNE wait_any
+        BEQ @yes
+@none:  LDA #$00
+        RTS
+@yes:   ORA #$00                        ; Z clear (actions are not 0)
+        RTS
+
+; title_wait: wait_any for at most TITLE_IDLE polls (~10 s). A = the
+; action (Z clear), or A = 0 (Z set) when nobody pressed anything.
+title_wait:
+        LDA #<TITLE_IDLE
+        STA idle_lo
+        LDA #>TITLE_IDLE
+        STA idle_hi
+@lp:    JSR poll_start
+        BNE @done
+        LDA idle_lo
+        BNE @dec
+        LDA idle_hi
+        BEQ @done                       ; A = 0: time is up
+        DEC idle_hi
+@dec:   DEC idle_lo
+        JMP @lp
 @done:  RTS
+
+; start_level: decode (cur_coll, cur_lvl), fresh counters and history.
+start_level:
+        JSR init_level
+        LDA #$00
+        STA moves_lo
+        STA moves_hi
+        STA pushes_lo
+        STA pushes_hi
+        STA hist_pos_lo
+        STA hist_pos_hi
+        STA undo_n_lo
+        STA undo_n_hi
+        STA redo_n_lo
+        STA redo_n_hi
+        RTS
+
+; draw_level: the whole level and its HUD, drawn hidden then shown.
+draw_level:
+        JSR begin_screen
+        JSR render_all
+        JSR draw_hud
+        JMP show_screen
+
+; =============================================================================
+; run_demo: the title-screen demo. Plays the demo levels (levels.inc,
+; demo_*: from levels/solutions.txt) one after the other with their stored
+; solutions, at a watchable pace, then returns; a key or a button returns
+; at once. Nothing is recorded or saved; cur_coll / cur_lvl are put back.
+; =============================================================================
+run_demo:
+        LDA cur_coll
+        STA demo_sv_coll
+        LDA cur_lvl
+        STA demo_sv_lvl
+        LDA #$00
+        STA demo_i
+@level: LDX demo_i
+        LDA demo_coll,X
+        STA cur_coll
+        LDA demo_lvl,X
+        STA cur_lvl
+        LDA demo_ptr_lo,X
+        STA demo_src_lo
+        LDA demo_ptr_hi,X
+        STA demo_src_hi
+        LDA demo_len_lo,X
+        STA demo_left_lo
+        LDA demo_len_hi,X
+        STA demo_left_hi
+        LDA #$00
+        STA demo_nbits
+        JSR start_level
+        JSR draw_level
+        LDA #DEMO_START
+        JSR demo_pause
+        BCS @stop
+@move:  LDA demo_left_lo
+        ORA demo_left_hi
+        BEQ @solved
+        JSR demo_next
+        STA dir_code
+        JSR execute_move
+        LDA demo_left_lo
+        BNE @dl
+        DEC demo_left_hi
+@dl:    DEC demo_left_lo
+        LDA #DEMO_STEP
+        JSR demo_pause
+        BCC @move
+        BCS @stop
+@solved:
+        JSR play_fanfare
+        LDA #DEMO_END
+        JSR demo_pause
+        BCS @stop
+        INC demo_i
+        LDA demo_i
+        CMP #DEMO_COUNT
+        BCC @level
+@stop:  LDA demo_sv_coll
+        STA cur_coll
+        LDA demo_sv_lvl
+        STA cur_lvl
+        RTS
+
+; demo_pause: A polls (~6.3 ms each) unless a key or a button comes first:
+; then C = 1.
+demo_pause:
+        STA demo_wait
+@lp:    JSR poll_start
+        BNE @hit
+        DEC demo_wait
+        BNE @lp
+        CLC
+        RTS
+@hit:   SEC
+        RTS
+
+; demo_next: A = the next DIR_* of the demo solution (four a byte, low
+; bits first).
+demo_next:
+        LDA demo_nbits
+        BNE @have
+        LDY #$00
+        LDA (demo_src_lo),Y
+        STA demo_byte
+        INC demo_src_lo
+        BNE @nc
+        INC demo_src_hi
+@nc:    LDA #4
+        STA demo_nbits
+@have:  DEC demo_nbits
+        LDA demo_byte
+        LSR demo_byte
+        LSR demo_byte
+        AND #$03
+        RTS
 
 ; =============================================================================
 ; MENU — help text + cursor-driven choice. Returns A = MENU_*.
@@ -559,7 +725,7 @@ wait_any:
 run_menu:
         JSR begin_screen
         JSR draw_help
-        JSR draw_corners_entry
+        JSR draw_dead_entry
         JSR show_screen                 ; the cursor is drawn on the page shown
         LDA #MENU_RESUME
         STA menu_sel
@@ -578,8 +744,8 @@ run_menu:
         BEQ @prev
         CMP #ACT_QUIT
         BEQ @quit
-        CMP #ACT_CORNERS
-        BEQ @corners
+        CMP #ACT_DEADWARN
+        BEQ @deadwarn
         CMP #ACT_GOTO
         BEQ @goto
         CMP #ACT_SELECT
@@ -606,14 +772,14 @@ run_menu:
         RTS
 @select:
         LDA menu_sel
-        CMP #MENU_CORNERS
-        BEQ @corners
+        CMP #MENU_DEADWARN
+        BEQ @deadwarn
         RTS
-@corners:
-        LDA corners_on
+@deadwarn:
+        LDA deadwarn_on
         EOR #$01
-        STA corners_on
-        JSR draw_corners_entry
+        STA deadwarn_on
+        JSR draw_dead_entry
         JMP @loop
 @up:    LDA menu_sel
         STA menu_prev
@@ -654,20 +820,20 @@ menu_draw_cursor:
         LDA #TILE_PLAYER
         JMP draw_tile
 
-; draw_corners_entry: "CORNERS: ON (C)" / "CORNERS:OFF (C)", same width, so
+; draw_dead_entry: "DEADLOCK ON (C)" / "DEADLOCK OFF(C)", same width, so
 ; one draw over the other replaces it.
-draw_corners_entry:
-        LDX #<menu_corners_on
-        LDY #>menu_corners_on
-        LDA corners_on
+draw_dead_entry:
+        LDX #<menu_dead_on
+        LDY #>menu_dead_on
+        LDA deadwarn_on
         BNE @on
-        LDX #<menu_corners_off
-        LDY #>menu_corners_off
+        LDX #<menu_dead_off
+        LDY #>menu_dead_off
 @on:    STX sptr_lo
         STY sptr_hi
         LDA #MENU_TEXT_COL
         STA title_col_start
-        LDA #(MENU_ROW0 + MENU_CORNERS) * 16 + 4
+        LDA #(MENU_ROW0 + MENU_DEADWARN) * 16 + 4
         STA title_scanline
         JMP draw_title_line
 
@@ -687,7 +853,7 @@ play_fanfare:
         JMP tone
 
 ; move_sounds: after a move. A click per step; a bright blip when a box lands
-; on a target; two low notes when it lands in a dead corner (if enabled).
+; on a target; two low notes when it lands on a dead square (if enabled).
 move_sounds:
         LDA quiet
         BNE @done
@@ -698,9 +864,9 @@ move_sounds:
         LDX #$28
         JMP tone
 @corner:
-        LDA dead_corner
+        LDA dead_square
         BEQ @done
-        LDA corners_on
+        LDA deadwarn_on
         BEQ @done
         LDA #$20
         LDX #$C0
@@ -721,7 +887,8 @@ bump_sound:
 
 ; =============================================================================
 ; init_level: decode level (cur_coll, cur_lvl) into STATE_GRID, loading its
-; pack first if needed; find the player, count the boxes off target.
+; pack first if needed; find the player, count the boxes off target, then
+; the dead squares (find_dead).
 ; A level record is w, h, row, col, then runs: tile << 5 | (length - 1), in
 ; row-major order over the w x h box (tools/sokoban_levels.py).
 ; =============================================================================
@@ -808,7 +975,7 @@ init_level:
         BNE @cell
         LDY temp
         JMP @run
-@done:  RTS
+@done:  JMP find_dead                   ; the dead squares of this level
 
 ; find_level: sptr := record of level (cur_coll, cur_lvl) in pack_buf,
 ; BLOADing its pack if another one is loaded.
@@ -1261,7 +1428,7 @@ execute_move:
         STA dirty_n
         STA had_push
         STA on_target
-        STA dead_corner
+        STA dead_square
 
         LDA player_row
         CLC
@@ -1321,11 +1488,12 @@ execute_move:
         BEQ @to_target
         CMP #TILE_FLOOR
         BNE @blk_tr
-        ; box onto plain floor: off target now; a dead corner?
+        ; box onto plain floor: off target now; a dead square?
         INC boxes_left
         LDA #TILE_BOX
         STA STATE_GRID,X
-        JSR check_corner
+        LDA dead_tbl,X
+        STA dead_square
         JMP @box_placed
 @to_target:
         LDA #$01
@@ -1425,25 +1593,76 @@ execute_move:
         LDA #$00
         RTS
 
-; check_corner: X = cell of a box just put on plain floor. dead_corner := 1
-; if a wall is above or below it AND left or right of it: it can never move
-; again, and it is not on a target. Preserves X.
-check_corner:
-        LDA STATE_GRID-NCOLS,X
+; =============================================================================
+; find_dead: dead_tbl[c] := 1 for every cell from which a box can never reach
+; a target, whatever the pushes: the rule of tools/solver.py (Level.live).
+; A box is pulled backwards from every target, breadth first: from c it
+; goes to c+d when c+d and c+2d are not walls (the player steps back to
+; c+2d). Cells never reached are dead; walls and the outside are never asked
+; for. A level's floor never touches the grid edge (walls enclose it), so
+; c+d and c+2d stay inside the 240 cells. ~45 ms; once per init_level.
+; Clobbers A, X, Y.
+; =============================================================================
+find_dead:
+        LDY #$00                        ; queue length
+        LDX #STATE_GRID_LEN-1
+@init:  LDA #$01
+        STA dead_tbl,X
+        LDA STATE_GRID,X
+        CMP #TILE_TARGET
+        BEQ @goal
+        CMP #TILE_BOX_TARGET
+        BEQ @goal
+        CMP #TILE_PLAYER_TARGET
+        BNE @nxt
+@goal:  LDA #$00                        ; targets are live: they start the queue
+        STA dead_tbl,X
+        TXA
+        STA dead_q,Y
+        INY
+@nxt:   DEX
+        CPX #$FF
+        BNE @init
+        STY dq_tail
+        LDA #$00
+        STA dq_head
+@pop:   LDY dq_head
+        CPY dq_tail
+        BEQ @done
+        LDA dead_q,Y
+        STA dq_cell
+        INC dq_head
+        LDY #3                          ; four directions
+@dir:   LDA dq_cell
+        CLC
+        ADC dead_off,Y                  ; to = c + d
+        STA dq_to
+        TAX
+        LDA dead_tbl,X
+        BEQ @skip                       ; live already
+        LDA STATE_GRID,X
         CMP #TILE_WALL
-        BEQ @vert
-        LDA STATE_GRID+NCOLS,X
+        BEQ @skip
+        TXA
+        CLC
+        ADC dead_off,Y                  ; room = c + 2d, for the player
+        TAX
+        LDA STATE_GRID,X
         CMP #TILE_WALL
-        BNE @no
-@vert:  LDA STATE_GRID-1,X
-        CMP #TILE_WALL
-        BEQ @dead
-        LDA STATE_GRID+1,X
-        CMP #TILE_WALL
-        BNE @no
-@dead:  LDA #$01
-        STA dead_corner
-@no:    RTS
+        BEQ @skip
+        LDX dq_to                       ; live: queue it
+        LDA #$00
+        STA dead_tbl,X
+        TXA
+        LDX dq_tail
+        STA dead_q,X
+        INC dq_tail
+@skip:  DEY
+        BPL @dir
+        JMP @pop
+@done:  RTS
+
+dead_off:       .byte <-NCOLS, NCOLS, <-1, 1
 
 ; =============================================================================
 ; History ring: hist[hist_pos] is the next free slot; the undo_n moves
@@ -2558,8 +2777,8 @@ menu_reset:     GSTR "RESTART (R)"
 menu_next:      GSTR "NEXT LEVEL (N)"
 menu_prev_str:  GSTR "PREV LEVEL (P)"
 menu_goto:      GSTR "GO TO LEVEL (G)"
-menu_corners_on:  GSTR "CORNERS: ON (C)"
-menu_corners_off: GSTR "CORNERS:OFF (C)"
+menu_dead_on:  GSTR "DEADLOCK ON (C)"
+menu_dead_off: GSTR "DEADLOCK OFF(C)"
 menu_quit:      GSTR "QUIT TO DOS (Q)"
 
 ; =============================================================================

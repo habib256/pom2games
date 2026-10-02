@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """sokoban_levels.py -- XSB level collections -> Sokoban disk packs.
 
-    sokoban_levels.py --out build  MB1:I:levels/microban.xsb  [MB2:II:levels/microban2.xsb]
+    sokoban_levels.py --out build [--solutions levels/solutions.txt --demo I:1,I:7]
+                      MB1:I:levels/microban.xsb  [MB2:II:levels/microban2.xsb]
 
 Each argument is PREFIX:HUD:FILE -- the pack file prefix on the disk (MB1 ->
 MB1A, MB1B, ...), the collection name shown in the HUD (roman numerals, drawn
@@ -31,6 +32,11 @@ Outputs in --out:
                  per kept level (best moves, best pushes; 0 = unsolved)
   packs.args     the --bin arguments for dos33.py
   report.txt     what was kept and what was left out, and why
+
+--demo lists the levels (HUD:original number) the title-screen demo plays,
+with their solutions from --solutions (tools/make_solutions.py), packed
+four moves a byte into levels.inc (demo_* tables, DIR_* codes: up, down,
+left, right = 0-3, first move in the low bits).
 """
 import argparse
 import os
@@ -183,6 +189,41 @@ def check(grid):
     return None
 
 
+def demo_tables(a, colls):
+    """levels.inc lines for the title-screen demo."""
+    wanted = [d.split(':') for d in a.demo.split(',') if d]
+    sols = {}
+    if wanted:
+        for row in open(a.solutions):
+            if row.strip() and not row.startswith(';'):
+                hud, num, _, moves = row.split()
+                sols[(hud, int(num))] = moves.lower()
+    L = ['', 'DEMO_COUNT = %d' % len(wanted)]
+    cs, ls, lens, data = [], [], [], []
+    for k, (hud, num) in enumerate(wanted):
+        num = int(num)
+        ci = next(i for i, c in enumerate(colls) if c['hud'] == hud)
+        rank = [n for n, _ in colls[ci]['kept']].index(num)
+        moves = sols[(hud, num)]
+        codes = ['udlr'.index(m) for m in moves]
+        packed = [sum(c << (2 * j) for j, c in enumerate(codes[i:i + 4])) for i in range(0, len(codes), 4)]
+        cs.append(ci)
+        ls.append(rank)
+        lens.append(len(codes))
+        data.append('demo_%d:          ; %s:%d, %d moves' % (k, hud, num, len(codes)))
+        for i in range(0, len(packed), 16):
+            data.append('        .byte %s' % ', '.join('$%02X' % b for b in packed[i:i + 16]))
+    if wanted:
+        L.append('demo_coll:       .byte %s' % ', '.join(map(str, cs)))
+        L.append('demo_lvl:        .byte %s' % ', '.join(map(str, ls)))
+        L.append('demo_len_lo:     .byte %s' % ', '.join('<%d' % n for n in lens))
+        L.append('demo_len_hi:     .byte %s' % ', '.join('>%d' % n for n in lens))
+        L.append('demo_ptr_lo:     .byte %s' % ', '.join('<demo_%d' % k for k in range(len(wanted))))
+        L.append('demo_ptr_hi:     .byte %s' % ', '.join('>demo_%d' % k for k in range(len(wanted))))
+        L.extend(data)
+    return L
+
+
 def make_packs(prefix, records):
     """Split [(orig, data)] into packs of at most PACK_MAX bytes."""
     packs, cur, size = [], [], 1
@@ -214,6 +255,8 @@ def make_packs(prefix, records):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--out', required=True)
+    ap.add_argument('--solutions')
+    ap.add_argument('--demo', default='')
     ap.add_argument('collections', nargs='+', help='PREFIX:HUD:FILE')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
@@ -327,6 +370,7 @@ def main():
         L.append('orig_%d:          ; original level numbers' % i)
         for k in range(0, len(nums), 16):
             L.append('        .byte %s' % ', '.join(str(n) for n in nums[k:k + 16]))
+    L.extend(demo_tables(a, colls))
     with open(os.path.join(a.out, 'levels.inc'), 'w') as f:
         f.write('\n'.join(L) + '\n')
 

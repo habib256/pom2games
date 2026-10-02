@@ -75,6 +75,15 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
   à droite est bloquée pour toujours. Deux notes graves ; option C dans le
   menu (« CORNERS: ON/OFF »). Détection volontairement partielle : elle ne
   voit pas les blocages le long d'un mur ni entre deux caisses.
+- [x] **Cases mortes calculées** (2026-10-02) : `find_dead`, à la fin
+  d'`init_level`, tire une caisse fictive depuis chaque cible (parcours en
+  largeur, file de 240 octets) ; une case jamais atteinte est morte
+  (`dead_tbl`). Couvre les coins et les bords de mur sans cible. L'alerte
+  (deux notes graves, option C renommée « DEADLOCK ON/OFF ») consulte la
+  table. Même règle que `tools/solver.py` (`Level.live`) : les tables du
+  jeu et du Python sont identiques sur les 272 niveaux (a2run, `peek`).
+  Restent invisibles les blocages entre caisses (gel 2 × 2…), que seul le
+  solveur détecte.
 
 ## 4. Niveaux : Microban I et II complets
 
@@ -154,3 +163,20 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
 - [x] **Sons plus parlants** avec la routine `beep` existante : caisse posée
   sur une cible, niveau réussi, annulation, déplacement impossible, caisse
   sur une case morte.
+
+## 7. Outils et démo (2026-10-02)
+
+- [x] **Solveur de test** (`tools/solver.py`) : A* sur les poussées,
+  estimation par affectation optimale caisses → cibles, cases mortes et gel
+  (caisses bloquées sur les deux axes). 263 niveaux sur 272 ; les 9 autres
+  viennent de YASS (`levels/README.md`). `tools/make_solutions.py` écrit
+  `levels/solutions.txt` après rejeu ; `make test` joue les 272 solutions
+  dans le jeu (~1 min), au lieu de 41 niveaux auparavant.
+- [x] **Mode démo** : après 10 s sans touche ni bouton sur l'écran titre
+  (`title_wait`, ~590 trames mesurées), `run_demo` joue Microban 1, 3, 12 et
+  23 avec leurs solutions (4 coups par octet dans `levels.inc`, 46 octets),
+  ~0,15 s par coup, fanfare, puis retour au titre et nouvelle attente. Une
+  touche ou un bouton l'interrompt (le manche seul ne compte pas : débranché,
+  il se lit comme tenu). Rien n'est enregistré ni écrit sur la disquette
+  (vérifié : image identique après la démo) ; le niveau de reprise est
+  restauré.

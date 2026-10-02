@@ -2,8 +2,8 @@
 #
 #   make            -> ../dist/SOKOBAN.dsk (bootable 5.25" DOS 3.3 image)
 #   make run        -> boot it in POM2 as an Apple II+
-#   make test       -> solve Microban levels 1-30, Microban II levels 1-10 and
-#                      the last one, and play them in a2run (headless)
+#   make test       -> play the checked solution of every level (all 272,
+#                      levels/solutions.txt) in a2run, headless
 #   make clean      -> remove build/ (the disk stays)
 #   make distclean  -> remove build/ and the disk
 #
@@ -16,8 +16,6 @@ LD65    ?= ld65
 PYTHON  ?= python3
 DEV     ?= ../dev
 A2RUN   ?= $(DEV)/tools/a2run/a2run
-TEST_LEVELS ?= $(shell seq 1 30)
-TEST_LEVELS2 ?= $(shell seq 1 10) 122
 POM2    ?= /Applications/POM2.app/Contents/MacOS/POM2
 SYSTEM  ?= $(DEV)/tools/dos33_system.bin
 
@@ -31,12 +29,17 @@ LOAD    := 0x6000
 
 # Level collections, PREFIX:HUD:FILE (see tools/sokoban_levels.py).
 COLLS   := MB1:I:levels/microban.xsb MB2:II:levels/microban2.xsb
+# Levels of the title-screen demo (HUD:original number), from the checked
+# solutions of tools/make_solutions.py. All in the first pack of Microban,
+# which is loaded under the title: no disk access during the demo.
+SOLUTIONS := levels/solutions.txt
+DEMO    := I:1,I:3,I:12,I:23
 LEVELS  := $(BUILD)/lv/levels.inc
 
 all: $(DISK)
 
-$(LEVELS): tools/sokoban_levels.py $(wildcard levels/*.xsb) Makefile
-	$(PYTHON) tools/sokoban_levels.py --out $(BUILD)/lv $(COLLS)
+$(LEVELS): tools/sokoban_levels.py $(wildcard levels/*.xsb) $(SOLUTIONS) Makefile
+	$(PYTHON) tools/sokoban_levels.py --out $(BUILD)/lv --solutions $(SOLUTIONS) --demo $(DEMO) $(COLLS)
 
 $(BUILD)/sokoban.o: src/sokoban.s src/bbfont_subset.inc $(LEVELS) $(wildcard $(DEV)/lib/apple2/*)
 	@mkdir -p $(BUILD)
@@ -61,8 +64,8 @@ $(A2RUN): $(wildcard $(DEV)/tools/a2run/*.[ch])
 	$(MAKE) -C $(DEV)/tools/a2run
 
 test: $(DISK) $(A2RUN)
-	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) $(TEST_LEVELS)
-	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --coll 2 $(TEST_LEVELS2)
+	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --all
+	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --coll 2 --all
 
 run: $(DISK)
 	$(POM2) --preset ii+ $(DISK)

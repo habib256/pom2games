@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
-"""test_levels.py -- solve levels, play the solutions in the real game.
+"""test_levels.py -- play solutions in the real game.
 
     test_levels.py [--a2run ../dev/tools/a2run/a2run] [--disk ../dist/SOKOBAN.dsk]
-                   [--coll N] [--xsb FILE] [--max-states N] LEVEL...
+                   [--coll N] [--xsb FILE] [--solutions FILE] [--max-nodes N]
+                   (--all | LEVEL...)
 
 LEVEL is a 1-based index in the kept levels of collection --coll (1 =
 Microban, the default; 2 = Microban II, whose file is then the default --xsb),
 in the order of build/lv/report.txt minus the levels left out, e.g. 1 2 3 101.
-Collection 2 is reached through the level grid (G, N, RETURN).
-Each level is solved here (breadth-first search over pushes, so small
-levels only), then the game is booted in a2run, taken to the level with N,
-and the solution typed as IJKL. The test passes when the game has moved on
+Collection 2 is reached through the level grid (G, N, RETURN); --all takes
+every kept level of the collection.
+The solution comes from levels/solutions.txt (tools/make_solutions.py, every
+level, checked by replay), or from tools/solver.py when a level is not in
+it. The game is booted in a2run, taken to the level with N, and the
+solution typed as IJKL. The test passes when the game has moved on
 to the next level (its cur_lvl in the zero page), i.e. it saw the level as
 solved, with the move count of the solution; after the last level of a
 collection, past the BRAVO screen, to level 1 of a collection.
 """
 import argparse
-import collections
 import os
 import re
 import subprocess
@@ -25,53 +27,21 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import sokoban_levels as sl  # noqa: E402
+import solver  # noqa: E402
 
 DIRS = {'u': (-1, 0), 'd': (1, 0), 'l': (0, -1), 'r': (0, 1)}
 KEYS = {'u': 'I', 'd': 'K', 'l': 'J', 'r': 'L'}
 
 
-def solve(grid, max_states):
-    h, w = len(grid), len(grid[0])
-    walls = {(y, x) for y in range(h) for x in range(w) if grid[y][x] == '#'}
-    goals = {(y, x) for y in range(h) for x in range(w) if grid[y][x] in '.*+'}
-    boxes = frozenset((y, x) for y in range(h) for x in range(w) if grid[y][x] in '$*')
-    player = next((y, x) for y in range(h) for x in range(w) if grid[y][x] in '@+')
-
-    def reach(p, bx):
-        seen = {p: ''}
-        q = collections.deque([p])
-        while q:
-            c = q.popleft()
-            for d, (dy, dx) in DIRS.items():
-                n = (c[0] + dy, c[1] + dx)
-                if n not in seen and n not in walls and n not in bx:
-                    seen[n] = seen[c] + d
-                    q.append(n)
-        return seen
-
-    start = (player, boxes)
-    prev = {(min(reach(player, boxes)), boxes): None}
-    q = collections.deque([(player, boxes, '')])
-    while q:
-        p, bx, path = q.popleft()
-        if bx <= goals:
-            return path
-        r = reach(p, bx)
-        for b in bx:
-            for d, (dy, dx) in DIRS.items():
-                stand = (b[0] - dy, b[1] - dx)
-                to = (b[0] + dy, b[1] + dx)
-                if stand not in r or to in walls or to in bx:
-                    continue
-                nb = frozenset(bx - {b} | {to})
-                key = (min(reach(b, nb)), nb)
-                if key in prev:
-                    continue
-                prev[key] = 1
-                if len(prev) > max_states:
-                    return None
-                q.append((b, nb, path + r[stand] + d))
-    return None
+def read_solutions(path):
+    """{(hud, original number): moves} from solutions.txt (empty if absent)."""
+    out = {}
+    if os.path.exists(path):
+        for row in open(path):
+            if row.strip() and not row.startswith(';'):
+                hud, num, _, moves = row.split()
+                out[(hud, int(num))] = moves.lower()
+    return out
 
 
 def zp_address(lst, name):
@@ -97,9 +67,13 @@ def main():
     ap.add_argument('--coll', type=int, default=1, choices=(1, 2))
     ap.add_argument('--xsb', default=None)
     ap.add_argument('--lst', default=os.path.join(HERE, '..', 'build', 'sokoban.lst'))
-    ap.add_argument('--max-states', type=int, default=200000)
-    ap.add_argument('levels', nargs='+', type=int)
+    ap.add_argument('--solutions', default=os.path.join(HERE, '..', 'levels', 'solutions.txt'))
+    ap.add_argument('--max-nodes', type=int, default=200000)
+    ap.add_argument('--all', action='store_true')
+    ap.add_argument('levels', nargs='*', type=int)
     a = ap.parse_args()
+    hud = ('I', 'II')[a.coll - 1]
+    known = read_solutions(a.solutions)
     if a.xsb is None:
         a.xsb = os.path.join(HERE, '..', 'levels', 'microban.xsb' if a.coll == 1 else 'microban2.xsb')
 
@@ -109,11 +83,12 @@ def main():
     moves = zp_address(a.lst, 'moves_lo')
 
     failed = 0
-    for idx in a.levels:
+    for idx in range(1, len(kept) + 1) if a.all else a.levels:
         num, grid = kept[idx - 1]
-        sol = solve(grid, a.max_states)
-        if sol is None:
-            print('level %d (#%d): not solved here (too big for the BFS), skipped' % (idx, num))
+        sol = known.get((hud, num)) or solver.solve(grid, a.max_nodes, weight=3)
+        if sol is None or not solver.check(grid, sol):
+            print('level %d (#%d): no solution, FAILED' % (idx, num))
+            failed += 1
             continue
         steps = ['wait:900', 'key: ', 'wait:30']
         if a.coll == 2:                  # grid, next collection, play its first level
