@@ -11,7 +11,8 @@ with the game font) and the XSB file.
 A level is kept when it fits the screen without scrolling:
   - 20 x 12 tiles at most (after cropping to its walls),
   - and a placement exists that leaves the HUD cells outside the walls: three
-    tiles in each screen corner (rows 0 and 11, columns 0-2 and 17-19).
+    tiles in each screen corner (rows 0 and 11, columns 0-2 and 17-19), four
+    bottom left (columns 0-3: the level name, "III:056", is 7 glyphs).
 The placement closest to the centre wins. A level that does not fit upright
 but fits once turned a quarter clockwise (9 x 13 -> 13 x 9) is kept turned:
 the puzzle and its solution are the same, rotated. Everything else is
@@ -43,7 +44,8 @@ import os
 import sys
 
 COLS, ROWS = 20, 12
-HUD_CELLS = [(r, c) for r in (0, ROWS - 1) for c in (0, 1, 2, COLS - 3, COLS - 2, COLS - 1)]
+HUD_CELLS = ([(0, c) for c in (0, 1, 2, COLS - 3, COLS - 2, COLS - 1)] +
+             [(ROWS - 1, c) for c in (0, 1, 2, 3, COLS - 3, COLS - 2, COLS - 1)])
 PACK_MAX = 4096
 PACK_ADDR = 0x1000
 TILE = {' ': 0, '#': 1, '.': 2, '$': 3, '*': 4, '@': 5, '+': 6}
@@ -361,8 +363,8 @@ def main():
     for i, c in enumerate(colls):
         if not set(c['hud']) <= set(glyph):
             sys.exit('HUD name %r: roman numerals I, V, X only' % c['hud'])
-        if len(c['hud']) > 2:
-            sys.exit('HUD name %r: 2 letters at most (with ":NNN", 3 tiles)' % c['hud'])
+        if len(c['hud']) > 3:
+            sys.exit('HUD name %r: 3 letters at most (with ":NNN", 4 tiles)' % c['hud'])
         L.append('coll_hud_%d:      .byte %s, $FF   ; "%s"'
                  % (i, ', '.join(str(glyph[ch]) for ch in c['hud']), c['hud']))
     for i, c in enumerate(colls):

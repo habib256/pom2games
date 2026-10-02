@@ -2,7 +2,7 @@
 #
 #   make            -> ../dist/SOKOBAN.dsk (bootable 5.25" DOS 3.3 image)
 #   make run        -> boot it in POM2 as an Apple II+
-#   make test       -> play the checked solution of every level (all 272,
+#   make test       -> play the checked solution of every level (all 454,
 #                      levels/solutions.txt) in a2run, headless
 #   make clean      -> remove build/ (the disk stays)
 #   make distclean  -> remove build/ and the disk
@@ -28,7 +28,8 @@ BIN     := $(BUILD)/sokoban.bin
 LOAD    := 0x6000
 
 # Level collections, PREFIX:HUD:FILE (see tools/sokoban_levels.py).
-COLLS   := MB1:I:levels/microban.xsb MB2:II:levels/microban2.xsb
+COLLS   := MB1:I:levels/microban.xsb MB2:II:levels/microban2.xsb \
+           MB3:III:levels/microban3.xsb MB4:IV:levels/microban4.xsb
 # Levels of the title-screen demo (HUD:original number), from the checked
 # solutions of tools/make_solutions.py. All in the first pack of Microban,
 # which is loaded under the title: no disk access during the demo.
@@ -66,6 +67,8 @@ $(A2RUN): $(wildcard $(DEV)/tools/a2run/*.[ch])
 test: $(DISK) $(A2RUN)
 	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --all
 	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --coll 2 --all
+	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --coll 3 --all
+	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --coll 4 --all
 
 run: $(DISK)
 	$(POM2) --preset ii+ $(DISK)

@@ -111,7 +111,8 @@ MENU_TEXT_COL   = $0B   ; byte column of the entry texts
 ; --- HUD: 7-pixel glyphs, 8 lines centred in the top / bottom tile rows ---
 HUD_TOP_SL = 4
 HUD_BOT_SL = 11 * 16 + 4
-HUD_LEFT   = 0          ; byte columns: 6 glyphs = 3 tiles per corner
+HUD_LEFT   = 0          ; byte columns: 6 glyphs = 3 tiles per corner, 8 = 4
+                        ; bottom left ("III:056", see sokoban_levels.py)
 HUD_RIGHT  = 34
 
 ; --- Save file SOKOSAVE: "SOK2", collection and level last solved, one
@@ -1908,7 +1909,7 @@ draw_hud:
         LDA #4
         JSR print_num
 
-        LDA #HUD_BOT_SL                 ; "I:001": collection, original number
+        LDA #HUD_BOT_SL                 ; "III:001": collection, original number
         STA num_sl
         LDA #HUD_LEFT
         STA num_col

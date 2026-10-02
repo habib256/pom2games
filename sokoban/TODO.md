@@ -180,3 +180,12 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
   il se lit comme tenu). Rien n'est enregistré ni écrit sur la disquette
   (vérifié : image identique après la démo) ; le niveau de reprise est
   restauré.
+- [x] **Microban III et IV** : `levels/microban3.xsb` (101 niveaux) et
+  `microban4.xsb` (102), copies verbatim depuis `OMerkel/Sokoban`, recoupées
+  avec `rkirov/sokoban-ai` (ses quatre Microban sont identiques aux nôtres).
+  92 et 90 niveaux gardés (2 et 4 couchés) : 454 en tout, huit paquets,
+  `SOKOSAVE` 1830 octets, 357 secteurs libres. Le coin bas-gauche du HUD
+  passe à 4 cases pour « III:056 » (7 glyphes) ; cela n'écarte aucun niveau,
+  ne déplace aucun niveau de I et II (empreintes inchangées : les records
+  restent). Solutions : 421 par `solver.py`, 33 par YASS ; `make test` joue
+  les 454 (~1 min 30).
