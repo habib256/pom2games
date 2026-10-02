@@ -4,6 +4,8 @@
 |----------------|--------------|------------------|--------|
 | `microban.xsb` | Microban (155 niveaux) | David W. Skinner | <https://raw.githubusercontent.com/Nican/Xye/master/web/microban.xsb> (SHA-256 `4233c2bf…c07e5b`), copie verbatim |
 | `microban2.xsb` | Microban II (135 niveaux, avril 2002) | David W. Skinner | <https://raw.githubusercontent.com/OMerkel/Sokoban/master/3rdParty/Levels/Microban%20II.txt> (SHA-256 `5a811176…4d60d608`), copie verbatim (fins de ligne CRLF) |
+| `microban3.xsb` | Microban III (101 niveaux) | David W. Skinner | <https://raw.githubusercontent.com/OMerkel/Sokoban/master/3rdParty/Levels/Microban%20III.txt> (SHA-256 `e8d29776…a370fd7`), copie verbatim (fins de ligne CRLF) |
+| `microban4.xsb` | Microban IV (102 niveaux) | David W. Skinner | <https://raw.githubusercontent.com/OMerkel/Sokoban/master/3rdParty/Levels/Microban%20IV.txt> (SHA-256 `f44b01d2…d5568196`), copie verbatim (fins de ligne CRLF) |
 
 David W. Skinner a publié ses collections pour la libre diffusion, à une
 condition : « These sets may be freely distributed provided they remain
@@ -35,12 +37,19 @@ indépendantes y ont été comparées :
 
 Les 129 niveaux communs sont identiques, dans le même ordre.
 
-**Solutions.** `solutions.txt` donne une solution pour chacun des 272
+**Vérification de Microban III et IV** (et de nouveau de I et II) : le dépôt
+`rkirov/sokoban-ai` (`levels/microban1.txt` à `microban4.txt`, 493 niveaux)
+est une troisième copie indépendante ; ses quatre collections sont identiques,
+niveau par niveau, à nos quatre fichiers.
+
+**Solutions.** `solutions.txt` donne une solution pour chacun des 454
 niveaux gardés, tels que le jeu les dessine (couchés compris) :
-`../tools/make_solutions.py` les cherche avec `../tools/solver.py` (263
-niveaux) ; les 9 plus durs (Microban 93, 139, 144, 146, 153 ; Microban II
-102, 104, 109, 124) ont été résolus par YASS 2.153 de Brian Damgaard (GPL-3,
-<https://github.com/joriswit/YASS>, compilé en programme console avec Free
-Pascal). Chaque solution est rejouée et vérifiée avant d'être écrite, puis
-`make test` les fait toutes jouer au vrai jeu dans a2run (~1 min) : les 272
-niveaux sont résolus jusqu'au niveau suivant.
+`../tools/make_solutions.py` les cherche avec `../tools/solver.py` (421
+niveaux) ; les 33 plus durs ont été résolus par YASS 2.153 de Brian Damgaard
+(GPL-3, <https://github.com/joriswit/YASS>, compilé en programme console avec
+Free Pascal) : Microban 93, 139, 144, 146, 153 ; Microban II 102, 104, 109,
+124 ; Microban III 29, 43, 56 ; Microban IV 46, 56, 57, 67, 69, 71, 72, 73,
+76, 80, 81, 83, 88, 89, 90, 93, 95, 96, 97, 99, 100. Chaque solution est
+rejouée et vérifiée avant d'être écrite, puis `make test` les fait toutes
+jouer au vrai jeu dans a2run (~1 min 30) : les 454 niveaux sont résolus
+jusqu'au niveau suivant.

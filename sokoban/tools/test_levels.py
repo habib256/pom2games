@@ -5,11 +5,11 @@
                    [--coll N] [--xsb FILE] [--solutions FILE] [--max-nodes N]
                    (--all | LEVEL...)
 
-LEVEL is a 1-based index in the kept levels of collection --coll (1 =
-Microban, the default; 2 = Microban II, whose file is then the default --xsb),
-in the order of build/lv/report.txt minus the levels left out, e.g. 1 2 3 101.
-Collection 2 is reached through the level grid (G, N, RETURN); --all takes
-every kept level of the collection.
+LEVEL is a 1-based index in the kept levels of collection --coll (1 to 4 =
+Microban I to IV, default 1; the file of that collection is the default
+--xsb), in the order of build/lv/report.txt minus the levels left out, e.g.
+1 2 3 101. Collections 2-4 are reached through the level grid (G, N for
+each collection, RETURN); --all takes every kept level of the collection.
 The solution comes from levels/solutions.txt (tools/make_solutions.py, every
 level, checked by replay), or from tools/solver.py when a level is not in
 it. The game is booted in a2run, taken to the level with N, and the
@@ -64,7 +64,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--a2run', default=os.path.join(HERE, '..', '..', 'dev', 'tools', 'a2run', 'a2run'))
     ap.add_argument('--disk', default=os.path.join(HERE, '..', '..', 'dist', 'SOKOBAN.dsk'))
-    ap.add_argument('--coll', type=int, default=1, choices=(1, 2))
+    ap.add_argument('--coll', type=int, default=1, choices=(1, 2, 3, 4))
     ap.add_argument('--xsb', default=None)
     ap.add_argument('--lst', default=os.path.join(HERE, '..', 'build', 'sokoban.lst'))
     ap.add_argument('--solutions', default=os.path.join(HERE, '..', 'levels', 'solutions.txt'))
@@ -72,10 +72,11 @@ def main():
     ap.add_argument('--all', action='store_true')
     ap.add_argument('levels', nargs='*', type=int)
     a = ap.parse_args()
-    hud = ('I', 'II')[a.coll - 1]
+    hud = ('I', 'II', 'III', 'IV')[a.coll - 1]
     known = read_solutions(a.solutions)
     if a.xsb is None:
-        a.xsb = os.path.join(HERE, '..', 'levels', 'microban.xsb' if a.coll == 1 else 'microban2.xsb')
+        a.xsb = os.path.join(HERE, '..', 'levels', ('microban.xsb', 'microban2.xsb',
+                                                    'microban3.xsb', 'microban4.xsb')[a.coll - 1])
 
     kept = sl.kept_levels(a.xsb)         # as the game draws them (turned or not)
     cur_coll = zp_address(a.lst, 'cur_coll')
@@ -91,8 +92,8 @@ def main():
             failed += 1
             continue
         steps = ['wait:900', 'key: ', 'wait:30']
-        if a.coll == 2:                  # grid, next collection, play its first level
-            steps += ['key:G', 'wait:60', 'key:N', 'wait:200', 'key:\r', 'wait:300']
+        if a.coll > 1:                   # grid, N per collection, play its first level
+            steps += ['key:G', 'wait:60'] + ['key:N', 'wait:200'] * (a.coll - 1) + ['key:\r', 'wait:300']
         n = idx - 1
         while n > 0:                     # N ... N, one pack load at most on the way
             k = min(n, 20)

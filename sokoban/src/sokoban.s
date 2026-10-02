@@ -111,7 +111,8 @@ MENU_TEXT_COL   = $0B   ; byte column of the entry texts
 ; --- HUD: 7-pixel glyphs, 8 lines centred in the top / bottom tile rows ---
 HUD_TOP_SL = 4
 HUD_BOT_SL = 11 * 16 + 4
-HUD_LEFT   = 0          ; byte columns: 6 glyphs = 3 tiles per corner
+HUD_LEFT   = 0          ; byte columns: 6 glyphs = 3 tiles per corner, 8 = 4
+                        ; bottom left ("III:056", see sokoban_levels.py)
 HUD_RIGHT  = 34
 
 ; --- Save file SOKOSAVE: "SOK2", collection and level last solved, one
@@ -128,6 +129,14 @@ TITLE_IDLE = 1590       ; ~10 s
 DEMO_START = 120        ; ~0.8 s on the level before the first move
 DEMO_STEP  = 22         ; ~0.15 s between two moves (plus the drawing)
 DEMO_END   = 255        ; ~1.6 s on the solved level
+TITLE_TICK = 64         ; ~0.4 s between two steps of the title animation
+
+; --- Title screen: the little warehouse (tile rows 4-6, columns 6-12) whose
+; corridor (row 5, columns 7-11) shows a box pushed onto its target.
+TITLE_ROW  = 5
+TITLE_COL  = 7
+TITLE_PHASES = 6
+TITLE_PRESS_SL = 154    ; scanline of the blinking "KEY OR BUTTON"
 
 ; --- Level selection: pages of 10 x 8 numbers, 4 byte columns each ---
 SEL_COLS   = 10
@@ -234,6 +243,13 @@ demo_wait:       .res 1          ; demo_pause countdown
 demo_sv_coll:    .res 1          ; the level to resume after the demo
 demo_sv_lvl:     .res 1
 idle_lo:         .res 1          ; title_wait countdown
+title_tick:      .res 1          ; title_wait: polls left before the next title_step
+title_phase:     .res 1          ; title animation phase (anim_tiles row)
+title_blink:     .res 1          ; 1 = "KEY OR BUTTON" shown
+big_color:       .res 1          ; draw_big_glyph: 0 = white, 1 = orange
+all_solved_lo:   .res 1          ; draw_title_info: levels with a record, all collections
+all_solved_hi:   .res 1
+start_menu:      .res 1          ; 1 = H on the title: open the menu once the level is up
 idle_hi:         .res 1
 fp_coll:         .res 1          ; load_save: collection being checked
 fp_n:            .res 1          ; levels left to wipe
@@ -281,6 +297,7 @@ main:
         STA cur_lvl
         STA quiet
         STA replaying
+        STA start_menu                  ; (BSS is not cleared at load)
         STA front_page                  ; page 1 on screen, drawing on page 1
         JSR set_draw_page
         LDA #$01
@@ -296,7 +313,11 @@ main:
         JSR show_screen
         JSR load_save                   ; under the title: the save file,
         JSR first_unsolved              ; where to resume,
-        JSR find_level                  ; and that level's pack
+        JSR find_level                  ; and that level's pack;
+        LDA #<str_blank7                ; (wipe "LOADING")
+        LDY #>str_blank7
+        JSR show_status
+        JSR draw_title_info             ; then progress and resume level
 title_loop:
         JSR title_wait                  ; any key / any button starts,
         BNE @start
@@ -304,16 +325,27 @@ title_loop:
         JSR find_level                  ; (the resume level's pack again)
         JSR begin_screen                ; then the title again
         JSR draw_title
+        JSR draw_title_info
         JSR show_screen
         JMP title_loop
 @start: CMP #ACT_GOTO                   ; G goes to the level grid first
-        BNE game_loop
+        BNE @play
         JSR run_select                  ; (ESC: the resume level)
+        JMP game_loop
+@play:  CMP #ACT_MENU                   ; H (or button 1): the level, then
+        BNE game_loop                   ; the help menu over it
+        LDA #$01
+        STA start_menu
 
 game_loop:
         JSR start_level
 redraw_level:
         JSR draw_level
+        LDA start_menu
+        BEQ move_loop
+        LDA #$00
+        STA start_menu
+        JMP key_menu
 
 move_loop:
         JSR get_input
@@ -590,9 +622,16 @@ title_wait:
         STA idle_lo
         LDA #>TITLE_IDLE
         STA idle_hi
+        LDA #TITLE_TICK
+        STA title_tick
 @lp:    JSR poll_start
         BNE @done
-        LDA idle_lo
+        DEC title_tick                  ; every ~0.4 s: animation, blink
+        BNE @idle
+        LDA #TITLE_TICK
+        STA title_tick
+        JSR title_step
+@idle:  LDA idle_lo
         BNE @dec
         LDA idle_hi
         BEQ @done                       ; A = 0: time is up
@@ -1908,7 +1947,7 @@ draw_hud:
         LDA #4
         JSR print_num
 
-        LDA #HUD_BOT_SL                 ; "I:001": collection, original number
+        LDA #HUD_BOT_SL                 ; "III:001": collection, original number
         STA num_sl
         LDA #HUD_LEFT
         STA num_col
@@ -2070,7 +2109,186 @@ draw_title:
         STA tbl_lo
         LDA #>title_table
         STA tbl_hi
-        JMP draw_from_table
+        JSR draw_from_table
+        LDA #$00                        ; wall band along the top
+        STA draw_row
+        STA draw_col
+@band:  LDA #TILE_WALL
+        JSR draw_tile
+        INC draw_col
+        LDA draw_col
+        CMP #NCOLS
+        BCC @band
+        LDX #TITLE_COL-1                ; the warehouse: walls around the
+@box:   STX draw_col                    ; corridor of row TITLE_ROW
+        LDA #TITLE_ROW-1
+        STA draw_row
+        LDA #TILE_WALL
+        JSR draw_tile
+        LDA #TITLE_ROW+1
+        STA draw_row
+        LDA #TILE_WALL
+        JSR draw_tile
+        LDX draw_col
+        INX
+        CPX #TITLE_COL+6
+        BCC @box
+        LDA #TITLE_ROW
+        STA draw_row
+        LDA #TITLE_COL-1
+        STA draw_col
+        LDA #TILE_WALL
+        JSR draw_tile
+        LDA #TITLE_COL+5
+        STA draw_col
+        LDA #TILE_WALL
+        JSR draw_tile
+        LDA #$00
+        STA title_phase
+        LDA #$01
+        STA title_blink
+        JMP draw_title_corridor
+
+; title_step: next phase of the title animation (a click per push, the
+; target blip when the box lands), and "KEY OR BUTTON" blinks.
+title_step:
+        INC title_phase
+        LDA title_phase
+        CMP #TITLE_PHASES
+        BCC @ph
+        LDA #$00
+        STA title_phase
+@ph:    CMP #1                          ; phases 1-3 push the box
+        BCC @drawn
+        CMP #4
+        BCS @drawn
+        LDA SPKR
+        LDA title_phase
+        CMP #3
+        BNE @drawn
+        LDA #$30                        ; on its target
+        LDX #$28
+        JSR tone
+@drawn: JSR draw_title_corridor
+        LDA title_blink
+        EOR #$01
+        STA title_blink
+        LDA #2
+        STA num_step
+        LDA title_blink
+        BEQ @off
+        TEXT 7, TITLE_PRESS_SL, title_press
+        RTS
+@off:   TEXT 7, TITLE_PRESS_SL, title_nopress
+        RTS
+
+; draw_title_corridor: the five corridor cells of phase title_phase.
+draw_title_corridor:
+        LDA title_phase
+        ASL A
+        ASL A
+        CLC
+        ADC title_phase                 ; X = phase * 5
+        TAX
+        LDA #TITLE_ROW
+        STA draw_row
+        LDA #TITLE_COL
+        STA draw_col
+@cell:  STX tot_i
+        LDA anim_tiles,X
+        JSR draw_tile
+        LDX tot_i
+        INX
+        INC draw_col
+        LDA draw_col
+        CMP #TITLE_COL+5
+        BCC @cell
+        RTS
+
+anim_tiles:     ; player, box, floor, floor, target -> box on its target
+        .byte TILE_PLAYER, TILE_BOX, TILE_FLOOR, TILE_FLOOR, TILE_TARGET
+        .byte TILE_FLOOR, TILE_PLAYER, TILE_BOX, TILE_FLOOR, TILE_TARGET
+        .byte TILE_FLOOR, TILE_FLOOR, TILE_PLAYER, TILE_BOX, TILE_TARGET
+        .byte TILE_FLOOR, TILE_FLOOR, TILE_FLOOR, TILE_PLAYER, TILE_BOX_TARGET
+        .byte TILE_FLOOR, TILE_FLOOR, TILE_FLOOR, TILE_PLAYER, TILE_BOX_TARGET
+        .byte TILE_FLOOR, TILE_FLOOR, TILE_FLOOR, TILE_PLAYER, TILE_BOX_TARGET
+.assert * - anim_tiles = TITLE_PHASES * 5, error, "anim_tiles: 5 cells per phase"
+
+orange_mask:    .byte $AA, $D5          ; odd screen pixels of an even / odd byte
+
+; draw_title_info: "SOLVED nnn/NNN" (levels with a record, all collections)
+; and "CONTINUE III:056" (the level play resumes at), centred.
+draw_title_info:
+        LDA #$00
+        STA all_solved_lo
+        STA all_solved_hi
+        STA title_ix
+@coll:  LDA title_ix
+        STA sel_coll
+        JSR coll_totals
+        LDA all_solved_lo
+        CLC
+        ADC tot_solved
+        STA all_solved_lo
+        BCC @nc
+        INC all_solved_hi
+@nc:    INC title_ix
+        LDA title_ix
+        CMP #NUM_COLLS
+        BCC @coll
+        LDA #2
+        STA num_step
+        TEXT 6, 130, str_solved         ; 14 glyphs from column 6
+        LDA all_solved_lo
+        STA num_lo
+        LDA all_solved_hi
+        STA num_hi
+        LDA #3
+        JSR print_num
+        LDA #G_SLASH
+        JSR put_glyph
+        LDA #<TOTAL_LEVELS
+        STA num_lo
+        LDA #>TOTAL_LEVELS
+        STA num_hi
+        LDA #3
+        JSR print_num
+        LDX cur_coll                    ; "CONTINUE " + name + ":NNN",
+        LDA coll_hud_lo,X               ; 13 glyphs + the name: from
+        STA sptr_lo                     ; column 7 - name length
+        LDA coll_hud_hi,X
+        STA sptr_hi
+        LDY #$FF
+@len:   INY
+        LDA (sptr_lo),Y
+        CMP #$FF
+        BNE @len
+        STY temp
+        LDA #7
+        SEC
+        SBC temp
+        STA num_col
+        LDA #140
+        STA num_sl
+        LDA #<title_continue
+        STA sptr_lo
+        LDA #>title_continue
+        STA sptr_hi
+        JSR draw_str
+        LDX cur_coll
+        LDA coll_hud_lo,X
+        STA sptr_lo
+        LDA coll_hud_hi,X
+        STA sptr_hi
+        JSR draw_str
+        LDA #G_COLON
+        JSR put_glyph
+        JSR orig_number
+        STA num_lo
+        LDA #$00
+        STA num_hi
+        LDA #3
+        JMP print_num
 
 draw_help:
         LDA #<help_table
@@ -2521,6 +2739,9 @@ draw_from_table:
         INY
         LDA (tbl_lo),Y
         BEQ @small
+        SEC                             ; 1 = big white, 2 = big orange
+        SBC #1
+        STA big_color
         JSR draw_title_big_line
         JMP @next
 @small:
@@ -2538,14 +2759,12 @@ draw_from_table:
 
 ; Small lines: 14 px per glyph, so <= 20 glyphs; byte_col = 20 - n centres.
 title_table:
-        .byte <title_sokoban,  >title_sokoban,  $0D, $08, $01    ; big
-        .byte <title_apple,    >title_apple,    $0C, $30, $00    ; APPLE II
-        .byte <title_levels,   >title_levels,   LEVELS_TITLE_COL, $40, $00
-        .byte <title_skinner,  >title_skinner,  $01, $50, $00    ; BY DAVID W. SKINNER
-        .byte <title_author,   >title_author,   $00, $68, $00    ; PORT VERHILLE ARNAUD
-        .byte <title_ctrl,     >title_ctrl,     $04, $80, $00    ; JOYSTICK OR IJKL
-        .byte <title_press,    >title_press,    $07, $98, $00    ; KEY OR BUTTON
-        .byte <title_h_help,   >title_h_help,   $02, $AA, $00    ; H HELP   G LEVELS (clear of LOADING)
+        .byte <title_sokoban,  >title_sokoban,  $0D, 20, $02     ; big, orange
+        .byte <title_levels,   >title_levels,   LEVELS_TITLE_COL, 40, $00
+        .byte <title_skinner,  >title_skinner,  $01, 50, $00     ; BY DAVID W. SKINNER
+        .byte <title_author,   >title_author,   $00, 116, $00    ; PORT VERHILLE ARNAUD
+        .byte <title_press,    >title_press,    $07, TITLE_PRESS_SL, $00
+        .byte <title_h_help,   >title_h_help,   $02, 168, $00    ; H HELP   G LEVELS (clear of LOADING)
         .byte $FF
 
 ; Help: title, the controls, then the menu entries on tile rows
@@ -2669,7 +2888,23 @@ draw_big_glyph:
         TAX
         LDA double_hi,X
         STA big_byte1
-
+        LDA big_color                   ; orange: odd screen pixels only,
+        BEQ @white                      ; high bit set (the box colour)
+        LDA temp
+        AND #$01
+        TAX                             ; X = parity of byte 0's column
+        LDA big_byte0
+        AND orange_mask,X
+        ORA #$80
+        STA big_byte0
+        TXA
+        EOR #$01
+        TAX
+        LDA big_byte1
+        AND orange_mask,X
+        ORA #$80
+        STA big_byte1
+@white:
         TYA
         ASL A
         CLC
@@ -2709,8 +2944,9 @@ draw_big_glyph:
         INY
         STY title_glyph
         CPY #$08
-        BCC @row
-        RTS
+        BCS @end
+        JMP @row
+@end:   RTS
 
 ; draw_title_glyph: one 7x8 glyph. Input: A = glyph, X = byte_col, Y = scanline.
 draw_title_glyph:
@@ -2746,12 +2982,12 @@ draw_title_glyph:
 
 ; --- Strings: glyph indices, $FF terminated (GSTR, see bbfont_subset.inc) ---
 title_sokoban:  GSTR "SOKOBAN"
-title_apple:    GSTR "APPLE II"
 title_levels:   LEVELS_TITLE
 title_skinner:  GSTR "BY DAVID W. SKINNER"
 title_author:   GSTR "PORT VERHILLE ARNAUD"
-title_ctrl:     GSTR "JOYSTICK OR IJKL"
 title_press:    GSTR "KEY OR BUTTON"
+title_nopress:  GSTR "             "
+title_continue: GSTR "CONTINUE "
 title_h_help:   GSTR "H HELP    G LEVELS"
 title_success:  GSTR "SUCCESS"
 str_loading:    GSTR "LOADING"
