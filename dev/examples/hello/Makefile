@@ -3,7 +3,7 @@
 #   make            -> ../../../dist/HELLO.dsk   (boots into HELLOASM; then BRUN HELLOC)
 #   make run        -> boot it in POM2 as an Apple II+
 #
-# Copy this folder to start a new Apple II program. Copied next to sokoban/,
+# Copy this folder to start a new Apple II program. Copied next to micro-sokoban/,
 # set DEV ?= ../dev and DIST ?= ../dist so the disk joins the others.
 
 CA65    ?= ca65

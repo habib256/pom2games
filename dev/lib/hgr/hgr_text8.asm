@@ -14,6 +14,10 @@
 ; pointer, which is what lets TMS-ported print loops run unchanged.
 ; Set ht_wrap = 40 if you never want the wrap.
 ;
+; UI RULE: native-size (x1) text MUST stay white; only doubled (x2) text
+; may be colored. For this emitter, use ht_cm_ev/od=$7F and ht_cbit=$00.
+; Tint masks remove thin strokes and make small glyphs harder to read.
+;
 ; Fonts: ht_font_lo/hi -> 8-bytes-per-glyph table for chars $20.. ;
 ; ht_rev picks the bit order:
 ;   ht_rev = 0   HGR order (bit 0 = leftmost) -- bbfont_ascii5f.inc etc.

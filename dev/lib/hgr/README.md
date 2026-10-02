@@ -10,6 +10,16 @@ Ces fichiers ne touchent aucun commutateur, ils tournent donc tels quels sur un
 Apple II ; leurs commentaires parlent encore de GEN2. Les commutateurs vidéo et
 l'initialisation sont dans [`../apple2/hgr.asm`](../apple2/hgr.asm).
 
+**Règle impérative pour le texte d'interface : seuls les caractères agrandis
+×2 peuvent être colorés. Tout texte à taille normale (×1), y compris les chiffres,
+commandes et curseurs de menu, doit rester blanc.** Le passage du blanc à une
+couleur HGR masque une partie des traits du petit glyphe et réduit sa lisibilité.
+Pour `hgr_putc8` / `hgr_puts8`, utiliser les attributs blancs
+`ht_cm_ev = $7F`, `ht_cm_od = $7F`, `ht_cbit = $00`.
+Garder une marge noire autour du texte inséré dans un décor coloré pour éviter
+les franges de couleur aux bords. Cette règle concerne le texte ; les sprites,
+murs, caisses et autres éléments graphiques conservent leurs couleurs.
+
 | Fichier | Contenu | Utilisé par |
 |---|---|---|
 | `hgr_scanline.inc` | `hgr_lo` / `hgr_hi` : adresse de chaque ligne 0..191 | chess, maze3d, logo |

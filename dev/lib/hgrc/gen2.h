@@ -333,6 +333,10 @@ void gen2_spr_move(unsigned char id, unsigned x, unsigned char y);
 void gen2_spr_hide(unsigned char id);
 void gen2_spr_update(void);
 
+/* UI RULE: native-size (x1) text must remain white. Only doubled (x2)
+ * lettering may be colored; tint masks destroy thin small-font strokes.
+ * Keep black padding between text and colored background graphics. */
+
 /* Draw an ASCII string at pixel (x, y) using the built-in Beautiful Boot 8x8
  * font, pixel-doubled so the text is solid white (no NTSC colour artifacts) in
  * 16x16 cells on an 18px pitch. Renders into HIRES page 1; call gen2_hgr_init

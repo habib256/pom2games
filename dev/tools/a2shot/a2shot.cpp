@@ -9,6 +9,8 @@
 //   joy:X,Y         joystick axes in [-1,1]      btn:N,0|1  game-port button
 //   reset           press RESET (warm: the 6502 RESET line)
 //   pc              print the program counter
+//   until:ADDR:N    run until PC reaches ADDR, with a limit of N video frames
+//   press:TEXT      queue keys without running (for exact until checkpoints)
 //
 //   a2shot --disk GAME.dsk wait:600 key:" " wait:60 shot:title.png
 //
@@ -169,6 +171,20 @@ int main(int argc, char** argv)
             // In chunks: N * 17030 overflows Core::run's int past ~126 000 frames.
             for (long n = std::atol(arg.c_str()); n > 0; n -= 100000)
                 core.run(static_cast<int>(n < 100000 ? n : 100000) * kCyclesPerFrame);
+        } else if (op == "until") {
+            const size_t split = arg.find(':');
+            if (split == std::string::npos) return 2;
+            const unsigned target = std::strtoul(arg.substr(0, split).c_str(), nullptr, 16);
+            const std::uint64_t limit = core.cpuState().cycles +
+                std::strtoull(arg.substr(split + 1).c_str(), nullptr, 10) * kCyclesPerFrame;
+            while (core.cpuState().programCounter != target && core.cpuState().cycles < limit)
+                core.run(1);
+            const auto state = core.cpuState();
+            std::printf("until %04X cycles=%llu PC=%04X\n", target,
+                        static_cast<unsigned long long>(state.cycles), state.programCounter);
+            if (state.programCounter != target) return 3;
+        } else if (op == "press") {
+            for (unsigned char c : unescape(arg)) core.queueKey(c);
         } else if (op == "key") {
             for (unsigned char c : unescape(arg)) {
                 core.queueKey(c);

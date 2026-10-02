@@ -3,7 +3,7 @@
 ; =============================================================================
 ; $00-$1F, $80-$FF: fonts/font_codepage_437_8x8.png (7 cols, bit0=left).
 ; $20-$7F: fonts/fontbb.s (Beautiful Boot) — AND #$7F + reverse 8 rows
-;         (DrawChar / GEN2 convention, same as HGR_Sokoban_bbfont.inc).
+;         (DrawChar / GEN2 convention, same as HGR_MicroSokoban_bbfont.inc).
 ;
 ; MASTER of the shared Beautiful Boot font. After editing, rerun
 ;   python3 tools/build_shared_font.py          (--check verifies no drift)

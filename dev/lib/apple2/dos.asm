@@ -25,6 +25,8 @@
 ; exit.asm's apple2_zp_save took at start, runs the command, makes DOS's page
 ; zero the new snapshot and restores the program's. So apple2_zp_save must
 ; have run first, and exit.asm must be included.
+; Define DOS_ZP_START / DOS_ZP_LEN to retain only the program's own range
+; (default $00 / 256). DOS always keeps a full-page snapshot.
 ;
 ; Errors: DOS handles them itself (FILE NOT FOUND, I/O ERROR, WRITE
 ; PROTECTED...) by stopping the program at the BASIC prompt. Put every file
@@ -34,6 +36,7 @@
 ; dos_cmd_add reads its string through a self-modified absolute address, so
 ; the module needs no zero page. The buffer holds DOS_CMD_MAX - 1 characters
 ; (define DOS_CMD_MAX before the include to change it; default 40).
+; DOS_CMD_WORKBSS = 1 places that buffer and its index in WORKBSS instead.
 ; disk_protected assumes the boot drive is in slot 6 (the usual Disk II).
 ;
 ; BSS: dos_cmd_buf, dos_cmd_ix, dos_zp_prog (256).
@@ -47,13 +50,30 @@ _DOS_ASM_LOADED_ = 1
 .ifndef DOS_CMD_MAX
 DOS_CMD_MAX = 40
 .endif
+.ifndef DOS_CMD_WORKBSS
+DOS_CMD_WORKBSS = 0
+.endif
+
+; A program may keep only its own zero-page range between DOS commands.
+; DOS still gets/restores a complete page through apple2_zp_buf.
+.ifndef DOS_ZP_START
+DOS_ZP_START = 0
+.endif
+.ifndef DOS_ZP_LEN
+DOS_ZP_LEN = 256
+.endif
 
 DOS_HOOKS = $03EA               ; DOS: reconnect its I/O hooks to CSW / KSW
 
+.if DOS_CMD_WORKBSS
+.segment "WORKBSS"
+.else
 .segment "BSS"
+.endif
 dos_cmd_buf:    .res DOS_CMD_MAX
 dos_cmd_ix:     .res 1
-dos_zp_prog:    .res 256        ; the program's page zero during a command
+.segment "BSS"
+dos_zp_prog:    .res DOS_ZP_LEN ; the program's page zero during a command
 
 .segment "CODE"
 
@@ -98,6 +118,7 @@ dos_cmd_hex:
         RTS
 
 dos_cmd_run:
+.if DOS_ZP_START = 0 && DOS_ZP_LEN = 256
         LDX     #$00
 @in:    LDA     $00,X
         STA     dos_zp_prog,X
@@ -105,6 +126,19 @@ dos_cmd_run:
         STA     $00,X
         INX
         BNE     @in
+.else
+        LDX     #$00
+@save:  LDA     DOS_ZP_START,X
+        STA     dos_zp_prog,X
+        INX
+        CPX     #<DOS_ZP_LEN
+        BNE     @save
+        LDX     #$00
+@in:    LDA     apple2_zp_buf,X
+        STA     $00,X
+        INX
+        BNE     @in
+.endif
         JSR     DOS_HOOKS
         LDA     #$8D
         JSR     COUT
@@ -124,10 +158,21 @@ dos_cmd_run:
         LDX     #$00
 @out:   LDA     $00,X
         STA     apple2_zp_buf,X
+.if DOS_ZP_START = 0 && DOS_ZP_LEN = 256
         LDA     dos_zp_prog,X
         STA     $00,X
+.endif
         INX
         BNE     @out
+.if DOS_ZP_START <> 0 || DOS_ZP_LEN <> 256
+        LDX     #$00
+@restore:
+        LDA     dos_zp_prog,X
+        STA     DOS_ZP_START,X
+        INX
+        CPX     #<DOS_ZP_LEN
+        BNE     @restore
+.endif
         RTS
 
 ; Disk II sense, slot 6: motor on, Q6 high, then Q7 low reads the

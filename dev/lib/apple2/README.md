@@ -29,7 +29,7 @@ intégrée à l'Apple II) et `exit.asm` (rendre la main à DOS proprement).
 - **`dos.asm`** — `dos_cmd_*`, `disk_protected` : commandes DOS 3.3 (BLOAD,
   BSAVE…) depuis un programme BRUN ; suppose `exit.asm`.
 
-Les trois derniers sont sortis de Sokoban pour que les autres jeux (sons,
+Les trois derniers sont sortis de MICRO-SOKOBAN pour que les autres jeux (sons,
 manette, sauvegarde dans leurs `TODO.md`) partagent le même code ; leur miroir
 C est dans [`../apple2c/`](../apple2c/) (`apple2game.h`, `apple2dos.h`).
 
@@ -116,10 +116,17 @@ compris sur la routine CHRGET d'Applesoft (`$B1-$C8`).
 
 Pendant `dos_cmd_run`, DOS retrouve la page zéro sauvée au démarrage par
 `apple2_zp_save` (obligatoire avant la première commande) ; celle du programme
-est mise de côté dans 256 octets de BSS puis remise. Une erreur DOS (fichier
+est mise de côté dans 256 octets de BSS puis remise. Un programme qui
+n'utilise qu'une plage de page zéro peut définir `DOS_ZP_START` et
+`DOS_ZP_LEN` avant l'include : seule cette plage est alors sauvegardée pour
+le programme, DOS conservant toujours son instantané complet. Une erreur DOS (fichier
 absent…) arrête le programme au prompt : le `Makefile` met sur la disquette
-tous les fichiers lus, et `disk_protected` est testé avant d'écrire. Sokoban
-s'en sert pour ses paquets de niveaux (`BLOAD`) et `SOKOSAVE`.
+tous les fichiers lus, et `disk_protected` est testé avant d'écrire. MICRO-SOKOBAN
+s'en sert pour ses paquets de niveaux (`BLOAD`), `MICROSAVE` et `MICROHOF`.
+
+`DOS_CMD_MAX` règle la taille du tampon de commande (40 octets par défaut).
+Avec `DOS_CMD_WORKBSS = 1`, ce tampon et son index occupent le segment `WORKBSS`
+du programme plutôt que `BSS`, pour libérer de la place à côté du code.
 
 ## Exemple
 

@@ -3,7 +3,7 @@
 L'équivalent Apple II de l'arbre `dev/` de [POM1](https://github.com/habib256/pom1)
 (bibliothèques Apple-1 + GEN2), pour écrire ou porter des programmes Apple II+
 48 Ko / DOS 3.3 avec cc65. Les programmes de ce dépôt (`../chess`, `../maze3d`,
-`../snake`, `../sokoban`, `../logo`, `../demos`) l'utilisent.
+`../snake`, `../micro-sokoban`, `../logo`, `../demos`) l'utilisent.
 
     dev/
       lib/apple2/      asm : équivalent de dev/lib/apple1 (+ HGR, sortie DOS,
@@ -26,7 +26,7 @@ L'équivalent Apple II de l'arbre `dev/` de [POM1](https://github.com/habib256/p
     make run        # dans POM2, profil Apple ][+
 
 Copier `examples/hello` pour commencer un nouveau programme ; à côté de
-`sokoban/`, mettre `DEV ?= ../dev` et `DIST ?= ../dist` dans son `Makefile`
+`micro-sokoban/`, mettre `DEV ?= ../dev` et `DIST ?= ../dist` dans son `Makefile`
 pour que la disquette rejoigne les autres dans `dist/`.
 
 `pom2games` ne dépend d'aucun autre dossier : il suffit de cc65 et de python3
@@ -135,7 +135,7 @@ quartets, en lecture **et en écriture**. Mêmes ROM (`a2shot/roms`), même
 syntaxe de script, plus quelques étapes pour les tests :
 
     cd tools/a2run && make
-    ./a2run --disk ../../../dist/SOKOBAN.dsk \
+    ./a2run --disk ../../../dist/MICRO-SOKOBAN.dsk \
         wait:900 shot:titre.png key:" " wait:30 key:LLK spk dsk:apres.dsk
 
 | Étape             | Effet                                              |

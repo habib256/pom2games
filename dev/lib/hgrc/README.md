@@ -17,6 +17,12 @@ Utilisé par [`../../../snake`](../../../snake/) et
 [`../../../demos`](../../../demos/). Les fonctions de dessin vectoriel passent par
 [`../gfx`](../gfx/).
 
+**Règle impérative : texte ×1 toujours blanc ; seule l'écriture agrandie ×2
+peut être colorée.** Employer `gen2_hgr_puts8` pour le petit texte blanc et réserver
+`gen2_hgr_puts_color` aux titres ×2. La coloration des petits glyphes supprime
+des traits et dégrade leur lisibilité. Prévoir une marge noire si le texte
+voisine avec un décor coloré. Voir aussi la règle dans [`../hgr`](../hgr/README.md).
+
 ## Familles de routines
 
 Un programme serré peut laisser de côté ce qu'il n'appelle pas en recompilant la
