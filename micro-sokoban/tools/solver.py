@@ -13,7 +13,7 @@ counted in pushes). Two deadlock rules prune the search:
     box backwards from every target (the box at c goes to c+d when the
     player has room at c+d and c+2d); every other floor cell is dead.
     dead_squares() gives them; the game computes the same table at level
-    start (sokoban.s, find_dead) and warns when a box is pushed onto one.
+    start (micro_sokoban.s, find_dead) and warns when a box is pushed onto one.
   - freeze: a box blocked on both axes (by a wall, by dead squares on both
     sides, or by a box blocked the same way) never moves again; if one box
     of such a group is off target, the level is lost.
@@ -32,7 +32,7 @@ BIG = 10 ** 6
 
 
 def parse(grid):
-    """walls, targets, boxes, player of a padded grid (sokoban_levels.analyse)."""
+    """walls, targets, boxes, player of a padded grid (micro_sokoban_levels.analyse)."""
     h, w = len(grid), len(grid[0])
     cells = [(y, x) for y in range(h) for x in range(w)]
     walls = {c for c in cells if grid[c[0]][c[1]] == '#'}
@@ -253,7 +253,7 @@ def check(grid, moves):
 
 def main():
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    import sokoban_levels as sl
+    import micro_sokoban_levels as sl
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--max-nodes', type=int, default=300000)
     ap.add_argument('--weight', type=float, default=1)

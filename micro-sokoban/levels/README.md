@@ -14,11 +14,11 @@ jeu et ici.
 
 Format : XSB standard (`#` mur, `$` caisse, `.` cible, `*` caisse sur cible,
 `@` joueur, `+` joueur sur cible, espace ou `-` sol ; `;` commentaire, une
-ligne vide entre deux niveaux). `../tools/sokoban_levels.py` les convertit en
+ligne vide entre deux niveaux). `../tools/micro_sokoban_levels.py` les convertit en
 paquets pour la disquette et écarte ceux qui ne tiennent pas à l'écran.
 
 Les fichiers sont gardés entiers, numérotation d'origine comprise : c'est
-`sokoban_levels.py` qui, à la construction, couche d'un quart de tour horaire
+`micro_sokoban_levels.py` qui, à la construction, couche d'un quart de tour horaire
 les niveaux trop hauts qui tiennent ainsi, et écarte ceux qui ne tiennent
 toujours pas à l'écran (le HUD montre le numéro d'origine, `II:056`).
 
@@ -53,3 +53,11 @@ Free Pascal) : Microban 93, 139, 144, 146, 153 ; Microban II 102, 104, 109,
 rejouée et vérifiée avant d'être écrite, puis `make test` les fait toutes
 jouer au vrai jeu dans a2run (~1 min 30) : les 454 niveaux sont résolus
 jusqu'au niveau suivant.
+## Tutoriel
+
+`tutorial.xsb` contient cinq petits niveaux originaux pour MICRO-SOKOBAN,
+avec une consigne par niveau. Leurs solutions vérifiées sont `rr`, `ru`,
+`rrull`, `udrru` et `rrddluu` (2, 2, 5, 5 et 7 coups). Ils sont inclus dans
+le programme et ne modifient ni les empreintes de Microban ni le score.
+`../tools/test_tutorial_options.py` les joue dans le vrai jeu, vérifie Undo/Redo,
+le retour à Microban et la sauvegarde de leur achèvement.

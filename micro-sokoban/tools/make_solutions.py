@@ -4,7 +4,7 @@
     make_solutions.py [--out levels/solutions.txt] [--extra FILE.sok]...
                       [--export-unsolved FILE.xsb] HUD:FILE.xsb...
 
-For each level the game keeps (sokoban_levels.kept_levels: as drawn, turned
+For each level the game keeps (micro_sokoban_levels.kept_levels: as drawn, turned
 or not), solver.py looks for a solution. The few it cannot find come from
 --extra files: solutions in the usual .sok layout (a title line "HUD NUM",
 the board, "Solution", the LURD lines), as written by an outside solver.
@@ -33,7 +33,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import sokoban_levels as sl  # noqa: E402
+import micro_sokoban_levels as sl  # noqa: E402
 import solver  # noqa: E402
 
 

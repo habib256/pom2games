@@ -1,5 +1,5 @@
 ; =============================================================================
-; bbfont_subset.inc — HUD/title font for HGR_Sokoban (GEN2)
+; bbfont_subset.inc — HUD/title font for MICRO-SOKOBAN (GEN2)
 ; =============================================================================
 ; Source glyphs: Michael Pohoreski, apple2_hgr_font_tutorial (asm/fontbb.s).
 ; Encoding: AND #$7F; 8 rows top→bottom; bit 0 = left; no per-byte rev7.
@@ -15,10 +15,10 @@
 ; subset must change.
 ; =============================================================================
 
-BBFONT_SOKOBAN_BYTES_PER_GLYPH = 8
-BBFONT_SOKOBAN_GLYPH_COUNT     = 45
+BBFONT_MICRO_SOKOBAN_BYTES_PER_GLYPH = 8
+BBFONT_MICRO_SOKOBAN_GLYPH_COUNT     = 45
 
-HGR_Sokoban_bbfont:
+HGR_MicroSokoban_bbfont:
         .byte $1E, $33, $33, $33, $33, $33, $1E, $00  ; 0 '0'
         .byte $0C, $0E, $0F, $0C, $0C, $0C, $3F, $00  ; 1 '1'
         .byte $1E, $3F, $33, $38, $0E, $3F, $3F, $00  ; 2 '2'
@@ -66,7 +66,7 @@ HGR_Sokoban_bbfont:
         .byte $1E, $3F, $33, $18, $0C, $00, $0C, $00  ; 43 '?'
         .byte $00, $00, $00, $00, $00, $0C, $0C, $00  ; 44 '.'
 
-.assert (* - HGR_Sokoban_bbfont) = (BBFONT_SOKOBAN_GLYPH_COUNT * BBFONT_SOKOBAN_BYTES_PER_GLYPH), error
+.assert (* - HGR_MicroSokoban_bbfont) = (BBFONT_MICRO_SOKOBAN_GLYPH_COUNT * BBFONT_MICRO_SOKOBAN_BYTES_PER_GLYPH), error
 
 ; --- Glyph indices, and GSTR "TEXT": the text as glyph indices + $FF ---
 G_M = 10

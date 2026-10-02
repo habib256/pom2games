@@ -1,10 +1,10 @@
 ; =============================================================================
-; SOKOBAN — Apple II+ / DOS 3.3 port (HGR, keyboard + joystick)
+; MICRO-SOKOBAN — Apple II+ / DOS 3.3 port (HGR, keyboard + joystick)
 ; VERHILLE Arnaud - 2026            Original: HGR_Sokoban.asm (POM1, GEN2 card)
 ; Licence: GPL v3 (same as the upstream sketch)
 ; =============================================================================
 ; Assemble with cc65:   make          (see ../Makefile)
-; Output: SOKOBAN, a DOS 3.3 binary file, BRUN at $6000 (../dev layout).
+; Resident at $6000; the DOS bootstrap at $0800 loads/decompresses MICRODATA.
 ;
 ; Controls
 ;   Joystick  : stick = move (auto-repeats while held)
@@ -15,7 +15,7 @@
 ;               U undo    Y redo    R restart (undoable: Y replays)
 ;               N next    P previous
 ;               H or ESC  = menu        RETURN/SPACE = select in menu
-;               in the menu: C = dead-square warning on/off, Q = quit to DOS
+;               in HELP: T tutorial, O options, F Hall of Fame, Q quit to DOS
 ;               Ctrl-RESET also quits cleanly
 ;
 ; Playfield: 20 cols x 12 rows of 14x16 pixel tiles.
@@ -23,9 +23,9 @@
 ; on screen. Whole screens (level, title, help, success) are drawn on the
 ; hidden HGR page and shown with one page flip.
 ; HUD: 7-pixel glyphs in the four screen corners, 3 tiles each (moves top
-; left, pushes top right, level bottom left); levels keep those cells empty.
+; left, pushes top right, levels bottom left); levels keep those cells empty.
 ; Levels: Microban (David W. Skinner) -- every level that fits the screen,
-; converted by tools/sokoban_levels.py into packs of up to 4 KB (MB1A, MB1B,
+; converted by tools/micro_sokoban_levels.py into packs of up to 4 KB (MB1A, MB1B,
 ; ...) that are BLOADed into LOWBSS when play crosses into another pack. A
 ; level is (collection, index); the HUD shows the collection and the level's
 ; original number.
@@ -79,13 +79,18 @@ ACT_UNDO    = 5         ; U key / button 0
 ACT_RESET   = 6         ; R key
 ACT_NEXT    = 7         ; N key
 ACT_PREV    = 8         ; P key
-ACT_MENU    = 9         ; H / ESC key / button 1
+ACT_MENU    = 9         ; ESC key / button 1
 ACT_SELECT  = 10        ; RETURN / SPACE
 ACT_QUIT    = 11        ; Q key (acted on in the menu only)
 ACT_REDO    = 12        ; Y key / button 0 held + stick right
 ACT_DEADWARN = 13        ; C key (acted on in the menu only)
 ACT_GOTO    = 14        ; G key: level selection
 ACT_OTHER   = 15        ; any other key
+ACT_OPTIONS = 17        ; O key in the help menu
+ACT_TUTORIAL = 18       ; T key in the help menu
+ACT_PROFILE = 19        ; V chooses a player profile
+ACT_HELP    = 20        ; H opens HELP directly
+ACT_HOF     = 16        ; F key in the help menu
 
 ; --- Joystick tuning ---
 ; read_stick (joy.asm) counts 24-cycle iterations while each paddle timer is
@@ -95,17 +100,21 @@ JOY_LO     = 30         ; count below this  = left / up
 JOY_HI     = 90         ; count above this  = right / down
 JOY_REPEAT = 32         ; get_input calls (~6 ms each) between auto-repeats
 
-; --- Menu entries (one per tile row from MENU_ROW0) ---
+; --- Menu entries: a compact block below the help controls ---
 MENU_RESUME  = 0
-MENU_RESET   = 1
-MENU_NEXT    = 2
-MENU_PREV    = 3
+MENU_BACK    = 255
+MENU_TUTORIAL = 1
+MENU_PROFILE = 2
+MENU_RESET   = 3
 MENU_GOTO    = 4
-MENU_DEADWARN = 5        ; toggled in place, never returned
-MENU_QUIT    = 6
-MENU_COUNT   = 7
-MENU_ROW0    = 5        ; tile row of the first menu entry (cursor = player tile)
-MENU_CURSOR_COL = 4
+MENU_OPTIONS = 5
+MENU_HOF     = 6
+MENU_HELP    = 7
+MENU_QUIT    = 8
+MENU_COUNT   = 9
+MENU_SL0     = 56       ; single menu below its heading and active profile
+MENU_DY      = 14
+MENU_CURSOR_COL = 64    ; pixel column of the compact green selection marker
 MENU_TEXT_COL   = 84    ; pixel column of the compact entry labels
 MENU_KEY_COL    = 208   ; aligned keyboard shortcuts
 
@@ -113,33 +122,50 @@ MENU_KEY_COL    = 208   ; aligned keyboard shortcuts
 HUD_TOP_SL = 4
 HUD_BOT_SL = 11 * 16 + 4
 HUD_LEFT   = 0          ; byte columns: 6 glyphs = 3 tiles per corner, 8 = 4
-                        ; bottom left ("III:056", see sokoban_levels.py)
+                        ; bottom left ("III:056", see micro_sokoban_levels.py)
 HUD_RIGHT  = 34
 
-; --- Save file SOKOSAVE: "SOK2", collection and level last solved, one
+; --- Save file MICROSAVE: "SOK2", collection and level last solved, one
 ; fingerprint per collection (coll_fp_lo/hi), then 4 bytes per level (best
 ; moves, best pushes; 0 = unsolved): SAVE_HDR + 4 * TOTAL_LEVELS = SAVE_LEN
 ; bytes, both from levels.inc. Records are kept by rank in the kept levels,
 ; so a collection whose levels changed (fingerprint) loses its records
 ; instead of passing them to other levels.
 SAVE_FP    = 6          ; offset of the fingerprints in the file
+HOF_COUNT  = 10
+HOF_ENTRY  = 8          ; three ASCII initials, u24 score, u16 solved
+HOF_HDR    = 7          ; "HOF1", then current initials
+HOF_END    = HOF_HDR + HOF_COUNT * HOF_ENTRY
+HOF_TUTORIAL = HOF_END
+HOF_SOUND  = HOF_END+1  ; bit 0 game, bit 1 menu, bit 2 demo
+HOF_PROFILES = HOF_END+2 ; stable slots, three initials each; zero = unused
+HOF_ACTIVE = HOF_PROFILES+30
+HOF_LEN    = HOF_ACTIVE+1
 
 ; --- Title-screen demo. Times in poll_start calls, ~6.3 ms each (the
-; stick read): 10 s on the title without a key or a button starts it.
-TITLE_IDLE = 1590       ; ~10 s
+; stick read): 15 s on the title without a key or a button starts it.
+TITLE_IDLE = 2385       ; ~15 s
 DEMO_START = 120        ; ~0.8 s on the level before the first move
 DEMO_STEP  = 22         ; ~0.15 s between two moves (plus the drawing)
 DEMO_END   = 255        ; ~1.6 s on the solved level
-TITLE_TICK = 128        ; ~0.8 s between two steps of the title animation
+TITLE_TICK = 256        ; ~1.6 s: byte countdown starts at zero, wraps on DEC
 
-; --- Title screen: the little warehouse (tile rows 9-11, columns 6-12) whose
-; corridor (row 10, columns 7-11) shows a box pushed onto its target.
+; --- Title screen: a full-width warehouse (tile rows 9-11). The player
+; pushes a box along row 10, from the left wall to the target at the right.
 TITLE_ROW  = 10
-TITLE_COL  = 7
-TITLE_PHASES = 6
+TITLE_COL  = 1
+TITLE_TARGET_COL = NCOLS-2
+TITLE_PUSHES = TITLE_TARGET_COL-TITLE_COL-1
+TITLE_PHASES = TITLE_PUSHES+3  ; then hold the solved position for two ticks
 TITLE_PRESS_COL = 88    ; pixel column, centred with 8-pixel character spacing
 TITLE_PRESS_SL = 124    ; scanline of the blinking "KEY OR BUTTON"
-STYLE_COMPACT = 3       ; small glyphs, 8 pixels per character (white HGR text)
+STYLE_COMPACT = 3       ; native-size text is always white; only x2 may be tinted
+COLOR_WHITE  = 0
+COLOR_GREEN  = 1
+COLOR_VIOLET = 2
+COLOR_ORANGE = 3
+COLOR_BLUE   = 4
+HOF_TICK     = 154      ; calibrated on POM2: ten phases take about ten seconds
 
 ; --- Level selection: pages of 10 x 8 numbers, 4 byte columns each ---
 SEL_COLS   = 10
@@ -148,7 +174,7 @@ SEL_SL0    = 24         ; scanline of the first row of numbers
 SEL_DY     = 18         ; scanlines from one row to the next
 
 ; =============================================================================
-; Zero page ($50+, see ../dev/cc65/apple2_hgr.cfg)
+; Zero page ($50+, see apple2_micro_sokoban.cfg)
 ; =============================================================================
 .zeropage
 temp:            .res 1
@@ -206,19 +232,34 @@ sel_idx:         .res 1
 sel_first:       .res 1
 demo_src_lo:     .res 1  ; run_demo: next byte of the moves
 demo_src_hi:     .res 1
+DOS_CMD_MAX = 32
+DOS_CMD_WORKBSS = 1
+DOS_ZP_START = $50
+DOS_ZP_LEN = * - temp
 
 ; =============================================================================
 ; LOWBSS ($1000-$1FFF, not in the file)
 ; =============================================================================
 .segment "LOWBSS"
 pack_buf:        .res PACK_MAX   ; the level pack in use, BLOADed at PACK_ADDR
+save_buf:        .res SAVE_LEN   ; active profile, isolated from the level pack
+.assert save_buf + SAVE_LEN <= $2000, error, "profile save runs into HGR"
 
 ; =============================================================================
-; BSS (after the code, not part of the BRUN file)
+; Work RAM ($0840-$0FFF, not part of the BRUN file)
 ; =============================================================================
-.bss
+.segment "WORKBSS"
 hist:            .res HIST_LEN   ; move history ring
 STATE_GRID:      .res 240        ; 20x12 playfield, one tile code per cell
+dead_tbl:        .res 240        ; 1 = a box here can never reach a target
+dead_q:          .res 240        ; find_dead: cells to look around (queue)
+rank_hi:        .res 1
+rankings_old:   .res 1
+resume_pending: .res 1
+game_active:    .res 1
+position_dirty: .res 1
+autosave_lo:    .res 1
+autosave_hi:    .res 1
 loaded_pack:     .res 1          ; pack in pack_buf, $FF = none
 title_ix:        .res 1
 title_glyph:     .res 1
@@ -232,8 +273,6 @@ num_sl:          .res 1
 num_step:        .res 1
 num_pow:         .res 1          ; print_num power index
 str_ix:          .res 1
-dead_tbl:        .res 240        ; 1 = a box here can never reach a target
-dead_q:          .res 240        ; find_dead: cells to look around (queue)
 dq_head:         .res 1
 dq_tail:         .res 1
 dq_cell:         .res 1
@@ -248,12 +287,18 @@ demo_sv_coll:    .res 1          ; the level to resume after the demo
 demo_sv_lvl:     .res 1
 idle_lo:         .res 1          ; title_wait countdown
 title_tick:      .res 1          ; title_wait: polls left before the next title_step
-title_phase:     .res 1          ; title animation phase (anim_tiles row)
+title_phase:     .res 1          ; pushes made in the title animation, then a hold
+title_player_col:.res 1          ; clamped player column for the current phase
 title_blink:     .res 1          ; 1 = "KEY OR BUTTON" shown
-big_color:       .res 1          ; draw_big_glyph: 0 = white, 1 = orange
+big_color:       .res 1          ; COLOR_* for doubled glyphs
+glyph_color:     .res 1          ; raster tint scratch
+glyph_mask_index:.res 1
+demo_active:     .res 1
+tutorial_on:     .res 1
+tutorial_idx:    .res 1
+option_sel:      .res 1
 all_solved_lo:   .res 1          ; draw_title_info: levels with a record, all collections
 all_solved_hi:   .res 1
-start_menu:      .res 1          ; 1 = H on the title: open the menu once the level is up
 idle_hi:         .res 1
 fp_coll:         .res 1          ; load_save: collection being checked
 fp_n:            .res 1          ; levels left to wipe
@@ -283,6 +328,23 @@ menu_sel:        .res 1
 menu_prev:       .res 1
 front_page:      .res 1          ; page on screen: 0 = page 1, PAGE2_EOR = page 2
 deadwarn_on:      .res 1          ; 1 = warn when a box goes onto a dead square
+score_total:     .res 4          ; exact sum of best moves, at most 454 * 65535
+score_solved:    .res 2
+score_work:      .res 4          ; decimal print scratch
+score_level:     .res 2          ; points of one solved level
+score_left:      .res 2          ; records left to scan
+score_digit:     .res 1
+hof_row:         .res 1
+hof_offset:      .res 1
+hof_index:       .res 1
+hof_initials:    .res 3          ; initials editing scratch (ASCII)
+hof_blink_tick:  .res 1
+hof_blink_state: .res 1
+hof_blink_color: .res 1
+hof_cycles:      .res 1          ; timed attract ranking: ten one-second phases
+profile_sel:     .res 1
+.bss
+hof_buf:         .res HOF_LEN
 
 ; =============================================================================
 .code
@@ -293,6 +355,7 @@ deadwarn_on:      .res 1          ; 1 = warn when a box goes onto a dead square
 main:
         APPLE2_PREAMBLE
         JSR apple2_zp_save              ; ZP is DOS/Applesoft's: restored on quit
+        JSR init_disk_cache
         LDA #$00
         STA btn0_prev
         STA btn1_prev
@@ -300,8 +363,17 @@ main:
         STA cur_coll
         STA cur_lvl
         STA quiet
+        STA moves_lo
+        STA moves_hi
+        STA demo_active
+        STA resume_pending
+        STA rankings_old
+        STA game_active
+        STA position_dirty
+        STA hof_cycles
+        STA tutorial_on
+        STA tutorial_idx
         STA replaying
-        STA start_menu                  ; (BSS is not cleared at load)
         STA front_page                  ; page 1 on screen, drawing on page 1
         JSR set_draw_page
         LDA #$01
@@ -315,45 +387,101 @@ main:
         JSR begin_screen
         JSR draw_title
         JSR show_screen
-        JSR load_save                   ; under the title: the save file,
+        JSR load_hof
+        JSR migrate_rankings
+        JSR set_profile_save
+        JSR load_save                   ; the active profile's records
+        JSR restore_tutorial
+        JSR calculate_score
+        JSR update_hof
         JSR first_unsolved              ; where to resume,
+        JSR select_resume
         JSR find_level                  ; and that level's pack;
         LDA #<str_blank7                ; (wipe "LOADING")
         LDY #>str_blank7
         JSR show_status
+        JSR draw_title_warehouse        ; LOADING shared the lower wall's pixels
         JSR draw_title_info             ; then progress and resume level
 title_loop:
         JSR title_wait                  ; any key / any button starts,
-        BNE @start
-        JSR run_demo                    ; ~10 s without one: the demo,
+        BNE title_start
+        JSR run_hof_attract             ; ten seconds of profile rankings
+        BCS return_title
+        JSR run_demo                    ; ~15 s without one: the demo,
         JSR find_level                  ; (the resume level's pack again)
+return_title:
         JSR begin_screen                ; then the title again
         JSR draw_title
         JSR draw_title_info
         JSR show_screen
         JMP title_loop
-@start: CMP #ACT_GOTO                   ; G goes to the level grid first
+title_start:
+        CMP #ACT_PROFILE
+        BNE @tutorial
+        JSR run_profiles
+        JMP return_title
+@tutorial:
+        CMP #ACT_TUTORIAL
+        BNE @goto
+        LDA #MENU_TUTORIAL
+        JMP menu_result
+@goto:
+        CMP #ACT_GOTO                   ; G goes to the level grid first
         BNE @play
         JSR run_select                  ; (ESC: the resume level)
         JMP game_loop
-@play:  CMP #ACT_MENU                   ; H (or button 1): the level, then
-        BNE game_loop                   ; the help menu over it
-        LDA #$01
-        STA start_menu
+@play:  CMP #ACT_HELP
+        BEQ @help
+        CMP #ACT_MENU
+        BEQ @menu
+        LDA hof_buf+HOF_TUTORIAL
+        AND #1
+        ORA score_solved
+        ORA score_solved+1
+        ORA resume_pending
+        BNE game_loop
+        INC tutorial_on
+        JMP game_loop
+@help:
+        JSR run_help
+@menu:
+        JSR run_menu
+        CMP #MENU_BACK
+        BNE @action
+        JMP return_title
+@action:
+        CMP #MENU_PROFILE
+        BEQ return_title
+        CMP #MENU_RESUME
+        BNE @reset
+        LDA #ACT_SELECT
+        JMP title_start
+@reset:
+        CMP #MENU_RESET                ; no history exists before starting
+        BEQ game_loop
+        JMP menu_result
 
 game_loop:
         JSR start_level
+        LDA #1
+        STA game_active
+        STA position_dirty
+        JSR restore_position
+        LDA #0
+        STA autosave_lo
+        STA autosave_hi
 redraw_level:
         JSR draw_level
-        LDA start_menu
-        BEQ move_loop
-        LDA #$00
-        STA start_menu
-        JMP key_menu
 
 move_loop:
+        JSR idle_save
         JSR get_input
         BEQ move_loop                   ; ACT_NONE
+        PHA
+        LDA #0
+        STA autosave_lo
+        STA autosave_hi
+        PLA
         CMP #ACT_RIGHT+1
         BCC key_dir                     ; ACT_UP..ACT_RIGHT
         CMP #ACT_UNDO
@@ -363,9 +491,15 @@ move_loop:
         CMP #ACT_RESET
         BEQ key_reset
         CMP #ACT_NEXT
-        BEQ key_next
+        BNE @prev_check
+        JMP key_next
+@prev_check:
         CMP #ACT_PREV
-        BEQ key_prev
+        BNE @menu_check
+        JMP key_prev
+@menu_check:
+        CMP #ACT_HELP
+        BEQ key_help
         CMP #ACT_MENU
         BEQ key_menu
         CMP #ACT_GOTO
@@ -373,6 +507,8 @@ move_loop:
         JMP move_loop                   ; ignore the rest
 
 key_goto:
+        LDA #0
+        STA tutorial_on
         JSR run_select                  ; C = 1: cur_coll / cur_lvl chosen
         BCC @back
         JMP game_loop
@@ -386,14 +522,27 @@ key_redo:
         JSR execute_redo
         JMP check_done                  ; a redo can finish the level
 
+key_help:
+        JSR save_position
+        JSR run_help
 key_menu:
+        JSR save_position
         JSR run_menu                    ; returns A = MENU_* choice
+menu_result:
+        CMP #MENU_PROFILE
+        BNE @tutorial
+        JMP game_loop
+@tutorial:
+        CMP #MENU_TUTORIAL
+        BNE @actions
+        LDA #0
+        STA tutorial_idx
+        LDA #1
+        STA tutorial_on
+        JMP game_loop
+@actions:
         CMP #MENU_RESET
         BEQ key_reset
-        CMP #MENU_NEXT
-        BEQ key_next
-        CMP #MENU_PREV
-        BEQ key_prev
         CMP #MENU_GOTO
         BEQ key_goto
         CMP #MENU_QUIT
@@ -421,15 +570,28 @@ key_reset:
         STA quiet
         LDA moves_lo
         ORA moves_hi
-        BNE game_loop_j
+        BEQ @redraw
+        JMP game_loop
+@redraw:
         JMP redraw_level
 
 key_next:
+        LDA tutorial_on
+        BEQ @normal
+        JMP tutorial_next
+@normal:
         JMP advance_level
 
 ; key_prev: previous level; before the first, the last of the previous
 ; collection.
 key_prev:
+        LDA tutorial_on
+        BEQ @normal
+        LDA tutorial_idx
+        BEQ @same
+        DEC tutorial_idx
+@same:  JMP game_loop
+@normal:
         LDA cur_lvl
         BNE @dec
         LDX cur_coll
@@ -446,15 +608,33 @@ key_prev:
 check_done:
         LDA boxes_left
         BNE move_loop_j                 ; not solved yet
+        LDA tutorial_on
+        BEQ @record
+        JSR begin_screen
+        JSR draw_success
+        JSR show_screen
+        JSR play_fanfare
+        JSR wait_any
+        JMP tutorial_next
+@record:
 
         ; Level complete: record, success screen, save, then the end screen
         ; if it was the last level of the collection
+        LDA #0
+        STA snapshot
+        STA position_dirty
+        LDA save_mask
+        ORA #$80
+        STA save_mask
         JSR record_solution
+        JSR calculate_score
         JSR begin_screen
         JSR draw_success
         JSR show_screen
         JSR play_fanfare
         JSR write_save
+        JSR update_hof
+        JSR write_hof
         JSR wait_any
         LDX cur_coll
         LDA cur_lvl
@@ -497,7 +677,7 @@ get_input:
         LDA #$00
         STA in_src
         JSR poll_key                    ; kbd.asm: A = key, upper-cased, or 0
-        BEQ @stick
+        BEQ get_stick
         LDX #$00
 @ml:    LDY key_tbl,X
         BEQ @other                      ; end of table
@@ -511,7 +691,9 @@ get_input:
 @other: LDA #ACT_OTHER
         RTS
 
-@stick:
+; Joystick-only entry: initials read the keyboard themselves. Polling it a
+; second time here could consume a letter or RETURN between the two polls.
+get_stick:
         LDA #$01
         STA in_src
         ; --- button 1 (press edge) ---
@@ -587,8 +769,10 @@ key_tbl:
         .byte $0B, ACT_UP,   $0A, ACT_DOWN, $08, ACT_LEFT, $15, ACT_RIGHT
         .byte 'U', ACT_UNDO, 'Y', ACT_REDO, 'R', ACT_RESET
         .byte 'N', ACT_NEXT, 'P', ACT_PREV
-        .byte 'H', ACT_MENU, $1B, ACT_MENU, 'Q', ACT_QUIT, 'C', ACT_DEADWARN
+        .byte 'H', ACT_HELP, $1B, ACT_MENU, 'Q', ACT_QUIT, 'C', ACT_DEADWARN
         .byte 'G', ACT_GOTO
+        .byte 'F', ACT_HOF, 'O', ACT_OPTIONS, 'T', ACT_TUTORIAL
+        .byte 'V', ACT_PROFILE
         .byte $0D, ACT_SELECT, ' ', ACT_SELECT
         .byte 0
 
@@ -619,26 +803,33 @@ poll_start:
 @yes:   ORA #$00                        ; Z clear (actions are not 0)
         RTS
 
-; title_wait: wait_any for at most TITLE_IDLE polls (~10 s). A = the
+; title_wait: wait_any for at most TITLE_IDLE polls (~15 s). A = the
 ; action (Z clear), or A = 0 (Z set) when nobody pressed anything.
 title_wait:
         LDA #<TITLE_IDLE
         STA idle_lo
         LDA #>TITLE_IDLE
         STA idle_hi
-        LDA #TITLE_TICK
+        LDA #<TITLE_TICK
         STA title_tick
 @lp:    JSR poll_start
         BNE @done
-        DEC title_tick                  ; every ~0.8 s: animation, blink
+        DEC title_tick                  ; every ~1.6 s: animation, blink
         BNE @idle
-        LDA #TITLE_TICK
+        LDA #<TITLE_TICK
         STA title_tick
         JSR title_step
 @idle:  LDA idle_lo
+        ORA idle_hi
+        BNE @countdown
+        LDA title_phase
+        CMP #TITLE_PUSHES
+        BCC @lp                         ; finish placing the box before attract
+        LDA #0
+        RTS
+@countdown:
+        LDA idle_lo
         BNE @dec
-        LDA idle_hi
-        BEQ @done                       ; A = 0: time is up
         DEC idle_hi
 @dec:   DEC idle_lo
         JMP @lp
@@ -665,6 +856,10 @@ draw_level:
         JSR begin_screen
         JSR render_all
         JSR draw_hud
+        LDA tutorial_on
+        BEQ @show
+        JSR draw_tutorial_info
+@show:
         JMP show_screen
 
 ; =============================================================================
@@ -674,6 +869,8 @@ draw_level:
 ; at once. Nothing is recorded or saved; cur_coll / cur_lvl are put back.
 ; =============================================================================
 run_demo:
+        LDA #1
+        STA demo_active
         LDA cur_coll
         STA demo_sv_coll
         LDA cur_lvl
@@ -727,6 +924,8 @@ run_demo:
         STA cur_coll
         LDA demo_sv_lvl
         STA cur_lvl
+        LDA #0
+        STA demo_active
         RTS
 
 ; demo_pause: A polls (~6.3 ms each) unless a key or a button comes first:
@@ -766,64 +965,87 @@ demo_next:
 ; MENU — help text + cursor-driven choice. Returns A = MENU_*.
 ; =============================================================================
 run_menu:
-        JSR begin_screen
-        JSR draw_help
-        JSR draw_dead_entry
-        JSR show_screen                 ; the cursor is drawn on the page shown
         LDA #MENU_RESUME
         STA menu_sel
+@paint:
+        JSR begin_screen
+        JSR draw_menu
+        JSR show_screen                 ; the cursor is drawn on the page shown
         JSR menu_draw_cursor
 @loop:  JSR get_input
         BEQ @loop
         CMP #ACT_UP
-        BEQ @up
+        BNE @down_check
+        JMP @up
+@down_check:
         CMP #ACT_DOWN
-        BEQ @down
+        BNE @reset_check
+        JMP @down
+@reset_check:
         CMP #ACT_RESET
         BEQ @reset
-        CMP #ACT_NEXT
-        BEQ @next
-        CMP #ACT_PREV
-        BEQ @prev
         CMP #ACT_QUIT
         BEQ @quit
         CMP #ACT_DEADWARN
-        BEQ @deadwarn
+        BEQ @options
+        CMP #ACT_OPTIONS
+        BEQ @options
+        CMP #ACT_TUTORIAL
+        BEQ @tutorial
         CMP #ACT_GOTO
         BEQ @goto
+        CMP #ACT_HOF
+        BEQ @hof
+        CMP #ACT_PROFILE
+        BEQ @profiles
         CMP #ACT_SELECT
         BEQ @select
+        CMP #ACT_MENU
+        BEQ @resume
+        CMP #ACT_HELP
+        BEQ @help
         LDX in_src
         BEQ @resume                     ; any other KEY resumes
-        CMP #ACT_UNDO                   ; button 0 / button 1 select
-        BEQ @select
-        CMP #ACT_MENU
+        CMP #ACT_UNDO                   ; button 0 selects; button 1 returns
         BEQ @select
         JMP @loop                       ; (left/right: ignore)
 @reset: LDA #MENU_RESET
-        RTS
-@next:  LDA #MENU_NEXT
-        RTS
-@prev:  LDA #MENU_PREV
         RTS
 @quit:  LDA #MENU_QUIT
         RTS
 @goto:  LDA #MENU_GOTO
         RTS
+@tutorial:
+        LDA #MENU_TUTORIAL
+        RTS
 @resume:
-        LDA #MENU_RESUME
+        LDA #MENU_BACK
         RTS
 @select:
         LDA menu_sel
-        CMP #MENU_DEADWARN
-        BEQ @deadwarn
+        CMP #MENU_OPTIONS
+        BEQ @options
+        CMP #MENU_HOF
+        BEQ @hof
+        CMP #MENU_PROFILE
+        BEQ @profiles
+        CMP #MENU_HELP
+        BEQ @help
         RTS
-@deadwarn:
-        LDA deadwarn_on
-        EOR #$01
-        STA deadwarn_on
-        JSR draw_dead_entry
-        JMP @loop
+@profiles:
+        JSR run_profiles
+        BCC @paint_profiles
+        LDA #MENU_PROFILE
+        RTS
+@paint_profiles:
+        JMP @paint
+@help:  JSR run_help
+        JMP @paint
+@hof:   JSR run_hof
+        JMP @paint
+@options:
+        JSR run_options
+        JMP @paint
 @up:    LDA menu_sel
         STA menu_prev
         BEQ @wrap_last
@@ -841,52 +1063,54 @@ run_menu:
         BCC @moved
         LDA #$00
         STA menu_sel
-@moved: ; erase old cursor (floor tile), draw new one (player tile)
+@moved: ; erase only the old marker, then draw the new one
         LDA menu_prev
-        CLC
-        ADC #MENU_ROW0
-        STA draw_row
-        LDA #MENU_CURSOR_COL
-        STA draw_col
-        LDA #TILE_FLOOR
-        JSR draw_tile
+        JSR menu_cursor_position
+        LDA #G_SPACE
+        JSR put_glyph
         JSR menu_draw_cursor
+        JSR menu_sound
         JMP @loop
+
+run_help:
+        JSR begin_screen
+        JSR draw_help
+        JSR show_screen
+        JMP wait_any
 
 menu_draw_cursor:
         LDA menu_sel
-        CLC
-        ADC #MENU_ROW0
-        STA draw_row
-        LDA #MENU_CURSOR_COL
-        STA draw_col
-        LDA #TILE_PLAYER
-        JMP draw_tile
+        JSR menu_cursor_position
+        LDA #G_PLUS
+        JMP put_glyph
 
-; draw_dead_entry: "DEADLOCK ON " / "DEADLOCK OFF", same width, so
-; one draw over the other replaces it.
-draw_dead_entry:
-        LDX #<menu_dead_on
-        LDY #>menu_dead_on
-        LDA deadwarn_on
-        BNE @on
-        LDX #<menu_dead_off
-        LDY #>menu_dead_off
-@on:    STX sptr_lo
-        STY sptr_hi
-        LDA #MENU_TEXT_COL
-        STA num_col
-        LDA #(MENU_ROW0 + MENU_DEADWARN) * 16 + 4
+menu_cursor_position:
+        ASL A
+        STA temp2
+        ASL A
+        ASL A
+        ASL A
+        SEC
+        SBC temp2                       ; 14 * index
+        CLC
+        ADC #MENU_SL0
         STA num_sl
+        LDA #MENU_CURSOR_COL
+        STA num_col
         LDA #8
         STA num_step
-        JMP draw_str
+        RTS
 
 ; =============================================================================
 ; SOUND
 ; =============================================================================
 ; play_fanfare: three rising notes on level completion.
 play_fanfare:
+        JSR sound_enabled
+        BEQ @done
+        JMP @play
+@done:  RTS
+@play:
         LDA #$60
         LDX #$C0
         JSR tone
@@ -900,6 +1124,8 @@ play_fanfare:
 ; move_sounds: after a move. A click per step; a bright blip when a box lands
 ; on a target; two low notes when it lands on a dead square (if enabled).
 move_sounds:
+        JSR sound_enabled
+        BEQ @done
         LDA quiet
         BNE @done
         LDA SPKR
@@ -923,6 +1149,8 @@ move_sounds:
 
 ; bump_sound: a short dull thud when a move is blocked.
 bump_sound:
+        JSR sound_enabled
+        BEQ @done
         LDA quiet
         BNE @done
         LDA #$06
@@ -935,11 +1163,20 @@ bump_sound:
 ; pack first if needed; find the player, count the boxes off target, then
 ; the dead squares (find_dead).
 ; A level record is w, h, row, col, then runs: tile << 5 | (length - 1), in
-; row-major order over the w x h box (tools/sokoban_levels.py).
+; row-major order over the w x h box (tools/micro_sokoban_levels.py).
 ; =============================================================================
 init_level:
+        LDA tutorial_on
+        BEQ @normal
+        LDX tutorial_idx
+        LDA tutorial_ptr_lo,X
+        STA sptr_lo
+        LDA tutorial_ptr_hi,X
+        STA sptr_hi
+        JMP decode_level
+@normal:
         JSR find_level                  ; sptr -> the record, pack loaded
-
+decode_level:
         LDY #$00
         TYA
 @clr:   STA STATE_GRID,Y
@@ -1065,27 +1302,30 @@ load_pack:
         LDA #<str_loading
         LDY #>str_loading
         JSR show_status
-        JSR dos_cmd_new
-        LDA #<bload_str
-        LDY #>bload_str
-        JSR dos_cmd_add
         LDX loaded_pack
+        STX io_id
         LDA pack_name_lo,X
-        LDY pack_name_hi,X
-        JSR dos_cmd_add
-        LDA #<pack_at_str
-        LDY #>pack_at_str
-        JSR dos_cmd_add
-        JMP dos_cmd_run
+        STA io_name
+        LDA pack_name_hi,X
+        STA io_name+1
+        LDA #<pack_buf
+        STA io_dest
+        LDA #>pack_buf
+        STA io_dest+1
+        LDA #<PACK_MAX
+        STA io_limit
+        LDA #>PACK_MAX
+        STA io_limit+1
+        JMP fast_read
 
 ; show_status: the glyph string at A/Y (lo/hi) bottom right of the screen on
-; show, packed (7-pixel glyphs), right-aligned on a 7-glyph field.
+; show, packed (7-pixel glyphs), inset 14 pixels from the right edge.
 show_status:
         STA sptr_lo
         STY sptr_hi
         LDA #1
         STA num_step
-        LDA #HUD_RIGHT-1
+        LDA #HUD_RIGHT-3
         STA num_col
         LDA #HUD_BOT_SL
         STA num_sl
@@ -1094,28 +1334,32 @@ show_status:
 bload_str:   .byte "BLOAD ", 0
 pack_at_str: .byte ",A$1000", 0
 .assert PACK_ADDR = $1000, error, "pack_at_str must match PACK_ADDR"
-save_load_str: .byte "BLOAD SOKOSAVE,A$", 0
-save_save_str: .byte "BSAVE SOKOSAVE,A$", 0
+save_load_str: .byte "BLOAD MICROSAVE,A$", 0 ; final E replaced for profile 1..9
+save_save_str: .byte "BSAVE MICROSAVE,A$", 0
 len_str:       .byte ",L$", 0
 save_magic:    .byte "SOK2"
 
 ; =============================================================================
-; Save file. load_save BLOADs SOKOSAVE into save_buf: a foreign content (an
+; Save file. load_save BLOADs MICROSAVE into save_buf: a foreign content (an
 ; older "SOK1" too) is wiped, then each collection whose fingerprint differs
 ; from this build's loses its records and gets the new fingerprint.
 ; write_save BSAVEs it, unless the disk is write protected (DOS would stop
 ; the game with WRITE PROTECTED).
 ; =============================================================================
 load_save:
-        JSR dos_cmd_new
-        LDA #<save_load_str
-        LDY #>save_load_str
-        JSR dos_cmd_add
-        LDA #>save_buf
-        JSR dos_cmd_hex
-        LDA #<save_buf
-        JSR dos_cmd_hex
-        JSR dos_cmd_run
+        LDA #0
+        STA snapshot
+        JSR profile_file
+        JSR fast_read
+        LDA #0
+        LDX io_limit+1
+        CPX #>SAVE_LEN
+        BNE @short
+        LDX io_limit
+        CPX #<SAVE_LEN
+        BEQ @mask
+@short: LDA #$FF
+@mask:  STA save_mask
         LDX #3
 @magic: LDA save_buf,X
         CMP save_magic,X
@@ -1160,7 +1404,9 @@ load_save:
         LDA save_buf+SAVE_FP+1,Y
         CMP coll_fp_hi,X
         BEQ @next
-@reset: LDA coll_fp_lo,X
+@reset: LDA #$FF
+        STA save_mask
+        LDA coll_fp_lo,X
         STA save_buf+SAVE_FP,Y
         LDA coll_fp_hi,X
         STA save_buf+SAVE_FP+1,Y
@@ -1188,31 +1434,19 @@ load_save:
         RTS
 
 write_save:
-        LDA cur_coll                    ; header: the level just solved
-        STA save_buf+4
-        LDA cur_lvl
-        STA save_buf+5
+        LDA save_mask
+        BEQ @done
         JSR disk_protected
         BCS @done
         LDA #<str_saving
         LDY #>str_saving
         JSR show_status
-        JSR dos_cmd_new
-        LDA #<save_save_str
-        LDY #>save_save_str
-        JSR dos_cmd_add
-        LDA #>save_buf
-        JSR dos_cmd_hex
-        LDA #<save_buf
-        JSR dos_cmd_hex
-        LDA #<len_str
-        LDY #>len_str
-        JSR dos_cmd_add
-        LDA #>SAVE_LEN
-        JSR dos_cmd_hex
-        LDA #<SAVE_LEN
-        JSR dos_cmd_hex
-        JSR dos_cmd_run
+        JSR profile_file
+        LDA save_mask
+        STA io_mask
+        JSR fast_write
+        LDA #0
+        STA save_mask
         LDA #<str_blank7                ; wipe "SAVING"
         LDY #>str_blank7
         JSR show_status
@@ -1274,6 +1508,15 @@ slot_ptr:
 ; slot is empty or it takes fewer moves (fewer pushes on a tie). new_record,
 ; best_lo/hi (the previous best moves) tell the success screen.
 record_solution:
+        LDA save_mask
+        ORA #1
+        STA save_mask
+        LDA save_buf+4
+        AND #$80
+        ORA cur_coll
+        STA save_buf+4
+        LDA cur_lvl
+        STA save_buf+5
         JSR slot_cur
         LDA #$00
         STA new_record
@@ -1302,7 +1545,27 @@ record_solution:
         LDA pushes_lo
         CMP (sptr_lo),Y
         BCS @keep
-@new:   LDA #$01
+@new:   LDA sptr_lo
+        CLC
+        ADC #4                          ; DOS binary header precedes payload
+        PHA
+        LDA sptr_hi
+        ADC #0
+        SEC
+        SBC #>save_buf
+        TAX
+        LDA sector_bits,X
+        ORA save_mask
+        STA save_mask
+        PLA
+        CMP #253                        ; four-byte record straddles a sector
+        BCC @marked
+        INX
+        LDA sector_bits,X
+        ORA save_mask
+        STA save_mask
+@marked:
+        LDA #$01
         STA new_record
         LDY #$00
         LDA moves_lo
@@ -1627,6 +1890,8 @@ execute_move:
         DEC redo_n_hi
 @r_lo:  DEC redo_n_lo
 @hist_done:
+        LDA #1
+        STA position_dirty
         JSR flush_dirty
         JSR draw_hud
         JSR move_sounds
@@ -1880,10 +2145,14 @@ execute_undo:
         DEC moves_hi
 @mv_lo: DEC moves_lo
 
+        LDA #1
+        STA position_dirty
         JSR flush_dirty
         JSR draw_hud
         LDA quiet
         BNE @q
+        JSR sound_enabled
+        BEQ @q
         LDA SPKR
 @q:     LDA #$01
         RTS
@@ -1914,7 +2183,7 @@ dir_dy_tbl: .byte $FF, $01, $00, $00    ; DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT
 dir_dx_tbl: .byte $00, $00, $FF, $01
 
 ; =============================================================================
-; HUD: moves top left, pushes top right, level bottom left, record bottom
+; HUD: moves top left, pushes top right, levels bottom left, record bottom
 ; right (once solved). 7-pixel glyphs, one per byte column; nothing is drawn
 ; while quiet.
 ; =============================================================================
@@ -1925,14 +2194,19 @@ draw_hud:
 @draw:
         LDA #1
         STA num_step
-        LDA #HUD_TOP_SL
+        LDA #0
         STA num_sl
         LDA #HUD_LEFT
         STA num_col
-        LDA #G_M
-        JSR put_glyph
-        LDA #G_COLON
-        JSR put_glyph
+        LDA #<str_moves
+        STA sptr_lo
+        LDA #>str_moves
+        STA sptr_hi
+        JSR draw_str
+        LDA #HUD_LEFT
+        STA num_col
+        LDA #8
+        STA num_sl
         LDA moves_lo
         STA num_lo
         LDA moves_hi
@@ -1942,21 +2216,52 @@ draw_hud:
 
         LDA #HUD_RIGHT
         STA num_col
-        LDA #G_P
-        JSR put_glyph
-        LDA #G_COLON
-        JSR put_glyph
+        LDA #0
+        STA num_sl
+        LDA #<str_pushes
+        STA sptr_lo
+        LDA #>str_pushes
+        STA sptr_hi
+        JSR draw_str
+        LDA #HUD_RIGHT
+        STA num_col
+        LDA #8
+        STA num_sl
         LDA pushes_lo
         STA num_lo
         LDA pushes_hi
         STA num_hi
-        LDA #4
+        LDA #5
         JSR print_num
 
-        LDA #HUD_BOT_SL                 ; "III:001": collection, original number
+        LDA #176
         STA num_sl
         LDA #HUD_LEFT
         STA num_col
+        LDA #<str_levels
+        STA sptr_lo
+        LDA #>str_levels
+        STA sptr_hi
+        JSR draw_str
+        LDA #184                       ; "III:001": collection, original number
+        STA num_sl
+        LDA #HUD_LEFT
+        STA num_col
+        LDA tutorial_on
+        BEQ @normal_level
+        LDA #G_T
+        JSR put_glyph
+        LDA #G_COLON
+        JSR put_glyph
+        LDA tutorial_idx
+        CLC
+        ADC #1
+        STA num_lo
+        LDA #0
+        STA num_hi
+        LDA #3
+        JMP print_num
+@normal_level:
         LDX cur_coll
         LDA coll_hud_lo,X
         STA sptr_lo
@@ -1981,6 +2286,8 @@ draw_hud:
         STA num_hi
         ORA num_lo
         BEQ @none
+        LDA #HUD_BOT_SL
+        STA num_sl
         LDA #HUD_RIGHT
         STA num_col
         LDA #G_B
@@ -2107,7 +2414,7 @@ pow10_hi: .byte >10000, >1000, >100, >10
 
 ; --- HUD/title font (Beautiful Boot subset, bit 0 = left pixel) ---
 .include "bbfont_subset.inc"
-hud_font = HGR_Sokoban_bbfont
+hud_font = HGR_MicroSokoban_bbfont
 
 ; --- 2x doubling tables for draw_big_glyph ---
 double_lo:
@@ -2120,8 +2427,9 @@ double_hi:
 ; =============================================================================
 ; Title / help / success screens — table driven.
 ; Entry = str_lo, str_hi, column, scanline, style (0 small, 1 big white,
-; 2 big orange, 3 compact small). Column is in bytes except style 3 (pixels).
-; $FF ends.
+; 2 big orange, 3 compact white; only doubled text may be tinted).
+; Column is in bytes except compact styles (pixels).
+; $FFFF ends (a string address may legitimately end in $FF).
 ; =============================================================================
 draw_title:
         LDA #<title_table
@@ -2138,7 +2446,12 @@ draw_title:
         LDA draw_col
         CMP #NCOLS
         BCC @band
-        LDX #TITLE_COL-1                ; the warehouse: walls around the
+        JSR draw_screen_sides
+
+; The loading status overlaps the full-width lower wall. Redraw this part
+; after the initial disk loads have finished and the status has been erased.
+draw_title_warehouse:
+        LDX #$00                        ; full-width walls above and below the
 @box:   STX draw_col                    ; corridor of row TITLE_ROW
         LDA #TITLE_ROW-1
         STA draw_row
@@ -2150,15 +2463,15 @@ draw_title:
         JSR draw_tile
         LDX draw_col
         INX
-        CPX #TITLE_COL+6
+        CPX #NCOLS
         BCC @box
         LDA #TITLE_ROW
         STA draw_row
-        LDA #TITLE_COL-1
+        LDA #$00
         STA draw_col
         LDA #TILE_WALL
         JSR draw_tile
-        LDA #TITLE_COL+5
+        LDA #NCOLS-1
         STA draw_col
         LDA #TILE_WALL
         JSR draw_tile
@@ -2169,7 +2482,7 @@ draw_title:
         JMP draw_title_corridor
 
 ; title_step: next phase of the silent title animation; "KEY OR BUTTON"
-; blinks. Only the attract-mode levels play movement and victory sounds.
+; blinks. Both the title animation and the attract-mode levels are silent.
 title_step:
         INC title_phase
         LDA title_phase
@@ -2190,39 +2503,54 @@ title_step:
 @off:   TEXT TITLE_PRESS_COL, TITLE_PRESS_SL, title_nopress
         RTS
 
-; draw_title_corridor: the five corridor cells of phase title_phase.
+; draw_title_corridor: the full-width corridor of phase title_phase. Clamp
+; the final phases to the solved position; the next cycle starts at the left.
 draw_title_corridor:
         LDA title_phase
-        ASL A
-        ASL A
+        CMP #TITLE_PUSHES
+        BCC @position
+        LDA #TITLE_PUSHES
+@position:
         CLC
-        ADC title_phase                 ; X = phase * 5
-        TAX
+        ADC #TITLE_COL
+        STA title_player_col
         LDA #TITLE_ROW
         STA draw_row
         LDA #TITLE_COL
         STA draw_col
-@cell:  STX tot_i
-        LDA anim_tiles,X
+@cell:  LDA draw_col
+        CMP title_player_col
+        BEQ @player
+        SEC
+        SBC #1
+        CMP title_player_col
+        BEQ @box
+        LDA draw_col
+        CMP #TITLE_TARGET_COL
+        BEQ @target
+        LDA #TILE_FLOOR
+        JMP @draw
+@player:
+        LDA #TILE_PLAYER
+        BNE @draw
+@box:   LDA draw_col
+        CMP #TITLE_TARGET_COL
+        BEQ @placed
+        LDA #TILE_BOX
+        BNE @draw
+@placed:
+        LDA #TILE_BOX_TARGET
+        BNE @draw
+@target:
+        LDA #TILE_TARGET
+@draw:
         JSR draw_tile
-        LDX tot_i
-        INX
         INC draw_col
         LDA draw_col
-        CMP #TITLE_COL+5
+        CMP #TITLE_TARGET_COL+1
         BCC @cell
         RTS
 
-anim_tiles:     ; player, box, floor, floor, target -> box on its target
-        .byte TILE_PLAYER, TILE_BOX, TILE_FLOOR, TILE_FLOOR, TILE_TARGET
-        .byte TILE_FLOOR, TILE_PLAYER, TILE_BOX, TILE_FLOOR, TILE_TARGET
-        .byte TILE_FLOOR, TILE_FLOOR, TILE_PLAYER, TILE_BOX, TILE_TARGET
-        .byte TILE_FLOOR, TILE_FLOOR, TILE_FLOOR, TILE_PLAYER, TILE_BOX_TARGET
-        .byte TILE_FLOOR, TILE_FLOOR, TILE_FLOOR, TILE_PLAYER, TILE_BOX_TARGET
-        .byte TILE_FLOOR, TILE_FLOOR, TILE_FLOOR, TILE_PLAYER, TILE_BOX_TARGET
-.assert * - anim_tiles = TITLE_PHASES * 5, error, "anim_tiles: 5 cells per phase"
-
-orange_mask:    .byte $AA, $D5          ; odd screen pixels of an even / odd byte
 
 ; draw_title_info: "SOLVED nnn/NNN" (levels with a record, all collections)
 ; and "CONTINUE III:056" (the level play resumes at), centred.
@@ -2299,28 +2627,56 @@ draw_title_info:
         LDA #$00
         STA num_hi
         LDA #3
-        JMP print_num
+        JSR print_num
+        JMP draw_title_profile
+
+; Blue bricks join the existing title bands along both screen edges.
+draw_screen_sides:
+        LDA #0
+        STA draw_row
+@row:   LDA #0
+        STA draw_col
+        LDA #TILE_WALL
+        JSR draw_tile
+        LDA #NCOLS-1
+        STA draw_col
+        LDA #TILE_WALL
+        JSR draw_tile
+        INC draw_row
+        LDA draw_row
+        CMP #NROWS
+        BCC @row
+        RTS
+
+draw_menu:
+        LDA #<menu_table
+        STA tbl_lo
+        LDA #>menu_table
+        STA tbl_hi
+        JSR draw_from_table
+        JSR draw_screen_sides
+        LDA #32
+        JMP draw_profile_name
 
 draw_help:
         LDA #<help_table
         STA tbl_lo
         LDA #>help_table
         STA tbl_hi
-        JMP draw_from_table
+        JSR draw_from_table
+        JMP draw_screen_sides
 
-; draw_success: "SUCCESS", the moves and pushes of the solution, and
-; "NEW RECORD" or the record it did not beat.
+; Success card: compact statistics, best record and levels solved.
 draw_success:
         LDA #<success_table
         STA tbl_lo
         LDA #>success_table
         STA tbl_hi
         JSR draw_from_table
-        LDA #2
-        STA num_step
-        LDA #22
+        JSR draw_screen_sides
+        LDA #184
         STA num_col
-        LDA #80
+        LDA #72
         STA num_sl
         LDA moves_lo
         STA num_lo
@@ -2328,9 +2684,9 @@ draw_success:
         STA num_hi
         LDA #4
         JSR print_num
-        LDA #22
+        LDA #184
         STA num_col
-        LDA #96
+        LDA #92
         STA num_sl
         LDA pushes_lo
         STA num_lo
@@ -2338,18 +2694,29 @@ draw_success:
         STA num_hi
         LDA #4
         JSR print_num
+        LDA tutorial_on
+        BNE @score
         LDA new_record
         BEQ @old
-        TEXT 10, 120, str_new_record
-        RTS
-@old:   TEXT 8, 120, str_record
-        LDA #22
+        TEXT 100, 116, str_new_record
+        JMP @score
+@old:   TEXT 64, 116, str_record
+        LDA #184
         STA num_col
         LDA best_lo
         STA num_lo
         LDA best_hi
         STA num_hi
         LDA #4
+        JSR print_num
+@score: TEXT 64, 140, str_levels
+        LDA #184
+        STA num_col
+        LDA score_solved
+        STA num_lo
+        LDA score_solved+1
+        STA num_hi
+        LDA #3
         JMP print_num
 
 ; =============================================================================
@@ -2736,7 +3103,14 @@ draw_from_table:
         LDY #$00
         LDA (tbl_lo),Y
         CMP #$FF
+        BNE @pointer
+        INY
+        LDA (tbl_lo),Y
+        CMP #$FF
         BEQ @done
+        DEY
+        LDA (tbl_lo),Y
+@pointer:
         STA sptr_lo
         INY
         LDA (tbl_lo),Y
@@ -2750,11 +3124,14 @@ draw_from_table:
         INY
         LDA (tbl_lo),Y
         CMP #STYLE_COMPACT
-        BEQ @compact
+        BCS @compact
         CMP #$00
         BEQ @small
         SEC                             ; 1 = big white, 2 = big orange
         SBC #1
+        BEQ @big
+        LDA #COLOR_ORANGE
+@big:
         STA big_color
         JSR draw_title_big_line
         JMP @next
@@ -2782,48 +3159,60 @@ draw_from_table:
 
 ; Title small lines: 8 px per glyph; pixel column = (280 - n * 8) / 2.
 title_table:
-        .byte <title_sokoban,  >title_sokoban,  $0D, 20, $02     ; big, orange
+        .byte <title_micro_sokoban,  >title_micro_sokoban,  $07, 20, $02     ; big, orange
         .byte <title_levels,   >title_levels,   60+LEVELS_TITLE_COL*4, 42, STYLE_COMPACT
         .byte <title_skinner,  >title_skinner,  64, 94, STYLE_COMPACT
         .byte <title_author,   >title_author,   60, 106, STYLE_COMPACT
         .byte <title_press,    >title_press,    TITLE_PRESS_COL, TITLE_PRESS_SL, STYLE_COMPACT
-        .byte <title_h_help,   >title_h_help,   68, 136, STYLE_COMPACT
-        .byte $FF
+        .byte <title_h_help,   >title_h_help,   28, 136, STYLE_COMPACT
+        .word $FFFF
 
-; Help: controls in two columns, a selection hint, then aligned option
-; labels and shortcuts on tile rows MENU_ROW0.. (cursor at column 4).
+; Help: controls in two columns, then a separate compact MENU block.
 help_table:
-        .byte <help_big_title, >help_big_title, $10,  2, $01    ; HELP (big)
-        .byte <help_move,      >help_move,       20, 24, STYLE_COMPACT
-        .byte <help_move_keys, >help_move_keys, 104, 24, STYLE_COMPACT
-        .byte <help_undo,      >help_undo,       20, 36, STYLE_COMPACT
-        .byte <help_undo_keys, >help_undo_keys, 104, 36, STYLE_COMPACT
-        .byte <help_redo,      >help_redo,       20, 48, STYLE_COMPACT
-        .byte <help_redo_keys, >help_redo_keys, 104, 48, STYLE_COMPACT
-        .byte <help_menu,      >help_menu,       20, 60, STYLE_COMPACT
-        .byte <help_menu_keys, >help_menu_keys, 104, 60, STYLE_COMPACT
-        .byte <help_select,    >help_select,    32, 72, STYLE_COMPACT
-        .byte <menu_resume,    >menu_resume,    MENU_TEXT_COL, (MENU_ROW0+MENU_RESUME)*16+4, STYLE_COMPACT
-        .byte <menu_key_resume,>menu_key_resume,MENU_KEY_COL,  (MENU_ROW0+MENU_RESUME)*16+4, STYLE_COMPACT
-        .byte <menu_reset,     >menu_reset,     MENU_TEXT_COL, (MENU_ROW0+MENU_RESET)*16+4, STYLE_COMPACT
-        .byte <menu_key_reset, >menu_key_reset, MENU_KEY_COL,  (MENU_ROW0+MENU_RESET)*16+4, STYLE_COMPACT
-        .byte <menu_next,      >menu_next,      MENU_TEXT_COL, (MENU_ROW0+MENU_NEXT)*16+4, STYLE_COMPACT
-        .byte <menu_key_next,  >menu_key_next,  MENU_KEY_COL,  (MENU_ROW0+MENU_NEXT)*16+4, STYLE_COMPACT
-        .byte <menu_prev_str,  >menu_prev_str,  MENU_TEXT_COL, (MENU_ROW0+MENU_PREV)*16+4, STYLE_COMPACT
-        .byte <menu_key_prev,  >menu_key_prev,  MENU_KEY_COL,  (MENU_ROW0+MENU_PREV)*16+4, STYLE_COMPACT
-        .byte <menu_goto,      >menu_goto,      MENU_TEXT_COL, (MENU_ROW0+MENU_GOTO)*16+4, STYLE_COMPACT
-        .byte <menu_key_goto,  >menu_key_goto,  MENU_KEY_COL,  (MENU_ROW0+MENU_GOTO)*16+4, STYLE_COMPACT
-        .byte <menu_key_dead,  >menu_key_dead,  MENU_KEY_COL,  (MENU_ROW0+MENU_DEADWARN)*16+4, STYLE_COMPACT
-        .byte <menu_quit,      >menu_quit,      MENU_TEXT_COL, (MENU_ROW0+MENU_QUIT)*16+4, STYLE_COMPACT
-        .byte <menu_key_quit,  >menu_key_quit,  MENU_KEY_COL,  (MENU_ROW0+MENU_QUIT)*16+4, STYLE_COMPACT
-        .byte $FF
+        .byte <help_big_title, >help_big_title,16,8,2
+        .byte <help_goal,>help_goal,44,40,STYLE_COMPACT
+        .byte <help_movement,>help_movement,32,64,STYLE_COMPACT
+        .byte <help_move,>help_move,32,80,STYLE_COMPACT
+        .byte <help_move_keys,>help_move_keys,104,80,STYLE_COMPACT
+        .byte <help_stick,>help_stick,104,92,STYLE_COMPACT
+        .byte <help_history,>help_history,32,112,STYLE_COMPACT
+        .byte <help_undo,>help_undo,32,128,STYLE_COMPACT
+        .byte <help_undo_keys,>help_undo_keys,104,128,STYLE_COMPACT
+        .byte <help_redo,>help_redo,32,140,STYLE_COMPACT
+        .byte <help_redo_keys,>help_redo_keys,104,140,STYLE_COMPACT
+        .byte <help_menu,>help_menu,32,160,STYLE_COMPACT
+        .byte <help_menu_keys,>help_menu_keys,32,172,STYLE_COMPACT
+        .byte <profiles_back,>profiles_back,96,184,STYLE_COMPACT
+        .word $FFFF
+menu_table:
+        .byte <help_menu,>help_menu,16,8,2
+        .byte <menu_tutorial,  >menu_tutorial,  MENU_TEXT_COL, MENU_SL0+MENU_TUTORIAL*MENU_DY, STYLE_COMPACT
+        .byte <menu_key_tutorial,>menu_key_tutorial,MENU_KEY_COL,MENU_SL0+MENU_TUTORIAL*MENU_DY, STYLE_COMPACT
+        .byte <menu_profiles, >menu_profiles,MENU_TEXT_COL,MENU_SL0+MENU_PROFILE*MENU_DY,STYLE_COMPACT
+        .byte <menu_key_profiles,>menu_key_profiles,MENU_KEY_COL,MENU_SL0+MENU_PROFILE*MENU_DY,STYLE_COMPACT
+        .byte <menu_resume,    >menu_resume,    MENU_TEXT_COL, MENU_SL0+MENU_RESUME*MENU_DY, STYLE_COMPACT
+        .byte <menu_key_resume,>menu_key_resume,MENU_KEY_COL,  MENU_SL0+MENU_RESUME*MENU_DY, STYLE_COMPACT
+        .byte <menu_reset,     >menu_reset,     MENU_TEXT_COL, MENU_SL0+MENU_RESET*MENU_DY, STYLE_COMPACT
+        .byte <menu_key_reset, >menu_key_reset, MENU_KEY_COL,  MENU_SL0+MENU_RESET*MENU_DY, STYLE_COMPACT
+        .byte <menu_goto,      >menu_goto,      MENU_TEXT_COL, MENU_SL0+MENU_GOTO*MENU_DY, STYLE_COMPACT
+        .byte <menu_key_goto,  >menu_key_goto,  MENU_KEY_COL,  MENU_SL0+MENU_GOTO*MENU_DY, STYLE_COMPACT
+        .byte <menu_options,   >menu_options,   MENU_TEXT_COL, MENU_SL0+MENU_OPTIONS*MENU_DY, STYLE_COMPACT
+        .byte <menu_key_options,>menu_key_options,MENU_KEY_COL,MENU_SL0+MENU_OPTIONS*MENU_DY, STYLE_COMPACT
+        .byte <menu_hof,       >menu_hof,       MENU_TEXT_COL, MENU_SL0+MENU_HOF*MENU_DY, STYLE_COMPACT
+        .byte <menu_key_hof,   >menu_key_hof,   MENU_KEY_COL,  MENU_SL0+MENU_HOF*MENU_DY, STYLE_COMPACT
+        .byte <help_big_title,>help_big_title,MENU_TEXT_COL,MENU_SL0+MENU_HELP*MENU_DY,STYLE_COMPACT
+        .byte <menu_key_help,>menu_key_help,MENU_KEY_COL,MENU_SL0+MENU_HELP*MENU_DY,STYLE_COMPACT
+        .byte <menu_quit,      >menu_quit,      MENU_TEXT_COL, MENU_SL0+MENU_QUIT*MENU_DY, STYLE_COMPACT
+        .byte <menu_key_quit,  >menu_key_quit,  MENU_KEY_COL,  MENU_SL0+MENU_QUIT*MENU_DY, STYLE_COMPACT
+        .byte <profiles_back,>profiles_back,96,180,STYLE_COMPACT
+        .word $FFFF
 
 success_table:
-        .byte <title_success,  >title_success,  $0D, 40, $01
-        .byte <str_moves,      >str_moves,      $08, 80, $00
-        .byte <str_pushes,     >str_pushes,     $08, 96, $00
-        .byte <title_press,    >title_press,    $07, 160, $00
-        .byte $FF
+        .byte <title_success,  >title_success,  13, 28, 2
+        .byte <str_moves,      >str_moves,      64, 72, STYLE_COMPACT
+        .byte <str_pushes,     >str_pushes,     64, 92, STYLE_COMPACT
+        .byte <title_press,    >title_press,    88,168, STYLE_COMPACT
+        .word $FFFF
 
 end_table:
         .byte <str_bravo,      >str_bravo,      $0F, 20, $01
@@ -2832,7 +3221,7 @@ end_table:
         .byte <str_moves,      >str_moves,      $04, 100, $00
         .byte <str_pushes,     >str_pushes,     $04, 116, $00
         .byte <title_press,    >title_press,    $07, 160, $00
-        .byte $FF
+        .word $FFFF
 
 ; draw_title_line: small glyphs, byte_col = title_col_start + ix*2.
 draw_title_line:
@@ -2922,23 +3311,8 @@ draw_big_glyph:
         TAX
         LDA double_hi,X
         STA big_byte1
-        LDA big_color                   ; orange: odd screen pixels only,
-        BEQ @white                      ; high bit set (the box colour)
-        LDA temp
-        AND #$01
-        TAX                             ; X = parity of byte 0's column
-        LDA big_byte0
-        AND orange_mask,X
-        ORA #$80
-        STA big_byte0
-        TXA
-        EOR #$01
-        TAX
-        LDA big_byte1
-        AND orange_mask,X
-        ORA #$80
-        STA big_byte1
-@white:
+        LDA big_color
+        JSR color_glyph_pair
         TYA
         ASL A
         CLC
@@ -3019,6 +3393,7 @@ draw_compact_glyph:
         DEX
         BNE @shift
 @address:
+        ; Native-size text must retain every white stroke; tinting is x2 only.
         TYA
         CLC
         ADC temp2
@@ -3049,6 +3424,39 @@ draw_compact_glyph:
 
 compact_keep_lo: .byte $00, $01, $03, $07, $0F, $1F, $3F
 compact_keep_hi: .byte $7E, $7C, $78, $70, $60, $40, $00
+
+; Tint two raster bytes using absolute pixel parity and HGR phase.
+; Preserve Y (font row), temp (byte column) and temp2 (scanline).
+color_glyph_pair:
+        BEQ @done                       ; white keeps both adjacent pixels
+        STA glyph_color
+        AND #1
+        ASL A
+        STA glyph_mask_index
+        LDA temp
+        AND #1
+        ORA glyph_mask_index
+        TAX
+        LDA big_byte0
+        AND glyph_masks,X
+        STA big_byte0
+        TXA
+        EOR #1
+        TAX
+        LDA big_byte1
+        AND glyph_masks,X
+        STA big_byte1
+        LDA glyph_color
+        CMP #COLOR_ORANGE
+        BCC @done
+        LDA big_byte0
+        ORA #$80
+        STA big_byte0
+        LDA big_byte1
+        ORA #$80
+        STA big_byte1
+@done:  RTS
+glyph_masks: .byte $55, $2A, $2A, $55
 
 ; draw_title_glyph: one 7x8 glyph. Input: A = glyph, X = byte_col, Y = scanline.
 draw_title_glyph:
@@ -3083,52 +3491,59 @@ draw_title_glyph:
         RTS
 
 ; --- Strings: glyph indices, $FF terminated (GSTR, see bbfont_subset.inc) ---
-title_sokoban:  GSTR "SOKOBAN"
+title_micro_sokoban:  GSTR "MICRO-SOKOBAN"
 title_levels:   LEVELS_TITLE
 title_skinner:  GSTR "BY DAVID W. SKINNER"
 title_author:   GSTR "PORT VERHILLE ARNAUD"
 title_press:    GSTR "KEY OR BUTTON"
 title_nopress:  GSTR "             "
 title_continue: GSTR "CONTINUE "
-title_h_help:   GSTR "H HELP    G LEVELS"
+title_h_help:   GSTR "ESC MENU  H HELP  V PROFILES"
 title_success:  GSTR "SUCCESS"
 str_loading:    GSTR "LOADING"
 str_saving:     GSTR " SAVING"
 str_blank7:     GSTR "       "
 str_moves:      GSTR "MOVES"
+str_levels:     GSTR "LEVELS"
 str_pushes:     GSTR "PUSHES"
 str_record:     GSTR "RECORD"
 str_new_record: GSTR "NEW RECORD"
 str_bravo:      GSTR "BRAVO"
 str_microban:   GSTR "MICROBAN "
 str_solved:     GSTR "SOLVED "
+str_score:      GSTR "MOVES"
 str_sel_help:   GSTR "RETURN PLAY   ESC BACK   N/P SET"
 
 help_big_title: GSTR "HELP"
 help_move:      GSTR "MOVE"
-help_move_keys: GSTR "STICK / IJKL / WASD"
+help_move_keys: GSTR "IJKL / WASD"
 help_undo:      GSTR "UNDO"
 help_undo_keys: GSTR "U / BUTTON 0"
 help_redo:      GSTR "REDO"
 help_redo_keys: GSTR "Y / B0 + RIGHT"
 help_menu:      GSTR "MENU"
-help_menu_keys: GSTR "H / ESC / BUTTON 1"
-help_select:    GSTR "STICK/I/K  RETURN/B0 SELECT"
-menu_resume:    GSTR "RESUME"
+help_menu_keys: GSTR "ESC / BUTTON 1"
+help_goal: GSTR "PUSH BOXES ON GREEN GOALS"
+help_movement: GSTR "MOVEMENT"
+help_history: GSTR "UNDO / REDO"
+help_stick: GSTR "ARROWS / JOYSTICK"
+menu_resume:    GSTR "PLAY / RESUME"
 menu_reset:     GSTR "RESTART"
-menu_next:      GSTR "NEXT LEVEL"
-menu_prev_str:  GSTR "PREV LEVEL"
 menu_goto:      GSTR "GO TO LEVEL"
-menu_dead_on:   GSTR "DEADLOCK ON "
-menu_dead_off:  GSTR "DEADLOCK OFF"
 menu_quit:      GSTR "QUIT TO DOS"
-menu_key_resume:GSTR "(ESC)"
+menu_hof:       GSTR "HALL OF FAME"
+menu_key_resume:GSTR "(RET)"
 menu_key_reset: GSTR "(R)"
-menu_key_next:  GSTR "(N)"
-menu_key_prev:  GSTR "(P)"
 menu_key_goto:  GSTR "(G)"
-menu_key_dead:  GSTR "(C)"
+menu_key_options: GSTR "(O)"
+menu_key_tutorial:GSTR "(T)"
+menu_options:   GSTR "OPTIONS"
+menu_tutorial:  GSTR "TUTORIAL (5)"
+menu_profiles: GSTR "PROFILES"
+menu_key_profiles: GSTR "(V)"
+menu_key_help: GSTR "(H)"
 menu_key_quit:  GSTR "(Q)"
+menu_key_hof:   GSTR "(F)"
 
 ; =============================================================================
 ; Tile transitions
@@ -3281,6 +3696,12 @@ tile_bitmaps:
 
 .assert pack_buf = PACK_ADDR, error, "the packs are BLOADed at PACK_ADDR"
 
+.include "score_hof.inc"
+.include "profiles.inc"
+.include "resume.inc"
+.include "fast_disk.inc"
+.include "beginner.inc"
+
 ; =============================================================================
 ; ../dev/lib/apple2 modules (textual includes: they pick their own segments)
 ; =============================================================================
@@ -3289,13 +3710,7 @@ tile_bitmaps:
 .include "exit.asm"              ; apple2_zp_save, apple2_exit
 .include "sound.asm"             ; tone
 .include "joy.asm"               ; read_stick, stick_dir (JOY_LO/HI above)
-.include "dos.asm"               ; dos_cmd_*: BLOAD packs, B(LOAD|SAVE) SOKOSAVE
+; Disk I/O lives in fast_disk.inc; DOS command parsing is only used by HELLO.
 
-; The save buffer comes last in RAM: BLOAD takes the length written in the
-; file, so a longer SOKOSAVE (from a build with more levels) runs into free
-; memory, not into the game. Free RAM ends at $95FF (DOS buffers above).
-.bss
-save_buf:        .res SAVE_LEN   ; SOKOSAVE, BLOADed at start
-.assert save_buf + SAVE_LEN <= $9600, error, "save buffer runs into DOS"
 
 .assert ACT_UP = JOY_UP && ACT_DOWN = JOY_DOWN && ACT_LEFT = JOY_LEFT && ACT_RIGHT = JOY_RIGHT, error, "get_input passes stick_dir's result on as an action"

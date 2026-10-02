@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """dos33.py — build a bootable DOS 3.3 5.25" disk image (.dsk, DOS order).
 
-    dos33.py --out SOKOBAN.dsk \
-             --bin  SOKOBAN=sokoban.bin@0x4000 \
+    dos33.py --out MICRO-SOKOBAN.dsk \
+             --bin  MICRO-SOKOBAN=micro_sokoban.bin@0x4000 \
              --bas  HELLO=hello.bas \
              [--master dos33_system.bin] [--volume 254] [--catalog]
 
@@ -21,6 +21,9 @@ File formats:
                          statement per line, tokenised here (small keyword
                          table — enough for a launcher).
   --txt NAME=path        sequential text file (type T), CR line ends, high bit set.
+  --read-fast            T/S lists before data, POM2-measured sector allocation.
+                         Put frequently read files early in the supplied order.
+                         Normal DOS allocation remains the default.
 """
 import argparse
 import os
@@ -123,7 +126,7 @@ def tokenize_applesoft(text, base=0x0801):
 
 
 class Dos33Image:
-    def __init__(self, master, volume=254):
+    def __init__(self, master, volume=254, read_fast=False):
         self.data = bytearray(TRACKS * SECTORS * SEC_SIZE)
         m = open(master, "rb").read()
         system = 3 * SECTORS * SEC_SIZE
@@ -139,6 +142,7 @@ class Dos33Image:
         for s in range(SECTORS):
             self.free[(VTOC_T, s)] = False
         self.volume = volume
+        self.read_fast = read_fast
         self.next_track = VTOC_T + 1
         self.catalog = []          # list of (t, s, type, name, nsectors)
         self._init_catalog()
@@ -153,10 +157,12 @@ class Dos33Image:
 
     def alloc(self):
         """Allocate one sector, DOS style: track 18 upward, then 16 downward,
-        highest sector first."""
+        highest sector first, or the optional measured read-fast permutation."""
         order = list(range(VTOC_T + 1, TRACKS)) + list(range(VTOC_T - 1, 2, -1))
         for t in order:
-            for s in range(SECTORS - 1, -1, -1):
+            sectors = ([15, 11, 7, 10, 6, 9, 5, 8, 4, 0, 3, 14, 2, 13, 1, 12]
+                       if self.read_fast else range(SECTORS - 1, -1, -1))
+            for s in sectors:
                 if self.free[(t, s)]:
                     self.free[(t, s)] = False
                     return t, s
@@ -177,6 +183,10 @@ class Dos33Image:
             raise SystemExit(f"name too long: {name}")
         # Data sectors.
         chunks = [payload[i:i + SEC_SIZE] for i in range(0, len(payload), SEC_SIZE)] or [b""]
+        # Read the T/S list before streaming data, without seeking back from
+        # a large file's final track. Default allocation remains DOS style.
+        reserved_lists = ([self.alloc() for _ in range((len(chunks) + 121) // 122)]
+                          if self.read_fast else None)
         data_ts = []
         for chunk in chunks:
             t, s = self.alloc()
@@ -187,7 +197,8 @@ class Dos33Image:
         # Track/sector list sectors (122 pairs each).
         ts_lists = []
         for i in range(0, len(data_ts), 122):
-            ts_lists.append((self.alloc(), data_ts[i:i + 122], i))
+            listing = reserved_lists[i // 122] if reserved_lists else self.alloc()
+            ts_lists.append((listing, data_ts[i:i + 122], i))
         for n, ((t, s), pairs, first) in enumerate(ts_lists):
             sec = self.sector(t, s)
             sec[:] = b"\x00" * SEC_SIZE
@@ -264,9 +275,11 @@ def main():
     ap.add_argument("--bas", action="append", default=[], help="NAME=path (Applesoft text)")
     ap.add_argument("--txt", action="append", default=[], help="NAME=path (text file)")
     ap.add_argument("--catalog", action="store_true", help="print the catalog afterwards")
+    ap.add_argument("--read-fast", action="store_true",
+                    help="allocate T/S lists first and use the POM2-measured faster sector order")
     a = ap.parse_args()
 
-    img = Dos33Image(a.master, a.volume)
+    img = Dos33Image(a.master, a.volume, read_fast=a.read_fast)
     for spec in a.bas:
         name, path, _ = parse_spec(spec, False)
         prog = tokenize_applesoft(open(path).read())

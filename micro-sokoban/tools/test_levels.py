@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """test_levels.py -- play solutions in the real game.
 
-    test_levels.py [--a2run ../dev/tools/a2run/a2run] [--disk ../dist/SOKOBAN.dsk]
+    test_levels.py [--a2run ../dev/tools/a2run/a2run] [--disk ../dist/MICRO-SOKOBAN.dsk]
                    [--coll N] [--xsb FILE] [--solutions FILE] [--max-nodes N]
                    (--all | LEVEL...)
 
@@ -26,7 +26,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import sokoban_levels as sl  # noqa: E402
+import micro_sokoban_levels as sl  # noqa: E402
 import solver  # noqa: E402
 
 DIRS = {'u': (-1, 0), 'd': (1, 0), 'l': (0, -1), 'r': (0, 1)}
@@ -63,10 +63,10 @@ def zp_address(lst, name):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--a2run', default=os.path.join(HERE, '..', '..', 'dev', 'tools', 'a2run', 'a2run'))
-    ap.add_argument('--disk', default=os.path.join(HERE, '..', '..', 'dist', 'SOKOBAN.dsk'))
+    ap.add_argument('--disk', default=os.path.join(HERE, '..', '..', 'dist', 'MICRO-SOKOBAN.dsk'))
     ap.add_argument('--coll', type=int, default=1, choices=(1, 2, 3, 4))
     ap.add_argument('--xsb', default=None)
-    ap.add_argument('--lst', default=os.path.join(HERE, '..', 'build', 'sokoban.lst'))
+    ap.add_argument('--lst', default=os.path.join(HERE, '..', 'build', 'micro_sokoban.lst'))
     ap.add_argument('--solutions', default=os.path.join(HERE, '..', 'levels', 'solutions.txt'))
     ap.add_argument('--max-nodes', type=int, default=200000)
     ap.add_argument('--all', action='store_true')
@@ -91,20 +91,23 @@ def main():
             print('level %d (#%d): no solution, FAILED' % (idx, num))
             failed += 1
             continue
-        steps = ['wait:900', 'key: ', 'wait:30']
-        if a.coll > 1:                   # grid, N per collection, play its first level
-            steps += ['key:G', 'wait:60'] + ['key:N', 'wait:200'] * (a.coll - 1) + ['key:\r', 'wait:300']
+        steps = ['wait:1800', 'key:G', 'wait:90']
+        if a.coll > 1:
+            steps += ['key:N', 'wait:200'] * (a.coll - 1)
+        steps += ['key:\r', 'wait:600']
         n = idx - 1
         while n > 0:                     # N ... N, one pack load at most on the way
             k = min(n, 20)
-            steps += ['key:' + 'N' * k, 'wait:200']
+            # A pack load temporarily restores DOS zero page; wait for it
+            # before peeking the game's cur_coll / cur_lvl values.
+            steps += ['key:' + 'N' * k, 'wait:600']
             n -= k
         steps += ['peek:%04X:2' % cur_coll]
         # all but the last move, then the counters, then the winning move
         body = ''.join(KEYS[c] for c in sol.lower())
         last = idx == len(kept)          # then the BRAVO screen, then level 1 of a collection
-        steps += ['key:' + body[:-1], 'wait:5', 'peek:%04X:2' % moves, 'key:' + body[-1], 'wait:300',
-                  'key: ', 'wait:300'] + (['key: ', 'wait:400'] if last else []) + ['peek:%04X:1' % cur_lvl]
+        steps += ['key:' + body[:-1], 'wait:5', 'peek:%04X:2' % moves, 'key:' + body[-1], 'wait:1000',
+                  'key: ', 'wait:600'] + (['key: ', 'wait:400'] if last else []) + ['peek:%04X:1' % cur_lvl]
         out = subprocess.run([a.a2run, '--disk', a.disk] + steps, capture_output=True, text=True).stdout
         dumps = re.findall(r'^\w{4}: (\w\w)(?: (\w\w))?', out, re.M)
         if len(dumps) < 3:

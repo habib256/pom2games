@@ -1,5 +1,5 @@
 # Build every disk from scratch, check it matches the committed dist/*.dsk,
-# then play Sokoban levels headless in a2run.
+# then play MICRO-SOKOBAN levels headless in a2run.
 name: build
 
 on:
@@ -15,5 +15,5 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y cc65 zlib1g-dev
       - name: Disks match the sources
         run: make check
-      - name: Sokoban levels in a2run
+      - name: MICRO-SOKOBAN levels in a2run
         run: make test

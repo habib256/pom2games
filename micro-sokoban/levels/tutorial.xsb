@@ -1,0 +1,33 @@
+; PUSH BOX ON GREEN
+#######
+#@ $. #
+#######
+
+; PUSH UP ON GREEN
+#####
+# . #
+# $ #
+#@  #
+#####
+
+; GO BEHIND THE BOX
+#######
+#     #
+# . $ #
+#  @  #
+#######
+
+; PLACE BOTH BOXES
+#######
+# . . #
+# $ $ #
+# @   #
+#######
+
+; WALK AROUND THEN PUSH
+########
+#  .   #
+# @$ . #
+#  $   #
+#      #
+########
