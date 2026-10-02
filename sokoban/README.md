@@ -42,7 +42,10 @@ une fois le niveau résolu (`B:0033`).
 Les records (coups, puis poussées) sont gardés sur la disquette, dans
 `SOKOSAVE`, réécrit après chaque niveau résolu ; au démarrage, le jeu
 reprend au premier niveau non résolu. Sur une disquette protégée en écriture,
-on joue sans sauvegarde. Dans la grille de choix (G), les niveaux résolus
+on joue sans sauvegarde. Le fichier porte une empreinte de chaque collection
+(niveaux gardés, ordre, contenu, rotation) : si une nouvelle version du jeu
+change les niveaux d'une collection, ses records sont effacés plutôt
+qu'attribués à d'autres niveaux ; ceux des autres collections restent. Dans la grille de choix (G), les niveaux résolus
 sont soulignés en vert ; après le dernier niveau d'une collection, un écran
 fait le bilan. L'historique garde les
 1024 derniers coups ; au-delà, R recharge le niveau au lieu de le rembobiner.

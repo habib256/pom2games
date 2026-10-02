@@ -114,9 +114,13 @@ HUD_BOT_SL = 11 * 16 + 4
 HUD_LEFT   = 0          ; byte columns: 6 glyphs = 3 tiles per corner
 HUD_RIGHT  = 34
 
-; --- Save file SOKOSAVE: "SOK1", collection and level last solved, then 4
-; bytes per level (best moves, best pushes; 0 = unsolved), SAVE_LEN in all.
-SAVE_HDR   = 6
+; --- Save file SOKOSAVE: "SOK2", collection and level last solved, one
+; fingerprint per collection (coll_fp_lo/hi), then 4 bytes per level (best
+; moves, best pushes; 0 = unsolved): SAVE_HDR + 4 * TOTAL_LEVELS = SAVE_LEN
+; bytes, both from levels.inc. Records are kept by rank in the kept levels,
+; so a collection whose levels changed (fingerprint) loses its records
+; instead of passing them to other levels.
+SAVE_FP    = 6          ; offset of the fingerprints in the file
 
 ; --- Level selection: pages of 10 x 8 numbers, 4 byte columns each ---
 SEL_COLS   = 10
@@ -206,7 +210,8 @@ num_sl:          .res 1
 num_step:        .res 1
 num_pow:         .res 1          ; print_num power index
 str_ix:          .res 1
-save_buf:        .res SAVE_LEN   ; SOKOSAVE, BLOADed at start
+fp_coll:         .res 1          ; load_save: collection being checked
+fp_n:            .res 1          ; levels left to wipe
 new_record:      .res 1          ; 1 = the level just solved beat its record
 best_lo:         .res 1          ; the record before that
 best_hi:         .res 1
@@ -880,12 +885,14 @@ pack_at_str: .byte ",A$1000", 0
 save_load_str: .byte "BLOAD SOKOSAVE,A$", 0
 save_save_str: .byte "BSAVE SOKOSAVE,A$", 0
 len_str:       .byte ",L$", 0
-save_magic:    .byte "SOK1"
+save_magic:    .byte "SOK2"
 
 ; =============================================================================
-; Save file. load_save BLOADs SOKOSAVE into save_buf (a missing or foreign
-; content is wiped); write_save BSAVEs it, unless the disk is write
-; protected (DOS would stop the game with WRITE PROTECTED).
+; Save file. load_save BLOADs SOKOSAVE into save_buf: a foreign content (an
+; older "SOK1" too) is wiped, then each collection whose fingerprint differs
+; from this build's loses its records and gets the new fingerprint.
+; write_save BSAVEs it, unless the disk is write protected (DOS would stop
+; the game with WRITE PROTECTED).
 ; =============================================================================
 load_save:
         JSR dos_cmd_new
@@ -903,7 +910,7 @@ load_save:
         BNE @wipe
         DEX
         BPL @magic
-        RTS
+        BMI @colls                      ; (always)
 @wipe:  LDA #<save_buf
         STA sptr_lo
         LDA #>save_buf
@@ -929,6 +936,43 @@ load_save:
         STA save_buf,X
         DEX
         BPL @m
+        ; fingerprints: 0 after the wipe, so every collection gets its own
+@colls: LDX #$00
+@coll:  STX fp_coll
+        TXA
+        ASL A
+        TAY                             ; Y = 2 * collection
+        LDA save_buf+SAVE_FP,Y
+        CMP coll_fp_lo,X
+        BNE @reset
+        LDA save_buf+SAVE_FP+1,Y
+        CMP coll_fp_hi,X
+        BEQ @next
+@reset: LDA coll_fp_lo,X
+        STA save_buf+SAVE_FP,Y
+        LDA coll_fp_hi,X
+        STA save_buf+SAVE_FP+1,Y
+        LDA coll_count,X
+        STA fp_n
+        LDA #$00
+        JSR slot_ptr                    ; sptr -> its first record
+@lvl:   LDY #3
+        LDA #$00
+@clr:   STA (sptr_lo),Y
+        DEY
+        BPL @clr
+        LDA sptr_lo
+        CLC
+        ADC #4
+        STA sptr_lo
+        BCC @nc
+        INC sptr_hi
+@nc:    DEC fp_n
+        BNE @lvl
+        LDX fp_coll
+@next:  INX
+        CPX #NUM_COLLS
+        BCC @coll
         RTS
 
 write_save:
@@ -2680,4 +2724,12 @@ tile_bitmaps:
 .include "sound.asm"             ; tone
 .include "joy.asm"               ; read_stick, stick_dir (JOY_LO/HI above)
 .include "dos.asm"               ; dos_cmd_*: BLOAD packs, B(LOAD|SAVE) SOKOSAVE
+
+; The save buffer comes last in RAM: BLOAD takes the length written in the
+; file, so a longer SOKOSAVE (from a build with more levels) runs into free
+; memory, not into the game. Free RAM ends at $95FF (DOS buffers above).
+.bss
+save_buf:        .res SAVE_LEN   ; SOKOSAVE, BLOADed at start
+.assert save_buf + SAVE_LEN <= $9600, error, "save buffer runs into DOS"
+
 .assert ACT_UP = JOY_UP && ACT_DOWN = JOY_DOWN && ACT_LEFT = JOY_LEFT && ACT_RIGHT = JOY_RIGHT, error, "get_input passes stick_dir's result on as an action"

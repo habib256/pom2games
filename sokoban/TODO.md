@@ -138,6 +138,17 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
   niveaux résolus sur le total, sommes des records (coups, poussées), puis
   retour au premier niveau de la collection suivante (ou de la même).
 
+- [x] **Sauvegarde liée aux niveaux** (« SOK2 ») : les records sont rangés
+  par rang dans les niveaux gardés ; un changement de la liste (la rotation a
+  fait passer Microban de 146 à 150 niveaux) les aurait attribués à d'autres
+  niveaux. L'en-tête porte maintenant une empreinte CRC-16 par collection
+  (numéros d'origine, ordre, données codées : cases, rotation, placement),
+  calculée par `sokoban_levels.py`. Au chargement, une collection dont
+  l'empreinte diffère perd ses records, les autres les gardent ; un ancien
+  « SOK1 » est effacé. `save_buf` est en fin de mémoire : un fichier plus
+  long (version future avec plus de niveaux) déborde dans la RAM libre, pas
+  dans le jeu. Vérifié dans a2run avec des sauvegardes fabriquées.
+
 ## 6. Sons
 
 - [x] **Sons plus parlants** avec la routine `beep` existante : caisse posée

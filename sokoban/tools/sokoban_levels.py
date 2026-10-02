@@ -26,7 +26,9 @@ Outputs in --out:
                  order over the w x h box; the tile types are the game's
                  TILE_* codes (0 floor/outside, 1 wall, 2 target, 3 box,
                  4 box on target, 5 player, 6 player on target).
-  sokosave.bin   the empty save file (see SAVE_* in levels.inc)
+  sokosave.bin   the empty save file: "SOK2", last collection and level
+                 solved, one 16-bit fingerprint per collection, then 4 bytes
+                 per kept level (best moves, best pushes; 0 = unsolved)
   packs.args     the --bin arguments for dos33.py
   report.txt     what was kept and what was left out, and why
 """
@@ -39,7 +41,28 @@ HUD_CELLS = [(r, c) for r in (0, ROWS - 1) for c in (0, 1, 2, COLS - 3, COLS - 2
 PACK_MAX = 4096
 PACK_ADDR = 0x1000
 TILE = {' ': 0, '#': 1, '.': 2, '$': 3, '*': 4, '@': 5, '+': 6}
-SAVE_MAGIC = b'SOK1'
+SAVE_MAGIC = b'SOK2'
+
+
+def crc16(data, crc=0xFFFF):
+    """CRC-16/CCITT-FALSE."""
+    for b in data:
+        crc ^= b << 8
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x1021) if crc & 0x8000 else crc << 1
+            crc &= 0xFFFF
+    return crc
+
+
+def fingerprint(kept):
+    """16 bits that change when the kept levels of a collection change:
+    which levels (original numbers), their order, cells, turn and placement.
+    The save file keeps one per collection; the game wipes the records of a
+    collection whose fingerprint differs (they would land on wrong levels)."""
+    crc = 0xFFFF
+    for num, data in kept:
+        crc = crc16(bytes([num & 0xFF, num >> 8, len(data) & 0xFF]) + data, crc)
+    return crc
 
 
 def parse_xsb(path):
@@ -220,7 +243,10 @@ def main():
             report.append('  - level %d%s: %s' % (num, ' (%s)' % title if title and title != str(num) else '', why))
 
     total = sum(len(c['kept']) for c in colls)
-    save_len = len(SAVE_MAGIC) + 2 + 4 * total
+    save_hdr = len(SAVE_MAGIC) + 2 + 2 * len(colls)
+    save_len = save_hdr + 4 * total
+    for c in colls:
+        c['fp'] = fingerprint(c['kept'])
 
     # --- pack files, dos33.py arguments, empty save ---
     args = []
@@ -230,7 +256,8 @@ def main():
                 f.write(blob)
             args.append('--bin %s=%s@0x%04X' % (name, os.path.join(a.out, name + '.bin'), PACK_ADDR))
     with open(os.path.join(a.out, 'sokosave.bin'), 'wb') as f:
-        f.write(SAVE_MAGIC + bytes(save_len - len(SAVE_MAGIC)))
+        hdr = SAVE_MAGIC + bytes(2) + b''.join(bytes([c['fp'] & 0xFF, c['fp'] >> 8]) for c in colls)
+        f.write(hdr + bytes(save_len - len(hdr)))
     with open(os.path.join(a.out, 'packs.args'), 'w') as f:
         f.write(' '.join(args) + '\n')
 
@@ -242,8 +269,9 @@ def main():
     L.append('TOTAL_LEVELS = %d' % total)
     L.append('PACK_ADDR    = $%04X' % PACK_ADDR)
     L.append('PACK_MAX     = %d' % PACK_MAX)
-    L.append('SAVE_LEN     = %d          ; "SOK1", last collection, last level, then' % save_len)
-    L.append('                            ; per level: best moves, best pushes (0 = unsolved)')
+    L.append('SAVE_HDR     = %d            ; "SOK2", last collection, last level, then one' % save_hdr)
+    L.append('                            ; fingerprint per collection (lo, hi)')
+    L.append('SAVE_LEN     = %d          ; then per level: best moves, best pushes (0 = unsolved)' % save_len)
     L.append('')
     if len(colls) == 1:
         title = 'MICROBAN %d LEVELS' % total
@@ -268,6 +296,8 @@ def main():
     L.append('coll_base_hi:    .byte %s' % ', '.join('>%d' % b for b in bases))
     L.append('coll_first_pack: .byte %s' % ', '.join(str(f) for f in firsts))
     L.append('coll_npacks:     .byte %s' % ', '.join(str(len(c['packs'])) for c in colls))
+    L.append('coll_fp_lo:      .byte %s      ; fingerprints of the kept levels' % ', '.join('$%02X' % (c['fp'] & 0xFF) for c in colls))
+    L.append('coll_fp_hi:      .byte %s' % ', '.join('$%02X' % (c['fp'] >> 8) for c in colls))
     L.append('coll_orig_lo:    .byte %s' % ', '.join('<orig_%d' % i for i in range(len(colls))))
     L.append('coll_orig_hi:    .byte %s' % ', '.join('>orig_%d' % i for i in range(len(colls))))
     L.append('coll_hud_lo:     .byte %s' % ', '.join('<coll_hud_%d' % i for i in range(len(colls))))
