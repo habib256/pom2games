@@ -23,11 +23,9 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
 - [x] **Murs bleus** : bit 7 à 1, pixels pairs allumés (`$D5,$AA` au lieu de
   `$AA,$D5`). Aujourd'hui, murs et caisses sont tous les deux orange et se
   confondent. Les caisses restent orange, les caisses placées vertes.
-- [x] **Joueur vert sur une cible** (tuile 6) : même silhouette que la tuile 5,
-  mais seulement les pixels impairs avec le bit 7 à 0 (vert), à la place du
-  trait vert sous les pieds, qui se voit mal. Fait : silhouette redessinée
-  sur la grille des pixels impairs, symétrique autour du pixel 6 (la
-  silhouette blanche, centrée sur 5,5, ne se réduit pas proprement).
+- [x] **Joueur sur une cible** (tuile 6) : silhouette blanche identique à
+  la tuile 5, avec un trait vert sous les pieds. La silhouette toute verte
+  a été remplacée à la demande de l'utilisateur le 2026-10-02.
 
 ## 2. Base technique
 
@@ -191,10 +189,19 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
   les 454 (~1 min 30).
 - [x] **Écran titre** : « SOKOBAN » en orange (pixels impairs, bit 7 : la
   couleur des caisses), bandeau de murs, petit entrepôt animé (le joueur
-  pousse une caisse sur sa cible, un clic par poussée, le bip de la cible,
-  ~0,4 s par étape pendant `title_wait`), « KEY OR BUTTON » qui clignote,
+  pousse une caisse sur sa cible, sans son, tout en bas de l'écran,
+  ~0,8 s par étape pendant `title_wait`), texte blanc à pas de 8 pixels,
+  « KEY OR BUTTON » qui clignote,
   niveaux résolus sur 454 et niveau de reprise (`CONTINUE III:056`), lus
   dans `SOKOSAVE`. « APPLE II » et « JOYSTICK OR IJKL » laissent la place
   (les commandes sont dans l'aide). Corrigés au passage : H sur le titre
   ouvre bien l'aide (il lançait seulement la partie) et « LOADING » ne
   reste plus affiché une fois le premier paquet lu.
+- [x] **Démo étendue** : après les quatre niveaux d'introduction, Microban
+  60, 84 et 98 (221, 287 et 371 coups, 46, 72 et 112 poussées). Sept niveaux
+  en tout, toujours dans le premier paquet ; sons des déplacements, des
+  cibles et de la victoire actifs dans la démo, accueil et menu silencieux.
+- [x] **Organisation des textes** : accueil avec progression, crédits et
+  raccourcis regroupés ; HELP avec actions et commandes en deux colonnes,
+  indication de sélection, puis options et raccourcis alignés. Même texte
+  blanc à pas de 8 pixels, curseur et bascule DEADLOCK conservés.

@@ -106,7 +106,8 @@ MENU_QUIT    = 6
 MENU_COUNT   = 7
 MENU_ROW0    = 5        ; tile row of the first menu entry (cursor = player tile)
 MENU_CURSOR_COL = 4
-MENU_TEXT_COL   = $0B   ; byte column of the entry texts
+MENU_TEXT_COL   = 84    ; pixel column of the compact entry labels
+MENU_KEY_COL    = 208   ; aligned keyboard shortcuts
 
 ; --- HUD: 7-pixel glyphs, 8 lines centred in the top / bottom tile rows ---
 HUD_TOP_SL = 4
@@ -129,14 +130,16 @@ TITLE_IDLE = 1590       ; ~10 s
 DEMO_START = 120        ; ~0.8 s on the level before the first move
 DEMO_STEP  = 22         ; ~0.15 s between two moves (plus the drawing)
 DEMO_END   = 255        ; ~1.6 s on the solved level
-TITLE_TICK = 64         ; ~0.4 s between two steps of the title animation
+TITLE_TICK = 128        ; ~0.8 s between two steps of the title animation
 
-; --- Title screen: the little warehouse (tile rows 4-6, columns 6-12) whose
-; corridor (row 5, columns 7-11) shows a box pushed onto its target.
-TITLE_ROW  = 5
+; --- Title screen: the little warehouse (tile rows 9-11, columns 6-12) whose
+; corridor (row 10, columns 7-11) shows a box pushed onto its target.
+TITLE_ROW  = 10
 TITLE_COL  = 7
 TITLE_PHASES = 6
-TITLE_PRESS_SL = 154    ; scanline of the blinking "KEY OR BUTTON"
+TITLE_PRESS_COL = 88    ; pixel column, centred with 8-pixel character spacing
+TITLE_PRESS_SL = 124    ; scanline of the blinking "KEY OR BUTTON"
+STYLE_COMPACT = 3       ; small glyphs, 8 pixels per character (white HGR text)
 
 ; --- Level selection: pages of 10 x 8 numbers, 4 byte columns each ---
 SEL_COLS   = 10
@@ -221,9 +224,10 @@ title_ix:        .res 1
 title_glyph:     .res 1
 title_col_start: .res 1
 title_scanline:  .res 1
+compact_shift:   .res 1  ; bit offset (0..6) of an 8-pixel screen glyph
 big_byte0:       .res 1
 big_byte1:       .res 1
-num_col:         .res 1          ; text cursor: byte column, scanline, advance
+num_col:         .res 1          ; text cursor column (pixels when num_step = 8)
 num_sl:          .res 1
 num_step:        .res 1
 num_pow:         .res 1          ; print_num power index
@@ -626,7 +630,7 @@ title_wait:
         STA title_tick
 @lp:    JSR poll_start
         BNE @done
-        DEC title_tick                  ; every ~0.4 s: animation, blink
+        DEC title_tick                  ; every ~0.8 s: animation, blink
         BNE @idle
         LDA #TITLE_TICK
         STA title_tick
@@ -859,7 +863,7 @@ menu_draw_cursor:
         LDA #TILE_PLAYER
         JMP draw_tile
 
-; draw_dead_entry: "DEADLOCK ON (C)" / "DEADLOCK OFF(C)", same width, so
+; draw_dead_entry: "DEADLOCK ON " / "DEADLOCK OFF", same width, so
 ; one draw over the other replaces it.
 draw_dead_entry:
         LDX #<menu_dead_on
@@ -871,10 +875,12 @@ draw_dead_entry:
 @on:    STX sptr_lo
         STY sptr_hi
         LDA #MENU_TEXT_COL
-        STA title_col_start
+        STA num_col
         LDA #(MENU_ROW0 + MENU_DEADWARN) * 16 + 4
-        STA title_scanline
-        JMP draw_title_line
+        STA num_sl
+        LDA #8
+        STA num_step
+        JMP draw_str
 
 ; =============================================================================
 ; SOUND
@@ -2000,7 +2006,8 @@ orig_of:
 
 ; =============================================================================
 ; Text. Glyphs are 7x8, one byte column; the cursor is (num_col, num_sl) and
-; num_step the advance: 1 = packed (HUD), 2 = the 14-pixel screen spacing.
+; num_step the advance: 1 = packed (HUD), 2 = the 14-pixel screen spacing,
+; 8 = compact screen text (num_col is then a pixel column).
 ;   put_glyph   draw glyph A, advance
 ;   draw_str    the $FF-terminated glyph string at sptr
 ;   print_num   num_hi:num_lo as A digits (1..5, leading zeros; 4 digits
@@ -2023,7 +2030,17 @@ orig_of:
 put_glyph:
         LDX num_col
         LDY num_sl
+        PHA
+        LDA num_step
+        CMP #8
+        BEQ @compact
+        PLA
         JSR draw_title_glyph
+        JMP @advance
+@compact:
+        PLA
+        JSR draw_compact_glyph
+@advance:
         LDA num_col
         CLC
         ADC num_step
@@ -2102,7 +2119,9 @@ double_hi:
 
 ; =============================================================================
 ; Title / help / success screens — table driven.
-; Entry = str_lo, str_hi, byte_col, scanline, style (0 small, 1 big). $FF ends.
+; Entry = str_lo, str_hi, column, scanline, style (0 small, 1 big white,
+; 2 big orange, 3 compact small). Column is in bytes except style 3 (pixels).
+; $FF ends.
 ; =============================================================================
 draw_title:
         LDA #<title_table
@@ -2149,8 +2168,8 @@ draw_title:
         STA title_blink
         JMP draw_title_corridor
 
-; title_step: next phase of the title animation (a click per push, the
-; target blip when the box lands), and "KEY OR BUTTON" blinks.
+; title_step: next phase of the silent title animation; "KEY OR BUTTON"
+; blinks. Only the attract-mode levels play movement and victory sounds.
 title_step:
         INC title_phase
         LDA title_phase
@@ -2158,28 +2177,17 @@ title_step:
         BCC @ph
         LDA #$00
         STA title_phase
-@ph:    CMP #1                          ; phases 1-3 push the box
-        BCC @drawn
-        CMP #4
-        BCS @drawn
-        LDA SPKR
-        LDA title_phase
-        CMP #3
-        BNE @drawn
-        LDA #$30                        ; on its target
-        LDX #$28
-        JSR tone
-@drawn: JSR draw_title_corridor
+@ph:    JSR draw_title_corridor
         LDA title_blink
         EOR #$01
         STA title_blink
-        LDA #2
+        LDA #8
         STA num_step
         LDA title_blink
         BEQ @off
-        TEXT 7, TITLE_PRESS_SL, title_press
+        TEXT TITLE_PRESS_COL, TITLE_PRESS_SL, title_press
         RTS
-@off:   TEXT 7, TITLE_PRESS_SL, title_nopress
+@off:   TEXT TITLE_PRESS_COL, TITLE_PRESS_SL, title_nopress
         RTS
 
 ; draw_title_corridor: the five corridor cells of phase title_phase.
@@ -2236,9 +2244,9 @@ draw_title_info:
         LDA title_ix
         CMP #NUM_COLLS
         BCC @coll
-        LDA #2
+        LDA #8
         STA num_step
-        TEXT 6, 130, str_solved         ; 14 glyphs from column 6
+        TEXT 84, 62, str_solved         ; 14 compact glyphs, centred
         LDA all_solved_lo
         STA num_lo
         LDA all_solved_hi
@@ -2255,7 +2263,7 @@ draw_title_info:
         JSR print_num
         LDX cur_coll                    ; "CONTINUE " + name + ":NNN",
         LDA coll_hud_lo,X               ; 13 glyphs + the name: from
-        STA sptr_lo                     ; column 7 - name length
+        STA sptr_lo                     ; pixel column 88 - 4 * name length
         LDA coll_hud_hi,X
         STA sptr_hi
         LDY #$FF
@@ -2263,12 +2271,15 @@ draw_title_info:
         LDA (sptr_lo),Y
         CMP #$FF
         BNE @len
-        STY temp
-        LDA #7
+        TYA
+        ASL A
+        ASL A
+        STA temp
+        LDA #88
         SEC
         SBC temp
         STA num_col
-        LDA #140
+        LDA #74
         STA num_sl
         LDA #<title_continue
         STA sptr_lo
@@ -2738,6 +2749,9 @@ draw_from_table:
         STA title_scanline
         INY
         LDA (tbl_lo),Y
+        CMP #STYLE_COMPACT
+        BEQ @compact
+        CMP #$00
         BEQ @small
         SEC                             ; 1 = big white, 2 = big orange
         SBC #1
@@ -2746,6 +2760,15 @@ draw_from_table:
         JMP @next
 @small:
         JSR draw_title_line
+        JMP @next
+@compact:
+        LDA #8
+        STA num_step
+        LDA title_col_start
+        STA num_col
+        LDA title_scanline
+        STA num_sl
+        JSR draw_str
 @next:
         LDA tbl_lo
         CLC
@@ -2757,31 +2780,42 @@ draw_from_table:
 @done:
         RTS
 
-; Small lines: 14 px per glyph, so <= 20 glyphs; byte_col = 20 - n centres.
+; Title small lines: 8 px per glyph; pixel column = (280 - n * 8) / 2.
 title_table:
         .byte <title_sokoban,  >title_sokoban,  $0D, 20, $02     ; big, orange
-        .byte <title_levels,   >title_levels,   LEVELS_TITLE_COL, 40, $00
-        .byte <title_skinner,  >title_skinner,  $01, 50, $00     ; BY DAVID W. SKINNER
-        .byte <title_author,   >title_author,   $00, 116, $00    ; PORT VERHILLE ARNAUD
-        .byte <title_press,    >title_press,    $07, TITLE_PRESS_SL, $00
-        .byte <title_h_help,   >title_h_help,   $02, 168, $00    ; H HELP   G LEVELS (clear of LOADING)
+        .byte <title_levels,   >title_levels,   60+LEVELS_TITLE_COL*4, 42, STYLE_COMPACT
+        .byte <title_skinner,  >title_skinner,  64, 94, STYLE_COMPACT
+        .byte <title_author,   >title_author,   60, 106, STYLE_COMPACT
+        .byte <title_press,    >title_press,    TITLE_PRESS_COL, TITLE_PRESS_SL, STYLE_COMPACT
+        .byte <title_h_help,   >title_h_help,   68, 136, STYLE_COMPACT
         .byte $FF
 
-; Help: title, the controls, then the menu entries on tile rows
-; MENU_ROW0.. (text 4 lines below the row top), cursor at column 4.
+; Help: controls in two columns, a selection hint, then aligned option
+; labels and shortcuts on tile rows MENU_ROW0.. (cursor at column 4).
 help_table:
         .byte <help_big_title, >help_big_title, $10,  2, $01    ; HELP (big)
-        .byte <help_move,      >help_move,      $02, 22, $00
-        .byte <help_undo,      >help_undo,      $02, 32, $00
-        .byte <help_redo,      >help_redo,      $02, 42, $00
-        .byte <help_menu,      >help_menu,      $02, 52, $00
-        .byte <help_select,    >help_select,    $05, 64, $00
-        .byte <menu_resume,    >menu_resume,    MENU_TEXT_COL, (MENU_ROW0+MENU_RESUME)*16+4, $00
-        .byte <menu_reset,     >menu_reset,     MENU_TEXT_COL, (MENU_ROW0+MENU_RESET)*16+4, $00
-        .byte <menu_next,      >menu_next,      MENU_TEXT_COL, (MENU_ROW0+MENU_NEXT)*16+4, $00
-        .byte <menu_prev_str,  >menu_prev_str,  MENU_TEXT_COL, (MENU_ROW0+MENU_PREV)*16+4, $00
-        .byte <menu_goto,      >menu_goto,      MENU_TEXT_COL, (MENU_ROW0+MENU_GOTO)*16+4, $00
-        .byte <menu_quit,      >menu_quit,      MENU_TEXT_COL, (MENU_ROW0+MENU_QUIT)*16+4, $00
+        .byte <help_move,      >help_move,       20, 24, STYLE_COMPACT
+        .byte <help_move_keys, >help_move_keys, 104, 24, STYLE_COMPACT
+        .byte <help_undo,      >help_undo,       20, 36, STYLE_COMPACT
+        .byte <help_undo_keys, >help_undo_keys, 104, 36, STYLE_COMPACT
+        .byte <help_redo,      >help_redo,       20, 48, STYLE_COMPACT
+        .byte <help_redo_keys, >help_redo_keys, 104, 48, STYLE_COMPACT
+        .byte <help_menu,      >help_menu,       20, 60, STYLE_COMPACT
+        .byte <help_menu_keys, >help_menu_keys, 104, 60, STYLE_COMPACT
+        .byte <help_select,    >help_select,    32, 72, STYLE_COMPACT
+        .byte <menu_resume,    >menu_resume,    MENU_TEXT_COL, (MENU_ROW0+MENU_RESUME)*16+4, STYLE_COMPACT
+        .byte <menu_key_resume,>menu_key_resume,MENU_KEY_COL,  (MENU_ROW0+MENU_RESUME)*16+4, STYLE_COMPACT
+        .byte <menu_reset,     >menu_reset,     MENU_TEXT_COL, (MENU_ROW0+MENU_RESET)*16+4, STYLE_COMPACT
+        .byte <menu_key_reset, >menu_key_reset, MENU_KEY_COL,  (MENU_ROW0+MENU_RESET)*16+4, STYLE_COMPACT
+        .byte <menu_next,      >menu_next,      MENU_TEXT_COL, (MENU_ROW0+MENU_NEXT)*16+4, STYLE_COMPACT
+        .byte <menu_key_next,  >menu_key_next,  MENU_KEY_COL,  (MENU_ROW0+MENU_NEXT)*16+4, STYLE_COMPACT
+        .byte <menu_prev_str,  >menu_prev_str,  MENU_TEXT_COL, (MENU_ROW0+MENU_PREV)*16+4, STYLE_COMPACT
+        .byte <menu_key_prev,  >menu_key_prev,  MENU_KEY_COL,  (MENU_ROW0+MENU_PREV)*16+4, STYLE_COMPACT
+        .byte <menu_goto,      >menu_goto,      MENU_TEXT_COL, (MENU_ROW0+MENU_GOTO)*16+4, STYLE_COMPACT
+        .byte <menu_key_goto,  >menu_key_goto,  MENU_KEY_COL,  (MENU_ROW0+MENU_GOTO)*16+4, STYLE_COMPACT
+        .byte <menu_key_dead,  >menu_key_dead,  MENU_KEY_COL,  (MENU_ROW0+MENU_DEADWARN)*16+4, STYLE_COMPACT
+        .byte <menu_quit,      >menu_quit,      MENU_TEXT_COL, (MENU_ROW0+MENU_QUIT)*16+4, STYLE_COMPACT
+        .byte <menu_key_quit,  >menu_key_quit,  MENU_KEY_COL,  (MENU_ROW0+MENU_QUIT)*16+4, STYLE_COMPACT
         .byte $FF
 
 success_table:
@@ -2948,6 +2982,74 @@ draw_big_glyph:
         JMP @row
 @end:   RTS
 
+; draw_compact_glyph: one 8x8 cell, at an arbitrary pixel column. The font
+; uses six pixels plus two blank pixels: an even 8-pixel advance keeps the
+; strokes white in HGR, with a regular gap instead of a whole empty byte.
+; Replace only this cell's bits in the two HGR bytes, including for spaces
+; when the title prompt blinks. Input: A = glyph, X = pixel col, Y = scanline.
+draw_compact_glyph:
+        STX temp
+        STY temp2
+        JSR set_hud_font_ptr
+        LDA temp
+        LDX #$00
+@divide:
+        CMP #7
+        BCC @column
+        SBC #7                          ; CMP left carry set
+        INX
+        BNE @divide
+@column:
+        STX temp                        ; byte column = pixel column / 7
+        STA compact_shift               ; pixel column % 7
+        LDY #$00
+@row:   STY title_glyph
+        LDA (src_lo),Y
+        STA big_byte0
+        LDA #$00
+        STA big_byte1
+        LDX compact_shift
+        BEQ @address
+@shift: LDA big_byte0
+        ASL A
+        CMP #$80                        ; carry = pixel crossing the byte
+        AND #$7F
+        STA big_byte0
+        ROL big_byte1
+        DEX
+        BNE @shift
+@address:
+        TYA
+        CLC
+        ADC temp2
+        TAX
+        LDA hgr_lo,X
+        CLC
+        ADC temp
+        STA ptr_lo
+        LDA hgr_hi,X
+        ADC #$00
+        STA ptr_hi
+        LDX compact_shift
+        LDY #$00
+        LDA (ptr_lo),Y
+        AND compact_keep_lo,X
+        ORA big_byte0
+        STA (ptr_lo),Y
+        INY
+        LDA (ptr_lo),Y
+        AND compact_keep_hi,X
+        ORA big_byte1
+        STA (ptr_lo),Y
+        LDY title_glyph
+        INY
+        CPY #8
+        BCC @row
+        RTS
+
+compact_keep_lo: .byte $00, $01, $03, $07, $0F, $1F, $3F
+compact_keep_hi: .byte $7E, $7C, $78, $70, $60, $40, $00
+
 ; draw_title_glyph: one 7x8 glyph. Input: A = glyph, X = byte_col, Y = scanline.
 draw_title_glyph:
         STX temp
@@ -3003,19 +3105,30 @@ str_solved:     GSTR "SOLVED "
 str_sel_help:   GSTR "RETURN PLAY   ESC BACK   N/P SET"
 
 help_big_title: GSTR "HELP"
-help_move:      GSTR "MOVE STICK OR IJKL"
-help_undo:      GSTR "UNDO BUTTON 0 OR U"
-help_redo:      GSTR "REDO B0+RIGHT OR Y"
-help_menu:      GSTR "MENU BUTTON 1 OR H"
-help_select:    GSTR "BUTTON SELECTS"
+help_move:      GSTR "MOVE"
+help_move_keys: GSTR "STICK / IJKL / WASD"
+help_undo:      GSTR "UNDO"
+help_undo_keys: GSTR "U / BUTTON 0"
+help_redo:      GSTR "REDO"
+help_redo_keys: GSTR "Y / B0 + RIGHT"
+help_menu:      GSTR "MENU"
+help_menu_keys: GSTR "H / ESC / BUTTON 1"
+help_select:    GSTR "STICK/I/K  RETURN/B0 SELECT"
 menu_resume:    GSTR "RESUME"
-menu_reset:     GSTR "RESTART (R)"
-menu_next:      GSTR "NEXT LEVEL (N)"
-menu_prev_str:  GSTR "PREV LEVEL (P)"
-menu_goto:      GSTR "GO TO LEVEL (G)"
-menu_dead_on:  GSTR "DEADLOCK ON (C)"
-menu_dead_off: GSTR "DEADLOCK OFF(C)"
-menu_quit:      GSTR "QUIT TO DOS (Q)"
+menu_reset:     GSTR "RESTART"
+menu_next:      GSTR "NEXT LEVEL"
+menu_prev_str:  GSTR "PREV LEVEL"
+menu_goto:      GSTR "GO TO LEVEL"
+menu_dead_on:   GSTR "DEADLOCK ON "
+menu_dead_off:  GSTR "DEADLOCK OFF"
+menu_quit:      GSTR "QUIT TO DOS"
+menu_key_resume:GSTR "(ESC)"
+menu_key_reset: GSTR "(R)"
+menu_key_next:  GSTR "(N)"
+menu_key_prev:  GSTR "(P)"
+menu_key_goto:  GSTR "(G)"
+menu_key_dead:  GSTR "(C)"
+menu_key_quit:  GSTR "(Q)"
 
 ; =============================================================================
 ; Tile transitions
@@ -3159,14 +3272,12 @@ tile_bitmaps:
         .byte $70,$01, $7C,$07, $7E,$0F, $70,$01
         .byte $70,$01, $78,$03, $0C,$06, $0C,$06
         .byte $0C,$06, $0E,$0E, $00,$00, $00,$00
-; Tile 6: PLAYER ON TARGET — the figure in green. Green is odd pixels only
-; (bit 7 clear), each dot two pixels wide on screen, so the figure is redrawn
-; on that grid, symmetric about pixel 6 (the white one is centred on 5.5,
-; which no odd-pixel grid can mirror): head 5,7 / arms 1..11 / legs 3 and 9.
-        .byte $20,$01, $20,$01, $20,$01, $20,$01
-        .byte $20,$01, $28,$05, $2A,$15, $20,$01
-        .byte $20,$01, $28,$05, $08,$04, $08,$04
-        .byte $08,$04, $0A,$14, $00,$00, $00,$00
+; Tile 6: PLAYER ON TARGET — the same white figure, with a green line
+; below its feet (odd pixels, bit 7 clear).
+        .byte $70,$01, $78,$03, $18,$03, $78,$03
+        .byte $70,$01, $7C,$07, $7E,$0F, $70,$01
+        .byte $70,$01, $78,$03, $0C,$06, $0C,$06
+        .byte $0C,$06, $0E,$0E, $28,$15, $00,$00
 
 .assert pack_buf = PACK_ADDR, error, "the packs are BLOADed at PACK_ADDR"
 

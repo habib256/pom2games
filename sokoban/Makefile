@@ -32,9 +32,10 @@ COLLS   := MB1:I:levels/microban.xsb MB2:II:levels/microban2.xsb \
            MB3:III:levels/microban3.xsb MB4:IV:levels/microban4.xsb
 # Levels of the title-screen demo (HUD:original number), from the checked
 # solutions of tools/make_solutions.py. All in the first pack of Microban,
-# which is loaded under the title: no disk access during the demo.
+# for a smooth demo. The last three have 4, 3 and 5 boxes, with much
+# longer solutions than the four introductory levels.
 SOLUTIONS := levels/solutions.txt
-DEMO    := I:1,I:3,I:12,I:23
+DEMO    := I:1,I:3,I:12,I:23,I:60,I:84,I:98
 LEVELS  := $(BUILD)/lv/levels.inc
 
 all: $(DISK)

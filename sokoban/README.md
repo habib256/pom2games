@@ -32,13 +32,16 @@ Prérequis : cc65 (`brew install cc65`) et python3. L'image est écrite par
 |                                   | Q (menu)                         | quitter vers DOS           |
 
 L'écran titre montre le nombre de niveaux résolus (toutes collections) et
-celui où la partie reprend (`CONTINUE III:056`), sous un petit entrepôt
-animé où le joueur pousse une caisse sur sa cible. N'importe quelle touche ou
-bouton lance la partie ; H l'ouvre sur l'aide, G sur la grille des niveaux.
+celui où la partie reprend (`CONTINUE III:056`). Tout en bas, un petit entrepôt
+animé montre le joueur poussant une caisse sur sa cible, sans son, à raison
+d'un pas toutes les ~0,8 s. Le texte utilise un espacement régulier de 8 pixels.
+N'importe quelle touche ou bouton lance la partie ; H l'ouvre sur l'aide,
+G sur la grille des niveaux.
 Sur l'écran de succès : n'importe quelle touche ou bouton.
-Après 10 s sans touche ni bouton sur l'écran titre, une démo joue quatre
-niveaux de Microban (1, 3, 12, 23) avec leurs solutions, puis revient au
-titre ; une touche ou un bouton l'interrompt. La démo n'enregistre rien.
+Après 10 s sans touche ni bouton sur l'écran titre, une démo sonore joue sept
+niveaux de Microban (1, 3, 12, 23, puis 60, 84 et 98, nettement plus difficiles)
+avec leurs solutions, puis revient au titre ; une touche ou un bouton
+l'interrompt. La démo n'enregistre rien.
 Ctrl-RESET quitte aussi proprement vers DOS (page zéro restaurée).
 
 Le HUD occupe les quatre coins (3 cases chacun, 4 en bas à gauche) : coups
@@ -107,7 +110,7 @@ sur 5) : 6,6 Ko pour Microban, 5,8 Ko pour Microban II, 4,0 Ko pour III,
 - Lecture des deux paddles dans une seule boucle de durée fixe (6 ms), boutons
   détectés sur front, répétition du manche toutes les ~200 ms.
 - Tuiles en couleur HGR (murs bleus, caisses orange, caisses placées et cibles
-  vertes, joueur blanc, vert quand il est sur une cible) ; l'écran texte
+  vertes, joueur blanc avec un trait vert sous les pieds sur une cible) ; l'écran texte
   Apple-1 est remplacé par le menu HGR.
 - Disposition `../dev` : binaire à `$6000` (config `dev/cc65/apple2_hgr.cfg`),
   au-dessus des deux pages HGR, zéro page en `$50` sauvegardée au démarrage
