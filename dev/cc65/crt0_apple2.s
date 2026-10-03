@@ -89,6 +89,17 @@ reset_exit:
 
 ; restore: RESET vector, zero page (live text window + cursor kept), text.
 restore:
+        ; Main-bank entry. Disable IIe/c extensions before restoring DOS state.
+        lda     $FBB3
+        cmp     #$06
+        bne     @classic
+        lda     #0
+        sta     $C002
+        sta     $C004
+        sta     $C000
+        sta     $C00C
+        bit     $C05F
+@classic:
         ldx     #2
 @rrv:   lda     rst_save,x
         sta     SOFTEV,x

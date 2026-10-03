@@ -1,5 +1,5 @@
 ; ============================================================================
-; gen2_bubble.asm -- full-width speech-bubble frame for the GEN2 HGR LOGO build.
+; hgr_bubble.asm -- full-width speech-bubble frame for the GEN2 HGR LOGO build.
 ; ----------------------------------------------------------------------------
 ; Replaces dev/lib/tms9918/bubble.asm (same draw_bubble symbol). Two HGR-aware
 ; upgrades over the TMS version:

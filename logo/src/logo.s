@@ -2,7 +2,7 @@
 ; logo.s -- APPLE II LOGO: APPLE-1 LOGO V2.6 (GEN2 HGR edition) on the Apple II
 ; ============================================================================
 ; Apple II port of POM1's shared LOGO interpreter (sketchs/tms9918/tool_logo/
-; TMS_Logo_16k.asm, built with CODETANK_BUILD + LOGO_GEN2 like
+; TMS_Logo_16k.asm, built with CODETANK_BUILD + LOGO_HGR like
 ; sketchs/gen2/tool_logo_gen2). The interpreter is unchanged; what changed:
 ;   - console: the Apple-1 terminal becomes the Apple II text screen, in 80
 ;     columns when a //e 80-column card is there, 40 otherwise (screen.asm).
@@ -14,7 +14,7 @@
 ;     and <- / DEL backspace.
 ;   - BYE (and Ctrl-RESET) return to DOS with the zero page restored
 ;     (dev/lib/apple2/exit.asm).
-;   - no V-blank on an Apple II: gen2_emote_vsync is a stub.
+;   - no V-blank on an Apple II: hgr_emote_vsync is a stub.
 ;   - memory: BRUN at $4000, tables at $1000 (logo.cfg).
 ; Upstream: github.com/habib256/pom1 @ e2a4748 (2026-09-11). GPL-3.0.
 ; ============================================================================
@@ -110,7 +110,7 @@
 .import   calc_pix_addr, vdp_set_write, vdp_set_read
 .import   plot_set              ; single-pixel plotter (GEN2 emote blit;
                                 ; both backends export it)
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
 ; 9-bit-X seam (GEN2 only): full 0..279 HGR width for the turtle + bubble.
 .import   line_xy16, plot_set_x16
 .importzp ln_x0h, ln_x1h, pix_xh
@@ -192,7 +192,7 @@ VAR_ENTRY_SIZE    = 8     ; NAME_LEN + 2 (16-bit value)
 tmp:          .res 1
 tmp2:         .res 1
 tx_lo:        .res 1     ; turtle x low byte (TMS: 0..255; GEN2 + tx_hi: 0..279)
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
 tx_hi:        .res 1     ; turtle x high bit (0/1) -> full 280-px HGR width
 .endif
 ty_lo:        .res 1     ; turtle y  (0..191)
@@ -232,7 +232,7 @@ spr_size:    .res 1
 spr_xoff:    .res 1
 spr_yoff:    .res 1
 spr_r1:      .res 1
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
 ; --- GEN2 software-sprite (emote) blit scratch (HGR has no HW sprites, so
 ;     SETSHAPE shapes are XOR-blitted bitmaps that survive plot_set's A/X/Y
 ;     clobber via these ZP loop vars). ---
@@ -311,7 +311,7 @@ tx1:       .res 1         ; vertex 1 (back-left)
 ty1:       .res 1
 tx2:       .res 1         ; vertex 2 (back-right)
 ty2:       .res 1
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
 tx0h:      .res 1         ; turtle-vertex X high bytes (9-bit X, full 280 width)
 tx1h:      .res 1
 tx2h:      .res 1
@@ -415,7 +415,7 @@ main:
         STA plot_mode
         STA turtle_visible
         STA sprite_mode
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
         ; GEN2 only: the turtle X is 9-bit (tx_lo + tx_hi). cmd_home sets
         ; tx_lo=128 but NOT tx_hi, so a non-zero power-on RAM value in this
         ; BSS byte would fling the boot arrow to column 128+256 = 384 (off the
@@ -501,7 +501,7 @@ new_prompt:
 
 banner_msg:
         .byte $0D, "APPLE II LOGO V2.6 - HELP", $0D
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
         ; GEN2-only extra line; the TMS build's banner stays byte-for-byte as
         ; shipped (keeps Codetank_GAME3.rom identical).
         .byte "HGR TURTLE - TS SS FS - COLUMNS 40/80", $0D
@@ -518,7 +518,7 @@ banner_msg:
 help_toc:
         .byte $0D
         .byte "APPLE II LOGO V2.6 -- HELP", $0D
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
         .byte "HGR graphics, Apple II, 40/80 columns", $0D
 .else
         .byte "TMS9918 graphics, 16K Apple-1", $0D
@@ -1762,7 +1762,7 @@ cmd_demo2:
         STA mptr_lo
         LDA #>demo2_script
         STA mptr_hi
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
         ; GEN2: the narrator emotes are tinted by SETPC in demo2_script, so
         ; switch the emote blitter into its colour path for the whole show.
         ; Cleared again at cmd_demo_run's @done so BIRDFLY (run from the classic
@@ -1814,7 +1814,7 @@ cmd_demo_run:
         JMP @nxt
 @done:  ; terminate outer line_buf so the caller's parse_and_exec @loop
         ; sees a CR and exits cleanly.
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
         LDA #0                ; back to solid-white emotes for BIRDFLY / REPL
         STA em_color
 .endif
@@ -3109,7 +3109,7 @@ cmd_home:
         LDA #0
         STA th_lo
         STA th_hi
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
         STA tx_hi             ; keep HOME on the low 256 columns (tx_lo=128) --
                               ; without this a turtle parked at x>=256 would
                               ; re-home into the phantom column 384.
@@ -3144,7 +3144,7 @@ cmd_seth:
 
 cmd_setxy:
         JSR erase_turtle
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
         ; clamp x to the full 0..279 HGR width -> tx_lo / tx_hi
         LDA arg_lo
         CMP #<280
@@ -3230,7 +3230,7 @@ cmd_bk:
 
 fd_common:
         JSR erase_turtle      ; remove turtle pixels before line draw
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
         ; clamp distance to 0..511 (16-bit mul_dist_by_signed handles it; the
         ; full-width 280-px screen never needs a single step beyond ~340 px).
         LDA arg_hi
@@ -3270,7 +3270,7 @@ fd_common:
         LDA tx_lo
         ADC prod_lo
         STA nx_save_lo
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
         LDA tx_hi
 .else
         LDA #0
@@ -3302,7 +3302,7 @@ fd_common:
         LDA #0
         SBC prod_hi
         STA tmp2
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
         ; --- clamp nx into the full [0..279] HGR width ---
         LDA nx_save_hi
         BPL @nx_nonneg
@@ -3363,7 +3363,7 @@ fd_common:
         STA ln_x1
         LDA ny_save
         STA ln_y1
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
         LDA tx_hi             ; old position X high byte
         STA ln_x0h
         LDA nx_save_hi        ; new position X high byte
@@ -3376,7 +3376,7 @@ fd_common:
         ; commit new turtle position
         LDA nx_save_lo
         STA tx_lo
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
         LDA nx_save_hi
         STA tx_hi
 .endif
@@ -3769,7 +3769,7 @@ cmd_ifelse:
 
 ; (disable_sprites moved to tms9918m2.asm.)
 
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
 ; add_tx_off: 16-bit (tx_lo:tx_hi) + signed 8-bit offset in A.
 ;   Returns A = low byte, X = high byte. Carry from the low add is carried
 ;   into the high add through the BIT-$2C sign-extend (BIT touches N/V/Z,
@@ -3854,7 +3854,7 @@ compute_turtle_verts:
         JSR mul_dist_by_signed
         LDA prod_lo
         STA c_tip
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
         ; ---- 9-bit-X vertices (full 280-px width). txN = tx + offN computed
         ;      16-bit by add_tx_off; y vertices stay 8-bit. ----
         ; V0 tip: off = s_tip
@@ -3965,7 +3965,7 @@ compute_turtle_verts:
 ; address bookkeeping.
 ; ============================================================================
 
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
 ; ============================================================================
 ; GEN2 HGR turtle subsystem (replaces the TMS9918 sprite/VRAM region below).
 ;   The HGR card has no hardware sprites, so the turtle is a reversible XOR
@@ -4022,7 +4022,7 @@ trace_turtle_lines:
         STA ln_y1
         JMP line_xy16  ; tail-call (was JSR+RTS; -1 B, juillet 2026 bank squeeze)
 
-; gen2_emote_vsync: coarse V-blank sync (HST0 = bit 7 of any $C25x read).
+; hgr_emote_vsync: coarse V-blank sync (HST0 = bit 7 of any $C25x read).
 ;   Called at the head of every visible EMOTE transition (erase_turtle @emote),
 ;   so the XOR erase -> reposition -> redraw burst BEGINS at V-blank. That parks
 ;   the transient "bird fully erased" window up in V-blank / top-of-frame, where
@@ -4032,11 +4032,11 @@ trace_turtle_lines:
 ;   VDP $CC01 status flag instead). Polls PAGE1 -- LOGO runs HIRES/PAGE1 and a
 ;   $C254 read is an idempotent page-1 SELECT (not a bit toggle), so the poll
 ;   never disturbs the mode. ORs two samples 4c apart to mask the 3c colour-
-;   burst notch (see gen2.inc / gen2_sync.asm). Clobbers A only.
+;   burst notch (see gen2.inc / hgr_sync.asm). Clobbers A only.
 ; Apple II: there is no V-blank signal to poll -- a $C05x read returns the
 ; floating video bus, not the GEN2's HST0 flag -- so the sync is a stub and
 ; the emote simply redraws immediately.
-gen2_emote_vsync:
+hgr_emote_vsync:
         RTS
 
 draw_turtle:
@@ -4065,7 +4065,7 @@ draw_turtle:
         RTS
 @emote: LDA #0                    ; colour path: this pass DRAWS (OR + pen)
         STA em_erase
-        JSR gen2_draw_emote       ; XOR-blit (white) / OR-blit (colour) the shape
+        JSR hgr_draw_emote       ; XOR-blit (white) / OR-blit (colour) the shape
         LDA #1
         STA turtle_visible
 @done:  RTS
@@ -4085,10 +4085,10 @@ erase_turtle:
         LDA #0
         STA turtle_visible
         RTS
-@emote: JSR gen2_emote_vsync      ; begin the erase+reposition+redraw at V-blank
+@emote: JSR hgr_emote_vsync      ; begin the erase+reposition+redraw at V-blank
         LDA #1                    ; colour path: this pass ERASES (XOR)
         STA em_erase
-        JSR gen2_draw_emote       ; re-XOR the same dots -> erased
+        JSR hgr_draw_emote       ; re-XOR the same dots -> erased
         LDA #0
         STA turtle_visible
 @done:  RTS
@@ -4097,7 +4097,7 @@ erase_turtle:
 ;   instead of erase_turtle / draw_turtle. The classic triangle turtle
 ;   (sprite_mode 0) rotates with the heading, so it must be erased+redrawn as
 ;   before. A SETSHAPE emote (sprite_mode 1) is non-directional -- a pure turn
-;   changes NONE of its pixels (gen2_draw_emote ignores th; tx/ty are unchanged)
+;   changes NONE of its pixels (hgr_draw_emote ignores th; tx/ty are unchanged)
 ;   -- so skip the XOR erase/redraw entirely. That removes the transient
 ;   "erased" window the async HGR renderer would otherwise sample as a flicker
 ;   (e.g. BIRDFLY's "TR 12" between flaps); the emote simply stays drawn as-is.
@@ -4112,7 +4112,7 @@ turn_draw:
         JMP draw_turtle
 @skip:  RTS
 
-; gen2_draw_emote: XOR-blit the current SETSHAPE bitmap (shape_pat_lo:hi,
+; hgr_draw_emote: XOR-blit the current SETSHAPE bitmap (shape_pat_lo:hi,
 ;   spr_size = 8 or 32) at the turtle, PIXEL-DOUBLED 2x (each source pixel ->
 ;   a 2x2 screen block). Doubling makes the emote solid white on HGR instead
 ;   of a single-pixel mesh that NTSC-artifacts into a colour fringe, and gives
@@ -4123,7 +4123,7 @@ turn_draw:
 ;   math collapses to a plain linear index for the 8x8 case, so one path
 ;   serves both. plot_set clobbers A/X/Y (but NOT pix_x/pix_y), so every loop
 ;   var lives in ZP and the 2x2 block re-uses pix_x/pix_y via inc/dec.
-gen2_draw_emote:
+hgr_draw_emote:
         LDA spr_size
         CMP #32
         BNE @dim8
@@ -4217,7 +4217,7 @@ gen2_draw_emote:
         LDA em_col
         AND #7
         TAX
-        LDA gen2_em_bit,X         ; mask = $80 >> (col&7)
+        LDA hgr_em_bit,X         ; mask = $80 >> (col&7)
         AND tmp
         BNE @lit                  ; set -> plot; else fall through to @next
         JMP @next                 ; transparent (long jump: @next is out of
@@ -4271,7 +4271,7 @@ gen2_draw_emote:
         LDA #0
         STA plot_mode
         RTS
-gen2_em_bit:
+hgr_em_bit:
         .byte $80, $40, $20, $10, $08, $04, $02, $01
 ; em_par_tbl: column-parity (0/1) per pen_color, tuned with the backend's
 ;   pen_hi_tbl (family bit) so the DEMO2 narrator gets 4 recognisable HGR hues.
@@ -4722,7 +4722,7 @@ cmd_setshape:
 @bad_name:
         LDA #ERR_BAD_NAME
         JMP print_err  ; tail-call (was JSR+RTS; -1 B, juillet 2026 bank squeeze)
-.endif  ; LOGO_GEN2 (HGR turtle subsystem) vs TMS9918 sprite/VRAM region
+.endif  ; LOGO_HGR (HGR turtle subsystem) vs TMS9918 sprite/VRAM region
 
 ; shape_table: name (NAME_LEN = 6 bytes) + size byte (8 or 32) +
 ;   pointer to the pattern (lo, hi). 9 bytes per entry. Names are
@@ -5119,7 +5119,7 @@ blit_glyph:
 ;   Format: CR-terminated lines, $00 sentinel.
 ; ============================================================================
 demo2_script:
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
         ; ====================================================================
         ; GEN2 build: the FACTUAL story of UNCLE BERNIE'S "APRIL FOOLS'" CARD --
         ; the GEN2 HGR Color Graphics Card this LOGO actually runs on. Bernie
@@ -5378,7 +5378,7 @@ demo2_script:
         .byte "CS", $0D
         .byte "SETSHAPE ", $22, "ARROW", $0D
         .byte 0
-.endif  ; LOGO_GEN2 demo2 (GEN2 HGR / Uncle Bernie) vs TMS9918 (P-LAB) story
+.endif  ; LOGO_HGR demo2 (GEN2 HGR / Uncle Bernie) vs TMS9918 (P-LAB) story
 .endif
 
 ; ============================================================================

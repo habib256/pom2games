@@ -5,6 +5,7 @@ Port Apple II du sketch `sketchs/gen2/game_snake_telemetry` de
 C (cc65). Le serpent traverse les bords gauche/droite, meurt contre les murs du
 haut et du bas ; chaque pomme vaut 5 points et accélère le jeu, une gemme bonus
 (20 points) apparaît toutes les 4 pommes pour un temps limité.
+Remplir les 660 cases jouables déclenche « YOU WIN ».
 
     make            # -> ../dist/SNAKE.dsk  (image DOS 3.3 5"1/4 amorçable)
     make run        # démarre l'image dans POM2 (profil Apple ][+)
@@ -18,10 +19,16 @@ Prérequis : cc65 (`brew install cc65`) et python3. Tout le reste est dans
 | Clavier                  | Action                    |
 |--------------------------|---------------------------|
 | I J K L, flèches         | diriger le serpent        |
+| P ou Échap               | pause / reprendre         |
+| Q (pendant la pause)     | revenir à DOS            |
 | n'importe quelle touche  | démarrer / rejouer        |
 
 Le titre démarre seul après ~4 s. Après GAME OVER, la partie repart seule ou à
 la première touche. Sur un II+ seules les flèches gauche/droite existent.
+Deux virages rapides peuvent être mémorisés et sont appliqués sur deux déplacements
+successifs. La disposition des pommes varie selon le moment où l'on quitte le
+titre avec une touche ; un démarrage automatique garde la même séquence.
+Pour rejouer une séquence précise : `make clean`, puis `make FIXED_SEED=0xACE1`.
 
 Améliorations prévues : voir [`TODO.md`](TODO.md).
 
@@ -31,8 +38,7 @@ Améliorations prévues : voir [`TODO.md`](TODO.md).
     src/hello.bas        HELLO : 10 PRINT CHR$(4);"BRUN SNAKE"
     ../dist/SNAKE.dsk    l'image produite
 
-Bibliothèques : `../dev/lib/hgrc` (runtime C HGR, version Apple II du gen2c
-de POM1), `../dev/lib/gfx`, `../dev/lib/apple2c` (clavier), `../dev/lib/apple2/hgr.asm`
+Bibliothèques : `../dev/lib/hgrc` (runtime C HGR natif Apple II), `../dev/lib/gfx`, `../dev/lib/apple2c` (clavier), `../dev/lib/apple2/hgr.asm`
 (commutateurs), `../dev/cc65/crt0_apple2.s` + `apple2_hgr_c.cfg`,
 `../dev/tools/dos33.py`.
 
@@ -41,8 +47,8 @@ de POM1), `../dev/lib/gfx`, `../dev/lib/apple2c` (clavier), `../dev/lib/apple2/h
 - La télémétrie POM1 (`$C440-$C443`) est retirée : sur un Apple II c'est
   l'espace d'entrées/sorties du slot 4, où vit une Mockingboard.
 - Runtime C HGR (`../dev/lib/hgrc`) : commutateurs en `$C050` au lieu de
-  `$C250`, plus de `gen2_wait_vbl` (pas de V-blank sur un II+). Les noms
-  `gen2_*` sont gardés.
+  `$C250`, pas d’attente V-blank sur un II+. L’API utilise
+  `hgr.h`, les fonctions `hgr_*` et les constantes `HGR_*`.
 - Clavier Apple II et flèches ; titre « APPLE II ».
 - La réinitialisation du mode vidéo à chaque trame (contournement propre à
   l'émulateur POM1) est retirée.

@@ -18,14 +18,14 @@
  *
  * PERFORMANCE (per-frame budget is dominated by the 16 sprite blits):
  *   - INCREMENTAL: captions drawn once/page; each frame only touches sprite
- *     footprints. ERASE is a byte-column 0-FILL (gen2_hgr_fill_rect) of the
+ *     footprints. ERASE is a byte-column 0-FILL (hgr_fill_rect) of the
  *     footprint rectangle, NOT a CLEAR-blit of the shape: on a black field the
  *     fill's tight STA loop (no source read, no per-byte AND) is ~2x cheaper, and
- *     needs no bank/phase data. DRAW is a GEN2_SET blit (OR keeps overlaps).
+ *     needs no bank/phase data. DRAW is a HGR_SET blit (OR keeps overlaps).
  *   - BOUNDING-BOX TRIM, per-phase: each phase is baked to its OWN content box
  *     (yoff/rows + per-phase xoff/width, ~4-5 bytes not 7) — blit7 pays for zero
  *     bytes too. ~40% fewer byte-ops AND small enough (7.1 KB) to fit 8 sprites'
- *     banks even when the DevBench force-links the whole gen2c runtime.
+ *     banks even when the DevBench force-links the whole hgrc runtime.
  *   - ZERO per-frame mul/div: sine pre-scaled per amplitude + phase accumulators;
  *     x->(base,phase,bank offset) is a boot-built LUT (parked in LOWBSS).
  *   - Double-buffered (no V-blank on a II/II+: the flip is immediate).
@@ -36,7 +36,7 @@
  *
  *   Build : make   (demos/)  ->  dist/DEMO.dsk, BLOAD ANIMALS + CALL 24576
  */
-#include "gen2.h"                 /* + apple2c.h (keyboard) */
+#include "hgr.h"                 /* + apple2c.h (keyboard) */
 
 #define NA   8u                       /* 8 fauna animals                        */
 
@@ -1716,9 +1716,9 @@ static const signed char   ampY[NA]  = {  22,   28,   20,   26,   30,   28,   32
 /* These runtime tables are UNINITIALISED (init_luts / set_pos fill them before
  * first read), so park them in LOWBSS ($0C00-$1FFF, idle below the framebuffers)
  * instead of the tight $6000-$BEFF BSS. That's what keeps 8 sprites fitting when
- * the in-app DevBench force-links the WHOLE gen2c runtime. crt0 does NOT zero
+ * the in-app DevBench force-links the WHOLE hgrc runtime. crt0 does NOT zero
  * LOWBSS, which is fine: nothing here is read before it is written. See
- * [[gen2c_devbench_forcelink_lowbss]]. */
+ * [[hgrc_devbench_forcelink_lowbss]]. */
 #define NX2 113u
 #pragma bss-name(push, "LOWBSS")
 static int cx[NA], cy[NA];
@@ -1777,19 +1777,19 @@ static void set_pos(void) {
 static void draw_animal(unsigned char id, int x, int y) {
     unsigned char h  = (unsigned char)((unsigned)x >> 1);
     unsigned char ph = phTb[h];
-    gen2_hgr_blit7((unsigned)baseT[h] + xoff7[id][ph],
+    hgr_blit7((unsigned)baseT[h] + xoff7[id][ph],
                    (unsigned char)(y + sprYoff[id]),
-                   sprWp[id][ph], sprRows[id], spr[id] + bankOff[id][ph], GEN2_SET);
+                   sprWp[id][ph], sprRows[id], spr[id] + bankOff[id][ph], HGR_SET);
 }
 
 /* ERASE: on a black field, clearing the footprint is a byte-column 0-FILL, not
- * a CLEAR-blit of the shape. gen2_hgr_fill_rect's inner loop is a tight STA (no
- * source read, no per-byte AND/EOR) -> ~2x cheaper than GEN2_CLEAR, and the erase
+ * a CLEAR-blit of the shape. hgr_fill_rect's inner loop is a tight STA (no
+ * source read, no per-byte AND/EOR) -> ~2x cheaper than HGR_CLEAR, and the erase
  * needs no bank/phase data — just the same rectangle the draw covered. */
 static void erase_animal(unsigned char id, int x, int y) {
     unsigned char h  = (unsigned char)((unsigned)x >> 1);
     unsigned char ph = phTb[h];
-    gen2_hgr_fill_rect((unsigned char)(y + sprYoff[id]), sprRows[id],
+    hgr_fill_rect((unsigned char)(y + sprYoff[id]), sprRows[id],
                        (unsigned char)(baseCol[h] + sprXoff[id][ph]),
                        sprWp[id][ph], 0u);
 }
@@ -1798,14 +1798,14 @@ void main(void) {
     unsigned char page = 1u, pidx, i, pg;
     int ox[NA][2], oy[NA][2];
 
-    gen2_hgr_init();
+    hgr_init();
     init_luts();
 
     for (pg = 1u; pg <= 2u; ++pg) {
-        gen2_set_draw_page(pg);
-        gen2_hgr_clear(0u);
-        gen2_hgr_puts8(4u, 4u, "FAUNA X2 (8 SPRITES)  ESC=MENU");   /* <= 34 cells */
-        gen2_hgr_puts8(4u, 184u, "DOG OCT BAT LION RAB SPI CAT SNK");
+        hgr_set_draw_page(pg);
+        hgr_clear(0u);
+        hgr_puts8(4u, 4u, "FAUNA X2 (8 SPRITES)  ESC=MENU");   /* <= 34 cells */
+        hgr_puts8(4u, 184u, "DOG OCT BAT LION RAB SPI CAT SNK");
     }
 
     set_pos();
@@ -1813,7 +1813,7 @@ void main(void) {
 
     for (;;) {
         pidx = (unsigned char)(page - 1u);
-        gen2_set_draw_page(page);
+        hgr_set_draw_page(page);
 
         for (i = 0u; i < NA; ++i)                 /* erase old footprints (0-fill) */
             erase_animal(i, ox[i][pidx], oy[i][pidx]);
@@ -1823,7 +1823,7 @@ void main(void) {
             oy[i][pidx] = cy[i];
         }
 
-        gen2_show_page();
+        hgr_show_page();
         page = (page == 1u) ? 2u : 1u;
 
         set_pos();

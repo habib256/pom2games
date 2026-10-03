@@ -16,8 +16,10 @@ POM2    ?= /Applications/POM2.app/Contents/MacOS/POM2
 SYSTEM  ?= $(DEV)/tools/dos33_system.bin
 
 APPLE2C := $(DEV)/lib/apple2c
-GEN2C   := $(DEV)/lib/hgrc
+HGRC   := $(DEV)/lib/hgrc
 GFX     := $(DEV)/lib/gfx
+include $(APPLE2C)/apple2c.mk
+include $(HGRC)/hgrc.mk
 CFG     := $(DEV)/cc65/apple2_hgr_c.cfg
 BUILD   := build
 DIST    ?= ../dist
@@ -25,21 +27,22 @@ DISK    := $(DIST)/SNAKE.dsk
 BIN     := $(BUILD)/snake.bin
 LOAD    := 0x6000
 
-CFLAGS  := -t none -Oirs -I $(GEN2C) -I $(APPLE2C) -I $(GFX)
-AFLAGS  := -t none -I $(DEV)/lib/apple2 -I $(GEN2C)
+CFLAGS  := -t none -Oirs -I $(HGRC) -I $(APPLE2C) -I $(GFX)
+AFLAGS  := -t none -I $(DEV)/lib/apple2 -I $(HGRC)
+ifneq ($(FIXED_SEED),)
+CFLAGS  += -DSNAKE_FIXED_SEED=$(FIXED_SEED)
+endif
 
 # crt0_apple2 FIRST: it provides __STARTUP__ / _exit instead of none.lib's crt0.
-C_SRCS  := snake.c gen2_init.c gen2_rect.c gen2_text.c gen2_text_num.c \
-           gfx_num_hex.c apple2io.c
-S_SRCS  := crt0_apple2.s gen2_blit.s apple2io_asm.s
-OBJS    := $(BUILD)/crt0_apple2.o $(addprefix $(BUILD)/,$(filter-out crt0_apple2.o,$(S_SRCS:.s=.o)) $(C_SRCS:.c=.o))
+HGRC_EXTRA_SRCS := $(APPLE2C_SRCS)
+OBJS := $(BUILD)/crt0_apple2.o $(BUILD)/snake.o
 
-vpath %.c src $(GEN2C) $(GFX) $(APPLE2C)
-vpath %.s $(DEV)/cc65 $(GEN2C) $(APPLE2C)
+vpath %.c src $(HGRC) $(GFX) $(APPLE2C)
+vpath %.s $(DEV)/cc65 $(HGRC) $(APPLE2C)
 
 all: $(DISK)
 
-$(BUILD)/%.o: %.c $(GEN2C)/gen2.h $(GEN2C)/gen2_internal.h $(GEN2C)/gen2_bbfont.inc $(GFX)/gfx.h $(APPLE2C)/apple2io.h
+$(BUILD)/%.o: %.c $(HGRC_HEADERS) $(APPLE2C)/apple2io.h
 	@mkdir -p $(BUILD)
 	$(CL65) $(CFLAGS) -c -o $@ $<
 
@@ -47,8 +50,8 @@ $(BUILD)/%.o: %.s $(wildcard $(DEV)/lib/apple2/*.inc $(DEV)/lib/apple2/*.asm)
 	@mkdir -p $(BUILD)
 	$(CA65) $(AFLAGS) -o $@ $<
 
-$(BIN): $(OBJS) $(CFG)
-	$(CL65) -t none -C $(CFG) -m $(BUILD)/snake.map -o $@ $(OBJS)
+$(BIN): $(OBJS) $(HGRC_LIB) $(CFG) Makefile
+	$(CL65) -t none -C $(CFG) -m $(BUILD)/snake.map -o $@ $(OBJS) $(HGRC_LIB)
 	@echo "binary: $$(wc -c < $@) bytes at $(LOAD)"
 
 $(DISK): $(BIN) src/hello.bas $(DEV)/tools/dos33.py $(SYSTEM)
@@ -68,3 +71,5 @@ distclean: clean
 	rm -f $(DISK)
 
 .PHONY: all run clean distclean
+
+include $(HGRC)/hgrc_build.mk

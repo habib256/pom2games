@@ -60,7 +60,7 @@
 .export init_vdp_g2, clear_bitmap, disable_sprites
 .export vdp_set_write, vdp_set_read, calc_pix_addr, plot_set, plot_set_x16
 .export line_xy, line_xy16
-.export hgr_lo, hgr_hi      ; scanline base LUTs (gen2_bubble clears its band)
+.export hgr_lo, hgr_hi      ; scanline base LUTs (hgr_bubble clears its band)
 ; The LOGO interpreter unconditionally .imports these TMS silicon-strict
 ; timing helpers (their call sites are scattered outside the gated turtle
 ; region). On HGR there is no VDP write-window to pad for, so resolve them to

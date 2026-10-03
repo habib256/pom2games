@@ -2,10 +2,8 @@
 
 Programmes Apple II sur disquettes DOS 3.3, pour
 [POM2](https://github.com/habib256/pom2) ou un vrai Apple II. Ce sont surtout des
-ports des programmes Apple-1 + carte GEN2 de
-[POM1](https://github.com/habib256/pom1) : la GEN2 est le sous-système vidéo de
-l'Apple II transplanté sur le bus Apple-1, ce qui rend le passage à l'Apple II
-naturel.
+ports de programmes de [POM1](https://github.com/habib256/pom1), adaptés à
+la vidéo native de l'Apple II.
 
 | Dossier | Programme | Machine | Disquette |
 |---|---|---|---|
@@ -14,6 +12,7 @@ naturel.
 | [`maze3d/`](maze3d/) | Dungeon crawler 3D en fil de fer, double tampon HGR | Apple II+ | `dist/MAZE3D.dsk` |
 | [`snake/`](snake/) | Snake en C (cc65) | Apple II+ | `dist/SNAKE.dsk` |
 | [`logo/`](logo/) | LOGO V2.6 : tortue HGR, texte / mixte / graphique, 40 ou 80 colonnes | Apple //e (80 col.) ou II+ (40 col.) | `dist/LOGO.dsk` |
+| [`dev/examples/dhgr/`](dev/examples/dhgr/) | Palette 16 couleurs et grille DHGR | Apple IIe 128 Ko / IIc | `dist/DHGR.dsk` |
 | [`demos/`](demos/) | Menu de 5 démos : BOUNCES, ANIMALS, LIFE, PRESHIFT, FONT | Apple II+ | `dist/DEMO.dsk` |
 
 Toutes les disquettes sont rangées dans [`dist/`](dist/), prêtes à l'emploi : on
@@ -30,7 +29,9 @@ sa disquette amorçable et la [description de la version](docs/releases/1.0.md).
     make                 # toutes les disquettes, dans dist/
     make -C chess        # une seule (elle va aussi dans dist/)
     make -C chess run    # la lancer dans POM2 installé (/Applications/POM2.app)
-    make test            # MICRO-SOKOBAN : les 454 niveaux joués dans a2run (~1 min 30)
+    make test            # HGR puis les 454 niveaux de MICRO-SOKOBAN dans a2run
+    make test-hgr        # primitives HGR et sélection des modules de bibliothèque
+    make test-dhgr       # validation DHGR dans a2shot (macOS arm64)
     make check           # tout reconstruire, échouer si dist/ ne correspond pas
     make clean           # efface les build/ (les disquettes restent)
     make distclean       # efface aussi dist/*.dsk
@@ -54,7 +55,7 @@ bibliothèques Apple-1 de POM1 :
   DOS ou à un menu BASIC, son, manette, commandes DOS (BLOAD / BSAVE), en
   assembleur et en C ;
 - `dev/lib/hgr` : texte, sprites et tables HGR (assembleur) ;
-- `dev/lib/hgrc` et `dev/lib/gfx` : runtime graphique C et géométrie ;
+- `dev/lib/hgrc` et `dev/lib/gfx` : runtime graphique C HGR/DHGR et géométrie ;
 - `dev/cc65` : configurations de l'éditeur de liens et démarrage C ;
 - `dev/tools/dos33.py` : fabrique les disquettes DOS 3.3 ;
 - `dev/tools/a2shot` : fait tourner une disquette sans fenêtre sur le cœur de

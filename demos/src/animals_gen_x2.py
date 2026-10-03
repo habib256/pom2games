@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Bake the four Fauna mono masters into their x2 single-colour HGR forms.
 
-Byte-for-byte port of gen2_hgr_inflate_x2 (dev/lib/gen2c/gen2_hgr_x2.c) so the
+Byte-for-byte port of hgr_inflate_x2 (dev/lib/hgrc/hgr_x2.c) so the
 demo needs NO runtime inflate: the x2 bytes are embedded as C constants. Keeping
-the demo off gen2_hgr_x2.o also lets it link under the in-app DevBench (whose
+the demo off hgr_x2.o also lets it link under the in-app DevBench (whose
 GEN2-C link set doesn't pull that module). Masters come verbatim from
 dev/lib/gen2/sprites/sprites_fauna_hgr.asm (16 rows x 3 bytes, 7px/byte).
 """
 
-# gen2.h GEN2_X2_* colour ids
+# hgr.h HGR_X2_* colour ids
 BLACK, WHITE, VIOLET, GREEN, BLUE, ORANGE = range(6)
 
 MASTERS = {
@@ -95,7 +95,7 @@ def inflate_x2(mono, wbytes, h, color):
 
 
 # --- Pre-shifted x2 banks for 2 px-smooth motion -----------------------------
-# A byte-aligned blit (gen2_hgr_blit7) can only place an x2 sprite every 14 px
+# A byte-aligned blit (hgr_blit7) can only place an x2 sprite every 14 px
 # (one colour-clock-doubled byte pair) or the hue flips. To move in 2 px steps we
 # BAKE the sprite at each of the 7 even sub-positions within a 14 px period
 # (shifts 0,2,4,6,8,10,12 px). An even shift preserves the NTSC dot parity, so the

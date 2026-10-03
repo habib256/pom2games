@@ -260,7 +260,7 @@ mul_dist_by_signed:
         LDA #1
         STA sign_flag
 @abs_done:
-.ifdef LOGO_GEN2
+.ifdef LOGO_HGR
         ; 16x8 unsigned multiply: (arg_hi:arg_lo) * tmp -> 16-bit arg2_hi:arg2_lo,
         ; so a GEN2 FD step can exceed 255 px and span the full 280 width. With
         ; the distance clamped to <= 511 and tmp <= 64, the product <= 32704

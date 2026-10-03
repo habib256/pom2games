@@ -2,7 +2,7 @@
 
 *[← dev](../../README.md)*
 
-L'équivalent Apple II de `dev/lib/apple1c` de POM1 : la base texte/clavier sur
+L'équivalent Apple II de `dev/lib/apple2c` de POM1 : la base texte/clavier sur
 laquelle s'appuie un programme C, indépendante du mode graphique. La sortie
 passe par COUT (`$FDED`) sur la page texte, l'entrée lit le verrou clavier
 (`$C000`, acquitté par `$C010`). Le miroir asm est [`../apple2/`](../apple2/).

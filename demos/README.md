@@ -40,11 +40,11 @@ pour ANIMALS) et `HIMEM: 4096` (ses chaînes restent sous `$1000`), et remet
 - **FONT** : les légendes allaient au terminal Apple-1 ; elles occupent les
   4 lignes de texte du mode mixte, la grille remonte au-dessus.
 - **Légendes** de BOUNCES et ANIMALS raccourcies à 34 caractères, la largeur que
-  `gen2_hgr_puts8` affiche vraiment (les originaux étaient coupés), avec
+  `hgr_puts8` affiche vraiment (les originaux étaient coupés), avec
   l'indication ESC.
-- **Runtime C** : `../dev/lib/hgrc` (le gen2c de POM1 en version Apple II). Chaque
-  démo C le recompile avec ses drapeaux `-D HGRC_NO_*` pour n'embarquer que les
-  familles de routines qu'elle appelle.
+- **Runtime C** : `../dev/lib/hgrc` (API native `hgr.h` / `hgr_*`). Les trois
+  démos C partagent une archive ; l'éditeur de liens extrait uniquement les
+  familles de routines et les blocs de page zéro nécessaires.
 
 ## Contenu
 

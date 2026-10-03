@@ -6,6 +6,8 @@
  * script:
  *
  *   wait:N          run N video frames (17030 cycles each, ~1/60 s)
+ *   until:ADDR:N    run to PC ADDR within N frames, print cycle counter
+ *   press:TEXT      queue keys without running
  *   key:TEXT        type TEXT (\r RETURN, \e ESC, \< \> left/right, \^ \v up/down)
  *   shot:FILE.png   render the screen (HGR in colour, 560x384; TEXT/GR as text)
  *   text            print the 40x24 text page
@@ -487,6 +489,18 @@ int main(int argc, char **argv)
         const char *s = argv[i];
         if (!strncmp(s, "wait:", 5)) {
             run_cycles((uint64_t)atol(s + 5) * CYCLES_PER_FRAME);
+        } else if (!strncmp(s, "until:", 6)) {
+            unsigned target = 0, frames = 0;
+            if (sscanf(s + 6, "%x:%u", &target, &frames) != 2 || target > 65535 || !frames) return 2;
+            uint64_t end = cpu.cycles + (uint64_t)frames * CYCLES_PER_FRAME;
+            while (cpu.pc != target && cpu.cycles < end) {
+                feed_keyboard();
+                cpu_step(&cpu);
+            }
+            printf("until %04X cycles=%llu PC=%04X\n", target, (unsigned long long)cpu.cycles, cpu.pc);
+            if (cpu.pc != target) return 3;
+        } else if (!strncmp(s, "press:", 6)) {
+            queue_keys(s + 6);
         } else if (!strncmp(s, "key:", 4)) {
             queue_keys(s + 4);
             while (kbd_head != kbd_tail || (kbd_latch & 0x80)) run_cycles(1000);

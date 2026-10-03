@@ -13,18 +13,18 @@
  * for x%7, byte-blit at x/7" -- no per-pixel shifting.
  *
  * SINGLE-BUFFER + V-blank sync, exactly how Buzzard Bait does it -- and it is
- * flicker-free because the ball uses gen2_hgr_sprite_xor, the ALL-ASM XOR fast
+ * flicker-free because the ball uses hgr_sprite_xor, the ALL-ASM XOR fast
  * path (no cc65 wrapper: x/7, x%7, phase offset and edge clip are done in asm).
  * That keeps the erase+redraw pair inside V-blank, so the beam never catches a
- * mid-update (the general gen2_hgr_sprite C path was ~3-4x heavier and spilled
+ * mid-update (the general hgr_sprite C path was ~3-4x heavier and spilled
  * past V-blank into the top scanlines). POM1's GEN2 renderer is also beam-
  * accurate (latches per scanline, frozen per frame at the rollover).
  * XOR is non-destructive, so the green floor and the ship survive.
  *
  * Build:  make   (demos/)  ->  dist/DEMO.dsk, BLOAD PRESHIFT + CALL 24576 */
 
-#include "gen2.h"
-#include "preshift_sprites.h"  /* generated banks: gen2_sprite_t ball, ship */
+#include "hgr.h"
+#include "preshift_sprites.h"  /* generated banks: hgr_sprite_t ball, ship */
 
 /* Ball is 11x11 (sprites.txt). Play area: full width, from just under the ship
  * down to the top of the floor, so it bounces ON the floor. */
@@ -40,21 +40,21 @@ void main(void)
     int vx = 2,  vy = 1;         /* velocity (px/frame), different periods */
     int px = 24, py = 40;        /* where it was drawn last frame          */
 
-    gen2_hgr_init();                                   /* graphics + hires + page1 */
-    gen2_hgr_clear(0);                                 /* black */
+    hgr_init();                                   /* graphics + hires + page1 */
+    hgr_clear(0);                                 /* black */
 
     /* green floor (two bands, since fill width is an unsigned char <= 255) */
-    gen2_hgr_fill_pixrect(0,   150, 140, 4);
-    gen2_hgr_fill_pixrect(140, 150, 140, 4);
-    gen2_hgr_colorize(0,   150, 140, 4, GEN2_GREEN);
-    gen2_hgr_colorize(140, 150, 140, 4, GEN2_GREEN);
+    hgr_fill_pixrect(0,   150, 140, 4);
+    hgr_fill_pixrect(140, 150, 140, 4);
+    hgr_colorize(0,   150, 140, 4, HGR_GREEN);
+    hgr_colorize(140, 150, 140, 4, HGR_GREEN);
 
-    gen2_hgr_sprite(120, 20, &ship, GEN2_SET);         /* static opaque ship (SET) */
-    gen2_hgr_sprite_xor((unsigned)px, (unsigned char)py, &ball);   /* first draw */
+    hgr_sprite(120, 20, &ship, HGR_SET);         /* static opaque ship (SET) */
+    hgr_sprite_xor((unsigned)px, (unsigned char)py, &ball);   /* first draw */
 
     while (!apple2_iskeypressed()) {
         a2_wait(A2_WAIT_FRAME);                        /* ~1 frame: the GEN2's V-blank pace */
-        gen2_hgr_sprite_xor((unsigned)px, (unsigned char)py, &ball); /* erase old */
+        hgr_sprite_xor((unsigned)px, (unsigned char)py, &ball); /* erase old */
 
         x += vx;                                       /* step + bounce off the walls */
         if (x <= 0)     { x = 0;     vx = -vx; }
@@ -63,7 +63,7 @@ void main(void)
         if (y <= Y_TOP) { y = Y_TOP; vy = -vy; }
         if (y >= Y_BOT) { y = Y_BOT; vy = -vy; }
 
-        gen2_hgr_sprite_xor((unsigned)x, (unsigned char)y, &ball);   /* draw new */
+        hgr_sprite_xor((unsigned)x, (unsigned char)y, &ball);   /* draw new */
         px = x; py = y;
     }
 

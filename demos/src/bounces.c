@@ -10,16 +10,16 @@
  * FOUR balls (disc sprites) — one big 48x48 and three small 16x16 —
  * bounce inside a frame AND collide pairwise (every pair); bounce counter
  * in HUD, dense caption in 8x8 font. Combines:
- *   E  gen2_hgr_rect / gen2_hgr_line                     (vector decor)
- *   B  gen2_hgr_blit7(..., GEN2_XOR)                     (fast tinted XOR sprites)
- *   D  gen2_hgr_putu_field + gen2_hgr_puts8              (HUD number + 8x8 text)
- *   C  gen2_set_draw_page / gen2_show_page               (double buffering)
+ *   E  hgr_rect / hgr_line                     (vector decor)
+ *   B  hgr_blit7(..., HGR_XOR)                     (fast tinted XOR sprites)
+ *   D  hgr_putu_field + hgr_puts8              (HUD number + 8x8 text)
+ *   C  hgr_set_draw_page / hgr_show_page               (double buffering)
  *
  * SPEED — three cumulative levers:
  *   1. The decor is NOT redrawn (drawn once per page).
  *   2. Each ball is erased by XOR (re-blit at the same spot -> background
  *      restored, no box to scrub).
- *   3. Balls are blitted via gen2_hgr_blit7: sprites pre-packed at
+ *   3. Balls are blitted via hgr_blit7: sprites pre-packed at
  *      7px/byte -> we XOR whole BYTES (~7x fewer writes than pixel-by-pixel
  *      blit). Trade-off: x aligned on 7px (horizontal step of 7).
  *   4. Colour costs nothing per frame: the four artifact-colour sprites are
@@ -31,7 +31,7 @@
  *
  *   Build : make   (demos/)  ->  dist/DEMO.dsk, BLOAD BOUNCES + CALL 24576
  */
-#include "gen2.h"
+#include "hgr.h"
 
 /* Small ball: filled disc 16x16, 7px/byte, 3 bytes/row. */
 static const unsigned char kBall7[48] = {
@@ -83,7 +83,7 @@ static const unsigned char kBig7[336] = {
 static const unsigned char       wb[NB]   = { 7u, 3u, 3u, 3u };
 static const unsigned char       sz[NB]   = { 48u, 16u, 16u, 16u };
 static const int                 rad[NB]  = { 24, 8, 8, 8 };
-static const unsigned char       colr[NB] = { GEN2_ORANGE, GEN2_VIOLET, GEN2_GREEN, GEN2_BLUE };
+static const unsigned char       colr[NB] = { HGR_ORANGE, HGR_VIOLET, HGR_GREEN, HGR_BLUE };
 
 /* Pre-tinted runtime sprite tables. The second dimension is the absolute
  * byte-column phase: phase 0 starts on an even HGR byte column, phase 1 on odd.
@@ -94,9 +94,9 @@ static unsigned char kBallTint[3][2][48];
 static void carrier_for(unsigned char color, unsigned char *even, unsigned char *odd, unsigned char *hi)
 {
     switch (color) {
-        case GEN2_GREEN:  *even = 0x2Au; *odd = 0x55u; *hi = 0x00u; break;
-        case GEN2_ORANGE: *even = 0x2Au; *odd = 0x55u; *hi = 0x80u; break;
-        case GEN2_BLUE:   *even = 0x55u; *odd = 0x2Au; *hi = 0x80u; break;
+        case HGR_GREEN:  *even = 0x2Au; *odd = 0x55u; *hi = 0x00u; break;
+        case HGR_ORANGE: *even = 0x2Au; *odd = 0x55u; *hi = 0x80u; break;
+        case HGR_BLUE:   *even = 0x55u; *odd = 0x2Au; *hi = 0x80u; break;
         default:          *even = 0x55u; *odd = 0x2Au; *hi = 0x00u; break; /* violet */
     }
 }
@@ -130,16 +130,16 @@ static void prep_tinted_sprites(void)
 
 static void draw_static(void)
 {
-    gen2_hgr_rect(FL, FT, FR, FB);
-    gen2_hgr_line(FL, 156u, FR, 156u);
-    gen2_hgr_puts(FL, HUDY, "BOUNCES");
-    gen2_hgr_puts8(FL, 182u, "4 XOR BALLS  DBL BUFFER  ESC=MENU");  /* <= 34 cells */
+    hgr_rect(FL, FT, FR, FB);
+    hgr_line(FL, 156u, FR, 156u);
+    hgr_puts(FL, HUDY, "BOUNCES");
+    hgr_puts8(FL, 182u, "4 XOR BALLS  DBL BUFFER  ESC=MENU");  /* <= 34 cells */
 }
 
 static void ball(unsigned char b, unsigned x, unsigned char y, unsigned char phase)
 {
     const unsigned char *sprite = (b == 0u) ? kBigTint[phase] : kBallTint[b - 1u][phase];
-    gen2_hgr_blit7(x, y, wb[b], sz[b], sprite, GEN2_XOR);
+    hgr_blit7(x, y, wb[b], sz[b], sprite, HGR_XOR);
 }
 
 void main(void)
@@ -155,12 +155,12 @@ void main(void)
     int  bxmax, bymax, dx, dy, adx, ady, thr;
     unsigned bounces = 0u;
 
-    gen2_hgr_init();
+    hgr_init();
     prep_tinted_sprites();
 
-    gen2_set_draw_page(1u); gen2_hgr_clear(0u); draw_static();
+    hgr_set_draw_page(1u); hgr_clear(0u); draw_static();
     for (i = 0u; i < NB; ++i) ball(i, (unsigned)x[i], (unsigned char)y[i], phase[i]);
-    gen2_set_draw_page(2u); gen2_hgr_clear(0u); draw_static();
+    hgr_set_draw_page(2u); hgr_clear(0u); draw_static();
     for (i = 0u; i < NB; ++i) ball(i, (unsigned)x[i], (unsigned char)y[i], phase[i]);
     for (i = 0u; i < NB; ++i) {
         ox[i][0] = ox[i][1] = x[i];
@@ -168,13 +168,13 @@ void main(void)
         ophase[i][0] = ophase[i][1] = phase[i];
     }
 
-    /* gen2_hgr_init() already selected graphics + hires + full + page 1, so
+    /* hgr_init() already selected graphics + hires + full + page 1, so
      * page 1 is DISPLAYED and page 2 is HIDDEN — we start by drawing into 2. */
     for (;;) {
         /* `page` is always the HIDDEN buffer here; draw the next frame into it
          * while the card keeps showing the other one. */
         pidx = (unsigned char)(page - 1u);
-        gen2_set_draw_page(page);
+        hgr_set_draw_page(page);
 
         for (i = 0u; i < NB; ++i) {
             ball(i, (unsigned)ox[i][pidx], (unsigned char)oy[i][pidx], ophase[i][pidx]); /* XOR erase */
@@ -188,12 +188,12 @@ void main(void)
          * the new value (huddirty starts at 2 → one redraw per page). Kept opaque
          * and off the XOR path; the HUD sits at y>=162, below the FB=150 play area,
          * so the balls never touch it. */
-        if (huddirty) { gen2_hgr_putu_field(HUDX, HUDY, bounces, HUDW); --huddirty; }
+        if (huddirty) { hgr_putu_field(HUDX, HUDY, bounces, HUDW); --huddirty; }
 
         /* The hidden page is now fully drawn: show it. (The GEN2 original flipped
          * in V-blank; a II/II+ has no V-blank input, so the flip lands wherever
          * the beam is -- one frame may show a tear line.) */
-        gen2_show_page();
+        hgr_show_page();
         page = (page == 1u) ? 2u : 1u;   /* the page just shown is now visible;
                                             the other becomes the hidden target */
         if (apple2_readkey() == KC_ESC) return;   /* back to the DEMO menu */

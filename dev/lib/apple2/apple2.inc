@@ -58,6 +58,16 @@ HISCR    = $C055        ; display page 2
 LORES    = $C056        ; low-resolution graphics
 HIRES    = $C057        ; high-resolution graphics
 
+; --- Apple IIe/IIc only (requires extended auxiliary RAM for DHGR) -----------
+STORE80OFF = $C000      ; WRITE: normal page selection
+STORE80ON  = $C001      ; WRITE: PAGE2 selects main/aux video memory
+RAMRDOFF   = $C002      ; WRITE: main RAM reads outside video windows
+RAMWRTOFF  = $C004      ; WRITE: main RAM writes outside video windows
+COL80OFF   = $C00C      ; WRITE: 40-column display
+COL80ON    = $C00D      ; WRITE: 80-column display
+DHIRES_ON  = $C05E      ; any access: AN3 off, double resolution
+DHIRES_OFF = $C05F      ; any access: AN3 on, single resolution
+
 ; --- Game port --------------------------------------------------------------
 BUTN0    = $C061        ; button 0 / Open-Apple (bit 7)
 BUTN1    = $C062        ; button 1 / Solid-Apple (bit 7)

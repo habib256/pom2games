@@ -1,0 +1,94 @@
+{
+  "compiler": "cl65 V2.18 - N/A",
+  "flags": "-Oirs",
+  "results": {
+    "hgr_clear": {
+      "code_bytes": 1521,
+      "rodata_bytes": 64,
+      "ram_bytes": 1575,
+      "zp_bytes": 26,
+      "binary_bytes": 1634,
+      "cycles": 90430
+    },
+    "hgr_span": {
+      "code_bytes": 2466,
+      "rodata_bytes": 64,
+      "ram_bytes": 1575,
+      "zp_bytes": 40,
+      "binary_bytes": 2579,
+      "cycles": 3192
+    },
+    "hgr_rect": {
+      "code_bytes": 2056,
+      "rodata_bytes": 64,
+      "ram_bytes": 1575,
+      "zp_bytes": 40,
+      "binary_bytes": 2169,
+      "cycles": 6869
+    },
+    "hgr_text": {
+      "code_bytes": 1950,
+      "rodata_bytes": 841,
+      "ram_bytes": 1575,
+      "zp_bytes": 38,
+      "binary_bytes": 2840,
+      "cycles": 24232
+    },
+    "hgr_sprite7": {
+      "code_bytes": 1995,
+      "rodata_bytes": 64,
+      "ram_bytes": 1575,
+      "zp_bytes": 34,
+      "binary_bytes": 2108,
+      "cycles": 2242
+    },
+    "dhgr_clear": {
+      "code_bytes": 2872,
+      "rodata_bytes": 64,
+      "ram_bytes": 312,
+      "zp_bytes": 35,
+      "binary_bytes": 2985,
+      "cycles": 207865
+    },
+    "dhgr_span": {
+      "code_bytes": 3208,
+      "rodata_bytes": 64,
+      "ram_bytes": 312,
+      "zp_bytes": 35,
+      "binary_bytes": 3321,
+      "cycles": 12337
+    },
+    "dhgr_rect": {
+      "code_bytes": 2896,
+      "rodata_bytes": 64,
+      "ram_bytes": 312,
+      "zp_bytes": 35,
+      "binary_bytes": 3009,
+      "cycles": 79318
+    },
+    "dhgr_block": {
+      "code_bytes": 3604,
+      "rodata_bytes": 64,
+      "ram_bytes": 317,
+      "zp_bytes": 35,
+      "binary_bytes": 3717,
+      "cycles": 12790
+    },
+    "dhgr_text": {
+      "code_bytes": 3550,
+      "rodata_bytes": 841,
+      "ram_bytes": 319,
+      "zp_bytes": 35,
+      "binary_bytes": 4440,
+      "cycles": 250388
+    },
+    "dhgr_sprite": {
+      "code_bytes": 3635,
+      "rodata_bytes": 64,
+      "ram_bytes": 317,
+      "zp_bytes": 35,
+      "binary_bytes": 3748,
+      "cycles": 5664
+    }
+  }
+}

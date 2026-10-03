@@ -1,5 +1,5 @@
 ; =============================================
-; hgr_clear.asm - clear the GEN2 HGR framebuffer
+; hgr_clear.asm - clear the Apple II HGR framebuffer
 ; =============================================
 ; Standalone module (split out of hgr_tables.inc). Needs ZP: ptr_lo, ptr_hi.
 ; clear_hgr - zero out $2000-$3FFF (8 KB). Trashes A, X, Y, ptr_lo, ptr_hi.

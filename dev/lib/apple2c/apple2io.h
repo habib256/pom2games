@@ -1,7 +1,7 @@
 /*
  * apple2io.h — Apple II text + keyboard I/O for C (cc65), graphics-neutral.
  *
- * The Apple II counterpart of POM1's dev/lib/apple1c/apple1io.h. Output goes
+ * The Apple II counterpart of POM1's dev/lib/apple2c/apple1io.h. Output goes
  * through the Monitor's COUT ($FDED) onto the text screen; input reads the
  * keyboard latch ($C000, cleared through $C010).
  *

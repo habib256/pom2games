@@ -2,13 +2,11 @@
 
 *[← dev](../../README.md)*
 
-Modules HGR repris **sans modification** de `dev/lib/gen2` de
-[POM1](https://github.com/habib256/pom1) (GPL v3). La carte GEN2 d'Uncle Bernie
-est le sous-système vidéo de l'Apple II transplanté sur le bus Apple-1 : même
-mémoire `$2000`/`$4000`, même entrelacement des lignes, mêmes couleurs NTSC.
-Ces fichiers ne touchent aucun commutateur, ils tournent donc tels quels sur un
-Apple II ; leurs commentaires parlent encore de GEN2. Les commutateurs vidéo et
-l'initialisation sont dans [`../apple2/hgr.asm`](../apple2/hgr.asm).
+Modules assembleur pour la vidéo HGR native de l'Apple II, dérivés de
+[POM1](https://github.com/habib256/pom1) (GPL v3) : pages `$2000`/`$4000`,
+entrelacement standard des lignes et couleurs NTSC.
+Les commutateurs vidéo et l'initialisation sont dans
+[`../apple2/hgr.asm`](../apple2/hgr.asm).
 
 **Règle impérative pour le texte d'interface : seuls les caractères agrandis
 ×2 peuvent être colorés. Tout texte à taille normale (×1), y compris les chiffres,

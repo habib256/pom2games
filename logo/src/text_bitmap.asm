@@ -1,5 +1,5 @@
 ; ============================================================================
-; gen2_text_bitmap.asm -- HGR 8x8 glyph blitter for the GEN2 LOGO "full" build.
+; hgr_text_bitmap.asm -- HGR 8x8 glyph blitter for the GEN2 LOGO "full" build.
 ; ----------------------------------------------------------------------------
 ; Drop-in replacement for dev/lib/tms9918/text_bitmap.asm: same public symbol
 ; (text_blit_glyph) and the same (A, pix_x, pix_y, pen_color) contract, but it

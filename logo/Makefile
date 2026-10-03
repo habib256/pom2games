@@ -16,8 +16,8 @@ POM2    ?= /Applications/POM2.app/Contents/MacOS/POM2
 SYSTEM  ?= $(DEV)/tools/dos33_system.bin
 
 # CODETANK_BUILD = the full feature set (LABEL, SAY, LIST, EDIT, DEMO2);
-# LOGO_GEN2 = the HGR code paths of the shared interpreter.
-DEFS    := -D CODETANK_BUILD -D LOGO_GEN2
+# LOGO_HGR = the HGR code paths of the shared interpreter.
+DEFS    := -D CODETANK_BUILD -D LOGO_HGR
 INCS    := -I src -I $(DEV)/lib/apple2 -I $(DEV)/lib/hgr
 BUILD   := build
 DIST    ?= ../dist

@@ -7,8 +7,8 @@
  * runtime 16-bit soft-divide (`udiv16`) it pulls via `value / 10u` /
  * `value % 10u` below. That divide alone is ~250 bytes ROM on cc65.
  *
- * GEN2's hot HUD primitive (gen2_hgr_putu_field) deliberately keeps its
- * hand-written asm gen2_utoa, which avoids the soft-divide — do NOT route
+ * HGR's hot HUD primitive (hgr_putu_field) deliberately keeps its
+ * hand-written asm hgr_utoa, which avoids the soft-divide — do NOT route
  * that one through here (see README).
  */
 #include "gfx.h"

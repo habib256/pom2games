@@ -1,0 +1,12 @@
+{
+  "mode": "dhgr",
+  "kind": "sprite",
+  "width": 6,
+  "height": 6,
+  "stride": 5,
+  "phases": 7,
+  "data_bytes": 210,
+  "mask_bytes": 210,
+  "save_under_bytes": 30,
+  "rom_bytes": 420
+}

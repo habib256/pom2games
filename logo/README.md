@@ -3,7 +3,7 @@
 Port Apple II de l'APPLE-1 LOGO V2.6 de [POM1](https://github.com/habib256/pom1)
 (VERHILLE Arnaud), dans son édition GEN2 HGR (`sketchs/gen2/tool_logo_gen2`,
 qui compile l'interpréteur partagé `sketchs/tms9918/tool_logo/TMS_Logo_16k.asm`
-avec `CODETANK_BUILD` + `LOGO_GEN2`). Importé depuis GitHub au commit
+avec `CODETANK_BUILD` + `LOGO_GEN2`, renommé ici `LOGO_HGR`). Importé depuis GitHub au commit
 `e2a4748` (2026-09-11).
 
 Tortue HGR, procédures avec paramètres et récursion terminale, `REPEAT`,
@@ -62,7 +62,7 @@ précédent.
 - `BYE` et Ctrl-RESET : retour à DOS avec la page zéro restaurée
   (`../dev/lib/apple2/exit.asm`).
 - Pas de V-blank sur Apple II : l'attente de synchronisation des sprites
-  (`gen2_emote_vsync`) est vide.
+  (`hgr_emote_vsync`) est vide.
 - Le backend HGR (`src/hgr_logom2.asm`) n'utilise que la page 1 : avec le
   firmware 80 colonnes, `PAGE2` commute de la mémoire au lieu de l'affichage.
 - Trois bogues d'origine corrigés :

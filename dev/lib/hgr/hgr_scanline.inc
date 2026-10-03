@@ -2,7 +2,7 @@
 ; hgr_scanline.inc - HGR scanline base-address tables (384 bytes)
 ; =============================================
 ; Split out of hgr_tables.inc. hgr_lo[192] / hgr_hi[192] = base address of
-; scanline y in the GEN2 HGR framebuffer (Apple II interleaved layout):
+; scanline y in the Apple II HGR framebuffer (Apple II interleaved layout):
 ;   addr[y] = $2000 + (y%8)*$0400 + ((y/8)%8)*$80 + (y/64)*$28
 ; =============================================
 hgr_lo:

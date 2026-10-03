@@ -1,5 +1,5 @@
 ; ============================================================================
-; hgr_sprite16.asm -- TMS-format 16x16 sprite blitter for the GEN2 HGR card
+; hgr_sprite16.asm -- TMS-format 16x16 sprite blitter for the Apple II HGR card
 ; ----------------------------------------------------------------------------
 ; Draws a 32-byte TMS9918-format 16x16 pattern (left column rows 0..15,
 ; right column rows 0..15, bit 7 = leftmost pixel -- the SCROLL-O-SPRITES
@@ -43,7 +43,7 @@
 ; quadbits -- projects may reference all three (e.g. rev7_tab for text
 ; glyph conversion, dblnib for x2 text doubling).
 ;
-; First consumer: sketchs/gen2/game_maze3d (title mascot, corridor
+; First consumer: sketchs/hgr/game_maze3d (title mascot, corridor
 ; clusters, x4 combat portrait, tinted x2 title text via the sp_cm_*
 ; attributes).
 ; ============================================================================

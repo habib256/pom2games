@@ -1,8 +1,8 @@
 ; ============================================================================
-; hgr_text8.asm -- byte-aligned 8x8 text for the GEN2 HGR framebuffer
+; hgr_text8.asm -- byte-aligned 8x8 text for the Apple II HGR framebuffer
 ; ----------------------------------------------------------------------------
 ; THE shared glyph emitter for HGR games. Before this module existed,
-; GEN2_Chess (putc_hgr), HGR_Rogue (hgr_emit_a) and HGR_Maze3D
+; HGR_Chess (putc_hgr), HGR_Rogue (hgr_emit_a) and HGR_Maze3D
 ; (write_char) each carried a private copy of the same idea: STORE one
 ; 8x8 glyph byte per scanline at a byte column, with a text cursor.
 ;
@@ -43,9 +43,9 @@
 ; Caller provides hgr_lo / hgr_hi (include hgr_scanline.inc). The module
 ; allocates its own ZP (~12 B) and pulls rev7.inc (shared, guarded).
 ;
-; First consumers: sketchs/gen2/game_rogue (bbfont, HGR order) and
-; sketchs/gen2/game_maze3d (its own font, TMS order) -- one module, both
-; bit orders exercised. Migration candidates: GEN2_Chess's putc_hgr.
+; First consumers: sketchs/hgr/game_rogue (bbfont, HGR order) and
+; sketchs/hgr/game_maze3d (its own font, TMS order) -- one module, both
+; bit orders exercised. Migration candidates: HGR_Chess's putc_hgr.
 ; ============================================================================
 
 .ifndef _HGR_TEXT8_LOADED_

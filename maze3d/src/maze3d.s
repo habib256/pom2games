@@ -5000,7 +5000,7 @@ font_base:
 
 ; =============================================
 ; GEN2 lib modules (textual includes): hgr_lo/hgr_hi scanline tables +
-; gen2_hgr_init_clear / gen2_text_restore.
+; hgr_init_clear / hgr_text_restore.
 ; =============================================
 .include "hgr_scanline.inc"
 .include "hgr_sprite16.asm"
