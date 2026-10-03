@@ -1,53 +1,47 @@
-# Maze 3D — TODO
+# Maze 3D — suivi des améliorations
 
-Améliorations proposées le 2026-09-15, par ordre conseillé. Chaque étape se
-vérifie avec `../dev/tools/a2shot` (captures, `peek`, mesure en trames), comme
-le double tampon HGR1/HGR2.
+## Réalisé le 2026-10-03
 
-État mesuré au moment de la rédaction : une image 3D apparaît ~17 trames
-(~0,3 s) après une touche, la carte ~14 trames ; aucun son ; le type « dragon »
-est déclaré mais jamais créé ; l'or n'a aucun usage ; la carte montre tout le
-labyrinthe.
+- [x] Corriger le butin : conserver le type du monstre avant de le marquer
+  mort, puis plafonner l'or à 99 pour l'affichage à deux chiffres.
+- [x] Carte progressive : les murs et la sortie apparaissent après visite ;
+  les monstres aperçus en vue 3D sont signalés sur la carte.
+- [x] Trois étages, ennemis plus résistants, dragon obligatoire au dernier
+  étage, numéro d'étage visible en 3D et sur la carte.
+- [x] Boutique entre les étages : soins, attaque et défense payés en or.
+- [x] Sons brefs avec `../dev/lib/apple2/sound.asm` : mur, attaque, coup reçu,
+  montée de niveau, escalier, victoire et mort.
+- [x] Optimiser le tracé : adresses et masques HGR conservés pendant les lignes
+  obliques, effacement des 40 octets par ligne déroulé. Sur une vue testée,
+  `render_3d` passe de 188 523 à 169 842 cycles (environ 10 % plus rapide),
+  avec le même décor sur deux captures comparées.
+- [x] Enrichir chaque labyrinthe : salle 2x2, trois boucles, trois caches et
+  une relique obligatoire. Les 100 graines testées restent connexes.
+- [x] Différencier les combats : garde, potion, fuite vers la case précédente,
+  vol du gobelin, magie sans armure, coup annoncé de l'orc et du dragon.
+- [x] Relier exploration et économie : or et potions dans les caches, achat de
+  potions à la boutique.
+- [x] Afficher la graine, calculer un score à la victoire et enregistrer le
+  record avec sa graine dans `MAZESCORE` sur disquette DOS 3.3. La touche `R`
+  de l'écran titre rejoue cette graine. Le narrateur occupe `MAZETEXT`, chargé
+  depuis la disquette, ce qui libère environ 2 Ko de code.
+- [x] Terminer une partie scriptée sur les trois étages sans modifier la
+  mémoire du jeu : reliques prises, dragon battu, score 127 écrit sur disquette.
 
-Son, manette et sauvegarde : partir des modules communs sortis de MICRO-SOKOBAN,
-`../dev/lib/apple2/sound.asm` (`tone`), `joy.asm` (`read_stick`,
-`stick_dir`) et `dos.asm` (`dos_cmd_*`, `disk_protected`), plutôt que
-d'écrire une nouvelle version.
+## À poursuivre
 
-## 1. Vitesse + son
+- [ ] Accélérer encore le rendu 3D. L'objectif initial de 2 à 3 fois plus
+  rapide reste ouvert : la scène complète est toujours effacée et redessinée
+  à chaque mouvement. Mesurer les coûts par routine avec `../dev/tools/a2shot`
+  avant de choisir une autre stratégie. Comparer les captures avant/après.
+- [ ] Permettre la saisie manuelle d'une graine, en plus de la rejouabilité de
+  la graine du record.
+- [ ] Ajouter la manette avec `../dev/lib/apple2/joy.asm`.
+- [ ] Sauvegarder une partie en cours, si l'on souhaite reprendre une campagne
+  interrompue. Le record est déjà conservé sur disquette.
 
-- [ ] **Dessin 3D plus rapide** (objectif : 2 à 3 fois).
-  Les murs passent par `line_xy`, qui trace point par point via `plot_set` /
-  `calc_pix_addr` (adresse de ligne recalculée à chaque point). Pistes :
-  segments horizontaux et verticaux en octets entiers, diagonales avec
-  pointeur de ligne incrémental. Aucun changement visible attendu :
-  comparer les captures avant/après, mesurer le délai en trames.
-- [ ] **Son sur le haut-parleur (`$C030`)** : « bonk » contre un mur, coup
-  porté / reçu, fanfare de montée de niveau et de sortie, glas à la mort.
-  Une petite routine de bip (durée, période) dans `dev/lib/apple2` servirait
-  aussi aux autres jeux.
-
-## 2. Durée de vie
-
-- [ ] **Carte qui se découvre** : n'afficher que les cases visitées (marque
-  dans le bit libre de chaque case de `grid`) et les monstres déjà aperçus.
-  Aujourd'hui M révèle monstres et sortie.
-- [ ] **Plusieurs étages** : la sortie `E` mène à l'étage suivant, monstres
-  plus forts à chaque étage, HUD avec le numéro d'étage.
-- [ ] **Le dragon en boss du dernier étage** : `mob_type` 3 est prévu
-  (commentaire de `mob_type`) mais `place_mobs` n'attribue que 0, 1, 2. Il
-  faut un sprite, des PV/dégâts, un nom et une couleur.
-
-## 3. Au choix
-
-- [ ] **Donner un usage à l'or** (`p_gold`, affiché mais inutile) :
-  fontaine qui soigne contre de l'or, ou marchand entre deux étages
-  (ATK, DEF, PV).
-- [ ] **Labyrinthes variés** : la graine ne dépend que de la touche pressée
-  sur l'écran titre. Mélanger aussi la durée d'attente, en gardant un moyen
-  d'obtenir une graine fixe pour que les tests a2shot restent
-  reproductibles.
-- [ ] **Manette** (comme Sokoban) : manche = avancer / reculer / tourner,
-  bouton 0 = attaquer, bouton 1 = carte.
-- [ ] **Sauvegarde sur disquette et meilleur score** : partie en cours ou
-  tableau des scores dans un petit fichier DOS 3.3 sur le disque du jeu.
+Pour valider les changements de jeu, utiliser `../dev/tools/a2shot` : captures,
+lecture mémoire et mesure en cycles ou en trames. `tests/check_generation.py`
+vérifie les contraintes de génération sur 100 graines. La partie scriptée
+doit pouvoir atteindre la boutique, battre le dragon, puis gagner ; les
+sorties sans relique, et la dernière avant la mort du dragon, restent fermées.

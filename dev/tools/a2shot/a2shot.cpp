@@ -6,6 +6,7 @@
 //   key:TEXT        type TEXT (\r = RETURN, \e = ESC, \< / \> = left / right)
 //   shot:FILE.png   render the screen to a PNG (2x vertical, 280/560 wide)
 //   peek:ADDR[:LEN] hex-dump guest memory (bus reads, may have side effects)
+//   poke:ADDR:BYTE  write one guest RAM byte (hex address and value)
 //   joy:X,Y         joystick axes in [-1,1]      btn:N,0|1  game-port button
 //   reset           press RESET (warm: the 6502 RESET line)
 //   pc              print the program counter
@@ -205,6 +206,13 @@ int main(int argc, char** argv)
                 std::printf(" %02X", core.read(static_cast<std::uint16_t>(addr + k)));
             }
             std::printf("\n");
+        } else if (op == "poke") {
+            const size_t c2 = arg.find(':');
+            if (c2 == std::string::npos) return 2;
+            const unsigned addr = std::strtoul(arg.substr(0, c2).c_str(), nullptr, 16);
+            const unsigned value = std::strtoul(arg.substr(c2 + 1).c_str(), nullptr, 16);
+            if (addr > 0xFFFF || value > 0xFF) return 2;
+            core.write(static_cast<std::uint16_t>(addr), static_cast<std::uint8_t>(value));
         } else if (op == "joy") {
             const size_t c2 = arg.find(',');
             core.setJoystickAxes(std::strtof(arg.substr(0, c2).c_str(), nullptr),

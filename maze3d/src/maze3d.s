@@ -57,7 +57,7 @@
 ; A 1976-style first-person dungeon crawler with monsters.
 ; Backtracker-DFS maze (11x7 cells), pseudo-3D wireframe with
 ; depth shading (stipple/hatching), top-down map toggle and
-; turn-based combat against three monster archetypes.
+; turn-based combat against three regular archetypes and a final dragon.
 ;
 ; Controls (IJKL — same physical keys on QWERTY and AZERTY):
 ;   I = forward          J = turn left
@@ -107,6 +107,8 @@ KEY_M     = $CD       ; toggle map / 3D
 KEY_H     = $C8       ; help screen (in game)
 KEY_A     = $C1       ; attack
 KEY_F     = $C6       ; flee
+KEY_G     = $C7       ; guard
+KEY_P     = $D0       ; drink potion
 KEY_SPACE = $A0
 KEY_RET   = $8D
 
@@ -118,6 +120,10 @@ NCELLS  = 77
 NORTH_BIT = $01       ; bit 0 of cell = north passage open
 EAST_BIT  = $02       ; bit 1 = east passage open
 VISITED   = $80       ; bit 7 = DFS visited flag
+SEEN_MOB  = $40       ; bit 6 = a live monster was seen from the corridor
+CHEST_BIT = $04
+RELIC_BIT = $08
+ROOM_BIT  = $10
 
 ; ---- Direction codes ----
 DIR_N = 0
@@ -146,6 +152,8 @@ MAX_DEPTH = 4
 
 ; ---- Player tuning ----
 PLAYER_MAX_HP = 20
+LAST_FLOOR = 3
+SCORE_BASE = $1F00       ; preloaded MAZESCORE: "MZ3", version, best, seed, check
 
 ; =============================================
 ; Off-board RAM (bss, not in output binary)
@@ -258,8 +266,23 @@ p_atk:      .res 1
 p_def:      .res 1
 p_lvl:      .res 1
 p_xp:       .res 1     ; $29
-p_gold:     .res 1     ; loot collected from slain monsters (0..255)
+p_gold:     .res 1     ; loot collected from slain monsters (0..99 for HUD)
 xp_next:    .res 1     ; total-XP threshold for the next level-up
+p_floor:    .res 1
+dead_type:  .res 1     ; killed foe's type, saved before MOB_DEAD replaces it
+p_relic:    .res 1
+p_potions:  .res 1
+p_chests:   .res 1
+p_turns:    .res 1
+old_col:    .res 1
+old_row:    .res 1
+room_idx:   .res 1
+p_guard:    .res 1
+p_focus:    .res 1
+mob_phase:  .res 1
+p_seed_lo:  .res 1
+p_seed_hi:  .res 1
+score_run:  .res 1
 
 ; --- Event message shown at the top of the 3D view ---
 msg_lo:     .res 1     ; pointer to the current message string (ZP indirect)
@@ -331,6 +354,7 @@ front_page: .res 1     ; displayed HGR page: 0 = page 1, PAGE2_EOR = page 2
 main:
         APPLE2_PREAMBLE
         JSR apple2_zp_save      ; ZP is shared with DOS/BASIC: restored on quit
+        JSR score_validate
         ; PRNG seed is a CONSTANT and wait_key mixes in KEY VALUES only
         ; (never a polling counter — see the entropy contract at wait_key),
         ; so a scripted --paste-at-cycle session is fully deterministic
@@ -408,8 +432,27 @@ main_loop:
         ; objective page is no longer forced here -- it moved behind the
         ; in-game H key (see play_input), and the title points to it.
         JSR show_title
+        PHA
         LDA quit_flag
-        BNE main_loop
+        BEQ @title_ok
+        PLA
+        JMP main_loop
+@title_ok:
+        PLA
+
+        CMP #$D2                ; R: replay the best run's maze seed
+        BNE @seed_ready
+        LDA SCORE_BASE+4
+        BEQ @seed_ready
+        LDA SCORE_BASE+5
+        STA prng_lo
+        LDA SCORE_BASE+6
+        STA prng_hi
+@seed_ready:
+        LDA prng_lo
+        STA p_seed_lo
+        LDA prng_hi
+        STA p_seed_hi
 
         JSR new_game
         LDA quit_flag
@@ -435,13 +478,9 @@ drain_kb:
 ; new_game - generate maze, init player, place mobs, run gameplay loop
 ; =============================================
 new_game:
-        JSR generate_maze
-        JSR place_mobs
-        LDA #0
-        STA p_col
-        STA p_row
-        LDA #DIR_E
-        STA p_face
+        LDA #1
+        STA p_floor
+        JSR start_floor
         LDA #PLAYER_MAX_HP
         STA p_hp
         LDA #4
@@ -452,19 +491,311 @@ new_game:
         STA p_lvl
         LDA #0
         STA p_xp
-        STA view_mode
-        STA last_mob_depth      ; fresh maze: nothing coloured yet
-        STA p_gold              ; no loot yet
+        STA p_gold
+        STA p_chests
+        STA p_turns
+        LDA #1
+        STA p_potions
         LDA #10
-        STA xp_next             ; first level-up at 10 total XP
-        LDA #MSG_IDLE           ; narrator sets the epic tone
+        STA xp_next
+        LDA #MSG_IDLE
         LDX #MSG_POOL
         JSR msg_rand
+        JMP play_loop
+
+; Generate a fresh floor while preserving the hero's stats and gold.
+start_floor:
+        JSR generate_maze
+        JSR decorate_maze
+        JSR place_mobs
+        LDA #0
+        STA p_col
+        STA p_row
+        STA p_relic
+        ; DFS has marked every cell. Reuse bit 7 for exploration.
+        LDX #0
+@fog:   LDA grid,X
+        AND #$7F
+        STA grid,X
+        INX
+        CPX #NCELLS
+        BNE @fog
+        LDA grid
+        ORA #VISITED
+        STA grid
+        LDA #DIR_E
+        STA p_face
+        LDA #0
+        STA view_mode
+        STA last_mob_depth      ; fresh maze: nothing coloured yet
         JSR fill_color_white    ; wipe the title screen's colours
         LDA #HUD_BOTH
         STA hud_dirty           ; first 3D frame must build the HUD
         LDA #ST_PLAY3D
         STA gstate
+        RTS
+
+; Between floors, spend loot. C continues, ESC leaves for DOS.
+floor_shop:
+@redraw:
+        JSR vdp_display_off
+        JSR clear_bitmap
+        LDA #8
+        STA ch_cx
+        LDA #2
+        STA ch_cy
+        LDA #<str_shop_title
+        LDX #>str_shop_title
+        JSR print_str_ax
+        LDA #5
+        STA ch_cx
+        LDA #6
+        STA ch_cy
+        LDA #<str_shop_gold
+        LDX #>str_shop_gold
+        JSR print_str_ax
+        LDA #12
+        STA ch_cx
+        LDA #6
+        STA ch_cy
+        LDA p_gold
+        JSR write_decimal_2d
+        LDA #4
+        STA ch_cx
+        LDA #9
+        STA ch_cy
+        LDA #<str_shop_heal
+        LDX #>str_shop_heal
+        JSR print_str_ax
+        LDA #4
+        STA ch_cx
+        LDA #11
+        STA ch_cy
+        LDA #<str_shop_atk
+        LDX #>str_shop_atk
+        JSR print_str_ax
+        LDA #4
+        STA ch_cx
+        LDA #13
+        STA ch_cy
+        LDA #<str_shop_def
+        LDX #>str_shop_def
+        JSR print_str_ax
+        LDA #4
+        STA ch_cx
+        LDA #15
+        STA ch_cy
+        LDA #<str_shop_potion
+        LDX #>str_shop_potion
+        JSR print_str_ax
+        LDA #4
+        STA ch_cx
+        LDA #18
+        STA ch_cy
+        LDA #<str_shop_next
+        LDX #>str_shop_next
+        JSR print_str_ax
+        JSR vdp_display_on
+@key:   JSR wait_key_real
+        CMP #KEY_ESC
+        BNE @not_escape
+        INC quit_flag
+        RTS
+@not_escape:
+        CMP #$C3                ; C: continue
+        BNE @not_continue
+        RTS
+@not_continue:
+        CMP #KEY_H
+        BNE @not_heal
+        LDA p_hp
+        CMP #30
+        BCS @fail
+        LDA #8
+        JSR shop_pay
+        BCC @fail
+        LDA p_hp
+        CLC
+        ADC #10
+        CMP #31
+        BCC @store_hp
+        LDA #30
+@store_hp:
+        STA p_hp
+        JMP @bought
+@not_heal:
+        CMP #KEY_A
+        BNE @not_atk
+        LDA #12
+        JSR shop_pay
+        BCC @fail
+        INC p_atk
+        JMP @bought
+@not_atk:
+        CMP #$C4                ; D: defense
+        BNE @not_def
+        LDA #12
+        JSR shop_pay
+        BCC @fail
+        INC p_def
+        JMP @bought
+@not_def:
+        CMP #KEY_P
+        BNE @key
+        LDA p_potions
+        CMP #9
+        BCS @fail
+        LDA #6
+        JSR shop_pay
+        BCC @fail
+        INC p_potions
+@bought:
+        JSR sound_level
+        JMP @redraw
+@fail:  JSR sound_wall
+        JMP @key
+
+; A=price. Carry set when paid; gold is held to the HUD's two digits.
+shop_pay:
+        STA tmp2
+        LDA p_gold
+        CMP tmp2
+        BCC @no
+        SEC
+        SBC tmp2
+        STA p_gold
+        SEC
+        RTS
+@no:    CLC
+        RTS
+
+score_validate:
+        LDA SCORE_BASE
+        CMP #'M'
+        BNE @reset
+        LDA SCORE_BASE+1
+        CMP #'Z'
+        BNE @reset
+        LDA SCORE_BASE+2
+        CMP #'3'
+        BNE @reset
+        LDA SCORE_BASE+3
+        CMP #1
+        BNE @reset
+        LDA SCORE_BASE+4
+        EOR SCORE_BASE+5
+        EOR SCORE_BASE+6
+        EOR #$A5
+        CMP SCORE_BASE+7
+        BEQ @valid
+@reset: LDX #0
+@copy:  LDA score_initial,X
+        STA SCORE_BASE,X
+        INX
+        CPX #8
+        BNE @copy
+@valid: RTS
+
+; Only a completed run can set a record. Score rewards found caches and
+; experience, then subtracts one point per four moves.
+score_finish:
+        LDA #100
+        STA score_run
+        LDX p_chests
+@cache: CPX #0
+        BEQ @level
+        LDA score_run
+        CLC
+        ADC #10
+        STA score_run
+        DEX
+        JMP @cache
+@level: LDX p_lvl
+@level_loop:
+        CPX #0
+        BEQ @turns
+        LDA score_run
+        CLC
+        ADC #5
+        STA score_run
+        DEX
+        JMP @level_loop
+@turns: LDA p_turns
+        LSR
+        LSR
+        STA tmp
+        LDA score_run
+        SEC
+        SBC tmp
+        BCS @score_ok
+        LDA #0
+@score_ok:
+        STA score_run
+        CMP SCORE_BASE+4
+        BCC @done
+        BEQ @done
+        STA SCORE_BASE+4
+        LDA p_seed_lo
+        STA SCORE_BASE+5
+        LDA p_seed_hi
+        STA SCORE_BASE+6
+        LDA score_run
+        EOR p_seed_lo
+        EOR p_seed_hi
+        EOR #$A5
+        STA SCORE_BASE+7
+        JSR disk_protected
+        BCS @done
+        JSR dos_cmd_new
+        LDA #<str_score_save
+        LDY #>str_score_save
+        JSR dos_cmd_add
+        JSR dos_cmd_run
+@done:  RTS
+
+score_initial:
+        .byte 'M','Z','3',1,0,0,0,$A5
+str_score_save:
+        .byte "BSAVE MAZESCORE,A$1F00,L$0008",0
+
+sound_wall:
+        LDA #$18
+        LDX #$E0
+        JMP tone
+sound_attack:
+        LDA #$18
+        LDX #$48
+        JMP tone
+sound_hurt:
+        LDA #$28
+        LDX #$B0
+        JMP tone
+sound_level:
+        LDA #$24
+        LDX #$90
+        JSR tone
+        LDA #$28
+        LDX #$60
+        JMP tone
+sound_stairs:
+        LDA #$30
+        LDX #$B0
+        JSR tone
+        LDA #$30
+        LDX #$78
+        JMP tone
+sound_victory:
+        JSR sound_level
+        LDA #$50
+        LDX #$48
+        JMP tone
+sound_death:
+        LDA #$30
+        LDX #$70
+        JSR tone
+        LDA #$48
+        LDX #$D0
+        JMP tone
 
 play_loop:
         LDA quit_flag
@@ -572,7 +903,12 @@ play_input:
         LDA #HUD_BOTH           ; Apple II port fix: the help page wiped the HUD
         STA hud_dirty           ; zone too, so rebuild it (upstream left the
         RTS                     ; "PRESS ANY KEY..." line on screen)
-@other: JMP play_input          ; unknown key, or wait_key's synthetic
+@other: CMP #KEY_P
+        BNE @unknown
+        JSR drink_potion
+        RTS
+@unknown:
+        JMP play_input          ; unknown key, or wait_key's synthetic
                                 ; timeout SPACE: wait again WITHOUT
                                 ; returning — the old fall-through RTS made
                                 ; play_loop rebuild the whole frame every
@@ -592,6 +928,15 @@ play_input:
 ; =============================================
 try_move:
         STA mv_dir              ; save direction (cell_index_xy-proof)
+        LDA p_col
+        STA old_col
+        LDA p_row
+        STA old_row
+        JMP @check
+@blocked:
+        JSR sound_wall
+        RTS
+@check:
         LDX p_col
         LDY p_row
         JSR cell_index_xy       ; A = idx (clobbers tmp!)
@@ -642,6 +987,19 @@ try_move:
         BEQ @blocked
         DEC p_col
 @arrive:
+        LDA p_turns
+        CMP #$FF
+        BEQ @turn_counted
+        INC p_turns
+@turn_counted:
+        LDX p_col
+        LDY p_row
+        JSR cell_index_xy
+        TAX
+        LDA grid,X
+        ORA #VISITED
+        STA grid,X
+        JSR collect_cell
         ; reached exit?
         LDA p_col
         CMP #(NCOLS-1)
@@ -649,9 +1007,43 @@ try_move:
         LDA p_row
         CMP #(NROWS-1)
         BNE @nowin
+        LDA p_relic
+        BNE @has_relic
+        LDA #<str_relic_blocks
+        STA msg_lo
+        LDA #>str_relic_blocks
+        STA msg_hi
+        LDA #HUD_BOTH
+        STA hud_dirty
+        JSR sound_wall
+        RTS
+@has_relic:
+        LDA p_floor
+        CMP #LAST_FLOOR
+        BNE @next_floor
+        ; The final exit opens only after the dragon has fallen.
+        LDA mob_type+NUM_MOBS-1
+        CMP #MOB_DEAD
+        BNE @dragon_alive
         LDA #ST_WIN
         STA gstate
+        JSR score_finish
+        JSR sound_victory
         RTS
+@dragon_alive:
+        LDA #<str_dragon_blocks
+        STA msg_lo
+        LDA #>str_dragon_blocks
+        STA msg_hi
+        RTS
+@next_floor:
+        JSR floor_shop
+        LDA quit_flag
+        BNE @leave
+        INC p_floor
+        JSR start_floor
+        JSR sound_stairs
+@leave: RTS
 @nowin:
         ; mob on this cell?
         JSR find_mob_here
@@ -662,7 +1054,79 @@ try_move:
         LDA #ST_COMBAT
         STA gstate
 @no_mob:
-@blocked:
+        RTS
+
+; X = destination cell. Picking up a cache or relic happens once.
+collect_cell:
+        LDA grid,X
+        AND #RELIC_BIT
+        BEQ @chest
+        LDA grid,X
+        AND #($FF-RELIC_BIT)
+        STA grid,X
+        LDA #1
+        STA p_relic
+        LDA #<str_relic_found
+        STA msg_lo
+        LDA #>str_relic_found
+        STA msg_hi
+        LDA #HUD_BOTH
+        STA hud_dirty
+        JSR sound_level
+        RTS
+@chest:
+        LDA grid,X
+        AND #CHEST_BIT
+        BEQ @done
+        LDA grid,X
+        AND #($FF-CHEST_BIT)
+        STA grid,X
+        INC p_chests
+        LDA p_gold
+        CLC
+        ADC #6
+        CMP #100
+        BCC @store_gold
+        LDA #99
+@store_gold:
+        STA p_gold
+        JSR random
+        AND #1
+        BEQ @no_potion
+        LDA p_potions
+        CMP #9
+        BCS @no_potion
+        INC p_potions
+@no_potion:
+        LDA #<str_cache_found
+        STA msg_lo
+        LDA #>str_cache_found
+        STA msg_hi
+        LDA #HUD_BOTH
+        STA hud_dirty
+        JSR sound_level
+@done:  RTS
+
+; Spend one potion to restore 10 HP, up to 30. Carry signals success.
+drink_potion:
+        LDA p_potions
+        BEQ @no
+        LDA p_hp
+        CMP #30
+        BCS @no
+        DEC p_potions
+        CLC
+        ADC #10
+        CMP #31
+        BCC @store
+        LDA #30
+@store: STA p_hp
+        LDA #HUD_BOTH
+        STA hud_dirty
+        JSR sound_level
+        SEC
+        RTS
+@no:    CLC
         RTS
 
 ; =============================================
@@ -719,15 +1183,31 @@ place_mobs:
         ; reject start
         LDA mob_col,X
         ORA mob_row,X
-        BEQ @retry
+        BNE @not_start
+        JMP @retry
+@not_start:
         ; reject exit
         LDA mob_col,X
         CMP #(NCOLS-1)
         BNE @keep
         LDA mob_row,X
         CMP #(NROWS-1)
-        BEQ @retry
+        BNE @keep
+        JMP @retry
 @keep:
+        STX ch_idx
+        LDY mob_row,X
+        LDA mob_col,X
+        TAX
+        JSR cell_index_xy
+        TAX
+        LDA grid,X
+        AND #(CHEST_BIT|RELIC_BIT)
+        BEQ @free_cell
+        LDX ch_idx
+        JMP @retry
+@free_cell:
+        LDX ch_idx
         ; assign type round-robin: 0,1,2,0,1,2,...
         TXA
         STA tmp
@@ -739,13 +1219,39 @@ place_mobs:
         STA tmp
         JMP @modlp
 @okmod:
+        ; Floors two and three have tougher regular foes. Slot 7 on the
+        ; last floor is the unique dragon, irrespective of this rotation.
+        STA tmp
+        LDA p_floor
+        CMP #1
+        BEQ @type
+        LDA tmp
+        CMP #2
+        BCS @floor_type_done
+        CLC
+        ADC #1
+        STA tmp
+@floor_type_done:
+        LDA p_floor
+        CMP #LAST_FLOOR
+        BNE @type
+        CPX #(NUM_MOBS-1)
+        BNE @type
+        LDA #3
+        STA tmp
+@type:
+        LDA tmp
         STA mob_type,X
-        ; HP = 4 + 3*type + 1d4
+        ; HP = 4 + 3*type + floor bonus + 1d4
         ASL                    ; type * 2
         CLC
         ADC tmp                ; +type -> 3*type
         CLC
         ADC #4
+        CLC
+        ADC p_floor
+        SEC
+        SBC #1
         STA tmp2
         JSR random
         AND #$03
@@ -754,7 +1260,9 @@ place_mobs:
         STA mob_hp,X
         INX
         CPX #NUM_MOBS
-        BNE @lp
+        BEQ @done
+        JMP @lp
+@done:
         RTS
 @retry:
         ; reroll without advancing X
@@ -909,6 +1417,93 @@ dfs_loop:
         STA cell_idx
         JMP dfs_loop
 @done:  RTS
+
+; Add a recognizable 2x2 chamber, three extra links, and three caches.
+; All passages from DFS remain open, so every new floor stays connected.
+decorate_maze:
+        JSR random
+        AND #$07
+        CMP #6
+        BCC @room_col
+        SEC
+        SBC #6
+@room_col:
+        CLC
+        ADC #3                  ; chamber x = 3..8
+        STA cur_col
+        JSR random
+        AND #$03
+        CLC
+        ADC #2                  ; chamber y = 2..5
+        STA cur_row
+        LDY cur_row
+        LDX cur_col
+        JSR cell_index_xy
+        STA room_idx
+        TAX
+        LDA grid,X
+        ORA #(EAST_BIT|ROOM_BIT)
+        STA grid,X
+        INX
+        LDA grid,X
+        ORA #ROOM_BIT
+        STA grid,X
+        LDX room_idx
+        TXA
+        CLC
+        ADC #NCOLS
+        TAX
+        LDA grid,X
+        ORA #(NORTH_BIT|EAST_BIT|ROOM_BIT)
+        STA grid,X
+        INX
+        LDA grid,X
+        ORA #(NORTH_BIT|ROOM_BIT|RELIC_BIT)
+        STA grid,X
+
+        LDA #3
+        STA num_dirs
+@extra:
+        JSR random
+        AND #$0F
+        CMP #(NCOLS-1)
+        BCS @extra
+        STA cur_col
+        JSR random
+        AND #$07
+        CMP #NROWS
+        BCS @extra
+        TAY
+        LDX cur_col
+        JSR cell_index_xy
+        TAX
+        LDA grid,X
+        AND #EAST_BIT
+        BNE @extra
+        LDA grid,X
+        ORA #EAST_BIT
+        STA grid,X
+        DEC num_dirs
+        BNE @extra
+
+        LDA #3
+        STA num_dirs
+@cache:
+        JSR random
+        AND #$7F
+        BEQ @cache
+        CMP #(NCELLS-1)
+        BCS @cache
+        TAX
+        LDA grid,X
+        AND #(CHEST_BIT|RELIC_BIT)
+        BNE @cache
+        LDA grid,X
+        ORA #CHEST_BIT
+        STA grid,X
+        DEC num_dirs
+        BNE @cache
+        RTS
 
 ; =============================================
 ; random: 16-bit Galois LFSR
@@ -1136,13 +1731,19 @@ clear_span:
         STA pix_addr_hi
         LDA #0
         LDY #39
-@b:     STA (pix_addr_lo),Y
+        ; Forty stores are fixed for every scanline. Unrolling removes
+        ; 39 taken branches per row (6,240 per 3D frame).
+.repeat 39
+        STA (pix_addr_lo),Y
         DEY
-        BPL @b
+.endrepeat
+        STA (pix_addr_lo),Y
         INC cr_cy
         LDA cr_cy
         CMP cr_cx
-        BNE @row
+        BEQ @done
+        JMP @row
+@done:
         RTS
 
 ; =============================================
@@ -1192,6 +1793,9 @@ plot_done:
 ; absolute deltas + sign flags.
 ; =============================================
 line_xy:
+        ; Called only for the sloping side-wall edges. Cache the HGR
+        ; address and pixel mask, then update only the coordinate that
+        ; Bresenham actually advances on a given step.
         ; dx = |x1 - x0|, sx = sign  (use carry, not sign bit, for unsigned compare)
         SEC
         LDA ln_x1
@@ -1244,9 +1848,18 @@ line_xy:
         STA pix_x
         LDA ln_y0
         STA pix_y
+        JSR calc_pix_addr
+        LDA pix_x
+        AND #$07
+        TAX
+        LDA hgr_bitmask,X
+        STA pix_mask
 
 @step:
-        JSR plot_set
+        LDY pix_col
+        LDA (pix_addr_lo),Y
+        ORA pix_mask
+        STA (pix_addr_lo),Y
         ; if (x0==x1 && y0==y1) done
         LDA ln_x0
         CMP ln_x1
@@ -1289,6 +1902,17 @@ line_xy:
 @after_x:
         LDA ln_x0
         STA pix_x
+        AND #$07
+        TAX
+        LDA hgr_bitmask,X
+        STA pix_mask
+        LDA pix_x
+        LSR
+        LSR
+        LSR
+        CLC
+        ADC #4
+        STA pix_col
 @no_x:  ; --- y test: e2 < dx  <=>  e2 - dx < 0 (16-bit signed) ---
         SEC
         LDA tmp
@@ -1312,6 +1936,11 @@ line_xy:
 @after_y:
         LDA ln_y0
         STA pix_y
+        TAY
+        LDA hgr_lo,Y
+        STA pix_addr_lo
+        LDA hgr_hi,Y
+        STA pix_addr_hi
 @no_y:  JMP @step
 @end:   RTS
 
@@ -1605,10 +2234,10 @@ set_msg:
         RTS
 
 ; Narrator pools (index into msg_ptr_lo/hi): base + count.
-MSG_IDLE  = 0          ; exploring (32)
-MSG_WIN   = 32         ; a kill, some loot (32)
-MSG_PERIL = 64         ; low HP, a nasty bite (32)
-MSG_POOL  = 32         ; lines per pool (msg_rand count)
+MSG_IDLE  = 0
+MSG_WIN   = 32
+MSG_PERIL = 64
+MSG_POOL  = 32
 
 ; msg_rand: A = pool base index, X = pool count. Picks a random line from
 ; the pool and points the narrator (msg_lo/hi) at it. Clobbers A/X/Y, tmp.
@@ -1681,6 +2310,45 @@ draw_str_centered:
 ; centred on row 1 at the top, tinted cyan. Redrawn every 3D frame (it
 ; lives in the cleared viewport).
 draw_direction:
+        LDA #2
+        STA ch_cx
+        LDA #1
+        STA ch_cy
+        LDA #<str_floor
+        LDX #>str_floor
+        JSR print_str_ax
+        LDA #8
+        STA ch_cx
+        LDA #1
+        STA ch_cy
+        LDA p_floor
+        JSR write_decimal_2d
+        LDA #23
+        STA ch_cx
+        LDA #1
+        STA ch_cy
+        LDA #'R'
+        STA ch_code
+        JSR write_char
+        LDA #24
+        STA ch_cx
+        LDA p_relic
+        CLC
+        ADC #'0'
+        STA ch_code
+        JSR write_char
+        LDA #27
+        STA ch_cx
+        LDA #'P'
+        STA ch_code
+        JSR write_char
+        LDA #28
+        STA ch_cx
+        LDA p_potions
+        CLC
+        ADC #'0'
+        STA ch_code
+        JSR write_char
         LDX p_face
         LDA dir_word_lo,X
         PHA
@@ -1773,21 +2441,41 @@ show_title:
         STA sp_y
         JSR hgr_spr16_x2
         JSR sprite_color_white  ; don't leak the tint to later blits
-        ; credits (row 16)
+        ; credits (row 15)
         LDA #2
         STA ch_cx
-        LDA #16
+        LDA #15
         STA ch_cy
         LDA #<str_title4
         LDX #>str_title4
         JSR print_str_ax
-        ; help hint (row 18)
+        ; help hint (row 17)
         LDA #8
         STA ch_cx
-        LDA #18
+        LDA #17
         STA ch_cy
         LDA #<str_title_hint
         LDX #>str_title_hint
+        JSR print_str_ax
+        LDA #3
+        STA ch_cx
+        LDA #19
+        STA ch_cy
+        LDA #<str_best
+        LDX #>str_best
+        JSR print_str_ax
+        LDA #9
+        STA ch_cx
+        LDA #19
+        STA ch_cy
+        LDA SCORE_BASE+4
+        JSR write_decimal_3d
+        LDA #15
+        STA ch_cx
+        LDA #19
+        STA ch_cy
+        LDA #<str_title_replay
+        LDX #>str_title_replay
         JSR print_str_ax
         ; press any key (row 21)
         LDA #8
@@ -2044,7 +2732,48 @@ show_win:
         JSR print_str_ax
         LDA #4
         STA ch_cx
-        LDA #20
+        LDA #15
+        STA ch_cy
+        LDA #<str_score
+        LDX #>str_score
+        JSR print_str_ax
+        LDA #11
+        STA ch_cx
+        LDA #15
+        STA ch_cy
+        LDA score_run
+        JSR write_decimal_3d
+        LDA #4
+        STA ch_cx
+        LDA #17
+        STA ch_cy
+        LDA #<str_best
+        LDX #>str_best
+        JSR print_str_ax
+        LDA #11
+        STA ch_cx
+        LDA #17
+        STA ch_cy
+        LDA SCORE_BASE+4
+        JSR write_decimal_3d
+        LDA #4
+        STA ch_cx
+        LDA #19
+        STA ch_cy
+        LDA #<str_seed
+        LDX #>str_seed
+        JSR print_str_ax
+        LDA #11
+        STA ch_cx
+        LDA #19
+        STA ch_cy
+        LDA p_seed_hi
+        JSR write_hex_byte
+        LDA p_seed_lo
+        JSR write_hex_byte
+        LDA #4
+        STA ch_cx
+        LDA #22
         STA ch_cy
         LDA #<str_press_any
         LDX #>str_press_any
@@ -2681,7 +3410,7 @@ draw_hud_3d:
         DEC hud_dirty
         JSR clear_hud           ; wipe rows 20..23 -> no field-gap remnants
 
-        ; --- row 20: HP / ATK / DEF ---
+        ; --- row 21: HP / ATK / DEF ---
         LDA #1
         STA ch_cx
         LDA #21
@@ -2856,6 +3585,13 @@ draw_mob_indicator:
         STA last_mob_depth      ; nothing drawn -> nothing to reset next frame
         RTS
 @found:
+        LDX rd_col
+        LDY rd_row
+        JSR cell_index_xy
+        TAX
+        LDA grid,X
+        ORA #SEEN_MOB
+        STA grid,X
         LDA mob_scan_d
         STA mob_depth
         STA last_mob_depth      ; remember for next frame's colour reset
@@ -3048,9 +3784,9 @@ reset_w: .byte  96,  80,  80
 reset_h: .byte  80,  48,  40
 
 ; Archetype colours (TMS9918 fg<<4 | bg=black): goblin=light green,
-; orc=light red, dark mage=magenta.
+; orc=light red, dark mage=magenta, dragon=orange.
 mob_colors:
-        .byte $31, $91, $D1
+        .byte $31, $91, $D1, $91
 
 ; mob_sprite_ptr: sp_ptr := SCROLL-O-SPRITES pattern of mob X's archetype
 ; + the archetype's HGR artifact colour (tail call into
@@ -3068,7 +3804,7 @@ mob_sprite_ptr:
 ; ---- HGR artifact colour per archetype (goblin / orc / dark mage) ----
 ; The TMS tints ($31 lt-green / $91 lt-red / $D1 magenta) map onto the
 ; lib's HSPR_* artifact-colour codes (hgr_sprite16.asm).
-mob_hues:       .byte HSPR_GREEN, HSPR_ORANGE, HSPR_VIOLET
+mob_hues:       .byte HSPR_GREEN, HSPR_ORANGE, HSPR_VIOLET, HSPR_ORANGE
 
 ; set_sprite_color_y: arm the blit colour attributes for archetype Y.
 set_sprite_color_y:
@@ -3122,6 +3858,68 @@ write_decimal_2d:
         INC ch_cx
         RTS
 
+; A=0..255, three digits for scores.
+write_decimal_3d:
+        LDX #0
+@hundreds:
+        CMP #100
+        BCC @remainder
+        SEC
+        SBC #100
+        INX
+        JMP @hundreds
+@remainder:
+        PHA
+        TXA
+        CLC
+        ADC #'0'
+        STA ch_code
+        JSR write_char
+        INC ch_cx
+        PLA
+        CMP #10
+        BCS @two_digits
+        PHA
+        LDA #'0'
+        STA ch_code
+        JSR write_char
+        INC ch_cx
+        PLA
+        CLC
+        ADC #'0'
+        STA ch_code
+        JSR write_char
+        INC ch_cx
+        RTS
+@two_digits:
+        JMP write_decimal_2d
+
+; Print one byte as two hexadecimal characters at the current text cell.
+write_hex_byte:
+        PHA
+        LSR
+        LSR
+        LSR
+        LSR
+        JSR write_hex_nibble
+        PLA
+        AND #$0F
+write_hex_nibble:
+        CMP #10
+        BCC @digit
+        SEC
+        SBC #10
+        CLC
+        ADC #'A'
+        JMP @print
+@digit:
+        CLC
+        ADC #'0'
+@print: STA ch_code
+        JSR write_char
+        INC ch_cx
+        RTS
+
 ; =============================================
 ; render_map - top-down view of the maze with player position
 ; Cell size 16x16 px; maze 11x7 -> 176x112. Origin (36,20) — NOT (40,24):
@@ -3143,6 +3941,19 @@ render_map:
         LDX #>str_map_title
         JSR     tms9918_pad12   ; +12c silicon-strict pad12-v3 (back-to-back VDP store)
         JSR print_str_ax
+        LDA #23
+        STA ch_cx
+        LDA #1
+        STA ch_cy
+        LDA #<str_floor
+        LDX #>str_floor
+        JSR print_str_ax
+        LDA #29
+        STA ch_cx
+        LDA #1
+        STA ch_cy
+        LDA p_floor
+        JSR write_decimal_2d
 
         ; outer bounds
         LDA #(36)
@@ -3183,6 +3994,8 @@ render_map:
         TAX
         LDA grid,X
         STA rd_cell
+        AND #VISITED
+        BEQ @no_bot
         ; --- right wall: if EAST passage NOT set and col<NCOLS-1 ---
         LDA rd_col
         CMP #(NCOLS-1)
@@ -3251,6 +4064,50 @@ render_map:
         STA fl_y0
         JSR hline
 @no_bot:
+        LDA rd_cell
+        AND #(VISITED|ROOM_BIT)
+        CMP #(VISITED|ROOM_BIT)
+        BNE @no_room
+        LDA rd_col
+        ASL
+        CLC
+        ADC #5
+        STA ch_cx
+        LDA rd_row
+        ASL
+        CLC
+        ADC #3
+        STA ch_cy
+        LDA #'R'
+        STA ch_code
+        JSR write_char
+@no_room:
+        ; Pickups are visible on the map to give each run a route-planning
+        ; objective. collect_cell clears the bit when one is collected.
+        LDA rd_cell
+        AND #RELIC_BIT
+        BEQ @not_relic
+        LDA #'*'
+        BNE @draw_pickup
+@not_relic:
+        LDA rd_cell
+        AND #CHEST_BIT
+        BEQ @no_pickup
+        LDA #'$'
+@draw_pickup:
+        STA ch_code
+        LDA rd_col
+        ASL
+        CLC
+        ADC #5
+        STA ch_cx
+        LDA rd_row
+        ASL
+        CLC
+        ADC #3
+        STA ch_cy
+        JSR write_char
+@no_pickup:
         INC rd_col
         LDA rd_col
         CMP #NCOLS
@@ -3273,6 +4130,10 @@ render_map:
         STA ch_code
         JSR write_char
 
+        ; Only reveal the exit once its cell has been explored.
+        LDA grid+NCELLS-1
+        AND #VISITED
+        BEQ @hide_exit
         ; E in bottom-right cell: (5+2*10, 3+2*6) = (25, 15)
         LDA #25
         STA ch_cx
@@ -3281,6 +4142,7 @@ render_map:
         LDA #'E'
         STA ch_code
         JSR write_char
+@hide_exit:
 
         ; live mobs
         LDX #0
@@ -3288,6 +4150,16 @@ render_map:
         LDA mob_type,X
         CMP #MOB_DEAD
         BEQ @mn
+        LDA mob_row,X
+        TAY
+        LDA mob_col,X
+        TAX
+        JSR cell_index_xy
+        TAX
+        LDA grid,X
+        AND #SEEN_MOB
+        BEQ @mn
+        LDX ch_idx
         ; cell coord -> char cell
         LDA mob_col,X
         ASL
@@ -3326,6 +4198,22 @@ render_map:
         STA ch_code
         JSR write_char
 
+        LDA #3
+        STA ch_cx
+        LDA #18
+        STA ch_cy
+        LDA #<str_seed
+        LDX #>str_seed
+        JSR print_str_ax
+        LDA #10
+        STA ch_cx
+        LDA #18
+        STA ch_cy
+        LDA p_seed_hi
+        JSR write_hex_byte
+        LDA p_seed_lo
+        JSR write_hex_byte
+
         ; HUD line
         LDA #0
         STA ch_cx
@@ -3345,6 +4233,10 @@ arrow_chars:
 ; run_combat - turn-based against cur_mob
 ; =============================================
 run_combat:
+        LDA #0
+        STA p_guard
+        STA p_focus
+        STA mob_phase
         JSR draw_combat_screen
 @wait:  JSR wait_key
         CMP #KEY_ESC
@@ -3358,27 +4250,33 @@ run_combat:
         AND #$01
         BNE @flee_ok
         ; failed flee = monster gets free hit
-        JSR mob_attacks
-        LDA p_hp
-        BEQ @die
-        BPL @stay
-@die:   LDA #ST_LOSE
-        STA gstate
-        RTS
-@stay:  ; HGR port: only the player-HP digits changed — update them in
-        ; place instead of RTSing into play_loop's full combat rebuild
-        ; (clear + x4 portrait + every label, ~140k cycles per round).
-        JSR combat_update_hp
-        JMP @wait
+        JMP @mob_alive
 @flee_ok:
-        ; pop back to previous gameplay state
+        ; Retreat to the cell from which combat was entered. Staying on
+        ; the monster cell let a successful flee bypass every foe.
+        LDA old_col
+        STA p_col
+        LDA old_row
+        STA p_row
         LDA #HUD_BOTH
         STA hud_dirty           ; combat wiped the HUD zone + may have changed
                                 ; HP; rebuild it on the 3D return
         LDA prev_state
         STA gstate
         RTS
-@n2:    CMP #KEY_A
+@n2:    CMP #KEY_G
+        BNE @n3
+        LDA #1
+        STA p_guard
+        LDA #2
+        STA p_focus             ; the next attack gains two points
+        JMP @mob_alive
+@n3:    CMP #KEY_P
+        BNE @n4
+        JSR drink_potion
+        BCC @wait
+        JMP @mob_alive
+@n4:    CMP #KEY_A
         BEQ @attack
         ; unknown key / wait_key's synthetic timeout: keep waiting
         ; WITHOUT returning — an RTS here made play_loop rebuild the
@@ -3386,6 +4284,7 @@ run_combat:
         ; play_input's old fall-through)
         JMP @wait
 @attack:
+        JSR sound_attack
         ; player attacks
         LDX cur_mob
         LDA p_atk
@@ -3395,10 +4294,18 @@ run_combat:
         AND #$01
         CLC
         ADC tmp
+        CLC
+        ADC p_focus
         STA tmp                 ; effective atk
-        ; mob defense by type: 0,1,2
+        LDA #0
+        STA p_focus
+        ; mob defense by type: 0,1,2,2 (the dragon relies on HP)
         LDX cur_mob
         LDA mob_type,X
+        CMP #3
+        BCC @def_ready
+        LDA #2
+@def_ready:
         STA tmp2                ; type defense
         LDA tmp
         SEC
@@ -3417,13 +4324,16 @@ run_combat:
         BCS @ok
         LDA #0
 @ok:    STA mob_hp,X
-        BNE @mob_alive
+        BEQ @killed
+        JMP @mob_alive
+@killed:
         ; mob killed
+        LDA mob_type,X
+        STA dead_type
         LDA #MOB_DEAD
         STA mob_type,X
         ; --- loot: gold += (type+1)*2 + 1d4 (tougher foes drop more) ---
-        LDX cur_mob
-        LDA mob_type,X
+        LDA dead_type
         CLC
         ADC #1
         ASL                     ; (type+1)*2
@@ -3434,7 +4344,11 @@ run_combat:
         ADC tmp
         CLC
         ADC p_gold
-        STA p_gold              ; (8-bit; a full clear tops out well under 255)
+        CMP #100
+        BCC @gold_ok
+        LDA #99
+@gold_ok:
+        STA p_gold              ; keep the two-digit HUD and shop readable
         ; --- XP is a running TOTAL now (it only ever climbs, so a kill
         ; always visibly rewards). Level up each time it crosses xp_next. ---
         LDA p_xp
@@ -3471,6 +4385,7 @@ run_combat:
         STA xp_next
         LDA #1
         STA tmp2
+        JSR sound_level
         JMP @lvlchk
 @lvldone:
         ; narrator: if the fight left you battered, an ominous PERIL line;
@@ -3506,6 +4421,10 @@ run_combat:
 @mob_alive:
         ; monster's turn
         JSR mob_attacks
+        LDA ev_dmg
+        BEQ @quiet
+        JSR sound_hurt
+@quiet:
         LDA p_hp
         BEQ @die2
         ; HGR port: the round only moved the two HP values — repaint
@@ -3513,35 +4432,95 @@ run_combat:
         ; draw_combat_screen stays for entry and next-foe transitions
         ; (different name/portrait), where it is genuinely needed.
         JSR combat_update_hp
+        JSR draw_combat_intent
         JMP @wait
 @die2:  LDA #ST_LOSE
         STA gstate
+        JSR sound_death
         RTS
 
 ; =============================================
 ; mob_attacks: mob hits player
-; damage = (type+2) - p_def + 0..1
+; damage = (type+2) + (floor-1) - p_def + 0..1
 ; =============================================
 mob_attacks:
+        LDA #0
+        STA ev_dmg
         LDX cur_mob
+        LDA mob_type,X
+        CMP #1
+        BEQ @charger
+        CMP #3
+        BEQ @charger
+        CMP #2
+        BEQ @mage
+        ; A goblin sometimes steals one coin instead of dealing damage.
+        JSR random
+        AND #$03
+        BNE @normal
+        LDA p_gold
+        BEQ @normal
+        DEC p_gold
+        LDA #HUD_BOTH
+        STA hud_dirty
+        RTS
+@charger:
+        LDA mob_phase
+        BEQ @windup
+        LDA #0
+        STA mob_phase
+        LDA mob_type,X
+        CLC
+        ADC #4                  ; heavy blow after the visible windup
+        JMP @floor_bonus
+@windup:
+        LDA #1
+        STA mob_phase
+        RTS
+@mage:
+        LDA p_floor
+        ; Magic ignores armor, so its base damage must stay below the
+        ; physical heavy hitters' damage on later floors.
+        JMP @variance
+@normal:
         LDA mob_type,X
         CLC
         ADC #2
-        STA tmp                 ; raw atk
+@floor_bonus:
+        STA tmp
+        LDA p_floor
+        SEC
+        SBC #1
+        CLC
+        ADC tmp
+        STA tmp
         JSR random
         AND #$01
         CLC
         ADC tmp
-        STA tmp
-        LDA tmp
         SEC
         SBC p_def
-        BPL @okd
+        BCS @positive
         LDA #1
-@okd:   CMP #1
-        BCS @apply
+@positive:
+        CMP #1
+        BCS @guard
+        LDA #1
+        JMP @guard
+@variance:
+        STA tmp
+        JSR random
+        AND #$01
+        CLC
+        ADC tmp
+@guard: LDY p_guard
+        BEQ @apply
+        LSR
+        BNE @apply
         LDA #1
 @apply: STA ev_dmg
+        LDA #0
+        STA p_guard
         LDA p_hp
         SEC
         SBC ev_dmg
@@ -3637,8 +4616,22 @@ draw_combat_screen:
         LDA p_atk
         JSR write_decimal_2d
 
+        LDA #5
+        STA ch_cx
+        LDA #14
+        STA ch_cy
+        LDA #<str_hud_potions
+        LDX #>str_hud_potions
+        JSR print_str_ax
+        LDA #14
+        STA ch_cx
+        LDA #14
+        STA ch_cy
+        LDA p_potions
+        JSR write_decimal_2d
+
         ; Action prompt
-        LDA #4
+        LDA #1
         STA ch_cx
         LDA #20
         STA ch_cy
@@ -3673,8 +4666,41 @@ draw_combat_screen:
         LDA mob_colors,Y
         STA cr_col
         JSR color_rect
+        JSR draw_combat_intent
         JSR vdp_display_on      ; reveal the finished combat screen
         RTS
+
+; Row 18 tells the player when an orc or dragon has wound up a heavy hit.
+draw_combat_intent:
+        LDA #144
+        LDX #152
+        JSR clear_span
+        LDA #3
+        STA ch_cx
+        LDA #18
+        STA ch_cy
+        LDX cur_mob
+        LDA mob_type,X
+        CMP #0
+        BNE @not_goblin
+        LDA #<str_intent_goblin
+        LDX #>str_intent_goblin
+        JMP print_str_ax
+@not_goblin:
+        CMP #2
+        BNE @charger
+        LDA #<str_intent_mage
+        LDX #>str_intent_mage
+        JMP print_str_ax
+@charger:
+        LDA mob_phase
+        BEQ @calm
+        LDA #<str_intent_strike
+        LDX #>str_intent_strike
+        JMP print_str_ax
+@calm:  LDA #<str_intent_windup
+        LDX #>str_intent_windup
+        JMP print_str_ax
 
 ; combat_update_hp: repaint ONLY the two per-round fields of the combat
 ; screen — monster HP (cells 7-8 of row 6) and player HP (cells 11-12
@@ -3694,6 +4720,12 @@ combat_update_hp:
         STA ch_cy
         LDA p_hp
         JSR write_decimal_2d
+        LDA #14
+        STA ch_cx
+        LDA #14
+        STA ch_cy
+        LDA p_potions
+        JSR write_decimal_2d
         RTS
 
 ; =============================================
@@ -3703,11 +4735,18 @@ combat_update_hp:
 ; artifact colour via hgr_spr16_color_a. See the module header.
 ; =============================================
 
-; archetype -> SCROLL-O-SPRITES pattern (0=goblin 1=orc 2=dark mage)
+; archetype -> 16x16 pattern (Quale's three sprites, then original dragon)
 mob_sprites_lo:
-        .byte <troll_goblin_pat, <troll_orc_pat, <char_necromancer_m_pat
+        .byte <troll_goblin_pat, <troll_orc_pat, <char_necromancer_m_pat, <dragon_pat
 mob_sprites_hi:
-        .byte >troll_goblin_pat, >troll_orc_pat, >char_necromancer_m_pat
+        .byte >troll_goblin_pat, >troll_orc_pat, >char_necromancer_m_pat, >dragon_pat
+
+; Original 16x16 winged dragon, in the sprite blitter's left/right format.
+dragon_pat:
+        .byte $00,$11,$3B,$7F,$FF,$EF,$6F,$3D
+        .byte $1D,$1F,$3D,$79,$71,$61,$C1,$81
+        .byte $C0,$E2,$F7,$FE,$FF,$F7,$F6,$BC
+        .byte $B8,$F8,$BC,$9E,$8E,$86,$83,$81
 
 ; =============================================
 ; DATA TABLES
@@ -3733,9 +4772,9 @@ frame_by:
 
 ; Monster names
 mob_names_lo:
-        .byte <str_mob_gob, <str_mob_orc, <str_mob_mage
+        .byte <str_mob_gob, <str_mob_orc, <str_mob_mage, <str_mob_dragon
 mob_names_hi:
-        .byte >str_mob_gob, >str_mob_orc, >str_mob_mage
+        .byte >str_mob_gob, >str_mob_orc, >str_mob_mage, >str_mob_dragon
 
 ; ---- Strings (null-terminated, ASCII < 128) ----
 str_title1:   .byte "MAZE 3D",0
@@ -3743,6 +4782,7 @@ str_title2:   .byte "WIZARDRY-STYLE",0
 str_title3:   .byte "DUNGEON CRAWLER",0
 str_title4:   .byte "FOR THE APPLE II (HGR)",0
 str_title_hint:.byte "IN GAME: H=HELP",0
+str_title_replay:.byte "R=REPLAY SEED",0
 str_press_any:.byte "PRESS ANY KEY...",0
 str_title_author:.byte "BY VERHILLE ARNAUD  2026",0
 
@@ -3751,16 +4791,16 @@ str_help_h1:  .byte "HOW TO PLAY",0
 ; 32 chars, its final 'T' wrapped to the next row ("TK BACKWARD" glitch).
 str_help_l1:  .byte "I   FORWARD       J  TURN LEFT",0
 str_help_l2:  .byte "K   BACKWARD      L  TURN RIGHT",0
-str_help_l3:  .byte "M   TOGGLE MAP / 3D VIEW",0
-str_help_l4:  .byte "A   ATTACK   F  FLEE  (COMBAT)",0
+str_help_l3:  .byte "M MAP   P DRINK POTION",0
+str_help_l4:  .byte "A HIT  G GUARD  F FLEE (FIGHT)",0
 str_help_l5:  .byte "ESC  QUIT TO DOS",0
 
-str_help_l6:  .byte "FIND THE EXIT MARKED -E-",0
-str_help_l7:  .byte "AT THE BOTTOM RIGHT.",0
-str_help_l8:  .byte "BEWARE OF THE DUNGEON DENIZENS.",0
+str_help_l6:  .byte "FIND RELIC IN THE R CHAMBER",0
+str_help_l7:  .byte "E EXIT; DRAGON GUARDS FLOOR 3",0
+str_help_l8:  .byte "CACHES GIVE GOLD AND POTIONS",0
 
-str_help_l9:  .byte "GAIN XP TO LEVEL UP YOUR HERO.",0
-str_help_l10: .byte "EVERY LEVEL: +1 ATK, +1 DEF/2.",0
+str_help_l9:  .byte "G GUARD BOOSTS YOUR NEXT HIT",0
+str_help_l10: .byte "R REPLAYS BEST SEED AT TITLE",0
 
 str_win1:     .byte "YOU FOUND THE EXIT!",0
 str_win2:     .byte "THE LIGHT OF DAY GREETS YOU.",0
@@ -3771,6 +4811,21 @@ str_lose2:    .byte "THE DUNGEON KEEPS YOU.",0
 
 str_map_title:.byte "DUNGEON MAP",0
 str_map_help: .byte "M=BACK TO 3D  ESC=QUIT",0
+str_seed:     .byte "SEED",0
+str_score:    .byte "SCORE",0
+str_best:     .byte "BEST",0
+str_floor:    .byte "FLOOR",0
+str_dragon_blocks: .byte "THE DRAGON GUARDS THE EXIT",0
+str_relic_blocks: .byte "FIND THE CHAMBER RELIC",0
+str_relic_found: .byte "THE RELIC IS YOURS!",0
+str_cache_found: .byte "A HIDDEN CACHE! GOLD AND GEAR",0
+str_shop_title: .byte "BETWEEN FLOORS",0
+str_shop_gold:  .byte "GOLD:",0
+str_shop_heal:  .byte "H: HEAL 10 HP        8 GOLD",0
+str_shop_atk:   .byte "A: +1 ATTACK        12 GOLD",0
+str_shop_def:   .byte "D: +1 DEFENSE       12 GOLD",0
+str_shop_potion:.byte "P: +1 POTION         6 GOLD",0
+str_shop_next:  .byte "C: DESCEND   ESC: QUIT",0
 
 str_hud_hp:   .byte "HP",0
 str_hud_atk:  .byte "ATK",0
@@ -3778,6 +4833,7 @@ str_hud_lvl:  .byte "LVL",0
 str_hud_def:  .byte "DEF",0
 str_hud_xp:   .byte "XP",0
 str_hud_gold: .byte "GOLD",0
+str_hud_potions:.byte "POTIONS",0
 
 ; Compass direction spelled out, shown top-centre in colour. Indexed by
 ; p_face (0=N 1=E 2=S 3=W) via dir_word_lo/hi.
@@ -3789,145 +4845,24 @@ dir_word_lo:  .byte <str_dir_n, <str_dir_e, <str_dir_s, <str_dir_w
 dir_word_hi:  .byte >str_dir_n, >str_dir_e, >str_dir_s, >str_dir_w
 
 ; ---------------------------------------------------------------------------
-; The NARRATOR -- a grandiloquent little fairy who over-hypes your every deed
-; on row 23. 96 lines in 3 pools; msg_rand picks one at random. Turning in
-; place clears it (str_empty); it returns on the next step.
-; Pools: MSG_IDLE (exploring) | MSG_WIN (kill/loot) | MSG_PERIL (low/hurt).
-; ---------------------------------------------------------------------------
-str_empty: .byte 0
-ph_idle0: .byte "THE SHADOWS WHISPER YOUR NAME",0
-ph_idle1: .byte "THE DUNGEON HOLDS ITS BREATH",0
-ph_idle2: .byte "THE DARK AWAITS YOUR FATE",0
-ph_idle3: .byte "STEP BY STEP, A LEGEND GROWS",0
-ph_idle4: .byte "DEEPER! THE LEGEND DESCENDS",0
-ph_idle5: .byte "DEEPER STILL, MORE HEROIC",0
-ph_idle6: .byte "THE ABYSS OPENS ITS ARMS!",0
-ph_idle7: .byte "ANOTHER STEP TOWARD GLORY",0
-ph_idle8: .byte "BATS FLEE AT YOUR APPROACH",0
-ph_idle9: .byte "EVEN THE WALLS ADMIRE YOU",0
-ph_idle10: .byte "DESTINY SMELLS FAINTLY DAMP",0
-ph_idle11: .byte "YOUR BOOTS ECHO LIKE THUNDER",0
-ph_idle12: .byte "THE MAP FEARS YOUR FOOTSTEPS",0
-ph_idle13: .byte "ONWARD, O RADIANT ONE!",0
-ph_idle14: .byte "SUCH POISE! SUCH DIRECTION!",0
-ph_idle15: .byte "A HERO WALKS. SLOWLY. BUT YES",0
-ph_idle16: .byte "THE GLOOM PARTS FOR YOU",0
-ph_idle17: .byte "LEGENDS ARE MADE OF WALKING",0
-ph_idle18: .byte "MIND THE MOSS, GREAT ONE",0
-ph_idle19: .byte "THE EXIT DREADS YOUR ARRIVAL",0
-ph_idle20: .byte "DUST SETTLES IN YOUR HONOUR",0
-ph_idle21: .byte "YOUR SHADOW LOOKS HEROIC TOO",0
-ph_idle22: .byte "COBWEBS PART IN REVERENCE",0
-ph_idle23: .byte "THE SILENCE APPLAUDS YOU",0
-ph_idle24: .byte "A DRAFT! AN OMEN! OR A GAP",0
-ph_idle25: .byte "YOU STRIDE WITH PURPOSE-ISH",0
-ph_idle26: .byte "THE STONES REMEMBER GIANTS",0
-ph_idle27: .byte "FORWARD, INTO SLIGHT DANGER!",0
-ph_idle28: .byte "THE TORCHES ENVY YOUR GLOW",0
-ph_idle29: .byte "EACH STEP, A VERSE UNWRITTEN",0
-ph_idle30: .byte "THE MAZE TREMBLES POLITELY",0
-ph_idle31: .byte "DOOM HUMS A CHEERFUL TUNE",0
-ph_win0: .byte "A FOE PERISHES. GLORY!",0
-ph_win1: .byte "THE BARDS WILL SING OF THIS",0
-ph_win2: .byte "SLAIN! THE HALL ACCLAIMS YOU",0
-ph_win3: .byte "ONE LESS FOR THE LEGEND",0
-ph_win4: .byte "TREASURE WORTHY OF YOUR QUEST",0
-ph_win5: .byte "LOOT FIT FOR THE CHOSEN",0
-ph_win6: .byte "YOUR GLORY GROWS HEAVIER",0
-ph_win7: .byte "TAKEN, WITH FLAIR INTACT",0
-ph_win8: .byte "IT NEVER STOOD A CHANCE",0
-ph_win9: .byte "SPLAT! MOST MAJESTIC, THAT",0
-ph_win10: .byte "ANOTHER STAT FOR THE EPICS",0
-ph_win11: .byte "THE CROWD OF ONE GOES WILD",0
-ph_win12: .byte "SMOTE! A FINE WORD, NOW",0
-ph_win13: .byte "GORGEOUS AND DEADLY. RUDE.",0
-ph_win14: .byte "IT REGRETS EVERYTHING NOW",0
-ph_win15: .byte "CLEAN KILL. POETS WEEP.",0
-ph_win16: .byte "VANQUISHED WITH GOOD POSTURE",0
-ph_win17: .byte "GOLD! SHINY! MINE! ...YOURS",0
-ph_win18: .byte "COINS FOR THE HERO FUND",0
-ph_win19: .byte "PILLAGE BECOMES YOU",0
-ph_win20: .byte "THAT WILL BUFF THE LEGEND",0
-ph_win21: .byte "A TROPHY FOR THE MANTLE",0
-ph_win22: .byte "THE ABYSS COUGHS UP LOOT",0
-ph_win23: .byte "RICHER, AND STILL HANDSOME",0
-ph_win24: .byte "DISPATCHED. NEXT VICTIM?",0
-ph_win25: .byte "HEROIC. ALSO MILDLY MESSY.",0
-ph_win26: .byte "THE MONSTER FILED A COMPLAINT",0
-ph_win27: .byte "ONE SWING, ONE SONNET",0
-ph_win28: .byte "BEHOLD, THE SPOILS OF FATE",0
-ph_win29: .byte "VICTORY TASTES LIKE DUST. YAY",0
-ph_win30: .byte "ANOTHER BEAST, A NEW BALLAD",0
-ph_win31: .byte "IT WILL NOT BE MISSED",0
-ph_peril0: .byte "YOUR BREATH FAILS, ALAS",0
-ph_peril1: .byte "DEATH LURKS... STAY NOBLE",0
-ph_peril2: .byte "ONE STEP FROM AN EPIC END!",0
-ph_peril3: .byte "HOLD ON, FALTERING LEGEND",0
-ph_peril4: .byte "OUCH! YET YOU STAY SUBLIME",0
-ph_peril5: .byte "A BITE UNWORTHY OF YOU",0
-ph_peril6: .byte "PAIN FORGES THE HEROES",0
-ph_peril7: .byte "YOU STAGGER, MAJESTIC",0
-ph_peril8: .byte "MAYBE... RUN? HEROICALLY?",0
-ph_peril9: .byte "THAT ONE STUNG THE LEGEND",0
-ph_peril10: .byte "BLEEDING, BUT FASHIONABLY",0
-ph_peril11: .byte "THE END NEARS. POSTURE!",0
-ph_peril12: .byte "PERHAPS A HEALER? A PRAYER?",0
-ph_peril13: .byte "STILL PRETTY. LESS ALIVE.",0
-ph_peril14: .byte "YOUR EPILOGUE LOOMS CLOSE",0
-ph_peril15: .byte "DIGNITY OVER LONGEVITY!",0
-ph_peril16: .byte "WOUNDED, YET PHOTOGENIC",0
-ph_peril17: .byte "THE GRAVE CLEARS ITS THROAT",0
-ph_peril18: .byte "TEETERING ON GLORY'S EDGE",0
-ph_peril19: .byte "I'D FLEE. GENTLY. JUST SAYING",0
-ph_peril20: .byte "ONE MORE HIT ENDS THE SAGA",0
-ph_peril21: .byte "COURAGE! ALSO, BANDAGES!",0
-ph_peril22: .byte "THE REAPER TAPS HIS WATCH",0
-ph_peril23: .byte "FADING, BUT WITH FLOURISH",0
-ph_peril24: .byte "A NOBLE SHADE YOU WILL MAKE",0
-ph_peril25: .byte "HP LOW, EGO INTACT",0
-ph_peril26: .byte "DEATH IS SO INCONVENIENT",0
-ph_peril27: .byte "CLING ON, O SPLENDID ONE",0
-ph_peril28: .byte "THE TOMB WARMS UP FOR YOU",0
-ph_peril29: .byte "ALMOST A MARTYR. ALMOST.",0
-ph_peril30: .byte "GASP! DRAMATIC, YET DIRE",0
-ph_peril31: .byte "SURVIVE, FOR THE FANS!",0
-msg_ptr_lo:
-        .byte <ph_idle0,<ph_idle1,<ph_idle2,<ph_idle3,<ph_idle4,<ph_idle5,<ph_idle6,<ph_idle7
-        .byte <ph_idle8,<ph_idle9,<ph_idle10,<ph_idle11,<ph_idle12,<ph_idle13,<ph_idle14,<ph_idle15
-        .byte <ph_idle16,<ph_idle17,<ph_idle18,<ph_idle19,<ph_idle20,<ph_idle21,<ph_idle22,<ph_idle23
-        .byte <ph_idle24,<ph_idle25,<ph_idle26,<ph_idle27,<ph_idle28,<ph_idle29,<ph_idle30,<ph_idle31
-        .byte <ph_win0,<ph_win1,<ph_win2,<ph_win3,<ph_win4,<ph_win5,<ph_win6,<ph_win7
-        .byte <ph_win8,<ph_win9,<ph_win10,<ph_win11,<ph_win12,<ph_win13,<ph_win14,<ph_win15
-        .byte <ph_win16,<ph_win17,<ph_win18,<ph_win19,<ph_win20,<ph_win21,<ph_win22,<ph_win23
-        .byte <ph_win24,<ph_win25,<ph_win26,<ph_win27,<ph_win28,<ph_win29,<ph_win30,<ph_win31
-        .byte <ph_peril0,<ph_peril1,<ph_peril2,<ph_peril3,<ph_peril4,<ph_peril5,<ph_peril6,<ph_peril7
-        .byte <ph_peril8,<ph_peril9,<ph_peril10,<ph_peril11,<ph_peril12,<ph_peril13,<ph_peril14,<ph_peril15
-        .byte <ph_peril16,<ph_peril17,<ph_peril18,<ph_peril19,<ph_peril20,<ph_peril21,<ph_peril22,<ph_peril23
-        .byte <ph_peril24,<ph_peril25,<ph_peril26,<ph_peril27,<ph_peril28,<ph_peril29,<ph_peril30,<ph_peril31
-msg_ptr_hi:
-        .byte >ph_idle0,>ph_idle1,>ph_idle2,>ph_idle3,>ph_idle4,>ph_idle5,>ph_idle6,>ph_idle7
-        .byte >ph_idle8,>ph_idle9,>ph_idle10,>ph_idle11,>ph_idle12,>ph_idle13,>ph_idle14,>ph_idle15
-        .byte >ph_idle16,>ph_idle17,>ph_idle18,>ph_idle19,>ph_idle20,>ph_idle21,>ph_idle22,>ph_idle23
-        .byte >ph_idle24,>ph_idle25,>ph_idle26,>ph_idle27,>ph_idle28,>ph_idle29,>ph_idle30,>ph_idle31
-        .byte >ph_win0,>ph_win1,>ph_win2,>ph_win3,>ph_win4,>ph_win5,>ph_win6,>ph_win7
-        .byte >ph_win8,>ph_win9,>ph_win10,>ph_win11,>ph_win12,>ph_win13,>ph_win14,>ph_win15
-        .byte >ph_win16,>ph_win17,>ph_win18,>ph_win19,>ph_win20,>ph_win21,>ph_win22,>ph_win23
-        .byte >ph_win24,>ph_win25,>ph_win26,>ph_win27,>ph_win28,>ph_win29,>ph_win30,>ph_win31
-        .byte >ph_peril0,>ph_peril1,>ph_peril2,>ph_peril3,>ph_peril4,>ph_peril5,>ph_peril6,>ph_peril7
-        .byte >ph_peril8,>ph_peril9,>ph_peril10,>ph_peril11,>ph_peril12,>ph_peril13,>ph_peril14,>ph_peril15
-        .byte >ph_peril16,>ph_peril17,>ph_peril18,>ph_peril19,>ph_peril20,>ph_peril21,>ph_peril22,>ph_peril23
-        .byte >ph_peril24,>ph_peril25,>ph_peril26,>ph_peril27,>ph_peril28,>ph_peril29,>ph_peril30,>ph_peril31
+.include "narrator.asm"
+.code
 
 
 str_combat_title:   .byte "COMBAT!",0
 str_mob_hp:   .byte "HP",0
 str_p_hp:     .byte "HP",0
 str_p_atk:    .byte "ATK",0
-str_combat_prompt: .byte "A=ATTACK  F=FLEE  ESC=QUIT",0
+str_combat_prompt: .byte "A=HIT G=GUARD P=HEAL F=FLEE",0
+str_intent_goblin: .byte "GOBLIN MAY STEAL GOLD",0
+str_intent_mage:   .byte "MAGIC IGNORES YOUR ARMOR",0
+str_intent_windup: .byte "FOE GATHERS ITS STRENGTH",0
+str_intent_strike: .byte "HEAVY STRIKE NEXT TURN!",0
 
 str_mob_gob:  .byte "GOBLIN",0
 str_mob_orc:  .byte "ORC",0
 str_mob_mage: .byte "DARK MAGE",0
+str_mob_dragon: .byte "DRAGON",0
 
 ; =============================================
 ; FONT (8x8, ASCII $20..$5F = 64 glyphs * 8 = 512 bytes)
@@ -4071,6 +5006,10 @@ font_base:
 .include "hgr_sprite16.asm"
 .include "hgr_text8.asm"
 .include "hgr.asm"               ; dev/lib/apple2: hgr_init_clear
+.include "sound.asm"             ; dev/lib/apple2: speaker effects
 .include "exit.asm"              ; dev/lib/apple2: apple2_zp_save / apple2_exit
+DOS_ZP_START = $50
+DOS_ZP_LEN = $B0
+.include "dos.asm"               ; DOS score file, preserving the game's ZP
 
 ; END

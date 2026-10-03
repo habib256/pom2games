@@ -25,7 +25,7 @@ OBJS    := $(BUILD)/maze3d.o $(BUILD)/sprites_trollkind.o $(BUILD)/sprites_chara
 
 all: $(DISK)
 
-$(BUILD)/maze3d.o: src/maze3d.s $(wildcard $(DEV)/lib/apple2/*) $(wildcard $(DEV)/lib/hgr/*)
+$(BUILD)/maze3d.o: src/maze3d.s src/narrator.asm $(wildcard $(DEV)/lib/apple2/*) $(wildcard $(DEV)/lib/hgr/*)
 	@mkdir -p $(BUILD)
 	$(CA65) -t none $(INCS) -l $(BUILD)/maze3d.lst -o $@ $<
 
@@ -37,11 +37,20 @@ $(BIN): $(OBJS) src/maze3d.cfg
 	$(LD65) -C src/maze3d.cfg -m $(BUILD)/maze3d.map -o $@ $(OBJS)
 	@echo "binary: $$(wc -c < $@) bytes at $(LOAD)"
 
-$(DISK): $(BIN) src/hello.bas $(DEV)/tools/dos33.py $(SYSTEM)
+$(BUILD)/maze3d_text.bin: $(BIN)
+	@test -s $@
+
+$(BUILD)/maze3d_score.bin: Makefile
+	@mkdir -p $(BUILD)
+	@printf 'MZ3\001\000\000\000\245' > $@
+
+$(DISK): $(BIN) $(BUILD)/maze3d_text.bin $(BUILD)/maze3d_score.bin src/hello.bas $(DEV)/tools/dos33.py $(SYSTEM)
 	@mkdir -p $(DIST)
 	$(PYTHON) $(DEV)/tools/dos33.py --master $(SYSTEM) --out $@ \
 	    --bas HELLO=src/hello.bas \
 	    --bin MAZE3D=$(BIN)@$(LOAD) \
+	    --bin MAZETEXT=$(BUILD)/maze3d_text.bin@0x1100 \
+	    --bin MAZESCORE=$(BUILD)/maze3d_score.bin@0x1F00 \
 	    --catalog
 
 run: $(DISK)
