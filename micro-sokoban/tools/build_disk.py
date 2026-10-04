@@ -77,6 +77,14 @@ def main():
         disk.sector(track, sector)[:len(chunk)] = chunk
 
     binary('MICROHOF', args.build / 'lv/microhof.bin')
+    reader = (args.build / 'solcode.bin').read_bytes()
+    if len(reader) > 508:
+        raise SystemExit(f'solution reader is {len(reader)} bytes, two sectors hold 508')
+    reader = reader.ljust(508, b'\x00')
+    sols = args.build / 'lv/microsol.bin'
+    merged = args.build / 'lv/microsol.dskbin'
+    merged.write_bytes(reader + sols.read_bytes())
+    binary('MICROSOL', merged, 0x1000)
     binary('MICROSAVE', args.build / 'lv/microsave.bin')
     for item in shlex.split((args.build / 'lv/packs.args').read_text()):
         if item == '--bin':

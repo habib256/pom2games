@@ -91,6 +91,7 @@ ACT_TUTORIAL = 18       ; T key in the help menu
 ACT_PROFILE = 19        ; V chooses a player profile
 ACT_HELP    = 20        ; H opens HELP directly
 ACT_HOF     = 16        ; F key in the help menu
+ACT_SOLUTION = 21       ; X in the menu, only while cheat mode is on
 
 ; --- Joystick tuning ---
 ; read_stick (joy.asm) counts 24-cycle iterations while each paddle timer is
@@ -111,9 +112,9 @@ MENU_OPTIONS = 5
 MENU_HOF     = 6
 MENU_HELP    = 7
 MENU_QUIT    = 8
-MENU_COUNT   = 9
-MENU_SL0     = 56       ; single menu below its heading and active profile
-MENU_DY      = 14
+MENU_SOLUTION = 9       ; drawn and reachable only while cheat mode is on
+MENU_SL0     = 48       ; single menu below its heading and active profile
+MENU_DY      = 12
 MENU_CURSOR_COL = 64    ; pixel column of the compact green selection marker
 MENU_TEXT_COL   = 84    ; pixel column of the compact entry labels
 MENU_KEY_COL    = 208   ; aligned keyboard shortcuts
@@ -137,7 +138,7 @@ HOF_ENTRY  = 8          ; three ASCII initials, u24 score, u16 solved
 HOF_HDR    = 7          ; "HOF1", then current initials
 HOF_END    = HOF_HDR + HOF_COUNT * HOF_ENTRY
 HOF_TUTORIAL = HOF_END
-HOF_SOUND  = HOF_END+1  ; bit 0 game, bit 1 menu, bit 2 demo
+HOF_SOUND  = HOF_END+1  ; bit 0 game, bit 1 menu, bit 2 demo, bit 3 cheat
 HOF_PROFILES = HOF_END+2 ; stable slots, three initials each; zero = unused
 HOF_ACTIVE = HOF_PROFILES+30
 HOF_LEN    = HOF_ACTIVE+1
@@ -179,6 +180,11 @@ SEL_DY     = 18         ; scanlines from one row to the next
 .zeropage
 temp:            .res 1
 temp2:           .res 1
+watching:        .res 1          ; 1 = solution playback skips history and records
+sol_ts_track:    .res 1          ; MICROSOL track/sector list
+sol_ts_sector:   .res 1
+sol_left:        .res 1          ; sol_read: bytes still to copy
+sol_more:        .res 1
 ptr_lo:          .res 1  ; HGR destination pointer
 ptr_hi:          .res 1
 src_lo:          .res 1  ; bitmap / font source pointer
@@ -374,6 +380,7 @@ main:
         STA tutorial_on
         STA tutorial_idx
         STA replaying
+        STA watching
         STA front_page                  ; page 1 on screen, drawing on page 1
         JSR set_draw_page
         LDA #$01
@@ -483,13 +490,17 @@ move_loop:
         STA autosave_hi
         PLA
         CMP #ACT_RIGHT+1
-        BCC key_dir                     ; ACT_UP..ACT_RIGHT
+        BCS @not_dir
+        JMP key_dir                     ; ACT_UP..ACT_RIGHT
+@not_dir:
         CMP #ACT_UNDO
         BEQ key_undo
         CMP #ACT_REDO
         BEQ key_redo
         CMP #ACT_RESET
-        BEQ key_reset
+        BNE @not_reset
+        JMP key_reset
+@not_reset:
         CMP #ACT_NEXT
         BNE @prev_check
         JMP key_next
@@ -507,10 +518,10 @@ move_loop:
         JMP move_loop                   ; ignore the rest
 
 key_goto:
-        LDA #0
-        STA tutorial_on
         JSR run_select                  ; C = 1: cur_coll / cur_lvl chosen
         BCC @back
+        LDA #0
+        STA tutorial_on                 ; cancel must retain the lesson and its HUD
         JMP game_loop
 @back:  JMP redraw_level
 
@@ -541,6 +552,16 @@ menu_result:
         STA tutorial_on
         JMP game_loop
 @actions:
+        CMP #MENU_SOLUTION
+        BNE @reset
+        JSR play_solution
+        LDA game_active
+        BEQ @solved_title
+        JSR select_resume
+        JMP game_loop
+@solved_title:
+        JMP return_title
+@reset:
         CMP #MENU_RESET
         BEQ key_reset
         CMP #MENU_GOTO
@@ -806,6 +827,10 @@ poll_start:
 ; title_wait: wait_any for at most TITLE_IDLE polls (~15 s). A = the
 ; action (Z clear), or A = 0 (Z set) when nobody pressed anything.
 title_wait:
+        LDA #0
+        STA title_music_index
+        LDA #1
+        STA title_music_wait
         LDA #<TITLE_IDLE
         STA idle_lo
         LDA #>TITLE_IDLE
@@ -814,6 +839,7 @@ title_wait:
         STA title_tick
 @lp:    JSR poll_start
         BNE @done
+        JSR title_music
         DEC title_tick                  ; every ~1.6 s: animation, blink
         BNE @idle
         LDA #<TITLE_TICK
@@ -968,10 +994,7 @@ run_menu:
         LDA #MENU_RESUME
         STA menu_sel
 @paint:
-        JSR begin_screen
-        JSR draw_menu
-        JSR show_screen                 ; the cursor is drawn on the page shown
-        JSR menu_draw_cursor
+        JSR @screen
 @loop:  JSR get_input
         BEQ @loop
         CMP #ACT_UP
@@ -1004,11 +1027,15 @@ run_menu:
         BEQ @resume
         CMP #ACT_HELP
         BEQ @help
+        CMP #ACT_LEFT                   ; J / stick left: stay on the line
+        BEQ @loop
+        CMP #ACT_RIGHT
+        BEQ @loop
         LDX in_src
         BEQ @resume                     ; any other KEY resumes
         CMP #ACT_UNDO                   ; button 0 selects; button 1 returns
         BEQ @select
-        JMP @loop                       ; (left/right: ignore)
+        JMP @loop
 @reset: LDA #MENU_RESET
         RTS
 @quit:  LDA #MENU_QUIT
@@ -1045,6 +1072,8 @@ run_menu:
         JMP @paint
 @options:
         JSR run_options
+        LDA #MENU_OPTIONS               ; SOLUTION may have disappeared while in OPTIONS
+        STA menu_sel
         JMP @paint
 @up:    LDA menu_sel
         STA menu_prev
@@ -1052,15 +1081,15 @@ run_menu:
         DEC menu_sel
         JMP @moved
 @wrap_last:
-        LDA #MENU_COUNT-1
+        JSR menu_last
         STA menu_sel
         JMP @moved
 @down:  LDA menu_sel
         STA menu_prev
         INC menu_sel
-        LDA menu_sel
-        CMP #MENU_COUNT
-        BCC @moved
+        JSR menu_last
+        CMP menu_sel
+        BCS @moved
         LDA #$00
         STA menu_sel
 @moved: ; erase only the old marker, then draw the new one
@@ -1071,6 +1100,13 @@ run_menu:
         JSR menu_draw_cursor
         JSR menu_sound
         JMP @loop
+
+@screen:
+        JSR begin_screen
+        JSR draw_menu
+        JSR show_screen                 ; the cursor is drawn on the page shown
+        JSR menu_draw_cursor
+        RTS
 
 run_help:
         JSR begin_screen
@@ -1084,14 +1120,21 @@ menu_draw_cursor:
         LDA #G_PLUS
         JMP put_glyph
 
+menu_last:
+        JSR cheat_on
+        BEQ @quit
+        LDA #MENU_SOLUTION
+        RTS
+@quit:  LDA #MENU_QUIT
+        RTS
+
 menu_cursor_position:
         ASL A
-        STA temp2
-        ASL A
-        ASL A
-        ASL A
-        SEC
-        SBC temp2                       ; 14 * index
+        ASL A                           ; 4 * index
+        STA temp
+        ASL A                           ; 8 * index
+        CLC
+        ADC temp                        ; 12 * index
         CLC
         ADC #MENU_SL0
         STA num_sl
@@ -1331,12 +1374,7 @@ show_status:
         STA num_sl
         JMP draw_str
 
-bload_str:   .byte "BLOAD ", 0
-pack_at_str: .byte ",A$1000", 0
-.assert PACK_ADDR = $1000, error, "pack_at_str must match PACK_ADDR"
-save_load_str: .byte "BLOAD MICROSAVE,A$", 0 ; final E replaced for profile 1..9
-save_save_str: .byte "BSAVE MICROSAVE,A$", 0
-len_str:       .byte ",L$", 0
+profile_file_name: .byte "MICROSAVE", 0 ; final E replaced for profile 1..9
 save_magic:    .byte "SOK2"
 
 ; =============================================================================
@@ -1872,6 +1910,8 @@ execute_move:
         INC pushes_hi
 @p_ok:
         ; --- history ---
+        LDA watching
+        BNE @hist_done
         LDA replaying
         BNE @replay
         LDA had_push                    ; code = dir | HIST_PUSH if pushed
@@ -2656,7 +2696,13 @@ draw_menu:
         JSR draw_from_table
         JSR draw_screen_sides
         LDA #32
-        JMP draw_profile_name
+        JSR draw_profile_name
+        JSR cheat_on
+        BEQ @nosol
+        LDA #8
+        STA num_step
+        TEXT MENU_TEXT_COL, MENU_SL0+MENU_SOLUTION*MENU_DY, menu_solution
+@nosol: RTS
 
 draw_help:
         LDA #<help_table
@@ -3504,7 +3550,7 @@ str_loading:    GSTR "LOADING"
 str_saving:     GSTR " SAVING"
 str_blank7:     GSTR "       "
 str_moves:      GSTR "MOVES"
-str_levels:     GSTR "LEVELS"
+str_levels:     GSTR "LEVEL"
 str_pushes:     GSTR "PUSHES"
 str_record:     GSTR "RECORD"
 str_new_record: GSTR "NEW RECORD"
@@ -3544,6 +3590,7 @@ menu_key_profiles: GSTR "(V)"
 menu_key_help: GSTR "(H)"
 menu_key_quit:  GSTR "(Q)"
 menu_key_hof:   GSTR "(F)"
+menu_solution:  GSTR "SOLUTION"
 
 ; =============================================================================
 ; Tile transitions
@@ -3602,25 +3649,22 @@ set_draw_page:
         BNE @lp
 @done:  RTS
 
-; clear_draw_page: zero the 8 KB of the draw page. No zero page used.
+; clear_draw_page: zero the 8 KB of the draw page, using ptr_lo/ptr_hi.
+; One shared loop leaves room for sound while staying below DOS's buffers.
 clear_draw_page:
+        LDA draw_page
+        EOR #$20                        ; 0/$60 -> $20/$40
+        STA ptr_hi
         LDA #$00
-        TAX
-        BIT draw_page
-        BVS @clr2                       ; PAGE2_EOR has bit 6 set
-@clr1:
-.repeat 32, I
-        STA HGR1 + (I * $100), X
-.endrepeat
-        INX
-        BNE @clr1
-        RTS
-@clr2:
-.repeat 32, I
-        STA HGR2 + (I * $100), X
-.endrepeat
-        INX
-        BNE @clr2
+        STA ptr_lo
+        TAY
+        LDX #32
+@page:  STA (ptr_lo),Y
+        INY
+        BNE @page
+        INC ptr_hi
+        DEX
+        BNE @page
         RTS
 
 ; =============================================================================
@@ -3701,12 +3745,34 @@ tile_bitmaps:
 .include "resume.inc"
 .include "fast_disk.inc"
 .include "beginner.inc"
+.include "solution.inc"
 
 ; =============================================================================
 ; ../dev/lib/apple2 modules (textual includes: they pick their own segments)
 ; =============================================================================
 .include "kbd.asm"               ; poll_key
+.define HGR_CLEAR_ROUTINE clear_draw_page
 .include "hgr.asm"               ; hgr_init_clear
+
+; The loader and work buffers overwrite Applesoft at $0801. After restoring
+; DOS's zero page, LOAD HELLO restores both the program and BASIC pointers.
+; Only resident code is used here: loading HELLO overwrites our work buffers.
+restore_basic:
+        LDA #0
+        STA $0800                       ; Applesoft's sentinel before TXTTAB
+        JSR $03EA                       ; reconnect DOS input/output hooks
+        LDX #0
+@char:  LDA basic_load_cmd,X
+        ORA #$80
+        STX @index+1
+        JSR COUT
+@index: LDX #0
+        INX
+        CPX #13
+        BCC @char
+        RTS
+basic_load_cmd: .byte $0D, $04, "LOAD HELLO", $0D
+.define APPLE2_EXIT_HOOK restore_basic
 .include "exit.asm"              ; apple2_zp_save, apple2_exit
 .include "sound.asm"             ; tone
 .include "joy.asm"               ; read_stick, stick_dir (JOY_LO/HI above)

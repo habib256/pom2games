@@ -45,17 +45,16 @@ set_profile_save:
         BNE @store
 @default:
         LDA #'E'
-@store: STA save_load_str+14
-        STA save_save_str+14
+@store: STA profile_file_name+8
         RTS
 
-; An inset black panel separates white letters from the blue wall's phase
-; bits. Twelve pixels of padding at each side prevent pink fringe artifacts.
+; Inset black panels keep the profile (left) and version (right) white,
+; separated from the blue wall's phase bits by black padding.
 draw_title_profile:
         LDX #178
 @row:   LDA hgr_lo,X
         CLC
-        ADC #12                         ; byte 12: pixel 84
+        ADC #2                          ; byte 2: pixel 14
         STA ptr_lo
         LDA hgr_hi,X
         ADC #0
@@ -65,14 +64,28 @@ draw_title_profile:
 @clear: STA (ptr_lo),Y
         DEY
         BPL @clear
+        LDY #35                         ; bytes 30..37 of the scanline
+@version:
+        STA (ptr_lo),Y
+        DEY
+        CPY #27
+        BNE @version
         INX
         CPX #190
         BCC @row
         LDA #180
+        STA num_sl
+        LDA #28
+        STA num_col
+        JSR draw_profile_at
+        TEXT 224, 180, title_version
+        RTS
+
 draw_profile_name:
         STA num_sl
         LDA #96
         STA num_col
+draw_profile_at:
         LDA #<profile_label
         STA sptr_lo
         LDA #>profile_label
@@ -330,6 +343,7 @@ profiles_table:
         .byte <profiles_back,>profiles_back,84,180,STYLE_COMPACT
         .word $FFFF
 profile_label: GSTR "PROFILE "
+title_version: GSTR "V1.1"
 profiles_hint: GSTR "STICK/I/K  RETURN/B0 SELECT"
 profiles_edit: GSTR "N NEW    R RENAME"
 profiles_back: GSTR "ESC/B1 BACK"

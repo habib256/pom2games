@@ -44,7 +44,7 @@ all: $(DISK)
 $(LEVELS): tools/micro_sokoban_levels.py $(wildcard levels/*.xsb) $(SOLUTIONS) Makefile
 	$(PYTHON) tools/micro_sokoban_levels.py --out $(BUILD)/lv --solutions $(SOLUTIONS) --demo $(DEMO) $(COLLS)
 
-$(BUILD)/micro_sokoban.o: src/micro_sokoban.s src/bbfont_subset.inc src/score_hof.inc src/profiles.inc src/beginner.inc src/resume.inc src/fast_disk.inc $(LEVELS) $(wildcard $(DEV)/lib/apple2/*)
+$(BUILD)/micro_sokoban.o: src/micro_sokoban.s src/bbfont_subset.inc src/score_hof.inc src/profiles.inc src/beginner.inc src/resume.inc src/fast_disk.inc src/solution.inc $(LEVELS) $(wildcard $(DEV)/lib/apple2/*)
 	@mkdir -p $(BUILD)
 	$(CA65) -t none -g $(INCS) -l $(BUILD)/micro_sokoban.lst -o $@ $<
 
@@ -69,6 +69,8 @@ $(A2RUN): $(wildcard $(DEV)/tools/a2run/*.[ch])
 	$(MAKE) -C $(DEV)/tools/a2run
 
 test: $(DISK) $(A2RUN)
+	$(PYTHON) tools/test_exit.py --a2run $(A2RUN) --disk $(DISK)
+	$(PYTHON) tools/test_graphics.py --a2run $(A2RUN) --disk $(DISK)
 	$(PYTHON) tools/test_menu_render.py --a2run $(A2RUN) --disk $(DISK)
 	$(PYTHON) tools/test_resume.py --a2run $(A2RUN) --disk $(DISK)
 	$(PYTHON) tools/test_tutorial_options.py --a2run $(A2RUN) --disk $(DISK)

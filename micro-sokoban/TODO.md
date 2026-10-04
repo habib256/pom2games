@@ -281,6 +281,7 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
   ou impairs, bit 7).
 - [ ] **Crédit de l’écran titre** : remplacer « PORT VERHILLE ARNAUD »
   (`title_author`) par « Apple II port by VERHILLE Arnaud ».
-- [ ] **Musique d’accueil** : une petite musique calme et planante pendant
-  la page de titre. L’animation du couloir et la démo restent silencieuses
-  aujourd’hui.
+- [x] **Musique d’accueil** : mélodie lente sur la page de titre, notes graves
+  espacées sur le haut-parleur Apple II, sans Mockingboard. MENU SOUND est
+  activé par défaut ; quitter l’accueil arrête la musique. L’animation continue
+  et la présentation automatique du classement et de la démo reste silencieuse.

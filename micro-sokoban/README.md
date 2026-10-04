@@ -34,12 +34,13 @@ Prérequis : cc65 (`brew install cc65`) et python3. L'image est écrite par
 |                                   | H (accueil, partie ou menu)       | HELP                       |
 |                                   | F (menu)                         | Hall of Fame               |
 |                                   | T (menu)                         | tutoriel de cinq niveaux   |
-|                                   | O (menu)                         | options de son et de case morte |
+|                                   | O (menu)                         | options : sons, case morte, triche |
 |                                   | Q (menu)                         | quitter vers DOS           |
 
 L'écran titre montre les niveaux résolus et le niveau de reprise du profil actif.
-Son nom apparaît au centre du mur inférieur, sur un fond noir avec une marge
-qui évite les franges de couleur. Le couloir animé occupe toute la largeur :
+Son nom apparaît en bas à gauche du mur inférieur ; la version **V1.1** apparaît
+en bas à droite. Les deux textes blancs ont un fond noir et une marge
+qui évitent les franges de couleur. Le couloir animé occupe toute la largeur :
 un déplacement toutes les **~1,6 s**. Après au moins 15 s sans entrée, le jeu
 attend que la caisse atteigne sa cible : l'animation se termine donc en environ
 26 s, puis le **Hall of Fame est présenté pendant 10 s**, suivi de la démo.
@@ -48,7 +49,9 @@ Les sept niveaux montrés sont Microban 1, 3, 12, 23, 60, 84 et 98 ; rien n'est
 sauvegardé pendant cette présentation, silencieuse par défaut.
 
 **MENU** (ESC ou bouton 1) regroupe PLAY / RESUME, TUTORIAL (5), PROFILES,
-RESTART, GO TO LEVEL, OPTIONS, HALL OF FAME, HELP et QUIT TO DOS.
+RESTART, GO TO LEVEL, OPTIONS, HALL OF FAME, HELP et QUIT TO DOS. Si CHEAT MODE
+est activé, une dernière ligne SOLUTION joue la solution du niveau en cours,
+sans l'enregistrer : la position d'avant le menu est restaurée.
 GO TO LEVEL remplace les choix NEXT/PREV dans le menu. HELP présente le but du
 jeu, les déplacements, Undo/Redo et le retour au menu. H ouvre directement HELP depuis l'accueil ou la partie ; quitter HELP ramène au menu.
 Depuis l'accueil, on peut
@@ -60,7 +63,8 @@ avec des solutions de 2, 2, 5, 5 et 7 coups. Consignes et commandes sont affich�
 le tutoriel ne participe pas au classement. Son achèvement est sauvegardé par profil.
 T dans le menu permet de le rejouer ; G permet d'accéder directement à Microban.
 Sur SUCCESS, une touche ou un bouton passe au niveau suivant.
-Ctrl-RESET quitte proprement vers DOS (page zéro restaurée).
+QUIT TO DOS et Ctrl-RESET restaurent la page zéro et rechargent le programme
+BASIC `HELLO` : `LIST` affiche le lanceur et `RUN` relance le jeu.
 
 **Lisibilité : tout texte à taille normale est blanc. Seuls les titres agrandis
 ×2 peuvent être colorés**, conformément à la règle de [`lib/hgr`](../dev/lib/hgr/README.md).
@@ -68,7 +72,7 @@ L'espacement du texte compact est de 8 pixels.
 
 Le HUD occupe les quatre coins (3 cases chacun, 4 en bas à gauche) : coups
 en haut à gauche (`MOVES`), poussées en haut à droite (`PUSHES`),
-niveau en bas à gauche (`LEVELS`)
+niveau en bas à gauche (`LEVEL`)
 (collection et numéro d'origine : `I:067` est le 67ᵉ niveau de Microban,
 `III:056` le 56ᵉ de Microban III), record en bas à droite une fois le niveau
 résolu (`B:0033`).
@@ -131,13 +135,21 @@ sont soulignés en vert ; après le dernier niveau d'une collection, un écran
 fait le bilan. L'historique garde les
 1024 derniers coups ; au-delà, R recharge le niveau au lieu de le rembobiner.
 
-**OPTIONS** (O dans le menu) regroupe trois interrupteurs indépendants : son de
-la partie, du menu et de la démo. Par défaut, la partie est sonore, le menu et
-la démo sont silencieux. Haut/bas choisit le réglage ; RETURN ou le bouton 0
-change ON/OFF ; ESC ou le bouton 1 revient. Les réglages sont sauvegardés sur
-la disquette. L'option DEADLOCK active une alerte sonore quand une caisse est
-poussée sur une case d'où elle ne peut plus atteindre de cible. Elle ne bloque
-pas le déplacement ; C la bascule dans OPTIONS.
+**OPTIONS** (O dans le menu) regroupe quatre interrupteurs indépendants : son de
+la partie, du menu, de la démo, et CHEAT MODE. Par défaut, la partie et le menu
+sont sonores ; la démo et la triche sont éteintes. Haut/bas choisit le
+réglage ; RETURN ou le bouton 0 change ON/OFF ; ESC ou le bouton 1 revient. Les
+réglages sont sauvegardés sur la disquette. MENU SOUND active aussi une petite
+musique calme sur la page de garde, sur le haut-parleur intégré de l'Apple II,
+sans Mockingboard : boucle jazz zen, arpèges Dm9 / G13 / Cmaj9, basses graves
+et rythme swing à environ 100 BPM. Les durées suivent une pulsation régulière,
+avec de courtes respirations entre les trois mesures, en boucle pendant
+l'animation.
+Elle s'arrête en quittant l'accueil. L'option DEADLOCK active une alerte
+sonore quand une caisse est poussée sur une case d'où elle ne peut plus atteindre
+de cible. Elle ne bloque pas le déplacement ; C la bascule dans OPTIONS. CHEAT
+MODE fait apparaître SOLUTION dans le menu. Les 454 solutions sont dans
+`MICROSOL` (lecteur, index, puis coups compactés). Les cinq leçons aussi.
 
 Sons pendant la partie : un clic par pas, un bip aigu quand une caisse arrive sur une cible,
 deux notes graves quand une caisse arrive sur une case morte (dans OPTIONS,
@@ -173,14 +185,16 @@ Améliorations prévues : voir [`TODO.md`](TODO.md).
     tools/test_score.py        profils, classement, migration et sauvegarde
     tools/test_resume.py       reprise, profils, CRC et écritures limitées
     tools/test_menu_render.py  textes des options, y compris une adresse finissant par $FF
+    tools/test_graphics.py     pages HGR visibles/cachées et retours des menus/solutions
+    tools/test_exit.py         démarrage, QUIT/RESET, BASIC restauré et relances RUN (a2run/POM2)
     tools/bench_disk.py        mesure lectures et sauvegardes dans POM2
     tools/test_levels.py       joue les solutions dans le vrai jeu (a2run) : make test
     levels/solutions.txt       les 454 solutions (démo et tests)
     ../dist/MICRO-SOKOBAN.dsk        l'image produite
 
 Sur la disquette : le chargeur `MICRO-SOKOBAN`, le programme comprimé `MICRODATA`, treize paquets de niveaux (`MB1A` à `MB1D`,
-`MB2A` à `MB2C`, `MB3A` à `MB3C`, `MB4A` à `MB4C`), les dix fichiers de records
-et `MICROHOF`. Les paquets font au plus 2 Ko et sont chargés en `$1000` ; les
+`MB2A` à `MB2C`, `MB3A` à `MB3C`, `MB4A` à `MB4C`), les dix fichiers de records,
+`MICROHOF` et `MICROSOL` (les 454 solutions). Les paquets font au plus 2 Ko et sont chargés en `$1000` ; les
 records et position actifs occupent `$1800` à `$1FAB`, sans réduire l'historique Undo de 1024 coups.
 
 Le BASIC affiche **LOADING MICRO-SOKOBAN**, réserve un seul tampon DOS avec

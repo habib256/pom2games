@@ -33,6 +33,9 @@
 ; is a no-op: the RESET vector already points at apple2_exit, so the first
 ; snapshot -- DOS's page zero, DOS's vector -- is kept. apple2_exit without a
 ; snapshot skips the restore and just goes back to DOS.
+; Optional APPLE2_EXIT_HOOK names a routine called after exit_restore, before
+; DOSWARM (also on Ctrl-RESET). It may restore BASIC overwritten by the game;
+; it runs with DOS's zero page and must return without relying on game ZP.
 ;
 ; A program that never exits (it runs until RESET or power-off) can skip both.
 ; Caller responsibility: .include "apple2.inc" first.
@@ -84,6 +87,9 @@ exit_armed:
 
 apple2_exit:
         JSR     exit_restore
+.ifdef APPLE2_EXIT_HOOK
+        JSR     APPLE2_EXIT_HOOK
+.endif
         JMP     DOSWARM
 
 apple2_return:
