@@ -43,6 +43,7 @@ left, right = 0-3, first move in the low bits).
 """
 import argparse
 import os
+import struct
 import sys
 
 COLS, ROWS = 20, 12
@@ -193,6 +194,39 @@ def check(grid):
     return None
 
 
+def pack_moves(moves):
+    codes = ['udlr'.index(m) for m in moves]
+    packed = bytearray()
+    for i in range(0, len(codes), 4):
+        byte = 0
+        for j, code in enumerate(codes[i:i + 4]):
+            byte |= code << (2 * j)
+        packed.append(byte)
+    return len(codes), bytes(packed)
+
+
+def write_microsol(path, colls, solutions_path):
+    """One binary: 4-byte entries (payload offset, move count) then packed moves."""
+    sols = {}
+    for row in open(solutions_path):
+        if row.strip() and not row.startswith(';'):
+            hud, num, _, moves = row.split()
+            sols[(hud, int(num))] = moves.lower()
+    count = sum(len(c['kept']) for c in colls)
+    index, blob, at = bytearray(), bytearray(), count * 4
+    for c in colls:
+        for num, _ in c['kept']:
+            moves = sols.get((c['hud'], num))
+            if moves is None:
+                sys.exit('no solution for %s:%s' % (c['hud'], num))
+            nmoves, packed = pack_moves(moves)
+            index += struct.pack('<HH', at, nmoves)
+            blob += packed
+            at += len(packed)
+    with open(path, 'wb') as f:
+        f.write(index + blob)
+
+
 def demo_tables(a, colls):
     """levels.inc lines for the title-screen demo."""
     wanted = [d.split(':') for d in a.demo.split(',') if d]
@@ -309,7 +343,7 @@ def main():
     # Independent of level fingerprints and the existing SOK2 record slots:
     # magic, active initials, 10 entries (initials + move total + solved (bit 15 carries sum bit 24)).
     with open(os.path.join(a.out, 'microhof.bin'), 'wb') as f:
-        f.write(b'HOF3GIS' + bytes(10 * 8) + bytes([2, 1]) + b'GIS' + bytes(27) + bytes([0]))
+        f.write(b'HOF3GIS' + bytes(10 * 8) + bytes([2, 3]) + b'GIS' + bytes(27) + bytes([0]))
     # The five tiny teaching levels are inline, independent of Microban
     # fingerprints and score records. This keeps existing saves compatible.
     tutorial_path = os.path.join(os.path.dirname(__file__), '..', 'levels', 'tutorial.xsb')
@@ -400,6 +434,8 @@ def main():
     L.extend(demo_tables(a, colls))
     with open(os.path.join(a.out, 'levels.inc'), 'w') as f:
         f.write('\n'.join(L) + '\n')
+    if a.solutions:
+        write_microsol(os.path.join(a.out, 'microsol.bin'), colls, a.solutions)
 
     with open(os.path.join(a.out, 'report.txt'), 'w') as f:
         f.write('\n'.join(report) + '\n')

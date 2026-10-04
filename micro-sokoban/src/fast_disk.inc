@@ -263,9 +263,11 @@ find_disk_file:
 @found: LDY io_entry
         LDA (src_lo),Y
         STA io_track
+        STA sol_ts_track
         INY
         LDA (src_lo),Y
         STA io_sector
+        STA sol_ts_sector
         LDA #1
         JSR io_rwts
         ; All our files fit one T/S list, at most nine data sectors.
@@ -361,9 +363,9 @@ profile_file:
         STA io_limit
         LDA #>SAVE_LEN
         STA io_limit+1
-        LDA #<(save_load_str+6)
+        LDA #<profile_file_name
         STA io_name
-        LDA #>(save_load_str+6)
+        LDA #>profile_file_name
         STA io_name+1
         RTS
 hof_file:

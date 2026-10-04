@@ -262,7 +262,7 @@ def main():
         for _ in range(100):
             steps += [peek('hof_cycles'), peek('demo_active'), peek('title_phase'), 'wait:30']
         steps += ['spk', 'dsk:' + str(timed)]
-        dumps = run(args.disk, steps, silent=True)
+        dumps = run(args.disk, steps)
         phases = [dumps[i][0] for i in range(0, len(dumps), 3)]
         demo = [dumps[i][0] for i in range(1, len(dumps), 3)]
         animation = [dumps[i][0] for i in range(2, len(dumps), 3)]
@@ -279,7 +279,7 @@ def main():
         dumps = run(args.disk, steps)
         assert dumps[0][0] > 0 and not any(b''.join(dumps[1:])), dumps
         assert interrupted.read_bytes() == base
-        print('Animation ends with the box on target, then ten-second Hall of Fame, silent and interruptible: ok')
+        print('Title music and animation end with the box on target, then ten-second Hall of Fame: ok')
 
         protected = tmp / 'protected.dsk'
         run(args.disk, ['wait:1800', 'key:G', 'wait:90', 'key:\r', 'wait:600', *solve(1),
@@ -288,7 +288,7 @@ def main():
         attract = tmp / 'attract.dsk'
         dumps = run(args.disk, ['wait:1800', 'spk', 'wait:15600', 'spk',
                                peek('score_total', 4), peek('score_solved', 2),
-                               'dsk:' + str(attract)], silent=True)
+                               'dsk:' + str(attract)])
         assert not any(b''.join(dumps)) and attract.read_bytes() == base
         print('Write-protected disk and all seven attract levels leave save files unchanged: ok')
 
