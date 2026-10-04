@@ -272,3 +272,15 @@ dans la grille de 20 × 12 tuiles de 14 × 16 pixels.
 - [x] Textes des options : marqueur de fin des tables sur deux octets, pour ne
   plus confondre une adresse de texte finissant par $FF avec la fin du menu.
   Comparaison des écrans depuis l’accueil et la partie, avec adresse $05FF forcée.
+
+
+## 10. Affichage, crédit et musique d’accueil (2026-10-04)
+
+- [ ] **Mode monochrome** : il ne s’affiche pas correctement. À investiguer
+  (rendu des tuiles et des titres pensés pour la couleur HGR : pixels pairs
+  ou impairs, bit 7).
+- [ ] **Crédit de l’écran titre** : remplacer « PORT VERHILLE ARNAUD »
+  (`title_author`) par « Apple II port by VERHILLE Arnaud ».
+- [ ] **Musique d’accueil** : une petite musique calme et planante pendant
+  la page de titre. L’animation du couloir et la démo restent silencieuses
+  aujourd’hui.
