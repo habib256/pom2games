@@ -59,7 +59,23 @@ def main():
                               for y in range(192))
             return pixels, raw[194+16384:194+16384+240]
 
+        # A mono display loses bit 7's palette selection. Every gameplay tile
+        # must still have a different shape, especially BOX / BOX ON TARGET.
+        tiles = run(boot + [peek('tile_bitmaps', 7 * 32)])
+        silhouettes = {bytes(b & 0x7F for b in tiles[i:i+32])
+                       for i in range(0, len(tiles), 32)}
+        assert len(silhouettes) == 7, 'gameplay tiles differ only by colour'
+        print('All seven tile silhouettes remain distinct without colour: ok')
+
+        # Canceling a title grid must return to the title without a live game.
+        for prefix in (boot, boot + menu):
+            raw = run(prefix + ['key:G', 'wait:90'] + back +
+                      [peek('game_active'), peek('title_phase')])
+            assert raw[0] == 0 and raw[1] > 0, 'title grid cancel started gameplay'
+        print('Canceling the level grid from title and title menu returns to the title: ok')
+
         baseline = screen(play)
+        assert screen(boot + menu + ['key:G', 'wait:90', 'key:\r', 'wait:600']) == baseline
         for name, path in [('menu', menu + back), ('help', ['key:H', 'wait:180'] + back + back),
                            ('options', menu + ['key:O', 'wait:180'] + back + back),
                            ('ranking', menu + ['key:F', 'wait:180'] + back + back),

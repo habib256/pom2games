@@ -675,7 +675,7 @@ initials_table:
         .byte <hof_initials_save,  >hof_initials_save,  84,120,STYLE_COMPACT
         .byte <hof_initials_back,  >hof_initials_back,  88,136,STYLE_COMPACT
         .word $FFFF
-hof_title:          GSTR "HALL OF FAME"
+hof_title = menu_hof            ; shared text, with the HOF table choosing x2
 hof_title_blank:    GSTR "            "
 hof_name:           GSTR "NAME"
 hof_levels:         GSTR "LEVELS"

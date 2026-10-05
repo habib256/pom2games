@@ -338,7 +338,7 @@ options_table:
         .byte <option_back, >option_back, 64,160,STYLE_COMPACT
         .byte <options_back, >options_back, 100,180,STYLE_COMPACT
         .word $FFFF
-options_title: GSTR "OPTIONS"
+options_title = menu_options    ; same glyph string; the table chooses its size
 options_keys:  GSTR "STICK/I/K  RETURN CHANGE"
 option_game:   GSTR "GAME SOUND"
 option_menu:   GSTR "MENU SOUND"

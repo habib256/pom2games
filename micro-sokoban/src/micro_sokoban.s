@@ -435,8 +435,8 @@ title_start:
 @goto:
         CMP #ACT_GOTO                   ; G goes to the level grid first
         BNE @play
-        JSR run_select                  ; (ESC: the resume level)
-        JMP game_loop
+        LDA #MENU_GOTO
+        JMP @action
 @play:  CMP #ACT_HELP
         BEQ @help
         CMP #ACT_MENU
@@ -459,14 +459,20 @@ title_start:
 @action:
         CMP #MENU_PROFILE
         BEQ return_title
+        CMP #MENU_GOTO
+        BNE @resume
+        JSR run_select
+        BCS game_loop
+        JMP return_title                ; cancellation never starts a game
+@resume:
         CMP #MENU_RESUME
-        BNE @reset
-        LDA #ACT_SELECT
-        JMP title_start
-@reset:
-        CMP #MENU_RESET                ; no history exists before starting
+        BEQ @play
+        CMP #MENU_RESET                ; restart must bypass the saved position
+        BNE @other
+        LDA #0
+        STA resume_pending
         BEQ game_loop
-        JMP menu_result
+@other: JMP menu_result
 
 game_loop:
         JSR start_level
@@ -3207,8 +3213,9 @@ draw_from_table:
 title_table:
         .byte <title_micro_sokoban,  >title_micro_sokoban,  $07, 20, $02     ; big, orange
         .byte <title_levels,   >title_levels,   60+LEVELS_TITLE_COL*4, 42, STYLE_COMPACT
-        .byte <title_skinner,  >title_skinner,  64, 94, STYLE_COMPACT
-        .byte <title_author,   >title_author,   60, 106, STYLE_COMPACT
+        .byte <title_skinner,  >title_skinner,  64, 88, STYLE_COMPACT
+        .byte <title_author,   >title_author,   80, 100, STYLE_COMPACT
+        .byte <title_porter,   >title_porter,   84, 112, STYLE_COMPACT
         .byte <title_press,    >title_press,    TITLE_PRESS_COL, TITLE_PRESS_SL, STYLE_COMPACT
         .byte <title_h_help,   >title_h_help,   28, 136, STYLE_COMPACT
         .word $FFFF
@@ -3540,7 +3547,8 @@ draw_title_glyph:
 title_micro_sokoban:  GSTR "MICRO-SOKOBAN"
 title_levels:   LEVELS_TITLE
 title_skinner:  GSTR "BY DAVID W. SKINNER"
-title_author:   GSTR "PORT VERHILLE ARNAUD"
+title_author:   GSTR "APPLE II PORT BY"
+title_porter:   GSTR "VERHILLE ARNAUD"
 title_press:    GSTR "KEY OR BUTTON"
 title_nopress:  GSTR "             "
 title_continue: GSTR "CONTINUE "
@@ -3557,7 +3565,7 @@ str_new_record: GSTR "NEW RECORD"
 str_bravo:      GSTR "BRAVO"
 str_microban:   GSTR "MICROBAN "
 str_solved:     GSTR "SOLVED "
-str_score:      GSTR "MOVES"
+str_score = str_moves           ; identical text, shared in the 48 KB resident
 str_sel_help:   GSTR "RETURN PLAY   ESC BACK   N/P SET"
 
 help_big_title: GSTR "HELP"
@@ -3721,11 +3729,13 @@ tile_bitmaps:
         .byte $8C,$98, $A8,$95, $A8,$95, $A8,$95
         .byte $A8,$95, $A8,$95, $A8,$95, $8C,$98
         .byte $FC,$9F, $FC,$9F, $00,$00, $00,$00
-; Tile 4: BOX ON TARGET — same frame, green body
-        .byte $00,$00, $00,$00, $7C,$1F, $7C,$1F
-        .byte $0C,$18, $28,$15, $28,$15, $28,$15
-        .byte $28,$15, $28,$15, $28,$15, $0C,$18
-        .byte $7C,$1F, $7C,$1F, $00,$00, $00,$00
+; Tile 4: BOX ON TARGET — green frame, hollow body and white check mark.
+; The hollow centre/check also distinguishes it from the filled BOX when
+; bit 7 (orange versus green) carries no colour information on a mono display.
+        .byte $00,$00, $00,$00, $28,$15, $28,$15
+        .byte $08,$10, $08,$10, $08,$16, $08,$16
+        .byte $38,$16, $68,$13, $48,$11, $08,$10
+        .byte $28,$15, $28,$15, $00,$00, $00,$00
 ; Tile 5: PLAYER (white figure)
         .byte $70,$01, $78,$03, $18,$03, $78,$03
         .byte $70,$01, $7C,$07, $7E,$0F, $70,$01
