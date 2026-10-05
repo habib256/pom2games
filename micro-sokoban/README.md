@@ -1,6 +1,6 @@
 # MICRO-SOKOBAN — Apple II+ / DOS 3.3
 
-Version 1.0 : [disquette et notes de publication](https://github.com/habib256/pom2games/releases/tag/1.0).
+Version 1.1 : [disquette et notes de publication](https://github.com/habib256/pom2games/releases/tag/1.1).
 
 Port Apple II du sketch `sketchs/gen2/game_sokoban` de
 [POM1](https://github.com/habib256/pom1) (HGR_Sokoban, VERHILLE Arnaud).

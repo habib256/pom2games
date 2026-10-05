@@ -21,9 +21,9 @@ démarre dessus et le programme se lance. Chaque dossier a son `README.md`
 (commandes, différences avec l'original) et, pour les jeux, un `TODO.md`
 d'améliorations prévues.
 
-MICRO-SOKOBAN 1.0 est disponible dans les
-[releases GitHub](https://github.com/habib256/pom2games/releases/tag/1.0), avec
-sa disquette amorçable et la [description de la version](docs/releases/1.0.md).
+MICRO-SOKOBAN 1.1 est disponible dans les
+[releases GitHub](https://github.com/habib256/pom2games/releases/tag/1.1), avec
+sa disquette amorçable et la [description de la version](docs/releases/1.1.md).
 
 ## Construire
 
