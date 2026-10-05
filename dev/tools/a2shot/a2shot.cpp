@@ -4,7 +4,7 @@
 //
 //   wait:N          run N video frames (17030 cycles each, ~1/60 s)
 //   key:TEXT        type TEXT (\r = RETURN, \e = ESC, \< / \> = left / right)
-//   shot:FILE.png   render the screen to a PNG (2x vertical, 280/560 wide)
+//   shot:FILE.png   render the screen to a PNG (560x384 for HGR and DHGR)
 //   peek:ADDR[:LEN] hex-dump guest memory (bus reads, may have side effects)
 //   poke:ADDR:BYTE  write one guest RAM byte (hex address and value)
 //   joy:X,Y         joystick axes in [-1,1]      btn:N,0|1  game-port button
@@ -57,16 +57,20 @@ void chunk(std::vector<unsigned char>& png, const char* type,
 
 bool writePng(const std::string& path, const pom2::FramebufferView& fb)
 {
-    const int w = fb.width, h = fb.height * 2;         // double rows: 4:3-ish
+    // HGR supplies 280 samples, DHGR/80-column modes supply 560. Give both
+    // the same display aspect: double HGR columns as well as all scanlines.
+    const int scaleX = fb.width == 280 ? 2 : 1;
+    const int w = fb.width * scaleX, h = fb.height * 2;
     std::vector<unsigned char> raw;
     raw.reserve(static_cast<size_t>(h) * (w * 3 + 1));
     for (int y = 0; y < h; ++y) {
         raw.push_back(0);                               // filter: none
         const std::uint32_t* row = fb.pixels + (y / 2) * fb.width;
         for (int x = 0; x < w; ++x) {
-            raw.push_back(row[x] & 0xFF);
-            raw.push_back((row[x] >> 8) & 0xFF);
-            raw.push_back((row[x] >> 16) & 0xFF);
+            const std::uint32_t pixel = row[x / scaleX];
+            raw.push_back(pixel & 0xFF);
+            raw.push_back((pixel >> 8) & 0xFF);
+            raw.push_back((pixel >> 16) & 0xFF);
         }
     }
     uLongf zlen = compressBound(static_cast<uLong>(raw.size()));

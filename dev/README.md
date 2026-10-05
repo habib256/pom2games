@@ -87,7 +87,7 @@ horloge murale, donc déterministe) et déroule un script :
 |-------------------|----------------------------------------------------|
 | `wait:N`          | exécute N trames (17 030 cycles chacune)           |
 | `key:TEXTE`       | tape le texte (`\r` RETURN, `\e` ESC, `\<` `\>` flèches) |
-| `shot:F.png`      | capture l'écran                                    |
+| `shot:F.png`      | capture l'écran en 560×384 (HGR et DHGR)             |
 | `peek:ADR[:LEN]`  | vide la mémoire (lecture bus)                      |
 | `poke:ADR:OCTET` | écrit un octet en mémoire (valeurs hexadécimales) |
 | `joy:X,Y`, `btn:N,0\|1` | manette                                      |
