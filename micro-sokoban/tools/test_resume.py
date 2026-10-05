@@ -39,6 +39,18 @@ def main():
         resumed = run(saved, ['wait:1800', 'key: ', 'wait:180', *state, peek('undo_n_lo', 4)])
         assert resumed == before + bytes(4), 'board, player, counters and fresh Undo after reboot'
         print('Exact position, moves and pushes restored after reboot; Undo history starts fresh: ok')
+
+        for route in (['key:\x1b', 'wait:180', 'key:\r'],
+                      ['key:G', 'wait:90', 'key:\x1b', 'wait:90', 'key: '],
+                      ['key:\x1b', 'wait:90', 'key:G', 'wait:90',
+                       'key:\x1b', 'wait:90', 'key: ']):
+            assert run(saved, ['wait:1800', *route, 'wait:180', *state]) == before
+        print('Menu RESUME and canceled title grids retain the saved position: ok')
+
+        restarted = run(saved, ['wait:1800', 'key:\x1b', 'wait:180', 'key:R', 'wait:180',
+                                peek('moves_lo', 4), peek('resume_pending', 1)])
+        assert restarted == bytes(5), 'RESTART from title restored the saved position'
+        print('RESTART from the title menu starts the saved level with zero moves: ok')
         changed = {i for i in range(0, len(base), 256) if base[i:i+256] != saved.read_bytes()[i:i+256]}
         assert changed == {file_sectors(base, 'MICROSAVE')[7]}, changed
         print('A position checkpoint changes exactly one data sector, without catalog/VTOC writes: ok')

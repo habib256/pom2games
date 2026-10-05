@@ -124,6 +124,11 @@ il repart vide après redémarrage ou changement de profil.
 L'écran **SUCCESS** affiche un titre orange ×2, les coups et poussées alignés,
 le nouveau record (ou le meilleur nombre de coups) et le nombre de niveaux résolus en blanc.
 
+Les caisses hors cible sont remplies en orange ; les caisses sur cible ont
+un cadre vert creux et une coche blanche. Leur forme les distingue aussi en
+monochrome, où orange et vert ont la même teinte. L’accueil affiche le crédit
+« APPLE II PORT BY » puis « VERHILLE ARNAUD » sur deux lignes blanches centrées.
+
 Les records (coups, puis poussées) sont gardés sur la disquette, dans
 le fichier du profil actif, mis à jour après chaque niveau résolu. Au démarrage,
 le jeu reprend la position sauvegardée ou, à défaut, le premier niveau non résolu. Sur une disquette protégée en écriture,
