@@ -12,12 +12,12 @@ GFX := $(DEV)/lib/gfx
 include $(HGRC)/hgrc.mk
 include $(APPLE2C)/apple2c.mk
 SRCS := $(HGRC_DHGR_SRCS) $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) $(HGRC_DHGR_COLOR_BACKEND) $(GFX)/gfx_circle.c
-OBJS := $(BUILD)/crt0_apple2.o $(BUILD)/dhgr_demo.o \
+OBJS := $(BUILD)/crt0_apple2.o $(BUILD)/dhgr_demo.o $(BUILD)/ball_render.o \
         $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o)))
 OBJS := $(OBJS:.s=.o)
 CFLAGS := -t none -Oirs $(HGRC_INCS) $(APPLE2C_INCS)
 vpath %.c src $(HGRC) $(APPLE2C) $(GFX)
-vpath %.s $(DEV)/cc65 $(HGRC) $(APPLE2C)
+vpath %.s src $(DEV)/cc65 $(HGRC) $(APPLE2C)
 
 all: $(DIST)/DHGR.dsk
 
@@ -29,8 +29,10 @@ $(BUILD)/%.o: %.s $(DEV)/lib/apple2/apple2.inc
 	@mkdir -p $(@D)
 	$(CA65) -t none $(HGRC_AFLAGS) -o $@ $<
 
+$(BUILD)/ball_render.o: src/ball.bin src/digits.inc
+
 $(BUILD)/dhgr.bin: $(OBJS) $(DEV)/cc65/apple2_hgr_c.cfg
-	$(CL65) -t none -C $(DEV)/cc65/apple2_hgr_c.cfg -m $(BUILD)/dhgr.map -o $@ $(OBJS)
+	$(CL65) -t none -C $(DEV)/cc65/apple2_hgr_c.cfg -m $(BUILD)/dhgr.map -Ln $(BUILD)/dhgr.lbl -o $@ $(OBJS)
 
 $(DIST)/DHGR.dsk: $(BUILD)/dhgr.bin src/hello.bas $(DEV)/tools/dos33.py $(DEV)/tools/dos33_system.bin
 	@mkdir -p $(DIST)
@@ -42,6 +44,8 @@ run: all
 
 test:
 	$(PYTHON) $(DEV)/tests/test_dhgr.py
+	$(PYTHON) $(DEV)/tests/test_dhgr_example.py
+	$(PYTHON) $(DEV)/tests/test_dhgr_starter.py
 
 clean:
 	rm -rf $(BUILD)

@@ -4,6 +4,41 @@
 #include "ball.h"
 
 static const hgr_mspr_t ball = {ball_data, ball_mask, BALL_STRIDE, BALL_HEIGHT};
+#define BALL_COUNT 3u
+
+static unsigned ball_x[BALL_COUNT] = {24u, 128u, 232u};
+static unsigned char ball_y[BALL_COUNT] = {80u, 112u, 144u};
+static signed char ball_dx[BALL_COUNT] = {1, -1, 1};
+static signed char ball_dy[BALL_COUNT] = {1, 1, -1};
+
+static void ball_collisions(void)
+{
+    static unsigned char i, j;
+    static int x, y, vx, vy;
+    static signed char direction;
+
+    for (i = 0u; i < BALL_COUNT; ++i) {
+        for (j = i + 1u; j < BALL_COUNT; ++j) {
+            x = (int)ball_x[i] - (int)ball_x[j];
+            y = (int)ball_y[i] - (int)ball_y[j];
+            /* Bound the differences before squaring on a 16-bit CPU. */
+            if (x < -7 || x > 7 || y < -7 || y > 7) continue;
+            if (x * x + y * y > 49) continue;
+            vx = (int)ball_dx[i] - (int)ball_dx[j];
+            vy = (int)ball_dy[i] - (int)ball_dy[j];
+            /* Only approaching pairs bounce, so contact cannot flip them
+             * back again while they are separating. Equal-speed balls
+             * exchange their velocities for this simple arcade response. */
+            if (x * vx + y * vy >= 0) continue;
+            direction = ball_dx[i];
+            ball_dx[i] = ball_dx[j];
+            ball_dx[j] = direction;
+            direction = ball_dy[i];
+            ball_dy[i] = ball_dy[j];
+            ball_dy[j] = direction;
+        }
+    }
+}
 
 static void background(void)
 {
@@ -21,9 +56,8 @@ static void background(void)
 
 int main(void)
 {
-    unsigned x = 24u, frame = 0u;
-    unsigned char y = 80u, key, paused = 0u;
-    signed char dx = 1, dy = 1;
+    static unsigned frame = 0u;
+    static unsigned char i, key, paused = 0u;
     hgr_init();
     a2_frame_init();
     /* Delay is added to render time on II/II+/IIc; tune for your workload. */
@@ -31,24 +65,30 @@ int main(void)
     hgr_set_draw_page(1u); background();
     hgr_set_draw_page(2u); background();
     hgr_spr_init(1u);
-    if (!hgr_spr_define(0u, &ball)) return 1;
+    for (i = 0u; i < BALL_COUNT; ++i) {
+        if (!hgr_spr_define(i, &ball)) return 1;
+    }
     for (;;) {
         key = apple2_readkey();
         if (key == KC_ESC) break;
         if (key == ' ') paused ^= 1u;
-        if (key == KC_LEFT) dx = -1;
-        if (key == KC_RIGHT) dx = 1;
-        if (key == KC_UP) dy = -1;
-        if (key == KC_DOWN) dy = 1;
-        if (!paused) {
-            if (x <= 10u) dx = 1;
-            if (x >= 260u) dx = -1;
-            if (y <= 62u) dy = 1;
-            if (y >= 158u) dy = -1;
-            x += dx;
-            y += dy;
+        for (i = 0u; i < BALL_COUNT; ++i) {
+            if (key == KC_LEFT) ball_dx[i] = -1;
+            if (key == KC_RIGHT) ball_dx[i] = 1;
+            if (key == KC_UP) ball_dy[i] = -1;
+            if (key == KC_DOWN) ball_dy[i] = 1;
+            if (!paused) {
+                if (ball_x[i] <= 10u) ball_dx[i] = 1;
+                if (ball_x[i] >= 260u) ball_dx[i] = -1;
+                if (ball_y[i] <= 62u) ball_dy[i] = 1;
+                if (ball_y[i] >= 158u) ball_dy[i] = -1;
+                ball_x[i] += ball_dx[i];
+                ball_y[i] += ball_dy[i];
+            }
         }
-        hgr_spr_move(0u, x, y);
+        if (!paused) ball_collisions();
+        for (i = 0u; i < BALL_COUNT; ++i)
+            hgr_spr_move(i, ball_x[i], ball_y[i]);
         hgr_spr_render();
         /* HUD is outside the sprite area; draw into the same hidden page. */
         hgr_putu_field(72u, 24u, frame++, 5u);
