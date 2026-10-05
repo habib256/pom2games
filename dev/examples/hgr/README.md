@@ -3,7 +3,7 @@
 *[← dev](../../README.md)*
 
 Programme C pour Apple II/II+ 48 Ko sous DOS 3.3, également utilisable sur
-IIe et IIc. Il montre une balle masquée sur une grille, un compteur de trames,
+IIe et IIc. Il montre trois balles masquées sur une grille, un compteur de trames,
 le clavier non bloquant et les deux pages HGR. Son archive ne charge que les
 familles utilisées. Auteur : VERHILLE Arnaud ; licence [GPL-3.0](../../../../LICENSE).
 
@@ -13,7 +13,11 @@ make -C dev/examples/hgr run
 make -C dev/examples/hgr test
 ```
 
-La disquette est `dist/HGR.dsk`. Flèches : direction du déplacement ; espace :
+Les balles démarrent à des positions et dans des directions différentes,
+rebondissent sur les bords et les unes contre les autres. Une collision
+échange les directions des deux balles lorsqu'elles se rapprochent ;
+la détection utilise une distance entre leurs centres de 7 pixels.
+La disquette est `dist/HGR.dsk`. Flèches : direction des trois balles ; espace :
 pause/reprise ; Échap : retour à DOS. Sur II+, Ctrl-K/Ctrl-J remplacent les
 flèches haut/bas. Ctrl-RESET passe aussi par la restauration du CRT.
 
@@ -21,8 +25,8 @@ flèches haut/bas. Ctrl-RESET passe aussi par la restauration du CRT.
 
 1. Initialiser la vidéo et `a2_frame_init()`.
 2. Dessiner le fond sur **les deux pages**, puis `hgr_spr_init(1)`.
-3. Définir le sprite et vérifier le résultat de `hgr_spr_define`.
-4. Lire le clavier et calculer sa position.
+3. Définir les trois sprites et vérifier le résultat de `hgr_spr_define`.
+4. Lire le clavier et calculer la position de chaque balle.
 5. `hgr_spr_render()` restaure l'ancienne position et dessine sur la page cachée.
 6. Dessiner le compteur sur cette même page, hors de la zone des sprites.
 7. `a2_frame_wait()` attend ; `hgr_spr_present()` affiche et sélectionne
