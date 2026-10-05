@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 #include "dhgr.h"
 #include "hgr_layout.h"
 extern unsigned char dhgr_base;

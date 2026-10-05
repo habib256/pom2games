@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
  * gfx_circle.c — card-neutral midpoint circle outline. See gfx.h.
  *

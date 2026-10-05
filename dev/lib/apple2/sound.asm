@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ============================================================================
 ; sound.asm -- square-wave tones on the Apple II speaker ($C030)
 ; ============================================================================

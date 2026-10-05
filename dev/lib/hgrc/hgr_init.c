@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* hgr_init.c — initialisation, look-up tables, page management.
  *
  * Always linked (every hgrc consumer pulls at least the table builder via
@@ -120,6 +121,11 @@ void hgr_build_tables(void)
  * "drawing on page 2", so the BSS zero IS the page-1 default — no DATA
  * initializer, no lazy fixup at the read site. */
 static unsigned char hgr_draw_page2;        /* 0 = page 1, nonzero = page 2 */
+
+unsigned char hgr_get_draw_page(void)
+{
+    return hgr_draw_page2 ? 2u : 1u;
+}
 
 void hgr_set_draw_page(unsigned char page)
 {

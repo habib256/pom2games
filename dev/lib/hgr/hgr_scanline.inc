@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; =============================================
 ; hgr_scanline.inc - HGR scanline base-address tables (384 bytes)
 ; =============================================

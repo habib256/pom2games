@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* hgr_line.c — vector drawing.
  * One archive member: unused families add neither code nor zero-page state. */
 #include "hgr.h"

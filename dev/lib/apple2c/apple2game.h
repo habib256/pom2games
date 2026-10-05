@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* apple2game.h — speaker and joystick for Apple II C programs (cc65).
  *
  * Link apple2game_asm.s (assembled with -I dev/lib/apple2): the same code as

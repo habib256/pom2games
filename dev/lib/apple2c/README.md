@@ -2,9 +2,8 @@
 
 *[← dev](../../README.md)*
 
-L'équivalent Apple II de `dev/lib/apple2c` de POM1 : la base texte/clavier sur
-laquelle s'appuie un programme C, indépendante du mode graphique. La sortie
-passe par COUT (`$FDED`) sur la page texte, l'entrée lit le verrou clavier
+Base texte/clavier pour les programmes C Apple II, indépendante du mode
+graphique. La sortie passe par COUT (`$FDED`) sur la page texte, l'entrée lit le verrou clavier
 (`$C000`, acquitté par `$C010`). Le miroir asm est [`../apple2/`](../apple2/).
 
 ## Fichiers
@@ -14,26 +13,27 @@ passe par COUT (`$FDED`) sur la page texte, l'entrée lit le verrou clavier
 | `apple2io.h` | l'API (ou `apple2c.h`) |
 | `apple2io_asm.s` | les routines qui appellent la ROM ou lisent le clavier |
 | `apple2io.c` | `a2_puts`, `a2_print_hexword` |
+| `apple2frame.h` + `apple2frame.s` | cadence optionnelle : IIe VBL, temporisation de repli bornée |
 | `apple2c.h` | en-tête parapluie |
-| `apple2c.mk` | fragment Makefile : `APPLE2C_SRCS`, `APPLE2C_INCS`, `APPLE2C_GAME_SRCS`, `APPLE2C_DOS_SRCS`, `APPLE2C_AFLAGS` |
+| `apple2c.mk` | fragment Makefile : `APPLE2C_SRCS`, `APPLE2C_INCS`, `APPLE2C_GAME_SRCS`, `APPLE2C_DOS_SRCS`, `APPLE2C_FRAME_SRCS`, `APPLE2C_AFLAGS` |
 | `apple2game.h` + `apple2game_asm.s` | haut-parleur, manette, boutons (optionnel) |
 | `apple2dos.h` + `apple2dos_asm.s` | commandes DOS 3.3 : BLOAD, BSAVE… (optionnel) |
 
 ## API
 
-| Apple-1 (`apple1c`) | Apple II (ici) | Effet |
-|---|---|---|
-| `woz_putc(c)` | `a2_putc(c)` | un caractère (`'\r'` = retour à la ligne) |
-| `woz_puts(s)` | `a2_puts(s)` | chaîne terminée par 0 |
-| `woz_print_hex(b)` | `a2_print_hex(b)` | octet en hexadécimal |
-| `woz_print_hexword(w)` | `a2_print_hexword(w)` | mot 16 bits en hexadécimal |
-| `woz_mon()` | `a2_dos()` | retour au prompt DOS `]`, ZP restaurée |
-| — | `a2_home()` | efface l'écran texte |
-| — | `a2_text()` | TEXT + plein écran + page 1 |
-| — | `a2_wait(a)` | pause Moniteur `WAIT` (`a2_wait(A2_WAIT_FRAME)` ≈ une trame) |
-| `apple1_iskeypressed()` | `apple2_iskeypressed()` | ≠ 0 si une touche attend |
-| `apple1_getkey()` | `apple2_getkey()` | attend une touche, `& 0x7F`, majuscule |
-| `apple1_readkey()` | `apple2_readkey()` | 0 ou la touche, sans attendre |
+| Fonction Apple II | Effet |
+|---|---|
+| `a2_putc(c)` | un caractère (`'\r'` = retour à la ligne) |
+| `a2_puts(s)` | chaîne terminée par 0 |
+| `a2_print_hex(b)` | octet en hexadécimal |
+| `a2_print_hexword(w)` | mot 16 bits en hexadécimal |
+| `a2_dos()` | retour au prompt DOS `]`, ZP restaurée |
+| `a2_home()` | efface l'écran texte |
+| `a2_text()` | TEXT + plein écran + page 1 |
+| `a2_wait(a)` | pause Moniteur `WAIT` (`a2_wait(A2_WAIT_FRAME)` ≈ une trame) |
+| `apple2_iskeypressed()` | ≠ 0 si une touche attend |
+| `apple2_getkey()` | attend une touche, `& 0x7F`, majuscule |
+| `apple2_readkey()` | 0 ou la touche, sans attendre |
 
 ### Son, manette, DOS (objets optionnels)
 
@@ -84,3 +84,24 @@ void main(void) {
          crt0_apple2.o hello.o apple2io.o apple2io_asm.o      # crt0 en premier
 
 Exemple complet : [`../../examples/hello`](../../examples/hello).
+
+Auteur : VERHILLE Arnaud. Licence : [GPL-3.0](../../../LICENSE).
+
+## Cadence optionnelle
+
+Lier `APPLE2C_FRAME_SRCS`, puis appeler `a2_frame_init()` : le résultat
+indique `A2_FRAME_VBL` sur IIe ou `A2_FRAME_DELAY` sur II/II+, IIc et IIgs.
+`a2_frame_wait()` attend le prochain front VBL sur IIe. Un signal bloqué
+entraîne un repli borné en temporisation, jusqu’au prochain `a2_frame_init`.
+`a2_frame_mode()` permet de lire le mode courant. Aucun commutateur vidéo
+ou d’interruption n’est modifié ; le masque IRQ est préservé.
+
+`a2_frame_set_delay(n)` règle l’argument de WAIT ROM (0 devient 1). Le défaut
+80 représente environ 17 093 cycles CPU, auxquels s’ajoute le dessin. Ce
+service ne fournit donc pas de délai compensé ni une cadence exacte sur les
+machines sans VBL. Le sondage suppose ROM/RAM principales et page zéro
+principale ; les routines ne sont pas réentrantes ou appelables depuis une IRQ.
+
+En double tampon : dessiner, attendre, puis basculer. En simple tampon :
+attendre avant de dessiner ; le dessin peut encore dépasser le VBL.
+Voir l’[exemple HGR](../../examples/hgr/README.md).

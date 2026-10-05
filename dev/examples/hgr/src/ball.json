@@ -1,0 +1,12 @@
+{
+  "mode": "hgr",
+  "kind": "sprite",
+  "width": 7,
+  "height": 7,
+  "stride": 2,
+  "phases": 7,
+  "data_bytes": 98,
+  "mask_bytes": 98,
+  "save_under_bytes": 14,
+  "rom_bytes": 196
+}

@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_sprmask.s -- masked pre-shifted sprite kernels for Apple II HGR (cc65).
 ;
 ; The SPRMASK family: the save-under complement to the XOR pre-shift engine

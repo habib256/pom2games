@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* hgr_preshift.c — Buzzard-Bait-style pre-shifted sprite blit (hgr_sprite).
  *
  * The "missing middle" of the HGR blit family: hgr_blit is 1px-precise

@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_preshift_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
 .export _hgr_preshift_xor_run, _hgr_xs_run
 .exportzp _hgr_xs_x, _hgr_xs_y, _hgr_xs_spr

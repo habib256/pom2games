@@ -11,7 +11,7 @@ APPLE2C := $(DEV)/lib/apple2c
 GFX := $(DEV)/lib/gfx
 include $(HGRC)/hgrc.mk
 include $(APPLE2C)/apple2c.mk
-SRCS := $(HGRC_DHGR_SRCS) $(APPLE2C_SRCS) $(HGRC_DHGR_COLOR_BACKEND) $(GFX)/gfx_circle.c
+SRCS := $(HGRC_DHGR_SRCS) $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) $(HGRC_DHGR_COLOR_BACKEND) $(GFX)/gfx_circle.c
 OBJS := $(BUILD)/crt0_apple2.o $(BUILD)/dhgr_demo.o \
         $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o)))
 OBJS := $(OBJS:.s=.o)
@@ -21,7 +21,7 @@ vpath %.s $(DEV)/cc65 $(HGRC) $(APPLE2C)
 
 all: $(DIST)/DHGR.dsk
 
-$(BUILD)/%.o: %.c src/ball.h $(HGRC_HEADERS) $(APPLE2C)/apple2io.h
+$(BUILD)/%.o: %.c src/ball.h $(HGRC_HEADERS) $(wildcard $(APPLE2C)/*.h)
 	@mkdir -p $(@D)
 	$(CL65) $(CFLAGS) -c -o $@ $<
 

@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* Private declarations shared by the HGR C wrappers.
  * The assembler kernels own their per-family zero-page parameter blocks;
  * shared text/sprite/carrier blocks live in *_params.s. Each C declaration

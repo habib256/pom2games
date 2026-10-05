@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* hgr_pixel.c — single-pixel plot/unplot via the asm col7/mask7 fast path. */
 
 #include "hgr.h"

@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_colorize_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
 .export _hgr_colorize_asm
 .exportzp _hgr_z_col0, _hgr_z_ncols, _hgr_z_y0, _hgr_z_rows

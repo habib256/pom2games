@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
  * gfx_ellipse.c — card-neutral 64-segment polyline ellipse. See gfx.h.
  *

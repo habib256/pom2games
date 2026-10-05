@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
  * gfx_num_dec.c — unsigned/signed decimal -> ASCII (gfx_utoa, gfx_itoa).
  * See gfx.h.

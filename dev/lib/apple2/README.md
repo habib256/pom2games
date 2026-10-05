@@ -2,11 +2,9 @@
 
 *[← dev](../../README.md)*
 
-L'équivalent Apple II de `dev/lib/apple1` de POM1 : les mêmes routines, avec
-les mêmes noms et les mêmes contrats, pour que le code écrit contre la
-bibliothèque Apple-1 s'assemble ici en changeant d'include. S'y ajoutent deux
-modules qui n'ont pas de raison d'être sur l'Apple-1 : `hgr.asm` (la vidéo est
-intégrée à l'Apple II) et `exit.asm` (rendre la main à DOS proprement).
+Primitives assembleur pour l'Apple II : équates matériel, texte, clavier,
+temporisation, son, manette et commandes DOS. `hgr.asm` initialise la vidéo
+native ; `exit.asm` restaure la page zéro pour rendre la main à DOS proprement.
 
 **Voisins :** [`../apple2c/`](../apple2c/) est le miroir C ;
 [`../hgr/`](../hgr/) apporte le texte et les sprites HGR.
@@ -81,8 +79,7 @@ propres `KEY_*`.
 
 ## Page zéro
 
-Sur l'Apple-1, `zp.inc` fige ses 8 octets en `$00-$07`. Sur l'Apple II la page
-zéro appartient au Moniteur (`$20-$4F`), à DOS et à Applesoft (`$50-$FF`) : le
+Sur l'Apple II, la page zéro appartient au Moniteur (`$20-$4F`), à DOS et à Applesoft (`$50-$FF`) : le
 pool occupe simplement le début du segment ZEROPAGE, que
 `dev/cc65/apple2_hgr.cfg` place en `$50`. COUT, HOME et RDKEY continuent donc
 de marcher. Un programme qui revient à DOS appelle `apple2_zp_save` en tout
@@ -158,3 +155,5 @@ msg:    .byte "HELLO!", $0D, 0
         --bas HELLO=hello.bas --bin HELLOBIN=hello.bin@0x6000
 
 Exemple complet : [`../../examples/hello`](../../examples/hello).
+
+Auteur : VERHILLE Arnaud. Licence : [GPL-3.0](../../../LICENSE).

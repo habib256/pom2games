@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* hgr_lores.c — 40x48 blocks of 16 real colours.
  *
  * LORES lives in the TEXT page ($0400), Apple II row interleave, two stacked

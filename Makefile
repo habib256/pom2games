@@ -9,20 +9,29 @@
 #
 # Each folder builds on its own too: make -C chess [run], still into ./dist.
 
-DIRS := micro-sokoban chess maze3d snake logo demos dev/examples/hello dev/examples/dhgr
+DIRS := micro-sokoban chess maze3d snake logo demos dev/examples/hello dev/examples/hgr dev/examples/dhgr
 
 all:
 	@for d in $(DIRS); do $(MAKE) -C $$d || exit 1; done
 
-test: all test-hgr test-assets bench-check
+test: all test-hgr test-frame test-hgr-example test-assets bench-check
 	$(MAKE) -C micro-sokoban test
 
 test-hgr:
 	python3 dev/tests/test_hgr.py
+	python3 dev/tests/test_sprengine.py
+
+test-frame:
+	python3 dev/tests/test_frame.py
+
+test-hgr-example:
+	python3 dev/tests/test_hgr_example.py
 
 test-dhgr:
 	$(MAKE) -C dev/examples/dhgr test
 	python3 dev/tests/test_dhgr_extended.py
+	python3 dev/tests/test_frame.py --iie
+	python3 dev/tests/test_hgr_example.py --iie
 
 check: distclean
 	$(MAKE) all
@@ -37,7 +46,7 @@ clean:
 distclean:
 	@for d in $(DIRS); do $(MAKE) -C $$d distclean; done
 
-.PHONY: all test test-hgr test-dhgr check clean distclean
+.PHONY: all test test-hgr test-frame test-hgr-example test-dhgr check clean distclean
 
 test-assets:
 	python3 dev/tests/test_assets.py

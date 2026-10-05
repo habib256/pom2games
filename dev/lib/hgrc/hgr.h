@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* hgr.h — Apple II HGR/LORES runtime for cc65.
  * Derived from POM1 (Arnaud Verhille, GPL-3.0).
  * Uses the built-in video soft switches at $C050-$C057 and the standard
@@ -111,11 +112,11 @@ void hgr_init_clear(void);
  *     a2_dos();                                    /- no-return -/           */
 void hgr_text_restore(void);
 
-/* Fill the HIRES page-1 framebuffer ($2000-$3FFF) with `fill` (0 = black). */
+/* Fill the current HIRES draw page with `fill` (0 = black). */
 void hgr_clear(unsigned char fill);
 
-/* Fast byte-aligned rectangle fill of HIRES page 1, via a hand-written 6502
- * inner loop (hgr_byte_rect_asm.s). Fills `rows` scanlines from y0, byte columns
+/* Fast byte-aligned rectangle fill of the current HIRES draw page, via a
+ * hand-written 6502 inner loop (hgr_byte_rect_asm.s). Fills `rows` scanlines from y0, byte columns
  * [col0, col0+ncols), with `val` (0 = erase). Horizontally byte-granular
  * (7px/byte, so col = x/7, ncols = how many 7px-wide bytes). This is the fast
  * way to erase the area behind text / a sprite without clearing the whole
@@ -190,11 +191,12 @@ void hgr_blit7(unsigned x, unsigned char y, unsigned char wbytes,
  * At runtime the engine just selects the phase for x%7 and does a byte-aligned
  * blit at column x/7 -- zero per-pixel shifting; the inner loop is hgr_blit7.
  *
- * Cost: 7x the sprite's bytes (static data -- "free"). Build the 7-phase bank
- * with tools/build_preshift_sprites.py (emits a hgr_sprite_t + its data, C or
- * asm). Same SET/CLEAR/XOR modes; XOR is the sweet spot (draw==erase, no
- * backbuffer, decor preserved). Example:
- *     #include "ball_ps.h"            // generated: hgr_sprite_t ball;
+ * Cost: seven phase banks stored in the program. Build them with
+ * dev/tools/assets/convert.py and wrap its data in hgr_sprite_t.
+ * SET/CLEAR/XOR modes; XOR drawing twice at the same position restores the
+ * original bytes, but the background shows through while drawn. Example:
+ *     #include "ball.h"               // converter output: ball_data
+ *     const hgr_sprite_t ball = {ball_data, BALL_STRIDE, BALL_HEIGHT};
  *     hgr_sprite(px, py, &ball, HGR_XOR);   // draw
  *     hgr_sprite(px, py, &ball, HGR_XOR);   // erase (same x,y)
  *
@@ -216,12 +218,9 @@ typedef struct {
 void hgr_sprite(unsigned x, unsigned char y,
                      const hgr_sprite_t *spr, unsigned char mode);
 
-/* XOR-only FAST path of hgr_sprite -- the whole draw (x/7, x%7, phase
- * offset, edge clipping, blit) is hand-asm, skipping the cc65 wrapper's software
- * divide/multiply/16-bit clip. ~3-4x less per-call overhead, which is what lets a
- * SINGLE-buffer erase+redraw pair finish inside V-blank (no beam-race flicker) --
- * the Buzzard-Bait way. Use this in tight animation loops; same data ABI as
- * hgr_sprite, mode is always XOR (draw==erase). */
+/* Dedicated XOR sprite entry, equivalent to hgr_sprite(..., HGR_XOR).
+ * Does not synchronize with the display. Caller must bound update time and
+ * wait as appropriate; II/II+ have no readable VBL flag. */
 void hgr_sprite_xor(unsigned x, unsigned char y, const hgr_sprite_t *spr);
 
 /* --- Masked pre-shifted sprites + save-under (the SPRMASK family) ----------
@@ -232,7 +231,7 @@ void hgr_sprite_xor(unsigned x, unsigned char y, const hgr_sprite_t *spr);
  *
  *     dst[j] = (dst[j] & mask[j]) | data[j]
  *
- * Data ABI (what build_preshift_sprites.py --masked emits, and what the
+ * Data ABI (what dev/tools/assets/convert.py emits, and what the
  * hgr_sprmask.s kernels read):
  *   stride = ceil((w + 6) / 7) bytes per row, uniform across the 7 phases
  *            (same rule as hgr_sprite_t).
@@ -255,35 +254,38 @@ typedef struct {
     unsigned char        h;      /* rows                                       */
 } hgr_mspr_t;
 
-/* --- The sprite ENGINE (hgr_sprengine.c, needs SPRMASK + CORE) ------------
- * Up to HGR_SPR_MAX masked sprites with automatic save-under/restore, in
- * either double-buffered (tear-free) or single-buffered (V-blank-raced) mode.
- * The engine owns the under-buffers (a static pool -- no dynamic allocation):
- * each sprite may cover at most HGR_SPR_UNDER_BYTES = stride*h bytes (e.g.
- * 4x24, or a full 16x16 creature at stride 4 x 16 rows = 64). hgr_spr_define
- * silently rejects (deactivates) a shape over the cap.
+/* --- Sprite engine: masked sprites with save-under on one or two pages ----
+ * Up to HGR_SPR_MAX sprites. The static under-buffer pool always reserves
+ * 2 * HGR_SPR_MAX * HGR_SPR_UNDER_BYTES bytes, even in single-buffer mode.
+ * Initialize over clean backgrounds; draw the background on BOTH pages for
+ * double buffering. The background under a drawn sprite must remain unchanged
+ * until restoration. Larger ids draw on top; restore order is reversed.
  *
- * The loop:
- *     hgr_init();
- *     ...draw the background (BOTH pages if double buffering)...
- *     hgr_spr_init(1);                          // 1 = double-buffered
- *     hgr_spr_define(0, &wolf);
- *     for (;;) {
- *         hgr_spr_move(0, x, y);                // just records the target
- *         hgr_spr_update();                     // restore + draw + flip
- *     }
+ * Double-buffer loop (include apple2frame.h and link APPLE2C_FRAME_SRCS):
+ *     hgr_spr_move(0, x, y);
+ *     hgr_spr_render();       // restore old sprites, draw on hidden page
+ *     ...draw this page's HUD...
+ *     a2_frame_wait();        // IIe VBL or delay fallback; initialize once
+ *     hgr_spr_present();      // display it, select next draw page
  *
- * hgr_spr_update does all the work; see hgr_sprengine.c for the mode
- * semantics (double-buffer: draw on the hidden page, then flip in V-blank;
- * single-buffer: restore+draw inside the V-blank window) and the cycle
- * budget math. */
+ * Single buffer: wait BEFORE render; writes remain visible and may tear.
+ * hgr_spr_update() combines render + present immediately, without waiting.
+ * Neither double buffering nor delay fallback alone guarantees no tearing. */
 #define HGR_SPR_MAX          8u
-#define HGR_SPR_UNDER_BYTES  96u   /* per-sprite save-under cap (stride*h)   */
+#define HGR_SPR_UNDER_BYTES  96u   /* per-sprite save-under cap (stride*h) */
 
 void hgr_spr_init(unsigned char double_buffered);
-void hgr_spr_define(unsigned char id, const hgr_mspr_t *shape);
+/* Returns 1 on success, 0 on invalid id/geometry or a still-drawn sprite.
+ * For redefinition: hide, render/present once per page, then define. A
+ * still-drawn sprite keeps its old definition if redefinition is attempted.
+ * Invalid geometry on an undrawn slot deactivates it. NULL undefines a slot.
+ * Shape/data/mask storage must stay valid and unchanged until both pages
+ * have been restored. */
+unsigned char hgr_spr_define(unsigned char id, const hgr_mspr_t *shape);
 void hgr_spr_move(unsigned char id, unsigned x, unsigned char y);
 void hgr_spr_hide(unsigned char id);
+void hgr_spr_render(void);
+void hgr_spr_present(void);
 void hgr_spr_update(void);
 
 /* UI RULE: native-size (x1) text must remain white. Only doubled (x2)
@@ -292,14 +294,14 @@ void hgr_spr_update(void);
 
 /* Draw an ASCII string at pixel (x, y) using the built-in Beautiful Boot 8x8
  * font, pixel-doubled so the text is solid white (no NTSC colour artifacts) in
- * 16x16 cells on an 18px pitch. Renders into HIRES page 1; call hgr_init
+ * 16x16 cells on an 18px pitch. Renders into the current HIRES draw page; call hgr_init
  * + hgr_clear first. Non-printable chars render as a space. */
 void hgr_puts(unsigned x, unsigned char y, const char *s);
 
 /* Same Beautiful Boot font at its NATIVE 8x8 size (no pixel doubling): 7px glyph
  * cells on an 8px pitch, 8px tall. ~3-4x more text per line and faster than the
  * 16x16 hgr_puts — use it for dense HUDs / status lines. White into HIRES
- * page 1. Clips at y<=184 / x<=273. hgr_putu8 is the small-font number twin. */
+ * draw page. Clips at y<=184 / x<=273. hgr_putu8 is the small-font number twin. */
 void hgr_puts8(unsigned x, unsigned char y, const char *s);
 void hgr_putu8(unsigned x, unsigned char y, unsigned value);
 
@@ -429,15 +431,16 @@ void hgr_lores_fill_rect(unsigned char x, unsigned char y,
                           unsigned char w, unsigned char h, unsigned char color);
 
 /* A II/II+ has no readable V-blank input. For
- * tear-free animation draw on the hidden page and flip (below). */
+ * animation, draw on the hidden page and flip (below). This alone cannot
+ * guarantee tear-free display; use apple2frame.h for IIe VBL synchronization. */
 
 /* ===========================================================================
  * Double buffering — draw page vs display page (PAGE2)
  * ===========================================================================
  * The display has TWO framebuffers: page 1 (HIRES $2000 / LORES $0400) and page 2
- * (HIRES $4000 / LORES $0800). For flicker/tear-free full-screen animation you
+ * (HIRES $4000 / LORES $0800). For full-screen animation you
  * draw the next frame into the HIDDEN page while the display shows the other, then
- * flip — the viewer never sees a half-drawn frame.
+ * flip. Waiting for VBL before the flip on IIe avoids a mid-scan page change.
  *
  *   hgr_set_draw_page(page)  picks where EVERY drawing primitive writes (HIRES
  *                             and LORES alike); page is 1 or 2. Cheap but not
@@ -461,6 +464,7 @@ void hgr_lores_fill_rect(unsigned char x, unsigned char y,
  *     }
  */
 void hgr_set_draw_page(unsigned char page);   /* 1 or 2 (out-of-range -> 1) */
+unsigned char hgr_get_draw_page(void);         /* current draw page, 1 or 2 */
 void hgr_show_page(void);                      /* display the current draw page */
 
 #endif /* HGR_H */

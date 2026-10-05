@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* Native DHGR, IIe revision B + extended 80-column card / IIc.
  * Both pages ($2000-$5FFF main+aux). Code, stack, source and destination
  * buffers must be outside these windows. Main RAM/zero page on entry.

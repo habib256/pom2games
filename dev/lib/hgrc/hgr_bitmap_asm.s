@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_bitmap_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
 .export _hgr_blit_run
 .exportzp _hgr_b_mask

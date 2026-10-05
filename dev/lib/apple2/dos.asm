@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ============================================================================
 ; dos.asm -- run DOS 3.3 commands (BLOAD, BSAVE...) from a BRUN program
 ; ============================================================================

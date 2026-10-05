@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ----------------------------------------------------------------------------
 ; apple2io_asm.s — Apple II Monitor + keyboard hooks for cc65 (see apple2io.h).
 ;

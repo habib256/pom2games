@@ -1,10 +1,10 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ============================================================================
 ; exit.asm -- leave a BRUN program cleanly back to DOS 3.3
 ; ============================================================================
-; The Apple-1 idiom is `JMP WOZMON`: the monitor owns nothing a program can
-; break. On the Apple II the zero page is shared with the Monitor, DOS and
-; Applesoft, and a game that scribbles over it leaves BASIC with wild pointers.
-; So the Apple II idiom is a snapshot:
+; The Apple II zero page is shared with the Monitor, DOS and Applesoft.
+; A program must restore it before returning to BASIC to keep its pointers
+; valid. Save a snapshot at startup and restore it on exit:
 ;
 ;   main:   APPLE2_PREAMBLE
 ;           JSR apple2_zp_save      ; FIRST, before touching any ZP byte

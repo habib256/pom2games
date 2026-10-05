@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; =============================================
 ; hgr_plot_tables.inc - HGR per-pixel column/mask tables (512 bytes)
 ; =============================================

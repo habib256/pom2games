@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ============================================================================
 ; hgr_sprite16.asm -- TMS-format 16x16 sprite blitter for the Apple II HGR card
 ; ----------------------------------------------------------------------------

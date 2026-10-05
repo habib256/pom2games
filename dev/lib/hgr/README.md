@@ -32,3 +32,5 @@ murs, caisses et autres éléments graphiques conservent leurs couleurs.
 
 Voir l'en-tête de chaque fichier pour l'API détaillée et la zéro-page qu'il
 réserve.
+
+Auteur : VERHILLE Arnaud. Licence : [GPL-3.0](../../../LICENSE).

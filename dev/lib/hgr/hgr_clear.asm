@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; =============================================
 ; hgr_clear.asm - clear the Apple II HGR framebuffer
 ; =============================================

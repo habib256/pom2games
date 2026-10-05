@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* hgr_x2.c — mono ×1 sprite → ×2 single-colour inflate (hgr_inflate_x2).
  *
  * On HIRES a sprite has no CHOSEN colour: at ×1 its colour is a pure NTSC artifact

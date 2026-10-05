@@ -5,9 +5,9 @@ avec cc65. Dérivés de [POM1](https://github.com/habib256/pom1) (GPL v3), ils
 utilisent la vidéo native de l'Apple II. Tous les jeux du dépôt les partagent.
 
     dev/
-      lib/apple2/      asm : équivalent de dev/lib/apple1 (+ HGR, sortie DOS,
-                       son, manette, commandes DOS)
-      lib/apple2c/     C   : équivalent de dev/lib/apple1c (+ son, manette, DOS)
+      lib/apple2/      asm : matériel, texte, clavier, HGR, sortie DOS,
+                       son, manette, commandes DOS
+      lib/apple2c/     C   : texte, clavier, son, manette, DOS
       lib/hgr/         texte, sprites et tables HGR en assembleur
       lib/hgrc/        runtime C HGR : hgr.h, fonctions hgr_*
       lib/gfx/         géométrie C (lignes, rectangles, cercles) pour hgrc
@@ -17,6 +17,7 @@ utilisent la vidéo native de l'Apple II. Tous les jeux du dépôt les partagent
       tools/a2shot/    exécutions sans interface, scriptées, avec captures PNG
       tools/a2run/     la même chose en C portable, avec écriture disque
       examples/hello/  programme de départ asm + C sur un disque
+      examples/hgr/    démarrage HGR animé : sprites, compteur, clavier, cadence
       examples/dhgr/   DHGR 560×192 / 16 couleurs, Apple IIe 128 Ko ou IIc
 
 ## Démarrer
@@ -25,7 +26,9 @@ utilisent la vidéo native de l'Apple II. Tous les jeux du dépôt les partagent
     make            # -> ../../../dist/HELLO.dsk (HELLOASM au boot, puis BRUN HELLOC)
     make run        # dans POM2, profil Apple ][+
 
-Copier `examples/hello` pour commencer un nouveau programme ; à côté de
+Copier `examples/hello` pour commencer un programme texte, ou
+[`examples/hgr`](examples/hgr/README.md) pour une animation avec sprites,
+compteur, clavier et double tampon. Pour placer le nouveau dossier à côté de
 `micro-sokoban/`, mettre `DEV ?= ../dev` et `DIST ?= ../dist` dans son `Makefile`
 pour que la disquette rejoigne les autres dans `dist/`.
 
@@ -135,3 +138,15 @@ Licence : GPL v3, comme les sources POM1 dont ces bibliothèques dérivent.
 - [Benchmarks et budgets de régression](bench/README.md) : `make bench`, `make bench-dhgr`.
 - `make test-assets` et `make bench-check` font partie de `make test`.
 - `make test-dhgr` vérifie les deux pages, les deux banques et les deux backends.
+
+## Cadence et exemple animé
+
+Le service optionnel [`lib/apple2c/apple2frame.h`](lib/apple2c/apple2frame.h)
+attend le prochain VBL sur IIe, ou utilise une temporisation sur II/II+ et
+IIc. Les attentes sont bornées ; le service ne configure aucune interruption.
+Lier `APPLE2C_FRAME_SRCS` et appeler `a2_frame_init()` avant la boucle.
+La temporisation ajoute un délai au dessin ; elle ne garantit pas une fréquence
+fixe. Voir l’[exemple HGR](examples/hgr/README.md) pour les contrats par modèle.
+
+`make test-frame` et `make test-hgr-example` font partie de `make test`.
+Les tests du moteur de sprites font partie de `make test-hgr`.

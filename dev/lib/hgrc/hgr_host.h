@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* Host conversion reference; not part of the cc65 runtime API. */
 #ifndef HGR_HOST_H
 #define HGR_HOST_H

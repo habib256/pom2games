@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ----------------------------------------------------------------------------
 ; apple2dos_asm.s — DOS 3.3 commands for cc65 (see apple2dos.h).
 ;

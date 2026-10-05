@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_sprite_params.s — Apple II HGR kernel; linked independently from hgrc.lib.
 .exportzp _hgr_b_col, _hgr_b_w, _hgr_b_h, _hgr_b_stride, _hgr_b_y, _hgr_b_mode, _hgr_b_src
 

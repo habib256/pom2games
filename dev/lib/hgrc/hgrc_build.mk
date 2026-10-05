@@ -1,3 +1,4 @@
+# VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 # Include after the consumer's first target (normally all).
 # hgrc.mk must already be included. HGRC_EXTRA_SRCS adds optional platform code.
 CL65 ?= cl65
