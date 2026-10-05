@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_byte_rect_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
 .export _hgr_fill_rect_asm
 .exportzp _hgr_f_y0, _hgr_f_rows, _hgr_f_col0, _hgr_f_cols, _hgr_f_val

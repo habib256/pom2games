@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
  * apple2io.c — small C layer over apple2io_asm.s. See apple2io.h.
  */

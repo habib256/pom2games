@@ -1,13 +1,13 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ============================================================================
 ; zp.inc -- shared zero-page convention for lib/apple2 (+ machine-agnostic libs)
 ; ============================================================================
-; Same slot names and order as POM1's dev/lib/apple1/zp.inc, so libraries and
-; programs written against that convention (tmp, tmp2, print_ptr_*, mul_*,
-; prng_*) assemble unchanged. The difference is WHERE they land.
+; Shared scratch slots for libraries and programs: tmp, tmp2, print_ptr_*,
+; mul_* and prng_*. Their addresses are assigned by the linker.
 ;
-; On the Apple-1 the pool is pinned at $00-$07. On the Apple II the zero page
-; belongs to the Monitor ($20-$4F), DOS 3.3 and Applesoft ($50-$FF), so the
-; pool is simply the first 8 bytes of your ZEROPAGE segment, and the linker
+; On the Apple II the zero page belongs to the Monitor ($20-$4F), DOS 3.3
+; and Applesoft ($50-$FF). The pool is the first 8 bytes of your ZEROPAGE
+; segment, and the linker
 ; config decides the address. dev/cc65/apple2_hgr.cfg starts ZEROPAGE at $50:
 ; clear of the Monitor, so COUT / RDKEY / PRBYTE keep working while the
 ; program runs; Applesoft's bytes are only borrowed (exit.asm restores them).
@@ -22,7 +22,7 @@
 ;   +6 prng_lo       PRNG helpers
 ;   +7 prng_hi
 ;
-; Usage rules (unchanged from the Apple-1 version):
+; Usage rules:
 ;   1. .include "zp.inc" BEFORE any other ZP allocation.
 ;   2. ZP-tight projects alias a slot onto existing scratch BEFORE the include;
 ;      the per-slot .ifndef guards skip the duplicate .res.

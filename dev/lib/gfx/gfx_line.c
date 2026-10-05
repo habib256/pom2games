@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
  * gfx_line.c — card-neutral Bresenham line. See gfx.h.
  *

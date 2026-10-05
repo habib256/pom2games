@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ----------------------------------------------------------------------------
 ; apple2game_asm.s — speaker + joystick for cc65 (see apple2game.h).
 ;

@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ============================================================================
 ; hgr.asm -- deterministic hi-res display setup for the Apple II
 ; ============================================================================

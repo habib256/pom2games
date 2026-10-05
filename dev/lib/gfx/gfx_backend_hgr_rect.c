@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
  * gfx_backend_hgr_rect.c — gfx_filled_rect + gfx_clear forwarders for the
  * Apple II HGR backend.

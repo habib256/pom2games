@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
  * gfx_text_backend_hgr.c — Apple II HGR backend for the gfx_text cell façade (AXIS 3).
  *

@@ -1,3 +1,4 @@
+# VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 # Apple II HGR source families for cc65. Set HGRC and GFX before including.
 # Build an ar65 archive from HGRC_ALL_SRCS: ld65 extracts only called families.
 # The ASM_SRC list is shared because its members have independent code/ZP.
@@ -25,7 +26,8 @@ HGRC_SPRENGINE_SRCS := $(HGRC)/hgr_sprengine.c
 HGRC_GEOM_SRCS := $(addprefix $(HGRC)/,hgr_geom.c hgr_line.c hgr_outline.c \
     hgr_circle.c hgr_ellipse.c)
 HGRC_LORES_SRCS := $(HGRC)/hgr_lores.c
-HGRC_NUM_SRCS := $(GFX)/gfx_num_hex.c
+HGRC_NUM_SRCS := $(GFX)/gfx_num_hex.c $(GFX)/gfx_num_dec.c
+HGRC_GFX_TEXT_SRCS := $(GFX)/gfx_text.c $(GFX)/gfx_text_backend_hgr.c
 HGRC_VECTOR_SRCS := $(GFX)/gfx_line.c $(GFX)/gfx_rect.c
 HGRC_BACKEND_SRCS := $(GFX)/gfx_backend_hgr.c $(GFX)/gfx_backend_hgr_rect.c
 HGRC_GFX_SRCS := $(HGRC_VECTOR_SRCS) $(GFX)/gfx_circle.c $(GFX)/gfx_ellipse.c \
@@ -34,7 +36,7 @@ HGRC_GFX_SRCS := $(HGRC_VECTOR_SRCS) $(GFX)/gfx_circle.c $(GFX)/gfx_ellipse.c \
 HGRC_ALL_SRCS := $(sort $(HGRC_CORE_SRCS) $(HGRC_PIXEL_SRCS) $(HGRC_RECT_SRCS) \
     $(HGRC_TEXT_SRCS) $(HGRC_SPRITES_SRCS) $(HGRC_PRESHIFT_SRCS) \
     $(HGRC_SPRMASK_SRCS) $(HGRC_SPRENGINE_SRCS) $(HGRC_GEOM_SRCS) \
-    $(HGRC_LORES_SRCS) $(HGRC_NUM_SRCS) $(HGRC_GFX_SRCS))
+    $(HGRC_LORES_SRCS) $(HGRC_NUM_SRCS) $(HGRC_GFX_SRCS) $(HGRC_GFX_TEXT_SRCS))
 HGRC_INCS := -I $(HGRC) -I $(GFX)
 HGRC_AFLAGS := -I $(HGRC) -I $(HGRC)/../apple2
 HGRC_HEADERS := $(wildcard $(HGRC)/*.h $(HGRC)/*.inc $(GFX)/*.h)

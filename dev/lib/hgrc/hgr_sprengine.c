@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* hgr_sprengine.c — masked save-under sprites for Apple II HGR (cc65).
  * Needs SPRMASK + CORE. Each sprite saves and restores its background.
  * Double buffering keeps separate backgrounds and previous positions per
@@ -55,24 +56,28 @@ void hgr_spr_init(unsigned char double_buffered)
     if (double_buffered) hgr_set_draw_page(2u);
 }
 
-/* Bind a shape to a sprite slot. Rejected (slot deactivated) when the covered
- * rectangle stride*h exceeds the HGR_SPR_UNDER_BYTES save-under cap.
- * Redefining a shape while the sprite is still drawn on a page is undefined
- * (the pending restore would use the new geometry) -- hide + update first. */
-void hgr_spr_define(unsigned char id, const hgr_mspr_t *shape)
+/* Definitions may change only when neither page holds this sprite. Hide and
+ * render both pages first (one in single-buffer mode), or re-init on clean
+ * backgrounds. A rejected redefinition keeps the old shape so restores remain
+ * valid. Geometry/pointers are checked before the assembler kernels run. */
+unsigned char hgr_spr_define(unsigned char id, const hgr_mspr_t *shape)
 {
-    if (id >= HGR_SPR_MAX) return;
+    if (id >= HGR_SPR_MAX) return 0u;
+    if (spr_drawn[0][id] || spr_drawn[1][id]) return 0u;
     if (shape != 0 &&
-        (unsigned)shape->stride * shape->h > HGR_SPR_UNDER_BYTES) {
-        spr_shape[id]  = 0;
+        (!shape->data || !shape->mask || !shape->stride || !shape->h ||
+         shape->stride > 40u || shape->h > 192u ||
+         (unsigned)shape->stride * shape->h > HGR_SPR_UNDER_BYTES)) {
+        spr_shape[id] = 0;
         spr_active[id] = 0u;
-        return;
+        return 0u;
     }
-    spr_shape[id]  = shape;
+    spr_shape[id] = shape;
     spr_active[id] = (shape != 0) ? 1u : 0u;
+    return 1u;
 }
 
-/* Record the target position; nothing is drawn until hgr_spr_update. */
+/* Record the target position; nothing is drawn until render/update. */
 void hgr_spr_move(unsigned char id, unsigned x, unsigned char y)
 {
     if (id >= HGR_SPR_MAX) return;
@@ -82,24 +87,20 @@ void hgr_spr_move(unsigned char id, unsigned x, unsigned char y)
 }
 
 /* Hide a sprite: it stops being drawn and its under-rect is restored by the
- * next update (the next TWO updates in double-buffer mode -- one per page). */
+ * next render (TWO render/present cycles in double-buffer mode). */
 void hgr_spr_hide(unsigned char id)
 {
     if (id >= HGR_SPR_MAX) return;
     spr_active[id] = 0u;
 }
 
-/* One frame: restore every drawn sprite (REVERSE draw order, so overlapping
- * under-rects unwind exactly), then save-under + masked-draw every active one
- * at its CURRENT position. Double-buffer: all of it on the hidden page, then
- * flip in V-blank and swap the pen. Single-buffer: V-blank first, then the
- * whole restore+draw races the beam (see the budget note above). */
-void hgr_spr_update(void)
+/* Restore in reverse draw order, then draw active sprites in forward order.
+ * This preserves overlapping backgrounds. Rendering never waits or flips;
+ * double-buffer users can draw a HUD and wait before hgr_spr_present(). */
+void hgr_spr_render(void)
 {
     unsigned char pg, id;
     unsigned char *ub;
-
-    /* Apple II: no V-blank input, the single-buffer pass races the beam. */
 
     pg = (unsigned char)(spr_drawpage - 1u); /* page index 0/1                */
     hgr_set_draw_page(spr_drawpage);        /* row tables -> this page       */
@@ -133,10 +134,22 @@ void hgr_spr_update(void)
         spr_py[pg][id]    = spr_y[id];
         spr_drawn[pg][id] = 1u;
     }
+}
 
+/* Present the rendered page and select the next draw page. No synchronization.
+ * In single-buffer mode rendering is already visible; this is a no-op. */
+void hgr_spr_present(void)
+{
     if (spr_dbuf) {
-        /* Apple II: no V-blank to wait for -- flip right away. */
-        hgr_show_page();                    /* $C054/$C055 READ = the flip   */
+        hgr_show_page();
         spr_drawpage = (spr_drawpage == 1u) ? 2u : 1u;
+        hgr_set_draw_page(spr_drawpage);
     }
+}
+
+/* Backward-compatible immediate restore/draw/present. */
+void hgr_spr_update(void)
+{
+    hgr_spr_render();
+    hgr_spr_present();
 }

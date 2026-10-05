@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ============================================================================
 ; joy.asm -- joystick (two paddle timers) for the Apple II game port
 ; ============================================================================

@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ============================================================================
 ; rev7.inc -- rev7_tab: TMS bit order -> HGR bit order (256-byte LUT)
 ; ----------------------------------------------------------------------------

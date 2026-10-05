@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* Shared scanline address for Apple II HGR and DHGR (y: 0..191).
  * base is the page high byte ($20 or $40). Arguments must have no side effects.
  * Keep the additions flat: cc65 generates smaller code than base+(offset).

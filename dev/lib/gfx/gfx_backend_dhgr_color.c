@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* Link exactly one DHGR backend. Color coordinates are 140x192. */
 #include "gfx.h"
 #include "dhgr.h"

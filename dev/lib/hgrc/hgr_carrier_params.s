@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_carrier_params.s — Apple II HGR kernel; linked independently from hgrc.lib.
 .exportzp _hgr_z_ce, _hgr_z_co, _hgr_z_hi
 

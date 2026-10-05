@@ -90,7 +90,8 @@ bénéficient aussi de l'exclusion de routines jusque-là liées inutilement.
 `make test-hgr` compile et exécute les routines dans **a2run**, sous Linux et
 macOS. Les 21 étapes comparent les deux pages vidéo avec un modèle Python :
 rectangles 256/280 pixels, limites, pixels, sprites SET/CLEAR/XOR et sept
-phases, texte blanc/coloré, nombres, cellules, coloration. Cinq programmes
+phases, texte blanc/coloré, nombres, cellules, coloration. Quatre scènes supplémentaires vérifient le texte par cellules `gfx` sur
+la page 2, le curseur et les conversions numériques. Sept programmes
 minimaux vérifient aussi que l'archive exclut les noyaux et blocs de page zéro
 inutilisés. Ce test fait partie de `make test` et de la CI.
 
@@ -167,10 +168,35 @@ par octets avec masquage des extrémités.
   sprites, masques, sept phases, aperçu et bilan mémoire.
 - Les déclarations de conversion ×2 hôte sont dans `hgr_host.h`.
 - [Mesures et budgets](../../bench/README.md) : cycles CPU, code, ROM, RAM et ZP.
-- `make test-hgr` : 21 contrôles et cinq éditions de liens minimales.
+- `make test-hgr` : 21 contrôles de primitives, quatre scènes de texte `gfx`,
+  24 scènes du moteur de sprites et sept éditions de liens minimales.
 - `make test-dhgr` : 21 contrôles historiques + 48 contrôles supplémentaires,
   deux pages/banques, deux backends, sprites, blocs, texte, transitions et refus II+.
   Le cœur IIe POM2 dans `a2shot` est requis (macOS arm64).
 - `make test` inclut HGR, assets, budgets HGR et MICRO-SOKOBAN sous Linux/macOS.
 
 Voir la [démo animée](../../examples/dhgr/README.md).
+
+Auteur : VERHILLE Arnaud. Licence : [GPL-3.0](../../../LICENSE).
+
+## Moteur de sprites et présentation
+
+`hgr_spr_render()` restaure puis dessine les sprites sans attendre ni afficher.
+`hgr_spr_present()` affiche la page rendue et sélectionne l’autre page de
+dessin en double tampon ; en simple tampon, il ne fait rien.
+`hgr_spr_update()` conserve le comportement immédiat render + present.
+`hgr_get_draw_page()` retourne la page de dessin actuelle (1 ou 2).
+Le programme doit attendre entre render et present s’il veut synchroniser la
+bascule ; voir [`apple2frame.h`](../apple2c/apple2frame.h) et l’[exemple HGR](../../examples/hgr/README.md).
+
+Le pool statique réserve 1 536 octets même en simple tampon.
+`hgr_spr_define()` retourne 1 si la définition est acceptée, 0 sinon.
+Les pointeurs nuls, dimensions nulles, stride > 40, hauteur > 192 et
+`stride * hauteur > 96` sont refusés. Une redéfinition encore dessinée sur
+une page est refusée en gardant l’ancienne définition ; masquer et restaurer
+chaque page avant de redéfinir. Les données de la forme doivent rester valides
+pendant ces restaurations. Ne pas modifier le fond sous un sprite dessiné.
+
+`make test-hgr` ajoute 24 scènes du moteur : chevauchements, sept phases,
+deux pages, bord droit/bas, masquage, redéfinition et géométries invalides.
+Les comparaisons couvrent aussi les bits de palette et les trous vidéo.

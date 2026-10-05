@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_pixrect_params.s — Apple II HGR kernel; linked independently from hgrc.lib.
 .exportzp _hgr_r_x, _hgr_r_xr, _hgr_r_y0, _hgr_r_rows, _hgr_r_mode
 

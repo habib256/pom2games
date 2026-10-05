@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; 80STORE remains OFF. RAMWRT selects writes; auxiliary reads execute
 ; from zero page so RAMRD cannot switch out the running code. IRQ state
 ; is preserved. No stack/source-data access while RAMRD is auxiliary.

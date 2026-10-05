@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_pixel_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
 .export _hgr_plot_asm, _hgr_unplot_asm
 .exportzp _hgr_p_x, _hgr_p_y

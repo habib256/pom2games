@@ -12,6 +12,7 @@ la vidéo native de l'Apple II.
 | [`maze3d/`](maze3d/) | Dungeon crawler 3D en fil de fer, double tampon HGR | Apple II+ | `dist/MAZE3D.dsk` |
 | [`snake/`](snake/) | Snake en C (cc65) | Apple II+ | `dist/SNAKE.dsk` |
 | [`logo/`](logo/) | LOGO V2.6 : tortue HGR, texte / mixte / graphique, 40 ou 80 colonnes | Apple //e (80 col.) ou II+ (40 col.) | `dist/LOGO.dsk` |
+| [`dev/examples/hgr/`](dev/examples/hgr/) | Exemple HGR animé : sprite masqué, compteur, clavier, cadence | Apple II+ / IIe / IIc | `dist/HGR.dsk` |
 | [`dev/examples/dhgr/`](dev/examples/dhgr/) | Palette 16 couleurs et grille DHGR | Apple IIe 128 Ko / IIc | `dist/DHGR.dsk` |
 | [`demos/`](demos/) | Menu de 5 démos : BOUNCES, ANIMALS, LIFE, PRESHIFT, FONT | Apple II+ | `dist/DEMO.dsk` |
 
@@ -30,7 +31,9 @@ sa disquette amorçable et la [description de la version](docs/releases/1.0.md).
     make -C chess        # une seule (elle va aussi dans dist/)
     make -C chess run    # la lancer dans POM2 installé (/Applications/POM2.app)
     make test            # HGR puis les 454 niveaux de MICRO-SOKOBAN dans a2run
-    make test-hgr        # primitives HGR et sélection des modules de bibliothèque
+    make test-hgr        # primitives, texte gfx, moteur de sprites et archive
+    make test-frame      # cadence, délais et repli en cas de VBL bloqué
+    make test-hgr-example # animation, pause/reprise et retour à DOS
     make test-dhgr       # validation DHGR dans a2shot (macOS arm64)
     make check           # tout reconstruire, échouer si dist/ ne correspond pas
     make clean           # efface les build/ (les disquettes restent)
@@ -48,14 +51,15 @@ L'intégration continue (`.github/workflows/build.yml`) lance `make check` puis
 
 ## dev/
 
-[`dev/`](dev/) est la boîte à outils commune, l'équivalent Apple II des
-bibliothèques Apple-1 de POM1 :
+[`dev/`](dev/) est la boîte à outils commune pour développer sur Apple II :
 
 - `dev/lib/apple2` et `dev/lib/apple2c` : clavier, texte, HGR, retour propre à
   DOS ou à un menu BASIC, son, manette, commandes DOS (BLOAD / BSAVE), en
   assembleur et en C ;
 - `dev/lib/hgr` : texte, sprites et tables HGR (assembleur) ;
 - `dev/lib/hgrc` et `dev/lib/gfx` : runtime graphique C HGR/DHGR et géométrie ;
+- [`dev/examples/hgr`](dev/examples/hgr/) : exemple animé, clavier, compteur,
+  sprites masqués, double tampon et cadence selon le modèle ;
 - `dev/cc65` : configurations de l'éditeur de liens et démarrage C ;
 - `dev/tools/dos33.py` : fabrique les disquettes DOS 3.3 ;
 - `dev/tools/a2shot` : fait tourner une disquette sans fenêtre sur le cœur de

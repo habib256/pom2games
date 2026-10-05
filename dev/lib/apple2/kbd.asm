@@ -1,5 +1,6 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ============================================================================
-; kbd.asm -- Apple II keyboard primitives (same API as dev/lib/apple1/kbd.asm)
+; kbd.asm -- Apple II keyboard primitives
 ; ============================================================================
 ; Two routines, no ZP usage. X and Y are preserved.
 ;
@@ -10,9 +11,8 @@
 ;                key was pending, A = 0 otherwise. The Z flag reflects the same:
 ;                BEQ branches when no key was available.
 ;
-; Apple II vs Apple-1: the key latch at $C000 is NOT cleared by reading it —
-; both routines touch KBDSTRB ($C010) after taking the key, which is what the
-; Apple-1's `LDA KBD` did implicitly.
+; The key latch at $C000 is NOT cleared by reading it. Both routines touch
+; KBDSTRB ($C010) after taking the key to acknowledge it.
 ;
 ; The II+ keyboard only sends upper case, but a //e (or an emulator fed a host
 ; keyboard) can send lower case: folding keeps `CMP #'I'` style tests working

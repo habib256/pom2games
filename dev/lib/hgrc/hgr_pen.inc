@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; Private pen advance; included by text16 and bitmap kernels.
 advance:
         asl curmask          ; 1,2,4,...,64 -> 2,4,...,128

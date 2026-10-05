@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_utoa_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
 .export _hgr_utoa
 .exportzp _hgr_u_lo, _hgr_u_hi, _hgr_u_ptr

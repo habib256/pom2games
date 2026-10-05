@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_cell_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
 .export _hgr_cell_asm
 .exportzp _hgr_c_cx, _hgr_c_cy, _hgr_c_set

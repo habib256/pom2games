@@ -1,6 +1,7 @@
 /* Animated masked sprite on two DHGR pages, with save-under restoration. */
 #include "dhgr.h"
 #include "apple2io.h"
+#include "apple2frame.h"
 #include "gfx.h"
 #include "ball.h"
 static unsigned char under[2][BALL_STRIDE*BALL_HEIGHT];
@@ -23,6 +24,7 @@ int main(void)
         a2_puts("DHGR REQUIRES IIE 128K OR IIC\r");
         return 0;
     }
+    a2_frame_init();
     background();
     dhgr_draw_page(2);
     background();
@@ -36,11 +38,7 @@ int main(void)
         dhgr_sprite(x,138,BALL_WIDTH,BALL_HEIGHT,BALL_STRIDE,ball_data,ball_mask);
         old_x[page]=x;
         saved[page]=1;
-        /* IIe VBLBAR is live; IIc C019 is an interrupt latch. */
-        if (*(const unsigned char *)0xFBC0 != 0) {
-            while (!(*(volatile unsigned char *)0xC019 & 0x80u)) {}
-            while (*(volatile unsigned char *)0xC019 & 0x80u) {}
-        } else a2_wait(A2_WAIT_FRAME);
+        a2_frame_wait();
         dhgr_flip();
         if (++x>127u) x=6;
     }

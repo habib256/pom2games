@@ -6,9 +6,10 @@ Un II/II+ reçoit un message indiquant que le DHGR est indisponible.
 
 Matériel : IIe **révision B**, carte 80 colonnes **étendue** avec 64 Ko
 auxiliaires et cavalier DHGR adéquat, ou IIc. La RAM est sondée ; la révision
-et le cavalier vidéo ne sont pas détectables en logiciel. La démo attend le
-VBLBAR sur IIe ; sur IIc, dont C019 est un registre d’interruption différent,
-elle utilise une temporisation et ne garantit pas une bascule sans déchirure.
+et le cavalier vidéo ne sont pas détectables en logiciel. La démo utilise
+`a2_frame_init` / `a2_frame_wait` : VBLBAR sur IIe, temporisation sur IIc.
+Les attentes sont bornées et la temporisation ne garantit pas une bascule
+sans déchirure. Voir le [service de cadence](../../lib/apple2c/apple2frame.h).
 
 ```sh
 make -C dev/examples/dhgr

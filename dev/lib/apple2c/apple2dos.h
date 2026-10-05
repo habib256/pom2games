@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* apple2dos.h — DOS 3.3 commands from Apple II C programs (cc65).
  *
  * Link apple2dos_asm.s (assembled with -I dev/lib/apple2) and start from

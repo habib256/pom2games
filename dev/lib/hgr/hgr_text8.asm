@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ============================================================================
 ; hgr_text8.asm -- byte-aligned 8x8 text for the Apple II HGR framebuffer
 ; ----------------------------------------------------------------------------

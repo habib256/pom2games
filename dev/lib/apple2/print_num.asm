@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ============================================================================
 ; print_num.asm -- decimal byte output for Apple II (COUT)
 ; ============================================================================
@@ -6,8 +7,7 @@
 ;                     emitted ("042", not " 42") so columns stay aligned.
 ;                     Clobbers A, X. Y preserved (COUT preserves Y).
 ;
-; Same API as dev/lib/apple1/print_num.asm. No ZP usage — intermediate digits
-; live on the 6502 stack.
+; No ZP usage — intermediate digits live on the 6502 stack.
 ;
 ; Caller responsibility: COUT in scope (.include "apple2.inc").
 ; ============================================================================

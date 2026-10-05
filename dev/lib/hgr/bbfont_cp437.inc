@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; =============================================================================
 ; bbfont_cp437.inc — CP437 linear table for Apple II HGR (POM1)
 ; =============================================================================

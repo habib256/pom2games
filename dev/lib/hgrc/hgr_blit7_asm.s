@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_blit7_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
 .export _hgr_blit7_run
 .import _hgr_rowhi, _hgr_rowlo

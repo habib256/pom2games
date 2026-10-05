@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 .include "apple2.inc"
 RAMWRTON = $C005
 .importzp ptr1, ptr2, ptr3, tmp1, tmp2, tmp3, tmp4, aux_read

@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 .export _dhgr_glyph_row_asm
 .import _dhgr_text_phase, _dhgr_text_row
 .importzp tmp1, tmp2, tmp3, tmp4

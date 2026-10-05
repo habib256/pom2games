@@ -1,7 +1,8 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ============================================================================
 ; print.asm -- ASCIIZ string output for Apple II (Monitor COUT at $FDED)
 ; ============================================================================
-; Same API as dev/lib/apple1/print.asm:
+; Calling convention:
 ;   Input    A = low byte, X = high byte of pointer to NUL-terminated string.
 ;   Output   prints each byte ORed with $80 through COUT, stops at $00.
 ;            $0D is a carriage return (COUT scrolls the text window).
@@ -12,8 +13,7 @@
 ; the Monitor zero page ($20-$4F) — keep your own ZP out of that range.
 ;
 ; ZP usage   2 bytes named print_ptr_lo / print_ptr_hi, reserved here unless
-;            zp.inc (or an alias) already defined them — same three
-;            integration options as the Apple-1 version.
+;            zp.inc (or an alias) already defined them.
 ;
 ; Caller does:  LDA #<msg / LDX #>msg / JSR print_str_ax
 ; Caller responsibility: COUT in scope (.include "apple2.inc").

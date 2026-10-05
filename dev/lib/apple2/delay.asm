@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ============================================================================
 ; delay.asm -- approximate millisecond delay for Apple II (1.0205 MHz)
 ; ============================================================================
@@ -11,7 +12,6 @@
 ;   - Inner loop (LDY #202 / DEY / BNE @i): 2 + 5*201 + 4 = 1011 cycles
 ;   - Outer wrap (DEX / BNE @o): 5 cycles
 ;   - Per ms: ~1016 cycles -> 0.996 ms, accuracy ~0.4 %.
-; Same API as dev/lib/apple1/delay.asm (whose clock is 1.0227 MHz).
 ;
 ; Edge case: A = 0 -> 256 ms. Interrupts are not masked, so an IRQ card can
 ; stretch the delay.

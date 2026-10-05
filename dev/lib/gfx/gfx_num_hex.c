@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
  * gfx_num_hex.c — unsigned hex -> ASCII (gfx_hexstr). See gfx.h.
  *

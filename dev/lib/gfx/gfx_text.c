@@ -1,10 +1,11 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
  * gfx_text.c — card-NEUTRAL positioned-text façade (AXIS 3). See gfx.h.
  *
  * Owns the 8x8 cell cursor, the advance/wrap rules and the number formatting;
  * draws nothing itself — every glyph goes through the per-card backend
  * gfx_cell_glyph (gfx_text_backend_<card>.c). Includes ONLY gfx.h, so the same
- * object links against either backend (HGR or TMS9918) unchanged.
+ * object delegates rendering to gfx_cell_glyph; the supplied backend is HGR.
  *
  * The cursor is module-static (one text pen per program, matching the single
  * video card). It is NOT reset on entry: a program calls gfx_gotoxy once to
@@ -18,8 +19,7 @@ static unsigned char s_row;   /* cursor cell row    (0..gfx_text_rows-1) */
 
 void gfx_gotoxy(unsigned char col, unsigned char row)
 {
-    /* Clamp into the grid so a caller using the WIDER card's extent (HGR 35)
-     * on the NARROWER one (TMS 32) lands on-screen instead of off the edge. */
+    /* Clamp the cursor to the supplied cell grid. */
     if (col >= gfx_text_cols) col = (unsigned char)(gfx_text_cols - 1u);
     if (row >= gfx_text_rows) row = (unsigned char)(gfx_text_rows - 1u);
     s_col = col;

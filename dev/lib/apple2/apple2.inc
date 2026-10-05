@@ -1,17 +1,17 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ============================================================================
 ; apple2.inc -- shared hardware equates for Apple II / II+ programs
 ; ============================================================================
-; The Apple II counterpart of POM1's dev/lib/apple1/apple1.inc: machine
-; equates plus the APPLE2_PREAMBLE macro (emits no code until invoked), no
+; Machine equates plus the APPLE2_PREAMBLE macro (emits no code until invoked), no
 ; segments. Safe to include from any segment, idempotent.
 ;
 ; Target: Apple II+ 48 KB with DOS 3.3 (any later model runs it too). Programs
 ; are DOS binary files started with BRUN; see dev/cc65/apple2_hgr.cfg.
 ;
-; THE DIFFERENCES THAT BITE WHEN PORTING FROM THE APPLE-1:
+; APPLE II HARDWARE AND RUNTIME CONVENTIONS:
 ;   - Keyboard: one latch at $C000 (bit 7 = key ready, low 7 bits = key),
-;     cleared by touching $C010. Reading $C000 does NOT clear it: a port of
-;     `LDA KBD` must add `BIT KBDSTRB` (kbd.asm does).
+;     cleared by touching $C010. Reading $C000 does NOT clear it:
+;     `LDA KBD` must be followed by `BIT KBDSTRB` (kbd.asm does).
 ;   - Display: text goes through COUT ($FDED) onto the SAME screen as the
 ;     graphics — there is no second terminal. Show text with TXTSET, graphics
 ;     with TXTCLR; the text page ($0400) and HGR pages ($2000/$4000) are

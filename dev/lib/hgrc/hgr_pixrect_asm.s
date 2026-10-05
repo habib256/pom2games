@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_pixrect_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
 .export _hgr_pixrect_asm
 .import _hgr_col7, _hgr_mask7, _hgr_rowhi, _hgr_rowlo

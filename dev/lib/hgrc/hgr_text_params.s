@@ -1,3 +1,4 @@
+; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_text_params.s — Apple II HGR kernel; linked independently from hgrc.lib.
 .exportzp _hgr_g_glyph, _hgr_g_col, _hgr_g_mask, _hgr_g_y, _hgr_t_col, _hgr_t_bit, _hgr_t_n, _hgr_t_s, _hgr_t_font
 

@@ -64,7 +64,7 @@ def text(page, font, x, y, s, scale):
         x += 18 if scale == 2 else 8
 
 
-def build(work):
+def build(work, fixture=None):
     # A tiny pre-shift bank: 10101 / 01110 / 11011, seven phases, two bytes/row.
     data = []
     for phase in range(7):
@@ -91,7 +91,7 @@ def build(work):
     archive = work / 'hgrc.lib'
     run(['ar65', 'a', archive, *objects])
     objects = []
-    for source in (DEV / 'cc65/crt0_apple2.s', DEV / 'tests/hgr_fixture.c',
+    for source in (DEV / 'cc65/crt0_apple2.s', fixture or DEV / 'tests/hgr_fixture.c',
                    DEV / 'lib/apple2c/apple2io_asm.s'):
         obj = work / (source.stem + '.o')
         run(['cl65', '-t', 'none', '-Oirs', '-I', work, '-I', DEV / 'lib/hgrc',
@@ -120,6 +120,10 @@ def check_archive(work):
          ('hgr_text_params.o', 'hgr_cell_asm.o', 'hgr_carrier_params.o', 'hgr_sprite_params.o')),
         ('sprite7', 'hgr_blit7(0u, 0u, 1u, 1u, bits, HGR_SET);', 'hgr_blit7_asm.o',
          ('hgr_bitmap_asm.o', 'hgr_preshift_asm.o', 'hgr_text_params.o', 'hgr_pixrect_asm.o')),
+        ('decimal', 'char b[7]; gfx_utoa(b,65535u); gfx_itoa(b,-32767-1);', 'gfx_num_dec.o',
+         ('hgr_text8_asm.o', 'hgr_text16_asm.o', 'hgr_sprite_params.o')),
+        ('celltext', 'gfx_gotoxy(0u,0u); gfx_text("A"); gfx_putu(42u);', 'gfx_text.o',
+         ('hgr_text16_asm.o', 'hgr_sprite_params.o', 'hgr_pixrect_asm.o')),
     ]
     for name, call, required, excluded in cases:
         source = work / ('link_' + name + '.c')
@@ -135,7 +139,34 @@ def check_archive(work):
         assert not any(n.startswith('dhgr_') for n in linked), (name, 'unexpected DHGR dependency')
         assert required in linked, (name, 'missing kernel', required)
         assert not linked.intersection(excluded), (name, 'unwanted families', linked.intersection(excluded))
-    print('HGR archive: 5 minimal programs exclude unused code and zero-page families.')
+    print('HGR archive: 7 minimal programs exclude unused code and zero-page families.')
+
+
+def check_cell_text(work, font):
+    disk = build(work, DEV / 'tests/gfx_text_fixture.c')
+    steps = ['wait:1100']
+    for _ in range(4):
+        steps += ['peek:1000:1','peek:2000:16384','key: ','wait:60']
+    output = run([DEV / 'tools/a2run/a2run','--disk',disk,*steps])
+    blocks = re.split(r'(?m)^1000:',output)[1:]
+    assert len(blocks) == 4
+    page1, page2 = bytes([42])*8192, bytearray(8192)
+    for stage, block in enumerate(blocks):
+        assert int(block.splitlines()[0],16) == stage
+        if stage == 1:
+            for x,y,ch in ((272,0,'A'),(0,8,'B'),(0,16,'C'),(0,16,'D')):
+                text(page2,font,x,y,ch,1)
+        elif stage == 2:
+            for y,value in ((24,'65535'),(32,'-32768'),(40,'ABCD')):
+                text(page2,font,16,y,value,1)
+        elif stage == 3:
+            text(page2,font,272,184,'Z',1)
+            text(page2,font,0,184,'Q',1)
+        lines = re.findall(r'(?m)^[2345][0-9A-F]{3}: ([0-9A-F ]+)$',block)
+        actual = bytes.fromhex(' '.join(lines))
+        assert actual == page1 + page2, ('gfx cell text scene',stage)
+    print('GFX text: 4 scenes passed; page 2, wrap/newline/carriage return,')
+    print('decimal/signed/hex, white cells and edge clamping.')
 
 
 def main():
@@ -216,6 +247,7 @@ def main():
                 raise AssertionError(f'stage {stage}: ${0x2000+i:04X} = {actual[i]:02X}, expected {expected[i]:02X}')
         print('HGR: 21 checkpoints passed (rectangles 256/280, clipping, both pages,')
         print('pixels, sprites SET/CLEAR/XOR and 7 phases, text, numbers, cells, colorization).')
+        check_cell_text(work, font)
 
 
 if __name__ == '__main__':

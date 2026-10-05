@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 #include "dhgr.h"
 void dhgr_hline(unsigned x0, unsigned x1, unsigned char y, unsigned char set)
 {

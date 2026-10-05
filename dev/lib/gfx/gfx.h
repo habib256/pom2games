@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* gfx.h — shared 2D geometry, text cells and number formatting (cc65).
  * Derived from POM1 (GPL-3.0).
  * Algorithms call a backend selected at link time: gfx_plot, gfx_hline,
@@ -19,35 +20,28 @@
  * itself — both existing backends bounds-check). x:0..width-1, y:0..191. */
 void gfx_plot(unsigned x, unsigned char y);
 
-/* Inclusive horizontal / vertical runs. A card with a fast span primitive
- * (HGR: one STA run per scanline) wires these to it; a card without one
- * (TMS9918) implements them as a plot loop. gfx_line / gfx_rect route straight
- * runs through here so the fast path is never lost to the generic walker. */
+/* Inclusive horizontal/vertical runs, dispatched to the selected backend's
+ * byte/span primitives. gfx_line/gfx_rect use these for straight edges. */
 void gfx_hline(unsigned x0, unsigned x1, unsigned char y);
 void gfx_vline(unsigned x, unsigned char y0, unsigned char y1);
 
-/* Filled rectangle through opposite corners. Each card wires this to its
- * byte-aligned fast path (HGR: hgr_fill_pixrect, TMS9918:
- * screen2_filled_rect). Coordinates are inclusive on both ends; both
- * backends sort / bounds-check internally. */
-/* HGR: clips to the screen, including 256/280-pixel-wide rectangles. */
+/* Filled rectangle through opposite corners, inclusive. HGR and DHGR
+ * backends sort and clip both corners, including full-width rectangles. */
 void gfx_filled_rect(unsigned x0, unsigned char y0,
                      unsigned x1, unsigned char y1);
 
-/* Clear the active draw surface. `color` is the per-pixel fill byte the
- * card uses to wipe the framebuffer — HGR takes 0x00 (off) or 0x7F (on,
- * all 7 visible bits of a HIRES byte); TMS9918 bitmap mode ignores the
- * value (its hardware clear is always 0). Pass 0 for portable behaviour. */
+/* Clear the current draw page. HGR: raw fill byte (0x00 black, 0x7F lit).
+ * DHGR color: LORES color 0..15; DHGR mono: zero off, nonzero all bits on.
+ * Pass zero to clear to black on every backend. */
 void gfx_clear(unsigned char color);
 
-/* Screen extent, in pixels. Compile-time constants on each card (HGR 280x192,
- * TMS9918 256x192); gfx_circle reads them to clip in signed space BEFORE the
- * cast to unsigned (a negative coord cast to unsigned would alias on-screen). */
-extern const unsigned      gfx_width;     /* 280 (HGR) / 256 (TMS9918) */
-extern const unsigned char gfx_height;    /* 192 on both                */
+/* Screen extent: HGR 280x192, DHGR color 140x192, DHGR mono 560x192.
+ * Constants belong to the backend selected at link time. */
+extern const unsigned      gfx_width;
+extern const unsigned char gfx_height;
 
 /* ===========================================================================
- * Shared geometry (gfx_line/rect/circle/ellipse.c) — implemented ONCE, used by both cards.
+ * Shared geometry (gfx_line/rect/circle/ellipse.c) — shared by HGR/DHGR backends.
  * ===========================================================================
  * All endpoints inclusive. */
 
@@ -64,24 +58,15 @@ void gfx_rect(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1);
 void gfx_circle(unsigned xc, unsigned char yc, unsigned char r);
 
 /* Ellipse inscribed in the (x0,y0)-(x1,y1) bounding box, drawn as a 64-segment
- * polyline (the upstream apple1-videocard-lib method). HGR gains this for free
- * — it previously had circle only. */
+ * polyline using successive points on the ellipse. */
 void gfx_ellipse(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1);
 
 /* ===========================================================================
  * Shared integer -> ASCII (gfx_num_dec/hex.c) — STRING BUILDERS only.
  * ===========================================================================
- * These produce a NUL-terminated string; they do NOT draw. Each card draws the
- * result its own way (HGR: hgr_puts at a pixel; TMS9918: screen_putc at a
- * char cell) because the text-positioning model is genuinely card-specific
- * (pixel-addressed graphics font vs 8px char cells) — that part is deliberately
- * NOT unified here (see README "what stays per-card").
- *
- * This removes the THREE-way duplication of the conversion itself
- * (hgr_utoa asm + hgr_putx + printlib pl_print_dec/hex).
- *
- * NOTE on speed: gfx_utoa is portable C (/10, %10). HGR's hot HUD path
- * (hgr_putu_field) keeps its hand-written asm hgr_utoa — see README. */
+ * These produce NUL-terminated strings without drawing. Render them through
+ * the chosen native text API. gfx_utoa/gfx_itoa use portable C division;
+ * hgr_putu_field retains an assembler conversion for frequently updated HUDs. */
 
 /* Unsigned decimal, no leading zeros. `buf` must hold >= 6 bytes (65535 + NUL).
  * Returns the digit count written (excluding the NUL). */
@@ -94,23 +79,13 @@ unsigned char gfx_itoa(char *buf, int value);
 unsigned char gfx_hexstr(char *buf, unsigned value);
 
 /* ===========================================================================
- * Shared positioned-text façade (gfx_text.c) — AXIS 3 of the factoring.
+ * Positioned HGR text (gfx_text.c + gfx_text_backend_hgr.c).
  * ===========================================================================
- * A card-NEUTRAL cell-cursor model: an 8x8 character grid with a single
- * cursor, so a program can `gfx_gotoxy` + `gfx_text` / `gfx_putu` and compile
- * for HGR *or* TMS9918 by backend choice alone. The shared layer here owns the
- * cursor, advance/wrap and the number formatting; each card supplies the two
- * one-line cell primitives below (gfx_text_backend_<card>.c) that map a cell to
- * its native glyph blit (HGR 8x8 hgr_puts8 / TMS9918 screen2_putc).
- *
- * This is ADDITIVE and deliberately NEUTRAL — it does NOT replace or "level
- * down" the rich per-card text APIs. HGR's 16x16 doubled glyphs + NTSC artifact
- * colour (hgr_puts_color) and TMS's per-cell colour attributes remain the
- * way to get card-specific richness; the façade is the lowest common denominator
- * (monospaced 8x8 white-or-default cells) for portable HUDs / menus / demos. */
-
-/* Cell grid extent in CHARACTERS — compile-time constants per card
- * (HGR 35x24 over 280x192; TMS9918 32x24 over 256x192; 24 rows on both). */
+ * One shared 8x8-cell cursor, white text, 35 columns x 24 rows. The supplied
+ * cell backend is HGR-only, writes to the current HGR draw page and is in the
+ * default archive. DHGR geometry backends do not implement these cell calls;
+ * use dhgr_puts for DHGR text instead. For doubled/color HGR use hgr_puts_color.
+ */
 extern const unsigned char gfx_text_cols;
 extern const unsigned char gfx_text_rows;
 
@@ -119,10 +94,8 @@ extern const unsigned char gfx_text_rows;
  * layer guarantees col<gfx_text_cols, row<gfx_text_rows and ch>=0x20. */
 void gfx_cell_glyph(char ch, unsigned char col, unsigned char row);
 
-/* Set the text colour for subsequent cells. The byte is card-specific:
- * 0 = GFX_TEXT_DEFAULT (each card's readable default — white). On TMS9918 pass
- * FG_BG(fg,bg) for a coloured cell; on HGR the 8x8 cell path is white-only
- * (the value is ignored — use hgr_puts_color for NTSC artifact colour). */
+/* Reserved text color hook; the supplied HGR backend ignores the value.
+ * Native 8x8 HGR text stays white. Use hgr_puts_color for doubled color text. */
 #define GFX_TEXT_DEFAULT 0u
 void gfx_cell_color(unsigned char color);
 
@@ -131,8 +104,8 @@ void gfx_gotoxy(unsigned char col, unsigned char row);
 
 /* Draw one character at the cursor and advance. '\n' = next row / column 0,
  * '\r' = column 0, other control chars (<0x20) are skipped. Advancing past the
- * right margin wraps to column 0 of the next row; the last row does not scroll
- * (further glyphs stay clamped on it). */
+ * right margin wraps to column 0 of the next row; on the last row it wraps
+ * to column 0 of that same row, without scrolling. */
 void gfx_putc(char ch);
 
 /* Draw a NUL-terminated string from the cursor (gfx_putc per character). */

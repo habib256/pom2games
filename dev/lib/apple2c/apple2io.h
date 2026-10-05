@@ -1,22 +1,11 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
  * apple2io.h — Apple II text + keyboard I/O for C (cc65), graphics-neutral.
  *
- * The Apple II counterpart of POM1's dev/lib/apple2c/apple1io.h. Output goes
- * through the Monitor's COUT ($FDED) onto the text screen; input reads the
- * keyboard latch ($C000, cleared through $C010).
+ * Output goes through the Monitor's COUT ($FDED) onto the text screen;
+ * input reads the keyboard latch ($C000, cleared through $C010).
  *
- *   Apple-1 (apple1c)          Apple II (this lib)
- *   woz_putc(c)                a2_putc(c)          '\r' = new line
- *   woz_puts(s)                a2_puts(s)
- *   woz_print_hex(b)           a2_print_hex(b)
- *   woz_print_hexword(w)       a2_print_hexword(w)
- *   woz_mon()                  a2_dos()            back to the ']' prompt
- *   apple1_iskeypressed()      apple2_iskeypressed()
- *   apple1_getkey()            apple2_getkey()
- *   apple1_readkey()           apple2_readkey()
- *   —                          a2_home(), a2_text()
- *
- * Differences that matter:
+ * Runtime conventions:
  *   - One screen: text printed while a graphics mode is shown lands on the
  *     text page and becomes visible after a2_text().
  *   - Keys are folded to upper case (a //e or a host keyboard sends lower

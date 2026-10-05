@@ -1,3 +1,4 @@
+/* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
  * gfx_rect.c — card-neutral rectangle outline. See gfx.h.
  *
