@@ -1,0 +1,85 @@
+CL65 ?= cl65
+CA65 ?= ca65
+LD65 ?= ld65
+PYTHON ?= python3
+DEV ?= ../dev
+DIST ?= ../dist
+BUILD ?= build
+POM2 ?= /Applications/POM2.app/Contents/MacOS/POM2
+HGRC := $(DEV)/lib/hgrc
+APPLE2C := $(DEV)/lib/apple2c
+GFX := $(DEV)/lib/gfx
+include $(HGRC)/hgrc.mk
+include $(APPLE2C)/apple2c.mk
+PRODOS := $(DEV)/lib/prodos
+MOUSE := $(DEV)/lib/mouse
+include $(PRODOS)/prodos.mk
+include $(MOUSE)/mouse.mk
+DISK := $(DIST)/CHROMABREAK.po
+SRCS := src/game.c src/records.c src/render.s src/physics.s src/collision.s src/number.s src/sound.s src/timing.s $(HGRC)/dhgr.c $(HGRC)/dhgr_asm.s $(HGRC)/dhgr_small.c $(HGRC)/dhgr_small_asm.s $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) \
+        $(PRODOS_SRCS) $(MOUSE_SRCS)
+OBJS := $(BUILD)/crt0_prodos.o $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o)))
+OBJS := $(OBJS:.s=.o)
+CFLAGS := -t none --cpu 65c02 -Oirs -I src $(HGRC_INCS) $(APPLE2C_INCS) \
+          $(PRODOS_INCS) $(MOUSE_INCS)
+vpath %.c src $(HGRC) $(APPLE2C) $(DEV)/lib/prodos
+vpath %.s src $(DEV)/cc65 $(HGRC) $(APPLE2C) $(DEV)/lib/prodos $(DEV)/lib/mouse
+all: $(DISK)
+$(BUILD)/%.o: %.c src/levels.h src/collision_tables.h src/layout.h $(HGRC_HEADERS) $(wildcard $(DEV)/lib/prodos/*.h $(DEV)/lib/mouse/*.h)
+	@mkdir -p $(@D)
+	$(CL65) $(CFLAGS) -c -o $@ $<
+$(BUILD)/%.o: %.s $(DEV)/lib/apple2/apple2.inc
+	@mkdir -p $(@D)
+	$(CA65) -t none --bin-include-dir src -I src -I $(HGRC) -I $(DEV)/lib/apple2 -o $@ $<
+$(BUILD)/render.o: src/font.bin src/layout.inc
+$(BUILD)/physics.o $(BUILD)/collision.o: src/layout.inc
+$(BUILD)/dhgr_small_asm.o: $(HGRC)/dhgr_small_font.inc
+src/layout.inc src/collision_tables.h: src/layout.h tools/generate_layout.py
+	$(PYTHON) tools/generate_layout.py
+$(BUILD)/game.o $(BUILD)/records.o: src/records.h src/sound.h
+src/font.bin: src/small_font.s src/small_font.cfg $(HGRC)/dhgr_small_data.inc $(HGRC)/dhgr_small_font.inc
+	@mkdir -p $(BUILD)
+	$(CA65) -I $(HGRC) -o $(BUILD)/small_font.o src/small_font.s
+	$(LD65) -C src/small_font.cfg -o $@ $(BUILD)/small_font.o
+$(BUILD)/dhgr_small_asm.o: $(HGRC)/dhgr_small_asm.s $(HGRC)/dhgr_small_data.inc
+	@mkdir -p $(@D)
+	$(CA65) -D DHGR_SMALL_FONT_EXTERNAL=1 -I $(HGRC) -o $@ $(HGRC)/dhgr_small_asm.s
+$(BUILD)/game.bin: $(OBJS) Makefile $(DEV)/cc65/apple2_dhgr_prodos_c.cfg
+	$(CL65) -t none -C $(DEV)/cc65/apple2_dhgr_prodos_c.cfg -m $(BUILD)/game.map -Ln $(BUILD)/game.lbl -o $@ $(OBJS)
+$(BUILD)/CHROMA.SYS: $(BUILD)/game.bin src/font.bin src/startup.s src/startup.cfg
+	$(CA65) --bin-include-dir $(BUILD) --bin-include-dir src -o $(BUILD)/startup.o src/startup.s
+	$(LD65) -C src/startup.cfg -o $@ $(BUILD)/startup.o
+$(BUILD)/CHROMA.SYSTEM: src/boot.s src/boot.cfg
+	@mkdir -p $(@D)
+	$(CA65) -o $(BUILD)/boot.o src/boot.s
+	$(LD65) -C src/boot.cfg -o $@ $(BUILD)/boot.o
+$(BUILD)/HIGHSCORES: tools/seed_records.py
+	@mkdir -p $(@D)
+	$(PYTHON) $< $@
+$(DISK): $(BUILD)/CHROMA.SYS $(BUILD)/CHROMA.SYSTEM $(BUILD)/HIGHSCORES $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py
+	@mkdir -p $(BUILD)/stage $(DIST)
+	cp $(DEV)/tools/prodos/PRODOS $(BUILD)/stage/PRODOS#FF0000
+	$(PYTHON) -c 'from pathlib import Path; p=Path("$(BUILD)/stage/STARTUP.SYSTEM#FF2000"); p.unlink(missing_ok=True); p=Path("$(BUILD)/STARTUP.SYSTEM"); p.unlink(missing_ok=True)'
+	cp $(BUILD)/CHROMA.SYSTEM $(BUILD)/stage/CHROMA.SYSTEM#FF2000
+	cp $(BUILD)/CHROMA.SYS $(BUILD)/stage/CHROMA.SYS#FF2000
+	cp $(BUILD)/HIGHSCORES $(BUILD)/stage/HIGHSCORES#060000
+	$(PYTHON) $(DEV)/tools/prodos/build_volume.py $(BUILD)/stage $@ --volume CHROMABREAK --boot $(DEV)/tools/prodos/boot.bin --blocks 280
+run-iic: all
+	$(POM2) --preset iic --slot 4=iicmouse $(DISK)
+run: all
+	$(POM2) --preset iie --slot 4=mouseaw $(DISK)
+test: all
+	$(PYTHON) tests/test_game.py --disk $(DISK) --labels $(BUILD)/game.lbl
+clean:
+	rm -rf $(BUILD)
+distclean: clean
+	rm -f $(DISK)
+.PHONY: all run run-iic test clean distclean
+
+# Optional real-firmware integration. Normal build/test has no sibling dependency.
+POM2_SRC ?= ../../pom2
+test-mouse: all
+	$(PYTHON) tests/test_mouse.py --pom2-src $(POM2_SRC) --disk $(DISK) --labels $(BUILD)/game.lbl --build $(BUILD)
+test-records: all
+	$(PYTHON) tests/test_mouse.py --pom2-src $(POM2_SRC) --disk $(DISK) --labels $(BUILD)/game.lbl --build $(BUILD) --records-only
+.PHONY: test-mouse test-records

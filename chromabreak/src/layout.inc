@@ -1,0 +1,8 @@
+; Generated from layout.h. GPL-3.0.
+CB_TILE_TOP = 14
+CB_GRID_END = 106
+CB_FIELD_TOP = 11
+CB_PAD_Y = 184
+CB_LOST_Y = 187
+CB_HUD_Y = 2
+CB_HUD_COLS = 26

@@ -51,6 +51,10 @@ int main(void)
     if (dhgr_get_draw_page()!=2 || dhgr_get_display_page()!=1) RESULT=4;
     checkpoint(18);
     dhgr_puts("A",130,180);
+    for(phase=0;phase<7;++phase) dhgr_puts_small("a?",phase,130+phase*6);
+    dhgr_puts_small("A",135,187);
+    dhgr_puts_small("A",136,187); /* incomplete cell must not wrap */
+    dhgr_puts_small("A",135,188); /* incomplete height must not wrap */
     checkpoint(19);
     dhgr_set_color(15);
     gfx_filled_rect(65535u,255,0,188);

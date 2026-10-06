@@ -124,6 +124,16 @@ avec HGR dans `hgr_layout.h`.
   `stride * hauteur` octets. Sauver puis restaurer un bloc permet le save-under.
 - `dhgr_puts` : texte opaque blanc/noir, glyphes 8×8 **pixels couleur**,
   quatre bits DHGR par point de police, pour éviter une teinte d’artifact.
+- `dhgr_puts_small` (famille optionnelle `HGRC_DHGR_SMALL_TEXT_SRCS`) : petite police opaque blanche, glyphes **4×5 pixels
+  couleur**, avance de cinq colonnes. Accepte tous les alignements DHGR,
+  convertit les minuscules en majuscules et conserve les pixels voisins.
+  Une cellule incomplète au bord droit ou inférieur n’est pas dessinée.
+- `dhgr_small_char` : même police, un caractère par appel rapide ; renseigner
+  `dhgr_small_x` et `dhgr_small_y` pour un bandeau mis à jour progressivement.
+  Les accès auxiliaires sont brefs et préservent l’état des interruptions.
+  Par défaut, les tables sont liées avec la bibliothèque. L’option assembleur
+  `DHGR_SMALL_FONT_EXTERNAL=1` permet de les reloger à `$0800` : l’application
+  doit alors y copier les 1 652 octets de `dhgr_small_data.inc` avant le rendu.
 
 ### Contrat mémoire et transitions
 
