@@ -148,7 +148,7 @@ int main(int argc,char** argv) {
     require(speaker.clicks>2000,"title theme plays at start ("+std::to_string(speaker.clicks)+" clicks)");
     require(read("timing_mode")==unsigned(iic?2:1),"VBL IRQ clock on IIe and IIc");
     require(read("mouse_slot")==4,"AppleMouse not detected in slot 4");
-    require(read("mouse_x")==70 && read("mouse_y")==96,"initial mouse position/clamps");
+    require(read("mouse_x")==70 && read("mouse_y")==CB_PAD_Y,"initial mouse position/clamps");
     std::cout<<"PASS ProDOS boot + AppleMouse firmware slot 4\n";
     // C stack high-water mark: paint the free part of the 256-byte stack
     // ($BE00-$BEFF, below the cc65 stack pointer), then find the deepest
@@ -533,7 +533,7 @@ int main(int argc,char** argv) {
     auto pad=read("pad_x");
     for(int i=0;i<12;++i) {++hostY; host();run(20000);}
     until(tick,3000000);
-    require(read("mouse_y")>96 && read("pad_x")==pad,"mouse Y does not move paddle");
+    require(read("mouse_y")==CB_PAD_Y && read("pad_y")==CB_PAD_Y && read("pad_x")==pad,"mouse pushed down on the floor moves nothing");
     auto launchSound=mem.getSpeakerToggleCount();
     pressed=true; host();run(100000);until(tick,3000000);
     require(read("ball_live"),"click launches ball");
@@ -989,6 +989,19 @@ int main(int argc,char** argv) {
         }
         setup();write("effect",0);write("base_width",baseWidth);write("pad_width",padWidth);write("pad_y",CB_PAD_Y);ticks(1);
     }
+    // A paddle that rises past a falling capsule within one frame (a stick
+    // or a mouse can) still catches it.
+    {
+        const auto previousMode=read("mode");
+        setup();write("effect",0);write("ball_live",0);write("round_live",0);
+        mem.setPaddle(0,128);mem.setPaddle(1,160);mem.queueKey('J');ticks(4);
+        const int low=read("pad_y");
+        write("capsule",2);write("cap_x",read("pad_x")+6);write("cap_y",low-8);
+        mem.setPaddle(1,60);ticks(3);
+        require(low-int(read("pad_y"))>=20,"the stick lifts the paddle by 20 lines or more at once");
+        require(read("effect")==2 && !read("capsule"),"a paddle rising past a capsule catches it");
+        mem.setPaddle(1,255);write("mode",previousMode);write("effect",0);write("pad_y",CB_PAD_Y);ticks(1);
+    }
     setup();write("pad_x",60);write("pad_y",140);write("ball_x",70);write("ball_y",140-6);write("dy",1);ticks(1);
     require(read("dy")==255 && read("ball_y")<140-5,"ball rebounds on the raised paddle");
     // The paddle moves before the ball: sliding under a ball already below
@@ -1016,6 +1029,34 @@ int main(int argc,char** argv) {
     require(read("pad_x")==56 && read("ball_x")==56+15,"caught ball rides at its offset");
     write("effect",0);
     std::cout<<"PASS vertical paddle: mid-field limit, tiles above and aside, rebound, spin, catch point, both pages\n";
+    // The mouse height is the paddle's, from the floor to mid-field: no
+    // travel is lost at either end, nor after a lost life.
+    {
+        const auto modeBefore=read("mode");
+        resetRound();clear();write("remaining",2);write("mode",1);ticks(2);
+        auto vertical=[&](int lines) {
+            for(int i=0;i<std::abs(lines);++i) {hostY+=lines<0?-1:1; host();run(20000);}
+            until(tick,3000000);until(tick,3000000);
+        };
+        vertical(-(CB_PAD_Y-CB_PAD_MIN)-16);
+        require(read("pad_y")==CB_PAD_MIN && read("mouse_y")==CB_PAD_MIN,"mouse pushed up: paddle at mid-field");
+        // (How far 30 host steps go depends on the mouse: a //c counts more.)
+        vertical(30);
+        const auto lowered=read("pad_y");
+        require(lowered>CB_PAD_MIN+10 && lowered<CB_PAD_Y && lowered==read("mouse_y"),"mouse pulled back: the paddle comes down at once, no dead travel at the top");
+        auto livesBefore=read("lives");
+        if(livesBefore<2) {write("lives",3);livesBefore=3;}
+        write("ball_live",1);write("round_live",1);write("ball_x",120);write("ball_y",CB_LOST_Y-1);write("dy",1);write("vx",0);write("vy",255);write("fraction_y",255);
+        until(tick,3000000);until(tick,3000000);
+        require(read("lives")==livesBefore-1 && !read("round_live"),"a life is lost with the paddle raised");
+        require(read("pad_y")==lowered,"the paddle stays at the mouse height after a lost life");
+        vertical(-(CB_PAD_Y-CB_PAD_MIN));
+        require(read("pad_y")==CB_PAD_MIN,"the paddle still rises to mid-field after a lost life");
+        vertical(CB_PAD_Y-CB_PAD_MIN+16);
+        require(read("pad_y")==CB_PAD_Y && read("mouse_y")==CB_PAD_Y,"mouse pulled down: paddle back on the floor");
+        write("lives",livesBefore);write("mode",modeBefore);ticks(1);
+        std::cout<<"PASS mouse height: absolute over the paddle's travel, kept after a lost life\n";
+    }
     // Joystick / paddles: J selects them; paddle 0 (stick X) sets the
     // paddle centre, paddle 1 (stick Y) its height, button 0 launches. The
     // analog read uses the wait before presentation, never the frame time.
@@ -1064,6 +1105,9 @@ int main(int argc,char** argv) {
     mem.memWrite(at("shot_live"),1);mem.memWrite(at("shot_x"),40);mem.memWrite(at("shot_y"),100);
     enemy(0,39,90,1,1);points=score();ticks(1);
     require(!alive(0) && !mem.memRead(at("shot_live")) && score()==points+10,"laser destroys an enemy");
+    // Below the grid the first enemy picks a new heading when the frame
+    // count is a multiple of sixteen: keep these frames clear of it.
+    write("frames",1);
     enemy(0,read("pad_x")+2,CB_PAD_Y-6,1,1);points=score();ticks(1);
     require(!alive(0) && score()==points+10,"paddle contact destroys an enemy");
     enemy(0,120,CB_LOST_Y-7,1,1);points=score();ticks(3);
@@ -1321,6 +1365,40 @@ int main(int argc,char** argv) {
         std::cout<<"PASS attract mode: 15 s idle, 50 Hz detection, silent autopilot, key/lost-life exit, 60 s\n";
         mem.queueKey(' ');ticks(2);write("enemy_hold",1);
         require(read("state")==1 && !read("demo"),"title still starts a game after the demo");
+    }
+    // The joystick, once chosen with J, stays the way of playing: through a
+    // game over (button or SPACE), and through a demo. K and M change it.
+    {
+        auto gameOver=[&]() {
+            write("lives",1);write("score",0);mem.memWrite(at("score")+1,0);
+            for(int k=0;k<3;++k)mem.memWrite(at("score_bcd")+k,0);
+            extra(0,2,0);extra(1,2,0);write("ball_live",1);write("round_live",1);
+            write("ball_x",120);write("ball_y",CB_LOST_Y-1);write("dy",1);write("vx",0);write("vy",255);write("fraction_y",255);
+            ticks(3);
+            require(read("state")==2,"game over");
+        };
+        auto button=[&]() {mem.setPaddleButton(0,true);ticks(2);mem.setPaddleButton(0,false);ticks(1);};
+        mem.setPaddle(0,128);mem.setPaddle(1,255);mem.queueKey('J');ticks(3);
+        require(read("state")==1 && read("mode")==2,"J selects the joystick in a game");
+        gameOver();button();
+        require(read("state")==1 && read("mode")==2,"the joystick button starts the next game with the joystick");
+        mem.setPaddle(0,0);ticks(3);
+        require(read("pad_x")==4,"and the stick still moves the paddle");
+        mem.setPaddle(0,128);
+        gameOver();mem.queueKey(' ');ticks(2);
+        require(read("state")==1 && read("mode")==2,"SPACE starts the next game with the joystick");
+        write("state",0);mem.memWrite(at("demo_idle"),pal?238:132);mem.memWrite(at("demo_idle")+1,pal?2:3);ticks(1);
+        require(read("demo"),"demo with the joystick chosen");
+        ticks(5);mem.queueKey(' ');ticks(1);
+        require(read("state")==0 && !read("demo") && read("mode")==2,"a demo leaves the joystick chosen");
+        button();
+        require(read("state")==1 && read("mode")==2,"the joystick button starts a game after a demo");
+        gameOver();mem.queueKey('K');ticks(2);
+        require(read("state")==1 && read("mode")==0,"K starts with the keyboard");
+        gameOver();mem.queueKey('M');ticks(2);
+        require(read("state")==1 && read("mode")==1,"M starts with the mouse");
+        mem.setPaddle(1,128);
+        std::cout<<"PASS joystick kept through game over and demo; K and M change the way of playing\n";
     }
     // Clean exit must disable mouse and leave a valid empty /RAM.
     if (alternate) cpu.softReset();

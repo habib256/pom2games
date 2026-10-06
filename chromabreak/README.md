@@ -37,9 +37,9 @@ d’un 65C02 passe ce test ; sans la ROM enhanced, il n’a pas été essayé.
 | `H` au menu | Afficher les cinq records ; Échap revient au menu |
 | `?` au menu | Page d’aide : capsules, tuiles et points ; une touche ou un clic revient |
 | Déplacement horizontal de la souris | Positionner la raquette |
-| Déplacement vertical de la souris | Monter / descendre la raquette (relatif) |
+| Déplacement vertical de la souris | Hauteur de la raquette (absolue, du sol à mi-terrain) |
 | Clic, Espace ou Entrée pendant la partie | Relancer une balle attachée ; tirer avec le bonus laser |
-| `M` / `K` / `J` | Choisir souris / clavier / joystick ou paddles ; `K` et `J` démarrent aussi au menu |
+| `M` / `K` / `J` | Choisir souris / clavier / joystick ou paddles ; `K` et `J` démarrent aussi au menu. Le joystick, une fois choisi, le reste d’une partie à l’autre et après une démo |
 | Joystick X ou paddle 0 | Position horizontale de la raquette (absolue) |
 | Joystick Y ou paddle 1 | Hauteur de la raquette (absolue) |
 | Bouton 0 ou 1 (ou Pomme) | Comme le clic : relancer la balle, tirer au laser |
@@ -77,7 +77,7 @@ bien qu'il vaut 15 s en NTSC comme en PAL, et la démo 60 s d’images de jeu
 dans les deux cas.
 
 Sans carte souris, le clavier fonctionne immédiatement. Un clic maintenu ne
-provoque pas de lancements répétés. Démarrer avec Espace ou Entrée conserve la souris.
+provoque pas de lancements répétés. Démarrer avec Espace ou Entrée conserve la souris, ou le joystick s’il a été choisi.
 La page de garde propose une action principale « PLAY » ; `K` démarre
 directement au clavier. Un seul geste suffit pour commencer la partie.
 Le cadre de lancement regroupe « PLAY » et « CLICK / SPACE / ENTER ».
@@ -370,8 +370,8 @@ compilé en `-Ors` (taille), les routines critiques étant en assembleur.
 et de leurs tables : une branche prise ou une lecture indexée qui franchit une
 page coûte un cycle de plus, et quelques octets de décalage ont déjà coûté une
 image dans les scènes chargées. `game.c` et `records.c` sont liés avant eux ;
-`src/spare.s` les sépare par quelques octets de réserve (2 de code, 51 de
-données constantes, 10 de variables) et trois assertions d’édition de liens. Quand l’un des
+`src/spare.s` les sépare par quelques octets de réserve (58 de code, 49 de
+données constantes, 13 de variables) et trois assertions d’édition de liens. Quand l’un des
 deux fichiers C change de taille, on ajuste la réserve d’autant : rien ne
 bouge après eux et la cadence n’a pas à être remesurée. `sound.s` garde de
 même sa taille (27 octets de réserve depuis le départ du lecteur en page 3).

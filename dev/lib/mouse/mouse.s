@@ -1,5 +1,16 @@
 ; VERHILLE Arnaud — GPL-3.0. AppleMouse II Tech Notes 1 and 5.
 ; Firmware X=$Cn,Y=$n0. IIe polling mode 1; IIc native IRQs count motion.
+; The pointer is kept in 0..139 by MOUSE_Y_LOW..MOUSE_Y_HIGH (0..191 unless
+; the program defines them) and starts at 70, MOUSE_Y_START.
+.ifndef MOUSE_Y_LOW
+MOUSE_Y_LOW = 0
+.endif
+.ifndef MOUSE_Y_HIGH
+MOUSE_Y_HIGH = 191
+.endif
+.ifndef MOUSE_Y_START
+MOUSE_Y_START = 96
+.endif
 .export _mouse_init, _mouse_poll, _mouse_close
 .export _mouse_slot, _mouse_x, _mouse_y, _mouse_buttons
 .importzp ptr1
@@ -61,11 +72,17 @@ check:  ldy offsets,x
         lda #0
         ldx #$17
         jsr firmware
+.if MOUSE_Y_LOW
+        lda #MOUSE_Y_LOW
+        sta $0478
+        lda #0
+.else
         lda #0
         sta $0478
+.endif
         sta $0578
         sta $05F8
-        lda #191
+        lda #MOUSE_Y_HIGH
         sta $04F8
         lda #1
         ldx #$17
@@ -73,7 +90,7 @@ check:  ldy offsets,x
         ldx _mouse_slot
         lda #70
         sta $0478,x
-        lda #96
+        lda #MOUSE_Y_START
         sta $04F8,x
         lda #0
         sta $0578,x

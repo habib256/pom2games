@@ -8,35 +8,113 @@ profile_offset:
         TAX
         RTS
 
+.segment "BOOTCODE"
+; validate_profiles: the end of load_hof (start only). The ten slots are what
+; counts: they name the save files. Every used slot must be three letters and
+; no two the same, or nothing in the file is trusted (defaults). The rest is
+; then made to agree with them:
+;   - an active slot that is not a used one becomes the first used one;
+;   - the initials in the header become that profile's;
+;   - a ranking row stays only if its initials are a profile's, and once.
+; write_hof sees the difference and puts it on the disk.
 validate_profiles:
+        LDX #HOF_PROFILES
+@slot:  LDA hof_buf,X
+        BEQ @next
+        JSR hof_letters3
+        BCS @bad
+        TXA
+        TAY
+@twin:  INY
+        INY
+        INY
+        CPY #HOF_ACTIVE
+        BCS @next
+        JSR hof_same
+        BNE @twin
+@bad:   JMP hof_bad
+@next:  INX
+        INX
+        INX
+        CPX #HOF_ACTIVE
+        BCC @slot
+
         LDA hof_buf+HOF_ACTIVE
         CMP #HOF_COUNT
-        BCS @bad
+        BCS @first
         JSR profile_offset
         LDA hof_buf+HOF_PROFILES,X
-        BEQ @bad
-        LDX #0
-@slot:  LDA hof_buf+HOF_PROFILES,X
-        BEQ @next
-        LDY #3
-@letter:
+        BNE @header
+@first: LDA #0
+@find:  STA hof_buf+HOF_ACTIVE
+        JSR profile_offset
         LDA hof_buf+HOF_PROFILES,X
-        CMP #'A'
-        BCC @bad
-        CMP #'Z'+1
-        BCS @bad
+        BNE @header
+        LDA hof_buf+HOF_ACTIVE
+        CLC
+        ADC #1
+        CMP #HOF_COUNT
+        BCC @find
+        BCS @bad                        ; (always) not one profile
+@header:
+        LDY #0
+@name:  LDA hof_buf+HOF_PROFILES,X
+        STA hof_buf+4,Y
         INX
-        DEY
-        BNE @letter
-        BEQ @check
-@next: INX
-        INX
-        INX
-@check: CPX #30
-        BCC @slot
-        RTS
-@bad:   JMP reset_hof
+        INY
+        CPY #3
+        BCC @name
 
+        LDA #HOF_HDR
+        STA hof_offset                  ; the row looked at
+        STA hof_index                   ; where the next row kept goes
+@row:   LDX hof_offset
+        LDA hof_buf,X
+        BEQ @drop
+        LDY #HOF_PROFILES
+@whose: JSR hof_same
+        BEQ @known
+        INY
+        INY
+        INY
+        CPY #HOF_ACTIVE
+        BCC @whose
+        BCS @drop                       ; (always) nobody's
+@known: LDY #HOF_HDR
+@kept:  CPY hof_index
+        BCS @keep
+        JSR hof_same
+        BEQ @drop                       ; a second row for that profile
+        TYA
+        CLC
+        ADC #HOF_ENTRY
+        TAY
+        BNE @kept                       ; (always)
+@keep:  LDA #HOF_ENTRY
+        STA temp
+@byte:  LDA hof_buf,X
+        STA hof_buf,Y
+        INX
+        INY
+        DEC temp
+        BNE @byte
+        STY hof_index
+@drop:  LDA hof_offset
+        CLC
+        ADC #HOF_ENTRY
+        STA hof_offset
+        CMP #HOF_END
+        BCC @row
+        LDX hof_index
+        LDA #0
+@clear: CPX #HOF_END
+        BCS @done
+        STA hof_buf,X
+        INX
+        BNE @clear                      ; (always)
+@done:  RTS
+
+.code
 set_profile_save:
         LDA hof_buf+HOF_ACTIVE
         BEQ @default

@@ -22,7 +22,7 @@ io_entry: .res 1
 io_index: .res 1
 io_mask: .res 1
 save_mask: .res 1
-io_error: .res 1
+io_sp: .res 1                   ; stack pointer on entry, for disk_error
 io_iob: .res 2
 .code
 init_disk_cache:
@@ -37,6 +37,8 @@ init_disk_cache:
         RTS
 
 ; File selector and destination are supplied by the small wrappers below.
+; C = 0 on return; C = 1 if a save file or the ranking met a disk error (a
+; missing file and an impossible length are one): see disk_error.
 fast_read:
         LDA #1
         BNE fast_file
@@ -44,6 +46,8 @@ fast_write:
         LDA #2
 fast_file:
         STA io_command
+        TSX
+        STX io_sp
         LDA front_page
         EOR #$40
         STA io_base
@@ -168,7 +172,8 @@ fast_file:
         LDA io_dest+1
         STA ptr_hi
         JSR io_copy
-@done:  RTS
+@done:  CLC                             ; (C = 1: disk_error came back for us)
+        RTS
 
 ; Copy io_limit bytes, preserving that length and the sector cache pointer.
 io_copy:
@@ -192,12 +197,22 @@ io_copy:
         BNE @rest
 @done:  RTS
 
+; disk_error: "IO ERR" in the status corner. Without a level pack or the
+; solution reader there is nothing to go on with: any key, then DOS. A save
+; file or the ranking can be done without: fast_read / fast_write return to
+; their caller at once, C = 1, nothing read or the rest not written.
 disk_error:
         LDA #<str_disk_error
         LDY #>str_disk_error
         JSR show_status
+        LDA io_id
+        CMP #NUM_PACKS
+        BCS @soft
         JSR wait_any
         JMP apple2_exit
+@soft:  LDX io_sp                       ; back to fast_file's caller (C is set)
+        TXS
+        RTS
 
 find_disk_file:
         LDA #17
@@ -380,9 +395,9 @@ hof_file:
         STA io_limit
         LDA #0
         STA io_limit+1
-        LDA #<(hof_load_cmd+6)
+        LDA #<hof_file_name
         STA io_name
-        LDA #>(hof_load_cmd+6)
+        LDA #>hof_file_name
         STA io_name+1
         LDA #$FF
         STA io_mask
@@ -397,7 +412,7 @@ cache_hi:
         .byte >(io_cache+20*I)
 .endrepeat
 sector_bits: .byte 1,2,4,8,16,32,64,128
-str_disk_error: GSTR "IO ERR"
+str_disk_error: GSTR "IO ERR "            ; as wide as the other statuses
 
 .code
 ; disk_protected: C = 1 if the disk cannot be written. The drive is the one
