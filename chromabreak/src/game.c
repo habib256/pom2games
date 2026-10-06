@@ -102,7 +102,7 @@ unsigned demo_idle;
 static unsigned demo_time, demo_best;
 static unsigned char demo_last, demo_level, demo_hold, demo_mx, demo_my;
 static signed char demo_aim, demo_dy;
-static unsigned char mouse_old, mouse_last_y, button, held, next_capsule, auto_launch;
+static unsigned char mouse_old, button, held, next_capsule, auto_launch;
 static const unsigned char colors[12]={13,9,11,1,3,6,7,14,12,4,8,10};
 static const unsigned char highlights[16]={2,11,6,7,12,15,7,15,9,13,15,15,14,15,15,15};
 static const unsigned char shadows[16]={0,2,0,2,0,2,2,6,4,8,5,1,4,9,6,10};
@@ -417,7 +417,7 @@ static void start(void)
     level=demo ? demo_level : start_level;
     base_width=paddle_sizes[difficulty]; speed_limit=maximum_speeds[difficulty];
     ramp_period=ramp_periods[difficulty]; reward_period=reward_periods[difficulty];
-    direction=0; pad_x=60; next_capsule=1; frames=0; auto_launch=1; mouse_last_y=mouse_y;
+    direction=0; pad_x=60; next_capsule=1; frames=0; auto_launch=1;
     sound_event(SND_START); load_level();
 }
 /* Logo from Beautiful Boot glyphs, three lines per glyph row. Dot d starts
@@ -711,8 +711,8 @@ static void drop(void)
     static unsigned char center;
     if (!capsule) return;
     ++cap_y;
-    /* The 5x6 capsule meets the paddle top. */
-    if (cap_y>=pad_y-5u && cap_y<=pad_y && cap_x+4u>=pad_x && cap_x<pad_x+pad_width) {
+    /* The 5x6 capsule meets the paddle top, or the paddle rose past it. */
+    if (cap_y>=pad_y-5u && cap_y<=(old_y>pad_y ? old_y : pad_y) && cap_x+4u>=pad_x && cap_x<pad_x+pad_width) {
         effect=capsule; capsule=0;
         center=pad_x+(pad_width>>1);
         pad_width=base_width+(effect==1u ? 8u : 0u);
@@ -744,9 +744,8 @@ static void fire(void)
 extern unsigned char joy_x, joy_y;
 void input(unsigned char key)
 {
-    static int height;
     old_x=pad_x; old_y=pad_y;
-    if (key=='M' && mouse_slot) { mode=1; direction=vdirection=0; mouse_poll(); mouse_last_y=mouse_y; }
+    if (key=='M' && mouse_slot) { mode=1; direction=vdirection=0; mouse_poll(); }
     if (key=='K') { mode=0; direction=vdirection=0; }
     if (key=='J') { mode=2; direction=vdirection=0; }
     if (key=='P') { paused^=1u; direction=vdirection=0; hud_changed(); sound_stop(); }
@@ -755,22 +754,21 @@ void input(unsigned char key)
     if (key=='W' || key==KC_UP) { mode=0; vdirection=-1; }
     if (key=='X' || key==KC_DOWN) { mode=0; vdirection=1; }
     if (key=='S') direction=vdirection=0;
-    if (paused) { mouse_last_y=mouse_y; pad_motion=pad_lift=0; return; }
+    if (paused) { pad_motion=pad_lift=0; return; }
     if (mode==2u) {
         /* Paddle 0 / stick X sets the centre, paddle 1 / stick Y the height
          * (scaled by timing.s; an underflow wraps and clamps to LEFT). */
         pad_x=joy_x-(pad_width>>1); pad_y=joy_y;
     } else if (mode && mouse_slot) {
-        /* Horizontal position is absolute; height follows relative motion. */
+        /* Both are the pointer's: the mouse firmware keeps its height
+         * within the paddle's travel (the Makefile gives it the bounds). */
         pad_x=mouse_x>pad_width/2u ? mouse_x-pad_width/2u : LEFT;
-        height=(int)pad_y+mouse_y-mouse_last_y;
-        pad_y=height<PAD_MIN ? PAD_MIN : height>PAD_Y ? PAD_Y : (unsigned char)height;
+        pad_y=mouse_y;
     } else {
         if (direction<0) pad_x=pad_x>=LEFT+4u ? pad_x-4u : LEFT;
         else if (direction>0) pad_x+=4u;
         if (vdirection) pad_y+=vdirection<0 ? 253u : 3u;
     }
-    mouse_last_y=mouse_y;
     clamp_pad();
     pad_motion=(signed char)(pad_x-old_x); pad_lift=(signed char)(old_y-pad_y);
     if (!round_live) attach();
@@ -805,7 +803,7 @@ static void demo_input(void)
 }
 static void demo_start(void)
 {
-    demo=1; demo_time=0; demo_hold=0; demo_best=best_score; mode=0;
+    demo=1; demo_time=0; demo_hold=0; demo_best=best_score;
     start();
     demo_level=demo_level<CB_LEVELS-1u ? demo_level+1u : 0;
 }
@@ -905,7 +903,9 @@ void game_tick(void)
             }
         }
         if (key==' ' || key==KC_RET || key=='M' || key=='K' || key=='J' || button) {
-            mode=key=='J' ? 2u : (key!='K') && mouse_slot;
+            /* SPACE, ENTER or a button keep the joystick once chosen. */
+            if (key=='J') mode=2;
+            else if (key=='M' || key=='K' || mode!=2u) mode=(key!='K') && mouse_slot;
             start();
         } else if (state==0u && demo_due()) demo_start();
         else { sound_tick(); a2_frame_wait(); }

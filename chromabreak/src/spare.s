@@ -13,9 +13,9 @@
 ; The BSS spare is what the two C files gave back: a new variable there takes
 ; its bytes from it; beyond it the assembly modules' variables move, and the
 ; assert says so.
-CODE_SPARE   = 2
-RODATA_SPARE = 51
-BSS_SPARE    = 10
+CODE_SPARE   = 58
+RODATA_SPARE = 49
+BSS_SPARE    = 13
 
 .code
         .res CODE_SPARE

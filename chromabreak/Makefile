@@ -60,6 +60,12 @@ $(BUILD)/tables.bin: src/payload.s src/payload.cfg src/tables.inc src/fine_font.
 $(BUILD)/dhgr_small_asm.o: $(HGRC)/dhgr_small_asm.s
 	@mkdir -p $(@D)
 	$(CA65) -D DHGR_SMALL_FONT_EXTERNAL=1 -I $(HGRC) -o $@ $(HGRC)/dhgr_small_asm.s
+# The mouse height is the paddle's: its travel (layout.h), starting on the floor.
+PAD_MIN := $(shell awk '$$2=="CB_PAD_MIN"{print $$3}' src/layout.h)
+PAD_Y := $(shell awk '$$2=="CB_PAD_Y"{print $$3}' src/layout.h)
+$(BUILD)/mouse.o: $(MOUSE)/mouse.s src/layout.h
+	@mkdir -p $(@D)
+	$(CA65) -D MOUSE_Y_LOW=$(PAD_MIN) -D MOUSE_Y_HIGH=$(PAD_Y) -D MOUSE_Y_START=$(PAD_Y) -o $@ $<
 $(BUILD)/dhgr_small_string.o: $(HGRC)/dhgr_small_string.s $(HGRC_ASM_DEPS)
 	@mkdir -p $(@D)
 	$(CA65) -D DHGR_SMALL_USE_PROGRESS=1 -I $(HGRC) -o $@ $<

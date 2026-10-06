@@ -139,3 +139,6 @@ et disque protégé. Les captures du menu et du premier tableau sont actualisée
 - [x] `?` sans le fichier `ENDING` : la page de garde reste affichée ; démo de 60 s en PAL comme en NTSC.
 - [ ] Refaire les trois captures POM2 : `game.png` et `game-sector-2.png` (bandeau encore sur cinq chiffres) et `title.png` (encore « V1.0 »).
 - [x] Version 1.1 sur la page de garde.
+- [x] Hauteur de la raquette à la souris en absolu (le firmware borne le pointeur à la course de la raquette) : plus de course perdue après une vie perdue.
+- [x] Le joystick choisi par `J` reste le mode de jeu après une fin de partie (bouton ou Espace) et après une démo.
+- [x] Une raquette qui monte d’un coup au-delà d’une capsule la ramasse.
