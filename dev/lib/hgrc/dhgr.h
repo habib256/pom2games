@@ -65,6 +65,13 @@ void dhgr_sprite(unsigned char x, unsigned char y, unsigned char width,
 /* White/black opaque text: color cells, 8x8 glyphs, width 8 color pixels.
  * Each glyph bit is expanded to four DHGR bits to avoid artifact tint. */
 void dhgr_puts(const char *s, unsigned char x, unsigned char y);
+/* Compact opaque white text: 4x5 glyphs; five color pixels per character, five rows tall.
+ * ASCII space..underscore, lowercase folds to uppercase. Arbitrary x alignment;
+ * surrounding pixels and interrupt state are preserved; clips at right/bottom. */
+void dhgr_puts_small(const char *s, unsigned char x, unsigned char y);
+/* Fast one-cell entry for incremental HUDs. Coordinates use the draw page. */
+extern unsigned char dhgr_small_x, dhgr_small_y;
+void __fastcall__ dhgr_small_char(unsigned char ch);
 void dhgr_text_restore(void);
 void dhgr_clear(unsigned char color);
 

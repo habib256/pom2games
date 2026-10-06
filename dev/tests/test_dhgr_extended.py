@@ -16,14 +16,14 @@ def build(work, mono):
     assets.png_write(work/'sprite.png',2,2,pixels)
     assets.convert(work/'sprite.png',work/'sprite','dhgr','sprite','sprite')
     sources=[DEV/'cc65/crt0_apple2.s',DEV/'tests/dhgr_extended_fixture.c',
-             *[DEV/'lib/hgrc'/name for name in ('dhgr.c','dhgr_asm.s','dhgr_span.c','dhgr_block.c','dhgr_sprite.c','dhgr_transfer_params.c','dhgr_block_asm.s','dhgr_text.c','dhgr_text_asm.s','hgr_font.c','hgr_mode_asm.s')],
+             *[DEV/'lib/hgrc'/name for name in ('dhgr.c','dhgr_asm.s','dhgr_span.c','dhgr_block.c','dhgr_sprite.c','dhgr_transfer_params.c','dhgr_block_asm.s','dhgr_text.c','dhgr_text_asm.s','dhgr_small.c','dhgr_small_asm.s','hgr_font.c','hgr_mode_asm.s')],
              DEV/'lib/gfx'/('gfx_backend_dhgr_mono.c' if mono else 'gfx_backend_dhgr_color.c'),
              DEV/'lib/apple2c/apple2io_asm.s']
     objects=[]
     for source in sources:
         obj=work/(source.stem+'.o')
         run(['cl65','-t','none','-Oirs','-I',work,'-I',DEV/'lib/hgrc','-I',DEV/'lib/gfx',
-             '-I',DEV/'lib/apple2c','--asm-include-dir',DEV/'lib/apple2','-c','-o',obj,source]);objects.append(obj)
+             '-I',DEV/'lib/apple2c','--asm-include-dir',DEV/'lib/hgrc','--asm-include-dir',DEV/'lib/apple2','-c','-o',obj,source]);objects.append(obj)
     binary=work/'test.bin'
     run(['cl65','-t','none','-C',DEV/'cc65/apple2_hgr_c.cfg','-o',binary,*objects])
     hello=work/'hello.bas';hello.write_text('10 PRINT CHR$(4);"BRUN TEST"\n')
@@ -89,6 +89,13 @@ def main():
                     glyph=fontbytes[(ord('A')-32)*8:(ord('A')-31)*8]
                     for y,row in enumerate(glyph):
                         for x in range(8):color_pixel(pages[1],130+x,180+y,15 if row&(1<<x) else 0)
+                    small_glyphs={'A':(2,5,7,5,5),'?':(7,4,2,0,2)}
+                    for phase in range(7):
+                        for index,ch in enumerate('A?'):
+                            for y,row in enumerate(small_glyphs[ch]):
+                                for x in range(5):color_pixel(pages[1],phase+index*5+x,130+phase*6+y,15 if row&(1<<x) else 0)
+                    for y,row in enumerate(small_glyphs['A']):
+                        for x in range(5):color_pixel(pages[1],135+x,187+y,15 if row&(1<<x) else 0)
                 elif stage==20:
                     for y in range(188,192):
                         for x in range(560):pixel(pages[1],x,y,1)
@@ -102,6 +109,6 @@ def main():
             unsupported=run([emulator,'--disk',disk,'wait:1100','peek:1000:2','key: ','wait:100'])
             assert '1000: 63 00' in unsupported,'II+ must reject DHGR'
     print('DHGR extended: 48 checkpoints, both backends, both pages/banks, 7 sprite phases,')
-    print('block save/restore, clipping, white text, mode transitions, II+ rejection and DOS exit.')
+    print('block save/restore, clipping, standard/compact white text, mode transitions, II+ rejection and DOS exit.')
 
 if __name__=='__main__':main()

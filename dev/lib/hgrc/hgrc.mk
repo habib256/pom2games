@@ -45,8 +45,9 @@ HGRC_ASM_DEPS := $(wildcard $(HGRC)/*.inc $(HGRC)/../apple2/*.inc $(HGRC)/../app
 # Host-only x2 reference: hgr_x2.c. No target inflation kernel is supplied.
 # IIe/IIc DHGR stays opt-in, independent from HGR and gfx.
 HGRC_DHGR_SRCS := $(HGRC)/dhgr.c $(HGRC)/dhgr_asm.s $(HGRC)/dhgr_span.c $(HGRC)/dhgr_block.c $(HGRC)/dhgr_sprite.c $(HGRC)/dhgr_transfer_params.c $(HGRC)/dhgr_block_asm.s $(HGRC)/dhgr_text.c $(HGRC)/dhgr_text_asm.s $(HGRC)/hgr_font.c
+HGRC_DHGR_SMALL_TEXT_SRCS := $(HGRC)/dhgr_small.c $(HGRC)/dhgr_small_asm.s
 HGRC_DHGR_COLOR_BACKEND := $(GFX)/gfx_backend_dhgr_color.c
 HGRC_DHGR_MONO_BACKEND := $(GFX)/gfx_backend_dhgr_mono.c
 
 # Optional DHGR members are extracted only when referenced. gfx backends remain explicit.
-HGRC_ALL_SRCS := $(sort $(HGRC_ALL_SRCS) $(HGRC_DHGR_SRCS))
+HGRC_ALL_SRCS := $(sort $(HGRC_ALL_SRCS) $(HGRC_DHGR_SRCS) $(HGRC_DHGR_SMALL_TEXT_SRCS))

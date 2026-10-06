@@ -1,12 +1,14 @@
 # pom2games
 
-Programmes Apple II sur disquettes DOS 3.3, pour
+Programmes Apple II sur disquettes DOS 3.3 ou ProDOS, pour
 [POM2](https://github.com/habib256/pom2) ou un vrai Apple II. Ce sont surtout des
 ports de programmes de [POM1](https://github.com/habib256/pom1), adaptés à
 la vidéo native de l'Apple II.
 
 | Dossier | Programme | Machine | Disquette |
 |---|---|---|---|
+| [`chromabreak/`](chromabreak/) | Casse-briques DHGR 16 couleurs, souris AppleMouse et clavier | Apple //e enhanced ou //c 128 Ko / ProDOS | `dist/CHROMABREAK.po` |
+| [`arkabreakout/`](arkabreakout/) | Casse-briques HGR : 12 tableaux, bonus, clavier ou paddle | Apple II+ 48 Ko | `dist/ARKABREAKOUT.dsk` |
 | [`micro-sokoban/`](micro-sokoban/) | MICRO-SOKOBAN, tutoriel de 5 niveaux + 454 Microban I à IV, Hall of Fame sauvegardé, manette ou clavier | Apple II+ | `dist/MICRO-SOKOBAN.dsk` |
 | [`chess/`](chess/) | Échecs contre l'ordinateur ou à deux | Apple II+ | `dist/CHESS.dsk` |
 | [`maze3d/`](maze3d/) | Dungeon crawler 3D en fil de fer, double tampon HGR | Apple II+ | `dist/MAZE3D.dsk` |
@@ -15,6 +17,12 @@ la vidéo native de l'Apple II.
 | [`dev/examples/hgr/`](dev/examples/hgr/) | Exemple HGR animé : sprite masqué, compteur, clavier, cadence | Apple II+ / IIe / IIc | `dist/HGR.dsk` |
 | [`dev/examples/dhgr/`](dev/examples/dhgr/) | Palette 16 couleurs et grille DHGR | Apple IIe 128 Ko / IIc | `dist/DHGR.dsk` |
 | [`demos/`](demos/) | Menu de 5 démos : BOUNCES, ANIMALS, LIFE, PRESHIFT, FONT | Apple II+ | `dist/DEMO.dsk` |
+
+Deux profils de jeux sont définis : **Apple II+ 48 Ko / DOS 3.3** pour
+Arkabreakout et les ports classiques, et **Apple //e enhanced 128 Ko / ProDOS**
+pour CHROMABREAK. Le premier utilise HGR et clavier/paddle ; le second utilise
+DHGR 16 couleurs et AppleMouse II, avec prise en charge de la souris intégrée
+du //c 128 Ko dans ce même profil ProDOS.
 
 Toutes les disquettes sont rangées dans [`dist/`](dist/), prêtes à l'emploi : on
 démarre dessus et le programme se lance. Chaque dossier a son `README.md`
@@ -27,17 +35,21 @@ sa disquette amorçable et la [description de la version](docs/releases/1.1.md).
 
 ## Construire
 
+    make profile-ii-plus # jeux Apple II+ 48 Ko / DOS 3.3
+    make profile-iie-prodos # CHROMABREAK, //e enhanced 128 Ko / ProDOS
+    make test-chromabreak # volume ProDOS et tests //e lorsque a2shot est disponible
     make                 # toutes les disquettes, dans dist/
     make -C chess        # une seule (elle va aussi dans dist/)
     make -C chess run    # la lancer dans POM2 installé (/Applications/POM2.app)
     make test            # HGR puis les 454 niveaux de MICRO-SOKOBAN dans a2run
+    make test-arkabreakout # collisions, bonus, niveaux, paddle et sortie DOS
     make test-hgr        # primitives, texte gfx, moteur de sprites et archive
     make test-frame      # cadence, délais et repli en cas de VBL bloqué
     make test-hgr-example # animation, pause/reprise et retour à DOS
     make test-dhgr       # validation DHGR dans a2shot (macOS arm64)
     make check           # tout reconstruire, échouer si dist/ ne correspond pas
     make clean           # efface les build/ (les disquettes restent)
-    make distclean       # efface aussi dist/*.dsk
+    make distclean       # efface aussi dist/*.dsk et dist/*.po
 
 Prérequis : [cc65](https://cc65.github.io/) (`brew install cc65`, ou
 `apt install cc65`) et python3 ; un compilateur C et zlib pour `make test`.
@@ -56,6 +68,8 @@ L'intégration continue (`.github/workflows/build.yml`) lance `make check` puis
 - `dev/lib/apple2` et `dev/lib/apple2c` : clavier, texte, HGR, retour propre à
   DOS ou à un menu BASIC, son, manette, commandes DOS (BLOAD / BSAVE), en
   assembleur et en C ;
+- `dev/lib/prodos` et `dev/lib/mouse` : MLI ProDOS, sortie SYS et AppleMouse II ;
+- `dev/tools/prodos` : constructeur et lecteur de volumes ProDOS amorçables ;
 - `dev/lib/hgr` : texte, sprites et tables HGR (assembleur) ;
 - `dev/lib/hgrc` et `dev/lib/gfx` : runtime graphique C HGR/DHGR et géométrie ;
 - [`dev/examples/hgr`](dev/examples/hgr/) : exemple animé, clavier, compteur,

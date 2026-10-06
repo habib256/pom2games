@@ -1,13 +1,16 @@
 # dev — bibliothèques et outils Apple II
 
-Bibliothèques et outils pour écrire des programmes Apple II+ 48 Ko / DOS 3.3
-avec cc65. Dérivés de [POM1](https://github.com/habib256/pom1) (GPL v3), ils
+Bibliothèques et outils pour deux profils avec cc65 : **Apple II+ 48 Ko /
+DOS 3.3** et **Apple //e enhanced 128 Ko / ProDOS**. Dérivés de [POM1](https://github.com/habib256/pom1) (GPL v3), ils
 utilisent la vidéo native de l'Apple II. Tous les jeux du dépôt les partagent.
 
     dev/
       lib/apple2/      asm : matériel, texte, clavier, HGR, sortie DOS,
                        son, manette, commandes DOS
       lib/apple2c/     C   : texte, clavier, son, manette, DOS
+      lib/prodos/      MLI ProDOS 8 et remise en état après DHGR
+      lib/mouse/       AppleMouse II : scrutation, IRQ firmware et VBL
+      tools/prodos/    constructeur/lecteur de disquettes ProDOS (.po)
       lib/hgr/         texte, sprites et tables HGR en assembleur
       lib/hgrc/        runtime C HGR : hgr.h, fonctions hgr_*
       lib/gfx/         géométrie C (lignes, rectangles, cercles) pour hgrc
@@ -35,6 +38,11 @@ pour que la disquette rejoigne les autres dans `dist/`.
 `pom2games` ne dépend d'aucun autre dossier : il suffit de cc65 et de python3
 pour construire les disques (et de libslirp pour a2shot). `make run` lance POM2
 installé (`/Applications/POM2.app`, ou `make run POM2=chemin/vers/POM2`).
+
+Le profil ProDOS complet est [`chromabreak`](../chromabreak/README.md) :
+`crt0_prodos.s`, `apple2_dhgr_prodos_c.cfg`, bibliothèques
+[`prodos`](lib/prodos/README.md) et [`mouse`](lib/mouse/README.md).
+Il démarre par un fichier SYS et quitte avec l'appel MLI QUIT.
 
 ## Matériel Apple II
 
