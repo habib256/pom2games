@@ -1,6 +1,6 @@
 # ChromaBreak 1.0 — Apple //e and //c
 
-ChromaBreak is a brick-breaker in double hi-res for the enhanced Apple //e (128 KB, extended 80-column card) and the Apple //c. Download `CHROMABREAK.po`, mount it as a 5¼-inch disk, and boot it: the image starts ProDOS 2.4.3 and the game; no installation is needed. A 65C02 is required; an original //e with a 6502 gets a message and returns to ProDOS.
+ChromaBreak is a free, open-source brick-breaker in double hi-res for the enhanced Apple //e (128 KB, extended 80-column card) and the Apple //c. It comes as a single 140 KB ProDOS disk image: download `CHROMABREAK.po`, mount it as a 5¼-inch disk, and boot it. The image starts ProDOS 2.4.3 and the game; no installation is needed. A 65C02 is required; an original //e with a 6502 gets a message and returns to ProDOS.
 
 ## What's in it
 
