@@ -61,7 +61,7 @@ lance une partie sur ce tableau. `S` coupe ou rétablit le son,
 la suite d’accords I-vi-IV-V en arpèges montants sur une basse fondamentale /
 quinte, puis une petite phrase qui conclut pendant que la basse monte vers la
 dominante) ; une touche l’interrompt aussitôt, et il ne rejoue pas après la
-démo, après l’aide ni quand le son est coupé. Thème et jingles sont rangés en
+démo, après l’aide ni quand le son est coupé. Thème et airs de fin de tableau sont rangés en
 RAM auxiliaire après la police (voir « Musique à deux voix »). La page de
 garde porte la version et la signature
 « V1.0  BY ARNAUD VERHILLE » ; le sous-titre rappelle « APPLE //C AND //E
@@ -179,10 +179,13 @@ un nouveau tableau les efface. Pour tenir la cadence, aucun ennemi n’arrive
 pendant la multiballe et la capsule D fait exploser ceux qui sont présents.
 
 Un tableau terminé affiche « SECTOR nn CLEAR » au centre, sur la page
-cachée présentée d’un coup, avec un jingle propre à la décennie du tableau
-(six jingles en do, ré, mi, fa, sol puis la, de plus en plus rapides et ornés,
-le dernier passant du mineur au majeur), puis le tableau suivant se construit
-derrière. Après le soixantième, le finale
+cachée présentée d’un coup, avec un air de fin à deux voix d’un peu plus de
+deux secondes, puis le tableau suivant se construit derrière. Il y a **dix
+airs de fin**, un pour chaque tableau d’une dizaine : les fondamentales
+montent la gamme (do, ré mineur, mi mineur, fa, sol, la mineur), puis viennent
+ré, mi et la majeur, ce dernier passant du mineur au majeur ; le dixième
+tableau d’une dizaine reçoit une fanfare plus longue (3,3 s). Chaque air a sa
+propre cadence à la basse. Après le soixantième, le finale
 « ENDING » est chargé depuis le disque en `$4000` (mémoire de la page 2,
 inutile alors) : logo VICTORY en relief, « ALL 60 SECTORS CLEARED », score
 final et mode, « THANK YOU FOR PLAYING », une fanfare, puis des feux
@@ -255,7 +258,7 @@ rebonds, l’acier, les impacts et destructions, les bonus, les tableaux et
 la perte d’une vie. Les effets se répartissent sur plusieurs images ; les
 interruptions de la souris restent actives. La pause coupe les sons.
 
-**Musique à deux voix.** Le thème, les six jingles et la fanfare ont une
+**Musique à deux voix.** Le thème, les dix airs de fin et la fanfare ont une
 mélodie et une basse, sur le seul bit du haut-parleur (`src/duet.inc`, le
 moteur de MICRO-SOKOBAN). Deux ondes carrées se partagent le haut-parleur par
 division du temps : à chaque tour de boucle (33 cycles), le lecteur regarde la
@@ -270,8 +273,8 @@ demi-ton sous le diapason), avec les valeurs les plus proches pour les dièses
 de ré, mi et la majeur. Les notes qui tomberaient entre deux valeurs (fa 5,
 ré 6, do 7) n’existent pas : les mélodies les contournent, et la fanfare finit
 sur do 6 au lieu de do 7. Un événement fait trois octets (mélodie, basse,
-durée en tranches de 8,3 ms). Le lecteur (129 octets) est copié en page 3
-(`$0310`) par `CHROMA.SYS` : sa boucle compte les cycles et ne doit pas
+durée en tranches de 8,3 ms). Le lecteur (129 octets) et la table des dix airs sont copiés en page 3
+(`$0310` à `$03CF`) par `CHROMA.SYS` : sa boucle compte les cycles et ne doit pas
 chevaucher une page, et le jeu n’y perd aucun octet. Les interruptions sont
 masquées pendant une note et servies entre deux notes (sur //c, les soixante
 interruptions par seconde de la souris brouillaient les deux voix). Son coupé,
@@ -407,7 +410,7 @@ entrées, leur tri, les initiales et difficultés, les fichiers absents/corrompu
 et le disque protégé. Il ouvre la page d’aide sur les quatre profils (capsules,
 tuiles et ennemis dessinés, retour au titre par une touche puis par un clic
 qui ne lance pas de partie, horloge VBL intacte) et écoute les airs : chaque
-note du thème et des six jingles doit porter sa basse et sa mélodie, chacune
+note du thème et des dix airs de fin doit porter sa basse et sa mélodie, chacune
 à sa part du niveau du haut-parleur, et durer ses tranches ; son coupé, l’air
 est muet et aussi long. Il compare aussi 328 640 collisions au modèle de la
 balle ronde, vérifie les 65 536 conversions du score et chaque glyphe

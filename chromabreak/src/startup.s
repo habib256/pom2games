@@ -98,7 +98,7 @@ levels_payload: .incbin "levels.bin"
 .assert *-levels_payload=LEVELS_SIZE, error, "level bank size"
 ; The Beautiful Boot font planes follow the boards in AUX (finetext.s).
 .include "fine_font.inc"
-; Then the title theme and jingle (sound.s play_tune reads them there).
+; Then the title theme and the sector endings (sound.s play_tune reads them there).
 .include "music_offsets.inc"
 .assert LEVELS_AUX+*-levels_payload=LEVELS_AUX+LEVELS_SIZE+FINE_COUNT*FINE_HEIGHT, error, "tunes follow the font"
 .include "music_aux.inc"
@@ -109,6 +109,13 @@ duet_image:
 DUET_CODE = 1
 .org DUET_BASE
 .include "duet.inc"
+; Then the table of the sector endings, at the end of the free part of page 3.
+        .res DUET_JINGLE_LO-*
+TUNES_AUX = LEVELS_AUX+LEVELS_SIZE+FINE_COUNT*FINE_HEIGHT
+.define ENDINGS TUNES_AUX+TUNE_JINGLE0_OFS, TUNES_AUX+TUNE_JINGLE1_OFS, TUNES_AUX+TUNE_JINGLE2_OFS, TUNES_AUX+TUNE_JINGLE3_OFS, TUNES_AUX+TUNE_JINGLE4_OFS, TUNES_AUX+TUNE_JINGLE5_OFS, TUNES_AUX+TUNE_JINGLE6_OFS, TUNES_AUX+TUNE_JINGLE7_OFS, TUNES_AUX+TUNE_JINGLE8_OFS, TUNES_AUX+TUNE_JINGLE9_OFS
+        .lobytes ENDINGS
+        .hibytes ENDINGS
 duet_size = *-DUET_BASE
+.assert duet_size = $03D0-DUET_BASE, error, "ten sector endings fill page 3 up to the ProDOS vectors"
 .reloc
 .assert duet_size<256, error, "duet_copy moves less than a page"

@@ -130,6 +130,7 @@ et disque protégé. Les captures du menu et du premier tableau sont actualisée
 - [x] //e d’origine (6502) : message clair et retour à ProDOS au lieu d’un plantage (testé dans POM2).
 - [ ] Valider le rendu des capsules et du texte sur moniteur couleur réel.
 - [x] Page d’aide (`?` au titre) : capsules, tuiles, points ; code dans le recouvrement ENDING.
-- [x] Musique à deux voix (thème, six jingles, fanfare) : lecteur en page 3, intonation juste.
+- [x] Musique à deux voix (thème, airs de fin, fanfare) : lecteur en page 3, intonation juste.
+- [x] Dix airs de fin de tableau à deux voix, un par tableau d’une dizaine, d’environ 2 s (3,3 s pour le dixième).
 - [x] Adresses figées des modules assembleur : réserve et assertions de `spare.s`.
 - [ ] Écouter les airs à deux voix sur //e et //c réels (porteuse à 31 kHz).

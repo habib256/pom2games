@@ -71,8 +71,9 @@ half_period:
 ; blocking: two voices, by the player in page 3 (duet.inc). An event is
 ; three bytes: melody count (0 = silence), bass count, slices; a zero third
 ; byte ends the tune. IRQs are masked inside a note and served between two;
-; when muted the tune is silent but timed. Tunes below $2000 are in the AUX bank (title theme, jingles),
-; others in main RAM (the overlay fanfare). play_title stops at a key press
+; when muted the tune is silent but timed. Tunes below $2000 are in the AUX
+; bank (title theme, sector endings), others in main RAM (the overlay
+; fanfare). play_title stops at a key press
 ; (the key stays for the title loop).
 .export _play_tune, _play_title, _play_jingle
 .importzp ptr1, aux_read
@@ -84,20 +85,19 @@ FINE_FONT_CONSTANTS_ONLY = 1
 TUNES_AUX = LEVELS_AUX+LEVELS_SIZE+FINE_COUNT*FINE_HEIGHT
 .export _tunes_aux := TUNES_AUX       ; for the tests
 .rodata
-; Sector-cleared jingles, one per decade of sectors (generate_music.py).
-.define JINGLES TUNES_AUX+TUNE_JINGLE0_OFS, TUNES_AUX+TUNE_JINGLE1_OFS, TUNES_AUX+TUNE_JINGLE2_OFS, TUNES_AUX+TUNE_JINGLE3_OFS, TUNES_AUX+TUNE_JINGLE4_OFS, TUNES_AUX+TUNE_JINGLE5_OFS
-jingle_lo: .lobytes JINGLES
-jingle_hi: .hibytes JINGLES
+; The table of the sector endings left for page 3 with the player: these
+; bytes keep the tables after this module in place (see spare.s).
+        .res 12
 .bss
 tune_note: .res 3                ; melody, bass, slices
         .res 1                   ; spare: the variables after it stay put
 .code
-; A = decade (0..5) of the sector just cleared.
+; A = which of the ten sector endings (generate_music.py), 0..9.
 _play_jingle:
         tay
-        lda jingle_hi,y
+        lda DUET_JINGLE_HI,y
         tax
-        lda jingle_lo,y
+        lda DUET_JINGLE_LO,y
         bra _play_tune
 _play_title:
         lda #<(TUNES_AUX+TUNE_TITLE_OFS)

@@ -268,7 +268,7 @@ int main(int argc,char** argv) {
         }
         if(recordTest=="records-music") {
             // Two-voice tunes (duet.inc): every event of the title theme and
-            // of the six jingles holds its bass under its melody, each a
+            // of the ten sector endings holds its bass under its melody, each a
             // square wave at its share of the speaker's level, and lasts its
             // slices. CHROMA_SPEAKER=file also writes every click's cycle.
             const double slice=255*33+34, turn=slice/255;
@@ -339,17 +339,17 @@ int main(int argc,char** argv) {
             {uint64_t last=speaker.stamps.back(),first=last;
              for(size_t i=speaker.stamps.size();i-->0 && last-speaker.stamps[i]<6000000;)first=speaker.stamps[i];
              tune(tunes,first,last+uint64_t(2*slice),"title theme");}
-            // Each jingle, called as sector_clear calls it.
+            // Each sector ending, called as sector_clear calls it.
             const auto jingle=at("play_jingle");
             mem.memWrite(0x300,0x20);mem.memWrite(0x301,jingle&255);mem.memWrite(0x302,jingle>>8);
             mem.setWatchSink(&speaker);mem.setReadWatch(0xC030,true);
             unsigned address=tunes;
-            for(int decade=0;decade<6;++decade) {
+            for(int ending=0;ending<10;++ending) {
                 while(aux(address+2))address+=3;
                 address+=3;
                 auto begin=mem.getCycleCounter();
-                cpu.setAccumulator(decade);cpu.setProgramCounter(0x300);until(0x303,20000000);
-                tune(address,begin,mem.getCycleCounter(),"jingle "+std::to_string(decade));
+                cpu.setAccumulator(ending);cpu.setProgramCounter(0x300);until(0x303,20000000);
+                tune(address,begin,mem.getCycleCounter(),"ending "+std::to_string(ending+1));
             }
             // Muted: as long, and silent.
             {auto clicks=speaker.clicks;auto begin=mem.getCycleCounter();
@@ -422,7 +422,7 @@ int main(int argc,char** argv) {
         }
         if(recordTest=="records-victory") {
             press(13);
-            // Each decade has its own jingle: the speaker clicks differ.
+            // Each sector of a decade has its own ending: the speaker clicks differ.
             std::vector<unsigned> jingleClicks;
             mem.setWatchSink(&speaker);mem.setReadWatch(0xC030,true);
             for(int level=0;level<CB_LEVELS;++level) {
@@ -438,11 +438,12 @@ int main(int argc,char** argv) {
             until(tick,80000000);
             require(cpu.getProgramCounter()==tick && read("state")==unsigned(level==CB_LEVELS-1?4:1),"last brick opens next level/victory record entry");
             require(read("records_progress")==unsigned(std::min(level+1,CB_LEVELS-1)),"each new sector reached is recorded");
-            if(level%10==9 && level<CB_LEVELS-1)jingleClicks.push_back(speaker.clicks);
+            if(level<10)jingleClicks.push_back(speaker.clicks);
             }
             mem.clearReadWatches();mem.setWatchSink(nullptr);
             for(size_t i=0;i<jingleClicks.size();++i)for(size_t j=0;j<i;++j)
-                require(jingleClicks[i]!=jingleClicks[j],"one distinct jingle per decade");
+                require(jingleClicks[i]!=jingleClicks[j],"ten distinct sector endings");
+            require(jingleClicks.size()==10,"ten sector endings heard");
             std::cout<<"PASS victory record entry\n";return 0;
         }
         const unsigned expected[]={3200,1800,1500,1240,900};

@@ -24,6 +24,11 @@ DUET_PLAY   = DUET_BASE+2       ; A = melody count (0: silence), X = bass
 DUET_CYCLES = 33                ; one turn
 DUET_TURNS  = 255               ; turns between two looks at the keyboard
 DUET_SLICE  = DUET_TURNS*DUET_CYCLES+34 ; a slice with that look: ~8.3 ms
+; The addresses of the sector endings in the AUX bank, low then high bytes,
+; fill the end of the free part of page 3 (startup.s writes them).
+DUET_JINGLES   = 10
+DUET_JINGLE_LO = $03D0-2*DUET_JINGLES
+DUET_JINGLE_HI = $03D0-DUET_JINGLES
 .endif
 
 .ifdef DUET_CODE
@@ -118,5 +123,5 @@ duet_slice:
 @stop:  rts
 @key:   lda #0
         rts
-.assert * <= $03D0, error, "the duet player runs into the ProDOS vectors"
+.assert * <= DUET_JINGLE_LO, error, "the duet player runs into the table of endings"
 .endif

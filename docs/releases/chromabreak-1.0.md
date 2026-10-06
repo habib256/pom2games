@@ -10,7 +10,7 @@ ChromaBreak is a brick-breaker in double hi-res for the enhanced Apple //e (128 
 - **Enemies** that come through gates and slide around the tiles, combos up to ×8, an extra life every 1,000 points.
 - **A paddle that also moves up and down**, and puts spin on the ball.
 - **Mouse, keyboard, joystick or paddles:** AppleMouse II card on the //e, the built-in mouse on the //c.
-- **Two-voice music on the built-in speaker:** a title theme, a jingle for each decade of boards, and a fanfare after the sixtieth. No sound card is needed.
+- **Two-voice music on the built-in speaker:** a title theme, ten different endings for cleared boards, and a fanfare after the sixtieth. No sound card is needed.
 - **Three difficulty levels**, five high scores with initials and the farthest board reached saved on the disk, a board selector, an attract mode, and a help page (`?` on the title) that shows every capsule and tile.
 - **RGB cards:** on Le Chat Mauve, the //c RGB adapter and Video-7, text is drawn in sharp 560-dot monochrome over the 140-colour graphics.
 

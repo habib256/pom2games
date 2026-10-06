@@ -18,6 +18,6 @@ void sound_stop(void);
 /* Blocking tune on the speaker (tools/generate_music.py). */
 void __fastcall__ play_tune(const unsigned char *tune);
 void play_title(void);
-void __fastcall__ play_jingle(unsigned char decade);
+void __fastcall__ play_jingle(unsigned char ending);
 extern const unsigned char tune_fanfare[];
 #endif

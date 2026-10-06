@@ -507,8 +507,9 @@ static void record_table(void)
 }
 static void demo_stop(void);
 /* The cleared sector (level is already the next one): a banner drawn on the
- * hidden page and presented, a jingle, then the next board is built on the
- * other page. Nothing is ever drawn on the shown page. */
+ * hidden page and presented, one of ten endings (the sector's place in its
+ * decade), then the next board is built on the other page. Nothing is ever
+ * drawn on the shown page. */
 static void sector_clear(void)
 {
     static char line[16];
@@ -520,7 +521,7 @@ static void sector_clear(void)
     if (level>records_progress) {
         records_progress=level; timing_close(); records_save(); timing_init();
     }
-    play_jingle((level-1u)/10u);
+    play_jingle((level-1u)%10u);
 }
 void finale(void);
 /* The ENDING overlay goes to page 2 memory while page 1 shows what it draws:
