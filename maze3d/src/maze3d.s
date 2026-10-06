@@ -79,8 +79,8 @@
         ; HGR port: tms9918_pad12 / vdp_display_off / vdp_display_on are
         ; local no-op stubs (next to the clear routines) — the GEN2 card
         ; has no VDP bus timing and no display-enable bit.
-        ; SCROLL-O-SPRITES 16x16 monster patterns (dev/lib/tms9918/sprites_*.asm,
-        ; linked via the Makefile's EXTRA_ASM) — drawn as BITMAPS into the
+        ; SCROLL-O-SPRITES 16x16 monster patterns (src/sprites_trollkind.asm and
+        ; src/sprites_characters.asm, linked by the Makefile) — drawn as BITMAPS into the
         ; Graphics II pattern table by draw_sprite16_x2/_x4, NOT as hardware
         ; sprites. Layout: 32 bytes = left column rows 0..15, right column
         ; rows 0..15; bit 7 = leftmost (same bit order as the bitmap).
@@ -200,7 +200,7 @@ pix_addr_hi:.res 1     ; $0F
 
 ; --- monster-bitmap blit scratch (draw_sprite16_x2/_x4) ---
 ; sp_ptr / sp_x / sp_y + the blit scratch now live in
-; dev/lib/gen2/hgr_sprite16.asm (included at the bottom), which owns the
+; dev/lib/hgr/hgr_sprite16.asm (included at the bottom), which owns the
 ; whole sprite pipeline. Its colour attributes (sp_cm_ev / sp_cm_od /
 ; sp_cbit) are also read by x2_put for the tinted x2 title text.
 ; --- monster cluster (draw_mob_indicator): up to 3 mobs on one cell ---
@@ -2026,7 +2026,7 @@ vline:
 
 ; =============================================
 ; write_char: place 8x8 glyph at cell (ch_cx, ch_cy); ch_code = ASCII.
-; Thin wrapper over hgr_putc8 (dev/lib/gen2/hgr_text8.asm): byte column
+; Thin wrapper over hgr_putc8 (dev/lib/hgr/hgr_text8.asm): byte column
 ; 4 + cx, top scanline cy*8; the game font is TMS bit order, so main:
 ; arms ht_rev = 1 once at boot (glyph rows pass through rev7_tab).
 ; =============================================
@@ -4730,7 +4730,7 @@ combat_update_hp:
 
 ; =============================================
 ; Monster-bitmap blits: hgr_spr16_x1 / _x2 / _x4 from
-; dev/lib/gen2/hgr_sprite16.asm (included at the bottom of this file) —
+; dev/lib/hgr/hgr_sprite16.asm (included at the bottom of this file) —
 ; TMS-format 16x16 patterns, rows repacked 7 px/HGR-byte losslessly,
 ; artifact colour via hgr_spr16_color_a. See the module header.
 ; =============================================
@@ -5004,6 +5004,7 @@ font_base:
 ; =============================================
 .include "hgr_scanline.inc"
 .include "hgr_sprite16.asm"
+HGR_TEXT8_NO_PUTS = 1            ; write_char drives hgr_putc8 itself
 .include "hgr_text8.asm"
 .include "hgr.asm"               ; dev/lib/apple2: hgr_init_clear
 .include "sound.asm"             ; dev/lib/apple2: speaker effects

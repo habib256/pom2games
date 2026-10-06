@@ -65,7 +65,7 @@
 ; timing helpers (their call sites are scattered outside the gated turtle
 ; region). On HGR there is no VDP write-window to pad for, so resolve them to
 ; bare RTS stubs here -- the TMS build links the real ones from
-; dev/lib/tms9918/tms9918_pad.asm and never links this file.
+; POM1's dev/lib/tms9918/tms9918_pad.asm and never links this file.
 .export tms9918_pad18, vdp_display_off
 
 ; ----------------------------------------------------------------------------
@@ -107,21 +107,10 @@ init_vdp_g2:
         sta pen_color
         rts
 
-; clear_bitmap: zero the 8 KB HGR page-1 framebuffer ($2000-$3FFF).
-clear_bitmap:
-        lda #$00
-        tay
-        sta pix_addr_lo
-        ldx #$20
-        stx pix_addr_hi
-@clr:   sta (pix_addr_lo),y
-        iny
-        bne @clr
-        inc pix_addr_hi
-        ldx pix_addr_hi
-        cpx #$40
-        bne @clr
-        rts
+; clear_bitmap: zero the 8 KB HGR page-1 framebuffer ($2000-$3FFF) --
+; dev/lib/hgr clear_hgr (no zero page).
+clear_bitmap = clear_hgr
+.include "hgr_clear.asm"
 
 ; disable_sprites / vdp_set_write / vdp_set_read: no-ops on HGR (kept so the
 ;   interpreter's explicit calls resolve and cost only a JSR/RTS).
@@ -367,4 +356,4 @@ line_xy16:
 
 ; --- HGR lookup tables ------------------------------------------------------
         .include "hgr_scanline.inc"     ; hgr_lo[192] / hgr_hi[192]
-        .include "hgr_plot_tables.inc"  ; hgr_col[280] / hgr_mask[280]
+        .include "hgr_plot_tables.inc"  ; hgr_col[256] / hgr_mask[256]

@@ -1,130 +1,173 @@
 # ARKABREAKOUT
 
-Casse-briques original inspiré des mécaniques d'Arkanoid, pour **Apple II+ 48 Ko**,
-6502 NMOS à environ 1 MHz, HGR plein écran 280 × 192 et DOS 3.3.
-Aucune carte langage ou mémoire auxiliaire n'est nécessaire.
+An original brick-breaker in the spirit of Arkanoid's mechanics, written in
+6502 assembly for the **Apple II+ with 48 KB**, full-screen HGR 280 × 192 and
+DOS 3.3. No language card, no auxiliary memory: boot the disk and play.
 
-![Titre ARKABREAKOUT](screenshots/title.png)
+![ARKABREAKOUT title screen](screenshots/title.png)
 
-![Terrain de jeu dans le cœur de POM2](screenshots/game.png)
+![Playfield rendered by the POM2 core](screenshots/game.png)
 
-[Voir les briques résistantes et les blocs de métal au secteur 09](screenshots/sector-09.png)
+[Sector 09: multi-hit bricks and steel blocks](screenshots/sector-09.png)
+
+## Features
+
+- **12 original sectors**, three lives, five-digit score, 10 points per hit.
+- Coloured bricks break in one hit; white bricks take two or three (notches
+  show the hits left); hatched steel bricks are indestructible. Every brick
+  has a bright top edge.
+- **Aimed rebounds**: the paddle has eight symmetric impact zones, from nearly
+  vertical at the centre to about 68° from vertical at the ends. The zones
+  stretch with the wide paddle, and both velocity components change together
+  so the ball keeps a comparable speed on every trajectory.
+- **Progressive speed**: the starting speed rises every four sectors, then
+  climbs after every twelve destroyed bricks, capped at five sub-steps per
+  update.
+- An **extra life every 1 000 points**, up to five lives in reserve.
+- **Session best** shown on the title and end screens; it survives replays
+  and vanishes when you quit.
+- **Three capsules**, one dropping every five destroyed bricks when none is
+  already falling, recognisable by their white letter:
+
+  | Capsule | Effect |
+  |---|---|
+  | **W** | Wide paddle: 28 → 42 pixels |
+  | **S** | Slow: speed back to two sub-steps per update, then the usual ramp |
+  | **C** | Catch: the ball sticks on the next contact; space or the button relaunches it |
+
+  A new capsule replaces the previous paddle mode. Width changes keep the
+  paddle centred, within the playfield. Losing a life or clearing a sector
+  resets the bonus and the starting speed. Catching a capsule also scores
+  10 points.
+- Keyboard or **paddle** play, with optional paddle calibration.
+- Short speaker sounds with a bounded cost, so the game never stalls.
+
+The bottom banner names the active bonus, shows **READY** while a ball waits
+to be launched and **PAUSE** during a pause; its movement and launch hints
+follow the control mode you chose.
+
+## How to play
+
+On the title screen, **space** starts a keyboard game and **J** a paddle game.
+**C** calibrates the paddle: move it fully left and press a key, then fully
+right and press a key. Escape cancels; an invalid range falls back to the
+default setting. Calibration is kept across new games until you quit.
+
+| Key | Action |
+|---|---|
+| A / left arrow | Move left continuously |
+| D / right arrow | Move right continuously |
+| S | Stop the paddle |
+| + / - during play | Keyboard speed, 1 to 8 pixels per update |
+| Space / paddle button 0 | Launch the ball |
+| P | Pause / resume |
+| Escape | Back to DOS |
+| Ctrl-RESET | Back to DOS with the zero page restored |
+
+The II+ keyboard reports key presses but not releases, so a movement continues
+until **S** or a command in the other direction. While paused, the simulation
+and both graphics pages stay frozen.
+
+## Build and run
+
+Requirements: [cc65](https://cc65.github.io/) (`ca65`, `ld65`) and python3.
+`make test` also needs a C compiler and zlib for the emulator.
 
 ```sh
-make -C arkabreakout        # dist/ARKABREAKOUT.dsk, amorçable
-make -C arkabreakout run    # POM2, profil ii+
-make -C arkabreakout test   # tests sur Apple II+ 48 Ko émulé
+make -C arkabreakout           # ../dist/ARKABREAKOUT.dsk, bootable
+make -C arkabreakout run       # boot it in POM2 (Apple II+ preset)
+make -C arkabreakout test      # game checks, then the full paddle campaign
+make -C arkabreakout test-campaign   # the campaign alone
+make -C arkabreakout assets    # regenerate src/title.inc from the shared font
+make -C arkabreakout clean     # remove build/
+make -C arkabreakout distclean # also remove the disk
 ```
 
-Au titre, **espace** démarre au clavier ; **J** démarre au paddle.
-**C** calibre le paddle : aller à gauche, appuyer sur une touche, puis aller à
-droite et appuyer sur une touche. Échap annule ; une plage invalide revient au
-réglage par défaut. La calibration est conservée lors des nouvelles parties,
-jusqu'à la sortie du programme.
+The Makefile includes [`../dev/cc65/apple2.mk`](../dev/cc65/apple2.mk), which
+provides the tool variables, library paths, the DOS 3.3 disk builder and the
+`run` / `clean` / `distclean` targets. The disk boots a one-line Applesoft
+`HELLO` (`src/hello.bas`) that prints a banner and `BRUN ARKABREAKOUT`. From
+the repository root, `make test-arkabreakout` runs the same tests.
 
-| Commande | Action |
-|---|---|
-| A / flèche gauche | Déplacement continu à gauche |
-| D / flèche droite | Déplacement continu à droite |
-| S | Arrêter la raquette |
-| + / - pendant le jeu | Régler la vitesse au clavier, de 1 à 8 pixels par mise à jour |
-| Espace / bouton 0 du paddle | Lancer la balle |
-| P | Pause / reprise |
-| Échap | Retour à DOS |
-| Ctrl-RESET | Retour à DOS avec restauration de la page zéro |
+## Tests
 
-Le clavier II+ envoie des touches et ne signale pas leur relâchement : le
-mouvement continue jusqu'à S ou jusqu'à une commande dans l'autre direction.
-En pause, la simulation et les pages graphiques restent fixes.
+Both test scripts drive the real 6502 binary on an emulated 48 KB Apple II+
+and never modify the original disk image.
 
-La campagne contient **12 tableaux**, trois vies, et un score sur cinq chiffres.
-Les briques colorées demandent un impact, les blanches plusieurs. Les encoches
-des briques blanches indiquent les impacts restants ; les briques hachurées de
-métal sont indestructibles. Les briques ont un bord supérieur lumineux. Chaque impact sur une brique destructible
-rapporte 10 points. Le point d'impact sur la raquette détermine la direction et
-l'inclinaison du rebond ; les bords donnent les trajectoires les plus obliques.
-Les huit zones de la raquette donnent des trajectoires symétriques, de presque
-verticales au centre à environ 68° par rapport à la verticale aux extrémités.
-Les zones s'adaptent à la raquette élargie. Les deux composantes de vitesse
-varient ensemble pour garder une vitesse de déplacement comparable.
-La vitesse augmente avec la progression et toutes les douze briques détruites,
-avec un plafond de cinq petits pas par mise à jour.
+**`tests/test_game.py`** runs the game in `a2run` and checks, through the
+ld65 labels exported by `src/game.s`: start-up state, keyboard steering,
+pause with both HGR pages byte-for-byte identical, wall and ceiling bounces,
+brick hits and scoring, diagonal corner contacts (including a simultaneous
+ceiling and side-wall impact), multi-hit and steel bricks, aimed rebounds in
+all eight zones on both paddle widths (symmetric, flatter at the edges, with
+a bounded velocity magnitude), the speed ramp, capsule spawning, the three
+capsule effects and paddle centring on width changes, extra lives and their
+cap, the session best, loading of every sector with only legal cell values,
+defeat and replay, victory, paddle input, button launch and calibration,
+Escape and Ctrl-RESET returning to DOS with the RESET vector intact. The hard
+cases are prepared in memory during a pause, then played by the real binary.
+The capsule glyphs are also checked on all seven HGR alignments: erasing them
+must restore the coloured bricks exactly on both pages. The script also
+measures the update rate (see below).
 
-Une vie supplémentaire est accordée tous les **1 000 points**, avec un maximum
-de cinq vies en réserve. Le **record de session** apparaît au titre et à la fin
-de partie ; il est conservé lors des reprises et disparaît en quittant le jeu.
+**`tests/test_campaign.py`** builds `tests/pilot.c` on top of a2run's 6502
+core and plays a **complete campaign** with paddle steering alone: the pilot
+only moves the paddle and presses space to launch; it never touches the ball,
+the bricks, the lives or the score. All 12 sectors were cleared and victory
+reached after 66 344 updates, about 41 minutes of emulated Apple II time.
 
-Toutes les cinq briques détruites, une capsule tombe si aucune autre n'est déjà
-présente. Les lettres blanches permettent de reconnaître les trois bonus :
+Boot, rendering and the return to DOS were also checked with `a2shot`, which
+uses the POM2 core; the pictures in `screenshots/` come from it.
 
-| Capsule | Effet |
-|---|---|
-| W | Raquette élargie de 28 à 42 pixels |
-| S | Vitesse ramenée à deux pas par mise à jour, puis progression habituelle |
-| C | Raquette collante : la balle est retenue au prochain contact ; espace ou bouton la relance |
+Automated play does not replace hands-on sessions: balance, control comfort
+and real-hardware validation are tracked in [TODO.md](TODO.md).
 
-Une nouvelle capsule remplace le mode de raquette précédent. Les changements
-de largeur conservent le centre de la raquette, dans les limites du terrain. Une perte de vie
-ou un changement de tableau réinitialise les bonus et la vitesse de départ.
-La capsule rapporte aussi 10 points. Le bandeau inférieur indique le bonus
-actif, **READY** pour une balle prête à partir et **PAUSE** pendant la pause.
-Les indications de déplacement et de lancement s'adaptent au clavier ou au paddle.
+## Under the hood
 
-## Moteur
+**Toolchain.** ca65/ld65 with the shared libraries of [`../dev`](../dev/README.md):
+`apple2.inc`, `hgr.asm`, `kbd.asm`, `joy.asm`, `sound.asm` and `exit.asm`
+(clean return to DOS) from `dev/lib/apple2`, `hgr_text8.asm` and
+`hgr_scanline.inc` from `dev/lib/hgr`, the Beautiful Boot font from
+`dev/lib/font`, and the `apple2_hgr.cfg` linker script from `dev/cc65`.
+Routines are assembled only when referenced, so the game pays only for what
+it uses.
 
-Assembleur ca65/ld65 et bibliothèques communes `dev/lib/apple2` et `dev/lib/hgr`.
-Le programme est chargé à `$6000` ; le binaire mesure environ 8 Ko, largement sous la limite de 13,5 Ko.
-Les deux pages HGR sont réservées à `$2000–$5FFF`, et la grille, ses listes de
-modifications et la table du paddle occupent 544 octets dans `$1000–$1FFF`.
-DOS et le programme BASIC d'accueil sont conservés.
+**Memory map.** The program is loaded at `$6000` and the binary measures
+**7 670 bytes**, well under the 13 824-byte limit of the `$6000-$95FF`
+region below DOS. The two HGR pages are reserved at `$2000-$5FFF`. The brick
+grid, its two per-page change lists and the paddle lookup table take 544
+bytes in `$1000-$1FFF`. DOS and the `HELLO` program are preserved.
 
-Le terrain utilise 12 × 8 cellules de 21 × 12 pixels, avec une surface de brique
-visible de 18 × 8 pixels et des espaces entre briques. Les positions de la balle
-comportent une fraction sur huit bits pour chacun des deux axes ; chaque petit
-pas déplace au plus un pixel par axe. Les collisions testent les quatre coins et résolvent les deux
-axes séparément. Le moteur reste indépendant des couleurs affichées.
+**Playfield.** 12 × 8 cells of 21 × 12 pixels, each brick showing a 18 × 8
+pixel surface with gaps between bricks. Ball positions carry an 8-bit fraction
+on both axes; each sub-step moves at most one pixel per axis. Collisions test
+the ball's four corners and resolve the two axes separately. The engine is
+independent of the displayed colours.
 
-Chaque page conserve les positions des objets qu'elle affiche. Sur la page
-cachée, le moteur efface d'abord les anciens sprites par XOR, applique les
-briques modifiées, puis dessine les nouveaux sprites. Les capsules utilisent des
-glyphes blancs précalculés pour les sept alignements HGR. Le texte à taille
-normale reste blanc. Le bandeau n'est redessiné que lorsqu'il change. Le titre ×2 est précalculé à
-partir de la police partagée ; `make -C arkabreakout assets` le régénère.
+**Rendering.** Each HGR page remembers the positions of the objects it shows.
+On the hidden page the engine first erases the old sprites by XOR, applies the
+changed bricks, then draws the new sprites. Capsules use white glyphs
+pre-shifted for the seven HGR alignments. Normal-size text stays white. The
+banner is redrawn only when it changes.
 
-Le II+ n'offre pas de signal VBL lisible : une temporisation CPU s'ajoute au
-travail de simulation et de dessin. Les tests mesurent **environ 32 mises à jour
-par seconde au clavier, balle au repos**, et environ **29 mises à jour/s en
-jeu au clavier comme au paddle**, sur le CPU émulé à 1 MHz. Une attente plus
-courte au paddle compense le coût de la lecture de ses temporisateurs. La cadence
-varie avec les collisions, les sons et les mises à jour du bandeau ;
-il n'y a pas de garantie de bascule synchronisée avec le balayage vidéo.
+**Title and font.** The ×2 title is precomputed from the shared font by
+`tools/generate_title.py`, which reads `dev/lib/font` through
+`../dev/tools/fonts.py` and writes `src/title.inc` (16 scanlines of 24 bytes);
+`make assets` regenerates it.
 
-## Validation
+**Pacing.** The II+ has no readable VBL, so a CPU delay is added to the
+simulation and drawing work. The tests measure about **32 updates per second
+on the keyboard with the ball at rest** and about **29 updates per second
+during play, keyboard or paddle**, on the emulated 1 MHz CPU. A shorter wait
+in paddle mode compensates for the cost of reading its timers. The rate varies
+with collisions, sounds and banner updates; page flips are not synchronised
+with the video beam.
 
-`make test-arkabreakout` à la racine lance les tests dans `a2run` : démarrage,
-commandes, pause et cohérence des deux pages, rebonds, vitesse maximale,
-briques résistantes et métal, vies, les trois capsules, chargement de chaque
-tableau, défaite/reprise, victoire, paddle et calibration, Échap et RESET.
-Les tests couvrent aussi les huit zones de rebond sur les deux largeurs de
-raquette, les contacts diagonaux, les vies bonus et le record de session.
-Les cas difficiles sont préparés en mémoire pendant la pause, puis exécutés par
-le véritable binaire 6502. Le disque d'origine n'est jamais modifié.
+## Credits and licence
 
-Les glyphes des capsules sont aussi vérifiés sur les sept alignements : leur
-effacement doit restituer exactement les briques colorées des deux pages.
-Le démarrage, le rendu et le retour à DOS ont également été contrôlés avec
-`a2shot`, qui utilise le cœur de POM2 ; les captures sont dans `screenshots/`.
+Code and boards: VERHILLE Arnaud, **GPL-3.0**, like the whole repository.
+Beautiful Boot font: Michael Pohoreski. No graphics, level or sound from the
+arcade game is reused.
 
-`make -C arkabreakout test-campaign` pilote une campagne entière sur la machine
-48 Ko émulée. Il déplace uniquement la raquette et appuie sur espace pour
-lancer ; il ne modifie ni la balle, ni les briques, ni les vies ou le score.
-Les 12 tableaux ont été terminés et la victoire atteinte après 66 344 mises à
-jour, soit environ 41 minutes de temps Apple II émulé. Ce test est également
-inclus dans `make test-arkabreakout` et `make test`.
-
-Ce pilotage automatique ne remplace pas des parties manuelles : équilibrage,
-confort des commandes et validation sur un vrai Apple II+ figurent dans
-[TODO.md](TODO.md).
-
-Code et niveaux originaux : GPL-3.0, comme le dépôt. Police Beautiful Boot :
-Michael Pohoreski. Aucun graphisme, niveau ou son du jeu d'arcade n'est repris.
+Part of [pom2games](../README.md); shared libraries and tools are described in
+[`dev/README.md`](../dev/README.md).

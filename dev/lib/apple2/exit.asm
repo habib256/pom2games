@@ -38,6 +38,7 @@
 ; it runs with DOS's zero page and must return without relying on game ZP.
 ;
 ; A program that never exits (it runs until RESET or power-off) can skip both.
+; apple2_return is assembled only if referenced before the include (.ifref).
 ; The snapshot goes to BSS unless the program defined apple2_zp_buf (256 bytes)
 ; before the include: $0200-$02FF is free while no DOS command is running.
 ; Caller responsibility: .include "apple2.inc" first.
@@ -96,11 +97,13 @@ apple2_exit:
 .endif
         JMP     DOSWARM
 
+.ifref apple2_return            ; only for programs started by CALL
 apple2_return:
         JSR     exit_restore
         LDX     apple2_entry_sp ; back on the caller's stack, then return to it
         TXS
         RTS
+.endif
 
 ; exit_restore: RESET vector + zero page (live text window and cursor kept) +
 ;   a clean text display. Shared by apple2_exit / apple2_return.

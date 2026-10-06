@@ -7,7 +7,7 @@
  * dropped, not wrapped — a uchar/unsigned cast of a negative coord would
  * alias back into a valid pixel).
  *
- * Split from gfx_draw.c so a line-only program skips the symmetry loop.
+ * Split from the former gfx_draw.c so a line-only program skips the symmetry loop.
  */
 #include "gfx.h"
 

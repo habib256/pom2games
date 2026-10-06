@@ -2,12 +2,14 @@
 """Boot actual disk payloads, quit/reset to BASIC, LIST and RUN repeatedly."""
 from pathlib import Path
 import argparse
-import re
-import subprocess
-from test_score import file_sectors, read_file
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 GAME = ROOT / 'micro-sokoban'
+sys.path.insert(0, str(ROOT / 'dev/tools'))
+import a2test
+import dos33
+import micro_sokoban_levels as levels
 
 
 def main():
@@ -16,18 +18,16 @@ def main():
     ap.add_argument('--a2shot', type=Path, default=ROOT / 'dev/tools/a2shot/a2shot')
     ap.add_argument('--disk', type=Path, default=ROOT / 'dist/MICRO-SOKOBAN.dsk')
     args = ap.parse_args()
-    labels = {n: int(a, 16) for a, n in re.findall(
-        r'^al ([0-9A-F]+) \.(\w+)$', (GAME / 'build/micro_sokoban.lbl').read_text(), re.M)}
+    labels = a2test.labels(GAME / 'build/micro_sokoban.lbl')
     image = args.disk.read_bytes()
-    assert read_file(image, 'MICRODATA') == (GAME / 'build/micro_sokoban.lz').read_bytes(), \
+    assert dos33.read_file(image, 'MICRODATA') == (GAME / 'build/micro_sokoban.lz').read_bytes(), \
         'disk program differs from the build; regenerate and reload the disk in the emulator'
-    hello = b''.join(image[offset:offset+256] for offset in file_sectors(image, 'HELLO'))
+    hello = b''.join(image[offset:offset+256] for offset in dos33.file_sectors(image, 'HELLO'))
     hello = hello[2:2 + int.from_bytes(hello[:2], 'little')]
 
     for emulator in (args.a2run, args.a2shot):
         if not emulator.exists():
             continue
-        native = emulator == args.a2shot
         enter = f'until:{labels["title_wait"]:04X}:3600'
         steps = [enter]
         # Both exit paths must restore HELLO, including its leading sentinel.
@@ -36,12 +36,7 @@ def main():
                        'key:L', 'wait:60', 'key:\x1b', 'wait:600', 'key:Q']):
             steps += leave + ['wait:600', f'peek:0800:{len(hello)+1}', 'peek:0067:6',
                               'key:LIST\r', 'wait:180', 'key:RUN\r', enter]
-        if native:
-            steps = [step.replace('\x1b', '\\e').replace('\r', '\\r') for step in steps]
-        result = subprocess.run([str(emulator), '--disk', str(args.disk), *steps],
-                                check=True, capture_output=True, text=True, timeout=60)
-        rows = [bytes.fromhex(row) for row in re.findall(r'^[0-9A-F]{4}: (.+)$', result.stdout, re.M)]
-        raw = b''.join(rows)
+        raw = a2test.run(args.disk, steps, emulator=emulator, timeout=60).data
         size = len(hello) + 1 + 6
         assert len(raw) == 3 * size, (emulator, len(raw))
         for offset in range(0, len(raw), size):

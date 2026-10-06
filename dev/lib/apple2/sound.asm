@@ -15,7 +15,7 @@
 ; page costs one more cycle per turn: the pitch shifts by <1 %, so no assert.
 ;
 ; Caller responsibility: .include "apple2.inc" first (SPKR).
-; Mirror for C: a2_tone() in ../apple2c/apple2io.h.
+; Mirror for C: a2_tone() in ../apple2c/apple2game.h.
 ; ============================================================================
 
 .ifndef _SOUND_ASM_LOADED_

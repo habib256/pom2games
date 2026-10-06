@@ -100,7 +100,7 @@ static unsigned char bonus_gone;   /* set the tick a bonus expires -> loop erase
 /* "HGR Snake" title colour, cycled through the four NTSC artifact colours on every
  * apple — a little visual reward. The recolour is all-asm: hgr_clear_pixrect
  * (hgr_pixrect_asm) wipes the label box, hgr_puts_color draws it again with
- * the one-pass tinted glyph blitter (hgr_blit_glyph_color). */
+ * the one-pass tinted glyph blitter (hgr_blit_glyph, hgr_text16_asm.s). */
 static const unsigned char title_hues[4] = { HGR_VIOLET, HGR_GREEN, HGR_ORANGE, HGR_BLUE };
 static unsigned char title_hue;    /* index into title_hues, advanced per apple */
 /* Throttle iterations; lower = faster, shrinks per apple. Gameplay now polls

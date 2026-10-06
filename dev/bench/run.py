@@ -11,7 +11,7 @@ import re
 import sys
 import tempfile
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tests'))
-from test_hgr import DEV, ROOT, build, run
+from test_hgr import DEV, ROOT, build, run, a2test
 
 CASES={
  'hgr_clear': ('hgr_clear(0);',False),
@@ -50,11 +50,8 @@ def measure(work,name,call,dhgr):
     mapfile=source.with_suffix('.map'); labels=source.with_suffix('.lbl')
     run(['cl65','-t','none','-C',DEV/'cc65/apple2_hgr_c.cfg','-m',mapfile,'-Ln',labels,
          '-o',binary,work/'crt0_apple2.o',obj,work/'markers.o',work/'apple2io_asm.o',work/'hgrc.lib'])
-    points=dict((name,int(addr,16)) for addr,name in re.findall(r'al ([0-9A-Fa-f]+) \.(_bench_\w+)',labels.read_text()))
-    hello=work/'hello.bas';hello.write_text('10 PRINT CHR$(4);"BRUN BENCH"\n')
-    disk=source.with_suffix('.dsk')
-    run(['python3',DEV/'tools/dos33.py','--master',DEV/'tools/dos33_system.bin','--out',disk,
-         '--bas',f'HELLO={hello}','--bin',f'BENCH={binary}@0x6000'])
+    points=a2test.labels(labels,prefix='_bench_')
+    disk=a2test.build_disk(work,'BENCH',binary)
     emulator=DEV/'tools'/('a2shot/a2shot' if dhgr else 'a2run/a2run')
     output=run([emulator,*(['--iie'] if dhgr else []),'--disk',disk,
                 f'until:{points["_bench_begin"]:04X}:1500',f'until:{points["_bench_end"]:04X}:1500'])

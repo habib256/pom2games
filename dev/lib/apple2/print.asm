@@ -17,7 +17,11 @@
 ;
 ; Caller does:  LDA #<msg / LDX #>msg / JSR print_str_ax
 ; Caller responsibility: COUT in scope (.include "apple2.inc").
+; Assembled only if print_str_ax was referenced before the include (.ifref).
 ; ============================================================================
+
+.ifndef _PRINT_ASM_LOADED_
+_PRINT_ASM_LOADED_ = 1
 
 .ifndef print_ptr_lo
 .segment "ZEROPAGE"
@@ -27,6 +31,7 @@ print_ptr_hi:   .res 1
 
 .segment "CODE"
 
+.ifref print_str_ax
 print_str_ax:
         STA     print_ptr_lo
         STX     print_ptr_hi
@@ -40,3 +45,6 @@ print_str_ax:
         INC     print_ptr_hi    ; Y wrapped -> next page
         BNE     @lp             ; always taken
 @done:  RTS
+.endif
+
+.endif  ; _PRINT_ASM_LOADED_

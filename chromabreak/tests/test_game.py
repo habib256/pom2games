@@ -4,19 +4,16 @@ import argparse
 import importlib.util
 from pathlib import Path
 import re
-import subprocess
 import sys
 import tempfile
 ROOT=Path(__file__).resolve().parents[2]
+sys.path.insert(0,str(ROOT/'dev/tools'))
+import a2test
 TILE_TOP=int(re.search(r'^#define CB_TILE_TOP (\d+)$',(ROOT/'chromabreak/src/layout.h').read_text(),re.M)[1])
 
-def run(args):
-    args=[str(a) for a in args]
-    args=[step for a in args for step in (["wait:1",a] if a.startswith("until:") else [a])]
-    result=subprocess.run(args,capture_output=True,text=True)
-    if result.returncode:
-        raise RuntimeError(result.stdout+result.stderr)
-    return result.stdout
+def run(disk,steps):
+    # a2shot wants a frame between a key and the next until: breakpoint.
+    return a2test.run(disk,steps,iie=True,pad_until=True).out
 
 def main():
     ap=argparse.ArgumentParser()
@@ -65,12 +62,11 @@ def main():
     if sys.platform!='darwin' or not emulator.exists():
         print('SKIP IIe execution: requires macOS arm64 a2shot (make -C dev/tools/a2shot)')
         return
-    labels={n:int(v,16) for v,n in re.findall(r'al ([0-9a-fA-F]+) \.(_\w+)',a.labels.read_text())}
-    def peek(name,length=1): return f'peek:{labels["_"+name]:04X}:{length}'
-    def poke(name,value): return f'poke:{labels["_"+name]:04X}:{value:02X}'
+    labels=a2test.labels(a.labels,strip=True)
+    peek,poke=labels.peek,labels.poke
     def values(out,name):
-        return [bytes.fromhex(s) for s in re.findall(rf'(?m)^{labels["_"+name]:04X}: ([0-9A-F ]+)$',out)]
-    tick=f'until:{labels["_game_tick"]:04X}:3000'
+        return [bytes.fromhex(s) for s in re.findall(rf'(?m)^{labels[name]:04X}: ([0-9A-F ]+)$',out)]
+    tick=labels.until('game_tick',3000)
     with tempfile.TemporaryDirectory(prefix='chromabreak-') as folder:
         steps=[tick,'peek:C018:8',peek('mouse_slot'),'key: ',tick,tick,peek('state'),peek('remaining'),
                peek('ball_live'),peek('frames',2),'wait:120',peek('frames',2),
@@ -79,7 +75,7 @@ def main():
                'wait:120',peek('ball_x'),peek('ball_y'),'key:P',tick,tick,peek('paused'),
                'key:A',tick,tick,'wait:20','key:S',tick,tick,peek('pad_x'),
                'key:\\e',tick,'key:Q','wait:600','peek:C018:8']
-        out=run([emulator,'--iie','--disk',a.disk,*steps])
+        out=run(a.disk,steps)
         flags=[bytes.fromhex(s) for s in re.findall(r'(?m)^C018: ([0-9A-F ]+)$',out)]
         assert not flags[0][2]&128 and flags[0][7]&128,'DHGR title'
         assert flags[-1][2]&128 and not flags[-1][7]&128,'ProDOS text exit'
@@ -93,14 +89,12 @@ def main():
         assert ys[0]!=ys[1] and ys[-2]==ys[-1] and xs[0]==xs[1],'motion/pause'
         assert values(out,'pad_x')[0][0]<60,'keyboard controls'
         for key in ('\\r','K'):
-            launch=run([emulator,'--iie','--disk',a.disk,tick,'key:'+key,tick,tick,
-                        peek('state'),peek('ball_live'),peek('mode')])
+            launch=run(a.disk,[tick,'key:'+key,tick,tick,peek('state'),peek('ball_live'),peek('mode')])
             assert values(launch,'state')==[b'\1'] and values(launch,'ball_live')==[b'\1']
             assert values(launch,'mode')==[b'\0'],'quick keyboard launch'
         for choice, expected in enumerate(((5,26,2,4,10,4),(3,22,3,6,8,5),(2,18,4,7,6,6)),1):
             fields=('lives','pad_width','speed','speed_limit','ramp_period','reward_period')
-            selected=run([emulator,'--iie','--disk',a.disk,tick,'key:'+str(choice),tick,
-                          'key: ',tick,tick,*[peek(field) for field in fields]])
+            selected=run(a.disk,[tick,'key:'+str(choice),tick,'key: ',tick,tick,*[peek(field) for field in fields]])
             assert tuple(values(selected,field)[0][0] for field in fields)==expected,'difficulty configuration'
         # Last brick transitions through all 12 boards, using actual collision
         # and level-loader code; scenario injection is limited to test setup.
@@ -112,7 +106,7 @@ def main():
                       poke('dy',255),poke('vx',0),poke('vy',255),poke('fraction_y',255),
                       tick,peek('level'),peek('state'),peek('ball_live')]
         steps += ['key:\\e',tick,'key: ',tick,tick,peek('level'),peek('state'),'reset','wait:600','peek:C018:8']
-        out=run([emulator,'--iie','--disk',a.disk,*steps])
+        out=run(a.disk,steps)
         assert [s[0] for s in values(out,'level')]==list(range(1,len(levels)+1))+[0]
         assert [s[0] for s in values(out,'state')]==[1]*(len(levels)-1)+[4,1]
         final=bytes.fromhex(re.findall(r'(?m)^C018: ([0-9A-F ]+)$',out)[-1])

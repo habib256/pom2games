@@ -5,7 +5,7 @@ Byte-for-byte port of hgr_inflate_x2 (dev/lib/hgrc/hgr_x2.c) so the
 demo needs NO runtime inflate: the x2 bytes are embedded as C constants. Keeping
 the demo off hgr_x2.o also lets it link under the in-app DevBench (whose
 GEN2-C link set doesn't pull that module). Masters come verbatim from
-dev/lib/gen2/sprites/sprites_fauna_hgr.asm (16 rows x 3 bytes, 7px/byte).
+POM1's dev/lib/gen2/sprites/sprites_fauna_hgr.asm (16 rows x 3 bytes, 7px/byte).
 """
 
 # hgr.h HGR_X2_* colour ids

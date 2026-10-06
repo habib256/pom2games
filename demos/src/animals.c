@@ -13,7 +13,7 @@
  *   rabbit=VIOLET spider=ORANGE cat=BLUE snake=GREEN
  *
  * SMOOTH 2px MOTION via 7 pre-shifted phases per animal (even shifts keep the
- * NTSC parity so the hue survives), baked OFFLINE by gen_x2.py. Runtime picks
+ * NTSC parity so the hue survives), baked OFFLINE by animals_gen_x2.py. Runtime picks
  * phase (x%14)/2 at byte column 2*(x/14). Vertical is 1px-smooth.
  *
  * PERFORMANCE (per-frame budget is dominated by the 16 sprite blits):
@@ -40,7 +40,7 @@
 
 #define NA   8u                       /* 8 fauna animals                        */
 
-/* ===== 7-phase pre-shifted x2 colour banks (TRIMMED per phase), by gen_x2.py = */
+/* ===== 7-phase pre-shifted x2 colour banks (TRIMMED per phase), by animals_gen_x2.py */
 /* dog -> x2 WHITE, 7 phases (2px), TRIMMED to 24 rows x per-phase width [5, 5, 5, 5, 5, 5, 4]: 816 B */
 #define DOG_YOFF 8u
 #define DOG_ROWS 24u

@@ -2,7 +2,7 @@
 /*
  * gfx_line.c — card-neutral Bresenham line. See gfx.h.
  *
- * Split from gfx_draw.c so a program that draws lines + rectangles only doesn't
+ * Split from the former gfx_draw.c so a program that draws lines + rectangles only doesn't
  * drag in the circle (Bresenham circle) and ellipse (128-byte cos/sin LUTs +
  * soft-multiply) code that ld65 can't strip per-function.
  *

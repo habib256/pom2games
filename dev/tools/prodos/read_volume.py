@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # GPL-3.0. Adapted from pom2games sibling A2 File Cmd, tools/mkvolume.py
 # and tools/prodos_read.py (VERHILLE Arnaud).
-"""Relire une image ProDOS : l'inverse de mkvolume.py, en cinquante lignes.
+"""Relire une image ProDOS : l'inverse de build_volume.py, en cinquante lignes.
 
 Sert au test de l'ecrivain (aller-retour octet a octet) et au controle d'une
-image publiee : `python3 tools/prodos_read.py dist/A2FILECMD-PRODOS-140K.po` liste ce
+image publiee : `python3 dev/tools/prodos/read_volume.py dist/CHROMABREAK.po` liste ce
 qu'elle contient, comme le ferait un CATALOG.
 """
 import sys

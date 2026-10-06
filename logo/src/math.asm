@@ -16,18 +16,18 @@
 ;   negate_prod         -- prod_lo:prod_hi = -prod_lo:prod_hi (2's comp)
 ;
 ; This module owns no state of its own. All scratch / argument / result
-; slots live in the caller's ZP and BSS (declared in TMS_Logo.asm) and are
+; slots live in the caller's ZP and BSS (declared in logo.s) and are
 ; consumed via .importzp / .import below.
 ; ============================================================================
 
 .include "a2logo.inc"          ; Apple II: ECHO = COUT
 
-; --- imported ZP slots (defined in TMS_Logo.asm) ---------------------------
+; --- imported ZP slots (defined in logo.s) ---------------------------
 .importzp tmp, tmp2
 .importzp arg_lo, arg_hi, arg2_lo, arg2_hi
 .importzp th_lo, th_hi
 
-; --- imported BSS slots (defined in TMS_Logo.asm LINEBUF) ------------------
+; --- imported BSS slots (defined in logo.s LINEBUF) ------------------
 .import prod_lo, prod_hi, sign_flag, lfsr_lo, lfsr_hi
 
 ; --- exported routines -----------------------------------------------------
@@ -45,7 +45,7 @@
 ;   Standard right-shift Galois variant: shift the 16-bit value right by 1;
 ;   if the bit shifted out (= old bit 0 of lfsr_lo) was 1, XOR taps into hi.
 ;
-;   Intentional duplicate of lib/m6502/prng16.asm:prng16 (same $B400
+;   Intentional duplicate of POM1's lib/m6502/prng16.asm:prng16 (same $B400
 ;   polynomial). Kept distinct because the two consumers have different state
 ;   placement contracts: roll_lfsr's lfsr_lo/hi lives in BSS (TMS_Logo's
 ;   LINEBUF), prng16's prng_lo/hi lives in ZEROPAGE (arcade games' tight

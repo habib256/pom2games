@@ -13,9 +13,8 @@ unsigned char hgr_set_carrier(unsigned char color);
 
 /* --- Zero-page parameter blocks (owned by the corresponding assembler kernels) -------------------- */
 extern const unsigned char *hgr_g_glyph;
-extern unsigned char hgr_g_col, hgr_g_mask, hgr_g_y;
-extern void hgr_blit_glyph(void);
-extern void hgr_blit_glyph_color(void);
+extern unsigned char hgr_g_col, hgr_g_bit, hgr_g_y;
+extern void hgr_blit_glyph(void);      /* 16x16, white or tinted by hgr_z_* */
 
 extern unsigned char hgr_f_y0, hgr_f_rows, hgr_f_col0, hgr_f_cols, hgr_f_val;
 extern void hgr_fill_rect_asm(void);
@@ -37,7 +36,7 @@ extern unsigned char hgr_z_col0, hgr_z_ncols, hgr_z_y0, hgr_z_rows;
 extern unsigned char hgr_z_ce, hgr_z_co, hgr_z_hi;
 extern void hgr_colorize_asm(void);
 
-extern unsigned char hgr_t_col, hgr_t_bit, hgr_t_n, hgr_t_color;
+extern unsigned char hgr_t_col, hgr_t_bit, hgr_t_n;
 extern const unsigned char *hgr_t_s;
 extern const unsigned char *hgr_t_font;
 extern void hgr_puts_run(void);
@@ -73,7 +72,7 @@ extern void hgr_msu_run(void);         /* save-under + masked draw, one pass    
 
 #pragma zpsym("hgr_g_glyph")
 #pragma zpsym("hgr_g_col")
-#pragma zpsym("hgr_g_mask")
+#pragma zpsym("hgr_g_bit")
 #pragma zpsym("hgr_g_y")
 #pragma zpsym("hgr_f_y0")
 #pragma zpsym("hgr_f_rows")
@@ -100,7 +99,6 @@ extern void hgr_msu_run(void);         /* save-under + masked draw, one pass    
 #pragma zpsym("hgr_t_col")
 #pragma zpsym("hgr_t_bit")
 #pragma zpsym("hgr_t_n")
-#pragma zpsym("hgr_t_color")
 #pragma zpsym("hgr_t_s")
 #pragma zpsym("hgr_t_font")
 #pragma zpsym("hgr_u_lo")

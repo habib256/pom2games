@@ -1,7 +1,7 @@
 ; ============================================================================
 ; sprites_emotes.asm  --  14 sprites (16x16, TMS9918 sprite mode)
-; derived: dev/lib/gen2/sprites/sprites_emotes_hgr.asm -- after editing this master rerun:
-;   python3 tools/build_hgr_sprites.py --only emotes
+; Copied from POM1 (dev/lib/tms9918/sprites_emotes.asm, the master its
+;   tools/build_hgr_sprites.py derived sprites_emotes_hgr.asm from). Edit it here.
 ; ----------------------------------------------------------------------------
 ; SCROLL-O-SPRITES by Quale, May 2013, CC-BY-3.0. Lifted from
 ; pic/undefined - Imgur.png by tools/extract_scroll_expressions.py and

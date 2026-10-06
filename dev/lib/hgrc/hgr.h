@@ -186,7 +186,7 @@ void hgr_blit7(unsigned x, unsigned char y, unsigned char wbytes,
  * hgr_sprite gives BOTH: byte-aligned blit speed AND 1px-precise x.
  *
  * The trick (lifted from Sirius' 1983 arcade engine, see
- * sketchs/hgr/a2port_buzzard_bait/DISASSEMBLY.md S3): the sprite is baked
+ * POM1's sketchs/hgr/a2port_buzzard_bait/DISASSEMBLY.md S3): the sprite is baked
  * OFFLINE into 7 PRE-SHIFTED copies, one per sub-byte phase (x % 7 == 0..6).
  * At runtime the engine just selects the phase for x%7 and does a byte-aligned
  * blit at column x/7 -- zero per-pixel shifting; the inner loop is hgr_blit7.
@@ -355,7 +355,7 @@ void hgr_ellipse(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1);
 
 /* Draw a string in one of the four NTSC artifact COLOURS the HGR HIRES screen
  * can show (it has no per-pixel colour). Drawn in ONE tinted pass (hgr_text16_asm.s
- * hgr_blit_glyph_color ORs the colour's carrier bit per pixel directly — no
+ * hgr_blit_glyph ORs the colour's carrier bit per byte directly — no
  * white-then-recolorize round trip), and only the glyph itself is touched, so a
  * coloured label can sit right next to other content without bleeding a tint
  * over it. There is NO red on HIRES — orange is the warm tone. See hgr_puts

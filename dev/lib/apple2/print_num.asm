@@ -10,10 +10,15 @@
 ; No ZP usage — intermediate digits live on the 6502 stack.
 ;
 ; Caller responsibility: COUT in scope (.include "apple2.inc").
+; Assembled only if referenced before the include (.ifref).
 ; ============================================================================
+
+.ifndef _PRINT_NUM_ASM_LOADED_
+_PRINT_NUM_ASM_LOADED_ = 1
 
 .segment "CODE"
 
+.ifref print_byte_dec
 print_byte_dec:
         ; Hundreds digit -- subtract 100 until carry clear, X counts how many.
         LDX     #$00
@@ -44,3 +49,6 @@ print_byte_dec:
         ; Units digit -- whatever's left in A.
         ORA     #'0' | $80
         JMP     COUT
+.endif
+
+.endif  ; _PRINT_NUM_ASM_LOADED_

@@ -20,18 +20,14 @@
 ;   4 Acorn                             (7-cell methuselah, chaotic)
 ;   5 Four Gliders                      (spaceships colliding in center)
 ; =============================================
-; Assemble:
-;   Build: make
-;        -o build/HGR_Life.bin build/HGR_Life.o
+; Build: make (demos/) -> dist/DEMO.dsk; from the DEMO menu, BLOAD LIFE +
+; CALL 24576. Tap any key to change pattern, ESC to exit.
 ;
-; Or just:
-;   python3 software/hgr/emit_HGR_Life_txt.py
+; Original POM1 build: python3 software/hgr/emit_HGR_Life_txt.py, then
+; File > Load Memory HGR_Life.txt and E000R in the Woz Monitor (GEN2 card).
 ;
-; Run in POM1: plug GEN2 card (auto-enabled when loading from
-; software/hgr/), File > Load Memory HGR_Life.txt, then E000R
-; in the Woz Monitor. Tap any key to change pattern, ESC to exit.
-;
-; Memory footprint (Parmigiani 8 KB dual-bank + GEN2):
+; Memory footprint of the ORIGINAL (Parmigiani 8 KB dual-bank + GEN2; here
+; the grids sit at $1000 / $1700 and the code is BRUN at $6000, see above):
 ;   $0200-$08E3   grid_a       (1764 B, zeroed at boot — overwrites Wozmon
 ;                               keyboard input buffer at $0200-$027F, but
 ;                               that's only used while typing)
@@ -169,26 +165,7 @@ next_pattern:
         STA dst_hi
         RTS
 
-; =============================================
-; clear_hgr: zero $2000-$3FFF (8 KB framebuffer)
-; Trashes A, X, Y; uses hgr_lo_p / hgr_hi_p as pointer.
-; =============================================
-clear_hgr:
-        LDA #$00
-        STA hgr_lo_p
-        LDA #$20
-        STA hgr_hi_p
-        LDY #0
-        LDA #0              ; stays 0 for the whole run
-@lp:
-        STA (hgr_lo_p),Y
-        INY
-        BNE @lp
-        INC hgr_hi_p
-        LDX hgr_hi_p
-        CPX #$40
-        BNE @lp
-        RTS
+; clear_hgr: dev/lib/hgr/hgr_clear.asm (included below).
 
 ; =============================================
 ; clear_grids: zero 1764 bytes at grid_a AND grid_b.
@@ -564,5 +541,6 @@ row_ofs_hi:
 ;                   + (y/64)*$28
 .include "hgr_scanline.inc"
 .include "hgr.asm"               ; dev/lib/apple2: hgr_init_clear
+.include "hgr_clear.asm"         ; dev/lib/hgr: clear_hgr
 .include "kbd.asm"               ; poll_key
 .include "exit.asm"              ; apple2_zp_save / apple2_return

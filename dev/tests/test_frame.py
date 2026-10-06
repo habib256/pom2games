@@ -9,7 +9,7 @@ from pathlib import Path
 import re
 import shutil
 import tempfile
-from test_hgr import DEV, run
+from test_hgr import DEV, run, a2test
 
 
 def build(work):
@@ -22,12 +22,8 @@ def build(work):
     labels, binary = work/'frame.lbl', work/'frame.bin'
     run(['cl65','-t','none','-C',DEV/'cc65/apple2_hgr_c.cfg',
          '-Ln',labels,'-o',binary,*objects])
-    points = {name:int(addr,16) for addr,name in re.findall(r'al ([0-9A-Fa-f]+) \.(_frame_\w+)',labels.read_text())}
-    hello = work/'hello.bas'; hello.write_text('10 PRINT CHR$(4);"BRUN FRAME"\n')
-    disk = work/'frame.dsk'
-    run(['python3',DEV/'tools/dos33.py','--master',DEV/'tools/dos33_system.bin',
-         '--out',disk,'--bas',f'HELLO={hello}','--bin',f'FRAME={binary}@0x6000'])
-    return disk, points
+    points = a2test.labels(labels, prefix='_frame_')
+    return a2test.build_disk(work, 'FRAME', binary), points
 
 
 def check(emulator, disk, points, options, mode, timeout=False):

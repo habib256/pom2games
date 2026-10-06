@@ -2,36 +2,29 @@
 #
 #   make            -> ../dist/MAZE3D.dsk (bootable 5.25" DOS 3.3 image)
 #   make run        -> boot it in POM2 as an Apple II+
+#   make test       -> maze generation across seeds, in a2shot
 #   make clean      -> remove build/ (the disk stays)
 #   make distclean  -> remove build/ and the disk
 #
-# Needs cc65 (ca65/ld65) and python3 only: the shared ../dev tree has the rest,
-# DOS 3.3 system tracks included. `make run` uses the installed POM2 app.
+# Needs cc65 (ca65/ld65) and python3 only; the shared rules and tool
+# variables come from ../dev/cc65/apple2.mk.
 
-CA65    ?= ca65
-LD65    ?= ld65
-PYTHON  ?= python3
 DEV     ?= ../dev
-POM2    ?= /Applications/POM2.app/Contents/MacOS/POM2
-SYSTEM  ?= $(DEV)/tools/dos33_system.bin
+include $(DEV)/cc65/apple2.mk
 
-INCS    := -I src -I $(DEV)/lib/apple2 -I $(DEV)/lib/hgr
-BUILD   := build
-DIST    ?= ../dist
 DISK    := $(DIST)/MAZE3D.dsk
 BIN     := $(BUILD)/maze3d.bin
-LOAD    := 0x6000
 OBJS    := $(BUILD)/maze3d.o $(BUILD)/sprites_trollkind.o $(BUILD)/sprites_characters.o
 
 all: $(DISK)
 
-$(BUILD)/maze3d.o: src/maze3d.s src/narrator.asm $(wildcard $(DEV)/lib/apple2/*) $(wildcard $(DEV)/lib/hgr/*)
+$(BUILD)/maze3d.o: src/maze3d.s src/narrator.asm $(A2_ASM_DEPS)
 	@mkdir -p $(BUILD)
-	$(CA65) -t none $(INCS) -l $(BUILD)/maze3d.lst -o $@ $<
+	$(CA65) -t none $(A2_INCS) -l $(BUILD)/maze3d.lst -o $@ $<
 
 $(BUILD)/%.o: src/%.asm
 	@mkdir -p $(BUILD)
-	$(CA65) -t none $(INCS) -o $@ $<
+	$(CA65) -t none $(A2_INCS) -o $@ $<
 
 $(BIN): $(OBJS) src/maze3d.cfg
 	$(LD65) -C src/maze3d.cfg -m $(BUILD)/maze3d.map -o $@ $(OBJS)
@@ -44,22 +37,14 @@ $(BUILD)/maze3d_score.bin: Makefile
 	@mkdir -p $(BUILD)
 	@printf 'MZ3\001\000\000\000\245' > $@
 
-$(DISK): $(BIN) $(BUILD)/maze3d_text.bin $(BUILD)/maze3d_score.bin src/hello.bas $(DEV)/tools/dos33.py $(SYSTEM)
+$(DISK): $(BIN) $(BUILD)/maze3d_text.bin $(BUILD)/maze3d_score.bin $(DOS33_DEPS)
 	@mkdir -p $(DIST)
-	$(PYTHON) $(DEV)/tools/dos33.py --master $(SYSTEM) --out $@ \
-	    --bas HELLO=src/hello.bas \
-	    --bin MAZE3D=$(BIN)@$(LOAD) \
+	$(DOS33) --bin MAZE3D=$(BIN)@$(LOAD) \
 	    --bin MAZETEXT=$(BUILD)/maze3d_text.bin@0x1100 \
 	    --bin MAZESCORE=$(BUILD)/maze3d_score.bin@0x1F00 \
 	    --catalog
 
-run: $(DISK)
-	$(POM2) --preset ii+ $(DISK)
+test: $(DISK)
+	$(PYTHON) tests/check_generation.py
 
-clean:
-	rm -rf $(BUILD)
-
-distclean: clean
-	rm -f $(DISK)
-
-.PHONY: all run clean distclean
+.PHONY: test

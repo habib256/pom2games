@@ -20,8 +20,9 @@ voisine avec un décor coloré. Voir aussi la règle dans [`../hgr`](../hgr/READ
 
 ## Compilation par archive
 
-Les noyaux assembleur sont séparés : initialisation, effacement, rectangles
-en octets, rectangles en pixels, cellules, pixels, texte ×1, texte ×2,
+Les noyaux assembleur sont séparés : initialisation (mode, effacement initial,
+LORES, basculement des tables de lignes), effacement, rectangles en octets,
+rectangles en pixels, cellules, pixels, coloration, texte ×1, texte ×2,
 conversion décimale, sprites bitmap, sprites alignés et sprites prédécalés.
 Les wrappers C suivent le même découpage. La police et les paramètres
 partagés sont définis une seule fois dans leurs propres objets.
@@ -32,26 +33,45 @@ inutilisées n'occupent ni code ni page zéro. Les drapeaux d'exclusion par
 programme ont été supprimés. Les trois démos C partagent une seule archive.
 Un lien direct de tous les `.o` embarquerait au contraire toutes les familles.
 
+Trois objets portent les commutateurs de mode : `hgr_mode_asm.s` (toujours lié :
+`hgr_init`, `hgr_text_restore`, `hgr_flip_rows`), `hgr_mode_clear_asm.s`
+(`hgr_init_clear`) et `hgr_lores_init_asm.s` (`hgr_lores_init`). Un programme ne
+paie que les points d'entrée qu'il appelle.
+
+Coûts mesurés par `make bench` (cycles à 1,02 MHz) : effacement d'une page
+51 000 (boucle auto-modifiée de `HGR_CLEAR_LOOP`, lib/apple2), basculement de
+page 3 400 (`hgr_flip_rows` : un EOR par ligne au lieu d'une boucle C), texte
+8x8 `hgr_puts8` ~9 000 pour « APPLE II » (glyphe décalé en deux octets par
+ligne), texte 16x16 `hgr_puts` par le blitter couleur avec les porteuses
+blanches `$7F/$7F` (un seul blitter, ~5 fois plus rapide que l'ancien tracé
+pixel par pixel). Les enveloppes C lisent `hgr_col7` / `hgr_phase7` /
+`hgr_mask7` au lieu de diviser par 7, et les tables de lignes se calculent
+sans multiplication.
+
 ## Intégration
 
-Définir `HGRC`, `GFX`, `APPLE2C` et `BUILD`, puis inclure `hgrc.mk` et
-`../apple2c/apple2c.mk`. Les règles communes de `hgrc_build.mk` construisent
-`$(BUILD)/hgrc/hgrc.lib`. Exemple :
+`$(DEV)/cc65/apple2.mk` fournit `HGRC`, `GFX`, `APPLE2C`, `BUILD`, les outils
+et la règle `$(DISK)` ; inclure ensuite `hgrc.mk` et `../apple2c/apple2c.mk`.
+Les règles communes de `hgrc_build.mk` construisent `$(BUILD)/hgrc/hgrc.lib`
+(`$(HGRC_LIB)`). Exemple :
 
 ```make
-HGRC := $(DEV)/lib/hgrc
-GFX := $(DEV)/lib/gfx
-APPLE2C := $(DEV)/lib/apple2c
-BUILD := build
+DEV ?= ../dev
+include $(DEV)/cc65/apple2.mk
 include $(HGRC)/hgrc.mk
 include $(APPLE2C)/apple2c.mk
+DISK := $(DIST)/GAME.dsk
 HGRC_EXTRA_SRCS := $(APPLE2C_SRCS)
 
-all: $(BUILD)/game.bin
+all: $(DISK)
 
-# Fournir les règles de compilation de crt0_apple2.o et main.o.
+# Fournir les règles de compilation de crt0_apple2.o ($(A2_CRT0)) et main.o.
 $(BUILD)/game.bin: $(BUILD)/crt0_apple2.o $(BUILD)/main.o $(HGRC_LIB)
-	$(CL65) -t none -C $(DEV)/cc65/apple2_hgr_c.cfg -o $@ $^
+	$(CL65) -t none -C $(A2_HGR_C_CFG) -o $@ $^
+
+$(DISK): $(BUILD)/game.bin $(DOS33_DEPS)
+	@mkdir -p $(DIST)
+	$(DOS33) --bin GAME=$(BUILD)/game.bin@$(LOAD)
 
 # Après la première cible, pour conserver « all » comme cible par défaut.
 include $(HGRC)/hgrc_build.mk
@@ -59,23 +79,28 @@ include $(HGRC)/hgrc_build.mk
 
 `HGRC_BUILD`, `HGRC_CFLAGS` et `HGRC_ASMFLAGS` sont personnalisables.
 Les listes `HGRC_*_SRCS` restent disponibles pour construire une archive
-avec un sous-ensemble de familles. Voir les Makefiles de Snake et des démos.
+avec un sous-ensemble de familles. Voir les Makefiles de Snake, des démos et
+de l'[exemple HGR](../../examples/hgr/Makefile).
 
 ## Taille mesurée
 
 Comparaison avant découpage / état actuel, avec cc65 2.18 et `-Oirs`, sur
-les mêmes sources de jeux. L’état actuel inclut les transitions vidéo IIe. La page zéro inclut le runtime C du programme.
+les mêmes sources de jeux (taille du fichier `.bin` et segment ZEROPAGE du
+fichier `.map`). L’état actuel inclut les transitions vidéo IIe et les noyaux
+assembleur du texte, de l'effacement et du basculement de page. La page zéro
+inclut le runtime C du programme.
 
 | Programme | Binaire avant → après | Page zéro avant → après |
 |---|---:|---:|
-| Snake | 10 218 → 8 674 octets | 99 → 81 octets |
-| Bounces | 12 263 → 11 508 octets | 99 → 80 octets |
-| Animals | 13 139 → 13 215 octets | 99 → 51 octets |
-| Preshift | 4 611 → 4 446 octets | 99 → 60 octets |
+| Snake | 10 218 → 8 573 octets | 99 → 80 octets |
+| Bounces | 12 263 → 11 348 octets | 99 → 79 octets |
+| Animals | 13 139 → 13 121 octets | 99 → 51 octets |
+| Preshift | 4 611 → 4 247 octets | 99 → 60 octets |
 
-Animals gagne surtout de la page zéro ; son binaire augmente de 76 octets,
-avec le contrôle d'abscisse et la restauration des commutateurs vidéo IIe. Les autres programmes
-bénéficient aussi de l'exclusion de routines jusque-là liées inutilement.
+Animals gagne surtout de la page zéro : le contrôle d'abscisse et la
+restauration des commutateurs vidéo IIe lui avaient coûté 76 octets, que les
+noyaux assembleur ont repris. Les autres programmes bénéficient aussi de
+l'exclusion de routines jusque-là liées inutilement.
 
 ## Limites et vérification
 
@@ -91,7 +116,7 @@ bénéficient aussi de l'exclusion de routines jusque-là liées inutilement.
 macOS. Les 21 étapes comparent les deux pages vidéo avec un modèle Python :
 rectangles 256/280 pixels, limites, pixels, sprites SET/CLEAR/XOR et sept
 phases, texte blanc/coloré, nombres, cellules, coloration. Quatre scènes supplémentaires vérifient le texte par cellules `gfx` sur
-la page 2, le curseur et les conversions numériques. Sept programmes
+la page 2, le curseur et les conversions numériques. Quinze programmes
 minimaux vérifient aussi que l'archive exclut les noyaux et blocs de page zéro
 inutilisés. Ce test fait partie de `make test` et de la CI.
 
@@ -229,7 +254,7 @@ par octets avec masquage des extrémités.
 - Les déclarations de conversion ×2 hôte sont dans `hgr_host.h`.
 - [Mesures et budgets](../../bench/README.md) : cycles CPU, code, ROM, RAM et ZP.
 - `make test-hgr` : 21 contrôles de primitives, quatre scènes de texte `gfx`,
-  24 scènes du moteur de sprites et sept éditions de liens minimales.
+  24 scènes du moteur de sprites et quinze éditions de liens minimales.
 - `make test-dhgr` : 21 contrôles historiques + 48 contrôles supplémentaires,
   deux pages/banques, deux backends, sprites, blocs, texte, transitions et refus II+.
   Le cœur IIe POM2 dans `a2shot` est requis (macOS arm64).

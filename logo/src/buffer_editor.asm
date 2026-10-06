@@ -59,8 +59,8 @@
 .import   text_blit_glyph
 .import   line_xy, clear_bitmap, disable_sprites
 .import   line_buf
-.import   wait_key               ; lib/apple1/kbd.asm — the consumer .includes
-                                 ; kbd.asm and .exports it (see Chess.asm pattern)
+.import   wait_key               ; dev/lib/apple2/kbd.asm — the consumer (logo.s)
+                                 ; .includes kbd.asm and .exports it
 .importzp line_idx
 .importzp shape_pat_lo, shape_pat_hi
 .importzp pix_x, pix_y

@@ -7,10 +7,13 @@ The expected color bytes come from Apple IIe Technical Note #3, table 2.
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 DEV = ROOT / "dev"
+sys.path.insert(0, str(DEV / "tools"))
+from a2test import hgr_offset as offset  # noqa: E402
 # aux even, main even, aux odd, main odd, in LORES color-number order.
 PATTERNS = [
     (0x00, 0x00, 0x00, 0x00), (0x08, 0x11, 0x22, 0x44),
@@ -25,15 +28,12 @@ PATTERNS = [
 
 
 def run(args, **kwargs):
+    """Run a host command (cl65, make, an emulator...) and return its stdout."""
     result = subprocess.run([str(a) for a in args], text=True,
                             capture_output=True, **kwargs)
     if result.returncode:
         raise RuntimeError(result.stdout + result.stderr)
     return result.stdout
-
-
-def offset(y):
-    return (y % 8) * 1024 + ((y // 8) % 8) * 128 + (y // 64) * 40
 
 
 def pixel(banks, x, y, value):

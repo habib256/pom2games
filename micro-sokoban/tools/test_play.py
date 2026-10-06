@@ -2,13 +2,16 @@
 """Leave a game in progress and come back: tutorial, SOLUTION, profiles, shuttle, status text, counters."""
 from pathlib import Path
 import argparse
-import re
-import subprocess
+import sys
 import tempfile
-from test_score import entries, file_sectors, read_file
+from test_score import entries
 
 ROOT = Path(__file__).resolve().parents[2]
 GAME = ROOT / 'micro-sokoban'
+sys.path.insert(0, str(ROOT / 'dev/tools'))
+import a2test
+import dos33
+import micro_sokoban_levels as levels
 
 
 def main():
@@ -16,19 +19,12 @@ def main():
     ap.add_argument('--a2run', type=Path, default=ROOT / 'dev/tools/a2run/a2run')
     ap.add_argument('--disk', type=Path, default=ROOT / 'dist/MICRO-SOKOBAN.dsk')
     args = ap.parse_args()
-    labels = {n: int(a, 16) for a, n in re.findall(
-        r'^al ([0-9A-F]+) \.(\w+)$', (GAME / 'build/micro_sokoban.lbl').read_text(), re.M)}
+    labels = a2test.labels(GAME / 'build/micro_sokoban.lbl')
 
-    def peek(name, count=1, offset=0):
-        return f'peek:{labels[name] + offset:04X}:{count}'
-
-    def poke(name, value):
-        return f'poke:{labels[name]:04X}:{value:02X}'
+    peek, poke = labels.peek, labels.poke
 
     def run(disk, steps, wp=False):
-        result = subprocess.run([str(args.a2run), '--disk', str(disk), *(['--wp'] if wp else []), *steps],
-                                check=True, text=True, capture_output=True, timeout=60)
-        return [bytes.fromhex(row) for row in re.findall(r'^[0-9A-F]{4}: (.+)$', result.stdout, re.M)]
+        return a2test.run(disk, steps, emulator=args.a2run, wp=wp, timeout=60).lines()
 
     def groups(rows, size):
         return [b''.join(rows[i:i + size]) for i in range(0, len(rows), size)]
@@ -39,11 +35,10 @@ def main():
     position = slice(0, 247)
 
     base = args.disk.read_bytes()
-    solutions = {tuple(row.split()[:2]): row.split()[3] for row in
-                 (GAME / 'levels/solutions.txt').read_text().splitlines() if row.startswith('I')}
+    solutions = levels.read_solutions(GAME / 'levels/solutions.txt')
 
     def keys(hud, number, count=None):
-        return ''.join(dict(u='I', d='K', l='J', r='L')[c] for c in solutions[hud, str(number)].lower()[:count])
+        return levels.solution_keys(solutions[hud, number], count)
 
     boot = ['wait:1800']
     first = boot + ['key:G', 'wait:90', 'key:\r', 'wait:180']
@@ -66,9 +61,9 @@ def main():
         assert played[position] == before[position], 'the level in progress did not come back after the tutorial'
         resumed = b''.join(run(lessons, boot + ['key: ', 'wait:180', *state]))
         assert resumed[position] == before[position], 'the tutorial replaced the saved position'
-        assert read_file(lessons.read_bytes(), 'MICROSAVE')[4] & 0x80
+        assert dos33.read_file(lessons.read_bytes(), 'MICROSAVE')[4] & 0x80
         changed = {i for i in range(0, len(base), 256) if base[i:i + 256] != lessons.read_bytes()[i:i + 256]}
-        assert changed <= set(file_sectors(base, 'MICROSAVE')) | set(file_sectors(base, 'MICROHOF')), changed
+        assert changed <= set(dos33.file_sectors(base, 'MICROSAVE')) | set(dos33.file_sectors(base, 'MICROHOF')), changed
         print('Tutorial replayed from a game: level, counters and saved position come back: ok')
 
         # SOLUTION gives the position back, with its Undo/Redo history, protected disk or not.
@@ -131,7 +126,7 @@ def main():
         assert after == before, 'renaming another profile disturbed the game in progress'
         assert hof[4:7] == b'GIS' and hof[119] == 0 and hof[89:95] == b'GISXYZ', hof
         assert {row[0] for row in entries(hof)} == {'GIS', 'XYZ'}
-        assert read_file(renamed.read_bytes(), 'MICROHOF') == hof
+        assert dos33.read_file(renamed.read_bytes(), 'MICROHOF') == hof
         print('Renaming a profile that is not the active one: active profile, game and history stay: ok')
 
         # A profile created from a game gets its five lessons, like one created from the title.

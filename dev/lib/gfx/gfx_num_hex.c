@@ -2,7 +2,7 @@
 /*
  * gfx_num_hex.c — unsigned hex -> ASCII (gfx_hexstr). See gfx.h.
  *
- * Split from gfx_num.c so a HEX-only program skips gfx_num_dec.c and the
+ * Split from the former gfx_num.c so a HEX-only program skips gfx_num_dec.c and the
  * cc65 16-bit soft-divide it pulls. Hex itself uses only shifts + masks.
  *
  * Output: uppercase, no leading zeros, 1..4 digits, NUL-terminated.

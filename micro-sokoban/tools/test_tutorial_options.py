@@ -3,16 +3,17 @@
 from pathlib import Path
 import argparse
 import cmath
-import re
-import subprocess
+import sys
 import tempfile
 
-from test_score import read_file
-import micro_sokoban_levels as levels
 import solver
 
 ROOT = Path(__file__).resolve().parents[2]
 GAME = ROOT / 'micro-sokoban'
+sys.path.insert(0, str(ROOT / 'dev/tools'))
+import a2test
+import dos33
+import micro_sokoban_levels as levels
 
 
 def main():
@@ -20,19 +21,14 @@ def main():
     ap.add_argument('--a2run', default=ROOT / 'dev/tools/a2run/a2run', type=Path)
     ap.add_argument('--disk', default=ROOT / 'dist/MICRO-SOKOBAN.dsk', type=Path)
     args = ap.parse_args()
-    labels = {n: int(a, 16) for a, n in re.findall(
-        r'^al ([0-9A-F]+) \.(\w+)$', (GAME / 'build/micro_sokoban.lbl').read_text(), re.M)}
+    labels = a2test.labels(GAME / 'build/micro_sokoban.lbl')
     base = args.disk.read_bytes()
 
-    def peek(name, n=1):
-        return f'peek:{labels[name]:04X}:{n}'
+    peek = labels.peek
 
     def run(disk, steps, timeout=30):
-        result = subprocess.run([str(args.a2run), '--disk', str(disk), *steps],
-                                check=True, text=True, capture_output=True, timeout=timeout)
-        dumps = [bytes.fromhex(x) for x in re.findall(r'^[0-9A-F]{4}: (.+)$', result.stdout, re.M)]
-        speakers = [int(x) for x in re.findall(r'^spk (\d+)$', result.stdout, re.M)]
-        return dumps, speakers
+        result = a2test.run(disk, steps, emulator=args.a2run, timeout=timeout)
+        return result.lines(), result.spk
 
     # Each lesson has a checked tiny solution, independently replayed by the solver.
     solutions = ['rr', 'ru', 'rrull', 'udrru', 'rrddluu']
@@ -46,7 +42,7 @@ def main():
                  'key:L', 'wait:30', 'key:U', 'wait:30', peek('moves_lo', 2),
                  'key:Y', 'wait:30', peek('moves_lo', 2), 'key:U', 'wait:30']
         for solution in solutions:
-            keys = ''.join(dict(u='I', d='K', l='J', r='L')[c] for c in solution)
+            keys = levels.solution_keys(solution)
             steps += ['key:' + keys, 'wait:120', peek('moves_lo', 2), peek('boxes_left'),
                       peek('score_total', 3), 'key: ', 'wait:600']
         steps += [peek('tutorial_on'), 'dsk:' + str(completed)]
@@ -58,8 +54,8 @@ def main():
             assert not any(boxes + score), (i, boxes, score)
         assert dumps[-1] == b'\0'
         image = completed.read_bytes()
-        assert read_file(image, 'MICROSAVE')[14:1830] == read_file(base, 'MICROSAVE')[14:1830]
-        assert read_file(image, 'MICROHOF')[87] & 1
+        assert dos33.read_file(image, 'MICROSAVE')[14:1830] == dos33.read_file(base, 'MICROSAVE')[14:1830]
+        assert dos33.read_file(image, 'MICROHOF')[87] & 1
         dumps, _ = run(completed, ['wait:1600', 'key: ', 'wait:120', peek('tutorial_on'),
                                   'key:\x1b', 'wait:90', 'key:T', 'wait:120',
                                   peek('tutorial_on'), peek('tutorial_idx')])
@@ -72,7 +68,7 @@ def main():
                                          peek('moves_lo', 2), peek('title_phase'), 'spk'])
         assert dumps[0] == b'\0' and dumps[1] == b'\0\0' and dumps[2][0] > 0, dumps
         assert speakers[-1] > 0
-        assert read_file(base, 'MICROHOF')[88] == 3
+        assert dos33.read_file(base, 'MICROHOF')[88] == 3
         print('Title → MENU → HELP → MENU → title, no gameplay and menu sound on by default: ok')
         dumps, _ = run(args.disk, ['wait:1400', 'btn:1,1', 'wait:90', 'btn:1,0', 'wait:30',
                                   'key:K', 'wait:30', 'btn:1,1', 'wait:90', 'btn:1,0', 'wait:300',
@@ -89,7 +85,7 @@ def main():
                   peek('deadwarn_on'), 'dsk:' + str(options)]
         dumps, speakers = run(args.disk, steps)
         assert dumps == [b'\0'] and speakers[1] > 0 and speakers[2] > 0, (dumps, speakers)
-        hof = read_file(options.read_bytes(), 'MICROHOF')
+        hof = dos33.read_file(options.read_bytes(), 'MICROHOF')
         assert hof[87:89] == bytes([0, 6]), hof[87:89]
         # Game off and demo on are independent, and both settings survive reboot.
         dumps, speakers = run(options, ['wait:1400', 'spk', peek('deadwarn_on'),
@@ -173,7 +169,7 @@ def main():
         dumps, _ = run(args.disk, steps, timeout=60)
         sound = dumps[0][0]
         assert sound & 8 and sound & 7 == 3, sound
-        assert read_file(cheat.read_bytes(), 'MICROHOF')[88] == sound
+        assert dos33.read_file(cheat.read_bytes(), 'MICROHOF')[88] == sound
         # SOLUTION is the last menu line. It plays the level, records nothing,
         # then restores the position.
         dumps, _ = run(cheat, [
@@ -190,8 +186,8 @@ def main():
         assert dumps[3] == b'\x00'
         assert int.from_bytes(dumps[5], 'little') == 0
         assert not any(dumps[6])
-        before = read_file(cheat.read_bytes(), 'MICROSAVE')
-        after = read_file((tmp / 'aftersol.dsk').read_bytes(), 'MICROSAVE')
+        before = dos33.read_file(cheat.read_bytes(), 'MICROSAVE')
+        after = dos33.read_file((tmp / 'aftersol.dsk').read_bytes(), 'MICROSAVE')
         assert after[14:1830] == before[14:1830]
         print('Cheat mode reveals SOLUTION; playback solves nothing and saves nothing: ok')
 
@@ -203,7 +199,7 @@ def main():
                   f'peek:{labels["hof_buf"]+88:04X}:1', 'dsk:' + str(color)]
         dumps, _ = run(args.disk, steps, timeout=60)
         assert dumps[0][0] == 3 | 16, dumps[0]
-        assert read_file(color.read_bytes(), 'MICROHOF')[88] == 3 | 16
+        assert dos33.read_file(color.read_bytes(), 'MICROHOF')[88] == 3 | 16
         dumps, _ = run(color, ['wait:1400', f'peek:{labels["hof_buf"]+88:04X}:1'])
         assert dumps[0][0] == 3 | 16, dumps[0]
         print('COLOR MODE is off by default, toggles, BACK leaves OPTIONS, and it survives reboot: ok')

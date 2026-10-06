@@ -3,7 +3,7 @@
  * gfx_rect.c — card-neutral rectangle outline. See gfx.h.
  *
  * Four spans, interior untouched. Corners normalised so x0<=x1, y0<=y1.
- * Split from gfx_draw.c so a rect-only program doesn't drag in gfx_plot
+ * Split from the former gfx_draw.c so a rect-only program doesn't drag in gfx_plot
  * (used by line/circle/ellipse) — every span routes through the card's
  * fast hline/vline.
  */

@@ -2,12 +2,15 @@
 """Check real displayed pages, hidden-page drawing and screen round trips."""
 from pathlib import Path
 import argparse
-import re
-import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 GAME = ROOT / 'micro-sokoban'
+sys.path.insert(0, str(ROOT / 'dev/tools'))
+import a2test
+import dos33
+import micro_sokoban_levels as levels
 
 
 def main():
@@ -15,11 +18,9 @@ def main():
     ap.add_argument('--a2run', type=Path, default=ROOT / 'dev/tools/a2run/a2run')
     ap.add_argument('--disk', type=Path, default=ROOT / 'dist/MICRO-SOKOBAN.dsk')
     args = ap.parse_args()
-    labels = {n: int(a, 16) for a, n in re.findall(
-        r'^al ([0-9A-F]+) \.(\w+)$', (GAME / 'build/micro_sokoban.lbl').read_text(), re.M)}
+    labels = a2test.labels(GAME / 'build/micro_sokoban.lbl')
 
-    def peek(name, count=1):
-        return f'peek:{labels[name]:04X}:{count}'
+    peek = labels.peek
 
     boot = ['wait:1800']
     play = boot + ['key:G', 'wait:90', 'key:\r', 'wait:600']
@@ -31,10 +32,7 @@ def main():
         tmp = Path(directory)
 
         def run(steps):
-            result = subprocess.run([str(args.a2run), '--disk', str(args.disk), *steps],
-                                    check=True, text=True, capture_output=True, timeout=60)
-            return b''.join(bytes.fromhex(row) for row in re.findall(
-                r'^[0-9A-F]{4}: (.+)$', result.stdout, re.M))
+            return a2test.run(args.disk, steps, emulator=args.a2run, timeout=60).data
 
         def screen(steps):
             # Compare the actual hardware display with both forced pages. This

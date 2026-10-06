@@ -3,11 +3,14 @@
 import importlib.util
 from pathlib import Path
 import re
+import sys
 import tempfile
 from test_dhgr import DEV, ROOT, PATTERNS, offset, pixel, color_pixel, run
 
 spec=importlib.util.spec_from_file_location('assets',DEV/'tools/assets/convert.py')
 assets=importlib.util.module_from_spec(spec); spec.loader.exec_module(assets)
+sys.path.insert(0,str(DEV/'tools'))
+import fonts
 
 
 def build(work, mono):
@@ -82,11 +85,7 @@ def main():
                             src=1+i; dst=77+i
                             pages[0][1-dst%2][offset(190+y)+dst//2]=pages[1][1-src%2][offset(30+y)+src//2]
                 elif stage==19:
-                    font=(DEV/'lib/hgrc/hgr_bbfont.inc').read_text()
-                    font=re.sub(r'/\*.*?\*/','',font,flags=re.S)
-                    fontbytes=[int(n,16) for n in re.findall(r'0x([0-9A-Fa-f]{2})',font)]
-                    assert len(fontbytes)==768
-                    glyph=fontbytes[(ord('A')-32)*8:(ord('A')-31)*8]
+                    glyph=fonts.glyph('A')
                     for y,row in enumerate(glyph):
                         for x in range(8):color_pixel(pages[1],130+x,180+y,15 if row&(1<<x) else 0)
                     small_glyphs={'A':(2,5,7,5,5),'?':(7,4,2,0,2)}

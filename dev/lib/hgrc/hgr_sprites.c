@@ -17,8 +17,8 @@ void hgr_blit(unsigned x, unsigned char y, unsigned char w, unsigned char h,
     hgr_build_tables();
     if (y > 191u || w == 0u || h == 0u || x > 279u) return;
 
-    hgr_b_col    = (unsigned char)(x / 7u);
-    hgr_b_mask   = (unsigned char)(1u << (x % 7u));
+    hgr_b_col    = hgr_col7[x];              /* tables: no runtime divide/shift */
+    hgr_b_mask   = hgr_mask7[x];
     /* stride = ceil(w/8), done with 8-bit ops only. The obvious (w+7)/8 makes
      * cc65 do a 16-bit divide whose high byte it leaves as garbage ($01), so
      * (8+7)=$010F /8 came out 33 — the (unsigned char) cast truncates too late. */

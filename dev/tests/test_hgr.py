@@ -7,21 +7,23 @@ and screen holes. No golden snapshots or host build of the target algorithm.
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 DEV = ROOT / 'dev'
+sys.path.insert(0, str(DEV / 'tools'))
+import fonts
+import a2test
+from a2test import hgr_offset as offset
 
 
 def run(args, **kwargs):
+    """Run a host command (cl65, make, an emulator...) and return its stdout."""
     p = subprocess.run([str(a) for a in args], capture_output=True, text=True, **kwargs)
     if p.returncode:
         raise RuntimeError(p.stdout + p.stderr)
     return p.stdout
-
-
-def offset(y):
-    return (y % 8) * 1024 + (y // 8 % 8) * 128 + y // 64 * 40
 
 
 def pixel(page, x, y, value, mode='set', white=False):
@@ -100,12 +102,7 @@ def build(work, fixture=None):
     binary = work / 'test.bin'
     run(['cl65', '-t', 'none', '-C', DEV / 'cc65/apple2_hgr_c.cfg',
          '-m', work / 'test.map', '-o', binary, *objects, archive])
-    hello = work / 'hello.bas'
-    hello.write_text('10 PRINT CHR$(4);"BRUN TEST"\n')
-    disk = work / 'test.dsk'
-    run(['python3', DEV / 'tools/dos33.py', '--master', DEV / 'tools/dos33_system.bin',
-         '--out', disk, '--bas', f'HELLO={hello}', '--bin', f'TEST={binary}@0x6000'])
-    return disk
+    return a2test.build_disk(work, 'TEST', binary)
 
 
 def check_archive(work):
@@ -193,9 +190,7 @@ def check_cell_text(work, font):
 
 def main():
     run(['make', '-C', DEV / 'tools/a2run'])
-    font = bytes(int(n, 16) for n in re.findall(r'0x([0-9a-fA-F]{2})',
-                 re.sub(r'/\*.*?\*/', '', (DEV / 'lib/hgrc/hgr_bbfont.inc').read_text(), flags=re.S)))
-    assert len(font) == 768, len(font)
+    font = bytes(fonts.glyphs(0x20, 0x7F))
     with tempfile.TemporaryDirectory(prefix='pom2-hgr-') as work:
         work = Path(work)
         disk = build(work)

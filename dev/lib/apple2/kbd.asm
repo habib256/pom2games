@@ -17,10 +17,14 @@
 ; The II+ keyboard only sends upper case, but a //e (or an emulator fed a host
 ; keyboard) can send lower case: folding keeps `CMP #'I'` style tests working
 ; everywhere. Arrow keys arrive as control codes: left $08, right $15
-; (KEY_LEFT/KEY_RIGHT & $7F in apple2.inc).
+; (KC_LEFT / KC_RIGHT in apple2.inc).
 ;
+; Only the routines referenced before the include are assembled (.ifref).
 ; Caller responsibility: KBD / KBDSTRB must be in scope (.include "apple2.inc").
 ; ============================================================================
+
+.ifndef _KBD_ASM_LOADED_
+_KBD_ASM_LOADED_ = 1
 
 .segment "CODE"
 
@@ -28,17 +32,20 @@
 ; wait_key -- block until a key is ready. A = key & $7F, upper-cased.
 ;             Clobbers A. X, Y preserved.
 ; ----------------------------------------------------------------------------
+.ifref wait_key
 wait_key:
 @wk:    LDA     KBD
         BPL     @wk             ; bit 7 = 0 -> no key, keep polling
         BIT     KBDSTRB         ; acknowledge (clear the strobe)
         AND     #$7F
         JMP     kbd_upcase
+.endif
 
 ; ----------------------------------------------------------------------------
 ; poll_key -- non-blocking. A = key & $7F (upper-cased), or 0 if none.
 ;             Z flag reflects A. Clobbers A. X, Y preserved.
 ; ----------------------------------------------------------------------------
+.ifref poll_key
 poll_key:
         LDA     KBD
         BPL     @none           ; bit 7 = 0 -> no key
@@ -47,8 +54,10 @@ poll_key:
         JMP     kbd_upcase
 @none:  LDA     #$00
         RTS
+.endif
 
 ; kbd_upcase -- 'a'..'z' -> 'A'..'Z', anything else unchanged. Sets Z/N from A.
+.ifref kbd_upcase
 kbd_upcase:
         CMP     #'a'
         BCC     @done
@@ -57,3 +66,6 @@ kbd_upcase:
         AND     #$DF
 @done:  CMP     #$00            ; Z/N reflect the returned key
         RTS
+.endif
+
+.endif  ; _KBD_ASM_LOADED_

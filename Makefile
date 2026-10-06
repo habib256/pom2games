@@ -51,6 +51,7 @@ distclean:
 .PHONY: all test test-hgr test-frame test-hgr-example test-dhgr check clean distclean
 
 test-assets:
+	python3 dev/tools/fonts.py --check
 	python3 dev/tests/test_assets.py
 
 bench:

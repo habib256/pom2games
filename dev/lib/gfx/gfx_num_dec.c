@@ -3,7 +3,7 @@
  * gfx_num_dec.c — unsigned/signed decimal -> ASCII (gfx_utoa, gfx_itoa).
  * See gfx.h.
  *
- * Split from gfx_num.c so a HEX-only program (e.g. a HUD that only shows
+ * Split from the former gfx_num.c so a HEX-only program (e.g. a HUD that only shows
  * `$04AC` style addresses via gfx_hexstr) skips this TU and the cc65
  * runtime 16-bit soft-divide (`udiv16`) it pulls via `value / 10u` /
  * `value % 10u` below. That divide alone is ~250 bytes ROM on cc65.

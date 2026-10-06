@@ -21,7 +21,7 @@
 ;                         Returns A = octant. Preserves Y. Clobbers X,
 ;                         tmp, tmp2.
 ;
-; Caller-provided ZP (must be .exportzp'd; see TMS_Logo_16k.asm for the
+; Caller-provided ZP (must be .exportzp'd; see logo.s for the
 ; canonical wiring):
 ;   spr_size, spr_xoff, spr_yoff, spr_r1   (1 byte each)
 ;   th_lo, th_hi                           (1 byte each, heading 0..359)

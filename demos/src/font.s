@@ -6,8 +6,8 @@
 ; the grid moves up to stay above them, any key returns to the DEMO menu
 ; (BLOAD FONT + CALL 24576). Font: Michael Pohoreski. GPL-3.0.
 ; =============================================
-; Displays all 256 code points from fonts/font_codepage_437_8x8.png
-; (linear CP437 order, index = IBM code point).
+; Displays all 256 code points of dev/lib/font/bbfont_glyphs.inc
+; (BBFONT_FIRST = $00, BBFONT_LAST = $FF: linear CP437 order, index = IBM code point).
 ;
 ; Assemble with cc65:
 ;   Build: make
@@ -95,10 +95,10 @@ draw_glyph_cell:
         ASL A
         ROL fph
         CLC
-        ADC #<HGR_BBFont
+        ADC #<bbfont
         STA fpl
         LDA fph
-        ADC #>HGR_BBFont
+        ADC #>bbfont
         STA fph
 
         LDX #$00
@@ -147,8 +147,10 @@ str_title:
 str_footer:
         .byte "ANY KEY: BACK TO THE MENU", 0
 
-.include "bbfont_cp437.inc"
-.include "hgr_clear.asm"         ; dev/lib/hgr: clear_hgr (ptr_lo/ptr_hi)
+; all 256 glyphs: the demo shows the whole code page
+BBFONT_FIRST = $00
+BBFONT_LAST  = $FF
+.include "bbfont.inc"
 .include "hgr_scanline.inc"      ; hgr_lo / hgr_hi
 .include "hgr.asm"               ; dev/lib/apple2: hgr_init_clear
 .include "kbd.asm"               ; wait_key

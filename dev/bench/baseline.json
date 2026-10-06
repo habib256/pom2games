@@ -3,92 +3,92 @@
   "flags": "-Oirs",
   "results": {
     "hgr_clear": {
-      "code_bytes": 1521,
+      "code_bytes": 1393,
       "rodata_bytes": 64,
       "ram_bytes": 1575,
       "zp_bytes": 26,
-      "binary_bytes": 1634,
-      "cycles": 90430
+      "binary_bytes": 1506,
+      "cycles": 51514
     },
     "hgr_span": {
-      "code_bytes": 2466,
+      "code_bytes": 2318,
       "rodata_bytes": 64,
       "ram_bytes": 1575,
       "zp_bytes": 40,
-      "binary_bytes": 2579,
-      "cycles": 3192
+      "binary_bytes": 2431,
+      "cycles": 3229
     },
     "hgr_rect": {
-      "code_bytes": 2056,
+      "code_bytes": 1908,
       "rodata_bytes": 64,
       "ram_bytes": 1575,
       "zp_bytes": 40,
-      "binary_bytes": 2169,
-      "cycles": 6869
+      "binary_bytes": 2021,
+      "cycles": 6884
     },
     "hgr_text": {
-      "code_bytes": 1950,
+      "code_bytes": 1681,
       "rodata_bytes": 841,
       "ram_bytes": 1575,
       "zp_bytes": 38,
-      "binary_bytes": 2840,
-      "cycles": 24232
+      "binary_bytes": 2571,
+      "cycles": 8997
     },
     "hgr_sprite7": {
-      "code_bytes": 1995,
+      "code_bytes": 1738,
       "rodata_bytes": 64,
       "ram_bytes": 1575,
       "zp_bytes": 34,
-      "binary_bytes": 2108,
-      "cycles": 2242
+      "binary_bytes": 1851,
+      "cycles": 1708
     },
     "dhgr_clear": {
-      "code_bytes": 2872,
+      "code_bytes": 1350,
       "rodata_bytes": 64,
       "ram_bytes": 312,
       "zp_bytes": 35,
-      "binary_bytes": 2985,
+      "binary_bytes": 1463,
       "cycles": 207865
     },
     "dhgr_span": {
-      "code_bytes": 3208,
+      "code_bytes": 2168,
       "rodata_bytes": 64,
       "ram_bytes": 312,
       "zp_bytes": 35,
-      "binary_bytes": 3321,
-      "cycles": 12337
+      "binary_bytes": 2281,
+      "cycles": 12117
     },
     "dhgr_rect": {
-      "code_bytes": 2896,
+      "code_bytes": 2254,
       "rodata_bytes": 64,
       "ram_bytes": 312,
       "zp_bytes": 35,
-      "binary_bytes": 3009,
-      "cycles": 79318
+      "binary_bytes": 2367,
+      "cycles": 75830
     },
     "dhgr_block": {
-      "code_bytes": 3604,
+      "code_bytes": 1686,
       "rodata_bytes": 64,
       "ram_bytes": 317,
       "zp_bytes": 35,
-      "binary_bytes": 3717,
-      "cycles": 12790
+      "binary_bytes": 1799,
+      "cycles": 10966
     },
     "dhgr_text": {
-      "code_bytes": 3550,
+      "code_bytes": 1835,
       "rodata_bytes": 841,
       "ram_bytes": 319,
       "zp_bytes": 35,
-      "binary_bytes": 4440,
-      "cycles": 250388
+      "binary_bytes": 2725,
+      "cycles": 239492
     },
     "dhgr_sprite": {
-      "code_bytes": 3635,
+      "code_bytes": 1923,
       "rodata_bytes": 64,
       "ram_bytes": 317,
       "zp_bytes": 35,
-      "binary_bytes": 3748,
-      "cycles": 5664
+      "binary_bytes": 2036,
+      "cycles": 5158
     }
   }
 }

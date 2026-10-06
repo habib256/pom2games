@@ -4,7 +4,7 @@
  * The "missing middle" of the HGR blit family: hgr_blit is 1px-precise
  * but slow (per-pixel mask walk); hgr_blit7 is byte-fast but snaps x to a
  * 7px grid. This one is BOTH fast AND 1px-precise, by trading memory: the sprite
- * is pre-shifted into 7 phase copies OFFLINE (build_preshift_sprites.py), and at
+ * is pre-shifted into 7 phase copies OFFLINE (dev/tools/assets/convert.py), and at
  * runtime we just pick the phase for x%7 and reuse the proven byte-aligned blit
  * kernel (hgr_blit7_run) at column x/7. No per-pixel shifting at all.
  *
@@ -16,7 +16,8 @@
  *     16-bit software divide (~150-300 cyc each — the dominant per-call cost);
  *   - HGR_XOR (the hot animation path) uses hgr_preshift_xor_run, a dedicated
  *     XOR loop with no per-byte mode dispatch (~24 vs ~34 cyc/byte).
- * See hgr.h for the data ABI and DISASSEMBLY.md (S3) for the method. */
+ * See hgr.h for the data ABI and POM1's a2port_buzzard_bait/DISASSEMBLY.md (S3)
+ * for the method. */
 
 #include "hgr.h"
 #include "hgr_internal.h"

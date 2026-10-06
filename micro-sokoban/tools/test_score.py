@@ -2,52 +2,15 @@
 """Exercise scoring, initials, ranking and disk persistence in the real game."""
 import argparse
 from pathlib import Path
-import re
-import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 GAME = ROOT / 'micro-sokoban'
-
-
-def file_sectors(image, name):
-    """DOS 3.3 catalog -> ordered data sectors for a binary file."""
-    def sector(t, s):
-        return image[(t * 16 + s) * 256:(t * 16 + s + 1) * 256]
-    t, s = 17, 15
-    while t:
-        cat = sector(t, s)
-        for off in range(11, 256, 35):
-            entry = cat[off:off + 35]
-            if entry[0] in (0, 255):
-                continue
-            filename = ''.join(chr(c & 127) for c in entry[3:33]).rstrip()
-            if filename == name:
-                ts, ss = entry[:2]
-                sectors = []
-                while ts:
-                    listing = sector(ts, ss)
-                    sectors += [(listing[i] * 16 + listing[i + 1]) * 256
-                                for i in range(12, 256, 2) if listing[i]]
-                    ts, ss = listing[1:3]
-                return sectors
-        t, s = cat[1:3]
-    raise AssertionError('file not found: ' + name)
-
-
-def read_file(image, name):
-    raw = b''.join(image[s:s + 256] for s in file_sectors(image, name))
-    return raw[4:4 + int.from_bytes(raw[2:4], 'little')]
-
-
-def replace_file(image, name, payload):
-    sectors = file_sectors(image, name)
-    old = b''.join(image[s:s + 256] for s in sectors)
-    assert len(payload) == int.from_bytes(old[2:4], 'little')
-    new = old[:4] + payload
-    for i, off in enumerate(sectors):
-        chunk = new[i * 256:(i + 1) * 256]
-        image[off:off + len(chunk)] = chunk
+sys.path.insert(0, str(ROOT / 'dev/tools'))
+import a2test
+import dos33
+import micro_sokoban_levels as levels
 
 
 def entries(buf):
@@ -61,39 +24,33 @@ def main():
     ap.add_argument('--a2run', default=ROOT / 'dev/tools/a2run/a2run', type=Path)
     ap.add_argument('--disk', default=ROOT / 'dist/MICRO-SOKOBAN.dsk', type=Path)
     args = ap.parse_args()
-    labels = {n: int(a, 16) for a, n in re.findall(
-        r'^al ([0-9A-F]+) \.(\w+)$', (GAME / 'build/micro_sokoban.lbl').read_text(), re.M)}
+    labels = a2test.labels(GAME / 'build/micro_sokoban.lbl')
     base = args.disk.read_bytes()
-    save = read_file(base, 'MICROSAVE')
+    save = dos33.read_file(base, 'MICROSAVE')
     header = 14
     total = 454
-    solutions = {int(row.split()[1]): row.split()[3] for row in
-                 (GAME / 'levels/solutions.txt').read_text().splitlines()
-                 if row.startswith('I ')}
-
-    def peek(label, n=1):
-        return f'peek:{labels[label]:04X}:{n}'
+    solutions = {num: moves for (hud, num), moves in
+                 levels.read_solutions(GAME / 'levels/solutions.txt').items() if hud == 'I'}
+    peek = labels.peek
 
     def run(disk, steps, wp=False, silent=False):
-        command = [str(args.a2run), '--disk', str(disk)] + (['--wp'] if wp else []) + steps
-        result = subprocess.run(command, check=True, text=True, capture_output=True, timeout=30)
+        result = a2test.run(disk, steps, emulator=args.a2run, wp=wp, timeout=30)
         if silent:
-            assert re.findall(r'^spk (\d+)$', result.stdout, re.M)[-1] == '0', result.stdout
-        return [bytes.fromhex(row) for row in
-                re.findall(r'^[0-9A-F]{4}: (.+)$', result.stdout, re.M)]
+            assert result.spk[-1] == 0, result.out
+        return result.lines()
 
     def fixture(path, records, hof=None):
         image = bytearray(base)
         payload = bytearray(save)
         for index, moves in records.items():
             payload[header + index * 4:header + index * 4 + 4] = moves.to_bytes(2, 'little') + bytes(2)
-        replace_file(image, 'MICROSAVE', payload)
+        dos33.replace_file(image, 'MICROSAVE', payload)
         if hof is not None:
-            replace_file(image, 'MICROHOF', hof)
+            dos33.replace_file(image, 'MICROHOF', hof)
         path.write_bytes(image)
 
     def keys(level):
-        return ''.join(dict(u='I', d='K', l='J', r='L')[c] for c in solutions[level].lower())
+        return levels.solution_keys(solutions[level])
 
     with tempfile.TemporaryDirectory(prefix='micro-sokoban-profiles-') as temp:
         tmp = Path(temp)
@@ -117,9 +74,9 @@ def main():
         assert hof[4:7] == b'ABC' and entries(hof) == [('ABC', 49, 2), ('GIS', 0, 0)], entries(hof)
         assert hof[89:95] == b'GISABC' and hof[119] == 1
         image = saved.read_bytes()
-        assert read_file(image, 'MICROHOF') == hof
-        assert read_file(image, 'MICROSAVE') == save
-        assert int.from_bytes(read_file(image, 'MICROSAV1')[14:16], 'little') == 33
+        assert dos33.read_file(image, 'MICROHOF') == hof
+        assert dos33.read_file(image, 'MICROSAVE') == save
+        assert int.from_bytes(dos33.read_file(image, 'MICROSAV1')[14:16], 'little') == 33
         reboot = run(saved, ['wait:1800', peek('score_total', 4), peek('score_solved', 2), peek('hof_buf', 120)])
         assert [int.from_bytes(x, 'little') for x in reboot[:2]] == [49, 2]
         assert b''.join(reboot[2:]) == hof
@@ -138,8 +95,8 @@ def main():
         assert dumps[:5] == [b'ABC', bytes(4), (49).to_bytes(4, 'little'), b'\x02', bytes(2)], dumps[:5]
         two_hof = b''.join(dumps[5:])
         assert entries(two_hof) == [('ABC', 49, 2), ('XYZ', 33, 1), ('GIS', 0, 0)], entries(two_hof)
-        assert read_file(two.read_bytes(), 'MICROSAV1')[:1830] == read_file(image, 'MICROSAV1')[:1830]
-        assert int.from_bytes(read_file(two.read_bytes(), 'MICROSAV2')[14:16], 'little') == 33
+        assert dos33.read_file(two.read_bytes(), 'MICROSAV1')[:1830] == dos33.read_file(image, 'MICROSAV1')[:1830]
+        assert int.from_bytes(dos33.read_file(two.read_bytes(), 'MICROSAV2')[14:16], 'little') == 33
         print('Independent profiles, new-name defaults, ranked results and resumed progress after switching: ok')
 
         # Renaming a profile preserves its stable save slot and ranked row.
@@ -151,7 +108,7 @@ def main():
         renamed_hof = b''.join(dumps[1:])
         assert entries(renamed_hof) == [('DEF', 49, 2), ('XYZ', 33, 1), ('GIS', 0, 0)]
         assert renamed_hof[92:95] == b'DEF' and renamed_hof[4:7] == b'DEF'
-        assert read_file(renamed.read_bytes(), 'MICROSAV1')[:1830] == read_file(image, 'MICROSAV1')[:1830]
+        assert dos33.read_file(renamed.read_bytes(), 'MICROSAV1')[:1830] == dos33.read_file(image, 'MICROSAV1')[:1830]
         print('Renaming preserves the profile progression and its single Hall of Fame row: ok')
 
         canceled = tmp / 'canceled.dsk'
@@ -206,7 +163,7 @@ def main():
 
         # HOF2 points are rebuilt from every named profile, preserving the active one.
         migration = tmp / 'migration.dsk'
-        old = bytearray(read_file(base, 'MICROHOF'))
+        old = bytearray(dos33.read_file(base, 'MICROHOF'))
         old[:4] = b'HOF2'
         old[92:95] = b'ABC'
         old[7:15] = b'GIS' + (2000).to_bytes(3, 'little') + (2).to_bytes(2, 'little')
@@ -216,7 +173,7 @@ def main():
         other = bytearray(save)
         other[14:16] = (35).to_bytes(2, 'little')
         other[18:20] = (15).to_bytes(2, 'little')
-        replace_file(image, 'MICROSAV1', other)
+        dos33.replace_file(image, 'MICROSAV1', other)
         migration.write_bytes(image)
         dumps = run(migration, ['wait:1800', peek('hof_buf', 120)])
         migrated = b''.join(dumps)

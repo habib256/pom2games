@@ -95,6 +95,7 @@ pending: .res 1            ; sound event; one short pulse train per frame
 
 .code
         jmp main
+HGR_TEXT8_HGR_ORDER = 1           ; bbfont is HGR bit order: no rev7_tab
 .include "hgr_text8.asm"
 
 .code
@@ -120,7 +121,6 @@ main:
         sta ht_cm_ev
         sta ht_cm_od
         lda #0
-        sta ht_rev
         sta ht_cbit
         sta ht_left
         lda #40
@@ -1583,7 +1583,7 @@ mod7:
 .endrepeat
 .include "hgr_scanline.inc"
 font:
-.include "bbfont_ascii5f.inc"
+.include "bbfont.inc"           ; font = bbfont, ASCII $20-$5F
 .include "levels.inc"
 .include "capsules.inc"
 .include "title.inc"

@@ -24,6 +24,12 @@ File formats:
   --read-fast            T/S lists before data, POM2-measured sector allocation.
                          Put frequently read files early in the supplied order.
                          Normal DOS allocation remains the default.
+
+As a module it also READS images (tests look at what the game saved):
+  catalog(image)               -> [(name, type, locked, sectors, track, sector)]
+  file_sectors(image, name)    -> byte offsets of the file's data sectors
+  read_file(image, name)       -> payload of a B file (without its 4-byte header)
+  replace_file(image, name, payload)   same size, in place (bytearray image)
 """
 import argparse
 import os
@@ -252,6 +258,62 @@ class Dos33Image:
 
     def free_sectors(self):
         return sum(1 for f in self.free.values() if f)
+
+
+# --- reading an existing image -----------------------------------------------
+
+def _sector(image, t, s):
+    return image[(t * SECTORS + s) * SEC_SIZE:(t * SECTORS + s + 1) * SEC_SIZE]
+
+
+def catalog(image):
+    """The catalog of a DOS 3.3 image (bytes): one tuple per live file."""
+    out = []
+    t, s = _sector(image, VTOC_T, VTOC_S)[1:3]
+    while t:
+        cat = _sector(image, t, s)
+        for off in range(11, 256, 35):
+            entry = cat[off:off + 35]
+            if entry[0] in (0, 255):
+                continue
+            name = ''.join(chr(c & 127) for c in entry[3:33]).rstrip()
+            out.append((name, entry[2] & 0x7F, bool(entry[2] & 0x80),
+                        entry[33] | entry[34] << 8, entry[0], entry[1]))
+        t, s = cat[1:3]
+    return out
+
+
+def file_sectors(image, name):
+    """Byte offsets of the data sectors of file `name`, in file order."""
+    for fname, _, _, _, ts, ss in catalog(image):
+        if fname != name:
+            continue
+        sectors = []
+        while ts:
+            listing = _sector(image, ts, ss)
+            sectors += [(listing[i] * SECTORS + listing[i + 1]) * SEC_SIZE
+                        for i in range(12, 256, 2) if listing[i]]
+            ts, ss = listing[1:3]
+        return sectors
+    raise KeyError('file not found: ' + name)
+
+
+def read_file(image, name):
+    """Payload of binary file `name` (its 4-byte address/length header dropped)."""
+    raw = b''.join(image[s:s + SEC_SIZE] for s in file_sectors(image, name))
+    return raw[4:4 + int.from_bytes(raw[2:4], 'little')]
+
+
+def replace_file(image, name, payload):
+    """Overwrite the payload of binary file `name` in a bytearray image, in
+    place and with the same length (catalog, VTOC and T/S lists untouched)."""
+    sectors = file_sectors(image, name)
+    old = b''.join(image[s:s + SEC_SIZE] for s in sectors)
+    assert len(payload) == int.from_bytes(old[2:4], 'little'), 'payload size must not change'
+    new = old[:4] + bytes(payload)
+    for i, off in enumerate(sectors):
+        chunk = new[i * SEC_SIZE:(i + 1) * SEC_SIZE]
+        image[off:off + len(chunk)] = chunk
 
 
 def parse_spec(spec, want_addr):

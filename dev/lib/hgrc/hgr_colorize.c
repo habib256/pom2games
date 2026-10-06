@@ -22,8 +22,8 @@ void hgr_colorize(unsigned x, unsigned char y, unsigned char w,
 
     right = x + (unsigned)w - 1u;
     if (right > 279u) right = 279u;
-    hgr_z_col0  = (unsigned char)(x / 7u);
-    hgr_z_ncols = (unsigned char)(right / 7u - x / 7u + 1u);
+    hgr_z_col0  = hgr_col7[x];               /* tables: no runtime divide */
+    hgr_z_ncols = (unsigned char)(hgr_col7[right] - hgr_col7[x] + 1u);
     hgr_z_y0    = y;
     hgr_z_rows  = h;
     hgr_colorize_asm();

@@ -19,9 +19,10 @@
 ; Dead zone: JOY_LO / JOY_HI (count below / above = deflected). Define them
 ; before the include to retune; defaults suit a centred stick at ~60.
 ;
-; BSS: joy_x, joy_y, joy_cnt. No zero page.
+; BSS: joy_x, joy_y, joy_cnt. No zero page. Only the routines referenced
+; before the include are assembled (.ifref).
 ; Caller responsibility: .include "apple2.inc" first (PTRIG, PADDL0/1).
-; Mirror for C: a2_read_stick() in ../apple2c/apple2io.h.
+; Mirror for C: a2_read_stick() in ../apple2c/apple2game.h.
 ; ============================================================================
 
 .ifndef _JOY_ASM_LOADED_
@@ -47,6 +48,8 @@ joy_cnt:        .res 1
 
 .segment "CODE"
 
+
+.ifref read_stick
 read_stick:
         LDX     #$00
         LDY     #$00
@@ -63,7 +66,9 @@ read_stick:
         STX     joy_x
         STY     joy_y
         RTS
+.endif
 
+.ifref stick_dir
 stick_dir:
         LDA     joy_y
         CMP     #JOY_LO
@@ -85,5 +90,6 @@ stick_dir:
         RTS
 @right: LDA     #JOY_RIGHT
         RTS
+.endif
 
 .endif  ; _JOY_ASM_LOADED_

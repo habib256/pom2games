@@ -1,47 +1,55 @@
-# Maze 3D — suivi des améliorations
+# Maze 3D — roadmap
 
-## Réalisé le 2026-10-03
+Validate every gameplay change with `../dev/tools/a2shot` (screenshots,
+memory reads, cycle and frame counts) and `make test`
+(`tests/check_generation.py`, 100 seeds). A scripted run must still reach the
+shop, beat the dragon and win; exits without the relic, and the last one
+before the dragon's death, must stay shut.
 
-- [x] Corriger le butin : conserver le type du monstre avant de le marquer
-  mort, puis plafonner l'or à 99 pour l'affichage à deux chiffres.
-- [x] Carte progressive : les murs et la sortie apparaissent après visite ;
-  les monstres aperçus en vue 3D sont signalés sur la carte.
-- [x] Trois étages, ennemis plus résistants, dragon obligatoire au dernier
-  étage, numéro d'étage visible en 3D et sur la carte.
-- [x] Boutique entre les étages : soins, attaque et défense payés en or.
-- [x] Sons brefs avec `../dev/lib/apple2/sound.asm` : mur, attaque, coup reçu,
-  montée de niveau, escalier, victoire et mort.
-- [x] Optimiser le tracé : adresses et masques HGR conservés pendant les lignes
-  obliques, effacement des 40 octets par ligne déroulé. Sur une vue testée,
-  `render_3d` passe de 188 523 à 169 842 cycles (environ 10 % plus rapide),
-  avec le même décor sur deux captures comparées.
-- [x] Enrichir chaque labyrinthe : salle 2x2, trois boucles, trois caches et
-  une relique obligatoire. Les 100 graines testées restent connexes.
-- [x] Différencier les combats : garde, potion, fuite vers la case précédente,
-  vol du gobelin, magie sans armure, coup annoncé de l'orc et du dragon.
-- [x] Relier exploration et économie : or et potions dans les caches, achat de
-  potions à la boutique.
-- [x] Afficher la graine, calculer un score à la victoire et enregistrer le
-  record avec sa graine dans `MAZESCORE` sur disquette DOS 3.3. La touche `R`
-  de l'écran titre rejoue cette graine. Le narrateur occupe `MAZETEXT`, chargé
-  depuis la disquette, ce qui libère environ 2 Ko de code.
-- [x] Terminer une partie scriptée sur les trois étages sans modifier la
-  mémoire du jeu : reliques prises, dragon battu, score 127 écrit sur disquette.
+## Next up
 
-## À poursuivre
+- [ ] Joystick support with `../dev/lib/apple2/joy.asm` (turn, step, and
+  buttons for the combat actions).
+- [ ] Manual seed entry on the title screen, next to `R`, so a dungeon can
+  be shared by its four hex digits rather than only replayed from the record.
+- [ ] Faster 3D rendering. The whole scene is still cleared and redrawn on
+  every move; the initial 2-3x target remains open. Measure each routine's
+  cost with `a2shot` (`until:` reports cycles) before picking a strategy,
+  and compare screenshots before and after.
 
-- [ ] Accélérer encore le rendu 3D. L'objectif initial de 2 à 3 fois plus
-  rapide reste ouvert : la scène complète est toujours effacée et redessinée
-  à chaque mouvement. Mesurer les coûts par routine avec `../dev/tools/a2shot`
-  avant de choisir une autre stratégie. Comparer les captures avant/après.
-- [ ] Permettre la saisie manuelle d'une graine, en plus de la rejouabilité de
-  la graine du record.
-- [ ] Ajouter la manette avec `../dev/lib/apple2/joy.asm`.
-- [ ] Sauvegarder une partie en cours, si l'on souhaite reprendre une campagne
-  interrompue. Le record est déjà conservé sur disquette.
+## Later
 
-Pour valider les changements de jeu, utiliser `../dev/tools/a2shot` : captures,
-lecture mémoire et mesure en cycles ou en trames. `tests/check_generation.py`
-vérifie les contraintes de génération sur 100 graines. La partie scriptée
-doit pouvoir atteindre la boutique, battre le dragon, puis gagner ; les
-sorties sans relique, et la dernière avant la mort du dragon, restent fermées.
+- [ ] Save a game in progress, to resume an interrupted campaign. Only the
+  record and its seed are kept on the disk today (`MAZESCORE`); a save would
+  reuse `dos.asm` and the `disk_protected` check.
+- [ ] Faster sprite blits. `hgr_sprite16`'s `sp_pack_row` rebuilds every
+  output byte from a bit stream (its header quotes about 130 cycles per
+  output byte; a x4 blit is about 80k cycles). Combat screens are full
+  redraws, so this is only worth it once the 3D path is measured.
+
+## Ideas
+
+- Swap the private 8 px font (TMS bit order, 512 bytes) for the shared
+  Beautiful Boot font in `../dev/lib/font` and define `HGR_TEXT8_HGR_ORDER`:
+  drops `ht_rev` and the 256-byte `rev7_tab` from the text path. A graphic
+  choice: the current font is part of the game's look.
+
+## Done
+
+- 2026-10-03: loot fix (keep the monster type before marking it dead, cap
+  gold at 99 for the two-digit HUD); progressive map (walls and exit after a
+  visit, monsters seen from the corridor); three floors with tougher foes,
+  mandatory dragon on the last one, floor number in 3D and on the map; shop
+  between floors (heal, attack, defence, potions); speaker sounds for wall,
+  attack, hit taken, level-up, stairs, victory and death; rendering
+  optimisations (HGR addresses and masks kept during slanted lines, unrolled
+  40-byte row clear: `render_3d` 188,523 -> 169,842 cycles on a test view,
+  about 10 % faster, identical screenshots); richer mazes (2x2 chamber,
+  three loops, three caches, mandatory relic; 100 seeds stay connected);
+  combat variety (guard, potion, flee to the previous cell, goblin theft,
+  armour-piercing magic, telegraphed orc and dragon strikes); gold and
+  potions in caches, potions in the shop; seed display, victory score,
+  record and seed saved in `MAZESCORE` on the DOS 3.3 disk, `R` replays it;
+  narrator moved to `MAZETEXT` on disk, freeing about 2 KB of code; a
+  scripted three-floor run completed without touching game memory (relics
+  taken, dragon beaten, score 127 written to disk).

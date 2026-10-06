@@ -1,9 +1,8 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_text16_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
-.export _hgr_blit_glyph, _hgr_blit_glyph_color, _hgr_puts_run
-.exportzp _hgr_t_color
-.import _hgr_rowhi, _hgr_rowlo
-.importzp _hgr_g_col, _hgr_g_glyph, _hgr_g_mask, _hgr_g_y, _hgr_t_bit, _hgr_t_col, _hgr_t_font, _hgr_t_n, _hgr_t_s, _hgr_z_ce, _hgr_z_co, _hgr_z_hi
+.export _hgr_blit_glyph, _hgr_puts_run
+.import _hgr_rowhi, _hgr_rowlo, glyph_addr
+.importzp _hgr_g_col, _hgr_g_glyph, _hgr_g_bit, _hgr_g_y, _hgr_t_bit, _hgr_t_col, _hgr_t_font, _hgr_t_n, _hgr_t_s, _hgr_z_ce, _hgr_z_co, _hgr_z_hi
 .importzp ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
 curcol = tmp1
 curmask = tmp2
@@ -20,91 +19,21 @@ gbc_car3: .res 1             ; carrier byte for cell at g_col + 3 (used only whe
 gbc_m0:   .res 1             ; row's shifted doubled mask, byte 0 (bits 0..7)
 gbc_m1:   .res 1             ;   byte 1 (bits 8..15)
 gbc_m2:   .res 1             ;   byte 2 (bits 16..23 — only bits 0..5 ever set)
-_hgr_t_color: .res 1        ; 0 = white blitter, else colour blitter
 
 .segment "CODE"
-plot_one:
-        ldy curcol
-        lda curmask
-        ora (ptr1),y         ; scanline yy
-        sta (ptr1),y
-        lda curmask
-        ora (ptr2),y         ; scanline yy+1
-        sta (ptr2),y
-        ; fall through to advance
-
-; --- advance the pen one pixel: mask <<= 1, wrapping into the next column -----
-.include "hgr_pen.inc"
-
-; --- _hgr_blit_glyph : draw the 8x8 glyph, pixel-doubled to 16x16 -----------
+; --- _hgr_blit_glyph : row-at-a-time 16x16 glyph blitter, white or tinted --
+; Expand the 8-bit source row to a 16-bit doubled mask in two nibble LUT
+; lookups (dbl4tbl), shift left by `bit` to align with the pen offset, then OR
+; each of the 3-4 spanning bytes (one per 7-bit cell) into both scanlines —
+; carrier and palette bit applied per BYTE, not per pixel. White text is the
+; carrier pair $7F/$7F with hgr_z_hi = 0 (hgr_text.c sets it): the same OR of
+; the same doubled bits the old pixel-by-pixel white blitter produced, about
+; five times faster and one blitter instead of two. Cell carriers + the shift
+; count are precomputed once per glyph (they depend on g_col parity and g_mask,
+; both fixed across the 8 source rows).
 _hgr_blit_glyph:
-        lda #0
-        sta rowcnt
-@rowloop:
-        ; ptr1 = hgr_row(y + 2*row), ptr2 = hgr_row(y + 2*row + 1)
-        lda rowcnt
-        asl a                ; row * 2
-        clc
-        adc _hgr_g_y        ; yy = y + 2*row
-        tay
-        lda _hgr_rowlo,y
-        sta ptr1
-        lda _hgr_rowhi,y
-        sta ptr1+1
-        iny                  ; yy + 1
-        lda _hgr_rowlo,y
-        sta ptr2
-        lda _hgr_rowhi,y
-        sta ptr2+1
-        ; load this row's 8 source bits
-        ldy rowcnt
-        lda (_hgr_g_glyph),y
-        sta curbits
-        ; reset pen to the glyph's left edge
-        lda _hgr_g_col
-        sta curcol
-        lda _hgr_g_mask
-        sta curmask
-        ; walk 8 source bits, each lighting (or skipping) 2 doubled pixels
-        ldx #8
-@bitloop:
-        lsr curbits          ; bit 0 (leftmost) -> carry
-        bcc @skip
-        jsr plot_one         ; lit: 2 doubled pixels
-        jsr plot_one
-        jmp @next
-@skip:
-        jsr advance          ; clear: skip 2 pixels
-        jsr advance
-@next:
-        dex
-        bne @bitloop
-        ; next glyph row
-        inc rowcnt
-        lda rowcnt
-        cmp #8
-        bne @rowloop
-        rts
-
-; --- _hgr_blit_glyph_color : row-at-a-time tinted glyph blitter ------------
-; Replaces the per-pixel walk: expand the 8-bit source row to a 16-bit doubled
-; mask in two nibble LUT lookups (dbl4tbl), shift left by `bit` to align with
-; the pen offset, then OR each of the 3-4 spanning bytes (one per 7-bit cell)
-; into both scanlines — carrier and palette bit applied per BYTE, not per pixel.
-; Reads the same hgr_g_glyph/col/mask/y + hgr_z_ce/co/hi parameter blocks as
-; the white blitter; produces the NTSC artifact colour as the glyph is laid
-; down (no white-then-recolorize pass). Cell carriers + the shift count are
-; precomputed once per glyph (they depend on g_col parity and g_mask, both
-; fixed across the 8 source rows).
-_hgr_blit_glyph_color:
-        ; Derive bit shift count from g_mask (= 1 << bit), bit in 0..6.
-        ldx #0
-        lda _hgr_g_mask
-@bcnt:  lsr a
-        beq @bcd
-        inx
-        bne @bcnt              ; bit <= 6, never wraps X
-@bcd:   stx gbc_bit
+        ldx _hgr_g_bit         ; pen bit 0..6 = shift count
+        stx gbc_bit
         ; Precompute carriers for cells 0..3. Carrier parity alternates from
         ; g_col: even col -> ce/co/ce/co ; odd col -> co/ce/co/ce.
         lda _hgr_g_col
@@ -272,10 +201,9 @@ _hgr_dbl4tbl:
 ; Replaces the per-character C loop of hgr_puts / hgr_puts_color. Walks
 ; hgr_t_s, drawing at most hgr_t_n glyph cells (the C wrapper precomputes how
 ; many fit from x, so there is NO per-char 16-bit clip here). Per glyph: form the
-; font address font+(c-$20)*8, set hgr_g_col/mask, then JSR the white or colour
-; blitter — chosen ONCE per char via hgr_t_color (not per pixel: a per-pixel
-; dispatch would cost more than keeping the two blitters separate saves). Then
-; step the 18px pen (bit+=4, col+=2, +1 col on wrap). hgr_g_y set by the caller.
+; font address font+(c-$20)*8, set hgr_g_col/bit, JSR the blitter (the
+; carriers decide white or colour), then step the 18px pen (bit+=4, col+=2,
+; +1 col on wrap). hgr_g_y set by the caller.
 _hgr_puts_run:
 @loop:
         lda _hgr_t_n
@@ -295,40 +223,12 @@ _hgr_puts_run:
 @okc:
         sec                     ; hgr_g_glyph = font + (c-$20)*8
         sbc #$20
-        sta tmp1
-        lda #0
-        sta tmp2
-        asl tmp1
-        rol tmp2
-        asl tmp1
-        rol tmp2
-        asl tmp1
-        rol tmp2
-        lda tmp1
-        clc
-        adc _hgr_t_font
-        sta _hgr_g_glyph
-        lda tmp2
-        adc _hgr_t_font+1
-        sta _hgr_g_glyph+1
+        jsr glyph_addr
         lda _hgr_t_col
         sta _hgr_g_col
-        ldx _hgr_t_bit         ; hgr_g_mask = 1 << bit
-        lda #1
-@mk:
-        dex
-        bmi @mkd
-        asl a
-        jmp @mk
-@mkd:
-        sta _hgr_g_mask
-        lda _hgr_t_color       ; draw white or colour
-        beq @white
-        jsr _hgr_blit_glyph_color
-        jmp @adv
-@white:
+        lda _hgr_t_bit
+        sta _hgr_g_bit
         jsr _hgr_blit_glyph
-@adv:
         lda _hgr_t_bit         ; pen: bit += 4 (+ carry into col on wrap)
         clc
         adc #4

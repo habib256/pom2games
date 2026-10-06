@@ -3,33 +3,32 @@
 from pathlib import Path
 import argparse
 import re
-import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 GAME = ROOT / 'arkabreakout'
-EMU = ROOT / 'dev/tools/a2run/a2run'
+sys.path.insert(0, str(ROOT / 'dev/tools'))
+import a2test
 DISK = ROOT / 'dist/ARKABREAKOUT.dsk'
-labels = {}
+labels = a2test.Labels()
 
 
 def poke(name, value, offset=0):
-    return f'poke:{labels[name]+offset:04X}:{value:02X}'
+    return labels.poke(name, value, offset)
 
 
 def peek(name, length=1):
-    return f'peek:{labels[name]:04X}:{length}'
+    return labels.peek(name, length)
 
 
 def run(*steps, menu=False):
-    args = [str(EMU), '--disk', str(DISK), 'wait:1100']
-    if not menu:
-        args += ['key: ', 'wait:60']
-    out = subprocess.check_output(args + list(steps), text=True)
+    boot = ['wait:1100'] + ([] if menu else ['key: ', 'wait:60'])
+    result = a2test.run(DISK, boot + list(steps))
     memory = {}
-    for address, values in re.findall(r'^([0-9A-F]{4}): ([0-9A-F ]+)$', out, re.M):
-        for i, value in enumerate(bytes.fromhex(values)):
-            memory[int(address,16)+i] = value
-    return out, memory
+    for address, values in result.rows:
+        for i, value in enumerate(values):
+            memory[address + i] = value
+    return result.out, memory
 
 
 def value(memory, name, offset=0):
@@ -56,8 +55,7 @@ def main():
     parser.add_argument('--labels',type=Path,default=GAME/'build/game.lbl')
     args = parser.parse_args()
     DISK = args.disk.resolve()
-    labels = {name: int(addr,16) for addr,name in re.findall(
-        r'^al ([0-9A-Fa-f]+) \.(\w+)$',args.labels.read_text(),re.M)}
+    labels = a2test.labels(args.labels)
     _, m = run(*fields('state','level','lives','remaining','ball_live','score'))
     assert [value(m,n) for n in ('state','level','lives','remaining','ball_live')] == [1,0,3,48,0]
     assert bytes(m[labels['score']+i] for i in range(5)) == b'00000'
@@ -73,13 +71,10 @@ def main():
                  'wait:45','peek:2000:16384',*fields('paused'))
     chunks = re.split(r'(?m)^2000:', out)[1:]
     def page_bytes(chunk):
-        data = chunk.splitlines()[0] + ' ' + ' '.join(re.findall(
-            r'(?m)^[2345][0-9A-F]{3}: ([0-9A-F ]+)$',chunk))
-        return bytes.fromhex(data)
+        return a2test.page_dump('2000:' + chunk)
     assert len(chunks) == 2 and page_bytes(chunks[0]) == page_bytes(chunks[1])
     frozen = page_bytes(chunks[0])
-    visible = [((y % 8)*1024 + ((y//8) % 8)*128 + (y//64)*40 + x)
-               for y in range(192) for x in range(40)]
+    visible = [a2test.hgr_offset(y) + x for y in range(192) for x in range(40)]
     assert all(frozen[i] == frozen[i+8192] for i in visible), "paused pages disagree"
     assert value(m,'paused') == 1
 

@@ -2,28 +2,14 @@
 """Exercise real Maze3D generation in the Apple II emulator across seeds."""
 
 import argparse
-import subprocess
+import sys
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-A2SHOT = ROOT / "dev/tools/a2shot/a2shot"
+sys.path.insert(0, str(ROOT / "dev/tools"))
+import a2test  # noqa: E402
 DISK = ROOT / "dist/MAZE3D.dsk"
-
-
-def memory(output: str, address: int, length: int) -> list[int]:
-    lines = output.splitlines()
-    start = f"{address:04X}:"
-    for index, line in enumerate(lines):
-        if line.startswith(start):
-            values: list[int] = []
-            for row in lines[index:]:
-                if len(row) < 6 or row[4:6] != ": ":
-                    break
-                values.extend(int(byte, 16) for byte in row[6:].split())
-                if len(values) >= length:
-                    return values[:length]
-    raise AssertionError(f"missing {start} in a2shot output")
 
 
 def neighbours(grid: list[int], cell: int) -> list[int]:
@@ -78,6 +64,9 @@ def verify(grid: list[int], mobs: list[int]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--samples", type=int, default=100)
+    parser.add_argument("--disk", type=Path, default=DISK)
+    parser.add_argument("--a2shot", type=Path, default=a2test.A2SHOT,
+                        help="a2run (portable) works too")
     args = parser.parse_args()
     for index in range(args.samples):
         low = (index * 73 + 11) & 255
@@ -86,13 +75,9 @@ def main() -> None:
             "wait:2200", f"poke:0056:{low:02x}", f"poke:0057:{high:02x}",
             "key:X", "wait:130", "peek:1000:77", "peek:10a0:32",
         ]
-        run = subprocess.run(
-            [str(A2SHOT), "--disk", str(DISK), *steps],
-            cwd=A2SHOT.parent, capture_output=True, text=True, timeout=20,
-            check=True,
-        )
+        run = a2test.run(args.disk, steps, emulator=args.a2shot, timeout=20)
         try:
-            verify(memory(run.stdout, 0x1000, 77), memory(run.stdout, 0x10A0, 32))
+            verify(list(run.mem(0x1000, 77)), list(run.mem(0x10A0, 32)))
         except AssertionError as error:
             raise AssertionError(f"seed {index} ({high:02X}{low:02X}): {error}") from error
     print(f"{args.samples} generated floors: connected, keyed, three caches, valid monsters")

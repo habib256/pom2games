@@ -1,89 +1,241 @@
 # Maze 3D — Apple II+ / DOS 3.3
 
-Port Apple II du sketch `sketchs/gen2/game_maze3d` de
-[POM1](https://github.com/habib256/pom1) (HGR_Maze3D, VERHILLE Arnaud) :
-un dungeon crawler façon Wizardry en fil de fer. Trois labyrinthes 11x7 générés
-par DFS enrichi de boucles et d'une salle 2x2, vue 3D avec ombrage, carte qui
-se découvre, niveaux d'expérience et combats au tour par tour contre gobelins,
-orcs, mages noirs et un dragon final. Chaque étage demande de trouver une
-relique avant d'atteindre la sortie ; trois caches rapportent or et parfois
-une potion.
-Les trois premiers monstres utilisent des sprites SCROLL-O-SPRITES de Quale
-(CC-BY-3.0) ; le dragon est un sprite original.
+A wire-frame first-person dungeon crawler in the Wizardry mould, for a
+48 KB Apple II+. Three 11x7 floors are generated at run time, drawn in
+double-buffered HGR with depth shading, and defended by goblins, orcs, dark
+mages and a final dragon. Find each floor's relic, spend your gold between
+floors, slay the dragon, and leave your best run on the disk so the next
+player can replay the very same dungeon.
 
-    make            # -> ../dist/MAZE3D.dsk  (image DOS 3.3 5"1/4 amorçable)
-    make run        # démarre l'image dans POM2 (profil Apple ][+)
+Apple II port of the POM1 sketch `sketchs/gen2/game_maze3d` (HGR_Maze3D,
+VERHILLE Arnaud) from [POM1](https://github.com/habib256/pom1).
 
-Prérequis : cc65 (`brew install cc65`) et python3. Tout le reste est dans
-`../dev`, pistes système DOS 3.3 comprises. `make run` lance POM2 installé
-(`/Applications/POM2.app`, ou `make run POM2=chemin/vers/POM2`).
+    make            # -> ../dist/MAZE3D.dsk  (bootable 5.25" DOS 3.3 image)
+    make run        # boot it in POM2 as an Apple II+
+    make test       # 100 generated floors checked in the a2shot emulator
 
-## Commandes
+## Features
 
-| Clavier           | Action                    |
-|-------------------|---------------------------|
-| I ou flèche haut  | avancer                   |
-| K ou flèche bas   | reculer                   |
-| J ou flèche gauche| tourner à gauche          |
-| L ou flèche droite| tourner à droite          |
-| M                 | carte / vue 3D            |
-| H                 | aide                      |
-| P                 | boire une potion (+10 PV) |
-| A / G / F         | attaquer / garder / fuir (combat) |
-| R (écran titre)   | rejouer la graine du record |
-| ESC               | quitter vers DOS          |
+- **Generated dungeons.** Each floor is an 11x7 maze carved by a
+  backtracking DFS, then enriched with three extra loops, a 2x2 chamber
+  holding the floor's relic, and three hidden caches of gold (sometimes a
+  potion too). `make test` verifies on 100 seeds that every floor is fully
+  connected, that the relic sits in the chamber, that exactly three caches
+  exist, and that the eight monsters stand on valid cells.
+- **Double-buffered 3D view.** Every full screen (3D view, map, combat,
+  title, help, win/lose) is drawn on the hidden HGR page and shown with a
+  single page flip: the previous picture stays up until the next one is
+  complete.
+- **Turn-based combat** with four actions: `A` attack, `G` guard, `P` drink
+  a potion, `F` flee. Each monster has a trait: the goblin may steal a coin,
+  the dark mage's magic ignores your armour, the orc and the dragon announce
+  a heavy strike one turn ahead.
+- **Three floors and a shop.** Regular foes get tougher on floors 2 and 3;
+  the dragon guards the last exit. Between floors a shop sells healing,
+  attack, defence and potions.
+- **Progress you can see.** The map fills in as you explore; the HUD tracks
+  HP, ATK, DEF, LVL, XP, GOLD and POTIONS; a narrator comments on your
+  stride.
+- **Best run on disk.** A completed run earns a score; the best score and
+  its maze seed are saved to `MAZESCORE` on the disk, and `R` on the title
+  screen replays that exact dungeon.
+- **Sound** for walls, hits, level-ups, stairs, victory and death, on the
+  Apple II speaker.
 
-Chaque sortie mène à une boutique entre deux étages : H soigne 10 PV pour
-8 pièces d'or (maximum 30 PV), A ajoute 1 ATK pour 12 pièces et D ajoute
-1 DEF pour 12 pièces, P achète une potion pour 6 pièces. C descend à l'étage
-suivant. La sortie exige la relique de l'étage ; la dernière exige aussi la
-mort du dragon. La garde réduit le prochain coup et renforce la prochaine
-attaque. Les orcs et le dragon annoncent leur coup puissant ; la magie ignore
-l'armure. Une fuite réussie ramène sur la case précédente.
+## How to play
 
-La carte indique les cases visitées, la salle `R`, les caches `$`, la relique
-`*`, les monstres aperçus et la graine hexadécimale. Elle révèle la sortie une fois sa case
-explorée. À la victoire, le score récompense les caches et le niveau, puis
-retire un point par quatre déplacements. Le meilleur score et sa graine sont
-enregistrés dans `MAZESCORE` sur la disquette ; une disquette protégée permet
-de jouer mais ne conserve pas le nouveau record.
+| Key               | Action                                        |
+|-------------------|-----------------------------------------------|
+| I or up arrow     | step forward                                  |
+| K or down arrow   | step backward                                 |
+| J or left arrow   | turn left                                     |
+| L or right arrow  | turn right                                    |
+| M                 | toggle map / 3D view                          |
+| H                 | help screen                                   |
+| P                 | drink a potion (+10 HP, up to 30)             |
+| A / G / P / F     | attack / guard / potion / flee (combat)       |
+| R (title screen)  | replay the seed of the best run               |
+| ESC               | quit to the DOS prompt                        |
 
-Trouvez la sortie `E` en bas à droite. Sur un II+ il n'y a que les flèches
-gauche/droite ; haut/bas existent sur un //e. La touche pressée sur l'écran
-titre contribue à la graine d'une nouvelle partie. `R` rejoue celle du record.
+An Apple II+ only has left and right arrows; up and down work on a //e.
+Lower-case letters are accepted.
 
-Améliorations prévues : voir [`TODO.md`](TODO.md).
+**The quest.** You start in the top-left corner facing a dark corridor; the
+exit `E` is in the bottom-right corner. Each floor's exit stays shut until
+you have picked up the relic in the 2x2 chamber `R`. On floor 3 the exit also
+demands the dragon's death. Caches `$` hold gold and sometimes a potion.
+Eight monsters roam each floor; walking into one starts a fight.
 
-## Contenu
+**Combat.** `A` hits. `G` guards: the next blow you take is halved and your
+next attack is strengthened. `P` drinks a potion. `F` flees with a 50 %
+chance; a failed escape costs you a free hit, a successful one puts you back
+on the previous cell. Each kill gives experience; every level-up adds 1 ATK,
+heals 8 HP (up to 30) and adds 1 DEF every other level.
 
-    src/maze3d.s               le jeu (ca65), BRUN à $6000
-    src/narrator.asm            textes du narrateur, BLOAD à $1100
-    src/sprites_trollkind.asm  gobelin, orc (SCROLL-O-SPRITES, repris de POM1)
-    src/sprites_characters.asm mage noir (idem)
-    src/maze3d.cfg             config ld65 : ZP $50-$FF, données $1100, code $6000
-    src/hello.bas              charge MAZETEXT et MAZESCORE, puis BRUN MAZE3D
-    tests/check_generation.py  vérification de 100 labyrinthes dans l'émulateur
-    ../dist/MAZE3D.dsk         l'image produite
+**Shop (between floors).** `H` heals 10 HP for 8 gold (maximum 30 HP),
+`A` adds 1 ATK for 12 gold, `D` adds 1 DEF for 12 gold, `P` buys a potion
+for 6 gold (nine at most). `C` descends to the next floor, `ESC` quits. Gold
+is capped at 99.
 
-Bibliothèques : `../dev/lib/apple2` (HGR, sortie DOS), `../dev/lib/hgr` (texte
-8x8, sprites 16x16, tables de lignes), `../dev/tools/dos33.py`.
+**The map** shows the cells you have visited, the chamber `R`, the caches
+`$`, the relic `*`, the monsters you have seen from the corridors, the floor
+number and the hexadecimal seed. The exit appears once its cell has been
+explored.
 
-## Différences avec l'original Apple-1 / GEN2
+**Seeds, score and record.** The key you press on the title screen is mixed
+into the seed, so each key starts a different dungeon; `R` reuses the seed of
+the best run instead. On victory the score is 100, plus 10 per cache found
+and 5 per level gained, minus one point per four moves. A new record is
+written to `MAZESCORE` on the disk; a write-protected disk still plays but
+keeps no new record. The title screen shows the best score, the victory
+screen shows score, best and seed.
 
-- Clavier Apple II (`$C000` + `$C010`), minuscules repliées, flèches en plus
-  de IJKL.
-- Commutateurs `$C050-$C057`.
-- **Double tampon HGR1/HGR2** : chaque écran complet (vue 3D, carte, combat,
-  titre, aide, fin de partie) est dessiné sur la page cachée puis affiché d'un
-  seul coup en basculant de page. L'original affichait une page noire pendant
-  le redessin ; ici l'image précédente reste à l'écran jusqu'à ce que la
-  suivante soit prête. Le HUD, qui n'est pas redessiné à chaque pas, est
-  reconstruit sur les deux pages quand il change.
-- ESC revient au prompt DOS : la page zéro est sauvegardée au lancement et
-  restaurée en sortie, BASIC et DOS retrouvent leurs pointeurs.
-- Binaire de 11,6 Ko à `$6000`, zéro-page en `$50`. Les textes longs sont dans
-  `MAZETEXT` sur la disquette, chargé à `$1100`. `MAZESCORE` occupe huit octets
-  à `$1F00` et contient la version, le record, sa graine et une somme de
-  contrôle.
-- Correction d'un bogue hérité : en revenant de l'écran d'aide (H), la zone
-  du HUD gardait « PRESS ANY KEY... » au lieu des statistiques.
+## Build and run
+
+Requirements: cc65 (`brew install cc65`) and python3. Everything else, DOS
+3.3 system tracks included, lives in [`../dev`](../dev/README.md); the build
+rules come from `../dev/cc65/apple2.mk`.
+
+    make            # assemble, link, write ../dist/MAZE3D.dsk
+    make run        # boot the disk in POM2 (/Applications/POM2.app; or make run POM2=path/to/POM2)
+    make test       # tests/check_generation.py in a2shot
+    make clean      # remove build/ (the disk stays)
+    make distclean  # remove build/ and the disk
+
+The disk carries four files: `HELLO` (Applesoft, from `src/hello.bas`),
+which `BLOAD`s `MAZETEXT` and `MAZESCORE` then `BRUN`s `MAZE3D`.
+
+## Tests
+
+[`tests/check_generation.py`](tests/check_generation.py) boots the disk in
+`../dev/tools/a2shot` (headless POM2 core; `a2run`, the portable equivalent,
+works too with `--a2shot`) and generates 100 floors by poking a seed into the
+PRNG at `$56/$57`, pressing a key, then reading the grid (`$1000`, 77 bytes)
+and the monster table (`$10A0`, 32 bytes). For each seed it checks:
+
+- only the start cell carries the DFS visited flag;
+- exactly one relic, three caches and one 2x2 chamber, the relic in the
+  chamber's bottom-right cell and the chamber open inside;
+- no relic or cache on the start or exit cell;
+- no passage through the outer wall, and at least 79 passages (a spanning
+  tree of 77 cells plus three loops);
+- all 77 cells reachable from the start;
+- eight monsters inside the grid, none on the start, exit, relic or caches,
+  each of type goblin, orc or dark mage.
+
+Build a2shot once with `make` in `../dev/tools/a2shot`.
+
+## Under the hood
+
+### Files
+
+    src/maze3d.s               the game (ca65), BRUN at $6000
+    src/narrator.asm           narrator lines -> MAZETEXT, BLOADed at $1100
+    src/sprites_trollkind.asm  goblin, orc (SCROLL-O-SPRITES)
+    src/sprites_characters.asm dark mage (SCROLL-O-SPRITES)
+    src/maze3d.cfg             ld65 config: ZP $50-$FF, state at $1000, text at $1100, code at $6000
+    src/hello.bas              BLOAD MAZETEXT, BLOAD MAZESCORE, BRUN MAZE3D
+    tests/check_generation.py  100 generated floors checked in the emulator
+    ../dist/MAZE3D.dsk         the disk image
+
+### Memory map
+
+| Range           | Content                                                  |
+|-----------------|----------------------------------------------------------|
+| `$0050-$00FF`   | zero page (game, hgr_text8, hgr_sprite16); snapshot at start, restored on ESC |
+| `$0800-$0FFF`   | HELLO, the Applesoft greeting program kept by DOS        |
+| `$1000-$104C`   | GRID, the 77 maze cells (bit 0 north open, bit 1 east open, bit 2 cache, bit 3 relic, bit 4 chamber, bit 6 monster seen, bit 7 visited) |
+| `$1050-$109C`   | DFS backtracker stack                                    |
+| `$10A0-$10FF`   | monsters: 8 columns, 8 rows, 8 types, 8 HP               |
+| `$1100-$1FFF`   | `MAZETEXT`, the narrator bank (about 2.7 KB)             |
+| `$1F00-$1F07`   | `MAZESCORE`, the record file                             |
+| `$2000-$3FFF`   | HGR page 1                                               |
+| `$4000-$5FFF`   | HGR page 2                                               |
+| `$6000-...`     | `MAZE3D`, 11.3 KB of code and data, then BSS             |
+| `$9600-$BFFF`   | DOS 3.3                                                  |
+
+### The record file
+
+`MAZESCORE` is eight bytes at `$1F00`:
+
+| Offset | Content                                              |
+|--------|------------------------------------------------------|
+| 0-2    | magic `MZ3`                                          |
+| 3      | format version, `1`                                  |
+| 4      | best score                                           |
+| 5-6    | seed of the best run (low byte, high byte)           |
+| 7      | check byte: score XOR seed low XOR seed high XOR `$A5` |
+
+At start the file is validated; a bad magic, version or check byte resets it
+to the empty record (`MZ3 01 00 00 00 A5`, the file the Makefile writes to
+the disk). A new record is saved with `BSAVE MAZESCORE,A$1F00,L$0008`
+issued through `../dev/lib/apple2/dos.asm`, which swaps the zero page back to
+DOS for the duration of the command. `disk_protected` skips the save on a
+write-protected disk.
+
+### Double buffering
+
+Every drawing routine addresses the screen through the `hgr_hi` scanline
+table. `set_draw_page` flips the table's 192 high bytes between `$2x` and
+`$4x` (EOR `$60`, about 3.5k cycles), so the whole renderer moves to the
+other page without knowing it. `vdp_display_off` points the table at the
+hidden page, `vdp_display_on` shows it through the `$C054/$C055` soft
+switches. The HUD, which is not redrawn on every step, is rebuilt on both
+pages when it changes.
+
+### Text and sprites
+
+The game keeps its own 8x8 font (64 glyphs, ASCII `$20-$5F`, 512 bytes) in
+TMS9918 bit order, bit 7 leftmost. `hgr_text8` renders it with `ht_rev = 1`:
+each glyph row passes through `rev7_tab`, dropping the blank rightmost
+column to fit 7 HGR pixels. Monster sprites are 16x16 TMS-format patterns
+blitted by `hgr_sprite16` at x2 and x4; the blitter rebuilds each row as a
+bit stream and repacks it 7 pixels per byte, so no source column is lost.
+
+### Shared libraries (`../dev`)
+
+| Module                       | Role                                                   |
+|------------------------------|--------------------------------------------------------|
+| `lib/hgr/hgr_scanline.inc`   | `hgr_lo` / `hgr_hi` scanline address tables             |
+| `lib/hgr/hgr_sprite16.asm`   | 16x16 TMS-format sprites, x1/x2/x4, `rev7_tab`          |
+| `lib/hgr/hgr_text8.asm`      | byte-aligned 8x8 text (`HGR_TEXT8_NO_PUTS`, `ht_rev`)  |
+| `lib/apple2/hgr.asm`         | `hgr_init_clear`                                       |
+| `lib/apple2/sound.asm`       | speaker tones                                          |
+| `lib/apple2/exit.asm`        | `apple2_zp_save` / `apple2_exit`, clean return to DOS  |
+| `lib/apple2/dos.asm`         | DOS commands from machine code, `disk_protected`       |
+| `tools/dos33.py`             | builds the bootable disk                               |
+| `tools/a2test.py`, `a2shot`  | the headless test harness                              |
+
+## Differences from the POM1 original
+
+The GEN2 card is the Apple II video subsystem on the Apple-1 bus, so the HGR
+primitives, renderer, map, HUD and combat screens run unchanged. What this
+port changes:
+
+- Apple II keyboard: the latch at `$C000` is cleared through `$C010`;
+  lower case folds to upper case; the arrow keys alias IJKL.
+- Soft switches at `$C050-$C057` instead of the GEN2's `$C250-$C257`.
+- **Double buffering** between HGR pages 1 and 2. The original showed a
+  black page while redrawing.
+- ESC returns to the DOS prompt: the zero page is saved at start and
+  restored on exit, so BASIC and DOS keep their pointers.
+- One 11.3 KB binary BRUN at `$6000`, zero page at `$50`, maze state at
+  `$1000`. The narrator's lines live in `MAZETEXT` on the disk, loaded at
+  `$1100`, which frees about 2 KB of code space.
+- A record file on the disk, `MAZESCORE`, and `R` to replay its seed.
+- Gameplay added in this port: three floors, the relic chamber, caches,
+  loops in the maze, the shop, guard/potion/flee, monster traits, the
+  progressive map, the score, and sound.
+- An inherited bug fixed: returning from the help screen (`H`) left
+  "PRESS ANY KEY..." in the HUD instead of the statistics.
+
+Planned work: see [`TODO.md`](TODO.md).
+
+## Credits and licence
+
+Game and port: VERHILLE Arnaud, 2026. Licence: GPL-3.0 (see
+[`LICENSE`](../LICENSE) at the repository root), the same as the upstream
+POM1 sketch.
+
+Goblin, orc and dark mage sprites come from SCROLL-O-SPRITES by Quale
+(May 2013, CC-BY-3.0). The dragon is an original sprite.

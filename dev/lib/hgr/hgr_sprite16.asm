@@ -4,7 +4,7 @@
 ; ----------------------------------------------------------------------------
 ; Draws a 32-byte TMS9918-format 16x16 pattern (left column rows 0..15,
 ; right column rows 0..15, bit 7 = leftmost pixel -- the SCROLL-O-SPRITES
-; layout of dev/lib/tms9918/sprites_*.asm) into the HGR page-1 framebuffer,
+; layout of maze3d/src/sprites_*.asm) into the HGR page-1 framebuffer,
 ; magnified x1 (16x16), x2 (32x32) or x4 (64x64), with optional NTSC
 ; artifact colour. Pure byte STORES: the box overwrites the background,
 ; which doubles as occlusion behind the sprite.
@@ -44,9 +44,9 @@
 ; quadbits -- projects may reference all three (e.g. rev7_tab for text
 ; glyph conversion, dblnib for x2 text doubling).
 ;
-; First consumer: sketchs/hgr/game_maze3d (title mascot, corridor
-; clusters, x4 combat portrait, tinted x2 title text via the sp_cm_*
-; attributes).
+; Consumer in this repo: maze3d (title mascot, corridor clusters, x4 combat
+; portrait, tinted x2 title text via the sp_cm_* attributes). First written
+; for POM1's sketchs/hgr/game_maze3d.
 ; ============================================================================
 
 .ifndef _HGR_SPRITE16_LOADED_

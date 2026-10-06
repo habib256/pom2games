@@ -1,7 +1,7 @@
 ; ============================================================================
-; hgr_text_bitmap.asm -- HGR 8x8 glyph blitter for the GEN2 LOGO "full" build.
+; text_bitmap.asm -- HGR 8x8 glyph blitter for the GEN2 LOGO "full" build.
 ; ----------------------------------------------------------------------------
-; Drop-in replacement for dev/lib/tms9918/text_bitmap.asm: same public symbol
+; Drop-in replacement for POM1's dev/lib/tms9918/text_bitmap.asm: same public symbol
 ; (text_blit_glyph) and the same (A, pix_x, pix_y, pen_color) contract, but it
 ; paints into the GEN2 HGR framebuffer via plot_set + the Beautiful Boot 8x8
 ; font (bbfont) instead of the TMS9918 pattern/colour tables. Used by LOGO's
@@ -44,7 +44,7 @@ tb_bits: .res 1          ; remaining bits of the current row (LSB = next col)
 
 text_blit_glyph:
         AND #$7F
-        ; mptr = HGR_BBFont + A*8  (16-bit)
+        ; mptr = bbfont + A*8  (16-bit)
         STA tmp
         LDA #0
         STA tmp2
@@ -56,10 +56,10 @@ text_blit_glyph:
         ROL tmp2
         CLC
         LDA tmp
-        ADC #<HGR_BBFont
+        ADC #<bbfont
         STA mptr_lo
         LDA tmp2
-        ADC #>HGR_BBFont
+        ADC #>bbfont
         STA mptr_hi
         ; latch top-left + force OR draw (text never erases)
         LDA pix_x
@@ -106,7 +106,10 @@ text_blit_glyph:
         STA pix_y
         RTS
 
-; the Beautiful Boot 8x8 font (HGR_BBFont, 256 glyphs x 8 B). bit 0 = left.
-        .include "bbfont_cp437.inc"
+; the whole Beautiful Boot 8x8 font (bbfont, 256 CP437 glyphs x 8 B, 2 KB):
+; LOGO prints any character code. bit 0 = left.
+BBFONT_FIRST = $00
+BBFONT_LAST  = $FF
+        .include "bbfont.inc"
 
 .endif  ; CODETANK_BUILD

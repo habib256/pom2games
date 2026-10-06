@@ -41,7 +41,8 @@
 .export starting_position    ; re-export for variants that want to peek
 .export piece_letters
 ; Internals exposed so variants can enumerate legal moves without duplicating
-; the engine's machinery (used by Chess.asm's do_list_moves and do_hint).
+; the engine's machinery (POM1's Chess.asm used them for do_list_moves and
+; do_hint; chess.s does not).
 .export is_pseudo_legal
 .export make_move
 .export unmake_move
@@ -144,7 +145,7 @@ user_saved_fullmove:    .res 1
 undo_avail:             .res 1      ; 1 if undo state is loaded
 
 ; --- Zero page scratch (caller-provided via standard zp.inc convention) ---
-; chess_engine relies on tmp + tmp2 from lib/apple1/zp.inc.
+; chess_engine relies on tmp + tmp2 from dev/lib/apple2/zp.inc.
 .importzp tmp, tmp2
 
 ; Local engine-only ZP (allocated in caller's ZEROPAGE segment).
