@@ -1,9 +1,13 @@
 ; Cheat-mode solution playback.
 ; MICROSOL: DOS header, 508 bytes of reader (this SOLCODE, run at $1004 over
 ; the decoded level pack), then 4-byte entries (payload offset, move count)
-; and the moves packed four to a byte. Watching skips history and records.
+; and the moves packed four to a byte. Watching skips history and records;
+; the moves are read above the reader (sol_buf), so the game's history stays.
 .segment "WORKBSS"
 sol_cache:      .res 20
+sol_buf = pack_buf+512          ; index entry, then the packed moves, in the
+                                ; pack buffer above the reader (1.5 KB; the
+                                ; longest solution takes 264 bytes)
 
 .segment "CODE"
 
@@ -11,7 +15,7 @@ play_solution:
         LDA #1
         STA demo_active
         STA watching
-        JSR start_level
+        JSR watch_level
         JSR draw_level
         JSR sol_bind
         JSR sol_load_reader
@@ -67,7 +71,7 @@ sol_name:       .byte "MICROSOL", 0
 
 .segment "SOLCODE"
 
-; Fills hist and demo_src / demo_left from the current level, or a lesson.
+; Fills sol_buf and demo_src / demo_left from the current level, or a lesson.
 load_level_solution:
         LDA tutorial_on
         BEQ @disk
@@ -95,24 +99,24 @@ load_level_solution:
         ROL num_hi
         INC num_hi
         INC num_hi                      ; file offset 512 + 4 * level
-        LDA #<hist
+        LDA #<sol_buf
         STA ptr_lo
-        LDA #>hist
+        LDA #>sol_buf
         STA ptr_hi
         LDA #4
         STA sol_left
         LDA #0
         STA sol_more
         JSR sol_read
-        LDA hist
+        LDA sol_buf
         STA num_lo
-        LDA hist+1
+        LDA sol_buf+1
         STA num_hi
         INC num_hi
         INC num_hi                      ; payload offset + 512
-        LDA hist+2
+        LDA sol_buf+2
         STA demo_left_lo
-        LDA hist+3
+        LDA sol_buf+3
         STA demo_left_hi
         LDA demo_left_lo
         CLC
@@ -125,12 +129,12 @@ load_level_solution:
         LSR A
         ROR sol_left
         STA sol_more
-        LDA #<hist
+        LDA #<sol_buf
         STA ptr_lo
-        LDA #>hist
+        LDA #>sol_buf
         STA ptr_hi
         STA demo_src_hi
-        LDA #<hist
+        LDA #<sol_buf
         STA demo_src_lo
         JSR sol_read
 play_loaded:

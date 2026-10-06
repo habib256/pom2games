@@ -42,6 +42,7 @@ tutorial_next:
         STA save_mask
         JSR write_save
         JSR write_hof
+        JSR select_resume               ; back to the game the menu left, if any
 @next:  JMP game_loop
 
 draw_tutorial_info:

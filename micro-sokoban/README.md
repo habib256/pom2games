@@ -1,6 +1,6 @@
 # MICRO-SOKOBAN — Apple II+ / DOS 3.3
 
-Version 1.2 : [disquette et notes de publication](https://github.com/habib256/pom2games/releases/tag/1.2).
+Version 1.3, en préparation. Dernière version publiée : 1.2, [disquette et notes de publication](https://github.com/habib256/pom2games/releases/tag/1.2).
 
 Port Apple II du sketch `sketchs/gen2/game_sokoban` de
 [POM1](https://github.com/habib256/pom1) (HGR_Sokoban, VERHILLE Arnaud).
@@ -28,6 +28,11 @@ Prérequis : cc65 (`brew install cc65`) et python3. L'image est écrite par
 |                                   | R                                | recommencer (annulable : Y rejoue) |
 |                                   | N / P (en partie)                | niveau suivant / précédent |
 | bouton 1                          | ESC                              | sauvegarder la position et ouvrir le menu |
+
+Après un rembobinage à la manette, le manche ne déplace de nouveau le joueur
+qu'une fois revenu au centre : relâcher le bouton 0 en premier ne joue aucun coup
+et garde les coups à rejouer. Sans manette branchée, le port jeu est ignoré
+(axes et boutons) : on joue au clavier.
 | manche haut/bas + bouton          | I/K + RETURN ou ESPACE           | choisir dans le menu       |
 |                                   | G (ou menu)                      | choisir le niveau (grille) |
 |                                   | V (accueil ou menu)               | choisir, créer ou renommer un profil |
@@ -38,7 +43,7 @@ Prérequis : cc65 (`brew install cc65`) et python3. L'image est écrite par
 |                                   | Q (menu)                         | quitter vers DOS           |
 
 L'écran titre montre les niveaux résolus et le niveau de reprise du profil actif.
-Son nom apparaît en bas à gauche du mur inférieur ; la version **V1.2** apparaît
+Son nom apparaît en bas à gauche du mur inférieur ; la version **V1.3** apparaît
 en bas à droite. Les deux textes blancs ont un fond noir et une marge
 qui évitent les franges de couleur. Le couloir animé occupe toute la largeur :
 un déplacement toutes les **~1,6 s**. Après au moins 15 s sans entrée, le jeu
@@ -51,7 +56,8 @@ sauvegardé pendant cette présentation, silencieuse par défaut.
 **MENU** (ESC ou bouton 1) regroupe PLAY / RESUME, TUTORIAL (5), PROFILES,
 RESTART, GO TO LEVEL, OPTIONS, HALL OF FAME, HELP et QUIT TO DOS. Si CHEAT MODE
 est activé, une dernière ligne SOLUTION joue la solution du niveau en cours,
-sans l'enregistrer : la position d'avant le menu est restaurée.
+sans l'enregistrer : la position d'avant le menu est restaurée, avec son
+historique Undo/Redo, y compris sur une disquette protégée en écriture.
 GO TO LEVEL remplace les choix NEXT/PREV dans le menu. HELP présente le but du
 jeu, les déplacements, Undo/Redo et le retour au menu. H ouvre directement HELP depuis l'accueil ou la partie ; quitter HELP ramène au menu.
 Depuis l'accueil, on peut
@@ -62,6 +68,9 @@ ESC ou le bouton 1 revient ; RETURN ou le bouton 0 valide une sélection.
 avec des solutions de 2, 2, 5, 5 et 7 coups. Consignes et commandes sont affichées ;
 le tutoriel ne participe pas au classement. Son achèvement est sauvegardé par profil.
 T dans le menu permet de le rejouer ; G permet d'accéder directement à Microban.
+Rejoué en cours de partie, le tutoriel rend ensuite le niveau quitté, avec sa
+position et ses compteurs (l'historique Undo/Redo repart vide). Un profil créé
+depuis le menu d'une partie commence lui aussi par les leçons.
 Sur SUCCESS, une touche ou un bouton passe au niveau suivant.
 QUIT TO DOS et Ctrl-RESET restaurent la page zéro et rechargent le programme
 BASIC `HELLO` : `LIST` affiche le lanceur et `RUN` relance le jeu.
@@ -84,8 +93,9 @@ baisser le total de coups. Ce départage reste dépendant des niveaux choisis :
 ce n'est pas une comparaison à une solution optimale commune.
 
 **PROFILES** permet de choisir parmi dix profils indépendants. Le profil initial
-GIS peut être renommé. N crée un profil dans un emplacement libre ; R renomme le
-profil sélectionné. Le trait à droite du nom identifie le profil actif. Les
+GIS peut être renommé. N crée un profil dans un emplacement libre et l'active ;
+R renomme le profil sélectionné sans changer de profil actif : la partie en cours
+et son historique restent. Le trait à droite du nom identifie le profil actif. Les
 initiales sont préremplies (nom sélectionné lors d'un renommage, dernières
 initiales lors d'une création), puis modifiables au clavier ou à la manette.
 RETURN/B0 valide, ESC/B1 annule ; deux profils ne peuvent pas porter le même nom.
@@ -119,7 +129,8 @@ Après le redémarrage, PLAY retrouve les caisses, le joueur, les coups et les
 poussées. Attendre la fin de « SAVING » avant d'éteindre ; ouvrir le menu permet
 de déclencher cette sauvegarde immédiatement. Le tutoriel et la démo ne remplacent
 pas la position Microban. **L'historique Undo/Redo reste en mémoire seulement** :
-il repart vide après redémarrage ou changement de profil.
+il repart vide après redémarrage, changement de profil ou tutoriel rejoué.
+Les compteurs de coups et de poussées s'arrêtent à 65535.
 
 L'écran **SUCCESS** affiche un titre orange ×2, les coups et poussées alignés,
 le nouveau record (ou le meilleur nombre de coups) et le nombre de niveaux résolus en blanc.
@@ -133,7 +144,8 @@ elles sont remplies en vert. L’accueil affiche le crédit
 Les records (coups, puis poussées) sont gardés sur la disquette, dans
 le fichier du profil actif, mis à jour après chaque niveau résolu. Au démarrage,
 le jeu reprend la position sauvegardée ou, à défaut, le premier niveau non résolu. Sur une disquette protégée en écriture,
-on joue sans sauvegarde. Le fichier porte une empreinte de chaque collection
+on joue sans sauvegarde : records et position restent en mémoire jusqu'à
+l'extinction ou au changement de profil. Le fichier porte une empreinte de chaque collection
 (niveaux gardés, ordre, contenu, rotation) : si une nouvelle version du jeu
 change les niveaux d'une collection, ses records sont effacés plutôt
 qu'attribués à d'autres niveaux ; ceux des autres collections restent. Dans la grille de choix (G), les niveaux résolus
@@ -212,6 +224,7 @@ Améliorations prévues : voir [`TODO.md`](TODO.md).
     tools/test_tutorial_options.py  tutoriel, retour accueil et options persistantes
     tools/test_score.py        profils, classement, migration et sauvegarde
     tools/test_resume.py       reprise, profils, CRC et écritures limitées
+    tools/test_play.py         partie quittée puis retrouvée : tutoriel, SOLUTION, profils, manette, « SAVING », compteurs
     tools/test_menu_render.py  textes des options, y compris une adresse finissant par $FF
     tools/test_graphics.py     pages HGR visibles/cachées et retours des menus/solutions
     tools/test_exit.py         démarrage, QUIT/RESET, BASIC restauré et relances RUN (a2run/POM2)
@@ -229,7 +242,7 @@ Le résident (`$6000` à `$9A9F`, sous les tampons de DOS) est presque plein. La
 copie de la page zéro de DOS occupe donc la page 2 (`$0200`, le tampon de saisie,
 libre tant qu'aucune commande DOS ne s'exécute), le classement et la page zéro
 du jeu pendant RWTS le début de la page 3 (`$0300` à `$03B3`, sous les vecteurs
-de DOS). Il reste environ 120 octets : voir `build/micro_sokoban.map`.
+de DOS). Il reste environ 50 octets : voir `build/micro_sokoban.map`.
 
 Le BASIC affiche **LOADING MICRO-SOKOBAN**, réserve un seul tampon DOS avec
 `MAXFILES 1`, puis lance le petit chargeur. Celui-ci lit `MICRODATA` par secteurs
@@ -286,7 +299,9 @@ sur 5) : 6,6 Ko pour Microban, 5,8 Ko pour Microban II, 4,0 Ko pour III,
 
 - Pas de V-blank sur un II+ : les tuiles sont dessinées directement (2-3 par coup).
 - Lecture des deux paddles dans une seule boucle de durée fixe (6 ms), boutons
-  détectés sur front, répétition du manche toutes les ~200 ms.
+  détectés sur front, répétition du manche toutes les ~200 ms. Un paddle dont la
+  temporisation court encore après cette boucle n'est pas branché : sans manette,
+  ni les axes ni les boutons (entrées flottantes) ne sont lus.
 - Tuiles en couleur HGR (murs bleus, caisses orange, caisses placées et cibles
   vertes, joueur blanc avec un trait vert sous les pieds sur une cible) ; l'écran texte
   Apple-1 est remplacé par le menu HGR.

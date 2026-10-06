@@ -282,6 +282,8 @@ run_profiles:
         BCC @rename_byte
 @commit:
         LDX temp2
+        LDA hof_buf+HOF_PROFILES,X      ; Z = an empty slot: a new profile
+        PHP
         LDY #0
 @copy:  LDA hof_initials,Y
         STA hof_buf+HOF_PROFILES,X
@@ -289,6 +291,11 @@ run_profiles:
         INY
         CPY #3
         BCC @copy
+        PLP
+        BEQ activate_profile            ; a new profile becomes the active one;
+        LDA profile_sel                 ; a new name changes nothing else,
+        CMP hof_buf+HOF_ACTIVE          ; but the active profile's is also in
+        BNE profile_saved               ; the header
 
 activate_profile:
         LDA profile_sel
@@ -305,12 +312,13 @@ activate_profile:
         CPY #3
         BCC @copy
         PLP
-        BNE @switch
+        BNE profile_switch
         JSR update_hof
+profile_saved:
         JSR write_hof
         CLC
         RTS
-@switch:
+profile_switch:
         LDA #0
         STA tutorial_on
         STA tutorial_idx
@@ -343,7 +351,7 @@ profiles_table:
         .byte <profiles_back,>profiles_back,84,180,STYLE_COMPACT
         .word $FFFF
 profile_label: GSTR "PROFILE "
-title_version: GSTR "V1.2"
+title_version: GSTR "V1.3"
 profiles_hint: GSTR "STICK/I/K  RETURN/B0 SELECT"
 profiles_edit: GSTR "N NEW    R RENAME"
 profiles_back: GSTR "ESC/B1 BACK"
