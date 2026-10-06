@@ -12,7 +12,7 @@ def main():
         sources = [DEV/'cc65/crt0_apple2.s', DEV/'tests/dhgr_starter_fixture.c',
                    DEV/'examples/dhgr/src/ball_render.s',
                    *[DEV/'lib/hgrc'/name for name in
-                     ('dhgr.c', 'dhgr_asm.s', 'dhgr_sprite.c',
+                     ('dhgr.c','dhgr_pixel.c','dhgr_getpixel.c','dhgr_pixel_address.c','dhgr_write_asm.s','dhgr_read_asm.s','dhgr_fill.c','dhgr_clear.c','dhgr_pattern.c','dhgr_plot_color.c','dhgr_fill_bits.c','dhgr_bit_rect.c','dhgr_clear_asm.s','dhgr_span_asm.s','dhgr_access_asm.s','dhgr_address.c', 'dhgr_asm.s', 'dhgr_sprite.c',
                       'dhgr_transfer_params.c', 'dhgr_block_asm.s',
                       'dhgr_text.c', 'dhgr_text_asm.s', 'hgr_font.c')],
                    DEV/'lib/apple2c/apple2io_asm.s']

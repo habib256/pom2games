@@ -17,25 +17,28 @@ small_inverse: .res 4
 small_main_start: .res 1
 small_aux_start: .res 1
 small_bits: .res 1
+.include "dhgr_small_layout.inc"
 .ifdef DHGR_SMALL_FONT_EXTERNAL
-; Optional relocated data: the application copies dhgr_small_data.inc to
-; $0800 before using this member. Default library users need no relocation.
-small_font = $0800
-small_font_lo = small_font+384
-small_font_hi = small_font_lo+64
-small_xbyte = small_font_hi+64
-small_xphase = small_xbyte+140
-small_left_masks = small_xphase+140
-small_right_masks = small_left_masks+7
-small_row_lo = small_right_masks+7
-small_row_hi = small_row_lo+192
-small_ink = small_row_hi+192
-small_ink_lo = small_ink+448
-small_ink_hi = small_ink_lo+7
+small_font = DHGR_SMALL_FONT_BASE+DhgrSmallLayout::font
+small_font_lo = DHGR_SMALL_FONT_BASE+DhgrSmallLayout::font_lo
+small_font_hi = DHGR_SMALL_FONT_BASE+DhgrSmallLayout::font_hi
+small_xbyte = DHGR_SMALL_FONT_BASE+DhgrSmallLayout::xbyte
+small_xphase = DHGR_SMALL_FONT_BASE+DhgrSmallLayout::xphase
+small_left_masks = DHGR_SMALL_FONT_BASE+DhgrSmallLayout::left_masks
+small_right_masks = DHGR_SMALL_FONT_BASE+DhgrSmallLayout::right_masks
+small_row_lo = DHGR_SMALL_FONT_BASE+DhgrSmallLayout::row_lo
+small_row_hi = DHGR_SMALL_FONT_BASE+DhgrSmallLayout::row_hi
+small_ink = DHGR_SMALL_FONT_BASE+DhgrSmallLayout::ink
+small_ink_lo = DHGR_SMALL_FONT_BASE+DhgrSmallLayout::ink_lo
+small_ink_hi = DHGR_SMALL_FONT_BASE+DhgrSmallLayout::ink_hi
 .else
 .rodata
 .include "dhgr_small_data.inc"
 .endif
+; Public immutable data, shared by custom renderers and enlarged logos.
+.export _dhgr_small_font := small_font
+.export _dhgr_row_lo := small_row_lo, _dhgr_row_hi := small_row_hi
+.export _dhgr_color_byte := small_xbyte
 .code
 _dhgr_small_char:
         ldx _dhgr_small_x

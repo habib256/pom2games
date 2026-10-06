@@ -1,12 +1,8 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
-#include "dhgr.h"
-#include "hgr_layout.h"
+#include "dhgr_internal.h"
 extern const unsigned char hgr_font[768];
-extern unsigned char dhgr_base, dhgr_aux, dhgr_mask, dhgr_bits;
-extern unsigned char *dhgr_addr;
 unsigned char dhgr_text_phase, dhgr_text_row[6];
 void __fastcall__ dhgr_glyph_row_asm(unsigned char glyph);
-void dhgr_write_asm(void);
 void dhgr_puts(const char *s, unsigned char x, unsigned char y)
 {
     unsigned char ch, row, byte, first, count, left_mask, right_mask;

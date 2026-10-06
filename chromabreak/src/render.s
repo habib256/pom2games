@@ -147,34 +147,14 @@ valid: .res SPRITES*2
 .align 32
 under: .res SPRITES*2*SLOT_SIZE
 .rodata
-row_lo:
-.repeat 192,I
-.byte <((I&7)*1024+((I>>3)&7)*128+(I>>6)*40)
-.endrepeat
-row_hi:
-.repeat 192,I
-.byte >((I&7)*1024+((I>>3)&7)*128+(I>>6)*40)
-.endrepeat
-xbyte:
-.repeat 141,I
-.byte I*4/7
-.endrepeat
-endbyte:
-.repeat 141,I
-.byte (I*4+6)/7
-.endrepeat
-leftm:
-.repeat 141,I
-.byte ($7F<<((I*4) .mod 7))&$7F
-.endrepeat
-rightm:
-.repeat 141,I
-.if (I*4) .mod 7
-.byte (1<<((I*4) .mod 7))-1
-.else
-.byte $7F
-.endif
-.endrepeat
+.include "dhgr_layout.inc"
+.import _dhgr_row_lo, _dhgr_row_hi, _dhgr_color_byte
+row_lo = _dhgr_row_lo
+row_hi = _dhgr_row_hi
+xbyte = _dhgr_color_byte
+dhgr_end_table endbyte,141
+dhgr_left_table leftm,141
+dhgr_right_table rightm,141
 under_lo:
 .repeat SPRITES*2,I
 .byte <(under+I*SLOT_SIZE)
@@ -997,33 +977,18 @@ black_next:
         jne black_row
         plp
         rts
-; String entry for compact library text. ptr4 survives small_char.
-.import _dhgr_small_x, _dhgr_small_y, _dhgr_small_char
+; Compatibility bridge: the text engine and progress hook live in the library.
+.import _dhgr_small_x, _dhgr_small_y, _dhgr_small_char, _dhgr_small_string
 .export _fast_text
 .code
 _fast_text:
-        sta ptr4
-        stx ptr4+1
+        pha
         lda _render_x
         sta _dhgr_small_x
         lda _render_y
         sta _dhgr_small_y
-@char: jsr _timing_scan
-        ldy #0
-        lda (ptr4),y
-        beq @done
-        jsr _dhgr_small_char
-        lda _dhgr_small_x
-        clc
-        adc #5
-        sta _dhgr_small_x
-        cmp #136
-        bcs @done
-        inc ptr4
-        bne @char
-        inc ptr4+1
-        bra @char
-@done: rts
+        pla
+        jmp _dhgr_small_string
 
 ; Return/update one changed HUD character, without a C scan of both lines.
 .import _hud_wanted, _hud_previous

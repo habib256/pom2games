@@ -179,6 +179,8 @@ _timing_close:
 ; Called between bounded work chunks and once per renderer scanline.
 ; Counts live IIe VBL edges during rendering, so short/long frames share
 ; the same two-refresh deadline. Native IIc uses its IRQ clock instead.
+.export _dhgr_small_progress
+_dhgr_small_progress:
 _timing_scan:
         lda _timing_mode
         cmp #1

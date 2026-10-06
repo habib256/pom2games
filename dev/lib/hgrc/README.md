@@ -132,8 +132,58 @@ avec HGR dans `hgr_layout.h`.
   `dhgr_small_x` et `dhgr_small_y` pour un bandeau mis à jour progressivement.
   Les accès auxiliaires sont brefs et préservent l’état des interruptions.
   Par défaut, les tables sont liées avec la bibliothèque. L’option assembleur
-  `DHGR_SMALL_FONT_EXTERNAL=1` permet de les reloger à `$0800` : l’application
-  doit alors y copier les 1 652 octets de `dhgr_small_data.inc` avant le rendu.
+  `DHGR_SMALL_FONT_EXTERNAL=1` permet de les reloger à `$0800` (ou à
+  `DHGR_SMALL_FONT_BASE`) : l’application doit alors y copier les **1 653 octets**
+  de données avant le rendu. `dev/tools/build_dhgr_font.py --out font.bin`
+  produit une image de 2 Ko prête à charger ; `--base` et `--capacity` permettent
+  de choisir son emplacement et sa taille. La base doit correspondre à celle
+  utilisée pour assembler le moteur.
+- `dhgr_small_string` : chaîne rapide aux coordonnées `dhgr_small_x/y`, utilisée
+  aussi par `dhgr_puts_small`. L’option assembleur `DHGR_SMALL_USE_PROGRESS=1`
+  appelle le point d’entrée applicatif `dhgr_small_progress` entre les caractères
+  pour suivre la VBL ; ce callback doit préserver `ptr4`. Aucun callback n’est
+  requis par défaut. L’appel caractère seul reste indépendant de ce suivi.
+
+`dhgr_small_font` expose les glyphes pour les titres agrandis : 64 caractères
+ASCII à partir de 32, six octets par glyphe (`DHGR_SMALL_FONT_STRIDE`). Les
+constantes `DHGR_SMALL_ADVANCE` et `DHGR_SMALL_HEIGHT` décrivent la cellule.
+Les tables `dhgr_row_lo/hi` et `dhgr_color_byte` peuvent être partagées avec un
+moteur de sprites ; les deux tables de lignes sont contiguës et les indices de
+colonnes incluent la borne 140. `dhgr_small_layout.inc` définit leur disposition
+avec des assertions d’assemblage, et `dhgr_layout.inc` centralise les formules
+d’adressage et de masquage.
+
+Les objets DHGR sont séparés pour que l’archive ne lie que les fonctions utilisées.
+Les consommateurs qui compilent directement les sources peuvent choisir :
+
+| Famille Make | Contenu |
+|---|---|
+| `HGRC_DHGR_STATE_SRCS` | État vidéo, initialisation, trampoline auxiliaire et pages |
+| `HGRC_DHGR_PIXEL_SRCS` | Points monochromes et lecture de pixels |
+| `HGRC_DHGR_CLEAR_SRCS` | Effacement seul, sans rectangles ni lecture de pixels |
+| `HGRC_DHGR_FILL_SRCS` | Effacement et rectangles couleur/monochromes |
+| `HGRC_DHGR_CORE_SRCS` | Les trois familles précédentes |
+| `HGRC_DHGR_TRANSFER_SRCS` | Blocs et sprites, avec un adressage partagé |
+| `HGRC_DHGR_SMALL_TEXT_SRCS` | Petite police et chaînes rapides |
+
+`HGRC_DHGR_SRCS` conserve l’ensemble historique des primitives, transferts et
+texte 8×8. `dhgr_internal.h` centralise les paramètres et prototypes privés des
+primitives bancaires. Lors d’une compilation manuelle, `dhgr.c` fournit maintenant
+l’état et les pages : utiliser les listes de familles ci-dessus pour inclure
+leurs dépendances. Les noyaux assembleur d’écriture masquée, de lecture,
+d’effacement et de scanline sont des objets distincts. L’adresse de pixel et le
+motif couleur sont partagés, tandis que chaque API de lecture, point, rectangle
+et effacement garde son propre objet. Les paramètres de petite police sont
+séparés du wrapper C : un HUD assembleur n’impose pas `dhgr_puts_small`.
+
+La sélection des familles ne suffit pas à éliminer toutes les fonctions inutiles
+si leurs objets sont passés directement à ld65. Construire une archive ar65 et
+la placer après les objets applicatifs permet à ld65 d’extraire uniquement les
+membres référencés et leurs dépendances. ChromaBreak suit cette règle avec
+`platform.lib`, y compris pour les modules Apple II, ProDOS et souris. Son test
+contrôle le fichier de liaison pour exclure les pixels, rectangles et transferts
+génériques, le texte 8×8 et les wrappers de texte inutilisés. Les tests de
+bibliothèque contrôlent aussi quinze consommateurs minimaux de l’archive.
 
 ### Contrat mémoire et transitions
 

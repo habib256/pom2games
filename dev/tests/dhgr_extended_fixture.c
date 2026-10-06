@@ -55,6 +55,8 @@ int main(void)
     dhgr_puts_small("A",135,187);
     dhgr_puts_small("A",136,187); /* incomplete cell must not wrap */
     dhgr_puts_small("A",135,188); /* incomplete height must not wrap */
+    dhgr_puts_small("AB",255,130); /* rejected x must not wrap on advance */
+    dhgr_puts_small("AB",0,255); /* rejected y must leave both banks intact */
     checkpoint(19);
     dhgr_set_color(15);
     gfx_filled_rect(65535u,255,0,188);

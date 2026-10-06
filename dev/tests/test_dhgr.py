@@ -57,7 +57,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix="pom2-dhgr-") as work:
         work = Path(work)
         sources = [DEV / "cc65/crt0_apple2.s", DEV / "tests/dhgr_fixture.c",
-                   DEV / "lib/hgrc/dhgr.c", DEV / "lib/hgrc/dhgr_asm.s",
+                   DEV / "lib/hgrc/dhgr.c", *[DEV / "lib/hgrc" / name for name in ("dhgr_pixel.c", "dhgr_getpixel.c", "dhgr_pixel_address.c", "dhgr_write_asm.s", "dhgr_read_asm.s")],
+                   *[DEV / "lib/hgrc" / name for name in ("dhgr_fill.c", "dhgr_clear.c", "dhgr_pattern.c", "dhgr_plot_color.c", "dhgr_fill_bits.c", "dhgr_bit_rect.c", "dhgr_clear_asm.s", "dhgr_span_asm.s", "dhgr_access_asm.s")], DEV / "lib/hgrc/dhgr_asm.s",
                    DEV / "lib/apple2c/apple2io_asm.s"]
         objects = []
         for source in sources:
