@@ -89,3 +89,48 @@ et disque protégé. Les captures du menu et du premier tableau sont actualisée
 - [x] Aligner les colonnes des records et afficher le nom complet du mode.
 - [x] Recentrer la fin de partie, le score et la saisie des initiales.
 - [x] Actualiser les captures ; revalider clavier, souris, records et cadence //e / //c.
+
+
+## Détails, raquette verticale, ennemis et capsules
+
+- [x] Texte Beautiful Boot à la technique HGR (point HGR → deux points DHGR) : blanc et lisible en couleur, 40 cellules.
+- [x] Bandeau de 37 cellules (lignes 1 à 7), nom du tableau ou du bonus aligné à droite.
+- [x] Briques biseautées aux coins arrondis, fentes de résistance, acier à reflet diagonal, cadre en deux tons.
+- [x] Logo en relief à partir des glyphes Beautiful Boot.
+- [x] Raquette verticale jusqu’à mi-terrain, bloquée par les briques sur toute sa trajectoire.
+- [x] Contact balle/raquette vérifié à chaque image (raquette qui glisse ou monte vers la balle).
+- [x] Effet de la raquette sur le rebond ; la capture garde le point d’impact.
+- [x] Deux ennemis à la Arkanoid : portes, contournement des briques, balle/laser/raquette, sortie par le bas.
+- [x] Capsules en blocs 5 × 6 avec lettre noire E S C D L P.
+- [x] Mémoire : tables communes sans la petite police, doublement calculé en `$0F00`, pile C de 768 octets.
+- [x] Cadence 30/25 images/s conservée sur les douze profils, avec raquette en diagonale et scénario à ennemis.
+- [x] Mode démo après 15 s d’inactivité (50/60 Hz détectés), pilote automatique silencieux.
+- [x] Image de tables propre au jeu en `$0800` ; tableaux compactés à deux briques par octet.
+- [x] Mode Chat Mauve toujours actif : texte 560 mono, graphismes en bit 7, verrou RVB (IOUDIS sur //c).
+- [x] Banc //c : ports série intégrés branchés (la ROM lit l’état des ACIA à chaque IRQ).
+- [x] Laser : canons rouges sur la raquette ; balle traversante rouge 4 × 7 (masques ronds en cache).
+- [x] Bandeau moins cher : score BCD, messages préalignés, locales statiques ; scénario « balles traversantes » testé.
+- [x] Balle traversante en sphère ombrée (encre précalculée), tirs à tête blanche.
+- [x] Menu Échap : reprise, choix des douze tableaux, son, titre, ProDOS.
+- [x] Soixante tableaux en ASCII (`levels.txt`), banque en RAM auxiliaire, sélecteur au menu.
+- [x] Fonds par décennie au-dessus de la zone de la raquette ; plus de ligne basse.
+- [x] Ennemis en bobines (barres colorées, noyau blanc), distincts des balles.
+- [x] Second ennemi en chasseur TIE (ailes colorées, noyau blanc) qui ondule en vagues.
+- [x] « SECTOR nn CLEAR » et jingle à chaque tableau terminé.
+- [x] Finale après le tableau 60 : recouvrement ENDING en `$4000`, VICTORY, fanfare, feux d’artifice.
+- [x] Difficultés au titre : seul le trait de sélection est redessiné.
+- [x] Thème de titre (I-vi-IV-V), interrompu par une touche ; thème et jingle en RAM auxiliaire.
+- [x] Progression (secteur le plus lointain) sauvegardée dans HIGHSCORES ; le menu ne propose que les secteurs atteints.
+- [x] Fond dès le niveau 1 : six motifs, un par décennie (croix ajoutées pour 51-60).
+- [x] Jingle de fin de tableau par décennie : six jingles (do, ré, mi, fa, sol, la), de plus en plus ornés.
+- [x] Version 1.0 et nom de l’auteur sur la page de garde ; « 65C02 » dans le sous-titre.
+- [x] Pile C ramenée à 256 octets (usage mesuré : 18 octets) ; test de marge dans le playtest.
+- [x] Joystick et paddles (`J`) : axes absolus, boutons 0/1, lecture dans l’attente du VBL sans coût de cadence.
+- [ ] Valider joystick et paddles sur machine réelle (calibrage des manettes).
+- [x] //e d’origine (6502) : message clair et retour à ProDOS au lieu d’un plantage (testé dans POM2).
+- [ ] Valider le rendu des capsules et du texte sur moniteur couleur réel.
+- [x] Page d’aide (`?` au titre) : capsules, tuiles, points ; code dans le recouvrement ENDING.
+- [x] Musique à deux voix (thème, airs de fin, fanfare) : lecteur en page 3, intonation juste.
+- [x] Dix airs de fin de tableau à deux voix, un par tableau d’une dizaine, d’environ 2 s (3,3 s pour le dixième).
+- [x] Adresses figées des modules assembleur : réserve et assertions de `spare.s`.
+- [ ] Écouter les airs à deux voix sur //e et //c réels (porteuse à 31 kHz).

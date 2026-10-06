@@ -32,6 +32,9 @@ d'améliorations prévues.
 MICRO-SOKOBAN 1.2 est disponible dans les
 [releases GitHub](https://github.com/habib256/pom2games/releases/tag/1.2), avec
 sa disquette amorçable et la [description de la version](docs/releases/1.2.md).
+CHROMABREAK 1.0 l'est aussi, sous l'étiquette
+[`chromabreak-1.0`](https://github.com/habib256/pom2games/releases/tag/chromabreak-1.0),
+avec sa disquette ProDOS et sa [description](docs/releases/chromabreak-1.0.md).
 
 ## Construire
 

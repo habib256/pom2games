@@ -6,6 +6,9 @@ root=Path(__file__).resolve().parents[1]/'src'
 values=dict((k,int(v)) for k,v in re.findall(r'^#define (CB_\w+) (\d+)$',(root/'layout.h').read_text(),re.M))
 assert values['CB_GRID_END']==values['CB_TILE_TOP']+7*12+8
 assert values['CB_LOST_Y']<=187 and values['CB_PAD_Y']+4<192
+assert abs(values['CB_PAD_MIN']*2-(values['CB_FIELD_TOP']+190))<=1 and values['CB_PAD_MIN']>=values['CB_TILE_TOP']+7*12
+assert values['CB_PAD_BLOCK']==values['CB_GRID_END']+6
+assert values['CB_BG_END']==values['CB_PAD_MIN']
 def write(name,content):
     p=root/name
     if not p.exists() or p.read_text()!=content:p.write_text(content)

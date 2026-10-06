@@ -1,5 +1,7 @@
-/* Five ProDOS records. Disk errors leave a usable table in memory. */
+/* Five ProDOS records and the farthest sector reached (byte 5 of the file,
+ * 0 in files from earlier versions). Disk errors leave usable values. */
 #include <string.h>
+#include "layout.h"
 #include "prodos.h"
 #include "records.h"
 #pragma bss-name(push, "IOBUF")
@@ -8,6 +10,8 @@ static unsigned char file_buffer[1024];
 #pragma bss-name(push, "LOWBSS")
 ChromaRecord records[5];
 static unsigned char raw[38], pathname[65], volume[16];
+/* The file name in pathname, while the overlay's replaces it. */
+static unsigned char *overlay_name;
 #pragma bss-name(pop)
 static struct { unsigned char count; void *path; void *buffer; unsigned char reference; } opened;
 static struct { unsigned char count, reference; void *buffer; unsigned requested, actual; } transfer;
@@ -15,7 +19,7 @@ static struct { unsigned char count, reference; } closed;
 static struct { unsigned char count; void *path; } prefix;
 static struct { unsigned char count, unit; void *buffer; } online;
 static struct { unsigned char count; void *path; unsigned char access, type; unsigned aux; unsigned char storage; unsigned date, time; } created;
-unsigned char records_error;
+unsigned char records_error, records_progress;
 static unsigned char call(unsigned char command, void *params)
 {
     unsigned char error;
@@ -25,19 +29,19 @@ static unsigned char call(unsigned char command, void *params)
 }
 static unsigned checksum(void)
 {
-    unsigned sum=0; unsigned char i;
-    for(i=0;i<36u;++i) sum+=raw[i];
+    static unsigned sum; static unsigned char i;
+    for(sum=i=0;i<36u;++i) sum+=raw[i];
     return sum;
 }
 static void defaults(void)
 {
-    unsigned char i;
-    memset(records,0,sizeof(records));
+    static unsigned char i;
+    memset(records,0,sizeof(records)); records_progress=0;
     for(i=0;i<5u;++i) memcpy(records[i].initials,"---",3);
 }
 static unsigned char path(void)
 {
-    unsigned char len;
+    static unsigned char len;
     prefix.count=1; prefix.path=pathname;
     if(call(PD_GET_PREFIX,&prefix)) return 0;
     len=pathname[0];
@@ -63,22 +67,27 @@ static unsigned char close_file(void)
     closed.count=1; closed.reference=opened.reference;
     return call(PD_CLOSE,&closed);
 }
+/* Read or write transfer.requested bytes at transfer.buffer. */
+static unsigned char transfer_file(unsigned char command)
+{
+    transfer.count=4; transfer.reference=opened.reference; transfer.actual=0;
+    return call(command,&transfer);
+}
 static unsigned char move_file(unsigned char command)
 {
-    transfer.count=4; transfer.reference=opened.reference;
-    transfer.buffer=raw; transfer.requested=sizeof(raw); transfer.actual=0;
-    return call(command,&transfer);
+    transfer.buffer=raw; transfer.requested=sizeof(raw);
+    return transfer_file(command);
 }
 void records_load(void)
 {
-    unsigned char i,j,error;
-    unsigned sum;
+    static unsigned char i,j,error;
+    static unsigned sum;
     defaults(); pathname[0]=0;
     if(!path()) { pathname[0]=0; return; }
     if(open_file()) return;
     error=move_file(PD_READ); close_file();
     if(error || transfer.actual!=sizeof(raw)) return;
-    if(memcmp(raw,"CBR1",4) || raw[4]!=1u || raw[5]) return;
+    if(memcmp(raw,"CBR1",4) || raw[4]!=1u || raw[5]>=CB_LEVELS) return;
     sum=checksum(); if(raw[36]!=(unsigned char)sum || raw[37]!=(unsigned char)(sum>>8)) return;
     memcpy(records,raw+6,sizeof(records));
     for(i=0;i<5u;++i) {
@@ -89,6 +98,7 @@ void records_load(void)
             if((c<'A' || c>'Z') && !(c=='-' && !records[i].score)) { defaults(); return; }
         }
     }
+    records_progress=raw[5];
 }
 unsigned char __fastcall__ records_rank(unsigned score)
 {
@@ -98,14 +108,20 @@ unsigned char __fastcall__ records_rank(unsigned score)
 }
 unsigned char records_submit(unsigned score, const char *initials, unsigned char mode)
 {
-    unsigned char rank=records_rank(score), i, error, close_error;
-    unsigned sum;
-    records_error=0;
+    unsigned char rank=records_rank(score), i;
     if(rank==255u) return 1;
     for(i=4;i>rank;--i) records[i]=records[i-1u];
     records[rank].score=score; memcpy(records[rank].initials,initials,3); records[rank].mode=mode;
+    return records_save();
+}
+/* Write the records and records_progress; 0 = not saved. */
+unsigned char records_save(void)
+{
+    static unsigned char error, close_error;
+    static unsigned sum;
+    records_error=0;
     if(!pathname[0]) return 0;
-    memcpy(raw,"CBR1",4); raw[4]=1; raw[5]=0;
+    memcpy(raw,"CBR1",4); raw[4]=1; raw[5]=records_progress;
     memcpy(raw+6,records,sizeof(records));
     sum=checksum(); raw[36]=sum; raw[37]=sum>>8;
     error=open_file();
@@ -118,4 +134,23 @@ unsigned char records_submit(unsigned score, const char *initials, unsigned char
     if(error) return 0;
     error=move_file(PD_WRITE); close_error=close_file();
     return !error && !close_error && transfer.actual==sizeof(raw);
+}
+/* Load the ENDING overlay, kept next to HIGHSCORES, at dest; 0 = failure. */
+unsigned char records_load_overlay(void *dest, unsigned size)
+{
+    static unsigned char error, len, bitmap[4];
+    if(!pathname[0]) return 0;
+    len=pathname[0];
+    overlay_name=pathname+len-9; memcpy(overlay_name,"ENDING",6); pathname[0]=len-4u;
+    error=open_file();
+    if(!error) {
+        /* ProDOS refuses buffers in pages marked used: free page 2 of the
+         * DHGR memory ($4000-$5FFF) in the system bitmap for the read. */
+        memcpy(bitmap,(void *)0xBF60,4); memset((void *)0xBF60,0,4);
+        transfer.buffer=dest; transfer.requested=size;
+        error=transfer_file(PD_READ); close_file();
+        memcpy((void *)0xBF60,bitmap,4);
+    }
+    memcpy(overlay_name,"HIGHSCORES",10); pathname[0]=len;
+    return !error && transfer.actual;
 }

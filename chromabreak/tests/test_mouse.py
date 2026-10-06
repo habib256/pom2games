@@ -37,13 +37,16 @@ def main():
                 subprocess.run([str(exe),str(src/'roms'),str(disk),str(a.labels.resolve()),variant,action],check=True)
             shutil.copyfile(a.disk,disk);execute('applewin','records-numbers')
             execute('applewin','records-collisions')
-            execute('applewin','records-smalltext')
+            execute('applewin','records-finetext')
+            execute('iie-nmos','records-nmos')
             for variant in ('applewin','mame','iic16','iic32'):
                 shutil.copyfile(a.disk,disk)
+                execute(variant,'records-help')
+                execute(variant,'records-music')
                 execute(variant,'records-victory')
                 execute(variant,'records-save')
                 image,entries=inspect(); data=image.read(entries['HIGHSCORES'])
-                assert len(data)==38 and data[:6]==b'CBR1\x01\x00'
+                assert len(data)==38 and data[:5]==b'CBR1\x01' and data[5]==59,'sector 60 reached is saved'
                 assert sum(data[:36])==int.from_bytes(data[36:38],'little')
                 assert [int.from_bytes(data[6+i*6:8+i*6],'little') for i in range(5)]==[3200,1800,1500,1240,900]
                 execute(variant,'records-load')

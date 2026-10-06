@@ -3,7 +3,7 @@
 .setcpu "65C02"
 .macpack longbranch
 .importzp _ball_x,_ball_y,_ball_live,_dx,_dy,_vx,_vy,_fraction_x,_fraction_y
-.importzp _effect
+.importzp _effect, _pad_y
 .import _bricks,_state,_refresh,_extra_ball
 .import _collision_cached,_collision_cache_reset,_damage,_rebound,_sound_event
 .import _shot_live,_shot_x,_shot_y,_cell_col,_cell_row
@@ -11,6 +11,8 @@
 .bss
 old_position: .res 1
 brick_hit: .res 1
+pad_line: .res 1
+pad_bottom: .res 1
 shot_index: .res 1
 shot_steps: .res 1
 shot_row: .res 1
@@ -114,15 +116,19 @@ move_y:
         sta _ball_y
         lda _dy
         bmi hit_y
+        lda _pad_y
+        sec
+        sbc #5
+        sta pad_line
         lda _ball_y
         cmp #CB_LOST_Y
         bcs lost
-        cmp #CB_PAD_Y-5
+        cmp pad_line
         bcc hit_y
         lda old_position
-        cmp #CB_PAD_Y-5
+        cmp pad_line
         bcs hit_y
-        ; Round ball spans x..x+2 and first crosses the paddle at PAD_Y-5.
+        ; Round ball spans x..x+2 and first crosses the paddle at pad_y-5.
         lda _ball_x
         clc
         adc #2
@@ -278,6 +284,45 @@ _effects_tick:
         bpl @actor
         rts
 
+; The paddle moves before the balls: one sliding under a falling ball, or
+; rising into it, must still bounce it. A ball overlapping the paddle box
+; rebounds when falling, and is lifted above the paddle when rising.
+paddle_contact:
+        lda _ball_live
+        beq @no
+        lda _pad_y
+        sec
+        sbc #5
+        sta pad_line
+        lda _ball_y
+        cmp pad_line
+        bcc @no
+        lda _pad_y
+        clc
+        adc #5
+        sta pad_bottom
+        lda _ball_y
+        cmp pad_bottom
+        bcs @no
+        lda _ball_x
+        clc
+        adc #2
+        cmp _pad_x
+        bcc @no
+        lda _pad_x
+        clc
+        adc _pad_width
+        cmp _ball_x
+        beq @no
+        bcc @no
+        lda _dy
+        bmi @lift
+        jmp _rebound
+@lift:  lda pad_line
+        dec
+        sta _ball_y
+@no:    rts
+
 ; Retain every collision substep, dynamic speed changes and actor swap-back.
 .export _advance_balls
 .importzp _speed
@@ -299,6 +344,7 @@ _advance_balls:
         dec
         jsr _ball_swap
 @steps:
+        jsr paddle_contact
         jsr _collision_cache_reset
         stz motion_step
 @step:
@@ -313,8 +359,12 @@ _advance_balls:
         lda _refresh
         bne @swap_back
         jsr _ball_step
+        ; A substep is ~160 cycles: every fourth scan still sees each blank.
+        lda motion_step
+        and #3
+        bne :+
         jsr _timing_scan
-        inc motion_step
+:       inc motion_step
         bra @step
 @swap_back:
         lda motion_actor

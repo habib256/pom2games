@@ -1,4 +1,5 @@
 .setcpu "65C02"
+SOUND_SPARE = 27
 ; Apple II one-bit speaker. Bounded bursts leave the mouse ROM IRQ enabled.
 ; No ROM WAIT or zero-page workspace. Each burst ends at its original polarity.
 .export _sound_event, _sound_tick, _sound_stop
@@ -6,6 +7,8 @@
 .bss
 _sound_active: .res 1
 .export _sound_active
+_sound_muted: .res 1
+.export _sound_muted
 remaining: .res 1
 elapsed: .res 1
 pitch: .res 1
@@ -14,6 +17,8 @@ periods: .byte 0,35,24,15,29,21,30,34,28,32,30,30
 lengths: .byte 0,2,3,3,3,5,5,9,10,12,12,18
 .code
 _sound_event:
+        ldy _sound_muted
+        bne done
         cmp _sound_active
         bcc done
         sta _sound_active
@@ -61,3 +66,84 @@ half_period:
         bne done
         stz _sound_active
         rts
+
+; Play a tune (A/X = events from tools/generate_music.py) on the speaker,
+; blocking: two voices, by the player in page 3 (duet.inc). An event is
+; three bytes: melody count (0 = silence), bass count, slices; a zero third
+; byte ends the tune. IRQs are masked inside a note and served between two;
+; when muted the tune is silent but timed. Tunes below $2000 are in the AUX
+; bank (title theme, sector endings), others in main RAM (the overlay
+; fanfare). play_title stops at a key press
+; (the key stays for the title loop).
+.export _play_tune, _play_title, _play_jingle
+.importzp ptr1, aux_read
+.include "levels.inc"
+FINE_FONT_CONSTANTS_ONLY = 1
+.include "fine_font.inc"
+.include "music_offsets.inc"
+.include "duet.inc"
+TUNES_AUX = LEVELS_AUX+LEVELS_SIZE+FINE_COUNT*FINE_HEIGHT
+.export _tunes_aux := TUNES_AUX       ; for the tests
+.rodata
+; The table of the sector endings left for page 3 with the player: these
+; bytes keep the tables after this module in place (see spare.s).
+        .res 12
+.bss
+tune_note: .res 3                ; melody, bass, slices
+        .res 1                   ; spare: the variables after it stay put
+.code
+; A = which of the ten sector endings (generate_music.py), 0..9.
+_play_jingle:
+        tay
+        lda DUET_JINGLE_HI,y
+        tax
+        lda DUET_JINGLE_LO,y
+        bra _play_tune
+_play_title:
+        lda #<(TUNES_AUX+TUNE_TITLE_OFS)
+        ldx #>(TUNES_AUX+TUNE_TITLE_OFS)
+        ldy #$80
+        bra tune_start
+_play_tune:
+        ldy #0
+tune_start:
+        sty DUET_KEYS
+        sta ptr1
+        stx ptr1+1
+@note:  lda $C000
+        and DUET_KEYS
+        bmi @done
+        ldy #2
+@fetch: lda ptr1+1
+        cmp #$20
+        bcs @main
+        php
+        sei
+        jsr aux_read
+        plp
+        bra @got
+@main:  lda (ptr1),y
+@got:   sta tune_note,y
+        dey
+        bpl @fetch
+        ldy tune_note+2
+        beq @done
+        lda _sound_muted
+        beq :+
+        lda #$FF                 ; muted: every event is a silence
+:       eor #$FF
+        and tune_note
+        ldx tune_note+1
+        jsr DUET_PLAY
+        lda ptr1
+        clc
+        adc #3
+        sta ptr1
+        bcc @note
+        inc ptr1+1
+        bra @note
+@done:  rts
+; The modules after this one are sensitive to their addresses (spare.s):
+; the player left for page 3, these bytes keep them where they were.
+        .res SOUND_SPARE
+.assert * = $9F5D, lderror, "timing.s moved: adjust SOUND_SPARE (see spare.s)"
