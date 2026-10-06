@@ -1,5 +1,7 @@
 # ChromaBreak
 
+Version 1.0 : [disquette et notes de publication](https://github.com/habib256/pom2games/releases/tag/chromabreak-1.0).
+
 Casse-briques pour **Apple //e enhanced 128 Ko sous ProDOS**, en DHGR
 560 × 192 / 16 couleurs, avec AppleMouse II et clavier, également compatible Apple //c 128 Ko et sa
 souris intégrée. Les collisions
