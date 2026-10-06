@@ -44,6 +44,7 @@
 
 .include "apple2.inc"            ; ../dev/lib/apple2: I/O equates, preamble
 .include "levels.inc"            ; generated: collections, packs, numbers
+.import __BSS_RUN__, __BOOTCODE_SIZE__
 
 PAGE2_EOR = $60                 ; hgr_hi of page 1 ($20-$3F) EOR this = page 2
 
@@ -254,6 +255,7 @@ DOS_ZP_LEN = * - temp
 ; =============================================================================
 .segment "LOWBSS"
 pack_buf:        .res PACK_MAX   ; the level pack in use, BLOADed at PACK_ADDR
+boot_code = pack_buf             ; and before the first one, the BOOT segment
 save_buf:        .res SAVE_LEN   ; active profile, isolated from the level pack
 .assert save_buf + SAVE_LEN <= $2000, error, "profile save runs into HGR"
 
@@ -380,6 +382,15 @@ hof_buf:         .res HOF_LEN
 ; =============================================================================
 main:
         APPLE2_PREAMBLE
+        LDX #$00                        ; the start-only code came in behind the
+@boot:  LDA __BSS_RUN__,X               ; resident, where BSS is: down to
+        STA boot_code,X                 ; pack_buf with it, free until the
+        LDA __BSS_RUN__+$100,X          ; first level pack
+        STA boot_code+$100,X
+        LDA __BSS_RUN__+$200,X
+        STA boot_code+$200,X
+        INX
+        BNE @boot
         JSR apple2_zp_save              ; ZP is DOS/Applesoft's: restored on quit
         JSR init_disk_cache
         LDA #$00
@@ -846,13 +857,27 @@ key_tbl:
         .byte 0
 
 ; -----------------------------------------------------------------------------
-; wait_any: block until a key (any) or a joystick button press. Stick
-; deflections are ignored so a stick still held from the winning push
-; does not skip the screen.
+; wait_any: block until a key (any) or a joystick button press. The keyboard
+; must first stay quiet for WAIT_QUIET polls (~0.25 s, several auto-repeat
+; periods of a //e): a key typed ahead, or still repeating from the winning
+; move, is thrown away instead of skipping the screen. A button counts at
+; once. Stick deflections are ignored so a stick still held from the winning
+; push does not skip the screen.
 ; -----------------------------------------------------------------------------
+WAIT_QUIET = 40
 wait_any:
+        LDX #WAIT_QUIET
+@quiet: STX temp2                       ; (no poll uses temp2)
         JSR poll_start
-        BEQ wait_any
+        BEQ @none
+        LDX in_src
+        BEQ wait_any                    ; a key too soon: quiet starts again
+        RTS
+@none:  LDX temp2
+        DEX
+        BNE @quiet
+@lp:    JSR poll_start
+        BEQ @lp
         RTS
 
 ; poll_start: one look at the keyboard and the buttons. A = the action, Z
@@ -1427,16 +1452,17 @@ save_magic:    .byte "SOK2"
 
 ; =============================================================================
 ; Save file. load_save BLOADs MICROSAVE into save_buf: a foreign content (an
-; older "SOK1" too) is wiped, then each collection whose fingerprint differs
-; from this build's loses its records and gets the new fingerprint.
+; older "SOK1" too) is wiped, and so is a file that cannot be read or has an
+; impossible length; a file shorter than save_buf leaves the rest empty. Then
+; each collection whose fingerprint differs from this build's loses its
+; records and gets the new fingerprint.
 ; write_save BSAVEs it, unless the disk is write protected (DOS would stop
 ; the game with WRITE PROTECTED).
 ; =============================================================================
 load_save:
-        LDA #0
-        STA snapshot
+        JSR wipe_save                   ; what the file does not bring is empty
         JSR profile_file
-        JSR fast_read
+        JSR fast_read                   ; (unreadable: it brings nothing)
         LDA #0
         LDX io_limit+1
         CPX #>SAVE_LEN
@@ -1453,27 +1479,8 @@ load_save:
         DEX
         BPL @magic
         BMI @colls                      ; (always)
-@wipe:  LDA #<save_buf
-        STA sptr_lo
-        LDA #>save_buf
-        STA sptr_hi
-        LDX #>SAVE_LEN                  ; whole pages, then the rest
-        LDY #$00
-        TYA
-@page:  CPX #$00
-        BEQ @rest
-@pg:    STA (sptr_lo),Y
-        INY
-        BNE @pg
-        INC sptr_hi
-        DEX
-        JMP @page
-@rest:  CPY #<SAVE_LEN
-        BEQ @hdr
-        STA (sptr_lo),Y
-        INY
-        BNE @rest
-@hdr:   LDX #3
+@wipe:  JSR wipe_save
+        LDX #3
 @m:     LDA save_magic,X
         STA save_buf,X
         DEX
@@ -1519,6 +1526,32 @@ load_save:
         BCC @coll
         RTS
 
+; wipe_save: save_buf := zeroes (no magic, no record, no position).
+wipe_save:
+        LDA #<save_buf
+        STA sptr_lo
+        LDA #>save_buf
+        STA sptr_hi
+        LDX #>SAVE_LEN                  ; whole pages, then the rest
+        LDY #$00
+        TYA
+@page:  CPX #$00
+        BEQ @rest
+@pg:    STA (sptr_lo),Y
+        INY
+        BNE @pg
+        INC sptr_hi
+        DEX
+        JMP @page
+@rest:  CPY #<SAVE_LEN
+        BEQ @done
+        STA (sptr_lo),Y
+        INY
+        BNE @rest
+@done:  RTS
+
+; write_save: C = 1 if nothing could be written (protected disk, or a disk
+; error: "IO ERR" then stays in the status corner and the sectors stay due).
 write_save:
         LDA save_mask
         BEQ @done
@@ -1531,11 +1564,13 @@ write_save:
         LDA save_mask
         STA io_mask
         JSR fast_write
+        BCS @done
         LDA #0
         STA save_mask
         LDA #<str_blank7                ; wipe "SAVING"
         LDY #>str_blank7
         JSR show_status
+        CLC
 @done:  RTS
 
 ; first_unsolved: cur_coll / cur_lvl := the first level without a record
@@ -3812,6 +3847,7 @@ tile_bitmaps:
         .byte $7C,$1F, $7C,$1F, $00,$00, $00,$00
 
 .assert pack_buf = PACK_ADDR, error, "the packs are BLOADed at PACK_ADDR"
+.assert __BSS_RUN__ + __BOOTCODE_SIZE__ <= $9AA0, lderror, "the start-only code runs into DOS's buffers"
 
 .include "score_hof.inc"
 .include "profiles.inc"

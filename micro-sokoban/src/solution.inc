@@ -35,6 +35,7 @@ sol_bind:
         LDY #0
         TYA
         STA (hptr_lo),Y
+        STA io_id                       ; (a pack's: a disk error here is final)
         LDA #<sol_name
         STA io_name
         LDA #>sol_name

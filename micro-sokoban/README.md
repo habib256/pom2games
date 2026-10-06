@@ -71,7 +71,10 @@ T dans le menu permet de le rejouer ; G permet d'accéder directement à Microba
 Rejoué en cours de partie, le tutoriel rend ensuite le niveau quitté, avec sa
 position et ses compteurs (l'historique Undo/Redo repart vide). Un profil créé
 depuis le menu d'une partie commence lui aussi par les leçons.
-Sur SUCCESS, une touche ou un bouton passe au niveau suivant.
+Sur SUCCESS, une touche ou un bouton passe au niveau suivant. Une touche tapée
+d'avance ou encore en répétition (clavier d'un //e) est ignorée, sur cet écran
+comme sur BRAVO et HELP : le clavier doit d'abord rester un quart de seconde
+sans frappe. Un bouton compte tout de suite.
 QUIT TO DOS et Ctrl-RESET restaurent la page zéro et rechargent le programme
 BASIC `HELLO` : `LIST` affiche le lanceur et `RUN` relance le jeu.
 
@@ -117,6 +120,16 @@ fois depuis les records de chaque profil : noms, options et profil actif sont
 conservés. HOF1 continue d'importer les records partagés dans le profil zéro.
 Les autres profils ne reçoivent aucune progression fictive.
 
+Au démarrage, `MICROHOF` est mis en accord avec ses dix profils, qui désignent
+les fichiers de records : un profil actif qui n'est pas un profil enregistré
+devient le premier enregistré, les initiales de l'en-tête deviennent celles du
+profil actif, et une ligne du classement ne reste que si ses initiales sont
+celles d'un profil, une seule fois (y compris lors de la reprise d'un HOF2).
+Des noms qui ne sont pas trois lettres, deux profils de même nom ou une valeur
+hors limites font repartir le classement, les noms et les options des valeurs
+par défaut ; les fichiers de records ne sont pas touchés. Le fichier corrigé est
+réécrit à la première écriture du classement.
+
 `MICROSAVE` conserve le profil zéro ; `MICROSAV1` à `MICROSAV9` les autres.
 Les 1830 octets de records SOK2 restent compatibles ; une position de 134 octets
 est ajoutée, soit 1964 octets par fichier. Le bit 7 de l'octet 4 marque le tutoriel
@@ -126,7 +139,8 @@ le niveau, son empreinte et un CRC-8. Une position invalide est ignorée.
 **Reprise après extinction :** la position est enregistrée à l'ouverture du menu
 ou de HELP, ainsi qu'après environ six secondes sans entrée lorsqu'elle a changé.
 Après le redémarrage, PLAY retrouve les caisses, le joueur, les coups et les
-poussées. Attendre la fin de « SAVING » avant d'éteindre ; ouvrir le menu permet
+poussées. Attendre la fin de « SAVING » avant d'éteindre (un secteur coupé en
+pleine écriture devient illisible : le profil repart alors sans record) ; ouvrir le menu permet
 de déclencher cette sauvegarde immédiatement. Le tutoriel et la démo ne remplacent
 pas la position Microban. **L'historique Undo/Redo reste en mémoire seulement** :
 il repart vide après redémarrage, changement de profil ou tutoriel rejoué.
@@ -145,7 +159,15 @@ Les records (coups, puis poussées) sont gardés sur la disquette, dans
 le fichier du profil actif, mis à jour après chaque niveau résolu. Au démarrage,
 le jeu reprend la position sauvegardée ou, à défaut, le premier niveau non résolu. Sur une disquette protégée en écriture,
 on joue sans sauvegarde : records et position restent en mémoire jusqu'à
-l'extinction ou au changement de profil. Le fichier porte une empreinte de chaque collection
+l'extinction ou au changement de profil. Un fichier de records ou un classement
+illisible (secteur abîmé, longueur impossible, fichier absent) n'arrête pas le
+jeu : il compte pour vide — profil sans record, classement et options par
+défaut. Le classement est réécrit aussitôt, le fichier de records en entier à la
+sauvegarde suivante. Un fichier plus court
+que prévu ne fournit que ce qu'il contient, le reste est vide. Une écriture qui
+échoue laisse « IO ERR » dans le coin du statut et la partie continue ; les
+secteurs restent à écrire. Seuls un paquet de niveaux ou `MICROSOL` illisibles
+arrêtent le jeu : « IO ERR », une touche, puis retour à DOS. Le fichier porte une empreinte de chaque collection
 (niveaux gardés, ordre, contenu, rotation) : si une nouvelle version du jeu
 change les niveaux d'une collection, ses records sont effacés plutôt
 qu'attribués à d'autres niveaux ; ceux des autres collections restent. Dans la grille de choix (G), les niveaux résolus
@@ -224,7 +246,8 @@ Améliorations prévues : voir [`TODO.md`](TODO.md).
     tools/test_tutorial_options.py  tutoriel, retour accueil et options persistantes
     tools/test_score.py        profils, classement, migration et sauvegarde
     tools/test_resume.py       reprise, profils, CRC et écritures limitées
-    tools/test_play.py         partie quittée puis retrouvée : tutoriel, SOLUTION, profils, manette, « SAVING », compteurs
+    tools/test_play.py         partie quittée puis retrouvée : tutoriel, SOLUTION, profils, manette, « SAVING », compteurs, touches en avance
+    tools/test_damage.py       fichiers de records et classement abîmés, absents ou incohérents, « IO ERR »
     tools/test_menu_render.py  textes des options, y compris une adresse finissant par $FF
     tools/test_graphics.py     pages HGR visibles/cachées et retours des menus/solutions
     tools/test_exit.py         démarrage, QUIT/RESET, BASIC restauré et relances RUN (a2run/POM2)
@@ -242,7 +265,13 @@ Le résident (`$6000` à `$9A9F`, sous les tampons de DOS) est presque plein. La
 copie de la page zéro de DOS occupe donc la page 2 (`$0200`, le tampon de saisie,
 libre tant qu'aucune commande DOS ne s'exécute), le classement et la page zéro
 du jeu pendant RWTS le début de la page 3 (`$0300` à `$03B3`, sous les vecteurs
-de DOS). Il reste environ 50 octets : voir `build/micro_sokoban.map`.
+de DOS). Ce qui ne sert qu'au démarrage (lecture et contrôle de `MICROHOF`,
+reprise des anciens classements) forme le segment `BOOTCODE` : il suit le
+résident dans le fichier, le chargeur le pose donc à l'emplacement du BSS, et
+`main` le descend en `$1000` avant tout le reste ; le premier paquet de niveaux
+prend ensuite sa place. Il reste environ 340 octets pour le résident (le
+segment doit lui aussi tenir sous `$9AA0` à l'arrivée) et 230 dans ce segment
+de trois pages : voir `build/micro_sokoban.map`.
 
 Le BASIC affiche **LOADING MICRO-SOKOBAN**, réserve un seul tampon DOS avec
 `MAXFILES 1`, puis lance le petit chargeur. Celui-ci lit `MICRODATA` par secteurs

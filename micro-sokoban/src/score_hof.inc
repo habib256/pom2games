@@ -95,6 +95,10 @@ print_score:
         BCC @digit
         RTS
 
+; --- Start only: the BOOT segment, run from pack_buf (see main) -------------
+.segment "BOOTCODE"
+.assert * = boot_code, error, "main copies the BOOT segment to boot_code"
+
 reset_hof:
         LDX #HOF_LEN-1
         LDA #0
@@ -116,19 +120,27 @@ reset_hof:
         STA hof_buf+HOF_TUTORIAL
         LDA #OPT_GAME|OPT_MENU          ; game and menu sound on by default
         STA hof_buf+HOF_SOUND
+        LDA #1
+        STA deadwarn_on
         RTS
 
+; load_hof: MICROHOF into hof_buf, or the defaults if it cannot be read, is
+; not ours or holds a value out of range. What is left is made consistent:
+; see validate_profiles.
 load_hof:
         JSR reset_hof                   ; a short file cannot expose stale RAM
         JSR hof_file
         JSR fast_read
+        BCS @lost
         JSR remember_hof
-        LDX #2
+        BCC @check                      ; (always: C is still clear)
+@lost:  LDA #0                          ; unreadable: the defaults go over it at
+        STA hof_disk_copy               ; once (to write_hof, any difference
+        JSR write_hof                   ; from the disk's copy is a change)
+@check: LDX #2
 @magic: LDA hof_buf,X
         CMP hof_header,X
-        BEQ @magic_ok
-        JMP @bad
-@magic_ok:
+        BNE hof_bad
         DEX
         BPL @magic
         LDA hof_buf+3
@@ -139,10 +151,10 @@ load_hof:
         INC rankings_old
         LDA #'3'
         STA hof_buf+3
-        JMP @names
+        BNE @names                      ; (always)
 @old:
         CMP #'1'
-        BNE @bad_jump
+        BNE hof_bad
         ; Legacy shared records belong to the last active initials, slot zero.
         LDX #2
 @legacy:
@@ -157,43 +169,21 @@ load_hof:
         BPL @clear
         LDA #'3'
         STA hof_buf+3
-        JMP @names
-@bad_jump:
-        JMP @bad
-@names: LDX #4
-@name:  LDA hof_buf,X
-        CMP #'A'
-        BCC @bad
-        CMP #'Z'+1
-        BCS @bad
-        INX
-        CPX #HOF_HDR
-        BCC @name
-        LDX #HOF_HDR
+@names: LDX #HOF_HDR
 @entry: LDA hof_buf,X
         BEQ @next
-        STX hof_offset
-        LDY #3
-@letters:
-        LDA hof_buf,X
-        CMP #'A'
-        BCC @bad
-        CMP #'Z'+1
-        BCS @bad
-        INX
-        DEY
-        BNE @letters
-        LDX hof_offset
+        JSR hof_letters3
+        BCS hof_bad
 @solved:
         LDA hof_buf+7,X
         AND #$7F
         CMP #>TOTAL_LEVELS
         BCC @next
-        BNE @bad
+        BNE hof_bad
         LDA hof_buf+6,X
         CMP #<TOTAL_LEVELS
         BCC @next
-        BNE @bad
+        BNE hof_bad
 @next:  TXA
         CLC
         ADC #HOF_ENTRY
@@ -202,18 +192,51 @@ load_hof:
         BCC @entry
         LDA hof_buf+HOF_TUTORIAL
         CMP #4
-        BCS @bad
+        BCS hof_bad
         LSR A
         STA deadwarn_on
         LDA hof_buf+HOF_SOUND
         CMP #OPT_COLOR*2                ; no bit above the OPT_* switches
-        BCS @bad
+        BCS hof_bad
         JMP validate_profiles
-@bad:   JSR reset_hof
-        LDA #1
-        STA deadwarn_on
+hof_bad:
+        JMP reset_hof
+
+; hof_letters3: C = 0 if the three bytes at hof_buf+X are capital letters.
+; Keeps X.
+hof_letters3:
+        LDY #2
+        STX temp
+@letter:
+        LDA hof_buf,X
+        CMP #'A'
+        BCC @no
+        CMP #'Z'+1
+        BCS @done
+        INX
+        DEY
+        BPL @letter
+        CLC
+        BCC @done                       ; (always)
+@no:    SEC
+@done:  LDX temp
         RTS
 
+; hof_same: Z = 1 if the initials at hof_buf+X and at hof_buf+Y are the same.
+hof_same:
+        LDA hof_buf,X
+        CMP hof_buf,Y
+        BNE @no
+        LDA hof_buf+1,X
+        CMP hof_buf+1,Y
+        BNE @no
+        LDA hof_buf+2,X
+        CMP hof_buf+2,Y
+@no:    RTS
+
+hof_header:    .byte "HOF3GIS"
+
+.code
 write_hof:
         LDX #HOF_LEN-1
 @compare:
@@ -228,6 +251,7 @@ write_hof:
         BCS @done
         JSR hof_file
         JSR fast_write
+        BCS @done                       ; not written: try again next time
         JMP remember_hof
 @done:  RTS
 
@@ -655,9 +679,7 @@ score_pow_lo:  .byte <10000000, <1000000, <100000, <10000, <1000, <100, <10, <1
 score_pow_mid: .byte >10000000, >1000000, >100000, >10000, >1000, >100, >10, >1
 score_pow_hi:  .byte (10000000>>16)&255, (1000000>>16)&255, 100000>>16, 0, 0, 0, 0, 0
 score_pow_top: .byte 0, 0, 0, 0, 0, 0, 0, 0
-hof_header:    .byte "HOF3GIS"
-hof_load_cmd:  .byte "BLOAD MICROHOF,A$", 0
-hof_save_cmd:  .byte "BSAVE MICROHOF,A$", 0
+hof_file_name: .byte "MICROHOF", 0
 hof_letters:
 .repeat 26, I
         .byte .ident(.sprintf("G_%c", 'A'+I))
@@ -688,9 +710,10 @@ hof_initials_keys:  GSTR "A-Z TYPE  STICK CHOOSE"
 hof_initials_save:  GSTR "RETURN/B0 SAVE"
 hof_initials_back:  GSTR "ESC/B1 CANCEL"
 
-.code
+.segment "BOOTCODE"
 ; One-time HOF2 conversion: rebuild every named row from its own records.
-; Names, options and active slot survive. No fabricated conversion of points.
+; Names, options and active slot survive. No fabricated conversion of points
+; (load_hof has dropped the rows that belong to no profile).
 migrate_rankings:
         LDA rankings_old
         BEQ @done
@@ -732,3 +755,4 @@ migrate_rankings:
         BCC @restore
         JMP write_hof
 @done:  RTS
+.code

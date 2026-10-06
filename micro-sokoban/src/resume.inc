@@ -165,8 +165,9 @@ save_position:
         LDA save_mask
         ORA #$80
         STA save_mask
-        JSR write_save                  ; (no write on a protected disk: the
-        LDA #NROWS-1                    ; position stays in save_buf)
+        JSR write_save                  ; C = 1: not written. A protected disk:
+        BCS save_none                   ; the position stays in save_buf; an
+        LDA #NROWS-1                    ; error: "IO ERR" stays on the screen
         STA draw_row                    ; "SAVING" and its wipe went over the
         LDA #SAVE_TILE                  ; two tiles left of the HUD corner,
         STA draw_col                    ; which a level may use: back they come

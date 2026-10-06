@@ -154,6 +154,25 @@ def main():
         assert dumps == [b'\xff' * 4, b'\xff' * 4, b'\x01\0'], dumps
         print('Move and push counters stay at 65535 and the level counts as solved: ok')
 
+        # A key still repeating after the winning move (a //e), or typed ahead, must not skip SUCCESS or BRAVO.
+        level = [peek('cur_coll', 2), peek('moves_lo', 2), peek('boxes_left')]
+        won = keys('I', 1)
+        dumps = run(args.disk, first + ['key:' + won + won[-1] * 6, 'wait:300', *level,
+                                        'key: ', 'wait:300', *level])
+        assert dumps[:3] == [b'\0\0', b'\x21\0', b'\0'], 'repeated keys skipped SUCCESS'
+        assert dumps[3:] == [b'\0\x01', b'\0\0', b'\x01'], dumps[3:]
+        won = keys('III', 100)
+        dumps = run(args.disk, boot + ['key:G', 'wait:90', 'key:N', 'wait:60', 'key:N', 'wait:60',
+                                       'key:KKKKKKKKKL', 'wait:60', 'key:\r', 'wait:400',
+                                       'key:' + won + won[-1] * 2, 'wait:300', *level, 'key: ', 'wait:300', *level,
+                                       'key: ', 'wait:400', peek('cur_coll', 2)])
+        assert dumps[:3] == dumps[3:6] == [b'\x02\x5b', len(won).to_bytes(2, 'little'), b'\0'], dumps[:6]
+        assert dumps[6] == b'\x03\0', 'SUCCESS, then BRAVO, then the next collection'
+        dumps = run(args.disk, first + ['key:' + keys('I', 1), 'wait:120', 'btn:0,1', 'wait:6', 'btn:0,0',
+                                        'wait:300', peek('cur_coll', 2)])
+        assert dumps == [b'\0\x01'], 'a button must still leave SUCCESS'
+        print('Typed-ahead or repeating keys do not skip SUCCESS / BRAVO; a later key or a button does: ok')
+
 
 if __name__ == '__main__':
     main()

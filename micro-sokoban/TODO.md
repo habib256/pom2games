@@ -17,6 +17,9 @@ le [README](README.md), les sources et solutions dans [levels/README.md](levels/
   repart vide après redémarrage, changement de profil ou tutoriel rejoué en
   cours de partie (position et compteurs sont rendus). Si le début du niveau
   a été oublié, RESTART recharge le niveau au lieu de le rembobiner.
+- Un fichier de records dont un secteur est illisible est abandonné en entier
+  (profil vide, réécrit à la sauvegarde suivante) : les records des secteurs
+  encore lisibles ne sont pas récupérés.
 - À nombre égal de niveaux résolus, le classement compare le total des meilleurs
   coups ; le résultat dépend donc des niveaux choisis.
 
@@ -85,14 +88,26 @@ le [README](README.md), les sources et solutions dans [levels/README.md](levels/
 - [x] **Affichage et compteurs** : les tuiles sous « SAVING » (III:054, IV:036)
   sont redessinées après la sauvegarde ; coups et poussées s’arrêtent à 65535 ;
   le test de protection en écriture suit le slot du lecteur de DOS.
+- [x] **Fichiers abîmés** : un fichier de records ou un classement illisible,
+  absent ou de longueur impossible compte pour vide et le jeu continue ; une
+  écriture qui échoue affiche « IO ERR » (sept caractères) sans quitter ; un
+  fichier trop court ne laisse plus lire d’anciens octets comme des records ;
+  `MICROHOF` est mis en accord avec ses dix profils au démarrage (profil actif,
+  initiales, lignes sans profil ou en double, HOF2 compris).
+- [x] **Écrans d’attente** : SUCCESS, BRAVO et HELP ignorent une touche tapée
+  d’avance ou en répétition ; il faut un quart de seconde de clavier au repos.
+- [x] **Mémoire** : le code du démarrage (lecture et contrôle de `MICROHOF`,
+  migrations) quitte le résident pour le segment `BOOTCODE`, exécuté en `$1000`
+  avant le premier paquet de niveaux.
 
 ## Vérification
 
 `make test` construit la disquette et vérifie dans a2run la sortie vers BASIC,
 les pages HGR et silhouettes monochromes, les textes des menus, la reprise,
 le tutoriel, les options, les profils, le classement, les retours en partie
-(tutoriel, SOLUTION, profils, manette, « SAVING », compteurs) et les solutions des
-454 niveaux. Les tests couvrent aussi les sauvegardes corrompues, migrations,
+(tutoriel, SOLUTION, profils, manette, « SAVING », compteurs, touches en avance),
+les fichiers abîmés (longueur impossible, fichier absent ou trop court,
+classement incohérent) et les solutions des 454 niveaux. Les tests couvrent aussi les sauvegardes corrompues, migrations,
 disquettes protégées et écritures sans changement.
 
 Les captures et scénarios manette utilisent les outils partagés a2run/a2shot.
