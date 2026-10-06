@@ -1,9 +1,14 @@
 ; ProDOS boots .SYSTEM files. This small shim loads the game CHROMA.SYS.
 ; Relocate to $0800 before READ overwrites the entry at $2000.
-.setcpu "65C02"
+; The game is 65C02 code: first, with 6502 instructions only, an original
+; //e (NMOS 6502) gets a message and returns to ProDOS instead of crashing.
+.setcpu "6502"
 .import __LOADER_LOAD__, __LOADER_SIZE__
 .segment "CODE"
         cld
+        lda #0
+        .byte $1A                ; 65C02: INC A. NMOS 6502: one-byte NOP.
+        beq nmos
         ldx #0
 copy:   lda __LOADER_LOAD__,x
         sta $0800,x
@@ -11,7 +16,30 @@ copy:   lda __LOADER_LOAD__,x
         cpx #<__LOADER_SIZE__
         bne copy
         jmp start
+nmos:
+        jsr $FC58                ; HOME
+        ldx #0
+nmos_print:
+        lda nmos_text,x
+        beq nmos_wait
+        ora #$80
+        jsr $FDED
+        inx
+        bne nmos_print
+nmos_wait:
+        bit $C000
+        bpl nmos_wait
+        bit $C010
+        jsr $BF00
+        .byte $65                ; QUIT back to ProDOS
+        .word quit
+quit:   .byte 4, 0, 0, 0, 0, 0, 0
+nmos_text:
+        .byte "CHROMABREAK NEEDS A 65C02 CPU:", $0D
+        .byte "APPLE //E ENHANCED OR //C, 128K.", $0D, $0D
+        .byte "PRESS A KEY TO RETURN TO PRODOS.", 0
 .segment "LOADER"
+.setcpu "65C02"
 start:  lda $BF30                 ; boot device, including drive number
         sta online_unit
         jsr $BF00

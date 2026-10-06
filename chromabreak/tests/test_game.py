@@ -26,39 +26,31 @@ def main():
     a=ap.parse_args()
     linkmap=a.labels.with_suffix('.map').read_text()
     linked=set(re.findall(r'platform\.lib\(([^)]+)\):',linkmap))
-    assert {'dhgr_clear.o','dhgr_clear_asm.o','dhgr_small_asm.o','gfx_u16_digits.o'}<=linked, 'missing library modules'
+    assert {'dhgr_clear_asm.o','gfx_u16_digits.o'}<=linked, 'missing library modules'
     unused={'dhgr_pixel.o','dhgr_getpixel.o','dhgr_pixel_address.o',
             'dhgr_access_asm.o','dhgr_write_asm.o','dhgr_read_asm.o','dhgr_fill.o','dhgr_fill_bits.o',
             'dhgr_bit_rect.o','dhgr_span_asm.o','dhgr_plot_color.o','dhgr_span.o',
             'dhgr_block.o','dhgr_block_asm.o','dhgr_sprite.o','dhgr_address.o',
-            'dhgr_text.o','dhgr_text_asm.o','hgr_font.o','dhgr_small.o'}
+            'dhgr_text.o','dhgr_text_asm.o','hgr_font.o','dhgr_small.o',
+            # Text is Beautiful Boot (finetext.s); only the $0800 tables remain.
+            'dhgr_small_asm.o','dhgr_small_string.o','dhgr_small_params.o',
+            # The game clears to $80 (bit 7: Chat Mauve colour) itself.
+            'dhgr_clear.o'}
     assert not linked&unused, ('unused library modules in game',sorted(linked&unused))
     print('PASS link map: unused drawing, transfers and text wrappers excluded')
-    source=(ROOT/'chromabreak/src/levels.h').read_text()
-    rows=re.findall(r'\{([0-9,]+)\}',source)
-    boards=[tuple(map(int,row.split(','))) for row in rows]
-    assert len(boards)==12 and len(set(boards))==12
-    for board in boards:
-        assert len(board)==96 and set(board)<=set((0,1,2,3,255))
-        assert any(0<hp<255 for hp in board) and 0 in board
-        # Every destructible tile has a route from below once preceding
-        # bricks are removed; steel must never enclose a required tile.
-        seen=set(i for i in range(84,96) if board[i]!=255);pending=list(seen)
-        while pending:
-            i=pending.pop();x,y=i%12,i//12
-            for nx,ny in ((x-1,y),(x+1,y),(x,y-1),(x,y+1)):
-                if 0<=nx<12 and 0<=ny<8:
-                    n=ny*12+nx
-                    if n not in seen and board[n]!=255:seen.add(n);pending.append(n)
-        assert all(i in seen for i,hp in enumerate(board) if 0<hp<255),'steel seals a required brick'
-    print('PASS twelve distinct boards, resistance values and routes around steel')
+    spec=importlib.util.spec_from_file_location('pack_levels',ROOT/'chromabreak/tools/pack_levels.py')
+    packer=importlib.util.module_from_spec(spec);spec.loader.exec_module(packer)
+    levels=packer.load();packer.check(levels)
+    for name,board in levels:
+        assert set(board)<=set((0,1,2,3,255)) and 0 in board, name
+    print(f'PASS {len(levels)} distinct boards, names, resistance values and routes around steel')
     spec=importlib.util.spec_from_file_location('prodos_read',ROOT/'dev/tools/prodos/read_volume.py')
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
     image=module.Image(a.disk.read_bytes())
     assert image.header()['name']=='CHROMABREAK'
     assert image.header()['blocks']==280 and len(image.d)==143360
     entries={e[1:1+(e[0]&15)].decode():e for e in image.entries(2)}
-    assert set(entries)=={'PRODOS','CHROMA.SYSTEM','CHROMA.SYS','HIGHSCORES'}
+    assert set(entries)=={'PRODOS','CHROMA.SYSTEM','CHROMA.SYS','HIGHSCORES','ENDING'}
     assert all(entries[name][0x10]==0xFF for name in ('PRODOS','CHROMA.SYSTEM','CHROMA.SYS'))
     assert entries['HIGHSCORES'][0x10]==6
     assert image.read(entries['HIGHSCORES'])==(a.labels.parent/'HIGHSCORES').read_bytes()
@@ -86,7 +78,7 @@ def main():
                'key:P',tick,tick,peek('paused'),peek('ball_x'),peek('ball_y'),
                'wait:120',peek('ball_x'),peek('ball_y'),'key:P',tick,tick,peek('paused'),
                'key:A',tick,tick,'wait:20','key:S',tick,tick,peek('pad_x'),
-               'key:\\e','wait:600','peek:C018:8']
+               'key:\\e',tick,'key:Q','wait:600','peek:C018:8']
         out=run([emulator,'--iie','--disk',a.disk,*steps])
         flags=[bytes.fromhex(s) for s in re.findall(r'(?m)^C018: ([0-9A-F ]+)$',out)]
         assert not flags[0][2]&128 and flags[0][7]&128,'DHGR title'
@@ -113,7 +105,7 @@ def main():
         # Last brick transitions through all 12 boards, using actual collision
         # and level-loader code; scenario injection is limited to test setup.
         steps=[tick,'key: ',tick,tick]
-        for level in range(12):
+        for level in range(len(levels)):
             steps += [poke('level',level),poke('remaining',1)]
             for i in range(96): steps.append(f'poke:{labels["_bricks"]+i:04X}:{1 if i==0 else 0:02X}')
             steps += [poke('ball_x',8),poke('ball_y',TILE_TOP+8),poke('ball_live',1),poke('round_live',1),poke('dx',1),
@@ -121,9 +113,9 @@ def main():
                       tick,peek('level'),peek('state'),peek('ball_live')]
         steps += ['key:\\e',tick,'key: ',tick,tick,peek('level'),peek('state'),'reset','wait:600','peek:C018:8']
         out=run([emulator,'--iie','--disk',a.disk,*steps])
-        assert [s[0] for s in values(out,'level')]==list(range(1,13))+[0]
-        assert [s[0] for s in values(out,'state')]==[1]*11+[4,1]
+        assert [s[0] for s in values(out,'level')]==list(range(1,len(levels)+1))+[0]
+        assert [s[0] for s in values(out,'state')]==[1]*(len(levels)-1)+[4,1]
         final=bytes.fromhex(re.findall(r'(?m)^C018: ([0-9A-F ]+)$',out)[-1])
         assert final[2]&128 and not final[7]&128,'RESET must return to ProDOS'
-    print('PASS IIe DHGR boot, >=25fps, keyboard, pause, 12 sector transitions, victory/replay, ESC/RESET')
+    print('PASS IIe DHGR boot, >=25fps, keyboard, pause, every sector transition, victory/replay, ESC/RESET')
 if __name__=='__main__': main()

@@ -1,5 +1,7 @@
 ; ProDOS SYS entry $2000. Relocate backwards: source/destination may overlap.
 .setcpu "65C02"
+.include "levels.inc"
+.include "duet.inc"
 .segment "CODE"
         cld
         sta $C002
@@ -7,7 +9,14 @@
         sta $C000
         ldx #$FF
         txs
-        ; Keep the 2 KiB compact font tables below graphics, freeing game memory.
+        ; The two-voice player goes to page 3 (duet.inc).
+        ldx #duet_size
+duet_copy:
+        lda duet_image-1,x
+        sta DUET_BASE-1,x
+        dex
+        bne duet_copy
+        ; Keep the 2 KiB DHGR table image below graphics, freeing game memory.
         ; Copy it before relocating the overlapping SYS payload.
         lda #<font_payload
         sta $06
@@ -27,6 +36,29 @@ font_copy:
         inc $09
         dex
         bne font_copy
+        ; The level bank and font go to AUX $0A00 before the payload moves.
+        lda #<levels_payload
+        sta $06
+        lda #>levels_payload
+        sta $07
+        lda #<LEVELS_AUX
+        sta $08
+        lda #>LEVELS_AUX
+        sta $09
+        ldx #>(AUX_BANK_SIZE+255)
+        ldy #0
+        sei
+        sta $C005
+levels_copy:
+        lda ($06),y
+        sta ($08),y
+        iny
+        bne levels_copy
+        inc $07
+        inc $09
+        dex
+        bne levels_copy
+        sta $C004
         lda #<(payload+size-1)
         sta $06
         lda #>(payload+size-1)
@@ -60,5 +92,23 @@ copy:   lda ($06),y
         jmp $6000
 payload: .incbin "game.bin"
 size=*-payload
-font_payload: .incbin "font.bin"
-.assert *-font_payload=2048, error, "DHGR font payload must be 2 KiB"
+font_payload: .incbin "tables.bin"
+.assert *-font_payload=2048, error, "DHGR table image must be 2 KiB"
+levels_payload: .incbin "levels.bin"
+.assert *-levels_payload=LEVELS_SIZE, error, "level bank size"
+; The Beautiful Boot font planes follow the boards in AUX (finetext.s).
+.include "fine_font.inc"
+; Then the title theme and jingle (sound.s play_tune reads them there).
+.include "music_offsets.inc"
+.assert LEVELS_AUX+*-levels_payload=LEVELS_AUX+LEVELS_SIZE+FINE_COUNT*FINE_HEIGHT, error, "tunes follow the font"
+.include "music_aux.inc"
+AUX_BANK_SIZE = *-levels_payload
+.assert LEVELS_AUX+AUX_BANK_SIZE<=$2000, error, "AUX bank reaches AUX video memory"
+; The player of those tunes, assembled for page 3.
+duet_image:
+DUET_CODE = 1
+.org DUET_BASE
+.include "duet.inc"
+duet_size = *-DUET_BASE
+.reloc
+.assert duet_size<256, error, "duet_copy moves less than a page"
