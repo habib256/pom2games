@@ -6,8 +6,8 @@
 ; the grid moves up to stay above them, any key returns to the DEMO menu
 ; (BLOAD FONT + CALL 24576). Font: Michael Pohoreski. GPL-3.0.
 ; =============================================
-; Displays all 256 code points from fonts/font_codepage_437_8x8.png
-; (linear CP437 order, index = IBM code point).
+; Displays all 256 code points of dev/lib/font/bbfont_glyphs.inc
+; (BBFONT_FIRST = $00, BBFONT_LAST = $FF: linear CP437 order, index = IBM code point).
 ;
 ; Assemble with cc65:
 ;   Build: make

@@ -22,7 +22,7 @@
 #include "hgr.h"
 #include "hgr_internal.h"
 
-extern void hgr_flip_rows(void);      /* hgr_mode_asm.s: rowhi ^= $60 */
+extern void hgr_flip_rows(void);      /* hgr_rows_asm.s: rowhi ^= $60 */
 
 /* Sink for the individual soft-switch macros. A soft-switch READ is the toggle;
  * its value is meaningless. cc65 -Oirs drops a volatile read cast to void, so
@@ -51,7 +51,7 @@ unsigned char *hgr_row(unsigned char y)
     return (unsigned char *)(((unsigned)hgr_rowhi[y] << 8) | hgr_rowlo[y]);
 }
 
-/* --- Look-up tables (referenced by every drawing module via internal.h) ---- */
+/* --- Look-up tables (referenced by every drawing module via hgr_internal.h) */
 unsigned char hgr_rowlo[192];
 unsigned char hgr_rowhi[192];
 unsigned char hgr_col7[280];

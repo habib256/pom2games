@@ -10,7 +10,7 @@ reste en est découpé ou dérivé automatiquement.
 | Fichier | Rôle |
 |---|---|
 | `bbfont_glyphs.inc` | **maîtresse** : 256 glyphes, une ligne `bbglyph code, 8 octets` chacun. Bit 0 = pixel de gauche, 8 lignes de haut en bas, bit 7 toujours à 0 (7 px de large). C'est le seul fichier à éditer. |
-| `bbfont.inc` | asm : `.include` après avoir choisi `BBFONT_FIRST` / `BBFONT_LAST` ; émet la table `bbfont` et `BBFONT_COUNT` dans le segment courant. |
+| `bbfont.inc` | asm : `.include` après avoir choisi `BBFONT_FIRST` / `BBFONT_LAST` ; émet la table `bbfont`, `BBFONT_COUNT` et `BBFONT_BYTES_PER_GLYPH` dans le segment courant. |
 | `bbfont_c.inc` | C : les 96 glyphes ASCII `$20-$7F`, générés — c'est `hgr_font[]` de `lib/hgrc` (`hgr_font.c`). |
 | `../../tools/fonts.py` | Python : `glyph()`, `glyphs()`, `double7()` (x2 HGR), `dhgr_cells()`, `asm_bytes()`, `write_if_changed()` ; en ligne de commande, régénère les tables dérivées (`--check` en test). |
 

@@ -1,115 +1,169 @@
 # MICRO-SOKOBAN — TODO
 
-État au 2026-10-06 : **aucune tâche ouverte**. Les fonctionnalités et corrections
-ci-dessous sont réalisées. Les commandes et les détails techniques sont dans
-le [README](README.md), les sources et solutions dans [levels/README.md](levels/README.md).
+Status on 2026-10-07: **no open task**. Controls and technical details are in
+the [README](README.md); level sources and solutions in
+[levels/README.md](levels/README.md).
 
-## Contraintes et limites connues
+## Next up / ideas
 
-- Apple II+ 48 Ko, HGR, DOS 3.3 ; clavier et manette.
-- Pas de défilement : chaque niveau tient dans 20 × 12 cases, hors des coins du HUD.
-  Les niveaux trop hauts sont tournés si cela permet de les afficher ; les autres
-  sont écartés. Leur numéro d’origine est conservé.
-- L’alerte DEADLOCK détecte les cases mortes calculées depuis les cibles,
-  y compris les coins et les bords de mur sans cible. Les blocages entre caisses
-  (gel 2 × 2, par exemple) restent hors de cette détection ; le solveur les détecte.
-- Undo/Redo garde les 1024 derniers coups en mémoire seulement. L’historique
-  repart vide après redémarrage, changement de profil ou tutoriel rejoué en
-  cours de partie (position et compteurs sont rendus). Si le début du niveau
-  a été oublié, RESTART recharge le niveau au lieu de le rembobiner.
-- Un fichier de records dont un secteur est illisible est abandonné en entier
-  (profil vide, réécrit à la sauvegarde suivante) : les records des secteurs
-  encore lisibles ne sont pas récupérés.
-- À nombre égal de niveaux résolus, le classement compare le total des meilleurs
-  coups ; le résultat dépend donc des niveaux choisis.
+None of these is started. Each is grounded in a comment, a release note or a
+known limit; the resident budget (about 380 bytes free, 230 in `BOOTCODE`)
+means any addition must first free memory.
 
-## Réalisé
+- **Real-hardware check.** Every release note says the tests validate
+  emulated execution only; the two-voice title music "has not yet been heard
+  on real hardware" (1.2 notes), and the disk timings are POM2 cycles, not a
+  physical Disk II. Boot the image on an Apple II+ or //e, listen to the duet
+  and the game sounds, and time the boot.
+- **Refresh the header comment of `src/micro_sokoban.s`.** It still says the
+  packs are "up to 4 KB" and "BLOADed", that "H or ESC = menu", and lists
+  T / O / F / Q as HELP keys. The packs are at most 2 KB and read through
+  RWTS, H opens HELP, and those letters are menu keys.
+- **Freeze deadlocks.** The DEADLOCK warning covers dead squares only; a crate
+  frozen against another (a 2 × 2 block, for example) is not detected, while
+  `tools/solver.py` already has the freeze rule. Worth porting only if it fits
+  the budget.
+- **Partial recovery of a records file.** A file with one unreadable sector is
+  dropped whole (empty profile, rewritten at the next save); the records of
+  its readable sectors could be kept instead.
+- **More collections.** The build pipeline is generic (`COLLS` in the
+  Makefile, `PREFIX:HUD:FILE` arguments of `tools/micro_sokoban_levels.py`),
+  but the SOK2 file, the fingerprints and the demo table are sized for the
+  four current collections, so a fifth one means a new save format.
 
-- [x] **Affichage** : murs bleus, joueur blanc et repère sous les pieds sur cible ;
-  caisses hors cible remplies en orange, caisses sur cible à cadre vert creux et
-  coche blanche. Les sept tuiles restent distinctes en monochrome. COLOR MODE
-  (OPTIONS, éteint par défaut) rend aux caisses placées leur corps vert plein.
-- [x] **Lisibilité** : petit texte blanc, couleur réservée aux titres ×2 ; HUD
-  avec coups, poussées, collection/numéro d’origine et meilleur résultat.
-- [x] **Rendu HGR** : écrans complets dessinés sur la page cachée puis affichés ;
-  seules les tuiles modifiées sont redessinées pendant les déplacements.
-- [x] **Gameplay** : Undo/Redo au clavier et à la manette, répétition du manche,
-  RESTART annulable avec Redo, compteurs de coups et poussées sur 16 bits
-  (arrêtés à 65535),
-  compteur de caisses restantes et alerte sonore DEADLOCK désactivable.
-- [x] **Niveaux** : 454 niveaux Microban I à IV (150, 122, 92 et 90), conversion
-  XSB avec rotation/filtrage, treize paquets de 2 Ko au plus, choix par grille,
-  repérage des niveaux résolus et bilan en fin de collection.
-- [x] **Solutions** : une solution vérifiée par niveau, solveur A* et complément
-  YASS pour 33 niveaux ; lecture depuis MICROSOL et entrée SOLUTION conditionnée
-  par CHEAT MODE, sans enregistrer de progression pendant la présentation.
-- [x] **Tutoriel** : cinq leçons avec consignes, proposées à la première partie
-  et rejouables ; achèvement enregistré par profil, sans effet sur le classement.
-- [x] **Menu et aide** : PLAY / RESUME, TUTORIAL, PROFILES, RESTART, GO TO LEVEL,
-  OPTIONS, HALL OF FAME, HELP et QUIT TO DOS ; H ouvre directement l’aide,
-  quitter l’aide revient au menu.
-- [x] **Profils** : dix profils indépendants, création/renommage au clavier ou
-  à la manette, noms uniques ; sélectionner le profil actif conserve la partie
-  et l’historique sans relire le disque.
-- [x] **Records et classement** : records par niveau (coups, puis poussées),
-  enregistrement automatique ; classement par niveaux résolus décroissants,
-  puis total des meilleurs coups croissant sur 32 bits ; format HOF3 et migration
-  des anciens HOF1/HOF2.
-- [x] **Sauvegarde et reprise** : fichiers SOK2 indépendants par profil,
-  1830 octets de records et 134 octets de position ; empreintes par collection,
-  CRC-8 de position, sauvegarde au menu/HELP ou après environ six secondes
-  sans entrée ; position invalide ignorée, disquette protégée respectée.
-- [x] **Accueil** : progression et profil actif, version, crédits blancs centrés
-  (« APPLE II PORT BY » / « VERHILLE ARNAUD »), animation à environ 1,6 s par pas,
-  puis classement pendant dix secondes et démo de sept niveaux ; présentation
-  interrompue par touche ou bouton, sans sauvegarde.
-- [x] **Sons** : pas, poussée sur cible, coup impossible, annulation, case morte
-  et victoire ; sons de partie/menu/démo réglables séparément, partie et menu
-  actifs par défaut ; musique d’accueil à deux voix (mélodie et basse, dix
-  mesures, 24 s) sur le haut-parleur Apple II, arrêtée en quittant l’accueil,
-  démo silencieuse par défaut.
-- [x] **Chargement et disque** : bibliothèques partagées de ../dev, programme
-  comprimé chargé à $6000, tampons déplacés en pages 2 et 3 pour libérer le
-  résident, lectures RWTS avec cache des listes de secteurs,
-  allocation DOS optimisée et écritures limitées aux secteurs modifiés.
-- [x] **Retour BASIC** : QUIT TO DOS et Ctrl-RESET restaurent la page zéro
-  et rechargent HELLO ; LIST et les relances par RUN fonctionnent.
-- [x] **Corrections récentes** : fin des tables de textes sur deux octets
-  (adresse de chaîne finissant par $FF acceptée), retours des menus et solutions
-  sur la bonne page HGR, annulation de GO TO LEVEL depuis l’accueil sans lancer
-  de partie, RESTART depuis l’accueil à zéro et PLAY / RESUME avec reprise.
-- [x] **Partie quittée puis retrouvée** : le tutoriel rejoué depuis le menu rend
-  le niveau en cours ; SOLUTION rend la position et l’historique Undo/Redo, même
-  sur disquette protégée (solution lue hors de l’historique) ; renommer un autre
-  profil ne change pas de profil actif ; un profil créé en cours de partie
-  commence par le tutoriel.
-- [x] **Manette** : après un rembobinage, le manche attend d’être recentré avant
-  de déplacer le joueur ; port jeu ignoré (axes et boutons) sans manette branchée.
-- [x] **Affichage et compteurs** : les tuiles sous « SAVING » (III:054, IV:036)
-  sont redessinées après la sauvegarde ; coups et poussées s’arrêtent à 65535 ;
-  le test de protection en écriture suit le slot du lecteur de DOS.
-- [x] **Fichiers abîmés** : un fichier de records ou un classement illisible,
-  absent ou de longueur impossible compte pour vide et le jeu continue ; une
-  écriture qui échoue affiche « IO ERR » (sept caractères) sans quitter ; un
-  fichier trop court ne laisse plus lire d’anciens octets comme des records ;
-  `MICROHOF` est mis en accord avec ses dix profils au démarrage (profil actif,
-  initiales, lignes sans profil ou en double, HOF2 compris).
-- [x] **Écrans d’attente** : SUCCESS, BRAVO et HELP ignorent une touche tapée
-  d’avance ou en répétition ; il faut un quart de seconde de clavier au repos.
-- [x] **Mémoire** : le code du démarrage (lecture et contrôle de `MICROHOF`,
-  migrations) quitte le résident pour le segment `BOOTCODE`, exécuté en `$1000`
-  avant le premier paquet de niveaux.
+## Constraints and known limits
 
-## Vérification
+- Apple II+ 48 KB, HGR, DOS 3.3; keyboard and joystick.
+- No scrolling: every level fits in 20 × 12 cells, clear of the HUD corners.
+  Levels too tall are turned when that lets them fit; the others are left out.
+  Their original numbers are kept.
+- The DEADLOCK alert detects the dead squares computed from the goals,
+  including corners and wall edges without a goal. Blocks between crates
+  (a 2 × 2 freeze, for example) stay outside this detection; the solver
+  detects them.
+- Undo/Redo keeps the last 1024 moves in memory only. The history starts empty
+  after a reboot, a profile change or a tutorial replayed during a game
+  (position and counters are given back). If the start of the level has been
+  forgotten, RESTART reloads the level instead of rewinding it.
+- A records file with one unreadable sector is dropped whole (empty profile,
+  rewritten at the next save): the records in the sectors still readable are
+  not recovered.
+- With the same number of solved levels, the ranking compares the total of
+  best moves; the result therefore depends on the levels chosen.
 
-`make test` construit la disquette et vérifie dans a2run la sortie vers BASIC,
-les pages HGR et silhouettes monochromes, les textes des menus, la reprise,
-le tutoriel, les options, les profils, le classement, les retours en partie
-(tutoriel, SOLUTION, profils, manette, « SAVING », compteurs, touches en avance),
-les fichiers abîmés (longueur impossible, fichier absent ou trop court,
-classement incohérent) et les solutions des 454 niveaux. Les tests couvrent aussi les sauvegardes corrompues, migrations,
-disquettes protégées et écritures sans changement.
+## Done
 
-Les captures et scénarios manette utilisent les outils partagés a2run/a2shot.
-Les mesures de temps disque dans POM2 sont décrites dans le README ; elles
-mesurent le processeur émulé et ne constituent pas des mesures sur machine physique.
+### 1.0 — first release
+
+- **Display**: blue walls, white player with a marker under the feet on a
+  goal; crates off goal filled orange, crates and goals green. Small text
+  white, colour reserved for ×2 titles; HUD with moves, pushes,
+  collection/original number and best result.
+- **HGR rendering**: whole screens drawn on the hidden page then shown; only
+  the changed tiles are redrawn during moves.
+- **Gameplay**: Undo/Redo on keyboard and joystick, stick auto-repeat,
+  RESTART undoable with Redo, 16-bit move and push counters, crates-left
+  counter and a DEADLOCK sound alert that can be switched off.
+- **Levels**: 454 Microban I to IV levels (150, 122, 92 and 90), XSB
+  conversion with rotation/filtering, thirteen packs of at most 2 KB, grid
+  selection, solved levels marked and a summary at the end of a collection.
+- **Solutions**: one checked solution per level, A* solver plus YASS for 33
+  levels; `make test` plays all 454 in the real game.
+- **Tutorial**: five lessons with hints, offered on the first game and
+  replayable; completion saved per profile, no effect on the ranking.
+- **Menu and help**: PLAY / RESUME, TUTORIAL, PROFILES, RESTART, GO TO LEVEL,
+  OPTIONS, HALL OF FAME, HELP and QUIT TO DOS.
+- **Profiles**: ten independent profiles, creation/renaming on keyboard or
+  joystick, unique names; selecting the active profile keeps the game and the
+  history without reading the disk.
+- **Records and ranking**: per-level records (moves, then pushes), automatic
+  saving; ranking by solved levels descending, then total of best moves
+  ascending on 32 bits; HOF3 format and migration of the old HOF1/HOF2.
+- **Save and resume**: independent SOK2 files per profile, 1830 bytes of
+  records and a 134-byte position; per-collection fingerprints, position
+  CRC-8, save on menu/HELP or after about six seconds without input; invalid
+  position ignored, write-protected disk respected.
+- **Title**: progress and active profile, version, corridor animation, then
+  the ranking for ten seconds and a seven-level demo; the presentation is
+  interrupted by a key or a button, nothing saved.
+- **Sounds**: step, push onto a goal, impossible move, undo, dead square and
+  victory; game/menu/demo sounds set separately, game and menu on by default,
+  demo silent by default.
+- **Loading and disk**: shared `../dev` libraries, LZ-packed program loaded at
+  `$6000`, RWTS reads with cached sector lists, optimised DOS allocation and
+  writes limited to the changed sectors.
+
+### 1.1 — music, solutions, monochrome
+
+- **Title music** (one voice) on the Apple II speaker, controlled by MENU
+  SOUND, stopped when leaving the title.
+- **Solution playback**: solutions read from `MICROSOL`, SOLUTION entry
+  conditioned by CHEAT MODE, no progress recorded while watching.
+- **Monochrome tiles**: crates on goal with a hollow green frame and a white
+  check mark; the seven tiles stay distinct without colour.
+- **Title presentation**: white centred credits ("APPLE II PORT BY" /
+  "VERHILLE ARNAUD"), white profile and version labels on black panels,
+  animation at about 1.6 s per step that finishes with the crate on its goal
+  before the Hall of Fame.
+- **Navigation and resume fixes**: cancelling GO TO LEVEL from the title
+  without starting a game, RESTART from the title with zero counters,
+  PLAY / RESUME keeping the saved position.
+- **Display and exit fixes**: menus and solutions return on the right HGR
+  page; two-byte end of the text tables (a string address ending in `$FF`
+  accepted); QUIT TO DOS and Ctrl-RESET restore the zero page and reload
+  HELLO, so LIST and RUN relaunches work.
+
+### 1.2 — two voices and COLOR MODE
+
+- **Two-voice title music**: melody over a walking bass, ten bars (24 s),
+  `title_duet` loop of constant duration at `$6003`; the corridor animation
+  steps between two beats.
+- **COLOR MODE** (OPTIONS, off by default) gives crates on goals their filled
+  green body, using a spare bit of the options byte.
+- **Memory**: the DOS zero-page copy moved to page 2, the ranking and the RWTS
+  zero-page copy to page 3, to free the resident (13 bytes were left).
+- **Tests** listen to the music (both voices, tempo, a key cutting a note) and
+  check the colour-mode tile and its option across a reboot.
+
+### 1.3 — in preparation
+
+- **A game left and found again**: the tutorial replayed from the menu gives
+  the current level back; SOLUTION restores the position and the Undo/Redo
+  history, even on a write-protected disk (solution read outside the
+  history); renaming another profile does not change the active one; a
+  profile created during a game starts with the tutorial.
+- **Joystick**: after a rewind the stick waits to be recentred before moving
+  the player; the game port (axes and buttons) is ignored without a joystick.
+- **Display and counters**: the tiles under "SAVING" (III:054, IV:036) are
+  redrawn after the save; moves and pushes stop at 65535; the write-protect
+  test follows the slot DOS booted from.
+- **Damaged files**: an unreadable, missing or impossibly long records file
+  or ranking counts as empty and the game goes on; a failed write shows
+  "IO ERR" (seven characters) without quitting; a short file no longer lets
+  old bytes be read as records; `MICROHOF` is made consistent with its ten
+  profiles at startup (active profile, initials, rows without a profile or
+  duplicated, HOF2 included).
+- **Wait screens**: SUCCESS, BRAVO and HELP ignore a key typed ahead or
+  repeating; the keyboard must rest a quarter of a second.
+- **Memory**: the start-only code (reading and checking `MICROHOF`,
+  migrations) leaves the resident for the `BOOTCODE` segment, run at `$1000`
+  before the first level pack (290 bytes freed).
+- **Shared with `../dev`**: the HUD font is generated by `tools/hud_font.py`
+  from the Beautiful Boot master in `dev/lib/font`; the Makefile uses
+  `dev/cc65/apple2.mk`, the tests the `dev/tools/a2test.py` harness; the
+  private copies of `print_str_ax`, `clear_hgr` and the scanline tables are
+  gone.
+
+## Verification
+
+`make test` builds the disk and checks in a2run the exit to BASIC, the HGR
+pages and monochrome silhouettes, the menu texts, resume, the tutorial, the
+options, the profiles, the ranking, the returns to a game (tutorial,
+SOLUTION, profiles, joystick, "SAVING", counters, typed-ahead keys), the
+damaged files (impossible length, missing or short file, inconsistent
+ranking) and the solutions of the 454 levels. The tests also cover corrupted
+saves, migrations, write-protected disks and writes that change nothing.
+
+Screenshots and joystick scenarios use the shared a2run/a2shot tools. The
+disk timings in POM2 are described in the README; they measure the emulated
+processor and are not measurements on a physical machine.

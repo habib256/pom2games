@@ -1,108 +1,223 @@
-# LOGO — Apple II / DOS 3.3 (40 ou 80 colonnes)
+# LOGO — Apple II / DOS 3.3
 
-Port Apple II de l'APPLE-1 LOGO V2.6 de [POM1](https://github.com/habib256/pom1)
-(VERHILLE Arnaud), dans son édition GEN2 HGR (`sketchs/gen2/tool_logo_gen2`,
-qui compile l'interpréteur partagé `sketchs/tms9918/tool_logo/TMS_Logo_16k.asm`
-avec `CODETANK_BUILD` + `LOGO_GEN2`, renommé ici `LOGO_HGR`). Importé depuis GitHub au commit
-`e2a4748` (2026-09-11).
+**APPLE-1 LOGO V2.6, GEN2 HGR edition, running on an Apple II+ or //e.**
 
-Tortue HGR, procédures avec paramètres et récursion terminale, `REPEAT`,
-`IF`/`IFELSE`, variables, `SETPC`, sprites `SETSHAPE`, texte bitmap `LABEL` /
-`SAY`, `LIST` / `EDIT`, démos `DEMO` et `DEM2`. Le manuel complet de la V2.6 est
-dans [`doc/`](doc/) (français et anglais).
+A turtle-graphics LOGO interpreter on the Apple II HGR screen, with the console
+in 80 columns on a //e (40 on a ][+). It is the Apple II port of the LOGO from
+[POM1](https://github.com/habib256/pom1) (VERHILLE Arnaud): the shared
+interpreter `sketchs/tms9918/tool_logo/TMS_Logo_16k.asm` built the way
+`sketchs/gen2/tool_logo_gen2` builds it (`CODETANK_BUILD` + `LOGO_GEN2`,
+renamed `LOGO_HGR` here), imported from GitHub at commit `e2a4748`
+(2026-09-11). The interpreter itself is unchanged; the console, keyboard,
+screen handling and exit were rewritten for the Apple II.
 
-    make            # -> ../dist/LOGO.dsk  (image DOS 3.3 5"1/4 amorçable)
-    make run        # démarre l'image dans POM2 (profil Apple //e)
+    make            # -> ../dist/LOGO.dsk  (bootable 5.25" DOS 3.3 image)
+    make run        # boot it in POM2 as an Apple //e
 
-Prérequis : cc65 (`brew install cc65`) et python3. Tout le reste est dans
-`../dev`, pistes système DOS 3.3 comprises. `make run` lance POM2 installé
-(`/Applications/POM2.app`, ou `make run POM2=chemin/vers/POM2`).
+## Highlights
 
-## Machine et colonnes
+- **Turtle graphics on HGR**: `FD` `BK` `RT` `LT` `PU` `PD` `HOME` `CS` `SETXY`
+  `SETH` on the full 280 x 192 screen, with the MIT-LOGO long names
+  (`FORWARD`, `RIGHT`, `CLEARSCREEN`, ...) as aliases.
+- **Colour**: `SETPC 0..15` tints the trail, the turtle, the sprite and the
+  bitmap text at once (see *Colour on HGR* below).
+- **Three screens, one display**: text, split (turtle + 4 console lines) and
+  full graphics, by command (`TS` / `SS` / `FS`) or hotkey (Ctrl-T / Ctrl-S /
+  Ctrl-L), even while a program runs.
+- **40 or 80 columns**: the //e 80-column firmware is started by LOGO itself;
+  `COLUMNS 40` / `COLUMNS 80` switch the console width.
+- **Control flow and variables**: `REPEAT N [...]`, `REPEAT FOREVER [...]`
+  (ESC or Ctrl-G aborts), `IF` / `IFELSE` with `< > = <= >= <>`, `STOP`,
+  `MAKE` / `:NAME` (6 globals), `RANDOM N`, single-level arithmetic in
+  arguments.
+- **Procedures**: `TO NAME :p1 :p2 ... END`, up to 2 parameters, 10
+  procedures of 224 bytes, 16 nested frames, free tail recursion.
+- **Dynamic turtle**: `SETSHAPE "NAME` replaces the triangle with a 16 x 16
+  shape (`BIRD1`, `BIRD2`, `HEART` and 12 emotes: `NORMAL` `HAPPY` `SUPER`
+  `SAD` `UPSET` `ANGRY` `GRUMPY` `PERV` `SICK` `SLEEP` `PIRATE` `SHADES`);
+  `SETSHAPE "ARROW` goes back to the triangle.
+- **Bitmap text**: `LABEL "TEXT` at the turtle, `SAY "TEXT` in a speech
+  bubble, `LIST [NAME]` to dump a procedure on the screen, `EDIT NAME` for the
+  full-screen procedure editor (`HELP 9` lists its keys).
+- **Built-in help and demos**: `HELP` (9 topic pages), `DEMO` (turtle
+  slideshow: STAR, ROSETTE, FLOWER, SPIRAL, BIRDFLY, ...) and `DEM2` (the
+  narrated story of the GEN2 card, told with the emotes and `SAY` bubbles).
 
-- **Apple //e ou //c avec carte 80 colonnes** : LOGO démarre lui-même le
-  firmware 80 colonnes (pas besoin de `PR#3`) et la console s'affiche en
-  80 colonnes.
-- **//e sans carte 80 colonnes, ou Apple ][ / ][+** : console en 40 colonnes.
+## Quick start
 
-`COLUMNS 40` et `COLUMNS 80` basculent la largeur ; `COLUMNS 80` répond
-`? BAD ARG` quand les 80 colonnes n'existent pas. `BYE` rend la main à DOS
-dans la largeur en cours.
+Boot `LOGO.dsk`. The screen comes up split: the turtle above, the `?` prompt
+in the 4 bottom lines. Then type, for example:
 
-## Écran : texte, mixte, graphique
+    PRINT "HELLO
+    REPEAT 4 [FD 40 RT 90]
+    SETPC 3
+    REPEAT 36 [FD 5 RT 10]
+    FS
+    SETSHAPE "BIRD1
+    SAY "HELLO, APPLE II.
+    SS
+    DEMO
+    HELP
+    BYE
 
-Sur l'Apple-1, LOGO avait deux écrans (le terminal et la carte GEN2). Sur
-l'Apple II ils se partagent l'écran, comme dans Apple Logo :
+A procedure with a parameter and a recursive spiral (from `HELP 8`):
 
-| Commande                | Touche | Écran |
-|-------------------------|--------|-------|
-| `TS` / `TEXTSCREEN`     | Ctrl-T | console texte plein écran |
-| `SS` / `SPLITSCREEN`    | Ctrl-S | tortue HGR + 4 lignes de console en bas (mixte) |
-| `FS` / `FULLSCREEN`     | Ctrl-L | tortue HGR seule (la frappe continue, invisible) |
+    TO SQUARE :S
+      REPEAT 4 [FD :S RT 90]
+    END
+    SQUARE 50
+    TO SPIRAL :S :A
+      IF :S > 100 [STOP]
+      FD :S
+      RT :A
+      SPIRAL :S + 2 :A
+    END
+    CS SPIRAL 4 90
 
-Les touches marchent à l'invite et pendant qu'un programme tourne. Au
-démarrage l'écran est mixte. Une commande qui dessine (tortue, `LABEL`, `SAY`,
-`LIST NAME`) repasse en mixte si l'on était en texte ; `HELP` passe en texte ;
-`EDIT` occupe le plein écran le temps de l'édition puis revient au mode
-précédent.
+Keys at the prompt and while a program runs:
 
-## Saisie
+| Key                | Effect                                            |
+|--------------------|---------------------------------------------------|
+| Ctrl-T / `TS`      | text screen (full console)                        |
+| Ctrl-S / `SS`      | split screen: turtle + 4 console lines (default)  |
+| Ctrl-L / `FS`      | full graphics (typing goes on, unseen)            |
+| ← or DEL           | erase the last character (Wozmon's `_` works too) |
+| ESC or Ctrl-G      | abort a `REPEAT FOREVER` or a procedure           |
+| `BYE`, Ctrl-RESET  | back to the DOS prompt, cleanly                   |
 
-- ← ou DEL efface le dernier caractère (le `_` de Wozmon marche aussi).
-- ESC ou Ctrl-G interrompt une boucle (`REPEAT FOREVER`, procédure).
-- `BYE` revient au prompt DOS ; Ctrl-RESET aussi, proprement.
+A drawing command (turtle, `LABEL`, `SAY`, `LIST NAME`) issued in text mode
+switches to the split screen by itself; `HELP` switches to the text screen;
+`EDIT` takes the whole screen while it runs, then restores the previous mode.
 
-## Différences avec l'original Apple-1 / GEN2
+## Build and run
 
-- Console sur l'écran de l'Apple II via `COUT` (même contrat que `ECHO` de
-  Wozmon), en 40 ou 80 colonnes ; commandes et touches TS / SS / FS et
-  `COLUMNS` (`src/screen.asm`).
-- Clavier Apple II (`../dev/lib/apple2/kbd.asm`), curseur `_` et effacement à
-  l'invite.
-- `BYE` et Ctrl-RESET : retour à DOS avec la page zéro restaurée
-  (`../dev/lib/apple2/exit.asm`).
-- Pas de V-blank sur Apple II : l'attente de synchronisation des sprites
-  (`hgr_emote_vsync`) est vide.
-- Le backend HGR (`src/hgr_logom2.asm`) n'utilise que la page 1 : avec le
-  firmware 80 colonnes, `PAGE2` commute de la mémoire au lieu de l'affichage.
-- Trois bogues d'origine corrigés :
-  - `EDIT` (et tout appelant qui compte sur `pix_x`/`pix_y`) écrivait le texte
-    en diagonale : le blitter de glyphes GEN2 ne rendait pas la position
-    d'origine (`src/text_bitmap.asm`) ;
-  - `LIST NAME` ne rendait jamais la main : `find_proc` repositionne la ligne
-    d'après une variable que seul l'appel de procédure remplit, la ligne était
-    relue depuis le début et la liste redessinée sans fin (même piège évité de
-    justesse par `EDIT`) ;
-  - les exemples de `HELP 8` / `HELP 9` utilisent `RT`, que la table des
-    commandes ne connaissait pas : `RT` et `LT` sont ajoutés comme alias de
-    `TR` et `TL`.
+Requirements: cc65 (`brew install cc65`) and python3. Everything else,
+including the DOS 3.3 system tracks, is in `../dev`.
 
-## Contenu
+    make            # -> ../dist/LOGO.dsk
+    make run        # POM2, Apple //e preset (make run POM2=path/to/POM2)
+    make clean      # remove build/ (the disk stays)
+    make distclean  # remove build/ and the disk
 
-    src/logo.s            l'interpréteur (TMS_Logo_16k.asm de POM1, adapté)
-    src/screen.asm        écran Apple II : TS / SS / FS, 40 / 80 colonnes, sortie
-    src/a2logo.inc        noms Apple-1 -> Apple II (ECHO = COUT)
-    src/hgr_logom2.asm    backend HGR (gen2_logom2.asm de POM1)
-    src/text_bitmap.asm   glyphes 8x8 sur le HGR (gen2_text_bitmap.asm)
-    src/bubble.asm        bulle de SAY (gen2_bubble.asm)
-    src/buffer_editor.asm éditeur EDIT
-    src/math.asm          sinus, aléatoire, décimal
-    src/sprite_helpers.asm, src/sprites_emotes.asm, src/tms9918.inc
-    src/logo.cfg          config ld65 (plan mémoire ci-dessous)
-    src/hello.bas         HELLO : 10 PRINT CHR$(4);"BRUN LOGO"
-    doc/                  manuels V2.6 (FR / EN) et README d'origine
-    ../dist/LOGO.dsk      l'image produite
+The Makefile includes the shared rules of `../dev/cc65/apple2.mk` with
+`LOAD = 0x4000` and `APPLE2_PRESET = iie`. The disk boots, `HELLO` does
+`BRUN LOGO`, and LOGO starts on the split screen.
 
-Bibliothèques : `../dev/lib/apple2` (clavier, impression, sortie DOS),
-`../dev/lib/hgr` (tables de lignes et de colonnes, police 8x8),
-`../dev/tools/dos33.py`.
+Machines:
 
-## Plan mémoire
+- **Apple //e or //c with an 80-column card**: 80-column console.
+- **//e without the card, Apple ][ / ][+**: 40-column console. `COLUMNS 80`
+  then answers `? BAD ARG`.
 
-    $0050-$0093  zéro-page (sauvegardée au lancement, restaurée par BYE)
-    $0400-$07FF  page texte (40 ou 80 colonnes)
-    $0800-$0FFF  programme HELLO gardé par DOS
-    $1000-$1E55  pile de contrôle, tables des variables et procédures
-    $2000-$3FFF  HGR page 1 : l'écran de la tortue
-    $4000-$882E  interpréteur (fichier BRUN de 18,5 Ko), puis tampons
+## Under the hood
+
+### Memory map
+
+    $0050-$0093  zero page (saved on entry, restored by BYE and Ctrl-RESET)
+    $0400-$07FF  text page (40 or 80 columns)
+    $0800-$0FFF  HELLO program, kept by DOS
+    $1000-$1E55  PROCBSS: control stack, variable and procedure tables
+    $2000-$3FFF  HGR page 1: the turtle screen
+    $4000-$8854  CODE: the BRUN file (18,517 bytes, 18.1 KB), then
+                 LINEBUF ($8855-$88BE) and BSS ($88BF-$89C2)
     $9600-$BFFF  DOS 3.3
+
+### Why HGR page 2 is unused
+
+The //e 80-column firmware sets 80STORE. From then on the PAGE2 soft switch no
+longer picks which HGR page is displayed: it selects main or auxiliary RAM for
+`$0400-$07FF` and `$2000-$3FFF`. The turtle therefore always draws on page 1,
+and the `$4000-$5FFF` range that would have been page 2 holds the interpreter
+instead (`src/logo.cfg`). `scr_set` also sets AN3 so the //e shows plain HGR,
+never double hi-res.
+
+### How LOGO starts the 80-column firmware
+
+`scr_boot` (`src/screen.asm`) runs before any output. It reads `MACHID`
+(`$FBB3`): anything but `$06` is a ][ / ][+ and the Monitor's 40-column `COUT`
+is used as is. On a //e it checks `RD80COL` (`$C01F`); if 80 columns are not
+already on (no `PR#3` before `BRUN`), it calls the firmware entry `$C300`,
+then `$03EA` so DOS reconnects its I/O hooks. If `RD80COL` is still off there
+is no 80-column card and the console stays in 40 columns. `COLUMNS 80` /
+`COLUMNS 40` send the firmware's Ctrl-R / Ctrl-Q characters through `COUT`.
+`BYE` keeps the current width, so the DOS prompt comes back in 40 or 80
+columns.
+
+The interpreter prints through `ECHO`, which `src/a2logo.inc` maps onto
+`COUT`: Wozmon's `ECHO` and the Monitor's `COUT` share the same contract
+(character with bit 7 set, registers preserved), so the Apple-1 code runs
+unchanged.
+
+### Colour on HGR
+
+`SETPC 0..15` is the TMS9918 palette index of the original. On HGR the
+backend maps it onto the byte's palette bit (`pen_hi_tbl` in
+`src/hgr_logom2.asm`): 0-3 and 10-15 give the green/violet family, 4-9 the
+blue/orange family; the actual hue of a pixel depends on its column parity, so
+thin coloured lines alias exactly as on real hardware. White (15) stays white.
+
+### Modules
+
+    src/logo.s            the interpreter (TMS_Logo_16k.asm from POM1, adapted);
+                          includes screen.asm, a2logo.inc, tms9918.inc and the
+                          dev/lib/apple2 print.asm, kbd.asm, exit.asm
+    src/screen.asm        Apple II screen: TS / SS / FS, 40 / 80 columns, BYE
+    src/a2logo.inc        Apple-1 names mapped onto the Apple II (ECHO = COUT)
+    src/hgr_logom2.asm    HGR backend (gen2_logom2.asm from POM1): plot, line,
+                          clear, 9-bit X for the full 280 columns
+    src/text_bitmap.asm   8x8 glyphs on the HGR screen; includes the whole
+                          ../dev/lib/font/bbfont.inc (256 glyphs)
+    src/bubble.asm        the SAY speech bubble
+    src/buffer_editor.asm the EDIT procedure editor
+    src/math.asm          sine table, LFSR random, decimal output
+    src/sprite_helpers.asm, src/sprites_emotes.asm, src/tms9918.inc
+    src/logo.cfg          ld65 configuration (memory map above)
+    src/hello.bas         HELLO: 10 PRINT CHR$(4);"BRUN LOGO"
+    ../dist/LOGO.dsk      the disk image
+
+Build flags: `-D CODETANK_BUILD` (the full feature set: LABEL, SAY, LIST,
+EDIT, DEM2) and `-D LOGO_HGR` (the HGR code paths of the shared interpreter).
+`logo.o` is linked first; its CODE segment starts with `jmp main`.
+
+Libraries: `../dev/lib/apple2` (soft-switch equates, keyboard, printing,
+zero-page save and exit to DOS), `../dev/lib/hgr` (scanline, column and mask
+tables, screen clear), `../dev/lib/font` (the 8x8 Beautiful Boot font),
+`../dev/tools/dos33.py` (disk image).
+
+### What differs from the Apple-1 / GEN2 original
+
+- Console on the Apple II text screen through `COUT`, 40 or 80 columns, and
+  the `TS` / `SS` / `FS` / `COLUMNS` commands and hotkeys (`src/screen.asm`).
+  On the Apple-1 the console was the terminal and the turtle the GEN2 card;
+  here they share one display, the Apple Logo way.
+- Apple II keyboard (`../dev/lib/apple2/kbd.asm`), `_` cursor and backspace at
+  the prompt.
+- `BYE` and Ctrl-RESET return to DOS with the zero page restored
+  (`../dev/lib/apple2/exit.asm`).
+- No V-blank signal on an Apple II: the sprite sync `hgr_emote_vsync` is a
+  stub, emotes redraw immediately.
+- `RT` and `LT` were added as aliases of `TR` and `TL` (the `HELP 8` / `HELP 9`
+  examples use them; the command table did not know them).
+- Three upstream bugs fixed: `EDIT` drew its text diagonally (the glyph
+  blitter did not restore `pix_x` / `pix_y`); `LIST NAME` never returned
+  (`find_proc` re-read the line from the start and redrew the listing
+  forever); the `RT` alias above.
+
+## Documentation
+
+- [APPLE-1 LOGO V2.6 manual (English)](doc/APPLE-1_LOGO-2.6-MANUAL.md): the
+  language reference, tutorials and limits. It describes the Apple-1 / TMS9918
+  version: on the Apple II `BYE` returns to DOS, the screen is 280 x 192,
+  `HELP` has 9 pages, and the `TS` / `SS` / `FS` / `COLUMNS` commands exist.
+- [Manuel APPLE-1 LOGO V2.6 (français)](doc/APPLE-1_LOGO-2.6-MANUEL.md).
+- [Upstream README](doc/UPSTREAM_README.md): the POM1 origin, builds and
+  internals of the TMS9918 version.
+- `HELP` and `HELP 1` to `HELP 9` inside LOGO.
+- Planned work: [`TODO.md`](TODO.md).
+
+## Credits and licence
+
+APPLE-1 LOGO V2.6 and this Apple II port: VERHILLE Arnaud, 2026. The emote
+shapes come from SCROLL-O-SPRITES by Quale (CC-BY 3.0). Part of
+[pom2games](https://github.com/habib256/pom2games); licence GPL-3.0 (see the
+`LICENSE` file at the repository root).

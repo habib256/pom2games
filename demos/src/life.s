@@ -20,18 +20,14 @@
 ;   4 Acorn                             (7-cell methuselah, chaotic)
 ;   5 Four Gliders                      (spaceships colliding in center)
 ; =============================================
-; Assemble:
-;   Build: make
-;        -o build/HGR_Life.bin build/HGR_Life.o
+; Build: make (demos/) -> dist/DEMO.dsk; from the DEMO menu, BLOAD LIFE +
+; CALL 24576. Tap any key to change pattern, ESC to exit.
 ;
-; Or just:
-;   python3 software/hgr/emit_HGR_Life_txt.py
+; Original POM1 build: python3 software/hgr/emit_HGR_Life_txt.py, then
+; File > Load Memory HGR_Life.txt and E000R in the Woz Monitor (GEN2 card).
 ;
-; Run in POM1: plug GEN2 card (auto-enabled when loading from
-; software/hgr/), File > Load Memory HGR_Life.txt, then E000R
-; in the Woz Monitor. Tap any key to change pattern, ESC to exit.
-;
-; Memory footprint (Parmigiani 8 KB dual-bank + GEN2):
+; Memory footprint of the ORIGINAL (Parmigiani 8 KB dual-bank + GEN2; here
+; the grids sit at $1000 / $1700 and the code is BRUN at $6000, see above):
 ;   $0200-$08E3   grid_a       (1764 B, zeroed at boot — overwrites Wozmon
 ;                               keyboard input buffer at $0200-$027F, but
 ;                               that's only used while typing)

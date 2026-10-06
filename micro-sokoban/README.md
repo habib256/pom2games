@@ -1,345 +1,595 @@
 # MICRO-SOKOBAN — Apple II+ / DOS 3.3
 
-Version 1.3, en préparation. Dernière version publiée : 1.2, [disquette et notes de publication](https://github.com/habib256/pom2games/releases/tag/1.2).
+Version 1.3, in preparation. Latest release: **1.2** — [disk image and release
+notes](https://github.com/habib256/pom2games/releases/tag/1.2)
+([notes in this repository](../docs/releases/1.2.md)).
 
-Port Apple II du sketch `sketchs/gen2/game_sokoban` de
-[POM1](https://github.com/habib256/pom1) (HGR_Sokoban, VERHILLE Arnaud).
-Le jeu tourne sur un Apple II+ 48 Ko (et tout modèle ultérieur), en HGR,
-et se joue à la manette ou au clavier. Niveaux : **Microban I à IV**
-de David W. Skinner, tous ceux qui tiennent à l'écran sans défilement, au
-besoin couchés : 150 sur 155, 122 sur 135, 92 sur 101 et 90 sur 102, soit
-454 niveaux (voir [`levels/README.md`](levels/README.md)).
+A Sokoban for the **Apple II+ with 48 KB** (and every later Apple II), in HGR,
+on a bootable DOS 3.3 5¼" disk. A five-lesson tutorial, then **454 Microban
+puzzles** by David W. Skinner — every level of Microban I to IV that fits the
+screen without scrolling, turned on its side when needed: 150 of 155, 122 of
+135, 92 of 101 and 90 of 102 (see [`levels/README.md`](levels/README.md)).
+Ten player profiles, saved positions and records, a Hall of Fame, undo/redo,
+joystick or keyboard, a two-voice title tune on the one-bit speaker.
 
-    make            # -> ../dist/MICRO-SOKOBAN.dsk  (image DOS 3.3 5"1/4 amorçable)
-    make run        # démarre l'image dans POM2 (profil Apple ][+)
+It is the Apple II port of the `sketchs/gen2/game_sokoban` sketch
+(HGR_Sokoban, VERHILLE Arnaud) from [POM1](https://github.com/habib256/pom1).
 
-Prérequis : cc65 (`brew install cc65`) et python3. L'image est écrite par
-`tools/build_disk.py`, à partir de `../dev/tools/dos33.py`, qui prend les pistes système DOS 3.3 (pistes 0-2) dans
-`../dev/tools/dos33_system.bin`. `make run` lance POM2 installé
-(`/Applications/POM2.app`, ou `make run POM2=chemin/vers/POM2`).
+    make            # -> ../dist/MICRO-SOKOBAN.dsk  (bootable DOS 3.3 image)
+    make run        # boot it in POM2 (Apple ][+ profile)
+    make test       # play every solution and check the game in a2run
 
-## Commandes
+## Screenshots
 
-| Manette                           | Clavier                          | Action                     |
-|-----------------------------------|----------------------------------|----------------------------|
-| manche (répétition auto)          | I J K L, W A S D, flèches        | déplacer / pousser         |
-| bouton 0 (tapé)                   | U                                | annuler un coup            |
-| bouton 0 maintenu + manche ← / →  | U / Y                            | annuler / rejouer (en continu) |
-|                                   | R                                | recommencer (annulable : Y rejoue) |
-|                                   | N / P (en partie)                | niveau suivant / précédent |
-| bouton 1                          | ESC                              | sauvegarder la position et ouvrir le menu |
+![Title screen of MICRO-SOKOBAN 1.2: progress, active profile, version and credit](screenshots/1.2/title.png)
 
-Après un rembobinage à la manette, le manche ne déplace de nouveau le joueur
-qu'une fois revenu au centre : relâcher le bouton 0 en premier ne joue aucun coup
-et garde les coups à rejouer. Sans manette branchée, le port jeu est ignoré
-(axes et boutons) : on joue au clavier.
-| manche haut/bas + bouton          | I/K + RETURN ou ESPACE           | choisir dans le menu       |
-|                                   | G (ou menu)                      | choisir le niveau (grille) |
-|                                   | V (accueil ou menu)               | choisir, créer ou renommer un profil |
-|                                   | H (accueil, partie ou menu)       | HELP                       |
-|                                   | F (menu)                         | Hall of Fame               |
-|                                   | T (menu)                         | tutoriel de cinq niveaux   |
-|                                   | O (menu)                         | options : sons, case morte, triche, couleur |
-|                                   | Q (menu)                         | quitter vers DOS           |
+| Microban I, level 30 | Microban I, level 39 |
+|:--:|:--:|
+| ![Microban I level 30](screenshots/microban-i-030.png) | ![Microban I level 39](screenshots/microban-i-039.png) |
 
-L'écran titre montre les niveaux résolus et le niveau de reprise du profil actif.
-Son nom apparaît en bas à gauche du mur inférieur ; la version **V1.3** apparaît
-en bas à droite. Les deux textes blancs ont un fond noir et une marge
-qui évitent les franges de couleur. Le couloir animé occupe toute la largeur :
-un déplacement toutes les **~1,6 s**. Après au moins 15 s sans entrée, le jeu
-attend que la caisse atteigne sa cible : l'animation se termine donc en environ
-26 s, puis le **Hall of Fame est présenté pendant 10 s**, suivi de la démo.
-Une touche ou un bouton interrompt le classement automatique ou la démo.
-Les sept niveaux montrés sont Microban 1, 3, 12, 23, 60, 84 et 98 ; rien n'est
-sauvegardé pendant cette présentation, silencieuse par défaut.
+| OPTIONS, with COLOR MODE | A crate on its goal in COLOR MODE |
+|:--:|:--:|
+| ![OPTIONS screen](screenshots/1.2/options.png) | ![Microban I level 1 with a filled green crate](screenshots/1.2/color-mode.png) |
 
-**MENU** (ESC ou bouton 1) regroupe PLAY / RESUME, TUTORIAL (5), PROFILES,
-RESTART, GO TO LEVEL, OPTIONS, HALL OF FAME, HELP et QUIT TO DOS. Si CHEAT MODE
-est activé, une dernière ligne SOLUTION joue la solution du niveau en cours,
-sans l'enregistrer : la position d'avant le menu est restaurée, avec son
-historique Undo/Redo, y compris sur une disquette protégée en écriture.
-GO TO LEVEL remplace les choix NEXT/PREV dans le menu. HELP présente le but du
-jeu, les déplacements, Undo/Redo et le retour au menu. H ouvre directement HELP depuis l'accueil ou la partie ; quitter HELP ramène au menu.
-Depuis l'accueil, on peut
-consulter ces pages puis revenir à l'accueil sans commencer une partie.
-ESC ou le bouton 1 revient ; RETURN ou le bouton 0 valide une sélection.
+## Features
 
-À la première partie de chaque profil, le jeu propose **cinq leçons très simples**,
-avec des solutions de 2, 2, 5, 5 et 7 coups. Consignes et commandes sont affichées ;
-le tutoriel ne participe pas au classement. Son achèvement est sauvegardé par profil.
-T dans le menu permet de le rejouer ; G permet d'accéder directement à Microban.
-Rejoué en cours de partie, le tutoriel rend ensuite le niveau quitté, avec sa
-position et ses compteurs (l'historique Undo/Redo repart vide). Un profil créé
-depuis le menu d'une partie commence lui aussi par les leçons.
-Sur SUCCESS, une touche ou un bouton passe au niveau suivant. Une touche tapée
-d'avance ou encore en répétition (clavier d'un //e) est ignorée, sur cet écran
-comme sur BRAVO et HELP : le clavier doit d'abord rester un quart de seconde
-sans frappe. Un bouton compte tout de suite.
-QUIT TO DOS et Ctrl-RESET restaurent la page zéro et rechargent le programme
-BASIC `HELLO` : `LIST` affiche le lanceur et `RUN` relance le jeu.
+- **454 Microban levels** (I to IV) with their original numbers, plus five
+  original tutorial lessons. Levels too tall for the screen are turned a
+  quarter turn clockwise rather than dropped.
+- **Ten independent profiles**, each with its own records, saved position and
+  tutorial status; create and rename them from the game.
+- **Resume anywhere**: the position is saved to disk when you open the menu
+  and after about six seconds without input; after a reboot PLAY brings back
+  crates, player, moves and pushes.
+- **Undo / Redo** over the last 1024 moves, including an undoable RESTART,
+  on the keyboard or the joystick.
+- **Hall of Fame** ranked by levels solved, then by the smallest total of best
+  moves, saved automatically after each solved level.
+- **Joystick or keyboard** (I J K L, W A S D, arrows); the game port is ignored
+  when no joystick is plugged in.
+- **Sounds and music**: step, goal, deadlock and victory sounds, an optional
+  DEADLOCK warning, and a ten-bar two-voice jazz tune on the title screen,
+  all on the built-in speaker.
+- **Readable in colour and in monochrome**: the seven tiles have distinct
+  shapes; COLOR MODE restores filled green crates on colour displays.
+- **CHEAT MODE** adds a SOLUTION entry that plays the checked solution of the
+  current level without recording anything.
+- **Robust saves**: damaged, missing or inconsistent save files are repaired
+  or treated as empty; the game keeps running on a write-protected disk.
+- **Fast disk I/O**: LZ-packed program, direct RWTS sector reads with a cached
+  file map, writes limited to the changed sectors. The title screen is ready
+  in about 14 s instead of 20 s.
 
-**Lisibilité : tout texte à taille normale est blanc. Seuls les titres agrandis
-×2 peuvent être colorés**, conformément à la règle de [`lib/hgr`](../dev/lib/hgr/README.md).
-L'espacement du texte compact est de 8 pixels.
+## How to play
 
-Le HUD occupe les quatre coins (3 cases chacun, 4 en bas à gauche) : coups
-en haut à gauche (`MOVES`), poussées en haut à droite (`PUSHES`),
-niveau en bas à gauche (`LEVEL`)
-(collection et numéro d'origine : `I:067` est le 67ᵉ niveau de Microban,
-`III:056` le 56ᵉ de Microban III), record en bas à droite une fois le niveau
-résolu (`B:0033`).
+### Controls
 
-Le classement privilégie **le nombre de niveaux résolus**, puis **le plus petit
-total de coups des meilleurs résultats** à égalité. Les points artificiels ont
-disparu. Les totaux sont recalculés depuis les records ; une amélioration fait
-baisser le total de coups. Ce départage reste dépendant des niveaux choisis :
-ce n'est pas une comparaison à une solution optimale commune.
+| Joystick                              | Keyboard                          | Action                                          |
+|---------------------------------------|-----------------------------------|-------------------------------------------------|
+| stick (auto-repeat)                   | I J K L, W A S D, arrows          | move / push                                     |
+| button 0 (tapped)                     | U                                 | undo one move                                   |
+| button 0 held + stick left / right    | U / Y                             | undo / redo (continuous)                        |
+|                                       | R                                 | restart the level (undoable: Y replays)         |
+|                                       | N / P (in play)                   | next / previous level                           |
+| button 1                              | ESC                               | save the position and open the menu             |
+| stick up/down + button                | I/K + RETURN or SPACE             | choose in the menu                              |
+|                                       | G (or menu)                       | choose a level (grid)                           |
+|                                       | V (title or menu)                 | choose, create or rename a profile              |
+|                                       | H (title, play or menu)           | HELP                                            |
+|                                       | F (menu)                          | Hall of Fame                                    |
+|                                       | T (menu)                          | the five-level tutorial                         |
+|                                       | O (menu)                          | options: sounds, dead squares, cheat, colour    |
+|                                       | C (menu)                          | toggle the DEADLOCK warning                     |
+|                                       | Q (menu)                          | quit to DOS                                     |
 
-**PROFILES** permet de choisir parmi dix profils indépendants. Le profil initial
-GIS peut être renommé. N crée un profil dans un emplacement libre et l'active ;
-R renomme le profil sélectionné sans changer de profil actif : la partie en cours
-et son historique restent. Le trait à droite du nom identifie le profil actif. Les
-initiales sont préremplies (nom sélectionné lors d'un renommage, dernières
-initiales lors d'une création), puis modifiables au clavier ou à la manette.
-RETURN/B0 valide, ESC/B1 annule ; deux profils ne peuvent pas porter le même nom.
-Changer de profil recharge ses records et sa position sauvegardée, ou son premier
-niveau non résolu en l’absence de position. Sélectionner le profil déjà actif
-conserve la partie et son historique, sans lecture disque.
+After a joystick rewind, the stick only moves the player again once it has
+returned to the centre: releasing button 0 first plays no move and keeps the
+moves to redo. Without a joystick the game port is ignored (axes and buttons):
+you play on the keyboard.
 
-Après chaque niveau résolu, les records et le classement sont **enregistrés
-automatiquement sous le profil actif**, sans nouvelle saisie d'initiales.
-Le **Hall of Fame**, accessible par F dans le menu, affiche une ligne par profil :
-initiales, total des coups sur huit chiffres et niveaux résolus, y compris les
-profils sans niveau terminé.
-Les lignes et en-têtes sont blancs ; seul le grand titre clignote lentement en
-changeant de couleur. RETURN, ESC ou un bouton revient au menu.
+The move and push counters stop at 65535. The history keeps the last 1024
+moves; beyond that, R reloads the level instead of rewinding it.
 
-`MICROHOF` contient le classement, les options, les dix noms et le profil actif
-(120 octets, format `HOF3`). Les anciens classements HOF2 sont reconstruits une
-fois depuis les records de chaque profil : noms, options et profil actif sont
-conservés. HOF1 continue d'importer les records partagés dans le profil zéro.
-Les autres profils ne reçoivent aucune progression fictive.
+### Title screen
 
-Au démarrage, `MICROHOF` est mis en accord avec ses dix profils, qui désignent
-les fichiers de records : un profil actif qui n'est pas un profil enregistré
-devient le premier enregistré, les initiales de l'en-tête deviennent celles du
-profil actif, et une ligne du classement ne reste que si ses initiales sont
-celles d'un profil, une seule fois (y compris lors de la reprise d'un HOF2).
-Des noms qui ne sont pas trois lettres, deux profils de même nom ou une valeur
-hors limites font repartir le classement, les noms et les options des valeurs
-par défaut ; les fichiers de records ne sont pas touchés. Le fichier corrigé est
-réécrit à la première écriture du classement.
+The title screen shows the solved levels and the resume level of the active
+profile. Its name appears bottom left on the lower wall; the version
+(**V1.3**) bottom right. Both white texts sit on a black background with a
+margin that avoids colour fringes. The animated corridor spans the whole
+width, one step every **~1.6 s**. After at least 15 s without input, the game
+waits for the crate to reach its goal, so the animation ends after about
+26 s; the **Hall of Fame is then shown for 10 s**, followed by the demo. A key
+or a button interrupts the automatic ranking or the demo. The seven demo
+levels are Microban 1, 3, 12, 23, 60, 84 and 98; nothing is saved during this
+presentation, which is silent by default.
 
-`MICROSAVE` conserve le profil zéro ; `MICROSAV1` à `MICROSAV9` les autres.
-Les 1830 octets de records SOK2 restent compatibles ; une position de 134 octets
-est ajoutée, soit 1964 octets par fichier. Le bit 7 de l'octet 4 marque le tutoriel
-terminé. La position contient le plateau compacté, le joueur, les compteurs,
-le niveau, son empreinte et un CRC-8. Une position invalide est ignorée.
+The title screen also shows the credit "APPLE II PORT BY" / "VERHILLE ARNAUD"
+on two centred white lines. From the title you can open HELP, PROFILES, the
+level grid and the other pages, then come back without starting a game.
 
-**Reprise après extinction :** la position est enregistrée à l'ouverture du menu
-ou de HELP, ainsi qu'après environ six secondes sans entrée lorsqu'elle a changé.
-Après le redémarrage, PLAY retrouve les caisses, le joueur, les coups et les
-poussées. Attendre la fin de « SAVING » avant d'éteindre (un secteur coupé en
-pleine écriture devient illisible : le profil repart alors sans record) ; ouvrir le menu permet
-de déclencher cette sauvegarde immédiatement. Le tutoriel et la démo ne remplacent
-pas la position Microban. **L'historique Undo/Redo reste en mémoire seulement** :
-il repart vide après redémarrage, changement de profil ou tutoriel rejoué.
-Les compteurs de coups et de poussées s'arrêtent à 65535.
+### Menu and help
 
-L'écran **SUCCESS** affiche un titre orange ×2, les coups et poussées alignés,
-le nouveau record (ou le meilleur nombre de coups) et le nombre de niveaux résolus en blanc.
+**MENU** (ESC or button 1) offers PLAY / RESUME, TUTORIAL (5), PROFILES,
+RESTART, GO TO LEVEL, OPTIONS, HALL OF FAME, HELP and QUIT TO DOS. GO TO
+LEVEL replaces NEXT/PREV in the menu. ESC or button 1 goes back; RETURN or
+button 0 selects.
 
-Les caisses hors cible sont remplies en orange ; les caisses sur cible ont
-un cadre vert creux et une coche blanche. Leur forme les distingue aussi en
-monochrome, où orange et vert ont la même teinte. Avec COLOR MODE (OPTIONS),
-elles sont remplies en vert. L’accueil affiche le crédit
-« APPLE II PORT BY » puis « VERHILLE ARNAUD » sur deux lignes blanches centrées.
+If CHEAT MODE is on, a last line, **SOLUTION**, plays the solution of the
+current level without recording it: the position from before the menu is
+restored, with its Undo/Redo history, including on a write-protected disk.
 
-Les records (coups, puis poussées) sont gardés sur la disquette, dans
-le fichier du profil actif, mis à jour après chaque niveau résolu. Au démarrage,
-le jeu reprend la position sauvegardée ou, à défaut, le premier niveau non résolu. Sur une disquette protégée en écriture,
-on joue sans sauvegarde : records et position restent en mémoire jusqu'à
-l'extinction ou au changement de profil. Un fichier de records ou un classement
-illisible (secteur abîmé, longueur impossible, fichier absent) n'arrête pas le
-jeu : il compte pour vide — profil sans record, classement et options par
-défaut. Le classement est réécrit aussitôt, le fichier de records en entier à la
-sauvegarde suivante. Un fichier plus court
-que prévu ne fournit que ce qu'il contient, le reste est vide. Une écriture qui
-échoue laisse « IO ERR » dans le coin du statut et la partie continue ; les
-secteurs restent à écrire. Seuls un paquet de niveaux ou `MICROSOL` illisibles
-arrêtent le jeu : « IO ERR », une touche, puis retour à DOS. Le fichier porte une empreinte de chaque collection
-(niveaux gardés, ordre, contenu, rotation) : si une nouvelle version du jeu
-change les niveaux d'une collection, ses records sont effacés plutôt
-qu'attribués à d'autres niveaux ; ceux des autres collections restent. Dans la grille de choix (G), les niveaux résolus
-sont soulignés en vert ; après le dernier niveau d'une collection, un écran
-fait le bilan. L'historique garde les
-1024 derniers coups ; au-delà, R recharge le niveau au lieu de le rembobiner.
+**HELP** explains the goal, the moves, Undo/Redo and the way back to the
+menu. H opens HELP directly from the title or during play; leaving HELP
+returns to the menu.
 
-**OPTIONS** (O dans le menu) regroupe six interrupteurs indépendants : son de
-la partie, du menu, de la démo, DEADLOCK, CHEAT MODE et COLOR MODE. Par défaut,
-la partie, le menu et DEADLOCK sont actifs ; la démo, la triche et le mode
-couleur sont éteints. Haut/bas choisit le
-réglage ; RETURN ou le bouton 0 change ON/OFF ; ESC ou le bouton 1 revient. Les
-réglages sont sauvegardés sur la disquette.
+**QUIT TO DOS** and Ctrl-RESET restore the zero page and reload the BASIC
+program `HELLO`: `LIST` shows the launcher and `RUN` starts the game again.
 
-**COLOR MODE** rend aux caisses placées leur corps vert plein, dans le même
-cadre blanc que les caisses orange. Sur un écran monochrome, orange et vert ont
-la même teinte : ces deux tuiles ne s'y distinguent plus, d'où l'interrupteur,
-éteint par défaut (cadre vert creux et coche blanche).
+### Tutorial
 
-MENU SOUND active aussi une musique calme sur la page de garde, sur le
-haut-parleur intégré de l'Apple II, sans Mockingboard : **deux voix**, une
-mélodie sur une basse qui marche à la noire. Dix mesures de jazz zen en fa, swing
-à environ 100 BPM, soit 24 s avant la reprise : les arpèges Gm9 / C13 / Fmaj9 de
-la première version, puis Dm7, de nouveau Gm9 / C13, un détour par Am7 et Dm7,
-la cadence, une respiration, et la basse seule ramène au début.
+On the first game of each profile, the game offers **five very simple
+lessons**, with solutions of 2, 2, 5, 5 and 7 moves. Instructions and
+controls are displayed; the tutorial does not count in the ranking. Its
+completion is saved per profile. T in the menu replays it; G goes straight to
+Microban. Replayed during a game, the tutorial then gives back the level you
+left, with its position and counters (the Undo/Redo history starts empty). A
+profile created from the menu of a game also begins with the lessons.
 
-Le haut-parleur n'a qu'un bit. `title_duet` (`src/title_music.inc`) y mélange
-deux ondes carrées par division du temps : à chaque tour de boucle (33 cycles),
-il regarde la basse puis la mélodie. Tant qu'elles sont au même niveau, le
-haut-parleur y reste ; quand elles diffèrent, il bascule aux deux regards et
-suit la basse 14 cycles, la mélodie 19, à 31 kHz. Cette porteuse est inaudible :
-il reste la somme des deux ondes, la mélodie un peu plus forte. Tous les chemins
-d'un tour durent 33 cycles, donc une demi-période est un nombre entier de tours.
-La gamme juste de fa donne des périodes entières (fa 3 = 90 tours, un tiers de
-demi-ton sous le diapason) ; seul le si bémol tombe entre deux valeurs.
-Le pas de l'animation du couloir attend la fin du temps en cours et prend son
-temps de dessin sur le silence qui suit : la pulsation reste régulière. Une
-touche ou un bouton coupe la note en cours en moins de 10 ms.
-La musique s'arrête en quittant l'accueil. L'option DEADLOCK active une alerte
-sonore quand une caisse est poussée sur une case d'où elle ne peut plus atteindre
-de cible. Elle ne bloque pas le déplacement ; C la bascule dans OPTIONS. CHEAT
-MODE fait apparaître SOLUTION dans le menu. Les 454 solutions sont dans
-`MICROSOL` (lecteur, index, puis coups compactés). Les cinq leçons aussi.
+### Playing a level
 
-Sons pendant la partie : un clic par pas, un bip aigu quand une caisse arrive sur une cible,
-deux notes graves quand une caisse arrive sur une case morte (dans OPTIONS,
-« DEADLOCK » : une case d'où aucune suite de poussées ne la mènera à une
-cible, calculée au chargement du niveau),
-un choc sourd quand le coup est impossible, une fanfare en fin de niveau.
+The HUD occupies the four corners (3 cells each, 4 bottom left): moves top
+left (`MOVES`), pushes top right (`PUSHES`), level bottom left (`LEVEL`, as
+collection and original number: `I:067` is the 67th level of Microban,
+`III:056` the 56th of Microban III), and the record bottom right once the
+level is solved (`B:0033`).
 
-Améliorations prévues : voir [`TODO.md`](TODO.md).
+Crates off their goal are filled orange; crates on a goal have a hollow
+green frame and a white check mark. Their shapes also tell them apart in
+monochrome, where orange and green have the same shade. With COLOR MODE
+(OPTIONS) they are filled green instead. Walls are blue, goals green, the
+player white with a green line under the feet when standing on a goal.
 
-## Contenu
+**Readability: every normal-size text is white. Only the ×2 enlarged titles
+may be coloured**, following the [`lib/hgr`](../dev/lib/hgr/README.md) rule.
+Compact text uses an 8-pixel spacing.
 
-    src/micro_sokoban.s        le jeu (ca65), exécuté à $6000
-    src/unpack.s              petit chargeur à $0800, lecture RWTS et décompression
-    src/fast_disk.inc         accès disque et cache des listes de secteurs
-    src/resume.inc            sauvegarde et reprise de position
-    src/beginner.inc           tutoriel et options
-    src/title_music.inc        musique d'accueil à deux voix (moteur et partition)
-    src/score_hof.inc          records, classement et saisie des initiales
-    src/profiles.inc           choix des profils et sauvegardes indépendantes
-    apple2_micro_sokoban.cfg         mémoire 48 Ko (travail à $0800, tampons en $0200-$03CF, MAXFILES 1)
-    src/bbfont_subset.inc      police du HUD, générée par tools/hud_font.py (Beautiful Boot, 45 glyphes)
-    src/hello.bas              affiche LOADING MICRO-SOKOBAN, puis lance le chargeur
-    tools/pack_program.py     compression LZ vérifiée par décompression indépendante
-    tools/build_disk.py       disquette DOS et allocation adaptée aux lecteurs
-    levels/tutorial.xsb        cinq niveaux d'initiation (originaux)
-    levels/microban.xsb        Microban, David W. Skinner (source XSB, voir levels/README.md)
+On **SUCCESS**, the screen shows an orange ×2 title, the aligned moves and
+pushes, the new record (or the best move count) and the number of solved
+levels, in white. A key or a button moves to the next level. A key typed
+ahead, or still repeating (a //e keyboard), is ignored on this screen as on
+BRAVO and HELP: the keyboard must first stay quiet for a quarter of a second.
+A button counts at once.
+
+In the level grid (G), solved levels are underlined in green; after the last
+level of a collection, a screen (BRAVO) sums it up.
+
+Sounds during play: a click per step, a high beep when a crate reaches a
+goal, two low notes when a crate lands on a dead square (with DEADLOCK on in
+OPTIONS: a square from which no sequence of pushes can bring it to a goal,
+computed when the level loads), a dull thud for an impossible move, a fanfare
+at the end of the level.
+
+### Profiles
+
+**PROFILES** (V) chooses among ten independent profiles. The initial profile
+GIS can be renamed. N creates a profile in a free slot and activates it; R
+renames the selected profile without changing the active one: the game in
+progress and its history stay. The mark to the right of a name identifies the
+active profile. Initials are prefilled (the selected name when renaming, the
+last initials when creating), then editable from the keyboard or the
+joystick. RETURN/B0 validates, ESC/B1 cancels; two profiles cannot share a
+name. Switching profile reloads its records and saved position, or its first
+unsolved level when there is no position. Selecting the already active
+profile keeps the game and its history, with no disk read.
+
+### Records and Hall of Fame
+
+After each solved level, the records and the ranking are **saved
+automatically under the active profile**, with no initials to type. Records
+(moves, then pushes) live on the disk in the active profile's file. At
+startup the game resumes the saved position or, failing that, the first
+unsolved level.
+
+The ranking favours **the number of levels solved**, then **the smallest
+total of moves over the best results** as a tie-break. There are no
+artificial points. Totals are recomputed from the records; an improvement
+lowers the move total. This tie-break depends on which levels were played: it
+is not a comparison against a common optimal solution.
+
+The **Hall of Fame** (F in the menu) shows one line per profile: initials,
+eight-digit move total and solved levels, including profiles with no level
+finished. Lines and headings are white; only the large title blinks slowly,
+changing colour. RETURN, ESC or a button returns to the menu.
+
+### Saving and resuming
+
+The position is saved when the menu or HELP opens, and after about six
+seconds without input when it has changed. After a restart, PLAY finds the
+crates, the player, the moves and the pushes again. Wait for the end of
+"SAVING" before switching off (a sector cut in mid-write becomes unreadable:
+the profile then starts over without records); opening the menu triggers
+that save at once. The tutorial and the demo do not replace the Microban
+position. **The Undo/Redo history stays in memory only**: it starts empty
+after a reboot, a profile change or a replayed tutorial.
+
+On a write-protected disk you play without saving: records and position stay
+in memory until power-off or a profile change.
+
+### Options
+
+**OPTIONS** (O in the menu) groups six independent switches: game sound,
+menu sound, demo sound, DEADLOCK, CHEAT MODE and COLOR MODE. By default the
+game, the menu and DEADLOCK are on; the demo, cheat and colour mode are off.
+Up/down selects a setting; RETURN or button 0 toggles ON/OFF; ESC or button
+1 goes back. The settings are saved on the disk.
+
+- **DEADLOCK** sounds an alert when a crate is pushed onto a square from
+  which it can no longer reach any goal. It does not block the move; C
+  toggles it from the menu.
+- **CHEAT MODE** makes SOLUTION appear in the menu. The 454 solutions are in
+  `MICROSOL` (reader, index, then packed moves), and so are the five lessons.
+- **COLOR MODE** gives crates on goals their filled green body back, in the
+  same white frame as the orange crates. On a monochrome screen orange and
+  green have the same shade and the two tiles would be indistinguishable,
+  hence the switch, off by default (hollow green frame and white check mark).
+- **MENU SOUND** also enables the title music (below). **DEMO SOUND** gives
+  the demo its sounds.
+
+### Title music
+
+MENU SOUND enables a calm tune on the title page, on the Apple II's built-in
+speaker, without Mockingboard: **two voices**, a melody over a bass walking
+on the quarter notes. Ten bars of zen jazz in F, swung at about 100 BPM, so
+24 s before it loops: the Gm9 / C13 / Fmaj9 arpeggios of the first version,
+then Dm7, Gm9 / C13 again, a detour through Am7 and Dm7, the cadence, a
+breath, and the bass alone leads back to the start. The music stops when you
+leave the title screen; a key or a button cuts the current note in under
+10 ms.
+
+How it works is in [Two voices on a one-bit speaker](#two-voices-on-a-one-bit-speaker).
+
+## Build and run
+
+Prerequisites: cc65 (`brew install cc65`) and python3. The Makefile includes
+[`../dev/cc65/apple2.mk`](../dev/cc65/apple2.mk), which carries the tool
+variables, library paths and the shared rules.
+
+    make            # ../dist/MICRO-SOKOBAN.dsk, a bootable 5.25" DOS 3.3 image
+    make run        # boot the image in POM2 (Apple ][+ profile)
+    make test       # the nine test scripts, then every solution (below)
+    make clean      # remove build/ (the disk stays)
+    make distclean  # remove build/ and the disk
+
+`make run` starts the installed POM2 (`/Applications/POM2.app`, or
+`make run POM2=path/to/POM2`).
+
+The image is written by `tools/build_disk.py` on top of `../dev/tools/dos33.py`,
+which takes the DOS 3.3 system tracks (tracks 0–2) from
+`../dev/tools/dos33_system.bin`. `tools/micro_sokoban_levels.py` converts the
+XSB collections into level packs and ca65 tables (`build/lv`), builds the
+demo from the checked solutions, and writes the empty save and ranking files.
+`tools/hud_font.py` generates `src/bbfont_subset.inc`, the 45-glyph HUD font,
+from the shared Beautiful Boot master in [`../dev/lib/font`](../dev/lib/font/README.md).
+`tools/pack_program.py` LZ-packs the linked binary into `MICRODATA`,
+decoding it again independently before writing.
+
+## Tests
+
+`make test` builds the disk, then runs nine scripts in `a2run` (the headless
+emulator in `../dev/tools`) and finally plays the solution of all 454 levels.
+Each script boots the real disk image, drives the game with keys and joystick
+events, and reads the game's memory through the ld65 labels
+(`build/micro_sokoban.lbl`) via the shared harness `../dev/tools/a2test.py`.
+
+| Script | What it checks |
+|---|---|
+| `tools/test_exit.py` | Boot, QUIT TO DOS and Ctrl-RESET: `HELLO` and the zero page restored, `LIST` then `RUN` relaunch the game, repeatedly (in a2run and in a2shot/POM2). |
+| `tools/test_graphics.py` | The HGR page actually displayed versus the hidden drawing page, monochrome silhouettes, and the screen round trips of menus and solution playback. |
+| `tools/test_menu_render.py` | The option texts render whole, including a string whose address ends in `$FF`. |
+| `tools/test_resume.py` | Resume after reboot, profile isolation, position CRC and corrupted saves, write-protected disks, and writes limited to the changed sectors. |
+| `tools/test_play.py` | A game left and found again: tutorial replayed from the menu, SOLUTION, profiles, joystick shuttle, "SAVING", counters capped at 65535, typed-ahead keys. |
+| `tools/test_damage.py` | Damaged, missing or inconsistent records files and ranking (impossible length, renamed file, short file, bad ranking): the game starts, repairs what it can, and "IO ERR" on a failed write. |
+| `tools/test_tutorial_options.py` | The five lessons (their solutions are replayed by the solver first), Undo/Redo, the return to the title, and the persistent options. |
+| `tools/test_score.py` | Profiles, scoring, initials, ranking, HOF1/HOF2 migration and disk persistence. |
+| `tools/test_levels.py` | Plays the checked solution of every kept level in the real game (`--all`, for each of the four collections) and checks the game moved on to the next level with the solution's move count. |
+
+Across the suite this also covers corrupted saves, migrations, write-protected
+disks and rankings or options that, unchanged, write nothing.
+
+`tools/bench_disk.py` measures the disk timings in POM2 (see
+[Disk timings](#disk-timings)); build `dev/tools/a2shot` first. `--disk`,
+`--labels` and `--legacy` let you measure an older build.
+
+The supporting tools: `tools/solver.py` (A* over pushes, dead squares and
+freeze deadlocks; the same dead-square rule as the game) and
+`tools/make_solutions.py` (one checked solution per level into
+`levels/solutions.txt`; the 33 levels the solver cannot crack came from YASS,
+see [`levels/README.md`](levels/README.md)). `tools/micro_sokoban_levels.py`
+exposes `KEYS`, `read_solutions` and `solution_keys`, shared by the tests to
+turn a solution into keystrokes.
+
+## Under the hood
+
+### Boot: a BASIC launcher and an LZ-packed program
+
+The BASIC program `HELLO` prints **LOADING MICRO-SOKOBAN**, reserves a single
+DOS buffer with `MAXFILES 1` (HIMEM `$9AA6`), then BRUNs the small loader
+`MICRO-SOKOBAN` (`src/unpack.s`, at `$0800`). The loader reads `MICRODATA` by
+sectors with RWTS and decompresses the game to `$6000`. Its read-only sector
+map is patched into it when the image is built: the loader and `MICRODATA`
+form a pair and must not be moved separately. The packer
+(`tools/pack_program.py`) emits literal runs of up to 127 bytes and matches of
+4 to 130 bytes with a 16-bit distance, and decodes its own output again
+before writing it.
+
+### Disk I/O: RWTS, direct sectors and a cached file map
+
+During the game, disk access goes through the RWTS routines of DOS 3.3
+(`src/fast_disk.inc`). The location of each file is discovered in the catalog
+once and cached (metadata only). Sectors are read directly into the hidden
+HGR page, then copied into the game's buffers; the displayed screen is never
+touched. A position save rewrites only its sector; a record rewrites only the
+sectors concerned. The catalog and the VTOC stay intact, and an unchanged
+ranking or options cause no write. Old 1830-byte SOK2 files already use the
+eight sectors required and can receive the position; the reader refuses to
+extend a file beyond its allocated sectors.
+
+The disk layout is specific to this game (`tools/build_disk.py`): DOS order
+optimised for the small loader, a physical interleave of two sectors for the
+compressed program and of three for the game files, measured with the
+resident RWTS loop in POM2. The shared DOS tool keeps its usual behaviour.
+
+### Level packs
+
+`tools/micro_sokoban_levels.py` drops the levels that do not fit in 20 × 12
+cells or for which no placement leaves the four HUD corners outside the
+walls, and lists them in `build/lv/report.txt`. A level too tall that fits on
+its side is turned a quarter turn clockwise (the puzzle and its solution are
+the same, rotated; the HUD keeps the original number). The placement closest
+to the centre wins. A level is encoded as one-byte runs (3-bit tile type,
+5-bit length): 6.6 KB for Microban, 5.8 KB for Microban II, 4.0 KB for III,
+5.0 KB for IV, split into thirteen packs of at most 2 KB that are loaded at
+`$1000` when play crosses into another pack.
+
+### Save files and their repair
+
+`MICROSAVE` holds profile zero; `MICROSAV1` to `MICROSAV9` the others. The
+1830 bytes of SOK2 records stay compatible; a 134-byte position is appended,
+so 1964 bytes per file. Bit 7 of byte 4 marks the tutorial as completed. The
+position holds the packed board, the player, the counters, the level, its
+fingerprint and a CRC-8; an invalid position is ignored. Each file carries a
+fingerprint of every collection (kept levels, order, content, rotation): if a
+new version of the game changes a collection's levels, its records are erased
+rather than attributed to other levels; the other collections' records stay.
+
+`MICROHOF` holds the ranking, the options, the ten names and the active
+profile (120 bytes, format `HOF3`). Old HOF2 rankings are rebuilt once from
+each profile's records: names, options and active profile are kept. HOF1
+still imports the shared records into profile zero. The other profiles
+receive no fictitious progress.
+
+At startup, `MICROHOF` is made consistent with its ten profiles, which name
+the records files: an active profile that is not a registered one becomes the
+first registered; the header initials become those of the active profile; a
+ranking row stays only if its initials are a profile's, once (including when
+a HOF2 is taken over). Names that are not three letters, two profiles with
+the same name or an out-of-range value reset the ranking, the names and the
+options to their defaults; the records files are untouched. The corrected
+file is rewritten at the first ranking write.
+
+A records file or ranking that cannot be read (damaged sector, impossible
+length, missing file) does not stop the game: it counts as empty — a profile
+without records, default ranking and options. The ranking is rewritten at
+once, the whole records file at the next save. A file shorter than expected
+only provides what it holds; the rest is empty. A failed write leaves
+"IO ERR" in the status corner and the game goes on; the sectors remain to be
+written. Only an unreadable level pack or `MICROSOL` stop the game: "IO ERR",
+a key, then back to DOS.
+
+### Memory map and resident budget
+
+The resident (`$6000` to `$9A9F`, below the DOS buffers) is almost full. The
+copy of DOS's zero page therefore lives in page 2 (`$0200`, the input buffer,
+free as long as no DOS command runs); the ranking and the game's zero page
+during RWTS occupy the start of page 3 (`$0300` to `$03B3`, below the DOS
+vectors). What is only needed at startup (reading and checking `MICROHOF`,
+taking over old rankings) forms the `BOOTCODE` segment: it follows the
+resident in the file, so the loader leaves it where the BSS will be, and
+`main` moves it down to `$1000` before anything else; the first level pack
+then takes its place. About **380 bytes** remain for the resident (the
+segment must also fit below `$9AA0` on arrival) and **230** in this
+three-page segment: see `build/micro_sokoban.map`.
+
+The level packs are loaded at `$1000`; the active profile's records and
+position occupy `$1800` to `$1FAB`, without shrinking the 1024-move Undo
+history. The solution reader (`SOLCODE`, 508 bytes) is not resident either:
+the first two sectors of `MICROSOL` are copied over the decoded level pack
+and run at `$1004`; the moves are read above the reader, so the game's own
+history survives.
+
+### HUD font
+
+The HUD and titles use a 45-glyph subset of Michael Pohoreski's Beautiful
+Boot font, 360 bytes, generated by `tools/hud_font.py` into
+`src/bbfont_subset.inc` from the shared master in
+[`../dev/lib/font`](../dev/lib/font/README.md) (via `../dev/tools/fonts.py`).
+Strings in the game are glyph indices, not ASCII (`GSTR`), so the resident
+only carries the glyphs it prints; the five glyphs `F + - / .` were drawn for
+the port in the same 6 px / 2 px-stroke style and live in the generator
+(`ORDER` / `EXTRA`). `make` regenerates the include when the master changes.
+
+### Two voices on a one-bit speaker
+
+The speaker has one bit. `title_duet` (`src/title_music.inc`) mixes two
+square waves by time division: on each turn of its loop (33 cycles) it looks
+at the bass, then at the melody. While both are at the same level the speaker
+rests there; when they differ it flips at both looks and follows the bass for
+14 cycles, the melody for 19, at 31 kHz. That carrier is inaudible: what is
+left is the sum of the two waves, the melody a little louder. Every path
+through a turn takes 33 cycles, so a half-period is a whole number of turns.
+The just scale of F gives whole periods (F3 = 90 turns, a third of a semitone
+below concert pitch); only B flat falls between two values. The loop is
+included at `$6003` so that it never crosses a page boundary. The corridor
+animation step waits for the end of the current beat and takes its drawing
+time from the rest that follows: the pulse stays regular.
+
+### Differences from the Apple-1 / GEN2 original
+
+- No V-blank on a II+: the tiles are drawn directly (2–3 per move).
+- Both paddles are read in a single fixed-duration loop (6 ms), buttons are
+  edge-detected, the stick repeats every ~200 ms. A paddle whose timer is
+  still running after that loop is not connected: without a joystick neither
+  the axes nor the buttons (floating inputs) are read.
+- HGR colour tiles (blue walls, orange crates, green placed crates and goals,
+  a white player with a green line under the feet on a goal); the Apple-1
+  text screen is replaced by the HGR menu.
+- `../dev` layout: binary at `$6000` (config `apple2_micro_sokoban.cfg`),
+  above both HGR pages, zero page at `$50` saved at startup and restored on
+  exit (`dev/lib/apple2/exit.asm`).
+- Double buffering: whole screens (level, title, help, success) are drawn on
+  the hidden HGR page and shown at once; during play, the 2–3 tiles of a move
+  are drawn on the displayed page.
+- The levels are no longer in the binary: they are read in packs from the
+  disk, with the DOS RWTS routines, cached sector lists and the game's zero
+  page preserved during each access.
+
+Planned improvements: see [`TODO.md`](TODO.md).
+
+## Technical reference
+
+### Source tree
+
+    src/micro_sokoban.s        the game (ca65), runs at $6000
+    src/unpack.s               small loader at $0800, RWTS reads and decompression
+    src/fast_disk.inc          disk access and cached sector lists
+    src/resume.inc             position save and resume
+    src/beginner.inc           tutorial and options
+    src/title_music.inc        two-voice title music (engine and score)
+    src/score_hof.inc          records, ranking and initials entry
+    src/profiles.inc           profile selection and independent saves
+    src/solution.inc           CHEAT MODE solution playback (SOLCODE, run from MICROSOL)
+    src/bbfont_subset.inc      HUD font, generated by tools/hud_font.py (Beautiful Boot, 45 glyphs)
+    src/hello.bas              prints LOADING MICRO-SOKOBAN, then starts the loader
+    apple2_micro_sokoban.cfg   48 KB memory map (work RAM at $0800, buffers in $0200-$03CF, MAXFILES 1)
+    tools/pack_program.py      LZ compression, verified by an independent decoder
+    tools/build_disk.py        DOS disk and drive-friendly allocation
+    tools/hud_font.py          the 45-glyph HUD font from dev/lib/font
+    tools/micro_sokoban_levels.py  XSB -> level packs + ca65 tables (build/lv), demo;
+                               KEYS / read_solutions / solution_keys shared by the tests
+    tools/solver.py            solver (A*, dead squares, freeze); same dead-square rule as the game
+    tools/make_solutions.py    one checked solution per level -> levels/solutions.txt
+    tools/test_exit.py         startup, QUIT/RESET, restored BASIC and RUN relaunches (a2run/POM2)
+    tools/test_graphics.py     visible/hidden HGR pages and menu/solution round trips
+    tools/test_menu_render.py  option texts, including an address ending in $FF
+    tools/test_resume.py       resume, profiles, CRC and limited writes
+    tools/test_play.py         a game left and found again: tutorial, SOLUTION, profiles,
+                               joystick, "SAVING", counters, typed-ahead keys
+    tools/test_damage.py       damaged, missing or inconsistent records and ranking, "IO ERR"
+    tools/test_tutorial_options.py  tutorial, return to title and persistent options
+    tools/test_score.py        profiles, ranking, migration and saving
+    tools/test_levels.py       plays the solutions in the real game (a2run): make test
+    tools/bench_disk.py        measures reads and saves in POM2
+    levels/tutorial.xsb        five original introductory levels
+    levels/microban.xsb        Microban, David W. Skinner (XSB source, see levels/README.md)
     levels/microban2.xsb       Microban II, idem
     levels/microban3.xsb       Microban III, idem
     levels/microban4.xsb       Microban IV, idem
-    tools/micro_sokoban_levels.py    XSB -> paquets de niveaux + tables ca65 (build/lv), démo
-    tools/solver.py            solveur (A*, cases mortes, gel) ; même règle des cases mortes que le jeu
-    tools/make_solutions.py    une solution vérifiée par niveau -> levels/solutions.txt
-    tools/test_tutorial_options.py  tutoriel, retour accueil et options persistantes
-    tools/test_score.py        profils, classement, migration et sauvegarde
-    tools/test_resume.py       reprise, profils, CRC et écritures limitées
-    tools/test_play.py         partie quittée puis retrouvée : tutoriel, SOLUTION, profils, manette, « SAVING », compteurs, touches en avance
-    tools/test_damage.py       fichiers de records et classement abîmés, absents ou incohérents, « IO ERR »
-    tools/test_menu_render.py  textes des options, y compris une adresse finissant par $FF
-    tools/test_graphics.py     pages HGR visibles/cachées et retours des menus/solutions
-    tools/test_exit.py         démarrage, QUIT/RESET, BASIC restauré et relances RUN (a2run/POM2)
-    tools/bench_disk.py        mesure lectures et sauvegardes dans POM2
-    tools/test_levels.py       joue les solutions dans le vrai jeu (a2run) : make test
-    levels/solutions.txt       les 454 solutions (démo et tests)
-    ../dist/MICRO-SOKOBAN.dsk        l'image produite
+    levels/solutions.txt       the 454 solutions (demo and tests)
+    ../dist/MICRO-SOKOBAN.dsk  the produced image
 
-Sur la disquette : le chargeur `MICRO-SOKOBAN`, le programme comprimé `MICRODATA`, treize paquets de niveaux (`MB1A` à `MB1D`,
-`MB2A` à `MB2C`, `MB3A` à `MB3C`, `MB4A` à `MB4C`), les dix fichiers de records,
-`MICROHOF` et `MICROSOL` (les 454 solutions). Les paquets font au plus 2 Ko et sont chargés en `$1000` ; les
-records et position actifs occupent `$1800` à `$1FAB`, sans réduire l'historique Undo de 1024 coups.
+### Files on the disk
 
-Le résident (`$6000` à `$9A9F`, sous les tampons de DOS) est presque plein. La
-copie de la page zéro de DOS occupe donc la page 2 (`$0200`, le tampon de saisie,
-libre tant qu'aucune commande DOS ne s'exécute), le classement et la page zéro
-du jeu pendant RWTS le début de la page 3 (`$0300` à `$03B3`, sous les vecteurs
-de DOS). Ce qui ne sert qu'au démarrage (lecture et contrôle de `MICROHOF`,
-reprise des anciens classements) forme le segment `BOOTCODE` : il suit le
-résident dans le fichier, le chargeur le pose donc à l'emplacement du BSS, et
-`main` le descend en `$1000` avant tout le reste ; le premier paquet de niveaux
-prend ensuite sa place. Il reste environ 340 octets pour le résident (le
-segment doit lui aussi tenir sous `$9AA0` à l'arrivée) et 230 dans ce segment
-de trois pages : voir `build/micro_sokoban.map`.
+| File | Content |
+|---|---|
+| `HELLO` | Applesoft launcher: LOADING MICRO-SOKOBAN, `MAXFILES 1`, `BRUN MICRO-SOKOBAN` |
+| `MICRO-SOKOBAN` | the loader (`src/unpack.s`, `$0800`), with its sector map of `MICRODATA` |
+| `MICRODATA` | the LZ-packed game, decompressed to `$6000` |
+| `MB1A` … `MB1D`, `MB2A` … `MB2C`, `MB3A` … `MB3C`, `MB4A` … `MB4C` | thirteen level packs of at most 2 KB, loaded at `$1000` |
+| `MICROSAVE`, `MICROSAV1` … `MICROSAV9` | the ten profile files (SOK2 records + position, 1964 bytes) |
+| `MICROHOF` | ranking, options, ten names and active profile (HOF3, 120 bytes) |
+| `MICROSOL` | the 454 solutions and the five lessons: reader (508 bytes), index, packed moves |
 
-Le BASIC affiche **LOADING MICRO-SOKOBAN**, réserve un seul tampon DOS avec
-`MAXFILES 1`, puis lance le petit chargeur. Celui-ci lit `MICRODATA` par secteurs
-et décompresse le jeu à `$6000`. Sa carte de lecture est reconstruite avec l'image :
-le chargeur et `MICRODATA` forment un ensemble, à ne pas déplacer séparément.
+### Memory map (`apple2_micro_sokoban.cfg`)
 
-Pendant le jeu, les appels RWTS utilisent les routines disque de DOS 3.3.
-Les emplacements des fichiers sont découverts dans le catalogue et mis en cache.
-Les secteurs sont lus directement dans la page HGR cachée, puis copiés dans les
-tampons du jeu. Une sauvegarde de position ne réécrit que son secteur ; un record
-ne réécrit que les secteurs concernés. Le catalogue et la VTOC restent intacts.
-Un classement ou des options inchangés ne provoquent aucune écriture.
-Les anciens fichiers SOK2 de 1830 octets utilisent déjà les huit secteurs requis
-et peuvent recevoir la position ; le lecteur refuse d'étendre un fichier au-delà
-de ses secteurs alloués.
+| Region | Address | Use |
+|---|---|---|
+| `ZP` | `$0050`–`$00FF` | the game's zero page, saved at startup and restored on exit |
+| `PAGE2` | `$0200`–`$02FF` | copy of DOS's zero page (GETLN buffer, free while no DOS command runs) |
+| `PAGE3` | `$0300`–`$03CF` | ranking buffer and the game's zero page during RWTS (`$0300`–`$03B3` used); DOS keeps `$03D0`–`$03FF` |
+| `WORKRAM` | `$0800`–`$0FFF` | work buffers (the loader's area, disposable after boot) |
+| `LOWRAM` | `$1000`–`$1FFF` | level pack (`$1000`, ≤ 2 KB), then the active records and position (`$1800`–`$1FAB`) |
+| `BOOT` | `$1000`–`$12FF` | `BOOTCODE`: start-only code, moved here by `main`, overwritten by the first pack |
+| `SOL` | `$1004`–`$11FF` | `SOLCODE`: the solution reader, copied from `MICROSOL` over the decoded pack |
+| HGR | `$2000`–`$5FFF` | both HGR pages; RWTS stages sectors on the hidden one |
+| `MAIN` | `$6000`–`$9A9F` | the resident: code, data, BSS, below the DOS buffers at HIMEM `$9AA6` |
 
-L'allocation est propre à ce jeu : ordre DOS optimisé pour le petit chargeur,
-entrelacement physique de deux secteurs pour le programme comprimé et de trois
-pour les fichiers du jeu. L'outil DOS partagé conserve ses comportements habituels.
+### File formats
 
-Mesures avec `python3 micro-sokoban/tools/bench_disk.py` dans le moteur POM2 Apple II+ :
+- **Level pack**: byte `n`, `n` offset low bytes, `n` offset high bytes (from
+  the pack start), then per level `w, h, row, col` and the runs. A run is one
+  byte, `tile type << 5 | (length - 1)`, in row-major order over the `w × h`
+  box; tile types are 0 floor/outside, 1 wall, 2 goal, 3 crate, 4 crate on
+  goal, 5 player, 6 player on goal.
+- **Records (SOK2)**: `"SOK2"`, last collection and level solved (bit 7 of
+  byte 4: tutorial done), one 16-bit fingerprint per collection, then 4 bytes
+  per kept level (best moves, best pushes; 0 = unsolved): 1830 bytes, plus
+  the 134-byte position (version, collection, level, fingerprint, player
+  row/column, moves, pushes, crates left, CRC-8, 120 packed pairs of tiles).
+- **Ranking (HOF3)**: 120 bytes; 8-byte rows of three ASCII initials, the
+  move total and the solved count, plus the ten names, the active slot and
+  the options byte (COLOR MODE uses a spare bit, so 1.1 disks keep
+  working).
+- **Solutions (`MICROSOL`)**: DOS header, 508 bytes of reader, 4-byte
+  entries (payload offset, move count), then the moves packed four to a byte.
+  The longest solution takes 264 bytes; the buffer above the reader is 1.5 KB.
 
-| Opération | Version précédente reconstruite | Version actuelle |
+### Levels turned or left out
+
+Turned a quarter turn clockwise: Microban 66, 109, 112, 143; Microban II 55,
+86, 87, 91, 93, 100, 102, 104, 110, 119, 121; Microban III 22, 40; Microban
+IV 56, 70, 78, 88.
+
+Left out — Microban: 99, 101, 113, 154 and 155; Microban II: 66, 85, 114,
+115, 120 (15 × 12 but walls in a HUD corner), 125, 126 and 130 to 135 (from
+18 × 17 to 47 × 41); Microban III: 23, 24, 33, 46, 47, 57, 58, 59, 101;
+Microban IV: 30, 39, 40, 42, 50, 58, 59, 60, 75, 85, 101, 102. The fourth
+cell of the bottom-left corner excludes no further level. The complete list,
+with sizes, is in `build/lv/report.txt`.
+
+### Title-screen demo
+
+The demo plays Microban 1, 3, 12, 23, 60, 84 and 98 from the checked
+solutions (`DEMO` in the Makefile); the last three have 4, 3 and 5 crates
+and much longer solutions than the four introductory ones. The packs are
+loaded as needed.
+
+### Disk timings
+
+Measured with `python3 micro-sokoban/tools/bench_disk.py` in POM2's Apple II+
+engine:
+
+| Operation | Previous version, rebuilt | Current version |
 |---|---:|---:|
-| Démarrage jusqu'à l'accueil prêt | 20,18 s | 13,98 s |
-| Première lecture d'un profil | 3,60 s | 2,10 s |
-| Première lecture d'un paquet | 3,54 s | 2,01 s |
-| Records et classement après un niveau terminé | 7,40 s | 0,54 s |
-| Sauvegarde d'une position | absente | 0,37 s |
+| Boot until the title is ready | 20.18 s | 13.98 s |
+| First read of a profile | 3.60 s | 2.10 s |
+| First read of a level pack | 3.54 s | 2.01 s |
+| Records and ranking after a solved level | 7.40 s | 0.54 s |
+| Saving a position | none | 0.37 s |
 
-Ce sont les cycles du processeur émulé, rotation et déplacements de tête Disk II
-compris, pas le temps de calcul de l'hôte. Ces scénarios mesurés ne constituent
-pas une mesure sur une machine physique. Les temps varient selon le fichier et
-la position de la tête. Construire `dev/tools/a2shot` avant le benchmark ;
-`--disk`, `--labels` et `--legacy` permettent de mesurer une ancienne construction.
+These are cycles of the emulated processor, Disk II rotation and head moves
+included, not host computing time. They are not measurements on a physical
+machine, and they vary with the file and the head position. Build
+`dev/tools/a2shot` before running the benchmark; `--disk`, `--labels` and
+`--legacy` measure an older build.
 
-`tools/micro_sokoban_levels.py` écarte les niveaux qui ne tiennent pas dans
-20 × 12 cases ou dont aucun placement ne laisse les quatre coins du HUD hors
-des murs, et écrit la liste dans `build/lv/report.txt`. Un niveau trop haut
-qui tient couché est tourné d'un quart de tour horaire (le puzzle et sa
-solution sont les mêmes, tournés ; le HUD garde le numéro d'origine) :
-Microban 66, 109, 112, 143 ; Microban II 55, 86, 87, 91, 93, 100, 102, 104,
-110, 119, 121 ; Microban III 22, 40 ; Microban IV 56, 70, 78, 88. Restent
-écartés, pour Microban : 99, 101, 113, 154 et 155 ; pour Microban II : 66,
-85, 114, 115, 120 (15 × 12 mais murs dans un coin du HUD), 125, 126 et 130 à
-135 (de 18 × 17 à 47 × 41) ; pour Microban III : 23, 24, 33, 46, 47, 57, 58,
-59, 101 ; pour Microban IV : 30, 39, 40, 42, 50, 58, 59, 60, 75, 85, 101,
-102. Le quatrième carré du coin bas-gauche n'écarte aucun niveau de plus.
-Un niveau est codé en plages d'un octet (type de case sur 3 bits, longueur
-sur 5) : 6,6 Ko pour Microban, 5,8 Ko pour Microban II, 4,0 Ko pour III,
-5,0 Ko pour IV.
+## Credits and licence
 
-## Différences avec l'original Apple-1 / GEN2
-
-- Pas de V-blank sur un II+ : les tuiles sont dessinées directement (2-3 par coup).
-- Lecture des deux paddles dans une seule boucle de durée fixe (6 ms), boutons
-  détectés sur front, répétition du manche toutes les ~200 ms. Un paddle dont la
-  temporisation court encore après cette boucle n'est pas branché : sans manette,
-  ni les axes ni les boutons (entrées flottantes) ne sont lus.
-- Tuiles en couleur HGR (murs bleus, caisses orange, caisses placées et cibles
-  vertes, joueur blanc avec un trait vert sous les pieds sur une cible) ; l'écran texte
-  Apple-1 est remplacé par le menu HGR.
-- Disposition `../dev` : binaire à `$6000` (config `apple2_micro_sokoban.cfg`),
-  au-dessus des deux pages HGR, zéro page en `$50` sauvegardée au démarrage
-  et restaurée en quittant (`dev/lib/apple2/exit.asm`).
-- Double tampon : les écrans complets (niveau, titre, aide, succès) sont
-  dessinés sur la page HGR cachée puis affichés d'un coup ; pendant le jeu,
-  les 2-3 tuiles d'un coup sont dessinées sur la page affichée.
-- Les niveaux ne sont plus dans le binaire : ils sont lus par paquets sur la
-  disquette, avec les routines RWTS de DOS, les listes de secteurs mises en cache et
-  la page zéro du jeu préservée pendant chaque accès.
+- Levels: **Microban I to IV by David W. Skinner**, distributed with credit
+  ("These sets may be freely distributed provided they remain properly
+  credited"); sources and checksums in [`levels/README.md`](levels/README.md).
+  The 33 hardest solutions were found with YASS 2.153 by Brian Damgaard.
+- Font: **Beautiful Boot by Michael Pohoreski**, through
+  [`../dev/lib/font`](../dev/lib/font/README.md).
+- Apple II port, tutorial levels, music and tools: **VERHILLE Arnaud**, from
+  the HGR_Sokoban sketch of [POM1](https://github.com/habib256/pom1).
+- Licence: [GPL-3.0](../LICENSE), like the upstream sketch.

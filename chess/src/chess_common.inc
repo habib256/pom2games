@@ -10,7 +10,7 @@
 ;   - Castling-rights bit flags
 ;   - Material values for evaluation
 ;
-; Idempotent. Caller must `.include "apple1.inc"` for $D010/$D011/$FFEF.
+; Idempotent. Pure equates and layout documentation, no code.
 ; ============================================================================
 
 .ifndef _CHESS_COMMON_INC_LOADED_

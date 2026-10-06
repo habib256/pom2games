@@ -17,7 +17,7 @@
 ; The II+ keyboard only sends upper case, but a //e (or an emulator fed a host
 ; keyboard) can send lower case: folding keeps `CMP #'I'` style tests working
 ; everywhere. Arrow keys arrive as control codes: left $08, right $15
-; (KEY_LEFT/KEY_RIGHT & $7F in apple2.inc).
+; (KC_LEFT / KC_RIGHT in apple2.inc).
 ;
 ; Only the routines referenced before the include are assembled (.ifref).
 ; Caller responsibility: KBD / KBDSTRB must be in scope (.include "apple2.inc").

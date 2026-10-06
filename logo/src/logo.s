@@ -38,12 +38,11 @@
 ; Tail-call optimization (zero-frame recursion) is unchanged from V1.8 --
 ; spiral 4 90 still costs zero control-stack frames.
 ;
-; Build:
-;   Build: make
-;   python3 software/tms9918/emit_TMS_Logo_txt.py
+; Build: make (logo/) -> dist/LOGO.dsk; make run starts it in POM2.
 ;
-; Run on POM1:  ./POM1 --preset 9       (P-LAB Apple-1 with TMS9918 + CodeTank)
-;   then in Woz Monitor paste TMS_Logo.txt and type 280R.
+; Original POM1 build: python3 software/tms9918/emit_TMS_Logo_txt.py, then
+;   ./POM1 --preset 9 (P-LAB Apple-1 with TMS9918 + CodeTank), paste
+;   TMS_Logo.txt in the Woz Monitor and type 280R.
 ;
 ; Language summary (V1.8):
 ;   -- Core turtle commands (and 4-letter aliases) --
@@ -75,9 +74,9 @@
 ; stay distinct). Proc bodies up to 154 B, 5 proc slots, 1 level of
 ; non-tail nesting (REPEAT inside a proc + proc call inside the slice).
 ;
-; VDP helpers (init_vdp_g2, clear_bitmap, plot_set) live in
-; dev/lib/tms9918/tms9918m2.asm. Math (signed_sin, RANDOM LFSR, decimal
-; print) lives in dev/lib/m6502/math.asm. Both are linked as separate
+; VDP helpers (init_vdp_g2, clear_bitmap, plot_set) live in hgr_logom2.asm
+; (POM1's dev/lib/tms9918/tms9918m2.asm on the TMS build). Math (signed_sin,
+; RANDOM LFSR, decimal print) lives in math.asm. Both are linked as separate
 ; objects via the Makefile.
 ;
 ; line_xy here uses a 16-bit signed err so FD up to 255 doesn't glitch on
@@ -85,8 +84,8 @@
 ; ============================================================================
 
 ; --- I/O equates (Apple-1 + TMS9918 hardware) ------------------------------
-        .import tms9918_pad18  ; silicon-strict pad18-v4 (helper from tms9918_pad.asm)
-        .import vdp_display_off    ; lib helper (tms9918_pad.asm)
+        .import tms9918_pad18  ; silicon-strict pad18-v4: RTS stub in hgr_logom2.asm
+        .import vdp_display_off    ; RTS stub in hgr_logom2.asm (POM1: tms9918_pad.asm)
 .include "a2logo.inc"           ; Apple II: ECHO = COUT, KBD/soft switches
 .include "tms9918.inc"          ; VDP_CTRL, VDP_DATA equates for SETSHAPE
 
@@ -99,12 +98,12 @@
         jmp main
 
 .ifdef CODETANK_BUILD
-.export wait_key                ; resolve buffer_editor.o's .import (Chess.asm pattern)
+.export wait_key                ; resolve buffer_editor.o's .import (kbd.asm is included below)
 .endif
 
 ; --- Imports from sibling modules -----------------------------------------
 ;
-; tms9918m2.asm  -- Mode-2 bitmap driver (init + plot + Bresenham line).
+; hgr_logom2.asm -- HGR bitmap driver (init + plot + Bresenham line; POM1: tms9918m2.asm).
 .import   init_vdp_g2, clear_bitmap, disable_sprites, line_xy
 .import   calc_pix_addr, vdp_set_write, vdp_set_read
 .import   plot_set              ; single-pixel plotter (GEN2 emote blit;
@@ -149,7 +148,7 @@
 .export   prod_lo, prod_hi, sign_flag, lfsr_lo, lfsr_hi, plot_mode
 ;
 ; --- buffer_editor.asm bindings (CodeTank-only) -----------------------------
-; The editor lib (dev/lib/tms9918/buffer_editor.asm) consumes the LOGO
+; The editor lib (buffer_editor.asm, here in src/) consumes the LOGO
 ; proc-slot layout via these abstract constants + ZP/BSS handles. cmd_edit
 ; loads shape_pat_lo:hi with the slot pointer before JSR bufed_run.
 .ifdef CODETANK_BUILD
@@ -185,7 +184,7 @@ PROC_BODY_OFF     = 20    ; slot offset of first body char
 VAR_ENTRY_SIZE    = 8     ; NAME_LEN + 2 (16-bit value)
 
 ; --- Zero page ------------------------------------------------------------
-; The 16 pix_*/ln_* slots used by the bitmap driver live in tms9918m2.asm
+; The 16 pix_*/ln_* slots used by the bitmap driver live in hgr_logom2.asm
 ; and are imported above. Only interpreter / turtle / parser ZP here.
 .segment "ZEROPAGE"
 tmp:          .res 1
@@ -257,7 +256,7 @@ em_par:      .res 1     ; colour path: parity nudge (0/1) LATCHED at draw time.
 .endif
 ; --- Colour ------------------------------------------------------------
 ; All colourisable surfaces (trail, bitmap arrow, sprite-0, bitmap text)
-; share a single source of truth: pen_color, exported by tms9918m2.asm.
+; share a single source of truth: pen_color, exported by hgr_logom2.asm.
 ; SETPC is the only command that writes to it.
 ; --- EDIT state (ed_cur_line / ed_n_lines) lives in buffer_editor.asm now.
 
@@ -1722,7 +1721,7 @@ cmd_help:
         LDX #>help_toc
         ; fall through
 
-; print_help_str lives in dev/lib/apple1/print.asm as print_str_ax. We
+; print_help_str lives in dev/lib/apple2/print.asm as print_str_ax. We
 ; alias its ZP slot to LOGO's mptr_lo:hi (same role as the original
 ; in-line implementation) before the .include so no extra ZP is burned.
 print_ptr_lo = mptr_lo
@@ -2344,7 +2343,7 @@ cmd_list:
 ;   stale "EDIT NAME" still sitting in the input buffer.
 ;   Editor primitives (ed_draw, ed_replace_line, ed_insert_line,
 ;   ed_delete_line, ed_find_line_offset, ed_wait_key) live in
-;   dev/lib/tms9918/buffer_editor.asm.
+;   buffer_editor.asm (here in src/).
 ; ============================================================================
 cmd_edit:
         JSR skip_spaces
@@ -3768,7 +3767,7 @@ cmd_ifelse:
 ;    All vertex computation lives in compute_turtle_verts.
 ; ============================================================================
 
-; (disable_sprites moved to tms9918m2.asm.)
+; (disable_sprites lives in hgr_logom2.asm.)
 
 .ifdef LOGO_HGR
 ; add_tx_off: 16-bit (tx_lo:tx_hi) + signed 8-bit offset in A.
@@ -4470,7 +4469,7 @@ trace_turtle_lines:
         JMP line_xy  ; tail-call (was JSR+RTS; -1 B, juillet 2026 bank squeeze)
 
 ; --- heading_to_octant + apply_sprite_size live in
-;     dev/lib/tms9918/sprite_helpers.asm. Caller-provided ZP wiring is
+;     sprite_helpers.asm (here in src/). Caller-provided ZP wiring is
 ;     handled by .exportzp / .importzp at the top of this file.
 
 ; draw_turtle: in bitmap mode, save the 9 cells around the turtle then
@@ -4748,7 +4747,7 @@ shape_table:
         .byte 8
         .word heart_pat
         ; --- Expression emotes (12x 16x16, from SCROLL-O-SPRITES by Quale,
-        ;     CC-BY-3.0). Extracted via tools/extract_scroll_expressions.py.
+        ;     CC-BY-3.0). Extracted via POM1's tools/extract_scroll_expressions.py.
         ;     Pattern data lives further down (after the BOAT block).
         .byte "NORMAL"
         .byte 32
@@ -4789,7 +4788,7 @@ shape_table:
         .byte $FF
 
 ; ----- bird1_pat / bird2_pat / heart_pat now live alongside the emote
-;       sprites in dev/lib/tms9918/sprites_emotes.asm. shape_table above
+;       sprites in sprites_emotes.asm (here in src/). shape_table above
 ;       references them via .word; ld65 resolves them from the lib .o.
 
 .if 0
@@ -4807,7 +4806,7 @@ shape_table:
 ;   seams, 4 splayed legs, head pokes east). N / S / W are 90-degree
 ;   rotations; NE / NW / SE / SW are hand-tweaked so the head
 ;   protrudes diagonally without aliasing.
-;   See tools/gen_turtle_sprites.py for the pixel-art source.
+;   See POM1's tools/gen_turtle_sprites.py for the pixel-art source.
 ;
 ; turtle_e (heading 90 - the model):
 ;     ....##....##....   1
@@ -4891,7 +4890,7 @@ turtle_nw:
 ;   45-degree octant. Same TL/BL/TR/BR ordering as the TURTL set.
 ;   Source: spritedatabase.net SpeedboatRip (white set), filled silhouette,
 ;   downscaled 16:1 from 24x26 to 16x16 via Lanczos+threshold.
-;   See tools/extract_speedboat_sprites.py for the extraction recipe.
+;   See POM1's tools/extract_speedboat_sprites.py for the extraction recipe.
 ;
 ; boat_dir_table indexes by octant: 0=N, 1=NE, 2=E, 3=SE, 4=S,
 ;   5=SW, 6=W, 7=NW (matches heading_to_octant output).
@@ -4955,7 +4954,7 @@ boat_nw:
         .byte $E0, $F0, $78, $3C, $1E, $0E, $06, $00
 .endif
 
-; --- Expression emotes (12x 16x16) live in dev/lib/tms9918/sprites_emotes.asm
+; --- Expression emotes (12x 16x16) live in sprites_emotes.asm (here in src/):
 ;     SCROLL-O-SPRITES by Quale (CC-BY-3.0). shape_table above references
 ;     these labels via .word; ld65 resolves them from the linked lib .o.
 
@@ -5092,7 +5091,7 @@ cmd_label:
 ; ============================================================================
 ; blit_glyph: thin wrapper that copies the LOGO turtle position
 ;   (tx_lo / ty_lo) into the lib-visible pix_x / pix_y ZP slots and
-;   delegates to text_blit_glyph in dev/lib/tms9918/text_bitmap.asm.
+;   delegates to text_blit_glyph in text_bitmap.asm (here in src/).
 ;   Existing call sites still pass A = char and read tx_lo/ty_lo as the
 ;   target cell; only the wrapper knows about the renamed entry point.
 ;   Input:  A = ASCII char (low 7 bits used)
@@ -5107,9 +5106,9 @@ blit_glyph:
         PLA
         JMP text_blit_glyph
 
-; --- draw_bubble (~85 B) lives in dev/lib/tms9918/bubble.asm.
-;     charmap_table (1024 B) and the bitmap blit core live in
-;     dev/lib/tms9918/text_bitmap.asm. blit_glyph above wraps
+; --- draw_bubble (~85 B) lives in bubble.asm (here in src/).
+;     The bitmap blit core lives in text_bitmap.asm (here in src/; it reads
+;     dev/lib/font/bbfont.inc instead of a charmap_table). blit_glyph above wraps
 ;     text_blit_glyph so existing call sites still read tx_lo/ty_lo.
 
 ; ============================================================================
@@ -5383,7 +5382,7 @@ demo2_script:
 .endif
 
 ; ============================================================================
-; (VDP driver moved to tms9918m2.asm: init_vdp_g2, clear_bitmap, line_xy,
+; (VDP driver lives in hgr_logom2.asm: init_vdp_g2, clear_bitmap, line_xy,
 ;  plot_set, calc_pix_addr, vdp_set_read/write, disable_sprites + the
 ;  pix_*/ln_* ZP slots and the bitmask / vdp2_regs tables.)
 ; ============================================================================
@@ -5498,4 +5497,4 @@ mnem_tab:
                                   ; (was padded with 6 redundant $FF bytes;
                                   ;  reclaimed May 2026 to absorb the +6 B
                                   ;  growth from 24c silicon-strict pad24
-                                  ;  insertions — see CLAUDE.md / Programming_TMS9918.md).
+                                  ;  insertions — see POM1's CLAUDE.md / Programming_TMS9918.md).

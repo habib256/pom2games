@@ -46,9 +46,10 @@
 ; Caller provides hgr_lo / hgr_hi (include hgr_scanline.inc). The module
 ; allocates its own ZP (~12 B) and pulls rev7.inc (shared, guarded).
 ;
-; First consumers: sketchs/hgr/game_rogue (bbfont, HGR order) and
-; sketchs/hgr/game_maze3d (its own font, TMS order) -- one module, both
-; bit orders exercised. Migration candidates: HGR_Chess's putc_hgr.
+; Consumers in this repo: arkabreakout (bbfont, HGR order, HGR_TEXT8_HGR_ORDER)
+; and maze3d (its own font, TMS order) -- one module, both bit orders
+; exercised. First written for POM1's game_rogue and game_maze3d; chess keeps
+; its private putc_hgr (chess/src/chess.s).
 ; ============================================================================
 
 .ifndef _HGR_TEXT8_LOADED_

@@ -186,7 +186,7 @@ void hgr_blit7(unsigned x, unsigned char y, unsigned char wbytes,
  * hgr_sprite gives BOTH: byte-aligned blit speed AND 1px-precise x.
  *
  * The trick (lifted from Sirius' 1983 arcade engine, see
- * sketchs/hgr/a2port_buzzard_bait/DISASSEMBLY.md S3): the sprite is baked
+ * POM1's sketchs/hgr/a2port_buzzard_bait/DISASSEMBLY.md S3): the sprite is baked
  * OFFLINE into 7 PRE-SHIFTED copies, one per sub-byte phase (x % 7 == 0..6).
  * At runtime the engine just selects the phase for x%7 and does a byte-aligned
  * blit at column x/7 -- zero per-pixel shifting; the inner loop is hgr_blit7.

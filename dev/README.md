@@ -23,9 +23,15 @@ utilisent la vidéo native de l'Apple II. Tous les jeux du dépôt les partagent
       tools/fonts.py   la police Beautiful Boot côté Python (tables dérivées)
       tools/a2test.py  harnais des tests : labels ld65, lancement a2run/a2shot,
                        décodage des dumps mémoire, disque de test
+      tools/build_dhgr_font.py  image binaire de la petite police DHGR relogée
+                       (lib/hgrc, DHGR_SMALL_FONT_EXTERNAL)
+      tools/assets/    convertisseur PNG/PPM -> banques HGR/DHGR, masques, aperçus
       tools/dos33_system.bin  pistes système DOS 3.3 (0-2) du disque maître Apple
       tools/a2shot/    exécutions sans interface, scriptées, avec captures PNG
       tools/a2run/     la même chose en C portable, avec écriture disque
+      tests/           tests Python des bibliothèques : HGR, moteur de sprites,
+                       DHGR, cadence, exemples, assets (make test, make test-dhgr)
+      bench/           mesures de cycles et de tailles, budgets de régression
       examples/hello/  programme de départ asm + C sur un disque
       examples/hgr/    démarrage HGR animé : sprites, compteur, clavier, cadence
       examples/dhgr/   DHGR 560×192 / 16 couleurs, Apple IIe 128 Ko ou IIc
@@ -105,10 +111,12 @@ Dans les deux cas, Ctrl-RESET revient au prompt DOS avec la page zéro restauré
 
 [`tools/a2test.py`](tools/a2test.py) regroupe ce que tous les scripts de test
 refaisaient : `labels(fichier.lbl)` lit les symboles ld65 et donne
-`peek()` / `poke()` / `until()` ; `run(disque, étapes, iie=, wp=)` lance a2run,
-ou a2shot avec `--iie` (les touches brutes sont échappées pour lui), et rend un
-`Result` avec `.dumps` (un `bytes` par `peek:`), `.data`, `.mem(adresse, n)`,
-`.cycles`, `.spk` ; `hgr_offset(y)`, `page_dump()` et `build_disk()` complètent.
+`peek()` / `poke()` / `until()` ; `run(disque, étapes, iie=, wp=, emulator=,
+pad_until=)` lance a2run, ou a2shot avec `--iie` (les touches brutes sont
+échappées pour lui), et rend un `Result` avec `.dumps` (un `bytes` par `peek:`),
+`.data`, `.mem(adresse, n)`, `.cycles` (un par `until:`), `.spk`,
+`.text_screens()` ; `hgr_offset(y)`, `hgr_visible(page)`, `page_dump()` et
+`build_disk()` complètent.
 `tools/dos33.py` relit aussi une image : `catalog()`, `read_file()`,
 `replace_file()` (sauvegardes des jeux). Les scripts de MICRO-SOKOBAN,
 ARKABREAKOUT, CHROMABREAK, Maze3D, `tests/` et `bench/` l'utilisent.
@@ -125,7 +133,9 @@ horloge murale, donc déterministe) et déroule un script :
 | Étape             | Effet                                              |
 |-------------------|----------------------------------------------------|
 | `wait:N`          | exécute N trames (17 030 cycles chacune)           |
-| `key:TEXTE`       | tape le texte (`\r` RETURN, `\e` ESC, `\<` `\>` flèches) |
+| `until:ADR:N`     | exécute jusqu'à PC = ADR (N trames au plus, sinon échec) et affiche le compteur de cycles |
+| `key:TEXTE`       | tape le texte (`\r` RETURN, `\e` ESC, `\<` `\>` flèches), trois trames par touche |
+| `press:TEXTE`     | met les touches en file sans exécuter (pour un `until:` exact) |
 | `shot:F.png`      | capture l'écran en 560×384 (HGR et DHGR)             |
 | `peek:ADR[:LEN]`  | vide la mémoire (lecture bus)                      |
 | `poke:ADR:OCTET` | écrit un octet en mémoire (valeurs hexadécimales) |
@@ -159,14 +169,15 @@ syntaxe de script, plus quelques étapes pour les tests :
 
 | Étape             | Effet                                              |
 |-------------------|----------------------------------------------------|
-| `wait:N`, `key:`, `shot:`, `peek:`, `joy:`, `btn:`, `reset`, `pc` | comme a2shot (`\^` `\v` : flèches haut/bas) |
+| `wait:N`, `until:`, `key:`, `press:`, `shot:`, `peek:`, `joy:`, `btn:`, `reset`, `pc` | comme a2shot (`\^` `\v` : flèches haut/bas) |
 | `text`            | affiche la page texte 40×24                        |
 | `poke:ADR:VAL`    | écrit un octet en RAM                              |
 | `spk`             | nombre de basculements du haut-parleur depuis le dernier `spk` |
 | `spklog:F.txt`    | écrit ensuite le cycle de chaque basculement, un par ligne (hauteur, tempo) |
 | `dsk:F.dsk`       | écrit la disquette telle que le programme l'a laissée (sauvegardes) |
 
-Le disque passé à `--disk` n'est jamais modifié. Un DOS 3.3 met environ
+Le disque passé à `--disk` n'est jamais modifié ; `--wp` le présente protégé
+en écriture (tests de sauvegarde). Un DOS 3.3 met environ
 400 trames à lancer un jeu. Pas de carte langage, pas de 80 colonnes : pour
 LOGO sur //e, a2shot reste l'outil.
 

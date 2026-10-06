@@ -22,7 +22,7 @@
 ; BSS: joy_x, joy_y, joy_cnt. No zero page. Only the routines referenced
 ; before the include are assembled (.ifref).
 ; Caller responsibility: .include "apple2.inc" first (PTRIG, PADDL0/1).
-; Mirror for C: a2_read_stick() in ../apple2c/apple2io.h.
+; Mirror for C: a2_read_stick() in ../apple2c/apple2game.h.
 ; ============================================================================
 
 .ifndef _JOY_ASM_LOADED_

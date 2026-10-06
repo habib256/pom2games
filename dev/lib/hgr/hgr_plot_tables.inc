@@ -2,7 +2,7 @@
 ; =============================================
 ; hgr_plot_tables.inc - HGR per-pixel column/mask tables (512 bytes)
 ; =============================================
-; Split out of hgr_tables.inc. hgr_col[256] = x/7 -> byte column;
+; Split out of POM1's hgr_tables.inc. hgr_col[256] = x/7 -> byte column;
 ; hgr_mask[256] = 1 << (x%7) -> pixel bitmask. Used by plot_pixel.
 ; =============================================
 hgr_col:

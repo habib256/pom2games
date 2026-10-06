@@ -42,7 +42,7 @@
 ;
 ; BSS: dos_cmd_buf, dos_cmd_ix, dos_zp_prog (256).
 ; Caller responsibility: .include "apple2.inc" and "exit.asm".
-; Mirror for C: a2_dos_cmd(), a2_disk_protected() in ../apple2c/apple2io.h.
+; Mirror for C: a2_dos_cmd(), a2_disk_protected() in ../apple2c/apple2dos.h.
 ; ============================================================================
 
 .ifndef _DOS_ASM_LOADED_

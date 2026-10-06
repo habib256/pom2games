@@ -1,451 +1,489 @@
 # ChromaBreak
 
-Version 1.1, en préparation. Dernière version publiée : 1.0, [disquette et notes de publication](https://github.com/habib256/pom2games/releases/tag/chromabreak-1.0).
+A brick-breaker for the **enhanced Apple //e and the Apple //c (128 KB, 65C02)** under
+ProDOS 8: double hi-res in 16 colours, 60 sectors, six capsules, enemies, two-voice
+music on the built-in speaker, and an AppleMouse II to steer the paddle. Bootable
+140 KB disk: [`CHROMABREAK.po`](../dist/CHROMABREAK.po) (ProDOS 8 2.4.3).
 
-Casse-briques pour **Apple //e enhanced 128 Ko sous ProDOS**, en DHGR
-560 × 192 / 16 couleurs, avec AppleMouse II et clavier, également compatible Apple //c 128 Ko et sa
-souris intégrée. Les collisions
-utilisent les 140 colonnes de couleur du DHGR. Disquette amorçable :
-[`CHROMABREAK.po`](../dist/CHROMABREAK.po), ProDOS 8 2.4.3, 140 Ko.
+Version 1.1 in preparation. Last published release: 1.0, with
+[notes](../docs/releases/chromabreak-1.0.md) and the
+[disk](https://github.com/habib256/pom2games/releases/tag/chromabreak-1.0).
 
-Ce profil est distinct de [`arkabreakout`](../arkabreakout/README.md), destiné
-à l'Apple II+ 48 Ko sous DOS 3.3, en HGR avec clavier/paddle.
+ChromaBreak is a separate profile from [`arkabreakout`](../arkabreakout/README.md),
+which targets the 48 KB Apple II+ under DOS 3.3 in HGR.
 
-## Jouer
+## Screenshots
 
-    make -C chromabreak
-    make -C chromabreak run      # //e enhanced + AppleMouse
-    make -C chromabreak run-iic  # //c + souris intégrée native
+The title and the sector screenshots are POM2 captures (//e profile, colour monitor
+rendering) taken during the demo mode; the other screens are raw 560 × 384 renders from
+a2shot.
 
-Le lancement utilise `--preset iie --slot 4=mouseaw` dans POM2 pour sélectionner
-le //e enhanced et brancher explicitement sa carte souris. `mouse` fonctionne
-également. Dans POM2, placer le pointeur sur l'écran Apple II ; la capture
-relative se bascule avec Ctrl+Alt+G et se libère aussi avec le clic central.
-Sur une machine réelle : //e enhanced, carte 80 colonnes étendue 64 Ko
-auxiliaires, DHGR activé et carte AppleMouse II en slot libre. Sur //c, les interruptions ROM de la souris intégrée restent
-actives ; le rendu masque seulement les accès brefs aux banques vidéo.
-Le jeu est écrit pour le 65C02. Sur un //e d’origine (non enhanced, 6502),
-le chargeur `CHROMA.SYSTEM` le détecte avant tout : il affiche « CHROMABREAK
-NEEDS A 65C02 CPU » puis rend la main à ProDOS sur une touche (testé dans
-POM2 avec la ROM `apple2e_unenh` et un 6502 NMOS). Un //e d’origine équipé
-d’un 65C02 passe ce test ; sans la ROM enhanced, il n’a pas été essayé.
+![Title screen](screenshots/title.png)
 
-| Commande | Action |
+![Sector 1, PRISM: an S capsule falls, a coil enemy enters through the right gate](screenshots/game.png)
+
+| Help page | High scores |
+|:--:|:--:|
+| ![Help page: capsules, tiles and points](screenshots/help.png) | ![High score table](screenshots/records.png) |
+
+| New high score | Game over |
+|:--:|:--:|
+| ![Initials entry](screenshots/initials.png) | ![Game over screen](screenshots/game-over.png) |
+
+## Features
+
+- DHGR 560 × 192, 16 colours, two video pages (main and auxiliary RAM); collisions on the
+  140 colour columns.
+- **30 frames per second NTSC, 25 PAL**, held in every tested scenario, including ten
+  sprites on screen at Expert speed.
+- **60 hand-drawn sectors**, from PRISM to OMEGA: geometric patterns, figures (INVADERS,
+  HEART, GHOST, MUSHROOM, ROCKET, APPLE, SKULL, CASTLE, PACMAN, ROBOT...), mazes and
+  fortresses, with one-, two- and three-hit tiles and steel.
+- **Six capsules** in the Arkanoid manner: Enlarge, Slow, Catch, Disrupt (three balls),
+  Laser, Pierce.
+- **Two enemies**, a coil and a "TIE" fighter, that slip around the tiles.
+- Combos up to ×8, an extra life every 5 000 points, six-digit score.
+- A paddle that also **moves up**, to mid-field, with spin on the rebound.
+- **Mouse, keyboard, joystick or Apple paddles**; the keyboard works with no mouse card.
+- **Two-voice music**: a title theme, ten sector endings and a victory fanfare, on the
+  one-bit speaker.
+- Three difficulty levels, five high scores and the furthest sector saved on the disk.
+- A help page (`?`), an attract/demo mode, a sector selector, and a finale with fireworks
+  after sector 60.
+- All on-screen text in English, in Michael Pohoreski's **Beautiful Boot** font.
+
+## How to play
+
+Boot the disk. The title shows "PLAY — CLICK / SPACE / ENTER": one gesture starts a game
+with the ball already launched. Pick the difficulty with `1`, `2` or `3` first if you
+like. After 15 s without a key, click or mouse motion, the demo mode plays by itself.
+
+### Controls
+
+| Input | Action |
 |---|---|
-| Clic, Espace ou Entrée au menu | Jouer et lancer immédiatement la balle |
-| `1` / `2` / `3` au menu | Relax / Arcade / Expert |
-| `H` au menu | Afficher les cinq records ; Échap revient au menu |
-| `?` au menu | Page d’aide : capsules, tuiles et points ; une touche ou un clic revient |
-| Déplacement horizontal de la souris | Positionner la raquette |
-| Déplacement vertical de la souris | Hauteur de la raquette (absolue, du sol à mi-terrain) |
-| Clic, Espace ou Entrée pendant la partie | Relancer une balle attachée ; tirer avec le bonus laser |
-| `M` / `K` / `J` | Choisir souris / clavier / joystick ou paddles ; `K` et `J` démarrent aussi au menu. Le joystick, une fois choisi, le reste d’une partie à l’autre et après une démo |
-| Joystick X ou paddle 0 | Position horizontale de la raquette (absolue) |
-| Joystick Y ou paddle 1 | Hauteur de la raquette (absolue) |
-| Bouton 0 ou 1 (ou Pomme) | Comme le clic : relancer la balle, tirer au laser |
-| `A` / `D`, flèches gauche / droite | Déplacement horizontal au clavier |
-| `W` / `X`, flèches haut / bas | Déplacement vertical au clavier |
-| `S` | Arrêter le déplacement au clavier |
-| `P` | Pause / reprise |
-| Échap | Menu (voir ci-dessous) ; `Q` y quitte proprement vers ProDOS |
-| Ctrl-RESET | Retour propre à ProDOS |
+| Click, Space or Enter (title) | Play, ball launched at once |
+| `1` / `2` / `3` (title) | Relax / Arcade / Expert |
+| `H` (title) | The five high scores; Escape returns |
+| `?` (title) | Help page: capsules, tiles and points; any key or click returns |
+| Mouse, horizontal | Paddle position |
+| Mouse, vertical | Paddle height (absolute, from the floor up to mid-field) |
+| Click, Space or Enter (in game) | Release an attached ball; fire with the Laser capsule |
+| `M` / `K` / `J` | Choose mouse / keyboard / joystick or paddles; `K` and `J` also start a game from the title. Once chosen, the joystick stays selected from one game to the next and after a demo |
+| Joystick X or paddle 0 | Paddle position (absolute) |
+| Joystick Y or paddle 1 | Paddle height (absolute) |
+| Button 0 or 1 (or an Apple key) | Same as the click: release the ball, fire the laser |
+| `A` / `D`, left / right arrows | Move the paddle sideways (keyboard) |
+| `W` / `X`, up / down arrows | Move the paddle up / down (keyboard) |
+| `S` | Stop the keyboard motion |
+| `P` | Pause / resume (sound stops while paused) |
+| Escape | Menu (below); `Q` there quits cleanly to ProDOS |
+| Ctrl-RESET | Clean return to ProDOS |
 
-**Menu Échap** (en jeu, sur la page de garde ou les écrans de fin) : Échap ou
-`R` reprend la partie telle quelle (ou revient à la page de garde), les flèches
-ou `A`/`D` choisissent un tableau déjà atteint (affiché avec son nom ; depuis la
-page de garde, le menu s’ouvre sur le plus lointain), et Entrée ou Espace
-lance une partie sur ce tableau. `S` coupe ou rétablit le son,
-`T` revient à la page de garde et `Q` quitte vers ProDOS.
+In POM2, put the pointer over the Apple II screen; relative capture toggles with
+Ctrl+Alt+G and is also released by the middle click. A held click does not fire repeated
+launches. Starting with Space or Enter keeps the mouse (or the joystick if it was chosen).
 
-À l’arrivée sur la page de garde, un thème joue à **deux voix** (environ 5 s :
-la suite d’accords I-vi-IV-V en arpèges montants sur une basse fondamentale /
-quinte, puis une petite phrase qui conclut pendant que la basse monte vers la
-dominante) ; une touche l’interrompt aussitôt, et il ne rejoue pas après la
-démo, après l’aide ni quand le son est coupé. Thème et airs de fin de tableau sont rangés en
-RAM auxiliaire après la police (voir « Musique à deux voix »). La page de
-garde porte la version et la signature
-« V1.1  BY ARNAUD VERHILLE » ; le sous-titre rappelle « APPLE //C AND //E
-128K 65C02 ».
+**Escape menu** (in game, on the title or on the end screens): Escape or `R` resumes the
+game as it was (or returns to the title); the arrows or `A`/`D` pick a sector you have
+already reached, shown with its name (from the title the menu opens on the furthest one);
+Enter or Space starts a game on that sector. `S` toggles the sound, `T` returns to the
+title, `Q` quits to ProDOS.
 
-Après 15 s sans touche, clic ni mouvement de souris sur la page de garde, un
-**mode démo** joue seul, en silence et sans enregistrer de record : le pilote
-suit la balle avec un décalage variable, la relance et tire au laser. Le bandeau
-affiche « DEMO » et chaque démo prend le tableau suivant. Une touche ou un clic,
-une balle perdue ou 60 s ramènent à la page de garde. Le délai est mesuré en
-rafraîchissements vidéo ; la fréquence 50/60 Hz est détectée au démarrage, si
-bien qu'il vaut 15 s en NTSC comme en PAL, et la démo 60 s d’images de jeu
-dans les deux cas.
+### Difficulty
 
-Sans carte souris, le clavier fonctionne immédiatement. Un clic maintenu ne
-provoque pas de lancements répétés. Démarrer avec Espace ou Entrée conserve la souris, ou le joystick s’il a été choisi.
-La page de garde propose une action principale « PLAY » ; `K` démarre
-directement au clavier. Un seul geste suffit pour commencer la partie.
-Le cadre de lancement regroupe « PLAY » et « CLICK / SPACE / ENTER ».
-Les trois difficultés sont réunies sur une ligne, avec un trait cyan sous
-la sélection ; `1`, `2` ou `3` ne redessinent que ce trait. Les commandes clavier, les records et la sortie occupent
-les lignes du bas. Les textes sont centrés sur les 40 cellules de la police
-Beautiful Boot (voir « Jeu et rendu »).
-
-Les écrans de fin de partie et de saisie des initiales suivent le même
-alignement. La table des records sépare le rang, les initiales, le score
-et le nom complet du mode ; une entrée vide affiche un tiret.
-
-## Jeu et rendu
-
-Soixante tableaux propres à ChromaBreak, de PRISM à OMEGA : motifs
-géométriques, figures (INVADERS, HEART, GHOST, MUSHROOM, ROCKET, APPLE,
-SKULL, CASTLE, PACMAN, ROBOT…), labyrinthes et forteresses, avec des briques
-simples, résistantes à deux ou trois coups et davantage d’acier au fil des
-niveaux. Ils sont dessinés en art ASCII dans `src/levels.txt` (`.` vide,
-`1`-`3` résistance, `#` acier) ; `tools/pack_levels.py` vérifie que chaque
-brique reste accessible par le bas, que les tableaux et noms sont distincts,
-et range la banque (deux briques par octet, puis les noms) que `CHROMA.SYS`
-copie en RAM auxiliaire à `$0A00`. Le jeu en recopie un seul tableau et son
-nom à chaque début de niveau (`level_fetch`).
-
-| Mode | Vies | Largeur de raquette | Vitesse initiale / maximum | Accélération | Capsule |
+| Mode | Lives | Paddle width | Start / max speed | Speed-up | Capsule |
 |---|---:|---:|---:|---|---|
-| Relax | 5 | 26 | 2 / 4 | Tous les 10 blocs | Tous les 4 blocs |
-| Arcade | 3 | 22 | 3 / 6 | Tous les 8 blocs | Tous les 5 blocs |
-| Expert | 2 | 18 | 4 / 7 | Tous les 6 blocs | Tous les 6 blocs |
+| Relax | 5 | 26 | 2 / 4 | every 10 tiles | every 4 tiles |
+| Arcade | 3 | 22 | 3 / 6 | every 8 tiles | every 5 tiles |
+| Expert | 2 | 18 | 4 / 7 | every 6 tiles | every 6 tiles |
 
-Largeurs en pixels de couleur DHGR ; vitesses en sous-pas par image.
-Le clavier avance de quatre colonnes ou trois lignes par image. Le point
-d’impact sur la raquette choisit huit angles. Une vie supplémentaire est
-accordée tous les 5 000 points, jusqu’à cinq vies. Le score s’affiche sur
-six chiffres et s’arrête à 650 000 points : les soixante tableaux en
-rapportent au plus 235 750, ennemis non compris.
+Widths in DHGR colour pixels; speeds in sub-steps per frame. The keyboard moves the
+paddle four columns or three lines per frame. The point of impact on the paddle selects
+one of eight angles.
 
-La raquette monte jusqu’à mi-terrain (ligne 100) et ne traverse jamais les
-briques : sous une brique de la dernière rangée, elle s’arrête six lignes
-plus bas (ligne 112, la place de la balle attachée) ; à hauteur de cette
-rangée, elle bute contre la première brique sur son chemin, même lors d’un
-grand déplacement de souris. Une raquette qui monte en diagonale depuis le
-dessous d’une brique reste à la ligne 112 tant qu’elle est dessous, puis
-monte ; si elle n’a plus la place de tenir à cette hauteur (élargie par
-ENLARGE entre une brique et un mur), elle redescend à la ligne 112. Une raquette qui glisse sous une balle déjà
-basse, ou qui monte vers elle, la renvoie aussi : le contact balle/raquette
-est vérifié à chaque image, avant les sous-pas de la balle.
+### Paddle, spin and scoring
 
-Le mouvement de la raquette donne de l’effet au rebond : un glissement
-latéral entraîne l’angle dans son sens (d’une zone, de deux à partir de huit
-pixels par image) ; une raquette qui monte redresse le rebond, une raquette
-qui descend l’aplatit.
+The paddle rises up to mid-field (line 100) and never passes through tiles: under a tile
+of the bottom row it stops six lines lower (line 112, where an attached ball sits); at
+that row's height it is stopped by the first tile on its way, even on a large mouse move.
+A paddle that slides under a low ball, or rises towards it, bounces it too: the
+ball/paddle contact is checked every frame, before the ball's sub-steps.
 
-Les destructions successives augmentent le multiplicateur tous les trois
-blocs, jusqu’à ×8. Un contact avec la raquette ou une perte de vie le remet à
-×1. Un impact sur une brique résistante rapporte 10 points ; sa destruction
-rapporte 10 fois le multiplicateur affiché.
+Paddle motion puts spin on the rebound: a sideways slide drags the angle its way (one
+zone, two from eight pixels per frame); a rising paddle steepens the bounce, a sinking
+one flattens it.
 
-Une capsule peut tomber : un petit bloc coloré de 5 × 6 pixels, au sommet
-blanc, marqué d’une lettre noire à la manière d’Arkanoid. Le bandeau affiche
-le nom du bonus actif.
+Consecutive hits raise the multiplier every three tiles, up to ×8; a paddle contact or a
+lost life resets it to ×1. A hit on a resistant tile scores 10 points; a destruction
+scores 10 times the displayed multiplier. An extra life is granted every 5 000 points, up
+to five lives. The score shows six digits and stops at 650 000; the sixty sectors are
+worth at most 235 750 points, enemies excluded.
 
-| Capsule | Bandeau | Effet |
+### Capsules
+
+A capsule is a 5 × 6 coloured block with a white top and a black letter. The HUD shows the
+name of the active bonus. A new life or a new sector clears the bonus; otherwise it lasts
+until another capsule is taken. A paddle that rises past a falling capsule in one go
+still collects it.
+
+| Capsule | HUD | Effect |
 |---|---|---|
-| **E** orange | ENLARGE | Raquette élargie de huit pixels de couleur |
-| **S** rose | SLOW | Ralentissement à deux sous-pas par image |
-| **C** rouge | CATCH | La balle reste collée à l’endroit où elle touche la raquette |
-| **D** violet | DISRUPT | Trois balles qui partent en éventail |
-| **L** bleu | LASER | Deux canons rouges sur la raquette, deux lasers ; maintenir le clic répète les tirs |
-| **P** bleu clair | PIERCE | Balles rouges et plus grosses (4 × 7), qui détruisent les briques résistantes en un coup |
+| **E** orange | ENLARGE | Paddle widened by eight colour pixels |
+| **S** pink | SLOW | Ball slowed to two sub-steps per frame |
+| **C** red | CATCH | The ball sticks where it met the paddle |
+| **D** purple | DISRUPT | Three balls fanning out |
+| **L** blue | LASER | Two red cannons on the paddle, two shots; holding the click repeats |
+| **P** light blue | PIERCE | Red, larger balls (4 × 7) that destroy resistant tiles in one hit |
 
-Avec le laser, chaque extrémité de la raquette porte un canon rouge de 1 × 3
-pixels, d’où part le tir (le canon et son tir partagent un sprite) ; les tirs
-de 1 × 4 ont une tête blanche sur un corps jaune. Avec la balle traversante,
-les balles deviennent des sphères ombrées de 4 × 7 pixels (bord gauche rose,
-cœur rouge, bord droit violet, pointes centrées), dessinées une ligne plus
-haut ; leur silhouette de collision reste celle de 3 × 6. Leurs couleurs par
-pixel tiennent compte du décalage d’un point entre fenêtre de pixel et
-cellule couleur (`tools/generate_sprite_tables.py`).
+A life is lost only when the last ball falls. Lasers take one hit point and are absorbed by
+steel; the piercing ball still bounces on steel. Extra balls stay in play when another
+bonus is taken, except Catch. Resistant tiles flash briefly on impact; a destruction
+throws two shards of the tile's colour (four shards at most on screen), which vanish
+without a trace on either video page.
 
-Une vie n’est perdue que lorsque la dernière balle tombe. Les lasers enlèvent
-un point de résistance et sont absorbés par l’acier ; la balle traversante
-rebondit aussi sur l’acier. Les balles restent blanches. Les balles supplémentaires
-restent en jeu lorsqu’un autre bonus est ramassé, sauf avec la capture.
+### Enemies
 
-Les briques résistantes brillent brièvement à l’impact ; une destruction
-produit deux éclats de leur couleur, avec au maximum quatre éclats simultanés.
-Ils disparaissent sans laisser de traces sur les deux pages vidéo.
+Enemies arrive regularly (every 6 s in Relax, 4.5 s in Arcade, 3 s in Expert, two at
+most) through two gates at the top or from the sides just under the tiles. Both are 4 × 6
+pixels in changing colours, never to be confused with a ball. The first is a coil: top
+and bottom bars around a narrow white core. The second is a "TIE" fighter: two coloured
+vertical wings framing a white core, open at the top and bottom. They do not pass through
+tiles: blocked downwards, they slide along the tiles until they find a way. Under the
+grid, the coil wanders (new heading every 16 frames) while the TIE undulates (20 points
+down, 12 up, every 32 frames); both leave through the bottom. A ball (which bounces), a
+laser or the paddle destroys them for 100 points, with two shards. A lost life or a new
+sector clears them. No enemy arrives during multiball, and the D capsule blows up those
+present.
 
-Des ennemis arrivent régulièrement (toutes les 6 s en Relax, 4,5 s en Arcade,
-3 s en Expert, deux au plus) par deux portes en haut du terrain ou par les
-côtés juste sous les briques. Tous deux mesurent 4 × 6 pixels, aux couleurs
-changeantes, pour ne jamais les confondre avec une balle. Le premier est une
-bobine : barres haute et basse autour d’un noyau blanc étroit (style 6). Le
-second est un chasseur « TIE » : deux ailes verticales colorées encadrant un
-noyau blanc, ouvert en haut et en bas (style 14, ailes calculées depuis les
-masques ronds). Ils ne traversent pas les briques : bloqués vers le bas, ils
-glissent le long des briques jusqu’à trouver un passage. Sous la grille, la
-bobine erre (nouveau cap toutes les 16 images) tandis que le TIE ondule en
-vagues (20 points vers le bas, 12 vers le haut toutes les 32 images) ; tous
-deux finissent par sortir par le bas. Une balle (qui rebondit), un laser ou la
-raquette les détruit pour 100 points, avec deux éclats. Une perte de vie ou
-un nouveau tableau les efface. Pour tenir la cadence, aucun ennemi n’arrive
-pendant la multiballe et la capsule D fait exploser ceux qui sont présents.
+### Sectors, music and finale
 
-Un tableau terminé affiche « SECTOR nn CLEAR » au centre, sur la page
-cachée présentée d’un coup, avec un air de fin à deux voix d’un peu plus de
-deux secondes, puis le tableau suivant se construit derrière. Il y a **dix
-airs de fin**, un pour chaque tableau d’une dizaine : les fondamentales
-montent la gamme (do, ré mineur, mi mineur, fa, sol, la mineur), puis viennent
-ré, mi et la majeur, ce dernier passant du mineur au majeur ; le dixième
-tableau d’une dizaine reçoit une fanfare plus longue (3,3 s). Chaque air a sa
-propre cadence à la basse. Après le soixantième, le finale
-« ENDING » est chargé depuis le disque en `$4000` (mémoire de la page 2,
-inutile alors) : logo VICTORY en relief, « ALL 60 SECTORS CLEARED », score
-final et mode, « THANK YOU FOR PLAYING », une fanfare, puis des feux
-d’artifice (anneaux de huit étincelles qui grandissent et virent au gris)
-dans les bandes libres au-dessus et au-dessous des textes, environ 20 s ou
-jusqu’à une touche, avant la saisie des initiales. Ce recouvrement ne coûte
-rien en mémoire principale.
+A cleared sector shows "SECTOR nn CLEAR" in the centre, on the hidden page presented at
+once, with a two-voice ending of a little over two seconds while the next sector is built
+behind. There are **ten endings**, one per sector of each decade: the roots climb the
+scale (C, D minor, E minor, F, G, A minor), then D, E and A major, the last going from
+minor to major; the tenth sector of a decade gets a longer fanfare (3.3 s). Each ending
+has its own bass cadence.
 
-**Page d’aide** (`?` sur la page de garde) : les six capsules, dessinées
-avec leur nom et leur effet, les tuiles à un, deux et trois coups et l’acier,
-puis ce qui rapporte des points (ennemi 100 points, combo tous les trois
-blocs jusqu’à ×8, vie tous les 5 000 points). Capsules et ennemis sont les
-sprites du jeu. Une touche ou un clic ramène à la page de garde ; ce clic ne
-lance pas de partie. Le code et les textes de cette page sont dans le
-recouvrement `ENDING`, chargé en `$4000` comme pour le finale ; si ce
-fichier est illisible, la page de garde reste affichée. La page
-coûte sept octets de code en mémoire principale, rendus par `records.c`.
+Each decade also has its own dark background pattern from level 1 onwards (stars, dotted
+grid, hatching, masonry, lozenges, crosses), limited to the field above line 100 so that
+the paddle always moves over black.
 
-Une nouvelle vie ou un tableau remet
-les bonus à zéro. Les bonus restent actifs jusqu'à cette remise à zéro ou
-jusqu'au ramassage d'une autre capsule.
+On arrival at the title a theme plays in **two voices** (about 5 s: the I-vi-IV-V chord
+progression in rising arpeggios over a root/fifth bass, then a short closing phrase while
+the bass climbs to the dominant). A key interrupts it; it does not replay after the demo,
+after the help page or with the sound off.
 
-Briques à 12 teintes alternées, biseautées : coins arrondis, arête haute et
-flanc gauche éclairés, flanc droit et base ombrés, reflet blanc en équerre.
-Les briques résistantes portent une fente noire (deux coups) ou deux fentes
-(trois coups) ; l’acier, gris, porte un reflet diagonal. Cadre en deux tons
-de bleu, raquette cyan avec reflet blanc, ombre bleue et extrémités arrondies
-argentées, et balle blanche arrondie de 3 × 6 pixels de couleur. Le logo
-reprend les glyphes Beautiful Boot en relief (arête éclairée, ombre portée
-bleue). Le cadre n’a pas de ligne basse. Dès le niveau 1, chaque décennie a son
-motif sombre (étoiles, grille pointillée, hachures, maçonnerie, losanges,
-croix), limité au terrain
-au-dessus de la ligne 100 : la raquette, dessinée sans sauvegarde du fond,
-circule ainsi toujours sur du noir. Les motifs sont des tuiles de 7 pixels sur
-8 lignes (période de la phase de couleur) dans l’image de tables, et une
-brique détruite redevient du motif (style 7, octets de bord préservés).
-Tous les textes affichés dans le jeu sont en anglais, y compris les menus,
-les noms des tableaux, les difficultés et la sauvegarde des records.
+After the sixtieth sector the finale "ENDING" is loaded from the disk at `$4000`: a
+VICTORY logo in relief, "ALL 60 SECTORS CLEARED", the final score and mode, "THANK YOU FOR
+PLAYING", a fanfare, then fireworks (rings of eight sparks that grow and fade to grey) in
+the free bands above and below the texts, for about 20 s or until a key, before the
+initials entry.
 
-Le bandeau supérieur (lignes 1 à 7) regroupe le score, les vies, le
-niveau, le multiplicateur et, aligné à droite, le nom du tableau ou du bonus.
-Les commandes détaillées restent au menu. L’aire de jeu s’étend de la ligne
-11 à la ligne 190. Les briques commencent à la ligne 14 ; la raquette part
-de la ligne 184 et monte jusqu’à la ligne 100. Ces coordonnées, le rendu et
-les tables de collision partagent `src/layout.h`.
+### Demo mode
 
-Tout le texte utilise la police 7 × 7 **Beautiful Boot** (Michael Pohoreski)
-selon la technique HGR : ses traits font au moins deux points HGR, et chaque
-point HGR devient deux points DHGR. Un trait couvre donc quatre points, un
-cycle complet de couleur NTSC : il reste blanc sur un moniteur couleur, alors
-qu’un texte au point près (560) y devient illisible. Une cellule fait
-14 points, un octet auxiliaire et un octet principal entiers ; le texte se
-place tous les 7 points (40 cellules par ligne) et s’écrit sans lecture de la
-mémoire vidéo (`src/finetext.s`).
+After 15 s without a key, click or mouse motion on the title, a **demo** plays by itself,
+silently and without recording any score: the pilot follows the ball with a varying
+offset, relaunches it and fires the laser. The HUD shows "DEMO", and each demo takes the
+next sector. A key or click, a lost ball or 60 s return to the title. Delays are counted
+in video refreshes, and 50/60 Hz is detected at start-up, so it is 15 s in NTSC and PAL
+alike, and the demo lasts 60 s of game frames in both.
 
-**Mode Chat Mauve** : le jeu sélectionne toujours le DHGR mixte des cartes RVB
-(Le Chat Mauve Féline, adaptateur RVB du //c, Video-7), où le bit 7 de chaque
-octet choisit 7 points monochromes 560 (0) ou la couleur 140 (1). Tous les
-octets graphiques gardent le bit 7 à 1 (effacement en `$80`, masques qui le
-préservent) ; seul le texte l’écrit à 0 et s’affiche alors en 560 points
-parfaitement net. Le bandeau est une bande monochrome et chaque ligne de texte
-commence par un octet monochrome noir, pour qu’aucune cellule couleur voisine
-ne déborde. Ces cartes n’ayant rien de lisible, aucune détection n’est
-possible ni nécessaire : en composite le bit 7 est ignoré en DHGR, et l’Eve
-retombe en couleur 140 ; l’image y est inchangée. Le verrou est réglé au
-démarrage (sur //c avec IOUDIS, faute de quoi `$C05E/$C05F` règleraient la
-souris) et remis en couleur 140 à la sortie.
+### High scores and progress
 
-Le haut-parleur Apple II joue des sons distincts pour le lancement, les
-rebonds, l’acier, les impacts et destructions, les bonus, les tableaux et
-la perte d’une vie. Les effets se répartissent sur plusieurs images ; les
-interruptions de la souris restent actives. La pause coupe les sons.
+The five best scores are kept in `HIGHSCORES` with three initials and the mode played. At
+the end of a qualifying game, type A–Z, correct with the left arrow, confirm with Enter;
+Escape skips the entry. A missing file is created on save; a corrupt one yields an empty
+table. If the disk is write-protected or unavailable, "SAVE FAILED" appears and the score
+stays visible in memory. The file is format 2 (byte 4), with scores in tens of points; a
+file from version 1.0 (format 1, scores in points) is read with its records and
+progress, then rewritten as format 2 on the next save.
 
-**Musique à deux voix.** Le thème, les dix airs de fin et la fanfare ont une
-mélodie et une basse, sur le seul bit du haut-parleur (`src/duet.inc`, le
-moteur de MICRO-SOKOBAN). Deux ondes carrées se partagent le haut-parleur par
-division du temps : à chaque tour de boucle (33 cycles), le lecteur regarde la
-basse puis la mélodie. Tant qu’elles sont au même niveau, le haut-parleur y
-reste ; quand elles diffèrent, il bascule aux deux regards et suit la basse
-13 cycles, la mélodie 20, à 31 kHz. Cette porteuse est inaudible : il reste la
-somme des deux ondes, la mélodie un peu plus forte. Tous les chemins d’un tour
-durent 33 cycles, donc une demi-période est un nombre entier de tours :
-`tools/generate_music.py` écrit les airs en intonation juste, dans la gamme
-de do dont les périodes sont entières (do 4 = 60 tours, un cinquième de
-demi-ton sous le diapason), avec les valeurs les plus proches pour les dièses
-de ré, mi et la majeur. Les notes qui tomberaient entre deux valeurs (fa 5,
-ré 6, do 7) n’existent pas : les mélodies les contournent, et la fanfare finit
-sur do 6 au lieu de do 7. Un événement fait trois octets (mélodie, basse,
-durée en tranches de 8,3 ms). Le lecteur (129 octets) et la table des dix airs sont copiés en page 3
-(`$0310` à `$03CF`) par `CHROMA.SYS` : sa boucle compte les cycles et ne doit pas
-chevaucher une page, et le jeu n’y perd aucun octet. Les interruptions sont
-masquées pendant une note et servies entre deux notes (sur //c, les soixante
-interruptions par seconde de la souris brouillaient les deux voix). Son coupé,
-un air reste muet mais garde sa durée.
+**Progress** is saved in the same file (byte 5, zero in older files): the furthest sector
+reached. It is written to the disk as soon as a new sector is reached, during the "SECTOR
+nn CLEAR" banner (the demo records nothing), and bounds the sector selector in the menu. A
+write-protected disk keeps the progress in memory for the session.
 
-Deux pages DHGR en RAM principale et auxiliaire. Les sprites et le texte
-utilisent un moteur assembleur avec tables de scanlines et de phases. La
-boucle de dessin des sprites est copiée à la même adresse dans les deux
-banques mémoire ; ses paramètres et masques restent en page zéro. Les
-arrière-plans sont sauvegardés séparément par page et restaurés dans l'ordre
-inverse. Le contenu souhaité du bandeau est préparé une seule fois pour les
-deux pages, chacune conservant son historique des caractères affichés. Le
-bandeau ne redessine que ses caractères modifiés, un par image, et une page
-déjà à jour n’est plus parcourue. Une raquette qui glisse efface seulement
-les bandes qu’elle découvre ; après un déplacement vertical, elle efface son
-ancienne empreinte. Ses sept alignements DHGR sont mis en cache et
-réutilisés, avec des couleurs constantes. Les collisions réutilisent les
-zones vides pendant le déplacement d’une balle ; le cache est réinitialisé
-pour chaque balle et à chaque image. Les impacts changent seulement les
-fentes d’une brique ou effacent sa surface. La préparation du bandeau et le
-dessin d’un caractère se font sur des images distinctes. Les capsules (style
-5) ont des masques propres à chacune de leurs six lignes, en page zéro,
-recalculés seulement quand la colonne ou le type change. Les sprites ronds de
-4 pixels (balle rouge, ennemis) ont des masques précalculés pour les sept
-alignements, comme la balle blanche. Le score est compté en dizaines de
-points (tout gain est un multiple de dix) : seize bits vont ainsi jusqu’à
-650 000, et le sixième chiffre du bandeau, les unités, reste un zéro fixe.
-Il est tenu aussi en BCD (mode décimal du 65C02) : le bandeau lit ses
-chiffres sans conversion binaire, et ses messages sont stockés déjà alignés sur leurs 10 cellules. Les ennemis
-(`src/enemies.s`) se déplacent et testent leurs contacts en assembleur.
-En jeu au clavier, la souris n’est pas interrogée (environ 1 300 cycles
-gagnés par image) ; `M` la relit avant de reprendre la main.
-Joystick et paddles (`J`) : les deux minuteries analogiques démarrent ensemble
-(`$C070`) et sont comptées dans le temps d’attente qui précède chaque
-présentation (`timing.s`, boucle de 23 cycles, une unité de compte pour deux
-du paddle). La lecture s’arrête au retour vertical (//e) ou à l’interruption
-de bascule (//c) ; un axe non terminé garde sa valeur précédente : la cadence
-ne dépend jamais de la manette, même à pleine échelle (testé sur les douze
-profils). Sur //c, l’accès à `$C070` acquitte aussi l’interruption VBL : si
-elle tombe pendant cet accès précis, l’image s’affiche un rafraîchissement
-plus tard. La souris n’est pas interrogée dans ce mode.
+### Hardware
 
-La présentation attend deux rafraîchissements vidéo : **30 images/s NTSC
-et 25 images/s PAL**, avec des intervalles réguliers dans les tests de jeu
-ordinaire, dans le scénario à dix objets simultanés (trois balles, deux
-tirs, une capsule et quatre éclats) avec la raquette en mouvement diagonal à
-vitesse Expert, dans la même image avec trois balles traversantes rouges, et
-dans le scénario à ennemis (une balle, deux tirs, une
-capsule, quatre éclats et deux ennemis). Le //e suit le retour vertical pendant le rendu ; le
-//c utilise le mode VBL de sa souris et un gestionnaire ProDOS, libéré à
-Échap ou RESET. Le nouveau tableau est construit sur la page cachée, affiché
-complet une seule fois puis copié sur l’autre page, avec les fonds des sprites.
-Les attentes ont un repli borné si la synchronisation disparaît.
+- **Apple //e enhanced** with the extended 80-column card (64 KB auxiliary), DHGR enabled,
+  and an AppleMouse II card in any free slot. Without a mouse card, the keyboard works
+  immediately.
+- **Apple //c** with its built-in mouse: the ROM mouse interrupts stay active; the renderer
+  only masks the brief video bank accesses.
+- The game is 65C02 code. On an original (unenhanced, 6502) //e, the `CHROMA.SYSTEM` loader
+  detects it first, prints "CHROMABREAK NEEDS A 65C02 CPU" and returns to ProDOS on a key
+  (tested in POM2 with the `apple2e_unenh` ROM and an NMOS 6502). An original //e fitted
+  with a 65C02 passes this test; without the enhanced ROM, it has not been tried.
+- **RGB cards**: the game always selects the mixed DHGR mode of the Le Chat Mauve Féline,
+  the //c RGB adapter and Video-7, where bit 7 of each byte selects 7 monochrome 560 dots
+  (0) or 140 colour (1). Text is written with bit 7 clear, so it is pin-sharp on those
+  cards; composite output ignores the bit and the picture is unchanged. See "Chat Mauve
+  mode" below.
 
-Références : [interruptions ProDOS](https://prodos8.com/docs/techref/adding-routines-to-prodos/)
-et [note technique Apple IIc sur le VBL](https://mirrors.apple2.org.za/Apple%20II%20Documentation%20Project/Computers/Apple%20II/Apple%20IIc/Documentation/Apple%20IIc%20Technical%20Notes.pdf).
+The game has been tested in emulation only (POM2, with the real //e and //c ROMs). Reports
+from real hardware are welcome.
 
-Les cinq meilleurs scores sont conservés dans `HIGHSCORES`, avec trois
-initiales et le mode joué. À la fin d’une partie qualifiée, saisir A–Z,
-corriger avec la flèche gauche puis valider avec Entrée. Échap permet de
-passer la saisie. Un fichier absent est créé à la sauvegarde ; un fichier
-corrompu donne une table vide. Si le disque est protégé ou indisponible,
-« SAVE FAILED » apparaît et le record reste consultable en mémoire.
-Le fichier est au format 2 (octet 4), aux scores en dizaines de points ;
-un fichier de la version 1.0 (format 1, scores en points) est relu avec ses
-records et sa progression, puis réécrit au format 2 à la sauvegarde suivante.
+## Build and run
 
-La **progression** est sauvegardée dans le même fichier (octet 5, nul dans
-les fichiers des versions précédentes) : le secteur le plus lointain atteint.
-Elle est écrite sur le disque dès qu’un nouveau secteur est atteint, pendant
-le bandeau « SECTOR nn CLEAR » (la démo n’enregistre rien), et limite le
-choix des tableaux au menu. Un disque protégé garde la progression en mémoire
-pour la session.
+Prerequisites: cc65 (`ca65`, `ld65`, `cl65`, `ar65`), Python 3, and POM2 for `run`.
 
-Le disque démarre sur le petit chargeur `CHROMA.SYSTEM`, qui charge le jeu
-`CHROMA.SYS`. Celui-ci reloge le binaire à `$6000`.
-L'image de tables du jeu (`src/payload.s` : lignes, octets, phases, masques
-de points et police Beautiful Boot, 1 561 octets dans une zone de 2 Ko) est
-copiée à `$0800` ; les tables de doublement de la police sont calculées au
-démarrage en `$0F00`. La banque des soixante tableaux (3 480 octets) est en
-RAM auxiliaire à `$0A00`. Les buffers de fichiers sont à `$1000`,
-les fonds et métadonnées des sprites en RAM principale sous `$2000`, la pile
-C (512 octets, 256 utilisés au plus mesuré) sous `$BF00`. `game.c` est
-compilé en `-Ors` (taille), les routines critiques étant en assembleur.
-**Adresses figées.** La cadence dépend de l’adresse des modules assembleur
-et de leurs tables : une branche prise ou une lecture indexée qui franchit une
-page coûte un cycle de plus, et quelques octets de décalage ont déjà coûté une
-image dans les scènes chargées. `game.c` et `records.c` sont liés avant eux ;
-`src/spare.s` les sépare par quelques octets de réserve (58 de code, 49 de
-données constantes, 13 de variables) et trois assertions d’édition de liens. Quand l’un des
-deux fichiers C change de taille, on ajuste la réserve d’autant : rien ne
-bouge après eux et la cadence n’a pas à être remesurée. `sound.s` garde de
-même sa taille (27 octets de réserve depuis le départ du lecteur en page 3).
-cc65 range toutes les chaînes littérales en `RODATA`, donc en mémoire
-principale, même sous un `#pragma rodata-name` : les textes du recouvrement
-sont des tableaux nommés.
+    make -C chromabreak            # builds ../dist/CHROMABREAK.po
+    make -C chromabreak run        # POM2, //e enhanced + AppleMouse card
+    make -C chromabreak run-iic    # POM2, //c with its native built-in mouse
 
-Le runtime ProDOS restaure le texte, la souris, la page zéro, le vecteur RESET
-et le bitmap système à la sortie, puis appelle `QUIT`. Le jeu utilise la RAM
-auxiliaire directement, sans vérifier `/RAM` et sans dialogue. À la sortie,
-le disque RAM ProDOS est recréé vide.
+The Makefile includes the shared [`../dev/cc65/apple2.mk`](../dev/cc65/apple2.mk), which
+provides the tool variables (all overridable, e.g. `make POM2=... DIST=...`) and the
+`run`, `clean` and `distclean` targets. `run` launches POM2 with `--preset iie --slot
+4=mouseaw` (POM2's `mouse` card works as well); `run-iic` uses `--preset iic --slot
+4=iicmouse`.
 
-## Captures
+Targets: `all` (default), `run`, `run-iic`, `test`, `test-mouse`, `test-records`, `clean`,
+`distclean`.
 
-La page de garde et les deux tableaux sont des captures de POM2 (profil //e,
-rendu moniteur couleur), prises pendant le mode démo. Les autres écrans sont
-des rendus bruts 560 × 384 d’a2shot.
+The build generates several sources from Python tools, and rebuilds them when their
+inputs change:
 
-![Page de garde](screenshots/title.png)
+| Tool | Generates | From |
+|---|---|---|
+| `tools/pack_levels.py` | `build/levels.bin`, `src/levels.inc` | `src/levels.txt` (checks every tile is reachable from below, boards and names distinct) |
+| `tools/generate_layout.py` | `src/layout.inc`, `src/collision_tables.h` | `src/layout.h` (one screen geometry for C, assembly and the hit tables) |
+| `tools/generate_sprite_tables.py` | `src/sprite_tables.inc`, `src/bg_tiles.inc` | round-sprite masks, shaded piercing ball, background tiles |
+| `tools/generate_fine_font.py` | `src/fine_font.inc` | the shared Beautiful Boot font in `dev/lib/font`, via `dev/tools/fonts.py` |
+| `tools/generate_music.py` | `src/music_aux.inc`, `src/music_offsets.inc`, `src/music_fanfare.inc` | the tunes, written in just intonation |
+| `tools/seed_records.py` | `build/HIGHSCORES` | an empty, checksummed table |
 
-![Secteur 1, PRISM : une capsule S tombe, une bobine arrive par la porte de droite](screenshots/game.png)
+The ProDOS volume (`CHROMABREAK`, 280 blocks) is assembled by
+[`dev/tools/prodos/build_volume.py`](../dev/tools/prodos/README.md) from `PRODOS`,
+`CHROMA.SYSTEM`, `CHROMA.SYS`, `HIGHSCORES` and the `ENDING` overlay.
 
-![Secteur 2](screenshots/game-sector-2.png)
-
-![Page d’aide](screenshots/help.png)
-
-![Menu Échap](screenshots/menu.png)
-
-![Saisie des initiales](screenshots/initials.png)
-
-![Table des records](screenshots/records.png)
-
-![Fin de partie](screenshots/game-over.png)
-
-## Validation
+## Tests
 
     make -C chromabreak test
-    make -C chromabreak test-mouse POM2_SRC=/chemin/vers/pom2
-    make -C chromabreak test-records POM2_SRC=/chemin/vers/pom2
+    make -C chromabreak test-mouse   POM2_SRC=/path/to/pom2
+    make -C chromabreak test-records POM2_SRC=/path/to/pom2
 
-Le premier vérifie le format ProDOS et le contenu du disque, puis, si a2shot
-est disponible sous macOS arm64, le démarrage réel sur //e, la cadence, le
-lancement direct par Espace/Entrée/K, le clavier, la pause, toutes les transitions de tableau, la victoire, la reprise et Échap/RESET.
-Il vérifie aussi que le jeu n’embarque plus la petite police de la bibliothèque.
+**`tests/test_game.py`** (`make test`) needs nothing beyond the build. It checks the link
+map (the unused DHGR drawing, transfer and text modules of the library are excluded, the
+library's small font is no longer embedded), the 60 distinct boards through
+`pack_levels.py`, and the ProDOS image: volume name, 280 blocks, the five files and their
+types, the boot block, the round trip of each file, more than 150 free blocks. Then, on
+macOS with a2shot built (`make -C dev/tools/a2shot`), it boots the disk on an emulated
+//e and checks the DHGR title, the keyboard fallback without a mouse card, at least
+25 fps, pause, the keyboard controls, the direct start with Space, Enter and `K`, the
+three difficulty settings, every one of the 60 sector transitions through the real
+collision and level-loading code, the victory and replay, and the return to ProDOS text
+by Escape/`Q` and by RESET. `--image-only` stops after the image checks.
 
-Le test des records vérifie les écritures ProDOS et le rechargement des cinq
-entrées, leur tri, les initiales et difficultés, les fichiers absents/corrompus
-et le disque protégé. Il ouvre la page d’aide sur les quatre profils (capsules,
-tuiles et ennemis dessinés, retour au titre par une touche puis par un clic
-qui ne lance pas de partie, horloge VBL intacte) et écoute les airs : chaque
-note du thème et des dix airs de fin doit porter sa basse et sa mélodie, chacune
-à sa part du niveau du haut-parleur, et durer ses tranches ; son coupé, l’air
-est muet et aussi long. Il compare aussi 328 640 collisions au modèle de la
-balle ronde, vérifie les 65 536 conversions du score et chaque glyphe
-Beautiful Boot aux deux alignements, dans les deux banques et les deux pages.
+**`tests/test_mouse.py`** (`make test-mouse`, optional) needs a built POM2 source tree
+(`build/libpom2_core_test.a`) and its Apple ROMs; it compiles `tests/playtest.cpp` against
+the POM2 core and runs the real firmware. It covers twelve profiles, two entries (click,
+and Space then RESET) on six machines: the `applewin` and `mame` AppleMouse cards on the
+//e, the native //c mouse with the 16 KB and 32 KB ROMs (and the two built-in serial
+ports, whose ACIA status the //c ROM reads on every interrupt), and the PAL timings of
+the //e and //c. It checks click/Space, the X/Y axes, pause, eight rebounds, tiles,
+capsules, background restoration, solid paddles and the round white ball silhouette in
+all seven DHGR phases, launch sounds and silence while paused, Escape/RESET and the
+restoration of `/RAM`; frame intervals during mouse motion, the HUD cells, the vertical
+paddle (mid-field, tiles above and beside, rebound, contact while sliding or rising, spin,
+catch point), the enemies (tiles, sliding, ball, laser, paddle, exit, arrival, multiball,
+restored backgrounds), the Chat Mauve mode (POM2's Féline card or //c adapter in mixed
+mode, bit 7 of every byte of both pages and banks, back to 140 colour on exit), the demo
+mode (15 s measured in emulated time, 50 Hz detection, silence, exit by key or lost ball)
+and the transitions from both pages: no write to the displayed page.
 
-Le second test optionnel nécessite un POM2 compilé (`libpom2_core_test.a`) et
-ses ROMs Apple. Il exécute le firmware réel avec les deux cartes `mouse` et
-`mouseaw`, vérifie clic/Espace, axes X/Y, pause, huit rebonds, briques, bonus,
-restauration des fonds, raquettes unies et silhouette ronde blanche dans
-les sept phases DHGR, sons de lancement et silence en pause,
-Échap/RESET et la remise en état de `/RAM`, puis répète les scénarios avec la souris intégrée native, les deux ports série intégrés
-(ACIA dont la ROM //c lit l’état à chaque interruption) et les ROMs //c de 16 et 32 Ko, ainsi que les cadences PAL du //e et du //c.
-Il vérifie les intervalles entre images pendant les déplacements à la souris, les cellules du bandeau,
-la raquette verticale (mi-terrain, briques au-dessus et sur le côté, rebond, contact en glissant ou en montant,
-effet, point de capture), les ennemis (briques, glissement, balle, laser, raquette, sortie, arrivée,
-multiballe, fonds restaurés), le mode Chat Mauve (carte Féline ou adaptateur //c de POM2 en mode mixte,
-bit 7 de chaque octet des deux pages et banques, retour en couleur 140 à la sortie), le mode démo (15 s mesurées en temps émulé, détection 50 Hz, silence, sortie
-par touche ou balle perdue) et les transitions depuis les deux pages : aucune écriture sur la page affichée. Les scénarios de collision injectent
-l'état initial des cas de test. Ils ne constituent pas une campagne jouée
-de bout en bout sans intervention. Les images testées sont des copies temporaires.
+**`make test-records`** runs the same harness with `--records-only`: the ProDOS writes and
+the reload of the five entries, their sorting, initials and modes, a missing or corrupt
+file, the write-protected disk, the format 1 to 2 conversion; the help page on the four
+machines (capsules, tiles and enemies drawn, return to the title by a key then by a click
+that starts no game, VBL clock intact) and `?` with the `ENDING` file missing; the music
+(each note of the theme and the ten endings must carry its bass and melody, each at its
+share of the speaker level, and last its slices; muted, a tune is silent and as long);
+328 640 collisions against the round-ball model, the 65 536 score conversions, every
+Beautiful Boot glyph at both alignments in both banks and pages, the 6502 message, and
+the C stack margin.
 
-Bibliothèques communes : [`dev/lib/prodos`](../dev/lib/prodos/README.md),
-[`dev/lib/mouse`](../dev/lib/mouse/README.md), DHGR dans `dev/lib/hgrc` et
-construction des volumes dans [`dev/tools/prodos`](../dev/tools/prodos/README.md).
-Code et tableaux : VERHILLE Arnaud, GPL-3.0. Police Beautiful Boot : Michael
-Pohoreski. Le système ProDOS conserve ses crédits et droits propres.
+The collision scenarios inject the initial state of each case; they are not a complete
+campaign played end to end without intervention. The images under test are temporary
+copies.
+
+## Under the hood
+
+### Memory layout
+
+| Address | Bank | Contents |
+|---|---|---|
+| `$0310`–`$03CF` | main | Two-voice player (129 bytes) and the table of the ten endings, copied by `CHROMA.SYS` |
+| `$0800`–`$0FFF` | main | Table image (`src/payload.s`): scanlines, bytes, phases, dot masks and background tiles, 1 784 bytes in a 2 KB zone; the font doubling tables are computed at start-up at `$0F00` |
+| `$0A00`– | aux | The bank of sixty boards (3 480 bytes: two tiles per byte, then the names), followed by the Beautiful Boot font and the tunes |
+| `$1000`–`$1FFF` | main | ProDOS file buffers, sprite backgrounds and metadata (`LOWBSS`) |
+| `$2000`–`$5FFF` | main + aux | The two DHGR pages |
+| `$4000`–`$5FFF` | main | The `ENDING` overlay (finale and help page), loaded into page 2 memory when needed |
+| `$6000`–`$BDFF` | main | Game code, data and BSS |
+| `$BE00`–`$BEFF` | main | C stack: 256 bytes, 18 used at most (measured) |
+| `$BF00` | main | ProDOS global page |
+
+`game.c` is compiled with `-Ors` (size); the critical routines are assembly.
+
+### ProDOS start-up
+
+The disk boots the small `CHROMA.SYSTEM` loader. Using 6502 instructions only, it first
+checks for a 65C02 (an `INC A` that an NMOS 6502 executes as a NOP); on an original //e it
+prints the message and QUITs to ProDOS. Otherwise it relocates itself to `$0800`, resolves
+the boot volume's name with `ONLINE` and loads `CHROMA.SYS`, which copies the duet player
+to page 3, the table image to `$0800`, the level bank and font to auxiliary `$0A00`, and
+relocates the game image to `$6000`.
+
+The game uses the auxiliary RAM directly, without checking `/RAM` and without a dialog.
+On exit the ProDOS runtime restores the text screen, the mouse, the zero page, the RESET
+vector and the system bitmap, then calls `QUIT`; the ProDOS RAM disk is recreated empty.
+
+The help page and the finale live in the `ENDING` overlay, loaded at `$4000` by
+`records.c`; the help page costs seven bytes of code in main memory. If the file cannot
+be read, the title stays on screen. cc65 places every string literal in `RODATA`, hence
+in main memory, even under a `#pragma rodata-name`: the overlay's texts are named arrays.
+
+### Sectors
+
+The boards are drawn as ASCII art in `src/levels.txt`: a name of at most ten letters,
+then 8 rows of 12 tiles (`.` empty, `1`–`3` hits, `#` steel). `tools/pack_levels.py`
+checks that every tile is reachable from below through non-steel tiles, that boards and
+names are distinct, and packs the bank that `CHROMA.SYS` copies to auxiliary `$0A00`. The
+game copies one board and its name at the start of each level (`level_fetch`).
+
+### Rendering and frame rate
+
+The presentation waits for two video refreshes: 30 fps NTSC, 25 fps PAL. The //e follows
+the vertical blank during rendering; the //c uses the VBL mode of its mouse firmware and a
+ProDOS interrupt handler, released on Escape or RESET. A new board is built on the hidden
+page, shown complete once, then copied to the other page with the sprite backgrounds. The
+waits have a bounded fallback if synchronisation disappears.
+
+Sprites and text use an assembly engine with scanline and phase tables. The sprite
+drawing loop is copied to the same address in both banks; its parameters and masks stay
+in zero page. Backgrounds are saved per page and restored in reverse order. The HUD is
+prepared once for both pages, each keeping its own history of displayed characters, and
+redraws only the changed characters, one per frame; preparing the HUD and drawing a
+character happen on different frames. A sliding paddle erases only the bands it uncovers,
+and its seven DHGR alignments are cached, with constant colours. Collision tests reuse
+empty zones during a ball's move; the cache is reset per ball and per frame. Impacts only
+change a tile's slots or clear its surface. Capsules have per-row masks in zero page,
+recomputed only when the column or type changes. The round 4-pixel sprites (red ball,
+enemies) have precomputed masks for the seven alignments, like the white ball. Enemies
+(`src/enemies.s`) move and test their contacts in assembly.
+
+Tiles are bevelled in 12 alternating hues, with rounded corners, lit top and left edges,
+shaded right and bottom, and a white highlight; resistant tiles carry one or two black
+slots, steel a diagonal highlight. The frame is in two blues, the paddle cyan with a white
+highlight, a blue shadow and rounded silver ends; the ball is a white rounded 3 × 6. With
+Laser each end of the paddle carries a red 1 × 3 cannon (cannon and shot share a sprite);
+shots are 1 × 4 with a white head on a yellow body. Piercing balls are shaded 4 × 7
+spheres (pink left edge, red core, purple right edge) drawn one line higher, whose
+collision silhouette stays 3 × 6; their per-pixel colours account for the one-dot shift
+between the pixel window and the colour cell (`tools/generate_sprite_tables.py`).
+
+The score is counted in tens of points (every gain is a multiple of ten): sixteen bits
+reach 650 000, and the HUD's sixth digit is a fixed zero. It is also kept in BCD (65C02
+decimal mode) so the HUD reads its digits without binary conversion, and HUD messages
+are stored already aligned on their 10 cells.
+
+**Frozen addresses.** The frame rate depends on the addresses of the assembly modules and
+their tables: a taken branch or an indexed read that crosses a page costs one more cycle,
+and a few bytes of shift have already cost a frame in the heavy scenes. `game.c` and
+`records.c` are linked before them; `src/spare.s` separates them with a few spare bytes
+(58 of code, 49 of constant data, 13 of variables) and three link-time assertions. When
+one of the two C files changes size, adjust the spare by as much: nothing moves after
+them and the frame rate needs no new measurement. `sound.s` keeps its size the same way
+(27 bytes spare since the player moved to page 3).
+
+### Text and the Chat Mauve mode
+
+All text uses the 7 × 7 **Beautiful Boot** font with the HGR technique: its strokes are at
+least two HGR dots wide, and each HGR dot becomes two DHGR dots, so a stroke covers four
+dots, a full NTSC colour cycle: it stays white on a colour monitor, where a 560-dot text
+would be unreadable. A cell is 14 dots, one whole auxiliary byte and one main byte; text
+is placed every 7 dots (40 cells per line) and written without reading video memory
+(`src/finetext.s`). Its planes, `src/fine_font.inc`, are generated by
+`tools/generate_fine_font.py` from the shared `dev/lib/font`.
+
+The game always selects the mixed DHGR mode of the RGB cards (Le Chat Mauve Féline, the
+//c RGB adapter, Video-7), where bit 7 of each byte selects 7 monochrome 560 dots (0) or
+140 colour (1). Every graphics byte keeps bit 7 set (clears to `$80`, masks that preserve
+it); only text writes it clear and is then displayed in pin-sharp 560 dots. The HUD is a
+monochrome band and each text line starts with a black monochrome byte, so that no
+neighbouring colour cell bleeds. These cards have nothing readable, so no detection is
+possible or needed: in composite the bit is ignored in DHGR, and the Eve falls back to
+140 colour; the picture is unchanged. The lock is set at start-up (with IOUDIS on the //c,
+otherwise `$C05E/$C05F` would set the mouse) and reset to 140 colour on exit.
+
+### Music and sound
+
+The speaker plays distinct sounds for the launch, rebounds, steel, hits and destructions,
+bonuses, sectors and a lost life. Effects are spread over several frames; the mouse
+interrupts stay active. Pause silences the sounds.
+
+**Two voices on one bit.** The theme, the ten endings and the fanfare have a melody and a
+bass on the single speaker bit (`src/duet.inc`, the MICRO-SOKOBAN engine). Two square
+waves share the speaker by time division: at each turn of the loop (33 cycles) the player
+looks at the bass, then at the melody. While both are at the same level the speaker rests
+there; when they differ it flips at both looks and follows the bass for 13 cycles, the
+melody for 20, at 31 kHz. That carrier is inaudible: what remains is the sum of the two
+waves, the melody a little louder. Every path through a turn takes 33 cycles, so a
+half-period is a whole number of turns: `tools/generate_music.py` writes the tunes in just
+intonation, in the scale of C whose periods are whole (C4 = 60 turns, a fifth of a
+semitone under concert pitch), with the nearest counts for the sharps of D, E and A
+major. Notes that would fall between two counts (F5, D6, C7) do not exist: the melodies
+are written around them, and the fanfare ends on C6 instead of C7. An event is three bytes
+(melody, bass, duration in slices of 8.3 ms). The player (129 bytes) and the table of the
+ten endings are copied to page 3 (`$0310` to `$03CF`) by `CHROMA.SYS`: its loop counts
+cycles and must not straddle a page, and the game loses no byte to it. Interrupts are
+masked during a note and served between two notes (on the //c, the sixty mouse interrupts
+per second blurred the two voices). With the sound off, a tune is silent but keeps its
+duration.
+
+### Input
+
+In keyboard play the mouse is not polled (about 1 300 cycles saved per frame); `M` reads
+it again before handing control back. Joystick and paddles (`J`): both analog timers
+start together (`$C070`) and are counted inside the wait that precedes each presentation
+(`timing.s`, a 23-cycle loop, one count for two of the paddle's). Reading stops at the
+vertical blank (//e) or at the toggling interrupt (//c); an unfinished axis keeps its
+previous value, so the frame rate never depends on the controller, even at full scale
+(tested on the twelve profiles). On the //c the `$C070` access also acknowledges the VBL
+interrupt: if it falls during that very access, the frame is shown one refresh later. The
+mouse is not polled in this mode. The mouse height is absolute: the firmware bounds the
+pointer to the paddle's travel (the Makefile passes `MOUSE_Y_LOW/HIGH/START` from
+`layout.h`).
+
+References: [ProDOS interrupts](https://prodos8.com/docs/techref/adding-routines-to-prodos/)
+and the [Apple IIc technical notes on VBL](https://mirrors.apple2.org.za/Apple%20II%20Documentation%20Project/Computers/Apple%20II/Apple%20IIc/Documentation/Apple%20IIc%20Technical%20Notes.pdf).
+
+### Shared libraries (`../dev`)
+
+| Library | Used for |
+|---|---|
+| [`dev/lib/hgrc`](../dev/lib/hgrc/README.md) | DHGR pages, clear and layout tables (`dhgr_clear_asm`, `dhgr_layout.inc`); the unused drawing and text modules are excluded at link time |
+| [`dev/lib/prodos`](../dev/lib/prodos/README.md) | ProDOS MLI, `crt0_prodos`, file I/O for `HIGHSCORES` and `ENDING` |
+| [`dev/lib/mouse`](../dev/lib/mouse/README.md) | AppleMouse II and native //c mouse driver; VBL mode 9 and the ProDOS interrupt handler on the //c |
+| [`dev/lib/apple2c`](../dev/lib/apple2c/README.md) | Keyboard and the VBL frame pacing (`apple2frame`) |
+| [`dev/lib/gfx`](../dev/lib/gfx/README.md) | `gfx_u16_digits` (65C02): the decimal digits of the HUD and score screens |
+| [`dev/lib/font`](../dev/lib/font/README.md) | The Beautiful Boot master glyphs, from which `fine_font.inc` is generated |
+| [`dev/tools/prodos`](../dev/tools/prodos/README.md) | ProDOS 8 2.4.3 image, boot block and volume builder |
+
+## Releases
+
+- **1.0**: [release notes](../docs/releases/chromabreak-1.0.md),
+  [disk and tag](https://github.com/habib256/pom2games/releases/tag/chromabreak-1.0).
+- **1.1** (in preparation): the paddle rising diagonally under a bottom-row tile, or
+  widened between a tile and a wall, no longer leaves the field (the machine used to
+  freeze); the score reaches 650 000 on six digits and an extra life comes every 5 000
+  points, with `HIGHSCORES` in format 2 and format 1 files converted; `?` with the
+  `ENDING` file missing keeps the title on screen; the demo lasts 60 s in PAL as in NTSC;
+  the mouse height is absolute (no travel lost after a lost life); the joystick chosen
+  with `J` stays the control after a game over and after a demo; a paddle that rises past
+  a capsule in one go collects it; "V1.1" on the title.
+
+## Credits and licence
+
+Code and boards: **VERHILLE Arnaud**, GPL-3.0 (see the `LICENSE` at the repository root).
+Beautiful Boot font: **Michael Pohoreski**. ProDOS keeps its own credits and rights.

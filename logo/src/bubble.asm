@@ -1,7 +1,7 @@
 ; ============================================================================
-; hgr_bubble.asm -- full-width speech-bubble frame for the GEN2 HGR LOGO build.
+; bubble.asm -- full-width speech-bubble frame for the GEN2 HGR LOGO build.
 ; ----------------------------------------------------------------------------
-; Replaces dev/lib/tms9918/bubble.asm (same draw_bubble symbol). Two HGR-aware
+; Replaces POM1's dev/lib/tms9918/bubble.asm (same draw_bubble symbol). Two HGR-aware
 ; upgrades over the TMS version:
 ;
 ;   1. FULL 280-px WIDTH. The bubble spans x = 4..275 using plot_set_x16, the

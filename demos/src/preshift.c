@@ -8,8 +8,9 @@
  * from preshift_sprites.txt by POM1's tools/build_preshift_sprites.py.
  *
  * Shows the pre-shifted sprite engine: each sprite is baked into 7 pre-shifted
- * phases offline (sprites.txt -> sprites_ps.h, built by
- * tools/build_preshift_sprites.py), so a 1px-precise blit is just "pick the phase
+ * phases offline (preshift_sprites.txt -> preshift_sprites.h, by POM1's
+ * tools/build_preshift_sprites.py; dev/tools/assets/convert.py builds new
+ * banks), so a 1px-precise blit is just "pick the phase
  * for x%7, byte-blit at x/7" -- no per-pixel shifting.
  *
  * SINGLE-BUFFER + V-blank sync, exactly how Buzzard Bait does it -- and it is
@@ -26,7 +27,7 @@
 #include "hgr.h"
 #include "preshift_sprites.h"  /* generated banks: hgr_sprite_t ball, ship */
 
-/* Ball is 11x11 (sprites.txt). Play area: full width, from just under the ship
+/* Ball is 11x11 (preshift_sprites.txt). Play area: full width, from just under the ship
  * down to the top of the floor, so it bounces ON the floor. */
 #define BALL_W   11
 #define BALL_H   11

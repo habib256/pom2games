@@ -1,7 +1,7 @@
 ; ============================================================================
-; hgr_text_bitmap.asm -- HGR 8x8 glyph blitter for the GEN2 LOGO "full" build.
+; text_bitmap.asm -- HGR 8x8 glyph blitter for the GEN2 LOGO "full" build.
 ; ----------------------------------------------------------------------------
-; Drop-in replacement for dev/lib/tms9918/text_bitmap.asm: same public symbol
+; Drop-in replacement for POM1's dev/lib/tms9918/text_bitmap.asm: same public symbol
 ; (text_blit_glyph) and the same (A, pix_x, pix_y, pen_color) contract, but it
 ; paints into the GEN2 HGR framebuffer via plot_set + the Beautiful Boot 8x8
 ; font (bbfont) instead of the TMS9918 pattern/colour tables. Used by LOGO's

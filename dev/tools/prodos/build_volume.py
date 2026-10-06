@@ -3,10 +3,10 @@
 # and tools/prodos_read.py (VERHILLE Arnaud).
 """Construit une image de volume ProDOS 8 amorcable a partir d'un dossier.
 
-    mkvolume.py STAGE SORTIE.po --volume A2FILECMD --boot data/prodos_boot.tmpl
-                --blocks 280
+    build_volume.py STAGE SORTIE.po --volume CHROMABREAK --boot boot.bin
+                    --blocks 280
 
-Pourquoi en Python : A2 File Cmd doit se construire avec cc65 et rien
+Pourquoi en Python : pom2games (comme A2 File Cmd, d'ou vient cet outil) doit se construire avec cc65 et rien
 d'autre. Un outil C++ tiers pour ecrire les structures ProDOS obligerait
 quiconque -- l'integration continue comprise -- a compiler un emulateur pour
 obtenir une disquette. Trois cents lignes ici suffisent, et le format est

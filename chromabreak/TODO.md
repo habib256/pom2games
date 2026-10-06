@@ -1,144 +1,189 @@
-# CHROMABREAK — TODO
+# ChromaBreak — TODO
 
-- [x] Profil Apple //e enhanced 128 Ko, distinct du II+ 48 Ko / DOS 3.3.
-- [x] Disquette ProDOS 2.4.3 amorçable et chargeur SYS autonome.
-- [x] Bibliothèques communes ProDOS MLI, runtime et AppleMouse II.
-- [x] DHGR 16 couleurs, deux pages, briques colorées et sauvegarde des fonds.
-- [x] Exploiter la palette : briques à reflets, titre multicolore ; cadre sobre et raquette cyan.
-- [x] Vérifier les raquettes normale/large et la balle blanche ronde dans les sept phases DHGR.
-- [x] 12 tableaux, huit angles, résistance, acier, six capsules et vies bonus.
-- [x] Souris par défaut pour clic et Espace ; clavier disponible avec K.
-- [x] Souris intégrée native du //c : IRQ ROM actives, banques masquées brièvement.
-- [x] Tests de démarrage et souris sur les ROMs //c de 16 et 32 Ko.
-- [x] Retirer la vérification /RAM et le dialogue avant le lancement.
-- [x] Remplacer le rendu C coûteux par l'assembleur et le score différentiel.
-- [x] Tests ProDOS, clavier, transitions et firmware des deux souris POM2.
-- [x] Balle ronde, collisions adaptées et sauvegarde du fond aux coins transparents.
-- [x] Sons distincts, séquencés sans bloquer les IRQ souris ; silence en pause.
-- [x] Départ 50 % plus rapide, accélération tous les huit blocs jusqu’à six sous-pas.
-- [x] Renommer le projet, la page de garde et la disquette en ChromaBreak.
-- [x] Démarrage en un clic/Espace/Entrée, avec balle lancée et clavier via K.
-- [x] Mise à jour des seuls bords de raquette et suppression des divisions aux impacts.
-- [x] VBL //e et IRQ VBL //c : cadence régulière NTSC/PAL et nettoyage à la sortie.
-- [x] Un seul dessin de tableau, présentation complète puis copie main/aux cachée.
-- [x] Retirer le fond diagonal et corriger la police (sept colonnes complètes).
-- [ ] Valider sur Apple //e enhanced physique avec carte AppleMouse II et sur //c physique.
-- [ ] Jouer une campagne complète avec un pilote automatique sans injection.
-- [x] Sauvegarder les cinq records sur ProDOS, avec initiales et difficulté.
-- [x] Ajouter des tableaux propres à la version DHGR ; conserver le fond noir demandé.
+Version 1.1 is in preparation; 1.0 is the last published release. Everything so far has
+been validated in emulation only (POM2 with the real //e and //c ROMs, a2shot).
 
-## ChromaBreak — évolution demandée
+## Next up
 
-- [x] 1. Douze tableaux propres au jeu : motifs, passages et chemins de rebonds.
-- [x] 2. Bonus multiballe (trois balles), double laser, balle traversante, avec acier conservé.
-- [x] 3. Combos de destructions jusqu’à ×8, réinitialisés au contact raquette/perte de vie.
-- [x] 4. Éclats colorés limités et flash bref des briques résistantes, sans traces.
-- [x] 5. Cinq records ProDOS, trois initiales, mode affiché, rechargement après redémarrage.
-- [x] 6. Détente, Arcade, Expert : vies, largeur, vitesse et progression distinctes.
-- [x] Raquette cyan sobre, extrémités arrondies argentées, ombre et clavier réactif.
-- [x] Vérifier chaque mécanique, sauvegarde réelle et gestion des erreurs de disque.
-- [x] Vérifier souris //e et //c, PAL/NTSC, rendu des deux pages et cadence avec bonus.
-- [x] Actualiser la disquette, les images et le mode d’emploi.
-- [x] Rétablir la cadence NTSC régulière avec le firmware complet AppleMouse (MAME).
-- [x] Optimiser les dix sprites simultanés à vitesse Expert : le test exige 30/25 images/s.
+1. **Redo the three POM2 screenshots.** `screenshots/title.png` still shows "V1.0" while
+   the title now prints `V1.1  BY ARNAUD VERHILLE` (`src/game.c`, `credit[]`), and
+   `game.png` / `game-sector-2.png` show a five-digit score (00310) while the HUD has
+   printed six digits since the score cap moved to 650 000 (`src/game.c`,
+   `number(value,points_text,5); points_text[5]='0'`). Same method as before: POM2,
+   `--preset iie --slot 4=mouseaw`, colour monitor rendering, captured during the demo
+   mode (1231 × 908). The 1.0 release notes point at the `chromabreak-1.0` tag's copies,
+   so they are not affected.
+2. **Publish 1.1.** Write `docs/releases/chromabreak-1.1.md` on the model of
+   `chromabreak-1.0.md` (the 1.1 fixes are listed in the README's "Releases" section),
+   tag `chromabreak-1.1` with the disk attached, then update the "Version 1.1 in
+   preparation" line at the top of `README.md`. Depends on item 1, since the notes embed
+   the screenshots from the tag.
+3. **Play a full campaign with an autopilot, without state injection.** The sixty
+   transitions of `tests/test_game.py` poke `remaining=1` and clear `_bricks`, and
+   `tests/playtest.cpp` sets `enemy_hold=1` and injects each collision case: nothing yet
+   plays the game end to end. The demo pilot already exists (`src/game.c`, `demo_input`:
+   follows the ball with a varying aim, relaunches, fires the laser); driving it from
+   a2shot or the POM2 harness over all sixty sectors would exercise, in real play, the
+   extra life every 5 000 points, the ×8 combo, the progress save on every "SECTOR nn
+   CLEAR", the ENDING overlay load and the 650 000 cap path, with the real frame budget
+   (enemies, capsules and shards all active).
+4. **Validate on real hardware.** Enhanced //e with an AppleMouse II card, and a //c with
+   its built-in mouse (`dev/lib/mouse`, VBL mode 9 and the ProDOS interrupt handler).
+   On the same machines:
+   - joystick and Apple paddles (`J`): axis range and centring with real controllers,
+     since `src/timing.s` counts the `$C070` timers in the VBL wait with a 23-cycle
+     loop, one count for two of the paddle's;
+   - the rendering of capsules, enemies and Beautiful Boot text on a real colour
+     monitor (`src/finetext.s`: each HGR dot becomes two DHGR dots so strokes stay
+     white), and the Chat Mauve mode on a real Féline or //c RGB adapter (bit 7 of every
+     byte, lock set with IOUDIS on the //c);
+   - the two-voice music on the real speaker (`src/duet.inc`: 31 kHz carrier, 13/20-cycle
+     time division), on //e and //c.
 
-### Optimisation du rendu — validée
+## Later
 
-- [x] Sauvegarde des sprites séparée par banque ; boucle de dessin identique en RAM principale et auxiliaire.
-- [x] Masques de la balle blanche, des tirs, capsules et éclats précalculés pour les sept alignements DHGR.
-- [x] Pixels déroulés, paramètres et masques en page zéro ; fonds alignés sur 32 octets.
-- [x] Scénario maximal à cadence régulière NTSC et PAL sur //e et //c.
-- [x] Boucle multiballe en assembleur, état physique en page zéro, chaque sous-pas conservé.
-- [x] Cache des zones vides par balle, réinitialisé avant chaque déplacement ; 328 640 positions comparées au modèle de collision.
-- [x] HUD souhaité partagé, historique de dessin séparé pour chaque page, glyphes blancs accélérés.
-- [x] Présentation sur un VBL frais après un long chargement ; revalidation des transitions.
-- [x] Conversion du score bornée à 1 043 cycles, validée pour 65 536 valeurs ; copie directe vers le HUD.
-- [x] Effacement des seules bandes laissées par la raquette, couleurs et arrondis conservés.
-- [x] Cache des sept phases pour deux familles de largeur ; dessin direct depuis le cache.
-- [x] Dessin des balles, capsules, tirs et éclats piloté en assembleur.
-- [x] Éclats calculés en assembleur ; flash restauré sur les deux pages.
-- [x] Revalider niveaux, police, silhouettes, bonus, records et erreurs ProDOS après ces changements.
-- [x] Scénario maximal : dix objets à vitesse Expert, cadence 30 Hz NTSC / 25 Hz PAL.
+- An original //e with a 65C02 but without the enhanced ROM passes the `CHROMA.SYSTEM`
+  CPU test (`src/boot.s`) but has never been tried; decide whether to detect the ROM or
+  document it as unsupported.
+- The //c+ is not validated by the shared mouse driver (`dev/lib/mouse/README.md`).
+- Frozen addresses (`src/spare.s`): 58 bytes of code, 49 of constant data and 13 of
+  variables separate the C files from the assembly modules, and `src/sound.s` keeps 27.
+  When a spare runs out or a `dev` library changes size, the module addresses move:
+  record the new ones in the asserts, run `test-mouse` on every profile and compare the
+  worst frame (`CHROMA_PROFILE`).
 
-Validation finale : les douze profils firmware/démarrage/sortie passent,
-y compris les dix objets simultanés à 30 Hz NTSC et 25 Hz PAL. Les tests
-ProDOS, clavier, douze transitions, victoire/reprise, les comparaisons exhaustives
-de collision et les 65 536 conversions numériques passent également.
-Les records sont vérifiés après redémarrage, avec fichier absent/corrompu
-et disque protégé. Les captures du menu et du premier tableau sont actualisées.
+## Ideas
 
+Not committed; noted because the code already suggests them.
 
-## Espace à l’écran, petite police et anglais
+- Let the autopilot campaign (Next up, 3) also report the real maximum score of the
+  sixty sectors: the README states 235 750 points from the tiles, enemies excluded.
+- Move some of the `test-records` checks that need no mouse firmware (music events,
+  Beautiful Boot glyphs, score conversions, 6502 message) to the a2shot path of
+  `tests/test_game.py`, so `make test` covers them without a POM2 source tree.
 
-- [x] Bandeau compact en haut ; aire de jeu de 180 lignes, raquette à y=184.
-- [x] Remonter les huit rangées de briques à y=14, avec collisions cohérentes.
-- [x] Ajouter `dhgr_puts_small` et l’entrée rapide par caractère dans la lib DHGR.
-- [x] Police blanche 4×5, avance de cinq colonnes, sept alignements sans découpe.
-- [x] Passer tous les écrans, niveaux, difficultés et messages en anglais.
-- [x] Conserver le logo multicolore agrandi et adapter le curseur des initiales.
-- [x] Tester les glyphes, la sauvegarde ProDOS et les transitions des 12 tableaux.
-- [x] Conserver 30 Hz NTSC / 25 Hz PAL avec souris et dix objets sur //e et //c.
+## Done
 
+### 1.1 (in preparation)
 
-## Menus adaptés à la petite police
+- [x] A paddle rising diagonally under a bottom-row tile, or widened by ENLARGE between a
+      tile and a wall, stays under the tiles and inside the field (it used to leave the
+      field and freeze the machine).
+- [x] Score on six digits up to 650 000 (counted in tens of points), extra life every
+      5 000 points; `HIGHSCORES` format 2, format 1 files converted on load.
+- [x] `?` with the `ENDING` file missing keeps the title on screen; demo of 60 s in PAL as
+      in NTSC.
+- [x] Mouse height absolute (the firmware bounds the pointer to the paddle's travel): no
+      travel lost after a lost life.
+- [x] The joystick chosen with `J` stays the control after a game over (button or Space)
+      and after a demo.
+- [x] A paddle that rises past a capsule in one go collects it.
+- [x] "V1.1" on the title.
 
-- [x] Centrer les textes avec l’avance de cinq colonnes.
-- [x] Regrouper PLAY et les touches de lancement dans un seul cadre.
-- [x] Réunir les trois difficultés et souligner le mode sélectionné.
-- [x] Regrouper les commandes clavier, les records et la sortie sous le menu.
-- [x] Aligner les colonnes des records et afficher le nom complet du mode.
-- [x] Recentrer la fin de partie, le score et la saisie des initiales.
-- [x] Actualiser les captures ; revalider clavier, souris, records et cadence //e / //c.
+### 1.0 — sixty sectors, enemies, music, help page
 
+- [x] Sixty boards in ASCII art (`levels.txt`), packed two tiles per byte into an
+      auxiliary-RAM bank; sector selector in the Escape menu, bounded by the saved
+      progress (furthest sector, in `HIGHSCORES`).
+- [x] Escape menu: resume, sector choice, sound toggle, back to title, quit to ProDOS.
+- [x] Two Arkanoid-style enemies, a coil and a TIE fighter: gates, sliding around tiles,
+      destroyed by ball, laser or paddle, exit through the bottom; colours distinct from
+      the balls; none during multiball.
+- [x] Capsules as 5 × 6 blocks with the black letters E S C D L P; laser cannons on the
+      paddle; piercing ball as a shaded red 4 × 7 sphere (cached round masks); shots with
+      a white head.
+- [x] Vertical paddle up to mid-field, blocked by tiles along its whole path;
+      ball/paddle contact checked every frame; spin from the paddle motion; Catch keeps
+      the impact point.
+- [x] Beautiful Boot text with the HGR technique (one HGR dot = two DHGR dots): white on a
+      colour monitor, 40 cells; 37-cell HUD on lines 1–7 with the sector or bonus name
+      right-aligned; logo in relief from the same glyphs.
+- [x] Bevelled tiles with rounded corners and resistance slots, steel with a diagonal
+      highlight, two-tone frame, no bottom line; a dark background pattern per decade
+      above the paddle zone, from level 1.
+- [x] "SECTOR nn CLEAR" with a two-voice ending per sector of each decade (ten tunes, the
+      tenth a 3.3 s fanfare); title theme (I-vi-IV-V) cut short by a key; theme and tunes
+      in auxiliary RAM.
+- [x] Two-voice music engine on the one-bit speaker: 129-byte player in page 3, just
+      intonation, interrupts served between notes (the //c mouse IRQs blurred the voices).
+- [x] Finale after sector 60: `ENDING` overlay at `$4000`, VICTORY, fanfare, fireworks.
+- [x] Help page (`?` on the title): capsules, tiles, points; code in the `ENDING` overlay,
+      seven bytes in main memory.
+- [x] Demo mode after 15 s idle (50/60 Hz detected), silent autopilot, no records.
+- [x] Chat Mauve mode always on: 560-dot monochrome text, graphics with bit 7 set, RGB
+      lock (IOUDIS on the //c).
+- [x] Joystick and Apple paddles (`J`): absolute axes, buttons 0/1, read during the VBL
+      wait at no frame cost.
+- [x] Original //e (6502): clear message and return to ProDOS instead of a crash.
+- [x] Difficulty selection on the title redraws only the underline; version and author on
+      the title, "65C02" in the subtitle.
+- [x] Memory: game table image at `$0800`, font doubling computed at `$0F00`, C stack
+      brought down to 256 bytes (18 used, margin checked by the playtest); frozen module
+      addresses with the spares and asserts of `spare.s`.
+- [x] Cheaper HUD: BCD score, pre-aligned messages, static locals; piercing-ball scenario
+      tested at full frame rate.
+- [x] //c test bench with the built-in serial ports plugged (the ROM polls the ACIAs on
+      every IRQ).
+- [x] Frame rate 30/25 fps kept on the twelve profiles with the diagonal paddle and the
+      enemy scenario.
 
-## Détails, raquette verticale, ennemis et capsules
+### Screen layout, English text and menus
 
-- [x] Texte Beautiful Boot à la technique HGR (point HGR → deux points DHGR) : blanc et lisible en couleur, 40 cellules.
-- [x] Bandeau de 37 cellules (lignes 1 à 7), nom du tableau ou du bonus aligné à droite.
-- [x] Briques biseautées aux coins arrondis, fentes de résistance, acier à reflet diagonal, cadre en deux tons.
-- [x] Logo en relief à partir des glyphes Beautiful Boot.
-- [x] Raquette verticale jusqu’à mi-terrain, bloquée par les briques sur toute sa trajectoire.
-- [x] Contact balle/raquette vérifié à chaque image (raquette qui glisse ou monte vers la balle).
-- [x] Effet de la raquette sur le rebond ; la capture garde le point d’impact.
-- [x] Deux ennemis à la Arkanoid : portes, contournement des briques, balle/laser/raquette, sortie par le bas.
-- [x] Capsules en blocs 5 × 6 avec lettre noire E S C D L P.
-- [x] Mémoire : tables communes sans la petite police, doublement calculé en `$0F00`, pile C de 768 octets.
-- [x] Cadence 30/25 images/s conservée sur les douze profils, avec raquette en diagonale et scénario à ennemis.
-- [x] Mode démo après 15 s d’inactivité (50/60 Hz détectés), pilote automatique silencieux.
-- [x] Image de tables propre au jeu en `$0800` ; tableaux compactés à deux briques par octet.
-- [x] Mode Chat Mauve toujours actif : texte 560 mono, graphismes en bit 7, verrou RVB (IOUDIS sur //c).
-- [x] Banc //c : ports série intégrés branchés (la ROM lit l’état des ACIA à chaque IRQ).
-- [x] Laser : canons rouges sur la raquette ; balle traversante rouge 4 × 7 (masques ronds en cache).
-- [x] Bandeau moins cher : score BCD, messages préalignés, locales statiques ; scénario « balles traversantes » testé.
-- [x] Balle traversante en sphère ombrée (encre précalculée), tirs à tête blanche.
-- [x] Menu Échap : reprise, choix des douze tableaux, son, titre, ProDOS.
-- [x] Soixante tableaux en ASCII (`levels.txt`), banque en RAM auxiliaire, sélecteur au menu.
-- [x] Fonds par décennie au-dessus de la zone de la raquette ; plus de ligne basse.
-- [x] Ennemis en bobines (barres colorées, noyau blanc), distincts des balles.
-- [x] Second ennemi en chasseur TIE (ailes colorées, noyau blanc) qui ondule en vagues.
-- [x] « SECTOR nn CLEAR » et jingle à chaque tableau terminé.
-- [x] Finale après le tableau 60 : recouvrement ENDING en `$4000`, VICTORY, fanfare, feux d’artifice.
-- [x] Difficultés au titre : seul le trait de sélection est redessiné.
-- [x] Thème de titre (I-vi-IV-V), interrompu par une touche ; thème et jingle en RAM auxiliaire.
-- [x] Progression (secteur le plus lointain) sauvegardée dans HIGHSCORES ; le menu ne propose que les secteurs atteints.
-- [x] Fond dès le niveau 1 : six motifs, un par décennie (croix ajoutées pour 51-60).
-- [x] Jingle de fin de tableau par décennie : six jingles (do, ré, mi, fa, sol, la), de plus en plus ornés.
-- [x] Version 1.0 et nom de l’auteur sur la page de garde ; « 65C02 » dans le sous-titre.
-- [x] Pile C ramenée à 256 octets (usage mesuré : 18 octets) ; test de marge dans le playtest.
-- [x] Joystick et paddles (`J`) : axes absolus, boutons 0/1, lecture dans l’attente du VBL sans coût de cadence.
-- [ ] Valider joystick et paddles sur machine réelle (calibrage des manettes).
-- [x] //e d’origine (6502) : message clair et retour à ProDOS au lieu d’un plantage (testé dans POM2).
-- [ ] Valider le rendu des capsules et du texte sur moniteur couleur réel.
-- [x] Page d’aide (`?` au titre) : capsules, tuiles, points ; code dans le recouvrement ENDING.
-- [x] Musique à deux voix (thème, airs de fin, fanfare) : lecteur en page 3, intonation juste.
-- [x] Dix airs de fin de tableau à deux voix, un par tableau d’une dizaine, d’environ 2 s (3,3 s pour le dixième).
-- [x] Adresses figées des modules assembleur : réserve et assertions de `spare.s`.
-- [ ] Écouter les airs à deux voix sur //e et //c réels (porteuse à 31 kHz).
-- [x] Score sur six chiffres jusqu’à 650 000 (compté en dizaines), vie tous les 5 000 points ; `HIGHSCORES` au format 2, le format 1 est converti.
-- [x] Raquette en diagonale sous une brique de la dernière rangée, ou élargie entre une brique et un mur : elle reste sous les briques et dans le terrain (elle sortait du terrain et la machine se figeait).
-- [x] `?` sans le fichier `ENDING` : la page de garde reste affichée ; démo de 60 s en PAL comme en NTSC.
-- [ ] Refaire les trois captures POM2 : `game.png` et `game-sector-2.png` (bandeau encore sur cinq chiffres) et `title.png` (encore « V1.0 »).
-- [x] Version 1.1 sur la page de garde.
-- [x] Hauteur de la raquette à la souris en absolu (le firmware borne le pointeur à la course de la raquette) : plus de course perdue après une vie perdue.
-- [x] Le joystick choisi par `J` reste le mode de jeu après une fin de partie (bouton ou Espace) et après une démo.
-- [x] Une raquette qui monte d’un coup au-delà d’une capsule la ramasse.
+- [x] Compact top HUD, 180-line play area, paddle at y=184, tile rows from y=14 with
+      consistent collisions.
+- [x] Every screen, level name, difficulty and message in English.
+- [x] Title: PLAY and the launch keys in one frame, the three difficulties on one line
+      with the selection underlined, keyboard commands, records and exit grouped below.
+- [x] Records table with aligned columns and the full mode name; game over, score and
+      initials entry recentred; initials cursor adapted.
+- [x] (Superseded) 4 × 5 white small font with five-column advance and `dhgr_puts_small`
+      in the DHGR library; replaced by the Beautiful Boot text above.
+
+### Rendering optimisation (validated at 30 Hz NTSC / 25 Hz PAL)
+
+- [x] Sprite backgrounds saved per bank; identical drawing loop in main and auxiliary RAM;
+      unrolled pixels, parameters and masks in zero page; backgrounds aligned on 32 bytes.
+- [x] Masks of the white ball, shots, capsules and shards precomputed for the seven DHGR
+      alignments; capsules with per-row masks recomputed only on column or type change.
+- [x] Multiball loop in assembly, physics state in zero page, every sub-step kept; empty-zone
+      cache per ball reset before each move; 328 640 positions compared with the
+      collision model.
+- [x] Shared desired HUD with a drawing history per page; faster white glyphs; score
+      conversion bounded at 1 043 cycles and validated for 65 536 values, copied straight
+      to the HUD.
+- [x] Paddle: only the uncovered bands erased, cached seven phases for two width
+      families, drawn straight from the cache, constant colours and rounded ends.
+- [x] Balls, capsules, shots and shards driven in assembly; shards computed in assembly;
+      flash restored on both pages.
+- [x] Presentation on a fresh VBL after a long load; one board drawing, full presentation,
+      then hidden main/aux copy.
+- [x] Maximal scenario (ten objects at Expert speed) at a regular frame rate on //e and //c,
+      NTSC and PAL; levels, font, silhouettes, bonuses, records and ProDOS errors
+      revalidated afterwards.
+
+### First release of the DHGR profile (twelve boards)
+
+- [x] Enhanced //e 128 KB profile, distinct from the II+ 48 KB / DOS 3.3 `arkabreakout`;
+      bootable ProDOS 2.4.3 disk and standalone SYS loader; shared ProDOS MLI, runtime
+      and AppleMouse II libraries; `/RAM` check and pre-launch dialog removed.
+- [x] DHGR 16 colours on two pages: coloured bevelled tiles, multicolour title, sober frame,
+      cyan paddle with silver rounded ends and shadow, round white ball; normal and wide
+      paddles and the ball checked in the seven DHGR phases.
+- [x] Twelve boards of the game's own, eight angles, resistance, steel, six capsules
+      (multiball, double laser, piercing ball with steel kept), combos up to ×8 reset on
+      paddle contact or lost life, extra lives, limited coloured shards and a brief flash
+      on resistant tiles.
+- [x] Relax, Arcade and Expert: distinct lives, width, speed and progression; start 50 %
+      faster, speed-up every eight tiles up to six sub-steps.
+- [x] One-click/Space/Enter start with the ball launched; keyboard via `K`; mouse by
+      default; native //c mouse with ROM IRQs active and banks masked briefly.
+- [x] Distinct sounds sequenced without blocking the mouse IRQs; silence while paused.
+- [x] //e VBL and //c VBL IRQ: regular NTSC/PAL frame rate and clean-up on exit; regular
+      NTSC frame rate restored with the full AppleMouse firmware (MAME).
+- [x] C rendering replaced by assembly and a differential score; only the paddle edges
+      updated, no divisions on impact.
+- [x] Five records on ProDOS with initials and difficulty, reloaded after a reboot;
+      missing/corrupt file and write-protected disk handled.
+- [x] Tests: ProDOS image, keyboard, transitions, firmware of both POM2 mice, start-up and
+      mouse on the 16 and 32 KB //c ROMs; disk, images and manual updated; project,
+      title and disk renamed ChromaBreak.

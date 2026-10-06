@@ -2,7 +2,7 @@
 /*
  * gfx_ellipse.c — card-neutral 64-segment polyline ellipse. See gfx.h.
  *
- * The biggest gain of the gfx_draw.c split: this TU carries 128 bytes of
+ * The biggest gain of the former gfx_draw.c split: this TU carries 128 bytes of
  * cos/sin LUT + drags the cc65 16-bit soft-multiply (because of the
  * /64 inside ((int)cos * rx) / 64). A line/rect/circle-only program now
  * skips both costs entirely.

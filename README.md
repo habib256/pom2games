@@ -16,6 +16,7 @@ la vidéo native de l'Apple II.
 | [`logo/`](logo/) | LOGO V2.6 : tortue HGR, texte / mixte / graphique, 40 ou 80 colonnes | Apple //e (80 col.) ou II+ (40 col.) | `dist/LOGO.dsk` |
 | [`dev/examples/hgr/`](dev/examples/hgr/) | Exemple HGR animé : sprite masqué, compteur, clavier, cadence | Apple II+ / IIe / IIc | `dist/HGR.dsk` |
 | [`dev/examples/dhgr/`](dev/examples/dhgr/) | Palette 16 couleurs et grille DHGR | Apple IIe 128 Ko / IIc | `dist/DHGR.dsk` |
+| [`dev/examples/hello/`](dev/examples/hello/) | Programme de départ, assembleur et C sur la même disquette | Apple II+ | `dist/HELLO.dsk` |
 | [`demos/`](demos/) | Menu de 5 démos : BOUNCES, ANIMALS, LIFE, PRESHIFT, FONT | Apple II+ | `dist/DEMO.dsk` |
 
 Deux profils de jeux sont définis : **Apple II+ 48 Ko / DOS 3.3** pour
@@ -44,18 +45,26 @@ avec sa disquette ProDOS et sa [description](docs/releases/chromabreak-1.0.md).
     make                 # toutes les disquettes, dans dist/
     make -C chess        # une seule (elle va aussi dans dist/)
     make -C chess run    # la lancer dans POM2 installé (/Applications/POM2.app)
-    make test            # HGR puis les 454 niveaux de MICRO-SOKOBAN dans a2run
+    make test            # tout construire, puis CHROMABREAK, ARKABREAKOUT, HGR,
+                         # cadence, exemple HGR, assets, budgets de performance
+                         # et les 454 niveaux de MICRO-SOKOBAN dans a2run
     make test-arkabreakout # collisions, bonus, niveaux, paddle et sortie DOS
     make test-hgr        # primitives, texte gfx, moteur de sprites et archive
     make test-frame      # cadence, délais et repli en cas de VBL bloqué
     make test-hgr-example # animation, pause/reprise et retour à DOS
     make test-dhgr       # validation DHGR dans a2shot (macOS arm64)
+    make test-assets     # police (dev/tools/fonts.py --check) et conversion d'assets
+    make bench           # mesure les primitives (dev/bench), bench-check compare
+                         # aux budgets de dev/bench/baseline.json
     make check           # tout reconstruire, échouer si dist/ ne correspond pas
     make clean           # efface les build/ (les disquettes restent)
     make distclean       # efface aussi dist/*.dsk et dist/*.po
 
 Prérequis : [cc65](https://cc65.github.io/) (`brew install cc65`, ou
-`apt install cc65`) et python3 ; un compilateur C et zlib pour `make test`.
+`apt install cc65`) et python3 ; un compilateur C et zlib pour `make test`
+(ils construisent `dev/tools/a2run`). Les tests //e et DHGR passent par
+`dev/tools/a2shot` (macOS arm64, libslirp via brew) : `make test-dhgr` l'exige,
+`make test` les saute s'il manque.
 Le dépôt ne dépend d'aucun autre dossier. La construction est déterministe : les
 images de `dist/`, faites sous macOS, se reconstruisent à l'octet près avec le
 cc65 2.19 d'Ubuntu 24.04.
@@ -73,12 +82,22 @@ L'intégration continue (`.github/workflows/build.yml`) lance `make check` puis
   assembleur et en C ;
 - `dev/lib/prodos` et `dev/lib/mouse` : MLI ProDOS, sortie SYS et AppleMouse II ;
 - `dev/tools/prodos` : constructeur et lecteur de volumes ProDOS amorçables ;
+- `dev/lib/font` : la police Beautiful Boot 8x8, une table maîtresse découpée
+  à la demande (assembleur, C et `dev/tools/fonts.py`) ;
 - `dev/lib/hgr` : texte, sprites et tables HGR (assembleur) ;
 - `dev/lib/hgrc` et `dev/lib/gfx` : runtime graphique C HGR/DHGR et géométrie ;
 - [`dev/examples/hgr`](dev/examples/hgr/) : exemple animé, clavier, compteur,
   sprites masqués, double tampon et cadence selon le modèle ;
-- `dev/cc65` : configurations de l'éditeur de liens et démarrage C ;
-- `dev/tools/dos33.py` : fabrique les disquettes DOS 3.3 ;
+- [`dev/examples/dhgr`](dev/examples/dhgr/) : palette et grille DHGR sur
+  //e 128 Ko ou //c ;
+- `dev/cc65` : configurations de l'éditeur de liens, démarrage C et
+  `apple2.mk`, le fragment Makefile commun à tous les programmes ;
+- `dev/tools/dos33.py` : fabrique les disquettes DOS 3.3 et relit leurs
+  fichiers ;
+- `dev/tools/a2test.py` : harnais commun des tests (labels ld65, lancement
+  a2run/a2shot, décodage des dumps mémoire) ;
+- `dev/tools/assets`, `dev/tests`, `dev/bench` : conversion PNG/PPM en
+  HGR/DHGR, tests des bibliothèques et budgets de performance ;
 - `dev/tools/a2shot` : fait tourner une disquette sans fenêtre sur le cœur de
   POM2, tape au clavier et prend des captures — c'est ainsi que les ports sont
   testés ;

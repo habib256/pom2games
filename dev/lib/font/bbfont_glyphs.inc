@@ -6,7 +6,8 @@
 ; leftmost pixel, bit 7 always clear (a glyph is 7 px wide, HGR byte order).
 ;   $20-$7F  Beautiful Boot (Michael Pohoreski, apple2_hgr_font_tutorial),
 ;            AND #$7F + 8 rows reversed into HGR order
-;   $00-$1F, $80-$FF  CP437 box drawing and symbols (font_codepage_437_8x8.png)
+;   $00-$1F, $80-$FF  CP437 box drawing and symbols (from POM1's
+;            font_codepage_437_8x8.png)
 ;
 ; Never include this file directly: bbfont.inc defines the `bbglyph` macro
 ; that keeps only the requested range, and dev/tools/fonts.py reads it for
