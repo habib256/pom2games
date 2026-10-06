@@ -32,6 +32,13 @@ dessin courante. Les appels passent à la ligne au bord droit ; la dernière
 ligne ne défile pas. `gfx_cell_color` est sans effet avec ce backend.
 Il n’existe pas de backend texte par cellules DHGR ; utiliser `dhgr_puts`.
 
+`gfx_u16_digits` fournit cinq chiffres ASCII, avec zéros initiaux, pour une
+valeur non signée de 0 à 65535. Son buffer statique est réutilisé au prochain
+appel. Le noyau assembleur `gfx_u16_digits.s` est **réservé au 65C02** ; la
+famille optionnelle `HGRC_65C02_NUM_SRCS` le sélectionne sans modifier les
+conversions 6502 utilisées sur Apple II+. Il préserve les flags, notamment
+les états des interruptions et du mode décimal.
+
 Les segments diagonaux attendent des extrémités à l’écran : ils n’effectuent
 pas de clipping de ligne complet. Les rectangles pleins trient et rognent
 leurs coins ; les cercles rognent les points tracés. Les primitives HGR bas

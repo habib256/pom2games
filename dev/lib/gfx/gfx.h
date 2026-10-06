@@ -71,6 +71,10 @@ void gfx_ellipse(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1);
 /* Unsigned decimal, no leading zeros. `buf` must hold >= 6 bytes (65535 + NUL).
  * Returns the digit count written (excluding the NUL). */
 unsigned char gfx_utoa(char *buf, unsigned value);
+/* Optional 65C02 kernel (HGRC_65C02_NUM_SRCS): exactly five decimal digits.
+ * Shared six-byte buffer, overwritten on the next call; not reentrant.
+ * Bounded conversion preserves caller decimal/IRQ flags. */
+const char *__fastcall__ gfx_u16_digits(unsigned value);
 
 /* Signed decimal: leading '-' then magnitude. `buf` >= 7 bytes (-32768 + NUL). */
 unsigned char gfx_itoa(char *buf, int value);

@@ -68,7 +68,13 @@ void dhgr_puts(const char *s, unsigned char x, unsigned char y);
 /* Compact opaque white text: 4x5 glyphs; five color pixels per character, five rows tall.
  * ASCII space..underscore, lowercase folds to uppercase. Arbitrary x alignment;
  * surrounding pixels and interrupt state are preserved; clips at right/bottom. */
+#define DHGR_SMALL_ADVANCE 5u
+#define DHGR_SMALL_HEIGHT 5u
+#define DHGR_SMALL_FONT_STRIDE 6u
 void dhgr_puts_small(const char *s, unsigned char x, unsigned char y);
+/* String in A/X, starting at dhgr_small_x/y, advancing the shared cursor. */
+void __fastcall__ dhgr_small_string(const char *s);
+extern const unsigned char dhgr_small_font[64u*DHGR_SMALL_FONT_STRIDE];
 /* Fast one-cell entry for incremental HUDs. Coordinates use the draw page. */
 extern unsigned char dhgr_small_x, dhgr_small_y;
 void __fastcall__ dhgr_small_char(unsigned char ch);

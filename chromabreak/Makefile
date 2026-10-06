@@ -1,6 +1,7 @@
 CL65 ?= cl65
 CA65 ?= ca65
 LD65 ?= ld65
+AR65 ?= ar65
 PYTHON ?= python3
 DEV ?= ../dev
 DIST ?= ../dist
@@ -16,14 +17,17 @@ MOUSE := $(DEV)/lib/mouse
 include $(PRODOS)/prodos.mk
 include $(MOUSE)/mouse.mk
 DISK := $(DIST)/CHROMABREAK.po
-SRCS := src/game.c src/records.c src/render.s src/physics.s src/collision.s src/number.s src/sound.s src/timing.s $(HGRC)/dhgr.c $(HGRC)/dhgr_asm.s $(HGRC)/dhgr_small.c $(HGRC)/dhgr_small_asm.s $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) \
-        $(PRODOS_SRCS) $(MOUSE_SRCS)
+SRCS := src/game.c src/records.c src/render.s src/physics.s src/collision.s src/number.s src/sound.s src/timing.s
+LIB_SRCS := $(HGRC_65C02_NUM_SRCS) $(sort $(HGRC_DHGR_SRCS) $(HGRC_DHGR_SMALL_TEXT_SRCS)) $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) $(PRODOS_SRCS) $(MOUSE_SRCS)
 OBJS := $(BUILD)/crt0_prodos.o $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o)))
 OBJS := $(OBJS:.s=.o)
+LIB_OBJS := $(addprefix $(BUILD)/,$(notdir $(LIB_SRCS:.c=.o)))
+LIB_OBJS := $(LIB_OBJS:.s=.o)
+GAME_LIB := $(BUILD)/platform.lib
 CFLAGS := -t none --cpu 65c02 -Oirs -I src $(HGRC_INCS) $(APPLE2C_INCS) \
           $(PRODOS_INCS) $(MOUSE_INCS)
 vpath %.c src $(HGRC) $(APPLE2C) $(DEV)/lib/prodos
-vpath %.s src $(DEV)/cc65 $(HGRC) $(APPLE2C) $(DEV)/lib/prodos $(DEV)/lib/mouse
+vpath %.s src $(GFX) $(DEV)/cc65 $(HGRC) $(APPLE2C) $(DEV)/lib/prodos $(DEV)/lib/mouse
 all: $(DISK)
 $(BUILD)/%.o: %.c src/levels.h src/collision_tables.h src/layout.h $(HGRC_HEADERS) $(wildcard $(DEV)/lib/prodos/*.h $(DEV)/lib/mouse/*.h)
 	@mkdir -p $(@D)
@@ -31,21 +35,25 @@ $(BUILD)/%.o: %.c src/levels.h src/collision_tables.h src/layout.h $(HGRC_HEADER
 $(BUILD)/%.o: %.s $(DEV)/lib/apple2/apple2.inc
 	@mkdir -p $(@D)
 	$(CA65) -t none --bin-include-dir src -I src -I $(HGRC) -I $(DEV)/lib/apple2 -o $@ $<
-$(BUILD)/render.o: src/font.bin src/layout.inc
+$(BUILD)/render.o: src/font.bin src/layout.inc $(HGRC_ASM_DEPS)
 $(BUILD)/physics.o $(BUILD)/collision.o: src/layout.inc
-$(BUILD)/dhgr_small_asm.o: $(HGRC)/dhgr_small_font.inc
+$(BUILD)/dhgr_small_asm.o: $(HGRC_ASM_DEPS)
 src/layout.inc src/collision_tables.h: src/layout.h tools/generate_layout.py
 	$(PYTHON) tools/generate_layout.py
 $(BUILD)/game.o $(BUILD)/records.o: src/records.h src/sound.h
-src/font.bin: src/small_font.s src/small_font.cfg $(HGRC)/dhgr_small_data.inc $(HGRC)/dhgr_small_font.inc
-	@mkdir -p $(BUILD)
-	$(CA65) -I $(HGRC) -o $(BUILD)/small_font.o src/small_font.s
-	$(LD65) -C src/small_font.cfg -o $@ $(BUILD)/small_font.o
-$(BUILD)/dhgr_small_asm.o: $(HGRC)/dhgr_small_asm.s $(HGRC)/dhgr_small_data.inc
+src/font.bin: $(DEV)/tools/build_dhgr_font.py $(HGRC)/dhgr_small_payload.s $(HGRC_ASM_DEPS)
+	$(PYTHON) $(DEV)/tools/build_dhgr_font.py --out $@ --ca65 $(CA65) --ld65 $(LD65)
+$(BUILD)/dhgr_small_asm.o: $(HGRC)/dhgr_small_asm.s
 	@mkdir -p $(@D)
 	$(CA65) -D DHGR_SMALL_FONT_EXTERNAL=1 -I $(HGRC) -o $@ $(HGRC)/dhgr_small_asm.s
-$(BUILD)/game.bin: $(OBJS) Makefile $(DEV)/cc65/apple2_dhgr_prodos_c.cfg
-	$(CL65) -t none -C $(DEV)/cc65/apple2_dhgr_prodos_c.cfg -m $(BUILD)/game.map -Ln $(BUILD)/game.lbl -o $@ $(OBJS)
+$(BUILD)/dhgr_small_string.o: $(HGRC)/dhgr_small_string.s $(HGRC_ASM_DEPS)
+	@mkdir -p $(@D)
+	$(CA65) -D DHGR_SMALL_USE_PROGRESS=1 -I $(HGRC) -o $@ $<
+$(GAME_LIB): $(LIB_OBJS) Makefile $(HGRC)/hgrc.mk
+	$(PYTHON) -c 'from pathlib import Path; Path("$@").unlink(missing_ok=True)'
+	$(AR65) a $@ $(LIB_OBJS)
+$(BUILD)/game.bin: $(OBJS) $(GAME_LIB) Makefile $(DEV)/cc65/apple2_dhgr_prodos_c.cfg
+	$(CL65) -t none -C $(DEV)/cc65/apple2_dhgr_prodos_c.cfg -m $(BUILD)/game.map -Ln $(BUILD)/game.lbl -o $@ $(OBJS) $(GAME_LIB)
 $(BUILD)/CHROMA.SYS: $(BUILD)/game.bin src/font.bin src/startup.s src/startup.cfg
 	$(CA65) --bin-include-dir $(BUILD) --bin-include-dir src -o $(BUILD)/startup.o src/startup.s
 	$(LD65) -C src/startup.cfg -o $@ $(BUILD)/startup.o

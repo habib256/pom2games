@@ -124,10 +124,31 @@ def check_archive(work):
          ('hgr_text8_asm.o', 'hgr_text16_asm.o', 'hgr_sprite_params.o')),
         ('celltext', 'gfx_gotoxy(0u,0u); gfx_text("A"); gfx_putu(42u);', 'gfx_text.o',
          ('hgr_text16_asm.o', 'hgr_sprite_params.o', 'hgr_pixrect_asm.o')),
+        ('dhgr_mode', 'dhgr_init();', 'dhgr.o',
+         ('dhgr_pixel.o', 'dhgr_fill.o', 'dhgr_block.o', 'dhgr_small_asm.o', 'gfx_u16_digits.o',
+          'dhgr_clear_asm.o', 'dhgr_span_asm.o', 'dhgr_access_asm.o')),
+        ('dhgr_pixel', 'dhgr_plot(1u,1u,1u);', 'dhgr_pixel.o',
+         ('dhgr_fill.o', 'dhgr_address.o', 'dhgr_block.o', 'dhgr_small_asm.o', 'dhgr_getpixel.o', 'dhgr_read_asm.o')),
+        ('dhgr_read', 'return dhgr_getpixel(1u,1u);', 'dhgr_read_asm.o',
+         ('dhgr_pixel.o', 'dhgr_write_asm.o', 'dhgr_fill.o', 'dhgr_block.o')),
+        ('dhgr_fill', 'dhgr_fill_rect(1u,1u,2u,2u,9u);', 'dhgr_fill.o',
+         ('dhgr_pixel.o', 'dhgr_address.o', 'dhgr_block.o', 'dhgr_small_asm.o',
+          'dhgr_clear.o', 'dhgr_clear_asm.o', 'dhgr_fill_bits.o', 'dhgr_plot_color.o', 'dhgr_access_asm.o')),
+        ('dhgr_clear', 'dhgr_clear(9u);', 'dhgr_clear_asm.o',
+         ('dhgr_pixel.o', 'dhgr_fill.o', 'dhgr_fill_bits.o', 'dhgr_bit_rect.o',
+          'dhgr_span_asm.o', 'dhgr_access_asm.o', 'dhgr_small_asm.o')),
+        ('dhgr_bits', 'dhgr_fill_bits(1u,1u,2u,2u,1u);', 'dhgr_span_asm.o',
+         ('dhgr_pixel.o', 'dhgr_fill.o', 'dhgr_clear.o', 'dhgr_clear_asm.o',
+          'dhgr_pattern.o', 'dhgr_plot_color.o', 'dhgr_access_asm.o')),
+        ('dhgr_small', 'dhgr_small_x=0; dhgr_small_y=0; dhgr_small_char(65u);', 'dhgr_small_asm.o',
+         ('dhgr_small.o', 'dhgr_small_string.o', 'hgr_font.o', 'dhgr_fill.o',
+          'dhgr_clear_asm.o', 'dhgr_span_asm.o', 'dhgr_access_asm.o')),
+        ('dhgr_block', 'unsigned char b[1]; dhgr_read_block(0u,0u,1u,1u,b,1u);', 'dhgr_address.o',
+         ('dhgr_pixel.o', 'dhgr_fill.o', 'dhgr_sprite.o', 'dhgr_small_asm.o')),
     ]
     for name, call, required, excluded in cases:
         source = work / ('link_' + name + '.c')
-        source.write_text('#include "hgr.h"\n#include "gfx.h"\n'
+        source.write_text('#include "hgr.h"\n#include "gfx.h"\n#include "dhgr.h"\n'
                           'static const unsigned char bits[] = {127};\n'
                           'int main(void) {' + call + 'return 0;}\n')
         obj, binary, mapfile = source.with_suffix('.o'), source.with_suffix('.bin'), source.with_suffix('.map')
@@ -136,10 +157,11 @@ def check_archive(work):
         run(['cl65', '-t', 'none', '-C', DEV / 'cc65/apple2_hgr_c.cfg',
              '-m', mapfile, '-o', binary, work / 'crt0_apple2.o', obj, work / 'hgrc.lib'])
         linked = set(re.findall(r'hgrc\.lib\(([^)]+)\)', mapfile.read_text()))
-        assert not any(n.startswith('dhgr_') for n in linked), (name, 'unexpected DHGR dependency')
+        if not name.startswith('dhgr_'):
+            assert not any(n.startswith('dhgr') for n in linked), (name, 'unexpected DHGR dependency')
         assert required in linked, (name, 'missing kernel', required)
         assert not linked.intersection(excluded), (name, 'unwanted families', linked.intersection(excluded))
-    print('HGR archive: 7 minimal programs exclude unused code and zero-page families.')
+    print('HGR/DHGR archive: 15 minimal programs exclude unused code and zero-page families.')
 
 
 def check_cell_text(work, font):

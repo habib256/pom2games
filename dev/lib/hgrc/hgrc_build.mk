@@ -11,7 +11,7 @@ HGRC_CFLAGS ?= -t none -Oirs $(HGRC_INCS) -I $(HGRC)/../apple2c
 HGRC_ASMFLAGS ?= -t none $(HGRC_AFLAGS)
 
 vpath %.c $(HGRC) $(GFX) $(HGRC)/../apple2c
-vpath %.s $(HGRC) $(HGRC)/../apple2c
+vpath %.s $(HGRC) $(GFX) $(HGRC)/../apple2c
 
 $(HGRC_BUILD)/%.o: %.c $(HGRC_HEADERS) $(wildcard $(HGRC)/../apple2c/*.h) $(HGRC)/hgrc_build.mk
 	@mkdir -p $(@D)

@@ -117,7 +117,7 @@ static void text(const char *s,unsigned char x,unsigned char y)
 /* Compact font: a five-column advance, independent of DHGR byte phase. */
 static void centered(const char *s,unsigned char y)
 {
-    text(s,(140u-(unsigned char)strlen(s)*5u)/2u,y);
+    text(s,(140u-(unsigned char)strlen(s)*DHGR_SMALL_ADVANCE)/2u,y);
 }
 static void hud_changed(void) { hud_dirty=1; }
 const char *__fastcall__ fast_number(unsigned value);
@@ -284,7 +284,7 @@ static void title(void)
     dhgr_draw_page(1); dhgr_clear(0);
     /* The compact library font also supplies the enlarged colored logo. */
     for (i=0;i<11u;++i) {
-        glyph=(const unsigned char *)(0x0800u+(unsigned)(name[i]-32u)*6u);
+        glyph=dhgr_small_font+(unsigned)(name[i]-32u)*DHGR_SMALL_FONT_STRIDE;
         for(row=0;row<5u;++row) {
             bits=glyph[row];
             for(col=0;col<4u;++col) {

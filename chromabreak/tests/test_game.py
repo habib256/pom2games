@@ -24,6 +24,16 @@ def main():
     ap.add_argument('--labels',type=Path,default=ROOT/'chromabreak/build/game.lbl')
     ap.add_argument('--image-only',action='store_true')
     a=ap.parse_args()
+    linkmap=a.labels.with_suffix('.map').read_text()
+    linked=set(re.findall(r'platform\.lib\(([^)]+)\):',linkmap))
+    assert {'dhgr_clear.o','dhgr_clear_asm.o','dhgr_small_asm.o','gfx_u16_digits.o'}<=linked, 'missing library modules'
+    unused={'dhgr_pixel.o','dhgr_getpixel.o','dhgr_pixel_address.o',
+            'dhgr_access_asm.o','dhgr_write_asm.o','dhgr_read_asm.o','dhgr_fill.o','dhgr_fill_bits.o',
+            'dhgr_bit_rect.o','dhgr_span_asm.o','dhgr_plot_color.o','dhgr_span.o',
+            'dhgr_block.o','dhgr_block_asm.o','dhgr_sprite.o','dhgr_address.o',
+            'dhgr_text.o','dhgr_text_asm.o','hgr_font.o','dhgr_small.o'}
+    assert not linked&unused, ('unused library modules in game',sorted(linked&unused))
+    print('PASS link map: unused drawing, transfers and text wrappers excluded')
     source=(ROOT/'chromabreak/src/levels.h').read_text()
     rows=re.findall(r'\{([0-9,]+)\}',source)
     boards=[tuple(map(int,row.split(','))) for row in rows]
