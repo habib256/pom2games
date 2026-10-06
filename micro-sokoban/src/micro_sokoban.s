@@ -335,7 +335,8 @@ in_src:          .res 1          ; 0 = last action came from keyboard, 1 = joyst
 joy_hold:        .res 1          ; auto-repeat countdown while the stick is held
 btn0_prev:       .res 1          ; button edge detection
 btn1_prev:       .res 1
-b0_used:         .res 1          ; 1 = the stick moved while button 0 was held
+b0_used:         .res 1          ; 1 = the stick moved while button 0 was held,
+                                 ; until it is centred with the button up
 menu_sel:        .res 1
 menu_prev:       .res 1
 front_page:      .res 1          ; page on screen: 0 = page 1, PAGE2_EOR = page 2
@@ -460,14 +461,7 @@ title_start:
         BEQ @help
         CMP #ACT_MENU
         BEQ @menu
-        LDA hof_buf+HOF_TUTORIAL
-        AND #1
-        ORA score_solved
-        ORA score_solved+1
-        ORA resume_pending
-        BNE game_loop
-        INC tutorial_on
-        JMP game_loop
+        BNE first_play                  ; (always)
 @help:
         JSR run_help
 @menu:
@@ -493,6 +487,17 @@ title_start:
         BEQ game_loop
 @other: JMP menu_result
 
+; first_play: play as the active profile, from the title or after changing
+; profile in the menu. One without a lesson flag, a record or a saved
+; position has never played: the lessons come first.
+first_play:
+        LDA hof_buf+HOF_TUTORIAL
+        AND #1
+        ORA score_solved
+        ORA score_solved+1
+        ORA resume_pending
+        BNE game_loop
+        INC tutorial_on
 game_loop:
         JSR start_level
         LDA #1
@@ -567,7 +572,7 @@ key_menu:
 menu_result:
         CMP #MENU_PROFILE
         BNE @tutorial
-        JMP game_loop
+        JMP first_play                  ; another profile: its own first game?
 @tutorial:
         CMP #MENU_TUTORIAL
         BNE @actions
@@ -582,8 +587,14 @@ menu_result:
         JSR play_solution
         LDA game_active
         BEQ @solved_title
-        JSR select_resume
-        JMP game_loop
+        JSR select_resume               ; the position saved as the menu opened
+        LDA tutorial_on                 ; (a lesson has none: it starts again)
+        BNE @again
+        LDA resume_pending
+        BEQ @again
+        JSR restore_position            ; goes back onto the level, which is
+        JMP redraw_level                ; still decoded; the history was kept
+@again: JMP game_loop
 @solved_title:
         JMP return_title
 @reset:
@@ -716,7 +727,13 @@ move_loop_j:
 ; Returns A = ACT_* (0 = nothing), Z set on 0. in_src = 0 keyboard / 1 joystick.
 ; Button 1 fires on press. Button 0 fires ACT_UNDO on release, unless the
 ; stick was pushed while it was held: then stick left / right are undo / redo
-; (auto-repeat). The stick alone moves, auto-repeating every JOY_REPEAT calls.
+; (auto-repeat), and once the button is released the stick must come back to
+; the centre before it moves the player again. The stick alone moves,
+; auto-repeating every JOY_REPEAT calls.
+; Without a stick the paddle timers never run out (nothing charges them) and
+; the button inputs float: a timer still running after read_stick, ~6 ms
+; after PTRIG and twice the longest a real paddle takes, means no stick, and
+; nothing is taken from the game port.
 ; Clobbers A, X, Y.
 ; =============================================================================
 get_input:
@@ -742,6 +759,10 @@ get_input:
 get_stick:
         LDA #$01
         STA in_src
+        JSR read_stick
+        LDA PADDL0                      ; a timer still running: no stick
+        ORA PADDL1
+        BMI @centre
         ; --- button 1 (press edge) ---
         LDA BUTN1
         BMI @b1_down
@@ -775,12 +796,12 @@ get_stick:
         STA b0_used
         STA joy_hold
 @shuttle:
-        JSR read_stick
         LDA joy_x
         CMP #JOY_LO
         BCC @sh_undo
         CMP #JOY_HI+1
         BCS @sh_redo
+@centre:
         LDA #$00                        ; centred: nothing, rearm the repeat
         STA joy_hold
         RTS
@@ -793,15 +814,17 @@ get_stick:
         STX b0_used
         BNE @dir
 
-@axes:  JSR read_stick
-        JSR stick_dir                   ; JOY_UP..JOY_RIGHT = ACT_UP..ACT_RIGHT
-        BNE @dir
+@axes:  JSR stick_dir                   ; JOY_UP..JOY_RIGHT = ACT_UP..ACT_RIGHT
+        BNE @moved
         STA joy_hold                    ; centered: A = 0, rearm the repeat
+        STA b0_used                     ; and a shuttle is over: the stick moves
         RTS
+@moved: LDX b0_used                     ; still where the shuttle left it:
+        BNE @wait                       ; no move before it has been centred
 @dir:   LDX joy_hold
         BEQ @fire
         DEC joy_hold
-        LDA #$00
+@wait:  LDA #$00
         RTS
 @fire:  LDX #JOY_REPEAT
         STX joy_hold
@@ -833,8 +856,8 @@ wait_any:
         RTS
 
 ; poll_start: one look at the keyboard and the buttons. A = the action, Z
-; clear, or A = 0. Any key counts; on the joystick only the buttons do (an
-; unplugged stick reads as held right and down). ~6.3 ms without a key.
+; clear, or A = 0. Any key counts; on the joystick only the buttons do (a
+; stick resting off centre must not start anything). ~6.3 ms without a key.
 poll_start:
         JSR get_input
         BEQ @none
@@ -884,19 +907,22 @@ title_wait:
 @done:  RTS
 
 ; start_level: decode (cur_coll, cur_lvl), fresh counters and history.
+; watch_level: the same, history kept (SOLUTION plays over the game).
 start_level:
-        JSR init_level
         LDA #$00
-        STA moves_lo
-        STA moves_hi
-        STA pushes_lo
-        STA pushes_hi
         STA hist_pos_lo
         STA hist_pos_hi
         STA undo_n_lo
         STA undo_n_hi
         STA redo_n_lo
         STA redo_n_hi
+watch_level:
+        JSR init_level
+        LDA #$00
+        STA moves_lo
+        STA moves_hi
+        STA pushes_lo
+        STA pushes_hi
         RTS
 
 ; draw_level: the whole level and its HUD, drawn hidden then shown.
@@ -1929,15 +1955,22 @@ execute_move:
         STA draw_col
         JSR queue_tile
 
-        ; --- counters ---
-        INC moves_lo                    ; 16 bits (65535 moves is plenty)
+        ; --- counters: 16 bits, and they stay at 65535 (a wrap to 0 would
+        ; make a record that reads as "unsolved") ---
+        INC moves_lo
         BNE @m_ok
         INC moves_hi
+        BNE @m_ok
+        DEC moves_lo
+        DEC moves_hi
 @m_ok:  LDA had_push
         BEQ @p_ok
         INC pushes_lo
         BNE @p_ok
         INC pushes_hi
+        BNE @p_ok
+        DEC pushes_lo
+        DEC pushes_hi
 @p_ok:
         ; --- history ---
         LDA watching

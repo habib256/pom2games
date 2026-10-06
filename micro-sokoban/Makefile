@@ -73,6 +73,7 @@ test: $(DISK) $(A2RUN)
 	$(PYTHON) tools/test_graphics.py --a2run $(A2RUN) --disk $(DISK)
 	$(PYTHON) tools/test_menu_render.py --a2run $(A2RUN) --disk $(DISK)
 	$(PYTHON) tools/test_resume.py --a2run $(A2RUN) --disk $(DISK)
+	$(PYTHON) tools/test_play.py --a2run $(A2RUN) --disk $(DISK)
 	$(PYTHON) tools/test_tutorial_options.py --a2run $(A2RUN) --disk $(DISK)
 	$(PYTHON) tools/test_score.py --a2run $(A2RUN) --disk $(DISK)
 	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --all

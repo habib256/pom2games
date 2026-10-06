@@ -400,12 +400,16 @@ sector_bits: .byte 1,2,4,8,16,32,64,128
 str_disk_error: GSTR "IO ERR"
 
 .code
+; disk_protected: C = 1 if the disk cannot be written. The drive is the one
+; RWTS uses: DOS's IOB (48 KB DOS 3.3, the one on this disk) has its slot * 16.
+DOS_IOB_SLOT = $B7E9
 disk_protected:
-        LDA $C0E9
-        LDA $C0ED
-        LDA $C0EE
+        LDX DOS_IOB_SLOT
+        LDA $C089,X                     ; motor on
+        LDA $C08D,X                     ; Q6H, Q7L: sense the write-protect switch
+        LDA $C08E,X
         ASL A
-        LDA $C0E8
+        LDA $C088,X                     ; motor off
         RTS
 
 remember_hof:

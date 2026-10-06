@@ -1,5 +1,7 @@
 /* Five ProDOS records and the farthest sector reached (byte 5 of the file,
- * 0 in files from earlier versions). Disk errors leave usable values. */
+ * 0 in files from earlier versions). Scores count tens of points; byte 4 is
+ * the format: 1 held points (up to 59990, converted on load), 2 holds tens.
+ * Disk errors leave usable values. */
 #include <string.h>
 #include "layout.h"
 #include "prodos.h"
@@ -87,11 +89,12 @@ void records_load(void)
     if(open_file()) return;
     error=move_file(PD_READ); close_file();
     if(error || transfer.actual!=sizeof(raw)) return;
-    if(memcmp(raw,"CBR1",4) || raw[4]!=1u || raw[5]>=CB_LEVELS) return;
+    if(memcmp(raw,"CBR1",4) || !raw[4] || raw[4]>2u || raw[5]>=CB_LEVELS) return;
     sum=checksum(); if(raw[36]!=(unsigned char)sum || raw[37]!=(unsigned char)(sum>>8)) return;
     memcpy(records,raw+6,sizeof(records));
     for(i=0;i<5u;++i) {
-        if(records[i].score>59990u || records[i].mode>2u ||
+        if(raw[4]==1u) records[i].score/=10u;
+        if(records[i].score>65000u || records[i].mode>2u ||
            (i && records[i].score>records[i-1u].score)) { defaults(); return; }
         for(j=0;j<3u;++j) {
             char c=records[i].initials[j];
@@ -121,7 +124,7 @@ unsigned char records_save(void)
     static unsigned sum;
     records_error=0;
     if(!pathname[0]) return 0;
-    memcpy(raw,"CBR1",4); raw[4]=1; raw[5]=records_progress;
+    memcpy(raw,"CBR1",4); raw[4]=2; raw[5]=records_progress;
     memcpy(raw+6,records,sizeof(records));
     sum=checksum(); raw[36]=sum; raw[37]=sum>>8;
     error=open_file();

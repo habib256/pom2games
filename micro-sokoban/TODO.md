@@ -14,7 +14,8 @@ le [README](README.md), les sources et solutions dans [levels/README.md](levels/
   y compris les coins et les bords de mur sans cible. Les blocages entre caisses
   (gel 2 × 2, par exemple) restent hors de cette détection ; le solveur les détecte.
 - Undo/Redo garde les 1024 derniers coups en mémoire seulement. L’historique
-  repart vide après redémarrage ou changement de profil. Si le début du niveau
+  repart vide après redémarrage, changement de profil ou tutoriel rejoué en
+  cours de partie (position et compteurs sont rendus). Si le début du niveau
   a été oublié, RESTART recharge le niveau au lieu de le rembobiner.
 - À nombre égal de niveaux résolus, le classement compare le total des meilleurs
   coups ; le résultat dépend donc des niveaux choisis.
@@ -30,7 +31,8 @@ le [README](README.md), les sources et solutions dans [levels/README.md](levels/
 - [x] **Rendu HGR** : écrans complets dessinés sur la page cachée puis affichés ;
   seules les tuiles modifiées sont redessinées pendant les déplacements.
 - [x] **Gameplay** : Undo/Redo au clavier et à la manette, répétition du manche,
-  RESTART annulable avec Redo, compteurs de coups et poussées sur 16 bits,
+  RESTART annulable avec Redo, compteurs de coups et poussées sur 16 bits
+  (arrêtés à 65535),
   compteur de caisses restantes et alerte sonore DEADLOCK désactivable.
 - [x] **Niveaux** : 454 niveaux Microban I à IV (150, 122, 92 et 90), conversion
   XSB avec rotation/filtrage, treize paquets de 2 Ko au plus, choix par grille,
@@ -73,12 +75,23 @@ le [README](README.md), les sources et solutions dans [levels/README.md](levels/
   (adresse de chaîne finissant par $FF acceptée), retours des menus et solutions
   sur la bonne page HGR, annulation de GO TO LEVEL depuis l’accueil sans lancer
   de partie, RESTART depuis l’accueil à zéro et PLAY / RESUME avec reprise.
+- [x] **Partie quittée puis retrouvée** : le tutoriel rejoué depuis le menu rend
+  le niveau en cours ; SOLUTION rend la position et l’historique Undo/Redo, même
+  sur disquette protégée (solution lue hors de l’historique) ; renommer un autre
+  profil ne change pas de profil actif ; un profil créé en cours de partie
+  commence par le tutoriel.
+- [x] **Manette** : après un rembobinage, le manche attend d’être recentré avant
+  de déplacer le joueur ; port jeu ignoré (axes et boutons) sans manette branchée.
+- [x] **Affichage et compteurs** : les tuiles sous « SAVING » (III:054, IV:036)
+  sont redessinées après la sauvegarde ; coups et poussées s’arrêtent à 65535 ;
+  le test de protection en écriture suit le slot du lecteur de DOS.
 
 ## Vérification
 
 `make test` construit la disquette et vérifie dans a2run la sortie vers BASIC,
 les pages HGR et silhouettes monochromes, les textes des menus, la reprise,
-le tutoriel, les options, les profils, le classement et les solutions des
+le tutoriel, les options, les profils, le classement, les retours en partie
+(tutoriel, SOLUTION, profils, manette, « SAVING », compteurs) et les solutions des
 454 niveaux. Les tests couvrent aussi les sauvegardes corrompues, migrations,
 disquettes protégées et écritures sans changement.
 

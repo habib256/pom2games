@@ -2,6 +2,7 @@
 ; P, version, collection, level, fingerprint, player row/col, moves/pushes,
 ; boxes left, CRC-8 checksum, 120 packed pairs of tiles. Undo starts fresh.
 snapshot = save_buf + RECORD_LEN
+SAVE_TILE = (HUD_RIGHT-3)/2     ; first tile column under show_status's text
 .code
 select_resume:
         LDA #0
@@ -103,28 +104,27 @@ restore_position:
 
 idle_save:
         INC autosave_lo
-        BNE @done
+        BNE save_none
         INC autosave_hi
         LDA autosave_hi
         CMP #4                          ; about six seconds without input
-        BCC @done
+        BCC save_none
         LDA #0
         STA autosave_hi
-        JMP save_position
-@done:  RTS
+        BEQ save_position               ; (always)
+save_none:
+        RTS
 
 save_position:
         LDA game_active
-        BEQ @done
+        BEQ save_none
         LDA position_dirty
-        BEQ @done
+        BEQ save_none
         LDA tutorial_on
         ORA demo_active
-        BNE @done
+        BNE save_none
         LDA #0
         STA position_dirty
-        JSR disk_protected
-        BCS @done
         LDA #'P'
         STA snapshot
         LDA #1
@@ -165,6 +165,14 @@ save_position:
         LDA save_mask
         ORA #$80
         STA save_mask
-        JSR write_save
+        JSR write_save                  ; (no write on a protected disk: the
+        LDA #NROWS-1                    ; position stays in save_buf)
+        STA draw_row                    ; "SAVING" and its wipe went over the
+        LDA #SAVE_TILE                  ; two tiles left of the HUD corner,
+        STA draw_col                    ; which a level may use: back they come
+        LDA STATE_GRID+(NROWS-1)*NCOLS+SAVE_TILE
+        JSR draw_tile
+        INC draw_col
+        LDA STATE_GRID+(NROWS-1)*NCOLS+SAVE_TILE+1
+        JSR draw_tile
         JMP draw_hud
-@done:  RTS

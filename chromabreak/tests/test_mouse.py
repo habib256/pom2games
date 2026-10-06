@@ -46,10 +46,22 @@ def main():
                 execute(variant,'records-victory')
                 execute(variant,'records-save')
                 image,entries=inspect(); data=image.read(entries['HIGHSCORES'])
-                assert len(data)==38 and data[:5]==b'CBR1\x01' and data[5]==59,'sector 60 reached is saved'
+                assert len(data)==38 and data[:5]==b'CBR1\x02' and data[5]==59,'sector 60 reached is saved'
                 assert sum(data[:36])==int.from_bytes(data[36:38],'little')
                 assert [int.from_bytes(data[6+i*6:8+i*6],'little') for i in range(5)]==[3200,1800,1500,1240,900]
                 execute(variant,'records-load')
+            # '?' with the ENDING overlay missing from the volume (entry renamed).
+            for variant in ('applewin','iic32'):
+                shutil.copyfile(a.disk,disk);data=bytearray(disk.read_bytes())
+                name=data.index(b'ENDING',1024,1536);data[name:name+6]=b'ENDINX'
+                disk.write_bytes(data);execute(variant,'records-nohelp')
+            # A format 1 file (scores in points) is converted, then saved as format 2.
+            shutil.copyfile(a.disk,disk);image,entries=inspect();entry=entries['HIGHSCORES']
+            old=bytearray(b'CBR1\x01\x07')
+            for points,mode in zip((3200,1800,1500,1240,900),(2,1,0,0,1)):old+=points.to_bytes(2,'little')+b'ABC'+bytes([mode])
+            old+=sum(old).to_bytes(2,'little')
+            data=bytearray(image.d);key=int.from_bytes(entry[0x11:0x13],'little');data[key*512:key*512+38]=old
+            disk.write_bytes(data);execute('applewin','records-v1')
             shutil.copyfile(a.disk,disk); before=disk.read_bytes()
             execute('iic32','records-error');assert disk.read_bytes()==before,'write-protected disk altered'
             for missing in (False,True):

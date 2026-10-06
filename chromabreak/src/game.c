@@ -69,8 +69,17 @@ void __fastcall__ ball_swap(unsigned char id);
 void ball_step(void);
 void advance_balls(void);
 void lasers_step(void);
+/* score, best_score and the records count tens of points (every award is a
+ * multiple of ten): 16 bits then reach 650000, shown with a final zero. */
 unsigned score, best_score, frames;
 unsigned next_life_score;
+#define SCORE_CAP 65000u
+/* Tens of points between extra lives. next_life_score stops one step past
+ * the cap, which must still fit 16 bits. */
+#define LIFE_STEP 500u
+#if LIFE_STEP>65535u-SCORE_CAP
+#error "next_life_score would wrap"
+#endif
 void timing_init(void);
 void timing_close(void);
 void timing_present(void);
@@ -282,7 +291,7 @@ static void background(void)
     for (fine_x=0,fine_y=CB_HUD_Y;fine_x<80u;) fine_char(' ');
     page_id=dhgr_get_draw_page()-1u;
     memset(hud_previous[page_id],0,CB_HUD_COLS);
-    memcpy(hud_wanted,"00000  LIVES 3  LV 01  X1            ",CB_HUD_COLS);
+    memcpy(hud_wanted,"000000 LIVES 3  LV 01  X1            ",CB_HUD_COLS);
     hud_score=65535u; hud_level=255;
     footer_state=255;
     hud_changed(); hud(CB_HUD_COLS);
@@ -327,17 +336,28 @@ static unsigned char pad_tile(unsigned char lo,unsigned char hi,signed char dir)
  * tile is above it. */
 /* Statics, not locals: input() runs every frame and cc65 locals are slow. */
 static unsigned char old_x, old_y;
+static void pad_walls(void)
+{
+    if (pad_x<LEFT || pad_x>200u) pad_x=LEFT;
+    if (pad_x>RIGHT-pad_width) pad_x=RIGHT-pad_width;
+}
 static void clamp_pad(void)
 {
     static unsigned char i;
-    if (pad_x<LEFT || pad_x>200u) pad_x=LEFT;
-    if (pad_x>RIGHT-pad_width) pad_x=RIGHT-pad_width;
+    pad_walls();
     if (pad_y>PAD_Y) pad_y=PAD_Y;
     if (pad_y<PAD_MIN) pad_y=PAD_MIN;
     if (pad_y>=PAD_BLOCK) return;
-    if (pad_x>old_x && (i=pad_tile(old_x,pad_x+pad_width,1))) pad_x=tile_x[i]-2u-pad_width;
-    else if (pad_x<old_x && (i=pad_tile(pad_x,old_x+pad_width,-1))) pad_x=tile_x[i]+11u;
-    if (pad_tile(pad_x,pad_x+pad_width,1)) pad_y=PAD_BLOCK;
+    /* Tiles stop only a paddle that was already at their height: one that
+     * rises from below may be under a tile, and then stays below it. */
+    if (old_y<PAD_BLOCK) {
+        if (pad_x>old_x && (i=pad_tile(old_x,pad_x+pad_width,1))) pad_x=tile_x[i]-2u-pad_width;
+        else if (pad_x<old_x && (i=pad_tile(pad_x,old_x+pad_width,-1))) pad_x=tile_x[i]+11u;
+    }
+    /* No room at this height, under a tile or between a tile and a wall (a
+     * paddle that just grew): back below the tiles. */
+    i=pad_x; pad_walls();
+    if (pad_x!=i || pad_tile(pad_x,pad_x+pad_width,1)) pad_y=PAD_BLOCK;
 }
 static void attach(void)
 {
@@ -393,7 +413,7 @@ static void redraw(void)
 }
 static void start(void)
 {
-    state=1; score=0; score_set_bcd(0); next_life_score=1000; lives=starting_lives[difficulty]; paused=0;
+    state=1; score=0; score_set_bcd(0); next_life_score=LIFE_STEP; lives=starting_lives[difficulty]; paused=0;
     level=demo ? demo_level : start_level;
     base_width=paddle_sizes[difficulty]; speed_limit=maximum_speeds[difficulty];
     ramp_period=ramp_periods[difficulty]; reward_period=reward_periods[difficulty];
@@ -431,7 +451,7 @@ static void difficulty_mark(void)
 {
     underline(difficulty==0u ? 17u : difficulty==1u ? 35u : 55u,difficulty ? 12u : 10u,136);
 }
-static const char credit[]="V1.0  BY ARNAUD VERHILLE";
+static const char credit[]="V1.1  BY ARNAUD VERHILLE";
 static void title(void)
 {
     static unsigned char i;
@@ -456,13 +476,18 @@ static void title(void)
     title_quiet=0;
     demo_idle=0; demo_last=timing_ticks;
 }
+/* A score as text: its tens on five digits, then the final zero. */
+static char points_text[7];
+static void points(unsigned value)
+{
+    number(value,points_text,5); points_text[5]='0';
+}
 static void end_screen(void)
 {
-    static char value[6];
     dhgr_draw_page(dhgr_get_display_page()==1u ? 2u : 1u); screen_clear();
     centered(state==3 ? "SECTORS CLEARED" : "GAME OVER",48);
     centered("SCORE",76);
-    number(score,value,5); centered(value,90);
+    points(score); centered(points_text,90);
     centered("CLICK/SPACE/ENTER:PLAY",130);
     centered("ESC:MENU",152);
     timing_present();
@@ -475,11 +500,10 @@ static void record_letters(void)
 }
 static void record_entry(void)
 {
-    static char value[6];
     state=4; record_cursor=0; memcpy(record_initials,"AAA",4);
     dhgr_draw_page(dhgr_get_display_page()==1u ? 2u : 1u); screen_clear();
     centered("NEW HIGH SCORE",36);
-    number(score,value,5); centered(value,60);
+    points(score); centered(points_text,60);
     centered("YOUR INITIALS",84); record_letters();
     centered("A-Z:INITIALS  LEFT:DELETE",144);
     centered("ENTER:SAVE  ESC:SKIP",166);
@@ -488,16 +512,16 @@ static void record_entry(void)
 static void record_table(void)
 {
     static unsigned char i;
-    static char row[14], value[6];
+    static char row[15];
     state=5;
     dhgr_draw_page(dhgr_get_display_page()==1u ? 2u : 1u); screen_clear();
     centered("HIGH SCORES",24);
     text("#  ID   SCORE  MODE",19,44);
     underline(19,42,54);
     for(i=0;i<5u;++i) {
-        memcpy(row,"1  AAA  00000",14); row[0]='1'+i;
+        memcpy(row,"1  AAA  000000",15); row[0]='1'+i;
         memcpy(row+3,records[i].initials,3);
-        number(records[i].score,value,5); memcpy(row+8,value,5);
+        points(records[i].score); memcpy(row+8,points_text,5);
         text(row,19,64u+i*14u);
         text(records[i].score ? mode_names[records[i].mode] : (const char *)"-",49,64u+i*14u);
     }
@@ -532,6 +556,8 @@ static void finale_run(void)
     sound_stop();
     dhgr_draw_page(1); screen_clear(); dhgr_show_page(1);
     if (records_load_overlay((void *)0x4000,0x2000u)) finale();
+    /* Help without its file on the disk: the title comes back. */
+    else if (state==0u) { title_quiet=1; title(); }
 }
 static void ending(void)
 {
@@ -542,6 +568,17 @@ static void ending(void)
     else end_screen();
 }
 static void update_best(void) { if (score>best_score) best_score=score; }
+/* Add tens of points (at most ten), up to the cap; 1 = an extra life. */
+static unsigned char award(unsigned char tens)
+{
+    score+=tens; score_add_bcd(tens>9u ? 0x10u : tens);
+    if (score>SCORE_CAP) { score=SCORE_CAP; score_set_bcd(0x5000); }
+    if (score>=next_life_score) {
+        next_life_score+=LIFE_STEP;
+        if (lives<5u) { ++lives; return 1; }
+    }
+    return 0;
+}
 void __fastcall__ mark_dirty(unsigned char i)
 {
     if(!dirty_flags[0][i]) { dirty_flags[0][i]=1; dirty[0][dirty_any[0]++]=i; }
@@ -570,7 +607,7 @@ static void shards(unsigned char i) { burst(tile_x[i]+4u,tile_y[i]+3u,brick_colo
 void effects_tick(void);
 void __fastcall__ damage(unsigned char i)
 {
-    unsigned char life_bonus=0;
+    unsigned char life_bonus;
     timing_scan();
     if (bricks[i]==255u) { sound_event(SND_STEEL); return; }
     --bricks[i];
@@ -582,13 +619,8 @@ void __fastcall__ damage(unsigned char i)
             if (combo==3u || combo==6u || combo==9u || combo==12u ||
                 combo==15u || combo==18u || combo==21u) ++multiplier;
         }
-        score+=(unsigned)multiplier*10u; score_add_bcd((unsigned)multiplier<<4);
-    } else { score+=10u; score_add_bcd(0x10); }
-    if (score>59990u) { score=59990u; score_set_bcd(0x9990); }
-    if (score>=next_life_score) {
-        next_life_score+=1000u;
-        if (lives<5u) { ++lives; life_bonus=1; }
-    }
+        life_bonus=award(multiplier);
+    } else life_bonus=award(1);
     timing_scan();
     update_best(); hud_changed(); sound_event(bricks[i] ? SND_HIT : SND_BREAK);
     if (life_bonus) sound_event(SND_BONUS);
@@ -623,12 +655,7 @@ static void enemy_down(unsigned char i)
 {
     enemy_live[i]=0;
     burst(enemy_x[i]+1u,enemy_y[i]+2u,enemy_color[i]);
-    score+=100u; score_add_bcd(0x100);
-    if (score>59990u) { score=59990u; score_set_bcd(0x9990); }
-    if (score>=next_life_score) {
-        next_life_score+=1000u;
-        if (lives<5u) { ++lives; sound_event(SND_BONUS); }
-    }
+    if (award(10)) sound_event(SND_BONUS);
     update_best(); hud_changed(); sound_event(SND_BREAK);
 }
 /* The multiball budget leaves no frame time for enemies: none arrive while
@@ -861,7 +888,8 @@ void game_tick(void)
     held=mode==2u ? (*(volatile unsigned char *)0xC061|*(volatile unsigned char *)0xC062)&0x80u : mouse_buttons&0x80u;
     button=held && !mouse_old;
     mouse_old=held;
-    if (demo && (button || ++demo_time>=1800u)) { demo_stop(); return; }
+    /* 60 s of game ticks, 30 or 25 per second. */
+    if (demo && (button || ++demo_time>=(video_pal ? 1500u : 1800u))) { demo_stop(); return; }
     if (state==0u && (key || button || mouse_x!=demo_mx || mouse_y!=demo_my)) {
         demo_mx=mouse_x; demo_my=mouse_y; demo_idle=0; demo_last=timing_ticks;
     }
@@ -991,7 +1019,7 @@ static const char s_steel[]="STEEL: NEVER BREAKS";
 static const char s_points[]="POINTS";
 static const char s_enemy[]="ENEMY: 100 POINTS";
 static const char s_combo[]="COMBO: X2 TO X8 EVERY 3 TILES";
-static const char s_life[]="1000 POINTS: EXTRA LIFE";
+static const char s_life[]="5000 POINTS: EXTRA LIFE";
 static const char s_key[]="PRESS A KEY";
 /* Help, from the title: what each capsule and each tile does, and what
  * scores. Capsules and enemies are the game's own sprites, drawn once on the
@@ -1037,14 +1065,13 @@ void help(void)
 }
 void finale(void)
 {
-    static char value[6];
     static unsigned t;
     static unsigned char b;
     if (state!=3u) { help(); return; }
     logo(s_victory,32,52);
     centered(s_cleared,84);
-    number(score,value,5);
-    centered(s_final,100); centered(value,112);
+    points(score);
+    centered(s_final,100); centered(points_text,112);
     centered(mode_names[difficulty],124);
     centered(s_thanks,176);
     play_tune(tune_fanfare);
