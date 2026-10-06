@@ -134,3 +134,8 @@ et disque protégé. Les captures du menu et du premier tableau sont actualisée
 - [x] Dix airs de fin de tableau à deux voix, un par tableau d’une dizaine, d’environ 2 s (3,3 s pour le dixième).
 - [x] Adresses figées des modules assembleur : réserve et assertions de `spare.s`.
 - [ ] Écouter les airs à deux voix sur //e et //c réels (porteuse à 31 kHz).
+- [x] Score sur six chiffres jusqu’à 650 000 (compté en dizaines), vie tous les 5 000 points ; `HIGHSCORES` au format 2, le format 1 est converti.
+- [x] Raquette en diagonale sous une brique de la dernière rangée, ou élargie entre une brique et un mur : elle reste sous les briques et dans le terrain (elle sortait du terrain et la machine se figeait).
+- [x] `?` sans le fichier `ENDING` : la page de garde reste affichée ; démo de 60 s en PAL comme en NTSC.
+- [ ] Refaire les trois captures POM2 : `game.png` et `game-sector-2.png` (bandeau encore sur cinq chiffres) et `title.png` (encore « V1.0 »).
+- [x] Version 1.1 sur la page de garde.

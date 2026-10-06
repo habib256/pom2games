@@ -360,6 +360,24 @@ int main(int argc,char** argv) {
             if(const char* path=std::getenv("CHROMA_SPEAKER")) {std::ofstream out(path);for(auto t:speaker.stamps)out<<t<<"\n";}
             std::cout<<"PASS two-voice tunes: weakest voice at "<<worst<<" of its share, slowest "<<flattest<<" of its pitch\n";return 0;
         }
+        if(recordTest=="records-nohelp") {
+            // '?' without the ENDING file on the disk: the title stays.
+            auto pageOne=[&]() {
+                std::vector<uint8_t> data;
+                for(int bank=0;bank<2;++bank) {
+                    mem.memWrite(bank?0xC003:0xC002,0);
+                    for(int a=0x2000;a<0x4000;++a)data.push_back(mem.memRead(a));
+                }
+                mem.memWrite(0xC002,0);return data;
+            };
+            const auto title=pageOne();
+            press('?');
+            require(read("state")==0 && pageOne()==title,"help without its file gives the title back");
+            require(read("timing_mode")==unsigned(iic?2:1),"VBL clock survives the failed load");
+            press(13);
+            require(read("state")==1 && read("ball_live"),"a game starts after the failed help");
+            std::cout<<"PASS help without the ENDING file: title kept\n";return 0;
+        }
         if(recordTest=="records-help") {
             // '?' on the title loads the overlay into page 2 memory and draws
             // the help on page 1: capsules, tiles, points. A key or a click
@@ -447,6 +465,14 @@ int main(int argc,char** argv) {
             std::cout<<"PASS victory record entry\n";return 0;
         }
         const unsigned expected[]={3200,1800,1500,1240,900};
+        if(recordTest=="records-v1") {
+            // A format 1 file held points: the same records in tens, sector kept.
+            const unsigned old[]={3200,1800,1500,1240,900};
+            for(int i=0;i<5;++i)require(word(at("records")+i*6)==old[i]/10,"format 1 scores are converted to tens");
+            require(mem.memRead(at("records")+2)=='A' && mem.memRead(at("records")+5)==2,"format 1 initials and mode are kept");
+            require(read("records_progress")==7,"format 1 keeps the farthest sector");
+            std::cout<<"PASS format 1 records: points converted to tens, progress kept\n";return 0;
+        }
         if(recordTest=="records-empty") {
             for(int i=0;i<5;++i)require(word(at("records")+i*6)==0,"invalid/missing record file must use defaults");
             press('H');require(read("state")==5,"empty record table remains usable");
@@ -637,7 +663,8 @@ int main(int argc,char** argv) {
         return true;
     };
     for(int page=0;page<2;++page) {
-        require(fineCell(page,CB_HUD_LEFT,'0') && fineCell(page,CB_HUD_LEFT+8,'0'),"HUD score digits");
+        // Six digits: the fifth is the tens of points, the sixth stays 0.
+        require(fineCell(page,CB_HUD_LEFT,'0') && fineCell(page,CB_HUD_LEFT+8,'0'+read("score")%10) && fineCell(page,CB_HUD_LEFT+10,'0'),"HUD score digits");
         require(fineCell(page,CB_HUD_LEFT+2*CB_HUD_LIVES,'0'+read("lives")),"HUD life digit");
         require(fineCell(page,CB_HUD_LEFT+2*(CB_HUD_LIVES-1),' ') && fineCell(page,CB_HUD_LEFT+2*(CB_HUD_LIVES-6),'L'),"HUD life label");
         require(fineCell(page,CB_HUD_LEFT+2*CB_HUD_MULT,'1') && fineCell(page,CB_HUD_LEFT+2*(CB_HUD_MULT-1),'X'),"HUD multiplier");
@@ -679,13 +706,14 @@ int main(int argc,char** argv) {
     require(mem.memRead(at("bricks"))==2 && read("dy")==1,"no tunneling at maximum speed");
     std::cout<<"PASS acceleration to six substeps and maximum-speed brick collision\n";
     // A destruction combo grows every three bricks and stops at x8.
+    // The score counts tens of points: a brick is worth its multiplier.
     write("combo",0);write("multiplier",1);
     mem.memWrite(at("score"),0);mem.memWrite(at("score")+1,0);
     for(int k=0;k<3;++k)mem.memWrite(at("score_bcd")+k,0);
     unsigned comboScore=0;
     for(int n=1;n<=24;++n) {
         setup();mem.memWrite(at("bricks"),1);until(tick,3000000);
-        auto factor=unsigned(std::min(8,1+n/3));comboScore+=10*factor;
+        auto factor=unsigned(std::min(8,1+n/3));comboScore+=factor;
         auto actual=read("score")+256*mem.memRead(at("score")+1);
         require(read("multiplier")==factor && actual==comboScore,"combo multiplier and awarded score");
     }
@@ -697,18 +725,38 @@ int main(int argc,char** argv) {
     until(tick,3000000);
     require(read("lives")==2 && read("multiplier")==1 && read("combo")==0,"lost life resets combo");
     {
-        // The HUD reads the BCD score kept alongside the binary one.
+        // The HUD reads the BCD score kept alongside the binary one: five
+        // digits of tens, then the units cell that stays 0.
         until(tick,3000000);until(tick,3000000);
         auto actual=read("score")+256*mem.memRead(at("score")+1);
         char digits[6];snprintf(digits,6,"%05u",actual);
         for(int k=0;k<5;++k)require(mem.memRead(at("hud_wanted")+k)==uint8_t(digits[k]),"HUD score digits follow the score");
+        require(actual>0 && mem.memRead(at("hud_wanted")+5)=='0' && mem.memRead(at("hud_wanted")+6)==' ',"HUD score ends with the units zero");
     }
     std::cout<<"PASS combo scoring, x8 cap, paddle/life reset\n";
     setup(); write("lives",3);
-    mem.memWrite(at("next_life_score"),0xE8);mem.memWrite(at("next_life_score")+1,3);
-    mem.memWrite(at("score"),0xDE);mem.memWrite(at("score")+1,3); // 990
+    auto setWord=[&](const char* name,unsigned v) {mem.memWrite(at(name),v&255);mem.memWrite(at(name)+1,v>>8);};
+    auto getWord=[&](const char* name) {return unsigned(mem.memRead(at(name))+256*mem.memRead(at(name)+1));};
+    setWord("next_life_score",500);setWord("score",498); // 4980 points
     mem.memWrite(at("bricks"),3);until(tick,3000000);
-    require(read("lives")==4,"extra life at 1000 points");
+    require(read("lives")==3 && getWord("score")==499,"no extra life before 5000 points");
+    setup();mem.memWrite(at("bricks"),2);until(tick,3000000);
+    require(read("lives")==4 && getWord("score")==500 && getWord("next_life_score")==1000,"extra life at 5000 points, the next at 10000");
+    // The score stops at 650000 points; the last extra life is the one at
+    // 650000 and the threshold must not wrap around 16 bits.
+    setup();write("lives",3);write("combo",21);write("multiplier",8);
+    setWord("next_life_score",65000);setWord("score",64995);
+    mem.memWrite(at("bricks"),1);until(tick,3000000);
+    require(getWord("score")==65000 && read("lives")==4 && getWord("next_life_score")==65500,"score capped at 650000 points");
+    require(mem.memRead(at("score_bcd"))==0x00 && mem.memRead(at("score_bcd")+1)==0x50 && mem.memRead(at("score_bcd")+2)==0x06,"BCD score follows the cap");
+    setup();mem.memWrite(at("bricks"),1);until(tick,3000000);
+    require(getWord("score")==65000 && read("lives")==4 && getWord("next_life_score")==65500,"nothing more past the cap");
+    // (An even number of frames here keeps the page parity of the cadence
+    // fixtures below.)
+    until(tick,3000000);until(tick,3000000);until(tick,3000000);
+    {char hudText[7];for(int k=0;k<6;++k)hudText[k]=char(mem.memRead(at("hud_wanted")+k));hudText[6]=0;
+     require(std::string(hudText)=="650000","HUD shows the capped score");}
+    setWord("score",0);setWord("next_life_score",500);for(int k=0;k<3;++k)mem.memWrite(at("score_bcd")+k,0);
     for(int kind=1;kind<=3;++kind) {
         setup();write("ball_live",0);write("round_live",0);write("capsule",kind);
         write("cap_x",65);write("cap_y",CB_PAD_Y-5);until(tick,3000000);
@@ -900,6 +948,47 @@ int main(int argc,char** argv) {
     mem.queueKey('S');ticks(1);
     mem.queueKey(0x0A);ticks(40);mem.queueKey('S');ticks(1);
     require(read("pad_y")==CB_PAD_Y,"paddle returns to the floor");
+    // Rising in a diagonal from under a bottom-row tile (edge columns and the
+    // middle): the paddle slides on below the tile, four pixels a frame and
+    // inside the field, and rises only once clear of it.
+    for(int col : {0,5,6,11}) {
+        const bool leftward=col>5;
+        setup();mem.memWrite(at("bricks")+84+col,1);
+        const int tx=mem.memRead(at("tile_x")+84+col),w=read("pad_width");
+        const int start=std::min(136-w,std::max(4,leftward ? tx+9-w : tx-1));
+        write("mode",0);write("pad_x",start);write("pad_y",CB_PAD_BLOCK);
+        write("direction",leftward?255:1);write("vdirection",255);
+        for(int n=1;n<=12;++n) {
+            ticks(1);
+            const int x=read("pad_x"),y=read("pad_y");
+            require(x==start+(leftward?-4:4)*n,"diagonal rise under a tile: no sideways jump (column "+std::to_string(col)+", x="+std::to_string(x)+")");
+            require(x>=4 && x+w<=136,"diagonal rise under a tile: paddle inside the field");
+            if(tx<x+w+2 && tx+11>x)require(y==CB_PAD_BLOCK,"diagonal rise: the paddle stays below the tile above it");
+        }
+        require(read("pad_y")<CB_PAD_BLOCK,"the paddle rises once clear of the tile");
+        write("direction",0);write("vdirection",0);
+    }
+    // ENLARGE caught at tile height, between a bottom-row tile and a wall
+    // where the wider paddle has no room: it goes back below the tiles.
+    {
+        const auto baseWidth=read("base_width"),padWidth=read("pad_width");
+        for(int side=0;side<2;++side) {
+            setup();write("mode",0);write("effect",0);write("base_width",18);write("pad_width",18);
+            const int col=side?9:2,tx=mem.memRead(at("tile_x")+84+col);
+            mem.memWrite(at("bricks")+84+col,1);
+            const int px=side ? 118 : tx-2-18;
+            write("pad_x",px);write("pad_y",105);ticks(1);
+            require(read("pad_x")==unsigned(px) && read("pad_y")==105,"an 18-pixel paddle fits between the tile and the wall");
+            write("capsule",1);write("cap_x",px+6);write("cap_y",105-4);
+            for(int n=0;n<4;++n) {
+                ticks(1);
+                require(read("effect")==1 && read("pad_width")==26,"ENLARGE caught at tile height");
+                require(read("pad_x")>=4 && read("pad_x")+26u<=136u,"the enlarged paddle stays inside the field (x="+std::to_string(read("pad_x"))+")");
+                require(read("pad_y")==CB_PAD_BLOCK,"the enlarged paddle goes back below the tiles");
+            }
+        }
+        setup();write("effect",0);write("base_width",baseWidth);write("pad_width",padWidth);write("pad_y",CB_PAD_Y);ticks(1);
+    }
     setup();write("pad_x",60);write("pad_y",140);write("ball_x",70);write("ball_y",140-6);write("dy",1);ticks(1);
     require(read("dy")==255 && read("ball_y")<140-5,"ball rebounds on the raised paddle");
     // The paddle moves before the ball: sliding under a ball already below
@@ -969,14 +1058,14 @@ int main(int argc,char** argv) {
     require(mem.memRead(at("enemy_y"))>20,"enemy drops once past the tile");
     write("enemy_live",0);clear();write("remaining",2);
     setup();enemy(0,9,18,1,1);auto points=score();ticks(1);
-    require(!alive(0) && read("dy")==1 && score()==points+100,"ball destroys an enemy, rebounds and scores 100");
+    require(!alive(0) && read("dy")==1 && score()==points+10,"ball destroys an enemy, rebounds and scores 100");
     require(mem.memRead(at("particle_life"))||mem.memRead(at("particle_life")+1)||mem.memRead(at("particle_life")+2)||mem.memRead(at("particle_life")+3),"enemy bursts into shards");
     resetRound();clear();write("remaining",2);
     mem.memWrite(at("shot_live"),1);mem.memWrite(at("shot_x"),40);mem.memWrite(at("shot_y"),100);
     enemy(0,39,90,1,1);points=score();ticks(1);
-    require(!alive(0) && !mem.memRead(at("shot_live")) && score()==points+100,"laser destroys an enemy");
+    require(!alive(0) && !mem.memRead(at("shot_live")) && score()==points+10,"laser destroys an enemy");
     enemy(0,read("pad_x")+2,CB_PAD_Y-6,1,1);points=score();ticks(1);
-    require(!alive(0) && score()==points+100,"paddle contact destroys an enemy");
+    require(!alive(0) && score()==points+10,"paddle contact destroys an enemy");
     enemy(0,120,CB_LOST_Y-7,1,1);points=score();ticks(3);
     require(!alive(0) && score()==points,"enemy leaves through the floor");
     // The second enemy weaves below the grid: up and down, drifting down.
@@ -998,7 +1087,7 @@ int main(int argc,char** argv) {
     write("enemy_hold",1);
     resetRound();write("lives",3);write("pad_x",60);enemy(0,20,60,1,1);enemy(1,110,60,-1,1);
     points=score();write("capsule",4);write("cap_x",65);write("cap_y",CB_PAD_Y-5);ticks(1);
-    require(read("effect")==4 && !alive(0) && !alive(1) && score()==points+200,"multiball capsule blows up the enemies");
+    require(read("effect")==4 && !alive(0) && !alive(1) && score()==points+20,"multiball capsule blows up the enemies");
     write("enemy_hold",0);write("enemy_timer",1);ticks(1);
     require(!alive(0) && !alive(1),"no enemy arrives while extra balls fly");
     write("enemy_hold",1);
@@ -1051,6 +1140,8 @@ int main(int argc,char** argv) {
     mem.queueKey('S');ticks(1);
     int ex[2],ey[2];
     for(int i=0;i<2;++i) {ex[i]=mem.memRead(at("enemy_x")+i);ey[i]=mem.memRead(at("enemy_y")+i);mem.memWrite(at("enemy_live")+i,0);}
+    // The bolts go too: one may be crossing the place an enemy just left.
+    for(int b=0;b<2;++b)mem.memWrite(at("shot_live")+b,0);
     ticks(2);
     for(int page=0;page<2;++page)for(int i=0;i<2;++i)for(int y=0;y<6;++y)for(int x=0;x<4;++x)
         require(colorAt(page,ex[i]+x,ey[i]+y)==0,"enemy sprite restored on both pages");
@@ -1213,7 +1304,21 @@ int main(int argc,char** argv) {
         require(read("demo"),"demo restarts");
         ticks(30);write("ball_live",0);extra(0,2,0);extra(1,2,0);ticks(1);
         require(read("state")==0 && !read("demo"),"a lost life ends the demo");
-        std::cout<<"PASS attract mode: 15 s idle, 50 Hz detection, silent autopilot, key/lost-life exit\n";
+        // Left alone, a demo lasts 60 s of game frames at 60 Hz as at 50 Hz,
+        // one frame per two refreshes (the balls are kept from the floor so
+        // that no lost life ends it sooner).
+        mem.memWrite(at("demo_idle"),pal?238:132);mem.memWrite(at("demo_idle")+1,pal?2:3);ticks(1);
+        require(read("demo"),"demo restarts again");
+        int demoFrames=0;
+        while(read("demo") && demoFrames<2400) {
+            if(read("ball_y")>150)write("dy",255);
+            for(int b=0;b<2;++b)if(extraRead(b,1)>150)extra(b,4,255);
+            until(tick,20000000);++demoFrames;
+        }
+        const double played=demoFrames*2.0/(pal?50:60);
+        require(read("state")==0 && !read("demo"),"the demo ends by itself");
+        require(played>59.9 && played<60.1,"a demo lasts 60 s ("+std::to_string(played)+" s)");
+        std::cout<<"PASS attract mode: 15 s idle, 50 Hz detection, silent autopilot, key/lost-life exit, 60 s\n";
         mem.queueKey(' ');ticks(2);write("enemy_hold",1);
         require(read("state")==1 && !read("demo"),"title still starts a game after the demo");
     }

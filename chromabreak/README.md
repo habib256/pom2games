@@ -1,6 +1,6 @@
 # ChromaBreak
 
-Version 1.0 : [disquette et notes de publication](https://github.com/habib256/pom2games/releases/tag/chromabreak-1.0).
+Version 1.1, en préparation. Dernière version publiée : 1.0, [disquette et notes de publication](https://github.com/habib256/pom2games/releases/tag/chromabreak-1.0).
 
 Casse-briques pour **Apple //e enhanced 128 Ko sous ProDOS**, en DHGR
 560 × 192 / 16 couleurs, avec AppleMouse II et clavier, également compatible Apple //c 128 Ko et sa
@@ -64,7 +64,7 @@ dominante) ; une touche l’interrompt aussitôt, et il ne rejoue pas après la
 démo, après l’aide ni quand le son est coupé. Thème et airs de fin de tableau sont rangés en
 RAM auxiliaire après la police (voir « Musique à deux voix »). La page de
 garde porte la version et la signature
-« V1.0  BY ARNAUD VERHILLE » ; le sous-titre rappelle « APPLE //C AND //E
+« V1.1  BY ARNAUD VERHILLE » ; le sous-titre rappelle « APPLE //C AND //E
 128K 65C02 ».
 
 Après 15 s sans touche, clic ni mouvement de souris sur la page de garde, un
@@ -73,7 +73,8 @@ suit la balle avec un décalage variable, la relance et tire au laser. Le bandea
 affiche « DEMO » et chaque démo prend le tableau suivant. Une touche ou un clic,
 une balle perdue ou 60 s ramènent à la page de garde. Le délai est mesuré en
 rafraîchissements vidéo ; la fréquence 50/60 Hz est détectée au démarrage, si
-bien qu'il vaut 15 s en NTSC comme en PAL.
+bien qu'il vaut 15 s en NTSC comme en PAL, et la démo 60 s d’images de jeu
+dans les deux cas.
 
 Sans carte souris, le clavier fonctionne immédiatement. Un clic maintenu ne
 provoque pas de lancements répétés. Démarrer avec Espace ou Entrée conserve la souris.
@@ -111,13 +112,18 @@ nom à chaque début de niveau (`level_fetch`).
 Largeurs en pixels de couleur DHGR ; vitesses en sous-pas par image.
 Le clavier avance de quatre colonnes ou trois lignes par image. Le point
 d’impact sur la raquette choisit huit angles. Une vie supplémentaire est
-accordée tous les 1 000 points, jusqu’à cinq vies.
+accordée tous les 5 000 points, jusqu’à cinq vies. Le score s’affiche sur
+six chiffres et s’arrête à 650 000 points : les soixante tableaux en
+rapportent au plus 235 750, ennemis non compris.
 
 La raquette monte jusqu’à mi-terrain (ligne 100) et ne traverse jamais les
 briques : sous une brique de la dernière rangée, elle s’arrête six lignes
 plus bas (ligne 112, la place de la balle attachée) ; à hauteur de cette
 rangée, elle bute contre la première brique sur son chemin, même lors d’un
-grand déplacement de souris. Une raquette qui glisse sous une balle déjà
+grand déplacement de souris. Une raquette qui monte en diagonale depuis le
+dessous d’une brique reste à la ligne 112 tant qu’elle est dessous, puis
+monte ; si elle n’a plus la place de tenir à cette hauteur (élargie par
+ENLARGE entre une brique et un mur), elle redescend à la ligne 112. Une raquette qui glisse sous une balle déjà
 basse, ou qui monte vers elle, la renvoie aussi : le contact balle/raquette
 est vérifié à chaque image, avant les sous-pas de la balle.
 
@@ -197,10 +203,11 @@ rien en mémoire principale.
 **Page d’aide** (`?` sur la page de garde) : les six capsules, dessinées
 avec leur nom et leur effet, les tuiles à un, deux et trois coups et l’acier,
 puis ce qui rapporte des points (ennemi 100 points, combo tous les trois
-blocs jusqu’à ×8, vie tous les 1 000 points). Capsules et ennemis sont les
+blocs jusqu’à ×8, vie tous les 5 000 points). Capsules et ennemis sont les
 sprites du jeu. Une touche ou un clic ramène à la page de garde ; ce clic ne
 lance pas de partie. Le code et les textes de cette page sont dans le
-recouvrement `ENDING`, chargé en `$4000` comme pour le finale : la page
+recouvrement `ENDING`, chargé en `$4000` comme pour le finale ; si ce
+fichier est illisible, la page de garde reste affichée. La page
 coûte sept octets de code en mémoire principale, rendus par `records.c`.
 
 Une nouvelle vie ou un tableau remet
@@ -299,9 +306,11 @@ dessin d’un caractère se font sur des images distinctes. Les capsules (style
 5) ont des masques propres à chacune de leurs six lignes, en page zéro,
 recalculés seulement quand la colonne ou le type change. Les sprites ronds de
 4 pixels (balle rouge, ennemis) ont des masques précalculés pour les sept
-alignements, comme la balle blanche. Le score est tenu aussi en BCD (mode
-décimal du 65C02) : le bandeau lit ses chiffres sans conversion binaire, et
-ses messages sont stockés déjà alignés sur leurs 10 cellules. Les ennemis
+alignements, comme la balle blanche. Le score est compté en dizaines de
+points (tout gain est un multiple de dix) : seize bits vont ainsi jusqu’à
+650 000, et le sixième chiffre du bandeau, les unités, reste un zéro fixe.
+Il est tenu aussi en BCD (mode décimal du 65C02) : le bandeau lit ses
+chiffres sans conversion binaire, et ses messages sont stockés déjà alignés sur leurs 10 cellules. Les ennemis
 (`src/enemies.s`) se déplacent et testent leurs contacts en assembleur.
 En jeu au clavier, la souris n’est pas interrogée (environ 1 300 cycles
 gagnés par image) ; `M` la relit avant de reprendre la main.
@@ -336,6 +345,9 @@ corriger avec la flèche gauche puis valider avec Entrée. Échap permet de
 passer la saisie. Un fichier absent est créé à la sauvegarde ; un fichier
 corrompu donne une table vide. Si le disque est protégé ou indisponible,
 « SAVE FAILED » apparaît et le record reste consultable en mémoire.
+Le fichier est au format 2 (octet 4), aux scores en dizaines de points ;
+un fichier de la version 1.0 (format 1, scores en points) est relu avec ses
+records et sa progression, puis réécrit au format 2 à la sauvegarde suivante.
 
 La **progression** est sauvegardée dans le même fichier (octet 5, nul dans
 les fichiers des versions précédentes) : le secteur le plus lointain atteint.
@@ -358,8 +370,8 @@ compilé en `-Ors` (taille), les routines critiques étant en assembleur.
 et de leurs tables : une branche prise ou une lecture indexée qui franchit une
 page coûte un cycle de plus, et quelques octets de décalage ont déjà coûté une
 image dans les scènes chargées. `game.c` et `records.c` sont liés avant eux ;
-`src/spare.s` les sépare par quelques octets de réserve (12 de code, 37 de
-données constantes) et trois assertions d’édition de liens. Quand l’un des
+`src/spare.s` les sépare par quelques octets de réserve (2 de code, 51 de
+données constantes, 10 de variables) et trois assertions d’édition de liens. Quand l’un des
 deux fichiers C change de taille, on ajuste la réserve d’autant : rien ne
 bouge après eux et la cadence n’a pas à être remesurée. `sound.s` garde de
 même sa taille (27 octets de réserve depuis le départ du lecteur en page 3).

@@ -10,10 +10,12 @@
 ; the frame rate needs no new measurement. With no spare left, or when a
 ; library changes size, the addresses do move: put the new ones here, then
 ; run test-mouse on every profile and compare the worst frame (CHROMA_PROFILE).
-; BSS has no spare (it would cost main memory): a new variable in the two C
-; files moves the assembly modules' variables, and its assert says so.
-CODE_SPARE   = 12
-RODATA_SPARE = 37
+; The BSS spare is what the two C files gave back: a new variable there takes
+; its bytes from it; beyond it the assembly modules' variables move, and the
+; assert says so.
+CODE_SPARE   = 2
+RODATA_SPARE = 51
+BSS_SPARE    = 10
 
 .code
         .res CODE_SPARE
@@ -22,4 +24,5 @@ RODATA_SPARE = 37
         .res RODATA_SPARE
 .assert * = $B3ED, lderror, "render.s tables moved: adjust RODATA_SPARE (see spare.s)"
 .bss
+        .res BSS_SPARE
 .assert * = $BB7E, lderror, "the assembly modules' variables moved (see spare.s)"
