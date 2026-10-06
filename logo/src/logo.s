@@ -94,11 +94,10 @@
 ; user types `4000R` from Wozmon; we MUST land in `main` (cold-start),
 ; not in wait_key (which would blocking-poll the keyboard and silently
 ; return to Wozmon on the first key). Force a JMP main as the very first
-; bytes of the CODE segment, BEFORE the kbd.asm include below.
+; bytes of the CODE segment.
 .segment "CODE"
         jmp main
 
-.include "kbd.asm"              ; lib/apple1/kbd.asm: wait_key + poll_key
 .ifdef CODETANK_BUILD
 .export wait_key                ; resolve buffer_editor.o's .import (Chess.asm pattern)
 .endif
@@ -1729,6 +1728,8 @@ cmd_help:
 print_ptr_lo = mptr_lo
 print_ptr_hi = mptr_hi
 .include "print.asm"
+.include "kbd.asm"                ; dev/lib/apple2: wait_key + poll_key (after
+                                  ; their callers: the lib assembles on reference)
 .include "screen.asm"             ; Apple II: TS / SS / FS, 40 / 80 columns
 .include "exit.asm"               ; Apple II: ZP snapshot, BYE / RESET to DOS
 

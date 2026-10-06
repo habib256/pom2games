@@ -355,7 +355,7 @@ void hgr_ellipse(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1);
 
 /* Draw a string in one of the four NTSC artifact COLOURS the HGR HIRES screen
  * can show (it has no per-pixel colour). Drawn in ONE tinted pass (hgr_text16_asm.s
- * hgr_blit_glyph_color ORs the colour's carrier bit per pixel directly — no
+ * hgr_blit_glyph ORs the colour's carrier bit per byte directly — no
  * white-then-recolorize round trip), and only the glyph itself is touched, so a
  * coloured label can sit right next to other content without bleeding a tint
  * over it. There is NO red on HIRES — orange is the warm tone. See hgr_puts

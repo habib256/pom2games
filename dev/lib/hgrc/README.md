@@ -32,6 +32,21 @@ inutilisées n'occupent ni code ni page zéro. Les drapeaux d'exclusion par
 programme ont été supprimés. Les trois démos C partagent une seule archive.
 Un lien direct de tous les `.o` embarquerait au contraire toutes les familles.
 
+Trois objets portent les commutateurs de mode : `hgr_mode_asm.s` (toujours lié :
+`hgr_init`, `hgr_text_restore`, `hgr_flip_rows`), `hgr_mode_clear_asm.s`
+(`hgr_init_clear`) et `hgr_lores_init_asm.s` (`hgr_lores_init`). Un programme ne
+paie que les points d'entrée qu'il appelle.
+
+Coûts mesurés par `make bench` (cycles à 1,02 MHz) : effacement d'une page
+51 000 (boucle auto-modifiée de `HGR_CLEAR_LOOP`, lib/apple2), basculement de
+page 3 400 (`hgr_flip_rows` : un EOR par ligne au lieu d'une boucle C), texte
+8x8 `hgr_puts8` ~9 000 pour « APPLE II » (glyphe décalé en deux octets par
+ligne), texte 16x16 `hgr_puts` par le blitter couleur avec les porteuses
+blanches `$7F/$7F` (un seul blitter, ~5 fois plus rapide que l'ancien tracé
+pixel par pixel). Les enveloppes C lisent `hgr_col7` / `hgr_phase7` /
+`hgr_mask7` au lieu de diviser par 7, et les tables de lignes se calculent
+sans multiplication.
+
 ## Intégration
 
 Définir `HGRC`, `GFX`, `APPLE2C` et `BUILD`, puis inclure `hgrc.mk` et

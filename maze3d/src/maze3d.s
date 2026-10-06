@@ -5004,6 +5004,7 @@ font_base:
 ; =============================================
 .include "hgr_scanline.inc"
 .include "hgr_sprite16.asm"
+HGR_TEXT8_NO_PUTS = 1            ; write_char drives hgr_putc8 itself
 .include "hgr_text8.asm"
 .include "hgr.asm"               ; dev/lib/apple2: hgr_init_clear
 .include "sound.asm"             ; dev/lib/apple2: speaker effects

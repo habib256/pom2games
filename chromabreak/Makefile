@@ -1,15 +1,9 @@
-CL65 ?= cl65
-CA65 ?= ca65
-LD65 ?= ld65
-AR65 ?= ar65
-PYTHON ?= python3
+# CHROMABREAK — Apple //e enhanced 128 KB / ProDOS build (DHGR, AppleMouse).
+# Tool variables, run / clean / distclean come from ../dev/cc65/apple2.mk.
 DEV ?= ../dev
-DIST ?= ../dist
-BUILD ?= build
-POM2 ?= /Applications/POM2.app/Contents/MacOS/POM2
-HGRC := $(DEV)/lib/hgrc
-APPLE2C := $(DEV)/lib/apple2c
-GFX := $(DEV)/lib/gfx
+APPLE2_PRESET := iie
+APPLE2_RUN_FLAGS := --slot 4=mouseaw
+include $(DEV)/cc65/apple2.mk
 include $(HGRC)/hgrc.mk
 include $(APPLE2C)/apple2c.mk
 PRODOS := $(DEV)/lib/prodos
@@ -41,7 +35,7 @@ src/sprite_tables.inc src/bg_tiles.inc: tools/generate_sprite_tables.py
 $(BUILD)/physics.o $(BUILD)/collision.o $(BUILD)/enemies.o: src/layout.inc
 $(BUILD)/finetext.o: src/fine_font.inc src/tables.inc src/levels.inc
 $(BUILD)/tables.o: src/tables.inc
-src/fine_font.inc: tools/generate_fine_font.py
+src/fine_font.inc: tools/generate_fine_font.py $(DEV)/tools/fonts.py $(DEV)/lib/font/bbfont_glyphs.inc
 	$(PYTHON) tools/generate_fine_font.py
 $(BUILD)/dhgr_small_asm.o: $(HGRC_ASM_DEPS)
 $(BUILD)/levels.bin src/levels.inc: src/levels.txt tools/pack_levels.py
@@ -95,15 +89,9 @@ $(DISK): $(BUILD)/CHROMA.SYS $(BUILD)/CHROMA.SYSTEM $(BUILD)/HIGHSCORES $(DEV)/t
 	$(PYTHON) $(DEV)/tools/prodos/build_volume.py $(BUILD)/stage $@ --volume CHROMABREAK --boot $(DEV)/tools/prodos/boot.bin --blocks 280
 run-iic: all
 	$(POM2) --preset iic --slot 4=iicmouse $(DISK)
-run: all
-	$(POM2) --preset iie --slot 4=mouseaw $(DISK)
 test: all
 	$(PYTHON) tests/test_game.py --disk $(DISK) --labels $(BUILD)/game.lbl
-clean:
-	rm -rf $(BUILD)
-distclean: clean
-	rm -f $(DISK)
-.PHONY: all run run-iic test clean distclean
+.PHONY: run-iic test
 
 # Optional real-firmware integration. Normal build/test has no sibling dependency.
 POM2_SRC ?= ../../pom2

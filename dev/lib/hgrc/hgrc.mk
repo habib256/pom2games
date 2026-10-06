@@ -7,7 +7,8 @@
 HGRC_BUILD ?= $(BUILD)/hgrc
 HGRC_LIB ?= $(HGRC_BUILD)/hgrc.lib
 
-HGRC_ASM_SRCS := $(addprefix $(HGRC)/,hgr_mode_asm.s hgr_clear_asm.s \
+HGRC_ASM_SRCS := $(addprefix $(HGRC)/,hgr_mode_asm.s hgr_mode_clear_asm.s \
+    hgr_lores_init_asm.s hgr_rows_asm.s hgr_clear_asm.s \
     hgr_text16_asm.s hgr_text8_asm.s hgr_text_params.s hgr_utoa_asm.s \
     hgr_byte_rect_asm.s hgr_pixrect_asm.s hgr_pixrect_params.s hgr_cell_asm.s \
     hgr_pixel_asm.s hgr_colorize_asm.s hgr_carrier_params.s \
@@ -39,7 +40,7 @@ HGRC_ALL_SRCS := $(sort $(HGRC_CORE_SRCS) $(HGRC_PIXEL_SRCS) $(HGRC_RECT_SRCS) \
     $(HGRC_LORES_SRCS) $(HGRC_NUM_SRCS) $(HGRC_GFX_SRCS) $(HGRC_GFX_TEXT_SRCS))
 HGRC_INCS := -I $(HGRC) -I $(GFX)
 HGRC_AFLAGS := -I $(HGRC) -I $(HGRC)/../apple2
-HGRC_HEADERS := $(wildcard $(HGRC)/*.h $(HGRC)/*.inc $(GFX)/*.h)
+HGRC_HEADERS := $(wildcard $(HGRC)/*.h $(HGRC)/*.inc $(HGRC)/../font/*.inc $(GFX)/*.h)
 HGRC_ASM_DEPS := $(wildcard $(HGRC)/*.inc $(HGRC)/../apple2/*.inc $(HGRC)/../apple2/*.asm)
 
 # Host-only x2 reference: hgr_x2.c. No target inflation kernel is supplied.

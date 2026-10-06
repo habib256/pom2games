@@ -25,9 +25,11 @@ void hgr_putu_field(unsigned x, unsigned char y, unsigned value,
     hgr_utoa();
     len = hgr_slen(buf);
     /* Erase the field box: (width-1) full pitches + one 16px cell, 16px tall. */
-    hgr_clear_pixrect(x, y,
-                           (unsigned char)((unsigned)(width - 1u) * 18u + 16u), 16u);
+    /* n * 18 = (n << 4) + (n << 1): no multiply runtime. */
+    dx = (unsigned)(width - 1u);
+    hgr_clear_pixrect(x, y, (unsigned char)((dx << 4) + (dx << 1) + 16u), 16u);
     /* Flush-right: blank the leading (width-len) cells; overflow if len>=width. */
-    dx = (len < width) ? (x + (unsigned)(width - len) * 18u) : x;
+    dx = (unsigned)(width - len);
+    dx = (len < width) ? (x + (dx << 4) + (dx << 1)) : x;
     hgr_puts(dx, y, buf);
 }

@@ -11,11 +11,18 @@ utilisent la vidéo native de l'Apple II. Tous les jeux du dépôt les partagent
       lib/prodos/      MLI ProDOS 8 et remise en état après DHGR
       lib/mouse/       AppleMouse II : scrutation, IRQ firmware et VBL
       tools/prodos/    constructeur/lecteur de disquettes ProDOS (.po)
+      lib/font/        police Beautiful Boot 8x8 : une table maîtresse, découpée
+                       à la demande (asm, C, outils Python)
       lib/hgr/         texte, sprites et tables HGR en assembleur
       lib/hgrc/        runtime C HGR : hgr.h, fonctions hgr_*
       lib/gfx/         géométrie C (lignes, rectangles, cercles) pour hgrc
-      cc65/            configs ld65 (asm et C) + crt0 Apple II
-      tools/dos33.py   fabrique une image DOS 3.3 amorçable (.dsk)
+      cc65/            configs ld65 (asm et C), crt0 Apple II et apple2.mk,
+                       le fragment Makefile commun à tous les programmes
+      tools/dos33.py   fabrique une image DOS 3.3 amorçable (.dsk) et relit
+                       les fichiers d'une image existante (tests de sauvegarde)
+      tools/fonts.py   la police Beautiful Boot côté Python (tables dérivées)
+      tools/a2test.py  harnais des tests : labels ld65, lancement a2run/a2shot,
+                       décodage des dumps mémoire, disque de test
       tools/dos33_system.bin  pistes système DOS 3.3 (0-2) du disque maître Apple
       tools/a2shot/    exécutions sans interface, scriptées, avec captures PNG
       tools/a2run/     la même chose en C portable, avec écriture disque
@@ -34,6 +41,18 @@ Copier `examples/hello` pour commencer un programme texte, ou
 compteur, clavier et double tampon. Pour placer le nouveau dossier à côté de
 `micro-sokoban/`, mettre `DEV ?= ../dev` et `DIST ?= ../dist` dans son `Makefile`
 pour que la disquette rejoigne les autres dans `dist/`.
+
+Chaque `Makefile` commence par `include $(DEV)/cc65/apple2.mk`, qui fournit les
+variables d'outils (`CA65`, `CL65`, `PYTHON`, `POM2`, `A2RUN`…), les chemins des
+bibliothèques (`APPLE2`, `HGR`, `FONT`, `HGRC`, `GFX`, `APPLE2C`), `A2_INCS` et
+`A2_ASM_DEPS` pour l'assembleur, la commande `$(DOS33)` qui fabrique la
+disquette, et les cibles `run` (`APPLE2_PRESET`, `APPLE2_RUN_FLAGS`), `clean`,
+`distclean` et `$(A2RUN)`. Le `Makefile` du programme ne garde que ses règles
+de compilation et sa règle `$(DISK)`.
+
+Les bibliothèques assembleur s'incluent **après** le code qui les appelle : une
+routine n'est assemblée que si elle a été référencée avant l'include (`.ifref`),
+donc un jeu ne paie que ce qu'il utilise.
 
 `pom2games` ne dépend d'aucun autre dossier : il suffit de cc65 et de python3
 pour construire les disques (et de libslirp pour a2shot). `make run` lance POM2
@@ -81,6 +100,18 @@ Dans les deux cas, Ctrl-RESET revient au prompt DOS avec la page zéro restauré
     $4000-$5FFF  HGR page 2
     $6000-$95FF  le binaire BRUN (13,8 Ko max), puis BSS / pile C
     $9600-$BFFF  DOS 3.3
+
+## Tests en Python
+
+[`tools/a2test.py`](tools/a2test.py) regroupe ce que tous les scripts de test
+refaisaient : `labels(fichier.lbl)` lit les symboles ld65 et donne
+`peek()` / `poke()` / `until()` ; `run(disque, étapes, iie=, wp=)` lance a2run,
+ou a2shot avec `--iie` (les touches brutes sont échappées pour lui), et rend un
+`Result` avec `.dumps` (un `bytes` par `peek:`), `.data`, `.mem(adresse, n)`,
+`.cycles`, `.spk` ; `hgr_offset(y)`, `page_dump()` et `build_disk()` complètent.
+`tools/dos33.py` relit aussi une image : `catalog()`, `read_file()`,
+`replace_file()` (sauvegardes des jeux). Les scripts de MICRO-SOKOBAN,
+ARKABREAKOUT, CHROMABREAK, Maze3D, `tests/` et `bench/` l'utilisent.
 
 ## a2shot
 

@@ -15,7 +15,7 @@
 ; black squares) or an INVERT rop (EOR #$FF, on white squares), the outline vs
 ; solid variant chosen (variant = blackWhite ^ isBlackPiece) so both sides read
 ; correctly on both square colours -- exactly cc65's platA2.c logic. The text
-; panel (move list, coords, status) uses the bbfont subset (bbfont_ascii5f.inc).
+; panel (move list, coords, status) uses the Beautiful Boot font, ASCII $20-$5F (dev/lib/font/bbfont.inc).
 ;
 ; Cursor / selection are BITMAP overlays (no hardware sprites): a persistent
 ; XOR frame marks the selected square, blinking XOR corner ticks mark the
@@ -761,10 +761,10 @@ putc_hgr:
         ROL tmp2                ; index*8
         LDA tmp
         CLC
-        ADC #<HGR_Font5F
+        ADC #<bbfont
         STA mptr_lo
         LDA tmp2
-        ADC #>HGR_Font5F
+        ADC #>bbfont
         STA mptr_hi
         LDX #0                  ; glyph row 0..7
 @r:     TXA
@@ -990,17 +990,9 @@ draw_coords:
 ; ---------------------------------------------------------------------------
 ; Text screen -- replaces the Apple-1 terminal for the game-mode menu.
 ; ---------------------------------------------------------------------------
-puts_a1:
-@l:     LDY #0
-        LDA (sptr_lo),Y
-        BEQ @done
-        ORA #$80
-        JSR COUT
-        INC sptr_lo
-        BNE @l
-        INC sptr_hi
-        JMP @l
-@done:  RTS
+; puts_a1 is dev/lib/apple2 print_str_ax (A/X = string), on the panel's sptr.
+print_ptr_lo = sptr_lo
+print_ptr_hi = sptr_hi
 
 ; a1_choose_mode: game-mode menu on the TEXT screen (the board stays on HGR
 ;   page 1 underneath), seeds the AI's RNG from the wait, back to HGR.
@@ -1008,17 +1000,13 @@ a1_choose_mode:
         LDA TXTSET
         JSR HOME
         LDA #<a1_splash
-        STA sptr_lo
-        LDA #>a1_splash
-        STA sptr_hi
-        JSR puts_a1
+        LDX #>a1_splash
+        JSR print_str_ax
         LDA #0
         STA seed_acc
 @ask:   LDA #<a1_modeprompt
-        STA sptr_lo
-        LDA #>a1_modeprompt
-        STA sptr_hi
-        JSR puts_a1
+        LDX #>a1_modeprompt
+        JSR print_str_ax
 @spin:  INC seed_acc
         JSR poll_key
         BEQ @spin
@@ -1179,8 +1167,8 @@ modestr_hi: .byte >m_hvh, >m_wai, >m_bai, >m_ava
 ; display setup and the keyboard.
 ; ---------------------------------------------------------------------------
 .include "sprites/chess_cc65_pieces.asm"  ; cc65-Chess piece bitmaps
-.include "bbfont_ascii5f.inc"             ; HGR_Font5F text glyphs ($20-$5F)
-.include "hgr_clear.asm"                   ; clear_hgr (uses ptr_lo/ptr_hi)
+.include "bbfont.inc"                    ; bbfont: text glyphs $20-$5F (default range)
+.include "print.asm"                       ; print_str_ax (text-mode menu)
 .include "hgr_scanline.inc"                ; hgr_lo / hgr_hi base tables
 .include "hgr.asm"                         ; hgr_init_clear
 .include "kbd.asm"                         ; wait_key / poll_key

@@ -20,44 +20,16 @@ collection, past the BRAVO screen, to level 1 of a collection.
 """
 import argparse
 import os
-import re
-import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, '..', '..', 'dev', 'tools'))
+import a2test  # noqa: E402
 import micro_sokoban_levels as sl  # noqa: E402
 import solver  # noqa: E402
 
 DIRS = {'u': (-1, 0), 'd': (1, 0), 'l': (0, -1), 'r': (0, 1)}
-KEYS = {'u': 'I', 'd': 'K', 'l': 'J', 'r': 'L'}
-
-
-def read_solutions(path):
-    """{(hud, original number): moves} from solutions.txt (empty if absent)."""
-    out = {}
-    if os.path.exists(path):
-        for row in open(path):
-            if row.strip() and not row.startswith(';'):
-                hud, num, _, moves = row.split()
-                out[(hud, int(num))] = moves.lower()
-    return out
-
-
-def zp_address(lst, name):
-    """Address of a ZEROPAGE label from the ca65 listing (segment starts $50)."""
-    seg, off = None, None
-    for line in open(lst, encoding='latin-1'):
-        if re.search(r'^\S+\s+\d+\s+\.zeropage', line):
-            seg = 'zp'
-        elif re.search(r'^\S+\s+\d+\s+\.(segment|bss|code|rodata|data)', line):
-            seg = None
-        m = re.match(r'^(\w{6})r\s+\d+\s+(?:xx\s+)?(\w+):', line)
-        if seg == 'zp' and m and m.group(2) == name:
-            off = int(m.group(1), 16)
-    if off is None:
-        sys.exit('%s not found in %s' % (name, lst))
-    return 0x50 + off
 
 
 def main():
@@ -66,22 +38,20 @@ def main():
     ap.add_argument('--disk', default=os.path.join(HERE, '..', '..', 'dist', 'MICRO-SOKOBAN.dsk'))
     ap.add_argument('--coll', type=int, default=1, choices=(1, 2, 3, 4))
     ap.add_argument('--xsb', default=None)
-    ap.add_argument('--lst', default=os.path.join(HERE, '..', 'build', 'micro_sokoban.lst'))
+    ap.add_argument('--labels', default=os.path.join(HERE, '..', 'build', 'micro_sokoban.lbl'))
     ap.add_argument('--solutions', default=os.path.join(HERE, '..', 'levels', 'solutions.txt'))
     ap.add_argument('--max-nodes', type=int, default=200000)
     ap.add_argument('--all', action='store_true')
     ap.add_argument('levels', nargs='*', type=int)
     a = ap.parse_args()
     hud = ('I', 'II', 'III', 'IV')[a.coll - 1]
-    known = read_solutions(a.solutions)
+    known = sl.read_solutions(a.solutions)
     if a.xsb is None:
         a.xsb = os.path.join(HERE, '..', 'levels', ('microban.xsb', 'microban2.xsb',
                                                     'microban3.xsb', 'microban4.xsb')[a.coll - 1])
 
     kept = sl.kept_levels(a.xsb)         # as the game draws them (turned or not)
-    cur_coll = zp_address(a.lst, 'cur_coll')
-    cur_lvl = zp_address(a.lst, 'cur_lvl')
-    moves = zp_address(a.lst, 'moves_lo')
+    labels = a2test.labels(a.labels)
 
     failed = 0
     for idx in range(1, len(kept) + 1) if a.all else a.levels:
@@ -102,19 +72,19 @@ def main():
             # before peeking the game's cur_coll / cur_lvl values.
             steps += ['key:' + 'N' * k, 'wait:600']
             n -= k
-        steps += ['peek:%04X:2' % cur_coll]
+        steps += [labels.peek('cur_coll', 2)]
         # all but the last move, then the counters, then the winning move
-        body = ''.join(KEYS[c] for c in sol.lower())
+        body = sl.solution_keys(sol)
         last = idx == len(kept)          # then the BRAVO screen, then level 1 of a collection
-        steps += ['key:' + body[:-1], 'wait:5', 'peek:%04X:2' % moves, 'key:' + body[-1], 'wait:1000',
-                  'key: ', 'wait:600'] + (['key: ', 'wait:400'] if last else []) + ['peek:%04X:1' % cur_lvl]
-        out = subprocess.run([a.a2run, '--disk', a.disk] + steps, capture_output=True, text=True).stdout
-        dumps = re.findall(r'^\w{4}: (\w\w)(?: (\w\w))?', out, re.M)
+        steps += ['key:' + body[:-1], 'wait:5', labels.peek('moves_lo', 2), 'key:' + body[-1], 'wait:1000',
+                  'key: ', 'wait:600'] + (['key: ', 'wait:400'] if last else []) + [labels.peek('cur_lvl')]
+        result = a2test.run(a.disk, steps, emulator=a.a2run, check=False)
+        dumps = result.dumps
         if len(dumps) < 3:
-            sys.exit('a2run gave no memory dumps:\n' + out)
-        coll, before = int(dumps[0][0], 16), int(dumps[0][1], 16)
-        count = int(dumps[1][0], 16) + 256 * int(dumps[1][1], 16) + 1
-        after = int(dumps[2][0], 16)
+            sys.exit('a2run gave no memory dumps:\n' + result.out)
+        coll, before = dumps[0][0], dumps[0][1]
+        count = int.from_bytes(dumps[1][:2], 'little') + 1
+        after = dumps[2][0]
         ok = coll == a.coll - 1 and before == idx - 1 and after == (0 if last else idx) and count == len(sol)
         failed += not ok
         print('level %d (#%d): %d moves, %s' % (idx, num, len(sol),

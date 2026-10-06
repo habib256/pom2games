@@ -20,8 +20,11 @@ native ; `exit.asm` restaure la page zéro pour rendre la main à DOS proprement
 - **`print_num.asm`** — `print_byte_dec` : octet en trois chiffres via COUT.
 - **`kbd.asm`** — `wait_key` (bloquant) et `poll_key` (non bloquant).
 - **`delay.asm`** — `delay_ms_a` : ~A millisecondes à 1,0205 MHz.
-- **`hgr.asm`** — `hgr_init`, `hgr_init_clear`, `hgr_page1/2`, `text_restore`.
-- **`exit.asm`** — `apple2_zp_save`, `apple2_exit`.
+- **`hgr.asm`** — `hgr_init`, `hgr_init_clear`, `hgr_page1/2`, `text_restore`,
+  et la macro `HGR_CLEAR_LOOP` (8 Ko depuis la page X avec l'octet A, quatre
+  STA absolus auto-modifiés par tour, ~51 000 cycles, sans page zéro) que
+  partagent `hgr_init_clear`, `clear_hgr` (lib/hgr) et `hgr_clear` (C).
+- **`exit.asm`** — `apple2_zp_save`, `apple2_exit`, `apple2_return`.
 - **`sound.asm`** — `tone` : bip carré sur le haut-parleur.
 - **`joy.asm`** — `read_stick`, `stick_dir` : manette (deux paddles).
 - **`dos.asm`** — `dos_cmd_*`, `disk_protected` : commandes DOS 3.3 (BLOAD,
@@ -30,6 +33,12 @@ native ; `exit.asm` restaure la page zéro pour rendre la main à DOS proprement
 Les trois derniers sont sortis de MICRO-SOKOBAN pour que les autres jeux (sons,
 manette, sauvegarde dans leurs `TODO.md`) partagent le même code ; leur miroir
 C est dans [`../apple2c/`](../apple2c/) (`apple2game.h`, `apple2dos.h`).
+
+**Inclure après les appelants.** Chaque routine est entourée de `.ifref` : elle
+n'est assemblée que si le code qui précède l'include la référence. Les jeux
+mettent donc les `.include` en fin de source (LOGO, qui exporte `wait_key` vers
+un autre module, aussi). Un objet C qui aliase une routine vers un import
+(`hgr_init = _hgr_init`) la saute (`.ifndef`), voir `../hgrc/hgr_mode_clear_asm.s`.
 
 ## Routines
 
@@ -41,11 +50,12 @@ C est dans [`../apple2c/`](../apple2c/) (`apple2game.h`, `apple2dos.h`).
 | `poll_key` | `kbd.asm` | — | A = touche ou 0, Z à jour | A | — |
 | `delay_ms_a` | `delay.asm` | A = ms (0 → 256) | — | A, X, Y | — |
 | `hgr_init` | `hgr.asm` | — | GRAPHICS + HIRES + PAGE1 + plein écran | A | — |
-| `hgr_init_clear` | `hgr.asm` | — | idem, page 1 effacée avant la bascule | A, X | — |
+| `hgr_init_clear` | `hgr.asm` | — | idem, page 1 effacée avant la bascule (`HGR_CLEAR_ROUTINE` pour la remplacer) | A, X, Y | — |
 | `hgr_page1` / `hgr_page2` | `hgr.asm` | — | page affichée | A | — |
 | `text_restore` | `hgr.asm` | — | TEXT + plein écran + PAGE1 | A | — |
 | `apple2_zp_save` | `exit.asm` | — | copie $00-$FF (256 o de BSS, ou `apple2_zp_buf` défini par le programme avant l'include), RESET → `apple2_exit` | A, X | — |
 | `apple2_exit` | `exit.asm` | — | vecteur RESET et ZP restaurés (fenêtre texte et curseur `$20-$29` gardés), écran texte, `JMP $03D0` | tout | — |
+| `apple2_return` | `exit.asm` | — | même restauration, puis `RTS` vers le `CALL` BASIC (programme lancé par `BLOAD` + `CALL`) | tout | — |
 | `tone` | `sound.asm` | A = bascules (0 → 256), X = demi-période (0 → 256) ; ~(13 + 5·X) cycles par bascule | — | A, X, Y | — |
 | `read_stick` | `joy.asm` | — | `joy_x`, `joy_y` = 0 (gauche / haut) … ~60 (centre) … ~120 ; ~6 ms | A, X, Y | — |
 | `stick_dir` | `joy.asm` | `joy_x`, `joy_y` | A = `JOY_NONE` (0, Z = 1) / `JOY_UP` / `JOY_DOWN` / `JOY_LEFT` / `JOY_RIGHT` ; zone morte `JOY_LO`–`JOY_HI` (30–90, à définir avant l'include pour changer) ; la verticale l'emporte | A | — |

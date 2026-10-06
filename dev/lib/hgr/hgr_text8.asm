@@ -21,10 +21,12 @@
 ;
 ; Fonts: ht_font_lo/hi -> 8-bytes-per-glyph table for chars $20.. ;
 ; ht_rev picks the bit order:
-;   ht_rev = 0   HGR order (bit 0 = leftmost) -- bbfont_ascii5f.inc etc.
+;   ht_rev = 0   HGR order (bit 0 = leftmost) -- dev/lib/font/bbfont.inc
 ;   ht_rev = 1   TMS order (bit 7 = leftmost) -- rows pass through
 ;                rev7_tab (the glyph's rightmost pixel column is dropped;
 ;                fine for fonts, which keep a blank right column).
+; A program whose font is in HGR order can define HGR_TEXT8_HGR_ORDER before
+; the include: ht_rev, the rev7 path and the 256-byte rev7_tab disappear.
 ; Chars < $20 render as space, $60..$7F fold to uppercase, past the
 ; 64-glyph window renders as space. ht_sl >= 192 skips the draw (the
 ; cursor still advances).
@@ -59,12 +61,13 @@ ht_left:    .res 1      ; wrap: column the cursor snaps back to (public)
 ht_wrap:    .res 1      ; wrap: first column PAST the text window (public)
 ht_font_lo: .res 1      ; -> font, 8 B/glyph, first char $20 (public)
 ht_font_hi: .res 1
+.ifndef HGR_TEXT8_HGR_ORDER
 ht_rev:     .res 1      ; 0 = HGR bit order, 1 = TMS order via rev7_tab
+.endif
 ht_src_lo:  .res 1      ; hgr_puts8 string pointer (public)
 ht_src_hi:  .res 1
 ht_a:       .res 1      ; char cache (A preserved across hgr_putc8)
-ht_t:       .res 1      ; glyph-pointer math scratch
-ht_t2:      .res 1
+ht_t:       .res 1      ; glyph-pointer math, then this char's pixel mask
 ht_g_lo:    .res 1      ; glyph pointer
 ht_g_hi:    .res 1
 ht_lin_lo:  .res 1      ; scanline pointer
@@ -72,7 +75,6 @@ ht_lin_hi:  .res 1
 ht_cm_ev:   .res 1      ; colour: pixel mask for EVEN byte columns (public)
 ht_cm_od:   .res 1      ; colour: pixel mask for ODD byte columns (public)
 ht_cbit:    .res 1      ; colour: palette bit $00/$80 (public)
-ht_px:      .res 1      ; glyph byte cache across the colour mask
 ht_page:    .res 1      ; HGR page selector, EORed into the scanline
                         ; high byte ($00 = page 1, $60 = page 2). INIT
                         ; AT BOOT; double-buffered games flip it
@@ -108,8 +110,7 @@ hgr_putc8:
         AND #$7F
         CMP #$60
         BCC @nofold
-        SEC
-        SBC #$20                ; $60..$7F -> uppercase
+        SBC #$20                ; $60..$7F -> uppercase (C set by the CMP)
 @nofold:
         SEC
         SBC #$20
@@ -120,23 +121,32 @@ hgr_putc8:
         BCC @idx_ok
         LDA #0                  ; past the 64-glyph window -> space
 @idx_ok:
-        ; glyph ptr = font + idx * 8
+        ; glyph ptr = font + idx * 8: idx < 64, so the product is 9 bits and
+        ; three shifts in A leave its bit 8 in the carry.
+        ASL A
+        ASL A
+        ASL A
         STA ht_t
         LDA #0
-        STA ht_t2
-        ASL ht_t
-        ROL ht_t2
-        ASL ht_t
-        ROL ht_t2
-        ASL ht_t
-        ROL ht_t2
+        ROL A
+        STA ht_g_hi
         LDA ht_t
         CLC
         ADC ht_font_lo
         STA ht_g_lo
-        LDA ht_t2
+        LDA ht_g_hi
         ADC ht_font_hi
         STA ht_g_hi
+        ; artifact colour: the pixel mask follows the byte-column parity and
+        ; is constant for the 8 rows. WHITE ($7F/$7F/$00) is a pass-through --
+        ; the caller's boot MUST init the three attributes (garbage masks =
+        ; invisible text on a real cold boot).
+        LDA ht_col
+        LSR A                   ; C = column parity
+        LDA ht_cm_ev
+        BCC @c_m
+        LDA ht_cm_od
+@c_m:   STA ht_t
         LDX #0                  ; glyph row 0..7
 @row:   TXA
         CLC
@@ -150,19 +160,15 @@ hgr_putc8:
         TXA
         TAY
         LDA (ht_g_lo),Y         ; glyph row byte
+.ifndef HGR_TEXT8_HGR_ORDER
         LDY ht_rev
         BEQ @put
         TAY
         LDA rev7_tab,Y          ; TMS bit order -> HGR
-@put:   STA ht_px
-        LDA ht_col              ; artifact colour: parity mask by byte-
-        AND #1                  ; column parity + palette bit. WHITE
-        BNE @c_od               ; ($7F/$7F/$00) is a pass-through — the
-        LDA ht_cm_ev            ; caller's boot MUST init the three
-        JMP @c_m                ; attributes (garbage masks = invisible
-@c_od:  LDA ht_cm_od            ; text on a real cold boot).
-@c_m:   AND ht_px
-        ORA ht_cbit
+@put:
+.endif
+        AND ht_t                ; glyph bit 7 is always stripped: the palette
+        ORA ht_cbit             ; bit comes from ht_cbit, never from the font
         LDY ht_col
         STA (ht_lin_lo),Y       ; STORE: text overwrites its cell
         INX
@@ -180,6 +186,7 @@ hgr_putc8:
 ; ----------------------------------------------------------------------------
 ; hgr_puts8: print the NUL-terminated string at ht_src_lo/hi. Clobbers Y.
 ; ----------------------------------------------------------------------------
+.ifndef HGR_TEXT8_NO_PUTS
 hgr_puts8:
         LDY #0
 @lp:    LDA (ht_src_lo),Y
@@ -188,7 +195,10 @@ hgr_puts8:
         INY
         BNE @lp
 @done:  RTS
+.endif
 
+.ifndef HGR_TEXT8_HGR_ORDER
 .include "rev7.inc"
+.endif
 
 .endif  ; _HGR_TEXT8_LOADED_

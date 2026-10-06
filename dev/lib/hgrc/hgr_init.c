@@ -21,7 +21,8 @@
 
 #include "hgr.h"
 #include "hgr_internal.h"
-#include "hgr_layout.h"
+
+extern void hgr_flip_rows(void);      /* hgr_mode_asm.s: rowhi ^= $60 */
 
 /* Sink for the individual soft-switch macros. A soft-switch READ is the toggle;
  * its value is meaningless. cc65 -Oirs drops a volatile read cast to void, so
@@ -42,11 +43,12 @@ unsigned char hgr_base;
 
 /* Apple II interleaved HIRES scanline base, in the CURRENT draw page:
    (hgr_base<<8) + (y&7)*$400 + ((y>>3)&7)*$80 + (y>>6)*40
-   hgr_base=$20 gives the classic $2000 page-1 layout; $40 is page 2. */
+   hgr_base=$20 gives the classic $2000 page-1 layout; $40 is page 2.
+   Read from the tables (built on first use): no 16-bit multiply. */
 unsigned char *hgr_row(unsigned char y)
 {
-    if (!hgr_base) hgr_base = 0x20u;   /* BSS default: page 1 */
-    return (unsigned char *)HGR_ROW_ADDR(hgr_base, y);
+    hgr_build_tables();
+    return (unsigned char *)(((unsigned)hgr_rowhi[y] << 8) | hgr_rowlo[y]);
 }
 
 /* --- Look-up tables (referenced by every drawing module via internal.h) ---- */
@@ -69,16 +71,23 @@ unsigned char hgr_lo_rowhi[24];
 unsigned char hgr_lo_base;
 unsigned char hgr_lo_ready;
 
-/* (Re)derive the HIRES scanline-base tables for the current hgr_base. The
- * low bytes are page-independent; the high bytes carry the page. Cheap enough to
- * redo on a page flip — hgr_set_draw_page calls this when the draw page moves. */
+/* Derive the HIRES scanline-base tables for the current hgr_base, with 8-bit
+ * arithmetic only (no multiply runtime): for y = 64*third + 8*group + line,
+ *   low  = (group & 1) * 128 + third * 40
+ *   high = base + line * 4 + group / 2
+ * The low bytes are page-independent; a page flip only EORs the high bytes
+ * (hgr_flip_rows). */
 static void hgr_fill_rows(void)
 {
-    unsigned y;
-    for (y = 0; y < 192u; ++y) {
-        unsigned a = (unsigned)hgr_row((unsigned char)y);
-        hgr_rowlo[y] = (unsigned char)(a & 0xFFu);
-        hgr_rowhi[y] = (unsigned char)(a >> 8);
+    unsigned char y = 0u, third, group, line, lo;
+    for (third = 0u; third < 3u; ++third) {
+        for (group = 0u; group < 8u; ++group) {
+            lo = (unsigned char)(((group & 1u) ? 128u : 0u) + third * 40u);
+            for (line = 0u; line < 8u; ++line, ++y) {
+                hgr_rowlo[y] = lo;
+                hgr_rowhi[y] = (unsigned char)(hgr_base + (line << 2) + (group >> 1));
+            }
+        }
     }
 }
 
@@ -138,14 +147,11 @@ void hgr_set_draw_page(unsigned char page)
      * by hgr_lores.c — see the conditional shift below. */
     hgr_build_tables();
     hgr_draw_page2 = (unsigned char)(page == 2u);
-    /* Flip HIRES pages by SHIFTING the existing scanline-base HIGH bytes by the
-     * page delta — the low bytes are page-independent, so this is a few hundred
-     * byte adds instead of recomputing every base from the interleave formula.
-     * Wrap-around makes the -$20 case work in uchar. */
+    /* Flip HIRES pages by moving the existing scanline-base HIGH bytes to the
+     * other page ($2x <-> $4x is one EOR $60 per entry, in asm) — the low
+     * bytes are page-independent. */
     if (newh != hgr_base) {
-        unsigned char dh = (unsigned char)(newh - hgr_base);
-        for (i = 0u; i < 192u; ++i)
-            hgr_rowhi[i] = (unsigned char)(hgr_rowhi[i] + dh);
+        hgr_flip_rows();
         hgr_base = newh;
     }
     /* LORES: only shift the existing tables if hgr_lores_build has run. A

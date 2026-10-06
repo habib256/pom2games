@@ -33,7 +33,7 @@ déjà partie de `HGRC_DHGR_SRCS`, lié avec le backend `gfx` DHGR couleur.
 La boucle utilise `src/ball_render.s`, un rendu assembleur spécialisé pour les
 trois sprites 6 × 6 (stride de 5 octets), avec tables d'adresses et de phases.
 La sauvegarde du fond et le dessin masqué se font en un seul passage.
-Le compteur utilise des chiffres DHGR précalculés depuis `hgr_bbfont.inc` dans
+Le compteur utilise des chiffres DHGR précalculés depuis la police Beautiful Boot (`dev/tools/fonts.py`) dans
 `src/digits.inc` et ne réécrit que les chiffres modifiés sur chaque page.
 Les balles doivent rester entièrement dans l'écran : ce rendu ne fait pas de
 clipping. Les primitives générales restent utilisées pour l'introduction et

@@ -45,6 +45,27 @@ import argparse
 import os
 import struct
 import sys
+import hud_font
+
+# The game's move keys, and the checked solutions (tools/make_solutions.py).
+KEYS = {'u': 'I', 'd': 'K', 'l': 'J', 'r': 'L'}
+
+
+def read_solutions(path):
+    """{(hud, original number): moves} from solutions.txt (empty if absent)."""
+    out = {}
+    path = str(path)
+    if os.path.exists(path):
+        for row in open(path):
+            if row.strip() and not row.startswith(';'):
+                hud, num, _, moves = row.split()
+                out[(hud, int(num))] = moves.lower()
+    return out
+
+
+def solution_keys(moves, count=None):
+    """A solution's u/d/l/r moves as the keys the game expects."""
+    return ''.join(KEYS[c] for c in moves.lower()[:count])
 
 COLS, ROWS = 20, 12
 HUD_CELLS = ([(0, c) for c in (0, 1, 2, COLS - 3, COLS - 2, COLS - 1)] +
@@ -418,7 +439,7 @@ def main():
     L.append('pack_name_hi:    .byte %s' % ', '.join('>pack_name_%d' % i for i in range(len(pn))))
     for i, n in enumerate(pn):
         L.append('pack_name_%d:     .byte "%s", 0' % (i, n))
-    glyph = {'I': 29, 'V': 11, 'X': 35}     # the game font (bbfont_subset.inc)
+    glyph = {ch: hud_font.ORDER.index(ch) for ch in 'IVX'}   # the game font (tools/hud_font.py)
     for i, c in enumerate(colls):
         if not set(c['hud']) <= set(glyph):
             sys.exit('HUD name %r: roman numerals I, V, X only' % c['hud'])

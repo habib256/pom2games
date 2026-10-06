@@ -5,53 +5,31 @@
 #   make clean      -> remove build/ (the disk stays)
 #   make distclean  -> remove build/ and the disk
 #
-# Needs cc65 (ca65/ld65) and python3 only: the shared ../dev tree has the rest,
-# DOS 3.3 system tracks included. `make run` uses the installed POM2 app.
+# Needs cc65 (ca65/ld65) and python3 only; the shared rules and tool
+# variables come from ../dev/cc65/apple2.mk.
 
-CA65    ?= ca65
-LD65    ?= ld65
-PYTHON  ?= python3
 DEV     ?= ../dev
-POM2    ?= /Applications/POM2.app/Contents/MacOS/POM2
-SYSTEM  ?= $(DEV)/tools/dos33_system.bin
+include $(DEV)/cc65/apple2.mk
 
-INCS    := -I src -I $(DEV)/lib/apple2 -I $(DEV)/lib/hgr
 DEFS    := -D CHESS_SMART_EVAL
-BUILD   := build
-DIST    ?= ../dist
 DISK    := $(DIST)/CHESS.dsk
 BIN     := $(BUILD)/chess.bin
-LOAD    := 0x6000
 OBJS    := $(BUILD)/chess.o $(BUILD)/chess_engine.o
 
 all: $(DISK)
 
-$(BUILD)/chess.o: src/chess.s src/chess_common.inc $(wildcard $(DEV)/lib/apple2/*) $(wildcard $(DEV)/lib/hgr/*)
+$(BUILD)/chess.o: src/chess.s src/chess_common.inc $(A2_ASM_DEPS)
 	@mkdir -p $(BUILD)
-	$(CA65) -t none $(INCS) $(DEFS) -l $(BUILD)/chess.lst -o $@ $<
+	$(CA65) -t none $(A2_INCS) $(DEFS) -l $(BUILD)/chess.lst -o $@ $<
 
 $(BUILD)/chess_engine.o: src/chess_engine.asm src/chess_common.inc src/chess_tables.inc
 	@mkdir -p $(BUILD)
-	$(CA65) -t none $(INCS) $(DEFS) -l $(BUILD)/chess_engine.lst -o $@ $<
+	$(CA65) -t none $(A2_INCS) $(DEFS) -l $(BUILD)/chess_engine.lst -o $@ $<
 
 $(BIN): $(OBJS) src/chess.cfg
 	$(LD65) -C src/chess.cfg -m $(BUILD)/chess.map -o $@ $(OBJS)
 	@echo "binary: $$(wc -c < $@) bytes at $(LOAD)"
 
-$(DISK): $(BIN) src/hello.bas $(DEV)/tools/dos33.py $(SYSTEM)
+$(DISK): $(BIN) $(DOS33_DEPS)
 	@mkdir -p $(DIST)
-	$(PYTHON) $(DEV)/tools/dos33.py --master $(SYSTEM) --out $@ \
-	    --bas HELLO=src/hello.bas \
-	    --bin CHESS=$(BIN)@$(LOAD) \
-	    --catalog
-
-run: $(DISK)
-	$(POM2) --preset ii+ $(DISK)
-
-clean:
-	rm -rf $(BUILD)
-
-distclean: clean
-	rm -f $(DISK)
-
-.PHONY: all run clean distclean
+	$(DOS33) --bin CHESS=$(BIN)@$(LOAD) --catalog

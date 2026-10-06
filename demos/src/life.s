@@ -169,26 +169,7 @@ next_pattern:
         STA dst_hi
         RTS
 
-; =============================================
-; clear_hgr: zero $2000-$3FFF (8 KB framebuffer)
-; Trashes A, X, Y; uses hgr_lo_p / hgr_hi_p as pointer.
-; =============================================
-clear_hgr:
-        LDA #$00
-        STA hgr_lo_p
-        LDA #$20
-        STA hgr_hi_p
-        LDY #0
-        LDA #0              ; stays 0 for the whole run
-@lp:
-        STA (hgr_lo_p),Y
-        INY
-        BNE @lp
-        INC hgr_hi_p
-        LDX hgr_hi_p
-        CPX #$40
-        BNE @lp
-        RTS
+; clear_hgr: dev/lib/hgr/hgr_clear.asm (included below).
 
 ; =============================================
 ; clear_grids: zero 1764 bytes at grid_a AND grid_b.
@@ -564,5 +545,6 @@ row_ofs_hi:
 ;                   + (y/64)*$28
 .include "hgr_scanline.inc"
 .include "hgr.asm"               ; dev/lib/apple2: hgr_init_clear
+.include "hgr_clear.asm"         ; dev/lib/hgr: clear_hgr
 .include "kbd.asm"               ; poll_key
 .include "exit.asm"              ; apple2_zp_save / apple2_return

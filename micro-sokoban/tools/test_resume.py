@@ -2,13 +2,15 @@
 """Reboot real disk images: positions, isolation, corruption and sector writes."""
 from pathlib import Path
 import argparse
-import re
-import subprocess
+import sys
 import tempfile
-from test_score import file_sectors, read_file, replace_file
 
 ROOT = Path(__file__).resolve().parents[2]
 GAME = ROOT / 'micro-sokoban'
+sys.path.insert(0, str(ROOT / 'dev/tools'))
+import a2test
+import dos33
+import micro_sokoban_levels as levels
 
 
 def main():
@@ -16,20 +18,14 @@ def main():
     ap.add_argument('--a2run', type=Path, default=ROOT / 'dev/tools/a2run/a2run')
     ap.add_argument('--disk', type=Path, default=ROOT / 'dist/MICRO-SOKOBAN.dsk')
     args = ap.parse_args()
-    labels = {n: int(a, 16) for a, n in re.findall(
-        r'^al ([0-9A-F]+) \.(\w+)$', (GAME / 'build/micro_sokoban.lbl').read_text(), re.M)}
-    def peek(name, count):
-        return f'peek:{labels[name]:04X}:{count}'
+    labels = a2test.labels(GAME / 'build/micro_sokoban.lbl')
+    peek = labels.peek
     state = [peek('STATE_GRID', 240), peek('player_row', 2), peek('moves_lo', 5)]
     def run(disk, steps, wp=False):
-        result = subprocess.run([str(args.a2run), '--disk', str(disk), *(['--wp'] if wp else []), *steps],
-                                check=True, text=True, capture_output=True, timeout=30)
-        return b''.join(bytes.fromhex(row) for row in re.findall(r'^[0-9A-F]{4}: (.+)$', result.stdout, re.M))
+        return a2test.run(disk, steps, emulator=args.a2run, wp=wp, timeout=30).data
     base = args.disk.read_bytes()
     start = ['wait:1800', 'key:G', 'wait:90', 'key:\r', 'wait:180']
-    solution = next(row.split()[3] for row in (GAME / 'levels/solutions.txt').read_text().splitlines()
-                    if row.startswith('I 1 '))
-    keys = ''.join(dict(u='I', d='K', l='J', r='L')[c] for c in solution.lower())
+    keys = levels.solution_keys(levels.read_solutions(GAME / 'levels/solutions.txt')[('I', 1)])
     with tempfile.TemporaryDirectory(prefix='micro-resume-') as tmp:
         tmp = Path(tmp)
         saved = tmp / 'saved.dsk'
@@ -52,7 +48,7 @@ def main():
         assert restarted == bytes(5), 'RESTART from title restored the saved position'
         print('RESTART from the title menu starts the saved level with zero moves: ok')
         changed = {i for i in range(0, len(base), 256) if base[i:i+256] != saved.read_bytes()[i:i+256]}
-        assert changed == {file_sectors(base, 'MICROSAVE')[7]}, changed
+        assert changed == {dos33.file_sectors(base, 'MICROSAVE')[7]}, changed
         print('A position checkpoint changes exactly one data sector, without catalog/VTOC writes: ok')
 
         idle = tmp / 'idle.dsk'
@@ -82,9 +78,9 @@ def main():
         # A damaged snapshot is ignored, without losing valid best records.
         for name, offset in [('checksum', 1830+20), ('fingerprint', 1830+4), ('version', 1831)]:
             image = bytearray(saved.read_bytes())
-            payload = bytearray(read_file(image, 'MICROSAVE'))
+            payload = bytearray(dos33.read_file(image, 'MICROSAVE'))
             payload[offset] ^= 1
-            replace_file(image, 'MICROSAVE', payload)
+            dos33.replace_file(image, 'MICROSAVE', payload)
             path = tmp / (name + '.dsk')
             path.write_bytes(image)
             assert run(path, ['wait:1800', peek('resume_pending', 1)]) == bytes(1)

@@ -2,11 +2,14 @@
 """Measure real POM2 CPU cycles (including Disk II rotation), never host time."""
 from pathlib import Path
 import argparse
-import re
-import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 GAME = ROOT / 'micro-sokoban'
+sys.path.insert(0, str(ROOT / 'dev/tools'))
+import a2test
+import dos33
+import micro_sokoban_levels as levels
 CPU_HZ = 1_021_800
 
 
@@ -16,16 +19,13 @@ def main():
     ap.add_argument('--labels', type=Path, default=GAME / 'build/micro_sokoban.lbl')
     ap.add_argument('--legacy', action='store_true', help='measure an earlier DOS-command build')
     args = ap.parse_args()
-    labels = {n: int(a, 16) for a, n in re.findall(
-        r'^al ([0-9A-F]+) \.(\w+)$', args.labels.read_text(), re.M)}
+    labels = a2test.labels(args.labels)
 
     def until(name):
-        return f'until:{labels[name]:04X}:3600'
+        return labels.until(name, 3600)
 
     def measure(steps):
-        result = subprocess.run([str(ROOT / 'dev/tools/a2shot/a2shot'), '--disk', str(args.disk), *steps],
-                                check=True, text=True, capture_output=True, timeout=60)
-        return [int(x) for x in re.findall(r'cycles=(\d+)', result.stdout)]
+        return a2test.run(args.disk, steps, emulator=a2test.A2SHOT, timeout=60).cycles
 
     # Stop at routine boundaries rather than peeking zero page during disk I/O.
     steps = [until('title_wait'), 'press:V', until('run_profiles'), 'wait:180',
@@ -44,9 +44,7 @@ def main():
         cycles = measure(steps)
         print('Position checkpoint %.3f s (including status and HUD redraw)' % ((cycles[-1]-cycles[-2])/CPU_HZ))
     # The normal success path saves records and the ranking.
-    solution = next(row.split()[3] for row in (GAME / 'levels/solutions.txt').read_text().splitlines()
-                    if row.startswith('I 1 '))
-    keys = ''.join(dict(u='I', d='K', l='J', r='L')[c] for c in solution.lower())
+    keys = levels.solution_keys(levels.read_solutions(GAME / 'levels/solutions.txt')[('I', 1)])
     steps = [until('title_wait'), 'key:G', 'wait:60', 'press:\r', until('move_loop'),
              'key:' + keys, until('write_save'), until('wait_any')]
     cycles = measure(steps)

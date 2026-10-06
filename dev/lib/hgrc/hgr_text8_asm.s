@@ -2,7 +2,8 @@
 ; hgr_text8_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
 .export _hgr_blit_glyph8, _hgr_puts_run8
 .import _hgr_rowhi, _hgr_rowlo
-.importzp _hgr_g_col, _hgr_g_glyph, _hgr_g_mask, _hgr_g_y, _hgr_t_bit, _hgr_t_col, _hgr_t_font, _hgr_t_n, _hgr_t_s
+.import glyph_addr
+.importzp _hgr_g_col, _hgr_g_glyph, _hgr_g_bit, _hgr_g_y, _hgr_t_bit, _hgr_t_col, _hgr_t_font, _hgr_t_n, _hgr_t_s
 .importzp ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
 curcol = tmp1
 curmask = tmp2
@@ -11,10 +12,13 @@ rowcnt = tmp4
 
 .segment "CODE"
 _hgr_blit_glyph8:
+; Row at a time: the 7 glyph pixels become bits bit..bit+6 of the 14-bit span
+; at columns g_col / g_col+1 (left = row << bit, right = row >> (7-bit)), ORed
+; in as two bytes. ~350 cycles per glyph against ~2 500 for the old
+; pixel-by-pixel pen walk.
         lda #0
         sta rowcnt
 @rowloop:
-        ; ptr1 = hgr_row(g_y + row)   (single scanline — no paired ptr2)
         lda rowcnt
         clc
         adc _hgr_g_y
@@ -23,35 +27,35 @@ _hgr_blit_glyph8:
         sta ptr1
         lda _hgr_rowhi,y
         sta ptr1+1
-        ; load this row's 8 source bits
         ldy rowcnt
         lda (_hgr_g_glyph),y
-        sta curbits
-        ; reset pen to the glyph's left edge
-        lda _hgr_g_col
-        sta curcol
-        lda _hgr_g_mask
-        sta curmask
-        ldx #8                ; 8 bits (bit 7 is blank -> a no-op plot)
-@bitloop:
-        lsr curbits           ; bit 0 (leftmost) -> carry
-        bcc @skip
-        ldy curcol            ; lit: one pixel on this scanline
-        lda curmask
+        beq @next             ; blank row: nothing to OR
+        sta curbits           ; 16-bit span, low byte
+        ldx #0
+        stx curmask           ; high byte
+        ldy _hgr_g_bit
+        beq @shifted
+@shift: asl curbits
+        rol curmask
+        dey
+        bne @shift
+@shifted:
+        ldy _hgr_g_col
+        lda curbits
+        and #$7F
+        beq @right
         ora (ptr1),y
         sta (ptr1),y
-@skip:
-        asl curmask           ; advance the pen one pixel
+@right: lda curbits
+        asl a                 ; C = span bit 7
         lda curmask
-        cmp #$80
-        bne @nextbit
-        lda #$01
-        sta curmask
-        inc curcol
-@nextbit:
-        dex
-        bne @bitloop
-        inc rowcnt
+        rol a                 ; span bits 7..13 -> next column
+        and #$7F
+        beq @next             ; also keeps column 40 untouched (bit = 0 there)
+        iny
+        ora (ptr1),y
+        sta (ptr1),y
+@next:  inc rowcnt
         lda rowcnt
         cmp #8
         bne @rowloop
@@ -79,33 +83,11 @@ _hgr_puts_run8:
 @okc:
         sec                     ; hgr_g_glyph = font + (c-$20)*8
         sbc #$20
-        sta tmp1
-        lda #0
-        sta tmp2
-        asl tmp1
-        rol tmp2
-        asl tmp1
-        rol tmp2
-        asl tmp1
-        rol tmp2
-        lda tmp1
-        clc
-        adc _hgr_t_font
-        sta _hgr_g_glyph
-        lda tmp2
-        adc _hgr_t_font+1
-        sta _hgr_g_glyph+1
+        jsr glyph_addr
         lda _hgr_t_col
         sta _hgr_g_col
-        ldx _hgr_t_bit         ; hgr_g_mask = 1 << bit
-        lda #1
-@mk:
-        dex
-        bmi @mkd
-        asl a
-        jmp @mk
-@mkd:
-        sta _hgr_g_mask
+        lda _hgr_t_bit
+        sta _hgr_g_bit
         jsr _hgr_blit_glyph8
         ; pen += 8px: bit += 1 (+ carry into col on the 7px wrap)
         lda _hgr_t_bit

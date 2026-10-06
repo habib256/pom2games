@@ -3,17 +3,21 @@
 from pathlib import Path
 import argparse
 import re
-import subprocess
+import sys
 import tempfile
-from test_score import entries, file_sectors, read_file, replace_file
+from test_score import entries
 
 ROOT = Path(__file__).resolve().parents[2]
 GAME = ROOT / 'micro-sokoban'
+sys.path.insert(0, str(ROOT / 'dev/tools'))
+import a2test
+import dos33
+import micro_sokoban_levels as levels
 
 
 def set_length(image, name, length):
     """The length field of a DOS binary file, whatever its sectors hold."""
-    offset = file_sectors(image, name)[0]
+    offset = dos33.file_sectors(image, name)[0]
     image[offset + 2:offset + 4] = length.to_bytes(2, 'little')
 
 
@@ -30,23 +34,16 @@ def main():
     ap.add_argument('--a2run', type=Path, default=ROOT / 'dev/tools/a2run/a2run')
     ap.add_argument('--disk', type=Path, default=ROOT / 'dist/MICRO-SOKOBAN.dsk')
     args = ap.parse_args()
-    labels = {n: int(a, 16) for a, n in re.findall(
-        r'^al ([0-9A-F]+) \.(\w+)$', (GAME / 'build/micro_sokoban.lbl').read_text(), re.M)}
+    labels = a2test.labels(GAME / 'build/micro_sokoban.lbl')
     base = args.disk.read_bytes()
-    save = read_file(base, 'MICROSAVE')
-    hof = read_file(base, 'MICROHOF')
-    solution = next(row.split()[3] for row in (GAME / 'levels/solutions.txt').read_text().splitlines()
-                    if row.startswith('I 1 '))
-    keys = ''.join(dict(u='I', d='K', l='J', r='L')[c] for c in solution.lower())
-
-    def peek(name, count=1, offset=0):
-        return f'peek:{labels[name] + offset:04X}:{count}'
+    save = dos33.read_file(base, 'MICROSAVE')
+    hof = dos33.read_file(base, 'MICROHOF')
+    keys = levels.solution_keys(levels.read_solutions(GAME / 'levels/solutions.txt')[('I', 1)])
+    peek = labels.peek
 
     def run(disk, steps):
-        result = subprocess.run([str(args.a2run), '--disk', str(disk), *steps],
-                                check=True, text=True, capture_output=True, timeout=60)
-        dumps = [bytes.fromhex(row) for row in re.findall(r'^[0-9A-F]{4}: (.+)$', result.stdout, re.M)]
-        return dumps, result.stdout
+        result = a2test.run(disk, steps, emulator=args.a2run, timeout=60)
+        return result.lines(), result.out
 
     def status(page):
         """The seven cells of the status corner (byte columns 31-37, scanlines 180-187) on an HGR page."""
@@ -77,9 +74,9 @@ def main():
             payload = bytearray(save)
             for index, moves in (records_ or {}).items():
                 payload[14 + index * 4:18 + index * 4] = moves.to_bytes(2, 'little') + bytes(2)
-            replace_file(image, 'MICROSAVE', payload)
+            dos33.replace_file(image, 'MICROSAVE', payload)
             if ranking is not None:
-                replace_file(image, 'MICROHOF', bytes(ranking))
+                dos33.replace_file(image, 'MICROHOF', bytes(ranking))
             change(image)
             path = tmp / name
             path.write_bytes(image)
@@ -91,7 +88,7 @@ def main():
         dumps, _ = run(bad, boot + [peek('score_solved', 2)] + start +
                        ['key:' + keys[:11], 'wait:30', *state, *menu, 'dsk:' + str(again)])
         assert dumps == [b'\0\0', b'\0\0', b'\x0b\0', b'\x01'], dumps
-        rewritten = read_file(again.read_bytes(), 'MICROSAVE')
+        rewritten = dos33.read_file(again.read_bytes(), 'MICROSAVE')
         assert len(rewritten) == len(save) and rewritten[:4] == b'SOK2' and not records(rewritten)
         assert rewritten[6:14] == save[6:14] and rewritten[1830:1831] == b'P'
         dumps, _ = run(again, boot + ['key: ', 'wait:180', *state])
@@ -101,13 +98,13 @@ def main():
         # The same for the ranking: the defaults replace it on the disk during the start.
         bad = disk('ranking.dsk', lambda image: set_length(image, 'MICROHOF', 121))
         run(bad, boot + ['dsk:' + str(again)])
-        assert read_file(again.read_bytes(), 'MICROHOF') == hof[:4] + b'GIS' + bytes(80) + hof[87:], \
+        assert dos33.read_file(again.read_bytes(), 'MICROHOF') == hof[:4] + b'GIS' + bytes(80) + hof[87:], \
             'the defaults were not written over the unreadable ranking at once'
         dumps, _ = run(bad, first + ['key:' + keys, 'wait:600', peek('hof_buf', 120), *state,
                                      'dsk:' + str(again)])
         ranking = b''.join(dumps[:8])
         assert ranking[:7] == b'HOF3GIS' and entries(ranking) == [('GIS', 33, 1)] and dumps[-1] == b'\x01'
-        assert read_file(again.read_bytes(), 'MICROHOF') == ranking
+        assert dos33.read_file(again.read_bytes(), 'MICROHOF') == ranking
         print('Ranking with an impossible length: defaults written over it at once, play goes on: ok')
 
         # No save file at all: nothing can be written. "IO ERR" says so, and the game goes on.
@@ -123,7 +120,7 @@ def main():
         assert dumps[18:21] == [b'\0\0', b'\x0b\0', b'\x01'], dumps[18:21]
         assert dumps[21:] == [b'\0\x01', b'\0\0', b'\x01'], dumps[21:]
         after = bytearray(again.read_bytes())
-        offset = file_sectors(base, 'MICROHOF')[0]
+        offset = dos33.file_sectors(base, 'MICROHOF')[0]
         after[offset:offset + 256] = gone.read_bytes()[offset:offset + 256]
         assert after == gone.read_bytes(), 'something else than the ranking was written'
         print('Missing save file: "IO ERR" stays in the status corner, the level is played and solved: ok')
@@ -144,7 +141,7 @@ def main():
         dumps, _ = run(short, boot + [peek('score_solved', 2), peek('score_total', 4)] + start +
                        ['key:' + keys[:5], 'wait:30', *menu, 'dsk:' + str(again)])
         assert dumps[:2] == [b'\x01\0', b'\x21\0\0\0'], dumps[:2]
-        rewritten = read_file(again.read_bytes(), 'MICROSAVE')
+        rewritten = dos33.read_file(again.read_bytes(), 'MICROSAVE')
         assert len(rewritten) == len(save) and records(rewritten) == {0: 33}, records(rewritten)
         print('Save file shorter than its records: the missing ones are empty, not leftover memory: ok')
 
@@ -162,7 +159,7 @@ def main():
             dumps, _ = run(path, boot + [peek('hof_buf', 120), *menu, 'key:O', 'wait:120', 'key:\r', 'wait:60',
                                          'key:\x1b', 'wait:300', 'dsk:' + str(again)])
             data = b''.join(dumps)
-            written = read_file(again.read_bytes(), 'MICROHOF')
+            written = dos33.read_file(again.read_bytes(), 'MICROHOF')
             assert written[:87] == data[:87] and written[89:] == data[89:], 'the repaired ranking was not written'
             return data[4:7], data[119], data[89:119].rstrip(b'\0'), entries(data)
 

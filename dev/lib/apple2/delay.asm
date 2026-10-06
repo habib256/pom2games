@@ -15,10 +15,15 @@
 ;
 ; Edge case: A = 0 -> 256 ms. Interrupts are not masked, so an IRQ card can
 ; stretch the delay.
+; Assembled only if referenced before the include (.ifref).
 ; ============================================================================
+
+.ifndef _DELAY_ASM_LOADED_
+_DELAY_ASM_LOADED_ = 1
 
 .segment "CODE"
 
+.ifref delay_ms_a
 delay_ms_a:
         TAX                     ; X = ms count
 @o:     LDY     #202            ; inner reload calibrated for ~1 ms @ 1.02 MHz
@@ -34,3 +39,6 @@ delay_ms_a:
         ; If this fires, move the include (or pad a few bytes before it).
         .assert >(@bi+2) = >@i, error, "delay_ms_a inner branch crosses a page"
         .assert >(@bo+2) = >@o, error, "delay_ms_a outer branch crosses a page"
+.endif
+
+.endif  ; _DELAY_ASM_LOADED_

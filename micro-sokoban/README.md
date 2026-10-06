@@ -231,7 +231,7 @@ Améliorations prévues : voir [`TODO.md`](TODO.md).
     src/score_hof.inc          records, classement et saisie des initiales
     src/profiles.inc           choix des profils et sauvegardes indépendantes
     apple2_micro_sokoban.cfg         mémoire 48 Ko (travail à $0800, tampons en $0200-$03CF, MAXFILES 1)
-    src/bbfont_subset.inc      police du HUD (Beautiful Boot, sous-ensemble + F + - / ? .)
+    src/bbfont_subset.inc      police du HUD, générée par tools/hud_font.py (Beautiful Boot, 45 glyphes)
     src/hello.bas              affiche LOADING MICRO-SOKOBAN, puis lance le chargeur
     tools/pack_program.py     compression LZ vérifiée par décompression indépendante
     tools/build_disk.py       disquette DOS et allocation adaptée aux lecteurs

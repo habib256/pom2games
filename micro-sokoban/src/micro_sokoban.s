@@ -3777,14 +3777,7 @@ draw_page:
 
 ; hgr_hi is rewritten by set_draw_page: it lives in DATA, not RODATA.
 ; HGR scanline address tables (Apple II interleave), page 1 at load time
-hgr_lo:
-.repeat 192, I
-        .byte <(HGR1 + (I & 7) * $400 + ((I >> 3) & 7) * $80 + (I >> 6) * $28)
-.endrepeat
-hgr_hi:
-.repeat 192, I
-        .byte >(HGR1 + (I & 7) * $400 + ((I >> 3) & 7) * $80 + (I >> 6) * $28)
-.endrepeat
+.include "hgr_scanline.inc"      ; dev/lib/hgr: hgr_lo / hgr_hi
 
 .rodata
 
