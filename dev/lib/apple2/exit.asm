@@ -38,6 +38,8 @@
 ; it runs with DOS's zero page and must return without relying on game ZP.
 ;
 ; A program that never exits (it runs until RESET or power-off) can skip both.
+; The snapshot goes to BSS unless the program defined apple2_zp_buf (256 bytes)
+; before the include: $0200-$02FF is free while no DOS command is running.
 ; Caller responsibility: .include "apple2.inc" first.
 ; ============================================================================
 
@@ -45,7 +47,9 @@
 _EXIT_ASM_LOADED_ = 1
 
 .segment "BSS"
-apple2_zp_buf:  .res 256
+.ifndef apple2_zp_buf           ; a program short of BSS may define these 256
+apple2_zp_buf:  .res 256        ; bytes itself, before the include (any RAM
+.endif                          ; that DOS and the Monitor leave alone)
 apple2_entry_sp: .res 1         ; caller's stack pointer (for apple2_return)
 apple2_rst_buf: .res 3          ; $03F2-$03F4 as DOS left them
 

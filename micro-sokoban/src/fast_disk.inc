@@ -4,6 +4,7 @@
 IO_FILES = NUM_PACKS+11
 .segment "BSS"
 io_cache: .res IO_FILES*20
+.segment "PAGE3BSS"
 dos_zp_prog: .res DOS_ZP_LEN
 .segment "WORKBSS"
 hof_disk_copy: .res HOF_LEN

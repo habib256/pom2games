@@ -34,11 +34,11 @@ Prérequis : cc65 (`brew install cc65`) et python3. L'image est écrite par
 |                                   | H (accueil, partie ou menu)       | HELP                       |
 |                                   | F (menu)                         | Hall of Fame               |
 |                                   | T (menu)                         | tutoriel de cinq niveaux   |
-|                                   | O (menu)                         | options : sons, case morte, triche |
+|                                   | O (menu)                         | options : sons, case morte, triche, couleur |
 |                                   | Q (menu)                         | quitter vers DOS           |
 
 L'écran titre montre les niveaux résolus et le niveau de reprise du profil actif.
-Son nom apparaît en bas à gauche du mur inférieur ; la version **V1.1** apparaît
+Son nom apparaît en bas à gauche du mur inférieur ; la version **V1.2** apparaît
 en bas à droite. Les deux textes blancs ont un fond noir et une marge
 qui évitent les franges de couleur. Le couloir animé occupe toute la largeur :
 un déplacement toutes les **~1,6 s**. Après au moins 15 s sans entrée, le jeu
@@ -126,7 +126,8 @@ le nouveau record (ou le meilleur nombre de coups) et le nombre de niveaux réso
 
 Les caisses hors cible sont remplies en orange ; les caisses sur cible ont
 un cadre vert creux et une coche blanche. Leur forme les distingue aussi en
-monochrome, où orange et vert ont la même teinte. L’accueil affiche le crédit
+monochrome, où orange et vert ont la même teinte. Avec COLOR MODE (OPTIONS),
+elles sont remplies en vert. L’accueil affiche le crédit
 « APPLE II PORT BY » puis « VERHILLE ARNAUD » sur deux lignes blanches centrées.
 
 Les records (coups, puis poussées) sont gardés sur la disquette, dans
@@ -140,17 +141,38 @@ sont soulignés en vert ; après le dernier niveau d'une collection, un écran
 fait le bilan. L'historique garde les
 1024 derniers coups ; au-delà, R recharge le niveau au lieu de le rembobiner.
 
-**OPTIONS** (O dans le menu) regroupe quatre interrupteurs indépendants : son de
-la partie, du menu, de la démo, et CHEAT MODE. Par défaut, la partie et le menu
-sont sonores ; la démo et la triche sont éteintes. Haut/bas choisit le
+**OPTIONS** (O dans le menu) regroupe six interrupteurs indépendants : son de
+la partie, du menu, de la démo, DEADLOCK, CHEAT MODE et COLOR MODE. Par défaut,
+la partie, le menu et DEADLOCK sont actifs ; la démo, la triche et le mode
+couleur sont éteints. Haut/bas choisit le
 réglage ; RETURN ou le bouton 0 change ON/OFF ; ESC ou le bouton 1 revient. Les
-réglages sont sauvegardés sur la disquette. MENU SOUND active aussi une petite
-musique calme sur la page de garde, sur le haut-parleur intégré de l'Apple II,
-sans Mockingboard : boucle jazz zen, arpèges Dm9 / G13 / Cmaj9, basses graves
-et rythme swing à environ 100 BPM. Les durées suivent une pulsation régulière,
-avec de courtes respirations entre les trois mesures, en boucle pendant
-l'animation.
-Elle s'arrête en quittant l'accueil. L'option DEADLOCK active une alerte
+réglages sont sauvegardés sur la disquette.
+
+**COLOR MODE** rend aux caisses placées leur corps vert plein, dans le même
+cadre blanc que les caisses orange. Sur un écran monochrome, orange et vert ont
+la même teinte : ces deux tuiles ne s'y distinguent plus, d'où l'interrupteur,
+éteint par défaut (cadre vert creux et coche blanche).
+
+MENU SOUND active aussi une musique calme sur la page de garde, sur le
+haut-parleur intégré de l'Apple II, sans Mockingboard : **deux voix**, une
+mélodie sur une basse qui marche à la noire. Dix mesures de jazz zen en fa, swing
+à environ 100 BPM, soit 24 s avant la reprise : les arpèges Gm9 / C13 / Fmaj9 de
+la première version, puis Dm7, de nouveau Gm9 / C13, un détour par Am7 et Dm7,
+la cadence, une respiration, et la basse seule ramène au début.
+
+Le haut-parleur n'a qu'un bit. `title_duet` (`src/title_music.inc`) y mélange
+deux ondes carrées par division du temps : à chaque tour de boucle (33 cycles),
+il regarde la basse puis la mélodie. Tant qu'elles sont au même niveau, le
+haut-parleur y reste ; quand elles diffèrent, il bascule aux deux regards et
+suit la basse 14 cycles, la mélodie 19, à 31 kHz. Cette porteuse est inaudible :
+il reste la somme des deux ondes, la mélodie un peu plus forte. Tous les chemins
+d'un tour durent 33 cycles, donc une demi-période est un nombre entier de tours.
+La gamme juste de fa donne des périodes entières (fa 3 = 90 tours, un tiers de
+demi-ton sous le diapason) ; seul le si bémol tombe entre deux valeurs.
+Le pas de l'animation du couloir attend la fin du temps en cours et prend son
+temps de dessin sur le silence qui suit : la pulsation reste régulière. Une
+touche ou un bouton coupe la note en cours en moins de 10 ms.
+La musique s'arrête en quittant l'accueil. L'option DEADLOCK active une alerte
 sonore quand une caisse est poussée sur une case d'où elle ne peut plus atteindre
 de cible. Elle ne bloque pas le déplacement ; C la bascule dans OPTIONS. CHEAT
 MODE fait apparaître SOLUTION dans le menu. Les 454 solutions sont dans
@@ -171,9 +193,10 @@ Améliorations prévues : voir [`TODO.md`](TODO.md).
     src/fast_disk.inc         accès disque et cache des listes de secteurs
     src/resume.inc            sauvegarde et reprise de position
     src/beginner.inc           tutoriel et options
+    src/title_music.inc        musique d'accueil à deux voix (moteur et partition)
     src/score_hof.inc          records, classement et saisie des initiales
     src/profiles.inc           choix des profils et sauvegardes indépendantes
-    apple2_micro_sokoban.cfg         mémoire 48 Ko (travail à $0800, MAXFILES 1)
+    apple2_micro_sokoban.cfg         mémoire 48 Ko (travail à $0800, tampons en $0200-$03CF, MAXFILES 1)
     src/bbfont_subset.inc      police du HUD (Beautiful Boot, sous-ensemble + F + - / ? .)
     src/hello.bas              affiche LOADING MICRO-SOKOBAN, puis lance le chargeur
     tools/pack_program.py     compression LZ vérifiée par décompression indépendante
@@ -201,6 +224,12 @@ Sur la disquette : le chargeur `MICRO-SOKOBAN`, le programme comprimé `MICRODAT
 `MB2A` à `MB2C`, `MB3A` à `MB3C`, `MB4A` à `MB4C`), les dix fichiers de records,
 `MICROHOF` et `MICROSOL` (les 454 solutions). Les paquets font au plus 2 Ko et sont chargés en `$1000` ; les
 records et position actifs occupent `$1800` à `$1FAB`, sans réduire l'historique Undo de 1024 coups.
+
+Le résident (`$6000` à `$9A9F`, sous les tampons de DOS) est presque plein. La
+copie de la page zéro de DOS occupe donc la page 2 (`$0200`, le tampon de saisie,
+libre tant qu'aucune commande DOS ne s'exécute), le classement et la page zéro
+du jeu pendant RWTS le début de la page 3 (`$0300` à `$03B3`, sous les vecteurs
+de DOS). Il reste environ 120 octets : voir `build/micro_sokoban.map`.
 
 Le BASIC affiche **LOADING MICRO-SOKOBAN**, réserve un seul tampon DOS avec
 `MAXFILES 1`, puis lance le petit chargeur. Celui-ci lit `MICRODATA` par secteurs

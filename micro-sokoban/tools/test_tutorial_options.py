@@ -2,6 +2,7 @@
 """Play all five teaching levels and exercise persistent sound options."""
 from pathlib import Path
 import argparse
+import cmath
 import re
 import subprocess
 import tempfile
@@ -114,6 +115,47 @@ def main():
             assert speakers[3:] == [0, 0, 0], (sound, speakers)
         print('Calm native-speaker title music, independent switch, silent menu/game idle: ok')
 
+        # Two voices: the first beat holds its bass count under its melody
+        # count, each a square wave at its share of the speaker's level.
+        binary = (GAME / 'build/micro_sokoban.bin').read_bytes()
+        mel, bass = (binary[labels[name] - 0x6000] for name in ('title_mel', 'title_bass'))
+        assert 0 < mel < bass, (mel, bass)
+        log = tmp / 'speaker.txt'
+        run(args.disk, ['wait:700', f'spklog:{log}', 'wait:1700'])
+        toggles = [int(line) for line in log.read_text().split()]
+        turn, turns = 33, 255                    # title_music.inc: DUET_CYCLES, DUET_TURNS
+        slice_cycles = turns * turn + 47
+        step, count = 128, 3000                  # 0.38 s of the first, 0.55 s note
+        start, level, at, means = toggles[0] + 2 * slice_cycles, 0, 0, []
+        while toggles[at] < start:
+            at += 1
+        for window in range(count):              # mean level of each window
+            end, t, high = start + (window + 1) * step, start + window * step, 0
+            while toggles[at] < end:
+                high += level * (toggles[at] - t)
+                t, level, at = toggles[at], level ^ 1, at + 1
+            means.append((high + level * (end - t)) / step)
+        mean = sum(means) / count
+
+        def amplitude(half_period):
+            w = cmath.pi * step * turns / (half_period * slice_cycles)
+            return abs(sum((x - mean) * cmath.exp(-1j * w * k) for k, x in enumerate(means))) * 2 / count
+        square = 4 / cmath.pi / 2                # fundamental of a 0/1 square wave
+        for count_, share in ((mel, 19 / 33), (bass, 14 / 33)):
+            assert abs(amplitude(count_) / (square * share) - 1) < 0.1, (count_, amplitude(count_))
+        assert amplitude(mel * 1.2) < 0.03, amplitude(mel * 1.2)
+        # Ten bars before the loop, on a steady beat although the corridor is
+        # redrawn meanwhile. Notes are detached at each beat: a silence starts one.
+        starts = [toggles[0]] + [b for a, b in zip(toggles, toggles[1:]) if b - a > 25000]
+        beat = 72 * slice_cycles
+        for index, bars in ((4, 1), (39, 10)):   # the last bar has a silent beat
+            assert abs((starts[index] - starts[0]) / beat - 4 * bars) < 0.1, (index, starts[index] - starts[0])
+        # A key cuts the note being played instead of waiting for its end.
+        _, speakers = run(args.disk, ['wait:1000', 'spk', 'press:\x1b', 'wait:1', 'spk',
+                                      'wait:2', 'spk', 'wait:120', 'spk'])
+        assert speakers[0] > 0 and speakers[2:] == [0, 0], speakers
+        print('Two-voice title music: bass under melody, ten steady bars, cut by a key: ok')
+
         _, speakers = run(args.disk, [
             'wait:1800', f'until:{labels["run_hof_attract"]:04X}:5000', 'spk',
             'wait:300', 'spk', f'until:{labels["run_demo"]:04X}:1200', 'spk',
@@ -152,6 +194,19 @@ def main():
         after = read_file((tmp / 'aftersol.dsk').read_bytes(), 'MICROSAVE')
         assert after[14:1830] == before[14:1830]
         print('Cheat mode reveals SOLUTION; playback solves nothing and saves nothing: ok')
+
+        color = tmp / 'color.dsk'
+        steps = ['wait:1400', 'key:\x1b', 'wait:90', 'key:O', 'wait:120']
+        for _ in range(5):                 # COLOR MODE is the last switch, above BACK
+            steps += ['key:K', 'wait:40']
+        steps += ['key:\r', 'wait:40', 'key:K', 'wait:40', 'key:\r', 'wait:400',
+                  f'peek:{labels["hof_buf"]+88:04X}:1', 'dsk:' + str(color)]
+        dumps, _ = run(args.disk, steps, timeout=60)
+        assert dumps[0][0] == 3 | 16, dumps[0]
+        assert read_file(color.read_bytes(), 'MICROHOF')[88] == 3 | 16
+        dumps, _ = run(color, ['wait:1400', f'peek:{labels["hof_buf"]+88:04X}:1'])
+        assert dumps[0][0] == 3 | 16, dumps[0]
+        print('COLOR MODE is off by default, toggles, BACK leaves OPTIONS, and it survives reboot: ok')
 
 
 if __name__ == '__main__':

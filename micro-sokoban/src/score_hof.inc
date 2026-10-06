@@ -114,7 +114,7 @@ reset_hof:
         BPL @profile
         LDA #2
         STA hof_buf+HOF_TUTORIAL
-        LDA #3                          ; game and menu sound on by default
+        LDA #OPT_GAME|OPT_MENU          ; game and menu sound on by default
         STA hof_buf+HOF_SOUND
         RTS
 
@@ -206,7 +206,7 @@ load_hof:
         LSR A
         STA deadwarn_on
         LDA hof_buf+HOF_SOUND
-        CMP #16                         ; bits 0-3: game, menu, demo, cheat
+        CMP #OPT_COLOR*2                ; no bit above the OPT_* switches
         BCS @bad
         JMP validate_profiles
 @bad:   JSR reset_hof

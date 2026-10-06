@@ -1,6 +1,6 @@
 # MICRO-SOKOBAN — TODO
 
-État au 2026-10-04 : **aucune tâche ouverte**. Les fonctionnalités et corrections
+État au 2026-10-06 : **aucune tâche ouverte**. Les fonctionnalités et corrections
 ci-dessous sont réalisées. Les commandes et les détails techniques sont dans
 le [README](README.md), les sources et solutions dans [levels/README.md](levels/README.md).
 
@@ -23,7 +23,8 @@ le [README](README.md), les sources et solutions dans [levels/README.md](levels/
 
 - [x] **Affichage** : murs bleus, joueur blanc et repère sous les pieds sur cible ;
   caisses hors cible remplies en orange, caisses sur cible à cadre vert creux et
-  coche blanche. Les sept tuiles restent distinctes en monochrome.
+  coche blanche. Les sept tuiles restent distinctes en monochrome. COLOR MODE
+  (OPTIONS, éteint par défaut) rend aux caisses placées leur corps vert plein.
 - [x] **Lisibilité** : petit texte blanc, couleur réservée aux titres ×2 ; HUD
   avec coups, poussées, collection/numéro d’origine et meilleur résultat.
 - [x] **Rendu HGR** : écrans complets dessinés sur la page cachée puis affichés ;
@@ -59,10 +60,12 @@ le [README](README.md), les sources et solutions dans [levels/README.md](levels/
   interrompue par touche ou bouton, sans sauvegarde.
 - [x] **Sons** : pas, poussée sur cible, coup impossible, annulation, case morte
   et victoire ; sons de partie/menu/démo réglables séparément, partie et menu
-  actifs par défaut ; musique d’accueil sur le haut-parleur Apple II, arrêtée
-  en quittant l’accueil, démo silencieuse par défaut.
+  actifs par défaut ; musique d’accueil à deux voix (mélodie et basse, dix
+  mesures, 24 s) sur le haut-parleur Apple II, arrêtée en quittant l’accueil,
+  démo silencieuse par défaut.
 - [x] **Chargement et disque** : bibliothèques partagées de ../dev, programme
-  comprimé chargé à $6000, lectures RWTS avec cache des listes de secteurs,
+  comprimé chargé à $6000, tampons déplacés en pages 2 et 3 pour libérer le
+  résident, lectures RWTS avec cache des listes de secteurs,
   allocation DOS optimisée et écritures limitées aux secteurs modifiés.
 - [x] **Retour BASIC** : QUIT TO DOS et Ctrl-RESET restaurent la page zéro
   et rechargent HELLO ; LIST et les relances par RUN fonctionnent.

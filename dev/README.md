@@ -132,6 +132,7 @@ syntaxe de script, plus quelques étapes pour les tests :
 | `text`            | affiche la page texte 40×24                        |
 | `poke:ADR:VAL`    | écrit un octet en RAM                              |
 | `spk`             | nombre de basculements du haut-parleur depuis le dernier `spk` |
+| `spklog:F.txt`    | écrit ensuite le cycle de chaque basculement, un par ligne (hauteur, tempo) |
 | `dsk:F.dsk`       | écrit la disquette telle que le programme l'a laissée (sauvegardes) |
 
 Le disque passé à `--disk` n'est jamais modifié. Un DOS 3.3 met environ
