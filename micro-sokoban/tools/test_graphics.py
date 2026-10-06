@@ -67,6 +67,25 @@ def main():
         assert len(silhouettes) == 7, 'gameplay tiles differ only by colour'
         print('All seven tile silhouettes remain distinct without colour: ok')
 
+        # COLOR MODE draws a box on its target as the eighth bitmap, a filled
+        # green box. The title corridor ends on a placed box: jump to its last
+        # push, before the idle title hands over to the rankings.
+        bitmaps = run(boot + [peek('tile_bitmaps', 8 * 32)])
+        assert bitmaps[7*32:] != bitmaps[4*32:5*32]
+        assert bytes(b & 0x7F for b in bitmaps[7*32:]) == bytes(b & 0x7F for b in bitmaps[3*32:4*32]), \
+            'the colour box is the BOX with a green body'
+        row, col = 10, 18                  # TITLE_ROW, TITLE_TARGET_COL
+        for sound, tile in ((0x01, 4), (0x11, 7)):   # music off: the corridor keeps its own pace
+            raw = run(['wait:900', f'poke:{labels["hof_buf"]+88:04X}:{sound:02X}',
+                              f'poke:{labels["title_phase"]:04X}:0F', 'wait:150',
+                              peek('title_phase'), peek('front_page'), 'peek:2000:16384'])
+            assert raw[0] == 16, raw[0]
+            page = raw[2 + (8192 if raw[1] else 0):][:8192]
+            drawn = b''.join(page[(y & 7)*0x400 + ((y >> 3) & 7)*0x80 + (y >> 6)*0x28 + 2*col:][:2]
+                             for y in range(16*row, 16*row + 16))
+            assert drawn == bitmaps[tile*32:tile*32+32], (sound, drawn.hex())
+        print('Placed boxes are hollow with a check by default, filled green in COLOR MODE: ok')
+
         # Canceling a title grid must return to the title without a live game.
         for prefix in (boot, boot + menu):
             raw = run(prefix + ['key:G', 'wait:90'] + back +

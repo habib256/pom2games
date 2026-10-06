@@ -343,7 +343,7 @@ profiles_table:
         .byte <profiles_back,>profiles_back,84,180,STYLE_COMPACT
         .word $FFFF
 profile_label: GSTR "PROFILE "
-title_version: GSTR "V1.1"
+title_version: GSTR "V1.2"
 profiles_hint: GSTR "STICK/I/K  RETURN/B0 SELECT"
 profiles_edit: GSTR "N NEW    R RENAME"
 profiles_back: GSTR "ESC/B1 BACK"

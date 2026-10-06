@@ -17,6 +17,8 @@
  *   reset           press RESET
  *   pc              print the program counter
  *   spk             print the speaker toggles since the last spk
+ *   spklog:FILE     from here on, write the cycle count of every speaker
+ *                   toggle to FILE, one per line (pitch and tempo checks)
  *   dsk:FILE.dsk    write the disk as it is now (DOS order), to check saves
  *
  *   a2run --disk GAME.dsk wait:900 key:" " wait:60 shot:title.png
@@ -57,6 +59,7 @@ static uint64_t kbd_last;
 /* --- video / sound / game port -------------------------------------------- */
 static int v_text = 1, v_mixed, v_page2, v_hires;
 static unsigned long spk_count;
+static FILE *spk_log;
 static uint8_t paddle[2] = { 128, 128 };
 static uint8_t button[3];
 static uint64_t ptrig_at;
@@ -242,7 +245,11 @@ static uint8_t io(uint16_t a, int write, uint8_t val)
     int lo = a & 0xFF;
     if (lo < 0x10) return kbd_latch;
     if (lo < 0x20) { kbd_latch &= 0x7F; return kbd_latch; }
-    if (lo >= 0x30 && lo < 0x40) { spk_count++; return 0; }
+    if (lo >= 0x30 && lo < 0x40) {
+        spk_count++;
+        if (spk_log) fprintf(spk_log, "%llu\n", (unsigned long long)cpu.cycles);
+        return 0;
+    }
     switch (lo) {
     case 0x50: v_text = 0; return 0;
     case 0x51: v_text = 1; return 0;
@@ -538,6 +545,10 @@ int main(int argc, char **argv)
         } else if (!strcmp(s, "spk")) {
             printf("spk %lu\n", spk_count);
             spk_count = 0;
+        } else if (!strncmp(s, "spklog:", 7)) {
+            if (spk_log) fclose(spk_log);
+            spk_log = fopen(s + 7, "w");
+            if (!spk_log) { fprintf(stderr, "a2run: cannot write %s\n", s + 7); return 1; }
         } else if (!strncmp(s, "dsk:", 4)) {
             if (!save_disk(s + 4)) { fprintf(stderr, "a2run: cannot write %s\n", s + 4); return 1; }
         } else {
@@ -546,5 +557,6 @@ int main(int argc, char **argv)
         }
         fflush(stdout);
     }
+    if (spk_log) fclose(spk_log);
     return 0;
 }

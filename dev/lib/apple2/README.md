@@ -44,7 +44,7 @@ C est dans [`../apple2c/`](../apple2c/) (`apple2game.h`, `apple2dos.h`).
 | `hgr_init_clear` | `hgr.asm` | — | idem, page 1 effacée avant la bascule | A, X | — |
 | `hgr_page1` / `hgr_page2` | `hgr.asm` | — | page affichée | A | — |
 | `text_restore` | `hgr.asm` | — | TEXT + plein écran + PAGE1 | A | — |
-| `apple2_zp_save` | `exit.asm` | — | copie $00-$FF (256 o de BSS), RESET → `apple2_exit` | A, X | — |
+| `apple2_zp_save` | `exit.asm` | — | copie $00-$FF (256 o de BSS, ou `apple2_zp_buf` défini par le programme avant l'include), RESET → `apple2_exit` | A, X | — |
 | `apple2_exit` | `exit.asm` | — | vecteur RESET et ZP restaurés (fenêtre texte et curseur `$20-$29` gardés), écran texte, `JMP $03D0` | tout | — |
 | `tone` | `sound.asm` | A = bascules (0 → 256), X = demi-période (0 → 256) ; ~(13 + 5·X) cycles par bascule | — | A, X, Y | — |
 | `read_stick` | `joy.asm` | — | `joy_x`, `joy_y` = 0 (gauche / haut) … ~60 (centre) … ~120 ; ~6 ms | A, X, Y | — |

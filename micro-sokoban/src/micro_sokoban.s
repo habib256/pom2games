@@ -61,6 +61,7 @@ TILE_BOX           = 3
 TILE_BOX_TARGET    = 4
 TILE_PLAYER        = 5
 TILE_PLAYER_TARGET = 6
+TILE_BOX_COLOR     = 7          ; how draw_tile shows BOX_TARGET in COLOR MODE
 
 ; --- Directions (history codes, bits 0-1; bit 2 = pushed a box) ---
 DIR_UP     = 0
@@ -138,7 +139,12 @@ HOF_ENTRY  = 8          ; three ASCII initials, u24 score, u16 solved
 HOF_HDR    = 7          ; "HOF1", then current initials
 HOF_END    = HOF_HDR + HOF_COUNT * HOF_ENTRY
 HOF_TUTORIAL = HOF_END
-HOF_SOUND  = HOF_END+1  ; bit 0 game, bit 1 menu, bit 2 demo, bit 3 cheat
+HOF_SOUND  = HOF_END+1  ; the OPT_* switches
+OPT_GAME   = 1          ; game sounds
+OPT_MENU   = 2          ; menu sounds and title music
+OPT_DEMO   = 4          ; demo sounds
+OPT_CHEAT  = 8          ; SOLUTION in the menu
+OPT_COLOR  = 16         ; filled green boxes on targets (colour displays)
 HOF_PROFILES = HOF_END+2 ; stable slots, three initials each; zero = unused
 HOF_ACTIVE = HOF_PROFILES+30
 HOF_LEN    = HOF_ACTIVE+1
@@ -349,14 +355,27 @@ hof_blink_state: .res 1
 hof_blink_color: .res 1
 hof_cycles:      .res 1          ; timed attract ranking: ten one-second phases
 profile_sel:     .res 1
-.bss
+
+; =============================================================================
+; Pages 2 and 3 ($0200-$03CF, see apple2_micro_sokoban.cfg): buffers moved out
+; of the full resident. exit.asm restores DOS's zero page from apple2_zp_buf
+; before DOS types LOAD HELLO into page 2.
+; =============================================================================
+.segment "PAGE2BSS"
+apple2_zp_buf:   .res 256        ; DOS's zero page while the game runs
+.segment "PAGE3BSS"
 hof_buf:         .res HOF_LEN
 
 ; =============================================================================
 .code
 
+; The loader enters at $6000. The title music's speaker loop comes first: it
+; counts cycles, and here no later change can push it across a page boundary.
+        JMP main
+.include "title_music.inc"
+
 ; =============================================================================
-; MAIN — entry point (BRUN)
+; MAIN — entry point
 ; =============================================================================
 main:
         APPLE2_PREAMBLE
@@ -833,10 +852,7 @@ poll_start:
 ; title_wait: wait_any for at most TITLE_IDLE polls (~15 s). A = the
 ; action (Z clear), or A = 0 (Z set) when nobody pressed anything.
 title_wait:
-        LDA #0
-        STA title_music_index
-        LDA #1
-        STA title_music_wait
+        JSR title_music_reset
         LDA #<TITLE_IDLE
         STA idle_lo
         LDA #>TITLE_IDLE
@@ -850,7 +866,7 @@ title_wait:
         BNE @idle
         LDA #<TITLE_TICK
         STA title_tick
-        JSR title_step
+        JSR title_animate
 @idle:  LDA idle_lo
         ORA idle_hi
         BNE @countdown
@@ -1700,7 +1716,15 @@ flush_dirty:
 ; Input: A = tile type (0-6)
 ; =============================================================================
 draw_tile:
-        ASL A                           ; src = tile_bitmaps + A*32
+        CMP #TILE_BOX_TARGET
+        BNE @src
+        LDA hof_buf+HOF_SOUND
+        AND #OPT_COLOR
+        BEQ @mono
+        LDA #TILE_BOX_COLOR
+        BNE @src
+@mono:  LDA #TILE_BOX_TARGET
+@src:   ASL A                           ; src = tile_bitmaps + A*32
         ASL A
         ASL A
         ASL A
@@ -3700,7 +3724,7 @@ row_x20:
         .byte   0,  20,  40,  60,  80, 100, 120, 140
         .byte 160, 180, 200, 220
 
-; --- Tile bitmaps: 7 tiles x 16 scanlines x 2 bytes ---
+; --- Tile bitmaps: 8 tiles x 16 scanlines x 2 bytes ---
 ; Colour on a real Apple II: tiles start on an even pixel column, so within a
 ; tile odd pixels are green (palette 0) / orange (bit 7 set), even pixels are
 ; violet / blue. A solid single colour is one bit in two; two adjacent bits
@@ -3747,6 +3771,12 @@ tile_bitmaps:
         .byte $70,$01, $7C,$07, $7E,$0F, $70,$01
         .byte $70,$01, $78,$03, $0C,$06, $0C,$06
         .byte $0C,$06, $0E,$0E, $28,$15, $00,$00
+; Tile 7: BOX ON TARGET in COLOR MODE — the BOX frame with a green body. On a
+; mono display only bit 7 tells it from the BOX: hence the option.
+        .byte $00,$00, $00,$00, $7C,$1F, $7C,$1F
+        .byte $0C,$18, $28,$15, $28,$15, $28,$15
+        .byte $28,$15, $28,$15, $28,$15, $0C,$18
+        .byte $7C,$1F, $7C,$1F, $00,$00, $00,$00
 
 .assert pack_buf = PACK_ADDR, error, "the packs are BLOADed at PACK_ADDR"
 
