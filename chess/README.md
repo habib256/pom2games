@@ -57,6 +57,8 @@ Pick a mode with `1`-`4` on the menu, then the board on HGR page 1 takes over.
 | `M`                 | cycle the mode: HVH, WAI, BAI, AVA                    |
 | `P`                 | cycle the AI level: L1, L2, L3                        |
 | `N`                 | new game (back to the menu)                           |
+| `S`                 | speaker on / off                                      |
+| joystick            | stick = cursor (one step per deflection), button 0 = `SPACE`, button 1 = `ESC` |
 
 - The cursor starts on e2. A piece is only selectable if it belongs to the
   side to move; pressing `SPACE` again on the selected square deselects it.
@@ -72,6 +74,10 @@ Pick a mode with `1`-`4` on the menu, then the board on HGR page 1 takes over.
   the computer moves again at once; the undo is one move deep.
 - A II+ only has left/right arrows; up/down arrows work on a //e (on a II+
   they are Ctrl-K / Ctrl-J).
+- Mode `3` (you play Black) turns the board round: Black at the bottom, the
+  cursor starts on e7 and the arrows follow the screen.
+- Sounds: a click per move, a lower thud for a capture, two blips on
+  `CHECK!`, a short tune on mate and a low note on a draw. `S` silences them.
 - During a computer-vs-computer game, `N` and `M` are still read between
   moves. After a result, press `N` to start again.
 
@@ -91,7 +97,7 @@ including the DOS 3.3 system tracks. The Makefile includes
 | `make distclean` | remove `build/` and the disk                             |
 
 The engine is assembled with `-D CHESS_SMART_EVAL` (positional tie-breaks).
-The link prints the binary size: `9,119 bytes at 0x6000`. On the disk,
+The link prints the binary size: `9,609 bytes at 0x6000`. On the disk,
 `HELLO` is one line, `10 PRINT CHR$(4);"BRUN CHESS"`.
 
 ## Tests and benchmarks
@@ -99,8 +105,9 @@ The link prints the binary size: `9,119 bytes at 0x6000`. On the disk,
 `make test` plays the rules the front end handles itself in a2run
 (`tests/test_game.py`, on `../dev/tools/a2test.py`): a king-side castle after
 1.e4 e5 2.Nf3 Nc6 3.Bc4 Nf6, a castle refused once the rook has moved, the
-promotion prompt (queen, rook, knight, ESC), the 50-move rule and a
-king-against-king draw. It needs the label file the build writes
+promotion prompt (queen, rook, knight, ESC), the 50-move rule, a
+king-against-king draw, the turned board of mode 3, joystick input and the
+speaker toggle. It needs the label file the build writes
 (`build/chess.lbl`).
 
 `test/` runs the engine alone — no screen, no keyboard — on the POM2 core
@@ -161,7 +168,9 @@ the engine through `init_board`, `apply_user_move`, `ai_play_move`,
 
 - `lib/apple2`: `kbd.asm` (`wait_key` / `poll_key`, latch `$C000` + strobe
   `$C010`, arrow codes), `hgr.asm` (`hgr_init_clear`), `print.asm`
-  (`print_str_ax` for the text-screen menu).
+  (`print_str_ax` for the text-screen menu), `joy.asm` (`read_stick` /
+  `stick_dir`, with the empty-port detection), `sound.asm` (`tone`) and
+  `delay.asm` (`delay_ms_a` between the notes).
 - `lib/hgr`: `sprites/chess_cc65_pieces.asm` (6 pieces x 2 variants x 22
   rows x 3 bytes) and `hgr_scanline.inc` (`hgr_lo` / `hgr_hi` base-address
   tables).

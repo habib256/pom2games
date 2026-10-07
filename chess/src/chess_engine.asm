@@ -134,6 +134,7 @@ user_mv_from:           .res 1
 user_mv_to:             .res 1
 user_mv_promo:          .res 1
 user_mv_flags:          .res 1
+.export user_saved_captured
 user_saved_captured:    .res 1
 user_saved_ep:          .res 1
 user_saved_castling:    .res 1
