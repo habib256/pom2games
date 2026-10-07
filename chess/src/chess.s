@@ -74,7 +74,7 @@ mptr_hi:   .res 1
 
 .segment "CODE"
 .import init_board, apply_user_move, ai_play_move, game_status, in_check
-.import piece_at, undo_last_move
+.import piece_at, undo_last_move, user_saved_captured
 .import side_to_move, mv_from, mv_to, mv_promo, mv_flags, ai_strategy, ai_rng
 
 ; ---------------------------------------------------------------------------
@@ -99,6 +99,10 @@ printed_side: .res 1
 seed_acc:   .res 1
 move_row:   .res 1
 hist_n:     .res 1
+flipped:    .res 1      ; 1 = Black at the bottom (mode 3, you play Black)
+sound_on:   .res 1      ; S toggles the speaker
+joy_last:   .res 1      ; last stick direction (no auto-repeat)
+btn_last:   .res 1      ; bit 0 / bit 1 = buttons held at the last poll
 ; --- HGR renderer scratch ---
 frank:      .res 1      ; rank 0..7 (0 = white home)
 ffile:      .res 1      ; file 0..7
@@ -148,10 +152,16 @@ main:
         STA blink_vis
         LDA #$FF
         STA printed_side
+        STA sound_on            ; speaker on (S toggles it)
+        LDA #0
+        STA flipped
+        STA joy_last
+        STA btn_last
         JSR hgr_init_clear      ; HGR + PAGE1 + blank the framebuffer
         JSR draw_board
         JSR draw_coords
         JSR a1_choose_mode
+        JSR after_menu
 
 game_loop:
         JSR check_terminal
@@ -182,7 +192,12 @@ human_turn:
         STA blink_hi
 @wait:  JSR poll_key
         BNE @got
-        INC blink_lo
+        LDA blink_lo
+        AND #$0F
+        BNE @nojoy
+        JSR joy_poll            ; stick / buttons as key codes, 0 = nothing
+        BNE @got
+@nojoy: INC blink_lo
         BNE @wait
         INC blink_hi
         LDA blink_hi
@@ -199,19 +214,19 @@ human_turn:
         JMP @wait
 @got:   CMP #'I'
         BNE @n1
-        JSR cur_up
+        JSR cur_up_v
         JMP game_loop
 @n1:    CMP #'K'
         BNE @n2
-        JSR cur_down
+        JSR cur_down_v
         JMP game_loop
 @n2:    CMP #'J'
         BNE @n3
-        JSR cur_left
+        JSR cur_left_v
         JMP game_loop
 @n3:    CMP #'L'
         BNE @n4
-        JSR cur_right
+        JSR cur_right_v
         JMP game_loop
 @n4:    CMP #' '
         BNE @n5
@@ -232,23 +247,29 @@ human_turn:
         BNE @k3
         JMP do_undo
 @k3:    CMP #'P'
-        BNE @k4
+        BNE @ks
         JMP toggle_strategy
+@ks:    CMP #'S'
+        BNE @k4
+        LDA sound_on
+        EOR #$FF
+        STA sound_on
+        JMP game_loop
 @k4:    CMP #KC_LEFT
         BNE @k5
-        JSR cur_left
+        JSR cur_left_v
         JMP game_loop
 @k5:    CMP #KC_RIGHT
         BNE @k6
-        JSR cur_right
+        JSR cur_right_v
         JMP game_loop
 @k6:    CMP #KC_UP              ; //e arrows (Ctrl-K / Ctrl-J on a II+)
         BNE @k7
-        JSR cur_up
+        JSR cur_up_v
         JMP game_loop
 @k7:    CMP #KC_DOWN
         BNE @k8
-        JSR cur_down
+        JSR cur_down_v
         JMP game_loop
 @k8:    JMP game_loop
 
@@ -319,7 +340,7 @@ do_confirm:
 @apply: JSR apply_user_move
         BCC @made
 @cancel: JMP do_deselect
-@made:
+@made:  JSR snd_move
         LDA #0
         STA sel_active
         STA cursor_on
@@ -418,7 +439,30 @@ new_game:
         JSR clear_movelist
         JSR clear_hint
         JSR a1_choose_mode
+        JSR after_menu
         JMP game_loop
+
+; after_menu: mode 3 (you play Black) turns the board round. Redraw when the
+; orientation changed, and start the cursor on e2 (e7 when flipped).
+after_menu:
+        LDA play_mode
+        CMP #2
+        BEQ @black
+        LDA #0
+        BEQ @set
+@black: LDA #1
+@set:   CMP flipped
+        BEQ @cursor
+        STA flipped
+        JSR draw_board
+        JSR draw_coords
+@cursor:
+        LDA #$14                ; e2
+        LDX flipped
+        BEQ @c
+        LDA #$64                ; e7
+@c:     STA cur_sq
+        RTS
 
 ai_turn:
         LDA play_mode
@@ -447,6 +491,7 @@ ai_turn:
         INC movecount
         JSR draw_board
         JSR print_move_hgr
+        JSR snd_move
 @loop:  JMP game_loop
 
 side_is_ai:
@@ -527,6 +572,128 @@ cur_moved:
 cur_ret:
         RTS
 
+; Screen directions: the board is drawn the other way round when you play
+; Black, so up on screen is down the ranks.
+cur_up_v:
+        LDA flipped
+        BNE cur_down
+        BEQ cur_up
+cur_down_v:
+        LDA flipped
+        BNE cur_up
+        BEQ cur_down
+cur_left_v:
+        LDA flipped
+        BNE cur_right
+        BEQ cur_left
+cur_right_v:
+        LDA flipped
+        BNE cur_left
+        BEQ cur_right
+
+; joy_poll: the game port as key codes. Stick deflections move the cursor
+; once per deflection (centre it to move again), button 0 = SPACE (select /
+; confirm), button 1 = ESC (cancel). A = key or 0. Clobbers A, X, Y.
+joy_poll:
+        JSR read_stick
+        BCS @none               ; no stick: centred values, nothing pressed
+        LDA BUTN0
+        BMI @b0_down
+        LDA btn_last
+        AND #$FE
+        STA btn_last
+        JMP @b1
+@b0_down:
+        LDA btn_last
+        AND #$01
+        BNE @b1
+        LDA btn_last
+        ORA #$01
+        STA btn_last
+        LDA #' '
+        RTS
+@b1:    LDA BUTN1
+        BMI @b1_down
+        LDA btn_last
+        AND #$FD
+        STA btn_last
+        JMP @axes
+@b1_down:
+        LDA btn_last
+        AND #$02
+        BNE @axes
+        LDA btn_last
+        ORA #$02
+        STA btn_last
+        LDA #$1B
+        RTS
+@axes:  JSR stick_dir
+        BEQ @centre
+        CMP joy_last
+        BEQ @none               ; still deflected the same way
+        STA joy_last
+        TAX
+        LDA joy_keys-1,X        ; JOY_UP..JOY_RIGHT = 1..4
+        RTS
+@centre:
+        STA joy_last
+@none:  LDA #0
+        RTS
+joy_keys: .byte 'I', 'K', 'J', 'L'
+
+; --- speaker: move / capture click, CHECK! blips, result tune ---------------
+snd_move:
+        LDA sound_on
+        BEQ snd_ret
+        LDA user_saved_captured ; piece taken by the move just made
+        BNE @capture
+        LDA #$08
+        LDX #$30
+        JMP tone
+@capture:
+        LDA #$20
+        LDX #$80
+        JMP tone
+snd_check:
+        LDA sound_on
+        BEQ snd_ret
+        LDA #$18
+        LDX #$20
+        JSR tone
+        LDA #50
+        JSR delay_ms_a
+        LDA #$18
+        LDX #$20
+        JMP tone
+snd_result:
+        LDA sound_on
+        BEQ snd_ret
+        LDA game_result
+        CMP #3
+        BCS snd_flat            ; stalemate, draw: one low note
+        LDX #0
+@tune:  TXA
+        PHA
+        LDA #$40
+        LDY result_notes,X
+        STY tmp
+        LDX tmp
+        JSR tone
+        LDA #40
+        JSR delay_ms_a
+        PLA
+        TAX
+        INX
+        CPX #3
+        BNE @tune
+snd_ret:
+        RTS
+snd_flat:
+        LDA #$60
+        LDX #$C0
+        JMP tone
+result_notes: .byte $40, $60, $90
+
 ; ===========================================================================
 ; HGR renderer (cc65-Chess board + pieces)
 ; ===========================================================================
@@ -575,12 +742,21 @@ draw_square:
         SEC
         SBC frank
         STA drow                ; display row (0 = top)
-        ; topsl = BOARD_Y0 + (7-rank)*22   (topsl_tab indexed by frank)
-        LDX frank
+        ; topsl = BOARD_Y0 + (7-rank)*22   (topsl_tab indexed by frank);
+        ; flipped: rank 7-frank's row, file 7-ffile's column
+        LDA frank
+        LDX flipped
+        BEQ @r
+        EOR #7
+@r:     TAX
         LDA topsl_tab,X
         STA topsl
         ; bcol = BOARD_X0 + ffile*3
-        LDX ffile
+        LDA ffile
+        LDX flipped
+        BEQ @f
+        EOR #7
+@f:     TAX
         LDA bcol_tab,X
         STA bcol
         ; blackWhite = !((ffile & 1) ^ (drow & 1))  -> bw (1 = white)
@@ -1015,7 +1191,12 @@ draw_coords:
         LDX #0                  ; rank 0..7
 @r:     LDA #0
         STA tx_col
-        LDA topsl_tab,X
+        TXA
+        LDY flipped
+        BEQ @ri
+        EOR #7
+@ri:    TAY
+        LDA topsl_tab,Y
         CLC
         ADC #7
         STA tx_sl
@@ -1029,7 +1210,12 @@ draw_coords:
         CPX #8
         BNE @r
         LDX #0                  ; file 0..7
-@f:     LDA bcol_tab,X
+@f:     TXA
+        LDY flipped
+        BEQ @fi
+        EOR #7
+@fi:    TAY
+        LDA bcol_tab,Y
         CLC
         ADC #1                  ; centre the glyph in the 3-byte square
         STA tx_col
@@ -1131,6 +1317,7 @@ a1_result:
         LDA overstr_hi,X
         STA sptr_hi
         JSR panel_msg
+        JSR snd_result
         LDA #RCOL0
         STA tx_col
         LDA #HINT_SL
@@ -1162,7 +1349,14 @@ a1_turn_status:
         STA sptr_lo
         LDA #>st_check
         STA sptr_hi
-@show:  JMP panel_msg
+@show:  JSR panel_msg
+        LDA sptr_lo
+        CMP #<st_check
+        BNE @done
+        LDA sptr_hi
+        CMP #>st_check
+        BNE @done
+        JMP snd_check
 @done:  RTS
 
 ; ---------------------------------------------------------------------------
@@ -1237,3 +1431,6 @@ modestr_hi: .byte >m_hvh, >m_wai, >m_bai, >m_ava
 .include "hgr_scanline.inc"                ; hgr_lo / hgr_hi base tables
 .include "hgr.asm"                         ; hgr_init_clear
 .include "kbd.asm"                         ; wait_key / poll_key
+.include "joy.asm"                         ; read_stick / stick_dir
+.include "sound.asm"                       ; tone
+.include "delay.asm"                       ; delay_ms_a

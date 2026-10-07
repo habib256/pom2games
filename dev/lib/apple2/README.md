@@ -64,7 +64,7 @@ un autre module, aussi). Un objet C qui aliase une routine vers un import
 | `apple2_exit` | `exit.asm` | — | vecteur RESET et ZP restaurés (fenêtre texte et curseur `$20-$29` gardés), écran texte, `JMP $03D0` | tout | — |
 | `apple2_return` | `exit.asm` | — | même restauration, puis `RTS` vers le `CALL` BASIC (programme lancé par `BLOAD` + `CALL`) | tout | — |
 | `tone` | `sound.asm` | A = bascules (0 → 256), X = demi-période (0 → 256) ; ~(13 + 5·X) cycles par bascule | — | A, X, Y | — |
-| `read_stick` | `joy.asm` | — | `joy_x`, `joy_y` = 0 (gauche / haut) … ~60 (centre) … ~120 ; ~6 ms | A, X, Y | — |
+| `read_stick` | `joy.asm` | — | `joy_x`, `joy_y` = 0 (gauche / haut) … ~60 (centre) … ~120 ; ~6 ms ; C = 1 si rien n'est branché (valeurs centrées) | A, X, Y | — |
 | `stick_dir` | `joy.asm` | `joy_x`, `joy_y` | A = `JOY_NONE` (0, Z = 1) / `JOY_UP` / `JOY_DOWN` / `JOY_LEFT` / `JOY_RIGHT` ; zone morte `JOY_LO`–`JOY_HI` (30–90, à définir avant l'include pour changer) ; la verticale l'emporte | A | — |
 | `dos_cmd_new` | `dos.asm` | — | tampon de commande vide | A | — |
 | `dos_cmd_add` | `dos.asm` | A = lo, Y = hi (ASCIIZ) | chaîne ajoutée | A, X, Y | — |

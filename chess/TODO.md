@@ -9,19 +9,7 @@ and reads the board and the game state through `build/chess.lbl`; a2shot
 
 ## Next up
 
-1. **Flip the board when you play Black** (menu `3`, mode BAI): White is
-   always at the bottom. `draw_square` reads `topsl_tab[frank]` and
-   `bcol_tab[ffile]`, `draw_coords` prints the rank digits and file letters,
-   `cur_up/down/left/right` move in board coordinates, the cursor starts on
-   e2 (`$14`). A `flipped` flag that mirrors rank and file in those five
-   places (and starts the cursor on e7) is enough.
-2. **Sounds**: move, capture, check, result. Use `tone` from
-   `../dev/lib/apple2/sound.asm` (shared with MICRO-SOKOBAN) rather than a
-   new speaker routine; hooks are `print_move_hgr` (a move was made),
-   `a1_turn_status` (`CHECK!`) and `a1_result`.
-3. **Joystick**: stick = cursor, button 0 = select / confirm, button 1 =
-   cancel. `read_stick` / `stick_dir` from `../dev/lib/apple2/joy.asm`,
-   polled next to `poll_key` in the `@wait` loop of `human_turn`.
+Nothing scheduled: see Later and Ideas.
 
 ## Later
 
@@ -67,6 +55,13 @@ and reads the board and the game state through `build/chess.lbl`; a2shot
 
 ## Done
 
+- **2026-10-07 (later)** — Board turned round in mode 3 (`flipped`:
+  `draw_square`, `draw_coords` and the cursor keys mirror rank and file, the
+  cursor starts on e7), joystick through `dev/lib/apple2/joy.asm` (`joy_poll`
+  every 16 polls of the wait loop: one cursor step per deflection, button 0 =
+  SPACE, button 1 = ESC; `read_stick` now reports an empty game port), sounds
+  through `sound.asm` (move, capture, CHECK!, mate tune, draw note, `S`
+  toggles). Each covered in `tests/test_game.py`. Binary 9 119 -> 9 609 bytes.
 - **2026-10-07** — Rules the front end handles itself, each with an a2run
   check in `tests/test_game.py` (`make test`, part of the root `make test`):
   - the player castles by moving the king two squares (`do_confirm` sets

@@ -4,6 +4,10 @@
 ; ============================================================================
 ;   read_stick -- sample both axes. joy_x, joy_y = 0 (left / up) .. ~120
 ;                 (right / down), ~60 centred. Clobbers A, X, Y. ~6 ms.
+;                 C = 1 when no stick is connected: an open game port never
+;                 discharges its timers (PADDL0 / PADDL1 still read bit 7
+;                 after the 6 ms), and joy_x / joy_y are then set to centre
+;                 so stick_dir answers JOY_NONE.
 ;   stick_dir  -- after read_stick: A = JOY_UP / JOY_DOWN / JOY_LEFT /
 ;                 JOY_RIGHT, or JOY_NONE (0, Z set) inside the dead zone.
 ;                 The vertical axis wins a diagonal. Clobbers A.
@@ -65,6 +69,15 @@ read_stick:
         BNE     @lp
         STX     joy_x
         STY     joy_y
+        LDA     PADDL0          ; both timers still running after 6 ms:
+        AND     PADDL1          ; nothing is plugged into the game port
+        BPL     @have
+        LDA     #60
+        STA     joy_x
+        STA     joy_y
+        SEC
+        RTS
+@have:  CLC
         RTS
 .endif
 
