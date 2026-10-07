@@ -1,8 +1,9 @@
 /* Complete campaign using the real 48K machine, steering only the paddle.
- * No edits to the ball, grid, lives, score or progression. GPL-3.0. */
-#define main a2run_main
-#include "../../dev/tools/a2run/a2run.c"
-#undef main
+ * No edits to the ball, grid, lives, score or progression. GPL-3.0.
+ * Built on dev/tools/a2run as a library (a2run.h). */
+#include <stdio.h>
+#include <stdlib.h>
+#include "a2run.h"
 
 int main(int argc, char **argv) {
     if (argc != 12) return 2;
@@ -19,7 +20,7 @@ int main(int argc, char **argv) {
     for (unsigned f=0;f<100000;f++) {
         uint64_t deadline = cpu.cycles+2000000;
         while (cpu.pc != loop && ram[state]==1 && cpu.cycles < deadline) cpu_step(&cpu);
-        if (ram[state]!=1) {printf("finish state=%u level=%u updates=%u seconds=%.1f\n",ram[state],ram[level],f,(cpu.cycles-start)/1020484.0); return ram[state]==3?0:1;}
+        if (ram[state]!=1) {printf("finish state=%u level=%u updates=%u seconds=%.1f\n",ram[state],ram[level],f,(cpu.cycles-start)/A2RUN_CPU_HZ); return ram[state]==3?0:1;}
         if (cpu.pc!=loop) {printf("stuck at %04X level %u live%u\n",cpu.pc,ram[level],ram[live]);return 4;}
         if (ram[level]!=prev_level) {prev_level=ram[level]; printf("sector %u update %u\n",prev_level+1,f); fflush(stdout);}
         if (ram[live] && (ram[bx]<2 || ram[bx]>248 || ram[by]<18 || ram[by]>179 || ram[dy]>1)) return 6;

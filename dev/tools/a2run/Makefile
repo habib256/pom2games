@@ -6,9 +6,9 @@
 # ../a2shot/roms.
 
 CC     ?= cc
-CFLAGS ?= -O2 -Wall -Wextra -std=c99
+CFLAGS ?= -O2 -Wall -Wextra -std=c99 -fno-common
 
-a2run: a2run.c cpu6502.c cpu6502.h
+a2run: a2run.c a2run.h cpu6502.c cpu6502.h
 	$(CC) $(CFLAGS) a2run.c cpu6502.c -lz -o $@
 
 clean:

@@ -7,7 +7,8 @@
 ;   apply_user_move     -- attempt the move (mv_from, mv_to, mv_promo)
 ;                          carry clear = success, carry set + A=err code = fail
 ;   in_check            -- A = nonzero if side_to_move's king is in check
-;   game_status         -- A = 0 ongoing, 1 white-mate, 2 black-mate, 3 stalemate
+;   game_status         -- A = 0 ongoing, 1 white-mate, 2 black-mate, 3 stalemate,
+;                          4 draw (50-move rule, dead material)
 ;   toggle_side         -- side_to_move ^= COLOR_BLACK
 ;
 ; Public BSS (importzp / import):
@@ -1631,11 +1632,14 @@ ia_slider: .byte PIECE_ROOK, PIECE_BISHOP, PIECE_ROOK, PIECE_BISHOP
            .byte PIECE_ROOK, PIECE_BISHOP, PIECE_ROOK, PIECE_BISHOP
 
 ; ============================================================================
-; game_status -- 0 ongoing, 1 white-mate, 2 black-mate, 3 stalemate
+; game_status -- 0 ongoing, 1 white-mate, 2 black-mate, 3 stalemate, 4 draw
 ; ============================================================================
 ; Looks for any legal move of the side to move (gen_targets + own-king-safe
 ; test), castling included. Uses ai_scan_* and the GT_ROOT list: not callable
-; from inside ai_play_move.
+; from inside ai_play_move. A position with a legal move is still a draw (4)
+; after 100 half-moves without a capture or a pawn move (the 50-move rule,
+; applied automatically) or when neither side can mate: king against king,
+; or king and one minor piece against king (gs_ongoing).
 ;
 ; Returns A = status code, Z reflects A.
 game_status:
@@ -1670,10 +1674,9 @@ game_status:
         JSR make_move
         JSR in_check
         BNE @bad
-        ; Found a legal move → game ongoing.
+        ; Found a legal move → game ongoing (unless drawn by rule).
         JSR unmake_move
-        LDA #$00
-        RTS
+        JMP gs_ongoing
 @bad:   JSR unmake_move
 @nextt: INC ai_scan_y
         JMP @tloop
@@ -1691,8 +1694,7 @@ game_status:
         BCS @gs_no_move
 @gs_castle_ok:
         JSR unmake_move     ; revert the castle that try_one_castle made
-        LDA #$00            ; a legal move exists → game ongoing
-        RTS
+        JMP gs_ongoing      ; a legal move exists → game ongoing (or drawn)
 @gs_no_move:
         ; No legal move at all → mate or stalemate.
         JSR in_check
@@ -1705,6 +1707,34 @@ game_status:
 @bm:    LDA #$02            ; black in checkmate
         RTS
 @stale: LDA #$03
+        RTS
+
+; gs_ongoing: a legal move exists. A = 4 (draw) after 100 half-moves without a
+; capture or a pawn move, or with dead material: mat_tot counts pawns as 1 and
+; minor pieces as 3, so a total of 3 or less without any pawn on the board is
+; K vs K, K+N vs K or K+B vs K. Otherwise A = 0. Z reflects A.
+gs_ongoing:
+        LDA halfmove_clock
+        CMP #100
+        BCS @draw
+        LDA mat_tot
+        CLC
+        ADC mat_tot+1
+        CMP #4
+        BCS @play               ; a rook, two minors or a queen: playable
+        LDX #$77
+@scan:  TXA
+        AND #OFFBOARD_MASK
+        BNE @next
+        LDA board,X
+        AND #PIECE_MASK
+        CMP #PIECE_PAWN
+        BEQ @play               ; pawns can still promote
+@next:  DEX
+        BPL @scan               ; $77 down to $00
+@draw:  LDA #$04
+        RTS
+@play:  LDA #$00
         RTS
 
 ; ============================================================================

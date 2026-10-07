@@ -7,8 +7,11 @@
 ;                        ($2000-$3FFF) while the display still shows TEXT,
 ;                        then flips — RAM left over from DOS, BASIC or a
 ;                        previous program never flashes on screen
-;   Optional HGR_CLEAR_ROUTINE replaces the built-in page-1 clear loop;
-;   the caller must select page 1 for that routine before hgr_init_clear.
+;   Optional HGR_CLEAR_ROUTINE replaces the built-in page-1 clear loop:
+;   `HGR_CLEAR_ROUTINE = my_clear` before the include (an assignment, so the
+;   routine may be defined later; a .define is textual and only works if the
+;   routine comes first). The caller must select page 1 for that routine
+;   before hgr_init_clear.
 ;   HGR_CLEAR_LOOP (macro): fill 8 KB from page X (high byte) with A, no
 ;   zero page -- the loop behind hgr_init_clear, lib/hgr clear_hgr and the
 ;   C hgr_clear. Four absolute stores per turn, ~6.3 cycles per byte.

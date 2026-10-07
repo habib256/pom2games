@@ -157,6 +157,10 @@ Un DOS 3.3 met environ 900 trames à lancer un jeu de 8-12 Ko.
 
 ## a2run
 
+En bibliothèque (`-DA2RUN_LIB`, `a2run.h`) : `a2run_main()` démarre un disque
+et joue un script, puis l'appelant pilote lui-même `cpu`, `ram` et `kbd_latch`
+(`arkabreakout/tests/pilot.c` joue la campagne à la manette).
+
 L'équivalent portable d'a2shot (Linux et macOS, C99 + zlib, sans le cœur de
 POM2) : un 6502 NMOS (validé par la suite de tests fonctionnels de Klaus
 Dormann), 48 Ko, clavier, haut-parleur, manette et un Disk II au niveau des

@@ -47,7 +47,7 @@ $(BUILD)/sound.o: src/music_offsets.inc src/levels.inc src/fine_font.inc src/due
 $(BUILD)/finale_music.o: src/music_fanfare.inc
 src/music_aux.inc src/music_offsets.inc src/music_fanfare.inc: tools/generate_music.py
 	$(PYTHON) tools/generate_music.py
-$(BUILD)/tables.bin: src/payload.s src/payload.cfg src/tables.inc src/fine_font.inc src/bg_tiles.inc $(HGRC)/dhgr_layout.inc
+$(BUILD)/tables.bin: src/payload.s src/payload.cfg src/tables.inc src/bg_tiles.inc $(HGRC)/dhgr_layout.inc
 	@mkdir -p $(@D)
 	$(CA65) -I $(HGRC) -I src -o $(BUILD)/payload.o src/payload.s
 	$(LD65) -C src/payload.cfg -o $@ $(BUILD)/payload.o
