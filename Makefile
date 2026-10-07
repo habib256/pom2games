@@ -16,7 +16,7 @@ DIRS := $(II_PLUS_GAMES) $(IIE_PRODOS_GAMES) logo demos dev/examples/hello dev/e
 all:
 	@for d in $(DIRS); do $(MAKE) -C $$d || exit 1; done
 
-test: all test-chromabreak test-arkabreakout test-hgr test-frame test-hgr-example test-assets bench-check
+test: all test-chromabreak test-arkabreakout test-chess test-hgr test-frame test-hgr-example test-assets bench-check
 	$(MAKE) -C micro-sokoban test
 
 test-hgr:
@@ -68,7 +68,10 @@ bench-check:
 test-arkabreakout:
 	$(MAKE) -C arkabreakout test
 
-.PHONY: test-arkabreakout
+test-chess:
+	$(MAKE) -C chess test
+
+.PHONY: test-arkabreakout test-chess
 
 profile-ii-plus:
 	@for d in $(II_PLUS_GAMES); do $(MAKE) -C $$d || exit 1; done

@@ -23,10 +23,10 @@
 ;   plot_set        -- plot at (pix_x,pix_y), OR (+pen colour) or XOR per plot_mode
 ;   line_xy         -- Bresenham (ln_x0,y0)->(ln_x1,y1), 16-bit signed err
 ;
-; Coordinate space: LOGO drives 8-bit pix_x (0..255). HGR is 280 wide, so this
-; backend uses columns 0..255 and leaves a 24 px right margin unused -- keeps
-; the whole interpreter byte-for-byte 8-bit, matching the old TMS 256-wide
-; screen. (A future revision can widen to 16-bit x for the full 280.)
+; Coordinate space: the 8-bit entry points (plot_set, line_xy) cover columns
+; 0..255 like the old TMS 256-wide screen; plot_set_x16 / line_xy16 take a
+; 9-bit X (pix_xh, ln_x0h/ln_x1h) for the full 280 columns, and the turtle
+; clamps to 0..279.
 ;
 ; HGR colour: the card has only ~6 artifact colours (vs TMS's 15), set by the
 ; byte's palette high bit (green/violet family vs blue/orange) and the pixel

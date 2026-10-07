@@ -75,7 +75,7 @@ mptr_hi:   .res 1
 .segment "CODE"
 .import init_board, apply_user_move, ai_play_move, game_status, in_check
 .import piece_at, undo_last_move
-.import side_to_move, mv_from, mv_to, mv_promo, ai_strategy, ai_rng
+.import side_to_move, mv_from, mv_to, mv_promo, mv_flags, ai_strategy, ai_rng
 
 ; ---------------------------------------------------------------------------
 ; BSS scratch (uninitialised -- main/new_game seed every field explicitly).
@@ -274,15 +274,52 @@ do_confirm:
 @ret:   JMP game_loop
 @have:  LDA cur_sq
         CMP sel_sq
-        BEQ do_deselect
-        LDA sel_sq
+        BNE @other
+        JMP do_deselect
+@other: LDA sel_sq
         STA mv_from
         LDA cur_sq
         STA mv_to
         LDA #0
         STA mv_promo
-        JSR apply_user_move
-        BCS do_deselect
+        STA mv_flags            ; (the computer's last move may have left a castle bit)
+        LDX sel_sq
+        JSR piece_at
+        AND #PIECE_MASK
+        CMP #PIECE_KING
+        BNE @notking
+        ; A king moving two files asks to castle: the engine validates the
+        ; rights, the empty squares and the attacked squares (castle_try).
+        LDA mv_to
+        SEC
+        SBC mv_from
+        CMP #2
+        BNE @queenside
+        LDA #MV_FLAG_CASTLE_K
+        BNE @castle
+@queenside:
+        CMP #$FE                ; -2
+        BNE @apply
+        LDA #MV_FLAG_CASTLE_Q
+@castle:
+        STA mv_flags
+        BNE @apply              ; (always)
+@notking:
+        CMP #PIECE_PAWN
+        BNE @apply
+        LDA mv_to               ; a pawn reaching the last rank: ask the piece
+        AND #$70
+        BEQ @promote
+        CMP #$70
+        BNE @apply
+@promote:
+        JSR ask_promotion
+        BCS @cancel             ; ESC: keep the position, drop the selection
+        STA mv_promo
+@apply: JSR apply_user_move
+        BCC @made
+@cancel: JMP do_deselect
+@made:
         LDA #0
         STA sel_active
         STA cursor_on
@@ -291,6 +328,33 @@ do_confirm:
         JSR draw_board
         JSR print_move_hgr
         JMP game_loop
+
+; ask_promotion: "PROMOTE Q R B N" on the status row, wait for one of the
+; four letters (A = piece code, C clear) or ESC (C set). The status row is
+; reprinted by game_loop either way (printed_side forced).
+ask_promotion:
+        LDA #<st_promo
+        STA sptr_lo
+        LDA #>st_promo
+        STA sptr_hi
+        JSR panel_msg
+        LDA #$FF
+        STA printed_side
+@key:   JSR wait_key
+        LDX #3
+@find:  CMP promo_keys,X
+        BEQ @got
+        DEX
+        BPL @find
+        CMP #$1B
+        BNE @key
+        SEC
+        RTS
+@got:   LDA promo_pieces,X
+        CLC
+        RTS
+promo_keys:   .byte 'Q', 'R', 'B', 'N'
+promo_pieces: .byte PIECE_QUEEN, PIECE_ROOK, PIECE_BISHOP, PIECE_KNIGHT
 
 do_deselect:
         LDA #0
@@ -1144,6 +1208,7 @@ a1_modeprompt:
 st_your:   .byte "YOUR MOVE", 0
 st_think:  .byte "THINKING...", 0
 st_check:  .byte "CHECK!", 0
+st_promo:  .byte "PROMOTE Q R B N", 0
 a1_pressn: .byte "N = NEW GAME", 0
 
 o_bwin: .byte "MATE: B WINS", 0

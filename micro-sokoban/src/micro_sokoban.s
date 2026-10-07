@@ -14,8 +14,9 @@
 ;   Keyboard  : I J K L or W A S D or arrows = move
 ;               U undo    Y redo    R restart (undoable: Y replays)
 ;               N next    P previous
-;               H or ESC  = menu        RETURN/SPACE = select in menu
-;               in HELP: T tutorial, O options, F Hall of Fame, Q quit to DOS
+;               ESC = menu   H = help    RETURN/SPACE = select in menu
+;               in the menu: T tutorial, O options, F Hall of Fame, V profiles,
+;               G level grid, C deadlock warning, Q quit to DOS
 ;               Ctrl-RESET also quits cleanly
 ;
 ; Playfield: 20 cols x 12 rows of 14x16 pixel tiles.
@@ -25,8 +26,9 @@
 ; HUD: 7-pixel glyphs in the four screen corners, 3 tiles each (moves top
 ; left, pushes top right, levels bottom left); levels keep those cells empty.
 ; Levels: Microban (David W. Skinner) -- every level that fits the screen,
-; converted by tools/micro_sokoban_levels.py into packs of up to 4 KB (MB1A, MB1B,
-; ...) that are BLOADed into LOWBSS when play crosses into another pack. A
+; converted by tools/micro_sokoban_levels.py into packs of at most 2 KB (MB1A,
+; MB1B, ...) read with RWTS (fast_disk.inc) into LOWBSS when play crosses into
+; another pack. A
 ; level is (collection, index); the HUD shows the collection and the level's
 ; original number.
 ;
@@ -342,6 +344,7 @@ b0_used:         .res 1          ; 1 = the stick moved while button 0 was held,
 menu_sel:        .res 1
 menu_prev:       .res 1
 front_page:      .res 1          ; page on screen: 0 = page 1, PAGE2_EOR = page 2
+hgr_front_page = front_page      ; (dev/lib/hgr/hgr_flip.asm)
 deadwarn_on:      .res 1          ; 1 = warn when a box goes onto a dead square
 score_total:     .res 4          ; exact sum of best moves, at most 454 * 65535
 score_solved:    .res 2
@@ -3720,37 +3723,18 @@ enter_box_tbl:    .byte 3, 0, 4, 0, 0, 0, 0
 ;   show_screen   display the draw page; it stays the draw page, so the
 ;                 per-move tile updates land on the page on screen
 ; =============================================================================
+; show_screen, set_draw_page and draw_page are dev/lib/hgr/hgr_flip.asm
+; (hgr_show_draw, hgr_set_draw_page, hgr_draw_page, included below).
 begin_screen:
-        LDA front_page
-        EOR #PAGE2_EOR                  ; the page that is not on screen
-        JSR set_draw_page
+        JSR hgr_draw_hidden
         JMP clear_draw_page
 
-show_screen:
-        LDA draw_page
-        STA front_page
-        BNE @p2
-        LDA LOWSCR
-        RTS
-@p2:    LDA HISCR
-        RTS
+show_screen   = hgr_show_draw
+set_draw_page = hgr_set_draw_page
+draw_page     = hgr_draw_page
 
-; set_draw_page: A = 0 (page 1) or PAGE2_EOR (page 2). Clobbers A, X.
-set_draw_page:
-        CMP draw_page
-        BEQ @done
-        STA draw_page
-        LDX #191
-@lp:    LDA hgr_hi,X
-        EOR #PAGE2_EOR
-        STA hgr_hi,X
-        DEX
-        CPX #$FF
-        BNE @lp
-@done:  RTS
-
-; clear_draw_page: zero the 8 KB of the draw page, using ptr_lo/ptr_hi.
-; One shared loop leaves room for sound while staying below DOS's buffers.
+; clear_draw_page: zero the 8 KB of the draw page, using ptr_lo/ptr_hi (the
+; compact loop: screens are cleared once per transition, bytes matter more).
 clear_draw_page:
         LDA draw_page
         EOR #$20                        ; 0/$60 -> $20/$40
@@ -3772,12 +3756,11 @@ clear_draw_page:
 ; =============================================================================
 .data
 
-draw_page:
-        .byte 0                         ; 0 = hgr_hi addresses page 1, PAGE2_EOR = page 2
-
 ; hgr_hi is rewritten by set_draw_page: it lives in DATA, not RODATA.
 ; HGR scanline address tables (Apple II interleave), page 1 at load time
 .include "hgr_scanline.inc"      ; dev/lib/hgr: hgr_lo / hgr_hi
+.include "hgr_flip.asm"          ; dev/lib/hgr: hgr_draw_hidden / hgr_show_draw /
+                                 ; hgr_set_draw_page, draw page by rewriting hgr_hi
 
 .rodata
 
@@ -3853,7 +3836,7 @@ tile_bitmaps:
 ; ../dev/lib/apple2 modules (textual includes: they pick their own segments)
 ; =============================================================================
 .include "kbd.asm"               ; poll_key
-.define HGR_CLEAR_ROUTINE clear_draw_page
+HGR_CLEAR_ROUTINE = clear_draw_page   ; hgr_init_clear clears through our loop
 .include "hgr.asm"               ; hgr_init_clear
 
 ; The loader and work buffers overwrite Applesoft at $0801. After restoring

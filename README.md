@@ -45,10 +45,11 @@ avec sa disquette ProDOS et sa [description](docs/releases/chromabreak-1.0.md).
     make                 # toutes les disquettes, dans dist/
     make -C chess        # une seule (elle va aussi dans dist/)
     make -C chess run    # la lancer dans POM2 installé (/Applications/POM2.app)
-    make test            # tout construire, puis CHROMABREAK, ARKABREAKOUT, HGR,
-                         # cadence, exemple HGR, assets, budgets de performance
+    make test            # tout construire, puis CHROMABREAK, ARKABREAKOUT, CHESS,
+                         # HGR, cadence, exemple HGR, assets, budgets de performance
                          # et les 454 niveaux de MICRO-SOKOBAN dans a2run
     make test-arkabreakout # collisions, bonus, niveaux, paddle et sortie DOS
+    make test-chess      # roque, promotion, règle des 50 coups, matériel mort
     make test-hgr        # primitives, texte gfx, moteur de sprites et archive
     make test-frame      # cadence, délais et repli en cas de VBL bloqué
     make test-hgr-example # animation, pause/reprise et retour à DOS

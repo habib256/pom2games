@@ -340,6 +340,7 @@ vbuf:       .res 8     ; staging buffer (unused on HGR; kept for layout)
 ; ---- HGR port ZP ----
 pix_col:    .res 1     ; dest byte column (4 + pix_x/8) from calc_pix_addr
 front_page: .res 1     ; displayed HGR page: 0 = page 1, PAGE2_EOR = page 2
+hgr_front_page = front_page   ; dev/lib/hgr/hgr_flip.asm keeps it here (ZP)
 ; Forward ZP references into hgr_sprite16.asm (included at EOF): tell
 ; ca65 these live in the zero page so x2_put gets short addressing.
 .globalzp sp_ptr, sp_x, sp_y, sp_cm_ev, sp_cm_od, sp_cbit, sp_px
@@ -1655,39 +1656,12 @@ tms9918_pad12:
 ; Everything the game writes goes through hgr_hi (clear_span,
 ; calc_pix_addr, vline, x2_put, hgr_text8, hgr_sprite16), so switching the
 ; draw page is one pass over that table -- see set_draw_page.
-vdp_display_off:
-        LDA front_page
-        EOR #PAGE2_EOR          ; the page that is not on screen
-        JMP set_draw_page
-vdp_display_on:
-        LDA draw_page
-        STA front_page
-        BNE @p2
-        LDA LOWSCR              ; show page 1
-        RTS
-@p2:    LDA HISCR               ; show page 2
-        RTS
-
-; set_draw_page: A = 0 (draw on page 1) or PAGE2_EOR (page 2). Rewrites the
-; high bytes of the hgr_hi scanline table in place ($2x <-> $4x, ~3.5k
-; cycles). draw_page records the table's state and lives next to the code,
-; not in the zero page, so it stays true for as long as the table itself
-; (a re-entry without reloading the file finds both consistent).
-set_draw_page:
-        CMP draw_page
-        BEQ @done
-        STA draw_page
-        LDY #0
-@lp:    LDA hgr_hi,Y
-        EOR #PAGE2_EOR
-        STA hgr_hi,Y
-        INY
-        CPY #192
-        BNE @lp
-@done:  RTS
-
-draw_page:
-        .byte 0                 ; 0 = hgr_hi addresses page 1, PAGE2_EOR = page 2
+; The three routines and draw_page are dev/lib/hgr/hgr_flip.asm (included at
+; the end of this file); front_page above is its hgr_front_page.
+vdp_display_off = hgr_draw_hidden
+vdp_display_on  = hgr_show_draw
+set_draw_page   = hgr_set_draw_page
+draw_page       = hgr_draw_page
 
 ; hgr_bitmask: pixel (x & 7) -> HGR bit mask (bit 0 = leftmost pixel,
 ; 7 px/byte, bit 7 = palette group kept clear). The TMS bitmap byte is
@@ -5003,6 +4977,7 @@ font_base:
 ; hgr_init_clear / hgr_text_restore.
 ; =============================================
 .include "hgr_scanline.inc"
+.include "hgr_flip.asm"          ; dev/lib/hgr: draw page by rewriting hgr_hi
 .include "hgr_sprite16.asm"
 HGR_TEXT8_NO_PUTS = 1            ; write_char drives hgr_putc8 itself
 .include "hgr_text8.asm"

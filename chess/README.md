@@ -1,7 +1,7 @@
 # Chess — Apple II+ / DOS 3.3
 
-Chess on an Apple II+, in HGR: en passant, promotion, check, checkmate and
-stalemate, castling by the computer, against the computer (1, 2 or 3 plies)
+Chess on an Apple II+, in HGR: castling, en passant, promotion with a choice
+of piece, check, checkmate, stalemate and draws, against the computer (1, 2 or 3 plies)
 or between two players. An Apple II port of the `sketchs/gen2/game_chess` sketch of
 [POM1](https://github.com/habib256/pom1) (GEN2_Chess, VERHILLE Arnaud) and of
 its engine `dev/lib/games/chess`, with the piece bitmaps of cc65-Chess.
@@ -15,6 +15,9 @@ its engine `dev/lib/games/chess`, with the piece bitmaps of cc65-Chess.
   `N`: `1` two human players (HVH), `2` you as White against the computer
   (WAI), `3` you as Black (BAI), `4` computer against computer (AVA, stops
   with `DRAW` after 200 computer moves).
+- **Draws by rule**: 50 moves without a capture or a pawn move, and dead
+  material (king against king, king and one minor piece against king) end
+  the game with `DRAW`.
 - **Three AI levels**, cycled with `P` and shown on the panel (`W WAI L2`):
   L1 = 1 ply (material after its move), L2 = 2 plies (sees your reply, so it
   stops hanging pieces and refuses mate-in-one), L3 = 3 plies. L2 is the
@@ -60,10 +63,11 @@ Pick a mode with `1`-`4` on the menu, then the board on HGR page 1 takes over.
 - An illegal move (wrong geometry, king left in check, ...) simply cancels
   the selection — pick again.
 - En passant is entered as the capturing pawn's diagonal move. A pawn
-  reaching the last rank always becomes a queen.
-- Castling is implemented and validated in the engine, and the computer
-  castles, but the HGR front-end cannot enter it yet: a two-square king move
-  is refused as illegal (first item of [`TODO.md`](TODO.md)).
+  reaching the last rank asks `PROMOTE Q R B N` on the status row: press the
+  letter (ESC cancels the move).
+- Castling: move the king two squares towards the rook (e1-g1, e1-c1, e8-g8,
+  e8-c8). The engine checks the rights, the empty squares and the attacked
+  squares, and refuses otherwise. The computer castles the same way.
 - Against the computer, `U` takes back the computer's last move only, and
   the computer moves again at once; the undo is one move deep.
 - A II+ only has left/right arrows; up/down arrows work on a //e (on a II+
@@ -87,10 +91,17 @@ including the DOS 3.3 system tracks. The Makefile includes
 | `make distclean` | remove `build/` and the disk                             |
 
 The engine is assembled with `-D CHESS_SMART_EVAL` (positional tie-breaks).
-The link prints the binary size: `binary: 8942 bytes at 0x6000`. On the disk,
+The link prints the binary size: `9,119 bytes at 0x6000`. On the disk,
 `HELLO` is one line, `10 PRINT CHR$(4);"BRUN CHESS"`.
 
 ## Tests and benchmarks
+
+`make test` plays the rules the front end handles itself in a2run
+(`tests/test_game.py`, on `../dev/tools/a2test.py`): a king-side castle after
+1.e4 e5 2.Nf3 Nc6 3.Bc4 Nf6, a castle refused once the rook has moved, the
+promotion prompt (queen, rook, knight, ESC), the 50-move rule and a
+king-against-king draw. It needs the label file the build writes
+(`build/chess.lbl`).
 
 `test/` runs the engine alone — no screen, no keyboard — on the POM2 core
 with exact 6502 cycle counts, through a small host program (`bench.cpp`,

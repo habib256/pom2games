@@ -23,6 +23,10 @@
  *
  *   a2run --disk GAME.dsk wait:900 key:" " wait:60 shot:title.png
  *
+ * As a library (cc -DA2RUN_LIB a2run.c cpu6502.c + a2run.h): a2run_main()
+ * boots and plays a script, then the caller drives cpu / ram / kbd_latch
+ * itself (arkabreakout/tests/pilot.c steers the paddle through a campaign).
+ *
  * The disk image given with --disk is never modified: writes by the guest
  * stay in memory until a dsk: step. --wp makes the disk write protected. ROMs: ../a2shot/roms next to this binary
  * (apple2p.rom, disk2.rom) or --roms DIR.
@@ -34,6 +38,7 @@
  * nibble is ready on every read).
  */
 #include "cpu6502.h"
+#include "a2run.h"
 
 #include <zlib.h>
 
@@ -45,13 +50,13 @@
 #define TRACKS 35
 #define TRACK_LEN 6392          /* nibbles per track: a full 16-sector layout */
 
-static uint8_t ram[0xC000];
+uint8_t ram[0xC000];            /* shared with programs built on a2run.h */
 static uint8_t rom[0x3000];     /* $D000-$FFFF */
 static uint8_t slot6[256];      /* $C600 boot PROM */
-static Cpu cpu;
+Cpu cpu;
 
 /* --- keyboard ------------------------------------------------------------- */
-static uint8_t kbd_latch;
+uint8_t kbd_latch;
 static char kbd_queue[65536];
 static int kbd_head, kbd_tail;
 static uint64_t kbd_last;
@@ -461,7 +466,7 @@ static int load_file(const char *path, uint8_t *dst, long len, long skip)
     return ok;
 }
 
-int main(int argc, char **argv)
+int a2run_main(int argc, char **argv)
 {
     const char *disk = NULL;
     char roms[1024];
@@ -560,3 +565,7 @@ int main(int argc, char **argv)
     if (spk_log) fclose(spk_log);
     return 0;
 }
+
+#ifndef A2RUN_LIB
+int main(int argc, char **argv) { return a2run_main(argc, argv); }
+#endif

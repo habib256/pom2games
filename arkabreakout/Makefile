@@ -28,9 +28,9 @@ $(DISK): $(BUILD)/game.bin $(DOS33_DEPS)
 assets:
 	$(PYTHON) tools/generate_title.py
 
-$(BUILD)/pilot: tests/pilot.c $(DEV)/tools/a2run/a2run.c $(DEV)/tools/a2run/cpu6502.c $(DEV)/tools/a2run/cpu6502.h
+$(BUILD)/pilot: tests/pilot.c $(DEV)/tools/a2run/a2run.c $(DEV)/tools/a2run/a2run.h $(DEV)/tools/a2run/cpu6502.c $(DEV)/tools/a2run/cpu6502.h
 	@mkdir -p $(BUILD)
-	$(CC) -O2 -Wall -Wextra -std=c99 tests/pilot.c $(DEV)/tools/a2run/cpu6502.c -lz -o $@
+	$(CC) -O2 -Wall -Wextra -std=c99 -fno-common -DA2RUN_LIB -I $(DEV)/tools/a2run tests/pilot.c $(DEV)/tools/a2run/a2run.c $(DEV)/tools/a2run/cpu6502.c -lz -o $@
 
 src/title.inc: tools/generate_title.py $(DEV)/tools/fonts.py $(FONT)/bbfont_glyphs.inc
 	$(PYTHON) tools/generate_title.py

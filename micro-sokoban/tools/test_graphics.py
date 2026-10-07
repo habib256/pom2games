@@ -38,7 +38,7 @@ def main():
             # Compare the actual hardware display with both forced pages. This
             # detects a soft-switch disagreement even if front_page looks right.
             actual, page1, page2 = (tmp / name for name in ('actual.png', 'page1.png', 'page2.png'))
-            raw = run(steps + [peek('front_page'), peek('draw_page'), peek('hgr_hi', 192),
+            raw = run(steps + [peek('front_page'), peek('hgr_draw_page'), peek('hgr_hi', 192),
                               'peek:2000:16384', peek('STATE_GRID', 240),
                               'shot:' + str(actual), 'peek:C054:1', 'shot:' + str(page1),
                               'peek:C055:1', 'shot:' + str(page2)])
@@ -106,11 +106,11 @@ def main():
         # Stop before begin_screen and at show_screen, while the next page has
         # been drawn but not yet displayed. The front page must stay intact.
         def pending_capture():
-            return [peek('front_page'), peek('draw_page'), 'peek:2000:16384']
+            return [peek('front_page'), peek('hgr_draw_page'), 'peek:2000:16384']
         parities = set()
         for prefix in (play, play + ['key:H', 'wait:180'] + back + back):
             raw = run(prefix + ['press:\x1b', f'until:{labels["begin_screen"]:04X}:180',
-                                *pending_capture(), f'until:{labels["show_screen"]:04X}:180',
+                                *pending_capture(), f'until:{labels["hgr_show_draw"]:04X}:180',
                                 *pending_capture()])
             size = 2 + 16384
             before, pending = raw[:size], raw[size:]
