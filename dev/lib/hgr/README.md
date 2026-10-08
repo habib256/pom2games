@@ -30,6 +30,7 @@ murs, caisses et autres éléments graphiques conservent leurs couleurs.
 | `hgr_sprite_color.inc` | attributs de couleur partagés par les deux blitters | moteurs de sprites |
 | `hgr_line.asm` | `hgr_line8` : ligne OR rapide, X natif 0..255, Y 0..191 | maze3d |
 | `hgr_span.asm` | `hgr_hspan` / `hgr_vspan` : spans par colonnes et masques d’octets, largeur HGR complète | maze3d |
+| `hgr_wireframe.asm` | contours découpés en X, historique par page et effacement rapide des anciens traits en noir | light3dball |
 | `hgr_clear_rows.asm` | effacement de lignes visibles, écran, HUD et viewport 160 lignes | maze3d |
 | `rev7.inc` | `rev7_tab` : ordre des bits TMS → HGR | hgr_text8, hgr_sprite16 |
 | `sprites/chess_cc65_pieces.asm` | pièces d'échecs de cc65-Chess (F. Gebhart, O. Schmidt) | chess |
@@ -90,3 +91,54 @@ Ils partagent ce scratch et les attributs de couleur, donc leurs appels sont
 séquentiels. Le texte `hgr_putc8` coupe les glyphes partiels en bas de l’écran
 et conserve une position hors écran lors du retour à la colonne initiale.
 Les régressions correspondantes sont dans `test_asm_boundaries.py`.
+
+## Contours en fil de fer
+
+`hgr_wireframe.asm` dessine des traits horizontaux et verticaux blancs, puis
+efface les anciens traits en noir. Il ne remplit aucun rectangle. Les spans
+horizontaux effacent directement les octets complets par une suite de stores
+déroulée ; les masques des extrémités préservent les pixels voisins.
+
+Inclure `hgr_scanline.inc` et `hgr_plot_tables.inc`, puis le module, dans un
+segment modifiable. Il inclut lui-même `hgr_span.asm`. Chaque appel utilise
+la page désignée par `hgr_lo/hi`, compatible avec `hgr_flip.asm`.
+
+| Entrée | Paramètres et effet |
+|---|---|
+| `hgr_wire_span` | `wf_x0/y0/x1/y1` : dessiner un trait sans découpage ni historique |
+| `hgr_wire_line` | Dessiner un trait limité à `wf_clip_left..wf_clip_right`, puis avancer `wf_history` de quatre octets s'il est visible |
+| `hgr_wire_rect` | Soumettre les quatre côtés du rectangle au même découpage et au même historique |
+| `hgr_wire_erase` | `wf_history` au début de l'ancien historique, `wf_count` traits : les effacer, avancer le pointeur et ramener le compte à zéro |
+| `hgr_wire_clear_span` | Effacer un seul trait, sans historique |
+
+Les coordonnées doivent être ordonnées et valides : X 0..255, Y 0..191 ;
+seuls les traits horizontaux et verticaux sont acceptés. Le découpage est
+horizontal, sans bord supplémentaire à la limite de visibilité. Une fenêtre
+avec gauche > droite ne dessine rien. Les rectangles dégénérés sont acceptés,
+avec éventuellement plusieurs enregistrements du même trait.
+
+L'appelant réserve quatre octets par trait visible, soit jusqu'à seize par
+rectangle, et calcule le nombre de traits par `(pointeur_final-début)/4`.
+Le module ne vérifie pas la capacité du tampon. Garder un historique séparé
+pour chaque page : restaurer les sprites, effacer l'ancien historique de la
+page de dessin, remettre le pointeur au début, puis dessiner les nouveaux
+contours. La projection, l'ordre des objets et la mise à jour de la fenêtre
+de visibilité restent chez l'appelant.
+
+Le fond est monochrome ; les octets horizontaux complets réinitialisent le
+bit de phase couleur. Pour réparer un décor fixe croisé par un ancien trait,
+définir `HGR_WIRE_AFTER_HLINE` et/ou `HGR_WIRE_AFTER_VLINE` avant l'inclusion.
+Ces routines sont appelées après l'effacement avec les extrémités dans
+`wf_x0/y0/x1/y1` et doivent préserver `wf_history` et `wf_count`.
+Light3dball utilise ces hooks pour restaurer les arêtes fixes du couloir.
+
+Le module réserve son scratch par défaut ; des alias `wf_*` peuvent le
+remplacer avant l'inclusion. `WF_COL_TABLE` et `WF_MASK_TABLE` permettent
+de réutiliser d'autres tables X. Tous les appels détruisent A/X/Y et le
+scratch ; le code est non réentrant et n'attend pas la synchronisation vidéo.
+
+`python3 dev/tests/test_hgr_wireframe.py` vérifie le module seul sur les deux
+pages, avec son scratch par défaut, des historiques traversant une frontière
+de page, des bords, des fenêtres vides et des rectangles dégénérés. Chaque
+octet du framebuffer est comparé à une référence après dessin et effacement.
+Ce test fait aussi partie de `make test-hgr`.
