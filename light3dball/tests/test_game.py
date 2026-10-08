@@ -38,7 +38,7 @@ z, vz, hits = scenario(base + [('ball_z', 125, True), ('vel_z', 1, False),
                              ('ball_x', 100 * 16, True), ('wall_hits', 0, False)],
                        [('ball_z', True), ('vel_z', False), ('wall_hits', False)])
 assert z < 126 and vz == 255 and hits == 1, ('panel collision', z, vz, hits)
-z, vz = scenario(base + [('ball_z', 125, True), ('vel_z', 1, False)],
+z, vz = scenario(base + [('ball_z', 125, True), ('vel_z', 1, False), ('ball_x', 32*16, True)],
                   [('ball_z', True), ('vel_z', False)])
 assert z == 129 and vz == 1, ('opening', z, vz)
 
@@ -89,7 +89,7 @@ for px, py, dx, dy, expected_hit in [
 
 # The back face reflects an approaching ball, not a ball moving away from it.
 z, vz, hits = scenario(base + [('ball_z', 387, True), ('vel_z', -1, False),
-                              ('ball_x', 4 * 16, True), ('wall_hits', 0, False)],
+                              ('ball_x', 100 * 16, True), ('wall_hits', 0, False)],
                        [('ball_z', True), ('vel_z', False), ('wall_hits', False)])
 assert z > 386 and vz == 1 and hits == 1, ('back face', z, vz, hits)
 z, vz, hits = scenario(base + [('ball_z', 126, True), ('vel_z', -1, False),
@@ -115,16 +115,18 @@ camera, blocked = scenario(base + [('camera_z', 246, True), ('ball_z', 300, True
 assert camera == 246 and blocked == 2, ('right alignment hint', camera, blocked)
 
 # Only the target cell wins; merely reaching the back of the corridor does not.
-z, vz, victory = scenario(base + [('ball_z', 541, True), ('vel_z', 1, False),
+z, vz, victory = scenario(base + [('ball_z', 1533, True), ('camera_z', 1280, True), ('vel_z', 1, False),
                                 ('ball_x', 90*16, True)],
                           [('ball_z', True), ('vel_z', False), ('won', False)])
-assert z < 542 and vz == 255 and victory == 0, ('back-wall miss', z, vz, victory)
-victory, = scenario(base + [('ball_z', 541, True), ('vel_z', 1, False)], [('won', False)])
+assert z < 1534 and vz == 255 and victory == 0, ('back-wall miss', z, vz, victory)
+victory, = scenario(base + [('ball_z', 1533, True), ('camera_z', 1280, True), ('vel_z', 1, False)], [('won', False)])
 assert victory == 1, 'target hit did not win'
-victory, = scenario(base + [('camera_z', 510, True), ('ball_z', 532, True),
+victory, = scenario(base + [('camera_z', 1502, True), ('ball_z', 1524, True),
                             ('vel_z', 1, False), ('ball_x', 90*16, True),
                             ('advancing', 1, False)], [('won', False)])
 assert victory == 0, 'camera reaching the end won without a target hit'
+victory, = scenario(base + [('ball_z', 1533, True), ('vel_z', 1, False)], [('won', False)])
+assert victory == 0, 'distant target won before reaching final chamber'
 
 # Pause stabilizes BOTH pages (including overlaps), even through many renders.
 steps = ['wait:1100', 'key:P', 'wait:60', L.until('frame_mark'),
@@ -249,14 +251,15 @@ for _ in range(2):
 r = a2test.run(DISK, steps)
 assert r.spk[1:3] == [0, 0] and r.spk[4:6] == [12, 0], ('mute/serve cues', r.spk)
 
-# End-to-end using actual keyboard input, with no pokes or invulnerability.
-r = a2test.run(DISK, ['wait:1100', 'key:\\r', 'wait:8', 'key: ', 'wait:8000',
+# A centered shot must NOT complete the course. The first broad wall stops
+# both the ball and the advancing player until the paddle moves left.
+r = a2test.run(DISK, ['wait:1100', 'key:\\r', 'wait:8', 'key: ', 'wait:3000',
                      L.until('frame_mark'), L.peek('won'), L.peek('lives'), L.peek('camera_z', 2),
                      'key:R', 'wait:20', L.peek('won'), L.peek('camera_z', 2),
                      'key:\\e', 'wait:30', 'peek:03F2:3', 'text'])
-assert r.mem(L['won'], 1, 0) == b'\x01', 'course did not finish'
+assert r.mem(L['won'], 1, 0) == b'\0', 'centered shot bypassed the chicanes'
 assert r.mem(L['lives'], 1) == b'\x04', 'centered course lost lives'
-assert 0 < int.from_bytes(r.mem(L['camera_z'], 2, 0), 'little') <= 512
+assert 0 < int.from_bytes(r.mem(L['camera_z'], 2, 0), 'little') <= 118
 assert r.mem(L['won'], 1, 1) == b'\0' and r.mem(L['camera_z'], 2, 1) == b'\0\0'
 assert r.mem(0x03F2, 3)[:2] == b'\xbf\x9d', 'DOS reset vector not restored'
 assert any(']' in screen for screen in r.text_screens()), 'DOS prompt missing'
@@ -269,5 +272,5 @@ r = a2test.run(DISK, steps)
 cycles = r.cycles[::2]
 costs = [b-a for a, b in zip(cycles, cycles[1:])]
 assert min(costs) < 60000 and max(costs) < 250000, ('frame budget', costs)
-print('LIGHT3DBALL: collisions, aiming, barriers, double-page pause, controls, full course and DOS exit passed.')
+print('LIGHT3DBALL: collisions, aiming, barriers, double-page pause, controls, straight-shot blocking and DOS exit passed.')
 print(f'Frame costs including delay: {min(costs):,}–{max(costs):,} cycles at 1.02 MHz.')

@@ -1,5 +1,5 @@
 /* LIGHT3DBALL — original Light Corridor-inspired prototype. GPL-3.0.
- * World: square section 0..127, axial course 0..544. Ball XY uses Q4.
+ * World: square section 0..127, five courses up to 3072. Ball XY uses Q4.
  * Four swept axial substeps per tick. Rendering never drives collisions.
  */
 #include "hgr.h"
@@ -10,6 +10,7 @@
 #pragma rodata-name(push, "ASSETS")
 #include "assets.h"
 #include "background.h"
+#include "levels.h"
 #pragma rodata-name(pop)
 #include "mousemap.h"
 
@@ -40,26 +41,31 @@ int ball_x, ball_y, vel_x, vel_y, ball_z;
 int camera_z;
 signed char vel_z;
 unsigned char paddle_x, paddle_y, lives, launched, advancing, paused, won;
-unsigned char door_phase, door_left, ticks, hits, wall_hits, blocked;
+unsigned char door_phase, ticks, hits, wall_hits, blocked;
 unsigned frame_count;
 unsigned char draw_page, mouse_enabled;
+unsigned char level, level_slots, door_visible, aperture_moving;
+int level_length, end_contact, camera_limit, plane;
+unsigned char aperture_l, aperture_r;
+extern void __fastcall__ load_level(unsigned char number);
+extern void __fastcall__ opening(unsigned char slot);
 
-static unsigned char quit, mouse_old, page_camera[2], page_door[2], page_hud[2];
+static unsigned char quit, mouse_old, page_door[2], page_hud[2];
+static unsigned page_camera[2];
 static unsigned char keyboard_advance;
 static unsigned char dirty_hud;
 static unsigned char hud_status;
 static unsigned char sound_period, muted;
 static char lives_text[2]={'4',0};
+static char level_title[]="LIGHT3D L1 LIVES:";
 extern void __fastcall__ game_sound(unsigned char period);
 extern void step_xy(void);
 extern unsigned char paddle_contact(void);
 extern int __fastcall__ aim_bias(int offset);
 extern void __fastcall__ depth_gauge(unsigned char page);
 extern void __fastcall__ reset_gauge(unsigned char page);
-static unsigned char scene_lines[2][96], scene_count[2];
+static unsigned char scene_lines[2][128], scene_count[2];
 static unsigned char old_rays[2][4];
-static const unsigned planes[] = {128, 256, 384};
-static unsigned char aperture_l, aperture_r;
 unsigned char sx, sy, left, top, depth;
 static unsigned char ball_size, bx, by;
 extern unsigned char __fastcall__ project_x(unsigned char x);
@@ -79,14 +85,6 @@ static unsigned char old_y[2][2];
 #pragma bss-name(push, "LOWBSS")
 static unsigned char under[2][2][100];
 #pragma bss-name(pop)
-
-static void opening(unsigned char i)
-{
-    aperture_l=0; aperture_r=127;
-    if (i==0) aperture_r=76;
-    if (i==1) aperture_l=51;
-    if (i==2) { aperture_l=door_left; aperture_r=door_left+48; }
-}
 
 static void position_waiting_ball(void)
 {
@@ -110,10 +108,12 @@ static void serve(void)
 
 static void reset(void)
 {
+    load_level(level);
+    end_contact=level_length-2; camera_limit=level_length-32;
     camera_z=0; paddle_x=64; paddle_y=64; lives=4;
-    paused=0; won=0; quit=0; ticks=0; door_phase=0; door_left=16;
+    paused=0; won=0; quit=0; ticks=0; door_phase=0;
     frame_count=0; hits=0; wall_hits=0; blocked=0;
-    page_camera[0]=page_camera[1]=255;
+    page_camera[0]=page_camera[1]=0xFFFFu;
     page_door[0]=page_door[1]=255;
     dirty_hud=1; hud_status=255; page_hud[0]=page_hud[1]=0;
     sound_period=0;
@@ -124,13 +124,16 @@ static void input(void)
 {
     unsigned char k=apple2_readkey();
     if (k>='a' && k<='z') k-=32;
+    if (k>='1' && k<='5') { level=k-'1'; reset(); }
     if (k==KC_ESC || k=='Q') quit=1;
-    if (k=='R') reset();
+    if (k=='R') { if (won && level==4) level=0; reset(); }
     if (k=='P') { paused=!paused; ++dirty_hud; }
     if (k=='M') muted=!muted;
     /* Sample the button even while paused: holding it through a pause must
      * not become a fresh serve edge when play resumes. */
     if (mouse_enabled) mouse_poll();
+    if (won && level<4 && (k==KC_RET || k==' ' ||
+        ((mouse_buttons&128) && !(mouse_old&128)))) { ++level; reset(); }
     if (!paused && !won && lives) {
         if ((k=='J' || k==KC_LEFT) && paddle_x>10) paddle_x-=3;
         if ((k=='L' || k==KC_RIGHT) && paddle_x<117) paddle_x+=3;
@@ -164,18 +167,17 @@ void physics(void)
     ++ticks;
     /* Door changes every eight simulation ticks, independent of page parity. */
     door_phase=(ticks>>3)&31;
-    door_left=8+((door_phase<16 ? door_phase : 31-door_phase)<<2);
     if (!launched) { position_waiting_ball(); return; }
     old_wall_hits=wall_hits;
     for (step=0; step<4; ++step) {
         step_xy();
         ball_z+=vel_z;
-        /* Axial substeps are exactly +/-1. Only the six contact planes can
-         * collide, rather than scanning three obstacles four times per tick. */
+        /* Axial substeps are exactly +/-1. The packed 128-unit grid locates
+         * both faces of any wall in constant time, even in a long course. */
         i=255;
-        if (vel_z>0 && (ball_z&127)==126 && ball_z<384) i=ball_z>>7;
-        if (vel_z<0 && (ball_z&127)==2 && ball_z>=128 && ball_z<=386) i=(ball_z>>7)-1;
-        if (i<3 && (int)planes[i]>camera_z) {
+        if (vel_z>0 && (ball_z&127)==126) i=ball_z>>7;
+        if (vel_z<0 && (ball_z&127)==2 && ball_z>=128) i=(ball_z>>7)-1;
+        if (i<level_slots && i>=(unsigned char)(camera_z>>7)) {
             opening(i);
             if (ball_x<((int)aperture_l+2)*16 || ball_x>((int)aperture_r-2)*16) {
                 vel_z=-vel_z; ++wall_hits;
@@ -198,25 +200,23 @@ void physics(void)
         }
         /* The ball wins by hitting the marked cell on the back wall.
          * A miss reflects off the wall, allowing another aimed return. */
-        if (vel_z>0 && ball_z>=542) {
-            if (ball_x>=896 && ball_x<=1152 && ball_y>=896 && ball_y<=1152) {
+        if (vel_z>0 && ball_z>=end_contact) {
+            if (camera_z>=level_length-256 && ball_x>=896 && ball_x<=1152 && ball_y>=896 && ball_y<=1152) {
                 won=1; advancing=0; keyboard_advance=0; ++dirty_hud;
-                ball_z=542; sound_period=24; return;
+                ball_z=end_contact; sound_period=24; return;
             }
-            ball_z=1084-ball_z; vel_z=-1; ++wall_hits;
+            ball_z=end_contact+end_contact-ball_z; vel_z=-1; ++wall_hits;
         }
     }
     if (wall_hits!=old_wall_hits && !sound_period) sound_period=112;
     blocked=0;
     if (advancing && ball_z>camera_z+12) {
-        for (i=0; i<3; ++i) {
-            if (camera_z<(int)planes[i] && camera_z+10>=(int)planes[i]) {
-                opening(i);
-                if ((int)paddle_x-8<aperture_l) blocked=2;
-                else if ((int)paddle_x+8>aperture_r) blocked=1;
-            }
+        if ((camera_z&127)>=118) {
+            opening(camera_z>>7);
+            if ((int)paddle_x-8<aperture_l) blocked=2;
+            else if ((int)paddle_x+8>aperture_r) blocked=1;
         }
-        if (!blocked && camera_z<512) camera_z+=2;
+        if (!blocked && camera_z<camera_limit) camera_z+=2;
     }
 }
 
@@ -229,13 +229,16 @@ static void panel(unsigned char x0, unsigned char x1)
 
 static void scene(unsigned char pg)
 {
-    unsigned char i, a, b;
-    perspective(544-camera_z);
+    unsigned char i, a, b, first=(unsigned char)(camera_z>>7), last=first+4;
+    if (last>level_slots) last=level_slots;
+    door_visible=0;
+    perspective(level_length-camera_z);
     ray_left_top=ray_right_top=top;
     ray_left_bottom=ray_right_bottom=top+sy;
-    for (i=0; i<3; ++i) {
-        if ((int)planes[i]<=camera_z) continue;
-        perspective(planes[i]-camera_z); opening(i);
+    for (i=first; i<last; ++i) {
+        opening(i);
+        door_visible|=aperture_moving;
+        perspective(plane-camera_z);
         if (aperture_l && top<ray_left_top) {
             ray_left_top=top; ray_left_bottom=top+sy;
         }
@@ -246,7 +249,7 @@ static void scene(unsigned char pg)
     rect_cursor=scene_lines[pg];
     scene_line_count=scene_count[pg];
     erase_scene();
-    if (page_camera[pg]==255) {
+    if (page_camera[pg]==0xFFFFu) {
         ray_row0=0; ray_row1=159; refresh_rays();
     } else {
         /* Only rows whose visibility changed need their old rays removed. */
@@ -276,9 +279,8 @@ static void scene(unsigned char pg)
     rect_cursor=scene_lines[pg];
     scene_clip_left=0; scene_clip_right=255;
     /* Near-to-far visibility windows: hidden strokes are never drawn. */
-    for (i=0; i<3; ++i) {
-        if ((int)planes[i]<=camera_z) continue;
-        perspective(planes[i]-camera_z); opening(i);
+    for (i=first; i<last; ++i) {
+        opening(i); perspective(plane-camera_z);
         a=project_x(aperture_l); b=project_x(aperture_r);
         if (aperture_l) {
             panel(left,a);
@@ -289,12 +291,14 @@ static void scene(unsigned char pg)
             if (b<=scene_clip_right) scene_clip_right=b-1;
         }
     }
-    perspective(544-camera_z);
+    perspective(level_length-camera_z);
     line_x0=left; line_x1=left+sx; line_y0=top; line_y1=top+sy;
     scene_rectangle();
-    line_x0=project_x(54); line_x1=project_x(74);
-    line_y0=project_y(54); line_y1=project_y(74);
-    scene_rectangle();
+    if (level_length-camera_z<=256) {
+        line_x0=project_x(54); line_x1=project_x(74);
+        line_y0=project_y(54); line_y1=project_y(74);
+        scene_rectangle();
+    }
     scene_count[pg]=(rect_cursor-scene_lines[pg])>>2;
 }
 
@@ -323,10 +327,11 @@ static void hud(unsigned char pg)
     if (hud_status!=status) { hud_status=status; ++dirty_hud; }
     if (page_hud[pg]==dirty_hud) return;
     hgr_fill_rect(160,32,0,40,0);
-    hgr_puts8(7,160,"LIGHT3DBALL  LIVES:");
+    level_title[9]='1'+level;
+    hgr_puts8(7,160,level_title);
     lives_text[0]='0'+lives;
     hgr_puts8(168,160,lives_text);
-    hgr_puts8(7,170,status==5 ? "TARGET HIT! R:RESTART" : status==4 ? "GAME OVER  R:RESTART" :
+    hgr_puts8(7,170,status==5 ? (level<4 ? "TARGET HIT! CLICK/RETURN" : "FINAL CLEAR! R:NEW GAME") : status==4 ? "GAME OVER  R:RESTART" :
         status==3 ? "PAUSED  P:RESUME" : status==0 ?
         (mouse_enabled ? "CLICK:SERVE  MOVE MOUSE" : "RETURN:SERVE  IJKL:MOVE") :
         status==9 ? "BLOCKED:MOVE LEFT" : status==10 ? "BLOCKED:MOVE RIGHT" :
@@ -334,21 +339,21 @@ static void hud(unsigned char pg)
         status==7 ? "BALL RETURNING:MOVE PADDLE" :
         status==2 ? "ADVANCING  AIM AT TARGET" :
         (mouse_enabled ? "HOLD CLICK:ADVANCE" : "SPACE:ADVANCE  IJKL:MOVE"));
-    hgr_puts8(7,182,"P:PAUSE M:SOUND R:RESET ESC:QUIT");
+    hgr_puts8(7,182,"1-5:LEVEL P:PAUSE M:SOUND Q:QUIT");
     page_hud[pg]=dirty_hud;
     reset_gauge(pg);
 }
 
 void render(void)
 {
-    unsigned char pg=draw_page-1, i, edge;
+    unsigned char pg=draw_page-1, i, edge, first=(unsigned char)(camera_z>>7), last=first+4;
     int dist;
     hgr_set_draw_page(draw_page);
     restore(pg);
     /* Cached per page. Quantize camera geometry to four world units. */
-    if (page_camera[pg]!=(unsigned char)(camera_z>>2) ||
-        (camera_z<384 && page_door[pg]!=door_left)) {
-        scene(pg); page_camera[pg]=camera_z>>2; page_door[pg]=door_left;
+    if (page_camera[pg]!=(unsigned)(camera_z>>2) ||
+        (door_visible && page_door[pg]!=door_phase)) {
+        scene(pg); page_camera[pg]=camera_z>>2; page_door[pg]=door_phase;
     }
     dist=ball_z-camera_z;
     if (dist<0) dist=0;
@@ -358,9 +363,11 @@ void render(void)
     /* Intersect the nearer openings. Clip the sprite's actual pixels instead
      * of making the whole sphere vanish when its centre crosses an edge. */
     ball_clip_left=0; ball_clip_right=255;
-    for (i=0; i<3; ++i) {
-        if ((int)planes[i]<=camera_z || (int)planes[i]>=ball_z) continue;
-        perspective(planes[i]-camera_z); opening(i);
+    if (last>level_slots) last=level_slots;
+    for (i=first; i<last; ++i) {
+        opening(i);
+        if (plane>=ball_z) continue;
+        perspective(plane-camera_z);
         if (aperture_l) {
             edge=project_x(aperture_l)+1;
             if (edge>ball_clip_left) ball_clip_left=edge;
