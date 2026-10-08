@@ -9,14 +9,14 @@
 #
 # Each folder builds on its own too: make -C chess [run], still into ./dist.
 
-II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake
+II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake flipper
 IIE_PRODOS_GAMES := chromabreak
 DIRS := $(II_PLUS_GAMES) $(IIE_PRODOS_GAMES) logo demos dev/examples/hello dev/examples/hgr dev/examples/dhgr
 
 all:
 	@for d in $(DIRS); do $(MAKE) -C $$d || exit 1; done
 
-test: all test-chromabreak test-arkabreakout test-chess test-hgr test-frame test-hgr-example test-assets bench-check
+test: all test-flipper test-chromabreak test-arkabreakout test-chess test-hgr test-frame test-hgr-example test-assets bench-check
 	$(MAKE) -C micro-sokoban test
 
 test-hgr:
@@ -83,6 +83,11 @@ test-chromabreak:
 	$(MAKE) -C chromabreak test
 
 .PHONY: profile-ii-plus profile-iie-prodos test-chromabreak
+
+test-flipper:
+	$(MAKE) -C flipper test
+
+.PHONY: test-flipper
 
 test: test-techniques
 

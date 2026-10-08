@@ -12,6 +12,7 @@ la vidéo native de l'Apple II.
 | [`micro-sokoban/`](micro-sokoban/) | MICRO-SOKOBAN, tutoriel de 5 niveaux + 454 Microban I à IV, Hall of Fame sauvegardé, manette ou clavier | Apple II+ | `dist/MICRO-SOKOBAN.dsk` |
 | [`chess/`](chess/) | Échecs contre l'ordinateur ou à deux | Apple II+ | `dist/CHESS.dsk` |
 | [`maze3d/`](maze3d/) | Dungeon crawler 3D en fil de fer, double tampon HGR | Apple II+ | `dist/MAZE3D.dsk` |
+| [`flipper/`](flipper/) | Pinball Construction Set de Bill Budge, éditeur et moteur 6502 adaptés à ca65/ld65 | Apple II+ 48 Ko ou //c, souris ou manette | `dist/FLIPPER.dsk` |
 | [`snake/`](snake/) | Snake en C (cc65) | Apple II+ | `dist/SNAKE.dsk` |
 | [`logo/`](logo/) | LOGO V2.6 : tortue HGR, texte / mixte / graphique, 40 ou 80 colonnes | Apple //e (80 col.) ou II+ (40 col.) | `dist/LOGO.dsk` |
 | [`dev/examples/hgr/`](dev/examples/hgr/) | Exemple HGR animé : sprite masqué, compteur, clavier, cadence | Apple II+ / IIe / IIc | `dist/HGR.dsk` |
