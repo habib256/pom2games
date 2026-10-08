@@ -80,9 +80,37 @@ int main(void) {
     print('cc65 circles: distant centres leave both pages intact; near-edge arcs remain visible.')
 
 
+def ellipses(work):
+    source = work / 'ellipses.c'
+    source.write_text('''#include "hgr.h"
+#include "gfx.h"
+int main(void) {
+    unsigned char page;
+    for (page=1u; page<=2u; ++page) {
+        hgr_set_draw_page(page); hgr_clear(0u);
+        hgr_ellipse(280u, 20u, 310u, 40u);
+        hgr_ellipse(310u, 40u, 280u, 20u);
+        gfx_ellipse(0u, 192u, 10u, 210u);
+        gfx_ellipse(10u, 210u, 0u, 192u);
+        hgr_ellipse(65535u, 20u, 65535u, 20u);
+        gfx_ellipse(32768u, 40u, 65535u, 60u);
+    }
+    *(volatile unsigned char *)0x1000 = 1u;
+    for (;;) {}
+    return 0;
+}
+''')
+    disk = test_hgr.build(work, source)
+    result = test_hgr.a2test.run(disk, ['wait:1100', 'peek:1000:1', 'peek:2000:16384'])
+    assert result.dumps[0] == b'\x01', 'ellipse fixture did not finish'
+    assert result.dumps[1] == bytes(16384), 'wholly off-screen ellipse painted a screen edge'
+    print('cc65 ellipses: off-screen boxes, reversed corners, degenerate and distant boxes preserve both pages.')
+
+
 if __name__ == '__main__':
     with tempfile.TemporaryDirectory(prefix='gfx-boundaries-') as tmp:
         work = Path(tmp)
         geometry(work)
         fields(work)
         circles(work)
+        ellipses(work)

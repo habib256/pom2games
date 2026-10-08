@@ -62,7 +62,12 @@ def map_walls():
 
 def feedback():
     r = run(DUMP)
-    assert 'GOAL: FIND THE RELIC' in row(r, 3)
+    assert 'FIND RELIC' in row(r, 3)
+    for floor in (1, 2, 3):
+        for face, direction in enumerate('NESW'):
+            header = run([L.poke('p_floor', floor), L.poke('p_face', (face+3) & 3),
+                          'key:L', 'wait:60'] + DUMP)
+            assert f'F{floor} {direction}' in row(header, 1), row(header, 1)
     assert 'HP 20/30' in row(r, 21), row(r, 21)
     assert 'POTIONS' in row(r, 21) and 'GOLD' in row(r, 21)
     assert row(r, 22).strip() == 'IJKL MOVE M MAP P POTION H HELP', row(r, 22)
@@ -78,9 +83,9 @@ def feedback():
                            emulator=a2test.A2SHOT)
         assert expected in row(title, 22), row(title, 22)
 
-    for prefix, expected in (([L.poke('p_relic', 1)], 'GOAL: REACH THE EXIT'),
-                             ([L.poke('p_relic', 1), L.poke('p_floor', 3)], 'GOAL: DEFEAT THE DRAGON'),
-                             ([L.poke('p_relic', 1), L.poke('p_floor', 3), 'poke:10b7:ff'], 'GOAL: REACH THE EXIT')):
+    for prefix, expected in (([L.poke('p_relic', 1)], 'REACH STAIRS'),
+                             ([L.poke('p_relic', 1), L.poke('p_floor', 3)], 'SLAY DRAGON'),
+                             ([L.poke('p_relic', 1), L.poke('p_floor', 3), 'poke:10b7:ff'], 'REACH STAIRS')):
         r = run(prefix + ['key:L', 'wait:60'] + DUMP)
         assert expected in row(r, 3), row(r, 3)
     for prefix, expected in (([L.poke('p_potions', 0)], 'NO POTIONS LEFT'),

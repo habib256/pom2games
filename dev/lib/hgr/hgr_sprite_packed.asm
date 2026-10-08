@@ -62,6 +62,13 @@ hgr_sprite_packed:
         INY
         CPY sp_wout
         BCC @pack
+        ; Source padding is not part of the sprite. Mask it before copying
+        ; the cached row, while keeping the caller's palette bit.
+        DEY
+        LDA packed_row,Y
+        AND packed_tail
+        ORA sp_cbit
+        STA packed_row,Y
         LDA packed_repeat
         STA packed_repeat_left
 @copy:  LDY sp_yy

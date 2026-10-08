@@ -69,7 +69,8 @@ la variante 160 lignes préserve aussi le HUD.
 Le blitter précompacté reçoit une colonne d’octet, une ligne, un pointeur,
 une largeur (1..10 octets), un nombre de lignes source, une répétition
 verticale et le masque du dernier octet. Il écrase le fond dans le rectangle,
-y compris les pixels noirs, et conserve les pixels après le bord final.
+y compris les pixels noirs, et conserve les pixels après le bord final,
+même si les bits de remplissage de la source sont non nuls.
 Les tailles, palettes et placements propres au jeu restent chez l’appelant.
 `hgr_sprite_color.inc` partage seulement les attributs ; il n’impose ni
 l’ancien blitter TMS, ni la table `rev7_tab`.
@@ -90,7 +91,9 @@ quel ordre : leurs variables `sp_*` communes sont réservées une seule fois.
 Ils partagent ce scratch et les attributs de couleur, donc leurs appels sont
 séquentiels. Le texte `hgr_putc8` coupe les glyphes partiels en bas de l’écran
 et conserve une position hors écran lors du retour à la colonne initiale.
-Les régressions correspondantes sont dans `test_asm_boundaries.py`.
+Les régressions correspondantes sont dans `test_asm_boundaries.py` : les
+bords des sprites couvrent 256 combinaisons de pages, largeurs, parités,
+palettes, couleurs, fonds et bits de remplissage.
 
 ## Contours en fil de fer
 

@@ -46,6 +46,8 @@ reste accepté : les arcs proches du bord sont visibles, les cercles entièremen
 à droite sont écartés avant la conversion signée des coordonnées sur 16 bits.
 Les ellipses dont un rayon entier vaut zéro se réduisent à un segment ou
 à un point dans leur boîte, sans déborder autour des formes très étroites.
+Les boîtes entièrement à droite ou sous l’écran sont écartées avant le
+calcul des points, sans tracer de ligne parasite sur le bord.
 Les primitives HGR bas niveau peuvent avoir des largeurs sur 8 bits ;
 `gfx_filled_rect` gère toute la largeur. Le choix du backend reste explicite
 à la liaison.
