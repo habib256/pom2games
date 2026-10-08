@@ -14,7 +14,8 @@
 ; its bytes from it; beyond it the assembly modules' variables move, and the
 ; assert says so.
 CODE_SPARE   = 58
-RODATA_SPARE = 49
+; dhgr_clear_asm gained 30 CODE bytes; absorb them here to keep tables/BSS.
+RODATA_SPARE = 19
 BSS_SPARE    = 13
 
 .code

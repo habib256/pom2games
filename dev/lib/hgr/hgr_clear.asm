@@ -4,7 +4,7 @@
 ; =============================================
 ; clear_hgr - zero $2000-$3FFF (8 KB) with HGR_CLEAR_LOOP (lib/apple2/hgr.asm,
 ;             pulled in here if needed: its routines only assemble when
-;             referenced). No zero page. Clobbers A, X, Y. ~51 000 cycles.
+;             referenced). No zero page. Clobbers A, X, Y. ~46 000 cycles.
 ; Assembled only if clear_hgr was referenced before the include (.ifref).
 ; =============================================
 .ifndef _HGR_ASM_LOADED_

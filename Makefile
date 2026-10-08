@@ -34,6 +34,7 @@ test-hgr:
 	python3 dev/tests/test_hgr_native.py
 	python3 dev/tests/test_hgr_wireframe.py
 	python3 dev/tests/test_hgr.py
+	python3 dev/tests/test_hgr_glyphs.py
 	python3 dev/tests/test_sprengine.py
 
 test-frame:
@@ -45,6 +46,7 @@ test-hgr-example:
 test-dhgr:
 	$(MAKE) -C dev/examples/dhgr test
 	python3 dev/tests/test_dhgr_extended.py
+	python3 dev/tests/test_dhgr_spans.py
 	python3 dev/tests/test_frame.py --iie
 	python3 dev/tests/test_hgr_example.py --iie
 

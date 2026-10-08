@@ -30,12 +30,18 @@ fill_bank:
         tax
         ldy #0
         sty ptr1
-@pair:  lda tmp1
+        ; Four pairs per branch; Y wraps only after the eighth store.
+        ; Keep indirect stores: RAMWRTON also redirects writes to CODE,
+        ; so patching absolute operands here would modify the aux bank.
+@pair:
+.repeat 4
+        lda tmp1
         sta (ptr1),y
         iny
         lda tmp2
         sta (ptr1),y
         iny
+.endrepeat
         bne @pair
         inc ptr1+1
         cpx ptr1+1

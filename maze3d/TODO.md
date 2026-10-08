@@ -15,6 +15,9 @@ before the dragon's death, must stay shut.
 
 ## Done
 
+- 2026-10-08: simplified combat: centred foe name, no duplicate title or
+  initial action message, no secondary statistics, and shorter alerts/results.
+
 - 2026-10-08: compact centred 3D header (F1 N and a short objective) keeps
   floor, compass and quest text away from the sides of the corridor.
 

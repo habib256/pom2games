@@ -39,7 +39,7 @@ Trois objets portent les commutateurs de mode : `hgr_mode_asm.s` (toujours lié 
 paie que les points d'entrée qu'il appelle.
 
 Coûts mesurés par `make bench` (cycles à 1,02 MHz) : effacement d'une page
-51 000 (boucle auto-modifiée de `HGR_CLEAR_LOOP`, lib/apple2), basculement de
+46 000 (boucle auto-modifiée de `HGR_CLEAR_LOOP`, lib/apple2), basculement de
 page 3 400 (`hgr_flip_rows` : un EOR par ligne au lieu d'une boucle C), texte
 8x8 `hgr_puts8` ~9 000 pour « APPLE II » (glyphe décalé en deux octets par
 ligne), texte 16x16 `hgr_puts` par le blitter couleur avec les porteuses
@@ -238,7 +238,7 @@ Le mode garde `80COL` actif et `80STORE` désactivé : `PAGE2` choisit ainsi
 la page affichée. `RAMWRT` permet les écritures auxiliaires ; le trampoline
 lit avec `RAMRD` sans perdre l’accès au code principal. Les primitives ne
 sont pas appelables depuis une interruption. L’effacement bloque les IRQ
-pendant environ 208 000 cycles ; privilégier les blocs/segments en animation.
+pendant environ 189 000 cycles ; privilégier les blocs/segments en animation.
 
 `hgr_init`, `hgr_init_clear` et `hgr_text_restore` remettent les commutateurs
 IIe en état HGR/texte natif. `dhgr_text_restore` prépare les routines texte ROM.

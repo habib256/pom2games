@@ -14,7 +14,7 @@
 ;   before hgr_init_clear.
 ;   HGR_CLEAR_LOOP (macro): fill 8 KB from page X (high byte) with A, no
 ;   zero page -- the loop behind hgr_init_clear, lib/hgr clear_hgr and the
-;   C hgr_clear. Four absolute stores per turn, ~6.3 cycles per byte.
+;   C hgr_clear. Eight absolute stores per turn, ~5.7 cycles per byte.
 ;   JSR hgr_page1        display page 1 ($2000)
 ;   JSR hgr_page2        display page 2 ($4000)
 ;   JSR text_restore     TEXT + full screen + PAGE1 (then e.g. JMP apple2_exit)
@@ -32,12 +32,12 @@
 _HGR_ASM_LOADED_ = 1
 
 ; HGR_CLEAR_LOOP: fill 32 pages from page X (high byte, e.g. $20) with the
-; byte in A. Self-modifying: the four STA operands are patched per group of
-; four pages, so no zero page is needed. Clobbers X, Y; A is kept.
-; 8 groups x 256 turns x (4 x 5 + 5) cycles = ~51 000 cycles per 8 KB.
+; byte in A. Self-modifying: the eight STA operands are patched per group of
+; eight pages, so no zero page is needed. Clobbers X, Y; A is kept.
+; 4 groups x 256 turns x (8 x 5 + 5) cycles = ~46 000 cycles per 8 KB.
 .macro HGR_CLEAR_LOOP
-        .local @grp, @lp, @s0, @s1, @s2, @s3, @cnt
-        LDY     #8
+        .local @grp, @lp, @s0, @s1, @s2, @s3, @s4, @s5, @s6, @s7, @cnt
+        LDY     #4
         STY     @cnt+1
 @grp:   STX     @s0+2
         INX
@@ -47,15 +47,27 @@ _HGR_ASM_LOADED_ = 1
         INX
         STX     @s3+2
         INX
+        STX     @s4+2
+        INX
+        STX     @s5+2
+        INX
+        STX     @s6+2
+        INX
+        STX     @s7+2
+        INX
         LDY     #0
 @lp:
 @s0:    STA     $2000,Y
 @s1:    STA     $2100,Y
 @s2:    STA     $2200,Y
 @s3:    STA     $2300,Y
+@s4:    STA     $2400,Y
+@s5:    STA     $2500,Y
+@s6:    STA     $2600,Y
+@s7:    STA     $2700,Y
         INY
         BNE     @lp
-@cnt:   LDY     #8
+@cnt:   LDY     #4
         DEY
         STY     @cnt+1
         BNE     @grp

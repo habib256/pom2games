@@ -30,18 +30,19 @@ _hgr_blit_glyph8:
         ldy rowcnt
         lda (_hgr_g_glyph),y
         beq @next             ; blank row: nothing to OR
-        sta curbits           ; 16-bit span, low byte
+        ; Shift the low byte in A (2 cycles), rather than ZP (5 cycles).
+        ; curmask still receives carries for the high byte of the span.
         ldx #0
         stx curmask           ; high byte
         ldy _hgr_g_bit
         beq @shifted
-@shift: asl curbits
+@shift: asl a
         rol curmask
         dey
         bne @shift
 @shifted:
+        sta curbits           ; shifted 16-bit span, low byte
         ldy _hgr_g_col
-        lda curbits
         and #$7F
         beq @right
         ora (ptr1),y
