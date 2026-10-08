@@ -200,9 +200,9 @@ draw_round_result:
 str_choose_action: .byte "CHOOSE YOUR ACTION",0
 str_vitals: .byte "HP   /30  POTIONS     GOLD",0
 str_stats: .byte "ATK     DEF     LVL     XP",0
-str_goal_relic: .byte "GOAL: FIND THE RELIC",0
-str_goal_dragon: .byte "GOAL: DEFEAT THE DRAGON",0
-str_goal_exit: .byte "GOAL: REACH THE EXIT",0
+str_goal_relic: .byte "FIND RELIC",0
+str_goal_dragon: .byte "SLAY DRAGON",0
+str_goal_exit: .byte "REACH STAIRS",0
 str_no_potion: .byte "NO POTIONS LEFT",0
 str_full_hp: .byte "HEALTH ALREADY FULL",0
 str_full_bag: .byte "POTION BAG FULL",0

@@ -15,6 +15,9 @@ before the dragon's death, must stay shut.
 
 ## Done
 
+- 2026-10-08: compact centred 3D header (F1 N and a short objective) keeps
+  floor, compass and quest text away from the sides of the corridor.
+
 - 2026-10-08: stairs E are visible from the start of every floor, with a map
   legend. The marker remains visible over a seen monster; neighbouring walls
   stay unexplored and relic/dragon exit locks remain intact.

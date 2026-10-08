@@ -2129,30 +2129,18 @@ draw_str_centered:
         LDX str_hi
         JMP print_str_ax
 
-; draw_direction: the compass heading spelled out (NORTH/EAST/SOUTH/WEST),
-; centred on row 1 at the top, tinted cyan. Redrawn every 3D frame (it
-; lives in the cleared viewport).
+; Compact floor and compass heading, centred away from the corridor edges.
+; Redrawn on every 3D frame; writable CODE holds the four-character label.
 draw_direction:
-        LDA #2
-        STA ch_cx
-        LDA #1
-        STA ch_cy
-        LDA #<str_floor
-        LDX #>str_floor
-        JSR print_str_ax
-        LDA #8
-        STA ch_cx
-        LDA #1
-        STA ch_cy
         LDA p_floor
-        JSR write_decimal_2d
+        ORA #'0'
+        STA str_heading+1
         LDX p_face
-        LDA dir_word_lo,X
-        PHA
-        LDA dir_word_hi,X
-        TAX                     ; X = hi
-        PLA                     ; A = lo
-        LDY #1                  ; row 1
+        LDA face_chars,X
+        STA str_heading+3
+        LDA #<str_heading
+        LDX #>str_heading
+        LDY #1
         JSR draw_str_centered
         LDA #48                 ; tint the centre band cyan (avoids the
         STA cr_x                ; ceiling diagonals at the row's edges)
@@ -4613,14 +4601,8 @@ str_shop_next:  .byte "C NEXT FLOOR   ESC MENU",0
 
 str_explore_keys: .byte "IJKL MOVE M MAP P POTION H HELP",0
 
-; Compass direction spelled out, shown top-centre in colour. Indexed by
-; p_face (0=N 1=E 2=S 3=W) via dir_word_lo/hi.
-str_dir_n:    .byte "NORTH",0
-str_dir_e:    .byte "EAST",0
-str_dir_s:    .byte "SOUTH",0
-str_dir_w:    .byte "WEST",0
-dir_word_lo:  .byte <str_dir_n, <str_dir_e, <str_dir_s, <str_dir_w
-dir_word_hi:  .byte >str_dir_n, >str_dir_e, >str_dir_s, >str_dir_w
+; Compact floor and compass label, patched by draw_direction.
+str_heading: .byte "F1 N",0
 
 ; ---------------------------------------------------------------------------
 .include "narrator_packed.inc"

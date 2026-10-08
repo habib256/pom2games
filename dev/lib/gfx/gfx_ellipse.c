@@ -42,11 +42,17 @@ static unsigned char gfx_clamp_y(signed int v)
 
 void gfx_ellipse(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1)
 {
-    signed int xc = (((signed int)x0 + (signed int)x1) >> 1);
-    signed int yc = (((signed int)y0 + (signed int)y1) >> 1);
-    signed int rx = (signed int)((x1 > x0 ? x1 - x0 : x0 - x1)) >> 1;
-    signed int ry = (signed int)((y1 > y0 ? y1 - y0 : y0 - y1)) >> 1;
+    signed int xc, yc, rx, ry;
     unsigned char i;
+
+    /* Reject invisible boxes before clamping points or doing signed math. */
+    if ((x0 >= gfx_width && x1 >= gfx_width) ||
+        (y0 >= gfx_height && y1 >= gfx_height)) return;
+
+    xc = (((signed int)x0 + (signed int)x1) >> 1);
+    yc = (((signed int)y0 + (signed int)y1) >> 1);
+    rx = (signed int)((x1 > x0 ? x1 - x0 : x0 - x1)) >> 1;
+    ry = (signed int)((y1 > y0 ? y1 - y0 : y0 - y1)) >> 1;
 
     /* A zero integer radius collapses to a line inside the original box.
      * Forcing a radius of one draws outside point and one-pixel boxes. */

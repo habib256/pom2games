@@ -149,23 +149,25 @@ def sprite_mix(work):
         fixture(work,'mix'+str(order[0]=='hgr_sprite16.asm'),source,lambda l:[l.until('entry')])
 
 
-def packed_palette(work):
-    # A black sprite must clear covered pixels and install its own palette,
-    # including the last byte. Outside pixels, holes and the other page stay.
-    cases = [(page, width, tail, palette)
+def packed_palette(work, background=255, source_byte=0):
+    # Source padding can be lit. Both black and lit sprites must preserve
+    # outside pixels, holes and the other page while installing their palette.
+    cases = [(page, width, tail, palette, col, colored)
              for page in (0, 0x60) for width in (1, 3)
-             for tail in (1, 0x7F) for palette in (0, 0x80)]
+             for tail in (1, 0x7F) for palette in (0, 0x80)
+             for col in (1, 2) for colored in (False, True)]
     body = ''
-    for i, (page, width, tail, palette) in enumerate(cases):
-        body += f'''    jsr fill_ff
+    for i, (page, width, tail, palette, col, colored) in enumerate(cases):
+        body += f'''    jsr fill_background
     lda #{page}
     jsr hgr_set_draw_page
     lda #<sprite_data
     sta sp_ptr
     lda #>sprite_data
     sta sp_ptr+1
-    lda #1
+    lda #{col}
     sta hsp_col
+    lda #1
     sta packed_rows
     lda #189
     sta sp_yy
@@ -175,8 +177,9 @@ def packed_palette(work):
     sta packed_repeat
     lda #{tail}
     sta packed_tail
-    lda #$7F
+    lda #{0x2a if colored else 0x7f}
     sta sp_cm_ev
+    lda #{0x55 if colored else 0x7f}
     sta sp_cm_od
     lda #{palette}
     sta sp_cbit
@@ -188,37 +191,47 @@ packed_done_{i}:
 .include "hgr.asm"
 .code
 entry:
-''' + body + '''    jmp entry
-fill_ff:
-    lda #$FF
+''' + body + f'''    jmp entry
+fill_background:
+    lda #{background}
     ldx #$20
     HGR_CLEAR_LOOP
     ldx #$40
     HGR_CLEAR_LOOP
     rts
-sprite_data: .byte 0,0,0
+sprite_data: .byte {source_byte},{source_byte},{source_byte}
 .include "hgr_scanline.inc"
 .include "hgr_flip.asm"
 .include "hgr_sprite_packed.asm"
 '''
-    result = fixture(work, 'packedpalette', source, lambda l:
+    result = fixture(work, f'packedpalette{background}_{source_byte}', source, lambda l:
                      [step for i in range(len(cases)) for step in
                       (l.until(f'packed_done_{i}'), 'peek:2000:16384')])
-    for data, (page, width, tail, palette) in zip(result.dumps, cases):
-        expected = bytearray([0xFF] * 16384)
+    for data, (page, width, tail, palette, col, colored) in zip(result.dumps, cases):
+        expected = bytearray([background] * 16384)
         base = 8192 if page else 0
         for y in range(189, 192):
-            offset = base + a2test.hgr_offset(y) + 1
-            expected[offset:offset+width-1] = bytes([palette]) * (width-1)
-            expected[offset+width-1] = (0x7F ^ tail) | palette
-        assert data == expected, f'packed sprite trailing palette: {page=}, {width=}, {tail=}, {palette=}'
+            offset = base + a2test.hgr_offset(y) + col
+            for x in range(width):
+                mask = (0x2a if (col+x) % 2 == 0 else 0x55) if colored else 0x7f
+                bits = source_byte & mask
+                if x == width - 1:
+                    bits = (bits & tail) | (background & (0x7f ^ tail))
+                expected[offset+x] = bits | palette
+        assert data == expected, f'packed sprite edge: {page=}, {width=}, {tail=}, {palette=}, {col=}, {colored=}, {background=}, {source_byte=}'
+
+
+def packed_edges(work):
+    for background in (0, 255):
+        for source_byte in (0, 255):
+            packed_palette(work, background, source_byte)
 
 
 def main():
     with tempfile.TemporaryDirectory(prefix='asm-bounds-') as tmp:
         work=Path(tmp)
         for name,fn in (('DOS command bounds',dos),('HGR text edges',text),('mixed sprite modules',sprite_mix),
-                        ('packed sprite palette',packed_palette)):
+                        ('packed sprite edges and palette',packed_edges)):
             fn(work)
             print(name+': OK')
 
