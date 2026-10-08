@@ -31,6 +31,9 @@ VERHILLE Arnaud) from [POM1](https://github.com/habib256/pom1).
   title, help, win/lose) is drawn on the hidden HGR page and shown with a
   single page flip: the previous picture stays up until the next one is
   complete.
+- **Joystick controls.** Move and turn with the stick; buttons open the map
+  and drink potions. In combat the stick selects all four actions, with
+  attack and guard also on the buttons. Held controls never repeat a turn.
 - **Turn-based combat** with four actions: `A` attack, `G` guard, `P` drink
   a potion, `F` flee. Each monster has a trait: the goblin may steal a coin,
   the dark mage's magic ignores your armour, the orc and the dragon announce
@@ -41,9 +44,13 @@ VERHILLE Arnaud) from [POM1](https://github.com/habib256/pom1).
 - **Progress you can see.** Every visited cell reveals all four surrounding
   walls, including boundaries with unexplored cells. Known walls remain on
   the map. An objective line tracks the relic, dragon and exit; the HUD
-  prioritises HP/30, potions and gold, with ATK, DEF, LVL and XP below.
-  Combat shows damage and action outcomes; refused purchases and potions
-  explain why. A narrator comments on your stride.
+  shows HP/30, potions and gold above a compact command reminder.
+  ATK, DEF, LVL and XP are available on the help screen (`H`).
+  Combat and map share the exploration resource display. Combat shows damage,
+  action outcomes, a low-health warning at 8 HP or below, and a persistent
+  next-attack bonus after guarding. Shop statistics update after purchases;
+  feedback explains refused purchases and potions. A narrator comments on
+  your stride.
 - **Three profiles and manual saves.** Each profile has its own dungeon
   checkpoint. Press `ESC`, then `W` to save the current dungeon, including
   combat and shop progress. Movement, waiting and quitting do not save.
@@ -85,6 +92,15 @@ menu to save explicitly; `GAME SAVED` confirms completion. This menu also works 
 seed editor, map, help, combat and shop. Settings and the selected profile
 are remembered on disk.
 
+**Joystick.** Up/down steps forward/backward; left/right turns. Button 0
+opens or closes the map and button 1 drinks a potion. In combat, up attacks,
+down flees, left guards and right drinks a potion; button 0 attacks and
+button 1 guards. Return the stick to centre or release a button before
+repeating its action. The dead zone filters small movements; the vertical
+axis takes priority on diagonals. Keyboard controls remain available,
+including `H` for help and `ESC` for pause, save and settings. Title, shop
+and menus use the keyboard.
+
 **The quest.** You start in the top-left corner facing a dark corridor; the
 exit `E` is in the bottom-right corner. Each floor's exit stays shut until
 you have picked up the relic in the 2x2 chamber `R`. On floor 3 the exit also
@@ -107,8 +123,11 @@ so all four walls surrounding the player are known without visiting the
 neighbouring cells. Open passages remain open, and unexplored boundaries
 remain hidden. It shows the chamber `R`, the caches
 `$`, the relic `*`, the monsters you have seen from the corridors, the floor
-number and the hexadecimal seed. The exit appears once its cell has been
-explored. The current objective and event message also appear below the map.
+number and the hexadecimal seed. The stairs `E` appear from the start of
+each floor, even in unexplored areas or when a seen monster stands there.
+The surrounding walls remain hidden until explored, and the relic/dragon
+requirements still lock access. HP/30, potions, gold, the current objective
+and event message also appear below the map.
 
 **Seeds, score and record.** The key you press on the title screen is mixed
 into the seed, so each key starts a different dungeon; `R` reuses the seed of
@@ -180,6 +199,10 @@ through ten cells. `check_configuration.py` exercises seven menu contexts.
 and checks independent profiles, combat continuation, absence of idle/quit saves, corrupt saves and
 write protection.
 
+`check_joystick.py` checks movement, held-input suppression, map and potion
+buttons, all combat actions against their keyboard equivalents, idle RNG
+and pause/resume with a held direction.
+
 `check_ergonomics.py` checks all four map boundaries, open passages, retained
 wall knowledge, objectives and rendered HUD/feedback text in the emulator.
 Refused combat potions must leave the enemy phase unchanged.
@@ -223,7 +246,7 @@ Build a2shot once with `make` in `../dev/tools/a2shot`.
 | `$1F00-$1F07`   | `MAZESCORE`, the record file                             |
 | `$2000-$3FFF`   | HGR page 1                                               |
 | `$4000-$5FFF`   | HGR page 2                                               |
-| `$6000-...`     | `MAZE3D`, 13,051 bytes of code/data; BSS ends at $9524             |
+| `$6000-...`     | `MAZE3D`, 13,095 bytes of code/data; BSS ends at $9554             |
 | `$9600-$BFFF`   | DOS 3.3                                                  |
 
 ### The record file
