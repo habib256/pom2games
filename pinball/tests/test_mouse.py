@@ -20,8 +20,8 @@ libs += subprocess.check_output(['pkg-config', '--libs', 'slirp'], text=True).sp
 exe = GAME / 'build/mouse_probe'
 subprocess.run(['c++', '-std=c++17', '-O2', '-I', str(src / 'src'), '-I', str(src / 'include'),
                 '-I', str(src / 'build/generated'), str(GAME / 'tests/mouse_probe.cpp'), str(lib), *libs, '-o', str(exe)], check=True)
-with tempfile.TemporaryDirectory(prefix='flipper-mouse-') as tmp:
-    for variant in ('applewin', 'mame', 'iic16', 'iic32'):
-        disk = Path(tmp) / 'FLIPPER.dsk'
-        shutil.copyfile(GAME.parent / 'dist/FLIPPER.dsk', disk)
+with tempfile.TemporaryDirectory(prefix='pinball-mouse-') as tmp:
+    for variant in ('applewin', 'applewin5', 'mame', 'iic16', 'iic32'):
+        disk = Path(tmp) / 'PINBALL.dsk'
+        shutil.copyfile(GAME.parent / 'dist/PINBALL.dsk', disk)
         subprocess.run([str(exe), str(src / 'roms'), str(disk), str(GAME / 'build'), variant], check=True)

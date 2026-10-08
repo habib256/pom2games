@@ -20,9 +20,11 @@ void hgr_blit_x2(unsigned x, unsigned char y, const unsigned char *mono,
                       unsigned char wbytes, unsigned char h, unsigned char color,
                       unsigned char mode)
 {
-    unsigned need = (unsigned)(unsigned char)(wbytes << 1)
-                  * (unsigned)(unsigned char)(h << 1);
-    if (need == 0u || need > HGR_X2_MAX_BYTES) return;  /* too big -> inflate-once */
+    /* Multiply the original dimensions before narrowing doubled dimensions.
+     * Their product fits 16-bit unsigned even on cc65 (255*255 <= 65535).
+     * Checking the quarter-buffer limit also bounds the doubled byte fields. */
+    unsigned need = (unsigned)wbytes * (unsigned)h;
+    if (need == 0u || need > HGR_X2_MAX_BYTES / 4u) return;
     hgr_inflate_x2(mono, wbytes, h, color, gx2_buf);
     hgr_blit7(x, y, (unsigned char)(wbytes << 1), (unsigned char)(h << 1),
                    gx2_buf, mode);

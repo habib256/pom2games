@@ -28,18 +28,31 @@ native ; `exit.asm` restaure la page zéro pour rendre la main à DOS proprement
   STA absolus auto-modifiés par tour, ~51 000 cycles, sans page zéro) que
   partagent `hgr_init_clear`, `clear_hgr` (lib/hgr) et `hgr_clear` (C).
 - **`exit.asm`** — `apple2_zp_save`, `apple2_exit`, `apple2_return` ;
+  sur IIe/c, désactive RAMRD/RAMWRT, 80STORE, 80 colonnes et DHGR avant de
+  restaurer le vecteur RESET et la page zéro dans la mémoire principale.
+  L'entrée suppose le code et la pile en banque principale ; les commutateurs
+  étendus ne sont pas touchés sur II/II+. La fenêtre texte et le curseur sont
+  conservés : rétablir sa largeur si le programme l'a modifiée pour 80 colonnes.
   `APPLE2_EXIT_HOOK` (défini avant l'include) nomme une routine appelée
   après la restauration, avant le retour à DOS (aussi sur Ctrl-RESET).
 - **`sound.asm`** — `tone` : bip carré sur le haut-parleur.
 - **`joy.asm`** — `read_stick`, `stick_dir` : manette (deux paddles).
+- **`lz4fh.asm`** — `lz4fh_unpack` : décompression fhpack/LZ4FH vers une zone
+  de 8 Ko alignée (notamment les pages HGR). Entrées `lz4fh_src/dst`, scratch
+  configurable ; code en RAM, flux validé à la compilation. Une erreur de
+  format passe au Moniteur, conformément au décodeur amont. Provenance et
+  licence Apache-2.0 conservées dans `lz4fh-NOTICE.txt` / `lz4fh-LICENSE.txt`.
 - **`dos.asm`** — `dos_cmd_*`, `disk_protected` : commandes DOS 3.3 (BLOAD,
-  BSAVE…) depuis un programme BRUN ; suppose `exit.asm`.
+  BSAVE…) depuis un programme BRUN ; suppose `exit.asm`. Les ajouts sont
+  bornés à `DOS_CMD_MAX-1` caractères ; les deux chiffres hexadécimaux sont
+  ajoutés ensemble ou refusés. Un dépassement renvoie carry=1 et interdit
+  l’exécution de la commande partielle jusqu’au prochain `dos_cmd_new`.
 
-Les trois derniers sont sortis de MICRO-SOKOBAN pour que les autres jeux (sons,
+`sound.asm`, `joy.asm` et `dos.asm` sont sortis de MICRO-SOKOBAN pour que les autres jeux (sons,
 manette, sauvegarde dans leurs `TODO.md`) partagent le même code ; leur miroir
 C est dans [`../apple2c/`](../apple2c/) (`apple2game.h`, `apple2dos.h`).
 
-**Inclure après les appelants.** Chaque routine est entourée de `.ifref` : elle
+**Inclure après les appelants.** Les primitives historiques sont entourées de `.ifref` : une routine
 n'est assemblée que si le code qui précède l'include la référence. Les jeux
 mettent donc les `.include` en fin de source (LOGO, qui exporte `wait_key` vers
 un autre module, aussi). Un objet C qui aliase une routine vers un import
@@ -133,12 +146,16 @@ Pendant `dos_cmd_run`, DOS retrouve la page zéro sauvée au démarrage par
 est mise de côté dans 256 octets de BSS puis remise. Un programme qui
 n'utilise qu'une plage de page zéro peut définir `DOS_ZP_START` et
 `DOS_ZP_LEN` avant l'include : seule cette plage est alors sauvegardée pour
-le programme, DOS conservant toujours son instantané complet. Une erreur DOS (fichier
+le programme, DOS conservant toujours son instantané complet. La longueur doit
+valoir 1 à 256 et la plage rester dans `$00–$FF` ; l'assembleur rejette les
+configurations invalides. Une erreur DOS (fichier
 absent…) arrête le programme au prompt : le `Makefile` met sur la disquette
 tous les fichiers lus, et `disk_protected` est testé avant d'écrire. MICRO-SOKOBAN
 s'en sert pour ses paquets de niveaux (`BLOAD`), `MICROSAVE` et `MICROHOF`.
 
 `DOS_CMD_MAX` règle la taille du tampon de commande (40 octets par défaut).
+`dos_cmd_run` conserve le tampon et sa longueur : on peut répéter la commande
+ou lui ajouter du texte et des chiffres hexadécimaux après son exécution.
 Avec `DOS_CMD_WORKBSS = 1`, ce tampon et son index occupent le segment `WORKBSS`
 du programme plutôt que `BSS`, pour libérer de la place à côté du code.
 
@@ -174,3 +191,84 @@ msg:    .byte "HELLO!", $0D, 0
 Exemple complet : [`../../examples/hello`](../../examples/hello).
 
 Auteur : VERHILLE Arnaud. Licence : [GPL-3.0](../../../LICENSE).
+
+## RGB Le Chat Mauve / Video-7
+
+[`rgb.asm`](rgb.asm), extrait des routines vidéo d’A2FileCmd, arme le registre
+COL140 par deux impulsions AN3 avec 80COL à 1. Les routines sont autonomes,
+sans page zéro ni copie du framebuffer ; les inclure après les appelants.
+
+- `rgb_col140` : sur IIe/c, arme COL140 et DHGR sans changer la page affichée,
+  le mode texte/graphique, MIXED ou les banques RAM. À appeler après
+  l’initialisation DHGR existante. Retour A=1, X=0 ; sur II/II+, A=0 et aucun
+  commutateur n’est touché.
+- `rgb_hgr` : HGR page 1, plein écran, banques principales sur IIe/c.
+  Fonctionne aussi sur II/II+. Ne vide pas l’écran.
+- `rgb_dhgr` : DHGR couleur page 1, plein écran, banques principales,
+  80STORE désactivé. L’appelant vérifie la présence de RAM auxiliaire étendue
+  avant cet appel. Sur II/II+, renvoie A=0 sans changer la vidéo.
+
+Les entrées de mode renvoient A=1, X=0 en cas de succès. Toutes écrasent A et
+X ; Y et le masque IRQ sont préservés. Code et pile doivent être en banque
+principale. Programmer le registre RGB à l’entrée du mode, sans répéter les
+impulsions lors des changements de page ou de MIXED. La sortie vers le texte
+reste assurée par `text_restore` / `dhgr_text_restore`.
+
+## Mockingboard : deux AY et timer par scrutation
+
+[`mockingboard.asm`](mockingboard.asm) extrait la détection de carte et les
+accès AY d’A2FileCmd (`src/mb_probe.s`, helpers de `src/plugins/duet.s`).
+Il utilise uniquement des instructions 6502, trois octets de page zéro
+(`mb_ptr`, `mb_probe_old`, chacun peut être aliasé), et un petit état résident.
+Il ne dépend ni du gestionnaire de fichiers, ni d’un lecteur musical.
+
+| Entrée | Contrat |
+|---|---|
+| `mb_detect` | Cherche dans les slots 7..1, sauf 3 ; initialise les deux AY ; A=slot ou 0. |
+| `mb_init` | A=slot 1..7 sauf 3 ; initialise les directions VIA et remet les deux AY à zéro ; A=slot ou 0 si invalide. |
+| `mb_write` | X=registre AY 0..15, A=valeur ; `mb_chip` sélectionne la première (0) ou seconde (1) puce. |
+| `mb_silence` | Met les trois volumes à zéro sur les deux AY ; conserve `mb_chip`. |
+| `mb_timer_start` | A=octet bas, X=octet haut de la valeur de rechargement T1. Timer libre, IRQ T1 masquée. |
+| `mb_tick` | A=1 si une expiration est observée et acquittée ; sinon A=0. Aucun blocage. |
+| `mb_stop` | Coupe les six voix, désactive la scrutation, restaure ACR et le bit d’autorisation IRQ T1 sauvegardés. |
+
+`mb_init` choisit la première puce. Les opérations avant initialisation ou
+après une détection sans carte sont inoffensives. Un registre hors 0..15 est
+ignoré. Les valeurs de retour se testent dans A (`CMP #0`), sans supposer la
+valeur du drapeau Z. Toutes les entrées peuvent écraser A/X/Y ; les transactions
+matérielles conservent le masque IRQ. Appeler avec D=0, code/pile/ZP principaux
+et ROM visible. Aucune commutation de banque langage ou auxiliaire n’est faite.
+
+Le programme doit posséder les deux AY et le timer T1 de la première VIA :
+aucun autre lecteur ou gestionnaire IRQ ne doit les utiliser simultanément.
+Appeler `mb_stop` avant une nouvelle détection/initialisation et avant de
+quitter. Le compteur et la période antérieurs du timer ne sont pas restaurés ;
+les expirations manquées se regroupent dans le drapeau IFR. Les autres bits
+IER ne sont pas modifiés par le service de scrutation.
+
+Sur //c, la détection réveille la Mockingboard 4c à `$C403`. Ce réveil peut
+masquer la ROM souris du slot 4 : détecter la Mockingboard **avant** d’initialiser
+la souris. Le module fournit les accès matériels ; aucun lecteur PT3 n’est lié.
+
+```asm
+        JSR mb_detect
+        CMP #0
+        BEQ sans_carte
+        LDX #7                  ; mélangeur : canaux tonaux actifs, bruit coupé
+        LDA #$38
+        JSR mb_write
+        LDX #8                  ; volume de la voix A
+        LDA #8
+        JSR mb_write
+        ; Programmer aussi les registres 0/1 de période de la voix A.
+        ; ...
+        JSR mb_stop             ; avant de rendre la main
+sans_carte:
+        ; ...
+.include "mockingboard.asm"
+```
+
+`make test-hardware` exécute les modules ASM sur le cœur 6502 avec un bus
+RGB/VIA/AY simulé et trace les accès : ordre des impulsions RGB, chemins
+II+/IIe/IIc, slots, absence de carte, réveil 4c, deux AY, six volumes,
+masque IRQ et état du timer. Les essais sur cartes physiques restent à faire.

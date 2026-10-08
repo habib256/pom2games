@@ -111,6 +111,19 @@ l'exclusion de routines jusque-là liées inutilement.
   dans les octets touchés, même aux bords du rectangle.
 - `hgr_colorize` et `hgr_blit7` rejettent les abscisses hors écran avant
   toute conversion en colonne sur 8 bits.
+- `hgr_blit` ne lit que les octets nécessaires aux pixels dessinés, y compris
+  lorsque la dernière ligne finit exactement sur une limite d'octet.
+- `hgr_sprite_xor` rogne aussi les lignes sources de grande largeur, jusqu'à
+  un stride de 255 octets, sans débordement du calcul de colonne sur 8 bits.
+- Les quatre noyaux ASM de `hgr_sprmask.s` rognent également les strides
+  jusqu'à 255 octets lors d'un appel direct. `test_sprmask_bounds.py` vérifie
+  les deux pages, les sept phases et les limites du tampon de sauvegarde ;
+  le moteur C conserve sa limite de stride à 40 octets.
+- `hgr_lores_clear` remplit les 960 octets visibles de la page de dessin et
+  préserve les 64 octets réservés au firmware des périphériques.
+- `hgr_lores_init` revient au mode natif 40 colonnes après un affichage DHGR
+  ou 80 colonnes, avec `80STORE` désactivé et les lectures/écritures en RAM
+  principale. La détection de modèle évite ces commutateurs sur Apple II+.
 
 `make test-hgr` compile et exécute les routines dans **a2run**, sous Linux et
 macOS. Les 21 étapes comparent les deux pages vidéo avec un modèle Python :
@@ -285,3 +298,10 @@ pendant ces restaurations. Ne pas modifier le fond sous un sprite dessiné.
 `make test-hgr` ajoute 24 scènes du moteur : chevauchements, sept phases,
 deux pages, bord droit/bas, masquage, redéfinition et géométries invalides.
 Les comparaisons couvrent aussi les bits de palette et les trous vidéo.
+
+La référence hôte `hgr_inflate_x2` (`hgr_host.h`) calcule les positions et
+les strides agrandis sans troncature à huit bits. `hgr_blit_x2` contrôle la
+taille source avant de doubler les dimensions, afin de respecter son tampon
+fixe même pour des entrées supérieures à 127. `test_hgr_host.py` vérifie les
+couleurs et les gardes mémoire avec ASan/UBSan, ainsi que les 65 536 couples
+de dimensions du wrapper ; il fait partie de `make test-hgr`.

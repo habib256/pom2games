@@ -41,6 +41,11 @@ les états des interruptions et du mode décimal.
 
 Les segments diagonaux attendent des extrémités à l’écran : ils n’effectuent
 pas de clipping de ligne complet. Les rectangles pleins trient et rognent
-leurs coins ; les cercles rognent les points tracés. Les primitives HGR bas
-niveau peuvent avoir des largeurs sur 8 bits ; `gfx_filled_rect` gère toute
-la largeur. Le choix du backend reste explicite à la liaison.
+leurs coins ; les cercles rognent les points tracés. Un centre hors écran
+reste accepté : les arcs proches du bord sont visibles, les cercles entièrement
+à droite sont écartés avant la conversion signée des coordonnées sur 16 bits.
+Les ellipses dont un rayon entier vaut zéro se réduisent à un segment ou
+à un point dans leur boîte, sans déborder autour des formes très étroites.
+Les primitives HGR bas niveau peuvent avoir des largeurs sur 8 bits ;
+`gfx_filled_rect` gère toute la largeur. Le choix du backend reste explicite
+à la liaison.

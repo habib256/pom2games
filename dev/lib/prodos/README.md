@@ -10,6 +10,11 @@ système ; cette interface n'alloue pas de tampon et ne modifie pas sa protectio
 `video.c` : prise de possession de la mémoire auxiliaire pour le DHGR et
 reconstruction du disque `/RAM` vide à la sortie. Aucune vérification des
 fichiers de `/RAM`, aucun dialogue avant le lancement du jeu.
+La recherche reste dans les 14 entrées de `DEVLST` (`$BF32–$BF3F`) :
+`DEVCNT` contient le nombre d'unités moins un, ou `$FF` si la liste est vide.
+Les indices dépassant 13 sont ignorés et ne déclenchent aucun formatage.
+`make test-tools` vérifie ces bornes sur le code cc65 avec un pilote FORMAT
+de test qui enregistre l'unité demandée.
 
 Démarrage C : [`crt0_prodos.s`](../../cc65/crt0_prodos.s) et
 [`apple2_dhgr_prodos_c.cfg`](../../cc65/apple2_dhgr_prodos_c.cfg). Le binaire à

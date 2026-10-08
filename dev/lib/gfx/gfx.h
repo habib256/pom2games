@@ -54,11 +54,13 @@ void gfx_line(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1);
 void gfx_rect(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1);
 
 /* Midpoint circle OUTLINE, centre (xc, yc), radius r; 8-way symmetry, every
- * point clipped to [0,gfx_width) x [0,gfx_height) before plotting. */
+ * point clipped to [0,gfx_width) x [0,gfx_height) before plotting. Off-screen
+ * unsigned centres are accepted; circles wholly outside draw nothing. */
 void gfx_circle(unsigned xc, unsigned char yc, unsigned char r);
 
 /* Ellipse inscribed in the (x0,y0)-(x1,y1) bounding box, drawn as a 64-segment
- * polyline using successive points on the ellipse. */
+ * polyline using successive points on the ellipse. An integer radius of zero
+ * collapses to a line (or a point), staying inside the bounding box. */
 void gfx_ellipse(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1);
 
 /* ===========================================================================

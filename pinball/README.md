@@ -1,9 +1,9 @@
-# FLIPPER — Pinball Construction Set sur Apple II
+# PINBALL — Pinball Construction Set sur Apple II
 
 Reconstruction de **Pinball Construction Set**, écrit par **Bill Budge**,
 à partir des sources Apple II qu'il a publiées dans
 [billbudge/PCS_AppleII](https://github.com/billbudge/PCS_AppleII).
-La disquette amorçable est [`../dist/FLIPPER.dsk`](../dist/FLIPPER.dsk).
+La disquette amorçable est [`../dist/PINBALL.dsk`](../dist/PINBALL.dsk).
 Elle démarre dans l'éditeur, avec la table vide de l'original.
 
 ## Origine et licence
@@ -42,7 +42,8 @@ du chargeur secondaire et du changement de modules est assemblé depuis les
 sources publiées.** Il n'est pas recopié depuis la disquette archivée.
 Le premier chargeur utilise le code standard Apple DOS du fichier partagé
 `../dev/tools/dos33_system.bin`, avec les paramètres de chargement de PCS.
-Les tables graphiques sont recalculées par le constructeur.
+Les tables graphiques sont recalculées avec `../dev/tools/hgr_tables.py` ;
+leur placement reste propre au constructeur PCS.
 
 ## Adaptation au DEVBENCH CC65
 
@@ -86,7 +87,10 @@ pilote commun (0–139) sont converties en pixels HGR (0–278) pour la main.
 
 Le programme reste en **assembleur 6502**. Il n'a pas été réécrit en C et
 conserve ses adresses fixes, son code automodifiant et ses modules superposés.
-La factorisation vers les bibliothèques DEVBENCH sera une étape ultérieure.
+Le contexte de protection de la zéro-page et des boîtes de communication
+est partagé dans `../dev/lib/mouse/mouse_context.asm`. L’adaptateur conserve
+les entrées PCS, la conversion des coordonnées, les paddles et le glissement.
+La configuration du gestionnaire DOS et des pages à effacer reste locale.
 
 PCS utilise une carte mémoire propre : tables à `$0800-$177F`, routines
 graphiques à `$1780`, changement de modules à `$1E00`, HGR à `$2000`, données
@@ -99,7 +103,8 @@ La configuration habituelle d'un binaire DEVBENCH à `$6000` ne convient donc
 pas à ce programme.
 
 `tools/build_disk.py` utilise le constructeur DOS partagé
-`../dev/tools/dos33.py` pour le catalogue et le bitmap d'allocation, puis
+`../dev/tools/dos33.py` via `blank()`, `reserve_sectors()` et `write_fixed()`
+pour le catalogue, le bitmap et le placement contrôlé des secteurs, puis
 place les modules aux secteurs attendus par le chargeur de PCS.
 Les pistes 0 à 15 sont réservées au programme : les sauvegardes ne peuvent
 pas les réutiliser. Le disque fait **140 Ko**, en ordre DOS 3.3, et dispose
@@ -110,30 +115,44 @@ de **288 secteurs libres**. Le démarrage est propre à PCS, sans accueil BASIC.
 Depuis la racine du dépôt :
 
 ```sh
-make -C flipper             # dist/FLIPPER.dsk
-make -C flipper run         # POM2, Apple II+, AppleMouse en slot 4
-make -C flipper run-iic     # POM2, Apple //c, souris native
-make -C flipper test        # tests sur a2run
-make -C flipper clean       # retire build/, conserve la disquette
+make -C pinball             # dist/PINBALL.dsk
+make -C pinball run         # POM2, Apple II+, AppleMouse en slot 4
+make -C pinball run-iic     # POM2, Apple //c, souris native
+make -C pinball test        # tests sur a2run
+make -C pinball clean       # retire build/, conserve la disquette
 ```
 
-`make` à la racine construit aussi FLIPPER. Le profil est **Apple II+ 48 Ko,
+`make` à la racine construit aussi PINBALL. Le profil est **Apple II+ 48 Ko,
 HGR et Disk II**, avec **AppleMouse II** optionnelle. `make run` installe une
 carte `mouseaw` en slot 4. **La même disquette fonctionne sur Apple //c**
 avec sa souris native ; `make run-iic` sélectionne ce profil dans POM2.
 La carte `mouse` fonctionne également sur les machines à slots :
 
 ```sh
-make -C flipper run APPLE2_RUN_FLAGS="--slot 4=mouse"
+make -C pinball run APPLE2_RUN_FLAGS="--slot 4=mouse"
 ```
 
 La souris déplace la main ; le bouton principal prend, déplace et dépose les
 pièces, sélectionne les outils et pilote les menus de câblage et de fichiers.
+Les pièces suivent aussi les mouvements rapides entre la palette et la table :
+la limite historique de déplacement horizontal par boucle ne s'applique plus
+à la souris. La lecture du bouton conserve les registres X/Y nécessaires
+au fonctionnement des sliders `WORLD`.
+La prise d'une pièce conserve également le point cliqué : elle ne saute plus
+vers la souris avant le premier déplacement, et le glissement garde cet offset.
 Sans souris détectée, le programme garde les contrôles par paddles/manette.
 La commande `PLAY` de la palette teste la table ; **Échap** revient à l'éditeur.
 Les batteurs et le lanceur du moteur original gardent leurs commandes de
 manette. Les commandes `SAVE` et `LOAD` utilisent les fichiers natifs `.PB`.
 La table initiale est vide : placer une bille et les pièces avant de jouer.
+Le menu de fichiers sélectionne par défaut le slot du contrôleur qui a servi
+au démarrage. `LOAD` refuse les fichiers `.PB` dont les données dépassent
+8 960 octets avec `PROGRAM TOO LARGE`, avant de modifier la table ou le pilote
+souris résident.
+`SAVE` arrête également la compression si elle atteint la mémoire du pilote :
+il affiche `PROGRAM TOO LARGE`, conserve les objets et ne crée aucun fichier
+partiel. Les retours au menu après SAVE/LOAD ou une erreur restaurent la pile
+pour éviter son épuisement au fil des commandes.
 
 Après une reconstruction, réinsérer la nouvelle image et redémarrer l'Apple II
 pour charger le pilote. Pour un lancement manuel dans POM2, installer une
@@ -142,17 +161,25 @@ le profil //c et sa souris native (`iicmouse`).
 
 ## Validation
 
-`tests/test_flipper.py` utilise le harnais DEVBENCH `a2test.py` et `a2run`.
+`tests/test_pinball.py` utilise le harnais DEVBENCH `a2test.py` et `a2run`.
 Il démarre la disquette, prend une bille dans la palette, la déplace dans
 la table, vérifie qu'elle bouge pendant le jeu, revient par Échap, ouvre et
 ferme le câblage, sauvegarde `TEST.PB`, recharge ses trois objets et revient
 à l'éditeur. Il vérifie aussi les empreintes des blocs importés, la réservation
 des pistes du programme et leur intégrité après la sauvegarde.
 Les captures et la disquette de test modifiée restent dans `build/`.
+Un fichier `.PB` trop grand est également testé : son chargement doit afficher
+l'erreur et conserver toute la mémoire de la table et de l'adaptateur.
+Le test de saturation pendant SAVE vérifie aussi les écritures indexées qui
+traversent la limite du pilote, la conservation des objets et la réussite
+d'une sauvegarde suivante.
+`MAKE` est vérifié jusqu'au lancement du jeu autonome produit : le test
+démarre ce fichier sur une disquette DOS séparée et vérifie le mouvement
+de la bille.
 Le démarrage et le passage au jeu ont également été vérifiés avec `a2shot`,
 sur le cœur de POM2.
 
-`make -C flipper test-mouse` valide les deux cartes `mouseaw` et `mouse` sur
+`make -C pinball test-mouse` valide les deux cartes `mouseaw` et `mouse` sur
 Apple II+ 6502 avec leurs ROM réelles, ainsi que la souris native du //c
 avec ses ROM de 16 et 32 Ko, son processeur 65C02 et son contrôleur IWM.
 Ce test optionnel utilise la bibliothèque
@@ -160,4 +187,18 @@ Ce test optionnel utilise la bibliothèque
 Il injecte les mouvements et clics dans la carte, vérifie le curseur HGR,
 le déplacement d'une bille, PLAY/Échap, les changements de modules,
 SAVE/LOAD et le retour de la souris après les effacements des buffers DOS.
+Il vérifie également un déplacement rapide de la bille de la palette vers
+la table et la conservation de X/Y lors de la lecture du bouton.
+Il reprend la bille par son centre, vérifie qu'elle reste immobile à la prise,
+puis que son déplacement conserve le point de prise.
+Un profil II+ supplémentaire démarre depuis le slot 5 et vérifie SAVE/LOAD
+sur ce même contrôleur.
+Les tests souris vérifient la pile après SAVE/LOAD et après trois erreurs
+`FILE NOT FOUND`, puis rechargent la table sauvegardée.
 Le test ordinaire `make test` conserve sa validation sans carte souris.
+
+La factorisation conserve **octet pour octet** le binaire résident souris et
+l’image de disquette construite avant extraction : aucun surcoût mémoire ni
+cycle ajouté. Les sources amont restent inchangées. Les contrôles des tables
+et de placement disque sont aussi testés indépendamment par `make test-tools`
+à la racine du dépôt.

@@ -57,8 +57,10 @@ _hgr_xs_run:
         lda _hgr_b_col
         clc
         adc tmp2
+        bcs @clipw                ; col+stride >= 256 still exceeds the row
         cmp #41
         bcc @wok
+@clipw:
         lda #40
         sec
         sbc _hgr_b_col

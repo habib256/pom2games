@@ -29,7 +29,8 @@
 ; the include: ht_rev, the rev7 path and the 256-byte rev7_tab disappear.
 ; Chars < $20 render as space, $60..$7F fold to uppercase, past the
 ; 64-glyph window renders as space. ht_sl >= 192 skips the draw (the
-; cursor still advances).
+; cursor still advances). Partial glyphs at y=185..191 clip at the bottom;
+; an off-screen cursor stays off-screen when wrapping.
 ;
 ; API:
 ;   hgr_putc8   A = char (bit 7 tolerated). PRESERVES A, X and Y --
@@ -41,7 +42,8 @@
 ;               $7F/$7F/$00 is the pass-through -- INIT THEM AT BOOT.
 ;               Glyph bit 7 is always stripped: the palette bit comes
 ;               from ht_cbit, never from the font data.
-;   hgr_puts8   NUL-terminated string at ht_src_lo/hi. Clobbers Y.
+;   hgr_puts8   NUL-terminated string at ht_src_lo/hi, may span pages.
+;               Preserves X and the source pointer; clobbers A, Y.
 ;
 ; Caller provides hgr_lo / hgr_hi (include hgr_scanline.inc). The module
 ; allocates its own ZP (~12 B) and pulls rev7.inc (shared, guarded).
@@ -99,6 +101,8 @@ hgr_putc8:
         LDA ht_left
         STA ht_col
         LDA ht_sl
+        CMP #192
+        BCS @nowrap             ; off-screen rows stay off-screen
         CLC
         ADC #8
         STA ht_sl
@@ -153,6 +157,8 @@ hgr_putc8:
         CLC
         ADC ht_sl
         TAY
+        CPY #192
+        BCS @out                ; clip partial glyphs at the bottom edge
         LDA hgr_lo,Y
         STA ht_lin_lo
         LDA hgr_hi,Y
@@ -185,17 +191,24 @@ hgr_putc8:
         RTS
 
 ; ----------------------------------------------------------------------------
-; hgr_puts8: print the NUL-terminated string at ht_src_lo/hi. Clobbers Y.
+; hgr_puts8: print the NUL-terminated string at ht_src_lo/hi. Clobbers A,Y.
 ; ----------------------------------------------------------------------------
 .ifndef HGR_TEXT8_NO_PUTS
 hgr_puts8:
+        LDA ht_src_hi
+        PHA                     ; retain the caller's source pointer
         LDY #0
 @lp:    LDA (ht_src_lo),Y
         BEQ @done
         JSR hgr_putc8           ; preserves Y
         INY
         BNE @lp
-@done:  RTS
+        INC ht_src_hi           ; Y wrapped: continue with the next 256 bytes
+        JMP @lp
+@done:  PLA
+        STA ht_src_hi
+        LDA #0                  ; keep the historical NUL return value
+        RTS
 .endif
 
 .ifndef HGR_TEXT8_HGR_ORDER

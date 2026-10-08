@@ -4,7 +4,7 @@
 ; ----------------------------------------------------------------------------
 ; Draws a 32-byte TMS9918-format 16x16 pattern (left column rows 0..15,
 ; right column rows 0..15, bit 7 = leftmost pixel -- the SCROLL-O-SPRITES
-; layout of maze3d/src/sprites_*.asm) into the HGR page-1 framebuffer,
+; layout of maze3d/src/sprites_*.asm) into the HGR draw page via hgr_lo/hi,
 ; magnified x1 (16x16), x2 (32x32) or x4 (64x64), with optional NTSC
 ; artifact colour. Pure byte STORES: the box overwrites the background,
 ; which doubles as occlusion behind the sprite.
@@ -23,6 +23,8 @@
 ;   hgr_spr16_x1 / _x2 / _x4  blit sp_ptr's pattern at (sp_x, sp_y).
 ;                             Output is ceil(w/7) bytes wide (3/5/10) --
 ;                             one byte wider than the sprite, zero-padded.
+;                             Clips at scanline 192 / byte column 40; a
+;                             fully off-screen Y never wraps back to row 0.
 ;                             Clobbers A, X, Y and the sp_* ZP.
 ;   hgr_spr16_color_a         A = HSPR_* colour code -> arms the artifact
 ;                             colour attributes (sp_cm_ev / sp_cm_od /
@@ -44,63 +46,58 @@
 ; quadbits -- projects may reference all three (e.g. rev7_tab for text
 ; glyph conversion, dblnib for x2 text doubling).
 ;
-; Consumer in this repo: maze3d (title mascot, corridor clusters, x4 combat
-; portrait, tinted x2 title text via the sp_cm_* attributes). First written
+; Maze3D now uses hgr_sprite_packed.asm; this engine retains the runtime
+; TMS conversion contract for other callers. First written
 ; for POM1's sketchs/hgr/game_maze3d.
 ; ============================================================================
 
 .ifndef _HGR_SPRITE16_LOADED_
 _HGR_SPRITE16_LOADED_ = 1
 
-; --- Colour codes for hgr_spr16_color_a -------------------------------------
-HSPR_WHITE  = 0
-HSPR_GREEN  = 1
-HSPR_ORANGE = 2
-HSPR_VIOLET = 3
-HSPR_BLUE   = 4
-
 .zeropage
+.ifndef sp_ptr
 sp_ptr:     .res 2      ; -> 32-byte TMS-format pattern (public input)
+.endif
 sp_x:       .res 1      ; dest top-left pixel x, multiple of 8 (public)
 sp_y:       .res 1      ; dest top-left pixel y, multiple of 8 (public)
+.ifndef sp_cm_ev
 sp_cm_ev:   .res 1      ; colour: pixel mask for EVEN byte columns (public)
+.endif
+.ifndef sp_cm_od
 sp_cm_od:   .res 1      ; colour: pixel mask for ODD byte columns (public)
+.endif
+.ifndef sp_cbit
 sp_cbit:    .res 1      ; colour: palette bit $00/$80 (public)
+.endif
 sp_rb:      .res 8      ; one output row as an msb-first pixel stream
 sp_i:       .res 1      ; output row counter
 sp_b:       .res 1      ; source byte cache
 sp_px:      .res 1      ; packed byte cache across the colour mask
 sp_col:     .res 1      ; current dest byte column
 sp_col0:    .res 1      ; leftmost dest byte column
+.ifndef sp_wout
 sp_wout:    .res 1      ; output bytes per row (3/5/10)
+.endif
+.ifndef sp_lin_lo
 sp_lin_lo:  .res 1      ; current scanline pointer
+.endif
+.ifndef sp_lin_hi
 sp_lin_hi:  .res 1
+.endif
+.ifndef sp_yy
 sp_yy:      .res 1      ; current scanline
+.endif
 sp_t:       .res 1      ; source-row scratch
 
 .code
 
 ; ----------------------------------------------------------------------------
-; hgr_spr16_color_a: A = HSPR_* -> sp_cm_ev / sp_cm_od / sp_cbit.
-; ----------------------------------------------------------------------------
-hgr_spr16_color_a:
-        TAY
-        LDA hspr_cmask_ev,Y
-        STA sp_cm_ev
-        LDA hspr_cmask_od,Y
-        STA sp_cm_od
-        LDA hspr_cbit,Y
-        STA sp_cbit
-        RTS
-
-hspr_cmask_ev:  .byte $7F, $2A, $2A, $55, $55
-hspr_cmask_od:  .byte $7F, $55, $55, $2A, $2A
-hspr_cbit:      .byte $00, $00, $80, $00, $80
+.include "hgr_sprite_color.inc"
 
 ; ----------------------------------------------------------------------------
 ; sp_pack_row: emit sp_wout HGR bytes from the sp_rb bit-stream at
 ; scanline sp_yy, byte columns sp_col0.. ; advances sp_yy one line.
-; Bottom-clipped at y=192. Consumes (shifts out) sp_rb.
+; Clipped at y=192 and byte column 40. Consumes (shifts out) sp_rb.
 ; ----------------------------------------------------------------------------
 sp_pack_row:
         LDY sp_yy
@@ -141,12 +138,16 @@ sp_pack_row:
 @msk:   AND sp_px
         ORA sp_cbit
         LDY sp_col
+        CPY #40
+        BCS @skip_store
         STA (sp_lin_lo),Y
+@skip_store:
         INC sp_col
         INX
         CPX sp_wout
         BNE @ob
-@clip:  INC sp_yy
+        INC sp_yy
+@clip:
         RTS
 
 ; sp_col_base: sp_col0 := 4 + sp_x/8 (the 32-byte-column window at byte

@@ -4,7 +4,7 @@ from pathlib import Path
 import argparse
 import re
 import tempfile
-from test_hgr import DEV, offset, run
+from test_hgr import DEV, offset, run, a2test
 
 
 def sprite_area(snapshot):
@@ -27,6 +27,12 @@ def main():
                  'key: ','wait:20','peek:2000:16384','wait:30','peek:2000:16384',
                  'key: ','key:\\<\\>\\^\\v','wait:30','peek:2000:16384',
                  'key:\\e','wait:30','peek:03F2:3']
+        # A hidden page is restored and redrawn even while paused. Observe
+        # completed frames rather than comparing arbitrary intermediate writes.
+        points = a2test.labels(work/'build/hgr.lbl')
+        present = f'until:{points["_hgr_spr_present"]:04X}:100'
+        steps = [part for step in steps for part in
+                 ([present, step] if step == 'peek:2000:16384' else [step])]
         if not args.iie: steps += ['text']
         output = run([emulator,*(['--iie'] if args.iie else []),'--disk',work/'HGR.dsk',*steps])
         chunks = re.split(r'(?m)^2000:',output)[1:]

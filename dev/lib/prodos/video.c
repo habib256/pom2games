@@ -8,7 +8,9 @@ void prodos_video_claim(void)
     unsigned char i, unit, index;
     claimed=1; ram_unit=0;
     i=BYTE(0xBF31);
-    if (i>15u) return;
+    /* DEVCNT is count-1; DEVLST occupies $BF32..$BF3F (14 entries).
+     * $FF means empty. Larger indices would read the copyright area. */
+    if (i>=14u) return;
     do {
         unit=BYTE(0xBF32u+i)&0xF0u;
         index=unit>>3;

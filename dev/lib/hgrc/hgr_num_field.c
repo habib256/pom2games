@@ -17,7 +17,9 @@ void hgr_putu_field(unsigned x, unsigned char y, unsigned value,
     char buf[6];
     unsigned char len;
     unsigned dx;
-    if (width == 0u) return;
+    /* Reject off-screen origins before the right-alignment addition can
+     * wrap a 16-bit coordinate back onto the screen. */
+    if (width == 0u || x >= 280u || y >= 192u) return;
     if (width > 14u) width = 14u;
     hgr_u_lo  = (unsigned char)(value & 0xFFu);
     hgr_u_hi  = (unsigned char)(value >> 8);

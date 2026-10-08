@@ -75,10 +75,46 @@ def translate(source):
         for name, entry in [('DOCRSRX', '$6306'), ('DOCRSRY', '$6309')]:
             text = text.replace('pcs_' + name + ':\nlda #50\njsr $FCA8',
                                 'pcs_' + name + ':\njmp ' + entry + '\nnop\nnop')
+    elif source.stem == 'EDIT':
+        text = text.replace('ldx pcs_PARAM+3\nlda pcs_D7,X\nsta pcs_CXD7\n'
+                            'lda pcs_M7,X\nsta pcs_CXM7',
+                            'jsr $6315\n.res 9, $EA')
+        # Preserve all fixed entry addresses. The paddle-era delta guard
+        # rejects normal absolute mouse drags across the palette boundary.
+        text = text.replace('cmp #$10\nbcc *+6\ncmp #$F0\nbcc pcs_DRAGO8',
+                            'jsr $6312\nbcc pcs_DRAGO8\n.res 3, $EA')
     elif source.stem == 'DISK':
+        # The loader records the real controller slot as $n0. Match the
+        # overlay loader instead of always using slot 6 for SAVE/LOAD.
+        text = text.replace('lda #6\nsta pcs_SLOT',
+                            'lda $B7C3\nlsr\nlsr\nlsr\nlsr\nsta pcs_SLOT')
         text = text.replace('pcs_MAIN:\njsr pcs_JSCTRL\njsr pcs_UPDATECRSR\nlda $C061',
                             'pcs_MAIN:\njsr pcs_JSCTRL\njsr pcs_UPDATECRSR\njsr $6303')
         text = text.replace('jsr pcs_FMGR', 'jsr $630F')
+        text = text.replace('jsr pcs_DOFCMD\n; \njsr pcs_CLOSE\n; \njsr pcs_INIT',
+                            'jsr pcs_READ_TABLE\n; \njsr pcs_CLOSE\n; \njsr pcs_INIT')
+        # LOAD's header is read separately at $3FFC. Validate the body
+        # before DOS reads any table bytes into the reduced workspace.
+        text += ('\npcs_READ_TABLE:\nlda pcs_FMPL+7\ncmp #$23\nbcc pcs_TABLE_FITS\n'
+                 'bne pcs_TABLE_TOO_LARGE\nlda pcs_FMPL+6\nbeq pcs_TABLE_FITS\n'
+                 'pcs_TABLE_TOO_LARGE:\nlda #14\nsta pcs_FMPL+10\njmp pcs_ERROR\n'
+                 'pcs_TABLE_FITS:\njmp pcs_DOFCMD\n')
+        # Check every compressed byte, including indexed stores spanning a
+        # page. Geometry stays below MIDBTM; scan tables can be rebuilt on
+        # failure, but the resident adapter at $6300 must remain untouched.
+        start = text.index('pcs_COMPRESS:')
+        end = text.index('pcs_DECOMPRESS:', start)
+        compression = text[start:end].replace('sta (pcs_MIDBTM),Y', 'jsr pcs_COMPRESS_PUT')
+        text = text[:start] + compression + text[end:]
+        text += ('\npcs_COMPRESS_PUT:\nphp\npha\ntya\nclc\nadc pcs_MIDBTM\n'
+                 'lda pcs_MIDBTM+1\nadc #0\ncmp #$63\nbcs pcs_COMPRESS_FULL\n'
+                 'pla\nplp\nsta (pcs_MIDBTM),Y\nrts\n'
+                 'pcs_COMPRESS_FULL:\npla\nplp\npla\npla\npla\nsta pcs_HTOP\n'
+                 'lda #14\nsta pcs_FMPL+10\njmp pcs_ERROR\n')
+        # SAVE, LOAD and ERROR jump out of DOMENU and abandon its return
+        # address. Restore the module's entry stack on every menu restart.
+        text = text.replace('pcs_START:\nldy #0',
+                            'pcs_START:\nldx pcs_STACKTEMP\ntxs\nldy #0')
         start = text.index('ldy #0\ntya\npcs_UNDODLG2:')
         end = text.index('bne pcs_UNDODLG2', start) + len('bne pcs_UNDODLG2')
         text = text[:start] + 'pcs_UNDODLG2:\njsr $630C\n.res 12, $EA' + text[end:]

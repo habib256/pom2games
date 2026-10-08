@@ -43,3 +43,47 @@ dans `dev/lib/hgrc/hgr_host.h`, hors de l’API cible.
 `make test-assets` vérifie les cinq filtres PNG, PPM, les dispositions des
 framebuffers et les masques de toutes les phases. Le test DHGR utilise un
 sprite produit par ce convertisseur et le compare au dessin attendu.
+
+## Sprites TMS précompactés pour HGR (assembleur)
+
+`pack_hgr_sprites.py` transforme des motifs TMS 16×16 (32 octets, colonne
+gauche puis droite, bit 7 à gauche) en sept tailles : 8, 16, 32, 64, 4, 2 et
+1 pixels. Le fichier ca65 produit contient les pointeurs et les tables
+`_width`, `_height`, `_source_rows`, `_vertical` et `_last_mask`.
+Les lignes répétées verticalement ne sont stockées qu’une fois ; les petites
+tailles utilisent le maximum des blocs source pour conserver les silhouettes.
+
+```sh
+python3 dev/tools/assets/pack_hgr_sprites.py --out build/ship.inc --prefix ship art.asm:ship_pattern
+```
+
+Le runtime `dev/lib/hgr/hgr_sprite_packed.asm` dessine ces données sur une
+colonne HGR alignée à l’octet. Ce format ne contient pas les sept phases du
+convertisseur PNG/PPM : choisir le runtime correspondant au format produit.
+Les crédits des motifs restent dans leurs sources originales.
+
+## Compression HGR LZ4FH
+
+Inclure `dev/cc65/fhpack.mk` après `apple2.mk` pour disposer de la cible
+`$(FHPACK)` (compilateur C++ requis). Les sources et licences amont restent
+épinglées dans `dev/tests/techniques/upstream/fhpack`.
+
+```sh
+build/fhpack -c -9 -h title.hgr build/title.lz4fh
+build/fhpack -d build/title.lz4fh build/title.roundtrip.hgr
+cmp title.hgr build/title.roundtrip.hgr
+```
+
+Conserver `-h` pour restituer aussi les trous de la page HGR. La décompression
+6502 partagée se trouve dans `dev/lib/apple2/lz4fh.asm`. La limite du tampon
+compressé, le chargement disque et les adresses restent propres au programme.
+
+## Tables HGR communes
+
+`dev/tools/hgr_tables.py` fournit `hgr_offset(y)`, `scanline_tables(page)`,
+`division_tables(width)` et `shift_tables()`. Le convertisseur PNG/PPM,
+le harnais `a2test` et le constructeur Pinball partagent le calcul des
+adresses HGR. Les tables de décalage contiennent six phases de 256 entrées,
+avec conservation du bit de palette et suppression des octets `$80` isolés,
+selon le contrat PCS. Le placement des tables dans la mémoire du jeu reste
+chez l’appelant.

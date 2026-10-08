@@ -9,8 +9,10 @@
 ;   dos_cmd_add  -- append the ASCIIZ string at A (lo) / Y (hi).
 ;   dos_cmd_hex  -- append A as two hex digits (for ",A$6000", ",L$024E").
 ;   dos_cmd_run  -- have DOS run the command; returns when DOS is done.
+;                   Retains the buffer/length for reuse or later appends.
 ;   disk_protected -- C = 1 if the disk in slot 6 is write protected.
-;   All clobber A, X, Y.
+;   All clobber A, X, Y. add/hex/run: C=1 on buffer overflow, C=0 on
+;   success. Overflow stays sticky until new; run refuses partial commands.
 ;
 ;   JSR dos_cmd_new                     ; "BSAVE SAVE,A$1234,L$0010"
 ;   LDA #<str_bsave / LDY #>str_bsave   ; .byte "BSAVE SAVE,A$", 0
@@ -27,7 +29,8 @@
 ; zero the new snapshot and restores the program's. So apple2_zp_save must
 ; have run first, and exit.asm must be included.
 ; Define DOS_ZP_START / DOS_ZP_LEN to retain only the program's own range
-; (default $00 / 256). DOS always keeps a full-page snapshot.
+; (default $00 / 256): length must be 1..256 and the range stay in $00..$FF.
+; DOS always keeps a full-page snapshot.
 ;
 ; Errors: DOS handles them itself (FILE NOT FOUND, I/O ERROR, WRITE
 ; PROTECTED...) by stopping the program at the BASIC prompt. Put every file
@@ -36,11 +39,11 @@
 ;
 ; dos_cmd_add reads its string through a self-modified absolute address, so
 ; the module needs no zero page. The buffer holds DOS_CMD_MAX - 1 characters
-; (define DOS_CMD_MAX before the include to change it; default 40).
+; (define DOS_CMD_MAX before the include to change it; 1..256, default 40).
 ; DOS_CMD_WORKBSS = 1 places that buffer and its index in WORKBSS instead.
 ; disk_protected assumes the boot drive is in slot 6 (the usual Disk II).
 ;
-; BSS: dos_cmd_buf, dos_cmd_ix, dos_zp_prog (256).
+; BSS: dos_cmd_buf, dos_cmd_ix, dos_cmd_overflow, dos_zp_prog (256).
 ; Caller responsibility: .include "apple2.inc" and "exit.asm".
 ; Mirror for C: a2_dos_cmd(), a2_disk_protected() in ../apple2c/apple2dos.h.
 ; ============================================================================
@@ -51,6 +54,7 @@ _DOS_ASM_LOADED_ = 1
 .ifndef DOS_CMD_MAX
 DOS_CMD_MAX = 40
 .endif
+.assert DOS_CMD_MAX >= 1 .and DOS_CMD_MAX <= 256, error, "DOS_CMD_MAX must fit an 8-bit index"
 .ifndef DOS_CMD_WORKBSS
 DOS_CMD_WORKBSS = 0
 .endif
@@ -63,6 +67,9 @@ DOS_ZP_START = 0
 .ifndef DOS_ZP_LEN
 DOS_ZP_LEN = 256
 .endif
+.assert DOS_ZP_START >= 0 .and DOS_ZP_START <= 255, error, "DOS_ZP_START must be in zero page"
+.assert DOS_ZP_LEN >= 1 .and DOS_ZP_LEN <= 256, error, "DOS_ZP_LEN must be 1..256"
+.assert DOS_ZP_START + DOS_ZP_LEN <= 256, error, "DOS zero-page range exceeds $FF"
 
 DOS_HOOKS = $03EA               ; DOS: reconnect its I/O hooks to CSW / KSW
 
@@ -73,6 +80,7 @@ DOS_HOOKS = $03EA               ; DOS: reconnect its I/O hooks to CSW / KSW
 .endif
 dos_cmd_buf:    .res DOS_CMD_MAX
 dos_cmd_ix:     .res 1
+dos_cmd_overflow: .res 1
 .segment "BSS"
 dos_zp_prog:    .res DOS_ZP_LEN ; the program's page zero during a command
 
@@ -82,22 +90,50 @@ dos_cmd_new:
         LDA     #$00
         STA     dos_cmd_ix
         STA     dos_cmd_buf
+        STA     dos_cmd_overflow
+        CLC
         RTS
 
 dos_cmd_add:
         STA     @src+1
         STY     @src+2
+        LDA     dos_cmd_overflow
+        BNE     dos_cmd_full
         LDY     #$00
 @lp:    LDX     dos_cmd_ix
 @src:   LDA     $FFFF,Y         ; self-modified: the string
+        BEQ     @done
+        CPX     #DOS_CMD_MAX-1  ; reserve space for the terminator
+        BCS     dos_cmd_full
         STA     dos_cmd_buf,X
-        BEQ     @done           ; (Z from the load: STA keeps it)
         INC     dos_cmd_ix
         INY
         BNE     @lp
-@done:  RTS
+        ; A 256-byte source without a terminator is also too long.
+        JMP     dos_cmd_full
+@done:  STA     dos_cmd_buf,X
+        CLC
+        RTS
+
+; Overflow stays sticky until dos_cmd_new; a partial command must not run.
+dos_cmd_full:
+        LDX     dos_cmd_ix
+        LDA     #0
+        STA     dos_cmd_buf,X
+        LDA     #1
+        STA     dos_cmd_overflow
+        SEC
+        RTS
 
 dos_cmd_hex:
+.if DOS_CMD_MAX < 3
+        JMP     dos_cmd_full
+.else
+        LDX     dos_cmd_overflow
+        BNE     dos_cmd_full
+        LDX     dos_cmd_ix
+        CPX     #DOS_CMD_MAX-2  ; both digits and NUL must fit atomically
+        BCS     dos_cmd_full
         PHA
         LSR     A
         LSR     A
@@ -116,9 +152,18 @@ dos_cmd_hex:
         LDA     #$00
         STA     dos_cmd_buf,X
         STX     dos_cmd_ix
+        CLC
         RTS
+.endif
 
 dos_cmd_run:
+        LDA     dos_cmd_overflow
+        BEQ     @valid
+        SEC
+        RTS
+@valid:
+        LDA     dos_cmd_ix      ; output uses ix as a cursor; retain append position
+        PHA
 .if DOS_ZP_START = 0 && DOS_ZP_LEN = 256
         LDX     #$00
 @in:    LDA     $00,X
@@ -174,6 +219,9 @@ dos_cmd_run:
         CPX     #<DOS_ZP_LEN
         BNE     @restore
 .endif
+        PLA
+        STA     dos_cmd_ix
+        CLC
         RTS
 
 ; Disk II sense, slot 6: motor on, Q6 high, then Q7 low reads the

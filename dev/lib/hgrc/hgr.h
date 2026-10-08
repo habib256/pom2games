@@ -316,7 +316,8 @@ void hgr_putu(unsigned x, unsigned char y, unsigned value);
  * the self-bounded wipe can't clip an adjacent label (the trap a hand-rolled
  * erase rectangle falls into). Values wider than the field overflow right, so
  * pick width >= the maximum digit count (e.g. width 5 for a 0..65535 score).
- * width is clamped to 1..14. Page-aware (works while double buffering). */
+ * width is clamped to 1..14; width zero does nothing. Off-screen origins
+ * (x>=280 or y>=192) are ignored. Page-aware (works while double buffering). */
 void hgr_putu_field(unsigned x, unsigned char y, unsigned value,
                          unsigned char width);
 
@@ -404,12 +405,13 @@ void hgr_colorize(unsigned x, unsigned char y, unsigned char w,
 #define HGR_LO_AQUA       14u  /* aquamarine */
 #define HGR_LO_WHITE      15u
 
-/* graphics + LORES + page 1 + full screen (call before drawing). */
+/* Native 40-column graphics + LORES + page 1 + full screen. On IIe-class
+ * machines, resets DHGR/80COL/80STORE and main RAMRD/RAMWRT before drawing. */
 void hgr_lores_init(void);
 
-/* Fill the whole 40×48 LORES screen with one colour (0..15). Fast: writes the
- * text page ($0400-$07FF) a page at a time with an 8-bit index — NOT a naïve
- * 16-bit pointer loop (see hgr_clear's note). */
+/* Fill the whole 40×48 LORES draw page with one colour (low four bits).
+ * Preserves the 64 screen-hole bytes used by peripheral firmware on each
+ * page. Uses an 8-bit index for the inner stores. */
 void hgr_lores_clear(unsigned char color);
 
 /* Set / read one block. x:0..39, y:0..47, color:0..15 (a HGR_LO_* index).

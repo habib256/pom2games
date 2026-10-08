@@ -1,0 +1,9 @@
+Targeted adaptations of Fast Apple II Graphics (fdraw), Andy McFadden,
+version 0.3 (August 2015), Apache-2.0.
+Upstream revision: a1657e8e4d4b19f62497228d070c699c19e96cde.
+Sources: dev/tests/techniques/upstream/fdraw/FDRAW.LINE.S and FDRAW.S.
+
+Maze3D adapts the dominant-axis line loops and column-major absolute-store
+clear for virtual-coordinate endpoints, monochrome OR drawing, two HGR
+pages and a 160-row viewport. It does not include the full fdraw package.
+See FDRAW-LICENSE.txt for the original license.

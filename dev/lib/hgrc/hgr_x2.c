@@ -34,10 +34,11 @@
 void hgr_inflate_x2(const unsigned char *mono, unsigned char wbytes,
                          unsigned char h, unsigned char color, unsigned char *out)
 {
-    unsigned char dW  = (unsigned char)(wbytes << 1);       /* doubled byte width  */
-    unsigned char wpx = (unsigned char)(wbytes * 7u);       /* wbytes<=36 -> 8-bit */
+    unsigned dW  = (unsigned)wbytes * 2u;       /* doubled byte width  */
+    unsigned wpx = (unsigned)wbytes * 7u;       /* full source width */
     unsigned char litLeft, litRight, palbit;
-    unsigned char sy, sx, dc, byte, bits;
+    unsigned char sy, bits;
+    unsigned sx, dc, byte;
     unsigned char *top, *bot;                               /* the two dbl rows    */
     const unsigned char *m;
     unsigned n, i;
@@ -49,7 +50,7 @@ void hgr_inflate_x2(const unsigned char *mono, unsigned char wbytes,
     litRight = (unsigned char)(color == HGR_X2_GREEN  || color == HGR_X2_ORANGE || color == HGR_X2_WHITE);
     palbit   = (color == HGR_X2_BLUE || color == HGR_X2_ORANGE) ? 0x80u : 0x00u;
 
-    n = (unsigned)dW * (unsigned)(h << 1);
+    n = dW * (unsigned)h * 2u;
     for (i = 0; i < n; ++i) out[i] = 0u;
 
     m   = mono;
@@ -59,15 +60,15 @@ void hgr_inflate_x2(const unsigned char *mono, unsigned char wbytes,
         for (sx = 0; sx < wpx; ++sx) {
             if (m[sx / 7u] & (unsigned char)(1u << (sx % 7u))) {
                 if (litLeft) {                              /* left dot: dc = sx*2 */
-                    dc   = (unsigned char)(sx << 1);
-                    byte = (unsigned char)(dc / 7u);
+                    dc   = sx * 2u;
+                    byte = dc / 7u;
                     bits = (unsigned char)((1u << (dc % 7u)) | palbit);
                     top[byte] |= bits;
                     bot[byte] |= bits;
                 }
                 if (litRight) {                             /* right dot: dc = sx*2+1 */
-                    dc   = (unsigned char)((sx << 1) + 1u);
-                    byte = (unsigned char)(dc / 7u);
+                    dc   = sx * 2u + 1u;
+                    byte = dc / 7u;
                     bits = (unsigned char)((1u << (dc % 7u)) | palbit);
                     top[byte] |= bits;
                     bot[byte] |= bits;
@@ -75,7 +76,7 @@ void hgr_inflate_x2(const unsigned char *mono, unsigned char wbytes,
             }
         }
         m   += wbytes;
-        top += (unsigned char)(dW << 1);                    /* skip both dbl rows  */
+        top += dW * 2u;                    /* skip both dbl rows  */
     }
 }
 #endif  /* !__CC65__ */

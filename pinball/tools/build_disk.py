@@ -7,25 +7,20 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'dev/tools'))
 from dos33 import Dos33Image
+from hgr_tables import scanline_tables, division_tables, shift_tables
 
 
 def tables():
     data = bytearray(0x1700)  # loaded at $0800, ending at $1EFF
-    for shift in range(1, 7):
-        for value in range(256):
-            sign = value & 0x80
-            bits = (value & 0x7f) << shift
-            low = (bits & 0x7f) | sign
-            high = (bits >> 7) | sign
-            data[(shift-1)*256+value] = low if low != 0x80 else 0
-            data[0x600+(shift-1)*256+value] = high if high != 0x80 else 0
-    for i in range(256):
-        data[0xc00+i] = i//7
-        data[0xd00+i] = i%7
-    for y in range(192):
-        addr = 0x2000 + (y%8)*1024 + (y//8%8)*128 + (y//64)*40
-        data[0xe00+y] = addr & 255
-        data[0xec0+y] = addr >> 8
+    low, high = shift_tables()
+    quotient, remainder = division_tables()
+    rows_low, rows_high = scanline_tables()
+    data[0:0x600] = low
+    data[0x600:0xc00] = high
+    data[0xc00:0xd00] = quotient
+    data[0xd00:0xe00] = remainder
+    data[0xe00:0xec0] = rows_low
+    data[0xec0:0xf80] = rows_high
     return data
 
 
@@ -33,21 +28,14 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--build', type=Path, default=Path('build'))
     ap.add_argument('--assets', type=Path, default=Path('assets'))
-    ap.add_argument('--master', type=Path, required=True)
+    ap.add_argument('--master', type=Path, help='legacy CLI option; boot.bin already contains the shared loader')
     ap.add_argument('--out', type=Path, required=True)
     args = ap.parse_args()
-    image = Dos33Image(args.master)
-    image.data[:] = bytes(len(image.data))
-    image._init_catalog()
-    # Fixed-sector modules occupy tracks 0-15. The normal DOS catalog and
-    # allocation bitmap keep them unavailable to the editor's SAVE command.
-    for t in range(16):
-        for s in range(16):
-            image.free[t, s] = False
+    image = Dos33Image.blank()
+    # Fixed-sector modules occupy tracks 0-15; DOS saves cannot reuse them.
+    image.reserve_sectors(0, 16 * 16)
     def put(sector, data, capacity):
-        assert len(data) <= capacity, (sector, len(data), capacity)
-        offset = sector * 256
-        image.data[offset:offset+len(data)] = data
+        image.write_fixed(sector, data, capacity)
     def binary(name):
         return (args.build / (name + '.bin')).read_bytes()
     def asset(name):

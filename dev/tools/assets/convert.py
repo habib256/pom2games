@@ -10,6 +10,9 @@ from pathlib import Path
 import re
 import struct
 import zlib
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from hgr_tables import hgr_offset
 
 PALETTE = [(0,0,0),(157,9,102),(42,42,165),(199,52,255),
            (0,118,44),(128,128,128),(0,157,255),(170,170,255),
@@ -112,7 +115,7 @@ def framebuffer(w,h,colors,mode):
     scale=1 if mode=='hgr' else 4
     result=bytearray(8192*(1 if mode=='hgr' else 2))
     for y in range(h):
-        row=(y%8)*1024+((y//8)%8)*128+(y//64)*40
+        row=hgr_offset(y)
         for x in range(w):
             c=colors[y*w+x]; value=((c>>1)|(c<<3))&15 if scale==4 else c
             for k in range(scale):

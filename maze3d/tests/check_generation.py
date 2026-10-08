@@ -2,6 +2,7 @@
 """Exercise real Maze3D generation in the Apple II emulator across seeds."""
 
 import argparse
+from collections import Counter
 import sys
 from pathlib import Path
 
@@ -53,6 +54,8 @@ def verify(grid: list[int], mobs: list[int]) -> None:
                 reached.add(other)
                 frontier.append(other)
     assert len(reached) == 77
+    stacks = Counter(zip(mobs[:8], mobs[8:16]))
+    assert max(stacks.values()) <= 3, "more than three monsters on one cell"
     for index in range(8):
         x, y = mobs[index], mobs[index + 8]
         assert 0 <= x < 11 and 0 <= y < 7
@@ -73,7 +76,7 @@ def main() -> None:
         high = (index * 29 + 37) & 255
         steps = [
             "wait:2200", f"poke:0056:{low:02x}", f"poke:0057:{high:02x}",
-            "key:X", "wait:130", "peek:1000:77", "peek:10a0:32",
+            "key:X", "wait:700", "peek:1000:77", "peek:10a0:32",
         ]
         run = a2test.run(args.disk, steps, emulator=args.a2shot, timeout=20)
         try:
