@@ -365,6 +365,12 @@ preferences_dirty: .res 1
 save_available: .res 1
 active_game: .res 1
 combat_resuming: .res 1
+round_action: .res 1
+round_hit: .res 1
+round_gold: .res 1
+narrator_buffer: .res 32
+narrator_bits: .res 1
+narrator_left: .res 1
 .code
 
 ; =============================================
@@ -572,6 +578,9 @@ start_floor:
 
 ; Between floors, spend loot. C continues; ESC opens configuration.
 floor_shop:
+        LDA #<str_empty
+        LDX #>str_empty
+        JSR set_msg
 @redraw:
         JSR vdp_display_off
         JSR clear_bitmap
@@ -582,19 +591,8 @@ floor_shop:
         LDA #<str_shop_title
         LDX #>str_shop_title
         JSR print_str_ax
-        LDA #5
-        STA ch_cx
-        LDA #6
-        STA ch_cy
-        LDA #<str_shop_gold
-        LDX #>str_shop_gold
-        JSR print_str_ax
-        LDA #12
-        STA ch_cx
-        LDA #6
-        STA ch_cy
-        LDA p_gold
-        JSR write_decimal_2d
+        LDY #6
+        JSR draw_vitals
         LDA #4
         STA ch_cx
         LDA #9
@@ -630,6 +628,10 @@ floor_shop:
         LDA #<str_shop_next
         LDX #>str_shop_next
         JSR print_str_ax
+        LDA msg_lo
+        LDX msg_hi
+        LDY #22
+        JSR draw_str_centered
         JSR vdp_display_on
 @key:   JSR wait_key_real
         CMP #KEY_ESC
@@ -645,7 +647,12 @@ floor_shop:
         BNE @not_heal
         LDA p_hp
         CMP #30
-        BCS @fail
+        BCC @heal_ok
+        LDA #<str_full_hp
+        LDX #>str_full_hp
+        JSR ux_message
+        JMP @fail
+@heal_ok:
         LDA #8
         JSR shop_pay
         BCC @fail
@@ -679,30 +686,25 @@ floor_shop:
         BNE @key
         LDA p_potions
         CMP #9
-        BCS @fail
+        BCC @potion_ok
+        LDA #<str_full_bag
+        LDX #>str_full_bag
+        JSR ux_message
+        JMP @fail
+@potion_ok:
         LDA #6
         JSR shop_pay
         BCC @fail
         INC p_potions
 @bought:
+        LDA #<str_bought
+        LDX #>str_bought
+        JSR ux_message
         JSR sound_level
         JMP @redraw
 @fail:  JSR sound_wall
+        JSR draw_feedback
         JMP @key
-
-; A=price. Carry set when paid; gold is held to the HUD's two digits.
-shop_pay:
-        STA tmp2
-        LDA p_gold
-        CMP tmp2
-        BCC @no
-        SEC
-        SBC tmp2
-        STA p_gold
-        SEC
-        RTS
-@no:    CLC
-        RTS
 
 score_validate:
         LDA SCORE_BASE
@@ -1141,28 +1143,6 @@ collect_cell:
         STA hud_dirty
         JSR sound_level
 @done:  RTS
-
-; Spend one potion to restore 10 HP, up to 30. Carry signals success.
-drink_potion:
-        LDA p_potions
-        BEQ @no
-        LDA p_hp
-        CMP #30
-        BCS @no
-        DEC p_potions
-        CLC
-        ADC #10
-        CMP #31
-        BCC @store
-        LDA #30
-@store: STA p_hp
-        LDA #HUD_BOTH
-        STA hud_dirty
-        JSR sound_level
-        SEC
-        RTS
-@no:    CLC
-        RTS
 
 ; =============================================
 ; cell_index_xy: X=col, Y=row -> A = row*NCOLS + col
@@ -2083,10 +2063,10 @@ msg_rand:
         ADC tmp                 ; base + (rand mod count)
         TAX
         LDA msg_ptr_lo,X
-        STA msg_lo
+        STA str_lo
         LDA msg_ptr_hi,X
-        STA msg_hi
-        RTS
+        STA str_hi
+        JMP unpack_narrator
 
 ; narrate_step: a fresh IDLE line as the hero advances, and mark the HUD
 ; dirty so row 23 is rebuilt (a plain move otherwise leaves it untouched).
@@ -2152,32 +2132,6 @@ draw_direction:
         STA ch_cy
         LDA p_floor
         JSR write_decimal_2d
-        LDA #23
-        STA ch_cx
-        LDA #1
-        STA ch_cy
-        LDA #'R'
-        STA ch_code
-        JSR write_char
-        LDA #24
-        STA ch_cx
-        LDA p_relic
-        CLC
-        ADC #'0'
-        STA ch_code
-        JSR write_char
-        LDA #27
-        STA ch_cx
-        LDA #'P'
-        STA ch_code
-        JSR write_char
-        LDA #28
-        STA ch_cx
-        LDA p_potions
-        CLC
-        ADC #'0'
-        STA ch_code
-        JSR write_char
         LDX p_face
         LDA dir_word_lo,X
         PHA
@@ -2748,6 +2702,8 @@ render_3d:
 @closed:
         ; compass heading spelled out, top-centre
         JSR draw_direction
+        LDY #3
+        JSR draw_objective
         ; HUD: HP, ATK, DEF, LVL, XP, GOLD + event message
         JSR draw_hud_3d
         ; monsters visible in the corridor ahead (up to 3, on the floor)
@@ -3232,11 +3188,10 @@ draw_hud_3d:
         ;   y=159      full-width floor line closing the 3D viewport
         ;   row 20     (blank -- 8px of air so the text is not glued
         ;              to the floor line; juillet 2026 request)
-        ;   row 21     HP nn    ATK n    DEF n     (combat stats)
-        ;   row 22     LVL n    XP nn    DIR X     (progression + facing)
+        ;   row 21     HP nn/30, potions, gold (immediate resources)
+        ;   row 22     ATK, DEF, LVL, XP (secondary statistics)
         ;   row 23     free for game messages.
-        ; Three aligned columns at cx 1 / 11 / 21, values 2 cells after
-        ; their label (write_decimal_2d blanks a leading zero tens digit).
+        ; Fixed-width fields; write_decimal_2d blanks a leading zero.
         ; Floor line (y159) closes the viewport -- it lives in the cleared
         ; region (rows 0..19), so it is redrawn EVERY frame.
         LDA #0
@@ -3259,92 +3214,30 @@ draw_hud_3d:
         DEC hud_dirty
         JSR clear_hud           ; wipe rows 20..23 -> no field-gap remnants
 
-        ; --- row 21: HP / ATK / DEF ---
+        LDY #21
+        JSR draw_vitals
         LDA #1
         STA ch_cx
-        LDA #21
+        LDA #22
         STA ch_cy
-        LDA #<str_hud_hp
-        LDX #>str_hud_hp
+        LDA #<str_stats
+        LDX #>str_stats
         JSR print_str_ax
         LDA #5
         STA ch_cx
-        LDA #21
-        STA ch_cy
-        LDA p_hp
-        JSR write_decimal_2d
-
-        LDA #11
-        STA ch_cx
-        LDA #21
-        STA ch_cy
-        LDA #<str_hud_atk
-        LDX #>str_hud_atk
-        JSR print_str_ax
-        LDA #15
-        STA ch_cx
-        LDA #21
-        STA ch_cy
         LDA p_atk
         JSR write_decimal_2d
-
-        LDA #21
+        LDA #13
         STA ch_cx
-        LDA #21
-        STA ch_cy
-        LDA #<str_hud_def
-        LDX #>str_hud_def
-        JSR print_str_ax
-        LDA #25
-        STA ch_cx
-        LDA #21
-        STA ch_cy
         LDA p_def
         JSR write_decimal_2d
-
-        ; --- row 21: LVL / XP / DIR ---
-        LDA #1
-        STA ch_cx
-        LDA #22
-        STA ch_cy
-        LDA #<str_hud_lvl
-        LDX #>str_hud_lvl
-        JSR print_str_ax
-        LDA #5
-        STA ch_cx
-        LDA #22
-        STA ch_cy
-        LDA p_lvl
-        JSR write_decimal_2d
-
-        LDA #11
-        STA ch_cx
-        LDA #22
-        STA ch_cy
-        LDA #<str_hud_xp
-        LDX #>str_hud_xp
-        JSR print_str_ax
-        LDA #15
-        STA ch_cx
-        LDA #22
-        STA ch_cy
-        LDA p_xp
-        JSR write_decimal_2d
-
-        ; GOLD (facing now lives spelled-out at the top, so the HUD slot
-        ; that held DIR shows the loot total instead).
         LDA #21
         STA ch_cx
-        LDA #22
-        STA ch_cy
-        LDA #<str_hud_gold
-        LDX #>str_hud_gold
-        JSR print_str_ax
-        LDA #26
+        LDA p_lvl
+        JSR write_decimal_2d
+        LDA #28
         STA ch_cx
-        LDA #22
-        STA ch_cy
-        LDA p_gold
+        LDA p_xp
         JSR write_decimal_2d
 
         ; Event message, centred on row 23 (yellow).
@@ -3357,7 +3250,7 @@ draw_hud_3d:
         ; message (23) yellow.
         LDA #8
         STA cr_x
-        LDA #168                ; row 21 (HP / ATK / DEF)
+        LDA #168                ; row 21 (HP / POTIONS / GOLD)
         STA cr_y
         LDA #216
         STA cr_w
@@ -3368,7 +3261,7 @@ draw_hud_3d:
         JSR color_rect
         LDA #8
         STA cr_x
-        LDA #176                ; row 22 (LVL / XP / GOLD)
+        LDA #176                ; row 22 (ATK / DEF / LVL / XP)
         STA cr_y
         LDA #216
         STA cr_w
@@ -3388,6 +3281,27 @@ draw_hud_3d:
         LDA #$B1                ; yellow
         STA cr_col
         JSR color_rect
+        RTS
+
+draw_vitals:
+        STY ch_cy
+        LDA #1
+        STA ch_cx
+        LDA #<str_vitals
+        LDX #>str_vitals
+        JSR print_str_ax
+        LDA #4
+        STA ch_cx
+        LDA p_hp
+        JSR write_decimal_2d
+        LDA #19
+        STA ch_cx
+        LDA p_potions
+        JSR write_decimal_2d
+        LDA #29
+        STA ch_cx
+        LDA p_gold
+        JSR write_decimal_2d
         RTS
 
 face_chars:
@@ -3820,12 +3734,14 @@ render_map:
         TAX
         LDA grid,X
         STA rd_cell
-        AND #VISITED
-        BEQ @no_bot
         ; --- right wall: if EAST passage NOT set and col<NCOLS-1 ---
         LDA rd_col
         CMP #(NCOLS-1)
         BCS @no_right
+        LDA grid+1,X
+        ORA rd_cell
+        AND #VISITED
+        BEQ @no_right
         LDA rd_cell
         AND #EAST_BIT
         BNE @no_right
@@ -3863,6 +3779,10 @@ render_map:
         INY
         JSR cell_index_xy       ; south neighbor index
         TAX
+        LDA grid,X
+        ORA rd_cell
+        AND #VISITED
+        BEQ @no_bot
         LDA grid,X
         AND #NORTH_BIT
         BNE @no_bot
@@ -4049,6 +3969,12 @@ render_map:
         LDX #>str_map_help
         JSR     tms9918_pad12   ; +12c silicon-strict pad12-v3 (back-to-back VDP store)
         JSR print_str_ax
+        LDY #22
+        JSR draw_objective
+        LDA msg_lo
+        LDX msg_hi
+        LDY #23
+        JSR draw_str_centered
         JSR vdp_display_on      ; reveal the finished map
         RTS
 
@@ -4068,6 +3994,9 @@ run_combat:
         STA p_guard
         STA p_focus
         STA mob_phase
+        LDA #<str_choose_action
+        LDX #>str_choose_action
+        JSR set_msg
 @portrait:
         JSR draw_combat_screen
 @wait:  JSR wait_key
@@ -4077,6 +4006,7 @@ run_combat:
         RTS
 @n1:    CMP #KEY_F
         BNE @n2
+        JSR round_begin
         ; flee: 50% chance
         JSR random
         AND #$01
@@ -4084,6 +4014,9 @@ run_combat:
         ; failed flee = monster gets free hit
         JMP @mob_alive
 @flee_ok:
+        LDA #<str_fled
+        LDX #>str_fled
+        JSR ux_message
         ; Retreat to the cell from which combat was entered. Staying on
         ; the monster cell let a successful flee bypass every foe.
         LDA old_col
@@ -4098,6 +4031,7 @@ run_combat:
         RTS
 @n2:    CMP #KEY_G
         BNE @n3
+        JSR round_begin
         LDA #1
         STA p_guard
         LDA #2
@@ -4105,8 +4039,11 @@ run_combat:
         JMP @mob_alive
 @n3:    CMP #KEY_P
         BNE @n4
+        JSR round_begin
         JSR drink_potion
-        BCC @wait
+        BCS @potion_used
+        JMP @wait
+@potion_used:
         JMP @mob_alive
 @n4:    CMP #KEY_A
         BEQ @attack
@@ -4116,6 +4053,7 @@ run_combat:
         ; play_input's old fall-through)
         JMP @wait
 @attack:
+        JSR round_begin
         JSR sound_attack
         ; player attacks
         LDX cur_mob
@@ -4148,6 +4086,7 @@ run_combat:
         BCS @apply
         LDA #1
 @apply: STA ev_dmg
+        STA round_hit
         ; subtract from mob_hp
         LDX cur_mob
         SEC
@@ -4220,20 +4159,10 @@ run_combat:
         JSR sound_level
         JMP @lvlchk
 @lvldone:
-        ; narrator: if the fight left you battered, an ominous PERIL line;
-        ; otherwise a triumphant WIN line. (The LVL bump + heal already
-        ; signal the level-up on the HUD.)
-        LDA p_hp
-        CMP #7
-        BCS @winmsg
-        LDA #MSG_PERIL
-        LDX #MSG_POOL
-        JSR msg_rand
-        JMP @nolvl
-@winmsg:
-        LDA #MSG_WIN
-        LDX #MSG_POOL
-        JSR msg_rand
+        JSR random              ; retain the former victory narrator RNG roll
+        LDA #<str_killed
+        LDX #>str_killed
+        JSR ux_message
 @nolvl:
         ; A cell can hold up to 3 monsters ("the original idea"): if
         ; another is still standing on the player's cell, fight it too —
@@ -4265,6 +4194,7 @@ run_combat:
         ; (different name/portrait), where it is genuinely needed.
         JSR combat_update_hp
         JSR draw_combat_intent
+        JSR draw_round_result
         JMP @wait
 @die2:  LDA #ST_LOSE
         STA gstate
@@ -4501,6 +4431,10 @@ draw_combat_screen:
         STA cr_col
         JSR color_rect
         JSR draw_combat_intent
+        LDA msg_lo
+        LDX msg_hi
+        LDY #22
+        JSR draw_str_centered
         JSR vdp_display_on      ; reveal the finished combat screen
         RTS
 
@@ -4696,7 +4630,8 @@ dir_word_lo:  .byte <str_dir_n, <str_dir_e, <str_dir_s, <str_dir_w
 dir_word_hi:  .byte >str_dir_n, >str_dir_e, >str_dir_s, >str_dir_w
 
 ; ---------------------------------------------------------------------------
-.include "narrator.asm"
+.include "narrator_packed.inc"
+.include "ux.inc"
 .code
 
 

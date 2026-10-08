@@ -101,9 +101,10 @@ Le module réutilisable est
 Le décor n'examine que les quatre plans d'obstacles les plus proches et
 conserve au plus 32 traits par page. Les collisions utilisent la grille du
 niveau entier, en temps constant : les murs éloignés continuent à arrêter
-la balle. La position de caméra mise en cache est sur 16 bits, sans retour
-du décor après 1 024 unités. Les arêtes fixes exploitent la symétrie verticale
-pour partager leurs données entre le haut et le bas de l'écran.
+la balle. La position de caméra mise en cache est exacte et sur 16 bits, sans retour
+du décor après 1 024 unités. Après un arrêt, les deux pages convergent vers
+les mêmes contours : aucun panneau ne reste dessiné à une ancienne position.
+Les arêtes fixes exploitent la symétrie verticale pour partager leurs données entre le haut et le bas de l'écran.
 
 Les coordonnées de la balle dans le monde sont indépendantes du rendu.
 X/Y utilisent quatre bits fractionnaires. Quatre sous-pas vérifient les
@@ -133,6 +134,8 @@ de contacts répétés, vies, passage du joueur, pause sur les deux pages,
 cible finale, parcours complet et retour à DOS. Le rendu est comparé pixel
 par pixel : projection exacte, contours sans remplissage, occultation
 partielle de la balle et absence de traces après déplacement des obstacles.
+Un test vérifie aussi, sur plusieurs images des deux pages, la stabilité des
+panneaux après un arrêt entre deux anciennes positions de cache.
 La physique native est contrôlée sur 663 cas aux frontières X/Y, 655 contacts
 avec la tolérance de perspective et les 425 décalages d'impact de −212 à +212 ; les repères de profondeur sont
 comparés pixel par pixel sur les deux pages.

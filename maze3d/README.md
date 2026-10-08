@@ -38,9 +38,12 @@ VERHILLE Arnaud) from [POM1](https://github.com/habib256/pom1).
 - **Three floors and a shop.** Regular foes get tougher on floors 2 and 3;
   the dragon guards the last exit. Between floors a shop sells healing,
   attack, defence and potions.
-- **Progress you can see.** The map fills in as you explore; the HUD tracks
-  HP, ATK, DEF, LVL, XP, GOLD and POTIONS; a narrator comments on your
-  stride.
+- **Progress you can see.** Every visited cell reveals all four surrounding
+  walls, including boundaries with unexplored cells. Known walls remain on
+  the map. An objective line tracks the relic, dragon and exit; the HUD
+  prioritises HP/30, potions and gold, with ATK, DEF, LVL and XP below.
+  Combat shows damage and action outcomes; refused purchases and potions
+  explain why. A narrator comments on your stride.
 - **Three profiles and manual saves.** Each profile has its own dungeon
   checkpoint. Press `ESC`, then `W` to save the current dungeon, including
   combat and shop progress. Movement, waiting and quitting do not save.
@@ -99,10 +102,13 @@ heals 8 HP (up to 30) and adds 1 DEF every other level.
 for 6 gold (nine at most). `C` descends to the next floor, `ESC` opens the configuration menu. Gold
 is capped at 99.
 
-**The map** shows the cells you have visited, the chamber `R`, the caches
+**The map** reveals a wall as soon as either adjacent cell has been visited,
+so all four walls surrounding the player are known without visiting the
+neighbouring cells. Open passages remain open, and unexplored boundaries
+remain hidden. It shows the chamber `R`, the caches
 `$`, the relic `*`, the monsters you have seen from the corridors, the floor
 number and the hexadecimal seed. The exit appears once its cell has been
-explored.
+explored. The current objective and event message also appear below the map.
 
 **Seeds, score and record.** The key you press on the title screen is mixed
 into the seed, so each key starts a different dungeon; `R` reuses the seed of
@@ -174,6 +180,13 @@ through ten cells. `check_configuration.py` exercises seven menu contexts.
 and checks independent profiles, combat continuation, absence of idle/quit saves, corrupt saves and
 write protection.
 
+`check_ergonomics.py` checks all four map boundaries, open passages, retained
+wall knowledge, objectives and rendered HUD/feedback text in the emulator.
+Refused combat potions must leave the enemy phase unchanged.
+`check_playthrough.py` completes seed `BEEF` through real keyboard input:
+three floors, eight caches, shops, the dragon, victory and score 163
+persisted in the exported DOS disk.
+
 Build a2shot once with `make` in `../dev/tools/a2shot`.
 
 ## Under the hood
@@ -181,7 +194,9 @@ Build a2shot once with `make` in `../dev/tools/a2shot`.
 ### Files
 
     src/maze3d.s               the game (ca65), BRUN at $6000
-    src/narrator.asm           narrator lines -> MAZETEXT, BLOADed at $1100
+    src/narrator.asm           original narrator lines (all 96 retained)
+    src/ux.inc                objectives, feedback and narrator decoder
+    tools/pack_narrator.py     lossless five-bit text -> MAZETEXT at $1100
     src/sprites_trollkind.asm  goblin, orc (SCROLL-O-SPRITES)
     src/sprites_characters.asm dark mage (SCROLL-O-SPRITES)
     src/maze3d.cfg             ld65 config: ZP $50-$FF, state at $1000, text at $1100, code at $6000
@@ -202,13 +217,13 @@ Build a2shot once with `make` in `../dev/tools/a2shot`.
 | `$1000-$104C`   | GRID, the 77 maze cells (bit 0 north open, bit 1 east open, bit 2 cache, bit 3 relic, bit 4 chamber, bit 6 monster seen, bit 7 visited) |
 | `$1050-$109C`   | DFS stack during generation; packed checkpoint between turns                                    |
 | `$10A0-$10FF`   | monsters: 8 columns, 8 rows, 8 types, 8 HP               |
-| `$1100-$1FFF`   | `MAZETEXT` at $1100-$1B92; title buffer before play             |
+| `$1100-$1FFF`   | `MAZETEXT` at $1100-$1B30 (packed narrator and UX); title buffer before play             |
 | `$1B93-$1E2F`  | `MAZESTATE`, resident save/resume helper                  |
 | `$1F10-$1F17`  | `MAZEPREFS`, selected profile, sound and viewing depth     |
 | `$1F00-$1F07`   | `MAZESCORE`, the record file                             |
 | `$2000-$3FFF`   | HGR page 1                                               |
 | `$4000-$5FFF`   | HGR page 2                                               |
-| `$6000-...`     | `MAZE3D`, 13,042 bytes of code/data; BSS ends at $94F5             |
+| `$6000-...`     | `MAZE3D`, 13,051 bytes of code/data; BSS ends at $9524             |
 | `$9600-$BFFF`   | DOS 3.3                                                  |
 
 ### The record file
@@ -330,8 +345,8 @@ measurements with the same DOS boot; real disk timing depends on the drive.
 Reproduce the current cycle counts with
 `python3 tests/benchmark_rendering.py` from the `maze3d` directory.
 
-The shared-library extraction adds 17 bytes to the 13,025-byte baseline,
-uses no additional zero-page bytes and adds at most 0.21% to the three
+At the shared-library extraction revision, the change added 17 bytes to the 13,025-byte baseline,
+used no additional zero-page bytes and added at most 0.21% to the three
 render benchmarks. Game coordinate mapping, monster placement and save
 format remain in Maze3D. Shared modules are also exercised independently
 by `python3 ../dev/tests/test_hgr_native.py`.

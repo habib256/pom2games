@@ -19,6 +19,13 @@ before the dragon's death, must stay shut.
 
 ## Done
 
+- 2026-10-08: ergonomics: all four boundaries of visited cells appear on the
+  progressive map, including north/west neighbours not yet visited. Objectives
+  in 3D and map, HP/30 and prominent potions/gold in exploration and shop,
+  explicit refusal messages and per-round combat damage/action feedback.
+  All 96 narrator lines retained with lossless five-bit packing; checkpoint
+  layout unchanged. Emulator regression checks cover map and readable text.
+
 - 2026-10-08: renderer factored into `dev/lib/hgr` (prepacked sprites,
   shared colour attributes, native lines/spans, row and viewport clears),
   LZ4FH decoder into `dev/lib/apple2`, sprite packer into `dev/tools/assets`

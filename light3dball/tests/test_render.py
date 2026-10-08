@@ -162,6 +162,29 @@ poses = [(0, 0), (32, 5), (112, 15), (120, 8), (128, 16), (240, 25),
          (500, 8), (512, 16), (1000, 24), (1024, 31), (1408, 8),
          (1536, 16), (1792, 31), (2016, 8), (0, 0)]
 start = ['wait:1100', 'key:3', L.until('physics'), L.until('frame_mark')]
+# A stop halfway through a four-unit cache bucket must converge on BOTH pages.
+# The renderer projects in two-unit steps: caching only camera>>2 used to keep
+# alternating views from different positions indefinitely after stopping.
+for previous, stopped in ((0, 2), (124, 126), (252, 254), (1024, 1026)):
+    steps = list(start)
+    for camera in (previous, stopped):
+        ball = camera + 40
+        steps += [L.until('physics'), L.poke('paused', 1), L.poke('launched', 1),
+                  L.poke('door_phase', 0), L.poke('camera_z', camera),
+                  L.poke('camera_z', camera >> 8, 1), L.poke('ball_z', ball),
+                  L.poke('ball_z', ball >> 8, 1), L.until('frame_mark')]
+    for _ in range(6):
+        steps += [L.until('physics'), L.until('frame_mark'), 'peek:2000:16384']
+    stationary = a2test.run(DISK, steps)
+    direct = a2test.run(DISK, start + pose_steps(stopped, 0)).mem(0x2000, 16384)
+    for frame in range(1, 6):
+        pages = stationary.mem(0x2000, 16384, frame)
+        for base in (0, 8192):
+            for y in range(160):
+                offset = base + a2test.hgr_offset(y)
+                assert pages[offset:offset+40] == direct[offset:offset+40], \
+                    ('stationary panel flicker', previous, stopped, frame, base, y)
+
 steps = list(start)
 for pose in poses:
     steps += pose_steps(*pose)
@@ -227,4 +250,4 @@ for phase in range(7):
                     paint(page, x0+x, 57+y, lit[y][x] == '#')
         expected.append(page)
 check_pages(a2test.run(DISK, steps), expected)
-print('LIGHT3DBALL native renderer: projection, contours, life counters 4..0/reset on both pages and partial ball occlusion passed.')
+print('LIGHT3DBALL native renderer: projection, contours, stationary panel stability, life counters 4..0/reset on both pages and partial ball occlusion passed.')

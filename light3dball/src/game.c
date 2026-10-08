@@ -350,10 +350,11 @@ void render(void)
     int dist;
     hgr_set_draw_page(draw_page);
     restore(pg);
-    /* Cached per page. Quantize camera geometry to four world units. */
-    if (page_camera[pg]!=(unsigned)(camera_z>>2) ||
+    /* Cache the exact pose used to draw each page. A four-unit cache key
+     * retained different two-unit projections on alternating pages at rest. */
+    if (page_camera[pg]!=(unsigned)camera_z ||
         (door_visible && page_door[pg]!=door_phase)) {
-        scene(pg); page_camera[pg]=camera_z>>2; page_door[pg]=door_phase;
+        scene(pg); page_camera[pg]=(unsigned)camera_z; page_door[pg]=door_phase;
     }
     dist=ball_z-camera_z;
     if (dist<0) dist=0;

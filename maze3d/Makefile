@@ -29,7 +29,11 @@ $(BUILD)/packed_sprites.inc: tools/pack_sprites.py $(DEV)/tools/assets/pack_hgr_
 	@mkdir -p $(BUILD)
 	$(PYTHON) tools/pack_sprites.py
 
-$(BUILD)/maze3d.o: src/maze3d.s src/narrator.asm src/save.inc $(BUILD)/packed_sprites.inc $(A2_ASM_DEPS)
+$(BUILD)/narrator_packed.inc: tools/pack_narrator.py src/narrator.asm
+	@mkdir -p $(BUILD)
+	$(PYTHON) tools/pack_narrator.py
+
+$(BUILD)/maze3d.o: src/maze3d.s src/narrator.asm src/save.inc src/ux.inc $(BUILD)/narrator_packed.inc $(BUILD)/packed_sprites.inc $(A2_ASM_DEPS)
 	@mkdir -p $(BUILD)
 	$(CA65) -g -t none $(A2_INCS) -I $(BUILD) -l $(BUILD)/maze3d.lst -o $@ $<
 
@@ -78,5 +82,7 @@ test: $(DISK)
 	$(PYTHON) tests/check_rendering.py
 	$(PYTHON) tests/check_configuration.py
 	$(PYTHON) tests/check_profiles.py
+	$(PYTHON) tests/check_ergonomics.py
+	$(PYTHON) tests/check_playthrough.py
 
 .PHONY: test
