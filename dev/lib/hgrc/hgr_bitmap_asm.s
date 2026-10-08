@@ -44,6 +44,8 @@ _hgr_blit_run:
 @after:
         dec tmp4                ; consumed a source bit
         bne @next
+        cpx #1                  ; final pixel: no next byte is needed
+        beq @next               ; keep reads within the source row
         inc b_srcidx            ; byte exhausted -> next source byte
         ldy b_srcidx
         lda (_hgr_b_src),y

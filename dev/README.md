@@ -9,17 +9,20 @@ utilisent la vidéo native de l'Apple II. Tous les jeux du dépôt les partagent
                        son, manette, commandes DOS
       lib/apple2c/     C   : texte, clavier, son, manette, DOS
       lib/prodos/      MLI ProDOS 8 et remise en état après DHGR
-      lib/mouse/       AppleMouse II : scrutation, IRQ firmware et VBL
+      lib/mouse/       AppleMouse II : scrutation, IRQ firmware et VBL,
+                       contexte optionnel ZP/boîtes pour les clients historiques
       tools/prodos/    constructeur/lecteur de disquettes ProDOS (.po)
       lib/font/        police Beautiful Boot 8x8 : une table maîtresse, découpée
                        à la demande (asm, C, outils Python)
-      lib/hgr/         texte, sprites et tables HGR en assembleur
+      lib/hgr/         texte, sprites TMS/précompactés, lignes, spans,
+                       effacements et tables HGR en assembleur
       lib/hgrc/        runtime C HGR : hgr.h, fonctions hgr_*
       lib/gfx/         géométrie C (lignes, rectangles, cercles) pour hgrc
       cc65/            configs ld65 (asm et C), crt0 Apple II et apple2.mk,
                        le fragment Makefile commun à tous les programmes
       tools/dos33.py   fabrique une image DOS 3.3 amorçable (.dsk) et relit
                        les fichiers d'une image existante (tests de sauvegarde)
+      tools/hgr_tables.py  disposition HGR, division/modulo 7 et décalages runtime
       tools/fonts.py   la police Beautiful Boot côté Python (tables dérivées)
       tools/a2test.py  harnais des tests : labels ld65, lancement a2run/a2shot,
                        décodage des dumps mémoire, disque de test
@@ -205,3 +208,19 @@ fixe. Voir l’[exemple HGR](examples/hgr/README.md) pour les contrats par modè
 
 `make test-frame` et `make test-hgr-example` font partie de `make test`.
 Les tests du moteur de sprites font partie de `make test-hgr`.
+
+## Disques DOS à secteurs fixes
+
+`tools/dos33.py` expose `Dos33Image.blank()` pour un chargeur personnalisé :
+catalogue vide, pistes 0–2 réservées, sans recopier le démarrage DOS standard.
+`reserve_sectors(start, count)` réserve des secteurs linéaires en ordre DOS
+avant l’ajout des fichiers. `write_fixed(start, data, capacity)` écrit un
+module dans ces secteurs ; `capacity` est un nombre d’octets multiple de 256.
+La capacité inutilisée est remplie de zéros. Les dépassements, chevauchements,
+secteurs non réservés et écritures sur la piste du catalogue/VTOC sont refusés
+avant toute mutation. `save()` écrit le bitmap de réservation sur le disque.
+
+Pinball garde sa recette de placement et son chargeur, mais utilise cette API
+publique. Les fichiers ajoutés ensuite ne peuvent pas réutiliser ses pistes.
+`make test-tools` vérifie les tables HGR, le placement/réservation des secteurs
+et le contexte souris autonome ; cette cible fait partie de `make test`.

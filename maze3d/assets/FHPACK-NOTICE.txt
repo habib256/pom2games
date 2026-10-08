@@ -1,0 +1,10 @@
+LZ4FH / fhpack, Andy McFadden, version 1.0.1 (August 2015).
+6502 decoder refactored by Peter Ferrie. Apache-2.0.
+Upstream revision: 18988e93ea7da79f837453e361b84395c4bd06a1.
+Sources and compressor: dev/tests/techniques/upstream/fhpack.
+
+dev/lib/apple2/lz4fh.asm is the ca65 translation of LZ4FH6502.S with scratch
+addresses configurable through caller scratch aliases. It preserves the decoder's
+instructions and uses the hidden HGR page as its destination.
+The compressor is invoked with -9 -h to preserve all 8192 source bytes.
+The Apache license is reproduced in FDRAW-LICENSE.txt in this directory.

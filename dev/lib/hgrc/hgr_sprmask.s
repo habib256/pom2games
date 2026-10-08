@@ -121,8 +121,10 @@ ms_setup:
         lda ms_col
         clc
         adc tmp2
+        bcs @clipw                ; 8-bit overflow still exceeds the 40-byte row
         cmp #41
         bcc @wok
+@clipw:
         lda #40
         sec
         sbc ms_col

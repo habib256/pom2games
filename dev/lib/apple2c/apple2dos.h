@@ -16,7 +16,10 @@
  *
  * DOS reports errors itself (FILE NOT FOUND, WRITE PROTECTED...) by stopping
  * the program at the BASIC prompt: put the files on the disk beforehand and
- * test a2_disk_protected() before a write. Commands hold 39 characters. */
+ * test a2_disk_protected() before a write. Commands hold 39 characters. An overflow leaves the buffer
+ * terminated and blocks a2_dos_run(); a2_dos_new() clears that condition.
+ * Hex appends require room for both digits; these void wrappers do not
+ * expose the assembler carry status. */
 #ifndef APPLE2DOS_H
 #define APPLE2DOS_H
 
@@ -24,7 +27,7 @@ void a2_dos_cmd(const char *cmd);        /* run one complete command          */
 void a2_dos_new(void);                   /* start building a command          */
 void a2_dos_add(const char *s);          /* append a string                   */
 void a2_dos_hex(unsigned char b);        /* append b as two hex digits        */
-void a2_dos_run(void);                   /* run the command built so far      */
+void a2_dos_run(void);                   /* run; retain buffer for reuse/add  */
 unsigned char a2_disk_protected(void);   /* 1 if the slot 6 disk is protected */
 
 #endif /* APPLE2DOS_H */

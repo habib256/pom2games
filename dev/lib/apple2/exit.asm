@@ -21,11 +21,10 @@
 ;                   APPLE2_PREAMBLE_CALL. Ctrl-RESET still goes to DOS.
 ;
 ;   apple2_exit     put the RESET vector and the snapshot back (the live
-;                   text window and cursor, $20-$29, are kept: a program
-;                   that switched 40/80 columns leaves DOS a consistent
-;                   window -- reset WNDTOP yourself if you moved it),
+;                   text window and cursor, $20-$29, are kept; reset
+;                   WNDTOP/WNDWDTH yourself if you changed the window),
 ;                   restore a clean text display
-;                   (TEXT, full screen, page 1, lores latch), clear the key
+;                   (40 columns, TEXT, full screen, page 1, lores latch), clear the key
 ;                   strobe, then JMP DOSWARM ($03D0): the ']' prompt, with the
 ;                   BASIC program still in memory. Never returns.
 ;
@@ -108,6 +107,20 @@ apple2_return:
 ; exit_restore: RESET vector + zero page (live text window and cursor kept) +
 ;   a clean text display. Shared by apple2_exit / apple2_return.
 exit_restore:
+        ; Main-bank code/stack entry, as in the C runtime. Restore banking
+        ; BEFORE writing the RESET vector or DOS's zero-page snapshot: with
+        ; RAMWRT enabled those stores otherwise go into auxiliary RAM.
+        ; Check the ROM model before touching IIe/c switches on a II/II+.
+        LDA     $FBB3
+        CMP     #$06
+        BNE     @native
+        LDA     #0
+        STA     RAMRDOFF
+        STA     RAMWRTOFF
+        STA     STORE80OFF
+        STA     COL80OFF
+        BIT     DHIRES_OFF
+@native:
         JSR     exit_armed      ; no snapshot: nothing to put back
         BNE     @text
         LDX     #2

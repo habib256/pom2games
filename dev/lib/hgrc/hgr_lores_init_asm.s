@@ -5,8 +5,13 @@
 .segment "CODE"
 .include "apple2.inc"
 _hgr_lores_init:
+        jsr native_video        ; leave DHGR/80-column banking before LORES
         lda TXTCLR
         lda LORES
         lda LOWSCR
         lda MIXCLR
         rts
+
+; Reuse the model-checked native video reset; only this referenced entry is
+; assembled, so a LORES-only program does not link the HIRES mode routines.
+.include "hgr.asm"

@@ -134,13 +134,14 @@ def tokenize_applesoft(text, base=0x0801):
 class Dos33Image:
     def __init__(self, master, volume=254, read_fast=False):
         self.data = bytearray(TRACKS * SECTORS * SEC_SIZE)
-        m = open(master, "rb").read()
-        system = 3 * SECTORS * SEC_SIZE
-        if len(m) not in (system, len(self.data)):
-            raise SystemExit(f"--master must be a {system}-byte tracks 0-2 image "
-                             f"or a {len(self.data)}-byte DOS 3.3 disk")
-        # Tracks 0-2: the DOS image (boot sector, RWTS, DOS proper).
-        self.data[:system] = m[:system]
+        if master is not None:
+            m = open(master, "rb").read()
+            system = 3 * SECTORS * SEC_SIZE
+            if len(m) not in (system, len(self.data)):
+                raise SystemExit(f"--master must be a {system}-byte tracks 0-2 image "
+                                 f"or a {len(self.data)}-byte DOS 3.3 disk")
+            # Tracks 0-2: the DOS image (boot sector, RWTS, DOS proper).
+            self.data[:system] = m[:system]
         self.free = {(t, s): True for t in range(TRACKS) for s in range(SECTORS)}
         for t in range(3):
             for s in range(SECTORS):
@@ -150,8 +151,64 @@ class Dos33Image:
         self.volume = volume
         self.read_fast = read_fast
         self.next_track = VTOC_T + 1
+        self._fixed_reserved = set()
+        self._fixed_regions = []
         self.catalog = []          # list of (t, s, type, name, nsectors)
         self._init_catalog()
+
+    @classmethod
+    def blank(cls, volume=254):
+        """Empty DOS catalog/VTOC with tracks 0..2 reserved, no boot bytes.
+
+        Suitable for custom boot loaders. Other allocation rules match the
+        normal constructor; save() writes the VTOC allocation bitmap.
+        """
+        return cls(None, volume=volume)
+
+    def reserve_sectors(self, start, count):
+        """Reserve a range of linear DOS-order sectors before adding files.
+
+        Reject ranges containing existing file allocations. Catalog sectors
+        and system tracks are already reserved. Repeated reservations are OK.
+        """
+        if not isinstance(start, int) or not isinstance(count, int):
+            raise ValueError('sector range must use integer indices')
+        if start < 0 or count < 0 or start + count > TRACKS * SECTORS:
+            raise ValueError('sector range outside disk')
+        indices = range(start, start + count)
+        for index in indices:
+            track, sector = divmod(index, SECTORS)
+            if (not self.free[track, sector] and index not in self._fixed_reserved
+                    and track not in (0, 1, 2, VTOC_T)):
+                raise ValueError('sector range contains a file allocation')
+        for index in indices:
+            self.free[divmod(index, SECTORS)] = False
+        self._fixed_reserved.update(indices)
+
+    def write_fixed(self, start, data, capacity):
+        """Write one fixed module into explicitly reserved whole sectors.
+
+        capacity is bytes, a multiple of 256. Zero-pads the unused capacity.
+        Refuses overflow, overlap with another fixed module, or writes to
+        the catalog/VTOC track. All checks precede mutation.
+        """
+        if not isinstance(start, int) or not isinstance(capacity, int):
+            raise ValueError('fixed-sector placement must use integer indices')
+        if capacity <= 0 or capacity % SEC_SIZE or len(data) > capacity:
+            raise ValueError('payload exceeds capacity or capacity is not whole sectors')
+        end = start + capacity // SEC_SIZE
+        if start < 0 or end > TRACKS * SECTORS:
+            raise ValueError('fixed module outside disk')
+        if start < (VTOC_T + 1) * SECTORS and end > VTOC_T * SECTORS:
+            raise ValueError('fixed module overlaps catalog/VTOC track')
+        if any(index not in self._fixed_reserved for index in range(start, end)):
+            raise ValueError('reserve fixed sectors before writing')
+        if any(start < b and end > a for a, b in self._fixed_regions):
+            raise ValueError('fixed modules overlap')
+        payload = bytes(data)
+        offset = start * SEC_SIZE
+        self.data[offset:offset + capacity] = payload + bytes(capacity - len(payload))
+        self._fixed_regions.append((start, end))
 
     # --- sector helpers ---------------------------------------------------
     def off(self, t, s):
@@ -254,7 +311,8 @@ class Dos33Image:
 
     def save(self, path):
         self.write_vtoc()
-        open(path, "wb").write(self.data)
+        with open(path, "wb") as stream:
+            stream.write(self.data)
 
     def free_sectors(self):
         return sum(1 for f in self.free.values() if f)

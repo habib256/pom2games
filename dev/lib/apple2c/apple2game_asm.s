@@ -13,7 +13,6 @@
 
 .include "apple2.inc"
 .include "sound.asm"
-.include "joy.asm"
 
 _a2_joy_x = joy_x
 _a2_joy_y = joy_y
@@ -45,3 +44,6 @@ _a2_button:
         and     #$80
         ldx     #0
         rts
+
+; joy.asm emits its routines only when referenced before inclusion.
+.include "joy.asm"

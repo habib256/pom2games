@@ -186,6 +186,11 @@ def maze_lines(work, fdraw):
     source='.import _hgr_rowlo, _hgr_rowhi\nhgr_lo = _hgr_rowlo\nhgr_hi = _hgr_rowhi\n.segment "ZEROPAGE"\n'
     source+='\n'.join(v+': .res 1' for v in variables)+'\n.segment "CODE"\n'
     source+='hgr_bitmask: .byte 1,2,4,8,16,32,64,64\n'+routine
+    # Maze3D's endpoint adapter now calls the shared native ASM kernel.
+    # Include the game's actual scratch aliases and that kernel as well.
+    include = '.include "hgr_line.asm"'
+    aliases = original[original.index('hl_ln_x0 ='):original.index(include)]
+    source += '\n' + aliases + (DEV/'lib/hgr/hgr_line.asm').read_text() + '\n'
     source+='\n.export _maze_draw\n_maze_draw = line_xy\n'
     for key,alias in [('x0','ln_x0'),('y0','ln_y0'),('x1','ln_x1'),('y1','ln_y1')]:
         source+=f'.exportzp _maze_{key}\n_maze_{key} = {alias}\n'
@@ -197,19 +202,11 @@ def maze_lines(work, fdraw):
         x0,y0,x1,y1=ends
         call=f'maze_x0={x0};maze_y0={y0};maze_x1={x1};maze_y1={y1};maze_draw();'
         current,memory=execute(work,name+'_cur',c_fixture(call,extra=decl),[obj])
-        # Independent virtual-coordinate Bresenham, then the game's 8 -> 7 mapping.
-        expected=bytearray(16384)
-        x,y=x0,y0; dx=abs(x1-x0); dy=abs(y1-y0)
-        sx=1 if x0<x1 else -1; sy=1 if y0<y1 else -1; err=dx-dy
-        while True:
-            xx=28+(x//8)*7+min(x%8,6)
-            expected[a2test.hgr_offset(y)+xx//7]|=1<<(xx%7)
-            if (x,y)==(x1,y1):break
-            e2=err*2
-            if e2>-dy:err-=dy;x+=sx
-            if e2<dx:err+=dx;y+=sy
-        assert memory==expected,name
+        # Maze3D now converts endpoints before its fdraw-style native loop.
+        # Allow tie choices, while checking endpoints, coverage and connectivity.
         mapped=(28+(x0//8)*7+min(x0%8,6),y0,28+(x1//8)*7+min(x1%8,6),y1)
+        validate_line(memory[:8192], mapped)
+        assert memory[8192:]==bytes(8192), name
         metrics,actual=execute(work,name+'_fd',c_fixture('fd_line('+','.join(map(str,mapped))+');',
             'fd_init();fd_arg=3;fd_color();',FD_DECL),[fdraw])
         validate_line(actual[:8192],mapped)

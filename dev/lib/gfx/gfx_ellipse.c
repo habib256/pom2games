@@ -48,8 +48,18 @@ void gfx_ellipse(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1)
     signed int ry = (signed int)((y1 > y0 ? y1 - y0 : y0 - y1)) >> 1;
     unsigned char i;
 
-    if (rx < 1) rx = 1;
-    if (ry < 1) ry = 1;
+    /* A zero integer radius collapses to a line inside the original box.
+     * Forcing a radius of one draws outside point and one-pixel boxes. */
+    if (rx == 0 && (x0 == x1 || y0 != y1)) {
+        gfx_line(gfx_clamp_x(xc), gfx_clamp_y(y0),
+                 gfx_clamp_x(xc), gfx_clamp_y(y1));
+        return;
+    }
+    if (ry == 0) {
+        gfx_line(gfx_clamp_x(x0), gfx_clamp_y(yc),
+                 gfx_clamp_x(x1), gfx_clamp_y(yc));
+        return;
+    }
 
     for (i = 0; i < 64U; ++i) {
         unsigned char j = (unsigned char)((i + 1U) & 63U);

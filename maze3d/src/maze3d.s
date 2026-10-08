@@ -18,14 +18,14 @@
 ;     page flip -- no more black blanking page during the redraw, the old
 ;     picture stays up until the new one is complete (set_draw_page,
 ;     vdp_display_off/on)
-;   - ESC quits to the DOS prompt: the zero page is snapshot at start and
+;   - ESC opens configuration; Q exits: zero page is saved at start and
 ;     restored on the way out (dev/lib/apple2/exit.asm) -- the Apple II
 ;     zero page belongs to the Monitor, DOS and Applesoft
 ;   - one binary BRUN at $6000, zero page at $50, maze state at $1000
 ;     (maze3d.cfg)
 ;
 ; Controls: I / up = forward, K / down = backward, J / left = turn left,
-; L / right = turn right, M map, H help, A attack, F flee, ESC quit.
+; L / right = turn right, M map, H help, A attack, F flee, ESC configuration.
 ; =============================================
 ; Original header (POM1):
 ; =============================================
@@ -64,7 +64,7 @@
 ;   K = backward         L = turn right
 ;   M = toggle map / 3D view
 ;   A = attack (combat)  F = flee  (combat)
-;   ESC = quit
+;   ESC = configuration / quit
 ;
 ; =============================================
 ; Assemble: `make` in this directory (ca65 + sprites libs + ld65 with
@@ -87,9 +87,7 @@
         ; Re-cast juillet 2026 after the community-name audit (the old picks,
         ; made under the pre-audit labels, were actually a Golem, a Hobgoblin
         ; and a FEMALE ARCHER): now the archetypes wear their true faces.
-        .import troll_goblin_pat        ; GOBLIN    (sprites_trollkind.asm 01/4)
-        .import troll_orc_pat           ; ORC       (sprites_trollkind.asm 04/4)
-        .import char_necromancer_m_pat  ; DARK MAGE (sprites_characters.asm 31/33)
+        ; Monster assets are packed at build time; see packed_sprites.inc.
 .include "apple2.inc"
 
 ; The TMS build VBlank-gated a couple of rebuild bursts; no such
@@ -148,7 +146,7 @@ PAGE2_EOR = $60       ; hgr_hi EOR value that moves a line from $2xxx to $4xxx
 ; ---- Combat ----
 NUM_MOBS  = 8
 MOB_DEAD  = $FF
-MAX_DEPTH = 4
+MAX_DEPTH = 10
 
 ; ---- Player tuning ----
 PLAYER_MAX_HP = 20
@@ -200,11 +198,11 @@ pix_addr_hi:.res 1     ; $0F
 
 ; --- monster-bitmap blit scratch (draw_sprite16_x2/_x4) ---
 ; sp_ptr / sp_x / sp_y + the blit scratch now live in
-; dev/lib/hgr/hgr_sprite16.asm (included at the bottom), which owns the
-; whole sprite pipeline. Its colour attributes (sp_cm_ev / sp_cm_od /
-; sp_cbit) are also read by x2_put for the tinted x2 title text.
+; dev/lib/hgr/hgr_sprite_packed.asm supplies the packed blitter scratch and colour
+; attributes (sp_cm_ev / sp_cm_od / sp_cbit). Sprite rows are packed at build
+; time by tools/pack_sprites.py.
 ; --- monster cluster (draw_mob_indicator): up to 3 mobs on one cell ---
-mob_depth:  .res 1     ; depth 1..3 of the nearest occupied cell (0=none)
+mob_depth:  .res 1     ; depth 1..10 of the cell currently being drawn
 mob_scan_d: .res 1     ; corridor-scan depth cursor (check_front_wall-proof)
 mob_cnt:    .res 1     ; monsters found on that cell (0..3)
 mob_base:   .res 1     ; (mob_depth-1)*3 — cluster table row
@@ -341,12 +339,32 @@ vbuf:       .res 8     ; staging buffer (unused on HGR; kept for layout)
 pix_col:    .res 1     ; dest byte column (4 + pix_x/8) from calc_pix_addr
 front_page: .res 1     ; displayed HGR page: 0 = page 1, PAGE2_EOR = page 2
 hgr_front_page = front_page   ; dev/lib/hgr/hgr_flip.asm keeps it here (ZP)
-; Forward ZP references into hgr_sprite16.asm (included at EOF): tell
-; ca65 these live in the zero page so x2_put gets short addressing.
-.globalzp sp_ptr, sp_x, sp_y, sp_cm_ev, sp_cm_od, sp_cbit, sp_px
+hsp_col = mob_curx
+; Forward ZP references into hgr_sprite_packed.asm: tell ca65 these live
+; in zero page so the packed sprite blitter gets short addressing.
+.globalzp sp_ptr, sp_cm_ev, sp_cm_od, sp_cbit
+.globalzp sp_wout, sp_yy, sp_lin_lo, sp_lin_hi
 .globalzp ht_col, ht_sl, ht_left, ht_wrap, ht_font_lo, ht_font_hi, ht_rev
 .globalzp ht_cm_ev, ht_cm_od, ht_cbit, ht_page
 
+.code
+
+; Seed editor state stays outside the crowded zero page.
+.segment "BSS"
+seed_digits: .res 4
+seed_count:  .res 1
+seed_value_lo: .res 1
+seed_value_hi: .res 1
+visible_depth: .res NUM_MOBS
+configured_depth: .res 1
+sound_enabled: .res 1
+config_front: .res 1
+active_profile: .res 1
+profiles_ready: .res 1
+preferences_dirty: .res 1
+save_available: .res 1
+active_game: .res 1
+combat_resuming: .res 1
 .code
 
 ; =============================================
@@ -366,7 +384,16 @@ main:
         STA prng_lo
         LDA #$3C
         STA prng_hi
+        LDA #MAX_DEPTH
+        STA configured_depth
+        LDA #1
+        STA sound_enabled
+        STA active_profile
         LDA #0
+        STA profiles_ready
+        STA preferences_dirty
+        STA active_game
+        STA combat_resuming
         STA quit_flag
         STA view_mode
         ; MUST zero before the first render: color_reset_last reads
@@ -441,7 +468,11 @@ main_loop:
 @title_ok:
         PLA
 
-        CMP #$D2                ; R: replay the best run's maze seed
+        CMP #$C3                ; C: continue the selected profile
+        BNE @new
+        JSR resume_game
+        JMP main_loop
+@new:   CMP #$D2                ; R: replay the best run's maze seed
         BNE @seed_ready
         LDA SCORE_BASE+4
         BEQ @seed_ready
@@ -479,6 +510,9 @@ drain_kb:
 ; new_game - generate maze, init player, place mobs, run gameplay loop
 ; =============================================
 new_game:
+        JSR prepare_text
+        LDA #1
+        STA active_game
         LDA #1
         STA p_floor
         JSR start_floor
@@ -536,7 +570,7 @@ start_floor:
         STA gstate
         RTS
 
-; Between floors, spend loot. C continues, ESC leaves for DOS.
+; Between floors, spend loot. C continues; ESC opens configuration.
 floor_shop:
 @redraw:
         JSR vdp_display_off
@@ -1208,7 +1242,29 @@ place_mobs:
         LDX ch_idx
         JMP @retry
 @free_cell:
+        LDX #0
+        LDA #0
+        STA tmp2
+@stack: CPX ch_idx
+        BEQ @stack_ok
+        LDY ch_idx
+        LDA mob_col,X
+        CMP mob_col,Y
+        BNE @stack_next
+        LDA mob_row,X
+        CMP mob_row,Y
+        BNE @stack_next
+        INC tmp2
+@stack_next:
+        INX
+        BNE @stack
+@stack_ok:
         LDX ch_idx
+        LDA tmp2
+        CMP #3
+        BCC @available
+        JMP @retry
+@available:
         ; assign type round-robin: 0,1,2,0,1,2,...
         TXA
         STA tmp
@@ -1559,6 +1615,15 @@ wait_key:
         BPL @nokey
         BIT KBDSTRB
         JSR key_fold
+        CMP #KEY_ESC
+        BNE @entropy
+        JSR configuration_menu
+        LDA quit_flag
+        BNE @quit
+        JMP wait_key
+@quit:  LDA #KEY_ESC
+        RTS
+@entropy:
         PHA
         EOR prng_lo
         STA prng_lo
@@ -1568,6 +1633,7 @@ wait_key:
         INC vdp_addr_lo
         BNE @spin
         INC vdp_addr_hi
+        LDA vdp_addr_hi
         BNE @spin
         INC wk_hi
         LDA wk_hi
@@ -1587,6 +1653,15 @@ wait_key_real:
         BPL @spin
         BIT KBDSTRB
         JSR key_fold
+        CMP #KEY_ESC
+        BNE @entropy
+        JSR configuration_menu
+        LDA quit_flag
+        BNE @quit
+        JMP wait_key_real
+@quit:  LDA #KEY_ESC
+        RTS
+@entropy:
         PHA
         EOR prng_lo
         STA prng_lo
@@ -1621,6 +1696,122 @@ key_fold:
         BNE @done
         LDA #KEY_BACK
 @done:  RTS
+
+; ESC pauses every input context. Draw the menu on the hidden page once;
+; update its values in place, preserving the previous screen for resume.
+configuration_menu:
+        LDA front_page
+        STA config_front
+        JSR vdp_display_off
+        JSR clear_bitmap
+        LDA #<str_config
+        LDX #>str_config
+        LDY #4
+        JSR draw_str_centered
+        LDA #4
+        STA ch_cx
+        LDA #8
+        STA ch_cy
+        LDA #<str_config_sound
+        LDX #>str_config_sound
+        JSR print_str_ax
+        LDA #4
+        STA ch_cx
+        LDA #10
+        STA ch_cy
+        LDA #<str_config_depth
+        LDX #>str_config_depth
+        JSR print_str_ax
+        LDA #<str_config_resume
+        LDX #>str_config_resume
+        LDY #14
+        JSR draw_str_centered
+        LDA #<str_config_save
+        LDX #>str_config_save
+        LDY #16
+        JSR draw_str_centered
+        LDA #<str_config_quit
+        LDX #>str_config_quit
+        LDY #18
+        JSR draw_str_centered
+        JSR configuration_values
+        JSR vdp_display_on
+@wait:  LDA KBD
+        BPL @wait
+        BIT KBDSTRB
+        JSR key_fold
+        CMP #KEY_ESC
+        BEQ @resume
+        CMP #KEY_RET
+        BEQ @resume
+        CMP #$D2                ; R resume
+        BEQ @resume
+        CMP #$D1                ; Q quit to DOS
+        BEQ @quit
+        CMP #$D7                ; W explicitly saves the current game
+        BNE @sound
+        JSR manual_save
+        BCC @save_failed
+        LDA #<str_config_saved
+        LDX #>str_config_saved
+        JMP @save_status
+@save_failed:
+        LDA #<str_config_no_save
+        LDX #>str_config_no_save
+@save_status:
+        LDY #20
+        JSR draw_str_centered
+        JMP @wait
+@sound: CMP #$D3                ; S sound on/off
+        BNE @depth
+        LDA sound_enabled
+        EOR #1
+        STA sound_enabled
+        JMP @update
+@depth: CMP #$C4                ; D cycles 4,6,8,10 visible cells
+        BNE @wait
+        LDA configured_depth
+        CLC
+        ADC #2
+        CMP #11
+        BCC @store
+        LDA #4
+@store: STA configured_depth
+@update:
+        LDA #1
+        STA preferences_dirty
+        JSR configuration_values
+        JMP @wait
+@quit:  LDA #1
+        STA quit_flag
+@resume:
+        JSR preferences_save
+        LDA config_front
+        JSR set_draw_page
+        JSR vdp_display_on
+        LDA #HUD_BOTH
+        STA hud_dirty
+        RTS
+
+configuration_values:
+        LDA #22
+        STA ch_cx
+        LDA #8
+        STA ch_cy
+        LDA sound_enabled
+        BEQ @off
+        LDA #<str_on
+        LDX #>str_on
+        JMP @sound
+@off:   LDA #<str_off
+        LDX #>str_off
+@sound: JSR print_str_ax
+        LDA #22
+        STA ch_cx
+        LDA #10
+        STA ch_cy
+        LDA configured_depth
+        JMP write_decimal_2d
 
 ; =============================================
 ; init_vdp_g2 - Graphics II (bitmap) mode
@@ -1671,7 +1862,7 @@ draw_page       = hgr_draw_page
 hgr_bitmask:
         .byte $01, $02, $04, $08, $10, $20, $40, $40
 
-; (rev7_tab — TMS bit order -> HGR — comes from hgr_sprite16.asm;
+; (rev7_tab — TMS bit order -> HGR — comes from dev/lib/hgr/rev7.inc;
 ; write_char and x2_tile below use it for their 8-px-grid glyphs.)
 
 ; =============================================
@@ -1684,42 +1875,10 @@ hgr_bitmask:
 ; cr_cx / cr_cy are free outside color_rect (a stub here) and serve as
 ; end/current scanline scratch. Clobbers A, X, Y.
 ; =============================================
-clear_viewport:
-        LDA #0
-        LDX #160
-        JMP clear_span
-clear_bitmap:
-        LDA #0
-        LDX #192
-        JMP clear_span
-clear_hud:
-        LDA #160
-        LDX #192
-clear_span:
-        STA cr_cy              ; current scanline
-        STX cr_cx              ; end scanline (exclusive)
-@row:   LDY cr_cy
-        LDA hgr_lo,Y
-        STA pix_addr_lo
-        LDA hgr_hi,Y
-        STA pix_addr_hi
-        LDA #0
-        LDY #39
-        ; Forty stores are fixed for every scanline. Unrolling removes
-        ; 39 taken branches per row (6,240 per 3D frame).
-.repeat 39
-        STA (pix_addr_lo),Y
-        DEY
-.endrepeat
-        STA (pix_addr_lo),Y
-        INC cr_cy
-        LDA cr_cy
-        CMP cr_cx
-        BEQ @done
-        JMP @row
-@done:
-        RTS
-
+clear_viewport = hgr_clear_viewport160
+clear_bitmap = hgr_clear_visible
+clear_hud = hgr_clear_hud32
+clear_span = hgr_clear_rows
 ; =============================================
 ; calc_pix_addr  (input pix_x, pix_y)
 ; HGR port: pix_addr_lo/hi = hgr scanline base for pix_y (interleaved
@@ -1762,161 +1921,30 @@ plot_done:
         RTS
 
 ; =============================================
-; line_xy: draw line from (ln_x0,ln_y0) to (ln_x1,ln_y1)
-; Bresenham, integer arithmetic, signed err in [-255..255] using
-; absolute deltas + sign flags.
+; line_xy: convert virtual TMS endpoints, then use the native HGR kernel.
+; Endpoints and renderer scratch are modified. All endpoints must be on-screen.
 ; =============================================
 line_xy:
-        ; Called only for the sloping side-wall edges. Cache the HGR
-        ; address and pixel mask, then update only the coordinate that
-        ; Bresenham actually advances on a given step.
-        ; dx = |x1 - x0|, sx = sign  (use carry, not sign bit, for unsigned compare)
-        SEC
-        LDA ln_x1
-        SBC ln_x0
-        BCS @sxp                ; carry set -> x1 >= x0 -> positive
-        EOR #$FF
-        CLC
-        ADC #1
-        STA ln_dx
-        LDA #$FF
-        STA ln_sx
-        JMP @dy
-@sxp:   STA ln_dx
-        LDA #$01
-        STA ln_sx
-@dy:    SEC
-        LDA ln_y1
-        SBC ln_y0
-        BCS @syp
-        EOR #$FF
-        CLC
-        ADC #1
-        STA ln_dy
-        LDA #$FF
-        STA ln_sy
-        JMP @init
-@syp:   STA ln_dy
-        LDA #$01
-        STA ln_sy
-@init:  ; err = dx - dy, kept SIGNED 16-BIT since the GAME6 resurrection.
-        ; BUG HISTORY (juillet 2026): the original kept err in 8 bits and
-        ; computed e2 = 2*err with a lone ASL. For any |dy| > 63 the very
-        ; first e2 = 2*(dx-dy) overflows 8 bits (e.g. the title screen's
-        ; vertical wireframe edges, dy=65: err=-65, ASL gives +126), both
-        ; step tests then fail, neither coordinate advances, and line_xy
-        ; spins forever — the shipped TMS_Maze3D.txt never got past its
-        ; own title screen (frame hash static, wait_key unreachable).
-        ; err in [-255, 255] and e2 in [-510, 510] need 16 bits; the
-        ; comparisons below add/subtract in 16 bits and read the sign off
-        ; the high byte (no 16-bit overflow possible at these magnitudes).
-        SEC
-        LDA ln_dx
-        SBC ln_dy
-        STA ln_err
-        LDA #0
-        SBC #0                  ; sign-extend the borrow
-        STA ln_err_hi
-        ; copy current point to pix_x/y (we'll plot)
-        LDA ln_x0
-        STA pix_x
-        LDA ln_y0
-        STA pix_y
-        JSR calc_pix_addr
-        LDA pix_x
-        AND #$07
-        TAX
-        LDA hgr_bitmask,X
-        STA pix_mask
+        ; Targeted fdraw adaptation (Andy McFadden, Apache-2.0): dominant
+        ; axis loops, X = scanline, Y = byte column, incremental bit mask.
+        ; Work in native HGR pixels AFTER converting the virtual endpoints.
+        ; Unlike the old loop, no 16-bit error tests / division per pixel.
+        LDX ln_x0
+        LDA native_x,X
+        STA ln_x0
+        LDX ln_x1
+        LDA native_x,X
+        STA ln_x1
+        JMP hgr_line8
 
-@step:
-        LDY pix_col
-        LDA (pix_addr_lo),Y
-        ORA pix_mask
-        STA (pix_addr_lo),Y
-        ; if (x0==x1 && y0==y1) done
-        LDA ln_x0
-        CMP ln_x1
-        BNE @do
-        LDA ln_y0
-        CMP ln_y1
-        BEQ @end
-@do:    ; e2 = 2*err (16-bit) in tmp (lo) / tmp2 (hi)
-        LDA ln_err
-        ASL
-        STA tmp
-        LDA ln_err_hi
-        ROL
-        STA tmp2
-        ; --- x test: e2 > -dy  <=>  e2 + dy > 0 (16-bit signed) ---
-        CLC
-        LDA tmp
-        ADC ln_dy
-        TAX                     ; low byte of e2 + dy
-        LDA tmp2
-        ADC #0                  ; high byte of e2 + dy
-        BMI @no_x               ; negative -> not >
-        BNE @do_x               ; high > 0 -> definitely >
-        CPX #0
-        BEQ @no_x               ; e2 + dy == 0 -> not strictly >
-@do_x:  ; err -= dy (16-bit)
-        SEC
-        LDA ln_err
-        SBC ln_dy
-        STA ln_err
-        LDA ln_err_hi
-        SBC #0
-        STA ln_err_hi
-        ; x0 += sx
-        LDA ln_sx
-        BPL @sxp2
-        DEC ln_x0
-        JMP @after_x
-@sxp2:  INC ln_x0
-@after_x:
-        LDA ln_x0
-        STA pix_x
-        AND #$07
-        TAX
-        LDA hgr_bitmask,X
-        STA pix_mask
-        LDA pix_x
-        LSR
-        LSR
-        LSR
-        CLC
-        ADC #4
-        STA pix_col
-@no_x:  ; --- y test: e2 < dx  <=>  e2 - dx < 0 (16-bit signed) ---
-        SEC
-        LDA tmp
-        SBC ln_dx
-        LDA tmp2
-        SBC #0
-        BPL @no_y               ; >= 0 -> not <
-        ; err += dx (16-bit)
-        CLC
-        LDA ln_err
-        ADC ln_dx
-        STA ln_err
-        LDA ln_err_hi
-        ADC #0
-        STA ln_err_hi
-        LDA ln_sy
-        BPL @syp2
-        DEC ln_y0
-        JMP @after_y
-@syp2:  INC ln_y0
-@after_y:
-        LDA ln_y0
-        STA pix_y
-        TAY
-        LDA hgr_lo,Y
-        STA pix_addr_lo
-        LDA hgr_hi,Y
-        STA pix_addr_hi
-@no_y:  JMP @step
-@end:   RTS
+native_x:
+.repeat 256, I
+    .if (I .mod 8) = 7
+        .byte 28 + (I / 8) * 7 + 6
+    .else
+        .byte 28 + (I / 8) * 7 + (I .mod 8)
+    .endif
+.endrepeat
 
 ; =============================================
 ; hline: horizontal line from (fl_x0,fl_y0) to (fl_x1,fl_y0), x0 <= x1.
@@ -1925,78 +1953,64 @@ line_xy:
 ; through plot_set.
 ; =============================================
 hline:
-        LDA fl_y0
-        STA pix_y
-        LDA fl_x0
-        STA pix_x
-@lp:    LDA pix_x
-        AND #$07
-        BNE @single             ; not byte-aligned -> single pixel
+        ; fdraw-style byte spans: two masked ends and direct full-byte stores.
+        LDY fl_y0
+        LDA hgr_lo,Y
+        STA pix_addr_lo
+        LDA hgr_hi,Y
+        STA pix_addr_hi
         LDA fl_x1
-        SEC
-        SBC pix_x
-        CMP #7
-        BCC @single             ; fewer than 8 px left -> single pixel
-        JSR calc_pix_addr
-        LDY pix_col
-        LDA #$7F
-        STA (pix_addr_lo),Y
-        LDA pix_x
-        CLC
-        ADC #8
-        STA pix_x
-        BCS @done               ; wrapped past x=255 (fl_x1=255 case)
-        BCC @chk
-@single:
-        JSR plot_set
-        INC pix_x
-        BEQ @done               ; wrapped past x=255
-@chk:   LDA pix_x
-        CMP fl_x1
-        BCC @lp
-        BEQ @lp
-@done:  RTS
-
-; =============================================
-; vline: vertical line at x=fl_x0 from y=fl_y0 to fl_y1, y0 <= y1.
-; HGR port: one read-modify-write per scanline at a fixed byte column
-; (the interleaved layout has no cheap "8 consecutive rows" run).
-; =============================================
-vline:
-        LDA fl_y1
-        CMP #192
-        BCC @yok
-        LDA #191                ; clamp to the bitmap
-        STA fl_y1
-@yok:   LDA fl_x0
-        AND #$07
+        AND #7
         TAX
-        LDA hgr_bitmask,X
-        STA vl_mask
-        LDA fl_x0
+        LDA span_right,X
+        STA tmp2
+        LDA fl_x1
         LSR
         LSR
         LSR
         CLC
         ADC #4
         STA pix_col
-        LDA fl_y0
-        STA pix_y
-@lp:    LDY pix_y
-        LDA hgr_lo,Y
-        STA pix_addr_lo
-        LDA hgr_hi,Y
-        STA pix_addr_hi
-        LDY pix_col
-        LDA (pix_addr_lo),Y
-        ORA vl_mask
-        STA (pix_addr_lo),Y
-        LDA pix_y
-        CMP fl_y1
-        BCS @done               ; just drew the last row
-        INC pix_y
-        JMP @lp
-@done:  RTS
+        LDA fl_x0
+        AND #7
+        TAX
+        LDA span_left,X
+        STA tmp
+        LDA fl_x0
+        LSR
+        LSR
+        LSR
+        CLC
+        ADC #4
+        TAY
+        JMP hgr_hspan
+span_left:  .byte $7F,$7E,$7C,$78,$70,$60,$40,$40
+span_right: .byte $01,$03,$07,$0F,$1F,$3F,$7F,$7F
+
+vline:
+        ; Keep the scanline in X and byte column in Y throughout the loop.
+        LDA fl_y1
+        CMP #192
+        BCC @valid
+        LDA #191
+@valid: CLC
+        ADC #1
+        STA tmp2
+        LDA fl_x0
+        AND #7
+        TAX
+        LDA hgr_bitmask,X
+        STA tmp
+        LDA fl_x0
+        LSR
+        LSR
+        LSR
+        CLC
+        ADC #4
+        TAY
+        LDX fl_y0
+        LDA tmp2
+        JMP hgr_vspan
 
 ; =============================================
 ; write_char: place 8x8 glyph at cell (ch_cx, ch_cy); ch_code = ASCII.
@@ -2022,165 +2036,6 @@ write_char:
 ; starting at cell (ch_cx, ch_cy). Each glyph becomes 16x16 (a 2x2 cell
 ; block); the cursor advances 2 cells per character. Used for the big
 ; "MAZE 3D" title. ch_cy is preserved; ch_cx is advanced.
-; =============================================
-draw_str_x2:
-@lp:    LDY #0
-        LDA (str_lo),Y
-        BEQ @done
-        STA ch_code
-        JSR draw_x2char
-        LDA ch_cx
-        CLC
-        ADC #2
-        STA ch_cx
-        INC str_lo
-        BNE @lp
-        INC str_hi
-        JMP @lp
-@done:  RTS
-
-; draw_x2char: draw ch_code's glyph doubled (16x16) with top-left at cell
-; (ch_cx, ch_cy). Four dest tiles: top rows from source rows 0..3, bottom
-; from 4..7; left tile = high nibble doubled, right = low nibble (dblnib).
-draw_x2char:
-        LDA ch_code
-        SEC
-        SBC #$20
-        STA tmp
-        LDA #0
-        STA tmp2
-        ASL tmp
-        ROL tmp2
-        ASL tmp
-        ROL tmp2
-        ASL tmp
-        ROL tmp2                ; (code-$20)*8
-        LDA tmp
-        CLC
-        ADC #<font_base
-        STA ptr_lo
-        LDA tmp2
-        ADC #>font_base
-        STA ptr_hi
-        ; TL
-        LDA #0
-        STA x2_src
-        STA x2_nib
-        LDA ch_cx
-        STA x2_cx
-        LDA ch_cy
-        STA x2_cy
-        JSR x2_tile
-        ; TR
-        LDA #0
-        STA x2_src
-        LDA #1
-        STA x2_nib
-        INC x2_cx
-        JSR x2_tile
-        ; BL
-        LDA #4
-        STA x2_src
-        LDA #0
-        STA x2_nib
-        LDA ch_cx
-        STA x2_cx
-        LDA ch_cy
-        CLC
-        ADC #1
-        STA x2_cy
-        JSR x2_tile
-        ; BR
-        LDA #4
-        STA x2_src
-        LDA #1
-        STA x2_nib
-        INC x2_cx
-        JSR x2_tile
-        RTS
-
-; x2_tile: draw one 8x8 dest tile at cell (x2_cx, x2_cy) that doubles
-; source glyph rows x2_src..x2_src+3, taking the high (x2_nib=0) or low
-; (x2_nib=1) nibble of each and doubling it horizontally (dblnib), each
-; row written twice for the vertical double. HGR port: two stores per
-; source row at scanlines cy*8 + 2k / 2k+1, byte column 4 + x2_cx.
-x2_tile:
-        LDA x2_src
-        STA x2_row
-        LDA #0
-        STA x2_cnt              ; output row-pair index 0..3
-@r:     LDY x2_row
-        LDA (ptr_lo),Y
-        LDX x2_nib
-        BEQ @hi
-        AND #$0F
-        JMP @dbl
-@hi:    LSR
-        LSR
-        LSR
-        LSR
-@dbl:   TAX
-        LDA dblnib,X
-        TAY
-        LDA rev7_tab,Y          ; doubled TMS byte -> HGR bit order
-        STA x2_byte
-        LDA x2_cy
-        ASL
-        ASL
-        ASL
-        STA tmp                 ; tile top scanline = cy*8
-        LDA x2_cnt
-        ASL
-        CLC
-        ADC tmp                 ; first scanline of the pair
-        JSR x2_put
-        LDA x2_cnt
-        ASL
-        CLC
-        ADC tmp
-        CLC
-        ADC #1                  ; second scanline (vertical double)
-        JSR x2_put
-        INC x2_row
-        INC x2_cnt
-        LDA x2_cnt
-        CMP #4
-        BNE @r
-        RTS
-
-; x2_put: store x2_byte at scanline A, byte column 4 + x2_cx —
-; through the sprite colour attributes (parity mask + palette bit),
-; so draw_str_x2 text can be tinted like the monsters. The doubled
-; glyph pixels are 2-px runs; the parity mask keeps one of each pair,
-; so the shape survives at half density (a pure HGR colour's price).
-; ((x2_cx + 4) & 1) == (x2_cx & 1) — the +4 margin is even.
-x2_put:
-        TAY
-        LDA hgr_lo,Y
-        STA pix_addr_lo
-        LDA hgr_hi,Y
-        STA pix_addr_hi
-        LDA x2_cx
-        AND #1
-        BNE @od
-        LDA sp_cm_ev
-        JMP @msk
-@od:    LDA sp_cm_od
-@msk:   AND x2_byte
-        ORA sp_cbit
-        STA sp_px
-        LDA x2_cx
-        CLC
-        ADC #4
-        TAY
-        LDA sp_px
-        STA (pix_addr_lo),Y
-        RTS
-
-; =============================================
-; write_str: print zero-terminated string at cell (ch_cx, ch_cy)
-; ptr in str_lo / str_hi.  write_char clobbers tmp/tmp2, so we
-; preserve the loop index in ch_idx (a dedicated scratch byte).
 ; =============================================
 write_str:
         LDA #0
@@ -2347,228 +2202,246 @@ draw_direction:
 ; show_title: title screen on bitmap
 ; =============================================
 show_title:
-        JSR vdp_display_off     ; draw the whole title blanked, reveal at end
-        JSR fill_color_white    ; clean colour slate (may arrive from the game)
-        JSR clear_bitmap
-        ; Banner box (white)
-        LDA #24
-        STA fl_x0
-        LDA #232
-        STA fl_x1
-        LDA #16
-        STA fl_y0
-        JSR     tms9918_pad12
-        JSR hline
-        LDA #48
-        STA fl_y0
-        JSR hline
-        LDA #24
-        STA fl_x0
-        LDA #16
-        STA fl_y0
-        LDA #48
-        STA fl_y1
-        JSR vline
-        LDA #232
-        STA fl_x0
-        JSR vline
-
-        ; "MAZE 3D" at DOUBLE size (16x16 glyphs). 7 chars * 2 = 14 cells
-        ; wide -> centred at col 9, rows 3-4 (inside the banner box 2-5).
-        LDA #9
-        STA ch_cx
-        LDA #3
-        STA ch_cy
-        LDA #<str_title1
-        STA str_lo
-        LDA #>str_title1
-        STA str_hi
-        LDA #HSPR_ORANGE        ; the HGR "red"
-        JSR hgr_spr16_color_a
-        JSR draw_str_x2
-        ; subtitle (rows 7, 9)
-        LDA #9
-        STA ch_cx
-        LDA #7
-        STA ch_cy
-        LDA #<str_title2
-        LDX #>str_title2
-        JSR print_str_ax
-        LDA #8
-        STA ch_cx
-        LDA #9
-        STA ch_cy
-        LDA #<str_title3
-        LDX #>str_title3
-        JSR print_str_ax
-        ; goblin mascot (x2, centred) -- replaces the old wireframe that
-        ; overlapped the credits line. Tinted goblin-green (archetype 0).
-        LDY #0
-        JSR set_sprite_color_y
-        LDA #<troll_goblin_pat
-        STA sp_ptr
-        LDA #>troll_goblin_pat
-        STA sp_ptr+1
-        LDA #112
-        STA sp_x
-        LDA #88
-        STA sp_y
-        JSR hgr_spr16_x2
-        JSR sprite_color_white  ; don't leak the tint to later blits
-        ; credits (row 15)
-        LDA #2
-        STA ch_cx
-        LDA #15
-        STA ch_cy
-        LDA #<str_title4
-        LDX #>str_title4
-        JSR print_str_ax
-        ; help hint (row 17)
-        LDA #8
-        STA ch_cx
-        LDA #17
-        STA ch_cy
-        LDA #<str_title_hint
-        LDX #>str_title_hint
-        JSR print_str_ax
-        LDA #3
-        STA ch_cx
-        LDA #19
-        STA ch_cy
-        LDA #<str_best
-        LDX #>str_best
-        JSR print_str_ax
-        LDA #9
-        STA ch_cx
-        LDA #19
-        STA ch_cy
-        LDA SCORE_BASE+4
-        JSR write_decimal_3d
-        LDA #15
-        STA ch_cx
-        LDA #19
-        STA ch_cy
-        LDA #<str_title_replay
-        LDX #>str_title_replay
-        JSR print_str_ax
-        ; press any key (row 21)
-        LDA #8
-        STA ch_cx
-        LDA #21
-        STA ch_cy
-        LDA #<str_press_any
-        LDX #>str_press_any
-        JSR print_str_ax
-        ; author signature (row 23)
-        LDA #<str_title_author
-        LDX #>str_title_author
-        LDY #23
-        JSR draw_str_centered
-
-        ; --- colours ---
-        ; MAZE 3D (doubled: col 9..22, rows 3-4) -> yellow
-        LDA #72
-        STA cr_x
-        LDA #24
-        STA cr_y
-        LDA #112
-        STA cr_w
-        LDA #16
-        STA cr_h
-        LDA #$B1
-        STA cr_col
-        JSR color_rect
-        ; subtitle line 1 -> green
-        LDA #56
-        STA cr_x
-        LDA #56
-        STA cr_y
-        LDA #152
-        STA cr_w
-        LDA #8
-        STA cr_h
-        LDA #$31
-        STA cr_col
-        JSR color_rect
-        ; subtitle line 2 -> green
-        LDA #56
-        STA cr_x
-        LDA #72
-        STA cr_y
-        LDA #152
-        STA cr_w
-        LDA #8
-        STA cr_h
-        LDA #$31
-        STA cr_col
-        JSR color_rect
-        ; mascot -> green
-        LDA #112
-        STA cr_x
-        LDA #88
-        STA cr_y
-        LDA #32
-        STA cr_w
-        LDA #32
-        STA cr_h
-        LDA #$31
-        STA cr_col
-        JSR color_rect
-        ; credits -> cyan
-        LDA #16
-        STA cr_x
-        LDA #128
-        STA cr_y
-        LDA #216
-        STA cr_w
-        LDA #8
-        STA cr_h
-        LDA #$71
-        STA cr_col
-        JSR color_rect
-        ; hint -> yellow
-        LDA #64
-        STA cr_x
-        LDA #144
-        STA cr_y
-        LDA #128
-        STA cr_w
-        LDA #8
-        STA cr_h
-        LDA #$B1
-        STA cr_col
-        JSR color_rect
-        ; press any key -> magenta
-        LDA #64
-        STA cr_x
-        LDA #168
-        STA cr_y
-        LDA #128
-        STA cr_w
-        LDA #8
-        STA cr_h
-        LDA #$D1
-        STA cr_col
-        JSR color_rect
-        ; author (row 23) -> light green
+        JSR vdp_display_off
+        ; Read the original A2FC HGR artwork into the hidden page. The
+        ; picture occupies disk sectors, not scarce permanent 48K RAM.
+        JSR dos_cmd_new
+        LDA #<str_title_load
+        LDY #>str_title_load
+        JSR dos_cmd_add
+        JSR dos_cmd_run
         LDA #0
-        STA cr_x
-        LDA #184
-        STA cr_y
-        LDA #248
-        STA cr_w
-        LDA #8
-        STA cr_h
-        LDA #$31
-        STA cr_col
-        JSR color_rect
-
-        JSR vdp_display_on      ; reveal the finished title
+        STA in_src
+        STA in_dst
+        LDA #$11
+        STA in_src+1
+        LDX draw_page
+        LDA #$20
+        CPX #0
+        BEQ @destination
+        LDA #$40
+@destination:
+        STA in_dst+1
+        JSR unpack_title
+        JSR dos_cmd_new
+        LDA #<str_state_load
+        LDY #>str_state_load
+        JSR dos_cmd_add
+        JSR dos_cmd_run
+        JSR profiles_init
+        JSR profile_load
+        ; A compact footer leaves the illustration and title unobstructed.
+        LDA #168
+        LDX #192
+        JSR clear_span
+        JSR title_footer
+        JSR vdp_display_on
+@title_wait:
         JSR wait_key_real
-        CMP #KEY_ESC
+        CMP #$B1
+        BCC @action
+        CMP #$B4
+        BCS @action
+        AND #$7F
+        SEC
+        SBC #'0'
+        STA active_profile
+        LDA #1
+        STA preferences_dirty
+        JSR preferences_save
+        JSR profile_load
+        JSR title_footer
+        JMP @title_wait
+@action:
+        CMP #$C3
+        BNE @start
+        LDX save_available
+        BEQ @title_wait
+        RTS
+@start:
+        CMP #$D3
+        BNE @exit
+        JSR enter_seed
+        LDA quit_flag
+        BNE @ok
+        BCC show_title_again
+        LDA #$D3
+        RTS
+@exit:  CMP #KEY_ESC
         BNE @ok
         INC quit_flag
 @ok:    RTS
+title_footer:
+        LDA #2
+        STA ch_cx
+        LDA #21
+        STA ch_cy
+        LDA #<str_profile
+        LDX #>str_profile
+        JSR print_str_ax
+        LDA #10
+        STA ch_cx
+        LDA active_profile
+        CLC
+        ADC #'0'
+        STA ch_code
+        JSR write_char
+        LDA #13
+        STA ch_cx
+        LDA #<str_best
+        LDX #>str_best
+        JSR print_str_ax
+        LDA #18
+        STA ch_cx
+        LDA SCORE_BASE+4
+        JSR write_decimal_3d
+        LDA #24
+        STA ch_cx
+        LDA save_available
+        BEQ @empty
+        LDA #<str_saved
+        LDX #>str_saved
+        JMP @status
+@empty: LDA #<str_empty_save
+        LDX #>str_empty_save
+@status:
+        JSR print_str_ax
+        LDA #<str_profile_keys
+        LDX #>str_profile_keys
+        LDY #22
+        JSR draw_str_centered
+        LDA #<str_title_keys
+        LDX #>str_title_keys
+        LDY #23
+        JMP draw_str_centered
+
+show_title_again:
+        JMP show_title
+
+; Four hex digits, confirmed by RETURN. No entropy mixing while editing:
+; spelling, corrections and time spent typing cannot change the dungeon.
+; Carry set = accepted, clear = configuration requested quit.
+enter_seed:
+        LDA #0
+        STA seed_count
+@draw:
+        JSR vdp_display_off
+        JSR clear_bitmap
+        LDA #<str_seed_title
+        LDX #>str_seed_title
+        LDY #5
+        JSR draw_str_centered
+        LDA #<str_seed_range
+        LDX #>str_seed_range
+        LDY #8
+        JSR draw_str_centered
+        LDA #14
+        STA ch_cx
+        LDA #11
+        STA ch_cy
+        LDA #0
+        STA seed_value_lo       ; temporary drawing index (write_char clobbers X)
+@digit:
+        LDX seed_value_lo
+        LDA #'_'
+        CPX seed_count
+        BCS @put
+        LDA seed_digits,X
+@put:   STA ch_code
+        JSR write_char
+        INC ch_cx
+        INC seed_value_lo
+        LDA seed_value_lo
+        CMP #4
+        BCC @digit
+        LDA #<str_seed_keys
+        LDX #>str_seed_keys
+        LDY #15
+        JSR draw_str_centered
+        LDA #<str_seed_cancel
+        LDX #>str_seed_cancel
+        LDY #18
+        JSR draw_str_centered
+        JSR vdp_display_on
+@wait:  LDA KBD
+        BPL @wait
+        BIT KBDSTRB
+        CMP #KEY_ESC
+        BNE @editing
+        JSR configuration_menu
+        LDA quit_flag
+        BNE @cancel
+        JMP @draw
+@editing:
+        CMP #$88                ; backspace / Apple II left arrow
+        BEQ @erase
+        CMP #$FF                ; DELETE on a //e or host keyboard
+        BEQ @erase
+        CMP #KEY_RET
+        BEQ @confirm
+        AND #$7F
+        CMP #'a'
+        BCC @hex
+        CMP #'g'
+        BCS @wait
+        AND #$DF
+@hex:   CMP #'0'
+        BCC @wait
+        CMP #('9'+1)
+        BCC @store
+        CMP #'A'
+        BCC @wait
+        CMP #('F'+1)
+        BCS @wait
+@store: LDX seed_count
+        CPX #4
+        BCS @wait
+        STA seed_digits,X
+        INC seed_count
+        JMP @draw
+@erase: LDA seed_count
+        BEQ @wait
+        DEC seed_count
+        JMP @draw
+@cancel:
+        CLC
+        RTS
+@confirm:
+        LDA seed_count
+        CMP #4
+        BNE @wait
+        LDA #0
+        STA seed_value_lo
+        STA seed_value_hi
+        LDX #0
+@parse: LDA seed_digits,X
+        SEC
+        SBC #'0'
+        CMP #10
+        BCC @nibble
+        SBC #7                  ; carry set: A-F -> 10-15
+@nibble:
+        LDY #4
+@shift: ASL seed_value_lo
+        ROL seed_value_hi
+        DEY
+        BNE @shift
+        ORA seed_value_lo
+        STA seed_value_lo
+        INX
+        CPX #4
+        BCC @parse
+        LDA seed_value_lo
+        ORA seed_value_hi
+        BNE @accept
+        JMP @wait               ; zero locks the PRNG; remain in the editor
+@accept:
+        LDA seed_value_lo
+        STA prng_lo
+        LDA seed_value_hi
+        STA prng_hi
+        SEC
+        RTS
 
 ; =============================================
 ; show_help: instructions screen
@@ -2679,6 +2552,7 @@ show_help:
 ; show_win
 ; =============================================
 show_win:
+        JSR finish_game
         JSR vdp_display_off     ; hide the redraw
         JSR fill_color_white   ; wipe colours from the game/previous screen
         JSR clear_bitmap
@@ -2763,6 +2637,7 @@ show_win:
 ; show_lose
 ; =============================================
 show_lose:
+        JSR finish_game
         JSR vdp_display_off     ; hide the redraw
         JSR fill_color_white   ; wipe colours from the game/previous screen
         JSR clear_bitmap
@@ -2840,7 +2715,7 @@ render_3d:
         ; closing rectangle lives at frame d+1 — drawing it at frame d
         ; (the old off-by-one) painted a rectangle one whole cell too
         ; near (full-screen when d=0!) across the side walls just drawn.
-        ; rd_depth <= MAX_DEPTH-1 here, so d+1 stays inside the 5-entry
+        ; rd_depth <= MAX_DEPTH-1 here, so d+1 stays inside the 11-entry
         ; frame tables. rd_blocked stops all further drawing, so the
         ; stale rd_depth value after this is never used for geometry.
         INC rd_depth
@@ -2859,7 +2734,7 @@ render_3d:
 @after_depth:
         INC rd_depth
         LDA rd_depth
-        CMP #MAX_DEPTH
+        CMP configured_depth
         BCC @dloop
 
         ; corridor still open at max view depth: close the perspective
@@ -2867,7 +2742,7 @@ render_3d:
         ; corridor reads as depth instead of trailing off into nothing
         LDA rd_blocked
         BNE @closed
-        LDA #MAX_DEPTH
+        LDA configured_depth
         STA rd_depth
         JSR draw_front_wall
 @closed:
@@ -3519,46 +3394,31 @@ face_chars:
         .byte 'N', 'E', 'S', 'W'
 
 ; =============================================
-; draw_mob_indicator: draw the monsters standing on the NEAREST occupied
-; cell straight ahead. A cell can hold several monsters (placement lets
-; up to 3 stack -- "the original idea"): all of them are drawn CLUSTERED
-; on that one cell, NOT spread one-per-depth down the corridor. Line of
-; sight scans depths 1..3 and stops at the first wall OR the first cell
-; that holds a monster; that cell's depth sets the sprite size (depth 1
-; = x2 / 32x32, depths 2-3 = x1 / 16x16). Monsters stand ON THE FLOOR of
-; the cell; no '!' marker. Cluster slots are staggered so the front
-; monster (drawn last) overdraws the ones behind (blits are pure stores,
-; so overwrite = occlusion).
+ ; draw_mob_indicator: scan up to configured_depth cells ahead, stop at a
+; wall, remember the visible monsters and paint occupied cells far to near.
+; Up to three monsters share a cell. Near groups retain separate sprites;
+; at sub-byte distances the cell resolves to one small white silhouette.
 ; =============================================
 draw_mob_indicator:
-        JSR color_reset_last    ; repaint last frame's coloured tiles white
-                                ; (the colour table is NOT wiped by
-                                ; clear_bitmap, only the pattern table)
+        ; Collect every occupied visible cell, then paint FAR TO NEAR so
+        ; nearer opaque silhouettes hide monsters farther down the hall.
         LDA #0
-        STA mob_depth           ; 0 = no monster in view yet
+        STA mob_depth
+        LDX #NUM_MOBS-1
+@reset: STA visible_depth,X
+        DEX
+        BPL @reset
         LDA p_col
         STA rd_col
         LDA p_row
         STA rd_row
         LDA #1
-        STA mob_scan_d          ; current depth -- a dedicated var because
-                                ; check_front_wall clobbers tmp (via
-                                ; cell_index_xy's STX tmp)
-@dscan:
-        JSR check_front_wall    ; wall ahead of the scan cursor?
-        BNE @done               ; view blocked -> nothing more to see
-        JSR step_forward        ; advance the cursor one cell
-        JSR count_mobs_rd       ; -> A = mobs on (rd_col,rd_row), slots filled
-        CMP #0
-        BNE @found
-        INC mob_scan_d
-        LDA mob_scan_d
-        CMP #4
-        BNE @dscan
-@done:  LDA #0
-        STA last_mob_depth      ; nothing drawn -> nothing to reset next frame
-        RTS
-@found:
+        STA mob_scan_d
+@scan:  JSR check_front_wall
+        BNE @paint
+        JSR step_forward
+        JSR count_mobs_rd
+        BEQ @next
         LDX rd_col
         LDY rd_row
         JSR cell_index_xy
@@ -3566,11 +3426,43 @@ draw_mob_indicator:
         LDA grid,X
         ORA #SEEN_MOB
         STA grid,X
+        LDY #0
+@remember:
+        LDX mob_slot0,Y
+        LDA mob_scan_d
+        STA visible_depth,X
+        INY
+        CPY mob_cnt
+        BCC @remember
+@next:  INC mob_scan_d
+        LDA mob_scan_d
+        CMP configured_depth
+        BCC @scan
+        BEQ @scan
+@paint: LDA configured_depth
+        STA mob_scan_d
+@cell:  LDA #0
+        STA mob_cnt
+        LDX #0
+@mob:   LDA visible_depth,X
+        CMP mob_scan_d
+        BNE @skip
+        LDY mob_cnt
+        TXA
+        STA mob_slot0,Y
+        INC mob_cnt
+@skip:  INX
+        CPX #NUM_MOBS
+        BCC @mob
+        LDA mob_cnt
+        BEQ @closer
         LDA mob_scan_d
         STA mob_depth
-        STA last_mob_depth      ; remember for next frame's colour reset
         JSR draw_mob_cluster
-        RTS
+@closer:
+        DEC mob_scan_d
+        BNE @cell
+        JMP sprite_color_white
 
 ; count_mobs_rd: scan every mob; record up to 3 living ones standing on
 ; (rd_col, rd_row) into mob_slot0/1/2. Returns A = count (0..3).
@@ -3599,138 +3491,126 @@ count_mobs_rd:
         LDA mob_cnt
         RTS
 
-; draw_mob_cluster: draw mob_cnt monsters (mob_slot0..2) on the cell at
-; mob_depth. Position/size come from cluster_x/y/sz[(depth-1)*3+slot];
-; drawn highest slot first so slot 0 (the big centred FRONT monster) is
-; laid last, on top. The two others sit CLOSE BEHIND it -- barely offset
-; sideways and one size smaller, their heads poking up above the front's
-; shoulders (they sit high enough that the front's box never erases them).
-; Size: depth 1 front = x4, its flankers x1; depth 2 front x2 / flankers
-; x1; depth 3 all x1. Each monster's tiles are then coloured by archetype.
+ ; draw_mob_cluster: native HGR byte spacing, centred row with a shared
+; feet line. Packed sizes: 0=8, 1=16, 2=32, 3=64, 4=4, 5=2, 6=1 pixels.
+; =============================================
 draw_mob_cluster:
-        ; --- pick ONE size for the whole cell: a lone monster gets the
-        ; imposing base size (depth 1 = x4); 2-3 monsters all share the
-        ; smaller "row" size so they line up SAME SIZE, SAME HEIGHT. ---
-        LDX mob_depth           ; 1..3
+        LDA mob_depth
+        CMP #6
+        BCC @near
+        LDA #1                 ; sub-byte distances resolve one cell silhouette
+        STA mob_cnt
+@near:  LDX mob_depth
         LDA mob_cnt
         CMP #2
         BCC @single
-        LDA multi_sz-1,X        ; 2+ monsters
-        JMP @havesz
+        LDA multi_sz-1,X
+        JMP @size
 @single:
-        LDA base_sz-1,X         ; lone monster
-@havesz:
-        STA mob_sz              ; 1 / 2 / 4
-        ASL
-        ASL
-        ASL
-        ASL
-        STA mob_step            ; monster width in px = sz*16
-        ; common feet line -> shared sp_y (same height for all)
+        LDA base_sz-1,X
+@size:  STA mob_sz              ; packed size index: 0=8, 1=16, 2=32, 3=64
+        TAY
+        LDA packed_height,Y
+        STA tmp
         LDA feet_y-1,X
         SEC
-        SBC mob_step
+        SBC tmp
         STA mob_spy
-        ; start_x = 128 - cnt*(sz*8), i.e. centre the whole row
-        LDA mob_step
-        LSR
-        STA tmp                 ; sz*8
-        LDX mob_cnt
-        LDA #0
-@w:     CLC
-        ADC tmp
+        ; Byte-column spacing is native HGR: a 32px sprite takes FIVE
+        ; bytes, not four virtual 8px columns. This prevents truncation.
+        LDA cluster_pitch-1,X
+        STA mob_step
+        LDA mob_sz
+        CMP #3
+        BNE @row
+        LDA #10
+        STA mob_step
+@row:   LDX mob_cnt
         DEX
-        BNE @w                  ; A = cnt*sz*8
+        LDA #0
+@width: CPX #0
+        BEQ @last
+        CLC
+        ADC mob_step
+        DEX
+        BNE @width
+@last:  LDY mob_sz
+        CLC
+        ADC packed_width,Y
+        LSR
         STA tmp
-        LDA #128
+        LDA #20                ; centre of the 40-column HGR screen
         SEC
         SBC tmp
-        STA mob_curx            ; x of the leftmost monster
+        STA mob_curx           ; native byte column, not virtual pixel x
         LDA #0
         STA mob_slot_i
-@dl:    LDY mob_slot_i
-        LDA mob_slot0,Y
-        STA mob_cur             ; index (for colouring)
-        TAX
-        JSR mob_sprite_ptr      ; sp_ptr := sprite of that mob's type
-        LDA mob_curx
-        STA sp_x
-        LDA mob_spy
-        STA sp_y
-        LDA mob_sz
-        CMP #4
-        BNE @not4
-        JSR hgr_spr16_x4
-        JMP @colour
-@not4:  CMP #2
-        BNE @s1
-        JSR hgr_spr16_x2
-        JMP @colour
-@s1:    JSR hgr_spr16_x1
-@colour:
-        JSR color_current_mob   ; tint this monster's tiles by archetype
+@draw:  LDY mob_slot_i
+        LDX mob_slot0,Y
+        STX mob_cur
+        JSR draw_packed_mob
         LDA mob_curx
         CLC
-        ADC mob_step            ; next monster, same row
+        ADC mob_step
         STA mob_curx
         INC mob_slot_i
         LDA mob_slot_i
         CMP mob_cnt
-        BNE @dl
+        BCC @draw
         RTS
+
+; X = monster index, mob_sz = size index, mob_curx = native HGR byte,
+; mob_spy = top scanline. Pack and tint once per SOURCE row, reuse it for
+; vertical magnification. No per-pixel shifting in the runtime blitter.
+draw_packed_mob:
+        LDA mob_type,X
+        STA tmp
+        ASL
+        ASL
+        ASL
+        SEC
+        SBC tmp
+        CLC
+        ADC mob_sz
+        TAY
+        LDA packed_mob_lo,Y
+        STA sp_ptr
+        LDA packed_mob_hi,Y
+        STA sp_ptr+1
+        LDA mob_type,X
+        TAY
+        JSR set_sprite_color_y
+        LDY mob_sz
+        BEQ @white
+        CPY #4
+        BCC @color
+@white:
+        JSR sprite_color_white  ; tiny silhouettes retain all their pixels
+        LDY mob_sz
+@color: LDA packed_width,Y
+        STA sp_wout
+        LDA packed_source_rows,Y
+        STA packed_rows
+        LDA packed_vertical,Y
+        STA packed_repeat
+        LDA packed_last_mask,Y
+        STA packed_tail
+        LDA mob_spy
+        STA sp_yy
+        JMP hgr_sprite_packed
+
+packed_width = packed_mob_width
+packed_height = packed_mob_height
+packed_source_rows = packed_mob_source_rows
+packed_vertical = packed_mob_vertical
+packed_last_mask = packed_mob_last_mask
+cluster_pitch:     .byte 5,3,2,1,1,1,1,1,1,1
 
 ; color_current_mob: fill the colour table for the mob_sz*16-square block
 ; at (sp_x, sp_y) with mob_cur's archetype colour.
-color_current_mob:
-        LDA sp_x
-        STA cr_x
-        LDA sp_y
-        STA cr_y
-        LDA mob_sz
-        ASL
-        ASL
-        ASL
-        ASL                     ; sz * 16 = side in pixels
-        STA cr_w
-        STA cr_h
-        LDX mob_cur
-        LDA mob_type,X
-        TAY
-        LDA mob_colors,Y
-        STA cr_col
-        JMP color_rect          ; tail call
-
-; color_reset_last: repaint last frame's cluster region white ($F1) so a
-; monster that moved/vanished does not leave a coloured ghost on the
-; corridor lines drawn there this frame. last_mob_depth (0 = nothing).
 color_reset_last:
-        LDA last_mob_depth
-        BNE @go
         RTS
-@go:    CMP #4                  ; guard: only 1..3 index the reset_* tables.
-        BCS @done               ; a stray value must never run color_rect
-                                ; with wild bounds (it could reach the name
-                                ; table $3800+ and corrupt it permanently).
-        TAX
-        DEX                     ; depth 1..3 -> row 0..2
-        LDA reset_x,X
-        STA cr_x
-        LDA reset_y,X
-        STA cr_y
-        LDA reset_w,X
-        STA cr_w
-        LDA reset_h,X
-        STA cr_h
-        LDA #$F1                ; white on black
-        STA cr_col
-        JMP color_rect          ; tail call
-@done:  RTS
 
-; color_rect: STUB on the GEN2 HGR port — there is no per-tile colour
-; table. Depth cues survive via the stipple/hatch pattern fills; the
-; combat portrait / mob clusters render monochrome. Kept as a no-op so
-; every caller (draw_direction, color_current_mob, color_reset_last,
-; draw_combat_screen) assembles untouched.
 color_rect:
         RTS
 
@@ -3738,46 +3618,18 @@ color_rect:
 fill_color_white:
         RTS
 
-; Per-depth monster sizing (indexed depth 1..3 via base_sz-1,X):
+; Packed size indices and feet line, indexed by depth 1..10:
 ;   base_sz  = a LONE monster (imposing: adjacent = x4).
 ;   multi_sz = 2-3 monsters, all this size so they share size + height.
 ;   feet_y   = the floor line the monsters stand on (same for the whole row).
-base_sz:  .byte 4, 2, 1
-multi_sz: .byte 2, 1, 1
-feet_y:   .byte 128, 112, 96
-
-; Colour-reset boxes (pixel x,y,w,h — mult of 8) covering each depth's
-; whole cluster (lone x4 OR a centred row of 3), repainted white next frame.
-; depth-1 box starts at y=48 (not 64) so it also covers the x4 COMBAT
-; portrait region (96,48..111): after a kill, returning to 3D, color_reset_last
-; then wipes the portrait's tint too -- otherwise it bled onto the corridor
-; lines in rows 6-7 (the "colour stays on the maze" bug).
-reset_x: .byte  80,  96,  96
-reset_y: .byte  48,  80,  72
-reset_w: .byte  96,  80,  80
-reset_h: .byte  80,  48,  40
-
-; Archetype colours (TMS9918 fg<<4 | bg=black): goblin=light green,
-; orc=light red, dark mage=magenta, dragon=orange.
-mob_colors:
-        .byte $31, $91, $D1, $91
-
-; mob_sprite_ptr: sp_ptr := SCROLL-O-SPRITES pattern of mob X's archetype
-; + the archetype's HGR artifact colour (tail call into
-; set_sprite_color_y) — the corridor clusters AND the combat portrait
-; both come through here, so the tint follows automatically.
-mob_sprite_ptr:
-        LDA mob_type,X
-        TAY
-        LDA mob_sprites_lo,Y
-        STA sp_ptr
-        LDA mob_sprites_hi,Y
-        STA sp_ptr+1
-        JMP set_sprite_color_y
+base_sz:  .byte 3,2,1,1,0,4,5,5,6,6
+multi_sz: .byte 2,1,0,0,0,4,5,5,6,6
+feet_y:   .byte 128,112,96,88,84,82,81,81,80,80
 
 ; ---- HGR artifact colour per archetype (goblin / orc / dark mage) ----
 ; The TMS tints ($31 lt-green / $91 lt-red / $D1 magenta) map onto the
-; lib's HSPR_* artifact-colour codes (hgr_sprite16.asm).
+; HSPR_* artifact-colour codes (hgr_sprite_color.inc).
+mob_colors:     .byte $31,$91,$D1,$91
 mob_hues:       .byte HSPR_GREEN, HSPR_ORANGE, HSPR_VIOLET, HSPR_ORANGE
 
 ; set_sprite_color_y: arm the blit colour attributes for archetype Y.
@@ -4207,10 +4059,16 @@ arrow_chars:
 ; run_combat - turn-based against cur_mob
 ; =============================================
 run_combat:
+        LDA combat_resuming
+        BEQ @fresh
         LDA #0
+        STA combat_resuming
+        JMP @portrait
+@fresh: LDA #0
         STA p_guard
         STA p_focus
         STA mob_phase
+@portrait:
         JSR draw_combat_screen
 @wait:  JSR wait_key
         CMP #KEY_ESC
@@ -4617,13 +4475,15 @@ draw_combat_screen:
         ; x4 (64x64) at x 96..159, y 48..111 — between the monster HP line
         ; (row 5) and the player stats line (row 16). Replaces the juillet
         ; 2026 vector portraits (draw_goblin/draw_orc/draw_mage).
-        LDX cur_mob
-        JSR mob_sprite_ptr      ; sp_ptr + archetype artifact colour
-        LDA #96
-        STA sp_x
+        LDA #3
+        STA mob_sz
+        LDA #15
+        STA mob_curx
         LDA #48
-        STA sp_y
-        JSR hgr_spr16_x4
+        STA mob_spy
+        LDX cur_mob
+        JSR draw_packed_mob
+        JSR sprite_color_white
         ; tint the portrait with the foe's archetype colour (and wipe any
         ; stale colour left by the 3D view, whose monster region overlaps
         ; this 64x64 box). Reuse color_rect over the portrait rectangle.
@@ -4703,18 +4563,12 @@ combat_update_hp:
         RTS
 
 ; =============================================
-; Monster-bitmap blits: hgr_spr16_x1 / _x2 / _x4 from
-; dev/lib/hgr/hgr_sprite16.asm (included at the bottom of this file) —
-; TMS-format 16x16 patterns, rows repacked 7 px/HGR-byte losslessly,
-; artifact colour via hgr_spr16_color_a. See the module header.
+; Monster patterns: tools/pack_sprites.py converts the original TMS-format
+; 16x16 rows into native HGR sprites in seven sizes. Runtime colour comes
+; from hgr_spr16_color_a in hgr_sprite_color.inc.
 ; =============================================
 
 ; archetype -> 16x16 pattern (Quale's three sprites, then original dragon)
-mob_sprites_lo:
-        .byte <troll_goblin_pat, <troll_orc_pat, <char_necromancer_m_pat, <dragon_pat
-mob_sprites_hi:
-        .byte >troll_goblin_pat, >troll_orc_pat, >char_necromancer_m_pat, >dragon_pat
-
 ; Original 16x16 winged dragon, in the sprite blitter's left/right format.
 dragon_pat:
         .byte $00,$11,$3B,$7F,$FF,$EF,$6F,$3D
@@ -4730,19 +4584,19 @@ dragon_pat:
 row_offset:
         .byte 0, 11, 22, 33, 44, 55, 66
 
-; depth frame coordinates (5 entries: depth 0..MAX_DEPTH).
+; depth frame coordinates (11 entries: depth 0..MAX_DEPTH).
 ; Vertical span 0..159 ONLY: rows 20-23 (y 160..191) are the 4-line text
 ; zone under the 3D view (HUD on row 20, rows 21-23 free for messages).
 ; Horizon = 79/80.
-; depth 0 = whole screen, 4 = vanishing
+; depth 0 = whole viewport, 10 = distant vanishing rectangle
 frame_lx:
-        .byte   0,  40,  72,  96, 112
+        .byte 0,40,72,96,104,112,120,124,125,126,127
 frame_rx:
-        .byte 255, 215, 183, 159, 143
+        .byte 255,215,183,159,151,143,135,131,130,129,128
 frame_ty:
-        .byte   0,  25,  45,  60,  70
+        .byte 0,25,45,60,66,72,76,78,78,79,79
 frame_by:
-        .byte 159, 134, 114,  99,  89
+        .byte 159,134,114,99,93,87,83,81,81,80,80
 
 ; Monster names
 mob_names_lo:
@@ -4751,11 +4605,30 @@ mob_names_hi:
         .byte >str_mob_gob, >str_mob_orc, >str_mob_mage, >str_mob_dragon
 
 ; ---- Strings (null-terminated, ASCII < 128) ----
+str_config: .byte "CONFIGURATION",0
+str_config_sound: .byte "S  SOUND",0
+str_config_depth: .byte "D  VIEW DEPTH",0
+str_config_resume: .byte "R / RETURN / ESC  RESUME",0
+str_config_save: .byte "W  SAVE GAME",0
+str_config_saved: .byte "      GAME SAVED      ",0
+str_config_no_save: .byte "   SAVE UNAVAILABLE   ",0
+str_config_quit: .byte "Q  QUIT TO DOS",0
+str_on: .byte "ON ",0
+str_off: .byte "OFF",0
+str_state_load: .byte "BLOAD MAZESTATE",0
+str_profile: .byte "PROFILE",0
+str_saved: .byte "SAVED",0
+str_empty_save: .byte "EMPTY",0
+str_profile_keys: .byte "1-3 PROFILE C CONTINUE N NEW",0
+str_title_load: .byte "BLOAD MAZETITLE,A$1100",0
+str_text_load: .byte "BLOAD MAZETEXT",0
+str_title_keys: .byte "S=SEED R=REPLAY ESC=OPTIONS",0
+str_title_start: .byte "ANY KEY STARTS",0
 str_title1:   .byte "MAZE 3D",0
 str_title2:   .byte "WIZARDRY-STYLE",0
 str_title3:   .byte "DUNGEON CRAWLER",0
 str_title4:   .byte "FOR THE APPLE II (HGR)",0
-str_title_hint:.byte "IN GAME: H=HELP",0
+str_title_hint:.byte "S=ENTER SEED  H=HELP IN GAME",0
 str_title_replay:.byte "R=REPLAY SEED",0
 str_press_any:.byte "PRESS ANY KEY...",0
 str_title_author:.byte "BY VERHILLE ARNAUD  2026",0
@@ -4767,14 +4640,14 @@ str_help_l1:  .byte "I   FORWARD       J  TURN LEFT",0
 str_help_l2:  .byte "K   BACKWARD      L  TURN RIGHT",0
 str_help_l3:  .byte "M MAP   P DRINK POTION",0
 str_help_l4:  .byte "A HIT  G GUARD  F FLEE (FIGHT)",0
-str_help_l5:  .byte "ESC  QUIT TO DOS",0
+str_help_l5:  .byte "ESC  CONFIGURATION / QUIT",0
 
 str_help_l6:  .byte "FIND RELIC IN THE R CHAMBER",0
 str_help_l7:  .byte "E EXIT; DRAGON GUARDS FLOOR 3",0
 str_help_l8:  .byte "CACHES GIVE GOLD AND POTIONS",0
 
 str_help_l9:  .byte "G GUARD BOOSTS YOUR NEXT HIT",0
-str_help_l10: .byte "R REPLAYS BEST SEED AT TITLE",0
+str_help_l10: .byte "TITLE: S SEED / R BEST SEED",0
 
 str_win1:     .byte "YOU FOUND THE EXIT!",0
 str_win2:     .byte "THE LIGHT OF DAY GREETS YOU.",0
@@ -4784,8 +4657,12 @@ str_lose1:    .byte "YOU HAVE FALLEN.",0
 str_lose2:    .byte "THE DUNGEON KEEPS YOU.",0
 
 str_map_title:.byte "DUNGEON MAP",0
-str_map_help: .byte "M=BACK TO 3D  ESC=QUIT",0
+str_map_help: .byte "M=BACK TO 3D  ESC=OPTIONS",0
 str_seed:     .byte "SEED",0
+str_seed_title: .byte "ENTER DUNGEON SEED",0
+str_seed_range: .byte "4 HEX DIGITS: 0001-FFFF",0
+str_seed_keys: .byte "RETURN STARTS / LEFT ERASES",0
+str_seed_cancel: .byte "ESC OPENS CONFIGURATION",0
 str_score:    .byte "SCORE",0
 str_best:     .byte "BEST",0
 str_floor:    .byte "FLOOR",0
@@ -4799,7 +4676,7 @@ str_shop_heal:  .byte "H: HEAL 10 HP        8 GOLD",0
 str_shop_atk:   .byte "A: +1 ATTACK        12 GOLD",0
 str_shop_def:   .byte "D: +1 DEFENSE       12 GOLD",0
 str_shop_potion:.byte "P: +1 POTION         6 GOLD",0
-str_shop_next:  .byte "C: DESCEND   ESC: QUIT",0
+str_shop_next:  .byte "C: DESCEND   ESC: OPTIONS",0
 
 str_hud_hp:   .byte "HP",0
 str_hud_atk:  .byte "ATK",0
@@ -4978,14 +4855,68 @@ font_base:
 ; =============================================
 .include "hgr_scanline.inc"
 .include "hgr_flip.asm"          ; dev/lib/hgr: draw page by rewriting hgr_hi
-.include "hgr_sprite16.asm"
+.include "hgr_sprite_packed.asm"
+.include "rev7.inc"
 HGR_TEXT8_NO_PUTS = 1            ; write_char drives hgr_putc8 itself
 .include "hgr_text8.asm"
 .include "hgr.asm"               ; dev/lib/apple2: hgr_init_clear
-.include "sound.asm"             ; dev/lib/apple2: speaker effects
+; Keep the shared tone implementation, with a game-local mute gate.
+.define tone speaker_tone
+.include "sound.asm"
+.undefine tone
+tone:
+        PHA
+        LDA sound_enabled
+        BEQ @muted
+        PLA
+        JMP speaker_tone
+@muted: PLA
+        RTS
 .include "exit.asm"              ; dev/lib/apple2: apple2_zp_save / apple2_exit
 DOS_ZP_START = $50
 DOS_ZP_LEN = $B0
 .include "dos.asm"               ; DOS score file, preserving the game's ZP
 
-; END
+; Shared asset data and rendering modules.
+
+.include "packed_sprites.inc"
+
+lz4fh_src = $02FC
+lz4fh_dst = $02FE
+in_src = lz4fh_src
+in_dst = lz4fh_dst
+lz4fh_read = ptr_lo
+lz4fh_write = pix_addr_lo
+lz4fh_match = str_lo
+lz4fh_token = tmp
+lz4fh_length = tmp2
+unpack_title = lz4fh_unpack
+.include "lz4fh.asm"
+
+.include "save.inc"
+
+; Native renderer reuses game scratch without changing its ZP layout.
+hl_ln_x0 = ln_x0
+hl_ln_y0 = ln_y0
+hl_ln_x1 = ln_x1
+hl_ln_y1 = ln_y1
+hl_ln_dx = ln_dx
+hl_ln_dy = ln_dy
+hl_ln_sx = ln_sx
+hl_ln_err = ln_err
+hl_pix_mask = pix_mask
+hl_pix_addr_lo = pix_addr_lo
+hl_pix_addr_hi = pix_addr_hi
+.include "hgr_line.asm"
+
+hc_row = cr_cy
+hc_end = cr_cx
+hc_ptr = pix_addr_lo
+hc_ptr_hi = pix_addr_hi
+.include "hgr_clear_rows.asm"
+
+hs_ptr = pix_addr_lo
+hs_end_col = pix_col
+hs_left_mask = tmp
+hs_right_mask = tmp2
+.include "hgr_span.asm"

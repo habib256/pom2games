@@ -107,6 +107,8 @@ def build(work, fixture=None):
 
 def check_archive(work):
     cases = [
+        ('lores_mode', 'hgr_lores_init();', 'hgr_lores_init_asm.o',
+         ('hgr_mode_asm.o', 'hgr_mode_clear_asm.o', 'hgr_clear_asm.o', 'hgr_pixrect_asm.o')),
         ('clear', 'hgr_clear(0u);', 'hgr_clear_asm.o',
          ('hgr_text16_asm.o', 'hgr_text8_asm.o', 'hgr_sprite_params.o', 'hgr_pixrect_asm.o')),
         ('text8', 'hgr_puts8(0u, 0u, "A");', 'hgr_text8_asm.o',
@@ -158,7 +160,7 @@ def check_archive(work):
             assert not any(n.startswith('dhgr') for n in linked), (name, 'unexpected DHGR dependency')
         assert required in linked, (name, 'missing kernel', required)
         assert not linked.intersection(excluded), (name, 'unwanted families', linked.intersection(excluded))
-    print('HGR/DHGR archive: 15 minimal programs exclude unused code and zero-page families.')
+    print(f'HGR/DHGR archive: {len(cases)} minimal programs exclude unused code and zero-page families.')
 
 
 def check_cell_text(work, font):

@@ -17,6 +17,7 @@ row layout and the one-file DOS 3.3 test disk.
 from pathlib import Path
 import re
 import subprocess
+from hgr_tables import hgr_offset
 
 ROOT = Path(__file__).resolve().parents[2]
 DEV = ROOT / 'dev'
@@ -129,11 +130,6 @@ def run(disk, steps, emulator=None, iie=False, wp=False, timeout=120, check=True
     if check and result.returncode:
         raise RuntimeError(result.stdout + result.stderr)
     return Result(result.stdout)
-
-
-def hgr_offset(y):
-    """Byte offset of HGR scanline y inside a page (Apple II interleave)."""
-    return (y % 8) * 1024 + (y // 8 % 8) * 128 + (y // 64) * 40
 
 
 def hgr_visible(page):

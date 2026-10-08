@@ -10,23 +10,6 @@ before the dragon's death, must stay shut.
 
 - [ ] Joystick support with `../dev/lib/apple2/joy.asm` (turn, step, and
   buttons for the combat actions).
-- [ ] Manual seed entry on the title screen, next to `R`, so a dungeon can
-  be shared by its four hex digits rather than only replayed from the record.
-- [ ] Faster 3D rendering. The whole scene is still cleared and redrawn on
-  every move; the initial 2-3x target remains open. Measure each routine's
-  cost with `a2shot` (`until:` reports cycles) before picking a strategy,
-  and compare screenshots before and after.
-
-## Later
-
-- [ ] Save a game in progress, to resume an interrupted campaign. Only the
-  record and its seed are kept on the disk today (`MAZESCORE`); a save would
-  reuse `dos.asm` and the `disk_protected` check.
-- [ ] Faster sprite blits. `hgr_sprite16`'s `sp_pack_row` rebuilds every
-  output byte from a bit stream (its header quotes about 130 cycles per
-  output byte; a x4 blit is about 80k cycles). Combat screens are full
-  redraws, so this is only worth it once the 3D path is measured.
-
 ## Ideas
 
 - Swap the private 8 px font (TMS bit order, 512 bytes) for the shared
@@ -35,6 +18,27 @@ before the dragon's death, must stay shut.
   choice: the current font is part of the game's look.
 
 ## Done
+
+- 2026-10-08: renderer factored into `dev/lib/hgr` (prepacked sprites,
+  shared colour attributes, native lines/spans, row and viewport clears),
+  LZ4FH decoder into `dev/lib/apple2`, sprite packer into `dev/tools/assets`
+  and compressor build rule into `dev/cc65/fhpack.mk`. Game placement,
+  virtual coordinates and checkpoint format remain local. Standalone
+  two-page library tests complement Maze3D regressions; +17 binary bytes,
+  unchanged zero-page footprint, render overhead below 0.21%.
+
+- 2026-10-08: Fdraw-inspired native HGR rendering, ten-cell depth, seven
+  prepacked sprite sizes, correct distant monster visibility and near clusters.
+  Original A2FC DEMO title with lossless LZ4FH compression and deferred text
+  loading. ESC configuration menu with sound/depth, resume and save/quit.
+  Three independent profiles, manual saves (ESC then W), combat/shop continuation and
+  remembered preferences; real DOS export/reboot tests cover persistence.
+
+- 2026-10-08: `S` opens a four-digit hexadecimal seed editor on the title;
+  Return starts, left/Backspace/Delete erases, Escape opens configuration and resumes the editor.
+  Lower case accepted; incomplete and zero seeds stay editable. Emulator
+  regression tests cover correction, pause/resume, repeatability and parity
+  with the best-record replay.
 
 - 2026-10-03: loot fix (keep the monster type before marking it dead, cap
   gold at 99 for the two-digit HUD); progressive map (walls and exit after a

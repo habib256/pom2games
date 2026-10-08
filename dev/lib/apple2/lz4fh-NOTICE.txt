@@ -1,0 +1,5 @@
+LZ4FH / fhpack, Andy McFadden, 1.0.1 (August 2015).
+6502 decoder refactored by Peter Ferrie. Apache-2.0.
+Revision 18988e93ea7da79f837453e361b84395c4bd06a1.
+Original sources: dev/tests/techniques/upstream/fhpack/LZ4FH6502.S.
+ca65 translation with configurable scratch aliases; instruction stream preserved.

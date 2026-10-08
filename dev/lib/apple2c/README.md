@@ -42,6 +42,10 @@ Les mêmes routines que les modules asm `../apple2/sound.asm`, `joy.asm` et
 `apple2dos_asm.s`, assemblés avec `-I dev/lib/apple2`) : un programme qui ne
 s'en sert pas ne paie rien (ANIMALS tient tout juste sous DOS).
 
+`make test-tools` compile l'objet son/manette avec un programme C et vérifie
+dans l'émulateur les directions, la priorité verticale en diagonale, les
+trois boutons et le nombre de bascules du haut-parleur (zéro vaut 256).
+
 | Fonction | Effet |
 |---|---|
 | `a2_tone(flips, period)` | `flips` bascules du haut-parleur, ~(13 + 5·period) cycles chacune |

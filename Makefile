@@ -9,17 +9,29 @@
 #
 # Each folder builds on its own too: make -C chess [run], still into ./dist.
 
-II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake flipper
+II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake pinball
 IIE_PRODOS_GAMES := chromabreak
 DIRS := $(II_PLUS_GAMES) $(IIE_PRODOS_GAMES) logo demos dev/examples/hello dev/examples/hgr dev/examples/dhgr
 
 all:
 	@for d in $(DIRS); do $(MAKE) -C $$d || exit 1; done
 
-test: all test-flipper test-chromabreak test-arkabreakout test-chess test-hgr test-frame test-hgr-example test-assets bench-check
+test: all test-pinball test-chromabreak test-arkabreakout test-chess test-hgr test-frame test-hgr-example test-assets bench-check
 	$(MAKE) -C micro-sokoban test
 
 test-hgr:
+	python3 dev/tests/test_asm_boundaries.py
+	python3 dev/tests/test_dos_reuse.py
+	python3 dev/tests/test_exit_modes.py
+	python3 dev/tests/test_hgr_host.py
+	python3 dev/tests/test_gfx_boundaries.py
+	python3 dev/tests/test_video_memory.py
+	python3 dev/tests/test_lores_modes.py
+	python3 dev/tests/test_preshift_bounds.py
+	python3 dev/tests/test_sprmask_bounds.py
+	python3 dev/tests/test_sprite16_bounds.py
+	python3 dev/tests/test_text8_strings.py
+	python3 dev/tests/test_hgr_native.py
 	python3 dev/tests/test_hgr.py
 	python3 dev/tests/test_sprengine.py
 
@@ -84,10 +96,10 @@ test-chromabreak:
 
 .PHONY: profile-ii-plus profile-iie-prodos test-chromabreak
 
-test-flipper:
-	$(MAKE) -C flipper test
+test-pinball:
+	$(MAKE) -C pinball test
 
-.PHONY: test-flipper
+.PHONY: test-pinball
 
 test: test-techniques
 
@@ -97,3 +109,18 @@ test-techniques:
 	python3 dev/tests/techniques/run.py
 
 .PHONY: test-techniques
+
+# Native HGR lookup tables and checked fixed-sector DOS construction.
+test: test-tools
+test-tools:
+	python3 dev/tests/test_prodos_video.py
+	python3 dev/tests/test_apple2game.py
+	python3 dev/tests/test_mouse_context.py
+	python3 dev/tests/test_hgr_tables_disk.py
+.PHONY: test-tools
+
+# Optional RGB and Mockingboard ASM primitives, with traced hardware buses.
+test-tools: test-hardware
+test-hardware:
+	python3 dev/tests/test_rgb_mockingboard.py
+.PHONY: test-hardware

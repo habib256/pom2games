@@ -19,9 +19,16 @@ static void gfx_plot_clip(int x, int y)
 
 void gfx_circle(unsigned xc, unsigned char yc, unsigned char r)
 {
-    int cx = (int)xc, cy = (int)yc;
+    int cx, cy = (int)yc;
     int x = 0, y = (int)r;
     int d = 1 - (int)r;
+    /* Reject circles wholly to the right before narrowing an unsigned
+     * centre to cc65's signed 16-bit int. Otherwise e.g. 65535 becomes -1
+     * and its right-hand arc paints the left edge of the screen. Subtract
+     * only after comparing, so neither unsigned subtraction nor addition
+     * can wrap. Centres just beyond the edge still have visible arcs. */
+    if (xc >= gfx_width && xc - gfx_width >= (unsigned)r) return;
+    cx = (int)xc;
     while (x <= y) {
         gfx_plot_clip(cx + x, cy + y);
         gfx_plot_clip(cx - x, cy + y);
@@ -32,7 +39,7 @@ void gfx_circle(unsigned xc, unsigned char yc, unsigned char r)
         gfx_plot_clip(cx + y, cy - x);
         gfx_plot_clip(cx - y, cy - x);
         if (d < 0) { d += (x << 1) + 3; }
-        else       { d += ((x - y) << 1) + 5; --y; }
+        else       { d += 2 * (x - y) + 5; --y; }
         ++x;
     }
 }

@@ -148,6 +148,84 @@ trois priorités retenues sont compression HGR, primitives rapides et sprites
 compilés. Évaluer les chargeurs demanderait un format disque et un contrat de
 chargement précis ; a2render demanderait un prototype de rendu texturé distinct.
 
+## Recherche DHGR — 8 octobre 2026
+
+Une exploration séparée a confronté ces techniques au code DHGR du dépôt.
+Les prototypes sont restés dans `/tmp/pom2-dhgr-research`, sans modification
+des bibliothèques ni des références de performance. Les mesures ci-dessous
+utilisent cc65 `-Oirs` et le 65C02 du cœur IIe d'a2shot.
+
+### Effacement : gain mesuré
+
+Un prototype déroule les écritures sur les 32 blocs de 256 octets d'une banque,
+avec adressage absolu indexé et deux chemins pour les deux pages vidéo. Il
+conserve les quatre octets du motif couleur et traite les trous mémoire comme
+la routine actuelle. Comme elle, il masque les interruptions pendant l'opération.
+
+| Effacement, couleur 9 | Actuel | Prototype | Rapport |
+|---|---:|---:|---:|
+| Page 1, main + aux | 207 861 cycles | 88 171 cycles | 2,36 |
+| Page 2, main + aux | 207 861 cycles | 88 169 cycles | 2,36 |
+
+Le programme lié gagne 393 octets de code, sans augmentation de RAM ni de
+zéro-page. Chaque variante a passé 33 contrôles : les 16 couleurs sur chacune
+des deux pages, puis un motif `$FF` conservant le bit 7. Les contrôles comparent
+les 32 Ko vidéo (pages actives et inactives, main et aux, trous inclus) et
+vérifient que RAMRD/RAMWRT reviennent en main. Ce gain concerne l'effacement,
+pas la cadence complète d'un jeu ; CHROMABREAK ne redessine pas tout son écran
+à chaque image.
+
+### fhpack : compression possible, chargement non mesuré
+
+Chaque capture DHGR de 16 Ko a été séparée en deux banques de 8 Ko, compressées
+avec `fhpack -c -9 -h`, puis décompressées sur l'hôte et comparées octet par
+octet, bit 7 et trous inclus.
+
+| Capture de la page affichée | Brut | Deux flux comprimés |
+|---|---:|---:|
+| Introduction de DHGR.dsk | 16 384 o | 1 212 o |
+| Animation de DHGR.dsk | 16 384 o | 1 490 o |
+| Titre de CHROMABREAK.po | 16 384 o | 2 511 o |
+| CHROMABREAK après espace | 16 384 o | 3 559 o |
+
+Séquences : `wait:2600`, puis pour l'animation `key:" " wait:1800`, et pour
+CHROMABREAK après espace `key:" " wait:600`. La page est sélectionnée selon
+le softswitch PAGE2. Ces noms décrivent les séquences, sans vérifier l'état
+interne du jeu.
+
+Le décodeur 6502 amont lit les références LZ dans la destination : activer
+seulement RAMWRT aux ne suffit donc pas. Une première intégration pourrait
+décompresser chaque banque dans un tampon main compatible avec `$2000` ou
+`$4000`, puis transférer la banque auxiliaire. Un décodeur direct aux exigerait
+une gestion distincte des lectures de source, des lectures de références et
+des écritures, ainsi qu'une exécution sûre lors des commutations RAMRD.
+Le chargement ProDOS complet, le tampon et le transfert aux restent à mesurer.
+Ces écrans sont aujourd'hui construits par du code : les compresser serait une
+nouvelle stratégie de présentation, pas l'accélération d'un chargement d'image
+brute déjà présent dans CHROMABREAK.
+
+### Lignes, rectangles et sprites : pistes de portage
+
+fdraw cible le HGR 280 × 192. Ses principes (adresses incrémentales, masques
+préparés, boucles spécialisées) peuvent guider un moteur DHGR, mais ses routines
+ne se substituent pas directement aux nôtres. `gfx_line.c` passe encore par
+`gfx_plot` pour chaque point diagonal ; le backend couleur passe ensuite par
+un rectangle 1 × 1. C'est une cible plausible, sans facteur de vitesse mesuré.
+Les spans génériques commutent aussi les écritures aux octet par octet : un
+traitement séparé de main et aux mérite un prototype préservant les bords.
+
+Les sprites compilés pourraient spécialiser les données et les masques et
+regrouper les écritures par banque. Leur intérêt doit être mesuré avec
+sauvegarde, dessin et restauration. CHROMABREAK dispose déjà d'un moteur
+assembleur avec boucle miroir main/aux, masques précalculés et sauvegarde
+combinée au dessin : les gains HGR ne s'y transposent pas automatiquement.
+Ses contraintes d'adresses figées et son bit 7 de mode RGB mixte doivent être
+préservés.
+
+Sources techniques : [manuel fdraw](https://github.com/fadden/fdraw/blob/master/docs/manual.md),
+[fhpack](https://github.com/fadden/fhpack),
+[format des sprites DHGR de Bmp2DHR](https://www.appleoldies.ca/bmp2dhr/sprites/).
+
 ## Provenance
 
 - [fdraw](https://github.com/fadden/fdraw/tree/a1657e8e4d4b19f62497228d070c699c19e96cde),
