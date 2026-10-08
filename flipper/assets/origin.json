@@ -1,0 +1,30 @@
+{
+  "source": "https://mirrors.apple2.org.za/ftp.apple.asimov.net/images/misc/3d0g_knight_collection/055a%20-%20Pinball%20Construction%20Set%20-%20Side%201.dsk",
+  "reference_sha256": "d22ea87a3e4b7d00fe41246437f1dd644388a471d0819aeda87fb431da16f64c",
+  "assets": {
+    "bitmaps.bin": {
+      "offset": 32768,
+      "length": 1792,
+      "sha256": "d961d8badddd47f25f742dbe4199b526afa13a18d9bbdd7e672fae7ae14091ee",
+      "role": "Original pinball parts bitmap data, loaded at $7000"
+    },
+    "initial-table.bin": {
+      "offset": 14336,
+      "length": 69,
+      "sha256": "9f69fca10228b47103c75f3f356b8c7d85145014ed5710d96211c48e6f5bb52a",
+      "role": "Original blank table database, loaded at $4000"
+    },
+    "dos-file-manager.bin": {
+      "offset": 4096,
+      "length": 3328,
+      "sha256": "a23d6c34e7736848aa820d553b9309c058a8ae97cbc300870f7c82bdb321b416",
+      "role": "Apple DOS file-manager support, loaded at $A900"
+    },
+    "dos-rwts.bin": {
+      "offset": 512,
+      "length": 2048,
+      "sha256": "a12df3e12064b903d1895a0627c5f07e85905cc44f5c596c0a2e3418b4ddb277",
+      "role": "Apple DOS Disk II RWTS support, loaded at $B800"
+    }
+  }
+}
