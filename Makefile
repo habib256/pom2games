@@ -83,3 +83,12 @@ test-chromabreak:
 	$(MAKE) -C chromabreak test
 
 .PHONY: profile-ii-plus profile-iie-prodos test-chromabreak
+
+test: test-techniques
+
+test-techniques:
+	$(MAKE) -C arkabreakout
+	$(MAKE) -C micro-sokoban
+	python3 dev/tests/techniques/run.py
+
+.PHONY: test-techniques

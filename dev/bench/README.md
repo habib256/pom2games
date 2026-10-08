@@ -39,3 +39,8 @@ ou `--check` ne modifie jamais la référence.
 Cas actuels : clear, segment pleine largeur, rectangle, texte, sprite HGR ;
 clear, segment, rectangle, transfert de bloc, sprite masqué et texte DHGR.
 Les résultats sont reproductibles pour un même compilateur et cœur CPU.
+
+L'évaluation de fhpack, fdraw et des sprites compilés est dans
+[`dev/tests/techniques`](../tests/techniques/README.md) : `make test-techniques`.
+Elle mesure les alternatives et vérifie le framebuffer ; elle ne modifie pas
+les références de performance des bibliothèques actuelles.

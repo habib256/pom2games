@@ -55,6 +55,7 @@ avec sa disquette ProDOS et sa [description](docs/releases/chromabreak-1.0.md).
     make test-hgr-example # animation, pause/reprise et retour à DOS
     make test-dhgr       # validation DHGR dans a2shot (macOS arm64)
     make test-assets     # police (dev/tools/fonts.py --check) et conversion d'assets
+    make test-techniques # comparaison fhpack, fdraw et sprites compilés (HGR/6502)
     make bench           # mesure les primitives (dev/bench), bench-check compare
                          # aux budgets de dev/bench/baseline.json
     make check           # tout reconstruire, échouer si dist/ ne correspond pas
@@ -62,8 +63,8 @@ avec sa disquette ProDOS et sa [description](docs/releases/chromabreak-1.0.md).
     make distclean       # efface aussi dist/*.dsk et dist/*.po
 
 Prérequis : [cc65](https://cc65.github.io/) (`brew install cc65`, ou
-`apt install cc65`) et python3 ; un compilateur C et zlib pour `make test`
-(ils construisent `dev/tools/a2run`). Les tests //e et DHGR passent par
+`apt install cc65`) et python3 ; des compilateurs C/C++ et zlib pour `make test`
+(C pour `dev/tools/a2run`, C++ pour les tests fhpack). Les tests //e et DHGR passent par
 `dev/tools/a2shot` (macOS arm64, libslirp via brew) : `make test-dhgr` l'exige,
 `make test` les saute s'il manque.
 Le dépôt ne dépend d'aucun autre dossier. La construction est déterministe : les
