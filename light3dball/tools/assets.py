@@ -1,5 +1,6 @@
 """Original monochrome balls, seven HGR phases and perspective lookup tables."""
 import sys
+import json
 from pathlib import Path
 
 
@@ -70,7 +71,9 @@ for coords in ((2,6,116,73),(254,6,140,73),(2,154,116,87),(254,154,140,87),
                (116,73,140,73),(116,87,140,87),(116,73,116,87),(140,73,140,87)):
     line(*coords)
 offsets, sparse = [], []
-for row in rows:
+for y in range(1, 80):
+    assert rows[y] == rows[160-y], 'backdrop must be vertically symmetric'
+for row in rows[:81]:
     offsets.append(len(sparse))
     for col, value in enumerate(row):
         if value:
@@ -83,3 +86,17 @@ Path(sys.argv[1]).with_name('background.h').write_text(background)
 mouse = array('mouse_map_x', [8+x*112//139 for x in range(140)])
 mouse += array('mouse_map_y', [12+y*104//191 for y in range(192)])
 Path(sys.argv[1]).with_name('mousemap.h').write_text(mouse)
+
+levels = json.loads((Path(__file__).resolve().parents[1] / 'levels.json').read_text())
+maps = []
+for level in levels:
+    slots = [0]*24
+    for obstacle in level['obstacles']:
+        index = obstacle['z']//128-1
+        width = [48,40,44,36].index(obstacle['width']) << 4
+        side = {'R':1, 'L':65, 'D':128}[obstacle['kind']]
+        slots[index] = side | width | obstacle['phase']
+    maps.extend(slots)
+data = array('level_maps', maps)
+data += array('level_counts', [level['length']//128 for level in levels])
+Path(sys.argv[1]).with_name('levels.h').write_text(data)

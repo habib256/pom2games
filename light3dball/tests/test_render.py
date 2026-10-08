@@ -123,20 +123,20 @@ for index, value in enumerate((4, 3, 2, 1, 0, 4)):
     if 1 <= index <= 4:
         assert r.mem(L['lives'], 1, index-1) == bytes([value])
     expected_header = bytearray(8192)
-    for text, left in [('LIGHT3DBALL  LIVES:', 7), (str(value), 168)]:
+    for text, left in [('LIGHT3D L1 LIVES:', 7), (str(value), 168)]:
         for position, char in enumerate(text):
             glyph = font[(ord(char)-32)*8:(ord(char)-31)*8]
             for y, bits in enumerate(glyph):
                 for x in range(7):
                     if bits & (1 << x):
                         paint(expected_header, left+position*8+x, 160+y, True)
-    for x in range(184, 253):
+    for x in range(184, 249):
         paint(expected_header, x, 163, True)
     for y in range(160, 163):
         paint(expected_header, 184, y, True)
     if value:
         for y in range(164, 167):
-            paint(expected_header, 185, y, True)
+            paint(expected_header, 184, y, True)
     pages = r.mem(0x2000, 16384, index)
     for base in (0, 8192):
         for y in range(160, 168):
@@ -148,23 +148,26 @@ for index, value in enumerate((4, 3, 2, 1, 0, 4)):
 # directly to each pose. Cross every obstacle, change the door, then return to
 # the starting view; both pages include overlapping sprites and fixed rays.
 def pose_steps(camera, door):
+    ball=min(camera+40, 2046)
     steps = [L.until('physics'), L.poke('paused', 1), L.poke('launched', 1),
-             L.poke('door_left', door), L.poke('camera_z', camera),
-             L.poke('camera_z', camera >> 8, 1), L.poke('ball_z', camera+40),
-             L.poke('ball_z', (camera+40) >> 8, 1), L.until('frame_mark'),
+             L.poke('door_phase', door), L.poke('camera_z', camera),
+             L.poke('camera_z', camera >> 8, 1), L.poke('ball_z', ball),
+             L.poke('ball_z', ball >> 8, 1), L.until('frame_mark'),
              L.until('physics'), L.until('frame_mark'), 'peek:2000:16384']
     return steps
 
 
-poses = [(0, 16), (32, 35), (112, 68), (120, 8), (128, 16), (240, 35),
-         (248, 68), (256, 8), (368, 16), (380, 35), (384, 68),
-         (500, 8), (512, 16), (0, 16)]
-steps = ['wait:1100']
+poses = [(0, 0), (32, 5), (112, 15), (120, 8), (128, 16), (240, 25),
+         (248, 31), (256, 8), (368, 16), (380, 5), (384, 15),
+         (500, 8), (512, 16), (1000, 24), (1024, 31), (1408, 8),
+         (1536, 16), (1792, 31), (2016, 8), (0, 0)]
+start = ['wait:1100', 'key:3', L.until('physics'), L.until('frame_mark')]
+steps = list(start)
 for pose in poses:
     steps += pose_steps(*pose)
 updates = a2test.run(DISK, steps)
 for index, pose in enumerate(poses):
-    direct = a2test.run(DISK, ['wait:1100'] + pose_steps(*pose)).mem(0x2000, 16384)
+    direct = a2test.run(DISK, start + pose_steps(*pose)).mem(0x2000, 16384)
     history = updates.mem(0x2000, 16384, index)
     for base in (0, 8192):
         for y in range(160):
@@ -174,12 +177,12 @@ for index, pose in enumerate(poses):
     # page. This also exercises HUD redraws while both markers stay still.
     camera, _ = pose
     reference = bytearray(8192)
-    for x in range(184, 253):
+    for x in range(184, 249):
         paint(reference, x, 163, True)
     for y in range(160, 163):
-        paint(reference, 184+camera//8, y, True)
+        paint(reference, 184+camera//32, y, True)
     for y in range(164, 167):
-        paint(reference, 184+(camera+40)//8, y, True)
+        paint(reference, 184+min(camera+40,2046)//32, y, True)
     for base in (0, 8192):
         for y in range(160, 168):
             row = a2test.hgr_offset(y)

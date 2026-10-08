@@ -2,7 +2,7 @@
 .include "apple2.inc"
 .export _game_sound
 .export _depth_gauge, _reset_gauge
-.import _camera_z, _ball_z, _lives
+.import _camera_z, _ball_z, _lives, _level_slots
 .export _fast_line, _line_x0, _line_y0, _line_x1, _line_y1
 .export _frame_mark
 .export _erase_scene, _refresh_rays, _scene_rectangle, _rect_cursor
@@ -68,7 +68,7 @@ _depth_gauge:
     bne @player
     lda #184
     sta wf_x0
-    lda #252
+    lda #248
     sta wf_x1
     lda #163
     sta wf_y0
@@ -137,18 +137,26 @@ gauge_draw:
     sta wf_x1
     jmp hgr_wire_span
 gauge_position:
-    ; Exact floor(z/8), z in 0..544. No C division or multiplication.
+    ; Exact floor(64*z/level_length) = floor(z/(2*level_slots)).
+    ; Eight binary division steps, independent of the length of the course.
+    sty gauge_bits
+    pha
+    lda _level_slots
     asl a
-    asl a
-    asl a
-    asl a
-    asl a
-    sta mul_bits
-    tya
-    lsr a
-    lsr a
-    lsr a
-    ora mul_bits
+    sta gauge_divisor
+    pla
+    ldx #8
+@bit:
+    asl gauge_bits
+    rol a
+    cmp gauge_divisor
+    bcc @next
+    sbc gauge_divisor
+    inc gauge_bits
+@next:
+    dex
+    bne @bit
+    lda gauge_bits
     clc
     adc #184
     rts
@@ -157,6 +165,8 @@ gauge_page: .res 1
 gauge_new: .res 1
 gauge_player: .res 2
 gauge_ball: .res 2
+gauge_bits: .res 1
+gauge_divisor: .res 1
 .code
 
 ; Twelve speaker toggles: short contact cues, bounded to 12 ms at 1 MHz.
@@ -340,10 +350,19 @@ update_rays:
     lda _hgr_rowhi,x
     sta repair_ptr+1
     clc
-    lda _bg_offset_lo,x
+    txa
+    cmp #81
+    bcc @table
+    eor #255
+    clc
+    adc #161
+@table:
+    tay
+    clc
+    lda _bg_offset_lo,y
     adc #<_bg_bytes
     sta repair_src
-    lda _bg_offset_hi,x
+    lda _bg_offset_hi,y
     adc #>_bg_bytes
     sta repair_src+1
     ldy #0
@@ -393,6 +412,14 @@ update_rays:
     jmp @row
 @done:
     rts
+
+.segment "ASSETS"
+.export _hgr_font
+BBFONT_FIRST = $20
+BBFONT_LAST = $5A
+_hgr_font:
+.include "bbfont.inc"
+.code
 
 ; A vertical contour can cross each fixed diagonal only once. Repair just the
 ; neighboring scanlines of those intersections, not its whole height.

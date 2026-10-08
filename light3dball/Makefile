@@ -8,11 +8,11 @@ HGRC_CFLAGS := -t none -Ors $(HGRC_INCS) $(APPLE2C_INCS)
 
 all: $(DISK)
 
-$(BUILD)/assets.h: tools/assets.py
+$(BUILD)/assets.h: tools/assets.py levels.json
 	@mkdir -p $(@D)
 	$(PYTHON) $< $@
 
-$(BUILD)/background.h $(BUILD)/mousemap.h: $(BUILD)/assets.h
+$(BUILD)/background.h $(BUILD)/mousemap.h $(BUILD)/levels.h: $(BUILD)/assets.h
 	@test -s $@ || $(PYTHON) tools/assets.py $(BUILD)/assets.h
 
 $(BUILD)/game.cfg: src/game.cfg Makefile
@@ -23,7 +23,7 @@ $(BUILD)/crt0.o: $(A2_CRT0)
 	@mkdir -p $(@D)
 	$(CA65) -t none -o $@ $<
 
-$(BUILD)/game.o: src/game.c $(BUILD)/assets.h $(BUILD)/background.h $(BUILD)/mousemap.h $(HGRC_HEADERS)
+$(BUILD)/game.o: src/game.c $(BUILD)/assets.h $(BUILD)/background.h $(BUILD)/mousemap.h $(BUILD)/levels.h $(HGRC_HEADERS)
 	$(CL65) -t none -Ors $(HGRC_INCS) $(APPLE2C_INCS) -I $(DEV)/lib/mouse -I $(BUILD) -c -o $@ $<
 
 $(BUILD)/render.o: src/render.s $(A2_ASM_DEPS)
@@ -38,8 +38,12 @@ $(BUILD)/physics.o: src/physics.s
 	@mkdir -p $(@D)
 	$(CA65) -t none -o $@ $<
 
-$(BUILD)/game.bin: $(BUILD)/crt0.o $(BUILD)/game.o $(BUILD)/render.o $(BUILD)/physics.o $(BUILD)/mouse.o $(HGRC_LIB) $(BUILD)/game.cfg
-	$(CL65) -t none -C $(BUILD)/game.cfg -m $(BUILD)/game.map -Ln $(BUILD)/game.lbl -o $@ $(BUILD)/crt0.o $(BUILD)/game.o $(BUILD)/render.o $(BUILD)/physics.o $(BUILD)/mouse.o $(HGRC_LIB)
+$(BUILD)/levels.o: src/levels.s
+	@mkdir -p $(@D)
+	$(CA65) -t none -o $@ $<
+
+$(BUILD)/game.bin: $(BUILD)/crt0.o $(BUILD)/game.o $(BUILD)/render.o $(BUILD)/physics.o $(BUILD)/levels.o $(BUILD)/mouse.o $(HGRC_LIB) $(BUILD)/game.cfg
+	$(CL65) -t none -C $(BUILD)/game.cfg -m $(BUILD)/game.map -Ln $(BUILD)/game.lbl -o $@ $(BUILD)/crt0.o $(BUILD)/game.o $(BUILD)/render.o $(BUILD)/physics.o $(BUILD)/levels.o $(BUILD)/mouse.o $(HGRC_LIB)
 
 $(BUILD)/assets.bin: $(BUILD)/game.bin
 	@test -s $@ || $(MAKE) -B $(BUILD)/game.bin
@@ -52,6 +56,7 @@ test: all $(A2RUN)
 	$(PYTHON) tests/test_game.py
 	$(PYTHON) tests/test_physics.py
 	$(PYTHON) tests/test_render.py
+	$(PYTHON) tests/test_levels.py
 
 include $(HGRC)/hgrc_build.mk
 .PHONY: test
