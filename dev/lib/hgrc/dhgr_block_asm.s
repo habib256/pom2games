@@ -23,7 +23,10 @@ block_setup:
         sta tmp2
         ldx _dhgr_aux
         rts
-block_next:
+; Inline the per-byte advance to avoid a JSR/RTS pair for every byte.
+; DEC must remain last: its Z flag controls each caller's row loop.
+.macro BLOCK_NEXT
+        .local @buffer_ok, @same_address
         inc ptr2
         bne @buffer_ok
         inc ptr2+1
@@ -38,21 +41,20 @@ block_next:
         eor #1
         tax
         dec tmp2
-        rts
+.endmacro
 _dhgr_write_block_asm:
         php
         sei
         jsr block_setup
 @byte:  lda (ptr2),y
         and #$7F
-        sta tmp1
+        ; CPX and the bank-switch STA preserve the byte already in A.
         cpx #0
         beq @main
         sta RAMWRTON
-@main:  lda tmp1
-        sta (ptr1),y
+@main:  sta (ptr1),y
         sta RAMWRTOFF
-        jsr block_next
+        BLOCK_NEXT
         bne @byte
         plp
         rts
@@ -67,7 +69,7 @@ _dhgr_read_block_asm:
 @main:  lda (ptr1),y
 @store: and #$7F
         sta (ptr2),y
-        jsr block_next
+        BLOCK_NEXT
         bne @byte
         plp
         rts
@@ -114,7 +116,7 @@ _dhgr_sprite_asm:
         bne @mask_ok
         inc ptr3+1
 @mask_ok:
-        jsr block_next
+        BLOCK_NEXT
         bne @byte
         plp
         rts

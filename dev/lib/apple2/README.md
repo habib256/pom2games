@@ -24,8 +24,8 @@ native ; `exit.asm` restaure la page zéro pour rendre la main à DOS proprement
 - **`hgr.asm`** — `hgr_init`, `hgr_init_clear`, `hgr_page1/2`, `text_restore`,
   `native_video` (sur IIe/IIc, remet les commutateurs 80STORE/80COL/RAMRD/
   RAMWRT/DHGR en vidéo native avant tout changement de mode ; rien sur II+),
-  et la macro `HGR_CLEAR_LOOP` (8 Ko depuis la page X avec l'octet A, quatre
-  STA absolus auto-modifiés par tour, ~51 000 cycles, sans page zéro) que
+  et la macro `HGR_CLEAR_LOOP` (8 Ko depuis la page X avec l'octet A, huit
+  STA absolus auto-modifiés par tour, ~46 000 cycles, sans page zéro) que
   partagent `hgr_init_clear`, `clear_hgr` (lib/hgr) et `hgr_clear` (C).
 - **`exit.asm`** — `apple2_zp_save`, `apple2_exit`, `apple2_return` ;
   sur IIe/c, désactive RAMRD/RAMWRT, 80STORE, 80 colonnes et DHGR avant de

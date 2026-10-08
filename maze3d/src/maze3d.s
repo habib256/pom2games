@@ -4010,8 +4010,8 @@ run_combat:
         STA p_guard
         STA p_focus
         STA mob_phase
-        LDA #<str_choose_action
-        LDX #>str_choose_action
+        LDA #<str_empty
+        LDX #>str_empty
         JSR set_msg
 @portrait:
         JSR draw_combat_screen
@@ -4320,16 +4320,6 @@ draw_combat_screen:
         WAIT_VBLANK_SAFE
         JSR vdp_display_off     ; hide the redraw
         JSR clear_bitmap
-        ; Title bar
-        LDA #10
-        STA ch_cx
-        LDA #1
-        STA ch_cy
-        LDA #<str_combat_title
-        LDX #>str_combat_title
-        JSR     tms9918_pad12   ; +12c silicon-strict pad12-v3 (back-to-back VDP store)
-        JSR print_str_ax
-
         ; Monster name. BUG HISTORY (juillet 2026): an ASL doubled the
         ; type before indexing, but mob_names_lo/hi are PARALLEL byte
         ; tables indexed by type directly — orcs displayed the mage's
@@ -4341,11 +4331,10 @@ draw_combat_screen:
         STA str_lo
         LDA mob_names_hi,X
         STA str_hi
-        LDA #11
-        STA ch_cx
-        LDA #4
-        STA ch_cy
-        JSR write_str
+        LDA str_lo
+        LDX str_hi
+        LDY #2
+        JSR draw_str_centered
 
         ; Monster HP — value at cx 7..8: cx 11 would put the ones digit in
         ; cell 12 (x 96..103), exactly under the x4 portrait's first column
@@ -4368,22 +4357,17 @@ draw_combat_screen:
         ; Shared resources keep HP/30, potions and stolen gold visible.
         LDY #14
         JSR draw_vitals
-        LDY #16
-        JSR draw_stats
         JSR draw_combat_status
 
-        ; Action prompt
-        LDA #1
-        STA ch_cx
-        LDA #20
-        STA ch_cy
+        ; One short, centred action reminder.
         LDA #<str_combat_prompt
         LDX #>str_combat_prompt
-        JSR print_str_ax
+        LDY #20
+        JSR draw_str_centered
 
         ; Monster portrait: the archetype's SCROLL-O-SPRITES image blitted
         ; x4 (64x64) at x 96..159, y 48..111 — between the monster HP line
-        ; (row 5) and the player stats line (row 16). Replaces the juillet
+        ; at the left of row 6 and the resource line (row 14). Replaces the juillet
         ; 2026 vector portraits (draw_goblin/draw_orc/draw_mage).
         LDA #3
         STA mob_sz
@@ -4461,8 +4445,6 @@ combat_update_hp:
         JSR write_decimal_2d
         LDY #14
         JSR draw_vitals
-        LDY #16
-        JSR draw_stats
         JMP draw_combat_status
 
 ; Readiness survives healing and refused actions, independently of feedback.
@@ -4612,14 +4594,13 @@ str_heading: .byte "F1 N",0
 
 str_low_hp: .byte "LOW HEALTH",0
 str_focus_ready: .byte "NEXT ATTACK +2",0
-str_low_focus: .byte "LOW HEALTH / NEXT ATTACK +2",0
-str_combat_title:   .byte "COMBAT!",0
+str_low_focus: .byte "LOW HP / NEXT ATK +2",0
 str_mob_hp:   .byte "HP",0
-str_combat_prompt: .byte "A HIT  G GUARD  P POTION  F FLEE",0
-str_intent_goblin: .byte "GOBLIN MAY STEAL GOLD",0
-str_intent_mage:   .byte "MAGIC IGNORES YOUR ARMOR",0
-str_intent_windup: .byte "FOE GATHERS ITS STRENGTH",0
-str_intent_strike: .byte "HEAVY STRIKE NEXT TURN!",0
+str_combat_prompt: .byte "A HIT G GUARD P POTION F FLEE",0
+str_intent_goblin: .byte "MAY STEAL GOLD",0
+str_intent_mage:   .byte "MAGIC IGNORES ARMOR",0
+str_intent_windup: .byte "PREPARING HEAVY HIT",0
+str_intent_strike: .byte "HEAVY HIT NEXT TURN!",0
 
 str_mob_gob:  .byte "GOBLIN",0
 str_mob_orc:  .byte "ORC",0

@@ -47,7 +47,8 @@ VERHILLE Arnaud) from [POM1](https://github.com/habib256/pom1).
   track the relic, dragon and stairs; the HUD
   shows HP/30, potions and gold above a compact command reminder.
   ATK, DEF, LVL and XP are available on the help screen (`H`).
-  Combat and map share the exploration resource display. Combat shows damage,
+  Combat keeps a centred foe name and portrait, HP, potions, gold and four
+  actions; secondary statistics stay on the help screen. Combat shows damage,
   action outcomes, a low-health warning at 8 HP or below, and a persistent
   next-attack bonus after guarding. Shop statistics update after purchases;
   feedback explains refused purchases and potions. A narrator comments on
@@ -241,13 +242,13 @@ Build a2shot once with `make` in `../dev/tools/a2shot`.
 | `$1000-$104C`   | GRID, the 77 maze cells (bit 0 north open, bit 1 east open, bit 2 cache, bit 3 relic, bit 4 chamber, bit 6 monster seen, bit 7 visited) |
 | `$1050-$109C`   | DFS stack during generation; packed checkpoint between turns                                    |
 | `$10A0-$10FF`   | monsters: 8 columns, 8 rows, 8 types, 8 HP               |
-| `$1100-$1FFF`   | `MAZETEXT` at $1100-$1B12 (packed narrator and UX); title buffer before play             |
+| `$1100-$1FFF`   | `MAZETEXT` at $1100-$1ADF (packed narrator and UX); title buffer before play             |
 | `$1B93-$1E2F`  | `MAZESTATE`, resident save/resume helper                  |
 | `$1F10-$1F17`  | `MAZEPREFS`, selected profile, sound and viewing depth     |
 | `$1F00-$1F07`   | `MAZESCORE`, the record file                             |
 | `$2000-$3FFF`   | HGR page 1                                               |
 | `$4000-$5FFF`   | HGR page 2                                               |
-| `$6000-...`     | `MAZE3D`, 13,062 bytes of code/data; BSS ends at $9533             |
+| `$6000-...`     | `MAZE3D`, 13,016 bytes of code/data; BSS ends at $9505             |
 | `$9600-$BFFF`   | DOS 3.3                                                  |
 
 ### The record file

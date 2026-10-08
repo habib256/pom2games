@@ -126,21 +126,19 @@ _hgr_pixrect_asm:
         ora gr_setL
         sta (ptr1),y
         ; single-byte rectangle? then this row is done
-        lda gr_colL
-        cmp gr_colR
+        cpy gr_colR          ; Y is still the left byte column
         beq @prowend
         ; full bytes colL+1 .. colR-1 (A holds setF across the run)
-        ldy gr_colL
         iny
+        cpy gr_colR
+        beq @pright          ; adjacent edges have no full byte between them
         lda gr_setF
 @pfull:
-        cpy gr_colR
-        bcs @pright
         sta (ptr1),y
         iny
-        bne @pfull           ; Y is a column 1..39, never 0 -> always loops
+        cpy gr_colR
+        bne @pfull           ; clipped columns stay in 0..39
 @pright:
-        ldy gr_colR
         lda (ptr1),y
         and gr_keepR
         ora gr_setR

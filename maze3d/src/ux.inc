@@ -197,7 +197,6 @@ draw_round_result:
         LDY #23
         JMP draw_str_centered
 
-str_choose_action: .byte "CHOOSE YOUR ACTION",0
 str_vitals: .byte "HP   /30  POTIONS     GOLD",0
 str_stats: .byte "ATK     DEF     LVL     XP",0
 str_goal_relic: .byte "FIND RELIC",0
@@ -212,8 +211,8 @@ str_healed: .byte "POTION USED: UP TO +10 HP",0
 str_fled: .byte "ESCAPED TO PREVIOUS CELL",0
 str_killed: .byte "FOE SLAIN: GOLD AND +4 XP",0
 str_damage: .byte "HIT      TAKEN",0
-str_attack_done: .byte "ATTACK COMPLETE",0
-str_guarded: .byte "GUARD: HALF HIT, NEXT ATK +2",0
+str_attack_done: .byte "ATTACK",0
+str_guarded: .byte "GUARD: HALF DAMAGE",0
 str_stolen: .byte "GOBLIN STOLE 1 GOLD",0
-str_flee_failed: .byte "ESCAPE FAILED: FOE ATTACKS",0
+str_flee_failed: .byte "ESCAPE FAILED",0
 .code

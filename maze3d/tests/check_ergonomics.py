@@ -96,30 +96,34 @@ def feedback():
     # Real combat, with a living orc and a controlled starting health.
     combat = [L.poke('gstate', 4), L.poke('cur_mob', 0), L.poke('prev_state', 2),
               'poke:10b0:01', 'poke:10b8:1e', L.poke('p_hp', 20), 'key:L', 'wait:60']
+    initial = run(combat + DUMP)
+    assert row(initial, 2).strip() == 'ORC', row(initial, 2)
+    assert not row(initial, 1).strip() and not row(initial, 22).strip()
+    assert row(initial, 20).strip() == 'A HIT G GUARD P POTION F FLEE'
     r = run(combat + ['key:G', 'wait:60'] + DUMP + [L.peek('p_focus'), L.peek('mob_phase')])
     assert 'HIT' in row(r, 22) and 'TAKEN' in row(r, 22)
-    assert 'GUARD: HALF HIT, NEXT ATK +2' in row(r, 23), row(r, 23)
+    assert 'GUARD: HALF DAMAGE' in row(r, 23), row(r, 23)
     assert r.mem(L['p_focus'], 1) == b'\2' and r.mem(L['mob_phase'], 1) == b'\1'
     r = run(combat + ['key:A', 'wait:60'] + DUMP)
-    assert 'HIT' in row(r, 22) and 'ATTACK COMPLETE' in row(r, 23)
+    assert 'HIT' in row(r, 22) and 'ATTACK' in row(r, 23)
     r = run(combat + [L.poke('p_potions', 0), 'key:P', 'wait:60'] + DUMP + [L.peek('mob_phase')])
     assert 'NO POTIONS LEFT' in row(r, 22)
     assert r.mem(L['mob_phase'], 1) == b'\0', 'refused potion advanced the fight'
     # Readiness is independent of last-round feedback and persists through healing.
     critical = [L.poke('p_hp', 8) if step == L.poke('p_hp', 20) else step for step in combat]
     for actions, expected in (([], 'LOW HEALTH'),
-                              (['key:G', 'wait:60'], 'LOW HEALTH / NEXT ATTACK +2'),
+                              (['key:G', 'wait:60'], 'LOW HP / NEXT ATK +2'),
                               (['key:G', 'wait:60', 'key:P', 'wait:60'], 'NEXT ATTACK +2'),
                               (['key:G', 'wait:60', 'key:P', 'wait:60', 'key:A', 'wait:60'], '')):
         r = run(critical + actions + DUMP + [L.peek('p_hp')])
         assert row(r, 17).strip() == expected, row(r, 17)
         assert 'HP' in row(r, 14) and '/30' in row(r, 14)
         assert 'POTIONS' in row(r, 14) and 'GOLD' in row(r, 14)
-        assert 'ATK' in row(r, 16) and 'DEF' in row(r, 16)
+        assert not row(r, 16).strip(), row(r, 16)
     r = run(critical + ['key:G', 'wait:60', L.poke('p_potions', 0), 'key:P', 'wait:60']
             + DUMP + [L.peek('mob_phase'), L.peek('p_focus')])
     assert 'NO POTIONS LEFT' in row(r, 22) and not row(r, 23).strip()
-    assert row(r, 17).strip() == 'LOW HEALTH / NEXT ATTACK +2'
+    assert row(r, 17).strip() == 'LOW HP / NEXT ATK +2'
     assert r.mem(L['mob_phase'], 1) == b'\1' and r.mem(L['p_focus'], 1) == b'\2'
     # Force a goblin's steal roll, then read the actual updated gold on screen.
     goblin = ['poke:10b0:00' if step == 'poke:10b0:01' else step for step in combat]

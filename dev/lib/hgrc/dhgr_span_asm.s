@@ -8,6 +8,7 @@ RAMWRTON = $C005
 .importzp ptr1, tmp1, tmp2, tmp3, tmp4, aux_read
 ; One scanline, interleaved byte indices first..last. Full bytes use stores,
 ; only the two edges read/modify/write. IRQ masking covers one row.
+; After the first edge, interior bytes bypass all mask/edge checks.
 _dhgr_span_asm:
         php
         sei
@@ -68,6 +69,20 @@ _dhgr_span_asm:
         cmp _dhgr_last
         beq @done
         inc tmp2
+        lda tmp2
+        cmp _dhgr_last
+        bne @full
         jmp @byte
 @done:  plp
         rts
+@full: lda tmp2
+        and #3
+        tax
+        lda _dhgr_pattern,x
+        sta tmp4
+        lda tmp2
+        lsr                     ; C = bank (0 aux / 1 main)
+        tay                     ; physical byte column; preserves C
+        bcs @write_main
+        sta RAMWRTON
+        jmp @write_main
