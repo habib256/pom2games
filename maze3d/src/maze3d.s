@@ -321,7 +321,7 @@ mv_dir:     .res 1     ; try_move's direction. MUST NOT live in tmp:
                        ; cell_index_xy does STX tmp and would clobber it
                        ; (the historical game-breaking movement bug)
 
-; --- wait_key timeout counter (bits 16-23) ---
+; Reserved former input timer byte: retain zero-page/checkpoint offsets.
 wk_hi:      .res 1
 
 ; --- scratch for fill / map ---
@@ -371,6 +371,7 @@ round_gold: .res 1
 narrator_buffer: .res 32
 narrator_bits: .res 1
 narrator_left: .res 1
+stick_last: .res 1
 .code
 
 ; =============================================
@@ -400,6 +401,7 @@ main:
         STA preferences_dirty
         STA active_game
         STA combat_resuming
+        STA stick_last
         STA quit_flag
         STA view_mode
         ; MUST zero before the first render: color_reset_last reads
@@ -593,6 +595,8 @@ floor_shop:
         JSR print_str_ax
         LDY #6
         JSR draw_vitals
+        LDY #7
+        JSR draw_stats
         LDA #4
         STA ch_cx
         LDA #9
@@ -945,9 +949,8 @@ play_input:
         JSR drink_potion
         RTS
 @unknown:
-        JMP play_input          ; unknown key, or wait_key's synthetic
-                                ; timeout SPACE: wait again WITHOUT
-                                ; returning — the old fall-through RTS made
+        JMP play_input          ; unknown key: wait again without returning
+                                ; — the old fall-through RTS made
                                 ; play_loop rebuild the whole frame every
                                 ; ~0.7 s even with no input, so the screen
                                 ; was mid-repaint most of the time
@@ -1577,22 +1580,13 @@ random:
 ; key press seeds a different dungeon, and in-game combat rolls keep
 ; consuming draws state-dependently.
 ;
-; A 24-bit polling counter gives the loop a hard stop after ~3 s of
-; CPU time; if it fires we return $A0 (a synthetic SPACE) so the
-; title / help / win / lose screens can never wedge the game on a
-; sticky keyboard / focus issue (and double as a slow attract mode).
-; In normal use a real keypress trips the KBDCR test long before the
-; counter saturates. In gameplay/combat the synthetic SPACE is ignored
-; WITHOUT a repaint (see play_input / run_combat).
+; Gameplay waits for keyboard or joystick input without advancing a turn.
+; Stick events use the same key-value entropy contract as keyboard events.
 ; =============================================
 wait_key:
-        LDA #0
-        STA vdp_addr_lo         ; wkey bits 0-7
-        STA vdp_addr_hi         ; wkey bits 8-15
-        STA wk_hi               ; wkey bits 16-23
 @spin:
         LDA KBD
-        BPL @nokey
+        BPL @stick
         BIT KBDSTRB
         JSR key_fold
         CMP #KEY_ESC
@@ -1603,31 +1597,51 @@ wait_key:
         JMP wait_key
 @quit:  LDA #KEY_ESC
         RTS
+@stick: JSR joystick_key
+        BEQ @spin
 @entropy:
         PHA
         EOR prng_lo
         STA prng_lo
         PLA
         RTS
-@nokey:
-        INC vdp_addr_lo
-        BNE @spin
-        INC vdp_addr_hi
-        LDA vdp_addr_hi
-        BNE @spin
-        INC wk_hi
-        LDA wk_hi
-        CMP #3                  ; 3 * 65536 iters * ~15c = ~2.9 s at 1 MHz
-        BCC @spin
-        ; timeout: synthetic SPACE so screens still advance
-        LDA #$A0
+
+; Convert a new stick direction or button to the context's keyboard action.
+; A held input produces only one event. Neutral rearms the same direction.
+joystick_key:
+        JSR read_stick
+        JSR stick_dir
+        LDX BUTN1
+        BPL @button0
+        LDA #6
+@button0:
+        LDX BUTN0
+        BPL @sample
+        LDA #5
+@sample:
+        CMP stick_last
+        BEQ @none
+        STA stick_last
+        TAX
+        BEQ @none
+        LDA gstate
+        CMP #ST_COMBAT
+        BEQ @combat
+        LDA stick_explore_keys-1,X
+        RTS
+@combat:
+        LDA stick_combat_keys-1,X
+        RTS
+@none:  LDA #0
         RTS
 
-; wait_key_real: block until a REAL key -- no timeout. The menu screens
-; (title/help/win/lose) use this so they actually WAIT for the player
-; instead of auto-advancing on wait_key's ~3 s synthetic SPACE. Mixing
-; the key VALUE into the PRNG also seeds the maze from WHICH key was
-; pressed (real-hardware variety, the wait_key entropy contract).
+stick_explore_keys:
+        .byte KEY_FWD, KEY_BACK, KEY_LEFT, KEY_RIGHT, KEY_M, KEY_P
+stick_combat_keys:
+        .byte KEY_A, KEY_F, KEY_G, KEY_P, KEY_A, KEY_G
+
+; Menus accept keyboard input only, with the same key-value entropy contract.
+; Holding a joystick during help or pause cannot dismiss a screen.
 wait_key_real:
 @spin:  LDA KBD
         BPL @spin
@@ -2260,9 +2274,14 @@ title_footer:
         LDX #>str_empty_save
 @status:
         JSR print_str_ax
+        LDA save_available
+        BEQ @new
         LDA #<str_profile_keys
         LDX #>str_profile_keys
-        LDY #22
+        JMP @keys
+@new:   LDA #<str_profile_new
+        LDX #>str_profile_new
+@keys:  LDY #22
         JSR draw_str_centered
         LDA #<str_title_keys
         LDX #>str_title_keys
@@ -2479,13 +2498,16 @@ show_help:
         LDA #<str_help_l9
         LDX #>str_help_l9
         JSR print_str_ax
-        LDA #1
-        STA ch_cx
-        LDA #17
-        STA ch_cy
-        LDA #<str_help_l10
-        LDX #>str_help_l10
-        JSR print_str_ax
+        LDY #17
+        JSR draw_stats
+        LDA #<str_stick_move
+        LDX #>str_stick_move
+        LDY #19
+        JSR draw_str_centered
+        LDA #<str_stick_fight
+        LDX #>str_stick_fight
+        LDY #20
+        JSR draw_str_centered
 
         LDA #4
         STA ch_cx
@@ -3189,7 +3211,7 @@ draw_hud_3d:
         ;   row 20     (blank -- 8px of air so the text is not glued
         ;              to the floor line; juillet 2026 request)
         ;   row 21     HP nn/30, potions, gold (immediate resources)
-        ;   row 22     ATK, DEF, LVL, XP (secondary statistics)
+        ;   row 22     contextual exploration shortcuts
         ;   row 23     free for game messages.
         ; Fixed-width fields; write_decimal_2d blanks a leading zero.
         ; Floor line (y159) closes the viewport -- it lives in the cleared
@@ -3216,10 +3238,59 @@ draw_hud_3d:
 
         LDY #21
         JSR draw_vitals
+        LDA #<str_explore_keys
+        LDX #>str_explore_keys
+        LDY #22
+        JSR draw_str_centered
+
+        ; Event message, centred on row 23 (yellow).
+        LDA msg_lo
+        LDX msg_hi
+        LDY #23
+        JSR draw_str_centered
+
+        ; Colour the HUD rows: vitals (21) green, shortcuts (22) cyan,
+        ; message (23) yellow.
+        LDA #8
+        STA cr_x
+        LDA #168                ; row 21 (HP / POTIONS / GOLD)
+        STA cr_y
+        LDA #216
+        STA cr_w
+        LDA #8
+        STA cr_h
+        LDA #$31                ; light green
+        STA cr_col
+        JSR color_rect
+        LDA #8
+        STA cr_x
+        LDA #176                ; row 22 (exploration shortcuts)
+        STA cr_y
+        LDA #216
+        STA cr_w
+        LDA #8
+        STA cr_h
+        LDA #$71                ; cyan
+        STA cr_col
+        JSR color_rect
+        LDA #0
+        STA cr_x
+        LDA #184                ; row 23 (message)
+        STA cr_y
+        LDA #248
+        STA cr_w
+        LDA #8
+        STA cr_h
+        LDA #$B1                ; yellow
+        STA cr_col
+        JSR color_rect
+        RTS
+
+; Secondary statistics are available on demand in the help screen.
+draw_stats:
         LDA #1
         STA ch_cx
-        LDA #22
-        STA ch_cy
+        STY ch_cy
         LDA #<str_stats
         LDX #>str_stats
         JSR print_str_ax
@@ -3240,47 +3311,6 @@ draw_hud_3d:
         LDA p_xp
         JSR write_decimal_2d
 
-        ; Event message, centred on row 23 (yellow).
-        LDA msg_lo
-        LDX msg_hi
-        LDY #23
-        JSR draw_str_centered
-
-        ; Colour the HUD rows: vitals (21) green, progression (22) cyan,
-        ; message (23) yellow.
-        LDA #8
-        STA cr_x
-        LDA #168                ; row 21 (HP / POTIONS / GOLD)
-        STA cr_y
-        LDA #216
-        STA cr_w
-        LDA #8
-        STA cr_h
-        LDA #$31                ; light green
-        STA cr_col
-        JSR color_rect
-        LDA #8
-        STA cr_x
-        LDA #176                ; row 22 (ATK / DEF / LVL / XP)
-        STA cr_y
-        LDA #216
-        STA cr_w
-        LDA #8
-        STA cr_h
-        LDA #$71                ; cyan
-        STA cr_col
-        JSR color_rect
-        LDA #0
-        STA cr_x
-        LDA #184                ; row 23 (message)
-        STA cr_y
-        LDA #248
-        STA cr_w
-        LDA #8
-        STA cr_h
-        LDA #$B1                ; yellow
-        STA cr_col
-        JSR color_rect
         RTS
 
 draw_vitals:
@@ -3876,20 +3906,6 @@ render_map:
         STA ch_code
         JSR write_char
 
-        ; Only reveal the exit once its cell has been explored.
-        LDA grid+NCELLS-1
-        AND #VISITED
-        BEQ @hide_exit
-        ; E in bottom-right cell: (5+2*10, 3+2*6) = (25, 15)
-        LDA #25
-        STA ch_cx
-        LDA #15
-        STA ch_cy
-        LDA #'E'
-        STA ch_code
-        JSR write_char
-@hide_exit:
-
         ; live mobs
         LDX #0
 @mlp:   STX ch_idx
@@ -3927,6 +3943,16 @@ render_map:
         JSR     tms9918_pad12   ; +12c silicon-strict pad12-v3 (back-to-back VDP store)
         BNE @mlp
 
+        ; Stairs are a known landmark from the start, above monster markers.
+        ; Mapping them does not reveal walls or unlock the floor exit.
+        LDA #25
+        STA ch_cx
+        LDA #15
+        STA ch_cy
+        LDA #'E'
+        STA ch_code
+        JSR write_char
+
         ; Player arrow
         LDA p_col
         ASL
@@ -3961,7 +3987,7 @@ render_map:
         JSR write_hex_byte
 
         ; HUD line
-        LDA #0
+        LDA #1
         STA ch_cx
         LDA #20
         STA ch_cy
@@ -3969,6 +3995,8 @@ render_map:
         LDX #>str_map_help
         JSR     tms9918_pad12   ; +12c silicon-strict pad12-v3 (back-to-back VDP store)
         JSR print_str_ax
+        LDY #21
+        JSR draw_vitals
         LDY #22
         JSR draw_objective
         LDA msg_lo
@@ -4047,7 +4075,7 @@ run_combat:
         JMP @mob_alive
 @n4:    CMP #KEY_A
         BEQ @attack
-        ; unknown key / wait_key's synthetic timeout: keep waiting
+        ; unknown key: keep waiting
         ; WITHOUT returning — an RTS here made play_loop rebuild the
         ; whole combat screen every ~0.7 s (same flicker bug as
         ; play_input's old fall-through)
@@ -4188,8 +4216,8 @@ run_combat:
 @quiet:
         LDA p_hp
         BEQ @die2
-        ; HGR port: the round only moved the two HP values — repaint
-        ; those four digit cells and loop for the next key. The full
+        ; Refresh resource fields and readiness, then wait for the next turn.
+        ; The full
         ; draw_combat_screen stays for entry and next-foe transitions
         ; (different name/portrait), where it is genuinely needed.
         JSR combat_update_hp
@@ -4349,48 +4377,12 @@ draw_combat_screen:
         LDA mob_hp,X
         JSR write_decimal_2d
 
-        ; Player HP / ATK
-        LDA #5
-        STA ch_cx
-        LDA #16
-        STA ch_cy
-        LDA #<str_p_hp
-        LDX #>str_p_hp
-        JSR print_str_ax
-        LDA #11
-        STA ch_cx
-        LDA #16
-        STA ch_cy
-        LDA p_hp
-        JSR write_decimal_2d
-
-        LDA #16
-        STA ch_cx
-        LDA #16
-        STA ch_cy
-        LDA #<str_p_atk
-        LDX #>str_p_atk
-        JSR print_str_ax
-        LDA #21
-        STA ch_cx
-        LDA #16
-        STA ch_cy
-        LDA p_atk
-        JSR write_decimal_2d
-
-        LDA #5
-        STA ch_cx
-        LDA #14
-        STA ch_cy
-        LDA #<str_hud_potions
-        LDX #>str_hud_potions
-        JSR print_str_ax
-        LDA #14
-        STA ch_cx
-        LDA #14
-        STA ch_cy
-        LDA p_potions
-        JSR write_decimal_2d
+        ; Shared resources keep HP/30, potions and stolen gold visible.
+        LDY #14
+        JSR draw_vitals
+        LDY #16
+        JSR draw_stats
+        JSR draw_combat_status
 
         ; Action prompt
         LDA #1
@@ -4470,10 +4462,7 @@ draw_combat_intent:
         LDX #>str_intent_windup
         JMP print_str_ax
 
-; combat_update_hp: repaint ONLY the two per-round fields of the combat
-; screen — monster HP (cells 7-8 of row 6) and player HP (cells 11-12
-; of row 16). write_decimal_2d STORE-overwrites both digit cells, so no
-; clearing is needed and the ~1.5k-cycle update needs no display blank.
+; Update combat resources and readiness after every completed round.
 combat_update_hp:
         LDA #7
         STA ch_cx
@@ -4482,19 +4471,36 @@ combat_update_hp:
         LDX cur_mob
         LDA mob_hp,X
         JSR write_decimal_2d
-        LDA #11
-        STA ch_cx
-        LDA #16
-        STA ch_cy
+        LDY #14
+        JSR draw_vitals
+        LDY #16
+        JSR draw_stats
+        JMP draw_combat_status
+
+; Readiness survives healing and refused actions, independently of feedback.
+draw_combat_status:
+        LDA #136
+        LDX #144
+        JSR clear_span
         LDA p_hp
-        JSR write_decimal_2d
-        LDA #14
-        STA ch_cx
-        LDA #14
-        STA ch_cy
-        LDA p_potions
-        JSR write_decimal_2d
-        RTS
+        CMP #9
+        BCS @healthy
+        LDA p_focus
+        BEQ @low
+        LDA #<str_low_focus
+        LDX #>str_low_focus
+        BNE @draw
+@low:   LDA #<str_low_hp
+        LDX #>str_low_hp
+        BNE @draw
+@healthy:
+        LDA p_focus
+        BEQ @done
+        LDA #<str_focus_ready
+        LDX #>str_focus_ready
+@draw:  LDY #17
+        JMP draw_str_centered
+@done:  RTS
 
 ; =============================================
 ; Monster patterns: tools/pack_sprites.py converts the original TMS-format
@@ -4539,34 +4545,29 @@ mob_names_hi:
         .byte >str_mob_gob, >str_mob_orc, >str_mob_mage, >str_mob_dragon
 
 ; ---- Strings (null-terminated, ASCII < 128) ----
-str_config: .byte "CONFIGURATION",0
+str_config: .byte "PAUSED",0
 str_config_sound: .byte "S  SOUND",0
 str_config_depth: .byte "D  VIEW DEPTH",0
-str_config_resume: .byte "R / RETURN / ESC  RESUME",0
+str_config_resume: .byte "ESC  RESUME",0
 str_config_save: .byte "W  SAVE GAME",0
 str_config_saved: .byte "      GAME SAVED      ",0
 str_config_no_save: .byte "   SAVE UNAVAILABLE   ",0
-str_config_quit: .byte "Q  QUIT TO DOS",0
+str_config_quit: .byte "Q  QUIT",0
 str_on: .byte "ON ",0
 str_off: .byte "OFF",0
 str_state_load: .byte "BLOAD MAZESTATE",0
 str_profile: .byte "PROFILE",0
 str_saved: .byte "SAVED",0
 str_empty_save: .byte "EMPTY",0
-str_profile_keys: .byte "1-3 PROFILE C CONTINUE N NEW",0
+str_profile_keys: .byte "C CONTINUE  N NEW  1-3 PROFILE",0
+str_profile_new: .byte  "RETURN NEW GAME  1-3 PROFILE ",0
 str_title_load: .byte "BLOAD MAZETITLE,A$1100",0
 str_text_load: .byte "BLOAD MAZETEXT",0
-str_title_keys: .byte "S=SEED R=REPLAY ESC=OPTIONS",0
-str_title_start: .byte "ANY KEY STARTS",0
-str_title1:   .byte "MAZE 3D",0
-str_title2:   .byte "WIZARDRY-STYLE",0
-str_title3:   .byte "DUNGEON CRAWLER",0
-str_title4:   .byte "FOR THE APPLE II (HGR)",0
-str_title_hint:.byte "S=ENTER SEED  H=HELP IN GAME",0
-str_title_replay:.byte "R=REPLAY SEED",0
+str_title_keys: .byte "S SEED   R REPLAY   ESC MENU",0
 str_press_any:.byte "PRESS ANY KEY...",0
-str_title_author:.byte "BY VERHILLE ARNAUD  2026",0
 
+str_stick_move: .byte "STICK MOVE  B0 MAP  B1 POTION",0
+str_stick_fight: .byte "FIGHT: UP HIT DOWN FLEE L G R P",0
 str_help_h1:  .byte "HOW TO PLAY",0
 ; 31 chars max: printed at ch_cx=1 on the 32-column grid — the old l2 was
 ; 32 chars, its final 'T' wrapped to the next row ("TK BACKWARD" glitch).
@@ -4574,14 +4575,13 @@ str_help_l1:  .byte "I   FORWARD       J  TURN LEFT",0
 str_help_l2:  .byte "K   BACKWARD      L  TURN RIGHT",0
 str_help_l3:  .byte "M MAP   P DRINK POTION",0
 str_help_l4:  .byte "A HIT  G GUARD  F FLEE (FIGHT)",0
-str_help_l5:  .byte "ESC  CONFIGURATION / QUIT",0
+str_help_l5:  .byte "ESC MENU: SAVE, SOUND, QUIT",0
 
 str_help_l6:  .byte "FIND RELIC IN THE R CHAMBER",0
-str_help_l7:  .byte "E EXIT; DRAGON GUARDS FLOOR 3",0
+str_help_l7:  .byte "E STAIRS; DRAGON ON FLOOR 3",0
 str_help_l8:  .byte "CACHES GIVE GOLD AND POTIONS",0
 
 str_help_l9:  .byte "G GUARD BOOSTS YOUR NEXT HIT",0
-str_help_l10: .byte "TITLE: S SEED / R BEST SEED",0
 
 str_win1:     .byte "YOU FOUND THE EXIT!",0
 str_win2:     .byte "THE LIGHT OF DAY GREETS YOU.",0
@@ -4591,12 +4591,12 @@ str_lose1:    .byte "YOU HAVE FALLEN.",0
 str_lose2:    .byte "THE DUNGEON KEEPS YOU.",0
 
 str_map_title:.byte "DUNGEON MAP",0
-str_map_help: .byte "M=BACK TO 3D  ESC=OPTIONS",0
+str_map_help: .byte "E STAIRS  M BACK  ESC MENU",0
 str_seed:     .byte "SEED",0
 str_seed_title: .byte "ENTER DUNGEON SEED",0
 str_seed_range: .byte "4 HEX DIGITS: 0001-FFFF",0
 str_seed_keys: .byte "RETURN STARTS / LEFT ERASES",0
-str_seed_cancel: .byte "ESC OPENS CONFIGURATION",0
+str_seed_cancel: .byte "ESC MENU",0
 str_score:    .byte "SCORE",0
 str_best:     .byte "BEST",0
 str_floor:    .byte "FLOOR",0
@@ -4605,20 +4605,13 @@ str_relic_blocks: .byte "FIND THE CHAMBER RELIC",0
 str_relic_found: .byte "THE RELIC IS YOURS!",0
 str_cache_found: .byte "A HIDDEN CACHE! GOLD AND GEAR",0
 str_shop_title: .byte "BETWEEN FLOORS",0
-str_shop_gold:  .byte "GOLD:",0
 str_shop_heal:  .byte "H: HEAL 10 HP        8 GOLD",0
 str_shop_atk:   .byte "A: +1 ATTACK        12 GOLD",0
 str_shop_def:   .byte "D: +1 DEFENSE       12 GOLD",0
 str_shop_potion:.byte "P: +1 POTION         6 GOLD",0
-str_shop_next:  .byte "C: DESCEND   ESC: OPTIONS",0
+str_shop_next:  .byte "C NEXT FLOOR   ESC MENU",0
 
-str_hud_hp:   .byte "HP",0
-str_hud_atk:  .byte "ATK",0
-str_hud_lvl:  .byte "LVL",0
-str_hud_def:  .byte "DEF",0
-str_hud_xp:   .byte "XP",0
-str_hud_gold: .byte "GOLD",0
-str_hud_potions:.byte "POTIONS",0
+str_explore_keys: .byte "IJKL MOVE M MAP P POTION H HELP",0
 
 ; Compass direction spelled out, shown top-centre in colour. Indexed by
 ; p_face (0=N 1=E 2=S 3=W) via dir_word_lo/hi.
@@ -4635,11 +4628,12 @@ dir_word_hi:  .byte >str_dir_n, >str_dir_e, >str_dir_s, >str_dir_w
 .code
 
 
+str_low_hp: .byte "LOW HEALTH",0
+str_focus_ready: .byte "NEXT ATTACK +2",0
+str_low_focus: .byte "LOW HEALTH / NEXT ATTACK +2",0
 str_combat_title:   .byte "COMBAT!",0
 str_mob_hp:   .byte "HP",0
-str_p_hp:     .byte "HP",0
-str_p_atk:    .byte "ATK",0
-str_combat_prompt: .byte "A=HIT G=GUARD P=HEAL F=FLEE",0
+str_combat_prompt: .byte "A HIT  G GUARD  P POTION  F FLEE",0
 str_intent_goblin: .byte "GOBLIN MAY STEAL GOLD",0
 str_intent_mage:   .byte "MAGIC IGNORES YOUR ARMOR",0
 str_intent_windup: .byte "FOE GATHERS ITS STRENGTH",0
@@ -4807,6 +4801,7 @@ tone:
         JMP speaker_tone
 @muted: PLA
         RTS
+.include "joy.asm"               ; two axes and dead zone, no zero-page scratch
 .include "exit.asm"              ; dev/lib/apple2: apple2_zp_save / apple2_exit
 DOS_ZP_START = $50
 DOS_ZP_LEN = $B0

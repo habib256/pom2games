@@ -112,7 +112,7 @@ ux_message:
 
 draw_feedback:
         LDA #176
-        LDX #184
+        LDX #192
         JSR clear_span
         LDA msg_lo
         LDX msg_hi

@@ -6,10 +6,6 @@ memory reads, cycle and frame counts) and `make test`
 shop, beat the dragon and win; exits without the relic, and the last one
 before the dragon's death, must stay shut.
 
-## Next up
-
-- [ ] Joystick support with `../dev/lib/apple2/joy.asm` (turn, step, and
-  buttons for the combat actions).
 ## Ideas
 
 - Swap the private 8 px font (TMS bit order, 512 bytes) for the shared
@@ -18,6 +14,25 @@ before the dragon's death, must stay shut.
   choice: the current font is part of the game's look.
 
 ## Done
+
+- 2026-10-08: stairs E are visible from the start of every floor, with a map
+  legend. The marker remains visible over a seen monster; neighbouring walls
+  stay unexplored and relic/dragon exit locks remain intact.
+
+- 2026-10-08: combat and map share HP/30, potion and gold fields. Low-health
+  and next-attack bonus indicators persist independently of round feedback;
+  failed potions clear stale action text without consuming the bonus or turn.
+  Shop statistics show upgrade results immediately. Emulator checks cover
+  healing, guard bonus consumption, goblin theft and purchases.
+
+- 2026-10-08: joystick movement, map/potion buttons and all four combat
+  actions through `dev/lib/apple2/joy.asm`. Held inputs do not repeat turns;
+  keyboard and pause remain available. Emulator checks compare every combat
+  mapping against keyboard results and cover holding, rearming and idle RNG.
+
+- 2026-10-08: simplified UI: exploration keeps vitals and a command reminder;
+  secondary statistics move to help. Shorter pause/menu labels and a title
+  prompt that offers continuation only when the selected profile has a save.
 
 - 2026-10-08: ergonomics: all four boundaries of visited cells appear on the
   progressive map, including north/west neighbours not yet visited. Objectives

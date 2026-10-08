@@ -80,6 +80,7 @@ test: $(DISK)
 	$(PYTHON) tests/check_generation.py
 	$(PYTHON) tests/check_seed_entry.py
 	$(PYTHON) tests/check_rendering.py
+	$(PYTHON) tests/check_joystick.py
 	$(PYTHON) tests/check_configuration.py
 	$(PYTHON) tests/check_profiles.py
 	$(PYTHON) tests/check_ergonomics.py
