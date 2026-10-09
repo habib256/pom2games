@@ -137,9 +137,15 @@ la page 2, le curseur et les conversions numériques. Seize programmes
 minimaux vérifient aussi que l'archive exclut les noyaux et blocs de page zéro
 inutilisés. Ce test fait partie de `make test` et de la CI.
 
-L’agrandissement de sprites ×2 (`hgr_x2.c`) est une référence pour les outils
-hôtes ; le noyau assembleur cible n’est pas fourni. Préparer les banques
-×2 avant compilation, comme `demos/src/animals_gen_x2.py`.
+L’agrandissement de sprites ×2 est disponible sur cc65 avec
+[`hgr_x2.h`](hgr_x2.h). `hgr_inflate_x2` convertit une source monochrome
+dans un tampon fourni par l’appelant ; `hgr_blit_x2` convertit et dessine
+à la demande avec un tampon interne de 256 octets. Ces fonctions sont dans
+`HGRC_X2_SRCS` et l’archive commune, extraites seulement si elles sont appelées.
+Pour une animation, convertir une fois au démarrage, puis utiliser `hgr_blit7`
+à chaque image. Placer le sprite à `x = 14*n` pour conserver sa teinte.
+Les banques peuvent aussi être préparées avant compilation, comme avec
+`demos/src/animals_gen_x2.py`.
 
 ## DHGR (Apple IIe / IIc)
 
@@ -343,12 +349,20 @@ des banques, gardes mémoire et pixels. Le service reste non réentrant. Employe
 tranches pour traiter aussi les entrées entre les appels. L'effacement complet
 historique conserve son comportement et ses performances.
 
-La référence hôte `hgr_inflate_x2` (`hgr_host.h`) calcule les positions et
-les strides agrandis sans troncature à huit bits. `hgr_blit_x2` contrôle la
+La référence hôte `hgr_inflate_x2` (`hgr_x2.c`) et la version cible
+(`hgr_x2_target.c`) calculent les strides agrandis sans troncature à huit bits.
+La cible transforme chaque octet avec une table de 16 octets, sans boucle
+par pixel ni division. Réserver `4*wbytes*h` octets de sortie, sans
+chevauchement avec la source ; la cible refuse les tailles supérieures
+à 65535 octets. `hgr_host.h` reste un include compatible de `hgr_x2.h`.
+`hgr_blit_x2` contrôle la
 taille source avant de doubler les dimensions, afin de respecter son tampon
 fixe même pour des entrées supérieures à 127. `test_hgr_host.py` vérifie les
 couleurs et les gardes mémoire avec ASan/UBSan, ainsi que les 65 536 couples
-de dimensions du wrapper ; il fait partie de `make test-hgr`.
+de dimensions du wrapper. `test_hgr_x2.py` exécute le code cc65 et vérifie
+les six couleurs, les strides de 510 octets, les gardes mémoire, les tailles
+invalides et les dessins rognés sur la page 2. Les deux tests font partie
+de `make test-hgr`.
 
 
 ## Choisir l'implémentation gfx
@@ -519,3 +533,7 @@ Le moteur historique conserve sa restauration de fonds sauvegardés.
 Une région de huit tuiles avec deux dessins masqués coûte 9 546 cycles dans
 le benchmark ; le coût d'une page entière reste à budgéter pour chaque jeu.
 La famille `HGRC_TILEMAP_SRCS` est extraite uniquement lorsqu'elle est appelée.
+
+Les dépendances `HGRC_HEADERS` comprennent aussi les en-têtes de `apple2c`,
+inclus transitivement par `hgr.h`, pour recompiler les consommateurs C lors
+des changements du contrat de la plateforme.

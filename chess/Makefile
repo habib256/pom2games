@@ -19,7 +19,7 @@ OBJS    := $(BUILD)/chess.o $(BUILD)/chess_engine.o
 
 all: $(DISK)
 
-$(BUILD)/chess.o: src/chess.s src/chess_common.inc $(A2_ASM_DEPS)
+$(BUILD)/chess.o: src/chess.s src/chess_common.inc $(HGR)/sprites/chess_cc65_pieces.asm $(A2_ASM_DEPS)
 	@mkdir -p $(BUILD)
 	$(CA65) -t none -g $(A2_INCS) $(DEFS) -l $(BUILD)/chess.lst -o $@ $<
 

@@ -1,9 +1,10 @@
 ; ============================================================================
-; hgr_logom2.asm -- Apple II HGR backend for LOGO.
+; hgr_logom2.asm -- LOGO adapter for shared dev/lib/hgr native kernels.
 ;
-; Vendored from POM1's dev/lib/gen2/gen2_logom2.asm (the GEN2 HGR backend of
+; Originally vendored from POM1's dev/lib/gen2/gen2_logom2.asm (the GEN2 HGR backend of
 ; the Apple-1 LOGO). The GEN2 card is the Apple II video on the Apple-1 bus,
-; so the plotting code is unchanged; only init_vdp_g2 differs: it sets the HGR
+; the interpreter seam is kept, while plotting/lines now come from dev/lib/hgr.
+; init_vdp_g2 sets the HGR
 ; latch, page 1 and AN3, and leaves TEXT / MIXED to screen.asm (TS/SS/FS).
 ; ----------------------------------------------------------------------------
 ; Upstream header:
@@ -60,6 +61,11 @@
 .export init_vdp_g2, clear_bitmap, disable_sprites
 .export vdp_set_write, vdp_set_read, calc_pix_addr, plot_set, plot_set_x16
 .export line_xy, line_xy16
+.export hgr_col, hgr_mask, pen_hi_tbl
+.ifdef LOGO_SPRITE_CACHE
+.import emote_plot_background, emote_init
+HP_OR_PLOT = emote_plot_background
+.endif
 .export hgr_lo, hgr_hi      ; scanline base LUTs (hgr_bubble clears its band)
 ; The LOGO interpreter unconditionally .imports these TMS silicon-strict
 ; timing helpers (their call sites are scattered outside the gated turtle
@@ -109,7 +115,13 @@ init_vdp_g2:
 
 ; clear_bitmap: zero the 8 KB HGR page-1 framebuffer ($2000-$3FFF) --
 ; dev/lib/hgr clear_hgr (no zero page).
+.ifdef LOGO_SPRITE_CACHE
+clear_bitmap:
+        jsr emote_init             ; discard old saved background on any clear
+        jmp clear_hgr
+.else
 clear_bitmap = clear_hgr
+.endif
 .include "hgr_clear.asm"
 
 ; disable_sprites / vdp_set_write / vdp_set_read: no-ops on HGR (kept so the
@@ -136,58 +148,22 @@ calc_pix_addr:
 
 ; plot_set: plot (pix_x,pix_y). plot_mode 0 = OR (draw, applies pen colour),
 ;   1 = XOR (turtle/erase, leaves the trail colour byte's palette bit alone).
-; plot_set: 8-bit X entry (pix_x = 0..255). Forces pix_xh = 0 then falls into
+; plot_set: 8-bit X entry (pix_x = 0..255). Forces pix_xh = 0 then delegates to
 ;   the 9-bit core, so every existing 8-bit caller (line_xy, emote, text) is
 ;   unchanged.
 plot_set:
         lda #0
         sta pix_xh
-; plot_set_x16: 9-bit X entry. Caller sets pix_x = low byte of the screen
-;   column and pix_xh = high byte (0 for cols 0..255, 1 for cols 256..279, where
-;   pix_x then holds col-256 = 0..23). Lets HGR-aware code (the speech bubble)
-;   use the FULL 280-px width, not just the low 256.
-plot_set_x16:
-        lda pix_y
-        cmp #192
-        bcc @ok
-        rts
-@ok:    ldx pix_y
-        lda hgr_lo,x
-        sta pix_addr_lo
-        lda hgr_hi,x
-        sta pix_addr_hi
-        ldx pix_x
-        lda pix_xh
-        bne @xhi
-        lda hgr_mask,x        ; cols 0..255
-        sta pix_mask
-        ldy hgr_col,x
-        jmp @merge
-@xhi:   ; high path: valid only for pix_xh == 1 AND pix_x (=col-256) < 24, i.e.
-        ;   screen column 256..279. Anything else (xh>=2 from overflow, xh=$FF
-        ;   from a negative X, or x>=280) is off-screen -> skip the plot. This
-        ;   lets turtle vertices that fall just past the edge clip cleanly.
-        cmp #1
-        bne @off
-        cpx #24
-        bcs @off
-        lda hgr_mask_hi,x     ; cols 256..279 (X = col-256 = 0..23)
-        sta pix_mask
-        ldy hgr_col_hi,x
-@merge: lda (pix_addr_lo),y
-        ldx plot_mode
-        bne @xor
-        ; --- OR draw: light pixel, force byte palette bit to pen family ------
-        ora pix_mask
-        and #$7F
-        ldx pen_color
-        ora pen_hi_tbl,x
-        sta (pix_addr_lo),y
-        rts
-@xor:   ; --- XOR erase: toggle pixel only, preserve palette/colour ----------
-        eor pix_mask
-        sta (pix_addr_lo),y
-@off:   rts                   ; (also the off-screen-X early-out target)
+        jmp hgr_plot16
+plot_set_x16 = hgr_plot16
+hp_x = pix_x
+hp_y = pix_y
+hp_ptr = pix_addr_lo
+hp_mask = pix_mask
+hp_mode = plot_mode
+hp_color = pen_color
+HP_COLOR_TABLE = pen_hi_tbl
+.include "hgr_plot.asm"
 
 ; pen_color (0..15) -> HGR palette high bit. $00 = green/violet family,
 ;   $80 = blue/orange family. White (15) stays $00.
@@ -197,163 +173,30 @@ pen_hi_tbl:
         ;      8    9   10   11   12   13   14   15
         .byte $80, $80, $00, $00, $00, $00, $00, $00
 
-; --- HGR column / mask for screen columns 256..279 -------------------------
-; The shared hgr_col / hgr_mask tables (hgr_plot_tables.inc) stop at 256
-; entries, so plot_set_x16's high path uses these 24-entry extensions instead
-; of overrunning them. byte column = x/7 (cols 36..39 = the rightmost 4 of the
-; 40-byte scanline, unused by 0..255 content); bit = $01 << (x % 7).
-;   index i = col - 256  (0..23),  x = 256 + i
-hgr_col_hi:
-        .byte 36, 36, 36
-        .byte 37, 37, 37, 37, 37, 37, 37
-        .byte 38, 38, 38, 38, 38, 38, 38
-        .byte 39, 39, 39, 39, 39, 39, 39
-hgr_mask_hi:
-        .byte $10, $20, $40
-        .byte $01, $02, $04, $08, $10, $20, $40
-        .byte $01, $02, $04, $08, $10, $20, $40
-        .byte $01, $02, $04, $08, $10, $20, $40
-
-; ----------------------------------------------------------------------------
-; line_xy: Bresenham, 16-bit signed err. Byte-for-byte the same algorithm as
-;   the TMS backend -- only plot_set differs underneath. Inputs ln_x0/y0/x1/y1.
-; ----------------------------------------------------------------------------
-; line_xy: 8-bit-X entry. Clears the X high bytes so legacy callers that only
-;   set ln_x0/ln_x1 (the editor, the bubble tail) keep their 0..255 behaviour,
-;   then falls into the 9-bit core.
+; Legacy entry points delegate to the shared dev/lib/hgr walker.
+; Reuse existing scratch, so the interpreter's zero-page footprint is unchanged.
 line_xy:
-        LDA #0
-        STA ln_x0h
-        STA ln_x1h
-; line_xy16: 9-bit-X entry. Caller sets ln_x0/ln_x0h and ln_x1/ln_x1h so the
-;   turtle can draw across the full 0..279 HGR width. dx is 16-bit (a >255-px
-;   line would overflow an 8-bit dx); dy stays 8-bit (Y is 0..191).
-line_xy16:
-        ; --- dx (16-bit) + sx ---
-        SEC
-        LDA ln_x1
-        SBC ln_x0
-        STA ln_dx
-        LDA ln_x1h
-        SBC ln_x0h
-        STA ln_dxh
-        BCS @xpos               ; x1 >= x0
-        ; negate 16-bit dx, sx = -1
-        SEC
-        LDA #0
-        SBC ln_dx
-        STA ln_dx
-        LDA #0
-        SBC ln_dxh
-        STA ln_dxh
-        LDA #$FF
-        STA ln_sx
-        JMP @dy
-@xpos:  LDA #$01
-        STA ln_sx
-@dy:    ; --- dy (8-bit) + sy ---
-        SEC
-        LDA ln_y1
-        SBC ln_y0
-        BCS @syp
-        EOR #$FF
-        CLC
-        ADC #1
-        STA ln_dy
-        LDA #$FF
-        STA ln_sy
-        JMP @init
-@syp:   STA ln_dy
-        LDA #$01
-        STA ln_sy
-@init:  ; --- err = dx - dy (16-bit signed) ---
-        SEC
-        LDA ln_dx
-        SBC ln_dy
-        STA ln_err
-        LDA ln_dxh
-        SBC #0
-        STA ln_err_hi
-        LDA ln_x0
-        STA pix_x
-        LDA ln_x0h
-        STA pix_xh
-        LDA ln_y0
-        STA pix_y
-@step:  JSR plot_set_x16
-        ; end test: x0 == x1 (both bytes) and y0 == y1
-        LDA ln_x0
-        CMP ln_x1
-        BNE @do
-        LDA ln_x0h
-        CMP ln_x1h
-        BNE @do
-        LDA ln_y0
-        CMP ln_y1
-        BEQ @end
-@do:    LDA ln_err
-        STA tmp
-        LDA ln_err_hi
-        STA tmp2
-        ASL tmp
-        ROL tmp2
-        ; test 1: step x if 2*err >= -dy  (dy 8-bit, zero-extended)
-        CLC
-        LDA tmp
-        ADC ln_dy
-        LDA tmp2
-        ADC #0
-        BMI @no_x
-        ; err -= dy
-        SEC
-        LDA ln_err
-        SBC ln_dy
-        STA ln_err
-        LDA ln_err_hi
-        SBC #0
-        STA ln_err_hi
-        ; x0 += sx (16-bit)
-        LDA ln_sx
-        BPL @xinc
-        LDA ln_x0
-        BNE @decok
-        DEC ln_x0h
-@decok: DEC ln_x0
-        JMP @after_x
-@xinc:  INC ln_x0
-        BNE @after_x
-        INC ln_x0h
-@after_x:
-        LDA ln_x0
-        STA pix_x
-        LDA ln_x0h
-        STA pix_xh
-@no_x:  ; test 2: step y if 2*err < dx  (dx 16-bit)
-        SEC
-        LDA tmp
-        SBC ln_dx
-        LDA tmp2
-        SBC ln_dxh
-        BPL @no_y
-        ; err += dx (16-bit)
-        CLC
-        LDA ln_err
-        ADC ln_dx
-        STA ln_err
-        LDA ln_err_hi
-        ADC ln_dxh
-        STA ln_err_hi
-        LDA ln_sy
-        BPL @syp2
-        DEC ln_y0
-        JMP @after_y
-@syp2:  INC ln_y0
-@after_y:
-        LDA ln_y0
-        STA pix_y
-@no_y:  JMP @step
-@end:   RTS
+        lda #0
+        sta ln_x0h
+        sta ln_x1h
+        jmp hgr_line16
+line_xy16 = hgr_line16
+h16_x0 = ln_x0
+h16_y0 = ln_y0
+h16_x1 = ln_x1
+h16_y1 = ln_y1
+h16_dx = ln_dx
+h16_dy = ln_dy
+h16_sx = ln_sx
+h16_sy = ln_sy
+h16_err = ln_err
+h16_e2 = tmp
+h16_pix_x = pix_x
+h16_pix_y = pix_y
+HGR_LINE16_PLOT = plot_set_x16
+.include "hgr_line16.asm"
 
 ; --- HGR lookup tables ------------------------------------------------------
         .include "hgr_scanline.inc"     ; hgr_lo[192] / hgr_hi[192]
-        .include "hgr_plot_tables.inc"  ; hgr_col[256] / hgr_mask[256]
+        HGR_FULL_WIDTH_TABLES = 1
+        .include "hgr_plot_tables.inc"  ; hgr_col[280] / hgr_mask[280]

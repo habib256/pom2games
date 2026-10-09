@@ -43,11 +43,42 @@ Les segments diagonaux refusent les extrémités hors écran ; ils n’effectuen
 pas de clipping de ligne complet. Les axes passent par les spans rognés. Les rectangles pleins trient et rognent
 leurs coins ; les cercles rognent les points tracés. Un centre hors écran
 reste accepté : les arcs proches du bord sont visibles, les cercles entièrement
-à droite sont écartés avant la conversion signée des coordonnées sur 16 bits.
+à droite ou sous l’écran sont écartés avant la boucle de tracé. Les coordonnées
+X sont vérifiées avant leur conversion signée sur 16 bits.
+Les cercles ne retracent pas les points communs aux symétries sur les axes et
+diagonales ; le rayon zéro trace un seul point. Les rectangles ne retracent
+pas leurs coins : un point, une ligne horizontale ou une ligne verticale
+utilise un seul span. Chaque pixel du contour est donc écrit une seule fois.
+Le rognage conserve les arêtes d’origine : un rectangle qui déborde ne crée
+pas une nouvelle arête au bord de l’écran.
+`test_gfx_outlines.py` vérifie 1 792 cercles et 625 rectangles avec un backend
+qui refuse les écritures répétées, puis compare 54 scènes cc65 aux pixels
+attendus sur les deux pages HGR, y compris les trous mémoire. Il fait partie
+de `make test-hgr`.
+
+Mesures du 9 octobre 2026, cc65 `-Oirs`, HGR sur a2run NMOS 6502, tables
+chaudes, arguments et appels inclus, marqueurs exclus comme dans `dev/bench` :
+
+| Appel | Avant (cycles) | Après (cycles) |
+|---|---:|---:|
+| `gfx_circle(140,96,0)` | 8 159 | 1 043 |
+| `gfx_circle(140,96,16)` | 89 287 | 86 439 |
+| `gfx_circle(140,96,64)` | 340 085 | 339 096 |
+| `gfx_circle(5,255,63)` (invisible) | 131 648 | 685 |
+| `gfx_rect(10,20,10,20)` | 5 897 | 1 508 |
+| `gfx_rect(10,20,50,20)` | 6 097 | 2 018 |
+
 Les ellipses dont un rayon entier vaut zéro se réduisent à un segment ou
 à un point dans leur boîte, sans déborder autour des formes très étroites.
 Les boîtes entièrement à droite ou sous l’écran sont écartées avant le
 calcul des points, sans tracer de ligne parasite sur le bord.
+Les coins X acceptent toute la plage 0..65535, même pour une boîte
+partiellement visible, sans débordement du centre ni des produits sur cc65.
+Les décalages sont arrondis vers zéro, y compris lorsqu’ils sont négatifs :
+le rendu cc65 suit celui du C hôte. Les extrémités des segments sont ramenées
+aux limites de l’écran ; ce comportement ne constitue pas un clipping
+géométrique complet. Chaque sommet est calculé une seule fois puis partagé
+entre les deux segments voisins.
 Les primitives HGR bas niveau peuvent avoir des largeurs sur 8 bits ;
 `gfx_filled_rect` gère toute la largeur. Le choix du backend reste explicite
 à la liaison.

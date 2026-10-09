@@ -3,8 +3,8 @@
  * gfx_ellipse.c — card-neutral 64-segment polyline ellipse. See gfx.h.
  *
  * The biggest gain of the former gfx_draw.c split: this TU carries 128 bytes of
- * cos/sin LUT + drags the cc65 16-bit soft-multiply (because of the
- * /64 inside ((int)cos * rx) / 64). A line/rect/circle-only program now
+ * cos/sin LUT + drags the cc65 16-bit soft-multiply for scaled radii.
+ * A line/rect/circle-only program now
  * skips both costs entirely.
  *
  * Drawn by stepping the parametric angle from 0..63/64 * 2π, plotting each
@@ -27,11 +27,28 @@ static const signed char kEllipseSin64[64] = {
     -64, -64, -63, -61, -59, -56, -53, -49, -45, -41, -36, -30, -24, -19, -12, -6
 };
 
-static unsigned gfx_clamp_x(signed int v)
+static unsigned gfx_clamp_x(unsigned v)
 {
-    if (v < 0) return 0;
-    if (v >= (int)gfx_width) return (unsigned)(gfx_width - 1u);
-    return (unsigned)v;
+    if (v >= gfx_width) return (unsigned)(gfx_width - 1u);
+    return v;
+}
+
+/* The radius is at most 32767. Split the scaled product so neither
+ * multiplication exceeds 16 bits, including boxes ending at 65535.
+ * For ordinary screen-sized radii, keep the original single multiply.
+ * centre +/- offset stays inside the unsigned bounding box. */
+static int gfx_ellipse_offset(unsigned radius, signed char c)
+{
+    unsigned magnitude, offset;
+    magnitude = (unsigned)(c < 0 ? -(int)c : (int)c);
+    if (radius < 512u)
+        offset = (radius * magnitude) >> 6;
+    else
+        offset = (radius >> 6) * magnitude +
+                 (((radius & 63u) * magnitude) >> 6);
+    /* Apply the sign after division: cc65 optimizes signed /64 into an
+     * arithmetic shift, rounding negative products down instead of to zero. */
+    return c < 0 ? -(int)offset : (int)offset;
 }
 static unsigned char gfx_clamp_y(signed int v)
 {
@@ -42,16 +59,18 @@ static unsigned char gfx_clamp_y(signed int v)
 
 void gfx_ellipse(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1)
 {
-    signed int xc, yc, rx, ry;
+    unsigned xc, rx, ax;
+    signed int yc, ry, ay;
     unsigned char i;
 
     /* Reject invisible boxes before clamping points or doing signed math. */
     if ((x0 >= gfx_width && x1 >= gfx_width) ||
         (y0 >= gfx_height && y1 >= gfx_height)) return;
 
-    xc = (((signed int)x0 + (signed int)x1) >> 1);
+    if (x1 < x0) { unsigned t = x0; x0 = x1; x1 = t; }
+    rx = (x1 - x0) >> 1;
+    xc = x0 + rx;
     yc = (((signed int)y0 + (signed int)y1) >> 1);
-    rx = (signed int)((x1 > x0 ? x1 - x0 : x0 - x1)) >> 1;
     ry = (signed int)((y1 > y0 ? y1 - y0 : y0 - y1)) >> 1;
 
     /* A zero integer radius collapses to a line inside the original box.
@@ -67,13 +86,14 @@ void gfx_ellipse(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1)
         return;
     }
 
+    ax = gfx_clamp_x(xc + rx);
+    ay = gfx_clamp_y(yc);
     for (i = 0; i < 64U; ++i) {
         unsigned char j = (unsigned char)((i + 1U) & 63U);
-        signed int ax = xc + ((signed int)kEllipseCos64[i] * rx) / 64;
-        signed int ay = yc + ((signed int)kEllipseSin64[i] * ry) / 64;
-        signed int bx = xc + ((signed int)kEllipseCos64[j] * rx) / 64;
-        signed int by = yc + ((signed int)kEllipseSin64[j] * ry) / 64;
-        gfx_line(gfx_clamp_x(ax), gfx_clamp_y(ay),
-                 gfx_clamp_x(bx), gfx_clamp_y(by));
+        unsigned bx = gfx_clamp_x(xc + gfx_ellipse_offset(rx, kEllipseCos64[j]));
+        unsigned char by = gfx_clamp_y(yc + gfx_ellipse_offset((unsigned)ry, kEllipseSin64[j]));
+        gfx_line(ax, (unsigned char)ay, bx, by);
+        ax = bx;
+        ay = by;
     }
 }

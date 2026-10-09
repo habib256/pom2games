@@ -21,13 +21,16 @@ murs, caisses et autres éléments graphiques conservent leurs couleurs.
 | Fichier | Contenu | Utilisé par |
 |---|---|---|
 | `hgr_scanline.inc` | `hgr_lo` / `hgr_hi` : adresse de chaque ligne 0..191 | arkabreakout, chess, demos, logo, maze3d, micro-sokoban |
-| `hgr_plot_tables.inc` | `hgr_col` / `hgr_mask` : octet et bit de chaque colonne 0..279 | logo |
+| `hgr_plot_tables.inc` | `hgr_col` / `hgr_mask` : octet et bit des colonnes 0..255, ou 0..279 avec `HGR_FULL_WIDTH_TABLES=1` | logo |
 | `hgr_clear.asm` | `clear_hgr` : efface `$2000-$3FFF` (`HGR_CLEAR_LOOP`, sans ZP) | demos (life), logo |
 | `hgr_flip.asm` | `hgr_draw_hidden` / `hgr_show_draw` / `hgr_set_draw_page` : double tampon en réécrivant `hgr_hi` sur place (`hgr_scanline.inc` dans un segment modifiable) | maze3d, micro-sokoban |
 | `hgr_text8.asm` | `hgr_putc8` / `hgr_puts8` : texte 8x8 aligné sur l'octet, couleurs. `HGR_TEXT8_HGR_ORDER` (police en ordre HGR : plus de `ht_rev` ni de `rev7_tab`, −256 o), `HGR_TEXT8_NO_PUTS` | arkabreakout, maze3d |
 | `hgr_sprite16.asm` | `hgr_spr16_x1/_x2/_x4` : sprites TMS 16x16 convertis à l’exécution | ancien chemin TMS |
 | `hgr_sprite_packed.asm` | `hgr_sprite_packed` : lignes HGR précompactées, répétition verticale et bord masqué | maze3d |
 | `hgr_sprite_color.inc` | attributs de couleur partagés par les deux blitters | moteurs de sprites |
+| `hgr_plot.asm` | `hgr_plot16` : pixel OR/XOR avec clipping, X 16 bits, palette optionnelle | logo |
+| `hgr_line16.asm` | `hgr_line16` : Bresenham avec X signé 16 bits, raster historique LOGO | logo |
+| `hgr_sprite_update.asm` | `ds_present` / `ds_hide` : sprite transparent par octets, sauvegarde et restauration du fond | logo |
 | `hgr_line.asm` | `hgr_line8` : ligne OR rapide, X natif 0..255, Y 0..191 | maze3d |
 | `hgr_span.asm` | `hgr_hspan` / `hgr_vspan` : spans par colonnes et masques d’octets, largeur HGR complète | maze3d |
 | `hgr_wireframe.asm` | contours découpés en X, historique par page et effacement rapide des anciens traits en noir | light3dball |
@@ -145,3 +148,84 @@ pages, avec son scratch par défaut, des historiques traversant une frontière
 de page, des bords, des fenêtres vides et des rectangles dégénérés. Chaque
 octet du framebuffer est comparé à une référence après dessin et effacement.
 Ce test fait aussi partie de `make test-hgr`.
+
+## Noyaux natifs utilisés par LOGO
+
+`hgr_plot16` accepte X sur 16 bits (0..279 à l'écran) et Y sur 8 bits.
+Les pixels hors écran sont ignorés avant tout accès aux tables. `hp_mode=0`
+compose par OR ; les autres valeurs utilisent XOR, sans modifier le bit 7.
+Le mode OR préserve aussi ce bit, sauf si `HP_COLOR_TABLE` est défini :
+`hp_color` indexe alors la table de palette fournie par l'appelant.
+Le hook optionnel `HP_OR_PLOT`, appelé avec A = octet composé et Y = colonne
+mémoire, peut adapter A avant l'écriture ; il doit préserver Y et le scratch
+`hp_*`. LOGO l'utilise pour dessiner les traits sous le sprite visible.
+
+`hgr_line16` reçoit `h16_x0/y0` et `h16_x1/y1`. X est signé sur 16 bits,
+Y non signé sur 8 bits, avec `|dx| <= 511`. Le raster conserve les égalités
+historiques LOGO : pas X si `2*err >= -dy`, pas Y si `2*err < dx`.
+Les extrémités et le scratch sont modifiés. `HGR_LINE16_PLOT` permet de
+remplacer le plotter ; les alias `hp_*` et `h16_*` réutilisent le scratch
+existant. Inclure les tables avec `HGR_FULL_WIDTH_TABLES=1` pour ces noyaux.
+
+Le compositeur `hgr_sprite_update.asm` gère un sprite transparent, sur la
+page désignée par `hgr_lo/hi`. Après `ds_init`, fournir `ds_col/y/w/h` :
+colonne d'octet 0..39, ligne 0..191, largeur 1..6, hauteur 1..32, rectangle
+entièrement dans l'écran. `ds_data` pointe vers des lignes de **six octets**,
+avec le bit 7 toujours nul. `ds_color=0` conserve la palette du fond ;
+`ds_color=1` applique `ds_palette` (0 ou 128) aux octets ayant du premier plan.
+La composition utilise OR, et non XOR : un fond allumé ne troue pas le sprite.
+
+`ds_present` conserve deux tampons de fond de 192 octets. Il rend un octet
+allumé de la nouvelle image visible avant de retirer les anciens pixels,
+compose directement le recouvrement, puis restaure le fond quitté. Un
+rectangle identique utilise une boucle spécialisée. `ds_hide` restaure le
+fond ; après un effacement externe, appeler `ds_init` pour invalider la
+sauvegarde. Le moteur réserve huit octets de ZP ; il est non réentrant et
+détruit A/X/Y. Le masque actif doit rester disponible entre les présentations.
+Les écritures externes sous le sprite doivent mettre à jour le fond sauvegardé,
+ou masquer le sprite avant ces écritures puis le présenter à nouveau.
+
+Ce chemin évite la phase où le sprite était entièrement effacé. Il travaille
+sur une seule page, sans synchronisation VBL : une déchirure pendant le balayage
+reste possible. LOGO conserve ainsi son interpréteur en page HGR 2 et sa
+console 80 colonnes, sur II+ comme IIe.
+
+`test_hgr_logo.py` compare les lignes et pixels à une référence, avec le
+scratch par défaut et l'adaptateur LOGO. `test_hgr_sprite_update.py` vérifie
+les fonds colorés, le recouvrement, les transitions sans image vide,
+l'effacement, les trous HGR et l'autre page. Ces tests font partie de
+`make test-hgr` ; `make -C logo test` vérifie aussi les commandes réelles.
+
+## Glyphes natifs sans curseur
+
+`hgr_glyph8.asm` est le noyau utilisé par CHESS, LOGO et MICRO-SOKOBAN.
+Il lit huit lignes à `hg_src` (pointeur ZP, bit 0 à gauche) et utilise
+`hgr_lo/hi` pour la page cible. Ses entrées ne déplacent aucun curseur :
+
+| Entrée | Coordonnées | Écriture |
+|---|---|---|
+| `hgr_glyph8_store` | `hg_col` : octet 0..39 ; `hg_y` : ligne | Un octet brut par ligne, palette comprise |
+| `hgr_glyph8_or` | `hg_x` : pixel 16 bits 0..279 ; `hg_y` : ligne | Ajoute seulement les pixels allumés |
+| `hgr_glyph8_cell` | mêmes coordonnées | Remplace une cellule de huit pixels, efface sa palette, conserve les pixels voisins |
+
+Les huit bits de la source sont pris en compte, y compris le huitième pixel
+dans l'octet suivant. Les entrées rejettent les coordonnées hors écran et
+tronquent à droite/en bas sans retour en début de ligne. Source et coordonnées
+sont préservées ; A/X/Y et le scratch sont détruits. Le module est non réentrant,
+nécessite D=0 et ne touche aucun commutateur vidéo. Les alias `hg_*` permettent
+de réutiliser le scratch du logiciel.
+
+`HG_COLOR_TABLE[hg_color]` remplace la palette des seuls octets allumés en OR.
+`HG_OR_HOOK` reçoit et retourne A=octet écran, Y=colonne d'octet ; il préserve
+Y et `hg_*`. `HG_HOOK_Y` et `HG_HOOK_MASK` reçoivent la ligne et le masque
+allumé. LOGO utilise ce crochet pour conserver le texte tracé sous une émote.
+Sans table de couleur, OR préserve la palette existante.
+
+`HG_STORE_ONLY` omet les entrées non alignées. `HG_STORE_UNCLIPPED` supprime
+les contrôles de STORE : l'appelant garantit alors `hg_col<40`, `hg_y<=184`.
+CHESS et les titres de MICRO-SOKOBAN utilisent ce contrat pour leur UI fixe.
+CELL et OR restent toujours tronqués.
+
+`test_hgr_glyph8.py` couvre les deux pages, les sept alignements, les palettes,
+les cellules vides et les bords. `test_logo_glyphs.py` contrôle l'adaptateur
+réel et ses caractères ; les tests LOGO vérifient aussi le texte sous un sprite.

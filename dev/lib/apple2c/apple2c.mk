@@ -23,3 +23,6 @@ APPLE2C_FRAME_SRCS := $(APPLE2C)/apple2frame.s
 APPLE2C_GAME_SRCS := $(APPLE2C)/apple2game_asm.s
 APPLE2C_DOS_SRCS  := $(APPLE2C)/apple2dos_asm.s
 APPLE2C_AFLAGS    := -I $(APPLE2C)/../apple2
+
+# Public umbrella headers are transitive dependencies of C consumers.
+APPLE2C_HEADERS := $(wildcard $(APPLE2C)/*.h)

@@ -281,7 +281,6 @@ title_ix:        .res 1
 title_glyph:     .res 1
 title_col_start: .res 1
 title_scanline:  .res 1
-compact_shift:   .res 1  ; bit offset (0..6) of an 8-pixel screen glyph
 big_byte0:       .res 1
 big_byte1:       .res 1
 num_col:         .res 1          ; text cursor column (pixels when num_step = 8)
@@ -3504,74 +3503,24 @@ draw_big_glyph:
         JMP @row
 @end:   RTS
 
-; draw_compact_glyph: one 8x8 cell, at an arbitrary pixel column. The font
-; uses six pixels plus two blank pixels: an even 8-pixel advance keeps the
-; strokes white in HGR, with a regular gap instead of a whole empty byte.
-; Replace only this cell's bits in the two HGR bytes, including for spaces
-; when the title prompt blinks. Input: A = glyph, X = pixel col, Y = scanline.
+; Shared eight-pixel masked cell at an arbitrary pixel column.
 draw_compact_glyph:
-        STX temp
+        .globalzp hg_x
+        STX hg_x
         STY temp2
+        LDX #0
+        STX hg_x+1
         JSR set_hud_font_ptr
-        LDA temp
-        LDX #$00
-@divide:
-        CMP #7
-        BCC @column
-        SBC #7                          ; CMP left carry set
-        INX
-        BNE @divide
-@column:
-        STX temp                        ; byte column = pixel column / 7
-        STA compact_shift               ; pixel column % 7
-        LDY #$00
-@row:   STY title_glyph
-        LDA (src_lo),Y
-        STA big_byte0
-        LDA #$00
-        STA big_byte1
-        LDX compact_shift
-        BEQ @address
-@shift: LDA big_byte0
-        ASL A
-        CMP #$80                        ; carry = pixel crossing the byte
-        AND #$7F
-        STA big_byte0
-        ROL big_byte1
-        DEX
-        BNE @shift
-@address:
-        ; Native-size text must retain every white stroke; tinting is x2 only.
-        TYA
-        CLC
-        ADC temp2
-        TAX
-        LDA hgr_lo,X
-        CLC
-        ADC temp
-        STA ptr_lo
-        LDA hgr_hi,X
-        ADC #$00
-        STA ptr_hi
-        LDX compact_shift
-        LDY #$00
-        LDA (ptr_lo),Y
-        AND compact_keep_lo,X
-        ORA big_byte0
-        STA (ptr_lo),Y
-        INY
-        LDA (ptr_lo),Y
-        AND compact_keep_hi,X
-        ORA big_byte1
-        STA (ptr_lo),Y
-        LDY title_glyph
-        INY
-        CPY #8
-        BCC @row
-        RTS
+        JMP hgr_glyph8_cell
 
-compact_keep_lo: .byte $00, $01, $03, $07, $0F, $1F, $3F
-compact_keep_hi: .byte $7E, $7C, $78, $70, $60, $40, $00
+hg_src = src_lo
+hg_ptr = ptr_lo
+hg_col = temp
+hg_y = temp2
+hg_lo = big_byte0
+hg_hi = big_byte1
+HG_STORE_UNCLIPPED = 1            ; byte-aligned titles stay within the screen
+.include "hgr_glyph8.asm"
 
 ; Tint two raster bytes using absolute pixel parity and HGR phase.
 ; Preserve Y (font row), temp (byte column) and temp2 (scanline).
@@ -3606,37 +3555,12 @@ color_glyph_pair:
 @done:  RTS
 glyph_masks: .byte $55, $2A, $2A, $55
 
-; draw_title_glyph: one 7x8 glyph. Input: A = glyph, X = byte_col, Y = scanline.
+; Shared byte-aligned white glyph.
 draw_title_glyph:
         STX temp
         STY temp2
         JSR set_hud_font_ptr
-        LDY #$00
-@sc:
-        STY title_glyph
-        LDA (src_lo),Y
-        PHA
-        LDY title_glyph
-        TYA
-        CLC
-        ADC temp2
-        TAX
-        LDA hgr_lo,X
-        CLC
-        ADC temp
-        STA ptr_lo
-        LDA hgr_hi,X
-        ADC #$00
-        STA ptr_hi
-        PLA
-        LDY #$00
-        STA (ptr_lo),Y
-        LDY title_glyph
-        INY
-        STY title_glyph
-        CPY #$08
-        BCC @sc
-        RTS
+        JMP hgr_glyph8_store
 
 ; --- Strings: glyph indices, $FF terminated (GSTR, see bbfont_subset.inc) ---
 title_micro_sokoban:  GSTR "MICRO-SOKOBAN"

@@ -23,7 +23,7 @@ $(BUILD)/crt0.o: $(A2_CRT0)
 	@mkdir -p $(@D)
 	$(CA65) -t none -o $@ $<
 
-$(BUILD)/game.o: src/game.c $(BUILD)/assets.h $(BUILD)/background.h $(BUILD)/mousemap.h $(BUILD)/levels.h $(HGRC_HEADERS)
+$(BUILD)/game.o: src/game.c $(BUILD)/assets.h $(BUILD)/background.h $(BUILD)/mousemap.h $(BUILD)/levels.h $(HGRC_HEADERS) $(DEV)/lib/mouse/mouse.h
 	$(CL65) -t none -Ors $(HGRC_INCS) $(APPLE2C_INCS) -I $(DEV)/lib/mouse -I $(BUILD) -c -o $@ $<
 
 $(BUILD)/render.o: src/render.s $(A2_ASM_DEPS)

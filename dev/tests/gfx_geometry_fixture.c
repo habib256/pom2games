@@ -7,6 +7,7 @@
 const unsigned gfx_width = 560;
 const unsigned char gfx_height = 192;
 static unsigned char pixels[192][560];
+static unsigned char reference[192][560];
 void gfx_plot(unsigned x, unsigned char y)
 {
     assert(x < gfx_width && y < gfx_height);
@@ -33,6 +34,17 @@ int main(int argc, char **argv)
             gfx_circle(559, 95, (unsigned char)r);
         }
     } else {
+        static const unsigned ends[] = {559, 1022, 1024, 32767, 32768, 65535};
+        unsigned i;
+        for (i = 0; i < sizeof(ends) / sizeof(ends[0]); ++i) {
+            memset(pixels, 0, sizeof(pixels));
+            gfx_ellipse(10, 20, ends[i], 100);
+            memcpy(reference, pixels, sizeof(pixels));
+            memset(pixels, 0, sizeof(pixels));
+            gfx_ellipse(ends[i], 100, 10, 20);
+            assert(memcmp(reference, pixels, sizeof(pixels)) == 0);
+            assert(pixels[60][10]);
+        }
         for (dx = 0; dx <= 8; ++dx) for (dy = 0; dy <= 8; ++dy)
         for (reverse = 0; reverse < 2; ++reverse) {
             memset(pixels, 0, sizeof(pixels));

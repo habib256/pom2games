@@ -52,18 +52,23 @@ extern const unsigned char gfx_height;
  * HGR (ASM kernel), gfx_line.c for generic/DHGR (C fallback through gfx_plot). */
 void gfx_line(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1);
 
-/* Rectangle OUTLINE through opposite corners (interior untouched). Four spans
- * via gfx_hline / gfx_vline. */
+/* Rectangle OUTLINE through opposite corners (interior untouched). Up to four
+ * spans via gfx_hline / gfx_vline, with no repeated corner pixels. A point or
+ * flat rectangle uses one span. Clipping preserves the original edges. */
 void gfx_rect(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1);
 
 /* Midpoint circle OUTLINE, centre (xc, yc), radius r; 8-way symmetry, every
  * point clipped to [0,gfx_width) x [0,gfx_height) before plotting. Off-screen
- * unsigned centres are accepted; circles wholly outside draw nothing. */
+ * unsigned centres are accepted; circles wholly outside draw nothing.
+ * Each visible point is plotted once, including axes, diagonals and r=0. */
 void gfx_circle(unsigned xc, unsigned char yc, unsigned char r);
 
 /* Ellipse inscribed in the (x0,y0)-(x1,y1) bounding box, drawn as a 64-segment
  * polyline using successive points on the ellipse. An integer radius of zero
- * collapses to a line (or a point), staying inside the bounding box. */
+ * collapses to a line (or a point), staying inside the bounding box. X corners
+ * accept the full 0..65535 range, in either order. Chord endpoints are clamped
+ * to the screen; wholly off-screen boxes draw nothing. Scaled offsets round
+ * toward zero on both host C and cc65. */
 void gfx_ellipse(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1);
 
 /* ===========================================================================

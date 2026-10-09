@@ -990,41 +990,34 @@ putc_hgr:
         CMP #64
         BCC @have
 @space: LDA #0
-@have:  STA tmp
+@have:  ; index < 64: the final ASL carry is the pointer's ninth bit.
+        ASL A
+        ASL A
+        ASL A
+        STA mptr_lo
         LDA #0
-        STA tmp2
-        ASL tmp
-        ROL tmp2
-        ASL tmp
-        ROL tmp2
-        ASL tmp
-        ROL tmp2                ; index*8
-        LDA tmp
+        ROL A
+        STA mptr_hi
+        LDA mptr_lo
         CLC
         ADC #<bbfont
         STA mptr_lo
-        LDA tmp2
+        LDA mptr_hi
         ADC #>bbfont
         STA mptr_hi
-        LDX #0                  ; glyph row 0..7
-@r:     TXA
-        CLC
-        ADC tx_sl
-        TAY
-        LDA hgr_lo,Y
-        STA ptr_lo
-        LDA hgr_hi,Y
-        STA ptr_hi
-        TXA
-        TAY
-        LDA (mptr_lo),Y
-        LDY tx_col
-        STA (ptr_lo),Y
-        INX
-        CPX #8
-        BNE @r
+        JSR hgr_glyph8_store
         INC tx_col
         RTS
+
+; Shared raw glyph kernel; the adapter above retains CHESS's ASCII window
+; and cursor semantics. Reuse its existing pointer and text parameters.
+hg_src = mptr_lo
+hg_ptr = ptr_lo
+hg_col = tx_col
+hg_y = tx_sl
+HG_STORE_ONLY = 1
+HG_STORE_UNCLIPPED = 1            ; all panel/file/rank glyphs fit on screen
+.include "hgr_glyph8.asm"
 
 ; puts_hgr: print NUL-terminated (sptr) via putc_hgr at tx_col/tx_sl.
 puts_hgr:

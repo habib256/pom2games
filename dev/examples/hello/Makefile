@@ -35,7 +35,7 @@ $(BUILD)/apple2io_asm.o: $(APPLE2C)/apple2io_asm.s
 $(BUILD)/apple2io.o: $(APPLE2C)/apple2io.c $(APPLE2C)/apple2io.h
 	@mkdir -p $(BUILD)
 	$(CL65) -t none -Oirs $(APPLE2C_INCS) -c -o $@ $<
-$(BUILD)/hello_c.o: src/hello_c.c $(APPLE2C)/apple2io.h
+$(BUILD)/hello_c.o: src/hello_c.c $(APPLE2C_HEADERS)
 	@mkdir -p $(BUILD)
 	$(CL65) -t none -Oirs $(APPLE2C_INCS) -c -o $@ $<
 

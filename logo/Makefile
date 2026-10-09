@@ -15,29 +15,38 @@ include $(DEV)/cc65/apple2.mk
 
 # CODETANK_BUILD = the full feature set (LABEL, SAY, LIST, EDIT, DEMO2);
 # LOGO_HGR = the HGR code paths of the shared interpreter.
-DEFS    := -D CODETANK_BUILD -D LOGO_HGR
+DEFS    := -D CODETANK_BUILD -D LOGO_HGR -D LOGO_SPRITE_CACHE
 DISK    := $(DIST)/LOGO.dsk
 BIN     := $(BUILD)/logo.bin
 
 # logo.o FIRST: its CODE segment starts with `jmp main`.
-MODS    := logo hgr_logom2 text_bitmap math sprite_helpers sprites_emotes bubble buffer_editor
+MODS    := logo emote_hgr hgr_logom2 text_bitmap math sprite_helpers sprites_emotes bubble buffer_editor
 OBJS    := $(MODS:%=$(BUILD)/%.o)
-LIBDEPS := $(wildcard src/*.inc) $(A2_ASM_DEPS)
+LIBDEPS := Makefile $(wildcard src/*.inc) $(A2_ASM_DEPS)
 
 all: $(DISK)
 
 $(BUILD)/logo.o: src/logo.s src/screen.asm $(LIBDEPS)
 	@mkdir -p $(BUILD)
-	$(CA65) -t none $(A2_INCS) $(DEFS) -l $(BUILD)/logo.lst -o $@ $<
+	$(CA65) -g -t none $(A2_INCS) $(DEFS) -l $(BUILD)/logo.lst -o $@ $<
 
 $(BUILD)/%.o: src/%.asm $(LIBDEPS)
 	@mkdir -p $(BUILD)
-	$(CA65) -t none $(A2_INCS) $(DEFS) -o $@ $<
+	$(CA65) -g -t none $(A2_INCS) $(DEFS) -o $@ $<
 
-$(BIN): $(OBJS) src/logo.cfg
-	$(LD65) -C src/logo.cfg -m $(BUILD)/logo.map -o $@ $(OBJS)
+$(BIN): $(OBJS) src/logo.cfg Makefile
+	$(LD65) -C src/logo.cfg -m $(BUILD)/logo.map -Ln $(BUILD)/logo.lbl -o $@ $(OBJS)
 	@echo "binary: $$(wc -c < $@) bytes at $(LOAD)"
 
 $(DISK): $(BIN) $(DOS33_DEPS)
 	@mkdir -p $(DIST)
 	$(DOS33) --bin LOGO=$(BIN)@$(LOAD) --catalog
+
+$(BUILD)/logo.lbl: $(BIN)
+	@test -f $@ || $(MAKE) -B $(BIN)
+
+test: all $(BUILD)/logo.lbl
+	$(PYTHON) tests/test_logo.py
+	$(PYTHON) tests/test_sprites.py
+
+.PHONY: test

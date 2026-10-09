@@ -95,6 +95,7 @@ Requirements: cc65 (`brew install cc65`) and python3. Everything else,
 including the DOS 3.3 system tracks, is in `../dev`.
 
     make            # -> ../dist/LOGO.dsk
+    make test       # II+ and IIe commands, exact sprite rasters and transitions
     make run        # POM2, Apple //e preset (make run POM2=path/to/POM2)
     make clean      # remove build/ (the disk stays)
     make distclean  # remove build/ and the disk
@@ -113,13 +114,13 @@ Machines:
 
 ### Memory map
 
-    $0050-$0093  zero page (saved on entry, restored by BYE and Ctrl-RESET)
+    $0050-$0092  zero page (saved on entry, restored by BYE and Ctrl-RESET)
     $0400-$07FF  text page (40 or 80 columns)
     $0800-$0FFF  HELLO program, kept by DOS
     $1000-$1E55  PROCBSS: control stack, variable and procedure tables
     $2000-$3FFF  HGR page 1: the turtle screen
-    $4000-$8854  CODE: the BRUN file (18,517 bytes, 18.1 KB), then
-                 LINEBUF ($8855-$88BE) and BSS ($88BF-$89C2)
+    $4000-$8E27  CODE: the BRUN file (20,008 bytes, 19.5 KB), then
+                 LINEBUF ($8E28-$8E91) and BSS ($8E92-$9248)
     $9600-$BFFF  DOS 3.3
 
 ### Why HGR page 2 is unused
@@ -163,9 +164,12 @@ thin coloured lines alias exactly as on real hardware. White (15) stays white.
                           dev/lib/apple2 print.asm, kbd.asm, exit.asm
     src/screen.asm        Apple II screen: TS / SS / FS, 40 / 80 columns, BYE
     src/a2logo.inc        Apple-1 names mapped onto the Apple II (ECHO = COUT)
-    src/hgr_logom2.asm    HGR backend (gen2_logom2.asm from POM1): plot, line,
-                          clear, 9-bit X for the full 280 columns
-    src/text_bitmap.asm   8x8 glyphs on the HGR screen; includes the whole
+    src/hgr_logom2.asm    adapter to dev/lib/hgr plot, line and clear kernels;
+                          signed X clipping and the full 280 columns
+    src/emote_hgr.asm     TMS masks -> doubled HGR bytes; saved-background
+                          composition through dev/lib/hgr/hgr_sprite_update.asm
+    src/text_bitmap.asm   adapter to dev/lib/hgr/hgr_glyph8.asm, byte-wise OR
+                          with palette and saved-background updates; includes
                           ../dev/lib/font/bbfont.inc (256 glyphs)
     src/bubble.asm        the SAY speech bubble
     src/buffer_editor.asm the EDIT procedure editor
@@ -176,13 +180,20 @@ thin coloured lines alias exactly as on real hardware. White (15) stays white.
     ../dist/LOGO.dsk      the disk image
 
 Build flags: `-D CODETANK_BUILD` (the full feature set: LABEL, SAY, LIST,
-EDIT, DEM2) and `-D LOGO_HGR` (the HGR code paths of the shared interpreter).
+EDIT, DEM2), `-D LOGO_HGR` (the HGR paths) and `-D LOGO_SPRITE_CACHE`
+(the plot hook that preserves trails beneath emotes).
 `logo.o` is linked first; its CODE segment starts with `jmp main`.
 
 Libraries: `../dev/lib/apple2` (soft-switch equates, keyboard, printing,
 zero-page save and exit to DOS), `../dev/lib/hgr` (scanline, column and mask
-tables, screen clear), `../dev/lib/font` (the 8x8 Beautiful Boot font),
+tables, screen clear, clipped plotting, lines, glyphs and sprite composition), `../dev/lib/font` (the 8x8 Beautiful Boot font),
 `../dev/tools/dos33.py` (disk image).
+
+The glyph core replaces the per-pixel loop. On seven alignments of “A”,
+the emitter takes 1,601–2,319 cycles instead of 5,328; a space takes 831
+instead of 1,758. These are emitter measurements with an inactive sprite
+hook, not whole-command timings. All 1,043 font/palette/edge cases match
+the reference; glyphs clip at the right and bottom without wrapping.
 
 ### What differs from the Apple-1 / GEN2 original
 
@@ -194,8 +205,15 @@ tables, screen clear), `../dev/lib/font` (the 8x8 Beautiful Boot font),
   the prompt.
 - `BYE` and Ctrl-RESET return to DOS with the zero page restored
   (`../dev/lib/apple2/exit.asm`).
-- No V-blank signal on an Apple II: the sprite sync `hgr_emote_vsync` is a
-  stub, emotes redraw immediately.
+- Emotes are prepared as HGR byte masks while the old image remains visible.
+  The new foreground appears before the old background is restored; overlap
+  is composed directly. Trails and their palette bits survive beneath sprites.
+  `SETPC` refreshes coloured emotes, and identical frames avoid HGR writes.
+  Turning an emote keeps its bitmap unchanged. This removes the fully erased
+  animation phase on II+ and IIe. Rendering uses one page without VBL sync,
+  so scanout tearing remains possible.
+- The shared signed-X line walker also fixes the old freeze when a triangle
+  vertex crosses the left edge (for example `SETXY 0 80`).
 - `RT` and `LT` were added as aliases of `TR` and `TL` (the `HELP 8` / `HELP 9`
   examples use them; the command table did not know them).
 - Three upstream bugs fixed: `EDIT` drew its text diagonally (the glyph
@@ -221,3 +239,25 @@ APPLE-1 LOGO V2.6 and this Apple II port: VERHILLE Arnaud, 2026. The emote
 shapes come from SCROLL-O-SPRITES by Quale (CC-BY 3.0). Part of
 [pom2games](https://github.com/habib256/pom2games); licence GPL-3.0 (see the
 `LICENSE` file at the repository root).
+
+## Sprite validation and timing
+
+`make test` boots the real disk on II+ (40 columns) and IIe (80 columns).
+It verifies commands, all seven HGR bit alignments, 8x8 and 16x16 patterns,
+edge clipping, all sixteen pen settings, background restoration, identical
+frames, transition checkpoints, `SAY`, screen modes, `BYE` and Ctrl-RESET.
+The shared compositor is also tested independently on both HGR pages.
+
+Cycle counts measured with a2run from command entry to the next REPL,
+starting at `PU CS SETXY 128 96 SETSHAPE "BIRD1`:
+
+| Command | Previous pixel renderer | Byte renderer | Speedup |
+|---|---:|---:|---:|
+| `SETSHAPE "BIRD2` | 81,033 | 41,706 | 1.94× |
+| `SETXY 129 96` | 80,421 | 41,117 | 1.96× |
+| `PD SETH 90 FD 8` (from `fd_common`) | 83,260 | 69,350 | 1.20× |
+
+These are interpreter command costs, including parsing after the command
+entry; keyboard pacing and intentional `WAIT` delays are excluded.
+Sprites use foreground OR with an exact saved background, rather than XOR
+inversion on illuminated scenery.

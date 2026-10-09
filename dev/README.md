@@ -231,3 +231,10 @@ et le contexte souris autonome ; cette cible fait partie de `make test`.
 Les [trois intégrations minimales](examples/minimal/README.md) fournissent des
 images DOS/ProDOS et un bilan mémoire calculé. Le [registre matériel](lib/HARDWARE.md)
 sépare les essais physiques restant à effectuer des validations émulées.
+
+## Audit des ressources partagées
+
+`make audit-libs`, depuis la racine, vérifie les dépendances réelles des
+14 projets avec ca65/cc65 et le graphe de compilation de make. Construire
+d’abord les logiciels et les exemples minimaux pour disposer des ressources
+générées. Voir [l’inventaire et les possibilités de mutualisation](lib/USAGE.md).
