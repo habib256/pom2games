@@ -1,0 +1,82 @@
+{
+  "hgr_game_compact": {
+    "refreshes": 2,
+    "frame_cycles": 17030,
+    "reserved_cycles": 6000
+  },
+  "hgr_game_compact_pal": {
+    "refreshes": 2,
+    "frame_cycles": 20280,
+    "reserved_cycles": 6000
+  },
+  "hgr_game_compact_phase1": {
+    "refreshes": 2,
+    "frame_cycles": 17030,
+    "reserved_cycles": 6000
+  },
+  "hgr_game_compact_phase1_pal": {
+    "refreshes": 2,
+    "frame_cycles": 20280,
+    "reserved_cycles": 6000
+  },
+  "hgr_game_compact_phase2": {
+    "refreshes": 2,
+    "frame_cycles": 17030,
+    "reserved_cycles": 6000
+  },
+  "hgr_game_compact_phase2_pal": {
+    "refreshes": 2,
+    "frame_cycles": 20280,
+    "reserved_cycles": 6000
+  },
+  "hgr_game_compact_phase3": {
+    "refreshes": 2,
+    "frame_cycles": 17030,
+    "reserved_cycles": 6000
+  },
+  "hgr_game_compact_phase3_pal": {
+    "refreshes": 2,
+    "frame_cycles": 20280,
+    "reserved_cycles": 6000
+  },
+  "hgr_game_compact_phase4": {
+    "refreshes": 2,
+    "frame_cycles": 17030,
+    "reserved_cycles": 6000
+  },
+  "hgr_game_compact_phase4_pal": {
+    "refreshes": 2,
+    "frame_cycles": 20280,
+    "reserved_cycles": 6000
+  },
+  "hgr_game_compact_phase5": {
+    "refreshes": 2,
+    "frame_cycles": 17030,
+    "reserved_cycles": 6000
+  },
+  "hgr_game_compact_phase5_pal": {
+    "refreshes": 2,
+    "frame_cycles": 20280,
+    "reserved_cycles": 6000
+  },
+  "hgr_game_compact_phase6": {
+    "refreshes": 2,
+    "frame_cycles": 17030,
+    "reserved_cycles": 6000
+  },
+  "hgr_game_compact_phase6_pal": {
+    "refreshes": 2,
+    "frame_cycles": 20280,
+    "reserved_cycles": 6000
+  },
+  "hgr_tile_background": {
+    "refreshes": 2,
+    "frame_cycles": 17030,
+    "reserved_cycles": 6000
+  },
+  "hgr_tile_background_pal": {
+    "refreshes": 2,
+    "frame_cycles": 20280,
+    "reserved_cycles": 6000
+  }
+}

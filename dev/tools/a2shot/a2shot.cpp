@@ -2,7 +2,7 @@
 //
 // Boots a DOS 3.3 disk under the II+ ROM, then walks a script of steps:
 //
-//   wait:N          run N video frames (17030 cycles each, ~1/60 s)
+//   wait:N          run N SDK video frames (17030 NTSC / 20280 PAL cycles)
 //   key:TEXT        type TEXT (\r = RETURN, \e = ESC, \< / \> = left / right)
 //   shot:FILE.png   render the screen to a PNG (560x384 for HGR and DHGR)
 //   peek:ADDR[:LEN] hex-dump guest memory (bus reads, may have side effects)
@@ -11,7 +11,9 @@
 //   reset           press RESET (warm: the 6502 RESET line)
 //   pc              print the program counter
 //   until:ADDR:N    run until PC reaches ADDR, with a limit of N video frames
+//   tracepc:ADDR:COUNT:N  record COUNT PC visits, limit N video frames
 //   press:TEXT      queue keys without running (for exact until checkpoints)
+//   hwstackwatch / hwstack  profile hardware stack S; report wrap overflow
 //   stackwatch:SP:TOP:SIZE  profile cc65 software stack (hex arguments)
 //   stack           print observed peak/reservation/overflow, stop profiling
 //
@@ -25,6 +27,7 @@
 // --iie boots an enhanced Apple //e (65C02, 80-column card with aux memory)
 // instead of the ][+.
 // --mockingboard attaches a slot-4 card, including its VIA timer IRQs.
+// --pal selects PAL beam timing; script frame units follow that timing.
 //
 // The run is deterministic: no threads, no wall-clock pacing.
 #include <pom2/core.hpp>
@@ -40,7 +43,7 @@
 
 namespace {
 
-const int kCyclesPerFrame = 17030;
+int kCyclesPerFrame = 17030; // SDK beam: 262/312 scanlines of 65 cycles.
 
 void put32(std::vector<unsigned char>& v, unsigned long x)
 {
@@ -105,6 +108,8 @@ std::string unescape(const std::string& s)
             case 'e': out += '\x1B'; break;
             case '<': out += '\x08'; break;             // left arrow
             case '>': out += '\x15'; break;             // right arrow
+            case '^': out += '\x0B'; break;             // up arrow
+            case 'v': out += '\x0A'; break;             // down arrow
             default:  out += s[i]; break;
         }
     }
@@ -122,17 +127,19 @@ int main(int argc, char** argv)
     std::string disk;
     bool iie = false;
     bool mockingboard = false;
+    bool pal = false;
     std::vector<std::string> script;
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
         if (a == "--roms" && i + 1 < argc) roms = argv[++i];
         else if (a == "--disk" && i + 1 < argc) disk = argv[++i];
         else if (a == "--iie") iie = true;
+        else if (a == "--pal") pal = true;
         else if (a == "--mockingboard") mockingboard = true;
         else script.push_back(a);
     }
     if (disk.empty()) {
-        std::fprintf(stderr, "usage: a2shot [--iie] [--mockingboard] [--roms DIR] --disk X.dsk step...\n");
+        std::fprintf(stderr, "usage: a2shot [--iie] [--pal] [--mockingboard] [--roms DIR] --disk X.dsk step...\n");
         return 2;
     }
 
@@ -157,6 +164,7 @@ int main(int argc, char** argv)
     struct Cleanup { std::string p; ~Cleanup() { std::remove(p.c_str()); } } cleanup{copy};
 
     pom2::CoreConfig config;
+    if (pal) { config.timing=pom2::VideoTiming::PAL; kCyclesPerFrame=20280; }
     if (iie) {
         config.cpu = pom2::CpuModel::CMOS65C02;
         config.iieMemory = true;
@@ -177,9 +185,17 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    bool hwActive = false, hwOverflow = false;
+    unsigned hwStart = 0, hwMin = 0, hwPrevious = 0;
     bool stackActive = false, stackOverflow = false;
     unsigned stackSp = 0, stackTop = 0, stackLow = 0, stackMin = 0;
     const auto sampleStack = [&]() {
+        if (hwActive) {
+            const unsigned value = core.cpuState().stackPointer;
+            if (hwPrevious <= 2 && value > hwPrevious + 3) hwOverflow = true;
+            hwPrevious = value;
+            if (value < hwMin) hwMin = value;
+        }
         if (!stackActive) return;
         const unsigned pc = core.cpuState().programCounter;
         if (pc >= 0xBFFF) return;
@@ -192,7 +208,7 @@ int main(int argc, char** argv)
     };
     const auto profileStep = [&]() { sampleStack(); core.step(); };
     const auto runCycles = [&](int cycles) {
-        if (!stackActive) core.run(cycles);
+        if (!stackActive && !hwActive) core.run(cycles);
         else {
             const auto end = core.cpuState().cycles + cycles;
             while (core.cpuState().cycles < end) profileStep();
@@ -216,11 +232,36 @@ int main(int argc, char** argv)
             const std::uint64_t limit = core.cpuState().cycles +
                 std::strtoull(arg.substr(split + 1).c_str(), nullptr, 10) * kCyclesPerFrame;
             while (core.cpuState().programCounter != target && core.cpuState().cycles < limit)
-                if (stackActive) profileStep(); else core.run(1);
+                if (stackActive || hwActive) profileStep(); else core.run(1);
             const auto state = core.cpuState();
             std::printf("until %04X cycles=%llu PC=%04X\n", target,
                         static_cast<unsigned long long>(state.cycles), state.programCounter);
             if (state.programCounter != target) return 3;
+        } else if (op == "tracepc") {
+            unsigned target=0,count=0,frames=0;
+            if (std::sscanf(arg.c_str(),"%x:%u:%u",&target,&count,&frames)!=3 ||
+                target>65535 || !count || !frames) return 2;
+            const auto limit=core.cpuState().cycles+std::uint64_t(frames)*kCyclesPerFrame;
+            unsigned hits=0;
+            while(hits<count && core.cpuState().cycles<limit) {
+                if(core.cpuState().programCounter==target) {
+                    std::printf("tracepc %04X cycles=%llu\n",target,
+                        static_cast<unsigned long long>(core.cpuState().cycles));
+                    ++hits;
+                    if(hits==count) break;
+                }
+                profileStep();
+            }
+            if(hits!=count) return 3;
+        } else if (op == "hwstackwatch") {
+            hwStart=255; hwMin=hwPrevious=core.cpuState().stackPointer;
+            hwOverflow=false; hwActive=true;
+        } else if (op == "hwstack") {
+            if (!hwActive) return 2;
+            sampleStack();
+            std::printf("hwstack peak=%u available=%u overflow=%d\n",
+                        hwStart-hwMin,hwStart,int(hwOverflow));
+            hwActive=false;
         } else if (op == "stackwatch") {
             unsigned size;
             if (std::sscanf(arg.c_str(),"%x:%x:%x",&stackSp,&stackTop,&size) != 3 ||

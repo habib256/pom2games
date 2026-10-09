@@ -291,7 +291,7 @@ dessin en double tampon ; en simple tampon, il ne fait rien.
 Le programme doit attendre entre render et present s’il veut synchroniser la
 bascule ; voir [`apple2frame.h`](../apple2c/apple2frame.h) et l’[exemple HGR](../../examples/hgr/README.md).
 
-Le pool statique réserve 1 536 octets même en simple tampon.
+Avec les huit slots par défaut, le pool statique réserve 1 536 octets même en simple tampon.
 Cette réservation appartient uniquement à l'objet de compatibilité
 `hgr_spr_init`. `hgr_spr_init_pool(dbuf, pool, taille, nombre, capacité)`
 utilise un pool fourni par l'appelant et ne lie pas cet objet. Il faut
@@ -327,8 +327,8 @@ préparent aussi les tables X lorsqu'ils sont appelés directement.
 `hgr_line` utilise un Bresenham assembleur pour les diagonales sur 280 pixels,
 avec les mêmes choix de pixels que l'ancienne API C. Les axes gardent les
 spans rapides. Les extrémités hors écran sont refusées ; aucun clipping de
-segment implicite n'est ajouté. `gfx_line` conserve l'algorithme indépendant
-du backend. `test_hgr_lines.py` compare 464 lignes via `hgr_line` et `gfx_line` aux pixels attendus sur les
+segment implicite n'est ajouté. `gfx_line` sélectionne ce noyau sur HGR et le fallback C
+sur les backends génériques/DHGR. `test_hgr_lines.py` compare 464 lignes via `hgr_line` et `gfx_line` aux pixels attendus sur les
 deux pages, y compris les directions inverses, égalités et X >= 256.
 
 ## Effacement DHGR avec service des IRQ
@@ -385,8 +385,9 @@ externe dans la boîte, appeler `hgr_hud_invalidate(&champ,page)` ; page 0 inval
 les deux. Ne pas superposer ce champ à une région de sprites sauvegardés sans
 gérer aussi leur fond. L'état doit rester valide pendant son utilisation.
 
-L'exemple animé et les deux exemples HGR minimaux utilisent ce chemin.
-`test_hgr_hud.py` compare 84 mises à jour sur les sept phases, fonds colorés,
+L'exemple animé utilise ce format ; les deux exemples HGR minimaux utilisent
+sa variante compacte 8×8 décrite ci-dessous.
+`test_hgr_hud.py` compare 168 mises à jour sur les sept phases, fonds colorés,
 les deux pages, les valeurs qui raccourcissent et les refus de géométrie/overflow.
 Les anciens champs restent disponibles pour du dessin sans historique.
 
@@ -399,8 +400,122 @@ privés et le pool historique. La signature de build invalide l'archive si ce
 flag change. Le moteur continue d'accepter un nombre runtime inférieur ou égal
 à cette limite. Les deux historiques de page restent disponibles.
 
-Un moteur à deux slots réserve 36 octets d'état contre 120 à huit slots :
-**84 octets économisés**, indépendamment du pool externe. Les 24 scènes de
+Un moteur à deux slots réserve 42 octets d’état de tableaux contre 132 à huit slots :
+**90 octets économisés**, indépendamment du pool externe. Les 24 scènes de
 régression sont aussi exécutées avec cette configuration. L'exemple de trois
 balles compile programme et archive avec une limite de trois slots, soit
-70 octets de métadonnées économisés. Les autres programmes gardent le défaut.
+75 octets de métadonnées économisés. Les autres programmes gardent le défaut.
+
+## Rendu incrémental et présentation robuste
+
+Le moteur conserve les sprites inchangés au début de la liste de couches.
+À partir du premier sprite modifié (position ou visibilité), il restaure les
+couches suivantes en ordre inverse, puis les redessine dans l'ordre initial.
+Cette stratégie conservatrice préserve les fonds en cas de chevauchement,
+sans tables de collision supplémentaires. Une page entièrement inchangée
+ne restaure et ne redessine aucun sprite. Les formes empruntées restent immuables.
+Un déplacement invisible hors écran ne force pas un redessin.
+
+`hgr_spr_present` sélectionne explicitement la page du moteur avant de l'afficher,
+même si l'application a changé sa propre page après `render`. Il choisit ensuite
+l'autre page pour le prochain rendu. Aucun état vidéo n'est ajouté en simple tampon.
+`hgr_spr_invalidate(1/2)` force le prochain rendu de cette page ; 0 vise les deux,
+les autres valeurs sont ignorées. L'invalidation ne permet pas de modifier un fond
+sous des sprites dessinés : les masquer et restaurer les pages avant ce changement.
+Les historiques restent séparés par page. Le contrôleur de rendu, les
+déplacements et la présentation sont en ASM ; stride×hauteur est préparé lors
+de la définition. Les restaurations ne recalculent ni phases ni pointeurs de
+dessin ; les largeurs visibles de deux/quatre octets utilisent des boucles déroulées.
+
+`test_sprengine_dirty.py` compare les pixels des deux pages et le coût des
+frames immobiles, des changements de couche supérieure/inférieure, du masquage
+et du clipping. Sur POM2 IIe, il vérifie aussi la page effectivement affichée
+après un changement applicatif de la page de dessin.
+
+## Noyau HUD opaque
+
+Le chemin compact `hgr_hud8_init/putu/invalidate` utilise une structure
+`hgr_hud8_field_t` de 19 octets, largeur 1..5, cellules 8×8, pitch 8.
+La boîte entière doit tenir à l'écran : y≤184, x+8×largeur≤280.
+Les mêmes règles de cache, retour, fond opaque et overflow s'appliquent.
+Son objet séparé permet de ne lier que le format utilisé. Le changement des
+cinq chiffres coûte au maximum 7 850 cycles sur les sept phases du benchmark,
+contre 22 235 pour le format 16×16. Préparer les deux pages avant animation.
+
+L'exemple minimal utilise ce format. En double tampon IIe, il répartit dessin
+et HUD sur deux intervalles VBL ; chaque étape tient dans un rafraîchissement.
+Son test POM2 suit 1 000 présentations par standard, y compris le débordement
+du compteur : deux rafraîchissements par image, soit nominalement 30/25 FPS.
+Pour une charge pouvant dépasser un intervalle, utiliser l'ordonnanceur
+`a2_cadence_*` et une source IRQ déjà détenue par l'application. Voir les
+contrats dans [apple2frame.h](../apple2c/apple2frame.h).
+
+Le moteur compilé avec `-DHGR_SPR_DAMAGE=1` propage les changements par
+intersections des boîtes anciennes/nouvelles, en octets sauvegardés plutôt
+qu'en pixels visibles. Il peut conserver des couches immobiles isolées,
+mais ajoute 43 octets de BSS au défaut de huit slots et du travail assembleur de
+comparaison. La scène de quatre grands sprites isolés, dont seul le premier
+bouge, passe de 31 031 à 14 662 cycles (+437 octets chargés).
+L'option reste désactivée par défaut ; choisir à partir de scènes représentatives.
+Les tests vérifient aussi les chaînes de quatre couches et les octets de padding.
+
+Les chiffres du champ différentiel utilisent un noyau assembleur dédié :
+il remplace le fond et écrit le glyphe blanc dans le même parcours des lignes.
+Il efface aussi les deux pixels d'espacement des cellules internes, conserve
+les pixels voisins et remet à zéro la palette des octets touchés.
+Le format 16×16 utilise la police existante et une LUT de 16 octets. Le format
+8×8 utilise une banque espace/chiffres prédécalée aux sept phases : 1 386 octets
+chargés, tables de pointeurs comprises. Il évite les LUT mutables et la police
+générale quand seul le HUD est lié. Les contrôleurs de chiffres sont en ASM ;
+les pas +1/+2 réutilisent les caractères en cache avec propagation des retenues. Les règles d'invalidation du
+champ restent identiques. Le noyau n'impose plus le texte agrandi général
+ni les paramètres des rectangles en pixels à un client HUD seul.
+
+Les tests vérifient 168 mises à jour avec retenue décimale et wrap et 70 chiffres placés
+contre les bords droit et inférieur, dans les sept phases. Le même oracle
+est exécuté avec a2run et POM2 IIe. Les exemples préparent les deux historiques
+HUD avant leur boucle, pour déplacer ce coût vers le chargement.
+
+## Adressage explicite optionnel
+
+`hgr_row_on_page(page,y)` retourne une adresse pour la page 1/2 et la ligne
+0..191, ou NULL si une entrée est invalide. Il ne change ni la page de dessin,
+ni celle affichée, ni les tables historiques. Les offsets immuables occupent
+384 octets de RODATA, dans un membre d'archive séparé ; aucun tableau de lignes
+mutable n'est lié par cet accès seul. Ce n'est pas une substitution automatique
+pour les noyaux existants qui lisent `hgr_rowhi`.
+
+En assembleur, `hgr_fixed_rowlo/hi` exposent les offsets (HI sans base vidéo).
+Combiner HI avec $20/$40 via OR pour former les adresses. Les données seules
+n'importent aucun runtime C. `hgr_rowptr_on_page` offre également un point
+d'entrée A=page, Y=ligne, résultat A/X, NULL pour entrée invalide ; ce noyau
+partage tmp2 cc65 et le membre de l'enveloppe C, donc exige le runtime cc65.
+Le parcours natif et l'enveloppe C sont mesurés séparément : le coût des appels
+C répétés ne constitue pas une optimisation de scanline.
+
+## Dépendances réelles des consommateurs
+
+Les fichiers `.d` de cc65/ca65 suivent les includes transitifs, y compris ceux
+de `HGRC_EXTRA_SRCS`. Pour la compilation C en deux étapes, la dépendance est
+réattribuée de l'assembleur généré à l'objet final. Les tests modifient un
+header imbriqué et un include assembleur situés hors de la bibliothèque,
+puis vérifient la reconstruction, le changement du binaire et le no-op suivant.
+
+## Fond reconstruit depuis une tilemap
+
+`hgr_tilemap_init` valide un contexte emprunté : carte 40×24 de 960 IDs,
+1..256 tuiles de 7×8 pixels, huit octets HGR par tuile avec leur palette.
+`hgr_tile_restore(&fond,page,col,row,largeur,hauteur)` reconstruit une région
+en coordonnées de tuiles, rognée à droite/en bas, sans modifier la page de
+dessin ni l'affichage. La validation de tous les IDs précède toute écriture ;
+un refus laisse l'image intacte. Carte et banque doivent rester valides hors
+vidéo ; l'initialisation invalide conserve l'ancien contexte.
+
+L'application restaure toutes ses anciennes/nouvelles régions sales avant
+le dessin des couches touchées, et conserve un historique distinct par page.
+Ce backend optionnel s'utilise avec le blitter masqué `hgr_ms_run` (contrat
+interne explicite dans `hgr_internal.h`) pour éviter le pool save-under.
+Le moteur historique conserve sa restauration de fonds sauvegardés.
+Une région de huit tuiles avec deux dessins masqués coûte 9 546 cycles dans
+le benchmark ; le coût d'une page entière reste à budgéter pour chaque jeu.
+La famille `HGRC_TILEMAP_SRCS` est extraite uniquement lorsqu'elle est appelée.

@@ -66,6 +66,18 @@ def text(page, font, x, y, s, scale):
         x += 18 if scale == 2 else 8
 
 
+def compile_source(source, obj, flags):
+    # Keep compiler intermediates in the isolated test directory. cl65's
+    # default adjacent .s would race other tests compiling the same library.
+    source, obj = Path(source), Path(obj)
+    if source.suffix == '.c':
+        assembly = obj.with_suffix('.generated.s')
+        run(['cl65', *flags, '-S', '-o', assembly, source])
+        run(['cl65', *flags, '-c', '-o', obj, assembly])
+    else:
+        run(['cl65', *flags, '-c', '-o', obj, source])
+
+
 def build(work, fixture=None, extra_sources=(), gfx_backend=None, cflags=()):
     # A tiny pre-shift bank: 10101 / 01110 / 11011, seven phases, two bytes/row.
     data = []
@@ -90,10 +102,10 @@ def build(work, fixture=None, extra_sources=(), gfx_backend=None, cflags=()):
     for source in sources:
         source = Path(source)
         obj = work / (source.stem + '.o')
-        run(['cl65', '-t', 'none', '-Oirs', *(cflags if source.suffix=='.c' else ()), '-I', DEV / 'lib/hgrc',
+        compile_source(source, obj, ['-t', 'none', '-Oirs', *(cflags if source.suffix=='.c' else ()), '-I', DEV / 'lib/hgrc',
              '-I', DEV / 'lib/apple2c', '-I', DEV / 'lib/gfx',
              '--asm-include-dir', DEV / 'lib/apple2',
-             '--asm-include-dir', DEV / 'lib/hgrc', '-c', '-o', obj, source])
+             '--asm-include-dir', DEV / 'lib/hgrc'])
         objects.append(obj)
     archive = work / 'hgrc.lib'
     run(['ar65', 'a', archive, *objects])
@@ -101,8 +113,8 @@ def build(work, fixture=None, extra_sources=(), gfx_backend=None, cflags=()):
     for source in (DEV / 'cc65/crt0_apple2.s', fixture or DEV / 'tests/hgr_fixture.c',
                    DEV / 'lib/apple2c/apple2io_asm.s'):
         obj = work / (source.stem + '.o')
-        run(['cl65', '-t', 'none', '-Oirs', *(cflags if source.suffix=='.c' else ()), '-I', work, '-I', DEV / 'lib/hgrc',
-             '-I', DEV / 'lib/apple2c', '-I', DEV / 'lib/gfx', '-c', '-o', obj, source])
+        compile_source(source, obj, ['-t', 'none', '-Oirs', *(cflags if source.suffix=='.c' else ()), '-I', work, '-I', DEV / 'lib/hgrc',
+             '-I', DEV / 'lib/apple2c', '-I', DEV / 'lib/gfx'])
         objects.append(obj)
     binary = work / 'test.bin'
     run(['cl65', '-t', 'none', '-C', DEV / 'cc65/apple2_hgr_c.cfg',
@@ -158,8 +170,8 @@ def check_archive(work):
                           'static const unsigned char bits[] = {127};\n'
                           'int main(void) {' + call + 'return 0;}\n')
         obj, binary, mapfile = source.with_suffix('.o'), source.with_suffix('.bin'), source.with_suffix('.map')
-        run(['cl65', '-t', 'none', '-Oirs', '-I', DEV / 'lib/hgrc',
-             '-I', DEV / 'lib/apple2c', '-I', DEV / 'lib/gfx', '-c', '-o', obj, source])
+        compile_source(source, obj, ['-t', 'none', '-Oirs', '-I', DEV / 'lib/hgrc',
+             '-I', DEV / 'lib/apple2c', '-I', DEV / 'lib/gfx'])
         run(['cl65', '-t', 'none', '-C', DEV / 'cc65/apple2_hgr_c.cfg',
              '-m', mapfile, '-o', binary, work / 'crt0_apple2.o', obj, work / 'hgrc.lib'])
         linked = set(re.findall(r'hgrc\.lib\(([^)]+)\)', mapfile.read_text()))

@@ -21,14 +21,13 @@
 ; dereferenced, the phase offset phase*(h*stride) is applied to BOTH the data
 ; and mask banks by loop-add (no software multiply), and the sprite is
 ; right-clipped (col+stride > 40) and bottom-clipped (y+h > 192) exactly like
-; _hgr_xs_run. Scanline bases come from _hgr_rowlo/_hgr_rowhi, which the C
-; runtime keeps pointed at the CURRENT DRAW PAGE (hgr_set_draw_page rewrites
-; the hi table), so these kernels are page-agnostic.
+; _hgr_xs_run. Immutable scanline offsets are ORed with the current draw base.
+; The legacy mutable row tables retain their public layout for other kernels.
 ;
 ; The under-buffer is a plain linear stride*h byte block: row r of the sprite
 ; rectangle occupies under[r*stride .. r*stride+w) (w = clipped width; the
 ; clipped tail bytes of a row are simply never touched). Save and restore walk
-; it with the SAME setup, so a restore at the same (x, y, spr) is exact.
+; it with the same clipped geometry; restore skips unused drawing arithmetic.
 ;
 ; Interface -- the C wrapper (hgr_sprengine.c) stores these, then JSRs:
 ;     _hgr_ms_x     : pixel x (0..279, 16-bit)
@@ -42,10 +41,16 @@
         .export   _hgr_ms_save_run
         .export   _hgr_ms_restore_run
         .export   _hgr_msu_run
+        .export   _hgr_ms_block
         .exportzp _hgr_ms_x, _hgr_ms_y, _hgr_ms_spr, _hgr_ms_under
-        .import   _hgr_rowlo, _hgr_rowhi, _hgr_col7, _hgr_phase7
+        .import   hgr_fixed_rowlo, hgr_fixed_rowhi, _hgr_base, _hgr_col7, _hgr_phase7
         .import   _hgr_build_columns, _hgr_build_phases
         .importzp ptr1, ptr2, ptr3, ptr4, tmp1, tmp2, tmp3, tmp4
+
+        .segment "BSS"
+_hgr_ms_block: .res 1        ; one-call engine block (1..255), zero = generic
+ms_under_only: .res 1
+ms_page: .res 1
 
 ; --- interface variables (zero page) ----------------------------------------
         .segment "ZEROPAGE"
@@ -74,10 +79,22 @@ ms_blk:    .res 2            ; phase block size = h * stride (16-bit)
 ; From the _hgr_ms_* parameter block, derive col/phase, deref the hgr_mspr_t,
 ; apply the phase offset to data+mask, clip, and point ptr4 at the under buffer.
 ms_setup:
+        lda #0
+        sta ms_under_only
+        jmp ms_setup_common
+ms_setup_under:
+        lda #1
+        sta ms_under_only
+ms_setup_common:
         ; Raw callers may only have selected the draw page (row tables).
         ; Prepare optional x tables before using any shared scratch.
         jsr _hgr_build_columns
         jsr _hgr_build_phases
+        lda _hgr_base
+        bne @page
+        lda #$20
+@page:
+        sta ms_page
         ; col = hgr_col7[x] ; phase = hgr_phase7[x] (LUTs, no divide).
         ; x >= 256 (only 256..279 on a 280-px screen) indexes the tables at
         ; +256 with the low byte -- a 6502 index register is 8-bit.
@@ -148,6 +165,16 @@ ms_setup:
         sbc _hgr_ms_y
         sta ms_h
 @hok:
+        lda ms_under_only
+        bne @poff
+        lda _hgr_ms_block
+        beq @calculate
+        sta ms_blk
+        lda #0
+        sta ms_blk+1
+        sta _hgr_ms_block
+        jmp @phases
+@calculate:
         ; phase block = h * stride via loop-add (h iterations, no multiply)
         lda #0
         sta ms_blk
@@ -164,6 +191,7 @@ ms_setup:
         dex
         bne @hloop
         ; data += phase*blk ; mask += phase*blk (phase iterations of a 16-bit add)
+@phases:
         ldx tmp1                  ; phase
         beq @poff
 @ploop:
@@ -192,15 +220,15 @@ ms_setup:
         rts
 
 ; --- ms_rowbase : ptr1 = rowbase(ms_yy) + ms_col ------------------------------
-; ~24 cycles. The row tables already carry the current DRAW page in their high
-; bytes (hgr_set_draw_page), so no page test is needed here.
+; Fixed offsets plus the draw base latched by setup; no mutable row reads.
 ms_rowbase:
         ldy ms_yy
-        lda _hgr_rowlo,y
+        lda hgr_fixed_rowlo,y
         clc
         adc ms_col
         sta ptr1
-        lda _hgr_rowhi,y
+        lda hgr_fixed_rowhi,y
+        ora ms_page
         adc #0
         sta ptr1+1
         rts
@@ -259,7 +287,7 @@ _hgr_ms_run:
 ; Straight-line copy, 19 cycles/byte (lda (ptr1),y 5 / sta (ptr4),y 6 / iny 2 /
 ; cpy 3 / bne 3). Row r lands at under[r*stride]; clipped tail bytes untouched.
 _hgr_ms_save_run:
-        jsr ms_setup
+        jsr ms_setup_under
 @row:
         jsr ms_rowbase
         ldy #0
@@ -269,7 +297,7 @@ _hgr_ms_save_run:
         iny                     ;                              2
         cpy ms_w                ;                              3
         bne @col                ;                              3  = 19 cyc/byte
-        jsr ms_next_row
+        jsr ms_next_under
         bne @row
         rts
 
@@ -277,7 +305,13 @@ _hgr_ms_save_run:
 ; Exact inverse of _hgr_ms_save_run (19 cycles/byte). Call with the SAME
 ; (x, y, spr, under) the save/draw used and the background is byte-identical.
 _hgr_ms_restore_run:
-        jsr ms_setup
+        jsr ms_setup_under
+        lda ms_w
+        cmp #2
+        beq restore2
+        cmp #4
+        beq restore4
+restore_generic:
 @row:
         jsr ms_rowbase
         ldy #0
@@ -287,8 +321,43 @@ _hgr_ms_restore_run:
         iny                     ;                              2
         cpy ms_w                ;                              3
         bne @col                ;                              3  = 19 cyc/byte
-        jsr ms_next_row
+        jsr ms_next_under
         bne @row
+        rts
+
+; Narrow rectangles dominate game sprites. Unroll without changing stride or
+; clipping: ms_w chooses the visible width, ms_stride advances the pool rows.
+.macro restore_rows count
+@row:
+        jsr ms_rowbase
+        ldy #0
+        .repeat count, col
+          .if col > 0
+            iny
+          .endif
+          lda (ptr4),y
+          sta (ptr1),y
+        .endrepeat
+        jsr ms_next_under
+        bne @row
+        rts
+.endmacro
+restore2:
+        restore_rows 2
+restore4:
+        restore_rows 4
+
+; Copies need only the under pointer; data/mask phase arithmetic is irrelevant.
+ms_next_under:
+        clc
+        lda ptr4
+        adc ms_stride
+        sta ptr4
+        bcc @row
+        inc ptr4+1
+@row:
+        inc ms_yy
+        dec ms_h
         rts
 
 ; --- _hgr_msu_run : save-under + masked draw, ONE pass -----------------------
@@ -301,6 +370,12 @@ _hgr_ms_restore_run:
 ; (vs 19 + 29 = 48 for separate save + draw passes, plus a second setup).
 _hgr_msu_run:
         jsr ms_setup
+        lda ms_w
+        cmp #2
+        beq draw2
+        cmp #4
+        beq draw4
+draw_generic:
 @row:
         jsr ms_rowbase
         ldy #0
@@ -316,3 +391,25 @@ _hgr_msu_run:
         jsr ms_next_row
         bne @row
         rts
+.macro draw_rows count
+@row:
+        jsr ms_rowbase
+        ldy #0
+        .repeat count, col
+          .if col > 0
+            iny
+          .endif
+          lda (ptr1),y
+          sta (ptr4),y
+          and (ptr3),y
+          ora (ptr2),y
+          sta (ptr1),y
+        .endrepeat
+        jsr ms_next_row
+        bne @row
+        rts
+.endmacro
+draw2:
+        draw_rows 2
+draw4:
+        draw_rows 4

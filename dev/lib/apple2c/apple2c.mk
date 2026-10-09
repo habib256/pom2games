@@ -17,7 +17,8 @@ APPLE2C_INCS := -I $(APPLE2C)
 
 # Opt-in objects (assemble them with $(APPLE2C_AFLAGS)): speaker + joystick,
 # and DOS commands (256 + 41 bytes of BSS). Add them to SRCS only if used.
-# Optional cadence service: model detection, IIe VBL, bounded delay fallback.
+# Independent opt-ins: application-owned IRQ clock, or model-detected VBL/delay.
+APPLE2C_CADENCE_SRCS := $(APPLE2C)/apple2cadence.s
 APPLE2C_FRAME_SRCS := $(APPLE2C)/apple2frame.s
 APPLE2C_GAME_SRCS := $(APPLE2C)/apple2game_asm.s
 APPLE2C_DOS_SRCS  := $(APPLE2C)/apple2dos_asm.s

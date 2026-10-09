@@ -21,8 +21,8 @@ Ce document fixe les préconditions communes.
 
 ## Appels, état et interruptions
 
-Les API C utilisent la convention cc65 standard, sauf les entrées déclarées
-`__fastcall__` : leur argument le plus à droite arrive dans A ou A/X. Le
+Les API utilisent la convention fastcall de cc65 (défaut du compilateur) :
+l'argument le plus à droite arrive dans A ou A/X, les autres sur la pile C. Le
 résultat d'un octet est dans A, avec X=0. Depuis l'assembleur, utiliser le
 contrat du noyau, et non supposer que les autres arguments C sont en registres.
 
@@ -107,3 +107,56 @@ est testée comme prototype, sans changer le contrat des noyaux ASM actuels.
 Le nombre maximum de sprites peut être fixé par `HGR_SPR_MAX` (1..8).
 Compiler l'application et sa bibliothèque avec la même valeur ; la valeur
 par défaut conserve huit slots et le moteur reste non réentrant.
+
+## Rendu incrémental et adressage explicite
+
+Le HUD compact `hgr_hud8_field_t` possède 19 octets d'état cc65 et cinq cellules
+au maximum, chacune 8×8 avec un pitch de 8. Il partage les contrats de retour,
+de cache par page et d'invalidation du HUD 16×16 ; chaque famille est dans des
+membres d'archive distincts. Les noyaux partagent le scratch texte, sans nouvelle ZP.
+
+`APPLE2C_CADENCE_SRCS` ajoute un ordonnanceur optionnel à échéances, alimenté
+par `a2_cadence_tick` depuis l'IRQ détenue par l'application. Il n'installe
+aucun vecteur ni périphérique. Le tick préserve A/X/Y, modifie NZ ; l'IRQ doit
+restaurer les flags. `init`/`wait` exigent D=0 et préservent I. La source doit
+avancer pendant l'attente et être synchronisée au VBL pour éviter les déchirures.
+Les échéances en retard sont sautées, le retour vaut leur nombre ; $FFFF
+signale un timeout et désactive l'ordonnanceur jusqu'au prochain `init`.
+Les lectures 16 bits du compteur IRQ doivent être atomiques. Ne pas laisser
+passer 32767 ticks sans appeler `wait`. Les fonctions de dessin restent hors IRQ.
+
+`HGR_SPR_DAMAGE=1` est une option de compilation du moteur : elle ajoute
+4×HGR_SPR_MAX+11 octets BSS pour une fermeture conservatrice des intersections
+des rectangles en octets, anciens/nouveaux. L'ordre restauration inverse puis
+dessin direct est conservé. Le défaut utilise toujours le préfixe/suffixe simple.
+
+Le moteur de sprites garde un préfixe de couches inchangées par page ; il
+restaure et redessine tout le suffixe dès la première couche modifiée.
+Le contenu des formes doit rester immuable, même pour un sprite immobile.
+`hgr_spr_invalidate` force un redessin, sans autoriser les écritures sous les
+sprites. La présentation reprend explicitement la page possédée par le moteur.
+
+`hgr_row_on_page` est indépendant de l'état global. Ses tables immuables
+coûtent 384 octets chargés, aucune BSS ; les sprites masqués et le HUD 8×8
+utilisent ces offsets avec la base sélectionnée. Les autres noyaux historiques
+conservent leurs tables mutables. Le noyau HUD utilise les paramètres texte
+partagés et reste non réentrant. Préparer le HUD sur chaque page avant animation.
+
+Le moteur de sprites calcule stride×hauteur lors de la définition, puis utilise
+des contrôleurs assembleur ; ses symboles `spr_*` servent uniquement à la liaison
+interne C/ASM. Le contenu des formes reste immuable. Les contrôleurs HUD acceptent
+les pas +1/+2 via les chiffres en cache ; les autres valeurs utilisent la conversion
+16 bits. Un overflow conserve les pixels et les historiques.
+
+`hgr_tile_restore` est optionnel, fastcall, non réentrant et hors IRQ. Il écrit
+directement la page demandée sans modifier les pages globales ni les banques.
+La carte 40×24 et les glyphes 7×8 résident hors des deux pages vidéo. La région
+est rognée avant une validation complète des IDs, puis reconstruite en ASM.
+L'application possède les régions sales, l'ordre des couches et les historiques
+de ses pages ; ce chemin ne modifie pas le moteur save-under existant.
+
+La pile matérielle est observée séparément de la pile cc65. La profondeur
+matérielle compte aussi les octets déjà occupés à l'entrée de la charge.
+Le détecteur signale les passages de S sous $00 à travers les instructions
+observées ; ce profil ne constitue pas une preuve statique de toutes les IRQ,
+de changements explicites de S ou de chemins non exécutés.

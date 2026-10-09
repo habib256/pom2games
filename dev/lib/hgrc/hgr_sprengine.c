@@ -9,27 +9,42 @@
 #include "hgr_internal.h"
 
 /* --- per-sprite state: parallel static arrays ------------------------------ */
-static const hgr_mspr_t *spr_shape[HGR_SPR_MAX]; /* 0 = undefined            */
-static unsigned      spr_x[HGR_SPR_MAX];          /* target position (move)   */
-static unsigned char spr_y[HGR_SPR_MAX];
-static unsigned char spr_active[HGR_SPR_MAX];     /* 0 = hidden               */
+const hgr_mspr_t *spr_shape[HGR_SPR_MAX]; /* 0 = undefined            */
+unsigned      spr_x[HGR_SPR_MAX];          /* target position (move)   */
+unsigned char spr_y[HGR_SPR_MAX];
+unsigned char spr_active[HGR_SPR_MAX];     /* 0 = hidden               */
 
 /* Per PAGE (index 0 = page 1, 1 = page 2): where the sprite was drawn on THAT
  * page and whether it is currently drawn there. Two copies because in double-
  * buffer mode each page holds a 1-frame-old background with its own set of
  * sprites stamped in. Single-buffer mode only ever uses index 0's discipline
  * on whatever the draw page is (see hgr_spr_init). */
-static unsigned      spr_px[2][HGR_SPR_MAX];
-static unsigned char spr_py[2][HGR_SPR_MAX];
-static unsigned char spr_drawn[2][HGR_SPR_MAX];
+unsigned      spr_px[2][HGR_SPR_MAX];
+unsigned char spr_py[2][HGR_SPR_MAX];
+unsigned char spr_drawn[2][HGR_SPR_MAX];
 
 /* Caller-owned save-under storage. The compatibility pool is in its own
  * archive object, so external-pool clients do not link its 1536 bytes. */
-static unsigned char *spr_under[2];
-static unsigned char spr_count, spr_capacity;
+unsigned char *spr_under[2];
+unsigned char spr_count, spr_capacity;
 
-static unsigned char spr_dbuf;       /* 1 = double-buffered                    */
-static unsigned char spr_drawpage;   /* page the NEXT update draws on (1 or 2) */
+unsigned char spr_invalid;    /* explicit per-page redraw requests */
+unsigned char spr_dbuf;       /* 1 = double-buffered                    */
+unsigned char spr_drawpage;   /* page the NEXT update draws on (1 or 2) */
+
+/* Optional overlap closure. Bounds describe whole save-under BYTES, including
+ * padding, because restoration writes bytes beyond the visible mask. Compile
+ * the engine C member with -DHGR_SPR_DAMAGE=1 to opt in. Boxes and their native
+ * helper are linked only for that mode; shared dispatch state costs 3 bytes. */
+#if HGR_SPR_DAMAGE
+unsigned char spr_box[HGR_SPR_MAX][4];
+
+void hgr_spr_damage(void);
+#endif
+
+unsigned char spr_block[HGR_SPR_MAX], spr_dirty;
+void (*spr_damage_fn)(void);
+const unsigned char spr_slots=HGR_SPR_MAX;
 
 /* Init the engine. double_buffered = 1: the engine displays page 1, draws on
  * page 2, and flips every hgr_spr_update -- the caller must have drawn the
@@ -47,6 +62,12 @@ unsigned char hgr_spr_init_pool(unsigned char double_buffered,
     if (pool_bytes < page_bytes * (double_buffered ? 2u : 1u)) return 0u;
     spr_under[0] = pool;
     spr_under[1] = double_buffered ? pool + page_bytes : pool;
+    spr_invalid = 0u;
+#if HGR_SPR_DAMAGE
+    spr_damage_fn=hgr_spr_damage;
+#else
+    spr_damage_fn=0;
+#endif
     spr_count = count;
     spr_capacity = capacity;
     spr_dbuf = double_buffered;
@@ -82,85 +103,10 @@ unsigned char hgr_spr_define(unsigned char id, const hgr_mspr_t *shape)
         spr_active[id] = 0u;
         return 0u;
     }
+    spr_block[id] = shape ? (unsigned)shape->stride * shape->h : 0u;
     spr_shape[id] = shape;
     spr_active[id] = (shape != 0) ? 1u : 0u;
     return 1u;
 }
 
-/* Record the target position; nothing is drawn until render/update. */
-void hgr_spr_move(unsigned char id, unsigned x, unsigned char y)
-{
-    if (id >= spr_count) return;
-    spr_x[id]      = x;
-    spr_y[id]      = y;
-    spr_active[id] = (spr_shape[id] != 0) ? 1u : 0u;
-}
-
-/* Hide a sprite: it stops being drawn and its under-rect is restored by the
- * next render (TWO render/present cycles in double-buffer mode). */
-void hgr_spr_hide(unsigned char id)
-{
-    if (id >= spr_count) return;
-    spr_active[id] = 0u;
-}
-
-/* Restore in reverse draw order, then draw active sprites in forward order.
- * This preserves overlapping backgrounds. Rendering never waits or flips;
- * double-buffer users can draw a HUD and wait before hgr_spr_present(). */
-void hgr_spr_render(void)
-{
-    unsigned char pg, id;
-    unsigned char *ub;
-
-    pg = (unsigned char)(spr_drawpage - 1u); /* page index 0/1                */
-    if (!spr_count) return;
-    hgr_set_draw_page(spr_drawpage);        /* row tables -> this page       */
-
-    /* restore pass, reverse order; ub walks the pool backwards slot by slot
-     * (no per-sprite 16-bit multiply) */
-    ub = spr_under[pg] + (unsigned)spr_count * spr_capacity;
-    id = spr_count;
-    while (id-- > 0u) {
-        ub -= spr_capacity;
-        if (!spr_drawn[pg][id]) continue;
-        hgr_ms_x     = spr_px[pg][id];
-        hgr_ms_y     = spr_py[pg][id];
-        hgr_ms_spr   = spr_shape[id];
-        hgr_ms_under = ub;
-        hgr_ms_restore_run();
-        spr_drawn[pg][id] = 0u;
-    }
-
-    /* draw pass, forward order (later ids paint over earlier ones) */
-    ub = spr_under[pg];
-    for (id = 0u; id < spr_count; ++id, ub += spr_capacity) {
-        if (!spr_active[id] || spr_shape[id] == 0) continue;
-        if (spr_x[id] > 279u || spr_y[id] > 191u) continue;  /* off-screen    */
-        hgr_ms_x     = spr_x[id];
-        hgr_ms_y     = spr_y[id];
-        hgr_ms_spr   = spr_shape[id];
-        hgr_ms_under = ub;
-        hgr_msu_run();                      /* save-under + draw, one pass   */
-        spr_px[pg][id]    = spr_x[id];
-        spr_py[pg][id]    = spr_y[id];
-        spr_drawn[pg][id] = 1u;
-    }
-}
-
-/* Present the rendered page and select the next draw page. No synchronization.
- * In single-buffer mode rendering is already visible; this is a no-op. */
-void hgr_spr_present(void)
-{
-    if (spr_dbuf) {
-        hgr_show_page();
-        spr_drawpage = (spr_drawpage == 1u) ? 2u : 1u;
-        hgr_set_draw_page(spr_drawpage);
-    }
-}
-
-/* Backward-compatible immediate restore/draw/present. */
-void hgr_spr_update(void)
-{
-    hgr_spr_render();
-    hgr_spr_present();
-}
+/* move/hide/render/present/update/invalidate are in hgr_sprengine_asm.s. */

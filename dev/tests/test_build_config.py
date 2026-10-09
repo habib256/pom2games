@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise incremental archive builds with colliding C/ASM basenames."""
 import json
+import time
 from pathlib import Path
 import tempfile
 from test_hgr import DEV, run
@@ -57,7 +58,34 @@ def main():
         run(command)
         run(link)
         assert binary.read_bytes() == original_binary
-    print('Archive build: distinct C/ASM members, no-op, flags and configuration rollback OK.')
+        time.sleep(1.05)
+        # Neither include lives in the library's known header directories.
+        deep = work / 'third/deep.h'
+        outer = work / 'first/outer.h'
+        deep.write_text('#define INCLUDED_VALUE 1\n')
+        outer.write_text('#include "../third/deep.h"\n')
+        (work / 'first/same.c').write_text('#include "outer.h"\nint first(void) {return INCLUDED_VALUE;}\n')
+        inc = work / 'third/deep.inc'
+        inc.write_text('INCLUDED_ASM = 3\n')
+        (work / 'first/same.s').write_text('.include "../third/deep.inc"\n.export _third\n.code\n_third: lda #INCLUDED_ASM\nldx #0\nrts\n')
+        # GNU make 3.81 uses whole seconds for source dependencies.
+        time.sleep(1.05)
+        run(command)
+        run(link)
+        included_binary = binary.read_bytes()
+        old_c, old_a = cobj.read_bytes(), aobj.read_bytes()
+        time.sleep(1.05)
+        deep.write_text('#define INCLUDED_VALUE 9\n')
+        inc.write_text('INCLUDED_ASM = 5\n')
+        run(command)
+        assert cobj.read_bytes() != old_c, 'nested external C header did not rebuild'
+        assert aobj.read_bytes() != old_a, 'external assembler include did not rebuild'
+        run(link)
+        assert binary.read_bytes() != included_binary
+        stamps = {p: p.stat().st_mtime_ns for p in (*objects, archive, config)}
+        run(command)
+        assert stamps == {p:p.stat().st_mtime_ns for p in stamps}, 'dependency build not stable'
+    print('Archive build: distinct C/ASM members, no-op, flags and configuration rollback and transitive external C/ASM dependencies OK.')
 
 
 if __name__ == '__main__':

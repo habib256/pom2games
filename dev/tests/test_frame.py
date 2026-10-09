@@ -26,7 +26,7 @@ def build(work):
     return a2test.build_disk(work, 'FRAME', binary), points
 
 
-def check(emulator, disk, points, options, mode, timeout=False):
+def check(emulator, disk, points, options, mode, timeout=False, refresh=17030):
     steps = []
     for _ in range(4):
         steps += [f'until:{points["_frame_begin"]:04X}:1500',
@@ -44,10 +44,10 @@ def check(emulator, disk, points, options, mode, timeout=False):
         assert 390 < waits[1] < 700, waits
         assert all(30 < n < 250 for n in waits[2:]), waits
     else:
-        assert all(0 < n < 2*17030 for n in waits), waits
+        assert all(0 < n < 2*refresh for n in waits), waits
         # End of each call must land at the fresh blanking edge, not merely
         # somewhere within an old interval. Consecutive calls span one frame.
-        assert all(abs((ticks[i]-ticks[i-2])-17030) < 100 for i in (3,5,7)), ticks
+        assert all(abs((ticks[i]-ticks[i-2])-refresh) < 100 for i in (3,5,7)), ticks
     return waits
 
 
@@ -73,6 +73,8 @@ def main():
             print(name,'cycles:',check(emulator,disk,points,['--roms',roms],mode,mode==1))
         if args.iie:
             print('IIe VBL cycles:',check(DEV/'tools/a2shot/a2shot',disk,points,['--iie'],1))
+            print('IIe PAL VBL cycles:',check(DEV/'tools/a2shot/a2shot',disk,points,
+                                            ['--iie','--pal'],1,refresh=20280))
     print('Cadence: mode, delay adjustment, zero normalization, IRQ mask and bounded fallback passed.')
 
 

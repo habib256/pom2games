@@ -67,6 +67,11 @@ int main(void)
     hgr_set_draw_page(1u); background();
     hgr_set_draw_page(2u); background();
     if (!hgr_hud_init(&frame_field,72u,24u,5u)) return 1;
+    /* Build the HUD tables and both page histories before animation. */
+    for (i=1u; i<=2u; ++i) {
+        hgr_set_draw_page(i);
+        hgr_hud_putu(&frame_field,0u);
+    }
     if (!hgr_spr_init_pool(1u, sprite_pool, sizeof(sprite_pool),
                           BALL_COUNT, BALL_STRIDE * BALL_HEIGHT)) return 1;
     for (i = 0u; i < BALL_COUNT; ++i) {

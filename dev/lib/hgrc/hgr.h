@@ -11,6 +11,27 @@
 #ifndef HGR_H
 #define HGR_H
 
+#ifdef __CC65__
+#define HGR_FASTCALL __fastcall__
+#else
+#define HGR_FASTCALL
+#endif
+
+/* Optional 40x24 background of 7x8 tiles, one byte per tile ID. Tiles keep
+ * all eight HGR bits, including palette phase. count is 1..256. Sources must
+ * remain valid and outside both video pages. No pool or page state changes.
+ * Restore uses tile coordinates, clips right/bottom, returns 1 on success.
+ * Invalid context/ID/geometry returns 0 without touching the framebuffer. */
+typedef struct {
+    const unsigned char *map, *tiles;
+    unsigned count;
+} hgr_tilemap_t;
+unsigned char hgr_tilemap_init(hgr_tilemap_t *ctx, const unsigned char *map,
+                              const unsigned char *tiles, unsigned count);
+unsigned char HGR_FASTCALL hgr_tile_restore(const hgr_tilemap_t *ctx,
+    unsigned char page, unsigned char col, unsigned char row,
+    unsigned char width, unsigned char height);
+
 /* Pull in the Apple II text/keyboard base by default (a2_puts / apple2_getkey).
  * #define HGR_NO_APPLE2 before including hgr.h to skip. Zero bytes added. */
 #ifndef HGR_NO_APPLE2
@@ -137,6 +158,9 @@ void hgr_fill_rect(unsigned char y0, unsigned char rows,
 
 /* Current draw-page scanline y (0..191); NULL when y is out of range. */
 unsigned char *hgr_row(unsigned char y);
+/* Optional immutable addresses: page 1/2, y 0..191; NULL otherwise.
+ * Independent of draw/display page, 384 bytes RODATA, no mutable tables. */
+unsigned char * HGR_FASTCALL hgr_row_on_page(unsigned char page, unsigned char y);
 
 /* Fill / erase a PIXEL-aligned rectangle [x, x+w) × [y, y+h) via a hand-written
  * 6502 inner loop (hgr_pixrect_asm.s) — unlike hgr_fill_rect these take pixel x/w,
@@ -287,6 +311,12 @@ typedef struct {
 #if HGR_SPR_MAX < 1 || HGR_SPR_MAX > 8
 #error HGR_SPR_MAX must be between 1 and 8
 #endif
+#ifndef HGR_SPR_DAMAGE
+#define HGR_SPR_DAMAGE 0
+#endif
+#if HGR_SPR_DAMAGE != 0 && HGR_SPR_DAMAGE != 1
+#error HGR_SPR_DAMAGE must be 0 or 1
+#endif
 #define HGR_SPR_UNDER_BYTES  96u   /* compatibility pool capacity; external pool: 1..255 */
 
 void hgr_spr_init(unsigned char double_buffered);
@@ -309,8 +339,12 @@ unsigned char hgr_spr_init_pool(unsigned char double_buffered,
 unsigned char hgr_spr_define(unsigned char id, const hgr_mspr_t *shape);
 void hgr_spr_move(unsigned char id, unsigned x, unsigned char y);
 void hgr_spr_hide(unsigned char id);
+/* Keep unchanged lower layers; restore/redraw the suffix from the first change. */
 void hgr_spr_render(void);
+/* Display the engine page even after an application draw-page change. */
 void hgr_spr_present(void);
+/* Force redraw on page 1/2 or both (0), after safe background maintenance. */
+void hgr_spr_invalidate(unsigned char page);
 void hgr_spr_update(void);
 
 /* UI RULE: native-size (x1) text must remain white. Only doubled (x2)
@@ -364,6 +398,20 @@ unsigned char hgr_hud_init(hgr_hud_field_t *field, unsigned x,
 unsigned char hgr_hud_putu(hgr_hud_field_t *field, unsigned value);
 /* page 0 invalidates both histories; 1/2 only that page. Other pages ignored. */
 void hgr_hud_invalidate(hgr_hud_field_t *field, unsigned char page);
+
+/* Compact opaque 8x8 numeric HUD, 8-pixel pitch, width 1..5. On cc65 the
+ * caller-owned state is 19 bytes. Same return/cache/invalidation contracts
+ * as the 16x16 HUD. Whole box must fit (y<=184, x+8*width<=280). */
+typedef struct {
+    unsigned x;
+    unsigned char y, width, valid;
+    unsigned value[2];
+    char digits[2][5];
+} hgr_hud8_field_t;
+unsigned char hgr_hud8_init(hgr_hud8_field_t *field, unsigned x,
+                          unsigned char y, unsigned char width);
+unsigned char hgr_hud8_putu(hgr_hud8_field_t *field, unsigned value);
+void hgr_hud8_invalidate(hgr_hud8_field_t *field, unsigned char page);
 
 /* Signed decimal at (x, y): leading '-' then magnitude. OR-drawn (transparent,
  * no field erase) — use hgr_putu_field for fixed-width black-backed updates. */

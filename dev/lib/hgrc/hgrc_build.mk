@@ -28,13 +28,17 @@ $(HGRC_CONFIG): $(HGRC_CONFIG_FORCE) $(HGRC)/../../tools/build_config.py
 	@$(PYTHON) $(HGRC)/../../tools/build_config.py -- $(HGRC_CONFIG_ARGS)
 
 define hgrc_compile
-$(call hgrc_object,$(1)): $(1) $(HGRC_CONFIG) $(HGRC_CONFIG_FORCE) $(HGRC_HEADERS) $(HGRC_ASM_DEPS) $(wildcard $(HGRC)/../apple2c/*.h) $(HGRC)/hgrc_build.mk
+$(call hgrc_object,$(1)): $(1) $(HGRC_CONFIG) $(HGRC_CONFIG_FORCE) $(HGRC_HEADERS) $(HGRC_ASM_DEPS) $(wildcard $(HGRC)/../apple2c/*.h) $(HGRC)/hgrc_build.mk $(HGRC)/../../tools/build_deps.py
 	@mkdir -p $$(@D)
-$(if $(filter %.c,$(1)),	$$(CL65) $$(HGRC_CFLAGS) -S -o $$@.s $$<
-	$$(CL65) $$(HGRC_CFLAGS) -c -o $$@ $$@.s,	$$(CA65) $$(HGRC_ASMFLAGS) -o $$@ $$<)
+$(if $(filter %.c,$(1)),	$$(CL65) $$(HGRC_CFLAGS) --create-dep $$@.d -S -o $$@.s $$<
+	$$(PYTHON) $$(HGRC)/../../tools/build_deps.py $$@.d $$@
+	$$(CL65) $$(HGRC_CFLAGS) -c -o $$@ $$@.s,	$$(CA65) $$(HGRC_ASMFLAGS) --create-dep $$@.d -o $$@ $$<)
 endef
 $(foreach s,$(HGRC_ARCHIVE_SRCS),$(eval $(call hgrc_compile,$(s))))
 
 $(HGRC_LIB): $(HGRC_OBJECTS) $(HGRC_CONFIG) $(HGRC_CONFIG_FORCE) $(HGRC)/hgrc.mk $(HGRC)/hgrc_build.mk
 	rm -f $@
 	$(AR65) a $@ $(HGRC_OBJECTS)
+
+# Compiler dependencies cover headers/includes of HGRC_EXTRA_SRCS as well.
+-include $(HGRC_OBJECTS:%=%.d)

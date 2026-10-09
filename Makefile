@@ -35,11 +35,14 @@ test-hgr:
 	python3 dev/tests/test_hgr_wireframe.py
 	python3 dev/tests/test_hgr_lines.py
 	python3 dev/tests/test_hgr_hud.py
+	python3 dev/tests/test_hgr_hud.py --compact
 	python3 dev/tests/test_presentation_strategies.py
 	python3 dev/tests/test_hgr.py
 	python3 dev/tests/test_hgr_glyphs.py
 	python3 dev/tests/test_sprengine.py
 	python3 dev/tests/test_sprengine_stress.py
+	python3 dev/tests/test_sprengine_dirty.py
+	python3 dev/tests/test_tilemap.py
 
 test-frame:
 	python3 dev/tests/test_frame.py
@@ -55,7 +58,16 @@ test-dhgr:
 	python3 dev/tests/test_gfx_dhgr_lines.py
 	python3 dev/tests/test_minimal_examples.py --dhgr
 	python3 dev/tests/test_stack_profile.py --iie
+	python3 dev/tests/test_hgr_hud.py --iie
+	python3 dev/tests/test_presentation_strategies.py --iie
+	python3 dev/tests/test_sprengine_dirty.py --iie
 	python3 dev/tests/test_frame.py --iie
+	python3 dev/tests/test_cadence.py
+	python3 dev/tests/test_game_cadence.py
+	python3 dev/tests/test_tilemap.py --iie
+	python3 dev/tests/test_hgr_hud.py --compact --iie
+	python3 dev/tests/test_sprengine_dirty.py --damage --iie
+	python3 dev/tests/test_sprengine_damage.py
 	python3 dev/tests/test_hgr_example.py --iie
 
 check: distclean

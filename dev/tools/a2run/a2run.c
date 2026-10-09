@@ -74,10 +74,23 @@ static uint64_t ptrig_at;
  * return and (sp),Y boundaries, plus actual writes to the reserved region. */
 static unsigned stack_sp, stack_top, stack_low, stack_min;
 static int stack_active, stack_overflow;
+/* Hardware stack: total occupied depth (255 - lowest S), including the
+ * entry frame. A downward wrap past $00 is reported separately. */
+static int hw_active, hw_overflow;
+static unsigned hw_start, hw_min, hw_previous;
+static void hw_sample(void)
+{
+    if (!hw_active) return;
+    if (hw_previous <= 2 && cpu.s > hw_previous + 3) hw_overflow = 1;
+    hw_previous = cpu.s;
+    if (cpu.s < hw_min) hw_min = cpu.s;
+}
+
 
 static void stack_sample(void)
 {
     unsigned op, value;
+    hw_sample();
     if (!stack_active || cpu.pc >= 0xBFFF) return;
     op = ram[cpu.pc];
     if (op != 0x20 && op != 0x60 && op != 0x4C && op != 0x6C &&
@@ -490,7 +503,7 @@ static int load_file(const char *path, uint8_t *dst, long len, long skip)
 
 int a2run_main(int argc, char **argv)
 {
-    stack_active = stack_overflow = 0;
+    stack_active = stack_overflow = hw_active = hw_overflow = 0;
     const char *disk = NULL;
     char roms[1024];
     const char *slash = strrchr(argv[0], '/');
@@ -535,6 +548,15 @@ int a2run_main(int argc, char **argv)
             }
             printf("until %04X cycles=%llu PC=%04X\n", target, (unsigned long long)cpu.cycles, cpu.pc);
             if (cpu.pc != target) return 3;
+        } else if (!strcmp(s, "hwstackwatch")) {
+            hw_start = 255; hw_min = hw_previous = cpu.s;
+            hw_overflow = 0; hw_active = 1;
+        } else if (!strcmp(s, "hwstack")) {
+            if (!hw_active) return 2;
+            hw_sample();
+            printf("hwstack peak=%u available=%u overflow=%d\n",
+                   hw_start-hw_min, hw_start, hw_overflow);
+            hw_active = 0;
         } else if (!strncmp(s, "stackwatch:", 11)) {
             unsigned size;
             if (sscanf(s+11,"%x:%x:%x",&stack_sp,&stack_top,&size) != 3 ||
