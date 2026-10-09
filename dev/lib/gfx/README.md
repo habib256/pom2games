@@ -9,7 +9,7 @@ un backend HGR ou DHGR. Le backend HGR (`gfx_backend_hgr*.c`) appelle
 
 À compiler avec `-I dev/lib/hgrc -I dev/lib/apple2c -I dev/lib/gfx`, de
 préférence dans une archive `ar65` pour que seules les fonctions appelées soient
-liées (voir le `Makefile` de `../../../demos`).
+liées (voir [`../hgrc/hgrc_build.mk`](../hgrc/hgrc_build.mk)).
 
 ## Apple II DHGR
 

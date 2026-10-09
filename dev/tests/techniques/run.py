@@ -305,7 +305,7 @@ def expected_sprite(memory, rows, x, y, page, masked):
 
 def sprites(work):
     results=[]
-    demo=(ROOT/'demos/src/preshift_sprites.txt').read_text().split('sprite ship 21x9\n')[1].splitlines()[:9]
+    demo=(HERE/'ship21x9.txt').read_text().splitlines()
     demo_rows=[[1 if ch=='#' else None for ch in row.ljust(21,'.')] for row in demo]
     for size,rows in [('ship8',shape(8,8)),('ship16',shape(16,16)),('tile16',shape(16,16,True)),('demo_ship',demo_rows)]:
         stride,bits,masks=sprite_banks(rows)

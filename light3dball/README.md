@@ -60,7 +60,9 @@ le déplacement nécessaire. Un service utilise la position actuelle de la
 raquette, y compris lorsqu'on déplace la souris et clique dans la même image.
 
 Le joueur avance seulement si la balle est suffisamment devant lui et si
-la raquette passe entièrement dans l'ouverture. Le déplacement est de deux
+la raquette passe entièrement dans l'ouverture. Les ouvertures mesurent au
+moins 48 unités pour laisser une marge de placement à la grande raquette,
+y compris au clavier. Le déplacement est de deux
 unités par mise à jour, soit deux fois la première vitesse révisée. Il faut
 **frapper la case du mur du fond avec la balle** pour gagner. Un tir à côté
 rebondit ; atteindre le fond avec la raquette ne termine pas le niveau.
@@ -70,15 +72,15 @@ rebondit ; atteindre le fond avec la raquette ne termine pas le niveau.
 | Niveau | Longueur | Obstacles | Parcours |
 |---|---:|---:|---|
 | 1 — Les chicanes | 1 536 | 8 | Murs droits/gauches alternés, passages de 48 unités |
-| 2 — Les doubles virages | 1 792 | 10 | Groupes de murs du même côté ; passages resserrés à 40 unités |
+| 2 — Les doubles virages | 1 792 | 10 | Groupes de murs du même côté ; passages de 48 unités |
 | 3 — Les portes mobiles | 2 048 | 12 | Trois portes de 48 unités, avec des phases différentes |
-| 4 — Les passages décalés | 2 560 | 14 | Passages de 40 et 48 unités ; groupes rapprochés et grandes chambres |
-| 5 — Le grand corridor | 3 072 | 18 | Passages de 36 à 44 unités et quatre portes décalées |
+| 4 — Les passages décalés | 2 560 | 14 | Passages de 48 unités ; groupes rapprochés et grandes chambres |
+| 5 — Le grand corridor | 3 072 | 18 | Passages de 48 unités et quatre portes décalées |
 
 Chaque niveau commence par deux murs fixes opposés à 128 et 256 unités.
 Les niveaux pairs inversent leur côté. Ces ouvertures ne permettent aucune
 trajectoire droite entre le départ et la cible : il faut réorienter la balle.
-Les murs occupent généralement 80 à 92 unités sur une section de 128.
+Les murs occupent 80 unités sur une section de 128.
 
 La dernière chambre mesure 256 unités. La cible apparaît et devient active
 uniquement lorsque le joueur entre dans cette chambre ; un impact lointain
@@ -109,6 +111,8 @@ la balle. La position de caméra mise en cache est exacte et sur 16 bits, sans r
 du décor après 1 024 unités. Après un arrêt, les deux pages convergent vers
 les mêmes contours : aucun panneau ne reste dessiné à une ancienne position.
 Les arêtes fixes exploitent la symétrie verticale pour partager leurs données entre le haut et le bas de l'écran.
+Leur occultation tient également compte du mur du côté opposé : une diagonale
+s'arrête à son intersection exacte avec le contour, sans traverser un panneau.
 
 Les coordonnées de la balle dans le monde sont indépendantes du rendu.
 X/Y utilisent quatre bits fractionnaires. Quatre sous-pas vérifient les
@@ -140,6 +144,10 @@ par pixel : projection exacte, contours sans remplissage, occultation
 partielle de la balle et absence de traces après déplacement des obstacles.
 Un test vérifie aussi, sur plusieurs images des deux pages, la stabilité des
 panneaux après un arrêt entre deux anciennes positions de cache.
+Les limites de passage sont vérifiées sur les cinq niveaux et les 32 phases
+des portes : les bords ouverts du couloir ne bloquent pas la raquette.
+Un test distinct contrôle les diagonales dans 558 vues, sur les deux pages,
+pour détecter les traits qui dépassent à l'intérieur des murs.
 La grande raquette utilise trois motifs de ligne par phase HGR, avec un centre
 transparent et un halo noir. Ce rendu compact évite sept bitmaps complets ;
 son dessin et la restauration du fond sont contrôlés sur les deux pages,

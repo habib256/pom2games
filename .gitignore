@@ -1,6 +1,9 @@
 # Build outputs (dist/*.dsk at the top are kept: ready-to-run disks;
 # make clean leaves them, make distclean removes them, make check rebuilds them)
 build/
+# These images are generated locally from the retained example/editor sources.
+dist/HELLO.dsk
+dist/MCS.dsk
 dev/tools/a2shot/a2shot
 dev/tools/a2run/a2run
 
