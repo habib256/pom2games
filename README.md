@@ -20,7 +20,6 @@ la vidéo native de l'Apple II.
 | [`dev/examples/hgr/`](dev/examples/hgr/) | Exemple HGR animé : sprite masqué, compteur, clavier, cadence | Apple II+ / IIe / IIc | `dist/HGR.dsk` |
 | [`dev/examples/dhgr/`](dev/examples/dhgr/) | Palette 16 couleurs et grille DHGR | Apple IIe 128 Ko / IIc | `dist/DHGR.dsk` |
 | [`dev/examples/hello/`](dev/examples/hello/) | Programme de départ, assembleur et C sur la même disquette | Apple II+ | `dist/HELLO.dsk` |
-| [`demos/`](demos/) | Menu de 5 démos : BOUNCES, ANIMALS, LIFE, PRESHIFT, FONT | Apple II+ | `dist/DEMO.dsk` |
 
 Deux profils de jeux sont définis : **Apple II+ 48 Ko / DOS 3.3** pour
 Arkabreakout et les ports classiques, et **Apple //e enhanced 128 Ko / ProDOS**

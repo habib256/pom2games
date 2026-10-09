@@ -11,7 +11,7 @@
 
 II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake pinball light3dball mcs
 IIE_PRODOS_GAMES := chromabreak
-DIRS := $(II_PLUS_GAMES) $(IIE_PRODOS_GAMES) logo demos dev/examples/hello dev/examples/hgr dev/examples/dhgr
+DIRS := $(II_PLUS_GAMES) $(IIE_PRODOS_GAMES) logo dev/examples/hello dev/examples/hgr dev/examples/dhgr
 
 all:
 	@for d in $(DIRS); do $(MAKE) -C $$d || exit 1; done

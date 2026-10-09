@@ -63,8 +63,6 @@ out += array('paddle_rows_mask', paddle_mask)
 out += 'const hgr_mspr_t paddle = {0, 0, 8, 28};\n'
 out += array('scale_x', [252 * 32 // (32 + d) for d in range(256)])
 out += array('scale_y', [148 * 32 // (32 + d) for d in range(256)])
-out += array('ray_upper_y', [6+d*67//114 if d<=114 else 255 for d in range(128)])
-Path(sys.argv[1]).write_text(out)
 
 # Sparse immutable corridor backdrop: only the lit HGR bytes per scanline.
 # The renderer can repair a dirty rectangle without retracing long diagonals.
@@ -85,6 +83,15 @@ def line(x0, y0, x1, y1):
 for coords in ((2,6,116,73),(254,6,140,73),(2,154,116,87),(254,154,140,87),
                (116,73,140,73),(116,87,140,87),(116,73,116,87),(140,73,140,87)):
     line(*coords)
+# First actual raster row at each diagonal X. Use the same pixels for ray
+# clipping and repairs, so rounding cannot leave a stroke behind a panel.
+ray_y = []
+for d in range(128):
+    x=2+d
+    ray_y.append(next((y for y in range(6,74)
+                       if rows[y][x//7] & (1 << (x%7))), 255) if d<=114 else 255)
+out += array('ray_upper_y', ray_y)
+Path(sys.argv[1]).write_text(out)
 offsets, sparse = [], []
 for y in range(1, 80):
     assert rows[y] == rows[160-y], 'backdrop must be vertically symmetric'

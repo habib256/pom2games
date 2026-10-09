@@ -72,49 +72,49 @@
       {
         "z": 384,
         "kind": "R",
-        "width": 40,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 512,
         "kind": "L",
-        "width": 40,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 640,
         "kind": "L",
-        "width": 40,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 768,
         "kind": "R",
-        "width": 40,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 1024,
         "kind": "R",
-        "width": 40,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 1152,
         "kind": "L",
-        "width": 40,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 1408,
         "kind": "L",
-        "width": 40,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 1536,
         "kind": "R",
-        "width": 40,
+        "width": 48,
         "phase": 0
       }
     ]
@@ -216,7 +216,7 @@
       {
         "z": 384,
         "kind": "L",
-        "width": 40,
+        "width": 48,
         "phase": 0
       },
       {
@@ -228,7 +228,7 @@
       {
         "z": 768,
         "kind": "L",
-        "width": 40,
+        "width": 48,
         "phase": 0
       },
       {
@@ -240,7 +240,7 @@
       {
         "z": 1152,
         "kind": "L",
-        "width": 40,
+        "width": 48,
         "phase": 0
       },
       {
@@ -252,7 +252,7 @@
       {
         "z": 1536,
         "kind": "L",
-        "width": 40,
+        "width": 48,
         "phase": 0
       },
       {
@@ -264,7 +264,7 @@
       {
         "z": 1920,
         "kind": "L",
-        "width": 40,
+        "width": 48,
         "phase": 0
       },
       {
@@ -276,7 +276,7 @@
       {
         "z": 2176,
         "kind": "L",
-        "width": 40,
+        "width": 48,
         "phase": 0
       },
       {
@@ -306,97 +306,97 @@
       {
         "z": 384,
         "kind": "R",
-        "width": 44,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 512,
         "kind": "D",
-        "width": 44,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 640,
         "kind": "L",
-        "width": 36,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 768,
         "kind": "R",
-        "width": 40,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 896,
         "kind": "D",
-        "width": 44,
+        "width": 48,
         "phase": 4
       },
       {
         "z": 1024,
         "kind": "L",
-        "width": 36,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 1152,
         "kind": "R",
-        "width": 40,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 1280,
         "kind": "D",
-        "width": 36,
+        "width": 48,
         "phase": 8
       },
       {
         "z": 1408,
         "kind": "L",
-        "width": 44,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 1536,
         "kind": "R",
-        "width": 40,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 1792,
         "kind": "L",
-        "width": 36,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 2048,
         "kind": "D",
-        "width": 40,
+        "width": 48,
         "phase": 12
       },
       {
         "z": 2304,
         "kind": "R",
-        "width": 44,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 2432,
         "kind": "L",
-        "width": 36,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 2688,
         "kind": "R",
-        "width": 40,
+        "width": 48,
         "phase": 0
       },
       {
         "z": 2816,
         "kind": "L",
-        "width": 36,
+        "width": 48,
         "phase": 0
       }
     ]

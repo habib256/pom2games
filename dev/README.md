@@ -92,8 +92,7 @@ Deux façons de quitter, selon la façon dont le programme a été lancé :
   DOS. En C : le `crt0_apple2.s` par défaut.
 - **`BLOAD` + `CALL` depuis un menu BASIC** : `APPLE2_PREAMBLE_CALL` (la pile de
   l'appelant n'est pas touchée) puis `apple2_return`, qui fait un `RTS` vers le
-  BASIC. En C : `__EXIT_RTS__ = 1` dans la config ld65 (voir
-  `../demos/src/demo_c.cfg`). Un `BRUN` depuis un programme BASIC, lui, ne
+  BASIC. En C : `__EXIT_RTS__ = 1` dans la config ld65. Un `BRUN` depuis un programme BASIC, lui, ne
   revient pas proprement : c'est pour ça que le menu utilise `CALL`.
 
 Dans les deux cas, Ctrl-RESET revient au prompt DOS avec la page zéro restaurée.

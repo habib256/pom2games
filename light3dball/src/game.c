@@ -220,8 +220,10 @@ void physics(void)
     if (advancing && ball_z>camera_z+12) {
         if ((camera_z&127)>=118) {
             opening(camera_z>>7);
-            if ((int)paddle_x-14<aperture_l) blocked=2;
-            else if ((int)paddle_x+14>aperture_r) blocked=1;
+            /* A side opening reaches the corridor edge: only solid panel
+             * edges block the paddle, not the open side of the passage. */
+            if (aperture_l && (int)paddle_x<(int)aperture_l+14) blocked=2;
+            else if (aperture_r<127 && (int)paddle_x+14>aperture_r) blocked=1;
         }
         if (!blocked && camera_z<camera_limit) camera_z+=2;
     }
@@ -251,6 +253,26 @@ static void scene(unsigned char pg)
         }
         if (aperture_r<127 && top<ray_right_top) {
             ray_right_top=top; ray_right_bottom=top+sy;
+        }
+        /* A broad panel can also cover the opposite corridor diagonal.
+         * Clip at its actual raster intersection, not just its own side. */
+        if (aperture_l) {
+            a=project_x(aperture_l);
+            if (a>140) {
+                b=ray_upper_y[254-a];
+                if (b<ray_right_top) {
+                    ray_right_top=b; ray_right_bottom=160-b;
+                }
+            }
+        }
+        if (aperture_r<127) {
+            a=project_x(aperture_r);
+            if (a<116) {
+                b=ray_upper_y[a-2];
+                if (b<ray_left_top) {
+                    ray_left_top=b; ray_left_bottom=160-b;
+                }
+            }
         }
     }
     rect_cursor=scene_lines[pg];

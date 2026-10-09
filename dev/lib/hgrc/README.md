@@ -9,7 +9,7 @@ Les commutateurs sont en `$C050-$C057`, les pages en `$2000` et `$4000`.
 La base texte/clavier est [`../apple2c`](../apple2c/).
 
 Utilisé par [`../../../snake`](../../../snake/) et
-[`../../../demos`](../../../demos/). Les fonctions de dessin vectoriel passent par
+[`../../../light3dball`](../../../light3dball/). Les fonctions de dessin vectoriel passent par
 [`../gfx`](../gfx/).
 
 **Règle impérative : texte ×1 toujours blanc ; seule l'écriture agrandie ×2
@@ -144,8 +144,7 @@ dans un tampon fourni par l’appelant ; `hgr_blit_x2` convertit et dessine
 `HGRC_X2_SRCS` et l’archive commune, extraites seulement si elles sont appelées.
 Pour une animation, convertir une fois au démarrage, puis utiliser `hgr_blit7`
 à chaque image. Placer le sprite à `x = 14*n` pour conserver sa teinte.
-Les banques peuvent aussi être préparées avant compilation, comme avec
-`demos/src/animals_gen_x2.py`.
+Les banques peuvent aussi être préparées avant compilation.
 
 ## DHGR (Apple IIe / IIc)
 

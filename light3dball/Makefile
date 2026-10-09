@@ -56,6 +56,8 @@ test: all $(A2RUN)
 	$(PYTHON) tests/test_game.py
 	$(PYTHON) tests/test_physics.py
 	$(PYTHON) tests/test_render.py
+	$(PYTHON) tests/test_passages.py
+	$(PYTHON) tests/test_occlusion.py
 	$(PYTHON) tests/test_levels.py
 
 include $(HGRC)/hgrc_build.mk
