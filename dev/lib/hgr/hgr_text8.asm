@@ -111,6 +111,13 @@ hgr_putc8:
         LDA ht_sl
         CMP #192
         BCS @out                ; off-screen: skip draw, still advance
+.ifdef HGR_TEXT8_FILTER
+        ; Optional incremental UI: callback reads ht_a/col/sl/page. C=1
+        ; skips this glyph while still advancing the cursor. A/X/Y scratch
+        ; may be destroyed; preserve ht_a and the ht_* cursor/font/attributes.
+        JSR HGR_TEXT8_FILTER
+        BCS @out
+.endif
         ; glyph index: fold lowercase, map out-of-window to space
         LDA ht_a
         AND #$7F

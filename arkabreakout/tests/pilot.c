@@ -13,12 +13,14 @@ int main(int argc, char **argv) {
     unsigned px = strtoul(argv[7],0,16), width = strtoul(argv[8],0,16);
     unsigned live = strtoul(argv[9],0,16), level = strtoul(argv[10],0,16);
     unsigned dy = strtoul(argv[11],0,16);
-    char *boot[] = {"a2run","--roms",argv[2],"--disk",argv[1],"wait:1100","key: ","wait:60"};
-    if (a2run_main(8,boot)) return 3;
+    char boundary[64];
+    snprintf(boundary,sizeof boundary,"until:%04X:3000",loop);
+    char *boot[] = {"a2run","--roms",argv[2],"--disk",argv[1],"wait:1100","key:1","key: ",boundary};
+    if (a2run_main(9,boot)) return 3;
     unsigned prev_level = 255;
     uint64_t start = cpu.cycles;
-    for (unsigned f=0;f<100000;f++) {
-        uint64_t deadline = cpu.cycles+2000000;
+    for (unsigned f=0;f<800000;f++) {
+        uint64_t deadline = cpu.cycles+12000000;
         while (cpu.pc != loop && ram[state]==1 && cpu.cycles < deadline) cpu_step(&cpu);
         if (ram[state]!=1) {printf("finish state=%u level=%u updates=%u seconds=%.1f\n",ram[state],ram[level],f,(cpu.cycles-start)/A2RUN_CPU_HZ); return ram[state]==3?0:1;}
         if (cpu.pc!=loop) {printf("stuck at %04X level %u live%u\n",cpu.pc,ram[level],ram[live]);return 4;}
@@ -35,5 +37,5 @@ int main(int argc, char **argv) {
         if (!ram[live]) kbd_latch=0xA0;
         cpu_step(&cpu);
     }
-    printf("timeout: level=%u remaining=%u\n",ram[level]+1,ram[level+1]); return 5;
+    printf("timeout: level=%u remaining=%u live=%u ball=%u,%u dy=%u state=%u\n",ram[level]+1,ram[level+1],ram[live],ram[bx],ram[by],ram[dy],ram[state]); return 5;
 }

@@ -25,6 +25,8 @@ save_y: .res 1
 steps_left: .res 1
 scratch: .res 1
 level_ptr: .res 2
+.exportzp ptr1
+ptr1 = level_ptr
 asset_ptr: .res 2
 
 .segment "LOWBSS"
@@ -32,12 +34,20 @@ bricks: .res 96
 dirty1: .res 96
 dirty2: .res 96
 paddle_map: .res 256
+extra_balls: .res 18             ; two records matching ball_x..ball_yfrac
+sprite_history: .res 64         ; eight x/y/kind records on each HGR page
+level_name: .res 11
+.assert * <= $1300, lderror, "LOWBSS overlaps music player"
+collision_row = $1C00
+collision_col = $1D00
+level_pack = $1800              ; ten interleaved 48-byte boards + 10-byte names
+
 
 .segment "BSS"
 ; Exported symbols are also used by deterministic emulator tests.
 .export state, ball_x, ball_y, ball_live, ball_dirx, ball_diry, ball_speed
 .export ball_yspeed, ball_frac, ball_yfrac, best_score, reward_hits, ramp_hits
-.export loop, hit_count
+.export loop, hit_count, hud1, hud2, page, old_cap, wait_key, title_menu_key
 .export pad_x, pad_width, movement, lives, level, remaining, bricks
 .export score, capsule, cap_x, cap_y, effect, paused, frames, mode, speed
 state: .res 1             ; 0 title, 1 game, 2 defeat, 3 victory
@@ -54,27 +64,29 @@ pad_x: .res 1
 pad_width: .res 1
 movement: .res 1          ; 0 stopped, 1 left, 2 right
 lives: .res 1
-level: .res 1             ; 0..11
+level: .res 1             ; 0..59
 remaining: .res 1
-score: .res 5             ; ASCII decimal, 10 points per hit
-capsule: .res 1           ; 0 absent; 1 wide, 2 slow, 3 catch
+score: .res 6             ; ASCII decimal, points capped at 650000
+capsule: .res 1           ; 0 absent; E/S/C/D/L/P = 1..6
 cap_x: .res 1
 cap_y: .res 1
 cap_next: .res 1
 hit_count: .res 1
 ramp_hits: .res 1
 reward_hits: .res 1
-best_score: .res 5
-speed: .res 1             ; substeps/frame (2..5)
+best_score: .res 6
+speed: .res 1             ; substeps/frame (2..7)
 effect: .res 1
 paused: .res 1
 frames: .res 2
-mode: .res 1              ; 0 keyboard, 1 paddle
+mode: .res 1              ; 0 keyboard, 1 joystick/paddles, 2 AppleMouse II
 button_old: .res 1
 hud1: .res 1
 hud2: .res 1
+dirty_counts: .res 2
 old_valid: .res 2
 old_pad: .res 2
+old_effect: .res 2
 old_width: .res 2
 old_bx: .res 2
 old_by: .res 2
@@ -92,11 +104,63 @@ key_speed: .res 1
 cal_old_min: .res 1
 cal_old_max: .res 1
 pending: .res 1            ; sound event; one short pulse train per frame
+.export difficulty, combo, multiplier, pad_y, vertical, extra_balls
+.export life_hits, enemy_dx, button_old, fire_lasers, laser_cooldown, furthest
+.export normal_speed, cap_next, menu_sector, menu_input, menu_click
+.export shot_live, shot_x, shot_y, enemy_live, enemy_x, enemy_y, enemy_hold
+.export speed_limit, base_width, current_pack, level_name, sound_muted, menu_loop
+pad_y: .res 1
+vertical: .res 1
+previous_x: .res 1
+previous_y: .res 1
+difficulty: .res 1
+base_width: .res 1
+speed_limit: .res 1
+ramp_period: .res 1
+reward_period: .res 1
+normal_speed: .res 1
+combo: .res 1
+multiplier: .res 1
+award_count: .res 1
+life_hits: .res 2
+current_pack: .res 1
+pack_number: .res 1
+pack_offset: .res 1
+ball_id: .res 1
+shot_live: .res 2
+shot_x: .res 2
+shot_y: .res 2
+laser_cooldown: .res 1
+object_id: .res 1
+history_offset: .res 1
+sprite_kind: .res 1
+old_height: .res 2
+catch_offset: .res 1
+enemy_live: .res 2
+enemy_x: .res 2
+enemy_y: .res 2
+enemy_dx: .res 2
+enemy_timer: .res 1
+enemy_hold: .res 1
+enemy_id: .res 1
+sound_muted: .res 1
+furthest: .res 1
+menu_sector: .res 1
+menu_origin: .res 1
+start_request: .res 1
+idle: .res 2
+demo: .res 1
+reset_end:
+
 
 .code
         jmp main
+HGR_TEXT8_FILTER = hud_filter
 HGR_TEXT8_HGR_ORDER = 1           ; bbfont is HGR bit order: no rev7_tab
 .include "hgr_text8.asm"
+HGR_XOR_DIV7 = div7
+HGR_XOR_MOD7 = mod7
+.include "hgr_xor.asm"
 
 .code
 main:
@@ -111,7 +175,7 @@ main:
         ldx #0
 @bss:   sta state,x
         inx
-        cpx #(pending-state+1)
+        cpx #(reset_end-state)
         bne @bss
         lda #<font
         sta ht_font_lo
@@ -126,7 +190,7 @@ main:
         lda #40
         sta ht_wrap
         lda #'0'
-        ldx #4
+        ldx #5
 @best:  sta best_score,x
         dex
         bpl @best
@@ -135,45 +199,142 @@ main:
         lda #5
         sta key_speed
         jsr build_paddle_map
+        jsr build_collision_tables
+        lda #255
+        sta current_pack
+        lda #1
+        sta difficulty
+        jsr records_load
+        jsr music_load
+        jsr mouse_start
         jsr title
+        jsr music_title
 menu_loop:
-        jsr poll_key
+        lda start_request
+        beq :+
+        lda #0
+        sta start_request
+        jmp start_sector
+:       jsr poll_key
         cmp #KC_ESC
-        jeq apple2_exit
+        beq @menu
+@dispatch:
+        cmp #'H'
+        beq @records
+        cmp #'?'
+        beq @help
+        cmp #'1'
+        bcc @control
+        cmp #'4'
+        bcs @control
+        sec
+        sbc #'1'
+        sta difficulty
+        jsr title
+        jmp menu_loop
+@menu:  jsr title_menu
+        jmp @dispatch
+@records:
+        jsr records_show
+        jsr title
+        jmp menu_loop
+@help:  jsr help
+        jsr title
+        jmp menu_loop
+@control:
         cmp #'C'
         bne @paddle
         jsr calibrate
         jsr title
         jmp menu_loop
-@paddle: cmp #'J'
-        bne @keyboard
+@paddle:
+        cmp #'J'
+        bne @mouse
         lda #1
         sta mode
         jmp start_game
+@mouse: cmp #'M'
+        bne @keyboard
+        lda _mouse_slot
+        beq menu_loop
+        lda #2
+        sta mode
+        jmp start_game
 @keyboard:
+        cmp #'K'
+        beq @keys
         cmp #KC_SPACE
-        bne menu_loop
-        lda #0
+        beq start_game
+        cmp #$0D
+        beq start_game
+        lda _mouse_slot
+        beq @idle
+        jsr mouse_read
+        lda _mouse_buttons
+        and #$80
+        cmp button_old
+        sta button_old
+        beq @idle
+        cmp #0
+        bne start_game
+@idle:  inc idle
+        bne :+
+        inc idle+1
+:       lda idle+1
+        cmp #5
+        bcc @wait
+        lda #1
+        sta demo
+        jmp start_game
+@wait:  lda #70
+        jsr WAIT
+        jmp menu_loop
+@keys:  lda #0
         sta mode
 start_game:
         lda #0
         sta level
+start_sector:
+        lda #0
         sta reward_hits
         sta frames
         sta frames+1
+        sta life_hits
+        sta life_hits+1
         lda #'0'
-        ldx #4
+        ldx #5
 @score: sta score,x
         dex
         bpl @score
-        lda #3
+        ldx difficulty
+        lda starting_lives,x
         sta lives
+        lda paddle_sizes,x
+        sta base_width
+        lda maximum_speeds,x
+        sta speed_limit
+        lda ramp_periods,x
+        sta ramp_period
+        lda reward_periods,x
+        sta reward_period
         lda #1
+        sta cap_next
         sta state
         jsr load_level
+        lda #1
+        sta ball_live
+        jsr hud_dirty
 loop:
-        jsr input
-        lda state
+        lda start_request
+        beq :+
+        lda #0
+        sta start_request
+        jmp start_sector
+:       jsr input
+        lda start_request
+        beq :+
+        jmp loop
+:       lda state
         cmp #1
         jne menu_loop
         lda paused
@@ -187,40 +348,55 @@ loop:
         bne :+
         inc frames+1
 :       jsr move_pad
-        jsr update_capsule
-        lda ball_live
-        bne @active
-        jsr attach_ball
-        jmp @render
-@active:
-        lda speed
-        sta steps_left
-@step:  jsr ball_step
+        lda demo
+        beq :+
+        jsr autopilot
         lda state
         cmp #1
         jne menu_loop
-        lda ball_live
-        beq @render
+:       jsr paddle_contact
+        jsr update_capsule
+        jsr lasers_step
+        jsr enemies_step
+        jsr advance_balls
+        lda state
+        cmp #1
+        jne menu_loop
         lda remaining
         beq @next
-        dec steps_left
-        bne @step
 @render:
         jsr render
 @pace:  jsr beep
-        ; Compensate for the ~6ms paddle read to keep control modes comparable.
-        ; II+ has no readable VBL; this remains a CPU delay, not video sync.
+        ; Spend less of the frame waiting when controllers / extra balls
+        ; already consumed CPU time. The II+ has no readable VBL.
+        lda extra_balls+2
+        ora extra_balls+11
+        bne @multi_delay
         lda mode
         beq @keyboard_delay
-        lda #88
+        cmp #2
+        beq @mouse_delay
+        lda #68
+        bne @wait
+@mouse_delay:
+        lda #40
         bne @wait
 @keyboard_delay:
-        lda #100
+        lda #80
+        bne @wait
+@multi_delay:
+        lda mode
+        cmp #2
+        bne :+
+        lda #15
+        bne @wait
+:       lda #50
 @wait:  jsr WAIT
         jmp loop
-@next:  inc level
+@next:  jsr music_jingle
+        inc level
         lda level
-        cmp #12
+        cmp #60
         bcc @load
         lda #3
         sta state
@@ -330,22 +506,35 @@ build_paddle_map:
         bne @value
         rts
 
-; Text is white x1. Screen transitions initialize both pages while text shows.
+; Text is white x1. Keep full-screen HGR active during every transition.
 clear_pages:
-        bit TXTSET
         lda #0
         tax
-@clear:
-.repeat 64, I
-        sta $2000+I*$100,x
-.endrepeat
-        inx
-        jne @clear
+        sta ptr
+        lda #$20
+        sta ptr+1
+        ldy #0
+        lda #0
+@clear: sta (ptr),y
+        iny
+        bne @clear
+        inc ptr+1
+        ldx ptr+1
+        cpx #$60
+        bcc @clear
         sta page
         sta ht_page
         sta page_index
         sta old_valid
         sta old_valid+1
+        sta hud_active
+        sta hud_static
+        sta hud_static+1
+        ldx #0
+@cache: sta hud_chars,x
+        inx
+        cpx #160
+        bcc @cache
         rts
 show_graphics:
         jsr hgr_init
@@ -363,6 +552,8 @@ set_string:              ; A/X string pointer; Y scanline; scratch byte column
 
 title:
         lda #0
+        sta idle
+        sta idle+1
         sta state
         jsr clear_pages
         jsr draw_large_title
@@ -389,13 +580,8 @@ title:
         cmp #48
         bne @lower
         text subtitle, 11, 76
-        text menu1, 5, 96
-        text menu2, 5, 108
-        text menu3, 5, 120
-        text menu4, 5, 132
-        text menu5, 5, 144
-        text calibration_text, 5, 156
-        text menu6, 5, 168
+        text menu1, 10, 104
+        text title_options, 14, 132
         text best_text, 11, 184
         lda #24
         sta ht_col
@@ -403,7 +589,7 @@ title:
 @best:  lda best_score,x
         jsr hgr_putc8
         inx
-        cpx #5
+        cpx #6
         bne @best
         jmp show_graphics
 
@@ -427,15 +613,20 @@ draw_large_title:
         sta (ptr),y
         dey
         bpl @byte
+        lda row
+        and #1
+        beq @duplicate
         lda asset_ptr
         clc
         adc #24
         sta asset_ptr
         bcc :+
         inc asset_ptr+1
-:       inc row
+:
+@duplicate:
+        inc row
         lda row
-        cmp #52
+        cmp #50
         bne @row
         rts
 
@@ -447,10 +638,10 @@ update_best:
         bcc @done
         bne @copy
         inx
-        cpx #5
+        cpx #6
         bne @compare
         rts
-@copy:  ldx #4
+@copy:  ldx #5
 @digit: lda score,x
         sta best_score,x
         dex
@@ -458,7 +649,17 @@ update_best:
 @done:  rts
 
 ending:
-        jsr update_best
+        lda demo
+        beq :+
+        lda #0
+        sta demo
+        jmp title
+:       lda state
+        cmp #3
+        bne :+
+        jsr music_victory
+:       jsr update_best
+        jsr records_submit
         jsr clear_pages
         lda state
         cmp #3
@@ -474,7 +675,7 @@ ending:
         lda score,x
         jsr hgr_putc8
         inx
-        cpx #5
+        cpx #6
         bne @digits
         text best_text, 11, 104
         lda #24
@@ -483,21 +684,23 @@ ending:
 @best:  lda best_score,x
         jsr hgr_putc8
         inx
-        cpx #5
+        cpx #6
         bne @best
         text restart_text, 5, 128
         text menu6, 5, 152
-        jmp show_graphics
+        lda save_status
+        cmp #2
+        bne :+
+        text save_failed, 3, 176
+:       jmp show_graphics
 
 load_level:
+        jsr fetch_level
         lda level
-        asl
-        tax
-        lda levels,x
-        sta level_ptr
-        lda levels+1,x
-        sta level_ptr+1
-        lda #0
+        cmp furthest
+        bcc :+
+        sta furthest
+:        lda #0
         sta remaining
         sta paused
         sta movement
@@ -506,29 +709,30 @@ load_level:
         sta hit_count
         sta ramp_hits
         sta pending
-        lda #1
-        sta cap_next
-        lda #28
+        lda base_width
         sta pad_width
-        lda level
-        lsr
-        lsr
-        clc
-        adc #2
+        ldx difficulty
+        lda starting_speeds,x
         sta speed
+        sta normal_speed
         ldy #0
+        ldx #0
 @cells: lda (level_ptr),y
-        sta bricks,y
-        beq @skip
-        cmp #255
-        beq @skip
-        inc remaining
-@skip:  lda #1
-        sta dirty1,y
-        sta dirty2,y
+        pha
+        and #15
+        jsr unpack_cell
+        pla
+        lsr
+        lsr
+        lsr
+        lsr
+        jsr unpack_cell
         iny
-        cpy #96
+        cpy #48
         bne @cells
+        lda #96
+        sta dirty_counts
+        sta dirty_counts+1
         jsr reset_ball
         jsr clear_pages
         ; Static side walls and ceiling, on both pages.
@@ -553,16 +757,38 @@ reset_ball:
         sta effect
         sta capsule
         sta movement
-        lda #28
+        sta vertical
+        sta combo
+        sta shot_live
+        sta shot_live+1
+        sta laser_cooldown
+        sta enemy_live
+        sta enemy_live+1
+        ldx #17
+@extras: sta extra_balls,x
+        dex
+        bpl @extras
+        lda #1
+        sta multiplier
+        ldx difficulty
+        lda enemy_periods,x
+        sta enemy_timer
+        lda base_width
         sta pad_width
-        lda level
-        lsr
-        lsr
-        clc
-        adc #2
+        ldx difficulty
+        lda starting_speeds,x
         sta speed
+        sta normal_speed
         lda #112
         sta pad_x
+        lda #175
+        sta pad_y
+        sta previous_y
+        lda base_width
+        lsr
+        sec
+        sbc #1
+        sta catch_offset
         lda #1
         sta ball_diry
         lda #0
@@ -572,20 +798,82 @@ reset_ball:
         lda #224
         sta ball_yspeed
 attach_ball:
+        lda catch_offset
+        cmp pad_width
+        bcc :+
         lda pad_width
-        lsr
-        clc
-        adc pad_x
         sec
         sbc #1
+:       clc
+        adc pad_x
         sta ball_x
-        lda #170
+        lda pad_y
+        sec
+        sbc #5
         sta ball_y
         rts
 input:
-        jsr poll_key
+        lda mode
+        cmp #2
+        bne :+
+        jsr mouse_read
+:       jsr poll_key
+        pha
+        lda demo
+        beq @normal_input
+        pla
+        beq @nothing
+        lda #0
+        sta demo
+        jsr title
+        rts
+@nothing:
+        lda mode
+        beq @no_demo_button
+        cmp #2
+        bne @demo_stick
+        lda _mouse_buttons
+        jmp @demo_button
+@demo_stick:
+        lda BUTN0
+        ora BUTN1
+@demo_button:
+        and #$80
+        beq @no_demo_button
+        lda #0
+        sta demo
+        jsr title
+@no_demo_button:
+        lda #0
+        rts
+@normal_input:
+        pla
         cmp #KC_ESC
-        jeq apple2_exit
+        bne :+
+        jsr escape_menu
+        rts
+:       cmp #'M'
+        bne :+
+        lda _mouse_slot
+        jeq @done
+        lda #2
+        jmp select_control
+:       cmp #'K'
+        bne :+
+        lda #0
+        jmp select_control
+:       cmp #'J'
+        bne :+
+        lda #1
+        jmp select_control
+:       cmp #'W'
+        jeq @up
+        cmp #KC_UP
+        jeq @up
+        cmp #'X'
+        jeq @down
+        cmp #KC_DOWN
+        jeq @down
         cmp #'P'
         bne @other
         lda paused
@@ -608,27 +896,47 @@ input:
         dec key_speed
         rts
 @direction: cmp #'A'
-        beq @left
+        jeq @left
         cmp #KC_LEFT
-        beq @left
+        jeq @left
         cmp #'D'
-        beq @right
+        jeq @right
         cmp #KC_RIGHT
-        beq @right
+        jeq @right
         cmp #'S'
         beq @stop
         cmp #KC_SPACE
         beq @launch
         lda mode
         beq @done
+        cmp #2
+        bne @stick_button
+        lda _mouse_buttons
+        jmp @button
+@stick_button:
         lda BUTN0
-        and #$80
+        ora BUTN1
+@button: and #$80
         cmp button_old
         sta button_old
-        beq @done
+        bne @edge
         cmp #0
+        beq @done
+        lda paused
+        bne @done
+        lda effect
+        cmp #5
+        bne @done
+        jmp fire_lasers
+@edge:  cmp #0
         bne @launch
 @done:  rts
+@up:    lda #1
+        sta vertical
+        rts
+@down:  lda #2
+        sta vertical
+        rts
 @left:  lda #1
         sta movement
         rts
@@ -636,25 +944,89 @@ input:
         sta movement
         rts
 @stop:  lda #0
+        sta vertical
         sta movement
         rts
 @launch:
         lda paused
         bne @done
         lda ball_live
-        bne @done
+        beq :+
+        jmp fire_lasers
+:       lda extra_balls+2
+        ora extra_balls+11
+        bne @done                 ; another ball is flying, no attached ball to release
         lda #1
         sta ball_live
         sta ball_diry
         jmp hud_dirty
+select_control:
+        sta mode
+        lda #0
+        sta movement
+        sta vertical
+        jmp hud_dirty
 move_pad:
+        lda pad_x
+        sta previous_x
+        lda pad_y
+        sta previous_y
         lda mode
-        beq @keys
-        jsr read_stick
+        cmp #2
+        beq @mouse
+        cmp #1
+        beq @stick
+        lda vertical
+        beq @horizontal
+        cmp #1
+        bne @down
+        lda pad_y
+        sec
+        sbc #3
+        sta pad_y
+        jmp @horizontal
+@down:  lda pad_y
+        clc
+        adc #3
+        sta pad_y
+@horizontal:
+        jsr keyboard_pad
+        jmp clamp_height
+@mouse: ldx _mouse_x
+        lda mouse_map,x
+        sta pad_x
+        lda _mouse_y
+        sta pad_y
+        jsr clamp_pad
+        jmp clamp_height
+@stick: jsr read_stick
         ldx joy_x
         lda paddle_map,x
         sta pad_x
-        jmp clamp_pad
+        ; A standalone paddle 0 leaves timer 1 charged: stay on the floor.
+        lda PADDL1
+        bpl @two_axes
+        lda #175
+        sta pad_y
+        jsr clamp_pad
+        jmp clamp_height
+@two_axes:
+        ; Map the second timer 0..112 into height 100..175.
+        lda joy_y
+        cmp #112
+        bcc :+
+        lda #112
+:       lsr
+        sta scratch
+        lsr
+        clc
+        adc scratch
+        clc
+        adc #100
+        sta pad_y
+        jsr clamp_pad
+        jmp clamp_height
+keyboard_pad:
 @keys:  lda movement
         beq clamp_pad
         cmp #1
@@ -714,7 +1086,12 @@ set_pad_width:
 :       sta pad_x
 @width: lda scratch
         sta pad_width
-        jmp clamp_pad
+        lsr
+        sec
+        sbc #1
+        sta catch_offset
+        jsr clamp_pad
+        jmp clamp_height
 @done:  rts
 
 ball_step:
@@ -752,7 +1129,14 @@ ball_step:
         jsr collide
         bcc @vertical
         jsr damage
-        lda save_x
+        lda effect
+        cmp #6
+        bne :+
+        ldx brick_index
+        lda bricks,x
+        cmp #255
+        bne @vertical
+:       lda save_x
         sta ball_x
         lda ball_dirx
         eor #1
@@ -767,46 +1151,15 @@ ball_step:
         bne @up
         inc ball_y
         lda ball_y
-        cmp #172
-        bne @bottom
-        ; paddle collision, including the ball's full 3 pixel extent
-        lda ball_x
-        clc
-        adc #2
-        cmp pad_x
-        bcc @bottom
-        lda pad_x
-        clc
-        adc pad_width
-        cmp ball_x
-        bcc @bottom
-        beq @bottom
-        lda #1
-        sta ball_diry
-        jsr paddle_angle
-        lda #2
-        sta pending
-        lda effect
-        cmp #3
-        bne @done
-        lda #0
-        sta ball_live
-        jsr hud_dirty
-        rts
+        jsr paddle_contact
+        lda ball_diry
+        jne @done
 @bottom:
         lda ball_y
         cmp #180
         bcc @ybrick
-        dec lives
-        jsr hud_dirty
-        lda lives
-        beq @dead
-        jsr reset_ball
-        rts
-@dead:  lda #2
-        sta state
-        jsr ending
-        ; Caller checks state before rendering the cleared ending screen.
+        lda #0
+        sta ball_live
         rts
 @up:    dec ball_y
         lda ball_y
@@ -822,7 +1175,14 @@ ball_step:
         jsr collide
         bcc @done
         jsr damage
-        lda save_y
+        lda effect
+        cmp #6
+        bne :+
+        ldx brick_index
+        lda bricks,x
+        cmp #255
+        bne @done
+:       lda save_y
         sta ball_y
         lda ball_diry
         eor #1
@@ -868,7 +1228,21 @@ paddle_angle:
         sta cy
         inx
         bne @divide
-@zone:  lda angle_x,x
+@zone:
+        ; Horizontal paddle motion biases the rebound by one impact zone.
+        lda pad_x
+        cmp previous_x
+        beq @angle
+        bcc @spin_left
+        cpx #7
+        bcs @angle
+        inx
+        bne @angle
+@spin_left:
+        cpx #0
+        beq @angle
+        dex
+@angle: lda angle_x,x
         sta ball_speed
         lda angle_y,x
         sta ball_yspeed
@@ -906,38 +1280,15 @@ collide:
         jmp point_hit
 @hit:   rts
 point_hit:
-        lda cy
-        sec
-        sbc #24
-        bcc @miss
-        cmp #96
-        bcs @miss
-        ldx #0
-@row:   cmp #12
-        bcc @rowfound
-        sbc #12
-        inx
-        bne @row
-@rowfound:
-        cmp #8
-        bcs @miss
-        lda row12,x
+        ldy cy
+        lda collision_row,y
+        cmp #255
+        beq @miss
         sta idx
-        lda cx
-        ldx #0
-@col:   cmp #21
-        bcc @colfound
-        sbc #21
-        inx
-        bne @col
-@colfound:
-        cmp #1
-        bcc @miss
-        cmp #19
-        bcs @miss
-        cpx #12
-        bcs @miss
-        txa
+        ldy cx
+        lda collision_col,y
+        cmp #255
+        beq @miss
         clc
         adc idx
         tax
@@ -949,34 +1300,64 @@ point_hit:
         rts
 
 damage:
+        stx brick_index
         lda bricks,x
         cmp #255
         jeq wall_sound
-        dec bricks,x
-        stx brick_index
+        lda effect
+        cmp #6
+        bne :+
         lda #1
-        sta dirty1,x
-        sta dirty2,x
+        sta bricks,x
+:       dec bricks,x
+        jsr mark_dirty
+        lda #1
         sta pending
-        jsr add_score
+        lda bricks,x
+        bne @single
+        lda combo
+        cmp #21
+        bcs :+
+        inc combo
+:       lda combo
+        ldx #0
+@third: cmp #3
+        bcc @combo
+        sec
+        sbc #3
+        inx
+        bne @third
+@combo: txa
+        clc
+        adc #1
+        sta multiplier
+        lda multiplier
+        jmp @award
+@single: lda #1
+@award: jsr award
         ldx brick_index
         lda bricks,x
         bne @done
         dec remaining
         inc ramp_hits
         lda ramp_hits
-        cmp #12
+        cmp ramp_period
         bcc @capsule
         lda #0
         sta ramp_hits
-        lda speed
-        cmp #5
+        lda normal_speed
+        cmp speed_limit
         bcs @capsule
-        inc speed
+        inc normal_speed
+        lda effect
+        cmp #2
+        beq @capsule
+        lda normal_speed
+        sta speed
 @capsule:
         inc hit_count
         lda hit_count
-        cmp #5
+        cmp reward_period
         bcc @done
         lda #0
         sta hit_count
@@ -986,7 +1367,7 @@ damage:
         sta capsule
         inc cap_next
         lda cap_next
-        cmp #4
+        cmp #7
         bcc :+
         lda #1
         sta cap_next
@@ -1013,7 +1394,16 @@ wall_sound:
         sta pending
         rts
 add_score:
-        ldx #3               ; increment tens, last digit stays zero
+        lda #1
+award:  sta award_count
+@again: lda score
+        cmp #'6'
+        bcc @add
+        bne @capped
+        lda score+1
+        cmp #'5'
+        bcs @capped
+@add:   ldx #4                ; six digits; units always zero
 @digit: inc score,x
         lda score,x
         cmp #':'
@@ -1023,18 +1413,28 @@ add_score:
         dex
         bpl @digit
 @reward:
-        inc reward_hits
-        lda reward_hits
-        cmp #100
-        bcc hud_dirty
+        inc life_hits
+        bne :+
+        inc life_hits+1
+:       lda life_hits+1
+        cmp #1
+        bne @capped
+        lda life_hits
+        cmp #244              ; 500 tens = 5000 points
+        bcc @capped
         lda #0
-        sta reward_hits
+        sta life_hits
+        sta life_hits+1
         lda lives
         cmp #5
-        bcs hud_dirty
+        bcs @capped
         inc lives
         lda #4
         sta pending
+@capped:
+        dec award_count
+        bne @again
+        jmp hud_dirty
 hud_dirty:
         lda #1
         sta hud1
@@ -1045,8 +1445,13 @@ update_capsule:
         beq @done
         inc cap_y
         lda cap_y
-        cmp #170
-        bne @miss
+        clc
+        adc #7
+        cmp pad_y
+        bcc @miss
+        lda cap_y
+        cmp previous_y
+        bcs @miss
         lda cap_x
         clc
         adc #6
@@ -1062,10 +1467,12 @@ update_capsule:
         sta effect
         cmp #1
         bne @slow
-        lda #42
+        lda base_width
+        clc
+        adc #14
         jsr set_pad_width
         jmp @caught
-@slow:  lda #28
+@slow:  lda base_width
         jsr set_pad_width
         lda effect
         cmp #2
@@ -1073,6 +1480,7 @@ update_capsule:
         lda #2
         sta speed
 @caught:
+        jsr apply_effect
         lda #0
         sta capsule
         lda #2
@@ -1086,6 +1494,9 @@ update_capsule:
         sta capsule
 @done:  rts
 beep:
+        lda sound_muted
+        ora demo
+        bne @silent
         lda pending
         beq @done
         tax
@@ -1095,57 +1506,24 @@ beep:
         jsr tone
         lda #0
         sta pending
+@silent: lda #0
+        sta pending
 @done:  rts
 
 ; XOR rectangles: byte masks, arbitrary pixel alignment, 3 rows per object.
 ; Erase ALL old objects on a hidden page before applying its dirty bricks.
 rectangle:
-        ldx rx
-        lda div7,x
-        sta first
-        lda mod7,x
-        tax
-        lda left_masks,x
-        sta lm
         lda rx
-        clc
-        adc rw
-        sec
-        sbc #1
-        tax
-        lda div7,x
-        sta last
-        lda mod7,x
-        tax
-        lda right_masks,x
-        sta rm
+        sta hx_x
         lda ry
-        sta row
-@line:  ldx row
-        lda hgr_lo,x
-        sta ptr
-        lda hgr_hi,x
-        eor page
-        sta ptr+1
-        ldy first
-@byte:  lda #$7f
-        cpy first
-        bne :+
-        and lm
-:       cpy last
-        bne :+
-        and rm
-:       eor (ptr),y
-        sta (ptr),y
-        cpy last
-        beq @line_end
-        iny
-        bne @byte
-@line_end:
-        inc row
-        dec rh
-        bne @line
-        rts
+        sta hx_y
+        lda rw
+        sta hx_w
+        lda rh
+        sta hx_h
+        lda page
+        sta hx_page
+        jmp hgr_xor_rect
 walls:
         lda #0
         sta rx
@@ -1184,7 +1562,12 @@ render:
         lda old_valid,x
         beq @dirty
         jsr old_objects
-@dirty: lda #0
+        jsr erase_sprites
+@dirty: ldx page_index
+        lda dirty_counts,x
+        beq @objects
+        lda #0
+        sta dirty_counts,x
         sta brick_index
 @brick: ldx brick_index
         lda page_index
@@ -1203,11 +1586,16 @@ render:
         lda brick_index
         cmp #96
         bne @brick
+@objects:
         ldx page_index
+        lda effect
+        sta old_effect,x
         lda pad_x
         sta old_pad,x
         lda pad_width
         sta old_width,x
+        lda pad_y
+        sta old_height,x
         lda ball_x
         sta old_bx,x
         lda ball_y
@@ -1221,6 +1609,7 @@ render:
         lda #1
         sta old_valid,x
         jsr old_objects
+        jsr new_sprites
         lda page_index
         beq @h1
         lda hud2
@@ -1252,12 +1641,40 @@ old_objects:
         sta rx
         lda old_width,x
         sta rw
-        lda #175
+        lda old_height,x
         sta ry
         lda #3
         sta rh
         jsr rectangle
         ldx page_index
+        lda old_effect,x
+        cmp #5
+        bne @ball
+        ; Two three-pixel barrels, aligned with the shot origins.
+        lda old_pad,x
+        clc
+        adc #1
+        sta rx
+        lda old_height,x
+        sec
+        sbc #4
+        sta ry
+        lda #3
+        sta rw
+        lda #4
+        sta rh
+        jsr rectangle
+        ldx page_index
+        lda old_pad,x
+        clc
+        adc old_width,x
+        sec
+        sbc #4
+        sta rx
+        lda #4
+        sta rh
+        jsr rectangle
+@ball:  ldx page_index
         lda old_bx,x
         sta rx
         lda old_by,x
@@ -1266,6 +1683,18 @@ old_objects:
         sta rw
         sta rh
         jsr rectangle
+        ldx page_index
+        lda old_effect,x
+        cmp #6
+        bne @capsule
+        ; Pierce is an outlined ball; keep its 3x3 collision footprint.
+        inc rx
+        inc ry
+        lda #1
+        sta rw
+        sta rh
+        jsr rectangle
+@capsule:
         ldx page_index
         lda old_cap,x
         beq @done
@@ -1276,7 +1705,7 @@ old_objects:
         jsr capsule_sprite
 @done:  rts
 
-; Pre-shifted white W/S/C glyphs; XOR preserves the coloured background.
+; Pre-shifted white E/S/C/D/L/P glyphs; XOR preserves the coloured background.
 capsule_sprite:
         lda old_cap,x
         sec
@@ -1287,9 +1716,8 @@ capsule_sprite:
         sta asset_ptr
         lda cap_assets+1,y
         sta asset_ptr+1
+glyph_sprite:
         ldx rx
-        lda div7,x
-        sta col
         lda mod7,x
         asl
         asl
@@ -1297,37 +1725,17 @@ capsule_sprite:
         asl
         clc
         adc asset_ptr
-        sta asset_ptr
-        bcc :+
-        inc asset_ptr+1
-:       lda ry
-        sta row
-        lda #0
-        sta idx
-@line:  ldx row
-        lda hgr_lo,x
-        sta ptr
-        lda hgr_hi,x
-        eor page
-        sta ptr+1
-        ldy idx
-        lda (asset_ptr),y
-        ldy col
-        eor (ptr),y
-        sta (ptr),y
-        inc idx
-        ldy idx
-        lda (asset_ptr),y
-        ldy col
-        iny
-        eor (ptr),y
-        sta (ptr),y
-        inc idx
-        inc row
-        lda idx
-        cmp #16
-        bne @line
-        rts
+        sta hx_data
+        lda asset_ptr+1
+        adc #0
+        sta hx_data+1
+        lda rx
+        sta hx_x
+        lda ry
+        sta hx_y
+        lda page
+        sta hx_page
+        jmp hgr_xor_sprite
 
 draw_brick:
         lda brick_index
@@ -1341,6 +1749,11 @@ draw_brick:
 @col:   tay
         lda col3,y
         sta brick_col
+        lda state
+        bne :+
+        inc brick_col       ; centre the 252-pixel title bands in 280 pixels
+        inc brick_col
+:
         lda row_y,x
         sta brick_row
         ldx brick_index
@@ -1376,7 +1789,10 @@ draw_brick:
         ldy brick_col
         jsr paint_byte
         and #$fe
-        ; Column zero shares its first bit with the side wall.
+        ldx brick_kind
+        beq :+
+        ora #$06            ; two bright left-edge pixels form the bevel
+:       ; Column zero shares its first bit with the side wall.
         cpy #0
         bne :+
         ora #1
@@ -1386,8 +1802,11 @@ draw_brick:
         sta (ptr),y
         iny
         jsr paint_byte
-        and #$9f              ; leave 2-pixel horizontal gap
-        sta (ptr),y
+        and #$8f              ; recessed right edge and three-pixel gap
+        ldx state
+        bne :+
+        ora #$10            ; title frame reaches the symmetric right edge
+:       sta (ptr),y
         inc brick_row
         dec scratch
         bne @line
@@ -1420,6 +1839,8 @@ paint_byte:
         rts
 @body:
         lda scratch
+        cmp #1
+        beq @empty          ; black lower edge gives every brick relief
         cmp #8
         beq @highlight
         lda brick_kind
@@ -1456,51 +1877,64 @@ paint_byte:
         rts
 
 draw_hud:
+        lda #1
+        sta hud_active
         lda page
         sta ht_page
+        ldx page_index
+        lda hud_static,x
+        bne @fields
         text hud_text, 1, 4
-        lda #7
+        text footer, 1, 184
+        ldx page_index
+        lda #1
+        sta hud_static,x
+@fields:
+        lda #4
+        sta ht_sl
+        lda #3
         sta ht_col
         ldx #0
 @score: lda score,x
         jsr hgr_putc8
         inx
-        cpx #5
+        cpx #6
         bne @score
-        lda #21
+        lda #12
         sta ht_col
         lda lives
         clc
         adc #'0'
         jsr hgr_putc8
-        lda #33
+        lda #16
+        sta ht_col
+        lda multiplier
+        clc
+        adc #'0'
+        jsr hgr_putc8
+        lda #20
         sta ht_col
         lda level
         clc
         adc #1
-        cmp #10
-        bcc @single
-        lda #'1'
-        jsr hgr_putc8
-        lda level
+        ldx #0
+@tens: cmp #10
+        bcc @digits
         sec
-        sbc #9
-        jmp @units
-@single:
+        sbc #10
+        inx
+        bne @tens
+@digits:
         pha
-        lda #'0'
-        jsr hgr_putc8
-        pla
-@units: clc
+        txa
+        clc
         adc #'0'
         jsr hgr_putc8
-        lda mode
-        beq @keyboard
-        text paddle_footer, 1, 184
-        jmp @effect
-@keyboard:
-        text footer, 1, 184
-@effect:
+        pla
+        clc
+        adc #'0'
+        jsr hgr_putc8
+        text level_name, 24, 4
         lda effect
         asl
         tax
@@ -1508,46 +1942,68 @@ draw_hud:
         sta ht_src_lo
         lda effect_strings+1,x
         sta ht_src_hi
+        lda #184
+        sta ht_sl
         lda #28
         sta ht_col
         jsr hgr_puts8
         lda paused
         bne @pause
         lda ball_live
+        ora extra_balls+2
+        ora extra_balls+11
         beq @ready
         text playing_text, 34, 184
-        rts
+        jmp hud_end
 @pause: text pause_text, 34, 184
-        rts
+        jmp hud_end
 @ready: text ready_text, 34, 184
+        jmp hud_end
+
+hud_end:
+        lda #0
+        sta hud_active
         rts
 
+.include "hud_cache.inc"
+.include "mechanics.inc"
+.include "interface.inc"
+.include "records.inc"
+.include "music.inc"
 .include "hgr.asm"
 .include "kbd.asm"
 .include "joy.asm"
 .include "sound.asm"
+APPLE2_EXIT_HOOK = mouse_shutdown
 .include "exit.asm"
+DOS_ZP_START = $50
+DOS_ZP_LEN = $B0
+.include "dos.asm"
+.include "mouse_context.asm"
 
 .rodata
-best_text: .asciiz "SESSION BEST"
-subtitle: .asciiz "12 SECTORS TO CLEAR"
-menu1: .asciiz "SPACE : PLAY WITH KEYBOARD"
-menu2: .asciiz "J     : PLAY WITH PADDLE"
-menu3: .asciiz "A/D OR ARROWS : MOVE"
+best_text: .asciiz "BEST SCORE  "
+subtitle: .asciiz "60 SECTORS TO CLEAR"
+title_options: .asciiz "ESC : MENU"
+menu1: .asciiz "SPACE / ENTER : PLAY"
+menu2: .asciiz "K KEYBOARD  J PADDLE  M MOUSE"
+menu3: .asciiz "A/D : MOVE    W/X : HEIGHT"
 menu4: .asciiz "S : STOP   SPACE : LAUNCH"
-menu5: .asciiz "W WIDE / S SLOW / C CATCH"
-calibration_text: .asciiz "C : CALIBRATE   +/- : SPEED"
+menu5: .asciiz "1 RELAX / 2 ARCADE / 3 EXPERT"
+calibration_text: .asciiz "C CALIBRATE  ? HELP  H RECORDS"
 cal_left: .asciiz "PADDLE LEFT, THEN PRESS A KEY"
 cal_right: .asciiz "PADDLE RIGHT, THEN PRESS A KEY"
-menu6: .asciiz "P : PAUSE   ESC : QUIT"
+menu6: .asciiz "P : PAUSE   ESC : MENU"
 lost_text: .asciiz "GAME OVER"
 won_text: .asciiz "ALL SECTORS CLEARED!"
 final_text: .asciiz "FINAL SCORE"
 restart_text: .asciiz "SPACE : REPLAY   J : PADDLE"
-hud_text: .asciiz "SCORE         LIVES      SECTOR"
-footer: .asciiz "A/D MOVE S STOP SPACE FIRE"
-paddle_footer: .asciiz "PADDLE MOVE   BUTTON FIRE "
-effect_strings: .word no_effect, wide_text, slow_text, catch_text
+hud_text: .asciiz "S:       L:  X:  N:                  "
+footer: .asciiz "SPACE/BUTTON FIRE ESC MENU "
+effect_strings: .word no_effect, wide_text, slow_text, catch_text, multi_text, laser_text, pierce_text
+multi_text: .asciiz "MULTI"
+laser_text: .asciiz "LASER"
+pierce_text: .asciiz "PIERC"
 no_effect: .asciiz "     "
 wide_text: .asciiz "WIDE "
 slow_text: .asciiz "SLOW "
@@ -1558,9 +2014,13 @@ ready_text: .asciiz "READY"
 pitches: .byte 0, 22, 42, 70, 12
 angle_x: .byte 240,208,160,64,64,160,208,240
 angle_y: .byte 96,144,200,248,248,200,144,96
-hp2_masks: .byte $1f,$1f,$7f
+hp2_masks: .byte $67,$73,$7f
 hp3_masks: .byte $4f,$73,$7c
 colors: .byte $2a,$55,$aa,$d5
+mouse_map:
+.repeat 140,I
+.byte (I*249)/139
+.endrepeat
 left_masks: .byte $7f,$7e,$7c,$78,$70,$60,$40
 right_masks: .byte $01,$03,$07,$0f,$1f,$3f,$7f
 row12: .byte 0,12,24,36,48,60,72,84
@@ -1584,6 +2044,11 @@ mod7:
 .include "hgr_scanline.inc"
 font:
 .include "bbfont.inc"           ; font = bbfont, ASCII $20-$5F
-.include "levels.inc"
+starting_lives: .byte 5,3,2
+paddle_sizes: .byte 42,35,28
+starting_speeds: .byte 2,3,4
+maximum_speeds: .byte 4,6,7
+ramp_periods: .byte 10,8,6
+reward_periods: .byte 4,5,6
 .include "capsules.inc"
 .include "title.inc"

@@ -1,173 +1,201 @@
 # ARKABREAKOUT
 
-An original brick-breaker in the spirit of Arkanoid's mechanics, written in
-6502 assembly for the **Apple II+ with 48 KB**, full-screen HGR 280 × 192 and
-DOS 3.3. No language card, no auxiliary memory: boot the disk and play.
+ChromaBreak's brick-breaker gameplay adapted to **Apple II+ 48 KB**, native
+**HGR 280 × 192**, **NMOS 6502** and **DOS 3.3**. No language card or auxiliary
+RAM is required. Boot [`ARKABREAKOUT.dsk`](../dist/ARKABREAKOUT.dsk) and play
+with a joystick, Apple paddles, an **AppleMouse II slot card**, or the keyboard.
 
-![ARKABREAKOUT title screen](screenshots/title.png)
+![Title](screenshots/title.png)
+![Game](screenshots/game.png)
 
-![Playfield rendered by the POM2 core](screenshots/game.png)
+## Gameplay
 
-[Sector 09: multi-hit bricks and steel blocks](screenshots/sector-09.png)
+- The same **60 named boards** as ChromaBreak: one-, two- and three-hit bricks,
+  plus indestructible steel. Bricks have a lit top/left bevel, recessed right
+  edge and lower shadow. Separated hit notches distinguish resistant bricks
+  in HGR, and steel retains its hatch pattern.
+- Three difficulties, selected with **1 / 2 / 3** from the ESC title menu
+  (the title shortcuts remain available):
 
-## Features
+  | Mode | Lives | Paddle, HGR pixels | Start / max substeps | Speed ramp | Capsule |
+  |---|---:|---:|---:|---|---|
+  | Relax | 5 | 42 | 2 / 4 | Every 10 destroyed bricks | Every 4 |
+  | Arcade | 3 | 35 | 3 / 6 | Every 8 destroyed bricks | Every 5 |
+  | Expert | 2 | 28 | 4 / 7 | Every 6 destroyed bricks | Every 6 |
 
-- **12 original sectors**, three lives, five-digit score, 10 points per hit.
-- Coloured bricks break in one hit; white bricks take two or three (notches
-  show the hits left); hatched steel bricks are indestructible. Every brick
-  has a bright top edge.
-- **Aimed rebounds**: the paddle has eight symmetric impact zones, from nearly
-  vertical at the centre to about 68° from vertical at the ends. The zones
-  stretch with the wide paddle, and both velocity components change together
-  so the ball keeps a comparable speed on every trajectory.
-- **Progressive speed**: the starting speed rises every four sectors, then
-  climbs after every twelve destroyed bricks, capped at five sub-steps per
-  update.
-- An **extra life every 1 000 points**, up to five lives in reserve.
-- **Session best** shown on the title and end screens; it survives replays
-  and vanishes when you quit.
-- **Three capsules**, one dropping every five destroyed bricks when none is
-  already falling, recognisable by their white letter:
+- Eight aimed rebound angles; sliding the paddle adds spin. The paddle rises
+  to mid-field, stops beneath bricks and catches a descending ball while rising.
+- **Combos ×1–×8**, one extra multiplier every three destroyed bricks without
+  touching the paddle. Resistant hits score 10; destroyed bricks score 10 ×
+  multiplier. Paddle contact or a lost life resets the combo.
+- A **six-digit score**, capped at 650000; an extra life every **5000 points**,
+  up to five lives. Enemies score 100 points each.
+- Six capsules, cycling in order, with at most one falling:
 
-  | Capsule | Effect |
+  | Letter | Effect |
   |---|---|
-  | **W** | Wide paddle: 28 → 42 pixels |
-  | **S** | Slow: speed back to two sub-steps per update, then the usual ramp |
-  | **C** | Catch: the ball sticks on the next contact; space or the button relaunches it |
+  | E | Enlarge: 14 more HGR pixels, paddle centre preserved |
+  | S | Slow: two substeps while active |
+  | C | Catch: hold the ball at its impact point, then release |
+  | D | Disrupt: three balls; losing one does not cost a life |
+  | L | Laser: two visible barrels on the paddle, aligned with the shots; hold a controller button to keep firing |
+  | P | Pierce: the ball becomes outlined; destroy resistant bricks in one hit and pass through them; steel still rebounds |
 
-  A new capsule replaces the previous paddle mode. Width changes keep the
-  paddle centred, within the playfield. Losing a life or clearing a sector
-  resets the bonus and the starting speed. Catching a capsule also scores
-  10 points.
-- Keyboard or **paddle** play, with optional paddle calibration.
-- Short speaker sounds with a bounded cost, so the game never stalls.
+  A new capsule replaces the paddle mode and clears active lasers. Catch
+  removes the extra balls; Disrupt clears the enemies and suspends arrivals
+  while extra balls remain. A lost life or a new board resets the bonuses.
+- Two white enemy silhouettes, a coil and a TIE fighter. They enter from four
+  gates, turn at walls and bricks, slide through gaps and drift below the grid.
+  Ball, paddle and laser contacts destroy them.
+- Five **disk-backed high scores**, with three initials and difficulty; the
+  furthest reached sector is kept too. `H` displays scores; `?` displays help.
+- A title demo after idle time, a sector selector, sound toggle, a two-voice
+  title tune, ten sector jingles and a victory fanfare on the built-in speaker.
 
-The bottom banner names the active bonus, shows **READY** while a ball waits
-to be launched and **PAUSE** during a pause; its movement and launch hints
-follow the control mode you chose.
+Bonus appearance: [laser paddle](screenshots/laser.png),
+[outlined Pierce ball](screenshots/pierce.png).
 
-## How to play
+The graphics and geometry are adapted to native HGR: ChromaBreak's DHGR
+colours, coloured sprites and patterned backgrounds are replaced by coloured
+bricks and white XOR objects.
 
-On the title screen, **space** starts a keyboard game and **J** a paddle game.
-**C** calibrates the paddle: move it fully left and press a key, then fully
-right and press a key. Escape cancels; an invalid range falls back to the
-default setting. Calibration is kept across new games until you quit.
+## Controls
 
-| Key | Action |
+The title centres its decorative brick bands around the logo and keeps
+the sector count, play prompt, **ESC : MENU** and best
+score. **ESC** opens a separate HGR page with controller choices, difficulty,
+movement commands, calibration, help, records, sound and DOS exit. Escape
+returns to the title. Choosing a difficulty returns to the title; choosing
+K/J/M starts a game with that controller. Sound toggles in the menu and its
+current ON/OFF state is shown.
+
+![Title menu](screenshots/options.png)
+
+**Space / Enter / mouse click** on the title starts a game with the ball launched. A detected
+AppleMouse II is selected automatically; otherwise the keyboard is selected.
+`K`, `J` and `M` select a controller and start from the title, or switch during play.
+
+| Input | Action |
 |---|---|
-| A / left arrow | Move left continuously |
-| D / right arrow | Move right continuously |
-| S | Stop the paddle |
-| + / - during play | Keyboard speed, 1 to 8 pixels per update |
-| Space / paddle button 0 | Launch the ball |
+| K | Keyboard |
+| J | Joystick or Apple paddles |
+| M | AppleMouse II, if a card was detected |
+| A / D, left / right | Continuous sideways keyboard movement |
+| W / X, Ctrl-K / Ctrl-J | Continuous keyboard height movement |
+| S | Stop keyboard movement |
+| + / - | Keyboard horizontal speed, 1–8 pixels per update |
+| Joystick X / paddle 0 | Absolute horizontal position |
+| Joystick Y / paddle 1 | Absolute height; an unconnected second timer keeps the paddle on the floor |
+| AppleMouse II X / Y | Absolute horizontal position / height |
+| Space / either game-port button / mouse button | Release a caught ball or fire lasers |
 | P | Pause / resume |
-| Escape | Back to DOS |
-| Ctrl-RESET | Back to DOS with the zero page restored |
+| Escape | Title: open options; during play: open the pause/sector menu |
+| Ctrl-RESET | Restore DOS zero page and RESET vector; disable the mouse and return to DOS |
 
-The II+ keyboard reports key presses but not releases, so a movement continues
-until **S** or a command in the other direction. While paused, the simulation
-and both graphics pages stay frozen.
+The original II+ keyboard reports presses, not releases: movement continues
+until `S` or another direction. `C` on the title calibrates paddle 0: move fully
+left and press a key, then fully right and press a key. Escape cancels; invalid
+ranges fall back to the default. Calibration survives replays.
 
-## Build and run
+During play, the Escape menu offers **R / Escape** to resume, **A / D** or arrows to select
+an already reached sector, **Space / Enter** to start it, **S** to toggle sound,
+**T** for the title and **Q** to save progression and quit to DOS. The selector
+shows a miniature of the selected board and its name. With AppleMouse II,
+click a menu row to activate it; on the sector row, click the left half for
+the previous sector or the right half for the next. A held click triggers once.
+A high score
+asks for three letters; Space or Enter accepts the remaining default `A`s.
+On a write-protected disk the score stays in RAM and the end screen reports
+that it was not saved.
 
-Requirements: [cc65](https://cc65.github.io/) (`ca65`, `ld65`) and python3.
-`make test` also needs a C compiler and zlib for the emulator.
+![Sector preview menu](screenshots/menu.png)
+
+![Capsule help](screenshots/help.png)
+
+## Build and test
+
+Requirements: cc65 (`ca65`, `ld65`), Python 3; tests additionally need a C compiler
+and zlib. The optional mouse integration uses a built sibling POM2 core.
 
 ```sh
-make -C arkabreakout           # ../dist/ARKABREAKOUT.dsk, bootable
-make -C arkabreakout run       # boot it in POM2 (Apple II+ preset)
-make -C arkabreakout test      # game checks, then the full paddle campaign
-make -C arkabreakout test-campaign   # the campaign alone
-make -C arkabreakout assets    # regenerate src/title.inc from the shared font
-make -C arkabreakout clean     # remove build/
-make -C arkabreakout distclean # also remove the disk
+make -C arkabreakout                # ../dist/ARKABREAKOUT.dsk
+make -C arkabreakout run            # POM2, II+ with an AppleMouse II in slot 4
+make -C arkabreakout test           # native HGR, gameplay, DOS records, 60-sector pilot
+make -C arkabreakout test-mouse     # real AppleMouse II firmware on the NMOS II+
+make -C arkabreakout assets         # title, sprites, board packs, music
 ```
 
-The Makefile includes [`../dev/cc65/apple2.mk`](../dev/cc65/apple2.mk), which
-provides the tool variables, library paths, the DOS 3.3 disk builder and the
-`run` / `clean` / `distclean` targets. The disk boots a one-line Applesoft
-`HELLO` (`src/hello.bas`) that prints a banner and `BRUN ARKABREAKOUT`. From
-the repository root, `make test-arkabreakout` runs the same tests.
+`test_bricks.py` verifies title centering and the gameplay grid, bevels,
+shadows and empty-cell erasure on both pages across three sector packs.
 
-## Tests
+`test_title_menu.py` checks title glyph placement, ESC navigation, sound,
+difficulty choices, controller starts and DOS exit.
 
-Both test scripts drive the real 6502 binary on an emulated 48 KB Apple II+
-and never modify the original disk image.
+`test_hud.py` compares the actual glyph pixels for score, lives, combo, sector
+number, board name and bonus at their intended positions on both HGR pages,
+including cached redraws and changing digit widths.
 
-**`tests/test_game.py`** runs the game in `a2run` and checks, through the
-ld65 labels exported by `src/game.s`: start-up state, keyboard steering,
-pause with both HGR pages byte-for-byte identical, wall and ceiling bounces,
-brick hits and scoring, diagonal corner contacts (including a simultaneous
-ceiling and side-wall impact), multi-hit and steel bricks, aimed rebounds in
-all eight zones on both paddle widths (symmetric, flatter at the edges, with
-a bounded velocity magnitude), the speed ramp, capsule spawning, the three
-capsule effects and paddle centring on width changes, extra lives and their
-cap, the session best, loading of every sector with only legal cell values,
-defeat and replay, victory, paddle input, button launch and calibration,
-Escape and Ctrl-RESET returning to DOS with the RESET vector intact. The hard
-cases are prepared in memory during a pause, then played by the real binary.
-The capsule glyphs are also checked on all seven HGR alignments: erasing them
-must restore the coloured bricks exactly on both pages. The script also
-measures the update rate (see below).
+`test_bonus_visuals.py` checks the Pierce ball and laser barrels at every
+HGR alignment, raised/edge paddles, and exact background restoration when
+switching bonuses on both pages.
 
-**`tests/test_campaign.py`** builds `tests/pilot.c` on top of a2run's 6502
-core and plays a **complete campaign** with paddle steering alone: the pilot
-only moves the paddle and presses space to launch; it never touches the ball,
-the bricks, the lives or the score. All 12 sectors were cleared and victory
-reached after 66 344 updates, about 41 minutes of emulated Apple II time.
+`test_game.py` exercises the real 6502 binary: all 60 board loads and names,
+brick collisions, steel/piercing, aimed rebounds, rising paddle, difficulties,
+combo, speed ramps, all six capsule spawns and effects, multiball life accounting,
+laser and enemy hits, pause, both joystick axes, DOS/RESET exit and frame rates. Selector tests compare
+preview pixels across packs and verify that resuming preserves the live board.
+Every capsule is drawn and erased at all seven HGR alignments; both graphics
+pages are compared against the original background.
 
-Boot, rendering and the return to DOS were also checked with `a2shot`, which
-uses the POM2 core; the pictures in `screenshots/` come from it.
+`test_records.py` performs actual DOS saves, inserts and sorts six scores,
+checks initials and progression after reboot, and verifies write protection.
+`test_campaign.py` steers the paddle through all 60 boards in Relax mode without
+changing balls, bricks, score, lives or progress. `test-mouse` runs both the
+AppleWin-compatible card and the fully emulated 68705 card with their real ROMs;
+it checks detection, X/Y, edge-triggered launch, laser, mouse menu clicks, held-click suppression and clean DOS exit with both `Q` and RESET. It also checks the display mode after every CPU
+instruction through menu transitions, pack loads, victory, DOS saving,
+records, help and the return to the title.
+All disk-writing tests use private copies.
 
-Automated play does not replace hands-on sessions: balance, control comfort
-and real-hardware validation are tracked in [TODO.md](TODO.md).
+## Rendering and memory
 
-## Under the hood
+The renderer uses **`dev/lib/hgr`**: `hgr_text8.asm`, `hgr_scanline.inc` and the
+new **`hgr_xor.asm`** native rectangle/glyph kernels. Capsule and enemy sprites
+are pre-shifted for seven alignments. Each HGR page retains its own objects:
+erase them on the hidden page, update only changed bricks and HUD characters, draw new objects,
+then flip. Once graphics are active, all screen transitions, menus and DOS
+loads/saves keep full-screen HGR selected; only Q or RESET restores text.
+Frames with no brick changes skip the grid scan entirely. Pixel-to-cell tables
+avoid division in ball and enemy collision probes. Paused
+pages converge once, then remain byte-for-byte frozen.
 
-**Toolchain.** ca65/ld65 with the shared libraries of [`../dev`](../dev/README.md):
-`apple2.inc`, `hgr.asm`, `kbd.asm`, `joy.asm`, `sound.asm` and `exit.asm`
-(clean return to DOS) from `dev/lib/apple2`, `hgr_text8.asm` and
-`hgr_scanline.inc` from `dev/lib/hgr`, the Beautiful Boot font from
-`dev/lib/font`, and the `apple2_hgr.cfg` linker script from `dev/cc65`.
-Routines are assembled only when referenced, so the game pays only for what
-it uses.
+The delay budget depends on controller and multiball load. Measured on the
+emulated 1 MHz CPU: about **37–47 updates/s** in the keyboard scenarios and
+**37–38 updates/s with real AppleMouse II firmware**, including laser play
+and both visible paddle barrels. The
+Expert stress fixture, three balls inside the brick grid at seven substeps,
+measures **43–45 updates/s with either real mouse firmware model**; an earlier
+floor-paddle fixture measured 35 updates/s.
+The II+ has no readable VBL; this is CPU-paced double buffering.
 
-**Memory map.** The program is loaded at `$6000` and the binary measures
-**7 670 bytes**, well under the 13 824-byte limit of the `$6000-$95FF`
-region below DOS. The two HGR pages are reserved at `$2000-$5FFF`. The brick
-grid, its two per-page change lists and the paddle lookup table take 544
-bytes in `$1000-$1FFF`. DOS and the `HELLO` program are preserved.
+| Memory | Use |
+|---|---|
+| $1000–$127C | Brick grid, dirty flags, paddle lookup, extra balls, per-page sprite history |
+| $1300–$1639 | Aligned two-voice player and tunes, loaded once from `MUSIC` |
+| $1800–$1A43 | One ten-sector pack; six packs on disk, loaded between sectors |
+| $1B00–$1B36 | Five records and progression |
+| $1C00–$1DFF | Native pixel-to-cell collision tables |
+| $1E00–$1E9F | Per-page HUD character caches |
+| $2000–$5FFF | Two HGR pages |
+| $6000–below $9600 | Game code/data and BSS; DOS remains resident above it |
 
-**Playfield.** 12 × 8 cells of 21 × 12 pixels, each brick showing a 18 × 8
-pixel surface with gaps between bricks. Ball positions carry an 8-bit fraction
-on both axes; each sub-step moves at most one pixel per axis. Collisions test
-the ball's four corners and resolve the two axes separately. The engine is
-independent of the displayed colours.
+Each board is 48 packed bytes plus a ten-byte name. The packer validates legal
+cells, distinct boards/names and reachability around steel. The linker rejects
+collisions with the music bank or DOS. AppleMouse firmware calls preserve the
+program's zero page and slot mailboxes through `dev/lib/mouse/mouse_context.asm`.
 
-**Rendering.** Each HGR page remembers the positions of the objects it shows.
-On the hidden page the engine first erases the old sprites by XOR, applies the
-changed bricks, then draws the new sprites. Capsules use white glyphs
-pre-shifted for the seven HGR alignments. Normal-size text stays white. The
-banner is redrawn only when it changes.
+## Credits
 
-**Title and font.** The ×2 title is precomputed from the shared font by
-`tools/generate_title.py`, which reads `dev/lib/font` through
-`../dev/tools/fonts.py` and writes `src/title.inc` (16 scanlines of 24 bytes);
-`make assets` regenerates it.
-
-**Pacing.** The II+ has no readable VBL, so a CPU delay is added to the
-simulation and drawing work. The tests measure about **32 updates per second
-on the keyboard with the ball at rest** and about **29 updates per second
-during play, keyboard or paddle**, on the emulated 1 MHz CPU. A shorter wait
-in paddle mode compensates for the cost of reading its timers. The rate varies
-with collisions, sounds and banner updates; page flips are not synchronised
-with the video beam.
-
-## Credits and licence
-
-Code and boards: VERHILLE Arnaud, **GPL-3.0**, like the whole repository.
-Beautiful Boot font: Michael Pohoreski. No graphics, level or sound from the
-arcade game is reused.
-
-Part of [pom2games](../README.md); shared libraries and tools are described in
-[`dev/README.md`](../dev/README.md).
+Code, boards and music: VERHILLE Arnaud, **GPL-3.0**, like this repository.
+Beautiful Boot font: Michael Pohoreski. No arcade assets are reused.
+See [TODO.md](TODO.md) for remaining hardware checks and presentation work.

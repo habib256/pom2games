@@ -30,6 +30,7 @@ murs, caisses et autres éléments graphiques conservent leurs couleurs.
 | `hgr_sprite_color.inc` | attributs de couleur partagés par les deux blitters | moteurs de sprites |
 | `hgr_plot.asm` | `hgr_plot16` : pixel OR/XOR avec clipping, X 16 bits, palette optionnelle | logo |
 | `hgr_line16.asm` | `hgr_line16` : Bresenham avec X signé 16 bits, raster historique LOGO | logo |
+| `hgr_xor.asm` | rectangles natifs et glyphes précalés XOR, double tampon chez l’appelant | arkabreakout |
 | `hgr_sprite_update.asm` | `ds_present` / `ds_hide` : sprite transparent par octets, sauvegarde et restauration du fond | logo |
 | `hgr_line.asm` | `hgr_line8` : ligne OR rapide, X natif 0..255, Y 0..191 | maze3d |
 | `hgr_span.asm` | `hgr_hspan` / `hgr_vspan` : spans par colonnes et masques d’octets, largeur HGR complète | maze3d |
@@ -229,3 +230,30 @@ CELL et OR restent toujours tronqués.
 `test_hgr_glyph8.py` couvre les deux pages, les sept alignements, les palettes,
 les cellules vides et les bords. `test_logo_glyphs.py` contrôle l'adaptateur
 réel et ses caractères ; les tests LOGO vérifient aussi le texte sous un sprite.
+
+## Rectangles et glyphes XOR natifs
+
+`hgr_xor.asm` travaille sur les tables de lignes de la page 1 et reçoit
+`hx_page = 0` pour `$2000`, ou `$60` pour `$4000`. Définir
+`HGR_XOR_DIV7` et `HGR_XOR_MOD7` comme alias des tables X de 256 octets.
+
+- `hgr_xor_rect` : `hx_x/y/w/h` en pixels, largeur et hauteur non nulles,
+  `x+w <= 256`, `y+h <= 192`.
+- `hgr_xor_sprite` : `hx_x/y` et `hx_data`, huit lignes de deux octets dont
+  le bit 7 est nul. Le pointeur vise la variante déjà précalée selon `x % 7`.
+  Les deux octets destination doivent rester dans les 40 colonnes visibles.
+
+Les noyaux préservent le bit de phase couleur du fond. Dessiner deux fois le
+même objet restaure exactement les octets initiaux. Ils détruisent A/X/Y et
+leur scratch, et ne font ni clipping ni synchronisation vidéo. Pour un jeu,
+conserver l’historique de chaque page, effacer tous les objets avant de
+modifier le décor, puis dessiner la nouvelle scène sur la page cachée.
+`dev/tests/test_hgr_xor.py` vérifie le raster, les sept alignements, les deux
+pages, les extrémités et la restauration intégrale, trous mémoire compris.
+
+Pour un HUD incrémental avec `hgr_text8.asm`, définir `HGR_TEXT8_FILTER` comme
+l’adresse d’un callback. Il lit `ht_a/ht_col/ht_sl/ht_page` avant le tracé :
+C=1 ignore le glyphe mais avance le curseur ; C=0 dessine normalement. A/X/Y
+sont libres, `ht_a`, le curseur, la police et les attributs doivent être
+préservés. Le callback d’Arkabreakout compare les caractères à un cache
+indépendant pour chaque page, invalidé à chaque effacement de l’écran.
