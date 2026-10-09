@@ -1,245 +1,188 @@
 #!/usr/bin/env python3
-"""Exercise the actual NMOS 6502 game on a 48K Apple II+, including forced edge cases."""
+"""Real NMOS 6502/48K regressions: ChromaBreak mechanics in native HGR."""
 from pathlib import Path
 import argparse
-import re
+import importlib.util
 import sys
-
-ROOT = Path(__file__).resolve().parents[2]
-GAME = ROOT / 'arkabreakout'
-sys.path.insert(0, str(ROOT / 'dev/tools'))
+ROOT=Path(__file__).resolve().parents[2]
+sys.path.insert(0,str(ROOT/'dev/tools'))
 import a2test
-DISK = ROOT / 'dist/ARKABREAKOUT.dsk'
-labels = a2test.Labels()
-
-
-def poke(name, value, offset=0):
-    return labels.poke(name, value, offset)
-
-
-def peek(name, length=1):
-    return labels.peek(name, length)
-
-
-def run(*steps, menu=False):
-    boot = ['wait:1100'] + ([] if menu else ['key: ', 'wait:60'])
-    result = a2test.run(DISK, boot + list(steps))
-    memory = {}
-    for address, values in result.rows:
-        for i, value in enumerate(values):
-            memory[address + i] = value
-    return result.out, memory
-
-
-def value(memory, name, offset=0):
-    return memory[labels[name]+offset]
-
-
-def fields(*names):
-    return [peek(name, 5 if name in ('score','best_score') else 2 if name == 'frames' else 1)
-            for name in names]
-
-
-def setup_ball(x, y, dx=0, dy=1, horizontal=128):
-    # Pause first so pokes cannot interleave with a simulation update.
-    return ['key:P', 'wait:15', poke('ball_x',x), poke('ball_y',y),
-            poke('ball_live',1), poke('ball_dirx',dx), poke('ball_diry',dy),
-            poke('ball_speed',horizontal), poke('ball_yspeed',255),
-            poke('ball_yfrac',255), poke('ball_frac',255), poke('speed',2), 'press:P']
-
+import dos33
 
 def main():
-    global labels, DISK
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--disk',type=Path,default=DISK)
-    parser.add_argument('--labels',type=Path,default=GAME/'build/game.lbl')
-    args = parser.parse_args()
-    DISK = args.disk.resolve()
-    labels = a2test.labels(args.labels)
-    _, m = run(*fields('state','level','lives','remaining','ball_live','score'))
-    assert [value(m,n) for n in ('state','level','lives','remaining','ball_live')] == [1,0,3,48,0]
-    assert bytes(m[labels['score']+i] for i in range(5)) == b'00000'
-
-    # Keyboard steering continues without repeats; S stops it, launch advances.
-    _, m = run('key:A','wait:15','key:S','wait:15',*fields('pad_x','movement'))
-    assert value(m,'pad_x') < 112 and value(m,'movement') == 0
-    _, m = run('key: ','wait:12',*fields('ball_live','ball_y'))
-    assert value(m,'ball_live') == 1 and value(m,'ball_y') < 170
-
-    # Paused pages converge and then stay byte-for-byte identical, including HUD.
-    out, m = run('key: ','wait:10','key:P','wait:15','peek:2000:16384',
-                 'wait:45','peek:2000:16384',*fields('paused'))
-    chunks = re.split(r'(?m)^2000:', out)[1:]
-    def page_bytes(chunk):
-        return a2test.page_dump('2000:' + chunk)
-    assert len(chunks) == 2 and page_bytes(chunks[0]) == page_bytes(chunks[1])
-    frozen = page_bytes(chunks[0])
-    visible = [a2test.hgr_offset(y) + x for y in range(192) for x in range(40)]
-    assert all(frozen[i] == frozen[i+8192] for i in visible), "paused pages disagree"
-    assert value(m,'paused') == 1
-
-    # XOR capsule glyphs must restore coloured bricks at every pixel alignment.
-    _, baseline_memory = run('key:P','wait:15','peek:2000:16384')
-    for kind in (1,2,3):
-        for alignment in range(7):
-            _, restored = run('key:P','wait:15',poke('capsule',kind),
-                              poke('cap_x',98+alignment),poke('cap_y',48),
-                              'key:P','wait:3','key:P','wait:15',
-                              poke('capsule',0),'key:P','wait:3','key:P','wait:15',
-                              'peek:2000:16384')
-            assert all(restored[0x2000+i] == baseline_memory[0x2000+i]
-                       for i in visible), (kind,alignment,'capsule damaged background')
-
-    # Axis and corner cases, no tunnelling at the maximum supported speed.
-    _, m = run(*setup_ball(2,145,1,1,240),'wait:4',*fields('ball_dirx','ball_x'))
-    assert value(m,'ball_dirx') == 0 and value(m,'ball_x') >= 2
-    _, m = run(*setup_ball(100,18,0,1,64),'wait:4',*fields('ball_diry'))
-    assert value(m,'ball_diry') == 0
-    _, m = run(*setup_ball(10,68,0,1,64),poke('speed',5),'wait:4',
-               peek('bricks',96),*fields('score','remaining'))
-    assert value(m,'bricks',36) == 0 and value(m,'remaining') == 47
-    assert bytes(m[labels['score']+i] for i in range(5)) == b'00010'
-
-    # Diagonal corner contacts, including simultaneous ceiling/side-wall impact.
-    _, m = run(*setup_ball(2,18,1,1,255),'wait:4',
-               *fields('ball_dirx','ball_diry','ball_x','ball_y'))
-    assert value(m,'ball_dirx') == value(m,'ball_diry') == 0
-    assert value(m,'ball_x') >= 2 and value(m,'ball_y') >= 18
-    for dx, index in ((1,36),(0,37)):
-        _, m = run(*setup_ball(19,68,dx,1,255),'wait:4',
-                   peek('bricks',96),*fields('score','remaining'))
-        assert value(m,'bricks',index) == 0 and value(m,'remaining') == 47
-        assert bytes(m[labels['score']+i] for i in range(5)) == b'00010'
-
-    # Resistant and steel bricks: one impact removes one HP, steel stays intact.
-    for hp in (3,255):
-        _, m = run(*setup_ball(10,68,0,1,64),poke('bricks',hp,36),
-                   'wait:4',peek('bricks',96),*fields('remaining','score'))
-        assert value(m,'bricks',36) == (2 if hp == 3 else 255)
-        assert value(m,'remaining') == 48
-        if hp == 255:
-            assert bytes(m[labels['score']+i] for i in range(5)) == b'00000'
-
-    # Raquette: directed angle, catch mode, and a miss costs exactly one life.
-    _, m = run(*setup_ball(113,171,0,0,64),'wait:4',*fields('ball_diry','ball_dirx','ball_speed'))
-    assert value(m,'ball_diry') == 1 and value(m,'ball_dirx') == 1
-    assert value(m,'ball_speed') == 240
-    _, m = run(*setup_ball(125,171,0,0,64),poke('effect',3),'wait:4',
-               *fields('ball_live','lives'))
-    assert value(m,'ball_live') == 0 and value(m,'lives') == 3
-    _, m = run(*setup_ball(20,179,0,0,64),'wait:5',*fields('ball_live','lives','state'))
-    assert value(m,'lives') == 2 and value(m,'ball_live') == 0 and value(m,'state') == 1
-    _, m = run(*setup_ball(20,179,0,0,64),poke('lives',1),'wait:15',*fields('state'),
-               'key: ','wait:30',*fields('lives'))
-    assert value(m,'state') == 2 and value(m,'lives') == 3
-
-    # Every impact zone has the same intended direction on normal and wide paddles.
-    # Edge shots must be flatter, without increasing the velocity magnitude.
-    for width, hits in ((28,(1,5,9,12,15,19,23,26)),
-                        (42,(2,7,13,18,23,28,34,39))):
-        vectors = []
-        for zone, hit in enumerate(hits):
-            _, m = run(*setup_ball(112+hit-1,171,0,0,0),poke('pad_width',width),
-                       'wait:4',*fields('ball_dirx','ball_diry','ball_speed','ball_yspeed'))
-            assert value(m,'ball_diry') == 1
-            assert value(m,'ball_dirx') == (1 if zone < 4 else 0)
-            vx, vy = value(m,'ball_speed'), value(m,'ball_yspeed')
-            assert 240**2 <= vx*vx + vy*vy <= 264**2, (zone,vx,vy)
-            vectors.append((vx,vy))
-        assert vectors == vectors[::-1], 'rebounds are not symmetric'
-        assert vectors[0][0] > vectors[0][1] and vectors[3][0] < vectors[3][1]
-
-    # The ramp no longer accelerates the ball at each capsule (5 broken bricks).
-    for previous, target_speed, target_hits in ((4,2,5),(10,2,11),(11,3,0)):
-        _, m = run(*setup_ball(10,68,0,1,0),poke('ramp_hits',previous),
-                   'wait:4',*fields('speed','ramp_hits'))
-        assert value(m,'speed') == target_speed and value(m,'ramp_hits') == target_hits
-    _, m = run(*setup_ball(10,68,0,1,0),poke('hit_count',4),'wait:4',
-               *fields('capsule','speed'))
-    assert value(m,'capsule') == 1 and value(m,'speed') == 2
-
-    # Award one life at 1000 points, respect the five-life cap, reset the counter.
-    for starting_lives, expected in ((3,4),(5,5)):
-        _, m = run(*setup_ball(10,68,0,1,0),poke('reward_hits',99),
-                   poke('lives',starting_lives),poke('score',ord('9'),2),
-                   poke('score',ord('9'),3),'wait:4',
-                   *fields('score','lives','reward_hits'))
-        assert bytes(m[labels['score']+i] for i in range(5)) == b'01000'
-        assert value(m,'lives') == expected and value(m,'reward_hits') == 0
-
-    # The session record survives replay, and a smaller score cannot overwrite it.
-    record_steps = setup_ball(20,179,0,0,0) + [poke('lives',1)]
-    record_steps += [poke('score',ord(c),i) for i,c in enumerate('01230')]
-    record_steps += ['wait:15','key: ','wait:30']
-    record_steps += setup_ball(20,179,0,0,0) + [poke('lives',1),'wait:15']
-    _, m = run(*record_steps,*fields('best_score'))
-    assert bytes(m[labels['best_score']+i] for i in range(5)) == b'01230'
-
-    # Collect each capsule at the paddle; effects replace one another.
-    for kind in (1,2,3):
-        _, m = run('key:P','wait:15',poke('capsule',kind),poke('cap_x',120),
-                   poke('cap_y',169),poke('speed',5),'key:P','wait:5',
-                   *fields('effect','capsule','pad_width','speed'))
-        assert value(m,'effect') == kind and value(m,'capsule') == 0
-        assert value(m,'pad_width') == (42 if kind == 1 else 28)
-        if kind == 2:
-            assert value(m,'speed') == 2
-
-    # Width changes retain the paddle centre and do not displace an attached ball.
-    for original, kind, target_width, target_x, target_ball in (
-            (28,1,42,105,125),(42,2,28,119,132),(42,3,28,119,132)):
-        _, m = run('key:P','wait:15',poke('pad_width',original),poke('capsule',kind),
-                   poke('cap_x',120),poke('cap_y',169),'key:P','wait:8',
-                   *fields('pad_x','pad_width','ball_x'))
-        assert value(m,'pad_width') == target_width and value(m,'pad_x') == target_x
-        assert value(m,'ball_x') == target_ball
-
-    # All twelve boards load with nonzero targets and use only legal cell types.
-    for number in range(1,12):
-        _, m = run(*setup_ball(100,140),poke('level',number-1),poke('remaining',0),
-                   'wait:25',peek('bricks',96),*fields('level','remaining','ball_live'))
-        assert value(m,'level') == number and value(m,'remaining') > 0
-        assert value(m,'ball_live') == 0
-        cells = [value(m,'bricks',i) for i in range(96)]
-        assert set(cells) <= {0,1,2,3,255}
-        assert sum(0 < c < 255 for c in cells) == value(m,'remaining')
-    _, m = run(*setup_ball(100,140),poke('level',11),poke('remaining',0),
-               'wait:25',*fields('state'))
-    assert value(m,'state') == 3
-
-    # Real paddle timer input, launch button and optional endpoint calibration.
-    _, m = run('key:J','wait:25','joy:-1,0','wait:20',*fields('pad_x','mode'),menu=True)
-    assert value(m,'mode') == 1 and value(m,'pad_x') == 2
-    _, m = run('key:J','wait:25','joy:1,0','wait:20',
-               'btn:0,1','wait:5',*fields('pad_x','ball_live'),menu=True)
-    assert value(m,'pad_x') == 223 and value(m,'ball_live') == 1
-    _, m = run('key:C','wait:20','joy:-0.7,0','key: ','wait:20',
-               'joy:0.7,0','key: ','wait:20','key:J','wait:30',
-               'joy:-0.7,0','wait:20',*fields('pad_x'),menu=True)
-    assert value(m,'pad_x') == 2
-
-    # Estimate normal cadence from the simulated frame counter, ~1MHz CPU.
-    _, start = run(*fields('frames'))
-    _, end = run('wait:120',*fields('frames'))
-    count = lambda m: value(m,'frames') + 256*value(m,'frames',1)
-    hz = (count(end)-count(start))/2
-    assert 20 <= hz <= 65, f'unexpected idle cadence: {hz} Hz'
-    rates = {}
-    for control in ('keyboard','paddle'):
-        begin = ['key: ' if control == 'keyboard' else 'key:J','wait:60']
-        launch = 'key: ' if control == 'keyboard' else 'btn:0,1'
-        _, start_m = run(*begin,launch,'wait:10',*fields('frames'),menu=True)
-        _, end_m = run(*begin,launch,'wait:10','wait:120',*fields('frames'),menu=True)
-        rates[control] = (count(end_m)-count(start_m))/2
-        assert 26 <= rates[control] <= 36, rates
-    assert abs(rates['keyboard']-rates['paddle']) <= 2, rates
-    print(f'Active cadence: keyboard {rates["keyboard"]:g} Hz, paddle {rates["paddle"]:g} Hz.')
-    out, _ = run('key:\\e','wait:20','peek:03F2:3','text')
-    assert '03F2: BF 9D' in out and re.search(r'\|.*\].*\|',out)
-    out, _ = run('reset','wait:20','peek:03F2:3','text')
-    assert '03F2: BF 9D' in out and re.search(r'\|.*\].*\|',out)
-    print(f'ARKABREAKOUT: boot, controls, pause, collisions, bonuses, 12 boards, '
-          f'victory/defeat, paddle calibration, ESC/RESET passed. Idle cadence: {hz:g} Hz.')
-
-if __name__ == '__main__':
-    main()
+    ap=argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--disk',type=Path,default=ROOT/'dist/ARKABREAKOUT.dsk')
+    ap.add_argument('--labels',type=Path,default=ROOT/'arkabreakout/build/game.lbl')
+    args=ap.parse_args(); L=a2test.labels(args.labels)
+    boot=[L.until('menu_loop',1500)]
+    start=boot+['key: ',L.until('loop')]
+    pause=start+['key:P','wait:15',L.until('loop'),L.poke('enemy_hold',1)]
+    tick=['wait:1',L.until('loop')]
+    def run(steps=(),names=(),prefix=pause):
+        r=a2test.run(args.disk,list(prefix)+list(steps))
+        return r
+    def get(steps=(),names=(),prefix=pause):
+        sizes={'score':6,'best_score':6,'bricks':96,'extra_balls':18,'level_name':11,'frames':2,'shot_live':2,'enemy_live':2}
+        r=a2test.run(args.disk,list(prefix)+list(steps)+[L.peek(n,sizes.get(n,1)) for n in names])
+        return {n:r.mem(L[n],sizes.get(n,1)) for n in names}
+    def v(m,n): return m[n][0]
+    def board(index=36,hp=1):
+        return [L.poke('bricks',hp if i==index else 0,i) for i in range(96)]+[L.poke('remaining',1)]
+    def ball(x,y,dx=0,dy=1,vx=0,vy=255):
+        return [L.poke(n,z) for n,z in [('ball_x',x),('ball_y',y),('ball_live',1),('ball_dirx',dx),('ball_diry',dy),('ball_speed',vx),('ball_yspeed',vy),('ball_frac',255),('ball_yfrac',255),('speed',1)]]
+    def play(steps): return list(steps)+['press:P']+tick
+    m=get(names=['state','difficulty','pad_width','lives','ball_live','remaining','score'],prefix=start)
+    assert [v(m,n) for n in ('state','difficulty','pad_width','lives','ball_live')]==[1,1,35,3,1],m
+    assert m['score']==b'000000' and v(m,'remaining')>0
+    for key,width,lives,speed,limit in [('1',42,5,2,4),('2',35,3,3,6),('3',28,2,4,7)]:
+        m=get(names=['difficulty','pad_width','lives','speed','speed_limit'],prefix=boot+[f'key:{key}','key: ',L.until('loop')])
+        assert [v(m,n) for n in ('pad_width','lives','speed','speed_limit')]==[width,lives,speed,limit],m
+    m=get(['key:A','key:P','wait:8','key:S','wait:1',L.until('loop')],['pad_x','movement'])
+    assert v(m,'pad_x')<112 and v(m,'movement')==0
+    m=get(play([L.poke('vertical',1)]),['pad_y'])
+    assert v(m,'pad_y')==172
+    m=get(play([L.poke('pad_y',100),L.poke('pad_x',63)]),['pad_y'])
+    assert v(m,'pad_y')>=128
+    # Both pages converge once pause HUD has been presented, then remain frozen.
+    r=run(['peek:2000:16384','wait:60','peek:2000:16384'])
+    assert r.mem(0x2000,16384,0)==r.mem(0x2000,16384,1)
+    frozen=r.mem(0x2000,16384)
+    visible=[a2test.hgr_offset(y)+x for y in range(192) for x in range(40)]
+    assert all(frozen[i]==frozen[i+8192] for i in visible)
+    # New shared XOR renderer restores colour and bit 7 at all alignments.
+    fixture=[L.poke('ball_live',0),'press:P']+tick+['key:P','wait:15',L.until('loop')]
+    baseline=run(fixture+['peek:2000:16384']).mem(0x2000,16384)
+    for kind in range(1,7):
+        for align in range(7):
+            steps=fixture+[L.poke('capsule',kind),L.poke('cap_x',98+align),L.poke('cap_y',48),'key:P','wait:5','key:P','wait:15',L.poke('capsule',0),'key:P','wait:5','key:P','wait:15','peek:2000:16384']
+            data=run(steps).mem(0x2000,16384)
+            assert all(data[i]==baseline[i] for i in visible),(kind,align,'XOR damaged background')
+    # Axes, steel, resistant and piercing impacts, with a second target to avoid loading.
+    for hp,effect,expected in [(1,0,0),(3,0,2),(255,0,255),(3,6,0),(255,6,255)]:
+        steps=board(hp=hp)+[L.poke('bricks',1,95),L.poke('remaining',2)]+ball(10,68)+[L.poke('effect',effect)]
+        m=get(play(steps),['bricks','score','ball_diry'])
+        assert m['bricks'][36]==expected,(hp,effect,m)
+        assert m['score']==(b'000000' if hp==255 else b'000010')
+        if effect==6 and hp!=255: assert v(m,'ball_diry')==1
+    for x,y,dx,dy,vx,expected in [(2,145,1,1,255,'ball_dirx'),(100,18,0,1,0,'ball_diry')]:
+        m=get(play(board()+ball(x,y,dx,dy,vx)),[expected])
+        assert v(m,expected)==0
+    # A life is lost only after the last ball; catch and paddle rebound.
+    for ypad in (175,140):
+        m=get(play(board()+ball(113,ypad-4,dy=0)+[L.poke('pad_y',ypad)]),['ball_diry','ball_speed','multiplier'])
+        assert v(m,'ball_diry')==1 and v(m,'ball_speed')==240 and v(m,'multiplier')==1,m
+    m=get(play(board()+ball(125,171,dy=0)+[L.poke('effect',3)]),['ball_live','lives'])
+    assert v(m,'ball_live')==0 and v(m,'lives')==3
+    m=get(play(board()+ball(20,179,dy=0)),['ball_live','lives'])
+    assert v(m,'ball_live')==0 and v(m,'lives')==2,m
+    m=get(play(board()+ball(20,179,dy=0)+[L.poke('extra_balls',120,0),L.poke('extra_balls',140,1),L.poke('extra_balls',1,2)]),['lives','extra_balls'])
+    assert v(m,'lives')==3
+    # Space cannot revive a lost primary ball while an extra one is flying.
+    fixture=board()+ball(20,179,dy=0)+[L.poke('extra_balls',120,0),L.poke('extra_balls',140,1),L.poke('extra_balls',1,2)]
+    m=get(play(fixture)+['key: ']+tick,['lives','ball_x'])
+    assert v(m,'lives')==3 and v(m,'ball_x')==120,m
+    # Each of eight paddle zones remains symmetric at both widths.
+    for width in (28,42):
+        vectors=[]
+        for zone in range(8):
+            hit=width*(zone*2+1)//16
+            m=get(play(board()+ball(112+hit-1,171,dy=0)+[L.poke('pad_width',width)]),['ball_dirx','ball_speed','ball_yspeed'])
+            assert v(m,'ball_dirx')==(1 if zone<4 else 0)
+            vectors.append((v(m,'ball_speed'),v(m,'ball_yspeed')))
+        assert vectors==vectors[::-1],vectors
+    # Combos advance every third destroyed tile, never on merely removing HP.
+    for combo,mult in [(1,1),(2,2),(5,3),(20,8),(21,8)]:
+        m=get(play(board()+[L.poke('bricks',1,95),L.poke('remaining',2)]+ball(10,68)+[L.poke('combo',combo)]),['multiplier','score'])
+        assert v(m,'multiplier')==mult and m['score']==f'{mult*10:06}'.encode(),m
+    # Difficulty ramps, Slow stays slow, and the cap never overflows.
+    for effect,normal,expected in [(0,3,4),(2,3,2),(0,6,6)]:
+        fixture=board()+[L.poke('bricks',1,95),L.poke('remaining',2)]+ball(10,68)
+        fixture += [L.poke('ramp_hits',7),L.poke('normal_speed',normal),L.poke('effect',effect),L.poke('speed',2 if effect==2 else normal)]
+        m=get(play(fixture),['speed','ramp_hits'])
+        assert v(m,'speed')==expected and v(m,'ramp_hits')==0,m
+    # All six capsule kinds occur in sequence, with only one falling at once.
+    for kind in range(1,7):
+        fixture=board()+[L.poke('bricks',1,95),L.poke('remaining',2)]+ball(10,68)+[L.poke('hit_count',4),L.poke('cap_next',kind)]
+        m=get(play(fixture),['capsule','cap_next'])
+        assert v(m,'capsule')==kind and v(m,'cap_next')==(kind%6)+1,m
+    # Extra life at 5000, five-life cap and six-digit saturation at 650000.
+    for lives,expected in [(3,4),(5,5)]:
+        steps=board()+[L.poke('bricks',1,95),L.poke('remaining',2)]+ball(10,68)+[L.poke('life_hits',243),L.poke('life_hits',1,1),L.poke('lives',lives)]
+        m=get(play(steps),['lives'])
+        assert v(m,'lives')==expected
+    steps=board()+[L.poke('bricks',1,95),L.poke('remaining',2)]+ball(10,68)+[L.poke('score',ord(c),i) for i,c in enumerate('649990')]+[L.poke('combo',20)]
+    m=get(play(steps),['score']);assert m['score']==b'650000',m
+    # All six capsules are collected at the moving paddle.
+    for kind in range(1,7):
+        m=get(play(board()+[L.poke('ball_live',0),L.poke('capsule',kind),L.poke('cap_x',120),L.poke('cap_y',169)]),['capsule','effect','pad_width','speed','extra_balls','ball_live'])
+        assert v(m,'capsule')==0 and v(m,'effect')==kind,m
+        assert v(m,'pad_width')==(49 if kind==1 else 35)
+        if kind==2: assert v(m,'speed')==2
+        if kind==4: assert m['extra_balls'][2]==m['extra_balls'][11]==v(m,'ball_live')==1,m
+    # Laser damages a tile; a new bonus replaces active shots.
+    m=get(play(board()+[L.poke('effect',5),L.poke('shot_live',1),L.poke('shot_x',10),L.poke('shot_y',68),L.poke('bricks',1,95),L.poke('remaining',2)]),['bricks','shot_live','score'])
+    assert m['bricks'][36]==0 and m['shot_live'][0]==0 and m['score']==b'000010',m
+    # Enemy contact awards 100 points and makes the ball bounce.
+    m=get(play(board()+ball(100,140)+[L.poke('enemy_live',1),L.poke('enemy_x',101),L.poke('enemy_y',140),L.poke('enemy_dx',1)]),['enemy_live','score','ball_diry'])
+    assert m['enemy_live'][0]==0 and m['score']==b'000100' and v(m,'ball_diry')==0,m
+    # Each disk pack equals the authored boards; cross every decade in the real loader.
+    spec=importlib.util.spec_from_file_location('arka_levels',ROOT/'arkabreakout/tools/pack_levels.py');packer=importlib.util.module_from_spec(spec);spec.loader.exec_module(packer)
+    levels=packer.load();packer.check(levels)
+    image=args.disk.read_bytes()
+    for pack in range(6):
+        assert dos33.read_file(image,f'LEVELS{pack+1}')==(args.labels.parent/f'levels{pack+1}.bin').read_bytes()
+    for n,(name,cells) in enumerate(levels):
+        # Force a sector clear before the next loop, including first and last pack.
+        if n==0:
+            m=get(names=['bricks','remaining','level_name'],prefix=start)
+        else:
+            steps=ball(100,140)+[L.poke('level',n-1),L.poke('remaining',0),'key:P','wait:3',L.until('loop')]
+            m=get(steps,['level','bricks','remaining','level_name'])
+            assert v(m,'level')==n
+        assert list(m['bricks'])==cells,(n,name,m['bricks'])
+        assert v(m,'remaining')==sum(0<c<255 for c in cells)
+        assert m['level_name']==name.ljust(10).encode()+b'\0'
+    m=get(ball(100,140)+[L.poke('level',59),L.poke('remaining',0),'press:P','wait:240'],['state'])
+    assert v(m,'state')==3
+    # Joystick/paddles, both buttons, height, optional X calibration.
+    for axis,px in [(-1,2),(1,216)]:
+        m=get([f'joy:{axis},1','wait:10'],['pad_x','pad_y','mode'],prefix=boot+['key:J',L.until('loop')])
+        assert v(m,'pad_x')==px and v(m,'pad_y')==175 and v(m,'mode')==1,m
+    m=get(['joy:0,-1','wait:10'],['pad_y'],prefix=boot+['key:J',L.until('loop')]);assert 100<=v(m,'pad_y')<=128
+    # ESC freezes the simulation, R rebuilds pages, Q returns to DOS; RESET too.
+    r=run(['key:\\e','wait:15','key:R','wait:8',L.peek('paused')]);assert r.mem(L['paused'],1)==b'\1'
+    for steps in [('key:\\e','key:Q'),('reset',)]:
+        r=run(list(steps)+['wait:300','peek:03F2:3','text'])
+        assert r.mem(0x3f2,2)==bytes([0xbf,0x9d]) and ']' in r.out
+    # Preview crosses packs without changing the running board or progress.
+    boards=packer.load()
+    for sector in (0,9,10,59):
+        steps=[L.poke('furthest',59),'key:\\e',L.until('menu_input')]
+        steps += ['key:D',L.until('menu_input')]*sector
+        steps += [L.peek('menu_sector'),L.peek('level'),L.peek('bricks',96)]
+        for row in range(8):
+            y=48+row*6
+            addr=0x2000+(y%8)*1024+((y//8)%8)*128+(y//64)*40+26
+            steps += [f'peek:{addr:04X}:12']
+        steps += ['key:R',L.until('loop'),L.peek('level_name',11),L.peek('bricks',96)]
+        r=run(steps)
+        assert r.mem(L['menu_sector'],1)==bytes([sector])
+        assert r.mem(L['level'],1)==b'\0'
+        assert list(r.mem(L['bricks'],96,0))==boards[0][1]
+        assert r.mem(L['bricks'],96,0)==r.mem(L['bricks'],96,1)
+        assert r.mem(L['level_name'],11)==boards[0][0].ljust(10).encode()+b'\0'
+        colors={0:0,1:0x2a,2:0x55,3:0x3f,255:0xbf}
+        for row in range(8):
+            y=48+row*6
+            addr=0x2000+(y%8)*1024+((y//8)%8)*128+(y//64)*40+26
+            assert r.mem(addr,12)==bytes(colors[c] for c in boards[sector][1][row*12:row*12+12])
+    m=get([L.poke("state",3),L.poke("level",60),L.poke("furthest",59),"key:\\e",L.until("menu_input"),"key:D",L.until("menu_input")],["menu_sector","level"])
+    assert v(m,"menu_sector")==59 and v(m,"level")==60
+    # Active and stressed frame rates on the 1 MHz 48K machine.
+    for name,fixture in [('normal',[]),('multiball',[L.poke('effect',4),L.poke('capsule',4),L.poke('cap_x',120),L.poke('cap_y',169)]),('enemies',[L.poke('enemy_live',1),L.poke('enemy_live',1,1),L.poke('enemy_x',60),L.poke('enemy_x',180,1),L.poke('enemy_y',140),L.poke('enemy_y',145,1)])]:
+        r=run(fixture+['press:P']+tick+[L.peek('frames',2),'wait:120',L.peek('frames',2)])
+        hz=(int.from_bytes(r.mem(L['frames'],2,1),'little')-int.from_bytes(r.mem(L['frames'],2,0),'little'))/2
+        assert hz>=26,(name,hz)
+        print(f'{name}: {hz:g} updates/s')
+    print('ARKABREAKOUT: 60 boards, six bonuses, multiball, laser, pierce, enemies, difficulty, combo, vertical paddle, HGR restoration and DOS exit passed.')
+if __name__=='__main__': main()

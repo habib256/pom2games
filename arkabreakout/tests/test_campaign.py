@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Play all twelve boards with a deterministic paddle pilot, without altering progress."""
+"""Play all sixty boards with a deterministic paddle pilot, without altering progress."""
 from pathlib import Path
 import argparse
 import subprocess
@@ -19,5 +19,5 @@ subprocess.run([str(pilot),str(args.disk.resolve()),
                 str(root/'dev/tools/a2shot/roms')] +
                [f'{labels[name]:06X}' for name in ('loop','state','ball_x','ball_y','pad_x',
                                          'pad_width','ball_live','level','ball_diry')],
-               check=True,timeout=180)
-print('ARKABREAKOUT campaign: all 12 sectors cleared by paddle steering alone.')
+               check=True,timeout=300)
+print('ARKABREAKOUT campaign: all 60 sectors cleared by paddle steering alone.')

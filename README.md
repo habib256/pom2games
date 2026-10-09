@@ -8,12 +8,13 @@ la vidéo native de l'Apple II.
 | Dossier | Programme | Machine | Disquette |
 |---|---|---|---|
 | [`chromabreak/`](chromabreak/) | Casse-briques DHGR 16 couleurs, souris AppleMouse et clavier | Apple //e enhanced ou //c 128 Ko / ProDOS | `dist/CHROMABREAK.po` |
-| [`arkabreakout/`](arkabreakout/) | Casse-briques HGR : 12 tableaux, bonus, clavier ou paddle | Apple II+ 48 Ko | `dist/ARKABREAKOUT.dsk` |
+| [`arkabreakout/`](arkabreakout/) | Casse-briques HGR : 60 secteurs, 6 bonus, combos, joystick/paddles/AppleMouse II | Apple II+ 48 Ko | `dist/ARKABREAKOUT.dsk` |
 | [`micro-sokoban/`](micro-sokoban/) | MICRO-SOKOBAN, tutoriel de 5 niveaux + 454 Microban I à IV, Hall of Fame sauvegardé, manette ou clavier | Apple II+ | `dist/MICRO-SOKOBAN.dsk` |
 | [`chess/`](chess/) | Échecs contre l'ordinateur ou à deux | Apple II+ | `dist/CHESS.dsk` |
 | [`maze3d/`](maze3d/) | Dungeon crawler 3D en fil de fer, double tampon HGR | Apple II+ | `dist/MAZE3D.dsk` |
 | [`light3dball/`](light3dball/) | Balle en couloir 3D HGR, cinq niveaux, souris ou clavier et cibles finales | Apple II+ 48 Ko | `dist/LIGHT3DBALL.dsk` |
 | [`pinball/`](pinball/) | Pinball Construction Set de Bill Budge, éditeur et moteur 6502 adaptés à ca65/ld65 | Apple II+ 48 Ko ou //c, souris ou manette | `dist/PINBALL.dsk` |
+| [`mcs/`](mcs/) | Éditeur musical inspiré de Music Construction Set : deux portées HGR, clavier, haut-parleur et sauvegarde | Apple II+ 48 Ko / DOS 3.3 | `dist/MCS.dsk` |
 | [`snake/`](snake/) | Snake en C (cc65) | Apple II+ | `dist/SNAKE.dsk` |
 | [`logo/`](logo/) | LOGO V2.6 : tortue HGR, texte / mixte / graphique, 40 ou 80 colonnes | Apple //e (80 col.) ou II+ (40 col.) | `dist/LOGO.dsk` |
 | [`dev/examples/hgr/`](dev/examples/hgr/) | Exemple HGR animé : sprite masqué, compteur, clavier, cadence | Apple II+ / IIe / IIc | `dist/HGR.dsk` |
@@ -52,6 +53,7 @@ avec sa disquette ProDOS et sa [description](docs/releases/chromabreak-1.0.md).
                          # et les 454 niveaux de MICRO-SOKOBAN dans a2run
     make test-arkabreakout # collisions, bonus, niveaux, paddle et sortie DOS
     make test-chess      # roque, promotion, règle des 50 coups, matériel mort
+    make test-mcs        # éditeur musical, sauvegarde/rechargement et son
     make test-hgr        # primitives, texte gfx, moteur de sprites et archive
     make test-frame      # cadence, délais et repli en cas de VBL bloqué
     make test-hgr-example # animation, pause/reprise et retour à DOS
