@@ -38,6 +38,7 @@ mb_period: .res 2
 mb_detect:
         php
         sei
+        jsr mb_stop             ; release any previous timer before rescanning
         lda $FBB3
         cmp #$06
         bne @scan
@@ -83,6 +84,9 @@ mb_init:
         bcs @invalid
         cmp #3
         beq @invalid
+        pha
+        jsr mb_stop             ; retain the old VIA's restoration snapshot
+        pla
         sta mb_slot
         lda #0
         sta mb_chip

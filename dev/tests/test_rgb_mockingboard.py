@@ -158,6 +158,76 @@ finished: jmp finished
     print('Mockingboard: 42 machine/slot/IRQ configurations; absence, 4c wake, dual AY writes, three-voice silence, polling and timer state restoration OK.')
 
 
+def mockingboard_reinit(work, probe):
+    for restart in ('lda #4\n    jsr mb_init', 'jsr mb_detect'):
+        binary=build(work,'mockingboard_reinit','''.code
+entry:
+    jsr mb_detect
+    lda #0
+    ldx #1
+    jsr mb_timer_start
+    ''' + restart + '''
+    jsr mb_stop
+    jsr mb_tick
+    sta $1020
+    php
+    pla
+    and #4
+    sta $1021
+    lda #1
+    sta $10FF
+finished: jmp finished
+.include "mockingboard.asm"
+''')
+        for machine in (0,1,2):
+            for irq in (0,1):
+                lines,state=run(probe,binary,machine,4,irq)
+                assert state[:2]==bytes([0,4*irq]),lines
+                assert 'VIA0 20 55' in lines and 'VIA1 20 55' in lines,lines
+    print('Mockingboard: reinitialisation and rediscovery restore an active timer and preserve the IRQ mask.')
+
+
+def mockingboard_session_transitions(work, probe):
+    cases=(
+        ('invalid', 'lda #0\n    jsr mb_init', bytes([0,4,1])),
+        ('different_slot', 'lda #5\n    jsr mb_init', bytes([5,5,0])),
+        # Simulate unsuccessful probes while keeping the old VIA readable,
+        # so its saved state can still be checked after rediscovery fails.
+        ('absent', '''lda #$A9
+    sta mb_t1_probe
+    lda #1
+    sta mb_t1_probe+1
+    lda #$60
+    sta mb_t1_probe+2
+    jsr mb_detect''', bytes([0,0,0])),
+    )
+    for name,transition,expected in cases:
+        binary=build(work,'mockingboard_'+name,'''.code
+entry:
+    jsr mb_detect
+    lda #0
+    ldx #1
+    jsr mb_timer_start
+    ''' + transition + '''
+    sta $1020
+    lda mb_slot
+    sta $1021
+    lda mb_timer_active
+    sta $1022
+    jsr mb_stop
+    lda #1
+    sta $10FF
+finished: jmp finished
+.include "mockingboard.asm"
+''')
+        for machine in (0,1,2):
+            for irq in (0,1):
+                lines,state=run(probe,binary,machine,4,irq)
+                assert state[:3]==expected,(name,lines)
+                assert 'VIA0 20 55' in lines and 'VIA1 20 55' in lines,(name,lines)
+    print('Mockingboard: invalid init retains the session; slot changes and failed rediscovery release the old timer.')
+
+
 if __name__=='__main__':
     with tempfile.TemporaryDirectory(prefix='rgb-mockingboard-') as tmp:
         work=Path(tmp); probe=work/'hardware_bus'
@@ -167,3 +237,5 @@ if __name__=='__main__':
                         str(DEV/'tools/a2run/cpu6502.c'),'-o',str(probe)],check=True)
         rgb(work,probe)
         mockingboard(work,probe)
+        mockingboard_reinit(work,probe)
+        mockingboard_session_transitions(work,probe)
