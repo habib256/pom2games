@@ -31,7 +31,9 @@ Une fois lancée, la balle ne peut pas être capturée. La raquette la renvoie
 automatiquement lorsqu'elle la touche. Un raté coûte une vie ; la nouvelle
 balle attend alors un lancement. Un impact près du centre conserve le
 mouvement latéral ; les bords ajoutent une correction d'angle limitée.
-La boîte de contact conserve sa taille au centre et s'élargit progressivement
+La raquette mesure 49 × 28 pixels : presque deux fois la surface de la version
+35 × 20, pour faciliter le choix de l'orientation du rebond. Sa boîte de contact est également agrandie
+sur les deux axes et s'élargit progressivement
 sur chaque axe lorsque la raquette se rapproche des bords de l'écran. Cette
 tolérance compense la perspective sans modifier la position de la balle.
 Un clic ou Retour pendant le vol ne recapture pas la balle. Après un raté,
@@ -40,15 +42,17 @@ puis cliquer à nouveau. Les clics pendant la pause sont consommés.
 
 Les trois tailles de balle passent de 3/5/7 à 4/6/8 pixels. La petite balle
 lointaine conserve douze pixels blancs dans une silhouette arrondie.
-Le message `CLOSE! INTERCEPT BALL` avertit d'un retour proche. Des sons courts
+Les messages d'aller-retour de la balle sont supprimés : la jauge suffit à
+suivre sa profondeur, sans redessiner le texte à chaque changement de direction.
+Des sons courts
 distinguent lancement, rebond sur la raquette, choc contre un mur, vie perdue
 et victoire. Le compteur des vies est séparé du libellé et actualisé sur les
 deux pages, jusqu'à zéro.
 
 La jauge à droite du compteur représente la profondeur du parcours : entrée
-à gauche, mur final à droite. Le trait au-dessus indique la position du
-joueur ; celui au-dessous indique celle de la balle. Le déplacement du
-repère inférieur permet de voir son retour, même lorsqu'elle est masquée
+à gauche, mur final à droite. Le trait de la raquette et la petite balle ronde
+de 4 × 4 pixels sont tous deux au-dessus de la ligne du niveau.
+Son déplacement permet de voir son retour, même lorsqu'elle est masquée
 par un obstacle. Sans vie restante, ce repère disparaît.
 
 Lorsqu'une ouverture bloque la raquette, `MOVE LEFT` ou `MOVE RIGHT` indique
@@ -121,11 +125,11 @@ efface seulement leurs traits noirs et évite de redessiner une position fixe.
 | Mémoire | Usage |
 |---|---|
 | `$0050–$00FF` | Page zéro C et assembleur, restaurée à la sortie |
-| `$1000–$118F` | Sauvegardes du fond sous les sprites |
-| `$1190–$1FFF` | Sprites, perspective, décor compact, cinq niveaux et police (`LCBALL`) |
+| `$1000–$11DF` | Sauvegardes du fond sous les sprites, dimensionnées séparément pour la balle et la raquette |
+| `$11E0–$1FFF` | Sprites, perspectives, décor compact, cinq niveaux et police (`LCBALL`) |
 | `$2000–$5FFF` | Les deux pages HGR |
-| `$6000–$91FF` | Programme et état |
-| `$9200–$95FF` | Pile C, 1 Ko |
+| `$6000–$93FF` | Programme et état |
+| `$9400–$95FF` | Pile C, 512 octets ; son utilisation est surveillée dans les tests |
 | `$9600–$BFFF` | DOS 3.3 |
 
 Les tests tournent sur le véritable binaire 6502 dans a2run : collisions des
@@ -136,8 +140,12 @@ par pixel : projection exacte, contours sans remplissage, occultation
 partielle de la balle et absence de traces après déplacement des obstacles.
 Un test vérifie aussi, sur plusieurs images des deux pages, la stabilité des
 panneaux après un arrêt entre deux anciennes positions de cache.
-La physique native est contrôlée sur 663 cas aux frontières X/Y, 655 contacts
-avec la tolérance de perspective et les 425 décalages d'impact de −212 à +212 ; les repères de profondeur sont
+La grande raquette utilise trois motifs de ligne par phase HGR, avec un centre
+transparent et un halo noir. Ce rendu compact évite sept bitmaps complets ;
+son dessin et la restauration du fond sont contrôlés sur les deux pages,
+aux sept phases et près des limites de déplacement.
+La physique native est contrôlée sur 663 cas aux frontières X/Y, les contacts
+avec la tolérance de perspective et les 625 décalages d'impact de −312 à +312 ; les repères de profondeur sont
 comparés pixel par pixel sur les deux pages.
 `test_levels.py` vérifie les portes sur leurs 32 phases, l'impossibilité
 d'un tir direct par calcul exact, les transitions entre niveaux et le
@@ -147,7 +155,7 @@ modification de balle, de vies ou de progression. Le dernier essai a parcouru
 la campagne en environ 14 minutes simulées, sans perdre de vie ; cette mesure
 décrit le pilote et ne prédit pas la durée d'une partie humaine.
 
-Mesure à 1,02 MHz : environ 27 000 cycles pour une image sans modification
+Mesure à 1,02 MHz : environ 35 000 cycles pour une image sans modification
 du décor, délai inclus.
 Le déplacement natif X/Y prend 85 à 199 cycles par sous-pas dans les tests.
 La première version atteignait 299 000 cycles lors d'un redessin. La cadence

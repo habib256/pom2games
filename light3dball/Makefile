@@ -50,7 +50,7 @@ $(BUILD)/assets.bin: $(BUILD)/game.bin
 
 $(DISK): $(BUILD)/game.bin $(BUILD)/assets.bin $(DOS33_DEPS)
 	@mkdir -p $(DIST)
-	$(DOS33) --bin LIGHT3DBALL=$(BUILD)/game.bin@$(LOAD) --bin LCBALL=$(BUILD)/assets.bin@0x1190
+	$(DOS33) --bin LIGHT3DBALL=$(BUILD)/game.bin@$(LOAD) --bin LCBALL=$(BUILD)/assets.bin@0x11E0
 
 test: all $(A2RUN)
 	$(PYTHON) tests/test_game.py

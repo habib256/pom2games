@@ -16,6 +16,9 @@
 .export _ball_clip_left, _ball_clip_right
 .import _sx, _sy, _left, _top, _depth, _scale_x, _scale_y
 .importzp _hgr_ms_x, _hgr_ms_y, _hgr_ms_spr, _hgr_ms_under
+.export _draw_paddle
+.import _hgr_ms_save_run, _hgr_phase7, _paddle_rows_data, _paddle_rows_mask
+.importzp ptr1, ptr2, ptr3
 PAGE2_EOR = $60
 hgr_lo = _hgr_rowlo
 hgr_hi = _hgr_rowhi
@@ -59,8 +62,86 @@ _fast_line = hgr_wire_span
 _scene_rectangle = hgr_wire_rect
 _erase_scene = hgr_wire_erase
 .code
-; Depth rail: upper tick = player, lower tick = ball, left = entrance.
-; Only old ticks are erased, using the shared black-line primitive.
+; 49x28 transparent paddle with a black halo. Three row patterns per phase
+; replace seven full banks. The shared save/restore still owns both histories.
+_draw_paddle:
+    jsr _hgr_ms_save_run
+    ldx _hgr_ms_x
+    lda _hgr_col7,x
+    sta paddle_col
+    lda _hgr_phase7,x
+    tax
+    lda paddle_phase_offset,x
+    sta paddle_phase
+    lda #0
+    sta paddle_row
+@row:
+    ldx #16                 ; transparent middle, with vertical borders
+    lda paddle_row
+    cmp #3
+    bcc @border
+    cmp #25
+    bcc @pattern
+@border:
+    ldx #0                  ; black halo with vertical white borders
+    cmp #1
+    beq @horizontal
+    cmp #26
+    bne @pattern
+@horizontal:
+    ldx #8                  ; white horizontal border
+@pattern:
+    txa
+    clc
+    adc paddle_phase
+    clc
+    adc #<_paddle_rows_data
+    sta ptr2
+    lda #>_paddle_rows_data
+    adc #0
+    sta ptr2+1
+    txa
+    clc
+    adc paddle_phase
+    clc
+    adc #<_paddle_rows_mask
+    sta ptr3
+    lda #>_paddle_rows_mask
+    adc #0
+    sta ptr3+1
+    lda paddle_row
+    clc
+    adc _hgr_ms_y
+    tax
+    lda hgr_lo,x
+    clc
+    adc paddle_col
+    sta ptr1
+    lda hgr_hi,x
+    adc #0
+    sta ptr1+1
+    ldy #7
+@byte:
+    lda (ptr1),y
+    and (ptr3),y
+    ora (ptr2),y
+    sta (ptr1),y
+    dey
+    bpl @byte
+    inc paddle_row
+    lda paddle_row
+    cmp #28
+    bne @row
+    rts
+.segment "RODATA"
+paddle_phase_offset: .byte 0,24,48,72,96,120,144
+.segment "BSS"
+paddle_col: .res 1
+paddle_phase: .res 1
+paddle_row: .res 1
+.code
+; Depth rail: player tick and round ball both sit above the level line.
+; Redraw the pair together when either moves, preserving overlapping pixels.
 _depth_gauge:
     sta gauge_page
     tax
@@ -70,7 +151,7 @@ _depth_gauge:
     sta wf_x0
     lda #248
     sta wf_x1
-    lda #163
+    lda #165
     sta wf_y0
     sta wf_y1
     jsr hgr_wire_span
@@ -78,21 +159,7 @@ _depth_gauge:
     lda _camera_z+1
     ldy _camera_z
     jsr gauge_position
-    sta gauge_new
-    ldx gauge_page
-    cmp gauge_player,x
-    beq @ball
-    lda #160
-    sta wf_y0
-    lda #162
-    sta wf_y1
-    ldx gauge_page
-    lda gauge_player,x
-    jsr gauge_erase
-    lda gauge_new
-    ldx gauge_page
-    sta gauge_player,x
-    jsr gauge_draw
+    sta gauge_player_new
 @ball:
     lda _lives
     beq @new_ball
@@ -103,20 +170,37 @@ _depth_gauge:
     sta gauge_new
     ldx gauge_page
     cmp gauge_ball,x
+    bne @update
+    lda gauge_player_new
+    cmp gauge_player,x
     beq @done
-    lda #164
+@update:
+    lda #160
     sta wf_y0
-    lda #166
+    lda #162
     sta wf_y1
+    lda gauge_player,x
+    jsr gauge_erase
     ldx gauge_page
     lda gauge_ball,x
-    jsr gauge_erase
+    beq @draw_player
+    jsr gauge_ball_erase
+@draw_player:
+    lda #160
+    sta wf_y0
+    lda #162
+    sta wf_y1
+    lda gauge_player_new
+    ldx gauge_page
+    sta gauge_player,x
+    jsr gauge_draw
+@draw_ball:
     lda gauge_new
     ldx gauge_page
     sta gauge_ball,x
     cmp #0
     beq @done
-    jmp gauge_draw
+    jmp gauge_ball_draw
 @done:
     rts
 _reset_gauge:
@@ -136,6 +220,42 @@ gauge_draw:
     sta wf_x0
     sta wf_x1
     jmp hgr_wire_span
+
+; Rounded white sphere: .##. / #### / #### / .##., above the rail.
+; The same spans clear exactly its old pixels, leaving the rail intact.
+.macro BALL_MARK name, span
+name:
+    sta gauge_icon_x
+    sta wf_x0
+    clc
+    adc #1
+    sta wf_x1
+    lda #160
+    sta wf_y0
+    sta wf_y1
+    jsr span
+    lda #163
+    sta wf_y0
+    sta wf_y1
+    jsr span
+    lda gauge_icon_x
+    sec
+    sbc #1
+    sta wf_x0
+    clc
+    adc #3
+    sta wf_x1
+    lda #161
+    sta wf_y0
+    sta wf_y1
+    jsr span
+    lda #162
+    sta wf_y0
+    sta wf_y1
+    jmp span
+.endmacro
+BALL_MARK gauge_ball_draw, hgr_wire_span
+BALL_MARK gauge_ball_erase, hgr_wire_clear_span
 gauge_position:
     ; Exact floor(64*z/level_length) = floor(z/(2*level_slots)).
     ; Eight binary division steps, independent of the length of the course.
@@ -163,10 +283,12 @@ gauge_position:
 .bss
 gauge_page: .res 1
 gauge_new: .res 1
+gauge_player_new: .res 1
 gauge_player: .res 2
 gauge_ball: .res 2
 gauge_bits: .res 1
 gauge_divisor: .res 1
+gauge_icon_x: .res 1
 .code
 
 ; Twelve speaker toggles: short contact cues, bounded to 12 ms at 1 MHz.
