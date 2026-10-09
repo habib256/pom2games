@@ -16,16 +16,19 @@ la mesure. HGR utilise un NMOS 6502 dans a2run ; DHGR un 65C02 dans a2shot.
 Les adresses viennent du fichier de labels ld65, sans estimation de timing.
 
 Les tailles sont celles du programme de mesure complet, CRT et bibliothèque
-cc65 compris : CODE + STARTUP, RODATA, RAM (BSS/LOWBSS/DATA/ZPSAVE), ZEROPAGE
+cc65 compris : CODE + STARTUP + LOWCODE + INIT + ONCE, RODATA, RAM (BSS/LOWBSS/DATA/ZPSAVE), ZEROPAGE
 et fichier binaire. La pile C réservée et les pages vidéo ne sont pas comptées
 comme BSS ; la RAM affichée ne représente donc pas toute la mémoire occupée.
-La ligne compiler et les options sont enregistrées dans le JSON.
+Le compilateur, les options, le CPU, le modèle et les SHA256 du runner,
+du cœur et des ROM sont enregistrés dans le JSON. Le gate vérifie le modèle,
+le cœur CPU et la ROM ; les binaires hôtes peuvent différer entre Linux/macOS.
 
 `baseline.json` conserve les mesures de référence. Une hausse des cycles de
 plus de 5 % (minimum 16), des tailles de plus de 3 % (minimum 16 octets), ou
 une hausse de ZP fait échouer `--check`. Un compilateur différent peut changer
 ces résultats ; le rapport en conserve la version pour faciliter le diagnostic.
-Le gate DHGR reste local car le SDK a2shot fourni est macOS arm64.
+Le gate DHGR fonctionne localement et dans le job CI macOS ARM64 ;
+le SDK a2shot fourni exige cette architecture. Le gate HGR reste portable.
 
 Après examen d’une modification intentionnelle :
 
@@ -38,7 +41,22 @@ ou `--check` ne modifie jamais la référence.
 
 Cas actuels : clear, segment pleine largeur, rectangle, texte, sprite HGR ;
 clear, segment, rectangle, transfert de bloc, sprite masqué et texte DHGR.
+Les cas supplémentaires couvrent une diagonale HGR complète et l'effacement
+DHGR d'une ligne visible. Les mesures HGR préparent désormais chaque primitive
+par un appel avant les marqueurs : seules ses tables nécessaires sont liées et
+l'initialisation paresseuse n'est pas incluse dans le temps mesuré. Les mesures
+historiques de performance sont conservées ; les deux nouveaux cas ont leurs
+propres références.
 Les résultats sont reproductibles pour un même compilateur et cœur CPU.
+
+Après découpage des tables, les programmes du benchmark mesurent 299 octets
+de RAM pour un effacement HGR, 1 016 pour le blitter aligné et 1 297 pour le
+texte ou les rectangles, contre 1 575 auparavant. Ces chiffres comprennent
+la BSS du programme/CRT, pas les pages vidéo ni la pile C réservée. La nouvelle
+diagonale `hgr_line(0,0,279,191)` prend 61 457 cycles et conserve exactement
+les pixels du Bresenham C. Le noyau DHGR d'une ligne est contrôlé séparément
+sous 1 300 cycles ; le benchmark C de `dhgr_clear_rows(40,1,9)` inclut aussi
+la préparation du motif et l'adressage.
 
 Optimisation des boucles d'effacement : huit `STA` par tour dans
 `HGR_CLEAR_LOOP`, quatre paires par tour dans `dhgr_clear_asm`. Mesures avec
@@ -94,3 +112,88 @@ L'évaluation de fhpack, fdraw et des sprites compilés est dans
 [`dev/tests/techniques`](../tests/techniques/README.md) : `make test-techniques`.
 Elle mesure les alternatives et vérifie le framebuffer ; elle ne modifie pas
 les références de performance des bibliothèques actuelles.
+
+
+## Premier appel et scènes de rendu
+
+Les budgets supplémentaires ne remplacent aucune référence historique.
+Chaque cas compile un programme distinct avec cc65 ; le premier appel exclut
+l'initialisation du mode mais inclut la construction des tables encore absentes.
+Les cas chauds exécutent un appel avant les marqueurs, ou deux frames pour
+remplir les historiques des deux pages du moteur de sprites.
+
+| Cas | Cycles mesurés |
+|---|---:|
+| `gfx_diagonal`, noyau HGR préparé | 61 683 |
+| `hgr_diagonal_cold`, premier appel | 122 725 |
+| HUD : titre et deux champs numériques, premier appel | 106 922 |
+| Même HUD préparé | 39 131 |
+| Frame de quatre sprites chevauchants + compteur + présentation, première | 46 327 |
+| Même scène, restauration des fonds des deux pages préparée | 29 633 |
+
+La scène utilise quatre formes de 14×4 pixels, un pool externe de 64 octets et
+deux pages. La présentation inclut la bascule et la sélection de la prochaine
+page, sans attente VBL ni logique de jeu. Ces chiffres ne sont donc pas une
+promesse de 60 FPS : une frame de 29 633 cycles dépasse déjà une période de
+17 030 cycles du runner NTSC. Le motif, le clipping et les restaurations sont
+validés séparément par les tests de primitives et de sprites. Le JSON conserve
+les coûts complets du programme de mesure, y compris le code de préchauffage.
+Les tailles binaires froid/chaud ne comparent donc pas uniquement la primitive.
+
+
+## HUD différentiel et présentation
+
+`hgr_hud_putu` conserve un historique par page. Un appel pour la même valeur
+ne convertit ni ne dessine ; un changement ne traite que les cellules modifiées.
+
+| Opération actuelle | Cycles |
+|---|---:|
+| Champ cache de cinq chiffres, valeur inchangée | 518 |
+| Même champ, 12345 → 12346 | 13 805 |
+| Changer de page + résoudre 192 adresses, boucle compacte de référence | 7 505 |
+| Même travail, boucle déroulée retenue | 6 511 |
+| Prototype à base fixe avec correction par ligne | 4 823 |
+
+Le déroulement ajoute **54 octets de code**, sans RAM ni ZP supplémentaires.
+Le prototype fixe ajoute un octet d'état et calcule les pointeurs sans muter
+la table. Ses 192 adresses sont testées sur les deux pages, mais il ne respecte
+pas le contrat actuel des accès directs à `hgr_rowhi`. Il reste un comparatif
+isolé ; le gain ne représente pas celui d'un moteur complet porté à ce format.
+La bibliothèque conserve son ABI et utilise la boucle déroulée.
+
+## Scènes et boucle complète
+
+Les scènes supplémentaires utilisent des sprites correctement prédécalés :
+quatre formes 7×8 dans les sept phases, puis quatre formes 21×16 chevauchantes,
+au centre et rognées au bord droit/bas. Chaque cas prépare les deux historiques.
+Le maximum observé est **54 998 cycles**, sans attente ni logique de jeu.
+Le test de stress compare 32 scènes aux pixels attendus, aux bits de palette,
+aux trous mémoire et aux gardes du pool sur les deux pages.
+
+La boucle complète lit le clavier, calcule quatre positions, restaure/dessine,
+met à jour son compteur, attend, puis présente : **45 245 cycles** avec le
+repli II+ WAIT(40), **51 077 cycles** avec VBL IIe. Ces deux runners ont des
+CPU distincts ; ces mesures caractérisent les deux configurations et ne sont
+pas une comparaison isolée du coût de l'attente. Le cas IIe inclut la phase
+VBL déterminée par ses frames de préchauffage ; ce n'est pas une borne de toute
+entrée possible dans l'attente. La charge dépasse une période de rafraîchissement.
+
+## Comptage mémoire et pile
+
+Le code inclut maintenant `ONCE`, `INIT` et `LOWCODE`. Une assertion confronte
+code + RODATA + DATA à la taille de chaque binaire de benchmark pour détecter
+un segment chargé non compté. `legacy_references` conserve les anciens budgets.
+La migration ajoute les 12 octets ONCE du CRT aux références de code, puis les
+54 octets de la nouvelle boucle là où elle est liée ; les budgets historiques
+cycles, binaire, RAM et ZP restent inchangés.
+
+`c_stack_peak_bytes` mesure la profondeur observée pendant la charge balisée,
+`c_stack_reserved_bytes` sa réservation. Les runners observent le pointeur cc65
+aux appels/retours/sauts et accès `(sp),Y`, évitant les valeurs transitoires
+entre les écritures de ses deux octets. a2run observe également les écritures
+réelles dans la zone réservée. Le test alloue exactement 1 puis 37 octets et
+vérifie les deux runners. Le maximum des scènes actuelles est 37 octets ; le
+segment DHGR monochrome utilise 38 octets dans sa charge de benchmark.
+Cette observation ne prouve pas une borne statique pour toutes les branches
+ou des noyaux ASM qui alloueraient sans appel ni accès via sp. La pile matérielle
+est distincte. Le profilage n'ajoute aucun cycle à l'horloge CPU émulée.

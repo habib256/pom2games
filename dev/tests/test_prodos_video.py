@@ -26,7 +26,7 @@ unsigned char __fastcall__ prodos_format_ram(unsigned char unit) {
 }
 int main(void) {
     unsigned i;
-    unsigned char scene;
+    unsigned char scene, status;
     for (scene=0; scene<sizeof(cases)/sizeof(cases[0]); ++scene) {
         for (i=0xBF10u; i<0xBF50u; ++i) BYTE(i)=0x55u;
         for (i=0; i<14u; ++i) BYTE(0xBF32u+i)=0x60u;
@@ -40,7 +40,13 @@ int main(void) {
             BYTE(0xBF26)=0u; BYTE(0xBF27)=0xFFu;
         }
         calls=0u; last_unit=0u;
-        prodos_video_claim();
+        status=prodos_video_claim(PD_VIDEO_PRESERVE_RAM);
+        BYTE(0x1005)=status;
+        /* Failed/invalid policy must neither format nor erase a claim. */
+        BYTE(0x1006)=prodos_video_claim(255u);
+        BYTE(0x1007)=prodos_video_claim(PD_VIDEO_DISCARD_RAM);
+        BYTE(0x1008)=prodos_video_claim(PD_VIDEO_PRESERVE_RAM);
+        BYTE(0x1009)=prodos_video_claim(PD_VIDEO_DISCARD_RAM);
         BYTE(0x1001)=prodos_video_release();
         BYTE(0x1002)=prodos_video_release();
         BYTE(0x1003)=calls; BYTE(0x1004)=last_unit;
@@ -52,7 +58,7 @@ int main(void) {
 }
 ''')
     objects=[]
-    for index,src in enumerate((DEV/'cc65/crt0_apple2.s',source,DEV/'lib/prodos/video.c',DEV/'lib/apple2c/apple2io_asm.s')):
+    for index,src in enumerate((DEV/'cc65/crt0_apple2.s',source,DEV/'lib/prodos/video.s',DEV/'lib/apple2c/apple2io_asm.s')):
         obj=work/(str(index)+'.o')
         subprocess.run(['cl65','-t','none','-Oirs','-I',str(DEV/'lib/prodos'),'-I',str(DEV/'lib/apple2c'),
                         '-c','-o',str(obj),str(src)],check=True)
@@ -62,13 +68,17 @@ int main(void) {
     disk=a2test.build_disk(work,'PDVIDEO',binary)
     steps=['wait:1100']
     for _ in CASES:
-        steps+=['peek:1000:5','key: ','wait:2']
+        steps+=['peek:1000:10','key: ','wait:2']
     result=a2test.run(disk,steps)
     for scene,(count,index) in enumerate(CASES):
         found = index<=count and count<14
-        expected=bytes([scene,1,1,int(found),0xB0 if found else 0])
+        invalid = count != 255 and count >= 14
+        preserve = 3 if invalid else 1 if found else 0
+        discard = 3 if invalid else 0
+        expected=bytes([scene,1,1,int(found),0xB0 if found else 0,
+                        preserve,2,discard,preserve,discard])
         assert result.dumps[scene]==expected, ('DEVCNT /RAM discovery',count,index,result.dumps[scene])
-    print('ProDOS video: 14-entry device-list bounds, first/last /RAM, no /RAM, empty/invalid lists, one release only OK.')
+    print('ProDOS video: 14-entry device-list bounds, first/last /RAM, no /RAM, empty/invalid lists, preserve/discard policies, idempotent claim and one release only OK.')
 
 
 if __name__=='__main__':

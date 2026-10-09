@@ -402,6 +402,7 @@ void main(void)
 {
     unsigned char i;
     hgr_init();
+    hgr_build_tables(); /* Native wireframe renderer reads the shared X tables. */
     for (i=1; i<=2; ++i) { hgr_set_draw_page(i); hgr_clear(0); }
     a2_frame_init(); a2_frame_set_delay(1);
     mouse_enabled=mouse_init();

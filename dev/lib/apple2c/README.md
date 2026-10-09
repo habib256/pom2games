@@ -97,6 +97,9 @@ Lier `APPLE2C_FRAME_SRCS`, puis appeler `a2_frame_init()` : le résultat
 indique `A2_FRAME_VBL` sur IIe ou `A2_FRAME_DELAY` sur II/II+, IIc et IIgs.
 `a2_frame_wait()` attend le prochain front VBL sur IIe. Un signal bloqué
 entraîne un repli borné en temporisation, jusqu’au prochain `a2_frame_init`.
+Chaque phase de sondage est limitée à 6 144 lectures, avec une marge pour
+PAL/NTSC. Le test d'un signal bloqué mesure environ 84 848 cycles, délai de
+repli inclus, contre 739 088 auparavant.
 `a2_frame_mode()` permet de lire le mode courant. Aucun commutateur vidéo
 ou d’interruption n’est modifié ; le masque IRQ est préservé.
 

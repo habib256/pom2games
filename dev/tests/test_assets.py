@@ -5,6 +5,8 @@ from pathlib import Path
 import struct
 import tempfile
 import zlib
+import random
+import subprocess
 spec=importlib.util.spec_from_file_location('assets',Path(__file__).resolve().parents[1]/'tools/assets/convert.py')
 a=importlib.util.module_from_spec(spec);spec.loader.exec_module(a)
 
@@ -61,6 +63,22 @@ def main():
         filtered=work/'filtered.png'
         filtered.write_bytes(b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',4,5,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(b''.join(rows)))+chunk(b'IEND',b''))
         assert a.load(filtered)==(4,5,rgba)
+        compressor=work/'fhpack'
+        source=Path(__file__).resolve().parent/'techniques/upstream/fhpack/fhpack.cpp'
+        subprocess.run(['c++','-O2','-o',str(compressor),str(source)],check=True)
+        blank=bytes(8192)
+        packed,encoding=a.compress_frame(blank,compressor)
+        assert encoding=='lz4fh' and len(packed)<len(blank)
+        noise=random.Random(6502).randbytes(8192)
+        packed,encoding=a.compress_frame(noise,compressor)
+        assert encoding=='raw' and packed==noise, 'compression growth must select raw'
+        stats=a.convert(work/'input.png',work/'compressed','hgr','frame','screen',compressor)
+        assert stats['load_encoding']=='lz4fh' and stats['load_bytes']<8192
+        assert (work/stats['load_file']).stat().st_size==stats['load_bytes']
+        assert (work/'compressed.bin').stat().st_size==8192
+        try: a.convert(work/'input.png',work/'invalid','dhgr','frame','screen',compressor)
+        except ValueError: pass
+        else: raise AssertionError('DHGR compression accepted by 8-KB-only decoder')
     print('Assets: PNG/PPM, 5 PNG filters, HGR/DHGR frames, 7 phases and transparent masks passed.')
 
 if __name__=='__main__':main()

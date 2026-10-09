@@ -6,8 +6,25 @@
 #define RESULT (*(volatile unsigned char *)0x1001)
 #define CHECK(x) do { if (!(x)) RESULT |= 1u; } while (0)
 #include "masked_test_sprite.inc"
+#ifdef SPR_EXTERNAL_POOL
+static unsigned char pool[26];
+static void init_engine(unsigned char dbuf)
+{
+    pool[0] = 0xA5u; pool[25] = 0x5Au;
+    CHECK(hgr_spr_init_pool(dbuf, pool + 1, 24u, 2u, 6u));
+    CHECK(!hgr_spr_init_pool(dbuf, pool + 1, 1u, 2u, 6u));
+    CHECK(!hgr_spr_init_pool(dbuf, 0, 24u, 2u, 6u));
+    CHECK(!hgr_spr_init_pool(dbuf, pool + 1, 24u, 0u, 6u));
+    CHECK(!hgr_spr_init_pool(dbuf, pool + 1, 24u, 2u, 0u));
+}
+#else
+#define init_engine hgr_spr_init
+#endif
 static void checkpoint(unsigned char stage)
 {
+#ifdef SPR_EXTERNAL_POOL
+    CHECK(pool[0] == 0xA5u && pool[25] == 0x5Au);
+#endif
     STAGE = stage;
     apple2_getkey();
 }
@@ -25,7 +42,7 @@ int main(void)
     }
     gfx_utoa(number, 65535u); CHECK(strcmp(number,"65535") == 0);
     gfx_itoa(number, -32767-1); CHECK(strcmp(number,"-32768") == 0);
-    hgr_spr_init(0u);
+    init_engine(0u);
     CHECK(hgr_spr_define(0u, &shape0));
     CHECK(hgr_spr_define(1u, &shape1));
     checkpoint(0u);
@@ -40,7 +57,7 @@ int main(void)
     hgr_spr_update(); checkpoint(8u);
     CHECK(!hgr_spr_define(0u, &shape1)); /* old definition must survive */
     hgr_spr_hide(0u); hgr_spr_update(); checkpoint(9u);
-    hgr_spr_init(1u);
+    init_engine(1u);
     CHECK(hgr_spr_define(0u, &shape0));
     CHECK(hgr_spr_define(1u, &shape1));
     for (phase = 0u; phase < 7u; ++phase) {
@@ -58,7 +75,7 @@ int main(void)
     CHECK(hgr_spr_define(0u, 0));
     hgr_spr_hide(1u); hgr_spr_update(); checkpoint(19u);
     hgr_spr_update(); checkpoint(20u);
-    hgr_spr_init(0u);
+    init_engine(0u);
     invalid = shape0; invalid.stride = 0u; CHECK(!hgr_spr_define(0u,&invalid));
     invalid = shape0; invalid.h = 0u; CHECK(!hgr_spr_define(0u,&invalid));
     invalid = shape0; invalid.data = 0; CHECK(!hgr_spr_define(0u,&invalid));

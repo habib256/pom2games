@@ -10,7 +10,9 @@ static void hgr_puts_common(unsigned x, unsigned char y, const char *s)
 {
     unsigned char n;
     unsigned room;
-    hgr_build_tables();
+    hgr_build_rows();
+    hgr_build_columns();
+    hgr_build_phases();
     if (y > 176u || x > 264u) return;        /* cell needs y+15<=191 and a fitting x */
     hgr_g_y     = y;
     hgr_t_col   = hgr_col7[x];

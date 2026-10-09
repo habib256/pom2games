@@ -14,7 +14,9 @@ void hgr_blit(unsigned x, unsigned char y, unsigned char w, unsigned char h,
      * are not scratch targets, so this side-steps the whole class of bug. stride
      * is derived from the FULL w (source row length); hgr_b_w is the clipped
      * pixel count to draw. */
-    hgr_build_tables();
+    hgr_build_rows();
+    hgr_build_columns();
+    hgr_build_masks();
     if (y > 191u || w == 0u || h == 0u || x > 279u) return;
 
     hgr_b_col    = hgr_col7[x];              /* tables: no runtime divide/shift */

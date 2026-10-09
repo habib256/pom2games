@@ -4,8 +4,10 @@
  * Algorithms call a backend selected at link time: gfx_plot, gfx_hline,
  * gfx_vline and the screen dimensions. The Apple II HGR backend lives in
  * gfx_backend_hgr.c; there is no per-pixel function-pointer dispatch.
- * x is unsigned, y is unsigned char. Line/rectangle endpoints must be
- * on-screen; circles clip their plotted points to the backend dimensions.
+ * x is unsigned, y is unsigned char. Drawing shares the backend's state and
+ * scratch: not reentrant or callable from IRQ. Main RAM/ZP, D=0; see ../ABI.md.
+ * Units are backend pixels. Rectangles/spans clip; diagonal lines reject
+ * off-screen endpoints. Circles clip their plotted points.
  */
 #ifndef GFX_H
 #define GFX_H
@@ -45,8 +47,9 @@ extern const unsigned char gfx_height;
  * ===========================================================================
  * All endpoints inclusive. */
 
-/* Bresenham line. Pure horizontal / vertical lines shortcut to gfx_hline /
- * gfx_vline (the card's fast span); the diagonal case walks gfx_plot. */
+/* Bresenham line. Axes use clipped gfx_hline/gfx_vline spans. Diagonals reject
+ * off-screen endpoints. Link exactly one implementation: gfx_line_hgr.c for
+ * HGR (ASM kernel), gfx_line.c for generic/DHGR (C fallback through gfx_plot). */
 void gfx_line(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1);
 
 /* Rectangle OUTLINE through opposite corners (interior untouched). Four spans

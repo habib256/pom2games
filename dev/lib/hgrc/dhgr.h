@@ -1,7 +1,8 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* Native DHGR, IIe revision B + extended 80-column card / IIc.
  * Both pages ($2000-$5FFF main+aux). Code, stack, source and destination
- * buffers must be outside these windows. Main RAM/zero page on entry.
+ * buffers must be outside these windows, with valid non-null pointers and
+ * the declared capacities. Main RAM/zero page, ROM visible and D=0 on entry.
  * Drawing preserves IRQ state, returns RAMRD/RAMWRT main, 80STORE off,
  * and never changes the displayed page. Non-reentrant; initialize first.
  */
@@ -79,7 +80,13 @@ extern const unsigned char dhgr_small_font[64u*DHGR_SMALL_FONT_STRIDE];
 extern unsigned char dhgr_small_x, dhgr_small_y;
 void __fastcall__ dhgr_small_char(unsigned char ch);
 void dhgr_text_restore(void);
+/* Raw full 8K in each bank, including holes; IRQs masked for ~189000 cycles.
+ * Prefer clear_rows for interrupt service and visible rows only. */
 void dhgr_clear(unsigned char color);
+/* Clear only visible rows, clipped to 192. Each row restores main RAMWRT
+ * and the caller's IRQ mask (<1300 masked cycles); IRQs can run between rows.
+ * Preserves holes and the display page. Main RAM/ZP; not callable from IRQ. */
+void dhgr_clear_rows(unsigned char y, unsigned char rows, unsigned char color);
 
 /* Raw 560x192 bits, displayed monochrome on a monochrome monitor.
  * On a color monitor, adjacent bits produce NTSC artifact colors.

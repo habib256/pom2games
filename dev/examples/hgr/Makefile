@@ -8,7 +8,8 @@ DISK := $(DIST)/HGR.dsk
 HGRC_EXTRA_SRCS := $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS)
 # Keep the three-ball demo inside the 48 KB layout by avoiding inlined
 # runtime helpers in both the demo and its private library archive.
-HGRC_CFLAGS := -t none -Ors $(HGRC_INCS) $(APPLE2C_INCS)
+HGR_SLOT_FLAGS := -D HGR_SPR_MAX=3
+HGRC_CFLAGS := -t none -Ors $(HGR_SLOT_FLAGS) $(HGRC_INCS) $(APPLE2C_INCS)
 
 all: $(DISK)
 
@@ -16,9 +17,9 @@ $(BUILD)/crt0_apple2.o: $(A2_CRT0)
 	@mkdir -p $(@D)
 	$(CA65) -t none -o $@ $<
 
-$(BUILD)/hgr_demo.o: src/hgr_demo.c src/ball.h $(HGRC_HEADERS) $(wildcard $(APPLE2C)/*.h)
+$(BUILD)/hgr_demo.o: src/hgr_demo.c src/ball.h Makefile $(HGRC_HEADERS) $(wildcard $(APPLE2C)/*.h)
 	@mkdir -p $(@D)
-	$(CL65) -t none -Ors $(HGRC_INCS) $(APPLE2C_INCS) -c -o $@ $<
+	$(CL65) -t none -Ors $(HGR_SLOT_FLAGS) $(HGRC_INCS) $(APPLE2C_INCS) -c -o $@ $<
 
 $(BUILD)/hgr.bin: $(BUILD)/crt0_apple2.o $(BUILD)/hgr_demo.o $(HGRC_LIB) $(A2_HGR_C_CFG)
 	$(CL65) -t none -C $(A2_HGR_C_CFG) -m $(BUILD)/hgr.map -Ln $(BUILD)/hgr.lbl -o $@ $(BUILD)/crt0_apple2.o $(BUILD)/hgr_demo.o $(HGRC_LIB)

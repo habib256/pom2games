@@ -6,14 +6,18 @@
 
 .segment "CODE"
 ; void hgr_flip_rows(void): move the 192 scanline high bytes to the other
-; HGR page. $20..$3F EOR $60 = $40..$5F and back. ~3 400 cycles (the compiled
-; byte-add loop it replaces took ~16 000, about one frame per flip).
+; HGR page. $20..$3F EOR $60 = $40..$5F and back. Eight rows per iteration:
+; removes 7/8 of loop overhead without changing table ABI, RAM or ZP.
 _hgr_flip_rows:
-        ldx     #191
+        ldx     #23
 @lp:    lda     _hgr_rowhi,x
         eor     #$60
         sta     _hgr_rowhi,x
+        .repeat 7, block
+        lda     _hgr_rowhi+24*(block+1),x
+        eor     #$60
+        sta     _hgr_rowhi+24*(block+1),x
+        .endrepeat
         dex
-        cpx     #$FF            ; 191 > 127: BPL would stop at once
-        bne     @lp
+        bpl     @lp
         rts

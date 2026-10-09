@@ -13,9 +13,11 @@
 ; The BSS spare is what the two C files gave back: a new variable there takes
 ; its bytes from it; beyond it the assembly modules' variables move, and the
 ; assert says so.
-CODE_SPARE   = 58
-; dhgr_clear_asm gained 30 CODE bytes; absorb them here to keep tables/BSS.
-RODATA_SPARE = 19
+; Explicit ProDOS claim adds 20 bytes to game.c. The assembly policy service
+; saves 25 CODE bytes; its smaller size and the new error string are absorbed
+; below, preserving every asserted code/table/workspace address.
+CODE_SPARE   = 38
+RODATA_SPARE = 35
 BSS_SPARE    = 13
 
 .code

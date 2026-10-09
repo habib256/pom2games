@@ -15,7 +15,7 @@ liées (voir le `Makefile` de `../../../demos`).
 
 Deux backends explicites : `gfx_backend_dhgr_color.c` (140×192, couleur LORES
 0..15) ou `gfx_backend_dhgr_mono.c` (560×192, bit 0/1). Lier exactement un
-backend avec les algorithmes partagés et la bibliothèque DHGR. La couleur
+backend avec `HGRC_GENERIC_VECTOR_SRCS` et la bibliothèque DHGR. La couleur
 courante se règle par `dhgr_set_color`. Les coordonnées sont celles du backend
 choisi ; les blocs et sprites natifs gardent leur API propre dans `dhgr.h`.
 Les rectangles sont inclusifs, triés et rognés avant le calcul de dimensions.
@@ -39,8 +39,8 @@ famille optionnelle `HGRC_65C02_NUM_SRCS` le sélectionne sans modifier les
 conversions 6502 utilisées sur Apple II+. Il préserve les flags, notamment
 les états des interruptions et du mode décimal.
 
-Les segments diagonaux attendent des extrémités à l’écran : ils n’effectuent
-pas de clipping de ligne complet. Les rectangles pleins trient et rognent
+Les segments diagonaux refusent les extrémités hors écran ; ils n’effectuent
+pas de clipping de ligne complet. Les axes passent par les spans rognés. Les rectangles pleins trient et rognent
 leurs coins ; les cercles rognent les points tracés. Un centre hors écran
 reste accepté : les arcs proches du bord sont visibles, les cercles entièrement
 à droite sont écartés avant la conversion signée des coordonnées sur 16 bits.
@@ -51,3 +51,11 @@ calcul des points, sans tracer de ligne parasite sur le bord.
 Les primitives HGR bas niveau peuvent avoir des largeurs sur 8 bits ;
 `gfx_filled_rect` gère toute la largeur. Le choix du backend reste explicite
 à la liaison.
+
+
+L'archive HGR sélectionne `gfx_line_hgr.c` : les diagonales utilisent le noyau
+assembleur 280 pixels de `hgr_line`. Le fallback C `gfx_line.c` reste destiné
+aux backends génériques/DHGR. Ces deux fichiers définissent le même symbole :
+choisir une implémentation à la liaison. Aucun pointeur de fonction n'est ajouté.
+Les deux API HGR sont comparées sur 464 lignes ; le fallback est testé dans les
+deux modes DHGR, sur les deux pages et banques, y compris les entrées refusées.

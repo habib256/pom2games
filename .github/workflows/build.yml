@@ -17,3 +17,13 @@ jobs:
         run: make check
       - name: HGR, assets, performance budgets and MICRO-SOKOBAN
         run: make test
+  dhgr:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cc65 and the headless core dependencies
+        run: brew install cc65 libslirp pkgconf
+      - name: Build the Apple IIe headless runner
+        run: make -C dev/tools/a2shot
+      - name: DHGR, banks, transitions and performance budgets
+        run: make test-dhgr && python3 dev/bench/run.py --dhgr --check

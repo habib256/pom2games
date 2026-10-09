@@ -8,6 +8,9 @@ frame_mode: .res 1
 frame_delay: .res 1
 
 .segment "CODE"
+; 24 * 256 polls: about 68k cycles per edge, enough for PAL/NTSC
+; with a bounded fallback even when the VBL signal is stuck.
+FRAME_POLL_PAGES = 24
 _a2_frame_init:
         lda #80
         sta frame_delay
@@ -42,7 +45,7 @@ _a2_frame_wait:
         lda frame_mode
         beq delay_wait
         ldx #0
-        ldy #0
+        ldy #FRAME_POLL_PAGES
 @active:
         bit $C019
         bmi @waitblank         ; leave an existing VBL interval first
@@ -53,7 +56,7 @@ _a2_frame_wait:
         beq timeout
 @waitblank:
         ldx #0
-        ldy #0
+        ldy #FRAME_POLL_PAGES
 @blank:
         bit $C019
         bpl _a2_frame_mode     ; fresh VBL edge

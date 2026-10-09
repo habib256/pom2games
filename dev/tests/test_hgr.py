@@ -66,7 +66,7 @@ def text(page, font, x, y, s, scale):
         x += 18 if scale == 2 else 8
 
 
-def build(work, fixture=None):
+def build(work, fixture=None, extra_sources=(), gfx_backend=None, cflags=()):
     # A tiny pre-shift bank: 10101 / 01110 / 11011, seven phases, two bytes/row.
     data = []
     for phase in range(7):
@@ -81,11 +81,16 @@ def build(work, fixture=None):
                   f'include {DEV}/lib/hgrc/hgrc.mk\n'
                   'print:\n\t@echo $(HGRC_ALL_SRCS)\n')
     sources = run(['make', '-s', '-f', mk, 'print']).split()
+    if gfx_backend:
+        sources = [s for s in sources if not Path(s).name.startswith('gfx_backend_hgr')
+                   and Path(s).name != 'gfx_line_hgr.c']
+        sources.extend([DEV/'lib/gfx/gfx_line.c', DEV/'lib/gfx'/gfx_backend])
+    sources.extend(extra_sources)
     objects = []
     for source in sources:
         source = Path(source)
         obj = work / (source.stem + '.o')
-        run(['cl65', '-t', 'none', '-Oirs', '-I', DEV / 'lib/hgrc',
+        run(['cl65', '-t', 'none', '-Oirs', *(cflags if source.suffix=='.c' else ()), '-I', DEV / 'lib/hgrc',
              '-I', DEV / 'lib/apple2c', '-I', DEV / 'lib/gfx',
              '--asm-include-dir', DEV / 'lib/apple2',
              '--asm-include-dir', DEV / 'lib/hgrc', '-c', '-o', obj, source])
@@ -96,12 +101,12 @@ def build(work, fixture=None):
     for source in (DEV / 'cc65/crt0_apple2.s', fixture or DEV / 'tests/hgr_fixture.c',
                    DEV / 'lib/apple2c/apple2io_asm.s'):
         obj = work / (source.stem + '.o')
-        run(['cl65', '-t', 'none', '-Oirs', '-I', work, '-I', DEV / 'lib/hgrc',
+        run(['cl65', '-t', 'none', '-Oirs', *(cflags if source.suffix=='.c' else ()), '-I', work, '-I', DEV / 'lib/hgrc',
              '-I', DEV / 'lib/apple2c', '-I', DEV / 'lib/gfx', '-c', '-o', obj, source])
         objects.append(obj)
     binary = work / 'test.bin'
     run(['cl65', '-t', 'none', '-C', DEV / 'cc65/apple2_hgr_c.cfg',
-         '-m', work / 'test.map', '-o', binary, *objects, archive])
+         '-m', work / 'test.map', '-Ln', work / 'test.lbl', '-o', binary, *objects, archive])
     return a2test.build_disk(work, 'TEST', binary)
 
 
@@ -110,7 +115,8 @@ def check_archive(work):
         ('lores_mode', 'hgr_lores_init();', 'hgr_lores_init_asm.o',
          ('hgr_mode_asm.o', 'hgr_mode_clear_asm.o', 'hgr_clear_asm.o', 'hgr_pixrect_asm.o')),
         ('clear', 'hgr_clear(0u);', 'hgr_clear_asm.o',
-         ('hgr_text16_asm.o', 'hgr_text8_asm.o', 'hgr_sprite_params.o', 'hgr_pixrect_asm.o')),
+         ('hgr_text16_asm.o', 'hgr_text8_asm.o', 'hgr_sprite_params.o', 'hgr_pixrect_asm.o',
+          'hgr_init.o', 'hgr_columns.o', 'hgr_masks.o', 'hgr_phases.o', 'hgr_tables.o')),
         ('text8', 'hgr_puts8(0u, 0u, "A");', 'hgr_text8_asm.o',
          ('hgr_text16_asm.o', 'hgr_carrier_params.o', 'hgr_utoa_asm.o', 'hgr_pixrect_asm.o', 'hgr_sprite_params.o')),
         ('text16', 'hgr_puts(0u, 0u, "A");', 'hgr_text16_asm.o',
@@ -118,7 +124,8 @@ def check_archive(work):
         ('rectangle', 'gfx_filled_rect(0u, 0u, 279u, 191u);', 'hgr_pixrect_asm.o',
          ('hgr_text_params.o', 'hgr_cell_asm.o', 'hgr_carrier_params.o', 'hgr_sprite_params.o')),
         ('sprite7', 'hgr_blit7(0u, 0u, 1u, 1u, bits, HGR_SET);', 'hgr_blit7_asm.o',
-         ('hgr_bitmap_asm.o', 'hgr_preshift_asm.o', 'hgr_text_params.o', 'hgr_pixrect_asm.o')),
+         ('hgr_bitmap_asm.o', 'hgr_preshift_asm.o', 'hgr_text_params.o', 'hgr_pixrect_asm.o',
+          'hgr_masks.o', 'hgr_phases.o', 'hgr_tables.o')),
         ('decimal', 'char b[7]; gfx_utoa(b,65535u); gfx_itoa(b,-32767-1);', 'gfx_num_dec.o',
          ('hgr_text8_asm.o', 'hgr_text16_asm.o', 'hgr_sprite_params.o')),
         ('celltext', 'gfx_gotoxy(0u,0u); gfx_text("A"); gfx_putu(42u);', 'gfx_text.o',

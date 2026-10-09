@@ -3,6 +3,10 @@
  * Derived from POM1 (Arnaud Verhille, GPL-3.0).
  * Uses the built-in video soft switches at $C050-$C057 and the standard
  * interleaved pages at $2000/$4000. Text and keyboard: ../apple2c.
+ * Main code/stack/ZP, ROM visible, D=0. Init video before drawing.
+ * Shared tables, parameters and cc65 scratch: non-reentrant, no IRQ calls.
+ * Source/save-under buffers must stay outside the active video pages and
+ * remain valid through deferred sprite restores. See ../ABI.md.
  */
 #ifndef HGR_H
 #define HGR_H
@@ -38,8 +42,8 @@
  *   hgr_blit7           — 7-px column snap, BYTE-aligned src <- only when
  *                              you control the sprite layout and want max speed
  *
- * Vector primitives forward to the shared dev/lib/gfx layer (link
- * HGRC_GFX_SRCS): hgr_line / rect / circle / ellipse + hline / vline.
+ * Vector primitives: hgr_line uses a 280-pixel ASM kernel; rect/circle/ellipse
+ * use dev/lib/gfx. The default HGR gfx_line selects the same ASM kernel.
  *
  * Double buffering:
  *   hgr_set_draw_page(p)    — pick where the next draws WRITE (1 or 2)
@@ -60,8 +64,8 @@
     hgr_fill_rect((y), (h), HGR_PIX_TO_COL(x), \
                        (unsigned char)(((w) + 6u) / 7u), (val))
 
-/* "Init forgotten" trap (read once, save your day): every drawing function
- * silently calls hgr_build_tables() so the column / bit / row tables come
+/* "Init forgotten" trap (read once, save your day): drawing functions
+ * lazily build only the tables they need so the column / bit / row tables come
  * up on first use — but NONE of them set the display mode. If you call
  * hgr_clear() / hgr_plot() / etc. BEFORE hgr_init() (or
  * hgr_lores_init()), they happily write to the framebuffer, but the display
@@ -96,6 +100,10 @@ extern volatile unsigned char hgr_ss_sink;
 
 /* graphics + hires + page 1 + full screen. */
 void hgr_init(void);
+/* Optional initializer for applications calling ASM kernels or reading the
+ * row/column/mask/phase tables directly. Prepares every table without changing
+ * display mode or draw page. Ordinary C drawing calls prepare their own tables. */
+void hgr_build_tables(void);
 
 /* BLANK-FIRST variant of hgr_init: clears the page-1 framebuffer
  * ($2000-$3FFF) while the display is parked on TEXT, THEN flips to HIRES.
@@ -127,7 +135,7 @@ void hgr_fill_rect(unsigned char y0, unsigned char rows,
                         unsigned char col0, unsigned char ncols,
                         unsigned char val);
 
-/* Base address of HIRES scanline y (0..191) in page 1 — Apple II interleave. */
+/* Current draw-page scanline y (0..191); NULL when y is out of range. */
 unsigned char *hgr_row(unsigned char y);
 
 /* Fill / erase a PIXEL-aligned rectangle [x, x+w) × [y, y+h) via a hand-written
@@ -157,7 +165,7 @@ void hgr_unplot(unsigned x, unsigned char y);
  *   HGR_SET   - OR  the pixels in (draw over black);
  *   HGR_CLEAR - clear the pixels (erase a known shape);
  *   HGR_XOR   - toggle the pixels: blit once to draw, blit AGAIN at the same
- *                spot to erase -> flicker-free moving sprites, no save/restore.
+ *                spot to erase. Synchronize visible writes to avoid flicker.
  * Clipped to the screen on the right/bottom (keep x >= 0; off-screen-left is not
  * supported). HIRES is 7px/byte so this walks pixel by pixel; for solid blocks
  * hgr_fill_pixrect is far faster. Example (an 8x8 ball):
@@ -271,10 +279,27 @@ typedef struct {
  * Single buffer: wait BEFORE render; writes remain visible and may tear.
  * hgr_spr_update() combines render + present immediately, without waiting.
  * Neither double buffering nor delay fallback alone guarantees no tearing. */
+/* Build-time slot limit; use the same define in library and application.
+ * Runtime count can be smaller. Default preserves the eight-slot ABI. */
+#ifndef HGR_SPR_MAX
 #define HGR_SPR_MAX          8u
-#define HGR_SPR_UNDER_BYTES  96u   /* per-sprite save-under cap (stride*h) */
+#endif
+#if HGR_SPR_MAX < 1 || HGR_SPR_MAX > 8
+#error HGR_SPR_MAX must be between 1 and 8
+#endif
+#define HGR_SPR_UNDER_BYTES  96u   /* compatibility pool capacity; external pool: 1..255 */
 
 void hgr_spr_init(unsigned char double_buffered);
+/* External pool: no compatibility pool (1536 bytes at the default slot limit)
+ * is linked unless hgr_spr_init is
+ * also called. count=1..HGR_SPR_MAX, capacity=1..255 bytes per sprite/page.
+ * Requires count*capacity*(double_buffered ? 2 : 1) bytes. Returns 1 on
+ * success, 0 on invalid configuration, preserving the previous engine.
+ * Storage must remain resident and writable until reinitialization; initialize
+ * over clean backgrounds. Main RAM, outside video pages. Not reentrant. */
+unsigned char hgr_spr_init_pool(unsigned char double_buffered,
+    unsigned char *pool, unsigned pool_bytes,
+    unsigned char count, unsigned char capacity);
 /* Returns 1 on success, 0 on invalid id/geometry or a still-drawn sprite.
  * For redefinition: hide, render/present once per page, then define. A
  * still-drawn sprite keeps its old definition if redefinition is attempted.
@@ -309,7 +334,7 @@ void hgr_putu8(unsigned x, unsigned char y, unsigned value);
  * hgr_puts (1-5 digits, no leading zeros). Handy for scores and counters. */
 void hgr_putu(unsigned x, unsigned char y, unsigned value);
 
-/* Fixed-width, right-aligned unsigned decimal — the flicker-free HUD number.
+/* Fixed-width, right-aligned unsigned decimal with an opaque black field.
  * The field is `width` glyph cells wide (18px pitch); the call ERASES exactly
  * that box, then draws the digits flush-right in it. So an updating counter never
  * needs a separate clear_pixrect — a shrinking value leaves no stale digits and
@@ -321,8 +346,27 @@ void hgr_putu(unsigned x, unsigned char y, unsigned value);
 void hgr_putu_field(unsigned x, unsigned char y, unsigned value,
                          unsigned char width);
 
+/* Cached 16x16 numeric field, caller-owned (37 bytes on cc65).
+ * Init requires a complete on-screen box, width 1..14. Owns a black field;
+ * history is independent for each draw page. Keep the struct alive/immutable
+ * except through these calls. Invalidate after clearing/changing its background.
+ * putu returns changed cells, 0 if unchanged, 255 if value does not fit/null.
+ * Overflow preserves both image and history. No conversion on unchanged value. */
+#define HGR_HUD_INVALID 255u
+typedef struct {
+    unsigned x;
+    unsigned char y, width, valid;
+    unsigned value[2];
+    char digits[2][14];
+} hgr_hud_field_t;
+unsigned char hgr_hud_init(hgr_hud_field_t *field, unsigned x,
+                           unsigned char y, unsigned char width);
+unsigned char hgr_hud_putu(hgr_hud_field_t *field, unsigned value);
+/* page 0 invalidates both histories; 1/2 only that page. Other pages ignored. */
+void hgr_hud_invalidate(hgr_hud_field_t *field, unsigned char page);
+
 /* Signed decimal at (x, y): leading '-' then magnitude. OR-drawn (transparent,
- * no field erase) — use hgr_putu_field when you need flicker-free updates. */
+ * no field erase) — use hgr_putu_field for fixed-width black-backed updates. */
 void hgr_puti(unsigned x, unsigned char y, int value);
 
 /* Unsigned hexadecimal at (x, y), uppercase, 1-4 digits, no leading zeros.
@@ -339,8 +383,9 @@ void hgr_putx(unsigned x, unsigned char y, unsigned value);
 void hgr_hline(unsigned x0, unsigned x1, unsigned char y);
 void hgr_vline(unsigned x, unsigned char y0, unsigned char y1);
 
-/* Bresenham line between two endpoints (both drawn). Horizontal/vertical lines
- * auto-shortcut to hline/vline. */
+/* Bresenham line between two endpoints (both drawn). Rejects any endpoint
+ * outside 280x192, including axes; no segment clipping. Axis spans are fast.
+ * Diagonals OR bits and preserve palette; axes force white palette. */
 void hgr_line(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1);
 
 /* Rectangle OUTLINE through opposite corners (inclusive); interior untouched
