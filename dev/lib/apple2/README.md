@@ -241,7 +241,9 @@ et ROM visible. Aucune commutation de banque langage ou auxiliaire n’est faite
 
 Le programme doit posséder les deux AY et le timer T1 de la première VIA :
 aucun autre lecteur ou gestionnaire IRQ ne doit les utiliser simultanément.
-Appeler `mb_stop` avant une nouvelle détection/initialisation et avant de
+Une nouvelle détection ou une initialisation avec un slot valide restaure
+automatiquement le timer précédent et coupe ses voix avant de recommencer.
+Un slot invalide conserve la session courante. Appeler `mb_stop` avant de
 quitter. Le compteur et la période antérieurs du timer ne sont pas restaurés ;
 les expirations manquées se regroupent dans le drapeau IFR. Les autres bits
 IER ne sont pas modifiés par le service de scrutation.
@@ -272,3 +274,64 @@ sans_carte:
 RGB/VIA/AY simulé et trace les accès : ordre des impulsions RGB, chemins
 II+/IIe/IIc, slots, absence de carte, réveil 4c, deux AY, six volumes,
 masque IRQ et état du timer. Les essais sur cartes physiques restent à faire.
+
+## Extension PT3 : faisabilité et périmètre proposé
+
+Le support musical PT3 peut être ajouté comme module optionnel, sans coût
+pour les jeux qui ne le lient pas. Le matériel est déjà couvert par
+`mockingboard.asm`, mais **le dépôt ne contient pas encore de décodeur PT3**.
+La base à privilégier après examen d'A2FileCmd est son **port ca65 corrigé
+du lecteur de GROUiK / French Touch** (`src/plugins/ppt3/`), traduction du
+lecteur ZX de S.V. Bulba avec les générateurs de tables d'Ivan Roshin,
+publiée sous GPL-3.0-or-later. A2FileCmd conserve l'original ACME, teste
+l'identité du port non adapté, sépare le décodage des écritures AY et ajoute
+des contrôles de lectures, de pile, de durée des flux de commandes ainsi que
+des corrections de fréquences. Son bilan documenté compare 400 morceaux
+sur 3 000 ticks : 394 donnent les mêmes registres que son pt3_lib corrigé,
+avec six différences expliquées ; ce résultat ne démontre pas un gain CPU.
+
+Ne pas copier son pilote AUX tel quel : son trampoline force LORES, masque
+les IRQ pendant le décodage et place le moteur à AUX `$2000`, le morceau à
+AUX `$4000`. Ces zones appartiennent aux pages DHGR de nos jeux. Prévoir une
+implantation main RAM ou AUX hors vidéo, déplacer les constantes et mesurer
+le coût des protections. Son image actuelle coûte 4 813 octets plus 613
+octets de variables/tables, hors morceau et pilote. Cela rend le choix de
+GROUiK pertinent pour réutiliser l'adaptation déjà testée, sans présumer
+qu'il est plus petit ou plus rapide. Vince Weaver reste une alternative.
+
+Le [lecteur de Vince Weaver](https://github.com/deater/dos33fsprogs/tree/1871fc43b57cc8cf4b2353ae115d0ca84a1a33ea/music/pt3_lib)
+est une base ca65/6502 : son décodeur produit les registres AY séparément
+de leur écriture matérielle. Sa licence propose 0BSD ou GPL-2.0-only ;
+retenir l'option 0BSD pour une adaptation dans ce dépôt GPL-3.0.
+
+Architecture proposée : un décodeur singleton avec initialisation d'un
+morceau résident, décodage d'un tick, pause/reprise, boucle et arrêt ; des
+wrappers cc65 ; puis une sortie AY utilisant le backend existant. Le registre
+d'enveloppe R13 ne doit pas être réécrit lorsque le décodeur renvoie `$FF` :
+ce marqueur conserve l'enveloppe en cours. Le lecteur amont duplique trois
+voix sur les deux AY ; cela ne fournit pas six voix indépendantes.
+
+Le [README amont](https://github.com/deater/dos33fsprogs/blob/1871fc43b57cc8cf4b2353ae115d0ca84a1a33ea/music/pt3_lib/README.pt3_lib)
+annonce environ 3 Ko plus le morceau, 26 octets ZP et typiquement 10–15 %
+du CPU à 50 Hz. Ce sont des estimations amont, pas des mesures dans nos jeux.
+Il exige un morceau aligné sur 256 octets et comporte du code auto-modifié.
+Ses adresses ZP fixes devront devenir des allocations ld65 ; son adresse
+de morceau compilée devra être adaptée à l'API choisie. La conversion de
+fréquences AY Spectrum/Mockingboard et la cadence musicale doivent être
+explicites : un tick musical 50 Hz ne doit pas dépendre des FPS du jeu.
+
+Conserver les IRQ sous responsabilité de l'application, comme la cadence
+existante. Ne pas importer les installations IRQ, patches de slot ou
+contournements ROM //c du lecteur amont. La scrutation `mb_tick` peut servir
+à un premier exemple, mais fusionne les expirations manquées. Pour une
+musique régulière en jeu, le lecteur devra utiliser un scratch dédié,
+préserver le contexte interrompu et partager les timers avec la cadence et
+la souris selon une politique explicite. Les appels graphiques restent hors IRQ.
+
+Avant intégration dans un jeu : mesurer les cycles maximaux par tick, la ZP,
+les deux piles et la place du morceau dans le map ld65 ; comparer les trames
+AY à une référence et tester fin/boucle/pause, R13, absence de carte, sortie
+DOS/ProDOS et interruptions pendant le rendu DHGR. Le test actuel
+`test_game_cadence.py` valide un service AY simple pendant le jeu, sans
+démontrer le budget CPU d'un décodeur PT3. Commencer par un exemple autonome
+II+/IIe avant de choisir un jeu et d'ajouter le chemin //c.

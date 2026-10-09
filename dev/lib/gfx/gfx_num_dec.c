@@ -42,7 +42,7 @@ unsigned char gfx_itoa(char *buf, int value)
     unsigned mag;
     if (value < 0) {
         buf[0] = '-';
-        mag = (unsigned)(-value);            /* -32768 -> 32768 wraps correctly */
+        mag = 0u - (unsigned)value;          /* unsigned subtraction also handles INT_MIN */
         return (unsigned char)(1u + gfx_utoa(buf + 1, mag));
     }
     return gfx_utoa(buf, (unsigned)value);
