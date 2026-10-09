@@ -7,9 +7,16 @@ commencent par un octet de nombre de paramètres, suivi des champs du manuel.
 Un tampon de lecture doit se trouver dans des pages disponibles du bitmap
 système ; cette interface n'alloue pas de tampon et ne modifie pas sa protection.
 
-`video.c` : prise de possession de la mémoire auxiliaire pour le DHGR et
-reconstruction du disque `/RAM` vide à la sortie. Aucune vérification des
-fichiers de `/RAM`, aucun dialogue avant le lancement du jeu.
+`video.s` : prise de possession explicite de la mémoire auxiliaire pour le
+DHGR et reconstruction du disque `/RAM` vide à la sortie.
+`prodos_video_claim(PD_VIDEO_PRESERVE_RAM)` refuse tout `/RAM` installé,
+même vide ; cette politique ne parcourt pas ses fichiers.
+`PD_VIDEO_DISCARD_RAM` autorise explicitement leur destruction. Appeler ce
+service avant le premier dessin auxiliaire et vérifier `PD_VIDEO_OK`.
+Les autres statuts signalent un `/RAM` à préserver, une politique invalide ou
+une liste de périphériques malformée. Un refus conserve la transaction
+active ; une prise répétée conserve l'unité à restaurer. La libération appelle
+FORMAT une seule fois. ChromaBreak choisit explicitement DISCARD.
 La recherche reste dans les 14 entrées de `DEVLST` (`$BF32–$BF3F`) :
 `DEVCNT` contient le nombre d'unités moins un, ou `$FF` si la liste est vide.
 Les indices dépassant 13 sont ignorés et ne déclenchent aucun formatage.

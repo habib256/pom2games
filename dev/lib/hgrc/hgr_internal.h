@@ -7,6 +7,7 @@
  */
 #ifndef HGR_INTERNAL_H
 #define HGR_INTERNAL_H
+#include "hgr.h"
 
 extern const unsigned char hgr_font[96u * 8u];
 unsigned char hgr_set_carrier(unsigned char color);
@@ -133,6 +134,11 @@ extern unsigned char hgr_lo_base;             /* LORES page base ($04 or $08;
 extern unsigned char hgr_lo_ready;            /* LORES tables built once       */
 
 /* --- Cross-module helpers (defined in hgr_init.c) -------------------------- */
+extern unsigned char hgr_base;
+extern void hgr_build_rows(void);
+extern void hgr_build_columns(void);
+extern void hgr_build_masks(void);
+extern void hgr_build_phases(void);
 extern void hgr_build_tables(void);           /* idempotent table build        */
 
 #endif /* HGR_INTERNAL_H */

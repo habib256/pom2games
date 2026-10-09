@@ -10,6 +10,8 @@ from pathlib import Path
 import re
 import struct
 import zlib
+import subprocess
+import tempfile
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from hgr_tables import hgr_offset
@@ -131,7 +133,26 @@ def c_array(name,data):
     return 'static const unsigned char '+name+'['+str(len(data))+'] = {\n'+'\n'.join(rows)+'\n};\n'
 
 
-def convert(source,out,mode,kind,name):
+def compress_frame(data, fhpack):
+    """Verify a lossless 8-KB stream and select raw if compression grows it."""
+    if len(data) != 8192: raise ValueError('fhpack requires an 8192-byte HGR frame')
+    compressor = Path(fhpack).resolve()
+    with tempfile.TemporaryDirectory(prefix='hgr-compress-') as directory:
+        work = Path(directory)
+        raw, packed, restored = (work / name for name in ('raw', 'packed', 'restored'))
+        raw.write_bytes(data)
+        subprocess.run([str(compressor), '-c', '-9', '-h', str(raw), str(packed)],
+                       check=True, capture_output=True)
+        subprocess.run([str(compressor), '-d', str(packed), str(restored)],
+                       check=True, capture_output=True)
+        if restored.read_bytes() != data: raise ValueError('fhpack round trip failed')
+        encoded = packed.read_bytes()
+        return (encoded, 'lz4fh') if len(encoded) < len(data) else (data, 'raw')
+
+
+def convert(source,out,mode,kind,name,fhpack=None):
+    if fhpack is not None and (mode != 'hgr' or kind != 'frame'):
+        raise ValueError('fhpack is supported only for HGR frames')
     w,h,pixels=load(source)
     limit=280 if mode=='hgr' else 140
     if not (0<w<=limit and 0<h<=192): raise ValueError(f'{mode} input must fit {limit}x192')
@@ -155,6 +176,12 @@ def convert(source,out,mode,kind,name):
         data=framebuffer(w,h,colors,mode)
         out.with_suffix('.bin').write_bytes(data)
         stats.update(data_bytes=len(data),mask_bytes=0)
+        if fhpack is not None:
+            payload, encoding = compress_frame(data, fhpack)
+            selected = out.with_suffix('.load.bin')
+            selected.write_bytes(payload)
+            stats.update(load_encoding=encoding, load_bytes=len(payload),
+                         load_file=selected.name)
     stats['rom_bytes']=stats['data_bytes']+stats['mask_bytes']
     out.with_suffix('.json').write_text(json.dumps(stats,indent=2)+'\n')
     return stats
@@ -166,9 +193,10 @@ def main():
     ap.add_argument('--mode',choices=['hgr','dhgr'],required=True)
     ap.add_argument('--kind',choices=['frame','sprite'],default='sprite')
     ap.add_argument('--name',default='sprite')
+    ap.add_argument('--fhpack',type=Path,help='optional compressor for HGR frames; verifies round trip and selects raw on growth')
     args=ap.parse_args()
-    try: stats=convert(args.input,args.out,args.mode,args.kind,args.name)
-    except (ValueError,IndexError,struct.error,zlib.error) as exc: ap.error(str(exc))
+    try: stats=convert(args.input,args.out,args.mode,args.kind,args.name,args.fhpack)
+    except (ValueError,IndexError,struct.error,zlib.error,OSError,subprocess.CalledProcessError) as exc: ap.error(str(exc))
     print(json.dumps(stats,indent=2))
 
 if __name__=='__main__': main()

@@ -33,9 +33,13 @@ test-hgr:
 	python3 dev/tests/test_text8_strings.py
 	python3 dev/tests/test_hgr_native.py
 	python3 dev/tests/test_hgr_wireframe.py
+	python3 dev/tests/test_hgr_lines.py
+	python3 dev/tests/test_hgr_hud.py
+	python3 dev/tests/test_presentation_strategies.py
 	python3 dev/tests/test_hgr.py
 	python3 dev/tests/test_hgr_glyphs.py
 	python3 dev/tests/test_sprengine.py
+	python3 dev/tests/test_sprengine_stress.py
 
 test-frame:
 	python3 dev/tests/test_frame.py
@@ -47,6 +51,10 @@ test-dhgr:
 	$(MAKE) -C dev/examples/dhgr test
 	python3 dev/tests/test_dhgr_extended.py
 	python3 dev/tests/test_dhgr_spans.py
+	python3 dev/tests/test_dhgr_clear_rows.py
+	python3 dev/tests/test_gfx_dhgr_lines.py
+	python3 dev/tests/test_minimal_examples.py --dhgr
+	python3 dev/tests/test_stack_profile.py --iie
 	python3 dev/tests/test_frame.py --iie
 	python3 dev/tests/test_hgr_example.py --iie
 
@@ -121,6 +129,8 @@ test-techniques:
 # Native HGR lookup tables and checked fixed-sector DOS construction.
 test: test-tools
 test-tools:
+	python3 dev/tests/test_stack_profile.py
+	python3 dev/tests/test_build_config.py
 	python3 dev/tests/test_prodos_video.py
 	python3 dev/tests/test_apple2game.py
 	python3 dev/tests/test_mouse_context.py
@@ -132,3 +142,8 @@ test-tools: test-hardware
 test-hardware:
 	python3 dev/tests/test_rgb_mockingboard.py
 .PHONY: test-hardware
+
+test: test-minimal
+test-minimal:
+	python3 dev/tests/test_minimal_examples.py
+.PHONY: test-minimal

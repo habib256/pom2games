@@ -40,7 +40,7 @@ paie que les points d'entrée qu'il appelle.
 
 Coûts mesurés par `make bench` (cycles à 1,02 MHz) : effacement d'une page
 46 000 (boucle auto-modifiée de `HGR_CLEAR_LOOP`, lib/apple2), basculement de
-page 3 400 (`hgr_flip_rows` : un EOR par ligne au lieu d'une boucle C), texte
+page par `hgr_flip_rows` (boucle déroulée, un EOR par ligne), texte
 8x8 `hgr_puts8` ~9 000 pour « APPLE II » (glyphe décalé en deux octets par
 ligne), texte 16x16 `hgr_puts` par le blitter couleur avec les porteuses
 blanches `$7F/$7F` (un seul blitter, ~5 fois plus rapide que l'ancien tracé
@@ -78,15 +78,19 @@ include $(HGRC)/hgrc_build.mk
 ```
 
 `HGRC_BUILD`, `HGRC_CFLAGS` et `HGRC_ASMFLAGS` sont personnalisables.
+Les objets encodent leur répertoire et leur extension dans le nom du membre
+d'archive. `config.json` enregistre les options, outils et sources ; changer
+les flags invalide les objets sans nettoyage préalable. Une construction
+identique laisse les objets et l'archive intacts.
 Les listes `HGRC_*_SRCS` restent disponibles pour construire une archive
 avec un sous-ensemble de familles. Voir les Makefiles de Snake, des démos et
 de l'[exemple HGR](../../examples/hgr/Makefile).
 
 ## Taille mesurée
 
-Comparaison avant découpage / état actuel, avec cc65 2.18 et `-Oirs`, sur
+Comparaison historique avant/après le premier découpage, avec cc65 2.18 et `-Oirs`, sur
 les mêmes sources de jeux (taille du fichier `.bin` et segment ZEROPAGE du
-fichier `.map`). L’état actuel inclut les transitions vidéo IIe et les noyaux
+fichier `.map`). Cette mesure historique inclut les transitions vidéo IIe et les noyaux
 assembleur du texte, de l'effacement et du basculement de page. La page zéro
 inclut le runtime C du programme.
 
@@ -129,7 +133,7 @@ l'exclusion de routines jusque-là liées inutilement.
 macOS. Les 21 étapes comparent les deux pages vidéo avec un modèle Python :
 rectangles 256/280 pixels, limites, pixels, sprites SET/CLEAR/XOR et sept
 phases, texte blanc/coloré, nombres, cellules, coloration. Quatre scènes supplémentaires vérifient le texte par cellules `gfx` sur
-la page 2, le curseur et les conversions numériques. Quinze programmes
+la page 2, le curseur et les conversions numériques. Seize programmes
 minimaux vérifient aussi que l'archive exclut les noyaux et blocs de page zéro
 inutilisés. Ce test fait partie de `make test` et de la CI.
 
@@ -221,7 +225,7 @@ membres référencés et leurs dépendances. ChromaBreak suit cette règle avec
 `platform.lib`, y compris pour les modules Apple II, ProDOS et souris. Son test
 contrôle le fichier de liaison pour exclure les pixels, rectangles et transferts
 génériques, le texte 8×8 et les wrappers de texte inutilisés. Les tests de
-bibliothèque contrôlent aussi quinze consommateurs minimaux de l’archive.
+bibliothèque contrôlent aussi seize consommateurs minimaux de l’archive.
 
 ### Contrat mémoire et transitions
 
@@ -257,7 +261,7 @@ Lier **un seul** backend, en plus des algorithmes `gfx` nécessaires :
 
 Le backend reste choisi à l’édition de liens. Le mode monochrome produit des
 couleurs d’artifact sur un moniteur couleur. Les lignes/cercles/rectangles
-partagent les algorithmes `gfx` existants ; les segments utilisent les accès
+partagent les algorithmes `gfx` génériques pour DHGR ; les segments horizontaux/verticaux utilisent les accès
 par octets avec masquage des extrémités.
 
 ### Outils et vérification
@@ -267,7 +271,7 @@ par octets avec masquage des extrémités.
 - Les déclarations de conversion ×2 hôte sont dans `hgr_host.h`.
 - [Mesures et budgets](../../bench/README.md) : cycles CPU, code, ROM, RAM et ZP.
 - `make test-hgr` : 21 contrôles de primitives, quatre scènes de texte `gfx`,
-  24 scènes du moteur de sprites et quinze éditions de liens minimales.
+  24 scènes du moteur de sprites et seize éditions de liens minimales.
 - `make test-dhgr` : 21 contrôles historiques + 48 contrôles supplémentaires,
   deux pages/banques, deux backends, sprites, blocs, texte, transitions et refus II+.
   Le cœur IIe POM2 dans `a2shot` est requis (macOS arm64).
@@ -288,9 +292,17 @@ Le programme doit attendre entre render et present s’il veut synchroniser la
 bascule ; voir [`apple2frame.h`](../apple2c/apple2frame.h) et l’[exemple HGR](../../examples/hgr/README.md).
 
 Le pool statique réserve 1 536 octets même en simple tampon.
+Cette réservation appartient uniquement à l'objet de compatibilité
+`hgr_spr_init`. `hgr_spr_init_pool(dbuf, pool, taille, nombre, capacité)`
+utilise un pool fourni par l'appelant et ne lie pas cet objet. Il faut
+`nombre * capacité * (dbuf ? 2 : 1)` octets ; nombre vaut 1..8 et capacité
+1..255 octets par sprite/page. L'exemple HGR utilise cette API pour trois
+sprites. Une configuration invalide retourne zéro et conserve l'ancien
+moteur ; les fonds doivent être propres avant une réinitialisation valide.
 `hgr_spr_define()` retourne 1 si la définition est acceptée, 0 sinon.
 Les pointeurs nuls, dimensions nulles, stride > 40, hauteur > 192 et
-`stride * hauteur > 96` sont refusés. Une redéfinition encore dessinée sur
+`stride * hauteur > capacité` sont refusés (96 avec le pool de compatibilité,
+1..255 avec le pool externe). Une redéfinition encore dessinée sur
 une page est refusée en gardant l’ancienne définition ; masquer et restaurer
 chaque page avant de redéfinir. Les données de la forme doivent rester valides
 pendant ces restaurations. Ne pas modifier le fond sous un sprite dessiné.
@@ -298,6 +310,38 @@ pendant ces restaurations. Ne pas modifier le fond sous un sprite dessiné.
 `make test-hgr` ajoute 24 scènes du moteur : chevauchements, sept phases,
 deux pages, bord droit/bas, masquage, redéfinition et géométries invalides.
 Les comparaisons couvrent aussi les bits de palette et les trous vidéo.
+Les mêmes 24 scènes sont exécutées avec un pool externe de 24 octets,
+gardes mémoire et configurations invalides. La carte de liaison vérifie
+l'absence du pool de compatibilité.
+
+## Tables et lignes HGR
+
+Les tables de lignes, colonnes, masques et phases sont des objets séparés,
+construits à la demande en RAM. Un effacement seul n'embarque aucune table ;
+un blitter aligné ne réserve ni les masques ni les phases. L'initialisateur
+`hgr_build_tables` reste disponible pour préparer toutes les tables.
+La sélection de page prépare seulement les lignes. `hgr_row(y)` suit la page
+de dessin et renvoie NULL hors écran. Les noyaux de sprites masqués et XOR
+préparent aussi les tables X lorsqu'ils sont appelés directement.
+
+`hgr_line` utilise un Bresenham assembleur pour les diagonales sur 280 pixels,
+avec les mêmes choix de pixels que l'ancienne API C. Les axes gardent les
+spans rapides. Les extrémités hors écran sont refusées ; aucun clipping de
+segment implicite n'est ajouté. `gfx_line` conserve l'algorithme indépendant
+du backend. `test_hgr_lines.py` compare 464 lignes via `hgr_line` et `gfx_line` aux pixels attendus sur les
+deux pages, y compris les directions inverses, égalités et X >= 256.
+
+## Effacement DHGR avec service des IRQ
+
+`dhgr_clear_rows(y, rows, color)` remplit les lignes visibles de la page de
+dessin, rogne à 192 et préserve les trous mémoire. Chaque ligne rétablit
+RAMWRT principal et le masque IRQ de l'appelant ; les IRQ autorisées peuvent
+être servies entre les lignes. Le noyau mesuré prend 1 177 cycles, sous une
+borne testée de 1 300. Un test avec timer VIA Mockingboard vérifie aussi que des IRQ périodiques
+sont réellement servies pendant les deux effacements de page, avec contrôle
+des banques, gardes mémoire et pixels. Le service reste non réentrant. Employer de petites
+tranches pour traiter aussi les entrées entre les appels. L'effacement complet
+historique conserve son comportement et ses performances.
 
 La référence hôte `hgr_inflate_x2` (`hgr_host.h`) calcule les positions et
 les strides agrandis sans troncature à huit bits. `hgr_blit_x2` contrôle la
@@ -305,3 +349,58 @@ taille source avant de doubler les dimensions, afin de respecter son tampon
 fixe même pour des entrées supérieures à 127. `test_hgr_host.py` vérifie les
 couleurs et les gardes mémoire avec ASan/UBSan, ainsi que les 65 536 couples
 de dimensions du wrapper ; il fait partie de `make test-hgr`.
+
+
+## Choisir l'implémentation gfx
+
+`HGRC_VECTOR_SRCS` et l'archive par défaut utilisent `gfx_line_hgr.c`, qui
+route les diagonales vers `hgr_line` assembleur. Les axes de `gfx_line`
+conservent leur clipping historique par les spans ; `hgr_line` refuse toute
+extrémité hors écran, axes compris. Les pixels diagonaux valides sont identiques.
+Pour DHGR ou un backend externe, utiliser `HGRC_GENERIC_VECTOR_SRCS`
+(`gfx_line.c` + rectangles), avec exactement un backend explicite.
+Ne pas lier directement les deux implémentations de `gfx_line`.
+
+Les [exemples minimaux](../../examples/minimal/README.md) fournissent les trois
+intégrations HGR simple/double tampon et DHGR ProDOS, avec un bilan mémoire
+calculé depuis les cartes de liaison. Les contrats communs et les unités sont
+dans [ABI.md](../ABI.md). Le protocole de [validation matérielle](../HARDWARE.md)
+distingue les résultats émulés des essais physiques restant à effectuer.
+
+
+## HUD avec historique par page
+
+`hgr_hud_field_t` est un état fourni par l'appelant, de 37 octets sur cc65.
+`hgr_hud_init(&champ,x,y,largeur)` accepte une boîte entière à l'écran,
+largeur 1..14 cellules de 16×16, pitch 18 ; une entrée invalide conserve l'ancien
+champ. `hgr_hud_putu(&champ,valeur)` renvoie le nombre de cellules redessinées,
+0 pour une valeur inchangée, `HGR_HUD_INVALID` (255) si la valeur ne tient pas
+ou le pointeur est nul. Contrairement au champ historique, il refuse le
+débordement numérique sans modifier l'image ni l'historique.
+
+Les chiffres sont blancs sur une boîte noire dont le champ possède le contenu.
+Le passage à une valeur plus courte efface les cellules devenues vides.
+Les pages 1 et 2 ont leur propre historique. Après un effacement ou une écriture
+externe dans la boîte, appeler `hgr_hud_invalidate(&champ,page)` ; page 0 invalide
+les deux. Ne pas superposer ce champ à une région de sprites sauvegardés sans
+gérer aussi leur fond. L'état doit rester valide pendant son utilisation.
+
+L'exemple animé et les deux exemples HGR minimaux utilisent ce chemin.
+`test_hgr_hud.py` compare 84 mises à jour sur les sept phases, fonds colorés,
+les deux pages, les valeurs qui raccourcissent et les refus de géométrie/overflow.
+Les anciens champs restent disponibles pour du dessin sans historique.
+
+
+## Dimensionner les métadonnées de sprites
+
+`HGR_SPR_MAX` est une limite de compilation de 1..8 (8 par défaut). Passer le
+même `-D HGR_SPR_MAX=N` au programme et à son archive dimensionne les tableaux
+privés et le pool historique. La signature de build invalide l'archive si ce
+flag change. Le moteur continue d'accepter un nombre runtime inférieur ou égal
+à cette limite. Les deux historiques de page restent disponibles.
+
+Un moteur à deux slots réserve 36 octets d'état contre 120 à huit slots :
+**84 octets économisés**, indépendamment du pool externe. Les 24 scènes de
+régression sont aussi exécutées avec cette configuration. L'exemple de trois
+balles compile programme et archive avec une limite de trois slots, soit
+70 octets de métadonnées économisés. Les autres programmes gardent le défaut.

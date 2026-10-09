@@ -8,7 +8,7 @@ void hgr_fill_rect(unsigned char y0, unsigned char rows,
                         unsigned char col0, unsigned char ncols,
                         unsigned char val)
 {
-    hgr_build_tables();
+    hgr_build_rows();
     if (rows == 0u || ncols == 0u || y0 > 191u || col0 >= 40u) return;
     if ((unsigned)y0   + rows  > 192u) rows  = (unsigned char)(192u - y0);
     if ((unsigned)col0 + ncols >  40u) ncols = (unsigned char)(40u  - col0);

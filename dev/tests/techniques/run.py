@@ -68,7 +68,7 @@ def c_fixture(body, setup='', extra='', page=1, background=0):
     return ('#include "hgr.h"\n#include "hgr_internal.h"\n#include "gfx.h"\n'
             'void bench_begin(void); void bench_end(void);\n' + extra +
             '\nint main(void) {\n'
-            f'hgr_init(); hgr_set_draw_page(1); hgr_clear({background}); '
+            f'hgr_init(); hgr_build_tables(); hgr_set_draw_page(1); hgr_clear({background}); '
             f'hgr_set_draw_page(2); hgr_clear({background}); hgr_set_draw_page({page});\n' +
             setup + '\nbench_begin();\n' + body +
             '\nbench_end(); for (;;) {} return 0; }\n')

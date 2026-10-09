@@ -19,6 +19,8 @@
  *   spk             print the speaker toggles since the last spk
  *   spklog:FILE     from here on, write the cycle count of every speaker
  *                   toggle to FILE, one per line (pitch and tempo checks)
+ *   stackwatch:SP:TOP:SIZE  profile cc65 software stack (all fields hex)
+ *   stack           print observed peak/reservation/overflow and stop profiling
  *   dsk:FILE.dsk    write the disk as it is now (DOS order), to check saves
  *
  *   a2run --disk GAME.dsk wait:900 key:" " wait:60 shot:title.png
@@ -68,6 +70,22 @@ static FILE *spk_log;
 static uint8_t paddle[2] = { 128, 128 };
 static uint8_t button[3];
 static uint64_t ptrig_at;
+/* Optional cc65 software-stack profiling. Observe coherent pointers at call,
+ * return and (sp),Y boundaries, plus actual writes to the reserved region. */
+static unsigned stack_sp, stack_top, stack_low, stack_min;
+static int stack_active, stack_overflow;
+
+static void stack_sample(void)
+{
+    unsigned op, value;
+    if (!stack_active || cpu.pc >= 0xBFFF) return;
+    op = ram[cpu.pc];
+    if (op != 0x20 && op != 0x60 && op != 0x4C && op != 0x6C &&
+        !((op == 0xB1 || op == 0x91) && ram[cpu.pc+1] == stack_sp)) return;
+    value = ram[stack_sp] | ((unsigned)ram[stack_sp+1] << 8);
+    if (value < stack_low || value > stack_top) { stack_overflow = 1; return; }
+    if (value < stack_min) stack_min = value;
+}
 
 /* --- Disk II ---------------------------------------------------------------- */
 static uint8_t track_nib[TRACKS][TRACK_LEN];
@@ -287,7 +305,10 @@ static uint8_t bus_read(void *ctx, uint16_t a)
 static void bus_write(void *ctx, uint16_t a, uint8_t v)
 {
     (void)ctx;
-    if (a < 0xC000) ram[a] = v;
+    if (a < 0xC000) {
+        ram[a] = v;
+        if (stack_active && a >= stack_low && a < stack_min) stack_min = a;
+    }
     else if (a < 0xC100) io(a, 1, v);
 }
 
@@ -307,6 +328,7 @@ static void run_cycles(uint64_t n)
     uint64_t end = cpu.cycles + n;
     while (cpu.cycles < end) {
         feed_keyboard();
+        stack_sample();
         cpu_step(&cpu);
     }
 }
@@ -468,6 +490,7 @@ static int load_file(const char *path, uint8_t *dst, long len, long skip)
 
 int a2run_main(int argc, char **argv)
 {
+    stack_active = stack_overflow = 0;
     const char *disk = NULL;
     char roms[1024];
     const char *slash = strrchr(argv[0], '/');
@@ -507,10 +530,23 @@ int a2run_main(int argc, char **argv)
             uint64_t end = cpu.cycles + (uint64_t)frames * CYCLES_PER_FRAME;
             while (cpu.pc != target && cpu.cycles < end) {
                 feed_keyboard();
+                stack_sample();
                 cpu_step(&cpu);
             }
             printf("until %04X cycles=%llu PC=%04X\n", target, (unsigned long long)cpu.cycles, cpu.pc);
             if (cpu.pc != target) return 3;
+        } else if (!strncmp(s, "stackwatch:", 11)) {
+            unsigned size;
+            if (sscanf(s+11,"%x:%x:%x",&stack_sp,&stack_top,&size) != 3 ||
+                stack_sp >= 255 || stack_top >= 0xC000 || !size || size > stack_top) return 2;
+            stack_low=stack_top-size; stack_min=stack_top;
+            stack_overflow=0; stack_active=1; stack_sample();
+        } else if (!strcmp(s, "stack")) {
+            if (!stack_active) return 2;
+            stack_sample();
+            printf("stack peak=%u reserved=%u overflow=%d\n",stack_top-stack_min,
+                   stack_top-stack_low,stack_overflow);
+            stack_active=0;
         } else if (!strncmp(s, "press:", 6)) {
             queue_keys(s + 6);
         } else if (!strncmp(s, "key:", 4)) {

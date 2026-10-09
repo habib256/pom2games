@@ -5,6 +5,8 @@
 
 static const hgr_mspr_t ball = {ball_data, ball_mask, BALL_STRIDE, BALL_HEIGHT};
 #define BALL_COUNT 3u
+static unsigned char sprite_pool[2u * BALL_COUNT * BALL_STRIDE * BALL_HEIGHT];
+static hgr_hud_field_t frame_field;
 
 static unsigned ball_x[BALL_COUNT] = {24u, 128u, 232u};
 static unsigned char ball_y[BALL_COUNT] = {80u, 112u, 144u};
@@ -64,7 +66,9 @@ int main(void)
     a2_frame_set_delay(70u);
     hgr_set_draw_page(1u); background();
     hgr_set_draw_page(2u); background();
-    hgr_spr_init(1u);
+    if (!hgr_hud_init(&frame_field,72u,24u,5u)) return 1;
+    if (!hgr_spr_init_pool(1u, sprite_pool, sizeof(sprite_pool),
+                          BALL_COUNT, BALL_STRIDE * BALL_HEIGHT)) return 1;
     for (i = 0u; i < BALL_COUNT; ++i) {
         if (!hgr_spr_define(i, &ball)) return 1;
     }
@@ -91,7 +95,7 @@ int main(void)
             hgr_spr_move(i, ball_x[i], ball_y[i]);
         hgr_spr_render();
         /* HUD is outside the sprite area; draw into the same hidden page. */
-        hgr_putu_field(72u, 24u, frame++, 5u);
+        hgr_hud_putu(&frame_field, frame++);
         a2_frame_wait();
         hgr_spr_present();
     }

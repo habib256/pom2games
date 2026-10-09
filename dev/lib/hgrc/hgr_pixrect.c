@@ -8,7 +8,9 @@ static void hgr_pixrect(unsigned x, unsigned char y,
                          unsigned char w, unsigned char h, unsigned char set)
 {
     unsigned xr;
-    hgr_build_tables();
+    hgr_build_rows();
+    hgr_build_columns();
+    hgr_build_masks();
     if (w == 0u || h == 0u || x > 279u || y > 191u) return;
     xr = x + (unsigned)w - 1u;                 /* rightmost pixel               */
     if (xr > 279u) xr = 279u;                  /* clip right edge               */

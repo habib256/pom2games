@@ -32,7 +32,9 @@ void hgr_sprite(unsigned x, unsigned char y,
     unsigned char col, phase, stride, h;
     unsigned      phase_off;
 
-    hgr_build_tables();
+    hgr_build_rows();
+    hgr_build_columns();
+    hgr_build_phases();
     stride = spr->stride;
     h      = spr->h;
     if (h == 0u || stride == 0u || y > 191u || x > 279u) return;
@@ -68,11 +70,11 @@ void hgr_sprite(unsigned x, unsigned char y,
  * jumps to the all-asm worker (hgr_xs_run in hgr_preshift_asm.s). All the per-call cost
  * the cc65 wrapper above pays -- the x/7 + x%7 (here table lookups, but still),
  * the phase*h*stride multiply, the 16-bit edge-clip ternaries -- moves into asm,
- * so an erase+redraw pair fits in V-blank and single-buffer animation is
- * flicker-free. Caller guarantees x <= 279 / y <= 191 (the asm still edge-clips). */
+ * reducing the cost of erase+redraw. Synchronization and the complete frame
+ * budget remain the caller's responsibility. The asm still edge-clips. */
 void hgr_sprite_xor(unsigned x, unsigned char y, const hgr_sprite_t *spr)
 {
-    hgr_build_tables();
+    hgr_build_rows();
     if (spr->stride == 0u || spr->h == 0u || y > 191u || x > 279u) return;
     hgr_xs_x   = x;
     hgr_xs_y   = y;

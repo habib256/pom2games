@@ -208,9 +208,10 @@ brute déjà présent dans CHROMABREAK.
 
 fdraw cible le HGR 280 × 192. Ses principes (adresses incrémentales, masques
 préparés, boucles spécialisées) peuvent guider un moteur DHGR, mais ses routines
-ne se substituent pas directement aux nôtres. `gfx_line.c` passe encore par
-`gfx_plot` pour chaque point diagonal ; le backend couleur passe ensuite par
-un rectangle 1 × 1. C'est une cible plausible, sans facteur de vitesse mesuré.
+ne se substituent pas directement aux nôtres. Le fallback DHGR `gfx_line.c`
+passe par `gfx_plot` pour chaque point diagonal ; le backend couleur passe
+ensuite par un rectangle 1 × 1. Le backend HGR sélectionne maintenant
+`gfx_line_hgr.c` et son noyau assembleur ; ce constat concerne donc DHGR. C'est une cible plausible, sans facteur de vitesse mesuré.
 Les spans génériques commutent aussi les écritures aux octet par octet : un
 traitement séparé de main et aux mérite un prototype préservant les bords.
 

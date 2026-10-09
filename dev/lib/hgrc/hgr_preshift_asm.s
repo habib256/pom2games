@@ -3,6 +3,7 @@
 .export _hgr_preshift_xor_run, _hgr_xs_run
 .exportzp _hgr_xs_x, _hgr_xs_y, _hgr_xs_spr
 .import _hgr_col7, _hgr_phase7, _hgr_rowhi, _hgr_rowlo
+.import _hgr_build_columns, _hgr_build_phases
 .importzp _hgr_b_col, _hgr_b_h, _hgr_b_src, _hgr_b_stride, _hgr_b_w, _hgr_b_y
 .importzp ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
 curcol = tmp1
@@ -17,6 +18,8 @@ _hgr_xs_spr:  .res 2        ; pointer to the hgr_sprite_t {bits, stride, h}
 
 .segment "CODE"
 _hgr_xs_run:
+        jsr _hgr_build_columns
+        jsr _hgr_build_phases
         ; col = hgr_col7[x] -> _hgr_b_col ; phase = hgr_phase7[x] -> tmp1
         lda _hgr_xs_x+1
         bne @xhi

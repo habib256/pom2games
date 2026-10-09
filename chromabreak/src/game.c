@@ -944,7 +944,13 @@ int main(void)
         puts_apple2("REQUIRES IIE ENHANCED / IIC 128K.\rPRESS A KEY TO RETURN TO PRODOS.\r");
         apple2_getkey(); return 0;
     }
-    prodos_video_claim(); video_mixed(1);
+    /* This game owns auxiliary RAM and explicitly rebuilds /RAM on exit. */
+    if (prodos_video_claim(PD_VIDEO_DISCARD_RAM) != PD_VIDEO_OK) {
+        dhgr_text_restore();
+        puts_apple2("INVALID PRODOS STATE\r");
+        apple2_getkey(); return 0;
+    }
+    video_mixed(1);
     dhgr_draw_page(1); fast_reset(); dhgr_draw_page(2); fast_reset();
     mouse_init(); timing_init(); timing_measure(); a2_frame_set_delay(40);
     mode=mouse_slot!=0; title();

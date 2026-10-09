@@ -6,7 +6,9 @@
 
 void hgr_puts8(unsigned x, unsigned char y, const char *s)
 {
-    hgr_build_tables();
+    hgr_build_rows();
+    hgr_build_columns();
+    hgr_build_phases();
     if (y > 184u || x > 273u) return;
     hgr_g_y    = y;
     hgr_t_col  = hgr_col7[x];                    /* tables: no runtime divide */

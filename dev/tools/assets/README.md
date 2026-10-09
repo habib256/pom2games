@@ -78,6 +78,21 @@ Conserver `-h` pour restituer aussi les trous de la page HGR. La décompression
 6502 partagée se trouve dans `dev/lib/apple2/lz4fh.asm`. La limite du tampon
 compressé, le chargement disque et les adresses restent propres au programme.
 
+Le convertisseur propose la sélection automatique pour les images HGR :
+
+```sh
+python3 dev/tools/assets/convert.py title.png --mode hgr --kind frame \
+    --out build/title --fhpack build/fhpack
+```
+
+Le `.bin` brut est conservé. `.load.bin` contient le flux LZ4FH uniquement
+s'il est plus petit ; sinon il contient le brut. Le JSON indique `load_file`,
+`load_encoding` (`lz4fh` ou `raw`) et `load_bytes`. Chaque compression est
+décompressée et comparée aux 8 192 octets d'origine avant sélection. Cette
+option refuse les sprites et DHGR : le décodeur cible travaille sur une page
+HGR de 8 Ko alignée. Le chargeur applicatif choisit son tampon source et
+ne doit appeler le décodeur que pour `load_encoding=lz4fh`.
+
 ## Tables HGR communes
 
 `dev/tools/hgr_tables.py` fournit `hgr_offset(y)`, `scanline_tables(page)`,

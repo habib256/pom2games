@@ -10,11 +10,12 @@ void hgr_colorize(unsigned x, unsigned char y, unsigned char w,
     unsigned right;
 
     /* hgr_colorize_asm() indexes hgr_rowlo/hgr_rowhi by scanline; those
-     * tables are zero-init BSS until hgr_build_tables() fills them. Every other
+     * tables are zero-init BSS until hgr_build_rows() fills them. Every other
      * drawing entry point builds them first, so colorize must too — otherwise,
      * as the first hgrc call, each scanline base reads $0000 and writes land in
-     * low RAM. Idempotent (guarded by hgr_tables_ready). */
-    hgr_build_tables();
+     * low RAM. Both builders are idempotent. */
+    hgr_build_rows();
+    hgr_build_columns();
 
     if (w == 0u || h == 0u || y > 191u || x > 279u) return;
     if (!hgr_set_carrier(color)) return;

@@ -11,7 +11,9 @@
 void hgr_plot(unsigned x, unsigned char y)
 {
     if (x > 279u || y > 191u) return;
-    hgr_build_tables();
+    hgr_build_rows();
+    hgr_build_columns();
+    hgr_build_masks();
     hgr_p_x = x;
     hgr_p_y = y;
     hgr_plot_asm();
@@ -20,7 +22,9 @@ void hgr_plot(unsigned x, unsigned char y)
 void hgr_unplot(unsigned x, unsigned char y)
 {
     if (x > 279u || y > 191u) return;
-    hgr_build_tables();
+    hgr_build_rows();
+    hgr_build_columns();
+    hgr_build_masks();
     hgr_p_x = x;
     hgr_p_y = y;
     hgr_unplot_asm();

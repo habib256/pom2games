@@ -41,6 +41,9 @@ utilisent la vidéo native de l'Apple II. Tous les jeux du dépôt les partagent
 
 ## Démarrer
 
+Les [contrats d'intégration ASM/C](lib/ABI.md) précisent la mémoire,
+les conventions d'appel, les banques et les interruptions.
+
     cd examples/hello
     make            # -> ../../../dist/HELLO.dsk (HELLOASM au boot, puis BRUN HELLOC)
     make run        # dans POM2, profil Apple ][+
@@ -224,3 +227,7 @@ Pinball garde sa recette de placement et son chargeur, mais utilise cette API
 publique. Les fichiers ajoutés ensuite ne peuvent pas réutiliser ses pistes.
 `make test-tools` vérifie les tables HGR, le placement/réservation des secteurs
 et le contexte souris autonome ; cette cible fait partie de `make test`.
+
+Les [trois intégrations minimales](examples/minimal/README.md) fournissent des
+images DOS/ProDOS et un bilan mémoire calculé. Le [registre matériel](lib/HARDWARE.md)
+sépare les essais physiques restant à effectuer des validations émulées.

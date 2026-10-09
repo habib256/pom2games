@@ -6,7 +6,9 @@
 
 void hgr_cell(unsigned char cx, unsigned char cy, unsigned char set)
 {
-    hgr_build_tables();
+    hgr_build_rows();
+    hgr_build_columns();
+    hgr_build_masks();
     hgr_c_cx  = cx;
     hgr_c_cy  = cy;
     hgr_c_set = set;

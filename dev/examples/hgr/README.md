@@ -24,7 +24,8 @@ flèches haut/bas. Ctrl-RESET passe aussi par la restauration du CRT.
 ## Boucle d'animation
 
 1. Initialiser la vidéo et `a2_frame_init()`.
-2. Dessiner le fond sur **les deux pages**, puis `hgr_spr_init(1)`.
+2. Dessiner le fond sur **les deux pages**, puis `hgr_spr_init_pool` avec un
+   pool dimensionné pour les trois sprites et leurs deux fonds.
 3. Définir les trois sprites et vérifier le résultat de `hgr_spr_define`.
 4. Lire le clavier et calculer la position de chaque balle.
 5. `hgr_spr_render()` restaure l'ancienne position et dessine sur la page cachée.
@@ -75,3 +76,10 @@ mode ; ils ne constituent pas une validation sur le matériel IIc/IIgs.
 Références Apple : [Identification de la famille, note Miscellaneous #7](https://mirrors.apple2.org.za/apple.cabi.net/FAQs.and.INFO/A2.TECH.NOTES.ETC/A2.CLASSIC.TNTS/a2misc007%281%29.htm),
 [polarité VBL, note IIGS #40](https://apple2.gs/technotes/tn-iigs-040/),
 [IIc #9, Detecting VBL](https://mirrors.apple2.org.za/Apple%20II%20Documentation%20Project/Computers/Apple%20II/Apple%20IIc/Documentation/Apple%20IIc%20Technical%20Notes.pdf).
+
+Le compteur utilise `hgr_hud_field_t`, avec un historique par page : seules
+les cellules modifiées sont effacées/redessinées. Invalider ce champ après
+toute modification externe de son fond.
+
+Le programme et son archive utilisent `HGR_SPR_MAX=3`, ce qui réduit aussi
+les métadonnées du moteur, en plus du pool externe de 84 octets.

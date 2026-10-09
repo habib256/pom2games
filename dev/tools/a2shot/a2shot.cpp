@@ -12,6 +12,8 @@
 //   pc              print the program counter
 //   until:ADDR:N    run until PC reaches ADDR, with a limit of N video frames
 //   press:TEXT      queue keys without running (for exact until checkpoints)
+//   stackwatch:SP:TOP:SIZE  profile cc65 software stack (hex arguments)
+//   stack           print observed peak/reservation/overflow, stop profiling
 //
 //   a2shot --disk GAME.dsk wait:600 key:" " wait:60 shot:title.png
 //
@@ -22,6 +24,7 @@
 //
 // --iie boots an enhanced Apple //e (65C02, 80-column card with aux memory)
 // instead of the ][+.
+// --mockingboard attaches a slot-4 card, including its VIA timer IRQs.
 //
 // The run is deterministic: no threads, no wall-clock pacing.
 #include <pom2/core.hpp>
@@ -118,16 +121,18 @@ int main(int argc, char** argv)
                      + "/roms";
     std::string disk;
     bool iie = false;
+    bool mockingboard = false;
     std::vector<std::string> script;
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
         if (a == "--roms" && i + 1 < argc) roms = argv[++i];
         else if (a == "--disk" && i + 1 < argc) disk = argv[++i];
         else if (a == "--iie") iie = true;
+        else if (a == "--mockingboard") mockingboard = true;
         else script.push_back(a);
     }
     if (disk.empty()) {
-        std::fprintf(stderr, "usage: a2shot [--iie] [--roms DIR] --disk X.dsk step...\n");
+        std::fprintf(stderr, "usage: a2shot [--iie] [--mockingboard] [--roms DIR] --disk X.dsk step...\n");
         return 2;
     }
 
@@ -157,6 +162,10 @@ int main(int argc, char** argv)
         config.iieMemory = true;
     }
     pom2::Core core(config);
+    if (mockingboard && !core.attachMockingboard(4)) {
+        std::fprintf(stderr, "Mockingboard: %s\n", core.lastError().c_str());
+        return 1;
+    }
     if (iie && !core.loadCharacterRom(roms + "/apple2e_char.rom")) {
         std::fprintf(stderr, "char ROM: %s\n", core.lastError().c_str());
         return 1;
@@ -168,14 +177,38 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    bool stackActive = false, stackOverflow = false;
+    unsigned stackSp = 0, stackTop = 0, stackLow = 0, stackMin = 0;
+    const auto sampleStack = [&]() {
+        if (!stackActive) return;
+        const unsigned pc = core.cpuState().programCounter;
+        if (pc >= 0xBFFF) return;
+        const unsigned op = core.read(pc);
+        if (op != 0x20 && op != 0x60 && op != 0x4C && op != 0x6C &&
+            !((op == 0xB1 || op == 0x91) && core.read(pc+1) == stackSp)) return;
+        const unsigned value = core.read(stackSp) | (unsigned(core.read(stackSp+1)) << 8);
+        if (value < stackLow || value > stackTop) { stackOverflow = true; return; }
+        if (value < stackMin) stackMin = value;
+    };
+    const auto profileStep = [&]() { sampleStack(); core.step(); };
+    const auto runCycles = [&](int cycles) {
+        if (!stackActive) core.run(cycles);
+        else {
+            const auto end = core.cpuState().cycles + cycles;
+            while (core.cpuState().cycles < end) profileStep();
+        }
+    };
+
     for (const std::string& step : script) {
         const size_t colon = step.find(':');
         const std::string op = step.substr(0, colon);
         const std::string arg = colon == std::string::npos ? "" : step.substr(colon + 1);
         if (op == "wait") {
             // In chunks: N * 17030 overflows Core::run's int past ~126 000 frames.
-            for (long n = std::atol(arg.c_str()); n > 0; n -= 100000)
-                core.run(static_cast<int>(n < 100000 ? n : 100000) * kCyclesPerFrame);
+            for (long n = std::atol(arg.c_str()); n > 0; n -= 100000) {
+                const int cycles = static_cast<int>(n < 100000 ? n : 100000) * kCyclesPerFrame;
+                runCycles(cycles);
+            }
         } else if (op == "until") {
             const size_t split = arg.find(':');
             if (split == std::string::npos) return 2;
@@ -183,17 +216,29 @@ int main(int argc, char** argv)
             const std::uint64_t limit = core.cpuState().cycles +
                 std::strtoull(arg.substr(split + 1).c_str(), nullptr, 10) * kCyclesPerFrame;
             while (core.cpuState().programCounter != target && core.cpuState().cycles < limit)
-                core.run(1);
+                if (stackActive) profileStep(); else core.run(1);
             const auto state = core.cpuState();
             std::printf("until %04X cycles=%llu PC=%04X\n", target,
                         static_cast<unsigned long long>(state.cycles), state.programCounter);
             if (state.programCounter != target) return 3;
+        } else if (op == "stackwatch") {
+            unsigned size;
+            if (std::sscanf(arg.c_str(),"%x:%x:%x",&stackSp,&stackTop,&size) != 3 ||
+                stackSp >= 255 || stackTop >= 0xC000 || !size || size > stackTop) return 2;
+            stackLow=stackTop-size; stackMin=stackTop;
+            stackOverflow=false; stackActive=true; sampleStack();
+        } else if (op == "stack") {
+            if (!stackActive) return 2;
+            sampleStack();
+            std::printf("stack peak=%u reserved=%u overflow=%d\n",stackTop-stackMin,
+                        stackTop-stackLow,int(stackOverflow));
+            stackActive=false;
         } else if (op == "press") {
             for (unsigned char c : unescape(arg)) core.queueKey(c);
         } else if (op == "key") {
             for (unsigned char c : unescape(arg)) {
                 core.queueKey(c);
-                core.run(3 * kCyclesPerFrame);          // let the guest take it
+                runCycles(3 * kCyclesPerFrame);         // let the guest take it
             }
         } else if (op == "shot") {
             if (!writePng(arg, core.renderFrame())) {

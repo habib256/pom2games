@@ -44,6 +44,7 @@
         .export   _hgr_msu_run
         .exportzp _hgr_ms_x, _hgr_ms_y, _hgr_ms_spr, _hgr_ms_under
         .import   _hgr_rowlo, _hgr_rowhi, _hgr_col7, _hgr_phase7
+        .import   _hgr_build_columns, _hgr_build_phases
         .importzp ptr1, ptr2, ptr3, ptr4, tmp1, tmp2, tmp3, tmp4
 
 ; --- interface variables (zero page) ----------------------------------------
@@ -73,6 +74,10 @@ ms_blk:    .res 2            ; phase block size = h * stride (16-bit)
 ; From the _hgr_ms_* parameter block, derive col/phase, deref the hgr_mspr_t,
 ; apply the phase offset to data+mask, clip, and point ptr4 at the under buffer.
 ms_setup:
+        ; Raw callers may only have selected the draw page (row tables).
+        ; Prepare optional x tables before using any shared scratch.
+        jsr _hgr_build_columns
+        jsr _hgr_build_phases
         ; col = hgr_col7[x] ; phase = hgr_phase7[x] (LUTs, no divide).
         ; x >= 256 (only 256..279 on a 280-px screen) indexes the tables at
         ; +256 with the low byte -- a 6502 index register is 8-bit.

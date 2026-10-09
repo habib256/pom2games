@@ -39,7 +39,7 @@ def check(emulator, disk, points, options, mode, timeout=False):
     actual_mode = 0 if timeout else mode
     assert results == [bytes((mode,actual_mode,4))]*3 + [bytes((mode,actual_mode,0))], (results, 'mode or IRQ mask')
     if actual_mode == 0:
-        if timeout: assert 600000 < waits[0] < 900000, waits
+        if timeout: assert 60000 < waits[0] < 100000, waits
         else: assert 17000 < waits[0] < 17400, waits
         assert 390 < waits[1] < 700, waits
         assert all(30 < n < 250 for n in waits[2:]), waits

@@ -33,7 +33,7 @@ def scene(background, sprites):
     return result
 
 
-def main():
+def check(external=False,limited=False):
     run(['make', '-C', DEV / 'tools/a2run'])
     with tempfile.TemporaryDirectory(prefix='pom2-sprengine-') as temp:
         work = Path(temp)
@@ -44,7 +44,18 @@ def main():
                 header += f'static const unsigned char {name}{n}[] = {{' + ','.join(map(str, values)) + '};\n'
             header += f'static const hgr_mspr_t shape{n} = {{data{n},mask{n},2,3}};\n'
         (work / 'masked_test_sprite.inc').write_text(header)
-        disk = build(work, DEV / 'tests/sprengine_fixture.c')
+        fixture = DEV / 'tests/sprengine_fixture.c'
+        if external:
+            local = work / 'external_fixture.c'
+            local.write_text('#define SPR_EXTERNAL_POOL\n' + fixture.read_text())
+            fixture = local
+        disk = build(work, fixture, cflags=('-D','HGR_SPR_MAX=2') if limited else ())
+        if limited:
+            module=(work/'test.map').read_text().split('hgr_sprengine.o):')[1].split('.o):')[0]
+            size=int(re.search(r'BSS\s+Offs=[0-9A-F]+\s+Size=([0-9A-F]+)',module)[1],16)
+            assert size<=36, 'two-slot build retained eight-slot metadata'
+        if external:
+            assert 'hgr_sprdefault.o' not in (work / 'test.map').read_text(), 'static pool linked'
         steps = ['wait:1100']
         for _ in range(24):
             steps += ['peek:1000:2', 'peek:2000:16384', 'key: ', 'wait:60']
@@ -81,4 +92,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    check()
+    check(True)
+    check(True,True)
