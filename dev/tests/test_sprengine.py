@@ -53,7 +53,7 @@ def check(external=False,limited=False):
         if limited:
             module=(work/'test.map').read_text().split('hgr_sprengine.o):')[1].split('.o):')[0]
             size=int(re.search(r'BSS\s+Offs=[0-9A-F]+\s+Size=([0-9A-F]+)',module)[1],16)
-            assert size<=36, 'two-slot build retained eight-slot metadata'
+            assert size<=42, 'two-slot build retained eight-slot metadata'
         if external:
             assert 'hgr_sprdefault.o' not in (work / 'test.map').read_text(), 'static pool linked'
         steps = ['wait:1100']

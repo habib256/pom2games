@@ -55,3 +55,49 @@ essais physiques, vérifier en particulier le passage 9 → 10, les retours à u
 valeur courte après relance, et l'absence de chiffres anciens sur une seule
 des pages. Les nouveaux benchmarks incluent les identités CPU/runner/ROM,
 mais ces identités d'émulation ne remplacent pas les observations du tableau.
+
+## Complément émulé POM2
+
+`a2shot --pal` utilise le faisceau SDK de 312×65=20 280 cycles, contre
+262×65=17 030 en NTSC. Ces périodes sont contrôlées par les fronts VBL réels ;
+les unités de script suivent le faisceau. Elles diffèrent des unités du profil
+natif POM2 (17 045/20 313), et ne doivent pas être mélangées dans les budgets.
+
+`test_cadence.py` suit 1 000 présentations NTSC et 1 000 PAL avec une IRQ
+VIA T1 initialement alignée sur le VBL, charge variable, deux dépassements
+volontaires, débordement du compteur, invalidation d'arguments et arrêt de
+l'horloge. Chaque présentation contrôlée est dans le VBL ; les surcharges
+font sauter une échéance, sans rattrapage en rafale. Le test rétablit le vecteur
+et l'état IRQ de sa machine temporaire. La bibliothèque ne configure pas la carte.
+
+L'exemple minimal double tampon est également mesuré sur 1 000 images par
+standard, avec vraie géométrie HGR, HUD et débordement 16 bits du compteur.
+Il conserve deux rafraîchissements par image sans carte IRQ, en répartissant
+sa charge sur deux phases VBL. Cela valide cette charge précise sur POM2 IIe.
+
+Les essais automatisés utilisent le cœur POM2 via `a2shot --iie`, ROM IIe
+amélioré, CPU 65C02 et RAM auxiliaire 128 Ko. Ils vérifient le nouveau HUD
+avec le même oracle de pixels qu'a2run, les deux pages et leurs bords,
+la présentation après changement externe de page, les couches de sprites
+immobiles/mobiles et les interruptions VIA pendant les effacements DHGR.
+Les sondes de pile vérifient un usage connu et un débordement volontaire.
+
+Exécuter `make test-dhgr` et
+`python3 dev/bench/run.py --dhgr --check` pour reproduire ce complément.
+Les premières mises à jour HUD des exemples sont effectuées avant leur boucle.
+Ces résultats émulés ne remplissent aucune case du registre physique ci-dessus.
+
+Le jeu de validation complet prépare les deux pages avant de démarrer une
+IRQ VIA de rafraîchissement : quatre sprites mobiles, collisions, HUD natif,
+quatre directions clavier et un canal AY servis pendant 1 000 présentations
+NTSC puis 1 000 PAL. Résultat : aucune échéance manquée, 2 000 services audio
+par standard, flip dans le VBL, wraps 16 bits et deux piles sans débordement.
+Les tests de cadence couvrent aussi 10 000/32 760 ticks de suspension pour les
+huit périodes acceptées, sans faux timeout ni rafale de frames.
+
+Lors d'un contrôle interactif précédent, POM2 native v0.9.5 a été exécuté en profil IIe
+amélioré avec le disque HGR reconstruit : sprites, HUD et décor affichés,
+zone des sprites identique entre deux captures en pause, mouvement repris,
+et retour au prompt DOS avec ESC. Le compteur de frames continue pendant
+la pause. Ce contrôle interactif complète les oracles mémoire du SDK ;
+sa cadence native (17 045 cycles/frame) diffère du runner (17 030).

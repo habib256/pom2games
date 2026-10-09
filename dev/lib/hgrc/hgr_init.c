@@ -101,12 +101,8 @@ void hgr_build_rows(void)
  * INVERTED ENCODING (BSS-zero-default rule, see the header): the flag stores
  * "drawing on page 2", so the BSS zero IS the page-1 default — no DATA
  * initializer, no lazy fixup at the read site. */
-static unsigned char hgr_draw_page2;        /* 0 = page 1, nonzero = page 2 */
-
-unsigned char hgr_get_draw_page(void)
-{
-    return hgr_draw_page2 ? 2u : 1u;
-}
+/* Page state and getter are independent archive members (hgr_state/draw_page).
+ * Reading the page alone must not link mutable row or LORES tables. */
 
 void hgr_set_draw_page(unsigned char page)
 {

@@ -112,3 +112,41 @@ principale ; les routines ne sont pas réentrantes ou appelables depuis une IRQ.
 En double tampon : dessiner, attendre, puis basculer. En simple tampon :
 attendre avant de dessiner ; le dessin peut encore dépasser le VBL.
 Voir l’[exemple HGR](../../examples/hgr/README.md).
+
+## Échéances à deux rafraîchissements
+
+Avec une IRQ applicative disponible, lier `APPLE2C_CADENCE_SRCS` et inclure
+`apple2frame.h`. Le gestionnaire appelle `a2_cadence_tick` exactement une fois
+par refresh. Pour présenter dans le VBL, sa période **et sa phase** doivent
+suivre la vidéo. La bibliothèque n'installe aucun gestionnaire ou périphérique
+et ne force pas l'activation des interruptions.
+
+```c
+/* La source IRQ est déjà installée et active, synchronisée au VBL. */
+if (!a2_cadence_init(2)) return 1;
+for (;;) {
+    /* Clavier, logique, puis dessin dans la page cachée. */
+    hgr_spr_render();
+    if (a2_cadence_wait() == A2_CADENCE_TIMEOUT) break;
+    hgr_spr_present();
+}
+```
+
+Deux ticks donnent nominalement 30 FPS NTSC / 25 FPS PAL. Une charge en retard
+fait sauter les échéances dépassées et attend la prochaine de la grille
+initiale ; le retour compte ces pertes. Aucun rattrapage en rafale. Une horloge
+arrêtée produit $FFFF après une attente bornée et désactive la cadence ; refaire
+`init` après réparation de la source. Les IRQ doivent rester actives pendant
+`wait`, qui préserve I. Le tick préserve A/X/Y, modifie NZ ; le retour d'IRQ
+doit restaurer les flags. Les lectures du compteur 16 bits doivent être atomiques.
+
+La période acceptée est 1..8 ; une valeur invalide conserve l'ancien échéancier.
+Les compteurs bouclent modulo 65536 ; appeler `wait` avant 32767 ticks de retard.
+Le test [test_cadence.py](../../tests/test_cadence.py) fournit une intégration
+VIA complète dans une machine POM2 temporaire, restaure son vecteur et son état
+IRQ, et vérifie 1 000 présentations par standard avec surcharges.
+
+Sans carte IRQ, l'[exemple HGR minimal](../../examples/minimal/README.md)
+répartit sa charge sur deux intervalles VBL sur IIe. Chaque étape doit rester
+plus courte qu'un refresh. Sur les modèles en repli WAIT, la cadence reste
+dépendante du coût du rendu et de la vitesse CPU.

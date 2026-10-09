@@ -2,6 +2,7 @@
 """Boot, page presentation, visible strip and clean exit of standalone examples."""
 import argparse
 import json
+import re
 from test_hgr import DEV, run, offset
 import a2test
 
@@ -88,6 +89,21 @@ def prodos():
     assert result.mem(labels['_claimed'],1,2)==b'\x00' and result.mem(0xc018,8,2)[2]&128, 'shutdown did not restore text/release'
 
 
+def stable_cadence():
+    labels=a2test.labels(BUILD/'hgr-double.lbl')
+    for pal,refresh in ((False,17030),(True,20280)):
+        output=run([DEV/'tools/a2shot/a2shot','--iie',*(['--pal'] if pal else []),
+                    '--disk',BUILD/'hgr-double.dsk', labels.until('_minimal_present'),
+                    labels.poke('_frame',0xf5),labels.poke('_frame',0xff,1),
+                    f'tracepc:{labels["_minimal_flip"]:04X}:1000:3500'])
+        cycles=[int(n) for n in re.findall(r'tracepc [0-9A-F]+ cycles=(\d+)',output)]
+        assert len(cycles)==1000
+        spans=[cycles[i]-cycles[i-1] for i in range(1,len(cycles))]
+        assert all(abs(n-2*refresh)<100 for n in spans), ('unstable two-refresh cadence',pal,min(spans),max(spans))
+        print(f'Minimal double HGR {"PAL" if pal else "NTSC"}: 1000 frames, '
+              f'{min(spans)}..{max(spans)} cycles including counter rollover')
+
+
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--dhgr',action='store_true')
@@ -99,6 +115,7 @@ def main():
         hgr('hgr-single',False,iie=True)
         hgr('hgr-double',True,iie=True)
         prodos()
+        stable_cadence()
     else:
         hgr('hgr-single',False)
         hgr('hgr-double',True)

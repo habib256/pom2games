@@ -3,3 +3,4 @@
 #include "hgr.h"
 volatile unsigned char hgr_ss_sink;
 unsigned char hgr_base;
+unsigned char hgr_draw_page2;

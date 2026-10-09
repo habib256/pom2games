@@ -2,12 +2,32 @@
 """Exercise the real 6502 game: swept collisions, page restore and a full course."""
 from pathlib import Path
 import sys
+import re
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
 import a2test
 
 ROOT = Path(__file__).resolve().parents[2]
 L = a2test.labels(ROOT / 'light3dball/build/game.lbl', strip=True)
 DISK = ROOT / 'dist/LIGHT3DBALL.dsk'
+STACK_PEAKS=[]
+
+
+def checked_run(disk, steps):
+    """Observe startup, gameplay, menus and exit against the linker reserve."""
+    steps=list(steps)
+    exit_key='key:\\e'
+    if exit_key in steps:
+        # DOS exit restores the BASIC caller's stack outside this reservation.
+        steps.insert(steps.index(exit_key),'stack')
+    else: steps.append('stack')
+    result=a2test.run(disk,[L.until('main'),
+        f'stackwatch:{L["sp"]:02X}:{L["__STACKSTART__"]:04X}:{L["__STACKSIZE__"]:04X}',
+        *steps])
+    peak,reserved,overflow=map(int,re.search(r'stack peak=(\d+) reserved=(\d+) overflow=(\d+)',result.out).groups())
+    assert peak<reserved and not overflow,('C stack',peak,reserved,overflow)
+    STACK_PEAKS.append(peak)
+    result.cycles=result.cycles[1:] # exclude the added main-entry checkpoint
+    return result
 
 
 def setv(name, value, word=False):
@@ -24,7 +44,7 @@ def scenario(values, names):
     steps += [L.until('frame_mark')]
     for name, word in names:
         steps.append(L.peek(name, 2 if word else 1))
-    result = a2test.run(DISK, steps)
+    result = checked_run(DISK, steps)
     return [int.from_bytes(result.mem(L[name], 2 if word else 1), 'little', signed=word)
             for name, word in names]
 
@@ -134,7 +154,7 @@ steps = ['wait:1100', 'key:P', 'wait:60', L.until('frame_mark'),
          L.peek('paused'), 'key:P', 'wait:80', L.peek('paused'),
          'key:L', 'wait:20', L.peek('paddle_x'), 'key:I', 'wait:20', L.peek('paddle_y'),
          'key:R', 'wait:20', L.peek('lives')]
-r = a2test.run(DISK, steps)
+r = checked_run(DISK, steps)
 assert r.mem(0x2000, 16384, 0) == r.mem(0x2000, 16384, 1), 'pause changed page contents'
 assert r.mem(L['paused'], 1, 0) == b'\x01' and r.mem(L['paused'], 1, 1) == b'\0'
 assert r.mem(L['paddle_x'], 1)[0] > 64 and r.mem(L['paddle_y'], 1)[0] < 64
@@ -156,7 +176,7 @@ for x, y, control in [(110, 60, 'click'), (30, 140, 'return')]:
         steps += ['key:\\r']
     steps += [L.until('physics'), L.until('frame_mark'), L.peek('paddle_x'),
               L.peek('paddle_y'), L.peek('ball_x', 2), L.peek('ball_y', 2), L.peek('launched')]
-r = a2test.run(DISK, steps)
+r = checked_run(DISK, steps)
 for index in range(2):
     assert r.mem(L['launched'], 1, index) == b'\x01'
     for ball, paddle in [('ball_x', 'paddle_x'), ('ball_y', 'paddle_y')]:
@@ -175,7 +195,7 @@ steps += setv('ball_z', 60, True) + setv('vel_z', -1)
 steps += [L.poke('mouse_buttons', 128), L.until('physics'), L.until('frame_mark'),
           L.peek('launched'), L.peek('vel_z'), L.peek('ball_z', 2),
           L.peek('camera_z', 2), L.peek('lives')]
-r = a2test.run(DISK, steps)
+r = checked_run(DISK, steps)
 assert r.mem(L['launched'], 1, 0) == b'\x01'
 assert r.mem(L['advancing'], 1) == b'\0', 'button release did not stop advance'
 assert r.mem(L['launched'], 1, 1) == b'\x01' and r.mem(L['vel_z'], 1) == b'\xff'
@@ -202,7 +222,7 @@ steps += [L.poke('mouse_x', 110), L.poke('mouse_y', 60),
           L.poke('mouse_buttons', 0), 'key:\\r', L.until('physics'),
           L.until('frame_mark'), L.peek('ball_x', 2), L.peek('ball_y', 2),
           L.peek('paddle_x'), L.peek('paddle_y'), L.peek('launched')]
-r = a2test.run(DISK, steps)
+r = checked_run(DISK, steps)
 for index in range(4):
     assert r.mem(L['launched'], 1, index) == b'\x01', 'paddle contact caught ball'
     assert r.mem(L['hits'], 1, index) == bytes([index+1]), 'missing/duplicate rebound'
@@ -226,7 +246,7 @@ steps += [L.until('frame_mark'), L.peek('lives'), L.peek('launched'),
           L.poke('mouse_buttons', 0), L.until('physics'), L.until('frame_mark'),
           L.poke('mouse_buttons', 128), L.until('physics'), L.until('frame_mark'),
           L.peek('launched'), L.peek('lives')]
-r = a2test.run(DISK, steps)
+r = checked_run(DISK, steps)
 assert r.mem(L['lives'], 1, 0) == r.mem(L['lives'], 1, 1) == b'\x03'
 assert r.mem(L['launched'], 1, 0) == r.mem(L['launched'], 1, 1) == b'\0'
 assert r.mem(L['launched'], 1, 2) == b'\x01'
@@ -237,7 +257,7 @@ steps = ['wait:1100', L.until('frame_mark'), L.poke('mouse_enabled', 1),
          'key:P', L.until('physics'), L.until('frame_mark'),
          L.poke('mouse_buttons', 128), L.until('physics'), L.until('frame_mark'),
          'key:P', L.until('physics'), L.until('frame_mark'), L.peek('paused'), L.peek('launched')]
-r = a2test.run(DISK, steps)
+r = checked_run(DISK, steps)
 assert r.mem(L['paused'], 1) == r.mem(L['launched'], 1) == b'\0'
 
 # Sound can be muted; restarting preserves that preference. A serve is one
@@ -248,12 +268,12 @@ for _ in range(2):
               'key:R', L.until('physics'), L.until('frame_mark'), 'spk',
               'key:\\r', L.until('physics'), L.until('frame_mark'), 'spk',
               L.until('physics'), L.until('frame_mark'), 'spk']
-r = a2test.run(DISK, steps)
+r = checked_run(DISK, steps)
 assert r.spk[1:3] == [0, 0] and r.spk[4:6] == [12, 0], ('mute/serve cues', r.spk)
 
 # A centered shot must NOT complete the course. The first broad wall stops
 # both the ball and the advancing player until the paddle moves left.
-r = a2test.run(DISK, ['wait:1100', 'key:\\r', 'wait:8', 'key: ', 'wait:3000',
+r = checked_run(DISK, ['wait:1100', 'key:\\r', 'wait:8', 'key: ', 'wait:3000',
                      L.until('frame_mark'), L.peek('won'), L.peek('lives'), L.peek('camera_z', 2),
                      'key:R', 'wait:20', L.peek('won'), L.peek('camera_z', 2),
                      'key:\\e', 'wait:30', 'peek:03F2:3', 'text'])
@@ -268,9 +288,11 @@ assert any(']' in screen for screen in r.text_screens()), 'DOS prompt missing'
 steps = ['wait:1100', L.until('frame_mark')]
 for _ in range(16):
     steps += [L.until('physics'), L.until('frame_mark')]
-r = a2test.run(DISK, steps)
+r = checked_run(DISK, steps)
 cycles = r.cycles[::2]
 costs = [b-a for a, b in zip(cycles, cycles[1:])]
 assert min(costs) < 60000 and max(costs) < 250000, ('frame budget', costs)
 print('LIGHT3DBALL: collisions, aiming, barriers, double-page pause, controls, straight-shot blocking and DOS exit passed.')
 print(f'Frame costs including delay: {min(costs):,}–{max(costs):,} cycles at 1.02 MHz.')
+
+print(f'Observed C stack peak: {max(STACK_PEAKS)} / {L["__STACKSIZE__"]} bytes.')

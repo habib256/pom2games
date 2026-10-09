@@ -38,10 +38,14 @@ HGR prépare ses tables à la demande ; `gfx_line` choisit ici le noyau ASM.
 Le DHGR initialise ses capacités avant dessin et utilise des effacements de
 huit lignes, qui rendent la main au programme entre les tranches.
 
-Le double tampon dessine sur la page cachée, attend via `a2_frame_wait`, puis
-présente. L'attente se synchronise sur IIe ; le repli II/II+/IIc ajoute un délai
-au temps de rendu. Cet exemple ne garantit pas 60 FPS ni l'absence de déchirure
-sur les modèles utilisant un délai. Le simple tampon expose les écritures.
+Le HGR double tampon utilise un HUD 8×8 et, sur IIe, répartit le dessin puis
+le HUD entre deux attentes VBL. Le test POM2 suit 1 000 images en NTSC et
+1 000 en PAL : intervalles respectifs de 34 050..34 070 et 40 550..40 570
+cycles, y compris le compteur 65535 → 0, sans rafraîchissement manqué.
+Cela correspond à deux rafraîchissements par image, nominalement 30/25 FPS.
+Cette répartition exige que chaque étape reste sous un rafraîchissement.
+Le repli II/II+/IIc ajoute un délai au rendu ; sa cadence dépend de la charge.
+Le simple tampon expose les écritures. L'exemple DHGR conserve son attente simple.
 
 ## Bilan mémoire reproductible
 
@@ -51,8 +55,8 @@ Avec le compilateur utilisé pour cette vérification :
 
 | Exemple | Binaire | Segments main liés | ZP | Pile C réservée | Vidéo utilisée |
 |---|---:|---:|---:|---:|---:|
-| HGR simple | 7 344 | 8 945 | 76 | 2 048 | 8 192 |
-| HGR double | 7 364 | 8 965 | 76 | 2 048 | 16 384 |
+| HGR simple | 8 152 | 9 763 | 64 | 2 048 | 8 192 |
+| HGR double | 8 182 | 9 793 | 64 | 2 048 | 16 384 |
 | DHGR ProDOS | 5 295 | 5 618 | 35 | 256 | 32 768 main+aux |
 
 Les segments main comprennent le binaire résident, BSS et sauvegardes du CRT.
@@ -66,7 +70,13 @@ Les tests contrôlent les pixels de la bande animée, les pages de dessin,
 la présentation sur IIe, le retour au système et le refus de `/RAM`.
 La [validation matérielle](../../lib/HARDWARE.md) reste distincte des tests émulés.
 
-Les compteurs HGR utilisent maintenant un champ différentiel de 37 octets,
+Les compteurs HGR utilisent maintenant un champ différentiel de 19 octets,
 avec un historique par page. Le JSON compte aussi tous les segments de code,
 y compris ONCE/INIT/LOWCODE ; la pile utilisée est mesurée séparément dans les
 benchmarks, sans confondre sa profondeur observée avec sa réservation.
+
+Les champs HGR et leurs tables sont préparés sur chaque page pendant le
+chargement, avant la première frame animée. Le noyau HUD opaque évite de
+lier les paramètres du texte agrandi général pour ces exemples. La banque
+numérique prédécalée s’ajoute à la police générale utilisée par les titres ;
+les tailles ci-dessus comprennent les deux banques.

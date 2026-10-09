@@ -43,6 +43,10 @@ extern const unsigned char *hgr_t_font;
 extern void hgr_puts_run(void);
 extern void hgr_puts_run8(void);
 
+extern unsigned char hgr_hud_cell_width;
+void HGR_FASTCALL hgr_hud_cell_run(char ch);
+void HGR_FASTCALL hgr_hud8_cell_run(char ch);
+
 extern unsigned char hgr_u_lo, hgr_u_hi;
 extern char *hgr_u_ptr;
 extern void hgr_utoa(void);
@@ -70,6 +74,9 @@ extern void hgr_ms_run(void);          /* masked draw: dst = (dst & mask) | data
 extern void hgr_ms_save_run(void);     /* framebuffer rect -> under buffer       */
 extern void hgr_ms_restore_run(void);  /* under buffer -> framebuffer rect       */
 extern void hgr_msu_run(void);         /* save-under + masked draw, one pass     */
+/* One drawing call may consume an engine-prepared phase block (1..255 bytes).
+ * Zero requests generic computation. The kernel resets this after consumption. */
+extern unsigned char hgr_ms_block;
 
 #pragma zpsym("hgr_g_glyph")
 #pragma zpsym("hgr_g_col")
@@ -135,6 +142,7 @@ extern unsigned char hgr_lo_ready;            /* LORES tables built once       *
 
 /* --- Cross-module helpers (defined in hgr_init.c) -------------------------- */
 extern unsigned char hgr_base;
+extern unsigned char hgr_draw_page2;
 extern void hgr_build_rows(void);
 extern void hgr_build_columns(void);
 extern void hgr_build_masks(void);

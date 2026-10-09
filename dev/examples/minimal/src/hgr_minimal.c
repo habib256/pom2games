@@ -7,13 +7,18 @@
 
 unsigned frame;
 unsigned char draw_page;
-static hgr_hud_field_t counter;
+static hgr_hud8_field_t counter;
+
+void minimal_flip(void)
+{
+    hgr_show_page();
+}
 
 /* Separate entry also makes a convenient debugger/profiler checkpoint. */
 void minimal_present(void)
 {
     a2_frame_wait();
-    hgr_show_page();
+    minimal_flip();
 #if DOUBLE_BUFFERED
     draw_page = (draw_page == 1u) ? 2u : 1u;
     hgr_set_draw_page(draw_page);
@@ -26,20 +31,27 @@ int main(void)
     hgr_init();
     a2_frame_init();
     a2_frame_set_delay(40u);
+    if (!hgr_hud8_init(&counter,0u,16u,5u)) return 1;
     for (page=1; page<=(DOUBLE_BUFFERED ? 2u : 1u); ++page) {
         hgr_set_draw_page(page);
         hgr_clear(0u);
         hgr_puts8(0u,0u,"ESC: DOS");
         gfx_line(0u,32u,279u,63u);
+        hgr_hud8_putu(&counter,0u); /* prepare the page before animation */
     }
     draw_page = DOUBLE_BUFFERED ? 2u : 1u;
     hgr_set_draw_page(draw_page);
-    if (!hgr_hud_init(&counter,0u,16u,5u)) return 1;
     while (apple2_readkey() != KC_ESC) {
         /* Erase a visible strip, preserving the header and diagonal. */
         hgr_fill_rect(80u,8u,0u,40u,0u);
         hgr_fill_pixrect(frame % 273u,80u,7u,7u);
-        hgr_hud_putu(&counter,frame);
+        /* On IIe double buffering, split work across two refresh intervals.
+         * Each stage fits one refresh; the next VBL presents at 30/25 FPS.
+         * Delay-only machines retain their workload-dependent timing. */
+#if DOUBLE_BUFFERED
+        if (a2_frame_mode() == A2_FRAME_VBL) a2_frame_wait();
+#endif
+        hgr_hud8_putu(&counter,frame);
         minimal_present();
         ++frame;
     }

@@ -13,20 +13,22 @@ HGRC_ASM_SRCS := $(addprefix $(HGRC)/,hgr_mode_asm.s hgr_mode_clear_asm.s \
     hgr_byte_rect_asm.s hgr_pixrect_asm.s hgr_pixrect_params.s hgr_cell_asm.s \
     hgr_pixel_asm.s hgr_colorize_asm.s hgr_carrier_params.s \
     hgr_bitmap_asm.s hgr_blit7_asm.s hgr_preshift_asm.s hgr_sprite_params.s)
-HGRC_CORE_SRCS := $(addprefix $(HGRC)/,hgr_state.c hgr_init.c hgr_tables.c hgr_columns.s hgr_masks.s hgr_phases.s) $(HGRC_ASM_SRCS)
+HGRC_CORE_SRCS := $(addprefix $(HGRC)/,hgr_state.c hgr_init.c hgr_draw_page.s hgr_row_page.s hgr_fixed_rows.s hgr_tables.c hgr_columns.s hgr_masks.s hgr_phases.s) $(HGRC_ASM_SRCS)
 HGRC_PIXEL_SRCS := $(HGRC)/hgr_pixel.c
 HGRC_RECT_SRCS := $(addprefix $(HGRC)/,hgr_rect.c hgr_pixrect.c hgr_cell.c \
     hgr_colorize.c hgr_carrier.c)
 HGRC_TEXT_SRCS := $(addprefix $(HGRC)/,hgr_font.c hgr_text.c hgr_text8.c \
     hgr_num_unsigned.c hgr_num_field.c hgr_num_signed.c hgr_num_hex.c \
-    hgr_num_small.c hgr_carrier.c hgr_hud.c)
+    hgr_num_small.c hgr_carrier.c hgr_hud.c hgr_hud_asm.s hgr_hud_putu.s \
+    hgr_hud8.c hgr_hud8_asm.s hgr_hud8_putu.s hgr_hud8_digits.s)
 HGRC_SPRITES_SRCS := $(HGRC)/hgr_sprites.c $(HGRC)/hgr_blit7.c
 HGRC_PRESHIFT_SRCS := $(HGRC)/hgr_preshift.c
 HGRC_SPRMASK_SRCS := $(HGRC)/hgr_sprmask.s
-HGRC_SPRENGINE_SRCS := $(HGRC)/hgr_sprengine.c $(HGRC)/hgr_sprdefault.c
+HGRC_SPRENGINE_SRCS := $(HGRC)/hgr_sprengine.c $(HGRC)/hgr_sprengine_asm.s $(HGRC)/hgr_sprdamage.s $(HGRC)/hgr_sprdefault.c
 HGRC_GEOM_SRCS := $(addprefix $(HGRC)/,hgr_geom.c hgr_line.c hgr_outline.c \
     hgr_circle.c hgr_ellipse.c hgr_line_asm.s)
 HGRC_LORES_SRCS := $(HGRC)/hgr_lores.c
+HGRC_TILEMAP_SRCS := $(HGRC)/hgr_tilemap.c $(HGRC)/hgr_tile_restore.s
 HGRC_NUM_SRCS := $(GFX)/gfx_num_hex.c $(GFX)/gfx_num_dec.c
 HGRC_GFX_TEXT_SRCS := $(GFX)/gfx_text.c $(GFX)/gfx_text_backend_hgr.c
 HGRC_GENERIC_VECTOR_SRCS := $(GFX)/gfx_line.c $(GFX)/gfx_rect.c
@@ -38,7 +40,7 @@ HGRC_GFX_SRCS := $(HGRC_VECTOR_SRCS) $(GFX)/gfx_circle.c $(GFX)/gfx_ellipse.c \
 HGRC_ALL_SRCS := $(sort $(HGRC_CORE_SRCS) $(HGRC_PIXEL_SRCS) $(HGRC_RECT_SRCS) \
     $(HGRC_TEXT_SRCS) $(HGRC_SPRITES_SRCS) $(HGRC_PRESHIFT_SRCS) \
     $(HGRC_SPRMASK_SRCS) $(HGRC_SPRENGINE_SRCS) $(HGRC_GEOM_SRCS) \
-    $(HGRC_LORES_SRCS) $(HGRC_NUM_SRCS) $(HGRC_GFX_SRCS) $(HGRC_GFX_TEXT_SRCS))
+    $(HGRC_LORES_SRCS) $(HGRC_TILEMAP_SRCS) $(HGRC_NUM_SRCS) $(HGRC_GFX_SRCS) $(HGRC_GFX_TEXT_SRCS))
 HGRC_INCS := -I $(HGRC) -I $(GFX)
 HGRC_AFLAGS := -I $(HGRC) -I $(HGRC)/../apple2
 HGRC_HEADERS := $(wildcard $(HGRC)/*.h $(HGRC)/*.inc $(HGRC)/../font/*.inc $(GFX)/*.h)

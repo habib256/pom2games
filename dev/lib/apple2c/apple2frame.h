@@ -28,4 +28,25 @@ void __fastcall__ a2_frame_set_delay(unsigned char delay);
  * flip promptly. On delay-only machines tearing remains possible. */
 unsigned char a2_frame_wait(void);
 
+/* Optional IRQ-clocked cadence. Link APPLE2C_CADENCE_SRCS separately.
+ * The application's single IRQ producer calls tick exactly once per refresh.
+ * Library installs no timer/vector and does not enable IRQs for the caller.
+ * tick preserves A/X/Y (NZ altered); normal IRQ flag restoration is required.
+ * Main RAM/ZP and D=0. init/wait are non-reentrant main-thread calls.
+ * period 1..8; 2 = nominal 30 NTSC / 25 PAL. Init aligns to the current tick.
+ * To avoid tearing, the producer's period AND phase must track video VBL.
+ * A free-running unrelated timer gives regular intervals, not video sync.
+ * wait skips late deadlines, waits for the next boundary of that same grid,
+ * returns skipped deadlines, or TIMEOUT if the clock stops. No catch-up burst.
+ * Resume within 32767 ticks of the deadline; I is preserved, IRQs must advance
+ * the source during wait. Re-init after timeout. Counts wrap modulo 65536.
+ * Read 16-bit counters atomically if the producer can interrupt the read.
+ */
+#define A2_CADENCE_TIMEOUT 65535u
+extern volatile unsigned a2_cadence_ticks;
+extern unsigned a2_cadence_missed;
+void a2_cadence_tick(void);
+unsigned char __fastcall__ a2_cadence_init(unsigned char refreshes);
+unsigned a2_cadence_wait(void);
+
 #endif
