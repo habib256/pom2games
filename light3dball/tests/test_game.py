@@ -53,6 +53,33 @@ base = [('launched', 1, False), ('advancing', 0, False),
         ('camera_z', 0, True), ('ball_x', 64 * 16, True),
         ('ball_y', 64 * 16, True), ('vel_x', 0, True), ('vel_y', 0, True)]
 
+# The flight HUD stays quiet across outgoing, incoming and close returns,
+# including toggling advancement. A sentinel on each page detects full HUD
+# clears even if the same static text is subsequently painted again.
+steps = ['wait:1100', L.until('physics')]
+for name, value, word in base + [('ball_z', 80, True), ('vel_z', 1, False)]:
+    steps += setv(name, value, word)
+for _ in range(2):
+    steps += [L.until('frame_mark'), L.until('physics')]
+sentinels = [page+a2test.hgr_offset(190)+39 for page in (0x2000, 0x4000)]
+for address in sentinels:
+    steps += [f'poke:{address:04X}:40']
+for z, direction, toggle in [(80, 1, False), (80, -1, False),
+                              (20, -1, False), (20, 1, True), (80, 1, True)]:
+    steps += setv('ball_z', z, True) + setv('vel_z', direction)
+    if toggle:
+        steps += ['key: ']
+    for _ in range(2):
+        steps += [L.until('frame_mark'), 'peek:2000:16384', L.until('physics')]
+r = checked_run(DISK, steps)
+for frame in range(10):
+    pages = r.mem(0x2000, 16384, frame)
+    for page in (0, 8192):
+        assert pages[page+a2test.hgr_offset(190)+39] == 0x40, 'flight redrew HUD'
+        for y in range(170, 178):
+            row = page+a2test.hgr_offset(y)
+            assert not any(pages[row:row+40]), 'flight status text remains'
+
 # A swept axial step hits a panel, while the opening passes the same ball.
 z, vz, hits = scenario(base + [('ball_z', 125, True), ('vel_z', 1, False),
                              ('ball_x', 100 * 16, True), ('wall_hits', 0, False)],
@@ -86,20 +113,31 @@ right_vx, = scenario(base + [('ball_z', 7, True), ('vel_z', -1, False),
                              ('ball_x', 72*16, True)], [('vel_x', True)])
 assert (left_vx, right_vx) == (-4, 4), ('asymmetric aiming', left_vx, right_vx)
 
+# Wide impacts newly available on the larger paddle steer all four directions.
+# Horizontal offsets of exactly +/-256 Q4 must not wrap to a central hit.
+for dx, dy, expected in [(256, 0, (8, 0)), (-256, 0, (-8, 0)),
+                          (0, 240, (0, 7)), (0, -240, (0, -7))]:
+    vx, vy = scenario(base + [('ball_z', 7, True), ('vel_z', -1, False),
+                              ('ball_x', 64*16+dx, True), ('ball_y', 64*16+dy, True)],
+                      [('vel_x', True), ('vel_y', True)])
+    assert (vx, vy) == expected, ('wide impact direction', dx, dy, vx, vy)
+
 # A central paddle hit must preserve the incoming lateral component.
 vx, vy = scenario(base + [('ball_z', 7, True), ('vel_z', -1, False),
                           ('vel_x', 4, True), ('vel_y', -4, True)],
                   [('vel_x', True), ('vel_y', True)])
 assert (vx, vy) == (4, -4), ('central hit destroyed trajectory', vx, vy)
 
-# A grazing return at an edge gets the perspective tolerance. The center
-# keeps its old extent, and one Q4 unit outside the new edge still loses a life.
+# The larger paddle catches wider aiming offsets at the center and retains
+# perspective tolerance at the edges. One Q4 unit outside still loses a life.
 for px, py, dx, dy, expected_hit in [
-        (16, 64, 192, 0, True), (112, 64, -192, 0, True),
-        (64, 24, 0, 200, True), (64, 104, 0, -200, True),
-        (16, 24, 192, 200, True), (112, 104, -192, -200, True),
-        (16, 64, 193, 0, False), (112, 64, -193, 0, False),
-        (64, 64, 145, 0, False), (64, 64, 0, 161, False)]:
+        (64, 64, 256, 0, True), (64, 64, -256, 0, True),
+        (64, 64, 0, 240, True), (64, 64, 0, -240, True),
+        (16, 64, 304, 0, True), (112, 64, -304, 0, True),
+        (64, 24, 0, 280, True), (64, 104, 0, -280, True),
+        (16, 24, 304, 280, True), (112, 104, -304, -280, True),
+        (16, 64, 305, 0, False), (112, 64, -305, 0, False),
+        (64, 64, 257, 0, False), (64, 64, 0, 241, False)]:
     hits, lives, launched = scenario(base + [('paddle_x', px, False), ('paddle_y', py, False),
                             ('ball_x', px*16+dx, True), ('ball_y', py*16+dy, True),
                             ('ball_z', 7, True), ('vel_z', -1, False), ('hits', 0, False)],
@@ -125,9 +163,14 @@ camera, blocked = scenario(base + [('camera_z', 118, True), ('ball_z', 160, True
 assert camera == 118 and blocked == 1, ('camera barrier', camera, blocked)
 camera, blocked = scenario(base + [('camera_z', 118, True), ('ball_z', 160, True),
                                   ('vel_z', 1, False), ('advancing', 1, False),
-                                  ('paddle_x', 40, False)],
+                                  ('paddle_x', 34, False)],
                            [('camera_z', True), ('blocked', False)])
 assert camera == 120 and blocked == 0, ('camera opening', camera, blocked)
+camera, blocked = scenario(base + [('camera_z', 118, True), ('ball_z', 160, True),
+                                  ('vel_z', 1, False), ('advancing', 1, False),
+                                  ('paddle_x', 35, False)],
+                           [('camera_z', True), ('blocked', False)])
+assert camera == 118 and blocked == 1, ('larger paddle clips opening', camera, blocked)
 camera, blocked = scenario(base + [('camera_z', 246, True), ('ball_z', 300, True),
                                   ('vel_z', 1, False), ('advancing', 1, False),
                                   ('paddle_x', 30, False)],

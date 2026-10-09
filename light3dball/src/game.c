@@ -57,7 +57,8 @@ static unsigned char dirty_hud;
 static unsigned char hud_status;
 static unsigned char sound_period, muted;
 static char lives_text[2]={'4',0};
-static char level_title[]="LIGHT3D L1 LIVES:";
+static char level_text[2]={'1',0};
+static const char level_title[]="LIGHT3D L  LIVES:";
 extern void __fastcall__ game_sound(unsigned char period);
 extern void step_xy(void);
 extern unsigned char paddle_contact(void);
@@ -72,6 +73,7 @@ extern unsigned char __fastcall__ project_x(unsigned char x);
 extern unsigned char __fastcall__ project_y(unsigned char y);
 extern void __fastcall__ perspective(unsigned distance);
 extern void clip_ball(void);
+extern void draw_paddle(void);
 extern unsigned char ball_clip_left, ball_clip_right;
 #pragma zpsym("ball_clip_left")
 #pragma zpsym("ball_clip_right")
@@ -83,8 +85,13 @@ static const hgr_mspr_t *old_shape[2][2];
 static unsigned old_x[2][2];
 static unsigned char old_y[2][2];
 #pragma bss-name(push, "LOWBSS")
-static unsigned char under[2][2][100];
+/* Save only each sprite's stride * height, including the larger paddle. */
+static unsigned char ball_under[2][16];
+static unsigned char paddle_under[2][224];
 #pragma bss-name(pop)
+static unsigned char *const under[2][2] = {
+    {ball_under[0], paddle_under[0]}, {ball_under[1], paddle_under[1]}
+};
 
 static void position_waiting_ball(void)
 {
@@ -139,7 +146,7 @@ static void input(void)
         if ((k=='L' || k==KC_RIGHT) && paddle_x<117) paddle_x+=3;
         if ((k=='I' || k==KC_UP) && paddle_y>12) paddle_y-=4;
         if ((k=='K' || k==KC_DOWN) && paddle_y<115) paddle_y+=4;
-        if (k==' ' && launched) { keyboard_advance=!keyboard_advance; advancing=keyboard_advance; ++dirty_hud; }
+        if (k==' ' && launched) { keyboard_advance=!keyboard_advance; advancing=keyboard_advance; }
         if (mouse_enabled) {
             paddle_x=mouse_map_x[mouse_x];
             paddle_y=mouse_map_y[mouse_y];
@@ -147,7 +154,7 @@ static void input(void)
                 serve();
             }
             if (launched && advancing!=((mouse_buttons & 128)!=0)) {
-                advancing=(mouse_buttons & 128)!=0; ++dirty_hud;
+                advancing=(mouse_buttons & 128)!=0;
             }
         }
         if (paddle_x<8) paddle_x=8;
@@ -213,8 +220,8 @@ void physics(void)
     if (advancing && ball_z>camera_z+12) {
         if ((camera_z&127)>=118) {
             opening(camera_z>>7);
-            if ((int)paddle_x-8<aperture_l) blocked=2;
-            else if ((int)paddle_x+8>aperture_r) blocked=1;
+            if ((int)paddle_x-14<aperture_l) blocked=2;
+            else if ((int)paddle_x+14>aperture_r) blocked=1;
         }
         if (!blocked && camera_z<camera_limit) camera_z+=2;
     }
@@ -317,28 +324,26 @@ static void sprite(unsigned char pg, unsigned char id, unsigned char x,
                    unsigned char y, const hgr_mspr_t *shape)
 {
     hgr_ms_x=x; hgr_ms_y=y; hgr_ms_spr=shape; hgr_ms_under=under[pg][id];
-    hgr_msu_run(); old_shape[pg][id]=shape; old_x[pg][id]=x; old_y[pg][id]=y;
+    if (id) draw_paddle(); else hgr_msu_run();
+    old_shape[pg][id]=shape; old_x[pg][id]=x; old_y[pg][id]=y;
 }
 
 static void hud(unsigned char pg)
 {
     unsigned char status=won ? 5 : !lives ? 4 : paused ? 3 : !launched ? 0 :
-        blocked ? blocked+8 : vel_z<0 ? (ball_z-camera_z<48 ? 8 : 7) : advancing ? 2 : 1;
+        blocked ? blocked+8 : 1;
     if (hud_status!=status) { hud_status=status; ++dirty_hud; }
     if (page_hud[pg]==dirty_hud) return;
     hgr_fill_rect(160,32,0,40,0);
-    level_title[9]='1'+level;
     hgr_puts8(7,160,level_title);
+    level_text[0]='1'+level;
+    hgr_puts8(77,160,level_text);
     lives_text[0]='0'+lives;
-    hgr_puts8(168,160,lives_text);
+    hgr_puts8(135,160,lives_text);
     hgr_puts8(7,170,status==5 ? (level<4 ? "TARGET HIT! CLICK/RETURN" : "FINAL CLEAR! R:NEW GAME") : status==4 ? "GAME OVER  R:RESTART" :
         status==3 ? "PAUSED  P:RESUME" : status==0 ?
         (mouse_enabled ? "CLICK:SERVE  MOVE MOUSE" : "RETURN:SERVE  IJKL:MOVE") :
-        status==9 ? "BLOCKED:MOVE LEFT" : status==10 ? "BLOCKED:MOVE RIGHT" :
-        status==8 ? "CLOSE! INTERCEPT BALL" :
-        status==7 ? "BALL RETURNING:MOVE PADDLE" :
-        status==2 ? "ADVANCING  AIM AT TARGET" :
-        (mouse_enabled ? "HOLD CLICK:ADVANCE" : "SPACE:ADVANCE  IJKL:MOVE"));
+        status==9 ? "BLOCKED:MOVE LEFT" : status==10 ? "BLOCKED:MOVE RIGHT" : "");
     hgr_puts8(7,182,"1-5:LEVEL P:PAUSE M:SOUND Q:QUIT");
     page_hud[pg]=dirty_hud;
     reset_gauge(pg);
@@ -384,8 +389,8 @@ void render(void)
         clip_ball();
     }
     perspective(4);
-    paddle_screen_x=project_x(paddle_x)-14;
-    paddle_screen_y=project_y(paddle_y)-9;
+    paddle_screen_x=project_x(paddle_x)-24;
+    paddle_screen_y=project_y(paddle_y)-14;
     sprite(pg,1,paddle_screen_x,paddle_screen_y,&paddle);
     hud(pg);
     depth_gauge(pg);

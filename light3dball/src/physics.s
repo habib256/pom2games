@@ -6,6 +6,8 @@
 contact_lo: .res 1
 contact_hi: .res 1
 contact_limit: .res 1
+contact_limit_hi: .res 1
+aim_negative: .res 1
 .code
 .macro STEP position, velocity
 .local lower, upper, negate, check_upper, done
@@ -61,19 +63,33 @@ _step_xy:
     STEP _ball_y, _vel_y
     rts
 
-; fastcall AX, offset -212..212. floor(abs(offset)/32), signed symmetrically.
+; fastcall AX, offset -312..312. floor(abs(offset)/32), signed symmetrically.
 ; The central -31..31 interval leaves the incoming tangent unchanged.
 _aim_bias:
-    cpx #0
-    beq @positive
+    sta contact_lo
+    stx contact_hi
+    txa
+    and #128
+    sta aim_negative
+    beq @absolute
+    lda contact_lo
     eor #255
     clc
     adc #1
-    lsr a
-    lsr a
-    lsr a
-    lsr a
-    lsr a
+    sta contact_lo
+    lda contact_hi
+    eor #255
+    adc #0
+    sta contact_hi
+@absolute:
+    .repeat 5
+        lsr contact_hi
+        ror contact_lo
+    .endrepeat
+    lda contact_lo
+    ldx aim_negative
+    beq @positive
+    cmp #0
     beq @positive
     eor #255
     clc
@@ -81,27 +97,27 @@ _aim_bias:
     ldx #255
     rts
 @positive:
-    lsr a
-    lsr a
-    lsr a
-    lsr a
-    lsr a
     ldx #0
     rts
 
-; Perspective tolerance in Q4: half-width 144 + abs(paddle_x-64),
-; half-height 160 + abs(paddle_y-64). The center keeps the original box;
+; Perspective tolerance in Q4: half-width 256 + abs(paddle_x-64),
+; half-height 240 + abs(paddle_y-64). Full 16-bit limits let the large
+; paddle accept aiming offsets beyond one byte without wraparound;
 ; each axis grows smoothly and symmetrically toward its screen edges.
 ; The adjacent ball_x/ball_y words are the game's world-coordinate pair.
 _paddle_contact:
+    lda #1
+    sta contact_limit_hi
     lda _paddle_x
-    ldy #144
+    ldy #0
     ldx #0
     jsr contact_axis
     cmp #0
     beq contact_miss
+    lda #0
+    sta contact_limit_hi
     lda _paddle_y
-    ldy #160
+    ldy #240
     ldx #2
 contact_axis:
     pha
@@ -116,6 +132,9 @@ contact_axis:
     clc
     adc contact_limit
     sta contact_limit
+    bcc @limit_ready
+    inc contact_limit_hi
+@limit_ready:
     pla
     sta contact_hi
     asl a
@@ -135,19 +154,23 @@ contact_axis:
     sta contact_lo
     lda _ball_x+1,x
     sbc contact_hi
-    bmi @negative
-    bne contact_miss
-    lda contact_lo
-    jmp @compare
-@negative:
-    cmp #255
-    bne contact_miss
+    sta contact_hi
+    bpl @compare
     lda contact_lo
     eor #255
     clc
     adc #1
-    bcs contact_miss       ; -256 or farther cannot fit a byte-sized radius
+    sta contact_lo
+    lda contact_hi
+    eor #255
+    adc #0
+    sta contact_hi
 @compare:
+    lda contact_hi
+    cmp contact_limit_hi
+    bcc @hit
+    bne contact_miss
+    lda contact_lo
     cmp contact_limit
     bcc @hit
     bne contact_miss

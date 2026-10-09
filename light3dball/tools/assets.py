@@ -44,8 +44,23 @@ for n in (4, 6, 8):
         return lit, inside
     out += bank(f'ball{n}', n, n, pixel)
 out += 'const hgr_mspr_t *const balls[] = {&ball4,&ball6,&ball8};\n'
-out += bank('paddle', 28, 18, lambda x, y: (
-    x in (1, 26) or y in (1, 16), x < 3 or x > 24 or y < 3 or y > 14))
+# The large transparent frame has only three distinct rows per HGR phase.
+# Store those rows instead of seven full bitmaps; draw_paddle expands them.
+paddle_data, paddle_mask = [], []
+for phase in range(7):
+    for kind in range(3):
+        row, mask = [0]*8, [255]*8
+        for x in range(49):
+            col, bit = divmod(x+phase, 7)
+            if kind < 2 or x < 3 or x > 45:
+                mask[col] &= ~(1 << bit)
+            if kind == 1 or x in (1, 47):
+                row[col] |= 1 << bit
+        paddle_data.extend(row)
+        paddle_mask.extend(mask)
+out += array('paddle_rows_data', paddle_data)
+out += array('paddle_rows_mask', paddle_mask)
+out += 'const hgr_mspr_t paddle = {0, 0, 8, 28};\n'
 out += array('scale_x', [252 * 32 // (32 + d) for d in range(256)])
 out += array('scale_y', [148 * 32 // (32 + d) for d in range(256)])
 out += array('ray_upper_y', [6+d*67//114 if d<=114 else 255 for d in range(128)])

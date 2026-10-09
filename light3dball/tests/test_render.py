@@ -44,6 +44,13 @@ def paint(page, x, y, value):
     page[at] = (page[at] | bit) if value else (page[at] & ~bit)
 
 
+def gauge_ball(page, x):
+    for y, row in enumerate(['.##.', '####', '####', '.##.']):
+        for dx, pixel in enumerate(row):
+            if pixel == '#':
+                paint(page, x-1+dx, 160+y, True)
+
+
 def check_pages(result, expected):
     previous = None
     for i, wanted in enumerate(expected):
@@ -80,6 +87,30 @@ for x0, y0, x1, y1 in rects:
             if x in (x0, x1) or y in (y0, y1):
                 paint(page, x, y, True)
     expected.append(page)
+check_pages(a2test.run(DISK, steps), expected)
+
+# The enlarged paddle keeps a transparent center and a black halo at all
+# seven byte phases. Saving/restoring its larger rectangle must be exact on
+# both pages, including near the limits of mouse movement.
+steps = fixture(call('draw_paddle') + call('frame_mark') + call('hgr_ms_restore_run'), clear=True)
+steps += write(L['hgr_ms_spr'], [L['paddle'] & 255, L['paddle'] >> 8])
+steps += write(L['hgr_ms_under'], [0, 0x10])
+expected = []
+for phase in range(7):
+    for left, top in [(7+phase, 9), (105+phase, 57), (196+phase, 119)]:
+        for _ in range(2):
+            steps += write(L['hgr_ms_x'], [left, 0]) + [L.poke('hgr_ms_y', top),
+                     L.until('draw_paddle'), L.until('frame_mark'),
+                     L.peek('hgr_base'), 'peek:2000:16384']
+            page = bytearray([0x55]*8192)
+            for y in range(28):
+                for x in range(49):
+                    if x < 3 or x > 45 or y < 3 or y > 24:
+                        paint(page, left+x, top+y, x in (1, 47) or y in (1, 26))
+            expected.append(page)
+            steps += [L.until('hgr_ms_restore_run'), L.until('frame_mark'),
+                      L.peek('hgr_base'), 'peek:2000:16384']
+            expected.append(bytearray([0x55]*8192))
 check_pages(a2test.run(DISK, steps), expected)
 
 # The distant ball has twelve white pixels with a round 4x4 silhouette.
@@ -123,7 +154,7 @@ for index, value in enumerate((4, 3, 2, 1, 0, 4)):
     if 1 <= index <= 4:
         assert r.mem(L['lives'], 1, index-1) == bytes([value])
     expected_header = bytearray(8192)
-    for text, left in [('LIGHT3D L1 LIVES:', 7), (str(value), 168)]:
+    for text, left in [('LIGHT3D L  LIVES:', 7), ('1', 77), (str(value), 135)]:
         for position, char in enumerate(text):
             glyph = font[(ord(char)-32)*8:(ord(char)-31)*8]
             for y, bits in enumerate(glyph):
@@ -131,12 +162,11 @@ for index, value in enumerate((4, 3, 2, 1, 0, 4)):
                     if bits & (1 << x):
                         paint(expected_header, left+position*8+x, 160+y, True)
     for x in range(184, 249):
-        paint(expected_header, x, 163, True)
+        paint(expected_header, x, 165, True)
     for y in range(160, 163):
         paint(expected_header, 184, y, True)
     if value:
-        for y in range(164, 167):
-            paint(expected_header, 184, y, True)
+        gauge_ball(expected_header, 184)
     pages = r.mem(0x2000, 16384, index)
     for base in (0, 8192):
         for y in range(160, 168):
@@ -147,8 +177,9 @@ for index, value in enumerate((4, 3, 2, 1, 0, 4)):
 # Updating many old contour histories must produce the same viewport as moving
 # directly to each pose. Cross every obstacle, change the door, then return to
 # the starting view; both pages include overlapping sprites and fixed rays.
-def pose_steps(camera, door):
-    ball=min(camera+40, 2046)
+def pose_steps(camera, door, ball=None):
+    if ball is None:
+        ball=min(camera+40, 2046)
     steps = [L.until('physics'), L.poke('paused', 1), L.poke('launched', 1),
              L.poke('door_phase', door), L.poke('camera_z', camera),
              L.poke('camera_z', camera >> 8, 1), L.poke('ball_z', ball),
@@ -201,16 +232,37 @@ for index, pose in enumerate(poses):
     camera, _ = pose
     reference = bytearray(8192)
     for x in range(184, 249):
-        paint(reference, x, 163, True)
+        paint(reference, x, 165, True)
     for y in range(160, 163):
         paint(reference, 184+camera//32, y, True)
-    for y in range(164, 167):
-        paint(reference, 184+min(camera+40,2046)//32, y, True)
+    gauge_ball(reference, 184+min(camera+40,2046)//32)
     for base in (0, 8192):
         for y in range(160, 168):
             row = a2test.hgr_offset(y)
             assert history[base+row+26:base+row+37] == reference[row+26:row+37], \
                 ('depth gauge lost tick or residue', pose, base, y)
+
+# Both markers share the space above the rail. Move either one while the
+# other stays still, crossing and separating them, to catch overlap erasure.
+overlaps = [(0, 0), (0, 40), (32, 40), (64, 40), (64, 68),
+            (64, 120), (96, 120), (96, 96), (96, 64), (32, 64), (0, 0)]
+steps = list(start)
+for camera, ball in overlaps:
+    steps += pose_steps(camera, 0, ball)
+updates = a2test.run(DISK, steps)
+for index, (camera, ball) in enumerate(overlaps):
+    expected = bytearray(8192)
+    for x in range(184, 249):
+        paint(expected, x, 165, True)
+    for y in range(160, 163):
+        paint(expected, 184+camera//32, y, True)
+    gauge_ball(expected, 184+ball//32)
+    pages = updates.mem(0x2000, 16384, index)
+    for base in (0, 8192):
+        for y in range(160, 168):
+            row = a2test.hgr_offset(y)
+            assert pages[base+row+26:base+row+37] == expected[row+26:row+37], \
+                ('overlapping depth markers', camera, ball, base, y)
 
 # The projection must match exact integer arithmetic for every legal world X/Y,
 # at scales covering the near/far range. No approximation or drift is allowed.

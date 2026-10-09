@@ -63,18 +63,18 @@ assert max(costs) < 600, ('native XY cycle budget', max(costs))
 body = absolute(0xAD, 0x0700) + absolute(0xAE, 0x0701) + absolute(0x20, L['aim_bias'])
 body += absolute(0x8D, 0x0702) + absolute(0x8E, 0x0703)
 steps = fixture(body)
-for offset in range(-212, 213):
+for offset in range(-312, 313):
     steps += poke(0x0700, word(offset)) + [L.until('aim_bias'), L.until('frame_mark'), 'peek:0702:2']
 r = a2test.run(DISK, steps)
-for index, offset in enumerate(range(-212, 213)):
+for index, offset in enumerate(range(-312, 313)):
     expected = abs(offset)//32 * (-1 if offset < 0 else 1)
     assert r.mem(0x0702, 2, index) == bytes(word(expected)), ('aiming symmetry', offset)
 contacts = []
 for px in (8, 16, 40, 64, 88, 112, 120):
     for py in (12, 24, 48, 64, 80, 104, 116):
-        rx, ry = 144+abs(px-64), 160+abs(py-64)
-        offsets = [(dx, 0) for dx in (-rx-1, -rx, -144, 144, rx, rx+1)]
-        offsets += [(0, dy) for dy in (-ry-1, -ry, -160, 160, ry, ry+1)]
+        rx, ry = 256+abs(px-64), 240+abs(py-64)
+        offsets = [(dx, 0) for dx in (-rx-1, -rx, -256, -255, 255, 256, rx, rx+1)]
+        offsets += [(0, dy) for dy in (-ry-1, -ry, -256, -255, -240, 240, 255, 256, ry, ry+1)]
         offsets += [(dx, dy) for dx in (-rx, rx) for dy in (-ry, ry)]
         for dx, dy in offsets:
             bx, by = px*16+dx, py*16+dy
@@ -92,6 +92,6 @@ for start in range(0, len(contacts), 160):
     for index, (px, py, bx, by, hit) in enumerate(batch):
         assert r.mem(0x0702, 2, index) == bytes([int(hit), 0]), \
             ('perspective contact boundary', px, py, bx, by, hit)
-print(f'LIGHT3DBALL native physics: {len(cases)} XY boundary cases, 425 aiming offsets, '
+print(f'LIGHT3DBALL native physics: {len(cases)} XY boundary cases, 625 aiming offsets, '
       f'{len(contacts)} perspective contacts; '
       f'{min(costs)}–{max(costs)} cycles per XY substep.')
