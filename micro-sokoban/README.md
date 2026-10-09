@@ -418,6 +418,15 @@ only carries the glyphs it prints; the five glyphs `F + - / .` were drawn for
 the port in the same 6 px / 2 px-stroke style and live in the generator
 (`ORDER` / `EXTRA`). `make` regenerates the include when the master changes.
 
+Compact eight-pixel text and byte-aligned white titles use the native
+[`hgr_glyph8.asm`](../dev/lib/hgr/hgr_glyph8.asm) core. Compact text replaces
+its cell's pixels while preserving neighbouring strokes; blank glyphs erase
+the cell. The coloured doubled font and 14×16 tile loops remain specialized.
+Before/after captures of the title, menus, help, options and level selector
+have identical displayed pixels. Cycle measurements across seven alignments
+show a 3.1% mean reduction for a dense compact glyph, with slower results at
+the first two alignments; this is not a speedup for every placement.
+
 ### Two voices on a one-bit speaker
 
 The speaker has one bit. `title_duet` (`src/title_music.inc`) mixes two

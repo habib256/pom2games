@@ -14,7 +14,7 @@
 ;     and <- / DEL backspace.
 ;   - BYE (and Ctrl-RESET) return to DOS with the zero page restored
 ;     (dev/lib/apple2/exit.asm).
-;   - no V-blank on an Apple II: hgr_emote_vsync is a stub.
+;   - HGR emotes use byte masks and saved-background updates from dev/lib/hgr.
 ;   - memory: BRUN at $4000, tables at $1000 (logo.cfg).
 ; Upstream: github.com/habib256/pom1 @ e2a4748 (2026-09-11). GPL-3.0.
 ; ============================================================================
@@ -111,6 +111,8 @@
 .ifdef LOGO_HGR
 ; 9-bit-X seam (GEN2 only): full 0..279 HGR width for the turtle + bubble.
 .import   line_xy16, plot_set_x16
+.import hgr_draw_emote, emote_hide
+.exportzp tx_lo, tx_hi, ty_lo, em_color
 .importzp ln_x0h, ln_x1h, pix_xh
 .endif
 .importzp ln_x0, ln_y0, ln_x1, ln_y1, pix_x, pix_y
@@ -231,28 +233,9 @@ spr_xoff:    .res 1
 spr_yoff:    .res 1
 spr_r1:      .res 1
 .ifdef LOGO_HGR
-; --- GEN2 software-sprite (emote) blit scratch (HGR has no HW sprites, so
-;     SETSHAPE shapes are XOR-blitted bitmaps that survive plot_set's A/X/Y
-;     clobber via these ZP loop vars). ---
-em_x0:       .res 1     ; sprite top-left X low byte (9-bit X)
-em_x0h:      .res 1     ; sprite top-left X high byte (emote can sit in 256..279)
-em_y0:       .res 1     ; sprite top-left Y
-em_row:      .res 1     ; current row 0..dim-1
-em_col:      .res 1     ; current col 0..dim-1
-em_dim:      .res 1     ; 16 (16x16) or 8 (8x8)
-em_color:    .res 1     ; 0 = default solid-white 2x2 emote (BIRDFLY etc.);
-                        ; 1 = colourised emote (DEMO2 narrator): tinted by
-                        ; pen_color, drawn every-other-column so HGR shows the
-                        ; hue instead of collapsing two adjacent dots to white.
-em_erase:    .res 1     ; colour path only: 0 = draw (OR + pen family bit),
-                        ; 1 = erase (XOR clears the dots, palette bit is
-                        ; invisible on the black narrator field). Ignored by the
-                        ; white path, which XORs both ways (self-inverse).
-em_par:      .res 1     ; colour path: parity nudge (0/1) LATCHED at draw time.
-                        ; The matching erase reuses it, so a SETPC that changes
-                        ; pen_color between a sprite's draw and its next erase
-                        ; still XORs the exact columns that were drawn (else the
-                        ; erase misses and residue washes the emote to white).
+; Emote style: solid 2x2 white cells, or one tinted column per 2x2 cell.
+; Conversion and saved-background scratch belong to emote_hgr.asm.
+em_color: .res 1
 .endif
 ; --- Colour ------------------------------------------------------------
 ; All colourisable surfaces (trail, bitmap arrow, sprite-0, bitmap text)
@@ -421,8 +404,6 @@ main:
         ; the turtle was intermittently invisible at first start. Seed it 0.
         STA tx_hi
         STA em_color              ; default emote = solid white (BIRDFLY look)
-        STA em_erase
-        STA em_par
 .endif
         ; Default sprite geometry = 16x16 (consistent with V2.0 behaviour).
         ; apply_sprite_size at the next SETSHAPE picks the right values.
@@ -1628,6 +1609,9 @@ cmd_setpc:
         STA pen_color
         LDA sprite_mode
         BEQ @bitmap
+.ifdef LOGO_HGR
+        JSR erase_turtle
+.endif
         JMP draw_turtle            ; sprite path: re-emit sprite-0 attribute  ; tail-call (was JSR+RTS; -1 B, juillet 2026 bank squeeze)
 @bitmap:
         LDA turtle_visible
@@ -3130,6 +3114,9 @@ cmd_cs:
         JMP cmd_home
 
 cmd_bye:
+.ifdef LOGO_HGR
+        JSR emote_hide
+.endif
         JSR erase_turtle
         JMP logo_exit          ; Apple II: back to DOS (screen.asm)
 
@@ -3967,13 +3954,9 @@ compute_turtle_verts:
 
 .ifdef LOGO_HGR
 ; ============================================================================
-; GEN2 HGR turtle subsystem (replaces the TMS9918 sprite/VRAM region below).
-;   The HGR card has no hardware sprites, so the turtle is a reversible XOR
-;   triangle: draw_turtle XOR-traces it, erase_turtle re-XOR-traces the SAME
-;   verts (tx/ty unchanged between erase and the following move) to undo it --
-;   no background save/restore (arrow_save_bbox) needed. SETSHAPE emotes are a
-;   later increment; here SETSHAPE just consumes its name and keeps the
-;   classic triangle. (sprite_mode stays 0 for the whole session.)
+; Native HGR turtle: XOR triangle, or doubled TMS emote composed by bytes.
+; Emotes retain their old image during preparation; the shared sprite engine
+; draws the new image before restoring the old-exclusive background.
 ; ============================================================================
 
 ; trace_turtle_lines: the 3 line_xy edges (tip->BL->BR->tip) in whatever
@@ -4022,23 +4005,6 @@ trace_turtle_lines:
         STA ln_y1
         JMP line_xy16  ; tail-call (was JSR+RTS; -1 B, juillet 2026 bank squeeze)
 
-; hgr_emote_vsync: coarse V-blank sync (HST0 = bit 7 of any $C25x read).
-;   Called at the head of every visible EMOTE transition (erase_turtle @emote),
-;   so the XOR erase -> reposition -> redraw burst BEGINS at V-blank. That parks
-;   the transient "bird fully erased" window up in V-blank / top-of-frame, where
-;   the beam has already swept past the mid-screen sprite -- the async HGR
-;   renderer stops catching the blank, so the BIRDFLY strobe goes away. This is
-;   the GEN2 analogue of the TMS erase_turtle's WAIT_VBLANK (which syncs on the
-;   VDP $CC01 status flag instead). Polls PAGE1 -- LOGO runs HIRES/PAGE1 and a
-;   $C254 read is an idempotent page-1 SELECT (not a bit toggle), so the poll
-;   never disturbs the mode. ORs two samples 4c apart to mask the 3c colour-
-;   burst notch (see gen2.inc / hgr_sync.asm). Clobbers A only.
-; Apple II: there is no V-blank signal to poll -- a $C05x read returns the
-; floating video bus, not the GEN2's HST0 flag -- so the sync is a stub and
-; the emote simply redraws immediately.
-hgr_emote_vsync:
-        RTS
-
 draw_turtle:
         JSR scr_gfx               ; Apple II: leave TEXTSCREEN for SPLITSCREEN
         LDA turtle_visible
@@ -4048,9 +4014,9 @@ draw_turtle:
         ; can sit anywhere across the HGR width.
         LDA ty_lo
         CMP #9
-        BCC @done
+        BCC @outside
         CMP #183
-        BCS @done
+        BCS @outside
         LDA sprite_mode
         BNE @emote
         ; --- bitmap triangle (XOR, reversible) ---
@@ -4063,12 +4029,12 @@ draw_turtle:
         LDA #1
         STA turtle_visible
         RTS
-@emote: LDA #0                    ; colour path: this pass DRAWS (OR + pen)
-        STA em_erase
-        JSR hgr_draw_emote       ; XOR-blit (white) / OR-blit (colour) the shape
+@emote: JSR hgr_draw_emote       ; byte composition over the saved background
         LDA #1
         STA turtle_visible
 @done:  RTS
+@outside:
+        JMP emote_hide
 
 erase_turtle:
         LDA turtle_visible
@@ -4085,10 +4051,7 @@ erase_turtle:
         LDA #0
         STA turtle_visible
         RTS
-@emote: JSR hgr_emote_vsync      ; begin the erase+reposition+redraw at V-blank
-        LDA #1                    ; colour path: this pass ERASES (XOR)
-        STA em_erase
-        JSR hgr_draw_emote       ; re-XOR the same dots -> erased
+@emote: ; Defer replacement: retain old image while movement/shape is prepared.
         LDA #0
         STA turtle_visible
 @done:  RTS
@@ -4111,176 +4074,6 @@ turn_draw:
         BNE @skip
         JMP draw_turtle
 @skip:  RTS
-
-; hgr_draw_emote: XOR-blit the current SETSHAPE bitmap (shape_pat_lo:hi,
-;   spr_size = 8 or 32) at the turtle, PIXEL-DOUBLED 2x (each source pixel ->
-;   a 2x2 screen block). Doubling makes the emote solid white on HGR instead
-;   of a single-pixel mesh that NTSC-artifacts into a colour fringe, and gives
-;   the narrator a readable size next to the speech bubble. Centred top-left =
-;   (tx - 2*spr_xoff, ty - 2*spr_yoff).
-;   TMS sprite format: 16x16 = 32 B in TL/BL/TR/BR quarter-blocks (8 B each,
-;   bit 7 = leftmost); 8x8 = 8 B (bytes 0..7 = the TL quarter). The quarter
-;   math collapses to a plain linear index for the 8x8 case, so one path
-;   serves both. plot_set clobbers A/X/Y (but NOT pix_x/pix_y), so every loop
-;   var lives in ZP and the 2x2 block re-uses pix_x/pix_y via inc/dec.
-hgr_draw_emote:
-        LDA spr_size
-        CMP #32
-        BNE @dim8
-        LDA #16
-        .byte $2C                 ; BIT abs -> skip the LDA #8
-@dim8:  LDA #8
-        STA em_dim
-        ; top-left = (tx - 2*spr_xoff, ty - 2*spr_yoff)  (2x scale, centred;
-        ;   9-bit X so the emote can sit in the 256..279 zone)
-        LDA spr_xoff
-        ASL
-        STA tmp               ; 2*spr_xoff
-        SEC
-        LDA tx_lo
-        SBC tmp
-        STA em_x0
-        LDA tx_hi
-        SBC #0
-        STA em_x0h
-        ; Colour parity nudge: on HGR the two artifact hues of a palette family
-        ; (violet/green, or blue/orange) are chosen by the EVEN/ODD column the
-        ; dots land on. pen_hi_tbl (in the backend) picks the family bit; this
-        ; table picks the parity, so pen_color -> one of 4 hues. Shift the whole
-        ; sprite's left-column base by 0/1 px accordingly (white path skips it).
-        LDA em_color
-        BEQ @nopar
-        LDA em_erase
-        BNE @usepar               ; erase: reuse the parity the draw latched
-        LDX pen_color             ; draw: latch parity for this pen
-        LDA em_par_tbl,X
-        STA em_par
-@usepar:
-        CLC
-        LDA em_par
-        ADC em_x0
-        STA em_x0
-        LDA em_x0h
-        ADC #0
-        STA em_x0h
-@nopar:
-        LDA spr_yoff
-        ASL
-        STA tmp
-        SEC
-        LDA ty_lo
-        SBC tmp
-        STA em_y0
-        ; Blit mode. White emote (em_color=0): XOR both ways -- self-inverse, and
-        ; the 2x2 cell lights two adjacent dots so HGR collapses them to solid
-        ; white. Colour emote (em_color=1): OR+pen to draw (em_erase=0), XOR to
-        ; erase (em_erase=1); the inner loop then lights only the LEFT dot of
-        ; each cell, so every-other column carries the pen hue instead of white.
-        LDA em_color
-        BEQ @white
-        LDA em_erase              ; colour: 0 = OR draw (pen), 1 = XOR erase
-        STA plot_mode
-        JMP @seedrow
-@white: LDA #1                    ; white: XOR
-        STA plot_mode
-@seedrow:
-        LDA #0
-        STA em_row
-@row:   LDA #0
-        STA em_col
-@col:   ; quarter = ((col&8)?2:0) | ((row&8)?1:0)  -> tmp
-        LDA #0
-        STA tmp
-        LDA em_row
-        AND #8
-        BEQ @nr8
-        LDA #1
-        STA tmp
-@nr8:   LDA em_col
-        AND #8
-        BEQ @nc8
-        LDA tmp
-        ORA #2
-        STA tmp
-@nc8:   ; Y = quarter*8 + (row & 7)
-        LDA tmp
-        ASL
-        ASL
-        ASL
-        STA tmp2
-        LDA em_row
-        AND #7
-        ORA tmp2
-        TAY
-        LDA (shape_pat_lo),Y      ; sprite data byte
-        STA tmp
-        LDA em_col
-        AND #7
-        TAX
-        LDA hgr_em_bit,X         ; mask = $80 >> (col&7)
-        AND tmp
-        BNE @lit                  ; set -> plot; else fall through to @next
-        JMP @next                 ; transparent (long jump: @next is out of
-                                  ; branch range past the two blit variants)
-@lit:
-        ; 2x2 screen block: px (9-bit) = em_x0 + col*2, py = em_y0 + row*2
-        LDA em_col
-        ASL                       ; col*2
-        CLC
-        ADC em_x0
-        STA pix_x
-        LDA em_x0h
-        ADC #0
-        STA pix_xh
-        LDA em_row
-        ASL
-        CLC
-        ADC em_y0
-        STA pix_y
-        JSR plot_set_x16          ; (px,   py)
-        LDA em_color
-        BNE @coldot               ; colour: LEFT dot only -> every-other column
-        INC pix_x                 ; px+1 (16-bit)
-        BNE @r1
-        INC pix_xh
-@r1:    JSR plot_set_x16          ; (px+1, py)
-        INC pix_y
-        JSR plot_set_x16          ; (px+1, py+1)
-        LDA pix_x                 ; px (16-bit dec back)
-        BNE @r2
-        DEC pix_xh
-@r2:    DEC pix_x
-        JSR plot_set_x16          ; (px,   py+1)
-        JMP @next
-@coldot:
-        INC pix_y                 ; the 2-tall left column: (px, py+1)
-        JSR plot_set_x16
-        DEC pix_y
-@next:  INC em_col
-        LDA em_col
-        CMP em_dim
-        BEQ @coldone              ; column loop back-branch is out of range now
-        JMP @col                  ;   (the colour variant grew the cell body)
-@coldone:
-        INC em_row
-        LDA em_row
-        CMP em_dim
-        BEQ @rowdone
-        JMP @row
-@rowdone:
-        LDA #0
-        STA plot_mode
-        RTS
-hgr_em_bit:
-        .byte $80, $40, $20, $10, $08, $04, $02, $01
-; em_par_tbl: column-parity (0/1) per pen_color, tuned with the backend's
-;   pen_hi_tbl (family bit) so the DEMO2 narrator gets 4 recognisable HGR hues.
-;   Values verified against the live NTSC decode -- see the demo2 SETPC scheme.
-em_par_tbl:
-        ;      0    1    2    3    4    5    6    7
-        .byte   0,   0,   1,   1,   0,   0,   1,   1
-        ;      8    9   10   11   12   13   14   15
-        .byte   0,   1,   0,   1,   0,   1,   0,   0
 
 ; cmd_setshape (GEN2): look the name up in shape_table (shared with TMS),
 ;   latch the pattern pointer + size, switch to sprite mode and redraw. ARROW
@@ -4315,7 +4108,8 @@ cmd_setshape:
         BNE @search
         LDA sprite_mode
         BEQ @ret                  ; already a triangle
-        JSR erase_turtle          ; erase the emote (sprite_mode still 1)
+        JSR emote_hide
+        JSR erase_turtle          ; switch from the saved-background sprite
         LDA #0
         STA sprite_mode
         JSR draw_turtle           ; redraw as triangle
@@ -4983,6 +4777,12 @@ boat_nw:
 ;     CS / SETXY 128 16 / SETSHAPE "EMOTE / SAY "TEXT / WAIT n
 ; ============================================================================
 cmd_say:
+.ifdef LOGO_HGR
+        JSR erase_turtle
+        JSR emote_hide             ; bubble clears complete rows directly
+        LDA #0
+        STA turtle_visible
+.endif
         ; The speech bubble must stay readable regardless of the sprite
         ; tint set by SETPC (the character may be green when ill, red
         ; when angry, etc.). Save pen_color, force white for the bubble
@@ -5036,6 +4836,9 @@ cmd_say:
         STA tx_lo
         PLA
         STA pen_color
+.ifdef LOGO_HGR
+        JSR draw_turtle
+.endif
         JMP cmd_wait              ; tail-call -- cmd_wait RTS returns to
                                   ;   parse_and_exec for us
 cmd_label:

@@ -24,7 +24,13 @@ test-hgr:
 	python3 dev/tests/test_dos_reuse.py
 	python3 dev/tests/test_exit_modes.py
 	python3 dev/tests/test_hgr_host.py
+	python3 dev/tests/test_hgr_x2.py
 	python3 dev/tests/test_gfx_boundaries.py
+	python3 dev/tests/test_gfx_outlines.py
+	python3 dev/tests/test_hgr_logo.py
+	python3 dev/tests/test_hgr_glyph8.py
+	python3 dev/tests/test_logo_glyphs.py
+	python3 dev/tests/test_hgr_sprite_update.py
 	python3 dev/tests/test_video_memory.py
 	python3 dev/tests/test_lores_modes.py
 	python3 dev/tests/test_preshift_bounds.py
@@ -159,3 +165,13 @@ test: test-minimal
 test-minimal:
 	python3 dev/tests/test_minimal_examples.py
 .PHONY: test-minimal
+
+test: test-logo
+test-logo:
+	$(MAKE) -C logo test
+.PHONY: test-logo
+
+# Compiler-derived shared-library usage and transitive build dependencies.
+audit-libs:
+	python3 dev/tools/audit_lib_usage.py
+.PHONY: audit-libs

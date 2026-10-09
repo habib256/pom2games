@@ -2,10 +2,11 @@
 ; ============================================================================
 ; hgr_text8.asm -- byte-aligned 8x8 text for the Apple II HGR framebuffer
 ; ----------------------------------------------------------------------------
-; THE shared glyph emitter for HGR games. Before this module existed,
+; Cursor-based shared glyph emitter for HGR games. Before this module existed,
 ; HGR_Chess (putc_hgr), HGR_Rogue (hgr_emit_a) and HGR_Maze3D
 ; (write_char) each carried a private copy of the same idea: STORE one
 ; 8x8 glyph byte per scanline at a byte column, with a text cursor.
+; CHESS now keeps its cursor adapter over the raw hgr_glyph8.asm core.
 ;
 ; The glyph is drawn in STORE mode (a space genuinely blanks its cell),
 ; 8 scanlines from ht_sl, at byte column ht_col; the cursor advances one

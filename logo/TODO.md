@@ -5,17 +5,6 @@ from.
 
 ## Next up
 
-- **`make test` with the shared harness.** There is no `test` target (the
-  other programs have one) and `ld65` is run without `-Ln`, so there is no
-  `build/logo.lbl` for `a2test.labels()`. Proposal: add
-  `-Ln $(BUILD)/logo.lbl` to the link line and a `tests/test_logo.py` that
-  uses `../dev/tools/a2test.py` with `iie=True` (a2shot, the only emulator
-  with 80 columns; a2run has none, see `dev/README.md`): boot `LOGO.dsk`,
-  wait for the banner, check `text_screens()` for the `?` prompt in
-  80 columns, type `REPEAT 4 [FD 40 RT 90]\r`, `peek:2000:8192` and assert
-  that `hgr_visible()` holds set pixels around (128, 96), then `COLUMNS 40`,
-  `BYE\r` and check the `]` DOS prompt. A second run without `iie` covers the
-  ][+ 40-column path (`scr_boot` with `MACHID != $06`).
 - **Screenshots.** `logo/` has none; `chromabreak/` and `arkabreakout/` keep
   theirs in `screenshots/` and link them from the README. Capture the split
   screen after `DEMO`, `FS` with a figure, `EDIT` and a `DEM2` bubble with
@@ -23,18 +12,9 @@ from.
 
 ## Later
 
-- **V-blank sync on the //e.** `hgr_emote_vsync` (`src/logo.s`) is a stub
-  because a ][+ has no VBL flag, so emote redraws are not synchronised (the
-  upstream comment describes the BIRDFLY strobe this sync removed). On a //e
-  `$C019` bit 7 is clear during VBL (`dev/lib/apple2c/apple2frame.h`);
-  `scr_iie` already tells the two machines apart, so the sync can poll
-  `$C019` on a //e and stay a stub on a ][+.
-- **Stale comments in the HGR code.** The GEN2 HGR subsystem header in
-  `src/logo.s` (before `trace_turtle_lines`) says `SETSHAPE` keeps the
-  triangle and `sprite_mode` stays 0, while `cmd_setshape` a few hundred
-  lines below loads the shapes and sets `sprite_mode = 1`. The header of
-  `src/hgr_logom2.asm` says the backend uses columns 0..255 only, while
-  `line_xy16` / `plot_set_x16` and the `SETXY` / move clamps cover 0..279.
+- **V-blank sync on the //e.** The saved-background byte compositor removes
+  the fully erased emote phase on II+ and IIe. A model-aware `$C019` sync could
+  still reduce scanout tearing on the IIe; the II+ has no VBL flag.
 - **Dead code.** `src/logo.s` carries two `.if 0` blocks: the pre-pagination
   `help_msg_unused_remove` text and the retired TURTL / BOAT directional
   sprite code. They are skipped by the assembler but weigh on the 186 KB

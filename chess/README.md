@@ -97,7 +97,7 @@ including the DOS 3.3 system tracks. The Makefile includes
 | `make distclean` | remove `build/` and the disk                             |
 
 The engine is assembled with `-D CHESS_SMART_EVAL` (positional tie-breaks).
-The link prints the binary size: `9,609 bytes at 0x6000`. On the disk,
+The link prints the binary size: `9,633 bytes at 0x6000`. On the disk,
 `HELLO` is one line, `10 PRINT CHR$(4);"BRUN CHESS"`.
 
 ## Tests and benchmarks
@@ -150,7 +150,7 @@ counts aside). Seconds are computed at 1 020 484 cycles per second.
 | `$1000-$13FF`   | BSS: renderer and game-loop scratch                        |
 | `$1400-$14FF`   | BOARDST: 0x88 board, game state, AI and search scratch     |
 | `$2000-$3FFF`   | HGR page 1                                                 |
-| `$6000-$95FF`   | CODE + ENGINE, the single 8 942-byte BRUN file             |
+| `$6000-$95FF`   | CODE + ENGINE, the single 9 633-byte BRUN file             |
 | `$9600-$BFFF`   | DOS 3.3                                                    |
 
 **Engine.** `chess_engine.asm` comes from POM1's `dev/lib/games/chess`: the
@@ -165,6 +165,11 @@ the engine through `init_board`, `apply_user_move`, `ai_play_move`,
 `game_status`, `in_check`, `piece_at` and `undo_last_move`.
 
 **Shared libraries** from `../dev`:
+
+The HGR text adapter uses `lib/hgr/hgr_glyph8.asm` for raw glyph rows.
+It preserves the $20..$5F ASCII window, cursor advance and byte palette.
+An in-bounds “R” at column 12 takes 476 cycles, versus 486 before sharing;
+the initial board/text framebuffer is identical.
 
 - `lib/apple2`: `kbd.asm` (`wait_key` / `poll_key`, latch `$C000` + strobe
   `$C010`, arrow codes), `hgr.asm` (`hgr_init_clear`), `print.asm`

@@ -21,15 +21,15 @@
 #include "hgr.h"
 #include "hgr_host.h"
 
-/* HOST-ONLY reference implementation. No target inflation kernel is supplied
- * in this library. The upstream implementation required assembly because cc65 2.18 `-Oirs` (the standard hgrc flag)
+/* HOST-ONLY per-pixel reference implementation. The target uses the bytewise
+ * implementation in hgr_x2_target.c because cc65 2.18 `-Oirs` (the standard hgrc flag)
  * MISCOMPILES this C: whatever the loop shape, the optimizer decides the inner
  * pixel-setting body is dead and drops it (computes the source-bit test, then
  * just does sx++, emitting ZERO stores into `out`) — so every x2 sprite inflated
  * to all-zero on the 6502. Confirmed juillet 2026 by reading the -Oirs asm. The
- * asm is fast and immune; this C stays only to cross-check the algorithm on the
+ * bytewise target avoids this loop; this C stays to cross-check the algorithm on the
  * host (hgr_inflate_x2_smoke vs HgrSpriteBlit::magnifyColor2x). `#if !__CC65__`
- * keeps it out of every cc65 build so it can never clash with the .s symbol. */
+ * keeps it out of every cc65 build so it cannot clash with the target symbol. */
 #if !defined(__CC65__)
 void hgr_inflate_x2(const unsigned char *mono, unsigned char wbytes,
                          unsigned char h, unsigned char color, unsigned char *out)

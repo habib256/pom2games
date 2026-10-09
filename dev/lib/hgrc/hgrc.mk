@@ -23,6 +23,7 @@ HGRC_TEXT_SRCS := $(addprefix $(HGRC)/,hgr_font.c hgr_text.c hgr_text8.c \
     hgr_hud8.c hgr_hud8_asm.s hgr_hud8_putu.s hgr_hud8_digits.s)
 HGRC_SPRITES_SRCS := $(HGRC)/hgr_sprites.c $(HGRC)/hgr_blit7.c
 HGRC_PRESHIFT_SRCS := $(HGRC)/hgr_preshift.c
+HGRC_X2_SRCS := $(HGRC)/hgr_x2_target.c $(HGRC)/hgr_blit_x2.c
 HGRC_SPRMASK_SRCS := $(HGRC)/hgr_sprmask.s
 HGRC_SPRENGINE_SRCS := $(HGRC)/hgr_sprengine.c $(HGRC)/hgr_sprengine_asm.s $(HGRC)/hgr_sprdamage.s $(HGRC)/hgr_sprdefault.c
 HGRC_GEOM_SRCS := $(addprefix $(HGRC)/,hgr_geom.c hgr_line.c hgr_outline.c \
@@ -38,15 +39,15 @@ HGRC_GFX_SRCS := $(HGRC_VECTOR_SRCS) $(GFX)/gfx_circle.c $(GFX)/gfx_ellipse.c \
     $(HGRC_BACKEND_SRCS)
 
 HGRC_ALL_SRCS := $(sort $(HGRC_CORE_SRCS) $(HGRC_PIXEL_SRCS) $(HGRC_RECT_SRCS) \
-    $(HGRC_TEXT_SRCS) $(HGRC_SPRITES_SRCS) $(HGRC_PRESHIFT_SRCS) \
+    $(HGRC_TEXT_SRCS) $(HGRC_SPRITES_SRCS) $(HGRC_PRESHIFT_SRCS) $(HGRC_X2_SRCS) \
     $(HGRC_SPRMASK_SRCS) $(HGRC_SPRENGINE_SRCS) $(HGRC_GEOM_SRCS) \
     $(HGRC_LORES_SRCS) $(HGRC_TILEMAP_SRCS) $(HGRC_NUM_SRCS) $(HGRC_GFX_SRCS) $(HGRC_GFX_TEXT_SRCS))
 HGRC_INCS := -I $(HGRC) -I $(GFX)
 HGRC_AFLAGS := -I $(HGRC) -I $(HGRC)/../apple2
-HGRC_HEADERS := $(wildcard $(HGRC)/*.h $(HGRC)/*.inc $(HGRC)/../font/*.inc $(GFX)/*.h)
+HGRC_HEADERS := $(wildcard $(HGRC)/*.h $(HGRC)/*.inc $(HGRC)/../font/*.inc $(HGRC)/../apple2c/*.h $(GFX)/*.h)
 HGRC_ASM_DEPS := $(wildcard $(HGRC)/*.inc $(HGRC)/../apple2/*.inc $(HGRC)/../apple2/*.asm)
 
-# Host-only x2 reference: hgr_x2.c. No target inflation kernel is supplied.
+# Host-only x2 reference: hgr_x2.c; cc65 selects hgr_x2_target.c above.
 # IIe/IIc DHGR stays opt-in, independent from HGR and gfx.
 HGRC_DHGR_STATE_SRCS := $(HGRC)/dhgr.c $(HGRC)/dhgr_asm.s
 HGRC_DHGR_PIXEL_SRCS := $(addprefix $(HGRC)/,dhgr_pixel.c dhgr_getpixel.c dhgr_pixel_address.c dhgr_access_asm.s dhgr_write_asm.s dhgr_read_asm.s)

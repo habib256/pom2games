@@ -28,16 +28,26 @@ void gfx_circle(unsigned xc, unsigned char yc, unsigned char r)
      * only after comparing, so neither unsigned subtraction nor addition
      * can wrap. Centres just beyond the edge still have visible arcs. */
     if (xc >= gfx_width && xc - gfx_width >= (unsigned)r) return;
+    if (yc >= gfx_height && (unsigned)(yc - gfx_height) >= (unsigned)r) return;
+    if (r == 0u) { gfx_plot(xc, yc); return; }
     cx = (int)xc;
     while (x <= y) {
-        gfx_plot_clip(cx + x, cy + y);
+        /* At x=0, opposite x signs coincide. At x=y, exchanging the
+         * coordinates repeats the first quartet. y is always positive. */
+        if (x != 0) {
+            gfx_plot_clip(cx + x, cy + y);
+            gfx_plot_clip(cx - x, cy - y);
+        }
         gfx_plot_clip(cx - x, cy + y);
         gfx_plot_clip(cx + x, cy - y);
-        gfx_plot_clip(cx - x, cy - y);
-        gfx_plot_clip(cx + y, cy + x);
-        gfx_plot_clip(cx - y, cy + x);
-        gfx_plot_clip(cx + y, cy - x);
-        gfx_plot_clip(cx - y, cy - x);
+        if (x != y) {
+            gfx_plot_clip(cx + y, cy + x);
+            gfx_plot_clip(cx - y, cy + x);
+            if (x != 0) {
+                gfx_plot_clip(cx + y, cy - x);
+                gfx_plot_clip(cx - y, cy - x);
+            }
+        }
         if (d < 0) { d += (x << 1) + 3; }
         else       { d += 2 * (x - y) + 5; --y; }
         ++x;

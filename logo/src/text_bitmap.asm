@@ -3,7 +3,7 @@
 ; ----------------------------------------------------------------------------
 ; Drop-in replacement for POM1's dev/lib/tms9918/text_bitmap.asm: same public symbol
 ; (text_blit_glyph) and the same (A, pix_x, pix_y, pen_color) contract, but it
-; paints into the GEN2 HGR framebuffer via plot_set + the Beautiful Boot 8x8
+; paints into the GEN2 HGR framebuffer via hgr_glyph8_or + Beautiful Boot 8x8
 ; font (bbfont) instead of the TMS9918 pattern/colour tables. Used by LOGO's
 ; on-bitmap text (HELP / LABEL / SAY / LIST / the buffer editor).
 ;
@@ -13,38 +13,30 @@
 ; API (identical to the TMS version):
 ;   text_blit_glyph   A = ASCII char (bit 7 ignored). pix_x/pix_y = pixel
 ;                     top-left of the glyph. Draws an 8x8 glyph in OR mode at
-;                     the current pen colour (via plot_set). Clobbers A,X,Y,
+;                     the current pen colour, updating sprite backgrounds.
+;                     Clips right/bottom without coordinate wrap. Clobbers A,X,Y,
 ;                     mptr_lo/hi, tmp, tmp2 and the plotter ZP. pix_x / pix_y
 ;                     are PRESERVED (put back to the glyph origin): the
 ;                     shared buffer editor advances pix_x by 8 per glyph and
 ;                     never reloads pix_y -- upstream left them on the glyph's
 ;                     last plotted pixel, which drew EDIT's text diagonally.
 ;
-; bbfont encoding: 8 bytes/glyph, row 0 = top, bit 0 = leftmost pixel -- so a
-; LSR walks columns left-to-right. (Same master font the GEN2 demos use.)
+; bbfont encoding: 8 bytes/glyph, row 0 = top, bit 0 = leftmost pixel;
+; the shared core packs each row into at most two native screen bytes.
 ; ============================================================================
 
 .ifdef CODETANK_BUILD
 
 .export text_blit_glyph
 
-.import   plot_set
-.import   plot_mode
-.importzp pix_x, pix_y
+.import plot_mode, hgr_lo, hgr_hi, pen_hi_tbl, emote_plot_background
+.importzp pix_x, pix_xh, pix_y, pix_mask, pix_addr_lo, pen_color
 .importzp tmp, tmp2, mptr_lo, mptr_hi
+.globalzp hg_x
 
-.segment "ZEROPAGE"
-tb_x0:   .res 1          ; glyph top-left X (preserved across plot_set)
-tb_y0:   .res 1          ; glyph top-left Y
-tb_row:  .res 1          ; current row 0..7
-tb_col:  .res 1          ; current column 0..7
-tb_bits: .res 1          ; remaining bits of the current row (LSB = next col)
-
-.segment "CODE"
-
+.code
 text_blit_glyph:
         AND #$7F
-        ; mptr = bbfont + A*8  (16-bit)
         STA tmp
         LDA #0
         STA tmp2
@@ -54,62 +46,38 @@ text_blit_glyph:
         ROL tmp2
         ASL tmp
         ROL tmp2
-        CLC
         LDA tmp
+        CLC
         ADC #<bbfont
         STA mptr_lo
         LDA tmp2
         ADC #>bbfont
         STA mptr_hi
-        ; latch top-left + force OR draw (text never erases)
         LDA pix_x
-        STA tb_x0
+        STA hg_x
         LDA pix_y
-        STA tb_y0
+        STA hg_y
         LDA #0
+        STA hg_x+1
+        STA pix_xh
         STA plot_mode
-        STA tb_row
-@row:
-        ; load this row's glyph byte
-        LDY tb_row
-        LDA (mptr_lo),Y
-        STA tb_bits
-        ; pix_y = y0 + row
-        LDA tb_y0
-        CLC
-        ADC tb_row
-        STA pix_y
-        LDA #0
-        STA tb_col
-@col:
-        LSR tb_bits             ; next column's bit -> C (bit0 = leftmost)
-        BCC @next
-        ; pix_x = x0 + col, then plot (plot_set clobbers A/X/Y -- all loop
-        ; state lives in ZP so that is fine)
-        LDA tb_x0
-        CLC
-        ADC tb_col
-        STA pix_x
-        JSR plot_set
-@next:
-        INC tb_col
-        LDA tb_col
-        CMP #8
-        BNE @col
-        INC tb_row
-        LDA tb_row
-        CMP #8
-        BNE @row
-        LDA tb_x0               ; Apple II port fix: hand the origin back
-        STA pix_x
-        LDA tb_y0
-        STA pix_y
+        JSR hgr_glyph8_or
+        LDA hg_y
+        STA pix_y                 ; the sprite hook uses the current scanline
         RTS
 
-; the whole Beautiful Boot 8x8 font (bbfont, 256 CP437 glyphs x 8 B, 2 KB):
-; LOGO prints any character code. bit 0 = left.
-BBFONT_FIRST = $00
-BBFONT_LAST  = $FF
-        .include "bbfont.inc"
+hg_src = mptr_lo
+hg_ptr = pix_addr_lo
+hg_lo = tmp
+hg_hi = tmp2
+hg_color = pen_color
+HG_COLOR_TABLE = pen_hi_tbl
+HG_OR_HOOK = emote_plot_background
+HG_HOOK_Y = pix_y
+HG_HOOK_MASK = pix_mask
+.include "hgr_glyph8.asm"
 
-.endif  ; CODETANK_BUILD
+BBFONT_FIRST = $00
+BBFONT_LAST = $FF
+.include "bbfont.inc"
+.endif
