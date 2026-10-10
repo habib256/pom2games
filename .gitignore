@@ -10,3 +10,6 @@ dev/tools/a2run/a2run
 # macOS
 .DS_Store
 __pycache__/
+
+# Wilderness reference images (copyrighted originals, local only)
+wilderness/original/
