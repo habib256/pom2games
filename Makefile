@@ -9,7 +9,7 @@
 #
 # Each folder builds on its own too: make -C chess [run], still into ./dist.
 
-II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake pinball light3dball mcs
+II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake pinball light3dball mcs wilderness
 IIE_PRODOS_GAMES := chromabreak
 DIRS := $(II_PLUS_GAMES) $(IIE_PRODOS_GAMES) logo dev/examples/hello dev/examples/hgr dev/examples/dhgr dev/examples/perspective
 
@@ -137,6 +137,11 @@ test: test-light3dball
 test-light3dball:
 	$(MAKE) -C light3dball test
 .PHONY: test-light3dball
+
+test: test-wilderness
+test-wilderness:
+	$(MAKE) -C wilderness test
+.PHONY: test-wilderness
 
 test: test-techniques
 

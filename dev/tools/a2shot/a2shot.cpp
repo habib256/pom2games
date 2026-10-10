@@ -8,10 +8,13 @@
 //   peek:ADDR[:LEN] hex-dump guest memory (bus reads, may have side effects)
 //   poke:ADDR:BYTE  write one guest RAM byte (hex address and value)
 //   joy:X,Y         joystick axes in [-1,1]      btn:N,0|1  game-port button
+//   insert:FILE     swap the drive 1 disk (a private copy, like --disk)
 //   reset           press RESET (warm: the 6502 RESET line)
 //   pc              print the program counter
 //   until:ADDR:N    run until PC reaches ADDR, with a limit of N video frames
 //   tracepc:ADDR:COUNT:N  record COUNT PC visits, limit N video frames
+//   pcprof:ADDR:N   run until PC reaches ADDR (limit N frames), then print the
+//                   cycles spent at each PC ("pc ADDR CYCLES")
 //   press:TEXT      queue keys without running (for exact until checkpoints)
 //   hwstackwatch / hwstack  profile hardware stack S; report wrap overflow
 //   stackwatch:SP:TOP:SIZE  profile cc65 software stack (hex arguments)
@@ -146,22 +149,31 @@ int main(int argc, char** argv)
     // POM2 writes disk changes back to the image file. A test must never
     // modify the disk it checks (a SAVE in one run corrupted the next run's
     // game), so boot a private copy and delete it on the way out.
-    char tmpl[] = "/tmp/a2shot-XXXXXX";
-    const int fd = mkstemp(tmpl);
-    if (fd < 0) { std::perror("mkstemp"); return 1; }
-    close(fd);
-    const std::string copy = tmpl;
-    {
-        std::ifstream in(disk, std::ios::binary);
-        std::ofstream out(copy, std::ios::binary);
+    // Keep the extension: the core picks the image format (.dsk/.po/.woz) from it.
+    struct Cleanup {
+        std::vector<std::string> paths;
+        ~Cleanup() { for (const auto& p : paths) std::remove(p.c_str()); }
+    } cleanup;
+    const auto privateCopy = [&](const std::string& src) -> std::string {
+        const size_t dot = src.find_last_of('.');
+        const std::string ext = dot == std::string::npos || src.find('/', dot) != std::string::npos
+                                    ? "" : src.substr(dot);
+        std::string tmpl = "/tmp/a2shot-XXXXXX" + ext;
+        const int fd = mkstemps(tmpl.data(), static_cast<int>(ext.size()));
+        if (fd < 0) { std::perror("mkstemps"); return ""; }
+        close(fd);
+        cleanup.paths.push_back(tmpl);
+        std::ifstream in(src, std::ios::binary);
+        std::ofstream out(tmpl, std::ios::binary);
         out << in.rdbuf();
         if (!in || !out) {
-            std::fprintf(stderr, "cannot copy %s\n", disk.c_str());
-            std::remove(copy.c_str());
-            return 1;
+            std::fprintf(stderr, "cannot copy %s\n", src.c_str());
+            return "";
         }
-    }
-    struct Cleanup { std::string p; ~Cleanup() { std::remove(p.c_str()); } } cleanup{copy};
+        return tmpl;
+    };
+    const std::string copy = privateCopy(disk);
+    if (copy.empty()) return 1;
 
     pom2::CoreConfig config;
     if (pal) { config.timing=pom2::VideoTiming::PAL; kCyclesPerFrame=20280; }
@@ -253,6 +265,22 @@ int main(int argc, char** argv)
                 profileStep();
             }
             if(hits!=count) return 3;
+        } else if (op == "pcprof") {
+            unsigned target=0,frames=0;
+            if (std::sscanf(arg.c_str(),"%x:%u",&target,&frames)!=2 || target>65535 || !frames) return 2;
+            const auto limit=core.cpuState().cycles+std::uint64_t(frames)*kCyclesPerFrame;
+            std::vector<std::uint64_t> spent(65536, 0);
+            const auto begin=core.cpuState().cycles;
+            while (core.cpuState().programCounter!=target && core.cpuState().cycles<limit) {
+                const auto pc=core.cpuState().programCounter;
+                const auto before=core.cpuState().cycles;
+                profileStep();
+                spent[pc]+=core.cpuState().cycles-before;
+            }
+            std::printf("pcprof %04X cycles=%llu\n",target,
+                static_cast<unsigned long long>(core.cpuState().cycles-begin));
+            for (unsigned a=0;a<65536;++a)
+                if (spent[a]) std::printf("pc %04X %llu\n",a,static_cast<unsigned long long>(spent[a]));
         } else if (op == "hwstackwatch") {
             hwStart=255; hwMin=hwPrevious=core.cpuState().stackPointer;
             hwOverflow=false; hwActive=true;
@@ -287,6 +315,12 @@ int main(int argc, char** argv)
                 return 1;
             }
             std::printf("shot %s\n", arg.c_str());
+        } else if (op == "insert") {
+            const std::string swapped = privateCopy(arg);
+            if (swapped.empty() || !core.insertDisk(0, swapped)) {
+                std::fprintf(stderr, "insert failed: %s\n", core.lastError().c_str());
+                return 1;
+            }
         } else if (op == "peek") {
             const size_t c2 = arg.find(':');
             unsigned addr = std::strtoul(arg.substr(0, c2).c_str(), nullptr, 16);
