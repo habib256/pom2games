@@ -1,5 +1,14 @@
 # Mesures actuelles cc65
 
+Le noyau de couloir extrait de Light3DBall se mesure séparément avec
+`python3 dev/bench/corridor_projection.py` (`make bench-corridor`). Tous les
+65 536 écarts de profondeur et les coordonnées 0..127 pour tous les facteurs
+admissibles sont vérifiés avec les deux masques IRQ. Les coûts incluent
+JSR/RTS, sans arguments C : sélection 65..77 cycles, X 135..170, Y 129..164.
+L'extraction garde les binaires identiques et change ces mesures de 0 %.
+`--before DIR` compare une capture antérieure contenant `game.bin`, `game.lbl`
+et `assets.bin`. Les adresses des branches et tables influencent ces coûts.
+
 ```sh
 make bench
 make bench-dhgr

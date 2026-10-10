@@ -1,7 +1,8 @@
 # Utilisation de dev/lib par les logiciels
 
 Audit des neuf jeux et applications, de la disquette DEMO, des trois exemples
-livrés dans `dist/` et des exemples minimaux : **14 projets utilisent des
+livrés dans `dist/`, des exemples minimaux et de la démo perspective/audio :
+**15 projets utilisent des
 ressources de `dev/lib`**. Les moteurs conservent aussi des routines locales.
 La présence d'une bibliothèque ne signifie donc pas que tout leur rendu passe
 par elle, ni que toutes les familles d'une archive sont liées dans le binaire.
@@ -14,7 +15,7 @@ par elle, ni que toutes les familles d'une archive sont liées dans le binaire.
 | MAZE3D | `apple2` : HGR, joystick, son, DOS, sortie et LZ4FH ; `hgr` : pages, texte, sprites compactés, lignes, spans et effacement de lignes |
 | SNAKE | `hgrc` : rendu HGR, cellules, texte, nombres ; `apple2c` : entrées ; police partagée |
 | PINBALL | `mouse` : pilote AppleMouse et contexte résident ; rendu et simulation historiques de Bill Budge conservés |
-| LIGHT3DBALL | `hgrc`, `apple2c`, `mouse` ; `hgr` : fil de fer et spans ; `apple2` : son ; `font` |
+| LIGHT3DBALL | `hgrc`, `apple2c`, `mouse` ; `perspective` : couloir natif ; `hgr` : fil de fer et spans ; `apple2` : son ; `font` |
 | CHROMABREAK | `hgrc` : DHGR et petit texte ; `apple2c` : entrées et cadence ; `prodos` : fichiers ; `mouse` ; police dérivée de `font` |
 | LOGO | `apple2` : clavier, texte, HGR et sortie ; `hgr` : pixels, lignes, glyphes natifs, tables, effacement et composition des sprites ; `font` |
 | DEMO | démos C : `hgrc`, `gfx` et `apple2c` selon les routines appelées ; démos assembleur : `apple2`, `hgr` et `font` |
@@ -22,6 +23,7 @@ par elle, ni que toutes les familles d'une archive sont liées dans le binaire.
 | Exemple HGR | `hgrc`, `gfx`, `apple2c` et leurs noyaux assembleur |
 | Exemple DHGR | `hgrc` DHGR, `gfx`, `apple2c` |
 | Exemples minimaux | `hgrc`, `gfx`, `apple2c`, `prodos` selon le binaire |
+| Exemple perspective/audio | `hgrc`, `gfx`, `apple2c`, `perspective`, `audio` ; disque local dans `build/` |
 
 Les inclusions assembleur sont résolues par le compilateur, pas seulement par
 une recherche de noms dans les sources. Les en-têtes C transitifs et les

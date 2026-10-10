@@ -37,6 +37,8 @@ FONT    := $(DEV)/lib/font
 HGRC    := $(DEV)/lib/hgrc
 GFX     := $(DEV)/lib/gfx
 APPLE2C := $(DEV)/lib/apple2c
+AUDIO   := $(DEV)/lib/audio
+PERSPECTIVE := $(DEV)/lib/perspective
 
 # Assembly programs: include path and the library files a rebuild depends on.
 A2_INCS     := -I src -I $(APPLE2) -I $(HGR) -I $(FONT)

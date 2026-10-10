@@ -298,56 +298,23 @@ _game_sound:
     jmp tone
 .include "sound.asm"
 
-; floor(value*scale/128) for value 0..127. Seven shift/add steps, no C
-; 16-bit multiplication helpers. cc65 fastcall byte argument/result in A/X.
-.macro PROJECT name, scale, origin
-name:
-    sta mul_bits
-    lda #0
-    ldx #7
-@multiply:
-    lsr mul_bits
-    bcc @shift
-    clc
-    adc scale
-@shift:
-    ror a
-    dex
-    bne @multiply
-    clc
-    adc origin
-    rts
-.endmacro
-PROJECT _project_x, _sx, _left
-PROJECT _project_y, _sy, _top
-
-_perspective:
-    cpx #2
-    bcs @far
-    stx mul_bits
-    lsr mul_bits
-    ror a
-    tax
-    jmp @lookup
-@far:
-    ldx #255
-@lookup:
-    stx _depth
-    lda _scale_x,x
-    sta _sx
-    lsr a
-    eor #255
-    clc
-    adc #129
-    sta _left
-    lda _scale_y,x
-    sta _sy
-    lsr a
-    eor #255
-    clc
-    adc #81
-    sta _top
-    rts
+; Bind the shared corridor kernel to the game's resident state/tables.
+; Keep the historical exported entry names for fixtures and native clients.
+PC_CENTER_X = 128
+PC_CENTER_Y = 80
+PC_DEPTH_SHIFT = 1
+PC_BITS = mul_bits
+PC_SX = _sx
+PC_SY = _sy
+PC_LEFT = _left
+PC_TOP = _top
+PC_DEPTH = _depth
+PC_TABLE_X = _scale_x
+PC_TABLE_Y = _scale_y
+.include "corridor.asm"
+_project_x = _a2_corridor_x
+_project_y = _a2_corridor_y
+_perspective = _a2_corridor_select
 
 ; Restore covered pixels from the ball's original save-under rectangle.
 ; Current ball banks all have stride 2. The saved background is untouched,

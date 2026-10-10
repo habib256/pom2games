@@ -42,6 +42,9 @@ utilise, sans appeler ces primitives ni changer leurs banques.
 | `dhgr_clear_rows` | Lignes visibles ; banques principales et masque IRQ rétablis entre les lignes ; noyau <1 300 cycles par ligne |
 | Sprites sauvegardés | Restaurer avant de modifier le fond ou de redéfinir une forme ; conserver un fond par page |
 | Cadence | VBL IIe ou délai ajouté au dessin ; repli borné en cas de signal bloqué ; masque IRQ conservé |
+| Audio PWM optionnel | CPU nominal 1 MHz, clip encodé terminé `$92` ; lecture bloquante, IRQ masquées puis masque rétabli ; emprunte ptr1/ptr3/ptr4 bas/tmp3 cc65 ; segment AUDIOCODE aligné $100 en RAM |
+| Perspective | X 0..279, profondeur dans les tables empruntées ; sortie hors HGR refusée ; aucun état vidéo/bancaire modifié, hors IRQ |
+| Couloir natif | X/Y monde 0..127, profondeur 16 bits non signée ; deux tables de 256 octets empruntées, centres/pas fixés à la compilation ; état partagé 5 BSS + 1 ZP ou alias appelant ; aucun clipping ni changement I/banques |
 | ProDOS vidéo | Politique explicite pour `/RAM` avant le dessin auxiliaire ; libération à la sortie |
 
 La page affichée et la page de dessin sont distinctes. Attendre un front VBL

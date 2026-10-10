@@ -2,6 +2,8 @@
 import sys
 import json
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+from perspective import corridor_scales
 
 
 def bank(name, width, height, pixel):
@@ -61,8 +63,9 @@ for phase in range(7):
 out += array('paddle_rows_data', paddle_data)
 out += array('paddle_rows_mask', paddle_mask)
 out += 'const hgr_mspr_t paddle = {0, 0, 8, 28};\n'
-out += array('scale_x', [252 * 32 // (32 + d) for d in range(256)])
-out += array('scale_y', [148 * 32 // (32 + d) for d in range(256)])
+scale_x, scale_y = corridor_scales(span_x=252, span_y=148, focal=32)
+out += array('scale_x', scale_x)
+out += array('scale_y', scale_y)
 
 # Sparse immutable corridor backdrop: only the lit HGR bytes per scanline.
 # The renderer can repair a dirty rectangle without retracing long diagonals.

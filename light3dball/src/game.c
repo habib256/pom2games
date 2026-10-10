@@ -7,6 +7,7 @@
 #include "apple2io.h"
 #include "apple2frame.h"
 #include "mouse.h"
+#include "corridor.h"
 #pragma rodata-name(push, "ASSETS")
 #include "assets.h"
 #include "background.h"
@@ -69,9 +70,9 @@ static unsigned char scene_lines[2][128], scene_count[2];
 static unsigned char old_rays[2][4];
 unsigned char sx, sy, left, top, depth;
 static unsigned char ball_size, bx, by;
-extern unsigned char __fastcall__ project_x(unsigned char x);
-extern unsigned char __fastcall__ project_y(unsigned char y);
-extern void __fastcall__ perspective(unsigned distance);
+#define project_x a2_corridor_x
+#define project_y a2_corridor_y
+#define perspective a2_corridor_select
 extern void clip_ball(void);
 extern void draw_paddle(void);
 extern unsigned char ball_clip_left, ball_clip_right;
