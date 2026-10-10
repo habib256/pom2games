@@ -2,13 +2,14 @@ DEV ?= ../dev
 include $(DEV)/cc65/apple2.mk
 include $(HGRC)/hgrc.mk
 include $(APPLE2C)/apple2c.mk
+include $(PERSPECTIVE)/perspective.mk
 DISK := $(DIST)/LIGHT3DBALL.dsk
 HGRC_EXTRA_SRCS := $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS)
 HGRC_CFLAGS := -t none -Ors $(HGRC_INCS) $(APPLE2C_INCS)
 
 all: $(DISK)
 
-$(BUILD)/assets.h: tools/assets.py levels.json
+$(BUILD)/assets.h: tools/assets.py levels.json $(DEV)/tools/perspective.py
 	@mkdir -p $(@D)
 	$(PYTHON) $< $@
 
@@ -23,12 +24,12 @@ $(BUILD)/crt0.o: $(A2_CRT0)
 	@mkdir -p $(@D)
 	$(CA65) -t none -o $@ $<
 
-$(BUILD)/game.o: src/game.c $(BUILD)/assets.h $(BUILD)/background.h $(BUILD)/mousemap.h $(BUILD)/levels.h $(HGRC_HEADERS) $(DEV)/lib/mouse/mouse.h
-	$(CL65) -t none -Ors $(HGRC_INCS) $(APPLE2C_INCS) -I $(DEV)/lib/mouse -I $(BUILD) -c -o $@ $<
+$(BUILD)/game.o: src/game.c $(BUILD)/assets.h $(BUILD)/background.h $(BUILD)/mousemap.h $(BUILD)/levels.h $(HGRC_HEADERS) $(DEV)/lib/mouse/mouse.h $(PERSPECTIVE_CORRIDOR_DEPS)
+	$(CL65) -t none -Ors $(HGRC_INCS) $(APPLE2C_INCS) $(PERSPECTIVE_CORRIDOR_INCS) -I $(DEV)/lib/mouse -I $(BUILD) -c -o $@ $<
 
-$(BUILD)/render.o: src/render.s $(A2_ASM_DEPS)
+$(BUILD)/render.o: src/render.s $(A2_ASM_DEPS) $(PERSPECTIVE_CORRIDOR_DEPS)
 	@mkdir -p $(@D)
-	$(CA65) -t none $(A2_INCS) -o $@ $<
+	$(CA65) -t none $(A2_INCS) $(PERSPECTIVE_CORRIDOR_INCS) -o $@ $<
 
 $(BUILD)/mouse.o: $(DEV)/lib/mouse/mouse.s
 	@mkdir -p $(@D)

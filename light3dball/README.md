@@ -119,6 +119,11 @@ X/Y utilisent quatre bits fractionnaires. Quatre sous-pas vérifient les
 murs, les deux faces des obstacles et le plan de la raquette. Les contacts
 incluent un rayon de deux unités et la correction de dépassement. Des
 tables précalculent la perspective et les trois tailles de balle.
+Le noyau de projection X/Y et de sélection de profondeur est partagé dans
+[`dev/lib/perspective/corridor.asm`](../dev/lib/perspective/README.md#couloir-6502--cc65).
+Les centres 128/80, le pas de profondeur de deux unités et les facteurs
+252/148 sont ceux du jeu ; leur extraction conserve les binaires et le rendu
+octet pour octet. Les tableaux sont générés par l'outil commun de perspective.
 La projection et les collisions critiques évitent les divisions C. Les
 contacts de raquette et de cible conservent la précision fractionnaire ; la
 balle est masquée pixel par pixel aux bords des ouvertures.

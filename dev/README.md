@@ -11,6 +11,8 @@ utilisent la vidéo native de l'Apple II. Tous les jeux du dépôt les partagent
       lib/prodos/      MLI ProDOS 8 et remise en état après DHGR
       lib/mouse/       AppleMouse II : scrutation, IRQ firmware et VBL,
                        contexte optionnel ZP/boîtes pour les clients historiques
+      lib/audio/       lecteur PWM optionnel, échantillons haut-parleur 8 kHz
+      lib/perspective/ plan HGR sur 280 pixels et couloir natif à deux axes
       tools/prodos/    constructeur/lecteur de disquettes ProDOS (.po)
       lib/font/        police Beautiful Boot 8x8 : une table maîtresse, découpée
                        à la demande (asm, C, outils Python)
@@ -29,6 +31,8 @@ utilisent la vidéo native de l'Apple II. Tous les jeux du dépôt les partagent
       tools/build_dhgr_font.py  image binaire de la petite police DHGR relogée
                        (lib/hgrc, DHGR_SMALL_FONT_EXTERNAL)
       tools/assets/    convertisseur PNG/PPM -> banques HGR/DHGR, masques, aperçus
+      tools/audio/     WAV PCM -> clips PWM ; générateur du lecteur 6502
+      tools/perspective.py  tables de caméra fixe paramétrables
       tools/dos33_system.bin  pistes système DOS 3.3 (0-2) du disque maître Apple
       tools/a2shot/    exécutions sans interface, scriptées, avec captures PNG
       tools/a2run/     la même chose en C portable, avec écriture disque
@@ -38,6 +42,7 @@ utilisent la vidéo native de l'Apple II. Tous les jeux du dépôt les partagent
       examples/hello/  programme de départ asm + C sur un disque
       examples/hgr/    démarrage HGR animé : sprites, compteur, clavier, cadence
       examples/dhgr/   DHGR 560×192 / 16 couleurs, Apple IIe 128 Ko ou IIc
+      examples/perspective/ grille HGR + effet audio ; disque dans build/
 
 ## Démarrer
 
@@ -234,6 +239,6 @@ sépare les essais physiques restant à effectuer des validations émulées.
 ## Audit des ressources partagées
 
 `make audit-libs`, depuis la racine, vérifie les dépendances réelles des
-14 projets avec ca65/cc65 et le graphe de compilation de make. Construire
+15 projets avec ca65/cc65 et le graphe de compilation de make. Construire
 d’abord les logiciels et les exemples minimaux pour disposer des ressources
 générées. Voir [l’inventaire et les possibilités de mutualisation](lib/USAGE.md).

@@ -1,0 +1,21 @@
+PWM player generator derived from a2tools by Colin Leroy-Mira (2025).
+Upstream: https://github.com/colinleroy/a2tools
+Revision: 540722a (archive of main inspected on 2026-10-10).
+Sources: src/sound_player_generator/gen_sound_player.c and sound.h.
+License: GNU GPL version 3 or, at your option, any later version.
+The full GNU GPL version 3 text is at ../../../LICENSE (repository root).
+
+Adaptations for pom2games:
+- Fixed nominal 8000 Hz sample format, synchronous cc65 fastcall API.
+- Remove IIgs speed management, accelerator/paddle softswitch reads and
+  game-specific variable-speed playback; caller supplies nominal 1 MHz.
+- Preserve caller IRQ mask; no video/bank/IRQ-vector installation.
+- Size actions_done for all eight tasks (upstream declared only five).
+- Advance the input pointer before the first carrier period, avoiding a
+  duplicated first sample. Accept null pointers and terminator-only clips.
+- Generated player checked into dev/lib/audio for dependency-free builds.
+
+pack_wav.py and generate_player.py are new GPL-3.0 integration tools.
+Perspective tables/runtime are a new GPL-3.0 implementation inspired by
+Shufflepuck's gen_transform.c, one-point-perspective.h and _transform_xy;
+camera parameters and full 280-pixel input are exposed independently.

@@ -11,7 +11,7 @@
 
 II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake pinball light3dball mcs
 IIE_PRODOS_GAMES := chromabreak
-DIRS := $(II_PLUS_GAMES) $(IIE_PRODOS_GAMES) logo dev/examples/hello dev/examples/hgr dev/examples/dhgr
+DIRS := $(II_PLUS_GAMES) $(IIE_PRODOS_GAMES) logo dev/examples/hello dev/examples/hgr dev/examples/dhgr dev/examples/perspective
 
 all:
 	@for d in $(DIRS); do $(MAKE) -C $$d || exit 1; done
@@ -57,6 +57,9 @@ test-hgr-example:
 	python3 dev/tests/test_hgr_example.py
 
 test-dhgr:
+	python3 dev/tests/test_audio.py --iie
+	python3 dev/tests/test_perspective.py --iie
+	python3 dev/tests/test_shufflepuck_example.py --iie
 	$(MAKE) -C dev/examples/dhgr test
 	python3 dev/tests/test_dhgr_extended.py
 	python3 dev/tests/test_dhgr_spans.py
@@ -147,6 +150,10 @@ test-techniques:
 # Native HGR lookup tables and checked fixed-sector DOS construction.
 test: test-tools
 test-tools:
+	python3 dev/tests/test_corridor.py
+	python3 dev/tests/test_audio.py
+	python3 dev/tests/test_perspective.py
+	python3 dev/tests/test_shufflepuck_example.py
 	python3 dev/tests/test_stack_profile.py
 	python3 dev/tests/test_build_config.py
 	python3 dev/tests/test_prodos_video.py
@@ -154,6 +161,10 @@ test-tools:
 	python3 dev/tests/test_mouse_context.py
 	python3 dev/tests/test_hgr_tables_disk.py
 .PHONY: test-tools
+
+bench-corridor:
+	python3 dev/bench/corridor_projection.py
+.PHONY: bench-corridor
 
 # Optional RGB and Mockingboard ASM primitives, with traced hardware buses.
 test-tools: test-hardware
