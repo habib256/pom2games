@@ -10,12 +10,13 @@ Same model as the original SURV3D (see docs/ANALYSE.md), on the MAP grid:
     beats the steepest slope so far: dz > thr, with thr += inc each step.
     A visible sample sets inc = dz * 256 / n (truncated), thr = dz * 256,
     and is drawn at row 95 - ((inc * 3) >> 4) (= 95 - 48 * dz / n),
-    rows 0..159; the horizon is row 95.
+    rows 0..159 except the central compass HUD; the horizon is row 95.
   - the column is painted from the bottom: each visible sample fills the rows
     between its row and the previous top with the ground colour and leaves a
     black dot on its own row; the sky fills what remains.
 Colours are pixel pairs (even, odd): sky and water violet (1, 0), ground green
-(0, 1), snow white (1, 1), ridge black (0, 0). The view covers HGR rows 0..159.
+(0, 1), snow white (1, 1), ridge black (0, 0). The terrain covers HGR rows
+0..159; rows 0..15 are reserved for the survival panels and compass.
 
 Usage: view_ref.py MAP.bin [X8.8 Y8.8 HEADING] OUT.png
 """
@@ -25,6 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import topo  # noqa: E402
 
 GW, GH, HEADER = 112, 84, 64
+HUD_ROWS = 16
 VIEW_ROWS, HORIZON, STEPS = 160, 95, 128
 SINQ = [round(256 * math.sin(i * math.pi / 2 / 140)) for i in range(141)]
 SKY, GROUND, SNOWC, WATER, RIDGE = (1, 0), (0, 1), (1, 1), (1, 0), (0, 0)
@@ -91,6 +93,8 @@ def render(m, px, py, heading):
                 if top == 0:
                     break
         paint(col, 0, top, SKY)
+    for y in range(HUD_ROWS):
+        fb[y*40:(y+1)*40] = bytes(40)
     return bytes(fb)
 
 

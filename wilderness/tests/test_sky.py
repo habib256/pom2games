@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""Geographic bearings, astronomical altitude, lunar motion, occlusion and pans."""
+import math
+import tempfile
+from common import HERE,L,DISK,a2test,fp,view_rows,hgr_rows,disk_with,view_ref
+from test_thermal import call,poke
+from sky_ephemeris import entry
+
+TAU=2*math.pi
+
+def model(latitude,date,hour,moon=False,longitude=-120):
+    h=(hour-12)*math.pi/12
+    if moon:
+        interval=(math.floor(date*365)+hour/24-longitude/360)/2
+        sample=math.floor(interval); f=interval-sample
+        first,second=entry(sample*2),entry((sample+1)*2)
+        values=[]
+        for i,(a,b) in enumerate(zip(first,second)):
+            delta=(b-a+128)%256-128
+            if i==1: a=(a+128)%256-128
+            values.append(a+delta*f)
+        h-=values[0]*TAU/256
+        dec=math.radians(values[1]/4)
+    else:
+        dec=math.asin(.398*math.sin(TAU*date-1.378))
+    lat=math.radians(latitude)
+    east=-math.cos(dec)*math.sin(h)
+    north=math.sin(dec)*math.cos(lat)-math.cos(dec)*math.cos(h)*math.sin(lat)
+    up=math.sin(dec)*math.sin(lat)+math.cos(dec)*math.cos(h)*math.cos(lat)
+    if moon: up-=math.sqrt(max(0,1-up*up))*math.pi/180
+    bearing=round(math.atan2(east,north)/TAU*560)%560
+    height=48*up/math.hypot(east,north) if math.hypot(east,north)>1e-9 else 1e9
+    y=255 if up<=0 or height>=96 else 95-int(height)
+    return bearing,y
+
+
+def positions():
+    idle=L.until('idle',20000);done=f'until:{L["idle"]+3:04X}:6000'
+    steps=[idle]+call(['env_hour'])+[done,idle]+call(['sky_position'])
+    cases=[]
+    for moon in (False,True):
+        for lat in (-38,0,38):
+            for date in (.1,.34442,.5,.9):
+                for hour in (0,5,7,10,12,14,17,19,22):
+                    cases.append((lat,date,hour,moon))
+                    steps+=poke('s_date',date)+poke('s_hour',hour)
+                    steps += [f'poke:700C:{lat&255:02X}','poke:7019:88',
+                              L.poke('night',int(moon)),done,L.peek('sky_bearing',3),idle]
+    result=a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=1800)
+    for case,data in zip(cases,result.dumps):
+        b,y=model(*case)
+        actual=int.from_bytes(data[:2],'little');ay=data[2]
+        assert ay==y or (ay!=255 and y!=255 and abs(ay-y)<=1),(case,data.hex(),(b,y))
+        if y!=255:
+            assert abs((actual-b+280)%560-280)<=1,(case,actual,b)
+    print(f'  {len(cases)} solar/lunar positions, hemispheres, seasons and hours: OK')
+
+
+def scenes():
+    # Flat land, no sites: isolate the sky and its geographic anchor.
+    m=bytearray((HERE/'build/map.bin').read_bytes());m[64:]=bytes([10])*9408
+    m[16]=0;m[21]=11;m[2:6]=bytes((0,20,0,20));m[6:8]=(140).to_bytes(2,'little')
+    steps=[L.until('idle',20000),L.poke('scenes_enabled',0),
+           L.poke('heading',140),L.poke('heading',0,1),'key:V\\r','wait:1',
+           L.until('idle',20000),L.peek('sky_bearing',3),'peek:2000:8192',
+           f'shot:{HERE}/build/sky-sun.png']
+    # Pan a full turn, then compare with a full redraw at each bearing.
+    for _ in range(16):
+        steps += ['press:\\>',L.until('idle',20000),'peek:2000:8192',
+                  'key:V\\r','wait:1',L.until('idle',20000),'peek:2000:8192']
+    # Clouds must erase the sun; return to clear weather restores it.
+    steps += [L.poke('weather_sky',1),'key:V\\r','wait:1',L.until('idle',20000),
+              'peek:2000:8192',L.poke('weather_sky',0)]
+    # A high foreground ridge blocks every sky row containing the sun.
+    steps += [f'poke:{0x7000+64+x*112+21:04X}:7D' for x in range(84)]
+    steps += ['key:V\\r','wait:1',L.until('idle',20000),'peek:2000:8192']
+    with tempfile.TemporaryDirectory() as tmp:
+        disk=disk_with(tmp,bytes(m));result=a2test.run(disk,steps,emulator=a2test.A2SHOT,timeout=1800)
+    b,y=model(38,.34442,7)
+    assert abs(int.from_bytes(result.dumps[0][:2],'little')-b)<=1
+    base=view_ref.render(m,20*256,20*256,140)
+    assert view_rows(result.dumps[1])!=base,'visible sun missing'
+    for i in range(16):
+        assert result.dumps[2+2*i]==result.dumps[3+2*i],('pan/full sky mismatch',i)
+    assert view_rows(result.dumps[-2])==base,'clouds did not mask sun'
+    ridge=bytearray(m)
+    for x in range(84):ridge[64+x*112+21]=125
+    assert view_rows(result.dumps[-1])==view_ref.render(ridge,20*256,20*256,140),'sun leaks through ridge'
+    print('  sun drawn, cloud/terrain masks and full-turn pan/full redraw equality: OK')
+
+
+def moon_scene():
+    m=bytearray((HERE/'build/map.bin').read_bytes());m[64:]=bytes([10])*9408
+    m[16]=0;m[21]=11;m[2:6]=bytes((0,20,0,20))
+    bearing,y=model(38,.34442,0,True)
+    original=(HERE/'build/wildgame.bin').read_bytes()[L['idle']-0x4000:L['idle']-0x4000+9]
+    steps=[L.until('idle',20000),L.poke('scenes_enabled',0)]
+    steps+=poke('s_hour',0)+[L.poke('heading',bearing),L.poke('heading',bearing>>8,1)]
+    steps+=call(['env_hour','show_view'])+[f'until:{L["idle"]+6:04X}:20000',
+        L.peek('sky_bearing',3),'peek:2000:8192',f'shot:{HERE}/build/sky-moon.png',L.until('idle',20000)]
+    steps += [L.poke('idle',b,i) for i,b in enumerate(original)]+[L.poke('sim_loaded',0)]
+    for _ in range(16):
+        steps+=['press:\\>',L.until('idle',20000),'peek:2000:8192',
+                'key:V\\r','wait:1',L.until('idle',20000),'peek:2000:8192']
+    steps += [L.poke('weather_sky',1),'key:V\\r','wait:1',L.until('idle',20000),'peek:2000:8192']
+    with tempfile.TemporaryDirectory() as tmp:
+        result=a2test.run(disk_with(tmp,bytes(m)),steps,emulator=a2test.A2SHOT,timeout=1800)
+    actual=int.from_bytes(result.dumps[0][:2],'little')
+    assert abs(actual-bearing)<=1,(actual,bearing)
+    assert abs(result.dumps[0][2]-y)<=1
+    page=view_rows(result.dumps[1]);assert any(page),'moon missing above horizon'
+    assert not any(page[100*40:]),'moon revealed terrain at night'
+    for i in range(16):assert hgr_rows(result.dumps[2+2*i])==hgr_rows(result.dumps[3+2*i]),('moon pan/full',i)
+    assert not any(view_rows(result.dumps[-1])),'clouds did not hide moon'
+    print('  dated Moon drawn at its own bearing, dark terrain, cloud mask and night rotations: OK')
+
+if __name__=='__main__':
+    positions()
+    scenes()
+    moon_scene()

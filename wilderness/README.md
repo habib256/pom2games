@@ -1,84 +1,276 @@
 # Wilderness
 
 Réimplémentation de *Wilderness: A Survival Adventure* (Electric Transit,
-1985), simulation de survie en 3D pour Apple II.
+1985) pour Apple II+ 48 Ko, sous DOS 3.3. Le joueur survit à un crash d'avion
+et doit rejoindre le poste de rangers en gérant son équipement, ses réserves
+et son état physique.
 
-**État : la vue 3D du terrain est jouable.** `dist/WILDERNESS.dsk` démarre sur
-une carte générée et permet de se promener : chaque déplacement recalcule la
-vue avec le moteur de l'original (lancer de rayons, occlusion par la pente,
-bandes de crêtes) : 1,2 à 2 s pour un pas, 0,4 à 1 s pour tourner (la vue
-défile et seules les nouvelles colonnes sont calculées, comme le PAN de
-l'original). L'original mettait plus de 10 s par vue. La
-survie, le parseur et les menus restent à faire (voir [`TODO.md`](TODO.md)).
-Ce qu'on sait de l'original est dans [`docs/ANALYSE.md`](docs/ANALYSE.md).
+Le jeu comprend la vue 3D, les cartes générées, la marche et la nage,
+les objets et la charge, les écrans STATUS/INVENTORY, l'horloge, le cycle jour/nuit,
+la température, l'énergie, les déficits de survie, la santé et la thermique
+sèche ou immergée. Les sprites originaux de l'épave, de la cabane, de l'ours,
+du couguar et du crotale sont composés avec le terrain pendant le rendu de
+chaque colonne, avec leurs couleurs et leur transparence. La vue TOPO permet
+de repérer les sites ; la cabane accueille le joueur et le protège du froid.
 
-| Touche | Action |
-|---|---|
-| ← / J, → / K | Tourner de 22,5° |
-| A, Z | Tourner de 45° |
-| ↑ / I, ↓ / M | Avancer, reculer d'une cellule (2 unités, environ 0,5 mile) |
-| V | Redessiner la vue |
-| ESC / Q | Retour à DOS |
+Les rencontres utilisent les critères Sierra et leur probabilité selon la
+durée, la difficulté et `NATURE`. Les comportements et attaques restent à porter.
+Les 15 conditions médicales ont leurs courbes d'incubation et de guérison,
+avec les règles de prévention/traitement de l'original. La perte de sel,
+le froid et l'exposition solaire peuvent les déclencher ; l'altitude et
+l'oxygène agissent sur la santé. `STATUS`, puis `M`, affiche le détail médical.
+Les attaques, chutes et contaminations doivent encore déclencher les autres
+conditions. Les consommables médicaux décomptent leurs utilisations positives,
+affichées dans INVENTORY, avec le comportement natif des stocks épuisés.
+La pluie, le feu, les abris fabriqués, les soins complémentaires,
+la fabrication et les sauvegardes restent à développer. TOPO est une première
+carte textuelle du relief. La suite est ordonnée dans le [TODO](TODO.md), avec
+les déplacements et réactions de la faune en prochaine priorité.
 
-La ligne du bas donne la position (unités de carte, 224 × 168), le cap en
-degrés et l'altitude.
+## Construire et lancer
 
-## Construction
-
-```sh
-make               # ../dist/WILDERNESS.dsk
-make run           # dans POM2
-make test          # vue 6502 contre tools/view_ref.py au bit près, fuzz court, touches contre un modèle
-make fuzz          # positions et cartes synthétiques aléatoires, plus long
-make SEED=7 LEVEL=8   # une autre carte (niveau de difficulté 1-10)
-```
-
-Mémoire (Apple II+ 48 Ko, DOS 3.3) :
-
-| Zone | Contenu |
-|---|---|
-| `$1000-$1FFF` | `WILDLO` (BLOAD par HELLO) : tables de lignes, code déroulé de remplissage et d'effacement |
-| `$2000-$3FFF` | HGR page 1 : vue sur les lignes 0-159, 4 lignes de texte (mode mixte) |
-| `$4000-$5FBF` | Table de division ⌊r·256/n⌋ (r < n < 128), calculée au démarrage |
-| `$6000-$6FFF` | Programme `WILDERNESS` (`src/wild.s`, BRUN) |
-| `$7000-$94FF` | Carte `WILDMAP` (BLOAD par HELLO) : en-tête de 64 octets, grille 112 × 84 |
-
-La carte du jeu est une grille de 112 × 84 cellules de 2 unités, le pas du
-rayon : un octet par cellule (niveau 0-127, bit 7 = eau), lu directement là où
-l'original parcourait des listes de croisements de courbes par ligne. Les
-niveaux s'arrêtent à 125 : le moteur calcule niveau − œil + 128 sur un octet. Elle est
-produite par `tools/mkmap.py`, qui reprend l'algorithme de TMAKE (montagnes
-gaussiennes sur quatre échelles, poste près d'un bord, crash sur une montagne
-éloignée, rivières et lacs). Aucune donnée de l'original n'est sur la disquette.
-
-## Analyse de l'original
-
-Les images originales sont protégées par le droit d'auteur : elles restent
-dans `original/`, ignoré par git.
+Depuis `wilderness/`, avec les outils cc65 et les outils partagés de `dev/` :
 
 ```sh
-make originals     # télécharge les images depuis archive.org
-make extract       # décode WOZ/A2R en .dsk, extrait les fichiers SMALLDOS dans build/
-make run-original  # démarre le jeu dans a2shot, liste le menu dans build/MENU.bas
-make dump-game     # lance une partie et vide la RAM dans build/game.bin
-make topo          # carte et vue 3D de départ recalculées : build/topo.png, build/view.png
+make                 # construit ../dist/WILDERNESS.dsk
+make run             # lance la disquette dans POM2
+make test            # tests dans l'émulateur a2shot
+make fuzz            # comparaisons de rendu plus longues
+make SEED=7 LEVEL=8   # autre carte, difficulté 1 à 10
 ```
 
-`make test` ajoute la carte originale convertie (`build/orig_map.bin`, par
-`tools/topo2map.py`) aux comparaisons quand elle existe en local.
+La construction utilise `build/JOURNEY.dsk` et l'A2R Journey local pour
+extraire les sprites. Lorsqu'ils manquent, les règles de construction peuvent
+récupérer les extras de l'original depuis archive.org. `make originals` et
+`make extract` préparent l'ensemble des données d'analyse. Les images disque
+et leurs extractions restent dans `original/` et `build/`, ignorés par git ;
+les cinq sprites sont inclus dans la disquette construite localement.
 
-## Outils
+Le démarrage utilise un chargeur temporaire à `$5800`, qui décompresse les
+fichiers résidents depuis le tampon de la future page HGR à `$2000`. La
+disquette place les listes de secteurs avant les données et utilise un ordre
+de secteurs adapté aux lectures DOS. Sur la carte par défaut, les 24 744 octets
+résidents deviennent 16 380 octets répartis dans deux fichiers. Mesuré dans
+le cœur POM2 à la vitesse Apple II avec le ciel et les lots 4/5, le lancement
+du moteur arrive à 21,63 secondes et la première invite jouable à 42,40.
+L'initialisation, les modules et le premier rendu sont inclus dans ce dernier
+temps. Avant ces ajouts, les mesures avec ce chargeur étaient 20,89 et 36,86
+secondes ; avant le chargeur compact, 36,14 et 55,76 secondes.
 
-| Outil | Rôle |
+`python3 tools/profile_loading.py` mesure le démarrage et deux lectures de
+modules. `python3 tests/test_boot.py` vérifie chaque octet restitué, également
+avec une carte peu compressible qui nécessite un fichier supplémentaire.
+
+## Commandes
+
+Les commandes suivent la forme verbe + nom. Les durées et les quantités peuvent
+être demandées ensuite ou saisies directement : `WALK 10 MIN`, `REST 1 H`,
+`DRINK WATER 4 OZ`, `EAT CHEESE 8 OZ`. Sans unité, les durées restent en heures
+et les quantités en onces. Les autres mots reconnus du vocabulaire original répondent
+« NOT IN THIS VERSION YET » lorsqu'aucune action n'est implémentée.
+
+| Commande | Effet |
 |---|---|
-| `tools/mkmap.py` | Génère une carte (algorithme TMAKE) au format du jeu, avec un aperçu PNG |
-| `tools/view_ref.py` | Référence Python exacte du rendu 6502 |
-| `tools/gentables.py` | Tables de sinus et de colonnes HGR pour `src/wild.s` |
-| `tools/flux2dsk.py` | WOZ2 ou A2R2 → `.dsk` ordre DOS (pistes 16 secteurs 6&2) |
-| `tools/smalldos.py` | Catalogue et extraction des disques SMALLDOS |
-| `tools/applesoft.py` | Liste un programme Applesoft tokenisé |
-| `tools/peek2bin.py` | Convertit les `peek:` d'a2shot en binaire |
-| `tools/topo.py` | Décode une carte TOPO originale en image |
-| `tools/topo2map.py` | Convertit une carte TOPO originale au format du jeu (tests locaux) |
-| `tools/view3d.py` | Premier prototype flottant de la vue |
-| `tools/profile.py` | Cycles par routine d'une vue (étape `pcprof` d'a2shot) |
+| WALK, GO, RUN, MOVE, CRAWL | Marcher droit devant pendant *n* heures ; arrêt à deux cases du bord, à l'eau ou à la nuit |
+| SWIM | Entrer dans l'eau depuis la berge, nager pendant *n* heures, sortir sur la rive opposée ; arrêt à deux cases du bord ou à la nuit ; WALK pour continuer sur terre |
+| REST, SLEEP, CAMP, EXERCISE / WAIT, PAUSE | Se reposer / attendre *n* heures |
+| EAT *aliment*, DRINK WATER | Consommer *n* onces accessibles, d'abord dans le sac/la gourde, puis au sol |
+| GET, PACK *objet* | Ranger un objet accessible dans le sac |
+| TAKE, CARRY *objet* | Prendre un équipement en main ; aliments/eau dans le sac/la gourde |
+| WEAR *vêtement* | Porter un vêtement accessible, une montre ou des lunettes |
+| USE *produit médical* | Appliquer les prérequis de prévention/soin et consommer une utilisation positive ; temps propre au produit, objet accessible requis |
+| EAT / DRINK FLAGYL, SALT TABLETS, QUININE | Prendre une dose ; les trousses, crèmes, lunettes, l'oxygène et le savon doivent être utilisés avec USE |
+| STOP BLEEDING | Compression, 30 minutes ; contribue au traitement des coupures |
+| SHIELD EYES / LOWER HEAD | Protéger les yeux / baisser la tête ; prérequis de soin, sans dépense de temps |
+| SUCK VENOM | Extraire le venin d'une morsure active, en 15 minutes ; contribue au traitement |
+| USE COMPASS | Vérifier la disponibilité de la boussole, sans consommer de temps |
+| DROP, REMOVE *objet* | Déposer l'objet à la case courante ; tout le stock pour les aliments/eau |
+| CLIMB TREE / CLIMB DOWN | Grimper dans un arbre proche / redescendre ; santé supérieure à 2,5 requise pour monter, déplacements bloqués dans l’arbre |
+| HANG FOOD | Suspendre le sac et son contenu à la case courante, en 30 minutes ; nécessite un arbre et un sac accessible |
+| GET BACKPACK / LOWER FOOD, LOWER BACKPACK | Récupérer le sac suspendu à sa case ; refus si la charge dépasserait les capacités |
+| LOOK L, R, B, F / N, E, S, W | Tourner de 45°, se retourner, regarder devant ou vers un point cardinal |
+| ← → sur une ligne vide | Tourner de 22,5° |
+| ENTER SHELTER / EXIT SHELTER, LEAVE SHELTER | Entrer dans la cabane à sa case / ressortir ; aucun temps consommé |
+| NATURE | Fréquence des rencontres : entier de 0 à 100, valeur initiale 1 ; 0 empêche les nouvelles rencontres |
+| TOPO, T | Carte textuelle : relief, eau, joueur, épave, cabane et rangers ; flèches ou WASD pour défiler, C pour recentrer, cap cardinal magnétique, Entrée/Espace/ESC pour revenir |
+| STATUS, INVENTORY, VIEW, HELP | Afficher les écrans ou la vue |
+| M dans STATUS / B dans l'état médical | Consulter les conditions médicales / revenir à STATUS |
+| ESC pendant une saisie | Effacer la commande ou annuler la quantité/durée, sans avancer le temps |
+| ESC pendant WALK / SWIM | Arrêter après le pas en cours ; conserver la position atteinte et afficher le temps réellement parcouru |
+| QUIT | Demander confirmation avant retour à DOS ; seul Y confirme, Entrée/N/ESC annulent |
+
+La flèche gauche efface le dernier caractère, également pendant la saisie
+d'une quantité. Une réponse vide ou zéro annule une action numérique ;
+`NATURE` conserve son réglage valide à zéro. Les valeurs négatives, décimales,
+les unités inconnues et les dépassements sont refusés avant toute action.
+Les limites sont 255 heures, 15 300 minutes ou 255 onces. Échap revient à la
+vue depuis STATUS, TOPO ou n'importe quelle page d'INVENTORY.
+
+Les résultats restent visibles jusqu'à l'action suivante, sans touche de
+confirmation entre deux messages. Un déplacement affiche ensemble son temps
+effectif et sa cause d'arrêt. Les dangers remplacent les réussites génériques.
+Avant une consommation, l'invite indique les onces accessibles ; le résultat
+annonce les onces réellement consommées et le stock accessible avant l'action,
+même lorsque la demande dépassait ce stock.
+
+Un transfert refusé distingue poids et volume, avec l'excédent et la capacité
+disponible. Les volumes précisent WEAR, PACK ou HAND. Par exemple, le ramassage
+initial des pommes dépasse le poids de 5 OZ, pour 43 OZ disponibles. Les
+messages distinguent aussi le conteneur à récupérer du conteneur à vider et
+proposent des commandes disponibles pour corriger une saisie incomplète.
+
+Quand WALK indique l'eau, conserver le cap et lancer SWIM. Si la durée
+demandée s'épuise dans l'eau, un nouveau SWIM poursuit depuis la position
+atteinte. La vitesse dépend de la santé et du poids transporté : deux commandes
+d'une heure ne garantissent pas une traversée complète. À l'arrivée sur terre,
+SWIM s'arrête et indique de continuer avec WALK.
+
+Une durée courte ne garantit pas un pas complet : sur terrain plat, une
+marche de 10 minutes reste sur place si le pas demande 19 minutes, sans coût
+de temps. La nage conserve sa règle d'admission du dernier demi-pas et peut
+dépasser la durée demandée ; le compte rendu affiche la durée effective.
+Le repos accepte les minutes, mais son interruption pendant l'activité reste
+à développer.
+
+## Jouer avec l'état actuel
+
+La boussole est disponible dès le départ : aucune commande d'activation.
+Un ruban encadré, centré en haut de la vue sur environ un tiers de sa largeur,
+affiche N, NE, E, SE, S, SW, W et NW. Les repères défilent sous un curseur
+fixe qui indique la direction regardée ; les graduations intermédiaires
+correspondent à 22,5°. `LOOK N`, `LOOK E`, `LOOK S` et `LOOK W` orientent
+vers les points cardinaux magnétiques. Le ruban reste visible la nuit
+et dans la cabane. Les côtés du bandeau affichent l'heure (ou la période sans
+montre), la santé, la faim, la soif et une alerte ou indication thermique. `WALK` avance dans la direction du curseur, sans guidage automatique
+vers les rangers.
+
+Le soleil se place selon la latitude, la saison et l'heure solaire du jeu
+(midi à 12 h), par rapport au nord géographique. La lune nocturne utilise
+une éphéméride de référence de 1985 et une phase stylisée ; elle ne se trouve
+pas systématiquement à l'opposé du soleil. Les nuages et le relief masquent
+les astres. Regarder horizontalement peut laisser un astre haut hors de la vue.
+Le calendrier lunaire répète l'année 1985, l'original ne donnant pas d'année.
+Le relief reste noir la nuit. La lune est une extension du port, tandis que
+l'original dessine le soleil et propose `LOOK STARS`.
+
+Les objets déposés restent à leur case et sont récupérables au retour.
+STATUS distingue les réserves CARRIED de celles HERE, disponibles au sol
+sur la case courante ; FOOD/WATER restent les totaux accessibles. INVENTORY
+regroupe WORN, IN HAND, IN PACK et GROUND HERE : touches 1 à 4, 12 objets
+par page, N/Espace/Entrée pour avancer, B pour revenir, Échap pour la vue.
+Un aliment réparti entre sac et sol apparaît dans les deux groupes avec
+la quantité propre à chaque emplacement. Les capacités restent visibles.
+Les qualificatifs distinguent notamment COTTON SOCKS, FIRSTAID KIT,
+SNAKEBITE KIT, SEWING KIT et SALT TABLETS. Les transferts ne coûtent pas
+encore de temps.
+
+Une surcharge refuse le transfert entier. INVENTORY affiche les capacités
+restantes en OZ et IN3. Le sac et la gourde doivent être vidés avant dépôt,
+puis repris avant de pouvoir les remplir. Exemple au départ : `GET APPLES`
+dépasse la charge ; `DROP AXE` libère assez de place pour les prendre.
+
+Le résumé signale une transition de faim, soif, santé, état thermique,
+immersion ou condition médicale, sans répéter une classe inchangée. Une
+activité longue conserve l'alerte prioritaire jusqu'au résultat ; STATUS
+permet de voir toutes les conditions. Sans danger actif, le bandeau rappelle
+ENTER/EXIT SHELTER ou ITEMS: INV si des objets sont récupérables ici. Les
+rotations conservent ces indications sans lecture disque supplémentaire.
+
+Les vêtements portés modifient le bilan thermique. STATUS affiche la
+température corporelle, FEEL (température ressentie), SHIVERING/SWEATING,
+les conditions HYPOTHERMIA/HYPERTHERMIA et IMMERSED lorsque le joueur est
+dans l'eau. Les frissons augmentent la dépense énergétique ; froid et chaleur
+peuvent réduire la santé et interrompre une activité devenue fatale.
+REST dans l'eau conserve l'immersion. Un pas sur terre rétablit le sélecteur sec.
+
+L'épave reste au lieu du crash. Une cabane est placée sur terre au tiers du
+trajet vers les rangers. L'épave et la cabane sont visibles à moins de huit
+cases, avec une taille réduite selon la distance et un masquage par le relief
+situé devant elles. Un seul site est affiché par vue : le plus proche dans
+le champ, avec priorité au site ou à l'animal de la case courante.
+Les animaux restent affichés à leur case. Tourner ou se déplacer efface
+l'ancienne image et recalcule la position des sites.
+Les rotations de 22,5° et 45° réutilisent le terrain, les sprites locaux et
+la géométrie d'un site distant unique, même lorsqu'il est hors champ :
+seules les colonnes nouvellement visibles sont calculées, en partant du bord
+de la vue conservée. Les rotations par flèches ne relisent alors aucun module
+disque. Si plusieurs sites peuvent être proches, la vue est reprojetée pour
+respecter la sélection du plus proche dans le champ. Le masquage par le relief
+est conservé dans les deux cas. Les sites sont masqués la nuit. Sur TOPO, `H` repère la cabane, `C` l'épave, `R` les
+rangers et `P` le joueur. L'eau est marquée `=` ; le nord est en haut.
+À chaque ouverture, TOPO se recentre sur la position actuelle et reconstruit
+le relief et les repères avant d'afficher la carte. C recentre aussi après
+défilement. HEAD affiche un cap en unités 0–559, son point cardinal et MAG,
+cohérents avec la boussole. Une ligne indique le site sous P : épave, cabane
+avec ENTER/EXIT SHELTER, ou rangers.
+Pendant la marche, cette carte se met à jour après chaque pas. Chaque
+caractère est comparé à celui déjà affiché : seules les différences sont
+écrites, sans effacement préalable, également pendant le défilement manuel.
+Les mises à jour de marche restent dans les vingt rangs supérieurs ; les
+messages de progression restent en bas. La vue 3D revient à la fin du trajet.
+
+À la cabane, `ENTER SHELTER` met à l'abri : la thermique utilise la température
+ambiante +15 °F au lieu du ressenti du vent. REST reste à l'intérieur et
+STATUS indique INSIDE SHELTER. `EXIT SHELTER` permet de repartir. La vue
+intérieure affiche une description sur fond noir ; `HUT` reste réservé aux
+abris fabriqués, encore à porter.
+
+La marche et la nage s'arrêtent avant d'entrer dans une bande de deux cases
+autour de la carte. Le pas refusé ne consomme pas de temps.
+
+Les filtres Sierra prennent en compte la saison, l'heure, le terrain,
+l'altitude, la pente et l'indice régional. L'ours et le couguar peuvent
+apparaître la nuit, même si leurs sprites restent masqués dans l'obscurité.
+La probabilité utilise la durée écoulée, la racine de la difficulté et le
+réglage `NATURE`. Le hasard reste indépendant de la météo ; les rencontres
+expirent encore au bout de 60 minutes ou au départ de la case. Les zones
+boisées participent aux filtres de terrain. Les tirages ont lieu à chaque pas de marche
+ou de nage. Le repos et les repas ne tirent aucune rencontre, comme dans
+la chaîne originale. Une rencontre acceptée interrompt le déplacement après
+ce pas. Toutes les espèces
+sont testées dans l'ordre Sierra ; un animal présent peut être remplacé avec
+une chance sur deux. Le repos à la cabane ne tire aucune rencontre extérieure.
+
+Les règles encore reconstruites — déplacements, charge, rencontres et
+certaines conditions physiologiques — sont détaillées dans
+[IMPLEMENTATION.md](docs/IMPLEMENTATION.md#règles-provisoires-et-écarts).
+La nage normale utilise maintenant des demi-cases et une durée calculée
+selon santé/charge, vérifiée sur 143 cas contre les routines originales.
+Les caps obliques sont vérifiés sur 2 880 positions contre l'original ;
+blessures et changements d'équipement demandent encore une comparaison
+en aventure complète.
+
+## Documentation de développement
+
+`make test-original` exécute les mêmes commandes dans le jeu original et
+le port, sur des copies privées des disques locaux. Cette comparaison
+échoue encore : température, vent, nuit et marche présentent des écarts.
+Les premiers compteurs de survie concordent après correction, mais aucune
+aventure complète crash → rangers n'est encore validée. Les scénarios,
+preuves et limites sont décrits dans [ADVENTURE_TESTS.md](docs/ADVENTURE_TESTS.md).
+
+| Document | Usage |
+|---|---|
+| [CHANGELOG.md](CHANGELOG.md) | Historique des étapes présentes, sans version publiée |
+| [TODO.md](TODO.md) | Ordre des prochains lots et critères de validation |
+| [IMPLEMENTATION.md](docs/IMPLEMENTATION.md) | État du portage, règles provisoires, mémoire, carte, tests et outils |
+| [ANALYSE.md](docs/ANALYSE.md) | Disques originaux, SMALLDOS, carte TOPO, rendu et format des sprites |
+| [ENGINE.md](docs/logic/ENGINE.md) | Organisation du moteur original et accès aux analyses par sous-système |
+
+La vue de terrain est comparée au bit près à une référence Python. Les
+formules de survie établies sont calculées avec les flottants Applesoft de
+la ROM ; les notes d'analyse précisent les preuves et les points incertains.
+
+Les forêts reprennent les contours irréguliers de TMAKE et les deux profils
+d’arbres Sierra de SURV3D. Leurs silhouettes suivent le terrain pendant les
+rotations ; l’eau et les altitudes à partir de 11 000 pieds ne portent pas
+d’arbres. TOPO indique `T` pour les bois et `t` pour le maquis d’altitude ;
+STATUS indique `WOODS` ou `SCRUB`. La couverture occupe 294 octets résidents,
+sans lecture disque lors des rotations. Les anciennes cartes restent lisibles.
+`CLIMB TREE` et `HANG FOOD` sont disponibles. INVENTORY propose une cinquième
+catégorie `HUNG HERE` pour le sac suspendu et son contenu ; STATUS signale
+la présence dans un arbre et le sac suspendu. Le contenu suspendu reste à sa
+case, devient inaccessible et ne compte plus dans la charge portée. La gourde
+reste disponible si elle est portée à la main. Les vols de nourriture par les
+animaux restent à porter. Les preuves et les adaptations sont décrites dans
+[trees.md](docs/logic/trees.md).

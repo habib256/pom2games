@@ -144,11 +144,14 @@ horloge murale, donc déterministe) et déroule un script :
 |-------------------|----------------------------------------------------|
 | `wait:N`          | exécute N trames (17 030 cycles chacune)           |
 | `until:ADR:N`     | exécute jusqu'à PC = ADR (N trames au plus, sinon échec) et affiche le compteur de cycles |
+| `until:A,B:N`     | s'arrête à l'une des adresses indiquées ; utile pour les questions à plusieurs points d'entrée |
 | `key:TEXTE`       | tape le texte (`\r` RETURN, `\e` ESC, `\<` `\>` flèches), trois trames par touche |
 | `press:TEXTE`     | met les touches en file sans exécuter (pour un `until:` exact) |
 | `shot:F.png`      | capture l'écran en 560×384 (HGR et DHGR)             |
 | `peek:ADR[:LEN]`  | vide la mémoire (lecture bus)                      |
 | `poke:ADR:OCTET` | écrit un octet en mémoire (valeurs hexadécimales) |
+| `watch:ADR[:MEM:LEN]` | affiche les registres à chaque passage du PC à ADR, et éventuellement LEN octets à MEM (adresses hexadécimales, longueur décimale, 4096 au plus, sans dépasser $FFFF) |
+| `unwatch`         | désactive toutes les traces `watch:`              |
 | `joy:X,Y`, `btn:N,0\|1` | manette                                      |
 | `reset`           | appuie sur RESET                                   |
 | `pc`              | affiche le PC                                      |
@@ -158,6 +161,13 @@ auxiliaire) au lieu du ][+ : c'est ce qui permet de tester LOGO en 80 colonnes.
 
 a2shot démarre une **copie** du disque : POM2 réécrit les images modifiées, et
 un test ne doit pas altérer le disque qu'il vérifie.
+
+`--stdin` accepte des étapes supplémentaires, une par ligne. Chaque réponse
+se termine par `a2shot:done`, immédiatement vidé vers stdout ; EOF termine
+la session. `a2test.Session(disque, cwd=...)`, utilisé avec `with`, expose
+`step(étape) -> Result` et conserve le journal dans `.out`. Le pilote peut
+ainsi examiner la question affichée avant de fournir la réponse ; un délai
+dépassé ou un arrêt de l'émulateur lève une exception.
 
 a2shot est autonome : `sdk/` contient le SDK du cœur de POM2 (`core.hpp` et
 `libpom2_core.a`, arm64, sans symboles de débogage) et `roms/` les ROM Apple ][+,

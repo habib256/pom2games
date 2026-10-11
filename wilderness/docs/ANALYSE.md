@@ -9,6 +9,9 @@ d'un modèle d'altitude, les ordres sont tapés au clavier (parseur verbe + nom)
 
 Ce document décrit ce qu'on a pu établir sur les disques originaux, pour servir
 de référence à une réimplémentation (pas un portage du binaire).
+L'état du code actuel et ses écarts sont dans
+[IMPLEMENTATION.md](IMPLEMENTATION.md) ; les analyses détaillées du moteur
+original sont accessibles depuis [logic/ENGINE.md](logic/ENGINE.md).
 
 ## Sources
 
@@ -48,8 +51,21 @@ de commandes DOS 3.3 reprise telle quelle). Lu par `tools/smalldos.py`.
   partir de `+$60` : type (`$C1` « A », `$C2` « B »), nombre de secteurs,
   piste, secteur, `00`, nom sur 27 caractères ASCII bit 7.
 - **Fichiers contigus** : *n* secteurs à partir de (piste, secteur).
-- Type « A » : Applesoft tokenisé chargé en $0801, sans en-tête de longueur
-  (`tools/applesoft.py` liste MENU, TMAKE0, TMAKE, TSAVE, DEMO1, DEMOS).
+- Type « A » : image Applesoft à partir de $0800 (zéro initial dans MENU),
+  programme en $0801, sans en-tête DOS de longueur. Les pointeurs de ligne
+  sont des adresses mémoire absolues (`tools/applesoft.py` sait traiter le
+  zéro initial ou le programme sans lui).
+- Type « B » : secteurs bruts, sans en-tête DOS adresse/longueur ; adresse
+  de chargement fournie par l'appelant, absente des entrées de catalogue.
+- Pour une image `.dsk` en ordre DOS : offset = ((34 − t) × 16 + 15 − s) × 256
+  sur les faces du jeu ; remplacer 34 − t par t pour la démo. Si l'API de
+  lecture utilise des secteurs physiques, appliquer la table DOS logique →
+  physique à 15 − s, pas simplement la soustraction.
+- Détection : tester la signature et les entrées à la piste physique 34,
+  puis à la piste 0. La face Journey n'a pas de catalogue et ne peut être
+  détectée comme volume de fichiers par cette signature. Elle se lit par
+  blocs bruts aux positions utilisées par le moteur. La carte d'occupation
+  et ses écritures ne sont pas encore assez établies pour un support RW.
 - Lecture brute depuis le BASIC : `POKE 47869,page` (`PG`), `POKE 73,n`,
   `POKE 74,piste`, `POKE 75,secteur`, `CALL 972`. Commandes `& LOAD "X"` et
   `& RUN "X"`.
@@ -60,7 +76,7 @@ de commandes DOS 3.3 reprise telle quelle). Lu par `tools/smalldos.py`.
 |---|---|---:|---|---|
 | `USRRND` | B | 1 | $00/$F | Routine USR (aléa / attente clavier du menu) |
 | `TOPO` | B | 80 | $01/$0 | Carte topographique fournie, image mémoire $6000-$AFFF |
-| `ORAPIC` | B | 32 | $06/$0 | Images HGR (avion, objets) |
+| `ORAPIC` | B | 32 | $06/$0 | Écran de titre HGR (pas les sprites) |
 | `SURV3D.CODE` | B | 24 | $08/$0 | Moteur de la vue 3D, chargé en $0800-$1FFF |
 | `GO1` | B | 8 | $09/$8 | Lancement d'une partie (chargé en $5800, `& RUN`) |
 | `TMAKE.OBJ` | B | 18 | $0A/$0 | Générateur de cartes (code), chargé en $4E00 |
@@ -291,18 +307,67 @@ la première vue du jeu) :
   caractéristiques du rendu.
 - **Couleurs** : ciel magenta, sol vert, neige blanche au-dessus du niveau 48,
   points de rivière et lacs en magenta ; arbres (`$6250`), soleil et images
-  (`ORAPIC` : épave, objets) dessinés par-dessus.
+  (sprites compressés sur Journey : épave, objets, animaux) dessinés par-dessus.
 - Tables de lignes HGR en tête du fichier (`$0800` octets hauts, `$08C0`
   octets bas, index i = ligne 191 − i).
 
-## Reste à établir
+## Points d'analyse encore ouverts
 
-- Couleurs exactes (motifs HGR par colonne `$C4`/`$C5`), forêts dans la vue,
-  soleil selon l'heure, visibilité (`$E1`) selon la météo.
-- Modèle de survie : évolution par heure de faim, soif, énergie, température
-  corporelle selon météo, vêtements, pente, altitude ; seuils des maladies.
-- Contenu et format de la face Journey (textes, images, aides `HELP`/`CLUE`).
-- Effets de chaque verbe et règles de fabrication (SPLINT, HUT, IGLOO,
-  TRENCH, BOW, SPEAR…).
-- Niveaux de difficulté (dix), météo et saisons, `TMAKE` (génération de
-  cartes).
+Les preuves détaillées et les incertitudes par sous-système sont dans
+[logic/ENGINE.md](logic/ENGINE.md). La suite du portage est suivie séparément
+dans le [TODO](../TODO.md).
+
+- Forêts, soleil et réduction de visibilité dans le rendu original ;
+  projection des sites et des animaux selon distance/terrain.
+- Causes des arrêts anticipés en marche, effort propre à la nage et effet de
+  la charge ; comptabilité exacte du sac et de la gourde.
+- Déclencheurs et soins des blessures/maladies ; interactions des abris et
+  du feu, transitions d'humidité et facteur vestimentaire `$4BBE` / poids.
+- Comportements/actions des animaux et ressources, règles de fabrication
+  (SPLINT, HUT, IGLOO, TRENCH, BOW, SPEAR…).
+- Paramètres et différences entre les six régions, effets complets de la
+  difficulté, sauvegardes et scénario CLUE.
+
+Les couleurs du terrain, les flux des sprites, la structure des modules
+Journey et plusieurs formules de survie sont déjà établis ; leurs preuves
+ne doivent pas être confondues avec les travaux de portage restants.
+
+## Graphismes originaux récupérés
+
+`tools/re_graphics.py` extrait les données originales locales de Journey et
+les décode en PNG transparents dans `build/original_graphics/`, ignoré par git.
+Il conserve les flux compressés utiles (tronqués à leur dernier offset), un manifeste des positions et les SHA-256.
+ORAPIC est l'écran de titre ; l'épave et les animaux sont des blocs séparés
+sur Journey. Positions SMALLDOS vérifiées dans SURV3D `$1C90-$1D14` :
+
+| Sprite | Piste | Secteur | Secteurs | Dimensions décodées |
+|---|---|---|---|---|
+| Cabane | `$16` | `$4` | 5 | 122 × 64 |
+| Épave | `$00` | `$0` | 10 | 238 × 92 |
+| Ours de Sierra Nevada | `$1C` | `$C` | 5 | 78 × 53 |
+| Couguar de Sierra Nevada | `$1D` | `$0` | 5 | 104 × 43 |
+| Crotale de Sierra Nevada | `$1D` | `$3` | 5 | 66 × 47 |
+| Grizzly de Colombie-Britannique | `$1C` | `$0` | 5 | 102 × 54 |
+| Loup de Colombie-Britannique | `$1C` | `$3` | 5 | 104 × 96 |
+| Élan de Colombie-Britannique | `$1C` | `$8` | 5 | 102 × 82 |
+
+La routine `$1D8A-$1E2E` lit un nombre de colonnes, puis une table de
+nombre+1 offsets LE16 relatifs au début du bloc. Une colonne représente
+une paire de pixels HGR et commence par un Y en coordonnées de bas en haut
+(ligne écran = 191 − Y). Les octets suivants contiennent quatre codes
+2 bits, poids faibles d'abord : 1 violet, 2 vert, 3 blanc ; 0 suivi de 0
+saute une paire transparente ; 0 suivi d'un code non nul peint une paire
+noire. Le pointeur de la colonne suivante borne les données. Les PNG
+conservent ces couleurs et la transparence.
+
+Le décodeur 6502 et les modules disque de la réimplémentation sont décrits dans
+[IMPLEMENTATION.md](IMPLEMENTATION.md#sites-sprites-et-rencontres).
+Les octets du sprite sont vérifiés dans l'image finale ; la composition avec
+le terrain se fait par colonne et un test contrôle une image intermédiaire.
+L'épave conserve ses coordonnées verticales originales. Le placement
+de la cabane et les comportements des animaux sont provisoires. Les critères
+et taux Sierra sont vérifiés par des sondes du code original décrites dans
+[environment.md](logic/environment.md#vérification-des-rencontres-dans-le-port).
+La cabane fournit désormais
+un abri utilisable et TOPO permet de la repérer ; les preuves des commandes
+et de la protection thermique sont dans [sites.md](logic/sites.md).

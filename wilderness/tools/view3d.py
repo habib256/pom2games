@@ -64,7 +64,7 @@ def main():
             if isinstance(f, tuple):
                 for xx in range(x, min(f[1], 223) + 1):
                     water[y][xx] = True
-            elif f is not None:
+            elif f == 0x80:
                 water[y][x] = True
     img = render(hm, water, x0, y0, heading)
     topo.png(out, 280, 160, b''.join(b''.join(r) for r in img))
