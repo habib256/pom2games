@@ -22,7 +22,7 @@ def reference(m, px, py, heading):
                 if 0<=p<31:
                     p=min(p,30-p)
                     kind=(cx^cy)&2
-                    lo=max(31,42-2*((p+1)//2)) if kind else (31 if p>=12 else 18+2*(p//2))
+                    lo=max(31,42-2*((p+1)//2)) if kind else 31
                     hi=47+7*p if kind else 24+8*p
                     q=(abs(dz)*256)//n;off=(q*3)>>4
                     base=95-off if dz>=0 else 95+off
@@ -132,6 +132,17 @@ def main():
     assert any(pixel(row,141) for row in range(67,128)), 'raised crown must retain green foliage'
     assert pixel(67,140)==pixel(67,141)==0, 'crown outline missing against sky'
     assert pixel(127,140)==pixel(127,141)==0, 'crown lower rim missing against terrain'
+    # Type 0 used to leave solid black side fringes below the foliage.
+    fringe=bytearray(trunk)
+    fringe[5]=22
+    fringe[4]=104
+    fringe[MAP_BYTES:]=bytes(FOREST_BYTES)
+    fringe[MAP_BYTES+11*7+11//8]=1<<(11%8)
+    page=view_rows(frames(fringe).dumps[0])
+    bare=view_ref.render(fringe,5213,22*256+104,140)
+    assert page==reference(fringe,5213,22*256+104,140),'level canopy underside'
+    assert all(pixel(row,x)==((bare[row*40+x//7]>>(x%7))&1)
+               for row in range(128,143) for x in (140,141)), 'black side spikes remain below canopy'
     # A nearby tree on lower ground has its crown bottom below row 255.
     # Clipping must preserve foliage rather than wrapping it into a black trunk.
     slope=map_fixture(8)

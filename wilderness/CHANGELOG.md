@@ -55,6 +55,8 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ### Correction du rendu des arbres
 
+- Dessous du premier profil ramené à la hauteur du feuillage central :
+  suppression des pointes noires latérales qui descendaient vers le sol.
 - Couronnes séparées, centrées dans leurs cases : le profil natif de
   32 colonnes ne couvre plus deux cases entières.
 - Motif de feuillage vert/noir rétabli, avec pixels opaques et occlusion
