@@ -171,7 +171,7 @@ forest_probe:
         rts
 
 .segment "FORESTCODE"
-; One of two exact symmetric Sierra profiles, folded around column 15.
+; Sierra crown heights, with level lower foliage, folded around column 15.
 forest_profile:
         ; The dominant ray axis selects the transverse world coordinate.
         lda     dy

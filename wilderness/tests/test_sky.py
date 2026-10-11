@@ -114,7 +114,26 @@ def moon_scene():
     assert not any(view_rows(result.dumps[-1])),'clouds did not hide moon'
     print('  dated Moon drawn at its own bearing, dark terrain, cloud mask and night rotations: OK')
 
+def afternoon_travel():
+    # The real clock with forest rendering catches scratch corruption that
+    # isolated sky-position calls cannot detect.
+    from test_forest import map_fixture
+    steps=[L.until('idle',20000),'key:NATURE 0\\r','wait:1',L.until('idle',20000),
+           'key:WALK 456 MIN\\r','wait:1',L.until('idle',60000),
+           'key:REST 11 MIN\\r','wait:1',L.until('idle',20000),
+           L.peek('s_hour',5),L.peek('s_date',5),L.peek('sky_bearing',3)]
+    with tempfile.TemporaryDirectory() as tmp:
+        result=a2test.run(disk_with(tmp,map_fixture()),steps,emulator=a2test.A2SHOT,timeout=900)
+    hour,date=fp(result.dumps[0]),fp(result.dumps[1])
+    assert abs(hour-(14+47/60))<1e-7,'afternoon travel clock'
+    bearing,y=model(38,date,hour)
+    actual=result.dumps[2]
+    assert abs(int.from_bytes(actual[:2],'little')-bearing)<=1 and abs(actual[2]-y)<=1
+    assert actual[2]<50,'afternoon sun incorrectly near the horizon'
+    print('  14:47 after real travel through woods: solar position and clock preserved OK')
+
 if __name__=='__main__':
     positions()
     scenes()
     moon_scene()
+    afternoon_travel()

@@ -632,6 +632,9 @@ jusqu'au sol, sans déplacer la base de l'arbre. La limite entre feuillage
 et tronc est bornée à l'écran pour les bases projetées au-delà de 255.
 Le contour supérieur reste noir sur toutes les colonnes ; un liseré noir
 à la base de la couronne renforce sa séparation du terrain vert.
+La base du premier profil est aplatie à la hauteur native centrale (31),
+pour supprimer les franges noires latérales sous le feuillage. Le deuxième
+profil conserve son dessous natif, déjà situé à cette hauteur ou au-dessus.
 La végétation d’altitude reste classée SCRUB mais n’a pas de silhouette
 d’arbre. CLIMB TREE/DOWN, HANG FOOD et la récupération du sac sont portés
 dans WILDTRE ; voir [logic/trees.md](logic/trees.md) pour les preuves natives
