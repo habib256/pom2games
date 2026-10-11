@@ -2,8 +2,9 @@
 #
 #   make            -> ../dist/WILDERNESS.dsk (Apple II+ 48 KB, DOS 3.3)
 #   make run        -> boot it in POM2
-#   make test       -> 6502 view vs tools/view_ref.py, in a2shot (+ short fuzz,
-#                      key sequences against a model, walk to the west edge)
+#   make test       -> in a2shot: the view bit for bit against tools/view_ref.py
+#                      (turns, random positions, random commands against a
+#                      model of the player) and the simulation (tests/test_sim.py)
 #   make fuzz       -> longer random positions / synthetic maps
 #
 # Analysis of the original (docs/ANALYSE.md). Its images are copyrighted and
@@ -21,6 +22,8 @@ LEVEL ?= 4
 
 all: $(DISK)
 
+$(BUILD)/wild.o: src/medical.s src/hazards.s src/care.s
+
 $(BUILD)/tables.inc $(BUILD)/rowtab.inc: tools/gentables.py
 	@mkdir -p $(@D)
 	$(PYTHON) -I $< $(BUILD)/tables.inc $(BUILD)/rowtab.inc
@@ -34,28 +37,121 @@ $(MAPBIN): tools/mkmap.py tools/topo.py $(BUILD)/map.args
 	@mkdir -p $(@D)
 	$(PYTHON) -I $< --seed $(SEED) --level $(LEVEL) $@ $(BUILD)/map.png
 
-$(BUILD)/wild.o: src/wild.s $(BUILD)/tables.inc $(BUILD)/rowtab.inc $(A2_ASM_DEPS) Makefile
+$(BUILD)/gamedata.inc: tools/gendata.py
+	@mkdir -p $(@D)
+	$(PYTHON) -I $< $@
+
+$(BUILD)/hud.inc: tools/genhud.py $(DEV)/tools/fonts.py $(DEV)/lib/font/bbfont_glyphs.inc
+	@mkdir -p $(@D)
+	$(PYTHON) -I $< $@
+
+$(BUILD)/summary_font.inc: tools/gen_summary_font.py $(DEV)/tools/fonts.py
+	$(PYTHON) -I $< $@
+
+$(BUILD)/sky_ephemeris.inc: tools/sky_ephemeris.py
+	$(PYTHON) -I $< $@
+
+$(BUILD)/forest_profiles.inc: tools/genforest.py
+	$(PYTHON) -I $< $@
+
+$(BUILD)/wild.o: src/wild.s src/game.s src/input.s src/weather.s src/travel.s src/survival.s src/sprites.s src/thermal.s src/sites.s src/project.s src/fauna.s src/hud.s src/sky.s src/forest.s src/tree.s src/status.s src/inventory.s src/summary.s src/ui_monitor.s src/messages.inc $(BUILD)/tables.inc $(BUILD)/rowtab.inc $(BUILD)/gamedata.inc $(BUILD)/hud.inc $(BUILD)/summary_font.inc $(BUILD)/sky_ephemeris.inc $(BUILD)/forest_profiles.inc $(A2_ASM_DEPS) Makefile
 	$(CA65) -g -t none $(A2_INCS) -I $(BUILD) -l $(BUILD)/wild.lst -o $@ $<
 
 $(BIN): $(BUILD)/wild.o src/wild.cfg
 	$(LD65) -C src/wild.cfg -m $(BUILD)/wild.map -Ln $(BUILD)/wild.lbl -o $@ $<
 
-$(DISK): $(BIN) $(MAPBIN) $(DOS33_DEPS)
+SPRITE_NAMES := wreck bear cougar rattlesnake cabin
+SPRITE_BINS := $(addprefix $(BUILD)/original_graphics/,$(addsuffix .bin,$(SPRITE_NAMES)))
+
+# GNU make 3.81 on macOS: one extraction, then timestamp its five outputs.
+$(BUILD)/original_graphics/.done: tools/re_graphics.py tools/smalldos.py $(BUILD)/JOURNEY.dsk
+	$(PYTHON) tools/re_graphics.py
+	@touch $@
+
+$(SPRITE_BINS): $(BUILD)/original_graphics/.done
+	@test -f "$@" || $(PYTHON) tools/re_graphics.py
+	@touch "$@"
+
+
+$(BUILD)/JOURNEY.dsk: original/extras/Wilderness\ -\ Journey.a2r
+	$(PYTHON) -I tools/flux2dsk.py "$<" $@
+
+$(BUILD)/boot.o: src/boot.s $(A2_ASM_DEPS)
+	@mkdir -p $(@D)
+	$(CA65) -g -t none $(A2_INCS) -o $@ $<
+
+$(BUILD)/boot.bin: $(BUILD)/boot.o src/boot.cfg
+	$(LD65) -C src/boot.cfg -m $(BUILD)/boot.map -Ln $(BUILD)/boot.lbl -o $@ $<
+
+$(DISK): $(BIN) $(MAPBIN) $(BUILD)/boot.bin $(SPRITE_BINS) $(DOS33_DEPS) tools/build_disk.py tools/pack_boot.py Makefile
 	@mkdir -p $(DIST)
-	$(DOS33) --bin WILDERNESS=$(BIN)@0x6000 --bin WILDLO=$(BUILD)/wildlo.bin@0x1000 --bin WILDMAP=$(MAPBIN)@0x7000
+	$(PYTHON) -I tools/build_disk.py --out $(DISK) --build $(BUILD) --master $(SYSTEM)
 
 test: all $(A2SHOT)
+	$(PYTHON) tests/test_boot.py
+	$(PYTHON) tests/test_input.py
+	$(PYTHON) tests/test_feedback.py
+	$(PYTHON) tests/test_mapgen.py
+	$(PYTHON) tests/test_forest.py
+	$(PYTHON) tests/test_tree.py
+	$(PYTHON) tests/test_fauna.py
+	$(PYTHON) tests/test_fauna_steps.py
+	$(PYTHON) tests/test_boundary.py
+	$(PYTHON) tests/test_walk.py
+	$(PYTHON) tests/test_compass.py
+	$(PYTHON) tests/test_hud.py
+	$(PYTHON) tests/test_interface.py
+	$(PYTHON) tests/test_sky.py
+	$(PYTHON) tests/test_projection.py
+	$(PYTHON) tests/test_sites.py
+	$(PYTHON) tests/test_scene_render.py
+	$(PYTHON) tests/test_sprites.py
 	$(PYTHON) tests/test_view.py
+	$(PYTHON) tests/test_pan.py
 	$(PYTHON) tests/test_fuzz.py 1 3 8
-	$(PYTHON) tests/test_keys.py 1 200
-	$(PYTHON) tests/test_keys.py --keys AAAJIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIMMIIIZZZZZZZZKKKK
+	$(PYTHON) tests/test_play.py 1 30
+	$(PYTHON) tests/test_play.py 2 30
+	$(PYTHON) tests/test_sim.py
+	$(PYTHON) tests/test_items.py
+	$(PYTHON) tests/test_load.py
+	$(PYTHON) tests/test_overlays.py
+	$(PYTHON) tests/test_thermal.py
+	$(PYTHON) tests/test_medical.py
+	$(PYTHON) tests/test_care.py
+	$(PYTHON) tests/test_exposure.py
+	$(PYTHON) tests/test_wind_energy.py
+	$(PYTHON) tests/test_temperature_wave.py
+	$(PYTHON) tests/test_weather_cycle.py
+	$(PYTHON) tests/test_weather_front.py
+	$(PYTHON) tests/test_weather_frequency.py
+	$(PYTHON) tests/test_swim_energy.py
+	$(PYTHON) tests/test_swim_cadence.py
+	$(PYTHON) tests/test_swim_raster.py
+	$(PYTHON) tests/test_shore.py
+	$(PYTHON) tests/test_wet.py
 
 # longer differential fuzz: make fuzz FUZZ_SEED=7
+# The original disks must already be available locally (make extract).
+# This is strict: known gameplay differences and unfinished commands fail.
+test-original: all $(A2SHOT)
+	$(PYTHON) ../dev/tests/test_a2shot_session.py
+	$(PYTHON) tests/test_medical.py --original
+	$(PYTHON) tests/test_care.py --original
+	$(PYTHON) tests/test_exposure.py --original
+	$(PYTHON) tests/test_temperature_wave.py --original
+	$(PYTHON) tests/test_weather_cycle.py --original
+	$(PYTHON) tests/test_weather_front.py --original
+	$(PYTHON) tests/test_weather_frequency.py --original
+	$(PYTHON) tests/test_swim_energy.py --original
+	$(PYTHON) tests/test_swim_cadence.py --original
+	$(PYTHON) tests/test_swim_raster.py --original
+	$(PYTHON) tests/test_adventure.py --scenario all
+
 FUZZ_SEED ?= 2
 fuzz: all $(A2SHOT)
 	$(PYTHON) tests/test_fuzz.py $(FUZZ_SEED) 6 16
 
-.PHONY: test fuzz originals extract run-original dump-game topo FORCE
+.PHONY: test test-original fuzz originals extract run-original dump-game topo FORCE
 FORCE:
 
 # ---------------------------------------------------------------- analysis
@@ -66,6 +162,9 @@ DEMO_ID := Wilderness_A_Survival_Adventure_Demonstration_Disk_Apple_II_Series_El
 PROGRAM_WOZ := original/WILDERNESS.woz
 JOURNEY_A2R := original/extras/Wilderness - Journey.a2r
 DEMO_DSK := original/WILDERNESS_DEMO.dsk
+
+original/extras/Wilderness\ -\ Journey.a2r: original/extras/.done
+	@test -f "$@"
 
 originals: $(PROGRAM_WOZ) $(DEMO_DSK) original/extras/.done
 

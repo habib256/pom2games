@@ -8,17 +8,16 @@
 ; the MAP file (tools/mkmap.py) BLOADed at $7000 by HELLO.
 ;
 ; tools/view_ref.py is the bit-exact Python reference of render below; the
-; test compares the two on several positions.
-;
-; Keys: LEFT/J and RIGHT/K turn 22.5 degrees, A/Z turn 45 degrees, V redraws,
-;       I/UP walk one cell forward, M/DOWN one cell back, ESC/Q quit.
+; tests compare the two on many positions. The game itself (command line,
+; simulation, screens) is game.s, included at the end, which calls
+; view_full and view_turn.
 ; ============================================================================
 
         .include "apple2.inc"
         .include "zp.inc"
+        .macpack longbranch
 
 MAP      = $7000
-DIVTAB   = $4000                ; HGR page 2 (unused): r * 256 / n, see divinit
 GRID     = MAP + 64
 GW       = 112                  ; grid cells west-east (1 cell = 2 units)
 GH       = 84                   ; grid cells south-north
@@ -26,6 +25,7 @@ UNITS    = 560                  ; azimuth units per turn, 140 per quadrant
 FOV_HALF = 70
 STEPS    = 128                  ; ray steps (cells)
 HORIZON  = 95
+HUD_ROWS  = 16                  ; fixed compass ribbon above the terrain
 VIEW_ROWS = 160                 ; HGR rows 0..159, text below (mixed mode)
 EYE      = 2                    ; eye height above the ground, in levels
 
@@ -45,10 +45,10 @@ C_RIDGE  = %00                  ; black
 WNDTOP   = $22
 CLREOL   = $FC9C
 
+; Render scratch only: the game logic's ROM floating point routines use
+; $5E-$AC between two views, so nothing here survives a command. The
+; position and heading live in game.s.
 .segment "ZEROPAGE"
-px:      .res 2                 ; position, 8.8 cells (lo = fraction)
-py:      .res 2
-heading: .res 2                 ; 0..559, 0 = north, 140 = east
 ang:     .res 2                 ; azimuth of the current column
 dx:      .res 2                 ; ray step, signed 8.8
 dy:      .res 2
@@ -56,7 +56,7 @@ rx:      .res 2                 ; ray position
 ry:      .res 2
 thr:     .res 2                 ; slope threshold, signed 8.8 levels
 tinc:    .res 2                 ; threshold increment per step
-qlo:     .res 1                 ; div16 dividend / quotient
+qlo:     .res 1                 ; division dividend / quotient
 qhi:     .res 1
 divisor: .res 1
 n:       .res 1                 ; step number + 127: 128 for the first, 0 past the last
@@ -90,11 +90,6 @@ fsc:     .res 4                 ; or-bits of each colour (shared byte)
 c1:      .res 1                 ; render columns col..c1-1
 hp2:     .res 2                 ; scroll: the other row pointer
 shift:   .res 1                 ; scroll: bytes
-tp:      .res 2                 ; DIVTAB row pointer
-dq:      .res 1                 ; divinit: 256 / n, 256 mod n, q, remainder
-dm:      .res 1
-dacc:    .res 1
-drem:    .res 1
 cx:      .res 1                 ; x cell of the ray (Y in the step loop)
 rowsl:   .res 1                 ; row changes left before the ray leaves the map
 num:     .res 2                 ; print_u16 value
@@ -116,72 +111,33 @@ start:
         sta     heading
         lda     M_HEAD+1
         sta     heading+1
-        lda     #<twice         ; n = 128 reads the 2r table
-        sta     div_lo+128
-        lda     #>twice
-        sta     div_hi+128
-        jsr     divinit
         jsr     hgr_init_clear
         lda     MIXSET
         lda     #20
         sta     WNDTOP
         jsr     HOME
-
-frame:
-        jsr     status
-        lda     #0              ; whole view
-        sta     col
-        lda     #140
-        sta     c1
-        jsr     render
-idle:   jsr     wait_key
-        cmp     #KC_ESC
-        beq     quit
-        cmp     #'Q'
-        beq     quit
-        cmp     #'V'            ; redraw the view
-        bne     @keys
-        jmp     frame
-@keys:  ldx     #0
-        cmp     #KC_LEFT
-        beq     turn_j
-        cmp     #'J'
-        beq     turn_j
-        inx
-        cmp     #KC_RIGHT
-        beq     turn_j
-        cmp     #'K'
-        beq     turn_j
-        inx
-        cmp     #'A'
-        beq     turn_j
-        inx
-        cmp     #'Z'
-        beq     turn_j
-        ldx     #1
-        cmp     #'I'
-        beq     walk_j
-        cmp     #KC_UP
-        beq     walk_j
-        ldx     #$FF
-        cmp     #'M'
-        beq     walk_j
-        cmp     #KC_DOWN
-        beq     walk_j
-        jmp     idle
-
-turn_j: jmp     turn
-walk_j: jmp     walk
+        jmp     game_start
 
 quit:   lda     #0
         sta     WNDTOP
         jmp     apple2_exit
 
-; turn -- X = 0: -35, 1: +35, 2: -70, 3: +70 azimuth units (22.5 / 45 deg).
-; A column only depends on its absolute azimuth: 35 columns are 70 pixels,
-; exactly 10 bytes, so the view scrolls and only the new columns are drawn,
-; like the original's PAN.
-turn:   clc
+; view_full -- draw the whole view from (px, py) toward heading
+view_full:
+        lda     #0
+        sta     col
+        lda     #140
+        sta     c1
+        jmp     render
+
+; view_turn -- X = 0: -35, 1: +35, 2: -70, 3: +70 azimuth units (22.5 / 45
+; deg). A column only depends on its absolute azimuth: 35 columns are 70
+; pixels, exactly 10 bytes, so the view scrolls and only the new columns are
+; drawn, like the original's PAN. With C set on entry only the heading moves
+; (no view: night).
+view_turn:
+        php
+        clc
         lda     turn_lo,x
         adc     heading
         sta     ang
@@ -193,6 +149,9 @@ turn:   clc
         sta     heading
         lda     ang+1
         sta     heading+1
+        plp
+        bcs     @rts
+        jsr     scene_pan
         lda     turn_c0,x
         sta     col
         lda     turn_c1,x
@@ -202,21 +161,28 @@ turn:   clc
         txa
         lsr     a               ; carry: turning right, the view moves left
         jsr     scroll
-        jsr     status
-        jsr     render
-        jmp     idle
+        jmp     render
+@rts:   rts
 
-; scroll -- move HGR rows 0..159 by `shift` bytes: left when carry is set
+; scroll -- move all terrain rows, using the hidden cache above the view by `shift` bytes: left when carry is set
 ;           (bytes shift..39 -> 0..39-shift), right otherwise.
-scroll: ldx     #0
-        php
+scroll: php
+        lda     #40
+        sec
+        sbc     shift
+        sta     @count+1
+        ; Visible terrain 16..159 and cached terrain 160..175 form one
+        ; contiguous range of physical rows. No HUD remapping per row.
+        ldx     #VIEW_ROWS+HUD_ROWS-1
 @row:   lda     hgr_lo,x
         sta     hp
+        lda     hgr_hi,x
+        sta     hp+1
+        lda     hp
         clc
         adc     shift
         sta     hp2
-        lda     hgr_hi,x
-        sta     hp+1
+        lda     hp+1
         sta     hp2+1
         plp
         php
@@ -225,97 +191,101 @@ scroll: ldx     #0
 @l:     lda     (hp2),y
         sta     (hp),y
         iny
-        cpy     #40
-        bcs     @next
-        tya
-        adc     shift
-        cmp     #40
+@count:
+        cpy     #30
         bcc     @l
         bcs     @next
-@right: lda     #39
-        sec
-        sbc     shift
+@right: lda     @count+1
         tay
+        dey
 @r:     lda     (hp),y
         sta     (hp2),y
         dey
         bpl     @r
-@next:  inx
-        cpx     #VIEW_ROWS
-        bcc     @row
+@next:  dex
+        cpx     #HUD_ROWS
+        bcs     @row
         plp
         rts
 
-; walk one cell along the heading (X = 1) or back (X = $FF), if on the map
-walk:   stx     col             ; direction keeps row busy
-        lda     heading
-        sta     ang
-        lda     heading+1
-        sta     ang+1
-        jsr     direction
-        lda     col
-        bpl     @fwd
-        ldx     #2
-@neg:   sec
-        lda     #0
-        sbc     dx,x
-        sta     dx,x
-        lda     #0
-        sbc     dx+1,x
-        sta     dx+1,x
-        dex
-        dex
-        bpl     @neg
-@fwd:   clc
-        lda     px
-        adc     dx
-        sta     rx
-        lda     px+1
-        adc     dx+1
-        sta     rx+1
-        cmp     #GW
-        bcs     @no
+; Local art has a fixed bearing and size: scrolling also moves its pixels.
+; Keep its origin in sync for newly exposed columns, without disk/ROM work.
+; X remains the turn kind. Wrap only behind the player (outside the view).
+scene_pan:
+        lda     scene_asset
+        beq     @done
+        sec
+        lda     sprite_left
+        sbc     turn_lo,x
+        sta     sprite_left
+        lda     sprite_left+1
+        sbc     turn_hi,x
+        sta     sprite_left+1
+        bmi     @negative
+        lda     sprite_left
+        cmp     #<420
+        lda     sprite_left+1
+        sbc     #>420
+        bcc     @done
+        sec
+        lda     sprite_left
+        sbc     #<560
+        sta     sprite_left
+        lda     sprite_left+1
+        sbc     #>560
+        sta     sprite_left+1
+        rts
+@negative:
+        lda     sprite_left
+        cmp     #<(-140)
+        lda     sprite_left+1
+        sbc     #>(-140)
+        bcs     @done
         clc
-        lda     py
-        adc     dy
-        sta     ry
-        lda     py+1
-        adc     dy+1
-        sta     ry+1
-        cmp     #GH
-        bcs     @no
-        lda     rx
-        sta     px
-        lda     rx+1
-        sta     px+1
-        lda     ry
-        sta     py
-        lda     ry+1
-        sta     py+1
-        jmp     frame
-@no:    jsr     BELL
-        jmp     idle
+        lda     sprite_left
+        adc     #<560
+        sta     sprite_left
+        lda     sprite_left+1
+        adc     #>560
+        sta     sprite_left+1
+@done:  rts
 
 ; ----------------------------------------------------------------------------
-; render -- draw the view from (px, py) toward heading on HGR rows 0..159
+; render -- draw the view below the fixed compass header
 ; ----------------------------------------------------------------------------
 render:
+        lda     weather_visibility
+        cmp     #240
+        bcc     :+
+        lda     #0              ; clear weather retains the full ray budget
+        beq     :++
+:       lsr
+        clc
+        adc     #127            ; visibility units are half-cells
+:       sta     render_weather_limit+1
         ldx     col             ; black out the bytes of columns col..c1-1:
         lda     col_be,x        ; ranges are multiples of 35 columns, i.e.
         sta     tmp             ; of 10 bytes
         lda     #40
         ldx     c1
         cpx     #140
-        bcs     @b1
+        bcs     render_b1
         lda     col_be,x
-@b1:    sta     tmp2
+render_b1:    sta     tmp2
         lda     #0
         ldy     tmp
-@clr:   jsr     clear_rows
+render_clr:   jsr     clear_rows
         iny
         cpy     tmp2
-        bcc     @clr
-        ldx     py+1
+        bcc     render_clr
+        jsr     hud_draw
+        lda     c1              ; only left turns end before column 140
+        bmi     :+
+                                ; start next to the retained view
+        sec
+        sbc     #1
+        sta     col
+:       ldx     py+1
         lda     grid_lo,x
         sta     gp
         lda     grid_hi,x
@@ -346,8 +316,286 @@ render:
         sta     ang+1
         jsr     wrap_ang
 
-@column:
+render_column:
+        jsr     forest_reset
+        jsr     column_masks
+        lda     night
+        beq     :+
+        lda     #0
+        sta     scene_opaque
+        sta     scene_pending
+        jmp     render_direction
+:       jsr     sprite_column
+render_direction:
         jsr     direction
+        lda     px
+        sta     rx
+        lda     px+1
+        sta     rx+1
+        lda     py
+        sta     ry
+        lda     py+1
+        sta     ry+1
+        lda     #0
+        sta     thr
+        sta     tinc
+        sta     tinc+1
+        lda     #$80
+        sta     thr+1
+        lda     #127
+        sta     n
+        lda     #VIEW_ROWS
+        sta     top
+        jsr     scene_trim
+        lda     top
+        bne     :+
+        jmp     render_next
+:       ; the ray follows its cell: Y = x cell, gp = row; a carry out of a
+        ; fraction moves it (patched per column for the signs of dx, dy;
+        ; BIT turns the branch off for a step of exactly +1 cell)
+        ldx     py+1
+        lda     grid_lo,x
+        sta     gp
+        lda     grid_hi,x
+        sta     gp+1
+        lda     px+1
+        sta     cx
+        lda     dx+1
+        beq     render_xpos
+        bmi     render_xneg
+        lda     #$24            ; dx = +256: BIT (move every step), INY
+        ldx     #$C8
+        bne     render_xset
+render_xpos:  lda     #$90            ; 0 <= dx < 256: BCC, INY
+        ldx     #$C8
+        bne     render_xset
+render_xneg:  lda     #$B0            ; dx < 0: BCS, DEY
+        ldx     #$88
+render_xset:  sta     render_xbr
+        stx     render_xop
+        lda     dy+1
+        beq     render_ypos
+        bmi     render_yneg
+        lda     #$24            ; dy = +256
+        bne     render_yup
+render_ypos:  lda     #$90
+render_yup:   sta     render_ybr
+        lda     #GW
+        sta     render_gpl+1
+        lda     #0
+        sta     render_gph+1
+        lda     #GH-1
+        sec
+        sbc     py+1
+        sta     rowsl
+        jmp     render_back
+render_yneg:  lda     #$B0
+        sta     render_ybr
+        lda     #<(-GW)
+        sta     render_gpl+1
+        lda     #>(-GW)
+        sta     render_gph+1
+        lda     py+1
+        sta     rowsl
+        jmp     render_back
+render_sky_j: jmp     render_sky
+render_step_j: jmp    render_back
+render_ovf:   lda     tinc+1          ; overflow: rising past +127 levels ends
+        bpl     render_sky_j          ; the column, falling past -128 clamps
+        lda     #0
+        sta     thr
+        lda     #$80
+        bne     render_thr
+
+render_back:  ldy     cx              ; Y = x cell again
+render_stepc: clc                     ; render_step expects carry clear
+render_step:
+        inc     n
+        beq     render_sky_j
+        lda     n
+render_weather_limit:
+        cmp     #0
+        beq     render_sky_j
+        lda     scene_pending
+        beq     :+
+        jsr     scene_activate
+:       lda     scene_opaque
+        beq     :+
+        ldx     n
+        lda     scene_ceiling-128,x
+        cmp     top
+        bcs     render_sky_j
+:       clc
+        lda     rx
+        adc     dx
+        sta     rx
+render_xbr:   bcc     render_xk             ; patched: BCC / BCS / BIT
+render_xop:   iny                     ; patched: INY / DEY
+        cpy     #GW
+        bcs     render_sky_j
+render_xk:    clc
+        lda     ry
+        adc     dy
+        sta     ry
+render_ybr:   bcc     render_yk
+        dec     rowsl
+        bmi     render_sky_j
+        clc
+        lda     gp
+render_gpl:   adc     #GW             ; patched: +-112
+        sta     gp
+        lda     gp+1
+render_gph:   adc     #0
+        sta     gp+1
+render_yk:    clc
+        lda     (gp),y
+        and     #$7F
+        adc     eyeb            ; levels <= 125: dz + 128 stays in 1..253
+        sta     dzb
+        jsr     forest_probe
+        lda     thr             ; thr += tinc (no carry out of the add above)
+        adc     tinc
+        sta     thr
+        lda     thr+1
+        adc     tinc+1
+        bvs     render_ovf
+render_thr:   sta     thr+1
+        eor     #$80            ; visible when dz > floor(thr), i.e.
+        cmp     dzb             ; dz + 128 > (thr >> 8) + 128, unsigned
+        bcs     render_stepc
+        sty     cx
+
+        ; visible: tinc = trunc(dz * 256 / n), thr = dz * 256, then the row
+        lda     n
+        sec
+        sbc     #127
+        sta     divisor
+        lda     #0
+        sta     thr
+        lda     dzb
+        eor     #$80
+        sta     thr+1
+        bmi     render_neg
+        cmp     divisor         ; dz >= 0
+        bcs     render_pbig
+        jsr     smalldiv        ; q = dz * 256 / n < 256
+        sta     tinc
+        tax
+        lda     #0
+        sta     tinc+1
+        lda     row_p0,x
+        jmp     render_drawchk
+render_pbig:  jsr     bigdiv          ; dz >= n: q >= 256
+        sta     tinc
+        lda     qhi
+        sta     tinc+1
+        cmp     #2
+        bcs     render_prow0          ; q >= 512: top row
+        ldx     tinc
+        lda     row_p1,x
+        jmp     render_drawchk
+render_prow0: lda     #0
+        jmp     render_drawchk
+render_neg:   lda     #128            ; dz < 0: |dz| = 128 - (dz + 128)
+        sec
+        sbc     dzb
+        cmp     divisor
+        bcs     render_nbig
+        jsr     smalldiv        ; q < 256
+        tax
+        eor     #$FF            ; tinc = -q
+        clc
+        adc     #1
+        sta     tinc
+        lda     #$FF
+        adc     #0
+        sta     tinc+1
+        lda     row_n0,x
+        jmp     render_drawchk
+render_nbig:  jsr     bigdiv          ; |dz| >= n: q >= 256
+        eor     #$FF
+        clc
+        adc     #1
+        sta     tinc
+        lda     qhi
+        eor     #$FF
+        adc     #0
+        sta     tinc+1
+        lda     qhi
+        cmp     #2
+        bcs     render_hide           ; q >= 512: below the view
+        ldx     qlo
+        lda     row_n1,x        ; $FF below the bottom row
+render_drawchk:
+        cmp     top
+        bcc     render_shown
+render_hide:  jmp     render_back          ; hidden behind nearer ground (or $FF)
+render_shown: sta     row
+        tay
+        iny                     ; colour rows row+1..top-1, often none
+        cpy     top
+        bcs     render_ridge
+        lda     top
+        sta     sp_end
+        sty     tmp2
+        ldy     cx
+        lda     (gp),y
+        ldx     #C_WATER
+        asl     a               ; bit 7: water
+        bcs     render_col
+        ldx     #C_SNOW
+        lsr     a
+        cmp     M_SNOW
+        bcs     render_col
+        ldx     #C_GROUND
+render_col:   ldy     tmp2
+        txa
+        ldx     night
+        beq     :+
+        lda     #C_RIDGE
+:       jsr     scene_span
+render_ridge: lda     row             ; the ridge row stays black: the view was
+        sta     top             ; opaque sprite pixels keep their colour
+        jsr     scene_trim
+        lda     top
+        beq     render_next
+        jmp     render_step_j
+
+render_sky:   jsr     scene_force
+        lda     top
+        sta     sp_end
+        ldy     #0
+        lda     #C_SKY
+        ldx     night
+        beq     :+
+        lda     #C_RIDGE
+:       jsr     scene_span
+        jsr     sky_column
+render_next:
+        jsr     forest_paint
+        lda     c1
+        bpl     render_prev
+        inc     ang
+        bne     render_wrap
+        inc     ang+1
+render_wrap:  jsr     wrap_ang
+        inc     col
+        lda     col
+        cmp     c1
+        bcs     render_done
+render_more:
+        jmp     render_column
+render_prev:
+        jsr     render_prev_ang
+        dec     col
+        bpl     render_more
+render_done:  jmp     hud_draw
+
+ray_step = render_step
+render_column_done = render_next
+.export ray_step, render_column_done
+
+column_masks:
         ldx     col
         lda     col_be,x
         sta     be
@@ -381,236 +629,7 @@ render:
         sta     fsc+2
         ora     eb
         sta     fsc+3
-        lda     px
-        sta     rx
-        lda     px+1
-        sta     rx+1
-        lda     py
-        sta     ry
-        lda     py+1
-        sta     ry+1
-        lda     #0
-        sta     thr
-        sta     tinc
-        sta     tinc+1
-        lda     #$80
-        sta     thr+1
-        lda     #127
-        sta     n
-        lda     #VIEW_ROWS
-        sta     top
-        ; the ray follows its cell: Y = x cell, gp = row; a carry out of a
-        ; fraction moves it (patched per column for the signs of dx, dy;
-        ; BIT turns the branch off for a step of exactly +1 cell)
-        ldx     py+1
-        lda     grid_lo,x
-        sta     gp
-        lda     grid_hi,x
-        sta     gp+1
-        lda     px+1
-        sta     cx
-        lda     dx+1
-        beq     @xpos
-        bmi     @xneg
-        lda     #$24            ; dx = +256: BIT (move every step), INY
-        ldx     #$C8
-        bne     @xset
-@xpos:  lda     #$90            ; 0 <= dx < 256: BCC, INY
-        ldx     #$C8
-        bne     @xset
-@xneg:  lda     #$B0            ; dx < 0: BCS, DEY
-        ldx     #$88
-@xset:  sta     @xbr
-        stx     @xop
-        lda     dy+1
-        beq     @ypos
-        bmi     @yneg
-        lda     #$24            ; dy = +256
-        bne     @yup
-@ypos:  lda     #$90
-@yup:   sta     @ybr
-        lda     #GW
-        sta     @gpl+1
-        lda     #0
-        sta     @gph+1
-        lda     #GH-1
-        sec
-        sbc     py+1
-        sta     rowsl
-        jmp     @back
-@yneg:  lda     #$B0
-        sta     @ybr
-        lda     #<(-GW)
-        sta     @gpl+1
-        lda     #>(-GW)
-        sta     @gph+1
-        lda     py+1
-        sta     rowsl
-        jmp     @back
-@sky_j: jmp     @sky
-@step_j: jmp    @back
-@ovf:   lda     tinc+1          ; overflow: rising past +127 levels ends
-        bpl     @sky_j          ; the column, falling past -128 clamps
-        lda     #0
-        sta     thr
-        lda     #$80
-        bne     @thr
-
-@back:  ldy     cx              ; Y = x cell again
-@stepc: clc                     ; @step expects carry clear
-@step:  inc     n
-        beq     @sky_j
-        lda     rx
-        adc     dx
-        sta     rx
-@xbr:   bcc     @xk             ; patched: BCC / BCS / BIT
-@xop:   iny                     ; patched: INY / DEY
-        cpy     #GW
-        bcs     @sky_j
-@xk:    clc
-        lda     ry
-        adc     dy
-        sta     ry
-@ybr:   bcc     @yk
-        dec     rowsl
-        bmi     @sky_j
-        clc
-        lda     gp
-@gpl:   adc     #GW             ; patched: +-112
-        sta     gp
-        lda     gp+1
-@gph:   adc     #0
-        sta     gp+1
-@yk:    clc
-        lda     (gp),y
-        and     #$7F
-        adc     eyeb            ; levels <= 125: dz + 128 stays in 1..253
-        sta     dzb
-        lda     thr             ; thr += tinc (no carry out of the add above)
-        adc     tinc
-        sta     thr
-        lda     thr+1
-        adc     tinc+1
-        bvs     @ovf
-@thr:   sta     thr+1
-        eor     #$80            ; visible when dz > floor(thr), i.e.
-        cmp     dzb             ; dz + 128 > (thr >> 8) + 128, unsigned
-        bcs     @stepc
-        sty     cx
-
-        ; visible: tinc = trunc(dz * 256 / n), thr = dz * 256, then the row
-        lda     n
-        sec
-        sbc     #127
-        sta     divisor
-        tax
-        lda     div_lo,x        ; DIVTAB row of n
-        sta     tp
-        lda     div_hi,x
-        sta     tp+1
-        lda     #0
-        sta     thr
-        lda     dzb
-        eor     #$80
-        sta     thr+1
-        bmi     @neg
-        cmp     divisor         ; dz >= 0
-        bcs     @pbig
-        tay                     ; q = dz * 256 / n < 256
-        lda     (tp),y
-        sta     tinc
-        tax
-        lda     #0
-        sta     tinc+1
-        lda     row_p0,x
-        jmp     @drawchk
-@pbig:  jsr     bigdiv          ; dz >= n: q >= 256
-        sta     tinc
-        lda     qhi
-        sta     tinc+1
-        cmp     #2
-        bcs     @prow0          ; q >= 512: top row
-        ldx     tinc
-        lda     row_p1,x
-        jmp     @drawchk
-@prow0: lda     #0
-        jmp     @drawchk
-@neg:   lda     #128            ; dz < 0: |dz| = 128 - (dz + 128)
-        sec
-        sbc     dzb
-        cmp     divisor
-        bcs     @nbig
-        tay
-        lda     (tp),y          ; q < 256
-        tax
-        eor     #$FF            ; tinc = -q
-        clc
-        adc     #1
-        sta     tinc
-        lda     #$FF
-        adc     #0
-        sta     tinc+1
-        lda     row_n0,x
-        jmp     @drawchk
-@nbig:  jsr     bigdiv          ; |dz| >= n: q >= 256
-        eor     #$FF
-        clc
-        adc     #1
-        sta     tinc
-        lda     qhi
-        eor     #$FF
-        adc     #0
-        sta     tinc+1
-        lda     qhi
-        cmp     #2
-        bcs     @hide           ; q >= 512: below the view
-        ldx     qlo
-        lda     row_n1,x        ; $FF below the bottom row
-@drawchk:
-        cmp     top
-        bcc     @shown
-@hide:  jmp     @back          ; hidden behind nearer ground (or $FF)
-@shown: sta     row
-        tay
-        iny                     ; colour rows row+1..top-1, often none
-        cpy     top
-        bcs     @ridge
-        lda     top
-        sta     sp_end
-        sty     tmp2
-        ldy     cx
-        lda     (gp),y
-        ldx     #C_WATER
-        asl     a               ; bit 7: water
-        bcs     @col
-        ldx     #C_SNOW
-        lsr     a
-        cmp     M_SNOW
-        bcs     @col
-        ldx     #C_GROUND
-@col:   ldy     tmp2
-        txa
-        jsr     span
-@ridge: lda     row             ; the ridge row stays black: the view was
-        sta     top             ; cleared and every pixel is painted once
-        beq     @next
-        jmp     @step_j
-
-@sky:   lda     top
-        sta     sp_end
-        ldy     #0
-        lda     #C_SKY
-        jsr     span
-@next:  inc     ang
-        bne     @wrap
-        inc     ang+1
-@wrap:  jsr     wrap_ang
-        inc     col
-        lda     col
-        cmp     c1
-        bcs     @done
-        jmp     @column
-@done:  rts
+        rts
 
 ; ----------------------------------------------------------------------------
 ; span -- paint rows Y..sp_end-1 of the current column with colour A
@@ -655,7 +674,24 @@ span:   cpy     sp_end
 ; fill -- rows Y..sp_end-1 of byte column A: byte or fs, through the
 ;         unrolled span_rows (an RTS is planted on row sp_end for the call).
 fill:   sta     tmp
-        ldx     sp_end
+@header:
+        cpy     #HUD_ROWS
+        bcs     @body
+        cpy     sp_end
+        bcs     @done
+        sty     qhi
+        tya
+        tax
+        jsr     view_row
+        ldy     tmp
+        lda     (hp),y
+        ora     fs
+        sta     (hp),y
+        ; The full header belongs to compass and survival panels.
+        ldy     qhi
+        iny
+        jmp     @header
+@body:  ldx     sp_end
         lda     span_lo,x
         sta     fp
         lda     span_hi,x
@@ -672,13 +708,15 @@ fill:   sta     tmp
         ldy     #0
         lda     #$B9            ; LDA abs,Y
         sta     (fp),y
-        rts
+@done:  rts
 @go:    jmp     (fj)
 
 ; ----------------------------------------------------------------------------
 ; direction -- dx, dy = the 8.8 unit step of azimuth ang (0..559)
 ;   quadrant 0: (s, c)  1: (c, -s)  2: (-s, -c)  3: (-c, s)
 ;   s = sin(i * 90 / 140), c = sin((140 - i) * 90 / 140), i = ang mod 140
+;   Rounded samples from SIN_UNIT_START onward equal 256: derive the high
+;   byte from carry instead of storing another 141-byte table.
 ; ----------------------------------------------------------------------------
 direction:
         lda     ang
@@ -698,7 +736,9 @@ direction:
         sty     row             ; quadrant
         lda     sin_lo,x        ; dx = s, dy = c
         sta     dx
-        lda     sin_hi,x
+        cpx     #SIN_UNIT_START
+        lda     #0
+        adc     #0
         sta     dx+1
         txa
         eor     #$FF
@@ -707,7 +747,9 @@ direction:
         tax
         lda     sin_lo,x
         sta     dy
-        lda     sin_hi,x
+        cpx     #SIN_UNIT_START
+        lda     #0
+        adc     #0
         sta     dy+1
         lda     row
         beq     @rts
@@ -731,6 +773,7 @@ swap:   ldx     #1
         bpl     @s
         rts
 
+.segment "GCODE"
 neg_dx: ldx     #0
         beq     neg
 neg_dy: ldx     #dy-dx
@@ -744,6 +787,7 @@ neg:    sec
         rts
 
 ; wrap_ang -- bring the signed 16-bit ang into 0..559
+.segment "LOWCODE"
 wrap_ang:
         lda     ang+1
         bpl     @hi
@@ -767,8 +811,8 @@ wrap_ang:
 @ok:    rts
 
 ; ----------------------------------------------------------------------------
-; bigdiv -- A = |dz| >= n = divisor, tp = DIVTAB row of n:
-;           qhi:qlo = |dz| * 256 / n, returns A = qlo. Clobbers Y.
+.segment "CODE"
+; bigdiv -- A = |dz| >= n = divisor: qhi:qlo = |dz| * 256 / n, returns A = qlo
 ; ----------------------------------------------------------------------------
 bigdiv: sta     qhi
         lda     #0
@@ -781,165 +825,23 @@ bigdiv: sta     qhi
         inc     qhi
 :
         .endrep
-        tay                     ; remainder r < n: low byte r * 256 / n
-        lda     (tp),y
+        jsr     smalldiv        ; remainder r < n: low byte r * 256 / n
         sta     qlo
         rts
 
-; ----------------------------------------------------------------------------
-; divinit -- fill DIVTAB: for n = 2..127, the n bytes floor(r * 256 / n),
-;            r = 0..n-1, at div_lo/div_hi[n] (n = 1 points at the 0 of n = 2;
-;            n = 128 is 2r). By recurrence: q(r+1) = q(r) + 256 div n, plus 1
-;            when the remainder (+ 256 mod n) reaches n.
-; ----------------------------------------------------------------------------
-divinit:
-        ldx     #2
-@n:     stx     divisor
-        lda     div_lo,x
-        sta     tp
-        lda     div_hi,x
-        sta     tp+1
-        lda     #1              ; 256 / n
-        sta     qhi
-        lda     #0
-        sta     qlo
-        jsr     div16
-        sta     dm
-        lda     qlo
-        sta     dq
-        lda     #0
-        sta     dacc
-        sta     drem
-        tay
-@r:     lda     dacc
-        sta     (tp),y
-        clc
-        lda     drem
-        adc     dm
+; smalldiv -- A = r < n = divisor (n <= 128): A = r * 256 / n. Clobbers qlo.
+smalldiv:
+        .repeat 8
+        asl     a               ; remainder < n <= 128: no carry out
         cmp     divisor
-        bcc     @keep
-        sbc     divisor         ; carry set: one more in the quotient
-@keep:  sta     drem
-        lda     dacc
-        adc     dq
-        sta     dacc
-        iny
-        cpy     divisor
-        bcc     @r
-        ldx     divisor
-        inx
-        cpx     #128
-        bcc     @n
-        rts
-
-; ----------------------------------------------------------------------------
-; divdz -- qhi:qlo = (qhi * 256) / divisor, for qlo = 0. When qhi < divisor
-;          (the usual far sample) the high quotient byte is 0 and only eight
-;          steps are needed. Clobbers A, X.
-; ----------------------------------------------------------------------------
-divdz:  lda     qhi
-        cmp     divisor
-        bcs     div16
-        ldx     #0
-        stx     qhi
-        ldx     #8
-@l:     asl     qlo             ; remainder < divisor <= 128: no carry out
-        rol     a
-        cmp     divisor
-        bcc     @n
+        bcc     :+
         sbc     divisor
-        inc     qlo
-@n:     dex
-        bne     @l
+:       rol     qlo
+        .endrep
+        lda     qlo
         rts
 
-; ----------------------------------------------------------------------------
-; div16 -- qhi:qlo = qhi:qlo / divisor (unsigned), A = remainder.
-;          divisor 1..128. Clobbers X.
-; ----------------------------------------------------------------------------
-div16:  lda     #0
-        ldx     #16
-@l:     asl     qlo
-        rol     qhi
-        rol     a
-        cmp     divisor
-        bcc     @n
-        sbc     divisor
-        inc     qlo
-@n:     dex
-        bne     @l
-        rts
-
-; ----------------------------------------------------------------------------
-; status -- the text line under the view: position, heading, altitude
-; ----------------------------------------------------------------------------
-status:
-        lda     #21
-        sta     CV
-        jsr     VTAB
-        lda     #0
-        sta     CH
-        jsr     CLREOL
-        lda     #<s_pos
-        ldx     #>s_pos
-        jsr     print_str_ax
-        lda     px+1            ; x, y in map units (2 per cell)
-        asl     a
-        jsr     print_byte
-        lda     #','|$80
-        jsr     COUT
-        lda     py+1
-        asl     a
-        jsr     print_byte
-        lda     #<s_head
-        ldx     #>s_head
-        jsr     print_str_ax
-        lda     heading         ; degrees = heading * 9 / 14
-        sta     qlo
-        lda     heading+1
-        sta     qhi
-        asl     qlo
-        rol     qhi
-        asl     qlo
-        rol     qhi
-        asl     qlo
-        rol     qhi
-        clc
-        lda     qlo
-        adc     heading
-        sta     qlo
-        lda     qhi
-        adc     heading+1
-        sta     qhi
-        lda     #14
-        sta     divisor
-        jsr     div16
-        lda     qlo
-        sta     num
-        lda     qhi
-        sta     num+1
-        jsr     print_u16
-        lda     #<s_alt
-        ldx     #>s_alt
-        jsr     print_str_ax
-        ldx     py+1            ; altitude / 100 = base + level
-        lda     grid_lo,x
-        sta     gp
-        lda     grid_hi,x
-        sta     gp+1
-        ldy     px+1
-        lda     (gp),y
-        and     #$7F
-        clc
-        adc     M_BASE
-        sta     num
-        lda     #0
-        sta     num+1
-        jsr     print_u16
-        lda     #<s_ft
-        ldx     #>s_ft
-        jmp     print_str_ax
-
+.segment "LOWCODE"
 print_byte:
         sta     num
         lda     #0
@@ -947,6 +849,7 @@ print_byte:
         ; fall through
 
 ; print_u16 -- num in decimal, no leading zeros
+.segment "GCODE"
 print_u16:
         ldy     #0              ; digits printed
         ldx     #8
@@ -978,7 +881,15 @@ print_u16:
         bpl     @pow
         rts
 
-.segment "RODATA"
+; Left turn: decrement the signed azimuth, including the 0 -> 559 wrap.
+render_prev_ang:
+        lda     ang
+        bne     :+
+        dec     ang+1
+:       dec     ang
+        jmp     wrap_ang
+
+.segment "TEXT"
 
 pow10:  .word   1, 10, 100, 1000, 10000
 
@@ -988,11 +899,8 @@ turn_c0: .byte  0, 105, 0, 70           ; new columns col..c1-1
 turn_c1: .byte  35, 140, 70, 140
 turn_sh: .byte  10, 10, 20, 20          ; bytes scrolled
 
-s_pos:  .byte   "POS ", 0
-s_head: .byte   "  HDG ", 0
-s_alt:  .byte   "  ALT ", 0
-s_ft:   .byte   "00 FT", 0
 
+.segment "RODATA"
 grid_lo:
         .repeat GH, J
         .byte   <(GRID + J * GW)
@@ -1011,39 +919,61 @@ grid_hi:
 .segment "LOWDATA"
                                 ; screen rows (rowtab.inc, page-aligned):
         .include "rowtab.inc"   ; row_p0/p1[q]: tinc = q, row_n0/n1[q]: -q
-twice:  .repeat 128, R          ; DIVTAB row of n = 128: r * 256 / 128
-        .byte   R * 2
-        .endrep
 
 .segment "LOWCODE"
 ; span_rows: one 8-byte block per HGR row: lda row,y / ora fs / sta row,y
 span_rows:
-        .repeat VIEW_ROWS+1, R
-        .if R < VIEW_ROWS
-        lda     $2000 + (R .mod 8) * $400 + ((R / 8) .mod 8) * $80 + (R / 64) * $28, y
+        .repeat VIEW_ROWS-HUD_ROWS+1, I
+        .if I+HUD_ROWS < VIEW_ROWS
+        lda     $2000 + ((I+HUD_ROWS) .mod 8) * $400 + (((I+HUD_ROWS) / 8) .mod 8) * $80 + ((I+HUD_ROWS) / 64) * $28, y
         ora     fs
-        sta     $2000 + (R .mod 8) * $400 + ((R / 8) .mod 8) * $80 + (R / 64) * $28, y
+        sta     $2000 + ((I+HUD_ROWS) .mod 8) * $400 + (((I+HUD_ROWS) / 8) .mod 8) * $80 + ((I+HUD_ROWS) / 64) * $28, y
         .else
         rts
         .endif
         .endrep
-; clear_rows: zero byte column Y of rows 0..159 (A = 0)
+; clear_rows: clear terrain/cache byte column Y; keep the visible HUD (A = 0)
 clear_rows:
-        .repeat VIEW_ROWS, R
-        sta     $2000 + (R .mod 8) * $400 + ((R / 8) .mod 8) * $80 + (R / 64) * $28, y
-        .endrep
+        ; Rows 160..175 cache logical 0..15 underneath the compass.
+        ; Clearing physical 16..175 preserves the ribbon and avoids the
+        ; row helper and stack traffic for every byte of the viewport.
+        ldx     #VIEW_ROWS+HUD_ROWS-1
+@row:   lda     hgr_lo,x
+        sta     hp
+        lda     hgr_hi,x
+        sta     hp+1
+        lda     #0
+        sta     (hp),y
+        dex
+        cpx     #HUD_ROWS
+        bcs     @row
         rts
 span_lo:
         .repeat VIEW_ROWS+1, R
-        .byte   <(span_rows + R * 8)
+        .byte   <(span_rows + (.max(R, HUD_ROWS)-HUD_ROWS) * 8)
         .endrep
 span_hi:
         .repeat VIEW_ROWS+1, R
-        .byte   >(span_rows + R * 8)
+        .byte   >(span_rows + (.max(R, HUD_ROWS)-HUD_ROWS) * 8)
         .endrep
 
 .segment "CODE"
+        .include "game.s"
+        .include "input.s"
+        .include "sprites.s"
+        .include "hud.s"
         .include "print.asm"
         .include "kbd.asm"
         .include "hgr.asm"
         .include "exit.asm"
+        .include "dos.asm"
+
+        .include "sky.s"
+
+        .include "status.s"
+        .include "summary.s"
+
+        .include "ui_monitor.s"
+
+        .include "forest.s"
+        .include "forest_profiles.inc"

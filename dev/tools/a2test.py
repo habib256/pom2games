@@ -17,6 +17,10 @@ row layout and the one-file DOS 3.3 test disk.
 from pathlib import Path
 import re
 import subprocess
+import queue
+import threading
+import tempfile
+import time
 from hgr_tables import hgr_offset
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -130,6 +134,80 @@ def run(disk, steps, emulator=None, iie=False, wp=False, timeout=120, check=True
     if check and result.returncode:
         raise RuntimeError(result.stdout + result.stderr)
     return Result(result.stdout)
+
+
+class Session:
+    """Live a2shot driver: inspect a reply before supplying the next step.
+
+    Same script language as run(), private disks and deterministic guest
+    execution. Use as a context manager; failed steps and timeouts raise.
+    """
+
+    def __init__(self, disk, cwd=None, timeout=120):
+        self.timeout = timeout
+        self.stderr = tempfile.TemporaryFile(mode='w+t')
+        try:
+            self.process = subprocess.Popen([str(A2SHOT), '--disk', str(disk), '--stdin'],
+                                            cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                            stderr=self.stderr, text=True, bufsize=1)
+        except Exception:
+            self.stderr.close()
+            raise
+        self.replies = queue.Queue()
+        self.out = ''
+
+        def read():
+            for line in self.process.stdout:
+                self.replies.put(line)
+            self.replies.put(None)
+
+        self.reader = threading.Thread(target=read, daemon=True)
+        self.reader.start()
+
+    def step(self, step):
+        step = escape([step])[0]
+        if '\n' in step:
+            raise ValueError('a session step must occupy one line')
+        self.process.stdin.write(step + '\n')
+        self.process.stdin.flush()
+        lines = []
+        deadline = time.monotonic() + self.timeout
+        while True:
+            try:
+                line = self.replies.get(timeout=max(0, deadline-time.monotonic()))
+            except queue.Empty:
+                self.process.kill()
+                self.process.wait()
+                self.out += ''.join(lines)
+                raise TimeoutError(f'a2shot timed out: {step}') from None
+            if line is None:
+                code = self.process.wait()
+                self.stderr.seek(0)
+                self.out += ''.join(lines)
+                raise RuntimeError(f'a2shot exit {code}: {step}\n' + ''.join(lines)
+                                   + self.stderr.read())
+            if line == 'a2shot:done\n':
+                reply = ''.join(lines)
+                self.out += reply
+                return Result(reply)
+            lines.append(line)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if self.process.poll() is None:
+            self.process.stdin.close()
+            try:
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait()
+        self.reader.join(timeout=5)
+        if not self.process.stdin.closed:
+            self.process.stdin.close()
+        self.process.stdout.close()
+        self.stderr.close()
 
 
 def hgr_visible(page):

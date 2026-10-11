@@ -12,7 +12,10 @@
 //   reset           press RESET (warm: the 6502 RESET line)
 //   pc              print the program counter
 //   until:ADDR:N    run until PC reaches ADDR, with a limit of N video frames
+//   until:A,B:N     stop at either address (prompts with several entry points)
 //   tracepc:ADDR:COUNT:N  record COUNT PC visits, limit N video frames
+//   watch:ADDR[:MEM:LEN]  from now on, print the registers (and LEN bytes
+//                   at MEM) each time the PC reaches ADDR; unwatch clears
 //   pcprof:ADDR:N   run until PC reaches ADDR (limit N frames), then print the
 //                   cycles spent at each PC ("pc ADDR CYCLES")
 //   press:TEXT      queue keys without running (for exact until checkpoints)
@@ -31,6 +34,8 @@
 // instead of the ][+.
 // --mockingboard attaches a slot-4 card, including its VIA timer IRQs.
 // --pal selects PAL beam timing; script frame units follow that timing.
+// --stdin accepts additional steps, one per line, after the argument script.
+// Each stdin step ends its flushed reply with "a2shot:done"; EOF ends the run.
 //
 // The run is deterministic: no threads, no wall-clock pacing.
 #include <pom2/core.hpp>
@@ -41,6 +46,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -131,6 +137,7 @@ int main(int argc, char** argv)
     bool iie = false;
     bool mockingboard = false;
     bool pal = false;
+    bool stdinScript = false;
     std::vector<std::string> script;
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -139,6 +146,7 @@ int main(int argc, char** argv)
         else if (a == "--iie") iie = true;
         else if (a == "--pal") pal = true;
         else if (a == "--mockingboard") mockingboard = true;
+        else if (a == "--stdin") stdinScript = true;
         else script.push_back(a);
     }
     if (disk.empty()) {
@@ -218,16 +226,43 @@ int main(int argc, char** argv)
         if (value < stackLow || value > stackTop) { stackOverflow = true; return; }
         if (value < stackMin) stackMin = value;
     };
-    const auto profileStep = [&]() { sampleStack(); core.step(); };
+    // watch:ADDR[:MEM:LEN] -- print registers (and LEN bytes at MEM) each
+    // time the PC reaches ADDR, during every later step.
+    struct Watch { unsigned mem = 0, len = 0; };
+    std::vector<int> watchAt(65536, -1);
+    std::vector<Watch> watches;
+    const auto watchCheck = [&]() {
+        const auto st = core.cpuState();
+        const int w = watchAt[st.programCounter];
+        if (w < 0) return;
+        std::printf("watch %04X A=%02X X=%02X Y=%02X S=%02X P=%02X cycles=%llu",
+                    st.programCounter, st.accumulator, st.x, st.y, st.stackPointer, st.status,
+                    static_cast<unsigned long long>(st.cycles));
+        if (watches[w].len) {
+            std::printf(" mem=");
+            for (unsigned k = 0; k < watches[w].len; ++k)
+                std::printf("%02X", core.read(static_cast<std::uint16_t>(watches[w].mem + k)));
+        }
+        std::printf("\n");
+    };
+    const auto profileStep = [&]() { sampleStack(); if (!watches.empty()) watchCheck(); core.step(); };
     const auto runCycles = [&](int cycles) {
-        if (!stackActive && !hwActive) core.run(cycles);
+        if (!stackActive && !hwActive && watches.empty()) core.run(cycles);
         else {
             const auto end = core.cpuState().cycles + cycles;
             while (core.cpuState().cycles < end) profileStep();
         }
     };
 
-    for (const std::string& step : script) {
+    size_t scriptIndex = 0;
+    std::string step;
+    while (scriptIndex < script.size() || stdinScript) {
+        const bool fromStdin = scriptIndex == script.size();
+        if (fromStdin) {
+            if (!std::getline(std::cin, step)) break;
+        } else {
+            step = script[scriptIndex++];
+        }
         const size_t colon = step.find(':');
         const std::string op = step.substr(0, colon);
         const std::string arg = colon == std::string::npos ? "" : step.substr(colon + 1);
@@ -240,15 +275,30 @@ int main(int argc, char** argv)
         } else if (op == "until") {
             const size_t split = arg.find(':');
             if (split == std::string::npos) return 2;
-            const unsigned target = std::strtoul(arg.substr(0, split).c_str(), nullptr, 16);
+            std::vector<unsigned> targets;
+            const std::string addresses = arg.substr(0, split);
+            size_t begin = 0;
+            do {
+                const size_t comma = addresses.find(',', begin);
+                const std::string address = addresses.substr(begin, comma - begin);
+                char* end = nullptr;
+                const auto target = std::strtoul(address.c_str(), &end, 16);
+                if (address.empty() || *end || target > 65535) return 2;
+                targets.push_back(static_cast<unsigned>(target));
+                if (comma == std::string::npos) break;
+                begin = comma + 1;
+            } while (true);
             const std::uint64_t limit = core.cpuState().cycles +
                 std::strtoull(arg.substr(split + 1).c_str(), nullptr, 10) * kCyclesPerFrame;
-            while (core.cpuState().programCounter != target && core.cpuState().cycles < limit)
-                if (stackActive || hwActive) profileStep(); else core.run(1);
+            const auto reached = [&]() {
+                return std::find(targets.begin(), targets.end(), core.cpuState().programCounter) != targets.end();
+            };
+            while (!reached() && core.cpuState().cycles < limit)
+                if (stackActive || hwActive || !watches.empty()) profileStep(); else core.run(1);
             const auto state = core.cpuState();
-            std::printf("until %04X cycles=%llu PC=%04X\n", target,
+            std::printf("until %s cycles=%llu PC=%04X\n", addresses.c_str(),
                         static_cast<unsigned long long>(state.cycles), state.programCounter);
-            if (state.programCounter != target) return 3;
+            if (!reached()) return 3;
         } else if (op == "tracepc") {
             unsigned target=0,count=0,frames=0;
             if (std::sscanf(arg.c_str(),"%x:%u:%u",&target,&count,&frames)!=3 ||
@@ -265,6 +315,15 @@ int main(int argc, char** argv)
                 profileStep();
             }
             if(hits!=count) return 3;
+        } else if (op == "watch") {
+            unsigned a = 0, m = 0, n = 0;
+            const int got = std::sscanf(arg.c_str(), "%x:%x:%u", &a, &m, &n);
+            if (got < 1 || a > 65535 || (got == 3 && (m > 65535 || n > 4096 || m + n > 65536))) return 2;
+            watchAt[a] = static_cast<int>(watches.size());
+            watches.push_back({got == 3 ? m : 0u, got == 3 ? n : 0u});
+        } else if (op == "unwatch") {
+            watches.clear();
+            std::fill(watchAt.begin(), watchAt.end(), -1);
         } else if (op == "pcprof") {
             unsigned target=0,frames=0;
             if (std::sscanf(arg.c_str(),"%x:%u",&target,&frames)!=2 || target>65535 || !frames) return 2;
@@ -352,6 +411,12 @@ int main(int argc, char** argv)
         } else {
             std::fprintf(stderr, "unknown step: %s\n", step.c_str());
             return 2;
+        }
+        if (fromStdin) {
+            // A framed reply lets a driver inspect prompts before choosing
+            // the next key, without rebooting or altering guest state.
+            std::printf("a2shot:done\n");
+            std::fflush(stdout);
         }
     }
     return 0;

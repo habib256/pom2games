@@ -21,7 +21,12 @@ for y, items in enumerate(topo.rows(t)):
             for xx in range(x, min(f[1], mkmap.W - 1) + 1):
                 water[y][xx] = True
                 h[y][xx] = v
-        elif f is not None:
+        elif f == 0x80:
             water[y][x] = True
+            h[y][x] = v
+woods = [[False]*mkmap.W for _ in range(mkmap.H)]
+for y,spans in enumerate(topo.woods(t)):
+    for x0,x1 in spans:
+        for x in range(x0,min(x1,mkmap.W-1)+1): woods[y][x] = True
 start, goal = (t[0x84], t[0x83]), (t[0x81], t[0x80])
-open(sys.argv[2], 'wb').write(mkmap.map_bin(h, water, start, goal, round(128 * mkmap.UNITS / 360)))
+open(sys.argv[2], 'wb').write(mkmap.map_bin(h, water, start, goal, round(128 * mkmap.UNITS / 360), woods=woods))
