@@ -30,7 +30,15 @@ module_site:
         lda     py+1
         cmp     MAP+18
         bne     @absent
-        lda     #1
+        lda     MAP+37
+        beq     :+
+        lda     px
+        cmp     MAP+34
+        bne     @absent
+        lda     py
+        cmp     MAP+35
+        bne     @absent
+:       lda     #1
         sta     shelter_inside
         lda     #0
         sta     animal_kind

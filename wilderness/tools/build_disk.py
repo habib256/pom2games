@@ -65,6 +65,9 @@ def build_disk(out, map_path=None, build=None, master=None, track_skew=1):
         binary(f'WILDPAK{index}', path, 0x2000)
     for name, path, address in [
             ('WILDTRE', build / 'wildtre.bin', 0x5800),
+            ('WILDADV', build / 'wildadv.bin', 0x5800),
+            ('WILDOUT', build / 'wildout.bin', 0x5800),
+            ('WILDWAT', build / 'wildwat.bin', 0x5800),
             ('WILDSIM', build / 'wildsim.bin', 0x2000),
             ('WILDPLN', build / 'original_graphics/wreck.bin', 0x5800),
             ('WILDVOC', build / 'wildvoc.bin', 0x5800),
@@ -84,6 +87,20 @@ def build_disk(out, map_path=None, build=None, master=None, track_skew=1):
             ('WILDHUT', build / 'original_graphics/cabin.bin', 0x5800)]:
         assert not path.read_bytes().startswith(MAGIC), f'{name}: raw compression marker collision'
         binary(name, path, address, packed=name in PACKED_MODULES)
+    if map_path:
+        from mkmap import MAP_BYTES, FOREST_BYTES
+        mapdata = Path(map_path).read_bytes()
+        if mapdata[37]:
+            fine = mapdata[MAP_BYTES+FOREST_BYTES:]
+            assert len(fine) == 224*168 + 28*168, 'incomplete native geography'
+            heights, woods = fine[:224*168], fine[224*168:]
+            lookup = (build / 'wildgeo.bin').read_bytes()[0x700:]
+            for bank in range(24):
+                row = bank*7
+                data = heights[row*224:(row+7)*224] + woods[row*28:(row+7)*28]
+                payload = data + bytes(0x700-len(data)) + lookup
+                disk.add_file('WILDG'+chr(ord('A')+bank), TYPE_B,
+                              struct.pack('<HH', 0x5800, len(payload)) + payload)
     disk.save(out)
 
 

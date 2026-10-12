@@ -172,7 +172,7 @@ def ground_hint():
                               ('DROP ROPE','ITEMS: INV'),('CARRY ROPE','TOPO / HELP'),
                               ('DROP AXE','ITEMS: INV'),('GET AXE','TOPO / HELP'),
                               ('DROP EGGS','ITEMS: INV'),('EAT EGGS 255 OZ','TOPO / HELP'),
-                              ('DROP WATER','ITEMS: INV'),('DRINK WATER 255 OZ','TOPO / HELP')):
+                              ('DROP WATER','WATER LOW:INV'),('DRINK WATER 255 OZ','WATER LOW:INV')):
             command(s,text)
             s.step(L.poke('thermal_mode',0))
             s.step(L.poke('ui_pending',0))

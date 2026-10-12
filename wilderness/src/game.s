@@ -124,12 +124,12 @@ env_day:
         jsr     overlay_load
         jmp     module_env_day
 env_hour:
-        lda     #4
+        lda     #3
         jsr     overlay_load
         jmp     module_env_hour
 
 thermal:
-        lda     #4
+        lda     #3
         jsr     overlay_load
         jmp     module_thermal
 
@@ -138,8 +138,6 @@ overlay_load:
         bne     :+
         lda     #17             ; hazards and medical share one image
 :       cmp     #3
-        beq     @sim
-        cmp     #4
         beq     @sim
         cmp     overlay_current
         bne     @load
@@ -150,7 +148,7 @@ overlay_load:
 :       lda     #1
         sta     ui_dirty        ; SIM overwrites the cached graphical header
         lda     TXTSET          ; HGR is hidden while its RAM holds simulation
-        lda     #3              ; all three simulation IDs share one binary
+        lda     #3              ; the simulation occupies HGR page 1
 @load:  sta     overlay_wanted
         ldx     #39
 @save:  .repeat 4, I
@@ -171,8 +169,18 @@ overlay_load:
         ldy     #>ov_prefix
         jsr     dos_cmd_add
         ldx     overlay_wanted
-        lda     overlay_name_lo-1,x
+        cpx     #23
+        bcc     @named
+        txa
+        clc
+        adc     #'A'-23
+        sta     ov_geography+1
+        lda     #<ov_geography
+        ldy     #>ov_geography
+        jmp     @name_ready
+@named: lda     overlay_name_lo-1,x
         ldy     overlay_name_hi-1,x
+@name_ready:
         jsr     dos_cmd_add
 overlay_before_dos = *
         jsr     dos_cmd_run
@@ -202,8 +210,14 @@ overlay_ready = *
 .export overlay_before_dos, overlay_ready
 
 .segment "GDATA"
-overlay_name_lo: .byte <ov_vocab, <ov_screen, <ov_env, <ov_env, <ov_wreck, <ov_bear, <ov_cougar, <ov_snake, <ov_cabin, <ov_sites, <ov_project, <ov_travel, <ov_input, <ov_items, <ov_summary, <ov_status, <ov_medical, <ov_medical, <ov_medview, <ov_tree
-overlay_name_hi: .byte >ov_vocab, >ov_screen, >ov_env, >ov_env, >ov_wreck, >ov_bear, >ov_cougar, >ov_snake, >ov_cabin, >ov_sites, >ov_project, >ov_travel, >ov_input, >ov_items, >ov_summary, >ov_status, >ov_medical, >ov_medical, >ov_medview, >ov_tree
+overlay_name_lo: .byte <ov_vocab, <ov_screen, <ov_env, <ov_water, <ov_wreck, <ov_bear, <ov_cougar, <ov_snake, <ov_cabin, <ov_sites, <ov_project, <ov_travel, <ov_input, <ov_items, <ov_summary, <ov_status, <ov_medical, <ov_medical, <ov_medview, <ov_tree, <ov_adventure, <ov_outdoor
+overlay_name_hi: .byte >ov_vocab, >ov_screen, >ov_env, >ov_water, >ov_wreck, >ov_bear, >ov_cougar, >ov_snake, >ov_cabin, >ov_sites, >ov_project, >ov_travel, >ov_input, >ov_items, >ov_summary, >ov_status, >ov_medical, >ov_medical, >ov_medview, >ov_tree, >ov_adventure, >ov_outdoor
+.segment "TEXT"
+ov_water: .byte "WAT",0
+.segment "GDATA"
+ov_geography: .byte "GA,A$5800",0
+ov_adventure: .byte "ADV,A$5800",0
+ov_outdoor: .byte "OUT,A$5800",0
 ov_prefix: .byte "BLOAD WILD",0
 ov_vocab: .byte "VOC,A$5800", 0
 ov_screen: .byte "SCR,A$5800", 0
@@ -235,6 +249,18 @@ px:      .word  0               ; position, 8.8 cells (lo = fraction)
 py:      .word  0
 heading: .word  0               ; 0..559, 0 = north, 140 = east
 dead:    .byte  0
+journey_left: .word 0
+journey_steps: .word 0
+journey_halfcells: .word 0
+journey_encounters: .word 0
+outdoor_minutes: .byte 0
+outdoor_result: .byte 0
+outdoor_act: .byte 0
+water_untreated: .byte 0
+water_ground_untreated: .byte 0
+water_drinking_untreated: .byte 0
+water_rng: .byte $B7
+weak_health: .byte 0
 won:     .byte  0
 night:   .byte  0
 shelter_inside: .byte 0         ; found cabin; distinct from crafted HUT
@@ -302,7 +328,7 @@ travel_delta: .res 5
 ; game_start -- after the view engine's initialisation
 ; ----------------------------------------------------------------------------
 game_start:
-        lda     #20
+        lda     #21
         jsr     overlay_load
         jsr     module_game_init
         jsr     show_view
@@ -310,29 +336,6 @@ game_start:
         ldx     #>m_crash
         jsr     message
         jmp     main
-
-.segment "TREE"
-module_game_init:
-        lda     px+1
-        sta     cachex
-        lda     py+1
-        sta     cachey
-        ldx     #75
-@ground:
-        lda     cachex
-        sta     it_x,x
-        lda     cachey
-        sta     it_y,x
-        dex
-        bne     @ground
-        jsr     load_totals
-        jsr     dist_goal       ; D0 = distance to the outpost at the start
-        fst     s_d0
-        jsr     env_day
-        jsr     hud_init
-        jsr     env_hour
-        jsr     ui_monitor
-        rts
 
 .segment "GCODE"
 ; main loop: read a command, parse it, run it
@@ -348,8 +351,9 @@ main:   lda     dead
         jmp     main
 
 the_end:
-        jsr     wait_any
-        jmp     quit
+        lda     #21
+        jsr     overlay_load
+        jmp     module_ending
 
 ; ----------------------------------------------------------------------------
 ; command line
@@ -1016,11 +1020,13 @@ help_travel:
 help_survival:
         .byte "2/2  SUPPLIES AND REST",13,13
         .byte "DRINK WATER 4 OZ",13,"EAT CHEESE 8 OZ",13
+        .byte "FILL CANTEEN AT A RIVER BANK",13
+        .byte "IGNORE BEAR / SCARE RATTLER",13
         .byte "REST 1 H     REST; WAIT 10 MIN WAITS",13,13
         .byte "INVENTORY    1-5 SELECT ITEM LOCATION",13
         .byte "GET AXE      PACK; CARRY AXE IN HAND",13
         .byte "WEAR PARKA   WEAR; DROP AXE PUTS DOWN",13
-        .byte "USE FLAGYL   ONE MEDICAL DOSE",13,13
+        .byte "EAT FLAGYL   ONE MEDICAL DOSE",13,13
         .byte "CLIMB TREE / CLIMB DOWN",13
         .byte "HANG FOOD    HANG PACK AND CONTENTS",13
         .byte "LOWER FOOD   RECOVER AT THE SAME TREE",13,13
@@ -1040,7 +1046,7 @@ shelter_view:
         jsr     overlay_load
         jmp     module_shelter_view
 
-; show_view -- the view, or black and NOT ENOUGH LIGHT at night
+; show_view -- landscape by day/full Moon; dark sky and no landscape otherwise
 show_view:
         jsr     scene_update
         lda     #0
@@ -1055,7 +1061,7 @@ show_view_scene:
         jsr     shelter_view
         jmp     hud_draw
 :
-        lda     night
+        lda     view_dark
         bne     @dark
         jsr     scene_prepare
         jmp     view_full
@@ -1076,7 +1082,7 @@ finish_simulation:
         lda     #0
         sta     sim_loaded
         jsr     summary_prepare
-        lda     night
+        lda     view_dark
         ora     shelter_inside
         bne     @blank
         jsr     scene_prepare
@@ -1095,7 +1101,7 @@ finish_simulation:
 
 .segment "CODE"
 turn_view:                      ; X = view_turn kind; fixed geometry scrolls with terrain
-        lda     night
+        lda     view_dark
         ora     shelter_inside
         bne     @full
         lda     scene_drawn
@@ -1118,19 +1124,59 @@ turn_view:                      ; X = view_turn kind; fixed geometry scrolls wit
 ; ----------------------------------------------------------------------------
 do_look:
         jmp     module_tree_look
+look_invalid:
+        lda     #<m_oops
+        ldx     #>m_oops
+        jmp     message
+do_look_az:
+        lda     #13
+        jsr     overlay_load
+        jmp     module_look_az
 do_tree:
         lda     #20
         jsr     overlay_load
         jmp     module_tree_command
 
 magnetic_heading:
+        lda     #3
+        jsr     overlay_load
+        lda     #12
+        jsr     overlay_load
+        jmp     module_magnetic_heading
+game_init_environment:
+        jsr     env_day
+        jsr     env_hour
+        jmp     game_init_restore
+game_init_hud:
+        jsr     hud_init
+        jmp     ui_monitor
+.segment "TRAVEL"
+module_magnetic_heading:
         ; T10/S0C adds TOPO $60A9 to magnetic cardinal directions.
+        lda     it_place+53
+        cmp     #3
+        bne     @declination
+        jsr     weather_random
+        fop     FSUB, f_half
+        jsr     negate
+        fop     FMULT, f_4     ; native compass precision, W9 = 4 degrees
+        jsr     AYINT
+        lda     $A0
+        ldy     $A1
+        jsr     GIVAYF
+        fst     compass_error
+        jmp     @magnetic
+@declination:
+        fld     f_zero
+        fst     compass_error
+@magnetic:
         ldy     M_MAG
         lda     #0
         cpy     #128
         bcc     :+
         lda     #$FF
 :       jsr     GIVAYF
+        fop     FADD, compass_error
         fop     FMULT, f_deg_heading
         fop     FADD, f_half    ; nearest port azimuth, not a biased truncation
         jsr     AYINT
@@ -1147,11 +1193,11 @@ magnetic_heading:
         lda     ang+1
         sta     heading+1
         rts
+compass_error: .res 5
+.segment "GCODE"
 
 ; WALK, GO, RUN, MOVE, CRAWL, SWIM: hours, then cells along the
-; heading. Our rule (the original's is not decoded yet): a cell (2 units)
-; WALK takes 19 minutes per cell, plus 6 per level climbed.
-; SWIM uses original integer-unit paths and the normal-swimming duration formula.
+; heading. WALK and SWIM use original integer-unit raster paths and costs.
 ; Both stop before the two-cell outer band; a rejected step spends no time.
 do_walk:
         lda     tree_in
@@ -1177,24 +1223,14 @@ do_walk:
         bne     @start
 @quit:  rts
 @start: jsr     prepare_minutes           ; minutes = hours * 60
-        lda     heading
-        sta     ang
-        lda     heading+1
-        sta     ang+1
-        jsr     direction
-        lda     dx
-        sta     wdx
-        lda     dx+1
-        sta     wdx+1
-        lda     dy
-        sta     wdy
-        lda     dy+1
-        sta     wdy+1
         lda     verb
         cmp     #V_SWIM
-        bne     :+
+        bne     @walk_prepare
         jsr     swim_prepare
-:
+        jmp     @prepared
+@walk_prepare:
+        jsr     walk_prepare
+@prepared:
         lda     #0
         sta     used
         sta     used+1
@@ -1208,11 +1244,8 @@ do_walk:
         bit     KBDSTRB
         inc     input_interrupted
         jmp     @stop
-:        lda     verb
-        cmp     #V_SWIM
-        bne     :+
-        jsr     swim_next
-:       clc
+:       jsr     swim_next
+        clc
         lda     px
         adc     wdx
         sta     nx
@@ -1242,14 +1275,13 @@ do_walk:
         bcc     :+
         jmp     @edge
 :
-        tax
-        ldy     nx+1
-        jsr     cell_at
+        jsr     native_next
         bpl     @land
         ldx     verb
         cpx     #V_SWIM
         beq     @swim
-        jmp     @water
+        jsr     native_walk_water
+        jcc     @stop
 @land:  ldx     verb
         cpx     #V_SWIM
         bne     :+
@@ -1257,34 +1289,12 @@ do_walk:
         jcc     @stop
         jmp     @swim
 :       sta     g0
-        ldx     py+1
-        ldy     px+1
-        jsr     cell_at
+        jsr     native_here
         and     #$7F
         sta     g1
-        lda     #19             ; minutes for this cell
-        sta     stepmin
-        lda     g0
-        sec
-        sbc     g1
-        bcc     @time           ; downhill
-        beq     @time
-        cmp     #40             ; 19 + 6*40 > 255: reject before multiplying
-        bcc     :+
+        jsr     walk_step
+        bcc     @time
         jmp     @pace
-:
-        sta     g1
-        asl     a
-        adc     g1
-        asl     a               ; 6 per level
-        bcc     :+
-        jmp     @pace
-:       adc     stepmin
-        bcc     :+
-        jmp     @pace
-:
-        sta     stepmin
-        jmp     @time
 @swim:  lda     used
         ora     used+1
         bne     :+
@@ -1293,7 +1303,8 @@ do_walk:
 :       jsr     swim_step
         bcc     :+
         jmp     @pace
-:       lda     minutes+1
+:       jmp     @time
+@time:  lda     minutes+1
         bne     @go
         lda     stepmin
         lsr                     ; native admits >= floor(dt/2), then spends all dt
@@ -1301,13 +1312,6 @@ do_walk:
         bcc     @go
         beq     @go
         jmp     @time_end
-@time:  lda     minutes+1       ; enough time left?
-        bne     @go
-        lda     minutes
-        cmp     stepmin
-        bcs     :+
-        jmp     @time_end
-:
 @go:    sec
         lda     minutes
         sbc     stepmin
@@ -1334,6 +1338,11 @@ do_walk:
         sta     py
         lda     ny+1
         sta     py+1
+        lda     verb
+        cmp     #V_SWIM
+        beq     :+
+        jsr     walk_climb
+:
         lda     stepmin
         ldx     #1
         jsr     spend
@@ -1382,8 +1391,6 @@ do_walk:
         lda     #9
         sta     travel_reason
         jmp     @stop
-@water: lda     #1
-        sta     travel_reason
 @stop:  lda     used
         sta     msgnum
         lda     used+1
@@ -1550,7 +1557,8 @@ module_eat: lda     noun
         lda     #<m_ate
         ldx     #>m_ate
         jsr     message
-        lda     #16
+        lda     msgnum
+        asl                     ; T12/S00: two minutes per ounce eaten
         sta     meal_remaining
 @step:  lda     meal_remaining
         cmp     health_period
@@ -1610,9 +1618,37 @@ module_drink:
         bcc     :+
         rts
 :       ldx     #N_WATER
+        lda     water_untreated
+        ldy     it_place+N_WATER
+        cpy     #5
+        bne     :+
+        lda     #0              ; a hung pack is not a source for this drink
+:       sta     water_drinking_untreated
+        jsr     at_ground
+        bcc     @consume
+        lda     it_place+N_WATER
+        cmp     #5
+        beq     @ground_quality
+        lda     it_pack_hi+N_WATER
+        bne     @consume
+        lda     msgnum+1
+        beq     :+
+        lda     #255            ; take_oz caps one consumption at 255 OZ
+        bne     @compare_water
+:       lda     msgnum
+@compare_water:
+        cmp     it_pack_lo+N_WATER
+        bcc     @consume
+        beq     @consume
+@ground_quality:
+        lda     water_ground_untreated
+        ora     water_drinking_untreated
+        sta     water_drinking_untreated
+@consume:
         jsr     take_oz
         lda     msgnum
         beq     @none
+        jsr     water_hazard
         ldy     msgnum
         lda     msgnum+1
         jsr     GIVAYF
@@ -1636,9 +1672,43 @@ module_drink:
 ; action durations remain unknown.
 ; DROP/REMOVE share verb 8 in the original vocabulary: both leave on ground.
 do_get:
-        lda     #14
+        lda     noun
+        cmp     #N_WATER
+        beq     @water
+        cmp     #64
+        bne     @item
+@water: lda     #4
+        jsr     overlay_load
+        jsr     module_collect
+        bcs     do_outdoor_done
+@item:  lda     #14
         jsr     overlay_load
         jmp     module_do_get
+water_hazard:
+        lda     water_drinking_untreated
+        bne     :+
+        rts
+:       lda     #22
+        jsr     overlay_load
+        jmp     module_water_hazard
+animal_attack:
+        lda     #22
+        jsr     overlay_load
+        jmp     module_animal_attack
+do_outdoor:
+        lda     #22
+        jsr     overlay_load
+        jsr     module_outdoor
+do_outdoor_done:
+        lda     outdoor_minutes
+        beq     :+
+        ldx     outdoor_act
+        jsr     spend
+:       jsr     show_view
+outdoor_report:
+        lda     #22
+        jsr     overlay_load
+        jmp     module_outdoor_report
 do_wear:
         lda     #14
         jsr     overlay_load
@@ -1691,11 +1761,11 @@ module_do_get:
 @canteen:
         lda     it_place+64
         cmp     #5
-        beq     @empty
+        jeq     @empty
         cmp     #0
-        beq     @empty
+        jeq     @empty
         cmp     #$FF
-        beq     @empty
+        jeq     @empty
 @ready: jsr     save_item
         cpx     #N_WATER
         bcc     @gear
@@ -1736,7 +1806,19 @@ module_do_get:
         jsr     accept_load
         bcs     :+
         rts
-:       lda     it_place,x
+:       cpx     #N_WATER
+        bne     @result
+        jsr     at_ground
+        bcc     @result
+        lda     it_gnd_lo+N_WATER
+        ora     it_gnd_hi+N_WATER
+        bne     @result
+        lda     water_untreated
+        ora     water_ground_untreated
+        sta     water_untreated
+        lda     #0
+        sta     water_ground_untreated
+@result: lda     it_place,x
         cmp     #3
         beq     @carried
         lda     #<m_taken
@@ -1788,7 +1870,8 @@ module_do_wear:
         jsr     accept_load
         bcs     :+
         rts
-:       lda     #<m_worn
+:       jsr     native_clothes_changed
+        lda     #<m_worn
         ldx     #>m_worn
         jmp     message
 @not:   lda     #<m_notwear
@@ -1826,9 +1909,9 @@ module_do_drop:
         jmp     message
 @drop:  ldx     noun
         lda     it_place,x
-        beq     @missing
+        jeq     @missing
         cmp     #$FF
-        beq     @missing
+        jeq     @missing
         jsr     save_item
         cpx     #N_WATER
         bcc     @gear
@@ -1836,7 +1919,7 @@ module_do_drop:
         bcs     @gear
         lda     it_pack_lo,x
         ora     it_pack_hi,x
-        beq     @missing
+        jeq     @missing
         lda     it_gnd_lo,x
         ora     it_gnd_hi,x
         beq     @merge
@@ -1865,8 +1948,19 @@ module_do_drop:
         sta     it_x,x
         lda     py+1
         sta     it_y,x
-        jsr     load_totals
-        lda     #<m_dropped
+        cpx     #N_WATER
+        bne     :+
+        lda     water_untreated
+        ora     water_ground_untreated
+        sta     water_ground_untreated
+        lda     #0
+        sta     water_untreated
+:       jsr     load_totals
+        lda     saved_item
+        cmp     #1
+        bne     :+
+        jsr     native_clothes_changed
+:       lda     #<m_dropped
         ldx     #>m_dropped
         jmp     message
 @missing:
@@ -1904,10 +1998,9 @@ no_item:
 ; Current totals and the pre-transfer snapshot (LOW is RAM).
 .segment "LOWTEXT"
 load_used: .res 8              ; weight, wear, pack, hand (16-bit)
-; Our additive model: limits = our initial usage + original initial free
-; capacities (43 oz, 1525/4134/2542 in3). This reproduces the starting
-; balance, not the original's still-unexplained container accounting.
-load_limits: .word 879, 2149, 6000, 2874
+; First Sierra character's native capacities. Container weights include
+; their contents; a carried backpack does not occupy the hand allowance.
+load_limits: .word 815, 2149, 6000, 2686
 load_vol: .res 2
 load_bad: .byte 0
 saved_item: .res 5
@@ -1940,6 +2033,26 @@ load_totals:
 
 .segment "ENVIRON"
 module_load_totals:
+        clc                     ; native canteen W5 = 16 + contained water
+        lda     it_pack_lo+N_WATER
+        adc     #16
+        sta     it_oz_lo+64
+        lda     it_pack_hi+N_WATER
+        adc     #0
+        sta     it_oz_hi+64
+        lda     it_pack_lo+N_WATER
+        asl
+        sta     it_vol_lo+64
+        lda     it_pack_hi+N_WATER
+        rol
+        sta     it_vol_hi+64
+        clc                     ; native canteen W6 = 16 + 2 * contained water
+        lda     it_vol_lo+64
+        adc     #16
+        sta     it_vol_lo+64
+        bcc     :+
+        inc     it_vol_hi+64
+:
         lda     #1
         sta     ui_dirty
         lda     #0
@@ -1951,13 +2064,14 @@ module_load_totals:
         ldx     #75
 @item:  lda     it_place,x
         cmp     #5
-        beq     @next
+        jeq     @next
         cmp     #0
-        beq     @next
+        jeq     @next
         cmp     #$FF
-        beq     @next
+        jeq     @next
         cpx     #N_WATER
         bcc     @gear
+        beq     @next           ; already included in the canteen, never twice
         cpx     #38
         bcs     @gear
         lda     it_pack_lo,x
@@ -1994,6 +2108,8 @@ module_load_totals:
         sta     num+1
         ldy     #0
         jsr     load_add
+        cpx     #21
+        beq     @next           ; backpack's own volume is outside its capacity
         lda     it_vol_lo,x
         sta     load_vol
         lda     it_vol_hi,x
@@ -2201,40 +2317,40 @@ load_hand: .byte "  HAND: +",0
 
 .segment "GCODE"
 ; report -- after a command that took time: warnings
-report: lda     dead
-        beq     @alive
-        lda     #<m_dead
-        ldx     #>m_dead
-        ldy     travel_action
-        beq     :+
-        lda     #<m_dead_travel
-        ldx     #>m_dead_travel
-:
+report:
+        ldx     #0
+        lda     dead
+        bne     @result
+        inx
+        lda     won
+        bne     @result
+        inx
+        lda     fauna_alert
+        bpl     :+
+        jmp     outdoor_report
+:       lda     weak_health
+        bne     @result
+        rts
+@result: jmp    report_message
+.segment "LOWCODE"
+report_message:
+        lda     travel_action
+        beq     @message
+        txa
+        clc
+        adc     #3
+        tax
+@message:
+        lda     report_lo,x
+        pha
+        lda     report_hi,x
+        tax
+        pla
         jmp     message
-@alive: lda     won
-        beq     @weak
-        lda     #<m_goal
-        ldx     #>m_goal
-        ldy     travel_action
-        beq     :+
-        lda     #<m_goal_travel
-        ldx     #>m_goal_travel
-:
-        jmp     message
-@weak:  fld     f_hmax          ; weak under a third of Hmax
-        fop     FDIV, s_health  ; H / Hmax
-        fop     FCOMP, f_third
-        cmp     #1
-        beq     @ok
-        lda     #<m_weak
-        ldx     #>m_weak
-        ldy     travel_action
-        beq     :+
-        lda     #<m_weak_travel
-        ldx     #>m_weak_travel
-:
-        jmp     message
-@ok:    rts
+.segment "LOWTEXT"
+report_lo: .byte <m_dead,<m_goal,<m_weak,<m_dead_travel,<m_goal_travel,<m_weak_travel
+report_hi: .byte >m_dead,>m_goal,>m_weak,>m_dead_travel,>m_goal_travel,>m_weak_travel
+.segment "GCODE"
 
 ; ----------------------------------------------------------------------------
 ; inventory helpers
@@ -2366,7 +2482,12 @@ oz_times:
 
 ; mul60 -- minutes = msgnum (hours, byte) * 60
 .segment "GCODE"
-mul60:  lda     msgnum
+mul60:
+        lda     #21
+        jsr     overlay_load
+        jmp     module_mul60
+.segment "ADVENTURE"
+module_mul60: lda     msgnum
         sta     g0
         lda     #0
         sta     minutes
@@ -2382,6 +2503,7 @@ mul60:  lda     msgnum
         bne     @add
         rts
 
+.segment "GCODE"
 ; cell_at -- A = grid byte of cell (Y = x, X = y); N = water
 cell_at:
         lda     grid_lo,x
@@ -2403,6 +2525,24 @@ level_here:
 
 ; at_goal -- won when within one cell of the outpost
 at_goal:
+        lda     #10
+        jsr     overlay_load
+        jmp     module_at_goal
+.segment "SITES"
+module_at_goal:
+        lda     MAP+37
+        beq     @legacy
+        lda     px
+        ora     py
+        bne     @no
+        lda     px+1
+        cmp     M_GOALX
+        bne     @no
+        lda     py+1
+        cmp     M_GOALY
+        bne     @no
+        beq     @win
+@legacy:
         lda     px+1
         sec
         sbc     M_GOALX
@@ -2413,7 +2553,7 @@ at_goal:
         sbc     M_GOALY
         jsr     @near
         bcc     @no
-        lda     #1
+@win:   lda     #1
         sta     won
 @no:    rts
 @near:  clc                     ; C set when A in -1..1
@@ -2423,6 +2563,8 @@ at_goal:
         eor     #1
         lsr     a
         rts
+
+.segment "GCODE"
 
 ; ----------------------------------------------------------------------------
 ; simulation
@@ -2469,33 +2611,22 @@ spend:  stx     act
         beq     :+
         lda     #0
         sta     newday
-        lda     #18
+        lda     #22
         jsr     overlay_load
         jsr     module_medical_day
         jsr     env_day
 :       ; Fauna only reads the new clock and terrain, not air temperature.
         ; Keep ENV loaded for its checks instead of loading THERM, then ENV,
         ; then THERM again when health is due. DOS reads dominate real travel.
-        ldx     py+1
-        ldy     px+1
-        jsr     cell_at
+        jsr     native_here
         asl     a               ; water bit -> carry
         lda     #0
         rol     a
         asl     a               ; 0 dry / 2 immersed, no persistent wetness
         sta     wet_mode
         jsr     weather_wet
-        lda     act
-        cmp     #1              ; original T09/S08 skips T0A/S00 at rest/meals
-        bne     @stationary
-        jsr     scene_update
-        jmp     @thermal
-@stationary:
-        lda     #0
-        sta     scene_minutes
-        sta     fauna_alert
-@thermal:
         jsr     env_hour
+@health_due:
         lda     health_due
         beq     @done
         lda     health_minutes+1
@@ -2505,7 +2636,66 @@ spend:  stx     act
         jsr     weather_step
         jsr     thermal
         jsr     health
-@done:  jmp     ui_monitor
+@done:  lda     act
+        cmp     #1
+        bne     :+
+        jsr     scene_update    ; native health/wind precede T0A/S00
+:       jsr     stationary_resources
+        jmp     ui_monitor
+
+.segment "ENVIRON"
+native_finish_resources:
+        lda     act
+        cmp     #4              ; native animal reactions do not discover resources
+        bne     :+
+        lda     #0
+        sta     scene_minutes   ; subsequent VIEW must not rescan the reaction
+        rts
+:       cmp     #5
+        bne     :+
+        lda     #22
+        jsr     overlay_load
+        jsr     module_wound_retention
+:       cmp     #1
+        beq     native_finish_travel
+native_stationary_resources:
+        jsr     fauna_environment
+        lda     #12
+        jsr     overlay_load
+        jmp     module_stationary_resources
+native_finish_travel:
+        lda     #12
+        jsr     overlay_load
+        jmp     module_stationary_resources_tail
+native_here_travel:
+        jsr     native_here
+        jmp     native_restore_travel
+native_next_travel:
+        jsr     native_next
+        jmp     native_restore_travel
+.segment "GCODE"
+native_restore_travel:
+        pha
+        lda     #12
+        jsr     overlay_load
+        pla
+        rts
+.segment "GCODE"
+native_resource_results:
+        lda     MAP+36
+        beq     @done
+        lda     #21
+        jsr     overlay_load
+        jmp     module_resource_results
+@done:  rts
+.segment "ENVIRON"
+native_nature:
+        jsr     fauna_age
+        jmp     native_stationary_resources
+
+.segment "GCODE"
+stationary_resources:
+        jmp     native_finish_resources
 
 ; spend_energy -- integer kcal for this step, matching m098. The most
 ; recently computed shivering flag contributes .04*body weight kcal/min.
@@ -2517,6 +2707,11 @@ spend_energy:
 .segment "ENVIRON"
 module_spend_energy:
         lda     act
+        cmp     #4
+        bcc     :+
+        fld     s_metabolic     ; reaction's effort prepared by OUTDOOR
+        jmp     @base
+:
         cmp     #3
         bne     :+
         lda     body_weight+1
@@ -2538,7 +2733,7 @@ module_spend_energy:
         bne     @land
         jsr     swim_metabolic
         jmp     @base
-@land:  fld     f_walk_rate
+@land:  jsr     module_land_metabolic
 @base:  fst     s_metabolic
         lda     thermal_mode
         cmp     #2
@@ -2577,6 +2772,21 @@ swim_prepare:
         lda     #12
         jsr     overlay_load
         jmp     module_swim_prepare
+
+walk_prepare:
+        lda     #3
+        jsr     overlay_load
+        lda     #12
+        jsr     overlay_load
+        jmp     module_walk_prepare
+walk_step:
+        lda     #12
+        jsr     overlay_load
+        jmp     module_walk_step
+walk_climb:
+        lda     #12
+        jsr     overlay_load
+        jmp     module_walk_climb
 
 swim_next:
         lda     #12
@@ -2730,7 +2940,11 @@ module_env_day:
         fop     FMULT, f_half
         fop     FADD, t1                ; T0
         fst     s_t0
-        jmp     weather_daily
+        jsr     weather_daily
+        jsr     native_here
+        and     #127
+        sta     weather_day_level
+        rts
 
 ; env_hour -- period of the day (night, dawn, am, pm, dusk) and the air
 ; temperature at this hour and altitude, from env_day's values
@@ -2801,29 +3015,19 @@ f_temp_frequency: .byte $7B,$19,$30,$BE,$0E ; .0187 radians/hour
 .segment "GCODE"
 ; dist_goal -- FAC = distance from the player to the outpost, in map units
 dist_goal:
-        lda     M_GOALX
-        jsr     @delta
-        fst     t1
-        fop     FMULT, t1
-        fst     t1
-        lda     M_GOALY
-        ldx     #py-px
-        jsr     @delta2
-        fst     t2
-        fop     FMULT, t2
-        fop     FADD, t1
-        jmp     FSQR
-@delta: ldx     #0
-@delta2:                        ; FAC = (goal cell - position) x 2 units
-        sec
-        sbc     px+1,x
-        tay
-        lda     #0
-        cpy     #$80
-        bcc     :+
-        lda     #$FF
-:       jsr     GIVAYF
-        fop     FMULT, f_2
+        lda     #21
+        jsr     overlay_load
+        jmp     module_dist_goal
+
+; STATUS runs at $5800 too: return through resident code after restoring it.
+goal_pct:
+        lda     #21
+        jsr     overlay_load
+        jsr     module_progress
+        pha
+        lda     #16
+        jsr     overlay_load
+        pla
         rts
 
 ; goal_pct -- A = GOAL% (0..100):
@@ -3070,13 +3274,15 @@ screen_lo:
 screen_hi:
         .byte   >scr_topo, >scr_view, >scr_status, >scr_inventory, >scr_help, >scr_notyet
 .segment "GDATA"
-verbs:  .byte   V_WEAR, V_DROP, V_GET, V_CARRY, V_PACK, V_DRINK, V_EAT, V_LOOK, V_PAN
+verbs:  .byte   17, 18, 37, V_WEAR, V_DROP, V_GET, V_CARRY, V_PACK, V_DRINK, V_EAT, V_LOOK, V_PAN
         .byte   V_WAIT, V_REST, V_CAMP, V_EXER, V_WALK, V_RUN, V_MOVE, V_CRAWL, V_SWIM, V_ENTER, V_EXIT, V_USE, 26, V_CLIMB, V_HANG, V_LOWER, 30, 32, 0
 verb_lo:
+        .byte <do_outdoor, <do_outdoor, <do_outdoor
         .byte   <do_wear, <do_drop, <do_get, <do_get, <do_get, <do_drink, <do_eat, <do_look, <do_look
         .byte   <do_rest, <do_rest, <do_rest, <do_rest, <do_walk, <do_walk, <do_walk, <do_walk, <do_walk
         .byte   <do_site, <do_site, <do_medical, <do_medical, <do_tree, <do_tree, <do_medical, <do_medical, <do_medical
 verb_hi:
+        .byte >do_outdoor, >do_outdoor, >do_outdoor
         .byte   >do_wear, >do_drop, >do_get, >do_get, >do_get, >do_drink, >do_eat, >do_look, >do_look
         .byte   >do_rest, >do_rest, >do_rest, >do_rest, >do_walk, >do_walk, >do_walk, >do_walk, >do_walk
         .byte   >do_site, >do_site, >do_medical, >do_medical, >do_tree, >do_tree, >do_medical, >do_medical, >do_medical
@@ -3100,3 +3306,27 @@ ctol_hi: .byte  >f_tol_water, >f_tol_food, >f_tol_rest
         .include "project.s"
         .include "tree.s"
 .segment "CODE"
+
+.segment "ENVIRON"
+native_walk_water:
+        sta     g0
+        lda     #1
+        sta     travel_reason
+        lda     MAP+37
+        beq     @no
+        sta     travel_shore
+        lda     g0
+        and     #$7F
+        sec
+        rts
+@no:    clc
+        rts
+native_clothes_changed:
+        lda     MAP+37
+        beq     @done
+        jsr     thermal_clothes
+        lda     #15
+        sta     health_period
+        lda     #14
+        jsr     overlay_load
+@done:  rts

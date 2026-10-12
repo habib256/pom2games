@@ -60,7 +60,7 @@ def lifecycle():
     for key,_ in turns:
         steps += [f'key:{key}', 'wait:1', L.until('idle',20000),L.peek('px',6),'peek:2000:8192']
     steps += ['key:STATUS\\r','wait:1',L.until('wait_key',20000),'key: ','wait:1',L.until('idle',20000),
-              'peek:2000:8192',L.poke('night',1),'key:V\\r','wait:1',L.until('idle',20000),'peek:2000:8192',
+              'peek:2000:8192',L.poke('night',1),L.poke('view_dark',1),'key:V\\r','wait:1',L.until('idle',20000),'peek:2000:8192',
               'key:USE COMPASS\\r','wait:1',L.until('idle',20000),'peek:0400:1024']
     result = a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
     _,_,heading = state(result.dumps[0]); offset=int.from_bytes(result.dumps[1],'little')

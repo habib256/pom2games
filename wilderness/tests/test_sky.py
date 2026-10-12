@@ -92,10 +92,13 @@ def scenes():
 def moon_scene():
     m=bytearray((HERE/'build/map.bin').read_bytes());m[64:]=bytes([10])*9408
     m[16]=0;m[21]=11;m[2:6]=bytes((0,20,0,20))
-    bearing,y=model(38,.34442,0,True)
+    # A partial phase with the Moon above the horizon; the saved May date
+    # is now allowed to reveal the landscape when its disk is full.
+    date=.01/365
+    bearing,y=model(38,date,0,True)
     original=(HERE/'build/wildgame.bin').read_bytes()[L['idle']-0x4000:L['idle']-0x4000+9]
     steps=[L.until('idle',20000),L.poke('scenes_enabled',0)]
-    steps+=poke('s_hour',0)+[L.poke('heading',bearing),L.poke('heading',bearing>>8,1)]
+    steps+=poke('s_date',date)+poke('s_hour',0)+[L.poke('heading',bearing),L.poke('heading',bearing>>8,1)]
     steps+=call(['env_hour','show_view'])+[f'until:{L["idle"]+6:04X}:20000',
         L.peek('sky_bearing',3),'peek:2000:8192',f'shot:{HERE}/build/sky-moon.png',L.until('idle',20000)]
     steps += [L.poke('idle',b,i) for i,b in enumerate(original)]+[L.poke('sim_loaded',0)]
@@ -121,16 +124,16 @@ def afternoon_travel():
     steps=[L.until('idle',20000),'key:NATURE 0\\r','wait:1',L.until('idle',20000),
            'key:WALK 456 MIN\\r','wait:1',L.until('idle',60000),
            'key:REST 11 MIN\\r','wait:1',L.until('idle',20000),
-           L.peek('s_hour',5),L.peek('s_date',5),L.peek('sky_bearing',3)]
+           L.peek('s_hour',5),L.peek('s_date',5),L.peek('sky_bearing',3),L.peek('s_elap',5)]
     with tempfile.TemporaryDirectory() as tmp:
         result=a2test.run(disk_with(tmp,map_fixture()),steps,emulator=a2test.A2SHOT,timeout=900)
     hour,date=fp(result.dumps[0]),fp(result.dumps[1])
-    assert abs(hour-(14+47/60))<1e-7,'afternoon travel clock'
+    assert 14 < hour < 16 and abs(hour-(7+fp(result.dumps[3])))<1e-7,'afternoon travel clock'
     bearing,y=model(38,date,hour)
     actual=result.dumps[2]
     assert abs(int.from_bytes(actual[:2],'little')-bearing)<=1 and abs(actual[2]-y)<=1
     assert actual[2]<50,'afternoon sun incorrectly near the horizon'
-    print('  14:47 after real travel through woods: solar position and clock preserved OK')
+    print('  afternoon after real travel through woods: solar position and clock preserved OK')
 
 if __name__=='__main__':
     positions()

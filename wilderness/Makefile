@@ -25,6 +25,8 @@ all: $(DISK)
 $(BUILD)/wild.o: src/medical.s src/hazards.s src/care.s
 $(BUILD)/wild.o: src/clock.inc
 $(BUILD)/wild.o: src/overlay_codec.s
+$(BUILD)/wild.o: src/geography.s
+$(BUILD)/wild.o: src/water.s
 
 $(BUILD)/tables.inc $(BUILD)/rowtab.inc: tools/gentables.py
 	@mkdir -p $(@D)
@@ -56,7 +58,7 @@ $(BUILD)/sky_ephemeris.inc: tools/sky_ephemeris.py
 $(BUILD)/forest_profiles.inc: tools/genforest.py
 	$(PYTHON) -I $< $@
 
-$(BUILD)/wild.o: src/wild.s src/game.s src/input.s src/weather.s src/travel.s src/survival.s src/sprites.s src/thermal.s src/sites.s src/project.s src/fauna.s src/hud.s src/sky.s src/forest.s src/tree.s src/status.s src/inventory.s src/summary.s src/ui_monitor.s src/messages.inc $(BUILD)/tables.inc $(BUILD)/rowtab.inc $(BUILD)/gamedata.inc $(BUILD)/hud.inc $(BUILD)/summary_font.inc $(BUILD)/sky_ephemeris.inc $(BUILD)/forest_profiles.inc $(A2_ASM_DEPS) Makefile
+$(BUILD)/wild.o: src/wild.s src/adventure.s src/outdoor.s src/game.s src/input.s src/weather.s src/travel.s src/survival.s src/sprites.s src/thermal.s src/sites.s src/project.s src/fauna.s src/hud.s src/sky.s src/forest.s src/tree.s src/status.s src/inventory.s src/summary.s src/ui_monitor.s src/messages.inc $(BUILD)/tables.inc $(BUILD)/rowtab.inc $(BUILD)/gamedata.inc $(BUILD)/hud.inc $(BUILD)/summary_font.inc $(BUILD)/sky_ephemeris.inc $(BUILD)/forest_profiles.inc $(A2_ASM_DEPS) Makefile
 	$(CA65) -g -t none $(A2_INCS) -I $(BUILD) -l $(BUILD)/wild.lst -o $@ $<
 
 $(BIN): $(BUILD)/wild.o src/wild.cfg
@@ -90,6 +92,7 @@ $(DISK): $(BIN) $(MAPBIN) $(BUILD)/boot.bin $(SPRITE_BINS) $(DOS33_DEPS) tools/b
 	$(PYTHON) -I tools/build_disk.py --out $(DISK) --build $(BUILD) --master $(SYSTEM)
 
 test: all $(A2SHOT)
+	$(PYTHON) tests/test_journey.py
 	$(PYTHON) tests/test_pack_boot.py
 	$(PYTHON) tests/test_overlay_codec.py
 	$(PYTHON) tests/test_boot.py
@@ -110,6 +113,8 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_hud.py
 	$(PYTHON) tests/test_interface.py
 	$(PYTHON) tests/test_sky.py
+	$(PYTHON) tests/test_moonlight.py
+	$(PYTHON) tests/test_site_directions.py
 	$(PYTHON) tests/test_projection.py
 	$(PYTHON) tests/test_sites.py
 	$(PYTHON) tests/test_scene_render.py
@@ -152,6 +157,7 @@ test-original: all $(A2SHOT)
 	$(PYTHON) tests/test_weather_cycle.py --original
 	$(PYTHON) tests/test_weather_front.py --original
 	$(PYTHON) tests/test_weather_frequency.py --original
+	$(PYTHON) tools/re_animal_reactions_probe.py
 	$(PYTHON) tests/test_swim_energy.py --original
 	$(PYTHON) tests/test_swim_cadence.py --original
 	$(PYTHON) tests/test_swim_raster.py --original

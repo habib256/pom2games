@@ -61,4 +61,7 @@ STATUS exclut les provisions suspendues des totaux transportés et accessibles,
 et affiche `IN A TREE` / `BACKPACK HUNG`. Le résumé suggère CLIMB DOWN.
 `tests/test_tree.py` couvre les seuils, le temps et le taux, les stocks,
 les refus de déplacement, les conteneurs, la récupération et les écrans.
-Les vols de nourriture et les réactions de l’ours restent à porter.
+Les vols de nourriture et les réactions de l’ours sont décrits dans
+[animals.md](animals.md) ; les scénarios clavier vérifient HANG FOOD puis
+une rencontre, une blessure dans l’arbre, les soins, la descente et la
+récupération des provisions. Grimper ne supprime pas le risque animal natif.

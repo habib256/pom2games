@@ -315,7 +315,7 @@ render_clr:   jsr     clear_rows
 render_column:
         jsr     forest_reset
         jsr     column_masks
-        lda     night
+        lda     view_dark
         beq     :+
         lda     #0
         sta     scene_opaque
@@ -553,7 +553,7 @@ render_shown: sta     row
         ldx     #C_GROUND
 render_col:   ldy     tmp2
         txa
-        ldx     night
+        ldx     view_dark
         beq     :+
         lda     #C_RIDGE
 :       jsr     scene_span
@@ -1016,3 +1016,8 @@ span_hi = *-HUD_ROWS
 
         .include "forest.s"
         .include "forest_profiles.inc"
+
+        .include "adventure.s"
+        .include "outdoor.s"
+        .include "water.s"
+        .include "geography.s"

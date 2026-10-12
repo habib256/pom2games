@@ -50,6 +50,12 @@ thermal_clothes:
         fld     s_insul
         rts
 @compute:
+        lda     MAP+37
+        beq     @legacy
+        jsr     native_clothes_update
+        jsr     native_clothes_index
+        jmp     @valid
+@legacy:
         ldx     #2
 @save:  lda     g0,x
         sta     clothing_cache,x
@@ -58,6 +64,9 @@ thermal_clothes:
         lda     wet_mode
         sta     clothing_cache_wet
         jsr     thermal_clothes_compute
+@valid:
+        lda     wet_mode
+        sta     clothing_cache_wet
         lda     #1
         sta     clothing_cache_valid
         rts
@@ -181,6 +190,10 @@ thermal_clothes_compute:
         fld     t1
         fop     FADD, t3
         fop     FDIV, t2                ; R0 Q/(R0+Q)
+        lda     MAP+37
+        beq     :+
+        fop     FMULT, th_native_composition
+:
         fop     FADD, f_half
         jsr     AYINT
         lda     $A0
@@ -193,6 +206,49 @@ thermal_clothes_compute:
 :       jsr     GIVAYF
         fst     s_insul
         rts
+.export thermal_clothes_weighted := @area
+
+native_clothes_update:
+        lda     #21
+        jsr     overlay_load
+        jmp     module_native_clothes_update
+native_clothes_index:
+        lda     #21
+        jsr     overlay_load
+        jmp     module_native_clothes_index
+.segment "ADVENTURE"
+module_native_clothes_index:
+        lda     #0
+        sta     g0
+@part: lda     g0
+        asl
+        clc
+        adc     #42
+        ldx     wet_mode
+        beq     :+
+        adc     #12
+:       tax
+        ldy     MAP,x
+        lda     MAP+1,x
+        jsr     GIVAYF
+        ldx     g0
+        lda     th_offsets,x
+        clc
+        adc     #<th_parts
+        tax
+        ldy     #>th_parts
+        jsr     MOVMF
+        inc     g0
+        lda     g0
+        cmp     #5
+        bne     @part
+        fld     f_zero
+        fst     t1
+        lda     #0
+        sta     g0
+        jmp     thermal_clothes_weighted
+.segment "THERMAL"
+th_native_composition: .byte $80,$7C,$E5,$9F,$CE ; 1 - 2/165
 
 ; thermal_wind -- original m098 $59E5: T-floor(sqrt(mph)/12*(100-T)).
 ; Keep both subtraction bytes: the original low-byte result can wrap a
@@ -433,7 +489,7 @@ thermal_abs:
         sta     FACSGN
         rts
 
-th_shelter15: .byte $84,$70,$00,$00,$00  ; 15 F, ordinary found shelter
+th_shelter15 = f_15            ; resident 15 F, ordinary found shelter
 
 .segment "RODATA"
 th_offsets: .byte 0, 5, 10, 15, 20

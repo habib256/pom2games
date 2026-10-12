@@ -8,7 +8,7 @@ weather_temperature:
         jsr     AYINT
         lda     $A1
         sta     wc_mean
-        jsr     level_here
+        lda     weather_day_level
         clc
         adc     M_BASE
         tay
@@ -196,6 +196,7 @@ weather_previous_duration: .word 100
 weather_frequency: .byte $82,$63,$75,$17,$62
 weather_cap: .word 360
 weather_visibility: .byte 240
+weather_day_level: .byte 0      ; altitude used when the native day cycle starts
 weather_sky: .byte 0           ; clear, cloudy, rain, snow
 weather_trend: .byte 2         ; native NO CHANGE=2, WORSE=3, BETTER=1
 weather_inside_front: .byte 0
@@ -206,6 +207,11 @@ weather_previous_short: .byte 0
 ; Sierra monthly precipitation: 0.1*(2+29*(1+SIN((360*date+47)*rad))).
 ; The regional correction and multiplier for other regions remain separate.
 weather_daily:
+        lda     #21
+        jsr     overlay_load
+        jmp     module_weather_daily
+.segment "ADVENTURE"
+module_weather_daily:
         fld     s_date
         fop     FMULT, wf_360
         fop     FADD, wf_47
@@ -227,6 +233,7 @@ weather_daily:
 :       fst     weather_frequency
         rts
 
+.segment "THERMAL"
 weather_air_visibility:
         jsr     level_here
         clc

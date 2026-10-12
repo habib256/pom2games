@@ -1,6 +1,9 @@
 ; Solar geometry follows the original seasonal declination and solar clock.
 ; Lunar ephemerides are a dated port extension (1985), not an original rule.
-; Both bearings are geographic; moonlight does not reveal the terrain.
+; Both bearings are geographic. A full lunar disk reveals the landscape,
+; sites and fauna while the night sky remains black.
+.segment "SCRATCH"
+view_dark: .res 1              ; visual darkness, independent of night physiology
 .segment "GDATA"
 sky_enabled: .byte 1
 sky_bearing: .word 0
@@ -14,6 +17,8 @@ sky_end: .res 1
 .segment "THERMAL"
 ; The original clock is apparent solar time (solar noon = 12).
 sky_position:
+        lda     night
+        sta     view_dark
         ldy     M_LAT
         lda     #0
         cpy     #128
@@ -255,6 +260,11 @@ sky_lunar:
         jsr     AYINT
         lda     $A1
         sta     sky_sample
+        cmp     #11             ; full disk in the phase artwork
+        bne     :+
+        lda     #0
+        sta     view_dark
+:
         ldy     #10
 @shape: tya
         sec
@@ -312,10 +322,10 @@ sky_inv24: .byte 124,42,170,170,171
 sky_inv360: .byte 120,54,11,96,182
 sky_tau256: .byte 123,73,15,218,162
 sky_quarter_rad: .byte 121,14,250,53,19
-sky_pi: .byte 130,73,15,218,162
         .include "sky_ephemeris.inc"
 
 .segment "TEXT"
+sky_pi: .byte 130,73,15,218,162
 ; Called only for remaining sky, after foreground terrain/sprites.
 sky_column:
         lda     sky_enabled

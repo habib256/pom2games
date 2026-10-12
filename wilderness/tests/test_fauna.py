@@ -18,22 +18,30 @@ def stationary_lifetime():
         for axis in ('x','y'):
             s.step(L.poke('animal_'+axis,s.step(L.peek('p'+axis,1,1)).data[0]))
         rng=s.step(L.peek('fauna_rng')).data
-        for text,age,kind in (('WAIT 29 MIN',29,6),('EAT CHEESE 1 OZ',45,6),
-                              ('SLEEP 14 MIN',59,6),('REST 1 MIN',59,0)):
+        for text,age in (('WAIT 29 MIN',29),('EAT CHEESE 1 OZ',31),('SLEEP 28 MIN',59)):
             command(s,text)
-            assert s.step(L.peek('animal_kind')).data==bytes((kind,)),text
+            assert s.step(L.peek('animal_kind')).data==b'\6',text
             assert s.step(L.peek('animal_age')).data==bytes((age,)),text
             assert s.step(L.peek('fauna_rng')).data==rng, 'stationary activity drew an encounter'
+        from test_animal_reactions import seed_for, rng as reaction_rng
+        seed=seed_for((0,6),(0,52))
+        s.step(L.poke('fauna_rng',seed))
+        command(s,'REST 1 MIN')
+        assert s.step(L.peek('animal_kind')).data==b'\6'
+        assert s.step(L.peek('animal_age')).data==b'\0'
+        assert s.step(L.peek('fauna_rng')).data==bytes((reaction_rng(reaction_rng(seed)),))
         assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-60)<1e-6
         assert s.step(L.peek('fauna_alert')).data==b'\0'
-    print('  WAIT, meal and sleep age an existing encounter; expiry at exactly 60 minutes; no wildlife draws OK')
+        assert s.step(L.peek('injury_active')).data==b'\1'
+    print('  WAIT, meal and sleep age the animal without encounter rolls; native-inspired reaction at exactly 60 minutes OK')
+
 
 
 def main():
     stationary_lifetime()
     idle = L.until('idle',20000)
     done = f'until:{L["idle"]+3:04X}:6000'
-    steps = [idle] + call(['env_day']) + [done,idle]
+    steps = [idle] + call(['env_day']) + [done,idle] + call(['at_goal']) + [done,idle]
     addr,target = L['idle'],L['fauna_eligible']
     code = bytes((0x20,target&255,target>>8,0x08,0x68,0x8D,0xFF,0x95,0x4C,addr&255,addr>>8))
     steps += [f'poke:{addr+i:04X}:{b:02X}' for i,b in enumerate(code)]
@@ -48,7 +56,7 @@ def main():
         assert bool(data[0]&1)==fixture[2],(fixture,data)
     print('  162 original filter fixtures: all species and six criteria OK')
 
-    steps = [idle] + call(['env_day']) + [done,idle] + call(['fauna_probability'])
+    steps = [idle] + call(['env_day']) + [done,idle] + call(['at_goal']) + [done,idle] + call(['fauna_probability'])
     probabilities = []
     for species,rate in enumerate((80,40,100)):
         for level in (1,4,10):
@@ -72,7 +80,7 @@ def main():
                 (0,12,10,10,4,31,1,0),  # no species matches
                 (.5,12,138,10,4,31,1,0),# water excludes all three
                 (.5,12,80,80,4,31,1,0), # too high
-                (.5,12,10,100,4,31,1,0),# diagonal slope too steep
+                (.5,12,10,30,4,31,1,0),# diagonal slope too steep
                 (.5,12,10,10,4,51,1,0), # regional index out of range
                 (.5,12,10,10,0,0,1,8),  # legacy: difficulty 4, Sierra 31
                 (.5,12,10,10,4,31,0,0)]
@@ -84,7 +92,7 @@ def main():
                   L.poke('animal_kind',0),L.poke('fauna_rng',4)]
         for y in range(39,42):
             for x in range(49,52):
-                value=diagonal if (x,y)==(51,41) else cell
+                value=diagonal if (x,y)==(49,39) else cell
                 steps += [f'poke:{0x7040+y*112+x:04X}:{value:02X}']
         steps += [done,L.peek('animal_kind'),L.peek('fauna_env',6),L.peek('scene_minutes'),idle]
     r=a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
@@ -92,10 +100,16 @@ def main():
         animal=r.mem(L['animal_kind'],1,k)
         env=r.mem(L['fauna_env'],6,k)
         remaining=r.mem(L['scene_minutes'],1,k)
-        assert animal==bytes([kind]) and remaining==b'\0',(k,animal,kind,remaining)
+        # Production discovery now uses the native shared random stream.
+        # The former fauna_rng=4 animal expectation belongs to the retired
+        # byte generator; validate the map-derived eligibility here, and
+        # compare the coupled stream in test_resource_random/adventure.
+        assert remaining==b'\0' and animal[0] in (0,6,7,8),(k,animal,remaining)
+        if kind == 0:
+            assert animal == b'\0',(k,animal)
         assert env[1:]==bytes((hour,40 if cell&128 else 10,24+(cell&127),
-                             abs(diagonal-(cell&127)),climate or 31)),(k,env)
-    print('  map-derived environment, diagonal slope, all three seeded species and exclusions OK')
+                             math.floor(4 * math.degrees(math.atan(abs(diagonal-(cell&127))/24)) + .5) & 255,climate or 31)),(k,env)
+    print('  map-derived environment, diagonal slope and excluded encounters OK')
 
     m = bytearray((HERE/'build/map.bin').read_bytes())
     m[2:8]=bytes((0,8,0,8,140,0));m[8:10]=bytes((100,40));m[16]=0

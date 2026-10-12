@@ -25,7 +25,7 @@ def select(m, px, py, heading, animal=None):
     result=None
     eye=(m[64+(py>>8)*112+(px>>8)]&127)+2
     for asset,x,y,_ in sites:
-        east,north=(x-px)/256,(py-y)/256
+        east,north=(x-px)/256,(y-py)/256
         distance=math.hypot(east,north)
         if distance >= 8: continue
         depth=math.floor(distance)+1

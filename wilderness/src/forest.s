@@ -374,7 +374,7 @@ forest_paint:
         lda     (hp),y
         and     mo
         sta     (hp),y
-        lda     night
+        lda     view_dark
         bne     @next
         cpx     forest_start
         beq     @next           ; continuous black contour against sky/ground

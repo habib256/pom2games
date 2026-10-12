@@ -230,7 +230,10 @@ input_validate:
         lda     input_mode
         cmp     #2
         bne     input_invalid
-@byte:  lda     input_value+1
+@byte:  lda     input_mode
+        cmp     #3             ; azimuth caller validates the complete 0..359 range
+        beq     @accept
+        lda     input_value+1
         bne     input_invalid
         beq     @accept
 @duration:
@@ -429,3 +432,38 @@ input_invalid_message: .byte "INVALID VALUE OR UNIT.|HOURS 1-255, MINUTES 1-1530
 input_quit_message: .byte "QUIT? UNSAVED PROGRESS WILL BE LOST.|Y: QUIT   N/RETURN/ESC: CANCEL",0
 input_stock_prompt: .byte "ACCESSIBLE: $ OZ.|HOW MANY OZ? ESC CANCELS.",0
 .segment "CODE"
+
+.segment "INPUT"
+module_look_az:
+        lda     it_place+53
+        cmp     #3
+        jne     look_invalid
+        lda     #<look_az_prompt
+        ldx     #>look_az_prompt
+        jsr     message
+        lda     #3
+        sta     input_mode
+        lda     #0
+        sta     input_argument
+        jsr     module_number
+        jcs     show_view
+        lda     msgnum+1
+        cmp     #1
+        bcc     @valid
+        jne     look_invalid
+        lda     msgnum
+        cmp     #104
+        jcs     look_invalid
+@valid:
+        lda     msgnum+1
+        ldy     msgnum
+        jsr     GIVAYF
+        fop     FMULT, f_deg_heading
+        fop     FADD, f_half
+        jsr     AYINT
+        lda     $A1
+        sta     heading
+        lda     $A0
+        sta     heading+1
+        jmp     tree_look_aim
+look_az_prompt: .byte "AZIMUTH IN DEGREES FROM NORTH?",0

@@ -39,8 +39,8 @@ def main():
     # distance buckets. Wreck uses the original crash coordinate; cabin is
     # fixed at the cell centre.
     for sx,sy in [(8*256,8*256),(20*256+128,20*256+128)]:
-        for dx,dy,h in [(1,0,420),(-2,0,140),(0,3,0),(0,-4,280),
-                        (3,3,490),(-3,-3,210),(7,0,420),(8,0,420)]:
+        for dx,dy,h in [(1,0,420),(-2,0,140),(0,3,280),(0,-4,0),
+                        (3,3,350),(-3,-3,70),(7,0,420),(8,0,420)]:
             positions.append((sx+dx*256,sy+dy*256,h))
     for head in (0,35,70,105,140,175,210,280,420,525):
         positions.append((18*256+128,20*256+128,head))

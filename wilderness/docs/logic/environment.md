@@ -244,9 +244,13 @@ pour une nouvelle rencontre de la même espèce. Une acceptation fixe
 `src/fauna.s` applique ces filtres, taux et remplacements. Le port tire
 maintenant à chaque pas de simulation et interrompt marche/repos quand une
 rencontre est acceptée. Il utilise encore un LFSR propre au port, une seule
-présence et une expiration de 60 minutes. Les règles de déplacement, de durée
-et les réactions ne sont donc pas établies par ces sondes. La commande NATURE porte
-le multiplicateur de faune ; le réglage séparé des ressources n'est pas porté.
+présence. Après 60 minutes sans décision, une réaction interrompt l’action ;
+arbre/cabane protègent le joueur. Les seuils de SCARE/ATTACK et de blessures
+sont maintenant sondés dans les modules natifs ; le vol, les stocks suspendus
+et les réactions IGNORE sont détaillés dans [animals.md](animals.md).
+Les déplacements et la cadence originale restent à établir. La commande
+NATURE porte le multiplicateur de faune ; le réglage des ressources manque.
+
 
 ## Messages
 
