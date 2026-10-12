@@ -24,6 +24,7 @@ all: $(DISK)
 
 $(BUILD)/wild.o: src/medical.s src/hazards.s src/care.s
 $(BUILD)/wild.o: src/clock.inc
+$(BUILD)/wild.o: src/overlay_codec.s
 
 $(BUILD)/tables.inc $(BUILD)/rowtab.inc: tools/gentables.py
 	@mkdir -p $(@D)
@@ -84,12 +85,16 @@ $(BUILD)/boot.o: src/boot.s $(A2_ASM_DEPS)
 $(BUILD)/boot.bin: $(BUILD)/boot.o src/boot.cfg
 	$(LD65) -C src/boot.cfg -m $(BUILD)/boot.map -Ln $(BUILD)/boot.lbl -o $@ $<
 
-$(DISK): $(BIN) $(MAPBIN) $(BUILD)/boot.bin $(SPRITE_BINS) $(DOS33_DEPS) tools/build_disk.py tools/pack_boot.py Makefile
+$(DISK): $(BIN) $(MAPBIN) $(BUILD)/boot.bin $(SPRITE_BINS) $(DOS33_DEPS) tools/build_disk.py tools/pack_boot.py tools/pack_overlay.py tools/smalldos.py Makefile
 	@mkdir -p $(DIST)
 	$(PYTHON) -I tools/build_disk.py --out $(DISK) --build $(BUILD) --master $(SYSTEM)
 
 test: all $(A2SHOT)
+	$(PYTHON) tests/test_pack_boot.py
+	$(PYTHON) tests/test_overlay_codec.py
 	$(PYTHON) tests/test_boot.py
+	$(PYTHON) tests/test_optimizations.py
+	$(PYTHON) tests/test_fast_duration.py
 	$(PYTHON) tests/test_input.py
 	$(PYTHON) tests/test_sleep.py
 	$(PYTHON) tests/test_clock.py
@@ -108,6 +113,7 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_projection.py
 	$(PYTHON) tests/test_sites.py
 	$(PYTHON) tests/test_scene_render.py
+	$(PYTHON) tests/test_render_memory.py
 	$(PYTHON) tests/test_sprites.py
 	$(PYTHON) tests/test_view.py
 	$(PYTHON) tests/test_pan.py

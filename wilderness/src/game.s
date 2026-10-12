@@ -184,6 +184,7 @@ overlay_before_dos = *
         .endrepeat
         dex
         bpl     @restore
+        jsr     overlay_unpack
         lda     overlay_wanted
         cmp     #3
         bne     @ordinary
@@ -420,7 +421,9 @@ vtab:   sta     CV
         jmp     VTAB
 .segment "GCODE"
 
-; Input overlay: only numeric actions and QUIT load it.
+; Common inline durations are resident; the general numeric reader remains
+; in INPUT for prompted entry, quantities and more elaborate syntax.
+.segment "RODATA"
 get_duration:
         ldy     #1
         bne     number_entry
@@ -431,6 +434,20 @@ get_number:
         ldy     #0
 number_entry:
         sty     input_mode
+        cpy     #1
+        bne     :+
+        pha                     ; A/X hold the prompted duration message
+        lda     input_argument
+        cmp     #2              ; fully validated resident inline duration
+        bne     @prompted
+        pla
+        lda     #0
+        sta     shown
+        clc
+        rts
+@prompted:
+        pla
+:
         cpy     #2
         beq     @load
         ldy     input_argument
@@ -441,8 +458,7 @@ number_entry:
         jsr     overlay_load
         jmp     module_number
 
-.segment "INPUT"
-; Both callers have just read a duration, so INPUT is still loaded here.
+; Either duration reader can return without an INPUT module being present.
 prepare_minutes:
         lda     input_unit
         cmp     #2
@@ -480,38 +496,17 @@ do_command:
         lda     #0
         sta     input_argument
         sta     travel_action
-        lda     linelen
-        cmp     #5
-        bne     :+
-        lda     inbuf
-        cmp     #'S'
-        beq     @input          ; SLEEP avoids VOCAB -> INPUT round trip
-:
-        ldx     #0
-@scan:  lda     inbuf,x
-        beq     @ordinary
-        cmp     #'Q'
-        beq     @input
-        cmp     #'0'
-        bcc     @next_char
-        cmp     #'9'+1
-        bcc     @input
-@next_char:
-        inx
-        bne     @scan
-@input: lda     #13
-        jsr     overlay_load
-        jsr     module_input_command
-        bcc     @ordinary
-        rts
-@ordinary:
+        sta     parser_word_seen
+fast_command:
         ldx     #0
 @word:  stx     g0
         lda     fast_words,x
         beq     @full
         sta     g2
         cmp     linelen
+        bcc     :+
         bne     @next
+:
         ldy     #0
 @letter:
         inx
@@ -521,6 +516,13 @@ do_command:
         iny
         cpy     g2
         bcc     @letter
+        cpy     linelen
+        beq     @dispatch
+        lda     fast_words+1,x
+        bpl     @next           ; screens cannot accept a duration
+        jsr     fast_duration
+        bcs     @next
+@dispatch:
         inx
         lda     fast_words,x
         pha
@@ -544,10 +546,12 @@ do_command:
         sta     gp1+1
         jmp     (gp1)
 @travel:
-        and     #127
+        pha
+        and     #63
         sta     verb
-        cmp     #V_REST
-        beq     @rest
+        pla
+        and     #64
+        bne     @rest
         jmp     do_walk
 @rest:  jmp     do_rest
 @next:  lda     g0
@@ -556,15 +560,149 @@ do_command:
         adc     #2
         tax
         jmp     @word
-@full:  jsr     parse
+@full:  lda     parser_word_seen
+        bne     @parse
+        jmp     general_command
+@parse: jsr     parse
         jmp     dispatch
 .segment "LOWTEXT"
-; High bit distinguishes a travel/rest verb from a screen noun.
+; Bit 7 identifies a duration verb; bit 6 distinguishes rest from travel.
 fast_words:
-        .byte 4,"WALK",V_WALK|$80,4,"REST",V_REST|$80,4,"SWIM",V_SWIM|$80
+        .byte 4,"WALK",V_WALK|$80,4,"REST",V_REST|$C0,4,"SWIM",V_SWIM|$80
+        .byte 5,"SLEEP",V_REST|$C0
         .byte 4,"TOPO",103,4,"VIEW",104,6,"STATUS",105
         .byte 9,"INVENTORY",106,4,"HELP",107,0
+.segment "RODATA"
+; Complete input/vocabulary fallback runs at most once per command.
+general_command:
+        lda     linelen
+        cmp     #5
+        bne     :+
+        lda     inbuf
+        cmp     #'S'
+        beq     @input          ; SLEEP avoids VOCAB -> INPUT round trip
+:
+        ldx     #0
+@scan:  lda     inbuf,x
+        beq     @ordinary
+        cmp     #'Q'
+        beq     @input
+        cmp     #'0'
+        bcc     @next_char
+        cmp     #'9'+1
+        bcc     @input
+@next_char:
+        inx
+        bne     @scan
+@input: inc     parser_word_seen
+        lda     #13
+        jsr     overlay_load
+        jsr     module_input_command
+        bcs     :+
+        jmp     fast_command
+:       rts
+@ordinary: jsr parse
+        jmp     dispatch
+
+; Positive byte-sized durations preserve X, the fast-word table cursor.
+; Larger numbers and other forms leave the line intact for INPUT.
+fast_duration:
+        lda     inbuf,y
+        cmp     #' '
+        bne     @bad
+@spaces:
+        iny
+        lda     inbuf,y
+        cmp     #' '
+        beq     @spaces
+        cmp     #'0'
+        bcc     @bad
+        cmp     #'9'+1
+        bcs     @bad
+        lda     #0
+        sta     input_value
+@digit: lda     inbuf,y
+        cmp     #'0'
+        bcc     @digits_done
+        cmp     #'9'+1
+        bcs     @digits_done
+        and     #15
+        sta     g1
+        lda     input_value
+        cmp     #26
+        bcs     @bad
+        cmp     #25
+        bcc     @multiply
+        lda     g1
+        cmp     #6
+        bcs     @bad
+        lda     input_value
+@multiply:
+        jsr     fast_digit
+        iny
+        bne     @digit
+@bad:   sec
+        rts
+@digits_done:
+        lda     input_value
+        beq     @bad            ; zero keeps the existing cancellation path
+        lda     #1
+        sta     input_unit
+@unit_spaces:
+        lda     inbuf,y
+        cmp     #' '
+        bne     @unit
+        iny
+        bne     @unit_spaces
+@unit:  cmp     #0
+        beq     @good
+        cmp     #'H'
+        beq     @hour
+        cmp     #'M'
+        bne     @bad
+        iny
+        lda     inbuf,y
+        cmp     #'I'
+        bne     @bad
+        iny
+        lda     inbuf,y
+        cmp     #'N'
+        bne     @bad
+        inc     input_unit
+@hour:  iny
+@tail:  lda     inbuf,y
+        beq     @good
+        cmp     #' '
+        bne     @bad
+        iny
+        bne     @tail
+@good:  jmp     fast_accept
 .segment "GCODE"
+; A = previous byte value, g1 = next digit, already checked for overflow.
+fast_digit:
+        asl
+        sta     input_value
+        asl
+        asl
+        clc
+        adc     input_value
+        clc
+        adc     g1
+        sta     input_value
+        rts
+
+fast_accept:  lda     input_value
+        sta     msgnum
+        lda     #0
+        sta     msgnum+1
+        ldy     g2
+        sty     linelen
+        sta     inbuf,y
+        lda     #2
+        sta     input_argument
+        clc
+        rts
+
 parse:  lda     #1
         jsr     overlay_load
         jmp     module_parse
@@ -942,17 +1080,16 @@ finish_simulation:
         ora     shelter_inside
         bne     @blank
         jsr     scene_prepare
-        jsr     view_full
+@render: jsr    view_full
         jmp     @flip
-@blank: lda     #0
-        ldy     #39
-@clear: jsr     clear_rows
-        dey
-        bpl     @clear
-        lda     shelter_inside
-        bne     :+
-        jsr     view_full
-:       jsr     hud_draw
+@blank: lda     shelter_inside
+        beq     @render         ; outdoor night: view_full clears and draws HUD
+        lda     #0
+        sta     tmp
+        lda     #40
+        sta     tmp2
+        jsr     clear_rows
+        jsr     hud_draw
 @flip:  lda     TXTCLR
 @done:  rts
 

@@ -512,7 +512,9 @@ scene_height_bound:
         lda     qhi
         cmp     #2
         bcs     @zero
-        lda     row_p1,x
+        lda     row_p0,x
+        sec
+        sbc     #48
         jmp     @store
 @zero:  lda     #0
 @store: ldy     scene_distance

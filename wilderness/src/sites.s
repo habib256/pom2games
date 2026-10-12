@@ -71,10 +71,10 @@ module_shelter_view:
         lda     #0
         sta     scene_drawn
         sta     scene_minutes        ; indoor time cannot roll outdoor fauna
-        ldy     #39
-@clear: jsr     clear_rows
-        dey
-        bpl     @clear
+        sta     tmp
+        lda     #40
+        sta     tmp2
+        jsr     clear_rows
         ; Keep action results (REST, meals...) visible. A fresh VIEW supplies
         ; the indoor description when the command has no message yet.
         lda     shown

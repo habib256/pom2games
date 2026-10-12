@@ -21,7 +21,7 @@ def sleep(prompted):
         s.step(L.until('idle', 20000))
         if not prompted:
             after = int.from_bytes(s.step(L.peek('overlay_reads', 2)).data, 'little')
-            assert after - before == 5, (before, after)
+            assert after - before == 4, (before, after)
         assert fp(s.step(L.peek('s_elap', 5)).data) == 8
         assert fp(s.step(L.peek('s_hour', 5)).data) == 15
         assert 'YOU RESTED 8 HOURS.' in '\n'.join(text_screen(s.step('peek:0400:1024').data))
@@ -63,7 +63,7 @@ def wait_results():
 
 def main():
     assert sleep(False) == sleep(True), 'inline sleep changed simulation or view'
-    print('  SLEEP 8 H: five disk reads; exact eight hours; survival, inventory and view match prompted REST')
+    print('  SLEEP 8 H: four disk reads; exact eight hours; survival, inventory and view match prompted REST')
     with a2test.Session(DISK) as s:
         s.step(L.until('idle', 20000))
         s.step(L.poke('nature_frequency', 0))
@@ -77,11 +77,16 @@ def main():
         assert fp(s.step(L.peek('s_elap', 5)).data) == 0
         for word, verb in (('REST', 20), ('SLEEP', 20), ('CAMP', 21),
                            ('EXERCISE', 44), ('WAIT', 19), ('PAUSE', 19)):
+            before = s.step(L.peek('overlay_reads', 2)).data
             s.step(f'key:{word} 1 MIN')
             s.step('press:\\r')
             s.step(L.until('do_rest', 20000))
             assert s.step(L.peek('verb')).data[0] == verb, word
-            assert s.step(L.peek('overlay_current')).data[0] == 13, word
+            if word in ('REST', 'SLEEP'):
+                assert s.step(L.peek('input_argument')).data[0] == 2, word
+                assert s.step(L.peek('overlay_reads', 2)).data == before, word
+            else:
+                assert s.step(L.peek('overlay_current')).data[0] == 13, word
             s.step(L.until('idle', 20000))
         assert abs(fp(s.step(L.peek('s_elap', 5)).data) * 60 - 6) < 1e-6
     print('  Prompted SLEEP: one disk read and atomic ESC; all six rest/wait verbs retain minute durations')
