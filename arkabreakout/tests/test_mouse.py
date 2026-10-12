@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Optional Apple II+ / AppleMouse II integration against the POM2 core."""
+"""Optional Apple II+ and native //c mouse integration against the POM2 core."""
 import argparse
 from pathlib import Path
 import shutil
@@ -19,7 +19,7 @@ def main():
     subprocess.run(['c++','-std=c++17','-O2','-I',str(src/'src'),'-I',str(src/'include'),'-I',str(src/'build/generated'),str(Path(__file__).with_name('mouse.cpp')),str(library),*libs,'-o',str(exe)],check=True)
     with tempfile.TemporaryDirectory(prefix='arka-mouse-') as tmp:
         disk=Path(tmp)/'GAME.dsk'
-        for variant in ('applewin','mame'):
+        for variant in ('applewin','mame','iic16','iic32'):
             for action in ([],['reset']):
                 shutil.copyfile(ROOT/'dist/ARKABREAKOUT.dsk',disk)
                 subprocess.run([str(exe),str(src/'roms'),str(disk),str(ROOT/'arkabreakout/build/game.lbl'),variant,*action],check=True)

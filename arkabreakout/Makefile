@@ -77,7 +77,7 @@ test: all $(A2RUN)
 
 .PHONY: assets test test-campaign
 
-# Optional integration with real AppleMouse firmware, still on the NMOS II+.
+# Optional integration with real AppleMouse firmware on II+ and native //c ROMs.
 POM2_SRC ?= ../../pom2
 test-mouse: all
 	$(PYTHON) tests/test_mouse.py --pom2-src $(POM2_SRC)

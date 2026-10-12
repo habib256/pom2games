@@ -72,14 +72,14 @@ current ON/OFF state is shown.
 ![Title menu](screenshots/options.png)
 
 **Space / Enter / mouse click** on the title starts a game with the ball launched. A detected
-AppleMouse II is selected automatically; otherwise the keyboard is selected.
+AppleMouse II or the native Apple //c mouse is selected automatically; otherwise the keyboard is selected.
 `K`, `J` and `M` select a controller and start from the title, or switch during play.
 
 | Input | Action |
 |---|---|
 | K | Keyboard |
 | J | Joystick or Apple paddles |
-| M | AppleMouse II, if a card was detected |
+| M | AppleMouse II or native //c mouse, if detected |
 | A / D, left / right | Continuous sideways keyboard movement |
 | W / X, Ctrl-K / Ctrl-J | Continuous keyboard height movement |
 | S | Stop keyboard movement |
@@ -121,7 +121,7 @@ and zlib. The optional mouse integration uses a built sibling POM2 core.
 make -C arkabreakout                # ../dist/ARKABREAKOUT.dsk
 make -C arkabreakout run            # POM2, II+ with an AppleMouse II in slot 4
 make -C arkabreakout test           # native HGR, gameplay, DOS records, 60-sector pilot
-make -C arkabreakout test-mouse     # real AppleMouse II firmware on the NMOS II+
+make -C arkabreakout test-mouse     # real AppleMouse II firmware on II+ and native //c ROMs
 make -C arkabreakout assets         # title, sprites, board packs, music
 ```
 
@@ -151,7 +151,8 @@ pages are compared against the original background.
 checks initials and progression after reboot, and verifies write protection.
 `test_campaign.py` steers the paddle through all 60 boards in Relax mode without
 changing balls, bricks, score, lives or progress. `test-mouse` runs both the
-AppleWin-compatible card and the fully emulated 68705 card with their real ROMs;
+AppleWin-compatible card and the fully emulated 68705 card with their real ROMs,
+plus the native //c mouse with the 16 and 32 KB system ROMs;
 it checks detection, X/Y, edge-triggered launch, laser, mouse menu clicks, held-click suppression and clean DOS exit with both `Q` and RESET. It also checks the display mode after every CPU
 instruction through menu transitions, pack loads, victory, DOS saving,
 records, help and the return to the title.
@@ -193,6 +194,8 @@ Each board is 48 packed bytes plus a ten-byte name. The packer validates legal
 cells, distinct boards/names and reachability around steel. The linker rejects
 collisions with the music bank or DOS. AppleMouse firmware calls preserve the
 program's zero page and slot mailboxes through `dev/lib/mouse/mouse_context.asm`.
+On the //c, the ROM interrupt handler counts mouse motion; polling keeps its
+live mailboxes intact and leaves interrupts enabled between firmware calls.
 
 ## Credits
 
