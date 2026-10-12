@@ -21,7 +21,9 @@ def sleep(prompted):
         s.step(L.until('idle', 20000))
         if not prompted:
             after = int.from_bytes(s.step(L.peek('overlay_reads', 2)).data, 'little')
-            assert after - before == 4, (before, after)
+            # Native environment/medical/resource overlays already require fourteen
+            # reads on the pre-transition reference disk; UI adds none.
+            assert after - before == 14, (before, after)
         assert fp(s.step(L.peek('s_elap', 5)).data) == 8
         assert fp(s.step(L.peek('s_hour', 5)).data) == 15
         assert 'YOU RESTED 8 HOURS.' in '\n'.join(text_screen(s.step('peek:0400:1024').data))
@@ -63,7 +65,7 @@ def wait_results():
 
 def main():
     assert sleep(False) == sleep(True), 'inline sleep changed simulation or view'
-    print('  SLEEP 8 H: four disk reads; exact eight hours; survival, inventory and view match prompted REST')
+    print('  SLEEP 8 H: fourteen disk reads; exact eight hours; survival, inventory and view match prompted REST')
     with a2test.Session(DISK) as s:
         s.step(L.until('idle', 20000))
         s.step(L.poke('nature_frequency', 0))

@@ -147,7 +147,7 @@ overlay_load:
         rts
 :       lda     #1
         sta     ui_dirty        ; SIM overwrites the cached graphical header
-        lda     TXTSET          ; HGR is hidden while its RAM holds simulation
+        jsr     view_hide       ; hide SIM writes without exposing old menus
         lda     #3              ; the simulation occupies HGR page 1
 @load:  sta     overlay_wanted
         ldx     #39
@@ -272,7 +272,6 @@ felt_temp: .word 0              ; signed F, wind-adjusted; no byte wrap
 body_weight: .word 165          ; pounds, original first-journey value
 cachex:  .byte  0               ; cell where the ground items are
 cachey:  .byte  0
-rnd:     .word  $ACE1
 inbuf:   .res   MAXLINE+1
 nounbuf: .res   13
 
@@ -419,7 +418,24 @@ prompt: lda     #CMD_ROW
         jmp     COUT
 
 .segment "CODE"
-vtab:   sta     CV
+vtab:
+        sta     vtab_target+1
+        lda     text_vector_hi
+        beq     vtab_set
+vtab_pad:
+        lda     CV
+        cmp     vtab_target+1
+        bcs     vtab_set
+        jsr     topo_pad
+        inc     CV
+        jsr     VTAB
+        lda     #0
+        sta     CH
+        beq     vtab_pad
+vtab_set:
+vtab_target:
+        lda     #0
+        sta     CV
         lda     #0
         sta     CH
         jmp     VTAB
@@ -575,7 +591,7 @@ fast_words:
         .byte 4,"WALK",V_WALK|$80,4,"REST",V_REST|$C0,4,"SWIM",V_SWIM|$80
         .byte 5,"SLEEP",V_REST|$C0
         .byte 4,"TOPO",103,4,"VIEW",104,6,"STATUS",105
-        .byte 9,"INVENTORY",106,4,"HELP",107,0
+        .byte 9,"INVENTORY",106,4,"HELP",107,3,"MAP",109,0
 .segment "RODATA"
 ; Complete input/vocabulary fallback runs at most once per command.
 general_command:
@@ -933,13 +949,15 @@ do_nature:
         jsr     overlay_load
         jmp     module_nature
 
+; CLUE reaches this only after the vocabulary overlay has been loaded.
+.segment "VOCAB"
 scr_notyet:
         lda     #<m_notyet
         ldx     #>m_notyet
         jmp     message
 
-scr_view:
-        jmp     show_view
+scr_view = show_view
+.segment "GCODE"
 
 scr_help:
         lda     #2
@@ -969,7 +987,7 @@ help_redraw:
         lda     #20
         jsr     vtab
         jsr     puts
-        .byte "1 TRAVEL  2 SURVIVAL|N/SPACE NEXT   B BACK|ESC/RETURN: VIEW|I INVENTORY  S STATUS  T TOPO",0
+        .byte "1 TRAVEL  2 GEAR  3 SURVIVAL|N/SPACE NEXT   B BACK|ESC/RETURN: VIEW|I INVENTORY  S STATUS  T TOPO",0
 help_key:
         jsr     wait_key
         cmp     #'I'
@@ -986,15 +1004,27 @@ help_key:
         beq     @select
         cmp     #'2'
         beq     @select
+        cmp     #'3'
+        beq     @select
         cmp     #'N'
         beq     @next
         cmp     #' '
         beq     @next
         cmp     #'B'
         bne     help_key
+        lda     help_page
+        bne     :+
+        lda     #3
+:       sec
+        sbc     #1
+        jmp     @page
 @next: lda     help_page
-        eor     #1
-        sta     help_page
+        clc
+        adc     #1
+        cmp     #3
+        bcc     @page
+        lda     #0
+@page: sta     help_page
         jmp     help_redraw
 @select:
         sec
@@ -1002,45 +1032,59 @@ help_key:
         sta     help_page
         jmp     help_redraw
 help_page: .byte 0
-help_lo: .byte <help_travel,<help_survival
-help_hi: .byte >help_travel,>help_survival
+help_lo: .byte <help_travel,<help_gear,<help_survival
+help_hi: .byte >help_travel,>help_gear,>help_survival
 help_travel:
-        .byte "1/2  TRAVEL AND ORIENTATION",13,13
-        .byte "LOOK N/E/S/W  FACE A COMPASS POINT",13
-        .byte "LOOK L/R/B    TURN OR LOOK BEHIND",13
-        .byte "LEFT/RIGHT   TURN ON AN EMPTY LINE",13,13
-        .byte "WALK 1 H     WALK IN YOUR DIRECTION",13
-        .byte "SWIM 1 H     CROSS WATER",13
-        .byte "ESC          STOP AFTER THIS STEP",13,13
-        .byte "TOPO         MAP; ARROWS/WASD SCROLL",13
-        .byte "C            CENTER MAP ON YOU",13
-        .byte "STATUS       HEALTH; M FOR MEDICAL",13,13
-        .byte "ENTER SHELTER / EXIT SHELTER",13
-        .byte "USE THE CABIN AT ITS MAP CELL.",0
-help_survival:
-        .byte "2/2  SUPPLIES AND REST",13,13
-        .byte "DRINK WATER 4 OZ",13,"EAT CHEESE 8 OZ",13
-        .byte "FILL CANTEEN AT A RIVER BANK",13
-        .byte "IGNORE BEAR / SCARE RATTLER",13
-        .byte "REST 1 H     REST; WAIT 10 MIN WAITS",13,13
-        .byte "INVENTORY    1-5 SELECT ITEM LOCATION",13
-        .byte "GET AXE      PACK; CARRY AXE IN HAND",13
-        .byte "WEAR PARKA   WEAR; DROP AXE PUTS DOWN",13
-        .byte "EAT FLAGYL   ONE MEDICAL DOSE",13,13
+        .byte "1/3  TRAVEL",13,13
+        .byte "REACH THE RANGER OUTPOST.",13
+        .byte "INVENTORY, STATUS, TOPO.",13,13
+        .byte "LOOK N/E/S/W: FACE NORTH/EAST ETC.",13
+        .byte "LOOK L/R/B: LEFT/RIGHT/BEHIND",13
+        .byte "ARROWS TURN ON AN EMPTY LINE",13,13
+        .byte "WALK 10 MIN / WALK 1 H",13
+        .byte "SWIM 1 H: CROSS WATER",13
+        .byte "ESC: STOP AFTER THIS STEP",13,13
+        .byte "MAP: ARROWS/WASD MOVE",13
+        .byte "TOPO: FULL MAP",0
+help_gear:
+        .byte "2/3  EQUIPMENT",13,13
+        .byte "INVENTORY: GEAR, FREE SPACE",13
+        .byte "1-5: LOCATIONS",13,13
+        .byte "GET AXE: PACK",13
+        .byte "TAKE AXE: HAND",13
+        .byte "WEAR PARKA: WORN",13
+        .byte "DROP AXE: GROUND HERE",13,13
+        .byte "DROP CHEESE: DROPS ALL ITS STOCK",13
+        .byte "ITEMS STAY WHERE DROPPED.",13,13
         .byte "CLIMB TREE / CLIMB DOWN",13
-        .byte "HANG FOOD    HANG PACK AND CONTENTS",13
-        .byte "LOWER FOOD   RECOVER AT THE SAME TREE",13,13
-        .byte "OMIT AMOUNT TO BE ASKED. ESC CANCELS.",13
-        .byte "H = HOURS; MIN = MINUTES; OZ = OUNCES.",0
+        .byte "HANG FOOD: HANG PACK + CONTENTS",13
+        .byte "LOWER FOOD: PACK AT SAME TREE",0
+help_survival:
+        .byte "3/3  SURVIVAL",13,13
+        .byte "STATUS: HEALTH; M FOR MEDICAL",13
+        .byte "DRINK WATER 4 OZ / EAT CHEESE 8 OZ",13
+        .byte "FILL CANTEEN AT A RIVER BANK",13
+        .byte "REST 1 H / WAIT 10 MIN",13,13
+        .byte "ENTER SHELTER / EXIT SHELTER",13
+        .byte "AT THE CABIN MAP CELL.",13
+        .byte "IGNORE BEAR / SCARE BEAR",13,13
+        .byte "EAT FLAGYL: ONE DOSE",13
+        .byte "USE FIRSTAID KIT / STOP BLEEDING",13,13
+        .byte "NO AMOUNT? GAME ASKS.",13
+        .byte "ESC CANCELS; OZ = OUNCES.",0
 .segment "GCODE"
 do_site:
         lda     #10
         jsr     overlay_load
         jmp     module_site
-scr_topo:
+scr_map:
         lda     #10
         jsr     overlay_load
         jmp     module_topo
+scr_topo:
+        lda     #10
+        jsr     overlay_load
+        jmp     module_graphical_topo
 shelter_view:
         lda     #10
         jsr     overlay_load
@@ -1048,6 +1092,8 @@ shelter_view:
 
 ; show_view -- landscape by day/full Moon; dark sky and no landscape otherwise
 show_view:
+        jsr     view_hide
+show_view_hidden:
         jsr     scene_update
         lda     #0
         sta     sim_loaded
@@ -1069,9 +1115,12 @@ show_view_scene:
         sta     scene_drawn
         ; view_full clears the terrain before the dark-sky pass.
         jsr     view_full
+        lda     shown
+        bne     @done
         lda     #<m_nolight
         ldx     #>m_nolight
         jmp     message
+@done:  rts
 
 ; Commands such as EAT/DRINK leave no explicit VIEW call. Restore their
 ; picture silently: preserve their messages and do not add key prompts.
@@ -1082,21 +1131,14 @@ finish_simulation:
         lda     #0
         sta     sim_loaded
         jsr     summary_prepare
-        lda     view_dark
-        ora     shelter_inside
-        bne     @blank
-        jsr     scene_prepare
-@render: jsr    view_full
-        jmp     @flip
-@blank: lda     shelter_inside
-        beq     @render         ; outdoor night: view_full clears and draws HUD
-        lda     #0
-        sta     tmp
-        lda     #40
-        sta     tmp2
-        jsr     clear_rows
-        jsr     hud_draw
-@flip:  lda     TXTCLR
+        lda     shown
+        pha
+        lda     #1              ; restore silently, including night/cabin views
+        sta     shown
+        jsr     show_view_scene
+        pla
+        sta     shown
+        lda     TXTCLR
 @done:  rts
 
 .segment "CODE"
@@ -2673,7 +2715,7 @@ native_here_travel:
 native_next_travel:
         jsr     native_next
         jmp     native_restore_travel
-.segment "GCODE"
+.segment "TEXT"
 native_restore_travel:
         pha
         lda     #12
@@ -2769,6 +2811,8 @@ swim_step:
         jmp     module_swim_step
 
 swim_prepare:
+        lda     #3              ; shore probes call native_here in SIM, even before a step
+        jsr     overlay_load
         lda     #12
         jsr     overlay_load
         jmp     module_swim_prepare
@@ -3010,6 +3054,8 @@ temperature_wave:
 
 .segment "LOWTEXT"
 s_temp_phase: .byte $82,$72,$B2,$61,$CF ; saved Sierra first journey, 3.7921375772
+; Used only by the loaded daily environment module.
+.segment "ENVIRON"
 f_temp_frequency: .byte $7B,$19,$30,$BE,$0E ; .0187 radians/hour
 
 .segment "GCODE"
@@ -3185,24 +3231,36 @@ wait_any:
 ; ----------------------------------------------------------------------------
 ; STATUS and INVENTORY (text screens)
 ; ----------------------------------------------------------------------------
+.segment "GCODE"
 text_screen:
         lda     #0
         sta     WNDTOP
-        lda     TXTSET
-        jmp     HOME
+        jsr     vtab
+        ; Fall through to the shared COUT installer.
+text_begin:
+        lda     $36
+        sta     text_vector_lo
+        lda     $37
+        sta     text_vector_hi
+        lda     #<topo_output
+        sta     $36
+        lda     #>topo_output
+        sta     $37
+        rts
 
-back_to_view:
-        jsr     wait_key
+.segment "CODE"
+
 back_to_view_now:
         lda     #20
         sta     WNDTOP
-        lda     TXTCLR
-        lda     MIXSET
         jsr     HOME
+        lda     MIXSET
+        lda     TXTCLR
         lda     #0
         sta     shown
         rts
 
+.segment "GCODE"
 ; puts -- print the string after the JSR (0-terminated), "|" = new line
 puts:   pla
         sta     gp2
@@ -3254,7 +3312,10 @@ pdec:   sta     num
         sta     num+1
         jmp     print_u16
 
-tab:    sta     CH
+tab:    sta     topo_pad_limit+1
+        jsr     topo_pad
+        lda     #40
+        sta     topo_pad_limit+1
         rts
 .segment "GCODE"
 
@@ -3270,9 +3331,9 @@ sky_words: .byte "CLEARCLOUDRAIN SNOW "
 ; ----------------------------------------------------------------------------
 .segment "LOWTEXT"
 screen_lo:
-        .byte   <scr_topo, <scr_view, <scr_status, <scr_inventory, <scr_help, <scr_notyet
+        .byte   <scr_topo, <scr_view, <scr_status, <scr_inventory, <scr_help, <scr_notyet, <scr_map
 screen_hi:
-        .byte   >scr_topo, >scr_view, >scr_status, >scr_inventory, >scr_help, >scr_notyet
+        .byte   >scr_topo, >scr_view, >scr_status, >scr_inventory, >scr_help, >scr_notyet, >scr_map
 .segment "GDATA"
 verbs:  .byte   17, 18, 37, V_WEAR, V_DROP, V_GET, V_CARRY, V_PACK, V_DRINK, V_EAT, V_LOOK, V_PAN
         .byte   V_WAIT, V_REST, V_CAMP, V_EXER, V_WALK, V_RUN, V_MOVE, V_CRAWL, V_SWIM, V_ENTER, V_EXIT, V_USE, 26, V_CLIMB, V_HANG, V_LOWER, 30, 32, 0

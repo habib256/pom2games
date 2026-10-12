@@ -39,13 +39,14 @@ def travel_limits():
             mapbin[64 + 10 * 112 + 11] = climb
             disk = disk_with(tmp, mapbin)
             r = a2test.run(disk, [idle, 'key:WALK', 'press:\r', L.until('number_idle', 6000), 'key:1\r',
-                                 'wait:400', L.peek('px', 6), L.peek('s_elap', 5)],
+                                 'wait:400', idle, L.peek('px', 6), L.peek('s_elap', 5)],
                            emulator=a2test.A2SHOT)
-            want = (11 if climb == 6 else 10) << 8
+            # Native half-steps approach the cliff before its rise is tested.
+            want = 11 << 8 if climb == 6 else (10 << 8)+128
             check(f'WALK 1: climb {climb}, correct position',
                   state(r.mem(L['px'], 6)) == (want, 10 << 8, 140))
             check(f'WALK 1: climb {climb}, correct time',
-                  abs(floats(r, 's_elap') - (55 / 60 if climb == 6 else 0)) < 1e-6)
+                  abs(floats(r, 's_elap') - (58 / 60 if climb == 6 else 9 / 60)) < 1e-6)
         mapbin[64 + 10 * 112 + 11] = 0
         disk = disk_with(tmp, mapbin)
         r = a2test.run(disk, [idle, L.poke('nature_frequency',0), 'key:REST', 'press:\r', L.until('number_idle', 6000), 'key:16\r',

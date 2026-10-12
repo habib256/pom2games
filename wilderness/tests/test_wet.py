@@ -118,8 +118,8 @@ def main():
               # effort; integer rounding happens per interval, not per hour.
               and fp(r.mem(L['s_spent'],5,1))-fp(r.mem(L['s_spent'],5))>60*1.65)
         check('WALK exits onto land and restores the dry thermal selector',
-              state(r.mem(L['px'],6,1))==(swim_position[0]+3*256,10<<8,140) and r.mem(L['wet_mode'],1,2)==b'\0'
-              and abs(fp(r.mem(L['s_elap'],5,1))-fp(r.mem(L['s_elap'],5))-1.95)<1e-7)
+              state(r.mem(L['px'],6,1))==(14*256,10<<8,140) and r.mem(L['wet_mode'],1,2)==b'\0'
+              and abs(fp(r.mem(L['s_elap'],5,1))-fp(r.mem(L['s_elap'],5))-2.05)<1e-7)
         if failures and failures[-1]=='WALK exits onto land and restores the dry thermal selector':
             print('    swim / walk positions:',swim_position,state(r.mem(L['px'],6,1)))
             print('    elapsed:',fp(r.mem(L['s_elap'],5)),fp(r.mem(L['s_elap'],5,1)),

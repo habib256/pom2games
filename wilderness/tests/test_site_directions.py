@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Site directions checked against live TOPO markers, not scene_ref math."""
+"""Site directions checked against live MAP markers, not scene_ref math."""
 import tempfile
 from common import L,a2test,disk_with,view_rows,view_ref
 from test_input import IDLE,command,flat,screen
@@ -24,7 +24,7 @@ def main():
                 for name in ('px','py'):
                     s.step(L.poke(name,128));s.step(L.poke(name,40,1))
                 s.step(L.poke('scene_cache_valid',0))
-                s.step('key:TOPO');s.step('press:\\r');s.step(L.until('topo_key',20000))
+                s.step('key:MAP');s.step('press:\\r');s.step(L.until('topo_key',20000))
                 rows=screen(s).splitlines()[4:18]
                 marks={char:(col,row) for row,line in enumerate(rows)
                        for col,char in enumerate(line[:32]) if char in ('P',marker)}
@@ -38,13 +38,13 @@ def main():
                 assert header(page)==compass_pixels(heading,0)
                 left=int.from_bytes(s.step(L.peek('sprite_left',2)).data,'little',signed=True)
                 assert s.step(L.peek('scene_asset')).data==bytes((asset,))
-                assert 40<=left<=75,(asset,dx,dy,heading,left,'sprite must face its TOPO marker')
+                assert 40<=left<=75,(asset,dx,dy,heading,left,'sprite must face its MAP marker')
                 assert view_rows(page)!=view_ref.render(m,40*256+128,40*256+128,heading), 'site must actually appear'
                 command(s,'LOOK B')
                 left=int.from_bytes(s.step(L.peek('sprite_left',2)).data,'little',signed=True)
                 assert left<0 or left>=140,(asset,dx,dy,heading,left,'site behind must leave the viewport')
                 behind=s.step('peek:2000:8192').data
                 assert view_rows(behind)==view_ref.render(m,40*256+128,40*256+128,(heading+280)%560), 'site behind must not draw pixels'
-    print('  Cabin/wreck: eight live TOPO directions, compass, centered sprites and opposite views: OK',flush=True)
+    print('  Cabin/wreck: eight live MAP directions, compass, centered sprites and opposite views: OK',flush=True)
 
 if __name__=='__main__': main()

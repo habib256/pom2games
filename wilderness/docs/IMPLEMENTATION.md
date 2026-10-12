@@ -49,7 +49,7 @@ est actualisé par la simulation. STATUS nécessite deux lectures supplémentair
 pour appeler ADV puis restaurer STA, sans alourdir le repos ou chaque pas.
 
 Les compteurs de pas et de demi-cases parcourues augmentent après acceptation
-du déplacement (marche : deux demi-cases ; nage : une), le compteur
+du déplacement (une demi-case par pas de marche ou de nage), le compteur
 de rencontres uniquement après acceptation/remplacement d’un animal. Les
 refus de collecte restaurent placement, quantité transportée et quantité
 totale avant recalcul de la charge. L’eau au sol n’est jamais déplacée par
@@ -65,17 +65,20 @@ rencontre vérifiés ne sont pas durcis à partir d’une seule partie.
 
 ### Déplacements et consommation
 
-Une case de marche coûte 19 minutes plus 6 par niveau gravi. Une case de
-nage est divisée en deux pas d'une demi-case. La durée de chaque pas suit
-la formule de nage normale de l'original selon santé, charge et diagonale :
-environ 28 minutes par unité au départ pour un cap cardinal. Un dernier pas
-peut dépasser la durée demandée s'il reste au moins la moitié de son coût.
+Marche et nage suivent le raster natif par demi-cases. La durée de marche
+utilise la charge, la santé, la météo, le jour/la nuit, la diagonale et la
+pente ; elle n’est plus fixée à 19 minutes par case. La nage normale suit
+la formule originale selon santé, charge et diagonale : environ 28 minutes
+par demi-case au départ pour un cap cardinal. Dans les deux cas, un dernier
+pas est admis s’il reste au moins `floor(durée / 2)` minutes, puis consomme
+sa durée complète. Les pas refusés ne consomment pas de temps.
 Son effort utilise la formule
 originale : métabolisme basal + 0,06 × poids total en livres, soit environ
 14,43 kcal/min au départ. Le tracé entier des caps obliques est porté,
 avec 2 880 positions identiques aux routines originales sur les 360 caps.
-Les vitesses de marche, les modificateurs de blessures/équipement et la synchronisation du recalcul
-de la charge restent à établir. Les pas de nage de plus de 255 minutes
+La marche native et sa cadence sont comparées dans les scénarios décrits
+dans [ADVENTURE_TESTS.md](ADVENTURE_TESTS.md). Les modificateurs de
+blessures/équipement restent à comparer sur une aventure complète. Les pas de nage de plus de 255 minutes
 ne sont pas encore pris en charge par l'interface de simulation.
 Manger et boire réduisent les déficits selon les conversions actuelles :
 la nourriture crédite `0,8 × kcal / poids`, l'eau 0,38 heure par once au
@@ -358,15 +361,14 @@ ne doivent pas appeler un autre module en écrasant leur propre code.
 Les identifiants ci-dessus appartiennent à la réimplémentation ; ceux du
 moteur original sont décrits séparément dans [ENGINE.md](logic/ENGINE.md).
 
-Après l'optimisation du 12 octobre 2026 : mesurer à nouveau
-`build/wild.map` avant toute extension. WILDGAME conserve 8 octets libres,
-WILDLO 40 (cache de projection compris), WILDERNESS 2, WILDTXT 12 et WILDSIM 14.
-Le résident reste presque plein.
-L’initialisation est dans WILDTRE ; LOOK est dans WILDLO. Le calcul GOAL%
-est dans WILDSIM, mais STATUS renvoie directement 100 avant la première
-action et évite ainsi le chargement de la simulation et le redessin au retour.
-STATUS occupe 2 041 octets, le résumé 1 639, SITES 1 539,
-INVENTORY/HELP 1 957, WILDTRE 942, WILDMED 1 871 et WILDMVI 856.
+Après les transitions du 13 octobre 2026 : mesurer à nouveau
+`build/wild.map` avant toute extension. WILDGAME conserve 4 octets libres,
+WILDLO 6 (cache de projection compris), WILDERNESS 6, WILDTXT 2 et WILDSIM 1.
+Le résident reste presque plein. L’initialisation vidéo et du cache de
+projection est dans WILDADV ; LOOK est dans WILDLO. Les calculs de progression
+et GOAL% sont dans WILDADV, et STATUS le charge puis se restaure.
+STATUS occupe 2 048 octets, le résumé 1 739, SITES 1 944,
+INVENTORY/HELP 2 040, WILDTRE 916, WILDMED et hazards 2 045, WILDMVI 878.
 Les chiffres viennent de `build/wild.map` ; toute extension exige une nouvelle mesure. Le résolveur des
 qualificatifs et `dispatch` sont dans WILDVOC : `parse` doit garder ce module
 chargé jusqu'à `dispatch`. NATURE passe par un relais résident avant de charger
@@ -1022,3 +1024,75 @@ complets dans les deux sens, égalité des pixels entre rotation et redessin,
 aucune lecture disque pendant une rotation, eau, limite d’altitude, anciens
 fichiers, masque clairsemé, crête au premier plan, troncs jusqu'au sol et
 feuillage des arbres proches sur les pentes descendantes.
+
+## Séparation TOPO / MAP
+
+`TOPO` et `T` ouvrent une feuille HGR complète, nord en haut.
+`tools/graphical_topo.py` interpole des courbes tous les 400 pieds par
+triangles sur la grille résidente, dessine l’eau en magenta, les bois en
+hachures vertes et les sites C/H/R en blanc. Il produit une image de
+8 Ko `WILDTOP`, chargée à $2000 par le module SITES. `build_disk.py` génère
+la feuille pour chaque disque, y compris les cartes alternatives des tests.
+Elle représente le terrain fixe ; le joueur mobile reste sur `MAP`.
+Le retour reconstruit la vue et son bandeau sans avancer la simulation.
+Le tracé est reconstruit depuis la grille du port, et non copié du TOPO natif.
+
+`MAP` ouvre l’ancienne carte textuelle 32 × 14 : joueur, cap magnétique,
+défilement, C pour recentrer et écritures différentielles. Les routines
+`topo_*` gardent leurs noms internes ; pendant WALK/SWIM, elles actualisent
+cette carte locale. Les raccourcis T des autres écrans ouvrent TOPO graphique.
+`test_graphical_topo.py` vérifie les deux commandes, TOPO/T sur deux terrains,
+les trois touches de sortie et la conservation de l’état et de la vue.
+
+### Régression des déplacements après le portage natif
+
+Les tests `test_input.py`, `test_sites.py` et `test_walk.py` suivent les
+pas natifs au lieu de l’ancienne approximation de 19 minutes par case.
+La saisie vérifie le seuil d’admission de 4 minutes pour un pas de 9 minutes,
+le refus à 3 minutes et un budget exact. Le trajet vers la cabane utilise
+six demi-pas en 54 minutes ; le retour après repos contrôle le nombre de
+pas malgré le changement de santé et de cadence. La marche de quatre heures
+vérifie 25 demi-pas, 237 minutes consommées, les mises à jour de santé,
+les chargements des modules et les écritures différentielles de MAP.
+
+## Transitions vidéo
+
+Le port 48 Ko conserve une seule page HGR : `$4000-$57FF` contient le jeu
+résident et ne peut pas servir de seconde image. La simulation remplace
+également la page `$2000-$3FFF`. Les transitions utilisent donc un écran texte
+supérieur vide, conservant les quatre lignes de commande/résultat. `view_hide`
+nettoie les vingt premières lignes avant TXTSET, garde CH/CV et rétablit la
+fenêtre 20..23. `show_view` affiche HGR seulement après le dessin complet.
+Les rotations partielles restent visibles et progressives.
+
+`transitions.s` fournit le COUT différentiel partagé par MAP et les menus.
+`text_screen` prépare la page ; `wait_key` termine les lignes inutilisées,
+restaure le vecteur COUT et affiche la page avant d’attendre une touche.
+Les tabulations et sauts de lignes remplissent les espaces laissés par une
+page précédente. Les caractères inversés gardent le masque ROM `$32`.
+`back_to_view_now` nettoie le texte avant MIXSET/TXTCLR. Le bilan final suit
+le même chemin de préparation et garde son attente explicite.
+
+L’initialisation des coordonnées, du mode vidéo et du cache de projection
+vit maintenant dans ADV, déjà chargé au démarrage. L’effacement HGR initial
+est supprimé : la première image complète est construite en mode texte.
+Le rendu silencieux après simulation partage `show_view_scene` et restaure
+le drapeau de message ; les résultats d’action ne sont pas remplacés par
+une description de nuit ou de cabane.
+
+Sur la carte courante, le démarrage est mesuré à 19,39 s jusqu’au moteur et
+45,11 s jusqu’à la première invite, contre 19,44/44,90 s sur la disquette
+locale précédant cette correction. TOPO doit toujours lire son image et
+reconstruire le paysage au retour ; la correction masque cette attente,
+elle ne supprime pas les accès disque. Aucun délai décoratif n’est ajouté.
+
+SWIM prépare aussi SIM avant le raster : la sonde de rive appelle
+`native_here`, situé dans cette page. Sans ce chargement, une tentative sur
+terre ferme pouvait exécuter les pixels HGR et finir dans le moniteur ROM.
+`test_shore.py` couvre le refus initial et la répétition sur la rive opposée.
+
+Les validations vidéo de `test_transitions.py` laissent deux trames au
+raster de l’émulateur après une bascule avant d’inspecter la capture. Les
+arrêts de menu utilisent `keyboard_wait`, car une page différentielle peut
+être terminée avant la fin d’une trame. Les profils comptent une seule
+écriture par caractère réellement changé, et zéro pour une page identique.

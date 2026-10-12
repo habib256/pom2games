@@ -413,4 +413,4 @@ sprite_advance:
 
 .include "fauna.s"
 .segment "TEXT"
-m_crash: .byte "YOUR PLANE HAS CRASHED.",13,"SALVAGE YOUR GEAR. FIND THE RANGERS.",0
+m_crash: .byte "CRASH. REACH THE RANGERS.",13,"TRY INVENTORY, STATUS, TOPO, HELP.",0

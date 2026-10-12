@@ -262,20 +262,33 @@ def help_pages():
             raw=s.step('peek:0400:1024').data
             rows=text_screen(raw)
             assert rows[0].startswith(' WILDERNESS - HELP ')
-            assert rows[20].startswith('1 TRAVEL  2 SURVIVAL')
+            assert rows[20].startswith('1 TRAVEL  2 GEAR  3 SURVIVAL')
             assert rows[22].startswith('ESC/RETURN: VIEW')
             assert all(c<128 for c in raw[:18]), 'title must be inverse'
             assert s.step('peek:0032:1').data==b'\xff', 'normal text mode must be restored'
             return rows
+        welcome='\n'.join(text_screen(s.step('peek:0400:1024').data)[21:])
+        for word in ('RANGERS', 'INVENTORY', 'STATUS', 'TOPO', 'HELP'):
+            assert word in welcome,(word,welcome)
         s.step('key:HELP\\r')
         travel=page()
-        assert travel[2].startswith('1/2  TRAVEL') and 'WALK 1 H' in '\n'.join(travel)
-        survival=page('2')
-        assert survival[2].startswith('2/2  SUPPLIES')
-        for example in ('DRINK WATER 4 OZ','REST 1 H','HANG FOOD','LOWER FOOD','OZ = OUNCES'):
+        assert travel[2].startswith('1/3  TRAVEL')
+        for example in ('RANGER OUTPOST','INVENTORY, STATUS, TOPO','WALK 10 MIN / WALK 1 H'):
+            assert example in '\n'.join(travel)
+        gear=page('2')
+        assert gear[2].startswith('2/3  EQUIPMENT')
+        for example in ('GET AXE: PACK','TAKE AXE: HAND','WEAR PARKA: WORN',
+                        'DROP AXE: GROUND HERE','DROP CHEESE: DROPS ALL ITS STOCK'):
+            assert example in '\n'.join(gear)
+        survival=page('3')
+        assert survival[2].startswith('3/3  SURVIVAL')
+        for example in ('DRINK WATER 4 OZ','REST 1 H','ENTER SHELTER','USE FIRSTAID KIT','OZ = OUNCES'):
             assert example in '\n'.join(survival)
-        assert page('B')==travel and page('N')==survival
-        assert page('1')==travel and page(' ')==survival
+        assert page('B')==gear and page('B')==travel
+        assert page('B')==survival, 'back from first page must wrap to last'
+        assert page('N')==travel, 'next from last page must wrap to first'
+        assert page(' ')==gear and page('N')==survival
+        assert page('1')==travel and page('2')==gear and page('3')==survival
         assert page('X')==survival, 'unsupported keys must leave the current page'
         s.step('key:\\e');s.step(IDLE)
         assert s.step('peek:2000:8192').data==view
@@ -285,13 +298,13 @@ def help_pages():
         assert s.step(L.peek('s_hour',size)).data==before
         assert tuple(s.step(L.peek(name,76)).data for name in ('it_place','it_pack_lo','it_gnd_lo'))==items
         assert s.step('peek:2000:8192').data==view
-    print('  two HELP pages, inverse title, examples, page keys, ESC/RETURN; journey, supplies and view preserved: OK')
+    print('  welcome, three HELP pages, examples, selection/wrapping, ESC/RETURN; journey, supplies and view preserved: OK')
 
 
 def screen_links():
     from common import hgr_rows
     size=L['s_t0']+5-L['s_hour']
-    keys={'HELP':'help_key','STATUS':'status_key','INVENTORY':'inventory_key','TOPO':'topo_key'}
+    keys={'HELP':'help_key','STATUS':'status_key','INVENTORY':'inventory_key','TOPO':'graphical_topo_key'}
     links=(('HELP','I','INVENTORY'),('HELP','S','STATUS'),('HELP','T','TOPO'),
            ('INVENTORY','S','STATUS'),('INVENTORY','T','TOPO'),('INVENTORY','H','HELP'),
            ('STATUS','I','INVENTORY'),('STATUS','T','TOPO'),('STATUS','H','HELP'))
@@ -405,7 +418,7 @@ def timberline_display():
             assert 'GRND '+('WOODS' if wooded else 'SCRUB') in screen,(timberline,height,screen)
             s.step('key:\\e')
             s.step(IDLE)
-            s.step('key:TOPO\\r')
+            s.step('key:MAP\\r')
             s.step(L.until('topo_key',20000))
             row=text_screen(s.step('peek:0400:1024').data)[10][:32]
             mark='T' if wooded else 't'
@@ -430,7 +443,7 @@ def map_controls():
                 steps += [f'poke:7008:{(40 if i%3==2 else 60):02X}', f'poke:7009:{(40 if i%3==2 else 60):02X}',
                           f'poke:7011:{(40 if i%3==1 else 60):02X}', f'poke:7012:{(40 if i%3==1 else 60):02X}',
                           L.poke('heading',i*70),L.poke('heading',i*70>>8,1),
-                          'key:TOPO\\r','wait:1',L.until('topo_key',20000),'peek:0400:1024',
+                          'key:MAP\\r','wait:1',L.until('topo_key',20000),'peek:0400:1024',
                           'key:D','wait:1',L.until('topo_key',6000),'key:W','wait:1',L.until('topo_key',6000),
                           'key:C','wait:1',L.until('topo_key',6000),L.peek('topo_x',2),
                           'key:\\e','wait:1',IDLE]

@@ -58,7 +58,7 @@ $(BUILD)/sky_ephemeris.inc: tools/sky_ephemeris.py
 $(BUILD)/forest_profiles.inc: tools/genforest.py
 	$(PYTHON) -I $< $@
 
-$(BUILD)/wild.o: src/wild.s src/adventure.s src/outdoor.s src/game.s src/input.s src/weather.s src/travel.s src/survival.s src/sprites.s src/thermal.s src/sites.s src/project.s src/fauna.s src/hud.s src/sky.s src/forest.s src/tree.s src/status.s src/inventory.s src/summary.s src/ui_monitor.s src/messages.inc $(BUILD)/tables.inc $(BUILD)/rowtab.inc $(BUILD)/gamedata.inc $(BUILD)/hud.inc $(BUILD)/summary_font.inc $(BUILD)/sky_ephemeris.inc $(BUILD)/forest_profiles.inc $(A2_ASM_DEPS) Makefile
+$(BUILD)/wild.o: src/wild.s src/adventure.s src/outdoor.s src/game.s src/input.s src/weather.s src/travel.s src/survival.s src/sprites.s src/thermal.s src/sites.s src/project.s src/fauna.s src/hud.s src/sky.s src/forest.s src/tree.s src/status.s src/inventory.s src/summary.s src/ui_monitor.s src/transitions.s src/messages.inc $(BUILD)/tables.inc $(BUILD)/rowtab.inc $(BUILD)/gamedata.inc $(BUILD)/hud.inc $(BUILD)/summary_font.inc $(BUILD)/sky_ephemeris.inc $(BUILD)/forest_profiles.inc $(A2_ASM_DEPS) Makefile
 	$(CA65) -g -t none $(A2_INCS) -I $(BUILD) -l $(BUILD)/wild.lst -o $@ $<
 
 $(BIN): $(BUILD)/wild.o src/wild.cfg
@@ -87,7 +87,7 @@ $(BUILD)/boot.o: src/boot.s $(A2_ASM_DEPS)
 $(BUILD)/boot.bin: $(BUILD)/boot.o src/boot.cfg
 	$(LD65) -C src/boot.cfg -m $(BUILD)/boot.map -Ln $(BUILD)/boot.lbl -o $@ $<
 
-$(DISK): $(BIN) $(MAPBIN) $(BUILD)/boot.bin $(SPRITE_BINS) $(DOS33_DEPS) tools/build_disk.py tools/pack_boot.py tools/pack_overlay.py tools/smalldos.py Makefile
+$(DISK): $(BIN) $(MAPBIN) $(BUILD)/boot.bin $(SPRITE_BINS) $(DOS33_DEPS) tools/build_disk.py tools/graphical_topo.py tools/pack_boot.py tools/pack_overlay.py tools/smalldos.py Makefile
 	@mkdir -p $(DIST)
 	$(PYTHON) -I tools/build_disk.py --out $(DISK) --build $(BUILD) --master $(SYSTEM)
 
@@ -116,6 +116,8 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_moonlight.py
 	$(PYTHON) tests/test_site_directions.py
 	$(PYTHON) tests/test_projection.py
+	$(PYTHON) tests/test_graphical_topo.py
+	$(PYTHON) tests/test_transitions.py
 	$(PYTHON) tests/test_sites.py
 	$(PYTHON) tests/test_scene_render.py
 	$(PYTHON) tests/test_render_memory.py

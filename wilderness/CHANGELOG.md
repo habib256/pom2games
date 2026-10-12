@@ -7,6 +7,44 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Transitions texte et HGR
+
+- Le démarrage, VIEW, les changements complets de scène et le retour de TOPO
+  masquent le dessin jusqu’à la dernière colonne ; les rotations partielles
+  conservent leur défilement progressif.
+- Avant un chargement SIM ou TOPO, les vingt lignes supérieures sont nettoyées
+  avant la bascule texte. Les anciennes pages STATUS/HELP ne réapparaissent
+  plus pendant les calculs ; la commande, les résultats et le curseur restent.
+- STATUS, le détail médical, INVENTORY, HELP et le bilan final préparent leur
+  première page derrière le paysage. Le clavier révèle la page terminée.
+- Les menus partagent les écritures différentielles de MAP, avec effacement
+  des fins de ligne, espaces de tabulation et lignes inutilisées. Une page
+  identique n’écrit aucun caractère ; une page courte ne garde aucun ancien objet.
+- Le retour des menus nettoie les quatre lignes texte avant de montrer HGR.
+  La restauration après simulation partage le rendu jour/nuit/cabane et
+  préserve les résultats d’action, sans confirmation ni délai supplémentaire.
+- L’initialisation vidéo et le cache de projection sont déplacés dans ADV ;
+  les données et le retour d’écran inutilisés sont retirés pour tenir en 48 Ko.
+- `test_transitions.py` vérifie les captures des étapes intermédiaires,
+  la conservation de l’état et les écritures exactes des menus. Les points
+  d’arrêt des tests attendent maintenant le clavier après préparation de page.
+- Le contrat disque de SLEEP est corrigé à quatorze lectures, mesurées aussi
+  sur la référence locale avant ces changements ; les transitions n’en ajoutent pas.
+
+- SWIM charge SIM avant sa première sonde de rive, y compris sans déplacement ;
+  lancer ou répéter SWIM sur terre ferme ne saute plus dans la mémoire HGR.
+- Les fixtures de parcours, de faune et de poids utilisent le raster, le
+  générateur de hasard et les charges natifs déjà présents.
+
+### Premières minutes et aide intégrée
+
+- L’accueil propose INVENTORY, STATUS, TOPO et HELP pour rejoindre les rangers.
+- HELP sépare déplacement, équipement et survie en trois pages : exemples
+  de commandes, emplacements et avertissement sur DROP des provisions.
+- Sélection 1/2/3, navigation circulaire N/Espace/B et retour Échap/Entrée,
+  dans le module d’écran de 2 Ko sans modifier les règles de simulation.
+
+
 ### Visibilité à la pleine lune
 
 - Les nuits où le disque lunaire est entièrement éclairé conservent un ciel
@@ -796,3 +834,20 @@ tirages pendant REST et sa cadence fixe ont depuis été remplacés.
   et arrivée au poste de rangers.
 - Tests des commandes aléatoires, refus de marche nocturne et calcul du temps
   sur les fortes pentes.
+
+### TOPO graphique et MAP locale
+
+- TOPO/T affiche une feuille HGR de l’ensemble du terrain : courbes de niveau
+  interpolées tous les 400 pieds, eau, bois et repères C/H/R, nord en haut.
+- MAP conserve la fenêtre textuelle centrée sur le joueur, son défilement,
+  son recentrage et ses écritures différentielles pendant les déplacements.
+- Chaque disque contient une feuille calculée depuis sa propre carte ; fermer
+  TOPO restaure la vue sans modifier le temps, la position ou les provisions.
+
+### Tests de déplacement alignés sur les règles natives
+
+- Correction des attentes devenues obsolètes dans les tests de saisie,
+  de cabane/orientation et de marche longue : demi-cases et cadence calculée.
+- Vérification explicite des budgets refusés, exacts et dépassés par le
+  dernier pas admis, du retour à la cabane après repos et des lectures disque.
+- Documentation des déplacements mise à jour ; le moteur natif est conservé.

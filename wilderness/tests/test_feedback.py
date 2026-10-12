@@ -34,12 +34,12 @@ def exact_travel_end():
         with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,m)) as s:
             s.step(IDLE)
             s.step(L.poke('nature_frequency',0))
-            command(s,'WALK 19 MIN')
+            command(s,'WALK 18 MIN')
             assert s.step(L.peek('px',2)).data == bytes((0,start+1)), obstacle
-            assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-19)<1e-5
+            assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-18)<1e-5
             assert s.step(L.peek('travel_reason')).data == b'\0', obstacle
             actual='\n'.join(rows(s)[21:])
-            assert 'TRAVEL: 19 MINUTES.' in actual, (obstacle,actual)
+            assert 'TRAVEL: 18 MINUTES.' in actual, (obstacle,actual)
             assert 'REQUESTED TRAVEL TIME ENDED.' in actual, (obstacle,actual)
     m = flat()
     m[3] = 109
@@ -53,7 +53,7 @@ def exact_travel_end():
         assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-28)<1e-5
         assert s.step(L.peek('travel_reason')).data == b'\0'
         assert 'REQUESTED TRAVEL TIME ENDED.' in '\n'.join(rows(s)[21:])
-    for flag,reason,expected in (('fauna_alert',5,'AN ANIMAL INTERRUPTS'),
+    for flag,reason,expected in (('fauna_alert',5,'A DISCOVERY INTERRUPTS'),
                                 ('night',3,'TOO DARK TO TRAVEL')):
         with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,flat())) as s:
             s.step(IDLE)
@@ -72,7 +72,7 @@ def exact_travel_end():
     with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,m)) as s:
         s.step(IDLE)
         s.step(L.poke('nature_frequency',0))
-        command(s,'WALK 20 MIN')
+        command(s,'WALK 36 MIN')
         assert s.step(L.peek('travel_reason')).data == b'\1'
         assert 'WATER AHEAD.' in '\n'.join(rows(s)[21:])
     print('  Exact WALK/SWIM duration: no extra obstacle probe; animal/night priority and remaining-time obstacles retained')
@@ -187,8 +187,8 @@ def main():
         s.step(L.until('at_goal',6000));s.step(L.poke('fauna_alert',1))
         s.step(IDLE)
         actual='\n'.join(rows(s))
-        assert 'TRAVEL: 19 MINUTES.' in actual and 'AN ANIMAL INTERRUPTS' in actual
-        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-19)<1e-5
+        assert 'TRAVEL: 9 MINUTES.' in actual and 'A DISCOVERY INTERRUPTS' in actual
+        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-9)<1e-5
         print('  Animal interruption retains the completed duration and cause together OK')
     with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,flat())) as s:
         s.step(IDLE)
@@ -196,7 +196,7 @@ def main():
         s.step(L.until('at_goal',6000));s.step(L.poke('night',1))
         s.step(IDLE)
         actual='\n'.join(rows(s))
-        assert 'TRAVEL: 19 MINUTES.' in actual and 'TOO DARK TO TRAVEL' in actual
+        assert 'TRAVEL: 9 MINUTES.' in actual and 'TOO DARK TO TRAVEL' in actual
         assert 'NOT ENOUGH LIGHT' not in actual
         print('  Night stop survives view restoration with duration and cause together OK')
     with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,flat())) as s:

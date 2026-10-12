@@ -1,5 +1,6 @@
 .segment "ADVENTURE"
 module_game_init:
+        jsr     module_view_init
         lda     px+1
         sta     cachex
         lda     py+1
@@ -447,3 +448,41 @@ adv_distance: .res 5
 
 .segment "ADVENTURE"
 adv_inv128: .byte $7A,0,0,0,0
+
+; Startup-only work lives in ADV, leaving resident memory for transitions.
+.segment "ADVENTURE"
+module_view_init:
+        lda     M_STARTX
+        sta     px
+        lda     M_STARTX+1
+        sta     px+1
+        lda     M_STARTY
+        sta     py
+        lda     M_STARTY+1
+        sta     py+1
+        lda     M_HEAD
+        sta     heading
+        lda     M_HEAD+1
+        sta     heading+1
+        jsr     project_init
+        lda     TXTSET
+        lda     HIRES
+        lda     LOWSCR
+        lda     MIXSET
+        lda     #20
+        sta     WNDTOP
+        jsr     HOME
+        rts
+
+project_init:
+        ldx     #0
+@row:   txa
+        and     #15
+        cmp     #1
+        lda     row_p0,x
+        eor     #255
+        adc     #191            ; modulo 256: 190 - row_p0 + fractional carry
+        sta     row_n0,x
+        inx
+        bne     @row
+        rts

@@ -44,8 +44,9 @@ def main():
     reads = [int.from_bytes(r.mem(L['overlay_reads'], 2, k), 'little') for k in range(7)]
     check('resident LOOK and screen shortcuts avoid redundant overlays', current == [15, 1, 1, 16, 15, 15, 2])
     print(f'  cumulative overlay reads: {reads}')
+    # Measured on both pre-transition and current native-rule builds.
     check('module reads stay bounded across LOOK, STATUS, transfers and REST',
-          reads == [3, 4, 4, 7, 11, 15, 17])
+          reads == [4, 5, 5, 8, 12, 22, 24])
     check('clock remains correct through module swaps',
           abs(fp(r.mem(L['s_hour'], 5)) - 10) < 1e-6
           and abs(fp(r.mem(L['s_elap'], 5)) - 3) < 1e-6)

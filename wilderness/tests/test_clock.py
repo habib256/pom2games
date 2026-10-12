@@ -28,8 +28,9 @@ def main():
         s.step(IDLE)
         s.step(L.poke('nature_frequency', 0))
         command(s, 'WALK 19 MIN')
-        assert abs(fp(s.step(L.peek('s_elap', 5)).data) * 60 - 19) < 1e-5
-        displays(s, '7:19', '7:19A')
+        assert abs(fp(s.step(L.peek('s_elap', 5)).data) * 60 - 18) < 1e-5
+        # Two native nine-minute half-steps consume eighteen of the nineteen requested.
+        displays(s, '7:18', '7:18A')
         for hour, header, status in (
                 (7 + 1/60, '7:01', '7:01A'),
                 (7 + 59/60, '7:59', '7:59A'),
@@ -41,7 +42,7 @@ def main():
             for offset, value in enumerate(encode(hour)):
                 s.step(L.poke('s_hour', value, offset))
             displays(s, header, status)
-    print('Clock: real 19-minute walk, minute/hour/noon/midnight boundaries; HUD and STATUS agree; time preserved')
+    print('Clock: real 18-minute walk (19 requested), minute/hour/noon/midnight boundaries; HUD and STATUS agree; time preserved')
 
 
 if __name__ == '__main__':

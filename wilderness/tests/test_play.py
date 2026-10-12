@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-"""Random commands on dist/WILDERNESS.dsk against a Python model of the player.
+"""Random commands: native raster displacement, headings and exact HGR.
 
-Commands: turns (LEFT / RIGHT on the empty line, LOOK L / R / B)
-then LOOK N / E / S / W, and WALK h. The model walks like src/game.s:
-one cell (an 8.8 step along the heading) after another, 19 minutes a cell
-plus 6 per level climbed, stopping at the map edge, at water, or when the
-hours asked for are spent. After every command it checks the position, the
-heading and the view (tools/view_ref.py, bit for bit). Walks stay short so
-the game remains in daylight. Usage: test_play.py [SEED] [COMMANDS]
+The completed half-step counter selects the path length; an independent
+sine raster computes its coordinates. Pace and elapsed time are covered by
+test_walk.py. Usage: test_play.py [SEED] [COMMANDS]
 """
-import random, sys
+import math, random, sys
 from common import terrain_boot, HERE, L, DISK, a2test, view_ref, view_rows, state
 
 MAP = (HERE / 'build/map.bin').read_bytes()
@@ -26,25 +22,21 @@ def cell(x, y):
     return GRID[(y >> 8) * 112 + (x >> 8)]
 
 
-def walk(st, hours):
-    """New state after the requested duration or a refused next step."""
-    x, y, h = st
-    minutes = hours * 60
-    dx, dy = view_ref.direction(h)
-    while True:
-        nx, ny = (x + dx) & 0xFFFF, (y + dy) & 0xFFFF
-        if not (2 <= nx >> 8 < 110 and 2 <= ny >> 8 < 82):
-            break
-        c = cell(nx, ny)
-        if c & 0x80:
-            break
-        d = (c & 0x7F) - (cell(x, y) & 0x7F)
-        step = 19 + (6 * d if d > 0 else 0)
-        if step > 255 or minutes < step:
-            break
-        minutes -= step
-        x, y = nx, ny
-    return (x, y, h)
+def walk(st, halfsteps):
+    x,y,h=st
+    angle=(90-math.floor(h*360/560+.5))%360
+    axis=int(46<=angle<135 or 226<=angle<315)
+    sign=-1 if 135<=angle<315 else 1
+    delta=math.sin(math.pi/2-math.radians(angle) if axis else math.radians(angle))
+    coords=[x//128,y//128]
+    minor=coords[1-axis]
+    for _ in range(halfsteps):
+        coords[axis]+=sign
+        minor+=delta
+        coords[1-axis]=math.floor(minor+.5)
+        assert 2<=coords[0]/2<110 and 2<=coords[1]/2<82
+        assert not cell(coords[0]*128,coords[1]*128)&128
+    return coords[0]*128,coords[1]*128,h
 
 
 def main():
@@ -58,7 +50,6 @@ def main():
         if r < 0.45 and walked < 8:
             hours = rnd.choice((1, 1, 2))
             walked += hours
-            st = walk(st, hours)
             cmd = ['key:WALK', 'press:\\r', L.until('number_idle', 6000), f'key:{hours}\\r']
             label = f'WALK {hours}'
         elif r < 0.6:
@@ -69,17 +60,29 @@ def main():
             k = rnd.choice(list(TURNS))
             st = (st[0], st[1], (st[2] + TURNS[k]) % 560)
             cmd, label = [f'key:{k}'], k
-        steps += cmd + ['wait:1', L.until('idle', 6000), L.peek('px', 6), 'peek:2000:8192']
+        steps += cmd + ['wait:1', L.until('idle', 6000), L.peek('px', 6),
+                        'peek:2000:8192',L.peek('journey_halfcells',2)]
         expect.append((label.replace('\\r', ''), st))
     r = a2test.run(DISK, steps, emulator=a2test.A2SHOT, timeout=3600)
     fails = 0
+    previous=(MAP[2] | MAP[3]<<8,MAP[4] | MAP[5]<<8,MAP[6] | MAP[7]<<8)
+    completed=0
     for i, (label, want) in enumerate(expect):
-        got = state(r.dumps[2 * i])
-        bad = sum(a != b for a, b in zip(view_rows(r.dumps[2 * i + 1]), view_ref.render(MAP, *got)))
+        got = state(r.dumps[3 * i])
+        total=int.from_bytes(r.dumps[3*i+2],'little')
+        base=(previous[0],previous[1],want[2])
+        if label.startswith('WALK'):
+            want=walk(base,total-completed)
+        else:
+            assert total==completed,'turn spent a travel step'
+            want=base
+        completed=total
+        previous=got
+        bad = sum(a != b for a, b in zip(view_rows(r.dumps[3 * i + 1]), view_ref.render(MAP, *got)))
         if got != want or bad:
             fails += 1
             print(f'  {i} {label}: state {got} model {want}, {bad} view bytes differ')
-    print(f'{count} commands, final {st}: ' + ('FAIL' if fails else 'OK'))
+    print(f'{count} commands, final {previous}: ' + ('FAIL' if fails else 'OK'))
     sys.exit(1 if fails else 0)
 
 

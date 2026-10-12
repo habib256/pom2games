@@ -79,7 +79,7 @@ def main():
     end = f'until:{L["idle"]+3:04X}:6000'
     steps = [idle] + call(['swim_step'])
     for body, oz, health, diagonal in CASES:
-        for name, value in (('body_weight', body), ('load_used', oz+64), ('wdx', 128),
+        for name, value in (('body_weight', body), ('load_used', oz), ('wdx', 128),
                             ('wdy', 128 if diagonal else 0)):
             steps += [L.poke(name, value), L.poke(name, value >> 8, 1)]
         steps += [L.poke('it_place', 3, 64), L.poke('it_oz_lo', 80, 64), L.poke('it_oz_hi', 0, 64)]

@@ -9,9 +9,13 @@ import a2test       # noqa: E402
 import view_ref     # noqa: E402
 
 L = a2test.labels(HERE / 'build/wild.lbl')
-# The numeric reader blocks inside wait_key. Its call-site is a transient
-# checkpoint which key:TEXT can pass before the next emulator frame.
-L['number_idle'] = L['wait_key']
+# Completed text pages now reach the keyboard loop in less than one video
+# frame. Stop in that loop rather than at a one-shot JSR before preparation;
+# otherwise a fast page change can pass the checkpoint during key:/wait:1.
+for name in ('wait_key', 'status_key', 'inventory_key', 'help_key',
+             'topo_key', 'graphical_topo_key', 'ending_key'):
+    L[name] = L['keyboard_wait']
+L['number_idle'] = L['keyboard_wait']
 DISK = HERE.parent / 'dist/WILDERNESS.dsk'
 
 
