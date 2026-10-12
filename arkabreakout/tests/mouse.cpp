@@ -1,9 +1,12 @@
-// Real slot firmware on a 48K NMOS Apple II+, DOS 3.3. GPL-3.0.
+// Real slot firmware on II+ and native //c ROMs, DOS 3.3. GPL-3.0.
 #include "M6502.h"
 #include "Memory.h"
 #include "MouseCard.h"
 #include "MouseCardAppleWin.h"
 #include "DiskIICard.h"
+#include "IIcMouse.h"
+#include "IWMDevice.h"
+#include "SuperSerialCard.h"
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -13,14 +16,23 @@
 static void check(bool b,const char* s) {if(!b)throw std::runtime_error(s);}
 int main(int argc,char** argv) {
  try {
-    check(argc==5||argc==6,"usage: mouse ROM_DIR DISK LABELS applewin|mame [reset]");
+    check(argc==5||argc==6,"usage: mouse ROM_DIR DISK LABELS applewin|mame|iic16|iic32 [reset]");
     std::map<std::string,unsigned> labels;std::ifstream f(argv[3]);std::string m,a,n;
     while(f>>m>>a>>n)labels[n]=std::stoul(a,nullptr,16);
     auto at=[&](const char* s){return uint16_t(labels.at(std::string(".")+s));};
-    Memory mem;M6502 cpu(&mem);mem.clearRam();mem.resetSoftSwitches();mem.setIIEMode(false);mem.setCpu(&cpu);
-    std::string roms=argv[1];check(mem.loadAppleIIRom((roms+"/apple2p.rom").c_str(),false)>0,"II+ ROM");
-    MouseCard* real=nullptr;MouseCardAppleWin* aw=nullptr;
-    if(std::string(argv[4])=="mame") {
+    std::string variant=argv[4];bool iic=variant=="iic16"||variant=="iic32";
+    pom2::IWMDevice iwm;
+    Memory mem;M6502 cpu(&mem);
+    if(iic){mem.setIWM(&iwm);mem.setIWMAuthoritative(true);}
+    mem.clearRam();mem.resetSoftSwitches();mem.setIIEMode(iic);mem.setCpu(&cpu);
+    std::string roms=argv[1];
+    auto rom=roms+(variant=="iic16"?"/apple2c-16K.rom":variant=="iic32"?"/apple2c-32Kv0.rom":"/apple2p.rom");
+    check(mem.loadAppleIIRom(rom.c_str(),iic)>0,"main ROM");
+    MouseCard* real=nullptr;MouseCardAppleWin* aw=nullptr;IIcMouse* native=nullptr;
+    if(iic){
+      for(int port:{1,2})mem.slotBus().plug(port,std::make_unique<SuperSerialCard>(port));
+      auto card=std::make_unique<IIcMouse>(4);native=card.get();mem.slotBus().plug(4,std::move(card));
+    } else if(variant=="mame") {
       auto card=std::make_unique<MouseCard>(4);real=card.get();
       check(real->loadRoms(roms+"/mouse_341-0270-c.bin",roms+"/mouse_341-0269.bin"),"mouse ROMs");
       mem.slotBus().plug(4,std::move(card));
@@ -29,8 +41,9 @@ int main(int argc,char** argv) {
       check(aw->loadRom(roms+"/mouse_341-0270-c.bin"),"mouse ROM");mem.slotBus().plug(4,std::move(card));
     }
     auto disk=std::make_unique<DiskIICard>(6);disk->setCpu(&cpu);
+    disk->setIwmHost(iic);if(iic)disk->setIWM(&iwm);
     check(disk->loadBootRom(roms+"/disk2.rom"),"Disk II ROM");check(disk->insertDisk(argv[2]),"disk");mem.slotBus().plug(6,std::move(disk));
-    cpu.setCpuMode(M6502::CpuMode::NMOS);cpu.hardReset();mem.slotBus().reset();
+    cpu.setCpuMode(iic?M6502::CpuMode::CMOS:M6502::CpuMode::NMOS);cpu.hardReset();mem.slotBus().reset();
     auto read=[&](const char* s){return mem.memRead(at(s));};
     auto write=[&](const char* s,uint8_t v){mem.memWrite(at(s),v);};
     bool keepHgr=false;
@@ -40,10 +53,21 @@ int main(int argc,char** argv) {
     };
     auto until=[&](const char* s,long budget=10000000){long c=0;do{step();c+=cpu.getCurrentInstructionCycles();}while(cpu.getProgramCounter()!=at(s)&&c<budget);check(cpu.getProgramCounter()==at(s),s);};
     auto cycles=[&](long count){long c=0;while(c<count){step();c+=cpu.getCurrentInstructionCycles();}};
-    until("menu_loop",50000000);check(read("_mouse_slot")==4,"card detected on II+");check(read("mode")==2,"mouse selected");
+    until("menu_loop",50000000);check(read("_mouse_slot")==4,"mouse detected");check(read("mode")==2,"mouse selected");
+    if(iic)check(!(cpu.getStatusRegister()&4),"native mouse IRQ enabled");
     keepHgr=true;
     float x=0,y=0;bool button=false;
-    auto host=[&](){if(real)real->setHostMouse(x,y,button);else aw->setHostMouse(x,y,button);};
+    uint8_t nativeX=0,nativeY=0;
+    auto host=[&](){
+      if(native){
+        // Inject IOU edges during the frame, after the atomic firmware poll.
+        // Queuing an entire host jump at loop entry would deliver its edges
+        // while IRQs are masked for the zero-page workspace transaction.
+        auto nx=uint8_t(int(x)),ny=uint8_t(int(y));
+        if(nx!=nativeX||ny!=nativeY)cycles(10000);
+        nativeX=nx;nativeY=ny;native->setHostMouse(nx,ny,button);
+      }else if(real)real->setHostMouse(x,y,button);else aw->setHostMouse(x,y,button);
+    };
     host();cycles(100000);button=true;host();until("loop");check(read("state")==1&&read("ball_live"),"click starts launched game");
     button=false;host();mem.queueKey('P');cycles(200000);write("ball_live",0);write("enemy_hold",1);mem.queueKey('P');until("loop");
     for(int i=0;i<20;i++){x+=10;host();until("loop");}check(read("pad_x")>180,"mouse X moves right");
@@ -111,7 +135,7 @@ int main(int argc,char** argv) {
     if(argc==6)cpu.softReset();
     else {mem.queueKey(27);cycles(300000);mem.queueKey('Q');}
     cycles(10000000);check(!read("_mouse_slot"),"close mouse on DOS exit");check(mem.memRead(0x3f2)==0xbf&&mem.memRead(0x3f3)==0x9d,"DOS reset restored");
-    std::cout<<"PASS II+ "<<argv[4]<<": real mouse firmware, X/Y, click/laser, DOS exit, "<<hz<<" updates/s, "<<(argc==6?"RESET":"Q")<<" cleanup\n";
+    std::cout<<"PASS "<<(iic?"//c ":"II+ ")<<argv[4]<<": real mouse firmware, X/Y, click/laser, DOS exit, "<<hz<<" updates/s, "<<(argc==6?"RESET":"Q")<<" cleanup\n";
     return 0;
  } catch(const std::exception& e){std::cerr<<"FAIL: "<<e.what()<<"\n";return 1;}
 }

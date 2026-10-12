@@ -11,12 +11,18 @@ mouse_start:
         sei
         jsr mouse_context_save_workspace
         jsr _mouse_init
+        sei                             ; native init enables IRQs; finish atomically
         jsr mouse_context_restore_workspace
         plp
         lda _mouse_slot
         beq :+
         lda #2
         sta mode
+        lda $FBC0                       ; zero identifies the native //c ROM
+        bne :+
+        lda _mouse_slot
+        sta mouse_context_native_mouse  ; keep live IRQ coordinates, not the shadow
+        cli                             ; ROM IRQ handler counts IOU mouse motion
 :       rts
 mouse_read:
         php
