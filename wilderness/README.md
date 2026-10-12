@@ -14,18 +14,21 @@ chaque colonne, avec leurs couleurs et leur transparence. La vue TOPO permet
 de repérer les sites ; la cabane accueille le joueur et le protège du froid.
 
 Les rencontres utilisent les critères Sierra et leur probabilité selon la
-durée, la difficulté et `NATURE`. Les comportements et attaques restent à porter.
+durée, la difficulté et `NATURE`. Les réactions SCARE/IGNORE/ATTACK utilisent maintenant les seuils Sierra de
+bruit, de blessures et de combat, vérifiés sur ROM. Le retrait des animaux,
+la cadence des réactions et les protections restent des adaptations du port.
 Les 15 conditions médicales ont leurs courbes d'incubation et de guérison,
 avec les règles de prévention/traitement de l'original. La perte de sel,
 le froid et l'exposition solaire peuvent les déclencher ; l'altitude et
 l'oxygène agissent sur la santé. `STATUS`, puis `M`, affiche le détail médical.
-Les attaques, chutes et contaminations doivent encore déclencher les autres
-conditions. Les consommables médicaux décomptent leurs utilisations positives,
+Les attaques déclenchent coupures, fractures, choc ou morsure empoisonnée ; boire de l’eau
+collectée peut déclencher la giardiase. Les chutes et les autres contaminations
+restent à raccorder. Les consommables médicaux décomptent leurs utilisations positives,
 affichées dans INVENTORY, avec le comportement natif des stocks épuisés.
 La pluie, le feu, les abris fabriqués, les soins complémentaires,
 la fabrication et les sauvegardes restent à développer. TOPO est une première
 carte textuelle du relief. La suite est ordonnée dans le [TODO](TODO.md), avec
-les déplacements et réactions de la faune en prochaine priorité.
+les déplacements et la cadence originale des réactions en prochaine priorité.
 
 ## Construire et lancer
 
@@ -102,6 +105,8 @@ et les quantités en onces. Les autres mots reconnus du vocabulaire original ré
 | SWIM | Entrer dans l'eau depuis la berge, nager pendant *n* heures, sortir sur la rive opposée ; arrêt à deux cases du bord ou à la nuit ; WALK pour continuer sur terre |
 | REST, SLEEP, CAMP, EXERCISE / WAIT, PAUSE | Se reposer / attendre *n* heures |
 | EAT *aliment*, DRINK WATER | Consommer *n* onces accessibles, d'abord dans le sac/la gourde, puis au sol |
+| FILL CANTEEN / REFILL CANTEEN | Remplir à 64 OZ depuis une case d’eau ou une berge voisine, en 10 minutes ; gourde transportée et charge disponible requises ; eau non traitée |
+| SCARE / IGNORE / ATTACK *animal* | Réagir à l’animal présent : bruit, attente ou combat ; effets incertains selon l’espèce, hache/couteau requis pour ATTACK |
 | GET, PACK *objet* | Ranger un objet accessible dans le sac |
 | TAKE, CARRY *objet* | Prendre un équipement en main ; aliments/eau dans le sac/la gourde |
 | WEAR *vêtement* | Porter un vêtement accessible, une montre ou des lunettes |
@@ -182,7 +187,9 @@ une éphéméride de référence de 1985 et une phase stylisée ; elle ne se tro
 pas systématiquement à l'opposé du soleil. Les nuages et le relief masquent
 les astres. Regarder horizontalement peut laisser un astre haut hors de la vue.
 Le calendrier lunaire répète l'année 1985, l'original ne donnant pas d'année.
-Le relief reste noir la nuit. La lune est une extension du port, tandis que
+Les nuits de pleine lune (disque lunaire entièrement éclairé), le ciel reste
+noir mais le relief, les arbres, les sites et les animaux sont visibles.
+Les autres nuits conservent un paysage noir. La lune est une extension du port, tandis que
 l'original dessine le soleil et propose `LOOK STARS`.
 
 Les objets déposés restent à leur case et sont récupérables au retour.
@@ -236,12 +243,13 @@ seules les colonnes nouvellement visibles sont calculées, en partant du bord
 de la vue conservée. Les rotations par flèches ne relisent alors aucun module
 disque. Si plusieurs sites peuvent être proches, la vue est reprojetée pour
 respecter la sélection du plus proche dans le champ. Le masquage par le relief
-est conservé dans les deux cas. Les sites sont masqués la nuit. Sur TOPO, `H` repère la cabane, `C` l'épave, `R` les
+est conservé dans les deux cas. Les sites sont masqués les nuits sans pleine lune. Sur TOPO, `H` repère la cabane, `C` l'épave, `R` les
 rangers et `P` le joueur. L'eau est marquée `=` ; le nord est en haut.
 À chaque ouverture, TOPO se recentre sur la position actuelle et reconstruit
 le relief et les repères avant d'afficher la carte. C recentre aussi après
 défilement. HEAD affiche un cap en unités 0–559, son point cardinal et MAG,
-cohérents avec la boussole. Une ligne indique le site sous P : épave, cabane
+cohérents avec la boussole. La cabane et l’épave dans la vue 3D suivent
+les mêmes directions nord/sud/est/ouest que leurs repères sur TOPO. Une ligne indique le site sous P : épave, cabane
 avec ENTER/EXIT SHELTER, ou rangers.
 Pendant la marche, cette carte se met à jour après chaque pas. Chaque
 caractère est comparé à celui déjà affiché : seules les différences sont
@@ -260,13 +268,15 @@ autour de la carte. Le pas refusé ne consomme pas de temps.
 
 Les filtres Sierra prennent en compte la saison, l'heure, le terrain,
 l'altitude, la pente et l'indice régional. L'ours et le couguar peuvent
-apparaître la nuit, même si leurs sprites restent masqués dans l'obscurité.
+apparaître la nuit ; leurs sprites sont visibles à la pleine lune.
 La probabilité utilise la durée écoulée, la racine de la difficulté et le
-réglage `NATURE`. Le hasard reste indépendant de la météo ; les rencontres
-expirent encore au bout de 60 minutes ou au départ de la case. Les zones
+réglage `NATURE`. La carte native utilise le hasard partagé avec la météo et la boussole.
+La durée de présence et les réactions automatiques restent à comparer ;
+la règle provisoire réévalue les rencontres après 60 minutes sans décision
+et les efface au départ de la case. Les zones
 boisées participent aux filtres de terrain. Les tirages ont lieu à chaque pas de marche
-ou de nage. Le repos et les repas ne tirent aucune rencontre, comme dans
-la chaîne originale. Une rencontre acceptée interrompt le déplacement après
+ou de nage. Les ressources et rencontres des repas et attentes suivent les filtres natifs.
+Une rencontre acceptée interrompt le déplacement après
 ce pas. Toutes les espèces
 sont testées dans l'ordre Sierra ; un animal présent peut être remplacé avec
 une chance sur deux. Le repos à la cabane ne tire aucune rencontre extérieure.
@@ -280,12 +290,87 @@ Les caps obliques sont vérifiés sur 2 880 positions contre l'original ;
 blessures et changements d'équipement demandent encore une comparaison
 en aventure complète.
 
+## Progression, ravitaillement et arrivée
+
+STATUS affiche `DONE` : 0 % au crash, progression selon la distance directe
+restante, 100 % après une arrivée effective. `TO … CELLS` indique cette
+distance arrondie au-dessus, fractions de case comprises. Un détour peut
+faire redescendre la progression. Le score d’efficacité hérité de l’original
+est conservé dans le bilan final sous `NATIVE JOURNEY SCORE` : ce score
+n’est pas une mesure du chemin parcouru.
+
+`FILL CANTEEN` et `REFILL CANTEEN` remplissent la gourde transportée à 64 OZ
+(2 quarts), sans quantité. L’eau doit être sur la case ou dans l’une des huit
+cases voisines. L’opération dure 10 minutes et est entièrement refusée si
+le poids ou un volume dépasse la capacité. Les piles d’eau laissées ailleurs
+restent à leur position. `GET WATER` récupère d’abord une réserve au sol
+accessible ; en son absence, il permet aussi de collecter à la berge.
+Remplir ne désaltère pas : il faut ensuite `DRINK WATER`.
+
+L’eau collectée est non traitée. Chaque consommation de cette réserve a une
+chance sur huit de déclencher la giardiase, avec un hasard indépendant des
+rencontres ; ses courbes et soins existants prennent ensuite le relais.
+Le statut suit l’eau déposée ou récupérée et disparaît lorsque la réserve
+correspondante est vide. Cette contamination
+est une règle du port, pas encore comparée à l’original. Les seuils natifs
+de déshydratation, faim et fatigue sont conservés ; le bandeau signale une
+réserve transportée de 16 OZ ou moins avec `WATER LOW:INV`.
+
+Une rencontre propose `SCARE/IGNORE` pour ours/couguar, `IGNORE/MOVE` pour
+le crotale. Une réponse ratée laisse l’animal présent ; il est aussi possible
+de quitter sa case pour s’éloigner.
+
+- `SCARE` fait du bruit en 5 minutes, sans exiger d’outil : environ une chance
+  sur deux de chasser ours/couguar. Le bruit ne chasse pas le crotale. Un échec
+  peut provoquer coupures, fractures, choc ou morsure ; insister contre le crotale est risqué.
+- `ATTACK` demande une hache ou un couteau accessible et prend 10 minutes.
+  Hache et couteau partagent les mêmes chances, qui dépendent de l’espèce.
+  Blessure et réussite sont
+  deux tirages distincts : repousser l’animal n’évite pas nécessairement une blessure.
+- `IGNORE` prend 5 minutes : l’animal peut partir, rester, blesser le joueur,
+  ou, pour l’ours/couguar, voler la nourriture accessible avant de partir.
+  Le couguar reste plus souvent que l’ours ; le crotale ne vole pas de nourriture.
+- `HANG FOOD` protège les stocks suspendus. Le vol ne touche ni l’eau,
+  ni l’équipement, ni les réserves au sol sur une autre case. Les animaux peuvent
+  encore blesser le joueur dans un arbre ; la nourriture non suspendue reste
+  exposée. La cabane protège le joueur et ses provisions. SCARE/ATTACK exigent
+  de redescendre ou de sortir de la cabane.
+
+Attente/repos/repas au sol utilisent un risque de blessure de 2 % pour
+l’ours/couguar et 4 % pour le crotale ; IGNORE et la posture dans l’arbre
+utilisent 4 % et 6 %. Ces seuils sont vérifiés dans l’original.
+
+Sans décision, une réaction est évaluée après 60 minutes et interrompt l’action
+avec un message. Les blessures utilisent les conditions et soins existants :
+`STATUS M`, `STOP BLEEDING`, trousses de premiers secours ou de morsure.
+La gravité ours/couguar suit la distribution originale ; les deux issues les
+plus graves sont regroupées en choc. SPLINT reste à implémenter pour soigner
+les fractures. Les seuils de bruit/blessure/combat et le risque de vol extérieur viennent
+du moteur original, vérifiés par `tools/re_animal_reactions_probe.py`.
+Le hasard discret, le départ après IGNORE (ours 50 %, couguar 25 %, crotale
+75 %, après les risques), la cadence de 60 minutes, les protections et la
+réussite ATTACK interprétée comme défense restent des adaptations du port.
+La chasse et la récupération d’une carcasse ne sont pas implémentées.
+Les filtres, taux, réglage NATURE et remplacements Sierra sont conservés.
+
+L’arrivée ouvre un écran dédié : accueil des rangers, durée totale en
+minutes, pas effectués, distance cumulée en cases, nombre de rencontres, santé et provisions finales,
+puis score natif. Il reste affiché jusqu’à une touche explicite. La mort a
+également son bilan. La distance compte une case par pas de marche et une demi-case par pas de
+nage, affichée avec `.5` si nécessaire.
+
+Le ciel violet, la terre verte, l’eau violette et la neige blanche sont les
+couleurs explicitement définies dans `src/wild.s`.
+Ce ne sont pas des zones mémoire corrompues ni un défaut POM2. La palette et
+les couleurs des sprites originaux sont conservées ; l’Apple II HGR utilise
+seulement des paires de pixels pour ce terrain.
+
 ## Documentation de développement
 
 `make test-original` exécute les mêmes commandes dans le jeu original et
-le port, sur des copies privées des disques locaux. Cette comparaison
-échoue encore : température, vent, nuit et marche présentent des écarts.
-Les premiers compteurs de survie concordent après correction, mais aucune
+le port, sur des copies privées des disques locaux. Les cinq scénarios courts et
+la marche native jusqu’à x70/y86 concordent, y compris vent, ressenti, charge
+et hasard partagé. Aucune
 aventure complète crash → rangers n'est encore validée. Les scénarios,
 preuves et limites sont décrits dans [ADVENTURE_TESTS.md](docs/ADVENTURE_TESTS.md).
 

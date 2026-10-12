@@ -8,6 +8,8 @@ module_tree_look:
         beq     @right
         cmp     #157            ; B
         beq     @back
+        cmp     #155            ; AZ
+        beq     @az
         cmp     #156            ; F
         beq     @front
         cmp     #145            ; N E S W
@@ -21,7 +23,7 @@ module_tree_look:
         sta     heading
         lda     card_hi,x
         sta     heading+1
-        jsr     magnetic_heading
+@aim:   jsr     magnetic_heading
 @front: jmp     show_view
 @left:  ldx     #2
         jmp     turn_view
@@ -40,9 +42,10 @@ module_tree_look:
         lda     ang+1
         sta     heading+1
         jmp     show_view
-@what:  lda     #<m_oops
-        ldx     #>m_oops
-        jmp     message
+@az:    jmp     do_look_az
+@what:  jmp     look_invalid
+
+.export tree_look_aim := @aim
 
 ; Placement 5 stores the pack and its contents at the pack's ground anchor.
 .segment "TREE"
@@ -272,7 +275,7 @@ tree_lower:
 tree_height: .byte 0
 tree_health_min: .byte $82,$20,0,0,0
 tree_saved_places: .res 76
-tree_up_msg: .byte "IN A TREE. CLIMB DOWN TO MOVE.",0
+tree_up_msg: .byte "IN A TREE. CLIMB DOWN TO MOVE.|ANIMALS CAN STILL REACH YOU.",0
 tree_down_msg: .byte "BACK ON THE GROUND.",0
 tree_poor_msg: .byte "YOUR PHYSICAL CONDITION IS TOO POOR.",0
 tree_trapped_msg: .byte "YOU ARE IN A TREE. CLIMB DOWN FIRST.",0

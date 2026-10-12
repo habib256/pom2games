@@ -4,11 +4,22 @@
 .segment "ENVIRON"
 
 module_survival_clock:
+        lda     #0
+        sta     fauna_alert
         lda     act
         cmp     #1
-        beq     :+
+        beq     @travel
         jsr     fauna_age       ; travel ages animals in module_fauna instead
+        jmp     @clock
+@travel:
+        inc     journey_steps
+        bne     :+
+        inc     journey_steps+1
+:       inc     journey_halfcells
+        bne     :+
+        inc     journey_halfcells+1
 :
+@clock:
         clc
         lda     health_minutes
         adc     scene_minutes
@@ -70,6 +81,8 @@ module_survival_clock:
         rts
 
 module_rest_prepare:
+        lda     #1
+        sta     resource_retention_due
         lda     #30
         sta     health_period
         lda     verb
@@ -92,9 +105,11 @@ module_rest_prepare:
         fst     s_last+10
         fld     f_half
         fst     s_rest
-@done:  rts
+@done:  jmp     module_fauna_cap
 
 module_meal_prepare:
+        lda     #1
+        sta     resource_retention_due
         ; t1 = kcal eaten, already included in s_eaten; msgnum = oz.
         fld     t1
         fop     FMULT, sv_0_8
@@ -113,7 +128,11 @@ module_meal_prepare:
         fop     FMULT, f_oz_hour
         fop     FSUB, s_defw
         fst     s_defw
-        fld     sv_meal_stamp   ; original planned 16 minutes * .017
+        ldy     msgnum
+        lda     #0
+        jsr     GIVAYF
+        inc     FAC            ; two minutes per ounce
+        fop     FMULT, sv_0_017
         fop     FADD, s_elap
         fst     s_last+5
         fld     f_zero          ; m095 raises this to .5 only when counters refresh
@@ -212,7 +231,28 @@ module_health:
         lda     weather_cap
 :       jsr     module_medical_cap
         sta     health_period
-        rts
+module_fauna_cap:
+        lda     overlay_current
+        pha
+        lda     #22
+        jsr     overlay_load
+        jsr     module_outdoor_fauna_cap
+        pla
+        jmp     overlay_load    ; a TRAVEL caller must regain its running window
+
+.segment "OUTDOOR"
+module_outdoor_fauna_cap:
+        ldx     animal_kind
+        beq     @done
+        lda     #60
+        sec
+        sbc     animal_age
+        cmp     health_period
+        bcs     @done
+        sta     health_period
+@done:  rts
+
+.segment "ENVIRON"
 
 sv_last_lo: .byte <s_last, <(s_last+5), <(s_last+10)
 sv_last_hi: .byte >s_last, >(s_last+5), >(s_last+10)
@@ -223,5 +263,4 @@ sv_0_05: .byte $7C,$4C,$CC,$CC,$CD ; 0.05
 sv_0_017: .byte $7B,$0B,$43,$95,$81 ; 0.017
 sv_0_8: .byte $80,$4C,$CC,$CC,$CD ; 0.8
 sv_0_007: .byte $79,$65,$60,$41,$89 ; 0.007
-sv_meal_stamp: .byte $7F,$0B,$43,$95,$81 ; 0.272
 sv_495: .byte $89,$77,$80,$00,$00 ; 495.0

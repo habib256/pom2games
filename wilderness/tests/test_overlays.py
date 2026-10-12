@@ -45,13 +45,13 @@ def main():
     check('resident LOOK and screen shortcuts avoid redundant overlays', current == [15, 1, 1, 16, 15, 15, 2])
     print(f'  cumulative overlay reads: {reads}')
     check('module reads stay bounded across LOOK, STATUS, transfers and REST',
-          reads == [3, 4, 4, 5, 9, 13, 15])
+          reads == [3, 4, 4, 7, 11, 15, 17])
     check('clock remains correct through module swaps',
           abs(fp(r.mem(L['s_hour'], 5)) - 10) < 1e-6
           and abs(fp(r.mem(L['s_elap'], 5)) - 3) < 1e-6)
     check('display/parser/input overlays fit the 2 KB window',
           all(0 < (HERE / f'build/wild{name}.bin').stat().st_size <= 2048
-              for name in ('voc', 'scr', 'sta', 'hud', 'sit', 'prj', 'inp', 'itm', 'trv', 'med', 'mvi', 'tre')))
+              for name in ('voc', 'scr', 'sta', 'hud', 'sit', 'prj', 'inp', 'itm', 'trv', 'med', 'mvi', 'tre', 'adv', 'out')))
     check('simulation fits the 8 KB HGR window', 0 < (HERE/'build/wildsim.bin').stat().st_size <= 8192)
     print(f'{len(failures)} failures')
     sys.exit(bool(failures))

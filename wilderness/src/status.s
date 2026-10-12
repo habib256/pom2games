@@ -23,11 +23,17 @@ module_status:
         lda     #28
         jsr     tab
         jsr     puts
-        .byte   "GOAL=", 0
+        .byte   "DONE=", 0
         jsr     goal_pct
         jsr     pdec
         jsr     puts
         .byte   "%|", 0
+        jsr     puts
+        .byte "TO ",0
+        lda     journey_left
+        jsr     pdec
+        jsr     puts
+        .byte " CELLS",0
         lda     #26
         jsr     tab
         jsr     puts
@@ -586,16 +592,6 @@ status_stock_oz:
 status_stock_kind: .byte 0
 
 .segment "STATUS"
-goal_pct:
-        lda     s_elap          ; initial GOAL is 100: no simulation disk read
-        bne     :+
-        lda     #100
-        rts
-:
-        lda     #3
-        jsr     overlay_load
-        jmp     module_goal_pct
-
 mdays:  .byte   31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30
 cname_lo: .byte <w_dehyd, <w_starv, <w_exhau
 cname_hi: .byte >w_dehyd, >w_starv, >w_exhau
@@ -609,39 +605,4 @@ w_exhau: .byte  "EXHAUSTION", 0
 
 
 .segment "ENVIRON"
-module_goal_pct:
-        fld     s_elap
-        lda     FAC
-        bne     :+
-        lda     #100
-        rts
-:       jsr     dist_goal
-        fop     FSUB, s_d0              ; D0 - d
-        fop     FMULT, f_goal_v
-        fst     t1
-        fld     s_elap
-        fop     FDIV, t1                ; v = 0.6 (D0 - d) / u
-        fst     t1
-        fld     s_d0
-        fop     FDIV, s_elap            ; u / D0
-        fop     FMULT, f_goal_k
-        jsr     FEXP
-        fst     t2                      ; e
-        fld     f_one
-        fop     FSUB, t2
-        jsr     negate                  ; 1 - e ... (e - 1) negated
-        fop     FMULT, t1
-        fop     FADD, t2
-        fop     FMULT, f_100
-        jsr     clamp0
-        fop     FCOMP, f_100
-        cmp     #1
-        bne     :+
-        lda     #100
-        rts
-:       jsr     AYINT
-        lda     $A1
-        rts
-
-
 tree_effort: .byte $7B,$23,$D7,$0A,$3E ; native T12/S08 $5CBE, .02 * body weight

@@ -17,8 +17,9 @@ Les lots ci-dessous donnent l'ordre de travail proposé.
 
 Le pilote `make test-original` exécute l'original sur ROM et le port avec
 les mêmes commandes. Il conserve les observations et échoue sur chaque
-écart, sans ignorer une commande inachevée. Les quatre scénarios actuels
-échouent encore ; ils ne couvrent pas une arrivée aux rangers.
+écart, sans ignorer une commande inachevée. Les cinq scénarios courts et la
+marche native jusqu’à x70/y86 concordent ; ils ne couvrent pas encore
+une arrivée aux rangers.
 Voir [ADVENTURE_TESTS.md](docs/ADVENTURE_TESTS.md).
 
 - [x] Comparer départ, boussole, parka, boissons, repas et repos répétés ;
@@ -30,7 +31,8 @@ Voir [ADVENTURE_TESTS.md](docs/ADVENTURE_TESTS.md).
   comparer 405 cas à T09/S08 sur ROM. L'air concorde aux six points du départ.
 - [x] Porter les températures journalières/horaire, fronts météo, hasard
   et plafonds du pas de santé ; comparer leurs routines sur ROM.
-- [ ] Faire concorder le vent et le ressenti dans les aventures, dont la nuit.
+- [x] Faire concorder le vent et le ressenti dans les scénarios courts, dont
+  la nuit, et dans la marche native jusqu’à x70/y86.
 - [ ] Porter la précision aléatoire de la boussole, les pas et coûts de marche ;
   distinguer réserve au sol mémorisée et quantités accessibles dans les rapports.
 - [ ] Conserver la géographie et les sites de la carte originale sans perte
@@ -39,6 +41,8 @@ Voir [ADVENTURE_TESTS.md](docs/ADVENTURE_TESTS.md).
   nuits, cabane, rencontres et traversée à la nage avec retour sur la rive,
   sans déplacement imposé en mémoire.
 - [ ] Ajouter des variantes de mort, blessures/soins et reprise de sauvegarde.
+- [x] Vérifier les nuits de pleine lune : ciel noir, relief, arbres, sites et
+  animaux visibles ; conserver la nuit pour les calculs de survie.
 
 La suite de modèles Python (`make test`) reste nécessaire, mais sa réussite
 ne valide pas l'identité des deux jeux.
@@ -104,8 +108,17 @@ cache et approche/retour par WALK. La première version affiche un seul site
   conservation/remplacement à 50 % et interrompre la marche sur acceptation.
 - [ ] Établir la position, la durée et les déplacements des animaux ;
   remplacer leur expiration arbitraire à 60 minutes.
-- [ ] Porter les réactions et les commandes face à l'ours, au couguar et au
-  crotale, puis les attaques, morsures, fuite et moyens de défense.
+- [x] Rendre les rencontres jouables : SCARE/IGNORE/ATTACK, outils,
+  coupures/morsures, protection par arbre/cabane et bilan des rencontres.
+- [x] Sonder les seuils Sierra de bruit, blessures, outils de combat et vol
+  sur ROM ; remplacer les réussites automatiques et donner un effet aux provisions.
+- [x] Vérifier la distribution de gravité ours/couguar sur ROM et déclencher
+  coupures, fractures ou choc avec les conditions et soins existants.
+- [x] Sonder les postures et abris natifs sur ROM : risque distinct au sol,
+  IGNORE et arbre ; supprimer l’invulnérabilité du joueur dans l’arbre.
+- [ ] Compléter les réactions natives : mouvement, délais, autres moyens,
+  branche critique du cinquième degré, durée des morsures, chasse/carcasse
+  et contexte intérieur/recherche.
 - [ ] Relier les conséquences aux conditions de santé et aux soins :
   FIRSTAID KIT, SNAKEBITE KIT et blessures concernées.
 
@@ -163,7 +176,10 @@ les calories des frissons et la récupération vers 98,6 °F.
 - [ ] Compléter les déclencheurs par blessures, contamination et malaria,
   SPLINT, les soins thermiques et les transactions propres à USE
   (placement des objets, stérilisation de la trousse).
-- [ ] Ajouter les ressources : chasse, pêche, cueillette et traitement de l'eau.
+- [x] Collecter de l’eau à la berge avec gourde, capacité et charge ;
+  déclencher la giardiase depuis une réserve non traitée consommée.
+- [ ] Comparer collecte/contamination à l’original et porter le traitement
+  de l’eau ; ajouter chasse, pêche et cueillette.
 - [ ] Porter la fabrication par familles d'objets : abris, outils et armes
   (HUT, IGLOO, TRENCH, BOW, SPEAR…), avec consommations et temps d'action.
 - [ ] Compléter HELP, les messages et les saisies propres aux nouvelles actions.

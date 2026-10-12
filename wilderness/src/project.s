@@ -156,14 +156,14 @@ project_candidate:
         fop     FMULT, t1
         fst     t3
         sec
-        lda     py
-        sbc     proj_y
+        lda     proj_y
+        sbc     py
         tay
-        lda     py+1
-        sbc     proj_y+1
+        lda     proj_y+1
+        sbc     py+1
         jsr     GIVAYF
         fop     FMULT, proj_1_256
-        fst     t2               ; north, in cells
+        fst     t2               ; north = site Y - player Y, as on TOPO
         fop     FMULT, t2
         fop     FADD, t3
         jsr     FSQR

@@ -38,8 +38,8 @@ scene_ray_x: .res 1
 sprite_scaled: .res 1
 .segment "GCODE"
 scene_update:
-        lda     #0
-        sta     fauna_alert
+        ; Clock clears the prior alert before each actual activity. A redraw
+        ; must retain a new encounter/attack until the result is displayed.
         lda     scenes_enabled
         beq     @clear
         lda     shelter_inside

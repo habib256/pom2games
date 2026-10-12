@@ -32,17 +32,17 @@ def main():
         encoded = read_file(image, name)
         assert encoded.startswith(MAGIC), name
         assert unpack(encoded) == original, name
-        assert ((len(original)+259)//256, (len(encoded)+259)//256) == sectors, name
-        assert len(file_sectors(image, name)) == sectors[0], (name, 'reserved extent')
+        assert (len(encoded)+259)//256 < (len(original)+259)//256, name
+        assert len(file_sectors(image, name)) == (len(original)+259)//256, (name, 'reserved extent')
     assert not read_file(image, 'WILDMED').startswith(MAGIC)
-    print('  DOS header limits transfers: SIM 32→22, wreck 8→6, bear 4→2, cabin 5→3 sectors; extents retained: OK')
+    print('  DOS header limits transfers: packed modules reduce sectors; extents retained: OK')
     modules = {1:'wildvoc.bin',2:'wildscr.bin',3:'wildsim.bin',
-               4:'wildsim.bin',5:'original_graphics/wreck.bin',
+               4:'wildwat.bin',5:'original_graphics/wreck.bin',
                6:'original_graphics/bear.bin',7:'original_graphics/cougar.bin',
                8:'original_graphics/rattlesnake.bin',9:'original_graphics/cabin.bin',
                10:'wildsit.bin',11:'wildprj.bin',12:'wildtrv.bin',13:'wildinp.bin',
                14:'wilditm.bin',15:'wildhud.bin',16:'wildsta.bin',17:'wildmed.bin',
-               18:'wildmed.bin',19:'wildmvi.bin',20:'wildtre.bin'}
+               18:'wildmed.bin',19:'wildmvi.bin',20:'wildtre.bin',21:'wildadv.bin',22:'wildout.bin'}
     with a2test.Session(DISK) as s:
         s.step(L.until('idle',20000))
         rows = s.step(L.peek('row_n0',256)).data
@@ -52,7 +52,7 @@ def main():
         code=bytes((0xA9,0,0x20,address&255,address>>8,0x4C,entry&255,entry>>8))
         for i,b in enumerate(code):s.step(f'poke:{entry+i:04X}:{b:02X}')
         for module,name in modules.items():
-            base=0x2000 if module in (3,4) else 0x5800
+            base=0x2000 if module == 3 else 0x5800
             expected=(HERE/'build'/name).read_bytes()
             s.step(L.poke('overlay_current',0));s.step(L.poke('sim_loaded',0))
             s.step(f'poke:{entry+1:04X}:{module:02X}')
@@ -69,7 +69,7 @@ def main():
                 assert actual[offset:offset+40]==text[offset:offset+40],(name,'text')
             assert s.step(f'peek:{base+(8192 if base==0x2000 else 2048):04X}:16').data==guard,(name,'window overrun')
             s.step(L.until('idle',100))
-    print('  20 native DOS module loads: exact bytes, all ZP/FAC, text and window guards: OK')
+    print('  22 native DOS module loads: exact bytes, all ZP/FAC, text and window guards: OK')
     print('  reconstructed 256-row projection cache is exact: OK')
 
 

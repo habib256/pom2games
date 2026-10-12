@@ -8,7 +8,7 @@ FIELDS = ('it_place', 'it_pack_lo', 'it_pack_hi', 'it_gnd_lo', 'it_gnd_hi')
 IDLE = L.until('idle', 6000)
 INITIAL_WEIGHT = sum(pk if 22 <= i < 38 else oz
                      for i, name, place, oz, vol, gd, pk, kcal in ITEMS
-                     if place is not None and place != 'GND')
+                     if place is not None and place != 'GND' and i != 22)
 
 
 def command(cmd):
@@ -47,6 +47,8 @@ def main():
     for i, name, place, oz, vol, gd, pk, kcal in ITEMS:
         if place is None or place == 'GND':
             continue
+        if i in (21, 22):
+            continue
         if 22 <= i < 38:
             destination = PLACE[ITEMS[63][2]] if i == 22 else 2
             initial[destination] += pk * vol
@@ -54,7 +56,7 @@ def main():
             initial[PLACE[place]] += vol
     r = run(snapshot())
     check('initial usage matches independent model', usage(r) == initial)
-    check('initial weight includes all carried and worn equipment', initial[0] == 836)
+    check('native initial weight includes water through its canteen once', initial[0] == 772)
 
     # Exact boundary succeeds; one extra ounce is refused without any mutation.
     r = run(limit(0, INITIAL_WEIGHT + 2) + command('CARRY HAT') + snapshot()
@@ -89,7 +91,7 @@ def main():
 
     r = run(command('PACK CANTEEN') + snapshot() + command('CARRY CANTEEN') + snapshot())
     check('moving the canteen moves its water volume too',
-          usage(r) == [initial[0], initial[1], initial[2] + 272, initial[3] - 272]
+          usage(r) == [initial[0], initial[1], initial[2] + 144, initial[3] - 144]
           and usage(r, 1) == initial)
 
     steps = ['key:EAT CHEESE', 'press:\r', L.until('number_idle', 6000), 'key:8\r', 'wait:1', IDLE,

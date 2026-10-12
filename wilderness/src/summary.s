@@ -181,7 +181,8 @@ module_summary:
         lda     ui_previous+5
         beq     @body
         jmp     @ill
-@body:  lda     ui_previous+3
+@body:
+        lda     ui_previous+3
         beq     @wet
         inc     summary_inverse
         cmp     #1
@@ -229,16 +230,34 @@ module_summary:
 @items:
         lda     it_place+21
         cmp     #5
-        bne     @temperature
+        bne     @wildlife
         ldx     #21
         jsr     at_ground
-        bcc     @temperature
+        bcc     @wildlife
         jsr     puts
         .byte "LOWER FOOD",0
         jmp     @restore
+@wildlife:  lda     animal_kind
+        beq     @temperature
+        lda     animal_x
+        cmp     px+1
+        bne     @temperature
+        lda     animal_y
+        cmp     py+1
+        bne     @temperature
+        inc     summary_inverse
+        lda     animal_kind
+        cmp     #8
+        bne     :+
+        jsr     puts
+        .byte "IGNORE/MOVE",0
+        jmp     @restore
+:       jsr     puts
+        .byte "SCARE/IGNORE",0
+        jmp     @restore
 @temperature:
         lda     thermal_mode
-        beq     @scan
+        beq     @water_stock
         cmp     #1
         bne     @shiver
         jsr     puts
@@ -246,6 +265,15 @@ module_summary:
         jmp     @restore
 @shiver: jsr    puts
         .byte "SHIVERING",0
+        jmp     @restore
+@water_stock:
+        lda     it_pack_hi+N_WATER
+        bne     @scan
+        lda     it_pack_lo+N_WATER
+        cmp     #17
+        bcs     @scan
+        jsr     puts
+        .byte "WATER LOW:INV",0
         jmp     @restore
 @scan: ldx     #75
 @item:  lda     it_place,x

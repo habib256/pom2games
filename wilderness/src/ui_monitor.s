@@ -12,6 +12,15 @@ ui_monitor:
         sta     ui_now+1
         fld     f_hmax
         fop     FDIV, s_health
+        fop     FCOMP, f_third
+        cmp     #1
+        beq     @healthy
+        lda     #1
+        bne     @weak_store
+@healthy:
+        lda     #0
+@weak_store:
+        sta     weak_health
         fop     FMULT, f_5
         jsr     AYINT
         lda     $A1

@@ -50,16 +50,11 @@ def main():
                       L.poke('animal_bearing',10),L.poke('animal_bearing',0,1)])
         frame(f'original {name}',x,y,10,name,10)
         frame(f'{name} bearing wrap',x,y,545,name,10)
-    steps.extend([L.poke('night',1)])
+    steps.extend([L.poke('night',1),L.poke('view_dark',1)])
     frame('night hides sprites',x,y,10)
-    steps.extend([L.poke('night',0),L.poke('animal_kind',0)])
-    # Exercise a real encounter roll during a time-taking command on land.
-    steps.extend([L.poke('fauna_rng',4),L.poke('scene_minutes',255)])
-    frame('encounter spawned',x,y,10,'rattlesnake',10)
-    steps.extend([L.peek('animal_kind'),L.peek('scene_minutes')])
-    # Wait expiration and clear sighting when leaving its cell.
-    steps.extend([L.poke('scene_minutes',60),L.poke('fauna_rng',254)])
-    frame('encounter expires',x,y,10)
+    steps.extend([L.poke('night',0),L.poke('view_dark',0),L.poke('animal_kind',0)])
+    # Rendering uses explicit animals above. Native RNG and timed reactions
+    # are checked by test_resource_random, test_fauna and test_animal_reactions.
     steps.extend([L.poke('animal_kind',6),L.poke('scene_minutes',1),L.poke('fauna_rng',254)])
     frame('encounter left behind',x+256,y,10)
     r=a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
@@ -71,33 +66,8 @@ def main():
         n=sum(a!=b for a,b in zip(view_rows(page),ref))
         print(f'  {label}: {n} differing bytes' if n else f'  {label}: OK')
         bad+=bool(n)
-    assert len(r.dumps)==len(cases)+2
-    small=[p for p in r.dumps if len(p)==1]
-    assert small==[bytes([8]),bytes([0])],small
+    assert len(r.dumps)==len(cases)
     if bad: raise SystemExit(1)
-    # A sighting survives a short REST and STATUS, then expires at 60 minutes.
-    # REST makes no new draw, but still advances the sighting's lifetime.
-    steps=[*terrain_boot(20000)]
-    for n,v in [('px',x),('py',y)]:
-        steps += [L.poke(n,v),L.poke(n,v>>8,1)]
-    steps += [L.poke('animal_kind',8),L.poke('animal_x',x>>8),L.poke('animal_y',y>>8),
-              L.poke('animal_bearing',HEAD),L.poke('animal_bearing',HEAD>>8,1),
-              L.poke('fauna_rng',4),'key:REST\r','wait:1',L.until('number_idle',6000),
-              'key:30 MIN\r','wait:1',L.until('idle',20000),'peek:2000:8192',
-              L.peek('animal_kind'),L.peek('s_hour',5),L.peek('s_elap',5),
-              'key:STATUS\r','wait:1',L.until('wait_key',6000),
-              'key: ','wait:1',L.until('idle',20000),'peek:2000:8192',
-              'key:REST 30 MIN\r','wait:1',L.until('idle',20000),'peek:2000:8192',
-              L.peek('animal_kind'),L.peek('s_hour',5),L.peek('s_elap',5)]
-    live=a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
-    assert view_rows(live.dumps[0])==expected(x,y,HEAD,'rattlesnake',HEAD)
-    assert live.dumps[1]==bytes([8])
-    assert abs(fp(live.dumps[2][:5])-7.5)<1e-6 and abs(fp(live.dumps[2][5:])-.5)<1e-6
-    assert hgr_rows(live.dumps[0],16)==hgr_rows(live.dumps[3],16), 'STATUS must preserve the displayed sprite and terrain cache'
-    assert view_rows(live.dumps[4])==expected(x,y,HEAD)
-    assert live.dumps[5]==bytes([0])
-    assert abs(fp(live.dumps[6][:5])-8)<1e-6 and abs(fp(live.dumps[6][5:])-1)<1e-6
-    print('  short REST/STATUS preserve sprite; 60-minute lifetime expires without a new draw: OK')
     print('Original sprites: OK')
 
 if __name__=='__main__':main()

@@ -61,6 +61,9 @@ module_medical_command:
         ldx     #53
         jsr     have
         jcc     care_missing
+        lda     #3              ; USE COMPASS puts the direction aid in hand
+        sta     it_place+53
+        jsr     load_totals
         jmp     care_ok
 :       lda     noun
         cmp     #41
@@ -83,7 +86,13 @@ module_medical_command:
         cmp     #47
         jcc     care_use_instead
 @use:   ldx     noun
-        lda     care_use_minutes-41,x
+        cpx     #43
+        bcs     :+
+        lda     #3              ; a used medical kit is held, like the compass
+        sta     it_place,x
+        jsr     load_totals
+        ldx     noun
+:       lda     care_use_minutes-41,x
         sta     care_minutes
         jsr     module_care_dose
         ; Native empty-use behavior is verified separately from the care

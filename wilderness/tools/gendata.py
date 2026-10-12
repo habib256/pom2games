@@ -14,7 +14,7 @@
 """
 import math, sys
 
-VOCAB = [
+VOCAB = [('FILL',0,1),('REFILL',0,1),
     ('N',2,145),('E',2,146),('S',2,147),('W',2,148),('U',2,149),('D',2,150),
     ('R',2,151),('L',2,152),('F',2,156),('B',2,157),('T',2,103),('V',2,104),
     ('H',1,10),('GO',0,22),('UP',2,149),('AZ',2,155),('GET',0,1),('USE',0,2),
@@ -167,7 +167,7 @@ FLOATS = {     # name: value
     # Original T08/S07 $5CF6 stores .06 as 7C 75 C2 8F 5D (one bit
     # above the nearest Python encoding); preserve its ROM arithmetic.
     'f_shiver_k':.04, 'f_swim_k':.06000000001222361,
-    'f_rest_rate': 1.65, 'f_walk_rate': 5.2,
+    'f_rest_rate': 1.65,
     # T0F/S00: .73 - .6 * saved $4C7A (.5833333). The evolving
     # perspiration factor still needs porting; this is the initial credit.
     'f_oz_hour': 0.38, 'f_eat_rate': 2.31,

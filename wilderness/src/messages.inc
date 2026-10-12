@@ -37,7 +37,7 @@ m_goal:     .byte   "YOU HAVE REACHED THE RANGER OUTPOST.|YOU SURVIVED. PRESS A 
 m_dead:     .byte   "YOU DID NOT SURVIVE THE WILDERNESS.|PRESS A KEY.", 0
 m_weak:     .byte   "YOU ARE VERY WEAK. REST, EAT AND DRINK.", 0
 
-m_fauna_stop: .byte "AN ANIMAL INTERRUPTS YOUR ACTION.",0
+m_fauna_stop: .byte "A DISCOVERY INTERRUPTS YOUR ACTION.",0
 
 m_rest_minutes: .byte "YOU RESTED # MINUTES.",0
 m_duration_end: .byte "REQUESTED TRAVEL TIME ENDED.",0

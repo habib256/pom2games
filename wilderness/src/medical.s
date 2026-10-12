@@ -53,6 +53,11 @@ module_injury_begin:
 ; incubation rounds the positive loss before subtracting from the floor;
 ; recovery rounds the gain. A condition heals at t + duration (inclusive).
 module_injury_health:
+        lda     MAP+37
+        beq     :+
+        lda     poison_floor
+        sta     med_floor+7
+:
         fld     f_one
         fst     s_injury_factor
         lda     #0
@@ -69,6 +74,13 @@ module_injury_health:
         jsr     MOVFM
         fop     FSUB, s_elap
         jsr     clamp0
+        ldx     MAP+37
+        beq     :+
+        fop     FCOMP, f_half
+        cmp     #$FF
+        bne     :+
+        fld     f_half          ; native condition clock never reports less than .5 h
+:
         fst     t1              ; elapsed since onset, in hours
         ldx     med_index
         ldy     med_incubation,x
@@ -217,6 +229,51 @@ med_loss:
 ; eight hours of active conditions 6..11. A holds the previous period limit.
 module_medical_cap:
         sta     med_minutes
+        lda     MAP+37
+        jeq     @health
+        lda     s_therm_rate
+        jeq     @health
+        lda     night
+        jne     @health
+        jsr     sky_position
+        ; Native B7 is the integer elevation, and clouds hide the sun when
+        ; SIN(B7 degrees) < 15 / visibility. Shelter and woods do not alter
+        ; this scheduling limit (unlike the sunburn exposure test).
+        fld     sky_up
+        fop     FMULT, sky_up
+        fop     FSUB, f_one
+        jsr     FSQR
+        fop     FDIV, sky_up
+        jsr     FATN
+        fst     t1
+        fld     f_rad
+        fop     FDIV, t1
+        jsr     AYINT
+        ldy     $A1
+        cpy     #31
+        bcc     @health
+        lda     #0
+        jsr     GIVAYF
+        fop     FMULT, f_rad
+        jsr     FSIN
+        fst     t1
+        ldy     #15
+        lda     #0
+        jsr     GIVAYF
+        fst     t2
+        ldy     weather_visibility
+        lda     #0
+        jsr     GIVAYF
+        fop     FDIV, t2
+        fop     FCOMP, t1
+        cmp     #1
+        beq     @health
+        lda     med_minutes
+        cmp     #61
+        bcc     @health
+        lda     #60
+        sta     med_minutes
+@health:
         fld     s_health
         fop     FCOMP, f_one
         cmp     #$FF

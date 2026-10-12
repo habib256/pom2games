@@ -7,6 +7,62 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Visibilité à la pleine lune
+
+- Les nuits où le disque lunaire est entièrement éclairé conservent un ciel
+  noir, avec relief, arbres, épave, cabane et animaux visibles. Les autres
+  phases gardent l'obscurité. Les calculs de survie conservent la nuit.
+- Régression indépendante des pixels du terrain et des sprites, sous ciel
+  clair ou nuageux ; les bois restent visibles à la pleine lune.
+
+### Direction des sites cohérente avec TOPO
+
+- Projection distante de la cabane et de l’épave : axe nord/sud corrigé
+  pour suivre le terrain, la marche et les repères de la carte TOPO.
+- Régression indépendante du modèle de projection : huit directions par
+  site, repères TOPO lus à l’écran, boussole, pixels visibles devant
+  et absence du sprite quand on regarde derrière.
+
+
+### Réactions animales inspirées du moteur original
+
+- Seuils Sierra de bruit, blessure et combat vérifiés sur ROM : bruit inefficace
+  sur le crotale, ours/couguar sensibles au bruit, hache/couteau regroupés comme
+  dans le choix d’arme natif.
+- Gravité ours/couguar vérifiée sur ROM : coupures, bras/jambe cassés et choc,
+  reliés aux courbes de santé et aux soins ; issue supérieure regroupée en choc.
+- Tirage de contamination corrigé : l’état évolue à chaque consommation
+  d’eau non traitée, sans utiliser le hasard animal.
+- SCARE et ATTACK peuvent échouer ; deux tirages de combat permettent une
+  défense réussie avec blessure. IGNORE peut laisser l’animal présent.
+- Ours/couguar peuvent voler la nourriture exposée : stocks suspendus, eau,
+  équipement et piles éloignées conservés ; charge et totaux recalculés.
+- Risques de blessure selon la posture vérifiés sur ROM : attente/repos/repas
+  au sol, IGNORE et arbre. Grimper n’empêche plus les blessures ; avertissement
+  affiché, provisions suspendues conservées et soins possibles dans l’arbre.
+- Cabane protectrice pour joueur/provisions ;
+  réaction signalée et action interrompue après une heure sans décision.
+- Sondes `re_animal_reactions_probe.py`, scénarios clavier
+  `test_animal_reactions.py` ; adaptations et limites dans `docs/logic/animals.md`.
+
+### Aventure, ravitaillement et bilan
+
+- `DONE` et distance restante remplacent l’ambigu `GOAL` dans STATUS ;
+  distances avec fractions de case, progression bornée et score natif conservé.
+- `FILL/REFILL CANTEEN`, berge voisine, capacité 64 OZ, coût 10 minutes et
+  refus atomique de surcharge ; contamination de l’eau bue et hasard séparé.
+- Réactions SCARE/IGNORE/ATTACK, ciblage par espèce, outils, coupures/morsures
+  et attaque après une heure sans réaction ; provisions suspendues et protection par cabane.
+  Ces réactions et la contamination sont des règles documentées du port.
+- Bandeau pour faible réserve d’eau et réaction à une rencontre ; HELP enrichi.
+- Écran d’arrivée/mort dédié : durée, pas, rencontres, santé, provisions et
+  score d’efficacité natif, conservé jusqu’à une touche.
+- Deux modules disque supplémentaires, WILDADV et WILDOUT ; simulation et
+  commandes existantes restent dans leurs fenêtres et le démarrage en deux paquets.
+- Palette violet/vert confirmée comme choix du moteur, couleurs des sprites
+  et rendu de terrain conservés.
+
+
 ### Réduction des transferts de modules
 
 - Simulation et sprites épave/ours/cabane compressés, décompression LZ

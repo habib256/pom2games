@@ -10,7 +10,7 @@ restants ; le [CHANGELOG](../CHANGELOG.md) conserve l'historique des étapes.
 | Domaine | Implémentation actuelle | Vérification |
 |---|---|---|
 | Vue | Terrain par lancer de rayons, occlusion par pente, bandes de crêtes, rotations et défilement partiel | `test_view.py`, `test_fuzz.py`, `test_play.py` |
-| Commandes | 280 mots, verbe/nom/qualificatif, durées et quantités demandées séparément | `test_play.py`, `test_items.py` |
+| Commandes | 282 mots, verbe/nom/qualificatif, durées et quantités demandées séparément | `test_play.py`, `test_items.py` |
 | Simulation | Date, heure, lever/coucher du soleil, air, énergie, déficits eau/nourriture/repos, santé, mort et arrivée aux rangers | `test_sim.py` |
 | Médecine | 15 progressions, prérequis de soins/prévention, doses et prises orales, gestes de soin, protection vestimentaire, altitude/oxygène, état médical paginé | `test_medical.py --original`, `test_care.py --original` |
 | Expositions | Compteurs sel/froid, seuils et décroissance ; soleil/neige adaptés au milieu du port | `test_exposure.py --original` (sel/froid) |
@@ -28,7 +28,8 @@ restants ; le [CHANGELOG](../CHANGELOG.md) conserve l'historique des étapes.
 | Composition | Terrain et sprites par colonne, arrêt conservateur des rayons masqués | `test_scene_render.py` |
 | Cabane et TOPO | Entrée/sortie, protection thermique, carte textuelle et défilement | `test_sites.py`, `tools/re_site_probe.py` |
 | Sites voisins | Position fixe, projection, tailles, clipping et occlusion par le relief proche | `test_projection.py`, `scene_ref.py` |
-| Faune | Six critères Sierra, tirages par pas, remplacement, interruption des actions et réglage NATURE | `test_fauna.py`, `test_fauna_steps.py`, `tools/re_fauna_probe.py`, `tools/re_fauna_accept_probe.py` |
+| Faune | Six critères Sierra, tirages par pas, remplacement, interruption des actions et réglage NATURE ; réactions par espèce, seuils Sierra bruit/blessure/combat, vol et protections | `test_fauna.py`, `test_fauna_steps.py`, `tools/re_fauna_probe.py`, `tools/re_fauna_accept_probe.py`, `test_animal_reactions.py`, `tools/re_animal_reactions_probe.py` |
+| Aventure | Progression par distance, collecte à la berge et contamination, bilan de victoire/mort | `test_journey.py` |
 | Limites de déplacement | Marche et nage arrêtées à deux cases du bord ; temps des seuls pas acceptés | `test_boundary.py` |
 
 Les tests de sprites valident les pixels de l'image finale, les rotations,
@@ -36,6 +37,29 @@ le départ/retour, la nuit, l'expiration des rencontres, un REST réel et
 la conservation de l'image après STATUS. `test_scene_render.py` arrête le
 rendu après vingt colonnes pour contrôler leur composition, puis compare
 les images finales et les pas de rayons sur cinq cartes de relief différent.
+
+## Aventure et modules supplémentaires
+
+`WILDADV` et `WILDOUT` occupent séparément la fenêtre `$5800-$5FFF`, comme
+les autres modules. Les distances et le bilan sont dans ADV ; la collecte,
+les réactions et leurs messages sont dans OUT. Le calcul de progression de
+STATUS revient par une routine résidente qui restaure WILDSTA avant de
+rendre la main. Les rapports après une action restent résidents ; le drapeau de faiblesse
+est actualisé par la simulation. STATUS nécessite deux lectures supplémentaires
+pour appeler ADV puis restaurer STA, sans alourdir le repos ou chaque pas.
+
+Les compteurs de pas et de demi-cases parcourues augmentent après acceptation
+du déplacement (marche : deux demi-cases ; nage : une), le compteur
+de rencontres uniquement après acceptation/remplacement d’un animal. Les
+refus de collecte restaurent placement, quantité transportée et quantité
+totale avant recalcul de la charge. L’eau au sol n’est jamais déplacée par
+une collecte à la berge. Le hasard de contamination est distinct de la faune.
+
+Les règles de collecte, contamination et réactions sont détaillées dans
+le [README](../README.md#progression-ravitaillement-et-arrivée). Leurs valeurs
+(10 minutes, capacité 64 OZ, risque 1/8, départ des animaux et réaction après 60 minutes)
+sont des choix explicites du port. Les seuils de survie natifs et les taux de
+rencontre vérifiés ne sont pas durcis à partir d’une seule partie.
 
 ## Règles provisoires et écarts
 
@@ -185,7 +209,11 @@ Elles sont masquées la nuit et à l'intérieur de la cabane.
 
 Depuis les cases voisines, l'épave et la cabane se projettent depuis leurs
 coordonnées fixes : point de départ exact pour l'épave, centre de case pour
-la cabane. L'azimut utilise atan2 et la distance euclidienne les fractions
+la cabane. L’axe nord est `siteY - joueurY`, comme pour le terrain et TOPO ;
+Le décalage vers l’est est `siteX - joueurX`. `test_site_directions.py` contrôle les huit
+directions par site depuis les repères TOPO affichés, sans utiliser la formule
+du modèle de projection ; le sprite doit être visible devant et absent dans
+la direction opposée. L’azimut utilise atan2 et la distance euclidienne les fractions
 8.8 du joueur. Le plan du sprite est au pas `floor(distance)+1`, limité à 8.
 La taille est divisée par 1, 2, 4 ou 8 selon la plus grande puissance de deux
 inférieur ou égal à ce pas. Les échantillons conservent les couleurs originales,
@@ -255,10 +283,20 @@ RND < 0,5 et le remplace sinon, même pour la même espèce. Une acceptation
 fixe `fauna_alert` : WALK s'arrête après le pas consommé.
 La sonde `re_fauna_accept_probe.py` vérifie 36 cas dans le point d'acceptation
 original `$5B5A`, y compris le seuil exact 0,5 et les drapeaux d'arrêt.
-Une rencontre reste à sa case pendant 60 minutes au plus ; attente, repos
-et repas font aussi avancer son âge, sans tirage de nouvelle rencontre.
-Cette durée est reconstruite ; mouvements, comportements et attaques
-restent à porter.
+La présence reste ancrée à sa case. Après 60 minutes sans décision, attente,
+repos et repas évaluent une réaction et s’interrompent pour la rendre visible ;
+ils ne tirent pas de nouvelle rencontre. Les réactions sont dans WILDOUT,
+avec seuils natifs quantifiés sur un octet, risque selon la posture au sol
+ou dans l’arbre, stocks accessibles et soins existants. L’arbre n’empêche
+plus les blessures ; la cabane reste une protection absolue du port. Le bit 7 de `fauna_alert` demande un rapport de réaction ; il est
+consommé lors de l’affichage, tandis que les observations utilisent le bit 0.
+Les deux tirages de combat avancent chacun le LFSR sept fois, afin de ne pas
+rendre des combinaisons blessure/réussite impossibles avec deux valeurs
+consécutives ; le cycle de 255 états reste complet (7 premier avec 255).
+Le LFSR est aussi disponible dans OUT, car SIM peut être remplacé par HGR
+pendant une commande. Aucun état résident supplémentaire n’est nécessaire.
+Voir [animals.md](logic/animals.md) pour les preuves et écarts explicites.
+Le déplacement animal et la cadence native restent à établir.
 
 Marche et nage refusent un prochain pas hors de `2 ≤ x < 110`,
 `2 ≤ y < 82` (coordonnées en cases, fractions conservées). Elles laissent
@@ -282,7 +320,7 @@ Les zones résidentes sont presque pleines.
 | `$5800-$5FFF` | Fenêtre partagée de 2 Ko pour les modules et sprites |
 | `$6000-$6FFF` | `WILDERNESS` : démarrage, moteur de vue, décodeur de sprites et constantes |
 | `$7000-$94FF` | `WILDMAP` : en-tête de 64 octets et grille 112 × 84 |
-| `$9500-$95F0` | Sauvegarde du texte pendant BLOAD, réutilisée pour les couleurs de la colonne et les temporaires du ciel ; temporaires thermiques, géométrie des sprites, saisie, stock accessible et refus de charge |
+| `$9500-$95FF` | Sauvegarde du texte pendant BLOAD, réutilisée pour les couleurs de la colonne et les temporaires du ciel ; temporaires thermiques, géométrie des sprites, saisie, stock accessible et refus de charge ; visibilité nocturne et seuil de santé du venin |
 | `$9600-$BFFF` | DOS 3.3 |
 
 | ID du cache | Fichier | Contenu |
@@ -290,7 +328,7 @@ Les zones résidentes sont presque pleines.
 | 1 | `WILDVOC` | Vocabulaire et parcours des mots saisis |
 | 2 | `WILDSCR` | INVENTORY groupé/paginé et texte HELP |
 | 3 | `WILDSIM` | Soleil du jour, rencontres, compteurs, crédits de survie et santé |
-| 4 | `WILDSIM` | Même binaire, air horaire et thermique |
+| 4 | `WILDWAT` | Collecte d’eau, quantités et transactions de la gourde |
 | 5 | `WILDPLN` | Épave |
 | 6 | `WILDBER` | Ours Sierra |
 | 7 | `WILDCOU` | Couguar Sierra |
@@ -306,6 +344,9 @@ Les zones résidentes sont presque pleines.
 | 17/18 | `WILDMED` | Blessures, maladies, soins et expositions ; un seul chargement partagé |
 | 19 | `WILDMVI` | Commandes de soin et deuxième page de STATUS : conditions médicales et altitude |
 | 20 | `WILDTRE` | Initialisation et interactions avec les arbres ; LOOK est résident |
+| 21 | `WILDADV` | Distance, score, climat journalier, vêtements et quantités de ressources |
+| 22 | `WILDOUT` | Réactions animales, contamination, borne de présence animale et remise à zéro médicale quotidienne |
+| 23–46 | `WILDGA`…`WILDGX` | Banques de géographie native fine pour les interactions |
 
 Les modules restent sur la disquette pendant la partie. Un module
 présent dans la fenêtre n'est pas relu. Simulation, thermique, effort de nage
@@ -705,7 +746,7 @@ originale convertie lorsque `build/orig_map.bin` existe localement.
 | `tools/re_graphics.py` | Extraire les flux Journey, les PNG transparents et les empreintes SHA-256 |
 | `tools/re_site_probe.py` | Vérifier les transitions SHELTER et les températures abri/igloo originales sur ROM |
 | `tools/re_fauna_probe.py` | Exécuter les filtres Sierra et capturer les probabilités avant le tirage dans le code original |
-| `tools/re_fauna_accept_probe.py` | Exécuter conservation/remplacement et vérifier les drapeaux d'interruption originaux |
+| `tools/re_fauna_accept_probe.py`, `test_animal_reactions.py`, `tools/re_animal_reactions_probe.py` | Exécuter conservation/remplacement et vérifier les drapeaux d'interruption originaux |
 | `tools/profile.py` | Mesurer les cycles par routine via `pcprof` |
 | `tools/flux2dsk.py`, `tools/smalldos.py` | Décoder les images disque et lire les blocs/catalogues SMALLDOS |
 | `tools/applesoft.py`, `tools/peek2bin.py` | Lister le BASIC tokenisé et convertir les dumps de l'émulateur |
@@ -897,8 +938,8 @@ huit heures limite le prochain pas à 30 minutes.
 stricts et leur décroissance quand la condition est prévenue. Soleil et neige
 utilisent encore la position solaire, les bois et la ligne de neige du port ;
 leurs sélecteurs originaux ne sont pas validés par ces tests. Les déclencheurs
-d'infection, de malaria, de contamination, de chutes et d'attaques restent à
-porter. SPLINT et les soins thermiques manquent encore.
+d’infection, de malaria et de chutes restent à porter. Les coupures, fractures, choc, morsures
+et la giardiase de l’eau collectée ont maintenant des déclencheurs propres au port. SPLINT et les soins thermiques manquent encore.
 
 `care.s`, dans WILDMVI, traite les commandes avant un saut au relais résident
 `medical_spend`, qui charge WILDMED, applique les prérequis et avance le temps.

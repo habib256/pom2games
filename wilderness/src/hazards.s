@@ -227,6 +227,7 @@ hz_decay:
 
 ; Native daily action resets; acquired treatment is retained. Protection is
 ; recomputed in the medical module after the next action that changes care.
+.segment "OUTDOOR"
 module_medical_day:
         ldx     #8
         lda     #0
@@ -235,10 +236,11 @@ module_medical_day:
         dex
         bpl     @reset
         jmp     medical_apply
+hz_daily: .byte 2,5,9,13,14,16,17,19,24
 
+.segment "HAZARDS"
 hz_condition: .byte 9,4,5,6
 hz_limit: .word 500,240,240,7200
-hz_daily: .byte 2,5,9,13,14,16,17,19,24
 hz_minutes: .word 0
 hz_index: .byte 0
 hz_condition_index: .byte 0
