@@ -79,9 +79,8 @@ def main():
     done = f'until:{L["idle"] + 3:04X}:6000'
     steps = [idle] + call(['spend_energy'])
     for body, ounces, minutes, shiver in cases:
-        # Port table includes the canteen's saved full mass (80 oz), while
-        # counting water separately. Add that excess 64 oz to the table input.
-        for name, value in (('load_used', ounces + 64), ('body_weight', body)):
+        # load_used is already the native total carried ounces.
+        for name, value in (('load_used', ounces), ('body_weight', body)):
             steps += [L.poke(name, value), L.poke(name, value >> 8, 1)]
         steps += [L.poke('it_place', 3, 64), L.poke('it_oz_lo', 80, 64),
                   L.poke('it_oz_hi', 0, 64), L.poke('verb', 24),

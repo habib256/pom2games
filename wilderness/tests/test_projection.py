@@ -123,7 +123,9 @@ def walking():
         steps=[*terrain_boot(20000)]
         positions=[(11*256,8*256,140),(14*256,8*256,140),
                    (17*256,8*256,140),(17*256,8*256,420),(14*256,8*256,420)]
-        for cmd in (hours('WALK',1),hours('WALK',1),hours('WALK',1),command('LOOK B'),hours('WALK',1)):
+        # Six separately requested native half-steps travel exactly three cells.
+        leg=command('WALK 9 MIN')*6
+        for cmd in (leg,leg,leg,command('LOOK B'),leg):
             steps += cmd+[L.peek('px',6),'peek:2000:8192']
         r=a2test.run(disk,steps,emulator=a2test.A2SHOT,timeout=1800)
     for k,p in enumerate(positions):

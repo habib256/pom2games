@@ -37,14 +37,15 @@ def main():
     steps=[idle]+call(['spend_energy'])
     energy=[]
     for weight in (123,165,200):
-        for activity,rate in ((0,1.65),(1,5.2)):
+        for activity,rate in ((0,1.65),(4,5.2)):
             for shiver in (0,2):
                 for minutes in (0,1,5,19,30,60,255):
                     effective=fp(encode(fp(encode(rate))+(shiver==2)*fp(encode(.04))*weight))
                     energy.append((math.floor(minutes*effective),rate))
                     steps+=[L.poke('body_weight',weight),L.poke('body_weight',weight>>8,1),
                             L.poke('act',activity),L.poke('thermal_mode',shiver)]
-                    steps+=poke('s_step',minutes)+poke('s_spent',600)
+                    # Reaction effort supplies a fixed rate; land travel uses native load.
+                    steps+=poke('s_metabolic',rate)+poke('s_step',minutes)+poke('s_spent',600)
                     steps+=[done,L.peek('s_spent',5),L.peek('s_metabolic',5),idle]
     # Sweating has no energy bonus; compare to the same base integer rule.
     steps+=[L.poke('act',0),L.poke('thermal_mode',1)]+poke('s_step',30)+poke('s_spent',600)

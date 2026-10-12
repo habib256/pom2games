@@ -73,7 +73,6 @@ m_overflow: .byte "TRANSFER REFUSED: VALUE TOO LARGE.|REDUCE THE AMOUNT OR THE L
 ; STATUS and INVENTORY words
 w_months:   .byte   "JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC"
 .segment "TEXT"
-w_places:   .byte   "GND  WEAR PACK CARRY"
 .segment "STATUS"
 w_gauge:    .byte   "VERY  SO-SO OKAY  FILLED"
 w_enrg:     .byte   "BEAT  TIRED OKAY  GREAT "

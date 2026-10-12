@@ -73,7 +73,7 @@ def cancellations(disk):
             s.step(f'key:{response}')
             s.step(IDLE)
             assert snapshot(s)==before,response
-        for text in ('STATUS','INVENTORY','TOPO','HELP'):
+        for text in ('STATUS','INVENTORY','TOPO','MAP','HELP'):
             s.step(f'key:{text}')
             s.step('press:\\r')
             s.step(L.until('wait_key',20000))
@@ -94,18 +94,29 @@ def cancellations(disk):
 def durations(disk):
     with a2test.Session(disk) as s:
         s.step(IDLE)
-        command(s,'WALK 10 MIN')
+        # Native flat-ground pace is 9 minutes per half-cell here. Admission
+        # needs floor(dt/2): three minutes refuse, four admit a full 9-minute
+        # step, and an exact 9-minute request finishes without a second probe.
+        command(s,'WALK 3 MIN')
         assert s.step(L.peek('px',2)).data == bytes((0,10))
         assert fp(s.step(L.peek('s_elap',5)).data)==0
-        command(s,'WALK 19 MIN')
+        command(s,'WALK 4 MIN')
+        assert s.step(L.peek('px',2)).data == bytes((128,10))
+        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-9)<1e-6
+        assert 'TRAVEL: 9 MINUTES.' in screen(s)
+        command(s,'WALK 9 MIN')
         assert s.step(L.peek('px',2)).data == bytes((0,11))
-        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-19)<1e-6
+        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-18)<1e-6
+        command(s,'WALK 19 MIN')
+        assert s.step(L.peek('px',2)).data == bytes((0,12))
+        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-36)<1e-6
+        assert 'TRAVEL: 18 MINUTES.' in screen(s)
         command(s,'REST 10 MIN')
         assert 'YOU RESTED 10 MINUTES.' in screen(s)
-        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-29)<1e-6
+        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-46)<1e-6
         command(s,'REST 1 H')
         assert 'YOU RESTED 1 HOURS.' in screen(s)
-        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-89)<1e-6
+        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-106)<1e-6
         water=s.step(L.peek('it_pack_lo',1,22)).data[0]
         command(s,'DRINK WATER 4 OZ')
         assert s.step(L.peek('it_pack_lo',1,22)).data[0]==water-4
@@ -113,14 +124,14 @@ def durations(disk):
         for text in ('  SLEEP 1 MIN', ' REST 1 MIN   '):
             command(s,text)
             assert 'YOU RESTED 1 MINUTES.' in screen(s),text
-        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-91)<1e-6
+        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-108)<1e-6
         before=snapshot(s)
         command(s,'  WALK 1 MIN')
         assert snapshot(s)==before, 'leading spaces bypassed short-step refusal'
         command(s,'  DRINK WATER 1 OZ   ')
         assert s.step(L.peek('it_pack_lo',1,22)).data[0]==water-5
         assert 'YOU DRANK 1 OUNCES.' in screen(s)
-    print('  Inline H/MIN/OZ, refused short step, exact accepted step and minute rest: OK')
+    print('  Inline H/MIN/OZ, refused short step, native half-step admission, exact budgets and minute rest: OK')
     print('  Leading/trailing spaces: sleep, rest, qualified drinking and atomic short-step refusal OK')
 
 

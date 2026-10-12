@@ -158,19 +158,12 @@ topo_draw:
         ; Capture all COUT users (including decimal printing) with a renderer
         ; that advances normally but stores only bytes differing on screen.
         ; No HOME or ROM newline clearing: those rewrite unchanged cells.
-        lda     $36
-        sta     topo_output_vector
-        lda     $37
-        sta     topo_output_vector+1
-        lda     #<topo_output
-        sta     $36
-        lda     #>topo_output
-        sta     $37
+        jsr     text_begin
         lda     #0
         sta     WNDTOP
         jsr     vtab
         jsr     puts
-        .byte "TOPO P YOU C CRASH H CABIN R RANGERS|CELL ",0
+        .byte "MAP P YOU C CRASH H CABIN R RANGERS|CELL ",0
         lda     px+1
         jsr     pdec
         lda     #','|$80
@@ -268,56 +261,6 @@ topo_draw:
         .byte "|= WATER T WOODS t SCRUB .,:;+*^# LOW-HI",0
         rts
 
-; CSW hook: preserve the registers expected by puts/print_u16. BASL/BASH
-; always address CV; CH advances even when the character is already present.
-topo_output:
-        pha
-        txa
-        pha
-        tya
-        pha
-        tsx
-        lda     $0103,x
-        cmp     #$8D
-        beq     topo_output_newline
-        ldy     CH
-        cmp     ($28),y
-        beq     topo_output_advance
-topo_store:
-        sta     ($28),y
-topo_output_advance:
-        inc     CH
-        lda     CH
-        cmp     #40
-        bcc     topo_output_done
-topo_output_newline:
-        jsr     topo_pad
-        inc     CV
-        lda     #0
-        sta     CH
-        jsr     VTAB
-topo_output_done:  pla
-        tay
-        pla
-        tax
-        pla
-        rts
-
-; Remove stale trailing text, also without rewriting existing spaces.
-topo_pad:
-        ldy     CH
-        lda     #' '|$80
-topo_pad_byte:  cpy     #40
-        bcs     topo_pad_done
-        cmp     ($28),y
-        beq     topo_pad_next
-topo_clear_store:
-        sta     ($28),y
-topo_pad_next:  iny
-        bne     topo_pad_byte
-topo_pad_done:  sty     CH
-        rts
-
 topo_finish:
         jsr     topo_pad
 @row:   lda     CV
@@ -332,12 +275,7 @@ topo_finish:
         jsr     topo_pad
         jmp     @row
 @restore:
-        lda     topo_output_vector
-        sta     $36
-        lda     topo_output_vector+1
-        sta     $37
-        rts
-topo_output_vector: .word 0
+        jmp     text_release
 topo_show:
         lda     TXTSET
 topo_key:
@@ -370,14 +308,7 @@ topo_key:
 topo_done:
         ; Restore the mixed window without waiting for a second key or
         ; redrawing HGR: the text map has preserved all its pixels.
-        lda     #20
-        sta     WNDTOP
-        lda     TXTCLR
-        lda     MIXSET
-        jsr     HOME
-        lda     #0
-        sta     shown
-        rts
+        jmp     back_to_view_now
 topo_recenter:
         jsr     topo_center
         jmp     topo_redraw
@@ -541,3 +472,38 @@ topo_here:
         .byte "",0
         rts
 topo_cardinals: .byte "N NEE SES SWW NW"
+
+.segment "SITES"
+module_graphical_topo:
+        jsr     view_hide
+        jsr     dos_cmd_new
+        lda     #<ov_topo
+        ldy     #>ov_topo
+        jsr     dos_cmd_add
+        jsr     dos_cmd_run
+        lda     #0
+        sta     overlay_current
+        sta     sim_loaded
+        sta     scene_drawn
+        sta     shown
+        lda     #1
+        sta     ui_dirty
+        lda     #20
+        sta     WNDTOP
+        jsr     HOME
+        jsr     puts
+        .byte "TOPO N UP CONTOURS 400 FT|C CRASH H CABIN R RANGERS|MAP: PLAYER MAP|ESC/RETURN/SPACE: VIEW",0
+        lda     MIXSET
+        lda     TXTCLR
+graphical_topo_key:
+        jsr     wait_key
+        cmp     #KC_ESC
+        beq     @done
+        cmp     #KC_RET
+        beq     @done
+        cmp     #' '
+        bne     graphical_topo_key
+@done:  jsr     view_hide
+        jsr     HOME
+        jmp     show_view_hidden
+ov_topo: .byte "BLOAD WILDTOP,A$2000",0

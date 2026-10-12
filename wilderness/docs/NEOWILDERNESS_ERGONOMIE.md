@@ -1,10 +1,10 @@
 # Plan détaillé pour améliorer l’ergonomie de Neowilderness
 
-Date : 11 octobre 2026. Statut : lots 1, 2, 4 et 5 implémentés ; lot 3 proposé.
+Date : 11 octobre 2026. Statut : lots 1 à 5 implémentés ; parcours avec un nouveau joueur à réaliser.
 
 Neowilderness doit permettre au joueur de découvrir les actions, corriger une saisie et comprendre les conséquences de ses décisions sans consulter constamment une documentation externe. Les premières priorités sont la sécurité des commandes et la qualité des messages, puis l’apprentissage, la lecture de l’état de survie et l’organisation des écrans.
 
-Ce plan prend pour point de départ l’interface de Wilderness présente dans ce dépôt. Il est conservé ici comme feuille de route dédiée à Neowilderness, dont aucun répertoire distinct n’est présent au moment de la rédaction. Les comportements cibles des lots 1, 2, 4 et 5 sont implémentés ; le lot 3 reste à réaliser. Les constats proviennent du code et de la documentation ; leur impact sur les joueurs devra être vérifié par les parcours proposés ci-dessous.
+Ce plan prend pour point de départ l’interface de Wilderness présente dans ce dépôt. Il est conservé ici comme feuille de route dédiée à Neowilderness, dont aucun répertoire distinct n’est présent au moment de la rédaction. Les comportements cibles des lots 1 à 5 sont implémentés ; leur validation avec un nouveau joueur reste à réaliser. Les constats proviennent du code et de la documentation ; leur impact sur les joueurs devra être vérifié par les parcours proposés ci-dessous.
 
 ## Périmètre et principes
 
@@ -196,6 +196,30 @@ Ajouter au besoin une courte indication contextuelle au premier événement pert
 ### Validation
 
 Faire jouer une personne sans README : elle doit pouvoir consulter ses réserves, choisir un vêtement, ouvrir TOPO et commencer un déplacement. Relever les hésitations et les commandes erronées. Un objectif de première observation est d’accomplir ces étapes en cinq minutes ; ajuster ce seuil après les premiers essais sur la machine cible.
+
+### Réalisation du lot 3
+
+Le message de départ rappelle l’objectif des rangers et propose INVENTORY,
+STATUS, TOPO et HELP. Il reste visible à la première invite, sans touche
+supplémentaire ni temps simulé. HELP reprend ces indications dans sa première
+page. Les trois pages séparent déplacement, équipement et survie, avec des
+exemples complets et les emplacements PACK, HAND, WORN et GROUND HERE.
+DROP CHEESE avertit du dépôt de tout le stock ; les objets déposés restent
+sur leur case. Les touches 1/2/3 sélectionnent une page ; N/Espace et B
+parcourent les pages dans les deux sens avec retour circulaire. Échap ou
+Entrée revient à la vue. Les liens I/S/T restent disponibles.
+
+Les indications contextuelles déjà présentes couvrent eau, cabane et charge.
+Les textes restent dans le module WILDSCR de 2 Ko. `test_interface.py`
+contrôle l’accueil, les trois pages, leurs exemples, la navigation et la
+conservation de la simulation, des stocks et de la vue. Le parcours humain
+sans README décrit ci-dessus reste à effectuer.
+
+Validation du 12 octobre : construction et `test_interface.py` réussis.
+Les 52 commandes de test ont été exécutées : 33 réussissent et 19 échouent.
+Les 19 échecs sont également reproduits avec les sources précédentes (`HEAD`)
+reconstruites séparément ; ils concernent les déplacements, la simulation
+et les compteurs de chargement, et restent à corriger.
 
 ## Lot 4 Rendre la survie lisible pendant le jeu
 

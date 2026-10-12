@@ -187,7 +187,7 @@ def main():
     for height,word,char,terrain in ((10,'WOODS','T',20),(86,'SCRUB','t',30)):
         case=map_fixture(height)
         steps=[L.until('idle',20000),'key:STATUS\\r','wait:1',L.until('wait_key',20000),'peek:0400:1024',
-               'key:\\e','wait:1',L.until('idle',20000),'key:TOPO\\r','wait:1',L.until('topo_key',20000),'peek:0400:1024',
+               'key:\\e','wait:1',L.until('idle',20000),'key:MAP\\r','wait:1',L.until('topo_key',20000),'peek:0400:1024',
                'key:\\e','wait:1',L.until('idle',20000)]
         # Load the simulation directly: this checks woodland classification,
         # without also running an unrelated weather/thermal recomputation.
@@ -201,7 +201,7 @@ def main():
         screen=text_screen(result.dumps[1])
         assert any(line.count(char)>20 for line in screen),('woodland map',char)
         assert result.dumps[2][2]==terrain,('woodland fauna',terrain,result.dumps[2])
-    print('  STATUS, TOPO and fauna use woodland/scrub classification: OK')
+    print('  STATUS, MAP and fauna use woodland/scrub classification: OK')
     view_ref.to_png(str(HERE/'build/forest-view.png'),reference(sparse,20*256+93,20*256+173,140))
     print('Trees and forests: OK')
 

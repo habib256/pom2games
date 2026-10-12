@@ -60,6 +60,10 @@ def build_disk(out, map_path=None, build=None, master=None, track_skew=1):
         payload += bytes(len(original) - len(data))
         disk.add_file(name, TYPE_B, payload)
 
+    from graphical_topo import render
+    mapdata = Path(map_path or build / 'map.bin').read_bytes()
+    topo_image = render(mapdata)
+
     binary('WILDBOOT', build / 'boot.bin', 0x5800)
     for index, path in enumerate(packages, 1):
         binary(f'WILDPAK{index}', path, 0x2000)
@@ -101,6 +105,7 @@ def build_disk(out, map_path=None, build=None, master=None, track_skew=1):
                 payload = data + bytes(0x700-len(data)) + lookup
                 disk.add_file('WILDG'+chr(ord('A')+bank), TYPE_B,
                               struct.pack('<HH', 0x5800, len(payload)) + payload)
+    disk.add_file('WILDTOP', TYPE_B, struct.pack('<HH', 0x2000, len(topo_image)) + topo_image)
     disk.save(out)
 
 

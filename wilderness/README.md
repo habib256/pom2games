@@ -30,6 +30,12 @@ la fabrication et les sauvegardes restent à développer. TOPO est une première
 carte textuelle du relief. La suite est ordonnée dans le [TODO](TODO.md), avec
 les déplacements et la cadence originale des réactions en prochaine priorité.
 
+Les transitions texte/HGR préparent les menus derrière le paysage et
+masquent les rendus complets jusqu’à leur achèvement. La pagination réécrit
+uniquement les caractères modifiés, sans anciennes lignes résiduelles.
+Les rotations partielles gardent leur défilement progressif. Le retour de
+TOPO reste soumis aux lectures disque et au rendu du port 48 Ko.
+
 ## Construire et lancer
 
 Depuis `wilderness/`, avec les outils cc65 et les outils partagés de `dev/` :
@@ -52,12 +58,12 @@ les cinq sprites sont inclus dans la disquette construite localement.
 Le démarrage utilise un chargeur temporaire à `$5800`, qui décompresse les
 fichiers résidents depuis le tampon de la future page HGR à `$2000`. La
 disquette place les listes de secteurs avant les données et utilise un ordre
-de secteurs adapté aux lectures DOS. Sur la carte par défaut, les 24 976 octets
-résidents, complétés de 18 octets de remplissage, deviennent 16 303 octets
+de secteurs adapté aux lectures DOS. Sur la carte par défaut, les blocs résidents
+et leur remplissage occupent 25 032 octets et deviennent 16 322 octets
 répartis dans deux fichiers. L'entrelacement
 de neuf secteurs reçoit un décalage d'un secteur physique entre pistes.
 Mesuré dans le cœur POM2 à la vitesse Apple II, le lancement du moteur arrive
-à 19,43 secondes et la première invite jouable à 40,91.
+à 19,39 secondes et la première invite jouable à 45,11 sur la carte courante.
 L'initialisation, les modules et le premier rendu sont inclus dans ce dernier
 temps. Avant les optimisations mémoire et Disk II, les deux mesures étaient 24,16 et
 47,47 secondes avec les mêmes fonctionnalités.
@@ -124,8 +130,9 @@ et les quantités en onces. Les autres mots reconnus du vocabulaire original ré
 | ← → sur une ligne vide | Tourner de 22,5° |
 | ENTER SHELTER / EXIT SHELTER, LEAVE SHELTER | Entrer dans la cabane à sa case / ressortir ; aucun temps consommé |
 | NATURE / NATURE 0 | Fréquence des rencontres : entier de 0 à 100, valeur initiale 1 ; 0 empêche les nouvelles rencontres ; valeur directe ou demandée à l'invite |
-| TOPO, T | Carte textuelle : relief, eau, joueur, épave, cabane et rangers ; flèches ou WASD pour défiler, C pour recentrer, cap cardinal magnétique, Entrée/Espace/ESC pour revenir |
-| STATUS, INVENTORY, VIEW, HELP | Afficher les écrans ou la vue ; HELP propose deux pages avec exemples, touches 1/2, N/Espace ou B, Échap/Entrée pour revenir |
+| TOPO, T | Carte graphique complète : courbes de niveau tous les 400 pieds, eau, bois, épave, cabane et rangers ; nord en haut ; Entrée/Espace/ESC pour revenir |
+| MAP | Carte textuelle centrée sur le joueur : relief, eau, joueur, épave, cabane et rangers ; flèches ou WASD pour défiler, C pour recentrer, cap cardinal magnétique, Entrée/Espace/ESC pour revenir |
+| STATUS, INVENTORY, VIEW, HELP | Afficher les écrans ou la vue ; HELP propose trois pages (déplacement, équipement, survie) avec exemples, touches 1/2/3, N/Espace ou B, Échap/Entrée pour revenir |
 | M dans STATUS / B dans l'état médical | Consulter les conditions médicales / revenir à STATUS |
 | I/S/T/H dans les écrans | Aller directement à INVENTORY, STATUS, TOPO ou HELP, selon les raccourcis affichés en bas de l'écran |
 | ESC pendant une saisie | Effacer la commande ou annuler la quantité/durée, sans avancer le temps |
@@ -162,10 +169,13 @@ atteinte. La vitesse dépend de la santé et du poids transporté : deux command
 d'une heure ne garantissent pas une traversée complète. À l'arrivée sur terre,
 SWIM s'arrête et indique de continuer avec WALK.
 
-Une durée courte ne garantit pas un pas complet : sur terrain plat, une
-marche de 10 minutes reste sur place si le pas demande 19 minutes, sans coût
-de temps. La nage conserve sa règle d'admission du dernier demi-pas et peut
-dépasser la durée demandée ; le compte rendu affiche la durée effective.
+WALK et SWIM avancent par demi-cases, avec une durée calculée selon la
+charge, la santé, la météo et le terrain. Un pas est admis s’il reste au
+moins la moitié entière de son coût ; il consomme ensuite sa durée complète
+et peut dépasser la durée demandée. Par exemple, pour un pas de 9 minutes,
+3 minutes sont refusées sans avancer le temps, tandis que 4 minutes
+permettent de parcourir une demi-case en 9 minutes. Le compte rendu affiche
+la durée effective.
 Le repos accepte les minutes, mais son interruption pendant l'activité reste
 à développer.
 
@@ -243,15 +253,23 @@ seules les colonnes nouvellement visibles sont calculées, en partant du bord
 de la vue conservée. Les rotations par flèches ne relisent alors aucun module
 disque. Si plusieurs sites peuvent être proches, la vue est reprojetée pour
 respecter la sélection du plus proche dans le champ. Le masquage par le relief
-est conservé dans les deux cas. Les sites sont masqués les nuits sans pleine lune. Sur TOPO, `H` repère la cabane, `C` l'épave, `R` les
+est conservé dans les deux cas. Les sites sont masqués les nuits sans pleine lune. Sur MAP, `H` repère la cabane, `C` l'épave, `R` les
 rangers et `P` le joueur. L'eau est marquée `=` ; le nord est en haut.
-À chaque ouverture, TOPO se recentre sur la position actuelle et reconstruit
+À chaque ouverture, MAP se recentre sur la position actuelle et reconstruit
 le relief et les repères avant d'afficher la carte. C recentre aussi après
 défilement. HEAD affiche un cap en unités 0–559, son point cardinal et MAG,
 cohérents avec la boussole. La cabane et l’épave dans la vue 3D suivent
-les mêmes directions nord/sud/est/ouest que leurs repères sur TOPO. Une ligne indique le site sous P : épave, cabane
+les mêmes directions nord/sud/est/ouest que leurs repères sur MAP. Une ligne indique le site sous P : épave, cabane
 avec ENTER/EXIT SHELTER, ou rangers.
-Pendant la marche, cette carte se met à jour après chaque pas. Chaque
+TOPO affiche une feuille graphique couvrant tout le terrain, calculée lors de
+la construction du disque à partir de sa carte. Les courbes vertes sont
+interpolées tous les 400 pieds ; l’eau est magenta et les repères C/H/R sont
+blancs. Cette feuille reste fixe, comme une carte papier. MAP affiche la
+position actuelle du joueur et permet de défiler et de se recentrer.
+Le tracé TOPO reprend la présentation de l’original à partir de la grille
+du port ; il ne réutilise pas ses images ni son format de courbes natif.
+
+Pendant la marche, MAP se met à jour après chaque pas. Chaque
 caractère est comparé à celui déjà affiché : seules les différences sont
 écrites, sans effacement préalable, également pendant le défilement manuel.
 Les mises à jour de marche restent dans les vingt rangs supérieurs ; les
@@ -356,7 +374,7 @@ Les filtres, taux, réglage NATURE et remplacements Sierra sont conservés.
 L’arrivée ouvre un écran dédié : accueil des rangers, durée totale en
 minutes, pas effectués, distance cumulée en cases, nombre de rencontres, santé et provisions finales,
 puis score natif. Il reste affiché jusqu’à une touche explicite. La mort a
-également son bilan. La distance compte une case par pas de marche et une demi-case par pas de
+également son bilan. La distance compte une demi-case par pas de marche ou de
 nage, affichée avec `.5` si nécessaire.
 
 Le ciel violet, la terre verte, l’eau violette et la neige blanche sont les
@@ -389,7 +407,7 @@ la ROM ; les notes d'analyse précisent les preuves et les points incertains.
 Les forêts reprennent les contours irréguliers de TMAKE et les deux profils
 d’arbres Sierra de SURV3D. Leurs silhouettes suivent le terrain pendant les
 rotations ; l’eau et les altitudes à partir de 11 000 pieds ne portent pas
-d’arbres. TOPO indique `T` pour les bois et `t` pour le maquis d’altitude ;
+d’arbres. MAP indique `T` pour les bois et `t` pour le maquis d’altitude ;
 STATUS indique `WOODS` ou `SCRUB`. La couverture occupe 294 octets résidents,
 sans lecture disque lors des rotations. Les anciennes cartes restent lisibles.
 `CLIMB TREE` et `HANG FOOD` sont disponibles. INVENTORY propose une cinquième

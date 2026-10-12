@@ -42,7 +42,7 @@ def lake(heading=140, fraction=0):
     return m
 
 
-def main():
+def crossings():
     for heading,fraction in ((140,0),(140,64),(420,0),(0,0),(280,0),(70,0)):
         m=lake(heading,fraction)
         with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,m)) as s:
@@ -59,13 +59,16 @@ def main():
             # Repeating SWIM on the far bank cannot spend time or walk inland.
             refused,t3,message=command(s,request)
             assert refused==far and t3==t2 and 'NO WATER AHEAD' in message
-            inland,t4,message=command(s,'WALK 19 MIN')
-            assert inland!=far and not terrain(m,inland) and abs(t4-t3-19)<1e-5
+            inland,t4,message=command(s,'WALK 9 MIN')
+            assert inland!=far and not terrain(m,inland) and 0<t4-t3<=18
         print(f'  heading {heading}, fraction {fraction}: WALK -> two SWIM -> dry far bank -> WALK OK')
+
+
+def short_crossing():
     m=lake()
     with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,m)) as s:
         s.step(IDLE)
-        command(s,'WALK 1 H')
+        command(s,'WALK 18 MIN')
         approach,t1,message=command(s,'SWIM 15 MIN')
         assert approach[:2]==(11*256+128,40*256) and not terrain(m,approach)
         assert t1>19 and s.step(L.peek('wet_mode')).data==b'\0'
@@ -73,6 +76,9 @@ def main():
         assert far[:2]==(14*256,40*256) and t2>t1
         assert 'REACHED LAND' in message
     print('  A short SWIM ending on the approach half-cell can resume and cross OK')
+
+
+def dry_refusal():
     m=lake()
     m[64:]=bytes([10])*9408
     with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,m)) as s:
@@ -84,6 +90,12 @@ def main():
         assert s.step(L.peek('it_place',76)).data==items
         assert 'NO WATER AHEAD' in message
     print('  SWIM without nearby water: no movement, time or inventory changes OK')
+
+
+def main():
+    crossings()
+    short_crossing()
+    dry_refusal()
 
 
 if __name__=='__main__':

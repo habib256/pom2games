@@ -99,31 +99,16 @@ num:     .res 2                 ; print_u16 value
 start:
         APPLE2_PREAMBLE
         jsr     apple2_zp_save
-        lda     M_STARTX
-        sta     px
-        lda     M_STARTX+1
-        sta     px+1
-        lda     M_STARTY
-        sta     py
-        lda     M_STARTY+1
-        sta     py+1
-        lda     M_HEAD
-        sta     heading
-        lda     M_HEAD+1
-        sta     heading+1
-        jsr     project_init
-        jsr     hgr_init_clear
-        lda     MIXSET
-        lda     #20
-        sta     WNDTOP
-        jsr     HOME
+        jsr     native_video
         jmp     game_start
 
+.segment "LOWCODE"
 quit:   lda     #0
         sta     WNDTOP
         jmp     apple2_exit
 
 ; view_full -- draw the whole view from (px, py) toward heading
+.segment "TEXT"
 view_full:
         lda     #0
         sta     col
@@ -131,6 +116,7 @@ view_full:
         sta     c1
         jmp     render
 
+.segment "CODE"
 ; view_turn -- X = 0: -35, 1: +35, 2: -70, 3: +70 azimuth units (22.5 / 45
 ; deg). A column only depends on its absolute azimuth: 35 columns are 70
 ; pixels, exactly 10 bytes, so the view scrolls and only the new columns are
@@ -939,18 +925,6 @@ grid_hi:
 .segment "LOWCACHE"
 row_n0: .res 256
 .segment "LOWCODE"
-project_init:
-        ldx     #0
-@row:   txa
-        and     #15
-        cmp     #1
-        lda     row_p0,x
-        eor     #255
-        adc     #191            ; modulo 256: 190 - row_p0 + fractional carry
-        sta     row_n0,x
-        inx
-        bne     @row
-        rts
 
 ; span_rows: one 8-byte block per HGR row: lda row,y / ora fs / sta row,y
 span_rows:
@@ -1001,7 +975,10 @@ span_hi = *-HUD_ROWS
         .include "sprites.s"
         .include "hud.s"
         .include "print.asm"
+        .include "transitions.s"
+        .define wait_key keyboard_wait
         .include "kbd.asm"
+        .undefine wait_key
         .include "hgr.asm"
         .include "exit.asm"
         .include "dos.asm"
