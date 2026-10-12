@@ -276,12 +276,13 @@ forest_project_base:
         lda     qhi
         rol
         sta     forest_proj+1
-        clc
+        ; abs(dz) <= 127 and distance >= 1: doubling cannot carry out.
         lda     forest_proj
         adc     qlo
         sta     forest_proj
         lda     forest_proj+1
         adc     qhi
+        bcs     @outside        ; reject 3*q overflow before it wraps near zero
         sta     forest_proj+1
         ldx     #4
 @shift: lsr     forest_proj+1
@@ -307,7 +308,7 @@ forest_project_base:
         lda     #0
         adc     #0
         sta     forest_base+1
-        clc
+        ; A is 0 or 1, so ADC already cleared carry.
         rts
 @outside:
         sec

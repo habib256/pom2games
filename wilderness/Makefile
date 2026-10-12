@@ -23,6 +23,7 @@ LEVEL ?= 4
 all: $(DISK)
 
 $(BUILD)/wild.o: src/medical.s src/hazards.s src/care.s
+$(BUILD)/wild.o: src/clock.inc
 
 $(BUILD)/tables.inc $(BUILD)/rowtab.inc: tools/gentables.py
 	@mkdir -p $(@D)
@@ -90,6 +91,8 @@ $(DISK): $(BIN) $(MAPBIN) $(BUILD)/boot.bin $(SPRITE_BINS) $(DOS33_DEPS) tools/b
 test: all $(A2SHOT)
 	$(PYTHON) tests/test_boot.py
 	$(PYTHON) tests/test_input.py
+	$(PYTHON) tests/test_sleep.py
+	$(PYTHON) tests/test_clock.py
 	$(PYTHON) tests/test_feedback.py
 	$(PYTHON) tests/test_mapgen.py
 	$(PYTHON) tests/test_forest.py
@@ -115,6 +118,7 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_items.py
 	$(PYTHON) tests/test_load.py
 	$(PYTHON) tests/test_overlays.py
+	$(PYTHON) tests/test_memory_cache.py
 	$(PYTHON) tests/test_thermal.py
 	$(PYTHON) tests/test_medical.py
 	$(PYTHON) tests/test_care.py

@@ -58,7 +58,9 @@ def text_screen(mem40x24):
     lines = []
     for r in range(24):
         o = (r % 8) * 128 + (r // 8) * 40
-        lines.append(bytes(c & 0x7F for c in mem40x24[o:o + 40]).decode('latin1'))
+        # Inverse uppercase letters occupy $00..$1F on the Apple II.
+        chars=[c & 0x7F for c in mem40x24[o:o + 40]]
+        lines.append(bytes(c+0x40 if c<0x20 else c for c in chars).decode('latin1'))
     return lines
 
 

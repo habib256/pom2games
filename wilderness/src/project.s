@@ -384,6 +384,7 @@ project_ground:
         lda     qhi
         adc     proj_q+1
         sta     qhi
+        bcs     @reject         ; 3*q overflow would bring a hidden site onscreen
         lda     proj_dz
         bpl     @shift
         clc

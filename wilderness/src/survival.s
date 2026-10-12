@@ -4,6 +4,11 @@
 .segment "ENVIRON"
 
 module_survival_clock:
+        lda     act
+        cmp     #1
+        beq     :+
+        jsr     fauna_age       ; travel ages animals in module_fauna instead
+:
         clc
         lda     health_minutes
         adc     scene_minutes

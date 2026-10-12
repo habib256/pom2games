@@ -116,7 +116,10 @@ ui_monitor:
         lda     ui_pending
         beq     @event
         cmp     #9
-        bcc     @next
+        bcs     @event
+        adc     #8              ; carry clear: pending warning's recovery ID
+        cmp     ui_changed
+        bne     @next           ; keep warnings from other classes
 @event: lda     ui_changed
         sta     ui_pending
         inc     ui_events

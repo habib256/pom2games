@@ -284,22 +284,26 @@ sky_lunar:
 @next:  inc     sky_field
         jmp     @field
 
-sky_lat: .res 5
-sky_sinlat: .res 5
-sky_coslat: .res 5
-sky_sindec: .res 5
-sky_cosdec: .res 5
-sky_hour: .res 5
-sky_meridian: .res 5
-sky_east: .res 5
-sky_north: .res 5
-sky_up: .res 5
-sky_ra: .res 5
-sky_fraction: .res 5
-sky_day: .res 5
-sky_sample: .byte 0
-sky_first: .byte 0
-sky_field: .byte 0
+; These values live only inside sky_position/sky_lunar, which never BLOAD.
+; DOS has already restored its text backup before either routine starts.
+; Reuse that buffer rather than storing temporary floats in the SIM image.
+sky_lat      = overlay_text
+sky_sinlat   = sky_lat+5
+sky_coslat   = sky_sinlat+5
+sky_sindec   = sky_coslat+5
+sky_cosdec   = sky_sindec+5
+sky_hour     = sky_cosdec+5
+sky_meridian = sky_hour+5
+sky_east     = sky_meridian+5
+sky_north    = sky_east+5
+sky_up       = sky_north+5
+sky_ra       = sky_up+5
+sky_fraction = sky_ra+5
+sky_day      = sky_fraction+5
+sky_sample   = sky_day+5
+sky_first    = sky_sample+1
+sky_field    = sky_first+1
+.assert sky_field < overlay_text+160, error, "Sky scratch exceeds DOS text buffer"
 sky_pi12: .byte $7F,$06,$0A,$91,$C1
 sky_48: .byte $86,$40,0,0,0
 sky_5half: .byte $83,$30,0,0,0

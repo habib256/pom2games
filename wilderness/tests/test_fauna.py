@@ -8,7 +8,29 @@ from fauna_cases import cases
 import scene_ref
 
 
+def stationary_lifetime():
+    from test_input import command
+    with a2test.Session(DISK) as s:
+        s.step(L.until('idle',20000))
+        s.step(L.poke('nature_frequency',100))
+        s.step(L.poke('animal_kind',6))
+        s.step(L.poke('animal_age',0))
+        for axis in ('x','y'):
+            s.step(L.poke('animal_'+axis,s.step(L.peek('p'+axis,1,1)).data[0]))
+        rng=s.step(L.peek('fauna_rng')).data
+        for text,age,kind in (('WAIT 29 MIN',29,6),('EAT CHEESE 1 OZ',45,6),
+                              ('SLEEP 14 MIN',59,6),('REST 1 MIN',59,0)):
+            command(s,text)
+            assert s.step(L.peek('animal_kind')).data==bytes((kind,)),text
+            assert s.step(L.peek('animal_age')).data==bytes((age,)),text
+            assert s.step(L.peek('fauna_rng')).data==rng, 'stationary activity drew an encounter'
+        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-60)<1e-6
+        assert s.step(L.peek('fauna_alert')).data==b'\0'
+    print('  WAIT, meal and sleep age an existing encounter; expiry at exactly 60 minutes; no wildlife draws OK')
+
+
 def main():
+    stationary_lifetime()
     idle = L.until('idle',20000)
     done = f'until:{L["idle"]+3:04X}:6000'
     steps = [idle] + call(['env_day']) + [done,idle]

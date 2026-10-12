@@ -16,6 +16,10 @@ module_site:
 @enter: lda     noun
         cmp     #137             ; SHELTER, not manufactured HUT (95)
         bne     @specific
+        lda     tree_in
+        beq     :+
+        jmp     do_tree          ; tail-call resident loader before replacing SITES
+:
         lda     shelter_inside
         bne     @already
         lda     MAP+16
@@ -461,7 +465,11 @@ topo_cell:
         lda     topo_height
         clc
         adc     M_BASE
-        cmp     #110
+        ldx     MAP+27
+        bne     :+
+        ldx     #110            ; legacy/default timberline, like the renderer
+:       stx     num
+        cmp     num
         lda     #'T'
         bcc     @tree
         lda     #'t'

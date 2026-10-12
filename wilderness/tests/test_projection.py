@@ -77,6 +77,16 @@ def main():
         height[64+20*112+20]=level
         height[21]=max(10,level)+1
         cases(height,[p],f'site ground level {level}')
+    # A nearby cabin below a steep cliff must not wrap back into the view.
+    # Include the exact 3*q overflow boundary and the maximum map height.
+    for level in (80,81,82,83,84,85,86,87,125):
+        cliff=bytearray(m)
+        cliff[64:]=bytes([level])*9408
+        cliff[64+20*112+20]=0
+        cliff[21]=min(127,level+1)
+        positions=[(19*256+250,20*256+128,head) for head in (105,140,175)]
+        assert all(scene_ref.select(cliff,*position) is None for position in positions)
+        cases(cliff,positions,f'cabin below cliff level {level}')
     transitions(m)
     walking()
     print('Distant sites: OK')

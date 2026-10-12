@@ -1,5 +1,5 @@
 ; Tree actions and hung backpack from native $5156 and T12/S08.
-.segment "TREE"
+.segment "LOWCODE"
 module_tree_look:
         lda     noun
         cmp     #152            ; L
@@ -45,6 +45,7 @@ module_tree_look:
         jmp     message
 
 ; Placement 5 stores the pack and its contents at the pack's ground anchor.
+.segment "TREE"
 module_tree_command:
         lda     verb
         cmp     #V_CLIMB
@@ -274,7 +275,7 @@ tree_saved_places: .res 76
 tree_up_msg: .byte "IN A TREE. CLIMB DOWN TO MOVE.",0
 tree_down_msg: .byte "BACK ON THE GROUND.",0
 tree_poor_msg: .byte "YOUR PHYSICAL CONDITION IS TOO POOR.",0
-tree_trapped_msg: .byte "YOU ARE IN A TREE! CLIMB DOWN FIRST.",0
+tree_trapped_msg: .byte "YOU ARE IN A TREE. CLIMB DOWN FIRST.",0
 tree_missing_msg: .byte "YOU ARE NOT NEAR A TREE.",0
 tree_hang_msg: .byte "HANGING YOUR BACKPACK AND ITS FOOD.",0
 tree_lower_msg: .byte "BACKPACK AND CONTENTS RECOVERED.",0

@@ -32,6 +32,8 @@ summary_refresh:
 
 .segment "SUMMARY"
 module_summary:
+        lda     #0
+        sta     summary_inverse
         ; Clear only the side panels, never the compass or command/results.
         ldx     #15
 @clear: lda     hgr_lo,x
@@ -65,18 +67,7 @@ module_summary:
         ldx     #54
         jsr     have
         bcc     @period
-        fld     s_hour
-        jsr     AYINT
-        lda     $A1
-        sta     summary_hour
-        tay
-        lda     #0
-        jsr     GIVAYF
-        fop     FSUB, s_hour
-        fop     FMULT, f_60
-        jsr     AYINT
-        lda     $A1
-        sta     summary_minute
+        display_clock summary_hour, summary_minute
         lda     summary_hour
         jsr     pdec
         jsr     puts
@@ -105,9 +96,15 @@ module_summary:
         fop     FADD, f_half
         jsr     AYINT
         lda     $A1
+        cmp     #40
+        bcs     :+
+        inc     summary_inverse ; poor health stays visible after its first alert
+:
         jsr     pdec
         jsr     puts
         .byte "%",0
+        lda     #0
+        sta     summary_inverse
         lda     #8
         sta     summary_y
         lda     #0
@@ -117,6 +114,7 @@ module_summary:
         fld     s_eat
         jsr     summary_gauge
         lda     #0
+        sta     summary_inverse
         sta     summary_y
         lda     #27
         sta     summary_col
@@ -126,15 +124,26 @@ module_summary:
         .byte "THIRST ",0
         fld     s_drink
         jsr     summary_gauge
+        lda     #0
+        sta     summary_inverse
         lda     #8
         sta     summary_y
         lda     #27
         sta     summary_col
         lda     ui_pending
         beq     @thermal
+        cmp     #7
+        bcs     :+
+        inc     summary_inverse
+:
         cmp     #6
         bne     @alert_table
 @ill:   lda     ui_previous+5
+        bne     :+
+        lda     #14             ; condition cleared before pending alert shown
+        bne     @alert_table
+:
+        inc     summary_inverse
         and     #1
         beq     @starvation
         jsr     puts
@@ -153,6 +162,11 @@ module_summary:
         jmp     @alert_done
 @alert_table:
         tax
+        cpx     #9
+        bcc     :+
+        lda     #0              ; recoveries remain plain text
+        sta     summary_inverse
+:
         lda     summary_alert_lo-1,x
         pha
         lda     summary_alert_hi-1,x
@@ -169,6 +183,7 @@ module_summary:
         jmp     @ill
 @body:  lda     ui_previous+3
         beq     @wet
+        inc     summary_inverse
         cmp     #1
         bne     @hot
         jsr     puts
@@ -179,6 +194,7 @@ module_summary:
         jmp     @restore
 @wet:   lda     wet_mode
         beq     @shelter
+        inc     summary_inverse
         cmp     #2
         bne     @damp
         jsr     puts
@@ -210,7 +226,18 @@ module_summary:
         jsr     puts
         .byte "ENTER SHELTER",0
         jmp     @restore
-@items: lda     thermal_mode
+@items:
+        lda     it_place+21
+        cmp     #5
+        bne     @temperature
+        ldx     #21
+        jsr     at_ground
+        bcc     @temperature
+        jsr     puts
+        .byte "LOWER FOOD",0
+        jmp     @restore
+@temperature:
+        lda     thermal_mode
         beq     @scan
         cmp     #1
         bne     @shiver
@@ -226,9 +253,15 @@ module_summary:
         beq     @next
         jsr     at_ground
         bcc     @next
+        cpx     #N_WATER
+        bcc     @gear
+        cpx     #38
+        bcs     @gear
         lda     it_gnd_lo,x
         ora     it_gnd_hi,x
         bne     @found
+        beq     @next           ; exhausted ground provisions are not objects
+@gear:
         lda     it_place,x
         beq     @found
 @next:  dex
@@ -237,8 +270,15 @@ module_summary:
 @found: jsr     puts
         .byte "ITEMS: INV",0
         jmp     @restore
-@normal: jsr    puts
-        .byte "BODY NORMAL",0
+@normal:
+        lda     night
+        beq     @map_hint
+        jsr     puts
+        .byte "REST / HELP",0
+        jmp     @restore
+@map_hint:
+        jsr     puts
+        .byte "TOPO / HELP",0
 @restore:
         lda     summary_vector
         sta     $36
@@ -258,7 +298,8 @@ summary_gauge:
 @some:  jsr     puts
         .byte "SO-SO",0
         rts
-@very:  jsr     puts
+@very:  inc     summary_inverse
+        jsr     puts
         .byte "VERY",0
         rts
 
@@ -314,6 +355,10 @@ summary_output:
         sta     hp+1
         ldy     summary_row
         lda     (gp1),y
+        ldy     summary_inverse
+        beq     :+
+        eor     #127            ; black letters on a solid white warning strip
+:
         ldy     summary_col
         sta     (hp),y
         inc     summary_row
@@ -335,6 +380,7 @@ summary_hour: .byte 0
 summary_minute: .byte 0
 summary_char: .byte 0
 summary_row: .byte 0
+summary_inverse: .byte 0
 summary_periods: .byte "NIGHTDAWN AM   PM   DUSK "
 summary_alert_lo: .byte <ui_hunger_worse,<ui_thirst_worse,<ui_health_worse,<ui_body_worse,<ui_immersed,<ui_condition,<ui_condition,<ui_condition,<ui_hunger_better,<ui_thirst_better,<ui_health_better,<ui_body_better,<ui_out_water,<ui_recovered
 summary_alert_hi: .byte >ui_hunger_worse,>ui_thirst_worse,>ui_health_worse,>ui_body_worse,>ui_immersed,>ui_condition,>ui_condition,>ui_condition,>ui_hunger_better,>ui_thirst_better,>ui_health_better,>ui_body_better,>ui_out_water,>ui_recovered

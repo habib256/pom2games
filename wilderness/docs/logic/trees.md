@@ -35,6 +35,7 @@ LOOK. Seuls `tree_in` et le placement antérieur du sac restent résidents.
 Un arbre est accessible sur la case boisée sèche sous la limite forestière,
 hors cabane. La couverture forestière existante fournit cette proximité ;
 elle ne distingue pas les troncs individuels à l’intérieur d’une case.
+ENTER SHELTER exige de descendre de l'arbre avant d'entrer dans la cabane.
 
 Le placement 5 (`HUNG`) représente le sac suspendu et chaque élément rangé
 dans le sac. Les coordonnées du sac ancrent l’ensemble à la case courante.

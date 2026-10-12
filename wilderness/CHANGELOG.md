@@ -7,6 +7,181 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Vitesse et durée de vie des données en mémoire
+
+- 170 octets d'une table de rendu hors écran récupérés pour LOOK résident
+  et les raccourcis d'écran, avec conservation des pixels. VIEW ne recharge
+  plus le vocabulaire et le sprite : 12,47 → 6,20 secondes. LOOK R passe
+  de 10,43 à 8,28 ; STATUS au départ de 12,27 à 3,76.
+- Temporaires astronomiques réutilisant 68 octets du tampon DOS en dehors
+  des chargements ; sorties du ciel toujours résidentes. Cache d'isolation
+  de cinq octets, invalidé par les vêtements portés ou le mode d'humidité.
+- Mesures reproductibles en cycles et lectures avec profile_actions.py,
+  comparaison des états et pixels avant/après, 76 transitions thermiques
+  et tests de conservation à travers les chargements.
+- L'Apple II+ 48 Ko reste la cible ; les routines flottantes et les arrondis
+  de la simulation sont conservés. Le sommeil reste proche de 26,4 secondes.
+
+### Bandeau de survie et accès direct aux écrans
+
+- Alertes de danger, faim/soif VERY et santé sous 40 % en vidéo inverse ;
+  améliorations en texte normal pour distinguer leur importance sans couleur.
+- Indications TOPO/HELP de jour, REST/HELP la nuit et LOWER FOOD près du sac
+  suspendu, après les dangers et les indications d'abri ou d'arbre.
+- Raccourcis affichés pour passer directement entre HELP, INVENTORY,
+  STATUS et TOPO. Navigation de STATUS fixée aux deux dernières lignes.
+- Vérification des pixels d'alerte et des neuf transitions directes,
+  avec conservation du temps, des réserves et de l'image visible.
+
+### Aide et inventaire plus lisibles
+
+- HELP affiche deux pages, déplacements et survie, avec exemples de commandes,
+  unités et touches de navigation. Les touches 1/2 sélectionnent une page,
+  N/Espace et B changent de page, Échap/Entrée réaffichent le paysage.
+- Titres d'aide et groupe d'inventaire en vidéo inverse ; nombre d'objets,
+  capacités FREE et commandes de pagination affichés explicitement.
+- Consultation vérifiée au clavier, sans avancer le temps ni modifier
+  les réserves, la santé ou le paysage.
+
+### Alertes rétablies avant affichage
+
+- Une amélioration remplace désormais l'alerte d'aggravation encore en
+  attente pour la même catégorie, au lieu d'afficher un avertissement périmé.
+- Régressions pour faim, soif, santé, température et immersion ; les alertes
+  encore actives d'autres catégories gardent leur priorité. Le classement
+  reste sans effet sur la simulation.
+
+### Résultat des commandes d'attente
+
+- WAIT et PAUSE annoncent « YOU WAITED » en heures ou minutes, au lieu de
+  « YOU RESTED » ; leur absence de crédit de repos est conservée.
+- Régressions sur les deux unités, les effets identiques de WAIT/PAUSE,
+  le crédit distinct de REST et l'annulation d'une durée nulle.
+- Réorganisation des textes en mémoire sans lecture disque supplémentaire
+  pour le sommeil ; ses cinq lectures et son état final restent vérifiés.
+
+### Limite des forêts dans les écrans d'information
+
+- TOPO et STATUS utilisent la limite d'altitude des arbres de la carte,
+  comme la vue 3D et CLIMB TREE, au lieu d'une constante de 11 000 pieds.
+- La valeur zéro conserve la limite historique de 11 000 pieds.
+  Régressions sous la limite et exactement à celle-ci, pour trois limites,
+  en vérifiant les symboles T/t, WOODS/SCRUB et l'accès aux arbres.
+
+### Valeur directe de NATURE
+
+- `NATURE 0` désactive désormais les nouvelles rencontres, comme la valeur
+  zéro saisie à l'invite ; la commande directe était refusée par la liste
+  des actions numériques et conservait la fréquence précédente.
+- Valeurs 0–100, espaces et saisie à l'invite vérifiés. Les nombres hors
+  limites, décimales et unités sont refusés sans changer l'état du joueur,
+  la fréquence, le paysage ou le hasard.
+
+### Objets au sol dans le bandeau
+
+- « ITEMS: INV » disparaît après récupération du dernier objet ou
+  consommation de la dernière réserve au sol, comme dans l'inventaire.
+- Le résumé ne prend plus les compteurs de corde et d'autres équipements
+  pour des réserves au sol ; les aliments épuisés ne comptent plus non plus.
+- Régressions par commandes réelles sur corde, hache, œufs et eau.
+
+### Projection des sites au pied des falaises
+
+- Une cabane très en dessous de la vue ne réapparaît plus à l'écran
+  lorsque le calcul de sa hauteur dépasse 16 bits.
+- Régression sur neuf hauteurs de falaise et trois orientations, comparées
+  pixel par pixel au modèle de projection indépendant.
+
+### Durée des rencontres pendant les actions immobiles
+
+- Les rencontres déjà présentes vieillissent aussi pendant WAIT, les
+  repas et le sommeil ; elles expirent à 60 minutes, même sans déplacement.
+- Aucun nouveau tirage de faune pendant ces actions. Régression sur une
+  attente, un repas et deux repos, avec présence à 59 minutes, disparition
+  à 60 minutes et générateur de hasard inchangé.
+- NATURE rejoint le module de saisie ; cela libère la place nécessaire
+  dans le module de simulation et évite son chargement pour ce réglage.
+
+### Alertes après une boisson
+
+- DRINK actualise immédiatement l'état de soif et de déshydratation utilisé
+  par le bandeau, sans attendre une action qui avance le temps.
+- Une déshydratation effacée par la boisson ne reste plus affichée ; tests
+  de guérison, d'amélioration de la soif et de déshydratation persistante,
+  avec stocks débités une seule fois et heure/santé conservées.
+
+### Retour entre groupes de l'inventaire
+
+- Depuis la première page d'un groupe, B revient à la dernière page du
+  groupe précédent, au lieu de sauter directement à sa première page.
+- Régression sur le passage sac → sol → retour au sac, avec deux pages
+  d'objets dans chaque groupe ; heure et stocks conservés.
+
+### Alerte de maladie devenue périmée
+
+- Une maladie disparue avant le rafraîchissement du bandeau affiche
+  « ILL IMPROVED », au lieu de provoquer une fausse alerte « EXHAUSTION ».
+- Régressions sur les trois guérisons, une déshydratation persistante et
+  les remplacements de maladie entre deux affichages.
+
+### Minute de l'horloge
+
+- Le bandeau et STATUS arrondissent le total des minutes avant d'extraire
+  heure/minute : WALK 19 MIN depuis 7 h affiche désormais 7:19, au lieu
+  de 7:18 quand le flottant est légèrement inférieur à la minute entière.
+- Retenues vers l'heure suivante, midi et minuit gérées ensemble, sans
+  modifier le temps simulé. Régression sur une marche réelle et sept
+  valeurs proches des limites de minute et d'heure.
+- Minuit s'affiche 12:00A dans STATUS ; le format 12 heures affichait
+  auparavant 0:00A à cause du drapeau zéro laissé par la comparaison à 12.
+
+### Fin exacte de la durée de voyage
+
+- Après le dernier pas demandé, WALK/SWIM s'arrêtent sans tester un pas
+  supplémentaire. Le résultat indique la fin de la durée plutôt qu'un
+  obstacle (eau, falaise ou bord de carte) situé au-delà du voyage terminé.
+- Les interruptions du pas accompli (animal, nuit, rive, décès, arrivée)
+  conservent leur priorité. Régressions sur trois obstacles après exactement
+  19 minutes, sur une fin de nage au bord de carte, sur l'eau rencontrée
+  avec une minute restante et sur animal/nuit au dernier pas demandé.
+
+### Arguments numériques des médicaments
+
+- `EAT FLAGYL 0 OZ` ne consomme plus une dose malgré la quantité nulle.
+  Les médicaments refusent désormais les nombres et unités ajoutés à
+  EAT/DRINK, au lieu de les ignorer et d'appliquer une dose unique.
+- Le refus conserve stocks, heure et état médical ; il explique de retirer
+  le nombre et l'unité. Une prise normale reste disponible après le refus.
+
+### Chasse aux bugs : saisie et lancement des tests
+
+- Les commandes numériques acceptent les espaces en tête comme l'analyse
+  ordinaire : `  SLEEP 1 MIN` ne produit plus un refus de valeur invalide.
+  Régressions sur repos, marche trop courte et DRINK WATER qualifié.
+- `make test` reconstruit a2shot avec son Makefile et ses chemins SDK,
+  au lieu d'utiliser la règle C++ implicite qui échouait sur `pom2/core.hpp`.
+
+### Attente réduite pendant SLEEP
+
+- Suppression du détour par le vocabulaire et du rechargement de l'analyse
+  numérique pour les commandes de repos avec durée, ainsi que SLEEP seul.
+- Sommeil de huit heures sur la scène initiale : 32,1 → 26,8 secondes à
+  1,023 MHz, avec cinq lectures de disquette au lieu de sept.
+- Santé, météo et durée simulée conservées ; comparaison de l'état et du
+  paysage avec REST, et vérification des six verbes de repos et d'attente.
+
+### Corrections sur falaises et entrée dans la cabane
+
+- Rejet du débordement du quotient de pente multiplié par trois : les
+  arbres situés très bas sous une falaise ne réapparaissent plus dans le ciel.
+- ENTER SHELTER refuse l'entrée depuis un arbre ; il faut CLIMB DOWN avant
+  d'entrer dans la cabane. Le refus conserve heure, position et inventaire.
+- Message de refus dans l'arbre corrigé : son point d'exclamation était
+  interprété comme une substitution du motif d'arrêt de voyage. Même
+  correction pour le rapport de victoire sans déplacement.
+- Régressions sur cinq falaises ascendantes/descendantes et sur la chaîne
+  grimper → entrée refusée → descendre → entrer → sortir.
+
 ### Doses et gestes de soin
 
 - Décompte signé des utilisations des produits médicaux, sans débordement

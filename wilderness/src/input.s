@@ -1,6 +1,23 @@
 ; Neowilderness input: no simulation changes until syntax and units pass.
 .segment "INPUT"
 module_input_command:
+        ; The vocabulary ignores leading spaces. Numeric commands and QUIT
+        ; must do the same before checking their first word.
+        ldx     #0
+        jsr     input_spaces
+        txa
+        beq     :+
+        tay
+        ldx     #0
+@shift: lda     inbuf,y
+        sta     inbuf,x
+        beq     @shifted
+        iny
+        inx
+        bne     @shift
+@shifted:
+        stx     linelen
+:
         ldx     #0
 @quit:  lda     inbuf,x
         cmp     input_quit_word,x
@@ -46,6 +63,8 @@ module_input_command:
         sta     inbuf,x
         inc     input_argument
 @ordinary:
+        jmp     input_rest_command
+input_ordinary:
         clc
         rts
 input_bad_command:
@@ -65,6 +84,48 @@ input_quit:
         cmp     #'Y'
         jne     input_cancel
         jmp     quit
+
+; Exact, unqualified rest verbs can dispatch while INPUT is already present.
+; Drop module_input_command's return address before entering resident code:
+; SLEEP loads SIM/MEDICAL, which replace this overlay before it returns.
+input_rest_command:
+        ldx     #0
+@entry: stx     input_pos
+        lda     input_rest_words,x
+        beq     input_ordinary
+        sta     g2
+        ldy     #0
+@word:  inx
+        lda     input_rest_words,x
+        cmp     inbuf,y
+        bne     @next
+        iny
+        cpy     g2
+        bcc     @word
+        lda     inbuf,y
+        bne     @next
+        lda     input_rest_words+1,x
+        sta     verb
+        lda     #0
+        sta     qual
+        sta     noun
+        sta     nounbuf
+        sta     parser_badverb
+        lda     #1
+        sta     found
+        pla
+        pla
+        jmp     do_rest
+@next:  lda     input_pos
+        clc
+        adc     g2
+        adc     #2
+        tax
+        bne     @entry
+
+input_rest_words:
+        .byte 4,"REST",V_REST,5,"SLEEP",V_REST,4,"CAMP",V_CAMP
+        .byte 8,"EXERCISE",V_EXER,4,"WAIT",V_WAIT,5,"PAUSE",V_WAIT,0
 
 ; Only supported numeric verbs may take an inline argument.
 input_allowed:
@@ -362,7 +423,7 @@ input_digit: .byte 0
 input_verbs:
         .byte 4,"WALK",2,"GO",3,"RUN",4,"MOVE",5,"CRAWL",4,"SWIM"
         .byte 4,"REST",5,"SLEEP",4,"CAMP",8,"EXERCISE",4,"WAIT",5,"PAUSE"
-        .byte 3,"EAT",5,"DRINK",0
+        .byte 3,"EAT",5,"DRINK",6,"NATURE",0
 input_cancelled: .byte "ACTION CANCELLED.",0
 input_invalid_message: .byte "INVALID VALUE OR UNIT.|HOURS 1-255, MINUTES 1-15300,|OUNCES 1-255. ESC CANCELS.",0
 input_quit_message: .byte "QUIT? UNSAVED PROGRESS WILL BE LOST.|Y: QUIT   N/RETURN/ESC: CANCEL",0

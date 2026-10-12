@@ -413,10 +413,12 @@ prompt: lda     #CMD_ROW
         lda     #' '|$80
         jmp     COUT
 
+.segment "CODE"
 vtab:   sta     CV
         lda     #0
         sta     CH
         jmp     VTAB
+.segment "GCODE"
 
 ; Input overlay: only numeric actions and QUIT load it.
 get_duration:
@@ -439,6 +441,8 @@ number_entry:
         jsr     overlay_load
         jmp     module_number
 
+.segment "INPUT"
+; Both callers have just read a duration, so INPUT is still loaded here.
 prepare_minutes:
         lda     input_unit
         cmp     #2
@@ -470,12 +474,19 @@ load_reason_overflow: .res 1
 ; ----------------------------------------------------------------------------
 ; parser: words of inbuf against the vocabulary (lists by length)
 ; ----------------------------------------------------------------------------
-; Frequent four-letter travel/rest commands need no vocabulary disk read.
+; Exact travel/rest and screen commands need no vocabulary disk read.
 ; Qualified, longer and unknown commands retain the complete original parser.
 do_command:
         lda     #0
         sta     input_argument
         sta     travel_action
+        lda     linelen
+        cmp     #5
+        bne     :+
+        lda     inbuf
+        cmp     #'S'
+        beq     @input          ; SLEEP avoids VOCAB -> INPUT round trip
+:
         ldx     #0
 @scan:  lda     inbuf,x
         beq     @ordinary
@@ -494,50 +505,65 @@ do_command:
         bcc     @ordinary
         rts
 @ordinary:
-        lda     linelen
-        cmp     #4
-        bne     @full
         ldx     #0
 @word:  stx     g0
+        lda     fast_words,x
+        beq     @full
+        sta     g2
+        cmp     linelen
+        bne     @next
         ldy     #0
 @letter:
+        inx
         lda     fast_words,x
         cmp     inbuf,y
         bne     @next
-        inx
         iny
-        cpy     #4
-        bne     @letter
-        ldx     g0
-        txa
-        lsr
-        lsr
-        tax
-        lda     fast_verbs,x
-        sta     verb
+        cpy     g2
+        bcc     @letter
+        inx
+        lda     fast_words,x
+        pha
         lda     #0
         sta     qual
         sta     noun
         sta     nounbuf
+        sta     verb
+        sta     parser_badverb
         lda     #1
         sta     found
-        lda     verb
+        pla
+        bmi     @travel
+        sta     noun
+        sec
+        sbc     #N_TOPO
+        tax
+        lda     screen_lo,x
+        sta     gp1
+        lda     screen_hi,x
+        sta     gp1+1
+        jmp     (gp1)
+@travel:
+        and     #127
+        sta     verb
         cmp     #V_REST
         beq     @rest
         jmp     do_walk
 @rest:  jmp     do_rest
-@next:  ldx     g0
-        txa
+@next:  lda     g0
         clc
-        adc     #4
+        adc     g2
+        adc     #2
         tax
-        cpx     #12
-        bcc     @word
+        jmp     @word
 @full:  jsr     parse
         jmp     dispatch
-.segment "RODATA"
-fast_words: .byte "WALKRESTSWIM"
-fast_verbs: .byte V_WALK, V_REST, V_SWIM
+.segment "LOWTEXT"
+; High bit distinguishes a travel/rest verb from a screen noun.
+fast_words:
+        .byte 4,"WALK",V_WALK|$80,4,"REST",V_REST|$80,4,"SWIM",V_SWIM|$80
+        .byte 4,"TOPO",103,4,"VIEW",104,6,"STATUS",105
+        .byte 9,"INVENTORY",106,4,"HELP",107,0
 .segment "GCODE"
 parse:  lda     #1
         jsr     overlay_load
@@ -761,7 +787,7 @@ dispatch:
 ; ----------------------------------------------------------------------------
 .segment "GCODE"
 do_nature:
-        lda     #3
+        lda     #13
         jsr     overlay_load
         jmp     module_nature
 
@@ -779,10 +805,89 @@ scr_help:
         jmp     module_help
 .segment "SCREENS"
 module_help:
-        lda     #<m_help
-        ldx     #>m_help
-        jmp     message
-m_help:     .byte   "TOPO, WALK, SWIM, REST, EAT, DRINK,|LOOK R, ENTER SHELTER, EXIT SHELTER,|STATUS, INVENTORY, LOOK N/E/S/W.", 0
+        lda     #0
+        sta     help_page
+help_redraw:
+        jsr     text_screen
+        lda     #$3F
+        sta     $32             ; inverse title, readable on a monochrome display
+        jsr     puts
+        .byte " WILDERNESS - HELP ",0
+        lda     #$FF
+        sta     $32
+        jsr     puts
+        .byte "||",0
+        ldx     help_page
+        lda     help_lo,x
+        pha
+        lda     help_hi,x
+        tax
+        pla
+        jsr     print_str_ax
+        lda     #20
+        jsr     vtab
+        jsr     puts
+        .byte "1 TRAVEL  2 SURVIVAL|N/SPACE NEXT   B BACK|ESC/RETURN: VIEW|I INVENTORY  S STATUS  T TOPO",0
+help_key:
+        jsr     wait_key
+        cmp     #'I'
+        jeq     scr_inventory
+        cmp     #'S'
+        jeq     scr_status
+        cmp     #'T'
+        jeq     scr_topo
+        cmp     #KC_ESC
+        jeq     back_to_view_now
+        cmp     #KC_RET
+        jeq     back_to_view_now
+        cmp     #'1'
+        beq     @select
+        cmp     #'2'
+        beq     @select
+        cmp     #'N'
+        beq     @next
+        cmp     #' '
+        beq     @next
+        cmp     #'B'
+        bne     help_key
+@next: lda     help_page
+        eor     #1
+        sta     help_page
+        jmp     help_redraw
+@select:
+        sec
+        sbc     #'1'
+        sta     help_page
+        jmp     help_redraw
+help_page: .byte 0
+help_lo: .byte <help_travel,<help_survival
+help_hi: .byte >help_travel,>help_survival
+help_travel:
+        .byte "1/2  TRAVEL AND ORIENTATION",13,13
+        .byte "LOOK N/E/S/W  FACE A COMPASS POINT",13
+        .byte "LOOK L/R/B    TURN OR LOOK BEHIND",13
+        .byte "LEFT/RIGHT   TURN ON AN EMPTY LINE",13,13
+        .byte "WALK 1 H     WALK IN YOUR DIRECTION",13
+        .byte "SWIM 1 H     CROSS WATER",13
+        .byte "ESC          STOP AFTER THIS STEP",13,13
+        .byte "TOPO         MAP; ARROWS/WASD SCROLL",13
+        .byte "C            CENTER MAP ON YOU",13
+        .byte "STATUS       HEALTH; M FOR MEDICAL",13,13
+        .byte "ENTER SHELTER / EXIT SHELTER",13
+        .byte "USE THE CABIN AT ITS MAP CELL.",0
+help_survival:
+        .byte "2/2  SUPPLIES AND REST",13,13
+        .byte "DRINK WATER 4 OZ",13,"EAT CHEESE 8 OZ",13
+        .byte "REST 1 H     REST; WAIT 10 MIN WAITS",13,13
+        .byte "INVENTORY    1-5 SELECT ITEM LOCATION",13
+        .byte "GET AXE      PACK; CARRY AXE IN HAND",13
+        .byte "WEAR PARKA   WEAR; DROP AXE PUTS DOWN",13
+        .byte "USE FLAGYL   ONE MEDICAL DOSE",13,13
+        .byte "CLIMB TREE / CLIMB DOWN",13
+        .byte "HANG FOOD    HANG PACK AND CONTENTS",13
+        .byte "LOWER FOOD   RECOVER AT THE SAME TREE",13,13
+        .byte "OMIT AMOUNT TO BE ASKED. ESC CANCELS.",13
+        .byte "H = HOURS; MIN = MINUTES; OZ = OUNCES.",0
 .segment "GCODE"
 do_site:
         lda     #10
@@ -875,8 +980,6 @@ turn_view:                      ; X = view_turn kind; fixed geometry scrolls wit
 ; verbs
 ; ----------------------------------------------------------------------------
 do_look:
-        lda     #20
-        jsr     overlay_load
         jmp     module_tree_look
 do_tree:
         lda     #20
@@ -1119,6 +1222,9 @@ do_walk:
         bne     @shore
         lda     night
         bne     :+
+        lda     minutes
+        ora     minutes+1
+        beq     @stop           ; do not probe another step after the budget ends
         jmp     @cell
 :       lda     #3
         sta     travel_reason
@@ -1214,25 +1320,43 @@ do_rest:
         pla
         sta     msgnum+1
         jsr     show_view
+        jmp     rest_result
+@out:   rts
+
+.segment "TEXT"
+; Resident result printer: the scene may have replaced the shared overlay.
+rest_result:
+        lda     verb
+        cmp     #V_WAIT
+        bne     @rest
+        lda     #<m_waited
+        ldx     #>m_waited
+        ldy     input_unit
+        cpy     #2
+        bne     @fauna
+        lda     #<m_wait_minutes
+        ldx     #>m_wait_minutes
+        jmp     @fauna
+@rest:
         lda     #<m_rested
         ldx     #>m_rested
         ldy     input_unit
         cpy     #2
-        bne     :+
+        bne     @fauna
         lda     #<m_rest_minutes
         ldx     #>m_rest_minutes
-:       ldy     fauna_alert
+@fauna: ldy     fauna_alert
         beq     :+
         lda     #<m_fauna_stop
         ldx     #>m_fauna_stop
 :
         jsr     message
         jmp     report
-@out:   rts
 
 ; EAT food: ounces, from the pack first, then the ground at the item's ground cell.
 ; T12/S00 credits .8*kcal/body weight and the food's water, then spends
 ; 16 minutes at metabolic rate 2.31; see module_meal_prepare.
+.segment "GCODE"
 do_eat:
         lda     noun
         cmp     #41
@@ -1365,6 +1489,7 @@ module_drink:
         lda     #<m_drank
         ldx     #>m_drank
         jsr     message
+        jsr     ui_monitor      ; drinking changes thirst/illness without spend
         jmp     report
 @none:  jmp     no_item
 
@@ -2802,7 +2927,7 @@ sky_words: .byte "CLEARCLOUDRAIN SNOW "
 ; ----------------------------------------------------------------------------
 ; tables
 ; ----------------------------------------------------------------------------
-.segment "VOCAB"
+.segment "LOWTEXT"
 screen_lo:
         .byte   <scr_topo, <scr_view, <scr_status, <scr_inventory, <scr_help, <scr_notyet
 screen_hi:

@@ -24,7 +24,62 @@ def set16(s,name,value,offset=0):
     s.step(L.poke(name,value>>8,offset+1))
 
 
+def exact_travel_end():
+    for obstacle, start, next_cell in (('water', 10, 138),
+                                        ('cliff', 10, 60),
+                                        ('map edge', 108, 10)):
+        m = flat()
+        m[3] = start
+        m[64+40*112+start+2] = next_cell
+        with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,m)) as s:
+            s.step(IDLE)
+            s.step(L.poke('nature_frequency',0))
+            command(s,'WALK 19 MIN')
+            assert s.step(L.peek('px',2)).data == bytes((0,start+1)), obstacle
+            assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-19)<1e-5
+            assert s.step(L.peek('travel_reason')).data == b'\0', obstacle
+            actual='\n'.join(rows(s)[21:])
+            assert 'TRAVEL: 19 MINUTES.' in actual, (obstacle,actual)
+            assert 'REQUESTED TRAVEL TIME ENDED.' in actual, (obstacle,actual)
+    m = flat()
+    m[3] = 109
+    m[21] = 11
+    m[64:] = bytes([138])*9408
+    with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,m)) as s:
+        s.step(IDLE)
+        s.step(L.poke('nature_frequency',0))
+        command(s,'SWIM 28 MIN')
+        assert s.step(L.peek('px',2)).data == bytes((128,109))
+        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-28)<1e-5
+        assert s.step(L.peek('travel_reason')).data == b'\0'
+        assert 'REQUESTED TRAVEL TIME ENDED.' in '\n'.join(rows(s)[21:])
+    for flag,reason,expected in (('fauna_alert',5,'AN ANIMAL INTERRUPTS'),
+                                ('night',3,'TOO DARK TO TRAVEL')):
+        with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,flat())) as s:
+            s.step(IDLE)
+            s.step(L.poke('nature_frequency',0))
+            s.step('key:WALK 19 MIN')
+            s.step('press:\\r')
+            s.step(L.until('walk_progress',20000))
+            s.step(L.until('at_goal',6000))
+            s.step(L.poke(flag,1))
+            s.step(IDLE)
+            assert s.step(L.peek('travel_reason')).data == bytes([reason]), flag
+            assert expected in '\n'.join(rows(s)[21:]), flag
+    # If time is still available, a real obstruction must keep its own cause.
+    m = flat()
+    m[64+40*112+12] = 138
+    with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,m)) as s:
+        s.step(IDLE)
+        s.step(L.poke('nature_frequency',0))
+        command(s,'WALK 20 MIN')
+        assert s.step(L.peek('travel_reason')).data == b'\1'
+        assert 'WATER AHEAD.' in '\n'.join(rows(s)[21:])
+    print('  Exact WALK/SWIM duration: no extra obstacle probe; animal/night priority and remaining-time obstacles retained')
+
+
 def main():
+    exact_travel_end()
     with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,flat())) as s:
         s.step(IDLE)
         for text,expected in (
@@ -144,6 +199,18 @@ def main():
         assert 'TRAVEL: 19 MINUTES.' in actual and 'TOO DARK TO TRAVEL' in actual
         assert 'NOT ENOUGH LIGHT' not in actual
         print('  Night stop survives view restoration with duration and cause together OK')
+    with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,flat())) as s:
+        s.step(IDLE)
+        before=rows(s)[:20]
+        s.step(L.poke('won',1))
+        s.step(L.poke('travel_action',0))
+        for step in call(['report']): s.step(step)
+        s.step(f'until:{L["idle"]+3:04X}:6000')
+        actual=rows(s)
+        assert actual[:20]==before,'victory message scrolled the screen'
+        assert 'RANGER OUTPOST.' in actual[21] and 'YOU SURVIVED. PRESS A KEY.' in actual[22]
+        assert not actual[23].strip(),'victory message expanded a travel placeholder'
+        print('  Non-travel victory report: complete literal text, no stop-reason substitution OK')
     print('Neowilderness feedback lot 2: OK')
 
 

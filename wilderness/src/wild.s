@@ -525,6 +525,8 @@ render_nbig:  jsr     bigdiv          ; |dz| >= n: q >= 256
         cmp     #2
         bcs     render_hide           ; q >= 512: below the view
         ldx     qlo
+        cpx     #86
+        bcs     render_hide           ; truncated row_n1's former $FF suffix
         lda     row_n1,x        ; $FF below the bottom row
 render_drawchk:
         cmp     top
@@ -970,6 +972,7 @@ span_hi:
 
         .include "sky.s"
 
+        .include "clock.inc"
         .include "status.s"
         .include "summary.s"
 

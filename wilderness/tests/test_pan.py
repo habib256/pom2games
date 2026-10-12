@@ -101,8 +101,8 @@ def distant_pans(m, label, x, y, full=False, multiple=False):
         assert view_rows(page) == scene_ref.render(m, x, y, heading), (label, full, i, heading)
         current = int.from_bytes(counter, 'little')
         if not full and not multiple:
-            # LOOK loads vocabulary, TREE and the retained sprite; arrows reuse it.
-            assert current - reads == (3 if key.endswith('\\r') else 0), (label, i, current-reads)
+            # LOOK loads vocabulary and the retained sprite; arrows reuse it.
+            assert current - reads == (2 if key.endswith('\\r') else 0), (label, i, current-reads)
         reads = current
     head = int.from_bytes(result.dumps[-1], 'little')
     assert view_rows(result.dumps[-2]) == scene_ref.render(m, x, y, head), (label, 'cached heading')

@@ -57,6 +57,40 @@ def commands():
     print('Medical commands, oral medicines, doses, refusals and inventory quantities OK',flush=True)
 
 
+def numeric_refusals():
+    def snapshot(s):
+        fields = [('s_hour', L['s_t0'] + 5 - L['s_hour']),
+                  ('medical_state', L['medical_state_end'] - L['medical_state'])]
+        fields += [(name, 76) for name in
+                   ('it_place', 'it_pack_lo', 'it_pack_hi', 'it_gnd_lo', 'it_gnd_hi')]
+        return tuple(s.step(L.peek(name, size)).data for name, size in fields)
+    with a2test.Session(DISK) as s:
+        s.step(IDLE)
+        for item in (47, 48, 50):
+            s.step(L.poke('it_place', 2, item))
+            s.step(L.poke('it_pack_lo', 2, item))
+            s.step(L.poke('it_pack_hi', 0, item))
+        before = snapshot(s)
+        for command in ('EAT FLAGYL 0 OZ', 'EAT FLAGYL 1 OZ',
+                        'DRINK FLAGYL 1 H', 'EAT QUININE 30 MIN',
+                        'DRINK SALT TABLETS 255 OZ'):
+            s.step(f'key:{command}')
+            s.step('press:\\r')
+            s.step('wait:1')
+            s.step(IDLE)
+            assert snapshot(s) == before, command
+            text = '\n'.join(text_screen(s.step('peek:0400:1024').data))
+            assert 'OMIT THE NUMBER AND UNIT.' in text, (command, text)
+        # A refusal must not contaminate the next valid, unqualified dose.
+        s.step('key:EAT FLAGYL')
+        s.step('press:\\r')
+        s.step('wait:1')
+        s.step(IDLE)
+        assert s.step(L.peek('it_pack_lo', 1, 47)).data == b'\x01'
+        assert fp(s.step(L.peek('s_elap', 5)).data) == 0
+    print('Numeric medicine arguments: atomic refusal; next single dose remains usable', flush=True)
+
+
 def doses(original):
     cases=[(item,stock) for item in (41,42,44,45,46,47,48,49,50,51)
            for stock in (0,1,2,255,256,257,32767,32768,65535)]
@@ -212,6 +246,7 @@ def empty_compatibility():
 if __name__=='__main__':
     original='--original' in sys.argv
     commands()
+    numeric_refusals()
     doses(original)
     oxygen_last_dose()
     if original:

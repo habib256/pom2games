@@ -75,23 +75,29 @@ def main():
     small=[p for p in r.dumps if len(p)==1]
     assert small==[bytes([8]),bytes([0])],small
     if bad: raise SystemExit(1)
-    # An existing sighting survives REST and STATUS; REST makes no new draw.
+    # A sighting survives a short REST and STATUS, then expires at 60 minutes.
+    # REST makes no new draw, but still advances the sighting's lifetime.
     steps=[*terrain_boot(20000)]
     for n,v in [('px',x),('py',y)]:
         steps += [L.poke(n,v),L.poke(n,v>>8,1)]
     steps += [L.poke('animal_kind',8),L.poke('animal_x',x>>8),L.poke('animal_y',y>>8),
               L.poke('animal_bearing',HEAD),L.poke('animal_bearing',HEAD>>8,1),
               L.poke('fauna_rng',4),'key:REST\r','wait:1',L.until('number_idle',6000),
-              'key:1\r','wait:1',L.until('idle',20000),'peek:2000:8192',
+              'key:30 MIN\r','wait:1',L.until('idle',20000),'peek:2000:8192',
               L.peek('animal_kind'),L.peek('s_hour',5),L.peek('s_elap',5),
               'key:STATUS\r','wait:1',L.until('wait_key',6000),
-              'key: ','wait:1',L.until('idle',20000),'peek:2000:8192']
+              'key: ','wait:1',L.until('idle',20000),'peek:2000:8192',
+              'key:REST 30 MIN\r','wait:1',L.until('idle',20000),'peek:2000:8192',
+              L.peek('animal_kind'),L.peek('s_hour',5),L.peek('s_elap',5)]
     live=a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
     assert view_rows(live.dumps[0])==expected(x,y,HEAD,'rattlesnake',HEAD)
     assert live.dumps[1]==bytes([8])
-    assert abs(fp(live.dumps[2][:5])-8)<1e-6 and abs(fp(live.dumps[2][5:])-1)<1e-6
+    assert abs(fp(live.dumps[2][:5])-7.5)<1e-6 and abs(fp(live.dumps[2][5:])-.5)<1e-6
     assert hgr_rows(live.dumps[0],16)==hgr_rows(live.dumps[3],16), 'STATUS must preserve the displayed sprite and terrain cache'
-    print('  REST preserves existing sprite, clock and STATUS preserved: OK')
+    assert view_rows(live.dumps[4])==expected(x,y,HEAD)
+    assert live.dumps[5]==bytes([0])
+    assert abs(fp(live.dumps[6][:5])-8)<1e-6 and abs(fp(live.dumps[6][5:])-1)<1e-6
+    print('  short REST/STATUS preserve sprite; 60-minute lifetime expires without a new draw: OK')
     print('Original sprites: OK')
 
 if __name__=='__main__':main()

@@ -152,6 +152,16 @@ def main():
     assert page==reference(slope,5213,20*256+126,140),'below-screen canopy boundary'
     assert any((page[row*40+141//7]>>(141%7))&1 for row in range(144,160)), 'clipped crown lost its foliage'
     print('  solid trunks to ground, raised crowns and below-screen clipping: OK')
+    # 3 * the 16-bit slope quotient used to wrap on a one-step cliff,
+    # projecting a tree thousands of pixels below us back into the sky.
+    for camera,ground in ((125,38),(125,39),(125,41),(0,88),(0,90)):
+        cliff=map_fixture(ground)
+        cliff[10]=0
+        cliff[4]=126
+        cliff[64+20*112+20]=camera
+        page=view_rows(frames(cliff).dumps[0])
+        assert page==reference(cliff,5213,20*256+126,140),('extreme woodland slope',camera,ground)
+    print('  extreme uphill/downhill cliffs: no wrapped or floating trees OK')
     for name,case in [('water',map_fixture(wet=True)),('treeline',map_fixture(86)),('legacy',map_fixture()[:MAP_BYTES])]:
         page=view_rows(frames(case).dumps[0])
         assert page==view_ref.render(case,20*256+93,20*256+173,140),name

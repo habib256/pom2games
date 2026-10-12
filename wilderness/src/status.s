@@ -256,23 +256,13 @@ module_status:
         ldx     #54             ; WATCH
         jsr     have
         bcc     @noclock
-        fld     s_hour          ; h:mm A/P
-        jsr     AYINT
-        lda     $A1
-        sta     g1              ; hour 0..23
-        ldy     $A1
-        lda     #0
-        jsr     GIVAYF
-        fop     FSUB, s_hour    ; fraction
-        fop     FMULT, f_60
-        jsr     AYINT
-        lda     $A1
-        sta     g0              ; minutes
+        display_clock g1, g0    ; h:mm A/P
         lda     g1
         cmp     #12
         bcc     :+
         sbc     #12
-:       bne     :+
+:       cmp     #0              ; CMP #12 left Z clear for midnight's hour zero
+        bne     :+
         lda     #12
 :       jsr     pdec
         lda     #':'|$80
@@ -409,8 +399,12 @@ module_status:
         bcc     @bare
         clc
         adc     M_BASE
+        ldx     MAP+27
+        bne     :+
+        ldx     #110            ; same timberline as forest drawing and climbing
+:       stx     g1
+        cmp     g1
         ldx     #2              ; woodland, then alpine scrub above treeline
-        cmp     #110
         bcc     @ground_word
         inx
         bne     @ground_word
@@ -424,10 +418,18 @@ module_status:
         sta     gp2+1
         lda     #5
         jsr     word
+        lda     #22
+        jsr     vtab
         jsr     puts
-        .byte "||M MEDICAL  ESC/RETURN/SPACE: VIEW",0
+        .byte "M MEDICAL I INV T TOPO H HELP|ESC/RETURN/SPACE: VIEW",0
 status_key:
 @key:   jsr     wait_key
+        cmp     #'I'
+        jeq     scr_inventory
+        cmp     #'T'
+        jeq     scr_topo
+        cmp     #'H'
+        jeq     scr_help
         cmp     #'M'
         jeq     scr_medical
         cmp     #KC_ESC
@@ -571,9 +573,7 @@ status_stock_oz:
         sta     num+1
         rts
 @ground:
-        stx     status_stock_item
-        jsr     at_ground
-        ldx     status_stock_item
+        jsr     at_ground       ; preserves X; no separate saved item needed
         bcc     @done
         clc
         lda     num
@@ -584,10 +584,14 @@ status_stock_oz:
         sta     num+1
 @done:  rts
 status_stock_kind: .byte 0
-status_stock_item: .byte 0
 
 .segment "STATUS"
 goal_pct:
+        lda     s_elap          ; initial GOAL is 100: no simulation disk read
+        bne     :+
+        lda     #100
+        rts
+:
         lda     #3
         jsr     overlay_load
         jmp     module_goal_pct
