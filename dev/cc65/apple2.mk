@@ -65,4 +65,7 @@ distclean: clean
 $(A2RUN): $(wildcard $(DEV)/tools/a2run/*.[ch] $(DEV)/tools/a2run/Makefile)
 	$(MAKE) -C $(DEV)/tools/a2run
 
+$(A2SHOT): $(DEV)/tools/a2shot/a2shot.cpp $(DEV)/tools/a2shot/Makefile
+	$(MAKE) -C $(DEV)/tools/a2shot
+
 .PHONY: all run clean distclean

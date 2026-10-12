@@ -42,10 +42,10 @@ def main():
     check('BLOAD preserves the HGR image', r.mem(0x2000, 8192) == r.mem(0x2000, 8192, 1))
     current = [r.mem(L['overlay_current'], 1, k)[0] for k in range(7)]
     reads = [int.from_bytes(r.mem(L['overlay_reads'], 2, k), 'little') for k in range(7)]
-    check('parser, tree LOOK and screens select their own overlays', current == [15, 20, 20, 16, 15, 15, 2])
+    check('resident LOOK and screen shortcuts avoid redundant overlays', current == [15, 1, 1, 16, 15, 15, 2])
     print(f'  cumulative overlay reads: {reads}')
     check('module reads stay bounded across LOOK, STATUS, transfers and REST',
-          reads == [3, 5, 7, 10, 15, 19, 22])
+          reads == [3, 4, 4, 5, 9, 13, 15])
     check('clock remains correct through module swaps',
           abs(fp(r.mem(L['s_hour'], 5)) - 10) < 1e-6
           and abs(fp(r.mem(L['s_elap'], 5)) - 3) < 1e-6)

@@ -149,17 +149,16 @@ def main():
     check('water in a carried canteen does not occupy the backpack',
           r.mem(L['it_place'], 76)[21] == 0 and r.mem(L['it_pack_lo'], 76)[22] == 64)
 
-    # Inspect the last INVENTORY page; equipment/food pages must remain intact.
-    visible = sum(p is not None for _, _, p, *_ in ITEMS)
-    steps = ['key:INVENTORY\r', 'wait:1']
-    for _ in range(visible // 20 + 1):
-        steps += [L.until('wait_key'), 'key: ', 'wait:1']
-    steps += [L.until('wait_key'), 'peek:0400:1024']
+    # Every inventory group keeps the same four remaining capacities visible.
+    steps = ['key:INVENTORY\r', 'wait:1', L.until('wait_key')]
+    for group in '12345':
+        steps += [f'key:{group}', 'wait:1', L.until('wait_key'), 'peek:0400:1024']
     r = run(steps)
-    screen = '\n'.join(text_screen(r.mem(0x400, 1024)))
-    check('inventory displays all four remaining capacities', all(s in screen for s in
-          ('WEIGHT    43 OZ', 'WEAR VOL  1525 IN3',
-           'PACK VOL  4134 IN3', 'HAND VOL  2542 IN3')))
+    expected = ('FREE WEIGHT 43 OZ', 'FREE WEAR VOL 1525 IN3',
+                'FREE PACK VOL 4134 IN3', 'FREE HAND VOL 2542 IN3')
+    check('inventory displays all four remaining capacities in every group', all(
+          tuple(' '.join(row.split()) for row in text_screen(page)[2:6]) == expected
+          for page in r.dumps))
     print(f'{len(failures)} failures')
     sys.exit(bool(failures))
 

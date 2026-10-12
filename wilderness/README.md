@@ -49,17 +49,26 @@ les cinq sprites sont inclus dans la disquette construite localement.
 Le démarrage utilise un chargeur temporaire à `$5800`, qui décompresse les
 fichiers résidents depuis le tampon de la future page HGR à `$2000`. La
 disquette place les listes de secteurs avant les données et utilise un ordre
-de secteurs adapté aux lectures DOS. Sur la carte par défaut, les 24 744 octets
-résidents deviennent 16 380 octets répartis dans deux fichiers. Mesuré dans
-le cœur POM2 à la vitesse Apple II avec le ciel et les lots 4/5, le lancement
-du moteur arrive à 21,63 secondes et la première invite jouable à 42,40.
+de secteurs adapté aux lectures DOS. Sur la carte par défaut, les 25 271 octets
+résidents deviennent 17 040 octets répartis dans deux fichiers. Mesuré dans
+le cœur POM2 à la vitesse Apple II, le lancement du moteur arrive à 23,48
+secondes et la première invite jouable à 46,45.
 L'initialisation, les modules et le premier rendu sont inclus dans ce dernier
-temps. Avant ces ajouts, les mesures avec ce chargeur étaient 20,89 et 36,86
-secondes ; avant le chargeur compact, 36,14 et 55,76 secondes.
+temps. Avant cette optimisation mémoire, les deux mesures étaient 24,16 et
+47,47 secondes avec les mêmes fonctionnalités.
 
 `python3 tools/profile_loading.py` mesure le démarrage et deux lectures de
 modules. `python3 tests/test_boot.py` vérifie chaque octet restitué, également
 avec une carte peu compressible qui nécessite un fichier supplémentaire.
+
+L'organisation mémoire évite désormais des chargements de vocabulaire et de
+LOOK pour les commandes fréquentes. Sur la carte par défaut, `VIEW` passe
+de 12,47 à 6,20 secondes, `LOOK R` de 10,43 à 8,28 et `STATUS` au départ de
+12,27 à 3,76. Après une action, STATUS passe de 12,36 à 9,56 secondes.
+Le temps du sommeil reste proche de 26,4 secondes pour huit heures demandées.
+`python3 tools/profile_actions.py` mesure les cycles et lectures disque ;
+les conditions et le détail de la mémoire sont décrits dans
+[IMPLEMENTATION.md](docs/IMPLEMENTATION.md#mémoire-et-modules-disque).
 
 ## Commandes
 
@@ -91,10 +100,11 @@ et les quantités en onces. Les autres mots reconnus du vocabulaire original ré
 | LOOK L, R, B, F / N, E, S, W | Tourner de 45°, se retourner, regarder devant ou vers un point cardinal |
 | ← → sur une ligne vide | Tourner de 22,5° |
 | ENTER SHELTER / EXIT SHELTER, LEAVE SHELTER | Entrer dans la cabane à sa case / ressortir ; aucun temps consommé |
-| NATURE | Fréquence des rencontres : entier de 0 à 100, valeur initiale 1 ; 0 empêche les nouvelles rencontres |
+| NATURE / NATURE 0 | Fréquence des rencontres : entier de 0 à 100, valeur initiale 1 ; 0 empêche les nouvelles rencontres ; valeur directe ou demandée à l'invite |
 | TOPO, T | Carte textuelle : relief, eau, joueur, épave, cabane et rangers ; flèches ou WASD pour défiler, C pour recentrer, cap cardinal magnétique, Entrée/Espace/ESC pour revenir |
-| STATUS, INVENTORY, VIEW, HELP | Afficher les écrans ou la vue |
+| STATUS, INVENTORY, VIEW, HELP | Afficher les écrans ou la vue ; HELP propose deux pages avec exemples, touches 1/2, N/Espace ou B, Échap/Entrée pour revenir |
 | M dans STATUS / B dans l'état médical | Consulter les conditions médicales / revenir à STATUS |
+| I/S/T/H dans les écrans | Aller directement à INVENTORY, STATUS, TOPO ou HELP, selon les raccourcis affichés en bas de l'écran |
 | ESC pendant une saisie | Effacer la commande ou annuler la quantité/durée, sans avancer le temps |
 | ESC pendant WALK / SWIM | Arrêter après le pas en cours ; conserver la position atteinte et afficher le temps réellement parcouru |
 | QUIT | Demander confirmation avant retour à DOS ; seul Y confirme, Entrée/N/ESC annulent |
@@ -105,6 +115,10 @@ d'une quantité. Une réponse vide ou zéro annule une action numérique ;
 les unités inconnues et les dépassements sont refusés avant toute action.
 Les limites sont 255 heures, 15 300 minutes ou 255 onces. Échap revient à la
 vue depuis STATUS, TOPO ou n'importe quelle page d'INVENTORY.
+
+Les médicaments s'utilisent une dose à la fois, sans nombre ni unité :
+`EAT FLAGYL` est valide, tandis que `EAT FLAGYL 0 OZ` est refusé sans
+consommer de dose ni appliquer de soin.
 
 Les résultats restent visibles jusqu'à l'action suivante, sans touche de
 confirmation entre deux messages. Un déplacement affiche ensemble son temps
@@ -158,6 +172,9 @@ STATUS distingue les réserves CARRIED de celles HERE, disponibles au sol
 sur la case courante ; FOOD/WATER restent les totaux accessibles. INVENTORY
 regroupe WORN, IN HAND, IN PACK et GROUND HERE : touches 1 à 4, 12 objets
 par page, N/Espace/Entrée pour avancer, B pour revenir, Échap pour la vue.
+Le groupe consulté apparaît en vidéo inverse avec son nombre d'objets ;
+les capacités libres sont explicitement marquées FREE. La touche 5 affiche
+le contenu suspendu à proximité lorsqu'un sac a été accroché à un arbre.
 Un aliment réparti entre sac et sol apparaît dans les deux groupes avec
 la quantité propre à chaque emplacement. Les capacités restent visibles.
 Les qualificatifs distinguent notamment COTTON SOCKS, FIRSTAID KIT,
@@ -171,7 +188,12 @@ dépasse la charge ; `DROP AXE` libère assez de place pour les prendre.
 
 Le résumé signale une transition de faim, soif, santé, état thermique,
 immersion ou condition médicale, sans répéter une classe inchangée. Une
-activité longue conserve l'alerte prioritaire jusqu'au résultat ; STATUS
+alerte de danger apparaît en vidéo inverse, tandis qu'une amélioration reste
+en texte normal. Les niveaux VERY de faim et de soif et une santé sous 40 %
+restent mis en évidence tant que leur valeur est critique.
+Sans indication prioritaire, le bandeau propose TOPO/HELP de jour,
+REST/HELP la nuit ou LOWER FOOD à la case du sac suspendu.
+Une activité longue conserve l'alerte prioritaire jusqu'au résultat ; STATUS
 permet de voir toutes les conditions. Sans danger actif, le bandeau rappelle
 ENTER/EXIT SHELTER ou ITEMS: INV si des objets sont récupérables ici. Les
 rotations conservent ces indications sans lecture disque supplémentaire.

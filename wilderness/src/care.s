@@ -3,6 +3,15 @@
 ; completion loads WILDMED before applying care or advancing the clock.
 .segment "MEDVIEW"
 module_medical_command:
+        ; EAT/DRINK can arrive here through the numeric food parser, but
+        ; medical actions consume one use and have no ounce/time argument.
+        ; Refuse before changing doses, action flags or treatment state.
+        lda     input_argument
+        beq     :+
+        lda     #<care_argument_message
+        ldx     #>care_argument_message
+        jmp     message
+:
         lda     #0
         sta     care_minutes
         lda     verb
@@ -128,6 +137,7 @@ care_ok:
         ldx     #>m_ok
         jmp     message
 care_use_message: .byte "PLEASE USE 'USE'.",0
+care_argument_message: .byte "MEDICINES USE ONE DOSE AT A TIME.|OMIT THE NUMBER AND UNIT.",0
 care_invalid_message: .byte "THAT ACTION DOES NOT APPLY HERE.",0
 care_minutes: .byte 0
 care_consumed: .byte 0

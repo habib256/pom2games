@@ -23,16 +23,20 @@ m_shore:    .byte   "YOU HAVE REACHED LAND. USE WALK.", 0
 m_no_water: .byte   "NO WATER AHEAD. USE WALK.", 0
 m_dark:     .byte   "IT IS TOO DARK TO TRAVEL.", 0
 m_nolight:  .byte   "NOT ENOUGH LIGHT.", 0
+.segment "ENVIRON"
+; Meals and drinks already have the simulation loaded when printing results.
 m_ate:      .byte   "YOU ATE # OUNCES.|ACCESSIBLE BEFORE: $ OZ.", 0
 m_drank:    .byte   "YOU DRANK # OUNCES.|ACCESSIBLE BEFORE: $ OZ.", 0
+.segment "TEXT"
 m_food_object: .byte "NAME A FOOD. TRY EAT CHEESE.",0
 m_drink_object: .byte "TRY DRINK WATER.",0
 m_rested:   .byte   "YOU RESTED # HOURS.", 0
-m_goal:     .byte   "YOU HAVE REACHED THE RANGER OUTPOST!|YOU SURVIVED. PRESS A KEY.", 0
+m_waited:   .byte   "YOU WAITED # HOURS.", 0
+m_wait_minutes: .byte "YOU WAITED # MINUTES.",0
+m_goal:     .byte   "YOU HAVE REACHED THE RANGER OUTPOST.|YOU SURVIVED. PRESS A KEY.", 0
 m_dead:     .byte   "YOU DID NOT SURVIVE THE WILDERNESS.|PRESS A KEY.", 0
 m_weak:     .byte   "YOU ARE VERY WEAK. REST, EAT AND DRINK.", 0
 
-m_morekey:  .byte   "PRESS A KEY.", 0
 m_fauna_stop: .byte "AN ANIMAL INTERRUPTS YOUR ACTION.",0
 
 m_rest_minutes: .byte "YOU RESTED # MINUTES.",0

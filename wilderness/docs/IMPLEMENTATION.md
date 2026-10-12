@@ -68,6 +68,15 @@ repos porte sur la durée demandée ; les crédits négatifs sont bornés lors
 du calcul de santé. Déshydratation, faim et fatigue sont converties en
 pourcentages entiers avant multiplication, comme dans T0B/S0D.
 
+Les commandes de repos avec durée explicite (`SLEEP 8 H`, `WAIT 10 MIN`,
+etc.) passent directement de l'analyse numérique au code résident, sans
+charger le vocabulaire puis recharger l'analyse numérique. `SLEEP` seul
+utilise également ce chemin et demande la durée. Les commandes qualifiées
+conservent l'analyse complète. Sur la première scène à 1,023 MHz, un sommeil
+de huit heures passe de 32,1 à 26,8 secondes et de sept à cinq lectures DOS.
+La cadence de simulation et le redessin final restent identiques ; le test
+`test_sleep.py` compare santé, inventaire et image à un REST avec invite.
+
 Les tests différentiels [d'aventure](ADVENTURE_TESTS.md) vérifient ces règles
 dans les deux exécutables. Les premiers compteurs concordent, mais le test
 global échoue encore sur la météo et la marche. Le choix du pas ne porte
@@ -246,8 +255,10 @@ RND < 0,5 et le remplace sinon, même pour la même espèce. Une acceptation
 fixe `fauna_alert` : WALK s'arrête après le pas consommé.
 La sonde `re_fauna_accept_probe.py` vérifie 36 cas dans le point d'acceptation
 original `$5B5A`, y compris le seuil exact 0,5 et les drapeaux d'arrêt.
-Une rencontre reste à sa case pendant 60 minutes au plus : durée de présence,
-mouvements, comportements et attaques restent à porter.
+Une rencontre reste à sa case pendant 60 minutes au plus ; attente, repos
+et repas font aussi avancer son âge, sans tirage de nouvelle rencontre.
+Cette durée est reconstruite ; mouvements, comportements et attaques
+restent à porter.
 
 Marche et nage refusent un prochain pas hors de `2 ≤ x < 110`,
 `2 ≤ y < 82` (coordonnées en cases, fractions conservées). Elles laissent
@@ -265,13 +276,13 @@ Les zones résidentes sont presque pleines.
 | Zone | Contenu |
 |---|---|
 | `$0A00-$0FFF` | `WILDTXT` : messages, constantes et table de bornes des rayons |
-| `$1000-$1FFF` | `WILDLO` : tables de lignes, remplissage/effacement déroulés, noms et positions d'objets, compteurs de charge |
+| `$1000-$1FFF` | `WILDLO` : tables de lignes, remplissage/effacement déroulés, LOOK résident, noms et positions d'objets, raccourcis d'écran et compteurs de charge |
 | `$2000-$3FFF` | HGR page 1 ; vue sur 0–159, bandeau de survie et ruban central sur 0–15, paysage sous le bandeau conservé en lignes invisibles 160–175 ; quatre lignes de texte en mode mixte |
 | `$4000-$57FF` | `WILDGAME` : logique résidente, état et objets |
 | `$5800-$5FFF` | Fenêtre partagée de 2 Ko pour les modules et sprites |
 | `$6000-$6FFF` | `WILDERNESS` : démarrage, moteur de vue, décodeur de sprites et constantes |
 | `$7000-$94FF` | `WILDMAP` : en-tête de 64 octets et grille 112 × 84 |
-| `$9500-$95F0` | Sauvegarde du texte pendant BLOAD, réutilisée pour les couleurs de la colonne ; temporaires thermiques, géométrie des sprites, saisie, stock accessible et refus de charge |
+| `$9500-$95F0` | Sauvegarde du texte pendant BLOAD, réutilisée pour les couleurs de la colonne et les temporaires du ciel ; temporaires thermiques, géométrie des sprites, saisie, stock accessible et refus de charge |
 | `$9600-$BFFF` | DOS 3.3 |
 
 | ID du cache | Fichier | Contenu |
@@ -288,13 +299,13 @@ Les zones résidentes sont presque pleines.
 | 10 | `WILDSIT` | Entrée/sortie, vue intérieure et TOPO |
 | 11 | `WILDPRJ` | Géométrie des sites et borne du relief |
 | 12 | `WILDTRV` | Préparation, tracé, durée et rives de nage ; effort et poids dans WILDSIM |
-| 13 | `WILDINP` | Arguments directs, saisie numérique et confirmation de QUIT |
+| 13 | `WILDINP` | Arguments directs, saisie numérique, NATURE et confirmation de QUIT |
 | 14 | `WILDITM` | Transferts, refus de charge et de conteneur, comptes rendus d'objets |
 | 15 | `WILDHUD` | Résumé de survie et police monochrome |
 | 16 | `WILDSTA` | STATUS : conditions, besoins, stocks et environnement |
 | 17/18 | `WILDMED` | Blessures, maladies, soins et expositions ; un seul chargement partagé |
 | 19 | `WILDMVI` | Commandes de soin et deuxième page de STATUS : conditions médicales et altitude |
-| 20 | `WILDTRE` | Initialisation, LOOK et interactions avec les arbres |
+| 20 | `WILDTRE` | Initialisation et interactions avec les arbres ; LOOK est résident |
 
 Les modules restent sur la disquette pendant la partie. Un module
 présent dans la fenêtre n'est pas relu. Simulation, thermique, effort de nage
@@ -306,21 +317,84 @@ ne doivent pas appeler un autre module en écrasant leur propre code.
 Les identifiants ci-dessus appartiennent à la réimplémentation ; ceux du
 moteur original sont décrits séparément dans [ENGINE.md](logic/ENGINE.md).
 
-Après les arbres et les conditions médicales : mesurer à nouveau
-`build/wild.map` avant toute extension. Le résident conserve 4 octets libres
-à la fin de `$4000–$57FF`, la simulation seulement 3 avant `$4000`.
-L’initialisation et LOOK sont dans WILDTRE ; le calcul GOAL% est dans WILDSIM.
-STATUS et WILDMED restent dans 2 Ko. Le résumé occupe 1 484 octets,
-SITES 1 521, INVENTORY/HELP 933, WILDTRE 1 038, WILDMED 1 871 et WILDMVI 784.
+Après l'optimisation du 12 octobre 2026 : mesurer à nouveau
+`build/wild.map` avant toute extension. WILDGAME conserve 8 octets libres,
+WILDLO 6, WILDERNESS 2 et WILDSIM 14. Le résident reste presque plein.
+L’initialisation est dans WILDTRE ; LOOK est dans WILDLO. Le calcul GOAL%
+est dans WILDSIM, mais STATUS renvoie directement 100 avant la première
+action et évite ainsi le chargement de la simulation et le redessin au retour.
+STATUS occupe 2 041 octets, le résumé 1 639, SITES 1 538,
+INVENTORY/HELP 1 957, WILDTRE 942, WILDMED 1 871 et WILDMVI 856.
 Les chiffres viennent de `build/wild.map` ; toute extension exige une nouvelle mesure. Le résolveur des
 qualificatifs et `dispatch` sont dans WILDVOC : `parse` doit garder ce module
 chargé jusqu'à `dispatch`. NATURE passe par un relais résident avant de charger
-WILDENV ; son retour va directement à la boucle principale. La borne du
+WILDINP ; son retour va directement à la boucle principale. La borne du
 relief et la géométrie sont dans WILDPRJ, appelé
 avant le chargement graphique ; la ROM flottante réutilise la page zéro du
 moteur de vue, donc l'œil est recalculé avant les divisions de projection.
 Les transitions de SITES vers `show_view` sont des sauts terminaux : elles
 ne reviennent pas à du code que le prochain BLOAD pourrait écraser.
+
+L'organisation privilégie le code qui évite des lectures de disquette.
+La table `row_n1` ne conserve que ses 86 valeurs visibles : les 170 entrées
+suivantes valaient toutes `$FF`, et le moteur les rejette avant l'accès.
+Cette place accueille LOOK et les raccourcis exacts WALK/REST/SWIM,
+TOPO/VIEW/STATUS/INVENTORY/HELP. Les autres formes, qualificatifs et mots
+inconnus passent toujours par WILDVOC. VIEW peut ainsi redessiner sans
+remplacer le sprite courant par le vocabulaire puis le relire.
+
+Les 68 octets temporaires de `sky_position`/`sky_lunar` partagent le début
+du tampon `overlay_text` à `$9500`. Leur durée de vie se limite au calcul
+astronomique, qui n'appelle jamais BLOAD. DOS a terminé sa restauration
+avant ce calcul ; les temporaires sont inutiles dès qu'il revient. La sortie
+utile (azimut, hauteur, phase) reste résidente. Ce partage ne concerne pas
+les variables qui doivent survivre à un chargement ou à un rendu.
+
+L'isolation `s_insul` reste résidente et reçoit une clé persistante de cinq
+octets : 19 bits de vêtements portés, le mode sec/mouillé/immergé et un
+indicateur de validité. Chaque changement de ces entrées recalcule les mêmes
+opérations flottantes et arrondis ; autrement le résultat est réutilisé.
+Un transfert entre sac et main ne modifie pas les bits WORN. Le cache survit
+au redessin et à la relecture de WILDSIM. Aucun calcul de température,
+d'énergie, de santé ou de temps n'est supprimé. `test_memory_cache.py`
+compare 76 transitions au résultat d'un calcul frais, puis vérifie la
+conservation du cache à travers DOS et la réutilisation de HGR.
+
+`tools/profile_actions.py` mesure depuis `do_command` jusqu'à la nouvelle
+invite, ou jusqu'au lecteur STATUS. Chaque essai part de la carte et de
+l'équipement par défaut, avec NATURE=0 ; le clavier et le démarrage sont
+hors de cette durée. Les secondes correspondent à 1 020 484 cycles/s.
+
+| Commande | Avant (s) | Après (s) | Lectures avant → après |
+|---|---:|---:|---:|
+| VIEW | 12,471 | 6,200 | 2 → 0 |
+| LOOK R | 10,425 | 8,276 | 3 → 2 |
+| STATUS au départ | 12,272 | 3,761 | 3 → 1 |
+| STATUS après REST 1 H | 12,358 | 9,563 | 3 → 2 |
+| REST 1 H | 24,765 | 24,775 | 5 → 5 |
+| SLEEP 8 H | 26,438 | 26,387 | 5 → 5 |
+| WALK 1 H | 30,599 | 30,608 | 7 → 7 |
+
+Les six essais de départ ont exactement les mêmes positions, horloge,
+variables de survie, stocks, blessures et pixels visibles avant/après.
+Le gain global du cache thermique est faible dans ces essais, dominés par
+DOS et le rendu ; son calcul répété isolé est plus de dix fois plus rapide.
+Les variations d'environ 0,01 seconde de REST/WALK restent indiquées.
+Le démarrage contient désormais 25 271 octets résidents, comprimés en
+17 040 octets : le compromis ajoute 11 octets résidents et 188 octets
+comprimés par rapport à la mesure avant optimisation.
+Mesuré sur les deux disquettes et leurs propres symboles, l'arrivée dans
+`game_start` passe de 24,159 à 23,477 secondes ; la première invite jouable
+de 47,472 à 46,445 secondes. La taille comprimée seule ne prédit pas ce
+temps, qui inclut les rotations du disque et l'initialisation graphique.
+
+Pour comparer un ancien binaire, fournir sa disquette **et ses symboles** :
+
+```sh
+python3 tools/profile_actions.py --disk old.dsk --labels old.lbl --out old.json
+python3 tools/profile_actions.py --out new.json
+python3 tools/profile_actions.py --setup 'REST 1 H' STATUS
+```
 
 ## Carte de la réimplémentation
 
@@ -635,6 +709,9 @@ Le contour supérieur reste noir sur toutes les colonnes ; un liseré noir
 La base du premier profil est aplatie à la hauteur native centrale (31),
 pour supprimer les franges noires latérales sous le feuillage. Le deuxième
 profil conserve son dessous natif, déjà situé à cette hauteur ou au-dessus.
+Le calcul de pente rejette la retenue du produit sur 16 bits avant le
+décalage : une falaise très abrupte ne peut pas ramener une projection
+hors écran dans le ciel par débordement.
 La végétation d’altitude reste classée SCRUB mais n’a pas de silhouette
 d’arbre. CLIMB TREE/DOWN, HANG FOOD et la récupération du sac sont portés
 dans WILDTRE ; voir [logic/trees.md](logic/trees.md) pour les preuves natives

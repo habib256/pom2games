@@ -4,6 +4,12 @@
 ; and th_parts at $95A0 never survive a module call.
 .segment "SCRATCH"
 th_parts: .res 25
+.segment "GDATA"
+; Persistent cache key: nineteen WORN bits, wet/immersed mode and validity.
+; The cached result is the existing resident s_insul, never overlay RAM.
+clothing_cache: .res 3
+clothing_cache_wet: .byte 0
+clothing_cache_valid: .byte 0
 .segment "THERMAL"
 
 module_thermal:
@@ -16,6 +22,47 @@ module_thermal:
 ; garment, in item order. Bare losses are our reconstruction (500 for
 ; torso/legs/feet/hands, 200 for head), same in both modes, not original presets.
 thermal_clothes:
+        lda     #0
+        sta     g0
+        sta     g1
+        sta     g2
+        ldx     #18
+@key:   lda     it_place+2,x
+        cmp     #1
+        beq     :+
+        clc
+:       rol     g0
+        rol     g1
+        rol     g2
+        dex
+        bpl     @key
+        lda     clothing_cache_valid
+        beq     @compute
+        lda     wet_mode
+        cmp     clothing_cache_wet
+        bne     @compute
+        ldx     #2
+@check: lda     g0,x
+        cmp     clothing_cache,x
+        bne     @compute
+        dex
+        bpl     @check
+        fld     s_insul
+        rts
+@compute:
+        ldx     #2
+@save:  lda     g0,x
+        sta     clothing_cache,x
+        dex
+        bpl     @save
+        lda     wet_mode
+        sta     clothing_cache_wet
+        jsr     thermal_clothes_compute
+        lda     #1
+        sta     clothing_cache_valid
+        rts
+
+thermal_clothes_compute:
         lda     #0
         sta     g0
 @bare:  ldx     g0

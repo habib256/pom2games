@@ -25,7 +25,19 @@ def main():
     assert [x['tree'] for x in d[1:]]==[1,1,1,1,0,0]
     assert all(x['time']==0 and x['pos']==d[0]['pos'] for x in d)
     assert all('YOU ARE IN A TREE' in d[i]['text'] for i in (2,3))
+    assert all('CLIMB DOWN FIRST' in d[i]['text'] for i in (2,3)), 'tree refusal text corrupted by message placeholders'
     print('  native climb threshold, toggle/down, LOOK, WALK/SWIM refusal: OK',flush=True)
+    cabin=map_fixture()
+    cabin[16:19]=bytes((1,20,20))
+    steps=cmd('CLIMB TREE')+snap()+cmd('ENTER SHELTER')+snap()+[L.peek('shelter_inside')]
+    steps+=cmd('CLIMB DOWN')+cmd('ENTER SHELTER')+snap()+[L.peek('shelter_inside')]
+    steps+=cmd('EXIT SHELTER')+snap()+[L.peek('shelter_inside')]
+    r=run(steps,cabin);d=[data(r,i) for i in range(4)]
+    assert [x['tree'] for x in d]==[1,1,0,0], 'cabin entry must not bypass tree descent'
+    assert [r.mem(L['shelter_inside'],1,i) for i in range(3)]==[b'\0',b'\1',b'\0']
+    assert 'CLIMB DOWN FIRST' in d[1]['text'] and 'INSIDE THE CABIN' in d[2]['text']
+    assert all(x['time']==0 and x['pos']==d[0]['pos'] and x['it_place']==d[0]['it_place'] for x in d)
+    print('  cabin entry from a tree refused atomically; descend, enter and exit OK',flush=True)
     steps=snap()+cmd('HANG FOOD')+snap()+cmd('HANG FOOD')+snap()+cmd('GET AXE')+cmd('DROP AXE')+cmd('DROP BACKPACK')+cmd('DROP EGGS')+snap()+cmd('EAT EGGS')+snap()
     steps+=[L.poke('px',21,1)]+cmd('GET BACKPACK')+snap()
     steps+=[L.poke('px',20,1),L.poke('load_limits',0),L.poke('load_limits',0,1)]+cmd('LOWER FOOD')+snap()

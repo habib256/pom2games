@@ -1,7 +1,7 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; Sierra encounter filters and probability from T0A S00. Position, lifetime
 ; and reactions still use the first port's rules. No weather RNG calls.
-.segment "ENVIRON"
+.segment "INPUT"
 module_nature:
         lda     nature_frequency
         sta     msgnum
@@ -28,26 +28,10 @@ module_nature:
 m_nature: .byte "WILDLIFE FREQUENCY IS #.|ENTER A NEW VALUE FROM 0 TO 100.",0
 m_nature_bad: .byte "FREQUENCY MUST BE FROM 0 TO 100.",0
 
+.segment "ENVIRON"
 module_fauna:
-        lda     animal_kind
-        beq     @roll
-        lda     animal_x
-        cmp     px+1
-        bne     @clear
-        lda     animal_y
-        cmp     py+1
-        bne     @clear
-        lda     animal_age
-        clc
-        adc     scene_minutes
-        bcs     @clear
-        cmp     #60
-        bcs     @clear
-        sta     animal_age
-        jmp     @roll
-@clear: lda     #0
-        sta     animal_kind
-@roll:  jsr     fauna_environment
+        jsr     fauna_age
+        jsr     fauna_environment
         lda     #0
         sta     fauna_species
 @species:
@@ -69,6 +53,28 @@ module_fauna:
 fauna_done:
         lda     #0
         sta     scene_minutes
+        rts
+
+; Lifetime advances during every activity; only travel rolls new encounters.
+fauna_age:
+        lda     animal_kind
+        beq     @done
+        lda     animal_x
+        cmp     px+1
+        bne     @clear
+        lda     animal_y
+        cmp     py+1
+        bne     @clear
+        lda     animal_age
+        clc
+        adc     scene_minutes
+        bcs     @clear
+        cmp     #60
+        bcs     @clear
+        sta     animal_age
+@done:  rts
+@clear: lda     #0
+        sta     animal_kind
         rts
 
 ; The original acceptance endpoint keeps an existing animal when RND < .5,

@@ -60,26 +60,26 @@ def cancellations(disk):
                      'WALK 256 H','WALK 15301 MIN','REST 65536 MIN',
                      'WALK -1 MIN','WALK 1.5 H','WALK 1 OZ',
                      'REST 1 SEC','DRINK WATER 256 OZ','DRINK WATER 4 H',
-                     'STATUS 1','WALK 999999999999999999999 MIN'):
+                     'STATUS 1','WALK 999999999999999999999 MIN',
+                     '  SLEEP 0 MIN','  REST 1 OZ'):
             command(s,text)
             assert snapshot(s)==before,text
             assert ('CANCELLED' in screen(s) or 'INVALID' in screen(s)),text
-        for response in ('N','\\r','\\e'):
-            s.step('key:QUIT')
+        for typed,response in zip(('QUIT',' QUIT ','  QUIT'),('N','\\r','\\e')):
+            s.step(f'key:{typed}')
             s.step('press:\\r')
             s.step(L.until('wait_key',20000))
             assert 'UNSAVED PROGRESS WILL BE LOST' in screen(s)
             s.step(f'key:{response}')
             s.step(IDLE)
             assert snapshot(s)==before,response
-        for text in ('STATUS','INVENTORY','TOPO'):
+        for text in ('STATUS','INVENTORY','TOPO','HELP'):
             s.step(f'key:{text}')
             s.step('press:\\r')
             s.step(L.until('wait_key',20000))
             s.step('key:\\e')
             s.step(IDLE)
             assert snapshot(s)==before,(text,'ESC')
-        command(s,'HELP')
         s.step('key:\\e')
         s.step(IDLE)
         assert snapshot(s)==before
@@ -110,7 +110,51 @@ def durations(disk):
         command(s,'DRINK WATER 4 OZ')
         assert s.step(L.peek('it_pack_lo',1,22)).data[0]==water-4
         assert 'YOU DRANK 4 OUNCES.' in screen(s)
+        for text in ('  SLEEP 1 MIN', ' REST 1 MIN   '):
+            command(s,text)
+            assert 'YOU RESTED 1 MINUTES.' in screen(s),text
+        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-91)<1e-6
+        before=snapshot(s)
+        command(s,'  WALK 1 MIN')
+        assert snapshot(s)==before, 'leading spaces bypassed short-step refusal'
+        command(s,'  DRINK WATER 1 OZ   ')
+        assert s.step(L.peek('it_pack_lo',1,22)).data[0]==water-5
+        assert 'YOU DRANK 1 OUNCES.' in screen(s)
     print('  Inline H/MIN/OZ, refused short step, exact accepted step and minute rest: OK')
+    print('  Leading/trailing spaces: sleep, rest, qualified drinking and atomic short-step refusal OK')
+
+
+def nature_inline(disk):
+    with a2test.Session(disk) as s:
+        s.step(IDLE)
+        before=snapshot(s)
+        view=s.step('peek:2000:8192').data
+        rng=s.step(L.peek('fauna_rng')).data
+        for text,value in (('NATURE 0',0),('NATURE 1',1),('NATURE 100',100),
+                           ('  NATURE 5   ',5)):
+            command(s,text)
+            assert s.step(L.peek('nature_frequency')).data==bytes((value,)),text
+            assert 'OK, WHAT NEXT?' in screen(s),text
+            after=snapshot(s)
+            assert after[:5]==before[:5] and after[6:]==before[6:],text
+            assert s.step('peek:2000:8192').data==view,text
+            assert s.step(L.peek('fauna_rng')).data==rng,text
+        before=snapshot(s)
+        for text in ('NATURE 101','NATURE 255','NATURE 256','NATURE -1',
+                     'NATURE 1.5','NATURE 0 H','NATURE 1 MIN','NATURE 5 OZ'):
+            command(s,text)
+            assert snapshot(s)==before,text
+            assert 'FREQUENCY MUST' in screen(s) or 'INVALID' in screen(s),text
+            assert s.step('peek:2000:8192').data==view,text
+            assert s.step(L.peek('fauna_rng')).data==rng,text
+        # The original prompted command must still accept zero after refusals.
+        s.step('key:NATURE')
+        s.step('press:\\r')
+        s.step(NUMBER)
+        s.step('key:0\\r')
+        s.step(IDLE)
+        assert s.step(L.peek('nature_frequency')).data==b'\0'
+    print('  Inline NATURE 0..100 and spaces; invalid values/units refused atomically; prompted zero preserved OK')
 
 
 def editing(disk):
@@ -165,6 +209,7 @@ def main():
         disk=disk_with(tmp,m)
         cancellations(disk)
         durations(disk)
+        nature_inline(disk)
         editing(disk)
     interrupted(m)
     interrupted(m,True)

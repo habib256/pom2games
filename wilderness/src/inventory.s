@@ -26,6 +26,12 @@ inventory_redraw:
         bne     @pages
 @pages_done:
         stx     inventory_pages
+        lda     inventory_page
+        cmp     inventory_pages
+        bcc     :+
+        dex                     ; backward group transition selects last page
+        stx     inventory_page
+:
         jsr     puts
         .byte "INVENTORY PAGE ",0
         lda     inventory_page
@@ -42,12 +48,24 @@ inventory_redraw:
         sta     gp2
         lda     #>inventory_groups
         sta     gp2+1
+        lda     #$3F
+        sta     $32
         lda     #12
         jsr     word
+        lda     #$FF
+        sta     $32
+        lda     #24
+        jsr     tab
+        lda     inventory_count
+        jsr     pdec
+        jsr     puts
+        .byte " ITEMS",0
         lda     #0
         sta     inventory_capacity
 @capacity:
         jsr     CROUT
+        jsr     puts
+        .byte "FREE ",0
         ldx     inventory_capacity
         lda     #<load_words
         sta     gp2
@@ -55,7 +73,7 @@ inventory_redraw:
         sta     gp2+1
         lda     #8
         jsr     word
-        lda     #10
+        lda     #14
         jsr     tab
         lda     inventory_capacity
         asl
@@ -151,9 +169,15 @@ inventory_redraw:
         lda     #19
         jsr     vtab
         jsr     puts
-        .byte "1 WORN 2 HAND 3 PACK 4 HERE 5 HUNG|GET/WEAR/PACK/CARRY/DROP|SPACE/N NEXT  B BACK  ESC VIEW",0
+        .byte "1 WORN 2 HAND 3 PACK 4 HERE 5 HUNG|N/SPACE/RETURN NEXT   B PREVIOUS|ESC VIEW|S STATUS  T TOPO  H HELP",0
 inventory_key:
         jsr     wait_key
+        cmp     #'S'
+        jeq     scr_status
+        cmp     #'T'
+        jeq     scr_topo
+        cmp     #'H'
+        jeq     scr_help
         cmp     #KC_ESC
         jeq     back_to_view_now
         cmp     #'1'
@@ -200,6 +224,8 @@ inventory_key:
         lda     inventory_group
         beq     inventory_key
         dec     inventory_group
+        lda     #255            ; resolved after counting the preceding group
+        sta     inventory_page
         jmp     inventory_redraw
 
 ; X is preserved; carry means membership, num holds provision ounces.
