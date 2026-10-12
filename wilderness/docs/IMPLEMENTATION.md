@@ -319,11 +319,12 @@ moteur original sont décrits séparément dans [ENGINE.md](logic/ENGINE.md).
 
 Après l'optimisation du 12 octobre 2026 : mesurer à nouveau
 `build/wild.map` avant toute extension. WILDGAME conserve 8 octets libres,
-WILDLO 6, WILDERNESS 2 et WILDSIM 14. Le résident reste presque plein.
+WILDLO 40 (cache de projection compris), WILDERNESS 2, WILDTXT 12 et WILDSIM 14.
+Le résident reste presque plein.
 L’initialisation est dans WILDTRE ; LOOK est dans WILDLO. Le calcul GOAL%
 est dans WILDSIM, mais STATUS renvoie directement 100 avant la première
 action et évite ainsi le chargement de la simulation et le redessin au retour.
-STATUS occupe 2 041 octets, le résumé 1 639, SITES 1 538,
+STATUS occupe 2 041 octets, le résumé 1 639, SITES 1 539,
 INVENTORY/HELP 1 957, WILDTRE 942, WILDMED 1 871 et WILDMVI 856.
 Les chiffres viennent de `build/wild.map` ; toute extension exige une nouvelle mesure. Le résolveur des
 qualificatifs et `dispatch` sont dans WILDVOC : `parse` doit garder ce module
@@ -365,6 +366,8 @@ invite, ou jusqu'au lecteur STATUS. Chaque essai part de la carte et de
 l'équipement par défaut, avec NATURE=0 ; le clavier et le démarrage sont
 hors de cette durée. Les secondes correspondent à 1 020 484 cycles/s.
 
+Première passe (jusqu'au commit `0f72803`) :
+
 | Commande | Avant (s) | Après (s) | Lectures avant → après |
 |---|---:|---:|---:|
 | VIEW | 12,471 | 6,200 | 2 → 0 |
@@ -380,13 +383,104 @@ variables de survie, stocks, blessures et pixels visibles avant/après.
 Le gain global du cache thermique est faible dans ces essais, dominés par
 DOS et le rendu ; son calcul répété isolé est plus de dix fois plus rapide.
 Les variations d'environ 0,01 seconde de REST/WALK restent indiquées.
-Le démarrage contient désormais 25 271 octets résidents, comprimés en
+Cette première passe contient 25 271 octets résidents, comprimés en
 17 040 octets : le compromis ajoute 11 octets résidents et 188 octets
 comprimés par rapport à la mesure avant optimisation.
 Mesuré sur les deux disquettes et leurs propres symboles, l'arrivée dans
 `game_start` passe de 24,159 à 23,477 secondes ; la première invite jouable
 de 47,472 à 46,445 secondes. La taille comprimée seule ne prédit pas ce
 temps, qui inclut les rotations du disque et l'initialisation graphique.
+
+La deuxième passe accélère le parcours de cette mémoire sans ajouter de
+cache persistant. `fill` traite séparément les 16 lignes du bandeau : les
+16 pointeurs identiques qui les représentaient dans chacune des tables
+`span_lo`/`span_hi` sont donc supprimés, soit 32 octets. Les indices de la
+partie déroulée restent inchangés ; aucune soustraction n'est ajoutée dans
+la boucle de remplissage. L'espace récupéré accueille `forest_reset` et
+l'effacement par lignes.
+
+À chaque nouveau rayon, `forest_reset` restaure l'appel JSR à `forest_probe`
+si les arbres sont activés. Après le huitième candidat, ou dès qu'une
+couronne visible a été retenue, le code remplace ce JSR par BIT absolu.
+BIT conserve la retenue et Y, nécessaires au calcul du relief, et n'entre
+plus dans le code de recherche. Le rayon suivant rétablit toujours l'appel.
+Cette modification reste en mémoire résidente ; aucun chargement n'a lieu
+pendant le rendu. La distance maximale des arbres, leur sélection et leurs
+pixels sont conservés.
+
+`clear_rows` parcourt les lignes physiques 16–175 et efface les colonnes
+d'octets demandées, au lieu de recalculer chaque adresse de ligne pour
+chaque colonne. Les lignes 160–175 conservent leur rôle de cache du paysage
+sous le bandeau. Le bandeau visible, les trous HGR, les lignes 176–191 et
+les colonnes conservées lors d'une rotation ne sont pas modifiés.
+L'effacement complet passe de 188 033 à 93 642 cycles (50,2 % de moins).
+`test_render_memory.py` vérifie
+chaque octet sur une page remplie de valeurs variées, ainsi que la borne
+des appels de recherche et leur réactivation entre deux images.
+
+| Commande | Première passe (s) | Deuxième passe (s) |
+|---|---:|---:|
+| VIEW | 6,200 | 5,639 |
+| LOOK R | 8,276 | 8,075 |
+| STATUS au départ | 3,761 | 3,761 |
+| REST 1 H | 24,775 | 24,215 |
+| SLEEP 8 H | 26,387 | 25,827 |
+| WALK 1 H | 30,608 | 30,058 |
+
+Ces six essais conservent exactement les mêmes états et images, avec les
+mêmes nombres de lectures DOS. VIEW gagne 9,0 % supplémentaires.
+Le résident total tombe à 25 257 octets, soit 14 de moins ; sa compression
+occupe 17 049 octets dans trois fichiers. `game_start` arrive à 23,481
+secondes et la première invite jouable à 45,885, contre 46,445 auparavant.
+
+La troisième passe optimise les lectures Disk II. Le compacteur choisit
+le parcours de tokens LZ de taille minimale pour chaque bloc, en tenant
+compte de l'octet de drapeaux tous les huit tokens. Il conserve toute la
+fenêtre de 4 095 octets et autorise des blocs de sortie de plus de 4 Ko :
+la distance des copies reste sur 12 bits et le décompresseur reste identique.
+Les blocs se découpent pour respecter le tampon d'entrée de 8 Ko à `$2000`.
+La recherche plus élaborée s'effectue sur l'ordinateur de construction ;
+elle n'ajoute aucun code ni état à l'Apple II.
+
+Le paquet passe de 17 049 à 16 272 octets. Il tient dans deux fichiers au
+lieu de trois, évitant une ouverture DOS et une liste de secteurs, avec
+moins de données et de retours de tête vers le catalogue. Les trois pistes
+système DOS restent identiques. La totalité des fichiers reste lisible avec
+leurs noms, types et en-têtes DOS ordinaires.
+
+Les seize décalages entre pistes et les sept autres entrelacements impairs
+ont été mesurés dans le cœur POM2 avec chaque compression. L'entrelacement
+de neuf secteurs est conservé. Un décalage d'un secteur physique entre
+pistes donne le meilleur compromis entre démarrage, LOOK, STATUS et sommeil.
+Le constructeur local à Wilderness convertit ces positions physiques en
+secteurs DOS ; la bibliothèque commune et les disquettes des autres jeux
+conservent leur allocation. Les listes de secteurs restent avant les données.
+
+| Mesure Disk II | Avant (s) | Après (s) |
+|---|---:|---:|
+| Arrivée dans `game_start` | 23,481 | 20,827 |
+| Première invite jouable | 45,885 | 43,256 |
+| Premier BLOAD de LOOK R : vocabulaire | 3,526 | 3,250 |
+| Premier BLOAD de STATUS | 3,575 | 3,505 |
+| LOOK R complet | 8,075 | 7,356 |
+| SLEEP 8 H complet | 25,827 | 25,299 |
+| WALK 1 H complet | 30,058 | 29,542 |
+
+Les lectures isolées utilisent les points d'arrêt avant/après DOS de
+`profile_loading.py`, avec la même saisie et les mêmes fichiers résidents.
+Les commandes complètes utilisent `profile_actions.py` ; leurs six états
+et images de référence sont identiques avant/après. `test_pack_boot.py`
+compare 1 023 petits textes à une recherche exhaustive indépendante, teste
+les seuils de tokens et la limite de distance de 4 Ko, puis vérifie les
+fichiers DOS entre deux décalages. `test_boot.py` vérifie la restitution
+native de chaque octet, également avec une carte peu compressible.
+
+Le décalage peut être reproduit ou comparé séparément de la compression :
+
+```sh
+python3 tools/build_disk.py --out /tmp/wilderness-skew0.dsk --track-skew 0
+python3 tools/profile_loading.py /tmp/wilderness-skew0.dsk ../dist/WILDERNESS.dsk
+```
 
 Pour comparer un ancien binaire, fournir sa disquette **et ses symboles** :
 
@@ -395,6 +489,170 @@ python3 tools/profile_actions.py --disk old.dsk --labels old.lbl --out old.json
 python3 tools/profile_actions.py --out new.json
 python3 tools/profile_actions.py --setup 'REST 1 H' STATUS
 ```
+
+Une quatrième passe examine le démarrage, le rendu, la simulation et les
+chargements des commandes. La boucle du chargeur transitoire copie les
+séquences LZ avec un index Y, puis avance la destination et soustrait la
+longueur une fois par token. Les copies restent séquentielles, donc les
+répétitions qui chevauchent leur destination sont valides. L'indexage
+indirect gère les franchissements de page, jusqu'à 255 octets. Le pointeur
+source du paquet et le format comprimé ne changent pas. La copie d’un
+littéral évite aussi un appel et un retour de sous-routine par octet. Le chargeur reste
+dans sa fenêtre temporaire ; il n'ajoute aucune mémoire résidente.
+
+`smalldiv` renvoie directement zéro lorsque le numérateur vaut zéro, tout
+en écrivant `qlo` et conservant X/Y. Ce raccourci coûte sept octets et
+retire environ 15 845 cycles au VIEW de départ. `finish_simulation` fait
+passer la restauration nocturne extérieure directement par `view_full`,
+qui efface déjà le terrain et dessine le bandeau. Il évite un deuxième
+effacement et un second bandeau ; la voie intérieure conserve son
+effacement propre. Cette réorganisation récupère trois octets.
+
+| Mesure | Troisième passe (s) | Quatrième passe (s) |
+|---|---:|---:|
+| Arrivée dans `game_start` | 20,827 | 19,421 |
+| Première invite jouable | 43,256 | 40,909 |
+| VIEW | 5,639 | 5,624 |
+| LOOK R | 7,356 | 7,345 |
+| REST 1 H | 23,711 | 23,696 |
+| SLEEP 8 H | 25,299 | 25,284 |
+| WALK 1 H | 29,542 | 29,529 |
+| DRINK 1 OZ après REST 16 H, nuit | 15,506 | 15,363 |
+
+Les six commandes de départ et les essais nocturnes conservent exactement
+positions, horloge, survie, stocks, blessures et image HGR. Les lectures
+DOS ne changent pas. Le résident occupe 25 261 octets et ses deux paquets
+16 276 octets. `test_optimizations.py` vérifie les 8 256 divisions valides
+contre l'arithmétique entière, 40 copies natives couvrant chevauchements,
+franchissements de page et longueurs extrêmes, ainsi qu'un seul effacement
+après DRINK nocturne. La restitution intégrale du démarrage est également
+vérifiée avec une carte peu compressible.
+
+L'audit des coûts utilise `profile_actions.py --profile`, qui compte les
+cycles des instructions par zone mémoire, sans ambiguïté entre les modules
+partageant une adresse. Sur la carte par défaut, NATURE=0 :
+
+| Commande | Résident (s) | Simulation/modules (s) | DOS (s) | ROM (s) |
+|---|---:|---:|---:|---:|
+| VIEW | 5,622 | 0,000 | 0,001 | 0,001 |
+| SLEEP 8 H | 5,711 | 0,076 | 17,212 | 2,285 |
+| WALK 1 H | 4,277 | 0,425 | 22,729 | 2,097 |
+
+DOS absorbe 68,1 % du sommeil et 77,0 % de la marche ; les calculs flottants
+et fonctions ROM représentent respectivement 9,0 % et 7,1 %. Les caches
+SIM et vêtements, les raccourcis de vocabulaire, le balayage des arbres,
+le remplissage déroulé et les rotations partielles sont déjà en place.
+Un gain majeur supplémentaire demanderait de réduire les transferts des
+modules (par exemple compression des overlays ou autre répartition), avec
+un décodeur résident et une vérification des durées de vie de chaque zone.
+Les marges de 6 à 14 octets dans les zones de code principales ne permettent
+pas d'ajouter simplement un cache. Remplacer les calculs flottants ou
+réduire le nombre de rayons modifierait les arrondis ou l'image ; ces pistes
+ne sont pas appliquées dans cette passe.
+
+La cinquième passe retire le transfert de WILDINP pour les durées directes
+courantes. `REST`, `SLEEP`, `WALK` et `SWIM` acceptent en résident une durée
+entière positive de 1 à 255, sans unité (heures), en H ou en MIN, avec
+espaces entre les mots et espaces finaux. Les nombres plus grands,
+les qualificatifs, les espaces initiaux, les autres verbes et les erreurs
+passent par le lecteur complet. Zéro conserve l'annulation existante.
+La ligne n'est tronquée qu'après validation complète ; aucun échec du
+raccourci ne peut convertir une entrée invalide en commande valide.
+`input_argument=2` marque une durée déjà validée ; `number_entry` rend alors
+`msgnum` sans BLOAD. La conversion en minutes devient résidente pour ne
+pas exécuter du code absent de la fenêtre de modules. Le message de saisie
+est conservé pour les commandes qui demandent une durée au clavier.
+
+Deux tables de 140 octets disparaissent. La colonne impaire se déduit de
+la colonne paire et de son masque ; lorsque le pixel pair occupe le bit 6,
+le pixel impair passe au bit 0 de l'octet suivant. Dans les autres cas,
+le masque se décale d'un bit. Les 140 paires sont vérifiées nativement.
+Ce calcul ajoute environ 4 166 cycles (0,004 seconde) à VIEW, mais récupère
+280 octets pour supprimer une lecture disque de plus de deux secondes.
+
+Les petites zones résidentes voisines partagent maintenant un bloc LZ,
+avec remise à zéro des seuls trous inutilisés du linker, de 64 octets
+maximum. Aucun bloc ne traverse la page HGR ou le chargeur à `$5800`.
+Le dictionnaire commun permet de conserver deux fichiers de démarrage :
+25 253 octets de régions résidentes, 27 octets de padding, 16 369 octets
+comprimés. Le résident diminue de huit octets ; WILDINP de 19.
+
+| Commande | Avant (s) | Après (s) | Lectures DOS |
+|---|---:|---:|---:|
+| VIEW | 5,624 | 5,628 | 0 → 0 |
+| LOOK R | 7,345 | 7,345 | 2 → 2 |
+| STATUS initial | 3,691 | 3,691 | 1 → 1 |
+| REST 1 H | 23,696 | 21,117 | 5 → 4 |
+| SLEEP 8 H | 25,284 | 22,705 | 5 → 4 |
+| WALK 1 H | 29,529 | 26,951 | 7 → 6 |
+
+Les six empreintes d'état et d'image restent exactement identiques.
+`test_fast_duration.py` vérifie 799 entrées natives, les limites 255/256,
+le dépassement numérique, les unités et la conservation de la ligne de
+repli, puis les 140 paires graphiques. `test_sleep.py` compare le sommeil
+direct à la durée demandée au clavier et impose quatre chargements.
+Les tests DOS conservent la totalité du texte, de la page zéro et de l'état
+résident. Le démarrage arrive à `game_start` en 19,450 secondes (contre
+19,421), et à la première invite en 40,914 (contre 40,909) : la hausse reste
+inférieure à 0,03 seconde. Les grands transferts SIM/MED/HUD et sprites
+restent à traiter pour gagner davantage à ce stade.
+
+La sixième passe compresse les grands transferts utiles pendant la partie.
+Le format conserve 128 octets de préfixe, puis encode le reste inversé avec
+le LZ du chargeur. Le décodeur résident lit et écrit de la fin vers le début
+dans la fenêtre finale du module ; aucun deuxième tampon de 8 Ko n'est
+nécessaire. Le constructeur vérifie chaque écriture contre les octets
+compressés encore à lire et conserve le fichier brut si ce chevauchement
+serait dangereux ou si moins de deux secteurs sont économisés.
+Le préfixe attend dans le tampon de texte DOS après restitution du texte.
+La page zéro entière, dont FAC, est restaurée après décompression. Le chemin
+brut ne touche pas aux temporaires de page zéro.
+
+| Fichier | Octets bruts | Octets chargés | Secteurs de données avant → après |
+|---|---:|---:|---:|
+| WILDSIM | 8 178 | 5 420 | 32 → 22 |
+| WILDPLN | 1 900 | 1 427 | 8 → 6 |
+| WILDBER | 781 | 499 | 4 → 2 |
+| WILDHUT | 1 133 | 668 | 5 → 3 |
+
+Les nombres de secteurs incluent l'en-tête DOS de quatre octets, mais pas
+les listes T/S. Les autres modules restent bruts après mesure : MED, par
+exemple, économise deux secteurs mais ralentit le repos. La sélection est
+explicite dans `PACKED_MODULES`. Le fichier garde son ancienne allocation
+avec du remplissage après la longueur binaire déclarée ; DOS ne charge pas
+ce remplissage. Ainsi, les modules suivants gardent leur emplacement et
+leur cadence de rotation. Les listes T/S restent possédées par les fichiers,
+sans secteurs orphelins. Cette passe réduit les lectures, sans récupérer
+de place sur la disquette pour ces quatre fichiers.
+
+Pour loger le décodeur, seule la table `row_p0` de 256 octets reste stockée.
+`row_n0` est reconstruite une fois au démarrage dans `LOWCACHE` (BSS),
+par `95 + ceil(3*q/16)`. Les tables du quotient augmenté de 256 se déduisent
+par −48 ou +48, avec les mêmes bornes de clipping. Les lectures de table
+restent rapides dans la boucle de rendu. Le démarrage transfère 24 976 octets
+résidents et 18 de remplissage, comprimés en 16 303 octets dans deux fichiers.
+
+| Commande | Cinquième passe (s) | Sixième passe (s) |
+|---|---:|---:|
+| VIEW | 5,628 | 5,634 |
+| LOOK R | 7,345 | 7,258 |
+| STATUS initial | 3,691 | 3,691 |
+| REST 1 H | 21,117 | 21,107 |
+| SLEEP 8 H | 22,705 | 22,696 |
+| WALK 1 H | 26,951 | 26,962 |
+
+Ces mesures utilisent la première scène, le cœur POM2 à 1,023 MHz et la
+même commande après démarrage. Les six états et images sont identiques.
+La décompression absorbe presque tout le gain disque du repos et du sommeil ;
+la marche ajoute 0,011 seconde. Le moteur démarre en 19,43 secondes et
+la première invite arrive en 40,91. Les essais de décalage de piste,
+de compression de petits modules et de déplacement des fichiers ont été
+écartés lorsqu'ils allongeaient ces actions.
+`test_overlay_codec.py` vérifie le format, les limites de page et les copies
+chevauchantes, les longueurs DOS et allocations, les 20 chargements natifs,
+le texte visible, les 256 octets de page zéro, les bornes des deux fenêtres
+et les 256 valeurs du cache de projection. Les tests de rendu comparent
+les pixels aux références indépendantes.
 
 ## Carte de la réimplémentation
 

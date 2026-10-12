@@ -7,6 +7,68 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Réduction des transferts de modules
+
+- Simulation et sprites épave/ours/cabane compressés, décompression LZ
+  résidente en place : 32→22, 8→6, 4→2 et 5→3 secteurs de données lus.
+- Allocations conservées, longueurs BLOAD réduites : placement des fichiers
+  suivants préservé. Petits modules gardés bruts après mesure du coût natif.
+- Tables de projection réduites à une table stockée et un cache reconstruit
+  au démarrage ; 24 976 octets résidents, paquet de 16 303 octets en deux fichiers.
+- LOOK R à 7,26 s ; repos/sommeil presque inchangés à 21,11/22,70 s,
+  marche à 26,96 s. La décompression absorbe presque tout le gain disque.
+- 20 chargements natifs vérifiés octet par octet, avec texte, page zéro/FAC
+  et bornes mémoire conservés ; états et images de six commandes identiques.
+- Durées directes 1–255 H/MIN de REST/SLEEP/WALK/SWIM validées en résident ;
+  lecteur complet conservé pour saisie au clavier, autres formes et erreurs.
+- Une lecture WILDINP évitée : REST 1 H à 21,12 s, SLEEP 8 H à 22,71 s,
+  WALK 1 H à 26,95 s ; états et images identiques.
+- Deux tables graphiques redondantes retirées (280 octets) pour loger la
+  saisie résidente ; coût du rendu supplémentaire de 0,004 s.
+- Dictionnaire de compression partagé entre régions voisines : démarrage
+  maintenu dans deux fichiers (16 369 octets) ; résident réduit de huit octets.
+- 799 durées natives et les 140 paires de pixels vérifiées ; zéro, erreurs,
+  annulation, saisie générale, mémoire DOS et restitution intégrale conservés.
+
+### Audit des coûts et copies natives
+
+- Copies LZ du chargeur par index Y ; mise à jour des pointeurs et compteurs
+  une fois par séquence. Moteur prêt à 19,42 s ; première invite à 40,91 s.
+- Division de pente nulle immédiate ; suppression du double effacement et
+  du second bandeau lors de la restauration nocturne extérieure.
+- VIEW à 5,62 s ; DRINK nocturne gagne 0,14 s. Résident : 25 261 octets,
+  comprimés en 16 276 octets dans deux fichiers ; quatre octets nets ajoutés.
+- Profilage des commandes par zone mémoire : DOS absorbe encore 68 % du
+  sommeil et 77 % de la marche. États et pixels comparés sans différence.
+- 8 256 divisions et 40 copies testées nativement, ainsi que l'effacement
+  nocturne unique ; franchissements de page et chevauchements couverts.
+
+### Chargement Disk II
+
+- Compression LZ optimisée par bloc avec prise en compte des drapeaux,
+  fenêtre complète de 4 095 octets et suppression des coupures de sortie
+  arbitraires à 4 Ko. Décompresseur et mémoire Apple II identiques.
+- Démarrage compacté en 16 272 octets dans deux fichiers au lieu de trois ;
+  entrelacement de neuf secteurs avec décalage physique d'un secteur entre pistes.
+- Arrivée dans le moteur : 23,48 → 20,83 secondes ; première invite :
+  45,89 → 43,26. LOOK R : 8,08 → 7,36 ; sommeil de huit heures : 25,83 → 25,30.
+- Mesures Disk II corrigées pour arrêter la saisie avant le premier BLOAD.
+  1 023 cas de compression comparés à une recherche exhaustive, limites
+  de format et fenêtre, intégrité DOS et restitution native vérifiées.
+
+### Parcours mémoire du rendu
+
+- Recherche des arbres arrêtée pour le reste du rayon après sa limite de
+  distance ou la sélection d'une couronne ; réactivation au rayon suivant.
+- Effacement par lignes contiguës, avec adresses HGR calculées une fois
+  par ligne ; bandeau, cache, trous mémoire et colonnes conservées protégés.
+- 32 octets de pointeurs redondants supprimés, sans nouveau calcul d'indice
+  dans le remplissage déroulé ; résident total réduit de 14 octets.
+- VIEW : 6,20 → 5,64 secondes, LOOK R : 8,28 → 8,08, sommeil de huit heures :
+  26,39 → 25,83. États et pixels identiques, lectures DOS inchangées.
+- Régressions sur chaque octet d'une page HGR, effacements partiels/complets,
+  budget de recherche des arbres et réactivation entre les images.
+
 ### Vitesse et durée de vie des données en mémoire
 
 - 170 octets d'une table de rendu hors écran récupérés pour LOOK résident

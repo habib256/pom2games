@@ -15,38 +15,69 @@ import sys
 
 
 def compress(data):
-    history = defaultdict(lambda: deque(maxlen=32))
-    tokens = []
-    pos = 0
-    while pos < len(data):
+    # Keep the complete 12-bit window, including across the old 4 KB splits.
+    # A shorter first match can enable a cheaper next match. Account for the
+    # flag byte every eight tokens when choosing the minimum-size parse.
+    history = defaultdict(deque)
+    matches = []
+    size = len(data)
+    for pos in range(size):
         key = data[pos:pos + 3]
         best, distance = 2, 0
+        limit = min(255, size - pos)
         if len(key) == 3:
-            for prev in reversed(history[key]):
+            candidates = history[key]
+            while candidates and pos - candidates[0] > 4095:
+                candidates.popleft()
+            for prev in reversed(candidates):
                 length = 3
-                while length < min(255, len(data) - pos) and data[prev + length] == data[pos + length]:
+                while length < limit and data[prev + length] == data[pos + length]:
                     length += 1
                 if length > best:
                     best, distance = length, pos - prev
-        count = best if distance else 1
-        if distance:
+                if best == limit:
+                    break
+            candidates.append(pos)
+        matches.append((best, distance))
+    costs = [[0] * (size + 1) for _ in range(8)]
+    choices = [[1] * size for _ in range(8)]
+    for pos in range(size - 1, -1, -1):
+        longest, distance = matches[pos]
+        for phase in range(8):
+            future = costs[(phase + 1) % 8]
+            best, count = 1 + future[pos + 1], 1
+            for low, high, token_size in ((3, min(17, longest), 2), (18, longest, 3)):
+                if not distance or high < low:
+                    continue
+                cost = min(future[pos + low:pos + high + 1]) + token_size
+                if cost < best:
+                    best = cost
+                    count = future.index(cost - token_size, pos + low, pos + high + 1) - pos
+            costs[phase][pos] = best + (phase == 0)
+            choices[phase][pos] = count
+    tokens = []
+    pos, phase = 0, 0
+    while pos < size:
+        count = choices[phase][pos]
+        distance = matches[pos][1]
+        if count != 1:
             assert distance <= 4095
-            token = bytes((distance & 255, (distance >> 8) << 4 | min(best - 3, 15)))
-            if best >= 18:
-                token += bytes((best - 18,))
+            token = bytes((distance & 255, (distance >> 8) << 4 | min(count - 3, 15)))
+            if count >= 18:
+                token += bytes((count - 18,))
         else:
             token = data[pos:pos + 1]
-        tokens.append((bool(distance), token))
-        for index in range(pos, pos + count):
-            history[data[index:index + 3]].append(index)
+        tokens.append((count != 1, token))
         pos += count
+        phase = (phase + 1) % 8
     packed = bytearray()
     for index in range(0, len(tokens), 8):
         group = tokens[index:index + 8]
         packed.append(sum(match << bit for bit, (match, _) in enumerate(group)))
         for _, token in group:
             packed.extend(token)
-    assert decompress(packed, len(data)) == data
+    assert len(packed) == costs[0][0]
+    assert decompress(packed, size) == data
     return bytes(packed)
 
 
@@ -93,12 +124,24 @@ def write_packages(build, out, mapbin=None):
     raw_size = 0
     limits = {0x0800: 0x0926, 0x0926: 0x0A00, 0x0A00: 0x1000, 0x1000: 0x2000, 0x4000: 0x5800,
               0x6000: 0x7000, 0x7000: 0x9500}
-    for address, data in inputs:
-        raw_size += len(data)
+    # Share the dictionary across neighboring resident regions. Small linker
+    # gaps are unused game RAM and can be restored as zero; never bridge HGR
+    # or the transient loader. This avoids paying for independent dictionaries.
+    merged = []
+    for address, data in sorted(inputs):
         assert data and address + len(data) <= limits[address]
+        if merged:
+            previous, payload = merged[-1]
+            gap = address - previous - len(payload)
+            if 0 <= gap <= 64:
+                merged[-1] = (previous, payload + bytes(gap) + data)
+                continue
+        merged.append((address, data))
+    for address, data in merged:
+        raw_size += len(data)
         offset = 0
         while offset < len(data):
-            chunk = data[offset:offset + 4096]
+            chunk = data[offset:]
             block = struct.pack('<HH', address + offset, len(chunk)) + compress(chunk)
             if len(groups[-1]) + len(block) + 2 > 8192:
                 # Fit a shorter block into the current file instead of leaving

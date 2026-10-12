@@ -81,11 +81,16 @@ woods_here:
 .segment "LOWTEXT"
 forest_masks: .byte 1,2,4,8,16,32,64,128
 
-.segment "TEXT"
+.segment "LOWCODE"
 ; Called for every column, even a terrain-free night/shelter scene.
 forest_reset:
         lda     #0
         sta     forest_distance
+        lda     #$2C            ; BIT abs: skip probe, preserving carry and Y
+        ldx     forest_enabled
+        beq     :+
+        lda     #$20            ; JSR: at most the first eight candidate cells
+:       sta     render_forest_call
         rts
 
 .segment "GCODE"
@@ -103,7 +108,7 @@ forest_probe:
         sec
         sbc     #127
         cmp     #9
-        bcs     @done
+        bcs     @stop
         sta     forest_distance
         sta     divisor
         lda     (gp),y
@@ -161,10 +166,13 @@ forest_probe:
         cmp     forest_start
         bcc     @reject
         beq     @reject
-        bne     @done
+        bne     @stop           ; nearest visible crown is final for this ray
 @reject:
         lda     #0
         sta     forest_distance
+        beq     @done
+@stop:  lda     #$2C            ; no stack/register save on later ray steps
+        sta     render_forest_call
 @done:  pla
         tay
         plp

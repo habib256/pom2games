@@ -111,6 +111,7 @@ start:
         sta     heading
         lda     M_HEAD+1
         sta     heading+1
+        jsr     project_init
         jsr     hgr_init_clear
         lda     MIXSET
         lda     #20
@@ -272,12 +273,7 @@ render:
         bcs     render_b1
         lda     col_be,x
 render_b1:    sta     tmp2
-        lda     #0
-        ldy     tmp
 render_clr:   jsr     clear_rows
-        iny
-        cpy     tmp2
-        bcc     render_clr
         jsr     hud_draw
         lda     c1              ; only left turns end before column 140
         bmi     :+
@@ -452,7 +448,8 @@ render_yk:    clc
         and     #$7F
         adc     eyeb            ; levels <= 125: dz + 128 stays in 1..253
         sta     dzb
-        jsr     forest_probe
+render_forest_call:
+        jsr     forest_probe    ; reset per ray; becomes BIT after the last candidate
         lda     thr             ; thr += tinc (no carry out of the add above)
         adc     tinc
         sta     thr
@@ -492,7 +489,9 @@ render_pbig:  jsr     bigdiv          ; dz >= n: q >= 256
         cmp     #2
         bcs     render_prow0          ; q >= 512: top row
         ldx     tinc
-        lda     row_p1,x
+        lda     row_p0,x
+        sec
+        sbc     #48
         jmp     render_drawchk
 render_prow0: lda     #0
         jmp     render_drawchk
@@ -527,7 +526,9 @@ render_nbig:  jsr     bigdiv          ; |dz| >= n: q >= 256
         ldx     qlo
         cpx     #86
         bcs     render_hide           ; truncated row_n1's former $FF suffix
-        lda     row_n1,x        ; $FF below the bottom row
+        lda     row_n0,x
+        clc
+        adc     #48        ; $FF below the bottom row
 render_drawchk:
         cmp     top
         bcc     render_shown
@@ -601,11 +602,17 @@ column_masks:
         ldx     col
         lda     col_be,x
         sta     be
-        lda     col_bo,x
         sta     bo
         lda     col_me,x
         sta     me
-        lda     col_mo,x
+        cmp     #$BF            ; even pixel at bit 6: odd wraps to next byte
+        bne     :+
+        inc     bo
+        lda     #$FE
+        bne     @odd
+:       asl
+        ora     #1              ; keep the phase bit and vacated bit zero set
+@odd:
         sta     mo
         eor     #$FF
         sta     ob
@@ -833,7 +840,11 @@ bigdiv: sta     qhi
 
 ; smalldiv -- A = r < n = divisor (n <= 128): A = r * 256 / n. Clobbers qlo.
 smalldiv:
-        .repeat 8
+        cmp     #0
+        bne     :+
+        sta     qlo
+        rts
+:       .repeat 8
         asl     a               ; remainder < n <= 128: no carry out
         cmp     divisor
         bcc     :+
@@ -920,9 +931,27 @@ grid_hi:
 ; ----------------------------------------------------------------------------
 .segment "LOWDATA"
                                 ; screen rows (rowtab.inc, page-aligned):
-        .include "rowtab.inc"   ; row_p0/p1[q]: tinc = q, row_n0/n1[q]: -q
+        .include "rowtab.inc"   ; q < 256 projection; q+256 differs by exactly 48 rows
 
 .segment "LOWCODE"
+; Rebuild the negative projection cache once, rather than transfer it.
+; ceil(3*q/16) = floor(3*q/16) + (q mod 16 != 0).
+.segment "LOWCACHE"
+row_n0: .res 256
+.segment "LOWCODE"
+project_init:
+        ldx     #0
+@row:   txa
+        and     #15
+        cmp     #1
+        lda     row_p0,x
+        eor     #255
+        adc     #191            ; modulo 256: 190 - row_p0 + fractional carry
+        sta     row_n0,x
+        inx
+        bne     @row
+        rts
+
 ; span_rows: one 8-byte block per HGR row: lda row,y / ora fs / sta row,y
 span_rows:
         .repeat VIEW_ROWS-HUD_ROWS+1, I
@@ -934,33 +963,40 @@ span_rows:
         rts
         .endif
         .endrep
-; clear_rows: clear terrain/cache byte column Y; keep the visible HUD (A = 0)
+; clear_rows: clear byte columns [tmp,tmp2); keep the visible HUD and holes.
 clear_rows:
         ; Rows 160..175 cache logical 0..15 underneath the compass.
-        ; Clearing physical 16..175 preserves the ribbon and avoids the
-        ; row helper and stack traffic for every byte of the viewport.
+        ; Visit each physical row once, then clear its contiguous byte range.
+        ; Row pointers need not be fetched again for every byte column.
         ldx     #VIEW_ROWS+HUD_ROWS-1
 @row:   lda     hgr_lo,x
         sta     hp
         lda     hgr_hi,x
         sta     hp+1
+        ldy     tmp
         lda     #0
-        sta     (hp),y
+@byte:  sta     (hp),y
+        iny
+        cpy     tmp2
+        bcc     @byte
         dex
         cpx     #HUD_ROWS
         bcs     @row
         rts
-span_lo:
-        .repeat VIEW_ROWS+1, R
-        .byte   <(span_rows + (.max(R, HUD_ROWS)-HUD_ROWS) * 8)
+; fill's header loop handles rows below HUD_ROWS before either lookup.
+; Omit the sixteen duplicate pointers from each table without extra indexing.
+span_lo = *-HUD_ROWS
+        .repeat VIEW_ROWS-HUD_ROWS+1, R
+        .byte   <(span_rows + R * 8)
         .endrep
-span_hi:
-        .repeat VIEW_ROWS+1, R
-        .byte   >(span_rows + (.max(R, HUD_ROWS)-HUD_ROWS) * 8)
+span_hi = *-HUD_ROWS
+        .repeat VIEW_ROWS-HUD_ROWS+1, R
+        .byte   >(span_rows + R * 8)
         .endrep
 
 .segment "CODE"
         .include "game.s"
+        .include "overlay_codec.s"
         .include "input.s"
         .include "sprites.s"
         .include "hud.s"

@@ -32,11 +32,13 @@ block:
         sta     dest+1
         and     dest
         cmp     #$FF
-        beq     next_file
-        lda     dest
+        bne     :+
+        jmp     next_file
+:      lda     dest
         ora     dest+1
-        beq     done
-        jsr     get
+        bne     :+
+        jmp     done
+:      jsr     get
         sta     remain
         jsr     get
         sta     remain+1
@@ -53,7 +55,14 @@ token:
         lsr     flags
         bcs     copy_match
         jsr     get
-        jsr     put
+        sta     (dest),y
+        inc     dest
+        bne     :+
+        inc     dest+1
+:       lda     remain
+        bne     :+
+        dec     remain+1
+:       dec     remain
         jmp     check
 copy_match:
         jsr     get
@@ -86,17 +95,32 @@ copy_match:
 :       tax
 copy:
         lda     (match),y
-        jsr     put
-        inc     match
-        bne     :+
-        inc     match+1
-:       dex
+        sta     (dest),y
+        iny
+        dex
         bne     copy
+        ; Indexed reads preserve overlapping LZ matches, including page
+        ; crossings. Advance output and remaining length once per token.
+        tya
+        clc
+        adc     dest
+        sta     dest
+        bcc     :+
+        inc     dest+1
+:       sty     length
+        sec
+        lda     remain
+        sbc     length
+        sta     remain
+        bcs     :+
+        dec     remain+1
+:       ldy     #0
 check:
         lda     remain
         ora     remain+1
-        bne     token
-        jmp     block
+        beq     :+
+        jmp     token
+:      jmp     block
 next_file:
         inc     number
         jmp     load
@@ -111,17 +135,6 @@ get:
         bne     :+
         inc     source+1
 :       rts
-put:
-        sta     (dest),y
-        inc     dest
-        bne     :+
-        inc     dest+1
-:       lda     remain
-        bne     :+
-        dec     remain+1
-:       dec     remain
-        rts
-
 command: .byte "BLOAD WILDPAK"
 number: .byte "1,A$2000", 0
 

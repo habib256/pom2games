@@ -49,12 +49,14 @@ les cinq sprites sont inclus dans la disquette construite localement.
 Le démarrage utilise un chargeur temporaire à `$5800`, qui décompresse les
 fichiers résidents depuis le tampon de la future page HGR à `$2000`. La
 disquette place les listes de secteurs avant les données et utilise un ordre
-de secteurs adapté aux lectures DOS. Sur la carte par défaut, les 25 271 octets
-résidents deviennent 17 040 octets répartis dans deux fichiers. Mesuré dans
-le cœur POM2 à la vitesse Apple II, le lancement du moteur arrive à 23,48
-secondes et la première invite jouable à 46,45.
+de secteurs adapté aux lectures DOS. Sur la carte par défaut, les 24 976 octets
+résidents, complétés de 18 octets de remplissage, deviennent 16 303 octets
+répartis dans deux fichiers. L'entrelacement
+de neuf secteurs reçoit un décalage d'un secteur physique entre pistes.
+Mesuré dans le cœur POM2 à la vitesse Apple II, le lancement du moteur arrive
+à 19,43 secondes et la première invite jouable à 40,91.
 L'initialisation, les modules et le premier rendu sont inclus dans ce dernier
-temps. Avant cette optimisation mémoire, les deux mesures étaient 24,16 et
+temps. Avant les optimisations mémoire et Disk II, les deux mesures étaient 24,16 et
 47,47 secondes avec les mêmes fonctionnalités.
 
 `python3 tools/profile_loading.py` mesure le démarrage et deux lectures de
@@ -63,12 +65,28 @@ avec une carte peu compressible qui nécessite un fichier supplémentaire.
 
 L'organisation mémoire évite désormais des chargements de vocabulaire et de
 LOOK pour les commandes fréquentes. Sur la carte par défaut, `VIEW` passe
-de 12,47 à 6,20 secondes, `LOOK R` de 10,43 à 8,28 et `STATUS` au départ de
-12,27 à 3,76. Après une action, STATUS passe de 12,36 à 9,56 secondes.
-Le temps du sommeil reste proche de 26,4 secondes pour huit heures demandées.
+de 12,47 à 5,63 secondes, `LOOK R` de 10,43 à 7,26 et `STATUS` au départ de
+12,27 à 3,69. Après une action, STATUS passe de 12,36 à 9,28 secondes.
+L'arrêt des recherches d'arbres devenues inutiles et l'effacement par lignes
+retirent encore environ 0,56 seconde au redessin. Le sommeil de huit heures
+prend désormais 22,70 secondes, contre 26,39 après la première optimisation.
 `python3 tools/profile_actions.py` mesure les cycles et lectures disque ;
+son option `--profile` répartit les cycles entre résident, simulation,
+modules, DOS et ROM. Le disque représente encore 68 % du sommeil et
+77 % de la marche avant la dernière réduction des transferts ;
+`REST`, `SLEEP`, `WALK` et `SWIM` avec une durée directe de 1 à 255 H/MIN
+évitent désormais le chargement de la saisie. Le repos d’une heure prend
+21,11 secondes et la marche 26,96, avec une lecture de moins chacun ;
 les conditions et le détail de la mémoire sont décrits dans
 [IMPLEMENTATION.md](docs/IMPLEMENTATION.md#mémoire-et-modules-disque).
+
+La simulation et trois sprites sont maintenant compressés sur disquette et
+décompressés directement dans leur fenêtre mémoire. La simulation lit 22
+secteurs de données au lieu de 32 ; l'épave, l'ours et la cabane en économisent
+deux chacun. Le placement des fichiers suivants reste conservé. Les transferts
+diminuent, mais la décompression absorbe presque tout le gain sur REST/SLEEP ;
+les temps ci-dessus comprennent ce coût. `test_overlay_codec.py` contrôle
+les fichiers DOS, les 20 chargements natifs et leur intégrité mémoire.
 
 ## Commandes
 
