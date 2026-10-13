@@ -1,8 +1,8 @@
 {
-  "_conditions": "POM2 a2shot --iie (enhanced //e, 1 020 484 cycles/s), dist/NEOWILDERNESS.po (lot 3, DHGR, BOOT_PACKING=auto), ProDOS 8 2.4.3; fresh session per command, NATURE 0; tools/profile_actions.py --profile VIEW 'LOOK R' 'LOOK B' RIGHT LEFT STATUS 'WALK 1 H' (RIGHT/LEFT: arrow on the empty line, measured from turn_view to the prompt). 'hgr_128k' is the same measurement of the lots 1-2 build (HGR, same commit before lot 3; docs/BASELINE_128K.json has its STATUS, LOOK R and WALK 1 H). The picture fingerprint hashes rows 0..175 of the main then the aux bank. Simulation fields of every outcome equal the HGR 128 KB build (test_reference_state.py compares the whole state with the HGR reference).",
+  "_conditions": "POM2 a2shot --iie (enhanced //e, 1 020 484 cycles/s), dist/NEOWILDERNESS.po (lot 6: DHGR landscape, colour DHGR HUD, DHGR TOPO module, resident fine geography on native maps; default map, BOOT_PACKING=auto), ProDOS 8 2.4.3; fresh session per command, NATURE 0; tools/profile_actions.py --profile VIEW 'LOOK R' 'LOOK B' RIGHT LEFT STATUS 'WALK 1 H' TOPO (RIGHT/LEFT: arrow on the empty line, measured from turn_view to the prompt). 'reference_hgr' is the same measurement of the frozen HGR/DOS 3.3 reference (build/reference-hgr/WILDERNESS.dsk and its wild.lbl, a2shot ][+ at the same nominal frequency: compare cycles); its 'reads' count module loads (overlay_reads) and omit TOPO's direct BLOAD of the 8 KB sheet. 'hgr_128k' is the lots 1-2 build (HGR, before lot 3; docs/BASELINE_128K.json), kept from the lot 3 measurement, with delta_percent recomputed against the new cycles. Profile regions: 'transfers' = RESIDENT $B600-$B9FF (mem_fetch) and the stack-page copy loop; 'overlays' = the $5800 module window (TOPO's drawing is there); 'ROM' = $D000+ (Applesoft floats; on a native map also the fine geography decoder in the auxiliary language card, none on the default map); disk = MLI calls (always 0 after the preload). The picture fingerprint hashes rows 0..175 of the main then the aux bank. Simulation fields equal the lot 3 measurement (state_equal_hgr_128k) and test_reference_state.py compares the whole state with the HGR reference.",
   "VIEW": {
-    "cycles": 5964268,
-    "seconds": 5.845,
+    "cycles": 5905667,
+    "seconds": 5.787,
     "reads": 0,
     "outcome": {
       "px": "0022801c5b00",
@@ -13,13 +13,15 @@
       "it_gnd_lo": "0000000000000000001e000000000000000000000000403000101030101030200820200030300000001e1e0000001e00000f000000000000000000001e1e00000000000000001e1e000f0000",
       "it_gnd_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
       "injury_active": "000000000000000000000000000000",
-      "picture": "b3d67fb024a39ac190e12ff9c4586c15257d4ffe2c4d7fbbce8b1dafc05165a1"
+      "picture": "9df5666e2570aea76f34a266497e993bf5b11b1ba371be9b81259a6bff233260"
     },
     "disk_calls": 0,
     "transfers": 0,
     "transfer_bytes": 0,
+    "geo_queries": 0,
+    "geo_decodes": 0,
     "profile": {
-      "resident": 5964256,
+      "resident": 5905655,
       "simulation": 0,
       "overlays": 0,
       "transfers": 0,
@@ -36,12 +38,26 @@
         "ROM": 401
       }
     },
-    "delta_percent": 3.6,
-    "state_equal_hgr_128k": true
+    "delta_percent": 2.5,
+    "state_equal_hgr_128k": true,
+    "reference_hgr": {
+      "cycles": 5785423,
+      "seconds": 5.669,
+      "reads": 0,
+      "profile": {
+        "resident": 5770795,
+        "simulation": 0,
+        "overlays": 0,
+        "DOS": 558,
+        "ROM": 14070
+      }
+    },
+    "speedup_vs_reference_hgr": 0.98,
+    "state_equal_reference_hgr": true
   },
   "LOOK R": {
-    "cycles": 1966886,
-    "seconds": 1.927,
+    "cycles": 1938673,
+    "seconds": 1.9,
     "reads": 2,
     "outcome": {
       "px": "0022801ca100",
@@ -52,16 +68,18 @@
       "it_gnd_lo": "0000000000000000001e000000000000000000000000403000101030101030200820200030300000001e1e0000001e00000f000000000000000000001e1e00000000000000001e1e000f0000",
       "it_gnd_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
       "injury_active": "000000000000000000000000000000",
-      "picture": "81aa16c985b82d9b2c6b2dc0397bddf0c74f3d5fda983c6f9aeedb4db50ac99b"
+      "picture": "e665b1e4beafc69d87e932ee4874cce63258dee277edd7e1437b7312b5b218f7"
     },
     "disk_calls": 0,
     "transfers": 2,
     "transfer_bytes": 3947,
+    "geo_queries": 0,
+    "geo_decodes": 0,
     "profile": {
-      "resident": 1905197,
+      "resident": 1876552,
       "simulation": 0,
       "overlays": 522,
-      "transfers": 61155,
+      "transfers": 61587,
       "ROM": 12
     },
     "hgr_128k": {
@@ -75,12 +93,26 @@
         "ROM": 292
       }
     },
-    "delta_percent": 4.3,
-    "state_equal_hgr_128k": true
+    "delta_percent": 2.8,
+    "state_equal_hgr_128k": true,
+    "reference_hgr": {
+      "cycles": 8152218,
+      "seconds": 7.989,
+      "reads": 2,
+      "profile": {
+        "resident": 1996343,
+        "simulation": 0,
+        "overlays": 521,
+        "DOS": 6154065,
+        "ROM": 1289
+      }
+    },
+    "speedup_vs_reference_hgr": 4.21,
+    "state_equal_reference_hgr": true
   },
   "LOOK B": {
-    "cycles": 2541360,
-    "seconds": 2.49,
+    "cycles": 2515344,
+    "seconds": 2.465,
     "reads": 3,
     "outcome": {
       "px": "0022801c7301",
@@ -91,16 +123,18 @@
       "it_gnd_lo": "0000000000000000001e000000000000000000000000403000101030101030200820200030300000001e1e0000001e00000f000000000000000000001e1e00000000000000001e1e000f0000",
       "it_gnd_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
       "injury_active": "000000000000000000000000000000",
-      "picture": "8931354f45c57f3775b05d18b697c3d8997a71c301e2ea10f0cb7bfca5240267"
+      "picture": "68406af60337415cd85b5b24dde6e31faa29c915e34f1fb595d124420e3489d6"
     },
     "disk_calls": 0,
     "transfers": 3,
     "transfer_bytes": 5081,
+    "geo_queries": 0,
+    "geo_decodes": 0,
     "profile": {
-      "resident": 2454129,
+      "resident": 2427622,
       "simulation": 0,
       "overlays": 8688,
-      "transfers": 78531,
+      "transfers": 79022,
       "ROM": 12
     },
     "hgr_128k": {
@@ -114,12 +148,26 @@
         "ROM": 401
       }
     },
-    "delta_percent": 3.0,
-    "state_equal_hgr_128k": true
+    "delta_percent": 1.9,
+    "state_equal_hgr_128k": true,
+    "reference_hgr": {
+      "cycles": 11528728,
+      "seconds": 11.297,
+      "reads": 3,
+      "profile": {
+        "resident": 2555897,
+        "simulation": 0,
+        "overlays": 8687,
+        "DOS": 8949324,
+        "ROM": 14820
+      }
+    },
+    "speedup_vs_reference_hgr": 4.58,
+    "state_equal_reference_hgr": true
   },
   "RIGHT": {
-    "cycles": 1129277,
-    "seconds": 1.107,
+    "cycles": 1105803,
+    "seconds": 1.084,
     "reads": 0,
     "outcome": {
       "px": "0022801c7e00",
@@ -130,13 +178,15 @@
       "it_gnd_lo": "0000000000000000001e000000000000000000000000403000101030101030200820200030300000001e1e0000001e00000f000000000000000000001e1e00000000000000001e1e000f0000",
       "it_gnd_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
       "injury_active": "000000000000000000000000000000",
-      "picture": "18ce3ced8777bfa116f254f18cd08e6bdb961bd165679a435ade2ddabf5f2435"
+      "picture": "cf54dd22ea99fdcb84a1731d51fce51ee281464cdc75f06ba82ca0ad80e1dfa3"
     },
     "disk_calls": 0,
     "transfers": 0,
     "transfer_bytes": 0,
+    "geo_queries": 0,
+    "geo_decodes": 0,
     "profile": {
-      "resident": 1129277,
+      "resident": 1105803,
       "simulation": 0,
       "overlays": 0,
       "transfers": 0,
@@ -153,12 +203,26 @@
         "ROM": 0
       }
     },
-    "delta_percent": 4.6,
-    "state_equal_hgr_128k": true
+    "delta_percent": 2.4,
+    "state_equal_hgr_128k": true,
+    "reference_hgr": {
+      "cycles": 1078846,
+      "seconds": 1.057,
+      "reads": 0,
+      "profile": {
+        "resident": 1078846,
+        "simulation": 0,
+        "overlays": 0,
+        "DOS": 0,
+        "ROM": 0
+      }
+    },
+    "speedup_vs_reference_hgr": 0.98,
+    "state_equal_reference_hgr": true
   },
   "LEFT": {
-    "cycles": 854201,
-    "seconds": 0.837,
+    "cycles": 828996,
+    "seconds": 0.812,
     "reads": 0,
     "outcome": {
       "px": "0022801c3800",
@@ -169,13 +233,15 @@
       "it_gnd_lo": "0000000000000000001e000000000000000000000000403000101030101030200820200030300000001e1e0000001e00000f000000000000000000001e1e00000000000000001e1e000f0000",
       "it_gnd_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
       "injury_active": "000000000000000000000000000000",
-      "picture": "6b287c3da4b5e2f1a9d4012336e45e9eeb418f296e46114b2f66f973a562e455"
+      "picture": "c82540f54a9d9d780a8efd31c1fbe3ec06a13f2d2936b1e0cc666a1e04190dfa"
     },
     "disk_calls": 0,
     "transfers": 0,
     "transfer_bytes": 0,
+    "geo_queries": 0,
+    "geo_decodes": 0,
     "profile": {
-      "resident": 854201,
+      "resident": 828996,
       "simulation": 0,
       "overlays": 0,
       "transfers": 0,
@@ -192,11 +258,25 @@
         "ROM": 0
       }
     },
-    "delta_percent": 5.4,
-    "state_equal_hgr_128k": true
+    "delta_percent": 2.3,
+    "state_equal_hgr_128k": true,
+    "reference_hgr": {
+      "cycles": 810026,
+      "seconds": 0.794,
+      "reads": 0,
+      "profile": {
+        "resident": 810026,
+        "simulation": 0,
+        "overlays": 0,
+        "DOS": 0,
+        "ROM": 0
+      }
+    },
+    "speedup_vs_reference_hgr": 0.98,
+    "state_equal_reference_hgr": true
   },
   "STATUS": {
-    "cycles": 244063,
+    "cycles": 243464,
     "seconds": 0.239,
     "reads": 3,
     "outcome": {
@@ -208,17 +288,19 @@
       "it_gnd_lo": "0000000000000000001e000000000000000000000000403000101030101030200820200030300000001e1e0000001e00000f000000000000000000001e1e00000000000000001e1e000f0000",
       "it_gnd_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
       "injury_active": "000000000000000000000000000000",
-      "picture": "b3d67fb024a39ac190e12ff9c4586c15257d4ffe2c4d7fbbce8b1dafc05165a1"
+      "picture": "9df5666e2570aea76f34a266497e993bf5b11b1ba371be9b81259a6bff233260"
     },
     "disk_calls": 0,
     "transfers": 3,
     "transfer_bytes": 6078,
+    "geo_queries": 0,
+    "geo_decodes": 0,
     "profile": {
-      "resident": 55776,
+      "resident": 55727,
       "simulation": 0,
-      "overlays": 8345,
-      "transfers": 95451,
-      "ROM": 84491
+      "overlays": 8324,
+      "transfers": 94923,
+      "ROM": 84490
     },
     "hgr_128k": {
       "cycles": 246027,
@@ -231,12 +313,26 @@
         "ROM": 85440
       }
     },
-    "delta_percent": -0.8,
-    "state_equal_hgr_128k": true
+    "delta_percent": -1.0,
+    "state_equal_hgr_128k": true,
+    "reference_hgr": {
+      "cycles": 9219190,
+      "seconds": 9.034,
+      "reads": 3,
+      "profile": {
+        "resident": 104462,
+        "simulation": 0,
+        "overlays": 8345,
+        "DOS": 9019949,
+        "ROM": 86434
+      }
+    },
+    "speedup_vs_reference_hgr": 37.87,
+    "state_equal_reference_hgr": true
   },
   "WALK 1 H": {
-    "cycles": 9490176,
-    "seconds": 9.3,
+    "cycles": 9417362,
+    "seconds": 9.228,
     "reads": 20,
     "outcome": {
       "px": "8024001e5b00",
@@ -247,17 +343,19 @@
       "it_gnd_lo": "0000000000000000001e000000000000000000000000403000101030101030200820200030300000001e1e0000001e00000f000000000000000000001e1e00000000000000001e1e000f0000",
       "it_gnd_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
       "injury_active": "000000000000000000000000000000",
-      "picture": "d2b9636217765f6b339c92fc0ada632557c0f0070a3e9bcda5825df089085f29"
+      "picture": "7d9e115371623f147bdf7272433b503dfac1d620fdc688d029e5f945396c7b81"
     },
     "disk_calls": 0,
     "transfers": 20,
-    "transfer_bytes": 44881,
+    "transfer_bytes": 43989,
+    "geo_queries": 0,
+    "geo_decodes": 0,
     "profile": {
-      "resident": 4831022,
-      "simulation": 26721,
-      "overlays": 427582,
-      "transfers": 694443,
-      "ROM": 3510408
+      "resident": 4778738,
+      "simulation": 26732,
+      "overlays": 417047,
+      "transfers": 684387,
+      "ROM": 3510458
     },
     "hgr_128k": {
       "cycles": 9283516,
@@ -270,7 +368,81 @@
         "ROM": 3531804
       }
     },
-    "delta_percent": 2.2,
-    "state_equal_hgr_128k": true
+    "delta_percent": 1.4,
+    "state_equal_hgr_128k": true,
+    "reference_hgr": {
+      "cycles": 71492409,
+      "seconds": 70.057,
+      "reads": 20,
+      "profile": {
+        "resident": 5591065,
+        "simulation": 26721,
+        "overlays": 430393,
+        "DOS": 61873535,
+        "ROM": 3570695
+      }
+    },
+    "speedup_vs_reference_hgr": 7.59,
+    "state_equal_reference_hgr": true
+  },
+  "TOPO": {
+    "cycles": 1023256,
+    "seconds": 1.003,
+    "reads": 1,
+    "outcome": {
+      "px": "0022801c5b00",
+      "s_hour": "836000000000000000007f3058633e8a160000008a7a00000082000000008200000000820000000000000000000000000000000000000082800000008280000000828000000000000f0000837bbb443487453333330000000000810000000000000000000000000000000000000000020088044e74538323b7c2a98517120f56870a208e8c",
+      "it_place": "ffff0201010101010102000002ff010000ff0000000304ff020000ff040004ff0404ff020404020002ff02020002ff02000000ff03020102ffff02020200ff0003ff0202ff0200ff000200ff",
+      "it_pack_lo": "00090301030301010312030f0602030302020101010340001000000020002000101000102020180008000000070a0c0c0c110e1f000000000012000000000000000006000000000000000600",
+      "it_pack_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "it_gnd_lo": "0000000000000000001e000000000000000000000000403000101030101030200820200030300000001e1e0000001e00000f000000000000000000001e1e00000000000000001e1e000f0000",
+      "it_gnd_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "injury_active": "000000000000000000000000000000",
+      "picture": "9df5666e2570aea76f34a266497e993bf5b11b1ba371be9b81259a6bff233260"
+    },
+    "disk_calls": 0,
+    "transfers": 1,
+    "transfer_bytes": 1531,
+    "geo_queries": 0,
+    "geo_decodes": 0,
+    "profile": {
+      "resident": 64977,
+      "simulation": 0,
+      "overlays": 933310,
+      "transfers": 24234,
+      "ROM": 735
+    },
+    "reference_hgr": {
+      "cycles": 10921434,
+      "seconds": 10.702,
+      "reads": 1,
+      "profile": {
+        "resident": 32990,
+        "simulation": 0,
+        "overlays": 76,
+        "DOS": 10864586,
+        "ROM": 23782
+      }
+    },
+    "speedup_vs_reference_hgr": 10.67,
+    "state_equal_reference_hgr": true
+  },
+  "_boot": {
+    "prodos_boot": 8.699,
+    "preload": 12.561,
+    "preload_disk": 9.818,
+    "preload_decode": 2.099,
+    "preload_copies": 0.643,
+    "start_to_playable": 7.002,
+    "first_playable": 28.262,
+    "mli_calls": 16,
+    "mli_reads": 13,
+    "bytes_read": 50982,
+    "dat_raw": 65006,
+    "dat_stored": 50342,
+    "records": 11,
+    "volume_blocks": 148,
+    "reference_hgr_first_playable": 45.107,
+    "note": "tools/profile_loading.py --packings auto; the HGR reference figure (45.107 s, DOS 3.3) is the lots 1-2 measurement of docs/BASELINE_128K.json, not remeasured."
   }
 }

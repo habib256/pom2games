@@ -121,6 +121,7 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_transfers.py
 	$(PYTHON) tests/test_resident.py
 	$(PYTHON) tests/test_geo_resident.py
+	$(PYTHON) tests/test_journey_resident.py
 	$(PYTHON) tests/test_reference_state.py
 	$(PYTHON) tests/test_optimizations.py
 	$(PYTHON) tests/test_fast_duration.py
@@ -139,6 +140,7 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_hud.py
 	$(PYTHON) tests/test_interface.py
 	$(PYTHON) tests/test_transitions.py
+	$(PYTHON) tests/test_screen_returns.py
 	$(PYTHON) tests/test_sky.py
 	$(PYTHON) tests/test_moonlight.py
 	$(PYTHON) tests/test_site_directions.py

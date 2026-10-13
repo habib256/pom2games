@@ -259,13 +259,15 @@ def inventory_status():
 
 
 def help_pages():
-    # Actual keyboard consultation must leave both the journey and HGR intact.
+    # Actual keyboard consultation must leave both the journey and the view
+    # intact: peek:2000:8192 reads both DHGR banks (16 KB, tests/common.py).
     size=L['s_t0']+5-L['s_hour']
     with a2test.Session(DISK) as s:
         s.step(IDLE)
         before=s.step(L.peek('s_hour',size)).data
         items=tuple(s.step(L.peek(name,76)).data for name in ('it_place','it_pack_lo','it_gnd_lo'))
         view=s.step('peek:2000:8192').data
+        assert len(view)==16384,'main and auxiliary banks'
         def page(key=None):
             if key is not None:
                 s.step(f'key:{key}')
@@ -312,7 +314,7 @@ def help_pages():
         assert s.step(L.peek('s_hour',size)).data==before
         assert tuple(s.step(L.peek(name,76)).data for name in ('it_place','it_pack_lo','it_gnd_lo'))==items
         assert s.step('peek:2000:8192').data==view
-    print('  welcome, three HELP pages, examples, selection/wrapping, ESC/RETURN; journey, supplies and view preserved: OK')
+    print('  welcome, three HELP pages, examples, selection/wrapping, ESC/RETURN; journey, supplies and both DHGR banks preserved: OK')
 
 
 def screen_links():
@@ -327,6 +329,7 @@ def screen_links():
         before=s.step(L.peek('s_hour',size)).data
         items=tuple(s.step(L.peek(name,76)).data for name in ('it_place','it_pack_lo','it_gnd_lo'))
         view=s.step('peek:2000:8192').data
+        assert len(view)==16384,'main and auxiliary banks'
         for source,key,target in links:
             s.step(f'key:{source}\\r')
             s.step(L.until(keys[source],20000))
@@ -337,10 +340,10 @@ def screen_links():
             s.step('key:\\e');s.step(IDLE)
             assert s.step(L.peek('s_hour',size)).data==before
             assert tuple(s.step(L.peek(name,76)).data for name in ('it_place','it_pack_lo','it_gnd_lo'))==items
-            # HGR holes also hold simulation scratch; compare displayed rows
-            # and the retained compass background, rather than those holes.
+            # Screen holes also hold simulation scratch; compare the displayed
+            # rows 0-175 of both DHGR banks (HUD, view and its cache) instead.
             assert hgr_rows(s.step('peek:2000:8192').data)==hgr_rows(view)
-    print('  nine direct HELP/INVENTORY/STATUS links, including TOPO; return preserves journey, stock and HGR: OK')
+    print('  nine direct HELP/INVENTORY/STATUS links, including TOPO; return preserves journey, stock and both DHGR banks: OK')
 
 
 def main_view_hints():
@@ -469,8 +472,9 @@ def map_controls():
             assert ('P+C','P+H','P+R')[i%3] in screen[3],screen[3]
             if i%3==1: assert 'ENTER SHELTER' in screen[3]
             assert r.dumps[4+2*i]==bytes((24,33)), 'C must restore player-centred map'
-        assert r.dumps[1]==r.dumps[-2] and r.dumps[2]==r.dumps[-1], 'TOPO must preserve time and HGR'
-    print('  eight bearings with both magnetic declinations, C recenter, player/site overlaps, clock/HGR preserved: OK')
+        assert len(r.dumps[2])==16384,'main and auxiliary banks'
+        assert r.dumps[1]==r.dumps[-2] and r.dumps[2]==r.dumps[-1], 'MAP must preserve time and both DHGR banks'
+    print('  eight bearings with both magnetic declinations, C recenter, player/site overlaps, clock and both DHGR banks preserved: OK')
 
 if __name__=='__main__':
     summary_display();monitor();transient_alerts();transient_condition();drinking_recovery();ground_hint();inventory_status();help_pages();screen_links();main_view_hints();inventory_backward();timberline_display();map_controls()

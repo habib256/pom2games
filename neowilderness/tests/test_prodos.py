@@ -7,6 +7,10 @@
   launcher (Bitsy Bye 2.4.3) runs and /RAM is again a readable empty volume.
 - The game can be launched again from the launcher.
 - A /RAM holding files is erased only after Y; N returns to ProDOS.
+- At the final MLI QUIT (after QUIT Y or Ctrl-RESET during play), the zero
+  page, the ProDOS bitmap and the RESET vector are byte for byte those found
+  at NEOWILD.SYSTEM's entry, and the memory switches are back to main RAM
+  and the ROM; during play the bitmap marks the game pages.
 """
 import common
 from common import L, DISK, a2test, text_screen
@@ -30,6 +34,33 @@ def check_launcher(result, label, occurrence=0):
     assert 'BITSY' in text and '/NEOWILDERNESS' in text, (label, text)
     switches = result.mem(0xC011, 15, occurrence)
     assert main_banks(switches), (label, switches.hex())
+
+
+# Pages the loader marks in the ProDOS bitmap for the game (docs/MEMORY.md):
+# $08-$57, $60-$B9 and $BE; one bit per page, bit 7 = first page of a byte.
+PAGES = set(range(0x08, 0x58)) | set(range(0x60, 0xBA)) | {0xBE}
+GAME_PAGES = bytes(sum(0x80 >> k for k in range(8) if 8 * i + k in PAGES) for i in range(24))
+
+
+def exit_state():
+    """ProDOS state at the loader's entry, during play, and at the final QUIT."""
+    quit_call = L['quit_parms'] - 6         # JSR mli_call ; JMP @halt ; quit_parms
+    entry = ['until:%04X:6000' % L['loader_main'], 'peek:0000:256', 'peek:BF58:24', 'peek:03F2:3']
+    final = [f'until:{quit_call:04X}:6000', 'peek:0000:256', 'peek:BF58:24', 'peek:03F2:3', SWITCHES]
+    for name, leave in (('QUIT', ['key:QUIT', 'key:\\r', 'wait:60', 'press:Y']), ('RESET', ['reset'])):
+        r = a2test.run(DISK, entry + [IDLE, 'peek:BF58:24', 'peek:03F2:3'] + leave + final)
+        zp, bitmap, vector = r.dumps[0:3]
+        assert r.dumps[3] == bytes(b | g for b, g in zip(bitmap, GAME_PAGES)), \
+            ('game pages $08-$57, $60-$B9 and $BE marked during play', r.dumps[3].hex())
+        assert r.dumps[4] == bytes((L['reset_exit'] & 255, L['reset_exit'] >> 8, (L['reset_exit'] >> 8) ^ 0xA5))
+        assert r.dumps[5] == zp, (name, 'zero page', [i for i in range(256) if r.dumps[5][i] != zp[i]])
+        assert r.dumps[6] == bitmap, (name, 'bitmap', r.dumps[6].hex(), bitmap.hex())
+        assert r.dumps[7] == vector, (name, 'RESET vector')
+        switches = r.dumps[8]
+        lcram, ramrd, ramwrt, altzp, store80 = (switches[i] >> 7 for i in (1, 2, 3, 5, 7))
+        assert (lcram, ramrd, ramwrt, altzp, store80) == (0, 0, 0, 0, 0), (name, switches.hex())
+    print('  QUIT and Ctrl-RESET: zero page, bitmap and RESET vector equal to the loader entry at the MLI QUIT; '
+          'main RAM, ROM; exactly the game pages marked during play: OK')
 
 
 def main():
@@ -68,6 +99,7 @@ def main():
         if not playable:
             assert 'BITSY' in screen(r, 1), screen(r, 1)
     print('  /RAM with files: N returns to ProDOS untouched, Y erases it and plays: OK')
+    exit_state()
 
 
 if __name__ == '__main__':

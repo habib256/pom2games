@@ -7,6 +7,60 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Neowilderness : validation finale (lot 6)
+
+- `make test-original` rejoué en entier (comparaisons aux routines
+  originales sur ROM, sondes, 83 points de contrôle d’aventure) : vert.
+  `test_weather_front.py --original` lisait six octets contigus depuis
+  `weather_cap` et prenait `weather_day_level` pour le ciel ; il lit
+  chaque variable par son étiquette (correction aussi dans `../wilderness`).
+- Nouveau `test_screen_returns.py` : depuis une partie fraîche, STATUS,
+  STATUS → M → B, INVENTORY (toutes les pages), HELP (toutes les pages),
+  MAP (défilement puis C), TOPO et QUIT refusé par N, Retour et Échap ;
+  après chaque retour, aucun appel MLI (compteurs et `watch` sur `$BF00`),
+  modules copiés exactement attendus (`watch` sur `mem_fetch`, octets égaux
+  aux longueurs du répertoire), journée, objets, santé, hasard (`fauna_rng`,
+  `water_rng`, `weather_seed`), position et cap inchangés, deux banques
+  DHGR, trame rendue et commutateurs identiques ; pile et drapeau I
+  identiques à chaque commande. Environ 1 s.
+- Nouveau `test_journey_resident.py` : trajet crash → rangers au clavier
+  sur une carte de contrôle (rivière, cabane, climat Sierra) : NATURE 100,
+  repas, eau, gourde remplie à la rive, traversée à la nage, cabane,
+  crotales et ours rencontrés par les tirages natifs, morsure (seule
+  intervention : `fauna_rng`) soignée par SUCK VENOM, nuit et changement
+  de jour, arrivée aux rangers. 398 chargements de modules, tous des
+  copies RAM (891 314 octets), aucun appel MLI, pile au plus profond à
+  `S=$DD`, `$0200-$03FF` auxiliaire intact. Rejoué sur le même terrain en
+  carte native : 715 requêtes fines, 5 tuiles décodées, aucun appel MLI.
+  Environ 5 s pour les deux cartes.
+- Garde-fous : `test_prodos.py` vérifie, à l'appel MLI QUIT final après
+  QUIT Y et après Ctrl-RESET, la page zéro, le bitmap et le vecteur RESET
+  identiques à ceux de l'entrée de `NEOWILD.SYSTEM`, et le bitmap exact
+  pendant la partie. Correction : la table `game_pages` de `src/boot.s`
+  (macro `.define` à paramètre) était assemblée en 24 octets nuls par
+  ca65 2.18 ; les pages `$08-$57`, `$60-$B9` et `$BE` sont désormais
+  marquées pendant la partie. Liste des garde-fous vérifiés dans
+  `docs/MEMORY.md` § 10.
+- `test_walk.py` compte ses chargements comme des copies RAM (égaux à
+  `xfer_count`, aucun appel MLI) ; `test_interface.py` affirme que ses
+  comparaisons d'image couvrent les deux banques DHGR.
+- Performances (`docs/BASELINE_DHGR.json`, remesuré avec TOPO, référence
+  HGR/DOS 3.3 remesurée en cycles) : STATUS 9 219 190 → 243 464 cycles,
+  LOOK R 8 152 218 → 1 938 673, LOOK B 11 528 728 → 2 515 344, WALK 1 H
+  71 492 409 → 9 417 362, TOPO 10 921 434 → 1 023 256 ; VIEW et flèches
+  +2 % (rendu DHGR) ; DHGR contre HGR 128 Ko : +1,4 à +2,8 %, STATUS
+  −1,0 % ; états identiques. Premier écran jouable 28,26 s (16 appels MLI,
+  50 982 octets lus). Tableau dans le README.
+- Relevé mémoire final (`docs/MEMORY.md` § 11) : 578 octets libres en RAM
+  principale résidente, 285 en RAM auxiliaire principale, 4 096 en carte
+  langage banque 2 ; `NEOWILD.DAT` 50 470 octets (11 enregistrements),
+  `NEOWILD.SYSTEM` 2 212 ; 132 blocs libres.
+- Documentation : README réécrit pour le port terminé (état, performances,
+  construction, `make run APPLE2_PRESET=iic`, carte native par
+  `mkmap.py --native` et `build_disk.py --map`) ; TODO des lots 4 et 6
+  coché ; `docs/IMPLEMENTATION.md` corrigé (TOPO DHGR, bandeau couleur,
+  modules en RAM). Restent : IIc et machine réelle, `make test-original`.
+
 ### Neowilderness : géographie fine résidente (lot 5)
 
 - Les cartes natives (octet 37 de l'en-tête : carte Sierra de comparaison,

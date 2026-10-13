@@ -1,8 +1,9 @@
 # Neowilderness — inventaire et plan mémoire 128 Ko
 
 Ce document décrit la version du lot 3, le bandeau et les panneaux couleur
-(§7) et le TOPO DHGR (§8) du lot 4, puis la géographie fine résidente du
-lot 5 (§9) : démarrage ProDOS 8 depuis `dist/NEOWILDERNESS.po`, tous les
+(§7) et le TOPO DHGR (§8) du lot 4, la géographie fine résidente du
+lot 5 (§9), puis les garde-fous vérifiés (§10) et le relevé final du
+lot 6 (§11) : démarrage ProDOS 8 depuis `dist/NEOWILDERNESS.po`, tous les
 modules préchargés en RAM auxiliaire (lots 1–2), paysage DHGR sur une seule
 page (`$2000-$3FFF` principale et auxiliaire), TOPO dessiné en DHGR depuis
 la carte résidente (§8) et, sur les cartes natives, atlas de la géographie
@@ -136,7 +137,12 @@ environ 930 octets dans WILDGAME, 290 dans WILDLO et 170 dans WILDERNESS
 Bitmap ProDOS pendant le jeu : pages `$08-$57`, `$60-$B9` et `$BE` marquées
 en plus de celles de ProDOS ; la fenêtre `$58-$5F` et le tampon `$BA-$BD`
 restent non marqués comme avant le lot 5, bien que plus rien n'y lise le
-disque. Le bitmap d'origine est rétabli à la sortie.
+disque. Le bitmap d'origine est rétabli à la sortie. Jusqu'au lot 6, la
+table `game_pages` de `src/boot.s` (une macro `.define` à paramètre) était
+assemblée en 24 octets nuls par ca65 2.18 : aucune page n'était marquée.
+Sans conséquence en jeu (aucun appel MLI après le préchargement), mais le
+garde-fou n'existait pas ; la table est désormais écrite octet par octet et
+`test_prodos.py` vérifie le bitmap exact pendant la partie.
 
 ### RAM auxiliaire
 
@@ -216,9 +222,11 @@ nécessaire puisque le temps a pu avancer.
 Volume `NEOWILDERNESS`, 280 blocs (5,25 pouces) : `PRODOS` (17 128 octets),
 `NEOWILD.SYSTEM` (2 216 ; 2 267 au lot 4, avant le retrait du chemin de `NEOWILD.GEO`) et
 `NEOWILD.DAT` (50 602 au lot 5 ; 50 787 au lot 4 ; 53 031 au lot 3 ; 50 620
-aux lots 1–2). 148 blocs occupés, **132 libres** (lot 4 : 149 et 131). La
-table compte 12 enregistrements et le démarrage fait 17 appels MLI, dont
-14 lectures, 51 114 octets lus. Une carte native ajoute un enregistrement
+aux lots 1–2). 148 blocs occupés, **132 libres** (lot 4 : 149 et 131).
+Relevé du lot 6 (§11) : `NEOWILD.SYSTEM` 2 212 octets, `NEOWILD.DAT`
+50 470 octets en 11 enregistrements, démarrage en 16 appels MLI dont
+13 lectures, 50 982 octets lus (le relevé précédent indiquait 12
+enregistrements, 17 appels, 14 lectures et 51 114 octets). Une carte native ajoute un enregistrement
 (décodeur + atlas) : Sierra 56 919 octets, 161 blocs ; carte générée native
 162 blocs, 18 appels MLI dont 15 lectures, 58 074 octets lus, premier écran
 jouable 30,41 s contre 28,75 s (§9). Les mesures de
@@ -447,3 +455,122 @@ Invariants vérifiés par `tests/test_geo_resident.py` après des décodages :
 commutateurs (`LCBNK2`, `LCRAM`, `RAMRD`, `RAMWRT`, `ALTZP`, `80STORE`,
 `PAGE2`) inchangés, page zéro principale intacte, `$0200-$03FF` auxiliaire
 (pilote /RAM) intact ; aucun appel MLI (compteurs et `watch` sur `$BF00`).
+
+## 10. Garde-fous vérifiés
+
+Relevé du lot 6 : ce que les tests de `make test` vérifient réellement, au
+clavier dans a2shot (IIe enhanced).
+
+- **Aucun accès disque après le préchargement** : compteurs `mli_calls`,
+  `mli_reads`, `mli_bytes` inchangés et `watch` a2shot sur l'entrée MLI
+  `$BF00` jamais atteinte : `test_resident.py` (scénario ordinaire, carte
+  héritée et carte native), `test_journey_resident.py` (trajet crash →
+  rangers, deux cartes), `test_screen_returns.py` (neuf retours d'écran),
+  `test_geo_resident.py` (requêtes et partie native), `test_walk.py`,
+  `test_sleep.py`. Aucune entrée DOS 3.3, RWTS ni BLOAD dans le code lié
+  (analyse des listings, `test_resident.py`).
+- **Chargements de modules = transferts RAM** : `overlay_reads` et
+  `xfer_count` avancent ensemble (`test_journey_resident.py`, `test_walk.py`,
+  `test_screen_returns.py`) ; modules attendus copiés par écran (`watch` sur
+  `mem_fetch`) et octets copiés égaux à leurs longueurs
+  (`test_screen_returns.py`) ; image exacte, aucun débordement de fenêtre
+  (`test_transfers.py`).
+- **Page zéro** : inchangée par chaque transfert (`test_transfers.py`) et
+  par les requêtes de géographie fine (`test_geo_resident.py`) ; rendue à
+  ProDOS identique à celle de l'entrée de `NEOWILD.SYSTEM`, à l'appel MLI
+  QUIT, après QUIT Y et après Ctrl-RESET (`test_prodos.py`). Fin du
+  scratch du rendu sous `$A4` : assertion d'édition de liens.
+- **Pile** : pointeur identique (`S=$FD`) à chaque `do_command`, donc
+  équilibré à travers commandes, écrans, transferts et décodages
+  (`test_screen_returns.py`, `test_journey_resident.py`) ; sur tout le
+  trajet crash → rangers, pile la plus profonde à `S=$DD` (34 octets), sans
+  retour par `$00`, bien au-dessus de la boucle de copie `$0120-$015B`
+  (`hwstack` a2shot, `test_journey_resident.py`).
+- **Interruptions** : drapeau I identique à chaque `do_command` (masqué
+  pendant la partie, `test_screen_returns.py`, `test_journey_resident.py`) ;
+  `mem_fetch` et `cell_native` les masquent par `PHP/SEI … PLP` (code ; le
+  bit I n'est pas relevé à l'intérieur de ces routines).
+- **Commutateurs** : `LCBNK2`, `LCRAM`, `RAMRD`, `RAMWRT`, `CXROM`, `ALTZP`,
+  `C3ROM`, `80STORE` inchangés par chaque transfert (`test_transfers.py`)
+  et chaque requête fine, `PAGE2` compris (`test_geo_resident.py`) ; les
+  quinze commutateurs mémoire et vidéo (hors VBL) identiques après chaque
+  écran (`test_screen_returns.py`) ; commutateurs mémoire identiques en fin
+  de trajet (`test_journey_resident.py`) ; modes vidéo et lignes texte
+  (`test_dhgr_video.py`).
+- **RAM auxiliaire réservée** : `$0200-$03FF` auxiliaire (pilote /RAM)
+  intact après des décodages (`test_geo_resident.py`) et après tout le
+  trajet (`test_journey_resident.py`) ; zones auxiliaires réservées et
+  enregistrements de `NEOWILD.DAT` vérifiés sur le volume
+  (`test_pack_boot.py`) ; atlas refusé au-delà du budget
+  (`test_geo_resident.py`).
+- **Vidéo** : effacements des deux banques sans toucher bandeau, trous ni
+  colonnes conservées (`test_render_memory.py`) ; image complète (deux
+  banques, trame rendue) et état identiques au retour de STATUS, M/B,
+  INVENTORY, HELP, MAP, TOPO et des refus de QUIT (`test_screen_returns.py`).
+- **Retour au système** : QUIT et Ctrl-RESET rétablissent texte 40
+  colonnes, banques principales, ROM, vecteur RESET, bitmap et page zéro,
+  reconstruisent /RAM vide et rendent la main au lanceur ; relance possible ;
+  /RAM occupé effacé seulement après Y ; ][+ refusé ; bitmap marquant
+  exactement `$08-$57`, `$60-$B9` et `$BE` pendant la partie
+  (`test_prodos.py`).
+
+Restent hors tests : le IIc (a2shot n'émule que le //e) et une machine
+réelle ; le bit I n'est pas observé à l'intérieur des sections masquées.
+
+## 11. Relevé final (lot 6)
+
+Mesuré sur `build/wild.map`, `build/layout.json`, `make inspect` et
+`tools/profile_loading.py --packings auto` (carte par défaut, `auto`).
+
+RAM principale résidente libre, par zone :
+
+| Zone | Fin occupée | Libre |
+|---|---|---:|
+| `$0800-$0FFF` (WILDTXT) | `$0FB3` | 76 (+ 4 en fin de `FORESTCODE`, `$09FC-$09FF`) |
+| `$1000-$1FFF` (WILDLO + cache) | `$1FA6` | 89 |
+| `$4000-$57FF` (WILDGAME + BSS) | `$5770` | 143 |
+| `$6000-$6FFF` (WILDERNESS) | `$6FDB` | 36 |
+| `$B600-$B9FF` (RESIDENT) | `$B915` | 234 |
+| **Total** | | **578** (+ 4) |
+
+Fenêtres d'exécution : `$5800-$5FFF` pleine avec WILDSTA (2 048 octets),
+29 octets libres avec TOPO (1 531 + 488 de tampons) ; fenêtre SIM
+`$9600-$B5FF` : 24 octets libres (8 168 octets de SIM).
+
+RAM auxiliaire : 38 627 octets stockés (22 images distinctes, l'alias 18
+ne coûte rien : 30 459 de modules et sprites, TOPO compris, et 8 168 de
+SIM) ; libres 285 octets en RAM auxiliaire principale (`$1EEA-$1FFF` 278,
+`$BFF9-$BFFF` 7), 4 096 en carte langage banque 2, 12 282 dans la zone de
+géographie fine d'une carte héritée (carte native générée
+`mkmap.py --native` : atlas 6 113 octets, 4 174 libres sur le budget de
+10 287).
+
+| Module | Octets | Module | Octets |
+|---|---:|---|---:|
+| 0 WILDTOP | 1 531 | 12 WILDTRV | 2 045 |
+| 1 WILDVOC | 2 047 | 13 WILDINP | 1 442 |
+| 2 WILDSCR | 2 043 | 14 WILDITM | 1 647 |
+| 3 WILDSIM | 8 168 | 15 WILDHUD | 1 628 |
+| 4 WILDWAT | 495 | 16 WILDSTA | 2 048 |
+| 5 épave | 1 900 | 17/18 WILDMED | 2 045 |
+| 6 ours | 781 | 19 WILDMVI | 878 |
+| 7 couguar | 539 | 20 WILDTRE | 916 |
+| 8 crotale | 485 | 21 WILDADV | 1 982 |
+| 9 cabane | 1 133 | 22 WILDOUT | 1 982 |
+| 10 WILDSIT | 1 758 | `wildgeo.bin` (cartes natives) | 843 |
+| 11 WILDPRJ | 1 134 | | |
+
+Images principales résidentes : WILDFOREST 214, WILDTXT 1 460, WILDLO 3 751,
+WILDGAME 5 961, WILDERNESS 4 060, RESIDENT 742 (16 188 octets), plus le
+masque des bois (294) et la carte (9 472).
+
+Volume `NEOWILDERNESS` (280 blocs) : `PRODOS` 17 128 octets,
+`NEOWILD.SYSTEM` 2 212, `NEOWILD.DAT` 50 470 (11 enregistrements,
+65 006 octets bruts → 50 342 stockés) ; 148 blocs occupés, **132 libres**.
+Carte native générée : 12 enregistrements, 162 blocs.
+
+Démarrage (POM2, IIe enhanced, Disk II) : 16 appels MLI, dont 13 lectures,
+50 982 octets lus ; ProDOS 8,70 s, préchargement 12,56 s (disque 9,82 s,
+décodage LZ 2,10 s, copies 0,64 s), initialisation et premier rendu 7,00 s :
+**premier écran jouable 28,26 s** (référence HGR/DOS 3.3 : 45,11 s, mesure
+des lots 1–2). Ensuite, plus aucun appel MLI jusqu'à QUIT.

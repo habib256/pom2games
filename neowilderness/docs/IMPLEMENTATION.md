@@ -19,14 +19,14 @@ restants ; le [CHANGELOG](../CHANGELOG.md) conserve l'historique des étapes.
 | Arbres | CLIMB TREE/DOWN, HANG FOOD, sac suspendu ancré et récupération atomique | `test_tree.py`, `tools/re_tree_probe.py` |
 | Retours d'action | Refus précis, quantités accessibles/réelles, excédents et capacités, durée avec cause d'arrêt, résultats persistants sans confirmation intermédiaire | `test_feedback.py` |
 | Résumé et état | Heure/santé/besoins, alertes de transition, conditions prioritaires, stocks transportés et au sol | `test_interface.py`, `test_sim.py` |
-| Modules disque | Fenêtre BLOAD partagée et cache, préservation de la page zéro, du texte, de HGR et de l'état | `test_overlays.py` |
+| Modules en RAM | Images vierges préchargées en RAM auxiliaire, copiées dans la fenêtre partagée avec cache ; préservation de la page zéro, du texte, des deux banques DHGR et de l'état ; aucun appel MLI après le préchargement | `test_overlays.py`, `test_transfers.py`, `test_resident.py`, `test_screen_returns.py`, `test_journey_resident.py` |
 | Thermique | Couches sèches/mouillées, température corporelle, récupération et facteurs de santé | `test_thermal.py`, `test_wet.py` |
 | Vent et frissons | Ressenti signé, coût entier en kcal par pas, supplément des frissons | `test_wind_energy.py` |
 | Immersion | SWIM : entrée depuis la berge, effort original selon le poids total, immersion, sortie sur la rive opposée ; REST dans l'eau conserve l'immersion | `test_shore.py`, `test_wet.py`, `test_swim_energy.py` |
 | Sprites | Épave, cabane, ours, couguar et crotale originaux, cap, transparence, pixels noirs et clipping | `test_sprites.py` |
 | Ciel | Soleil à azimut géographique et hauteur saisonnière, lune nocturne datée (extension 1985), phase stylisée, occlusion par relief/nuages et rotations | `test_sky.py` ; géométrie solaire décrite dans `logic/environment.md` |
 | Composition | Terrain et sprites par colonne, arrêt conservateur des rayons masqués | `test_scene_render.py` |
-| Cabane et TOPO | Entrée/sortie, protection thermique, carte textuelle et défilement | `test_sites.py`, `tools/re_site_probe.py` |
+| Cabane, TOPO et MAP | Entrée/sortie, protection thermique ; TOPO graphique DHGR (module 0) ; MAP textuelle et défilement | `test_sites.py`, `test_graphical_topo.py`, `tools/re_site_probe.py` |
 | Sites voisins | Position fixe, projection, tailles, clipping et occlusion par le relief proche | `test_projection.py`, `scene_ref.py` |
 | Faune | Six critères Sierra, tirages par pas, remplacement, interruption des actions et réglage NATURE ; réactions par espèce, seuils Sierra bruit/blessure/combat, vol et protections | `test_fauna.py`, `test_fauna_steps.py`, `tools/re_fauna_probe.py`, `tools/re_fauna_accept_probe.py`, `test_animal_reactions.py`, `tools/re_animal_reactions_probe.py` |
 | Aventure | Progression par distance, collecte à la berge et contamination, bilan de victoire/mort | `test_journey.py` |
@@ -181,12 +181,13 @@ ressenti extérieur, la température calculée reste signée sur 16 bits ;
 le port évite le retournement de signe de l'octet original au-dessus de 127.
 Les preuves sur l'original et les limites sont dans [sites.md](logic/sites.md).
 
-TOPO montre une fenêtre textuelle de 32 × 14 cellules, centrée sur le joueur
-à l'ouverture. Flèches ou WASD déplacent la fenêtre de 8 colonnes ou 4 lignes,
+MAP (l'ancien TOPO textuel, voir « Séparation TOPO / MAP ») montre une
+fenêtre textuelle de 32 × 14 cellules, centrée sur le joueur à l'ouverture. Flèches ou WASD déplacent la fenêtre de 8 colonnes ou 4 lignes,
 sans dépasser la grille. `P`, `C`, `H`, `R` repèrent le joueur, l'épave, la
 cabane et les rangers ; `=` indique l'eau. Huit glyphes codent le niveau par
 tranches de 16. Entrée, Espace ou ESC restituent le mode mixte et la même
-page HGR. Ce premier écran n'est pas le tracé de courbes TOPO de l'original.
+page DHGR (deux banques, `test_screen_returns.py`). Ce n'est pas le tracé de
+courbes TOPO de l'original.
 Les Y du monde augmentent vers le nord : les lignes sont donc dessinées par
 Y décroissant, et défiler vers le haut augmente l'origine Y. Pendant WALK,
 le module TOPO est chargé une fois puis actualisé à chaque pas, sans attente
@@ -319,7 +320,7 @@ conservent l'historique HGR : lorsqu'ils parlent de BLOAD, de DOS ou de
 |---|---|
 | `$0A00-$0FFF` | `WILDTXT` : messages, constantes et table de bornes des rayons |
 | `$1000-$1FFF` | `WILDLO` : table de projection, lignes DHGR déroulées, effacement des deux banques, LOOK résident, noms et positions d'objets, raccourcis d'écran et compteurs de charge |
-| `$2000-$3FFF` | moitié principale de la page DHGR (l'autre est en auxiliaire) ; vue, bandeau, cache 160–175, quatre lignes de texte en mode mixte ; TOPO y est copié et affiché en HGR simple |
+| `$2000-$3FFF` | moitié principale de la page DHGR (l'autre est en auxiliaire) ; vue, bandeau, cache 160–175, quatre lignes de texte en mode mixte ; TOPO y est dessiné en DHGR par le module 0 (lot 4) |
 | `$4000-$57FF` | `WILDGAME` : logique résidente, état et objets, chargeur de modules |
 | `$5800-$5FFF` | Fenêtre partagée de 2 Ko pour les modules et sprites |
 | `$6000-$6FFF` | `WILDERNESS` : démarrage, moteur de vue, transitions, prise de mémoire auxiliaire |
@@ -328,7 +329,7 @@ conservent l'historique HGR : lorsqu'ils parlent de BLOAD, de DOS ou de
 | `$9600-$B5FF` | Fenêtre WILDSIM (le chargeur NEOWILD.SYSTEM y tourne au démarrage) |
 | `$B600-$B9FF` | RESIDENT : répertoire des modules, transferts, compteurs MLI, sortie/RESET |
 | `$BA00-$BEFF` | Tampon d'E/S ProDOS et page zéro de ProDOS sauvegardée |
-| auxiliaire | Images vierges de tous les modules, de WILDSIM et de TOPO |
+| auxiliaire | Images vierges de tous les modules (TOPO compris) et de WILDSIM ; moitié auxiliaire de la page DHGR ; géographie fine des cartes natives en carte langage (lot 5) |
 
 ### Chargement et instrumentation
 
@@ -344,8 +345,9 @@ dans un cache de quatre tuiles (`src/geoaux.s`, `docs/GEOGRAPHY.md` § 9) ;
 avec les mêmes valeurs que la version HGR ; les
 nouveaux compteurs `mli_calls`, `mli_reads`, `mli_bytes` (tous les appels
 MLI, chargeur compris) et `xfer_count`, `xfer_bytes` (copies RAM) sont des
-symboles de `build/wild.lbl`. La TOPO est une image préchargée : son BLOAD
-direct a disparu. Aucun appel DOS 3.3 ne subsiste (`test_resident.py`
+symboles de `build/wild.lbl`. TOPO est le module 0 (`wildtop.bin`), qui
+dessine la carte en DHGR depuis la grille résidente : ni BLOAD direct ni
+feuille préparée au build. Aucun appel DOS 3.3 ne subsiste (`test_resident.py`
 vérifie les instructions assemblées).
 
 ### Tests adaptés ou remplacés
@@ -376,19 +378,19 @@ synchronisée) avec ses `wild.lbl`/`wild.map`, démarré en ][+.
 | 7 | `WILDCOU` | Couguar Sierra |
 | 8 | `WILDRAT` | Crotale Sierra |
 | 9 | `WILDHUT` | Cabane |
-| 10 | `WILDSIT` | Entrée/sortie, vue intérieure et TOPO |
+| 10 | `WILDSIT` | Entrée/sortie, vue intérieure et MAP (carte locale textuelle) |
 | 11 | `WILDPRJ` | Géométrie des sites et borne du relief |
 | 12 | `WILDTRV` | Préparation, tracé, durée et rives de nage ; effort et poids dans WILDSIM |
 | 13 | `WILDINP` | Arguments directs, saisie numérique, NATURE et confirmation de QUIT |
 | 14 | `WILDITM` | Transferts, refus de charge et de conteneur, comptes rendus d'objets |
-| 15 | `WILDHUD` | Résumé de survie et police monochrome |
+| 15 | `WILDHUD` | Panneaux de survie et petite police DHGR 4 × 5 en colonnes couleur (lot 4) |
 | 16 | `WILDSTA` | STATUS : conditions, besoins, stocks et environnement |
 | 17/18 | `WILDMED` | Blessures, maladies, soins et expositions ; un seul chargement partagé |
 | 19 | `WILDMVI` | Commandes de soin et deuxième page de STATUS : conditions médicales et altitude |
 | 20 | `WILDTRE` | Initialisation et interactions avec les arbres ; LOOK est résident |
 | 21 | `WILDADV` | Distance, score, climat journalier, vêtements et quantités de ressources |
 | 22 | `WILDOUT` | Réactions animales, contamination, borne de présence animale et remise à zéro médicale quotidienne |
-| 0 | TOPO | Feuille topographique HGR, copiée vers `$2000` |
+| 0 | `WILDTOP` | TOPO DHGR dessiné depuis la grille résidente et le masque des bois (`src/topo.s`, fenêtre `$5800`, lot 4) |
 | — | `wildgeo.bin` + atlas | Géographie native fine (cartes natives) : résidente en carte langage auxiliaire, pas un module ; les anciens IDs 23–46 de `NEOWILD.GEO` sont retirés |
 
 Les modules sont préchargés en RAM auxiliaire. Un module présent dans la
@@ -766,13 +768,18 @@ dans [MEMORY.md](MEMORY.md) § 7.
   des espaces. Le jeu imprime avec ses propres primitives 40 colonnes, car
   le Moniteur du IIe enhanced bascule en mise en page 80 colonnes dès que
   `80COL` est actif.
-- **Modes.** DHGR pour la vue, texte 40 colonnes pour STATUS, INVENTORY,
-  HELP, MAP et le rideau, HGR simple pour TOPO (lot 4). Retour de TOPO :
-  vue complète redessinée ; retour de MAP et des menus : sans redessin.
+- **Modes.** DHGR pour la vue et pour TOPO (module 0, lot 4), texte
+  40 colonnes pour STATUS, INVENTORY, HELP, MAP et le rideau. Retour de
+  TOPO : vue complète redessinée ; retour de MAP et des menus : sans
+  redessin, sauf quand le calcul a demandé SIM (INVENTORY) ; dans tous les
+  cas image et état identiques (`test_screen_returns.py`).
 
-Écarts mesurés (`BASELINE_DHGR.json`, contre HGR 128 Ko) : VIEW +3,6 %,
-LOOK R +4,3 %, LOOK B +3,0 %, flèches +4,6 et +5,4 %, WALK 1 H +2,2 %,
-STATUS inchangé ; états identiques.
+Écarts mesurés contre HGR 128 Ko, au lot 3 : VIEW +3,6 %, LOOK R +4,3 %,
+LOOK B +3,0 %, flèches +4,6 et +5,4 %, WALK 1 H +2,2 %, STATUS inchangé ;
+remesurés au lot 6 (`BASELINE_DHGR.json`, bandeau couleur compris) : VIEW
++2,5 %, LOOK R +2,8 %, LOOK B +1,9 %, flèches +2,4 et +2,3 %, WALK 1 H
++1,4 %, STATUS −1,0 % ; états identiques. Tableau final contre la référence
+HGR/DOS 3.3 dans le [README](../README.md).
 
 Tests du lot : toutes les comparaisons d'images lisent les deux banques
 (`tests/common.py` : un `peek:2000:8192` sur le volume ProDOS rend 16 Ko,
@@ -831,7 +838,7 @@ Les courbes TOPO de l'original utilisent un autre format.
 
 ## Tests et outils
 
-Depuis `wilderness/`, `make test` exécute les fichiers `test_*.py` listés
+Depuis `neowilderness/`, `make test` exécute les fichiers `test_*.py` listés
 explicitement dans le Makefile avec a2shot. `make fuzz FUZZ_SEED=7` étend les
 comparaisons aléatoires de terrain. `make test-original` compare les commandes
 aux deux exécutables et échoue encore sur leurs différences ; sa portée
@@ -967,6 +974,13 @@ complète de jour et de nuit. Les tests différentiels du terrain isolent
 explicitement ce sous-système via `sky_enabled`.
 
 ## Résumé de survie et organisation des écrans (lots 4/5)
+
+Historique HGR : depuis le lot 4 du port 128 Ko, le ruban et les panneaux
+sont dessinés en pixels couleur DHGR avec la petite police 4 × 5
+(`hud_col`, [DHGR.md](DHGR.md) § 11) ; le cadre, la police 7 × 7 et les
+coordonnées HGR ci-dessous décrivent la version de référence. Les règles
+des champs, des alertes et des écrans restent celles décrites ici, et les
+lectures cumulées de `test_overlays.py` sont des copies RAM.
 
 Les côtés du ruban central sont réservés sur les seize premières lignes HGR.
 Un cadre d’un pixel entoure le compas (x = 91–188, y = 0–15), avec
@@ -1197,9 +1211,11 @@ une description de nuit ou de cabane.
 
 Sur la carte courante, le démarrage est mesuré à 19,39 s jusqu’au moteur et
 45,11 s jusqu’à la première invite, contre 19,44/44,90 s sur la disquette
-locale précédant cette correction. TOPO doit toujours lire son image et
-reconstruire le paysage au retour ; la correction masque cette attente,
-elle ne supprime pas les accès disque. Aucun délai décoratif n’est ajouté.
+locale précédant cette correction (référence HGR/DOS 3.3). Dans le port
+128 Ko, TOPO ne lit plus rien : le module 0 dessine la carte en DHGR
+(1,0 s derrière le rideau) et le paysage est reconstruit au retour sans
+accès disque ; premier écran jouable 28,3 s. Aucun délai décoratif n’est
+ajouté.
 
 SWIM prépare aussi SIM avant le raster : la sonde de rive appelle
 `native_here`, situé dans cette page. Sans ce chargement, une tentative sur

@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""A long real WALK makes bounded DOS reads, reports progress and terminates."""
+"""A long real WALK: bounded module loads, MAP progress, no disk access.
+
+overlay_reads counts module loads. Since lots 1-2 each one is a copy from
+auxiliary RAM (memory.s), not a DOS read: the same per-step counts as the
+HGR version are checked, then that every load was a RAM transfer
+(xfer_count) and that no MLI call happened (mli_calls).
+"""
 import tempfile
 import re
 from common import HERE, L, a2test, disk_with, fp, state, text_screen
@@ -19,6 +25,9 @@ def main():
             for step in ('key:WALK', 'press:\r', L.until('number_idle', 6000)):
                 s.step(step)
             previous = int.from_bytes(s.step(L.peek('overlay_reads', 2)).data, 'little')
+            first_load = previous
+            transfers = int.from_bytes(s.step(L.peek('xfer_count', 2)).data, 'little')
+            calls = s.step(L.peek('mli_calls', 2)).data
             s.step('key:4\r')
             s.step('wait:1')
             # Native half-cell pace: the health/weather update after step 13
@@ -31,9 +40,10 @@ def main():
                 cell_x = 10 + step // 2
                 s.step(L.until('walk_progress', 6000))
                 reads = int.from_bytes(s.step(L.peek('overlay_reads', 2)).data, 'little')
-                # TRAVEL replaces MAP for each step. The first step also
-                # prepares the raster and loads SIM. A health update loads
-                # MEDICAL and restores the environment/travel modules.
+                # Module loads (RAM copies): TRAVEL replaces MAP for each
+                # step. The first step also prepares the raster and loads
+                # SIM. A health update loads MEDICAL and restores the
+                # environment/travel modules.
                 medical_read = int(bool(s.step(L.peek('health_due')).data[0]))
                 assert medical_read == int(step in (2, 13, 23))
                 expected = 1 + 2 * int(step == 1) + 4 * medical_read
@@ -76,11 +86,17 @@ def main():
             assert int.from_bytes(s.step(L.peek('minutes', 2)).data, 'little') == 3
             screen = text_screen(s.step('peek:0400:1024').data)
             assert 'TRAVEL: 237 MINUTES.' in '\n'.join(screen), screen
-            # The game stays at the command prompt without more disk work.
+            # Every load was a RAM transfer, never an MLI call.
+            loads = int.from_bytes(s.step(L.peek('overlay_reads', 2)).data, 'little') - first_load
+            copies = int.from_bytes(s.step(L.peek('xfer_count', 2)).data, 'little') - transfers
+            assert loads == copies, (loads, copies)
+            assert s.step(L.peek('mli_calls', 2)).data == calls, 'WALK called the MLI'
+            # The game stays at the command prompt without loading more modules.
             before = s.step(L.peek('overlay_reads', 2)).data
             s.step('wait:600')
             assert s.step(L.peek('overlay_reads', 2)).data == before
-    print('WALK 4: 25 native half-step map updates write exactly the changed characters; messages, simulation and output vector preserved OK')
+    print(f'WALK 4: 25 native half-step map updates write exactly the changed characters; messages, simulation '
+          f'and output vector preserved; {loads} module loads, all RAM transfers, no MLI call OK')
 
 
 if __name__ == '__main__':

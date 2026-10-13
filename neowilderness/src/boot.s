@@ -693,14 +693,18 @@ ld_quit_parms: .byte 4, 0, 0, 0, 0, 0, 0
 file_name: .byte "/NEOWILD.DAT"
 file_end:
 
-; Pages protected in the ProDOS bitmap while the game runs. The module
-; window $5800-$5FFF and the I/O buffer stay unmarked, as before lot 5
+; Pages protected in the ProDOS bitmap while the game runs: $08-$57,
+; $60-$B9 and $BE (one bit per page, bit 7 = first page of the byte). The
+; module window $5800-$5FFF and the I/O buffer stay unmarked, as before lot 5
 ; (nothing reads the disk there any more: the fine geography is resident).
-.define PROT(p) ((((p) >= $08) .and ((p) <= $57)) .or (((p) >= $60) .and ((p) <= $B9)) .or ((p) = $BE))
+; Written per byte: the former function-like .define (PROT(p)*$80 | ...)
+; assembled to 24 zero bytes with ca65 2.18, leaving the bitmap unmarked
+; (tests/test_prodos.py now checks the marked pages).
 game_pages:
-        .repeat 24, I
-        .byte   PROT(I*8)*$80 | PROT(I*8+1)*$40 | PROT(I*8+2)*$20 | PROT(I*8+3)*$10 | PROT(I*8+4)*8 | PROT(I*8+5)*4 | PROT(I*8+6)*2 | PROT(I*8+7)
+        .repeat 23, I
+        .byte   (((I >= 1) .and (I <= 10)) .or ((I >= 12) .and (I <= 22))) * $FF
         .endrep
+        .byte   $C2             ; $B8, $B9 and $BE
 
 ; Zero page that DOS 3.3, Applesoft and HELLO left to the HGR version at
 ; start, captured from build/reference-hgr ($00-$1F, $50-$FF; the Monitor

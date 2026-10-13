@@ -3,8 +3,13 @@
 Le projet vise Apple IIe enhanced 128 Ko et IIc, à environ 1 MHz, avec une
 page DHGR et une image ProDOS `dist/NEOWILDERNESS.po`. La priorité est de
 supprimer les lectures disque pendant le jeu courant, puis de porter le rendu.
-Les lots 1 et 2 sont faits (HGR sous ProDOS 128 Ko, modules en RAM), le
-lot 3 aussi (paysage DHGR) ; l’interface DHGR, TOPO et MAP relèvent du lot 4.
+Les lots 1 à 5 sont faits : ProDOS 128 Ko et modules en RAM (1–2), paysage
+DHGR (3), bandeau couleur, TOPO DHGR et retours d’écran (4), géographie fine
+résidente sur les cartes natives (5). Le lot 6 est validé sur IIe enhanced
+émulé (trajet crash → rangers sans disque, garde-fous, performances,
+relevé mémoire). Restent : le IIc et une machine réelle, les comparaisons
+aux routines originales de `make test-original` à rejouer avec les
+extractions locales, et un vrai texte 80 colonnes, non retenu.
 
 Le point de départ est le contenu de travail de `../wilderness/` au
 13 octobre 2026, modifications locales incluses, sur la base Git
@@ -18,15 +23,20 @@ conserve les travaux de gameplay hérités.
 - [x] Charger au démarrage les modules nécessaires aux commandes, à la
   simulation, aux déplacements, aux sites et aux sprites.
 - [x] Exécuter les commandes courantes sans lecture disque supplémentaire.
-- [ ] Conserver les règles natives, l’ordre des tirages aléatoires, les
+- [x] Conserver les règles natives, l’ordre des tirages aléatoires, les
   demi-pas et leurs coûts ; comparer les états avec la référence HGR.
+  (`test_reference_state.py` ; états identiques pour chaque commande de
+  [BASELINE_DHGR.json](docs/BASELINE_DHGR.json).)
 - [x] Afficher le paysage en DHGR couleur, 140 × 192 pixels couleur,
   avec une palette de 16 couleurs et du texte lisible (lot 3 ; bandeau et
   panneaux en pixels couleur depuis le lot 4).
-- [ ] Conserver TOPO/T comme carte graphique globale et MAP comme carte
+- [x] Conserver TOPO/T comme carte graphique globale et MAP comme carte
   locale centrée sur le joueur. MAP est une extension absente de l’original.
-- [ ] Concentrer les accès disque sur le démarrage, les changements de
-  voyage et les sauvegardes lorsqu’elles seront implémentées.
+  (`test_graphical_topo.py`, `test_interface.py`, `test_screen_returns.py`.)
+- [x] Concentrer les accès disque sur le démarrage, les changements de
+  voyage et les sauvegardes lorsqu’elles seront implémentées. (Démarrage
+  seulement : 16 appels MLI, puis aucun jusqu’à QUIT ; le port n’a ni
+  changement de voyage ni sauvegarde.)
 
 Le premier port garde les calculs assembleur et les flottants Applesoft.
 La réécriture du gameplay, une animation à 30 images/s et le double tampon
@@ -44,8 +54,9 @@ fine sur 128 Ko doit être démontrée avant d’être annoncée.
 - [x] Ignorer `neowilderness/original/` dans Git.
 - [x] Conserver les mesures de référence dans
   [BASELINE_HGR.json](docs/BASELINE_HGR.json).
-- [ ] Préparer les références locales nécessaires aux sprites et aux
-  comparaisons sans les ajouter à Git.
+- [x] Préparer les références locales nécessaires aux sprites et aux
+  comparaisons sans les ajouter à Git (`build/reference-hgr/`,
+  `build/original_graphics/`, `make originals` / `make extract`, ignorés).
 - [x] Construire la copie HGR et enregistrer son fichier de symboles avec
   chaque disque de référence. Les adresses changent lors de la migration.
 - [x] Exécuter les tests hérités ; identifier les attentes liées au matériel
@@ -118,7 +129,8 @@ Mesurer au moins une séquence avec mise à jour de santé et changement de jour
   de la bibliothèque, avec une politique explicite pour un `/RAM` existant.
 - [x] Restaurer le mode texte, les banques et les ressources système à QUIT
   et RESET ; afficher un message sur une machine incompatible.
-- [ ] Ajouter construction, lancement et inspection de `NEOWILDERNESS.po`.
+- [x] Ajouter construction, lancement et inspection de `NEOWILDERNESS.po`
+  (`make`, `make run [APPLE2_PRESET=iic]`, `make inspect` ; voir le README).
 - [x] Valider amorçage et préchargement sur une image 5,25 pouces ; prévoir
   une image plus grande si les données du voyage ne tiennent pas.
 
@@ -189,9 +201,14 @@ La palette différente ne doit pas masquer une régression de projection.
   et panneaux en pixels couleur, petite police DHGR, ruban 28 pixels à
   7 unités par pixel, modèle exact et tests ; 578 octets libres en RAM
   principale après fusion avec TOPO et lot 5. Messages toujours en cellules 80 colonnes impaires par des
-  primitives 40 colonnes propres ; un vrai texte 80 colonnes reste à évaluer.)
-- [ ] Adapter STATUS, INVENTORY et HELP en conservant pagination,
-  raccourcis, annulation et mise en évidence des dangers.
+  primitives 40 colonnes propres ; un vrai texte 80 colonnes n’est pas
+  retenu au lot 6 : messages, menus et pages restent en 40 colonnes.)
+- [x] Adapter STATUS, INVENTORY et HELP en conservant pagination,
+  raccourcis, annulation et mise en évidence des dangers. (Pages texte
+  40 colonnes derrière le rideau, retour DHGR : `test_interface.py` pages
+  HELP, liens directs, INVENTORY et retour B, STATUS en 24 lignes, jauges
+  et santé critiques en couleur ; `test_medical.py` page M/B ;
+  `test_transitions.py` écritures différentielles.)
 - [x] Générer TOPO depuis les données en RAM, ou depuis un asset déjà
   préchargé dont le coût mémoire est validé ; supprimer son BLOAD direct.
   (Module 0 `src/topo.s`, 1 531 octets au lieu de la feuille HGR de 8 Ko ;
@@ -199,16 +216,28 @@ La palette différente ne doit pas masquer une régression de projection.
 - [x] Porter les courbes, l’eau, les bois et les repères graphiques TOPO.
   (DHGR : teintes de 800 pieds, courbes de 400 pieds, eau, damier des bois,
   C/R/H/P, légende ; modèle exact `tools/topo_ref.py`, `docs/DHGR.md` §12.)
-- [ ] Garder MAP centrée sur le joueur, son défilement, C pour recentrer
+- [x] Garder MAP centrée sur le joueur, son défilement, C pour recentrer
   et ses écritures différentielles pendant les déplacements.
-- [ ] Rétablir la vue au retour des écrans sans lecture disque ni avance
+  (`test_interface.py` huit caps et C, `test_walk.py` 25 mises à jour
+  différentielles pendant WALK, `test_screen_returns.py` défilement et C.)
+- [x] Rétablir la vue au retour des écrans sans lecture disque ni avance
   du temps ; vérifier objets, santé, hasard et position inchangés.
-- [ ] Mettre à jour le nom affiché, l’accueil et la documentation du port.
+  (`test_screen_returns.py` : STATUS, STATUS M B, INVENTORY, HELP, MAP,
+  TOPO, QUIT N/Retour/Esc ; zéro MLI, modules attendus, état, deux banques
+  DHGR, trame rendue et commutateurs identiques.)
+- [x] Mettre à jour le nom affiché, l’accueil et la documentation du port.
+  (NEOWILDERNESS dans l’introduction et HELP : `test_transitions.py`,
+  `test_interface.py` ; README, CHANGELOG et MEMORY du lot 6.)
 
 **Validation :** toutes les transitions d’écrans sont testées au clavier,
 avec relevé des lectures disque et vérification de l’état avant/après.
 Définir les budgets de latence à partir du prototype, puis tester les
 premières ouvertures et les ouvertures répétées séparément.
+
+État (lot 4) : terminé. Ouvertures mesurées (cycles, `BASELINE_DHGR.json`) :
+STATUS 0,24 s, TOPO 1,00 s (dessin derrière le rideau), MAP et menus sans
+redessin ; `test_screen_returns.py` ouvre chaque écran depuis une partie
+fraîche puis les enchaîne (ouvertures répétées, module en cache ou non).
 
 ## 5. Géographie fine native
 
@@ -255,23 +284,57 @@ lectures disque sur un itinéraire complet.
 
 ## 6. Validation finale et livraison
 
-- [ ] Adapter les tests matériels HGR/DOS au DHGR/ProDOS, en conservant
+- [x] Adapter les tests matériels HGR/DOS au DHGR/ProDOS, en conservant
   les assertions de comportement et les comparaisons aux routines originales.
-- [ ] Rejouer les scénarios de survie et un trajet crash → rangers avec
+  (`make test` : liste dans [IMPLEMENTATION.md](docs/IMPLEMENTATION.md)
+  « Tests adaptés ou remplacés », `test_walk.py` compte désormais des copies
+  RAM. `make test-original` (modes `--original`, sondes ROM, 83 points de
+  contrôle d’aventure) rejoué avec les extractions locales de
+  `../wilderness/build/` : tout passe après correction de
+  `test_weather_front.py`, qui lisait six octets contigus à partir de
+  `weather_cap` alors que `weather_day_level` s’est intercalé entre
+  visibilité et ciel ; il lit maintenant chaque variable par son
+  étiquette. Même correction appliquée à `../wilderness/tests/`, non
+  rejouée là.)
+- [x] Rejouer les scénarios de survie et un trajet crash → rangers avec
   repas, eau, repos, cabane, rencontres, soins et traversée à la nage.
-- [ ] Vérifier les garde-fous mémoire, page zéro, pile, changement de banque,
-  interruptions et restaurations au retour système.
-- [ ] Comparer les performances avec `docs/BASELINE_HGR.json` à fréquence
+  (`test_journey_resident.py` : repas, eau, gourde à la rive, nage, cabane,
+  crotales et ours, morsure et SUCK VENOM, nuit, arrivée aux rangers, sur
+  carte héritée puis native ; `test_resident.py`, `test_reference_state.py`.)
+- [x] Vérifier les garde-fous mémoire, page zéro, pile, changement de banque,
+  interruptions et restaurations au retour système. (Liste et tests dans
+  [MEMORY.md](docs/MEMORY.md) § 10 ; corrigé : la table du bitmap ProDOS
+  était assemblée à zéro, `test_prodos.py` la vérifie.)
+- [x] Comparer les performances avec `docs/BASELINE_HGR.json` à fréquence
   identique ; distinguer disque, transferts RAM, décompression et calcul.
-- [ ] Vérifier **zéro lecture disque pendant le jeu courant** après le
+  (Tableau du [README](README.md), `BASELINE_DHGR.json` avec la référence
+  HGR remesurée en cycles ; décodage seulement au démarrage et sur carte
+  native.)
+- [x] Vérifier **zéro lecture disque pendant le jeu courant** après le
   chargement du voyage, avec instrumentation des appels MLI et des anciens
-  chemins DOS, pas uniquement du compteur `overlay_reads`.
+  chemins DOS, pas uniquement du compteur `overlay_reads`. (Compteurs MLI et
+  `watch` sur `$BF00` : `test_resident.py`, `test_journey_resident.py`,
+  `test_screen_returns.py`, `test_geo_resident.py` ; aucun appel DOS 3.3
+  dans le code lié : `test_resident.py`.)
 - [ ] Tester IIe enhanced et IIc ; compléter par une machine réelle si
   disponible. Le matériel DHGR d’un IIe dépend aussi de sa carte vidéo.
-- [ ] Produire `dist/NEOWILDERNESS.po`, README, changelog et relevé mémoire
+  (IIe enhanced : toute la suite dans a2shot. Restent : le IIc, qu’a2shot
+  n’émule pas — vérification manuelle `make run APPLE2_PRESET=iic` dans
+  POM2 —, `make run` dans POM2 et une machine réelle, non essayés.)
+- [x] Produire `dist/NEOWILDERNESS.po`, README, changelog et relevé mémoire
   final ; préciser les données locales nécessaires et les limites restantes.
+  (README « État actuel » et « Construction », CHANGELOG lot 6,
+  [MEMORY.md](docs/MEMORY.md) § 11.)
 
 **Terminé lorsque :** le port DHGR est jouable, les commandes et déplacements
 courants ne déclenchent plus de lecture disque, les tests adaptés passent,
 les états de simulation concordent avec HGR et les performances mesurées
 sont publiées. La simple création d’un écran DHGR ne clôt pas le projet.
+
+État (lot 6) : critères atteints sur IIe enhanced émulé. `make test` inclut
+`test_screen_returns.py` et `test_journey_resident.py` ; performances
+publiées dans le [README](README.md) (en cycles, contre la référence
+HGR/DOS 3.3 : STATUS 37,9 fois, WALK 1 H 7,6 fois, TOPO 10,7 fois plus
+rapides ; rendu DHGR +2 % ; premier écran jouable 28,3 s contre 45,1 s).
+Restent ouverts : IIc et machine réelle, `make test-original` à rejouer
+avec les extractions locales.
