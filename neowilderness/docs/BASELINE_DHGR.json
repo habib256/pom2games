@@ -1,0 +1,900 @@
+{
+ "_conditions": "POM2 a2shot --iie (enhanced //e, 1 020 484 cycles/s), dist/NEOWILDERNESS.po (lot 3, DHGR, BOOT_PACKING=auto), ProDOS 8 2.4.3; fresh session per command, NATURE 0; tools/profile_actions.py --profile VIEW 'LOOK R' 'LOOK B' RIGHT LEFT STATUS 'WALK 1 H' (RIGHT/LEFT: arrow on the empty line, measured from turn_view to the prompt). 'hgr_128k' is the same measurement of the lots 1-2 build (HGR, same commit before lot 3; docs/BASELINE_128K.json has its STATUS, LOOK R and WALK 1 H). The picture fingerprint hashes rows 0..175 of the main then the aux bank. Simulation fields of every outcome equal the HGR 128 KB build (test_reference_state.py compares the whole state with the HGR reference).",
+ "VIEW": {
+  "cycles": 5964268,
+  "seconds": 5.845,
+  "reads": 0,
+  "outcome": {
+   "px": "0022801c5b00",
+   "s_hour": "836000000000000000007f3058633e8a160000008a7a00000082000000008200000000820000000000000000000000000000000000000082800000008280000000828000000000000f0000837bbb443487453333330000000000810000000000000000000000000000000000000000020088044e74538323b7c2a98517120f56870a208e8c",
+   "it_place": "ffff0201010101010102000002ff010000ff0000000304ff020000ff040004ff0404ff020404020002ff02020002ff02000000ff03020102ffff02020200ff0003ff0202ff0200ff000200ff",
+   "it_pack_lo": "00090301030301010312030f0602030302020101010340001000000020002000101000102020180008000000070a0c0c0c110e1f000000000012000000000000000006000000000000000600",
+   "it_pack_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "it_gnd_lo": "0000000000000000001e000000000000000000000000403000101030101030200820200030300000001e1e0000001e00000f000000000000000000001e1e00000000000000001e1e000f0000",
+   "it_gnd_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "injury_active": "000000000000000000000000000000",
+   "picture": "b3d67fb024a39ac190e12ff9c4586c15257d4ffe2c4d7fbbce8b1dafc05165a1"
+  },
+  "disk_calls": 0,
+  "transfers": 0,
+  "transfer_bytes": 0,
+  "profile": {
+   "resident": 5964256,
+   "simulation": 0,
+   "overlays": 0,
+   "transfers": 0,
+   "ROM": 12
+  },
+  "hgr_128k": {
+   "cycles": 5759621,
+   "seconds": 5.644,
+   "profile": {
+    "resident": 5759220,
+    "simulation": 0,
+    "overlays": 0,
+    "transfers": 0,
+    "ROM": 401
+   }
+  },
+  "delta_percent": 3.6,
+  "state_equal_hgr_128k": true
+ },
+ "LOOK R": {
+  "cycles": 1966886,
+  "seconds": 1.927,
+  "reads": 2,
+  "outcome": {
+   "px": "0022801ca100",
+   "s_hour": "836000000000000000007f3058633e8a160000008a7a00000082000000008200000000820000000000000000000000000000000000000082800000008280000000828000000000000f0000837bbb443487453333330000000000810000000000000000000000000000000000000000020088044e74538323b7c2a98517120f56870a208e8c",
+   "it_place": "ffff0201010101010102000002ff010000ff0000000304ff020000ff040004ff0404ff020404020002ff02020002ff02000000ff03020102ffff02020200ff0003ff0202ff0200ff000200ff",
+   "it_pack_lo": "00090301030301010312030f0602030302020101010340001000000020002000101000102020180008000000070a0c0c0c110e1f000000000012000000000000000006000000000000000600",
+   "it_pack_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "it_gnd_lo": "0000000000000000001e000000000000000000000000403000101030101030200820200030300000001e1e0000001e00000f000000000000000000001e1e00000000000000001e1e000f0000",
+   "it_gnd_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "injury_active": "000000000000000000000000000000",
+   "picture": "81aa16c985b82d9b2c6b2dc0397bddf0c74f3d5fda983c6f9aeedb4db50ac99b"
+  },
+  "disk_calls": 0,
+  "transfers": 2,
+  "transfer_bytes": 3947,
+  "profile": {
+   "resident": 1905197,
+   "simulation": 0,
+   "overlays": 522,
+   "transfers": 61155,
+   "ROM": 12
+  },
+  "hgr_128k": {
+   "cycles": 1885111,
+   "seconds": 1.847,
+   "profile": {
+    "resident": 1823148,
+    "simulation": 0,
+    "overlays": 522,
+    "transfers": 61149,
+    "ROM": 292
+   }
+  },
+  "delta_percent": 4.3,
+  "state_equal_hgr_128k": true
+ },
+ "LOOK B": {
+  "cycles": 2541360,
+  "seconds": 2.49,
+  "reads": 3,
+  "outcome": {
+   "px": "0022801c7301",
+   "s_hour": "836000000000000000007f3058633e8a160000008a7a00000082000000008200000000820000000000000000000000000000000000000082800000008280000000828000000000000f0000837bbb443487453333330000000000810000000000000000000000000000000000000000020088044e74538323b7c2a98517120f56870a208e8c",
+   "it_place": "ffff0201010101010102000002ff010000ff0000000304ff020000ff040004ff0404ff020404020002ff02020002ff02000000ff03020102ffff02020200ff0003ff0202ff0200ff000200ff",
+   "it_pack_lo": "00090301030301010312030f0602030302020101010340001000000020002000101000102020180008000000070a0c0c0c110e1f000000000012000000000000000006000000000000000600",
+   "it_pack_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "it_gnd_lo": "0000000000000000001e000000000000000000000000403000101030101030200820200030300000001e1e0000001e00000f000000000000000000001e1e00000000000000001e1e000f0000",
+   "it_gnd_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "injury_active": "000000000000000000000000000000",
+   "picture": "8931354f45c57f3775b05d18b697c3d8997a71c301e2ea10f0cb7bfca5240267"
+  },
+  "disk_calls": 0,
+  "transfers": 3,
+  "transfer_bytes": 5081,
+  "profile": {
+   "resident": 2454129,
+   "simulation": 0,
+   "overlays": 8688,
+   "transfers": 78531,
+   "ROM": 12
+  },
+  "hgr_128k": {
+   "cycles": 2468306,
+   "seconds": 2.419,
+   "profile": {
+    "resident": 2380695,
+    "simulation": 0,
+    "overlays": 8688,
+    "transfers": 78522,
+    "ROM": 401
+   }
+  },
+  "delta_percent": 3.0,
+  "state_equal_hgr_128k": true
+ },
+ "RIGHT": {
+  "cycles": 1129277,
+  "seconds": 1.107,
+  "reads": 0,
+  "outcome": {
+   "px": "0022801c7e00",
+   "s_hour": "836000000000000000007f3058633e8a160000008a7a00000082000000008200000000820000000000000000000000000000000000000082800000008280000000828000000000000f0000837bbb443487453333330000000000810000000000000000000000000000000000000000020088044e74538323b7c2a98517120f56870a208e8c",
+   "it_place": "ffff0201010101010102000002ff010000ff0000000304ff020000ff040004ff0404ff020404020002ff02020002ff02000000ff03020102ffff02020200ff0003ff0202ff0200ff000200ff",
+   "it_pack_lo": "00090301030301010312030f0602030302020101010340001000000020002000101000102020180008000000070a0c0c0c110e1f000000000012000000000000000006000000000000000600",
+   "it_pack_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "it_gnd_lo": "0000000000000000001e000000000000000000000000403000101030101030200820200030300000001e1e0000001e00000f000000000000000000001e1e00000000000000001e1e000f0000",
+   "it_gnd_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "injury_active": "000000000000000000000000000000",
+   "picture": "18ce3ced8777bfa116f254f18cd08e6bdb961bd165679a435ade2ddabf5f2435"
+  },
+  "disk_calls": 0,
+  "transfers": 0,
+  "transfer_bytes": 0,
+  "profile": {
+   "resident": 1129277,
+   "simulation": 0,
+   "overlays": 0,
+   "transfers": 0,
+   "ROM": 0
+  },
+  "hgr_128k": {
+   "cycles": 1080036,
+   "seconds": 1.058,
+   "profile": {
+    "resident": 1080036,
+    "simulation": 0,
+    "overlays": 0,
+    "transfers": 0,
+    "ROM": 0
+   }
+  },
+  "delta_percent": 4.6,
+  "state_equal_hgr_128k": true
+ },
+ "LEFT": {
+  "cycles": 854201,
+  "seconds": 0.837,
+  "reads": 0,
+  "outcome": {
+   "px": "0022801c3800",
+   "s_hour": "836000000000000000007f3058633e8a160000008a7a00000082000000008200000000820000000000000000000000000000000000000082800000008280000000828000000000000f0000837bbb443487453333330000000000810000000000000000000000000000000000000000020088044e74538323b7c2a98517120f56870a208e8c",
+   "it_place": "ffff0201010101010102000002ff010000ff0000000304ff020000ff040004ff0404ff020404020002ff02020002ff02000000ff03020102ffff02020200ff0003ff0202ff0200ff000200ff",
+   "it_pack_lo": "00090301030301010312030f0602030302020101010340001000000020002000101000102020180008000000070a0c0c0c110e1f000000000012000000000000000006000000000000000600",
+   "it_pack_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "it_gnd_lo": "0000000000000000001e000000000000000000000000403000101030101030200820200030300000001e1e0000001e00000f000000000000000000001e1e00000000000000001e1e000f0000",
+   "it_gnd_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "injury_active": "000000000000000000000000000000",
+   "picture": "6b287c3da4b5e2f1a9d4012336e45e9eeb418f296e46114b2f66f973a562e455"
+  },
+  "disk_calls": 0,
+  "transfers": 0,
+  "transfer_bytes": 0,
+  "profile": {
+   "resident": 854201,
+   "simulation": 0,
+   "overlays": 0,
+   "transfers": 0,
+   "ROM": 0
+  },
+  "hgr_128k": {
+   "cycles": 810715,
+   "seconds": 0.794,
+   "profile": {
+    "resident": 810715,
+    "simulation": 0,
+    "overlays": 0,
+    "transfers": 0,
+    "ROM": 0
+   }
+  },
+  "delta_percent": 5.4,
+  "state_equal_hgr_128k": true
+ },
+ "STATUS": {
+  "cycles": 244063,
+  "seconds": 0.239,
+  "reads": 3,
+  "outcome": {
+   "px": "0022801c5b00",
+   "s_hour": "836000000000000000007f3058633e8a160000008a7a00000082000000008200000000820000000000000000000000000000000000000082800000008280000000828000000000000f0000837bbb443487453333330000000000810000000000000000000000000000000000000000020088044e74538323b7c2a98517120f56870a208e8c",
+   "it_place": "ffff0201010101010102000002ff010000ff0000000304ff020000ff040004ff0404ff020404020002ff02020002ff02000000ff03020102ffff02020200ff0003ff0202ff0200ff000200ff",
+   "it_pack_lo": "00090301030301010312030f0602030302020101010340001000000020002000101000102020180008000000070a0c0c0c110e1f000000000012000000000000000006000000000000000600",
+   "it_pack_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "it_gnd_lo": "0000000000000000001e000000000000000000000000403000101030101030200820200030300000001e1e0000001e00000f000000000000000000001e1e00000000000000001e1e000f0000",
+   "it_gnd_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "injury_active": "000000000000000000000000000000",
+   "picture": "b3d67fb024a39ac190e12ff9c4586c15257d4ffe2c4d7fbbce8b1dafc05165a1"
+  },
+  "disk_calls": 0,
+  "transfers": 3,
+  "transfer_bytes": 6078,
+  "profile": {
+   "resident": 55776,
+   "simulation": 0,
+   "overlays": 8345,
+   "transfers": 95451,
+   "ROM": 84491
+  },
+  "hgr_128k": {
+   "cycles": 246027,
+   "seconds": 0.241,
+   "profile": {
+    "resident": 57550,
+    "simulation": 0,
+    "overlays": 8332,
+    "transfers": 94705,
+    "ROM": 85440
+   }
+  },
+  "delta_percent": -0.8,
+  "state_equal_hgr_128k": true
+ },
+ "WALK 1 H": {
+  "cycles": 9490176,
+  "seconds": 9.3,
+  "reads": 20,
+  "outcome": {
+   "px": "8024001e5b00",
+   "s_hour": "837e66666780733333357f30669a228b026000008a7a0000008217777778821777777882177777787f3bbbbbbc7f3bbbbbbc7f3bbbbbbc82800000008280000000828000000023005d00008374413ca9874533333300000000008100000000863c0000008328ac0832845000000000000088044e74538323b7c2a98517120f56870a208e8c",
+   "it_place": "ffff0201010101010102000002ff010000ff0000000304ff020000ff040004ff0404ff020404020002ff02020002ff02000000ff03020102ffff02020200ff0003ff0202ff0200ff000200ff",
+   "it_pack_lo": "00090301030301010312030f0602030302020101010340001000000020002000101000102020180008000000070a0c0c0c110e1f000000000012000000000000000006000000000000000600",
+   "it_pack_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "it_gnd_lo": "0000000000000000001e000000000000000000000000403000101030101030200820200030300000001e1e0000001e00000f000000000000000000001e1e00000000000000001e1e000f0000",
+   "it_gnd_hi": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "injury_active": "000000000000000000000000000000",
+   "picture": "d2b9636217765f6b339c92fc0ada632557c0f0070a3e9bcda5825df089085f29"
+  },
+  "disk_calls": 0,
+  "transfers": 20,
+  "transfer_bytes": 44881,
+  "profile": {
+   "resident": 4831022,
+   "simulation": 26721,
+   "overlays": 427582,
+   "transfers": 694443,
+   "ROM": 3510408
+  },
+  "hgr_128k": {
+   "cycles": 9283516,
+   "seconds": 9.097,
+   "profile": {
+    "resident": 4600313,
+    "simulation": 26723,
+    "overlays": 430389,
+    "transfers": 694287,
+    "ROM": 3531804
+   }
+  },
+  "delta_percent": 2.2,
+  "state_equal_hgr_128k": true
+ },
+ "lot4": {
+  "_conditions": "Lot 4 (DHGR interface, 80-column text, TOPOGEN, view snapshot): tools/profile_actions.py --profile, fresh session per command, NATURE 0, POM2 enhanced //e; return_seconds = Esc back to the prompt; state compared with the lot-3 entries above (picture excluded).",
+  "VIEW": {
+   "cycles": 5944180,
+   "seconds": 5.825,
+   "reads": 0,
+   "disk_calls": 0,
+   "transfers": 0,
+   "transfer_bytes": 0,
+   "profile": {
+    "resident": 5944168,
+    "simulation": 0,
+    "overlays": 0,
+    "transfers": 0,
+    "ROM": 12
+   },
+   "delta_percent_lot3": -0.3,
+   "state_equal_lot3": true
+  },
+  "LOOK R": {
+   "cycles": 1975178,
+   "seconds": 1.936,
+   "reads": 2,
+   "disk_calls": 0,
+   "transfers": 2,
+   "transfer_bytes": 3947,
+   "profile": {
+    "resident": 1913663,
+    "simulation": 0,
+    "overlays": 532,
+    "transfers": 60971,
+    "ROM": 12
+   },
+   "delta_percent_lot3": 0.4,
+   "state_equal_lot3": true
+  },
+  "LOOK B": {
+   "cycles": 2553552,
+   "seconds": 2.502,
+   "reads": 3,
+   "disk_calls": 0,
+   "transfers": 3,
+   "transfer_bytes": 5081,
+   "profile": {
+    "resident": 2465772,
+    "simulation": 0,
+    "overlays": 8698,
+    "transfers": 79070,
+    "ROM": 12
+   },
+   "delta_percent_lot3": 0.5,
+   "state_equal_lot3": true
+  },
+  "RIGHT": {
+   "cycles": 1138738,
+   "seconds": 1.116,
+   "reads": 0,
+   "disk_calls": 0,
+   "transfers": 0,
+   "transfer_bytes": 0,
+   "profile": {
+    "resident": 1138738,
+    "simulation": 0,
+    "overlays": 0,
+    "transfers": 0,
+    "ROM": 0
+   },
+   "delta_percent_lot3": 0.8,
+   "state_equal_lot3": true
+  },
+  "LEFT": {
+   "cycles": 866719,
+   "seconds": 0.849,
+   "reads": 0,
+   "disk_calls": 0,
+   "transfers": 0,
+   "transfer_bytes": 0,
+   "profile": {
+    "resident": 866719,
+    "simulation": 0,
+    "overlays": 0,
+    "transfers": 0,
+    "ROM": 0
+   },
+   "delta_percent_lot3": 1.5,
+   "state_equal_lot3": true
+  },
+  "STATUS": {
+   "cycles": 246431,
+   "seconds": 0.241,
+   "reads": 3,
+   "disk_calls": 0,
+   "transfers": 3,
+   "transfer_bytes": 6083,
+   "profile": {
+    "resident": 61287,
+    "simulation": 0,
+    "overlays": 8324,
+    "transfers": 92330,
+    "ROM": 84490
+   },
+   "return_seconds": 0.006,
+   "delta_percent_lot3": 1.0,
+   "state_equal_lot3": true
+  },
+  "WALK 1 H": {
+   "cycles": 9792809,
+   "seconds": 9.596,
+   "reads": 20,
+   "disk_calls": 0,
+   "transfers": 20,
+   "transfer_bytes": 44978,
+   "profile": {
+    "resident": 4835167,
+    "simulation": 26721,
+    "overlays": 742947,
+    "transfers": 691000,
+    "ROM": 3496974
+   },
+   "delta_percent_lot3": 3.2,
+   "state_equal_lot3": true
+  },
+  "INVENTORY": {
+   "cycles": 219583,
+   "seconds": 0.215,
+   "reads": 2,
+   "disk_calls": 0,
+   "transfers": 2,
+   "transfer_bytes": 10234,
+   "profile": {
+    "resident": 50733,
+    "simulation": 7941,
+    "overlays": 9561,
+    "transfers": 149277,
+    "ROM": 2071
+   },
+   "return_seconds": 0.26
+  },
+  "HELP": {
+   "cycles": 83524,
+   "seconds": 0.082,
+   "reads": 1,
+   "disk_calls": 0,
+   "transfers": 1,
+   "transfer_bytes": 2043,
+   "profile": {
+    "resident": 49382,
+    "simulation": 0,
+    "overlays": 75,
+    "transfers": 31708,
+    "ROM": 2359
+   },
+   "return_seconds": 0.006
+  },
+  "MAP": {
+   "cycles": 265421,
+   "seconds": 0.26,
+   "reads": 1,
+   "disk_calls": 0,
+   "transfers": 1,
+   "transfer_bytes": 1888,
+   "profile": {
+    "resident": 102698,
+    "simulation": 0,
+    "overlays": 131599,
+    "transfers": 29747,
+    "ROM": 1377
+   },
+   "return_seconds": 0.005
+  },
+  "TOPO": {
+   "cycles": 3049909,
+   "seconds": 2.989,
+   "reads": 1,
+   "disk_calls": 0,
+   "transfers": 2,
+   "transfer_bytes": 4569,
+   "profile": {
+    "resident": 40686,
+    "simulation": 2936767,
+    "overlays": 23,
+    "transfers": 71722,
+    "ROM": 711
+   },
+   "return_seconds": 0.241
+  }
+ },
+ "lot7": {
+  "_conditions": "Lot 7 steps 2-3 (common trunk NEOWILD.DAT, region packs NEOWILD.R1..R6, start menu). Commands: tools/profile_actions.py --profile after the menu answer '2, RETURN' (Sierra Nevada, level 4), fresh session per command, NATURE 0; state compared with the lot-3 entries above (picture excluded), cycles with lot4. Boot: tools/profile_loading.py --packings auto --choice N (seconds; choice_to_view from the RETURN of the level prompt to the command line with the first view; first_playable_without_menu_wait = menu + choice_to_view).",
+  "boot": {
+   "2 SIERRA NEVADA": {
+    "prodos_boot": 9.318,
+    "preload": 12.072,
+    "preload_disk": 9.864,
+    "preload_decode": 1.541,
+    "preload_copies": 0.668,
+    "menu": 21.391,
+    "pack": 3.014,
+    "pack_disk": 2.568,
+    "pack_decode": 0.407,
+    "start_to_playable": 7.126,
+    "introduction": 0.095,
+    "choice_to_view": 10.235,
+    "first_playable_without_menu_wait": 31.626,
+    "mli_calls": 27,
+    "mli_reads": 22,
+    "bytes_read": 54423,
+    "dat_raw": 55983,
+    "dat_stored": 46306,
+    "records": 11,
+    "pack_raw": 12319,
+    "pack_stored": 7349,
+    "pack_records": 8,
+    "pack_blocks": 16,
+    "volume_blocks": 243,
+    "pack_blocks_note": "ProDOS blocks, index block included"
+   },
+   "3 BURMA": {
+    "prodos_boot": 9.318,
+    "preload": 12.072,
+    "preload_disk": 9.864,
+    "preload_decode": 1.541,
+    "preload_copies": 0.668,
+    "menu": 21.391,
+    "pack": 3.135,
+    "pack_disk": 2.688,
+    "pack_decode": 0.388,
+    "start_to_playable": 6.421,
+    "introduction": 0.094,
+    "choice_to_view": 9.65,
+    "first_playable_without_menu_wait": 31.041,
+    "mli_calls": 27,
+    "mli_reads": 22,
+    "bytes_read": 55180,
+    "dat_raw": 55983,
+    "dat_stored": 46306,
+    "records": 11,
+    "pack_raw": 13563,
+    "pack_stored": 8106,
+    "pack_records": 8,
+    "pack_blocks": 18,
+    "volume_blocks": 243,
+    "pack_blocks_note": "ProDOS blocks, index block included"
+   },
+   "6 CHILE": {
+    "prodos_boot": 9.318,
+    "preload": 12.072,
+    "preload_disk": 9.864,
+    "preload_decode": 1.541,
+    "preload_copies": 0.668,
+    "menu": 21.391,
+    "pack": 3.023,
+    "pack_disk": 2.574,
+    "pack_decode": 0.414,
+    "start_to_playable": 6.373,
+    "introduction": 0.094,
+    "choice_to_view": 9.491,
+    "first_playable_without_menu_wait": 30.882,
+    "mli_calls": 27,
+    "mli_reads": 22,
+    "bytes_read": 53817,
+    "dat_raw": 55983,
+    "dat_stored": 46306,
+    "records": 11,
+    "pack_raw": 12090,
+    "pack_stored": 6743,
+    "pack_records": 8,
+    "pack_blocks": 15,
+    "volume_blocks": 243,
+    "pack_blocks_note": "ProDOS blocks, index block included"
+   }
+  },
+  "VIEW": {
+   "cycles": 5944226,
+   "seconds": 5.825,
+   "reads": 0,
+   "disk_calls": 0,
+   "transfers": 0,
+   "transfer_bytes": 0,
+   "profile": {
+    "resident": 5944214,
+    "simulation": 0,
+    "overlays": 0,
+    "transfers": 0,
+    "ROM": 12
+   },
+   "delta_percent_lot4": 0.0,
+   "state_equal_lot3": true
+  },
+  "LOOK R": {
+   "cycles": 1975396,
+   "seconds": 1.936,
+   "reads": 2,
+   "disk_calls": 0,
+   "transfers": 2,
+   "transfer_bytes": 3947,
+   "profile": {
+    "resident": 1913708,
+    "simulation": 0,
+    "overlays": 532,
+    "transfers": 61144,
+    "ROM": 12
+   },
+   "delta_percent_lot4": 0.01,
+   "state_equal_lot3": true
+  },
+  "LOOK B": {
+   "cycles": 2554244,
+   "seconds": 2.503,
+   "reads": 3,
+   "disk_calls": 0,
+   "transfers": 3,
+   "transfer_bytes": 5081,
+   "profile": {
+    "resident": 2465806,
+    "simulation": 0,
+    "overlays": 8698,
+    "transfers": 79728,
+    "ROM": 12
+   },
+   "delta_percent_lot4": 0.03,
+   "state_equal_lot3": true
+  },
+  "RIGHT": {
+   "cycles": 1138770,
+   "seconds": 1.116,
+   "reads": 0,
+   "disk_calls": 0,
+   "transfers": 0,
+   "transfer_bytes": 0,
+   "profile": {
+    "resident": 1138770,
+    "simulation": 0,
+    "overlays": 0,
+    "transfers": 0,
+    "ROM": 0
+   },
+   "delta_percent_lot4": 0.0,
+   "state_equal_lot3": true
+  },
+  "LEFT": {
+   "cycles": 866734,
+   "seconds": 0.849,
+   "reads": 0,
+   "disk_calls": 0,
+   "transfers": 0,
+   "transfer_bytes": 0,
+   "profile": {
+    "resident": 866734,
+    "simulation": 0,
+    "overlays": 0,
+    "transfers": 0,
+    "ROM": 0
+   },
+   "delta_percent_lot4": 0.0,
+   "state_equal_lot3": true
+  },
+  "STATUS": {
+   "cycles": 245751,
+   "seconds": 0.241,
+   "reads": 3,
+   "disk_calls": 0,
+   "transfers": 3,
+   "transfer_bytes": 6077,
+   "profile": {
+    "resident": 61388,
+    "simulation": 0,
+    "overlays": 8324,
+    "transfers": 91549,
+    "ROM": 84490
+   },
+   "return_seconds": 0.006,
+   "delta_percent_lot4": -0.28,
+   "state_equal_lot3": true
+  },
+  "WALK 1 H": {
+   "cycles": 9798620,
+   "seconds": 9.602,
+   "reads": 20,
+   "disk_calls": 0,
+   "transfers": 20,
+   "transfer_bytes": 45612,
+   "profile": {
+    "resident": 4835283,
+    "simulation": 26721,
+    "overlays": 743019,
+    "transfers": 696623,
+    "ROM": 3496974
+   },
+   "delta_percent_lot4": 0.06,
+   "state_equal_lot3": true
+  }
+ },
+ "lot7_stars": {
+  "_conditions": "Lot 7 steps 4-6 integrated (region fauna/colours/texts, night stars, score and hall of fame), 13 October 2026, POM2 enhanced //e. Stars: Sierra Nevada start position, full view through show_view called from the idle loop (tests/test_stars_game.py setup, forest off), pcprof cycles of the whole call; 'hourly' = the same view with stars_stale 1 minus 0 (module 25 copy + module_sky_stars; the noon pair gives the noise of the first view after env_hour, 22196 cycles); 'draw' = the view minus the same view with stars_column patched to RTS (drawing code and its spans). Boot: tools/profile_loading.py --packings auto,lz --choice N (seconds).",
+  "stars": {
+   "_conditions": "Populated sky (282 stars to V 3.50, list of 160), 13 October 2026: same scenes (Sierra start, sky_enabled 0, forest_enabled 0, show_view called from the idle loop, pcprof of the whole call). 'hourly' = view with stars_stale 1 minus 0 (module 25 and catalogue head 24 copied to the SIM window + module_sky_stars); 'module_pc_cycles' = PCs inside the module image; 'draw' = view minus the same view with the jsr stars_column of stars_sky_column patched to BIT (drawing code, spans and the call itself).",
+   "night_dark_sirius_1jan_0h_heading280": {
+    "view_cycles": 2432037,
+    "first_view_after_hour_cycles": 2770664,
+    "hourly_delta_cycles": 338627,
+    "module_pc_cycles": 292644,
+    "draw_cycles": 34366,
+    "draw_percent": 1.41,
+    "stars_drawn": 33
+   },
+   "night_dark_6may_23h_heading280": {
+    "view_cycles": 2432862,
+    "first_view_after_hour_cycles": 2780356,
+    "hourly_delta_cycles": 347494,
+    "module_pc_cycles": 300364,
+    "draw_cycles": 35191,
+    "draw_percent": 1.45,
+    "stars_drawn": 31
+   },
+   "day_6may_12h_heading280": {
+    "view_cycles": 2408589,
+    "hooks_and_lc_code_cycles": 2100,
+    "draw_percent": 0.09,
+    "hourly_delta_cycles": 6
+   },
+   "bench_module_cycles_range": [
+    279288,
+    342594
+   ],
+   "module_copy_bytes": 2799,
+   "catalogue_stars": 282,
+   "list_max": 160,
+   "captures_stars_drawn_before_after": {
+    "sierra_polaris": [
+     2,
+     10
+    ],
+    "sierra_south": [
+     7,
+     31
+    ],
+    "sierra_full_moon": [
+     2,
+     2
+    ],
+    "bolivia_cross": [
+     10,
+     37
+    ]
+   }
+  },
+  "boot": {
+   "lz": {
+    "2 SIERRA NEVADA": {
+     "prodos_boot": 9.486,
+     "preload": 13.81,
+     "preload_disk": 10.33,
+     "preload_decode": 2.776,
+     "preload_copies": 0.704,
+     "menu": 23.296,
+     "pack": 2.519,
+     "pack_disk": 1.95,
+     "pack_decode": 0.528,
+     "start_to_playable": 7.146,
+     "introduction": 0.096,
+     "choice_to_view": 9.761,
+     "first_playable_without_menu_wait": 33.057,
+     "mli_calls": 36,
+     "mli_reads": 29,
+     "bytes_read": 53758,
+     "dat_raw": 58312,
+     "dat_stored": 45559,
+     "records": 13,
+     "pack_raw": 12352,
+     "pack_stored": 6919,
+     "pack_records": 12,
+     "pack_blocks": 15,
+     "volume_blocks": 246
+    },
+    "3 BURMA": {
+     "prodos_boot": 9.486,
+     "preload": 13.81,
+     "preload_disk": 10.33,
+     "preload_decode": 2.776,
+     "preload_copies": 0.704,
+     "menu": 23.296,
+     "pack": 2.946,
+     "pack_disk": 2.312,
+     "pack_decode": 0.572,
+     "start_to_playable": 6.438,
+     "introduction": 0.095,
+     "choice_to_view": 9.478,
+     "first_playable_without_menu_wait": 32.774,
+     "mli_calls": 36,
+     "mli_reads": 29,
+     "bytes_read": 54207,
+     "dat_raw": 58312,
+     "dat_stored": 45559,
+     "records": 13,
+     "pack_raw": 13596,
+     "pack_stored": 7368,
+     "pack_records": 12,
+     "pack_blocks": 16,
+     "volume_blocks": 246
+    },
+    "6 CHILE": {
+     "prodos_boot": 9.486,
+     "preload": 13.81,
+     "preload_disk": 10.33,
+     "preload_decode": 2.776,
+     "preload_copies": 0.704,
+     "menu": 23.296,
+     "pack": 2.679,
+     "pack_disk": 2.132,
+     "pack_decode": 0.509,
+     "start_to_playable": 6.391,
+     "introduction": 0.095,
+     "choice_to_view": 9.165,
+     "first_playable_without_menu_wait": 32.461,
+     "mli_calls": 36,
+     "mli_reads": 29,
+     "bytes_read": 53336,
+     "dat_raw": 58312,
+     "dat_stored": 45559,
+     "records": 13,
+     "pack_raw": 12124,
+     "pack_stored": 6497,
+     "pack_records": 12,
+     "pack_blocks": 14,
+     "volume_blocks": 246
+    }
+   },
+   "auto": {
+    "2 SIERRA NEVADA": {
+     "prodos_boot": 9.869,
+     "preload": 13.213,
+     "preload_disk": 11.886,
+     "preload_decode": 0.623,
+     "preload_copies": 0.703,
+     "menu": 23.082,
+     "pack": 3.261,
+     "pack_disk": 2.813,
+     "pack_decode": 0.407,
+     "start_to_playable": 7.146,
+     "introduction": 0.096,
+     "choice_to_view": 10.503,
+     "first_playable_without_menu_wait": 33.585,
+     "mli_calls": 36,
+     "mli_reads": 29,
+     "bytes_read": 62366,
+     "dat_raw": 58312,
+     "dat_stored": 53704,
+     "records": 13,
+     "pack_raw": 12352,
+     "pack_stored": 7382,
+     "pack_records": 12,
+     "pack_blocks": 16,
+     "volume_blocks": 269
+    }
+   }
+  },
+  "volume": {
+   "lz": {
+    "blocks_used": 246,
+    "blocks_free": 34
+   },
+   "auto": {
+    "blocks_used": 269,
+    "blocks_free": 11
+   }
+  },
+  "memory": {
+   "main_free_bytes": 86,
+   "aux_free_bytes_by_region": {
+    "1 BRITISH COLUMBIA": 1524,
+    "2 SIERRA NEVADA": 2557,
+    "3 BURMA": 1313,
+    "4 NEW GUINEA": 2085,
+    "5 BOLIVIA": 1337,
+    "6 CHILE": 2785
+   },
+   "aux_free_note": "module store free bytes, the 291 free bytes of main language card bank 2 $DDDD-$DEFF included"
+  },
+  "stars_79_before": {
+   "night_dark_sirius_1jan_0h_heading280": {
+    "view_cycles": 2930612,
+    "first_view_after_hour_cycles": 3138735,
+    "hourly_delta_cycles": 208123,
+    "module_pc_cycles": 174807,
+    "draw_cycles": 54290,
+    "draw_percent": 1.85,
+    "stars_drawn": 13
+   },
+   "night_dark_6may_23h_heading280": {
+    "view_cycles": 2928667,
+    "first_view_after_hour_cycles": 3102876,
+    "hourly_delta_cycles": 174209,
+    "module_pc_cycles": 170146,
+    "draw_cycles": 47553,
+    "draw_percent": 1.62,
+    "stars_drawn": 7
+   },
+   "day_6may_12h_heading280": {
+    "view_cycles": 2938045,
+    "hooks_and_lc_code_cycles": 3277,
+    "draw_percent": 0.11,
+    "hourly_delta_cycles_noise": 22196
+   },
+   "bench_module_cycles_range": [
+    147232,
+    180424
+   ],
+   "module_copy_bytes": 1984
+  },
+  "memory_populated_sky": {
+   "main_free_bytes": 181,
+   "aux_free_bytes_by_region": {
+    "1 BRITISH COLUMBIA": 477,
+    "2 SIERRA NEVADA": 1510,
+    "3 BURMA": 266,
+    "4 NEW GUINEA": 1038,
+    "5 BOLIVIA": 290,
+    "6 CHILE": 1738
+   },
+   "aux_free_note": "module store free bytes, 59 bytes of main language card bank 2 $DDDD-$DE17 included",
+   "volume_blocks_used": 247
+  }
+ }
+}

@@ -140,14 +140,15 @@ class Session:
     """Live a2shot driver: inspect a reply before supplying the next step.
 
     Same script language as run(), private disks and deterministic guest
-    execution. Use as a context manager; failed steps and timeouts raise.
+    execution. iie=True boots an enhanced //e (128 KB, ProDOS volumes). Use as a context manager; failed steps and timeouts raise.
     """
 
-    def __init__(self, disk, cwd=None, timeout=120):
+    def __init__(self, disk, cwd=None, timeout=120, iie=False):
         self.timeout = timeout
         self.stderr = tempfile.TemporaryFile(mode='w+t')
         try:
-            self.process = subprocess.Popen([str(A2SHOT), '--disk', str(disk), '--stdin'],
+            self.process = subprocess.Popen([str(A2SHOT)] + (['--iie'] if iie else [])
+                                            + ['--disk', str(disk), '--stdin'],
                                             cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                             stderr=self.stderr, text=True, bufsize=1)
         except Exception:

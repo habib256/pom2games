@@ -1,0 +1,164 @@
+--- a/src/wild.s
++++ b/src/wild.s
+@@ -97,7 +97,7 @@
+         sta     WNDTOP
+         lda     #13
+         jsr     overlay_load
+-        jmp     module_restart
++        jmp     module_end      ; INPUT: NEOWILD.END (score, hall of fame)
+ 
+ ; view_full -- draw the whole view from (px, py) toward heading
+ .segment "TEXT"
+@@ -893,6 +893,7 @@
+         .include "outdoor.s"
+         .include "water.s"
+         .include "geography.s"
++        .include "hof.s"        ; segment HOF: build/wildhof.bin ($9600)
+ 
+ ; dev/lib/prodos/video.s borrows two cc65 temporaries, only at boot and exit:
+ ; the game scratch g0 and the view scratch tmp2.
+--- a/src/input.s
++++ b/src/input.s
+@@ -432,65 +432,7 @@
+ input_quit_message: .byte "QUIT? UNSAVED PROGRESS WILL BE LOST.|Y: QUIT   N/RETURN/ESC: CANCEL",0
+ input_stock_prompt: .byte "ACCESSIBLE: $ OZ.|HOW MANY OZ? ESC CANCELS.",0
+ 
+-; module_restart -- after a game (QUIT, death, arrival): restore the system
+-; as for ProDOS (prodos_restore: text, /RAM, bitmap, RESET, zero page), then
+-; read NEOWILD.SYSTEM again to $2000 and run it: the start menu of a fresh
+-; loader, no state kept. Its path is NEOWILD.GEO's (memory.s, built by the
+-; loader) with GEO replaced by SYSTEM. Any MLI error leaves to ProDOS.
+-; Runs in the $5800 window: the file never reaches it.
+-module_restart:
+-        jsr     prodos_restore
+-        ldx     #$FF
+-        txs
+-        ldx     geo_path
+-        beq     @fail
+-        ldy     #0
+-:       lda     geo_path,y
+-        sta     restart_path,y
+-        iny
+-        dex
+-        bpl     :-
+-        ldx     #0              ; "GEO" -> "SYSTEM"
+-        ldy     geo_path
+-        dey
+-        dey
+-:       lda     restart_system,x
+-        sta     restart_path,y
+-        iny
+-        inx
+-        cpx     #6
+-        bne     :-
+-        dey
+-        sty     restart_path
+-        lda     #$C8            ; OPEN
+-        ldx     #<restart_open
+-        ldy     #>restart_open
+-        jsr     mli_call
+-        bcs     @fail
+-        lda     restart_open+5
+-        sta     restart_read+1
+-        sta     restart_close+1
+-        lda     #$CA            ; READ: the whole file, below this window
+-        ldx     #<restart_read
+-        ldy     #>restart_read
+-        jsr     mli_call
+-        bcs     @fail
+-        lda     #$CC            ; CLOSE
+-        ldx     #<restart_close
+-        ldy     #>restart_close
+-        jsr     mli_call
+-        bcs     @fail
+-        jmp     $2000
+-@fail:  jmp     prodos_quit
+-restart_system: .byte "SYSTEM"
+-restart_open:   .byte 3
+-                .word restart_path, io_buffer
+-                .byte 0
+-restart_read:   .byte 4, 0
+-                .word $2000, $5800-$2000, 0
+-restart_close:  .byte 1, 0
+-restart_path:   .res 44
+-.export module_restart
++        .include "hof_load.inc" ; module_end, module_restart (lot 7)
+ .segment "CODE"
+ 
+ .segment "INPUT"
+--- a/src/wild.cfg
++++ b/src/wild.cfg
+@@ -62,6 +62,7 @@
+     WATER: start = $5800, size = $0800, type = rw, file = "build/wildwat.bin";
+     SCRATCH: start = $9500, size = $0100, type = rw, file = "";
+     TOPOGEN: start = $9600, size = $2000, type = rw, file = "build/wildtpg.bin";
++    HOF:     start = $9600, size = $2000, type = rw, file = "build/wildhof.bin";
+     RESIDENT: start = $B600, size = $0400, type = rw, define = yes, file = "build/wildres.bin";
+     IOBUF:  start = $BA00, size = $0400, type = rw, file = "";
+     SAVE:   start = $BE00, size = $0100, type = rw, file = "";
+@@ -108,6 +109,7 @@
+     SCRATCH:  load = SCRATCH, type = bss;
+     TOPOGEN:  load = TOPOGEN, type = rw;
+     TOPOBSS:  load = TOPOGEN, type = bss, align = $100;
++    HOF:      load = HOF, type = rw;
+     RESCODE:  load = RESIDENT, type = rw;
+     RESBSS:   load = RESIDENT, type = bss, define = yes;
+     IOBUF:    load = IOBUF, type = bss, define = yes;
+--- a/src/boot.s
++++ b/src/boot.s
+@@ -190,6 +190,7 @@
+         lda     #'D'            ; the common trunk
+         jsr     load_file
+         jcs     ld_error
++        jsr     hm_load         ; NEOWILD.HOF into STAGE (empty table if absent)
+ loader_menu:
+         jsr     menu            ; ld_region, ld_level, ld_free
+         jsr     HOME            ; the introduction again, with the journey
+@@ -362,6 +363,7 @@
+         lda     #<m_menu
+         ldy     #>m_menu
+         jsr     print
++        jsr     hm_best
+ @ask:   lda     #<m_choice
+         ldy     #>m_choice
+         jsr     prompt
+@@ -395,10 +397,7 @@
+         jmp     ld_quit
+ @bad:   jsr     BELL
+         jmp     @key
+-@hall:  jsr     HOME            ; placeholder until the scores exist
+-        lda     #<m_hall
+-        ldy     #>m_hall
+-        jsr     print
++@hall:  jsr     hm_hall
+         jsr     menu_key
+         jmp     menu
+ @scenario:
+@@ -947,6 +946,16 @@
+         bne     @text
+ @done:  rts
+ 
++HOF_ZP    = source              ; source, dest: free while the menu runs
++HOF_BUF   = STAGE
++HOF_MLI   = ld_mli
++HOF_IOBUF = io_buffer
++HOF_PATH  = geo_path
++HOF_READ_PARMS = read           ; ld_mli counts its transfer
++HOF_NAMES_LO = region_names_lo
++HOF_NAMES_HI = region_names_hi
++HOF_LOADER = 1
++        .include "hof_menu.s"
+ move_src: .word 0
+ online: .byte   2, 0
+         .word   volume
+@@ -1033,10 +1042,6 @@
+         .byte   "FREE JOURNEY: REGION (1-6, ESC)? ", 0
+ m_ask_level:
+         .byte   "LEVEL 1-10 (RETURN = 4, ESC)? ", 0
+-m_hall: .byte   1, "              HALL OF FAME              ", 2
+-        .byte   "NO SCORE RECORDED YET: SCORES AND THE", 13
+-        .byte   "HALL OF FAME COME WITH THE NEXT STEP.", 13, 13
+-        .byte   "PRESS A KEY FOR THE MENU.", 0
+         .include "menu.inc"     ; build/, from tools/genmenu.py
+ m_ram:  .byte   13, "/RAM HOLDS FILES. NEOWILDERNESS NEEDS", 13
+         .byte   "ITS MEMORY. ERASE /RAM (Y/N)? ", 0

@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""The hall of fame inside the game (after the integration of docs/HOF.md).
+
+On ../dist/NEOWILDERNESS.po (a2shot --iie), with build/wild.lbl:
+  1. menu: the BEST cells and the H screen of an empty NEOWILD.HOF;
+  2. Sierra Nevada, level 4: the player is moved three cells west of the
+     outpost, QUIT, Y: NEOWILD.END runs, its screen equals
+     tools/score_ref.py for the values it gathered (outcome, level, region,
+     DONE%, health, hours), a name is typed and saved;
+  3. back at the menu (module_restart, fresh loader): BEST of the Sierra and
+     the H screen show the entry, read from NEOWILD.HOF;
+  4. free journey: QUIT, Y: "NOT RANKED", no NEOWILD.HOF access.
+SKIP while the game has no hall of fame (no hof_key_wait in build/wild.lbl or
+no NEOWILD.END on the volume).
+
+  test_hof_game.py [DISK.po [wild.lbl]]
+"""
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parents[1]
+ROOT = HERE.parent
+sys.path.insert(0, str(ROOT / 'dev/tools'))
+sys.path.insert(0, str(ROOT / 'dev/tools/prodos'))
+sys.path.insert(0, str(HERE / 'tests'))
+import a2test  # noqa: E402
+import score as R  # noqa: E402
+from read_volume import Image  # noqa: E402
+
+DISK = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'dist/NEOWILDERNESS.po'
+LABELS = Path(sys.argv[2]) if len(sys.argv) > 2 else HERE / 'build/wild.lbl'
+MAP, STAGE = 0x7000, 0x2000
+
+
+def screen(mem):
+    return b''.join(mem[0x80 * (r & 7) + 40 * (r >> 3):][:40] for r in range(24))
+
+
+def show(codes):
+    return '\n'.join(''.join(chr(b & 0x7F if b >= 0x80 else (b | 0x40 if b < 0x20 else b))
+                             for b in codes[r * 40:r * 40 + 40]) for r in range(24))
+
+
+def check(label, got, want):
+    assert got == want, f'{label}\n--- got\n{show(got)}\n--- want\n{show(want)}'
+
+
+def main():
+    if sys.platform != 'darwin' or not a2test.A2SHOT.exists():
+        print('SKIP: a2shot (IIe POM2 core) is required')
+        return
+    L = a2test.labels(LABELS)
+    names = {e[1:1 + (e[0] & 15)].decode() for e in Image(DISK.read_bytes()).entries(2)}
+    if 'hof_key_wait' not in L or not {'NEOWILD.END', 'NEOWILD.HOF'} <= names:
+        print('SKIP: the game has no hall of fame yet (docs/HOF.md, integration)')
+        return
+    with a2test.Session(DISK, iie=True, timeout=1200) as s:
+        text = lambda: screen(s.step('peek:0400:1024').dumps[0])  # noqa: E731
+        s.step(L.until('menu_key', 40000))
+        hof = s.step(f'peek:{STAGE:04X}:512').dumps[0]
+        assert R.Hof(hof).valid() and R.menu_best_cells(hof) == {}
+        s.step('key:H')
+        s.step(L.until('menu_key', 4000))
+        check('H screen, empty', text(), R.hall_screen(hof).bytes())
+        s.step('key: ')
+        s.step(L.until('menu_key', 4000))
+        s.step('key:2\r')
+        s.step(L.until('idle', 40000))
+        goal = s.step(f'peek:{MAP + 8:04X}:2').dumps[0]
+        s.step(f"poke:{L['px'] + 1:04X}:{goal[0] - 3:02X}")
+        s.step(f"poke:{L['py'] + 1:04X}:{goal[1]:02X}")
+        s.step('key:QUIT\r')
+        s.step('wait:30')
+        s.step('key:Y')
+        s.step(L.until('hof_key_wait', 20000))
+        v = s.step(L.peek('hof_outcome', 8)).dumps[0]
+        outcome, level, region, kind, progress, health = v[:6]
+        hours = v[6] | v[7] << 8
+        assert (outcome, level, region, kind) == (R.ABANDONED, 4, 2, 0), v
+        assert 90 <= progress < 100 and health == 100, (progress, health)
+        c = R.score(progress, health, hours, outcome, level)
+        want, _ = R.end_screen(c, 2, 'SIERRA NEVADA', False, R.empty_file(), '', phase='entry')
+        check('name entry', text(), want.bytes())
+        for k in 'GIST\r':
+            s.step('key:' + k)
+            s.step(L.until('hof_key_wait', 4000))
+        want, new = R.end_screen(c, 2, 'SIERRA NEVADA', False, R.empty_file(), 'GIST')
+        check('saved', text(), want.bytes())
+        s.step('key: ')
+        s.step(L.until('menu_key', 40000))
+        hof = s.step(f'peek:{STAGE:04X}:512').dumps[0]
+        assert hof == new, 'NEOWILD.HOF read back by the restarted loader'
+        menu = text()
+        assert menu[5 * 40 + 29:5 * 40 + 39] == bytes(ord(ch) | 0x80 for ch in f"BEST {c['score']:>5}")
+        s.step('key:H')
+        s.step(L.until('menu_key', 4000))
+        check('H screen, one entry', text(), R.hall_screen(new).bytes())
+        s.step('key: ')
+        s.step(L.until('menu_key', 4000))
+        s.step('key:72\r')
+        s.step(L.until('idle', 40000))
+        before = s.step(L.peek('mli_calls', 2)).dumps[0]
+        s.step('key:QUIT\r')
+        s.step('wait:30')
+        s.step('key:Y')
+        s.step(L.until('hof_key_wait', 20000))
+        after = s.step(L.peek('mli_calls', 2)).dumps[0]
+        calls = (after[0] | after[1] << 8) - (before[0] | before[1] << 8)
+        assert calls == 3, f'free journey: only OPEN/READ/CLOSE of NEOWILD.END ({calls})'
+        assert show(text()).split('\n')[21].startswith(R.MSG_FREE)
+    print(f"  Sierra QUIT near the outpost: score {c['score']}, saved, BEST and H screen after "
+          f"the restart; free journey not ranked: OK")
+    print('Hall of fame in the game: OK')
+
+
+if __name__ == '__main__':
+    main()
