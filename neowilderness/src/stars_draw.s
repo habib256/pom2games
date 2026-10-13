@@ -15,7 +15,7 @@
 ; buckets), in catalogue order inside a bucket: a column scans its bucket
 ; (4.6 entries on average for 160) from the last entry to the first, so that
 ; the brightest star of a shared pixel is painted last. Entry: st_a = class
-; << 6 | tint << 4 | az & 15 (the class compares below star_thr: $40, $80,
+; << 6 | tint << 4 | az & 15 (the class compares below star_thr: $80 or
 ; $C0), st_row.
 ;
 ; Engine contract: ang (column azimuth 0..559), top (first terrain row),
@@ -57,8 +57,8 @@ st_b:      .res 1               ;              bucket, then az & 15
 .segment STARS_CODE
 ; stars_frame -- after dhgr_frame: the stars of this frame's mood. Night
 ; moods only (no civil or nautical twilight), never under clouds; the full
-; Moon (night bright) leaves the first magnitude, night dim the classes 0-1,
-; night dark every star. Clobbers A, X.
+; Moon (night bright) leaves the brightest stars (classes 0-1, V < 2.5, the
+; Cross and Polaris), night dim and night dark every star. Clobbers A, X.
 stars_frame:
         lda     #0
         ldx     weather_sky
@@ -73,7 +73,7 @@ stars_frame:
 @none:  lda     #0
 @set:   sta     star_thr
         rts
-st_thresholds: .byte $40, $80, $C0     ; night bright, dim, dark
+st_thresholds: .byte $80, $C0, $C0     ; night bright, dim, dark
 st_solid:  .byte STAR_SOLID0, STAR_SOLID1, STAR_SOLID2  ; tint -> c << 4 | c
 
 ; stars_column -- the stars of the column at azimuth `ang`, rows < top.

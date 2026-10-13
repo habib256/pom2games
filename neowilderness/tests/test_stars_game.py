@@ -11,7 +11,7 @@ After each view:
     game's own date, hour and Moon (sky_bearing, sky_y);
   - the mood is the game's, and the view equals tools/dhgr_ref.view with
     that list (threshold of the mood: none by day, twilight or clouds;
-    first magnitude under the bright Moon; all in the dark night);
+    classes 0-1, V < 2.5, under the full Moon; all in the dark night);
   - no MLI call: module 25 and the catalogue's head (24) are RAM copies
     from the module store into the SIM window.
 The Sun and Moon discs are switched off (sky_enabled 0, as in
@@ -113,7 +113,7 @@ def main():
     assert by['north, Polaris'][2] == 0xC0 and by['south'][2] == 0xC0, 'dark night: every star'
     assert by['south under clouds'][2] == 0 and by['noon'][2] == 0, 'no star by day or under clouds'
     assert 'POLARIS' in by['north, Polaris'][5], 'Polaris drawn'
-    assert by['full Moon night'][2] == 0x40, 'full Moon: first magnitude only'
+    assert by['full Moon night'][2] == 0x80, 'full Moon: the brightest stars (classes 0-1)'
     for label, mood, thr, count, head, shown in report:
         print(f'  {label}: {mood}, heading {head}, threshold ${thr:02X}, list {count}, '
               f'{len(shown)} stars drawn ({", ".join(sorted(shown)) or "-"}): OK')

@@ -1394,7 +1394,7 @@ Spécification, référence et banc : [STARS.md](STARS.md) ; mémoire :
   (`BIT $C082`). La liste reste en RAM principale (WILDLO).
 - **Visibilité.** Jour, couvert, doré, coucher, crépuscules civil et
   nautique, ou `weather_sky` ≠ 0 : aucune étoile. *Night bright* (pleine
-  Lune) : première grandeur ; *night dim* : classes 0–1 ; *night dark* :
+  Lune) : classes 0–1 (V < 2,5) ; *night dim* et *night dark* :
   toutes. Le paysage reste noir sans Lune.
 - **Rotations.** Une rotation éclairée défile et retrace les colonnes
   révélées : une étoile ne dépend que de l'azimut de sa colonne. En nuit

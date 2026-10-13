@@ -28,7 +28,7 @@ Record (3 bytes per star; order: Polaris and the Cross, then magnitude):
          yellow, B-V >= 0.70; 2 pale blue, B-V <= -0.10), bits 3-0 right
          ascension bits 11-8 (0..8); bit 6 is 0
   +2     |declination| in view units (1/560 turn = 0.643 deg), 0..140
-The magnitude class (0: V < 1.5, first magnitude; 1: V < 2.0; 2: fainter)
+The magnitude class (0: V < 1.5, first magnitude; 1: V < 2.5; 2: fainter)
 is not stored: it follows from the index, the catalogue being in magnitude
 order after the five priority stars (CLASS_STARTS, PRIORITY_CLASSES).
 The declination is stored as a magnitude in the view's own angle unit, with
@@ -348,7 +348,7 @@ EPOCH = 1985.0
 
 
 def magnitude_class(v):
-    return 0 if v < 1.5 else 1 if v < 2.0 else 2
+    return 0 if v < 1.5 else 1 if v < 2.5 else 2
 
 
 def tint(bv):

@@ -65,8 +65,9 @@ tools/stars_catalog.class_layout) compares below any threshold of the same
 class; the low azimuth bits identify the star's column inside its bucket.
 
 Drawing (stars_frame / stars_column, per column after the sky zones and
-before the Moon): threshold = $40 (night bright: first magnitude only), $80
-(night dim), $C0 (night dark), 0 otherwise or whenever weather_sky != 0; the
+before the Moon): threshold = $80 (night bright, the full Moon: classes 0-1,
+V < 2.5, the brightest stars stay visible), $C0 (night dim and night dark:
+every star), 0 otherwise or whenever weather_sky != 0; the
 entries of the column's bucket are scanned from the last to the first (the
 brightest is painted last, on top of a fainter star of the same pixel); a
 star of the column's azimuth is one pixel at its row, colour COLOURS[tint],
@@ -93,7 +94,7 @@ BUCKETS = 36                            # az >> 4 = 0..34, then the count
 RA_UNITS = K.RA_UNITS                   # 2240: quarter view units
 SKY_OUTER = (3, 5, 6, 7, 7, 8, 7, 7, 6, 5, 3)   # src/sky.s sky_outer
 COLOURS = (P.WHITE, P.YELLOW, P.LIGHT_BLUE)     # tint 0, 1, 2
-THRESHOLD = {'night bright': 0x40, 'night dim': 0x80, 'night dark': 0xC0}
+THRESHOLD = {'night bright': 0x80, 'night dim': 0xC0, 'night dark': 0xC0}
 MOOD_IDS = {m: i for i, m in enumerate(P.MOODS)}
 DAY0 = -5477                            # Schlyter day number of 1985 Jan 1 0 h UT (sky_ephemeris.entry)
 

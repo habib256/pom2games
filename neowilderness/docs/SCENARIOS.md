@@ -207,8 +207,8 @@ en Sierra, Croix du Sud en Bolivie, au Chili et en Nouvelle-Guinée.
   blanc, jaune pâle ou bleu pâle selon la classe. Les rotations partielles
   retracent seulement les colonnes révélées.
 - **Visibilité** : humeurs de nuit seulement ; aucune étoile sous ciel
-  couvert ni en crépuscule civil ; sous la pleine Lune, seules les étoiles
-  de première grandeur ; toutes en nuit noire. Le paysage reste invisible
+  couvert ni en crépuscule civil ; sous la pleine Lune, les plus brillantes
+  (V < 2,5) ; toutes en nuit noire et sous une Lune non pleine. Le paysage reste invisible
   sans Lune, comme dans la règle HGR conservée : les étoiles ne l'éclairent
   pas.
 - **`LOOK STARS`** (commande de la version DOS, optionnelle) : nom, azimut

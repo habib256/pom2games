@@ -32,7 +32,7 @@ def test_catalogue():
     assert rest == sorted(rest), 'magnitude order after the priority stars'
     assert max(s['v'] for s in cat) == 3.50 and sum(s['v'] <= 2.31 for s in cat) == 78
     assert sum(s['cls'] == 0 for s in cat) == 21          # first magnitude, Sirius..Regulus
-    assert R.LAYOUT == ((0, 0, 1, 1, 2), (24, 49))
+    assert R.LAYOUT == ((0, 0, 1, 1, 2), (24, 91))
     # Sources: the 79 brightest from Hipparcos (positions, SIMBAD) and the
     # Bright Star Catalogue (V, B-V); the 203 others from the BSC5 (CDS V/50).
     sources = [s['source'] for s in cat]
@@ -228,15 +228,15 @@ def test_moods():
     T = R.threshold
     for mood in ('day', 'overcast', 'golden', 'sunset', 'overcast dusk', 'civil', 'nautical'):
         assert T(mood, False) == 0
-    assert (T('night bright', False), T('night dim', False), T('night dark', False)) == (0x40, 0x80, 0xC0)
+    assert (T('night bright', False), T('night dim', False), T('night dark', False)) == (0x80, 0xC0, 0xC0)
     assert all(T(m, True) == 0 for m in P.MOODS)
     M = R.engine_mood
     assert M(False, sun8=60) == 'day' and M(False, sun8=-5) == 'civil' and M(False, sun8=-20) == 'nautical'
     assert M(True, view_dark=True) == 'night dark'
-    assert M(True, moon8=60, phase=11) == 'night bright'           # full Moon: first magnitude
+    assert M(True, moon8=60, phase=11) == 'night bright'           # full Moon: classes 0-1
     assert M(True, moon8=10, phase=11) == 'night bright'           # low: 11 - 2 = 9
     assert M(True, moon8=-5, phase=11) == 'night dark'             # set: every star
-    print('  moods: none by day, at dusk or under clouds; full Moon $40, dim $80, dark $C0: OK')
+    print('  moods: none by day, at dusk or under clouds; full Moon $80, dim and dark $C0: OK')
 
 
 def test_look_stars():

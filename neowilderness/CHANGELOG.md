@@ -7,6 +7,21 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Neowilderness : étoiles sous la Lune
+
+- La nuit, les étoiles les plus brillantes restent visibles sous la pleine
+  Lune : seuil *night bright* `$40` → `$80`, classe 1 élargie de V < 2,0 à
+  **V < 2,5** (90 étoiles avec la première grandeur, Polaris et la Croix) ;
+  *night dim* `$80` → `$C0` ; nuit noire inchangée (`$C0`, toutes), aucune
+  étoile de jour, au crépuscule ni sous les nuages
+  ([STARS.md](docs/STARS.md) § 5, § 14). Sous une Lune non pleine (humeur
+  *night dark*) toutes les étoiles étaient déjà tracées.
+- Captures `game_stars_*` : pleine Lune au sud 2 → 7 étoiles, face à la
+  pleine Lune 1 → 9 (nouvelle capture `sierra_full_moon_disc`), Lune
+  gibbeuse 35 (nouvelle capture `sierra_gibbous_moon`) ; vues de pleine
+  Lune sans étoile : 13–34 % → 0 % (modèle Python, six régions).
+- Mémoire : 0 octet (valeurs de `st_thresholds`, constante `STAR_K2`).
+
 ### Neowilderness : ciel plus peuplé (lot 7)
 
 - Catalogue de **282 étoiles jusqu'à V = 3,50** (79 Hipparcos inchangées +

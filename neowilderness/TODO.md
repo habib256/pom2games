@@ -94,6 +94,9 @@ Objectif : le plus beau Wilderness possible en 16 couleurs à 1 MHz.
   liste de 160, module et catalogue dans la fenêtre SIM ; captures 2 → 10
   (Sierra nord), 7 → 31 (sud), 10 → 37 (Bolivia), pleine Lune inchangée
   ([STARS.md](docs/STARS.md) § 13).
+- [x] Étoiles sous la Lune : les plus brillantes (V < 2,5) restent visibles
+  sous la pleine Lune (2 → 7 au sud de la Sierra), toutes sous une Lune
+  non pleine ([STARS.md](docs/STARS.md) § 14).
 - [ ] Optionnel : `LOOK STARS` (repères nommés, azimut et hauteur ;
   référence Python prête, pas de code 6502).
 - [ ] Lune visible de jour et au crépuscule (le moteur ne calcule qu'un

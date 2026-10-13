@@ -41,8 +41,8 @@ Le 13 octobre 2026, le ciel est passé de **79 étoiles** (V ≤ 2,31, liste de
   ne retrace que les colonnes révélées : une étoile ne dépend que de
   l'azimut de sa colonne.
 - **Visibilité par humeur** : humeurs de nuit seulement, jamais sous les
-  nuages ; pleine Lune (*night bright*) : première grandeur ; *night dim* :
-  classes 0–1 ; nuit noire : toutes.
+  nuages ; pleine Lune (*night bright*) : les plus brillantes (classes 0–1,
+  V < 2,5, 90 étoiles) ; *night dim* et nuit noire : toutes (§ 14).
 - **Priorité de sélection** : Polaris et les quatre étoiles de la Croix du
   Sud passent avant l'ordre des magnitudes ; quand plus de 160 étoiles sont
   levées (tropiques), les plus faibles tombent, jamais Polaris ni la Croix.
@@ -85,10 +85,10 @@ l'équinoxe des éphémérides du jeu (`tools/sky_ephemeris.py`, Schlyter,
 | +2 | \|δ\| en unités de vue (1/560 tour), 0..140 |
 
 La **classe de magnitude** (0 : V < 1,5, première grandeur, 21 étoiles ;
-1 : V < 2,0 ; 2 : au-delà) n'est plus stockée : elle découle de l'indice,
-le catalogue étant trié (`class_layout` : classes 0, 0, 1, 1, 2 des cinq
-étoiles prioritaires, puis classe 1 à partir de l'indice 24 et classe 2 à
-partir de 49). L'ascension droite en quarts d'unité de vue fait de l'angle
+1 : V < 2,5, 69 étoiles ; 2 : au-delà, 192) n'est plus stockée : elle
+découle de l'indice, le catalogue étant trié (`class_layout` : classes 0,
+0, 1, 1, 2 des cinq étoiles prioritaires, puis classe 1 à partir de
+l'indice 24 et classe 2 à partir de 91). L'ascension droite en quarts d'unité de vue fait de l'angle
 horaire une soustraction (§ 3). La déclinaison reste une grandeur en unités
 de vue avec son signe à part (Polaris : 139 unités, hors d'un S8).
 
@@ -193,8 +193,8 @@ une heure (≈ 0,5°).
 | Humeur (`sky_mood`) | Seuil | Étoiles |
 |---|---|---|
 | jour, couvert, doré, coucher, crépuscule couvert, civil, nautique | 0 | aucune |
-| *night bright* (pleine Lune haute ou basse) | `$40` | première grandeur (21 étoiles) |
-| *night dim* | `$80` | classes 0–1 (48 étoiles) |
+| *night bright* (pleine Lune haute ou basse) | `$80` | les plus brillantes : classes 0–1, V < 2,5 (90 étoiles, dont Polaris et la Croix) |
+| *night dim* | `$C0` | toutes (282) |
 | *night dark* (Lune couchée ou non pleine) | `$C0` | toutes (282) |
 | toute humeur avec `weather_sky` ≠ 0 | 0 | aucune |
 
@@ -203,9 +203,16 @@ Le crépuscule nautique n'est pas une humeur de nuit : pas d'étoiles avant
 Avec la règle `view_dark` du lot 3, *night dim* n'apparaît en jeu que sous
 les nuages (donc sans étoiles) ; le banc la force pour tester le seuil. Le
 paysage reste noir sans Lune : en nuit noire les étoiles s'arrêtent sur une
-crête invisible, elles ne l'éclairent pas. Les 203 étoiles ajoutées sont
-toutes de classe 2 : la pleine Lune montre exactement les mêmes étoiles
-qu'avant (Antares et Spica au sud de la Sierra le 6 mai).
+crête invisible, elles ne l'éclairent pas.
+
+**La nuit, avec ou sans Lune, on voit toujours des étoiles** (§ 14). Une
+Lune non pleine laisse `view_dark` à 1 (règle HGR : seul le disque plein
+éclaire le paysage) : l'humeur est *night dark* et toutes les étoiles sont
+tracées, la Lune dessinée par-dessus. Sous la pleine Lune (*night bright*),
+le seuil `$80` garde les 90 étoiles de V < 2,5 : au sud de la Sierra le
+3 mai à 23 h, Antares, Spica, Menkent, η Cen, α Lup, Dschubba et Muhlifain ;
+avant le § 14 (seuil `$40`, première grandeur) il ne restait qu'Antares et
+Spica, et une vue sur trois sous la pleine Lune n'avait aucune étoile.
 
 ## 6. Tracé : par colonne, et pourquoi
 
@@ -423,7 +430,44 @@ Coûts mesurés en jeu : MEMORY.md § 9.7 et `BASELINE_DHGR.json`
 
 Les étoiles brillantes gardent leur rendu : mêmes 79 positions sources,
 même ordre de sélection (Polaris et la Croix d'abord), mêmes teintes, même
-règle de la Lune (première grandeur seulement, 21 étoiles). L'ascension
+règle de la Lune (première grandeur seulement, 21 étoiles ; élargie au § 14). L'ascension
 droite passant de 16 bits à 2 240 quarts d'unité, une étoile peut se
 déplacer d'une colonne à certaines heures (écart type de l'azimut inchangé,
 0,42 unité).
+
+## 14. Étoiles sous la Lune (13 octobre 2026)
+
+Demande : « même quand la Lune est là, on doit voir les étoiles les plus
+lumineuses ». Mesure avant correction : sous une Lune non pleine
+(`view_dark` = 1, humeur *night dark*), toutes les étoiles étaient déjà
+tracées ; une vue vide y est une crête haute (la Sierra vers l'ouest, noire
+la nuit) qui cache aussi la Lune. Le défaut était la **pleine Lune** : seuil
+`$40`, 21 étoiles de première grandeur, 1 ou 2 étoiles par vue et **aucune
+dans 30 à 34 % des vues** en Colombie-Britannique, en Sierra et en
+Birmanie (12 à 18 % en Nouvelle-Guinée, en Bolivie et au Chili).
+
+Correction, sans octet de plus : la limite de la classe 1 passe de V < 2,0
+à **V < 2,5** (`magnitude_class`, d'où `STAR_K2` = 91 au lieu de 49 : une
+constante du module) et les seuils deviennent `$80`, `$C0`, `$C0`
+(`st_thresholds`, mêmes 3 octets) ; la nuit noire garde `$C0`, le jour, le
+crépuscule et les nuages gardent 0. *Night dim* (lumière lunaire 6–8, qui
+n'apparaît en jeu que sous les nuages) prend `$C0` : moins de Lune, au
+moins autant d'étoiles que sous la pleine Lune.
+
+| Pleine Lune, modèle Python (6 régions, pleines Lunes de l'année, 21 h–3 h, 16 caps, crête à la ligne 80) | V < 1,5 (avant) | V < 2,0 | **V < 2,5 (retenu)** |
+|---|---:|---:|---:|
+| Étoiles par vue, moyenne (Sierra / Bolivia) | 1,2 / 1,7 | 2,7 / 3,8 | **5,4 / 6,6** |
+| Vues sans étoile (Sierra / Bolivia) | 34 % / 13 % | 12 % / 8 % | **0 % / 0 %** |
+
+| Captures `game_stars_*` (étoiles dessinées) | Avant | Après |
+|---|---:|---:|
+| `sierra_full_moon` (3 mai 23 h, sud, pleine Lune) | 2 | **7** |
+| `sierra_full_moon_disc` (2 juin 23 h, face à la pleine Lune) | 1 | **9** |
+| `sierra_gibbous_moon` (31 mai 23 h, face à la Lune gibbeuse, phase 10, *night dark*) | 35 | 35 |
+| `sierra_polaris` / `sierra_south` / `bolivia_cross` (nuit noire) | 10 / 31 / 37 | 10 / 31 / 37 |
+| `test_stars_game`, pleine Lune, caps 280 / 315 / 350 / 245 | 2 / 1 / 1 / 2 | 7 / 6 / 3 / 7 |
+
+Mémoire : 0 octet (deux valeurs de `st_thresholds` et une constante
+immédiate du module changent ; `wildsky.bin` reste à 2 337 octets). Tracé
+sous la pleine Lune au banc : 23 996 cycles (6 pixels, Spica sous le
+disque), dans l'enveloppe de la nuit noire.

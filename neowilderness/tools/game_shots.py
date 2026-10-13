@@ -22,8 +22,11 @@ next to the crash (game_region_rN_species4.png).
 Lot 7 step 5 (--stars): night skies, game_stars_*.png: the Sierra Nevada on
 6 May at 23 h facing north (Polaris, Kochab, Cassiopeia, Cepheus, Draco)
 and south (Scorpius, Libra, Centaurus, Corvus), the same south under the
-full Moon (first magnitude only), and Bolivia on 6 May at 21 h facing south
-(the Southern Cross); prints the number of stars drawn in each.
+full Moon (the brightest stars: classes 0-1, V < 2.5), facing the full Moon
+of 2 June (sierra_full_moon_disc) and a waxing gibbous Moon on 31 May
+(phase 10, sierra_gibbous_moon: not full, so night dark and every star), and
+Bolivia on 6 May at 21 h facing south (the Southern Cross); prints the
+number of stars drawn in each.
 
   python3 tools/game_shots.py [--out build/dhgr] [--regions | --stars]
 """
@@ -118,7 +121,9 @@ def star_shots(out):
     full_day = next(day for day in range(100, 365) if phase_shape(day) == 11)
     shots = []
     for region, views in ((2, (('sierra_polaris', 125, 23, 0), ('sierra_south', 125, 23, 280),
-                               ('sierra_full_moon', full_day, 23, 280))),
+                               ('sierra_full_moon', full_day, 23, 280),
+                               ('sierra_full_moon_disc', full_day + 30, 23, 253),
+                               ('sierra_gibbous_moon', full_day + 28, 23, 301))),
                           (5, (('bolivia_cross', 125, 21, 280),))):
         with a2test.Session(DISK, timeout=900, menu=False) as s:
             for step in menu_keys(str(region)):
