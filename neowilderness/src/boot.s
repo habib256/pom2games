@@ -728,7 +728,7 @@ m_machine:
         .byte   "NEOWILDERNESS NEEDS AN APPLE //E", 13
         .byte   "ENHANCED OR AN APPLE //C WITH 128K.", 13, 0
 m_intro:
-        .byte   "WILDERNESS - APPLE //E //C 128K PRODOS", 13, 13
+        .byte   "NEOWILDERNESS - //E //C 128K PRODOS", 13, 13
         .byte   "YOU SURVIVED A PLANE CRASH.", 13
         .byte   "REACH THE RANGER OUTPOST TO GET HELP.", 13
         .byte   "MANAGE YOUR EQUIPMENT, HUNGER, THIRST,", 13
@@ -736,7 +736,7 @@ m_intro:
         .byte   "MAIN COMMANDS", 13
         .byte   "LEFT/RIGHT: TURN ON AN EMPTY LINE", 13
         .byte   "WALK / SWIM: TRAVEL ON LAND / WATER", 13
-        .byte   "TOPO: TERRAIN MAP: LOCAL PLAYER MAP", 13
+        .byte   "TOPO: TERRAIN MAP   MAP: LOCAL MAP", 13
         .byte   "STATUS: HEALTH   INVENTORY: ITEMS", 13
         .byte   "GET ITEM: PACK   WEAR PARKA: WEAR", 13
         .byte   "EAT FOOD / DRINK WATER: CONSUME", 13

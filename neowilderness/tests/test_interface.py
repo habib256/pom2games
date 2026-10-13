@@ -275,7 +275,7 @@ def help_pages():
                 s.step(L.until('help_key',20000))
             raw=s.step('peek:0400:1024').data
             rows=text_screen(raw)
-            assert rows[0].startswith(' WILDERNESS - HELP ')
+            assert rows[0].startswith(' NEOWILDERNESS - HELP ')
             assert rows[20].startswith('1 TRAVEL  2 GEAR  3 SURVIVAL')
             assert rows[22].startswith('ESC/RETURN: VIEW')
             assert all(c<128 for c in raw[:18]), 'title must be inverse'

@@ -910,7 +910,7 @@ help_redraw:
         lda     #$3F
         sta     $32             ; inverse title, readable on a monochrome display
         jsr     puts
-        .byte " WILDERNESS - HELP ",0
+        .byte " NEOWILDERNESS - HELP ",0
         lda     #$FF
         sta     $32
         jsr     puts
