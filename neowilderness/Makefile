@@ -53,11 +53,13 @@ $(BUILD)/gamedata.inc: tools/gendata.py
 	@mkdir -p $(@D)
 	$(PYTHON) -I $< $@
 
-$(BUILD)/hud.inc: tools/genhud.py $(DEV)/tools/fonts.py $(DEV)/lib/font/bbfont_glyphs.inc
+SMALL_FONT := $(DEV)/lib/hgrc/dhgr_small_font.inc
+$(BUILD)/hud.inc: tools/genhud.py tools/gendhgr.py tools/dhgr_palette.py $(SMALL_FONT)
 	@mkdir -p $(@D)
 	$(PYTHON) -I $< $@
 
-$(BUILD)/summary_font.inc: tools/gen_summary_font.py $(DEV)/tools/fonts.py
+$(BUILD)/summary_font.inc: tools/gen_summary_font.py tools/genhud.py $(SMALL_FONT)
+	@mkdir -p $(@D)
 	$(PYTHON) -I $< $@
 
 $(BUILD)/sky_ephemeris.inc: tools/sky_ephemeris.py

@@ -10,8 +10,6 @@ Output (ca65 include, build/dhgr_tables.inc):
                 a << 4 | b, a where (row + azimuth) is even.
   dhgr_shades   the distinct sprite shade tables, 16 bytes each.
   dhgr_assets   day colours of the 4 original sprite codes, overlays 5..9.
-  hud_ptr       yellow compass index, rows 11..13: main 19, main 20, aux 19,
-                aux 20 (the rest of those bytes is black HUD interior).
   constants     MOOD_SIZE, MOOD_COUNT, tier and sky-zone limits.
 """
 import sys
@@ -21,21 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import dhgr_palette as P  # noqa: E402
 
 ASSETS = ('wreck', 'bear', 'cougar', 'rattlesnake', 'cabin')   # overlays 5..9
-POINTER = ((11, 2), (12, 1), (13, 0))   # (row, half width) around column 70
-
-
-def pointer_bytes():
-    """Bytes 19/20 of rows 11..13 with the yellow index, both banks."""
-    out = []
-    for row, half in POINTER:
-        bits = 0
-        for x in range(70 - half, 70 + half + 1):
-            bits |= P.rot(P.HUD['pointer']) << (4 * x)
-        interleaved = [(bits >> (7 * i)) & 0x7F for i in range(80)]
-        main = interleaved[1::2]
-        aux = interleaved[0::2]
-        out += [main[19], main[20], aux[19], aux[20]]
-    return out
+POINTER = ((11, 2), (12, 1), (13, 0))   # compass index (tools/genhud.py): (row, half width) around column 70
 
 
 def table(name, data, width=16):
@@ -81,7 +65,6 @@ def main():
     rows += table('dhgr_moods', moods, size)
     rows += table('dhgr_shades', shades)
     rows += table('dhgr_assets', [c for a in ASSETS for c in P.SPRITES[a]], 4)
-    rows += table('hud_ptr', pointer_bytes(), 4)
     Path(sys.argv[1]).write_text('\n'.join(rows) + '\n')
 
 

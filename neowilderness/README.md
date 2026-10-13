@@ -16,12 +16,15 @@ Le paysage est désormais dessiné en **DHGR 16 couleurs** (lot 3) : ciel en
 zones tramées, sol, neige et eau en trois paliers de distance, bois, sprites
 originaux colorés, soleil et Lune, dans dix humeurs choisies selon la hauteur
 du soleil et de la Lune et la couverture nuageuse (jour, heure dorée,
-coucher, crépuscules, nuit claire de pleine Lune…). Le bandeau et les
-panneaux de survie restent les dessins HGR, pixels doublés ; les quatre
-lignes de messages sont affichées en cellules 80 colonnes. TOPO est dessiné
-en DHGR à l'ouverture depuis la carte en mémoire (lot 4) : teintes
-d'altitude, courbes tous les 400 pieds, eau, bois, épave, cabane, gardes et
-position du joueur, légende des teintes et nord en haut. Les règles sont inchangées : l'état de simulation est
+coucher, crépuscules, nuit claire de pleine Lune…). Le bandeau de boussole
+et les panneaux de survie sont dessinés en vrais pixels couleur (lot 4) :
+petite police DHGR, N rose, index jaune, jauges en couleur et alertes sur
+bandeau orange, sans pixels HGR doublés ni franges ; les quatre lignes de
+messages sont affichées en cellules 80 colonnes. TOPO est dessiné en DHGR
+à l'ouverture depuis la carte en mémoire (lot 4) : teintes d'altitude,
+courbes tous les 400 pieds, eau, bois, épave, cabane, gardes et position du
+joueur, légende des teintes et nord en haut. Les règles sont inchangées :
+l'état de simulation est
 identique, octet pour octet, à celui de la version HGR/DOS 3.3 de référence,
 et aucune lecture disque n'a lieu pendant la partie.
 

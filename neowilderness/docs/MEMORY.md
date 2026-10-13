@@ -1,12 +1,12 @@
 # Neowilderness — inventaire et plan mémoire 128 Ko
 
-Ce document décrit la version du lot 3, le TOPO DHGR du lot 4 et la
-géographie fine résidente du lot 5 : démarrage ProDOS 8 depuis
-`dist/NEOWILDERNESS.po`, tous les modules préchargés en RAM auxiliaire
-(lots 1–2), paysage DHGR sur une seule page (`$2000-$3FFF` principale et
-auxiliaire), TOPO dessiné en DHGR depuis la carte résidente (§8) et, sur
-les cartes natives, atlas de la géographie fine en carte langage auxiliaire
-(§9). Les chiffres viennent de `build/wild.map`, `build/wild.lbl`,
+Ce document décrit la version du lot 3, le bandeau et les panneaux couleur
+(§7) et le TOPO DHGR (§8) du lot 4, puis la géographie fine résidente du
+lot 5 (§9) : démarrage ProDOS 8 depuis `dist/NEOWILDERNESS.po`, tous les
+modules préchargés en RAM auxiliaire (lots 1–2), paysage DHGR sur une seule
+page (`$2000-$3FFF` principale et auxiliaire), TOPO dessiné en DHGR depuis
+la carte résidente (§8) et, sur les cartes natives, atlas de la géographie
+fine en carte langage auxiliaire (§9). Les chiffres viennent de `build/wild.map`, `build/wild.lbl`,
 `build/layout.json` (`make inspect`) et `docs/BASELINE_DHGR.json` ; ils
 doivent être remesurés après chaque changement de segment. La référence HGR
 figée (DOS 3.3, II+) est `build/reference-hgr/` (disque, `wild.lbl`,
@@ -25,12 +25,12 @@ K constantes, E état persistant, T temporaires.
 | `GZP` | `$D0-$ED` | 30 | E/T | Pointeurs `gp1/gp2`, `g0-g2`, analyse de commande, marche (`minutes`, `wdx`…) ; `g0` et `tmp2` servent aussi de `tmp1/tmp2` à `video.s`, seulement au démarrage et à la sortie |
 | `WOODS` | `$0800-$0925` | 294 | K | Masque des bois de la carte (non lié, écrit par le chargeur) |
 | `FORESTCODE` (`wildforest.bin`) | `$0926-$09FB` | 214 | C | Sonde et peinture des bois |
-| `TEXT` (`wildtxt.bin`) | `$0A00-$0FF4` | 1 525 | K/E | Messages, constantes, tables de rotation, quelques états textuels |
-| `LOWDATA`/`LOWCODE`/`LOWTEXT` (`wildlo.bin`) | `$1000-$1EDC` | 3 805 | C/K/E | Projection, **lignes DHGR déroulées** (`drows`, 1 601), effacement des deux banques, LOOK, raccourcis, noms d'objets, compteurs de charge |
-| `LOWCACHE` | `$1EDD-$1FDC` | 256 | T | `row_n0`, recalculé par `project_init` |
+| `TEXT` (`wildtxt.bin`) | `$0A00-$0FB3` | 1 460 | K/E | Messages, constantes, tables de rotation, quelques états textuels |
+| `LOWDATA`/`LOWCODE`/`LOWTEXT` (`wildlo.bin`) | `$1000-$1EA6` | 3 751 | C/K/E | Projection, **lignes DHGR déroulées** (`drows`, 1 601), effacement des deux banques, ruban de boussole et `hud_col` (488), LOOK, raccourcis, noms d'objets, compteurs de charge |
+| `LOWCACHE` | `$1EA7-$1FA6` | 256 | T | `row_n0`, recalculé par `project_init` |
 | page DHGR, moitié principale | `$2000-$3FFF` | 8 192 | vidéo | Vue logique 16–159, bandeau et panneaux 0–15, cache 160–175 (lignes logiques 0–15) ; TOPO y est dessiné en DHGR (lignes 0–159, module 0) |
-| `GCODE`/`GDATA` (`wildgame.bin`) | `$4000-$57A9` | 6 058 | C/E/K | Logique résidente, état de la partie (`px`…`it_*`, horloge, santé, météo, hasard), chargeur de modules ; humeurs DHGR (302 octets de tables), choix d'humeur, altitudes `sun_alt8`…`sky_mood`, demi-pixels du bandeau, modes vidéo |
-| `BSS` | `$57AA-$57D3` | 42 | E/T | `video.s` (unité /RAM) et `mli.s` ; palette courante de la trame (`cur_pal`, couleurs des sprites), variables des bandes de 8 lignes ; mis à zéro par le chargeur |
+| `GCODE`/`GDATA` (`wildgame.bin`) | `$4000-$5748` | 5 961 | C/E/K | Logique résidente, état de la partie (`px`…`it_*`, horloge, santé, météo, hasard), chargeur de modules ; humeurs DHGR (290 octets de tables), choix d'humeur, altitudes `sun_alt8`…`sky_mood`, `hgr_row`/`hgr_row2` (TOPO), modes vidéo |
+| `BSS` | `$5749-$5770` | 40 | E/T | `video.s` (unité /RAM) et `mli.s` ; palette courante de la trame (`cur_pal`, couleurs des sprites), variables des bandes de 8 lignes ; mis à zéro par le chargeur |
 | fenêtre `$5800` | `$5800-$5FFF` | ≤ 2 048 | C/K/T | Un module à la fois (tableau 2) ; son image est restaurée à chaque chargement |
 | `CODE`/`RODATA` (`wild.bin`) | `$6000-$6FDB` | 4 060 | C/K | Démarrage, moteur de vue, passes DHGR (`dspan`, `column_setup`, tables d'entrée des lignes), texte 40 colonnes propre, sprites, saisie, impressions, transitions, `video.s`, `mli.s` |
 | `WILDMAP` | `$7000-$94FF` | 9 472 | K | En-tête 64 octets et grille 112 × 84 |
@@ -50,7 +50,7 @@ Modules de la fenêtre `$5800` (identifiants de `overlay_load`, inchangés) :
 | 0 | `wildtop.bin` (TOPO DHGR, lot 4) | 1 531 | 12 | `wildtrv.bin` | 2 045 |
 | 1 | `wildvoc.bin` | 2 047 | 13 | `wildinp.bin` | 1 442 |
 | 2 | `wildscr.bin` | 2 040 | 14 | `wilditm.bin` | 1 647 |
-| 3 | `wildsim.bin` → `$9600` | 8 191 | 15 | `wildhud.bin` | 1 739 |
+| 3 | `wildsim.bin` → `$9600` | 8 191 | 15 | `wildhud.bin` | 1 628 |
 | 4 | `wildwat.bin` | 495 | 16 | `wildsta.bin` | 2 048 |
 | 5–9 | épave, ours, couguar, crotale, cabane | 1 900, 781, 539, 485, 1 133 | 17/18 | `wildmed.bin` (médical + dangers) | 2 045 |
 | 10 | `wildsit.bin` | 1 758 | 19 | `wildmvi.bin` | 878 |
@@ -112,10 +112,10 @@ pouvait contenir l'image à ce moment (voir §6).
 | `$0200-$03CF` | inutilisé (ProDOS/Moniteur) ; `$0300-$037F` : table niveau → couleur de TOPO (lot 4), le temps de son dessin | — |
 | `$03D0-$03FF` | vecteurs ProDOS ; RESET → `reset_exit` pendant le jeu | — |
 | `$0400-$07FF` | texte page 1 (intro, menus, 4 lignes mixtes, colonnes impaires en DHGR) | — |
-| `$0800-$0FFF` | bois, aide forêt, WILDTXT | 15 |
-| `$1000-$1FFF` | WILDLO + cache de projection | 35 |
+| `$0800-$0FFF` | bois, aide forêt, WILDTXT | 76 |
+| `$1000-$1FFF` | WILDLO + cache de projection | 89 |
 | `$2000-$3FFF` | page DHGR, moitié principale | — |
-| `$4000-$57FF` | WILDGAME + BSS | 44 |
+| `$4000-$57FF` | WILDGAME + BSS | 143 |
 | `$5800-$5FFF` | fenêtre de modules | 0 à 1 553 selon le module |
 | `$6000-$6FFF` | WILDERNESS | 36 |
 | `$7000-$94FF` | carte | 0 |
@@ -145,25 +145,24 @@ disque. Le bitmap d'origine est rétabli à la sortie.
 | `$0000-$01FF` | page zéro et pile auxiliaires : seulement pendant une requête de géographie fine (`ALTZP`, interruptions masquées : registres du décodeur `$10-$F0`, adresses de retour) | — |
 | `$0200-$03FF` | code du pilote /RAM de ProDOS (appelé par FORMAT à la sortie) : intouchable | — |
 | `$0400-$07FF` | texte : colonnes paires des 4 lignes mixtes (espaces, écrits par `show_dhgr`) | — |
-| `$0800-$1FFF` | PRJ, cabane, TRE, MVI, ours, couguar, WAT | 268 |
+| `$0800-$1FFF` | PRJ, cabane, TRE, MVI, ours, couguar, crotale | 278 |
 | `$2000-$3FFF` | moitié auxiliaire de la page DHGR (`PAGE2` sous `80STORE`) | — |
-| `$4000-$BFFF` | SIM vierge, STATUS, VOC, TRV, MED, SCR, ADV, OUT, épave, SIT, HUD, ITM, TOPO, INP | 383 |
-| carte langage banque 2 (`$D000-$DFFF`) | crotale | 3 611 |
+| `$4000-$BFFF` | SIM vierge, STATUS, VOC, TRV, MED, SCR, ADV, OUT, épave, SIT, ITM, HUD, TOPO, INP, WAT | 10 |
+| carte langage banque 2 (`$D000-$DFFF`) | libre (modules seulement) | 4 096 |
 | carte langage banque 1 (`$D000-$DFFF`) et `$E000-$FFF9` | géographie fine (§9) : cache de 4 tuiles (1 152), requête et décodeur (843), atlas (≤ 10 287) ; vide sur une carte héritée | 12 282 (héritée), 3 908 (Sierra) |
 
 Placement des modules : premier emplacement libre, du plus grand au plus
 petit, dans l'ordre des zones ci-dessus, la carte langage limitée à la
 banque 2 `$D000-$DFFF` (`tools/build_disk.py`) ; la banque 1 et
 `$E000-$FFF9` appartiennent à la géographie fine (§9). Total stocké :
-38 723 octets (30 555 de modules et sprites, TOPO compris, et 8 168 de SIM ;
+38 624 octets (30 456 de modules et sprites, TOPO compris, et 8 168 de SIM ;
 l'alias 18 ne coûte rien), plus 843 + atlas sur une carte native. Libre :
-674 octets en RAM auxiliaire principale, 3 611 en banque 2, 12 282 dans la
+288 octets en RAM auxiliaire principale, 4 096 en banque 2, 12 282 dans la
 zone de géographie d'une carte héritée (3 908 avec l'atlas Sierra),
-`$FFFA-$FFFF` exclus (lot 4 : 38 746 stockés, 651 et 15 893 libres ; lot 3 :
-45 561 stockés, 373 et 9 356 libres, avec la feuille TOPO HGR de 8 192
-octets). Seul le code de la géographie fine s'exécute en RAM auxiliaire
-(§9) : hors stock de modules, elle sert à la moitié auxiliaire de la page
-DHGR et aux colonnes paires du texte mixte.
+`$FFFA-$FFFF` exclus (lot 3 : 45 561 stockés, 373 et 9 356 libres, avec la
+feuille TOPO HGR de 8 192 octets). Seul le code de la géographie fine
+s'exécute en RAM auxiliaire (§9) : hors stock de modules, elle sert à la
+moitié auxiliaire de la page DHGR et aux colonnes paires du texte mixte.
 
 Politique /RAM : ProDOS installe toujours /RAM sur un IIe 128 Ko ;
 `PD_VIDEO_PRESERVE_RAM` refuserait donc toujours. Le chargeur lit le bloc 2
@@ -279,12 +278,13 @@ auxiliaire garde 16,5 Ko libres depuis le TOPO DHGR (9,7 Ko au lot 3, §6).
   niveau 63 (bit 6 = lac) ; `build_disk.py` refuse un atlas de plus de
   10 287 octets.
 - DHGR (lot 3) : le code DHGR ne peut pas s'exécuter en RAM auxiliaire ;
-  il a pris la place du code HGR retiré (§7). Il ne reste que 128 octets
-  libres en RAM principale résidente : toute fonction d'interface
-  du lot 4 devra vivre dans un module de la fenêtre `$5800` ou libérer de la
-  place. Le TOPO DHGR (lot 4, §8) libère 6,8 Ko auxiliaires et 16 octets
-  résidents (`show_hgr` retiré) : 144 octets libres en RAM principale. Le
-  lot 5 (§9) en libère 220 de plus : 364 octets libres.
+  il a pris la place du code HGR retiré (§7). Après le lot 3 il ne restait
+  que 128 octets libres en RAM principale résidente. Le bandeau couleur du
+  lot 4 (§7) rend 274 octets, le TOPO DHGR (§8) 16 (`show_hgr` retiré ;
+  `hgr_row`/`hgr_row2`, 56 octets, restent pour TOPO) et le lot 5 (§9)
+  220 : **578 octets libres** mesurés après fusion, en cinq zones. Toute
+  fonction d'interface supplémentaire doit encore vivre dans un module de
+  la fenêtre `$5800` ou libérer de la place.
 
 ## 7. Lot 3 : page DHGR et inventaire
 
@@ -292,12 +292,12 @@ Page unique `$2000-$3FFF`, principale et auxiliaire. `80STORE` et `HIRES`
 restent actifs pendant toute la partie ; `PAGE2` (`$C055`/`$C054`) choisit la
 banque vue par le CPU, sans changer la page affichée. Le code, la pile et les
 tables restent en RAM principale ; chaque passe auxiliaire s'exécute
-interruptions masquées (`render`, `scroll`, `clear_rows`, `dbl_put`), et
+interruptions masquées (`render`, `scroll`, `clear_rows`, `hud_col`), et
 toutes les routines rendent la main banque principale sélectionnée.
 
 | Rangées physiques | Contenu (deux banques) |
 |---|---|
-| 0–15 | bandeau : boussole (octets HGR 13–26), panneaux de survie (0–12, 27–39), en pixels HGR doublés |
+| 0–15 | bandeau : boussole (octets 16–23, colonnes couleur 56–83), panneaux de survie (octets 0–15 et 24–39), en pixels couleur (lot 4) |
 | 16–159 | vue, lignes logiques 16–159 |
 | 160–175 | cache des lignes logiques 0–15 (invisible en mode mixte), défilé avec la vue |
 | 176–191 | inutilisées, sous les 4 lignes de texte |
@@ -341,6 +341,28 @@ Libre après le lot 3, RAM principale : 7 octets (`$0800-$0FFF`), 35
 libres (`NEOWILD.DAT` 53 031 octets, +2 411). Le lot 4 (§8) porte ces
 chiffres à 144 octets principaux, 16,5 Ko auxiliaires et 131 blocs.
 
+**Lot 4 : bandeau et panneaux en couleur** ([DHGR.md](DHGR.md) §11). Le
+ruban et les panneaux dessinent des pixels couleur avec la petite police
+DHGR ; plus aucun octet HGR doublé.
+
+| Élément | Zone | Octets |
+|---|---|---:|
+| retiré : `hud_draw` HGR (263), bandes HGR 2–9 (280) | WILDLO | −543 |
+| retiré : bande HGR 1 (40), `hud_border_byte` (25) | WILDTXT | −65 |
+| retiré : `dbl_put` + demi-octets (69), `hgr_row`/`hgr_row2` (56), `hud_strip_lo/hi` (16), `hud_ptr` (12) | GCODE | −153 |
+| retiré : `dbl_lo`, `dbl_x` | BSS | −2 |
+| ajouté : `hud_draw` couleur (225), `hud_strip` (80) et masques de l'index (5) | WILDLO | +310 |
+| ajouté : `hud_col` (137), `hud_row` (19), `hud_pen` (8), `hud_next` (14), partagés avec les panneaux | WILDLO | +178 |
+| WILDHUD : police 4 × 5 en colonnes (236 au lieu de 413), styles par champ | module 15 | 1 727 → 1 628 |
+
+Libre après le lot 4, RAM principale : 72 octets (`$0800-$0FFF`), 89
+(`$1000-$1FFF`), 168 (`$4000-$57FF`), 36 (`$6000-$6FFF`), 37 (RESIDENT),
+soit **402 octets** (+274), mesurés seuls ; 578 après fusion avec le TOPO
+DHGR et le lot 5 (§6, `hgr_row` conservé). La fenêtre de modules garde 420 octets libres
+avec WILDHUD. RAM auxiliaire : 9 828 octets libres (+99). La page zéro ne
+change pas : `hud_col` emprunte le scratch de passe (`dm`…`dp`) et les
+octets `be`/`row0` de l'ancien ruban.
+
 **Double tampon (mesure, pas d'implémentation).** Une seconde page DHGR
 demande 16 Ko : 8 Ko principaux à `$4000-$5FFF` (occupés par WILDGAME et la
 fenêtre de modules, 14 Ko de code résident à déplacer) et 8 Ko auxiliaires
@@ -363,7 +385,7 @@ l'ouverture depuis la carte résidente (`$7000`) et le masque des bois
 (`$0800`). `tools/topo_ref.py` en est le modèle exact ;
 `tests/test_graphical_topo.py` compare les deux banques des lignes 0–159
 (carte par défaut, carte de remplacement, après WALK). Rendu décrit dans
-`docs/DHGR.md` §11.
+`docs/DHGR.md` §12.
 
 | Élément | Avant (lot 3) | Lot 4 |
 |---|---:|---:|

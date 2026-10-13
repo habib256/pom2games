@@ -61,8 +61,8 @@ row:     .res 1
 gp:      .res 2                 ; grid row pointer
 hp:      .res 2                 ; screen row pointer
 sp_end:  .res 1                 ; span end row (exclusive)
-be:      .res 1                 ; HUD: first source byte
-row0:    .res 1                 ; HUD: ribbon row
+be:      .res 1                 ; HUD: strip pixel of ribbon pixel 0
+row0:    .res 1                 ; HUD: ribbon pixel
 eyeb:    .res 1                 ; 128 - eye: level + eyeb = dz + 128
 dzb:     .res 1                 ; dz + 128 of the sample
 c1:      .res 1                 ; render columns col..c1-1

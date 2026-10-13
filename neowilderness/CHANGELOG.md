@@ -70,6 +70,27 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
   traitent TOPO comme un module ordinaire ; capture
   `build/dhgr/game_topo.png` (`tools/game_shots.py`).
 
+### Neowilderness : bandeau et panneaux DHGR (lot 4)
+
+- La boussole et les panneaux de survie sont dessinés en pixels couleur
+  DHGR avec la petite police 4 × 5 de `dev/lib/hgrc` (sans lier son moteur) :
+  plus d'octets HGR doublés ni de franges bleues/orange.
+- Ruban : colonnes couleur 56–83 (4 groupes, octets 16–23), 7 unités
+  d'azimut par pixel, soit 196 unités comme le ruban HGR ; N E S W (N rose),
+  tirets gris tous les 22,5° (longs tous les 45°), cadre blanc, index jaune
+  fixe colonne 70. Coût : 44 500 → 17 600 cycles par tracé.
+- Panneaux : colonnes 0–55 et 84–139, chasse proportionnelle, mêmes chaînes
+  et mêmes règles ; OKAY aigue-marine, SO-SO jaune, VERY et santé sous 40 %
+  roses, alertes et conditions en lettres noires sur bandeau orange (au lieu
+  de la vidéo inverse). Mise à jour sale : 144 200 → 117 300 cycles.
+- Primitive résidente `hud_col` (colonne couleur, lecture-modification-
+  écriture par banque) partagée par le ruban et les panneaux. RAM principale
+  libre : 128 → 402 octets (578 une fois TOPO DHGR et lot 5 fusionnés) ;
+  WILDHUD 1 727 → 1 628 octets.
+- Modèle exact dans `tools/dhgr_ref.py` (`hud_colour`, `panels_colour`,
+  `read_panels`) ; `test_hud`, `test_interface`, `test_dhgr_ref` comparent
+  les pixels et vérifient qu'aucun tracé ne sort des rangées 0–15.
+
 ### Neowilderness : paysage DHGR (lot 3)
 
 - Le paysage est dessiné en DHGR 16 couleurs sur une page unique

@@ -151,20 +151,6 @@ def dhgr_view(page, aux=None):
     return [full[R.physical(r)] for r in range(R.VIEW_ROWS)]
 
 
-def undouble(aux, main):
-    """The HGR byte whose pixels were doubled into this aux/main byte pair
-    (src/dhgr.s dbl_put: HGR pixel k = dots 2k and 2k+1)."""
-    wide = aux & 0x7F | (main & 0x7F) << 7
-    return sum(1 << k for k in range(7) if wide >> (2 * k) & 1)
-
-
-def hgr_equivalent(page):
-    """8 KB page of the HGR bytes drawn doubled (HUD, survival panels): the
-    old HGR layout for tests that read glyphs. Meaningless for the view."""
-    main, aux = banks(page)
-    return bytes(undouble(a, m) for a, m in zip(aux, main))
-
-
 def mood_name(index):
     import dhgr_palette
     return dhgr_palette.MOODS[index[0] if isinstance(index, (bytes, bytearray)) else index]

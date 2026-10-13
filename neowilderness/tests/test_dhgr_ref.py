@@ -212,13 +212,52 @@ def check_rules(m):
         assert w == n[::-1], phase
     page = R.frame(m, px, py, h, R.Sky())
     assert all(page[y][R.HUD_POINTER] == P.HUD['pointer'] for y in (11, 12, 13))
-    # Doubled HGR frame: HGR pixel 91 is the right half of colour pixel 45.
-    assert page[0][R.HUD_LEFT + 1] == P.HUD['border'] and page[0][R.HUD_LEFT - 1] == P.BLACK
-    assert page[0][R.HUD_LEFT] == P.ORANGE and page[0][R.HUD_RIGHT] == P.MEDIUM_BLUE
+    # Colour frame (lot 4): rows 0 and 15, columns 56 and 83, no fringe.
+    assert (R.HUD_LEFT, R.HUD_RIGHT, list(R.HUD_BYTES)) == (56, 83, list(range(16, 24)))
+    assert all(page[y][x] == P.HUD['border'] for y in (0, 15) for x in range(R.HUD_LEFT, R.HUD_RIGHT + 1))
+    assert all(page[y][x] == P.HUD['border'] for y in range(16) for x in (R.HUD_LEFT, R.HUD_RIGHT))
+    assert page[0][R.HUD_LEFT - 1] == page[0][R.HUD_RIGHT + 1] == P.BLACK
+    check_hud()
     assert all(page[160 + r] == day[r] for r in range(16)), 'cache rows 160..175'
     assert all(page[r] == day[r] for r in range(16, 160))
     assert all(c == P.BLACK for r in range(176, 192) for c in page[r])
     print('  moods: graded moonlight, sun colours, low Moon, clouds, phases, HUD, rows 160..191: OK')
+
+
+def check_hud():
+    """Ribbon and panel models: geometry of the strip, the pointer, glyph
+    round trips and the byte ownership of the two areas."""
+    H = P.HUD
+    north = R.hud_colour(0)                    # magnetic north under the pointer
+    assert [north[r][70] for r in range(2, 7)].count(H['north']) >= 1
+    assert {north[r][c] for r in range(2, 7) for c in range(66, 75)} <= {P.BLACK, H['north']}
+    assert all(north[r][70] == H['pointer'] for r in (11, 12, 13))
+    assert [north[r][c] for r, c in ((11, 68), (11, 72), (12, 69), (12, 71))] == [H['pointer']] * 4
+    assert north[12][68] == north[13][69] == P.BLACK
+    assert north[8][70] == north[9][70] == north[9][75] == H['tick'] and north[8][75] == P.BLACK
+    east = R.hud_colour(140)
+    assert all(east[r][c] in (P.BLACK, H['ink']) for r in range(2, 7) for c in range(57, 83))
+    assert R.hud_colour(140, 140) == north and R.hud_colour(559) != north
+    assert all(R.hud_colour(h)[y][x] == P.BLACK for h in (0, 35, 287) for y in range(16)
+               for x in range(140) if not R.HUD_LEFT <= x <= R.HUD_RIGHT)
+    # 7 units per pixel: a 35-unit turn scrolls the ribbon interior by 5 pixels.
+    a, b = R.hud_colour(70), R.hud_colour(105)
+    assert all(a[r][c + 5] == b[r][c] for r in range(2, 10) for c in range(57, 77))
+    # Panels: each field is the text it was drawn from, inks included.
+    fields = (('7:00 H=', 15, 0), ('25%', H['very'], 0)), (('HUNGER ', 15, 0), ('SO-SO', H['soso'], 0)), \
+             (('THIRST ', 15, 0), ('OKAY', H['okay'], 0)), (('NEW CONDITION', 0, H['alarm']),)
+    page = R.panels_colour(fields)
+    assert R.panel_text(page) == ('7:00 H=25%', 'HUNGER SO-SO', 'THIRST OKAY', 'NEW CONDITION')
+    assert R.panel_runs(page) == [list(f) for f in fields]
+    assert all(page[y][x] == P.BLACK for y in range(16) for x in range(R.HUD_LEFT, R.HUD_RIGHT + 1))
+    assert all(page[y][x] == P.BLACK for y in (0, 15) for x in range(140))
+    assert page[8][84] == page[14][139] == H['alarm'] and page[7][84] == P.BLACK
+    main, aux = R.panels_banks(fields)
+    assert not any(bank[y * 40 + b] for bank in (main, aux) for y in range(16) for b in R.HUD_BYTES)
+    clipped = R.panels_colour(((('MMMMMMMMMMMMMM', 15, 0),), (), (), ()))
+    assert R.panel_text(clipped)[0] == 'M' * 11 and not any(clipped[y][55] for y in range(16))
+    texts = ('15:55', 'ITEMS: INV', '5:05 H=5%')        # S and 5 share a glyph
+    assert R.panel_text(R.panels_colour([((t, 15, 0),) for t in texts] + [()]))[:3] == texts
 
 
 def refs(m):
