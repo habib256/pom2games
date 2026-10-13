@@ -1,6 +1,7 @@
 # Neowilderness — géographie fine native (lot 5) : mesures et conception
 
-Analyse en lecture seule, sans modification du jeu. Outil :
+Les §§ 1–8 sont l'analyse faite avant l'implémentation, sans modification du
+jeu ; le § 9 décrit la réalisation et ses mesures dans le jeu. Outil :
 `tools/geo_atlas.py` (sorties `build/geo/report.json` et `report.md`) ;
 tests : `tests/test_geo_atlas.py` (Python pur, ~8 s). Tous les chiffres
 ci-dessous viennent de `python3 tools/geo_atlas.py --jobs 8` (1 min 40 s),
@@ -314,12 +315,149 @@ les chargements exceptionnels sans décision explicite sur le lot 6.
 - `pack_boot.compress` est très lent sur des données uniformes (70 s pour
   une carte plate) : temps d'outil seulement.
 
+## 9. Réalisation (lot 5)
+
+La conception du § 6 est implémentée sans variante : atlas `coarse` en
+tuiles 16 × 16, résident en carte langage auxiliaire, cache de 4 tuiles,
+décodeur exécuté avec `ALTZP`. Le budget du § 7 a changé entre-temps : le
+lot 3 a gardé les flux de sprites originaux (20 octets au lieu de ~12 Ko
+convertis) et le lot 4 a retiré la feuille TOPO de 8 Ko ; la carte langage
+auxiliaire avait 15 893 octets libres.
+
+### Portée
+
+- Seules les **cartes natives** (octet 37 de l'en-tête) portent la
+  géographie fine : la carte Sierra de comparaison
+  (`tests/test_adventure.original_map`) et les cartes générées par
+  `mkmap.py --native`. Pour elles, `cell_native` lit l'atlas ; sinon elle
+  lit la grille 112 × 84 comme avant. La carte livrée n'est pas native : sa
+  simulation, comparée octet pour octet à la référence HGR par
+  `test_reference_state.py`, garde ses entrées (la référence HGR n'utilisait
+  la géographie fine que sur un disque portant `NEOWILD.GEO`, c'est-à-dire
+  une carte native). Ce test reste donc significatif et inchangé.
+- Format natif inchangé : niveau, bit 7 eau, bit 6 lac (l'eau tient sur six
+  bits). `mkmap.fine_bytes` exporte la grille fine d'une carte générée
+  (`--fine`, ou ajoutée à la carte avec `--native`) en marquant lacs les
+  bassins inondés ; il refuse une eau au-dessus du niveau 63, ce qui exclut
+  5 des 9 cartes `mkmap` mesurées au § 3 (s7-L4, s7-L10, s42-L1, s42-L4,
+  s42-L10 ; eau jusqu'à 78) et les rivières denses (79).
+
+### Mémoire (vue banque 1 de la carte langage auxiliaire)
+
+| Zone | Contenu | Octets |
+|---|---|---:|
+| `$D000-$D3FF` | cellules décodées, une page par tuile (4 tuiles) | 1 024 |
+| `$D400-$D47F` | bits de bois des 4 tuiles (32 octets chacune) | 128 |
+| `$D480-$D4A7` | étiquettes MRU, numéros de page, tables | 40 |
+| `$D4A8-$D546` | requête (`geo_query`, `geo_read`) | 159 |
+| `$D547-$D7CA` | décodeur (`geo_decode` … `geo_byte`) | 644 |
+| `$D7CB-$FFF9` | atlas : 154 adresses (lo, hi), 20 octets de drapeaux « brut », flux | ≤ 10 287 |
+
+La page zéro auxiliaire sert de registres au décodeur (`$10-$30`, tampon
+9 × 9 de la grille en `$40-$F0`) ; la pile auxiliaire reçoit ses adresses de
+retour. Rien d'autre n'utilise ces pages ; `$0200-$03FF` auxiliaire (pilote
+/RAM) n'est pas touché (vérifié par `test_geo_resident.py`). Le décodeur
+estimé à ~360 octets en fait 644 : les deux plans de plages, les tuiles
+brutes et la mise en cache de la grille sont plus longs qu'esquissé.
+
+Côté principal, le tronçon de `cell_native` fait 24 octets (`PHP`, `SEI`,
+`ALTZPON`, deux lectures de `$C08B`, `JSR geo_query`, `$C082`, `ALTZPOFF`,
+`PLP`, `ORA #0`) ; il remplace le chemin par banques et `geo_load`
+(RESIDENT −162 octets, RESBSS −35 avec le chemin de `NEOWILD.GEO`).
+Compteurs `geo_queries` (3 octets) et `geo_decodes` (2) en RESBSS.
+
+### Tailles d'atlas (format du jeu, bit de lac, index de 328 octets compris)
+
+| Carte | Atlas | Pire tuile | Marge sur 10 287 |
+|---|---:|---:|---:|
+| Sierra | 6 379 | 82 | 3 908 |
+| sierra-topo | 6 267 | 81 | 4 020 |
+| gen-s1985-L1 / L4 / L10 | 6 108 / 6 113 / 6 748 | 74 / 79 / 82 | 4 179 / 4 174 / 3 539 |
+| gen-s7-L1 | 5 241 | 65 | 5 046 |
+| gen-s1985-L10 + 6 tuiles de bruit (test) | 8 108 (6 brutes) | 288 | 2 179 |
+| rough-s1985-L4 (relief bruité) | 11 130 | 110 | **refusée** (−843) |
+| noise-1 | 42 664 (toutes brutes) | 288 | **refusée** |
+
+L'atlas `coarse` du § 3 sans bit de lac des rivières denses (8 484 octets)
+tiendrait dans le budget, mais ce format n'existe pas en jeu (eau > 63).
+
+### Coûts mesurés (cycles POM2, `tests/test_geo_resident.py --measure`)
+
+| Opération | Cycles | Remarque |
+|---|---:|---|
+| requête dans la tuile la plus récente | 203 | JSR/RTS compris ; 110 estimés au § 6 |
+| requête dans une autre tuile en cache | 322 | recherche et remise en tête |
+| requête avec décodage, Sierra | 14 305–47 461 (moy. 27 846) | 154 tuiles mesurées, ≤ 46,5 ms |
+| requête avec décodage, gen-s1985-L4 | 14 604–46 144 (moy. 28 163) | ≤ 45,2 ms |
+
+Le pire décodage dépasse l'estimation du § 4 (33 ms) d'environ 40 % ; il
+reste sous 0,05 s par changement de tuile. Une commande WALK 2 H fait 30 à
+36 requêtes (≈ 7 000 cycles hors décodage).
+
+### Décodages par trajet
+
+Trajets modélisés du § 5 rejoués dans l'émulateur par le vrai
+`cell_native` (3 × 3 de la faune puis case suivante à chaque demi-pas) :
+le nombre de décodages est **identique** au modèle LRU de `geo_atlas.py`.
+
+| Carte | Trajet | Demi-pas | Requêtes | Tuiles touchées | Décodages |
+|---|---|---:|---:|---:|---:|
+| Sierra | direct crash → rangers | 177 | 1 770 | 16 | 16 |
+| Sierra | errance | 282 | 2 820 | 22 | 24 |
+| gen-s1985-L4 | direct | 132 | 1 320 | 12 | 12 |
+| gen-s1985-L4 | errance | 145 | 1 450 | 14 | 14 |
+
+Partie réelle (WALK 2 H au cap des rangers recalculé à chaque étape, SWIM
+si une rive arrête la marche, SLEEP la nuit), arrêtée à 12 unités du but
+pour ne pas quitter le jeu par l'écran de fin :
+
+| Carte | Commandes | Requêtes | Tuiles franchies | Décodages | Max par commande | Appels MLI |
+|---|---:|---:|---:|---:|---:|---:|
+| Sierra, (23, 86) → (193, 130) | 53 | 916 | 13 | 14 | 3 | 0 |
+| gen-s1985-L4, (68, 57) → (191, 66) | 17 | 607 | 9 | 9 | 3 | 0 |
+
+Taux de succès du cache sur la partie Sierra : 902 requêtes servies sans
+décodage sur 916 (98,5 %). Collecte d'eau sur une case d'eau de rive où se
+rejoignent quatre tuiles (position posée par le test) : DRINK, FILL CANTEEN
+16 oz puis REST 1 H, 23 requêtes, 4 décodages, aucun appel MLI. Une même
+partie Sierra de 53 commandes jouée sur le lot 4 (chemin `NEOWILD.GEO`) et
+sur ce lot donne des états identiques variable par variable (vérification
+ponctuelle, pas un test de la suite) ; WALK 2 H depuis l'épave passe de
+48,1 M à 14,1 M cycles (47,1 → 13,8 s), REST 1 H de 12,4 à 7,7 s.
+
+### Démarrage et disque
+
+Une carte native ajoute un enregistrement à `NEOWILD.DAT` (décodeur +
+atlas, compressé par le LZ du chargeur s'il raccourcit le démarrage) :
+Sierra 56 919 octets et 161 blocs (au lot 4 : `NEOWILD.DAT` + 96 blocs de
+`NEOWILD.GEO`), carte générée native 162 blocs. Premier écran jouable
+(`tools/profile_loading.py --map`) : 30,41 s pour la carte générée native
+contre 28,75 s pour la carte par défaut (28,83 s au lot 4) ; 18 appels MLI
+dont 15 lectures, 58 074 octets lus.
+
+### Restent ouverts
+
+- La carte livrée reste une carte héritée : rendre native la carte par
+  défaut changerait sa simulation (cases impaires, eau) et donc la
+  comparaison avec la référence HGR ; décision de jeu, pas de mémoire.
+- Eau au-dessus du niveau 63 : il faudrait un plan de lacs séparé (le
+  format de case n'a plus de bit libre).
+- Le décodeur n'est pas optimisé : le plan des bois (23 cycles par case)
+  et la recherche de prédiction dominent ; sans objet tant qu'une commande
+  ne décode pas plus de 3 tuiles.
+
 ## Reproduction
 
 ```
 python3 tools/geo_atlas.py --jobs 8     # build/geo/report.{json,md}, ~2 min
 python3 tools/geo_atlas.py --quick      # deux formes, une carte générée
-python3 tests/test_geo_atlas.py         # round-trips, tailles figées, ~8 s
+python3 tests/test_geo_atlas.py         # round-trips, tailles figées, ~10 s
+python3 tests/test_geo_resident.py      # jeu : exactitude, coûts, trajets, MLI, ~30 s
+python3 tests/test_geo_resident.py --measure   # les 154 tuiles mesurées
+python3 tests/test_geography.py         # Sierra contre les échantillons ROM
+python3 tools/mkmap.py --native build/native.bin   # carte native générée
+python3 tools/profile_loading.py --packings auto --map build/native.bin
+python3 tools/profile_actions.py --disk DISK.po 'WALK 2 H'   # requêtes, décodages
 ```
 
 Entrées locales : `build/files/TOPO.B` (`make extract`) et

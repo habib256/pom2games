@@ -888,6 +888,7 @@ row_n0: .res 256
         .include "outdoor.s"
         .include "water.s"
         .include "geography.s"
+        .include "geoaux.s"
 
 ; dev/lib/prodos/video.s borrows two cc65 temporaries, only at boot and exit:
 ; the game scratch g0 and the view scratch tmp2.

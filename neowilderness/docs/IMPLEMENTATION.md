@@ -336,10 +336,12 @@ conservent l'historique HGR : lorsqu'ils parlent de BLOAD, de DOS ou de
 `mem_fetch` copie l'image vierge depuis la RAM auxiliaire (ou sa carte
 langage) vers la fenêtre, à la longueur exacte, interruptions masquées, page
 zéro et commutateurs mémoire préservés. Aucune lecture disque n'a lieu pendant
-la partie ; seules les banques de géographie native fine des disques de
-comparaison (`NEOWILD.GEO`, lot 5) sont encore lues par MLI, à la demande.
-`overlay_reads` compte désormais les chargements de modules (copies RAM ou
-lectures de géographie), avec les mêmes valeurs que la version HGR ; les
+la partie : depuis le lot 5, la géographie native fine des cartes natives est
+un atlas résident en carte langage auxiliaire, décodé par tuiles de 16 × 16
+dans un cache de quatre tuiles (`src/geoaux.s`, `docs/GEOGRAPHY.md` § 9) ;
+`NEOWILD.GEO` n'existe plus.
+`overlay_reads` compte désormais les chargements de modules (copies RAM),
+avec les mêmes valeurs que la version HGR ; les
 nouveaux compteurs `mli_calls`, `mli_reads`, `mli_bytes` (tous les appels
 MLI, chargeur compris) et `xfer_count`, `xfer_bytes` (copies RAM) sont des
 symboles de `build/wild.lbl`. La TOPO est une image préchargée : son BLOAD
@@ -387,7 +389,7 @@ synchronisée) avec ses `wild.lbl`/`wild.map`, démarré en ][+.
 | 21 | `WILDADV` | Distance, score, climat journalier, vêtements et quantités de ressources |
 | 22 | `WILDOUT` | Réactions animales, contamination, borne de présence animale et remise à zéro médicale quotidienne |
 | 0 | TOPO | Feuille topographique HGR, copiée vers `$2000` |
-| 23–46 | `NEOWILD.GEO` | Banques de géographie native fine (disques de comparaison seulement, lues par MLI) |
+| — | `wildgeo.bin` + atlas | Géographie native fine (cartes natives) : résidente en carte langage auxiliaire, pas un module ; les anciens IDs 23–46 de `NEOWILD.GEO` sont retirés |
 
 Les modules sont préchargés en RAM auxiliaire. Un module présent dans la
 fenêtre n'est pas recopié. Simulation, thermique, effort de nage et charge

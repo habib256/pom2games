@@ -155,14 +155,8 @@ overlay_load:
 overlay_fetch:                  ; A = module: copy it even if current (TOPO: 0)
         sta     overlay_wanted
 overlay_before_transfer = *
-        cmp     #23
-        bcs     @geo
         tax
         jsr     mem_fetch
-        jmp     @fetched
-@geo:   sbc     #23             ; carry set: bank 0..23
-        jsr     geo_load
-@fetched:
         lda     overlay_wanted
         cmp     #3
         bne     @ordinary
@@ -2652,19 +2646,6 @@ native_finish_travel:
         lda     #12
         jsr     overlay_load
         jmp     module_stationary_resources_tail
-native_here_travel:
-        jsr     native_here
-        jmp     native_restore_travel
-native_next_travel:
-        jsr     native_next
-        jmp     native_restore_travel
-.segment "TEXT"
-native_restore_travel:
-        pha
-        lda     #12
-        jsr     overlay_load
-        pla
-        rts
 .segment "GCODE"
 native_resource_results:
         lda     MAP+36

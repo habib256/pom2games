@@ -5,8 +5,11 @@ The volume holds PRODOS, NEOWILD.SYSTEM (src/boot.s) and NEOWILD.DAT: one
 sequential file of records read once at boot. Main RAM images go to their
 linked addresses; every module (TOPO included: src/topo.s draws it from the
 resident map) and the pristine simulation go to auxiliary RAM, where memory.s copies them into their execution
-windows. Comparison maps with the original fine geography add NEOWILD.GEO,
-24 banks of 2 KB read on demand (lot 5).
+windows. A native map (header byte 37: the Sierra comparison maps, mkmap
+--native) carries its 224 x 168 fine geography: it becomes a compressed atlas
+(tools/geo_atlas.atlas_bytes) loaded with its decoder (src/geoaux.s) into the
+auxiliary language card, bank 1 view $D480-$FFF9 (lot 5). A map whose atlas
+exceeds that budget is refused.
 
 NEOWILD.DAT is a 128-byte record table followed by the payloads, back to
 back. Record: kind, address, length, stored length; kind 0 end, 1 claim, otherwise
@@ -28,6 +31,7 @@ sys.path.insert(0, str(DEV / 'tools/prodos'))
 sys.path.insert(0, str(HERE / 'tools'))
 from build_volume import Volume, prodos_date   # noqa: E402
 from pack_boot import compress, decompress     # noqa: E402
+import geo_atlas                                # noqa: E402
 
 VOLUME = 'NEOWILDERNESS'
 CHUNK = 0x2000
@@ -35,11 +39,13 @@ TABLE_SIZE = 128                 # src/boot.s TABLE_SIZE: 18 records
 MAIN, AUX, LC2, LC1 = 0, 1, 2, 3
 BANK_NAMES = {AUX: 'aux', LC2: 'lc2', LC1: 'lc1'}
 DIR_BANK = {AUX: 0, LC2: 1, LC1: 2}      # memory.s directory bank codes
-# Auxiliary regions, in allocation order. $0000-$07FF holds the ProDOS /RAM
-# driver code ($0200-$03FF) and the 80-column text page; $2000-$3FFF is
-# reserved for the auxiliary half of the future DHGR page.
-REGIONS = [(AUX, 0x4000, 0xC000), (AUX, 0x0800, 0x2000),
-           (LC2, 0xD000, 0xFFFA), (LC1, 0xD000, 0xE000)]
+# Auxiliary regions of the modules, in allocation order. $0000-$07FF holds
+# the ProDOS /RAM driver code ($0200-$03FF) and the 80-column text page;
+# $2000-$3FFF is the auxiliary half of the DHGR page. The language card
+# bank 1 and the common $E000-$FFF9 belong to the fine geography (GEO_*).
+REGIONS = [(AUX, 0x4000, 0xC000), (AUX, 0x0800, 0x2000), (LC2, 0xD000, 0xE000)]
+GEO_CACHE = 0xD000               # 4 decoded tiles + woodland, not stored
+GEO_CODE = 0xD480                # src/geoaux.s (segment GEOAUX), then the atlas
 # Directory index -> (image, execution window). 18 is an alias of 17.
 MODULES = {0: ('wildtop.bin', 0x5800), 1: ('wildvoc.bin', 0x5800), 2: ('wildscr.bin', 0x5800),
            3: ('wildsim.bin', 0x9600), 4: ('wildwat.bin', 0x5800),
@@ -171,22 +177,23 @@ def build_disk(out, map_path=None, build=None, packing='auto', layout=None):
         blob[1].extend(images[index])
     aux = [(bank, start, bytes(data)) for (bank, _), (start, data) in sorted(blobs.items())]
 
-    geo = None
+    # Fine geography area (language card bank 1 view): free on a legacy map.
+    code = (build / 'wildgeo.bin').read_bytes()
+    base = sym['geo_atlas']
+    assert GEO_CODE + len(code) == base, 'wildgeo.bin must end at geo_atlas'
+    geo = dict(loaded=False, cache=GEO_CACHE, code_address=GEO_CODE, code=len(code), base=base,
+               budget=geo_atlas.ATLAS_END - base, size=0, free=geo_atlas.ATLAS_END - GEO_CACHE)
     if mapdata[37]:
         fine = mapdata[MAP_BYTES+FOREST_BYTES:]
         assert len(fine) == 224*168 + 28*168, 'incomplete native geography'
-        heights, woods = fine[:224*168], fine[224*168:]
-        lookup = (build / 'wildgeo.bin').read_bytes()[0x700:]
-        # Each bank is padded to 2 KB in the file, but READ transfers the
-        # same length as the DOS image: bytes past it keep their contents.
-        count = 0x700 + len(lookup)
-        offset = sym['geo_read'] + 4 - 0xB600
-        resident[offset:offset + 2] = count.to_bytes(2, 'little')
-        geo = bytearray()
-        for bank in range(24):
-            row = bank*7
-            chunk = heights[row*224:(row+7)*224] + woods[row*28:(row+7)*28]
-            geo += chunk + bytes(0x700-len(chunk)) + lookup + bytes(0x100-len(lookup))
+        geo['loaded'] = True
+        atlas = geo_atlas.atlas_bytes(fine[:224*168], fine[224*168:],
+                                      mapdata[64:MAP_BYTES], base, geo)
+        if len(atlas) > geo['budget']:
+            raise SystemExit(f'fine geography atlas too large: {len(atlas)} bytes, '
+                             f'budget {geo["budget"]} (${base:04X}-${geo_atlas.ATLAS_END-1:04X})')
+        geo['free'] = geo['budget'] - len(atlas)
+        aux.append((LC1, GEO_CODE, code + atlas))
     mask = mapdata[MAP_BYTES:MAP_BYTES+FOREST_BYTES] if mapdata[26] else b''
     if len(mask) != FOREST_BYTES:
         mask = bytes(FOREST_BYTES)
@@ -207,8 +214,6 @@ def build_disk(out, map_path=None, build=None, packing='auto', layout=None):
         (stage / 'PRODOS#FF0000').write_bytes((DEV / 'tools/prodos/PRODOS').read_bytes())
         (stage / 'NEOWILD.SYSTEM#FF2000').write_bytes((build / 'NEOWILD.SYSTEM').read_bytes())
         (stage / 'NEOWILD.DAT#060000').write_bytes(data)
-        if geo:
-            (stage / 'NEOWILD.GEO#060000').write_bytes(bytes(geo))
         boot = (DEV / 'tools/prodos/boot.bin').read_bytes()
         boot = (boot + bytes(1024))[:1024]
         volume = Volume(VOLUME, 280, boot, prodos_date('2026-10-13T12:00'))
@@ -220,7 +225,7 @@ def build_disk(out, map_path=None, build=None, packing='auto', layout=None):
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(bytes(volume.image))
     info = dict(packing=packing, blocks_used=volume.next_free, blocks=280,
-                dat=stats, geo=len(geo) if geo else 0,
+                dat=stats, geo=geo,
                 modules={str(i): dict(image=MODULES[17 if i == 18 else i][0],
                                       bank=BANK_NAMES[placed[17 if i == 18 else i][0]],
                                       address=placed[17 if i == 18 else i][1],

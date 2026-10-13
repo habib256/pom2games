@@ -55,13 +55,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--packings', default='raw,lz,auto')
     parser.add_argument('--out', type=Path)
+    parser.add_argument('--map', type=Path, help='another map, e.g. a native map with its '
+                        'fine geography (mkmap.py --native): its atlas is preloaded too')
     args = parser.parse_args()
     work = HERE / 'build/profile-boot'
     work.mkdir(parents=True, exist_ok=True)
     results = {}
     for packing in args.packings.split(','):
         disk = work / f'{packing}.po'
-        info = build_disk(disk, packing=packing)
+        info = build_disk(disk, args.map, packing=packing)
         value = measure(disk)
         value.update(dat_raw=info['dat']['raw'], dat_stored=info['dat']['stored'],
                      records=info['dat']['records'], volume_blocks=info['blocks_used'])

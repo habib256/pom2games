@@ -28,7 +28,7 @@
         .macpack longbranch
 .import start, _prodos_video_claim, _prodos_video_release, reset_exit
 .import mli_calls, mli_reads, mli_bytes, saved_reset, saved_bitmap, saved_zp
-.import geo_path, io_buffer
+.import io_buffer
 .import __LOADER_LOAD__, __LOADER_RUN__, __LOADER_SIZE__
 .import __LOADBSS_RUN__, __LOADBSS_SIZE__, __RESBSS_RUN__, __RESBSS_SIZE__
 .import __BSS_RUN__, __BSS_SIZE__
@@ -164,11 +164,6 @@ loader_main:
         sta     volume
         ldx     #<ld_path
         ldy     #>ld_path
-        lda     #'D'
-        jsr     make_path
-        ldx     #<geo_path
-        ldy     #>geo_path
-        lda     #'G'
         jsr     make_path
         lda     #$C8            ; OPEN NEOWILD.DAT
         ldx     #<open
@@ -270,14 +265,12 @@ record:
 loader_done:
         jmp     start
 
-; make_path -- X/Y = destination, A = 'D' (NEOWILD.DAT) or 'G' (NEOWILD.GEO):
-; length byte, "/VOLUME/NEOWILD.xxx".
+; make_path -- X/Y = destination: length byte, "/VOLUME/NEOWILD.DAT".
 make_path:
         stx     @dst+1
         sty     @dst+2
         stx     @len+1
         sty     @len+2
-        sta     @kind+1
         ldy     #1
         lda     #'/'
         jsr     @put
@@ -291,25 +284,8 @@ make_path:
 :       lda     file_name,x
         jsr     @put
         inx
-        cpx     #file_suffix-file_name
+        cpx     #file_end-file_name
         bne     :-
-@kind:  lda     #0
-        cmp     #'G'
-        beq     @geo
-        ldx     #0
-:       lda     file_dat,x
-        jsr     @put
-        inx
-        cpx     #3
-        bne     :-
-        beq     @length
-@geo:   ldx     #0
-:       lda     file_geo,x
-        jsr     @put
-        inx
-        cpx     #3
-        bne     :-
-@length:
         dey
         tya
 @len:   sta     $FFFF
@@ -714,13 +690,12 @@ close:  .byte   1, 0
 block:  .byte   3, 0
         .word   STAGE, 2
 ld_quit_parms: .byte 4, 0, 0, 0, 0, 0, 0
-file_name: .byte "/NEOWILD."
-file_suffix:
-file_dat: .byte "DAT"
-file_geo: .byte "GEO"
+file_name: .byte "/NEOWILD.DAT"
+file_end:
 
 ; Pages protected in the ProDOS bitmap while the game runs. The module
-; window $5800-$5FFF and the I/O buffer stay free for NEOWILD.GEO reads.
+; window $5800-$5FFF and the I/O buffer stay unmarked, as before lot 5
+; (nothing reads the disk there any more: the fine geography is resident).
 .define PROT(p) ((((p) >= $08) .and ((p) <= $57)) .or (((p) >= $60) .and ((p) <= $B9)) .or ((p) = $BE))
 game_pages:
         .repeat 24, I

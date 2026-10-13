@@ -18,6 +18,15 @@ def main():
               f'{module["length"]:5} -> ${module["window"]:04X}  {module["image"]}')
     for free in layout['aux_free']:
         print(f'  free {free["bank"]:3} ${free["start"]:04X}-${free["end"]-1:04X} {free["free"]:5} bytes')
+    geo = layout.get('geo')
+    if geo:
+        area = f'lc1 ${geo["cache"]:04X}-$FFF9'
+        if geo['loaded']:
+            print(f'  fine geography {area}: cache {geo["code_address"] - geo["cache"]}, '
+                  f'code {geo["code"]}, atlas {geo["size"]} bytes ({geo["tiles"]} tiles, '
+                  f'{geo["raw_tiles"]} raw), {geo["free"]} free')
+        else:
+            print(f'  fine geography {area}: legacy map, {geo["free"]} bytes free')
 
 
 if __name__ == '__main__':

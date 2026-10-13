@@ -25,6 +25,17 @@ position du joueur, légende des teintes et nord en haut. Les règles sont incha
 identique, octet pour octet, à celui de la version HGR/DOS 3.3 de référence,
 et aucune lecture disque n'a lieu pendant la partie.
 
+La géographie fine 224 × 168 des cartes natives (carte Sierra de
+comparaison, `mkmap.py --native`) est **résidente** depuis le lot 5 : un
+atlas compressé de 154 tuiles de 16 × 16 (6,1 à 6,7 Ko, prédit par la grille
+112 × 84 déjà en mémoire) est préchargé avec son décodeur dans la carte
+langage auxiliaire, et quatre tuiles décodées y restent en cache. Hauteurs,
+rivières/lacs, cases impaires et bois natifs sont exacts ; le fichier
+`NEOWILD.GEO` et ses lectures disque à chaque pas ont disparu (Sierra, crash
+→ rangers : 14 décodages de ≤ 47 ms, aucun appel MLI ; WALK 2 H depuis
+l'épave 47,1 → 13,8 s). La carte par défaut garde la grille 112 × 84 et
+les règles héritées ([GEOGRAPHY.md](docs/GEOGRAPHY.md) § 9).
+
 Mesures (secondes invitées à environ 1 MHz, [BASELINE_128K.json](docs/BASELINE_128K.json)
 contre [BASELINE_HGR.json](docs/BASELINE_HGR.json)) : STATUS 8,90 → 0,24 s,
 LOOK R 7,99 → 1,85 s, WALK 1 H 70,71 → 9,10 s ; premier écran jouable

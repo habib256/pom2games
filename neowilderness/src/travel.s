@@ -471,7 +471,7 @@ trv_half_pi: .byte $81,$49,$0F,$DA,$D5
 ; rejecting the first land half-step would make SWIM impossible from shore.
 ; Probe without committing position, time, or the raster's next-step state.
 module_swim_land:
-        jsr     native_here_travel
+        jsr     native_here
         bpl     @entry
         lda     #1
         sta     travel_shore
@@ -502,7 +502,7 @@ module_swim_land:
         bcc     @no
         cmp     #GH-2
         bcs     @no
-        jsr     native_next_travel
+        jsr     native_next
         bpl     @no
         sec
         bcs     @restore

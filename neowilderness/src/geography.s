@@ -1,52 +1,18 @@
-; Optional full-resolution geography banks. Seven rows per overlay leave
-; space for the lookup at $5F00. Height/water and woodland remain separate.
-; The original Sierra data is used only on local comparison disks.
-.segment "GEOGRAPHY"
-        .res $700
-module_geography_cell:
-        lda     geo_rows_lo,x
-        sta     gp2
-        lda     geo_rows_hi,x
-        sta     gp2+1
-        lda     (gp2),y
-        bpl     :+
-        pha
-        and     #64
-        sta     geo_water_kind
-        pla
-        and     #$BF
-:
-        pha
-        tya
-        lsr
-        lsr
-        lsr
-        clc
-        adc     geo_woods_rows,x
-        tax
-        tya
-        and     #7
-        tay
-        lda     forest_masks,y
-        and     $5E20,x
-        sta     geo_wooded
-        pla
-        rts
-geo_rows_lo:
-        .repeat 7,I
-        .byte <($5800+224*I)
-        .endrepeat
-geo_rows_hi:
-        .repeat 7,I
-        .byte >($5800+224*I)
-        .endrepeat
-geo_woods_rows: .byte 0,28,56,84,112,140,168
+; Native fine geography (lot 5). Native maps (header byte 37) carry the
+; 224 x 168 grid as a compressed atlas in the auxiliary language card, decoded
+; on demand into a cache of four 16 x 16 tiles (src/geoaux.s). A query never
+; reads the disk and never touches the $5800 window. Legacy maps keep the
+; resident 112 x 84 grid.
 .segment "GDATA"
 geo_wooded: .byte 0
 geo_water_kind: .byte 0         ; 0 = river, 64 = lake (only defined in water)
 .segment "GCODE"
-; X = original row, Y = original column. Only resident/SIM callers may use
-; this entry: it replaces the $5800 overlay. Legacy maps retain their grid.
+; X = original row, Y = original column -> A = cell byte, N = water.
+; Any caller may use it. Native maps: geo_wooded (nonzero in woodland) and,
+; for water, geo_water_kind (64 lake, 0 river). Legacy maps retain their grid.
+; Interrupts are masked while the auxiliary zero page, stack and language
+; card (bank 1, write enabled) are selected; ALTZP off and the ROM are
+; restored. RAMRD and RAMWRT must be off (they always are between transfers).
 cell_native:
         lda     MAP+37
         bne     @native
@@ -58,24 +24,17 @@ cell_native:
         tax
         jmp     cell_at
 @native:
-        tya
-        pha
-        txa
-        ldy     #23
-@bank:  cmp     #7
-        bcc     @load
-        sec
-        sbc     #7
-        iny
-        bne     @bank
-@load:  pha
-        tya
-        jsr     overlay_load
-        pla
-        tax
-        pla
-        tay
-        jmp     module_geography_cell
+        php
+        sei
+        sta     ALTZPON
+        lda     LCBANK1         ; twice: read RAM bank 1, write enabled
+        lda     LCBANK1
+        jsr     geo_query
+        bit     LCROM
+        sta     ALTZPOFF
+        plp
+        ora     #0              ; N, Z from the cell
+        rts
 .segment "ENVIRON"
 native_here:
         lda     px

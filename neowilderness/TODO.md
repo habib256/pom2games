@@ -211,16 +211,37 @@ premières ouvertures et les ouvertures répétées séparément.
 
 ## 5. Géographie fine native
 
-- [ ] Conserver les 224 × 168 positions, les rivières/lacs et les cellules
-  impaires utilisées par la simulation native.
-- [ ] Mesurer la compression par blocs sur plusieurs cartes et niveaux,
-  y compris des données peu compressibles.
-- [ ] Précharger l’atlas compressé et conserver plusieurs blocs décodés
-  en cache RAM pour les requêtes de position et de voisinage.
-- [ ] Vérifier le coût des changements de bloc et l’absence de lectures
+- [x] Conserver les 224 × 168 positions, les rivières/lacs et les cellules
+  impaires utilisées par la simulation native. (`test_geography.py` :
+  37 632 cases Sierra exactes contre les échantillons ROM ;
+  `test_geo_resident.py` : idem sur une carte générée et une carte à tuiles
+  brutes. Une partie Sierra crash → rangers de 53 commandes donne un état
+  identique, variable par variable, à celui du chemin `NEOWILD.GEO` du
+  lot 4 — vérification ponctuelle hors suite.)
+- [x] Mesurer la compression par blocs sur plusieurs cartes et niveaux,
+  y compris des données peu compressibles. (`docs/GEOGRAPHY.md` §§ 2–4 et
+  § 9 : 14 cartes, 9 formes, 6 codecs ; atlas retenu 5,2–6,7 Ko.)
+- [x] Précharger l’atlas compressé et conserver plusieurs blocs décodés
+  en cache RAM pour les requêtes de position et de voisinage. (Atlas
+  `coarse` 16 × 16 en carte langage auxiliaire, 4 tuiles LRU ; cartes
+  natives seulement : la carte par défaut reste sur la grille 112 × 84.)
+- [x] Vérifier le coût des changements de bloc et l’absence de lectures
   disque pendant une traversée de carte ou une collecte près d’une rive.
-- [ ] Si le budget 128 Ko ne tient pas, documenter les options mesurées
+  (Décodage 14 300–47 500 cycles mesurés ; Sierra crash → rangers :
+  14 décodages, ≤ 3 par commande ; collecte à un coin de quatre tuiles :
+  4 décodages ; zéro appel MLI, `$BF00` surveillé.)
+- [x] Si le budget 128 Ko ne tient pas, documenter les options mesurées
   avant de choisir une extension RAM ou des chargements exceptionnels.
+  (Il tient : 10 287 octets d'atlas possibles, 3,9–5,0 Ko de marge sur les
+  cartes réalistes ; le relief bruité, 11,1 Ko, est refusé par
+  `build_disk.py`. Options du § 7 conservées pour mémoire.)
+
+État (lot 5) : `make test` exécute `test_geo_resident.py` (≈ 30 s) ;
+`test_geography.py` exige les données Sierra locales et reste hors de
+`make test`. Limites : le format natif garde le bit 6 pour les lacs, donc
+une eau au-dessus du niveau 63 est refusée (5 des 9 cartes `mkmap`
+mesurées) ; les rivières denses (8,5 Ko sans bit de lac) n'ont pas été
+chargées en jeu ; la carte livrée n'est pas native.
 
 Référence locale : la géographie fine occupe 42 336 octets bruts ; sur
 `wilderness/build/parity-stage15/map.bin`, elle occupe 11 305 octets

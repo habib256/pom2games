@@ -1,10 +1,12 @@
 # Neowilderness — inventaire et plan mémoire 128 Ko
 
-Ce document décrit la version du lot 3 et le TOPO DHGR du lot 4 : démarrage
-ProDOS 8 depuis `dist/NEOWILDERNESS.po`, tous les modules préchargés en RAM
-auxiliaire (lots 1–2), paysage DHGR sur une seule page (`$2000-$3FFF`
-principale et auxiliaire) et TOPO dessiné en DHGR depuis la carte résidente
-(§8). Les chiffres viennent de `build/wild.map`, `build/wild.lbl`,
+Ce document décrit la version du lot 3, le TOPO DHGR du lot 4 et la
+géographie fine résidente du lot 5 : démarrage ProDOS 8 depuis
+`dist/NEOWILDERNESS.po`, tous les modules préchargés en RAM auxiliaire
+(lots 1–2), paysage DHGR sur une seule page (`$2000-$3FFF` principale et
+auxiliaire), TOPO dessiné en DHGR depuis la carte résidente (§8) et, sur
+les cartes natives, atlas de la géographie fine en carte langage auxiliaire
+(§9). Les chiffres viennent de `build/wild.map`, `build/wild.lbl`,
 `build/layout.json` (`make inspect`) et `docs/BASELINE_DHGR.json` ; ils
 doivent être remesurés après chaque changement de segment. La référence HGR
 figée (DOS 3.3, II+) est `build/reference-hgr/` (disque, `wild.lbl`,
@@ -23,22 +25,23 @@ K constantes, E état persistant, T temporaires.
 | `GZP` | `$D0-$ED` | 30 | E/T | Pointeurs `gp1/gp2`, `g0-g2`, analyse de commande, marche (`minutes`, `wdx`…) ; `g0` et `tmp2` servent aussi de `tmp1/tmp2` à `video.s`, seulement au démarrage et à la sortie |
 | `WOODS` | `$0800-$0925` | 294 | K | Masque des bois de la carte (non lié, écrit par le chargeur) |
 | `FORESTCODE` (`wildforest.bin`) | `$0926-$09FB` | 214 | C | Sonde et peinture des bois |
-| `TEXT` (`wildtxt.bin`) | `$0A00-$0FFC` | 1 533 | K/E | Messages, constantes, tables de rotation, quelques états textuels |
+| `TEXT` (`wildtxt.bin`) | `$0A00-$0FF4` | 1 525 | K/E | Messages, constantes, tables de rotation, quelques états textuels |
 | `LOWDATA`/`LOWCODE`/`LOWTEXT` (`wildlo.bin`) | `$1000-$1EDC` | 3 805 | C/K/E | Projection, **lignes DHGR déroulées** (`drows`, 1 601), effacement des deux banques, LOOK, raccourcis, noms d'objets, compteurs de charge |
 | `LOWCACHE` | `$1EDD-$1FDC` | 256 | T | `row_n0`, recalculé par `project_init` |
 | page DHGR, moitié principale | `$2000-$3FFF` | 8 192 | vidéo | Vue logique 16–159, bandeau et panneaux 0–15, cache 160–175 (lignes logiques 0–15) ; TOPO y est dessiné en DHGR (lignes 0–159, module 0) |
-| `GCODE`/`GDATA` (`wildgame.bin`) | `$4000-$57B8` | 6 073 | C/E/K | Logique résidente, état de la partie (`px`…`it_*`, horloge, santé, météo, hasard), chargeur de modules ; humeurs DHGR (302 octets de tables), choix d'humeur, altitudes `sun_alt8`…`sky_mood`, demi-pixels du bandeau, modes vidéo |
-| `BSS` | `$57B9-$57E2` | 42 | E/T | `video.s` (unité /RAM) et `mli.s` ; palette courante de la trame (`cur_pal`, couleurs des sprites), variables des bandes de 8 lignes ; mis à zéro par le chargeur |
+| `GCODE`/`GDATA` (`wildgame.bin`) | `$4000-$57A9` | 6 058 | C/E/K | Logique résidente, état de la partie (`px`…`it_*`, horloge, santé, météo, hasard), chargeur de modules ; humeurs DHGR (302 octets de tables), choix d'humeur, altitudes `sun_alt8`…`sky_mood`, demi-pixels du bandeau, modes vidéo |
+| `BSS` | `$57AA-$57D3` | 42 | E/T | `video.s` (unité /RAM) et `mli.s` ; palette courante de la trame (`cur_pal`, couleurs des sprites), variables des bandes de 8 lignes ; mis à zéro par le chargeur |
 | fenêtre `$5800` | `$5800-$5FFF` | ≤ 2 048 | C/K/T | Un module à la fois (tableau 2) ; son image est restaurée à chaque chargement |
 | `CODE`/`RODATA` (`wild.bin`) | `$6000-$6FDB` | 4 060 | C/K | Démarrage, moteur de vue, passes DHGR (`dspan`, `column_setup`, tables d'entrée des lignes), texte 40 colonnes propre, sprites, saisie, impressions, transitions, `video.s`, `mli.s` |
 | `WILDMAP` | `$7000-$94FF` | 9 472 | K | En-tête 64 octets et grille 112 × 84 |
 | `SCRATCH` | `$9500-$95FF` | 256 | T | `overlay_text` (160) : couleurs de colonne des sprites **et** flottants temporaires du ciel ; puis `scene_*`, thermique, saisie |
-| `ENVIRON`+`THERMAL` (`wildsim.bin`) | `$9600-$B5FE` | 8 191 | C/K/T | Simulation ; données de l'image rechargées à chaque activation (même sémantique que le BLOAD HGR) |
-| `RESCODE` (`wildres.bin`) | `$B600-$B987` | 904 | C/K | Répertoire des modules (161), `mem_fetch`, boucle de pile, `mli_call`, `geo_load`, sortie/RESET |
-| `RESBSS` | `$B988-$B9DA` | 83 | E | Compteurs, vecteur RESET et bitmap ProDOS sauvegardés, chemin de NEOWILD.GEO |
-| `IOBUF` | `$BA00-$BDFF` | 1 024 | T | Tampon d'E/S ProDOS (chargeur, géographie native) |
+| `ENVIRON`+`THERMAL` (`wildsim.bin`) | `$9600-$B5E7` | 8 168 | C/K/T | Simulation ; données de l'image rechargées à chaque activation (même sémantique que le BLOAD HGR) |
+| `RESCODE` (`wildres.bin`) | `$B600-$B8E5` | 742 | C/K | Répertoire des modules (161), `mem_fetch`, boucle de pile, `mli_call`, sortie/RESET |
+| `RESBSS` | `$B8E6-$B915` | 48 | E | Compteurs (dont `geo_queries`, `geo_decodes`), vecteur RESET et bitmap ProDOS sauvegardés |
+| `IOBUF` | `$BA00-$BDFF` | 1 024 | T | Tampon d'E/S ProDOS (chargeur) |
+| `GEOAUX` (`wildgeo.bin`) | `$D480-$D7CA` auxiliaire | 843 | C/K | Requête et décodeur de la géographie fine (`src/geoaux.s`), carte langage auxiliaire vue banque 1 ; chargé avec l'atlas sur les cartes natives seulement (§9) |
 | `SAVE` | `$BE00-$BEFF` | 256 | E | Page zéro de ProDOS à l'entrée, restaurée à la sortie |
-| `SYSSTUB`+`LOADER` (`NEOWILD.SYSTEM`) | `$2000` puis `$9600-$9EFA` | 2 267 | C/T | Chargeur transitoire, exécuté dans la fenêtre SIM avant la première activation |
+| `SYSSTUB`+`LOADER` (`NEOWILD.SYSTEM`) | `$2000` puis `$9600-$9EC7` | 2 216 | C/T | Chargeur transitoire, exécuté dans la fenêtre SIM avant la première activation |
 
 Modules de la fenêtre `$5800` (identifiants de `overlay_load`, inchangés) :
 
@@ -53,9 +56,9 @@ Modules de la fenêtre `$5800` (identifiants de `overlay_load`, inchangés) :
 | 10 | `wildsit.bin` | 1 758 | 19 | `wildmvi.bin` | 878 |
 | 11 | `wildprj.bin` | 1 134 | 20–22 | `wildtre`, `wildadv`, `wildout` | 916, 1 971, 1 982 |
 
-`wildgeo.bin` (1 861) n'est pas un module : c'est le gabarit des 24 banques
-de géographie fine (IDs 23–46), présentes seulement sur les disques de
-comparaison et lues à la demande (lot 5).
+Les IDs 23–46 (24 banques de géographie fine lues dans `NEOWILD.GEO` sur
+les disques de comparaison) n'existent plus depuis le lot 5 : `wildgeo.bin`
+est désormais l'image du décodeur résident (§9).
 
 ### Appels entre segments
 
@@ -80,8 +83,9 @@ pouvait contenir l'image à ce moment (voir §6).
 
 ### Adresses absolues
 
-- Carte `MAP = $7000` (`M_*`), fenêtre `$5800` (`geo_rows`, `cmp $5800` des
-  sprites, `unpack` supprimé), lignes DHGR `$2000` déroulées dans `drows`
+- Carte `MAP = $7000` (`M_*`), fenêtre `$5800` (`cmp $5800` des
+  sprites, `unpack` supprimé), géographie fine `$D000-$FFF9` en carte langage
+  auxiliaire, vue banque 1 (`GEO_CELLS`, `GEO_WOODS`, `geo_atlas`), lignes DHGR `$2000` déroulées dans `drows`
   (une copie sert aux deux banques, choisies par `PAGE2` sous `80STORE`).
 - ROM : Applesoft (`MOVFM $EAF9`… `FEXP $EF09`), Moniteur (`COUT`
   seulement par `CSW`, identifiants `$FBB3`/`$FBC0`). Le jeu n'appelle plus
@@ -108,16 +112,16 @@ pouvait contenir l'image à ce moment (voir §6).
 | `$0200-$03CF` | inutilisé (ProDOS/Moniteur) ; `$0300-$037F` : table niveau → couleur de TOPO (lot 4), le temps de son dessin | — |
 | `$03D0-$03FF` | vecteurs ProDOS ; RESET → `reset_exit` pendant le jeu | — |
 | `$0400-$07FF` | texte page 1 (intro, menus, 4 lignes mixtes, colonnes impaires en DHGR) | — |
-| `$0800-$0FFF` | bois, aide forêt, WILDTXT | 7 |
+| `$0800-$0FFF` | bois, aide forêt, WILDTXT | 15 |
 | `$1000-$1FFF` | WILDLO + cache de projection | 35 |
 | `$2000-$3FFF` | page DHGR, moitié principale | — |
-| `$4000-$57FF` | WILDGAME + BSS | 29 |
+| `$4000-$57FF` | WILDGAME + BSS | 44 |
 | `$5800-$5FFF` | fenêtre de modules | 0 à 1 553 selon le module |
 | `$6000-$6FFF` | WILDERNESS | 36 |
 | `$7000-$94FF` | carte | 0 |
 | `$9500-$95FF` | scratch | 0 |
-| `$9600-$B5FF` | fenêtre SIM (chargeur au démarrage) | 1 |
-| `$B600-$B9FF` | RESIDENT | 37 |
+| `$9600-$B5FF` | fenêtre SIM (chargeur au démarrage) | 24 |
+| `$B600-$B9FF` | RESIDENT | 234 |
 | `$BA00-$BDFF` | tampon d'E/S ProDOS | (réservé) |
 | `$BE00-$BEFF` | page zéro de ProDOS sauvegardée | — |
 | `$BF00-$BFFF` | page globale ProDOS | — |
@@ -131,31 +135,35 @@ environ 930 octets dans WILDGAME, 290 dans WILDLO et 170 dans WILDERNESS
 
 Bitmap ProDOS pendant le jeu : pages `$08-$57`, `$60-$B9` et `$BE` marquées
 en plus de celles de ProDOS ; la fenêtre `$58-$5F` et le tampon `$BA-$BD`
-restent libres pour les lectures de géographie native. Le bitmap d'origine
-est rétabli à la sortie.
+restent non marqués comme avant le lot 5, bien que plus rien n'y lise le
+disque. Le bitmap d'origine est rétabli à la sortie.
 
 ### RAM auxiliaire
 
 | Zone | Usage | Libre |
 |---|---|---:|
-| `$0000-$01FF` | page zéro et pile auxiliaires : jamais utilisées | — |
+| `$0000-$01FF` | page zéro et pile auxiliaires : seulement pendant une requête de géographie fine (`ALTZP`, interruptions masquées : registres du décodeur `$10-$F0`, adresses de retour) | — |
 | `$0200-$03FF` | code du pilote /RAM de ProDOS (appelé par FORMAT à la sortie) : intouchable | — |
 | `$0400-$07FF` | texte : colonnes paires des 4 lignes mixtes (espaces, écrits par `show_dhgr`) | — |
 | `$0800-$1FFF` | PRJ, cabane, TRE, MVI, ours, couguar, WAT | 268 |
 | `$2000-$3FFF` | moitié auxiliaire de la page DHGR (`PAGE2` sous `80STORE`) | — |
 | `$4000-$BFFF` | SIM vierge, STATUS, VOC, TRV, MED, SCR, ADV, OUT, épave, SIT, HUD, ITM, TOPO, INP | 383 |
-| carte langage banque 2 (`$D000-$FFF9`) | crotale | 11 797 |
-| carte langage banque 1 (`$D000-$DFFF`) | libre | 4 096 |
+| carte langage banque 2 (`$D000-$DFFF`) | crotale | 3 611 |
+| carte langage banque 1 (`$D000-$DFFF`) et `$E000-$FFF9` | géographie fine (§9) : cache de 4 tuiles (1 152), requête et décodeur (843), atlas (≤ 10 287) ; vide sur une carte héritée | 12 282 (héritée), 3 908 (Sierra) |
 
-Placement : premier emplacement libre, du plus grand au plus petit, dans
-l'ordre des zones ci-dessus (`tools/build_disk.py`). Total stocké :
-38 746 octets (30 555 de modules et sprites, TOPO compris, et 8 191 de SIM ;
-l'alias 18 ne coûte rien). Libre : 651 octets en RAM auxiliaire principale,
-15 893 dans la carte langage auxiliaire, `$FFFA-$FFFF` exclus (lot 3 :
+Placement des modules : premier emplacement libre, du plus grand au plus
+petit, dans l'ordre des zones ci-dessus, la carte langage limitée à la
+banque 2 `$D000-$DFFF` (`tools/build_disk.py`) ; la banque 1 et
+`$E000-$FFF9` appartiennent à la géographie fine (§9). Total stocké :
+38 723 octets (30 555 de modules et sprites, TOPO compris, et 8 168 de SIM ;
+l'alias 18 ne coûte rien), plus 843 + atlas sur une carte native. Libre :
+674 octets en RAM auxiliaire principale, 3 611 en banque 2, 12 282 dans la
+zone de géographie d'une carte héritée (3 908 avec l'atlas Sierra),
+`$FFFA-$FFFF` exclus (lot 4 : 38 746 stockés, 651 et 15 893 libres ; lot 3 :
 45 561 stockés, 373 et 9 356 libres, avec la feuille TOPO HGR de 8 192
-octets). Rien ne
-s'exécute en RAM auxiliaire : hors stock de modules, elle ne sert qu'à la
-moitié auxiliaire de la page DHGR et aux colonnes paires du texte mixte.
+octets). Seul le code de la géographie fine s'exécute en RAM auxiliaire
+(§9) : hors stock de modules, elle sert à la moitié auxiliaire de la page
+DHGR et aux colonnes paires du texte mixte.
 
 Politique /RAM : ProDOS installe toujours /RAM sur un IIe 128 Ko ;
 `PD_VIDEO_PRESERVE_RAM` refuserait donc toujours. Le chargeur lit le bloc 2
@@ -207,10 +215,14 @@ nécessaire puisque le temps a pu avancer.
 ## 5. Démarrage et fichiers
 
 Volume `NEOWILDERNESS`, 280 blocs (5,25 pouces) : `PRODOS` (17 128 octets),
-`NEOWILD.SYSTEM` (2 267) et `NEOWILD.DAT` (50 787 au lot 4 ; 53 031 au
-lot 3 ; 50 620 aux lots 1–2). 149 blocs occupés, **131 libres** (65,5 Ko ;
-lot 3 : 153 et 127). Au lot 4 la table compte 12 enregistrements et le
-démarrage fait 17 appels MLI, dont 14 lectures, 51 299 octets lus. Les mesures de
+`NEOWILD.SYSTEM` (2 216 ; 2 267 au lot 4, avant le retrait du chemin de `NEOWILD.GEO`) et
+`NEOWILD.DAT` (50 602 au lot 5 ; 50 787 au lot 4 ; 53 031 au lot 3 ; 50 620
+aux lots 1–2). 148 blocs occupés, **132 libres** (lot 4 : 149 et 131). La
+table compte 12 enregistrements et le démarrage fait 17 appels MLI, dont
+14 lectures, 51 114 octets lus. Une carte native ajoute un enregistrement
+(décodeur + atlas) : Sierra 56 919 octets, 161 blocs ; carte générée native
+162 blocs, 18 appels MLI dont 15 lectures, 58 074 octets lus, premier écran
+jouable 30,41 s contre 28,75 s (§9). Les mesures de
 chargement ci-dessous sont celles des lots 1–2. Le nom `NEOWILDERNESS.SYSTEM` dépasse les 15
 caractères de ProDOS : le chargeur s'appelle `NEOWILD.SYSTEM`.
 
@@ -258,12 +270,21 @@ auxiliaire garde 16,5 Ko libres depuis le TOPO DHGR (9,7 Ko au lot 3, §6).
   le Moniteur. La fenêtre SIM n'étant plus jamais écrasée par la vue, ce type
   d'oubli ne plante plus en 128 Ko, mais reste un écart de comportement
   à éviter : tout appel vers SIM doit passer par `overlay_load` 3.
+- Géographie fine (lot 5, §9) : seul code exécuté en RAM auxiliaire, avec
+  `ALTZP` actif, donc page zéro, pile et carte langage auxiliaires ; toute
+  interruption y serait détournée par les vecteurs auxiliaires : `cell_native`
+  masque les interruptions jusqu'à 47 ms (pire décodage) et suppose `RAMRD`
+  et `RAMWRT` inactifs (toujours vrai hors transferts). Les modules n'ont
+  plus que 4 Ko de carte langage (banque 2). Le format natif limite l'eau au
+  niveau 63 (bit 6 = lac) ; `build_disk.py` refuse un atlas de plus de
+  10 287 octets.
 - DHGR (lot 3) : le code DHGR ne peut pas s'exécuter en RAM auxiliaire ;
   il a pris la place du code HGR retiré (§7). Il ne reste que 128 octets
   libres en RAM principale résidente : toute fonction d'interface
   du lot 4 devra vivre dans un module de la fenêtre `$5800` ou libérer de la
   place. Le TOPO DHGR (lot 4, §8) libère 6,8 Ko auxiliaires et 16 octets
-  résidents (`show_hgr` retiré) : 144 octets libres en RAM principale.
+  résidents (`show_hgr` retiré) : 144 octets libres en RAM principale. Le
+  lot 5 (§9) en libère 220 de plus : 364 octets libres.
 
 ## 7. Lot 3 : page DHGR et inventaire
 
@@ -378,3 +399,29 @@ préparation (0,7 M cycles) n'est pas atteint (mesure de la première
 version ; la légende adaptée, l'encre des bois et le fond de P ne changent
 le total que de −0,2 %) ; le classement est proche du
 minimum dans cette forme, et le dessin se fait derrière le rideau texte.
+
+## 9. Lot 5 : géographie fine résidente
+
+Détail et mesures dans [GEOGRAPHY.md](GEOGRAPHY.md) § 9. Sur une carte
+native (octet 37 de l'en-tête), `build_disk.py` ajoute un enregistrement
+banque 1 de la carte langage auxiliaire à `$D480` : `wildgeo.bin` (843
+octets : étiquettes, requête, décodeur) suivi de l'atlas (`$D7CB`,
+≤ 10 287 octets, refusé au-delà). Le cache de 4 tuiles décodées
+(`$D000-$D47F`) n'est pas stocké.
+
+| Élément | Lot 4 | Lot 5 |
+|---|---:|---:|
+| géographie fine en jeu | `NEOWILD.GEO`, 24 banques de 2 Ko lues dans la fenêtre `$5800` | atlas résident (Sierra 6 379 octets) |
+| lectures disque par pas (carte native) | ≥ 1 (2 Ko) | 0 |
+| RESIDENT + RESBSS | 904 + 83 | 742 + 48 |
+| RAM principale résidente libre | 144 | 364 |
+| SIM (`wildsim.bin`) | 8 191 | 8 168 (pont de rechargement retiré) |
+| carte langage auxiliaire, modules | `$D000-$FFF9` + banque 1 | banque 2 `$D000-$DFFF` |
+| zone géographie (banque 1 + `$E000-$FFF9`) | — | 12 282, dont 1 152 de cache et 843 de code |
+| `NEOWILD.DAT` par défaut / blocs libres | 50 787 / 131 | 50 602 / 132 |
+| disque Sierra de comparaison | `NEOWILD.DAT` + `NEOWILD.GEO` (96 blocs) | 161 blocs en tout |
+
+Invariants vérifiés par `tests/test_geo_resident.py` après des décodages :
+commutateurs (`LCBNK2`, `LCRAM`, `RAMRD`, `RAMWRT`, `ALTZP`, `80STORE`,
+`PAGE2`) inchangés, page zéro principale intacte, `$0200-$03FF` auxiliaire
+(pilote /RAM) intact ; aucun appel MLI (compteurs et `watch` sur `$BF00`).

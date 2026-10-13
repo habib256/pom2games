@@ -188,6 +188,52 @@ def test_locality():
     print('  locality: a band edge thrashes one cached block, two blocks suffice')
 
 
+def test_resident_atlas():
+    """The game's atlas (lot 5): tile16, 'coarse' with the lake bit, raw
+    fallback, absolute stream addresses; mkmap's exported fine grid."""
+    base = 0xD7CB
+    m = mkmap.Map(1985, 4)
+    fine = mkmap.fine_bytes(m.h, m.water, m.forest, m.lake)
+    assert len(fine) == mkmap.FINE_BYTES == g.FINE_BYTES
+    cells, woods = fine[:g.W * g.H], fine[g.W * g.H:]
+    grid = mkmap.coarse_grid(m.h, m.water)
+    assert mkmap.map_bin(m.h, m.water, m.start, m.goal, 0, woods=m.forest)[64:mkmap.MAP_BYTES] == grid
+    lakes = mkmap.Map(1985, 10)                     # flooded basins: lake bit
+    assert sum(v & 0xC0 == 0xC0 for v in mkmap.fine_bytes(lakes.h, lakes.water, lakes.forest,
+                                                          lakes.lake)[:g.W * g.H]) == 2417
+    high = mkmap.Map(42, 10)                        # water at level 78: no lake bit left
+    try:
+        mkmap.fine_bytes(high.h, high.water, high.forest, high.lake)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('a water level over 63 was exported')
+    stats = {}
+    atlas = g.atlas_bytes(cells, woods, grid, base, stats)
+    assert g.atlas_decode(atlas, base, grid) == (cells, woods)
+    assert stats == dict(tiles=154, index=328, size=len(atlas), worst=79, raw_tiles=0), stats
+    assert len(atlas) == 6113, len(atlas)
+    # Synthetic hydrology (river touching a lake, woods from column 0) and an
+    # incompressible map (every tile stored raw, flagged in the index).
+    for kind, size in (('hydro', None), ('noise', 140 * 288 + 14 * 144 + 328)):
+        f = synthetic_fine(kind)
+        c = bytes(v & 0xBF if v & 0x80 and kind == 'noise' else v for v in f.cells)
+        grid = g.Fine(kind, c, f.woods, None, None, True).coarse()
+        st = {}
+        at = base if size is None else 0x0800    # a raw atlas fits no address space past $D7CB
+        a = g.atlas_bytes(c, f.woods, grid, at, st)
+        assert g.atlas_decode(a, at, grid) == (c, f.woods), kind
+        assert size is None or (len(a) == size and st['raw_tiles'] == 154), (kind, len(a), st)
+    try:
+        g.atlas_bytes(cells, woods, bytes(len(grid)), base)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('a grid that does not predict the fine cells was accepted')
+    print(f'  resident atlas: mkmap fine export, seed 1985 level 4 in {len(atlas)} bytes, '
+          'raw tiles and grid mismatch handled')
+
+
 def main():
     test_bitstream()
     test_blocks()
@@ -196,6 +242,7 @@ def main():
     test_generated()
     test_sierra()
     test_locality()
+    test_resident_atlas()
     print('geo_atlas: OK')
 
 

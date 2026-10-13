@@ -7,6 +7,43 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Neowilderness : géographie fine résidente (lot 5)
+
+- Les cartes natives (octet 37 de l'en-tête : carte Sierra de comparaison,
+  nouvelle option `mkmap.py --native`) portent leur géographie fine
+  224 × 168 sous forme d'atlas compressé (`tools/geo_atlas.atlas_bytes` :
+  154 tuiles de 16 × 16, codec `coarse` prédit par la grille 112 × 84
+  résidente, bit de lac, tuile brute si incompressible, index de 328
+  octets). Sierra 6 379 octets, carte générée par défaut 6 113.
+- L'atlas et son décodeur (`src/geoaux.s`, 843 octets avec la requête)
+  forment un enregistrement de plus de `NEOWILD.DAT`, chargé en carte
+  langage auxiliaire (vue banque 1, `$D480-$FFF9`) ; quatre tuiles décodées
+  (`$D000-$D47F`, LRU) y servent les requêtes. `cell_native` passe par un
+  tronçon résident `SEI`/`ALTZP`/banque 1/`JSR`/ROM/`ALTZPOFF` : 203 cycles
+  par requête dans la tuile courante, 322 dans une autre tuile en cache,
+  15 000 à 47 500 cycles (≤ 46,5 ms) pour un décodage.
+- `NEOWILD.GEO`, `geo_load`, le chemin MLI et le module de banques
+  `wildgeo.bin` de la fenêtre `$5800` disparaissent (RESIDENT −162 octets,
+  RESBSS −35 ; 364 octets libres en RAM principale résidente au lieu de
+  144). Les rechargements de TRAVEL/WATER après chaque requête aussi.
+- Garde-fou : `build_disk.py` refuse une carte dont l'atlas dépasse les
+  10 287 octets disponibles ; `mkmap.fine_bytes` exporte la grille fine
+  (`--fine`), avec bit de lac pour les bassins inondés, et refuse une eau
+  au-dessus du niveau 63.
+- Carte langage auxiliaire : les modules n'y occupent plus que la banque 2
+  `$D000-$DFFF` (crotale) ; la banque 1 et `$E000-$FFF9` (12 282 octets)
+  sont réservées à la géographie, libres sur une carte héritée.
+- Mesures (`tests/test_geo_resident.py`) : 37 632 cases exactes sur une
+  carte générée et une carte à tuiles brutes ; décodages identiques au
+  modèle LRU sur les trajets modélisés crash → rangers (Sierra 16 direct,
+  24 en errance) ; partie réelle Sierra crash → rangers (53 commandes,
+  14 décodages, ≤ 3 par commande) et collecte d'eau à un coin de quatre
+  tuiles (4 décodages) sans aucun appel MLI. Démarrage d'une carte native
+  30,4 s (+1,6 s : 7 Ko de plus lus) ; carte par défaut 28,8 s inchangée.
+- `test_resident.py` rejoue aussi son scénario sur une carte native ;
+  `profile_actions.py` compte requêtes et décodages par commande ;
+  `profile_loading.py --map` mesure le démarrage d'une autre carte.
+
 ### Neowilderness : TOPO DHGR (lot 4)
 
 - TOPO/T est dessiné en DHGR 16 couleurs à chaque ouverture, depuis la
