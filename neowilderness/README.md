@@ -147,5 +147,17 @@ héritée et restent locales, ignorées par Git.
 - Simulation : règles natives et tests conservés pendant la migration
   mémoire et vidéo ; états comparés à la référence HGR (`test_reference_state.py`).
 
+## Crédits
+
+*Wilderness: A Survival Adventure* (Electric Transit, 1985, © 1984) est
+l'œuvre de Wesley Huntress, Charles Kohlhase et Peter Farson. Le moteur de
+rendu 3D de Wilderness a été développé par Wesley Huntress et Charles
+Kohlhase, deux chercheurs du JPL (NASA) ayant travaillé sur les
+trajectoires et l'imagerie des missions Mariner et Voyager. L'algorithme
+adapte les techniques de modélisation altimétrique spatiale aux contraintes
+extrêmes du MOS 6502 (1,023 MHz, 64 Ko de RAM, aucun coprocesseur
+mathématique). Neowilderness en conserve la projection et les 140 rayons
+([ANALYSE.md](docs/ANALYSE.md)).
+
 Code sous GPL-3.0, voir [LICENSE](../LICENSE). Les références et données
 originales conservent leurs droits et crédits existants.
