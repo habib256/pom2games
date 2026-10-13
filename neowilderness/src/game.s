@@ -1024,6 +1024,13 @@ stars_dhgr_frame:
         bit     $C082           ; ROM again
         rts
 
+; stars_span -- stars_column's spans: dspan gives the ROM back (its rows are
+; in bank 2 too, src/dhgr.s), the stars' code needs bank 2 again.
+stars_span:
+        jsr     scene_span
+        bit     $C080
+        rts
+
 ; stars_sky_column -- render_sky: the stars of the column, then the Moon.
 stars_sky_column:
         bit     $C080

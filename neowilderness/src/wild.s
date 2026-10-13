@@ -74,6 +74,8 @@ rowsl:   .res 1                 ; row changes left before the ray leaves the map
 num:     .res 2                 ; print_u16 value
 
 STARS_HOOK = 1                  ; dhgr.s sky_position marks the star list stale
+DROWS_LC = 1                    ; dhgr.s: the unrolled rows run in bank 2 of
+                                ; the main language card (docs/MEMORY.md 12)
         .include "dhgr.s"
 
 .segment "CODE"

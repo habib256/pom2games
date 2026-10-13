@@ -70,11 +70,19 @@ dp:      .res 2                 ; pass: row that receives the RTS
 dzone:   .res 1                 ; sky zone of render_sky
 
 ; ----------------------------------------------------------------------------
-; Unrolled rows (WILDLO): logical row I = LDA row,Y / AND dm / ORA dv / STA
-; row,Y, 10 bytes, 15 cycles. dspan plants an RTS on the end row; the extra
-; entry VIEW_ROWS only ever holds a planted RTS. Not banked: one RTS serves
-; the aux and the main pass.
+; Unrolled rows: logical row I = LDA row,Y / AND dm / ORA dv / STA row,Y,
+; 10 bytes, 15 cycles. dspan plants an RTS on the end row; the extra entry
+; VIEW_ROWS only ever holds a planted RTS. Not banked: one RTS serves the aux
+; and the main pass. In the game (DROWS_LC, direction 3, docs/MEMORY.md
+; section 12) the rows and their entry tables live in bank 2 of the main
+; language card ($D400, loaded by NEOWILD.SYSTEM like the star code, free of
+; ProDOS 8): dspan selects that RAM, read and write, for the span and gives
+; the ROM back; the benches keep them in main RAM.
+.ifdef DROWS_LC
+.segment "DROWS"
+.else
 .segment "LOWCODE"
+.endif
 drows:
 .repeat VIEW_ROWS, I
         lda     DHGR_VIEW_ROW(I), y
@@ -88,7 +96,9 @@ drows:
 .endrep
         .byte   OP_LDAY
 
+.ifndef DROWS_LC
 .segment "CODE"
+.endif
 drow_lo:
 .repeat VIEW_ROWS + 1, R
         .byte   <(drows + R * 10)
@@ -97,6 +107,11 @@ drow_hi:
 .repeat VIEW_ROWS + 1, R
         .byte   >(drows + R * 10)
 .endrep
+.ifdef DROWS_LC
+.segment "CODE"
+LC_RAM2_RW = $C083              ; main language card RAM bank 2, read/write
+LC_ROM     = $C082
+.endif
 
 ; dspan -- rows Y..sp_end-1 of the current column, mood entry A.
 ;          Clobbers A, X, Y; returns with main selected.
@@ -111,6 +126,10 @@ dspan:  cpy     sp_end
         txa
         and     #15
         sta     dcb
+.ifdef DROWS_LC
+        bit     LC_RAM2_RW      ; the rows and their tables (twice: write)
+        bit     LC_RAM2_RW
+.endif
         ldx     sp_end
         lda     drow_lo,x
         sta     dp
@@ -165,6 +184,9 @@ dspan_end:
         ldy     #0
         lda     #OP_LDAY
         sta     (dp),y
+.ifdef DROWS_LC
+        bit     LC_ROM          ; the stars' caller gives bank 2 back (stars_span)
+.endif
 dspan_rts:
         rts
 dspan_go:

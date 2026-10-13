@@ -18,7 +18,7 @@ is refused. NEOWILD.END (the end-of-game module, src/hof.s) and NEOWILD.HOF (the
 hall of fame, one block) are plain files read and written at the end of a
 journey (lot 7 step 6, docs/HOF.md).
 
-A file is a 128-byte record table followed by the payloads, back to back.
+A file is a 256-byte record table followed by the payloads, back to back.
 Record: kind, address, length, stored length; kind 0 end, 1 claim, otherwise
 $80 | $40 (LZ, tools/pack_boot.py) | bank (0 main, 1 auxiliary, 2 auxiliary
 language card bank 2, 3 bank 1). Stored data never exceeds 8 KB.
@@ -61,7 +61,7 @@ import geo_atlas                                # noqa: E402
 
 VOLUME = 'NEOWILDERNESS'
 CHUNK = 0x2000
-TABLE_SIZE = 128                 # src/boot.s TABLE_SIZE: 18 records
+TABLE_SIZE = 256                 # src/boot.s TABLE_SIZE: 36 records (direction 3: more pieces)
 MAIN, AUX, LC2, LC1 = 0, 1, 2, 3
 MLC2 = 0x20 | LC2                # record bank: bank 2 of the MAIN language card (lot 7)
 BANK_NAMES = {AUX: 'aux', LC2: 'lc2', LC1: 'lc1', MLC2: 'mlc2'}
@@ -84,6 +84,9 @@ SNAP_END = 0xF100
 REGIONS = [(AUX, 0x4000, 0xC000), (AUX, 0x0800, 0x2000), (LC2, 0xD000, 0xE000),
            (LC2, SNAP_END, 0xFFFA), (MLC2, 0xD400, 0xDE18)]
 SKYLC = (MLC2, 0xDE18, 'wildskylc.bin')     # src/stars_draw.s, runs in place
+# Direction 3: the unrolled DHGR rows and their entry tables (src/dhgr.s,
+# segment DROWS) run in place at the start of the main card's store.
+DROWS = (MLC2, 0xD400, 'wilddrows.bin')
 SNAPSHOT = [(LC1, 0xD000, 0xE000), (LC2, 0xE000, SNAP_END)]
 # Native maps only: the fine geography takes bank 1 and the common area
 # instead of the snapshot (src/geoaux.s, src/topo_dhgr.s tp_save).
@@ -201,7 +204,7 @@ def cached_compress(chunk, cache):
 
 
 def records(sections, packing, cache=None):
-    """A record file: the 128-byte record table, then the payloads back to back.
+    """A record file: the 256-byte record table, then the payloads back to back.
 
     `sections` lists (bank, address, data), or None for the claim record.
     The loader reads the table once, then each payload with one READ.
@@ -439,9 +442,12 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
     area = max(sprite_sizes.values())
     trunk_regions = [list(r) for r in REGIONS]
     trunk_regions[0][2] -= area
+    drows = (build / DROWS[2]).read_bytes()
     for r in trunk_regions:
         if r[:2] == [LC2, SNAP_END]:
             r[1] = store_start
+        if r[:2] == [DROWS[0], DROWS[1]]:
+            r[1] += len(drows)
     placed, free = place(images, trunk_regions)
     pack_area = (AUX, REGIONS[0][2] - area, REGIONS[0][2])
     free = [list(pack_area)] + free
@@ -469,7 +475,7 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
     assert len(skylc) <= 0x200
     trunk_sections = [(MAIN, 0x6000, (build / 'wild.bin').read_bytes()), None]
     trunk_sections += blobs(placed, images)
-    trunk_sections += [(SKYLC[0], SKYLC[1], skylc)]
+    trunk_sections += [(SKYLC[0], SKYLC[1], skylc), (DROWS[0], DROWS[1], drows)]
     trunk_sections += [(MAIN, 0x0200, (build / 'wildpg.bin').read_bytes()),
                        (MAIN, 0x0926, bytes(low[0x0126:])),
                        (MAIN, 0x4000, (build / 'wildgame.bin').read_bytes()),
@@ -584,6 +590,7 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
                 aux_trunk_free=sum(e - s for _, s, e in free),
                 pack_area=dict(bank='aux', start=pack_area[1], end=pack_area[2]),
                 star_code=dict(bank=BANK_NAMES[SKYLC[0]], address=SKYLC[1], length=len(skylc)),
+                dhgr_rows=dict(bank=BANK_NAMES[DROWS[0]], address=DROWS[1], length=len(drows)),
                 packs=pack_info,
                 region_text=sym['__REGIONTEXT_RUN__'], dhgr_tables=[tables_start, tables_end],
                 end_module=dict(file='NEOWILD.END', bytes=len(end_module),

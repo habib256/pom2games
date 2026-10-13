@@ -6,6 +6,7 @@ import random
 import tempfile
 from common import HERE, DISK
 from pack_boot import compress, decompress
+from build_disk import TABLE_SIZE
 import struct
 import sys
 
@@ -52,7 +53,7 @@ def main():
 def replay(data, memory, claimed):
     """Replay a record file like NEOWILD.SYSTEM: (bank, address) -> byte.
     Returns the record order and whether a claim record was met."""
-    pos, order, entry = 128, [], 0
+    pos, order, entry = TABLE_SIZE, [], 0
     while True:
         kind, address, length, stored = struct.unpack_from('<BHHH', data, entry)
         entry += 7
@@ -120,6 +121,10 @@ def volume_check():
     code = layout['star_code']
     assert region(trunk, banks[code['bank']], code['address'], code['length']) == \
         (HERE / 'build/wildskylc.bin').read_bytes()
+    # Direction 3: the unrolled DHGR rows run in place in the main card too.
+    rows = layout['dhgr_rows']
+    assert rows['address'] == 0xD400 and region(trunk, banks[rows['bank']], rows['address'], rows['length']) == \
+        (HERE / 'build/wilddrows.bin').read_bytes()
     assert all(not (bank == 0x22 and a < 0xD400) for bank, a in trunk), \
         'records write the ProDOS QUIT code of the main card'
     for index, module in layout['trunk_modules'].items():

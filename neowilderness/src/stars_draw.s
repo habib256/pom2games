@@ -129,7 +129,11 @@ stars_column:
         adc     st_len,x
         sta     sp_end
         lda     st_solid,x
+.ifdef DROWS_LC
+        jsr     stars_span      ; dspan leaves the ROM selected
+.else
         jsr     scene_span
+.endif
         ldx     st_x
         jmp     @scan
 @rts:   rts
