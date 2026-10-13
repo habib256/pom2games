@@ -732,7 +732,8 @@ m_machine:
         .byte   "NEOWILDERNESS NEEDS AN APPLE //E", 13
         .byte   "ENHANCED OR AN APPLE //C WITH 128K.", 13, 0
 m_intro:
-        .byte   "NEOWILDERNESS - //E //C 128K PRODOS", 13, 13
+        .byte   "NEOWILDERNESS - //E //C 128K PRODOS", 13
+        .byte   "BY W. HUNTRESS, C. KOHLHASE, P. FARSON", 13, 13
         .byte   "YOU SURVIVED A PLANE CRASH.", 13
         .byte   "REACH THE RANGER OUTPOST TO GET HELP.", 13
         .byte   "MANAGE YOUR EQUIPMENT, HUNGER, THIRST,", 13
@@ -746,7 +747,7 @@ m_intro:
         .byte   "EAT FOOD / DRINK WATER: CONSUME", 13
         .byte   "REST: REST   HELP: COMMAND HELP", 13, 13
         .byte   "TYPE A COMMAND, THEN PRESS RETURN.", 13
-        .byte   "DURATIONS: H OR MIN. QUANTITIES: OZ.", 13, 13
+        .byte   "DURATIONS: H OR MIN. QUANTITIES: OZ.", 13
         .byte   "LOADING...", 0
 m_ram:  .byte   13, "/RAM HOLDS FILES. NEOWILDERNESS NEEDS", 13
         .byte   "ITS MEMORY. ERASE /RAM (Y/N)? ", 0

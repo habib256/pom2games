@@ -53,6 +53,7 @@ def reveal():
         introduction = picture(s, path)
         rows = text_screen(s.step('peek:0400:1024').data)[:20]
         assert rows[0].startswith('NEOWILDERNESS - //E //C 128K PRODOS')
+        assert rows[1].startswith('BY W. HUNTRESS, C. KOHLHASE, P. FARSON')
         assert any('YOU SURVIVED A PLANE CRASH' in row for row in rows)
         assert any('LOADING...' in row for row in rows)
         s.step(L.until('game_start', 20000))
