@@ -7,7 +7,7 @@ the frame, the sun or Moon drawn at the bearing/row the game computed.
 """
 import math
 import tempfile
-from common import HERE,L,DISK,a2test,fp,hgr_rows,disk_with,dhgr,dhgr_view,dhgr_scene,mood_name
+from common import idle_bytes, HERE,L,DISK,a2test,fp,hgr_rows,disk_with,dhgr,dhgr_view,dhgr_scene,mood_name
 from test_thermal import call,poke
 from sky_ephemeris import entry
 
@@ -113,7 +113,7 @@ def moon_scene():
     # is now allowed to reveal the landscape when its disk is full.
     date=.01/365
     bearing,y=model(38,date,0,True)
-    original=(HERE/'build/wildgame.bin').read_bytes()[L['idle']-0x4000:L['idle']-0x4000+9]
+    original=idle_bytes()
     steps=[L.until('idle',20000),L.poke('scenes_enabled',0)]
     steps+=poke('s_date',date)+poke('s_hour',0)+[L.poke('heading',bearing),L.poke('heading',bearing>>8,1)]
     steps+=call(['env_hour','show_view'])+[f'until:{L["idle"]+6:04X}:20000',

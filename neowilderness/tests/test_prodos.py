@@ -92,12 +92,12 @@ def main():
     # Turn first: the new game must start from the map's heading again.
     steps = (MENU_SKIP + [IDLE, L.peek('heading', 2), 'key:\\>', IDLE, L.peek('heading', 2)]
              + quit_steps + [menu, 'peek:0400:1024', SWITCHES, L.peek('mli_calls', 2),
-                             'key:2\\r', IDLE, L.peek('heading', 2), L.peek('mem_ready')])
+                             'key:1\\r', IDLE, L.peek('heading', 2), L.peek('mem_ready')])   # menu key 1: the Sierra
     r = a2test.run(DISK, steps, menu=False)
     first, turned = r.mem(L['heading'], 2, 0), r.mem(L['heading'], 2, 1)
     assert first != turned, 'the turn must change the heading'
     text = screen(r)
-    assert 'CHOOSE A JOURNEY' in text and '2 SIERRA NEVADA' in text, text
+    assert 'CHOOSE A JOURNEY' in text and '1 SIERRA NEVADA' in text, text
     assert main_banks(r.mem(0xC011, 15)), r.mem(0xC011, 15).hex()
     calls = int.from_bytes(r.mem(L['mli_calls'], 2), 'little')
     assert 0 < calls < 40, ('the counters restart with the loader', calls)

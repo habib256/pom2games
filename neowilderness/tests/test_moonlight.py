@@ -11,7 +11,7 @@ and every frame equals tools/dhgr_ref.view in that mood.
 import math
 import tempfile
 
-from common import HERE, L, a2test, disk_with, hgr_rows, dhgr, dhgr_view, mood_name
+from common import idle_bytes, HERE, L, a2test, disk_with, hgr_rows, dhgr, dhgr_view, mood_name
 from sky_ephemeris import entry
 from test_thermal import call, poke
 from test_forest import map_fixture
@@ -43,8 +43,7 @@ def main():
         ('rattlesnake', 40, 20, 140, 8),
         ('terrain', 60, 40, 140, 0),
     ]
-    original = (HERE / 'build/wildgame.bin').read_bytes()[
-        L['idle'] - 0x4000:L['idle'] - 0x4000 + 9]
+    original = idle_bytes()
 
     def steps_for(cases, forest=False):
         steps = [L.until('game_start', 20000), L.poke('sky_enabled', 0),

@@ -9,22 +9,26 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ### Neowilderness : les quatre lignes du bas, surface de commande (lot 8, étape 2)
 
-- Rangées 20 à 22, colonnes 0 à 37 : grille des verbes (contextuels en
-  tête : `EXIT`, `ENTER`, `IGNORE SCARE ATTACK`), six cases par rangée,
-  défilement par rangée (`^`/`V` en colonne 38), case choisie en inverse ;
-  RETURN ou flèche haut l'ouvre, flèches, RETURN, Échap ; un verbe ouvre sa
-  liste (durées, directions, objets admissibles en cases de 12, onces) et
+- Rangées 20 à 23, colonnes 0 à 37 : grille des verbes (contextuels en
+  tête : `EXIT`, `ENTER`, `IGNORE SCARE ATTACK` ; un verbe sans objet à
+  nommer, `USE` sans médicament, `DRINK` sans eau accessible, n'est pas
+  proposé), six cases par rangée sur quatre rangées, défilement par rangée
+  au-delà (`^`/`V` en colonne 38), case choisie en inverse ; RETURN, flèche
+  haut ou TAB l'ouvre, TAB la referme, flèches, RETURN, Échap ; un verbe
+  ouvre sa liste
+  (durées, directions, objets accessibles ici en cases de 12, onces) et
   compose la commande du clavier dans `inbuf` (`menu_noun` transmet l'objet
   choisi : `GET COTTN SOCKS`). Flèche bas sur la ligne vide : STATUS. Une
   commande issue de la grille la laisse ouverte. Les commandes tapées
   restent acceptées ([MENUS.md](docs/MENUS.md) § 4, `tests/test_menu_bar.py`).
-- Colonnes 40 à 78 : le dernier message, placé mot par mot sur trois
-  rangées (plus de texte coupé ni de rangées collées) ; la ligne de stock
-  `FOOD n OZ  WATER n OZ  HERE f/w` quand la rangée 22 est libre ; le
-  rapport de charge y tient. Rangée 23 : `> ` et la commande telle que
-  l'analyseur la lira, sans curseur, puis l'aide du mode.
+- Colonnes 40 à 78, les descriptions : le dernier message, placé mot par
+  mot sur quatre rangées (plus de texte coupé ni de rangées collées) ; sur
+  la dernière rangée, quand le message la laisse libre, la ligne de stock
+  `FOOD n OZ  WATER n OZ  HERE f/w`, ou `> ` et la commande telle que
+  l'analyseur la lira pendant qu'elle est tapée ou composée (sans curseur) ;
+  le rapport de charge y tient.
 - Message de départ sans la liste des commandes (la grille les montre) ;
-  `src/menu.s` résident en `$BA00` (830 octets), grille de 1 368 octets
+  `src/menu.s` résident en `$BA00` (842 octets), grille de 1 474 octets
   dormant dans les lignes HGR 176-191 et recopiée en `$B000` à chaque invite
   ([MEMORY.md](docs/MEMORY.md) § 11) ; le chargeur lit avec son propre
   tampon `$AB00`. Volume 250/280 blocs.

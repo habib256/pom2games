@@ -126,70 +126,72 @@ les boucles d'attente des écrans.
 
 **Réalisé le 13 octobre 2026 (étape 2, au clavier ; `src/menu.s`,
 `tests/test_menu_bar.py`).** Les rangées 20 à 23 forment une surface de
-commande, disposition B retenue parmi quatre propositions : deux colonnes.
+commande en deux colonnes : la grille à gauche, les descriptions à droite.
 
 ```
 WALK  SWIM  LOOK  REST  WAIT  EAT     | TRAVEL: 18 MINUTES.
 DRINK GET   TAKE  WEAR  DROP  USE     | REQUESTED TRAVEL TIME ENDED.
-CLIMB HANG  LOWER STATUS INVENT TOPO  V FOOD 192 OZ  WATER 64 OZ  HERE 0/0
-> WALK 20 MIN                           ARROWS: MOVE  RET: SELECT  ESC: BACK
+CLIMB HANG  LOWER STATUS INVENT TOPO  |
+MAP   HELP  QUIT                      | FOOD 192 OZ  WATER 64 OZ  HERE 0/0
 ```
 
-- **Colonne gauche (rangées 20 à 22, colonnes 0 à 37) : la grille.** Au
+- **Colonne gauche (rangées 20 à 23, colonnes 0 à 37) : la grille.** Au
   niveau 1, les verbes : d'abord les verbes contextuels quand ils
   s'appliquent (`EXIT` dans la cabane, `ENTER` sur sa case, `IGNORE SCARE
   ATTACK` avec un animal sur la case, mêmes conditions que le bandeau de
   survie), puis `WALK SWIM LOOK REST WAIT EAT DRINK GET TAKE WEAR DROP USE
-  CLIMB HANG LOWER STATUS INVENT TOPO MAP HELP QUIT`. Six cases par rangée,
+  CLIMB HANG LOWER STATUS INVENT TOPO MAP HELP QUIT` ; un verbe à objets
+  dont la liste serait vide n'est pas proposé (pas de médicament : pas de
+  `USE` ; pas d'eau accessible : pas de `DRINK`). Six cases par rangée,
   largeur 6 proportionnelle (un libellé de six lettres prend une colonne de
-  plus : toute suite de six verbes tient en 38 colonnes), trois rangées
-  visibles, défilement par rangée ; la colonne 38 porte le séparateur, `^`
-  ou `V` quand des rangées sont hors de vue. La case choisie est en
-  inverse. Au niveau 2, la liste du verbe ouvert remplace la grille :
-  durées `10 MIN 20 MIN 30 MIN 1 H 2 H 4 H 8 H` (WALK, SWIM, REST, WAIT),
-  directions `LEFT RIGHT BACK AHEAD NORTH EAST SOUTH WEST` (LOOK), `TREE
-  DOWN` (CLIMB), les objets admissibles en trois cases de 12 (EAT, GET,
-  TAKE, WEAR, DROP, USE : présents dans un groupe que le verbe ne vise pas
-  déjà ; EAT : provisions et médicaments) ; au niveau 3 les onces `2 OZ 4
-  OZ 8 OZ 12 OZ 16 OZ 24 OZ 32 OZ 48 OZ` (EAT d'une provision, DRINK
-  WATER). `ENTER`, `EXIT`, `HANG`, `LOWER`, `INVENT` complètent leur
-  commande (` SHELTER`, ` FOOD`, `ORY`).
-- **Colonne droite (rangées 20 à 22, colonnes 40 à 78) : le résultat.**
-  `message` y place le dernier message mot par mot (retour à la ligne entre
-  les mots, `|` force une rangée tant qu'il en reste une, sinon vaut une
-  espace ; un mot plus long qu'une rangée est coupé à la rangée, la colonne
-  79 reste libre). Quand le message laisse la rangée 22 vide, `get_line` y
-  écrit la ligne de stock : `FOOD n OZ  WATER n OZ  HERE f/w` (provisions
-  et eau emportées, puis au sol sur la case). Le rapport de charge (poids,
-  volume) occupe les trois rangées.
-- **Rangée 23 :** `> ` puis la commande telle que l'analyseur la lira,
-  tapée ou composée (sans curseur : le texte en tient lieu), et à droite
-  l'aide du mode : `RET: MENU  <>: TURN  OR TYPE A COMMAND`, `ARROWS: MOVE
-  RET: SELECT  ESC: BACK`, `NUMBER THEN RET   ESC: CANCEL` (invite
-  numérique du module INPUT, `prompt`).
+  plus : toute suite de six verbes tient en 38 colonnes), quatre rangées
+  visibles (les 21 verbes et jusqu'à trois contextuels sans défilement),
+  défilement par rangée au-delà ; la colonne 38 porte le séparateur, `^` ou
+  `V` quand des rangées sont hors de vue. La case choisie est en inverse.
+  Au niveau 2, la liste du verbe ouvert remplace la grille : durées `10 MIN
+  20 MIN 30 MIN 1 H 2 H 4 H 8 H` (WALK, SWIM, REST, WAIT), directions `LEFT
+  RIGHT BACK AHEAD NORTH EAST SOUTH WEST` (LOOK), `TREE DOWN` (CLIMB), les
+  objets accessibles ici en trois cases de 12 (EAT, DRINK, GET, TAKE, WEAR,
+  DROP, USE : emportés, ou au sol ou pendus sur la case, dans un groupe que
+  le verbe ne vise pas déjà ; EAT : provisions et médicaments ; DRINK :
+  l'eau) ; au niveau 3 les onces `2 OZ 4 OZ 8 OZ 12 OZ 16 OZ 24 OZ 32 OZ
+  48 OZ` (EAT d'une provision, DRINK WATER). `ENTER`, `EXIT`, `HANG`,
+  `LOWER`, `INVENT` complètent leur commande (` SHELTER`, ` FOOD`, `ORY`).
+- **Colonne droite (rangées 20 à 23, colonnes 40 à 78) : les
+  descriptions.** `message` y place le dernier message mot par mot (retour
+  à la ligne entre les mots, `|` force une rangée tant qu'il en reste une,
+  sinon vaut une espace ; un mot plus long qu'une rangée est coupé à la
+  rangée, la colonne 79 reste libre). Quand le message laisse la rangée 23
+  vide, elle reçoit la ligne de stock `FOOD n OZ  WATER n OZ  HERE f/w`
+  (provisions et eau emportées, puis au sol sur la case), et, pendant
+  qu'une commande est tapée ou composée, `> ` suivi de la commande telle
+  que l'analyseur la lira (sans curseur : le texte en tient lieu) ; l'invite
+  numérique du module INPUT (`prompt`) y écrit `> ` et reçoit les chiffres.
+  Le rapport de charge (poids, volume) occupe trois rangées.
 
 Modes de `get_line` : ligne tapée (flèches gauche/droite = rotation sur une
-ligne vide, RETURN ou haut ouvre la grille, bas affiche STATUS, Échap vide
-la ligne) ; grille (flèches, RETURN choisit, Échap remonte d'un niveau puis
-ferme, une lettre revient à la ligne tapée) ; une commande issue de la
+ligne vide, RETURN, haut ou TAB ouvre la grille, bas affiche STATUS, Échap
+vide la ligne) ; grille (flèches, RETURN choisit, Échap remonte d'un niveau
+puis ferme, TAB ferme depuis n'importe quel niveau, une lettre revient à la
+ligne tapée) ; une commande issue de la
 grille la laisse ouverte pour la suivante, une commande tapée la referme.
-Les menus produisent le texte du clavier dans `inbuf` ; l'objet choisi
-dans une liste est aussi transmis par `menu_noun`, lu par `resolve_menu`
-avant `resolve_noun`, car les noms affichés (`COTTN SOCKS`, `DOWN PARKA`)
-ne sont pas des mots du vocabulaire. Une liste vide (plus de médicament)
-n'offre rien ; Échap la quitte. Aucune avance du temps, aucun tirage,
-aucune lecture disque pendant la navigation (`test_menu_bar.py` compare
-l'état obtenu par la grille à celui des mêmes commandes tapées).
+Les menus produisent le texte du clavier dans `inbuf` (laissé intact entre
+deux commandes, comme dans la référence : `test_reference_state.py` le
+compare) ; l'objet choisi dans une liste est aussi transmis par
+`menu_noun`, lu par `resolve_menu` avant `resolve_noun`, car les noms
+affichés (`COTTN SOCKS`, `DOWN PARKA`) ne sont pas des mots du vocabulaire.
+Aucune avance du temps, aucun tirage, aucune lecture disque pendant la
+navigation (`test_menu_bar.py` compare l'état obtenu par la grille à celui
+des mêmes commandes tapées).
 
 Mémoire ([MEMORY.md](MEMORY.md) § 11) : la partie résidente (boucle
 clavier, rangée 23, `prompt`, état) en `$BA00-$BDFF`, l'ancien tampon
 d'entrées-sorties ProDOS du chargeur (qui lit désormais avec `$AB00`) ;
-la grille, ses listes et ses tables (1 368 octets) dorment dans les lignes
+la grille, ses listes et ses tables (1 474 octets) dorment dans les lignes
 HGR 176 à 191 des deux banques, jamais affichées ni dessinées, et sont
 recopiées en `$B000-$B5FF` (haut de la fenêtre SIM, libre entre deux pas de
 simulation) à chaque invite ; la colonne de résultat (`msg_*`) est dans
-WILDGAME, les aides dans RESIDENT, neuf temporaires en page zéro
-`$F0-$F8`. Le pilote joystick (§ 3, étape 1) reste à faire : il s'insère
+WILDGAME, treize octets de page zéro en `$F0-$FC`. Le pilote joystick (§ 3, étape 1) reste à faire : il s'insère
 dans la boucle `idle` de `menu.s` (`prompt_key` / `menu_key` prennent déjà
 les codes des flèches, RETURN et Échap).
 

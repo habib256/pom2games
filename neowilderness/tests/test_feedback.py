@@ -200,7 +200,7 @@ def main():
         # row, placed on its own row; the last column (79) stays free.
         res=result_rows(actual)
         assert res[0].rstrip()=='PACK:' and res[1]=='A'*39 and not res[2].strip(),res
-        assert actual[21][79]==' ' and actual[23].startswith('>'),actual[21:]
+        assert actual[21][79]==' ',actual[21:]
         print('  Expanded item names are cut to the result column without scrolling OK')
     with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,flat())) as s:
         s.step(IDLE)

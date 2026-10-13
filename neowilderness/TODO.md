@@ -185,10 +185,10 @@ qui garde la mémoire des parties.
   ([NEOWILDERNESS_ERGONOMIE.md](docs/NEOWILDERNESS_ERGONOMIE.md)).
 - [x] Lot 8, étape 2 ([MENUS.md](docs/MENUS.md) § 4) : les quatre lignes
   80 colonnes du bas en surface de commande, au clavier : grille de verbes
-  (contextuels compris) et listes à gauche, résultat mot par mot et ligne
-  de stock à droite, commande composée et aides sur la rangée 23 ; toute
-  action passe par la grille, les commandes tapées restent reconnues
-  (`tests/test_menu_bar.py`).
+  (contextuels compris, verbes sans objet accessible masqués) et listes sur
+  les quatre rangées de gauche, descriptions à droite (message mot par
+  mot, ligne de stock ou commande composée) ; toute action passe par la
+  grille, les commandes tapées restent reconnues (`tests/test_menu_bar.py`).
 - [ ] Lot 8, étapes 1 et 3 à 6 : pilote joystick dans la boucle `idle` de
   `src/menu.s` (flèches, RETURN et Échap y sont déjà les gestes), fenêtres
   DHGR posées sur le paysage à la place des écrans 40 colonnes.

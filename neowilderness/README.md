@@ -22,10 +22,11 @@ avertissements sur bande rouge, messages en vrai texte 80 colonnes, carte
 MAP en 80 colonnes, feuille TOPO calculée à l'ouverture depuis la carte en
 mémoire, retours d'écrans sans redessin de la vue. Les quatre lignes du
 bas sont une surface de commande (lot 8, étape 2) : à gauche la grille des
-verbes et leurs listes (RETURN ou flèche haut l'ouvre, flèches, RETURN,
-Échap ; toute action s'y trouve, les commandes tapées restent acceptées), à
-droite le dernier message et la ligne de stock, sur la dernière ligne la
-commande telle que le jeu la lira. Les règles sont
+verbes et leurs listes (RETURN, flèche haut ou TAB l'ouvre, TAB la
+referme, flèches, RETURN, Échap ; toute action s'y trouve, seuls les objets accessibles sont
+proposés, les commandes tapées restent acceptées), à droite les
+descriptions : le dernier message, la ligne de stock ou la commande telle
+que le jeu la lira. Les règles sont
 inchangées : l'état de simulation est identique, octet pour octet, à celui
 de la version HGR/DOS 3.3 de référence, et aucune lecture disque n'a lieu
 pendant la partie.

@@ -3,17 +3,17 @@
 ; menu.s -- the four 80-column rows as a command surface (lot 8, step 2;
 ; docs/MENUS.md section 4).
 ;
-;   rows 20-22, columns 0-37   the grid of verbs (6 cells of 6), then the
+;   rows 20-23, columns 0-37   the grid of verbs (6 cells of 6), then the
 ;                              list of the open verb (durations, directions,
-;                              items in 3 cells of 12, ounces); three rows
+;                              items in 3 cells of 12, ounces); four rows
 ;                              visible, scrolled by row; the selected cell
 ;                              in inverse
 ;   column 38                  separator
-;   rows 20-22, columns 40-78  the last result, wrapped by words (message),
-;                              then, when the result leaves it free, the
-;                              stock row: food and water carried and here
-;   row 23                     "> " + the command as the parser will read
-;                              it (typed or composed), then the key hints
+;   rows 20-23, columns 40-78  the last result, wrapped by words (message),
+;                              then, when the result leaves row 23 free,
+;                              the stock row (food and water carried and
+;                              here), or "> " + the command as the parser
+;                              will read it while one is typed or composed
 ;
 ; Two homes (docs/MEMORY.md section 11):
 ;   MENUCODE  $BA00-$BDFF, resident: what commands and the INPUT module
@@ -32,16 +32,20 @@
 ; returns; the menu composes the same text the keyboard would give. An item
 ; chosen in a list is also passed in menu_noun, since display names such
 ; as COTTN SOCKS are not vocabulary words (resolve_noun).
-; Modes: 0 typed line (arrows turn, RETURN or UP opens the grid, DOWN shows
-; STATUS); 1 grid (arrows move, RETURN selects, ESC backs up); 2 numeric
-; prompt of the INPUT module (prompt). A command issued from the grid
-; leaves the grid open for the next one.
+; Modes: 0 typed line (arrows turn, RETURN, UP or TAB opens the grid, DOWN
+; shows STATUS); 1 grid (arrows move, RETURN selects, ESC backs up, TAB
+; closes it). The numeric
+; prompt of the INPUT module (prompt) uses the same row. A command issued
+; from the grid leaves the grid open for the next one.
 ; ============================================================================
 .segment "MENUCODE"
 
 MN_SEP   = 38                   ; separator column
 MN_RIGHT = 40                   ; first column of the result column
 MN_LAST  = 79                   ; reserved column (never written)
+MN_ROWS  = 4                    ; rows of the grid and of the result column
+MN_BOTTOM = 23                  ; last row
+KC_TAB   = $09                  ; TAB (Ctrl-I): the grid on, the grid off
 K_NONE   = 0                    ; verb kinds: the list the verb opens
 K_DUR    = 1
 K_LOOK   = 2
@@ -104,6 +108,8 @@ prompt_key:
         beq     @ret
         cmp     #KC_UP
         beq     @open
+        cmp     #KC_TAB
+        beq     @open
         cmp     #KC_DOWN
         beq     @status
         cmp     #KC_LEFT
@@ -153,8 +159,7 @@ prompt_key:
 @turn:  jsr     turn_view
         jmp     idle
 @clear: lda     #0
-        sta     linelen
-        sta     inbuf
+        sta     linelen         ; inbuf itself is left as the reference does
         beq     @line
 done_typed:
         lda     #0
@@ -172,6 +177,8 @@ done_menu:
 menu_key:
         cmp     #KC_ESC
         jeq     @back
+        cmp     #KC_TAB
+        jeq     @close          ; TAB: back to the view, whatever the level
         cmp     #' '
         bcc     :+
         cmp     #'Z'+1
@@ -227,7 +234,12 @@ menu_key:
         beq     @close
         jsr     level1          ; a list: back to the verbs
         jmp     @show
-@close: jsr     to_prompt
+@close: lda     mn_level        ; the grid reopens on the same verb
+        cmp     #1
+        bne     :+
+        lda     mn_cur
+        sta     mn_verb
+:       jsr     to_prompt
 @show:  jsr     redraw
         jmp     idle
 
@@ -298,18 +310,18 @@ select: lda     mn_level
 @show:  jsr     redraw
         jmp     idle
 
-; prompt -- the numeric prompt of the INPUT module: "> " on row 23, the
-; cursor after it (the module echoes the digits), its own hint.
+; prompt -- the numeric prompt of the INPUT module: "> " on the last row of
+; the result column, the cursor after it (the module echoes the digits).
 prompt: lda     #0
         sta     linelen
-        sta     inbuf
-        lda     #2
         sta     mn_mode
-        jsr     draw_line
-        lda     #23
+        lda     #MN_BOTTOM
         sta     CV
         jsr     t_vtab
-        lda     #2
+        ldy     #MN_RIGHT
+        jsr     t_clreol_y
+        jsr     draw_arrow
+        lda     #MN_RIGHT+2
         sta     CH
         rts
 
@@ -372,7 +384,6 @@ level1: lda     #1
         sta     mn_level
         lda     #0
         sta     linelen
-        sta     inbuf
         sta     menu_noun
         sta     mn_items
         sta     mn_top
@@ -406,7 +417,7 @@ scroll_to_cur:
         rts
 :       txa
         sec
-        sbc     #2
+        sbc     #MN_ROWS-1
         bcc     :+
         cmp     mn_top
         bcc     :+
@@ -444,8 +455,8 @@ open_list:
         bne     @count
 @done:  rts
 
-; build_items -- the items the verb may name (mn_t = filter): present in a
-; group the verb does not already target, in overlay_text.
+; build_items -- the items the verb may name (mn_t = filter), in
+; overlay_text: accessible here, in a group the verb does not already target.
 build_items:
         sec
         sbc     #K_ITEMS
@@ -463,21 +474,8 @@ build_items:
         txa
         cmp     filt_hi,y
         bcs     @done
-        cpy     #4              ; EAT: provisions and medicine, not the gear
-        bne     @test           ; between them nor the sunglasses
-        cpx     #43
-        beq     @next
-        cpx     #38
-        bcc     @test
-        cpx     #41
+        jsr     item_ok
         bcc     @next
-@test:  jsr     member
-        ldy     mn_t
-        sta     mn_n
-        lda     filt_ex,y
-        eor     #$FF
-        and     mn_n
-        beq     @next
         ldy     mn_count
         txa
         sta     overlay_text,y
@@ -486,10 +484,51 @@ build_items:
         bne     @item
 @done:  rts
 
-; member -- A = the groups item X belongs to (G_*), 0 when absent.
-; Provisions: their pack stock (hung with the pack) and their ground stock,
-; wherever it lies (the handler names the cell). Gear: its placement.
-; Preserves X.
+; items_any -- A = filter: C set when one item at least qualifies.
+items_any:
+        sta     mn_t
+        tay
+        ldx     filt_lo,y
+@item:  ldy     mn_t
+        txa
+        cmp     filt_hi,y
+        bcs     @none
+        jsr     item_ok
+        bcs     @rts
+        inx
+        bne     @item
+@none:  clc
+@rts:   rts
+
+; item_ok -- C set when the verb of filter mn_t may name item X: accessible
+; (member), in a group the verb does not target; EAT skips the gear between
+; the provisions and the medicine, and the sunglasses. Preserves X.
+item_ok:
+        ldy     mn_t
+        cpy     #4
+        bne     @test
+        cpx     #43
+        beq     @no
+        cpx     #38
+        bcc     @test
+        cpx     #41
+        bcc     @no
+@test:  jsr     member
+        ldy     mn_t
+        sta     mn_n
+        lda     filt_ex,y
+        eor     #$FF
+        and     mn_n
+        beq     @no
+        sec
+        rts
+@no:    clc
+        rts
+
+; member -- A = the groups item X belongs to (G_*) when it is accessible
+; here, else 0. Provisions: their pack stock (with the pack hung here), their
+; ground stock on this cell. Gear: its placement, the ground and the hung
+; pack on this cell only. Preserves X.
 member: lda     it_place,x
         cmp     #$FF
         beq     @none
@@ -506,12 +545,16 @@ member: lda     it_place,x
         ldy     it_place,x
         cpy     #5
         bne     :+
+        jsr     hung_here
+        bcc     @ground
         lda     #G_HUNG
 :       sta     mn_n
 @ground:
         lda     it_gnd_lo,x
         ora     it_gnd_hi,x
         beq     @prov
+        jsr     at_ground
+        bcc     @prov
         lda     mn_n
         ora     #G_GROUND
         sta     mn_n
@@ -521,16 +564,37 @@ member: lda     it_place,x
         cpy     #6
         bcs     @none
         lda     place_mask,y
-        rts
+        cmp     #G_GROUND
+        beq     @here
+        cmp     #G_HUNG
+        bne     @rts
+        jsr     hung_here
+        bcs     @rts
 @none:  lda     #0
+@rts:   rts
+@here:  jsr     at_ground
+        bcs     @rts
+        bcc     @none
+; hung_here -- C set when the backpack hangs on this cell.
+hung_here:
+        lda     px+1
+        cmp     it_x+21
+        bne     @no
+        lda     py+1
+        cmp     it_y+21
+        bne     @no
+        sec
+        rts
+@no:    clc
         rts
 place_mask: .byte G_GROUND, G_WORN, G_PACK, G_HAND, G_PACK, G_HUNG
 
-; build_verbs -- mn_idx = the entries of verb_table whose context applies.
+; build_verbs -- mn_idx = the entries of verb_table whose context applies
+; (mn_c counts the entries: items_any uses mn_n).
 build_verbs:
         lda     #0
         sta     mn_count
-        sta     mn_n
+        sta     mn_c
         lda     #<verb_table
         sta     gp2
         lda     #>verb_table
@@ -544,12 +608,19 @@ build_verbs:
         and     #3
         jsr     ctx_ok
         bcc     @skip
-        ldy     mn_count
-        lda     mn_n
+        ldy     #0              ; an item verb: only with something to name
+        lda     (gp2),y
+        cmp     #K_ITEMS
+        bcc     @add
+        sbc     #K_ITEMS
+        jsr     items_any
+        bcc     @skip
+@add:   ldy     mn_count
+        lda     mn_c
         sta     mn_idx,y
         inc     mn_count
 @skip:  jsr     skip_entry
-        inc     mn_n
+        inc     mn_c
         jmp     @loop
 @done:  rts
 
@@ -687,11 +758,11 @@ append_space:
 redraw: jsr     draw_grid
         jmp     draw_line
 
-; draw_grid -- rows 20-22, columns 0-37: the visible cells, the separator.
+; draw_grid -- rows 20-23, columns 0-37: the visible cells, the separator.
 draw_grid:
         lda     #0
         sta     mn_row
-@row:   lda     #20
+@row:   lda     #MN_BOTTOM+1-MN_ROWS
         clc
         adc     mn_row
         jsr     t_bascalc
@@ -747,7 +818,7 @@ draw_grid:
         beq     @mark
         lda     #'^'|$80
         bne     @mark
-:       cpx     #2
+:       cpx     #MN_ROWS-1
         bne     @mark
         ldy     mn_i            ; first index of the next row
         cpy     mn_count
@@ -760,7 +831,7 @@ draw_grid:
         jsr     t_update
         inc     mn_row
         lda     mn_row
-        cmp     #3
+        cmp     #MN_ROWS
         jne     @row
         rts
 empty_text:
@@ -771,19 +842,22 @@ empty_text:
         rts
 
 .segment "MENUCODE"
-; draw_line -- row 23: "> ", the command (no cursor: the text is the cursor), the hint.
+; draw_line -- the last row of the result column: "> " and the command
+; (typed or composed, no cursor: the text is the cursor) while there is
+; one, else the stock row.
 draw_line:
-        lda     #23
+        lda     #MN_BOTTOM
         jsr     t_bascalc
-        lda     #'>'|$80
-        ldy     #0
-        jsr     t_update
-        lda     #' '|$80
-        ldy     #1
-        jsr     t_update
-        lda     #2
+        lda     linelen
+        bne     @command
+        ldy     #MN_RIGHT       ; an empty line: inbuf keeps the last command
+        jsr     t_clreol_y
+        jmp     stock_row
+@command:
+        jsr     draw_arrow
+        lda     #MN_RIGHT+2
         sta     mn_col
-        lda     #MAXLINE
+        lda     #MN_LAST-MN_RIGHT-2
         sta     mn_w
         lda     #0
         sta     mn_inv
@@ -791,17 +865,17 @@ draw_line:
         sta     gp2
         lda     #>inbuf
         sta     gp2+1
-        jsr     cell_put
-        ldx     mn_mode
-        lda     hint_lo,x
-        sta     gp2
-        lda     hint_hi,x
-        sta     gp2+1
-        lda     #MN_RIGHT
-        sta     mn_col
-        lda     #MN_LAST-MN_RIGHT
-        sta     mn_w
         jmp     cell_put
+
+; draw_arrow -- "> " at the start of the last row of the result column
+; (BASL set to it).
+draw_arrow:
+        lda     #'>'|$80
+        ldy     #MN_RIGHT
+        jsr     t_update
+        lda     #' '|$80
+        ldy     #MN_RIGHT+1
+        jmp     t_update
 
 ; cell_put -- the string at gp2 from column mn_col, padded with spaces to
 ; mn_w cells (one space at least after a longer label: cells are
@@ -847,15 +921,15 @@ cell_char:
 .segment "GCODE"
 ; msg_begin -- clear the result column, cursor at its first cell.
 msg_begin:
-        ldx     #20
+        ldx     #MN_BOTTOM+1-MN_ROWS
 @row:   txa
         jsr     t_bascalc
         ldy     #MN_RIGHT
         jsr     t_clreol_y
         inx
-        cpx     #23
+        cpx     #MN_BOTTOM+1
         bcc     @row
-        lda     #20
+        lda     #MN_BOTTOM+1-MN_ROWS
         sta     CV
         jsr     t_vtab
         lda     #MN_RIGHT
@@ -901,7 +975,7 @@ msg_flush:
         cmp     #MN_LAST+1
         bcc     @print
         lda     CV
-        cmp     #22
+        cmp     #MN_BOTTOM
         bcs     @print
         jsr     msg_row
 @print: ldy     #0
@@ -927,16 +1001,16 @@ msg_row:
 msg_newline:
         jsr     msg_flush
         lda     CV
-        cmp     #22
+        cmp     #MN_BOTTOM
         bcc     msg_row
         lda     #' '|$80
         jmp     msg_char
 
-; stock_row -- row 22 of the result column, when the result left it blank:
+; stock_row -- the last row of the result column, when the result left it blank:
 ; the food and water carried (pack, canteen), then those on this cell.
 .segment "MENUSWAP"
 stock_row:
-        lda     #22
+        lda     #MN_BOTTOM
         jsr     t_bascalc
         ldy     #MN_RIGHT/2
         sta     PAGE2_AUX       ; column 40: even, auxiliary page
@@ -945,7 +1019,7 @@ stock_row:
         cmp     #' '|$80
         beq     :+
         rts
-:       lda     #22
+:       lda     #MN_BOTTOM
         sta     CV
         jsr     t_vtab
         lda     #MN_RIGHT
@@ -1014,7 +1088,11 @@ sum_items:
         adc     it_gnd_hi,x
         sta     num+1
         jmp     @next
-@print: jmp     print_u16
+@print: lda     CH              ; five digits at most: never past column 78
+        cmp     #MN_LAST-5
+        bcs     @rts
+        jmp     print_u16
+@rts:   rts
 
 ; ----------------------------------------------------------------------------
 ; tables
@@ -1034,7 +1112,7 @@ verb_table:
         .byte   K_DUR, 0, "REST", 0
         .byte   K_DUR, 0, "WAIT", 0
         .byte   K_ITEMS+4, C_QTY_ITEM, "EAT", 0
-        .byte   K_NONE, C_SUFFIX|C_QTY, "DRINK", 0, " WATER", 0
+        .byte   K_ITEMS+6, C_QTY_ITEM, "DRINK", 0
         .byte   K_ITEMS+0, 0, "GET", 0
         .byte   K_ITEMS+1, 0, "TAKE", 0
         .byte   K_ITEMS+2, 0, "WEAR", 0
@@ -1056,24 +1134,19 @@ list_dur:   .byte "10 MIN",0,"20 MIN",0,"30 MIN",0,"1 H",0,"2 H",0,"4 H",0,"8 H"
 list_look:  .byte "LEFT",0,"RIGHT",0,"BACK",0,"AHEAD",0,"NORTH",0,"EAST",0,"SOUTH",0,"WEST",0,0
 list_climb: .byte "TREE",0,"DOWN",0,0
 list_qty:   .byte "2 OZ",0,"4 OZ",0,"8 OZ",0,"12 OZ",0,"16 OZ",0,"24 OZ",0,"32 OZ",0,"48 OZ",0,0
-; Item filters: first item, last + 1, the groups the verb already targets.
-filt_lo: .byte  1, 1, 1, 1, 23, 41
-filt_hi: .byte  76, 76, 21, 76, 52, 52
-filt_ex: .byte  G_PACK, G_HAND, G_WORN, G_GROUND|G_HUNG, G_HUNG, 0
+; Item filters: first item, last + 1, the groups the verb already targets
+; (GET, TAKE, WEAR, DROP, EAT, USE, DRINK: the water alone).
+filt_lo: .byte  1, 1, 1, 1, 23, 41, N_WATER
+filt_hi: .byte  76, 76, 21, 76, 52, 52, N_WATER+1
+filt_ex: .byte  G_PACK, G_HAND, G_WORN, G_GROUND|G_HUNG, G_HUNG, 0, G_HUNG
 str_empty:   .byte 0
-.segment "RESCODE"
-hint_lo: .byte  <hint_typed, <hint_grid, <hint_number
-hint_hi: .byte  >hint_typed, >hint_grid, >hint_number
-hint_typed:  .byte "RET: MENU  <>: TURN  OR TYPE A COMMAND",0
-hint_grid:   .byte "ARROWS: MOVE  RET: SELECT  ESC: BACK",0
-hint_number: .byte "NUMBER THEN RET   ESC: CANCEL",0
 str_status:  .byte "STATUS", 0
 .segment "MENUCODE"
 
 ; State: part of the image (zero at the start) rather than BSS, since the
 ; area held the loader's I/O buffer. Resident: the lists and messages of a
 ; command may run while the swap image is away.
-mn_mode:  .byte 0               ; 0 typed line, 1 grid, 2 numeric prompt
+mn_mode:  .byte 0               ; 0 typed line, 1 grid
 mn_level: .byte 0               ; 1 verbs, 2 the list of the verb, 3 ounces
 mn_cur:   .byte 0               ; selected cell
 mn_verb:  .byte 0               ; the verb last chosen (the grid returns to it)

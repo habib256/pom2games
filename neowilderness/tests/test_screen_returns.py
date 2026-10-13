@@ -171,12 +171,12 @@ def main():
             if name.startswith('QUIT'):
                 # Declining QUIT reports the cancellation, like any refusal.
                 res = result_rows(lines)
-                assert res[0].rstrip() == 'ACTION CANCELLED.' and not res[1].strip() and lines[3].startswith('> '), (name, lines)
+                assert res[0].rstrip() == 'ACTION CANCELLED.' and not res[1].strip(), (name, lines)
             else:
                 if prompt is None:
                     # The first return clears the welcome message: the command
                     # line is left with its prompt alone, then stays so.
-                    assert lines[3].startswith('> ') and not any(r.strip() for r in result_rows(lines)[:2]), lines
+                    assert not any(r.strip() for r in result_rows(lines)[:3]) and result_rows(lines)[3].startswith('FOOD'), lines
                     prompt = dict(text=lines, frame=after['frame'][rows:])
                 assert lines == prompt['text'], (name, lines)
                 assert after['frame'][rows:] == prompt['frame'], (name, 'displayed text lines changed')

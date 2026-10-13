@@ -15,7 +15,7 @@ labs = sorted((int(a, 16), n) for a, n in
               if not n.startswith('__'))
 L = {n: a for a, n in labs}
 out = subprocess.run([str(HERE.parent / 'dev/tools/a2shot/a2shot'), '--iie', '--disk', str(HERE.parent / 'dist/NEOWILDERNESS.po'),
-                      f'until:{L["menu_key"]:04X}:40000', 'key:2\\r',   # start menu: Sierra, level 4
+                      f'until:{L["menu_key"]:04X}:40000', 'key:1\\r',   # start menu: Sierra (key 1), level 4
                       f'until:{L["idle"]:04X}:4000', f'key:{key}', 'press:\r', f'until:{L["view_full"]:04X}:400',
                       f'pcprof:{L["idle"]:04X}:8000'], capture_output=True, text=True).stdout
 prof = {int(a, 16): int(c) for a, c in re.findall(r'^pc ([0-9A-F]{4}) (\d+)$', out, re.M)}

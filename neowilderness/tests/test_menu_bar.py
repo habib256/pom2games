@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """The four 80-column rows as a command surface (src/menu.s, lot 8 step 2).
 
-Rows 20-22, columns 0-37: the grid of verbs, then the list of the open verb
+Rows 20-23, columns 0-37: the grid of verbs, then the list of the open verb
 (durations, directions, items, ounces), scrolled by row, the selected cell
 in inverse; column 38 the separator (^ / V when rows are out of view);
-columns 40-78 the result column (the last message, wrapped by words, then
-the stock row); row 23 the command as the parser reads it, then the hints.
+columns 40-78 the result column: the last message, wrapped by words, and
+on its last row the stock row or the command as the parser reads it while
+one is typed or composed.
 
 Every choice composes the text the keyboard would give (read in inbuf when
 do_command starts) and the simulation state equals the typed command's;
@@ -20,6 +21,7 @@ from test_input import flat, snapshot, IDLE
 
 DO_COMMAND = L.until('do_command', 6000)
 RET, ESC, LEFT, RIGHT, UP, DOWN = '\\r', '\\e', '\\<', '\\>', '\\^', '\\v'
+TAB = '\t'
 BASE = ['WALK', 'SWIM', 'LOOK', 'REST', 'WAIT', 'EAT', 'DRINK', 'GET', 'TAKE', 'WEAR', 'DROP',
         'USE', 'CLIMB', 'HANG', 'LOWER', 'STATUS', 'INVENT', 'TOPO', 'MAP', 'HELP', 'QUIT']
 
@@ -33,14 +35,14 @@ def bottom(s):
 
 
 def grid_cells(s):
-    """The labels of the three grid rows (left column), row by row."""
-    return [r[:38].split() for r in bottom(s)[:3]]
+    """The labels of the four grid rows (left column), row by row."""
+    return [r[:38].split() for r in bottom(s)[:4]]
 
 
 def selected(s):
     """The inverse cell of the grid (the selection), or None."""
     mem = s.step('peek:0400:1024').data
-    for row in range(20, 23):
+    for row in range(20, 24):
         o = (row % 8) * 128 + (row // 8) * 40
         cells = bytes(b for pair in zip(mem[1024 + o:1024 + o + 20], mem[o:o + 20]) for b in pair)
         inverse = ''.join(chr(c + 0x40) if c < 0x20 else chr(c) if c < 0x40 else ' '
@@ -93,26 +95,42 @@ def layout(disk):
     with a2test.Session(disk) as s:
         s.step(IDLE)
         rows = bottom(s)
-        assert grid_cells(s)[0] == BASE[:6] and grid_cells(s)[2] == BASE[12:18], rows
-        assert rows[2][38] == 'V' and rows[0][38] == '|', 'more rows below: V in the separator'
-        assert rows[3].startswith('> ') and 'RET: MENU' in rows[3][40:], rows[3]
-        assert result_rows(rows)[0].startswith('CRASH IN'), rows
+        assert grid_cells(s) == [BASE[:6], BASE[6:12], BASE[12:18], BASE[18:]], rows
+        assert all(rows[k][38] == '|' for k in range(4)), 'every verb in view: no scroll mark'
+        res = result_rows(rows)
+        assert res[0].startswith('CRASH IN') and res[3].startswith('FOOD '), rows
         assert selected(s) is None, 'typed line: no selection'
         press(s, RET)
-        assert selected(s) == 'WALK' and 'ARROWS: MOVE' in bottom(s)[3][40:], bottom(s)
+        assert selected(s) == 'WALK', bottom(s)
         press(s, DOWN, DOWN, DOWN)
-        assert selected(s) == 'MAP' and grid_cells(s)[2] == BASE[18:], grid_cells(s)
-        assert bottom(s)[0][38] == '^' and bottom(s)[2][38] == '|', bottom(s)
+        assert selected(s) == 'MAP'
         press(s, LEFT, LEFT)
         assert selected(s) == 'INVENT'
         press(s, UP, UP, UP)
         assert selected(s) == 'WAIT', 'UP stops on the first row'
         press(s, ESC)
-        assert selected(s) is None and 'RET: MENU' in bottom(s)[3][40:], 'ESC closes the grid'
+        assert selected(s) is None, 'ESC closes the grid'
+        press(s, TAB)
+        assert selected(s) == 'WAIT', 'TAB opens the grid on the last verb'
+        press(s, RET)                               # WAIT: its list of durations
+        assert grid_cells(s)[0][0] == '10', grid_cells(s)
+        press(s, TAB)
+        assert selected(s) is None and grid_cells(s)[0] == BASE[:6], 'TAB closes the grid from a list'
         before = snapshot(s)
         press(s, UP, RIGHT, ESC)
         assert snapshot(s) == before, 'navigation runs no command'
-    print('  grid of verbs, scrolling marks, selection, ESC: OK')
+        # The list of a verb scrolls: EAT names the provisions and the
+        # medicine at hand, three per row.
+        press(s, RET)
+        move_to(s, 'EAT')
+        press(s, RET)
+        cells = grid_cells(s)
+        assert cells[0] == ['EGGS', 'CANDYBARS', 'BACON'] and rows[0][38] == '|', cells
+        assert bottom(s)[3][38] == 'V', 'more rows below: V in the separator'
+        press(s, DOWN, DOWN, DOWN, DOWN)
+        assert bottom(s)[0][38] == '^', bottom(s)
+        press(s, ESC, ESC)
+    print('  grid of verbs on four rows, selection, ESC and TAB, scrolling marks of a list: OK')
 
 
 def composition(disk):
@@ -132,9 +150,9 @@ def composition(disk):
         heading = s.step(L.peek('heading', 2)).data
         assert choose(s, 'REST', '10 MIN') == ('REST 10 MIN', 0)
         assert 'YOU RESTED 10 MINUTES.' in result_rows(screen(s))[0]
-        assert 'FOOD' in result_rows(screen(s))[2] and 'WATER' in result_rows(screen(s))[2], \
-            'the stock row takes the free third row'
-        assert choose(s, 'DRINK', '4 OZ') == ('DRINK WATER 4 OZ', 0)
+        assert result_rows(screen(s))[3].startswith('FOOD ') and 'WATER' in result_rows(screen(s))[3], \
+            'the stock row takes the free last row'
+        assert choose(s, 'DRINK', 'WATER', '4 OZ') == ('DRINK WATER 4 OZ', 22)
         assert 'YOU DRANK 4 OUNCES.' in result_rows(screen(s))[0]
         water = s.step(L.peek('it_pack_lo', 1, 22)).data[0]
         assert choose(s, 'EAT', 'EGGS', '8 OZ') == ('EAT EGGS 8 OZ', 24)
@@ -183,26 +201,27 @@ def contexts(disk):
         press(s, RET)
         move_to(s, 'EAT')
         press(s, RET)
-        assert grid_cells(s)[0][0] == 'EGGS' and bottom(s)[3].startswith('> EAT'), bottom(s)
+        assert grid_cells(s)[0][0] == 'EGGS' and result_rows(screen(s))[3].startswith('> EAT'), bottom(s)
         press(s, ESC)
-        assert selected(s) == 'EAT' and bottom(s)[3].startswith('>  ')
+        assert selected(s) == 'EAT' and result_rows(screen(s))[3].startswith('FOOD ')
         press(s, 'L')
-        assert selected(s) is None and bottom(s)[3].startswith('> L'), 'a letter types'
+        assert selected(s) is None and result_rows(screen(s))[3].startswith('> L'), 'a letter types'
         press(s, ESC)
-        assert bottom(s)[3].startswith('>  ')
-        # An empty list (no medicine left) offers nothing; ESC leaves it.
+        assert result_rows(screen(s))[3].startswith('FOOD ')
+        # A verb with nothing to name is not offered: no medicine, no USE;
+        # no water at hand, no DRINK.
         for item in range(41, 52):
             s.step(L.poke('it_place', 255, item))
-        press(s, RET)
-        move_to(s, 'USE')
-        press(s, RET)
-        assert not any(grid_cells(s)) and selected(s) is None
-        press(s, RET, RIGHT, DOWN)
-        assert not any(grid_cells(s))
-        press(s, ESC)
-        assert selected(s) == 'USE'
-        # DOWN on the typed line shows STATUS; the numeric prompt keeps row 23.
-        press(s, ESC)
+        s.step(L.poke('it_pack_lo', 0, 22))       # the canteen and the crash
+        s.step(L.poke('it_gnd_lo', 0, 22))        # site's water pile both empty
+        typed(s, 'V')
+        verbs = sum(grid_cells(s), [])
+        assert 'USE' not in verbs and 'DRINK' not in verbs and 'EAT' in verbs, verbs
+        s.step(L.poke('it_pack_lo', 40, 22))
+        typed(s, 'V')
+        assert 'DRINK' in sum(grid_cells(s), [])
+        # DOWN on the typed line shows STATUS; the numeric prompt uses the
+        # last row of the result column.
         s.step(f'key:{DOWN}')
         s.step(L.until('status_key', 20000))
         assert screen(s)[0].startswith('STATUS:')
@@ -212,13 +231,12 @@ def contexts(disk):
         s.step('key:WALK')
         s.step(f'press:{RET}')
         s.step(L.until('input_number_idle', 20000))
-        rows = bottom(s)
-        assert rows[3].startswith('> ') and 'NUMBER THEN RET' in rows[3][40:], rows[3]
-        assert 'DURATION?' in result_rows(rows)[0]
+        res = result_rows(screen(s))
+        assert res[3].startswith('> ') and 'DURATION?' in res[0], res
         s.step(f'key:{ESC}')
         s.step(IDLE)
         assert 'ACTION CANCELLED.' in result_rows(screen(s))[0]
-    print('  contextual verbs, ESC and letters from a list, empty list, DOWN = STATUS, numeric prompt: OK')
+    print('  contextual verbs, ESC and letters from a list, verbs without items hidden, DOWN = STATUS, numeric prompt: OK')
 
 
 def main():

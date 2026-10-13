@@ -327,12 +327,20 @@ def text_screen(mem):
 
 
 RESULT_COL = 40            # src/menu.s: the result column of the four mixed rows
+MENU_BASE = 0xBA00         # src/wild.cfg MENU: build/wildmenu.bin, where idle lives
+
+
+def idle_bytes(n=9):
+    """The first n bytes of the idle loop (src/menu.s), from its image: tests
+    that patch the loop with calls restore them afterwards."""
+    return (HERE / 'build/wildmenu.bin').read_bytes()[L['idle'] - MENU_BASE:L['idle'] - MENU_BASE + n]
 
 
 def result_rows(screen):
-    """The result column (rows 20..22, columns 40..78) of a text_screen(),
-    or of its last four rows."""
-    rows = screen[20:23] if len(screen) > 4 else screen[:3]
+    """The result column (rows 20..23, columns 40..78) of a text_screen(),
+    or of its last four rows; the last row holds the stock row, or "> " and
+    the command being typed or composed."""
+    rows = screen[20:24] if len(screen) > 4 else screen[:4]
     return [row[RESULT_COL:79] for row in rows]
 
 

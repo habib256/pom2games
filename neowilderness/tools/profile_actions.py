@@ -37,7 +37,7 @@ def measure(disk, labels, command, setup=(), profile=False):
         if 'menu_key' in L:
             # Lot 7 start menu: the Sierra Nevada at level 4 (tests/common.py).
             s.step(L.until('menu_key', 40000))
-            s.step('key:2\\r')
+            s.step('key:1\\r')
         s.step(L.until('idle', 20000))
         s.step(L.poke('nature_frequency', 0))
         for preceding in setup:

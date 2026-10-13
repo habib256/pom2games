@@ -33,7 +33,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE / 'tests'))
-from common import L, DISK, a2test, mood_name, menu_keys, dhgr_view  # noqa: E402
+from common import idle_bytes, L, DISK, a2test, mood_name, menu_keys, dhgr_view  # noqa: E402
 from test_thermal import call, poke  # noqa: E402
 from test_moonlight import phase_shape  # noqa: E402
 
@@ -41,7 +41,7 @@ from test_moonlight import phase_shape  # noqa: E402
 def region_shots(out):
     """The six scenarios: first view, golden hour, fourth species."""
     idle = L['idle']
-    original = (HERE / 'build/wildgame.bin').read_bytes()[idle - 0x4000:idle - 0x4000 + 9]
+    original = idle_bytes()
     shots = []
     for region in range(1, 7):
         with a2test.Session(DISK, timeout=900, menu=False) as s:
@@ -114,7 +114,7 @@ def stars_drawn(s, mood):
 def star_shots(out):
     """Night skies of the Sierra Nevada and Bolivia (docs/STARS.md)."""
     idle = L['idle']
-    original = (HERE / 'build/wildgame.bin').read_bytes()[idle - 0x4000:idle - 0x4000 + 9]
+    original = idle_bytes()
     full_day = next(day for day in range(100, 365) if phase_shape(day) == 11)
     shots = []
     for region, views in ((2, (('sierra_polaris', 125, 23, 0), ('sierra_south', 125, 23, 280),
@@ -161,7 +161,7 @@ def main():
         return star_shots(a.out)
     full_day = next(day for day in range(365) if phase_shape(day) == 11)
     idle = L['idle']
-    original = (HERE / 'build/wildgame.bin').read_bytes()[idle - 0x4000:idle - 0x4000 + 9]
+    original = idle_bytes()
     shots = []
     with a2test.Session(DISK, timeout=900) as s:
         s.step(L.until('idle', 30000))

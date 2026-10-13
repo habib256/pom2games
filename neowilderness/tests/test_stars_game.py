@@ -18,7 +18,7 @@ The Sun and Moon discs are switched off (sky_enabled 0, as in
 test_moonlight.py) so that the comparison isolates the stars; the Moon still
 masks the stars of its disc in the list.
 """
-from common import HERE, L, DISK, a2test, dhgr_view, mood_name, dhgr
+from common import idle_bytes, HERE, L, DISK, a2test, dhgr_view, mood_name, dhgr
 from test_thermal import call, poke
 from test_moonlight import phase_shape
 import stars_ref
@@ -35,8 +35,7 @@ def main():
     m = bytearray((HERE / 'build/map.bin').read_bytes())
     lat, lon = signed(m[12]), signed(m[25])
     full_day = next(d for d in range(100, 365) if phase_shape(d) == 11)
-    original = (HERE / 'build/wildgame.bin').read_bytes()[
-        L['idle'] - 0x4000:L['idle'] - 0x4000 + 9]
+    original = idle_bytes()
     # (label, day, hour, heading, clouds)
     cases = [('north, Polaris', MAY_6, 23, 0, 0),
              ('south', MAY_6, 23, 280, 0),

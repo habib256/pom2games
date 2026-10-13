@@ -54,7 +54,7 @@ def main():
             s.step('wait:1')
             s.step(idle)
         text = text_screen(s.step('peek:0400:1024').data)
-        assert text[23].startswith('> ') and 'UNKNOWN VERB: FOO' in result_rows(text)[0], text[20:]
+        assert 'UNKNOWN VERB: FOO' in result_rows(text)[0], text[20:]
         check(s, VIEW, 'view after messages')
         s.step('key:STATUS\\r')
         s.step('wait:1')
@@ -66,7 +66,7 @@ def main():
         s.step(idle)
         check(s, VIEW, 'view after STATUS')
         rows = text_screen(s.step('peek:0400:1024').data)[20:]
-        assert rows[3].startswith('> ') and not any(r.strip() for r in result_rows(rows)[:2]), ('menu rows cleared', rows)
+        assert not any(r.strip() for r in result_rows(rows)[:3]) and result_rows(rows)[3].startswith('FOOD'), ('result column cleared', rows)
         s.step('key:TOPO\\r')
         s.step('wait:1')
         s.step(L.until('graphical_topo_key', 20000))
