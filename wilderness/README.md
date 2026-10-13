@@ -5,6 +5,14 @@ Réimplémentation de *Wilderness: A Survival Adventure* (Electric Transit,
 et doit rejoindre le poste de rangers en gérant son équipement, ses réserves
 et son état physique.
 
+L'original est l'œuvre de Wesley Huntress, Charles Kohlhase et Peter
+Farson. Son moteur de rendu 3D a été développé par Wesley Huntress et
+Charles Kohlhase, deux chercheurs du JPL (NASA) ayant travaillé sur les
+trajectoires et l'imagerie des missions Mariner et Voyager ; l'algorithme
+adapte les techniques de modélisation altimétrique spatiale aux contraintes
+extrêmes du MOS 6502 (1,023 MHz, 64 Ko de RAM, aucun coprocesseur
+mathématique).
+
 Le jeu comprend la vue 3D, les cartes générées, la marche et la nage,
 les objets et la charge, les écrans STATUS/INVENTORY, l'horloge, le cycle jour/nuit,
 la température, l'énergie, les déficits de survie, la santé et la thermique
