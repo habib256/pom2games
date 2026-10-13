@@ -6,6 +6,11 @@
 module_survival_clock:
         lda     #0
         sta     fauna_alert
+        lda     MAP+16
+        beq     :+
+        lda     #1              ; the shelter found last step is no longer news
+        sta     MAP+16
+:
         lda     act
         cmp     #1
         beq     @travel

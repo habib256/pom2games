@@ -36,7 +36,7 @@ K constantes, E état persistant, T temporaires.
 | `CODE`/`RODATA` (`wild.bin`) | `$6000-$6FDB` | 4 060 | C/K | Démarrage, moteur de vue, passes DHGR (`dspan`, `column_setup`, tables d'entrée des lignes), texte 40 colonnes propre, sprites, saisie, impressions, transitions, `video.s`, `mli.s` |
 | `WILDMAP` | `$7000-$94FF` | 9 472 | K | En-tête 64 octets et grille 112 × 84 |
 | `SCRATCH` | `$9500-$95FF` | 256 | T | `overlay_text` (160) : couleurs de colonne des sprites **et** flottants temporaires du ciel ; puis `scene_*`, thermique, saisie |
-| `ENVIRON`+`THERMAL` (`wildsim.bin`) | `$9600-$B5E7` | 8 168 | C/K/T | Simulation ; données de l'image rechargées à chaque activation (même sémantique que le BLOAD HGR) |
+| `ENVIRON`+`THERMAL` (`wildsim.bin`) | `$9600-$B5F4` | 8 181 | C/K/T | Simulation ; données de l'image rechargées à chaque activation (même sémantique que le BLOAD HGR) |
 | `RESCODE` (`wildres.bin`) | `$B600-$B8E5` | 742 | C/K | Répertoire des modules (161), `mem_fetch`, boucle de pile, `mli_call`, sortie/RESET |
 | `RESBSS` | `$B8E6-$B915` | 48 | E | Compteurs (dont `geo_queries`, `geo_decodes`), vecteur RESET et bitmap ProDOS sauvegardés |
 | `IOBUF` | `$BA00-$BDFF` | 1 024 | T | Tampon d'E/S ProDOS (chargeur) |
@@ -48,8 +48,8 @@ Modules de la fenêtre `$5800` (identifiants de `overlay_load`, inchangés) :
 
 | ID | Image | Octets | ID | Image | Octets |
 |---:|---|---:|---:|---|---:|
-| 0 | `wildtop.bin` (TOPO DHGR, lot 4) | 1 531 | 12 | `wildtrv.bin` | 2 045 |
-| 1 | `wildvoc.bin` | 2 047 | 13 | `wildinp.bin` | 1 442 |
+| 0 | `wildtop.bin` (TOPO DHGR, lot 4) | 1 531 | 12 | `wildtrv.bin` | 2 048 |
+| 1 | `wildvoc.bin` | 2 047 | 13 | `wildinp.bin` | 1 763 |
 | 2 | `wildscr.bin` | 2 040 | 14 | `wilditm.bin` | 1 647 |
 | 3 | `wildsim.bin` → `$9600` | 8 191 | 15 | `wildhud.bin` | 1 628 |
 | 4 | `wildwat.bin` | 495 | 16 | `wildsta.bin` | 2 048 |
@@ -547,8 +547,8 @@ géographie fine d'une carte héritée (carte native générée
 
 | Module | Octets | Module | Octets |
 |---|---:|---|---:|
-| 0 WILDTOP | 1 531 | 12 WILDTRV | 2 045 |
-| 1 WILDVOC | 2 047 | 13 WILDINP | 1 442 |
+| 0 WILDTOP | 1 531 | 12 WILDTRV | 2 048 |
+| 1 WILDVOC | 2 047 | 13 WILDINP | 1 763 |
 | 2 WILDSCR | 2 043 | 14 WILDITM | 1 647 |
 | 3 WILDSIM | 8 168 | 15 WILDHUD | 1 628 |
 | 4 WILDWAT | 495 | 16 WILDSTA | 2 048 |

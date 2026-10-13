@@ -1470,8 +1470,10 @@ rest_result:
         ldx     #>m_rest_minutes
 @fauna: ldy     fauna_alert
         beq     :+
-        lda     #<m_fauna_stop
-        ldx     #>m_fauna_stop
+        ldy     #5              ; the discoveries replace the rested message
+        sty     travel_reason
+        lda     #<m_discovery
+        ldx     #>m_discovery
 :
         jsr     message
         jmp     report
@@ -1674,6 +1676,11 @@ animal_attack:
         lda     #22
         jsr     overlay_load
         jmp     module_animal_attack
+; discovery_text -- what interrupted the action (fauna.s, INPUT module)
+discovery_text:
+        lda     #13
+        jsr     overlay_load
+        jmp     module_discovery_text
 do_outdoor:
         lda     #22
         jsr     overlay_load
@@ -3091,11 +3098,16 @@ message:
         tya
         pha
         ldx     travel_reason
-        lda     travel_reason_lo,x
+        cpx     #5
+        bne     @cause
+        jsr     discovery_text  ; names the animal, resources or shelter
+        jmp     @resume
+@cause: lda     travel_reason_lo,x
         sta     gp2
         lda     travel_reason_hi,x
         sta     gp2+1
         jsr     message_string
+@resume:
         pla
         tay
         jmp     @next

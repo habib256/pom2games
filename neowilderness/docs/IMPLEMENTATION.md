@@ -284,7 +284,13 @@ NATURE zéro et aucune présence, il évite aussi lecture disque et hasard.
 Toutes les espèces sont parcourues dans l'ordre ours/couguar/crotale. Si
 un animal est déjà présent, un second tirage conserve sa présence pour
 RND < 0,5 et le remplace sinon, même pour la même espèce. Une acceptation
-fixe `fauna_alert` : WALK s'arrête après le pas consommé.
+fixe le bit 1 de `fauna_alert` : WALK s'arrête après le pas consommé.
+Le message d'arrêt nomme ce qui a été trouvé (`module_discovery_text`, module
+INPUT) : « A BEAR APPEARS. » sur sa ligne, puis « YOU FIND FISH, STICKS,
+A SHELTER. » d'après les bits de `MAP+36` et l'abri tout juste trouvé
+(`MAP+16` vaut 2 jusqu'au tic d'horloge suivant). Les ressources vues en
+marchant lèvent le bit 0. Une attente ou un repos interrompus affichent la
+même description à la place de la durée.
 La sonde `re_fauna_accept_probe.py` vérifie 36 cas dans le point d'acceptation
 original `$5B5A`, y compris le seuil exact 0,5 et les drapeaux d'arrêt.
 La présence reste ancrée à sa case. Après 60 minutes sans décision, attente,

@@ -11,7 +11,7 @@ animal_bearing: .word 0
 animal_age: .byte 0
 nature_frequency: .byte 1       ; integer multiplier 0..100, original default 1
 fauna_rng: .byte $B7            ; independent of the weather RNG
-fauna_alert: .byte 0            ; accepted encounter interrupts travel/rest
+fauna_alert: .byte 0            ; bit 0 resource/shelter, bit 1 animal, bit 7 reaction
 scene_cache_valid: .byte 0
 scene_cache_pos: .res 6
 scene_cache_animal: .res 5
@@ -57,6 +57,7 @@ scene_update:
 @done:  rts
 @clear: lda     #0
         sta     scene_minutes
+        sta     MAP+36          ; the skipped travel pass would have cleared them
         rts
 
 ; Parsing LOOK uses the shared sprite/VOCAB window. Restore the asset

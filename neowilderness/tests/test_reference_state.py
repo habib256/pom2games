@@ -18,6 +18,13 @@ from scenario import REFERENCE_SCRIPT as SCRIPT, play
 # pointer scratch and linker symbols.
 ADDRESS_TABLES = {'verb_lo', 'verb_hi', 'cdef_lo', 'cdef_hi', 'ctol_lo', 'ctol_hi'}
 POINTERS = {'gp1', 'gp2'}
+# Module bookkeeping, not simulation state: the interruption message of this
+# build names the discoveries from the INPUT module (one more copy from
+# auxiliary RAM after the action), which the reference never loads there.
+BOOKKEEPING = {'overlay_current', 'overlay_wanted', 'overlay_reads'}
+# Encodings that changed on purpose: the reference raises fauna_alert to 1 for
+# every sighting, this build keeps resources (bit 0) and animals (bit 1) apart.
+NORMALISE = {'fauna_alert': lambda data: bytes([(data[0] & 0x80) | (1 if data[0] & 3 else 0)])}
 
 
 def segments(path):
@@ -44,7 +51,8 @@ def fields(labels, segs):
 def common_fields():
     new = fields(L, segments(HERE / 'build/wild.map'))
     old = fields(reference_labels(), segments(REFERENCE / 'wild.map'))
-    names = sorted(n for n in set(new) & set(old) - POINTERS if not n.startswith('__'))
+    names = sorted(n for n in set(new) & set(old) - POINTERS - BOOKKEEPING
+                   if not n.startswith('__'))
     sizes = {name: min(new[name][1], old[name][1]) for name in names}
     # Aliases share an address: keep one name per address in each build.
     keep, seen_new, seen_old = [], set(), set()
@@ -83,6 +91,7 @@ def main():
     names = [n for n in names if n not in ADDRESS_TABLES]
     total = sum(sizes[n] for n in names)
     for step, before, after in zip(SCRIPT, reference, current):
+        after = {n: NORMALISE.get(n, lambda data: data)(after[n]) for n in after}
         differ = [n for n in names if before[n] != after[n]]
         label = step[0].replace('\r', '').replace('\\', '')
         if differ:

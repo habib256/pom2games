@@ -28,7 +28,7 @@ def main():
     for k,(old,candidate,seed,accepted) in enumerate(fixtures):
         expected=bytes((candidate+6,50,40,140,0,0)) if accepted else bytes((old,20,30,70,0,17))
         assert r.mem(L['animal_kind'],6,k)==expected,(k,expected,r.mem(L['animal_kind'],6,k))
-        assert r.mem(L['fauna_alert'],1,k)==bytes([int(accepted)])
+        assert r.mem(L['fauna_alert'],1,k)==bytes([2*int(accepted)])
         assert r.mem(L['fauna_rng'],1,k)==b'\4'
         expected_seed=seed*8192 % 67099547 if old else seed
         assert int.from_bytes(r.mem(L['weather_seed'],4,k),'little')==expected_seed
@@ -68,7 +68,7 @@ def main():
         steps+=hours('REST',1)+[L.peek('s_elap',5),L.peek('animal_kind'),'peek:0400:1024']
         r=a2test.run(disk,steps,emulator=a2test.A2SHOT,timeout=900)
         assert fp(r.mem(L['s_elap'],5))==1 and r.mem(L['animal_kind'],1)==b'\0'
-        assert 'A DISCOVERY INTERRUPTS' not in '\n'.join(text_screen(r.mem(0x400,1024)))
+        assert 'APPEARS' not in '\n'.join(text_screen(r.mem(0x400,1024)))
         print('  REST keeps running with a seed that would interrupt WALK OK')
 
         m[16:21]=bytes((1,12,8,140,0));disk=disk_with(tmp,m)

@@ -53,8 +53,9 @@ def exact_travel_end():
         assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-28)<1e-5
         assert s.step(L.peek('travel_reason')).data == b'\0'
         assert 'REQUESTED TRAVEL TIME ENDED.' in '\n'.join(rows(s)[21:])
-    for flag,reason,expected in (('fauna_alert',5,'A DISCOVERY INTERRUPTS'),
-                                ('night',3,'TOO DARK TO TRAVEL')):
+    for flag,value,extra,reason,expected in (
+            ('fauna_alert',2,[L.poke('animal_kind',6)],5,'A BEAR APPEARS.'),
+            ('night',1,[],3,'TOO DARK TO TRAVEL')):
         with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,flat())) as s:
             s.step(IDLE)
             s.step(L.poke('nature_frequency',0))
@@ -62,7 +63,8 @@ def exact_travel_end():
             s.step('press:\\r')
             s.step(L.until('walk_progress',20000))
             s.step(L.until('at_goal',6000))
-            s.step(L.poke(flag,1))
+            s.step(L.poke(flag,value))
+            for step in extra: s.step(step)
             s.step(IDLE)
             assert s.step(L.peek('travel_reason')).data == bytes([reason]), flag
             assert expected in '\n'.join(rows(s)[21:]), flag
@@ -184,12 +186,39 @@ def main():
     with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,flat())) as s:
         s.step(IDLE)
         s.step('key:WALK 4 H');s.step('press:\\r');s.step(L.until('walk_progress',20000))
-        s.step(L.until('at_goal',6000));s.step(L.poke('fauna_alert',1))
+        # Fish and sticks (MAP+36 bits 1 and 7) found during the step.
+        s.step(L.until('at_goal',6000));s.step(L.poke('fauna_alert',1));s.step('poke:7024:82')
         s.step(IDLE)
-        actual='\n'.join(rows(s))
-        assert 'TRAVEL: 9 MINUTES.' in actual and 'A DISCOVERY INTERRUPTS' in actual
+        actual=rows(s)
+        assert actual[21].startswith('> TRAVEL: 9 MINUTES.') and actual[22].startswith('  YOU FIND FISH, STICKS.'),actual[21:]
         assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-9)<1e-5
-        print('  Animal interruption retains the completed duration and cause together OK')
+        print('  Resource interruption retains the completed duration and names the finds OK')
+    with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,flat())) as s:
+        s.step(IDLE)
+        s.step('key:WALK 4 H');s.step('press:\\r');s.step(L.until('walk_progress',20000))
+        # A cougar accepted this step, small game and a shelter found (MAP+16 = 2).
+        s.step(L.until('at_goal',6000));s.step(L.poke('fauna_alert',3));s.step(L.poke('animal_kind',7))
+        s.step('poke:7024:01');s.step('poke:7010:02')
+        s.step(IDLE)
+        actual=rows(s)
+        assert actual[21].startswith('> TRAVEL: 9 MINUTES.'),actual[21:]
+        assert actual[22].startswith('  A COUGAR APPEARS.') and actual[23].startswith('  YOU FIND SMALL GAME, A SHELTER.'),actual[21:]
+        assert s.step('peek:7010:1').data==b'\2'
+        # The next clock tick demotes the shelter to a known one; an alert
+        # that names nothing keeps a generic cause.
+        s.step('key:WALK 4 H');s.step('press:\\r');s.step(L.until('walk_progress',20000))
+        s.step(L.until('at_goal',6000));s.step(L.poke('fauna_alert',1));s.step(L.poke('animal_kind',0))
+        s.step(IDLE)
+        actual=rows(s)
+        assert actual[22].startswith('  ACTION INTERRUPTED.'),actual[21:]
+        assert s.step('peek:7010:1').data==b'\1' and s.step('peek:7024:1').data==b'\0'
+        # WAIT interrupted by a bear: the discovery replaces the waited message.
+        s.step('key:WAIT 1 H');s.step('press:\\r');s.step(L.until('rest_result',20000))
+        s.step(L.poke('fauna_alert',2));s.step(L.poke('animal_kind',6))
+        s.step(IDLE)
+        actual=rows(s)
+        assert actual[21].startswith('> A BEAR APPEARS.') and not actual[22].strip(),actual[21:]
+        print('  Animal, resources and shelter are named on their own rows; WAIT names the animal OK')
     with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,flat())) as s:
         s.step(IDLE)
         s.step('key:WALK 4 H');s.step('press:\\r');s.step(L.until('walk_progress',20000))

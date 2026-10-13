@@ -7,6 +7,28 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Neowilderness : découvertes nommées
+
+- Le message « A DISCOVERY INTERRUPTS YOUR ACTION. » est remplacé par la
+  description de ce qui interrompt l'action : l'animal accepté pendant le
+  pas (« A COUGAR APPEARS. »), puis les ressources et l'abri trouvés
+  (« YOU FIND FISH, STICKS, A SHELTER. »), chacun sur sa ligne sous
+  « TRAVEL: # MINUTES. » ; une attente ou un repos interrompus affichent la
+  même description. `fauna_alert` distingue les ressources (bit 0) de
+  l'animal (bit 1) ; un abri tout juste trouvé marque `MAP+16` à 2 jusqu'au
+  tic d'horloge suivant. Les textes et la mise en forme vivent dans le module
+  INPUT (`module_discovery_text`, fauna.s) : la mémoire résidente et TRAVEL
+  sont pleins.
+- NATURE 0 ou abri : la passe de découverte sautée pendant la marche
+  laissait les bits de `MAP+36` du pas précédent, retirés en quantité et
+  relistés ; `scene_update` les efface comme la passe l'aurait fait.
+- `test_feedback.py` vérifie les trois lignes (animal, ressources, abri), la
+  rétrogradation de l'abri, le repli générique et WAIT interrompu ;
+  `test_fauna_steps.py` suit le nouveau bit ; `test_reference_state.py`
+  ramène `fauna_alert` à l'encodage de la référence HGR et ignore les
+  compteurs de modules (copie d'INPUT après l'action), le reste de l'état
+  de simulation reste identique.
+
 ### Neowilderness : validation finale (lot 6)
 
 - `make test-original` rejoué en entier (comparaisons aux routines

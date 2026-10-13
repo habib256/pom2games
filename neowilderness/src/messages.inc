@@ -37,7 +37,11 @@ m_goal:     .byte   "YOU HAVE REACHED THE RANGER OUTPOST.|YOU SURVIVED. PRESS A 
 m_dead:     .byte   "YOU DID NOT SURVIVE THE WILDERNESS.|PRESS A KEY.", 0
 m_weak:     .byte   "YOU ARE VERY WEAK. REST, EAT AND DRINK.", 0
 
-m_fauna_stop: .byte "A DISCOVERY INTERRUPTS YOUR ACTION.",0
+; Travel reason 5 and an interrupted rest print discovery_text (fauna.s):
+; the animal, resources or shelter found. This text covers an alert that
+; names nothing (never raised by the simulation itself).
+m_fauna_stop: .byte "ACTION INTERRUPTED.",0
+m_discovery: .byte "!",0
 
 m_rest_minutes: .byte "YOU RESTED # MINUTES.",0
 m_duration_end: .byte "REQUESTED TRAVEL TIME ENDED.",0

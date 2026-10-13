@@ -28,6 +28,129 @@ module_nature:
 m_nature: .byte "WILDLIFE FREQUENCY IS #.|ENTER A NEW VALUE FROM 0 TO 100.",0
 m_nature_bad: .byte "FREQUENCY MUST BE FROM 0 TO 100.",0
 
+; What raised fauna_alert during the last action: the animal accepted during
+; it (bit 1) on one line, then the resources (MAP+36) and the shelter (MAP+16
+; = 2 until the next clock tick) found during it. A timed reaction (bit 7)
+; prints nothing here: the OUTDOOR report that follows describes it.
+; Called by message ('!' with travel reason 5) after show_view, so the
+; module window is free.
+module_discovery_text:
+        lda     fauna_alert
+        bmi     @done
+        ldx     #0
+        stx     disc_listed
+        and     #2
+        beq     @found
+        ldx     animal_kind
+        beq     @found
+        lda     #<disc_a
+        ldx     #>disc_a
+        jsr     disc_puts
+        lda     #<disc_animals
+        sta     gp2
+        lda     #>disc_animals
+        sta     gp2+1
+        lda     animal_kind
+        sec
+        sbc     #6
+        jsr     disc_skip
+        lda     #<disc_appears
+        ldx     #>disc_appears
+        jsr     disc_puts
+        jsr     disc_newline
+@found: lda     MAP+36
+        sta     disc_mask
+        ldx     #0
+@bit:   stx     disc_index
+        lsr     disc_mask
+        bcc     :+
+        jsr     disc_item
+:       ldx     disc_index
+        inx
+        cpx     #8
+        bne     @bit
+        lda     MAP+16
+        cmp     #2
+        bne     :+
+        ldx     #8
+        jsr     disc_item
+:       lda     disc_listed
+        beq     @none
+        lda     #<disc_dot
+        ldx     #>disc_dot
+        jmp     disc_puts
+@none:  lda     fauna_alert
+        and     #2
+        bne     @done
+        lda     #<m_fauna_stop
+        ldx     #>m_fauna_stop
+        jmp     disc_puts
+@done:  rts
+
+; One listed resource (X = name index): "YOU FIND " opens the list, ", "
+; separates the others.
+disc_item:
+        txa
+        pha
+        lda     #<disc_sep
+        ldx     #>disc_sep
+        ldy     disc_listed
+        bne     :+
+        inc     disc_listed
+        lda     #<disc_find
+        ldx     #>disc_find
+:       jsr     disc_puts
+        lda     #<disc_resources
+        sta     gp2
+        lda     #>disc_resources
+        sta     gp2+1
+        pla
+; Print string A (0-based) of the zero-terminated sequence at gp2.
+disc_skip:
+        tax
+        beq     @print
+@string:
+        ldy     #0
+@scan:  lda     (gp2),y
+        beq     @end
+        iny
+        bne     @scan
+@end:   iny
+        tya
+        clc
+        adc     gp2
+        sta     gp2
+        bcc     :+
+        inc     gp2+1
+:       dex
+        bne     @string
+@print: jmp     message_string
+
+disc_puts:
+        sta     gp2
+        stx     gp2+1
+        jmp     message_string
+
+; Same continuation as '|' in message: a new row aligned after "> ".
+disc_newline:
+        jsr     CROUT
+        lda     #' '|$80
+        jsr     COUT
+        jmp     COUT
+
+disc_a: .byte "A ",0
+disc_appears: .byte " APPEARS.",0
+disc_find: .byte "YOU FIND ",0
+disc_sep: .byte ", ",0
+disc_dot: .byte ".",0
+disc_animals: .byte "BEAR",0,"COUGAR",0,"RATTLESNAKE",0
+; Species 4-11 in resource_bits order, then the shelter.
+disc_resources: .byte "SMALL GAME",0,"FISH",0,"INSECTS",0,"FRUIT",0
+        .byte "CACTI",0,"MUSHROOMS",0,"PLANTS",0,"STICKS",0,"A SHELTER",0
+disc_listed: .byte 0
+disc_mask: .byte 0
+disc_index: .byte 0
+
 .segment "ENVIRON"
 .export module_fauna
 module_fauna = native_nature
@@ -69,7 +192,8 @@ fauna_accept:
         inc     journey_encounters
         bne     :+
         inc     journey_encounters+1
-:       lda     #1
+:       lda     fauna_alert
+        ora     #2              ; bit 1: discovery_text names the animal
         sta     fauna_alert
         lda     fauna_species
         clc

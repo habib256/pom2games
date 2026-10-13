@@ -132,8 +132,9 @@ resource_scan:
         lda     act
         cmp     #1
         bne     :+
-        lda     #1
-        sta     fauna_alert     ; native discoveries interrupt the current walk
+        lda     fauna_alert
+        ora     #1              ; native discoveries interrupt the current walk
+        sta     fauna_alert
 :
         lda     resource_bits,x
         ora     resource_seen
@@ -143,7 +144,7 @@ resource_scan:
         sta     MAP+36
         cpx     #12
         jne     @next
-        lda     #1
+        lda     #2              ; found this step: discovery_text names it
         sta     MAP+16
         lda     px+1
         sta     MAP+17
