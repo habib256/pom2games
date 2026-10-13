@@ -91,6 +91,11 @@ tp_b0:     .res 1
 tp_b1:     .res 1
 tp_b2:     .res 1
 tp_valid:  .res 1               ; a snapshot of the view is stored
+tp_dir:    .res 1               ; 0 encode (tp_save), 1 decode (topo_close)
+tp_sp:     .res 2               ; snapshot stream pointer
+tp_srow:   .res 1               ; row being copied
+tp_ctl:    .res 1               ; encode: index of the literal count
+tp_x:      .res 1
 
 .segment "TOPOGEN"
 ; ----------------------------------------------------------------------------
@@ -1162,106 +1167,230 @@ tp_marker_row:
         rts
 
 ; ----------------------------------------------------------------------------
-; Snapshot of rows 0..159 (both banks, 80 bytes a row) in the auxiliary
-; language card, reserved by tools/build_disk.py: rows 0..152 at $D000-$FFCF
-; with bank 1 selected (bank 1 + common area), rows 153..159 at
-; $DC00-$DE2F of bank 2. ALTZP selects the auxiliary card, and also the
-; auxiliary zero page and stack (never used otherwise): the pointers are set
-; after the switch.
-TP_LC1 = $C08B                  ; RAM bank 1, read and write
-TP_LC2 = $C083                  ; RAM bank 2, read and write
-TP_SPLIT = 153
+; Snapshot of rows 0..159 (both banks, 80 bytes a row), compressed, in the
+; auxiliary language card: bank 1 view $D000-$DFFF, then the common area up
+; to TP_SNAP_END (docs/MEMORY.md section 12; tools/build_disk.py SNAP_END,
+; tools/geo_atlas.py ATLAS_END: a native map's fine geography shares the same
+; area, and the module store takes the rest of the card). Each 40-byte line
+; (row y, main bank then auxiliary bank) is predicted by the same bank's line
+; of row y - 2 (rows 0 and 1: the cache rows 160 and 161, which TOPO never
+; touches), already restored when the line is decoded. Tokens, never across
+; a line: c < $80 copies c + 1 bytes of the predictor, c >= $80 is followed
+; by (c & $7F) + 1 literal bytes. A line encodes in 60 bytes at most; when
+; the stream would pass TP_SNAP_END the snapshot is dropped and the return
+; redraws the view, as on a native map (measured on random views of the six
+; regions: 0.9 to 6 KB for 12,800 bytes). ALTZP selects the auxiliary card,
+; and also the auxiliary zero page and stack (never used otherwise): hp is
+; written after the switch, the copy loops address the page directly.
+TP_LC1      = $C08B             ; RAM bank 1, read and write (twice)
+TP_SNAP     = $D000
+TP_SNAP_END = $F100
+TP_LINE_MAX = 60
+tpz_r0      = tr0               ; first byte of the current run (auxiliary
+tpz_end     = tr1               ; zero page: ALTZP is on); decode: run end
 ; A native map keeps its fine geography in bank 1 and the common area
 ; (src/geoaux.s): no snapshot there, topo_close answers C set and the view is
 ; redrawn (shipped regions are legacy maps: they keep the snapshot).
 tp_save:
-        lda     MAP+37
-        beq     :+
         lda     #0
         sta     tp_valid
-        rts
-:       lda     #0
+        lda     MAP+37
+        bne     tp_rts
+        lda     #0              ; encode
         beq     tp_copy
 topo_close:
         lda     tp_valid
         bne     :+
         sec                     ; no snapshot: the caller redraws
-        rts
+tp_rts: rts
 :       lda     #0
         sta     tp_valid
-        lda     #1
+        lda     #1              ; decode
 tp_copy:
-        sta     tp_dir+1
+        sta     tp_dir
         php
         sei
         sta     ALTZPON
         lda     TP_LC1
         lda     TP_LC1
-        lda     #<$D000
-        sta     tptr
-        lda     #>$D000
-        sta     tptr+1
+        lda     #<TP_SNAP
+        sta     tp_sp
+        lda     #>TP_SNAP
+        sta     tp_sp+1
         ldx     #0
-tpy_row:   cpx     #TP_SPLIT
-        bne     :+
-        lda     TP_LC2
-        lda     TP_LC2
-        lda     #<$DC00
-        sta     tptr
-        lda     #>$DC00
-        sta     tptr+1
-:       jsr     hgr_row         ; hp: main bytes 0..39 = snapshot 0..39
-        sec
+@row:   stx     tp_srow
+        jsr     hgr_row         ; the line
+        ldy     hp+1
+        lda     tp_dir
+        bne     @drow
         lda     hp
-        sbc     #40
-        sta     tcp             ; tcp + 40..79 = the same row (aux bank)
-        lda     hp+1
-        sbc     #0
-        sta     tcp+1
-tp_dir: lda     #0
-        bne     tpy_load
-        ldy     #39
-:       lda     (hp),y
-        sta     (tptr),y
-        dey
-        bpl     :-
+        sta     te_c1+1
+        sta     te_c2+1
+        sta     te_c3+1
+        sty     te_c1+2
+        sty     te_c2+2
+        sty     te_c3+2
+        jsr     tp_pred
+        sta     te_p1+1
+        sta     te_p2+1
+        sta     te_p3+1
+        sty     te_p1+2
+        sty     te_p2+2
+        sty     te_p3+2
+        bcc     @line           ; always (tp_pred: C clear)
+@drow:  lda     hp
+        sta     td_d1+1
+        sta     td_d2+1
+        sty     td_d1+2
+        sty     td_d2+2
+        jsr     tp_pred
+        sta     td_p1+1
+        sty     td_p1+2
+@line:
+        jsr     tp_sline         ; main bank
+        bcs     @full
         sta     PAGE2_AUX
-        ldy     #79
-:       lda     (tcp),y
-        sta     (tptr),y
-        dey
-        cpy     #40
-        bcs     :-
-        bcc     tpy_next
-tpy_load:  ldy     #39
-:       lda     (tptr),y
-        sta     (hp),y
-        dey
-        bpl     :-
-        sta     PAGE2_AUX
-        ldy     #79
-:       lda     (tptr),y
-        sta     (tcp),y
-        dey
-        cpy     #40
-        bcs     :-
-tpy_next:  sta     PAGE2_MAIN
-        clc
-        lda     tptr
-        adc     #80
-        sta     tptr
-        bcc     :+
-        inc     tptr+1
-:       inx
+        jsr     tp_sline         ; auxiliary bank
+        sta     PAGE2_MAIN
+        bcs     @full
+        ldx     tp_srow
+        inx
         cpx     #TP_ROWS
-        bcc     tpy_row
-        lda     LCROM
+        bcc     @row
+        lda     tp_dir          ; encoded: the snapshot is valid
+        eor     #1
+        sta     tp_valid
+@full:  lda     LCROM
         sta     ALTZPOFF
         plp
-        lda     tp_dir+1
-        bne     :+
-        lda     #1              ; saved
-        sta     tp_valid
+        clc
+        rts
+
+; One line: C set when the stream is full (encoding only).
+tp_pred:                        ; A/Y = the predictor line: row - 2, or 160 + row
+        txa
+        sec
+        sbc     #2
+        bcs     :+
+        adc     #162
+:       tax
+        jsr     hgr_row
+        ldx     tp_srow
+        lda     hp
+        ldy     hp+1
+        clc
+        rts
+
+; One line: C set when the stream is full (encoding only).
+tp_sline:
+        ldx     #0
+        ldy     #39
+        lda     tp_dir
+        beq     :+
+        lda     tp_sp
+        sta     td_i1+1
+        sta     td_i2+1
+        lda     tp_sp+1
+        sta     td_i1+2
+        sta     td_i2+2
+        jmp     td_tok
+:       lda     tp_sp           ; room for a worst line?
+        sta     te_o1+1
+        sta     te_o2+1
+        sta     te_o3+1
+        cmp     #<(TP_SNAP_END - TP_LINE_MAX)
+        lda     tp_sp+1
+        sta     te_o1+2
+        sta     te_o2+2
+        sta     te_o3+2
+        sbc     #>(TP_SNAP_END - TP_LINE_MAX)
+        bcc     te_tok
+        rts                     ; C set: full
+tp_next:                        ; the stream advances by X
+        txa
+        clc
+        adc     tp_sp
+        sta     tp_sp
+        bcc     :+
+        inc     tp_sp+1
 :       clc
         rts
-.assert TP_SPLIT * 80 <= $FFFA - $D000, error, "snapshot overflows the language card"
+
+; Lines are coded from byte 39 down to byte 0 (dey/bmi, no bound compare).
+te_tok: sty     tpz_r0
+te_c1:  lda     $FFFF,y
+te_p1:  cmp     $FFFF,y
+        bne     te_lit
+te_cp:  dey                     ; a run equal to the predictor
+        bmi     :+
+te_c2:  lda     $FFFF,y
+te_p2:  cmp     $FFFF,y
+        beq     te_cp
+:       tya                     ; length - 1 = r0 - y - 1
+        eor     #$FF
+        clc
+        adc     tpz_r0
+te_o1:  sta     $FFFF,x
+        inx
+        tya
+        bpl     te_tok
+        bmi     tp_next
+te_lit: stx     tp_ctl          ; literals: their count goes first
+        inx
+te_ll:
+te_o2:  sta     $FFFF,x
+        inx
+        dey
+        bmi     :+
+te_c3:  lda     $FFFF,y
+te_p3:  cmp     $FFFF,y
+        bne     te_ll
+:       tya
+        eor     #$FF
+        clc
+        adc     tpz_r0
+        ora     #$80
+        stx     tp_x
+        ldx     tp_ctl
+te_o3:  sta     $FFFF,x
+        ldx     tp_x
+        tya
+        bpl     te_tok
+        bmi     tp_next
+
+td_tok:
+td_i1:  lda     $FFFF,x
+        bmi     td_lit
+        inx
+        eor     #$FF            ; end = y - c - 1 ($FF: past byte 0)
+        sty     tpz_end
+        clc
+        adc     tpz_end
+        sta     tpz_end
+td_cp:
+td_p1:  lda     $FFFF,y
+td_d1:  sta     $FFFF,y
+        dey
+        cpy     tpz_end
+        bne     td_cp
+        tya
+        bpl     td_tok
+        jmp     tp_next
+td_lit: inx
+        and     #$7F
+        eor     #$FF
+        sty     tpz_end
+        clc
+        adc     tpz_end
+        sta     tpz_end
+td_ll:
+td_i2:  lda     $FFFF,x
+        inx
+td_d2:  sta     $FFFF,y
+        dey
+        cpy     tpz_end
+        bne     td_ll
+        tya
+        bpl     td_tok
+        jmp     tp_next
+.assert TP_SNAP_END <= $FFFA, error, "snapshot overflows the language card"

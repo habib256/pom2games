@@ -169,10 +169,12 @@ def volume_check():
         assert texts[104] == r and texts[:16].rstrip(b'\0').decode() == info['name']
         reserved = [a for (bank, a) in memory if bank == 1 and (a < 0x0800 or 0x2000 <= a < 0x4000)]
         assert not reserved, 'records write reserved auxiliary RAM'
-        # Lot 4: the language card keeps the snapshot of the view under TOPO
-        # (src/topo_dhgr.s): bank 1, the common area and $DC00-$DE2F of bank 2.
+        # The language card keeps the compressed snapshot of the view under
+        # TOPO (src/topo_dhgr.s): bank 1 and $E000-$F0FF of the common area
+        # (docs/MEMORY.md section 12); the store has bank 2 and $F100-$FFF9.
         snapshot = [(bank, a) for (bank, a) in memory
-                    if bank == 3 or (bank == 2 and 0xDC00 <= a < 0xDE30) or (bank == 2 and a >= 0xE000)]
+                    if bank == 3 or (bank == 2 and 0xE000 <= a < build_disk.SNAP_END)
+                    or a >= 0xFFFA]
         assert not snapshot, 'records write the TOPO snapshot area'
         sizes.append(f'R{r} {info["blocks"]}')
     free = image.free_blocks()

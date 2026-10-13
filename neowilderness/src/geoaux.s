@@ -12,7 +12,8 @@
 ;   $D400-$D47F  their woodland bits, 32 bytes per slot (bit = cell mod 8)
 ;   $D480-...    this segment (tags, decoder, query), then geo_atlas:
 ;                154 stream addresses (lo, hi), 20 bytes of raw-tile flags,
-;                then the tile streams, up to $FFF9
+;                then the tile streams, up to $F0FF (geo_atlas.ATLAS_END;
+;                the module store follows, docs/MEMORY.md section 12)
 ;
 ; Everything here runs with ALTZP on (auxiliary zero page, stack and language
 ; card) and RAMRD/RAMWRT off: the code reads the resident 112 x 84 grid in

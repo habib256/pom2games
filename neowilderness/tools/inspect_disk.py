@@ -29,7 +29,7 @@ def main():
               f' (largest piece {pack["aux_free_largest"]})')
     geo = layout.get('geo')
     if isinstance(geo, dict):
-        area = f'lc1 ${geo["cache"]:04X}-$FFF9'
+        area = f'lc1 ${geo["cache"]:04X}-${geo.get("store_start", 0xFFFA) - 1:04X}'
         if geo['loaded']:
             print(f'  fine geography {area} (NEOWILD.R2): cache {geo["code_address"] - geo["cache"]}, '
                   f'code {geo["code"]}, atlas {geo["size"]} bytes ({geo["tiles"]} tiles, '

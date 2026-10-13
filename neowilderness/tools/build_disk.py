@@ -12,7 +12,7 @@ memory.s copies them into their execution windows. A native map (header byte
 the Sierra Nevada pack) carries its 224 x 168 fine geography: it becomes a
 compressed atlas (tools/geo_atlas.atlas_bytes) loaded with its decoder
 (src/geoaux.s) by the pack into the auxiliary language card, bank 1 view
-$D480-$FFF9, the area of the TOPO snapshot, which native maps do without
+$D480-$F0FF, the area of the TOPO snapshot, which native maps do without
 (lot 5, ported from commit 9795a58). A map whose atlas exceeds that budget
 is refused. NEOWILD.END (the end-of-game module, src/hof.s) and NEOWILD.HOF (the
 hall of fame, one block) are plain files read and written at the end of a
@@ -76,10 +76,15 @@ DIR_BANK = {AUX: 0, LC2: 1, LC1: 2, MLC2: 3}      # memory.s directory bank code
 # QUIT code ($D100-$D3FF; measured: $D400-$DFFF untouched after the boot and
 # the loader), joins the store; $DE18-$DFFF holds the star list and drawing
 # code (docs/STARS.md: 160 entries of 2 bytes, 36 buckets, the code).
-REGIONS = [(AUX, 0x4000, 0xC000), (AUX, 0x0800, 0x2000), (LC2, 0xD000, 0xDC00),
-           (LC2, 0xDE30, 0xE000), (MLC2, 0xD400, 0xDE18)]
+# Direction 3 (docs/MEMORY.md section 12): the snapshot is compressed into
+# bank 1 and $E000-$F0FF (src/topo_dhgr.s TP_SNAP_END, the native atlas's
+# geo_atlas.ATLAS_END): the whole of bank 2 and $F100-$FFF9 of the common
+# area join the store.
+SNAP_END = 0xF100
+REGIONS = [(AUX, 0x4000, 0xC000), (AUX, 0x0800, 0x2000), (LC2, 0xD000, 0xE000),
+           (LC2, SNAP_END, 0xFFFA), (MLC2, 0xD400, 0xDE18)]
 SKYLC = (MLC2, 0xDE18, 'wildskylc.bin')     # src/stars_draw.s, runs in place
-SNAPSHOT = [(LC1, 0xD000, 0xE000), (LC2, 0xE000, 0xFFD0), (LC2, 0xDC00, 0xDE30)]
+SNAPSHOT = [(LC1, 0xD000, 0xE000), (LC2, 0xE000, SNAP_END)]
 # Native maps only: the fine geography takes bank 1 and the common area
 # instead of the snapshot (src/geoaux.s, src/topo_dhgr.s tp_save).
 GEO_CACHE = 0xD000               # 4 decoded tiles + woodland, not stored
@@ -401,15 +406,6 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
     regions_data = {r: region_data(build, r, map_path if r == 2 else None) for r in PACK_REGIONS}
     sprite_sizes = {r: sum((build / G / f'{n}.bin').stat().st_size for n in d['sprites'])
                     for r, d in regions_data.items()}
-    # The packs' sprites get one contiguous area at the top of $4000-$BFFF,
-    # as large as the largest pack (Burma); the trunk fills the rest. Each
-    # pack places its sprites there first, then in the trunk's leftovers.
-    area = max(sprite_sizes.values())
-    trunk_regions = [list(r) for r in REGIONS]
-    trunk_regions[0][2] -= area
-    placed, free = place(images, trunk_regions)
-    pack_area = (AUX, REGIONS[0][2] - area, REGIONS[0][2])
-    free = [list(pack_area)] + free
     mapdata = regions_data[2]['map']
     resident = bytearray((build / 'wildres.bin').read_bytes())
     # Fine geography area (language card bank 1 view): the TOPO snapshot's
@@ -431,6 +427,24 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
                              f'budget {geo["budget"]} (${base:04X}-${geo_atlas.ATLAS_END-1:04X})')
         geo['free'] = geo['budget'] - len(atlas)
         geo_record = (LC1, GEO_CODE, code + atlas)
+        geo['size'] = len(atlas)
+    # The store starts past the snapshot area, or past a larger native atlas
+    # (comparison disks only: the trunk is placed for this disk).
+    store_start = max(SNAP_END, base + geo['size'])
+    geo['store_start'] = store_start
+
+    # The packs' sprites get one contiguous area at the top of $4000-$BFFF,
+    # as large as the largest pack (Burma); the trunk fills the rest. Each
+    # pack places its sprites there first, then in the trunk's leftovers.
+    area = max(sprite_sizes.values())
+    trunk_regions = [list(r) for r in REGIONS]
+    trunk_regions[0][2] -= area
+    for r in trunk_regions:
+        if r[:2] == [LC2, SNAP_END]:
+            r[1] = store_start
+    placed, free = place(images, trunk_regions)
+    pack_area = (AUX, REGIONS[0][2] - area, REGIONS[0][2])
+    free = [list(pack_area)] + free
 
     def directory(placed_all, images_all):
         table = bytearray(DIR_ENTRIES * 7)

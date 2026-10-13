@@ -5,7 +5,10 @@ Lot 4: the sheet is computed from the resident map by TOPOGEN (module 0 in
 the SIM window, src/topo_dhgr.s) and must equal tools/topo_dhgr_ref.sheet
 on rows 0..159 of both banks; the legend fills the four 80-column rows; no
 disk access; the return copies back the snapshot of the view (no raycast):
-view, band, state and clock unchanged. On a native map (fine geography
+view, band, state and clock unchanged. The snapshot is compressed
+(docs/MEMORY.md section 12): a view that does not fit its area (here, noise
+poked into the main bank) is not kept, and the return redraws it. On a
+native map (fine geography
 resident in the auxiliary language card, where the snapshot would go:
 src/geoaux.s) the return redraws the view instead: displayed rows identical.
 """
@@ -64,7 +67,29 @@ def screens(disk, mapdata, snapshot=True):
           f'MAP: local text: OK')
 
 
+def overflow():
+    """An incompressible view: no snapshot, the return redraws the view."""
+    import random
+    rnd = random.Random(7)
+    with a2test.Session(DISK) as s:
+        s.step(IDLE)
+        view = s.step('peek:2000:8192').data
+        for y in range(16, 160):
+            base = 0x2000 + a2test.hgr_offset(y)
+            for i in range(40):
+                s.step(f'poke:{base + i:04X}:{rnd.randrange(128):02X}')
+        s.step('key:TOPO')
+        s.step('press:\\r')
+        s.step(L.until('graphical_topo_key', 20000))
+        assert s.step(L.peek('tp_valid', 1)).data[0] == 0, 'the noisy view must not fit'
+        s.step('press:\\e')
+        s.step(IDLE)
+        assert hgr_rows(s.step('peek:2000:8192').data) == hgr_rows(view), 'view redrawn'
+    print('  TOPO over an incompressible view: no snapshot, the view is redrawn: OK')
+
+
 if __name__ == '__main__':
+    overflow()
     data = (HERE/'build/map.bin').read_bytes()
     screens(DISK, data)
     alternate = bytearray(data)
