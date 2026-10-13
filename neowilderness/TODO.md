@@ -39,9 +39,14 @@ Lots 0 à 4 et étapes 1 à 3 du lot 7 (13 octobre 2026) :
 - Score et hall of fame : module de fin `NEOWILD.END`, fichier
   `NEOWILD.HOF`, meilleur score par scénario au menu, voyage libre non
   classé ([HOF.md](docs/HOF.md)).
-- Suite complète `make test` verte (7 min), plus les bancs `dhgr.mk`,
-  `stars.mk` et `hof.mk` ; 34 blocs libres sur la disquette, 86 octets
-  libres en RAM principale, 1 313 octets auxiliaires libres au pire (Burma).
+- Suite complète `make test` verte (8 min, 80 étapes après l'intégration
+  de la branche parallèle), plus les bancs `dhgr.mk`, `stars.mk` et
+  `hof.mk` ; 33 blocs libres sur la disquette, 361 octets libres en RAM
+  principale, 278 octets auxiliaires libres au pire (Burma ;
+  [MEMORY.md](docs/MEMORY.md) § 9.10).
+- Intégration de la branche parallèle : géographie fine résidente sur les
+  cartes natives, trajet crash → rangers et retours d'écran sans lecture
+  disque testés ([GEOGRAPHY.md](docs/GEOGRAPHY.md) § 9).
 
 Mesures de référence (POM2, ≈ 1 MHz) : STATUS 8,9 s → 0,24 s, LOOK R 8,0 s
 → 1,9 s, WALK 1 H 70,7 s → 9,6 s ; menu 23 s après la mise sous tension,
@@ -57,6 +62,10 @@ Transit 1985, dans les six régions.
 - [ ] Conserver les règles natives, l'ordre des tirages aléatoires, les
   demi-pas et leurs coûts ; comparer les états avec la référence HGR à
   chaque changement du moteur (`test_reference_state.py` reste vert).
+- [x] Trajet crash → rangers complet sans lecture disque, au clavier
+  (`test_journey_resident.py` : repas, eau, gourde, nage, cabane,
+  crotale soigné, nuit, nouveau jour, arrivée, hall of fame), sur carte
+  héritée et native.
 - [ ] Rejouer un trajet crash → rangers complet contre l'original (`make
   test-original`) avec repas, eau, repos, cabane, rencontres, soins et
   traversée à la nage avec retour sur la rive ; ajouter variantes de mort,
@@ -64,13 +73,18 @@ Transit 1985, dans les six régions.
 - [ ] Régions 1 et 3 à 6 au-delà des sondes de rencontre : terrain et
   altitude de base par région, gravité des blessures, branches non sondées
   (radeau, échanges avec les cannibales, mots JUNGLE ; [REGIONS.md](docs/REGIONS.md) § 7).
-- [ ] Géographie fine native (224 × 168, rivières, lacs, cellules impaires)
-  : choisir entre l'atlas `coarse` 16 × 16 résident pour la Sierra seule
-  (6,4 Ko) et la résolution réduite pour toutes les régions (eau, lacs et
-  bois exacts, hauteurs interpolées) ; mesurer les changements de bloc et
-  l'absence de lecture disque sur un itinéraire complet
-  ([GEOGRAPHY.md](docs/GEOGRAPHY.md)). Six atlas ne tiennent pas sur la
-  disquette unique.
+- [x] Géographie fine native résidente pour les cartes natives (comparaison
+  Sierra, `mkmap --native`) : atlas `coarse` 16 × 16 (6,4 Ko) en carte
+  langage auxiliaire à la place de l'instantané TOPO, 14 décodages et
+  aucune lecture disque sur une partie Sierra crash → rangers, TOPO
+  redessiné au retour ; portée de la branche parallèle (`9795a58`,
+  [GEOGRAPHY.md](docs/GEOGRAPHY.md) § 9).
+- [ ] Géographie fine des six régions livrées : décision de jeu (la
+  simulation des cartes héritées changerait, et la comparaison avec la
+  référence HGR) ; un atlas par région ne tient pas sur la disquette
+  (33 blocs libres pour ≈ 13 blocs par atlas) et une région native
+  perdrait l'instantané de TOPO. Pistes : résolution réduite (eau, lacs et
+  bois exacts, hauteurs interpolées, 1–2 Ko), ou atlas de la Sierra seule.
 - [ ] Sites et abris originaux non portés : poste de rangers dessiné, tente,
   igloo, tranchée, bille, rocher (sprites déjà extraits).
 - [ ] Niveau de difficulté : les cartes sont générées au niveau 4 quel que
@@ -90,6 +104,11 @@ Objectif : le plus beau Wilderness possible en 16 couleurs à 1 MHz.
 - [x] Étoiles la nuit : catalogue commun, module horaire (ID 25), un pixel
   par étoile masqué par la crête et la Lune, visibilité selon l'humeur ;
   Croix du Sud en Bolivia, Chile et New Guinea ([STARS.md](docs/STARS.md)).
+- [x] Constellations entières : 42 figures complètes (jusqu'à V 4,95) à la
+  place des étoiles isolées les plus faibles, classe = figure, magnitude
+  dans le pixel (3, 2 ou 1 rangée), projection comprimée au-dessus de 45°,
+  ciel bleu foncé et rotations par défilement en nuit noire
+  ([STARS.md](docs/STARS.md) § 14).
 - [x] Ciel plus peuplé : 282 étoiles jusqu'à la magnitude 3,5 (BSC5),
   liste de 160, module et catalogue dans la fenêtre SIM ; captures 2 → 10
   (Sierra nord), 7 → 31 (sud), 10 → 37 (Bolivia), pleine Lune inchangée

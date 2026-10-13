@@ -213,7 +213,7 @@ Aucun asset par humeur, tout se calcule en RAM au changement d’humeur.
 | nautical | noir · noir/bleu f. · bleu f. | noir · noir · noir | bleu f. · bleu f./noir · noir | bleu f./noir · noir · noir | noir ; noir, noir | – | sombre |
 | night bright | noir · noir · noir/bleu f. | vert f. · vert f./bleu f. · bleu f. | gris · bleu cl. · bleu f. | bleu f./blanc · bleu f. · bleu f. | noir ; vert f., noir | – | lune |
 | night dim | noir · noir · noir | bleu f./noir · noir · noir | gris/noir · bleu f. · noir | noir/bleu f. · noir · noir | noir ; noir, noir | – | sombre |
-| night dark | noir · noir · noir | noir · noir · noir | noir · noir · noir | noir · noir · noir | noir ; noir, noir | – | masqués |
+| night dark | bleu f. · bleu f. · bleu f. | noir · noir · noir | noir · noir · noir | noir · noir · noir | noir ; noir, noir | – | masqués |
 
 Partis pris :
 
@@ -661,8 +661,13 @@ longs, « ENTER SHELTER », « NEW CONDITION », « HUNGER BETTER »,
 « WATER LOW:INV », mesurent exactement 49 pixels).
 
 **Panneaux** (`module_summary`, WILDHUD). Quatre champs de 8 rangées
-(glyphe 0..6, fond 7) : heure/santé, faim, soif, alerte ou indication. Fond
-noir ; libellés gris (10), heure blanche ; valeurs bonnes aqua (14), moyennes
+(glyphe 0..6, fond 7) : à gauche la santé (`HEALTH 100%`) puis l'alerte ou
+l'indication ; à droite l'heure et le jour du séjour (`7:00 DAY 1`, jour de
+l'année de STATUS moins 125, plus 365 au passage de l'an : le crash du 6 mai
+est le jour 1) puis le besoin le plus pressant, faim ou soif (`HUNGER OKAY`,
+`THIRST SO-SO` ; la faim à égalité). Le panneau droit commence 4 pixels après
+le ruban (`UI_GAP`, 45 pixels utiles : « NIGHT DAY 123 » en fait 43). Fond
+noir ; libellés gris (10), heure et jour blancs ; valeurs bonnes aqua (14), moyennes
 jaunes (13) ; **avertissements en blanc sur une bande rouge** (magenta 1,
 la cellule et son interstice, un pixel de marge à gauche) au lieu de
 l’inverse HGR ; reprises en aqua ; indications en bleu clair (7) ; repos /

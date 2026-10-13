@@ -5,7 +5,11 @@ An older disk must be paired with its own ld65 label file (the frozen HGR
 reference: build/reference-hgr). JSON output can be compared before/after
 without relying on host speed or shifted addresses. A .po volume runs on the
 enhanced //e; its profile separates the RAM transfers (memory.s and the
-stack-page loop) from compute, and counts every MLI call.
+stack-page loop) from compute, and counts every MLI call. On a native map
+(fine geography, lot 5) it also counts, per command, the geography queries
+and the tiles decoded by src/geoaux.s (geo_queries, geo_decodes). The
+decoder runs from the auxiliary language card ($D480 and up), which the
+profile cannot tell from the ROM by address: it is counted under ROM.
 """
 import argparse
 import hashlib
@@ -27,6 +31,8 @@ def measure(disk, labels, command, setup=(), profile=False):
     L = a2test.labels(labels)
     resident = 'mem_fetch' in L
     counters = (('mli_calls', 2), ('xfer_count', 2), ('xfer_bytes', 3)) if resident else ()
+    if 'geo_decodes' in L:
+        counters += (('geo_queries', 3), ('geo_decodes', 2))
     with a2test.Session(disk, iie=str(disk).endswith('.po')) as s:
         if 'menu_key' in L:
             # Lot 7 start menu: the Sierra Nevada at level 4 (tests/common.py).
@@ -104,6 +110,8 @@ def measure(disk, labels, command, setup=(), profile=False):
         if resident:
             value.update(disk_calls=deltas['mli_calls'], transfers=deltas['xfer_count'],
                          transfer_bytes=deltas['xfer_bytes'])
+        if 'geo_decodes' in deltas:
+            value.update(geo_queries=deltas['geo_queries'], geo_decodes=deltas['geo_decodes'])
         if breakdown is not None:
             value['profile'] = breakdown
         return value
@@ -122,7 +130,10 @@ def main():
     for command in args.commands:
         results[command] = value = measure(args.disk, args.labels, command, args.setup, args.profile)
         back = f'  return {value["return_seconds"]:6.3f} s' if 'return_seconds' in value else ''
-        print(f'{command:12} {value["cycles"]:10} cycles  {value["seconds"]:7.3f} s  {value["reads"]} reads{back}', flush=True)
+        geo = (f'  {value["geo_queries"]} geography queries, {value["geo_decodes"]} tiles decoded'
+               if value.get('geo_queries') else '')
+        print(f'{command:12} {value["cycles"]:10} cycles  {value["seconds"]:7.3f} s  {value["reads"]} reads{back}{geo}',
+              flush=True)
         if args.profile:
             for region, cycles in value['profile'].items():
                 print(f'  {region:12} {cycles/a2test.CPU_HZ:7.3f} s  {100*cycles/value["cycles"]:5.1f}%', flush=True)

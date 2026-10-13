@@ -211,10 +211,11 @@ def view(m, px, py, heading, sky=None, animal=None, forest=True, sprites=True, p
                     opaque[col].add(out)
 
     # Stars (src/stars_draw.s stars_column, lot 7 step 5): the night list of
-    # tools/stars_ref, one pixel per star of its column's azimuth, on the sky
-    # rows above the trimmed top that no opaque sprite row covers, the
-    # brightest of a shared pixel last (stars_ref.paint_order); drawn
-    # before the Moon and the trees. Day, twilight and clouds: threshold 0.
+    # tools/stars_ref, a span of 1 or 2 rows per entry of its column's
+    # azimuth (first row above the trimmed top; a first-magnitude star is
+    # two entries one row apart), on the rows that no opaque sprite row
+    # covers, the brightest of a shared pixel last (stars_ref.paint_order);
+    # drawn before the Moon and the trees. Day, twilight, clouds: threshold 0.
     import stars_ref
     thr = stars_ref.threshold(sky.mood, sky.clouds) if sky.stars else 0
     for col in range(COLS if thr else 0):
@@ -223,9 +224,10 @@ def view(m, px, py, heading, sky=None, animal=None, forest=True, sprites=True, p
             top -= 1                          # scene_trim
         az = (heading - 70 + col) % 560
         for v in stars_ref.paint_order(sky.stars):
-            if v['az'] == az and v['attr'] < thr and v['row'] < top \
-                    and v['row'] not in opaque[col]:
-                pix[v['row']][col] = v['colour']
+            if v['az'] == az and v['attr'] < thr and v['row'] < top:
+                for r in range(v['row'], v['row'] + v['rows']):
+                    if r not in opaque[col]:
+                        pix[r][col] = v['colour']
 
     # Sun / Moon: remaining sky rows only, after sprites (src/sky.s sky_column).
     body = lit.moon() if sky.night else lit.sun()

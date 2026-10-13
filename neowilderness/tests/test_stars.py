@@ -182,7 +182,7 @@ def cases():
         Case('Sierra, 6 May 23 h, north (Polaris), dark night', heading=0),
         Case('Sierra, 6 May 23 h, north, stars off (cost pair)', heading=0, stars=False),
         Case('Sierra, 6 May 23 h, south, dark night', heading=280),
-        Case('Sierra, south, full Moon high (night bright: first magnitude)', heading=280,
+        Case('Sierra, south, full Moon high (night bright: class 0, the figures)', heading=280,
              view_dark=False, moon8=60, phase=11, moon=sierra_moon),
         Case('Sierra, south, night dim (classes 0-1)', heading=280, view_dark=False, moon8=60,
              phase=8, moon=(0, 255)),

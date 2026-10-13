@@ -154,14 +154,8 @@ overlay_load:
         lda     #3
 @load:  sta     overlay_wanted
 overlay_before_transfer = *
-        cmp     #GEO_FIRST
-        bcs     @geo
         tax
         jsr     mem_fetch
-        jmp     @fetched
-@geo:   sbc     #GEO_FIRST      ; carry set: bank 0..23
-        jsr     geo_load
-@fetched:
         lda     overlay_wanted
         cmp     #3
         bne     @ordinary
@@ -1148,9 +1142,8 @@ finish_simulation:
 
 .segment "CODE"
 turn_view:                      ; X = view_turn kind; fixed geometry scrolls with terrain
-        lda     view_dark
-        ora     shelter_inside
-        bne     @full
+        lda     shelter_inside  ; a dark night scrolls too: its stars and ridge
+        bne     @full           ; depend on the azimuth alone (lot 7)
         lda     scene_drawn
         cmp     #2
         bcs     @full          ; multiple candidates require nearest-visible selection
@@ -2729,19 +2722,6 @@ native_finish_travel:
         lda     #12
         jsr     overlay_load
         jmp     module_stationary_resources_tail
-native_here_travel:
-        jsr     native_here
-        jmp     native_restore_travel
-native_next_travel:
-        jsr     native_next
-        jmp     native_restore_travel
-.segment "TEXT"
-native_restore_travel:
-        pha
-        lda     #12
-        jsr     overlay_load
-        pla
-        rts
 .segment "GCODE"
 native_resource_results:
         lda     MAP+36

@@ -39,14 +39,14 @@ def summary_display():
     steps += [L.peek('s_hour',5),L.peek('s_health',5)]
     r=a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
     initial=panels(r.dumps[0])
-    assert initial==('7:00 H=100%','HUNGER OKAY','THIRST OKAY','SHIVERING'),initial
+    assert initial==('HEALTH 100%','SHIVERING','7:00 DAY 1','HUNGER OKAY'),initial
     assert panels(r.dumps[3])==initial,'arrows must preserve side panels'
     for k,expected in enumerate(alerts.values()):
-        assert panels(r.dumps[4+2*k])[3]==expected,(expected,panels(r.dumps[4+2*k]))
+        assert panels(r.dumps[4+2*k])[1]==expected,(expected,panels(r.dumps[4+2*k]))
         inverse=list(alerts)[k]<9
-        assert warned(r.dumps[4+2*k],3,expected)==inverse, (expected,'warning contrast')
+        assert warned(r.dumps[4+2*k],1,expected)==inverse, (expected,'warning contrast')
         assert r.dumps[5+2*k]==b'\0','displayed transition must be consumed once'
-    assert panels(r.dumps[-4])[3]=='SWEATING' and panels(r.dumps[-3])[3]=='SHIVERING'
+    assert panels(r.dumps[-4])[1]=='SWEATING' and panels(r.dumps[-3])[1]=='SHIVERING'
     assert r.dumps[1]==r.dumps[-2] and r.dumps[2]==r.dumps[-1]
     print('  exact panel glyphs, arrow persistence, twelve transition messages and thermal hint priority: OK')
 
@@ -99,7 +99,7 @@ def transient_alerts():
         r=a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
         assert r.dumps[0]==r.dumps[1] and r.dumps[3]==r.dumps[4]
         assert r.dumps[2]==bytes((event-8,)) and r.dumps[5]==bytes((event,)),(name,r.dumps[2],r.dumps[5])
-        assert panels(r.dumps[6])[3]==label,(name,panels(r.dumps[6]))
+        assert panels(r.dumps[6])[1]==label,(name,panels(r.dumps[6]))
         assert r.dumps[7]==b'\0'
     for name,value,event in (('s_deff',120,6),('s_drink',13,2)):
         steps=[IDLE]+call(['thermal'])+poke('s_step',0)+[DONE,IDLE]
@@ -133,7 +133,7 @@ def transient_condition():
         assert r.dumps[0]==r.dumps[1] and r.dumps[3]==r.dumps[4], 'monitor must preserve simulation'
         assert r.dumps[2]==b'\x06'
         assert r.dumps[5]==bytes((14 if expected=='ILL IMPROVED' else 6,)), 'retain current warning or its matching recovery'
-        assert panels(r.dumps[6])[3]==expected,(before,after,panels(r.dumps[6]))
+        assert panels(r.dumps[6])[1]==expected,(before,after,panels(r.dumps[6]))
         assert r.dumps[7]==b'\0', 'displayed transition must be consumed once'
     print('  pending illness: three recoveries, persistent and replaced conditions display current state: OK')
 
@@ -152,7 +152,7 @@ def drinking_recovery():
             before=[s.step(L.peek(name,5)).data for name in ('s_hour','s_elap','s_health')]
             water=s.step(L.peek('it_pack_lo',1,22)).data[0]
             command(s,'DRINK WATER 64 OZ')
-            assert panels(s.step('peek:2000:8192').data)[3]==expected
+            assert panels(s.step('peek:2000:8192').data)[1]==expected
             assert s.step(L.peek('ui_previous',1,1)).data==b'\0'
             assert s.step(L.peek('ui_previous',1,5)).data==bytes((condition,))
             assert s.step(L.peek('ui_pending')).data==b'\0'
@@ -160,7 +160,7 @@ def drinking_recovery():
             assert before==[s.step(L.peek(name,5)).data for name in ('s_hour','s_elap','s_health')]
             s.step(L.poke('ui_dirty',1))
             command(s,'VIEW')
-            assert panels(s.step('peek:2000:8192').data)[3]==('DEHYDRATION' if condition else 'SHIVERING')
+            assert panels(s.step('peek:2000:8192').data)[1]==('DEHYDRATION' if condition else 'SHIVERING')
     print('  DRINK updates thirst/illness immediately, preserves clock/health and consumes recovery once: OK')
 
 
@@ -186,7 +186,7 @@ def ground_hint():
             for field in (3,5):
                 s.step(L.poke('ui_previous',0,field))
             command(s,'VIEW')
-            actual=panels(s.step('peek:2000:8192').data)[3]
+            actual=panels(s.step('peek:2000:8192').data)[1]
             assert actual==expected,(text,actual)
         for item in (22,24):
             assert s.step(L.peek('it_gnd_lo',1,item)).data==b'\0'
@@ -251,13 +251,15 @@ def inventory_status():
 
 
 def help_pages():
-    # Actual keyboard consultation must leave both the journey and HGR intact.
+    # Actual keyboard consultation must leave both the journey and the view
+    # intact: peek:2000:8192 reads both DHGR banks (16 KB, tests/common.py).
     size=L['s_t0']+5-L['s_hour']
     with a2test.Session(DISK) as s:
         s.step(IDLE)
         before=s.step(L.peek('s_hour',size)).data
         items=tuple(s.step(L.peek(name,76)).data for name in ('it_place','it_pack_lo','it_gnd_lo'))
         view=s.step('peek:2000:8192').data
+        assert len(view)==16384,'main and auxiliary banks'
         def page(key=None):
             if key is not None:
                 s.step(f'key:{key}')
@@ -304,7 +306,7 @@ def help_pages():
         assert s.step(L.peek('s_hour',size)).data==before
         assert tuple(s.step(L.peek(name,76)).data for name in ('it_place','it_pack_lo','it_gnd_lo'))==items
         assert s.step('peek:2000:8192').data==view
-    print('  welcome, three HELP pages, examples, selection/wrapping, ESC/RETURN; journey, supplies and view preserved: OK')
+    print('  welcome, three HELP pages, examples, selection/wrapping, ESC/RETURN; journey, supplies and both DHGR banks preserved: OK')
 
 
 def screen_links():
@@ -319,6 +321,7 @@ def screen_links():
         before=s.step(L.peek('s_hour',size)).data
         items=tuple(s.step(L.peek(name,76)).data for name in ('it_place','it_pack_lo','it_gnd_lo'))
         view=s.step('peek:2000:8192').data
+        assert len(view)==16384,'main and auxiliary banks'
         for source,key,target in links:
             s.step(f'key:{source}\\r')
             s.step(L.until(keys[source],20000))
@@ -329,10 +332,10 @@ def screen_links():
             s.step('key:\\e');s.step(IDLE)
             assert s.step(L.peek('s_hour',size)).data==before
             assert tuple(s.step(L.peek(name,76)).data for name in ('it_place','it_pack_lo','it_gnd_lo'))==items
-            # HGR holes also hold simulation scratch; compare displayed rows
-            # and the retained compass background, rather than those holes.
+            # Screen holes also hold simulation scratch; compare the displayed
+            # rows 0-175 of both DHGR banks (HUD, view and its cache) instead.
             assert hgr_rows(s.step('peek:2000:8192').data)==hgr_rows(view)
-    print('  nine direct HELP/INVENTORY/STATUS links, including TOPO; return preserves journey, stock and HGR: OK')
+    print('  nine direct HELP/INVENTORY/STATUS links, including TOPO; return preserves journey, stock and both DHGR banks: OK')
 
 
 def main_view_hints():
@@ -351,7 +354,7 @@ def main_view_hints():
             s.step(L.poke('ui_dirty',1))
             command(s,'VIEW')
             page=s.step('peek:2000:8192').data
-            assert panels(page)[3]==expected,(expected,panels(page))
+            assert panels(page)[1]==expected,(expected,panels(page))
             return page
         view('TOPO / HELP')
         command(s,'HANG FOOD')
@@ -364,10 +367,21 @@ def main_view_hints():
         for step in poke('s_eat',13)+poke('s_drink',13):
             s.step(step)
         page=view('TOPO / HELP')
-        assert panels(page)[1:3]==('HUNGER VERY','THIRST VERY')
-        for field in (1,2):
-            assert warned(page,field,'VERY'),'critical gauges must stand out (white on red)'
-            assert not warned(page,field,'HUNGER' if field==1 else 'THIRST')
+        # The lower right field shows the worse need, hunger when equal.
+        assert panels(page)[3]=='HUNGER VERY',panels(page)
+        assert warned(page,3,'VERY'),'critical gauges must stand out (white on red)'
+        assert not warned(page,3,'HUNGER')
+        for step in poke('s_eat',7):
+            s.step(step)
+        page=view('TOPO / HELP')
+        assert panels(page)[3]=='THIRST VERY',panels(page)
+        for step in poke('s_drink',0):
+            s.step(step)
+        page=view('TOPO / HELP')
+        assert panels(page)[3]=='HUNGER SO-SO',panels(page)
+        assert not warned(page,3,'SO-SO')
+        for step in poke('s_eat',13)+poke('s_drink',13):
+            s.step(step)
         s.step(L.poke('wet_mode',2))
         view('IMMERSED')
         from common import fp
@@ -376,7 +390,8 @@ def main_view_hints():
             s.step(step)
         page=view('IMMERSED')
         label=panels(page)[0]
-        percent=label.index('H=')+2
+        assert label.startswith('HEALTH '),label
+        percent=label.index(' ')+1
         assert warned(page,0,label[percent:]),'poor health must stay a warning'
         assert not warned(page,0,label[:percent])
     print('  daylight/night/hung-pack hints, remote pack excluded; severe gauges and immersion visible: OK')
@@ -461,8 +476,9 @@ def map_controls():
             assert ('P+C','P+H','P+R')[i%3] in screen[3],screen[3]
             if i%3==1: assert 'ENTER SHELTER' in screen[3]
             assert r.dumps[4+2*i]==bytes((24,33)), 'C must restore player-centred map'
-        assert r.dumps[1]==r.dumps[-2] and r.dumps[2]==r.dumps[-1], 'TOPO must preserve time and HGR'
-    print('  eight bearings with both magnetic declinations, C recenter, player/site overlaps, clock/HGR preserved: OK')
+        assert len(r.dumps[2])==16384,'main and auxiliary banks'
+        assert r.dumps[1]==r.dumps[-2] and r.dumps[2]==r.dumps[-1], 'MAP must preserve time and both DHGR banks'
+    print('  eight bearings with both magnetic declinations, C recenter, player/site overlaps, clock and both DHGR banks preserved: OK')
 
 if __name__=='__main__':
     summary_display();monitor();transient_alerts();transient_condition();drinking_recovery();ground_hint();inventory_status();help_pages();screen_links();main_view_hints();inventory_backward();timberline_display();map_controls()

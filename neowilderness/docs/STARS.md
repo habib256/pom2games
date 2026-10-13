@@ -6,7 +6,11 @@ nuit », « Ciel plus peuplé » et « LOOK STARS » ; [SCENARIOS.md](SCENARIOS.
 référence Python bit à bit, module 6502 horaire, routine de tracé, banc IIe
 autonome) **et dans le jeu** (section 10, `tests/test_stars_game.py`).
 Le 13 octobre 2026, le ciel est passé de **79 étoiles** (V ≤ 2,31, liste de
-32) à **282 étoiles** (V ≤ 3,50, liste de 160) : section 13.
+32) à **282 étoiles** (V ≤ 3,50, liste de 160) : section 13 ; le même jour,
+le catalogue a été refait **par figures** (42 constellations entières,
+jusqu'à V 4,95), avec la magnitude dans le pixel, la projection comprimée
+au-dessus de 45°, le ciel bleu sombre et le défilement des rotations en
+nuit noire : section 14.
 
 | Élément | Fichier | Taille |
 |---|---|---:|
@@ -32,20 +36,23 @@ Le 13 octobre 2026, le ciel est passé de **79 étoiles** (V ≤ 2,31, liste de
   (`tools/gentables.py`, quart d'onde, 560 unités par tour). Le module
   l'utilise telle quelle (valeur 256 ramenée à 255, produits 8 × 8 bits) :
   les étoiles partagent l'unité d'angle de la vue (1/560 tour = 0,643°).
-- **Même perspective que la Lune** : ligne = 95 − INT(48 tan h), comme
-  `sky_y` ; rangées 16 à 95 seulement (au-delà de 59° de hauteur l'étoile
-  serait dans les rangées cachées 0–15, comme la Lune).
+- **Même perspective que la Lune jusqu'à 45°** : ligne = 95 − INT(48 tan h),
+  comme `sky_y` ; au-dessus, les rangées 46 à 16 se partagent le reste de
+  sin h à parts égales (§ 14) : le zénith reste dans la vue, seule la Lune
+  disparaît au-delà de 59°.
 - **Tracé par colonne**, dans `render_sky`, après les zones de ciel et avant
   la Lune : le masque de crête (`top`) n'existe que pendant le rendu de la
   colonne ; mémoriser 140 sommets coûterait plus que la liste. Une rotation
   ne retrace que les colonnes révélées : une étoile ne dépend que de
   l'azimut de sa colonne.
 - **Visibilité par humeur** : humeurs de nuit seulement, jamais sous les
-  nuages ; pleine Lune (*night bright*) : première grandeur ; *night dim* :
-  classes 0–1 ; nuit noire : toutes.
+  nuages ; pleine Lune (*night bright*) : classe 0, les figures entières et
+  les étoiles plus brillantes que 2,0 ; *night dim* : classes 0–1 ; nuit
+  noire : toutes (§ 14).
 - **Priorité de sélection** : Polaris et les quatre étoiles de la Croix du
-  Sud passent avant l'ordre des magnitudes ; quand plus de 160 étoiles sont
-  levées (tropiques), les plus faibles tombent, jamais Polaris ni la Croix.
+  Sud, puis la classe 0 (figures), puis les étoiles de remplissage ; quand
+  plus de 160 entrées sont levées (tropiques), le remplissage tombe
+  d'abord, jamais Polaris ni la Croix.
 
 ## 2. Catalogue
 
@@ -193,8 +200,8 @@ une heure (≈ 0,5°).
 | Humeur (`sky_mood`) | Seuil | Étoiles |
 |---|---|---|
 | jour, couvert, doré, coucher, crépuscule couvert, civil, nautique | 0 | aucune |
-| *night bright* (pleine Lune haute ou basse) | `$40` | première grandeur (21 étoiles) |
-| *night dim* | `$80` | classes 0–1 (48 étoiles) |
+| *night bright* (pleine Lune haute ou basse) | `$40` | classe 0 : les 42 figures et les étoiles de V < 2,0 (265 étoiles, § 14) |
+| *night dim* | `$80` | classes 0–1 (279 étoiles) |
 | *night dark* (Lune couchée ou non pleine) | `$C0` | toutes (282) |
 | toute humeur avec `weather_sky` ≠ 0 | 0 | aucune |
 
@@ -202,10 +209,8 @@ Le crépuscule nautique n'est pas une humeur de nuit : pas d'étoiles avant
 `night` (`select_mood` n'entre dans les humeurs de nuit qu'avec `night`).
 Avec la règle `view_dark` du lot 3, *night dim* n'apparaît en jeu que sous
 les nuages (donc sans étoiles) ; le banc la force pour tester le seuil. Le
-paysage reste noir sans Lune : en nuit noire les étoiles s'arrêtent sur une
-crête invisible, elles ne l'éclairent pas. Les 203 étoiles ajoutées sont
-toutes de classe 2 : la pleine Lune montre exactement les mêmes étoiles
-qu'avant (Antares et Spica au sud de la Sierra le 6 mai).
+paysage reste noir sans Lune, mais le ciel de nuit noire est bleu foncé
+(§ 14) : la crête se découpe en silhouette sur les étoiles.
 
 ## 6. Tracé : par colonne, et pourquoi
 
@@ -395,11 +400,15 @@ Coûts mesurés en jeu : MEMORY.md § 9.7 et `BASELINE_DHGR.json`
 
 ## 12. Limites connues
 
-- La sélection garde 160 étoiles ; sous les tropiques jusqu'à 161 étoiles
-  du catalogue sont levées : la plus faible de la classe 2 disparaît
-  (jamais Polaris ni la Croix).
-- Au-delà de 59° de hauteur l'étoile tomberait dans les rangées cachées :
-  elle est omise (la Lune y est dessinée dans le cache, invisible).
+- La liste garde 160 entrées ; sous les tropiques jusqu'à 173 entrées sont
+  levées (Bolivia, 26 février 0 h 30, doublons des premières grandeurs
+  compris) : les étoiles de remplissage tombent d'abord, puis les plus
+  faibles des figures (jamais Polaris ni la Croix).
+- Au-delà de 86,4° de hauteur (`up >> 7` = 511) l'étoile est omise ; entre
+  45° et 86° la projection comprimée tasse les figures verticalement
+  (§ 14).
+- La seconde rangée d'une étoile à deux rangées peut tomber sur la rangée
+  de crête (noire) : le test de crête ne porte que sur la première.
 - Une étoile du disque lunaire est retirée pour l'heure entière ; la liste
   n'est recalculée qu'à la vue suivante après un changement d'heure.
 - Les longitudes au-delà de ±127° sont bornées (§ 4).
@@ -427,3 +436,58 @@ règle de la Lune (première grandeur seulement, 21 étoiles). L'ascension
 droite passant de 16 bits à 2 240 quarts d'unité, une étoile peut se
 déplacer d'une colonne à certaines heures (écart type de l'azimut inchangé,
 0,42 unité).
+
+## 14. Constellations entières (13 octobre 2026)
+
+Objectif : se repérer la nuit comme le jour. Une figure dont il manque une
+branche ne se reconnaît pas ; le catalogue par magnitude (V ≤ 3,50) cassait
+la Petite Ourse, les Hyades, les Gémeaux, la Faucille, la Lyre, la Clé de
+voûte, la Couronne boréale… Cinq changements, à mémoire constante :
+
+1. **Catalogue par figures** (`tools/stars_catalog.FIGURES`, 42 figures,
+   262 étoiles) : les 44 étoiles qui complètent les figures (V 3,39 à
+   4,95 : bol de la Petite Ourse, Hyades, Gémeaux, μ et η Leo, Couronne
+   boréale, parallélogramme de la Lyre, β et η Aql, ζ² et ν Sco, ε et η Her,
+   ε Cru, α Crv…) remplacent les 44 étoiles isolées les plus faibles
+   (V 3,04 à 3,50 : τ Cet, pattes de la Grande Ourse, Hydre, Poupe…).
+   Toujours 282 étoiles, 846 octets ; lumière combinée pour λ Ori, γ Vir,
+   γ Ari et ν Sco (BSC5 V/50).
+2. **Classe = appartenance à une figure**, déduite de l'indice comme avant :
+   ordre Polaris et Croix, puis classe 0 (figures et V < 2,0 : Canopus,
+   Achernar, Fomalhaut… 265 étoiles), classe 1 (remplissage V < 3,0, 14),
+   classe 2 (3). Seuils inchangés (`$40`, `$80`, `$C0`) : la pleine Lune
+   montre les figures entières ; une liste pleine perd le remplissage
+   d'abord. `STAR_K1` = 265 dépasse 255 : `st_append` compare l'indice sur
+   16 bits.
+3. **Magnitude dans le pixel.** Le champ teinte devient un *look* (bits
+   5–4) : 0 blanc, 1 jaune, 2 bleu pâle (deux rangées, V < 3,0) ; 3 **faible**
+   (V ≥ 3,0, 115 étoiles) : une rangée grise (`STAR_SOLID3` = `$AA`,
+   `st_len`). Le bit 6 marque la **première grandeur** (V < 1,5, 21
+   étoiles) : le module écrit l'étoile deux fois, une rangée plus bas (trois
+   rangées au total, rien de plus dans le tracé). `st_solid`, `st_len` et
+   `st_thresholds` passent en WILDLO : `SKYRES` reste à 482 octets
+   (`$DE18-$DFF9`, 6 libres) avec la liste de 160.
+4. **Projection comprimée au-dessus de 45°.** T[k] garde ⌈512 k/√(k² +
+   48²)⌉ jusqu'à k = 48 (ligne 47, 45°) ; au-delà T[k] = arrondi(363 +
+   (k − 48) × 148/32) : les rangées 46 à 16 se partagent sin h de 363/512
+   à 511/512 à parts égales (0,8°/rangée à 45°, 1,6° à 70°, 3° à 80°). La
+   Grande Ourse et Cassiopée restent visibles à leur culmination depuis la
+   Sierra et la Colombie-Britannique ; une étoile n'est omise qu'au-delà de
+   86,4°. La Lune garde sa perspective (`sky_y`) et son masque ne s'applique
+   qu'à une Lune dessinée (16 ≤ `sky_y` ≤ 95) ; au-delà de 45° une étoile
+   proche d'une Lune haute n'est donc plus masquée.
+5. **Ciel bleu foncé en nuit noire** (`dhgr_palette`, zones `DARK_BLUE`) :
+   la crête noire se découpe, une figure coupée par une montagne se lit
+   comme telle. Et **les rotations défilent en nuit noire** comme le jour
+   (`turn_view` ne redessine plus toute la vue quand `view_dark` est à 1 :
+   la règle du lot 3 datait de la nuit sans étoiles) : 35 colonnes
+   retracées par pas de 22,5°, liste inchangée jusqu'à l'heure suivante.
+
+Mesures (banc `make -f stars.mk test`, mêmes scènes qu'au § 13) : module
+311 050 à 340 586 cycles (0,33 s au pire ; 2 367 octets, +30), tracé
+24 826 à 35 176 cycles par vue complète (54 à 82 pixels d'étoiles ;
+Sierra nord : +35 864 cycles sur la même vue sans étoiles), liste de 135 à
+160 entrées. Le stock de modules garde 168 octets libres avec Burma.
+`tests/test_stars_ref.py` vérifie chaque figure complète, les deux entrées
+des premières grandeurs, la table T et la projection ; le banc et
+`test_stars_game.py` comparent toujours liste et banques bit à bit.

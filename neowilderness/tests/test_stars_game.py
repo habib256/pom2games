@@ -11,7 +11,7 @@ After each view:
     game's own date, hour and Moon (sky_bearing, sky_y);
   - the mood is the game's, and the view equals tools/dhgr_ref.view with
     that list (threshold of the mood: none by day, twilight or clouds;
-    first magnitude under the bright Moon; all in the dark night);
+    the figures under the bright Moon; all in the dark night);
   - no MLI call: module 25 and the catalogue's head (24) are RAM copies
     from the module store into the SIM window.
 The Sun and Moon discs are switched off (sky_enabled 0, as in
@@ -44,9 +44,9 @@ def main():
              ('noon', MAY_6, 12, 280, 0),
              ('Sirius, 1 January 0 h', 0, 0, 280, 0),
              ('full Moon night', full_day, 23, 280, 0)]
-    # Turns after a case: in the dark night turn_view redraws the whole view
-    # (show_view); under the full Moon it scrolls and draws the revealed
-    # columns only (35 per turn), across north from 280: 315 ... 245.
+    # Turns after a case: every night turn scrolls and draws the revealed
+    # columns only (35 per turn; the dark night too since the figures lot),
+    # across north from 280: 315 ... 245.
     turns = {'Sirius, 1 January 0 h': ['>', '<'],
              'full Moon night': ['>', '>', '<', '<', '<']}
     list_bytes = 2 * stars_ref.LIST_MAX + stars_ref.BUCKETS
@@ -113,7 +113,7 @@ def main():
     assert by['north, Polaris'][2] == 0xC0 and by['south'][2] == 0xC0, 'dark night: every star'
     assert by['south under clouds'][2] == 0 and by['noon'][2] == 0, 'no star by day or under clouds'
     assert 'POLARIS' in by['north, Polaris'][5], 'Polaris drawn'
-    assert by['full Moon night'][2] == 0x40, 'full Moon: first magnitude only'
+    assert by['full Moon night'][2] == 0x40, 'full Moon: class 0 (figures) only'
     for label, mood, thr, count, head, shown in report:
         print(f'  {label}: {mood}, heading {head}, threshold ${thr:02X}, list {count}, '
               f'{len(shown)} stars drawn ({", ".join(sorted(shown)) or "-"}): OK')

@@ -44,34 +44,44 @@ Position of a catalogue star (tools/stars_catalog.py, 3-byte records):
   declination lies across the equator from the latitude with dec_u + lat_u
   > 140 never rises: the module skips it before H (up <= 0 at every H,
   S being monotonic and cdcH <= cd), which changes no result. h = number of
-  T[k] <= up >> 7, T[k] = ceil(512 k / sqrt(k^2 + 48^2)), k = 1..80: the
-  Moon's perspective (sky_y = 95 - INT(48 tan alt)) at 1/512 resolution in
-  sin(alt); h = 80 is above the view (row < 16). row = 95 - h. The table
-  holds T[k] & 255; T[k] >= 256 from k = T_HIGH + 1 on (the sin_lo trick).
+  T[k] <= up >> 7, k = 1..80: T[k] = ceil(512 k / sqrt(k^2 + 48^2)) for
+  k <= 48, the Moon's perspective (sky_y = 95 - INT(48 tan alt)) at 1/512
+  resolution in sin(alt), up to 45 degrees (row 47); above, T[k] = round(363
+  + (k - 48) * 148 / 32): the rows 46..16 share the remaining sin(alt)
+  evenly, so that the zenith stays in the view (the Moon alone keeps its
+  perspective and hides above 59 degrees). h = 80 (up >> 7 = 511, alt >=
+  86.4 degrees) is above the view. row = 95 - h. The table holds T[k] &
+  255; T[k] >= 256 from k = T_HIGH + 1 on (the sin_lo trick).
   Azimuth: |E|, |N| halved when either reaches 65536; q = (small << 8) //
   large (small < large), r = (q + 1) >> 1 (128 when equal), a = AT[r] =
   round(atan(r / 128) * 560 / 2 pi); a' = a if |E| <= |N| else 140 - AT[r of
   N / E]; az = a' (E >= 0, N >= 0), 280 - a' (E >= 0, N < 0), 280 + a'
   (E < 0, N < 0), (560 - a') mod 560 (E < 0, N >= 0).
-  Moon: hidden if sky_y <= 95, d = (az - sky_bearing + 5) mod 560 < 11 and
-  |row - sky_y| <= sky_outer[d] (the full outer disc of src/sky.s).
-Visible list: the first LIST_MAX (160) stars of the catalogue (selection
-order: Polaris and the four stars of the Cross, then by magnitude) that
-pass, grouped by azimuth bucket b = az >> 4 (16 units, 0..34) in catalogue
-order within a bucket (a stable counting sort), with bucket starts B[b] =
-first index of bucket >= b, b = 0..35 (B[35] = count). Entry, 2 bytes:
-attr = class << 6 | tint << 4 | (az & 15), row. The class (from the index,
+  Moon: hidden if 16 <= sky_y <= 95 (a drawn Moon), d = (az - sky_bearing
+  + 5) mod 560 < 11 and |row - sky_y| <= sky_outer[d] (the full outer disc
+  of src/sky.s).
+Visible list: the first LIST_MAX (160) entries of the catalogue (selection
+order: Polaris and the four stars of the Cross, then class 0, 1, 2, each by
+magnitude) that pass, grouped by azimuth bucket b = az >> 4 (16 units,
+0..34) in catalogue order within a bucket (a stable counting sort), with
+bucket starts B[b] = first index of bucket >= b, b = 0..35 (B[35] = count).
+A first-magnitude star (record bit 6) gives two consecutive entries, the
+second one row below (the list may end between them). Entry, 2 bytes:
+attr = class << 6 | look << 4 | (az & 15), row. The class (from the index,
 tools/stars_catalog.class_layout) compares below any threshold of the same
 class; the low azimuth bits identify the star's column inside its bucket.
 
 Drawing (stars_frame / stars_column, per column after the sky zones and
-before the Moon): threshold = $40 (night bright: first magnitude only), $80
-(night dim), $C0 (night dark), 0 otherwise or whenever weather_sky != 0; the
-entries of the column's bucket are scanned from the last to the first (the
-brightest is painted last, on top of a fainter star of the same pixel); a
-star of the column's azimuth is one pixel at its row, colour COLOURS[tint],
-if attr < threshold and row < top (the ridge); opaque sprite rows are kept
-(scene_span), trees are painted afterwards.
+before the Moon): threshold = $40 (night bright: class 0, the figures and
+the stars brighter than 2.0), $80 (night dim: classes 0-1), $C0 (night
+dark: every star), 0 otherwise or whenever weather_sky != 0; the entries of
+the column's bucket are scanned from the last to the first (the brightest
+is painted last, on top of a fainter star of the same pixel); an entry of
+the column's azimuth with attr < threshold and row < top (the ridge) is a
+span of ROWS[look] rows from its row (2 in the tint, 1 grey for the faint
+look; the second row may be the black ridge row), colour COLOURS[look];
+opaque sprite rows are kept (scene_span), trees are painted afterwards. A
+first-magnitude star, two entries one row apart, is 3 rows high.
 
 Usage: stars_ref.py [--out build/stars]   (PNG previews, almanac summary)
 """
@@ -92,7 +102,8 @@ BUCKET_SHIFT = 4                        # 16 azimuth units per bucket
 BUCKETS = 36                            # az >> 4 = 0..34, then the count
 RA_UNITS = K.RA_UNITS                   # 2240: quarter view units
 SKY_OUTER = (3, 5, 6, 7, 7, 8, 7, 7, 6, 5, 3)   # src/sky.s sky_outer
-COLOURS = (P.WHITE, P.YELLOW, P.LIGHT_BLUE)     # tint 0, 1, 2
+COLOURS = (P.WHITE, P.YELLOW, P.LIGHT_BLUE, P.GREY2)   # look 0, 1, 2, 3 (faint)
+ROWS = (2, 2, 2, 1)                             # rows of a span per look
 THRESHOLD = {'night bright': 0x40, 'night dim': 0x80, 'night dark': 0xC0}
 MOOD_IDS = {m: i for i, m in enumerate(P.MOODS)}
 DAY0 = -5477                            # Schlyter day number of 1985 Jan 1 0 h UT (sky_ephemeris.entry)
@@ -127,14 +138,17 @@ def sun_ra16(day):
 
 
 C_TABLE = tuple((sun_ra16(8 * i) - 32768) & 0xFFFF for i in range(47))
-T_TABLE = tuple(math.ceil(512 * k / math.sqrt(k * k + 48 * 48)) for k in range(1, H_MAX + 1))
+KNEE = 48                               # row 47: 45 degrees; above, even in sin(alt)
+T_TABLE = tuple(math.ceil(512 * k / math.sqrt(k * k + 48 * 48)) if k <= KNEE
+                else round(363 + (k - KNEE) * 148 / (H_MAX - KNEE)) for k in range(1, H_MAX + 1))
 T_HIGH = next(j for j, t in enumerate(T_TABLE) if t >= 256)     # first entry >= 256
 AT_TABLE = tuple(round(math.atan(r / 128) * UNITS / (2 * math.pi)) for r in range(129))
 CATALOGUE = K.stars()
 LAYOUT = K.class_layout(CATALOGUE)      # priority classes, first index of classes 1 and 2
 assert all(K.star_class(k, LAYOUT) == s['cls'] for k, s in enumerate(CATALOGUE))
 assert all(0 < (C_TABLE[i + 1] - C_TABLE[i]) & 0xFFFF < 4096 for i in range(46))
-assert T_TABLE[-1] < 512 and AT_TABLE[-1] == 70
+assert T_TABLE[KNEE - 1] == 363 and T_TABLE[-1] == 511 and AT_TABLE[-1] == 70
+assert all(a < b for a, b in zip(T_TABLE, T_TABLE[1:]))
 
 
 # ---------------------------------------------------------------------------
@@ -212,27 +226,31 @@ def position(lst, lat, star):
 
 
 def behind_moon(az, row, moon):
-    """moon = (sky_bearing, sky_y): the outer disc of sky_column."""
-    if moon is None or moon[1] > HORIZON:
+    """moon = (sky_bearing, sky_y): the outer disc of sky_column, when the
+    Moon is drawn (rows 16..95)."""
+    if moon is None or moon[1] > HORIZON or moon[1] < HUD_ROWS:
         return False
     d = (az - moon[0] + 5) % UNITS
     return d < 11 and abs(row - moon[1]) <= SKY_OUTER[d]
 
 
 def list_attr(k, star, az):
-    """Byte `attr` of a list entry: class (from the index) << 6 | tint << 4
+    """Byte `attr` of a list entry: class (from the index) << 6 | look << 4
     | azimuth & 15."""
-    return K.star_class(k, LAYOUT) << 6 | star['tint'] << 4 | az & 15
+    return K.star_class(k, LAYOUT) << 6 | star['look'] << 4 | az & 15
 
 
 def entry(attr, row, az):
-    """A list entry as the drawing sees it (also decoded from memory)."""
-    return dict(az=az, row=row, attr=attr, colour=COLOURS[attr >> 4 & 3])
+    """A list entry as the drawing sees it (also decoded from memory):
+    colour and span rows of its look."""
+    look = attr >> 4 & 3
+    return dict(az=az, row=row, attr=attr, colour=COLOURS[look], rows=ROWS[look])
 
 
 def visible(day, minute, lat, lon, moon=None, limit=LIST_MAX):
-    """The selected stars in catalogue (selection) order, at most LIST_MAX:
-    [dict(index, star, az, row, attr, colour, up)]."""
+    """The selected entries in catalogue (selection) order, at most
+    LIST_MAX: [dict(index, star, az, row, attr, colour, rows, up)]; a
+    first-magnitude star twice, one row apart."""
     lst = lst16(day, minute, lon)
     out = []
     for k, star in enumerate(CATALOGUE):
@@ -241,9 +259,10 @@ def visible(day, minute, lat, lon, moon=None, limit=LIST_MAX):
         up, az, row = position(lst, lat, star)
         if row is None or behind_moon(az, row, moon):
             continue
-        out.append(dict(entry(list_attr(k, star, az), row, az), index=k, star=star, up=up))
-        if len(out) == limit:
-            break
+        for r in range(row, row + 1 + star['big']):
+            out.append(dict(entry(list_attr(k, star, az), r, az), index=k, star=star, up=up))
+            if len(out) == limit:
+                return out
     return out
 
 
@@ -326,7 +345,8 @@ def draw_columns(page, heading, cols, tops, mood, entries, thr):
             continue
         for v in paint_order(entries):
             if v['az'] == az and v['attr'] < thr and v['row'] < top:
-                page[physical(v['row'])][col] = v['colour']
+                for r in range(v['row'], v['row'] + v['rows']):
+                    page[physical(r)][col] = v['colour']
 
 
 def frame(heading, tops, mood, entries, thr, cols=range(140)):
@@ -342,7 +362,8 @@ def star_pixels(heading, tops, entries, thr):
         az = column_az(heading, col)
         for v in paint_order(entries):
             if thr and v['az'] == az and v['attr'] < thr and v['row'] < tops[col]:
-                out[(col, v['row'])] = v['colour']
+                for r in range(v['row'], v['row'] + v['rows']):
+                    out[(col, r)] = v['colour']
     return out
 
 
@@ -393,7 +414,10 @@ def altaz_float(day, minute, lat, lon, ra, dec):
 
 
 def row_float(alt):
-    return HORIZON - 48 * math.tan(math.radians(alt))
+    """The row of T_TABLE's two projections, as a float (no INT)."""
+    if alt <= 45:
+        return HORIZON - 48 * math.tan(math.radians(alt))
+    return HORIZON - KNEE - (512 * math.sin(math.radians(alt)) - 363) * (H_MAX - KNEE) / 148
 
 
 # ---------------------------------------------------------------------------
@@ -441,7 +465,8 @@ def panorama(day, minute, lat, lon, moon=None, thr=0xC0):
             page[r][c] = P.DARK_BLUE                # N, E, S, W marks
     for v in paint_order(visible(day, minute, lat, lon, moon)):
         if v['attr'] < thr:
-            page[v['row']][v['az']] = v['colour']
+            for r in range(v['row'], min(v['row'] + v['rows'], 96)):
+                page[r][v['az']] = v['colour']
     return page
 
 

@@ -11,8 +11,8 @@ def displays(s, header, status):
     before = s.step(L.peek('s_hour', 5)).data
     s.step(L.poke('ui_dirty', 1))
     command(s, 'VIEW')
-    actual = panels(s.step('peek:2000:8192').data)[0]
-    assert actual.startswith(header + ' '), (header, actual)
+    actual = panels(s.step('peek:2000:8192').data)[2]
+    assert actual == header + ' DAY 1', (header, actual)
     s.step('key:STATUS')
     s.step('press:\\r')
     s.step(L.until('status_key', 20000))
@@ -42,7 +42,16 @@ def main():
             for offset, value in enumerate(encode(hour)):
                 s.step(L.poke('s_hour', value, offset))
             displays(s, header, status)
-    print('Clock: real 18-minute walk (19 requested), minute/hour/noon/midnight boundaries; HUD and STATUS agree; time preserved')
+        # Journey day of the right panel: day of year - 125, + 365 across
+        # New Year (the crash of May 6 is day 1); 16-bit from September 12.
+        for date, expected in ((0.34442, 1), (299.5 / 365, 175), (364.5 / 365, 240), (0, 241)):
+            for offset, value in enumerate(encode(date)):
+                s.step(L.poke('s_date', value, offset))
+            s.step(L.poke('ui_dirty', 1))
+            command(s, 'VIEW')
+            actual = panels(s.step('peek:2000:8192').data)[2]
+            assert actual == f'0:00 DAY {expected}', (date, actual)
+    print('Clock: real 18-minute walk (19 requested), minute/hour/noon/midnight boundaries; HUD and STATUS agree; time preserved; journey day')
 
 
 if __name__ == '__main__':

@@ -19,9 +19,9 @@
 ; mli_call -- A = MLI command, X/Y = parameter list. Returns the MLI C/A.
 ;   Every MLI call of the game goes through it: mli_calls/mli_bytes count
 ;   them, including the loader's calls made before the game started.
-; geo_load -- A = native geography bank 0..23 (overlay IDs 32..55) ->
-;   $5800..$5FFF (2 KB) from NEOWILD.GEO. The only disk access left after the preload; it exists only
-;   on comparison disks built with the original fine geography (lot 5).
+; Native fine geography (lot 5) is resident in the auxiliary language card
+;   (src/geoaux.s): no disk access is left during play but NEOWILD.END and
+;   NEOWILD.HOF at the end of a journey (lot 7).
 ; prodos_exit / reset_exit -- leave to ProDOS: text, banks, /RAM, bitmap,
 ;   RESET vector and zero page restored, then MLI QUIT.
 ; prodos_restore -- the same restoration without QUIT: module_restart (INPUT)
@@ -42,13 +42,13 @@ ALTCHAROFF = $C00E
 LCRAM2    = $C080               ; read language card RAM bank 2, write protect
 LCROM     = $C082               ; read ROM, write protect
 LCRAM1    = $C088
+LCBANK1   = $C08B               ; read and write RAM bank 1 (read twice)
 MLI       = $BF00
 PD_BITMAP = $BF58
 PD_DEVNUM = $BF30
 
 MOD_COUNT = 26                  ; directory entries: TOPOGEN + modules 1..25
                                 ; (23 fourth species, 24 hall of fame, 25 stars)
-GEO_FIRST = 32                  ; overlay IDs 32..55: native geography banks
 DIR_SIZE  = 7                   ; bank, source, length, destination
 XFER_RUN  = $0120               ; stack-page copy loop while RAMRD is on
 
@@ -70,12 +70,15 @@ mem_ready:  .res 1              ; 1 once the loader handed over to the game
 ; State captured by NEOWILD.SYSTEM at entry, restored at exit.
 saved_reset: .res 3
 saved_bitmap: .res 24
-geo_path:   .res 40             ; full pathname of NEOWILD.GEO, length first
+geo_path:   .res 40             ; "/VOLUME/NEOWILD.GEO", length first: the
+                                ; template of the NEOWILD.END/.HOF paths (HOF_PATH)
+geo_decodes: .res 2             ; fine geography tiles decoded (src/geoaux.s)
+geo_queries: .res 3             ; fine geography queries (native maps)
 xfer_80:    .res 1
 xfer_wrt:   .res 1
 xfer_lc:    .res 1
 .export mli_calls, mli_reads, mli_bytes, xfer_count, xfer_bytes, mem_ready
-.export saved_reset, saved_bitmap, geo_path
+.export saved_reset, saved_bitmap, geo_path, geo_decodes, geo_queries
 
 .segment "REGIONTEXT"
 ; Written by the region pack NEOWILD.Rn (tools/build_disk.py region_texts),
@@ -341,65 +344,6 @@ mli_parm: .word 0
         plp
         rts
 .export mli_call
-
-; ----------------------------------------------------------------------------
-; Native fine geography: bank A (0..23) of NEOWILD.GEO into $5800.
-geo_load:
-        asl     a               ; mark = bank * 2048
-        asl     a
-        asl     a
-        sta     geo_mark+1
-        lda     #0
-        sta     geo_mark
-        sta     geo_mark+2
-        lda     #<geo_path
-        sta     geo_open+1
-        lda     #>geo_path
-        sta     geo_open+2
-        lda     #$C8            ; OPEN
-        ldx     #<geo_open
-        ldy     #>geo_open
-        jsr     mli_call
-        bcs     geo_fail
-        lda     geo_open+5
-        sta     geo_setmark+1
-        sta     geo_read+1
-        sta     geo_close+1
-        lda     #$CE            ; SET_MARK
-        ldx     #<geo_setmark
-        ldy     #>geo_setmark
-        jsr     mli_call
-        bcs     geo_fail
-        lda     #$CA            ; READ
-        ldx     #<geo_read
-        ldy     #>geo_read
-        jsr     mli_call
-        bcs     geo_fail
-        lda     #$CC            ; CLOSE
-        ldx     #<geo_close
-        ldy     #>geo_close
-        jmp     mli_call
-geo_fail:
-        jsr     prodos_text
-        ldx     #0
-:       lda     geo_error,x
-        beq     :+
-        ora     #$80
-        jsr     COUT
-        inx
-        bne     :-
-:       jsr     wait_key
-        jmp     prodos_exit
-geo_error: .byte 13, "NEOWILD.GEO: DISK ERROR. PRESS A KEY.", 0
-geo_open:   .byte 3
-            .word 0, io_buffer
-            .byte 0
-geo_setmark: .byte 2, 0
-geo_mark:   .byte 0, 0, 0
-geo_read:   .byte 4, 0
-            .word $5800, $0800, 0
-geo_close:  .byte 1, 0
-.export geo_load
 
 ; ----------------------------------------------------------------------------
 ; prodos_text -- main banks, ROM, 40-column text page 1, full screen.

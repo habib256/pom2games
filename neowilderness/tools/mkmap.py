@@ -10,7 +10,11 @@ random sources to an edge or confluence and fill real pits to their spill
 level. The drainage reconstruction is not the original TMAKE machine code.
 
 The game reads the map as a grid of 112 x 84 cells (one cell = 2 units = one
-ray step), see map_bin(). Usage: mkmap.py [--seed N] [--level L] OUT.bin [PREVIEW.png]
+ray step), see map_bin(). The fine 224 x 168 geography it is reduced from can
+be exported (fine_bytes(), --fine) or appended to a native map (--native,
+header byte 37), whose atlas tools/build_disk.py makes resident (lot 5).
+Usage: mkmap.py [--seed N] [--level L] [--region N] [--fine FINE.bin] [--native]
+OUT.bin [PREVIEW.png]
 
 --region N (1-6) writes the parameters of the original region N into the
 header (region_header(): latitude, January/July temperatures, wind, climate
@@ -62,6 +66,7 @@ class Map:
         self.place_mountains()
         self.heights()
         self.water = [[False] * W for _ in range(H)]
+        self.lake = [[False] * W for _ in range(H)]
         self.rivers(rivers)            # Sierra $60AC = 13 river sources
         self.forest = forests(seed, level)
 
@@ -153,6 +158,7 @@ class Map:
             source = (20+int(self.rnd.random()*184), 20+int(self.rnd.random()*128))
             cursor = source
             planned = {}
+            basin = set()
             path = []
             while cursor is not None:
                 x, y = cursor
@@ -166,6 +172,7 @@ class Map:
                     # an unbounded artificial lake across the whole plateau.
                     pending = [cursor]
                     planned[cursor] = level
+                    basin.add(cursor)
                     while pending:
                         i, j = pending.pop()
                         for dx, dy in NEIGHBORS:
@@ -175,6 +182,7 @@ class Map:
                                     and levels[yy][xx] == level
                                     and ground[yy][xx] < level):
                                 planned[xx, yy] = level
+                                basin.add((xx, yy))
                                 pending.append((xx, yy))
                 else:
                     planned[cursor] = level
@@ -191,6 +199,10 @@ class Map:
             if not planned or protected.intersection(planned):
                 continue
             for (x, y), height in planned.items():
+                if not self.water[y][x]:
+                    if not hasattr(self, 'lake'):    # maps assembled by tests
+                        self.lake = [[False] * W for _ in range(H)]
+                    self.lake[y][x] = (x, y) in basin
                 self.water[y][x] = True
                 self.h[y][x] = height
             self.river_sources.append(source)
@@ -254,6 +266,35 @@ def forest_at(data, x, y):
     if len(data) < MAP_BYTES+FOREST_BYTES or not data[26] or not (0<=x<GW and 0<=y<GH):
         return False
     return bool(data[MAP_BYTES+(y//2)*7+(x//2)//8] & (1<<((x//2)%8)))
+
+
+FINE_BYTES = W * H + (W // 8) * H     # 42 336: native cells, then woodland
+
+
+def fine_bytes(h, water, woods=None, lake=None):
+    """The fine geography of a native map (format of the Sierra comparison
+    maps, tests/test_adventure.original_map): one byte per unit, row-major,
+    level | $80 for water with bit 6 = lake (water levels fit six bits), then
+    the woodland bitmap, 28 bytes per row, least significant bit first.
+    """
+    cells = bytearray()
+    for y in range(H):
+        for x in range(W):
+            level = h[y][x]
+            if water[y][x]:
+                if not 0 <= level < 64:
+                    raise ValueError(f'water level {level} at ({x}, {y}) does not fit 6 bits')
+                level |= 0x80 | (0x40 if lake is not None and lake[y][x] else 0)
+            elif not 0 <= level <= MAX_LEVEL:
+                raise ValueError(f'level {level} at ({x}, {y}) outside 0..{MAX_LEVEL}')
+            cells.append(level)
+    bits = bytearray((W // 8) * H)
+    if woods is not None:
+        for y in range(H):
+            for x in range(W):
+                if woods[y][x]:
+                    bits[y * (W // 8) + x // 8] |= 1 << (x % 8)
+    return bytes(cells + bits)
 
 
 def heading_to(sx, sy, tx, ty):
@@ -409,6 +450,9 @@ def main():
     ap.add_argument('--seed', type=int, default=None, help='default 1985, or REGION_SEEDS')
     ap.add_argument('--level', type=int, default=4, choices=range(1, 11), metavar='1..10')
     ap.add_argument('--region', type=int, choices=range(1, 7), metavar='1..6')
+    ap.add_argument('--fine', metavar='FINE.bin', help='also write the 224 x 168 fine geography')
+    ap.add_argument('--native', action='store_true',
+                    help='native map: header byte 37 set, fine geography appended (lot 5)')
     ap.add_argument('out')
     ap.add_argument('preview', nargs='?')
     a = ap.parse_args()
@@ -422,8 +466,15 @@ def main():
         m = Map(seed, a.level)
     head = heading_to(*m.start, W // 2, H // 2)
     out = map_bin(m.h, m.water, m.start, m.goal, head, a.level, woods=m.forest, region=region)
+    fine = fine_bytes(m.h, m.water, m.forest, m.lake) if a.fine or a.native else None
+    if a.native:
+        out = bytearray(out)
+        out[37] = 1
+        out = bytes(out) + fine
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     open(a.out, 'wb').write(out)
+    if a.fine:
+        open(a.fine, 'wb').write(fine)
     if a.preview:
         preview(a.preview, m.h, m.water, ((m.start, b'\xff\x00\x00'), (m.goal, b'\xff\xff\x00')), m.forest,
                 SNOW if region is None else region['snow'])

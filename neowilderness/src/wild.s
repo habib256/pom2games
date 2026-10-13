@@ -902,6 +902,7 @@ STARS_LIST_LC = 1
         .include "outdoor.s"
         .include "water.s"
         .include "geography.s"
+        .include "geoaux.s"
         .include "hof.s"        ; segment HOF: build/wildhof.bin ($9600)
 
 ; dev/lib/prodos/video.s borrows two cc65 temporaries, only at boot and exit:

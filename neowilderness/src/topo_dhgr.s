@@ -1171,8 +1171,16 @@ tp_marker_row:
 TP_LC1 = $C08B                  ; RAM bank 1, read and write
 TP_LC2 = $C083                  ; RAM bank 2, read and write
 TP_SPLIT = 153
+; A native map keeps its fine geography in bank 1 and the common area
+; (src/geoaux.s): no snapshot there, topo_close answers C set and the view is
+; redrawn (shipped regions are legacy maps: they keep the snapshot).
 tp_save:
+        lda     MAP+37
+        beq     :+
         lda     #0
+        sta     tp_valid
+        rts
+:       lda     #0
         beq     tp_copy
 topo_close:
         lda     tp_valid

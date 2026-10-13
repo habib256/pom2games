@@ -28,11 +28,17 @@ def test_catalogue():
     assert len(cat) == 282 and len(K.encode()) == 846
     assert len({s['name'] for s in cat}) == len(cat), 'unique names'
     assert [s['name'] for s in cat[:5]] == ['ACRUX', 'MIMOSA', 'GACRUX', 'POLARIS', 'IMAI']
-    rest = [s['v'] for s in cat[5:]]
-    assert rest == sorted(rest), 'magnitude order after the priority stars'
-    assert max(s['v'] for s in cat) == 3.50 and sum(s['v'] <= 2.31 for s in cat) == 78
-    assert sum(s['cls'] == 0 for s in cat) == 21          # first magnitude, Sirius..Regulus
-    assert R.LAYOUT == ((0, 0, 1, 1, 2), (24, 49))
+    rest = [(s['cls'], s['v']) for s in cat[5:]]
+    assert rest == sorted(rest), 'class, then magnitude order after the priority stars'
+    assert max(s['v'] for s in cat) == 4.95 and sum(s['v'] <= 2.31 for s in cat) == 78
+    assert sum(s['big'] for s in cat) == 21               # first magnitude, Sirius..Regulus
+    assert sum(s['figure'] for s in cat) == 262 and sum(s['cls'] == 0 for s in cat) == 265
+    assert sum(s['look'] == K.FAINT for s in cat) == 115  # V >= 3.0: one grey row
+    assert R.LAYOUT == ((0, 0, 0, 0, 0), (265, 279))
+    assert all(s['figure'] or s['v'] < 2.0 for s in cat if s['cls'] == 0)
+    assert all(not s['figure'] and 2.0 <= s['v'] < 3.0 for s in cat if s['cls'] == 1)
+    for name, stars in K.FIGURES.items():                 # every figure is complete
+        assert all(any(s['bayer'] == b for s in cat) for b in stars), name
     # Sources: the 79 brightest from Hipparcos (positions, SIMBAD) and the
     # Bright Star Catalogue (V, B-V); the 203 others from the BSC5 (CDS V/50).
     sources = [s['source'] for s in cat]
@@ -40,6 +46,7 @@ def test_catalogue():
                                                     if x != 'Hipparcos')
     hr = {int(s['source'][8:]): s for s in cat if s['source'] != 'Hipparcos'}
     assert len(hr) == 203 and 5958 not in hr and 681 not in hr     # T CrB, Mira left out
+    assert 509 not in hr and 3659 not in hr                        # tau Cet, lone faint fillers out
     # Pins: BSC5 values (J2000) and 1985.0 records of a few additions.
     pins = {39: ('GAM PEG', 2.83, -0.23, 3.309, 15.184), 99: ('ALF PHE', 2.39, 1.09, 6.571, -42.306),
             4295: ('BET UMA', 2.37, -0.02, 165.460, 56.383),
@@ -47,20 +54,23 @@ def test_catalogue():
             8414: ('ALF AQR', 2.96, 0.98, 331.446, -0.320),      # -0 deg 19': sign kept
             7710: ('TET AQL', 3.23, -0.07, 302.826, -0.821),
             1865: ('ALF LEP', 2.58, 0.21, 83.182, -17.822),
-            5602: ('BET BOO', 3.50, 0.97, 225.487, 40.391)}    # the faintest kept
+            5602: ('BET BOO', 3.50, 0.97, 225.487, 40.391),    # the kite of Bootes
+            6789: ('DEL UMI', 4.36, 0.02, 263.054, 86.586),    # the bowl of the Little Dipper
+            5889: ('DEL CRB', 4.63, 0.80, 237.399, 26.068),    # the faintest but eta UMi
+            4825: ('GAM VIR', 2.91, 0.36, 190.415, -1.449)}    # combined HR 4825 + 4826
     for n, (name, v, bv, ra, dec) in pins.items():
         st = hr[n]
         assert (st['name'], st['v'], st['bv']) == (name, v, bv), (n, st['name'])
         assert abs(st['ra2000'] - ra) < 0.002 and abs(st['dec2000'] - dec) < 0.002, \
             (n, st['ra2000'], st['dec2000'])
-    assert star('SIRIUS')['record'].hex() == '75821a' and star('POLARIS')['record'].hex() == 'd4008b'
+    assert star('SIRIUS')['record'].hex() == '75c21a' and star('POLARIS')['record'].hex() == 'd4008b'
     worst = 0
     for k, s in enumerate(cat):
         rec = s['record']
         assert rec[0] | (rec[1] & 15) << 8 == s['ra_q'] < 2240
         assert s['ra_q'] == round(s['ra'] / 360 * 2240) % 2240
         assert rec[2] == s['dec_u'] == round(abs(s['dec']) * 560 / 360) <= 140
-        assert rec[1] >> 7 == (s['dec'] < 0) and rec[1] >> 4 & 3 == s['tint'] and not rec[1] & 0x40
+        assert rec[1] >> 7 == (s['dec'] < 0) and rec[1] >> 4 & 3 == s['look'] and rec[1] >> 6 & 1 == s['big']
         assert K.star_class(k, R.LAYOUT) == s['cls']
         a, d = map(math.radians, (s['ra'], s['dec']))
         a0, d0 = map(math.radians, (s['ra2000'], s['dec2000']))
@@ -75,21 +85,25 @@ def test_catalogue():
             c = math.sin(d1) * math.sin(d2) + math.cos(d1) * math.cos(d2) * math.cos(a1 - a2)
             assert math.degrees(math.acos(min(1, c))) > 0.3, (s1['name'], s2['name'])
     assert star('POLARIS')['landmark'] == 1 and star('ACRUX')['landmark'] == 2
-    print(f'  catalogue: {len(cat)} stars to V = 3.50 (79 Hipparcos + 203 BSC5), 846 bytes, '
-          f'classes {R.LAYOUT}, precession 1985 - J2000 <= {worst:.3f} deg: OK')
+    print(f'  catalogue: {len(cat)} stars (79 Hipparcos + 203 BSC5; {len(K.FIGURES)} complete figures, '
+          f'262 stars, to V = 4.95), 846 bytes, classes {R.LAYOUT}, 21 first magnitude, '
+          f'precession 1985 - J2000 <= {worst:.3f} deg: OK')
 
 
 def test_tables():
     diffs = [(R.C_TABLE[i + 1] - R.C_TABLE[i]) & 0xFFFF for i in range(46)]
     assert 1250 < min(diffs) and max(diffs) < 1700, (min(diffs), max(diffs))
     assert R.T_TABLE == tuple(sorted(R.T_TABLE)) and R.T_TABLE[R.T_HIGH] >= 256 > R.T_TABLE[R.T_HIGH - 1]
+    assert R.T_TABLE[47] == 363 and R.T_TABLE[79] == 511 and len(set(R.T_TABLE)) == 80
+    assert R.T_TABLE[:48] == tuple(math.ceil(512 * k / math.sqrt(k * k + 48 * 48)) for k in range(1, 49))
     assert R.AT_TABLE[0] == 0 and R.AT_TABLE[128] == 70
     assert all(R.lst_quarter(l) == round(l * 2240 / 65536) % 2240 or (l * 2240) % 65536 * 2 == 65536
                for l in range(0, 65536, 7))
     assert all(b - a in (0, 1) for a, b in zip(R.AT_TABLE, R.AT_TABLE[1:]))
     assert all(R.lat_units(l) == round(l * 14 / 9 + 1e-9) or (l * 14) % 9 * 2 == 9 for l in range(91))
     assert all(R.lat_units(l) == (l * 28 + 9) // 18 for l in range(91))
-    print('  tables: C (47 words, steps 1306..1616 < 4096), T (80, 9 bits), AT (129): OK')
+    print('  tables: C (47 words, steps 1306..1616 < 4096), T (80, 9 bits: tan to 45 deg, then '
+          'even in sin), AT (129): OK')
 
 
 def test_sidereal_time():
@@ -104,7 +118,7 @@ def test_sidereal_time():
 
 
 def test_positions():
-    alt_err, az_err, row_low, row_all = [], [], [], []
+    alt_err, az_err, row_low, row_all, row_high = [], [], [], [], []
     for day in range(0, 365, 9):
         for minute in range(0, 1440, 131):
             for _, lat, lon in R.REGIONS.values():
@@ -112,23 +126,27 @@ def test_positions():
                 for s in R.CATALOGUE:
                     up, az, row = R.position(lst, lat, s)
                     alt, azf = R.altaz_float(day, minute, lat, lon, s['ra'], s['dec'])
-                    if not 1 < alt < 59:
+                    if not 1 < alt < 86:
                         continue
-                    alt_err.append(math.degrees(math.asin(up / 65536)) - alt)
-                    az_err.append(((az - azf * 560 / 360 + 280) % 560 - 280)
-                                  * math.cos(math.radians(alt)))
+                    if alt < 59:        # asin(up) loses precision near the zenith
+                        alt_err.append(math.degrees(math.asin(up / 65536)) - alt)
+                        az_err.append(((az - azf * 560 / 360 + 280) % 560 - 280)
+                                      * math.cos(math.radians(alt)))
                     if row is not None:
-                        (row_low if alt < 30 else row_all).append(row - R.row_float(alt))
+                        (row_low if alt < 30 else row_all if alt < 45 else row_high).append(
+                            row - R.row_float(alt))
     sd = statistics.pstdev(alt_err)
     assert abs(statistics.mean(alt_err)) < 0.05 and sd < 0.3 and max(map(abs, alt_err)) < 1.2
     assert max(map(abs, az_err)) < 2.0 and statistics.pstdev(az_err) < 0.5
     assert all(-1 < e < 2 for e in row_low), (min(row_low), max(row_low))
     assert all(-2.5 < e < 4.5 for e in row_all), (min(row_all), max(row_all))
+    assert all(-1.5 < e < 2.5 for e in row_high), (min(row_high), max(row_high))
     print(f'  {len(alt_err)} positions vs float: altitude mean {statistics.mean(alt_err):+.3f} '
           f'sd {sd:.3f} max {max(map(abs, alt_err)):.2f} deg; azimuth x cos(alt) sd '
           f'{statistics.pstdev(az_err):.2f} max {max(map(abs, az_err)):.2f} units; row '
           f'(INT, so +0.5 on average) {min(row_low):+.1f}..{max(row_low):+.1f} below 30 deg, '
-          f'{min(row_all):+.1f}..{max(row_all):+.1f} at 30-59 deg: OK')
+          f'{min(row_all):+.1f}..{max(row_all):+.1f} at 30-45 deg, '
+          f'{min(row_high):+.1f}..{max(row_high):+.1f} at 45-86 deg: OK')
 
 
 def test_polaris():
@@ -140,7 +158,7 @@ def test_polaris():
                 up, az, row = R.position(R.lst16(day, minute, lon), lat, pol)
                 assert abs(R.alt_degrees(up) - lat) <= 1.5, (name, day, minute, R.alt_degrees(up))
                 assert min(az, 560 - az) <= 2, (name, az)
-                assert row is not None and abs(row - (95 - 48 * math.tan(math.radians(lat)))) < 3
+                assert row is not None and abs(row - R.row_float(lat)) < 3
     print('  Polaris: height = latitude +-1.5 deg, bearing north +-2 units (BC, Sierra): OK')
 
 
@@ -199,13 +217,22 @@ def test_list_and_moon():
                                                               for v in srt]
             for i, v in enumerate(srt):
                 assert buckets[v['az'] >> 4] <= i < buckets[(v['az'] >> 4) + 1]
-                assert 16 <= v['row'] <= 95 and attr[i] & 15 == v['az'] & 15
-                assert attr[i] >> 6 == v['star']['cls'] and v['colour'] in (P.WHITE, P.YELLOW, P.LIGHT_BLUE)
+                assert 16 <= v['row'] <= 96 and attr[i] & 15 == v['az'] & 15
+                assert attr[i] >> 6 == v['star']['cls'] and v['colour'] == R.COLOURS[v['star']['look']]
+                assert v['rows'] == (1 if v['star']['look'] == K.FAINT else 2)
             assert not any(attr[len(vis):]) and not any(row[len(vis):])
-    # Bolivia, 26 February 0 h 30: 161 stars up, the list keeps the 160 first.
+            # a first-magnitude star: two consecutive entries, one row apart
+            for a, b in zip(srt, srt[1:]):
+                if a['index'] == b['index']:
+                    assert a['star']['big'] and b['row'] == a['row'] + 1 and b['az'] == a['az']
+            big = [v for v in srt if v['star']['big']]
+            assert len(big) % 2 == 0 or len(vis) == R.LIST_MAX
+    # Bolivia, 26 February 0 h 30: 173 entries up, the list keeps the 160
+    # first (the fillers go first, then the faintest figure stars).
     _, lat, lon = R.REGIONS[5]
     full = R.visible(56, 30, lat, lon, limit=999)
-    assert len(full) == 161 and R.visible(56, 30, lat, lon) == full[:160]
+    assert len(full) == 173 and R.visible(56, 30, lat, lon) == full[:160]
+    assert all(v['star']['cls'] == 0 for v in full[:160]) and max(v['star']['v'] for v in full[160:]) > 4
     # The module's early skip changes nothing: up <= 0 at every hour angle.
     for _, lat, _ in R.REGIONS.values():
         for s in R.CATALOGUE:
@@ -220,6 +247,7 @@ def test_list_and_moon():
     assert R.behind_moon(v['az'] + 5, v['row'] + 3, moon) and not R.behind_moon(v['az'] + 6, v['row'], moon)
     assert R.behind_moon(v['az'], v['row'] + 8, moon) and not R.behind_moon(v['az'], v['row'] + 9, moon)
     assert not R.behind_moon(v['az'], v['row'], (v['az'], 255))
+    assert not R.behind_moon(v['az'], 18, (v['az'], 12)), 'a Moon above the view hides nothing'
     print(f'  list: <= {R.LIST_MAX} (longest here {longest}), 36 buckets of 16 units in catalogue '
           f'order, attr; early skip of the stars that never rise; Moon disc mask: OK')
 

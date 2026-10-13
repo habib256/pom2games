@@ -5,7 +5,9 @@ Lot 4: the sheet is computed from the resident map by TOPOGEN (module 0 in
 the SIM window, src/topo_dhgr.s) and must equal tools/topo_dhgr_ref.sheet
 on rows 0..159 of both banks; the legend fills the four 80-column rows; no
 disk access; the return copies back the snapshot of the view (no raycast):
-view, band, state and clock unchanged.
+view, band, state and clock unchanged. On a native map (fine geography
+resident in the auxiliary language card, where the snapshot would go:
+src/geoaux.s) the return redraws the view instead: displayed rows identical.
 """
 import tempfile
 from common import HERE, L, DISK, a2test, disk_with, hgr_rows, text_screen, dhgr_page
@@ -15,7 +17,7 @@ IDLE = L.until('idle', 20000)
 STATE = (('px', 6), ('s_hour', 5), ('s_health', 5), ('it_place', 76), ('heading', 2))
 
 
-def screens(disk, mapdata):
+def screens(disk, mapdata, snapshot=True):
     want = R.sheet(mapdata)[:R.ROWS]
     timings = []
     with a2test.Session(disk) as s:
@@ -41,7 +43,10 @@ def screens(disk, mapdata):
             back = s.step(IDLE).cycles[-1]
             timings.append(back - end)
             assert s.step('peek:C01F:1').data[0] >= 0x80, 'the view must return in DHGR'
-            assert s.step('peek:2000:8192').data == view, 'view and band copied back'
+            if snapshot:
+                assert s.step('peek:2000:8192').data == view, 'view and band copied back'
+            else:       # redrawn: screen holes keep simulation scratch
+                assert hgr_rows(s.step('peek:2000:8192').data) == hgr_rows(view), 'view and band redrawn'
             assert state == [s.step(L.peek(name, count)).data for name, count in STATE]
         assert s.step(L.peek('mli_calls', 2)).data == mli, 'TOPO must not read the disk'
         s.step('key:MAP')
@@ -55,7 +60,8 @@ def screens(disk, mapdata):
     closing = [t / a2test.CPU_HZ for t in timings[1::2]]
     print(f'  TOPO/T: DHGR sheet = topo_dhgr_ref (rows 0..159, both banks), legend, no disk read; '
           f'open {min(opening):.2f}-{max(opening):.2f} s, return {max(closing):.2f} s '
-          f'(snapshot, no raycast); view/state preserved; MAP: local text: OK')
+          f'({"snapshot, no raycast" if snapshot else "native map: redrawn"}); view/state preserved; '
+          f'MAP: local text: OK')
 
 
 if __name__ == '__main__':
@@ -68,4 +74,9 @@ if __name__ == '__main__':
     assert R.sheet(alternate) != R.sheet(data)
     with tempfile.TemporaryDirectory() as tmp:
         screens(disk_with(tmp, alternate), alternate)
+    # A native map (mkmap --native): no snapshot, the return redraws.
+    from test_geo_resident import generated_native
+    native = generated_native()[0]
+    with tempfile.TemporaryDirectory() as tmp:
+        screens(disk_with(tmp, native), native, snapshot=False)
     print('Graphical TOPO and local MAP: OK')

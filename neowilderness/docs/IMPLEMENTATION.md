@@ -337,10 +337,12 @@ conservent l'historique HGR : lorsqu'ils parlent de BLOAD, de DOS ou de
 `mem_fetch` copie l'image vierge depuis la RAM auxiliaire (ou sa carte
 langage) vers la fenêtre, à la longueur exacte, interruptions masquées, page
 zéro et commutateurs mémoire préservés. Aucune lecture disque n'a lieu pendant
-la partie ; seules les banques de géographie native fine des disques de
-comparaison (`NEOWILD.GEO`, lot 5) sont encore lues par MLI, à la demande.
-`overlay_reads` compte désormais les chargements de modules (copies RAM ou
-lectures de géographie), avec les mêmes valeurs que la version HGR ; les
+la partie, hors `NEOWILD.END` et `NEOWILD.HOF` en fin de voyage (lot 7) ;
+la géographie fine des disques de comparaison est résidente depuis
+l'intégration de la branche parallèle (« Géographie fine résidente »
+ci-dessous ; avant, `NEOWILD.GEO` était lu par MLI à la demande).
+`overlay_reads` compte désormais les chargements de modules (copies RAM),
+avec les mêmes valeurs que la version HGR ; les
 nouveaux compteurs `mli_calls`, `mli_reads`, `mli_bytes` (tous les appels
 MLI, chargeur compris) et `xfer_count`, `xfer_bytes` (copies RAM) sont des
 symboles de `build/wild.lbl`. La TOPO est une image préchargée : son BLOAD
@@ -388,7 +390,7 @@ synchronisée) avec ses `wild.lbl`/`wild.map`, démarré en ][+.
 | 21 | `WILDADV` | Distance, score, climat journalier, vêtements et quantités de ressources |
 | 22 | `WILDOUT` | Réactions animales, contamination, borne de présence animale et remise à zéro médicale quotidienne |
 | 0 | TOPO | Feuille topographique HGR, copiée vers `$2000` |
-| 23–46 | `NEOWILD.GEO` | Banques de géographie native fine (disques de comparaison seulement, lues par MLI) |
+| — | `NEOWILD.GEO` | Retiré : la géographie fine native est résidente (`src/geoaux.s`, carte langage auxiliaire) |
 
 Les modules sont préchargés en RAM auxiliaire. Un module présent dans la
 fenêtre n'est pas recopié. Simulation, thermique, effort de nage et charge
@@ -966,7 +968,9 @@ Les côtés du ruban central sont réservés sur les seize premières lignes HGR
 Un cadre d’un pixel entoure le compas (x = 91–188, y = 0–15), avec
 les graduations et le curseur à l’intérieur. Quatre champs de treize
 caractères utilisent une police 7 × 7 monochrome :
-heure/santé, faim, soif, puis alerte ou état thermique/indication locale.
+à gauche la santé puis l'alerte ou l'état thermique/indication locale, à
+droite l'heure et le jour du séjour puis le besoin le plus pressant (faim ou
+soif) ; le panneau droit commence 4 pixels après le ruban.
 Le terrain reste calculé dans le cache invisible, mais ne recouvre aucun
 champ. La simulation est terminée avant que le résumé réutilise sa page HGR ;
 le démarrage traite aussi la faune avant de composer le bandeau.
@@ -1272,7 +1276,8 @@ Détail et mesures : [SCENARIOS.md](SCENARIOS.md) §§ 3–4,
   fame » ci-dessous).
 - **Identifiants.** Répertoire de 26 entrées : 23 quatrième espèce, 24 hall
   of fame (toujours vide : le module est lu depuis `NEOWILD.END`), 25
-  étoiles ; géographie fine native aux IDs 32–55 (`GEO_FIRST`).
+  étoiles ; la géographie fine native n'a plus d'identifiant (IDs 32–55 et
+  `GEO_FIRST` retirés : atlas résident, voir plus bas).
 - **Écart restant.** Les cartes ne dépendent pas du niveau choisi
   (générées au niveau 4). Faune, couleurs et textes par région, étoiles,
   score : sections suivantes (étapes 4 à 6).
@@ -1394,11 +1399,12 @@ Spécification, référence et banc : [STARS.md](STARS.md) ; mémoire :
   (`BIT $C082`). La liste reste en RAM principale (WILDLO).
 - **Visibilité.** Jour, couvert, doré, coucher, crépuscules civil et
   nautique, ou `weather_sky` ≠ 0 : aucune étoile. *Night bright* (pleine
-  Lune) : première grandeur ; *night dim* : classes 0–1 ; *night dark* :
-  toutes. Le paysage reste noir sans Lune.
-- **Rotations.** Une rotation éclairée défile et retrace les colonnes
-  révélées : une étoile ne dépend que de l'azimut de sa colonne. En nuit
-  noire, `turn_view` redessine toute la vue (règle du lot 3).
+  Lune) : classe 0, les figures entières et les étoiles de V < 2,0 ;
+  *night dim* : classes 0–1 ; *night dark* : toutes. Le paysage reste noir
+  sans Lune, sur un ciel bleu foncé ([STARS.md](STARS.md) § 14).
+- **Rotations.** Toute rotation de nuit défile et retrace les colonnes
+  révélées : une étoile ne dépend que de l'azimut de sa colonne. La règle
+  du lot 3 (vue entière redessinée en nuit noire) est retirée.
 - **Mémoire.** Banque 2 de la carte langage principale (`$D400-$DFFF`,
   libre de ProDOS 8) : stock de modules et code de tracé ; nouvelle source
   `BANK_MLC2` de `mem_fetch`, bit 5 du type d'enregistrement du chargeur.
@@ -1446,3 +1452,61 @@ Spécification, référence et banc : [HOF.md](HOF.md) ; correctif appliqué :
 | `test_menu` | hall of fame vide lu avant le menu, `SCENARIO JOURNEYS: 0`, six `BEST -` |
 | `test_pack_boot` | `NEOWILD.END` = `wildhof.bin`, `NEOWILD.HOF` vide, un bloc |
 
+
+## Intégration de la branche parallèle (13 octobre 2026)
+
+Une seconde implémentation du même port, la branche
+`worktree-neowilderness-lot4` (lots 4 à 6, 202 fichiers, 78 conflits
+textuels avec `main`), a été relue ; ses apports sont transplantés à la main
+dans le code de `main`, sans fusion Git.
+
+- **Géographie fine résidente (lot 5, commit `9795a58`).** Sur une carte
+  native (octet 37 : carte Sierra de comparaison, `mkmap.py --native`),
+  `cell_native` interroge un atlas `coarse` de 154 tuiles 16 × 16 chargé
+  avec son décodeur (`src/geoaux.s`, 843 octets) en carte langage
+  auxiliaire, vue banque 1 `$D480-$FFF9`, et un cache LRU de 4 tuiles en
+  `$D000-$D47F` ; tronçon résident `PHP`/`SEI`/`ALTZPON`/banque 1/`JSR
+  geo_query`/ROM/`ALTZPOFF`/`PLP`. Cette zone est celle de l'instantané de
+  la vue sous TOPO : `tp_save` ne le prend pas sur une carte native, et
+  TOPO redessine la vue au retour (6,1 s au lieu de 0,24 s, sur ces disques
+  de comparaison seulement). L'enregistrement code + atlas va dans
+  `NEOWILD.R2`, le paquet qui reçoit `--map` ; `build_disk.py` refuse un
+  atlas de plus de 10 287 octets et emploie `lz` par défaut comme le
+  Makefile. `NEOWILD.GEO`, `geo_load`, les IDs 32–55, les recharges de
+  TRAVEL/WATER après chaque requête et `wildgeo.bin` en fenêtre `$5800`
+  disparaissent (RAM principale résidente 181 → 361 octets libres).
+  `mkmap.py --fine/--native` (`fine_bytes`, bit de lac des bassins
+  inondés) et `geo_atlas.atlas_bytes`/`atlas_decode` sont repris ; les
+  cartes de région sont inchangées. Mesures et verdict :
+  [GEOGRAPHY.md](GEOGRAPHY.md) § 9 ; mémoire : [MEMORY.md](MEMORY.md)
+  § 9.10.
+- **Validation (lot 6, commit `96f2f3a`).** Nouveaux tests ci-dessous ;
+  `test_weather_front.py` lit chaque variable par son étiquette
+  (`weather_day_level` s'intercale entre visibilité et ciel) ; la table
+  `game_pages` de `src/boot.s`, assemblée en zéros sur la branche, est
+  correcte sur `main` (boucle `.if` par page), ce que `test_prodos.py`
+  vérifie désormais.
+- **Outils.** `inspect_disk.py` décrit la zone de géographie fine ;
+  `profile_actions.py` compte requêtes et décodages par commande ;
+  `profile_loading.py --map` mesure le démarrage d'une carte native.
+
+| Test | Apport |
+|---|---|
+| `test_journey_resident` (nouveau) | trajet crash → rangers au clavier sur un terrain de contrôle (rivière, cabane, climat Sierra) : repas, eau, gourde à la rive, nage, cabane, crotale (morsure forcée par `fauna_rng`) soignée, nuit, nouveau jour, arrivée ; zéro appel MLI, toute charge de module est une copie RAM (plus la tête du catalogue d'étoiles la nuit), pile et drapeau I constants, `$0200-$03FF` auxiliaire et commutateurs intacts ; la touche de l'écran de fin lit `NEOWILD.END`/`.HOF` et atteint `hof_key_wait`. Rejoué en carte native : 715 requêtes fines, 5 décodages. ≈ 6 s |
+| `test_screen_returns` (nouveau) | STATUS, STATUS → M → B, INVENTORY, HELP, MAP, TOPO, QUIT refusé (N, Retour, Échap) : zéro MLI, modules copiés exactement attendus (TOPOGEN par `mem_fetch` direct, retour par instantané sans HUD ni sprite rechargés), journée et hasards intacts, deux banques DHGR, trame rendue et commutateurs identiques. ≈ 1 s |
+| `test_geo_resident` (nouveau) | budget et refus, 37 632 cases exactes, coûts par requête et par tuile, décodages = modèle LRU, parties réelles Sierra et générée vers les rangers sans MLI, collecte à un coin de quatre tuiles, atlas intact après TOPO, carte héritée sans requête fine. ≈ 20 s |
+| `test_geo_atlas` (dans `make test`) | + atlas du jeu : export `mkmap`, tuiles brutes, grille incohérente refusée |
+| `test_resident` | rejoue son scénario sur une carte native (requêtes et décodages comptés, zéro MLI) |
+| `test_graphical_topo` | + carte native : feuille exacte, vue redessinée au retour |
+| `test_prodos` | au QUIT final (QUIT puis Q au menu, et Ctrl-RESET), page zéro (hors `$40-$4F`, brouillon MLI, après relecture de `NEOWILD.SYSTEM`), bitmap et vecteur RESET égaux à ceux de l'entrée ; pages exactes du jeu marquées pendant la partie |
+| `test_walk`, `test_interface` | charges de WALK = copies RAM sans MLI ; comparaisons d'image sur les deux banques DHGR |
+
+Écartés (déjà présents sur `main` sous une autre forme, ou contraires à un
+choix de `main`) : bandeau couleur, ruban de boussole et jauges de la
+branche (`main` a son propre bandeau DHGR), son TOPO `src/topo.s` et
+`tools/topo_ref.py` (`main` a `topo_dhgr.s`, instantané au retour), le
+repère P du joueur sur TOPO (`main` suit l'original : MAP montre le joueur,
+TOPO non ; `topo_dhgr_ref` garde l'option `you=`), le nom du port dans
+l'introduction et les crédits (déjà sur `main`), les rebaselines
+`BASELINE_DHGR.json` et la réécriture du README (mesures d'une autre
+architecture), le lien symbolique `original` (hors Git sur `main`).

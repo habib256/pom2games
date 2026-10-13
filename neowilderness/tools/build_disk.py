@@ -7,9 +7,14 @@ reads the trunk at boot, shows the start menu, then reads the pack of the
 chosen region only. Both kinds of file have the same format and go through
 the same loader loop. Main RAM images go to their linked addresses; every
 module, the pristine simulation and the sprites go to auxiliary RAM, where
-memory.s copies them into their execution windows. Comparison maps with the
-original fine geography add NEOWILD.GEO, 24 banks of 2 KB read on demand
-(lot 5). NEOWILD.END (the end-of-game module, src/hof.s) and NEOWILD.HOF (the
+memory.s copies them into their execution windows. A native map (header byte
+37: the Sierra comparison maps, mkmap --native; only through --map, i.e. in
+the Sierra Nevada pack) carries its 224 x 168 fine geography: it becomes a
+compressed atlas (tools/geo_atlas.atlas_bytes) loaded with its decoder
+(src/geoaux.s) by the pack into the auxiliary language card, bank 1 view
+$D480-$FFF9, the area of the TOPO snapshot, which native maps do without
+(lot 5, ported from commit 9795a58). A map whose atlas exceeds that budget
+is refused. NEOWILD.END (the end-of-game module, src/hof.s) and NEOWILD.HOF (the
 hall of fame, one block) are plain files read and written at the end of a
 journey (lot 7 step 6, docs/HOF.md).
 
@@ -50,6 +55,7 @@ sys.path.insert(0, str(HERE / 'tools'))
 from build_volume import Volume, prodos_date   # noqa: E402
 from pack_boot import compress, decompress     # noqa: E402
 import dhgr_palette as P                        # noqa: E402
+import geo_atlas                                # noqa: E402
 
 VOLUME = 'NEOWILDERNESS'
 CHUNK = 0x2000
@@ -72,6 +78,10 @@ REGIONS = [(AUX, 0x4000, 0xC000), (AUX, 0x0800, 0x2000), (LC2, 0xD000, 0xDC00),
            (LC2, 0xDE30, 0xE000), (MLC2, 0xD400, 0xDE18)]
 SKYLC = (MLC2, 0xDE18, 'wildskylc.bin')     # src/stars_draw.s, runs in place
 SNAPSHOT = [(LC1, 0xD000, 0xE000), (LC2, 0xE000, 0xFFD0), (LC2, 0xDC00, 0xDE30)]
+# Native maps only: the fine geography takes bank 1 and the common area
+# instead of the snapshot (src/geoaux.s, src/topo_dhgr.s tp_save).
+GEO_CACHE = 0xD000               # 4 decoded tiles + woodland, not stored
+GEO_CODE = 0xD480                # src/geoaux.s (segment GEOAUX), then the atlas
 G = 'original_graphics/'
 # Directory index -> (image, execution window) of the common trunk. 18 is an
 # alias of 17. 25 is the hourly star module (docs/STARS.md); 24 (hall of
@@ -369,7 +379,7 @@ def region_data(build, region, map_override=None):
     return dict(entry=entry, header=header, map=bytes(mapdata), mask=mask, sprites=sprites)
 
 
-def build_disk(out, map_path=None, build=None, packing='auto', layout=None):
+def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
     """map_path replaces the map of the Sierra Nevada pack (tests)."""
     build = Path(build) if build else HERE / 'build'
     out = Path(out)
@@ -399,23 +409,26 @@ def build_disk(out, map_path=None, build=None, packing='auto', layout=None):
     pack_area = (AUX, REGIONS[0][2] - area, REGIONS[0][2])
     free = [list(pack_area)] + free
     mapdata = regions_data[2]['map']
-    geo = None
     resident = bytearray((build / 'wildres.bin').read_bytes())
+    # Fine geography area (language card bank 1 view): the TOPO snapshot's
+    # on a legacy map. A native map's atlas goes to the Sierra Nevada pack.
+    code = (build / 'wildgeo.bin').read_bytes()
+    base = sym['geo_atlas']
+    assert GEO_CODE + len(code) == base, 'wildgeo.bin must end at geo_atlas'
+    geo = dict(loaded=False, cache=GEO_CACHE, code_address=GEO_CODE, code=len(code), base=base,
+               budget=geo_atlas.ATLAS_END - base, size=0, free=geo_atlas.ATLAS_END - GEO_CACHE)
+    geo_record = None
     if mapdata[37]:
         fine = mapdata[MAP_BYTES+FOREST_BYTES:]
         assert len(fine) == 224*168 + 28*168, 'incomplete native geography'
-        heights, woods = fine[:224*168], fine[224*168:]
-        lookup = (build / 'wildgeo.bin').read_bytes()[0x700:]
-        # Each bank is padded to 2 KB in the file, but READ transfers the
-        # same length as the DOS image: bytes past it keep their contents.
-        count = 0x700 + len(lookup)
-        offset = sym['geo_read'] + 4 - 0xB600
-        resident[offset:offset + 2] = count.to_bytes(2, 'little')
-        geo = bytearray()
-        for bank in range(24):
-            row = bank*7
-            chunk = heights[row*224:(row+7)*224] + woods[row*28:(row+7)*28]
-            geo += chunk + bytes(0x700-len(chunk)) + lookup + bytes(0x100-len(lookup))
+        geo['loaded'] = True
+        atlas = geo_atlas.atlas_bytes(fine[:224*168], fine[224*168:],
+                                      mapdata[64:MAP_BYTES], base, geo)
+        if len(atlas) > geo['budget']:
+            raise SystemExit(f'fine geography atlas too large: {len(atlas)} bytes, '
+                             f'budget {geo["budget"]} (${base:04X}-${geo_atlas.ATLAS_END-1:04X})')
+        geo['free'] = geo['budget'] - len(atlas)
+        geo_record = (LC1, GEO_CODE, code + atlas)
 
     def directory(placed_all, images_all):
         table = bytearray(DIR_ENTRIES * 7)
@@ -481,6 +494,8 @@ def build_disk(out, map_path=None, build=None, packing='auto', layout=None):
                                    data=patch.hex())
         dhgr_tables = (build / f'dhgr/dhgr_tables_r{region}.bin').read_bytes()
         assert len(dhgr_tables) == tables_end - tables_start, region
+        if region == 2 and geo_record:
+            sections.append(geo_record)         # before the map: LZ decodes through $7000
         sections += [(MAIN, 0x0800, data['mask']),
                      (MAIN, tables_start, dhgr_tables),
                      (MAIN, sym['__REGIONTEXT_RUN__'], region_texts(data['entry'], data['header'])),
@@ -517,8 +532,6 @@ def build_disk(out, map_path=None, build=None, packing='auto', layout=None):
         assert 0 < len(end_module) <= 0x2000 and len(hof_file) == 512
         (stage / 'NEOWILD.END#069600').write_bytes(end_module)
         (stage / 'NEOWILD.HOF#060000').write_bytes(hof_file)
-        if geo:
-            (stage / 'NEOWILD.GEO#060000').write_bytes(bytes(geo))
         boot = (DEV / 'tools/prodos/boot.bin').read_bytes()
         boot = (boot + bytes(1024))[:1024]
         volume = Volume(VOLUME, 280, boot, prodos_date('2026-10-13T12:00'))
@@ -541,7 +554,7 @@ def build_disk(out, map_path=None, build=None, packing='auto', layout=None):
                      for i in range(DIR_ENTRIES) if (17 if i == 18 else i) in placed}
     info = dict(packing=packing, blocks_used=volume.next_free, blocks=280,
                 blocks_free=280 - volume.next_free,
-                dat=trunk_stats, geo=len(geo) if geo else 0,
+                dat=trunk_stats, geo=geo,
                 modules=dict(sorted({**trunk_modules, **sierra}.items(), key=lambda kv: int(kv[0]))),
                 trunk_modules=trunk_modules,
                 aux_free=[dict(bank=BANK_NAMES[b], start=s, end=e, free=e-s)
@@ -566,7 +579,10 @@ if __name__ == '__main__':
     parser.add_argument('--out', required=True)
     parser.add_argument('--map')
     parser.add_argument('--build')
-    parser.add_argument('--packing', choices=('raw', 'lz', 'auto'), default='auto')
+    # Default lz, as the Makefile (BOOT_PACKING): disks built by the tests
+    # (tests/common.disk_with) match the shipped volume; with auto a native
+    # map (atlas in the Sierra pack) would not fit the 280 blocks.
+    parser.add_argument('--packing', choices=('raw', 'lz', 'auto'), default='lz')
     parser.add_argument('--layout', help='write the placement/record summary as JSON')
     args = parser.parse_args()
     info = build_disk(args.out, args.map, args.build, args.packing, args.layout)

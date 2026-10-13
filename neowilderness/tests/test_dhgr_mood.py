@@ -17,7 +17,7 @@ from test_thermal import call
 import dhgr_palette as P
 
 SLOTS = (5, 6, 7, 8, 9, 23)
-SIERRA_SHA256 = '9fac98ce7902c031ffb604ac2c49af26cdd8116f69b8ae6c29c3e44ba4ce9b48'     # dhgr_assets order: overlays 5..9, then module 23
+SIERRA_SHA256 = '04ffd349ba065ddf0b655cf3e6d0bd33dcf8abdda2e4a9ec720fe97f1570b94d'     # dhgr_assets order: overlays 5..9, then module 23
 
 
 def expected(night, dark, sun8, moon8, phase, clouds, asset, region=2):

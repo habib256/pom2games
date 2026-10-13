@@ -144,7 +144,9 @@ def moon_scene():
     assert not any(any(row) for row in page[100:]),'moon revealed terrain at night'
     assert page==R.view(m,20*256,20*256,bearing,moon,forest=True,sprites=False),'moon pixels'
     for i in range(16):assert hgr_rows(result.dumps[5+2*i])==hgr_rows(result.dumps[6+2*i]),('moon pan/full',i)
-    assert not any(any(row) for row in dhgr_view(result.dumps[-1])),'clouds did not hide moon'
+    # Under clouds only the dark-blue sky of the dark night remains (no Moon, no star).
+    import dhgr_palette as P
+    assert {c for row in dhgr_view(result.dumps[-1]) for c in row} <= {P.BLACK, P.DARK_BLUE},'clouds did not hide moon'
     print('  dated Moon drawn at its own bearing with the stars of the night, dark terrain, '
           'cloud mask and night rotations: OK')
 

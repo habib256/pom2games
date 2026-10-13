@@ -1,6 +1,9 @@
 # Neowilderness — géographie fine native (lot 5) : mesures et conception
 
-Analyse en lecture seule, sans modification du jeu. Outil :
+Les §§ 1–8 sont l'analyse faite avant l'implémentation, sans modification du
+jeu ; le § 9 décrit la réalisation (branche parallèle, commit `9795a58`,
+portée sur `main` à l'intégration du 13 octobre 2026), son verdict mémoire
+et ses mesures dans le jeu. Outil :
 `tools/geo_atlas.py` (sorties `build/geo/report.json` et `report.md`) ;
 tests : `tests/test_geo_atlas.py` (Python pur, ~8 s). Tous les chiffres
 ci-dessous viennent de `python3 tools/geo_atlas.py --jobs 8` (1 min 40 s),
@@ -314,12 +317,138 @@ les chargements exceptionnels sans décision explicite sur le lot 6.
 - `pack_boot.compress` est très lent sur des données uniformes (70 s pour
   une carte plate) : temps d'outil seulement.
 
+## 9. Réalisation et verdict (intégration de la branche parallèle)
+
+La conception du § 6 a été implémentée sans variante sur la branche
+`worktree-neowilderness-lot4` (commit `9795a58`, lot 5) : atlas `coarse` en
+tuiles 16 × 16, résident en carte langage auxiliaire, cache de 4 tuiles,
+décodeur exécuté avec `ALTZP`. Elle est **portée sur `main`** ; ce
+paragraphe donne le verdict mesuré et les adaptations.
+
+### Verdict mémoire : oui, pour les cartes natives, sans rien retirer
+
+L'atlas occupe la vue banque 1 de la carte langage auxiliaire,
+`$D000-$FFF9` (12 282 octets) : cache 1 152, code 843, atlas ≤ 10 287. Sur
+`main`, cette zone est celle de l'**instantané de la vue sous TOPO**
+(12 800 octets, `docs/MEMORY.md` § 8.4) ; le stock de modules n'a que 266 à
+1 750 octets libres par région, en morceaux (Burma : 135 au plus) : l'atlas
+n'y entre pour aucune région. Options pesées :
+
+| Option | Coût | Retenue |
+|---|---|---|
+| Atlas dans le stock de modules | 7,2 Ko par carte native contre ≤ 1,75 Ko libres | non : ne tient pas |
+| Instantané TOPO compressé (2,7 à 7 Ko mesurés, § 8.4 de MEMORY.md) | décodeur + repli sur le redessin quand la vue ne tient pas ; place variable | non : la place restante (≈ 4,4 Ko) ne garantit ni l'un ni l'autre |
+| Redessin partout au lieu de l'instantané | retour de TOPO 0,24 s → jusqu'à 6 s sur les régions livrées | non : dégrade les six régions |
+| **Partage selon la carte** : carte héritée (les six régions livrées) → instantané ; carte native (comparaison Sierra, `mkmap --native`) → atlas, et TOPO redessine la vue | 11 octets dans TOPOGEN (`tp_save`), 0 octet résident | **oui** |
+
+Les six régions livrées sont des cartes héritées : rien ne change pour
+elles (instantané, retour de TOPO en 0,24 s, `test_graphical_topo.py`).
+Une carte native n'existe que par `build_disk.py --map` (disques de
+comparaison, `make test-original`, tests) ; son retour de TOPO redessine la
+vue (6,1 s mesurées sur la carte générée native, vue identique aux octets
+affichés près), le prix de la géographie fine sans lecture disque.
+
+Avant le portage, une carte native était **inconstructible sur `main`** :
+`NEOWILD.GEO` (24 banques de 2 Ko, 97 blocs avec l'index) ne tenait plus à
+côté des six paquets de région (247 + 97 > 280 blocs). Avec l'atlas dans le
+paquet `NEOWILD.R2`, un disque natif fait 260/280 blocs (paquet Sierra
+15 → 28 blocs) ; le disque livré reste à 247 blocs.
+
+### Portée et parité
+
+- Seules les cartes natives (octet 37 de l'en-tête) portent la géographie
+  fine : la carte Sierra de comparaison (`tests/test_adventure.original_map`)
+  et les cartes de `mkmap.py --native`. `cell_native` lit l'atlas ; sinon
+  la grille 112 × 84 comme avant. `test_reference_state.py` compare la
+  carte livrée, héritée : ses entrées sont inchangées, le test aussi (la
+  référence HGR n'utilisait la géographie fine que sur un disque portant
+  `NEOWILD.GEO`, c'est-à-dire une carte native ; la branche parallèle n'a
+  pas modifié ce test non plus).
+- Format natif inchangé : niveau, bit 7 eau, bit 6 lac (l'eau tient sur six
+  bits). `mkmap.fine_bytes` exporte la grille fine d'une carte générée
+  (`--fine`, ou ajoutée à la carte avec `--native`) en marquant lacs les
+  bassins inondés ; il refuse une eau au-dessus du niveau 63 (5 des 9 cartes
+  `mkmap` du § 3 et les rivières denses). Les cartes de région
+  (`build/maps/r*.bin`) sont inchangées octet pour octet.
+- `build_disk.py` refuse un atlas au-delà du budget ; son paquetage par
+  défaut devient `lz`, comme le Makefile (`BOOT_PACKING`) : en `auto`, un
+  disque natif dépasserait 280 blocs.
+
+### Mémoire (vue banque 1 de la carte langage auxiliaire, carte native)
+
+| Zone | Contenu | Octets |
+|---|---|---:|
+| `$D000-$D3FF` | cellules décodées, une page par tuile (4 tuiles) | 1 024 |
+| `$D400-$D47F` | bits de bois des 4 tuiles (32 octets chacune) | 128 |
+| `$D480-$D4A7` | étiquettes MRU, numéros de page, tables | 40 |
+| `$D4A8-$D7CA` | requête (`geo_query`) et décodeur | 803 |
+| `$D7CB-$FFF9` | atlas : 154 adresses (lo, hi), 20 octets de drapeaux « brut », flux | ≤ 10 287 |
+
+La page zéro auxiliaire sert de registres au décodeur (`$10-$30`, tampon
+9 × 9 de la grille en `$40-$F0`), la pile auxiliaire reçoit ses adresses de
+retour ; `tp_copy` (instantané) les emploie aussi, mais jamais sur une carte
+native. `$0200-$03FF` auxiliaire (pilote /RAM) n'est pas touché (vérifié).
+Côté principal, `cell_native` est un tronçon de 24 octets (`PHP`, `SEI`,
+`ALTZPON`, deux lectures de `$C08B`, `JSR geo_query`, `$C082`, `ALTZPOFF`,
+`PLP`, `ORA #0`) ; `geo_load`, son chemin MLI, le module `wildgeo.bin` de
+la fenêtre `$5800` (IDs 32–55) et les recharges de TRAVEL/WATER après
+chaque requête disparaissent : **+180 octets libres en RAM principale
+résidente** (181 → 361) et +12 octets de stock auxiliaire par région.
+`geo_path` reste : c'est le gabarit des chemins de `NEOWILD.END` et
+`NEOWILD.HOF` (`HOF_PATH`).
+
+### Mesures sur `main` (`tests/test_geo_resident.py`)
+
+| Mesure | Carte générée s1985-L4 | Sierra (comparaison) |
+|---|---:|---:|
+| Atlas (index de 328 octets compris) | 6 113 | 6 379 |
+| Requête dans la tuile la plus récente | 203 cycles | 203 cycles |
+| Requête dans une autre tuile en cache | 322 cycles | 322 cycles |
+| Requête avec décodage | 15 017–37 727 (moy. 26 119) | 14 876–47 470 (moy. 27 169), ≤ 46,5 ms |
+| Trajet direct modélisé : demi-pas / décodages (modèle LRU) | 132 / 12 (12) | 177 / 16 (16) |
+| Errance modélisée | 145 / 14 (14) | 282 / 24 (24) |
+| Partie réelle vers les rangers : commandes, requêtes, décodages, max par commande, appels MLI | 17, 607, 9, 3, 0 | 53, 916, 14, 3, 0 |
+| Collecte d'eau à un coin de quatre tuiles | 23 requêtes, 4 décodages | 23 requêtes, 4 décodages |
+
+Chiffres identiques à ceux de la branche parallèle. Toutes les cases
+(37 632) d'une carte générée et d'une carte à six tuiles brutes sont
+rendues exactement (niveau, eau, rivière/lac, bois) ; après deux TOPO sur
+une carte native, 1 088 requêtes réparties sur toutes les tuiles restent
+exactes (l'instantané n'a pas écrasé l'atlas ; le même test échoue si on
+retire le garde de `tp_save`). Premier écran jouable (`profile_loading.py
+--packings lz`, choix 2) : 11,79 s du choix à la vue pour la carte native
+contre 10,19 s pour la carte livrée (+1,6 s : 6,6 Ko de plus lus) ; 31
+lectures MLI au lieu de 30. Voyage crash → rangers au clavier
+(`test_journey_resident.py`) sur le même terrain en carte native : 715
+requêtes fines, 5 tuiles décodées, aucun appel MLI. `make test-original`
+(`test_adventure.py --scenario all`, carte Sierra native) redevient
+constructible.
+
+### Restent ouverts
+
+- Les régions livrées restent des cartes héritées : rendre native une carte
+  livrée changerait sa simulation (cases impaires, eau) et la comparaison
+  avec la référence HGR ; décision de jeu. Six atlas (≈ 6 Ko chacun) ne
+  tiendraient pas tous sur la disquette (33 blocs libres), et une région
+  native perdrait l'instantané de TOPO.
+- Eau au-dessus du niveau 63 : il faudrait un plan de lacs séparé (le
+  format de case n'a plus de bit libre).
+- Le décodeur n'est pas optimisé (plan des bois 23 cycles par case) ; sans
+  objet tant qu'une commande ne décode pas plus de 3 tuiles.
+
 ## Reproduction
 
 ```
 python3 tools/geo_atlas.py --jobs 8     # build/geo/report.{json,md}, ~2 min
 python3 tools/geo_atlas.py --quick      # deux formes, une carte générée
-python3 tests/test_geo_atlas.py         # round-trips, tailles figées, ~8 s
+python3 tests/test_geo_atlas.py         # round-trips, tailles figées, ~10 s
+python3 tests/test_geo_resident.py      # jeu : exactitude, coûts, trajets, TOPO, MLI, ~20 s
+python3 tests/test_geo_resident.py --measure   # les 154 tuiles mesurées
+python3 tools/mkmap.py --native build/native.bin   # carte native générée
+python3 tools/build_disk.py --out build/native.po --map build/native.bin --layout build/native.json
+python3 tools/inspect_disk.py build/native.json  # atlas, budget restant
+python3 tools/profile_loading.py --packings lz --map build/native.bin
+python3 tools/profile_actions.py --disk build/native.po 'WALK 2 H'   # requêtes, décodages
 ```
 
 Entrées locales : `build/files/TOPO.B` (`make extract`) et

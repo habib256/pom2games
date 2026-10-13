@@ -41,7 +41,7 @@ all: $(DISK)
 $(BUILD)/wild.o: src/medical.s src/hazards.s src/care.s
 $(BUILD)/wild.o: src/clock.inc
 $(BUILD)/wild.o: src/memory.s
-$(BUILD)/wild.o: src/geography.s
+$(BUILD)/wild.o: src/geography.s src/geoaux.s
 $(BUILD)/wild.o: src/water.s
 
 $(BUILD)/tables.inc $(BUILD)/rowtab.inc: tools/gentables.py
@@ -131,7 +131,7 @@ $(BUILD)/NEOWILD.HOF: tools/genhof.py tools/score_ref.py
 $(BUILD)/JOURNEY.dsk: original/extras/Wilderness\ -\ Journey.a2r
 	$(PYTHON) -I tools/flux2dsk.py "$<" $@
 
-$(DISK): $(BIN) $(BUILD)/NEOWILD.HOF $(BUILD)/dhgr_tables.inc $(MAPBIN) $(REGION_MAPS) $(BUILD)/regions/regions.json $(SPRITE_BINS) $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py tools/build_disk.py tools/pack_boot.py Makefile
+$(DISK): $(BIN) $(BUILD)/NEOWILD.HOF $(BUILD)/dhgr_tables.inc $(MAPBIN) $(REGION_MAPS) $(BUILD)/regions/regions.json $(SPRITE_BINS) $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py tools/build_disk.py tools/pack_boot.py tools/geo_atlas.py Makefile
 	@mkdir -p $(DIST)
 	$(PYTHON) -I tools/build_disk.py --out $(DISK) --build $(BUILD) --packing $(BOOT_PACKING) --layout $(BUILD)/layout.json
 
@@ -147,6 +147,9 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_menu.py
 	$(PYTHON) tests/test_transfers.py
 	$(PYTHON) tests/test_resident.py
+	$(PYTHON) tests/test_geo_resident.py
+	$(PYTHON) tests/test_geo_atlas.py
+	$(PYTHON) tests/test_journey_resident.py
 	$(PYTHON) tests/test_reference_state.py
 	$(PYTHON) tests/test_optimizations.py
 	$(PYTHON) tests/test_fast_duration.py
@@ -166,6 +169,7 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_hud.py
 	$(PYTHON) tests/test_interface.py
 	$(PYTHON) tests/test_transitions.py
+	$(PYTHON) tests/test_screen_returns.py
 	$(PYTHON) tests/test_sky.py
 	$(PYTHON) tests/test_moonlight.py
 	$(PYTHON) tests/test_site_directions.py

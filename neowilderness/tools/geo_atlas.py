@@ -185,7 +185,7 @@ def parity_reference(fine):
 # --------------------------------------------------------------------- blocks
 
 SHAPES = OrderedDict([
-    ('band7', (W, 7)),      # today: 24 banks of 7 rows (NEOWILD.GEO)
+    ('band7', (W, 7)),      # lot 4: 24 banks of 7 rows (NEOWILD.GEO, retired)
     ('band4', (W, 4)),
     ('band8', (W, 8)),
     ('band14', (W, 14)),
@@ -716,6 +716,77 @@ def delta_cycles(stats, predictor, w):
 
 # Decoder code size estimates (bytes of 6502), for the memory budget.
 DECODER_BYTES = dict(lz=140, overlay=260, rle=50, nib=260, vlc=280, coarse=360)
+
+
+# ------------------------------------------------------- resident atlas (lot 5)
+# The game's format (src/geoaux.s): tile16 blocks, codec 'coarse' with the
+# lake bit, predicted from the map's own resident 112 x 84 grid. Layout at
+# `base` (the geo_atlas label in the auxiliary language card, bank 1 view):
+# 154 low then 154 high bytes of absolute stream addresses, 20 bytes of raw
+# flags (bit = tile mod 8, least significant first), then the streams. A tile
+# whose stream is not shorter than its decoded bytes is stored decoded.
+
+ATLAS_SHAPE = 'tile16'
+ATLAS_END = 0xFFFA                 # auxiliary $FFFA-$FFFF: interrupt vectors
+
+
+def atlas_bytes(cells, woods, grid, base, stats=None):
+    """Fine geography (map format: level, bit 7 water, bit 6 lake; woodland
+    bitmap of 28 bytes per row) -> the resident atlas located at `base`.
+
+    `grid` is the map's resident 112 x 84 grid, the predictor. The decoder
+    takes the even/even cells of a dry coarse cell from it without coding,
+    so every tile is decoded back here and must match exactly.
+    """
+    cells, woods, grid = bytes(cells), bytes(woods), bytes(grid)
+    assert len(cells) == W * H and len(woods) == WROW * H
+    assert len(grid) == mkmap.GW * mkmap.GH
+    tiles = blocks(Fine('atlas', cells, woods, None, None, True), ATLAS_SHAPE)
+    count = len(tiles)
+    header = index_bytes(count)
+    streams, raw = bytearray(), bytearray(-(-count // 8))
+    lo, hi = bytearray(), bytearray()
+    sizes = []
+    for k, b in enumerate(tiles):
+        p = delta_encode(b, True, 'vlc', 'coarse', grid)
+        if delta_decode(p, (b.x0, b.y0, b.w, b.h), True, 'vlc', 'coarse', grid) != b.raw():
+            raise ValueError(f'fine geography tile {k} at ({b.x0}, {b.y0}) does not round-trip: '
+                             'the resident grid must be mkmap.coarse_grid of the fine cells '
+                             'and water levels must fit 6 bits (bit 6 = lake)')
+        if len(p) >= len(b.raw()):
+            p = b.raw()
+            raw[k // 8] |= 1 << (k % 8)
+        address = base + header + len(streams)
+        lo.append(address & 0xFF)
+        hi.append(address >> 8 & 0xFF)   # past $FFFF only in a refused atlas
+        streams += p
+        sizes.append(len(p))
+    out = bytes(lo + hi + raw + streams)
+    if stats is not None:
+        stats.update(tiles=count, index=header, size=len(out), worst=max(sizes),
+                     raw_tiles=bin(int.from_bytes(raw, 'little')).count('1'))
+    return out
+
+
+def atlas_decode(atlas, base, grid):
+    """Inverse of atlas_bytes (model of src/geoaux.s) -> (cells, woods)."""
+    geometry = [(b.x0, b.y0, b.w, b.h) for b in
+                blocks(Fine('shape', bytes(W * H), bytes(WROW * H), None, None, True), ATLAS_SHAPE)]
+    count = len(geometry)
+    cells, woods = bytearray(W * H), bytearray(WROW * H)
+    for k, (x0, y0, w, h) in enumerate(geometry):
+        start = (atlas[k] | atlas[count + k] << 8) - base
+        end = ((atlas[k + 1] | atlas[count + k + 1] << 8) - base) if k + 1 < count else len(atlas)
+        data = atlas[start:end]
+        if atlas[2 * count + k // 8] >> (k % 8) & 1:
+            tile = bytes(data)
+        else:
+            tile = delta_decode(data, (x0, y0, w, h), True, 'vlc', 'coarse', grid)
+        for y in range(h):
+            cells[(y0 + y) * W + x0:(y0 + y) * W + x0 + w] = tile[y * w:(y + 1) * w]
+            row = w * h + y * (w // 8)
+            woods[(y0 + y) * WROW + x0 // 8:(y0 + y) * WROW + (x0 + w) // 8] = tile[row:row + w // 8]
+    return bytes(cells), bytes(woods)
 
 
 # ------------------------------------------------------------------ measuring

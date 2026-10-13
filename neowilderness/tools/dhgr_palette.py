@@ -149,7 +149,7 @@ MOOD = {
                       water=((BLACK, DARK_BLUE), BLACK, BLACK), ridge=BLACK,
                       outline=BLACK, trunk=BLACK, crown=(BLACK, BLACK),
                       sun=_, shade=SHADE_DIM),
-    'night dark': dict(sky=(BLACK, BLACK, BLACK),
+    'night dark': dict(sky=(DARK_BLUE, DARK_BLUE, DARK_BLUE),    # the ridge shows against the stars
                        ground=(BLACK, BLACK, BLACK), snow=(BLACK, BLACK, BLACK),
                        water=(BLACK, BLACK, BLACK), ridge=BLACK,
                        outline=BLACK, trunk=BLACK, crown=(BLACK, BLACK),

@@ -10,6 +10,12 @@
   empty volume.
 - The game can be launched again from the launcher.
 - A /RAM holding files is erased only after Y; N returns to ProDOS.
+- At the final MLI QUIT (Q in the menu after a QUIT, or Ctrl-RESET during
+  play), the zero page, the ProDOS bitmap and the RESET vector are byte for
+  byte those found at NEOWILD.SYSTEM's first entry (after a QUIT, but
+  ProDOS's MLI scratch $40-$4F used to read NEOWILD.SYSTEM again), and the memory switches
+  are back to main RAM and the ROM; during play the bitmap marks exactly the
+  game pages (lot 6 of the parallel branch, commit 96f2f3a).
 """
 import common
 from common import L, DISK, MENU_SKIP, a2test, text_screen
@@ -33,6 +39,38 @@ def check_launcher(result, label, occurrence=0):
     assert 'BITSY' in text and '/NEOWILDERNESS' in text, (label, text)
     switches = result.mem(0xC011, 15, occurrence)
     assert main_banks(switches), (label, switches.hex())
+
+
+# Pages the loader marks in the ProDOS bitmap for the game (src/boot.s
+# game_pages): $02-$03, $08-$57, $60-$B9 and $BE; one bit per page, bit 7 =
+# first page of a byte.
+PAGES = set(range(0x02, 0x04)) | set(range(0x08, 0x58)) | set(range(0x60, 0xBA)) | {0xBE}
+GAME_PAGES = bytes(sum(0x80 >> k for k in range(8) if 8 * i + k in PAGES) for i in range(24))
+
+
+def exit_state(quit_steps, menu):
+    """ProDOS state at the loader's first entry, during play, and at the final QUIT."""
+    entry = ['until:%04X:6000' % L['loader_main'], 'peek:0000:256', 'peek:BF58:24', 'peek:03F2:3']
+    leaves = (('QUIT, Q', quit_steps + [menu, 'press:Q', L.until('ld_mli_quit', 6000)]),
+              ('RESET', ['reset', L.until('prodos_quit', 6000)]))
+    for name, leave in leaves:
+        r = a2test.run(DISK, entry + MENU_SKIP + [IDLE, 'peek:BF58:24', 'peek:03F2:3'] + leave
+                       + ['peek:0000:256', 'peek:BF58:24', 'peek:03F2:3', SWITCHES], menu=False)
+        zp, bitmap, vector = r.dumps[0:3]
+        assert r.dumps[3] == bytes(b | g for b, g in zip(bitmap, GAME_PAGES)), \
+            ('game pages marked during play', r.dumps[3].hex(), GAME_PAGES.hex())
+        assert r.dumps[4] == bytes((L['reset_exit'] & 255, L['reset_exit'] >> 8, (L['reset_exit'] >> 8) ^ 0xA5))
+        # QUIT reloads NEOWILD.SYSTEM through the MLI before Q: ProDOS's own
+        # scratch $40-$4F (volatile across any MLI call) may differ there.
+        scratch = range(0x40, 0x50) if name.startswith('QUIT') else ()
+        assert all(r.dumps[5][i] == zp[i] for i in range(256) if i not in scratch), \
+            (name, 'zero page', [i for i in range(256) if r.dumps[5][i] != zp[i]])
+        assert r.dumps[6] == bitmap, (name, 'bitmap', r.dumps[6].hex(), bitmap.hex())
+        assert r.dumps[7] == vector, (name, 'RESET vector')
+        lcram, ramrd, ramwrt, altzp, store80 = (r.dumps[8][i] >> 7 for i in (1, 2, 3, 5, 7))
+        assert (lcram, ramrd, ramwrt, altzp, store80) == (0, 0, 0, 0, 0), (name, r.dumps[8].hex())
+    print('  QUIT then Q, and Ctrl-RESET: zero page, bitmap and RESET vector equal to the loader '
+          'entry at the MLI QUIT; main RAM, ROM; exactly the game pages marked during play: OK')
 
 
 def main():
@@ -101,6 +139,7 @@ def main():
         if not playable:
             assert 'BITSY' in screen(r, 1), screen(r, 1)
     print('  /RAM with files: N returns to ProDOS untouched, Y erases it and plays: OK')
+    exit_state(quit_steps, menu)
 
 
 if __name__ == '__main__':

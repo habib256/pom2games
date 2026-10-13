@@ -27,6 +27,16 @@ def main():
               f'{pack["records"]} records, {pack["blocks"]:2} blocks; sprites {pack["sprite_bytes"]:4} '
               f'({", ".join(pack["sprites"])}); aux free {pack["aux_free"]}'
               f' (largest piece {pack["aux_free_largest"]})')
+    geo = layout.get('geo')
+    if isinstance(geo, dict):
+        area = f'lc1 ${geo["cache"]:04X}-$FFF9'
+        if geo['loaded']:
+            print(f'  fine geography {area} (NEOWILD.R2): cache {geo["code_address"] - geo["cache"]}, '
+                  f'code {geo["code"]}, atlas {geo["size"]} bytes ({geo["tiles"]} tiles, '
+                  f'{geo["raw_tiles"]} raw), {geo["free"]} free; no TOPO snapshot')
+        else:
+            print(f'  fine geography {area}: legacy map, area used by the TOPO snapshot '
+                  f'(native atlas budget {geo["budget"]} bytes, code {geo["code"]})')
 
 
 if __name__ == '__main__':

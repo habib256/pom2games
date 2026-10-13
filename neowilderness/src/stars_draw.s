@@ -15,8 +15,11 @@
 ; buckets), in catalogue order inside a bucket: a column scans its bucket
 ; (4.6 entries on average for 160) from the last entry to the first, so that
 ; the brightest star of a shared pixel is painted last. Entry: st_a = class
-; << 6 | tint << 4 | az & 15 (the class compares below star_thr: $40, $80,
-; $C0), st_row.
+; << 6 | look << 4 | az & 15 (the class compares below star_thr: $40, $80,
+; $C0), st_row. A star is a span of st_len[look] rows from its row (2 in
+; the tint of the look, 1 grey row for the faint look 3; the second row may
+; be the black ridge row); a first-magnitude star is listed twice, one row
+; apart: 3 rows.
 ;
 ; Engine contract: ang (column azimuth 0..559), top (first terrain row),
 ; sp_end, scene_span (A = mood entry, Y..sp_end-1; clobbers A, X, Y),
@@ -44,8 +47,8 @@ STAR_BUCKETS  = 36              ; az >> 4 = 0..34, then the count
 
 .segment STARS_LIST
 ; Visible list (src/stars.s, tools/stars_ref.resident): grouped by bucket.
-st_a:      .res STAR_LIST_MAX   ; class << 6 | tint << 4 | az & 15
-st_row:    .res STAR_LIST_MAX   ; logical row 16..95
+st_a:      .res STAR_LIST_MAX   ; class << 6 | look << 4 | az & 15
+st_row:    .res STAR_LIST_MAX   ; logical row 16..96
 st_bucket: .res STAR_BUCKETS    ; first entry of bucket az >> 4 = 0..34; [35] = count
 
 .segment STARS_DATA
@@ -53,16 +56,18 @@ star_thr:  .res 1               ; frame: draw st_a < star_thr (0: none)
 st_end:    .res 1               ; column scan: first entry of the bucket
 st_x:      .res 1               ;              entry
 st_b:      .res 1               ;              bucket, then az & 15
+st_thresholds: .byte $40, $80, $C0     ; night bright, dim, dark
+st_solid:  .byte STAR_SOLID0, STAR_SOLID1, STAR_SOLID2, STAR_SOLID3  ; look -> c << 4 | c
+st_len:    .byte STAR_ROWS0, STAR_ROWS1, STAR_ROWS2, STAR_ROWS3      ; look -> rows
 
 .segment STARS_CODE
 ; stars_frame -- after dhgr_frame: the stars of this frame's mood. Night
 ; moods only (no civil or nautical twilight), never under clouds; the full
-; Moon (night bright) leaves the first magnitude, night dim the classes 0-1,
-; night dark every star. Clobbers A, X.
+; Moon (night bright) leaves class 0 (the figures and the stars brighter
+; than 2.0), night dim the classes 0-1, night dark every star. Clobbers A, X.
 stars_frame:
-        lda     #0
         ldx     weather_sky
-        bne     @set
+        bne     @none
         lda     sky_mood
         sec
         sbc     #MOOD_NIGHT_BRIGHT
@@ -71,10 +76,8 @@ stars_frame:
         lda     st_thresholds,x
         .byte   $2C             ; BIT abs: skip the next instruction
 @none:  lda     #0
-@set:   sta     star_thr
+        sta     star_thr
         rts
-st_thresholds: .byte $40, $80, $C0     ; night bright, dim, dark
-st_solid:  .byte STAR_SOLID0, STAR_SOLID1, STAR_SOLID2  ; tint -> c << 4 | c
 
 ; stars_column -- the stars of the column at azimuth `ang`, rows < top.
 ; Clobbers A, X, Y.
@@ -114,17 +117,18 @@ stars_column:
         cpy     top
         bcs     @scan           ; behind the ridge
         stx     st_x
-        lda     st_a,x          ; tint -> solid entry c << 4 | c
+        lda     st_a,x          ; look -> rows and solid entry c << 4 | c
         lsr     a
         lsr     a
         lsr     a
         lsr     a
         and     #3
         tax
+        tya
+        clc
+        adc     st_len,x
+        sta     sp_end
         lda     st_solid,x
-        iny
-        sty     sp_end
-        dey
         jsr     scene_span
         ldx     st_x
         jmp     @scan

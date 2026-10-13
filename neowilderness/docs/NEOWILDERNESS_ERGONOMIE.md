@@ -297,11 +297,13 @@ Valider le défilement vers les limites, le recentrage, les huit directions prin
 ## Réalisation des lots 4 et 5
 
 Le résumé occupe les côtés du ruban de boussole sur seize lignes HGR ;
-les quatre lignes de commande/résultat restent disponibles. Heure ou période
-sans montre, santé, faim et soif sont permanentes. Le quatrième champ privilégie
-une transition, le danger thermique, immersion/vêtements mouillés, frissons
-ou sueur, puis l'abri ou les objets récupérables ici. Les seuils sont repris
-de STATUS. Une classe inchangée ne répète pas l'alerte à chaque pas ; une
+les quatre lignes de commande/résultat restent disponibles. À gauche la
+santé, à droite l'heure (ou la période sans montre) suivie du jour du séjour
+sont permanentes ; le bas du panneau droit montre le besoin le plus pressant,
+faim ou soif (la faim à égalité), l'autre restant dans STATUS. Le champ sous
+la santé privilégie une transition, le danger thermique, immersion/vêtements
+mouillés, frissons ou sueur, puis l'abri ou les objets récupérables ici. Les
+seuils sont repris de STATUS. Une classe inchangée ne répète pas l'alerte à chaque pas ; une
 action longue conserve une seule alerte prioritaire jusqu'au compte rendu.
 STATUS distingue CARRIED et HERE, avec les unités OZ, et place les conditions
 avant besoins et environnement. Le cas simultané de toutes les conditions,

@@ -1,7 +1,10 @@
-; Four short fields around the compass, outside the command area. Lot 4:
-; native DHGR colour, the 7-row font of tools/dhgr_font.py on black panels
-; (byte groups 0..6 and 13..19, rows 0..15): labels grey, values aqua /
-; yellow, warnings white on red, hints light blue. Ink colours have three or
+; Four short fields around the compass, outside the command area: left
+; panel, health then alert or hint; right panel, clock and journey day then
+; the more pressing need (hunger or thirst). Lot 4: native DHGR colour, the
+; 7-row font of tools/dhgr_font.py on black panels (byte groups 0..6 and
+; 13..19, rows 0..15; the right panel starts UI_GAP pixels after the
+; ribbon): labels grey, values aqua / yellow, warnings white on red, hints
+; light blue. Ink colours have three or
 ; four dots per pixel (white, aqua, yellow, light blue, grey): on a
 ; composite display (and POM2) a 2-dot colour such as green draws thin,
 ; broken strokes. tools/dhgr_ui.py is the model.
@@ -14,6 +17,7 @@ UI_FAIR  = 13                   ; yellow
 UI_HINT  = 7                    ; light blue
 UI_WHITE = 15
 UI_CHARS = 16                   ; characters per field (49 pixels hold 13)
+UI_GAP   = 4                    ; pixels between the ribbon and the right panel
 ; Field buffer: one entry per character (free outside the ray loop).
 f_lo  = overlay_text            ; glyph address
 f_hi  = overlay_text + UI_CHARS
@@ -66,38 +70,11 @@ module_summary:
         sta     $37
         lda     #0
         sta     summary_n
-        sta     summary_field   ; field 0: left panel, upper line
-        lda     #UI_WHITE
-        sta     summary_ink
-        ldx     #54
-        jsr     have
-        bcc     @period
-        display_clock summary_hour, summary_minute
-        lda     summary_hour
-        jsr     pdec
-        jsr     puts
-        .byte ":",0
-        lda     summary_minute
-        cmp     #10
-        bcs     :+
-        jsr     puts
-        .byte "0",0
-:       lda     summary_minute
-        jsr     pdec
-        jmp     @health
-@period:
-        lda     #<summary_periods
-        sta     gp2
-        lda     #>summary_periods
-        sta     gp2+1
-        ldx     period
-        lda     #5
-        jsr     word
-@health:
+        sta     summary_field   ; field 0: left panel, upper line: health
         lda     #UI_LABEL
         sta     summary_ink
         jsr     puts
-        .byte " H=",0
+        .byte "HEALTH ",0
         fld     f_hmax
         fop     FDIV, s_health
         fop     FMULT, f_100
@@ -115,17 +92,91 @@ module_summary:
         jsr     pdec
         jsr     puts
         .byte "%",0
-        jsr     field_next      ; field 1: left panel, lower line
+        jsr     field_next      ; field 1: left panel, lower line: alert or hint
+        jsr     summary_hint
+        jsr     field_next      ; field 2: right panel, upper line: clock, day
+        lda     #UI_WHITE
+        sta     summary_ink
+        ldx     #54
+        jsr     have
+        bcc     @period
+        display_clock summary_hour, summary_minute
+        lda     summary_hour
+        jsr     pdec
+        jsr     puts
+        .byte ":",0
+        lda     summary_minute
+        cmp     #10
+        bcs     :+
+        jsr     puts
+        .byte "0",0
+:       lda     summary_minute
+        jsr     pdec
+        jmp     @day
+@period:
+        lda     #<summary_periods
+        sta     gp2
+        lda     #>summary_periods
+        sta     gp2+1
+        ldx     period
+        lda     #5
+        jsr     word
+@day:   lda     #UI_LABEL
+        sta     summary_ink
+        jsr     puts
+        .byte " DAY ",0
+        ; Day of the journey: the day of the year of STATUS (INT(date * 365
+        ; + 1)) less 125, plus 365 across New Year: the crash of May 6 (day
+        ; 126) is day 1.
+        fld     s_date
+        fop     FMULT, f_365
+        fop     FADD, f_one
+        jsr     AYINT
+        lda     $A1
+        sec
+        sbc     #125
+        sta     num
+        lda     $A0
+        sbc     #0
+        sta     num+1
+        bpl     :+
+        lda     num
+        clc
+        adc     #<365
+        sta     num
+        lda     num+1
+        adc     #>365
+        sta     num+1
+:       lda     #UI_WHITE
+        sta     summary_ink
+        jsr     print_u16
+        jsr     field_next      ; field 3: right panel, lower line: the need
+        fld     s_drink         ; that is worse (hunger when equal)
+        fop     FCOMP, s_eat
+        cmp     #1
+        beq     @thirst
         jsr     puts
         .byte "HUNGER ",0
         fld     s_eat
         jsr     summary_gauge
-        jsr     field_next      ; field 2: right panel, upper line
+        jmp     @restore
+@thirst:
         jsr     puts
         .byte "THIRST ",0
         fld     s_drink
         jsr     summary_gauge
-        jsr     field_next      ; field 3: alert or hint
+@restore:
+        jsr     field_flush
+        lda     summary_vector
+        sta     $36
+        lda     summary_vector+1
+        sta     $37
+        rts
+
+; summary_hint -- field 1: a pending transition alert, else the thermal
+; danger, immersion or wet clothes, the shelter, the items at hand, a
+; caution, the recoverable items, or a rest / help hint. Clobbers A, X, Y.
+summary_hint:
         lda     #UI_HINT
         sta     summary_ink
         lda     ui_pending
@@ -176,7 +227,7 @@ module_summary:
 @alert_done:
         lda     #0
         sta     ui_pending
-        jmp     @restore
+        rts
 @thermal:
         lda     ui_previous+5
         beq     @body
@@ -189,10 +240,10 @@ module_summary:
         bne     @hot
         jsr     puts
         .byte "HYPOTHERMIA",0
-        jmp     @restore
+        rts
 @hot:   jsr     puts
         .byte "HYPERTHERMIA",0
-        jmp     @restore
+        rts
 @wet:   lda     wet_mode
         beq     @shelter
         inc     summary_inverse
@@ -200,22 +251,22 @@ module_summary:
         bne     @damp
         jsr     puts
         .byte "IMMERSED",0
-        jmp     @restore
+        rts
 @damp:  jsr     puts
         .byte "WET CLOTHES",0
-        jmp     @restore
+        rts
 @shelter:
         lda     tree_in
         beq     :+
         jsr     puts
         .byte "CLIMB DOWN",0
-        jmp     @restore
+        rts
 :
         lda     shelter_inside
         beq     @cabin
         jsr     puts
         .byte "EXIT SHELTER",0
-        jmp     @restore
+        rts
 @cabin: lda     MAP+16
         beq     @items
         lda     px+1
@@ -226,7 +277,7 @@ module_summary:
         bne     @items
         jsr     puts
         .byte "ENTER SHELTER",0
-        jmp     @restore
+        rts
 @items:
         lda     it_place+21
         cmp     #5
@@ -236,7 +287,7 @@ module_summary:
         bcc     @wildlife
         jsr     puts
         .byte "LOWER FOOD",0
-        jmp     @restore
+        rts
 @wildlife:  lda     animal_kind
         beq     @temperature
         lda     animal_x
@@ -251,10 +302,10 @@ module_summary:
         bne     :+
         jsr     puts
         .byte "IGNORE/MOVE",0
-        jmp     @restore
+        rts
 :       jsr     puts
         .byte "SCARE/IGNORE",0
-        jmp     @restore
+        rts
 @temperature:
         lda     #UI_FAIR        ; cautions
         sta     summary_ink
@@ -264,10 +315,10 @@ module_summary:
         bne     @shiver
         jsr     puts
         .byte "SWEATING",0
-        jmp     @restore
+        rts
 @shiver: jsr    puts
         .byte "SHIVERING",0
-        jmp     @restore
+        rts
 @water_stock:
         lda     it_pack_hi+N_WATER
         bne     @scan
@@ -276,7 +327,7 @@ module_summary:
         bcs     @scan
         jsr     puts
         .byte "WATER LOW:INV",0
-        jmp     @restore
+        rts
 @scan:  lda     #UI_HINT
         sta     summary_ink
         ldx     #75
@@ -301,7 +352,7 @@ module_summary:
         jmp     @normal
 @found: jsr     puts
         .byte "ITEMS: INV",0
-        jmp     @restore
+        rts
 @normal:
         lda     #UI_CALM
         sta     summary_ink
@@ -309,16 +360,10 @@ module_summary:
         beq     @map_hint
         jsr     puts
         .byte "REST / HELP",0
-        jmp     @restore
+        rts
 @map_hint:
         jsr     puts
         .byte "TOPO / HELP",0
-@restore:
-        jsr     field_flush
-        lda     summary_vector
-        sta     $36
-        lda     summary_vector+1
-        sta     $37
         rts
 summary_gauge:
         fop     FCOMP, f_12
@@ -436,8 +481,12 @@ field_flush:
         dey
         bpl     :-
         lda     #0
-        sta     summary_x
         sta     summary_i
+        lda     summary_field   ; right panel: UI_GAP pixels after the ribbon
+        and     #2
+        beq     :+
+        lda     #UI_GAP
+:       sta     summary_x
 @char:  ldy     summary_i
         cpy     summary_n
         bcs     @pack

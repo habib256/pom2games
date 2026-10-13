@@ -916,6 +916,7 @@ ld_quit:
         sta     $00,x
         inx
         bne     :-
+ld_mli_quit:                    ; tests/test_prodos.py: state at the final QUIT
         jsr     MLI
         .byte   $65
         .word   ld_quit_parms
@@ -982,7 +983,9 @@ file_dat: .byte "DAT"
 file_geo: .byte "GEO"
 
 ; Pages protected in the ProDOS bitmap while the game runs. The module
-; window $5800-$5FFF and the I/O buffer stay free for NEOWILD.GEO reads.
+; window $5800-$5FFF and the I/O buffer stay free for the reads of
+; NEOWILD.END and NEOWILD.HOF at the end of a journey (the fine geography is
+; resident since the integration of the parallel branch).
 game_pages:
         .repeat 24, I
         .scope

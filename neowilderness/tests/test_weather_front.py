@@ -72,10 +72,16 @@ def main():
         steps += [L.poke('weather_duration', span), L.poke('weather_duration', 0, 1),
                   L.poke('weather_previous_duration', 100), L.poke('weather_previous_duration', 0, 1),
                   L.poke('weather_short', short), L.poke('weather_previous_short', old_short),
-                  L.poke('airtemp', 42), end, L.peek('weather_cap', 6),
+                  L.poke('airtemp', 42), end, L.peek('weather_cap', 3),
+                  L.peek('weather_sky', 1), L.peek('weather_trend', 1),
+                  L.peek('weather_inside_front', 1),
                   L.peek('weather_start', 14), L.peek('weather_seed', 4), idle]
     r = a2test.run(DISK, steps, emulator=a2test.A2SHOT, timeout=900)
-    observations = [r.mem(L['weather_cap'], 6, i) for i in range(len(CASES))]
+    # cap (2), visibility, sky, trend, inside_front: read by label, since
+    # weather_day_level sits between visibility and sky in the engine.
+    observations = [r.mem(L['weather_cap'], 3, i) + r.mem(L['weather_sky'], 1, i)
+                    + r.mem(L['weather_trend'], 1, i) + r.mem(L['weather_inside_front'], 1, i)
+                    for i in range(len(CASES))]
     timelines = [r.mem(L['weather_start'], 14, i) for i in range(len(CASES))]
     seeds = [r.mem(L['weather_seed'], 4, i) for i in range(len(CASES))]
     if original:

@@ -6,14 +6,18 @@ the MLI counters of memory.s (every call made through mli_call, including
 the loader's) and an a2shot watch on the ProDOS MLI entry $BF00, which also
 catches a call that would bypass the counters. DOS 3.3 is absent: no code
 of the link refers to its entry points, and RWTS/BLOAD/$03D0 never run.
+The script runs on the default (legacy) map, then on a native map whose fine
+geography is resident (lot 5): the former on-demand NEOWILD.GEO reads are gone.
 """
 import re
 import sys
-from common import HERE, L, DISK, a2test, text_screen
+import tempfile
+from common import HERE, L, DISK, a2test, disk_with, text_screen
 from scenario import SCRIPT, play
 
 COUNTERS = (('mli_calls', 2), ('mli_reads', 2), ('mli_bytes', 3),
-            ('xfer_count', 2), ('xfer_bytes', 3), ('overlay_reads', 2))
+            ('xfer_count', 2), ('xfer_bytes', 3), ('overlay_reads', 2),
+            ('geo_queries', 3), ('geo_decodes', 2))
 
 
 def counters(session):
@@ -49,10 +53,9 @@ def static_check():
     assert 'dos_cmd' not in names and 'apple2_zp_save' not in names
 
 
-def main():
-    static_check()
-    print('  no DOS 3.3 entry, RWTS, BLOAD or command buffer left in the link: OK')
-    with a2test.Session(DISK, timeout=900) as s:
+def play_counted(disk, title):
+    """The ordinary-play script on `disk`, every MLI call counted and watched."""
+    with a2test.Session(disk, timeout=900) as s:
         s.step(L.until('idle', 40000))
         boot = counters(s)
         assert boot['xfer_count'] >= 1
@@ -71,19 +74,37 @@ def main():
         play(s, L, SCRIPT, each)
         watched = s.out[out_before:].count('watch BF00')
         final = counters(s)
-    print(f'  boot: {boot["mli_calls"]} MLI calls, {boot["mli_reads"]} reads, '
+    print(f'  {title} boot: {boot["mli_calls"]} MLI calls, {boot["mli_reads"]} reads, '
           f'{boot["mli_bytes"]} bytes read; {boot["xfer_count"]} RAM transfers')
     failures = 0
     for keys, delta in rows:
         label = keys.replace('\r', '').replace('\\', '')
         ok = delta['mli_calls'] == 0 and delta['mli_reads'] == 0 and delta['mli_bytes'] == 0
         failures += not ok
+        geo = (f', geography {delta["geo_queries"]:3} queries {delta["geo_decodes"]} decodes'
+               if delta['geo_queries'] else '')
         print(f'  {label:18} disk calls {delta["mli_calls"]}, module loads '
               f'{delta["overlay_reads"]:2}, RAM transfers {delta["xfer_count"]:2} '
-              f'({delta["xfer_bytes"]:6} bytes): {"OK" if ok else "FAIL"}')
+              f'({delta["xfer_bytes"]:6} bytes){geo}: {"OK" if ok else "FAIL"}')
     assert final['xfer_count'] - boot['xfer_count'] == sum(d['xfer_count'] for _, d in rows)
     print(f'  ProDOS MLI entry $BF00 reached {watched} times after the preload')
-    if failures or watched or final['mli_calls'] != boot['mli_calls']:
+    return bool(failures or watched or final['mli_calls'] != boot['mli_calls']), final, boot
+
+
+def main():
+    static_check()
+    print('  no DOS 3.3 entry, RWTS, BLOAD or command buffer left in the link: OK')
+    failed, final, boot = play_counted(DISK, 'default map')
+    assert final['geo_queries'] == 0, 'a legacy map queried the fine geography'
+    # A native map (fine geography resident in the auxiliary language card,
+    # lot 5): the same script, with fine queries and tile decodes.
+    from test_geo_resident import generated_native
+    with tempfile.TemporaryDirectory() as tmp:
+        native = generated_native()[0]
+        failed_native, final, boot = play_counted(disk_with(tmp, native), 'native map')
+    print(f'  native map: {final["geo_queries"] - boot["geo_queries"]} fine queries, '
+          f'{final["geo_decodes"] - boot["geo_decodes"]} tiles decoded after the preload')
+    if failed or failed_native:
         print('FAIL: disk access during ordinary play')
         sys.exit(1)
     print('Zero disk reads after the preload: OK')

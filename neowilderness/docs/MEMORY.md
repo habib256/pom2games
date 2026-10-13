@@ -39,9 +39,9 @@ K constantes, E état persistant, T temporaires.
 | `WILDMAP` | `$7000-$94FF` | 9 472 | K | En-tête 64 octets et grille 112 × 84, du paquet de région (lot 7) ; le chargeur y écrit le niveau (+22) et le genre de voyage (+33) |
 | `SCRATCH` | `$9500-$95FF` | 256 | T | `overlay_text` (160) : couleurs de colonne des sprites **et** flottants temporaires du ciel ; puis `scene_*`, thermique, saisie |
 | `ENVIRON`+`THERMAL` (`wildsim.bin`) | `$9600-$B5FE` | 8 191 | C/K/T | Simulation ; données de l'image rechargées à chaque activation (même sémantique que le BLOAD HGR) |
-| `RESCODE` (`wildres.bin`) | `$B600-$B987` | 904 | C/K | Répertoire des modules (161), `mem_fetch`, boucle de pile, `mli_call`, `geo_load`, sortie/RESET |
-| `RESBSS` | `$B988-$B9DA` | 83 | E | Compteurs, vecteur RESET et bitmap ProDOS sauvegardés, chemin de NEOWILD.GEO |
-| `IOBUF` | `$BA00-$BDFF` | 1 024 | T | Tampon d'E/S ProDOS (chargeur, géographie native) |
+| `RESCODE` (`wildres.bin`) | `$B600-$B987` | 904 | C/K | Répertoire des modules (161), `mem_fetch`, boucle de pile, `mli_call`, sortie/RESET (`geo_load` retiré au § 9.10) |
+| `RESBSS` | `$B988-$B9DA` | 83 | E | Compteurs, vecteur RESET et bitmap ProDOS sauvegardés, chemin de NEOWILD.GEO (gabarit de `NEOWILD.END`/`.HOF`), compteurs de géographie fine (§ 9.10) |
+| `IOBUF` | `$BA00-$BDFF` | 1 024 | T | Tampon d'E/S ProDOS (chargeur, `NEOWILD.END`/`.HOF`) |
 | `SAVE` | `$BE00-$BEFF` | 256 | E | Page zéro de ProDOS à l'entrée, restaurée à la sortie |
 | `SYSSTUB`+`LOADER` (`NEOWILD.SYSTEM`) | `$2000` puis `$9600-$A56D` | 3 912 | C/T | Chargeur transitoire et menu de démarrage (lot 7), exécutés dans la fenêtre SIM avant la première activation ; table d'enregistrements en `$B500` |
 
@@ -55,13 +55,16 @@ Modules de la fenêtre `$5800` (identifiants de `overlay_load`, inchangés) :
 | 3 | `wildsim.bin` → `$9600` | 8 191 | 15 | `wildhud.bin` | 1 739 |
 | 4 | `wildwat.bin` | 495 | 16 | `wildsta.bin` | 2 048 |
 | 5, 9 | épave, cabane (tronc commun) | 1 900, 1 133 | 17/18 | `wildmed.bin` (médical + dangers) | 2 045 |
-| 6–8, 23 | animaux 1 à 4 du paquet de région (Sierra : ours, couguar, crotale) | 464 à 1 227 chacun | 24 / 25 | tête du catalogue des étoiles `wildskycat.bin` (le hall of fame est lu sur disque) / module des étoiles `wildsky.bin` (fenêtre SIM) | 462 / 2 337 |
+| 6–8, 23 | animaux 1 à 4 du paquet de région (Sierra : ours, couguar, crotale) | 464 à 1 227 chacun | 24 / 25 | tête du catalogue des étoiles `wildskycat.bin` (le hall of fame est lu sur disque) / module des étoiles `wildsky.bin` (fenêtre SIM) | 462 / 2 367 |
 | 10 | `wildsit.bin` | 1 915 | 19 | `wildmvi.bin` | 878 |
 | 11 | `wildprj.bin` | 1 134 | 20–22 | `wildtre`, `wildadv`, `wildout` | 916, 1 971, 1 982 |
 
-`wildgeo.bin` (1 861) n'est pas un module : c'est le gabarit des 24 banques
-de géographie fine (IDs 32–55 depuis le lot 7, 23–46 avant), présentes seulement sur les disques de
-comparaison et lues à la demande (lot 5).
+`wildgeo.bin` n'est pas un module : jusqu'au lot 7, c'était le gabarit des
+24 banques de géographie fine (IDs 32–55, 23–46 avant), lues à la demande
+dans `NEOWILD.GEO` ; depuis l'intégration de la branche parallèle (§ 9.10),
+c'est le code résident de la géographie fine (`src/geoaux.s`, 843 octets),
+chargé avec l'atlas en carte langage auxiliaire sur les seules cartes
+natives.
 
 ### Appels entre segments
 
@@ -136,7 +139,8 @@ environ 930 octets dans WILDGAME, 290 dans WILDLO et 170 dans WILDERNESS
 
 Bitmap ProDOS pendant le jeu : pages `$02-$03`, `$08-$57`, `$60-$B9` et `$BE` marquées
 en plus de celles de ProDOS ; la fenêtre `$58-$5F` et le tampon `$BA-$BD`
-restent libres pour les lectures de géographie native. Le bitmap d'origine
+restent libres (lectures de `NEOWILD.END` et `NEOWILD.HOF` en fin de
+partie ; plus aucune lecture de géographie depuis le § 9.10). Le bitmap d'origine
 est rétabli à la sortie.
 
 ### RAM auxiliaire
@@ -400,6 +404,11 @@ repli sur le redessin si la vue ne tient pas), ou retour au redessin
 (`topo_close` rend C = 1 sans instantané : le chemin de redessin est déjà
 câblé dans `module_graphical_topo`).
 
+**Résolu à l'intégration de la branche parallèle (§ 9.10).** L'atlas
+résident (`src/geoaux.s`, ≈ 7,2 Ko pour la Sierra) partage cette zone avec
+l'instantané selon la carte : carte héritée (les six régions livrées) →
+instantané ; carte native (comparaison) → atlas, et TOPO redessine la vue.
+
 ## 9. Lot 7 : tronc commun, paquets de région, menu, étoiles, hall of fame
 
 Étapes 2 à 6 de [SCENARIOS.md](SCENARIOS.md) : le volume porte un tronc
@@ -433,7 +442,8 @@ après l'étape 4 (paquetage `auto`), 11 avec les étapes 5-6 en `auto`, 34 en
 Conséquence pour le lot 5 : six atlas de géographie fine (≈ 22 blocs chacun,
 ≈ 132 au total) ne tiennent pas sur la disquette unique ; la géographie
 fine devra être calculée en RAM ou réservée à la Sierra (un atlas tient dans
-les 34 blocs).
+les 34 blocs). Réalisé pour les cartes natives au § 9.10 : l'atlas `coarse`
+(6,4 Ko pour la Sierra, 13 blocs de plus dans `NEOWILD.R2`).
 
 ### 9.2 Contenu d'un paquet (ordre des enregistrements)
 
@@ -670,10 +680,10 @@ de jeu, la nuit seulement ([BASELINE_DHGR.json](BASELINE_DHGR.json), clé
 | Élément | Où | Octets |
 |---|---|---:|
 | Tête du catalogue `wildskycat.bin` (154 étoiles), entrée 24 | stock, banque 2 auxiliaire `$DE30` → `$9600` | 462 |
-| Module `wildsky.bin` (reste du catalogue 384, code 1 758, tables 195), entrée 25 | stock auxiliaire `$6A78` → `$97CE` | 2 337 |
+| Module `wildsky.bin` (reste du catalogue 384, code 1 788, tables 195 ; constellations entières, STARS.md § 14), entrée 25 | stock auxiliaire → `$994E` (tête et reste du catalogue devant) | 2 367 |
 | BSS du module (quarts de carrés, produits de l'heure, lignes, S, AT, passe 1) | `$A200-$AF11`, fenêtre SIM | 3 346 |
 | Liste (`st_a`, `st_row` : 160 + 160) et seaux (36) | carte principale banque 2 `$DE18-$DF7B` | 356 |
-| `stars_frame`, `stars_column` | carte principale banque 2 `$DF7C-$DFFE` | 131 |
+| `stars_frame`, `stars_column` (seuils, entrées unies et longueurs en WILDLO) | carte principale banque 2 `$DF7C-$DFF9` | 126 |
 | `star_thr` et variables de balayage | WILDLO | 4 |
 | `stars_stale` et raccords (dont la sauvegarde d'`overlay_current`) | WILDLO | 73 |
 
@@ -719,9 +729,48 @@ voyage libre, puis la relance (§ 9.5). Détail : [HOF.md](HOF.md).
 
 | Ressource | Libre |
 |---|---|
-| RAM principale résidente | **181 octets** (§ 9.4 ; 86 avant le ciel peuplé) |
-| RAM auxiliaire + carte principale, par région | British Columbia 477, Sierra 1 510, **Burma 266** (plus grand morceau 135), New Guinea 1 038, Bolivia 290, Chile 1 738 (§ 9.3 ; avant le ciel peuplé : 1 524, 2 557, 1 313, 2 085, 1 337, 2 785) |
+| RAM principale résidente | **361 octets** après l'intégration (§ 9.10) ; 181 à la fin du lot 7 (§ 9.4 ; 86 avant le ciel peuplé) |
+| RAM auxiliaire + carte principale, par région | British Columbia 489, Sierra 1 522, **Burma 278** (plus grand morceau 147), New Guinea 1 050, Bolivia 302, Chile 1 750 après l'intégration (§ 9.10) ; fin du lot 7 : 477, 1 510, 266 (135), 1 038, 290, 1 738 (§ 9.3 ; avant le ciel peuplé : 1 524, 2 557, 1 313, 2 085, 1 337, 2 785) |
 | Carte principale banque 2 | 59 (stock, `$DDDD-$DE17`) + 1 (`$DFFF`) ; avant : 291 + 135 |
 | Fenêtre `$5800` | SITES 146, PROJECT 694, SUMMARY 107, INPUT 382 (le module des étoiles est passé dans la fenêtre SIM) |
 | Fenêtre SIM au calcul des étoiles | `$AF12-$B5FF` 1 774 au-dessus du BSS du module |
-| Volume | 247 / 280 blocs, **33 libres** (paquetage `lz`) |
+| Volume | 247 / 280 blocs, **33 libres** (paquetage `lz`) ; disque de comparaison à carte native : 260 / 280 (§ 9.10) |
+
+### 9.10 Intégration de la branche parallèle : géographie fine résidente
+
+Portage du lot 5 de la branche `worktree-neowilderness-lot4` (commit
+`9795a58`) ; verdict et mesures dans [GEOGRAPHY.md](GEOGRAPHY.md) § 9.
+Chiffres de `build/wild.map` et `make inspect` après l'intégration.
+
+| Changement | Effet |
+|---|---|
+| `geo_load`, son chemin MLI et ses paramètres retirés de RESIDENT ; `geo_decodes` (2) et `geo_queries` (3) ajoutés en RESBSS | RESIDENT `$B961-$B9FF` : **159 libres** (2 avant) |
+| `native_here_travel`, `native_next_travel`, `native_restore_travel` (TEXT, GCODE) ; chemin `GEO_FIRST` d'`overlay_fetch` ; tronçon `cell_native` de 24 octets | WILDGAME `$576D-$577F` : 19 libres (4) ; TEXT `$0FED-$0FFF` : 19 (11) |
+| Module `wildgeo.bin` de la fenêtre `$5800` (IDs 32–55 lus dans `NEOWILD.GEO`) remplacé par le segment `GEOAUX` (`$D480-$D7CA`, 843 octets, chargé seulement avec une carte native) | — |
+| `water_native_here` retiré d'ENVIRON (SIM) ; `tp_save` saute l'instantané sur carte native (+11 octets de TOPOGEN) | stock auxiliaire : **+12 octets par région** |
+
+| Zone | Libre |
+|---|---:|
+| LOWPAGE `$03B9-$03CF` | 23 |
+| FORESTCODE `$09FC-$09FF` | 4 |
+| TEXT `$0FED-$0FFF` | 19 |
+| WILDLO `$1F79-$1FFF` | 135 |
+| WILDGAME `$576D-$577F` | 19 |
+| WILDERNESS `$6FFE-$6FFF` | 2 |
+| RESIDENT `$B961-$B9FF` | 159 |
+| **Total RAM principale résidente** | **361** (181 avant) |
+
+Carte langage auxiliaire, vue banque 1 (`$D000-$DFFF`) et zone commune
+(`$E000-$FFF9`) : sur une carte héritée, instantané de la vue sous TOPO
+(§ 8.4, inchangé) ; sur une carte native, cache de 4 tuiles (`$D000-$D47F`),
+code (`$D480-$D7CA`) et atlas (`$D7CB-$FFF9`, budget 10 287 octets ; Sierra
+6 379, carte générée 6 113). L'enregistrement code + atlas est dans le
+paquet `NEOWILD.R2` (avant la carte, décodée en dernier), seul paquet qui
+reçoit la carte de `--map` : disque natif 260/280 blocs, paquet Sierra 15 →
+28 blocs. Le disque livré est inchangé : `NEOWILD.DAT` 46 063 octets
+stockés (14 enregistrements), 247/280 blocs. Garde-fous vérifiés
+(`test_prodos.py`, `test_screen_returns.py`, `test_journey_resident.py`,
+`test_geo_resident.py`) : bitmap ProDOS, page zéro et vecteur RESET rendus
+à l'identique au QUIT final, pages du jeu marquées pendant la partie ;
+`$0200-$03FF` auxiliaire, page zéro principale et commutateurs inchangés
+par les requêtes et les écrans ; pile au plus profond à `S=$DD`.

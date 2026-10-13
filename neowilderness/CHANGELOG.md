@@ -7,6 +7,83 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Neowilderness : constellations entières et nuit noire
+
+- Catalogue **par figures** : 42 constellations complètes (262 étoiles,
+  jusqu'à V 4,95 : bol de la Petite Ourse, Hyades, Gémeaux, Faucille, Lyre,
+  Clé de voûte, Couronne boréale…) ; les 44 étoiles ajoutées remplacent les
+  44 étoiles isolées les plus faibles (toujours 282 étoiles, 846 octets).
+- Classe de sélection = figure (classe 0 : figures et V < 2,0 ; 1 et 2 :
+  remplissage) : la pleine Lune montre les figures entières ; une liste
+  pleine perd le remplissage d'abord ; indice comparé sur 16 bits.
+- Magnitude dans le pixel : trois rangées pour la première grandeur (deux
+  entrées), deux rangées teintées sous V 3,0, une rangée grise au-delà.
+- Projection comprimée au-dessus de 45° (égale en sin h jusqu'à 86°) : la
+  Grande Ourse et Cassiopée restent visibles à leur culmination ; la Lune
+  garde sa perspective.
+- Ciel **bleu foncé** en nuit noire : la crête se découpe en silhouette.
+- Les rotations **défilent en nuit noire** comme le jour (`turn_view` ne
+  redessine plus la vue entière) : 35 colonnes par pas de 22,5°.
+- Module 2 367 octets (+30), `SKYRES` 482 (tables en WILDLO) ; référence,
+  banc IIe, tests en jeu et [STARS.md](docs/STARS.md) § 14 à jour.
+
+### Neowilderness : bandeau réorganisé
+
+- Panneau gauche : `HEALTH 100%` seul en haut, l'alerte ou l'indication
+  (SHIVERING, ITEMS: INV, TOPO / HELP…) en dessous. Panneau droit : l'heure
+  (ou la période sans montre) suivie du jour du séjour (`7:00 DAY 1` ; jour
+  de l'année de STATUS moins 125, plus 365 au passage de l'an) en haut, le
+  besoin le plus pressant en dessous (`HUNGER OKAY`, `THIRST SO-SO` : celui
+  des deux qui va le plus mal, la faim à égalité ; l'autre reste dans
+  STATUS). Le panneau droit commence 4 pixels après le ruban (`UI_GAP`).
+- Module `wildhud.bin` : 1 941 → 2 021 octets (80 de moins dans le stock de chaque région) ; `tools/dhgr_ui.py` (largeur
+  par panneau), `test_interface.py`, `test_clock.py` (jour du séjour, dont
+  le passage de l'an) mis à jour.
+
+### Neowilderness : intégration de la branche parallèle
+
+Une seconde implémentation du port (branche `worktree-neowilderness-lot4`,
+même base, 78 conflits textuels) a été relue ; ses apports sont
+transplantés à la main, sans fusion ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md)
+« Intégration de la branche parallèle »).
+
+- **Géographie fine résidente** (lot 5 de la branche, `9795a58`) : sur une
+  carte native (comparaison Sierra, `mkmap.py --native`), un atlas
+  `coarse` de 154 tuiles 16 × 16 (Sierra 6 379 octets, carte générée
+  6 113) et son décodeur `src/geoaux.s` (843 octets) sont chargés par
+  `NEOWILD.R2` en carte langage auxiliaire (vue banque 1) ; 4 tuiles en
+  cache ; 203 cycles par requête, ≤ 46,5 ms par décodage ; partie Sierra
+  vers les rangers : 53 commandes, 14 décodages, aucun appel MLI.
+  `NEOWILD.GEO` et `geo_load` disparaissent.
+- **Verdict mémoire** ([GEOGRAPHY.md](docs/GEOGRAPHY.md) § 9) : l'atlas ne
+  tient pas dans le stock de modules (≤ 1,75 Ko libres par région) ; il
+  partage la zone de l'instantané TOPO selon la carte : les six régions
+  livrées (cartes héritées) gardent l'instantané (retour 0,24 s), une
+  carte native prend l'atlas et TOPO redessine la vue (6,1 s). Rien n'est
+  retiré aux étoiles, aux régions ni au hall of fame. Une carte native,
+  inconstructible avant (97 blocs de `NEOWILD.GEO` en plus des paquets),
+  tient en 260/280 blocs ; `make test-original` (`test_adventure.py
+  --scenario all`, 83 points, 0 écart) redevient jouable.
+- Mémoire ([MEMORY.md](docs/MEMORY.md) § 9.10) : RAM principale résidente
+  libre 181 → **361 octets** ; stock auxiliaire +12 octets par région
+  (Burma 278) ; disque livré inchangé, 247/280 blocs.
+- Tests ajoutés à `make test` : `test_journey_resident` (crash → rangers
+  au clavier, zéro MLI, copies RAM, pile, nouveau jour, soins, nage, puis
+  hall of fame après la touche de fin ; rejoué en carte native),
+  `test_screen_returns` (neuf retours d'écran identiques, modules exacts),
+  `test_geo_resident`, `test_geo_atlas` ; `test_prodos` vérifie page zéro,
+  bitmap et vecteur RESET au QUIT final ; `test_resident` et
+  `test_graphical_topo` rejouent sur une carte native ; `test_walk`,
+  `test_interface` et `test_weather_front` reprennent les corrections de
+  la branche (lecture par étiquette de `weather_day_level`).
+- Outils : `mkmap.py --fine/--native`, `inspect_disk.py` (zone de
+  géographie), `profile_actions.py` (requêtes et décodages),
+  `profile_loading.py --map` ; `build_disk.py` paquette en `lz` par défaut,
+  comme le Makefile.
+- Écartés : bandeau, TOPO et repère P du joueur de la branche (`main` a
+  les siens et suit l'original), rebaselines et README de la branche
+  (autre architecture).
+
 ### Neowilderness : ciel plus peuplé (lot 7)
 
 - Catalogue de **282 étoiles jusqu'à V = 3,50** (79 Hipparcos inchangées +

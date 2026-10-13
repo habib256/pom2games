@@ -4,11 +4,14 @@
 ; ============================================================================
 ; Computes the visible list of src/stars_draw.s once per hour (with the
 ; Moon): local sidereal time, then for each catalogue star (selection order:
-; Polaris and the Cross, then magnitude; 282 stars to V = 3.50, 3 bytes each,
-; read through a pointer) its altitude and azimuth with the view engine's
-; sine table sin_lo (build/tables.inc, 560 units per turn), its row on the
-; Moon's perspective (95 - INT(48 tan alt)), the Moon's disc mask. The first
-; STAR_LIST_MAX stars kept are grouped by azimuth bucket (az >> 4) with a
+; Polaris and the Cross, then the figures and the bright stars, then the
+; fillers; 282 stars, 3 bytes each, read through a pointer) its altitude and
+; azimuth with the view engine's sine table sin_lo (build/tables.inc, 560
+; units per turn), its row on the Moon's perspective (95 - INT(48 tan alt))
+; up to 45 degrees and evenly in sin(alt) above (the zenith stays in the
+; view), the mask of a drawn Moon's disc. A first-magnitude star (record
+; bit 6) is listed twice, one row apart. The first STAR_LIST_MAX entries
+; kept are grouped by azimuth bucket (az >> 4) with a
 ; stable counting sort, with bucket starts. Pure integer code: the
 ; specification, bit for bit, is tools/stars_ref.py (docstring); the
 ; catalogue and tables are build/stars_tables.inc (tools/genstars.py).
@@ -700,9 +703,12 @@ st_star:
         stx     st_azhh
 
         ; Moon: hidden by its outer disc (sky_column rows y - half..y + half)
+        ; when the Moon is drawn (rows 16..95)
         lda     sky_y
         cmp     #96
         bcs     st_append
+        cmp     #16
+        bcc     st_append
         sec
         lda     st_azl          ; d = (az - sky_bearing + 5) mod 560
         sbc     sky_bearing
@@ -753,7 +759,7 @@ st_star:
 :       bne     st_append
         jmp     st_skip         ; = half: the disc's last row
 
-        ; append: bucket, attr = class << 6 | tint << 4 | az & 15, row
+        ; append: bucket, attr = class << 6 | look << 4 | az & 15, row
 st_append:
         ldx     st_n
         lda     st_azhh         ; bucket = az >> 4
@@ -771,22 +777,27 @@ st_append:
         sta     st_tb,x
         lda     st_rowv
         sta     st_tr,x
-        lda     st_k+1          ; class from the index (catalogue order)
-        bne     @faint
-        ldy     st_k
+        ldy     st_k            ; class from the index (catalogue order, 16 bits)
+        lda     st_k+1
+        bne     @k16
         cpy     #STAR_PRIO
-        bcs     :+
+        bcs     @k16
         lda     st_prio_cls,y
-        bcc     @cls            ; carry still clear
-:       lda     #$00
-        cpy     #STAR_K1
+        jmp     @cls
+@k16:   cpy     #<STAR_K1       ; index < K1: class 0
+        lda     st_k+1
+        sbc     #>STAR_K1
+        lda     #$00
         bcc     @cls
+        ldy     st_k            ; index < K2: class 1
+        cpy     #<STAR_K2
+        lda     st_k+1
+        sbc     #>STAR_K2
         lda     #$40
-        cpy     #STAR_K2
         bcc     @cls
-@faint: lda     #$80
+        lda     #$80
 @cls:   sta     st_t
-        lda     st_b1           ; tint
+        lda     st_b1           ; look
         and     #$30
         ora     st_t
         sta     st_t
@@ -798,6 +809,13 @@ st_append:
         stx     st_n
         cpx     #STAR_LIST_MAX
         beq     st_sort
+        bit     st_b1           ; bit 6 (V): first magnitude, a second entry
+        bvc     st_skip         ; one row below (3 rows with the 2-row look)
+        lda     st_b1
+        and     #$BF
+        sta     st_b1
+        inc     st_rowv
+        jmp     st_append
 st_skip:
         clc
         lda     st_cp

@@ -7,14 +7,6 @@ water_quantity:
         jsr     overlay_load
         plp
         rts
-.segment "ENVIRON"
-water_native_here:
-        jsr     native_here
-        pha
-        lda     #4
-        jsr     overlay_load
-        pla
-        rts
 .segment "WATER"
 module_collect:
         lda     #0
@@ -187,7 +179,7 @@ module_collect:
 outdoor_water_here:
         lda     MAP+37
         beq     @legacy
-        jsr     water_native_here
+        jsr     native_here
         asl     a
         rts
 @legacy:
