@@ -471,7 +471,6 @@ module_view_init:
         lda     MIXSET
         lda     #20
         sta     WNDTOP
-        jsr     HOME
         rts
 
 project_init:

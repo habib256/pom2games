@@ -4,6 +4,9 @@
 ; an earlier STATUS/HELP page or executable bytes in HGR.
 .segment "CODE"
 view_hide:
+view_loading:
+        lda     #1              ; keep HELLO visible until the first full view
+        bne     view_hide_done
         lda     CH
         pha
         lda     CV
@@ -22,6 +25,7 @@ view_hide:
         pla
         sta     CH
         lda     TXTSET
+view_hide_done:
         rts
 
 ; MAP and all text menus share differential COUT. Page preparation stays
