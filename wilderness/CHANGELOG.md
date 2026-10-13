@@ -9,6 +9,10 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ### Transitions texte et HGR
 
+- Le texte d’explication HELLO reste affiché pendant la décompression,
+  l’initialisation et le premier rendu. DOS ne peut plus faire défiler
+  les vingt lignes d’accueil ; le rideau vide commence après cette première vue.
+
 - Le démarrage, VIEW, les changements complets de scène et le retour de TOPO
   masquent le dessin jusqu’à la dernière colonne ; les rotations partielles
   conservent leur défilement progressif.

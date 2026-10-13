@@ -33,7 +33,9 @@ les déplacements et la cadence originale des réactions en prochaine priorité.
 Les transitions texte/HGR préparent les menus derrière le paysage et
 masquent les rendus complets jusqu’à leur achèvement. La pagination réécrit
 uniquement les caractères modifiés, sans anciennes lignes résiduelles.
-Les rotations partielles gardent leur défilement progressif. Le retour de
+Le texte d’accueil reste visible pendant tout le chargement initial,
+jusqu’à l’apparition du paysage terminé. Les rotations partielles gardent
+leur défilement progressif. Le retour de
 TOPO reste soumis aux lectures disque et au rendu du port 48 Ko.
 
 ## Construire et lancer
@@ -59,7 +61,7 @@ Le démarrage utilise un chargeur temporaire à `$5800`, qui décompresse les
 fichiers résidents depuis le tampon de la future page HGR à `$2000`. La
 disquette place les listes de secteurs avant les données et utilise un ordre
 de secteurs adapté aux lectures DOS. Sur la carte par défaut, les blocs résidents
-et leur remplissage occupent 25 032 octets et deviennent 16 322 octets
+et leur remplissage occupent 25 035 octets et deviennent 16 328 octets
 répartis dans deux fichiers. L'entrelacement
 de neuf secteurs reçoit un décalage d'un secteur physique entre pistes.
 Mesuré dans le cœur POM2 à la vitesse Apple II, le lancement du moteur arrive

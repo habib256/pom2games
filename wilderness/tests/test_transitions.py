@@ -46,9 +46,22 @@ def state(session):
 def reveal():
     with tempfile.TemporaryDirectory() as tmp, a2test.Session(DISK) as s:
         path = Path(tmp) / 'screen.png'
+        boot = a2test.labels(HERE / 'build/boot.lbl')
+        s.step(boot.until('start', 20000))
+        s.step('wait:2')
+        introduction = picture(s, path)
+        rows = text_screen(s.step('peek:0400:1024').data)[:20]
+        assert rows[0].startswith('WILDERNESS - APPLE II+')
+        assert any('YOU SURVIVED A PLANE CRASH' in row for row in rows)
+        assert any('LOADING...' in row for row in rows)
+        s.step(L.until('game_start', 20000))
+        s.step('wait:2')
+        assert picture(s, path) == introduction, 'packed DOS loads must preserve the introduction'
         s.step(L.until('render_column', 20000))
         s.step('wait:2')
-        assert not any(picture(s, path)), 'startup must hide the first incomplete HGR frame'
+        assert picture(s, path) == introduction, 'keep the explanation during initialization and initial HGR rendering'
+        s.step(f'tracepc:{L["render_column_done"]:04X}:20:20000')
+        assert picture(s, path) == introduction, 'keep the explanation until the whole landscape is ready'
         s.step(IDLE)
         s.step('wait:2')
         original = s.step('peek:2000:8192').data
@@ -83,7 +96,7 @@ def reveal():
         s.step(IDLE)
         s.step('wait:2')
         assert picture(s, path) == landscape
-    print('  startup, prepared STATUS, clean text/HGR return, TOPO and VIEW: incomplete frames hidden; view/state preserved')
+    print('  persistent loading introduction, prepared STATUS, clean text/HGR return, TOPO and VIEW: incomplete frames hidden; view/state preserved')
 
 
 def simulation_curtain():

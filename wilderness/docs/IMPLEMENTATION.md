@@ -362,8 +362,8 @@ Les identifiants ci-dessus appartiennent à la réimplémentation ; ceux du
 moteur original sont décrits séparément dans [ENGINE.md](logic/ENGINE.md).
 
 Après les transitions du 13 octobre 2026 : mesurer à nouveau
-`build/wild.map` avant toute extension. WILDGAME conserve 4 octets libres,
-WILDLO 6 (cache de projection compris), WILDERNESS 6, WILDTXT 2 et WILDSIM 1.
+`build/wild.map` avant toute extension. WILDGAME conserve 1 octet libre,
+WILDLO 6 (cache de projection compris), WILDERNESS 2, WILDTXT 2 et WILDSIM 1.
 Le résident reste presque plein. L’initialisation vidéo et du cache de
 projection est dans WILDADV ; LOOK est dans WILDLO. Les calculs de progression
 et GOAL% sont dans WILDADV, et STATUS le charge puis se restaure.
@@ -1063,6 +1063,10 @@ résident et ne peut pas servir de seconde image. La simulation remplace
 supérieur vide, conservant les quatre lignes de commande/résultat. `view_hide`
 nettoie les vingt premières lignes avant TXTSET, garde CH/CV et rétablit la
 fenêtre 20..23. `show_view` affiche HGR seulement après le dessin complet.
+Au démarrage, le chargeur limite les sorties DOS aux lignes 20..23 et
+`view_loading` suspend ce nettoyage : les explications HELLO restent
+visibles pendant la décompression, les calculs SIM et le premier rendu.
+Le drapeau est désactivé seulement après la révélation du paysage complet.
 Les rotations partielles restent visibles et progressives.
 
 `transitions.s` fournit le COUT différentiel partagé par MAP et les menus.

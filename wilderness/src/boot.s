@@ -14,6 +14,8 @@ length: .res 1
 .segment "CODE"
 start:
         APPLE2_PREAMBLE
+        lda     #20             ; DOS newlines stay below the introduction
+        sta     $22             ; WNDTOP
         jsr     apple2_zp_save
 load:
         jsr     dos_cmd_new

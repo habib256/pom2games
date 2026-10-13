@@ -331,6 +331,7 @@ game_start:
         jsr     overlay_load
         jsr     module_game_init
         jsr     show_view
+        lsr     view_loading+1  ; subsequent redraws use the clean curtain
         lda     #<m_crash
         ldx     #>m_crash
         jsr     message
