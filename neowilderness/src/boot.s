@@ -1027,7 +1027,7 @@ m_intro:
         .byte   "  APPLE //E //C 128K - PRODOS - DHGR", 13
         .byte   "ORIGINAL GAME: WESLEY HUNTRESS, CHARLES", 13
         .byte   "KOHLHASE, PETER FARSON (E.TRANSIT 1985)", 13
-        .byte   "APPLE II PORT: ARNAUD VERHILLE, 2026", 13
+        .byte   "DHGR PORT: VERHILLE.A", 13
         .byte   "YOU SURVIVED A PLANE CRASH.", 13
         .byte   "REACH THE RANGER OUTPOST TO GET HELP.", 13
         .byte   "MANAGE YOUR EQUIPMENT, HUNGER, THIRST,", 13
