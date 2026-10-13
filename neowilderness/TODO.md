@@ -22,7 +22,7 @@ conserve les travaux de gameplay hérités.
   demi-pas et leurs coûts ; comparer les états avec la référence HGR.
 - [x] Afficher le paysage en DHGR couleur, 140 × 192 pixels couleur,
   avec une palette de 16 couleurs et du texte lisible (lot 3 ; bandeau et
-  panneaux encore dessinés en HGR doublé, refonte au lot 4).
+  panneaux en pixels couleur depuis le lot 4).
 - [ ] Conserver TOPO/T comme carte graphique globale et MAP comme carte
   locale centrée sur le joueur. MAP est une extension absente de l’original.
 - [ ] Concentrer les accès disque sur le démarrage, les changements de
@@ -184,11 +184,12 @@ La palette différente ne doit pas masquer une régression de projection.
 
 ## 4. Interface, TOPO et MAP
 
-- [ ] Porter boussole, résumé de survie, messages et saisie ; commencer
-  avec quatre lignes texte, puis évaluer l’affichage 80 colonnes. (Lot 3 :
-  boussole et panneaux en HGR doublé, messages en cellules 80 colonnes
-  impaires par des primitives 40 colonnes propres ; 128 octets libres en
-  RAM principale : prévoir un module.)
+- [x] Porter boussole, résumé de survie, messages et saisie ; commencer
+  avec quatre lignes texte, puis évaluer l’affichage 80 colonnes. (Boussole
+  et panneaux en pixels couleur, petite police DHGR, ruban 28 pixels à
+  7 unités par pixel, modèle exact et tests ; 402 octets libres en RAM
+  principale. Messages toujours en cellules 80 colonnes impaires par des
+  primitives 40 colonnes propres ; un vrai texte 80 colonnes reste à évaluer.)
 - [ ] Adapter STATUS, INVENTORY et HELP en conservant pagination,
   raccourcis, annulation et mise en évidence des dangers.
 - [ ] Générer TOPO depuis les données en RAM, ou depuis un asset déjà

@@ -755,8 +755,10 @@ dans [MEMORY.md](MEMORY.md) § 7.
   (haute : nuit claire ; basse ou voilée : faible ; sous l'horizon : noire).
 - **Trame.** Damier `(ligne + azimut)` : une rotation fait défiler des
   pixels exacts, et le motif reste attaché au paysage.
-- **Bandeau et panneaux.** Les octets HGR existants, chaque pixel doublé
-  (`dbl_put`) ; index jaune. Une version couleur relève du lot 4.
+- **Bandeau et panneaux.** Au lot 3, octets HGR doublés (`dbl_put`). Lot 4 :
+  pixels couleur en petite police DHGR (`hud_col`), ruban de 28 pixels à
+  7 unités d'azimut par pixel, panneaux à encres d'état
+  ([DHGR.md](DHGR.md) §11).
 - **Texte.** Les quatre lignes mixtes sont du texte 80 colonnes : la page
   40 colonnes du jeu occupe les cellules impaires, les cellules paires sont
   des espaces. Le jeu imprime avec ses propres primitives 40 colonnes, car
@@ -786,7 +788,7 @@ les lignes texte. Captures : `tools/game_shots.py` → `build/dhgr/game_*.png`.
 | `test_sprites`, `test_scene_render`, `test_pan`, `test_projection`, `test_site_directions`, `test_fauna` | même comparaison avec sprites (compositeur indépendant ou `scene_ref`), ombrage de l'humeur |
 | `test_forest` | référence `forest_ref`, couleurs contour/houppier/tronc de l'humeur |
 | `test_sky`, `test_moonlight` | altitudes S8, astre exact, humeurs nocturnes graduées |
-| `test_hud`, `test_interface`, `test_clock` | octets HGR doublés (`dhgr_ref.hud_banks`, `hgr_equivalent`) |
+| `test_hud`, `test_interface`, `test_clock` | pixels couleur du ruban (`dhgr_ref.hud_banks`) et des panneaux (`dhgr_ref.read_panels`, exactitude contre `panels_colour`) ; écritures limitées aux rangées 0–15 |
 | `test_render_memory`, `test_overlays`, `test_transfers`, `test_graphical_topo` | deux banques effacées/préservées ; TOPO dans la banque principale, mode HGR simple |
 | `test_optimizations`, `test_fast_duration` | entrée de `clear_rows` ; `column_setup` (octets, masques, banques, phase) |
 

@@ -1,4 +1,7 @@
-; Four short monochrome fields around the compass, outside the command area.
+; Four short colour fields around the compass, outside the command area:
+; proportional DHGR small-font text (tools/genhud.py) drawn by hud_col.
+; Inks by state: plain white, gauges OKAY green / SO-SO yellow / VERY pink,
+; poor health pink, warnings as black letters on an orange strip.
 .segment "GDATA"
 ui_enabled: .byte 1
 ui_dirty: .byte 1
@@ -32,22 +35,28 @@ summary_refresh:
 
 .segment "SUMMARY"
 module_summary:
-        lda     #0
-        sta     summary_inverse
-        ; Clear only the side panels, never the compass or command/results.
+        ; Clear only the side panels (bytes 0..15 and 24..39 of both banks,
+        ; rows 0..15), never the compass (16..23) or command/results.
+        php
+        sei
         ldx     #15
-@clear: jsr     hgr_row2
+@clear: txa
+        jsr     hud_row
         ldy     #39
-        lda     #0
-@byte:  cpy     #13
-        bcc     @store
-        cpy     #27
-        bcc     @skip
-@store: jsr     dbl_put         ; both DHGR banks
-@skip:  dey
+@byte:  lda     #0
+        sta     PAGE2_AUX
+        sta     (hp),y
+        sta     PAGE2_MAIN
+        sta     (hp),y
+        dey
+        cpy     #23
+        bne     :+
+        ldy     #15             ; skip the compass bytes 16..23
+:       tya
         bpl     @byte
         dex
         bpl     @clear
+        plp
         lda     $36
         sta     summary_vector
         lda     $37
@@ -56,11 +65,8 @@ module_summary:
         sta     $36
         lda     #>summary_output
         sta     $37
-        lda     #0
-        sta     summary_y
-        sta     summary_col
-        lda     #13
-        sta     summary_limit
+        ldx     #0
+        jsr     summary_field
         ldx     #54
         jsr     have
         bcc     @period
@@ -95,43 +101,31 @@ module_summary:
         lda     $A1
         cmp     #40
         bcs     :+
-        inc     summary_inverse ; poor health stays visible after its first alert
+        ldx     #HUD_VERY       ; poor health stays visible after its first alert
+        stx     summary_ink
 :
         jsr     pdec
         jsr     puts
         .byte "%",0
-        lda     #0
-        sta     summary_inverse
-        lda     #8
-        sta     summary_y
-        lda     #0
-        sta     summary_col
+        ldx     #1
+        jsr     summary_field
         jsr     puts
         .byte "HUNGER ",0
         fld     s_eat
         jsr     summary_gauge
-        lda     #0
-        sta     summary_inverse
-        sta     summary_y
-        lda     #27
-        sta     summary_col
-        lda     #40
-        sta     summary_limit
+        ldx     #2
+        jsr     summary_field
         jsr     puts
         .byte "THIRST ",0
         fld     s_drink
         jsr     summary_gauge
-        lda     #0
-        sta     summary_inverse
-        lda     #8
-        sta     summary_y
-        lda     #27
-        sta     summary_col
+        ldx     #3
+        jsr     summary_field
         lda     ui_pending
         beq     @thermal
         cmp     #7
         bcs     :+
-        inc     summary_inverse
+        jsr     summary_alarm
 :
         cmp     #6
         bne     @alert_table
@@ -140,7 +134,7 @@ module_summary:
         lda     #14             ; condition cleared before pending alert shown
         bne     @alert_table
 :
-        inc     summary_inverse
+        jsr     summary_alarm
         and     #1
         beq     @starvation
         jsr     puts
@@ -161,8 +155,10 @@ module_summary:
         tax
         cpx     #9
         bcc     :+
-        lda     #0              ; recoveries remain plain text
-        sta     summary_inverse
+        lda     #HUD_INK        ; recoveries remain plain text
+        sta     summary_ink
+        lda     #0
+        sta     summary_paper
 :
         lda     summary_alert_lo-1,x
         pha
@@ -181,7 +177,7 @@ module_summary:
 @body:
         lda     ui_previous+3
         beq     @wet
-        inc     summary_inverse
+        jsr     summary_alarm
         cmp     #1
         bne     @hot
         jsr     puts
@@ -192,7 +188,7 @@ module_summary:
         jmp     @restore
 @wet:   lda     wet_mode
         beq     @shelter
-        inc     summary_inverse
+        jsr     summary_alarm
         cmp     #2
         bne     @damp
         jsr     puts
@@ -242,7 +238,7 @@ module_summary:
         lda     animal_y
         cmp     py+1
         bne     @temperature
-        inc     summary_inverse
+        jsr     summary_alarm
         lda     animal_kind
         cmp     #8
         bne     :+
@@ -317,18 +313,52 @@ summary_gauge:
         fop     FCOMP, f_6
         cmp     #1
         beq     @some
+        lda     #HUD_OKAY
+        sta     summary_ink
         jsr     puts
         .byte "OKAY",0
         rts
-@some:  jsr     puts
+@some:  lda     #HUD_SOSO
+        sta     summary_ink
+        jsr     puts
         .byte "SO-SO",0
         rts
-@very:  inc     summary_inverse
+@very:  lda     #HUD_VERY
+        sta     summary_ink
         jsr     puts
         .byte "VERY",0
         rts
 
+; summary_field -- X = field 0..3 (time/health, hunger, thirst, hint): pen
+; and clip limit of its line, plain style.
+summary_field:
+        lda     summary_tops,x
+        sta     summary_y
+        lda     summary_xs,x
+        sta     summary_x
+        lda     summary_limits,x
+        sta     summary_limit
+summary_plain:
+        lda     #HUD_INK
+        ldx     #0
+        beq     summary_style
+; summary_alarm -- warnings: black letters on the alarm strip. Preserves A.
+summary_alarm:
+        pha
+        lda     #0
+        ldx     #HUD_ALARM
+        jsr     summary_style
+        pla
+        rts
+summary_style:
+        sta     summary_ink
+        stx     summary_paper
+        rts
+
 ; COUT hook, preserving the string/numeric printers' A/X/Y registers.
+; Character: glyph columns of width w (space: w = 2), advance w + 1; with a
+; paper, the strip covers columns x-1..x+w, rows y-1..y+5. A character
+; that would pass the field limit stops the field.
 summary_output:
         pha
         txa
@@ -343,51 +373,68 @@ summary_output:
         cmp     #59
         bcc     :+
         lda     #0
-:       sta     summary_char
-        ; gp1 = font + char * 7, preserving gp2 (puts' string pointer).
-        lda     #0
-        sta     gp1
-        sta     gp1+1
-        ldx     #7
-@mul:   clc
-        lda     gp1
-        adc     summary_char
-        sta     gp1
-        lda     gp1+1
-        adc     #0
-        sta     gp1+1
-        dex
-        bne     @mul
-        clc
-        lda     gp1
-        adc     #<summary_font
-        sta     gp1
-        lda     gp1+1
-        adc     #>summary_font
-        sta     gp1+1
-        lda     summary_col
+:       asl     a
+        asl     a
+        sta     summary_char    ; glyph offset: four column masks
+        ldx     #4
+@width: dex
+        bmi     @blank
+        txa
+        adc     summary_char    ; carry clear
+        tay
+        lda     summary_font,y
+        beq     @width
+        inx
+        txa
+        bne     @fits
+@blank: lda     #2
+@fits:  sta     summary_w
+        sec
+        adc     summary_x       ; x + w + 1
         cmp     summary_limit
-        bcs     @done
-        lda     #0
-        sta     summary_row
-@row:   clc
-        lda     summary_row
-        adc     summary_y
-        tax
-        jsr     hgr_row2
-        ldy     summary_row
-        lda     (gp1),y
-        ldy     summary_inverse
         beq     :+
-        eor     #127            ; black letters on a solid white warning strip
-:
-        ldy     summary_col
-        jsr     dbl_put
-        inc     summary_row
-        lda     summary_row
-        cmp     #7
-        bcc     @row
-        inc     summary_col
+        bcc     :+
+        lda     summary_limit   ; past the limit: the field stops here
+        sta     summary_x
+        bcs     @done
+:       pha                     ; next pen position
+        lda     summary_paper
+        beq     @ink
+        sta     hud_ink
+        ldx     summary_y
+        dex
+        stx     hud_top
+        ldx     summary_x
+        dex
+        txa
+        jsr     hud_pen
+        ldx     summary_w
+        inx
+        inx
+@strip: stx     summary_n
+        lda     #$7F
+        jsr     hud_col
+        jsr     hud_next
+        ldx     summary_n
+        dex
+        bne     @strip
+@ink:   lda     summary_ink
+        sta     hud_ink
+        lda     summary_y
+        sta     hud_top
+        lda     summary_x
+        jsr     hud_pen
+        ldx     summary_char
+@glyph: stx     summary_n
+        lda     summary_font,x
+        jsr     hud_col
+        jsr     hud_next
+        ldx     summary_n
+        inx
+        dec     summary_w
+        bne     @glyph
+        pla
+        sta     summary_x
 @done:  pla
         tay
         pla
@@ -396,13 +443,19 @@ summary_output:
         rts
 summary_vector: .word 0
 summary_y: .byte 0
-summary_col: .byte 0
+summary_x: .byte 0
 summary_limit: .byte 0
+summary_w: .byte 0
+summary_n: .byte 0
+summary_ink: .byte 0
+summary_paper: .byte 0
 summary_hour: .byte 0
 summary_minute: .byte 0
 summary_char: .byte 0
-summary_row: .byte 0
-summary_inverse: .byte 0
+; Fields (tools/genhud.PANEL_FIELDS): top row, first column, limit.
+summary_tops: .byte 2, 9, 2, 9
+summary_xs: .byte 1, 1, 85, 85
+summary_limits: .byte 56, 56, 140, 140
 summary_periods: .byte "NIGHTDAWN AM   PM   DUSK "
 summary_alert_lo: .byte <ui_hunger_worse,<ui_thirst_worse,<ui_health_worse,<ui_body_worse,<ui_immersed,<ui_condition,<ui_condition,<ui_condition,<ui_hunger_better,<ui_thirst_better,<ui_health_better,<ui_body_better,<ui_out_water,<ui_recovered
 summary_alert_hi: .byte >ui_hunger_worse,>ui_thirst_worse,>ui_health_worse,>ui_body_worse,>ui_immersed,>ui_condition,>ui_condition,>ui_condition,>ui_hunger_better,>ui_thirst_better,>ui_health_better,>ui_body_better,>ui_out_water,>ui_recovered

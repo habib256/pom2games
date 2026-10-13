@@ -10,7 +10,7 @@ One ray = one DHGR colour pixel: column c (0..139) is ray c of view_ref.
 Logical view rows 0..159 are placed as the HGR engine does:
   physical rows 16..159   logical rows 16..159 (visible terrain)
   physical rows 160..175  logical rows 0..15, the terrain cached under the HUD
-  physical rows 0..15     HUD (doubled HGR compass box, src/hud.s), over black
+  physical rows 0..15     HUD (colour compass ribbon, src/hud.s), over black
   physical rows 176..191  unused, black (hidden by the 4 text lines)
 The frame is two 8 KB banks (main, aux) in Apple memory order: byte offset
 hgr_offset(y) + i of bank (main if i odd, aux if i even), i = 0..79 the
@@ -235,70 +235,185 @@ def view(m, px, py, heading, sky=None, animal=None, forest=True, sprites=True, p
 
 
 # ---------------------------------------------------------------------------
-# HUD: the HGR compass box of src/hud.s (HGR bytes 13..26, 98 pixels, two
-# azimuth units per HGR pixel), drawn in DHGR by doubling each HGR pixel
-# (HGR byte y -> aux y, main y: white where both pixels of a colour pixel are
-# lit, blue / orange fringes otherwise), plus the yellow index of
-# tools/gendhgr.py on rows 11..13 (whole bytes 19 and 20).
-HUD_LEFT, HUD_RIGHT = 45, 94          # colour pixels of the box frame
-HUD_POINTER = 70
-HUD_BYTES = range(13, 27)
-LABELS = ('N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW')
+# HUD (lot 4): colour pixels of the DHGR small font (tools/genhud.py).
+# Ribbon: colour columns 56..83 (bytes 16..23 of each bank), rows 0..15,
+# 7 azimuth units per pixel over the cyclic 80-pixel strip of genhud.strip;
+# white frame (rows 0 and 15, columns 56 and 83), letters white (N pink),
+# ticks grey, yellow index on columns 68..72 rows 11..13 (src/hud.s).
+# Panels: columns 0..55 and 84..139, two lines each (src/summary.s).
+import genhud  # noqa: E402
+
+HUD_LEFT, HUD_RIGHT = genhud.RIBBON_X0, genhud.RIBBON_X0 + genhud.RIBBON_W - 1   # frame columns
+HUD_POINTER = genhud.POINTER_X
+HUD_BYTES = range(HUD_LEFT // 7 * 2, (HUD_RIGHT // 7 + 1) * 2)                  # 16..23
+PANEL_FIELDS = genhud.PANEL_FIELDS
+small_glyph = genhud.small_glyph
+glyph_columns = genhud.glyph_columns
 
 
-def hud_hgr(heading, magnetic=0):
-    """16 x 40 HGR bytes of the compass box, without the index."""
-    from fonts import glyph
-    out = bytearray(16 * 40)
-    left = ((heading - magnetic - 98) % 560) // 2
+def hud_colour(heading, magnetic=0):
+    """16 rows x 140 colour indices: the ribbon on columns 56..83, black elsewhere."""
+    H = P.HUD
+    rows = [[P.BLACK] * COLS for _ in range(HUD_ROWS)]
+    left = ((heading - magnetic - 98) % 560) // genhud.UNIT
+    strip = genhud.strip()
+    for x in range(1, genhud.RIBBON_W - 1):
+        e, col = strip[(left + x) % genhud.STRIP], HUD_LEFT + x
+        for r in range(5):
+            if e >> r & 1:
+                rows[genhud.TOP_LETTER + r][col] = H['north'] if e & 0x80 else H['ink']
+        for r in range(2):
+            if e >> (5 + r) & 1:
+                rows[genhud.TOP_TICK + r][col] = H['tick']
+    for col in range(HUD_LEFT, HUD_RIGHT + 1):
+        rows[0][col] = rows[HUD_ROWS - 1][col] = H['border']
+    for y in range(HUD_ROWS):
+        rows[y][HUD_LEFT] = rows[y][HUD_RIGHT] = H['border']
+    for k, mask in enumerate(genhud.pointer_masks()):
+        for r in range(3):
+            if mask >> r & 1:
+                rows[11 + r][HUD_POINTER - 2 + k] = H['pointer']
+    return rows
 
-    def pixel(x, y):
-        out[y * 40 + x // 7] |= 1 << (x % 7)
-    for bearing, label in zip(range(0, 280, 35), LABELS):
-        for i, letter in enumerate(label):
-            for y, bits in enumerate(glyph(letter)[:7]):
-                for b in range(7):
-                    if bits & (1 << b):
-                        x = 91 + (bearing - len(label) * 7 // 2 + i * 7 + b - left) % 280
-                        if x < 189:
-                            pixel(x, y + 2)
-    for tick in range(16):
-        x = 91 + (tick * 35 // 2 - left) % 280
-        if x < 189:
-            pixel(x, 9)
-    for x in range(91, 189):
-        pixel(x, 0)
-        pixel(x, 15)
-    for y in range(16):
-        pixel(91, y)
-        pixel(188, y)
-    return bytes(out)
+
+def _rows_banks(rows, columns):
+    """(main, aux): 16 rows x 40 bytes of colour rows, only `columns` bytes kept."""
+    main, aux = encode(rows)
+    out = bytearray(HUD_ROWS * 40), bytearray(HUD_ROWS * 40)
+    for y in range(HUD_ROWS):
+        for b in columns:
+            out[0][y * 40 + b], out[1][y * 40 + b] = main[hgr_offset(y) + b], aux[hgr_offset(y) + b]
+    return bytes(out[0]), bytes(out[1])
 
 
 def hud_banks(heading, magnetic=0):
-    """(main, aux): 16 rows x 40 bytes; only bytes 13..26 belong to the HUD."""
-    from fonts import double7
-    import gendhgr
-    hgr = hud_hgr(heading, magnetic)
-    main, aux = bytearray(16 * 40), bytearray(16 * 40)
-    for y in range(16):
-        for b in HUD_BYTES:
-            aux[y * 40 + b], main[y * 40 + b] = double7(hgr[y * 40 + b])
-    ptr = gendhgr.pointer_bytes()
-    for k, y in enumerate((11, 12, 13)):
-        main[y * 40 + 19], main[y * 40 + 20], aux[y * 40 + 19], aux[y * 40 + 20] = ptr[4 * k:4 * k + 4]
-    return bytes(main), bytes(aux)
+    """(main, aux): 16 rows x 40 bytes; only bytes 16..23 belong to the ribbon."""
+    return _rows_banks(hud_colour(heading, magnetic), HUD_BYTES)
 
 
 def hud(page, heading, magnetic=0):
-    """Physical rows 0..15 of a colour page: the HUD bytes over the page."""
-    main, aux = map(bytearray, encode(page))
-    hmain, haux = hud_banks(heading, magnetic)
-    for y in range(16):
-        o = hgr_offset(y)
-        for b in HUD_BYTES:
-            main[o + b], aux[o + b] = hmain[y * 40 + b], haux[y * 40 + b]
-    page[:16] = decode(main, aux)[:16]
+    """Physical rows 0..15 of a colour page: the ribbon over the page."""
+    for y, row in enumerate(hud_colour(heading, magnetic)):
+        page[y][HUD_LEFT:HUD_RIGHT + 1] = row[HUD_LEFT:HUD_RIGHT + 1]
+
+
+def panels_colour(fields):
+    """16 rows x 140: the four panel fields (time/health, hunger, thirst,
+    hint), each a sequence of (text, ink, paper) runs, as src/summary.s draws
+    them: advance = glyph width + 1 (blank: 3); with a paper, a strip over
+    columns x-1..x+w, rows y-1..y+5; a character passing the limit stops
+    its field."""
+    rows = [[P.BLACK] * COLS for _ in range(HUD_ROWS)]
+    for (top, x, limit), runs in zip(PANEL_FIELDS, fields):
+        for text, ink, paper in runs:
+            for ch in text:
+                cols = glyph_columns(ch)
+                w = len(cols)
+                if x + w + 1 > limit:
+                    x = limit
+                    continue
+                if paper != P.BLACK:
+                    for c in range(x - 1, x + w + 1):
+                        for r in range(top - 1, top + 6):
+                            rows[r][c] = paper
+                for i, mask in enumerate(cols):
+                    for r in range(5):
+                        if mask >> r & 1:
+                            rows[top + r][x + i] = ink
+                x += w + 1
+    return rows
+
+
+def panel_columns():
+    """Colour columns of the panels: 0..55 and 84..139."""
+    return [c for c in range(COLS) if not HUD_LEFT <= c <= HUD_RIGHT]
+
+
+def panel_bytes():
+    """Bytes of each bank owned by the panels: 0..15 and 24..39."""
+    return [b for b in range(40) if b not in HUD_BYTES]
+
+
+def panels_banks(fields):
+    """(main, aux): 16 rows x 40 bytes of the panels, ribbon bytes zero."""
+    return _rows_banks(panels_colour(fields), panel_bytes())
+
+
+_DIGITS = '0123456789:=%'      # neighbours of a 5 (a S otherwise; S: is a label)
+
+
+def read_panels(page):
+    """The four fields of a colour page (>= 16 rows): per field, a list of
+    (char, ink, paper). Inverse of panels_colour for its own output; S and 5
+    share a glyph and are told apart by their neighbours."""
+    alphabet = [chr(c) for c in range(genhud.FIRST, genhud.LAST + 1) if any(small_glyph(c))]
+    out = []
+    for top, x, limit in PANEL_FIELDS:
+        chars, ambiguous = [], []
+        while x < limit:
+            paper = page[top - 1][x]
+
+            def column(c):
+                if c >= limit:
+                    return 0, set()
+                inks = {page[top + r][c] for r in range(5) if page[top + r][c] != paper}
+                return sum(1 << r for r in range(5) if page[top + r][c] != paper), inks
+            found = None
+            for ch in alphabet:
+                cols = glyph_columns(ch) + [0]
+                got = [column(x + i) for i in range(len(cols))]
+                if [m for m, _ in got] == cols:
+                    inks = set().union(*(i for _, i in got))
+                    if len(inks) == 1:
+                        found = ch, inks.pop()
+                        break
+            if found is None:
+                if all(column(c)[0] == 0 for c in range(x, limit)) and \
+                        all(page[top - 1][c] == P.BLACK for c in range(x, limit)):
+                    break
+                if all(column(x + i)[0] == 0 for i in range(3)):
+                    chars.append((' ', None, paper))
+                    x += 3
+                    continue
+                chars.append(('?', None, paper))
+                x += 1
+                continue
+            ch, ink = found
+            if ch in 'S5':
+                ch = 'S'
+                ambiguous.append(len(chars))
+            chars.append((ch, ink, paper))
+            x += len(glyph_columns(ch)) + 1
+        for i in ambiguous:
+            prev = chars[i - 1][0] if i else ''
+            nxt = chars[i + 1][0] if i + 1 < len(chars) else ''
+            if (prev and prev in _DIGITS) or (nxt and nxt in _DIGITS and (nxt != ':' or not prev.isalpha())):
+                chars[i] = ('5',) + chars[i][1:]
+        while chars and chars[-1][0] == ' ' and chars[-1][2] == P.BLACK:
+            chars.pop()
+        out.append(chars)
+    return out
+
+
+def panel_text(page):
+    """The four panel strings of a colour page."""
+    return tuple(''.join(c for c, _, _ in field) for field in read_panels(page))
+
+
+def panel_runs(page):
+    """read_panels as the (text, ink, paper) runs of panels_colour (a blank
+    takes the ink of the character before it)."""
+    fields = []
+    for chars in read_panels(page):
+        runs, ink = [], P.HUD['ink']
+        for ch, k, paper in chars:
+            ink = ink if k is None else k
+            if runs and runs[-1][1:] == (ink, paper):
+                runs[-1] = (runs[-1][0] + ch, ink, paper)
+            else:
+                runs.append((ch, ink, paper))
+        fields.append(runs)
+    return fields
 
 
 def frame(m, px, py, heading, sky=None, animal=None, forest=True, show_hud=True, magnetic=0,

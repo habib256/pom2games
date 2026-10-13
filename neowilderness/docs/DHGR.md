@@ -271,7 +271,7 @@ du moteur ; au crépuscule la Lune n’est pas dessinée tant que `night = 0`.
 
 | Rangées physiques | Contenu |
 |---|---|
-| 0..15 | HUD : ruban de boussole colonnes 45..94, panneaux de survie (lot 4) |
+| 0..15 | HUD : ruban de boussole colonnes 56..83, panneaux de survie 0..55 et 84..139 (§ 11) |
 | 16..159 | vue, lignes logiques 16..159 |
 | 160..175 | cache des lignes logiques 0..15 (terrain sous le HUD), comme en HGR |
 | 176..191 | inutilisées, noires (couvertes par le texte) |
@@ -285,8 +285,9 @@ Ruban de boussole proposé : bande cyclique de 140 pixels couleur (4 unités
 d’azimut par pixel), lettres de la petite police DHGR de `dev/lib/hgrc`
 (`dhgr_small_font.inc`, 4×5), index jaune colonne 70. Les 48 pixels intérieurs
 couvrent 192 unités (196 en HGR). **Retenu au lot 3 :** le ruban et les
-panneaux HGR existants, chaque pixel HGR doublé (§ 10), et l’index jaune ;
-la refonte en couleur appartient au lot 4.
+panneaux HGR existants, chaque pixel HGR doublé (§ 10), et l’index jaune.
+**Lot 4 :** ruban de 28 pixels couleur à 7 unités par pixel et panneaux en
+petite police, en vrais pixels couleur (§ 11).
 
 ### Texte en mode mixte : 40 ou 80 colonnes ?
 
@@ -574,12 +575,10 @@ Le moteur ne calcule qu’un astre : `sun_alt8` le jour, `moon_alt8` et
 donne `nautical` (jamais `night`). Ces variables sont nouvelles dans GDATA :
 `test_reference_state.py` ne compare que les noms communs aux deux builds.
 
-**Bandeau et panneaux.** Le ruban HGR (`hud_draw`) et les panneaux
-(`module_summary`) écrivent toujours des octets HGR monochromes ; `dbl_put`
-double chaque pixel (octet HGR y → aux y, main y). Encre blanche où deux
-pixels sont allumés, franges bleues/orange ailleurs, comme les franges HGR ;
-`tools/dhgr_ref.hud_banks` en est le modèle exact. L’index de la boussole est
-un triangle jaune (lignes 11–13).
+**Bandeau et panneaux.** Au lot 3, le ruban HGR (`hud_draw`) et les
+panneaux (`module_summary`) écrivaient des octets HGR monochromes que
+`dbl_put` doublait (encre blanche, franges bleues/orange). Le lot 4 les
+remplace par des pixels couleur (§ 11).
 
 **Texte mixte.** Sous DHGR, les quatre lignes du bas sont du texte
 80 colonnes. Or `COUT1` du IIe enhanced teste `RD80VID` (`$FC46 BIT $C01F`)
@@ -629,3 +628,71 @@ Premières mesures, avant optimisation des deux banques : flèche droite
 6,011 s (+6,5 %). Les gains : défilement par bandes (−16 % sur une flèche),
 un seul tracé du bandeau par trame au lieu de deux, lignes 2–9 du bandeau
 non effacées avant leur copie, effacement par bandes.
+
+## 11. Bandeau et panneaux en couleur (lot 4)
+
+Les rangées 0–15 ne contiennent plus d’octets HGR doublés : boussole et
+panneaux sont dessinés en pixels couleur de 4 bits, avec la petite police
+DHGR de `dev/lib/hgrc` (`dhgr_small_font.inc`, 4 × 5, bit 0 à gauche). Le
+moteur de rendu `dev/lib/hgrc` n’est pas lié (§ 6) ; `tools/genhud.py` lit
+la police et génère les tables.
+
+**Primitive.** `hud_col` (résident, `src/hud.s`) peint une colonne couleur :
+masque de 8 lignes à partir de `hud_top`, couleur `hud_ink`, plume
+(`dca` groupe, `dcb` phase) avancée par `hud_next`. Elle reprend les tables
+de phase (`ph_*`) et les octets pleins `dc_pat` de `column_setup` : partie A,
+partie B si le pixel chevauche deux octets, banque de chaque partie, puis
+lecture-modification-écriture par pixel allumé (`(hp),y`, `PAGE2` par
+`STA $C000,Y` sous `80STORE`, IRQ masquées). Les tables B suivent les
+tables A de 28 octets : une seule boucle prépare les deux parties.
+Effacements et cadre restent en octets entiers.
+
+**Ruban.** Colonnes couleur 56..83 (groupes 8..11, octets 16..23 de chaque
+banque), rangées 0..15. **Sept unités d’azimut par pixel** : 28 pixels
+couvrent 196 unités, exactement l’étendue du ruban HGR (98 pixels à
+2 unités), et 560 / 7 = 80 pixels forment la bande cyclique. Un ruban de
+6 groupes (42 pixels, 4–5 unités par pixel) aurait été plus large, mais
+laissait 49 pixels aux panneaux, moins que « NEW CONDITION » (54 pixels) :
+la largeur des messages a fixé 4 groupes. Le ruban est aligné sur les
+groupes : ruban et panneaux ne partagent aucun octet. Bande (`hud_strip`,
+80 octets) : N E S W centrés sur les pixels 0, 20, 40, 60 (lignes 2–6,
+N rose, les autres blancs), tiret gris tous les 35 unités (ligne 9), long
+tous les 70 (lignes 8–9). Pixel 0 du ruban = `(cap magnétique − 98) / 7`
+(tronqué) ; l’index jaune reste colonne 70 (pixel 14), lignes 11–13
+(colonnes 68–72, 69–71, 70). Cadre blanc : rangées 0 et 15, colonnes 56 et
+83, en octets entiers (les colonnes de cadre sont les bits 0–3 de l’octet
+aux 16 et 3–6 de l’octet main 23).
+
+**Panneaux.** Colonnes 0..55 et 84..139, deux lignes par panneau (texte
+lignes 2–6 et 9–13, premier pixel 1 ou 85), chasse proportionnelle =
+largeur du glyphe + 1, espace 3. Les quatre champs et leurs chaînes sont
+inchangés ; le plus long (« NEW CONDITION ») occupe 54 pixels. Encres :
+texte blanc, jauges OKAY aigue-marine, SO-SO jaune, VERY rose, santé sous
+40 % en rose, alertes et conditions (l’ancienne vidéo inverse) en lettres
+noires sur un bandeau orange qui couvre les colonnes x−1..x+largeur et les
+lignes 1–7 ou 8–14. Le vert pur (2 bits sur 4) se lit en pointillés sur
+POM2 ; l’aigue-marine (3 bits) reste nette. Un caractère qui dépasserait la
+limite du champ l’arrête. La police du module (`build/summary_font.inc`,
+`tools/gen_summary_font.py`) donne 4 masques de colonnes par caractère
+(32..90, 236 octets au lieu de 413).
+
+**Modèle.** `tools/dhgr_ref.py` : `small_glyph`, `hud_colour(cap,
+déclinaison)` (16 × 140 couleurs, ruban seul), `hud_banks` et `hud` (par
+`encode`), `panels_colour(champs)` (suites `(texte, encre, papier)`),
+`read_panels` / `panel_text` / `panel_runs` (décodage d’une page contre la
+police, S et 5 départagés par leurs voisins). `test_hud.py` compare les
+octets 16..23 des deux banques sur les 560 caps et vérifie que ruban et
+panneaux n’écrivent que dans leurs octets des rangées 0..15 ;
+`test_interface.py` décode les champs, leurs encres, et exige que la zone
+des panneaux soit exactement `panels_colour` du texte lu.
+
+**Mémoire et coûts.** Retirés : `hud_draw` HGR, bandes HGR (320),
+`hud_border_byte`, `hud_strip_lo/hi`, `hud_ptr`, `dbl_put` et sa table,
+`hgr_row`/`hgr_row2` (763 octets résidents). Ajoutés : `hud_draw` (225),
+`hud_strip` + masques de l’index (85), `hud_col`, `hud_row`, `hud_pen`,
+`hud_next` (178, partagés avec les panneaux), soit 488 octets : 274 octets
+libérés en RAM principale (402 libres au total). WILDHUD : 1 628 octets
+(1 727 avant). Cycles POM2 (appel isolé depuis la boucle d’attente) :
+ruban 44 500 → 17 600, panneaux sales (`summary_prepare`, calculs
+flottants compris) 144 200 → 117 300 ; flèche droite 1,107 → 1,084 s,
+gauche 0,837 → 0,812 s, VIEW 5,845 → 5,787 s, LOOK R 1,927 → 1,899 s.

@@ -166,7 +166,12 @@ SPRITES = {
     'rattlesnake': (BLACK, BROWN, YELLOW, WHITE),
     'cabin': (BLACK, BROWN, DARK_GREEN, YELLOW),
 }
-HUD = {'border': WHITE, 'ink': WHITE, 'paper': BLACK, 'pointer': YELLOW}
+# Colour HUD (lot 4, tools/genhud.py): ribbon frame, letters (north apart),
+# ticks and pointer; survival panels: plain ink, gauge inks OKAY / SO-SO /
+# VERY (also poor health), alarm strip behind black letters (warnings).
+HUD = {'border': WHITE, 'ink': WHITE, 'paper': BLACK, 'pointer': YELLOW,
+       'north': PINK, 'tick': GREY1, 'okay': AQUA, 'soso': YELLOW, 'very': PINK,
+       'alarm': ORANGE}
 
 
 def tier(n):

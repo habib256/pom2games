@@ -1,21 +1,30 @@
 #!/usr/bin/env python3
 """Survival panels, transition events, grouped inventory and magnetic TOPO."""
 import tempfile
-from common import HERE, L, DISK, a2test, disk_with, text_screen, hgr_equivalent
+from common import HERE, L, DISK, a2test, disk_with, text_screen, dhgr, dhgr_page
 from test_thermal import call, poke
-from fonts import glyph
 
 IDLE=L.until('idle',20000)
 DONE=f'until:{L["idle"]+3:04X}:6000'
 
+def styled(page):
+    """Per panel field, the (char, ink, paper) of a 16 KB DHGR dump: colour
+    pixels decoded against the DHGR small font (tools/dhgr_ref.read_panels),
+    after checking that the panel area is exactly what dhgr_ref.panels_colour
+    draws for that text and those inks."""
+    R=dhgr()
+    colours=dhgr_page(page)
+    want=R.panels_colour(R.panel_runs(colours))
+    bad=[(y,x) for y in range(16) for x in R.panel_columns() if colours[y][x]!=want[y][x]]
+    assert not bad,('panel pixels differ from the small-font model',bad[:8])
+    return R.read_panels(colours)
+
 def panels(page):
-    if len(page)==16384:
-        page=hgr_equivalent(page)   # DHGR: the panels are doubled HGR bytes
-    alphabet={bytes(glyph(chr(c))[:7]):chr(c) for c in range(32,91)}
-    alphabet.update({bytes(b^127 for b in glyph(chr(c))[:7]):chr(c) for c in range(32,91)})
-    return tuple(''.join(alphabet.get(bytes(page[a2test.hgr_offset(y+r)+x] & 127 for r in range(7)), '?')
-                         for x in range(start,end)).rstrip()
-                 for y,start,end in ((0,0,13),(8,0,13),(0,27,40),(8,27,40)))
+    return tuple(''.join(c for c,_,_ in field) for field in styled(page))
+
+def inks(field):
+    """{(ink, paper)} of the non-blank characters of a field."""
+    return {(ink,paper) for c,ink,paper in field if c!=' '}
 
 def summary_display():
     steps=[IDLE,'peek:2000:8192',L.peek('s_hour',5),L.peek('s_health',5),
@@ -34,13 +43,16 @@ def summary_display():
     r=a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
     initial=panels(r.dumps[0])
     assert initial==('7:00 H=100%','HUNGER OKAY','THIRST OKAY','SHIVERING'),initial
+    H=dhgr().P.HUD
+    fields=styled(r.dumps[0])
+    assert inks(fields[0])==inks(fields[3])=={(H['ink'],0)}
+    assert all(inks(f[:6])=={(H['ink'],0)} and inks(f[7:])=={(H['okay'],0)} for f in fields[1:3]),'gauge inks'
     assert panels(r.dumps[3])==initial,'arrows must preserve side panels'
     for k,expected in enumerate(alerts.values()):
         assert panels(r.dumps[4+2*k])[3]==expected,(expected,panels(r.dumps[4+2*k]))
-        inverse=list(alerts)[k]<9
-        for col,char in enumerate(expected):
-            pixels=bytes(hgr_equivalent(r.dumps[4+2*k])[a2test.hgr_offset(8+row)+27+col]&127 for row in range(7))
-            assert pixels==bytes(b^(127 if inverse else 0) for b in glyph(char)[:7]), (expected,'warning contrast')
+        H=dhgr().P.HUD
+        warning=list(alerts)[k]<9
+        assert inks(styled(r.dumps[4+2*k])[3])=={(0,H['alarm']) if warning else (H['ink'],0)},(expected,'warning contrast')
         assert r.dumps[5+2*k]==b'\0','displayed transition must be consumed once'
     assert panels(r.dumps[-4])[3]=='SWEATING' and panels(r.dumps[-3])[3]=='SHIVERING'
     assert r.dumps[1]==r.dumps[-2] and r.dumps[2]==r.dumps[-1]
@@ -361,10 +373,9 @@ def main_view_hints():
             s.step(step)
         page=view('TOPO / HELP')
         assert panels(page)[1:3]==('HUNGER VERY','THIRST VERY')
-        for start,y in ((7,8),(34,0)):
-            for col,char in enumerate('VERY'):
-                actual=bytes(hgr_equivalent(page)[a2test.hgr_offset(y+row)+start+col]&127 for row in range(7))
-                assert actual==bytes(b^127 for b in glyph(char)[:7]),'critical gauges must be inverse'
+        H=dhgr().P.HUD
+        for field in styled(page)[1:3]:
+            assert inks(field[:6])=={(H['ink'],0)} and inks(field[7:])=={(H['very'],0)},'critical gauges must stand out'
         s.step(L.poke('wet_mode',2))
         view('IMMERSED')
         from common import fp
@@ -372,11 +383,10 @@ def main_view_hints():
         for step in poke('s_health',health/4):
             s.step(step)
         page=view('IMMERSED')
-        label=panels(page)[0]
+        field=styled(page)[0]
+        label=''.join(c for c,_,_ in field)
         percent=label.index('H=')+2
-        for col,char in enumerate(label[percent:]):
-            pixels=bytes(hgr_equivalent(page)[a2test.hgr_offset(row)+percent+col]&127 for row in range(7))
-            assert pixels==bytes(b^127 for b in glyph(char)[:7]),'poor health must stay inverse'
+        assert inks(field[:percent])=={(H['ink'],0)} and inks(field[percent:])=={(H['very'],0)},'poor health must stand out'
     print('  daylight/night/hung-pack hints, remote pack excluded; severe gauges and immersion visible: OK')
 
 

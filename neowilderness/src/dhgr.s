@@ -12,7 +12,7 @@
 ; Bank convention (docs/DHGR.md): 80STORE and HIRES stay on during the game,
 ; PAGE2 selects the bank of $2000-$3FFF for the CPU ($C055 aux, $C054 main)
 ; without changing the displayed page. Every routine returns with main
-; selected. render, scroll and the HUD stores mask IRQs around aux passes.
+; selected. render, scroll and hud_col mask IRQs around aux passes.
 ;
 ; Colours come from the mood (tools/gendhgr.py, docs/DHGR.md 3.2), chosen
 ; once per frame by dhgr_frame. An entry is a << 4 | b: a where
@@ -23,7 +23,8 @@
 ;
 ; Logical view rows 0..15 are painted into physical rows 160..175 (hidden
 ; under the four text rows), the cache convention of the HGR engine; the
-; compass and survival panels own physical rows 0..15.
+; compass and survival panels own physical rows 0..15 (src/hud.s, colour
+; pixels drawn by hud_col with the phase tables and dc_pat below).
 ; ============================================================================
 
 PAL_ZONE    = 0                 ; mood entries (tools/gendhgr.py): 5 sky zones
@@ -217,48 +218,6 @@ column_setup:
 .assert >dc_pat = >(dc_pat + 63), error, "dc_pat crosses a page"
 
 sky_zone_end: .byte SKY_ROW0, SKY_ROW1, SKY_ROW2, SKY_ROW3, VIEW_ROWS
-
-.segment "GCODE"
-; hgr_row -- X = screen row 0..191: hp = its address in $2000-$3FFF
-; ($2000 + (y & 7) * $400 + (y >> 3 & 7) * $80 + (y >> 6) * $28).
-; hgr_row2: the same in hp2 (hp clobbered). Preserve X and Y.
-hgr_row2:
-        jsr     hgr_row
-        lda     hp
-        sta     hp2
-        lda     hp+1
-        sta     hp2+1
-        rts
-hgr_row:
-        txa
-        and     #$C0
-        lsr     a
-        sta     hp
-        lsr     a
-        lsr     a
-        adc     hp              ; 0, $28, $50 (carry clear)
-        sta     hp
-        txa
-        and     #$08
-        beq     :+
-        lda     #$80
-        ora     hp
-        sta     hp
-:       txa
-        and     #$30
-        lsr     a
-        lsr     a
-        lsr     a
-        lsr     a
-        sta     hp+1
-        txa
-        and     #7
-        asl     a
-        asl     a
-        ora     #$20
-        ora     hp+1
-        sta     hp+1
-        rts
 
 .segment "CODE"
 ; div7 -- A = 0..255: X = A / 7, A = A mod 7.
@@ -571,50 +530,6 @@ clear_band:
         cpx     tmp2
         bne     clear_band
         rts
-
-; ----------------------------------------------------------------------------
-; HUD / survival panels: monochrome HGR bytes drawn in DHGR. Each HGR pixel
-; becomes two dots, so HGR byte y covers aux y and main y: white where two
-; pixels are lit, blue / orange on the fringes, like an HGR artefact.
-.segment "BSS"
-dbl_lo: .res 1
-dbl_x:  .res 1
-.segment "GCODE"
-; dbl_put -- A = HGR byte (bit 7 ignored) at (hp2),Y. Preserves X and Y.
-dbl_put:
-        stx     dbl_x
-        pha
-        and     #15
-        tax
-        lda     dbl_nibble,x
-        sta     dbl_lo
-        pla
-        lsr     a
-        lsr     a
-        lsr     a
-        lsr     a
-        and     #7
-        tax
-        lda     dbl_lo
-        asl     a               ; carry = dot 7
-        lda     dbl_nibble,x
-        rol     a
-        and     #$7F
-        sta     (hp2),y         ; main: dots 7..13
-        lda     dbl_lo
-        and     #$7F
-        php
-        sei
-        sta     PAGE2_AUX
-        sta     (hp2),y         ; aux: dots 0..6
-        sta     PAGE2_MAIN
-        plp
-        ldx     dbl_x
-        rts
-dbl_nibble:
-.repeat 16, N
-        .byte   (N & 1) * 3 + (N & 2) * 6 + (N & 4) * 12 + (N & 8) * 24
-.endrep
 
 ; ----------------------------------------------------------------------------
 ; Video modes. The view: DHGR + four mixed text rows, which are 80-column

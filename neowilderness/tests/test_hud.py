@@ -1,22 +1,25 @@
 #!/usr/bin/env python3
 """Compass ribbon: independent pixels, magnetic alignment and UI lifecycle.
 
-DHGR: both banks of HGR bytes 13..26, rows 0..15, against
-tools/dhgr_ref.hud_banks (the HGR ribbon with each pixel doubled, and the
-yellow index). The ribbon model itself is dhgr_ref.hud_hgr.
+DHGR colour ribbon (lot 4): both banks of bytes 16..23 (colour columns
+56..83), rows 0..15, against tools/dhgr_ref.hud_banks, whose colour model is
+dhgr_ref.hud_colour (small-font letters, ticks, frame, yellow index). The
+ribbon and the survival panels write nothing outside rows 0..15.
 """
 import tempfile
 from common import HERE, L, DISK, a2test, disk_with, state, text_screen, DHGR_BANKS, dhgr, banks
+from test_thermal import call
 
 
 def header(main, aux=None):
-    """(main, aux) bytes 13..26 of rows 0..15, other bytes zero (a 16 KB page
+    """(main, aux) bytes 16..23 of rows 0..15, other bytes zero (a 16 KB page
     dump, or its two banks)."""
     if aux is None:
         main, aux = banks(main)
+    cols = dhgr().HUD_BYTES
     def rows(page):
-        return b''.join(bytes(13) + page[a2test.hgr_offset(y)+13:a2test.hgr_offset(y)+27] + bytes(13)
-                        for y in range(16))
+        return b''.join(bytes(cols.start) + page[a2test.hgr_offset(y)+cols.start:a2test.hgr_offset(y)+cols.stop]
+                        + bytes(40-cols.stop) for y in range(16))
     return rows(main), rows(aux)
 
 
@@ -88,7 +91,29 @@ def magnetic_seams():
     print('  signed regional declinations: magnetic north stays beneath pointer OK')
 
 
+def rows_only():
+    """hud_draw and a dirty module_summary change rows 0..15 only, and the
+    ribbon and panels never share a byte."""
+    done=f'until:{L["idle"]+3:04X}:6000'
+    R=dhgr()
+    PAGE='peek:2000:8192'
+    steps=[L.until('idle',20000),PAGE]
+    steps+=call(['hud_draw'])+[done,PAGE]
+    steps+=call(['summary_prepare'])+[L.poke('ui_dirty',1),done,PAGE]
+    r=a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
+    top={a2test.hgr_offset(y)+b for y in range(16) for b in range(40)}
+    ribbon={a2test.hgr_offset(y)+b for y in range(16) for b in R.HUD_BYTES}
+    for before,after,owner,name in ((r.dumps[0],r.dumps[1],ribbon,'hud_draw'),
+                                    (r.dumps[1],r.dumps[2],top-ribbon,'module_summary')):
+        for bank in (0,8192):
+            changed={a for a in range(8192) if before[bank+a]!=after[bank+a]}
+            assert changed<=owner,(name,'writes outside its bytes',sorted(changed-owner)[:8])
+    assert header(r.dumps[2])==header(r.dumps[1]), 'panels must preserve the ribbon'
+    print('  ribbon (bytes 16..23) and panels (0..15, 24..39) write rows 0..15 only OK')
+
+
 if __name__=='__main__':
+    rows_only()
     all_headings()
     lifecycle()
     magnetic_seams()
