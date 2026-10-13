@@ -1,0 +1,327 @@
+{
+  "scope": "Crash to x70/y86; not a completed journey",
+  "commands": [
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "WEAR PARKA",
+      "answers": []
+    },
+    {
+      "command": "DRINK WATER",
+      "answers": [
+        "C",
+        "10"
+      ]
+    },
+    {
+      "command": "EAT CHEESE",
+      "answers": [
+        "8",
+        "P"
+      ]
+    },
+    {
+      "command": "REST",
+      "answers": [
+        "1"
+      ]
+    },
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "LOOK AZ",
+      "answers": [
+        "72"
+      ]
+    },
+    {
+      "command": "WALK",
+      "answers": [
+        "0.5"
+      ]
+    },
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "LOOK AZ",
+      "answers": [
+        "73"
+      ]
+    },
+    {
+      "command": "WALK",
+      "answers": [
+        "0.5"
+      ]
+    },
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "LOOK AZ",
+      "answers": [
+        "75"
+      ]
+    },
+    {
+      "command": "WALK",
+      "answers": [
+        "0.5"
+      ]
+    },
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "LOOK AZ",
+      "answers": [
+        "73"
+      ]
+    },
+    {
+      "command": "WALK",
+      "answers": [
+        "0.5"
+      ]
+    },
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "LOOK AZ",
+      "answers": [
+        "75"
+      ]
+    },
+    {
+      "command": "WALK",
+      "answers": [
+        "0.5"
+      ]
+    },
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "LOOK AZ",
+      "answers": [
+        "72"
+      ]
+    },
+    {
+      "command": "WALK",
+      "answers": [
+        "0.5"
+      ]
+    },
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "LOOK AZ",
+      "answers": [
+        "72"
+      ]
+    },
+    {
+      "command": "WALK",
+      "answers": [
+        "0.5"
+      ]
+    },
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "LOOK AZ",
+      "answers": [
+        "75"
+      ]
+    },
+    {
+      "command": "WALK",
+      "answers": [
+        "0.5"
+      ]
+    },
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "LOOK AZ",
+      "answers": [
+        "73"
+      ]
+    },
+    {
+      "command": "WALK",
+      "answers": [
+        "0.5"
+      ]
+    },
+    {
+      "command": "REMOVE PARKA",
+      "answers": []
+    },
+    {
+      "command": "STORE PARKA",
+      "answers": []
+    },
+    {
+      "command": "DRINK WATER",
+      "answers": [
+        "C",
+        "10"
+      ]
+    },
+    {
+      "command": "EAT POTATOES",
+      "answers": [
+        "16",
+        "P"
+      ]
+    },
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "LOOK AZ",
+      "answers": [
+        "72"
+      ]
+    },
+    {
+      "command": "WALK",
+      "answers": [
+        "0.5"
+      ]
+    },
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "LOOK AZ",
+      "answers": [
+        "74"
+      ]
+    },
+    {
+      "command": "WALK",
+      "answers": [
+        "0.5"
+      ]
+    },
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "LOOK AZ",
+      "answers": [
+        "74"
+      ]
+    },
+    {
+      "command": "WALK",
+      "answers": [
+        "0.5"
+      ]
+    },
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "LOOK AZ",
+      "answers": [
+        "74"
+      ]
+    },
+    {
+      "command": "WALK",
+      "answers": [
+        "0.5"
+      ]
+    },
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "LOOK AZ",
+      "answers": [
+        "74"
+      ]
+    },
+    {
+      "command": "WALK",
+      "answers": [
+        "0.5"
+      ]
+    },
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "LOOK AZ",
+      "answers": [
+        "73"
+      ]
+    },
+    {
+      "command": "WALK",
+      "answers": [
+        "0.5"
+      ]
+    },
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "LOOK AZ",
+      "answers": [
+        "72"
+      ]
+    },
+    {
+      "command": "WALK",
+      "answers": [
+        "0.5"
+      ]
+    },
+    {
+      "command": "USE COMPASS",
+      "answers": []
+    },
+    {
+      "command": "LOOK AZ",
+      "answers": [
+        "75"
+      ]
+    },
+    {
+      "command": "WALK",
+      "answers": [
+        "0.5"
+      ]
+    }
+  ]
+}

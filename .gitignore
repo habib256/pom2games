@@ -13,3 +13,11 @@ __pycache__/
 
 # Wilderness reference images (copyrighted originals, local only)
 wilderness/original/
+
+# Neowilderness reference images (copyrighted originals, local only)
+neowilderness/original
+
+# Test-bench ProDOS volumes rebuilt by neowilderness/dhgr.mk, stars.mk and hof.mk
+dist/NEODHGR_TEST.po
+dist/NEOSTARS_TEST.po
+dist/NEOHOF_TEST.po
