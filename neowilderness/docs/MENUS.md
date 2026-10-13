@@ -127,30 +127,40 @@ les boucles d'attente des écrans.
 Première livraison visible, sans fenêtre DHGR, à coût mémoire minimal : les
 rangées 20 à 23 sont déjà du texte 80 colonnes à écriture directe.
 
-**Exigence (demande du 13 octobre 2026, à reprendre avant de coder ce
-lot) :** le contrôle au joystick doit réutiliser **beaucoup plus
-intelligemment les quatre lignes de 80 colonnes** que la barre d'une seule
-rangée décrite ci-dessous. 4 × 79 caractères forment une petite surface de
-commande, pas une ligne de saisie : par exemple verbes répartis sur
-plusieurs rangées ou en colonnes (sélection en deux dimensions au manche),
-niveau 2 affiché à côté du niveau 1 plutôt qu'à sa place, verbes
-contextuels et objets accessibles visibles d'emblée, commande composée et
-dernier résultat gardés chacun sur leur rangée. La disposition est à
-concevoir et à faire valider ; le texte qui suit est le premier jet.
-
-Rangée 20, barre de verbes (79 caractères utiles), élément courant en
-inverse :
+**Disposition retenue (13 octobre 2026, choix B parmi quatre propositions) :
+deux colonnes de 40 caractères.** Les rangées 20 à 22 sont partagées en une
+colonne de commande à gauche et une colonne d'information à droite ; la
+rangée 23 porte la commande composée et les aides. Les 4 × 79 caractères
+forment ainsi une surface de commande, pas une ligne de saisie.
 
 ```
-WALK SWIM LOOK REST EAT DRINK GET TAKE WEAR DROP STATUS INVENTORY TOPO MAP HELP QUIT
+WALK   SWIM   LOOK   REST   EAT       | TRAVEL: 35 MINUTES.
+DRINK  GET    TAKE   WEAR   DROP      | YOU FIND PLANTS.
+STATUS INVENT TOPO   MAP    HELP QUIT | FOOD 170 OZ  WATER 36 OZ  (HERE 0/0)
+> WALK 30 MIN_                        ESC: KEYBOARD   BTN1: CANCEL
 ```
 
-Gauche/droite déplacent la sélection (circulaire), bouton 0 ou Entrée ouvre
-le niveau suivant, bouton 1 ou Échap ferme la barre et rend le prompt. Les
-rangées 21 à 23 gardent le dernier résultat tant qu'un sous-menu n'est pas
-ouvert ; un sous-menu les utilise et le résultat revient à la fermeture
-(il est conservé dans le tampon de messages existant, pas redessiné depuis
-la simulation).
+- **Colonne gauche (38 caractères, rangées 20 à 22) :** grille de verbes
+  sur trois rangées, six colonnes de 6 caractères ; sélection en deux
+  dimensions au manche (gauche/droite dans la rangée, haut/bas entre les
+  rangées), élément courant en inverse. Les verbes contextuels (ENTER
+  SHELTER, EXIT SHELTER, IGNORE, SCARE, ATTACK) remplacent les cases
+  inutiles quand ils s'appliquent, en tête de grille. Quand un verbe est
+  ouvert, la grille affiche son niveau suivant à la place des verbes
+  (durées, objets admissibles, quantités), sur les mêmes trois rangées,
+  avec pagination par rangée si la liste dépasse 18 cases ; bouton 1 ou
+  Échap remonte d'un niveau.
+- **Colonne droite (40 caractères, rangées 20 à 22) :** le dernier
+  résultat sur deux rangées (tampon de messages existant, jamais
+  redessiné depuis la simulation), puis une rangée d'état : nourriture et
+  eau transportées, ressources accessibles ici. Cette colonne ne change
+  pas pendant la navigation dans les menus.
+- **Rangée 23 :** à gauche la commande composée telle qu'elle sera
+  analysée (`> WALK 30 MIN`), curseur compris, pour que la saisie clavier
+  reste possible et visible ; à droite les aides de touches du niveau
+  courant (Échap : clavier, bouton 1 : annuler, bouton 0 ou Entrée : valider).
+- Le séparateur vertical est un caractère de la police texte ; aucune
+  fenêtre DHGR n'est nécessaire pour cette première livraison.
 
 Sous-menus, par verbe :
 

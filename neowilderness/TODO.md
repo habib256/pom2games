@@ -168,9 +168,9 @@ qui garde la mémoire des parties.
   clavier, barre de verbes et listes dans les quatre lignes 80 colonnes,
   fenêtres DHGR posées sur le paysage et effacées par l'instantané, à la
   place des écrans 40 colonnes ; les commandes tapées restent reconnues.
-  Exigence à fixer avant de coder : exploiter bien mieux les quatre lignes
-  de texte 80 colonnes du bas de l'écran pour ce contrôle (MENUS.md § 4,
-  barre de verbes sur une ligne = premier jet).
+  Disposition des quatre lignes du bas retenue le 13 octobre : deux
+  colonnes 40/40, grille de verbes 3 × 6 à gauche, résultat et état à
+  droite, commande composée et aides sur la rangée 23 (MENUS.md § 4).
 - [ ] Aide en jeu par région (HELP, phrase de faune, noms d'espèces) et
   orientation nocturne (`LOOK STARS`).
 
