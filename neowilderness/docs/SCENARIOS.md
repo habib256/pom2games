@@ -60,22 +60,31 @@ de cartes supplémentaires n'y tient pas non plus (§ 4).
 Réalisé (étape 3) dans le chargeur `NEOWILD.SYSTEM` (fenêtre SIM, `$9600`),
 toujours résident jusqu'au premier `overlay_load 3` :
 
-1. Écran d'introduction (titre inverse NEOWILDERNESS, résumé et commandes)
-   et `LOADING...` pendant le tronc commun `NEOWILD.DAT` (12,1 s), **sans**
-   carte, bois, sprites d'animaux, textes ni fiches de faune.
-2. Menu texte 40 colonnes (Moniteur, page 1) : `[1]`–`[6]` scénarios
-   originaux sur trois lignes chacun : nom (« * » : carte reconstituée) et
-   `BEST nnnnn` (meilleur score lu dans `NEOWILD.HOF`, `BEST -` sans
-   entrée) ; terrain, température,
-   pluie et limite des neiges ; phrase de faune de l'original. Puis
-   `7 FREE JOURNEY  H HALL OF FAME  Q PRODOS`. Les mots sont dérivés par
-   `tools/genmenu.py` des en-têtes de région (`regions.json` : jungle,
-   précipitations, phrase de `GO3`) et des en-têtes de carte (températures,
-   base, neige) ; ce ne sont pas les adjectifs exacts de `GO3`.
-3. Niveau sur la ligne 22 : `LEVEL 1-10 (RETURN = 4, ESC)?`, un ou deux
+1. Page de chargement (titre inverse NEOWILDERNESS, machine, auteurs de
+   l'original et du portage, le but en deux lignes, « TYPE A COMMAND, THEN
+   PRESS RETURN. HELP LISTS THE COMMANDS. ») et `LOADING...` pendant le
+   tronc commun `NEOWILD.DAT` (12,1 s), **sans** carte, bois, sprites
+   d'animaux, textes ni fiches de faune. La liste des commandes a quitté
+   cette page : HELP la donne en jeu.
+2. Menu texte 40 colonnes (Moniteur, page 1), une ligne par scénario
+   `[1]`–`[6]` dans l'ordre de `tools/genmenu.py` `MENU_ORDER` (Sierra
+   Nevada en tête, puis British Columbia, Burma, New Guinea, Bolivia,
+   Chile ; `menu_regions` traduit la touche en région, `menu_rows` donne
+   la ligne d'une région) : touche, nom (colonne 2), terrain et température
+   (colonne 20 : « FOREST, MILD »), meilleur score à droite (colonne 35,
+   en-tête `BEST` sur la ligne 1 ; `-` sans entrée dans `NEOWILD.HOF`) ;
+   RETURN seul choisit la première ligne (`CHOICE (RETURN = 1, 1-7, H,
+   Q)?`) ; puis
+   `7 FREE JOURNEY    ANY REGION, NOT RANKED` et `H HALL OF FAME    Q QUIT
+   TO PRODOS`. Les mots sont dérivés par `tools/genmenu.py` des en-têtes de
+   région (`regions.json` : jungle, précipitations) et des en-têtes de carte
+   (températures) ; la phrase de faune de l'original apparaît au crash
+   (« WILDLIFE: … »), la limite des neiges dans STATUS.
+3. Niveau sur la ligne 12 (`MENU_ROW`) : `LEVEL 1-10 (RETURN = 4, ESC)?`, un ou deux
    chiffres puis RETURN ; hors plage : bip et nouvelle saisie ; ESC revient
-   au choix. `[7]` demande d'abord la région (`1`–`6`, ESC). `[H]` affiche le
-   hall of fame (six tables lues avant le menu, aucun accès disque) ; `[Q]`
+   au choix. `[7]` demande d'abord la région (`1`–`6`, mêmes touches que le
+   menu, ESC). `[H]` affiche le hall of fame dans l'ordre du menu (six
+   tables lues avant le menu, aucun accès disque) ; `[Q]`
    rend la main à ProDOS.
 4. L'introduction revient, avec « SIERRA NEVADA, LEVEL 4 » (« (FREE) » pour
    un voyage libre) au-dessus de `LOADING...`, et reste affichée pendant la

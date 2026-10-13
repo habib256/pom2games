@@ -145,7 +145,7 @@ def play(disk, title, strict=True):
             after = counters()
             if hour() < start:
                 notes['midnight'] = True        # the clock wrapped: a new day
-            message = [r.strip() for r in screen[21:] if r.strip()]
+            message = [r[40:79].strip() for r in screen[20:23] if r[40:79].strip()]
             rows.append((command, {k: after[k] - before[k] for k in after}, state(peek('px', 6)),
                          hour(), peek('animal_kind')[0], message))
             report(rows[-1])

@@ -128,10 +128,17 @@ LOADER_PHASE = ('loader_main', 'loader_claimed', 'loader_ram_files', 'ld_wait',
                 'loader_menu', 'menu_key')
 
 
+# Region number -> its key at the start menu (tools/genmenu.py MENU_ORDER:
+# the Sierra Nevada first, chosen by RETURN alone).
+MENU_KEY = {'2': '1', '1': '2', '3': '3', '4': '4', '5': '5', '6': '6'}
+
+
 def menu_keys(choice='2', level=''):
-    """Steps that answer the start menu: choice ('1'..'6', or '7' then the
-    region digit) and level digits ('' = RETURN = 4)."""
-    return [L.until('menu_key', 40000), f'key:{choice}{level}\r']
+    """Steps that answer the start menu: choice (a region '1'..'6', or '7'
+    then the region digit, translated to the menu keys) and level digits
+    ('' = RETURN = 4)."""
+    keys = ''.join(MENU_KEY.get(c, c) for c in choice)
+    return [L.until('menu_key', 40000), f'key:{keys}{level}\r']
 
 
 MENU_SKIP = menu_keys()
@@ -317,6 +324,21 @@ def text_screen(mem):
         chars = [c & 0x7F for c in cells]
         lines.append(bytes(c+0x40 if c<0x20 else c for c in chars).decode('latin1'))
     return lines
+
+
+RESULT_COL = 40            # src/menu.s: the result column of the four mixed rows
+
+
+def result_rows(screen):
+    """The result column (rows 20..22, columns 40..78) of a text_screen(),
+    or of its last four rows."""
+    rows = screen[20:23] if len(screen) > 4 else screen[:3]
+    return [row[RESULT_COL:79] for row in rows]
+
+
+def result_text(screen):
+    """The result column as one string, its rows separated by newlines."""
+    return '\n'.join(result_rows(screen))
 
 
 # Every differential text store (STA (BASL),Y): src/dhgr.s t_update, the

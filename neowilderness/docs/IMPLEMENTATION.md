@@ -1228,7 +1228,10 @@ Décisions détaillées dans [DHGR.md](DHGR.md) § 11 et
   contenu et mêmes règles d'alerte qu'au lot 3 ; `tools/dhgr_ui.py` lit les
   champs pour les tests.
 - **Texte.** Les quatre lignes mixtes, le rideau de la simulation et MAP sont
-  du vrai texte 80 colonnes (primitives `t_*` en `$0200-$03CF`). Les menus
+  du vrai texte 80 colonnes (primitives `t_*` en `$0200-$03CF`) ; depuis le
+  lot 8 (étape 2) les quatre lignes sont une surface de commande, grille de
+  verbes à gauche et colonne de résultat à droite ([MENUS.md](MENUS.md) § 4,
+  `src/menu.s`). Les menus
   STATUS, INVENTORY, HELP et la fin restent en 40 colonnes. Les messages
   gardent leur mise en page de 38 colonnes ; la ligne en accepte 79.
 - **Retours sans lancer de rayons.** STATUS, HELP, MAP : la page DHGR n'est

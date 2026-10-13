@@ -7,6 +7,45 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Neowilderness : les quatre lignes du bas, surface de commande (lot 8, étape 2)
+
+- Rangées 20 à 22, colonnes 0 à 37 : grille des verbes (contextuels en
+  tête : `EXIT`, `ENTER`, `IGNORE SCARE ATTACK`), six cases par rangée,
+  défilement par rangée (`^`/`V` en colonne 38), case choisie en inverse ;
+  RETURN ou flèche haut l'ouvre, flèches, RETURN, Échap ; un verbe ouvre sa
+  liste (durées, directions, objets admissibles en cases de 12, onces) et
+  compose la commande du clavier dans `inbuf` (`menu_noun` transmet l'objet
+  choisi : `GET COTTN SOCKS`). Flèche bas sur la ligne vide : STATUS. Une
+  commande issue de la grille la laisse ouverte. Les commandes tapées
+  restent acceptées ([MENUS.md](docs/MENUS.md) § 4, `tests/test_menu_bar.py`).
+- Colonnes 40 à 78 : le dernier message, placé mot par mot sur trois
+  rangées (plus de texte coupé ni de rangées collées) ; la ligne de stock
+  `FOOD n OZ  WATER n OZ  HERE f/w` quand la rangée 22 est libre ; le
+  rapport de charge y tient. Rangée 23 : `> ` et la commande telle que
+  l'analyseur la lira, sans curseur, puis l'aide du mode.
+- Message de départ sans la liste des commandes (la grille les montre) ;
+  `src/menu.s` résident en `$BA00` (830 octets), grille de 1 368 octets
+  dormant dans les lignes HGR 176-191 et recopiée en `$B000` à chaque invite
+  ([MEMORY.md](docs/MEMORY.md) § 11) ; le chargeur lit avec son propre
+  tampon `$AB00`. Volume 250/280 blocs.
+- Menu des scénarios : Sierra Nevada en première ligne (touche 1), RETURN
+  seul la choisit (`CHOICE (RETURN = 1, 1-7, H, Q)?`), ordre de
+  `tools/genmenu.py` `MENU_ORDER` ; l'écran H suit le même ordre ; les
+  tests répondent par `menu_keys` (numéro de région traduit).
+- Page de chargement : une ligne vide sous le titre.
+
+### Neowilderness : page de chargement et menu allégés
+
+- Page de chargement : titre, machine, auteurs, le but en deux lignes et
+  « HELP LISTS THE COMMANDS. » ; les onze lignes de commandes sont parties
+  (HELP les donne en jeu).
+- Menu des scénarios : une ligne par région (numéro, nom, terrain et
+  température, meilleur score en colonne `BEST`) au lieu de trois ; plus de
+  phrase de faune ni de limite des neiges, plus d'astérisque ; `7 FREE
+  JOURNEY`, `H HALL OF FAME`, `Q QUIT TO PRODOS` sur deux lignes ; invites
+  sur la ligne 12 (`MENU_ROW`). `hm_best` écrit le score à la colonne 35
+  de la ligne du scénario.
+
 ### Neowilderness : constellations entières et nuit noire
 
 - Catalogue **par figures** : 42 constellations complètes (262 étoiles,

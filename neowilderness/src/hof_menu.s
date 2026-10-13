@@ -457,8 +457,7 @@ hm_unreadable:
 
 ; ----------------------------------------------------------------------------
 .ifdef HOF_LOADER
-BEST_ROW0 = 2                   ; genmenu.py: rows 2, 5 ... 17, "BEST -" at 33
-BEST_COL  = 29
+BEST_COL  = 35                  ; tools/genmenu.py BEST_COL: the score column
 
 hm_best:
         lda     #0
@@ -471,15 +470,10 @@ hm_best:
         ldy     #HM_E_OUTCOME
         lda     (hm_ent),y
         beq     @next
-        lda     hm_scen         ; row = 3 * scenario - 1
-        asl     a
-        adc     hm_scen
-        sbc     #0              ; C clear: - 1
+        ldx     hm_scen         ; the scenario's menu row (tools/genmenu.py)
+        lda     menu_rows-1,x
         ldy     #BEST_COL
         jsr     hm_at
-        lda     #<hm_m_best
-        ldy     #>hm_m_best
-        jsr     hm_print
         ldy     #HM_E_SCORE+1
         lda     (hm_ent),y
         tax
@@ -493,7 +487,8 @@ hm_best:
         bne     @scen
         rts
 
-; Blocks: scenario s at row 2 + 7 * ((s - 1) / 2), column 0 (odd) or 20.
+; Blocks: menu key s (tools/genmenu.py MENU_ORDER) at row 2 + 7 * ((s - 1) / 2),
+; column 0 (odd) or 20.
 hm_hall:
         jsr     hm_clear
         lda     #<hm_m_hall
@@ -526,12 +521,14 @@ hm_hall:
         lda     hm_row
         ldy     hm_col0
         jsr     hm_at
-        lda     hm_scen
-        ora     #'0'
+        lda     hm_scen         ; blocks in menu order: key, then the name
+        ora     #'0'            ; and the entries of its region
         jsr     hm_char
         lda     #' '
         jsr     hm_char
         ldx     hm_scen
+        lda     menu_regions-1,x
+        tax
         lda     HOF_NAMES_LO-1,x
         ldy     HOF_NAMES_HI-1,x
         jsr     hm_print
@@ -543,7 +540,8 @@ hm_hall:
         lda     hm_row
         ldy     hm_col0
         jsr     hm_at
-        lda     hm_scen
+        ldx     hm_scen
+        lda     menu_regions-1,x
         ldx     hm_rank
         jsr     hm_entry
         ldx     hm_rank
@@ -578,7 +576,6 @@ hm_hall:
         ldy     #>hm_m_key
         jmp     hm_print
 
-hm_m_best:     .byte "BEST ", 0
 hm_m_hall:     .byte "HALL OF FAME", 0
 hm_m_journeys: .byte "SCENARIO JOURNEYS: ", 0
 hm_scen:  .byte 0

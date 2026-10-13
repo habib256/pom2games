@@ -326,6 +326,9 @@ HL_BENCH = 1
 
 names_lo: .byte <n1, <n2, <n3, <n4, <n5, <n6
 names_hi: .byte >n1, >n2, >n3, >n4, >n5, >n6
+; Menu order of the loader (tools/genmenu.py MENU_ORDER: the Sierra first).
+menu_regions: .byte 2, 1, 3, 4, 5, 6
+menu_rows: .byte 3, 2, 4, 5, 6, 7
 n1: .byte "BRITISH COLUMBIA", 0
 n2: .byte "SIERRA NEVADA", 0
 n3: .byte "BURMA", 0

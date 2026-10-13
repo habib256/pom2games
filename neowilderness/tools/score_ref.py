@@ -340,7 +340,7 @@ def end_screen(c, region, region_name, free, file_data, name, read_err=0, write_
 
 # ---------------------------------------------------------------------------
 # loader side (src/hof_menu.s)
-BEST_ROW0, BEST_STEP, BEST_COL = 2, 3, 29      # "BEST nnnnn" at columns 29..38
+BEST_ROW0, BEST_COL = 2, 35                   # the score at columns 35..39 of the scenario's row
 
 
 def menu_best_cells(file_data):
@@ -352,12 +352,15 @@ def menu_best_cells(file_data):
     for s in range(1, SCENARIOS + 1):
         b = hof.best(s)
         if b is not None:
-            out[(BEST_ROW0 + BEST_STEP * (s - 1), BEST_COL)] = f'BEST {b:>5}'
+            out[(BEST_ROW0 + MENU_ORDER.index(s), BEST_COL)] = f'{b:>5}'
     return out
 
 
+MENU_ORDER = (2, 1, 3, 4, 5, 6)   # tools/genmenu.py MENU_ORDER: regions by menu key
+
+
 def hall_block(s):
-    """(row, col) of the header of scenario s on the H screen."""
+    """(row, col) of the header of menu key s on the H screen."""
     return 2 + 7 * ((s - 1) // 2), 0 if s % 2 else 20
 
 
@@ -369,9 +372,9 @@ def hall_screen(file_data, read_err=0):
     if not hof.valid():
         hof, read_err = Hof(), read_err or INVALID
     title(scr, 'HALL OF FAME')
-    for s in range(1, SCENARIOS + 1):
-        r, col = hall_block(s)
-        scr.put(r, col, f'{s} {REGION_NAMES[s - 1]}'[:19], inverse=True)
+    for key, s in enumerate(MENU_ORDER, 1):      # blocks in menu order
+        r, col = hall_block(key)
+        scr.put(r, col, f'{key} {REGION_NAMES[s - 1]}'[:19], inverse=True)
         for k, e in enumerate(hof.entries(s)):
             line = f"{k + 1} {e['name']:<8} {e['score']:>5}" if e['outcome'] else f'{k + 1} -'
             scr.put(r + 1 + k, col, line)

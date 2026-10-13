@@ -38,7 +38,7 @@
         .macpack longbranch
 .import start, _prodos_video_claim, _prodos_video_release, reset_exit
 .import mli_calls, mli_reads, mli_bytes, saved_reset, saved_bitmap, saved_zp
-.import geo_path, io_buffer, weather_seed, fauna_rng, water_rng
+.import geo_path, weather_seed, fauna_rng, water_rng
 .import __LOADER_LOAD__, __LOADER_RUN__, __LOADER_SIZE__
 .import __LOADBSS_RUN__, __LOADBSS_SIZE__, __RESBSS_RUN__, __RESBSS_SIZE__
 .import __BSS_RUN__, __BSS_SIZE__
@@ -57,9 +57,12 @@ SETKBD   = $FE89
 STAGE    = $2000
 TEMP     = $7000
 TABLE    = $B500                ; record table of NEOWILD.DAT / NEOWILD.Rn
+LD_IOBUF = $AB00                ; ProDOS I/O buffer of the loader's files: between
+                                ; its BSS and TABLE, so that $BA00-$BDFF (the
+                                ; game's io_buffer) receives a record (menu.s)
 CLREOP   = $FC42
 MAP      = $7000
-MENU_ROW = 22                   ; prompts below the menu
+MENU_ROW = 12                   ; prompts below the menu (tools/genmenu.py MENU_ROW)
 TABLE_SIZE = 128                ; tools/build_disk.py TABLE_SIZE
 ALTZPOFF = $C008
 ALTZPON  = $C009
@@ -239,6 +242,7 @@ loader_pack:
         ora     #$40
         sta     water_rng
 @protect:
+        jsr     ld_scatter      ; before the zero page is set for the game
         ldx     #23             ; protect the game's pages
 :       lda     saved_bitmap,x
         ora     game_pages,x
@@ -264,6 +268,59 @@ loader_pack:
         bne     :-
 loader_done:
         jmp     start
+
+; ld_scatter -- the grid of the menu (menu.s MENUSWAP), read at SWAP_LOAD,
+; into the HGR rows 176-191 of both banks: 16 chunks of 48 bytes (holes
+; included) per bank, row 176 + 8g at SWAP_ROW + $400 g and row 184 + 8g
+; $80 further; the main bank, then the auxiliary one through RAMWRT
+; (80STORE off meanwhile: the page is not displayed yet). The game copies
+; it back at every prompt (menu_gather) and never draws those rows.
+SWAP_LOAD = $AF00               ; tools/build_disk.py: the record's address
+SWAP_ROW  = $2350               ; menu.s SWAP_ROW
+RD80STORE = $C018
+ld_scatter:
+        lda     RD80STORE
+        pha
+        sta     STORE80OFF
+        lda     #<SWAP_LOAD
+        sta     source
+        lda     #>SWAP_LOAD
+        sta     source+1
+        jsr     @bank
+        sta     RAMWRTON
+        jsr     @bank
+        sta     RAMWRTOFF
+        pla
+        bpl     :+
+        sta     STORE80ON
+:       rts
+@bank:  lda     #<SWAP_ROW
+        sta     dest
+        lda     #>SWAP_ROW
+        sta     dest+1
+        ldx     #16
+@chunk: ldy     #47
+:       lda     (source),y
+        sta     (dest),y
+        dey
+        bpl     :-
+        lda     source
+        clc
+        adc     #48
+        sta     source
+        bcc     :+
+        inc     source+1
+:       lda     dest            ; $50 -> $D0 (same group), $D0 -> $50 (next)
+        eor     #$80
+        sta     dest
+        bmi     :+
+        lda     dest+1
+        clc
+        adc     #4
+        sta     dest+1
+:       dex
+        bne     @chunk
+        rts
 
 ; load_file -- A = 'D' (NEOWILD.DAT) or '1'..'6' (NEOWILD.R1..R6): open it,
 ; read its record table, then every record; close. C set, A = MLI error.
@@ -369,7 +426,11 @@ menu:
         ldy     #>m_choice
         jsr     prompt
 @key:   jsr     menu_key
-        cmp     #'1'|$80
+        cmp     #KC_RET|$80
+        bne     :+
+        lda     #'1'|$80        ; RETURN alone: the first scenario (Sierra)
+        bne     @scenario
+:       cmp     #'1'|$80
         bcc     @other
         cmp     #'7'|$80
         bcc     @scenario
@@ -404,6 +465,8 @@ menu:
 @scenario:
         jsr     COUT            ; echo the digit (COUT keeps A)
         and     #$0F
+        tax
+        lda     menu_regions-1,x ; menu key -> region (tools/genmenu.py)
         sta     ld_region
 ; level -- 1..10, RETURN alone = 4, ESC back to the choice.
 @level: lda     #<m_ask_level
@@ -958,7 +1021,7 @@ print:  sta     @text+1
 HOF_ZP    = source              ; source, dest: free while the menu runs
 HOF_BUF   = STAGE
 HOF_MLI   = ld_mli
-HOF_IOBUF = io_buffer
+HOF_IOBUF = LD_IOBUF
 HOF_PATH  = geo_path
 HOF_READ_PARMS = read           ; ld_mli counts its transfer
 HOF_NAMES_LO = region_names_lo
@@ -969,7 +1032,7 @@ move_src: .word 0
 online: .byte   2, 0
         .word   volume
 open:   .byte   3
-        .word   ld_path, io_buffer
+        .word   ld_path, LD_IOBUF
         .byte   0
 read:   .byte   4, 0
         .word   0, 0, 0
@@ -1025,33 +1088,26 @@ applesoft_hi:
 m_machine:
         .byte   "NEOWILDERNESS NEEDS AN APPLE //E", 13
         .byte   "ENHANCED OR AN APPLE //C WITH 128K.", 13, 0
+; Loading page: title, machine, credits, the goal and the one thing to know
+; (HELP lists the commands in the game); the region and level line, then
+; LOADING..., follow after the menu.
 m_intro:
-        .byte   1, "             NEOWILDERNESS              ", 2
-        .byte   "  APPLE //E //C 128K - PRODOS - DHGR", 13
+        .byte   1, "             NEOWILDERNESS              ", 2, 13
+        .byte   "  APPLE //E //C 128K - PRODOS - DHGR", 13, 13
         .byte   "ORIGINAL GAME: WESLEY HUNTRESS, CHARLES", 13
         .byte   "KOHLHASE, PETER FARSON (E.TRANSIT 1985)", 13
-        .byte   "DHGR PORT: VERHILLE.A", 13
+        .byte   "DHGR PORT: VERHILLE.A", 13, 13
         .byte   "YOU SURVIVED A PLANE CRASH.", 13
-        .byte   "REACH THE RANGER OUTPOST TO GET HELP.", 13
-        .byte   "MANAGE YOUR EQUIPMENT, HUNGER, THIRST,", 13
-        .byte   "FATIGUE AND BODY TEMPERATURE.", 13
-        .byte   "MAIN COMMANDS", 13
-        .byte   "LEFT/RIGHT: TURN ON AN EMPTY LINE", 13
-        .byte   "WALK / SWIM: TRAVEL ON LAND / WATER", 13
-        .byte   "TOPO: TERRAIN MAP: LOCAL PLAYER MAP", 13
-        .byte   "STATUS: HEALTH   INVENTORY: ITEMS", 13
-        .byte   "GET ITEM: PACK   WEAR PARKA: WEAR", 13
-        .byte   "EAT FOOD / DRINK WATER: CONSUME", 13
-        .byte   "REST: REST   HELP: COMMAND HELP", 13
+        .byte   "REACH THE RANGER OUTPOST TO GET HELP.", 13, 13
         .byte   "TYPE A COMMAND, THEN PRESS RETURN.", 13
-        .byte   "DURATIONS: H OR MIN. QUANTITIES: OZ.", 13, 0
+        .byte   "HELP LISTS THE COMMANDS.", 13, 13, 0
 m_loading:
         .byte   13, "LOADING...", 0
 m_level:
         .byte   ", LEVEL ", 0
 m_free: .byte   " (FREE)", 0
 m_choice:
-        .byte   "YOUR CHOICE (1-7, H, Q)? ", 0
+        .byte   "CHOICE (RETURN = 1, 1-7, H, Q)? ", 0
 m_region:
         .byte   "FREE JOURNEY: REGION (1-6, ESC)? ", 0
 m_ask_level:

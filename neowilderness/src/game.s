@@ -53,9 +53,7 @@ M_TSUM   = MAP + 14
 M_WIND   = MAP + 15             ; highest wind (mph)
 M_MAG    = MAP + 24             ; signed magnetic declination, degrees
 
-MSG_ROW  = 21                   ; message lines 21-23, command line 20
-CMD_ROW  = 20
-MAXLINE  = 36
+MAXLINE  = 36                   ; typed command (row 23, src/menu.s)
 
 .macro  fld     addr
         lda     #<(addr)
@@ -295,66 +293,7 @@ the_end:
 ; ----------------------------------------------------------------------------
 ; command line
 ; ----------------------------------------------------------------------------
-; get_line -- "? " on row 20, letters and spaces up to 36, LEFT erases; on an
-; empty line LEFT / RIGHT turn the view 22.5 degrees; ESC clears input.
-get_line:
-        lda     #0
-        sta     linelen
-        jsr     prompt
-idle:   lda     KBD             ; tests wait for this loop
-        bpl     idle
-        bit     KBDSTRB
-        and     #$7F
-        jsr     kbd_upcase
-        cmp     #KC_RET
-        beq     @done
-        ldx     linelen
-        cmp     #KC_LEFT
-        beq     @left
-        cmp     #KC_RIGHT
-        beq     @right
-        cmp     #KC_ESC
-        bne     @char
-        jmp     get_line
-@left:  cpx     #0
-        beq     @turnl
-        dec     linelen
-        dec     CH
-        lda     #' '|$80
-        jsr     COUT
-        dec     CH
-        jmp     idle
-@turnl: ldx     #0
-        beq     @turn
-@right: cpx     #0
-        bne     idle
-        ldx     #1
-@turn:  jsr     turn_view
-        jmp     idle
-@char:  cmp     #' '
-        bcc     idle
-        cmp     #'Z'+1
-        bcs     idle
-@put:   cpx     #MAXLINE
-        bcs     idle
-        sta     inbuf,x
-        inc     linelen
-        ora     #$80
-        jsr     COUT
-        jmp     idle
-@done:  ldx     linelen
-        lda     #0
-        sta     inbuf,x
-        rts
-
-prompt: lda     #CMD_ROW
-        jsr     vtab
-        jsr     CLREOL
-        lda     #'?'|$80
-        jsr     COUT
-        lda     #' '|$80
-        jmp     COUT
-
+; get_line and prompt: src/menu.s (the four 80-column rows, lot 8).
 .segment "CODE"
 vtab:
         sta     vtab_target+1
@@ -824,9 +763,18 @@ resolve_noun:
 @set:   sta     noun
 @done:  rts
 
+.segment "GCODE"
+; resolve_menu -- an item chosen in a list of the menu (src/menu.s) names
+; the noun: its display name is not the vocabulary's (COTTN SOCKS).
+resolve_menu:
+        lda     menu_noun
+        bne     :+
+        jmp     resolve_noun
+:       sta     noun
+        rts
 .segment "VOCAB"
 dispatch:
-        jsr     resolve_noun
+        jsr     resolve_menu
         lda     parser_badverb
         beq     :+
         lda     #<m_unknown
@@ -2301,17 +2249,15 @@ load_report:
         lda     #<m_both
         ldx     #>m_both
 @header:
-        jsr     message
-        lda     #22
-        jsr     vtab
+        jsr     message         ; then one row of the result column per cause
+        jsr     msg_newline
         lda     load_reason_weight
         beq     @vol
         jsr     puts
-        .byte "  WEIGHT: +",0
+        .byte "WEIGHT: +",0
         ldy     #0
         jsr     load_numbers
-        lda     #23
-        jsr     vtab
+        jsr     msg_newline
 @vol:   ldy     load_reason_volume
         beq     @done
         tya
@@ -2324,6 +2270,7 @@ load_report:
         lda     load_place_hi,x
         sta     gp2+1
         jsr     message_string
+        jsr     msg_flush
         pla
         tay
         jsr     load_numbers
@@ -3083,17 +3030,12 @@ goal_pct:
 ; messages
 ; ----------------------------------------------------------------------------
 ; Results replace previous messages without consuming a command key.
-; The three rows persist until the next action supplies a result.
+; They fill the result column (rows 20-22, columns 40-78: src/menu.s),
+; wrapped by words, and persist until the next action supplies a result.
 message:
         sta     gp1
         stx     gp1+1
-@clear: lda     #MSG_ROW
-        jsr     vtab
-        jsr     CLREOP
-        lda     #'>'|$80
-        jsr     COUT
-        lda     #' '|$80
-        jsr     COUT
+        jsr     msg_begin
         ldy     #0
 @ch:    lda     (gp1),y
         beq     @end
@@ -3115,16 +3057,11 @@ message:
         jsr     message_char
 @next:  iny
         bne     @ch
-@end:   lda     #1
+@end:   jsr     msg_flush
+        lda     #1
         sta     shown
         rts
-@nl:    lda     CV
-        cmp     #23
-        bcs     @end
-        jsr     CROUT
-        lda     #' '|$80
-        jsr     COUT
-        jsr     COUT
+@nl:    jsr     msg_newline
         jmp     @next
 @noun:  tya
         pha
@@ -3151,6 +3088,7 @@ message:
         sta     num
         lda     msgnum+1
         sta     num+1
+        jsr     msg_flush
         jsr     print_u16
         pla
         tay
@@ -3161,6 +3099,7 @@ message:
         sta     num
         lda     stock_available+1
         sta     num+1
+        jsr     msg_flush
         jsr     print_u16
         pla
         tay
@@ -3213,16 +3152,9 @@ message_string:
         bne     @char
 @end:   rts
 
-; Reserve the last column so an expanded name can never scroll the window.
-message_char:
-        pha
-        lda     CH
-        cmp     #79
-        bcs     @clip
-        pla
-        jmp     COUT
-@clip:  pla
-        rts
+; Words are placed whole in the result column; the last column stays
+; reserved, so an expanded name can never scroll the window (src/menu.s).
+message_char = msg_char
 
 ; ----------------------------------------------------------------------------
 ; STATUS and INVENTORY (text screens)

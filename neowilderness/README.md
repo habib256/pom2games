@@ -20,7 +20,12 @@ coucher, crépuscules, nuit claire de pleine Lune…). L'interface est en DHGR
 elle aussi (lot 4) : ruban de boussole et panneaux de survie en couleur,
 avertissements sur bande rouge, messages en vrai texte 80 colonnes, carte
 MAP en 80 colonnes, feuille TOPO calculée à l'ouverture depuis la carte en
-mémoire, retours d'écrans sans redessin de la vue. Les règles sont
+mémoire, retours d'écrans sans redessin de la vue. Les quatre lignes du
+bas sont une surface de commande (lot 8, étape 2) : à gauche la grille des
+verbes et leurs listes (RETURN ou flèche haut l'ouvre, flèches, RETURN,
+Échap ; toute action s'y trouve, les commandes tapées restent acceptées), à
+droite le dernier message et la ligne de stock, sur la dernière ligne la
+commande telle que le jeu la lira. Les règles sont
 inchangées : l'état de simulation est identique, octet pour octet, à celui
 de la version HGR/DOS 3.3 de référence, et aucune lecture disque n'a lieu
 pendant la partie.
@@ -99,8 +104,9 @@ le score et le hall of fame, puis relance `NEOWILD.SYSTEM` : retour au
 menu, partie neuve. `Q` au menu et Ctrl-RESET rétablissent le texte, les banques, /RAM, le
 bitmap, le vecteur RESET et la page zéro avant le retour au lanceur. Un /RAM
 contenant des fichiers n'est effacé qu'après confirmation (Y). Les tests
-répondent au menu « 2, RETURN » (Sierra Nevada, niveau 4 :
-`tests/common.py`, `MENU_SKIP`).
+répondent au menu « 1, RETURN » (Sierra Nevada, première ligne, niveau 4 :
+`tests/common.py`, `menu_keys`, qui traduit un numéro de région en touche ;
+RETURN seul choisit aussi la Sierra).
 
 La comparaison d'état utilise `build/reference-hgr/` (disque HGR/DOS 3.3 de
 `../wilderness` et son fichier de symboles), local et ignoré par Git. Les

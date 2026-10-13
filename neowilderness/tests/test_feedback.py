@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """Refusal matrix, real stock/capacity numbers, persistence and bounded text."""
 import tempfile
-from common import L, a2test, disk_with, fp, text_screen
+from common import L, a2test, disk_with, fp, text_screen, result_rows
 from test_input import flat, command, IDLE, NUMBER, snapshot
 from test_thermal import call
 
 
 def rows(s):
     return text_screen(s.step('peek:0400:1024').data)
+
+
+def column(s):
+    """The result column of the view (src/menu.s), rows joined by newlines."""
+    return '\n'.join(result_rows(rows(s)))
 
 
 def bear(s):
@@ -21,7 +26,7 @@ def bear(s):
 def refuse(s, text, expected):
     before=snapshot(s)
     command(s,text)
-    actual='\n'.join(rows(s)[21:])
+    actual=column(s)
     assert all(part in actual for part in expected),(text,actual,expected)
     assert snapshot(s)==before,(text,'refusal changed state')
     return actual
@@ -46,7 +51,7 @@ def exact_travel_end():
             assert s.step(L.peek('px',2)).data == bytes((0,start+1)), obstacle
             assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-18)<1e-5
             assert s.step(L.peek('travel_reason')).data == b'\0', obstacle
-            actual='\n'.join(rows(s)[21:])
+            actual=column(s)
             assert 'TRAVEL: 18 MINUTES.' in actual, (obstacle,actual)
             assert 'REQUESTED TRAVEL TIME ENDED.' in actual, (obstacle,actual)
     m = flat()
@@ -60,7 +65,7 @@ def exact_travel_end():
         assert s.step(L.peek('px',2)).data == bytes((128,109))
         assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-28)<1e-5
         assert s.step(L.peek('travel_reason')).data == b'\0'
-        assert 'REQUESTED TRAVEL TIME ENDED.' in '\n'.join(rows(s)[21:])
+        assert 'REQUESTED TRAVEL TIME ENDED.' in column(s)
     for flag,reason,expected in (('fauna_alert',5,'BEAR IN YOUR AREA!'),
                                 ('night',3,'TOO DARK TO TRAVEL')):
         with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,flat())) as s:
@@ -75,7 +80,7 @@ def exact_travel_end():
             s.step(L.poke(flag,1))
             s.step(IDLE)
             assert s.step(L.peek('travel_reason')).data == bytes([reason]), flag
-            assert expected in '\n'.join(rows(s)[21:]), flag
+            assert expected in column(s), flag
     # If time is still available, a real obstruction must keep its own cause.
     m = flat()
     m[64+40*112+12] = 138
@@ -84,7 +89,7 @@ def exact_travel_end():
         s.step(L.poke('nature_frequency',0))
         command(s,'WALK 36 MIN')
         assert s.step(L.peek('travel_reason')).data == b'\1'
-        assert 'WATER AHEAD.' in '\n'.join(rows(s)[21:])
+        assert 'WATER AHEAD.' in column(s)
     print('  Exact WALK/SWIM duration: no extra obstacle probe; animal/night priority and remaining-time obstacles retained')
 
 
@@ -134,11 +139,11 @@ def main():
         s.step(L.poke('it_gnd_lo',old,37));s.step(L.poke('it_gnd_hi',0,37))
         result=refuse(s,'DROP',('NAME AN ITEM',))
         s.step('wait:600')
-        assert '\n'.join(rows(s)[21:])==result
+        assert column(s)==result
         command(s,'')
-        assert '\n'.join(rows(s)[21:])==result
+        assert column(s)==result
         s.step('key:REST');s.step('key:\\e');s.step(IDLE)
-        assert '\n'.join(rows(s)[21:])==result
+        assert column(s)==result
         print('  Refusal matrix: causes, correction commands, exact excess/free capacity, atomic state and persistence OK')
         before=snapshot(s)
         s.step('key:EAT CHEESE');s.step('press:\\r');s.step(NUMBER)
@@ -154,7 +159,7 @@ def main():
         available=int.from_bytes(s.step(L.peek('stock_available',2)).data,'little')
         assert f'YOU DRANK {available} OUNCES.' in '\n'.join(rows(s))
         command(s,'GET SNAKEBITE KIT')
-        assert 'PACK: SNAKEBT KIT' in '\n'.join(rows(s)),rows(s)[21:]
+        assert 'PACK: SNAKEBT KIT' in '\n'.join(rows(s)),column(s)
         print('  Consumption: stock before answer, actual exhausted amount, and qualified inventory names OK')
         # Display all maximum values while preserving the map/text above row 20.
         for name in ('load_excess','load_free'):
@@ -171,9 +176,10 @@ def main():
         s.step(f'until:{L["idle"]+8:04X}:6000')
         actual=rows(s)
         assert above==actual[:20],'message scrolled the screen'
-        assert 'WEIGHT: +65535 OZ; FREE 65535 OZ' in actual[22]
-        assert 'PACK: +65535 IN3; FREE 65535 IN3' in actual[23]
-        print('  Maximum 16-bit values fit all three rows without scrolling OK')
+        report='\n'.join(result_rows(actual))
+        assert 'WEIGHT: +65535 OZ; FREE 65535 OZ' in report, report
+        assert 'PACK: +65535 IN3; FREE 65535 IN3' in report, report
+        print('  Maximum 16-bit values fit the three rows of the result column without scrolling OK')
         # A future longer item label must remain on its row and never scroll.
         # Scratch text buffer for the long label ($0200-$03CF holds code since lot 4).
         label=L['overlay_text']
@@ -190,10 +196,12 @@ def main():
         s.step(f'until:{L["idle"]+7:04X}:6000')
         actual=rows(s)
         assert above==actual[:20]
-        # 80-column rows (lot 4): the last column stays free.
-        assert actual[21].startswith('> PACK: '+71*'A') and actual[21][79]==' ',actual[21:]
-        assert not actual[22].strip() and not actual[23].strip()
-        print('  Expanded item names are clipped without wrapping or scrolling OK')
+        # Result column (src/menu.s): a word longer than a row is cut to the
+        # row, placed on its own row; the last column (79) stays free.
+        res=result_rows(actual)
+        assert res[0].rstrip()=='PACK:' and res[1]=='A'*39 and not res[2].strip(),res
+        assert actual[21][79]==' ' and actual[23].startswith('>'),actual[21:]
+        print('  Expanded item names are cut to the result column without scrolling OK')
     with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,flat())) as s:
         s.step(IDLE)
         s.step('key:WALK 4 H');s.step('press:\\r');s.step(L.until('walk_progress',20000))
@@ -232,8 +240,9 @@ def main():
         s.step(f'until:{L["idle"]+3:04X}:6000')
         actual=rows(s)
         assert actual[:20]==before,'victory message scrolled the screen'
-        assert 'RANGER OUTPOST.' in actual[21] and 'YOU SURVIVED. PRESS A KEY.' in actual[22]
-        assert not actual[23].strip(),'victory message expanded a travel placeholder'
+        res=result_rows(actual)
+        assert 'RANGER OUTPOST.' in res[0] and 'YOU SURVIVED. PRESS A KEY.' in res[1],res
+        assert not res[2].strip(),'victory message expanded a travel placeholder'
         print('  Non-travel victory report: complete literal text, no stop-reason substitution OK')
     print('Neowilderness feedback lot 2: OK')
 

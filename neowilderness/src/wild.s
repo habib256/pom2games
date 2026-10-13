@@ -869,6 +869,7 @@ row_n0: .res 256
 .segment "CODE"
         .include "game.s"
         .include "input.s"
+        .include "menu.s"
         .include "sprites.s"
         .include "hud.s"
         .include "print.asm"

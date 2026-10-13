@@ -52,7 +52,7 @@ def reveal():
         s.step('wait:2')
         introduction = picture(s, path)
         rows = text_screen(s.step('peek:0400:1024').data)[:22]
-        assert rows[0].strip() == 'NEOWILDERNESS' and rows[1].strip() == 'APPLE //E //C 128K - PRODOS - DHGR'
+        assert rows[0].strip() == 'NEOWILDERNESS' and rows[2].strip() == 'APPLE //E //C 128K - PRODOS - DHGR'
         assert any('YOU SURVIVED A PLANE CRASH' in row for row in rows)
         assert any('LOADING...' in row for row in rows)
         # Lot 7: the start menu follows the trunk; after the choice the

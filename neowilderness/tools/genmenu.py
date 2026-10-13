@@ -3,10 +3,12 @@
 
 Usage: genmenu.py OUT.inc
 
-Writes build/menu.inc for src/boot.s: the 40-column menu screen (six
-scenarios of three lines: name, terrain and climate, fauna sentence; the
-best score is a placeholder until the hall of fame exists) and the region
-names printed under the introduction while the pack loads.
+Writes build/menu.inc for src/boot.s: the 40-column menu screen (one line
+per scenario in MENU_ORDER, the Sierra Nevada first and chosen by RETURN
+alone: key, name, terrain and temperature, best score column; the score is
+a placeholder "-" that src/hof_menu.s hm_best overwrites from the hall of
+fame), the key -> region and region -> row tables, and the region names
+printed under the introduction while the pack loads.
 
 Everything is derived from data already decoded from the original disks:
 build/regions/regions.json (names, fauna sentence of GO3, precipitation,
@@ -25,6 +27,12 @@ NO_SNOW = 126
 
 def map_path(region, build=HERE / 'build'):
     return build / 'map.bin' if region == 2 else build / f'maps/r{region}.bin'
+
+
+def climate_tag(entry, header):
+    """'FOREST, MILD': terrain and temperature (at most 14 characters)."""
+    terrain, temperature, _, _ = climate_line(entry, header).split(', ')
+    return f'{terrain}, {temperature}'
 
 
 def climate_line(entry, header):
@@ -46,21 +54,31 @@ def climate_line(entry, header):
     return f'{terrain}, {temperature}, {rain}, {snowline}'
 
 
+NAME_COL, CLIMATE_COL, BEST_COL = 2, 20, 35      # src/hof_menu.s BEST_COL, hm_best rows 2..7
+MENU_ROW = 12                                    # src/boot.s MENU_ROW: the prompts
+
+
+MENU_ORDER = (2, 1, 3, 4, 5, 6)   # regions by menu key 1..6: the Sierra Nevada first (RETURN)
+
+
 def screen(regions, build=HERE / 'build'):
-    """The menu as (text, inverse) rows 0..21; rows 22-23 hold the prompts."""
-    rows = [(' NEOWILDERNESS - CHOOSE A JOURNEY'.ljust(WIDTH), True), ('', False)]
-    for entry in regions:
-        r = entry['region']
+    """The menu as (text, inverse) rows 0..10; row MENU_ROW holds the prompts.
+    Scenario lines in MENU_ORDER, keyed 1..6 by position."""
+    rows = [(' NEOWILDERNESS - CHOOSE A JOURNEY'.ljust(WIDTH), True),
+            ('BEST'.rjust(WIDTH), False)]
+    by_region = {e['region']: e for e in regions}
+    for key, r in enumerate(MENU_ORDER, 1):
+        entry = by_region[r]
         header = map_path(r, build).read_bytes()[:64]
-        name = f"{r} {entry['name']}{'' if r == 2 else ' *'}"
-        best = 'BEST -'
-        rows.append((name + ' ' * (WIDTH - 1 - len(name) - len(best)) + best, False))
-        rows.append(('  ' + climate_line(entry, header), False))
-        rows.append(('  ' + entry['fauna_sentence'], False))
-    rows.append(('7 FREE JOURNEY  H HALL OF FAME  Q PRODOS', False))
-    rows.append(('* RECONSTITUTED MAP, ORIGINAL REGION', False))
+        name = entry['name'].ljust(CLIMATE_COL - NAME_COL)
+        climate = climate_tag(entry, header).ljust(BEST_COL - CLIMATE_COL)
+        rows.append((f'{key} {name}{climate}{"-":>{WIDTH - BEST_COL}}', False))
+    rows.append(('', False))
+    rows.append(('7 FREE JOURNEY    ANY REGION, NOT RANKED', False))
+    rows.append(('H HALL OF FAME    Q QUIT TO PRODOS', False))
     for text, _ in rows:
         assert len(text) <= WIDTH, text
+    assert len(rows) < MENU_ROW
     return rows
 
 
@@ -97,6 +115,9 @@ def generate(build=HERE / 'build'):
         lines.append(f"m_region{entry['region']}: .byte \"{entry['name']}\", 0")
     lines.append('region_names_lo: .byte ' + ', '.join(f'<m_region{r}' for r in range(1, 7)))
     lines.append('region_names_hi: .byte ' + ', '.join(f'>m_region{r}' for r in range(1, 7)))
+    # Menu key (1..6) -> region, and region -> its menu row (hm_best).
+    lines.append('menu_regions: .byte ' + ', '.join(str(r) for r in MENU_ORDER))
+    lines.append('menu_rows: .byte ' + ', '.join(str(MENU_ORDER.index(r) + 2) for r in range(1, 7)))
     return '\n'.join(lines) + '\n'
 
 

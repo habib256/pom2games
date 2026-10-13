@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Survival panels, transition events, grouped inventory and magnetic TOPO."""
 import tempfile
-from common import HERE, L, DISK, a2test, disk_with, text_screen, dhgr_page
+from common import HERE, L, DISK, a2test, disk_with, text_screen, dhgr_page, result_text
 from test_thermal import call, poke
 import dhgr_ui
 
@@ -275,8 +275,8 @@ def help_pages():
             assert all(c<128 for c in raw[:18]), 'title must be inverse'
             assert s.step('peek:0032:1').data==b'\xff', 'normal text mode must be restored'
             return rows
-        welcome='\n'.join(text_screen(s.step('peek:0400:1024').data)[21:])
-        for word in ('RANGERS', 'INVENTORY', 'STATUS', 'TOPO', 'HELP'):
+        welcome=result_text(text_screen(s.step('peek:0400:1024').data))
+        for word in ('CRASH IN', 'RANGERS', 'WILDLIFE'):
             assert word in welcome,(word,welcome)
         s.step('key:HELP\\r')
         travel=page()

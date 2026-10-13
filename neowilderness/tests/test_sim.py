@@ -61,7 +61,9 @@ def travel_limits():
               floats(r, 's_elap', 1) == floats(r, 's_elap'))
         check('WALK at night: dark travel message',
               'TOO DARK TO TRAVEL' in '\n'.join(text_screen(r.mem(0x400, 1024))))
-        check('Night view: black', not any(view_rows(r.mem(0x2000, 8192))))
+        night = view_rows(r.mem(0x2000, 8192))     # dark night: dark-blue sky, black terrain
+        check('Night view: black terrain', not any(night[96 * 40:]))
+        check('Night view: dark-blue sky', any(night[16 * 40:96 * 40]))
         mapbin[8:10] = bytes((12, 10))  # first eastward step reaches the outpost
         disk = disk_with(tmp, mapbin)
         r = a2test.run(disk, [idle, 'key:WALK', 'press:\r', L.until('number_idle', 6000), 'key:1\r',

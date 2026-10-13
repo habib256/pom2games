@@ -42,7 +42,7 @@ $(BUILD)/wild.o: src/medical.s src/hazards.s src/care.s
 $(BUILD)/wild.o: src/clock.inc
 $(BUILD)/wild.o: src/memory.s
 $(BUILD)/wild.o: src/geography.s src/geoaux.s
-$(BUILD)/wild.o: src/water.s
+$(BUILD)/wild.o: src/water.s src/menu.s
 
 $(BUILD)/tables.inc $(BUILD)/rowtab.inc: tools/gentables.py
 	@mkdir -p $(@D)
@@ -154,6 +154,7 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_optimizations.py
 	$(PYTHON) tests/test_fast_duration.py
 	$(PYTHON) tests/test_input.py
+	$(PYTHON) tests/test_menu_bar.py
 	$(PYTHON) tests/test_sleep.py
 	$(PYTHON) tests/test_clock.py
 	$(PYTHON) tests/test_feedback.py

@@ -64,7 +64,7 @@ def main():
         check('H screen, empty', text(), R.hall_screen(hof).bytes())
         s.step('key: ')
         s.step(L.until('menu_key', 4000))
-        s.step('key:2\r')
+        s.step('key:1\r')            # menu key 1: the Sierra Nevada (region 2)
         s.step(L.until('idle', 40000))
         goal = s.step(f'peek:{MAP + 8:04X}:2').dumps[0]
         s.step(f"poke:{L['px'] + 1:04X}:{goal[0] - 3:02X}")
@@ -91,7 +91,7 @@ def main():
         hof = s.step(f'peek:{STAGE:04X}:512').dumps[0]
         assert hof == new, 'NEOWILD.HOF read back by the restarted loader'
         menu = text()
-        assert menu[5 * 40 + 29:5 * 40 + 39] == bytes(ord(ch) | 0x80 for ch in f"BEST {c['score']:>5}")
+        assert menu[2 * 40 + 35:2 * 40 + 40] == bytes(ord(ch) | 0x80 for ch in f"{c['score']:>5}")   # the Sierra's row
         s.step('key:H')
         s.step(L.until('menu_key', 4000))
         check('H screen, one entry', text(), R.hall_screen(new).bytes())

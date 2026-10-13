@@ -34,7 +34,7 @@ import time
 import zlib
 from pathlib import Path
 
-from common import HERE, L, DISK, a2test, text_screen
+from common import result_rows, HERE, L, DISK, a2test, text_screen
 
 LIMIT = 20000
 DISCOVER = '--discover' in sys.argv   # print the loads without checking them
@@ -170,12 +170,13 @@ def main():
             lines = after['text']
             if name.startswith('QUIT'):
                 # Declining QUIT reports the cancellation, like any refusal.
-                assert [r.rstrip() for r in lines] == ['?', '> ACTION CANCELLED.', '', ''], (name, lines)
+                res = result_rows(lines)
+                assert res[0].rstrip() == 'ACTION CANCELLED.' and not res[1].strip() and lines[3].startswith('> '), (name, lines)
             else:
                 if prompt is None:
                     # The first return clears the welcome message: the command
                     # line is left with its prompt alone, then stays so.
-                    assert lines[0].rstrip() == '?' and not ''.join(lines[1:]).strip(), lines
+                    assert lines[3].startswith('> ') and not any(r.strip() for r in result_rows(lines)[:2]), lines
                     prompt = dict(text=lines, frame=after['frame'][rows:])
                 assert lines == prompt['text'], (name, lines)
                 assert after['frame'][rows:] == prompt['frame'], (name, 'displayed text lines changed')

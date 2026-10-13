@@ -774,3 +774,29 @@ stockés (14 enregistrements), 247/280 blocs. Garde-fous vérifiés
 à l'identique au QUIT final, pages du jeu marquées pendant la partie ;
 `$0200-$03FF` auxiliaire, page zéro principale et commutateurs inchangés
 par les requêtes et les écrans ; pile au plus profond à `S=$DD`.
+
+## 11. Lot 8, étape 2 : les quatre lignes du bas (`src/menu.s`)
+
+La surface de commande des rangées 20 à 23 ([MENUS.md](MENUS.md) § 4)
+représente 2,2 Ko de code et de tables, que ni la RAM principale résidente
+(361 octets libres) ni le stock auxiliaire (278 en Burma) ne pouvaient
+loger. Deux emplacements sans coût pour le reste du jeu :
+
+| Partie | Où | Octets | Libre |
+|---|---|---:|---:|
+| `MENUCODE` : `get_line`, boucle `idle`, ligne tapée, `prompt`, rangée 23, `cell_put`, recopie de la grille, état | `$BA00-$BDFF` (`wildmenu.bin`) : l'ancien tampon E/S ProDOS, que seuls le chargeur (désormais `LD_IOBUF = $AB00`) et la fin de partie utilisent | 830 | 194 |
+| `MENUSWAP` : grille, listes, filtres d'objets, ligne de stock, tables | image dans les lignes HGR 176 à 191 des deux banques (32 morceaux de 48 octets, trous compris : rangée 176 + 8g en `$2350 + $400 g`, 184 + 8g `$80` plus loin), jamais affichées en mode mixte ni dessinées (sprites bornés à 159, `clear_rows` 16-175, instantané 0-159) ; recopiée en `$B000-$B5FF` à chaque invite (`menu_gather`, 1 536 octets, PAGE2 sous 80STORE) | 1 368 | 168 |
+| `msg_begin`, `msg_char`, `msg_flush`, `msg_newline` (colonne de résultat, appelés par `message` pendant les commandes) | GCODE (`get_line` et `prompt` partis) | 161 | WILDGAME 6 |
+| Aides de la rangée 23 | RESCODE | 105 | RESIDENT 40 |
+| Temporaires de dessin et pointeurs de recopie | page zéro `$F0-$FC` (`MZP`, hors scratch du rendu et hors zone flottante Applesoft) | 13 | — |
+
+Le chargeur lit l'image de la grille en `$AF00` (libre entre son tampon
+et `TABLE`) et la disperse dans les lignes cachées à la fin du chargement
+(`ld_scatter`, avant la page zéro du jeu : ses pointeurs `source`/`dest`
+sont en `$A2-$A5`, zone flottante). `SKYTMP` s'arrête à `$AFFF` : le module
+des étoiles, qui tourne dans la fenêtre SIM depuis la vue, ne peut plus
+atteindre la grille. Tronc : 16 enregistrements, 48 092 octets stockés ;
+volume 250/280 blocs (30 libres, 33 avant). TEXT gagne 54 octets libres
+(message de départ raccourci). Aucun octet auxiliaire, aucune lecture
+disque, aucun transfert de module en plus : `test_overlays.py` et
+`test_resident.py` sont inchangés.

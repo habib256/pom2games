@@ -25,7 +25,9 @@ language card bank 2, 3 bank 1). Stored data never exceeds 8 KB.
 
 Trunk: WILDERNESS, the claim, the auxiliary store of every common module
 (wreck and cabin sprites included: a single sprite each on the Journey
-side), LOWPAGE, $0926-$1FFF, WILDGAME and RESIDENT.
+side), LOWPAGE, $0926-$1FFF, WILDGAME, RESIDENT and the menu of the four
+80-column rows (src/menu.s: $BA00 resident, and its grid read at $AF00 then
+hidden in the HGR rows 176-191; the loader reads with its own I/O buffer).
 Pack: the 2-4 animal sprites (modules 6, 7, 8, 23) in the auxiliary space
 the trunk leaves free, the region's patches of four module images (rates and
 filters of the four animal records into TRAVEL fauna_travel and SITES
@@ -457,7 +459,11 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
     trunk_sections += [(MAIN, 0x0200, (build / 'wildpg.bin').read_bytes()),
                        (MAIN, 0x0926, bytes(low[0x0126:])),
                        (MAIN, 0x4000, (build / 'wildgame.bin').read_bytes()),
-                       (MAIN, 0xB600, bytes(resident))]
+                       (MAIN, 0xB600, bytes(resident)),
+                       (MAIN, 0xBA00, (build / 'wildmenu.bin').read_bytes()),
+                       # The grid of the menu: read here (free during the load),
+                       # hidden in the HGR rows 176-191 by the loader (ld_scatter).
+                       (MAIN, 0xAF00, (build / 'wildmenusw.bin').read_bytes())]
     trunk, trunk_stats = records(trunk_sections, packing, cache)
 
     # ---- one pack per region.

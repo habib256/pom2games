@@ -183,13 +183,15 @@ qui garde la mémoire des parties.
 - [ ] Messages : refus précis, retours persistants, causes d'arrêt nommées
   pour toutes les actions ; parcours avec un nouveau joueur
   ([NEOWILDERNESS_ERGONOMIE.md](docs/NEOWILDERNESS_ERGONOMIE.md)).
-- [ ] Lot 8 ([MENUS.md](docs/MENUS.md)) : pilote d'événements joystick et
-  clavier, barre de verbes et listes dans les quatre lignes 80 colonnes,
-  fenêtres DHGR posées sur le paysage et effacées par l'instantané, à la
-  place des écrans 40 colonnes ; les commandes tapées restent reconnues.
-  Disposition des quatre lignes du bas retenue le 13 octobre : deux
-  colonnes 40/40, grille de verbes 3 × 6 à gauche, résultat et état à
-  droite, commande composée et aides sur la rangée 23 (MENUS.md § 4).
+- [x] Lot 8, étape 2 ([MENUS.md](docs/MENUS.md) § 4) : les quatre lignes
+  80 colonnes du bas en surface de commande, au clavier : grille de verbes
+  (contextuels compris) et listes à gauche, résultat mot par mot et ligne
+  de stock à droite, commande composée et aides sur la rangée 23 ; toute
+  action passe par la grille, les commandes tapées restent reconnues
+  (`tests/test_menu_bar.py`).
+- [ ] Lot 8, étapes 1 et 3 à 6 : pilote joystick dans la boucle `idle` de
+  `src/menu.s` (flèches, RETURN et Échap y sont déjà les gestes), fenêtres
+  DHGR posées sur le paysage à la place des écrans 40 colonnes.
 - [ ] Aide en jeu par région (HELP, phrase de faune, noms d'espèces) et
   orientation nocturne (`LOOK STARS`).
 

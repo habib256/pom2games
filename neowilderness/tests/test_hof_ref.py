@@ -176,11 +176,11 @@ def test_screens():
                                                   'BRITISH COLUMBIA', False, full, None)[0]):
         assert len(scr.bytes()) == 960
     hall = R.hall_screen(full).text()
-    assert hall[2].startswith('1 BRITISH COLUMBIA') and hall[2][20:].startswith('2 SIERRA NEVADA')
+    assert hall[2].startswith('1 SIERRA NEVADA') and hall[2][20:].startswith('2 BRITISH COLUMBIA')
     assert hall[3] == '1 WWWWWWWW  4600    1 WWWWWWWW  4600    '
     assert hall[22].startswith('SCENARIO JOURNEYS: 30')
     cells = R.menu_best_cells(full)
-    assert cells[(2, 29)] == 'BEST  4600' and len(cells) == 6
+    assert cells[(2, 35)] == ' 4600' and len(cells) == 6
     assert R.menu_best_cells(bytes(bad)) == {}
     assert R.hall_screen(None, 0x46).text()[22].startswith('HALL OF FAME UNREADABLE, ERROR $46.')
 

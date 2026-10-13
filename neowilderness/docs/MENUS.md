@@ -1,7 +1,7 @@
 # Joystick, menus et fenêtres DHGR (lot 8)
 
 Plan détaillé du lot 8 de [TODO.md](../TODO.md). Date : 13 octobre 2026.
-Statut : à réaliser, après le lot 7 ([SCENARIOS.md](SCENARIOS.md)).
+Statut : étape 2 réalisée le 13 octobre 2026 (§ 4) ; étapes 1 (joystick) et 3 à 6 à réaliser.
 
 Objectif : rendre Neowilderness jouable entièrement au joystick (ou au
 clavier par les flèches, Entrée et Échap), avec une interface qui n'oblige
@@ -124,43 +124,74 @@ les boucles d'attente des écrans.
 
 ## 4. Barre de verbes et listes dans les lignes texte
 
-Première livraison visible, sans fenêtre DHGR, à coût mémoire minimal : les
-rangées 20 à 23 sont déjà du texte 80 colonnes à écriture directe.
-
-**Disposition retenue (13 octobre 2026, choix B parmi quatre propositions) :
-deux colonnes de 40 caractères.** Les rangées 20 à 22 sont partagées en une
-colonne de commande à gauche et une colonne d'information à droite ; la
-rangée 23 porte la commande composée et les aides. Les 4 × 79 caractères
-forment ainsi une surface de commande, pas une ligne de saisie.
+**Réalisé le 13 octobre 2026 (étape 2, au clavier ; `src/menu.s`,
+`tests/test_menu_bar.py`).** Les rangées 20 à 23 forment une surface de
+commande, disposition B retenue parmi quatre propositions : deux colonnes.
 
 ```
-WALK   SWIM   LOOK   REST   EAT       | TRAVEL: 35 MINUTES.
-DRINK  GET    TAKE   WEAR   DROP      | YOU FIND PLANTS.
-STATUS INVENT TOPO   MAP    HELP QUIT | FOOD 170 OZ  WATER 36 OZ  (HERE 0/0)
-> WALK 30 MIN_                        ESC: KEYBOARD   BTN1: CANCEL
+WALK  SWIM  LOOK  REST  WAIT  EAT     | TRAVEL: 18 MINUTES.
+DRINK GET   TAKE  WEAR  DROP  USE     | REQUESTED TRAVEL TIME ENDED.
+CLIMB HANG  LOWER STATUS INVENT TOPO  V FOOD 192 OZ  WATER 64 OZ  HERE 0/0
+> WALK 20 MIN                           ARROWS: MOVE  RET: SELECT  ESC: BACK
 ```
 
-- **Colonne gauche (38 caractères, rangées 20 à 22) :** grille de verbes
-  sur trois rangées, six colonnes de 6 caractères ; sélection en deux
-  dimensions au manche (gauche/droite dans la rangée, haut/bas entre les
-  rangées), élément courant en inverse. Les verbes contextuels (ENTER
-  SHELTER, EXIT SHELTER, IGNORE, SCARE, ATTACK) remplacent les cases
-  inutiles quand ils s'appliquent, en tête de grille. Quand un verbe est
-  ouvert, la grille affiche son niveau suivant à la place des verbes
-  (durées, objets admissibles, quantités), sur les mêmes trois rangées,
-  avec pagination par rangée si la liste dépasse 18 cases ; bouton 1 ou
-  Échap remonte d'un niveau.
-- **Colonne droite (40 caractères, rangées 20 à 22) :** le dernier
-  résultat sur deux rangées (tampon de messages existant, jamais
-  redessiné depuis la simulation), puis une rangée d'état : nourriture et
-  eau transportées, ressources accessibles ici. Cette colonne ne change
-  pas pendant la navigation dans les menus.
-- **Rangée 23 :** à gauche la commande composée telle qu'elle sera
-  analysée (`> WALK 30 MIN`), curseur compris, pour que la saisie clavier
-  reste possible et visible ; à droite les aides de touches du niveau
-  courant (Échap : clavier, bouton 1 : annuler, bouton 0 ou Entrée : valider).
-- Le séparateur vertical est un caractère de la police texte ; aucune
-  fenêtre DHGR n'est nécessaire pour cette première livraison.
+- **Colonne gauche (rangées 20 à 22, colonnes 0 à 37) : la grille.** Au
+  niveau 1, les verbes : d'abord les verbes contextuels quand ils
+  s'appliquent (`EXIT` dans la cabane, `ENTER` sur sa case, `IGNORE SCARE
+  ATTACK` avec un animal sur la case, mêmes conditions que le bandeau de
+  survie), puis `WALK SWIM LOOK REST WAIT EAT DRINK GET TAKE WEAR DROP USE
+  CLIMB HANG LOWER STATUS INVENT TOPO MAP HELP QUIT`. Six cases par rangée,
+  largeur 6 proportionnelle (un libellé de six lettres prend une colonne de
+  plus : toute suite de six verbes tient en 38 colonnes), trois rangées
+  visibles, défilement par rangée ; la colonne 38 porte le séparateur, `^`
+  ou `V` quand des rangées sont hors de vue. La case choisie est en
+  inverse. Au niveau 2, la liste du verbe ouvert remplace la grille :
+  durées `10 MIN 20 MIN 30 MIN 1 H 2 H 4 H 8 H` (WALK, SWIM, REST, WAIT),
+  directions `LEFT RIGHT BACK AHEAD NORTH EAST SOUTH WEST` (LOOK), `TREE
+  DOWN` (CLIMB), les objets admissibles en trois cases de 12 (EAT, GET,
+  TAKE, WEAR, DROP, USE : présents dans un groupe que le verbe ne vise pas
+  déjà ; EAT : provisions et médicaments) ; au niveau 3 les onces `2 OZ 4
+  OZ 8 OZ 12 OZ 16 OZ 24 OZ 32 OZ 48 OZ` (EAT d'une provision, DRINK
+  WATER). `ENTER`, `EXIT`, `HANG`, `LOWER`, `INVENT` complètent leur
+  commande (` SHELTER`, ` FOOD`, `ORY`).
+- **Colonne droite (rangées 20 à 22, colonnes 40 à 78) : le résultat.**
+  `message` y place le dernier message mot par mot (retour à la ligne entre
+  les mots, `|` force une rangée tant qu'il en reste une, sinon vaut une
+  espace ; un mot plus long qu'une rangée est coupé à la rangée, la colonne
+  79 reste libre). Quand le message laisse la rangée 22 vide, `get_line` y
+  écrit la ligne de stock : `FOOD n OZ  WATER n OZ  HERE f/w` (provisions
+  et eau emportées, puis au sol sur la case). Le rapport de charge (poids,
+  volume) occupe les trois rangées.
+- **Rangée 23 :** `> ` puis la commande telle que l'analyseur la lira,
+  tapée ou composée (sans curseur : le texte en tient lieu), et à droite
+  l'aide du mode : `RET: MENU  <>: TURN  OR TYPE A COMMAND`, `ARROWS: MOVE
+  RET: SELECT  ESC: BACK`, `NUMBER THEN RET   ESC: CANCEL` (invite
+  numérique du module INPUT, `prompt`).
+
+Modes de `get_line` : ligne tapée (flèches gauche/droite = rotation sur une
+ligne vide, RETURN ou haut ouvre la grille, bas affiche STATUS, Échap vide
+la ligne) ; grille (flèches, RETURN choisit, Échap remonte d'un niveau puis
+ferme, une lettre revient à la ligne tapée) ; une commande issue de la
+grille la laisse ouverte pour la suivante, une commande tapée la referme.
+Les menus produisent le texte du clavier dans `inbuf` ; l'objet choisi
+dans une liste est aussi transmis par `menu_noun`, lu par `resolve_menu`
+avant `resolve_noun`, car les noms affichés (`COTTN SOCKS`, `DOWN PARKA`)
+ne sont pas des mots du vocabulaire. Une liste vide (plus de médicament)
+n'offre rien ; Échap la quitte. Aucune avance du temps, aucun tirage,
+aucune lecture disque pendant la navigation (`test_menu_bar.py` compare
+l'état obtenu par la grille à celui des mêmes commandes tapées).
+
+Mémoire ([MEMORY.md](MEMORY.md) § 11) : la partie résidente (boucle
+clavier, rangée 23, `prompt`, état) en `$BA00-$BDFF`, l'ancien tampon
+d'entrées-sorties ProDOS du chargeur (qui lit désormais avec `$AB00`) ;
+la grille, ses listes et ses tables (1 368 octets) dorment dans les lignes
+HGR 176 à 191 des deux banques, jamais affichées ni dessinées, et sont
+recopiées en `$B000-$B5FF` (haut de la fenêtre SIM, libre entre deux pas de
+simulation) à chaque invite ; la colonne de résultat (`msg_*`) est dans
+WILDGAME, les aides dans RESIDENT, neuf temporaires en page zéro
+`$F0-$F8`. Le pilote joystick (§ 3, étape 1) reste à faire : il s'insère
+dans la boucle `idle` de `menu.s` (`prompt_key` / `menu_key` prennent déjà
+les codes des flèches, RETURN et Échap).
 
 Sous-menus, par verbe :
 
@@ -295,7 +326,7 @@ module).
 | Étape | Contenu | Condition de fin |
 |---|---|---|
 | 1 | Pilote d'événements : port de jeu, zone morte, répétition, boutons ; rotation au joystick | `test_joystick.py` vert sur a2run et a2shot ; aucun octet de plus dans la simulation ; `build/wild.map` publié |
-| 2 | Barre de verbes et sous-menus dans les lignes texte 80 colonnes ; composition de `inbuf` | Toute commande du jeu accessible sans taper ; `test_menu_bar.py` et `test_reference_state.py` verts ; clavier inchangé |
+| 2 | **Fait (13 octobre 2026, au clavier)** : grille de verbes et listes dans les lignes texte 80 colonnes ; composition de `inbuf` | Toute commande du jeu accessible sans taper ; `test_menu_bar.py` et `test_reference_state.py` verts ; clavier inchangé |
 | 3 | Module WILDWIN : rectangle, bord, texte, sélection, fermeture partielle depuis l'instantané | `test_windows.py` : image restaurée à l'identique ; latences mesurées |
 | 4 | STATUS, HELP, QUIT et messages longs en fenêtres ; retrait de `wildscr.bin` et des primitives 40 colonnes | Bilan mémoire nul ou négatif en RAM principale ; `test_interface.py` adapté vert |
 | 5 | INVENTORY en fenêtre avec actions par objet ; listes d'objets des sous-menus partagées avec elle | Un objet se prend, se porte et se dépose sans taper ; `test_feedback.py` adapté vert |

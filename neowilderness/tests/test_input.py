@@ -177,7 +177,7 @@ def editing(disk):
             s.step(NUMBER)
             s.step(f'key:{typed}')
             assert s.step(L.peek('linelen')).data[0]==len(str(expected))
-            assert f'? {expected}' in screen(s)
+            assert f'> {expected}' in screen(s)
             s.step('key: MIN')
             if expected > 100:
                 s.step('key:\\e')

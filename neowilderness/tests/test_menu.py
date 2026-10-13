@@ -24,7 +24,7 @@ level entry (10, ESC back to the choice), H (placeholder, no file access)
 and Q (ProDOS launcher).
 """
 import json
-from common import (HERE, L, DISK, a2test, menu_keys, text_screen, DHGR_BANKS,
+from common import (HERE, L, DISK, a2test, menu_keys, text_screen, result_rows, DHGR_BANKS,
                     dhgr, dhgr_view, mood_name, state, view_diff)
 from test_boot import expected_map
 from test_sprites import expected_dhgr
@@ -79,8 +79,8 @@ def scenario(region, level_keys='', level=4):
         intro = texts[106:128].rstrip(b'\0').decode()
         assert sentence == entry['fauna_sentence'] and intro == entry['intro_name'], (sentence, intro)
         rows = text_screen(s.step('peek:0400:1024').data)
-        assert rows[21].startswith(f'> CRASH IN {intro}. REACH THE RANGERS.'), rows[20:]
-        assert rows[22].startswith(f'WILDLIFE: {sentence}'), rows[20:]
+        welcome = ' '.join(r.strip() for r in result_rows(rows) if r.strip())
+        assert welcome == f'CRASH IN {intro}. REACH THE RANGERS. WILDLIFE: {sentence}', rows[20:]
         tables = s.step(L.peek('dhgr_moods', L['dhgr_tables_end'] - L['dhgr_moods'])).data
         assert tables == (HERE / f'build/dhgr/dhgr_tables_r{region}.bin').read_bytes(), (region, 'colours')
         # First view: geometry and palette of the region's own map.
@@ -129,7 +129,7 @@ def scenario(region, level_keys='', level=4):
             s.step('key:IGNORE\\r')
             s.step(L.until('idle', 20000))
             rows = text_screen(s.step('peek:0400:1024').data)
-            assert any(fauna['species'][k]['name'] in row for row in rows[21:24]), (region, name, rows[20:])
+            assert any(fauna['species'][k]['name'] in row for row in result_rows(rows)), (region, name, rows[20:])
         # The woods with the region's crowns (and the wreck's billboard).
         s.step(L.poke('animal_kind', 0))
         s.step(L.poke('forest_enabled', 1))
@@ -182,10 +182,10 @@ def free_journey():
         s.step(L.until('menu_key', 40000))
         s.step('key:7')
         prompt = text_screen(s.step('peek:0400:1024').data)
-        assert prompt[22].startswith('FREE JOURNEY: REGION'), prompt[22]
+        assert prompt[12].startswith('FREE JOURNEY: REGION'), prompt[12]
         s.step('key:\\e')           # ESC: back to the choice
         prompt = text_screen(s.step('peek:0400:1024').data)
-        assert prompt[22].startswith('YOUR CHOICE'), prompt[22]
+        assert prompt[12].startswith('CHOICE (RETURN = 1'), prompt[12]
         s.step('key:73')
         s.step('key:7\\r')
         s.step(L.until('loader_pack', 2000))
@@ -211,7 +211,7 @@ def level_entry():
              'key:\\e', 'peek:0400:1024', 'key:610\\r', L.until('game_start', 20000), 'peek:7000:64']
     r = a2test.run(DISK, steps, menu=False, timeout=900)
     refused, back = text_screen(r.mem(0x400, 1024, 0)), text_screen(r.mem(0x400, 1024, 1))
-    assert refused[22].startswith('LEVEL 1-10') and back[22].startswith('YOUR CHOICE'), (refused, back)
+    assert refused[12].startswith('LEVEL 1-10') and back[12].startswith('CHOICE (RETURN = 1'), (refused, back)
     header = r.mem(0x7000, 64)
     assert header[32] == 6 and header[22] == 10 and header[33] == 0, header.hex()
     print('  level entry: 0 refused, ESC back to the choice, Chile level 10: OK')
@@ -227,7 +227,7 @@ def hall_and_quit():
     # volume's file is empty: six empty tables, no journey, every BEST "-".
     assert any('SCENARIO JOURNEYS: 0' in row for row in hall), hall
     assert sum(row.count(' -') for row in hall) >= 30, hall
-    assert sum('BEST -' in row for row in menu) == 6, menu
+    assert menu[1].endswith('BEST') and [row[35:40] for row in menu[2:8]] == ['    -'] * 6, menu
     assert r.mem(L['mli_calls'], 2, 0) == r.mem(L['mli_calls'], 2, 1), 'H reads no file'
     assert any('BITSY' in row for row in launcher), launcher
     print('  H: empty hall of fame read before the menu, no file access, six BEST -, '

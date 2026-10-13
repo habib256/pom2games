@@ -8,7 +8,7 @@ by the Monitor's 80-column paths; MAP and the simulation curtain are
 80-column text too; STATUS, INVENTORY and HELP stay 40-column text (80COL
 off); TOPO is DHGR with its legend in the 80-column rows.
 """
-from common import L, DISK, a2test, text_screen
+from common import L, DISK, a2test, text_screen, result_rows
 
 # Status bits read in bit 7 ($C07F, RDDHIRES, is not emulated by a2shot: AN3
 # is left to the captures, tools/game_shots.py).
@@ -44,16 +44,17 @@ def main():
         s.step(idle)
         check(s, VIEW, 'view after boot')
         text = text_screen(s.step('peek:0400:1024').data)
-        assert len(text[21]) == 80 and text[21].startswith('> CRASH IN SIERRA NEVADA USA. REACH THE RANGERS.'), text[20:]
+        assert len(text[20]) == 80 and result_rows(text)[0].startswith('CRASH IN SIERRA NEVADA USA.'), text[20:]
         aux = aux_rows(s)
-        assert aux[1][:2] == bytes((ord('>') | 0x80, ord('C') | 0x80)), 'even columns live in the aux page'
-        # Messages scroll inside the four rows, in 80-column layout.
+        assert aux[0][20] == ord('C') | 0x80, 'even columns live in the aux page'
+        # Results fill the result column (rows 20..22, columns 40..78), in
+        # 80-column layout; the command line is row 23 (src/menu.s).
         for word in ('XYZZY', 'PLUGH', 'FOO'):
             s.step(f'key:{word}\\r')
             s.step('wait:1')
             s.step(idle)
         text = text_screen(s.step('peek:0400:1024').data)
-        assert text[20].startswith('? ') and 'UNKNOWN VERB: FOO' in text[21], text[20:]
+        assert text[23].startswith('> ') and 'UNKNOWN VERB: FOO' in result_rows(text)[0], text[20:]
         check(s, VIEW, 'view after messages')
         s.step('key:STATUS\\r')
         s.step('wait:1')
@@ -65,7 +66,7 @@ def main():
         s.step(idle)
         check(s, VIEW, 'view after STATUS')
         rows = text_screen(s.step('peek:0400:1024').data)[20:]
-        assert rows[0].rstrip() == '?' and not any(row.strip() for row in rows[1:]), ('menu rows cleared', rows)
+        assert rows[3].startswith('> ') and not any(r.strip() for r in result_rows(rows)[:2]), ('menu rows cleared', rows)
         s.step('key:TOPO\\r')
         s.step('wait:1')
         s.step(L.until('graphical_topo_key', 20000))
