@@ -70,7 +70,7 @@ $(BUILD)/dhgr_tables.inc: tools/gendhgr.py tools/dhgr_palette.py
 	@mkdir -p $(@D)
 	$(PYTHON) -I $< $@
 
-$(BUILD)/wild.o: src/wild.s src/adventure.s src/outdoor.s src/game.s src/input.s src/weather.s src/travel.s src/survival.s src/sprites.s src/thermal.s src/sites.s src/project.s src/fauna.s src/hud.s src/sky.s src/forest.s src/tree.s src/status.s src/inventory.s src/summary.s src/ui_monitor.s src/transitions.s src/dhgr.s src/messages.inc $(BUILD)/dhgr_tables.inc $(BUILD)/tables.inc $(BUILD)/rowtab.inc $(BUILD)/gamedata.inc $(BUILD)/hud.inc $(BUILD)/summary_font.inc $(BUILD)/sky_ephemeris.inc $(BUILD)/forest_profiles.inc $(A2_ASM_DEPS) Makefile
+$(BUILD)/wild.o: src/wild.s src/adventure.s src/outdoor.s src/game.s src/input.s src/weather.s src/travel.s src/survival.s src/sprites.s src/thermal.s src/sites.s src/topo.s src/project.s src/fauna.s src/hud.s src/sky.s src/forest.s src/tree.s src/status.s src/inventory.s src/summary.s src/ui_monitor.s src/transitions.s src/dhgr.s src/messages.inc $(BUILD)/dhgr_tables.inc $(BUILD)/tables.inc $(BUILD)/rowtab.inc $(BUILD)/gamedata.inc $(BUILD)/hud.inc $(BUILD)/summary_font.inc $(BUILD)/sky_ephemeris.inc $(BUILD)/forest_profiles.inc $(A2_ASM_DEPS) Makefile
 	$(CA65) -g -t none $(A2_INCS) -I $(BUILD) -l $(BUILD)/wild.lst -o $@ $<
 
 $(BUILD)/boot.o: src/boot.s $(A2_ASM_DEPS)
@@ -103,7 +103,7 @@ $(SPRITE_BINS): $(BUILD)/original_graphics/.done
 $(BUILD)/JOURNEY.dsk: original/extras/Wilderness\ -\ Journey.a2r
 	$(PYTHON) -I tools/flux2dsk.py "$<" $@
 
-$(DISK): $(BIN) $(MAPBIN) $(SPRITE_BINS) $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py tools/build_disk.py tools/graphical_topo.py tools/pack_boot.py Makefile
+$(DISK): $(BIN) $(MAPBIN) $(SPRITE_BINS) $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py tools/build_disk.py tools/pack_boot.py Makefile
 	@mkdir -p $(DIST)
 	$(PYTHON) -I tools/build_disk.py --out $(DISK) --build $(BUILD) --packing $(BOOT_PACKING) --layout $(BUILD)/layout.json
 

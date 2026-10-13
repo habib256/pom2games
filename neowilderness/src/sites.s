@@ -473,32 +473,3 @@ topo_here:
         rts
 topo_cardinals: .byte "N NEE SES SWW NW"
 
-.segment "SITES"
-module_graphical_topo:
-        jsr     view_hide
-        ldx     #0              ; the preloaded TOPO sheet -> HGR page 1
-        jsr     mem_fetch
-        lda     #0
-        sta     overlay_current
-        sta     sim_loaded
-        sta     scene_drawn
-        sta     shown
-        lda     #1
-        sta     ui_dirty
-        lda     #20
-        sta     WNDTOP
-        jsr     t_home
-        jsr     puts
-        .byte "TOPO N UP CONTOURS 400 FT|C CRASH H CABIN R RANGERS|MAP: PLAYER MAP|ESC/RETURN/SPACE: VIEW",0
-        jsr     show_hgr        ; TOPO stays single HGR (lot 4)
-graphical_topo_key:
-        jsr     wait_key
-        cmp     #KC_ESC
-        beq     @done
-        cmp     #KC_RET
-        beq     @done
-        cmp     #' '
-        bne     graphical_topo_key
-@done:  jsr     view_hide
-        jsr     t_home
-        jmp     show_view_hidden

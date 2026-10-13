@@ -651,15 +651,6 @@ show_text:
         bit     TXTSET
         rts
 
-; show_hgr -- single HGR page 1 with 40-column mixed text (graphical TOPO).
-show_hgr:
-        sta     COL80OFF
-        bit     DHIRES_OFF
-        bit     HIRES
-        bit     MIXSET
-        bit     TXTCLR
-        rts
-
 ; ----------------------------------------------------------------------------
 .segment "CODE"
 ; 40-column text primitives (main text page only), used instead of the

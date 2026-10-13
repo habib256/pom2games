@@ -151,7 +151,9 @@ overlay_load:
         sta     ui_dirty        ; header is redrawn and the view hidden until
         jsr     view_hide       ; it is rebuilt after the simulation
         lda     #3
-@load:  sta     overlay_wanted
+@load:
+overlay_fetch:                  ; A = module: copy it even if current (TOPO: 0)
+        sta     overlay_wanted
 overlay_before_transfer = *
         cmp     #23
         bcs     @geo
@@ -1024,8 +1026,8 @@ scr_map:
         jsr     overlay_load
         jmp     module_topo
 scr_topo:
-        lda     #10
-        jsr     overlay_load
+        lda     #0              ; TOPO module; overlay_current = 0 afterwards
+        jsr     overlay_fetch
         jmp     module_graphical_topo
 shelter_view:
         lda     #10
@@ -3304,6 +3306,7 @@ ctol_hi: .byte  >f_tol_water, >f_tol_food, >f_tol_rest
         .include "medical.s"
         .include "hazards.s"
         .include "sites.s"
+        .include "topo.s"
         .include "project.s"
         .include "tree.s"
 .segment "CODE"

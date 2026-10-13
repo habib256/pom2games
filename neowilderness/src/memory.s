@@ -2,13 +2,13 @@
 ; ============================================================================
 ; memory.s -- 128 KB residency (included by wild.s)
 ; ============================================================================
-; NEOWILD.SYSTEM preloads every module, the pristine simulation and the TOPO
-; sheet into auxiliary RAM. A module "load" is now a copy from auxiliary RAM
-; into its main execution window: the $5800 window, the SIM window at $9600
-; or HGR page 1 for TOPO. Each copy restores the pristine image, exactly like
+; NEOWILD.SYSTEM preloads every module and the pristine simulation into
+; auxiliary RAM. A module "load" is now a copy from auxiliary RAM into its
+; main execution window: the $5800 window or the SIM window at $9600. Each copy restores the pristine image, exactly like
 ; the DOS BLOAD it replaces, so the simulation keeps its reload semantics.
 ;
 ; mem_fetch -- X = directory index (0 TOPO, 1..22 overlays, 3 = SIM).
+;   TOPO (src/topo.s) is an ordinary $5800 module since lot 4.
 ;   Copies exactly the stored length; bytes past it keep their old contents.
 ;   Entry: main ZP/stack (ALTZP off), RAMRD off, D = 0. Preserves the I flag,
 ;   80STORE, RAMWRT, the video switches, all zero page and the text screen.

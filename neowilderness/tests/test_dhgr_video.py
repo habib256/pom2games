@@ -2,7 +2,8 @@
 """Video modes of the DHGR game (lot 3) and its four mixed text rows.
 
 The view is DHGR page 1 + 4 mixed text rows (80STORE, HIRES, 80COL on, AN3
-low, PAGE2 off); menus are 40-column text (80COL off); TOPO is single HGR.
+low, PAGE2 off); menus are 40-column text (80COL off); TOPO (lot 4) is
+drawn in DHGR and shown in the view's mode.
 Under DHGR the text rows are 80-column cells: the game keeps its 40-column
 text page in main RAM (odd cells) and spaces in the aux page (even cells),
 printed by its own primitives, never by the Monitor's 80-column paths.
@@ -15,7 +16,7 @@ STATUS = {'80STORE': 'C018', 'TEXT': 'C01A', 'MIXED': 'C01B', 'PAGE2': 'C01C',
           'HIRES': 'C01D', '80COL': 'C01F'}
 VIEW = dict(zip(STATUS, (1, 0, 1, 0, 1, 1)))
 MENU = {'80STORE': 1, 'TEXT': 1, 'PAGE2': 0, '80COL': 0}
-TOPO = {'80STORE': 1, 'TEXT': 0, 'MIXED': 1, 'PAGE2': 0, 'HIRES': 1, '80COL': 0}
+TOPO = VIEW
 ROWS = (0x650, 0x6D0, 0x750, 0x7D0)          # text rows 20..23
 
 
@@ -65,6 +66,7 @@ def main():
         s.step('wait:1')
         s.step(L.until('graphical_topo_key', 20000))
         check(s, TOPO, 'TOPO')
+        assert all(row == b'\xa0' * 40 for row in aux_rows(s)), 'TOPO: even cells must be spaces'
         s.step('key:\\r')
         s.step('wait:1')
         s.step(idle)
@@ -79,7 +81,7 @@ def main():
         check(s, VIEW, 'view after MAP')
         assert all(row == b'\xa0' * 40 for row in aux_rows(s))
     print('  view DHGR + 80-column mixed rows (aux cells blank, 40-column page kept), '
-          'STATUS/MAP 40-column text, TOPO single HGR, returns: OK')
+          'STATUS/MAP 40-column text, TOPO DHGR + mixed rows, returns: OK')
 
 
 if __name__ == '__main__':

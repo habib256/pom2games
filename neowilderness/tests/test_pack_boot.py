@@ -93,10 +93,8 @@ def volume_check():
             (HERE / 'build' / name).read_bytes(), name
     layout = json.loads((HERE / 'build/layout.json').read_text())
     banks = {'aux': 1, 'lc2': 2, 'lc1': 3}
-    from graphical_topo import render
     for index, module in layout['modules'].items():
-        expected = (render((HERE / 'build/map.bin').read_bytes()) if module['image'] == 'topo'
-                    else (HERE / 'build' / module['image']).read_bytes())
+        expected = (HERE / 'build' / module['image']).read_bytes()
         actual = region(banks[module['bank']], module['address'], module['length'])
         assert actual == expected, (index, module['image'])
         if module['bank'] == 'aux':

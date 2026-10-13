@@ -191,9 +191,13 @@ La palette différente ne doit pas masquer une régression de projection.
   RAM principale : prévoir un module.)
 - [ ] Adapter STATUS, INVENTORY et HELP en conservant pagination,
   raccourcis, annulation et mise en évidence des dangers.
-- [ ] Générer TOPO depuis les données en RAM, ou depuis un asset déjà
+- [x] Générer TOPO depuis les données en RAM, ou depuis un asset déjà
   préchargé dont le coût mémoire est validé ; supprimer son BLOAD direct.
-- [ ] Porter les courbes, l’eau, les bois et les repères graphiques TOPO.
+  (Module 0 `src/topo.s`, 1 531 octets au lieu de la feuille HGR de 8 Ko ;
+  1,0 s d'ouverture ; `docs/MEMORY.md` §8.)
+- [x] Porter les courbes, l’eau, les bois et les repères graphiques TOPO.
+  (DHGR : teintes de 800 pieds, courbes de 400 pieds, eau, damier des bois,
+  C/R/H/P, légende ; modèle exact `tools/topo_ref.py`, `docs/DHGR.md` §11.)
 - [ ] Garder MAP centrée sur le joueur, son défilement, C pour recentrer
   et ses écritures différentielles pendant les déplacements.
 - [ ] Rétablir la vue au retour des écrans sans lecture disque ni avance

@@ -524,14 +524,15 @@ modéliser les lignes de ciel situées entre deux parties d’un sprite.
   `pom2_moonlit_bright`, `pom2_moonlit_dim` ;
 - jeu réel (`python3 tools/game_shots.py`, lot 3) : `game_crash_day`,
   `game_turn_right`, `game_look_left`, `game_after_status`,
-  `game_after_topo` (et `game_topo_hgr`, TOPO lui-même), `game_golden`,
+  `game_after_topo` (et `game_topo`, le TOPO DHGR lui-même, lot 4), `game_golden`,
   `game_sunset`, `game_civil`, `game_dawn_nautical`, `game_night_full_moon`,
   `game_night_full_moon_back`, `game_night_moon_disk` (pleine Lune levée à
   l’est), `game_woods_noon`, `game_woods_golden` ;
 - `pom2_palette.png`, `pom2_demo_mixed80.png` (heure dorée + texte
   80 colonnes), `pom2_mood_<humeur>.png` (les 10 humeurs du disque de
   démonstration, relevées en le parcourant au clavier), `palette.png`,
-  `sprites/*.png`.
+  `sprites/*.png` ;
+- `topo_ref.png` : TOPO DHGR du modèle (`python3 tools/topo_ref.py`, lot 4).
 
 ## 10. Intégration au jeu (lot 3)
 
@@ -596,7 +597,8 @@ réécrire toutes les sorties du jeu, et il ne reste que 128 octets libres.
 
 **Modes.** `show_dhgr` (vue : `80COL`, AN3 bas, `HIRES`, `MIXSET`,
 `TXTCLR`), `show_text` (menus, rideau, MAP : `80COL` bas, `TXTSET`),
-`show_hgr` (TOPO, HGR simple, AN3 haut). Au retour de TOPO la vue complète
+`show_hgr` (TOPO, HGR simple, AN3 haut ; retiré au lot 4, TOPO passe par
+`show_dhgr`, § 11). Au retour de TOPO la vue complète
 est redessinée (TOPO a écrasé la moitié principale) ; MAP et les menus ne
 touchent que la page texte : la vue revient sans redessin. QUIT et RESET
 passent par `prodos_text` (`80STORE`, `80COL`, AN3 rétablis).
@@ -629,3 +631,64 @@ Premières mesures, avant optimisation des deux banques : flèche droite
 6,011 s (+6,5 %). Les gains : défilement par bandes (−16 % sur une flèche),
 un seul tracé du bandeau par trame au lieu de deux, lignes 2–9 du bandeau
 non effacées avant leur copie, effacement par bandes.
+
+## 11. TOPO DHGR (lot 4)
+
+TOPO n'est plus une feuille HGR préparée au build : le module 0
+(`src/topo.s`, `wildtop.bin`, fenêtre `$5800`, 1 531 octets) la dessine à
+chaque ouverture depuis la carte résidente (`$7000`, 112 × 84 cellules,
+y = 0 au sud) et le masque des bois (`$0800`). Mode de la vue (`show_dhgr`,
+mixte, quatre lignes de texte). `tools/topo_ref.py` est le modèle entier
+exact ; `tests/test_graphical_topo.py` compare les deux banques.
+
+**Géométrie.** Pixels couleur 0–111 (groupes 0–15) : une cellule par pixel,
+nord en haut. La ligne d'écran r (0–159) montre la ligne de carte
+j = ⌊21 (159 − r) / 40⌋ = ⌊t · 84 / 160⌋, t = 159 − r : deux lignes par
+cellule, une seule pour 8 cellules (Bresenham, reste `err` = 21 t mod 40).
+Pixels 112–139 (groupes 16–19) : légende. Les lignes 160–191 ne sont pas
+touchées (cache et lignes sous le texte, rétablis par le redessin complet
+du retour).
+
+**Couleurs**, par priorité :
+
+| Cas | Couleur |
+|---|---|
+| eau (bit 7) | bleu moyen |
+| courbe : `niveau >> 2` (pas de 400 pieds) supérieur à celui du voisin est ou nord | noir |
+| bois (masque, et x + y impair : damier) | vert foncé, noir sur la teinte vert foncé |
+| neige : `niveau >= M_SNOW` (en-tête +11, si non nul) | blanc |
+| teinte `niveau >> 3` (pas de 800 pieds) | vert foncé, vert, jaune, orange, brun, rose, gris, puis blanc |
+
+La légende montre, de bas en haut à partir de la ligne 159, une teinte par
+tranche de 800 pieds réellement présente sous la limite des neiges (jusqu'au
+niveau le plus haut de la carte, en-tête +21 = plus haut + 1, 125 si nul),
+puis un bloc blanc « neige » si la limite est fixée et atteinte : blocs de
+16 lignes s'il y en a au plus 8, de 8 sinon, première ligne noire ;
+pixels 120–131 (carte par défaut : 6 teintes et la neige) ; flèche du nord et N blancs en haut (lignes 0–17, pixels
+122–128). Repères dessinés après la carte, dans l'ordre C (épave, orange),
+R (gardes, jaune), H (cabane si l'en-tête +16 est mis, rose), P (joueur,
+`px+1`/`py+1`, blanc) : lettre de 3 × 5 pixels sur un carré noir de 5 × 7,
+centré sur la première ligne d'écran de la cellule, ramené dans la carte.
+Quand P est sur la cellule d'un site (premier de C, R, H), son carré prend
+la couleur du site au lieu du noir : au départ, P blanc sur fond orange. Les
+quatre lignes de texte nomment la légende.
+
+**Passes.** Pour chaque ligne de carte (84) : niveaux `>> 2` de la ligne
+dans un tampon (le tampon de la ligne précédente sert de voisin nord, une
+sentinelle `$FF` sert de voisin est au bord), couleur de chaque cellule par
+table (128 niveaux secs), puis les bois par octet de masque non nul ;
+empaquetage des 16 groupes en 32 octets auxiliaires + 32 principaux (tables
+de fragments `dc_pat & masque` par pixel et octet, 160 octets) ; écriture
+de cette partie dans les deux lignes de la cellule en une passe par banque
+(`PAGE2` sous `80STORE`, IRQ masquées, banque principale au retour). La
+légende n'est réempaquetée que lorsque son motif change. Les repères sont
+des écritures pixel par pixel (tables de phase `ph_*` et `dc_pat`).
+Tampons (`TOPOBSS`, 488 octets) après l'image dans la fenêtre, table
+niveau → couleur en `$0300-$037F` (RAM principale que le jeu n'utilise
+pas), page zéro du rendu (morte pendant TOPO).
+
+**Coût.** 1 023 974 cycles (1,004 s) de `do_command` à
+`graphical_topo_key`, contre 172 031 (0,169 s) pour la copie de la feuille
+HGR ; détail dans `docs/MEMORY.md` §8. Le dessin se fait derrière le rideau
+texte de `view_hide`.
+

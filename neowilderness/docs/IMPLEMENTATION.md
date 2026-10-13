@@ -787,7 +787,7 @@ les lignes texte. Captures : `tools/game_shots.py` → `build/dhgr/game_*.png`.
 | `test_forest` | référence `forest_ref`, couleurs contour/houppier/tronc de l'humeur |
 | `test_sky`, `test_moonlight` | altitudes S8, astre exact, humeurs nocturnes graduées |
 | `test_hud`, `test_interface`, `test_clock` | octets HGR doublés (`dhgr_ref.hud_banks`, `hgr_equivalent`) |
-| `test_render_memory`, `test_overlays`, `test_transfers`, `test_graphical_topo` | deux banques effacées/préservées ; TOPO dans la banque principale, mode HGR simple |
+| `test_render_memory`, `test_overlays`, `test_transfers`, `test_graphical_topo` | deux banques effacées/préservées ; TOPO DHGR (lot 4) comparé à `tools/topo_ref.py` dans les deux banques |
 | `test_optimizations`, `test_fast_duration` | entrée de `clear_rows` ; `column_setup` (octets, masques, banques, phase) |
 
 ## Carte de la réimplémentation
@@ -1124,13 +1124,14 @@ feuillage des arbres proches sur les pentes descendantes.
 
 ## Séparation TOPO / MAP
 
-`TOPO` et `T` ouvrent une feuille HGR complète, nord en haut.
-`tools/graphical_topo.py` interpole des courbes tous les 400 pieds par
-triangles sur la grille résidente, dessine l’eau en magenta, les bois en
-hachures vertes et les sites C/H/R en blanc. Il produit une image de
-8 Ko `WILDTOP`, chargée à $2000 par le module SITES. `build_disk.py` génère
-la feuille pour chaque disque, y compris les cartes alternatives des tests.
-Elle représente le terrain fixe ; le joueur mobile reste sur `MAP`.
+`TOPO` et `T` ouvrent une carte complète, nord en haut. Depuis le lot 4 du
+port 128 Ko, le module 0 (`src/topo.s`) la dessine en DHGR à chaque
+ouverture depuis la grille résidente : teintes par tranche de 800 pieds,
+courbes noires tous les 400 pieds, eau bleue, bois en damier vert foncé,
+repères C/R/H et la position P du joueur, légende à droite
+(`docs/DHGR.md` § 11, modèle `tools/topo_ref.py`). La feuille HGR de 8 Ko
+que `tools/graphical_topo.py` préparait au build (courbes interpolées par
+triangles) a disparu avec ce script. `MAP` reste la carte locale.
 Le retour reconstruit la vue et son bandeau sans avancer la simulation.
 Le tracé est reconstruit depuis la grille du port, et non copié du TOPO natif.
 
@@ -1138,8 +1139,9 @@ Le tracé est reconstruit depuis la grille du port, et non copié du TOPO natif.
 défilement, C pour recentrer et écritures différentielles. Les routines
 `topo_*` gardent leurs noms internes ; pendant WALK/SWIM, elles actualisent
 cette carte locale. Les raccourcis T des autres écrans ouvrent TOPO graphique.
-`test_graphical_topo.py` vérifie les deux commandes, TOPO/T sur deux terrains,
-les trois touches de sortie et la conservation de l’état et de la vue.
+`test_graphical_topo.py` vérifie les deux commandes, TOPO/T sur deux terrains
+et après WALK, les trois touches de sortie et la conservation de l’état et de
+la vue.
 
 ### Régression des déplacements après le portage natif
 
@@ -1179,7 +1181,8 @@ page précédente. Les caractères inversés gardent le masque ROM `$32`.
 depuis le lot 3 : DHGR, 80 colonnes, mode mixte, espaces dans les cellules
 paires). Le bilan final suit le même chemin de préparation et garde son
 attente explicite. `view_hide`, `text_finish` et MAP passent par
-`show_text` (80 colonnes coupé), TOPO par `show_hgr`.
+`show_text` (80 colonnes coupé) ; TOPO, en DHGR depuis le lot 4, par
+`show_dhgr`.
 
 L’initialisation des coordonnées, du mode vidéo et du cache de projection
 vit maintenant dans ADV, déjà chargé au démarrage. L’effacement HGR initial

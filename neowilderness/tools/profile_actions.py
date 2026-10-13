@@ -44,7 +44,8 @@ def measure(disk, labels, command, setup=(), profile=False):
         reads = int.from_bytes(s.step(L.peek('overlay_reads', 2)).data, 'little')
         before = {n: int.from_bytes(s.step(L.peek(n, k)).data, 'little') for n, k in counters}
         target = dict(STATUS='status_key', INVENTORY='inventory_key',
-                      HELP='help_key', TOPO='topo_key').get(command, 'idle')
+                      HELP='help_key', TOPO='graphical_topo_key', T='graphical_topo_key',
+                      MAP='topo_key').get(command, 'idle')
         breakdown = None
         if profile:
             result = s.step(f'pcprof:{L[target]:04X}:20000')

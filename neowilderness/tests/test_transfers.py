@@ -3,14 +3,14 @@
 
 Replaces the DOS overlay-codec test: modules are no longer read or decoded
 at run time, they are copied from auxiliary RAM (memory.s). Every directory
-entry is fetched through the real overlay_load (TOPO through mem_fetch):
+entry is fetched through the real overlay_load (TOPO, module 0, through
+mem_fetch: overlay_current = 0 means that nothing is loaded):
 the window holds the exact image, bytes past it are untouched, and the zero
 page, the text page, the I flag and the memory soft switches (RAMRD,
 RAMWRT, ALTZP, 80STORE, language card) are the same before and after.
 """
 import json
 from common import HERE, DISK, L, a2test
-from graphical_topo import render
 
 SWITCHES = 'peek:C011:8'        # LCBNK2 LCRAM RAMRD RAMWRT INTCXROM ALTZP SLOTC3 80STORE
 
@@ -20,8 +20,7 @@ def main():
     images = {}
     for index, module in layout['modules'].items():
         image = module['image']
-        images[int(index)] = (render((HERE / 'build/map.bin').read_bytes()) if image == 'topo'
-                              else (HERE / 'build' / image).read_bytes(), module['window'])
+        images[int(index)] = ((HERE / 'build' / image).read_bytes(), module['window'])
     with a2test.Session(DISK) as s:
         s.step(L.until('idle', 20000))
         rows = s.step(L.peek('row_n0', 256)).data
@@ -41,7 +40,7 @@ def main():
                 s.step(f'poke:{entry+i:04X}:{b:02X}')
             s.step(L.poke('overlay_current', 0))
             s.step(L.poke('sim_loaded', 0))
-            limit = window + (0x2000 if window != 0x5800 else 0x800)
+            limit = window + (0x2000 if window == 0x9600 else 0x800)
             guard = s.step(f'peek:{window+len(expected):04X}:{min(16, limit-window-len(expected))}').data
             start = s.step(f'until:{L["mem_fetch"]:04X}:200').cycles[-1]
             zp = s.step('peek:0000:256').data
@@ -50,7 +49,6 @@ def main():
             back = entry + 5
             reply = s.step(f'until:{back:04X}:200')
             end = reply.cycles[-1]
-            # A DHGR page peek yields main + aux: TOPO is copied into main.
             assert s.step(f'peek:{window:04X}:{len(expected)}').data[:len(expected)] == expected, index
             after = s.step('peek:0000:256').data
             # overlay_load itself sets its documented flags; the copy may not
@@ -63,7 +61,7 @@ def main():
             s.step(L.until('idle', 100))
     worst = max(c / n for _, n, c in costs)
     total = sum(n for _, n, _ in costs)
-    print(f'  {len(costs)} module/TOPO transfers: exact bytes, no overrun, ZP, text page, '
+    print(f'  {len(costs)} module transfers (TOPO included): exact bytes, no overrun, ZP, text page, '
           f'RAMRD/RAMWRT/ALTZP/80STORE/LC preserved: OK')
     print(f'  {total} bytes in {sum(c for *_, c in costs)} cycles; '
           f'worst {worst:.1f} cycles per byte (overlay_load included)')

@@ -10,16 +10,18 @@ Les sources reprennent `../wilderness/` au 13 octobre 2026, synchronisées
 avec sa tête Git (transitions texte/HGR, introduction conservée pendant le
 chargement, correctifs de nage et de tests). Les lots 1 et 2 du [TODO](TODO.md)
 sont en place : le jeu démarre sous ProDOS 8 sur Apple IIe enhanced ou IIc
-128 Ko, précharge tous ses modules, la simulation vierge et la feuille TOPO
-en RAM auxiliaire, puis ne lit plus jamais le disque pendant la partie.
+128 Ko, précharge tous ses modules et la simulation vierge en RAM
+auxiliaire, puis ne lit plus jamais le disque pendant la partie.
 Le paysage est désormais dessiné en **DHGR 16 couleurs** (lot 3) : ciel en
 zones tramées, sol, neige et eau en trois paliers de distance, bois, sprites
 originaux colorés, soleil et Lune, dans dix humeurs choisies selon la hauteur
 du soleil et de la Lune et la couverture nuageuse (jour, heure dorée,
 coucher, crépuscules, nuit claire de pleine Lune…). Le bandeau et les
 panneaux de survie restent les dessins HGR, pixels doublés ; les quatre
-lignes de messages sont affichées en cellules 80 colonnes ; TOPO reste en
-HGR simple (lot 4). Les règles sont inchangées : l'état de simulation est
+lignes de messages sont affichées en cellules 80 colonnes. TOPO est dessiné
+en DHGR à l'ouverture depuis la carte en mémoire (lot 4) : teintes
+d'altitude, courbes tous les 400 pieds, eau, bois, épave, cabane, gardes et
+position du joueur, légende des teintes et nord en haut. Les règles sont inchangées : l'état de simulation est
 identique, octet pour octet, à celui de la version HGR/DOS 3.3 de référence,
 et aucune lecture disque n'a lieu pendant la partie.
 
@@ -65,8 +67,8 @@ données originales requises suivent la procédure `make originals` /
 
 ## Cartes et règles
 
-- TOPO/T : carte graphique globale ; le tracé actuel est reconstruit depuis
-  la grille du port, il n’est pas une reproduction exacte du TOPO original.
+- TOPO/T : carte graphique globale en DHGR, générée depuis la grille du port
+  à chaque ouverture ; ce n’est pas une reproduction exacte du TOPO original.
 - MAP : carte locale centrée sur le joueur, extension propre au port.
 - Simulation : conserver les règles natives et leurs tests pendant la
   migration mémoire et vidéo.

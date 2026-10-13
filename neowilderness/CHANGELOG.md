@@ -7,6 +7,32 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Neowilderness : TOPO DHGR (lot 4)
+
+- TOPO/T est dessiné en DHGR 16 couleurs à chaque ouverture, depuis la
+  carte résidente et le masque des bois : une cellule par pixel couleur,
+  nord en haut, teintes distinctes par tranche de 800 pieds (vert foncé,
+  vert, jaune, orange, brun, rose, gris ; blanc au-dessus de la limite des
+  neiges), courbes noires tous les 400 pieds, eau bleue, bois en damier vert
+  foncé (noir sur la teinte vert foncé), repères C, R, H et P (position du
+  joueur, nouvelle) en lettres sur fond noir, ou sur la couleur du site
+  quand P s'y trouve, légende des seules teintes présentes plus la neige et
+  flèche du nord ; quatre lignes de texte en mode mixte, comme la vue.
+- Nouveau module 0 `wildtop.bin` (`src/topo.s`, fenêtre `$5800`,
+  1 531 octets, table de couleurs temporaire en `$0300`) à la place de la feuille HGR de 8 192 octets générée au
+  build (`tools/graphical_topo.py` supprimé) ; `module_graphical_topo`
+  quitte SITES (−154 octets), `show_hgr` disparaît (+16 octets libres en
+  RAM principale, 144 au total).
+- RAM auxiliaire : 38 746 octets stockés au lieu de 45 561, 16,5 Ko libres ;
+  `NEOWILD.DAT` 50 787 octets, 131 blocs libres.
+- Ouverture de TOPO : 1 023 974 cycles (1,0 s, derrière le rideau texte)
+  contre 0,17 s pour la copie de l'ancienne feuille.
+- Modèle exact `tools/topo_ref.py` (PNG `build/dhgr/topo_ref.png`) ;
+  `test_graphical_topo.py` compare les deux banques sur deux cartes et après
+  WALK ; `test_dhgr_video.py`, `test_transfers.py`, `test_pack_boot.py`
+  traitent TOPO comme un module ordinaire ; capture
+  `build/dhgr/game_topo.png` (`tools/game_shots.py`).
+
 ### Neowilderness : paysage DHGR (lot 3)
 
 - Le paysage est dessiné en DHGR 16 couleurs sur une page unique

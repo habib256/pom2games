@@ -4,7 +4,8 @@
 Boots ../dist/NEOWILDERNESS.po in a2shot (enhanced //e) and photographs the
 view: the crash site by day, after turns, at the golden hour, at sunset, in
 civil twilight, under a high full Moon (and facing it), in the woods, and
-after returning from STATUS and TOPO (game_topo_hgr.png: TOPO itself). Times are set like tests/test_moonlight.py: the clock
+after returning from STATUS and TOPO (game_topo.png: the DHGR TOPO itself, lot 4).
+Times are set like tests/test_moonlight.py: the clock
 floats are poked, then env_hour and show_view are called from the idle loop
 (no command, no random draw). Prints the mood of each frame.
 
@@ -74,7 +75,8 @@ def main():
         shot('after_status')
         key('TOPO\\r', 'graphical_topo_key')
         s.step('wait:3')
-        s.step(f'shot:{a.out / "game_topo_hgr.png"}')
+        s.step(f'shot:{a.out / "game_topo.png"}')
+        print('  game_topo.png', flush=True)
         s.step('key:\\r')
         s.step('wait:1')
         s.step(L.until('idle', 60000))

@@ -3,8 +3,8 @@
 
 The volume holds PRODOS, NEOWILD.SYSTEM (src/boot.s) and NEOWILD.DAT: one
 sequential file of records read once at boot. Main RAM images go to their
-linked addresses; every module, the pristine simulation and the TOPO sheet
-go to auxiliary RAM, where memory.s copies them into their execution
+linked addresses; every module (TOPO included: src/topo.s draws it from the
+resident map) and the pristine simulation go to auxiliary RAM, where memory.s copies them into their execution
 windows. Comparison maps with the original fine geography add NEOWILD.GEO,
 24 banks of 2 KB read on demand (lot 5).
 
@@ -41,7 +41,7 @@ DIR_BANK = {AUX: 0, LC2: 1, LC1: 2}      # memory.s directory bank codes
 REGIONS = [(AUX, 0x4000, 0xC000), (AUX, 0x0800, 0x2000),
            (LC2, 0xD000, 0xFFFA), (LC1, 0xD000, 0xE000)]
 # Directory index -> (image, execution window). 18 is an alias of 17.
-MODULES = {0: ('topo', 0x2000), 1: ('wildvoc.bin', 0x5800), 2: ('wildscr.bin', 0x5800),
+MODULES = {0: ('wildtop.bin', 0x5800), 1: ('wildvoc.bin', 0x5800), 2: ('wildscr.bin', 0x5800),
            3: ('wildsim.bin', 0x9600), 4: ('wildwat.bin', 0x5800),
            5: ('original_graphics/wreck.bin', 0x5800), 6: ('original_graphics/bear.bin', 0x5800),
            7: ('original_graphics/cougar.bin', 0x5800),
@@ -56,7 +56,7 @@ DIR_ENTRIES = 23
 # guest cycles per stored byte read through MLI READ, per byte LZ-decoded.
 DISK_CYCLES = 200
 DECODE_CYCLES = 46
-WINDOW_LIMIT = {0x5800: 0x0800, 0x9600: 0x2000, 0x2000: 0x2000}
+WINDOW_LIMIT = {0x5800: 0x0800, 0x9600: 0x2000}
 
 
 def labels(build):
@@ -83,7 +83,7 @@ def place(images):
 def cached_compress(chunk, cache):
     """compress() is an optimal parse, slow in Python: keep results by content.
 
-    Alternate-map test disks share every image but the map and its TOPO.
+    Alternate-map test disks share every image but the map.
     """
     if cache is None:
         return compress(chunk)
@@ -142,13 +142,12 @@ def build_disk(out, map_path=None, build=None, packing='auto', layout=None):
     build = Path(build) if build else HERE / 'build'
     out = Path(out)
     from mkmap import MAP_BYTES, FOREST_BYTES
-    from graphical_topo import render
     mapdata = Path(map_path).read_bytes() if map_path else (build / 'map.bin').read_bytes()
     sym = labels(build)
 
     images = {}
     for index, (name, window) in MODULES.items():
-        data = render(mapdata) if name == 'topo' else (build / name).read_bytes()
+        data = (build / name).read_bytes()
         assert 0 < len(data) <= WINDOW_LIMIT[window], (name, len(data))
         images[index] = data
     placed, free = place(images)
