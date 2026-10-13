@@ -1141,8 +1141,9 @@ est recopiée (0,24 s) au lieu d'être redessinée. Le joueur mobile reste sur
 `MAP`. Le tracé est reconstruit depuis la grille du port, et non copié du
 TOPO natif.
 
-`MAP` ouvre l’ancienne carte textuelle 32 × 14, en 80 colonnes depuis le
-lot 4 (une cellule = deux caractères, sites et joueur en inverse) : joueur,
+`MAP` ouvre la carte textuelle locale, en 80 colonnes depuis le lot 4 et
+plein écran (40 × 24 cases) depuis la section « MAP plein écran 80 × 24 »
+ci-dessous (une cellule = deux caractères, sites et joueur en inverse) : joueur,
 cap magnétique, défilement, C pour recentrer et écritures différentielles. Les routines
 `topo_*` gardent leurs noms internes ; pendant WALK/SWIM, elles actualisent
 cette carte locale. Les raccourcis T des autres écrans ouvrent TOPO graphique.
@@ -1513,3 +1514,71 @@ TOPO non ; `topo_dhgr_ref` garde l'option `you=`), le nom du port dans
 l'introduction et les crédits (déjà sur `main`), les rebaselines
 `BASELINE_DHGR.json` et la réécriture du README (mesures d'une autre
 architecture), le lien symbolique `original` (hors Git sur `main`).
+
+## MAP plein écran 80 × 24
+
+Demande du 13 octobre 2026 : pendant WALK/SWIM, la carte MAP qui s'anime
+pas à pas occupe tout l'écran texte 80 colonnes ; la commande MAP montre le
+même écran.
+
+- **Géométrie.** 40 × 24 cases de la grille 112 × 84 (au lieu de 32 × 14),
+  une case = deux caractères 80 colonnes (carrée à l'écran), les 24 rangées
+  de la page texte 1 (`$0400-$07FF`, principale et auxiliaire ; la page 2
+  porte le masque WOODS). Nord en haut, rangée 0 = Y le plus grand. Fenêtre
+  centrée sur le joueur (`topo_x = px − 20`, `topo_y = py − 12` : P en
+  colonne 20, rangée 11), bornée à `[0, 72] × [0, 60]` (`GW − 40`,
+  `GH − 24`). Flèches/WASD : un quart de fenêtre par touche (10 cases en
+  largeur, 6 en hauteur), bornes comprises ; C recentre. Pendant la marche,
+  la fenêtre est recentrée à chaque demi-pas (la carte suit le joueur, puis
+  se bloque au bord) ; la bande extérieure de deux cases où la marche
+  s'arrête garde P à l'écran, au plus en rangée 2 sous le bord nord.
+- **Indication.** L'en-tête de quatre rangées (légende, CELL, WINDOW,
+  NORTH IS UP, site sous P), la légende du bas et les deux rangées de
+  touches disparaissent. Il reste une étiquette en inverse au début de la
+  rangée 0, arrondie à la case : ` 34,30 HEAD 0 N ` (case du joueur, cap
+  magnétique et point cardinal), précédée de ` 40 MIN ` pendant la marche
+  (le temps de marche, qui remplaçait le message `TRAVELLING: # MIN.`) et
+  suivie de ` P+R`, ` P+H` ou ` P+C` quand P cache un site (priorité
+  rangers, cabane, épave ; l'ancien conseil `ENTER SHELTER` est dans la
+  grille des verbes, qui le propose à la case de la cabane). L'étiquette
+  couvre 8 à 17 cases de la rangée 0 ; toutes les autres sont de la carte,
+  et un défilement vers le nord les découvre. Les touches restent dans
+  HELP (`MAP: ARROWS/WASD, C CENTER`) ; la légende des symboles
+  (`=` eau, `T` bois, `t` broussailles, `.,:;+*^#` du plus bas au plus
+  haut) est dans le README.
+- **Écriture.** Inchangée : COUT différentiel pour l'étiquette (`INVFLG`
+  = `$3F` le temps de l'écrire), `topo_put2` pour les cases, une écriture
+  par caractère modifié dans les deux pages, rien en colonne 79 par COUT
+  (les cases s'écrivent directement ; aucune rangée ne passe à la ligne
+  après la rangée 23, donc jamais de défilement). Une mise à jour par
+  demi-pas, comme avant.
+- **Messages.** Pendant la marche, aucun message ne s'affiche : le seul
+  qui s'écrivait à chaque pas (`TRAVELLING: # MIN.`) est remplacé par les
+  minutes de l'étiquette, et les messages éventuels de `spend` étaient déjà
+  remplacés par lui au même pas. Les causes d'arrêt (faune, nuit, rive,
+  bord, ressource trouvée, Échap, fin du temps) passent toutes par
+  `travel_reason` et le message `TRAVEL: # MINUTES.|!` affiché après le
+  retour de la vue : rien n'est perdu. À l'arrêt, `do_walk` efface les
+  rangées 20 à 23 (`t_home`, fenêtre 20-23) avant la vue ; le rideau de
+  `view_hide` ne montre donc pas de restes de carte, la colonne des
+  résultats reçoit le message, et `get_line` redessine la grille des
+  verbes (colonnes 0 à 39) au prompt. En cas de mort pendant la marche,
+  la carte reste sur les rangées 0 à 19 et le message s'écrit dans les
+  rangées 20 à 23 effacées, comme avant. La commande MAP rend la main par
+  `back_to_view_now`, qui efface déjà les rangées 20 à 23 avant le prompt.
+- **Mémoire** (`build/wild.map`, avant → après) : SITES `$76E` → `$643`
+  (1 902 → 1 603 octets, 299 libérés : 445 libres dans la fenêtre
+  `$5800`) ; GCODE `$1102` → `$10F6` (−12 : appel de message retiré,
+  `jsr t_home` ajouté) ; TEXT `$5CA` → `$5B7` (−19 : chaîne `m_moving`) ;
+  SCREENS `$7FA` → `$7FF` (+5 : touche C dans HELP, 1 octet libre). Pas
+  de nouveau module : le code de la carte reste dans SITES.
+- **Tests.** `common.map_rows` rend les 24 rangées de 40 cases (cases de
+  l'étiquette en espaces) et `common.map_cue` l'étiquette ;
+  `test_sites.full_screen` vérifie l'écran entier (aucune rangée
+  étrangère), P visible aux quatre coins de la zone de marche après des
+  défilements contre chaque bord et un recentrage, les rangées du prompt
+  restaurées après MAP, et une marche vers le bord est qui garde P à
+  l'écran à chaque demi-pas puis rend la grille. `test_walk` vérifie les
+  minutes de l'étiquette, l'absence de message par-dessus la carte, une
+  écriture par caractère modifié sur les 24 rangées et la grille rendue
+  après la marche. Capture : `build/map80x24.png`.

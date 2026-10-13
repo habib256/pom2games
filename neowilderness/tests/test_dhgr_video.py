@@ -8,7 +8,7 @@ by the Monitor's 80-column paths; MAP and the simulation curtain are
 80-column text too; STATUS, INVENTORY and HELP stay 40-column text (80COL
 off); TOPO is DHGR with its legend in the 80-column rows.
 """
-from common import L, DISK, a2test, text_screen, result_rows
+from common import L, DISK, a2test, text_screen, result_rows, map_cue
 
 # Status bits read in bit 7 ($C07F, RDDHIRES, is not emulated by a2shot: AN3
 # is left to the captures, tools/game_shots.py).
@@ -80,7 +80,7 @@ def main():
         s.step('wait:1')
         s.step(L.until('topo_key', 20000))
         check(s, MAP, 'MAP')
-        assert text_screen(s.step('peek:0400:1024').data)[0].startswith('MAP P YOU')
+        assert map_cue(text_screen(s.step('peek:0400:1024').data))
         s.step('key:\\e')
         s.step('wait:1')
         s.step(idle)

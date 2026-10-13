@@ -27,7 +27,7 @@ def main():
                 s.step('key:MAP');s.step('press:\\r');s.step(L.until('topo_key',20000))
                 rows=map_rows(screen(s).splitlines())
                 marks={char:(col,row) for row,line in enumerate(rows)
-                       for col,char in enumerate(line[:32]) if char in ('P',marker)}
+                       for col,char in enumerate(line) if char in ('P',marker)}
                 assert set(marks)=={'P',marker},(asset,dx,dy,marks,rows)
                 p,target=marks['P'],marks[marker]
                 assert (target[0]-p[0],p[1]-target[1])==(dx,dy)

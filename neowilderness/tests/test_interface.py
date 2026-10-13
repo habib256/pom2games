@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Survival panels, transition events, grouped inventory and magnetic TOPO."""
 import tempfile
-from common import HERE, L, DISK, a2test, disk_with, text_screen, dhgr_page, result_text
+from common import HERE, L, DISK, a2test, disk_with, text_screen, dhgr_page, result_text, map_cue
 from test_thermal import call, poke
 import dhgr_ui
 
@@ -472,10 +472,10 @@ def map_controls():
         for i in range(8):
             screen=text_screen(r.dumps[3+2*i]); head=(i*70-offset)%560
             label=('N','NE','E','SE','S','SW','W','NW')[((head+35)%560)//70]
-            assert f'HEAD {head} {label} MAG' in ' '.join(screen[1].split()), screen[1]
-            assert ('P+C','P+H','P+R')[i%3] in screen[3],screen[3]
-            if i%3==1: assert 'ENTER SHELTER' in screen[3]
-            assert r.dumps[4+2*i]==bytes((24,33)), 'C must restore player-centred map'
+            cue=map_cue(screen)
+            assert f'HEAD {head} {label}' in ' '.join(cue.split()), screen[0]
+            assert cue.rstrip().endswith(('P+C','P+H','P+R')[i%3]),cue
+            assert r.dumps[4+2*i]==bytes((20,28)), 'C must restore player-centred map (40-20, 40-12)'
         assert len(r.dumps[2])==16384,'main and auxiliary banks'
         assert r.dumps[1]==r.dumps[-2] and r.dumps[2]==r.dumps[-1], 'MAP must preserve time and both DHGR banks'
     print('  eight bearings with both magnetic declinations, C recenter, player/site overlaps, clock and both DHGR banks preserved: OK')

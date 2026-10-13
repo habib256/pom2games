@@ -930,7 +930,7 @@ help_travel:
         .byte "WALK 10 MIN / WALK 1 H",13
         .byte "SWIM 1 H: CROSS WATER",13
         .byte "ESC: STOP AFTER THIS STEP",13,13
-        .byte "MAP: ARROWS/WASD MOVE",13
+        .byte "MAP: ARROWS/WASD, C CENTER",13
         .byte "TOPO: FULL MAP",0
 help_gear:
         .byte "2/3  EQUIPMENT",13,13
@@ -1337,14 +1337,7 @@ do_walk:
 @progress:
         lda     #10
         jsr     overlay_load
-        jsr     module_topo_moving
-        lda     used
-        sta     msgnum
-        lda     used+1
-        sta     msgnum+1
-        lda     #<m_moving
-        ldx     #>m_moving
-        jsr     message
+        jsr     module_topo_moving ; the minutes are in the map's cue
         lda     #0              ; progress never asks for acknowledgement
         sta     shown
         jsr     at_goal
@@ -1379,7 +1372,8 @@ do_walk:
         lda     #9
         sta     travel_reason
         jmp     @stop
-@stop:  lda     used
+@stop:  jsr     t_home          ; the full-screen MAP covered rows 20-23
+        lda     used
         sta     msgnum
         lda     used+1
         sta     msgnum+1

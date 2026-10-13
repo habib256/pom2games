@@ -2,7 +2,7 @@
 """Find the cabin through MAP, walk there, rest inside, exit and return."""
 import tempfile
 import re
-from common import HERE, L, DISK, a2test, disk_with, fp, text_screen, view_rows, text_writes, text_changes, map_rows
+from common import HERE, L, DISK, a2test, disk_with, fp, text_screen, view_rows, text_writes, text_changes, map_rows, map_cue
 from test_thermal import call, poke, scalar
 
 IDLE = L.until('idle', 20000)
@@ -71,17 +71,16 @@ def playable(disk):
     assert 'NO SHELTER HERE' in '\n'.join(text_screen(take()))
     assert state() == initial, 'ENTER HUT must not create or enter a found cabin'
     screen = text_screen(take())
-    assert screen[0].startswith('MAP P YOU')
+    assert map_cue(screen).startswith(' 4,4 HEAD ')
     rows = map_rows(screen)
-    assert rows[13-4][4] == 'P' and rows[13-4][7] == 'H' and rows[13-4][20] == 'R'
-    assert rows[13-6][9] == '='
+    assert rows[23-4][4] == 'P' and rows[23-4][7] == 'H' and rows[23-4][20] == 'R'
+    assert rows[23-6][9] == '='
     assert take() == initial_hgr, 'MAP must preserve the HGR page'
-    origins = [(80,0),(80,70),(0,70),(0,0)]
+    origins = [(72,0),(72,60),(0,60),(0,0)]    # GW-40, GH-24
     for x,y in origins:
         assert take() == bytes((x,y)), 'MAP scrolling must clamp to the grid'
-        screen=text_screen(take())
-        assert screen[2].startswith(f'WINDOW {x},{y}')
-        assert len(screen[4:18]) == 14
+        rows=map_rows(text_screen(take()))
+        assert len(rows) == 24 and all(len(row) == 40 for row in rows)
     assert take() == initial_hgr
     at_cabin = state()
     assert at_cabin[0] == bytes((0,7,0,4,140,0)) and at_cabin[2] == 0
@@ -139,21 +138,21 @@ def topo_refresh(disk):
     r = a2test.run(disk, steps, emulator=a2test.A2SHOT, timeout=900)
     initial, origin, screen = r.dumps[0], r.dumps[1], text_screen(r.dumps[2])
     assert origin == bytes((0, 0))
-    assert map_rows(screen)[13-4][4] == 'P' and map_rows(screen)[13-6][9] == '='
-    assert screen[1].startswith('CELL 4,4   HEAD 140')
+    assert map_rows(screen)[23-4][4] == 'P' and map_rows(screen)[23-6][9] == '='
+    assert map_cue(screen).startswith(' 4,4 HEAD 140 ')
     position, after_walk = r.dumps[3:5]
     assert position[:4] == bytes((0, 7, 0, 4))
     assert after_walk != initial
     assert r.dumps[5] == bytes((0, 0)), 'reopening must discard the old scrolled window'
     screen = text_screen(r.dumps[6])
-    assert screen[1].startswith('CELL 7,4   HEAD 140')
-    row = map_rows(screen)[13-4]
+    assert map_cue(screen).startswith(' 7,4 HEAD 140 ')
+    row = map_rows(screen)[23-4]
     assert row[4] == 'C' and row[7] == 'P' and row[10] == 'R' and row[11] == 'H'
     assert row[20] == '.', 'old ranger marker must disappear'
-    assert map_rows(screen)[13-6][9] == '+', 'terrain must be reread when MAP opens'
+    assert map_rows(screen)[23-6][9] == '+', 'terrain must be reread when MAP opens'
     turned = r.dumps[7]
     assert r.dumps[8] == bytes((0, 0))
-    assert text_screen(r.dumps[9])[1].startswith('CELL 7,4   HEAD 420')
+    assert map_cue(text_screen(r.dumps[9])).startswith(' 7,4 HEAD 420 ')
     assert r.dumps[10] == turned, 'opening/closing MAP must preserve current HGR and compass'
     print('  MAP ready before display; reopen after scrolling/travel/turn refreshes position, window, terrain and markers: OK')
 
@@ -185,7 +184,7 @@ def cardinal_walks():
         assert tuple(int.from_bytes(pos[j:j+2],'little') for j in (0,2,4))==want,name
         assert header(view)==compass_pixels(heading,0),name
         rows=map_rows(text_screen(maptext))
-        marks={c:(x,y) for y,row in enumerate(rows) for x,c in enumerate(row[:32]) if c in 'PC'}
+        marks={c:(x,y) for y,row in enumerate(rows) for x,c in enumerate(row) if c in 'PC'}
         assert set(marks)=={'P','C'},(name,marks)
         px_,py_=marks['P'];cx_,cy_=marks['C']
         assert (px_-cx_,py_-cy_)==(dx,-dy), (name,marks)
@@ -252,12 +251,78 @@ def topo_delta(disk):
     print('  MAP scroll: exactly one write per changed character; unchanged/clamped map: zero writes OK')
 
 
+MAP_CHARS = set('.,:;+*^#=TtPCHR')
+
+
+def full_screen(disk):
+    """MAP fills the 80 x 24 text screen (40 x 24 cells): only the cue of row 0
+    is not map; at the four corners of the travel area and after scrolling
+    against each edge the player stays visible where the clamped window puts
+    it; the prompt rows come back intact; a walk against the east edge keeps
+    P on screen at every half-step."""
+    GW, GH = 112, 84
+    with a2test.Session(disk) as s:
+        s.step(IDLE)
+        prompt = text_screen(s.step('peek:0400:1024').data)[20:]
+        for x, y, keys in ((2, 2, 'AS'), (GW-3, 2, 'DS'), (2, GH-3, 'AW'), (GW-3, GH-3, 'DW')):
+            for name, value in (('px', x), ('py', y)):
+                s.step(L.poke(name, 128)); s.step(L.poke(name, value, 1))
+            for step in ('key:MAP', 'press:\\r', L.until('topo_key', 20000)):
+                s.step(step)
+            for key in keys * 3 + 'C' + keys * 3:   # clamped: the window stays put
+                s.step(f'press:{key}'); s.step(L.until('topo_key', 6000))
+                ox, oy = s.step(L.peek('topo_x', 2)).data
+                assert (ox, oy) == (min(max(x - 20, 0), GW - 40), min(max(y - 12, 0), GH - 24)), (x, y, key, ox, oy)
+                screen = text_screen(s.step('peek:0400:1024').data)
+                cue = map_cue(screen)
+                assert cue and cue.startswith(f' {x},{y} HEAD '), screen[0]
+                rows = map_rows(screen)
+                assert len(rows) == 24 and all(len(row) == 40 for row in rows)
+                assert set(''.join(rows[1:])) <= MAP_CHARS, ('stray row', screen)
+                assert set(rows[0][len(cue)//2:]) <= MAP_CHARS and len(cue) < 40, screen[0]
+                where = [(c, r) for r, row in enumerate(rows) for c, ch in enumerate(row) if ch == 'P']
+                assert where == [(x - ox, 23 - (y - oy))], (x, y, key, where)
+            s.step('press:\\e'); s.step(IDLE)
+            back = text_screen(s.step('peek:0400:1024').data)[20:]
+            # The grid comes back; the result column is cleared, as before
+            # the full-screen MAP (back_to_view_now), and keeps column 79.
+            assert [row[:40] for row in back] == [row[:40] for row in prompt], ('prompt rows after MAP', prompt, back)
+            assert not any(row[40:79].strip() for row in back[:3]) and back[3][40:].startswith('FOOD'), back
+            assert all(row[79] == ' ' for row in back), back
+        # East edge: WALK east from x = 104 stops before the outer band; the
+        # player's column follows the window, then the clamp (GW - 40 = 72).
+        for name, value in (('px', 104), ('py', 40)):
+            s.step(L.poke(name, 128)); s.step(L.poke(name, value, 1))
+        s.step(L.poke('heading', 140)); s.step(L.poke('heading', 0, 1))
+        s.step('key:WALK 100 MIN\\r')
+        seen = 0
+        for _ in range(12):
+            s.step(L.until('topo_moving_done', 6000))
+            px = s.step(L.peek('px', 2)).data[1]
+            ox, oy = s.step(L.peek('topo_x', 2)).data
+            assert ox == min(px - 20, GW - 40) and oy == 40 - 12
+            rows = map_rows(text_screen(s.step('peek:0400:1024').data))
+            assert rows[11][px - ox] == 'P' and set(''.join(rows[1:])) <= MAP_CHARS, (px, rows[11])
+            seen += 1
+            if px >= GW - 3:
+                break
+            s.step('wait:1')            # leave topo_moving_done before the next until
+        assert seen >= 6, seen
+        s.step(IDLE)
+        screen = text_screen(s.step('peek:0400:1024').data)
+        assert [row[:40] for row in screen[20:]] == [row[:40] for row in prompt], ('grid after the walk', screen[20:])
+        assert 'TRAVEL:' in '\n'.join(screen) and all(row[79] == ' ' for row in screen[20:]), screen[20:]
+    print(f'  full-screen MAP: 40 x 24 cells, cue only on row 0, P visible at the four corners and against '
+          f'every edge, prompt rows restored; east-edge walk keeps P on screen ({seen} half-steps): OK')
+
+
 def main():
     cardinal_walks()
     with tempfile.TemporaryDirectory() as tmp:
         disk=disk_with(tmp,mapbin())
         topo_refresh(disk)
         topo_delta(disk)
+        full_screen(disk)
         playable(disk)
         overnight(disk)
     temperatures()

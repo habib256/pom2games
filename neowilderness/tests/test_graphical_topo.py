@@ -13,7 +13,7 @@ resident in the auxiliary language card, where the snapshot would go:
 src/geoaux.s) the return redraws the view instead: displayed rows identical.
 """
 import tempfile
-from common import HERE, L, DISK, a2test, disk_with, hgr_rows, text_screen, dhgr_page
+from common import HERE, L, DISK, a2test, disk_with, hgr_rows, text_screen, dhgr_page, map_cue
 import topo_dhgr_ref as R
 
 IDLE = L.until('idle', 20000)
@@ -55,7 +55,7 @@ def screens(disk, mapdata, snapshot=True):
         s.step('key:MAP')
         s.step('press:\\r')
         s.step(L.until('topo_key', 20000))
-        assert text_screen(s.step('peek:0400:1024').data)[0].startswith('MAP P YOU')
+        assert map_cue(text_screen(s.step('peek:0400:1024').data))
         assert hgr_rows(s.step('peek:2000:8192').data) == hgr_rows(view)
         s.step('press:\\e')
         s.step(IDLE)
