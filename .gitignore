@@ -13,3 +13,6 @@ __pycache__/
 
 # Wilderness reference images (copyrighted originals, local only)
 wilderness/original/
+
+# Neowilderness reference images (copyrighted originals, local only)
+neowilderness/original/
