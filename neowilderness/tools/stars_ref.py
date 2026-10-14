@@ -333,36 +333,49 @@ def column_az(heading, col):
     return (heading - 70 + col) % UNITS
 
 
-def draw_columns(page, heading, cols, tops, mood, entries, thr):
+TILT_ROWS = 96          # LOOK UP / DOWN (docs/LOOK_UPDOWN.md): rows per tilt step
+
+
+def tilted_spans(v, top, tilt):
+    """Rows of entry v in a view of this tilt (src/stars_draw.s): its row
+    moves by 96 * tilt; drawn when 0 <= row < top, clipped to the view."""
+    row = v['row'] + TILT_ROWS * tilt
+    if not 0 <= row < top:
+        return range(0)
+    return range(row, min(row + v['rows'], 160))
+
+
+def draw_columns(page, heading, cols, tops, mood, entries, thr, tilt=0):
     """Paint columns `cols` (any order): sky zones of the mood on rows
-    0..top-1, then the stars of the column (resident entries)."""
+    0..top-1, then the stars of the column (resident entries). tilt: the
+    zones and the stars move by 96 * tilt rows (LOOK UP / DOWN)."""
     for col in cols:
         az = column_az(heading, col)
         top = tops[col]
         for r in range(top):
-            page[physical(r)][col] = P.sky_colour(mood, r, az)
+            page[physical(r)][col] = P.sky_colour(mood, r - TILT_ROWS * tilt, az)
         if not thr:
             continue
         for v in paint_order(entries):
-            if v['az'] == az and v['attr'] < thr and v['row'] < top:
-                for r in range(v['row'], v['row'] + v['rows']):
+            if v['az'] == az and v['attr'] < thr:
+                for r in tilted_spans(v, top, tilt):
                     page[physical(r)][col] = v['colour']
 
 
-def frame(heading, tops, mood, entries, thr, cols=range(140)):
+def frame(heading, tops, mood, entries, thr, cols=range(140), tilt=0):
     page = [[P.BLACK] * 140 for _ in range(192)]
-    draw_columns(page, heading, cols, tops, mood, entries, thr)
+    draw_columns(page, heading, cols, tops, mood, entries, thr, tilt)
     return page
 
 
-def star_pixels(heading, tops, entries, thr):
+def star_pixels(heading, tops, entries, thr, tilt=0):
     """{(col, row): colour} of the stars drawn in a full view."""
     out = {}
     for col in range(140):
         az = column_az(heading, col)
         for v in paint_order(entries):
-            if thr and v['az'] == az and v['attr'] < thr and v['row'] < tops[col]:
-                for r in range(v['row'], v['row'] + v['rows']):
+            if thr and v['az'] == az and v['attr'] < thr:
+                for r in tilted_spans(v, tops[col], tilt):
                     out[(col, r)] = v['colour']
     return out
 

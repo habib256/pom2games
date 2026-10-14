@@ -534,7 +534,13 @@ scene_height_bound:
         sbc     #48
         jmp     @store
 @zero:  lda     #0
-@store: ldy     scene_distance
+@store: bit     tilt            ; looking down every ridge is 96 rows higher
+        bpl     :+              ; (a lower bound stays conservative back at
+        sec                     ; level; tilting down drops the scene cache)
+        sbc     #96
+        bcs     :+
+        lda     #0
+:       ldy     scene_distance
         dey
         sta     scene_ceiling,y
         inc     scene_distance

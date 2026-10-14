@@ -14,10 +14,41 @@ sky_index: .res 1
 sky_half: .res 1
 sky_end: .res 1
 
+.segment "LOWTEXT"
+; The body as the view draws it (LOOK UP, docs/LOOK_UPDOWN.md): its signed
+; level row -96..95 ($80 hidden) and bearing. sky_y and sky_bearing keep
+; the level rule of the reference (255 and the previous bearing for a body
+; above the view): state, Moon mask of the star list.
+sky_hy: .byte $80
+sky_hb: .word 0
 .segment "THERMAL"
 ; The original clock is apparent solar time (solar noon = 12).
 ; Called through sky_position (dhgr.s), which converts the altitude.
 sky_position_core:
+        lda     sky_bearing
+        pha
+        lda     sky_bearing+1
+        pha
+        jsr     sky_position_raw
+        lda     sky_y
+        sta     sky_hy
+        lda     sky_bearing
+        sta     sky_hb
+        lda     sky_bearing+1
+        sta     sky_hb+1
+        lda     sky_y
+        bmi     :+
+        pla                     ; drawn at level: same values
+        pla
+        rts
+:       lda     #255            ; above the view at level (or hidden)
+        sta     sky_y
+        pla
+        sta     sky_bearing+1
+        pla
+        sta     sky_bearing
+        rts
+sky_position_raw:
         lda     night
         sta     view_dark
         ldy     M_LAT
@@ -112,7 +143,7 @@ sky_position_core:
         lda     $A0
         jne     sky_hidden
         lda     $A1
-        cmp     #HORIZON+1
+        cmp     #HORIZON+97     ; up to 96 rows above the view: LOOK UP
         jcs     sky_hidden
         sta     sky_y
         sec
@@ -162,7 +193,7 @@ sky_position_core:
         stx     sky_bearing+1
         rts
 sky_hidden:
-        lda     #255
+        lda     #$80            ; signed row at level -96..95: hidden
         sta     sky_y
         rts
 
@@ -336,26 +367,30 @@ sky_quarter_rad: .byte 121,14,250,53,19
 .segment "TEXT"
 sky_pi: .byte 130,73,15,218,162
 ; Called only for remaining sky, after foreground terrain/sprites.
+sky_row = row                   ; the render's row, free after the column's samples
 sky_column:
         lda     sky_enabled
         and     body_on         ; no sun in this mood (overcast...)
         beq     @done
         lda     weather_sky
         bne     @done
-        lda     sky_y
-        cmp     #HORIZON+1
+        lda     sky_hy          ; row = sky_hy + dv: rows 0..95 at level,
+        clc                     ; 0..159 looking up, none looking down
+        adc     tdv             ; (tskylim; $80 hidden: 128, 224, 32)
+        cmp     tskylim
         bcs     @done
+        sta     sky_row
         jsr     sky_difference
         bcs     @done
         stx     sky_index
         lda     sky_outer,x
         sta     sky_half
         clc
-        adc     sky_y
+        adc     sky_row
         adc     #1
         sta     sky_end
         sec
-        lda     sky_y
+        lda     sky_row
         sbc     sky_half
         bcs     :+
         lda     #0
@@ -367,11 +402,11 @@ sky_column:
         ; Moon phase art: outer disk minus a disk shifted by illumination.
         sta     sky_half
         sec
-        lda     sky_y
+        lda     sky_row
         sbc     sky_half
         jsr     sky_span
         clc
-        lda     sky_y
+        lda     sky_row
         adc     sky_half
         adc     #1
         tay
@@ -398,10 +433,10 @@ sky_difference:
         ; d = (ray - body + 5) modulo 560: seamless at geographic north.
         sec
         lda     ang
-        sbc     sky_bearing
+        sbc     sky_hb
         sta     sky_half
         lda     ang+1
-        sbc     sky_bearing+1
+        sbc     sky_hb+1
         sta     sky_index
         clc
         lda     sky_half

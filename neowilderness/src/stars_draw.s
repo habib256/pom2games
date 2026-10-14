@@ -41,6 +41,7 @@
 .define STARS_LIST "LOWTEXT"
 .endif
 .define STARS_DATA "LOWTEXT"
+.define STARS_DATA_CODE "LOWCODE"
 
 STAR_LIST_MAX = 160             ; tools/stars_ref.py LIST_MAX (checked by stars.s)
 STAR_BUCKETS  = 36              ; az >> 4 = 0..34, then the count
@@ -60,7 +61,9 @@ st_thresholds: .byte $40, $80, $C0     ; night bright, dim, dark
 st_solid:  .byte STAR_SOLID0, STAR_SOLID1, STAR_SOLID2, STAR_SOLID3  ; look -> c << 4 | c
 st_len:    .byte STAR_ROWS0, STAR_ROWS1, STAR_ROWS2, STAR_ROWS3      ; look -> rows
 
-.segment STARS_CODE
+; stars_frame reads and writes main RAM only: it lives with the data
+; (LOOK UP / DOWN took its bytes of the language card for stars_column).
+.segment STARS_DATA_CODE
 ; stars_frame -- after dhgr_frame: the stars of this frame's mood. Night
 ; moods only (no civil or nautical twilight), never under clouds; the full
 ; Moon (night bright) leaves class 0 (the figures and the stars brighter
@@ -79,6 +82,7 @@ stars_frame:
         sta     star_thr
         rts
 
+.segment STARS_CODE
 ; stars_column -- the stars of the column at azimuth `ang`, rows < top.
 ; Clobbers A, X, Y.
 stars_column:
@@ -113,7 +117,10 @@ stars_column:
         and     #$0F
         cmp     st_b
         bne     @scan           ; another column of the bucket
-        ldy     st_row,x
+        lda     st_row,x        ; carry set (cmp equal): row + dv + 1
+        adc     tdv             ; LOOK UP / DOWN: dv = 96 * tilt; a row
+        tay                     ; pushed below 0 wraps to 160..255
+        dey
         cpy     top
         bcs     @scan           ; behind the ridge
         stx     st_x
@@ -127,7 +134,10 @@ stars_column:
         tya
         clc
         adc     st_len,x
-        sta     sp_end
+        cmp     #VIEW_ROWS+1    ; looking up, a star of row 158-159
+        bcc     :+              ; keeps the rows of the view
+        lda     #VIEW_ROWS
+:       sta     sp_end
         lda     st_solid,x
 .ifdef DROWS_LC
         jsr     stars_span      ; dspan leaves the ROM selected

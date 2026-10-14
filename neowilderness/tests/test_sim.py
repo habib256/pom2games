@@ -53,7 +53,7 @@ def travel_limits():
                              'wait:400', idle,
                              L.peek('s_elap', 5), 'key:WALK\r',
                              'wait:400', L.peek('px', 6), L.peek('s_elap', 5),
-                             'peek:0400:1024', 'peek:2000:8192'],
+                             'peek:0400:1024', 'peek:2000:8192', L.peek('weather_visibility')],
                        emulator=a2test.A2SHOT)
         check('WALK at night: position unchanged',
               state(r.mem(L['px'], 6)) == (10 << 8, 10 << 8, 140))
@@ -61,9 +61,23 @@ def travel_limits():
               floats(r, 's_elap', 1) == floats(r, 's_elap'))
         check('WALK at night: dark travel message',
               'TOO DARK TO TRAVEL' in '\n'.join(text_screen(r.mem(0x400, 1024))))
-        night = view_rows(r.mem(0x2000, 8192))     # dark night: dark-blue sky, black terrain
-        check('Night view: black terrain', not any(night[96 * 40:]))
-        check('Night view: dark-blue sky', any(night[16 * 40:96 * 40]))
+        # Dark night: dark-blue sky, black terrain. The sky fills each column
+        # down to its last visible sample (the original's rule, SURV3D, and
+        # tools/view_ref.columns); on this flat map that sample is the last
+        # ray step, row 95 + ceil(3 * floor(512 / n) / 16) (eye 2 levels up).
+        # The weather shortens the rays (src/wild.s render_weather_limit:
+        # visibility / 2 - 1 steps below 240 half-cells): after REST 16 the
+        # fog of this seed (visibility 24) stops them at 11 steps, row 104,
+        # so the sky reaches row 103 there, not 95.
+        import view_ref
+        vis = r.mem(L['weather_visibility'], 1)[0]
+        steps = vis // 2 - 1 if 2 <= vis < 240 else view_ref.STEPS
+        events = view_ref.columns(bytes(mapbin), 10 << 8, 10 << 8, 140, steps=steps)
+        tops = [next(r1 for kind, r0, r1, n in col if kind == 'sky') for col in events]
+        night = view_rows(r.mem(0x2000, 8192))
+        check(f'Night view: black terrain from row {max(tops)}', not any(night[max(tops) * 40:]))
+        check(f'Night view: dark-blue sky to row {min(tops) - 1}',
+              all(any(night[y * 40:(y + 1) * 40]) for y in range(16, min(tops))))
         mapbin[8:10] = bytes((12, 10))  # first eastward step reaches the outpost
         disk = disk_with(tmp, mapbin)
         r = a2test.run(disk, [idle, 'key:WALK', 'press:\r', L.until('number_idle', 6000), 'key:1\r',

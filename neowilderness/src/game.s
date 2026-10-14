@@ -92,6 +92,9 @@ wdy:     .res 2
 nx:      .res 2                 ; next position
 ny:      .res 2
 shown:   .res 1                 ; a message is on the message lines
+; $A4 is Applesoft's rounding byte: foliage must not leave it nonzero.
+forest_crown_end: .res 1        ; forest.s
+tilt:    .res 1                 ; view tilt: 0 level, 1 up, $FF down (LOOK U/D)
 
 
 ; ----------------------------------------------------------------------------
@@ -1018,8 +1021,16 @@ show_view_scene:
 
 ; stars_dhgr_frame -- render_frame: dhgr_frame, then the stars of the mood.
 stars_dhgr_frame:
-        jsr     dhgr_frame
-        bit     $C080           ; main language card RAM, bank 2, read only
+        lda     tilt            ; LOOK UP / DOWN: constants of a new tilt
+        cmp     tilt_shown
+        beq     :+
+        jsr     tilt_apply
+:       jsr     dhgr_frame
+        lda     tilt            ; looking up: no sprite (the original's rule)
+        cmp     #1
+        bne     :+
+        sta     draw_dark
+:       bit     $C080           ; main language card RAM, bank 2, read only
         jsr     stars_frame
         bit     $C082           ; ROM again
         rts
@@ -1217,7 +1228,9 @@ do_walk:
         ora     msgnum+1
         bne     @start
 @quit:  rts
-@start: jsr     prepare_minutes           ; minutes = hours * 60
+@start: lda     #0              ; travel levels the view (as the original)
+        sta     tilt
+        jsr     prepare_minutes           ; minutes = hours * 60
         lda     verb
         cmp     #V_SWIM
         bne     @walk_prepare

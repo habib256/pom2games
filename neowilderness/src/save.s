@@ -536,8 +536,10 @@ sv_ranges:
         .word   it_x, it_name_lo-it_x
         .word   MAP, 64
         .word   fauna_named, 1
+        .word   sky_hy, 3       ; Sun/Moon row and bearing as drawn (LOOK UP/DOWN)
+        .word   tilt, 1         ; the view's tilt (zero page)
         .word   0
-SV_STATE = (overlay_current-sun_alt8) + (inbuf-tree_in) + (it_kcal-s_hour) + (__BSS_RUN__-resource_seen) + (it_name_lo-it_x) + 64 + 1
+SV_STATE = (overlay_current-sun_alt8) + (inbuf-tree_in) + (it_kcal-s_hour) + (__BSS_RUN__-resource_seen) + (it_name_lo-it_x) + 64 + 1 + 3 + 1
 .assert SV_BUF + SV_HEAD + SV_STATE <= SV_IOBUF, error, "slot image overlaps the I/O buffer"
 .assert sv_end <= SV_BUF, error, "NEOWILD.SAV overlaps its slot image"
 

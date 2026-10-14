@@ -32,7 +32,7 @@
 ; returns; the menu composes the same text the keyboard would give. An item
 ; chosen in a list is also passed in menu_noun, since display names such
 ; as COTTN SOCKS are not vocabulary words (resolve_noun).
-; Modes: 0 typed line (arrows turn, RETURN, UP or TAB opens the grid, DOWN
+; Modes: 0 typed line (arrows turn, RETURN, DOWN or TAB opens the grid, UP
 ; shows STATUS); 1 grid (arrows move, RETURN selects, ESC backs up, TAB
 ; closes it). The numeric
 ; prompt of the INPUT module (prompt) uses the same row. A command issued
@@ -107,11 +107,11 @@ prompt_key:
         cmp     #KC_RET
         beq     @ret
         cmp     #KC_UP
-        beq     @open
+        beq     @status
         cmp     #KC_TAB
         beq     @open
         cmp     #KC_DOWN
-        beq     @status
+        beq     @open
         cmp     #KC_LEFT
         beq     @left
         cmp     #KC_RIGHT
@@ -1131,7 +1131,7 @@ verb_table:
 list_lo: .byte  <list_dur, <list_look, <list_climb, <list_qty
 list_hi: .byte  >list_dur, >list_look, >list_climb, >list_qty
 list_dur:   .byte "10 MIN",0,"20 MIN",0,"30 MIN",0,"1 H",0,"2 H",0,"4 H",0,"8 H",0,0
-list_look:  .byte "LEFT",0,"RIGHT",0,"BACK",0,"AHEAD",0,"NORTH",0,"EAST",0,"SOUTH",0,"WEST",0,0
+list_look:  .byte "LEFT",0,"RIGHT",0,"BACK",0,"AHEAD",0,"UP",0,"DOWN",0,"NORTH",0,"EAST",0,"SOUTH",0,"WEST",0,0
 list_climb: .byte "TREE",0,"DOWN",0,0
 list_qty:   .byte "2 OZ",0,"4 OZ",0,"8 OZ",0,"12 OZ",0,"16 OZ",0,"24 OZ",0,"32 OZ",0,"48 OZ",0,0
 ; Item filters: first item, last + 1, the groups the verb already targets

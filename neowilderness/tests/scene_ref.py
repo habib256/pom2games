@@ -62,7 +62,7 @@ def geometry(asset,bearing,depth,shift,anchor,heading):
                 left=left,width=width)
 
 
-def foreground(m,px,py,heading,col,depth):
+def foreground(m,px,py,heading,col,depth,tilt=0):
     dx,dy=view_ref.direction(heading-70+col)
     eye=(m[64+(py>>8)*112+(px>>8)]&127)+2
     top,thr,inc=160,-32768,0
@@ -77,33 +77,33 @@ def foreground(m,px,py,heading,col,depth):
         q=(abs(dz)*256)//n
         inc=-q if dz<0 else q
         thr=dz*256
-        if inc>=512: row=0
-        elif inc < -512: continue
-        else:
-            off=min((inc*3)>>4,95)
-            if off < -64: continue
-            row=95-off
+        row=view_ref.sample_row(inc,tilt)
+        if row is None: continue
         top=min(top,row)
         if top==0: break
     return top
 
 
-def render(m,px,py,heading,animal=None):
-    page=bytearray(view_ref.render(m,px,py,heading))
-    g=select(m,px,py,heading,animal)
+def render(m,px,py,heading,animal=None,tilt=0):
+    """tilt (LOOK UP / DOWN): no sprite looking up; looking down a distant
+    billboard follows its terrain (96 rows up), a local one stays put."""
+    page=bytearray(view_ref.render(m,px,py,heading,tilt))
+    g=None if tilt>0 else select(m,px,py,heading,animal)
     if not g: return bytes(page)
     im=IMAGES[g['asset']]
     base=BASES[g['asset']]
     stride=1<<g['shift']
     for col in range(max(0,g['left']),min(140,g['left']+g['width'])):
         source=(col-g['left'])*stride
-        front=foreground(m,px,py,heading,col,g['depth']) if g['depth'] else 160
+        front=foreground(m,px,py,heading,col,g['depth'],tilt) if g['depth'] else 160
         for y,row in enumerate(im):
             colour=row[source]
             if colour<0: continue
             if g['depth']:
                 if (base-y)%stride: continue
                 out=g['anchor']-(base-y)//stride
+                if out<0: continue
+                out+=view_ref.TILT_ROWS*tilt
             else: out=y-(0 if g['asset']==5 else 10)
             if not 0<=out<front: continue
             for bit in (0,1):

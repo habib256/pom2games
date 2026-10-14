@@ -561,14 +561,19 @@ render_nbig:  jsr     bigdiv          ; |dz| >= n: q >= 256
         sta     tinc+1
         lda     qhi
         cmp     #2
-        bcs     render_hide           ; q >= 512: below the view
+        bcs     render_nhide          ; q >= 512: below the view
         ldx     qlo
         cpx     #86
-        bcs     render_hide           ; truncated row_n1's former $FF suffix
+        bcs     render_nhide          ; truncated row_n1's former $FF suffix
         lda     row_n0,x
         clc
-        adc     #48        ; $FF below the bottom row
+        adc     #48                   ; <= 191: no carry
+        bcc     render_drawchk
+render_nhide: lda     #$FF            ; below the view at level
 render_drawchk:
+        ; BIT at level; JSR when the view is tilted (tilt_apply): tilt_row
+        ; recomputes A from the slope tinc, every path sets it.
+render_tilt:  bit     tilt_row
         cmp     top
         bcc     render_shown
 render_hide:  jmp     render_back          ; hidden behind nearer ground (or $FF)
@@ -866,6 +871,76 @@ grid_hi:
 ; ceil(3*q/16) = floor(3*q/16) + (q mod 16 != 0).
 .segment "LOWCACHE"
 row_n0: .res 256
+.segment "LOWCODE"
+
+; ----------------------------------------------------------------------------
+; LOOK UP / LOOK DOWN (docs/LOOK_UPDOWN.md). A tilt of the view moves every
+; projected row by 96 * tilt rows: 96 rows are exactly 512 slope units
+; (3 * 512 / 16), so a tilted sample is the level projection of the slope
+; q' = tinc - 512 * tilt. Occlusion stays in slope space: thr, tinc and the
+; hidden samples do not depend on the tilt.
+; tilt_apply -- the tilt changed since the last frame (stars_dhgr_frame):
+; constants and sky zones (dhgr.s tilt_frame), then the projection hook.
+tilt_apply:
+        lda     z:tilt
+        sta     tilt_shown
+        tax
+        inx
+        jsr     tilt_frame
+        lda     #$2C            ; BIT abs: level
+        ldx     z:tilt
+        beq     :+
+        lda     #$20            ; JSR tilt_row
+:       sta     render_tilt
+        rts
+
+; tilt_row -- render_drawchk of a tilted view: A = row of the sample of
+; slope tinc (signed 8.8): 95 - floor(3 q' / 16), 0 above the view, $FF
+; (or any row >= 160) below it (tools/view_ref.py sample_row). Clobbers X, Y.
+tilt_row:
+        lda     tinc+1
+        sec
+        sbc     tilt2           ; high byte of q' = tinc - 512 * tilt
+        bvs     @ovf
+        bmi     @neg
+        tay                     ; q' >= 0: row_p0[lo] - 48 * hi, at least 0
+        ldx     tinc
+        lda     row_p0,x
+        cpy     #0
+        beq     @rts
+@sub:   sec
+        sbc     #48
+        bcc     @top
+        dey
+        bne     @sub
+@rts:   rts
+@top:   lda     #0
+        rts
+@neg:   eor     #$FF            ; q' < 0: |q'| = (~hi + (lo = 0)) : -lo
+        tay
+        lda     tinc
+        eor     #$FF
+        clc
+        adc     #1
+        tax
+        bcc     :+
+        iny
+:       lda     row_n0,x        ; row_n0[lo] + 48 * hi, hidden past 255
+        cpy     #0
+        beq     @rts
+@add:   clc
+        adc     #48
+        bcs     @hide
+        dey
+        bne     @add
+        rts
+@hide:  lda     #$FF
+        rts
+@ovf:   lda     tinc+1          ; |q'| > 32767: far above or below the view
+        bmi     @hide
+        bpl     @top
+.segment "LOWTEXT"
+tilt_shown: .byte 0             ; tilt of the constants and the hook
 .segment "LOWCODE"
 
 .segment "CODE"

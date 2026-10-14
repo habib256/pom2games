@@ -100,8 +100,8 @@ Comportement au prompt, ligne vide :
 | Geste | Clavier équivalent | Action |
 |---|---|---|
 | Gauche / droite | flèches | rotation de 22,5°, comme aujourd'hui |
-| Haut | flèche haut | ouvre la barre de verbes (§ 4) |
-| Bas | flèche bas | affiche STATUS (§ 5) |
+| Haut | flèche haut | affiche STATUS (§ 5) |
+| Bas | flèche bas (ou TAB) | ouvre la barre de verbes (§ 4) |
 | Bouton 0 | Entrée | ouvre la barre de verbes |
 | Bouton 1 | Échap | ferme ce qui est ouvert ; au prompt vide, rien |
 
@@ -170,8 +170,9 @@ MAP   HELP  QUIT                      | FOOD 192 OZ  WATER 64 OZ  HERE 0/0
   Le rapport de charge (poids, volume) occupe trois rangées.
 
 Modes de `get_line` : ligne tapée (flèches gauche/droite = rotation sur une
-ligne vide, RETURN, haut ou TAB ouvre la grille, bas affiche STATUS, Échap
-vide la ligne) ; grille (flèches, RETURN choisit, Échap remonte d'un niveau
+ligne vide, RETURN, bas ou TAB ouvre la grille, haut affiche STATUS, Échap
+vide la ligne ; demande du 13 octobre 2026, réalisée le 14 : jusque-là haut
+ouvrait la grille et bas affichait STATUS, TAB reste un alias de bas) ; grille (flèches, RETURN choisit, Échap remonte d'un niveau
 puis ferme, TAB ferme depuis n'importe quel niveau, une lettre revient à la
 ligne tapée) ; une commande issue de la
 grille la laisse ouverte pour la suivante, une commande tapée la referme.
@@ -200,12 +201,16 @@ Sous-menus, par verbe :
 | Verbe | Niveau 2 | Niveau 3 | Commande produite |
 |---|---|---|---|
 | WALK, SWIM | durée : `10 MIN  30 MIN  1 H  2 H  4 H  …` | — | `WALK 30 MIN` |
-| LOOK | `N  NE  E  SE  S  SW  W  NW  L  R  B` | — | `LOOK NE` |
+| LOOK | `LEFT  RIGHT  BACK  AHEAD  UP  DOWN  NORTH  EAST  SOUTH  WEST` | — | `LOOK UP` |
 | REST | durée | — | `REST 1 H` |
 | EAT, DRINK | objets consommables accessibles (sac, main, sol) | quantité : `4 OZ  8 OZ  16 OZ  ALL` | `EAT CHEESE 8 OZ` |
 | GET, TAKE, WEAR, DROP | objets admissibles pour ce verbe, selon leur emplacement | — | `GET AXE` |
 | STATUS, INVENTORY, TOPO, MAP, HELP | écran ou fenêtre (§ 5) | — | `STATUS` |
 | QUIT | confirmation existante | — | `QUIT` |
+
+`UP` et `DOWN` inclinent la vue (LOOK UP / LOOK DOWN, trois angles,
+[LOOK_UPDOWN.md](LOOK_UPDOWN.md)) ; `AHEAD` la remet à niveau. Les flèches
+haut et bas n'inclinent pas la vue : elles servent à STATUS et à la grille.
 
 Les listes d'objets sont construites depuis les tables d'inventaire déjà
 utilisées par INVENTORY (noms, emplacements, quantités) et ne dépassent pas
