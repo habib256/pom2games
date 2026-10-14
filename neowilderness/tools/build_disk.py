@@ -30,8 +30,7 @@ side), LOWPAGE, $0926-$1FFF, WILDGAME, RESIDENT and the menu of the four
 hidden in the HGR rows 176-191; the loader reads with its own I/O buffer).
 Pack: the 2-4 animal sprites (modules 6, 7, 8, 23) in the auxiliary space
 the trunk leaves free, the region's patches of four module images (rates and
-filters of the four animal records into TRAVEL fauna_travel and SITES
-fauna_table, reaction thresholds into OUTDOOR fauna_reactions, sprite sizes
+filters of the four animal records into TRAVEL fauna_travel, reaction thresholds into OUTDOOR fauna_reactions, sprite sizes
 into PROJECT proj_sprites, the IGNORE/MOVE hint into SUMMARY summary_quiet;
 all derived from the 128-byte animal records $6000-$607F of the region
 header by fauna_patches), the woodland mask ($0800), the region's DHGR mood
@@ -342,13 +341,13 @@ def fauna_patches(header, region, build):
             image, _ = decode((build / G / f'{name}.bin').read_bytes())
             sizes[slot] = len(image[0])
             sizes[6 + slot] = max(y for y, row in enumerate(image) if any(c >= 0 for c in row))
-    return {'fauna_travel': bytes(travel), 'fauna_table': bytes(travel),
+    return {'fauna_travel': bytes(travel),
             'fauna_reactions': b''.join(reactions), 'proj_sprites': bytes(sizes),
             'summary_quiet': bytes((quiet,))}
 
 
 # Module image of each patched symbol (directory index).
-PATCH_MODULES = {'fauna_travel': 12, 'fauna_table': 10, 'fauna_reactions': 22,
+PATCH_MODULES = {'fauna_travel': 12, 'fauna_reactions': 22,
                  'proj_sprites': 11, 'summary_quiet': 15}
 
 

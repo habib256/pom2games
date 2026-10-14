@@ -166,7 +166,6 @@ def scenario(region, level_keys='', level=4):
             data = bytes.fromhex(patch['data'])
             offset = L[symbol] - 0x5800
             assert window[offset:offset + len(data)] == data, (region, symbol)
-        assert pack['patches']['fauna_travel']['data'] == pack['patches']['fauna_table']['data']
         travel = bytes.fromhex(pack['patches']['fauna_travel']['data'])
         assert list(travel[:4]) == [x['rate'] for x in fauna['species']] + [0] * (4 - len(fauna['species']))
         calls = counters(s) - start

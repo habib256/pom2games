@@ -1,9 +1,10 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
-; Encounter filters and probability of T0A S00 for the four animal records
-; of the loaded region (fauna_table). The production scan is TRAVEL's
-; resource_scan (src/travel.s), which reads the same bytes (fauna_travel);
-; fauna_eligible/fauna_probability are its reference copies for the tests.
-; Position, lifetime and reactions use documented port rules.
+; Encounter environment, acceptance and lifetime for the four animal records
+; of the loaded region. The filters and the probability of T0A S00 are those
+; of TRAVEL's resource_scan (src/travel.s, fauna_travel), tested directly by
+; tests/test_fauna.py (direction 3: the reference copies that lived in SITES,
+; 248 bytes, are gone; docs/MEMORY.md section 12). Position, lifetime and
+; reactions use documented port rules.
 .segment "INPUT"
 module_nature:
         lda     nature_frequency
@@ -93,17 +94,6 @@ fauna_accept:
         bne     :+
         jmp     module_fauna_cap
 :       rts
-
-.segment "SITES"
-fauna_random:
-        lda     fauna_rng
-        bne     :+
-        lda     #$B7            ; repair a zero LFSR state
-:       lsr     a
-        bcc     :+
-        eor     #$B8
-:       sta     fauna_rng
-        rts
 
 .segment "ENVIRON"
 ; Environment vector: integer season percentage, hour, terrain, altitude
@@ -235,94 +225,6 @@ fauna_environment:
 fauna_slope_degrees: .byte $86,$65,$2F,$1A,$A0 ; original T09/S08 degree coefficient
 .segment "ENVIRON"
 
-; Carry set iff all six original signed centre/width pairs match.
-.segment "SITES"
-fauna_eligible:
-        ldx     fauna_species
-        lda     fauna_offsets,x
-        tax
-        ldy     #0
-@pair:  lda     fauna_env,y
-        sec
-        sbc     fauna_ranges,x
-        bcs     :+
-        eor     #255
-        clc
-        adc     #1
-:       sta     fauna_delta
-        inx
-        lda     fauna_ranges,x
-        bmi     @outside
-        beq     @different
-        cmp     fauna_delta
-        bcc     @no
-        bcs     @next
-@outside:
-        eor     #255
-        clc
-        adc     #1
-        cmp     fauna_delta
-        bcs     @no
-        bcc     @next
-@different:
-        lda     fauna_delta
-        beq     @no
-@next:  inx
-        iny
-        cpy     #6
-        bne     @pair
-        sec
-        rts
-@no:    clc
-        rts
-
-; threshold = 256 * minutes * frequency * sqrt(difficulty) * rate * 1e-5.
-; Comparing the ROM float avoids a rounded integer cutoff. The generator
-; is the port's independent LFSR, not the original Applesoft RND sequence.
-.segment "SITES"
-fauna_probability:
-        ldy     MAP+22
-        bne     :+
-        ldy     #4              ; legacy map difficulty
-:       lda     #0
-        jsr     GIVAYF
-        jsr     FSQR
-        fst     fauna_threshold
-        ldy     scene_minutes
-        lda     #0
-        jsr     GIVAYF
-        fop     FMULT, fauna_threshold
-        fst     fauna_threshold
-        ldy     nature_frequency
-        lda     #0
-        jsr     GIVAYF
-        fop     FMULT, fauna_threshold
-        fst     fauna_threshold
-        ldx     fauna_species
-        ldy     fauna_rates,x
-        lda     #0
-        jsr     GIVAYF
-        fop     FMULT, fauna_threshold
-        fop     FMULT, fauna_k
-        fst     fauna_threshold
-        rts
-
-.segment "SITES"
-fauna_offsets: .byte 0,12,24,36
-; Encounter rates and filters of the four animal records of the loaded
-; region (original header $6000-$607F: rate byte 12, filters bytes 0-11),
-; in the layout of TRAVEL's fauna_travel: the region pack writes the same
-; 52 bytes into both images (tools/build_disk.py). The trunk holds the
-; Sierra Nevada; its fourth record is empty (rate 0, null filters).
-fauna_table:
-fauna_rates: .byte 80,40,100,0
-fauna_ranges:
-        .byte 50,34,11,252,15,6,55,25,25,25,30,20
-        .byte 50,50,12,251,10,12,50,40,35,35,30,20
-        .byte 58,25,12,6,5,6,40,40,30,30,30,20
-        .byte 0,0,0,0,0,0,0,0,0,0,0,0
-fauna_k: .byte $78,$27,$C5,$AC,$47 ; 256e-5, Applesoft float
-.export fauna_table
 .segment "SCRATCH"
 ; Must survive geography/TRAVEL BLOADs; these bytes are beyond DOS text backup.
 fauna_species: .res 1
@@ -333,5 +235,3 @@ fauna_col: .res 1
 fauna_rows: .res 1
 fauna_cols: .res 1
 fauna_delta: .res 1
-.segment "SITES"
-fauna_threshold: .res 5

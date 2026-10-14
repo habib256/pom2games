@@ -6,7 +6,7 @@ Lot 7: the same fixtures for the probed records of the five other regions
 species (module 23) and byte 29 (never in water) in the production scan,
 and New Guinea's trinkets rule.
 """
-import math, tempfile
+import math, re, tempfile
 from common import HERE,L,DISK,a2test,disk_with,fp,text_screen,dhgr_view,dhgr_scene,mood_name,menu_keys
 from test_thermal import call,poke
 from test_sites import command,hours
@@ -43,39 +43,84 @@ def stationary_lifetime():
 
 
 
-def region_filters(region):
-    """fauna_eligible and fauna_probability on the loaded region's table."""
+# The production scan of TRAVEL (src/travel.s resource_scan), entered at the
+# phase of one species with fauna_env poked: it stops where the six filters
+# accept the species (resource_eligible) or where the scan moves on
+# (resource_next), or where the threshold of the roll is ready
+# (resource_rolled). After the first stop, those addresses are patched with
+# JMP idle (TRAVEL stays in the window: overlay_load finds it current), and
+# the idle loop holds the probe: LDA #12, JSR overlay_load, LDA #phase,
+# STA resource_phase, JMP resource_scan_species (stack balanced).
+ANIMAL_K = fp(bytes((0x70,0x27,0xC5,0xAC,0x48)))   # travel.s resource_animal_k
+
+
+def scan_probe(region, cases, stops):
+    """cases: [(species, env, level, minutes)]; returns [(pc, threshold)].
+    A session: a2test.run would insert a frame before every stop."""
     idle = L.until('idle',20000)
     done = f'until:{L["idle"]+3:04X}:6000'
-    steps = menu_keys(str(region)) + [idle] + call(['env_day']) + [done,idle] + call(['at_goal']) + [done,idle]
-    addr,target = L['idle'],L['fauna_eligible']
-    code = bytes((0x20,target&255,target>>8,0x08,0x68,0x8D,0xFF,0x95,0x4C,addr&255,addr>>8))
-    steps += [f'poke:{addr+i:04X}:{b:02X}' for i,b in enumerate(code)]
+    I, ol, ph, sc = L['idle'], L['overlay_load'], L['resource_phase'], L['resource_scan_species']
+    probe = bytes((0xA9,12,0x20,ol&255,ol>>8,0xA9,0,0x8D,ph&255,ph>>8,0x4C,sc&255,sc>>8))
+    targets = ','.join(f'{L[name]:04X}' for name in stops)
+    out = []
+    with a2test.Session(DISK,timeout=1800,menu=not region) as s:
+        steps = (menu_keys(str(region)) if region else []) + [idle] + call(['env_day']) + [done,idle]
+        steps += [f'poke:{I+i:04X}:{b:02X}' for i,b in enumerate(probe)]
+        for step in steps:
+            s.step(step)
+        for k,(species,env,level,minutes) in enumerate(cases):
+            if k:       # leave the trap (a stop at the current PC returns at once)
+                s.step(f'until:{I:04X}:100')
+            for step in ([f'poke:{I+6:04X}:{7+species:02X}',f'poke:7016:{level:02X}',
+                          L.poke('scene_minutes',minutes)]
+                         + [L.poke('fauna_env',v,i) for i,v in enumerate(env)]):
+                s.step(step)
+            pc = int(re.search(r'PC=([0-9A-F]{4})',s.step(f'until:{targets}:6000').out).group(1),16)
+            out.append((pc,fp(s.step(L.peek('resource_threshold',5)).data)))
+            if k == 0:
+                for name in stops:
+                    for i,b in enumerate((0x4C,I&255,I>>8)):
+                        s.step(f'poke:{L[name]+i:04X}:{b:02X}')
+    return out
+
+
+def production_filters(region, fixtures):
+    """Each fixture accepted or rejected by the production filters."""
+    got = scan_probe(region,[(species,env,4,60) for species,env,_ in fixtures],
+                     ('resource_eligible','resource_next'))
+    for fixture,(pc,_) in zip(fixtures,got):
+        assert pc in (L['resource_eligible'],L['resource_next']),(region,fixture,hex(pc))
+        assert (pc==L['resource_eligible'])==fixture[2],(region,fixture,hex(pc))
+
+
+def production_probabilities(region, fixtures, rates, levels, minutes_list):
+    """threshold = sqrt(level) * minutes * 1e-5 * rate (legacy level 0 -> 4)
+    on an environment each species accepts."""
+    cases, expected = [], []
+    for species,rate in enumerate(rates):
+        if not rate:
+            continue
+        env = next(env for k,env,ok in fixtures if k==species and ok)
+        for level in levels:
+            for minutes in minutes_list:
+                cases.append((species,env,level,minutes))
+                expected.append(math.sqrt(level or 4)*minutes*ANIMAL_K*rate)
+    got = scan_probe(region,cases,('resource_rolled','resource_next'))
+    for case,want,(pc,threshold) in zip(cases,expected,got):
+        assert pc==L['resource_rolled'],(region,case,hex(pc))
+        assert abs(threshold-want)<max(1e-7,want*1e-8),(region,case,want,threshold)
+    return len(cases)
+
+
+def region_filters(region):
+    """The production filters and probability on the loaded region's table."""
     fixtures = region_cases(region)
-    for species,env,_ in fixtures:
-        steps += [L.poke('fauna_species',species)]
-        steps += [L.poke('fauna_env',v,i) for i,v in enumerate(env)]
-        steps += [f'until:{addr+8:04X}:6000','peek:95FF:1',idle]
-    r = a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=1800,menu=False)
-    assert len(r.dumps)==len(fixtures)
-    for fixture,data in zip(fixtures,r.dumps):
-        assert bool(data[0]&1)==fixture[2],(region,fixture,data)
+    production_filters(region,fixtures)
     records = region_records(region)['species']
-    steps = menu_keys(str(region)) + [idle] + call(['env_day']) + [done,idle] + call(['at_goal']) + [done,idle] + call(['fauna_probability'])
-    probabilities = []
-    for species in range(4):
-        rate = records[species]['rate'] if species < len(records) else 0
-        for level,frequency,minutes in ((1,1,60),(10,100,255)):
-            probabilities.append(256*minutes*frequency*math.sqrt(level)*rate*1e-5)
-            steps += [L.poke('fauna_species',species),f'poke:7016:{level:02X}',
-                      L.poke('nature_frequency',frequency),L.poke('scene_minutes',minutes),
-                      done,L.peek('fauna_threshold',5),idle]
-    r = a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900,menu=False)
-    for expected,data in zip(probabilities,r.dumps):
-        assert abs(fp(data)-expected)<max(1e-7,expected*1e-8),(region,expected,fp(data))
+    count = production_probabilities(region,fixtures,[x['rate'] for x in records],(1,10),(1,255))
     names = ', '.join(f"{x['name']} {x['rate']}" for x in records)
-    print(f'  region {region}: {len(fixtures)} filter fixtures and {len(probabilities)} probabilities '
-          f'({names}{", byte 29" if any(x["water_gate"] for x in records) else ""}) OK',flush=True)
+    print(f'  region {region}: {len(fixtures)} filter fixtures and {count} probabilities '
+          f'({names}{", byte 29" if any(x["water_gate"] for x in records) else ""}) on the production scan OK',flush=True)
 
 
 def region_scan(region, cell, expected, tries=12):
@@ -152,35 +197,11 @@ def main():
     stationary_lifetime()
     idle = L.until('idle',20000)
     done = f'until:{L["idle"]+3:04X}:6000'
-    steps = [idle] + call(['env_day']) + [done,idle] + call(['at_goal']) + [done,idle]
-    addr,target = L['idle'],L['fauna_eligible']
-    code = bytes((0x20,target&255,target>>8,0x08,0x68,0x8D,0xFF,0x95,0x4C,addr&255,addr>>8))
-    steps += [f'poke:{addr+i:04X}:{b:02X}' for i,b in enumerate(code)]
     fixtures = cases()
-    for species,env,_ in fixtures:
-        steps += [L.poke('fauna_species',species)]
-        steps += [L.poke('fauna_env',v,i) for i,v in enumerate(env)]
-        steps += [f'until:{addr+8:04X}:6000','peek:95FF:1',idle]
-    r = a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
-    assert len(r.dumps)==len(fixtures)
-    for fixture,data in zip(fixtures,r.dumps):
-        assert bool(data[0]&1)==fixture[2],(fixture,data)
-    print('  162 original filter fixtures: all species and six criteria OK')
-
-    steps = [idle] + call(['env_day']) + [done,idle] + call(['at_goal']) + [done,idle] + call(['fauna_probability'])
-    probabilities = []
-    for species,rate in enumerate((80,40,100)):
-        for level in (1,4,10):
-            for frequency,minutes in ((0,60),(1,1),(1,60),(5,255),(100,255)):
-                probabilities.append(256*minutes*frequency*math.sqrt(level)*rate*1e-5)
-                steps += [L.poke('fauna_species',species),f'poke:7016:{level:02X}',
-                          L.poke('nature_frequency',frequency),L.poke('scene_minutes',minutes),
-                          done,L.peek('fauna_threshold',5),idle]
-    r = a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
-    for expected,data in zip(probabilities,r.dumps):
-        assert abs(fp(data)-expected)<max(1e-7,expected*1e-8),(expected,fp(data))
-    assert len(r.dumps)==len(probabilities)
-    print('  45 probability cases: elapsed minutes, NATURE and difficulty OK')
+    production_filters(None,fixtures)
+    print(f'  {len(fixtures)} original filter fixtures: all species and six criteria on the production scan OK')
+    count = production_probabilities(None,fixtures,(80,40,100),(0,1,4,10),(1,60,255))
+    print(f'  {count} probability cases: elapsed minutes and difficulty (legacy 0 -> 4) on the production scan OK')
 
     # Derive the environment from real map cells, including diagonal relief,
     # water and the legacy header, then exercise each species' seeded roll.

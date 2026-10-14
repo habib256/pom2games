@@ -10,14 +10,14 @@ resource_scan:
         sta     MAP+36          ; discoveries awaiting their native quantities
         lda     act
         cmp     #1
-        bne     @stationary
+        bne     rs_stationary
         lda     #0
         sta     resource_seen
         ldx     #7
-@clear: sta     MAP+26,x
+rs_clear: sta     MAP+26,x
         dex
         cpx     #1
-        bne     @clear
+        bne     rs_clear
         lda     MAP+37
         beq     :+
         lda     #0
@@ -25,20 +25,20 @@ resource_scan:
 :
         jsr     weather_random  ; T0A/S00 $599C: injury check, including zero risk
         lda     #0
-        beq     @start
-@stationary:
+        beq     rs_start
+rs_stationary:
         jsr     resource_retention
         ldx     #3
-@home:  lda     px,x
+rs_home:  lda     px,x
         cmp     M_STARTX,x
-        bne     @away
+        bne     rs_away
         dex
-        bpl     @home
+        bpl     rs_home
         lda     #11             ; native $0A suppresses animals at the crash
-        bne     @start
-@away:  lda     #7              ; stationary T0A/S05 scans animals too elsewhere
-@start: sta     resource_phase
-@species:
+        bne     rs_start
+rs_away:  lda     #7              ; stationary T0A/S05 scans animals too elsewhere
+rs_start: sta     resource_phase
+rs_species:
         ldx     resource_phase
         lda     resource_order,x
         sta     resource_species
@@ -46,7 +46,7 @@ resource_scan:
         lda     resource_offsets,x
         tax
         ldy     #0
-@pair:  lda     fauna_env,y
+rs_pair:  lda     fauna_env,y
         sec
         sbc     resource_ranges,x
         bcs     :+
@@ -56,25 +56,26 @@ resource_scan:
 :       sta     fauna_delta
         inx
         lda     resource_ranges,x
-        bmi     @outside
-        beq     @different
+        bmi     rs_outside
+        beq     rs_different
         cmp     fauna_delta
-        jcc     @next
-        bcs     @match
-@outside:
+        jcc     rs_next
+        bcs     rs_match
+rs_outside:
         eor     #255
         clc
         adc     #1
         cmp     fauna_delta
-        jcs     @next
-        bcc     @match
-@different:
+        jcs     rs_next
+        bcc     rs_match
+rs_different:
         lda     fauna_delta
-        jeq     @next
-@match: inx
+        jeq     rs_next
+rs_match: inx
         iny
         cpy     #6
-        bne     @pair
+        bne     rs_pair
+rs_eligible:                      ; the six filters accept (tests/test_fauna.py)
         ldy     MAP+22
         bne     :+
         ldy     #4
@@ -84,28 +85,28 @@ resource_scan:
         fst     resource_threshold
         lda     resource_species
         cmp     #4
-        bcc     @animal
+        bcc     rs_animal
         cmp     #12
-        beq     @shelter
+        beq     rs_shelter
         lda     verb
         cmp     #V_REST
-        jeq     @next
+        jeq     rs_next
         cmp     #V_CAMP
-        jeq     @next
+        jeq     rs_next
         jsr     weather_random
         fop     FMULT, resource_tenth
         fst     t1
         fld     resource_threshold
         fop     FDIV, t1
-        jmp     @roll
-@shelter:
+        jmp     rs_roll
+rs_shelter:
         lda     fauna_env+2
         cmp     #10             ; native clear terrain never finds a shelter
-        jeq     @next
+        jeq     rs_next
         fld     resource_threshold
         fop     FDIV, resource_shelter
-        jmp     @roll
-@animal:
+        jmp     rs_roll
+rs_animal:
         ldy     scene_minutes
         lda     #0
         jsr     GIVAYF
@@ -117,18 +118,19 @@ resource_scan:
         lda     #0
         jsr     GIVAYF
         fop     FMULT, t1
-@roll:  fst     resource_threshold
+rs_roll:  fst     resource_threshold
+rs_rolled:                        ; threshold ready (tests/test_fauna.py)
         jsr     weather_random
         fop     FCOMP, resource_threshold
         cmp     #$FF
-        jne     @next
+        jne     rs_next
         ldx     resource_species
         cpx     #4
-        bcs     @resource
+        bcs     rs_resource
         stx     fauna_species
         jsr     fauna_accept
-        jmp     @next
-@resource:
+        jmp     rs_next
+rs_resource:
         lda     act
         cmp     #1
         bne     :+
@@ -142,7 +144,7 @@ resource_scan:
         ora     MAP+36
         sta     MAP+36
         cpx     #12
-        jne     @next
+        jne     rs_next
         lda     #1
         sta     MAP+16
         lda     px+1
@@ -157,22 +159,27 @@ resource_scan:
         sta     MAP+19
         lda     heading+1
         sta     MAP+20
-@next:  inc     resource_phase
+rs_next:  inc     resource_phase  ; the scan moves on (tests/test_fauna.py)
         lda     act
         cmp     #1
         bne     :+
         lda     resource_phase
         cmp     #7
-        beq     @pause          ; wind/health precede the stationary animal scan
+        beq     rs_pause          ; wind/health precede the stationary animal scan
 :
         lda     resource_phase
         cmp     #13
-        jcc     @species
-@done:  lda     #0
+        jcc     rs_species
+rs_done:  lda     #0
         sta     scene_minutes   ; a subsequent VIEW must not reroll the activity
         jmp     native_resource_results
-@pause: rts
-.export resource_scan_species := @species
+rs_pause: rts
+resource_scan_species = rs_species
+.export resource_scan_species
+resource_eligible = rs_eligible
+resource_rolled = rs_rolled
+resource_next = rs_next
+.export resource_eligible, resource_rolled, resource_next
 module_stationary_resources_tail:
         lda     #7
         sta     resource_phase
@@ -181,8 +188,8 @@ resource_order: .byte 6,7,8,9,10,11,12,0,1,2,3,4,5
 resource_bits: .byte 0,0,0,0,1,2,4,8,16,32,64,128,0
 resource_offsets: .byte 0,12,24,36,48,60,72,84,96,108,120,132,144
 ; fauna_travel: rates and filters of the four animal records of the loaded
-; region (header bytes 12 and 0-11), rewritten by its pack (52 bytes, the
-; layout of SITES fauna_table; tools/build_disk.py). The trunk holds the
+; region (header bytes 12 and 0-11), rewritten by its pack (52 bytes;
+; tools/build_disk.py). The trunk holds the
 ; Sierra Nevada. Byte 29 (never in water) is folded into the terrain filter
 ; at build time: the region maps have no native river code, a water cell
 ; is terrain 40 (fauna_environment).
