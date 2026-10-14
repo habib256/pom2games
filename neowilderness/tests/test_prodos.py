@@ -123,8 +123,8 @@ def main():
     check_launcher(r, 'RESET')
     print('  Ctrl-RESET during play: same cleanup and ProDOS launcher: OK')
 
-    # Bitsy Bye lists DAT, END, HOF, R1..R6, then SYSTEM: nine down arrows.
-    r = a2test.run(DISK, [menu, 'key:Q', 'wait:900', 'key:' + '\\v' * 9, 'key:\\r'] + MENU_SKIP
+    # Bitsy Bye lists DAT, END, HOF, PRE, R1..R6, then SYSTEM: ten down arrows.
+    r = a2test.run(DISK, [menu, 'key:Q', 'wait:900', 'key:' + '\\v' * 10, 'key:\\r'] + MENU_SKIP
                    + [IDLE, L.peek('mem_ready'), L.peek('xfer_count', 2)], menu=False)
     assert r.mem(L['mem_ready'], 1) == b'\x01'
     print('  relaunch from the ProDOS launcher reaches the menu and the command line again: OK')

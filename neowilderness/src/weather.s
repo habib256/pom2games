@@ -225,13 +225,14 @@ module_weather_daily:
         fld     f_2
         fop     FADD, t1
         fop     FMULT, wf_0_1
-        fop     FMULT, f_one     ; original regional multiplier, Sierra = 1
+        fop     FMULT, wf_storm  ; storm frequency $4C52 (1.0; NEOWILD.PRE patches it)
         fop     FCOMP, wf_0_1
         cmp     #$FF
         bne     :+
         fld     wf_0_1
 :       fst     weather_frequency
         rts
+wf_storm: .byte $81,0,0,0,0     ; the preparation's storm frequency (src/prepare.s)
 
 .segment "THERMAL"
 weather_air_visibility:

@@ -43,6 +43,7 @@ $(BUILD)/wild.o: src/clock.inc
 $(BUILD)/wild.o: src/memory.s
 $(BUILD)/wild.o: src/geography.s src/geoaux.s
 $(BUILD)/wild.o: src/water.s src/menu.s
+$(BUILD)/wild.o: src/prepare.s
 
 $(BUILD)/tables.inc $(BUILD)/rowtab.inc: tools/gentables.py
 	@mkdir -p $(@D)
@@ -145,6 +146,7 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_boot.py
 	$(PYTHON) tests/test_prodos.py
 	$(PYTHON) tests/test_menu.py
+	$(PYTHON) tests/test_prepare.py
 	$(PYTHON) tests/test_transfers.py
 	$(PYTHON) tests/test_resident.py
 	$(PYTHON) tests/test_geo_resident.py
@@ -231,6 +233,7 @@ test-original: all $(A2SHOT)
 	$(PYTHON) tests/test_swim_energy.py --original
 	$(PYTHON) tests/test_swim_cadence.py --original
 	$(PYTHON) tests/test_swim_raster.py --original
+	$(PYTHON) tests/test_prepare.py --original
 	$(PYTHON) tests/test_adventure.py --scenario all
 
 FUZZ_SEED ?= 2
@@ -323,4 +326,9 @@ regions: $(BUILD)/regions/regions.json $(BUILD)/original_graphics/.done $(REGION
 region-probe: $(BUILD)/regions/regions.json $(A2SHOT)
 	$(PYTHON) -I tools/re_region_fauna_probe.py
 
-.PHONY: regions region-probe
+# Fidelity lot 1: the original's journey preparation (GO1, GO2) with fixed
+# answers and an imposed RND -> build/re_prepare/cases.json (tests/test_prepare.py).
+prepare-probe: $(A2SHOT)
+	$(PYTHON) -I tools/re_prepare_probe.py
+
+.PHONY: regions region-probe prepare-probe

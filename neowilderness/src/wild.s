@@ -907,6 +907,7 @@ STARS_LIST_LC = 1
         .include "geography.s"
         .include "geoaux.s"
         .include "hof.s"        ; segment HOF: build/wildhof.bin ($9600)
+        .include "prepare.s"    ; segment PREPARE: build/wildpre.bin, NEOWILD.PRE ($2000)
 
 ; dev/lib/prodos/video.s borrows two cc65 temporaries, only at boot and exit:
 ; the game scratch g0 and the view scratch tmp2.

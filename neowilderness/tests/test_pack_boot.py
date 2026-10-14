@@ -88,7 +88,12 @@ def volume_check():
              ((f'/{e[1:1 + (e[0] & 15)].decode()}', e) for e in image.entries(2))}
     packs = [f'/NEOWILD.R{r}' for r in range(1, 7)]
     assert sorted(files) == sorted(['/NEOWILD.DAT', '/NEOWILD.SYSTEM', '/PRODOS',
-                                    '/NEOWILD.END', '/NEOWILD.HOF'] + packs), sorted(files)
+                                    '/NEOWILD.END', '/NEOWILD.HOF', '/NEOWILD.PRE'] + packs), sorted(files)
+    # Fidelity lot 1: the journey preparation, LZ-packed, decoded to $2000 (src/prepare.s).
+    from pack_boot import decompress
+    pre = (HERE / 'build/wildpre.bin').read_bytes()
+    packed = image.read(files['/NEOWILD.PRE'])
+    assert len(packed) <= 0x1000 and decompress(packed, len(pre)) == pre
     assert files['/NEOWILD.SYSTEM'][0x10] == 0xFF and files['/NEOWILD.SYSTEM'][0x1F:0x21] == b'\x00\x20'
     assert image.read(files['/NEOWILD.SYSTEM']) == (HERE / 'build/NEOWILD.SYSTEM').read_bytes()
     # Lot 7 step 6 (docs/HOF.md): the end module, read at $9600, and the

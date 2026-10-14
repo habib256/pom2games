@@ -75,10 +75,12 @@ def screen(regions, build=HERE / 'build'):
         rows.append((f'{key} {name}{climate}{"-":>{WIDTH - BEST_COL}}', False))
     rows.append(('', False))
     rows.append(('7 FREE JOURNEY    ANY REGION, NOT RANKED', False))
+    # Fidelity lot 1 (src/prepare.s): the original's preparation questions.
+    rows.append(('P PREPARATION     QUESTIONS, NOT RANKED', False))
     rows.append(('H HALL OF FAME    Q QUIT TO PRODOS', False))
     for text, _ in rows:
         assert len(text) <= WIDTH, text
-    assert len(rows) < MENU_ROW
+    assert len(rows) <= MENU_ROW         # rows 0..11, the prompts on row 12
     return rows
 
 
