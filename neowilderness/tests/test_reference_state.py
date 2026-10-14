@@ -17,6 +17,9 @@ from scenario import REFERENCE_SCRIPT as SCRIPT, play
 # (relocated by the new memory map, checked constant below), the game's
 # pointer scratch and linker symbols.
 ADDRESS_TABLES = {'verb_lo', 'verb_hi', 'cdef_lo', 'cdef_hi', 'ctol_lo', 'ctol_hi'}
+# The verb list grows with the port's commands (lot 9: SAVE, RESTORE): a
+# constant table too, checked constant below, not simulation state.
+ADDRESS_TABLES |= {'verbs'}
 POINTERS = {'gp1', 'gp2'}
 # Module-cache bookkeeping, not simulation state: lot 4 returns from TOPO
 # by copying back a snapshot of the view instead of redrawing it, so the

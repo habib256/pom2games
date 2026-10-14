@@ -91,6 +91,26 @@ def play_counted(disk, title):
     return bool(failures or watched or final['mli_calls'] != boot['mli_calls']), final, boot
 
 
+# Lot 9 (docs/SAVE.md): SAVE and RESTORE are the only commands that may call
+# the MLI: NEOWILD.SAV (OPEN, READ, CLOSE), then SAVE: OPEN, READ of the
+# header, SET_MARK, WRITE, CLOSE; RESTORE: OPEN, READ, CLOSE.
+DISK_COMMANDS = (('WALK 1 H', 0), ('SAVE 1', 8), ('EAT CHEESE 4 OZ', 0), ('RESTORE 1', 6),
+                 ('REST 2 H', 0))
+
+
+def save_restore_counted():
+    with a2test.Session(DISK, timeout=900) as s:
+        s.step(L.until('idle', 40000))
+        s.step('watch:BF00')
+        for line, allowed in DISK_COMMANDS:
+            before, out_before = counters(s), len(s.out)
+            play(s, L, [(line + '\r', 'idle', None)])
+            delta = counters(s)['mli_calls'] - before['mli_calls']
+            watched = s.out[out_before:].count('watch BF00')
+            assert delta == watched == allowed, (line, delta, watched, allowed)
+            print(f'  {line:18} disk calls {delta} (ProDOS entry reached {watched} times): OK')
+
+
 def main():
     static_check()
     print('  no DOS 3.3 entry, RWTS, BLOAD or command buffer left in the link: OK')
@@ -107,6 +127,7 @@ def main():
     if failed or failed_native:
         print('FAIL: disk access during ordinary play')
         sys.exit(1)
+    save_restore_counted()
     print('Zero disk reads after the preload: OK')
 
 

@@ -87,8 +87,10 @@ def volume_check():
     files = {path: entry for path, entry in
              ((f'/{e[1:1 + (e[0] & 15)].decode()}', e) for e in image.entries(2))}
     packs = [f'/NEOWILD.R{r}' for r in range(1, 7)]
+    # Lot 9 (docs/SAVE.md): the SAVE/RESTORE module and the five games.
+    saves = ['/NEOWILD.SAV'] + [f'/NEOWILD.S{g}' for g in range(1, 6)]
     assert sorted(files) == sorted(['/NEOWILD.DAT', '/NEOWILD.SYSTEM', '/PRODOS',
-                                    '/NEOWILD.END', '/NEOWILD.HOF'] + packs), sorted(files)
+                                    '/NEOWILD.END', '/NEOWILD.HOF'] + packs + saves), sorted(files)
     assert files['/NEOWILD.SYSTEM'][0x10] == 0xFF and files['/NEOWILD.SYSTEM'][0x1F:0x21] == b'\x00\x20'
     assert image.read(files['/NEOWILD.SYSTEM']) == (HERE / 'build/NEOWILD.SYSTEM').read_bytes()
     # Lot 7 step 6 (docs/HOF.md): the end module, read at $9600, and the

@@ -7,6 +7,36 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Neowilderness : SAVE et RESTORE, cinq parties (lot 9)
+
+- `SAVE` et `RESTORE` (jusqu'ici « NOT IN THIS VERSION YET ») gardent cinq
+  parties, comme l'original : numéro demandé par l'invite numérique ou
+  tapé à la suite (`SAVE 2`), question avant d'écraser une partie occupée
+  (région et heures), refus d'une autre région (`GAME 1: SIERRA NEVADA
+  ONLY.`), d'une autre construction, d'une partie vide ou abîmée
+  (Fletcher-16), disque protégé et fichier absent signalés ; aucun refus
+  ne change la partie ([SAVE.md](docs/SAVE.md)).
+- Une partie = 32 octets d'en-tête versionné + 1 392 octets d'état
+  (GDATA sans le cache des modules, la ligne tapée ni les tables
+  constantes ; objets au sol ; en-tête de carte ; espèce nommée), inventaire
+  établi par balayage des écritures et comparaisons de mémoire ; RESTORE
+  redessine la vue (humeur, étoiles, scène), remet le menu à sa première
+  case et la suite de la partie est identique octet pour octet.
+- Code dans un module lu à la commande, `NEOWILD.SAV` (1 218 octets, fenêtre
+  SIM, tampon d'E/S `$AB00`, bitmap `$96-$AF` libéré puis remis) ; relais
+  résident de 237 octets (WILDLO), +6 octets de tables de verbes, +13 dans
+  INPUT. Fichiers `NEOWILD.S1`…`S5` de longueur fixe créés à la
+  construction : ni CREATE ni allocation. SAVE : 8 appels MLI, ≈ 4,5 s ;
+  RESTORE : 6 appels, 6 à 9 s avec le redessin. Volume : 24 blocs, 4 libres.
+- `DISK_BLOCKS=1600` / `make disk800` : le volume sur 800 Ko ; démarré et
+  essayé (SAVE, RESTORE) dans POM2 sur sa carte SmartPort, hors de portée
+  d'a2shot (Disk II seulement) : l'image livrée reste de 140 Ko.
+- Tests : `tests/test_save.py` (partie de nuit, continuation identique,
+  vue identique, autre région, redémarrage, fichier relu après éjection,
+  défauts, WOZ protégé, gardes ProDOS), `tests/test_resident.py` (SAVE et
+  RESTORE, seules commandes autorisées à appeler le MLI),
+  `tests/test_prodos.py` et `tests/test_pack_boot.py` (catalogue).
+
 ### Neowilderness : MAP plein écran 80 × 24
 
 - MAP, et la carte animée de WALK/SWIM, occupent tout l'écran texte
