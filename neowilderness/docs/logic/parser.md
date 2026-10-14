@@ -287,8 +287,12 @@ réécrits. L'ordre de travail est dans le [TODO](../../TODO.md).
   moteur du temps `$4D00` ; la transaction réelle est dans T$0E/S$02 (à
   confirmer avec l'analyse de l'inventaire).
 - CUT reçoit le même sélecteur que COOL (`$1E` = 14) : erreur de l'original
-  ou partage voulu (?).
-- T$15/S$0A lance un module calculé en page `$58` (chargement non résolu).
+  ou partage voulu (?). Vérifié sur ROM (lot 13) : COOL BODY et CUT BODY
+  donnent tous deux le soin 7 avec un outil en usage ; seules les familles
+  4-9 et le gibier les distinguent.
+- T$15/S$0A charge T$12/S$08 6 (`$1E` = 13 ou 34) ou T$0F/S$00 7 (WET BODY
+  hors pluie et hors de l'eau, nom WATER) ; résolu au lot 13
+  ([IMPLEMENTATION.md](../IMPLEMENTATION.md) « Soins, alertes et maladies »).
 - Noms 109 (sélecteur 9) et blessures 110-134 : sans gestionnaire atteint
   depuis l'aiguillage ; utilisés par HELP (?).
 - Correspondance animaux / régions (`$5049-$5089`) à détailler.

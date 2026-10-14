@@ -1039,8 +1039,8 @@ huit heures limite le prochain pas à 30 minutes.
 stricts et leur décroissance quand la condition est prévenue. Soleil et neige
 utilisent encore la position solaire, les bois et la ligne de neige du port ;
 leurs sélecteurs originaux ne sont pas validés par ces tests. Les déclencheurs
-d’infection, de malaria et de chutes restent à porter. Les coupures, fractures, choc, morsures
-et la giardiase de l’eau collectée ont maintenant des déclencheurs propres au port. SPLINT et les soins thermiques manquent encore.
+d’infection et de malaria sont portés (lot 13, ci-dessous) ; les chutes restent à porter. Les coupures, fractures, choc, morsures
+et la giardiase de l’eau collectée ont maintenant des déclencheurs propres au port. SPLINT, WET BODY, DRY/WARM, HANG des vêtements et CUT BODY : voir « Soins, alertes et maladies (lot 13) ».
 
 `care.s`, dans WILDMVI, traite les commandes avant un saut au relais résident
 `medical_spend`, qui charge WILDMED, applique les prérequis et avance le temps.
@@ -1058,8 +1058,8 @@ directement la chaîne T11/S00 → T0E/S02 → T0E/S0A → T06/S00, avec stocks 
 de SUNSCREEN, FLAGYL et OXYGEN. L'oxygène repose sur un drapeau d'utilisation
 distinct : la dernière dose l'active, une nouvelle utilisation à vide le
 désactive. Cela ne valide pas toutes les transactions USE :
-le déplacement automatique des objets et la stérilisation de la trousse
-restent à porter. Les quantités sont conservées par les chargements d'overlays.
+le déplacement automatique des objets est porté au lot 13 (ci-dessous) ;
+aucune stérilisation de la trousse n’a été trouvée dans les modules de soin (lot 13). Les quantités sont conservées par les chargements d’overlays.
 
 Les comparaisons directes au code original sur ROM couvrent 160 progressions,
 66 combinaisons de soins, 60 altitudes/états d'oxygène, 80 cadences,
@@ -1070,6 +1070,166 @@ et la conservation des états lors des chargements.
 orales et les 6 chaînes de stock vide/dernière dose, soit 639 cas médicaux
 et d'exposition au total. Les refus, les durées, les doses et l'affichage sont
 aussi vérifiés par les commandes du port.
+
+## Soins, alertes et maladies (lot 13)
+
+Lot 13 de fidélité ([ORIGINAL_GAP.md](ORIGINAL_GAP.md) § 2.8, H1 à H3).
+Toutes les règles ci-dessous ont été lues dans les modules de la face
+Journey puis vérifiées en exécutant ces modules sur ROM
+(`tests/test_care.py --original`, 957 cas nouveaux). Les messages cités
+sont les numéros de l'original ; les textes du port en reprennent le sens
+(le point remplace le « ! », caractère réservé de `message`).
+
+### Commandes de soin (`care.s`, WILDMVI)
+
+| Commande | Original | Effet porté |
+|---|---|---|
+| USE SPLINT | T11/S00 `$5B80` | attelle portée (WEAR), sélecteur 3, W7 = 30 min, effort `+0,02 × poids` (`act` 3, comme l'arbre) ; sans attelle : message 1 |
+| USE PRESSURE | cœur `$527B` | sélecteur 2 (second soin des coupures), 30 min |
+| USE AXE, USE KNIFE | T11/S00 `$5C42` | outil « en usage » (B2) sur la case, tenu en main (CARRY), sans durée |
+| CUT BODY, COOL BODY | T12/S08 `$5833` (sélecteur `$1E` = 14 commun) | avec hache ou couteau en usage : sélecteur 7 (morsure), sans durée, message 10 ; sinon message 25 |
+| CUT / COOL autre | idem | familles 1–3 : message 18 ; 4–9 : COOL message 2, CUT message 39 ; gibier : COOL message 17, CUT module de chasse (lot 4, `NOT IN THIS VERSION YET`) ; BODY seul pour la famille 15 (message 2) |
+| WET BODY | T15/S0A `$584C` | pendant un front météo (`$4B4D` = 2) ou dans une rivière ou un lac : sélecteur 9, message 11, sans durée ; sinon module de l'eau : rivière ou lac à portée (`outdoor_water_here`) → sélecteur 9 ; sinon onces versées de la gourde (quantité demandée ou `WET BODY 8 OZ`, message 64 au-delà du disponible) → sélecteur 9 |
+| DRY, WARM vêtement | T15/S0A → T12/S08 `$58D8` | vêtements secs et hypothermie ≥ 86 % : message 2 ; sinon message 117 (118 pour HUT, IGLOO, TRENCH) ; aucun état modifié |
+| HANG vêtement | T15/S0A → T12/S08 `$58F9` | arbre requis (message 16) ; HUT/IGLOO/TRENCH : message 21 ; vêtements secs ou pluie (`$4B4C` ≥ 2) : message 49 ; sinon soleil (lever–coucher, `$4B49` = 1) ou feu → secs (`$4B70` = 0) ; l'objet est déposé (DROP) au pied de l'arbre |
+| USE produit 41–51, EAT/DRINK oral | T11/S00 `$5BCF`, T12/S08 `$58D1` | placement automatique : l'objet passe en main (CARRY), les SUNGLASSES sur le visage (WEAR) |
+
+Sondes ROM : 38 aiguillages WET/DRY de T15/S0A, 48 cas DRY/WARM, 108 COOL/CUT
+(familles, nom, outils B2 41/42/58/59) et 97 HANG (arbre, nom, humidité,
+pluie, soleil, feu, place) de T12/S08, 25 USE de T11/S00 (attelle, onze
+produits avec et sans lumière, hache, couteau), 13 placements par la chaîne
+T11/S00 → T0E/S02 → T0E/S0A → T06/S00.
+
+Écarts et crochets :
+
+- **Attelle.** Le second jeu d'objets (dont l'attelle fabriquée, objet 93)
+  appartient au lot 3. `splint_place` (résident) est le crochet : `$FF`
+  absente, 1 portée ; USE SPLINT fonctionne sur toute attelle présente. Le
+  retrait de l'attelle efface le sélecteur 3 dans l'original (T0E/S0A
+  `$5AC4`) : à porter avec DROP/REMOVE de l'objet 93 au lot 3. L'effort
+  original utilise le poids total `$4C02` (213 lb au départ) ; le port, comme
+  pour l'arbre, le poids du corps.
+- **Feu.** `care_fire_here` (WILDMVI) répond « pas de feu » ; le lot 2 y
+  testera son drapeau (B1 du second jeu, index 13, `$45CD` = 0).
+- **Trousses.** Les trousses 41 et 42 satisfont la condition de CUT BODY
+  dans T12/S08, mais T0A/S05 `$58C4` efface leur B2 au premier pas de toute
+  commande chronométrée, donc pendant le USE qui le pose : seules la hache
+  et le couteau (effacés quand le joueur quitte la case, T0C/S0B `$58A7`)
+  comptent. Le port garde la case de mise en usage. Aucune « stérilisation »
+  de trousse n'existe dans T11/S00, T12/S08, T15/S0A, T0E/S02, T0E/S0A ni
+  T06/S00.
+- **WET BODY hors pluie.** L'original demande aussi une quantité au bord de
+  l'eau (sans effet) et passe, pour la gourde, par la transaction DROP ; le
+  port ne la demande pas au bord de l'eau et prélève avec `take_oz` (gourde
+  puis eau au sol). La recherche d'eau, le cactus et la condensation du
+  module de l'eau sont au lot 2 : sans eau à portée, le port répond par un
+  message propre. Le coup de soleil exige aussi le sélecteur 6 (boire,
+  T0F/S00 `$5CED`), que le DRINK du port ne pose pas encore (lot 2) : le
+  poser changerait `medical_actions` sur le chemin de référence.
+- **HANG.** Le port garde l'alias HANG BACKPACK et HANG FOOD du module TREE ;
+  les autres noms de famille 1 passent par `care.s`. Le séchage reste
+  instantané : `weather_wet` recalcule l'humidité à chaque mise à jour
+  de santé.
+- **Familles hors module.** Les refus du cœur pour CUT/COOL sur les
+  familles 10, 12, 14, 16, 17 n'ont pas été sondés : message 2 (17 pour
+  les thèmes).
+
+### Alertes de jauge et sommeil forcé (`alerts.s`, résident WILDLO)
+
+`health_alerts` encadre chaque mise à jour de santé de `spend` et applique
+les règles de T0A/S0C `$5BED`, T0B/S02 et T0B/S0D ; elles n'écrivent que
+leurs propres drapeaux et la file d'affichage, sauf le sommeil forcé.
+
+| Message | Règle originale |
+|---|---|
+| 173 faim | une fois par jour (`$4B88`) : `A2[17]` > 12 h, ou `3 × kcal du jour` < `(heure + 1) × poids` et bilan du jour < −850 kcal |
+| 174 soif | une fois par jour (`$4B89`) : `A2[16] × $4C7A` > 6, ou onces de la dernière séance de boisson (`$4BD4`) < `2 × A2[16] × $4C7A²` |
+| 178 sommeil forcé | `A1[24]` (déficit de repos) ≥ 60 : `$0B`, événement 43 |
+| 175 fatigue | une fois par jour (`$4B8A`) : `A2[18]` > 16 h, ou fatigue de la mise à jour précédente < 95 % et `4 × heures du dernier repos` (`$4BE2`) < `A2[18]` ; événement 40 |
+| 203 / 204 | frissons / sueur, une fois par commande chronométrée (`$4B8B`) |
+| 187 | une des 21 conditions passe de ≥ 96 % à < 95 %, une fois par commande chronométrée (`$4B8C`) |
+| 160 | une condition passe de ≥ 51 % à < 50 % (événement 25) |
+| 176 | la santé passe sous 1 (événement 41) |
+
+Les trois drapeaux journaliers et les compteurs d'énergie du jour sont
+remis à zéro à minuit (T0A/S05 `$5952`, `alerts_day` appelé par
+`module_medical_day`) ; `$4BD4` et `$4BE2` suivent DRINK (`alert_drink`,
+T0F/S00 `$5C50`) et REST (`alert_rest`, T15/S0B `$59AA`) avec leurs
+valeurs sauvegardées (10 oz, 7 h). `$4C7A` est la valeur de la sauvegarde
+(0,5833) : sa variation avec la transpiration n'est pas portée.
+
+Affichage : les messages directs (173, 174, 203/204, 187) puis les
+événements (160, 175, 176, 177, 178) sont ajoutés sous le résultat, dans
+la première rangée libre de la colonne de résultat ; une colonne pleine
+attend une touche, comme l'original avant un second message du même tour.
+Le message propre au port « YOU ARE VERY WEAK » (santé sous Hmax/3, à
+chaque résultat) est remplacé par le message 176 au franchissement ;
+`weak_health` reste calculé.
+
+Sommeil forcé (parser `$B033`, T15/S0B `$585F`) : après la commande, sans
+saisie, REST de `180 + INT(RND × 300)` minutes au métabolisme de repos,
+crédité comme un REST ; dans une rivière ou un lac, l'original déclenche la
+condition 14 (noyade), le message 177, `A1[24]` = 40 et 15 minutes.
+
+Sondes ROM : 96 décisions faim/soif/fatigue/sommeil de `$5BED` comparées à
+`health_alerts` du port (heure 7, 165 lb), 4 durées de sommeil forcé
+(graines du générateur natif) comparées au REST forcé réel du port.
+
+Non porté (modifie l'état du chemin de référence) : T0A/S0C `$5CB6` ajoute
+à `A1[24]` et `A2[18]` `1,3 × métabolisme / (0,04 × poids)` heures quand
+l'effort dépasse `0,04 × poids` (nage, marche chargée) ; SWIM 1 H du script
+de référence le déclencherait. À porter avec la référence rebasée (lot 12).
+Les drapeaux de `care_state`…`care_state_end` sont à sauvegarder par le
+lot 9.
+
+### Infection et malaria (H1)
+
+Le consommateur des événements `$4B41/$4B42/$4B44` est T06/S00, déjà porté
+(`module_medical_apply`, `module_injury_begin`). Balayage de toute la face
+Journey (`tools/re_event_scan.py 4B44`, `--table 4`) : `$4B44` n'est écrit que par les
+repas (T11/S0C et T12/S04, condition 11) et l'eau (T0F/S05, 12, avec
+`$4B41` = 3) ; les autres conditions sont posées directement dans la table
+active `$47F4` (`$4D12`, X = 4) : animaux (T06/S08-S09 : 4, 8), chute
+(T0D/S00, événement 23 : condition tirée au hasard), noyade (T0A/S00,
+T15/S0B : 14) et T0B/S07 (5, 6, 7, 9, 10, 13). L'infection et la malaria
+sont donc dans T0B/S07 :
+
+- **infection** (`$5B8D`) : coupures actives depuis au moins 6 h, infection
+  ni active ni prévenue (FIRSTAID 11 ou SOAP 21) ; tirage
+  `RND < minutes × $4C7A × 0,0002` ;
+- **malaria** (`$5B3F`) : régions 3 à 5, altitude `< 6000 ft`, terrain non
+  dégagé (`$4B56` ≠ 0 : bois, rochers, eau), hors abri, non prévenue
+  (REPELLENT 15 ou QUININE 20) ; tirage `RND < minutes × 0,00005`.
+
+`hz_diseases` (fenêtre SIM) suit les compteurs d'exposition de
+`module_hazards`, dans l'ordre natif (infection puis malaria), avec le
+générateur natif `weather_random`. L'interrupteur `disease_triggers`
+(résident, 1 par défaut) les coupe. 528 cas (graines, coupures, heures,
+minutes, régions, abri, prévention) donnent sur ROM les mêmes
+déclenchements et la même graine finale. Le chemin de référence n'est pas
+touché (`test_reference_state.py` vert) : la Sierra n'a pas de malaria et
+aucune coupure n'y est active.
+
+### Mémoire
+
+| Zone | Avant | Après |
+|---|---:|---:|
+| WILDLO (`LOWCODE`, `LOWTEXT`) libre | 1 718 | 141 |
+| WILDMVI (`wildmvi.bin`) | 878 | 1 809 (239 libres) |
+| SIM (`wildsim.bin`) libre | 573 | 265 |
+| WILDERNESS (`CODE`/`RODATA`) libre | 318 | 94 (textes longs des soins) |
+| WILDMED (`wildmed.bin`) | 2 045 | 2 047 |
+| WILDOUT, WILDINP | 2 006, 1 666 | 2 009, 1 670 |
+| WILDGAME libre (`$5739-$577F`) | 65 | 70 |
+| Stock auxiliaire libre, Burma | 2 938 | 1 694 |
+| Volume (blocs utilisés sur 280) | 261 | 266 ; cartes natives 278 à 280 |
+
+Le volume de 280 blocs est désormais la contrainte des disques à carte
+native (Sierra native 278, s1985-L4 279) : la carte de contrainte de
+`test_geo_resident.py` (six tuiles de bruit, atlas 8 108 octets) en
+demanderait 285 ; le décodage des tuiles brutes y est vérifié sur une
+carte à deux tuiles de bruit (280). Les lots suivants devront passer au
+volume de 800 Ko (ORIGINAL_GAP.md § 1.3) ou réduire les paquets.
 
 ## Arbres et forêts
 

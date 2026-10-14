@@ -670,6 +670,16 @@ aux chemins non joués par le script.
 - Taille : ≈ 120 octets. Référence : correction de fidélité si la fatigue
   du script atteint le seuil (peu probable).
 
+**État (lot 13, 14 octobre 2026).** H1, H2 et H3 sont portés et vérifiés
+sur ROM ([IMPLEMENTATION.md](IMPLEMENTATION.md) « Soins, alertes et
+maladies (lot 13) ») : le consommateur des événements est T06/S00, déjà
+porté ; infection et malaria viennent de T0B/S07 (`hz_diseases`,
+interrupteur `disease_triggers`), sans effet sur la référence. Restent :
+l'attelle fabriquée (lot 3, crochet `splint_place`), le feu (lot 2,
+crochet `care_fire_here`), le sélecteur 6 de DRINK (lot 2), la recherche
+d'eau de WET BODY (lot 2), l'effort de T0A/S0C `$5CB6` sur `A1[24]`
+(modifie la référence : lot 12) et les chutes (T0D/S00, événement 23).
+
 ### 2.9 Préparation du voyage, niveaux et scénarios
 
 **P1. Questions de préparation (GO1/GO3) et mode recherche.**

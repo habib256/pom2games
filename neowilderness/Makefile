@@ -38,7 +38,7 @@ LEVEL ?= 4
 
 all: $(DISK)
 
-$(BUILD)/wild.o: src/medical.s src/hazards.s src/care.s
+$(BUILD)/wild.o: src/medical.s src/hazards.s src/care.s src/alerts.s
 $(BUILD)/wild.o: src/clock.inc
 $(BUILD)/wild.o: src/memory.s
 $(BUILD)/wild.o: src/geography.s src/geoaux.s

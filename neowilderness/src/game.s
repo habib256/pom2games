@@ -282,7 +282,7 @@ main:   lda     dead
         sta     shown
         jsr     do_command
         jsr     finish_simulation
-        jsr     summary_refresh
+        jsr     alerts_after    ; lot 13: original alerts, forced sleep, summary
         jmp     main
 
 the_end:
@@ -822,9 +822,7 @@ dispatch:
         lda     #<m_oops
         ldx     #>m_oops
         jmp     message
-@later: lda     #<m_notyet
-        ldx     #>m_notyet
-        jmp     message
+@later: jmp     verb_more       ; lot 13: care verbs without a table entry (alerts.s)
 
 ; ----------------------------------------------------------------------------
 ; screens
@@ -1646,6 +1644,7 @@ module_drink:
         fop     FMULT, f_oz_hour
         fop     FSUB, s_defw
         fst     s_defw
+        jsr     alert_drink     ; lot 13: ounces of the drinking session ($4BD4)
         fld     f_half
         fst     s_drink
         fld     s_elap
@@ -2331,9 +2330,7 @@ report:
         lda     fauna_alert
         bpl     :+
         jmp     outdoor_report
-:       lda     weak_health
-        bne     @result
-        rts
+:       rts                     ; lot 13: weakness is announced by message 176 (alerts.s)
 @result: jmp    report_message
 .segment "LOWCODE"
 report_message:
@@ -2638,7 +2635,7 @@ spend:  stx     act
         fst     s_step          ; thermal update uses time since last update
         jsr     weather_step
         jsr     thermal
-        jsr     health
+        jsr     health_alerts   ; health, then the original alert rules (alerts.s)
 @done:  lda     act
         cmp     #1
         bne     :+
@@ -3038,6 +3035,7 @@ message:
         sta     gp1
         stx     gp1+1
         jsr     msg_begin
+message_text:                   ; alerts.s appends from the cursor (gp1 set)
         ldy     #0
 @ch:    lda     (gp1),y
         beq     @end
@@ -3268,12 +3266,12 @@ verb_lo:
         .byte <do_outdoor, <do_outdoor, <do_outdoor
         .byte   <do_wear, <do_drop, <do_get, <do_get, <do_get, <do_drink, <do_eat, <do_look, <do_look
         .byte   <do_rest, <do_rest, <do_rest, <do_rest, <do_walk, <do_walk, <do_walk, <do_walk, <do_walk
-        .byte   <do_site, <do_site, <do_medical, <do_medical, <do_tree, <do_tree, <do_medical, <do_medical, <do_medical
+        .byte   <do_site, <do_site, <do_medical, <do_medical, <do_tree, <do_medical, <do_medical, <do_medical, <do_medical ; HANG: care.s (lot 13)
 verb_hi:
         .byte >do_outdoor, >do_outdoor, >do_outdoor
         .byte   >do_wear, >do_drop, >do_get, >do_get, >do_get, >do_drink, >do_eat, >do_look, >do_look
         .byte   >do_rest, >do_rest, >do_rest, >do_rest, >do_walk, >do_walk, >do_walk, >do_walk, >do_walk
-        .byte   >do_site, >do_site, >do_medical, >do_medical, >do_tree, >do_tree, >do_medical, >do_medical, >do_medical
+        .byte   >do_site, >do_site, >do_medical, >do_medical, >do_tree, >do_medical, >do_medical, >do_medical, >do_medical
 card_lo: .byte  <0, <140, <280, <420
 card_hi: .byte  >0, >140, >280, >420
 cdef_lo: .byte  <s_defw, <s_deff, <s_defr

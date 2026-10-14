@@ -124,7 +124,7 @@ module_hazards:
         lda     hz_index
         cmp     #4
         jne     @condition
-        rts
+        jmp     hz_diseases     ; lot 13: infection and malaria (alerts.s)
 hz_zero:
         lda     #0
         sta     exposure_counter,x
@@ -235,6 +235,7 @@ module_medical_day:
         sta     medical_actions-1,y
         dex
         bpl     @reset
+        jsr     alerts_day      ; lot 13: daily gauge alerts and energy counters
         jmp     medical_apply
 hz_daily: .byte 2,5,9,13,14,16,17,19,24
 
