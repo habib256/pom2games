@@ -22,11 +22,18 @@ avertissements sur bande rouge, messages en vrai texte 80 colonnes, carte
 MAP en 80 colonnes, feuille TOPO calculée à l'ouverture depuis la carte en
 mémoire, retours d'écrans sans redessin de la vue. Les quatre lignes du
 bas sont une surface de commande (lot 8, étape 2) : à gauche la grille des
-verbes et leurs listes (RETURN, flèche haut ou TAB l'ouvre, TAB la
-referme, flèches, RETURN, Échap ; toute action s'y trouve, seuls les objets accessibles sont
+verbes et leurs listes (RETURN, flèche bas ou TAB l'ouvre, TAB la
+referme, flèches, RETURN, Échap ; la flèche haut affiche STATUS ; toute action s'y trouve, seuls les objets accessibles sont
 proposés, les commandes tapées restent acceptées), à droite les
 descriptions : le dernier message, la ligne de stock ou la commande telle
-que le jeu la lira. Les règles sont
+que le jeu la lira. **LOOK UP / LOOK DOWN** (`LOOK U`, `LOOK D`, `LOOK
+AHEAD`, `PAN U`/`PAN D`, ou UP/DOWN dans la liste LOOK de la grille)
+inclinent la vue de 96 lignes comme l'original : en l'air, le sommet
+descend au bas de l'écran, le soleil haut devient visible, sans sprite ni
+arbre ; vers le bas, le relief proche remplit l'écran et l'épave reste
+entière. Trois angles, aucun temps de jeu, refus « NOT NOW. » devant un
+ours au contact ; la marche remet la vue à niveau
+([LOOK_UPDOWN.md](docs/LOOK_UPDOWN.md)). Les règles sont
 inchangées : l'état de simulation est identique, octet pour octet, à celui
 de la version HGR/DOS 3.3 de référence, et aucune lecture disque n'a lieu
 pendant la partie.
@@ -76,6 +83,18 @@ crash, le lot de l'épave, les usages des consommables, la date et l'heure,
 le premier front et le vent, et annonce le terrain et la difficulté
 (`NEOWILD.PRE`, lu seulement pour ces voyages). RETURN, RETURN garde le
 premier voyage figé de l'original.
+Lot 9 ([SAVE.md](docs/SAVE.md)) : **SAVE** et **RESTORE** gardent cinq
+parties sur la disquette du jeu, comme l'original. Le numéro est demandé
+(`SAVE THE JOURNEY AS GAME 1-5?`) ou tapé à la suite (`SAVE 2`,
+`RESTORE 2`) ; une partie occupée est décrite (région, heures) avant
+`REPLACE IT? Y/N`. RESTORE reprend la partie octet pour octet (horloge,
+santé, météo, objets, faune, hasards) et redessine la vue ; il refuse une
+partie d'une autre région (`GAME 1: SIERRA NEVADA ONLY.`), d'une autre
+version du jeu ou abîmée, sans rien changer. Une disquette protégée
+affiche `DISK WRITE-PROTECTED: NOT SAVED.`. Ce sont, avec la fin de
+voyage, les seuls accès disque de la partie : SAVE ≈ 4,5 s, RESTORE 6 à
+9 s (la vue est redessinée). L'aide (HELP) ne les mentionne pas encore :
+son module est plein.
 
 Lot 7 de fidélité, orientation ([ORIENTATION.md](docs/ORIENTATION.md)) :
 LOOK N/E/S/W et LOOK AZ exigent, comme l'original, une aide en usage
@@ -122,6 +141,7 @@ make test       # tests a2shot sur //e : images DHGR, état comparé à la réf�
 make -f dhgr.mk test   # banc DHGR indépendant (primitives, humeurs, disque de démonstration)
 make -f stars.mk test  # banc des étoiles (référence Python, module horaire, tracé)
 make -f hof.mk test    # banc du score et du hall of fame (fichier, écrans, disque protégé)
+make disk800           # build/NEOWILDERNESS-800K.po : le même volume sur 1 600 blocs
 ```
 
 `make test` lance aussi les bancs des étoiles et du hall of fame
@@ -138,6 +158,16 @@ que le premier voyage figé).
 36 appels MLI avant la partie, aucun pendant ; 9 en fin de voyage (module,
 lecture et écriture du hall of fame). 34 blocs restent libres
 (`make inspect` : blocs et mémoire libre par paquet). La construction
+`NEOWILD.END`, le hall of fame `NEOWILD.HOF` (un bloc, réécrit en place),
+le module de SAVE/RESTORE `NEOWILD.SAV` et les cinq parties
+`NEOWILD.S1`…`S5` (1 424 octets chacune, réécrites en place, lot 9).
+36 appels MLI avant la partie ; pendant la partie, aucun sauf SAVE (8) et
+RESTORE (6) ; 9 en fin de voyage (module, lecture et écriture du hall of
+fame). 4 blocs restent libres (`make inspect` : blocs et mémoire libre par
+paquet). `make DISK_BLOCKS=1600` construit le même volume sur 800 Ko
+(3,5 pouces) et `make disk800` le construit à part
+(`build/NEOWILDERNESS-800K.po`) : POM2 le démarre sur sa carte SmartPort,
+a2shot (Disk II seulement) non ; l'image livrée reste de 140 Ko. La construction
 demande les en-têtes de région et les cartes reconstituées
 (`make regions`, données originales locales). `BOOT_PACKING=raw|lz|auto`
 choisit la compression des enregistrements (`lz` par défaut depuis les

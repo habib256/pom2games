@@ -92,6 +92,9 @@ wdy:     .res 2
 nx:      .res 2                 ; next position
 ny:      .res 2
 shown:   .res 1                 ; a message is on the message lines
+; $A4 is Applesoft's rounding byte: foliage must not leave it nonzero.
+forest_crown_end: .res 1        ; forest.s
+tilt:    .res 1                 ; view tilt: 0 level, 1 up, $FF down (LOOK U/D)
 
 
 ; ----------------------------------------------------------------------------
@@ -1020,8 +1023,16 @@ show_view_scene:
 
 ; stars_dhgr_frame -- render_frame: dhgr_frame, then the stars of the mood.
 stars_dhgr_frame:
-        jsr     dhgr_frame
-        bit     $C080           ; main language card RAM, bank 2, read only
+        lda     tilt            ; LOOK UP / DOWN: constants of a new tilt
+        cmp     tilt_shown
+        beq     :+
+        jsr     tilt_apply
+:       jsr     dhgr_frame
+        lda     tilt            ; looking up: no sprite (the original's rule)
+        cmp     #1
+        bne     :+
+        sta     draw_dark
+:       bit     $C080           ; main language card RAM, bank 2, read only
         jsr     stars_frame
         bit     $C082           ; ROM again
         rts
@@ -1215,7 +1226,9 @@ do_walk:
         ora     msgnum+1
         bne     @start
 @quit:  rts
-@start: jsr     prepare_minutes           ; minutes = hours * 60
+@start: lda     #0              ; travel levels the view (as the original)
+        sta     tilt
+        jsr     prepare_minutes           ; minutes = hours * 60
         lda     verb
         cmp     #V_SWIM
         bne     @walk_prepare
@@ -3276,15 +3289,18 @@ screen_hi:
         .byte   >scr_topo, >scr_view, >scr_status, >scr_inventory, >scr_help, >scr_notyet, >scr_map
 .segment "GDATA"
 verbs:  .byte   17, 18, 37, V_WEAR, V_DROP, V_GET, V_CARRY, V_PACK, V_DRINK, V_EAT, V_LOOK, V_PAN
+        .byte   41, 42          ; SAVE, RESTORE (lot 9, src/save.s)
         .byte   V_WAIT, V_REST, V_CAMP, V_EXER, V_WALK, V_RUN, V_MOVE, V_CRAWL, V_SWIM, V_ENTER, V_EXIT, V_USE, 26, V_CLIMB, V_HANG, V_LOWER, 30, 32, 0
 verb_lo:
         .byte <do_outdoor, <do_outdoor, <do_outdoor
         .byte   <do_wear, <do_drop, <do_get, <do_get, <do_get, <do_drink, <do_eat, <do_look, <do_look
+        .byte   <do_save, <do_save
         .byte   <do_rest, <do_rest, <do_rest, <do_rest, <do_walk, <do_walk, <do_walk, <do_walk, <do_walk
         .byte   <do_site, <do_site, <do_medical, <do_medical, <do_tree, <do_medical, <do_medical, <do_medical, <do_medical ; HANG: care.s (lot 13)
 verb_hi:
         .byte >do_outdoor, >do_outdoor, >do_outdoor
         .byte   >do_wear, >do_drop, >do_get, >do_get, >do_get, >do_drink, >do_eat, >do_look, >do_look
+        .byte   >do_save, >do_save
         .byte   >do_rest, >do_rest, >do_rest, >do_rest, >do_walk, >do_walk, >do_walk, >do_walk, >do_walk
         .byte   >do_site, >do_site, >do_medical, >do_medical, >do_tree, >do_medical, >do_medical, >do_medical, >do_medical
 card_lo: .byte  <0, <140, <280, <420

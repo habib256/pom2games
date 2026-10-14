@@ -36,6 +36,12 @@ SCENARIOS = {
     'discovery': OPENING + [('LOOK AZ', ('73',)), ('WALK', ('1',)),
                            ('DRINK WATER', ('C', '10')), ('EAT CHEESE', ('8', 'P'))],
 }
+# LOOK UP / LOOK DOWN (docs/LOOK_UPDOWN.md): the port's tilt against the
+# original's $E7 at every step, no game time (compared only here: the
+# original also tilts the view by itself at some encounters, the port not).
+SCENARIOS['look_tilt'] = [(c, ()) for c in ('LOOK U', 'LOOK R', 'VIEW', 'LOOK D', 'LOOK F',
+                                             'PAN U', 'PAN U', 'PAN D', 'PAN D', 'PAN D')]
+TILT_SCENARIOS = {'look_tilt'}
 for scenario in ('march', 'encounter'):
     SCENARIOS[scenario] = [(r['command'], r['answers']) for r in
         json.loads((HERE/f'tests/fixtures/sierra_{scenario}.json').read_text())['commands']]
@@ -260,6 +266,7 @@ class Driver:
         self.state_sources.append(source)
         self.raw_inventories.append(raw_inventory(memory, self.original))
         (self.directory / f'{kind}-{index:03}.bin').write_bytes(memory)
+        self.last_memory = memory
         if screenshot:
             self.session.step(f'shot:{self.directory / f"{kind}-{index:03}.png"}')
         return normalized(memory, self.original)
@@ -425,6 +432,14 @@ def run_scenario(scenario, directory, disk=None, stop_on_difference=False):
                     original.command(command, answers)
                     port.command(command, answers)
                 a, b = original.checkpoint(index), port.checkpoint(index)
+                if scenario in TILT_SCENARIOS:
+                    # LOOK R turns 90 degrees in the original, 45 in the port
+                    # (its scrolled view): a known difference, not the tilt.
+                    a.pop('heading')
+                    b.pop('heading')
+                    signed = lambda v: v - 256 if v & 0x80 else v
+                    a['tilt'] = signed(original.last_memory[0xE7])
+                    b['tilt'] = signed(port.last_memory[L['tilt']])
                 delta = differences(a, b)
                 checkpoints.append(dict(command=command, answers=answers, original=a, port=b, differences=delta,
                     raw_inventory=dict(original=original.raw_inventories[-1],

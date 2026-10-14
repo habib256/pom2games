@@ -43,13 +43,33 @@ def s16(v):
     return v - 0x10000 if v & 0x8000 else v
 
 
-def columns(m, px, py, heading):
+TILT_ROWS = 96          # LOOK UP / DOWN: rows per tilt step (docs/LOOK_UPDOWN.md)
+
+
+def sample_row(inc, tilt=0):
+    """Screen row of a visible sample of slope inc (signed 8.8), or None.
+
+    95 - floor(3 * inc / 16) (= 95 - 48 * dz / n), moved down by 96 rows
+    per tilt step (LOOK UP: tilt 1; LOOK DOWN: -1): 0 when above the view,
+    None (hidden, the slope still counts for occlusion) below row 159.
+    96 rows are 512 slope units: src/wild.s tilt_row projects the slope
+    inc - 512 * tilt with the level tables."""
+    row = HORIZON - ((inc * 3) >> 4) + TILT_ROWS * tilt
+    if row >= VIEW_ROWS:
+        return None
+    return max(row, 0)
+
+
+def columns(m, px, py, heading, tilt=0, steps=STEPS):
     """Per column, in painting order: [(kind, r0, r1, n)], rows r0..r1-1.
 
     kind: 'ground', 'snow', 'water' (the band below a visible sample n ray
     steps away), 'ridge' (that sample's own row) or 'sky' (rows 0..top-1,
     n = last step). Empty bands are kept: they are what the 6502 paints.
     tools/dhgr_ref.py colours the same events with the DHGR moods.
+    tilt: -1, 0, 1 (LOOK DOWN, level, LOOK UP). steps: the ray budget
+    (src/wild.s render_weather_limit: visibility // 2 - 1 steps when the
+    weather visibility is below 240 half-cells, else 128).
     """
     grid = m[HEADER:]
     snow = m[11]
@@ -61,7 +81,7 @@ def columns(m, px, py, heading):
         x, y = px, py
         thr, inc, top = -0x8000, 0, VIEW_ROWS
         n = 0
-        for n in range(1, STEPS + 1):
+        for n in range(1, steps + 1):
             x, y = (x + dx) & 0xFFFF, (y + dy) & 0xFFFF
             if x >> 8 >= GW or y >> 8 >= GH:
                 break
@@ -76,15 +96,9 @@ def columns(m, px, py, heading):
             q = (abs(dz) << 8) // n
             inc = -q if dz < 0 else q
             thr = dz << 8
-            if inc >= 512:
-                off = HORIZON
-            elif inc < -512:
+            row = sample_row(inc, tilt)
+            if row is None:
                 continue
-            else:
-                off = min((inc * 3) >> 4, HORIZON)
-                if off < HORIZON - VIEW_ROWS + 1:
-                    continue
-            row = HORIZON - off
             if row < top:
                 kind = 'water' if v & 0x80 else ('snow' if v & 0x7F >= snow else 'ground')
                 events.append((kind, row + 1, top, n))
@@ -100,7 +114,7 @@ def columns(m, px, py, heading):
 COLOURS = {'ground': GROUND, 'snow': SNOWC, 'water': WATER, 'ridge': RIDGE, 'sky': SKY}
 
 
-def render(m, px, py, heading):
+def render(m, px, py, heading, tilt=0):
     """HGR bytes of rows 0..159 (40 bytes each), page cleared to 0 first."""
     fb = bytearray(VIEW_ROWS * 40)
 
@@ -111,7 +125,7 @@ def render(m, px, py, heading):
                 o = r * 40 + b
                 fb[o] = (fb[o] & ~(1 << bit)) | (on << bit)
 
-    for col, events in enumerate(columns(m, px, py, heading)):
+    for col, events in enumerate(columns(m, px, py, heading, tilt)):
         for kind, r0, r1, n in events:
             paint(col, r0, r1, COLOURS[kind])
     for y in range(HUD_ROWS):

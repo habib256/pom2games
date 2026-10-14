@@ -465,6 +465,8 @@ module_view_init:
         lda     M_HEAD+1
         sta     heading+1
         jsr     project_init
+        lda     #0              ; a level view (the loader leaves Applesoft's
+        sta     tilt            ; zero page values)
         sta     STORE80ON       ; PAGE2 banks $2000-$3FFF (DHGR)
         lda     #<t_cout        ; 40-column output under DHGR (dhgr.s)
         sta     $36

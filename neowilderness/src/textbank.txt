@@ -65,5 +65,6 @@ care_nowater_message: "NO WATER AT HAND: FILL THE CANTEEN|OR GO TO A RIVER OR LA
 care_already_message = c_m11
 orient_sense = w_m2
 orient_cancel: "ACTION CANCELLED.",0
+m_notnow: "NOT NOW.",0
 ol_chart_msg = c_m1
 ou_dark_msg = c_m53

@@ -72,16 +72,16 @@ scene_ref = _import_oracles()
 
 # ---------------------------------------------------------------------------
 # Terrain bands: the events of view_ref.columns (kind, r0, r1, n).
-def terrain_events(m, px, py, heading):
+def terrain_events(m, px, py, heading, tilt=0, steps=view_ref.STEPS):
     """Per column, in painting order: (kind, r0, r1, n), rows r0..r1-1."""
-    return view_ref.columns(m, px, py, heading)
+    return view_ref.columns(m, px, py, heading, tilt, steps)
 
 
 # ---------------------------------------------------------------------------
 # Trees: tools/forest_ref.trees.
-def tree_columns(m, px, py, heading):
+def tree_columns(m, px, py, heading, tilt=0):
     """{col: (begin, end, cx, crown_end, n)} of the canopy drawn per column."""
-    return forest_ref.trees(m, px, py, heading)
+    return forest_ref.trees(m, px, py, heading, tilt)
 
 
 # ---------------------------------------------------------------------------
@@ -141,11 +141,26 @@ def moon_inner(phase, waxing, x):
     return SKY_OUTER[v] if v < 11 else 255
 
 
-def body_spans(sky, ang):
+def body_row(y, tilt=0):
+    """src/sky.s sky_column: row of a body of level row sky_hy (a byte:
+    signed -96..95, $80 hidden; sky_y keeps 255 above the view, the
+    reference's state) in a view of this tilt, or None. Level:
+    rows 0..95; looking up: sky_y + 96 when below 160 (a body up to 76
+    degrees high); looking down: none."""
+    if tilt < 0:
+        return None
+    row = (y + view_ref.TILT_ROWS * tilt) & 255
+    return row if row < (VIEW_ROWS if tilt else HORIZON + 1) else None
+
+
+def body_spans(sky, ang, tilt=0):
     """Rows of the sun/Moon in the ray at azimuth ang: [(start, end)], unclipped."""
-    if sky.clouds or not sky.body or sky.body[1] > HORIZON:
+    if sky.clouds or not sky.body:
         return []
     bearing, y = sky.body
+    y = body_row(y, tilt)
+    if y is None:
+        return []
     d = (ang - bearing + 5) % 560
     if d >= 11:
         return []
@@ -165,15 +180,21 @@ def dither_column(heading, col):
     return (heading - 70 + col) % 560
 
 
-def view(m, px, py, heading, sky=None, animal=None, forest=True, sprites=True, pal=lighting):
+def view(m, px, py, heading, sky=None, animal=None, forest=True, sprites=True, pal=lighting,
+         tilt=0, steps=view_ref.STEPS):
     """Logical view: 160 rows x 140 colour indices (rows 0..15 included).
 
     pal(sky) returns the colour roles (default: the mood of tools/dhgr_palette);
     tests pass HGR codes to check the geometry against view_ref / scene_ref /
-    test_forest."""
+    test_forest. tilt: LOOK DOWN (-1), level, LOOK UP (1): every projected
+    row moves by dv = 96 * tilt (docs/LOOK_UPDOWN.md): terrain, distant
+    billboards, tree feet, sky zones, stars and the Sun or Moon; looking up
+    there is no sprite and no tree, looking down a local sprite keeps its
+    rows. steps: the ray budget of the weather (view_ref.columns)."""
     sky = sky or Sky()
     lit = pal(sky)
-    events = terrain_events(m, px, py, heading)
+    dv = view_ref.TILT_ROWS * tilt
+    events = terrain_events(m, px, py, heading, tilt, steps)
     pix = [[P.BLACK] * COLS for _ in range(VIEW_ROWS)]
     sky_top = [0] * COLS
     for col, evs in enumerate(events):
@@ -181,7 +202,7 @@ def view(m, px, py, heading, sky=None, animal=None, forest=True, sprites=True, p
         for kind, r0, r1, n in evs:
             for r in range(r0, r1):
                 if kind == 'sky':
-                    c = lit.sky(r, az)
+                    c = lit.sky(r - dv, az)     # zones move with dv (dhgr.s tilt_frame)
                 elif kind == 'ridge':
                     c = lit.ridge(r, az)
                 else:
@@ -192,7 +213,7 @@ def view(m, px, py, heading, sky=None, animal=None, forest=True, sprites=True, p
 
     # Billboard (scene_ref geometry), shaded by the mood, hidden in the dark.
     opaque = [set() for _ in range(COLS)]
-    g = None if sky.hidden or not sprites else scene_ref.select(m, px, py, heading, animal)
+    g = None if sky.hidden or not sprites or tilt > 0 else scene_ref.select(m, px, py, heading, animal)
     if g:
         name = scene_ref.ASSETS[g['asset']]
         colours = lit.sprite_colours(name)
@@ -203,9 +224,13 @@ def view(m, px, py, heading, sky=None, animal=None, forest=True, sprites=True, p
         else:
             s = dhgr_sprites.convert(name, g['shift'], colours=colours)
         for col in range(max(0, g['left']), min(COLS, g['left'] + g['width'])):
-            front = scene_ref.foreground(m, px, py, heading, col, g['depth']) if g['depth'] else VIEW_ROWS
+            front = scene_ref.foreground(m, px, py, heading, col, g['depth'], tilt) if g['depth'] else VIEW_ROWS
             for up, c in s['columns'][col - g['left']].items():
                 out = g['anchor'] - up if g['depth'] else s['base'] - s['origin'] - up
+                if g['depth']:
+                    if out < 0:
+                        continue                  # src/sprites.s: above the view
+                    out += dv
                 if 0 <= out < front:
                     pix[out][col] = lit.sprite(c)
                     opaque[col].add(out)
@@ -224,8 +249,9 @@ def view(m, px, py, heading, sky=None, animal=None, forest=True, sprites=True, p
             top -= 1                          # scene_trim
         az = (heading - 70 + col) % 560
         for v in stars_ref.paint_order(sky.stars):
-            if v['az'] == az and v['attr'] < thr and v['row'] < top:
-                for r in range(v['row'], v['row'] + v['rows']):
+            row = v['row'] + dv
+            if v['az'] == az and v['attr'] < thr and 0 <= row < top:
+                for r in range(row, min(row + v['rows'], VIEW_ROWS)):
                     if r not in opaque[col]:
                         pix[r][col] = v['colour']
 
@@ -236,7 +262,7 @@ def view(m, px, py, heading, sky=None, animal=None, forest=True, sprites=True, p
         while top and top - 1 in opaque[col]:
             top -= 1                          # scene_trim
         ang = (heading - 70 + col) % 560
-        for start, end in body_spans(sky, ang):
+        for start, end in body_spans(sky, ang, tilt):
             for r in range(start, min(end, top)):
                 if r not in opaque[col]:
                     pix[r][col] = body
@@ -244,7 +270,7 @@ def view(m, px, py, heading, sky=None, animal=None, forest=True, sprites=True, p
     # Foliage after the sky (forest_paint), below a nearer billboard only.
     if forest:
         depth = g['depth'] if g else 0
-        for col, (begin, end, cx, crown_end, n) in tree_columns(m, px, py, heading).items():
+        for col, (begin, end, cx, crown_end, n) in tree_columns(m, px, py, heading, tilt).items():
             for r in range(max(HUD_ROWS, begin), end):
                 if r in opaque[col] and depth < n:
                     continue
@@ -322,9 +348,9 @@ def hud(page, heading, magnetic=0):
 
 
 def frame(m, px, py, heading, sky=None, animal=None, forest=True, show_hud=True, magnetic=0,
-          sprites=True):
+          sprites=True, tilt=0):
     """Physical page: 192 rows x 140 colour indices."""
-    v = view(m, px, py, heading, sky, animal, forest, sprites)
+    v = view(m, px, py, heading, sky, animal, forest, sprites, tilt=tilt)
     page = [[P.BLACK] * COLS for _ in range(ROWS)]
     for r in range(VIEW_ROWS):
         page[physical(r)] = v[r]

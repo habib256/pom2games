@@ -86,9 +86,12 @@ def volume_check():
     image = Image(DISK.read_bytes())
     files = {path: entry for path, entry in
              ((f'/{e[1:1 + (e[0] & 15)].decode()}', e) for e in image.entries(2))}
-    assert sorted(files) == sorted(['/NEOWILD.DAT', '/NEOWILD.SYSTEM', '/PRODOS',
-                                    '/NEOWILD.END', '/NEOWILD.HOF']), sorted(files)
     layout = json.loads((HERE / 'build/layout.json').read_text())
+    # Lot 9 (docs/SAVE.md): NEOWILD.SAV and the saved games that fit on the
+    # volume (five on 800 KB, fewer or none on the 140 KB image).
+    saves = ['/NEOWILD.SAV'] + ['/' + n for n in layout['save_games']['files']]
+    assert sorted(files) == sorted(['/NEOWILD.DAT', '/NEOWILD.SYSTEM', '/PRODOS',
+                                    '/NEOWILD.END', '/NEOWILD.HOF'] + saves), sorted(files)
     lbl = build_disk.labels(HERE / 'build')
     # NEOWILD.DAT holds the trunk, the six packs and the preparation (docs/MEMORY.md
     # 13); NEOWILD.SYSTEM carries their marks (src/boot.s ld_marks).

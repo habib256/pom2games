@@ -79,6 +79,69 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
   de WATER ([CAMP.md](docs/CAMP.md), `tests/test_camp.py`,
   `tools/re_camp_probe.py`).
 
+### Neowilderness : SAVE et RESTORE, cinq parties (lot 9)
+
+- `SAVE` et `RESTORE` (jusqu'ici « NOT IN THIS VERSION YET ») gardent cinq
+  parties, comme l'original : numéro demandé par l'invite numérique ou
+  tapé à la suite (`SAVE 2`), question avant d'écraser une partie occupée
+  (région et heures), refus d'une autre région (`GAME 1: SIERRA NEVADA
+  ONLY.`), d'une autre construction, d'une partie vide ou abîmée
+  (Fletcher-16), disque protégé et fichier absent signalés ; aucun refus
+  ne change la partie ([SAVE.md](docs/SAVE.md)).
+- Une partie = 32 octets d'en-tête versionné + 1 392 octets d'état
+  (GDATA sans le cache des modules, la ligne tapée ni les tables
+  constantes ; objets au sol ; en-tête de carte ; espèce nommée), inventaire
+  établi par balayage des écritures et comparaisons de mémoire ; RESTORE
+  redessine la vue (humeur, étoiles, scène), remet le menu à sa première
+  case et la suite de la partie est identique octet pour octet.
+- Code dans un module lu à la commande, `NEOWILD.SAV` (1 218 octets, fenêtre
+  SIM, tampon d'E/S `$AB00`, bitmap `$96-$AF` libéré puis remis) ; relais
+  résident de 237 octets (WILDLO), +6 octets de tables de verbes, +13 dans
+  INPUT. Fichiers `NEOWILD.S1`…`S5` de longueur fixe créés à la
+  construction : ni CREATE ni allocation. SAVE : 8 appels MLI, ≈ 4,5 s ;
+  RESTORE : 6 appels, 6 à 9 s avec le redessin. Volume : 24 blocs, 4 libres.
+- `DISK_BLOCKS=1600` / `make disk800` : le volume sur 800 Ko ; démarré et
+  essayé (SAVE, RESTORE) dans POM2 sur sa carte SmartPort, hors de portée
+  d'a2shot (Disk II seulement) : l'image livrée reste de 140 Ko.
+- Tests : `tests/test_save.py` (partie de nuit, continuation identique,
+  vue identique, autre région, redémarrage, fichier relu après éjection,
+  défauts, WOZ protégé, gardes ProDOS), `tests/test_resident.py` (SAVE et
+  RESTORE, seules commandes autorisées à appeler le MLI),
+  `tests/test_prodos.py` et `tests/test_pack_boot.py` (catalogue).
+
+### Neowilderness : LOOK UP / LOOK DOWN, flèches haut et bas
+
+- `LOOK U`/`UP`, `LOOK D`/`DOWN`, `LOOK F`/`AHEAD`/`FORWARD`, `PAN` et
+  `SCAN U`/`D` : trois angles de vue comme l'original (octet `$E7` de
+  SURV3D, sondé) : LOOK fixe l'angle, PAN avance d'un cran et s'arrête au
+  bout, PAN AHEAD ne fait rien ; aucun temps de jeu ; l'angle persiste à
+  travers LOOK L/R/N/AZ, VIEW, STATUS, REST ; WALK, SWIM et LOOK B le
+  remettent à niveau ; rien ne change dans la cabane ; « NOT NOW. » refuse
+  de regarder en bas devant un animal debout au contact (l'ours en Sierra,
+  règle de l'original par région et espèce).
+- Rendu : chaque ligne projetée descend (haut) ou monte (bas) de 96 lignes,
+  mesure sur l'original (le plan prévoyait 64 vers le bas) : relief, ciel en
+  zones, soleil et Lune (un astre jusqu'à 76° de hauteur devient visible en
+  regardant en l'air), étoiles, panneaux lointains, pieds des arbres ; en
+  l'air, ni sprite ni arbre ; vers le bas, l'épave et les sprites locaux
+  restent à leur place (l'original les montre là). 96 lignes = 512 unités de
+  pente : `tilt_row` projette `tinc − 512 × tilt` avec les tables à niveau,
+  sans toucher à la boucle des rayons (vue à niveau identique au bit près,
+  +0,2 à +0,9 % de cycles). Oracles `view_ref`, `forest_ref`, `scene_ref`,
+  `dhgr_ref`, `stars_ref` avec `tilt` ; `tests/test_tilt.py` (six cartes ×
+  trois angles au bit près, arbres, panneau lointain, soleil à 68°,
+  commandes, refus, rangées 176-191 des six régions), banc des étoiles à
+  trois angles, scénario `look_tilt` de `test_adventure.py --original`
+  (angle du port = `$E7` à chaque pas, horloge inchangée) ;
+  `tools/re_tilt_probe.py` ([LOOK_UPDOWN.md](docs/LOOK_UPDOWN.md)).
+- Grille : `UP` et `DOWN` dans la liste de LOOK. Ligne tapée : **flèche
+  haut = STATUS, flèche bas = grille** (TAB reste un alias) ;
+  [MENUS.md](docs/MENUS.md) § 4, `tests/test_menu_bar.py`.
+- `tests/test_sim.py` « Night view » : le test supposait l'horizon en 95 ;
+  le ciel descend jusqu'au dernier échantillon visible (règle de l'original
+  et de l'oracle), que le brouillard du port rapproche (visibilité 24 :
+  11 pas, ligne 104). Le test calcule désormais cette limite.
+
 ### Neowilderness : MAP plein écran 80 × 24
 
 - MAP, et la carte animée de WALK/SWIM, occupent tout l'écran texte

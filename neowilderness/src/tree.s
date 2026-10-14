@@ -3,22 +3,28 @@
 module_tree_look:
         jsr     orient_look     ; lot 7: SUN, STARS, objects, aid rule (orient.s)
         lda     noun
+        cmp     #149            ; U, UP
+        beq     look_up
+        cmp     #150            ; D, DOWN
+        beq     look_down
         cmp     #152            ; L
         beq     @left
         cmp     #151            ; R
         beq     @right
         cmp     #157            ; B
         beq     @back
-        cmp     #156            ; F
-        beq     @front
+        cmp     #156            ; F, AHEAD, FORWARD
+        beq     look_front
         jmp     look_invalid    ; N E S W, AZ: orient_look (src/orient.s)
 @aim:   jsr     magnetic_heading
-@front: jmp     show_view
+        jmp     show_view
 @left:  ldx     #2
         jmp     turn_view
 @right: ldx     #3
         jmp     turn_view
-@back:  clc                     ; 180 degrees
+@back:  lda     #0              ; LOOK B levels the view (SURV3D $1028)
+        sta     tilt
+        clc                     ; 180 degrees
         lda     heading
         adc     #<280
         sta     ang
@@ -32,7 +38,94 @@ module_tree_look:
         sta     heading+1
         jmp     show_view
 
+
 .export tree_look_aim := @aim
+
+; LOOK UP / DOWN / AHEAD, PAN UP / DOWN (SURV3D $0FA9, docs/LOOK_UPDOWN.md):
+; three tilts. LOOK sets one, PAN steps toward it and stops at the end;
+; PAN AHEAD does nothing. An unchanged tilt redraws nothing (LOOK AHEAD at
+; level still shows the view, as before). Inside the cabin the tilt does
+; not change. Looking down is refused ("NOT NOW.", the original's short
+; message 64) while a standing animal is at contact. No game time.
+look_up:
+        ldx     #1
+        lda     verb
+        cmp     #V_PAN
+        bne     look_tilt
+        ldx     tilt
+        inx
+        cpx     #2
+        bne     look_tilt
+        rts
+look_down:
+        ldx     #$FF
+        lda     verb
+        cmp     #V_PAN
+        bne     look_tilt
+        ldx     tilt
+        dex
+        cpx     #$FE
+        bne     look_tilt
+        rts
+look_front:
+        lda     verb
+        cmp     #V_PAN
+        beq     look_rts
+        ldx     #0
+        cpx     tilt
+        beq     look_view
+look_tilt:
+        cpx     tilt
+        beq     look_rts
+        lda     shelter_inside
+        bne     look_view
+        txa
+        bpl     look_set
+        jsr     look_standing
+        ldx     #$FF            ; the only negative tilt
+        bcc     look_set
+        lda     #<m_notnow
+        ldx     #>m_notnow
+        jmp     message
+look_set:
+        stx     tilt
+        lda     #0              ; the sprite ceiling depends on the tilt
+        sta     scene_cache_valid
+look_view:
+        jmp     show_view
+look_rts:
+        rts
+
+; look_standing -- carry set when an animal at contact stands (the
+; original's sprite flag bit 7, Journey T0D/SE $5F7D: by region and slot,
+; the bear in the Sierra Nevada; the snakes and the cougar lie low).
+look_standing:
+        lda     animal_kind
+        beq     @no
+        lda     px+1
+        cmp     animal_x
+        bne     @no
+        lda     py+1
+        cmp     animal_y
+        bne     @no
+        ldy     region_number
+        cpy     #7
+        bcs     @no
+        lda     animal_kind     ; 6, 7, 8: slots 1-3; 9 never stands
+        sec
+        sbc     #5
+        tax
+        lda     look_stand_bits,y
+@bit:   lsr     a
+        dex
+        bne     @bit
+        rts                     ; carry = bit of the slot
+@no:    clc
+        rts
+; Slots 1-3 that stand, by region (0: a legacy map, the Sierra Nevada):
+; T0D/SE $5F86: slot 1 unless region 3, slot 2 in region 3, slot 3 in
+; region 1, none from region 5.
+look_stand_bits: .byte %001, %101, %001, %010, %001, 0, 0
 
 ; Placement 5 stores the pack and its contents at the pack's ground anchor.
 .segment "TREE"

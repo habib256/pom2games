@@ -578,7 +578,32 @@ def lock_files(volume, keep):
                 block[e + 0x1E] = ACCESS_READ_ONLY
 
 
-def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
+SAVE_GAMES = 5
+
+
+def file_blocks(size):
+    """ProDOS blocks of a file: data blocks, + the index block of a sapling."""
+    data = max(1, -(-size // 512))
+    return data + (data > 1)
+
+
+def save_files(build, sym, trunk, packs):
+    """NEOWILD.SAV (build/wildsav.bin) with its build id, and the length of
+    a NEOWILD.Sn file (src/save.s sv_size). The id is two bytes of the
+    SHA-256 of the trunk and the six packs (maps included), never 0."""
+    module = bytearray((build / 'wildsav.bin').read_bytes())
+    base = 0x9600
+    assert 0 < len(module) <= 0x9C00 - base, 'NEOWILD.SAV overlaps its slot image'
+    digest = hashlib.sha256(trunk + b''.join(packs[r] for r in sorted(packs))).digest()
+    build_id = int.from_bytes(digest[:2], 'little') or 1
+    at = sym['sv_build'] - base
+    module[at:at + 2] = build_id.to_bytes(2, 'little')
+    at = sym['sv_size'] - base
+    slot_size = int.from_bytes(module[at:at + 2], 'little')
+    return bytes(module), slot_size
+
+
+def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks=280):
     """map_path replaces the map of the Sierra Nevada pack (tests)."""
     build = Path(build) if build else HERE / 'build'
     out = Path(out)
@@ -789,11 +814,50 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
         assert 0 < len(end_module) <= 0x2000 and len(hof_file) == 512
         (stage / 'NEOWILD.END#069600').write_bytes(end_module)
         (stage / 'NEOWILD.HOF#060000').write_bytes(hof_file)
+        # Lot 9 (docs/SAVE.md): the SAVE/RESTORE module, read at $9600 by
+        # do_save, with the build id of this volume (a game saved by another
+        # build is refused), and the five games, fixed-length files written
+        # in place (no CREATE, no block allocated), empty (zeros) here.
+        save_module, slot_size = save_files(build, sym, trunk, packs)
+        (stage / 'NEOWILD.SAV#069600').write_bytes(save_module)
+        for game in range(1, SAVE_GAMES + 1):
+            (stage / f'NEOWILD.S{game}#060000').write_bytes(bytes(slot_size))
         boot = (DEV / 'tools/prodos/boot.bin').read_bytes()
         boot = (boot + bytes(1024))[:1024]
-        volume = Volume(VOLUME, 280, boot, prodos_date('2026-10-13T12:00'))
-        volume.build(stage)
-        lock_files(volume, keep={'NEOWILD.HOF'})
+        # A volume too small for the five games (a native map's atlas in a
+        # 280-block comparison disk) keeps as many as fit; the game answers
+        # "NEOWILD.Sn IS MISSING." for the others.
+        # A comparison disk with a native map (its atlas takes 13 more blocks)
+        # may still overflow with no game at all: it then also drops the
+        # SAVE/RESTORE module, which its tests do not use (the shipped image
+        # keeps it: it is checked by tests/test_pack_boot.py). The journey
+        # preparation is part of NEOWILD.DAT (docs/MEMORY.md 13).
+        dropped = []
+        optional = ['NEOWILD.SAV#069600']
+        while True:
+            built = False
+            for games in range(SAVE_GAMES, -1, -1):
+                try:
+                    volume = Volume(VOLUME, blocks, boot, prodos_date('2026-10-13T12:00'))
+                    volume.build(stage)
+                    built = True
+                    break
+                except SystemExit:
+                    if games:
+                        (stage / f'NEOWILD.S{games}#060000').unlink()
+            if built:
+                break
+            if not optional or not map_path:
+                raise SystemExit('le contenu deborde le volume de %d blocs' % blocks)
+            name = optional.pop(0)
+            (stage / name).unlink()
+            dropped.append(name.split('#')[0])
+        if games < SAVE_GAMES:
+            print(f'{out}: room for {games} saved games of {SAVE_GAMES} only', file=sys.stderr)
+        if dropped:
+            print(f'{out}: native-map comparison disk without {", ".join(dropped)}', file=sys.stderr)
+        # The hall of fame and the saved games are the only files written in place.
+        lock_files(volume, keep={'NEOWILD.HOF'} | {f'NEOWILD.S{g}' for g in range(1, games + 1)})
     finally:
         for path in stage.iterdir():
             path.unlink()
@@ -813,8 +877,8 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
                                   **({'lz': lz[17 if i == 18 else i]}
                                      if (17 if i == 18 else i) in lz else {}))
                      for i in range(DIR_ENTRIES) if (17 if i == 18 else i) in placed}
-    info = dict(packing=packing, blocks_used=volume.next_free, blocks=280,
-                blocks_free=280 - volume.next_free,
+    info = dict(packing=packing, blocks_used=volume.next_free, blocks=blocks,
+                blocks_free=blocks - volume.next_free,
                 dat=trunk_stats, geo=geo,
                 modules=dict(sorted({**trunk_modules, **sierra}.items(), key=lambda kv: int(kv[0]))),
                 trunk_modules=trunk_modules,
@@ -833,7 +897,12 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
                 hof_file=dict(file='NEOWILD.HOF', bytes=len(hof_file), blocks=1),
                 prepare_module=dict(file='NEOWILD.DAT', mark=marks[-1], bytes=len(prepare_module)),
                 dat_file=dict(bytes=len(dat), blocks=-(-len(dat) // 512) + (len(dat) > 512),
-                              marks=marks))
+                              marks=marks),
+                save_module=dict(file='NEOWILD.SAV', bytes=len(save_module),
+                                 blocks=file_blocks(len(save_module)),
+                                 on_volume='NEOWILD.SAV' not in dropped),
+                save_games=dict(files=[f'NEOWILD.S{g}' for g in range(1, games + 1)],
+                                bytes=slot_size, blocks=file_blocks(slot_size)))
     if layout:
         Path(layout).write_text(json.dumps(info, indent=1) + '\n')
     return info
@@ -849,8 +918,10 @@ if __name__ == '__main__':
     # map (atlas in the Sierra pack) would not fit the 280 blocks.
     parser.add_argument('--packing', choices=('raw', 'lz', 'auto'), default='lz')
     parser.add_argument('--layout', help='write the placement/record summary as JSON')
+    # Lot 9: 280 blocks (5.25-inch, the shipped image) or 1600 (3.5-inch 800 KB).
+    parser.add_argument('--blocks', type=int, default=280)
     args = parser.parse_args()
-    info = build_disk(args.out, args.map, args.build, args.packing, args.layout)
+    info = build_disk(args.out, args.map, args.build, args.packing, args.layout, args.blocks)
     packs = ', '.join(f'R{r} {p["stored"]}' for r, p in info['packs'].items())
     print(f'{args.out}: NEOWILD.DAT {info["dat"]["raw"]} -> {info["dat"]["stored"]} bytes '
           f'({info["packing"]}, {info["dat"]["records"]} records); packs (bytes) {packs}; '

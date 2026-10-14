@@ -17,9 +17,15 @@ import view_ref  # noqa: E402
 from mkmap import forest_at  # noqa: E402
 
 
-def trees(m, px, py, heading):
-    """{col: (begin, end, cx, crown_end, n)} of the canopy drawn per column."""
+def trees(m, px, py, heading, tilt=0):
+    """{col: (begin, end, cx, crown_end, n)} of the canopy drawn per column.
+
+    tilt (LOOK UP / DOWN): no tree looking up (the original's rule); looking
+    down the feet move up by 96 rows, a foot above the view hides the tree."""
     out = {}
+    if tilt > 0:
+        return out
+    horizon = 95 + view_ref.TILT_ROWS * tilt
     eye = (m[64 + (py >> 8) * 112 + (px >> 8)] & 127) + 2
     for col in range(140):
         dx, dy = view_ref.direction(heading - 70 + col)
@@ -44,7 +50,7 @@ def trees(m, px, py, heading):
                     hi = 47 + 7 * p if kind else 24 + 8 * p
                     q = (abs(dz) * 256) // n
                     off = (q * 3) >> 4
-                    base = 95 - off if dz >= 0 else 95 + off
+                    base = horizon - off if dz >= 0 else horizon + off
                     if off < 256 and base >= 0:
                         begin = max(0, base - hi // n)
                         end = min(top, base - (0 if p >= 14 else lo) // n)
@@ -59,15 +65,9 @@ def trees(m, px, py, heading):
             q = (abs(dz) << 8) // n
             inc = -q if dz < 0 else q
             thr = dz << 8
-            if inc >= 512:
-                off = 95
-            elif inc < -512:
+            row = view_ref.sample_row(inc, tilt)
+            if row is None:
                 continue
-            else:
-                off = min((inc * 3) >> 4, 95)
-                if off < -64:
-                    continue
-            row = 95 - off
             if row < top:
                 top = row
                 if not top:
@@ -77,10 +77,10 @@ def trees(m, px, py, heading):
     return out
 
 
-def hgr(m, px, py, heading):
+def hgr(m, px, py, heading, tilt=0):
     """HGR bytes of rows 0..159: view_ref.render with the HGR canopies."""
-    fb = bytearray(view_ref.render(m, px, py, heading))
-    for col, (begin, end, cx, crown_end, n) in trees(m, px, py, heading).items():
+    fb = bytearray(view_ref.render(m, px, py, heading, tilt))
+    for col, (begin, end, cx, crown_end, n) in trees(m, px, py, heading, tilt).items():
         for r in range(max(16, begin), end):
             for p in (2 * col, 2 * col + 1):
                 fb[r * 40 + p // 7] &= ~(1 << (p % 7))
