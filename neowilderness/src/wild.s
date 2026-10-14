@@ -906,6 +906,7 @@ STARS_LIST_LC = 1
         .include "water.s"
         .include "alerts.s"     ; lot 13: alerts, forced sleep, diseases (WILDLO)
         .include "camp.s"
+        .include "textbank.inc" ; build/: texts fetched at print time (TBANK, docs/MEMORY.md 13)
         .include "geography.s"
         .include "geoaux.s"
         .include "hof.s"        ; segment HOF: build/wildhof.bin ($9600)

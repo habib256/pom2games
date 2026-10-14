@@ -150,8 +150,6 @@ orient_min:   .res 2            ; observation (minutes)
 orient_deg:   .res 2            ; signed degrees added to orient_base
 
 .segment "LOWTEXT"
-orient_sense: .byte "YOU'RE NOT MAKING MUCH SENSE.",0
-orient_cancel: .byte "ACTION CANCELLED.",0
 
 OA_WATCH  = 0                   ; msg 189/190, Y (1) or N (0)
 OA_SHADOW = 1                   ; msg 29/30, W (1) or E (0)
@@ -729,5 +727,3 @@ ou_missing:
         lda     #<m_noitem
         ldx     #>m_noitem
         jmp     message
-ol_chart_msg: .byte "SORRY, THAT ITEM IS NOT AVAILABLE.",0
-ou_dark_msg: .byte "SORRY, THERE IS INSUFFICIENT LIGHT.",0

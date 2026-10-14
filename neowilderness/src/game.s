@@ -3043,7 +3043,10 @@ goal_pct:
 ; They fill the result column (rows 20-22, columns 40-78: src/menu.s),
 ; wrapped by words, and persist until the next action supplies a result.
 message:
-        sta     gp1
+        cpx     #0              ; a text of the bank: A = its number
+        bne     :+
+        jsr     text_fetch
+:       sta     gp1
         stx     gp1+1
         jsr     msg_begin
 message_body:                   ; camp_say: a message after the previous one

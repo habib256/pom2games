@@ -417,7 +417,6 @@ sprite_advance:
 .segment "TEXT"
 ; The first message names the region and its wildlife from the texts of the
 ; loaded pack (REGIONTEXT), in the words of the original introduction (GO3).
-m_crash: .byte "CRASH IN @",<region_intro,".|REACH THE RANGERS. WILDLIFE: @",<region_fauna,0
 
 ; message placeholder '@' + selector: a text of the loaded region. The
 ; selector is the low byte of a REGIONTEXT field ($5780-$57FF, one page):

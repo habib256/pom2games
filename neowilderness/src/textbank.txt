@@ -1,0 +1,69 @@
+; textbank.txt -- the texts of the bank (docs/MEMORY.md 13), compiled by
+; tools/gentextbank.py into build/textbank.inc. One text per line,
+; "name: data" with ca65 .byte items (strings, numbers, expressions), or
+; "name = other" for a text already in the bank. A text is printed by
+; message with its number in A and X = 0 (lda #<name / ldx #>name), or
+; fetched by text_fetch; see src/memory.s.
+m_what: "UNKNOWN COMMAND. TYPE HELP.", 0
+m_oops: "START WITH A VERB. TYPE HELP.", 0
+m_unknown: "UNKNOWN VERB: ~|TYPE HELP FOR AVAILABLE COMMANDS.",0
+m_notyet: "NOT IN THIS VERSION YET.", 0
+m_ok: "OK, WHAT NEXT?", 0
+m_noitem: "^|NOT ACCESSIBLE HERE.|CHECK INVENTORY OR MOVE CLOSER.", 0
+m_notfood: "YOU CAN'T EAT THAT.", 0
+m_usedrink: "PLEASE USE 'DRINK'.", 0
+m_hours: "DURATION? E.G. 10 MIN OR 1 H", 0
+m_ounces: "HOW MANY OUNCES? ESC CANCELS.", 0
+m_travel: "TRAVEL: # MINUTES.|!", 0
+m_nolight: "NOT ENOUGH LIGHT.", 0
+m_food_object: "NAME A FOOD. TRY EAT CHEESE.",0
+m_drink_object: "TRY DRINK WATER.",0
+m_rested: "YOU RESTED # HOURS.", 0
+m_waited: "YOU WAITED # HOURS.", 0
+m_wait_minutes: "YOU WAITED # MINUTES.",0
+m_goal: "YOU HAVE REACHED THE RANGER OUTPOST.|YOU SURVIVED. PRESS A KEY.", 0
+m_dead: "YOU DID NOT SURVIVE THE WILDERNESS.|PRESS A KEY.", 0
+m_weak: "YOU ARE VERY WEAK. REST, EAT AND DRINK.", 0
+m_rest_minutes: "YOU RESTED # MINUTES.",0
+m_dead_travel: "YOU DID NOT SURVIVE THE WILDERNESS.|TRAVEL: # MINUTES. PRESS A KEY.",0
+m_goal_travel: "RANGER OUTPOST REACHED. YOU SURVIVED.|TRAVEL: # MINUTES. PRESS A KEY.",0
+m_weak_travel: "VERY WEAK. REST, EAT AND DRINK.|TRAVEL: # MINUTES.|!",0
+m_crash: "CRASH IN @",<region_intro,".|REACH THE RANGERS. WILDLIFE: @",<region_fauna,0
+camp_douse_msg: "SMOKEY THE BEAR SAYS TO DOUSE YOUR FIRE FIRST",$A1,0
+m_ridiculous: "DON'T BE RIDICULOUS",$A1,0
+c_m1: "SORRY, THAT ITEM IS NOT AVAILABLE.",0
+c_m11: "YOU ALREADY HAVE.",0
+c_m15: "IT TOOK A WHILE TO MAKE YOUR ^.",0
+c_m25: "USE THE APPROPRIATE ITEM FIRST.",0
+c_m53: "SORRY, THERE IS INSUFFICIENT LIGHT.",0
+c_m75: "NO DOUBT POSSIBLE, BUT BEYOND THE SCOPE OF THE GAME.",0
+c_m76: "SORRY, SUFFICIENT RAW MATERIAL IS NOT AVAILABLE.",0
+c_m77: "PLEASE BE CAREFUL.",0
+c_m78: "SORRY, NOT PERMITTED IF YOU ARE IN OR ON WATER.",0
+c_m79: "SORRY, TOO MUCH RAIN OR WIND.",0
+c_m83: "SORRY, THE BATTERIES ARE USED UP.",0
+c_m85: "YOU NEED BOTH FUEL AND FIRE.",0
+c_m88: "THE ^ HAS BEEN USED UP.",0
+w_m2: "YOU'RE NOT MAKING MUCH SENSE.",0
+w_m27: "SPECIFY TIME IN HOURS.",0
+w_m50: "WHY DON'T YOU TRY TO MAKE WATER BY CONDENSATION ?",0
+w_m55: "DO YOU WANT TO SEARCH FOR GROUND OR PLANT WATER [Y/N]?",0
+w_m56: "YOU WERE SUCCESSFUL",$A1,0
+w_m57: "YOU CANNOT CARRY WATER WITHOUT A CANTEEN.",0
+w_m58: "IF YOU NEED WATER, EAT FOOD OR PLANTS HIGH IN WATER CONTENT.",0
+w_m62: "SORRY, NO GROUND WATER.",0
+w_m63: "YOU HAVE CONDENSED # OUNCES OF WATER.",0
+w_m64: "YOU CANNOT EXCEED THE AVAILABLE AMOUNT OF # OUNCES.",0
+w_m65: "YOU NEED A FIRE TO BOIL OR COOK THINGS.",0
+w_m179: "THESE CACTI ARE LOADED WITH WATER",$A1,0
+w_m186: "YOUR CANTEEN CANNOT HOLD MORE THAN TWO QUARTS.",0
+w_heavy: "TOO MUCH WEIGHT OR VOLUME. DROP SOME GEAR.",0
+care_party_message: "IF YOU WEREN'T ALONE, YOU COULD|THROW A PARTY IN YOUR ^.",0
+care_item_message: "USE THE APPROPRIATE ITEM FIRST.|USE KNIFE OR USE AXE.",0
+care_exceed_message: "YOU CANNOT EXCEED THE AVAILABLE|AMOUNT OF $ OUNCES.",0
+care_nowater_message: "NO WATER AT HAND: FILL THE CANTEEN|OR GO TO A RIVER OR LAKE.",0
+care_already_message = c_m11
+orient_sense = w_m2
+orient_cancel: "ACTION CANCELLED.",0
+ol_chart_msg = c_m1
+ou_dark_msg = c_m53

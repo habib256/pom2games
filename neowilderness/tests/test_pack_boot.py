@@ -150,7 +150,7 @@ def volume_check():
         actual = region(trunk, banks[module['bank']], module['address'], module['stored'])
         assert actual == expected, (index, module['image'])
         if 'lz' in module:          # decoded in place, as memory.s lz_unpack
-            assert build_disk.lz_unpack(expected, module['lz']['copy']) == \
+            assert build_disk.lz_unpack(expected, module['lz']['copy'], module['length']) == \
                 (HERE / 'build' / module['image']).read_bytes(), (index, 'LZ')
     sizes = []
     for r in range(1, 7):
@@ -165,7 +165,7 @@ def volume_check():
             expected = build_disk.stored_bytes(HERE / 'build', module)
             assert region(memory, banks[module['bank']], module['address'], module['stored']) == expected
             if 'lz' in module:
-                assert build_disk.lz_unpack(expected, module['lz']['copy']) == \
+                assert build_disk.lz_unpack(expected, module['lz']['copy'], module['length']) == \
                     (HERE / 'build' / module['image']).read_bytes(), (r, index, 'LZ')
         for index, module in info['empty_slots'].items():   # two-species regions
             assert region(memory, banks[module['bank']], module['address'], 1) == b'\0'

@@ -52,7 +52,6 @@ camp_fill:  .byte 0             ; FILL/REFILL: as much as the canteen holds
 camp_untreated: .byte 0         ; the source is untreated ($4B48 = 0)
 w_avail:    .word 0             ; ounces available (msg 64)
 w_room:     .byte 0             ; canteen room; BOIL: nonzero from the canteen
-camp_douse_msg: .byte "SMOKEY THE BEAR SAYS TO DOUSE YOUR FIRE FIRST",$A1,0
 .export camp_state, camp_state_end, camp_use, fire_on, fire_near, sticks_on, light, s_sweat
 
 .segment "LOWCODE"
@@ -98,16 +97,16 @@ camp_walk:
 ; camp_say -- A = message number (M_*): the first of the command clears the
 ; result column, the next ones follow it (the original prints each in turn).
 camp_say:
-        asl     a
         tay
-        ldx     camp_msgs-1,y
-        lda     camp_msgs-2,y
+        lda     camp_msgs-1,y   ; a text of the bank (src/textbank.s)
+        ldx     #0
         ldy     camp_said
         inc     camp_said
         cpy     #0
         bne     :+
         jmp     message
-:       sta     gp1
+:       jsr     text_fetch
+        sta     gp1
         stx     gp1+1
         lda     #' '|$80
         jsr     msg_char
@@ -285,7 +284,6 @@ drink_limit:
         jsr     message
         sec
 :       rts
-m_ridiculous: .byte "DON'T BE RIDICULOUS",$A1,0   ; msg 87, T0F/S00 $5C4B
 .if DRINK_FIDELITY
 ; drink_credit -- FAC = msgnum x (.73 - .6 x $4C7A), the ROM operations of
 ; T0F/S00 $5CAD-$5CD4 (constants $5D95, $5D9A).
@@ -666,7 +664,8 @@ make_fire:
 
 camp_k:     .res 2
 .segment "LOWTEXT"
-; Original messages (msg n of Journey), resident: other lots reuse them.
+; Original messages (msg n of Journey): texts of the bank (src/textbank.s),
+; fetched at print time; other lots reuse them.
 
 ; Message numbers (camp_say, camp_done): 1 + index in camp_msgs.
 M_OK = 1
@@ -698,44 +697,31 @@ M_M179 = 26
 M_M186 = 27
 M_HEAVY = 28
 camp_msgs:
-        .addr   m_ok
-        .addr   c_m1
-        .addr   c_m11
-        .addr   c_m15
-        .addr   c_m25
-        .addr   c_m53
-        .addr   c_m75
-        .addr   c_m76
-        .addr   c_m77
-        .addr   c_m78
-        .addr   c_m79
-        .addr   c_m83
-        .addr   c_m85
-        .addr   c_m88
-        .addr   w_m2
-        .addr   w_m27
-        .addr   w_m50
-        .addr   w_m55
-        .addr   w_m56
-        .addr   w_m57
-        .addr   w_m58
-        .addr   w_m62
-        .addr   w_m63
-        .addr   w_m64
-        .addr   w_m65
-        .addr   w_m179
-        .addr   w_m186
-        .addr   w_heavy
-c_m1:   .byte "SORRY, THAT ITEM IS NOT AVAILABLE.",0
-c_m11:  .byte "YOU ALREADY HAVE.",0
-c_m15:  .byte "IT TOOK A WHILE TO MAKE YOUR ^.",0
-c_m25:  .byte "USE THE APPROPRIATE ITEM FIRST.",0
-c_m53:  .byte "SORRY, THERE IS INSUFFICIENT LIGHT.",0
-c_m75:  .byte "NO DOUBT POSSIBLE, BUT BEYOND THE SCOPE OF THE GAME.",0
-c_m76:  .byte "SORRY, SUFFICIENT RAW MATERIAL IS NOT AVAILABLE.",0
-c_m77:  .byte "PLEASE BE CAREFUL.",0
-c_m78:  .byte "SORRY, NOT PERMITTED IF YOU ARE IN OR ON WATER.",0
-c_m79:  .byte "SORRY, TOO MUCH RAIN OR WIND.",0
-c_m83:  .byte "SORRY, THE BATTERIES ARE USED UP.",0
-c_m85:  .byte "YOU NEED BOTH FUEL AND FIRE.",0
-c_m88:  .byte "THE ^ HAS BEEN USED UP.",0
+        .byte   m_ok
+        .byte   c_m1
+        .byte   c_m11
+        .byte   c_m15
+        .byte   c_m25
+        .byte   c_m53
+        .byte   c_m75
+        .byte   c_m76
+        .byte   c_m77
+        .byte   c_m78
+        .byte   c_m79
+        .byte   c_m83
+        .byte   c_m85
+        .byte   c_m88
+        .byte   w_m2
+        .byte   w_m27
+        .byte   w_m50
+        .byte   w_m55
+        .byte   w_m56
+        .byte   w_m57
+        .byte   w_m58
+        .byte   w_m62
+        .byte   w_m63
+        .byte   w_m64
+        .byte   w_m65
+        .byte   w_m179
+        .byte   w_m186
+        .byte   w_heavy

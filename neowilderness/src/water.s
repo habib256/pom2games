@@ -153,9 +153,10 @@ water_condense_ok:
 @no:    clc
         rts
 
-.segment "ENVIRON"
-; Water piles (T0F/S00 $5ABC, $5DAE): in SIM, where DRINK runs; CAMP
-; loads SIM before it calls them.
+.segment "CODE"
+; Water piles (T0F/S00 $5ABC, $5DAE): resident (WILDERNESS) since the
+; integration of lots 2, 7 and 13 (docs/MEMORY.md 13: SIM must end below
+; $B500 with room to spare); DRINK runs them with SIM loaded.
 ; water_pile -- $5ABC/$5DAE: the pile on the cell grows by 160 oz unless it
 ; holds 321 oz or more; a pile left on another cell is abandoned (the port
 ; keeps one ground cell per item).
@@ -602,17 +603,3 @@ w_y:    .res 1
 w_rows: .res 1
 w_cols: .res 1
 ; Original messages (msg n of Journey), resident: other lots reuse them.
-w_m2:   .byte "YOU'RE NOT MAKING MUCH SENSE.",0
-w_m27:  .byte "SPECIFY TIME IN HOURS.",0
-w_m50:  .byte "WHY DON'T YOU TRY TO MAKE WATER BY CONDENSATION ?",0
-w_m55:  .byte "DO YOU WANT TO SEARCH FOR GROUND OR PLANT WATER [Y/N]?",0
-w_m56:  .byte "YOU WERE SUCCESSFUL",$A1,0
-w_m57:  .byte "YOU CANNOT CARRY WATER WITHOUT A CANTEEN.",0
-w_m58:  .byte "IF YOU NEED WATER, EAT FOOD OR PLANTS HIGH IN WATER CONTENT.",0
-w_m62:  .byte "SORRY, NO GROUND WATER.",0
-w_m63:  .byte "YOU HAVE CONDENSED # OUNCES OF WATER.",0
-w_m64:  .byte "YOU CANNOT EXCEED THE AVAILABLE AMOUNT OF # OUNCES.",0
-w_m65:  .byte "YOU NEED A FIRE TO BOIL OR COOK THINGS.",0
-w_m179: .byte "THESE CACTI ARE LOADED WITH WATER",$A1,0
-w_m186: .byte "YOUR CANTEEN CANNOT HOLD MORE THAN TWO QUARTS.",0
-w_heavy: .byte "TOO MUCH WEIGHT OR VOLUME. DROP SOME GEAR.",0

@@ -44,7 +44,11 @@ $(BUILD)/wild.o: src/memory.s
 $(BUILD)/wild.o: src/geography.s src/geoaux.s
 $(BUILD)/wild.o: src/water.s src/camp.s src/menu.s
 $(BUILD)/wild.o: src/prepare.s
-$(BUILD)/wild.o: src/orient.s
+$(BUILD)/wild.o: src/orient.s $(BUILD)/textbank.inc
+
+$(BUILD)/textbank.inc: tools/gentextbank.py src/textbank.txt
+	@mkdir -p $(@D)
+	$(PYTHON) -I tools/gentextbank.py src/textbank.txt $@
 
 $(BUILD)/tables.inc $(BUILD)/rowtab.inc: tools/gentables.py
 	@mkdir -p $(@D)

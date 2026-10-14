@@ -109,23 +109,26 @@ MODULES = {0: ('wildtpg.bin', 0x9600), 1: ('wildvoc.bin', 0x5800), 2: ('wildscr.
            17: ('wildmed.bin', 0x5800), 19: ('wildmvi.bin', 0x5800), 20: ('wildtre.bin', 0x5800),
            21: ('wildadv.bin', 0x5800), 22: ('wildout.bin', 0x5800),
            24: ('wildskycat.bin', 0x9600), 25: ('wildsky.bin', 0x97CE),
-           26: ('wildori.bin', 0x5800), 27: ('wildalr.bin', 0x5800)}
-DIR_ENTRIES = 28                 # memory.s MOD_COUNT
+           26: ('wildori.bin', 0x5800), 27: ('wildalr.bin', 0x5800),
+           28: ('wildtxb.bin', 0x0000)}
+DIR_ENTRIES = 30                 # memory.s MOD_COUNT
+# The text bank (src/textbank.s): entry 28, never loaded whole; entry 29 is
+# the scratch entry of memory.s text_fetch (its bank and destination here).
+TB_DIR, TB_FETCH, TB_MAX = 28, 29, 96
 # Modules stored LZ-packed in the auxiliary store and decoded in their window
 # by mem_fetch (src/memory.s lz_unpack; docs/MEMORY.md 13): the rarely loaded
-# ones (TOPOGEN, ITEMS, MEDVIEW, TREE, ORIENT, ALERT), whose
-# decoding (about 50 cycles per byte instead of 17 for a copy) never runs
-# during a view. SCREENS and STATUS fill their window: an in-place copy has
-# no room behind them. INPUT (13) must stay raw: it is loaded after the end
-# of a journey, once NEOWILD.END's I/O buffer has overwritten the decoder
-# (MENUCODE). The packs patch TRAVEL, OUTDOOR, PROJECT and SUMMARY in place.
-LZ_MODULES = (0, 5, 9, 14, 19, 20, 26)
-LZ_WINDOW_END = {0x5800: 0x6000, 0x9600: 0xA200}     # TOPOGEN: its BSS at $A200
+# ones (TOPOGEN, SCREENS, CAMP, the wreck, the cabin, ITEMS, STATUS, MEDVIEW,
+# TREE, ORIENT) and ALERT (after a health update: 40 cycles more per byte,
+# under 0.5 % of a REST), whose decoding (about 50 cycles per byte instead
+# of 17 for a copy) never runs during a view. INPUT (13) and the text bank
+# stay raw; the packs patch TRAVEL, OUTDOOR, PROJECT and SUMMARY in place.
+LZ_MODULES = (0, 2, 4, 5, 9, 14, 16, 19, 20, 26, 27)
 # The animals of the packs too: one sprite at most is loaded per view
 # (sprites.s scene_prepare), about 40 cycles more per byte, under 1 % of a
 # full view (6.1 million cycles).
 LZ_SPRITES = True
-BANK_LZ = 0x80                   # memory.s BANK_LZ
+BANK_LZ = 0x80                   # memory.s BANK_LZ; bits 2-6: the margin
+LZ_MARGIN = 31
 # Species slots 1-4 of a region -> module IDs (animal_kind = slot + 5; the
 # fourth species takes 23, SCENARIOS.md section 4).
 SLOT_MODULES = (6, 7, 8, 23)
@@ -140,7 +143,7 @@ TEXT_SIZE = 128                  # memory.s REGIONTEXT
 # guest cycles per stored byte read through MLI READ, per byte LZ-decoded.
 DISK_CYCLES = 200
 DECODE_CYCLES = 46
-WINDOW_LIMIT = {0x5800: 0x0800, 0x9600: 0x2000, 0x2000: 0x2000, 0x97CE: 0xB600 - 0x97CE}
+WINDOW_LIMIT = {0x0000: 0x1000, 0x5800: 0x0800, 0x9600: 0x2000, 0x2000: 0x2000, 0x97CE: 0xB600 - 0x97CE}
 
 
 def labels(build):
@@ -176,7 +179,7 @@ def place(images, free=None):
         if n == len(order):
             return True
         key = (n, tuple(left))
-        if key in seen:
+        if key in seen or len(seen) > 200000:      # bounded: a full store fails fast
             return False
         seen.add(key)
         size = len(images[order[n]])
@@ -282,8 +285,10 @@ def lz_store(raw, window, cache=None):
     """An image for the store, decoded in place by lz_unpack: (blob, copy
     address, margin) or None when it would not be shorter. The blob is the
     window address, then the tokens and an end token (a match of distance 0).
-    The copy ends `margin` bytes past the image's own end, the least that
-    keeps every unread token ahead of the output."""
+    The copy ends `margin` bytes past the image's own end (at most 31), the
+    least that keeps every unread token ahead of the output; mem_fetch keeps
+    those bytes aside during the copy and the decoding and puts them back
+    (src/memory.s lz_guard), so that nothing past the image changes."""
     stream, tokens = lz_stream(raw, cache)
     worst, read, written = -1, 2, 0
     for k in range(0, len(tokens), 8):
@@ -296,9 +301,9 @@ def lz_store(raw, window, cache=None):
     assert written == len(raw)
     blob = bytes((window & 255, window >> 8)) + bytes(stream)
     margin = max(0, worst + 1 - len(raw) + len(blob))
-    copy = window + len(raw) + margin - len(blob)
-    if len(blob) >= len(raw) or window + len(raw) + margin > LZ_WINDOW_END[window]:
+    if len(blob) >= len(raw) or margin > LZ_MARGIN:
         return None
+    copy = window + len(raw) + margin - len(blob)
     assert lz_unpack(blob, copy) == raw
     return blob, copy, margin
 
@@ -311,7 +316,7 @@ def stored_bytes(build, module):
     return lz_store(raw, module['window'], Path(build) / 'lz-cache')[0]
 
 
-def lz_unpack(blob, copy):
+def lz_unpack(blob, copy, size=None):
     """Python model of memory.s lz_unpack, in place in a 64 KB memory."""
     mem = bytearray(0x10000)
     mem[copy:copy + len(blob)] = blob
@@ -586,7 +591,11 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
     # ---- common trunk: every module but the animals.
     images, raw_images, lz = {}, {}, {}
     modules = dict(MODULES)
-    assert 13 not in LZ_MODULES, 'INPUT is loaded after the end of a journey: raw'
+    assert 13 not in LZ_MODULES and TB_DIR not in LZ_MODULES, 'INPUT and the text bank stay raw'
+    bank = (build / MODULES[TB_DIR][0]).read_bytes()
+    first = struct.unpack_from('<H', bank, 2)[0]     # the index ends where text 1 starts
+    offsets = struct.unpack_from(f'<{first // 2}H', bank)
+    assert all(0 < b - a <= TB_MAX for a, b in zip(offsets[1:], offsets[2:])), 'a text of the bank exceeds tb_buf'
     assert not set(PATCH_MODULES.values()) & set(LZ_MODULES), 'the packs patch these images'
     for index, (name, window) in modules.items():
         data = (build / name).read_bytes()
@@ -660,9 +669,12 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
             window = MODULES[source][1] if source in MODULES else 0x5800
             kind = DIR_BANK[bank]
             if source in lz_all:
-                kind, window = kind | BANK_LZ, lz_all[source]['copy']
+                kind |= BANK_LZ | lz_all[source]['margin'] << 2
+                window = lz_all[source]['copy']
             table[index*7:index*7+7] = struct.pack('<BHHH', kind, address,
                                                    len(images_all[source]), window)
+        bank = placed_all[TB_DIR][0]
+        table[TB_FETCH*7:TB_FETCH*7+7] = struct.pack('<BHHH', DIR_BANK[bank], 0, 0, sym['tb_buf'])
         return bytes(table)
 
     dir_offset = sym['module_dir'] - 0xB600

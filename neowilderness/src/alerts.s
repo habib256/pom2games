@@ -36,9 +36,9 @@ al_i:         .byte 0
 al_w:         .word 0
 al_k40:   .byte $86,$20,0,0,0
 al_k300:  .byte $89,$16,0,0,0
-care_already_message: .byte "YOU ALREADY HAVE.",0   ; WET BODY, message 11
 
 ALERT_MODULE = 27
+tb_buf:   .res 96               ; memory.s text_fetch (TB_MAX)
 
 .segment "LOWCODE"
 ; ----------------------------------------------------------------------------
@@ -437,9 +437,10 @@ alerts_day:
         bpl     :-
         rts
 
-.segment "THERMAL"
+.segment "TEXT"
 ; Simulation hooks: they run with SIM loaded (module_drink,
-; module_rest_prepare, module_hazards) and live in its window.
+; module_rest_prepare, module_hazards); resident (TEXT) since lot 2 filled
+; the SIM window, which must end below $B500 (boot.s TABLE).
 ; DRINK WATER (module_drink, before A2[16] is reset): T0F/S00 $5C50 adds the
 ; ounces to the session when the last drink is under two hours old.
 alert_drink:
@@ -597,17 +598,14 @@ care_quantity:
         jsr     overlay_load
         plp
         rts
-; C set when river or lake water is at hand (the water module's own test).
+; C set when river or lake water is at hand (lot 2's resident water_here,
+; which loads SIM only: WILDMVI stays in its window).
 care_water_near:
-        lda     #3
-        jsr     overlay_load
-        lda     #4
-        jsr     overlay_load
-        jsr     outdoor_water_here
-        php
-        lda     #19
-        jsr     overlay_load
-        plp
+        lda     camp_untreated  ; a river would mark a drink untreated
+        pha
+        jsr     water_here
+        pla
+        sta     camp_untreated
         rts
 ; Verbs without a table entry: the care verbs DRY/WARM, COOL, CUT and WET.
 verb_more:
@@ -623,8 +621,8 @@ verb_more:
         jmp     camp_verb       ; lot 2: MAKE/BUILD, BOIL (src/camp.s)
 @care:  jmp     do_medical
 
-.segment "THERMAL"
-; Shared by the SIM hooks above and by ALERT, which runs with SIM loaded.
+.segment "TEXT"
+; Shared by the SIM hooks above and by ALERT.
 al_sweat: .byte $80,$15,$55,$55,$56 ; $4C7A of the saved game (.5833333)
 al_k2:    .byte $82,$00,0,0,0
 al_k2e4:  .byte $74,$51,$B7,$17,$5A   ; T0B/S07 $5D22 (.0002)

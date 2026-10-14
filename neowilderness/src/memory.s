@@ -16,8 +16,10 @@
 ;   An entry whose bank has bit 7 set (BANK_LZ, docs/MEMORY.md 13) holds an
 ;   LZ image (tools/pack_boot.py tokens, terminated by a match of distance
 ;   0) behind the 2-byte address of its window: the copy lands at the end of
-;   the module's own extent (tools/build_disk.py lz_store places it so that
-;   the decoder never overtakes it) and lz_unpack decodes it in place.
+;   the module's own extent, up to 31 bytes past it (the margin, bits 2-6 of
+;   the bank byte; tools/build_disk.py lz_store places it so that the
+;   decoder never overtakes it); lz_guard keeps those bytes aside, lz_unpack
+;   decodes in place and puts them back: nothing past the image changes.
 ;   Entry: main ZP/stack (ALTZP off), RAMRD off, D = 0. Preserves the I flag,
 ;   80STORE, RAMWRT, the video switches, all zero page and the text screen.
 ;   Clobbers A, X, Y. Leaves the ROM selected in the language card space.
@@ -52,9 +54,10 @@ MLI       = $BF00
 PD_BITMAP = $BF58
 PD_DEVNUM = $BF30
 
-MOD_COUNT = 28                  ; directory entries: TOPOGEN + modules 1..27
+MOD_COUNT = 30                  ; directory entries: TOPOGEN + modules 1..27
                                 ; (23 fourth species, 24 hall of fame, 25 stars,
-                                ; 26 orientation, 27 health alerts)
+                                ; 26 orientation, 27 health alerts), 28 the
+                                ; text bank, 29 its fetch (text_fetch)
 DIR_SIZE  = 7                   ; bank, source, length, destination
 XFER_RUN  = $0120               ; stack-page copy loop while RAMRD is on
 
@@ -163,7 +166,10 @@ mem_fetch:
         sta     mf_pages
         lda     module_dir,y
         sta     mf_lz
-        and     #$7F
+        bpl     :+
+        jsr     lz_guard        ; LZ: the bytes the copy will pass over
+:       lda     mf_lz
+        and     #3
         bne     @lc
         ; Auxiliary $0200-$BFFF: the loop runs in the main stack page, which
         ; RAMRD does not switch. Copy it there for each transfer.
@@ -321,14 +327,12 @@ XFER_SIZE = xr_end - xr_start
 ; distance, length - 3 in the high nibble's low four bits; 15 adds a byte,
 ; length - 18). A match of distance 0 ends the image. It borrows LZ_ZP
 ; ($50-$55, saved on the stack and restored: mem_fetch preserves the whole
-; zero page). In MENUCODE, resident while a journey runs; the I/O buffer of
-; the end of a journey overwrites it, and INPUT, the only module loaded
-; afterwards, is stored raw (tools/build_disk.py LZ_MODULES).
+; zero page). Resident (TEXT).
 LZ_ZP   = $50
 lz_in   = LZ_ZP                 ; input page pointer (Y: offset in it)
 lz_out  = LZ_ZP+2
 lz_from = LZ_ZP+4
-.segment "MENUCODE"
+.segment "TEXT"
 lz_unpack:
         ldx     #5
 :       lda     LZ_ZP,x
@@ -421,14 +425,173 @@ lz_unpack:
         inx
         cpx     #6
         bne     :-
-        rts
+        jmp     lz_back
 lz_flags: .res 1
 lz_dist:  .res 1
 lz_len:   .res 1
 lz_y:     .res 1
+lz_m:     .res 1
+lz_keep:  .res 31
+
+; lz_guard -- (mem_fetch, before the copy) the margin's bytes past the image:
+; the last lz_m bytes of the copy's extent, kept in lz_keep.
+lz_guard:
+        lda     mf_lz
+        lsr     a
+        lsr     a
+        and     #31
+        sta     lz_m
+        beq     @done
+        clc                     ; base = end of the copy - margin
+        lda     mf_dst
+        adc     mf_rest
+        tax
+        lda     mf_dst+1
+        adc     mf_pages
+        tay
+        txa
+        sec
+        sbc     lz_m
+        sta     @get+1
+        sta     lzb_put+1
+        tya
+        sbc     #0
+        sta     @get+2
+        sta     lzb_put+2
+        ldx     lz_m
+@get:   lda     $FFFF-1,x
+        sta     lz_keep-1,x
+        dex
+        bne     @get
+@done:  rts
+; lz_back -- the margin's bytes back (end of lz_unpack).
+lz_back:
+        ldx     lz_m
+        beq     lzb_done
+lzb_get:
+        lda     lz_keep-1,x
+lzb_put:
+        sta     $FFFF-1,x
+        dex
+        bne     lzb_get
+lzb_done:
+        rts
 .export lz_unpack
 
 .segment "RESCODE"
+; ----------------------------------------------------------------------------
+; text_fetch -- A = a text of the bank (build/textbank.inc, tools/gentextbank.py):
+; the text into tb_buf, expanded; returns A/X = tb_buf. Entry TB_FETCH of the
+; directory is a scratch entry (bank written by tools/build_disk.py): the two
+; offsets of a text in the index, then its bytes, end-aligned in tb_buf;
+; then each token ($80 + k, but $A1) brings dictionary word k in its place
+; (the output never overtakes the input: a word is longer than its token);
+; "@" and its operand stay literal. Clobbers Y. In GCODE (WILDGAME).
+TB_DIR   = 28                   ; the bank (raw image in the store)
+TB_FETCH = 29                   ; scratch entry: source, length, destination
+TB_MAX   = 96                   ; tb_buf (tools/gentextbank.py checks every text)
+.segment "GCODE"
+text_fetch:
+        ldx     #$FF            ; end-aligned
+        jsr     tf_get
+        stx     tf_in
+        lda     #0
+        sta     tf_out
+@loop:  ldx     tf_in
+        cpx     #TB_MAX
+        beq     @done
+        inc     tf_in
+        lda     tb_buf,x
+        cmp     #'@'
+        bne     @token
+        jsr     @put            ; "@", then its operand as it is
+        ldx     tf_in
+        inc     tf_in
+        lda     tb_buf,x
+        bcs     @lit            ; (C set by cmp)
+@token: cmp     #$80
+        bcc     @lit
+        cmp     #$A1
+        beq     @lit
+        sec                     ; word k = token - $80, - 1 past $A1
+        sbc     #$80
+        cmp     #$22
+        bcc     :+
+        sbc     #1
+:       clc
+        adc     #TB_DICT
+        ldx     tf_out
+        jsr     tf_get
+        clc
+        lda     tf_out
+        adc     tf_len
+        sta     tf_out
+        bcc     @loop           ; always
+@lit:   jsr     @put
+        jmp     @loop
+@put:   ldx     tf_out
+        sta     tb_buf,x
+        inc     tf_out
+        rts
+@done:  lda     #<tb_buf
+        ldx     #>tb_buf
+        rts
+; tf_get -- A = number, X = index in tb_buf ($FF: end-aligned): its bytes
+; there; X = the index used, tf_len = their count.
+tf_get:
+        stx     tf_dst
+        asl     a               ; the index pair into tf_idx
+        ldx     #<tf_idx
+        stx     module_dir+TB_FETCH*DIR_SIZE+5
+        ldx     #>tf_idx
+        stx     module_dir+TB_FETCH*DIR_SIZE+6
+        ldx     #0
+        ldy     #4
+        jsr     tf_copy
+        sec
+        lda     tf_idx+2
+        sbc     tf_idx
+        sta     tf_len
+        ldx     tf_dst
+        inx
+        bne     :+
+        lda     #TB_MAX         ; end-aligned
+        sbc     tf_len          ; C set
+        tax
+        inx
+:       dex
+        stx     tf_dst
+        txa
+        clc
+        adc     #<tb_buf
+        sta     module_dir+TB_FETCH*DIR_SIZE+5
+        lda     #>tb_buf
+        adc     #0
+        sta     module_dir+TB_FETCH*DIR_SIZE+6
+        lda     tf_idx
+        ldx     tf_idx+1
+        ldy     tf_len
+        jsr     tf_copy
+        ldx     tf_dst
+        rts
+tf_copy:                        ; A/X = offset in the bank, Y = length
+        clc
+        adc     module_dir+TB_DIR*DIR_SIZE+1
+        sta     module_dir+TB_FETCH*DIR_SIZE+1
+        txa
+        adc     module_dir+TB_DIR*DIR_SIZE+2
+        sta     module_dir+TB_FETCH*DIR_SIZE+2
+        sty     module_dir+TB_FETCH*DIR_SIZE+3
+        ldx     #TB_FETCH
+        jmp     mem_fetch
+tf_idx:  .res 4
+tf_len:  .res 1
+tf_dst:  .res 1
+tf_in:   .res 1
+tf_out:  .res 1
+.export text_fetch
+.segment "RESCODE"
+
 ; ----------------------------------------------------------------------------
 mli_call:
         sta     mli_cmd

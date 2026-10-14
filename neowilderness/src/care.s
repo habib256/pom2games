@@ -477,10 +477,6 @@ care_specific_message: .byte "TRY TO BE MORE SPECIFIC.",0
 ; The longer texts stay resident (WILDERNESS): they would otherwise cost the
 ; auxiliary module stock, full with a large native atlas.
 .segment "RODATA"
-care_party_message: .byte "IF YOU WEREN'T ALONE, YOU COULD|THROW A PARTY IN YOUR ^.",0
-care_item_message: .byte "USE THE APPROPRIATE ITEM FIRST.|USE KNIFE OR USE AXE.",0
-care_exceed_message: .byte "YOU CANNOT EXCEED THE AVAILABLE|AMOUNT OF $ OUNCES.",0
-care_nowater_message: .byte "NO WATER AT HAND: FILL THE CANTEEN|OR GO TO A RIVER OR LAKE.",0
 .segment "MEDVIEW"
 care_use_instead:
         lda     #<care_use_message
