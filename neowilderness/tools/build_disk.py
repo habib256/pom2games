@@ -552,6 +552,13 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
         assert 0 < len(end_module) <= 0x2000 and len(hof_file) == 512
         (stage / 'NEOWILD.END#069600').write_bytes(end_module)
         (stage / 'NEOWILD.HOF#060000').write_bytes(hof_file)
+        # Fidelity lot 1 (src/prepare.s): the journey preparation, read by the
+        # loader at $2000 for a journey other than the frozen first one.
+        # LZ-packed (src/boot.s reads it at PRE_PACK $3000, at most 4 KB, and
+        # decodes it behind itself to $2000).
+        prepare_module = compress((build / 'wildpre.bin').read_bytes())
+        assert 0 < len(prepare_module) <= 0x1000 and (build / 'wildpre.bin').stat().st_size <= 0x1F00
+        (stage / 'NEOWILD.PRE#063000').write_bytes(prepare_module)
         boot = (DEV / 'tools/prodos/boot.bin').read_bytes()
         boot = (boot + bytes(1024))[:1024]
         volume = Volume(VOLUME, 280, boot, prodos_date('2026-10-13T12:00'))
@@ -588,7 +595,9 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
                 region_text=sym['__REGIONTEXT_RUN__'], dhgr_tables=[tables_start, tables_end],
                 end_module=dict(file='NEOWILD.END', bytes=len(end_module),
                                 blocks=-(-len(end_module) // 512) + (len(end_module) > 512)),
-                hof_file=dict(file='NEOWILD.HOF', bytes=len(hof_file), blocks=1))
+                hof_file=dict(file='NEOWILD.HOF', bytes=len(hof_file), blocks=1),
+                prepare_module=dict(file='NEOWILD.PRE', bytes=len(prepare_module),
+                                    blocks=-(-len(prepare_module) // 512) + (len(prepare_module) > 512)))
     if layout:
         Path(layout).write_text(json.dumps(info, indent=1) + '\n')
     return info

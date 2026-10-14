@@ -66,6 +66,17 @@ affiche le bilan et le **score**, enregistre le voyage dans `NEOWILD.HOF`
 (saisie du nom s'il entre dans le top 5), puis ramène au menu. Captures :
 `python3 tools/game_shots.py --regions` et `--stars`.
 
+Lot 1 de fidélité ([SCENARIOS.md](docs/SCENARIOS.md) § 11) : `P` au menu
+pose, après le choix de la région et du niveau, les questions de
+préparation de l'original (date et heure choisies ou tirées, jeu normal ou
+mode recherche, sexe, poids, carrure, taille, âge, pouls, fréquences de la
+faune et des orages) et donne le verdict de forme ; tout voyage autre qu'un
+scénario au niveau 4 tire selon le niveau, comme l'original, la blessure du
+crash, le lot de l'épave, les usages des consommables, la date et l'heure,
+le premier front et le vent, et annonce le terrain et la difficulté
+(`NEOWILD.PRE`, lu seulement pour ces voyages). RETURN, RETURN garde le
+premier voyage figé de l'original.
+
 Le [TODO](TODO.md) organise le travail restant en cinq directions, fidélité à l’original et image en priorité, avec leurs critères de fin.
 Le [README HGR hérité](README_HGR.md), le [backlog hérité](TODO_HGR.md)
 et le [changelog](CHANGELOG.md) documentent le point de départ ; leurs
@@ -91,7 +102,9 @@ nom `NEOWILDERNESS.SYSTEM` dépasse 15 caractères), le tronc commun
 `NEOWILD.DAT`, lu au démarrage, les six paquets de région `NEOWILD.R1`…`R6`
 (carte, bois, sprites d'animaux, correctifs de faune, couleurs, textes), dont
 un seul est lu après le choix au menu, le module de fin de partie
-`NEOWILD.END` et le hall of fame `NEOWILD.HOF` (un bloc, réécrit en place).
+`NEOWILD.END`, le hall of fame `NEOWILD.HOF` (un bloc, réécrit en place) et
+la préparation du voyage `NEOWILD.PRE` (lue à `$2000` pour un voyage autre
+que le premier voyage figé).
 36 appels MLI avant la partie, aucun pendant ; 9 en fin de voyage (module,
 lecture et écriture du hall of fame). 34 blocs restent libres
 (`make inspect` : blocs et mémoire libre par paquet). La construction

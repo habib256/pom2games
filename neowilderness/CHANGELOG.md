@@ -7,6 +7,26 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Neowilderness : préparation du voyage et niveaux (lot 1 de fidélité)
+
+- `P` au menu (« P PREPARATION     QUESTIONS, NOT RANKED ») : région, niveau,
+  puis les questions de GO1/GO3 (date et heure choisies ou tirées, jeu
+  normal ou mode recherche, sexe, poids 50–350 lb, carrure, taille, âge,
+  pouls, fréquences de la faune et des orages) et le verdict de forme de
+  GO2 ; poids, métabolisme `w/100`, repas `+0,004 w`, Hmax et santé, surface
+  thermique Q, facteur de surpoids ; mode recherche : corps de l'original
+  (175 lb), instruments à l'épave, aucune blessure. Voyage non classé.
+- Tout voyage autre qu'un scénario au niveau 4 (`NEOWILD.PRE`, 5 005 octets,
+  3 702 compressés, décodés à `$2000`, aucun octet résident en RAM principale ;
+  volume 260/280 blocs) : date et heure tirées autour de
+  l'été selon le niveau, phase de l'onde de température, blessure du crash
+  `⌊0,45 RND L − 0,3⌋`, lot de l'épave en neuf groupes, usages ×1/√L,
+  premier front `3000/(L F) + 20`, sa durée, le vent ; mots de
+  l'introduction (terrain, difficulté, heure, blessure). Formules vérifiées
+  octet pour octet contre l'original avec un RND imposé
+  (`tools/re_prepare_probe.py`, `tests/test_prepare.py --original`, onze cas).
+- RETURN, RETURN : premier voyage figé inchangé (`test_reference_state.py`).
+
 ### Neowilderness : les quatre lignes du bas, surface de commande (lot 8, étape 2)
 
 - Rangées 20 à 23, colonnes 0 à 37 : grille des verbes (contextuels en

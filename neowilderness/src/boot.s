@@ -9,14 +9,20 @@
 ;     message and a clean return to ProDOS;
 ;   - keeps the introduction on the text screen while it preloads the
 ;     common trunk NEOWILD.DAT;
-;   - shows the start menu (lot 7): scenarios 1-6, 7 free journey, H hall of
-;     fame (placeholder), Q ProDOS, then the level 1-10 (RETURN = 4);
+;   - shows the start menu (lot 7): scenarios 1-6, 7 free journey, P journey
+;     preparation (fidelity lot 1), H hall of fame, Q ProDOS, then the level
+;     1-10 (RETURN = 4);
 ;   - shows the introduction again with the chosen region and reads its pack
 ;     NEOWILD.R1..R6 (same records, same loop): map, woods, animal sprites,
 ;     module directory, DHGR tables, fauna records and region texts;
 ;   - writes the level (MAP+22) and the journey kind (MAP+33: 0 scenario,
 ;     1 free journey, whose random generators are reseeded from the time
 ;     spent in the menu);
+;   - a journey other than a scenario at level 4 (the original's first
+;     journey, the frozen state) reads NEOWILD.PRE at $2000 and runs it
+;     (src/prepare.s): P asks the original's preparation questions, every
+;     such journey draws the level's crash injury, wreck lot, date, weather
+;     front and wind (docs/SCENARIOS.md section 11);
 ;   - reads NEOWILD.DAT sequentially: records for main RAM, auxiliary RAM
 ;     ($0800-$1FFF, $4000-$BFFF) and the auxiliary language card, raw or LZ
 ;     (tools/pack_boot.py), decoded through main staging buffers;
@@ -44,6 +50,8 @@
 .import __BSS_RUN__, __BSS_SIZE__
 .export loader_main, loader_claimed, loader_done, loader_ram_files, ld_decode, ld_decode_end
 .export loader_menu, menu_key, loader_pack, ld_region, ld_level, ld_free
+.export ld_prep, ld_entropy, ld_print, ld_place, ld_hdr, ld_move_src, loader_prepare, ld_menu_key
+.import prepare, __PREPARE_LOAD__, __PREPARE_SIZE__
 
 MLI      = $BF00
 DEVNUM   = $BF30
@@ -64,6 +72,7 @@ CLREOP   = $FC42
 MAP      = $7000
 MENU_ROW = 12                   ; prompts below the menu (tools/genmenu.py MENU_ROW)
 TABLE_SIZE = 128                ; tools/build_disk.py TABLE_SIZE
+PRE_PACK = $3000                ; packed NEOWILD.PRE (<= 4 KB; tools/build_disk.py)
 ALTZPOFF = $C008
 ALTZPON  = $C009
 RAMWRTON = $C005
@@ -116,6 +125,9 @@ ld_level:  .res 1               ; 1..10
 ld_free:   .res 1               ; 1: free journey (not ranked, random seeds)
 digits:    .res 1
 entropy:   .res 2               ; key-wait iterations in the menu
+ld_prep:   .res 1               ; 1: P, the preparation questions (with ld_free)
+ld_entropy = entropy
+ld_hdr     = hdr
 
 .segment "LOADER"
 loader_main:
@@ -242,6 +254,50 @@ loader_pack:
         ora     #$40
         sta     water_rng
 @protect:
+        lda     ld_free         ; the frozen first journey: scenario, level 4
+        bne     loader_prepare
+        lda     ld_level
+        cmp     #4
+        beq     ld_no_prepare
+loader_prepare:                 ; NEOWILD.PRE: LZ (tools/pack_boot.py) read
+        lda     #'P'            ; at PRE_PACK, decoded to $2000 (STAGE, free
+        ldx     #<ld_path       ; until ld_scatter), then src/prepare.s
+        ldy     #>ld_path
+        jsr     make_path
+        lda     #$C8            ; OPEN
+        ldx     #<open
+        ldy     #>open
+        jsr     ld_mli
+        jcs     ld_error
+        lda     open+5
+        sta     read+1
+        sta     close+1
+        lda     #>PRE_PACK      ; READ up to $4000: end of file is expected
+        sta     read+3
+        sta     source+1
+        sta     read+5          ; $10 pages
+        lda     #0
+        sta     read+2
+        sta     read+4
+        sta     source
+        lda     #$CA
+        ldx     #<read
+        ldy     #>read
+        jsr     ld_mli
+        jcs     ld_error
+        lda     #$CC            ; CLOSE
+        ldx     #<close
+        ldy     #>close
+        jsr     ld_mli
+        lda     #<__PREPARE_SIZE__
+        sta     size
+        lda     #>__PREPARE_SIZE__
+        sta     size+1
+        lda     #<__PREPARE_LOAD__
+        ldx     #>__PREPARE_LOAD__
+        jsr     ld_decode_at    ; behind the packed data, which stays ahead
+        jsr     prepare
+ld_no_prepare:
         jsr     ld_scatter      ; before the zero page is set for the game
         ldx     #23             ; protect the game's pages
 :       lda     saved_bitmap,x
@@ -417,6 +473,7 @@ record_hdr:
 menu:
         lda     #0
         sta     ld_free
+        sta     ld_prep
         jsr     HOME
         lda     #<m_menu
         ldy     #>m_menu
@@ -435,15 +492,18 @@ menu:
         cmp     #'7'|$80
         bcc     @scenario
         bne     @other
-        inc     ld_free         ; 7: free journey, then its region
+@free:  inc     ld_free         ; 7: free journey, then its region
         lda     #<m_region
         ldy     #>m_region
+@ask_region:
         jsr     prompt
 @region:
         jsr     menu_key
         cmp     #KC_ESC|$80
         bne     :+
-        lsr     ld_free
+        lda     #0
+        sta     ld_free
+        sta     ld_prep
         jmp     @ask
 :       cmp     #'1'|$80
         bcc     @bad_region
@@ -452,7 +512,11 @@ menu:
 @bad_region:
         jsr     BELL
         jmp     @region
-@other: cmp     #'H'|$80
+@other: cmp     #'P'|$80
+        bne     :+
+        inc     ld_prep         ; P: a free journey with the questions
+        bne     @free           ; (after the pack, src/prepare.s)
+:       cmp     #'H'|$80
         beq     @hall
         cmp     #'Q'|$80
         bne     @bad
@@ -482,6 +546,7 @@ menu:
         bne     :+
         lda     #0
         sta     ld_free
+        sta     ld_prep
         jmp     @ask
 :       cmp     #'0'|$80
         bcc     @lbad
@@ -580,28 +645,28 @@ make_path:
         cpx     #file_suffix-file_name
         bne     :-
 @kind:  lda     #0
+        ldx     #2              ; DAT, GEO, PRE: the suffix ending at X
         cmp     #'D'
-        beq     @dat
+        beq     @suffix
+        ldx     #5
         cmp     #'G'
-        beq     @geo
+        beq     @suffix
+        ldx     #8
+        cmp     #'P'
+        beq     @suffix
         pha                     ; region pack: R and the digit
         lda     #'R'
         jsr     @put
         pla
         jsr     @put
         jmp     @length
-@dat:   ldx     #0
-:       lda     file_dat,x
+@suffix:
+        lda     #3
+        sta     digits
+:       lda     file_dat-2,x
         jsr     @put
         inx
-        cpx     #3
-        bne     :-
-        beq     @length
-@geo:   ldx     #0
-:       lda     file_geo,x
-        jsr     @put
-        inx
-        cpx     #3
+        dec     digits
         bne     :-
 @length:
         dey
@@ -691,7 +756,7 @@ ld_mli: sta     @cmd
 ; While RAMWRT is on, stores to this code would reach auxiliary RAM: that
 ; loop uses main zero-page pointers. ALTZP swaps the zero page instead: the
 ; language-card loop patches its own absolute operands in main RAM.
-ld_place:
+ld_place:                       ; also src/prepare.s (patches of module images)
         lda     kind
         and     #3
         cmp     #1
@@ -791,6 +856,11 @@ ld_place:
 ; `size` bytes. Overlapping matches copy forward through the output. Y stays
 ; 0 between tokens; the end is checked on the output pointer.
 ld_decode:
+        ldy     #<STAGE
+        sty     source
+        ldy     #>STAGE
+        sty     source+1
+ld_decode_at:                   ; source set by the caller (NEOWILD.PRE)
         sta     dest
         stx     dest+1
         clc
@@ -799,10 +869,6 @@ ld_decode:
         txa
         adc     size+1
         sta     remain+1
-        lda     #<STAGE
-        sta     source
-        lda     #>STAGE
-        sta     source+1
         ldy     #0
 @group: lda     dest+1          ; end of output?
         cmp     remain+1
@@ -992,6 +1058,7 @@ ld_wait:
         rts
 
 ; print -- A/Y = ASCIIZ text, through COUT.
+ld_print:
 print:  sta     @text+1
         sty     @text+2
         ldx     #0
@@ -1029,6 +1096,8 @@ HOF_NAMES_HI = region_names_hi
 HOF_LOADER = 1
         .include "hof_menu.s"
 move_src: .word 0
+ld_move_src := move_src
+ld_menu_key := menu_key
 online: .byte   2, 0
         .word   volume
 open:   .byte   3
@@ -1044,6 +1113,7 @@ file_name: .byte "/NEOWILD."
 file_suffix:
 file_dat: .byte "DAT"
 file_geo: .byte "GEO"
+file_pre: .byte "PRE"
 
 ; Pages protected in the ProDOS bitmap while the game runs. The module
 ; window $5800-$5FFF and the I/O buffer stay free for the reads of
@@ -1107,7 +1177,7 @@ m_level:
         .byte   ", LEVEL ", 0
 m_free: .byte   " (FREE)", 0
 m_choice:
-        .byte   "CHOICE (RETURN = 1, 1-7, H, Q)? ", 0
+        .byte   "CHOICE (RETURN = 1, 1-7, P, H, Q)? ", 0
 m_region:
         .byte   "FREE JOURNEY: REGION (1-6, ESC)? ", 0
 m_ask_level:

@@ -358,3 +358,150 @@ illisible ou inconnu n'est jamais réécrit.
 Les étapes 1 et 2 ne dépendaient pas du lot 4 ; l'étape 5 a pris la banque 2
 de la carte langage principale (MEMORY.md § 9.7). Reste la validation
 finale du lot 6 (IIc, couleurs sur machine réelle).
+
+## 11. Préparation du voyage et niveaux (lot 1 de fidélité)
+
+Éléments P1 et P2 de l'inventaire des manques (`ORIGINAL_GAP.md` § 2.9).
+Code : `src/prepare.s` (fichier `NEOWILD.PRE`, 5 005 octets, 3 702
+compressés, 9 blocs),
+référence Python `tools/prepare_ref.py`, sonde `tools/re_prepare_probe.py`
+(`make prepare-probe`), test `tests/test_prepare.py` (`--original`).
+
+### 11.1 Ce que voit le joueur
+
+- Menu : une ligne de plus, `P PREPARATION     QUESTIONS, NOT RANKED`,
+  invite `CHOICE (RETURN = 1, 1-7, P, H, Q)?`. `P` demande la région
+  (`FREE JOURNEY: REGION (1-6, ESC)?`, l'invite de `7`) puis le niveau : un
+  voyage préparé est un voyage libre, jamais classé, hasard renouvelé.
+- Après la lecture du paquet, l'écran `JOURNEY PREPARATION` de l'original
+  pose les questions (textes de GO3, renumérotées : la cité perdue n'existe
+  pas encore, la question « P/L » est sautée) :
+  1. date et heure choisies (`Y` : mois 1–12, heure 0–24) ou tirées (`N`) ;
+  2. jeu normal (`P`) ou mode recherche (`R`) ;
+  3. à 8. (jeu normal) : sexe `M`/`F`, poids 50–350 lb, carrure `S`/`M`/`L`,
+     taille 50–85 pouces, âge 8–100 ans, pouls au repos 35–180, puis le
+     verdict de GO2 (« YOU SHOULD SEE A DOCTOR IMMEDIATELY! » … « YOU ARE
+     OLYMPIC ATHLETE MATERIAL! ») ;
+  9. et 10. fréquences de la faune et des orages (nombre > 0, décimales
+     admises, quatre chiffres au plus, 100 au plus ; 1.0 = normal).
+
+  Saisie : chiffres, point, flèche gauche pour effacer, RETURN ; hors
+  plage : bip et nouvelle saisie.
+- Puis un résumé : région et niveau, « THE TERRAIN IS VARIED. », « LEVEL
+  OF DIFFICULTY: RESPECTABLE. », « THE TIME IS 7:00AM ON MAY 16. », « YOU
+  HAVE NOT BEEN INJURED / IN THE CRASH. » (ou « RESEARCH MODE: INSTRUMENTS
+  AT HAND. »), `PRESS RETURN TO BEGIN.`
+- Tout voyage autre qu'un scénario au niveau 4 (scénario à un autre
+  niveau, voyage libre) passe aussi par `NEOWILD.PRE`, sans questions : les
+  mêmes tirages que l'original avec le corps du premier voyage, et le
+  résumé sous `LOADING...`, sans attente.
+- **Chemin par défaut inchangé** : RETURN, RETURN (et tout scénario au
+  niveau 4) garde l'état figé du premier voyage de l'original ; le
+  chargeur ne lit pas `NEOWILD.PRE` (`test_reference_state.py`,
+  `test_journey_resident.py`, `test_prepare.py`).
+
+### 11.2 Formules (GO1, GO2), vérifiées sur l'original
+
+La sonde lance l'option 2 du menu original, impose au point d'entrée de
+GO1 le niveau (`$603F`) et un RND constant (le RND de SMALLDOS en `$0321`
+renvoie un flottant fixe), répond aux questions et relève l'état quand GO1
+appelle l'introduction (`$5E7F`, transformé en boucle : `until` ne voit le
+PC qu'entre les pas de script, et `key:` laisse courir trois trames). Onze
+cas : 250 lb ; femme de 120 lb, petite carrure, 62 pouces, 45 ans, pouls
+80, fréquences 0,5 et 2,5 ; 330 lb, 85 pouces, 8 ans, pouls 35, niveau 6 ;
+mode recherche ; niveaux 1, 4, 7 et 10 avec RND 0,3 et 0,9. Le port refait
+les mêmes opérations de la ROM dans le même ordre avec les octets des
+constantes de GO1 et GO2 : **dates, heures, phase, métabolisme, Hmax,
+santé, précipitations et premier front sont égaux octet pour octet** à
+ceux de l'original ; blessure (condition à 90 %), lot de l'épave, usages,
+durée du front, vent, poids et Q égaux.
+
+| Grandeur | Formule | Original |
+|---|---|---|
+| Poids idéal | W0 = (223 + h (0,073 h − 5,98) − 10 [femme]) (1 + 0,065 c), c = −1, 0, 1 | GO2 `$2119` |
+| Surpoids `$4BBE` | ⌊w − W0⌋ | idem |
+| Métabolisme `$4C20` = `$4C25` | w / 100 (1,65 à 165 lb) ; repas `$4C25` + 0,004 w (2,31) | idem ; T12 `$5E33` |
+| Hmax `$4C2F`, santé `$4C34` | 10 / (0,022 p r^1,5) × √(0,033 a) si a < 31, ÷ (0,033 a) sinon ; r = w/W0 si surpoids > 0, W0/w sinon ; jeu normal : Hmax borné à [1,1 ; 10], santé non bornée | GO2 `$2119`, `$2337` |
+| Verdict | < 1,7 ; < 3,5 ; puis ⌊H + 0,5⌋ < 6, < 8, sinon | GO2 `$2370` |
+| Surface Q `$4C1A` | 2 ⌊1335 S⌋ + ⌊800 S⌋ + 2630, S = 0,00919928 √(h w) | GO2 `$2273` (6058 à 165 lb, 70 pouces) |
+| Mode recherche | 175 lb, 73 pouces, 25 ans, pouls 42, moyen, homme ; ni borne ni verdict ; COMPASS, WATCH, ALTIMETER, FLASHLGHT, THERMOMETER à l'épave ; aucune blessure | GO1 `$5B01`, GO2 `$2692` |
+| Date tirée `$4C89` | d = 0,05 + 0,05 L r ; nord : 0,5 + d si r > 0,5, sinon 0,5 + d − 0,05 L ; sud : d + 0,025 L si r ≤ 0,5, sinon 1 + d − 0,075 L ; puis min(·, 0,997) | GO1 `$5A38`, GO2 `$285D` |
+| Date choisie | (mois − 1) 0,085 + 0,065 r ; heure telle quelle | GO1 `$59D7` |
+| Heure tirée `$4C57` | 12 + 1,2 L r si r > 0,5, sinon 12 + 1,2 L r − 1,2 L | GO1 `$5AA6` |
+| Onde de température `$4CCF` | 2π r | GO2 `$298F` |
+| Blessure du crash | n = ⌊0,45 r L − 0,3⌋ borné à 0–3 (rien, coupures, bras, jambe), condition n − 1 à 90 % ; jamais aux niveaux 1–2, jambe à partir de 8 ; jeu normal | GO2 `$2024` |
+| Lot de l'épave | neuf groupes des 75 objets (21, 1, 15, 3, 11, 5, 3, 3, 13) : départ a = ⌊r (s − 1) + 0,5⌋ + 1, pas b = ⌊r (s − 2) + 0,5⌋ + 1 (groupes 1 et 3 : multiple de 3 → −1, puis 5, 7, 10, 14 → 4), k = ⌊(11 − L) s / 10 + 0,5⌋ tirages (doublons possibles) ; toujours DOWN PARKA, BACKPACK, WATER, MATCHES, TOPO MAP, KNIFE, 2QT CANTEEN, CANDYBARS ; BOOTS, JERSEY, JEANS, COTTN SOCKS portés ; STAR CHART, BINOCULARS, GOLD absents ; tout au sol, nourriture comprise (gabarit Journey T$21 : W7 = W5, W8 = 0) | GO2 `$2565` |
+| Usages | W8 des objets 38–66, W5 et W6 de FUEL × 1/√L, tronqués ; confirmé : le premier voyage figé (niveau 4) a la moitié des valeurs du gabarit | GO2 `$26C2` |
+| Précipitations `$4C43` | max(0,1 ; 0,1 × orages × (2 + 29 (1 + sin((360 date + 47)°)))) (en-tête Sierra) | GO2 `$2A74` |
+| Premier front `$4C9D` | 3000 / (L `$4C43`) + 20 (unités de 4 min) ; durée `$4BFE` = ⌊min(540 ; 20 + 10 L `$4C43` r)⌋ | GO1 `$5E0A` |
+| Vent `$4B9F` | ⌊16 r⌋ + 2 mph | GO1 `$5E67` |
+| Mots | terrain MODERATE (L < 4), VARIED (< 8), PUNISHING ; difficulté LOW (1), LENIENT (2–3), RESPECTABLE (4–5), CHALLENGING (6–7), BACK-BREAKING (8–10) | GO2 `$2B3E`, `$2BAA` |
+| Fréquences | faune `$4C4D` et orages `$4C52` : > 0, au plus 100 | GO1 `$5DA3`, `$5DDA` |
+
+Le premier voyage figé correspond aux réponses homme, 165 lb, carrure
+moyenne, 70 pouces, 31 ans, pouls 55 (Hmax 7,8666, Q 6058, surpoids 2 :
+les constantes `f_hmax`, `th_surface` et `1 − 2/165` du port).
+
+### 11.3 Où le port écrit
+
+Tout est écrit par `NEOWILD.PRE` avant `start`, **sans octet résident en
+RAM principale** : le module tourne à `$2000` (tampon de lecture du
+chargeur, libre une fois le paquet lu, avant que la grille du menu ne
+prenne les rangées HGR 176–191) et disparaît ensuite.
+
+- RAM principale du jeu : `s_date`, `s_hour`, `s_temp_phase`,
+  `body_weight`, `f_rest_rate`, `f_eat_rate`, `f_hmax`, `s_health`,
+  `it_place`, `it_gnd`, `it_pack`, `it_oz`/`it_vol` de FUEL et de GOLD
+  (2 w + 40 oz, w/2 in³, pour le scénario 2), `injury_active` et
+  `injury_percent`, `weather_start`, `weather_duration`,
+  `weather_frequency`, `wind`, `nature_frequency`.
+- Images des modules en RAM auxiliaire (par `ld_place` du chargeur,
+  adresse lue dans `module_dir`) : `th_surface`, `th_a` (Q × 10⁻⁷) et
+  `th_native_composition` (1 − surpoids/poids) de SIM ; `wf_storm` de
+  ADVENTURE, nouveau multiplicateur des précipitations quotidiennes (1,0 :
+  même opération que l'ancien `f_one`, résultat identique ; **+5 octets
+  dans l'image ADVENTURE**, aux. `$AC45`, pris sur le trou de 21 octets qui
+  la suivait).
+- `NEOWILD.PRE` est compressé (LZ de `tools/pack_boot.py`, 5 005 → 3 702
+  octets, 9 blocs) : le chargeur le lit en `$3000` et le décode vers `$2000`
+  par `ld_decode_at` (la sortie reste derrière les données compressées).
+  Chargeur `NEOWILD.SYSTEM` : 4 413 → 4 585 octets, toujours 9 blocs de
+  données (menu `P`, lecture et décodage de `NEOWILD.PRE`, suffixes de
+  noms de fichiers mis en commun) ; fin du chargeur et de son BSS sous
+  `LD_IOBUF` (`$AB00`). Volume : 251 → 260 blocs, **20 libres** ; la carte
+  native la plus grande de `test_geo_resident.py` tient encore (279 blocs).
+- Piège trouvé : la page zéro du chargeur (`source`, `dest`) est en
+  `$A2-$A5`, sur le signe du FAC, `SHIFT.SIGN.EXT` (`$A4`) et ARG ; après
+  chaque `ld_place`, `prepare.s` remet `$A4` à zéro (la ROM le décale dans
+  les produits et les sommes). `LINPRT` de l'Applesoft n'imprime rien sans
+  la page zéro du BASIC : `prepare.s` a son propre `pr_dec`.
+
+### 11.4 Ce qui reste (et pourquoi)
+
+- **Effets en jeu du mode recherche** (pas de risques de déplacement, pas
+  d'attaques, pas de chaîne thermique et de santé, pas de score, STATUS
+  « RESEARCH MODE ») : ≈ 60 octets de drapeaux dans SIM (11 octets libres)
+  et WILDOUT. Seule la partie chargeur est faite (corps, instruments,
+  aucune blessure, voyage non classé). À faire après le lot 0.
+- **Facteur de niveau du verdict de STATUS** (×0,85 dès le niveau 3, ×0,7
+  dès 8, T$06/S$0C `$5A45`) : le module STATUS est plein (2 048 octets), et
+  le niveau 4 lui-même changerait le chemin de référence.
+- **Score de l'original** (`$4B99` = ⌊2,5 (L + 10) / Hmax + 0,5⌋, +L
+  points) : le port a son propre score, déjà pondéré par le niveau
+  ([HOF.md](HOF.md)) ; le score original relève de E2 (lot 8). `src/hof.s`
+  n'est pas touché.
+- **Phase lunaire 60 − 18 L** (`$4BC0`, lue par T$0D/S$07 pour la clarté
+  nocturne) : la Lune du port suit les éphémérides 1985 de la date ; une
+  date tirée déplace déjà la Lune.
+- **Relief par niveau** (TMAKE : forêts max(5 ; 1,5 L), sommets ∝ √L,
+  épave → poste ≥ 76 + 10 L, marge 28 − L) : `tools/mkmap.py --level`
+  applique déjà ces paramètres ; il manque une carte par (région, niveau)
+  sur un volume de 800 Ko et le choix de la carte par le chargeur.
+- **Capacités des conteneurs** selon le poids (`$4BF8`, `$4BEE`, `$4BF2`,
+  GO2 `$24D6`) : P3, lot 14 (le port garde son modèle calibré).
+- Fréquence de la faune : le port n'a qu'un multiplicateur entier
+  (`NATURE`), ⌊f + 0,5⌋ (0,2 donne 0). Précipitations et premier front des
+  cinq autres régions : constantes de l'en-tête Sierra, comme
+  `module_weather_daily`. Le reste de l'état d'un « nouveau voyage » de
+  l'original (gabarit T$21 : compteurs de repas, d'eau, frissons initiaux)
+  reste celui du premier voyage.
