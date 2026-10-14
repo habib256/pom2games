@@ -229,6 +229,10 @@ hz_decay:
 ; recomputed in the medical module after the next action that changes care.
 .segment "OUTDOOR"
 module_medical_day:
+.if DRINK_FIDELITY
+        lda     #1              ; T0C/S03 recomputes $4C7A from now on
+        sta     sweat_day
+.endif
         ldx     #8
         lda     #0
 @reset: ldy     hz_daily,x

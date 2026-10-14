@@ -272,9 +272,30 @@ d'eau dans SIM : déplacer 1 Ko de textes dans le stock, ou les compresser
 
 ## 6. Correction de fidélité isolée (dernier commit du lot)
 
-La conversion de la boisson et le sélecteur 6 changent le chemin de
-référence (`DRINK WATER 4 OZ` du script) : ils sont dans un commit séparé,
-décrit au § 6 bis s'il est retenu.
+Deux règles de DRINK changent le chemin de référence (`DRINK WATER 4 OZ`
+du script) ; elles sont dans le dernier commit du lot, derrière
+l'interrupteur `DRINK_FIDELITY = 1` de `src/game.s` (0 rend le
+comportement figé, octet pour octet) :
+
+- **Crédit hydrique** oz × (0,73 − 0,6 × `$4C7A`) calculé par les mêmes
+  opérations ROM et les constantes de T0F/S00 (`$5D95`, `$5D9A`), au lieu
+  du littéral 0,38. `$4C7A` (`s_sweat`, résident) garde la valeur
+  sauvegardée 70/120 jusqu'au premier minuit, puis vaut chaque jour le
+  maximum de la journée / 120 (T0C/S03 `$5C9B` : `$1B` × 1/120 au
+  changement de jour ; mesuré : 0,38 oz⁻¹ toute la première journée).
+- **Sélecteur de soins 6** après chaque gorgée (`$4B41` = 1, `$4B42` = 6,
+  mesuré : la liste des sélecteurs contient 6 après DRINK) ; il entre dans
+  le traitement des conditions 4, 5 et 11.
+
+`tests/test_reference_state.py` diffère alors à partir de `DRINK WATER
+4 OZ` sur deux variables seulement : `medical_actions` (octet 5 : 0 → 1,
+jusqu'à la fin) et `s_defw` (dernier bit de mantisse : référence
+`81 B7 65 FD 8B`, port `…8A` après la gorgée ; `00 07 FC B9 20` contre
+`…18` après `REST 3 H`, puis identique). La référence HGR n'est pas
+rebasée. Coût : `CODE` +100 octets (`drink_credit`, `drink_care`,
+`sweat_update`), WILDLO 6 (`s_sweat`, `sweat_day`), OUTDOOR +5, SIM −5.
+Le même `$4C7A` sert à l'eau des aliments (EAT, T12/S00) : laissé au
+lot 4.
 
 ## 7. Tests
 

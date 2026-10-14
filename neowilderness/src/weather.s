@@ -50,6 +50,9 @@ weather_temperature:
         clc
         adc     g0
         sta     wc_max
+.if DRINK_FIDELITY
+        jsr     sweat_update    ; $4C7A (src/camp.s)
+.endif
         jsr     weather_cycle
         ; Pick the same half-open segments as $58B9.
 @choose:

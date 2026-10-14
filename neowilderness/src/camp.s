@@ -36,6 +36,10 @@ fire_on:    .byte 0
 fire_near:  .byte 0
 sticks_on:  .byte 0
 light:      .byte 1             ; the first journey starts in daylight
+; DRINK_FIDELITY (src/game.s): $4C7A, the saved 70/120 until the first
+; midnight, then the day's maximum / 120 (T0C/S03 $5C9B).
+s_sweat:    .byte $80,$15,$55,$55,$56
+sweat_day:  .byte 0             ; 1 after the first midnight
 camp_state_end:
 camp_minutes: .word 0           ; time of the action (camp_done)
 camp_act:   .byte 0             ; its activity (spend): 0 rest rate, 6 effort
@@ -49,7 +53,7 @@ camp_untreated: .byte 0         ; the source is untreated ($4B48 = 0)
 w_avail:    .word 0             ; ounces available (msg 64)
 w_room:     .byte 0             ; canteen room; BOIL: nonzero from the canteen
 camp_douse_msg: .byte "SMOKEY THE BEAR SAYS TO DOUSE YOUR FIRE FIRST",$A1,0
-.export camp_state, camp_state_end, camp_use, fire_on, fire_near, sticks_on, light
+.export camp_state, camp_state_end, camp_use, fire_on, fire_near, sticks_on, light, s_sweat
 
 .segment "LOWCODE"
 ; Verbs without an entry of their own in the dispatch table (the table is
@@ -282,6 +286,42 @@ drink_limit:
         sec
 :       rts
 m_ridiculous: .byte "DON'T BE RIDICULOUS",$A1,0   ; msg 87, T0F/S00 $5C4B
+.if DRINK_FIDELITY
+; drink_credit -- FAC = msgnum x (.73 - .6 x $4C7A), the ROM operations of
+; T0F/S00 $5CAD-$5CD4 (constants $5D95, $5D9A).
+drink_credit:
+        fld     s_sweat
+        fop     FMULT, dr_0_6
+        fop     FSUB, dr_0_73
+        fst     t1
+        ldy     msgnum
+        lda     msgnum+1
+        jsr     GIVAYF
+        fop     FMULT, t1
+        rts
+; drink_care -- $5CED: $4B41 = 1, $4B42 = 6: care selector 6.
+drink_care:
+        lda     #1
+        sta     medical_actions+5
+        jmp     medical_apply
+; sweat_update -- T0C/S03 $5C9B, from the first midnight on: $4C7A = the
+; day's maximum (signed) / 120. Called by weather_temperature (SIM).
+sweat_update:
+        lda     sweat_day
+        beq     @done
+        ldy     wc_max
+        lda     #0
+        cpy     #$80
+        bcc     :+
+        lda     #$FF
+:       jsr     GIVAYF
+        fop     FMULT, dr_inv120
+        fst     s_sweat
+@done:  rts
+dr_0_6:    .byte $80,$19,$99,$99,$9A    ; T0F/S00 $5D95
+dr_0_73:   .byte $80,$3A,$E1,$47,$AE    ; T0F/S00 $5D9A
+dr_inv120: .byte $7A,$08,$88,$88,$89    ; T0C/S03 $5E64
+.endif
 ; camp_light -- $0D5D at the health step (T0D/S07 $5BB7): 1 by day (AM, PM),
 ; at dawn and dusk under a clear sky, else only with MATCHES or FLASHLIGHT
 ; in use. A fire gives light only through USE FIRE, until this step.

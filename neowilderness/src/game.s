@@ -702,6 +702,10 @@ lookup: ldx     g2
 ; ----------------------------------------------------------------------------
 ; dispatch
 ; ----------------------------------------------------------------------------
+; Lot 2 fidelity (docs/CAMP.md section 6): DRINK credits oz x (.73 - .6 x
+; $4C7A) with the evolving $4C7A and sets care selector 6, as T0F/S00; 0
+; keeps the frozen .38 of the HGR reference.
+DRINK_FIDELITY = 1
 V_GET   = 1
 V_USE   = 2
 V_WEAR  = 5
@@ -1654,16 +1658,23 @@ module_drink_water:
         lda     msgnum
         beq     @none
         jsr     water_hazard
+.if DRINK_FIDELITY
+        jsr     drink_credit    ; oz x (.73 - .6 x $4C7A), src/camp.s
+.else
         ldy     msgnum
         lda     msgnum+1
         jsr     GIVAYF
         fop     FMULT, f_oz_hour
+.endif
         fop     FSUB, s_defw
         fst     s_defw
         fld     f_half
         fst     s_drink
         fld     s_elap
         fst     s_last
+.if DRINK_FIDELITY
+        jsr     drink_care      ; care selector 6
+.endif
         lda     #<m_drank
         ldx     #>m_drank
         jsr     message
