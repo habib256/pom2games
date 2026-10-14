@@ -2,8 +2,9 @@
 ; ============================================================================
 ; boot.s -- NEOWILD.SYSTEM, the ProDOS 8 system program of Neowilderness
 ; ============================================================================
-; ProDOS loads this file at $2000. The stub saves ProDOS's zero page and moves
-; the loader to the SIM window ($9600), free until the first simulation copy.
+; ProDOS loads this file at $2000. The stub saves ProDOS's zero page and
+; decodes the loader (LZ-packed by tools/build_disk.py) into the SIM window
+; ($9600), free until the first simulation copy.
 ; The loader then:
 ;   - refuses machines other than an enhanced IIe / IIc with 128 KB, with a
 ;     message and a clean return to ProDOS;
@@ -13,14 +14,18 @@
 ;     preparation (fidelity lot 1), H hall of fame, Q ProDOS, then the level
 ;     1-10 (RETURN = 4);
 ;   - shows the introduction again with the chosen region and reads its pack
-;     NEOWILD.R1..R6 (same records, same loop): map, woods, animal sprites,
+;     (same records, same loop) from NEOWILD.DAT, behind the trunk at the
+;     mark build_disk.py writes into ld_marks (one file since the memory
+;     reclaim of docs/MEMORY.md 13: six pack files cost six index blocks
+;     and six partial blocks): map, woods, animal sprites,
 ;     module directory, DHGR tables, fauna records and region texts;
 ;   - writes the level (MAP+22) and the journey kind (MAP+33 and the
 ;     resident journey_kind, which NEOWILD.END reads: TRAVEL reuses MAP+28..33
 ;     for the wild food quantities; 0 scenario, 1 free journey, whose random
 ;     generators are reseeded from the time spent in the menu);
 ;   - a journey other than a scenario at level 4 (the original's first
-;     journey, the frozen state) reads NEOWILD.PRE at $2000 and runs it
+;     journey, the frozen state) reads the preparation (the last part of
+;     NEOWILD.DAT, ld_marks) at $2000 and runs it
 ;     (src/prepare.s): P asks the original's preparation questions, every
 ;     such journey draws the level's crash injury, wreck lot, date, weather
 ;     front and wind (docs/SCENARIOS.md section 11);
@@ -32,8 +37,9 @@
 ;     is erased only after Y; the empty disk is rebuilt at exit;
 ;   - marks the game pages in the ProDOS bitmap, points RESET at reset_exit
 ;     and jumps to start ($6000).
-; NEOWILD.DAT and NEOWILD.Rn: a 128-byte table of records, read once to
-; TABLE, then the payloads back to back: one MLI READ per record.
+; NEOWILD.DAT: the trunk, the six packs, the preparation; the trunk and each
+; pack are a 256-byte table of records, read once to TABLE, then the
+; payloads back to back: one MLI READ per record.
 ; Record: kind, address, length, stored length (little-endian words).
 ;   kind 0 end, 1 claim, else $80 + $40 (LZ) + bank (0 main, 1 auxiliary,
 ;   2 auxiliary language card bank 2, 3 bank 1; + $20: main language card,
@@ -99,16 +105,80 @@ length: .res 1
         sta     saved_zp,x
         inx
         bne     :-
-        ldy     #>(__LOADER_SIZE__+255)
-@copy:  lda     __LOADER_LOAD__,x
-@to:    sta     __LOADER_RUN__,x
-        inx
+        ; The loader follows, LZ-packed by tools/build_disk.py (system_file:
+        ; tools/pack_boot.py tokens, a match of distance 0 at the end; two
+        ; blocks fewer on the volume, docs/MEMORY.md 13): decode it into the
+        ; SIM window, its run address.
+        lda     #<__LOADER_LOAD__
+        sta     source
+        lda     #>__LOADER_LOAD__
+        sta     source+1
+        lda     #<__LOADER_RUN__
+        sta     dest
+        lda     #>__LOADER_RUN__
+        sta     dest+1
+        ldy     #0
+        lda     #1              ; empty: the first token reads a flag byte
+        sta     flags
+@token: lsr     flags
+        bne     @flag
+        jsr     @byte           ; eight flags, a sentinel bit behind them
+        sec
+        ror     a
+        sta     flags
+@flag:  jsr     @byte           ; C: the token's flag (@byte keeps it)
+        bcs     @match
+        sta     (dest),y        ; literal
+        inc     dest
+        bne     @token
+        inc     dest+1
+        bcc     @token          ; always
+@match: sta     offset
+        jsr     @byte
+        sta     length
+        ora     offset
+        beq     @done           ; distance 0: the end
+        lda     length
+        lsr     a
+        lsr     a
+        lsr     a
+        lsr     a
+        sta     match+1
+        sec
+        lda     dest
+        sbc     offset
+        sta     match
+        lda     dest+1
+        sbc     match+1
+        sta     match+1
+        lda     length
+        and     #15
+        adc     #2              ; C set (no borrow): length 3..18
+        cmp     #18
+        bne     :+
+        jsr     @byte
+        clc
+        adc     #18
+:       tax
+@copy:  lda     (match),y
+        sta     (dest),y
+        iny
+        dex
         bne     @copy
-        inc     @copy+2
-        inc     @to+2
-        dey
-        bne     @copy
-        jmp     loader_main
+        tya
+        clc
+        adc     dest
+        sta     dest
+        bcc     :+
+        inc     dest+1
+:       ldy     #0
+        beq     @token
+@done:  jmp     loader_main
+@byte:  lda     (source),y
+        inc     source
+        bne     :+
+        inc     source+1
+:       rts
 
 .segment "LOADBSS"
 hdr:    .res 7
@@ -127,6 +197,7 @@ ld_free:   .res 1               ; 1: free journey (not ranked, random seeds)
 digits:    .res 1
 entropy:   .res 2               ; key-wait iterations in the menu
 ld_prep:   .res 1               ; 1: P, the preparation questions (with ld_free)
+ld_part:   .res 1               ; ld_open: part of NEOWILD.DAT
 ld_entropy = entropy
 ld_hdr     = hdr
 
@@ -204,7 +275,7 @@ loader_main:
         ldy     #>geo_path
         lda     #'G'
         jsr     make_path
-        lda     #'D'            ; the common trunk
+        ldx     #0              ; the common trunk
         jsr     load_file
         jcs     ld_error
         jsr     hm_load         ; NEOWILD.HOF into STAGE (empty table if absent)
@@ -232,8 +303,7 @@ loader_menu:
         ldy     #>m_loading
         jsr     print
 loader_pack:
-        lda     ld_region       ; NEOWILD.R1..R6
-        ora     #'0'
+        ldx     ld_region       ; the pack of the region, behind the trunk
         jsr     load_file
         jcs     ld_error
         lda     ld_level        ; the journey's own header bytes
@@ -261,27 +331,20 @@ loader_pack:
         lda     ld_level
         cmp     #4
         beq     ld_no_prepare
-loader_prepare:                 ; NEOWILD.PRE: LZ (tools/pack_boot.py) read
-        lda     #'P'            ; at PRE_PACK, decoded to $2000 (STAGE, free
-        ldx     #<ld_path       ; until ld_scatter), then src/prepare.s
-        ldy     #>ld_path
-        jsr     make_path
-        lda     #$C8            ; OPEN
-        ldx     #<open
-        ldy     #>open
-        jsr     ld_mli
+loader_prepare:                 ; the preparation: LZ (tools/pack_boot.py)
+        ldx     #7              ; read at PRE_PACK, decoded to $2000 (STAGE,
+        jsr     ld_open         ; free until ld_scatter), then src/prepare.s
         jcs     ld_error
-        lda     open+5
-        sta     read+1
-        sta     close+1
-        lda     #>PRE_PACK      ; READ up to $4000: end of file is expected
+        lda     #>PRE_PACK
         sta     read+3
         sta     source+1
-        sta     read+5          ; $10 pages
         lda     #0
         sta     read+2
-        sta     read+4
         sta     source
+        lda     ld_marks+21     ; its stored length
+        sta     read+4
+        lda     ld_marks+22
+        sta     read+5
         lda     #$CA
         ldx     #<read
         ldy     #>read
@@ -380,9 +443,11 @@ ld_scatter:
         bne     @chunk
         rts
 
-; load_file -- A = 'D' (NEOWILD.DAT) or '1'..'6' (NEOWILD.R1..R6): open it,
-; read its record table, then every record; close. C set, A = MLI error.
-load_file:
+; ld_open -- open NEOWILD.DAT, then SET_MARK to part X of ld_marks: 0 the
+; trunk (no SET_MARK), 1..6 the packs, 7 the preparation. C set, A = error.
+ld_open:
+        stx     ld_part
+        lda     #'D'
         ldx     #<ld_path
         ldy     #>ld_path
         jsr     make_path
@@ -390,12 +455,35 @@ load_file:
         ldx     #<open
         ldy     #>open
         jsr     ld_mli
-        bcc     :+
-        rts
-:       lda     open+5
+        bcs     @done
+        lda     open+5
         sta     read+1
         sta     close+1
-        lda     #<TABLE         ; one READ for the whole record table
+        sta     mark+1
+        lda     ld_part
+        beq     @done           ; C clear
+        asl     a
+        adc     ld_part
+        tax
+        lda     ld_marks-3,x
+        sta     mark+2
+        lda     ld_marks-2,x
+        sta     mark+3
+        lda     ld_marks-1,x
+        sta     mark+4
+        lda     #$CE            ; SET_MARK
+        ldx     #<mark
+        ldy     #>mark
+        jmp     ld_mli
+@done:  rts
+
+; load_file -- X = part of NEOWILD.DAT (ld_open): read its record table,
+; then every record; close. C set, A = MLI error.
+load_file:
+        jsr     ld_open
+        bcc     :+
+        rts
+:       lda     #<TABLE         ; one READ for the whole record table
         ldx     #>TABLE
         ldy     #<TABLE_SIZE
         sty     stored
@@ -624,8 +712,8 @@ print_level:
 :       ora     #'0'|$80
         jmp     COUT
 
-; make_path -- X/Y = destination, A = 'D' (NEOWILD.DAT), 'G' (NEOWILD.GEO)
-; or '1'..'6' (NEOWILD.R1..R6): length byte, "/VOLUME/NEOWILD.xxx".
+; make_path -- X/Y = destination, A = 'D' (NEOWILD.DAT) or 'G' (NEOWILD.GEO):
+; length byte, "/VOLUME/NEOWILD.xxx".
 make_path:
         stx     @dst+1
         sty     @dst+2
@@ -648,21 +736,10 @@ make_path:
         cpx     #file_suffix-file_name
         bne     :-
 @kind:  lda     #0
-        ldx     #2              ; DAT, GEO, PRE: the suffix ending at X
+        ldx     #2              ; DAT, GEO: the suffix ending at X
         cmp     #'D'
         beq     @suffix
         ldx     #5
-        cmp     #'G'
-        beq     @suffix
-        ldx     #8
-        cmp     #'P'
-        beq     @suffix
-        pha                     ; region pack: R and the digit
-        lda     #'R'
-        jsr     @put
-        pla
-        jsr     @put
-        jmp     @length
 @suffix:
         lda     #3
         sta     digits
@@ -671,7 +748,6 @@ make_path:
         inx
         dec     digits
         bne     :-
-@length:
         dey
         tya
 @len:   sta     $FFFF
@@ -1116,7 +1192,12 @@ file_name: .byte "/NEOWILD."
 file_suffix:
 file_dat: .byte "DAT"
 file_geo: .byte "GEO"
-file_pre: .byte "PRE"
+mark:   .byte   2, 0, 0, 0, 0   ; SET_MARK
+; Written by tools/build_disk.py into NEOWILD.SYSTEM: the marks (3 bytes) of
+; the six packs and of the preparation in NEOWILD.DAT, then the stored
+; length of the preparation (2 bytes).
+ld_marks: .res  23
+.export ld_marks
 
 ; Pages protected in the ProDOS bitmap while the game runs. The module
 ; window $5800-$5FFF and the I/O buffer stay free for the reads of

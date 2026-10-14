@@ -79,7 +79,7 @@ DIR_BANK = {AUX: 0, LC2: 1, LC1: 2, MLC2: 3}      # memory.s directory bank code
 # bank 1 and $E000-$F0FF (src/topo_dhgr.s TP_SNAP_END, the native atlas's
 # geo_atlas.ATLAS_END): the whole of bank 2 and $F100-$FFF9 of the common
 # area join the store.
-SNAP_END = 0xF100
+SNAP_END = 0xED00
 REGIONS = [(AUX, 0x4000, 0xC000), (AUX, 0x0800, 0x2000), (LC2, 0xD000, 0xE000),
            (LC2, SNAP_END, 0xFFFA), (MLC2, 0xD400, 0xDE18)]
 SKYLC = (MLC2, 0xDE18, 'wildskylc.bin')     # src/stars_draw.s, runs in place
@@ -108,8 +108,24 @@ MODULES = {0: ('wildtpg.bin', 0x9600), 1: ('wildvoc.bin', 0x5800), 2: ('wildscr.
            14: ('wilditm.bin', 0x5800), 15: ('wildhud.bin', 0x5800), 16: ('wildsta.bin', 0x5800),
            17: ('wildmed.bin', 0x5800), 19: ('wildmvi.bin', 0x5800), 20: ('wildtre.bin', 0x5800),
            21: ('wildadv.bin', 0x5800), 22: ('wildout.bin', 0x5800),
-           24: ('wildskycat.bin', 0x9600), 25: ('wildsky.bin', 0x97CE)}
-DIR_ENTRIES = 26                 # memory.s MOD_COUNT
+           24: ('wildskycat.bin', 0x9600), 25: ('wildsky.bin', 0x97CE),
+           26: ('wildori.bin', 0x5800), 27: ('wildalr.bin', 0x5800)}
+DIR_ENTRIES = 28                 # memory.s MOD_COUNT
+# Modules stored LZ-packed in the auxiliary store and decoded in their window
+# by mem_fetch (src/memory.s lz_unpack; docs/MEMORY.md 13): the rarely loaded
+# ones (TOPOGEN, ITEMS, MEDVIEW, TREE, ORIENT, ALERT), whose
+# decoding (about 50 cycles per byte instead of 17 for a copy) never runs
+# during a view. SCREENS and STATUS fill their window: an in-place copy has
+# no room behind them. INPUT (13) must stay raw: it is loaded after the end
+# of a journey, once NEOWILD.END's I/O buffer has overwritten the decoder
+# (MENUCODE). The packs patch TRAVEL, OUTDOOR, PROJECT and SUMMARY in place.
+LZ_MODULES = (0, 5, 9, 14, 19, 20, 26)
+LZ_WINDOW_END = {0x5800: 0x6000, 0x9600: 0xA200}     # TOPOGEN: its BSS at $A200
+# The animals of the packs too: one sprite at most is loaded per view
+# (sprites.s scene_prepare), about 40 cycles more per byte, under 1 % of a
+# full view (6.1 million cycles).
+LZ_SPRITES = True
+BANK_LZ = 0x80                   # memory.s BANK_LZ
 # Species slots 1-4 of a region -> module IDs (animal_kind = slot + 5; the
 # fourth species takes 23, SCENARIOS.md section 4).
 SLOT_MODULES = (6, 7, 8, 23)
@@ -182,6 +198,148 @@ def place(images, free=None):
         placed[index] = (region[0], region[1])
         region[1] += len(images[index])
     return placed, free
+
+
+def lz_tokens(packed, size):
+    """The (match, bytes) tokens of a pack_boot stream of `size` bytes."""
+    tokens, pos, out = [], 0, 0
+    while out < size:
+        flags = packed[pos]
+        pos += 1
+        for bit in range(8):
+            if out >= size:
+                break
+            if flags >> bit & 1:
+                length = (packed[pos + 1] & 15) + 3
+                token = packed[pos:pos + 2]
+                if length == 18:
+                    length += packed[pos + 2]
+                    token = packed[pos:pos + 3]
+                tokens.append((True, bytes(token), length))
+                pos += len(token)
+                out += length
+            else:
+                tokens.append((False, packed[pos:pos + 1], 1))
+                pos += 1
+                out += 1
+    assert pos == len(packed) and out == size
+    return tokens
+
+
+def lz_stream(raw, cache=None):
+    """pack_boot tokens of `raw` and an end token (a match of distance 0):
+    (stream, tokens)."""
+    tokens = lz_tokens(cached_compress(raw, cache), len(raw)) + [(True, b'\0\0', 0)]
+    stream = bytearray()
+    for k in range(0, len(tokens), 8):
+        group = tokens[k:k + 8]
+        stream.append(sum(match << bit for bit, (match, _, _) in enumerate(group)))
+        for _, token, _ in group:
+            stream.extend(token)
+    return bytes(stream), tokens
+
+
+def unpack_stream(stream):
+    """The bytes of an lz_stream (the stub of NEOWILD.SYSTEM, src/boot.s)."""
+    out, i = bytearray(), 0
+    while True:
+        flags = stream[i]
+        i += 1
+        for bit in range(8):
+            if not flags >> bit & 1:
+                out.append(stream[i])
+                i += 1
+                continue
+            lo, hi = stream[i], stream[i + 1]
+            i += 2
+            if not lo and not hi:
+                return bytes(out)
+            distance, length = lo | (hi >> 4) << 8, (hi & 15) + 3
+            if length == 18:
+                length += stream[i]
+                i += 1
+            for _ in range(length):
+                out.append(out[-distance])
+
+
+def system_file(build, sym, marks, prepare_length, cache=None):
+    """NEOWILD.SYSTEM: the stub (SYSSTUB), then the loader with its marks
+    (ld_marks), LZ-packed; the stub decodes it to __LOADER_RUN__."""
+    raw = (Path(build) / 'NEOWILD.SYSTEM').read_bytes()
+    at = sym['__LOADER_LOAD__'] - 0x2000
+    loader = bytearray(raw[at:])
+    assert len(loader) == sym['__LOADER_SIZE__']
+    mark = sym['ld_marks'] - sym['__LOADER_RUN__']
+    assert loader[mark:mark + 23] == bytes(23), 'NEOWILD.SYSTEM ld_marks'
+    loader[mark:mark + 23] = b''.join(m.to_bytes(3, 'little') for m in marks) + \
+        prepare_length.to_bytes(2, 'little')
+    stream = lz_stream(bytes(loader), cache)[0]
+    assert unpack_stream(stream) == loader
+    return raw[:at] + stream, bytes(loader)
+
+
+def lz_store(raw, window, cache=None):
+    """An image for the store, decoded in place by lz_unpack: (blob, copy
+    address, margin) or None when it would not be shorter. The blob is the
+    window address, then the tokens and an end token (a match of distance 0).
+    The copy ends `margin` bytes past the image's own end, the least that
+    keeps every unread token ahead of the output."""
+    stream, tokens = lz_stream(raw, cache)
+    worst, read, written = -1, 2, 0
+    for k in range(0, len(tokens), 8):
+        read += 1                           # the flag byte
+        for match, token, length in tokens[k:k + 8]:
+            read += len(token)
+            for _ in range(length):         # each written byte: o - i
+                worst = max(worst, written - read)
+                written += 1
+    assert written == len(raw)
+    blob = bytes((window & 255, window >> 8)) + bytes(stream)
+    margin = max(0, worst + 1 - len(raw) + len(blob))
+    copy = window + len(raw) + margin - len(blob)
+    if len(blob) >= len(raw) or window + len(raw) + margin > LZ_WINDOW_END[window]:
+        return None
+    assert lz_unpack(blob, copy) == raw
+    return blob, copy, margin
+
+
+def stored_bytes(build, module):
+    """The bytes a layout.json module entry occupies in the store."""
+    raw = (Path(build) / module['image']).read_bytes()
+    if 'lz' not in module:
+        return raw
+    return lz_store(raw, module['window'], Path(build) / 'lz-cache')[0]
+
+
+def lz_unpack(blob, copy):
+    """Python model of memory.s lz_unpack, in place in a 64 KB memory."""
+    mem = bytearray(0x10000)
+    mem[copy:copy + len(blob)] = blob
+    i = copy + 2
+    out = start = blob[0] | blob[1] << 8
+    while True:
+        flags = mem[i]
+        i += 1
+        for bit in range(8):
+            if flags >> bit & 1:
+                lo, hi = mem[i], mem[i + 1]
+                i += 2
+                if not lo and not hi:
+                    return bytes(mem[start:out])
+                distance, length = lo | (hi >> 4) << 8, (hi & 15) + 3
+                if length == 18:
+                    length += mem[i]
+                    i += 1
+                for _ in range(length):
+                    assert out < i or out >= copy + len(blob), 'decoder overtakes its input'
+                    mem[out] = mem[out - distance]
+                    out += 1
+            else:
+                value = mem[i]
+                i += 1
+                assert out < i or out >= copy + len(blob), 'decoder overtakes its input'
+                mem[out] = value
+                out += 1
 
 
 def cached_compress(chunk, cache):
@@ -426,14 +584,28 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
         'src/wild.cfg SKYCAT/SKYSTARS and MODULES[24]/[25]'
 
     # ---- common trunk: every module but the animals.
-    images = {}
+    images, raw_images, lz = {}, {}, {}
     modules = dict(MODULES)
+    assert 13 not in LZ_MODULES, 'INPUT is loaded after the end of a journey: raw'
+    assert not set(PATCH_MODULES.values()) & set(LZ_MODULES), 'the packs patch these images'
     for index, (name, window) in modules.items():
         data = (build / name).read_bytes()
         assert 0 < len(data) <= WINDOW_LIMIT[window], (name, len(data))
-        images[index] = data
+        images[index] = raw_images[index] = data
+        packed = lz_store(data, window, cache) if index in LZ_MODULES else None
+        if packed:
+            images[index] = packed[0]
+            lz[index] = dict(stored=len(packed[0]), copy=packed[1], margin=packed[2])
     regions_data = {r: region_data(build, r, map_path if r == 2 else None) for r in PACK_REGIONS}
-    sprite_sizes = {r: sum((build / G / f'{n}.bin').stat().st_size for n in d['sprites'])
+
+    def sprite_image(name):
+        """(stored bytes, LZ entry or None) of an animal sprite."""
+        raw = (build / G / f'{name}.bin').read_bytes()
+        packed = lz_store(raw, 0x5800, cache) if LZ_SPRITES else None
+        if not packed:
+            return raw, None
+        return packed[0], dict(stored=len(packed[0]), copy=packed[1], margin=packed[2])
+    sprite_sizes = {r: sum(len(sprite_image(n)[0]) for n in d['sprites'])
                     for r, d in regions_data.items()}
     mapdata = regions_data[2]['map']
     resident = bytearray((build / 'wildres.bin').read_bytes())
@@ -478,7 +650,7 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
     pack_area = (AUX, REGIONS[0][2] - area, REGIONS[0][2])
     free = [list(pack_area)] + free
 
-    def directory(placed_all, images_all):
+    def directory(placed_all, images_all, lz_all):
         table = bytearray(DIR_ENTRIES * 7)
         for index in range(DIR_ENTRIES):
             source = 17 if index == 18 else index
@@ -486,12 +658,15 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
                 continue                            # a missing 23: empty
             bank, address = placed_all[source]
             window = MODULES[source][1] if source in MODULES else 0x5800
-            table[index*7:index*7+7] = struct.pack('<BHHH', DIR_BANK[bank], address,
+            kind = DIR_BANK[bank]
+            if source in lz_all:
+                kind, window = kind | BANK_LZ, lz_all[source]['copy']
+            table[index*7:index*7+7] = struct.pack('<BHHH', kind, address,
                                                    len(images_all[source]), window)
         return bytes(table)
 
     dir_offset = sym['module_dir'] - 0xB600
-    resident[dir_offset:dir_offset + DIR_ENTRIES*7] = directory(placed, images)
+    resident[dir_offset:dir_offset + DIR_ENTRIES*7] = directory(placed, images, lz)
     low = bytearray(0x1800)                       # $0800-$1FFF, gaps restored as zero
     for address, data in ((0x0926, (build / 'wildforest.bin').read_bytes()),
                           (0x0A00, (build / 'wildtxt.bin').read_bytes()),
@@ -519,8 +694,11 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
         'build/dhgr/dhgr_tables_r2.bin must equal the linked Sierra tables'
     packs, pack_info = {}, {}
     for region, data in regions_data.items():
-        sprites = {SLOT_MODULES[k]: (build / G / f'{name}.bin').read_bytes()
-                   for k, name in enumerate(data['sprites'])}
+        raw_sprites = {SLOT_MODULES[k]: (build / G / f'{name}.bin').read_bytes()
+                       for k, name in enumerate(data['sprites'])}
+        stored_sprites = {SLOT_MODULES[k]: sprite_image(name) for k, name in enumerate(data['sprites'])}
+        sprites = {i: image for i, (image, _) in stored_sprites.items()}
+        sprite_lz = {i: entry for i, (_, entry) in stored_sprites.items() if entry}
         # Until the four-species port (step 4), fauna.s may still draw the
         # Sierra's third species: a region with two species points module 8
         # at a one-byte empty sprite (width 0: nothing drawn), never at
@@ -551,17 +729,19 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
         sections += [(MAIN, 0x0800, data['mask']),
                      (MAIN, tables_start, dhgr_tables),
                      (MAIN, sym['__REGIONTEXT_RUN__'], region_texts(data['entry'], data['header'])),
-                     (MAIN, sym['module_dir'], directory(all_placed, all_images)),
+                     (MAIN, sym['module_dir'], directory(all_placed, all_images, {**lz, **sprite_lz})),
                      (MAIN, 0x7000, data['map'][:MAP_BYTES])]
         packs[region], stats = records(sections, packing, cache)
         pack_info[str(region)] = dict(
-            name=data['entry']['name'], filename=f'NEOWILD.R{region}', **stats,
-            sprites=list(data['sprites']), sprite_bytes=sum(map(len, sprites.values())),
+            name=data['entry']['name'], filename='NEOWILD.DAT', **stats,
+            sprites=list(data['sprites']), sprite_bytes=sum(map(len, raw_sprites.values())),
+            sprite_stored=sum(map(len, sprites.values())),
             aux_free=sum(e - s for _, s, e in pack_free),
             aux_free_largest=max(e - s for _, s, e in pack_free),
             modules={str(i): dict(image=G + data['sprites'][SLOT_MODULES.index(i)] + '.bin',
-                                  bank=BANK_NAMES[b], address=a, length=len(sprites[i]),
-                                  window=0x5800)
+                                  bank=BANK_NAMES[b], address=a, length=len(raw_sprites[i]),
+                                  stored=len(sprites[i]), window=0x5800,
+                                  **({'lz': sprite_lz[i]} if i in sprite_lz else {}))
                      for i, (b, a) in pack_placed.items() if i != 'empty'},
             empty_slots={str(m): dict(bank=BANK_NAMES[pack_placed['empty'][0]],
                                       address=pack_placed['empty'][1], length=1)
@@ -569,13 +749,26 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
             patches=patches,
             map_region=data['map'][32])
 
+    # One file (docs/MEMORY.md 13): the trunk, the six packs, the preparation
+    # (LZ-packed, src/boot.s reads it at PRE_PACK $3000, at most 4 KB, and
+    # decodes it behind itself to $2000). The loader opens NEOWILD.DAT for
+    # each part and moves to the mark that ld_marks gives (src/boot.s
+    # ld_open): six pack files cost six index blocks and six partial ones.
+    prepare_module = compress((build / 'wildpre.bin').read_bytes())
+    assert 0 < len(prepare_module) <= 0x1000 and (build / 'wildpre.bin').stat().st_size <= 0x1F00
+    dat, marks = bytearray(trunk), []
+    for region in PACK_REGIONS:
+        marks.append(len(dat))
+        pack_info[str(region)]['mark'] = len(dat)
+        dat += packs[region]
+    marks.append(len(dat))
+    dat += prepare_module
+    system = system_file(build, sym, marks, len(prepare_module), cache)[0]
     stage = Path(tempfile.mkdtemp(prefix='neowild-stage-'))
     try:
         (stage / 'PRODOS#FF0000').write_bytes((DEV / 'tools/prodos/PRODOS').read_bytes())
-        (stage / 'NEOWILD.SYSTEM#FF2000').write_bytes((build / 'NEOWILD.SYSTEM').read_bytes())
-        (stage / 'NEOWILD.DAT#060000').write_bytes(trunk)
-        for region, data in packs.items():
-            (stage / f'NEOWILD.R{region}#060000').write_bytes(data)
+        (stage / 'NEOWILD.SYSTEM#FF2000').write_bytes(bytes(system))
+        (stage / 'NEOWILD.DAT#060000').write_bytes(bytes(dat))
         # Lot 7 step 6 (docs/HOF.md): the end-of-game module, read from the
         # disk by module_end at $9600 (directory entry 24: the star catalogue), and
         # the empty hall of fame (tools/genhof.py), rewritten in place.
@@ -584,13 +777,6 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
         assert 0 < len(end_module) <= 0x2000 and len(hof_file) == 512
         (stage / 'NEOWILD.END#069600').write_bytes(end_module)
         (stage / 'NEOWILD.HOF#060000').write_bytes(hof_file)
-        # Fidelity lot 1 (src/prepare.s): the journey preparation, read by the
-        # loader at $2000 for a journey other than the frozen first one.
-        # LZ-packed (src/boot.s reads it at PRE_PACK $3000, at most 4 KB, and
-        # decodes it behind itself to $2000).
-        prepare_module = compress((build / 'wildpre.bin').read_bytes())
-        assert 0 < len(prepare_module) <= 0x1000 and (build / 'wildpre.bin').stat().st_size <= 0x1F00
-        (stage / 'NEOWILD.PRE#063000').write_bytes(prepare_module)
         boot = (DEV / 'tools/prodos/boot.bin').read_bytes()
         boot = (boot + bytes(1024))[:1024]
         volume = Volume(VOLUME, 280, boot, prodos_date('2026-10-13T12:00'))
@@ -609,8 +795,11 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
     trunk_modules = {str(i): dict(image=modules[17 if i == 18 else i][0],
                                   bank=BANK_NAMES[placed[17 if i == 18 else i][0]],
                                   address=placed[17 if i == 18 else i][1],
-                                  length=len(images[17 if i == 18 else i]),
-                                  window=modules[17 if i == 18 else i][1])
+                                  length=len(raw_images[17 if i == 18 else i]),
+                                  stored=len(images[17 if i == 18 else i]),
+                                  window=modules[17 if i == 18 else i][1],
+                                  **({'lz': lz[17 if i == 18 else i]}
+                                     if (17 if i == 18 else i) in lz else {}))
                      for i in range(DIR_ENTRIES) if (17 if i == 18 else i) in placed}
     info = dict(packing=packing, blocks_used=volume.next_free, blocks=280,
                 blocks_free=280 - volume.next_free,
@@ -619,7 +808,7 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
                 trunk_modules=trunk_modules,
                 aux_free=[dict(bank=BANK_NAMES[b], start=s, end=e, free=e-s)
                           for b, s, e in place(dict(enumerate(
-                              (build / G / f'{n}.bin').read_bytes()
+                              sprite_image(n)[0]
                               for n in regions_data[2]['sprites'])), free)[1]],
                 aux_trunk_free=sum(e - s for _, s, e in free),
                 pack_area=dict(bank='aux', start=pack_area[1], end=pack_area[2]),
@@ -630,8 +819,9 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
                 end_module=dict(file='NEOWILD.END', bytes=len(end_module),
                                 blocks=-(-len(end_module) // 512) + (len(end_module) > 512)),
                 hof_file=dict(file='NEOWILD.HOF', bytes=len(hof_file), blocks=1),
-                prepare_module=dict(file='NEOWILD.PRE', bytes=len(prepare_module),
-                                    blocks=-(-len(prepare_module) // 512) + (len(prepare_module) > 512)))
+                prepare_module=dict(file='NEOWILD.DAT', mark=marks[-1], bytes=len(prepare_module)),
+                dat_file=dict(bytes=len(dat), blocks=-(-len(dat) // 512) + (len(dat) > 512),
+                              marks=marks))
     if layout:
         Path(layout).write_text(json.dumps(info, indent=1) + '\n')
     return info
@@ -649,7 +839,7 @@ if __name__ == '__main__':
     parser.add_argument('--layout', help='write the placement/record summary as JSON')
     args = parser.parse_args()
     info = build_disk(args.out, args.map, args.build, args.packing, args.layout)
-    packs = ', '.join(f'R{r} {p["blocks"]}' for r, p in info['packs'].items())
+    packs = ', '.join(f'R{r} {p["stored"]}' for r, p in info['packs'].items())
     print(f'{args.out}: NEOWILD.DAT {info["dat"]["raw"]} -> {info["dat"]["stored"]} bytes '
-          f'({info["packing"]}, {info["dat"]["records"]} records); packs (blocks) {packs}; '
+          f'({info["packing"]}, {info["dat"]["records"]} records); packs (bytes) {packs}; '
           f'{info["blocks_used"]}/{info["blocks"]} blocks')

@@ -86,23 +86,38 @@ def volume_check():
     image = Image(DISK.read_bytes())
     files = {path: entry for path, entry in
              ((f'/{e[1:1 + (e[0] & 15)].decode()}', e) for e in image.entries(2))}
-    packs = [f'/NEOWILD.R{r}' for r in range(1, 7)]
     assert sorted(files) == sorted(['/NEOWILD.DAT', '/NEOWILD.SYSTEM', '/PRODOS',
-                                    '/NEOWILD.END', '/NEOWILD.HOF', '/NEOWILD.PRE'] + packs), sorted(files)
+                                    '/NEOWILD.END', '/NEOWILD.HOF']), sorted(files)
+    layout = json.loads((HERE / 'build/layout.json').read_text())
+    lbl = build_disk.labels(HERE / 'build')
+    # NEOWILD.DAT holds the trunk, the six packs and the preparation (docs/MEMORY.md
+    # 13); NEOWILD.SYSTEM carries their marks (src/boot.s ld_marks).
+    whole = image.read(files['/NEOWILD.DAT'])
+    marks = layout['dat_file']['marks']
+    assert len(whole) == layout['dat_file']['bytes'] and len(marks) == 7
+    # NEOWILD.SYSTEM: the stub, then the loader LZ-packed (src/boot.s SYSSTUB).
+    system = image.read(files['/NEOWILD.SYSTEM'])
+    at = lbl['__LOADER_LOAD__'] - 0x2000
+    built = (HERE / 'build/NEOWILD.SYSTEM').read_bytes()
+    loader = build_disk.unpack_stream(system[at:])
+    mark = lbl['ld_marks'] - lbl['__LOADER_RUN__']
+    assert system[:at] == built[:at] and len(system) < len(built)
+    assert loader[:mark] == built[at:at + mark] and loader[mark + 23:] == built[at + mark + 23:]
+    assert loader[mark:mark + 23] == b''.join(m.to_bytes(3, 'little') for m in marks) + \
+        (len(whole) - marks[6]).to_bytes(2, 'little')
+    assert files['/NEOWILD.SYSTEM'][0x10] == 0xFF and files['/NEOWILD.SYSTEM'][0x1F:0x21] == b'\x00\x20'
     # Fidelity lot 1: the journey preparation, LZ-packed, decoded to $2000 (src/prepare.s).
     from pack_boot import decompress
     pre = (HERE / 'build/wildpre.bin').read_bytes()
-    packed = image.read(files['/NEOWILD.PRE'])
+    packed = whole[marks[6]:]
     assert len(packed) <= 0x1000 and decompress(packed, len(pre)) == pre
-    assert files['/NEOWILD.SYSTEM'][0x10] == 0xFF and files['/NEOWILD.SYSTEM'][0x1F:0x21] == b'\x00\x20'
-    assert image.read(files['/NEOWILD.SYSTEM']) == (HERE / 'build/NEOWILD.SYSTEM').read_bytes()
     # Lot 7 step 6 (docs/HOF.md): the end module, read at $9600, and the
     # empty hall of fame, a one-block seedling file rewritten in place.
     assert files['/NEOWILD.END'][0x10] == 0x06 and files['/NEOWILD.END'][0x1F:0x21] == b'\x00\x96'
     assert image.read(files['/NEOWILD.END']) == (HERE / 'build/wildhof.bin').read_bytes()
     assert files['/NEOWILD.HOF'][0x10] == 0x06 and files['/NEOWILD.HOF'][0] >> 4 == 1, 'seedling'
     assert image.read(files['/NEOWILD.HOF']) == (HERE / 'build/NEOWILD.HOF').read_bytes()
-    data = image.read(files['/NEOWILD.DAT'])
+    data = whole[:marks[0]]
     trunk_size = len(data)
     trunk = {}
     order, claimed = replay(data, trunk, False)
@@ -111,8 +126,6 @@ def volume_check():
     assert order[0][:2] == (0, 0x6000), 'video.s (in WILDERNESS) must precede the claim'
     assert not any(bank == 0 and address <= 0x7000 < address + length
                    for bank, address, length in order), 'the map belongs to the packs'
-    layout = json.loads((HERE / 'build/layout.json').read_text())
-    lbl = build_disk.labels(HERE / 'build')
 
     def region(memory, bank, address, size):
         return bytes(memory[bank, address + i] for i in range(size))
@@ -133,21 +146,27 @@ def volume_check():
     assert all(not (bank == 0x22 and a < 0xD400) for bank, a in trunk), \
         'records write the ProDOS QUIT code of the main card'
     for index, module in layout['trunk_modules'].items():
-        expected = bytearray((HERE / 'build' / module['image']).read_bytes())
-        actual = region(trunk, banks[module['bank']], module['address'], module['length'])
+        expected = build_disk.stored_bytes(HERE / 'build', module)
+        actual = region(trunk, banks[module['bank']], module['address'], module['stored'])
         assert actual == expected, (index, module['image'])
+        if 'lz' in module:          # decoded in place, as memory.s lz_unpack
+            assert build_disk.lz_unpack(expected, module['lz']['copy']) == \
+                (HERE / 'build' / module['image']).read_bytes(), (index, 'LZ')
     sizes = []
     for r in range(1, 7):
         info = layout['packs'][str(r)]
-        pack = image.read(files[f'/NEOWILD.R{r}'])
-        assert len(pack) == info['file'] and info['blocks'] <= 20, (r, info['blocks'])
+        pack = whole[marks[r - 1]:marks[r]]
+        assert len(pack) == info['file'] and info['mark'] == marks[r - 1], r
         memory = dict(trunk)
         order, _ = replay(pack, memory, True)
         assert order[-1][:2] == (0, 0x7000) or order[-2][:2] == (0, 0x7000), \
             'the map comes last (auxiliary LZ records decode through $7000)'
-        for index, module in info['modules'].items():
-            expected = (HERE / 'build' / module['image']).read_bytes()
-            assert region(memory, banks[module['bank']], module['address'], module['length']) == expected
+        for index, module in info['modules'].items():     # animals, LZ when shorter
+            expected = build_disk.stored_bytes(HERE / 'build', module)
+            assert region(memory, banks[module['bank']], module['address'], module['stored']) == expected
+            if 'lz' in module:
+                assert build_disk.lz_unpack(expected, module['lz']['copy']) == \
+                    (HERE / 'build' / module['image']).read_bytes(), (r, index, 'LZ')
         for index, module in info['empty_slots'].items():   # two-species regions
             assert region(memory, banks[module['bank']], module['address'], 1) == b'\0'
         # Directory: every entry points at its image; no two images overlap.
@@ -159,7 +178,7 @@ def volume_check():
                 continue
             module = (info['modules'].get(str(index)) or info['empty_slots'].get(str(index))
                       or layout['trunk_modules'][str(index)])
-            assert (source, length) == (module['address'], module['length']), (r, index)
+            assert (source, length) == (module['address'], module.get('stored', module['length'])), (r, index)
             if index != 18:
                 spans.append((bank, source, source + length))
         spans.sort()
@@ -186,10 +205,10 @@ def volume_check():
                     if bank == 3 or (bank == 2 and 0xE000 <= a < build_disk.SNAP_END)
                     or a >= 0xFFFA]
         assert not snapshot, 'records write the TOPO snapshot area'
-        sizes.append(f'R{r} {info["blocks"]}')
+        sizes.append(f'R{r} {info["file"]}')
     free = image.free_blocks()
     print(f'  ProDOS volume: PRODOS, NEOWILD.SYSTEM, NEOWILD.DAT ({trunk_size} bytes, '
-          f'{trunk_records} records), packs ({", ".join(sizes)} blocks, <= 20); records rebuild '
+          f'{trunk_records} records), packs ({", ".join(sizes)} bytes); records rebuild '
           f'every image, directory, fauna patches and colours; {free} of 280 blocks free: OK')
 
 
