@@ -905,6 +905,7 @@ STARS_LIST_LC = 1
         .include "outdoor.s"
         .include "water.s"
         .include "alerts.s"     ; lot 13: alerts, forced sleep, diseases (WILDLO)
+        .include "camp.s"
         .include "geography.s"
         .include "geoaux.s"
         .include "hof.s"        ; segment HOF: build/wildhof.bin ($9600)

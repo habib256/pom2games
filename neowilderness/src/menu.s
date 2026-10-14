@@ -51,13 +51,15 @@ K_DUR    = 1
 K_LOOK   = 2
 K_CLIMB  = 3
 K_QTY    = 4
-K_ITEMS  = 5                    ; + filter: 0 GET, 1 TAKE, 2 WEAR, 3 DROP, 4 EAT, 5 USE
+K_MAKE   = 5                    ; lot 2: FIRE STICKS WATER
+K_ITEMS  = 6                    ; + filter: 0 GET, 1 TAKE, 2 WEAR, 3 DROP, 4 EAT, 5 USE
 C_SHELTER = 1                   ; context: shown only at the cabin cell, outside
 C_INSIDE = 2                    ; inside the cabin
 C_ANIMAL = 3                    ; an animal on the player's cell
 C_SUFFIX = 4                    ; a second string completes the command
 C_QTY_ITEM = 8                  ; ounces asked after the item (EAT)
 C_QTY    = 16                   ; ounces asked after the verb (DRINK WATER)
+C_FIRE   = 32                   ; shown only while a fire burns (lot 2)
 G_WORN   = 1                    ; item group masks (inventory groups)
 G_HAND   = 2
 G_PACK   = 4
@@ -482,7 +484,7 @@ build_items:
         inc     mn_count
 @next:  inx
         bne     @item
-@done:  rts
+@done:  jmp     use_fire_item
 
 ; items_any -- A = filter: C set when one item at least qualifies.
 items_any:
@@ -505,7 +507,11 @@ items_any:
 ; the provisions and the medicine, and the sunglasses. Preserves X.
 item_ok:
         ldy     mn_t
-        cpy     #4
+        cpy     #5
+        bne     :+
+        jsr     use_item_ok     ; lot 2: the items USE handles
+        bcc     @no
+:       cpy     #4
         bne     @test
         cpx     #43
         beq     @no
@@ -608,6 +614,8 @@ build_verbs:
         and     #3
         jsr     ctx_ok
         bcc     @skip
+        jsr     fire_ctx
+        bcc     @skip
         ldy     #0              ; an item verb: only with something to name
         lda     (gp2),y
         cmp     #K_ITEMS
@@ -664,11 +672,7 @@ text_of:
         lda     mn_items
         beq     @walk
         ldx     overlay_text,y
-        lda     it_name_lo,x
-        sta     gp2
-        lda     it_name_hi,x
-        sta     gp2+1
-        rts
+        jmp     item_name
 @walk:  lda     mn_level
         cmp     #1
         bne     :+
@@ -1127,21 +1131,85 @@ verb_table:
         .byte   K_NONE, 0, "MAP", 0
         .byte   K_NONE, 0, "HELP", 0
         .byte   K_NONE, 0, "QUIT", 0
+        .byte   K_MAKE, 0, "MAKE", 0
+        .byte   K_NONE, C_SUFFIX, "BOIL", 0, " WATER", 0
+        .byte   K_NONE, C_FIRE|C_SUFFIX, "DOUSE", 0, " FIRE", 0
         .byte   $FF
-list_lo: .byte  <list_dur, <list_look, <list_climb, <list_qty
-list_hi: .byte  >list_dur, >list_look, >list_climb, >list_qty
+list_lo: .byte  <list_dur, <list_look, <list_climb, <list_qty, <list_make
+list_hi: .byte  >list_dur, >list_look, >list_climb, >list_qty, >list_make
 list_dur:   .byte "10 MIN",0,"20 MIN",0,"30 MIN",0,"1 H",0,"2 H",0,"4 H",0,"8 H",0,0
 list_look:  .byte "LEFT",0,"RIGHT",0,"BACK",0,"AHEAD",0,"NORTH",0,"EAST",0,"SOUTH",0,"WEST",0,"SUN",0,"STARS",0,0
 list_climb: .byte "TREE",0,"DOWN",0,0
 list_qty:   .byte "2 OZ",0,"4 OZ",0,"8 OZ",0,"12 OZ",0,"16 OZ",0,"24 OZ",0,"32 OZ",0,"48 OZ",0,0
 ; Item filters: first item, last + 1, the groups the verb already targets
 ; (GET, TAKE, WEAR, DROP, EAT, USE, DRINK: the water alone).
-filt_lo: .byte  1, 1, 1, 1, 23, 41, N_WATER
-filt_hi: .byte  76, 76, 21, 76, 52, 57, N_WATER+1   ; USE: 41-56 (lot 7: MAP...CHART)
+filt_lo: .byte  1, 1, 1, 1, 23, 38, N_WATER
+filt_hi: .byte  76, 76, 21, 76, 52, 74, N_WATER+1   ; USE: 38-73 (lot 2; lot 7's MAP...CHART within)
 filt_ex: .byte  G_PACK, G_HAND, G_WORN, G_GROUND|G_HUNG, G_HUNG, 0, G_HUNG
 str_empty:   .byte 0
 str_status:  .byte "STATUS", 0
 .segment "MENUCODE"
+; Lot 2 (docs/CAMP.md): MAKE FIRE/STICKS/WATER, BOIL WATER, DOUSE FIRE
+; while a fire burns, USE of the camp items and of the fire itself.
+list_make:  .byte "FIRE",0,"STICKS",0,"WATER",0,0
+; fire_ctx -- C set unless entry gp2 asks for a fire and none burns.
+fire_ctx:
+        ldy     #1
+        lda     (gp2),y
+        and     #C_FIRE
+        beq     @yes
+        lda     fire_on
+        beq     @no
+@yes:   sec
+        rts
+@no:    clc
+        rts
+; use_item_ok -- C set when USE handles item X: GND COVER, RAINCOAT,
+; MATCHES, GLASS, FUEL, the medicine (41-51), FLASHLIGHT, STOVE, UTENSILS.
+use_item_ok:
+        txa
+        lsr     a
+        lsr     a
+        lsr     a
+        tay
+        txa
+        and     #7
+        sty     mn_n
+        tay
+        lda     use_bit,y
+        ldy     mn_n
+        and     use_items,y
+        ldy     mn_t            ; (item_ok's filter)
+        cmp     #1              ; C set when the bit is
+        rts
+use_bit:    .byte 1,2,4,8,16,32,64,128
+use_items:  .byte $00,$18,$00,$00,$C0,$FF,$0F,$00,$84,$02 ; 11,12,38-51,66,71,73
+; use_fire_item -- after the items of USE, the fire when one burns.
+use_fire_item:
+        lda     mn_t
+        cmp     #5
+        bne     @rts
+        lda     fire_on
+        beq     @rts
+        ldy     mn_count
+        lda     #88
+        sta     overlay_text,y
+        inc     mn_count
+@rts:   rts
+; item_name -- gp2 = the display name of item X (88: FIRE).
+item_name:
+        cpx     #76
+        bcs     @fire
+        lda     it_name_lo,x
+        sta     gp2
+        lda     it_name_hi,x
+        sta     gp2+1
+        rts
+@fire:  lda     #<list_make
+        sta     gp2
+        lda     #>list_make
+        sta     gp2+1
+        rts
 
 ; State: part of the image (zero at the start) rather than BSS, since the
 ; area held the loader's I/O buffer. Resident: the lists and messages of a

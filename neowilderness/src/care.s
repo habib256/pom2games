@@ -102,7 +102,14 @@ module_medical_command:
         cmp     #47
         jcc     care_use_instead
 @use:   ldx     noun
-        ; Automatic placement: T11/S00 $5BCF continues with CARRY (WEAR for
+        cpx     #41             ; FIRSTAID KIT needs light (T11/S00 $5BAE, lot 2)
+        bne     :+
+        lda     light
+        bne     :+
+        lda     #<c_m53
+        ldx     #>c_m53
+        jmp     message
+:       ; Automatic placement: T11/S00 $5BCF continues with CARRY (WEAR for
         ; the sunglasses, 43); T12/S08 $58D1 with CARRY for oral doses.
         lda     #3
         cpx     #43
@@ -484,9 +491,7 @@ care_invalid:
         ldx     #>care_invalid_message
         jmp     message
 care_unsupported:
-        lda     #<m_notyet
-        ldx     #>m_notyet
-        jmp     message
+        jmp     camp_command    ; fire, light, stove... (src/camp.s)
 care_ok:
         lda     #<m_ok
         ldx     #>m_ok

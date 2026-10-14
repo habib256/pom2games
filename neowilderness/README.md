@@ -95,6 +95,23 @@ Le [README HGR hérité](README_HGR.md), le [backlog hérité](TODO_HGR.md)
 et le [changelog](CHANGELOG.md) documentent le point de départ ; leurs
 mentions HGR/DOS décrivent la version de référence.
 
+## Feu, lumière et eau (lot 2)
+
+Les commandes de camp suivent l'original, messages compris
+([CAMP.md](docs/CAMP.md)) :
+
+| Commande | Effet |
+|---|---|
+| `USE MATCHES`, `USE FUEL`, `USE GLASS` | Mettre en usage : une allumette, une once de combustible ; la loupe exige ciel clair, plein air et soleil à 30° (15 minutes). Les allumettes, le combustible, la loupe et la lampe cessent d'être en usage dès que le temps passe |
+| `MAKE FIRE`, `BUILD FIRE` | Allumettes (ou loupe) en usage ; ni dans l'eau ni sur un sol rocheux enneigé ; sous la pluie ou par vent de 41 mph et plus, combustible en usage ou abri ; 30 minutes |
+| `USE FIRE` / `DOUSE FIRE`, `STOP FIRE` | Se tenir près du feu (+25 °F, lumière) / l'éteindre ; on ne quitte pas un feu allumé |
+| `MAKE STICKS`, `USE STICKS` | Bâtons (sol dégagé ou bois), 30 minutes |
+| `USE FLASHLIGHT`, `USE FIRSTAID KIT` | Lumière (une utilisation des piles) ; la trousse exige de la lumière |
+| `USE STOVE`, `USE UTENSILS`, `BOIL WATER` | Réchaud (combustible et feu ou allumettes en usage), ustensiles, puis eau bouillie en 15 minutes (prévient la giardiase) |
+| `GET RAIN`, `GET SNOW`, `GET ICE`, `GET WATER`, `FILL CANTEEN` | Eau sûre de pluie ou de neige, eau non traitée de rivière ou de lac (160 oz posées sur la case), cactus, sinon recherche d'une durée donnée ; gourde de 64 oz |
+| `USE RAINCOAT`, `USE GND COVER`, `MAKE WATER` | Condenser de l'eau, de jour par ciel clair |
+| `DRINK WATER`, `DRINK RAIN` | Au plus 0,2 × poids du corps (33 oz) par gorgée ; l'eau non traitée peut donner la giardiase, d'autant plus bas qu'on est |
+
 ## Construction
 
 ```sh

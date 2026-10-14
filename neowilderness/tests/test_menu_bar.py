@@ -23,7 +23,7 @@ DO_COMMAND = L.until('do_command', 6000)
 RET, ESC, LEFT, RIGHT, UP, DOWN = '\\r', '\\e', '\\<', '\\>', '\\^', '\\v'
 TAB = '\t'
 BASE = ['WALK', 'SWIM', 'LOOK', 'REST', 'WAIT', 'EAT', 'DRINK', 'GET', 'TAKE', 'WEAR', 'DROP',
-        'USE', 'CLIMB', 'HANG', 'LOWER', 'STATUS', 'INVENT', 'TOPO', 'MAP', 'HELP', 'QUIT']
+        'USE', 'CLIMB', 'HANG', 'LOWER', 'STATUS', 'INVENT', 'TOPO', 'MAP', 'HELP', 'QUIT', 'MAKE', 'BOIL']
 
 
 def screen(s):
@@ -53,10 +53,13 @@ def selected(s):
 
 
 def press(s, *keys):
+    # One key at a time: with 23 verbs (lot 2) an arrow redraws the grid in
+    # about 65,000 cycles, more than the three frames between the keys of one
+    # a2shot key: step, and the single keyboard latch would lose one.
     for k in keys:
         s.step(f'key:{k}')
-    s.step('wait:1')
-    s.step(IDLE)
+        s.step('wait:1')
+        s.step(IDLE)
 
 
 def move_to(s, label, limit=40):
@@ -208,9 +211,11 @@ def contexts(disk):
         assert selected(s) is None and result_rows(screen(s))[3].startswith('> L'), 'a letter types'
         press(s, ESC)
         assert result_rows(screen(s))[3].startswith('FOOD ')
-        # A verb with nothing to name is not offered: no medicine and no
-        # instrument (lot 7: USE MAP...CHART), no USE; no water at hand, no DRINK.
-        for item in range(41, 57):
+        # A verb with nothing to name is not offered: no medicine, no
+        # instrument (lot 7: USE MAP...CHART) and no camp item (lot 2:
+        # MATCHES, GLASS, FUEL, FLASHLIGHT, STOVE, UTENSILS), no USE; no
+        # water at hand, no DRINK.
+        for item in list(range(38, 57)) + [66, 71, 73]:
             s.step(L.poke('it_place', 255, item))
         s.step(L.poke('it_pack_lo', 0, 22))       # the canteen and the crash
         s.step(L.poke('it_gnd_lo', 0, 22))        # site's water pile both empty

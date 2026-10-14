@@ -151,12 +151,13 @@ def drinking_recovery():
             assert s.step(L.peek('ui_previous',1,5)).data==b'\1'
             before=[s.step(L.peek(name,5)).data for name in ('s_hour','s_elap','s_health')]
             water=s.step(L.peek('it_pack_lo',1,22)).data[0]
-            command(s,'DRINK WATER 64 OZ')
+            # At most .2 x 165 lb = 33 oz per drink (T0F/S00 $5C26, lot 2).
+            command(s,'DRINK WATER 33 OZ')
             assert panels(s.step('peek:2000:8192').data)[1]==expected
             assert s.step(L.peek('ui_previous',1,1)).data==b'\0'
             assert s.step(L.peek('ui_previous',1,5)).data==bytes((condition,))
             assert s.step(L.peek('ui_pending')).data==b'\0'
-            assert s.step(L.peek('it_pack_lo',1,22)).data[0]==water-64
+            assert s.step(L.peek('it_pack_lo',1,22)).data[0]==water-33
             assert before==[s.step(L.peek(name,5)).data for name in ('s_hour','s_elap','s_health')]
             s.step(L.poke('ui_dirty',1))
             command(s,'VIEW')
@@ -170,7 +171,7 @@ def ground_hint():
         s.step(IDLE)
         # Isolate ground hints from higher-priority survival messages and
         # from the crash's other objects. Use real transfers/consumption.
-        command(s,'DRINK WATER 64 OZ')
+        command(s,'DRINK WATER 32 OZ');command(s,'DRINK WATER 32 OZ')
         command(s,'GET WATER')   # collect the crash's water pile before moving
         s.step(L.poke('px',30,1))
         s.step(L.poke('py',30,1))
@@ -178,7 +179,8 @@ def ground_hint():
                               ('DROP ROPE','ITEMS: INV'),('CARRY ROPE','TOPO / HELP'),
                               ('DROP AXE','ITEMS: INV'),('GET AXE','TOPO / HELP'),
                               ('DROP EGGS','ITEMS: INV'),('EAT EGGS 255 OZ','TOPO / HELP'),
-                              ('DROP WATER','WATER LOW:INV'),('DRINK WATER 255 OZ','WATER LOW:INV')):
+                              ('DROP WATER','WATER LOW:INV'),('DRINK WATER 32 OZ','WATER LOW:INV'),
+                              ('DRINK WATER 32 OZ','WATER LOW:INV')):  # 33 oz at most (lot 2)
             command(s,text)
             s.step(L.poke('thermal_mode',0))
             s.step(L.poke('ui_pending',0))

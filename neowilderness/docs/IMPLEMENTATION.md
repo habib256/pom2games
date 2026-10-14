@@ -55,10 +55,11 @@ refus de collecte restaurent placement, quantité transportée et quantité
 totale avant recalcul de la charge. L’eau au sol n’est jamais déplacée par
 une collecte à la berge. Le hasard de contamination est distinct de la faune.
 
-Les règles de collecte, contamination et réactions sont détaillées dans
-le [README](../README.md#progression-ravitaillement-et-arrivée). Leurs valeurs
-(10 minutes, capacité 64 OZ, risque 1/8, départ des animaux et réaction après 60 minutes)
-sont des choix explicites du port. Les seuils de survie natifs et les taux de
+Les règles de collecte et de contamination suivent l'original depuis le
+lot 2 ([CAMP.md](CAMP.md) : sources, 64 OZ, contamination durable,
+giardiase RND ≤ 2 / altitude). Les réactions sont détaillées dans le
+[README](../README_HGR.md#progression-ravitaillement-et-arrivée) ; le départ
+des animaux et la réaction après 60 minutes sont des choix explicites du port. Les seuils de survie natifs et les taux de
 rencontre vérifiés ne sont pas durcis à partir d’une seule partie.
 
 ## Règles provisoires et écarts
@@ -156,7 +157,9 @@ ROM ; les aventures présentent encore des écarts de vent et de ressenti.
 La température d'eau vaut 70 − plancher(0,3 × altitude/100) °F.
 Chaque pas sélectionne immersion 2 sur l'eau, sec 0 sur terre. Aucun séchage
 progressif n'est ajouté. La pluie sélectionne l'humidité ; cabane et raincoat
-porté protègent de cette sélection. Abri fabriqué, feu, déclencheurs et
+porté protègent de cette sélection. Près d'un feu (`USE FIRE`, lot 2,
+[CAMP.md](CAMP.md)), l'octet de température gagne 25 °F et vaut 127 °F
+quand son bit 7 est mis, comme T0B/S02. Abri fabriqué, déclencheurs et
 soins complets restent à intégrer. La cabane trouvée protège déjà du vent
 et utilise l'air ambiant +15 °F ; les abris fabriqués restent à porter.
 

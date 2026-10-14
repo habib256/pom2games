@@ -172,7 +172,9 @@ def play(disk, title, strict=True):
         for command in ('NATURE 100', 'EAT CHEESE 4 OZ', 'DRINK WATER 4 OZ'):
             run(command)
         notes['shore'] = run('WALK 1 H')       # stops at the river
-        notes['canteen'] = 'CANTEEN FILLED' in run('FILL CANTEEN')
+        run('FILL CANTEEN')                     # river water: 160 oz on the cell (lot 2)
+        notes['canteen'] = (s.step(L.peek('it_pack_lo', 1, 22)).data[0] == 64
+                            and peek('water_untreated')[0] == 1)
         for _ in range(3):
             if 'REACHED LAND' in run('SWIM 100 MIN'):
                 notes['far bank'] = state(peek('px', 6))[0] >> 8

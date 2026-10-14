@@ -620,9 +620,7 @@ verb_more:
         beq     @care
         cmp     #33
         beq     @care
-        lda     #<m_notyet
-        ldx     #>m_notyet
-        jmp     message
+        jmp     camp_verb       ; lot 2: MAKE/BUILD, BOIL (src/camp.s)
 @care:  jmp     do_medical
 
 .segment "THERMAL"

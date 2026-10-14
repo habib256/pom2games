@@ -42,7 +42,7 @@ $(BUILD)/wild.o: src/medical.s src/hazards.s src/care.s src/alerts.s
 $(BUILD)/wild.o: src/clock.inc
 $(BUILD)/wild.o: src/memory.s
 $(BUILD)/wild.o: src/geography.s src/geoaux.s
-$(BUILD)/wild.o: src/water.s src/menu.s
+$(BUILD)/wild.o: src/water.s src/camp.s src/menu.s
 $(BUILD)/wild.o: src/prepare.s
 $(BUILD)/wild.o: src/orient.s
 
@@ -202,6 +202,7 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_overlays.py
 	$(PYTHON) tests/test_memory_cache.py
 	$(PYTHON) tests/test_thermal.py
+	$(PYTHON) tests/test_camp.py
 	$(PYTHON) tests/test_medical.py
 	$(PYTHON) tests/test_care.py
 	$(PYTHON) tests/test_exposure.py
@@ -233,6 +234,8 @@ test-original: all $(A2SHOT)
 	$(PYTHON) tests/test_weather_front.py --original
 	$(PYTHON) tests/test_weather_frequency.py --original
 	$(PYTHON) tools/re_animal_reactions_probe.py
+	$(PYTHON) tools/re_thermal_probe.py
+	$(PYTHON) tools/re_camp_probe.py
 	$(PYTHON) tests/test_swim_energy.py --original
 	$(PYTHON) tests/test_swim_cadence.py --original
 	$(PYTHON) tests/test_swim_raster.py --original

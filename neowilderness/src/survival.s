@@ -7,6 +7,9 @@ module_survival_clock:
         lda     orient_aid      ; lot 7: spent time ends the watch and the
         and     #1              ; shadow stick (T$0A/S$05 $58C4)
         sta     orient_aid
+        lda     camp_use        ; MATCHES, GLASS, FUEL, FLASHLIGHT: no longer in
+        and     #U_KEEP         ; use once time passes (src/camp.s)
+        sta     camp_use
         lda     #0
         sta     fauna_alert
         lda     act

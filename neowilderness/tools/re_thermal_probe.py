@@ -18,6 +18,15 @@ def poke(addr, data):
     return [f'poke:{addr+i:04X}:{v:02X}' for i, v in enumerate(data)]
 
 
+FIRE_AIRS = (-40, -26, -25, -20, 0, 20, 42, 60, 102, 103, 110)
+
+
+def fire_air(air):
+    """Effective temperature near a fire: byte sum, 127 when bit 7 is set."""
+    e = (air + 25) & 255
+    return 127 if e & 128 else e
+
+
 def main():
     out = HERE / 'build/re_thermal'
     out.mkdir(exist_ok=True)
@@ -51,6 +60,16 @@ def main():
             steps += poke(0x4C70,encode(98.6)) + poke(0x4C08,(60).to_bytes(2,'little'))
             steps += poke(0x0D5E,b'\0') + poke(0x4B70,b'\0') + poke(0x4B73,b'\0') + poke(0x4B8B,b'\0')
             steps += ['until:0803:1000', 'peek:4C70:10','peek:4BE8:2','peek:00EE:2','until:0800:1000']
+    # Near a fire (second-set B2 FIRE, $45E9 = 1): $EE += 25 as a byte, 127
+    # when the sum has bit 7 set (also below -25 F: $5986-$599A).
+    for air in FIRE_AIRS:
+        cases.append(dict(kind='fire', air=air, metabolic=1.65))
+        steps += poke(0x801,bytes.fromhex('11 58')) + poke(0x4B9D,bytes([air & 255]))
+        steps += poke(0x4C20,encode(1.65)) + poke(0x45E9,b'\1')
+        steps += poke(0x4C70,encode(98.6)) + poke(0x4C08,(60).to_bytes(2,'little'))
+        steps += poke(0x0D5E,b'\0') + poke(0x4B70,b'\0') + poke(0x4B73,b'\0') + poke(0x4B8B,b'\0')
+        steps += ['until:0803:1000', 'peek:4C70:10','peek:4BE8:2','peek:00EE:2','until:0800:1000']
+        steps += poke(0x45E9,b'\0')
     for temp, minutes in ((97,60),(100,60),(97,2400),(100,2400),(98.6,60)):
         cases.append(dict(kind='neutral', temp=temp, minutes=minutes))
         steps += poke(0x801,bytes.fromhex('11 58')) + poke(0x4B9D,b'\x2a')
@@ -61,7 +80,7 @@ def main():
     for k, case in enumerate(cases):
         mem = r.mem(0x4C70,10,k)
         case.update(result=fp(mem[:5]), computed_rate=fp(mem[5:]))
-        if case['kind']=='full':
+        if case['kind'] in ('full','fire'):
             j=k-11
             case.update(index=int.from_bytes(r.mem(0x4BE8,2,j),'little'),
                         effective=list(r.mem(0xEE,2,j)))
@@ -73,12 +92,19 @@ def main():
             rate=(abs(.2-55*.0006058*max(e,0)*ratio/math.sqrt(i)) if threshold>i
                   else -.0006058*math.sqrt(i)*abs(e-80) if 9*threshold<i else 0)
             assert abs(case['computed_rate']-rate)<2e-7,case
+        elif case['kind']=='fire':
+            e=fire_air(case['air']); i=case['index']; ratio=1
+            assert case['effective'][0]==e&255,case
+            threshold=(20+(max(e,0)/10)**3)/6
+            rate=(abs(.2-55*.0006058*max(e,0)/math.sqrt(i)) if threshold>i
+                  else -.0006058*math.sqrt(i)*abs(e-80) if 9*threshold<i else 0)
+            assert abs(case['computed_rate']-rate)<2e-7,case
         elif case['kind']=='neutral':
             delta=(98.6-case['temp'])*min(1,.1*.017*case['minutes'])
             assert abs(case['result']-(case['temp']+delta))<3e-7,case
     (out/'results.json').write_text(json.dumps(cases,indent=2)+'\n')
     print(json.dumps(cases,indent=2))
-    print('14 original scalar cases and 5 neutral recoveries: OK')
+    print(f'14 original scalar cases, {len(FIRE_AIRS)} near-fire cases and 5 neutral recoveries: OK')
 
 
 if __name__=='__main__':

@@ -26,81 +26,8 @@ def progress():
         assert 'DONE=0%' in status(s),'distance away must not become unsigned progress'
     print('  Route starts at 0, advances with distance, clamps detours, and STATUS changes no survival state')
 
-def refill():
-    m=flat();m[64+40*112+11]=138
-    with tempfile.TemporaryDirectory() as tmp,a2test.Session(disk_with(tmp,m)) as s:
-        s.step(IDLE);s.step(L.poke('nature_frequency',0))
-        command(s,'DRINK WATER 16 OZ')
-        before_ground=s.step(L.peek('it_gnd_lo',1,22)).data
-        time=fp(s.step(L.peek('s_elap',5)).data)
-        command(s,'FILL CANTEEN')
-        assert s.step(L.peek('it_pack_lo',1,22)).data==b'@'
-        assert s.step(L.peek('it_gnd_lo',1,22)).data==before_ground
-        assert abs(fp(s.step(L.peek('s_elap',5)).data)-time-1/6)<1e-6
-        assert 'CANTEEN FILLED TO 64 OZ' in screen(s)
-        assert s.step(L.peek('water_untreated')).data==b'\1'
-        assert s.step(L.peek('injury_active',1,11)).data==b'\0'
-        s.step(L.poke('water_rng',4))
-        rng=s.step(L.peek('fauna_rng')).data
-        command(s,'DRINK WATER 4 OZ')
-        assert s.step(L.peek('injury_active',1,11)).data==b'\1'
-        assert s.step(L.peek('fauna_rng')).data==rng
-        assert s.step(L.peek('water_rng')).data==b'\2'
-        command(s,'DRINK WATER 4 OZ')
-        assert s.step(L.peek('water_rng')).data==b'\1'
-        command(s,'DRINK WATER 4 OZ')
-        assert s.step(L.peek('water_rng')).data==b'\xB8'
-        command(s,'REFILL CANTEEN')
-        before=snapshot(s);command(s,'REFILL CANTEEN')
-        assert snapshot(s)==before and 'IS FULL' in screen(s)
-        command(s,'DRINK WATER 8 OZ')
-        # A transaction refused by weight must preserve both stocks and time.
-        used=s.step(L.peek('load_used',2)).data
-        limits=s.step(L.peek('load_limits',2)).data
-        for k,b in enumerate(used):s.step(L.poke('load_limits',b,k))
-        before=snapshot(s);command(s,'REFILL CANTEEN')
-        assert snapshot(s)==before and 'REFILL REFUSED' in screen(s)
-        for k,b in enumerate(limits):s.step(L.poke('load_limits',b,k))
-        command(s,'LOOK B');command(s,'WALK 57 MIN')
-        before=snapshot(s);command(s,'FILL CANTEEN')
-        assert snapshot(s)==before and 'NEARBY BANK' in screen(s)
-    with tempfile.TemporaryDirectory() as tmp,a2test.Session(disk_with(tmp,m)) as s:
-        s.step(IDLE);command(s,'DRINK WATER 16 OZ')
-        for name,value in (('it_gnd_lo',207),('it_gnd_hi',255),('it_oz_lo',255),('it_oz_hi',255)):
-            s.step(L.poke(name,value,22))
-        stocks=[s.step(L.peek(name,1,22)).data for name in ('it_pack_lo','it_gnd_lo','it_gnd_hi','it_oz_lo','it_oz_hi')]
-        time=s.step(L.peek('s_elap',5)).data
-        command(s,'FILL CANTEEN')
-        assert stocks==[s.step(L.peek(name,1,22)).data for name in ('it_pack_lo','it_gnd_lo','it_gnd_hi','it_oz_lo','it_oz_hi')]
-        assert s.step(L.peek('s_elap',5)).data==time and 'REFILL REFUSED' in screen(s)
-    print('  FILL/REFILL: adjacent water, 64 oz capacity, ten minutes, remote piles, full and overweight refusals are atomic')
-
-def water_quality():
-    m=flat();m[64+40*112+11]=138
-    with tempfile.TemporaryDirectory() as tmp,a2test.Session(disk_with(tmp,m)) as s:
-        s.step(IDLE);s.step(L.poke('nature_frequency',0))
-        command(s,'DRINK WATER 16 OZ');command(s,'FILL CANTEEN')
-        command(s,'DROP WATER')
-        assert s.step(L.peek('water_untreated')).data==b'\0'
-        assert s.step(L.peek('water_ground_untreated')).data==b'\1'
-        command(s,'DRINK WATER 64 OZ')
-        command(s,'GET WATER')
-        assert s.step(L.peek('water_untreated')).data==b'\1'
-        assert s.step(L.peek('water_ground_untreated')).data==b'\0'
-        assert s.step(L.peek('it_pack_lo',1,22)).data==b'@'
-        command(s,'DRINK WATER 64 OZ')
-        assert s.step(L.peek('water_untreated')).data==b'\0'
-        assert s.step(L.peek('water_ground_untreated')).data==b'\0'
-    with tempfile.TemporaryDirectory() as tmp,a2test.Session(disk_with(tmp,m)) as s:
-        s.step(IDLE)
-        s.step(L.poke('water_ground_untreated',1))
-        s.step(L.poke('water_rng',4))
-        command(s,'DRINK WATER 4 OZ')
-        assert s.step(L.peek('injury_active',1,11)).data==b'\0'
-        assert s.step(L.peek('water_rng')).data==b'\4','clean carried water must not draw contamination from an untouched ground pile'
-        command(s,'DRINK WATER 64 OZ')
-        assert s.step(L.peek('injury_active',1,11)).data==b'\1'
-    print('  Collected water keeps its quality through drop, ground drinking, recovery and depletion')
+# FILL/REFILL, river water and giardia follow the original since lot 2
+# (T0F/S00): tests/test_camp.py replaces refill() and water_quality().
 
 
 def animal(s,kind):
@@ -151,4 +78,4 @@ def fractional_journey():
     print('  Fractional crash distance and route arithmetic; swim ending reports half a cell without truncation')
 
 if __name__=='__main__':
-    progress();refill();water_quality();wildlife();victory();fractional_journey();print('Journey improvements: OK')
+    progress();wildlife();victory();fractional_journey();print('Journey improvements: OK')

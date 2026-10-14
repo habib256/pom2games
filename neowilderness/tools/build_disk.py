@@ -101,7 +101,7 @@ G = 'original_graphics/'
 # not loaded: show_view_scene, docs/STARS.md). Their windows come from
 # build/wild.lbl (st_cat, st_cat2).
 MODULES = {0: ('wildtpg.bin', 0x9600), 1: ('wildvoc.bin', 0x5800), 2: ('wildscr.bin', 0x5800),
-           3: ('wildsim.bin', 0x9600), 4: ('wildwat.bin', 0x5800),
+           3: ('wildsim.bin', 0x9600), 4: ('wildcamp.bin', 0x5800),
            5: (G + 'wreck.bin', 0x5800), 9: (G + 'cabin.bin', 0x5800),
            10: ('wildsit.bin', 0x5800),
            11: ('wildprj.bin', 0x5800), 12: ('wildtrv.bin', 0x5800), 13: ('wildinp.bin', 0x5800),
