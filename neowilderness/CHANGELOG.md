@@ -7,6 +7,33 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Neowilderness : intégrité du volume après le hall of fame
+
+- Rapport POM2 du 13 octobre 2026 : après un voyage Sierra, l'EOF de
+  `NEOWILD.DAT` dans le répertoire (bloc 2, octet `$41`, `$BC` → `$3F`)
+  bloquait le démarrage suivant sur `NEOWILD DISK ERROR $4C`. ProDOS
+  réécrit l'entrée d'un fichier ouvert avec le droit d'écriture depuis son
+  FCB quand celui-ci est marqué modifié : un FCB de `NEOWILD.DAT` faussé
+  donne exactement cet octet (injection a2shot). L'écriture parasite
+  elle-même n'a pas été reproduite (a2shot et POM2 avec le profil de
+  l'utilisateur). Correctif : tous les fichiers du volume sauf
+  `NEOWILD.HOF` sont verrouillés (accès `$01`, `tools/build_disk.py`
+  `lock_files`) ; ProDOS ne peut plus réécrire leurs entrées
+  ([HOF.md](docs/HOF.md) § 10).
+- Score : la région et le genre de voyage étaient lus en `MAP+32` et
+  `MAP+33`, que le balayage des aliments sauvages réécrit à chaque marche ;
+  un voyage de scénario devenait « FREE JOURNEY: NOT RANKED » dès la
+  première marche. Le module lit `region_number` et `journey_kind` (nouvel
+  octet résident écrit par le chargeur).
+- `tests/test_hof_volume.py` (dans `make test`) : droits du volume, FCB
+  faussé au CLOSE du chargeur, vrai voyage puis comparaison du volume
+  entier après éjection, garde contre toute écriture du jeu dans la
+  mémoire de ProDOS de QUIT au menu suivant. `ld_close` (chargeur)
+  exporté pour les tests.
+- a2shot : étape `storewatch:LO:HI` / `unstorewatch` (chaque écriture du
+  processeur dans la plage, avec l'état carte langage, ALTZP, RAMRD,
+  RAMWRT), compatible avec les scripts existants.
+
 ### Neowilderness : les quatre lignes du bas, surface de commande (lot 8, étape 2)
 
 - Rangées 20 à 23, colonnes 0 à 37 : grille des verbes (contextuels en

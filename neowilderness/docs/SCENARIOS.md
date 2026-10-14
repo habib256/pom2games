@@ -98,7 +98,8 @@ niveau choisi règle ce que le jeu lit dans `+22` (probabilité de rencontre,
 et plus tard le score). Voyage libre : même carte que le scénario de la
 région, mais générateurs météo (`weather_seed`), faune (`fauna_rng`) et eau
 (`water_rng`) réensemencés par le nombre de tours d'attente au menu ;
-classement exclu (étape 6 : lire `MAP+33`).
+classement exclu (étape 6 : le module lit `journey_kind`, copie résidente
+de `MAP+33` ; `MAP+33` sert aussi aux quantités d'aliments, HOF.md § 10).
 
 Latence mesurée après RETURN (`tools/profile_loading.py`) : 0,09 s de
 réaffichage, 3,0 à 3,1 s de paquet, 6,4 à 7,1 s d'initialisation et de

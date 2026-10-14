@@ -213,6 +213,7 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_wet.py
 	$(MAKE) -f hof.mk test
 	$(PYTHON) tests/test_hof_game.py
+	$(PYTHON) tests/test_hof_volume.py
 
 # longer differential fuzz: make fuzz FUZZ_SEED=7
 # The original disks must already be available locally (make extract).
