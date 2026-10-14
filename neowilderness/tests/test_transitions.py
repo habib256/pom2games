@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 import struct
 import zlib
-from common import MENU_SKIP, HERE, L, DISK, a2test, hgr_rows, text_screen, text_writes, text_changes, map_rows
+from common import MENU_SKIP, MENU_STORES, HERE, L, DISK, a2test, hgr_rows, text_screen, text_writes, text_changes, map_rows
 from test_thermal import call
 
 ACTUAL = a2test.labels(HERE / 'build/wild.lbl')
@@ -151,7 +151,7 @@ def differential_pages():
                 after = s.step('peek:0400:1024').data
                 pcs = {int(a, 16): int(c) for a, c in
                        re.findall(r'^pc ([0-9A-F]{4}) (\d+)$', profile.out, re.M)}
-                writes = text_writes(pcs)
+                writes = text_writes(pcs, MENU_STORES)
                 changes = text_changes(before, after)
                 assert writes == changes, (command, key, writes, changes)
                 if before == after:

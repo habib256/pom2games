@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A long real WALK: bounded module loads, MAP progress, no disk access.
+"""A long real WALK: bounded module loads, MAP progress (fixed window), no disk access.
 
 overlay_reads counts module loads. Since lots 1-2 each one is a copy from
 auxiliary RAM (memory.s), not a DOS read: the same per-step counts as the
@@ -36,6 +36,7 @@ def main():
             # Three minutes remain after step 25, below floor(10/2).
             step_minutes = (9,) * 13 + (10,) * 12
             elapsed = 0
+            most = 0
             for step, duration in enumerate(step_minutes, 1):
                 elapsed += duration
                 cell_x = 10 + step // 2
@@ -63,6 +64,16 @@ def main():
                 after_page = s.step('peek:0400:1024').data
                 changes = text_changes(before_page, after_page)
                 assert writes == changes, (step, writes, changes, 'unchanged MAP characters were rewritten')
+                # Fixed window (src/sites.s topo_follow): after the first
+                # update draws the whole map, a half-step rewrites only P's
+                # old and new cells (two characters each, when P changes
+                # cell) and the changed characters of the cue on row 0.
+                assert s.step(L.peek('topo_x', 2)).data == bytes((0, 40 - 12)), 'the window moved'
+                if step > 1:
+                    cells = text_changes(before_page, after_page, rows=range(1, 24))
+                    assert cells <= (4 if step % 2 == 0 else 0), (step, cells)   # 3 leaving the crash cell (C + space)
+                    assert writes <= 4 + text_changes(before_page, after_page, rows=(0,)) and writes <= 40, (step, writes)
+                most = max(most, writes) if step > 1 else 0
                 assert s.step('peek:0036:2').data == vector, 'MAP must restore the output vector'
                 reads = int.from_bytes(s.step(L.peek('overlay_reads', 2)).data, 'little')
                 assert reads - previous == 1, (step, previous, reads)
@@ -73,8 +84,7 @@ def main():
                 # cell of the 24 rows is map, the player row 23 - (40 - 28).
                 assert map_cue(screen).startswith(f' {elapsed} MIN {cell_x},40 HEAD '), screen[0]
                 rows = map_rows(screen)
-                origin_x = max(0, cell_x - 20)
-                assert rows[11][cell_x - origin_x] == 'P', rows
+                assert rows[11][cell_x] == 'P', rows   # window (0, 28), set once
                 assert len(rows) == 24 and all(len(row) == 40 for row in rows)
                 assert set(''.join(rows[1:])) <= set('.,:;+*^#=TtPCHR'), ('stray characters on the map', screen)
                 assert rows[0].strip() and set(rows[0].strip()) <= set('.,:;+*^#=TtPCHR'), screen[0]
@@ -101,7 +111,8 @@ def main():
             before = s.step(L.peek('overlay_reads', 2)).data
             s.step('wait:600')
             assert s.step(L.peek('overlay_reads', 2)).data == before
-    print(f'WALK 4: 25 native half-step map updates write exactly the changed characters; messages, simulation '
+    print(f'WALK 4: 25 native half-step map updates write exactly the changed characters (fixed window: at most '
+          f'{most} after the first, P\'s two cells + the cue); messages, simulation '
           f'and output vector preserved; {loads} module loads, all RAM transfers, no MLI call OK')
 
 

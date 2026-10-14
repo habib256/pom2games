@@ -356,9 +356,15 @@ TEXT_STORES = ('t_store_main', 't_store_aux', 't_store_menu', 't_store_pad', 't_
                't_store_even', 'topo_store_main', 'topo_store_aux')
 
 
-def text_writes(pcs):
+# The MAP stores live in the shared $5800 module window: while another module
+# runs there (INVENTORY, HELP...), their addresses hold its code. Profiles
+# taken outside MAP count only the resident stores.
+MENU_STORES = tuple(label for label in TEXT_STORES if not label.startswith('topo_'))
+
+
+def text_writes(pcs, stores=TEXT_STORES):
     """Text cells stored, from a pcprof {pc: cycles} (STA (BASL),Y: 6 cycles)."""
-    return sum(pcs.get(L[label], 0) // 6 for label in TEXT_STORES)
+    return sum(pcs.get(L[label], 0) // 6 for label in stores)
 
 
 def text_changes(before, after, rows=range(24)):

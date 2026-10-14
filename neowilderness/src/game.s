@@ -1380,6 +1380,8 @@ do_walk:
         sta     travel_reason
         jmp     @stop
 @stop:  jsr     t_home          ; the full-screen MAP covered rows 20-23
+        lda     #0              ; and the next walk redraws all of it
+        sta     topo_cue_end
         lda     used
         sta     msgnum
         lda     used+1
