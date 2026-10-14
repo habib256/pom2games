@@ -1,6 +1,7 @@
 ; Tree actions and hung backpack from native $5156 and T12/S08.
 .segment "LOWCODE"
 module_tree_look:
+        jsr     orient_look     ; lot 7: SUN, STARS, objects, aid rule (orient.s)
         lda     noun
         cmp     #152            ; L
         beq     @left
@@ -285,3 +286,5 @@ tree_lower_msg: .byte "BACKPACK AND CONTENTS RECOVERED.",0
 tree_already_msg: .byte "YOUR BACKPACK IS ALREADY HANGING.",0
 tree_needpack_msg: .byte "YOU NEED A PACK TO HANG YOUR FOOD IN.",0
 tree_full_msg: .byte "TRANSFER REFUSED: LOAD CAPACITY.",0
+
+        .include "orient.s"     ; lot 7: orientation

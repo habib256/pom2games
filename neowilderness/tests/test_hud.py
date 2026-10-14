@@ -47,6 +47,7 @@ def lifecycle():
     probe = [L.peek('px',6), *DHGR_BANKS]
     steps = [L.until('idle',20000), L.peek('px',6), L.peek('hud_offset',2), *DHGR_BANKS]
     turns = [('\\>',35), ('\\<',-35), ('LOOK R\\r',70), ('LOOK L\\r',-70), ('LOOK B\\r',280),
+             ('USE COMPASS\\r',0),   # lot 7: LOOK N/E/S/W need the compass in use
              ('LOOK N\\r',None), ('LOOK E\\r',None), ('LOOK S\\r',None), ('LOOK W\\r',None)]
     for key,_ in turns:
         steps += [f'key:{key}', 'wait:1', L.until('idle',20000), *probe]
@@ -65,7 +66,8 @@ def lifecycle():
         else:
             heading=actual
             cardinal='NESW'.index(key[5])
-            assert heading == (cardinal*140+offset)%560
+            error=(heading-cardinal*140-offset)%560   # the compass error: +-2 degrees
+            assert min(error,560-error) <= 4, (key,heading)
         assert header(d[5+3*i], d[6+3*i]) == expected(heading,offset),key
     assert header(d[-5], d[-4]) == expected(heading,offset), 'STATUS return lost compass'
     assert header(d[-3], d[-2]) == expected(heading,offset), 'night lost compass'
@@ -79,11 +81,12 @@ def magnetic_seams():
         m=bytearray(original);m[24]=declination&255
         with tempfile.TemporaryDirectory() as tmp:
             disk=disk_with(tmp,m)
-            steps=[L.until('idle',20000),'key:LOOK N\\r','wait:1',L.until('idle',20000),
+            steps=[L.until('idle',20000),'key:USE COMPASS\\r','wait:1',L.until('idle',20000),
+                   'key:LOOK N\\r','wait:1',L.until('idle',20000),
                    L.peek('heading',2), L.peek('hud_offset',2),*DHGR_BANKS]
             result=a2test.run(disk,steps,emulator=a2test.A2SHOT,timeout=900)
         heading,offset=(int.from_bytes(b,'little') for b in result.dumps[:2])
-        assert heading==offset
+        assert min((heading-offset)%560,(offset-heading)%560) <= 4   # compass error +-2 degrees
         assert header(*result.dumps[2:4])==expected(heading,offset)
     print('  signed regional declinations: magnetic north stays beneath pointer OK')
 

@@ -168,7 +168,7 @@ def cardinal_walks():
     m[24] = 0                   # true and magnetic north coincide in this fixture
     with tempfile.TemporaryDirectory() as tmp:
         disk = disk_with(tmp,m)
-        steps = [IDLE,L.poke('nature_frequency',0)]
+        steps = [IDLE,L.poke('nature_frequency',0)]+command('USE COMPASS')   # lot 7: aid in use
         cases = [('N',0,3,0),('E',3,0,140),('S',0,-3,280),('W',-3,0,420)]
         for name,dx,dy,heading in cases:
             for label,value in [('px',40*256),('py',40*256)]:
@@ -180,9 +180,10 @@ def cardinal_walks():
         result = a2test.run(disk,steps,emulator=a2test.A2SHOT,timeout=900)
     for i,(name,dx,dy,heading) in enumerate(cases):
         pos,hour,view,maptext,returned_hour,returned_view = result.dumps[i*6:i*6+6]
-        want=((40+dx)*256,(40+dy)*256,heading)
-        assert tuple(int.from_bytes(pos[j:j+2],'little') for j in (0,2,4))==want,name
-        assert header(view)==compass_pixels(heading,0),name
+        got=tuple(int.from_bytes(pos[j:j+2],'little') for j in (0,2,4))
+        error=(got[2]-heading)%560   # the compass error (+-2 degrees) of the original
+        assert got[:2]==((40+dx)*256,(40+dy)*256) and min(error,560-error)<=4,(name,got)
+        assert header(view)==compass_pixels(got[2],0),name
         rows=map_rows(text_screen(maptext))
         marks={c:(x,y) for y,row in enumerate(rows) for x,c in enumerate(row) if c in 'PC'}
         assert set(marks)=={'P','C'},(name,marks)

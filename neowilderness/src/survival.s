@@ -4,6 +4,9 @@
 .segment "ENVIRON"
 
 module_survival_clock:
+        lda     orient_aid      ; lot 7: spent time ends the watch and the
+        and     #1              ; shadow stick (T$0A/S$05 $58C4)
+        sta     orient_aid
         lda     #0
         sta     fauna_alert
         lda     act

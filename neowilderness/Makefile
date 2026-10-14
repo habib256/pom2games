@@ -44,6 +44,7 @@ $(BUILD)/wild.o: src/memory.s
 $(BUILD)/wild.o: src/geography.s src/geoaux.s
 $(BUILD)/wild.o: src/water.s src/menu.s
 $(BUILD)/wild.o: src/prepare.s
+$(BUILD)/wild.o: src/orient.s
 
 $(BUILD)/tables.inc $(BUILD)/rowtab.inc: tools/gentables.py
 	@mkdir -p $(@D)
@@ -169,6 +170,7 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_boundary.py
 	$(PYTHON) tests/test_walk.py
 	$(PYTHON) tests/test_compass.py
+	$(PYTHON) tests/test_orientation.py
 	$(PYTHON) tests/test_hud.py
 	$(PYTHON) tests/test_interface.py
 	$(PYTHON) tests/test_transitions.py
@@ -224,6 +226,7 @@ test-original: all $(A2SHOT)
 	$(PYTHON) ../dev/tests/test_a2shot_session.py
 	$(PYTHON) tests/test_medical.py --original
 	$(PYTHON) tests/test_care.py --original
+	$(PYTHON) tools/re_orientation_probe.py
 	$(PYTHON) tests/test_exposure.py --original
 	$(PYTHON) tests/test_temperature_wave.py --original
 	$(PYTHON) tests/test_weather_cycle.py --original

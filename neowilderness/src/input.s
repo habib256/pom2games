@@ -219,6 +219,9 @@ input_validate:
         ora     input_value+1
         bne     @unit
         lda     input_mode
+        cmp     #3              ; lot 7: azimuth 0 is north, not a cancel
+        beq     @unit
+        cmp     #0
         bne     input_cancel
 @unit:  lda     input_mode
         cmp     #1

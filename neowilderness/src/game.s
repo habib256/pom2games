@@ -1148,9 +1148,9 @@ game_init_hud:
 .segment "TRAVEL"
 module_magnetic_heading:
         ; T10/S0C adds TOPO $60A9 to magnetic cardinal directions.
-        lda     it_place+53
-        cmp     #3
-        bne     @declination
+        lda     orient_aid      ; COMPASS in use (lot 7, src/orient.s)
+        lsr     a
+        bcc     @declination
         jsr     weather_random
         fop     FSUB, f_half
         jsr     negate
@@ -2810,6 +2810,7 @@ injury_health:
         jsr     overlay_load
         jmp     module_injury_health
 do_medical:
+        jsr     orient_use      ; lot 7: USE MAP, COMPASS, WATCH... SHADOW
         lda     #19
         jsr     overlay_load
         jmp     module_medical_command
