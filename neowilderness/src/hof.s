@@ -7,14 +7,17 @@
 ; the file NEOWILD.END from the disk into the SIM window at $9600 (the
 ; simulation is over) and jumps to its first byte. The module then
 ;   1. gathers the result from the resident state: won / dead (outcome),
-;      MAP+22 level, MAP+32 region, MAP+33 journey kind, goal_pct (STATUS
-;      "DONE=", 0-100), health % = round(H / Hmax * 100), hours = INT(s_elap);
+;      MAP+22 level, region_number (written by the region pack), journey_kind
+;      (written by the loader), goal_pct (STATUS "DONE=", 0-100), health % =
+;      round(H / Hmax * 100), hours = INT(s_elap). Not MAP+32 / MAP+33: the
+;      wild food scan of TRAVEL and ADVENTURE stores its quantities in
+;      MAP+28..MAP+33 once the player walks;
 ;   2. computes the score (16 bits, tools/score_ref.py is the oracle):
 ;      base = progress * 10 + 1000 (arrived) + health * 5 (arrived; else
 ;             health * 5 * progress / 100) + max(0, 720 - hours) (arrived);
 ;      score = base * (10 + level) / 14, every division rounded down
 ;   3. clears the 40-column text page 1 and shows the breakdown;
-;   4. free journey (MAP+33 = 1) or region outside 1-6: "NOT RANKED", no disk
+;   4. free journey (journey_kind = 1) or region outside 1-6: "NOT RANKED", no disk
 ;      access. Otherwise reads NEOWILD.HOF into $5800 (hm_load), counts the
 ;      journey, finds the rank (score descending, then hours ascending; the
 ;      new result goes after equal ones; a score of 0 is never ranked) and, in the top 5, inserts a blank
@@ -39,6 +42,7 @@
 .ifdef HOF_BENCH
         .include "apple2.inc"
 .import won, dead, s_elap, s_health, f_hmax, region_name, geo_path
+.import region_number, journey_kind
 .import mli_call, goal_pct, overlay_load, module_restart, bench_next, io_buffer
 MAP     = $7000
 MOVFM   = $EAF9                 ; FAC <- (A,Y)
@@ -179,9 +183,9 @@ hof_gather:
 :       sta     hof_outcome
         lda     MAP+22
         sta     hof_level
-        lda     MAP+32
+        lda     region_number   ; not MAP+32 / MAP+33 (wild food quantities)
         sta     hof_region
-        lda     MAP+33
+        lda     journey_kind
         sta     hof_kind
         jsr     goal_pct        ; DONE% 0..100 (loads ADVENTURE, then STATUS)
         sta     hof_progress

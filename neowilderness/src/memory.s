@@ -77,7 +77,11 @@ geo_queries: .res 3             ; fine geography queries (native maps)
 xfer_80:    .res 1
 xfer_wrt:   .res 1
 xfer_lc:    .res 1
+journey_kind: .res 1            ; 0 scenario, 1 free journey (written by the
+                                ; loader; read by NEOWILD.END). Not MAP+33: the
+                                ; wild food scan reuses MAP+28..MAP+33 (TRAVEL)
 .export mli_calls, mli_reads, mli_bytes, xfer_count, xfer_bytes, mem_ready
+.export journey_kind
 .export saved_reset, saved_bitmap, geo_path, geo_decodes, geo_queries
 
 .segment "REGIONTEXT"

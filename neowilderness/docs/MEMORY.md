@@ -40,7 +40,7 @@ K constantes, E état persistant, T temporaires.
 | `SCRATCH` | `$9500-$95FF` | 256 | T | `overlay_text` (160) : couleurs de colonne des sprites **et** flottants temporaires du ciel ; puis `scene_*`, thermique, saisie |
 | `ENVIRON`+`THERMAL` (`wildsim.bin`) | `$9600-$B5FE` | 8 191 | C/K/T | Simulation ; données de l'image rechargées à chaque activation (même sémantique que le BLOAD HGR) |
 | `RESCODE` (`wildres.bin`) | `$B600-$B987` | 904 | C/K | Répertoire des modules (161), `mem_fetch`, boucle de pile, `mli_call`, sortie/RESET (`geo_load` retiré au § 9.10) |
-| `RESBSS` | `$B988-$B9DA` | 83 | E | Compteurs, vecteur RESET et bitmap ProDOS sauvegardés, chemin de NEOWILD.GEO (gabarit de `NEOWILD.END`/`.HOF`), compteurs de géographie fine (§ 9.10) |
+| `RESBSS` | `$B988-$B9DA` | 83 | E | Compteurs, vecteur RESET et bitmap ProDOS sauvegardés, chemin de NEOWILD.GEO (gabarit de `NEOWILD.END`/`.HOF`), compteurs de géographie fine (§ 9.10), `journey_kind` (genre du voyage pour `NEOWILD.END`, HOF.md § 10) |
 | `IOBUF` | `$BA00-$BDFF` | 1 024 | T | Tampon d'E/S ProDOS (chargeur, `NEOWILD.END`/`.HOF`) |
 | `SAVE` | `$BE00-$BEFF` | 256 | E | Page zéro de ProDOS à l'entrée, restaurée à la sortie |
 | `SYSSTUB`+`LOADER` (`NEOWILD.SYSTEM`) | `$2000` puis `$9600-$A56D` | 3 912 | C/T | Chargeur transitoire et menu de démarrage (lot 7), exécutés dans la fenêtre SIM avant la première activation ; table d'enregistrements en `$B500` |

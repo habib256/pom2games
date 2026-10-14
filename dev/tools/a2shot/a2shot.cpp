@@ -22,6 +22,12 @@
 //   hwstackwatch / hwstack  profile hardware stack S; report wrap overflow
 //   stackwatch:SP:TOP:SIZE  profile cc65 software stack (hex arguments)
 //   stack           print observed peak/reservation/overflow, stop profiling
+//   storewatch:LO:HI  from now on, print each CPU store (STA/STX/STY/STZ and
+//                   read-modify-write) whose effective address is in LO-HI:
+//                   "store PC ADDR old>new A X Y S P LC" where LC is the IIe
+//                   status of $C011 (bank 2), $C012 (RAM read), $C016
+//                   (ALTZP) and $C013/$C014 (RAMRD/RAMWRT) as 5 bits;
+//                   unstorewatch clears
 //
 //   a2shot --disk GAME.dsk wait:600 key:" " wait:60 shot:title.png
 //
@@ -245,9 +251,57 @@ int main(int argc, char** argv)
         }
         std::printf("\n");
     };
-    const auto profileStep = [&]() { sampleStack(); if (!watches.empty()) watchCheck(); core.step(); };
+    // storewatch:LO:HI -- decode each instruction before it runs; report the
+    // stores whose effective address falls in LO-HI (65C02 opcodes).
+    bool storeActive = false;
+    unsigned storeLo = 0, storeHi = 0;
+    const auto storeCheck = [&]() {
+        const auto st = core.cpuState();
+        const std::uint16_t pc = st.programCounter;
+        const unsigned op = core.read(pc);
+        const auto rd = [&](unsigned a) { return unsigned(core.read(static_cast<std::uint16_t>(a))); };
+        const auto zp16 = [&](unsigned z) { return rd(z & 0xFF) | (rd((z + 1) & 0xFF) << 8); };
+        long ea = -1;
+        switch (op) {
+        case 0x85: case 0x86: case 0x84: case 0x64: case 0xE6: case 0xC6: case 0x06:
+        case 0x46: case 0x26: case 0x66: case 0x04: case 0x14:
+            ea = rd(pc + 1); break;                                     // zp
+        case 0x95: case 0x94: case 0x74: case 0xF6: case 0xD6: case 0x16: case 0x56:
+        case 0x36: case 0x76:
+            ea = (rd(pc + 1) + st.x) & 0xFF; break;                     // zp,x
+        case 0x96: ea = (rd(pc + 1) + st.y) & 0xFF; break;              // zp,y
+        case 0x8D: case 0x8E: case 0x8C: case 0x9C: case 0xEE: case 0xCE: case 0x0E:
+        case 0x4E: case 0x2E: case 0x6E: case 0x0C: case 0x1C:
+            ea = rd(pc + 1) | (rd(pc + 2) << 8); break;                 // abs
+        case 0x9D: case 0x9E: case 0xFE: case 0xDE: case 0x1E: case 0x5E: case 0x3E:
+        case 0x7E:
+            ea = ((rd(pc + 1) | (rd(pc + 2) << 8)) + st.x) & 0xFFFF; break;   // abs,x
+        case 0x99: ea = ((rd(pc + 1) | (rd(pc + 2) << 8)) + st.y) & 0xFFFF; break;
+        case 0x81: ea = zp16(rd(pc + 1) + st.x); break;                 // (zp,x)
+        case 0x91: ea = (zp16(rd(pc + 1)) + st.y) & 0xFFFF; break;      // (zp),y
+        case 0x92: ea = zp16(rd(pc + 1)); break;                        // (zp)
+        default: break;
+        }
+        if (ea < long(storeLo) || ea > long(storeHi)) { core.step(); return; }
+        const unsigned b1 = rd(pc + 1), b2 = rd(pc + 2);
+        const unsigned lc = (rd(0xC011) >> 7) << 4 | (rd(0xC012) >> 7) << 3 |
+                            (rd(0xC016) >> 7) << 2 | (rd(0xC013) >> 7) << 1 | (rd(0xC014) >> 7);
+        // Never read the I/O page: a bus read there flips soft switches.
+        const bool io = ea >= 0xC000 && ea < 0xD000;
+        const unsigned old = io ? 0 : rd(unsigned(ea));
+        core.step();
+        std::printf("store %04X %04lX %02X>%02X A=%02X X=%02X Y=%02X S=%02X P=%02X LC=%u%u%u%u%u op=%02X%02X%02X cycles=%llu\n",
+                    pc, ea, old, io ? 0 : rd(unsigned(ea)), st.accumulator, st.x, st.y, st.stackPointer,
+                    st.status, lc >> 4 & 1, lc >> 3 & 1, lc >> 2 & 1, lc >> 1 & 1, lc & 1, op, b1, b2,
+                    static_cast<unsigned long long>(st.cycles));
+    };
+    const auto profileStep = [&]() {
+        sampleStack();
+        if (!watches.empty()) watchCheck();
+        if (storeActive) storeCheck(); else core.step();
+    };
     const auto runCycles = [&](int cycles) {
-        if (!stackActive && !hwActive && watches.empty()) core.run(cycles);
+        if (!stackActive && !hwActive && watches.empty() && !storeActive) core.run(cycles);
         else {
             const auto end = core.cpuState().cycles + cycles;
             while (core.cpuState().cycles < end) profileStep();
@@ -294,7 +348,8 @@ int main(int argc, char** argv)
                 return std::find(targets.begin(), targets.end(), core.cpuState().programCounter) != targets.end();
             };
             while (!reached() && core.cpuState().cycles < limit)
-                if (stackActive || hwActive || !watches.empty()) profileStep(); else core.run(1);
+                if (stackActive || hwActive || !watches.empty() || storeActive) profileStep();
+                else core.run(1);
             const auto state = core.cpuState();
             std::printf("until %s cycles=%llu PC=%04X\n", addresses.c_str(),
                         static_cast<unsigned long long>(state.cycles), state.programCounter);
@@ -321,6 +376,12 @@ int main(int argc, char** argv)
             if (got < 1 || a > 65535 || (got == 3 && (m > 65535 || n > 4096 || m + n > 65536))) return 2;
             watchAt[a] = static_cast<int>(watches.size());
             watches.push_back({got == 3 ? m : 0u, got == 3 ? n : 0u});
+        } else if (op == "storewatch") {
+            if (std::sscanf(arg.c_str(), "%x:%x", &storeLo, &storeHi) != 2 || storeLo > storeHi ||
+                storeHi > 65535) return 2;
+            storeActive = true;
+        } else if (op == "unstorewatch") {
+            storeActive = false;
         } else if (op == "unwatch") {
             watches.clear();
             std::fill(watchAt.begin(), watchAt.end(), -1);

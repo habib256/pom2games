@@ -388,6 +388,33 @@ def region_data(build, region, map_override=None):
     return dict(entry=entry, header=header, map=bytes(mapdata), mask=mask, sprites=sprites)
 
 
+# Every file the game only reads is locked (access $01, read only): ProDOS 8
+# then never rewrites its directory entry, whatever happens to its file
+# control block in memory. A CLOSE (or a flush) rewrites the entry of a file
+# opened with the write right as soon as that FCB is marked modified, from the
+# FCB's EOF, key block and block count; on the 13 October 2026 POM2 report,
+# NEOWILD.DAT came back with EOF $003F47 instead of $00BC47 and the next boot
+# stopped on "NEOWILD DISK ERROR $4C" (docs/HOF.md section 10). Only
+# NEOWILD.HOF is written (hall of fame, in place).
+ACCESS_READ_ONLY = 0x01
+WRITE_RIGHT = 0x02
+
+
+def lock_files(volume, keep):
+    """Clear the write, rename and destroy rights of every file of the volume
+    directory except the names in `keep`."""
+    from build_volume import DIR_START, DIR_BLOCKS, ENTRY_LEN, ENTRIES_PER_BLOCK
+    for n in range(DIR_START, DIR_START + DIR_BLOCKS):
+        block = volume.block(n)
+        for k in range(ENTRIES_PER_BLOCK):
+            e = 4 + k * ENTRY_LEN
+            storage, length = block[e] >> 4, block[e] & 15
+            if storage not in (1, 2, 3):        # seedling, sapling, tree
+                continue
+            if bytes(block[e + 1:e + 1 + length]).decode('ascii') not in keep:
+                block[e + 0x1E] = ACCESS_READ_ONLY
+
+
 def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
     """map_path replaces the map of the Sierra Nevada pack (tests)."""
     build = Path(build) if build else HERE / 'build'
@@ -561,6 +588,7 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None):
         boot = (boot + bytes(1024))[:1024]
         volume = Volume(VOLUME, 280, boot, prodos_date('2026-10-13T12:00'))
         volume.build(stage)
+        lock_files(volume, keep={'NEOWILD.HOF'})
     finally:
         for path in stage.iterdir():
             path.unlink()

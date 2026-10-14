@@ -14,9 +14,10 @@
 ;   - shows the introduction again with the chosen region and reads its pack
 ;     NEOWILD.R1..R6 (same records, same loop): map, woods, animal sprites,
 ;     module directory, DHGR tables, fauna records and region texts;
-;   - writes the level (MAP+22) and the journey kind (MAP+33: 0 scenario,
-;     1 free journey, whose random generators are reseeded from the time
-;     spent in the menu);
+;   - writes the level (MAP+22) and the journey kind (MAP+33 and the
+;     resident journey_kind, which NEOWILD.END reads: TRAVEL reuses MAP+28..33
+;     for the wild food quantities; 0 scenario, 1 free journey, whose random
+;     generators are reseeded from the time spent in the menu);
 ;   - reads NEOWILD.DAT sequentially: records for main RAM, auxiliary RAM
 ;     ($0800-$1FFF, $4000-$BFFF) and the auxiliary language card, raw or LZ
 ;     (tools/pack_boot.py), decoded through main staging buffers;
@@ -38,12 +39,12 @@
         .macpack longbranch
 .import start, _prodos_video_claim, _prodos_video_release, reset_exit
 .import mli_calls, mli_reads, mli_bytes, saved_reset, saved_bitmap, saved_zp
-.import geo_path, weather_seed, fauna_rng, water_rng
+.import geo_path, weather_seed, fauna_rng, water_rng, journey_kind
 .import __LOADER_LOAD__, __LOADER_RUN__, __LOADER_SIZE__
 .import __LOADBSS_RUN__, __LOADBSS_SIZE__, __RESBSS_RUN__, __RESBSS_SIZE__
 .import __BSS_RUN__, __BSS_SIZE__
 .export loader_main, loader_claimed, loader_done, loader_ram_files, ld_decode, ld_decode_end
-.export loader_menu, menu_key, loader_pack, ld_region, ld_level, ld_free
+.export loader_menu, menu_key, loader_pack, ld_region, ld_level, ld_free, ld_close
 
 MLI      = $BF00
 DEVNUM   = $BF30
@@ -227,6 +228,7 @@ loader_pack:
         sta     MAP+22
         lda     ld_free
         sta     MAP+33
+        sta     journey_kind    ; NEOWILD.END: MAP+33 holds STICKS once walking
         beq     @protect
         lda     entropy         ; free journey: new weather, fauna and
         ora     entropy+1       ; water sequences (never a zero state)
@@ -364,7 +366,7 @@ record_hdr:
         bcc     :+
         inc     record_hdr+2
 :       lda     kind
-        beq     @end
+        beq     ld_close
         cmp     #1
         bne     @data
         jsr     ld_claim
@@ -406,7 +408,8 @@ record_hdr:
 @placed:
         jsr     ld_place
         jmp     record
-@end:   lda     #$CC            ; CLOSE
+ld_close:                       ; tests/test_hof_volume.py: the CLOSE of each file
+        lda     #$CC            ; CLOSE
         ldx     #<close
         ldy     #>close
         jmp     ld_mli

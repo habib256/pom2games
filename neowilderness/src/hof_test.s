@@ -7,7 +7,8 @@
 ; src/hof.s assembled with HOF_BENCH, linked at $9600) and NEOWILD.HOF.
 ; The bench plays the game's part:
 ;   - the resident labels the module reads (won, dead, s_elap, s_health,
-;     f_hmax, region_name, geo_path, MAP+22/+32/+33), filled from each case;
+;     f_hmax, region_name, region_number, journey_kind, geo_path, MAP+22),
+;     filled from each case;
 ;   - goal_pct (returns the case's progress), overlay_load (records its
 ;     argument), module_restart and the exit hook bench_next;
 ;   - mli_call: the game's interface, plus a log of (command, result) pairs
@@ -27,6 +28,7 @@
         .include "apple2.inc"
         .macpack longbranch
 .export won, dead, s_elap, s_health, f_hmax, region_name, geo_path
+.export region_number, journey_kind
 .export mli_call, goal_pct, overlay_load, module_restart, bench_next, io_buffer
 .export checkpoint, cp_resume, dt_go
 
@@ -112,9 +114,9 @@ next_case:
         lda     case_level
         sta     MAP+22
         lda     case_region
-        sta     MAP+32
+        sta     region_number
         lda     case_kind
-        sta     MAP+33
+        sta     journey_kind
         ldx     #4
 :       lda     case_elap,x
         sta     s_elap,x
@@ -376,6 +378,8 @@ s_elap:   .res 5
 s_health: .res 5
 f_hmax:   .res 5
 region_name: .res 16
+region_number: .res 1
+journey_kind: .res 1
 geo_path: .res 40
 volume:   .res 16
 saved_bitmap: .res 24

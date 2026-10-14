@@ -22,7 +22,7 @@ adaptés (section 9). Volume final : MEMORY.md § 9.1.
 | `module_end` et `module_restart` (module INPUT) | `src/hof_load.inc` | + 64 octets dans INPUT |
 | WOZ protégé en écriture pour les tests | `tools/po2woz.py` | — |
 | Banc IIe | `src/hof_test.s`, `src/hof_test.cfg`, `src/hof_boot.s`, `hof.mk` | `../dist/NEOHOF_TEST.po` |
-| Tests | `tests/test_hof_ref.py` (Python pur), `tests/test_hof.py` (a2shot `--iie`), `tests/test_hof_game.py` (jeu intégré) | `make -f hof.mk test` |
+| Tests | `tests/test_hof_ref.py` (Python pur), `tests/test_hof.py` (a2shot `--iie`), `tests/test_hof_game.py` (jeu intégré), `tests/test_hof_volume.py` (volume entier, § 10) | `make -f hof.mk test` |
 
 ## 1. Décisions en bref
 
@@ -65,8 +65,8 @@ Entrées, lues dans l'état résident à la fin du voyage :
 |---|---|---|
 | issue | `won` → 1 arrivée, sinon `dead` → 2 mort, sinon 3 abandon | — |
 | niveau | `MAP+22` | ramené à 1–10 |
-| région | `MAP+32` | hors 1–6 : non classé |
-| genre | `MAP+33` (1 = voyage libre) | ≠ 0 : non classé |
+| région | `region_number` (écrit par le paquet `NEOWILD.Rn`) | hors 1–6 : non classé |
+| genre | `journey_kind` (RESBSS, écrit par le chargeur ; 1 = voyage libre) | ≠ 0 : non classé |
 | progression | `goal_pct` (STATUS `DONE=`) | ramenée à 0–100 |
 | santé | `INT(H / Hmax × 100 + 0,5)` (`f_hmax`, `s_health`, comme STATUS) | ramenée à 0–100 |
 | heures | `INT(s_elap)` (`AYINT`) | 32 767 au plus (exposant ≥ `$90` testé avant) |
@@ -311,6 +311,14 @@ celui de l'intégration temporaire sans le module des étoiles.
   menu, BEST et écran H relus, voyage libre sans accès au fichier. Passé
   sur l'intégration temporaire (score 1 425).
 
+- `tests/test_hof_volume.py` (§ 10) : droits du volume ; FCB de
+  `NEOWILD.DAT` faussé avant sa fermeture par le chargeur (volume
+  inchangé) ; vrai voyage Sierra (marches, repas, repos, sommeil), QUIT,
+  nom, retour au menu, puis éjection : tous les blocs égaux à l'image
+  d'origine sauf le bloc de données de `NEOWILD.HOF` ; de QUIT au menu,
+  aucune écriture hors ProDOS dans la mémoire de ProDOS (`storewatch`
+  d'a2shot).
+
 `make -f hof.mk test` lance les deux premiers ; `make -f hof.mk` construit
 le disque de démonstration (trois fins de voyage, puis BEST et écran H ;
 toute touche continue) ; `make -f hof.mk sizes` donne les tailles.
@@ -382,3 +390,63 @@ si les fichiers ont bougé).
 8. **Documents** : `SCENARIOS.md` § 7–8 (progression `DONE=`, santé
    pondérée, score nul, module à `$9600` lu depuis `NEOWILD.END`), boîtes
    de l'étape 6 du `TODO.md`, `MEMORY.md` § 9.
+
+## 10. Intégrité du volume (rapport POM2 du 13 octobre 2026)
+
+**Constat.** Après un voyage Sierra Nevada joué dans POM2 (compteurs du
+fichier passés à 1, aucune entrée classée), le répertoire du volume avait
+changé d'un octet : bloc 2, octet `$41` (`$BC` → `$3F`), l'octet du milieu
+de l'EOF de `NEOWILD.DAT` (48 199 → 16 199 octets). Au démarrage suivant :
+`NEOWILD DISK ERROR $4C` (fin de fichier) pendant le chargement du tronc.
+
+**Mécanisme établi.** ProDOS 8 (2.4.3) réécrit l'entrée de répertoire d'un
+fichier à sa fermeture (CLOSE, ou FLUSH) quand trois conditions sont
+réunies dans son bloc de contrôle (FCB, carte langage principale, banque 1,
+`$D800` + 32 × (réf. − 1)) : droit d'écriture (FCB `+$09` bit 1, recopié de
+l'entrée à l'OPEN), drapeau « modifié » (`+$1C` bit 7, ou `+$08` & `$70`),
+puis il recopie dans l'entrée l'EOF (`+$15-$17`), le bloc clé et le nombre
+de blocs du FCB (routine `$F4BF-$F570` de ProDOS 2.4.3, désassemblée). Un
+FCB de `NEOWILD.DAT` marqué modifié avec l'EOF `$003F47` produit
+exactement l'image du rapport : injection dans a2shot au CLOSE du chargeur
+(`ld_close`), un seul octet change, `$441` : `$BC` → `$3F`. Aucune commande
+MLI du jeu ne peut le faire (SET_EOF ou WRITE auraient aussi libéré ou
+alloué des blocs) : c'est une écriture parasite dans la mémoire de ProDOS
+pendant que le fichier est ouvert (le chargeur garde `NEOWILD.DAT` ouvert
+pendant tout le décodage et le placement du tronc).
+
+**Origine non reproduite.** a2shot (`storewatch`, nouveau) n'a montré
+aucune écriture du jeu dans la banque 1, dans `$E000-$FFFF` principal ni
+dans la page globale hors bitmap, sur : le voyage court du rapport
+(QUIT, nom ou ÉCHAP), un voyage de 12 h avec marches, nuit et étoiles,
+TOPO, MAP, HELP, STATUS, INVENT, menu TAB, deux voyages de suite, Q vers
+Bitsy Bye, RESET, interruptions VIA permanentes (le jeu tourne `I` = 1).
+Deux parties dans POM2 0.9.6 avec le profil de l'utilisateur (SmartPort
+Liron en fente 5 et 32 Mo, souris, Grappler ; 8 unités ProDOS, pilote de
+réaffectation en `$FCE6`), à 1× et 4× : volume intact. La banque 2
+`$D400-$DFFF` reste libre de ProDOS dans cette configuration aussi.
+
+**Correctif.** `tools/build_disk.py` (`lock_files`) verrouille tous les
+fichiers du volume sauf `NEOWILD.HOF` : accès `$01` (lecture seule). ProDOS
+ne réécrit alors jamais l'entrée d'un fichier que le jeu lit seulement,
+quel que soit l'état de son FCB en mémoire (WRITE et SET_EOF y rendraient
+`$4E`). Même injection après le correctif : volume inchangé, le chargeur
+atteint son menu. `NEOWILD.HOF` garde `$E3` : sa propre entrée est
+réécrite à chaque CLOSE (inchangée, testé).
+
+**Défaut trouvé en chemin (corrigé).** Le module lisait la région en
+`MAP+32` et le genre en `MAP+33`. Le balayage des aliments sauvages
+(TRAVEL, ADVENTURE : `MAP+26,x`, x = 2 à 7) remet ces octets à 0 à chaque
+pas de marche puis y range des quantités (4 à 35 onces) : après la
+première marche, un voyage de scénario était « FREE JOURNEY: NOT RANKED »
+(rien n'était écrit) ou compté dans un autre scénario. Le module lit
+désormais `region_number` (REGIONTEXT, écrit par le paquet) et
+`journey_kind` (RESBSS, écrit par le chargeur à côté de `MAP+33`, que
+`tests/test_menu.py` vérifie toujours). `test_hof_game.py` faisait QUIT
+avant toute marche et ne le voyait pas.
+
+**Test.** `tests/test_hof_volume.py` (dans `make test`) : droits ;
+FCB faussé au CLOSE de `NEOWILD.DAT` (avant le correctif : l'octet du
+rapport ; après : volume inchangé) ; vrai voyage puis éjection, volume
+entier comparé (seul le bloc de données de `NEOWILD.HOF` change, entrées de
+répertoire identiques), garde « pas d'écriture dans ProDOS » de QUIT au
+menu suivant (sur tout le voyage, ≈ 18 min : hors suite).
