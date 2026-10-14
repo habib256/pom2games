@@ -355,15 +355,5 @@ tree_lower:
 tree_height: .byte 0
 tree_health_min: .byte $82,$20,0,0,0
 tree_saved_places: .res 76
-tree_up_msg: .byte "IN A TREE. CLIMB DOWN TO MOVE.|ANIMALS CAN STILL REACH YOU.",0
-tree_down_msg: .byte "BACK ON THE GROUND.",0
-tree_poor_msg: .byte "YOUR PHYSICAL CONDITION IS TOO POOR.",0
-tree_trapped_msg: .byte "YOU ARE IN A TREE. CLIMB DOWN FIRST.",0
-tree_missing_msg: .byte "YOU ARE NOT NEAR A TREE.",0
-tree_hang_msg: .byte "HANGING YOUR BACKPACK AND ITS FOOD.",0
-tree_lower_msg: .byte "BACKPACK AND CONTENTS RECOVERED.",0
-tree_already_msg: .byte "YOUR BACKPACK IS ALREADY HANGING.",0
-tree_needpack_msg: .byte "YOU NEED A PACK TO HANG YOUR FOOD IN.",0
-tree_full_msg: .byte "TRANSFER REFUSED: LOAD CAPACITY.",0
 
         .include "orient.s"     ; lot 7: orientation

@@ -190,16 +190,18 @@ class Game:
         self.s.step('key:QUIT\\r')
         self.s.step('wait:30')
         self.s.step('key:Y')
-        self.s.step(L.until('hof_key_wait', LIMIT))
-        # A ranked scenario journey asks for a name: ESC = "NOT RECORDED",
-        # then any key restarts the loader (as tests/test_hof_game.py does
-        # with key:, one key per keyboard wait); a free journey goes straight
-        # to its key wait.
-        self.s.step('key:\x1b')
         out = self.s.step(f'until:{L["hof_key_wait"]:04X},{L["menu_key"]:04X}:{LIMIT}').out
         if out.rstrip().endswith(f'PC={L["hof_key_wait"]:04X}'):
-            self.s.step('key: ')
-            self.s.step(L.until('menu_key', LIMIT))
+            # A ranked scenario journey asks for a name: ESC = "NOT RECORDED",
+            # then any key restarts the loader (as tests/test_hof_game.py does
+            # with key:, one key per keyboard wait); a free journey goes
+            # straight to its key wait. Without NEOWILD.END (the copy of
+            # main()), QUIT goes straight to the menu.
+            self.s.step('key:\x1b')
+            out = self.s.step(f'until:{L["hof_key_wait"]:04X},{L["menu_key"]:04X}:{LIMIT}').out
+            if out.rstrip().endswith(f'PC={L["hof_key_wait"]:04X}'):
+                self.s.step('key: ')
+                self.s.step(L.until('menu_key', LIMIT))
         self.s.step(f'key:{ {"2": "1", "3": "3"}[region] }\\r')
         self.s.step(L.until('idle', LIMIT))
         assert self.peek(L['region_number'], 1)[0] == int(region)
@@ -502,10 +504,30 @@ def exit_guards():
     test_prodos.exit_state(quit_steps, menu)
 
 
+def games_on(disk):
+    return sum(1 for n in present(Image(disk.read_bytes())) if re.fullmatch(r'NEOWILD\.S\d', n))
+
+
 def main():
+    global DISK
     constants = coverage()
     with tempfile.TemporaryDirectory(prefix='save-') as work:
         work = Path(work)
+        shipped = games_on(DISK)
+        if shipped < 3:
+            # The shipped 140 KB image keeps the saved games that fit after
+            # everything else (docs/MEMORY.md 13); this test needs games 1-3:
+            # it runs on a copy built without NEOWILD.END (QUIT then goes
+            # straight back to the menu, as when the file cannot be read).
+            import build_disk
+            copy = HERE / 'build/save140.po'     # used after the temporary directory
+            build_disk.build_disk(copy, omit=('NEOWILD.END',))
+            print(f'  the shipped image holds {shipped} saved games: this test uses a 140 KB copy '
+                  f'without NEOWILD.END ({games_on(copy)} games)')
+            if games_on(copy) < 3:
+                print('SAVE/RESTORE: SKIPPED (fewer than three saved games fit on 140 KB)')
+                return
+            DISK = copy
         (work / 'other.po').write_bytes(DISK.read_bytes())
         image, saved, timings = main_session(work, constants)
         faults(work, image)

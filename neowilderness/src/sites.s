@@ -92,12 +92,6 @@ module_shelter_view:
         jmp     message
 @done:  rts
 
-site_inside: .byte "YOU ARE INSIDE THE CABIN.|USE EXIT SHELTER TO GO OUTSIDE.",0
-site_outside: .byte "YOU ARE OUTSIDE THE SHELTER.",0
-site_already: .byte "YOU ARE ALREADY INSIDE THE SHELTER.",0
-site_absent: .byte "THERE IS NO SHELTER HERE.",0
-site_specific: .byte "USE ENTER SHELTER OR EXIT SHELTER.|CRAFTED SHELTERS ARE NOT AVAILABLE.",0
-site_leave: .byte "EXIT SHELTER BEFORE TRAVELLING.",0
 
 ; MAP fills the 80 x 24 text screen: 40 x 24 cells of the 112 x 84 grid, two
 ; 80-column characters per cell (square on screen), north up, centred on

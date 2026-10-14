@@ -80,6 +80,8 @@ MAP      = $7000
 MENU_ROW = 12                   ; prompts below the menu (tools/genmenu.py MENU_ROW)
 TABLE_SIZE = 256                ; tools/build_disk.py TABLE_SIZE (36 records)
 PRE_PACK = $3000                ; packed NEOWILD.PRE (<= 4 KB; tools/build_disk.py)
+HI_LOAD  = $A900                ; HICODE's record (tools/build_disk.py), moved to $BE00
+ZP_AUX   = $BF00                ; auxiliary: ProDOS's zero page during the game
 ALTZPOFF = $C008
 ALTZPON  = $C009
 RAMWRTON = $C005
@@ -98,6 +100,7 @@ offset: .res 1
 length: .res 1
 
 .assert __LOADBSS_RUN__ + __LOADBSS_SIZE__ <= TABLE, lderror, "loader overlaps its record table"
+.assert __LOADBSS_RUN__ + __LOADBSS_SIZE__ <= HI_LOAD, lderror, "loader overlaps HICODE's record"
 .segment "SYSSTUB"
         cld
         ldx     #0              ; ProDOS's zero page before touching any
@@ -173,7 +176,12 @@ length: .res 1
         inc     dest+1
 :       ldy     #0
         beq     @token
-@done:  jmp     loader_main
+@done:  ldx     #length-source  ; its zero page back as ProDOS left it:
+:       lda     saved_zp+source,x ; the loader starts on the entry state
+        sta     source,x
+        dex
+        bpl     :-
+        jmp     loader_main
 @byte:  lda     (source),y
         inc     source
         bne     :+
@@ -364,6 +372,20 @@ loader_prepare:                 ; the preparation: LZ (tools/pack_boot.py)
         jsr     prepare
 ld_no_prepare:
         jsr     ld_scatter      ; before the zero page is set for the game
+        ; docs/MEMORY.md 13: ProDOS's zero page (saved_zp, $BE00) is kept in
+        ; auxiliary $BF00-$BFFF for the game (memory.s ZP_ENTRY); $BE00
+        ; receives HICODE, read with the trunk at HI_LOAD.
+        ldx     #0
+        sta     RAMWRTON
+:       lda     saved_zp,x
+        sta     ZP_AUX,x
+        inx
+        bne     :-
+        sta     RAMWRTOFF
+:       lda     HI_LOAD,x
+        sta     saved_zp,x
+        inx
+        bne     :-
         ldx     #23             ; protect the game's pages
 :       lda     saved_bitmap,x
         ora     game_pages,x

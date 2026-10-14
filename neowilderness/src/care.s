@@ -467,13 +467,6 @@ care_family:
 care_family_top: .byte 0,21,22,37,40,51,56,59,63,75,81,86,88,92,93,97,100,109,134,144,157,165,168,171,255
 care_family_id:  .byte 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,11, 3, 4, 7, 5, 1,12, 0,10,13,14,15,16, 2,17
 care_level: .byte 0
-care_dry_message: .byte "HANG YOUR ^ TO WARM BY THE SUN|OR BY A FIRE.",0
-care_tree_message: .byte "YOU ARE NOT NEAR A TREE.",0
-care_far_message: .byte "YOUR POWERS DON'T EXTEND THAT FAR.",0
-care_think_message: .byte "THINK.",0
-care_whatever_message: .byte "WHATEVER TURNS YOU ON.",0
-care_unwise_message: .byte "THAT'S NOT VERY WISE.",0
-care_specific_message: .byte "TRY TO BE MORE SPECIFIC.",0
 ; The longer texts stay resident (WILDERNESS): they would otherwise cost the
 ; auxiliary module stock, full with a large native atlas.
 .segment "RODATA"
@@ -492,9 +485,6 @@ care_ok:
         lda     #<m_ok
         ldx     #>m_ok
         jmp     message
-care_use_message: .byte "PLEASE USE 'USE'.",0
-care_argument_message: .byte "MEDICINES USE ONE DOSE AT A TIME.|OMIT THE NUMBER AND UNIT.",0
-care_invalid_message: .byte "THAT ACTION DOES NOT APPLY HERE.",0
 care_minutes: .byte 0
 care_consumed: .byte 0
 care_use_minutes: .byte 30,30,0,0,0,30,0,0,15,0,0

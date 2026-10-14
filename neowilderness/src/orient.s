@@ -90,11 +90,8 @@ orient_ask:
         stx     orient_dialog
         cpx     #OA_DEG
         bcs     @number
-        lda     oa_lo,x
-        pha
-        lda     oa_hi,x
-        tax
-        pla
+        lda     oa_lo,x         ; a text of the bank
+        ldx     #0
         jsr     message
         ldx     orient_dialog
         cpx     #OA_NORTH
@@ -627,24 +624,8 @@ os_033:   .byte $7F,$28,$F5,$C2,$8F     ; .33 ($5ADD)
 os_481:   .byte $89,$70,$80,$00,$00     ; 481 ($5AEC)
 
 ; Texts and dialogs (orient_ask prints them while this module is loaded).
-orient_magnetic: .byte "DIRECTION SHOWN IS MAGNETIC, NOT TRUE.",0
-ol_status_msg: .byte "SEE STATUS DISPLAY.",0
-ol_heading_msg: .byte "YOU ARE HEADED IN A DIRECTION OF|# DEGREES MAGNETIC.",0
-ol_inside_msg: .byte "INSIDE SHELTER.",0
-ol_aid_msg: .byte "FIRST PUT DIRECTION AID IN USE.",0
-ol_az_msg: .byte "STATE DESIRED AZIMUTH IN DEGREES|CLOCKWISE FROM NORTH.",0
-ol_az_max_msg: .byte "ENTER AN AZIMUTH ANGLE THAT DOES NOT|EXCEED 359 DEGREES.",0
-ol_long_msg: .byte "TOO LONG!",0
-ol_sun_msg: .byte "SORRY, THE SUN IS OBSCURED.",0
-ol_stars_msg: .byte "SORRY, THE STARS ARE NOT VISIBLE.",0
 
 oa_lo: .byte <oa_watch, <oa_shadow, <oa_north, <oa_south, <oa_hours
-oa_hi: .byte >oa_watch, >oa_shadow, >oa_north, >oa_south, >oa_hours
-oa_watch: .byte "DO YOU WANT TO ESTIMATE NORTH-SOUTH BY|USING THE 'LOOK SUN' COMMAND AND TIME|FROM NOON TO THE SUN'S POSITION [Y/N]?",0
-oa_shadow: .byte "ASSUME THE STICK PERPENDICULAR TO THE|GROUND. DOES THE TIP OF THE SHADOW|GENERALLY MOVE EAST [E] OR WEST [W] ?",0
-oa_north: .byte "WITH THE HOUR HAND POINTED AT THE SUN,|ESTIMATE AZIMUTH IN DEG OF THE DIRECTION|HALFWAY BETWEEN THE HOUR HAND AND 12.",0
-oa_south: .byte "WITH 12 POINTED AT SUN, ESTIMATE AZI-|MUTH IN DEGREES OF DIRECTION HALFWAY|BETWEEN THE HOUR HAND AND 12.",0
-oa_hours: .byte "STATE TIME IN HOURS FOR WATCHING THE|SHADOW TIP MOVE.",0
 
 .segment "TREE"
 ; USE (T$11/S$00 $5BF9 family 6, $5DAC SHADOW).

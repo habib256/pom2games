@@ -179,6 +179,8 @@ def volume_check():
             bank, source, length, window = struct.unpack_from('<BHHH', directory, index * 7)
             if not length:
                 continue
+            if index in (build_disk.TB_FETCH, build_disk.ZP_ENTRY):
+                continue                    # text_fetch's scratch entry, ProDOS's zero page
             module = (info['modules'].get(str(index)) or info['empty_slots'].get(str(index))
                       or layout['trunk_modules'][str(index)])
             assert (source, length) == (module['address'], module.get('stored', module['length'])), (r, index)

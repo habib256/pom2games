@@ -555,30 +555,9 @@ module_outdoor_report:
         sta     fauna_alert
         ldx     outdoor_result
         jeq     @done
-        lda     out_message_lo-1,x
-        pha
-        lda     out_message_hi-1,x
-        tax
-        pla
+        lda     out_message_lo-1,x ; a text of the bank
+        ldx     #0
         jmp     message
 @done:  rts
 out_message_lo: .byte <out_no_water,<out_no_canteen,<out_full,<out_filled,<out_heavy,<out_no_animal,<out_calm,<out_weapon,<out_scared,<out_defended,<out_injured,<out_noise_failed,<out_watching,<out_attack_failed,<out_stolen_msg,<out_protected,<out_wounded_win
-out_message_hi: .byte >out_no_water,>out_no_canteen,>out_full,>out_filled,>out_heavy,>out_no_animal,>out_calm,>out_weapon,>out_scared,>out_defended,>out_injured,>out_noise_failed,>out_watching,>out_attack_failed,>out_stolen_msg,>out_protected,>out_wounded_win
-out_no_water: .byte "REFILL NEEDS A NEARBY BANK.|USE FILL CANTEEN WITHOUT A QUANTITY.",0
-out_no_canteen: .byte "CARRY A CANTEEN BEFORE COLLECTING WATER.",0
-out_full: .byte "YOUR 2QT CANTEEN IS FULL: 64 OZ.",0
-out_filled: .byte "CANTEEN FILLED TO 64 OZ. 10 MINUTES.|RIVER WATER IS UNTREATED.",0
-out_heavy: .byte "REFILL REFUSED: WEIGHT OR VOLUME.|DROP SOME GEAR AND TRY AGAIN.",0
-out_no_animal: .byte "NO MATCHING ANIMAL HERE.",0
-out_calm: .byte "THE @",<region_species," LEAVES.",0
-out_weapon: .byte "ATTACK NEEDS ACCESSIBLE AXE OR KNIFE.",0
-out_scared: .byte "YOU DRIVE THE @",<region_species," AWAY.",0
-out_defended: .byte "YOU DEFEND YOURSELF. @",<region_species," GONE.",0
-out_injured: .byte "THE @",<region_species," INJURES YOU AND STAYS.|STATUS M: CHECK WOUNDS AND CARE.",0
-out_noise_failed: .byte "NOISE FAILS. @",<region_species," STAYS.",0
-out_watching: .byte "@",<region_species," STILL WATCHING YOU.|SCARE, IGNORE OR MOVE AWAY.",0
-out_attack_failed: .byte "ATTACK FAILS. @",<region_species," STAYS.|MOVE AWAY OR TRY AGAIN.",0
-out_stolen_msg: .byte "FOOD STOLEN. THE @",<region_species," LEAVES.|HANG FOOD TO PROTECT IT.",0
-out_protected: .byte "LEAVE COVER TO SCARE OR ATTACK.",0
-out_wounded_win: .byte "@",<region_species," GONE. YOU ARE INJURED.|STATUS M: CHECK WOUNDS AND CARE.",0
 out_condition: .byte 0

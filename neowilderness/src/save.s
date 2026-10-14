@@ -38,51 +38,15 @@ SV_GAMES  = 5
 .import __BSS_RUN__
 
 .segment "LOWCODE"
-; do_save -- verbs SAVE and RESTORE (verb = 41 or 42).
+; do_save -- verbs SAVE and RESTORE (verb = 41 or 42). The disk part
+; (bitmap, path, NEOWILD.SAV read into $9600) is in the INPUT module
+; (module_save_load, src/hof_load.inc's way of reading NEOWILD.END; since
+; the integration of lots 2, 7 and 13, docs/MEMORY.md 13); then the module
+; runs at $9600 and this resident part restores the bitmap and the view.
 do_save:
-        ldx     #3              ; pages $90-$AF of the bitmap
-:       lda     $BF58+18,x
-        sta     sl_bitmap,x
-        dex
-        bpl     :-
-        lda     $BF58+18
-        and     #$FC            ; $96-$97
-        sta     $BF58+18
-        lda     #0              ; $98-$AF: module, image, I/O buffer, path
-        sta     $BF58+19
-        sta     $BF58+20
-        sta     $BF58+21
-        sta     sl_slot
-        ldy     geo_path        ; "/VOLUME/NEOWILD.GEO" -> ".SAV"
-:       lda     geo_path,y
-        sta     SV_PATH,y
-        dey
-        bpl     :-
-        ldx     geo_path
-        ldy     #2
-:       lda     sl_suffix,y
-        sta     SV_PATH,x
-        dex
-        dey
-        bpl     :-
-        lda     #$C8            ; OPEN
-        ldx     #<sl_open
-        ldy     #>sl_open
-        jsr     mli_call
-        bcs     @missing
-        lda     sl_open+5
-        sta     sl_read+1
-        sta     sl_close+1
-        lda     #$CA            ; READ
-        ldx     #<sl_read
-        ldy     #>sl_read
-        jsr     mli_call
-        php
-        lda     #$CC            ; CLOSE
-        ldx     #<sl_close
-        ldy     #>sl_close
-        jsr     mli_call
-        plp
+        lda     #13
+        jsr     overlay_load
+        jsr     module_save_load
         bcs     @missing
         jsr     SV_RUN          ; sl_slot <> 0: a game was restored
         jmp     @back
@@ -117,6 +81,57 @@ do_save:
 .segment "LOWTEXT"
 sl_slot:   .byte 0              ; the game restored (module), else 0
 sl_bitmap: .res 4
+.export do_save, sl_slot
+
+; module_save_load -- (INPUT) the pages $96-$AF released in the bitmap (kept
+; in sl_bitmap), "/VOLUME/NEOWILD.SAV" at SV_PATH, the module read at SV_RUN.
+; C set: it cannot be read.
+.segment "INPUT"
+module_save_load:
+        ldx     #3              ; pages $90-$AF of the bitmap
+:       lda     $BF58+18,x
+        sta     sl_bitmap,x
+        dex
+        bpl     :-
+        lda     $BF58+18
+        and     #$FC            ; $96-$97
+        sta     $BF58+18
+        lda     #0              ; $98-$AF: module, image, I/O buffer, path
+        sta     $BF58+19
+        sta     $BF58+20
+        sta     $BF58+21
+        sta     sl_slot
+        ldy     geo_path        ; "/VOLUME/NEOWILD.GEO" -> ".SAV"
+:       lda     geo_path,y
+        sta     SV_PATH,y
+        dey
+        bpl     :-
+        ldx     geo_path
+        ldy     #2
+:       lda     sl_suffix,y
+        sta     SV_PATH,x
+        dex
+        dey
+        bpl     :-
+        lda     #$C8            ; OPEN
+        ldx     #<sl_open
+        ldy     #>sl_open
+        jsr     mli_call
+        bcs     @done
+        lda     sl_open+5
+        sta     sl_read+1
+        sta     sl_close+1
+        lda     #$CA            ; READ
+        ldx     #<sl_read
+        ldy     #>sl_read
+        jsr     mli_call
+        php
+        lda     #$CC            ; CLOSE
+        ldx     #<sl_close
+        ldy     #>sl_close
+        jsr     mli_call
+        plp
+@done:  rts
 sl_suffix: .byte "SAV"
 sl_open:   .byte 3
            .word SV_PATH, SV_IOBUF
@@ -124,9 +139,6 @@ sl_open:   .byte 3
 sl_read:   .byte 4, 0
            .word SV_RUN, SV_IOBUF-SV_RUN, 0
 sl_close:  .byte 1, 0
-m_save_missing: .byte "NEOWILD.SAV CANNOT BE READ.", 0
-m_restored: .byte "GAME # RESTORED.", 0
-.export do_save, sl_slot
 
 ; ----------------------------------------------------------------------------
 ; NEOWILD.SAV, run at $9600

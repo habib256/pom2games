@@ -65,8 +65,10 @@ def check(disk, mapbin):
         if index == 23:
             assert loaded_directory[index*7:index*7+7] == bytes(7), index   # empty entry
             continue
+        if index in (build_disk.TB_DIR, build_disk.TB_FETCH, build_disk.ZP_ENTRY):
+            continue                        # the text bank, its fetch, ProDOS's zero page
         if bank & build_disk.BANK_LZ:      # LZ image: window = where its copy lands
-            bank &= 0x7F
+            bank &= 3                       # (bits 2-6: the margin)
             assert 0x5800 <= window < 0x6000 or 0x9600 <= window < 0xA200, index
         else:
             assert window in (0x2000, 0x5800, 0x9600, 0x97CE), index

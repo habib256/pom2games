@@ -32,23 +32,6 @@ travel_reason_lo: .byte <m_duration_end,<m_water,<m_shore,<m_dark,<m_edge,<m_fau
 travel_reason_hi: .byte >m_duration_end,>m_water,>m_shore,>m_dark,>m_edge,>m_fauna_stop,>m_escape_end,>m_pace,>m_no_water,>m_short_end
 
 .segment "ITEMS"
-m_taken:    .byte   "PACK: ^", 0
-m_carried:  .byte   "HAND: ^", 0
-m_worn:     .byte   "WEARING: ^", 0
-m_notwear:  .byte   "^|YOU CAN'T WEAR THAT.", 0
-m_dropped:  .byte   "GROUND: ^", 0
-m_pile:     .byte   "COLLECT THE OTHER GROUND STOCK FIRST.", 0
-m_notthere: .byte   "^|NOT ACCESSIBLE HERE.|CHECK INVENTORY OR MOVE CLOSER.", 0
-m_object: .byte "NAME AN ITEM. EXAMPLES:|GET HAT / WEAR PARKA / DROP AXE.",0
-m_selfpack: .byte "BACKPACK CANNOT HOLD ITSELF.|USE CARRY BACKPACK.",0
-m_needpack: .byte "BACKPACK NEEDED.|PICK IT UP WITH CARRY BACKPACK.",0
-m_needcan: .byte "CANTEEN NEEDED.|PICK IT UP WITH GET CANTEEN.",0
-m_empty_pack: .byte "EMPTY THE BACKPACK BEFORE DROPPING.|DROP ITS CONTENTS FIRST.",0
-m_empty_can: .byte "EMPTY THE CANTEEN BEFORE DROPPING.|DRINK WATER OR DROP WATER.",0
-m_weight: .byte "TRANSFER REFUSED: WEIGHT.",0
-m_volume: .byte "TRANSFER REFUSED: VOLUME.",0
-m_both: .byte "TRANSFER REFUSED: WEIGHT + VOLUME.",0
-m_overflow: .byte "TRANSFER REFUSED: VALUE TOO LARGE.|REDUCE THE AMOUNT OR THE LOAD.",0
 .segment "TEXT"
 
  .segment "STATUS"

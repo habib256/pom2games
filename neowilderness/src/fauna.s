@@ -29,8 +29,6 @@ module_nature:
 @bad:   lda     #<m_nature_bad
         ldx     #>m_nature_bad
         jmp     message
-m_nature: .byte "WILDLIFE FREQUENCY IS #.|ENTER A NEW VALUE FROM 0 TO 100.",0
-m_nature_bad: .byte "FREQUENCY MUST BE FROM 0 TO 100.",0
 
 .segment "ENVIRON"
 .export module_fauna

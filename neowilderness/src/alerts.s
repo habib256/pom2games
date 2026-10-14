@@ -38,7 +38,6 @@ al_k40:   .byte $86,$20,0,0,0
 al_k300:  .byte $89,$16,0,0,0
 
 ALERT_MODULE = 27
-tb_buf:   .res 96               ; memory.s text_fetch (TB_MAX)
 
 .segment "LOWCODE"
 ; ----------------------------------------------------------------------------
@@ -220,7 +219,7 @@ module_health_alerts:
         stx     al_strong
         rts
 
-; A = alert id (al_lo/al_hi); the queue keeps the original order of display.
+; A = alert id (al_lo: texts of the bank); the queue keeps the original order of display.
 al_add: ldx     al_count
         cpx     #8
         bcs     @full
@@ -326,10 +325,10 @@ al_show:
 ; left blank; an empty result column receives it as an ordinary message.
 al_text:
         tax
-        lda     al_lo,x
+        lda     al_lo,x         ; a text of the bank
+        jsr     text_fetch
         sta     gp1
-        lda     al_hi,x
-        sta     gp1+1
+        stx     gp1+1
         lda     shown
         beq     @fresh
         ldx     #MN_BOTTOM+1-MN_ROWS
@@ -639,15 +638,4 @@ al_now:   .res 21
 ; Alert texts: messages 173, 174, 187, 203, 204 (direct), then the events
 ; 25, 40, 41, 42, 43 (messages 160, 175, 176, 177, 178).
 al_lo: .byte <al_173,<al_174,<al_203,<al_204,<al_187,<al_160,<al_175,<al_176,<al_177,<al_178
-al_hi: .byte >al_173,>al_174,>al_203,>al_204,>al_187,>al_160,>al_175,>al_176,>al_177,>al_178
-al_173: .byte "YOU ARE HUNGRY ENOUGH TO EAT A HORSE.",0
-al_174: .byte "YOU ARE THIRSTY ENOUGH TO DRINK A LAKE.",0
-al_203: .byte "YOU ARE SHIVERING.",0
-al_204: .byte "YOU ARE SWEATING.",0
-al_187: .byte "HEALTH DETERIORATED. CHECK YOUR STATUS.",0
-al_160: .byte "YOUR CONDITION IS BECOMING SERIOUS.",0
-al_175: .byte "TOO TIRED TO RAISE A LITTLE FINGER.",0
-al_176: .byte "YOU ARE NOT LONG FOR THIS WORLD.",0
-al_177: .byte "YOU ARE DROWNING.",0
-al_178: .byte "EXHAUSTED: INVOLUNTARY SLEEP.",0
 .segment "GCODE"

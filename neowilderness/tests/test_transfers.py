@@ -33,8 +33,8 @@ def main():
         entry = L['idle']
         costs = []
         for index in sorted(images):
-            if index == 18:
-                continue                # alias of 17
+            if index in (18, 28):
+                continue                # alias of 17; the text bank (fetched by text)
             expected, window = images[index]
             if index == 0:
                 call = (0xA2, 0, 0x20, L['mem_fetch'] & 255, L['mem_fetch'] >> 8)

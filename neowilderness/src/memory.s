@@ -54,10 +54,11 @@ MLI       = $BF00
 PD_BITMAP = $BF58
 PD_DEVNUM = $BF30
 
-MOD_COUNT = 30                  ; directory entries: TOPOGEN + modules 1..27
+MOD_COUNT = 31                  ; directory entries: TOPOGEN + modules 1..27
                                 ; (23 fourth species, 24 hall of fame, 25 stars,
                                 ; 26 orientation, 27 health alerts), 28 the
-                                ; text bank, 29 its fetch (text_fetch)
+                                ; text bank, 29 its fetch (text_fetch), 30
+                                ; ProDOS's zero page (prodos_restore)
 DIR_SIZE  = 7                   ; bank, source, length, destination
 XFER_RUN  = $0120               ; stack-page copy loop while RAMRD is on
 
@@ -108,7 +109,8 @@ region_intro:   .res 22         ; name of the original introduction
 .export region_name, region_fauna, region_species, region_number, region_count, region_intro
 
 .segment "SAVE"
-saved_zp:   .res 256            ; ProDOS zero page at NEOWILD.SYSTEM entry
+saved_zp:   .res 256            ; ProDOS zero page at NEOWILD.SYSTEM entry; during
+                                ; the game HICODE (it waits in auxiliary $BF00)
 .export saved_zp
 
 .segment "IOBUF"
@@ -449,8 +451,8 @@ lz_guard:
         lda     mf_dst+1
         adc     mf_pages
         tay
-        txa
-        sec
+        txa                     ; the operands below index from base - 1
+        clc
         sbc     lz_m
         sta     @get+1
         sta     lzb_put+1
@@ -486,11 +488,11 @@ lzb_done:
 ; offsets of a text in the index, then its bytes, end-aligned in tb_buf;
 ; then each token ($80 + k, but $A1) brings dictionary word k in its place
 ; (the output never overtakes the input: a word is longer than its token);
-; "@" and its operand stay literal. Clobbers Y. In GCODE (WILDGAME).
+; "@" and its operand stay literal. Clobbers Y. In HICODE ($BE00).
 TB_DIR   = 28                   ; the bank (raw image in the store)
 TB_FETCH = 29                   ; scratch entry: source, length, destination
-TB_MAX   = 96                   ; tb_buf (tools/gentextbank.py checks every text)
-.segment "GCODE"
+ZP_ENTRY = 30                   ; aux $BF00 -> saved_zp (tools/build_disk.py)
+.segment "HICODE"
 text_fetch:
         ldx     #$FF            ; end-aligned
         jsr     tf_get
@@ -540,13 +542,15 @@ text_fetch:
 ; there; X = the index used, tf_len = their count.
 tf_get:
         stx     tf_dst
-        asl     a               ; the index pair into tf_idx
-        ldx     #<tf_idx
-        stx     module_dir+TB_FETCH*DIR_SIZE+5
-        ldx     #>tf_idx
-        stx     module_dir+TB_FETCH*DIR_SIZE+6
+        ldy     #<tf_idx        ; the index pair into tf_idx
+        sty     module_dir+TB_FETCH*DIR_SIZE+5
+        ldy     #>tf_idx
+        sty     module_dir+TB_FETCH*DIR_SIZE+6
+        asl     a               ; 2 bytes per number: X = the carry
         ldx     #0
-        ldy     #4
+        bcc     :+
+        inx
+:       ldy     #4
         jsr     tf_copy
         sec
         lda     tf_idx+2
@@ -673,6 +677,8 @@ prodos_quit:
 quit_parms: .byte 4, 0, 0, 0, 0, 0, 0
 
 prodos_restore:
+        ldx     #ZP_ENTRY       ; ProDOS's zero page, kept in auxiliary $BF00,
+        jsr     mem_fetch       ; back to saved_zp ($BE00: HICODE is done)
         jsr     prodos_text
         jsr     _prodos_video_release   ; rebuild the empty /RAM disk
         ldx     #23

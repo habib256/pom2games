@@ -1141,14 +1141,15 @@ list_dur:   .byte "10 MIN",0,"20 MIN",0,"30 MIN",0,"1 H",0,"2 H",0,"4 H",0,"8 H"
 list_look:  .byte "LEFT",0,"RIGHT",0,"BACK",0,"AHEAD",0,"UP",0,"DOWN",0,"NORTH",0,"EAST",0,"SOUTH",0,"WEST",0,"SUN",0,"STARS",0,0
 list_climb: .byte "TREE",0,"DOWN",0,0
 list_qty:   .byte "2 OZ",0,"4 OZ",0,"8 OZ",0,"12 OZ",0,"16 OZ",0,"24 OZ",0,"32 OZ",0,"48 OZ",0,0
-; Item filters: first item, last + 1, the groups the verb already targets
-; (GET, TAKE, WEAR, DROP, EAT, USE, DRINK: the water alone).
-filt_lo: .byte  1, 1, 1, 1, 23, 38, N_WATER
-filt_hi: .byte  76, 76, 21, 76, 52, 74, N_WATER+1   ; USE: 38-73 (lot 2; lot 7's MAP...CHART within)
-filt_ex: .byte  G_PACK, G_HAND, G_WORN, G_GROUND|G_HUNG, G_HUNG, 0, G_HUNG
 str_empty:   .byte 0
 str_status:  .byte "STATUS", 0
 .segment "MENUCODE"
+; Item filters: first item, last + 1, the groups the verb already targets
+; (GET, TAKE, WEAR, DROP, EAT, USE, DRINK: the water alone). Resident since
+; the integration of lots 2, 7, 9 and 13 filled MENUSWAP.
+filt_lo: .byte  1, 1, 1, 1, 23, 38, N_WATER
+filt_hi: .byte  76, 76, 21, 76, 52, 74, N_WATER+1   ; USE: 38-73 (lot 2; lot 7's MAP...CHART within)
+filt_ex: .byte  G_PACK, G_HAND, G_WORN, G_GROUND|G_HUNG, G_HUNG, 0, G_HUNG
 ; Lot 2 (docs/CAMP.md): MAKE FIRE/STICKS/WATER, BOIL WATER, DOUSE FIRE
 ; while a fire burns, USE of the camp items and of the fire itself.
 list_make:  .byte "FIRE",0,"STICKS",0,"WATER",0,0

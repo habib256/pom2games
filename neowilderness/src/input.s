@@ -431,10 +431,6 @@ input_verbs:
         .byte 4,"REST",5,"SLEEP",4,"CAMP",8,"EXERCISE",4,"WAIT",5,"PAUSE"
         .byte 3,"EAT",5,"DRINK",6,"NATURE",3,"WET"
         .byte 4,"SAVE",7,"RESTORE",0  ; SAVE 2, RESTORE 2 (lot 9)
-input_cancelled: .byte "ACTION CANCELLED.",0
-input_invalid_message: .byte "INVALID VALUE OR UNIT.|HOURS 1-255, MINUTES 1-15300,|OUNCES 1-255. ESC CANCELS.",0
-input_quit_message: .byte "QUIT? UNSAVED PROGRESS WILL BE LOST.|Y: QUIT   N/RETURN/ESC: CANCEL",0
-input_stock_prompt: .byte "ACCESSIBLE: $ OZ.|HOW MANY OZ? ESC CANCELS.",0
 
         .include "hof_load.inc" ; module_end, module_restart (lot 7)
 .segment "CODE"
