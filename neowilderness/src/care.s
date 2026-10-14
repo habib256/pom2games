@@ -79,19 +79,9 @@ module_medical_command:
         jeq     care_tool
 @compass:
         lda     noun
-        cmp     #53
-        bne     :+
-        lda     verb
-        cmp     #V_USE
-        jne     care_invalid
-        ldx     #53
-        jsr     have
-        jcc     care_missing
-        lda     #3              ; USE COMPASS puts the direction aid in hand
-        sta     it_place+53
-        jsr     load_totals
-        jmp     care_ok
-:       lda     noun
+        cmp     #53             ; COMPASS with a care verb (USE COMPASS:
+        jeq     care_invalid    ; orient_use, src/orient.s)
+        lda     noun
         cmp     #41
         jcc     care_unsupported
         cmp     #52

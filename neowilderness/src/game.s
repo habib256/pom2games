@@ -1121,10 +1121,6 @@ look_invalid:
         lda     #<m_oops
         ldx     #>m_oops
         jmp     message
-do_look_az:
-        lda     #13
-        jsr     overlay_load
-        jmp     module_look_az
 do_tree:
         lda     #20
         jsr     overlay_load

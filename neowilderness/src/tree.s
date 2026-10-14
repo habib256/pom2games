@@ -9,21 +9,9 @@ module_tree_look:
         beq     @right
         cmp     #157            ; B
         beq     @back
-        cmp     #155            ; AZ
-        beq     @az
         cmp     #156            ; F
         beq     @front
-        cmp     #145            ; N E S W
-        bcc     @what
-        cmp     #149
-        bcs     @what
-@card:  sec                     ; N E S W -> heading 0, 140, 280, 420
-        sbc     #145
-        tax
-        lda     card_lo,x
-        sta     heading
-        lda     card_hi,x
-        sta     heading+1
+        jmp     look_invalid    ; N E S W, AZ: orient_look (src/orient.s)
 @aim:   jsr     magnetic_heading
 @front: jmp     show_view
 @left:  ldx     #2
@@ -43,8 +31,6 @@ module_tree_look:
         lda     ang+1
         sta     heading+1
         jmp     show_view
-@az:    jmp     do_look_az
-@what:  jmp     look_invalid
 
 .export tree_look_aim := @aim
 
