@@ -227,25 +227,32 @@ Mesures `make inspect` et `build/wild.map`, base `d64afbb` (main) → lot 2 :
 | Zone | Avant | Après | Contenu ajouté |
 |---|---:|---:|---|
 | Module 4 (fenêtre `$5800`) | WATER 495 | **CAMP 1 617** | feu, lumière, eau (code) |
-| SIM `$9600-$B5FF` | 7 619 (573 libres) | 7 971 (**221** libres) | terme +25 °F, `camp_light`, limite de boisson, piles d'eau et source de boisson, effacement des drapeaux |
-| WILDLO `$1000-$1FFF` | 1 718 libres | **82** libres | messages originaux (1 047), table des messages (56), relais et aides partagées (≈ 500), état (`camp_state`, 5 octets) |
+| SIM `$9600-$B4FF` | 7 619 (fin `$B3C2`) | 7 874 (fin `$B4C1`, **62** octets sous `$B500`) | terme +25 °F, piles d'eau et source de boisson, effacement des drapeaux |
+| WILDLO `$1000-$1FFF` | 1 718 libres | **70** libres | messages originaux (1 047), table des messages (56), relais et aides partagées (≈ 500), état (`camp_state`, 11 octets) |
+| WILDERNESS (`CODE`/`RODATA`) | 318 libres | 212 libres (112 avec le § 6) | `camp_light`, limite de boisson et msg 87 |
 | WILDGAME | 18 libres | 57 libres | `do_get` passé en WILDLO, `water_quantity` retiré |
 | VOCAB | 2 047 | 2 043 | `@later` → `camp_verb` |
 | MVI (`care.s`) | 878 | 890 | lumière de FIRSTAID |
-| OUTDOOR | 2 006 | 2 003 | giardiase originale |
+| OUTDOOR | 2 006 | 2 003 (2 008 avec le § 6) | giardiase originale |
 | MENUSWAP / MENUCODE | 62 / 182 libres | 17 / 57 libres | MAKE, BOIL, DOUSE, USE |
-| Stock, Burma (pire cas) | 2 943 (pièce 2 494) | **1 513** (pièce 1 128) | CAMP + SIM |
-| Stock, Sierra | 4 187 (2 494) | 2 757 (1 244) | |
+| Stock, Burma (pire cas) | 2 943 (pièce 2 494) | **1 610** (pièce 1 128) | CAMP + SIM |
+| Stock, Sierra | 4 187 (2 494) | 2 854 (1 244) | |
 
 L'état résident à sauvegarder (lot 9) est `camp_state..camp_state_end`
-(`camp_use`, `fire_on`, `fire_near`, `sticks_on`, `light`) ; l'eau garde
-`water_untreated` (GDATA).
+(`camp_use`, `fire_on`, `fire_near`, `sticks_on`, `light`, puis
+`s_sweat`, `sweat_day` du § 6) ; l'eau garde `water_untreated` (GDATA).
+
+La simulation doit finir avant `$B500`, où le chargeur relit sa table
+d'enregistrements (`boot.s` `TABLE`) : une première version, qui la
+dépassait de 35 octets, plantait la fin de partie de `test_thermal.py`.
+`camp_light` et la limite de boisson sont pour cela dans `CODE`.
 
 Le stock d'un disque **natif** de la Sierra (atlas de géographie fine) est
 la contrainte la plus serrée : le test de charge de
 `tests/test_geo_resident.py` (atlas bruité) passe de six à cinq tuiles de
 bruit (atlas ≈ 7,8 Ko au lieu de 8,1 Ko) ; CAMP ne peut plus guère
-grandir (≈ 15 octets de marge pour ce test, ≈ 190 avec quatre tuiles).
+grandir (quelques dizaines d'octets de marge pour ce test, ≈ 190 avec
+quatre tuiles).
 L'atlas réel de la Sierra (6 379 octets) laisse plus de 1 Ko. C'est
 pourquoi les textes et les aides partagées sont résidents et les piles
 d'eau dans SIM : déplacer 1 Ko de textes dans le stock, ou les compresser
