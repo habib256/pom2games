@@ -103,6 +103,7 @@ module_rest_prepare:
         jsr     GIVAYF
         fop     FADD, s_elap
         fst     s_last+10
+        jsr     alert_rest      ; lot 13: hours of the rest session ($4BE2)
         fld     f_half
         fst     s_rest
 @done:  jmp     module_fauna_cap

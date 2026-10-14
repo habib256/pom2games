@@ -7,6 +7,33 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Neowilderness : soins, alertes et maladies (lot 13 de fidélité)
+
+- Commandes de soin de T11/S00, T12/S08 et T15/S0A : USE SPLINT (sélecteur
+  3, attelle portée, 30 min ; crochet `splint_place` pour l'attelle du
+  lot 3), USE PRESSURE (sélecteur 2), USE AXE/KNIFE (outil en usage),
+  CUT/COOL BODY (sélecteur 7 avec un outil en usage), WET BODY (sélecteur 9 :
+  front météo, eau, rivière à portée ou onces de la gourde), DRY/WARM
+  (messages 117/118), HANG des vêtements (séchage au soleil ; crochet du feu
+  pour le lot 2) ; placement automatique des objets utilisés (main, lunettes
+  portées). Verbes 13, 14, 31 et 33 aiguillés sans entrée de table
+  (`verb_more`), HANG passe par `care.s`.
+- Alertes originales ajoutées sous le résultat : faim 173, soif 174 et
+  fatigue 175 une fois par jour, frissons/sueur 203/204 et détérioration 187
+  une fois par commande, état sérieux 160, santé sous 1 (176, remplace
+  « YOU ARE VERY WEAK »), noyade 177 ; sommeil forcé (message 178) d'un
+  joueur épuisé : REST de `180 + INT(RND × 300)` minutes sans saisie.
+- Infection (coupures actives depuis 6 h) et malaria (régions 3 à 5) de
+  T0B/S07, avec le générateur natif, derrière `disease_triggers`.
+- `tests/test_care.py --original` : 957 cas ROM de plus (aiguillages WET/DRY,
+  DRY/COOL/CUT/HANG, USE, placements, alertes, sommeil forcé, 528 tirages
+  d'infection et de malaria) ; `tools/re_event_scan.py` (producteurs et
+  consommateur des conditions). `test_reference_state.py` inchangé et vert.
+- Mémoire : WILDLO 1 718 → 141 octets libres, WILDMVI 878 → 1 809 octets,
+  SIM 573 → 265 libres ; volume 261 → 266 blocs. Les disques à carte native
+  sont à 278–280 blocs sur 280 : `test_geo_resident.py` vérifie le décodage
+  des tuiles brutes sur une carte plus légère (2 tuiles de bruit).
+
 ### Neowilderness : MAP plein écran 80 × 24
 
 - MAP, et la carte animée de WALK/SWIM, occupent tout l'écran texte

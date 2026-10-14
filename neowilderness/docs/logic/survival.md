@@ -386,7 +386,7 @@ Le module divers T15/S0A montre aussi que WET n'agit ici que sur BODY
 conditions. Les messages 214 et 230 le conseillent pour le coup de soleil
 ou la chaleur. DRY/WARM rejoint un sélecteur du module divers pour les
 objets de famille 1 ; les vêtements mouillés et leur séchage demandent
-encore une analyse de ces conditions. Ces commandes restent à porter.
+encore une analyse de ces conditions. Portées au lot 13 (IMPLEMENTATION.md « Soins, alertes et maladies (lot 13) »).
 
 Le vrai sélecteur sec/mouillé est `$4B70` : `m087:$587F` lui donne 2 pendant
 SWIM. `m0AC:$5BC0-$5BEC` conserve ce 2, sinon choisit 0/1 selon l'événement

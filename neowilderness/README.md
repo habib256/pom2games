@@ -141,5 +141,30 @@ données originales requises suivent la procédure `make originals` /
 - Simulation : conserver les règles natives et leurs tests pendant la
   migration mémoire et vidéo.
 
+## Commandes de soin (lot 13)
+
+En plus de USE *produit médical*, EAT/DRINK FLAGYL, SALT TABLETS, QUININE,
+STOP BLEEDING, SHIELD EYES, LOWER HEAD et SUCK VENOM
+([../wilderness/README.md](../wilderness/README.md#commandes)) :
+
+| Commande | Effet |
+|---|---|
+| USE SPLINT | Poser une attelle (bras ou jambe cassés), 30 minutes ; l'attelle se fabrique au lot 3 |
+| USE PRESSURE | Compresser une coupure, 30 minutes |
+| USE AXE / USE KNIFE | Mettre l'outil en usage sur la case (en main) |
+| CUT BODY / COOL BODY | Inciser une morsure avec la hache ou le couteau en usage ; sans durée |
+| WET BODY [*n* OZ] | Se mouiller : déjà fait sous un front météo ou dans l'eau ; sinon eau de rivière ou de lac à portée, ou *n* onces versées de la gourde ; soigne le coup de soleil avec l'eau bue |
+| DRY / WARM *vêtement* | Conseil de l'original : suspendre le vêtement au soleil ou près d'un feu |
+| HANG *vêtement* | Suspendre un vêtement à un arbre (il est déposé) ; mouillé, hors de la pluie, il sèche au soleil |
+
+Les objets utilisés passent en main (les lunettes de soleil sur le visage).
+Les alertes de l'original (faim, soif, fatigue, frissons, sueur,
+détérioration, état sérieux, noyade, sommeil forcé) s'ajoutent sous le
+résultat ; un joueur épuisé s'endort de lui-même de 3 à 8 heures.
+L'infection des coupures non soignées et la malaria (Birmanie,
+Nouvelle-Guinée, Bolivie) peuvent se déclarer
+([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) « Soins, alertes et maladies
+(lot 13) »).
+
 Code sous GPL-3.0, voir [LICENSE](../LICENSE). Les références et données
 originales conservent leurs droits et crédits existants.

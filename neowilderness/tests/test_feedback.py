@@ -105,7 +105,7 @@ def main():
             ('EAT',('NAME A FOOD','EAT CHEESE')),
             ('DRINK',('TRY DRINK WATER',)),
             ('GET SHOES',('SHOES','NOT ACCESSIBLE HERE','CHECK INVENTORY')),
-            ('USE AXE',('NOT IN THIS VERSION',)),
+            ('USE ROPE',('NOT IN THIS VERSION',)),   # USE AXE: lot 13 (tool in use)
             ('WEAR AXE',("YOU CAN'T WEAR THAT",)),
             ('EAT AXE',("YOU CAN'T EAT THAT",)),
             ('DROP BACKPACK',('EMPTY THE BACKPACK','DROP ITS CONTENTS')),
