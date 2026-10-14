@@ -1306,10 +1306,12 @@ règles : [logic/animals.md](logic/animals.md#portage--quatre-espèces-étape-4)
   paquet à partir des octets 0-12 des fiches `$6000-$607F` de l'en-tête.
   L'ordre des tirages ne change pas : la quatrième fiche était déjà filtrée
   et tirée (vide en Sierra : taux 0, filtres nuls) ; Chile a ses fiches 3 et
-  4 vides, Burma et Bolivia une quatrième espèce (`animal_kind` 9). Le même
-  bloc est écrit dans `fauna_table` (SITES), où `fauna_eligible` et
-  `fauna_probability` en sont les copies de référence des tests ; les tables
-  Sierra de `fauna.s` et les 128 octets `fauna_records` disparaissent.
+  4 vides, Burma et Bolivia une quatrième espèce (`animal_kind` 9). Les
+  tables Sierra de `fauna.s` et les 128 octets `fauna_records` disparaissent.
+  Depuis la direction 3 ([MEMORY.md](MEMORY.md) § 12.4), les copies de
+  référence de SITES (`fauna_table`, `fauna_eligible`, `fauna_probability`)
+  aussi : `tests/test_fauna.py` entre dans `resource_scan` lui-même et
+  s'arrête à `resource_eligible`, `resource_next` ou `resource_rolled`.
 - **Octet 29 (jamais dans l'eau).** Replié à la construction dans le filtre
   de terrain : les cartes de région n'ont pas de code de rivière natif
   (`MAP+37` = 0), une case d'eau a le terrain 40 ; `build_disk.fold_water`

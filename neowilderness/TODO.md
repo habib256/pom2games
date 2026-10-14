@@ -136,18 +136,28 @@ n'est plus lente que la mesure publiée de plus de 5 %.
 
 Objectif : tenir sur 128 Ko et 140 Ko sans lecture disque pendant le jeu.
 
-- [ ] Réserves à conquérir : instantané TOPO (12,8 Ko) compressé ou réduit
-  aux rangées utiles, tables Sierra retirées des modules, tronc commun
-  recompressé ; publier le gain de chacune. La banque 2 de la carte langage
-  principale (`$D400-$DEFF`) est déjà prise par les étoiles : sa liberté est
-  une mesure sur ProDOS 2.4.3 dans POM2, pas une garantie documentée ; à
-  vérifier avec d'autres versions de ProDOS et sur IIc.
-- [ ] Budget par région tenu à jour dans [MEMORY.md](docs/MEMORY.md) § 9 :
-  RAM principale, RAM auxiliaire (Burma au pire), blocs libres du volume.
+- [x] Réserves conquises ([MEMORY.md](docs/MEMORY.md) § 12, 14 octobre
+  2026) : instantané TOPO compressé (stock +4,4 Ko), lignes DHGR déroulées
+  et leurs tables en banque 2 de la carte principale (RAM principale
+  résidente 375 → 2 282 octets), copies de référence de la faune retirées de
+  SITES (tests sur le balayage de TRAVEL), éphéméride lunaire hors de SIM
+  (573 octets libres dans sa fenêtre). Burma : 171 → 2 649 octets
+  auxiliaires libres. La liberté de `$D400-$DFFF` en carte principale reste
+  une mesure sur ProDOS 2.4.3 dans POM2 : à vérifier avec d'autres versions
+  de ProDOS et sur IIc.
+- [ ] Réserves restantes (§ 12.8) : VOCAB, TRAVEL, STATUS, SCREENS pleines
+  (déplacer une table vers WILDLO, ou vocabulaire en 5 bits ≈ 0,4 Ko),
+  modules rares compressés dans le stock (≈ 1,5 Ko), page `SAVE` en
+  auxiliaire (256 octets).
+- [x] Budget par région tenu à jour dans [MEMORY.md](docs/MEMORY.md) § 12.1 :
+  RAM principale, RAM auxiliaire (Burma au pire), fenêtres, blocs libres.
 - [ ] Démarrage : réduire les 21 s jusqu'au menu et les 10 s du choix à la
   première vue (lecture du paquet 3 s, initialisation 6,4 à 7,1 s).
 - [ ] Transferts : supprimer la recopie de SIM à chaque activation si ses
-  données sont prouvées immuables (0,68 s par WALK 1 H).
+  données sont prouvées immuables (0,68 s par WALK 1 H). Mesuré (§ 12.6) :
+  35 octets d'état sous `$B000` et la grille du menu dans `$B000-$B5FF`
+  changent ; une recopie partielle de `$AA00-$B5FF` rendrait ≈ 0,45 s, à
+  prouver sur tous les chemins.
 - [ ] Instrumentation conservée : appels MLI, octets transférés, cycles par
   phase ; `make`, `make run` et inspection du `.po` documentés.
 - [ ] Politique disque : une image de 140 Ko ; documenter ce qui irait sur

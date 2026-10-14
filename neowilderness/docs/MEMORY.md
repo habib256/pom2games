@@ -409,6 +409,10 @@ résident (`src/geoaux.s`, ≈ 7,2 Ko pour la Sierra) partage cette zone avec
 l'instantané selon la carte : carte héritée (les six régions livrées) →
 instantané ; carte native (comparaison) → atlas, et TOPO redessine la vue.
 
+**Compressé depuis la direction 3 (§ 12.2)** : flux prédit par la rangée
+−2 dans la banque 1 et `$E000-$F0FF`, 2 à 7 Ko mesurés ; la banque 2 et
+`$F100-$FFF9` rejoignent le stock.
+
 ## 9. Lot 7 : tronc commun, paquets de région, menu, étoiles, hall of fame
 
 Étapes 2 à 6 de [SCENARIOS.md](SCENARIOS.md) : le volume porte un tronc
@@ -801,3 +805,171 @@ volume 250/280 blocs (30 libres, 33 avant). TEXT gagne 54 octets libres
 (message de départ raccourci). Aucun octet auxiliaire, aucune lecture
 disque, aucun transfert de module en plus : `test_overlays.py` et
 `test_resident.py` sont inchangés.
+
+## 12. Direction 3 : réserves conquises (14 octobre 2026)
+
+Point de départ : tête `b941346` (lot 8, étape 2), mesurée par `make
+inspect` et `build/wild.map`. Quatre gains, un commit chacun, suite
+`make test` relancée en entier après chacun (73 étapes ; seule
+`tests/test_sim.py`, « Night view: black terrain », échoue, et elle échouait
+déjà à `b941346` : défaut antérieur, non traité ici).
+
+### 12.1 Bilan
+
+RAM principale résidente (`build/wild.map`) :
+
+| Zone | Avant | Après | Changement |
+|---|---:|---:|---|
+| LOWPAGE `$0200-$03CF` | 23 | 23 | — |
+| FORESTCODE `$0926-$09FF` | 4 | 4 | — |
+| TEXT `$0A00-$0FFF` | 54 | 54 | — |
+| WILDLO `$1000-$1FFF` | 124 (`$1F84`) | **1 718** (`$194A-$1FFF`) | `drows` en carte principale (12.3) |
+| WILDGAME `$4000-$577F` | 6 | 6 | — |
+| WILDERNESS `$6000-$6FFF` | 5 | **318** (`$6EC2-$6FFF`) | `drow_lo`/`drow_hi` en carte principale |
+| RESIDENT `$B600-$B9FF` | 159 | 159 | — |
+| **Total résident** | **375** | **2 282** | ×6 |
+| MENUCODE `$BA00-$BDFF` / MENUSWAP | 182 / 62 | 182 / 62 | — |
+
+Stock auxiliaire (+ carte principale), par région, libre total (plus grand
+morceau) :
+
+| Région | Avant | Après | Gain |
+|---|---:|---:|---:|
+| 1 British Columbia | 382 (211) | 2 860 (2 239) | +2 478 |
+| 2 Sierra Nevada | 1 415 (1 244) | 3 893 (2 239) | +2 478 |
+| 3 **Burma** (pire cas) | **171 (77)** | **2 649 (2 239)** | +2 478 |
+| 4 New Guinea | 943 (772) | 3 421 (2 239) | +2 478 |
+| 5 Bolivia | 195 (77) | 2 673 (2 239) | +2 478 |
+| 6 Chile | 1 643 (1 472) | 4 121 (2 239) | +2 478 |
+
+Morceaux libres avec la Sierra : auxiliaire `$BB24-$BFFF` 1 244,
+`$B3CC-$B416` 75, `$1FF7-$1FFF` 9 ; carte auxiliaire banque 2 `$DF24-$DFFF`
+220, zone commune `$F73B-$FFF9` **2 239** ; carte principale `$DDAE-$DE17`
+106.
+
+Fenêtres d'exécution :
+
+| Fenêtre | Avant | Après |
+|---|---:|---:|
+| SIM `$9600-$B5FF` (`wildsim.bin`) | 8 168 (24 libres) | 7 619 (**573** libres) |
+| SITES (`wildsit.bin`) | 1 902 (146) | 1 653 (**395**) |
+| TOPOGEN | 2 692 | 2 928 (codeur et décodeur de l'instantané) |
+| VOCAB, TRAVEL, STATUS, SCREENS | pleines (1 à 6 libres) | inchangées |
+
+Volume : 30 → 27 blocs libres (tables d'enregistrements de 256 octets,
+paquets plus morcelés). Le disque n'est plus une ressource rare (une image
+800 Ko est permise), il n'a pas été optimisé.
+
+### 12.2 Instantané TOPO compressé (commit `68543db`)
+
+L'instantané brut (§ 8.4, 12 800 octets : banque 1, zone commune
+`$E000-$FFCF`, banque 2 `$DC00-$DE2F`) devient un flux codé ligne par ligne
+(`src/topo_dhgr.s`, `tp_save`/`topo_close`) : chaque ligne de 40 octets
+(rangée y, banque principale puis auxiliaire) est prédite par la ligne de
+la même banque deux rangées plus haut (rangées 0 et 1 : cache 160 et 161,
+que TOPO ne touche pas), déjà restituée quand on la décode. Jetons, jamais à
+cheval sur deux lignes : `c < $80` recopie `c + 1` octets du prédicteur,
+`c ≥ $80` est suivi de `(c & $7F) + 1` littéraux ; une ligne se parcourt de
+l'octet 39 à l'octet 0 (`dey`/`bmi`). Une ligne coûte au plus 60 octets.
+
+| Mesure | Valeur |
+|---|---|
+| Zone | banque 1 `$D000-$DFFF` + commun `$E000-$F0FF` (8 448 octets ; `TP_SNAP_END`, `build_disk.SNAP_END`) |
+| Taille mesurée, 49 vues réelles des six cartes (a2shot, positions et caps tirés) | 2 128 à 6 962 octets, moyenne 4 183 |
+| Vue de départ Sierra (épave) | 6 920 octets |
+| Débordement | le flux s'arrête, `tp_valid` = 0, le retour redessine la vue comme sur une carte native (`test_graphical_topo.py`, vue bruitée) |
+| Ouverture de TOPO | 2,96-3,02 s → 3,12-3,18 s (+0,15 s, codeur) |
+| Retour de TOPO | 0,36 s → 0,48 s (décodeur) |
+
+Libéré : toute la banque 2 auxiliaire (`$DC00-$DE2F` rejoint le stock) et
+`$F100-$FFF9` de la zone commune, soit 4 394 octets de stock. Une carte
+native partage la même zone avec l'atlas (`geo_atlas.ATLAS_END` reste
+`$FFFA`) : si l'atlas dépasse `$F0FF`, `build_disk` repousse le début du
+stock commun pour ce seul disque (`geo['store_start']`) ; l'atlas de test
+« s1985-L10 + 6 tuiles de bruit » (8 108 octets) le pousse à `$F777`.
+
+Options écartées : compresser plus fort (prédicteur « rangée −1 » et
+répétition à −2 octets : −25 % de flux en moyenne, mais décodeur plus lent
+et zone déjà dictée par l'atlas Sierra natif, 6 379 octets jusqu'à
+`$F0B6`) ; supprimer l'instantané (redessin de 1,9 à 6,2 s à chaque retour).
+
+### 12.3 Lignes DHGR déroulées en carte langage principale (commit `8acedbf`)
+
+`drows` (1 601 octets) et ses tables d'entrée `drow_lo`/`drow_hi` (322)
+quittent WILDLO et WILDERNESS pour la banque 2 de la carte principale, en
+`$D400` (segment `DROWS`, `build/wilddrows.bin`, enregistrement `$A2` du
+tronc comme le code des étoiles). `dspan` lit `$C083` deux fois (RAM banque 2,
+lecture et écriture : il plante un RTS dans les lignes), lit les tables,
+passe, rétablit `LDA abs,Y`, puis rend la ROM (`$C082`). `stars_column`, qui
+s'exécute lui-même dans cette banque, appelle `stars_span` (WILDLO) : un
+`jsr scene_span` suivi de `bit $C080`. Les bancs (`stars_test.s`) gardent les
+lignes en RAM principale (pas de `DROWS_LC`). Coût : 12 cycles par span,
++0,5 à 1,1 % de cycles par vue complète (`test_scene_render.py`). Les
+tables d'enregistrements passent de 128 à 256 octets (36 entrées ;
+`src/boot.s`, `build_disk.TABLE_SIZE`) : le paquet Sierra d'un disque natif
+morcelé dépassait 17 enregistrements.
+
+### 12.4 Faune : copies de référence retirées (commit `ec9ea61`)
+
+`fauna_eligible`, `fauna_probability`, `fauna_table`, `fauna_offsets`,
+`fauna_k`, `fauna_threshold` et `fauna_random` (SITES, 249 octets) ne
+servaient qu'aux tests. `tests/test_fauna.py` teste désormais le balayage de
+production : la boucle `idle` porte une sonde (`LDA #12`, `JSR
+overlay_load`, `LDA #phase`, `STA resource_phase`, `JMP
+resource_scan_species`) ; `fauna_env` est posé, l'émulateur s'arrête à
+`resource_eligible`, `resource_next` ou `resource_rolled` (exportés de
+`src/travel.s`, dont les étiquettes locales `@x` sont devenues `rs_x`, même
+code), puis ces adresses reçoivent `JMP idle`. Les 162 fixtures Sierra, les
+fixtures des cinq autres régions et les seuils (`sqrt(niveau) × minutes ×
+1e-5 × taux`) sont vérifiés sur le code qui joue. Le paquet n'écrit plus que
+`fauna_travel` (TRAVEL).
+
+### 12.5 Éphéméride lunaire en carte principale (commit `b96dbe5`)
+
+La table `sky_ephemeris` (549 octets immuables) quitte THERMAL (SIM) pour
+le segment `LCDATA`, à la suite des lignes DHGR (`$DB83`) ; ses deux lectures
+(`lda (gp1),y`) sont encadrées par `bit $C080` / `bit $C082` (les appels
+flottants qui suivent ont besoin de la ROM). SIM : 24 → 573 octets libres
+dans sa fenêtre ; le stock perd 6 octets net (−555 en carte principale, −549
+d'image SIM). `test_sky`, `test_moonlight` et `test_reference_state`
+inchangés.
+
+### 12.6 Pistes mesurées et non retenues
+
+| Piste | Mesure | Décision |
+|---|---|---|
+| Ne plus recopier SIM à chaque activation | après WALK, EAT, REST, WAIT, l'image diffère de la vierge en 35 octets sous `$B000` (`$AA32-$AA54`, état de SIM) et dans `$B000-$B5FF`, que la grille du menu écrase à chaque invite | Écartée : il faudrait recopier au moins `$AA00-$B5FF` et prouver sur tous les chemins qu'aucun autre octet ne change ; gain ≈ 0,45 s par WALK 1 H (≈ 5 %), au seuil |
+| Images LZ dans le stock, décodées au chargement | gain 20 à 25 % sur le code des modules (7,5 Ko au total dont 2,7 Ko pour SIM) ; décodage 46 cycles/octet contre 17 en copie | Écartée pour SIM et les modules chargés à chaque commande ; possible pour TOPOGEN, STATUS, SCREENS, MVI (≈ 1,5 Ko) avec un décodeur résident en place |
+| Vocabulaire en 5 bits par lettre (VOCAB) | ≈ 1 500 octets de mots → −400 octets environ | Non fait : réécriture de `lookup` et du parseur ; à faire quand VOCAB doit grandir |
+| Page `SAVE` (`$BE00`, page zéro de ProDOS) en RAM auxiliaire | +256 octets contigus | Non fait : la restauration au QUIT/RESET devrait lire la RAM auxiliaire depuis la pile ; risque sur `test_prodos.py` pour 256 octets |
+| Trous d'écran des rangées 0-175 | 512 octets par banque en morceaux de 8 | Déjà utilisés par des temporaires de la simulation (`hgr_rows` des tests les ignore) |
+| Chargeur `NEOWILD.SYSTEM` | rien de résident après `start` (fenêtre SIM, `$A2-$AF` de page zéro) | Rien à gagner |
+| Disquette 800 Ko | permettrait des enregistrements bruts (lecture plus rapide), six atlas de géographie fine | Non engagée : aucun gain de RAM |
+
+### 12.7 Contraintes à respecter
+
+- La carte principale banque 2 `$D400-$DE17` contient du **code exécuté**
+  (`drows`) et une table lue par SIM : tout appelant qui y laisse la RAM
+  sélectionnée doit savoir que `dspan` rend la ROM (passer par un relais
+  comme `stars_span`) ; personne n'appelle la ROM pendant que `$C080`/`$C083`
+  est actif ; ProDOS 8 2.4.3 ne touche pas cette zone (§ 9.7), à vérifier
+  sur d'autres versions.
+- La zone `$D000-$F0FF` de la carte auxiliaire est réservée à l'instantané
+  (carte héritée) ou à l'atlas (carte native) ; le stock commence à
+  `$F100` (ou après l'atlas). `$FFFA-$FFFF` reste intouché.
+- `tp_save`/`topo_close` utilisent la page zéro auxiliaire (`dx`, `dy`,
+  `hp`) sous `ALTZP` ; le flux peut manquer de place : le chemin de redessin
+  doit rester valide.
+- Une table d'enregistrements fait 256 octets ; le chargeur la lit en
+  `$B500-$B5FF`.
+
+### 12.8 Ce qui reste possible
+
+- Carte principale banque 2 : 106 octets ; WILDLO 1 718 et WILDERNESS 318
+  octets résidents libres, pour du code ou pour décharger une fenêtre pleine
+  (VOCAB, TRAVEL, STATUS, SCREENS à 0-6 octets) en y déplaçant une table.
+- D'autres feuilles exécutables en carte principale (comme `drows`) si la
+  RAM principale manque de nouveau : `clear_rows`, `scroll`, `dhgr_pack`,
+  `hud_draw` (≈ 0,8 Ko), avec le même protocole de banque.
+- Modules rarement chargés compressés dans le stock (≈ 1,5 Ko), vocabulaire
+  compacté (≈ 0,4 Ko de VOCAB), page `SAVE` en auxiliaire (256 octets).
