@@ -533,7 +533,7 @@ w_0_1:      .byte $7D,$4C,$CC,$CC,$CD  ; .1 ($5EBD)
 water_here:
         lda     MAP+37
         beq     @legacy
-        jsr     native_here
+        jsr     camp_cell
         asl     a
         bcc     @rts
         inc     camp_untreated

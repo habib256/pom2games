@@ -183,6 +183,11 @@ camp_begin:
 camp_sim:
         lda     #3
         jmp     overlay_load
+; camp_cell -- native_here (in SIM: the star module may hold the window at
+; night): A = the player's cell, N = water.
+camp_cell:
+        jsr     camp_sim
+        jmp     native_here
 
 ; Helpers shared with the later lots (crafting, foraging use the same
 ; ground class, storm test and effort of an action).
@@ -200,7 +205,7 @@ camp_storm:
 ; camp_class -- A = the original ground class $4B56 of the player's cell:
 ; 3 water, 1 woods, 2 rocky (bare, level 96 and above, as STATUS), 0 clear.
 camp_class:
-        jsr     native_here
+        jsr     camp_cell
         bpl     :+
         lda     #3
         rts
@@ -339,7 +344,7 @@ use_checks:
         beq     :+
         lda     #M_M77
         jmp     camp_say
-:       jsr     native_here
+:       jsr     camp_cell
         bpl     :+
         pla
         pla
