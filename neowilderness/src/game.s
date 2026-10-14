@@ -1619,21 +1619,9 @@ module_drink_water:
         jsr     get_quantity
         bcc     :+
         rts
-:       ; T0F/S00 $5C26: more than .2 x body weight at once is refused.
-        lda     body_weight+1
-        ldy     body_weight
-        jsr     GIVAYF
-        fop     FMULT, f_0_2
-        fst     t1
-        lda     msgnum+1
-        ldy     msgnum
-        jsr     GIVAYF
-        fop     FCOMP, t1
-        cmp     #1
-        bne     :+
-        lda     #<m_ridiculous
-        ldx     #>m_ridiculous
-        jmp     message
+:       jsr     drink_limit     ; resident (src/camp.s)
+        bcc     :+
+        rts
 :       ldx     #N_WATER
         lda     water_untreated
         ldy     it_place+N_WATER

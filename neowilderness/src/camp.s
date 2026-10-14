@@ -258,7 +258,30 @@ c_0_02: .byte $7B,$23,$D7,$0A,$3E      ; T11/S00 $5E2E
 c_0_01: .byte $7A,$23,$D7,$0A,$3E      ; T0F/S00 $5EB8
 
 
-.segment "THERMAL"
+; SIM must end below $B500 (the loader's record table, read again at the end
+; of a game): the light and the limit of a drink live in the resident CODE.
+.segment "CODE"
+; drink_limit -- T0F/S00 $5C26: more than .2 x body weight at once is refused
+; ("DON'T BE RIDICULOUS!", msg 87). C set: refused.
+drink_limit:
+        lda     body_weight+1
+        ldy     body_weight
+        jsr     GIVAYF
+        fop     FMULT, f_0_2
+        fst     t1
+        lda     msgnum+1
+        ldy     msgnum
+        jsr     GIVAYF
+        fop     FCOMP, t1
+        cmp     #1
+        clc
+        bne     :+
+        lda     #<m_ridiculous
+        ldx     #>m_ridiculous
+        jsr     message
+        sec
+:       rts
+m_ridiculous: .byte "DON'T BE RIDICULOUS",$A1,0   ; msg 87, T0F/S00 $5C4B
 ; camp_light -- $0D5D at the health step (T0D/S07 $5BB7): 1 by day (AM, PM),
 ; at dawn and dusk under a clear sky, else only with MATCHES or FLASHLIGHT
 ; in use. A fire gives light only through USE FIRE, until this step.
