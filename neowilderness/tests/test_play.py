@@ -15,6 +15,7 @@ CARD = {'LOOK N\\r': 0, 'LOOK E\\r': 140, 'LOOK S\\r': 280, 'LOOK W\\r': 420}
 
 
 MAG = int.from_bytes(MAP[24:25], 'little', signed=True)
+CARD_LABELS = {key.replace('\\r', '') for key in CARD}
 CARD = {key: (heading + round(MAG*560/360)) % 560 for key, heading in CARD.items()}
 
 
@@ -44,7 +45,8 @@ def main():
     count = int(sys.argv[2]) if len(sys.argv) > 2 else 30
     rnd = random.Random(seed)
     st = (MAP[2] | MAP[3] << 8, MAP[4] | MAP[5] << 8, MAP[6] | MAP[7] << 8)
-    steps, expect, walked = [L.until('game_start', 4000), L.poke('forest_enabled', 0), L.poke('sky_enabled', 0), L.poke('scenes_enabled', 0), L.until('idle', 4000)], [], 0
+    steps, expect, walked = [L.until('game_start', 4000), L.poke('forest_enabled', 0), L.poke('sky_enabled', 0), L.poke('scenes_enabled', 0), L.until('idle', 4000),
+                             'key:USE COMPASS\\r', 'wait:1', L.until('idle', 6000)], [], 0   # lot 7: aid in use
     for _ in range(count):
         r = rnd.random()
         if r < 0.45 and walked < 8:
@@ -73,6 +75,16 @@ def main():
         mood = mood_name(r.dumps[4 * i + 1])
         total=int.from_bytes(r.dumps[4*i+3],'little')
         base=(previous[0],previous[1],want[2])
+        if label in CARD_LABELS:
+            # The original compass errs by up to 2 degrees: take the game's
+            # bearing when it is that close, and continue from it.
+            error=(got[2]-want[2])%560
+            if min(error,560-error)<=4:
+                base=(previous[0],previous[1],got[2])
+        elif not label.startswith('WALK'):
+            base=(previous[0],previous[1],(previous[2]+TURNS[label if label in TURNS else label+'\\r'])%560)
+        else:
+            base=(previous[0],previous[1],previous[2])
         if label.startswith('WALK'):
             want=walk(base,total-completed)
         else:

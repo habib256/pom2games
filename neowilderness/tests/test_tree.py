@@ -80,7 +80,8 @@ def main():
     # Exercise real travel: the pack is not carried or teleported to the next cell.
     steps=cmd('NATURE 0')+snap()+cmd('HANG FOOD')+snap()
     steps+=cmd('WALK 9 MIN')*2+snap()+cmd('GET BACKPACK')+snap()
-    steps+=cmd('LOOK W')+cmd('WALK 9 MIN')*2+cmd('LOWER FOOD')+snap()
+    # Back west: the compass hangs in the pack (lot 7: LOOK W needs it in use), LOOK B turns 180.
+    steps+=cmd('LOOK B')+cmd('WALK 9 MIN')*2+cmd('LOWER FOOD')+snap()
     r=run(steps);d=[data(r,i) for i in range(5)]
     assert d[2]['pos'][1]==21 and d[2]['it_x'][21]==20
     assert d[3]['it_place']==d[2]['it_place'] and d[3]['time']==d[2]['time']

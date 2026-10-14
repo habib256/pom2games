@@ -7,6 +7,30 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Neowilderness : orientation (lot 7 de fidélité)
+
+- Règles de T$0F/S$0F, T$10/S$0C et T$11/S$00 sondées sur la ROM
+  (`tools/re_orientation_probe.py` : 22 portées, 14 exécutions du module,
+  trois parties tapées) et portées (`src/orient.s`,
+  [ORIENTATION.md](docs/ORIENTATION.md)) : aide en usage pour LOOK
+  N/E/S/W/AZ (msg 42 ; aucune au départ, CARRY n'est pas USE), boussole
+  (msg 44), montre (msg 189, 13 ou 201, estimation), bâton (msg 29, 48,
+  durée passée), LOOK SUN (msg 41 ; visibilité ≥ 139, ≥ 163 à l'aube et au
+  crépuscule), LOOK STARS (msg 52 hors nuit claire ; pôle ±33°, sud si la
+  latitude est négative), LOOK COMPASS (msg 256), LOOK WATCH/ALTIMETER,
+  INSIDE SHELTER, PAN + direction (msg 2), USE MAP/COMPASS/WATCH/
+  ALTIMETER/CHART/SHADOW, exclusion boussole/montre, lumière (msg 53),
+  montre et bâton rangés par le temps.
+- Menu : LOOK SUN et LOOK STARS, USE liste aussi MAP…CHART.
+- Tests : `tests/test_orientation.py` ; USE COMPASS ajouté aux scripts qui
+  tapent LOOK N/E/S/W (`test_compass`, `test_hud`, `test_pan`,
+  `test_sites`, `test_play`) avec l'erreur ±2° de la
+  boussole originale ; LOOK B dans `test_tree` ; carte « patchy » de
+  `test_geo_resident` à deux tuiles brutes (le volume 140 Ko est plein
+  pour une carte native de niveau 10).
+- Mémoire : WILDLO 1 718 → 276 octets libres, TREE 916 → 1 926, stock
+  auxiliaire −1 023 octets par région, disque 261 → 265 blocs.
+
 ### Neowilderness : MAP plein écran 80 × 24
 
 - MAP, et la carte animée de WALK/SWIM, occupent tout l'écran texte

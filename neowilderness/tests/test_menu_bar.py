@@ -208,9 +208,9 @@ def contexts(disk):
         assert selected(s) is None and result_rows(screen(s))[3].startswith('> L'), 'a letter types'
         press(s, ESC)
         assert result_rows(screen(s))[3].startswith('FOOD ')
-        # A verb with nothing to name is not offered: no medicine, no USE;
-        # no water at hand, no DRINK.
-        for item in range(41, 52):
+        # A verb with nothing to name is not offered: no medicine and no
+        # instrument (lot 7: USE MAP...CHART), no USE; no water at hand, no DRINK.
+        for item in range(41, 57):
             s.step(L.poke('it_place', 255, item))
         s.step(L.poke('it_pack_lo', 0, 22))       # the canteen and the crash
         s.step(L.poke('it_gnd_lo', 0, 22))        # site's water pile both empty

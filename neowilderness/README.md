@@ -77,6 +77,19 @@ le premier front et le vent, et annonce le terrain et la difficulté
 (`NEOWILD.PRE`, lu seulement pour ces voyages). RETURN, RETURN garde le
 premier voyage figé de l'original.
 
+Lot 7 de fidélité, orientation ([ORIENTATION.md](docs/ORIENTATION.md)) :
+LOOK N/E/S/W et LOOK AZ exigent, comme l'original, une aide en usage
+(« FIRST PUT DIRECTION AID IN USE. » sinon ; au départ, aucune) :
+`USE COMPASS` (cap magnétique), `USE WATCH` (estimation par la montre et le
+soleil, Y/N puis un azimut) ou `USE SHADOW` (bâton par jour clair : E/W
+puis la durée d'observation, qui passe). La boussole et la montre
+s'excluent ; le temps qui passe range la montre et le bâton. `LOOK SUN`
+tourne la vue vers le soleil, `LOOK STARS` vers le pôle céleste (sud au
+sud de l'équateur) par nuit claire, `LOOK COMPASS` donne le cap
+magnétique, `LOOK WATCH`/`ALTIMETER` renvoient à STATUS, `USE MAP` (ou
+`LOOK MAP`) ouvre la carte TOPO. Sans lumière, montre, carte et altimètre
+refusent (« INSUFFICIENT LIGHT »).
+
 Le [TODO](TODO.md) organise le travail restant en cinq directions, fidélité à l’original et image en priorité, avec leurs critères de fin.
 Le [README HGR hérité](README_HGR.md), le [backlog hérité](TODO_HGR.md)
 et le [changelog](CHANGELOG.md) documentent le point de départ ; leurs

@@ -609,6 +609,8 @@ aux chemins non joués par le script.
 - Test : LOOK STARS de jour → msg 52 ; de nuit claire en Bolivia → cap
   180 ; LOOK N sans boussole → msg 42 ; USE SHADOW puis LOOK N : sonde ROM
   de la durée et du cap.
+- **Fait (lot 7)** : [ORIENTATION.md](ORIENTATION.md) (sondes, écarts
+  conservés : hauteur de vue, saisie décimale, lampes).
 
 **O2. USE MAP, outils de mesure, cap annoncé.**
 - Original : USE MAP ouvre la carte (T$11/S$00 `$5BF9`, `$0D5B` = 4) ;
@@ -620,6 +622,9 @@ aux chemins non joués par le script.
 - Taille : ≈ 150 octets. Référence : correction de fidélité de STATUS
   (le script l'affiche : variables d'écran seulement, hors état comparé
   à vérifier).
+- **Fait (lot 7)** : USE MAP ouvre TOPO, instruments en main, exclusion
+  boussole/montre ; l'altitude LOW/MEDIUM/HIGH était déjà portée (règle
+  vérifiée sur la ROM) ; [ORIENTATION.md](ORIENTATION.md).
 
 ### 2.8 Blessures, maladies et soins
 

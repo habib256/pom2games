@@ -1131,13 +1131,13 @@ verb_table:
 list_lo: .byte  <list_dur, <list_look, <list_climb, <list_qty
 list_hi: .byte  >list_dur, >list_look, >list_climb, >list_qty
 list_dur:   .byte "10 MIN",0,"20 MIN",0,"30 MIN",0,"1 H",0,"2 H",0,"4 H",0,"8 H",0,0
-list_look:  .byte "LEFT",0,"RIGHT",0,"BACK",0,"AHEAD",0,"NORTH",0,"EAST",0,"SOUTH",0,"WEST",0,0
+list_look:  .byte "LEFT",0,"RIGHT",0,"BACK",0,"AHEAD",0,"NORTH",0,"EAST",0,"SOUTH",0,"WEST",0,"SUN",0,"STARS",0,0
 list_climb: .byte "TREE",0,"DOWN",0,0
 list_qty:   .byte "2 OZ",0,"4 OZ",0,"8 OZ",0,"12 OZ",0,"16 OZ",0,"24 OZ",0,"32 OZ",0,"48 OZ",0,0
 ; Item filters: first item, last + 1, the groups the verb already targets
 ; (GET, TAKE, WEAR, DROP, EAT, USE, DRINK: the water alone).
 filt_lo: .byte  1, 1, 1, 1, 23, 41, N_WATER
-filt_hi: .byte  76, 76, 21, 76, 52, 52, N_WATER+1
+filt_hi: .byte  76, 76, 21, 76, 52, 57, N_WATER+1   ; USE: 41-56 (lot 7: MAP...CHART)
 filt_ex: .byte  G_PACK, G_HAND, G_WORN, G_GROUND|G_HUNG, G_HUNG, 0, G_HUNG
 str_empty:   .byte 0
 str_status:  .byte "STATUS", 0

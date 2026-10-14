@@ -95,6 +95,7 @@ def distant_pans(m, label, x, y, full=False, multiple=False):
     # A direct bearing matching the old cached heading must not reuse stale
     # sprite geometry after a pan (LOOK F uses the same prepare path).
     steps += ['press:\\>', L.until('idle', 20000),
+              'key:USE COMPASS\\r', 'wait:1', L.until('idle', 20000),   # lot 7: aid in use
               'key:LOOK N\\r', 'wait:1', L.until('idle', 20000),
               'peek:2000:8192', L.peek('heading', 2), L.peek('sky_mood')]
     with tempfile.TemporaryDirectory() as tmp:
