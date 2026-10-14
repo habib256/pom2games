@@ -28,6 +28,7 @@ def main():
             previous = int.from_bytes(s.step(L.peek('overlay_reads', 2)).data, 'little')
             first_load = previous
             transfers = int.from_bytes(s.step(L.peek('xfer_count', 2)).data, 'little')
+            fetched_texts = int.from_bytes(s.step(L.peek('xfer_texts', 2)).data, 'little')
             calls = s.step(L.peek('mli_calls', 2)).data
             s.step('key:4\r')
             s.step('wait:1')
@@ -44,11 +45,12 @@ def main():
                 reads = int.from_bytes(s.step(L.peek('overlay_reads', 2)).data, 'little')
                 # Module loads (RAM copies): TRAVEL replaces MAP for each
                 # step. The first step also prepares the raster and loads
-                # SIM. A health update loads MEDICAL and restores the
+                # SIM. A health update loads MEDICAL, then the health alerts
+                # module (lot 13, ID 27, docs/MEMORY.md 13), and restores the
                 # environment/travel modules.
                 medical_read = int(bool(s.step(L.peek('health_due')).data[0]))
                 assert medical_read == int(step in (2, 13, 23))
-                expected = 1 + 2 * int(step == 1) + 4 * medical_read
+                expected = 1 + 2 * int(step == 1) + 5 * medical_read
                 assert reads - previous == expected, (step, previous, reads, expected)
                 previous = reads
                 assert s.step(L.peek('stepmin')).data == bytes((duration,))
@@ -105,7 +107,9 @@ def main():
             # Every load was a RAM transfer, never an MLI call.
             loads = int.from_bytes(s.step(L.peek('overlay_reads', 2)).data, 'little') - first_load
             copies = int.from_bytes(s.step(L.peek('xfer_count', 2)).data, 'little') - transfers
-            assert loads == copies, (loads, copies)
+            # The text bank's fetches (docs/MEMORY.md 13) are counted apart.
+            texts = int.from_bytes(s.step(L.peek('xfer_texts', 2)).data, 'little') - fetched_texts
+            assert loads == copies - texts, (loads, copies, texts)
             assert s.step(L.peek('mli_calls', 2)).data == calls, 'WALK called the MLI'
             # The game stays at the command prompt without loading more modules.
             before = s.step(L.peek('overlay_reads', 2)).data

@@ -60,7 +60,7 @@ IDLE = L.until('idle', LIMIT)
 READY = f'until:{L["idle"]:04X},{L["wait_key"]:04X}:{LIMIT}'
 SWITCHES = 'peek:C011:15'   # LCBNK2 LCRAM RAMRD RAMWRT CXROM ALTZP C3ROM 80STORE VBL TEXT MIXED PAGE2 HIRES ALTCHAR 80COL
 COUNTERS = (('mli_calls', 2), ('mli_reads', 2), ('mli_bytes', 3), ('xfer_count', 2),
-            ('xfer_bytes', 3), ('overlay_reads', 2))
+            ('xfer_bytes', 3), ('overlay_reads', 2), ('xfer_texts', 2))
 NATIVE = 'geo_decodes' in L     # resident fine geography (src/geoaux.s)
 if NATIVE:
     COUNTERS += (('geo_queries', 3), ('geo_decodes', 2))
@@ -238,7 +238,9 @@ def play(disk, title, strict=True):
     # Every module load is a RAM copy; the star module also copies the head
     # of its catalogue (directory entry 24) by a direct mem_fetch, not counted
     # as a module load: at most one per command (night hours outside).
-    assert all(d['mli_calls'] == 0 and 0 <= d['xfer_count'] - d['overlay_reads'] <= 1
+    # The text bank's fetches (two per message, docs/MEMORY.md 13) are
+    # transfers too, counted apart in xfer_texts.
+    assert all(d['mli_calls'] == 0 and 0 <= d['xfer_count'] - d['xfer_texts'] - d['overlay_reads'] <= 1
                for _, d, *_ in rows), [(c, d) for c, d, *_ in rows]
     assert 0 < total['overlay_reads'] <= total['xfer_count']
     assert len(stacks) == 1, ('stack pointer at do_command varies', stacks)

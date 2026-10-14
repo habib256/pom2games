@@ -77,6 +77,7 @@ mli_reads:  .res 2              ; MLI READ/READ_BLOCK calls
 mli_bytes:  .res 3              ; bytes returned by READ (512 per READ_BLOCK)
 xfer_count: .res 2              ; aux -> main module copies
 xfer_bytes: .res 3              ; bytes copied by those copies
+xfer_texts: .res 2              ; of which text_fetch's (the text bank)
 mem_ready:  .res 1              ; 1 once the loader handed over to the game
 ; State captured by NEOWILD.SYSTEM at entry, restored at exit.
 saved_reset: .res 3
@@ -92,7 +93,7 @@ mf_lz:      .res 1              ; bit 7: the entry is an LZ image
 journey_kind: .res 1            ; 0 scenario, 1 free journey (written by the
                                 ; loader; read by NEOWILD.END). Not MAP+33: the
                                 ; wild food scan reuses MAP+28..MAP+33 (TRAVEL)
-.export mli_calls, mli_reads, mli_bytes, xfer_count, xfer_bytes, mem_ready
+.export mli_calls, mli_reads, mli_bytes, xfer_count, xfer_bytes, mem_ready, xfer_texts
 .export journey_kind
 .export saved_reset, saved_bitmap, geo_path, geo_decodes, geo_queries
 
@@ -586,7 +587,10 @@ tf_copy:                        ; A/X = offset in the bank, Y = length
         adc     module_dir+TB_DIR*DIR_SIZE+2
         sta     module_dir+TB_FETCH*DIR_SIZE+2
         sty     module_dir+TB_FETCH*DIR_SIZE+3
-        ldx     #TB_FETCH
+        inc     xfer_texts      ; counted apart from the module loads
+        bne     :+
+        inc     xfer_texts+1
+:       ldx     #TB_FETCH
         jmp     mem_fetch
 tf_idx:  .res 4
 tf_len:  .res 1

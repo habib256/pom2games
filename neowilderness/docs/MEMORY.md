@@ -973,3 +973,223 @@ inchangés.
   `hud_draw` (≈ 0,8 Ko), avec le même protocole de banque.
 - Modules rarement chargés compressés dans le stock (≈ 1,5 Ko), vocabulaire
   compacté (≈ 0,4 Ko de VOCAB), page `SAVE` en auxiliaire (256 octets).
+
+## 13. Intégration des lots 2, 7, 9, 13 et LOOK : deuxième récupération (14 octobre 2026)
+
+Point de départ : `main` à `f0d4a33` (§ 12), puis les branches du lot 7
+(orientation), du lot 13 (soins, alertes, maladies) et du lot 2 (feu,
+lumière, eau), enfin `main` avec le lot 9 (SAVE/RESTORE), LOOK UP/DOWN et la
+MAP différentielle. Les trois lots de fidélité avaient chacun rendu
+résidents environ 1 Ko de textes originaux pour la même raison (le stock
+auxiliaire débordait sur le disque de stress « atlas natif bruité » de
+`test_geo_resident.py`) ; ensemble, ils dépassaient WILDLO de 1 301 octets
+(lots 7 + 13) puis de près de 3 Ko avec le lot 2. Les mesures viennent de
+`build/wild.map` (script de zones), `make inspect` et
+`tools/profile_actions.py` sur l'émulateur.
+
+### 13.1 Bilan par zone
+
+RAM principale résidente, octets libres :
+
+| Zone | `f0d4a33` (§ 12) | `main` 41d5dce (lots 9 + LOOK) | lots 7 + 13 bruts | après (tout intégré) |
+|---|---:|---:|---:|---:|
+| TEXT `$0A00-$0FFF` | 54 | 61 | 73 | **11** (décodeur LZ, `orient_ask`, crochets SIM du lot 13) |
+| WILDLO `$1000-$1FFF` | 1 718 | 1 110 | **−1 301** | **274** |
+| WILDGAME `$4000-$577F` | 6 | 1 | 15 | **128** |
+| WILDERNESS `$6000-$6FFF` | 318 | 305 | 94 | **40** (piles d'eau du lot 2) |
+| RESIDENT `$B600-$B9FF` | 159 | 158 | 158 | **81** (3 entrées de répertoire, variables de bande de la MAP, `xfer_texts`) |
+| MENUCODE `$BA00-$BDFF` | 182 | 182 | 182 | **36** (lot 2, filtres d'objets) |
+| HICODE `$BE00-$BEFF` (nouveau) | — | — | — | **34** (`text_fetch`) |
+| MENUSWAP (grille) | 62 | 54 | 52 | **20** |
+| SIM sous `$B500` | 266 | 266 | 266 | **177** (fin `$B44F`) |
+
+Stock auxiliaire, libre total (plus grand morceau du placement retenu) :
+
+| Région | `f0d4a33` | lots 7 + 13 bruts | après |
+|---|---:|---:|---:|
+| 1 British Columbia | 3 070 (2 494) | 882 (255) | 1 656 (709) |
+| 2 Sierra Nevada | 4 103 (2 494) | 1 915 (1 244) | 2 281 (1 334) |
+| 3 **Burma** | 2 938 (2 494) | 671 (255) | **1 349 (429)** |
+| 4 New Guinea | 3 631 (2 494) | 1 443 (772) | 1 875 (928) |
+| 5 **Bolivia** (pire cas) | 2 883 (2 494) | 695 (255) | **947 (429)** |
+| 6 Chile | 4 331 (2 494) | 2 143 (1 472) | 2 414 (1 467) |
+
+« Plus grand morceau » est celui du placement glouton : un nouveau module
+du tronc est replacé par la recherche en profondeur de `place()`, qui
+regroupe les trous ; la vraie limite est le total du tronc. Mesuré
+(`build_disk` avec un module factice incompressible) : 700 octets entrent,
+900 non. La zone des sprites est dimensionnée par Bolivia (2 847 octets
+compressés, le jaguar ne se compresse pas) : c'est Bolivia, pas Burma, qui
+borne le stock.
+
+Disque (140 Ko, 280 blocs) :
+
+| Fichier | `main` 41d5dce | après |
+|---|---:|---:|
+| PRODOS | 35 | 35 |
+| NEOWILD.SYSTEM | 10 | 9 (chargeur LZ) |
+| NEOWILD.DAT (tronc) | 107 | 210 (tronc + six paquets + préparation) |
+| NEOWILD.R1-R6 | 96 | — |
+| NEOWILD.PRE | 8 | — |
+| NEOWILD.END / .HOF | 7 / 1 | 7 / 1 |
+| NEOWILD.SAV | 4 | 4 |
+| parties sauvegardées | 3 × 4 | **1 × 4** |
+| volume | 278/280 | 277/280 |
+
+Sans partie sauvegardée, le volume passe de 266 (`main`) à 273 blocs : les
+trois lots ajoutent environ 22 blocs, les gains de rangement (fichier
+unique, chargeur compressé) en reprennent 15. Selon la règle convenue, les
+parties sauvegardées sont sacrifiées les premières : il en reste une sur
+l'image de 140 Ko ; `make disk800` (1 600 blocs) les garde toutes les cinq.
+
+### 13.2 Ce qui a été fait (un commit par piste)
+
+1. **Code mort du lot 7** (`9699b76`) : `@card`/`@az` de
+   `module_tree_look`, `do_look_az` (WILDGAME 9), `module_look_az` et son
+   invite (INPUT 123), le bloc USE COMPASS de `care.s` (WILDMVI 27) :
+   `orient_look`/`orient_use` les prennent avant.
+2. **Modules ORIENT (26) et ALERT (27)** (`a9a88f1`) : la logique de LOOK
+   d'orientation, ses dialogues, l'azimut du Soleil et l'erreur du bâton
+   (avec SIM chargé) quittent WILDLO pour ORIENT ; USE MAP…CHART/SHADOW,
+   LOOK MAP/CHART restent dans TREE. Les règles d'alerte du lot 13 et leurs
+   pourcentages tournent dans ALERT, chargé après la mise à jour de santé
+   (qui vient de mettre MED dans la fenêtre : le prochain MED est un
+   rechargement, 35 000 cycles) et après une commande qui a mis une alerte
+   en file. Résident : l'état (`care_state`), le sommeil forcé, les ponts
+   de soins.
+3. **Images LZ dans le stock** (`a9a88f1`, `29306ce`, `555941a`) :
+   `mem_fetch` décode en place les entrées dont l'octet de banque a le
+   bit 7 (`lz_unpack`, page zéro `$50-$55` empruntée et rendue, 56 cycles
+   par octet au pire contre 17 pour une copie). La copie se termine au plus
+   31 octets après l'image (la marge, bits 2-6) ; `lz_guard` met ces octets
+   de côté avant la copie et `lz_back` les rend : rien ne change hors de
+   l'image, une fenêtre pleine (SCREENS, STATUS) aussi. Compressés :
+   TOPOGEN, SCREENS, CAMP, épave, cabane, ITEMS, STATUS, MEDVIEW, TREE,
+   ORIENT, ALERT et les animaux des paquets (un sprite au plus est décodé
+   par vue). Écartés : MED (rechargé à chaque mise à jour de santé) et
+   ADVENTURE (appelé par `mul60`, les pas thermiques, la météo) : +4 à
+   +7 % sur REST et SLEEP mesurés ; SIM, VOCAB, TRAVEL, SITES, PROJECT,
+   SUMMARY (à chaque commande ou à chaque vue).
+4. **Instantané TOPO** : zone `$D000-$EBFF` (`TP_SNAP_END = $EC00`, était
+   `$F100`) : 7 108 octets de flux au plus, contre 6 962 mesurés au pire
+   sur 49 vues ; au-delà, le retour redessine la vue (comme une carte
+   native). +1 280 octets de stock.
+5. **Un seul fichier de données et un chargeur compressé** (`29306ce`) :
+   les six paquets et la préparation suivent le tronc dans `NEOWILD.DAT` ;
+   le chargeur ouvre le fichier et se place à la marque de la partie
+   (`ld_open`, `ld_marks` écrites par `build_disk.py` dans
+   NEOWILD.SYSTEM). Le chargeur est compressé LZ ; le talon le décode dans
+   la fenêtre SIM puis remet sa page zéro dans l'état de ProDOS.
+   −8 blocs pour les paquets, −2 pour NEOWILD.SYSTEM.
+6. **Banque de textes** (`555941a`, `5b0b344`) : `src/textbank.txt`,
+   compilé par `tools/gentextbank.py` en `build/textbank.inc` (entrée 28 du
+   répertoire, segments TBINDEX/TEXTBANK à `$0000`). 150 textes imprimés
+   par `message` (5 836 octets) : `messages.inc`, lot 2 (camp, eau), lot 13
+   (soins, alertes), lot 7 (LOOK, dialogues), TREE, SITES, INPUT, ITEMS,
+   MEDVIEW, OUTDOOR. Le « pointeur » d'un texte de la banque est son numéro
+   (octet fort 0) : `lda #<m_ok / ldx #>m_ok / jsr message` ne change pas ;
+   `message` voit X = 0 et appelle `text_fetch`, qui copie le texte dans
+   `tb_buf` par deux `mem_fetch` (entrée de travail 29 : la paire d'index,
+   puis les octets, alignés en fin de tampon) et le développe : un octet
+   `$80 + k` (sauf `$A1`, littéral des textes originaux) est le mot k d'un
+   dictionnaire de 105 mots choisis glouton­nement (3 372 + 286 octets au
+   lieu de 5 836) ; « @ » et son opérande restent littéraux ; la sortie ne
+   rattrape jamais l'entrée (un mot est plus long que son jeton). Textes
+   identiques une seule fois (messages 1, 2, 11, 53 de l'original partagés
+   par les lots 2, 7, 13). Coût : environ 3 000 cycles par message.
+7. **SIM sous `$B500`** : les crochets SIM du lot 13 (`alert_drink`,
+   `alert_rest`, `hz_diseases`, constantes) passent dans TEXT, les piles
+   d'eau du lot 2 dans CODE : SIM finit à `$B44F`.
+8. **Page `$BE00`** (`5b0b344`) : la page zéro de ProDOS est copiée par le
+   chargeur, en fin de chargement, en auxiliaire `$BF00-$BFFF` (hors du
+   stock : `REGIONS` s'arrête à `$BF00`) ; `$BE00` reçoit HICODE
+   (`text_fetch`, lu avec le tronc en `$A900`). `prodos_restore` commence
+   par rapatrier la page (entrée 30 du répertoire) avant de reconstruire
+   /RAM, puis la restaure comme avant ; `test_prodos.py` vérifie les 256
+   octets. +256 octets résidents, −256 de stock.
+9. **SAVE/RESTORE** : la partie disque de `do_save` (bitmap, chemin,
+   lecture de NEOWILD.SAV) passe dans INPUT (`module_save_load`, comme
+   `module_end`) ; `camp_state` et `care_state` rejoignent `sv_ranges` et
+   `SV_STATE` (1 487 octets par partie, toujours 4 blocs).
+10. **Répartition** : `orient_ask` en TEXT, `al_sleep` en GCODE, les
+    filtres d'objets du menu en MENUCODE, pour que WILDLO garde de la marge.
+11. **Compteurs et tests** : les copies de `text_fetch` sont des transferts
+    (`xfer_count`), comptés à part dans `xfer_texts` ; `test_walk`,
+    `test_journey_resident`, `test_screen_returns` comparent les chargements
+    de modules aux transferts hors textes ; `test_sleep`/`test_walk`/
+    `test_overlays` comptent ALERT après chaque mise à jour de santé ;
+    `tests/common.text_id` donne le numéro d'un texte de la banque. Une
+    alerte n'est plus affichée sous le message de mort ou d'arrivée
+    (`alerts_after` : la fin de partie parle seule ; `test_sim`).
+    `src/stars_test.cfg` reçoit RESBSS (variables de bande de la MAP).
+
+### 13.3 Coût résident par lot (avant / après la banque de textes)
+
+| Lot | Livré (résident) | Après | Où sont passés les octets |
+|---|---|---|---|
+| 7 (orientation) | WILDLO +1 442 | ≈ 200 (portes `orient_look/take/use` en WILDLO, `orient_ask` en TEXT, 5 en GDATA) | ORIENT (26, LZ), TREE, banque |
+| 13 (soins) | WILDLO +1 577, WILDERNESS +224, SIM +308 | ≈ 450 en WILDLO/GCODE (état 57, sommeil forcé, ponts, `alerts_after`), ≈ 300 en TEXT (crochets SIM), SIM 0 | ALERT (27, LZ), banque, OUTDOOR (`alerts_day`) |
+| 2 (feu, lumière, eau) | WILDLO +1 648, WILDERNESS +206, SIM +255 | ≈ 600 en WILDLO (état, `camp_say/done/walk/verb`, `water_here`), ≈ 170 en CODE (piles d'eau) | banque (28 textes, 1 047 octets), CAMP (4, LZ) |
+| 9 (SAVE) | WILDLO +237 | ≈ 80 | INPUT (`module_save_load`), banque |
+
+### 13.4 Temps (cycles émulés, Sierra au départ)
+
+| Action | `main` 41d5dce | après | Écart |
+|---|---:|---:|---:|
+| VIEW (vue complète) | 6,013 s | 6,024 s | +0,2 % |
+| LOOK R (épave en vue) | 2,082 s | 2,167 s | +4,1 % (sprite de l'épave décodé : +74 000 cycles, 1,2 % d'une vue complète) |
+| STATUS | 0,241 s | 0,392 s | +0,15 s (STATUS décodé deux fois : `goal_pct` charge ADVENTURE puis STATUS) |
+| REST 1 H | 8,256 s | 8,409 s | +1,9 % (ALERT et le rechargement de MED) |
+| SLEEP 8 H | 9,401 s | 9,618 s | +2,3 % |
+| TOPO | 3,142 s | 3,253 s | +3,5 % (TOPOGEN décodé) |
+
+WALK 1 H n'est pas comparable (la MAP différentielle est arrivée entre les
+deux mesures : 10,65 → 9,27 s).
+
+### 13.5 Contraintes nouvelles
+
+- Un module du stock peut être LZ : tout ce qui le remplit doit passer par
+  `mem_fetch`. INPUT reste brut, les modules corrigés par les paquets
+  (TRAVEL, OUTDOOR, PROJECT, SUMMARY) aussi (`build_disk.py` l'affirme).
+- Un texte de la banque n'a pas d'adresse : seul `message` (X = 0) ou
+  `text_fetch` le lit ; un texte écrit par le jeu (`m_fauna_stop`) ou lu
+  par une autre routine (`puts`, `hm_print`, `message_string` des raisons
+  de voyage, imbriquée dans un message) reste résident. `tb_buf` ne sert
+  qu'au texte en cours d'impression.
+- `$BE00-$BEFF` n'est HICODE qu'entre la fin du chargement et
+  `prodos_restore` ; l'auxiliaire `$BF00-$BFFF` est réservé.
+- SIM doit finir sous `$B500` (table d'enregistrements du chargeur).
+- Les disques de comparaison à carte native (tests) : leur atlas occupe le
+  début du stock commun (1,2 Ko de moins) ; la zone des sprites y est
+  dimensionnée pour la Sierra, un paquet dont les animaux n'entrent plus
+  les perd, puis NEOWILD.SAV et la préparation sont retirés si le volume
+  déborde encore. La carte de stress de niveau 10 et la vraie carte native
+  de la Sierra se construisent ainsi ; l'image livrée (cartes héritées)
+  n'est pas concernée.
+- `test_save.py` tourne sur une copie de 140 Ko sans NEOWILD.END quand
+  l'image livrée a moins de trois parties (elle en a une).
+
+### 13.6 Pistes mesurées et écartées
+
+| Piste | Mesure | Décision |
+|---|---|---|
+| Lignes DHGR et autres feuilles en carte principale (`clear_rows`, `scroll`, `dhgr_pack`, `hud_draw`) | 106 octets libres en banque 2 | Écartée : pas de place |
+| Vocabulaire 5 bits | ≈ 0,4 Ko de VOCAB, réécriture de `lookup` | Non faite : VOCAB n'est pas le facteur limitant |
+| LZ de SIM | −2 870 octets de stock, +0,3 s à chaque activation (3 à 4 par WALK 1 H) | Écartée |
+| LZ de MED et d'ADVENTURE | +1 025 octets de stock ; REST +4 à 6 %, STATUS ×2 | Écartée |
+| Zone d'instantané à `$EB00` | +256 octets, mais la vue de départ Sierra (6 920 octets) déborderait | Écartée |
+| NEOWILD.END dans NEOWILD.DAT (LZ) | −2 blocs ; demande un décodeur hors MENUCODE à la fin de partie et la reprise du banc HOF | Non faite : une partie sauvegardée de plus seulement |
+| Fichiers de partie plus petits | 1 487 octets : 3 blocs + index | Impossible sans réduire l'état |
+
+### 13.7 Marge restante
+
+WILDLO 274, WILDGAME 128, TEXT 11, WILDERNESS 40, RESIDENT 81, MENUCODE 36,
+HICODE 34, MENUSWAP 20, SIM 177 sous `$B500` ; stock : Burma 1 349, Bolivia
+947 octets libres (un nouveau module du tronc : 700 octets entrent, 900 non) ;
+disque : 3 blocs libres avec une partie sauvegardée. Les
+objectifs « WILDLO ≥ 900 avant lot 9 + LOOK » (équivalent : 292 octets
+après eux) et « SIM ≥ 150 » sont tenus, à 18 octets près pour le premier ; le
+« plus grand morceau ≥ 1,5 Ko » du stock de Burma et « disque ≤ 262 blocs »
+ne le sont pas (1 349 octets libres en tout ; 273 blocs sans partie). Leviers
+encore ouverts : LZ de MED/ADVENTURE (+1 Ko de stock, au prix de REST),
+compression de VOCAB, NEOWILD.END dans le fichier unique (2 blocs).

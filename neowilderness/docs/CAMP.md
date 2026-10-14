@@ -224,6 +224,14 @@ aussi dans l'original mais n'ont pas encore d'action dans le port.
 
 Mesures `make inspect` et `build/wild.map`, base `d64afbb` (main) → lot 2 :
 
+> **Intégration (docs/MEMORY.md § 13).** Depuis l'intégration des lots 2, 7,
+> 9, 13 et LOOK, les 28 messages originaux du lot sont dans la banque de textes
+> (`src/textbank.txt`, lus à l'impression ; `camp_msgs` en donne les
+> numéros), CAMP est compressé LZ dans le stock et les piles d'eau sont
+> dans CODE (SIM finit sous `$B500`) ; l'état et les relais partagés restent
+> en WILDLO. Les tableaux ci-dessous décrivent la version livrée par le lot.
+
+
 | Zone | Avant | Après | Contenu ajouté |
 |---|---:|---:|---|
 | Module 4 (fenêtre `$5800`) | WATER 495 | **CAMP 1 617** | feu, lumière, eau (code) |

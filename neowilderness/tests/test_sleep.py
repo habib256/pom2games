@@ -23,8 +23,10 @@ def sleep(prompted):
         if not prompted:
             after = int.from_bytes(s.step(L.peek('overlay_reads', 2)).data, 'little')
             # Module loads are RAM copies now, never disk reads. 14 is the
-            # count of the frozen HGR build (its former 4 was stale there too).
-            assert after - before == 14, (before, after)
+            # count of the frozen HGR build (its former 4 was stale there too),
+            # + 2: the health alerts module (lot 13, ID 27) after each health
+            # update (docs/MEMORY.md 13).
+            assert after - before == 16, (before, after)
             assert s.step(L.peek('mli_calls', 2)).data == calls, 'disk access during SLEEP'
         assert fp(s.step(L.peek('s_elap', 5)).data) == 8
         assert fp(s.step(L.peek('s_hour', 5)).data) == 15

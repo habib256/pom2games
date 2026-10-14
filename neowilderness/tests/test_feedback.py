@@ -190,7 +190,8 @@ def main():
             s.step(f'poke:{label+k:04X}:{b:02X}')
         s.step(L.poke('noun',19))
         s.step(L.poke('it_name_lo',label&255,19));s.step(L.poke('it_name_hi',label>>8,19))
-        code=bytes((0xA9,L['m_taken']&255,0xA2,L['m_taken']>>8,
+        from common import text_id      # m_taken is a text of the bank: A = number, X = 0
+        code=bytes((0xA9,text_id('m_taken'),0xA2,0,
                     0x20,L['message']&255,L['message']>>8))
         code+=bytes((0x4C,(L['idle']+7)&255,(L['idle']+7)>>8))
         # The prior driver is stopped at idle+8, so complete its JMP first.

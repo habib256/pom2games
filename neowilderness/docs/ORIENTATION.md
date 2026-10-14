@@ -121,6 +121,15 @@ Trois sortes d'exécutions sur la ROM, données locales ignorées par Git :
 
 ## 4. Le port
 
+> **Intégration (docs/MEMORY.md § 13).** Depuis l'intégration des lots 2, 7,
+> 9, 13 et LOOK, les textes de ce document sont dans la banque de textes
+> (`src/textbank.txt`, lus à l'impression), la logique LOOK, l'azimut du
+> Soleil et l'erreur du bâton dans le module ORIENT (26, compressé LZ dans
+> le stock), USE MAP…CHART/SHADOW et LOOK MAP/CHART dans TREE ; restent
+> résidents les portes `orient_look`/`orient_use` (WILDLO) et `orient_ask`
+> (TEXT). Les tableaux ci-dessous décrivent la version livrée par le lot.
+
+
 | Élément | Où | Rôle |
 |---|---|---|
 | `orient_aid` (1 octet) | GDATA | bit 0 boussole, bit 1 montre, bit 2 bâton (B2[53], B2[54], `$4B4A`) |

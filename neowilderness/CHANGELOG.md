@@ -7,6 +7,22 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Neowilderness : intégration des lots 2, 7, 9, 13 et LOOK, deuxième récupération de mémoire
+
+- Banque de textes (`src/textbank.txt`, `tools/gentextbank.py`) : 150
+  messages hors de la RAM résidente et des modules, dans le stock
+  auxiliaire, lus à l'impression (`message` avec X = 0, `text_fetch`) et
+  développés par un dictionnaire de 105 mots (5 836 → 3 372 + 286 octets).
+- Modules ORIENT (26) et ALERT (27) ; images LZ dans le stock décodées en
+  place par `mem_fetch` (TOPOGEN, SCREENS, STATUS, CAMP, ITEMS, MEDVIEW,
+  TREE, ORIENT, ALERT, épave, cabane, animaux).
+- Page zéro de ProDOS en auxiliaire `$BF00` pendant le jeu, `$BE00` résident
+  (HICODE) ; SIM finit à `$B44F` ; instantané TOPO jusqu'à `$EBFF`.
+- Un seul fichier de données (tronc, paquets, préparation) et chargeur
+  compressé : −10 blocs ; l'image de 140 Ko garde une partie sauvegardée
+  (cinq sur 800 Ko).
+- Détails, mesures et pistes écartées : [MEMORY.md](docs/MEMORY.md) § 13.
+
 ### Neowilderness : orientation (lot 7 de fidélité)
 
 - Règles de T$0F/S$0F, T$10/S$0C et T$11/S$00 sondées sur la ROM

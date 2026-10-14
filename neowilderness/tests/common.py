@@ -406,3 +406,14 @@ def terrain_boot(timeout=20000):
     """Isolate terrain/sprite differential tests from celestial artwork."""
     return [L.until('game_start', timeout), L.poke('forest_enabled', 0), L.poke('sky_enabled', 0), L.poke('ui_enabled', 0),
             L.until('idle', timeout)]
+
+
+def text_id(name):
+    """Number of a text of the bank (build/textbank.inc, docs/MEMORY.md 13):
+    message takes it in A with X = 0."""
+    import re as _re
+    defs = dict(_re.findall(r'^(\w+) = (\w+)$', (HERE / 'build/textbank.inc').read_text(), _re.M))
+    value = defs[name]
+    while not value.isdigit():
+        value = defs[value]
+    return int(value)

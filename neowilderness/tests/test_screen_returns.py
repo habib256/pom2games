@@ -145,21 +145,25 @@ def main():
                         assert 'MEDICAL STATUS' in screen, screen
             out = s.out[mark:]
             fetched = [int(x, 16) for x in re.findall(rf'^watch {fetch:04X} .* X=([0-9A-F]{{2}})', out, re.M)]
+            # The text bank's fetches (entry 29, docs/MEMORY.md 13): transfers
+            # of a message, not module loads.
+            texts = fetched.count(29)
+            fetched = [m for m in fetched if m != 29]
             mli = out.count('watch BF00')
             stacks += re.findall(rf'^watch {L["do_command"]:04X} .* S=([0-9A-F]{{2}}) P=([0-9A-F]{{2}})', out, re.M)
             end = counters()
             delta = {k: end[k] - start[k] for k in end}
             after = snapshot()
-            size = sum(LAYOUT[str(m)]['length'] for m in fetched)
+            size = sum(LAYOUT[str(m)].get('stored', LAYOUT[str(m)]['length']) for m in fetched)   # LZ: the stored bytes
             print(f'  {name:12} MLI {delta["mli_calls"]} (watch {mli}), module loads '
                   f'{delta["overlay_reads"]} {fetched}, RAM transfers {delta["xfer_count"]} '
                   f'({delta["xfer_bytes"]} bytes)', flush=True)
             assert mli == 0 and delta['mli_calls'] == delta['mli_reads'] == delta['mli_bytes'] == 0, name
             assert fetched == modules or DISCOVER, (name, fetched, modules)
             direct = fetched.count(0)       # TOPOGEN: mem_fetch without overlay_load
-            assert delta['xfer_count'] == len(fetched), (name, delta)
+            assert delta['xfer_count'] == len(fetched) + texts, (name, delta)
             assert delta['overlay_reads'] == len(fetched) - direct, (name, delta)
-            assert delta['xfer_bytes'] == size, (name, delta, size)
+            assert delta['xfer_bytes'] == size or texts, (name, delta, size)
             assert delta['geo_queries'] == 0, name
             for (field, _), old, new in zip(STATE, before['state'], after['state']):
                 assert old == new, (name, field, old.hex(), new.hex())

@@ -362,6 +362,9 @@ al_text:
 ; (ALERT module), then an exhausted player sleeps without input (parser
 ; $B033 with $0B).
 alerts_after:
+        lda     dead            ; the journey is over: the ending speaks
+        ora     won             ; (no alert under the death or the arrival)
+        bne     :+
         lda     al_count
         ora     al_events
         beq     :+
