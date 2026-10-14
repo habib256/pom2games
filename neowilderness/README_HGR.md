@@ -105,7 +105,7 @@ et les quantités en onces. Les autres mots reconnus du vocabulaire original ré
 | SWIM | Entrer dans l'eau depuis la berge, nager pendant *n* heures, sortir sur la rive opposée ; arrêt à deux cases du bord ou à la nuit ; WALK pour continuer sur terre |
 | REST, SLEEP, CAMP, EXERCISE / WAIT, PAUSE | Se reposer / attendre *n* heures |
 | EAT *aliment*, DRINK WATER | Consommer *n* onces accessibles, d'abord dans le sac/la gourde, puis au sol |
-| FILL CANTEEN / REFILL CANTEEN | Remplir à 64 OZ depuis une case d’eau ou une berge voisine, en 10 minutes ; gourde transportée et charge disponible requises ; eau non traitée |
+| FILL CANTEEN / REFILL CANTEEN | Remplir la gourde jusqu'à 64 OZ depuis la réserve de la case, sinon une case d’eau ou une berge voisine (160 OZ non traitées posées sur la case), sans temps ; gourde et charge disponible requises ; voir [CAMP.md](docs/CAMP.md) pour le feu, la lumière et les autres sources |
 | SCARE / IGNORE / ATTACK *animal* | Réagir à l’animal présent : bruit, attente ou combat ; effets incertains selon l’espèce, hache/couteau requis pour ATTACK |
 | GET, PACK *objet* | Ranger un objet accessible dans le sac |
 | TAKE, CARRY *objet* | Prendre un équipement en main ; aliments/eau dans le sac/la gourde |
@@ -312,19 +312,17 @@ est conservé dans le bilan final sous `NATIVE JOURNEY SCORE` : ce score
 n’est pas une mesure du chemin parcouru.
 
 `FILL CANTEEN` et `REFILL CANTEEN` remplissent la gourde transportée à 64 OZ
-(2 quarts), sans quantité. L’eau doit être sur la case ou dans l’une des huit
-cases voisines. L’opération dure 10 minutes et est entièrement refusée si
-le poids ou un volume dépasse la capacité. Les piles d’eau laissées ailleurs
-restent à leur position. `GET WATER` récupère d’abord une réserve au sol
-accessible ; en son absence, il permet aussi de collecter à la berge.
-Remplir ne désaltère pas : il faut ensuite `DRINK WATER`.
+(2 quarts), sans quantité ; `GET WATER` demande la quantité. La réserve au sol
+de la case passe d'abord ; sinon une case d’eau ou une berge voisine dépose
+160 OZ d'eau non traitée sur la case, sans temps (lot 2, [CAMP.md](docs/CAMP.md)).
+Le transfert est entièrement refusé si le poids ou un volume dépasse la
+capacité. Remplir ne désaltère pas : il faut ensuite `DRINK WATER`.
 
-L’eau collectée est non traitée. Chaque consommation de cette réserve a une
-chance sur huit de déclencher la giardiase, avec un hasard indépendant des
-rencontres ; ses courbes et soins existants prennent ensuite le relais.
-Le statut suit l’eau déposée ou récupérée et disparaît lorsque la réserve
-correspondante est vide. Cette contamination
-est une règle du port, pas encore comparée à l’original. Les seuils natifs
+L’eau de rivière, de lac ou de recherche est non traitée et contamine la
+gourde pour le reste du voyage ; boire de l'eau non traitée déclenche la
+giardiase quand le tirage du jeu est inférieur à 2 / l'altitude en
+centaines de pieds, comme l'original (T0F/S00) ; `BOIL WATER` et les
+comprimés d'iode la préviennent. Les seuils natifs
 de déshydratation, faim et fatigue sont conservés ; le bandeau signale une
 réserve transportée de 16 OZ ou moins avec `WATER LOW:INV`.
 

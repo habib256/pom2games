@@ -7,6 +7,27 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Neowilderness : feu, lumière et eau (lot 2 de fidélité)
+
+- Feu de l'original (T11/S00) : `USE MATCHES` (une allumette sur 24),
+  `USE FUEL`, `USE GLASS` (soleil à 30°), `MAKE FIRE` avec ses refus (eau,
+  sol rocheux enneigé, sans allumage, pluie ou vent de 41 mph sans
+  combustible), 30 minutes d'effort, `USE FIRE` (+25 °F dans la thermique,
+  127 °F quand l'octet déborde, comme la ROM), `DOUSE FIRE`, `MAKE STICKS` ;
+  `WALK` et `SWIM` refusés tant que le feu brûle (« SMOKEY THE BEAR… »).
+- Lumière (`$0D5D`) recalculée à chaque pas de santé ; `USE FIRSTAID KIT`
+  refusé sans lumière ; `USE FLASHLIGHT` dépense une utilisation des piles.
+- Eau (T0F/S00) : `GET RAIN`, `GET SNOW`, `GET ICE`, rivière ou lac
+  (160 oz non traitées), cactus, recherche chronométrée, `MAKE WATER` par
+  condensation, gourde de deux quarts, contamination durable de la gourde,
+  `BOIL WATER` (ustensiles, réchaud ou feu), `DRINK` limité à 0,2 × poids,
+  giardiase quand RND ≤ 2 / altitude en centaines de pieds (au lieu d'une
+  chance sur huit) ; FILL/REFILL sans 10 minutes.
+- Textes de l'original ; grille : `MAKE`, `BOIL`, `DOUSE` (feu allumé),
+  objets de camp et `FIRE` dans `USE`. Module CAMP (1 617 octets) à la place
+  de WATER ([CAMP.md](docs/CAMP.md), `tests/test_camp.py`,
+  `tools/re_camp_probe.py`).
+
 ### Neowilderness : MAP plein écran 80 × 24
 
 - MAP, et la carte animée de WALK/SWIM, occupent tout l'écran texte

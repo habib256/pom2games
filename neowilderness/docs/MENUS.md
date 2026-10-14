@@ -140,9 +140,14 @@ MAP   HELP  QUIT                      | FOOD 192 OZ  WATER 64 OZ  HERE 0/0
   s'appliquent (`EXIT` dans la cabane, `ENTER` sur sa case, `IGNORE SCARE
   ATTACK` avec un animal sur la case, mêmes conditions que le bandeau de
   survie), puis `WALK SWIM LOOK REST WAIT EAT DRINK GET TAKE WEAR DROP USE
-  CLIMB HANG LOWER STATUS INVENT TOPO MAP HELP QUIT` ; un verbe à objets
-  dont la liste serait vide n'est pas proposé (pas de médicament : pas de
-  `USE` ; pas d'eau accessible : pas de `DRINK`). Six cases par rangée,
+  CLIMB HANG LOWER STATUS INVENT TOPO MAP HELP QUIT MAKE BOIL`, enfin `DOUSE`
+  tant qu'un feu brûle (lot 2, [CAMP.md](CAMP.md) ; contexte `C_FIRE`) ; un
+  verbe à objets dont la liste serait vide n'est pas proposé (ni produit
+  médical ni objet de camp : pas de `USE` ; pas d'eau accessible : pas de
+  `DRINK`). `MAKE` ouvre `FIRE STICKS WATER`, `BOIL` compose `BOIL WATER`,
+  `DOUSE` compose `DOUSE FIRE` ; `USE` nomme MATCHES, MAGNF GLASS, FUEL, les
+  produits médicaux, FLASHLIGHT, STOVE, UTENSILS et, après eux, `FIRE`
+  quand un feu brûle (`menu_noun` = 88). Six cases par rangée,
   largeur 6 proportionnelle (un libellé de six lettres prend une colonne de
   plus : toute suite de six verbes tient en 38 colonnes), quatre rangées
   visibles (les 21 verbes et jusqu'à trois contextuels sans défilement),
@@ -204,6 +209,9 @@ Sous-menus, par verbe :
 | REST | durée | — | `REST 1 H` |
 | EAT, DRINK | objets consommables accessibles (sac, main, sol) | quantité : `4 OZ  8 OZ  16 OZ  ALL` | `EAT CHEESE 8 OZ` |
 | GET, TAKE, WEAR, DROP | objets admissibles pour ce verbe, selon leur emplacement | — | `GET AXE` |
+| USE | produits médicaux et objets de camp accessibles, puis `FIRE` si un feu brûle | — | `USE MATCHES`, `USE FIRE` |
+| MAKE | `FIRE  STICKS  WATER` | — | `MAKE FIRE` |
+| BOIL, DOUSE | — (la quantité est demandée par BOIL) | — | `BOIL WATER`, `DOUSE FIRE` |
 | STATUS, INVENTORY, TOPO, MAP, HELP | écran ou fenêtre (§ 5) | — | `STATUS` |
 | QUIT | confirmation existante | — | `QUIT` |
 
