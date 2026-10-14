@@ -579,7 +579,8 @@ sky_position:
 ; Rows 16..175 by bands of eight: rows 8b..8b+7 share their low address
 ; byte, their high bytes step by 4 ($400); the band routines patch eight
 ; absolute,X operands per band and run once per bank.
-.segment "BSS"
+.segment "RESBSS"               ; zeroed at boot like BSS; the GAME area's
+                                ; BSS is full since lot 9 and LOOK UP/DOWN
 band_index: .res 1              ; band 2..21
 band_lo:    .res 1              ; address of row 8b
 band_hi:    .res 1

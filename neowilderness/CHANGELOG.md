@@ -7,6 +7,19 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Neowilderness : MAP de marche, ne dessiner que ce qui change
+
+- Pendant WALK/SWIM, la fenêtre de MAP reste fixe au lieu d'être
+  recentrée à chaque demi-pas : un demi-pas ne réécrit que la case quittée,
+  la case de P et les caractères changés de l'étiquette (7 écritures au
+  lieu de ~300 sur la carte réelle). La fenêtre avance d'un quart (10 × 6
+  cases, bornée à la grille) quand P arrive à 4 cases d'un bord : un seul
+  dessin complet, différentiel. Centrage unique si P est hors de la
+  fenêtre au départ ; MAP, C et flèches inchangés. SITES +270 octets
+  (424 libres), BSS +5 (partie sauvée inchangée), GCODE +5 ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md)
+  « MAP plein écran 80 × 24 », `tests/test_walk.py`,
+  `tests/test_sites.py` `full_screen`).
+
 ### Neowilderness : SAVE et RESTORE, cinq parties (lot 9)
 
 - `SAVE` et `RESTORE` (jusqu'ici « NOT IN THIS VERSION YET ») gardent cinq

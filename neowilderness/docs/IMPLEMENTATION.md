@@ -1531,9 +1531,9 @@ même écran.
   colonne 20, rangée 11), bornée à `[0, 72] × [0, 60]` (`GW − 40`,
   `GH − 24`). Flèches/WASD : un quart de fenêtre par touche (10 cases en
   largeur, 6 en hauteur), bornes comprises ; C recentre. Pendant la marche,
-  la fenêtre est recentrée à chaque demi-pas (la carte suit le joueur, puis
-  se bloque au bord) ; la bande extérieure de deux cases où la marche
-  s'arrête garde P à l'écran, au plus en rangée 2 sous le bord nord.
+  la fenêtre reste fixe (voir « Marche » ci-dessous) ; la bande extérieure
+  de deux cases où la marche s'arrête garde P à l'écran, au plus en
+  rangée 2 sous le bord nord.
 - **Indication.** L'en-tête de quatre rangées (légende, CELL, WINDOW,
   NORTH IS UP, site sous P), la légende du bas et les deux rangées de
   touches disparaissent. Il reste une étiquette en inverse au début de la
@@ -1554,6 +1554,43 @@ même écran.
   (les cases s'écrivent directement ; aucune rangée ne passe à la ligne
   après la rangée 23, donc jamais de défilement). Une mise à jour par
   demi-pas, comme avant.
+- **Marche : ne dessiner que ce qui change** (demande du 14 octobre 2026).
+  Recentrer la fenêtre à chaque demi-pas faisait défiler toute la carte
+  d'une case : presque chaque caractère changeait et l'écriture
+  différentielle les réécrivait tous (lente et scintillante à 1 MHz).
+  Désormais la fenêtre ne bouge pas tant que P y reste à plus de
+  `TOPO_MARGIN` = 4 cases du bord : un demi-pas réécrit la case quittée
+  (terrain ou site rendu), la case de P et les caractères changés de
+  l'étiquette (`topo_follow`, `topo_put_cell`, puis `topo_cue` et
+  `topo_span`, qui redessine les cases qu'une étiquette raccourcie
+  découvre). À quatre cases d'un bord (colonnes 0-3 ou 36-39, rangées 0-3
+  ou 20-23), la fenêtre avance d'un quart dans cette direction (10 cases
+  en largeur, 6 en hauteur, comme les flèches), bornée à la grille : P
+  passe de la colonne 36 à la colonne 26 ; seule cette mise à jour
+  réécrit tout l'écran (différentiel, une fois, rare). Contre le bord de
+  la grille la fenêtre ne peut plus avancer : rien n'est redessiné. Si P
+  est hors de la fenêtre au premier demi-pas (MAP jamais ouverte, ou
+  ouverte ailleurs), la fenêtre est d'abord centrée une fois ; sinon elle
+  est gardée. Le premier demi-pas d'une marche redessine toujours tout
+  l'écran (la vue l'occupait). État résident (BSS, car TRAVEL remplace
+  SITES à chaque demi-pas ; effacé au démarrage et hors de la partie
+  sauvée, ce n'est que l'état de l'écran) : `topo_x`/`topo_y` (y sont déplacés),
+  `topo_px`/`topo_py` (case où P a été dessiné) et `topo_cue_end` (fin de
+  l'étiquette en cases ; 0 = pas de carte de marche à l'écran), remis à 0
+  à la fin de la marche (`do_walk`) et en quittant MAP. Garde-fou : la
+  mise à jour partielle exige encore l'espace inverse de P (`$20` en
+  mémoire principale) dans sa dernière case ; un écran effacé entre deux
+  pas (`view_hide` laisse `$A0`) force le dessin complet. La commande MAP,
+  C et les flèches sont inchangées.
+- **Mesures** (écritures dans la page texte par demi-pas, les deux
+  mémoires, compte `pcprof` des `STA (BASL),Y`). Carte réelle
+  (`build/map.bin`, départ 22,40 vers l'est, fenêtre déjà recentrée) :
+  avant 330 et 297 aux demi-pas qui changent de case, 2 aux autres ;
+  après 7 (4 pour les deux cases, 3 pour les minutes et X) et 2, 29 quand
+  l'étiquette s'allonge d'un chiffre (9 → 18 minutes) et décale tous ses
+  caractères. Le premier demi-pas reste un écran complet (1 920
+  écritures). Terrain uniforme de `test_walk` : au plus 30 écritures
+  après le premier demi-pas (passage à 100 minutes).
 - **Messages.** Pendant la marche, aucun message ne s'affiche : le seul
   qui s'écrivait à chaque pas (`TRAVELLING: # MIN.`) est remplacé par les
   minutes de l'étiquette, et les messages éventuels de `spend` étaient déjà
@@ -1568,6 +1605,15 @@ même écran.
   la carte reste sur les rangées 0 à 19 et le message s'écrit dans les
   rangées 20 à 23 effacées, comme avant. La commande MAP rend la main par
   `back_to_view_now`, qui efface déjà les rangées 20 à 23 avant le prompt.
+- **Mémoire de la marche fixe** (`build/wild.map`, avant → après) :
+  SITES `$54A` → `$658` (1 354 → 1 624 octets, +270 : `topo_follow`,
+  `topo_at`, `topo_put_cell`, `topo_span`, `topo_cue` séparés de
+  `topo_draw` ; 424 libres dans la fenêtre `$5800` de 2 048) ; BSS
+  `$2F` → `$34` (+5 : `topo_x`, `topo_y` venus de SITES, `topo_px`,
+  `topo_py`, `topo_cue_end`), 2 octets libres avant REGIONTEXT après le
+  lot 9 ; GDATA et la partie sauvée (1 392 octets) inchangés ; GCODE
+  `$10F6` → `$10FB` (+5 : remise à 0 de `topo_cue_end` à l'arrêt). Aucun
+  accès disque.
 - **Mémoire** (`build/wild.map`, avant → après) : SITES `$76E` → `$643`
   (1 902 → 1 603 octets, 299 libérés : 445 libres dans la fenêtre
   `$5800`) ; GCODE `$1102` → `$10F6` (−12 : appel de message retiré,
@@ -1583,4 +1629,15 @@ même écran.
   l'écran à chaque demi-pas puis rend la grille. `test_walk` vérifie les
   minutes de l'étiquette, l'absence de message par-dessus la carte, une
   écriture par caractère modifié sur les 24 rangées et la grille rendue
-  après la marche. Capture : `build/map80x24.png`.
+  après la marche. Capture : `build/map80x24.png`. Depuis la marche fixe,
+  `test_walk` exige aussi la fenêtre (0, 28) fixée au premier demi-pas,
+  au plus 4 caractères changés hors de la rangée 0 (aucun sans changement
+  de case ; 3 en quittant l'épave, `C` + espace) et au plus 4 + les
+  changements de l'étiquette, 40 en tout ; `full_screen` vérifie la
+  fenêtre centrée une fois puis fixe pendant la marche vers le bord est,
+  et une marche qui franchit la marge : P de la colonne 35 à 36, un seul
+  défilement (origine 45 → 55), P visible à chaque demi-pas, les autres
+  demi-pas bornés comme dans `test_walk`. `common.MENU_STORES` : les
+  profils pris hors de MAP (`test_transitions`, INVENTORY/HELP) ne
+  comptent plus les adresses `topo_store_*`, qui tombent dans la fenêtre
+  `$5800` partagée et y désignent alors le code d'un autre module.

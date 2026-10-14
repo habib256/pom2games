@@ -105,19 +105,34 @@ site_leave: .byte "EXIT SHELTER BEFORE TRAVELLING.",0
 ; (minutes travelled while walking, the player's cell, magnetic heading
 ; and cardinal, the site under P); every other character is map. Arrow keys
 ; (or WASD) scroll, C recentres; Return, Space and Escape return to the
-; view (kept intact: MAP only writes the text page). docs/IMPLEMENTATION.md
-; "MAP plein écran 80 × 24".
+; view (kept intact: MAP only writes the text page). During WALK/SWIM the
+; window stays put: a half-step rewrites P's old and new cells and the
+; changed characters of the cue; within TOPO_MARGIN cells of an edge it
+; scrolls by a quarter window (one full differential redraw).
+; docs/IMPLEMENTATION.md "MAP plein écran 80 × 24".
 TOPO_W = 40                     ; cells across
 TOPO_H = 24                     ; cells down
+TOPO_MARGIN = 4                 ; walking this close to an edge scrolls
+.segment "RESBSS"
+; Resident (TRAVEL replaces SITES at every half-step), cleared at boot by the
+; loader like the rest of RESBSS (BSS of the GAME area is full since lot 9 and
+; LOOK UP/DOWN), not journey state: SAVE leaves it out (src/save.s sv_ranges).
+topo_x: .res 1                  ; window origin (cells); topo_y follows
+topo_y: .res 1
+topo_px: .res 1                 ; the cell where the walk last drew P
+topo_py: .res 1
+topo_cue_end: .res 1            ; cells under that cue; 0: no walking map shown
+.export topo_cue_end
+.segment "SITES"
 module_topo:
         lda     #0
         sta     topo_walk
         jsr     topo_center
         jmp     topo_redraw
 
-; One differential update of the whole screen per WALK/SWIM half-step.
-; Simulation already hides HGR; preserve its code and the message cursor.
-; The end of the walk clears rows 20-23 (game.s do_walk) for the results.
+; One update per WALK/SWIM half-step. Simulation already hides HGR;
+; preserve its code and the message cursor. The end of the walk clears
+; rows 20-23 and topo_cue_end (game.s do_walk) for the results.
 module_topo_moving:
         lda     CH
         pha
@@ -125,8 +140,25 @@ module_topo_moving:
         pha
         lda     #1
         sta     topo_walk
-        jsr     topo_center
-        jsr     topo_draw
+        jsr     topo_follow
+        bcc     @step
+        jsr     topo_draw       ; first update or scroll: the whole screen
+        jmp     @drawn
+@step:  jsr     text_begin      ; same window: two cells and the cue
+        lda     topo_px
+        ldx     topo_py
+        jsr     topo_put_cell   ; the terrain or site P leaves (P if it stays)
+        lda     px+1
+        ldx     py+1
+        jsr     topo_put_cell
+        lda     #0
+        jsr     vtab
+        jsr     topo_cue        ; A = where the previous cue ended
+        jsr     topo_span       ; the map a shorter cue uncovers
+@drawn: lda     px+1
+        sta     topo_px
+        lda     py+1
+        sta     topo_py
         jsr     text_release
         lda     #20
         sta     WNDTOP
@@ -136,6 +168,102 @@ module_topo_moving:
         sta     CH
 topo_moving_done:
         rts
+
+; topo_follow -- C set when the walk needs a full redraw: no walking map on
+; screen yet, P outside the window (recentred once), or P within
+; TOPO_MARGIN cells of an edge (a quarter window that way, clamped to the
+; grid, like the arrows). C clear: same window, P's last cell still shown.
+topo_follow:
+        lda     topo_x
+        sta     topo_cols       ; scratch: the window before
+        lda     topo_y
+        sta     topo_rows
+        ldx     #0              ; X: axis (topo_x, topo_y); Y: px+1, py+1
+        ldy     #0
+@axis:  lda     px+1,y
+        sec
+        sbc     topo_x,x        ; P's cell in the window
+        bcc     @centre
+        cmp     topo_size,x
+        bcs     @centre
+        cmp     #TOPO_MARGIN
+        bcc     @back
+        adc     #TOPO_MARGIN-1  ; C set: + TOPO_MARGIN
+        cmp     topo_size,x
+        bcc     @next
+        lda     topo_x,x
+        clc
+        adc     topo_quarter,x
+        cmp     topo_max,x
+        bcc     @set
+        lda     topo_max,x
+        bcs     @set
+@back:  lda     topo_x,x
+        sec
+        sbc     topo_quarter,x
+        bcs     @set
+        lda     #0
+@set:   sta     topo_x,x
+@next:  iny
+        iny
+        inx
+        cpx     #2
+        bcc     @axis
+        lda     topo_cue_end
+        beq     @redraw
+        lda     topo_x
+        cmp     topo_cols
+        bne     @redraw
+        lda     topo_y
+        cmp     topo_rows
+        bne     @redraw
+        lda     topo_px         ; P's glyph still shown (inverse letter +
+        ldx     topo_py         ; space: $20 in main memory; view_hide
+        jsr     topo_at         ; would have left $A0)
+        lsr     a
+        tay
+        lda     ($28),y
+        cmp     #$20
+        bne     @redraw
+        clc
+        rts
+@centre:
+        jsr     topo_center
+@redraw:
+        sec
+        rts
+topo_size:    .byte TOPO_W, TOPO_H
+topo_quarter: .byte TOPO_W/4, TOPO_H/4
+topo_max:     .byte GW-TOPO_W, GH-TOPO_H
+
+; topo_at -- A = cell X, X = cell Y, inside the window: topo_col/topo_row,
+; its grid row in gp1, CV and BASL on its text row; A = CH = its column.
+topo_at:
+        sta     topo_col
+        stx     topo_row
+        lda     grid_lo,x
+        sta     gp1
+        lda     grid_hi,x
+        sta     gp1+1
+        lda     topo_y
+        clc
+        adc     #TOPO_H-1       ; world Y increases north: highest Y is on top
+        sec
+        sbc     topo_row
+        sta     CV
+        jsr     t_vtab
+        lda     topo_col
+        sec
+        sbc     topo_x
+        asl     a
+        sta     CH
+        rts
+; topo_put_cell -- redraw the cell A = X, X = Y (differential).
+topo_put_cell:
+        jsr     topo_at
+        jsr     topo_cell
+        ora     #$80
+        jmp     topo_put2
 
 topo_center:
         lda     px+1
@@ -169,6 +297,53 @@ topo_draw:
         lda     #0
         sta     WNDTOP
         jsr     vtab
+        jsr     topo_cue
+        lda     #TOPO_H
+        sta     topo_rows
+@row:   lda     #TOPO_W
+        jsr     topo_span
+        dec     topo_rows
+        beq     @done           ; no newline after row 23: no scroll
+        jsr     CROUT
+        dec     topo_row
+        jmp     @row
+@done:  rts
+
+; topo_span -- the cells of row topo_row from the cursor (CH/2) up to
+; cell A (exclusive), if any.
+topo_span:
+        sta     topo_cols
+        ldx     topo_row
+        lda     grid_lo,x
+        sta     gp1
+        lda     grid_hi,x
+        sta     gp1+1
+        lda     CH
+        lsr     a
+        sta     topo_col
+        lda     topo_cols
+        sec
+        sbc     topo_col
+        beq     @done
+        bcc     @done
+        sta     topo_cols
+        lda     topo_col
+        clc
+        adc     topo_x
+        sta     topo_col
+@cell_loop:
+        jsr     topo_cell
+        ora     #$80
+        jsr     topo_put2
+        inc     topo_col
+        dec     topo_cols
+        bne     @cell_loop
+@done:  rts
+
+; topo_cue -- the inverse cue from the start of row 0, padded to a whole
+; cell; topo_row = the top map row; A = the previous cue's end (cells),
+; topo_cue_end = this one's.
+topo_cue:
         lda     #$3F            ; the cue in inverse (topo_output: AND $32)
         sta     INVFLG
         lda     #' '|$80
@@ -248,37 +423,14 @@ topo_draw:
         sta     INVFLG
         lda     topo_y
         clc
-        adc     #TOPO_H-1       ; world Y increases north: highest Y is on top
+        adc     #TOPO_H-1
         sta     topo_row
-        lda     #TOPO_H
-        sta     topo_rows
-@row:   ldx     topo_row
-        lda     grid_lo,x
-        sta     gp1
-        lda     grid_hi,x
-        sta     gp1+1
-        lda     CH              ; row 0: the cells after the cue
+        lda     CH
         lsr     a
-        pha
-        adc     topo_x          ; C clear: CH is even
-        sta     topo_col
-        pla
-        eor     #$FF
-        adc     #TOPO_W+1       ; C clear: TOPO_W - CH/2
-        sta     topo_cols
-@cell_loop:
-        jsr     topo_cell
-        ora     #$80
-        jsr     topo_put2
-        inc     topo_col
-        dec     topo_cols
-        bne     @cell_loop
-        dec     topo_rows
-        beq     @done           ; no newline after row 23: no scroll
-        jsr     CROUT
-        dec     topo_row
-        jmp     @row
-@done:  rts
+        ldx     topo_cue_end
+        sta     topo_cue_end
+        txa
+        rts
 
 ; MAP is 80-column text: a cell is two characters (square on screen), the
 ; terrain symbol twice, a site or the player as an inverse letter + space.
@@ -353,6 +505,8 @@ topo_done:
         ; Restore the mixed window without waiting for a second key or
         ; redrawing HGR: the text map has preserved all its pixels.
         ; back_to_view_now clears rows 20-23; the prompt redraws them.
+        lda     #0              ; a later walk draws its whole map first
+        sta     topo_cue_end
         jmp     back_to_view_now
 topo_recenter:
         jsr     topo_center
@@ -478,8 +632,6 @@ topo_site:
         rts
 topo_levels: .byte ".,:;+*^#"
 topo_height: .byte 0
-topo_x: .byte 0
-topo_y: .byte 0
 topo_row: .byte 0
 topo_col: .byte 0
 topo_rows: .byte 0

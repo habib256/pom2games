@@ -259,7 +259,8 @@ def full_screen(disk):
     is not map; at the four corners of the travel area and after scrolling
     against each edge the player stays visible where the clamped window puts
     it; the prompt rows come back intact; a walk against the east edge keeps
-    P on screen at every half-step."""
+    P on screen at every half-step in a window centred once; a walk across
+    the margin scrolls exactly once (src/sites.s topo_follow)."""
     GW, GH = 112, 84
     with a2test.Session(disk) as s:
         s.step(IDLE)
@@ -289,8 +290,9 @@ def full_screen(disk):
             assert [row[:40] for row in back] == [row[:40] for row in prompt], ('prompt rows after MAP', prompt, back)
             assert not any(row[40:79].strip() for row in back[:3]) and back[3][40:].startswith('FOOD'), back
             assert all(row[79] == ' ' for row in back), back
-        # East edge: WALK east from x = 104 stops before the outer band; the
-        # player's column follows the window, then the clamp (GW - 40 = 72).
+        # East edge: WALK east from x = 104 stops before the outer band. The
+        # last MAP left the window at (72, 60): P (row 40) is outside it, so
+        # the first update centres it once (clamped: 72, 28); then it stays.
         for name, value in (('px', 104), ('py', 40)):
             s.step(L.poke(name, 128)); s.step(L.poke(name, value, 1))
         s.step(L.poke('heading', 140)); s.step(L.poke('heading', 0, 1))
@@ -300,7 +302,7 @@ def full_screen(disk):
             s.step(L.until('topo_moving_done', 6000))
             px = s.step(L.peek('px', 2)).data[1]
             ox, oy = s.step(L.peek('topo_x', 2)).data
-            assert ox == min(px - 20, GW - 40) and oy == 40 - 12
+            assert (ox, oy) == (GW - 40, 40 - 12), (px, ox, oy)
             rows = map_rows(text_screen(s.step('peek:0400:1024').data))
             assert rows[11][px - ox] == 'P' and set(''.join(rows[1:])) <= MAP_CHARS, (px, rows[11])
             seen += 1
@@ -312,8 +314,40 @@ def full_screen(disk):
         screen = text_screen(s.step('peek:0400:1024').data)
         assert [row[:40] for row in screen[20:]] == [row[:40] for row in prompt], ('grid after the walk', screen[20:])
         assert 'TRAVEL:' in '\n'.join(screen) and all(row[79] == ' ' for row in screen[20:]), screen[20:]
+        # Margin: P inside the window keeps it. P in column 35 walks east;
+        # reaching column 36 (4 cells from the edge) scrolls the window by
+        # a quarter (10 cells), once: one full differential redraw. Every
+        # other half-step writes P's two cells and the cue only. (This
+        # route finds insects after 36 minutes: four half-steps.)
+        for name, value in (('px', 80), ('py', 40)):
+            s.step(L.poke(name, 128)); s.step(L.poke(name, value, 1))
+        s.step(L.poke('topo_x', 45)); s.step(L.poke('topo_y', 28))
+        s.step('key:WALK 100 MIN\\r')
+        scrolls, origin = [], (45, 28)
+        for step in range(4):           # 9-minute half-steps: P reaches x = 82
+            s.step(L.until('walk_progress', 6000))
+            before = s.step('peek:0400:1024').data
+            profile = s.step(f'pcprof:{L["topo_moving_done"]:04X}:6000')
+            after = s.step('peek:0400:1024').data
+            pcs = {int(a, 16): int(c) for a, c in re.findall(r'^pc ([0-9A-F]{4}) (\d+)$', profile.out, re.M)}
+            writes = text_writes(pcs)
+            assert writes == text_changes(before, after), (step, writes)
+            px = s.step(L.peek('px', 2)).data[1]
+            ox, oy = s.step(L.peek('topo_x', 2)).data
+            assert map_rows(text_screen(after))[23 - (40 - oy)][px - ox] == 'P', (px, ox, oy)
+            assert 4 <= px - ox < 36 and oy == 28, (px, ox, oy)
+            if (ox, oy) != origin:
+                scrolls.append((px, origin, (ox, oy)))
+                origin = (ox, oy)
+            elif step:                  # the first update draws the whole map
+                assert text_changes(before, after, rows=range(1, 24)) <= 4, (step, px)
+                assert writes <= 4 + text_changes(before, after, rows=(0,)), (step, writes)
+            s.step('wait:1')
+        assert scrolls == [(81, (45, 28), (55, 28))], scrolls
+        s.step(IDLE)
     print(f'  full-screen MAP: 40 x 24 cells, cue only on row 0, P visible at the four corners and against '
-          f'every edge, prompt rows restored; east-edge walk keeps P on screen ({seen} half-steps): OK')
+          f'every edge, prompt rows restored; east-edge walk keeps P on screen ({seen} half-steps) in a window '
+          f'centred once; a walk across the 4-cell margin scrolls once (x = 81, origin 45 -> 55): OK')
 
 
 def main():
