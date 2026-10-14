@@ -629,17 +629,35 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
         # A volume too small for the five games (a native map's atlas in a
         # 280-block comparison disk) keeps as many as fit; the game answers
         # "NEOWILD.Sn IS MISSING." for the others.
-        for games in range(SAVE_GAMES, -1, -1):
-            try:
-                volume = Volume(VOLUME, blocks, boot, prodos_date('2026-10-13T12:00'))
-                volume.build(stage)
+        # A comparison disk with a native map (its atlas takes 13 more blocks)
+        # may still overflow with no game at all: it then also drops the
+        # SAVE/RESTORE module and the journey preparation, which its tests do
+        # not use (the shipped image keeps them: it is checked by
+        # tests/test_pack_boot.py).
+        dropped = []
+        optional = ['NEOWILD.SAV#069600', 'NEOWILD.PRE#063000']
+        while True:
+            built = False
+            for games in range(SAVE_GAMES, -1, -1):
+                try:
+                    volume = Volume(VOLUME, blocks, boot, prodos_date('2026-10-13T12:00'))
+                    volume.build(stage)
+                    built = True
+                    break
+                except SystemExit:
+                    if games:
+                        (stage / f'NEOWILD.S{games}#060000').unlink()
+            if built:
                 break
-            except SystemExit:
-                if not games:
-                    raise
-                (stage / f'NEOWILD.S{games}#060000').unlink()
+            if not optional or not map_path:
+                raise SystemExit('le contenu deborde le volume de %d blocs' % blocks)
+            name = optional.pop(0)
+            (stage / name).unlink()
+            dropped.append(name.split('#')[0])
         if games < SAVE_GAMES:
             print(f'{out}: room for {games} saved games of {SAVE_GAMES} only', file=sys.stderr)
+        if dropped:
+            print(f'{out}: native-map comparison disk without {", ".join(dropped)}', file=sys.stderr)
         # The hall of fame and the saved games are the only files written in place.
         lock_files(volume, keep={'NEOWILD.HOF'} | {f'NEOWILD.S{g}' for g in range(1, games + 1)})
     finally:
