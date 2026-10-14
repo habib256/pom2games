@@ -123,12 +123,12 @@ def check_scene():
 
 
 def check_sun():
-    """A Sun 68 degrees high (sky_y = 95 - 48 tan 68 = -24): row 72 looking up."""
+    """A Sun 68 degrees high (sky_hy = 95 - 48 tan 68 = -24): row 72 looking up."""
     sun_y, bearing = (-24) & 255, HEAD
     steps = [L.until('game_start', 20000), L.poke('forest_enabled', 0), L.poke('ui_enabled', 0), IDLE,
-             L.poke('sky_y', sun_y), L.poke('sky_bearing', bearing), L.poke('sky_bearing', bearing >> 8, 1)]
+             L.poke('sky_hy', sun_y), L.poke('sky_hb', bearing), L.poke('sky_hb', bearing >> 8, 1)]
     for c in ('LOOK F', 'LOOK U', 'LOOK D'):
-        steps += command(c) + ['peek:2000:8192', L.peek('sky_mood'), L.peek('sky_y')]
+        steps += command(c) + ['peek:2000:8192', L.peek('sky_mood'), L.peek('sky_hy')]
     r = a2test.run(DISK, steps, emulator=a2test.A2SHOT, timeout=900)
     R = dhgr()
     for i, tilt in enumerate((0, 1, -1)):

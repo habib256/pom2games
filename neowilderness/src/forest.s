@@ -18,9 +18,7 @@ forest_sign: .res 1
 forest_proj: .res 2
 forest_masked: .res 1
 forest_pair: .res 1
-.segment "GZP": zeropage
-; $A4 is Applesoft's rounding byte: foliage must not leave it nonzero.
-forest_crown_end: .res 1
+; forest_crown_end: game.s GZP (its address stays $ED, before tilt).
 
 .segment "FORESTCODE"
 ; X/Y = terrain cell east/north. Preserve registers, carry = wooded.

@@ -7,6 +7,39 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Neowilderness : LOOK UP / LOOK DOWN, flèches haut et bas
+
+- `LOOK U`/`UP`, `LOOK D`/`DOWN`, `LOOK F`/`AHEAD`/`FORWARD`, `PAN` et
+  `SCAN U`/`D` : trois angles de vue comme l'original (octet `$E7` de
+  SURV3D, sondé) : LOOK fixe l'angle, PAN avance d'un cran et s'arrête au
+  bout, PAN AHEAD ne fait rien ; aucun temps de jeu ; l'angle persiste à
+  travers LOOK L/R/N/AZ, VIEW, STATUS, REST ; WALK, SWIM et LOOK B le
+  remettent à niveau ; rien ne change dans la cabane ; « NOT NOW. » refuse
+  de regarder en bas devant un animal debout au contact (l'ours en Sierra,
+  règle de l'original par région et espèce).
+- Rendu : chaque ligne projetée descend (haut) ou monte (bas) de 96 lignes,
+  mesure sur l'original (le plan prévoyait 64 vers le bas) : relief, ciel en
+  zones, soleil et Lune (un astre jusqu'à 76° de hauteur devient visible en
+  regardant en l'air), étoiles, panneaux lointains, pieds des arbres ; en
+  l'air, ni sprite ni arbre ; vers le bas, l'épave et les sprites locaux
+  restent à leur place (l'original les montre là). 96 lignes = 512 unités de
+  pente : `tilt_row` projette `tinc − 512 × tilt` avec les tables à niveau,
+  sans toucher à la boucle des rayons (vue à niveau identique au bit près,
+  +0,2 à +0,9 % de cycles). Oracles `view_ref`, `forest_ref`, `scene_ref`,
+  `dhgr_ref`, `stars_ref` avec `tilt` ; `tests/test_tilt.py` (six cartes ×
+  trois angles au bit près, arbres, panneau lointain, soleil à 68°,
+  commandes, refus, rangées 176-191 des six régions), banc des étoiles à
+  trois angles, scénario `look_tilt` de `test_adventure.py --original`
+  (angle du port = `$E7` à chaque pas, horloge inchangée) ;
+  `tools/re_tilt_probe.py` ([LOOK_UPDOWN.md](docs/LOOK_UPDOWN.md)).
+- Grille : `UP` et `DOWN` dans la liste de LOOK. Ligne tapée : **flèche
+  haut = STATUS, flèche bas = grille** (TAB reste un alias) ;
+  [MENUS.md](docs/MENUS.md) § 4, `tests/test_menu_bar.py`.
+- `tests/test_sim.py` « Night view » : le test supposait l'horizon en 95 ;
+  le ciel descend jusqu'au dernier échantillon visible (règle de l'original
+  et de l'oracle), que le brouillard du port rapproche (visibilité 24 :
+  11 pas, ligne 104). Le test calcule désormais cette limite.
+
 ### Neowilderness : MAP plein écran 80 × 24
 
 - MAP, et la carte animée de WALK/SWIM, occupent tout l'écran texte

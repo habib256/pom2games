@@ -22,11 +22,18 @@ avertissements sur bande rouge, messages en vrai texte 80 colonnes, carte
 MAP en 80 colonnes, feuille TOPO calculée à l'ouverture depuis la carte en
 mémoire, retours d'écrans sans redessin de la vue. Les quatre lignes du
 bas sont une surface de commande (lot 8, étape 2) : à gauche la grille des
-verbes et leurs listes (RETURN, flèche haut ou TAB l'ouvre, TAB la
-referme, flèches, RETURN, Échap ; toute action s'y trouve, seuls les objets accessibles sont
+verbes et leurs listes (RETURN, flèche bas ou TAB l'ouvre, TAB la
+referme, flèches, RETURN, Échap ; la flèche haut affiche STATUS ; toute action s'y trouve, seuls les objets accessibles sont
 proposés, les commandes tapées restent acceptées), à droite les
 descriptions : le dernier message, la ligne de stock ou la commande telle
-que le jeu la lira. Les règles sont
+que le jeu la lira. **LOOK UP / LOOK DOWN** (`LOOK U`, `LOOK D`, `LOOK
+AHEAD`, `PAN U`/`PAN D`, ou UP/DOWN dans la liste LOOK de la grille)
+inclinent la vue de 96 lignes comme l'original : en l'air, le sommet
+descend au bas de l'écran, le soleil haut devient visible, sans sprite ni
+arbre ; vers le bas, le relief proche remplit l'écran et l'épave reste
+entière. Trois angles, aucun temps de jeu, refus « NOT NOW. » devant un
+ours au contact ; la marche remet la vue à niveau
+([LOOK_UPDOWN.md](docs/LOOK_UPDOWN.md)). Les règles sont
 inchangées : l'état de simulation est identique, octet pour octet, à celui
 de la version HGR/DOS 3.3 de référence, et aucune lecture disque n'a lieu
 pendant la partie.

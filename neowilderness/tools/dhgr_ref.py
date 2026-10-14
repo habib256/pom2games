@@ -142,8 +142,9 @@ def moon_inner(phase, waxing, x):
 
 
 def body_row(y, tilt=0):
-    """src/sky.s sky_column: row of a body of level row sky_y (a byte:
-    signed -96..95, $80 hidden) in a view of this tilt, or None. Level:
+    """src/sky.s sky_column: row of a body of level row sky_hy (a byte:
+    signed -96..95, $80 hidden; sky_y keeps 255 above the view, the
+    reference's state) in a view of this tilt, or None. Level:
     rows 0..95; looking up: sky_y + 96 when below 160 (a body up to 76
     degrees high); looking down: none."""
     if tilt < 0:

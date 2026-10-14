@@ -92,6 +92,8 @@ wdy:     .res 2
 nx:      .res 2                 ; next position
 ny:      .res 2
 shown:   .res 1                 ; a message is on the message lines
+; $A4 is Applesoft's rounding byte: foliage must not leave it nonzero.
+forest_crown_end: .res 1        ; forest.s
 tilt:    .res 1                 ; view tilt: 0 level, 1 up, $FF down (LOOK U/D)
 
 
