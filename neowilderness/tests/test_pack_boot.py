@@ -87,8 +87,14 @@ def volume_check():
     files = {path: entry for path, entry in
              ((f'/{e[1:1 + (e[0] & 15)].decode()}', e) for e in image.entries(2))}
     packs = [f'/NEOWILD.R{r}' for r in range(1, 7)]
+    # Lot 9 (docs/SAVE.md): the SAVE/RESTORE module and the five games.
+    # Lot 9: NEOWILD.SAV and the saved games that fit on the volume (five on
+    # 800 KB, fewer on the 140 KB image: build/layout.json save_games).
+    import json
+    saved = json.load(open(HERE / 'build/layout.json'))['save_games']['files']
+    saves = ['/NEOWILD.SAV'] + ['/' + n for n in saved]
     assert sorted(files) == sorted(['/NEOWILD.DAT', '/NEOWILD.SYSTEM', '/PRODOS',
-                                    '/NEOWILD.END', '/NEOWILD.HOF', '/NEOWILD.PRE'] + packs), sorted(files)
+                                    '/NEOWILD.END', '/NEOWILD.HOF', '/NEOWILD.PRE'] + packs + saves), sorted(files)
     # Fidelity lot 1: the journey preparation, LZ-packed, decoded to $2000 (src/prepare.s).
     from pack_boot import decompress
     pre = (HERE / 'build/wildpre.bin').read_bytes()

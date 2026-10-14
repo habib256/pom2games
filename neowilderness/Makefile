@@ -29,6 +29,9 @@ DISK := $(DIST)/NEOWILDERNESS.po
 # (LZ where the 200/46 cycles-per-byte model says it shortens the boot) or
 # raw; see docs/MEMORY.md 9.5.
 BOOT_PACKING ?= lz
+# Volume size in 512-byte blocks: 280 (5.25-inch, 140 KB, the shipped image)
+# or 1600 (3.5-inch, 800 KB); lot 9, docs/SAVE.md.
+DISK_BLOCKS ?= 280
 BIN  := $(BUILD)/wild.bin
 MAPBIN := $(BUILD)/map.bin
 # Reconstituted maps of the five other regions (lot 7, docs/REGIONS.md).
@@ -44,6 +47,7 @@ $(BUILD)/wild.o: src/memory.s
 $(BUILD)/wild.o: src/geography.s src/geoaux.s
 $(BUILD)/wild.o: src/water.s src/menu.s
 $(BUILD)/wild.o: src/prepare.s
+$(BUILD)/wild.o: src/save.s
 
 $(BUILD)/tables.inc $(BUILD)/rowtab.inc: tools/gentables.py
 	@mkdir -p $(@D)
@@ -134,7 +138,14 @@ $(BUILD)/JOURNEY.dsk: original/extras/Wilderness\ -\ Journey.a2r
 
 $(DISK): $(BIN) $(BUILD)/NEOWILD.HOF $(BUILD)/dhgr_tables.inc $(MAPBIN) $(REGION_MAPS) $(BUILD)/regions/regions.json $(SPRITE_BINS) $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py tools/build_disk.py tools/pack_boot.py tools/geo_atlas.py Makefile
 	@mkdir -p $(DIST)
-	$(PYTHON) -I tools/build_disk.py --out $(DISK) --build $(BUILD) --packing $(BOOT_PACKING) --layout $(BUILD)/layout.json
+	$(PYTHON) -I tools/build_disk.py --out $(DISK) --build $(BUILD) --packing $(BOOT_PACKING) --blocks $(DISK_BLOCKS) --layout $(BUILD)/layout.json
+
+# Lot 9 (docs/SAVE.md): the same volume on 1600 blocks (3.5-inch, 800 KB),
+# beside the shipped 140 KB image; POM2 boots it on its SmartPort (Liron)
+# card, a2shot (Disk II only) cannot.
+DISK800 := $(BUILD)/NEOWILDERNESS-800K.po
+disk800: $(DISK)
+	$(PYTHON) -I tools/build_disk.py --out $(DISK800) --build $(BUILD) --packing $(BOOT_PACKING) --blocks 1600
 
 inspect: all
 	$(PYTHON) -I $(DEV)/tools/prodos/read_volume.py $(DISK)
@@ -149,6 +160,7 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_prepare.py
 	$(PYTHON) tests/test_transfers.py
 	$(PYTHON) tests/test_resident.py
+	$(PYTHON) tests/test_save.py
 	$(PYTHON) tests/test_geo_resident.py
 	$(PYTHON) tests/test_geo_atlas.py
 	$(PYTHON) tests/test_journey_resident.py
@@ -240,7 +252,7 @@ FUZZ_SEED ?= 2
 fuzz: all $(A2SHOT)
 	$(PYTHON) tests/test_fuzz.py $(FUZZ_SEED) 6 16
 
-.PHONY: test test-original fuzz inspect originals extract run-original dump-game topo FORCE
+.PHONY: test test-original fuzz inspect originals extract run-original dump-game topo disk800 FORCE
 FORCE:
 
 # ---------------------------------------------------------------- analysis

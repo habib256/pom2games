@@ -103,11 +103,11 @@ def rights():
     files = entries(img)
     assert 'NEOWILD.HOF' in files and 'NEOWILD.DAT' in files
     for name, e in files.items():
-        if name == 'NEOWILD.HOF':
-            assert e[0x1E] & 0x02, 'NEOWILD.HOF must stay writable'
+        if name == 'NEOWILD.HOF' or (name.startswith('NEOWILD.S') and name[9:].isdigit()):
+            assert e[0x1E] & 0x02, f'{name} must stay writable'   # hall of fame, saved games (lot 9)
         else:
             assert e[0x1E] == 0x01, f'{name}: access ${e[0x1E]:02X}, read only ($01) expected'
-    print(f'  rights: {len(files) - 1} files read only, NEOWILD.HOF writable: OK')
+    print(f'  rights: files read only but NEOWILD.HOF and the saved games: OK')
 
 
 def stray_fcb(L):
