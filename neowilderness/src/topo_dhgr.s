@@ -1184,7 +1184,7 @@ tp_marker_row:
 ; written after the switch, the copy loops address the page directly.
 TP_LC1      = $C08B             ; RAM bank 1, read and write (twice)
 TP_SNAP     = $D000
-TP_SNAP_END = $F100
+TP_SNAP_END = $ED00
 TP_LINE_MAX = 60
 tpz_r0      = tr0               ; first byte of the current run (auxiliary
 tpz_end     = tr1               ; zero page: ALTZP is on); decode: run end

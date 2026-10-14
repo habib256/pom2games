@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """RAM module transfers: exact images, preserved state, cost per byte.
 
+LZ images (docs/MEMORY.md 13) are decoded in place by mem_fetch: the window
+holds the exact image; the bytes past it, beyond the copy's small margin,
+are untouched.
+
 Replaces the DOS overlay-codec test: modules are no longer read or decoded
 at run time, they are copied from auxiliary RAM (memory.s). The layout is
 the common trunk plus the Sierra Nevada pack of the default menu choice. Every directory
@@ -22,7 +26,9 @@ def main():
         image = bytearray((HERE / 'build' / module['image']).read_bytes())
         # The Sierra Nevada pack rewrites its fauna patches with the bytes the
         # trunk's images already hold (tools/build_disk.py asserts it).
-        images[int(index)] = (bytes(image), module['window'])
+        # An LZ image (docs/MEMORY.md 13) is decoded in place: its copy may end
+        # `margin` bytes past the image, which the guard skips.
+        images[int(index)] = (bytes(image), module['window'], module.get('lz', {}).get('margin', 0))
     with a2test.Session(DISK) as s:
         s.step(L.until('idle', 20000))
         rows = s.step(L.peek('row_n0', 256)).data
@@ -32,7 +38,7 @@ def main():
         for index in sorted(images):
             if index == 18:
                 continue                # alias of 17
-            expected, window = images[index]
+            expected, window, margin = images[index]
             if index == 0:
                 call = (0xA2, 0, 0x20, L['mem_fetch'] & 255, L['mem_fetch'] >> 8)
             else:
@@ -43,7 +49,8 @@ def main():
             s.step(L.poke('overlay_current', 0))
             s.step(L.poke('sim_loaded', 0))
             limit = window + (0x2000 if window != 0x5800 else 0x800)
-            guard = s.step(f'peek:{window+len(expected):04X}:{min(16, limit-window-len(expected))}').data
+            past = window + len(expected) + margin
+            guard = s.step(f'peek:{past:04X}:{min(16, limit - past)}').data
             start = s.step(f'until:{L["mem_fetch"]:04X}:200').cycles[-1]
             zp = s.step('peek:0000:256').data
             text = s.step('peek:0400:1024').data
@@ -59,7 +66,7 @@ def main():
             assert after == zp, (index, 'ZP')
             assert s.step('peek:0400:1024').data == text, (index, 'text page')
             assert s.step(SWITCHES).data == switches, (index, 'soft switches')
-            assert s.step(f'peek:{window+len(expected):04X}:{len(guard)}').data == guard, (index, 'overrun')
+            assert s.step(f'peek:{past:04X}:{len(guard)}').data == guard, (index, 'overrun')
             costs.append((index, len(expected), end - start))
             s.step(L.until('idle', 100))
     worst = max(c / n for _, n, c in costs)

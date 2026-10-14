@@ -13,6 +13,11 @@
 ;   species of a 3-species region) copies nothing. Sources: auxiliary RAM,
 ;   auxiliary language card banks 2/1, main language card bank 2 (lot 7).
 ;   Copies exactly the stored length; bytes past it keep their old contents.
+;   An entry whose bank has bit 7 set (BANK_LZ, docs/MEMORY.md 13) holds an
+;   LZ image (tools/pack_boot.py tokens, terminated by a match of distance
+;   0) behind the 2-byte address of its window: the copy lands at the end of
+;   the module's own extent (tools/build_disk.py lz_store places it so that
+;   the decoder never overtakes it) and lz_unpack decodes it in place.
 ;   Entry: main ZP/stack (ALTZP off), RAMRD off, D = 0. Preserves the I flag,
 ;   80STORE, RAMWRT, the video switches, all zero page and the text screen.
 ;   Clobbers A, X, Y. Leaves the ROM selected in the language card space.
@@ -47,8 +52,9 @@ MLI       = $BF00
 PD_BITMAP = $BF58
 PD_DEVNUM = $BF30
 
-MOD_COUNT = 26                  ; directory entries: TOPOGEN + modules 1..25
-                                ; (23 fourth species, 24 hall of fame, 25 stars)
+MOD_COUNT = 28                  ; directory entries: TOPOGEN + modules 1..27
+                                ; (23 fourth species, 24 hall of fame, 25 stars,
+                                ; 26 orientation, 27 health alerts)
 DIR_SIZE  = 7                   ; bank, source, length, destination
 XFER_RUN  = $0120               ; stack-page copy loop while RAMRD is on
 
@@ -58,6 +64,7 @@ BANK_LC2  = 1                   ; auxiliary language card, bank 2
 BANK_LC1  = 2                   ; auxiliary language card, bank 1
 BANK_MLC2 = 3                   ; main language card, bank 2 ($D400-$DDFF:
                                 ; ProDOS 8 keeps its QUIT code in $D100-$D3FF)
+BANK_LZ   = $80                 ; + bank: an LZ image, decoded in the window
 
 .segment "RESBSS"
 ; Instrumentation. Little-endian; the loader includes its own calls.
@@ -77,6 +84,7 @@ geo_queries: .res 3             ; fine geography queries (native maps)
 xfer_80:    .res 1
 xfer_wrt:   .res 1
 xfer_lc:    .res 1
+mf_lz:      .res 1              ; bit 7: the entry is an LZ image
 journey_kind: .res 1            ; 0 scenario, 1 free journey (written by the
                                 ; loader; read by NEOWILD.END). Not MAP+33: the
                                 ; wild food scan reuses MAP+28..MAP+33 (TRAVEL)
@@ -154,6 +162,8 @@ mem_fetch:
         lda     module_dir+4,y  ; pages
         sta     mf_pages
         lda     module_dir,y
+        sta     mf_lz
+        and     #$7F
         bne     @lc
         ; Auxiliary $0200-$BFFF: the loop runs in the main stack page, which
         ; RAMRD does not switch. Copy it there for each transfer.
@@ -239,7 +249,10 @@ lc_dst2:
 lc_end: lda     LCROM
         sta     ALTZPOFF
 mf_done:
-        bit     xfer_lc         ; the game normally runs with the ROM; a
+        bit     mf_lz           ; RAMWRT still off: decode in the window
+        bpl     :+
+        jsr     lz_unpack
+:       bit     xfer_lc         ; the game normally runs with the ROM; a
         bpl     :+              ; caller with RAM read keeps it, read-only
         lda     RDLCBNK2
         bpl     @bank1
@@ -301,6 +314,121 @@ xr_end:
 XFER_SIZE = xr_end - xr_start
 .assert XFER_SIZE <= 64, error, "stack-page transfer loop too large"
 
+; ----------------------------------------------------------------------------
+; lz_unpack -- (mem_fetch) the LZ image just copied to mf_dst: its first two
+; bytes are the output address, then groups of a flag byte (low bit first,
+; 1 = match) and eight tokens: a literal, or a match of two bytes (12-bit
+; distance, length - 3 in the high nibble's low four bits; 15 adds a byte,
+; length - 18). A match of distance 0 ends the image. It borrows LZ_ZP
+; ($50-$55, saved on the stack and restored: mem_fetch preserves the whole
+; zero page). In MENUCODE, resident while a journey runs; the I/O buffer of
+; the end of a journey overwrites it, and INPUT, the only module loaded
+; afterwards, is stored raw (tools/build_disk.py LZ_MODULES).
+LZ_ZP   = $50
+lz_in   = LZ_ZP                 ; input page pointer (Y: offset in it)
+lz_out  = LZ_ZP+2
+lz_from = LZ_ZP+4
+.segment "MENUCODE"
+lz_unpack:
+        ldx     #5
+:       lda     LZ_ZP,x
+        pha
+        dex
+        bpl     :-
+        lda     mf_dst
+        sta     lz_in
+        lda     mf_dst+1
+        sta     lz_in+1
+        ldy     #0
+        lda     (lz_in),y
+        sta     lz_out
+        iny
+        lda     (lz_in),y
+        sta     lz_out+1
+        iny
+        ldx     #0              ; X = 0: (lz_out,x)
+        lda     #1              ; empty: the first token reads a flag byte
+        sta     lz_flags
+@token: lsr     lz_flags
+        bne     @flag
+        lda     (lz_in),y       ; eight more flags, a sentinel bit behind them
+        iny
+        bne     :+
+        inc     lz_in+1
+:       sec
+        ror     a
+        sta     lz_flags
+@flag:  lda     (lz_in),y       ; C: the token's flag
+        iny
+        bne     :+
+        inc     lz_in+1
+:       bcs     @match
+        sta     (lz_out,x)      ; literal
+        inc     lz_out
+        bne     @token
+        inc     lz_out+1
+        bcc     @token          ; always
+@match: sta     lz_dist
+        lda     (lz_in),y
+        iny
+        bne     :+
+        inc     lz_in+1
+:       sta     lz_len
+        ora     lz_dist
+        beq     @end            ; distance 0: the end
+        lda     lz_len
+        lsr     a
+        lsr     a
+        lsr     a
+        lsr     a
+        sta     lz_from+1
+        sec                     ; source = output - distance
+        lda     lz_out
+        sbc     lz_dist
+        sta     lz_from
+        lda     lz_out+1
+        sbc     lz_from+1
+        sta     lz_from+1
+        lda     lz_len
+        and     #15
+        adc     #2              ; C set (no borrow): length 3..18
+        cmp     #18
+        bne     :+
+        clc                     ; 18 + the extension byte
+        adc     (lz_in),y
+        iny
+        bne     :+
+        inc     lz_in+1
+:       sty     lz_y
+        tax
+        ldy     #0
+@copy:  lda     (lz_from),y
+        sta     (lz_out),y
+        iny
+        dex
+        bne     @copy
+        tya                     ; X = 0 again
+        clc
+        adc     lz_out
+        sta     lz_out
+        bcc     :+
+        inc     lz_out+1
+:       ldy     lz_y
+        jmp     @token
+@end:   ldx     #0
+:       pla
+        sta     LZ_ZP,x
+        inx
+        cpx     #6
+        bne     :-
+        rts
+lz_flags: .res 1
+lz_dist:  .res 1
+lz_len:   .res 1
+lz_y:     .res 1
+.export lz_unpack
+
+.segment "RESCODE"
 ; ----------------------------------------------------------------------------
 mli_call:
         sta     mli_cmd

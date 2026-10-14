@@ -7,10 +7,14 @@
 ; Every rule and number below was measured on the ROM by
 ; tools/re_orientation_probe.py.
 ;
-; Placement: the logic in the TREE module (1 KB free); resident in WILDLO
-; the gates, the dialogs (orient_ask: keys here, numbers through INPUT),
-; the texts, the Sun's azimuth and the shadow error (with SIM loaded): the
-; auxiliary store has no room for more module bytes (docs/ORIENTATION.md).
+; Placement (memory reclaim after lots 7 and 13, docs/MEMORY.md 13): LOOK,
+; with its texts, dialogs, the Sun's azimuth and the shadow error (they run
+; with SIM loaded), in the ORIENT module (ID 26); USE MAP...CHART, USE
+; SHADOW, LOOK MAP and LOOK CHART in the TREE module (ID 20); resident in
+; WILDLO the gates and orient_ask (keys here, numbers through INPUT, then
+; ORIENT again).
+
+ORIENT_MODULE = 26
 
 .segment "GDATA"
 ; B2[53], B2[54] and $4B4A of the original: bit 0 COMPASS in use, bit 1 WATCH
@@ -21,8 +25,9 @@ orient_lcg: .byte $F5,$CA,$66,$1D       ; SURV3D $0D2A state $BC-$BF (first view
 
 .segment "LOWCODE"
 ; orient_look -- first call of module_tree_look: the nouns of T$0F/S$0F
-; (52-56) and of T$10/S$0C (N E S W, SUN STARS AZ) run the TREE module;
-; L R B F U D return to the resident LOOK.
+; (52-56) and of T$10/S$0C (N E S W, SUN STARS AZ) run the ORIENT module
+; (MAP and CHART: USE in the TREE module); L R B F U D return to the
+; resident LOOK.
 orient_look:
         lda     noun
         cmp     #52
@@ -46,12 +51,20 @@ orient_take:
         lda     #<orient_sense
         ldx     #>orient_sense
         jmp     message
-:       lda     #20
+:       lda     verb            ; USE, LOOK MAP and LOOK CHART: the TREE
+        cmp     #V_USE          ; module (module_orient_use)
+        beq     @use
+        lda     noun
+        cmp     #52             ; MAP
+        beq     @use
+        cmp     #56             ; CHART
+        beq     @use
+        lda     #ORIENT_MODULE
         jsr     overlay_load
-        lda     verb
-        cmp     #V_USE
-        jeq     module_orient_use
         jmp     module_orient_look
+@use:   lda     #20
+        jsr     overlay_load
+        jmp     module_orient_use
 orient_no:
         rts
 
@@ -121,7 +134,7 @@ orient_ask:
         jsr     overlay_load
         jsr     module_number
         php
-        lda     #20
+        lda     #ORIENT_MODULE
         jsr     overlay_load
         plp
         rts
@@ -137,29 +150,8 @@ orient_min:   .res 2            ; observation (minutes)
 orient_deg:   .res 2            ; signed degrees added to orient_base
 
 .segment "LOWTEXT"
-orient_magnetic: .byte "DIRECTION SHOWN IS MAGNETIC, NOT TRUE.",0
 orient_sense: .byte "YOU'RE NOT MAKING MUCH SENSE.",0
 orient_cancel: .byte "ACTION CANCELLED.",0
-ol_status_msg: .byte "SEE STATUS DISPLAY.",0
-ol_heading_msg: .byte "YOU ARE HEADED IN A DIRECTION OF|# DEGREES MAGNETIC.",0
-ol_inside_msg: .byte "INSIDE SHELTER.",0
-ol_aid_msg: .byte "FIRST PUT DIRECTION AID IN USE.",0
-ol_az_msg: .byte "STATE DESIRED AZIMUTH IN DEGREES|CLOCKWISE FROM NORTH.",0
-ol_az_max_msg: .byte "ENTER AN AZIMUTH ANGLE THAT DOES NOT|EXCEED 359 DEGREES.",0
-ol_long_msg: .byte "TOO LONG!",0
-ol_sun_msg: .byte "SORRY, THE SUN IS OBSCURED.",0
-ol_stars_msg: .byte "SORRY, THE STARS ARE NOT VISIBLE.",0
-ol_chart_msg: .byte "SORRY, THAT ITEM IS NOT AVAILABLE.",0
-ou_dark_msg: .byte "SORRY, THERE IS INSUFFICIENT LIGHT.",0
-
-oa_lo: .byte <oa_watch, <oa_shadow, <oa_north, <oa_south, <oa_hours
-oa_hi: .byte >oa_watch, >oa_shadow, >oa_north, >oa_south, >oa_hours
-oa_watch: .byte "DO YOU WANT TO ESTIMATE NORTH-SOUTH BY|USING THE 'LOOK SUN' COMMAND AND TIME|FROM NOON TO THE SUN'S POSITION [Y/N]?",0
-oa_shadow: .byte "ASSUME THE STICK PERPENDICULAR TO THE|GROUND. DOES THE TIP OF THE SHADOW|GENERALLY MOVE EAST [E] OR WEST [W] ?",0
-oa_north: .byte "WITH THE HOUR HAND POINTED AT THE SUN,|ESTIMATE AZIMUTH IN DEG OF THE DIRECTION|HALFWAY BETWEEN THE HOUR HAND AND 12.",0
-oa_south: .byte "WITH 12 POINTED AT SUN, ESTIMATE AZI-|MUTH IN DEGREES OF DIRECTION HALFWAY|BETWEEN THE HOUR HAND AND 12.",0
-oa_hours: .byte "STATE TIME IN HOURS FOR WATCHING THE|SHADOW TIP MOVE.",0
-
 
 OA_WATCH  = 0                   ; msg 189/190, Y (1) or N (0)
 OA_SHADOW = 1                   ; msg 29/30, W (1) or E (0)
@@ -169,101 +161,14 @@ OA_HOURS  = 4                   ; msg 48, then a duration
 OA_DEG    = 5                   ; a number of degrees (message already shown)
 OA_TIME   = 6                   ; a duration (message already shown)
 
-.segment "LOWCODE"
-; orient_sun_core -- (SIM loaded) the Sun of this hour: orient_sun_az
-; (atan2(east, north) as src/sky.s, which skips it for a Sun out of the
-; drawn sky) and orient_south (sin(dec) - sin(lat) >= 0: msg 201/202).
-orient_sun_core:
-        jsr     sky_position
-        fld     sky_sinlat
-        fop     FSUB, sky_sindec
-        ldx     #0
-        lda     FAC
-        beq     :+
-        lda     FACSGN
-        bmi     :++
-:       inx
-:       stx     orient_south
-        fld     sky_north
-        lda     FAC
-        beq     @eastwest
-        fop     FDIV, sky_east
-        jsr     FATN
-        fop     FMULT, sky_units
-        fop     FADD, f_half
-        jsr     AYINT
-        lda     $A1
-        sta     ang
-        lda     $A0
-        sta     ang+1
-        lda     sky_north+1
-        bpl     @wrap
-        clc
-        lda     ang
-        adc     #<280
-        sta     ang
-        lda     ang+1
-        adc     #>280
-        sta     ang+1
-@wrap:  jsr     wrap_ang
-        lda     ang
-        ldx     ang+1
-        jmp     @store
-@eastwest:
-        lda     #140
-        ldx     #0
-        ldy     sky_east+1
-        bpl     @store
-        lda     #<420
-        ldx     #>420
-@store: sta     orient_sun_az
-        stx     orient_sun_az+1
-        rts
-
-; orient_shadow_error -- (SIM loaded) T$10/S$0C $59C4:
-; orient_deg = INT((RND - .5) * 481 * (1 + .33 |12 - (hour + min/120)|) / min)
-orient_shadow_error:
-        ldy     orient_min
-        lda     orient_min+1
-        jsr     GIVAYF
-        fst     t2
-        fop     FMULT, os_00833
-        fop     FADD, s_hour
-        fop     FSUB, f_12
-        lda     #0
-        sta     FACSGN          ; ABS
-        fop     FMULT, os_033
-        fop     FADD, f_one
-        fop     FMULT, os_481
-        fst     t1
-        jsr     weather_random  ; the original's RND ($0321)
-        fop     FSUB, f_half
-        jsr     negate
-        fop     FMULT, t1
-        fst     t1
-        fld     t2
-        fop     FDIV, t1
-        jsr     AYINT
-        lda     $A1
-        sta     orient_deg
-        lda     $A0
-        sta     orient_deg+1
-        rts
-os_00833: .byte $7A,$08,$7A,$8D,$65     ; .00833 (T$10/S$0C $5AD3)
-os_033:   .byte $7F,$28,$F5,$C2,$8F     ; .33 ($5ADD)
-os_481:   .byte $89,$70,$80,$00,$00     ; 481 ($5AEC)
-
-.segment "TREE"
+.segment "ORIENT"
 ; LOOK with noun 52-56 (T$0F/S$0F) or a direction (T$10/S$0C).
 module_orient_look:
         lda     noun
         cmp     #57
         jcs     @direction
-        cmp     #53
+        cmp     #53             ; (MAP and CHART: USE, orient_take)
         beq     @compass
-        jcc     module_orient_use       ; MAP: USE MAP
-        cmp     #56
-        jeq     module_orient_use       ; CHART: USE CHART
         tax                     ; WATCH, ALTIMETER
         jsr     have
         jcc     ol_missing
@@ -636,6 +541,114 @@ ol_mul60:
         bne     @add
         rts
 
+ol_57:    .byte $86,$65,$2F,$1A,$A0     ; 57.296 (T$10/S$0C $5AE7)
+ol_262:   .byte $7F,$06,$24,$DD,$2F     ; .262 ($5AD8)
+ol_9_14:  .byte $80,$24,$92,$49,$25     ; 9/14: units to degrees
+
+; orient_sun_core -- (SIM loaded) the Sun of this hour: orient_sun_az
+; (atan2(east, north) as src/sky.s, which skips it for a Sun out of the
+; drawn sky) and orient_south (sin(dec) - sin(lat) >= 0: msg 201/202).
+orient_sun_core:
+        jsr     sky_position
+        fld     sky_sinlat
+        fop     FSUB, sky_sindec
+        ldx     #0
+        lda     FAC
+        beq     :+
+        lda     FACSGN
+        bmi     :++
+:       inx
+:       stx     orient_south
+        fld     sky_north
+        lda     FAC
+        beq     @eastwest
+        fop     FDIV, sky_east
+        jsr     FATN
+        fop     FMULT, sky_units
+        fop     FADD, f_half
+        jsr     AYINT
+        lda     $A1
+        sta     ang
+        lda     $A0
+        sta     ang+1
+        lda     sky_north+1
+        bpl     @wrap
+        clc
+        lda     ang
+        adc     #<280
+        sta     ang
+        lda     ang+1
+        adc     #>280
+        sta     ang+1
+@wrap:  jsr     wrap_ang
+        lda     ang
+        ldx     ang+1
+        jmp     @store
+@eastwest:
+        lda     #140
+        ldx     #0
+        ldy     sky_east+1
+        bpl     @store
+        lda     #<420
+        ldx     #>420
+@store: sta     orient_sun_az
+        stx     orient_sun_az+1
+        rts
+
+; orient_shadow_error -- (SIM loaded) T$10/S$0C $59C4:
+; orient_deg = INT((RND - .5) * 481 * (1 + .33 |12 - (hour + min/120)|) / min)
+orient_shadow_error:
+        ldy     orient_min
+        lda     orient_min+1
+        jsr     GIVAYF
+        fst     t2
+        fop     FMULT, os_00833
+        fop     FADD, s_hour
+        fop     FSUB, f_12
+        lda     #0
+        sta     FACSGN          ; ABS
+        fop     FMULT, os_033
+        fop     FADD, f_one
+        fop     FMULT, os_481
+        fst     t1
+        jsr     weather_random  ; the original's RND ($0321)
+        fop     FSUB, f_half
+        jsr     negate
+        fop     FMULT, t1
+        fst     t1
+        fld     t2
+        fop     FDIV, t1
+        jsr     AYINT
+        lda     $A1
+        sta     orient_deg
+        lda     $A0
+        sta     orient_deg+1
+        rts
+os_00833: .byte $7A,$08,$7A,$8D,$65     ; .00833 (T$10/S$0C $5AD3)
+os_033:   .byte $7F,$28,$F5,$C2,$8F     ; .33 ($5ADD)
+os_481:   .byte $89,$70,$80,$00,$00     ; 481 ($5AEC)
+
+; Texts and dialogs (orient_ask prints them while this module is loaded).
+orient_magnetic: .byte "DIRECTION SHOWN IS MAGNETIC, NOT TRUE.",0
+ol_status_msg: .byte "SEE STATUS DISPLAY.",0
+ol_heading_msg: .byte "YOU ARE HEADED IN A DIRECTION OF|# DEGREES MAGNETIC.",0
+ol_inside_msg: .byte "INSIDE SHELTER.",0
+ol_aid_msg: .byte "FIRST PUT DIRECTION AID IN USE.",0
+ol_az_msg: .byte "STATE DESIRED AZIMUTH IN DEGREES|CLOCKWISE FROM NORTH.",0
+ol_az_max_msg: .byte "ENTER AN AZIMUTH ANGLE THAT DOES NOT|EXCEED 359 DEGREES.",0
+ol_long_msg: .byte "TOO LONG!",0
+ol_sun_msg: .byte "SORRY, THE SUN IS OBSCURED.",0
+ol_stars_msg: .byte "SORRY, THE STARS ARE NOT VISIBLE.",0
+
+oa_lo: .byte <oa_watch, <oa_shadow, <oa_north, <oa_south, <oa_hours
+oa_hi: .byte >oa_watch, >oa_shadow, >oa_north, >oa_south, >oa_hours
+oa_watch: .byte "DO YOU WANT TO ESTIMATE NORTH-SOUTH BY|USING THE 'LOOK SUN' COMMAND AND TIME|FROM NOON TO THE SUN'S POSITION [Y/N]?",0
+oa_shadow: .byte "ASSUME THE STICK PERPENDICULAR TO THE|GROUND. DOES THE TIP OF THE SHADOW|GENERALLY MOVE EAST [E] OR WEST [W] ?",0
+oa_north: .byte "WITH THE HOUR HAND POINTED AT THE SUN,|ESTIMATE AZIMUTH IN DEG OF THE DIRECTION|HALFWAY BETWEEN THE HOUR HAND AND 12.",0
+oa_south: .byte "WITH 12 POINTED AT SUN, ESTIMATE AZI-|MUTH IN DEGREES OF DIRECTION HALFWAY|BETWEEN THE HOUR HAND AND 12.",0
+oa_hours: .byte "STATE TIME IN HOURS FOR WATCHING THE|SHADOW TIP MOVE.",0
+
+.segment "TREE"
 ; USE (T$11/S$00 $5BF9 family 6, $5DAC SHADOW).
 module_orient_use:
         lda     noun
@@ -654,7 +667,7 @@ module_orient_use:
 @object:
         tax
         jsr     have
-        jcc     ol_missing
+        jcc     ou_missing
         lda     orient_aid      ; COMPASS and WATCH stop being in use
         and     #4
         sta     orient_aid
@@ -712,7 +725,9 @@ ou_light:
         rts
 @no:    clc
         rts
-
-ol_57:    .byte $86,$65,$2F,$1A,$A0     ; 57.296 (T$10/S$0C $5AE7)
-ol_262:   .byte $7F,$06,$24,$DD,$2F     ; .262 ($5AD8)
-ol_9_14:  .byte $80,$24,$92,$49,$25     ; 9/14: units to degrees
+ou_missing:
+        lda     #<m_noitem
+        ldx     #>m_noitem
+        jmp     message
+ol_chart_msg: .byte "SORRY, THAT ITEM IS NOT AVAILABLE.",0
+ou_dark_msg: .byte "SORRY, THERE IS INSUFFICIENT LIGHT.",0

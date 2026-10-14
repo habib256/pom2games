@@ -47,8 +47,9 @@ def main():
     print(f'  cumulative overlay reads: {reads}')
     # Measured on both pre-transition and current native-rule builds.
     check('module reads stay bounded across LOOK, STATUS, transfers and REST',
-          # RAM module loads; identical to the frozen HGR build's disk reads.
-          reads == [4, 5, 5, 8, 12, 22, 24])
+          # RAM module loads; the frozen HGR build's disk reads, plus the
+          # health alerts module (lot 13, ID 27) after REST's health update.
+          reads == [4, 5, 5, 8, 12, 23, 25])
     check('clock remains correct through module swaps',
           abs(fp(r.mem(L['s_hour'], 5)) - 10) < 1e-6
           and abs(fp(r.mem(L['s_elap'], 5)) - 3) < 1e-6)

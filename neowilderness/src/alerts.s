@@ -1,8 +1,12 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
-; Fidelity lot 13 (medicine), resident in WILDLO:
-;   - the original's health alerts (T0A/S0C $5BED, T0B/S02, T0B/S0D) and
-;     the forced sleep of an exhausted player (parser $0B, T15/S0B $585F);
-;   - the infection and malaria onsets of T0B/S07 ($5B3F, $5B8D);
+; Fidelity lot 13 (medicine):
+;   - the original's health alerts (T0A/S0C $5BED, T0B/S02, T0B/S0D): the
+;     rules and texts in the ALERT module (ID 27, docs/MEMORY.md 13), loaded
+;     after the health update (which has just replaced the $5800 window with
+;     MED) and after a command that queued an alert; their state resident;
+;   - the forced sleep of an exhausted player (parser $0B, T15/S0B $585F),
+;     resident (it loads SIM and MED);
+;   - the infection and malaria onsets of T0B/S07 ($5B3F, $5B8D), in SIM;
 ;   - the resident bridges of the care commands (care.s, WILDMVI).
 ; See docs/IMPLEMENTATION.md, "Soins, alertes et maladies (lot 13)".
 
@@ -28,22 +32,34 @@ al_once:      .byte 0          ; 1 sweat/shiver 203/204 ($4B8B), 2 deterioration
 al_events:    .byte 0          ; end-of-command events: 1 160, 2 175, 4 176, 8 177, 16 178
 al_count:     .byte 0
 al_queue:     .res 8
-al_now:       .res 21
 al_i:         .byte 0
 al_w:         .word 0
-al_t1:        .res 5
-al_t2:        .res 5
+al_k40:   .byte $86,$20,0,0,0
+al_k300:  .byte $89,$16,0,0,0
+care_already_message: .byte "YOU ALREADY HAVE.",0   ; WET BODY, message 11
+
+ALERT_MODULE = 27
 
 .segment "LOWCODE"
 ; ----------------------------------------------------------------------------
 ; spend: the health update, framed by the original alert rules (print only;
-; except the forced sleep they write no simulation state).
+; except the forced sleep they write no simulation state). The health update
+; leaves MED in the $5800 window and SIM loaded: the rules run in ALERT.
 health_alerts:
         jsr     health
         lda     dead
         beq     :+
         rts
-:
+:       lda     #ALERT_MODULE
+        jsr     overlay_load
+        jmp     module_health_alerts
+al_event:
+        ora     al_events
+        sta     al_events
+        rts
+
+.segment "ALERT"
+module_health_alerts:
         ; T0A/S0C $5BED, before the thermal and health modules of the step.
         lda     al_daily
         lsr     a
@@ -204,10 +220,6 @@ health_alerts:
         stx     al_strong
         rts
 
-al_event:
-        ora     al_events
-        sta     al_events
-        rts
 ; A = alert id (al_lo/al_hi); the queue keeps the original order of display.
 al_add: ldx     al_count
         cpx     #8
@@ -284,21 +296,6 @@ al_percent:
 @done:  rts
 
 ; ----------------------------------------------------------------------------
-; main loop, after a command: the queued alerts are appended to the result,
-; then an exhausted player sleeps without input (parser $B033 with $0B).
-alerts_after:
-        jsr     al_show
-        lda     #0
-        sta     al_once         ; $4B84: once-per-command messages rearm
-        lda     dead
-        ora     won
-        bne     @done
-        lda     al_forced
-        beq     @done
-        jsr     al_sleep
-        jmp     alerts_after
-@done:  jmp     summary_refresh
-
 al_show:
         lda     #0
         sta     al_i
@@ -360,6 +357,29 @@ al_text:
         ldx     gp1+1
         jmp     message
 
+; ----------------------------------------------------------------------------
+.segment "LOWCODE"
+; main loop, after a command: the queued alerts are appended to the result
+; (ALERT module), then an exhausted player sleeps without input (parser
+; $B033 with $0B).
+alerts_after:
+        lda     al_count
+        ora     al_events
+        beq     :+
+        lda     #ALERT_MODULE
+        jsr     overlay_load
+        jsr     al_show
+:       lda     #0
+        sta     al_once         ; $4B84: once-per-command messages rearm
+        lda     dead
+        ora     won
+        bne     @done
+        lda     al_forced
+        beq     @done
+        jsr     al_sleep
+        jmp     alerts_after
+@done:  jmp     summary_refresh
+
 ; T15/S0B $585F: 180 + INT(RND x 300) minutes of REST at the base rate,
 ; or, in a river or lake, condition 14 and 15 minutes ($58A1, message 177).
 al_sleep:
@@ -402,7 +422,8 @@ al_sleep:
         jsr     report
         jmp     finish_simulation
 
-; New day (module_medical_day): T0A/S05 $5952 rearms the three gauge
+.segment "OUTDOOR"
+; New day (module_medical_day, OUTDOOR): T0A/S05 $5952 rearms the three gauge
 ; messages and restarts the day's energy counters.
 alerts_day:
         lda     #0
@@ -416,9 +437,9 @@ alerts_day:
         bpl     :-
         rts
 
+.segment "THERMAL"
 ; Simulation hooks: they run with SIM loaded (module_drink,
 ; module_rest_prepare, module_hazards) and live in its window.
-.segment "THERMAL"
 ; DRINK WATER (module_drink, before A2[16] is reset): T0F/S00 $5C50 adds the
 ; ounces to the session when the last drink is under two hours old.
 alert_drink:
@@ -604,17 +625,21 @@ verb_more:
         jmp     message
 @care:  jmp     do_medical
 
-.segment "LOWTEXT"
+.segment "THERMAL"
+; Shared by the SIM hooks above and by ALERT, which runs with SIM loaded.
 al_sweat: .byte $80,$15,$55,$55,$56 ; $4C7A of the saved game (.5833333)
 al_k2:    .byte $82,$00,0,0,0
-al_k3:    .byte $82,$40,0,0,0
-al_k16:   .byte $85,$00,0,0,0
-al_k40:   .byte $86,$20,0,0,0
-al_k60:   .byte $86,$70,0,0,0
-al_k300:  .byte $89,$16,0,0,0
-al_m850:  .byte $8A,$D4,$80,0,0       ; -850
 al_k2e4:  .byte $74,$51,$B7,$17,$5A   ; T0B/S07 $5D22 (.0002)
 al_k5e5:  .byte $72,$51,$B7,$17,$5A   ; T0B/S07 $5D1D (.00005)
+al_t1:    .res 5
+
+.segment "ALERT"
+al_k3:    .byte $82,$40,0,0,0
+al_k16:   .byte $85,$00,0,0,0
+al_k60:   .byte $86,$70,0,0,0
+al_m850:  .byte $8A,$D4,$80,0,0       ; -850
+al_t2:    .res 5
+al_now:   .res 21
 ; Alert texts: messages 173, 174, 187, 203, 204 (direct), then the events
 ; 25, 40, 41, 42, 43 (messages 160, 175, 176, 177, 178).
 al_lo: .byte <al_173,<al_174,<al_203,<al_204,<al_187,<al_160,<al_175,<al_176,<al_177,<al_178
@@ -629,5 +654,4 @@ al_175: .byte "TOO TIRED TO RAISE A LITTLE FINGER.",0
 al_176: .byte "YOU ARE NOT LONG FOR THIS WORLD.",0
 al_177: .byte "YOU ARE DROWNING.",0
 al_178: .byte "EXHAUSTED: INVOLUNTARY SLEEP.",0
-care_already_message: .byte "YOU ALREADY HAVE.",0   ; WET BODY, message 11
 .segment "GCODE"

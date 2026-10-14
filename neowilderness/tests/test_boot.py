@@ -65,11 +65,16 @@ def check(disk, mapbin):
         if index == 23:
             assert loaded_directory[index*7:index*7+7] == bytes(7), index   # empty entry
             continue
-        assert bank in (0, 1, 2, 3) and 0 < length <= 0x2000 and window in (0x2000, 0x5800, 0x9600, 0x97CE), index
+        if bank & build_disk.BANK_LZ:      # LZ image: window = where its copy lands
+            bank &= 0x7F
+            assert 0x5800 <= window < 0x6000 or 0x9600 <= window < 0xA200, index
+        else:
+            assert window in (0x2000, 0x5800, 0x9600, 0x97CE), index
+        assert bank in (0, 1, 2, 3) and 0 < length <= 0x2000, index
         assert bank or not (0x2000 <= source < 0x4000 or source < 0x0800), (index, 'reserved aux')
     import json
     layout = json.loads((HERE / 'build/layout.json').read_text())
-    card = [(m['address'], (HERE / 'build' / m['image']).read_bytes())
+    card = [(m['address'], build_disk.stored_bytes(HERE / 'build', m))
             for m in layout['trunk_modules'].values() if m['bank'] == 'mlc2']
     code = layout['star_code']
     card.append((code['address'], (HERE / 'build/wildskylc.bin').read_bytes()))
