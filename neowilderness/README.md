@@ -119,8 +119,12 @@ données originales requises suivent la procédure `make originals` /
 - TOPO/T : carte graphique globale en DHGR, calculée à chaque ouverture
   depuis la grille du port (≈ 3 s) ; elle n’est pas une reproduction exacte
   du TOPO original. Échap, Retour ou Espace rendent la vue intacte.
-- MAP : carte locale centrée sur le joueur, en texte 80 colonnes, extension
-  propre au port.
+- MAP : carte locale centrée sur le joueur, en texte 80 colonnes plein
+  écran (40 × 24 cases, animée pendant WALK/SWIM), extension propre au port.
+  Étiquette en inverse en haut à gauche : minutes de marche, case, cap
+  magnétique, site sous P. Symboles : `=` eau, `T` bois, `t` broussailles,
+  `.,:;+*^#` relief du plus bas au plus haut, `P` joueur, `C` épave,
+  `H` cabane, `R` rangers. Flèches/WASD font défiler, C recentre.
 - Simulation : conserver les règles natives et leurs tests pendant la
   migration mémoire et vidéo.
 

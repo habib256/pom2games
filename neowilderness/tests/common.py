@@ -5,6 +5,7 @@ goes to a2shot --iie (a2run emulates only the II+ and DOS 3.3 images).
 The frozen HGR/DOS reference stays bootable for state comparisons.
 """
 from pathlib import Path
+import re
 import subprocess, sys
 
 HERE = Path(__file__).resolve().parents[1]
@@ -367,10 +368,27 @@ def text_changes(before, after, rows=range(24)):
                for o in [(row % 8) * 128 + (row // 8) * 40] for c in range(40))
 
 
+MAP_CUE = re.compile(r' (\d+ MIN )?\d+,\d+ HEAD \d+ (N |NE|E |SE|S |SW|W |NW)( P\+[CHR])? ')
+
+
+def map_cue(screen):
+    """The inverse cue at the start of MAP's row 0 (src/sites.s topo_draw):
+    " [N MIN ]X,Y HEAD H CARD[ P+S] ", padded to whole cells; None if absent."""
+    m = MAP_CUE.match(screen[0])
+    if not m:
+        return None
+    return screen[0][:m.end() + m.end() % 2]
+
+
 def map_rows(screen):
-    """The 14 grid rows of MAP (text rows 4..17), one character per cell:
-    MAP draws each cell as two 80-column characters (src/sites.s)."""
-    return [row[0:64:2] for row in screen[4:18]]
+    """The 24 grid rows of the full-screen MAP (text rows 0..23), 40 cells,
+    one character per cell: MAP draws each cell as two 80-column characters
+    (src/sites.s). The cells under the cue of row 0 read as spaces."""
+    rows = [row[0:80:2] for row in screen[0:24]]
+    cue = map_cue(screen)
+    if cue:
+        rows[0] = ' ' * (len(cue) // 2) + rows[0][len(cue) // 2:]
+    return rows
 
 
 def state(mem6):

@@ -16,7 +16,6 @@ m_usedrink: .byte   "PLEASE USE 'DRINK'.", 0
 m_hours:    .byte   "DURATION? E.G. 10 MIN OR 1 H", 0
 m_ounces:   .byte   "HOW MANY OUNCES? ESC CANCELS.", 0
 m_travel:   .byte   "TRAVEL: # MINUTES.|!", 0
-m_moving:   .byte   "TRAVELLING: # MIN.", 0
 m_edge:     .byte   "STOP HERE. THE MAP ENDS AHEAD.", 0
 m_water:    .byte   "WATER AHEAD. USE SWIM TO CROSS.", 0
 m_shore:    .byte   "YOU HAVE REACHED LAND. USE WALK.", 0

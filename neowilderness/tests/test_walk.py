@@ -8,7 +8,7 @@ HGR version are checked, then that every load was a RAM transfer
 """
 import tempfile
 import re
-from common import HERE, L, a2test, disk_with, fp, state, text_screen, text_writes, text_changes, map_rows
+from common import HERE, L, a2test, disk_with, fp, state, text_screen, text_writes, text_changes, map_rows, map_cue
 
 
 def main():
@@ -22,6 +22,7 @@ def main():
         disk = disk_with(tmp, m)
         with a2test.Session(disk) as s:
             s.step(L.until('idle', 20000))
+            prompt = text_screen(s.step('peek:0400:1024').data)[20:]
             for step in ('key:WALK', 'press:\r', L.until('number_idle', 6000)):
                 s.step(step)
             previous = int.from_bytes(s.step(L.peek('overlay_reads', 2)).data, 'little')
@@ -54,35 +55,43 @@ def main():
                 assert int.from_bytes(s.step(L.peek('journey_halfcells', 2)).data, 'little') == step
                 assert abs(fp(s.step(L.peek('s_elap', 5)).data) * 60 - elapsed) < 1e-5
                 before_page = s.step('peek:0400:1024').data
-                before_text = text_screen(before_page)
                 before_sim = s.step('peek:2000:8192').data
                 vector = s.step('peek:0036:2').data
                 profile = s.step(f'pcprof:{L["topo_moving_done"]:04X}:6000')
                 pcs = {int(a,16): int(c) for a,c in re.findall(r'^pc ([0-9A-F]{4}) (\d+)$', profile.out, re.M)}
                 writes = text_writes(pcs)
                 after_page = s.step('peek:0400:1024').data
-                changes = text_changes(before_page, after_page, range(20))
+                changes = text_changes(before_page, after_page)
                 assert writes == changes, (step, writes, changes, 'unchanged MAP characters were rewritten')
                 assert s.step('peek:0036:2').data == vector, 'MAP must restore the output vector'
                 reads = int.from_bytes(s.step(L.peek('overlay_reads', 2)).data, 'little')
                 assert reads - previous == 1, (step, previous, reads)
                 previous = reads
                 screen = text_screen(s.step('peek:0400:1024').data)
-                assert screen[1].startswith(f'CELL {cell_x},40'), screen
+                # The full-screen MAP (40 x 24 cells, src/sites.s): the cue
+                # carries the progress (minutes, cell, heading); every other
+                # cell of the 24 rows is map, the player row 23 - (40 - 28).
+                assert map_cue(screen).startswith(f' {elapsed} MIN {cell_x},40 HEAD '), screen[0]
                 rows = map_rows(screen)
-                origin_x = max(0, cell_x - 16)
-                assert rows[6][cell_x - origin_x] == 'P', rows
-                assert screen[20:] == before_text[20:], ('MAP overwrote the progress area', before_text[20:], screen[20:])
+                origin_x = max(0, cell_x - 20)
+                assert rows[11][cell_x - origin_x] == 'P', rows
+                assert len(rows) == 24 and all(len(row) == 40 for row in rows)
+                assert set(''.join(rows[1:])) <= set('.,:;+*^#=TtPCHR'), ('stray characters on the map', screen)
+                assert rows[0].strip() and set(rows[0].strip()) <= set('.,:;+*^#=TtPCHR'), screen[0]
                 assert s.step('peek:2000:8192').data == before_sim, 'MAP touched simulation/HGR RAM'
                 s.step(L.until('at_goal', 6000))
-                screen = text_screen(s.step('peek:0400:1024').data)
-                assert f'TRAVELLING: {elapsed} MIN.' in '\n'.join(screen), screen
+                # No progress message: the result column stays under the map.
+                assert text_screen(s.step('peek:0400:1024').data) == screen, 'a message overwrote the map'
                 assert s.step(L.peek('shown')).data == b'\0'
                 s.step('wait:1')
             s.step(L.until('idle', 6000))
             assert int.from_bytes(s.step(L.peek('minutes', 2)).data, 'little') == 3
             screen = text_screen(s.step('peek:0400:1024').data)
             assert 'TRAVEL: 237 MINUTES.' in '\n'.join(screen), screen
+            # The walk's end cleared rows 20-23 (the map's last rows); the
+            # prompt redrew the grid, the result column holds the result.
+            assert [row[:40] for row in screen[20:]] == [row[:40] for row in prompt], (prompt, screen[20:])
+            assert all(row[79] == ' ' for row in screen[20:]), screen[20:]
             # Every load was a RAM transfer, never an MLI call.
             loads = int.from_bytes(s.step(L.peek('overlay_reads', 2)).data, 'little') - first_load
             copies = int.from_bytes(s.step(L.peek('xfer_count', 2)).data, 'little') - transfers

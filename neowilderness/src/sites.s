@@ -99,27 +99,35 @@ site_absent: .byte "THERE IS NO SHELTER HERE.",0
 site_specific: .byte "USE ENTER SHELTER OR EXIT SHELTER.|CRAFTED SHELTERS ARE NOT AVAILABLE.",0
 site_leave: .byte "EXIT SHELTER BEFORE TRAVELLING.",0
 
-; 32 x 14 cells, two 80-column characters per cell, centred on the player
-; initially. Four arrow keys (or WASD) scroll; Return, Space and Escape
-; return to the view (kept intact: MAP only writes the text page).
+; MAP fills the 80 x 24 text screen: 40 x 24 cells of the 112 x 84 grid, two
+; 80-column characters per cell (square on screen), north up, centred on
+; the player and clamped to the grid. Row 0 starts with a short inverse cue
+; (minutes travelled while walking, the player's cell, magnetic heading
+; and cardinal, the site under P); every other character is map. Arrow keys
+; (or WASD) scroll, C recentres; Return, Space and Escape return to the
+; view (kept intact: MAP only writes the text page). docs/IMPLEMENTATION.md
+; "MAP plein écran 80 × 24".
+TOPO_W = 40                     ; cells across
+TOPO_H = 24                     ; cells down
 module_topo:
+        lda     #0
+        sta     topo_walk
         jsr     topo_center
         jmp     topo_redraw
 
-; Refresh only the top twenty text rows during travel. Simulation already
-; hides HGR; preserve its code, the progress message and the message cursor.
+; One differential update of the whole screen per WALK/SWIM half-step.
+; Simulation already hides HGR; preserve its code and the message cursor.
+; The end of the walk clears rows 20-23 (game.s do_walk) for the results.
 module_topo_moving:
         lda     CH
         pha
         lda     CV
         pha
-        lda     #20
-        sta     $23             ; WNDBTM, exclusive
+        lda     #1
+        sta     topo_walk
         jsr     topo_center
         jsr     topo_draw
-        jsr     topo_finish
-        lda     #24
-        sta     $23
+        jsr     text_release
         lda     #20
         sta     WNDTOP
         pla
@@ -132,28 +140,26 @@ topo_moving_done:
 topo_center:
         lda     px+1
         sec
-        sbc     #16
+        sbc     #TOPO_W/2
         bcs     :+
         lda     #0
-:       cmp     #GW-32+1
+:       cmp     #GW-TOPO_W+1
         bcc     :+
-        lda     #GW-32
+        lda     #GW-TOPO_W
 :       sta     topo_x
         lda     py+1
         sec
-        sbc     #7
+        sbc     #TOPO_H/2
         bcs     :+
         lda     #0
-:       cmp     #GH-14+1
+:       cmp     #GH-TOPO_H+1
         bcc     :+
-        lda     #GH-14
+        lda     #GH-TOPO_H
 :       sta     topo_y
         rts
 topo_redraw:
         jsr     topo_draw
-        jsr     puts
-        .byte "|ARROWS/WASD SCROLL  C CENTER|ESC/RETURN/SPACE: VIEW",0
-        jsr     topo_finish
+        jsr     text_release
         jmp     topo_show
 topo_draw:
         ; Capture all COUT users (including decimal printing) with a renderer
@@ -163,16 +169,27 @@ topo_draw:
         lda     #0
         sta     WNDTOP
         jsr     vtab
+        lda     #$3F            ; the cue in inverse (topo_output: AND $32)
+        sta     INVFLG
+        lda     #' '|$80
+        jsr     COUT
+        lda     topo_walk
+        beq     @cell
+        lda     used
+        sta     num
+        lda     used+1
+        sta     num+1
+        jsr     print_u16
         jsr     puts
-        .byte "MAP P YOU C CRASH H CABIN R RANGERS|CELL ",0
-        lda     px+1
+        .byte " MIN ",0
+@cell:  lda     px+1
         jsr     pdec
         lda     #','|$80
         jsr     COUT
         lda     py+1
         jsr     pdec
         jsr     puts
-        .byte "   HEAD ",0
+        .byte " HEAD ",0
         sec
         lda     heading
         sbc     hud_offset
@@ -219,48 +236,49 @@ topo_draw:
         sta     gp2+1
         lda     #2
         jsr     word
-        jsr     puts
-        .byte " MAG",0
-        jsr     puts
-        .byte "|WINDOW ",0
-        lda     topo_x
-        jsr     pdec
-        lda     #','|$80
-        jsr     COUT
-        lda     topo_y
-        jsr     pdec
-        jsr     puts
-        .byte "   NORTH IS UP|",0
         jsr     topo_here
-        jsr     CROUT
+        lda     #' '|$80        ; closing space, and one more to end on a cell
+        jsr     COUT
+        lda     CH
+        lsr     a
+        bcc     :+
+        lda     #' '|$80
+        jsr     COUT
+:       lda     #$FF
+        sta     INVFLG
         lda     topo_y
         clc
-        adc     #13             ; world Y increases north: highest Y is on top
+        adc     #TOPO_H-1       ; world Y increases north: highest Y is on top
         sta     topo_row
-        lda     #14
+        lda     #TOPO_H
         sta     topo_rows
 @row:   ldx     topo_row
         lda     grid_lo,x
         sta     gp1
         lda     grid_hi,x
         sta     gp1+1
-        lda     topo_x
+        lda     CH              ; row 0: the cells after the cue
+        lsr     a
+        pha
+        adc     topo_x          ; C clear: CH is even
         sta     topo_col
-        lda     #32
+        pla
+        eor     #$FF
+        adc     #TOPO_W+1       ; C clear: TOPO_W - CH/2
         sta     topo_cols
-@cell:  jsr     topo_cell
+@cell_loop:
+        jsr     topo_cell
         ora     #$80
         jsr     topo_put2
         inc     topo_col
         dec     topo_cols
-        bne     @cell
+        bne     @cell_loop
+        dec     topo_rows
+        beq     @done           ; no newline after row 23: no scroll
         jsr     CROUT
         dec     topo_row
-        dec     topo_rows
-        bne     @row
-        jsr     puts
-        .byte "|= WATER T WOODS t SCRUB .,:;+*^# LOW-HI",0
-        rts
+        jmp     @row
+@done:  rts
 
 ; MAP is 80-column text: a cell is two characters (square on screen), the
 ; terrain symbol twice, a site or the player as an inverse letter + space.
@@ -302,21 +320,6 @@ topo_c_main: .byte 0
 topo_c_aux:  .byte 0
 topo_marks: .byte 'P'|$80, 'C'|$80, 'H'|$80, 'R'|$80
 
-topo_finish:
-        jsr     topo_pad
-@row:   lda     CV
-        clc
-        adc     #1
-        cmp     $23             ; moving: stop before progress rows 20..23
-        bcs     @restore
-        sta     CV
-        lda     #0
-        sta     CH
-        jsr     t_vtab
-        jsr     topo_pad
-        jmp     @row
-@restore:
-        jmp     text_release
 topo_show:
         jsr     show_text
 topo_key:
@@ -349,14 +352,16 @@ topo_key:
 topo_done:
         ; Restore the mixed window without waiting for a second key or
         ; redrawing HGR: the text map has preserved all its pixels.
+        ; back_to_view_now clears rows 20-23; the prompt redraws them.
         jmp     back_to_view_now
 topo_recenter:
         jsr     topo_center
         jmp     topo_redraw
+; A quarter of the window per key: 10 cells across, 6 down.
 topo_left:
         lda     topo_x
         sec
-        sbc     #8
+        sbc     #TOPO_W/4
         bcs     :+
         lda     #0
 :       sta     topo_x
@@ -364,16 +369,16 @@ topo_left:
 topo_right:
         lda     topo_x
         clc
-        adc     #8
-        cmp     #GW-32+1
+        adc     #TOPO_W/4
+        cmp     #GW-TOPO_W+1
         bcc     :+
-        lda     #GW-32
+        lda     #GW-TOPO_W
 :       sta     topo_x
         jmp     topo_redraw
 topo_down:
         lda     topo_y
         sec
-        sbc     #4
+        sbc     #TOPO_H/4
         bcs     :+
         lda     #0
 :       sta     topo_y
@@ -381,47 +386,24 @@ topo_down:
 topo_up:
         lda     topo_y
         clc
-        adc     #4
-        cmp     #GH-14+1
+        adc     #TOPO_H/4
+        cmp     #GH-TOPO_H+1
         bcc     :+
-        lda     #GH-14
+        lda     #GH-TOPO_H
 :       sta     topo_y
         jmp     topo_redraw
 
 topo_cell:
         lda     topo_col
         cmp     px+1
-        bne     @goal
+        bne     @site
         lda     topo_row
         cmp     py+1
-        bne     @goal
+        bne     @site
         lda     #'P'
         rts
-@goal:  lda     topo_col
-        cmp     M_GOALX
-        bne     @crash
-        lda     topo_row
-        cmp     M_GOALY
-        bne     @crash
-        lda     #'R'
-        rts
-@crash: lda     topo_col
-        cmp     M_STARTX+1
-        bne     @cabin
-        lda     topo_row
-        cmp     M_STARTY+1
-        bne     @cabin
-        lda     #'C'
-        rts
-@cabin: lda     MAP+16
+@site:  jsr     topo_site
         beq     @terrain
-        lda     topo_col
-        cmp     MAP+17
-        bne     @terrain
-        lda     topo_row
-        cmp     MAP+18
-        bne     @terrain
-        lda     #'H'
         rts
 @terrain:
         ldy     topo_col
@@ -462,6 +444,38 @@ topo_cell:
         tax
         lda     topo_levels,x
         rts
+
+; topo_site -- A = 'R' (outpost), 'H' (found cabin) or 'C' (crash) at cell
+; (topo_col, topo_row), in that priority, else A = 0 (Z set).
+topo_site:
+        lda     topo_col
+        cmp     M_GOALX
+        bne     @cabin
+        lda     topo_row
+        cmp     M_GOALY
+        bne     @cabin
+        lda     #'R'
+        rts
+@cabin: lda     MAP+16
+        beq     @crash
+        lda     topo_col
+        cmp     MAP+17
+        bne     @crash
+        lda     topo_row
+        cmp     MAP+18
+        bne     @crash
+        lda     #'H'
+        rts
+@crash: lda     topo_col
+        cmp     M_STARTX+1
+        bne     @none
+        lda     topo_row
+        cmp     M_STARTY+1
+        bne     @none
+        lda     #'C'
+        rts
+@none:  lda     #0
+        rts
 topo_levels: .byte ".,:;+*^#"
 topo_height: .byte 0
 topo_x: .byte 0
@@ -470,48 +484,25 @@ topo_row: .byte 0
 topo_col: .byte 0
 topo_rows: .byte 0
 topo_cols: .byte 0
+topo_walk: .byte 0              ; 1: WALK/SWIM progress (minutes in the cue)
 .export topo_key, topo_show, topo_x, topo_y
 .export topo_moving_done
 
-; P remains visible on the grid; name its underlying site explicitly.
+; P hides the site it stands on: name it in the cue (" P+R", " P+H", " P+C").
 topo_here:
         lda     px+1
-        cmp     M_GOALX
-        bne     @cabin
+        sta     topo_col
         lda     py+1
-        cmp     M_GOALY
-        bne     @cabin
+        sta     topo_row
+        jsr     topo_site
+        beq     @none
+        pha
         jsr     puts
-        .byte "AT RANGERS (P+R)",0
-        rts
-@cabin: lda     MAP+16
-        beq     @crash
-        lda     px+1
-        cmp     MAP+17
-        bne     @crash
-        lda     py+1
-        cmp     MAP+18
-        bne     @crash
-        lda     shelter_inside
-        bne     @inside
-        jsr     puts
-        .byte "AT CABIN (P+H): ENTER SHELTER",0
-        rts
-@inside: jsr    puts
-        .byte "IN CABIN (P+H): EXIT SHELTER",0
-        rts
-@crash: lda     px+1
-        cmp     M_STARTX+1
-        bne     @none
-        lda     py+1
-        cmp     M_STARTY+1
-        bne     @none
-        jsr     puts
-        .byte "AT CRASH (P+C)",0
-        rts
-@none:  jsr     puts
-        .byte "",0
-        rts
+        .byte " P+",0
+        pla
+        ora     #$80
+        jmp     COUT
+@none:  rts
 topo_cardinals: .byte "N NEE SES SWW NW"
 
 .segment "SITES"

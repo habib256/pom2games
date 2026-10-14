@@ -7,6 +7,17 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Neowilderness : MAP plein écran 80 × 24
+
+- MAP, et la carte animée de WALK/SWIM, occupent tout l'écran texte
+  80 colonnes : 40 × 24 cases au lieu de 32 × 14 ; une étiquette en
+  inverse au début de la rangée 0 garde case, cap magnétique, site sous P
+  et, pendant la marche, les minutes (qui remplacent `TRAVELLING: # MIN.`) ;
+  défilement par quart de fenêtre ; rangées 20 à 23 effacées à la fin de
+  la marche, grille rendue au prompt ; SITES 299 octets plus court
+  ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) « MAP plein écran 80 × 24 »,
+  `tests/test_sites.py` `full_screen`).
+
 ### Neowilderness : les quatre lignes du bas, surface de commande (lot 8, étape 2)
 
 - Rangées 20 à 23, colonnes 0 à 37 : grille des verbes (contextuels en
