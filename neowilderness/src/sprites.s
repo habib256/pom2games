@@ -244,7 +244,10 @@ sprite_column:
         lda     sprite_anchor
         sec
         sbc     sprite_scaled
-        tay
+        bcc     @transparent    ; above the view
+        adc     tdv             ; carry set: + 1 - 1 below. Looking down,
+        tay                     ; rows < 96 wrap to 160..255 (transparent);
+        dey                     ; looking up there is no sprite at all
         jmp     @clip
 @local: lda     sprite_y
         sec

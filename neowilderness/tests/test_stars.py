@@ -38,7 +38,8 @@ class Case:
 
     def __init__(self, label, region=2, day=125, minute=23 * 60, heading=0, stars=True,
                  night=True, view_dark=True, clouds=False, sun8=-128, moon8=-20, phase=0,
-                 moon=None, mode=MODE_FULL, c0=0, c1=140, tops=None, key=False, lat=None, lon=None):
+                 moon=None, mode=MODE_FULL, c0=0, c1=140, tops=None, key=False, lat=None, lon=None,
+                 tilt=0):
         name, rlat, rlon = R.REGIONS[region]
         self.label, self.region = label, name
         self.lat = rlat if lat is None else lat
@@ -48,6 +49,7 @@ class Case:
         self.sun8, self.moon8, self.phase = sun8, moon8, phase
         self.moon = moon                        # (sky_bearing, sky_y) or None
         self.mode, self.c0, self.c1, self.key = mode, c0, c1, key
+        self.tilt = tilt                        # LOOK UP 1, LOOK DOWN -1 (flags bits 5-6)
         self.tops = tops if tops is not None else R.ridge(heading)
         self.mood = R.engine_mood(night, view_dark, clouds, sun8, moon8, phase)
         self.thr = R.threshold(self.mood, clouds) if stars else 0
@@ -55,7 +57,8 @@ class Case:
 
     def record(self):
         bearing, y = self.moon if self.moon else (0, 255)
-        flags = 1 | (STARS_ON if self.stars else 0) | self.mode | (WAIT_KEY if self.key else 0)
+        flags = (1 | (STARS_ON if self.stars else 0) | self.mode | (WAIT_KEY if self.key else 0)
+                 | (self.tilt & 3) << 5)
         rec = bytes((flags, self.day & 255, self.day >> 8, self.minute & 255, self.minute >> 8,
                      self.lat & 255, self.lon & 255, bearing & 255, bearing >> 8, y,
                      int(self.night), int(self.view_dark), int(self.clouds), self.sun8 & 255,
@@ -75,11 +78,11 @@ class Case:
 
     def expected_page(self):
         _, srt = self.expected_list()
-        return R.frame(self.heading, self.tops, self.mood, srt, self.thr, self.columns())
+        return R.frame(self.heading, self.tops, self.mood, srt, self.thr, self.columns(), self.tilt)
 
     def drawn(self):
         _, srt = self.expected_list()
-        px = R.star_pixels(self.heading, self.tops, srt, self.thr)
+        px = R.star_pixels(self.heading, self.tops, srt, self.thr, self.tilt)
         cols = set(self.columns())
         return {k: v for k, v in px.items() if k[0] in cols}
 
@@ -205,6 +208,13 @@ def cases():
         Case('Bolivia, right turn across north (azimuth wrap)', region=5, minute=21 * 60, heading=20,
              mode=MODE_TURN),
         Case('Sierra, 1 Jan 0 h, south (Sirius culminates)', day=0, minute=0, heading=280),
+        # LOOK UP / DOWN (docs/LOOK_UPDOWN.md): rows + 96 * tilt, clipped to 0..159.
+        Case('Sierra, north, looking up', heading=0, tilt=1, tops=[160] * 140),
+        Case('Sierra, south, looking up, ridge', heading=280, tilt=1, tops=R.ridge(280, 150, 8)),
+        Case('Sierra, south, looking down', heading=280, tilt=-1, tops=[160] * 140),
+        Case('Bolivia, south, looking up: Southern Cross', region=5, minute=21 * 60, heading=280,
+             tilt=1, tops=[160] * 140),
+        Case('Sierra, looking up, right turn', heading=280, mode=MODE_TURN, tilt=1, tops=[160] * 140),
     ]
     out[3].hidden = hidden
     return out

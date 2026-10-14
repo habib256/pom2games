@@ -112,7 +112,7 @@ sky_position_core:
         lda     $A0
         jne     sky_hidden
         lda     $A1
-        cmp     #HORIZON+1
+        cmp     #HORIZON+97     ; up to 96 rows above the view: LOOK UP
         jcs     sky_hidden
         sta     sky_y
         sec
@@ -162,7 +162,7 @@ sky_position_core:
         stx     sky_bearing+1
         rts
 sky_hidden:
-        lda     #255
+        lda     #$80            ; sky_y: signed row at level, -96..95
         sta     sky_y
         rts
 
@@ -336,26 +336,30 @@ sky_quarter_rad: .byte 121,14,250,53,19
 .segment "TEXT"
 sky_pi: .byte 130,73,15,218,162
 ; Called only for remaining sky, after foreground terrain/sprites.
+sky_row = row                   ; the render's row, free after the column's samples
 sky_column:
         lda     sky_enabled
         and     body_on         ; no sun in this mood (overcast...)
         beq     @done
         lda     weather_sky
         bne     @done
-        lda     sky_y
-        cmp     #HORIZON+1
+        lda     sky_y           ; row = sky_y + dv: rows 0..95 at level,
+        clc                     ; 0..159 looking up, none looking down
+        adc     tdv             ; (tskylim; $80 hidden: 128, 224, 32)
+        cmp     tskylim
         bcs     @done
+        sta     sky_row
         jsr     sky_difference
         bcs     @done
         stx     sky_index
         lda     sky_outer,x
         sta     sky_half
         clc
-        adc     sky_y
+        adc     sky_row
         adc     #1
         sta     sky_end
         sec
-        lda     sky_y
+        lda     sky_row
         sbc     sky_half
         bcs     :+
         lda     #0
@@ -367,11 +371,11 @@ sky_column:
         ; Moon phase art: outer disk minus a disk shifted by illumination.
         sta     sky_half
         sec
-        lda     sky_y
+        lda     sky_row
         sbc     sky_half
         jsr     sky_span
         clc
-        lda     sky_y
+        lda     sky_row
         adc     sky_half
         adc     #1
         tay

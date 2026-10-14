@@ -244,6 +244,56 @@ column_setup:
 
 sky_zone_end: .byte SKY_ROW0, SKY_ROW1, SKY_ROW2, SKY_ROW3, VIEW_ROWS
 
+; ----------------------------------------------------------------------------
+; Tilt of the view (LOOK UP / LOOK DOWN, docs/LOOK_UPDOWN.md): every row the
+; engine projects moves by dv = 96 * tilt (tilt -1, 0, +1: down, level, up).
+; tilt_frame -- X = tilt + 1: the shifted constants of the view, kept until
+; the next change (the caller compares the tilt it last applied): tdv (dv
+; modulo 256), tilt2 (2 * tilt: the slope offset, 512 per step, of
+; wild.s tilt_row), tskylim (a Sun or Moon is drawn when sky_y + dv < it),
+; thoriz (16-bit signed 95 + dv: tree feet, forest.s) and the four sky
+; zone ends, shifted and clamped to 0..160 (the glow zone always ends at 160).
+.define TILT_ZONE(R, D) (((R) + (D)) * (((R) + (D)) >= 0) * (((R) + (D)) <= VIEW_ROWS) + VIEW_ROWS * (((R) + (D)) > VIEW_ROWS))
+.segment "LOWTEXT"
+tdv:      .byte 0
+tilt2:    .byte 0
+tskylim:  .byte HORIZON+1
+thoriz:   .word HORIZON
+tilt_dv:  .byte <-96, 0, 96
+tilt_t2:  .byte <-2, 0, 2
+tilt_sky: .byte 0, HORIZON+1, VIEW_ROWS
+tilt_hlo: .byte <-1, HORIZON, HORIZON+96
+tilt_hhi: .byte >-1, 0, 0
+tilt_zones:
+.repeat 3, T
+        .byte TILT_ZONE(SKY_ROW0, 96*(T-1)), TILT_ZONE(SKY_ROW1, 96*(T-1))
+        .byte TILT_ZONE(SKY_ROW2, 96*(T-1)), TILT_ZONE(SKY_ROW3, 96*(T-1))
+.endrep
+.segment "LOWCODE"
+tilt_frame:
+        lda     tilt_dv,x
+        sta     tdv
+        lda     tilt_t2,x
+        sta     tilt2
+        lda     tilt_sky,x
+        sta     tskylim
+        lda     tilt_hlo,x
+        sta     thoriz
+        lda     tilt_hhi,x
+        sta     thoriz+1
+        txa
+        asl     a
+        asl     a
+        tax
+        ldy     #0
+@zone:  lda     tilt_zones,x
+        sta     sky_zone_end,y
+        inx
+        iny
+        cpy     #4
+        bne     @zone
+        rts
+
 .segment "GCODE"
 ; hgr_row -- X = screen row 0..191: hp = its address in $2000-$3FFF
 ; ($2000 + (y & 7) * $400 + (y >> 3 & 7) * $80 + (y >> 6) * $28).

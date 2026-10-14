@@ -189,6 +189,7 @@ test: all $(A2SHOT)
 	$(MAKE) -f stars.mk test
 	$(PYTHON) tests/test_stars_game.py
 	$(PYTHON) tests/test_pan.py
+	$(PYTHON) tests/test_tilt.py
 	$(PYTHON) tests/test_fuzz.py 1 3 8
 	$(PYTHON) tests/test_play.py 1 30
 	$(PYTHON) tests/test_play.py 2 30

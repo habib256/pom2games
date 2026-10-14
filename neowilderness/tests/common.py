@@ -268,14 +268,14 @@ def mood_name(index):
     return dhgr_palette.MOODS[index[0] if isinstance(index, (bytes, bytearray)) else index]
 
 
-def dhgr_scene(m, px, py, heading, mood, animal=None, forest=False, sprites=True, sky=None):
+def dhgr_scene(m, px, py, heading, mood, animal=None, forest=False, sprites=True, sky=None, tilt=0):
     """tools/dhgr_ref.view in a mood (name or the sky_mood byte): terrain of
     view_ref.columns, the nearest billboard of tests/scene_ref, canopies of
     tools/forest_ref; no sun or Moon unless `sky` is given."""
     R = dhgr()
     if sky is None:
         sky = R.Sky(mood_name=mood if isinstance(mood, str) else mood_name(mood))
-    return R.view(m, px, py, heading, sky, animal, forest=forest, sprites=sprites)
+    return R.view(m, px, py, heading, sky, animal, forest=forest, sprites=sprites, tilt=tilt)
 
 
 def view_diff(got, want, rows=range(160)):

@@ -14,7 +14,8 @@
 ;   +0 flags: bit 0 set, bit 1 stars on (stars_frame + stars_column),
 ;      bits 2-3 mode (0 full view, 1 columns c1-1 down to c0, 2 turn right
 ;      by 35: view at heading - 35, scroll, columns 105..139), bit 4 demo
-;      (no checkpoint, ridge painted dark blue, wait for a key)
+;      (no checkpoint, ridge painted dark blue, wait for a key), bits 5-6
+;      the tilt of the view (LOOK UP 1, LOOK DOWN 3: tilt_frame)
 ;   +1/+2 day  +3/+4 minute  +5 latitude  +6 longitude  +7/+8 sky_bearing
 ;   +9 sky_y  +10 night  +11 view_dark  +12 weather_sky  +13 sun_alt8
 ;   +14 moon_alt8  +15 moon_phase  +16/+17 heading  +18 c0  +19 c1
@@ -178,6 +179,17 @@ finished:
         jsr     stars_compute   ; the module, in its window
         jsr     checkpoint      ; list: st_a, st_row, st_bucket
         jsr     page_clear
+        lda     bench_flags     ; bits 5-6: tilt (0 level, 1 up, 3 down):
+        lsr     a               ; X = tilt + 1 (LOOK UP / DOWN, dhgr.s)
+        lsr     a
+        lsr     a
+        lsr     a
+        lsr     a
+        clc
+        adc     #1
+        and     #3
+        tax
+        jsr     tilt_frame
         jsr     dhgr_frame
         lda     #0
         sta     star_thr

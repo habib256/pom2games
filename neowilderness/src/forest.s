@@ -91,6 +91,9 @@ forest_reset:
         lda     #$2C            ; BIT abs: skip probe, preserving carry and Y
         ldx     forest_enabled
         beq     :+
+        ldx     tilt            ; looking up: no tree (the original's rule)
+        dex
+        beq     :+
         lda     #$20            ; JSR: at most the first eight candidate cells
 :       sta     render_forest_call
         rts
@@ -301,24 +304,27 @@ forest_project_base:
         bne     @shift
         lda     forest_proj+1
         bne     @outside
-        lda     #0
+        ; base = thoriz -+ proj: 95 at level, -1 looking down (dhgr.s
+        ; tilt_frame); a foot above the view is outside.
+        lda     thoriz+1
         sta     forest_base+1
-        lda     #HORIZON
+        lda     thoriz
         ldx     forest_sign
         bmi     @below
         sec
         sbc     forest_proj
-        bcc     @outside
         sta     forest_base
-        clc
-        rts
+        bcs     @check
+        dec     forest_base+1
+        bcc     @check
 @below: clc
         adc     forest_proj
         sta     forest_base
-        lda     #0
-        adc     #0
-        sta     forest_base+1
-        ; A is 0 or 1, so ADC already cleared carry.
+        bcc     @check
+        inc     forest_base+1
+@check: lda     forest_base+1
+        bmi     @outside
+        clc
         rts
 @outside:
         sec

@@ -110,14 +110,16 @@ def layout(disk):
         assert selected(s) == 'WAIT', 'UP stops on the first row'
         press(s, ESC)
         assert selected(s) is None, 'ESC closes the grid'
-        press(s, TAB)
-        assert selected(s) == 'WAIT', 'TAB opens the grid on the last verb'
+        press(s, DOWN)
+        assert selected(s) == 'WAIT', 'DOWN opens the grid on the last verb'
+        press(s, ESC, TAB)
+        assert selected(s) == 'WAIT', 'TAB too'
         press(s, RET)                               # WAIT: its list of durations
         assert grid_cells(s)[0][0] == '10', grid_cells(s)
         press(s, TAB)
         assert selected(s) is None and grid_cells(s)[0] == BASE[:6], 'TAB closes the grid from a list'
         before = snapshot(s)
-        press(s, UP, RIGHT, ESC)
+        press(s, DOWN, RIGHT, ESC)
         assert snapshot(s) == before, 'navigation runs no command'
         # The list of a verb scrolls: EAT names the provisions and the
         # medicine at hand, three per row.
@@ -130,7 +132,7 @@ def layout(disk):
         press(s, DOWN, DOWN, DOWN, DOWN)
         assert bottom(s)[0][38] == '^', bottom(s)
         press(s, ESC, ESC)
-    print('  grid of verbs on four rows, selection, ESC and TAB, scrolling marks of a list: OK')
+    print('  grid of verbs on four rows, selection, DOWN, ESC and TAB, scrolling marks of a list: OK')
 
 
 def composition(disk):
@@ -148,6 +150,9 @@ def composition(disk):
         menu = (s.step(L.peek('px', 2)).data, s.step(L.peek('s_elap', 5)).data)
         assert choose(s, 'LOOK', 'RIGHT') == ('LOOK RIGHT', 0)
         heading = s.step(L.peek('heading', 2)).data
+        for label, tilt in (('UP', 1), ('DOWN', 255), ('AHEAD', 0)):    # LOOK UP / DOWN
+            assert choose(s, 'LOOK', label) == (f'LOOK {label}', 0)
+            assert s.step(L.peek('tilt')).data[0] == tilt, label
         assert choose(s, 'REST', '10 MIN') == ('REST 10 MIN', 0)
         assert 'YOU RESTED 10 MINUTES.' in result_rows(screen(s))[0]
         assert result_rows(screen(s))[3].startswith('FOOD ') and 'WATER' in result_rows(screen(s))[3], \
@@ -174,12 +179,14 @@ def composition(disk):
         assert (s.step(L.peek('px', 2)).data, s.step(L.peek('s_elap', 5)).data) == menu
         typed(s, 'LOOK R')
         assert s.step(L.peek('heading', 2)).data == heading
+        for text in ('LOOK UP', 'LOOK DOWN', 'LOOK AHEAD'):
+            typed(s, text)
         for text in ('REST 10 MIN', 'DRINK WATER 4 OZ', 'EAT EGGS 8 OZ', 'TAKE DOWN PARKA'):
             typed(s, text)
         assert s.step(L.peek('it_pack_lo', 1, 22)).data[0] == water
         typed(s, 'CLIMB TREE')
         assert snapshot(s) == final, 'menu and keyboard reach the same state'
-    print('  WALK, LOOK, REST, DRINK, EAT, TAKE, GET, CLIMB composed from the grid = typed: OK')
+    print('  WALK, LOOK (RIGHT, UP, DOWN, AHEAD), REST, DRINK, EAT, TAKE, GET, CLIMB composed from the grid = typed: OK')
 
 
 def contexts(disk):
@@ -220,9 +227,9 @@ def contexts(disk):
         s.step(L.poke('it_pack_lo', 40, 22))
         typed(s, 'V')
         assert 'DRINK' in sum(grid_cells(s), [])
-        # DOWN on the typed line shows STATUS; the numeric prompt uses the
+        # UP on the typed line shows STATUS; the numeric prompt uses the
         # last row of the result column.
-        s.step(f'key:{DOWN}')
+        s.step(f'key:{UP}')
         s.step(L.until('status_key', 20000))
         assert screen(s)[0].startswith('STATUS:')
         s.step(f'key:{ESC}')
@@ -236,7 +243,7 @@ def contexts(disk):
         s.step(f'key:{ESC}')
         s.step(IDLE)
         assert 'ACTION CANCELLED.' in result_rows(screen(s))[0]
-    print('  contextual verbs, ESC and letters from a list, verbs without items hidden, DOWN = STATUS, numeric prompt: OK')
+    print('  contextual verbs, ESC and letters from a list, verbs without items hidden, UP = STATUS, numeric prompt: OK')
 
 
 def main():

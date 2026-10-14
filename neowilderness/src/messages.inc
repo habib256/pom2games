@@ -22,6 +22,7 @@ m_shore:    .byte   "YOU HAVE REACHED LAND. USE WALK.", 0
 m_no_water: .byte   "NO WATER AHEAD. USE WALK.", 0
 m_dark:     .byte   "IT IS TOO DARK TO TRAVEL.", 0
 m_nolight:  .byte   "NOT ENOUGH LIGHT.", 0
+m_notnow:   .byte   "NOT NOW.", 0           ; "!" would print the travel reason
 .segment "ENVIRON"
 ; Meals and drinks already have the simulation loaded when printing results.
 m_ate:      .byte   "YOU ATE # OUNCES.|ACCESSIBLE BEFORE: $ OZ.", 0
