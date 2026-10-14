@@ -379,6 +379,7 @@ alerts_after:
         jmp     alerts_after
 @done:  jmp     summary_refresh
 
+.segment "GCODE"                ; resident (WILDLO is full: docs/MEMORY.md 13)
 ; T15/S0B $585F: 180 + INT(RND x 300) minutes of REST at the base rate,
 ; or, in a river or lake, condition 14 and 15 minutes ($58A1, message 177).
 al_sleep:

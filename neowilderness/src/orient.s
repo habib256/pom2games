@@ -82,6 +82,7 @@ orient_use:
         bcc     orient_take
         rts
 
+.segment "TEXT"                 ; resident (WILDLO is full: docs/MEMORY.md 13)
 ; orient_ask -- X = dialog (OA_*): its message, then two keys (resident) or a
 ; number read by INPUT; TREE comes back for the caller (its image is
 ; restored: state stays resident). C set: cancelled; a choice returns
