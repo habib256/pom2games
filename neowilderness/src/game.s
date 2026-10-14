@@ -822,9 +822,7 @@ dispatch:
         lda     #<m_oops
         ldx     #>m_oops
         jmp     message
-@later: lda     #<m_notyet
-        ldx     #>m_notyet
-        jmp     message
+@later: jmp     camp_verb       ; MAKE/BUILD and BOIL (src/camp.s)
 
 ; ----------------------------------------------------------------------------
 ; screens
@@ -1203,8 +1201,8 @@ do_walk:
         beq     :+
         jmp     do_site
 :
-        lda     night           ; no first step when already after sunset
-        beq     :+
+        jsr     camp_walk       ; douse the fire first (M5), then LDA night:
+        beq     :+              ; no first step when already after sunset
         lda     #<m_dark
         ldx     #>m_dark
         jmp     message
@@ -1593,21 +1591,49 @@ module_drink:
         lda     #<m_drink_object
         ldx     #>m_drink_object
         jmp     message
-:       lda     noun
+:       lda     #0              ; ground water is safe unless a river pile
+        sta     water_ground_untreated  ; is made for this drink (drink_source)
+        lda     noun
         cmp     #N_WATER
         beq     @water
-        lda     #<m_notyet
+        cmp     #169            ; RAIN, SNOW, ICE (src/water.s)
+        bcc     :+
+        cmp     #172
+        bcs     :+
+        jmp     drink_rain
+:       lda     #<m_notyet
         ldx     #>m_notyet
         jmp     message
 @water: tax
         jsr     have
-        bcs     @ask
-        jmp     no_item
-@ask:   lda     #<m_ounces
+        bcs     module_drink_water
+drink_rain:
+        jsr     drink_source    ; rain, snow, ice, a river (src/water.s)
+        bcs     :+
+        rts
+:       lda     #N_WATER
+        sta     noun
+module_drink_water:
+        lda     #<m_ounces
         ldx     #>m_ounces
         jsr     get_quantity
         bcc     :+
         rts
+:       ; T0F/S00 $5C26: more than .2 x body weight at once is refused.
+        lda     body_weight+1
+        ldy     body_weight
+        jsr     GIVAYF
+        fop     FMULT, f_0_2
+        fst     t1
+        lda     msgnum+1
+        ldy     msgnum
+        jsr     GIVAYF
+        fop     FCOMP, t1
+        cmp     #1
+        bne     :+
+        lda     #<m_ridiculous
+        ldx     #>m_ridiculous
+        jmp     message
 :       ldx     #N_WATER
         lda     water_untreated
         ldy     it_place+N_WATER
@@ -1662,19 +1688,26 @@ module_drink:
 ; goes into the pack/canteen. Transfers are atomic against load limits;
 ; action durations remain unknown.
 ; DROP/REMOVE share verb 8 in the original vocabulary: both leave on ground.
+; WATER, the CANTEEN (FILL/REFILL), RAIN, SNOW and ICE go to CAMP first.
+.segment "LOWCODE"
 do_get:
         lda     noun
         cmp     #N_WATER
         beq     @water
         cmp     #64
-        bne     @item
+        beq     @water
+        cmp     #169
+        bcc     get_item
+        cmp     #172
+        bcs     get_item
 @water: lda     #4
         jsr     overlay_load
-        jsr     module_collect
-        bcs     do_outdoor_done
-@item:  lda     #14
+        jmp     module_collect
+get_item:
+        lda     #14
         jsr     overlay_load
         jmp     module_do_get
+.segment "GCODE"
 water_hazard:
         lda     water_drinking_untreated
         bne     :+
@@ -1795,20 +1828,8 @@ module_do_get:
 @pack:  lda     #2
 @store: sta     it_place,x
         jsr     accept_load
-        bcs     :+
+        bcs     @result         ; ground water is safe (T0F/S00 $587C, lot 2)
         rts
-:       cpx     #N_WATER
-        bne     @result
-        jsr     at_ground
-        bcc     @result
-        lda     it_gnd_lo+N_WATER
-        ora     it_gnd_hi+N_WATER
-        bne     @result
-        lda     water_untreated
-        ora     water_ground_untreated
-        sta     water_untreated
-        lda     #0
-        sta     water_ground_untreated
 @result: lda     it_place,x
         cmp     #3
         beq     @carried
@@ -1939,14 +1960,7 @@ module_do_drop:
         sta     it_x,x
         lda     py+1
         sta     it_y,x
-        cpx     #N_WATER
-        bne     :+
-        lda     water_untreated
-        ora     water_ground_untreated
-        sta     water_ground_untreated
-        lda     #0
-        sta     water_untreated
-:       jsr     load_totals
+        jsr     load_totals     ; the canteen stays contaminated (B2[22])
         lda     saved_item
         cmp     #1
         bne     :+
@@ -3037,6 +3051,7 @@ message:
         sta     gp1
         stx     gp1+1
         jsr     msg_begin
+message_body:                   ; camp_say: a message after the previous one
         ldy     #0
 @ch:    lda     (gp1),y
         beq     @end

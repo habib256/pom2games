@@ -54,14 +54,16 @@ def generated_native(seed=1985, level=4):
 
 
 def patchy_native():
-    """mkmap seed 1985 level 10 (2 417 lake cells) with six tiles of uniform
+    """mkmap seed 1985 level 10 (2 417 lake cells) with five tiles of uniform
     noise (one in the 8-row last tile row): those are stored raw, the others
-    coded; the resident grid is rebuilt from the patched fine cells."""
+    coded; the resident grid is rebuilt from the patched fine cells. Five,
+    not six, since lot 2: the CAMP module (1.8 KB) leaves the auxiliary store
+    of a native Sierra disk room for an atlas of about 7.9 KB (docs/CAMP.md)."""
     mapdata, start, goal = generated_native(1985, 10)
     data = bytearray(mapdata)
     fine = mkmap.MAP_BYTES + mkmap.FOREST_BYTES
     rnd = __import__('random').Random(5)
-    for tile in (0, 17, 60, 99, 140, 153):
+    for tile in (0, 17, 60, 140, 153):
         x0, y0 = (tile % 14) * 16, (tile // 14) * 16
         for y in range(y0, min(y0 + 16, 168)):
             for x in range(x0, x0 + 16):
@@ -507,7 +509,7 @@ def main():
     maps = native_maps()
     if len(maps) == 1:
         print('  (no local Sierra data: generated native map only)')
-    patchy = ('generated s1985-L10 + 6 noise tiles', patchy_native())
+    patchy = ('generated s1985-L10 + 5 noise tiles', patchy_native())
     check_build(maps + [patchy])
     check_legacy()
     check_exact(*maps[0][:2])

@@ -904,6 +904,7 @@ STARS_LIST_LC = 1
         .include "adventure.s"
         .include "outdoor.s"
         .include "water.s"
+        .include "camp.s"
         .include "geography.s"
         .include "geoaux.s"
         .include "hof.s"        ; segment HOF: build/wildhof.bin ($9600)

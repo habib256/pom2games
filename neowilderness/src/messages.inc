@@ -26,6 +26,7 @@ m_nolight:  .byte   "NOT ENOUGH LIGHT.", 0
 ; Meals and drinks already have the simulation loaded when printing results.
 m_ate:      .byte   "YOU ATE # OUNCES.|ACCESSIBLE BEFORE: $ OZ.", 0
 m_drank:    .byte   "YOU DRANK # OUNCES.|ACCESSIBLE BEFORE: $ OZ.", 0
+m_ridiculous: .byte "DON'T BE RIDICULOUS",$A1,0   ; msg 87, T0F/S00 $5C4B
 .segment "TEXT"
 m_food_object: .byte "NAME A FOOD. TRY EAT CHEESE.",0
 m_drink_object: .byte "TRY DRINK WATER.",0

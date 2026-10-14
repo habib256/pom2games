@@ -4,6 +4,9 @@
 .segment "ENVIRON"
 
 module_survival_clock:
+        lda     camp_use        ; MATCHES, GLASS, FUEL, FLASHLIGHT: no longer in
+        and     #U_KEEP         ; use once time passes (src/camp.s)
+        sta     camp_use
         lda     #0
         sta     fauna_alert
         lda     act

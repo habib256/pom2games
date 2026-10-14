@@ -95,7 +95,9 @@ def doses(original):
     cases=[(item,stock) for item in (41,42,44,45,46,47,48,49,50,51)
            for stock in (0,1,2,255,256,257,32767,32768,65535)]
     done=f'until:{L["idle"]+3:04X}:6000'
-    steps=[IDLE]+call(['do_medical'])+[done,IDLE]+call(['module_care_dose'])
+    # do_medical loads WILDMVI; SHIELD (30) of no noun ends in MVI itself
+    # (since lot 2 an unhandled USE goes on to the CAMP module).
+    steps=[IDLE,L.poke('verb',30),L.poke('noun',0)]+call(['do_medical'])+[done,IDLE]+call(['module_care_dose'])
     for item,stock in cases:
         # Patch only the driver's LDX; the routine itself is unchanged.
         steps += byte_pokes(L['idle'],bytes((0xa2,item,0x20,L['module_care_dose']&255,

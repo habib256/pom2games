@@ -86,7 +86,14 @@ module_medical_command:
         cmp     #47
         jcc     care_use_instead
 @use:   ldx     noun
-        cpx     #43
+        cpx     #41             ; FIRSTAID KIT needs light (T11/S00 $5BAE)
+        bne     :+
+        lda     light
+        bne     :+
+        lda     #<c_m53
+        ldx     #>c_m53
+        jmp     message
+:       cpx     #43
         bcs     :+
         lda     #3              ; a used medical kit is held, like the compass
         sta     it_place,x
@@ -138,9 +145,7 @@ care_invalid:
         ldx     #>care_invalid_message
         jmp     message
 care_unsupported:
-        lda     #<m_notyet
-        ldx     #>m_notyet
-        jmp     message
+        jmp     camp_command    ; fire, light, stove... (src/camp.s)
 care_ok:
         lda     #<m_ok
         ldx     #>m_ok

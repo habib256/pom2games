@@ -526,32 +526,27 @@ outdoor_begin_injury:
 @present:
         rts
 
-; River-water contamination is a port rule: independent RNG, 1/8 per drink.
-; A refill neither hydrates the player nor starts illness before consumption.
+; Giardia (T0F/S00 $5CF7): drinking untreated water starts condition 12
+; when the shared RND <= .2 / ((level + base) / 10), i.e. 2 / the altitude
+; in hundreds of feet (lot 2, docs/CAMP.md). The canteen flag (B2[22]) is
+; never cleared; BOIL (care selector 22) and IODINE (16) prevent the illness.
 module_water_hazard:
         lda     water_drinking_untreated
         beq     @done
-        lda     water_rng
-        bne     @step
-        lda     #$B7
-@step:  lsr
-        bcc     :+
-        eor     #$B8
-:       sta     water_rng
-        cmp     #32
-        bcs     @stock
+        jsr     level_here
+        clc
+        adc     M_BASE          ; byte sum, as $D4 + $60A1
+        tay
+        jsr     $E301           ; SNGFLT: FAC <- Y
+        jsr     $EA55           ; DIV10
+        fop     FDIV, f_0_2     ; .2 / FAC
+        fst     t1
+        jsr     weather_random
+        fop     FCOMP, t1
+        cmp     #1
+        beq     @done           ; RND > p: no infection
         ldx     #11             ; GIARDIA; native incubation and FLAGYL treatment
         jsr     outdoor_begin_injury
-@stock: lda     it_pack_lo+N_WATER
-        ora     it_pack_hi+N_WATER
-        bne     :+
-        lda     #0
-        sta     water_untreated
-:       lda     it_gnd_lo+N_WATER
-        ora     it_gnd_hi+N_WATER
-        bne     @done
-        lda     #0
-        sta     water_ground_untreated
 @done:  rts
 
 module_outdoor_report:

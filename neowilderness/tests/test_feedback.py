@@ -155,9 +155,12 @@ def main():
         assert f'ACCESSIBLE BEFORE: {available} OZ.' in '\n'.join(rows(s))
         assert s.step(L.peek('it_pack_lo',1,28)).data==b'\0'
         assert s.step(L.peek('it_gnd_lo',1,28)).data==b'\0'
-        command(s,'DRINK WATER 255 OZ')
-        available=int.from_bytes(s.step(L.peek('stock_available',2)).data,'little')
-        assert f'YOU DRANK {available} OUNCES.' in '\n'.join(rows(s))
+        # T0F/S00 $5C26 (lot 2): more than .2 x 165 lb = 33 oz at once is refused.
+        before=snapshot(s)
+        command(s,'DRINK WATER 34 OZ')
+        assert "DON'T BE RIDICULOUS!" in '\n'.join(rows(s)) and snapshot(s)==before
+        command(s,'DRINK WATER 33 OZ')
+        assert 'YOU DRANK 33 OUNCES.' in '\n'.join(rows(s))
         command(s,'GET SNAKEBITE KIT')
         assert 'PACK: SNAKEBT KIT' in '\n'.join(rows(s)),column(s)
         print('  Consumption: stock before answer, actual exhausted amount, and qualified inventory names OK')

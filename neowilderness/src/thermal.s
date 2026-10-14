@@ -13,6 +13,7 @@ clothing_cache_valid: .byte 0
 .segment "THERMAL"
 
 module_thermal:
+        jsr     camp_light              ; $0D5D at each health step (src/camp.s)
         jsr     thermal_clothes
         jsr     thermal_rate
         jsr     thermal_integrate
@@ -315,7 +316,25 @@ thermal_rate:
         sbc     $A0
         jsr     GIVAYF                 ; 70-floor(.3*altitude/100), signed
         jmp     @effective
-@air:   lda     shelter_inside
+@fire:  ; T0B/S02 $5986: near a fire (USE FIRE) the byte $EE gains 25 F and
+        ; becomes 127 when bit 7 is set, as below -25 F (re_thermal_probe.py).
+        lda     felt_temp
+        ldx     shelter_inside
+        beq     :+
+        lda     airtemp
+        clc
+        adc     #15
+:       clc
+        adc     #25
+        bpl     :+
+        lda     #127
+:       tay
+        lda     #0
+        jsr     GIVAYF
+        jmp     @effective
+@air:   lda     fire_near
+        bne     @fire
+        lda     shelter_inside
         beq     @effective
         ldy     airtemp
         lda     #0
