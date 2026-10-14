@@ -221,12 +221,14 @@ sky_lunar:
         lda     #0
         sta     sky_field
 @field: ldy     sky_field
+        bit     $C080           ; main language card RAM, bank 2, read only
         lda     (gp1),y
         sta     sky_first
         iny
         iny
         iny
         lda     (gp1),y
+        bit     $C082           ; ROM again
         sec
         sbc     sky_first         ; cyclic RA/phase difference, signed
         tay
@@ -323,7 +325,13 @@ sky_inv24: .byte 124,42,170,170,171
 sky_inv360: .byte 120,54,11,96,182
 sky_tau256: .byte 123,73,15,218,162
 sky_quarter_rad: .byte 121,14,250,53,19
+; The lunar ephemeris (549 bytes, immutable) lives in bank 2 of the main
+; language card beside the unrolled DHGR rows (direction 3, docs/MEMORY.md
+; section 12): each read selects that RAM and gives the ROM back, the
+; floating point calls in between need it.
+.segment "LCDATA"
         .include "sky_ephemeris.inc"
+.segment "THERMAL"
 
 .segment "TEXT"
 sky_pi: .byte 130,73,15,218,162
