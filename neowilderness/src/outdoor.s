@@ -34,8 +34,7 @@ module_outdoor:
         lda     verb
         cmp     #37             ; IGNORE evaluates the encounter, never guarantees escape
         beq     @ignore
-        lda     tree_in
-        ora     shelter_inside
+        lda     tree_in         ; (a shelter is no cover: D4, outdoor_hurt)
         bne     @protected
         lda     #0
         sta     animal_age
@@ -45,18 +44,17 @@ module_outdoor:
         ; ATTACK: native weapon-dependent injury and success rolls are independent.
         jsr     outdoor_weapon
         bcc     @weapon
-        sta     out_tool
         lda     #10
         sta     outdoor_minutes
         lda     #0
         sta     out_hurt
         ldx     out_tool
-        lda     out_attack_injury,x
+        lda     out_means_injury,x
         jsr     outdoor_hurt
         bcs     :+
         inc     out_hurt
 :       ldx     out_tool
-        lda     out_attack_success,x
+        lda     out_means_success,x
         jsr     outdoor_roll
         php                     ; severity must not change the victory roll
         ldx     out_hurt
@@ -64,6 +62,7 @@ module_outdoor:
         jsr     outdoor_injure
 :       plp
         bcs     @failed
+        jsr     forage_kill     ; lot 4: the carcass (src/forage.s)
         lda     #10
         ldx     out_hurt
         beq     @clear
@@ -201,22 +200,70 @@ module_wound_retention:
         rts
 out_0_7: .byte $80,$33,$33,$33,$33
 
-; Return species index with an accessible axe or knife (native method 18).
-; Access alone is insufficient: a hung tool and a remote ground tool are excluded.
+; outdoor_weapon -- the means of ATTACK (T0F/S07 $590F, as KILL GAME in
+; src/frg.s): the first in use, its flag cleared: GUN 21, BOW 20, SPEAR 19
+; (lot 3), AXE or KNIFE put in use on this cell 18 (both cleared), CLUB or
+; ROCK 17. None in use: an accessible AXE or KNIFE, 18 (the port's rule
+; before lot 3, kept; a hung tool and a remote ground tool are excluded).
+; C set: out_tool = 4 (means - 17) + species, the row of out_means_*.
 outdoor_weapon:
-        lda     animal_kind
-        sec
-        sbc     #6
-        sta     out_tool
+        lda     camp_use
+        and     #U_GUN
+        beq     :+
+        eor     camp_use
+        sta     camp_use
+        lda     #4
+        bne     @means
+:       lda     #FT_BOW
+        ldy     #3
+        jsr     outdoor_in_use
+        bcs     @means
+        lda     #FT_SPEAR
+        ldy     #2
+        jsr     outdoor_in_use
+        bcs     @means
+        lda     care_tools
+        and     #3
+        beq     :+
+        lda     px+1
+        cmp     care_tool_x
+        bne     :+
+        lda     py+1
+        cmp     care_tool_y
+        bne     :+
+        lda     care_tools
+        and     #$FC
+        sta     care_tools
+        lda     #1
+        bne     @means
+:       lda     #FT_CLUB
+        ldy     #0
+        jsr     outdoor_in_use
+        bcs     @means
         ldx     #58
         jsr     have
-        bcs     @axe
+        bcs     @blade
         ldx     #59
         jsr     have
         bcc     @done
-@axe:   lda     out_tool
+@blade: lda     #1
+@means: asl     a
+        asl     a               ; (C clear)
+        adc     animal_kind
+        sbc     #6-1            ; (C clear: - 6)
+        sta     out_tool
         sec
 @done:  rts
+outdoor_in_use:                 ; A = an fg_use bit, Y = its row: C set,
+        and     fg_use          ; A = Y and the bit cleared when in use
+        beq     :+
+        eor     fg_use
+        sta     fg_use
+        tya
+        sec
+        rts
+:       clc
+        rts
 
 ; Quantized native probability; <= boundary retained, zero never succeeds.
 ; One shared fauna generator, independent of weather and water contamination.
@@ -280,8 +327,6 @@ outdoor_passive:
         sta     animal_age
         ldx     animal_kind
         stx     fauna_named
-        lda     shelter_inside
-        bne     @depart
         lda     out_tree_injury-6,x
         ldy     tree_in
         bne     @roll           ; native method 16 (equal to 15 in the Sierra)
@@ -369,7 +414,15 @@ out_severity: .byte 52,103,154,115,162,199,150,189,216
 ; player who carries TRINKETS unless a second roll is below .02 (T06/S04
 ; $58DA-$58FA); every other species draws once, as before.
 outdoor_hurt:
-        jsr     outdoor_roll
+        ldy     shelter_inside  ; D4 (lot 3): in a shelter the risk x .1
+        beq     @roll           ; (T06/S04 $5866-$5888)
+        ldy     #$FF
+:       iny
+        sec
+        sbc     #10
+        bcs     :-
+        tya
+@roll:  jsr     outdoor_roll
         bcs     @done
         ldx     animal_kind
         lda     out_kind-6,x
@@ -453,22 +506,33 @@ outdoor_steal:
 
 ; fauna_reactions: native thresholds of the four species of the loaded
 ; region, ordinary outside mode ($0D5D=0), floor(256 p) + 1 (0: never),
-; rewritten by its pack (40 bytes, tools/build_disk.py); the trunk holds
+; rewritten by its pack (76 bytes, tools/build_disk.py); the trunk holds
 ; the Sierra Nevada. Noise: .8 - .03 * row[14]. Failed noise uses
-; row[14] * .02 for injury. Blade injury: row[18] * .02; success:
-; row[24] * .01 / 2. out_kind: bit 7 theft (row[28]), bit 6 venom
-; (row[22] >= 4), bit 5 trinkets rule, bits 0-3 out_severity offset.
+; row[14] * .02 for injury. ATTACK with means m = 17..21 (CLUB or ROCK,
+; AXE or KNIFE, SPEAR, BOW, GUN; lot 3): injury row[m] * .02, success
+; row[m + 6] * .01 / 2 (T06/S04 $589A, $593A; build/regions/fauna.json).
+; out_kind: bit 7 theft (row[28]), bit 6 venom (row[22] >= 4), bit 5
+; trinkets rule, bits 0-3 out_severity offset.
 fauna_reactions:
 out_noise:           .byte 129,129,0,0
 out_noise_injury:    .byte 52,52,154,0
-out_attack_injury:   .byte 180,129,103,0
-out_attack_success:  .byte 4,13,39,0
+out_means_injury:    .byte 180,129,26,0 ; 17 CLUB, ROCK
+out_attack_injury:   .byte 180,129,103,0 ; 18 AXE, KNIFE
+                     .byte 129,103,26,0 ; 19 SPEAR
+                     .byte 77,77,52,0   ; 20 BOW
+                     .byte 26,36,36,0   ; 21 GUN
+out_means_success:   .byte 2,4,77,0     ; 17
+out_attack_success:  .byte 4,13,39,0    ; 18
+                     .byte 9,26,77,0    ; 19
+                     .byte 26,39,20,0   ; 20
+                     .byte 45,52,45,0   ; 21
 out_passive_injury:  .byte 11,11,16,0 ; native row[15] * .02 (IGNORE, commands >= 22)
 out_tree_injury:     .byte 11,11,16,0 ; native row[16] * .02 (in a tree)
 out_active_injury:   .byte 6,6,11,0   ; native row[13] * .02
 out_departure:       .byte 128,64,192,0 ; port: bear 50%, cougar 25%, snake 75%
 out_nouns:           .byte 76,181,182,0
 out_kind:            .byte $80,$83,$40,0
+out_value:           .byte 6,3,1,0      ; lot 4: header byte 30, V (meat 65 V^2, hide 12 V)
 .export fauna_reactions
 out_tool:           .byte 0
 out_hurt:           .byte 0
@@ -561,3 +625,80 @@ module_outdoor_report:
 @done:  rts
 out_message_lo: .byte <out_no_water,<out_no_canteen,<out_full,<out_filled,<out_heavy,<out_no_animal,<out_calm,<out_weapon,<out_scared,<out_defended,<out_injured,<out_noise_failed,<out_watching,<out_attack_failed,<out_stolen_msg,<out_protected,<out_wounded_win
 out_condition: .byte 0
+
+; ----------------------------------------------------------------------------
+; The background under the animal (docs/MEMORY.md 28). PROJECT module_animal
+; draws the animal of the cell over the whole view; an arrow turn (or LOOK
+; L/R/B) would have to redraw it all, the animal staying centred. Instead,
+; before the animal is drawn, the bytes of its columns (AB_N + 1 from byte
+; AB_J0 of both banks, rows 16..175: the view and its cached rows) go to the
+; auxiliary language card, bank 1 ($D000, TOPO's snapshot zone: a legacy
+; map only, src/topo_dhgr.s tp_save drops them); scene_drawn = $83. The turn
+; (game.s animal_unpan) puts them back, the view scrolls and only the new
+; columns and the animal are drawn: the same pixels as a full redraw.
+; AB_J0, AB_N (LOWTEXT) come from PROJECT module_animal.
+AB_BUF  = $D000                 ; auxiliary language card, bank 1
+AB_MAXN = 21                    ; 160 * 2 * 22 bytes stay below $EC00 (72 columns)
+ABZ     = $F0                   ; auxiliary zero page: the screen, AB_BUF
+.assert AB_BUF + 160 * 2 * (AB_MAXN + 1) <= $EC00, error, "AB_BUF passes TP_SNAP_END"
+; module_animal_bg -- (ANIMAL_RUN) keep the background, but on a native
+; map (its atlas fills the area: turns redraw the view).
+module_animal_bg:
+        lda     MAP+37
+        bne     ab_rts
+        lda     #$83            ; turn_view: put it back and scroll
+        sta     scene_drawn
+        lda     #ABZ            ; from (ABZ), the screen, to (ABZ + 2)
+        .byte   $2C             ; (BIT abs: skips the next LDA)
+; module_animal_unbg -- (game.s animal_unpan) the background back on screen.
+module_animal_unbg:
+        lda     #ABZ+2          ; from AB_BUF to the screen
+; ab_copy -- A = the source pointer of ab_bank. ALTZP selects the auxiliary
+; zero page, stack and language card (no main zero page until ALTZPOFF:
+; hgr_row's hp is auxiliary too, as in tp_save).
+ab_copy:
+        sta     ab_ld+1
+        eor     #ABZ ^ (ABZ+2)
+        sta     ab_st+1
+        php
+        sei
+        sta     ALTZPON
+        bit     LCBANK1         ; twice: read and write RAM bank 1
+        bit     LCBANK1
+        lda     #<AB_BUF
+        sta     ABZ+2
+        lda     #>AB_BUF
+        sta     ABZ+3
+        ldx     #16
+@row:   jsr     hgr_row
+        lda     hp
+        clc
+        adc     AB_J0
+        sta     ABZ
+        lda     hp+1
+        sta     ABZ+1
+        sta     PAGE2_AUX
+        jsr     ab_bank
+        sta     PAGE2_MAIN
+        jsr     ab_bank
+        inx
+        cpx     #176
+        bne     @row
+        bit     LCROM
+        sta     ALTZPOFF
+        plp
+ab_rts: rts
+; ab_bank -- AB_N + 1 bytes of the row, one bank; AB_BUF moves on.
+ab_bank:
+        ldy     AB_N
+ab_ld:  lda     (ABZ),y
+ab_st:  sta     (ABZ+2),y
+        dey
+        bpl     ab_ld
+        sec
+        lda     AB_N
+        adc     ABZ+2
+        sta     ABZ+2
+        bcc     :+
+        inc     ABZ+3
+:       rts

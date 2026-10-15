@@ -25,8 +25,8 @@ def check(name, ok, detail=''):
 
 
 def rows(s):
-    """The result column (rows 20-23, columns 40-79), words joined."""
-    return ' '.join(' '.join(l[40:].split()) for l in text_screen(s.step('peek:0400:1024').data)[20:24])
+    """The result column (rows 20-23, columns 0-38), words joined."""
+    return ' '.join(' '.join(l[:39].split()) for l in text_screen(s.step('peek:0400:1024').data)[20:24])
 
 
 def say(s, text, *answers):
@@ -334,19 +334,22 @@ def giardia():
 
 
 def menu():
-    """The grid (src/menu.s): MAKE FIRE/STICKS/WATER, BOIL WATER, USE of the
-    camp items and of the fire, DOUSE FIRE only while a fire burns."""
+    """The grid (src/menu.s, src/grid.s): MAKE lists what can be made here
+    (FIRE, WATER) and queues what MAKE FIRE needs (a match, the warmth of
+    the fire in the cold); USE of the camp items and of the fire; DOUSE and
+    BOIL only while a fire burns, BOIL setting the utensils down first and
+    asking the canteen's ounces; typed commands keep their refusals."""
     from test_menu_bar import choose, move_to, press, grid_cells, RET, ESC
     with a2test.Session(DISK) as s:
         s.step(IDLE)
         poke(s, 'nature_frequency', 0)
         press(s, RET)
         verbs = sum(grid_cells(s), [])
-        check('grid: MAKE and BOIL, no DOUSE without a fire', 'MAKE' in verbs and 'BOIL' in verbs
+        check('grid: MAKE, no BOIL nor DOUSE without a fire', 'MAKE' in verbs and 'BOIL' not in verbs
               and 'DOUSE' not in verbs, verbs)
         move_to(s, 'MAKE')
         press(s, RET)
-        check('MAKE lists FIRE STICKS WATER', sum(grid_cells(s), [])[:3] == ['FIRE', 'STICKS', 'WATER'], grid_cells(s))
+        check('MAKE lists FIRE WATER (no STICKS)', sum(grid_cells(s), []) == ['FIRE', 'WATER'], grid_cells(s))
         press(s, ESC)
         move_to(s, 'USE')
         press(s, RET)
@@ -354,23 +357,31 @@ def menu():
         check('USE lists MATCHES, MAGNF GLASS, FUEL, the medicine, FLASHLGHT', all(
             ('MATCHES' in items, 'MAGNF' in items, 'FUEL' in items, 'OXYGEN' in items, 'FLASHLGHT' in items)), items)
         press(s, ESC)
-        check('USE MATCHES from the grid', choose(s, 'USE', 'MATCHES') == ('USE MATCHES', 38)
-              and b(s, 'camp_use') & 1)
-        check('MAKE FIRE from the grid', choose(s, 'MAKE', 'FIRE') == ('MAKE FIRE', 0) and b(s, 'fire_on'))
-        press(s, ESC)
+        check('typed MAKE FIRE without a match in use: refused (no queue)',
+              'APPROPRIATE ITEM' in say(s, 'MAKE FIRE') and not b(s, 'fire_on') and not b(s, 'mq_n'))
         press(s, RET)
-        check('DOUSE once a fire burns', 'DOUSE' in sum(grid_cells(s), []))
+        check('MAKE FIRE from the grid: USE MATCHES first', choose(s, 'MAKE', 'FIRE') == ('USE MATCHES', 38))
+        s.step(IDLE)
+        check('then MAKE FIRE and, in the cold, USE FIRE (the queue)', b(s, 'fire_on') and b(s, 'fire_near')
+              and b(s, 'mq_n') == 0, (b(s, 'fire_on'), b(s, 'fire_near')))
+        verbs = sum(grid_cells(s), [])
+        check('DOUSE and BOIL once a fire burns', 'DOUSE' in verbs and 'BOIL' in verbs, verbs)
         check('USE FIRE from the grid (the fire after the items)', choose(s, 'USE', 'FIRE') == ('USE FIRE', 88)
               and b(s, 'fire_near'))
-        check('DOUSE FIRE from the grid', choose(s, 'DOUSE') == ('DOUSE FIRE', 0) and not b(s, 'fire_on'))
         move_to(s, 'BOIL')
-        s.step(f'press:{RET}')
-        s.step(f'until:{L["keyboard_wait"]:04X}:40000')
-        text = rows(s)
-        s.step(f'key:{ESC}')
+        press(s, RET)
+        sizes = sum(grid_cells(s), [])
+        press(s, ESC)
+        check('BOIL from the grid: the ounces, at most the canteen\'s 64', sizes[-2:] == ['48', 'OZ'], sizes)
+        line = choose(s, 'BOIL', '16 OZ')
         s.step(IDLE)
-        check('BOIL WATER from the grid: the ounces asked', 'HOW MANY OZ' in text
-              and s.step(L.peek('inbuf', 10)).data.startswith(b'BOIL WATER'), text)
+        check('BOIL 16 OZ from the grid: USE UTENSILS, then BOIL WATER 16 OZ (no prompt)',
+              line == ('USE UTENSILS', 73) and b(s, 'camp_use') & 32 and
+              s.step(L.peek('inbuf', 16)).data.startswith(b'BOIL WATER') and b(s, 'it_pack_lo', 22) == 48, line)
+        text = say(s, 'BOIL WATER', '\\e')
+        check('typed BOIL WATER: the ounces of the canteen asked', 'ACCESSIBLE: 48 OZ' in text, text)
+        press(s, RET)                       # (the cancelled prompt left the typed line)
+        check('DOUSE FIRE from the grid', choose(s, 'DOUSE') == ('DOUSE FIRE', 0) and not b(s, 'fire_on'))
 
 
 def main():

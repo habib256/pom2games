@@ -213,6 +213,9 @@ weather_daily:
         lda     #21
         jsr     overlay_load
         jmp     module_weather_daily
+; The preparation's storm frequency (src/prepare.s): in the raw SIM image,
+; which NEOWILD.PRE patches through pr_patch_sim (ADVENTURE is LZ-packed).
+wf_storm: .byte $81,0,0,0,0
 .segment "ADVENTURE"
 module_weather_daily:
         fld     s_date
@@ -235,7 +238,6 @@ module_weather_daily:
         fld     wf_0_1
 :       fst     weather_frequency
         rts
-wf_storm: .byte $81,0,0,0,0     ; the preparation's storm frequency (src/prepare.s)
 
 .segment "THERMAL"
 weather_air_visibility:

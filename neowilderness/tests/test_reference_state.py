@@ -25,6 +25,19 @@ POINTERS = {'gp1', 'gp2'}
 # by copying back a snapshot of the view instead of redrawing it, so the
 # window holds another module and fewer module copies are counted.
 LOADING = {'overlay_reads', 'overlay_current', 'overlay_wanted'}
+# Rebased on 15 October 2026 (docs/LOOK_UPDOWN.md 4): an animal of the cell
+# is no longer the scene's single sprite but drawn after the view (PROJECT
+# module_animal). With one there, the scene bookkeeping of the last picture
+# (the main slot is the site or the nearest billboard; the cache is dropped;
+# turns redraw) and the floating point scratch of its projection differ by
+# design; they are compared whenever no animal is on the player's cell.
+SCENE = {'scene_drawn', 'scene_cache_valid', 'scene_cache_pos', 'scene_cache_drawn',
+         'scene_cache_asset', 't1', 't2', 't3', 't4', 't5'}
+
+
+def animal_here(snap):
+    return (snap['animal_kind'][0] and snap['animal_x'][0] == snap['px'][1]
+            and snap['animal_y'][0] == snap['py'][1])
 
 
 def segments(path):
@@ -90,7 +103,8 @@ def main():
     names = [n for n in names if n not in ADDRESS_TABLES]
     total = sum(sizes[n] for n in names)
     for step, before, after in zip(SCRIPT, reference, current):
-        differ = [n for n in names if before[n] != after[n]]
+        differ = [n for n in names if before[n] != after[n]
+                  and not (n in SCENE and animal_here(before) and animal_here(after))]
         label = step[0].replace('\r', '').replace('\\', '')
         if differ:
             failures += 1

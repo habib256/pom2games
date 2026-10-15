@@ -181,7 +181,7 @@ def dither_column(heading, col):
 
 
 def view(m, px, py, heading, sky=None, animal=None, forest=True, sprites=True, pal=lighting,
-         tilt=0, steps=view_ref.STEPS):
+         tilt=0, steps=view_ref.STEPS, built=(), fire=None):
     """Logical view: 160 rows x 140 colour indices (rows 0..15 included).
 
     pal(sky) returns the colour roles (default: the mood of tools/dhgr_palette);
@@ -190,7 +190,12 @@ def view(m, px, py, heading, sky=None, animal=None, forest=True, sprites=True, p
     row moves by dv = 96 * tilt (docs/LOOK_UPDOWN.md): terrain, distant
     billboards, tree feet, sky zones, stars and the Sun or Moon; looking up
     there is no sprite and no tree, looking down a local sprite keeps its
-    rows. steps: the ray budget of the weather (view_ref.columns)."""
+    rows. steps: the ray budget of the weather (view_ref.columns). built:
+    the built shelters of XL (tests/scene_ref.built_shelters). animal: (asset,
+    x, y, _) of the animal record; drawn last, over everything, facing the
+    player (tests/scene_ref.animal_geometry, PROJECT module_animal), even in
+    the dark (the night silhouette, dhgr_palette.Lighting.animal), but not
+    looking up; fire: (cell x, cell y, bearing) of a campfire burning."""
     sky = sky or Sky()
     lit = pal(sky)
     dv = view_ref.TILT_ROWS * tilt
@@ -213,7 +218,7 @@ def view(m, px, py, heading, sky=None, animal=None, forest=True, sprites=True, p
 
     # Billboard (scene_ref geometry), shaded by the mood, hidden in the dark.
     opaque = [set() for _ in range(COLS)]
-    g = None if sky.hidden or not sprites or tilt > 0 else scene_ref.select(m, px, py, heading, animal)
+    g = None if sky.hidden or not sprites or tilt > 0 else scene_ref.select(m, px, py, heading, animal, built)
     if g:
         name = scene_ref.ASSETS[g['asset']]
         colours = lit.sprite_colours(name)
@@ -281,6 +286,18 @@ def view(m, px, py, heading, sky=None, animal=None, forest=True, sprites=True, p
                 else:
                     c = lit.tree('crown', r, col, (r ^ cx) & 1)
                 pix[r][col] = c
+
+    # The animal of the cell (PROJECT module_animal): after the whole view.
+    a = scene_ref.animal_geometry(px, py, heading, animal, fire, tilt) if sprites else None
+    if a:
+        name = scene_ref.ASSETS[a['asset']]
+        s = dhgr_sprites.convert(name, 0, colours=lit.sprite_colours(name) or P.SPRITES[name])
+        paint = getattr(lit, 'animal', lit.sprite)      # HGR codes: lit.sprite
+        for col in range(max(0, a['left']), min(COLS, a['left'] + a['width'])):
+            for up, c in s['columns'][col - a['left']].items():
+                out = s['base'] - s['origin'] - up
+                if 0 <= out < VIEW_ROWS:
+                    pix[out][col] = paint(c)
     return pix
 
 

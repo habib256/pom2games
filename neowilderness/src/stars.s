@@ -26,8 +26,11 @@
 ;                     ROM floating point, then stars_compute. Assembled
 ;                     unless STARS_BENCH is defined.
 ;   stars_compute     integer entry: st_day (0..367), st_min (0..1439).
-; Reads M_LAT (signed degrees), MAP+25 (signed east longitude), sky_bearing
-; and sky_y (the Moon of the same hour: call after sky_position, at night),
+; Reads M_LAT (signed degrees), MAP+25 (signed east longitude), st_up,
+; st_mrow and st_mb (the drawn Moon of the same hour, set by the game entry
+; from sky_y / sky_bearing, or from sky_hy / sky_hb looking up: call after
+; sky_position, at night); looking up, the rows of the view 96 higher in
+; true perspective (tools/stars_ref.py TU, 10 bits of sin(alt)),
 ; sin_lo / SIN_UNIT_START and sky_outer (resident). Writes st_a, st_row,
 ; st_bucket (src/stars_draw.s): in the game they are in bank 2 of the main
 ; language card (STARS_LIST_LC), write-enabled for the final pass only, with
@@ -99,6 +102,17 @@ STARS_ZP_SIZE = 68
 .ifndef STARS_BSS
 .define STARS_BSS "SKYSTBSS"
 .endif
+; st_tugap (LOOK UP) and the inputs below live in the module, in the game
+; too since docs/MEMORY.md 15 (they had been pushed out, resident, while the
+; store was full).
+.define STARS_TUGAP "SKYSTARS"
+.define STARS_IN "SKYSTARS"
+.pushseg
+.segment STARS_IN
+st_up:   .byte 0                ; input: 1 LOOK UP (its projection), 0 level
+st_mrow: .byte $80              ; input: drawn Moon's row in list rows, $80 none
+st_mb:   .word 0                ; input: its bearing
+.popseg
 .ifndef STARS_CATALOGUE
 .define STARS_CATALOGUE "SKYCAT"   ; st_cat: first STAR_CAT_HEAD stars (record 24)
 .define STARS_CATALOGUE2 "SKYCAT2" ; st_cat2: the others, head of the module image
@@ -148,11 +162,48 @@ module_sky_stars:
         cmp     #<1440
         lda     st_min+1
         sbc     #>1440
-        bcc     stars_compute
+        bcc     :+
         sta     st_min+1
         lda     st_min
         sbc     #<1440
         sta     st_min
+:
+; st_inputs -- the view's tilt and its drawn Moon (src/sky.s): level, sky_y
+; on rows 16..95 and sky_bearing; LOOK UP, sky_hy (signed level row, $80
+; hidden) drawn 96 lower on 16..159, i.e. -80..63, and sky_hb. (Resident in
+; src/game.s until docs/MEMORY.md 15.)
+st_inputs:
+        ldx     #0
+        lda     tilt
+        cmp     #1
+        bne     @level
+        stx     st_up
+        inc     st_up
+        lda     sky_hb
+        sta     st_mb
+        lda     sky_hb+1
+        sta     st_mb+1
+        lda     sky_hy
+        clc
+        adc     #80             ; -80..63 -> 0..143 ($80 -> 208)
+        cmp     #144
+        lda     sky_hy
+        bcc     @moon
+        bcs     @none
+@level: stx     st_up
+        lda     sky_bearing
+        sta     st_mb
+        lda     sky_bearing+1
+        sta     st_mb+1
+        lda     sky_y
+        cmp     #96
+        bcs     @none
+        cmp     #16
+        bcs     @moon
+@none:  lda     #$80
+@moon:  sta     st_mrow
+        lda     st_up           ; the list's projection (stars_view_dark)
+        sta     stars_list_up
         jmp     stars_compute
 st_f60: .byte   $86, $70, 0, 0, 0       ; 60.0, ROM floating point
 .endif
@@ -224,33 +275,62 @@ stars_compute:
         sta     st_atan+1,x
         inx
         bpl     @atb            ; r - 1 = 0..127
-        ; --- row table: h(u) = number of T[k] <= u (T[k] >= 256 from STAR_T_HIGH)
-        ldx     #0              ; k
-        ldy     #0              ; u = 0..255
-@rt0:   cpx     #STAR_T_HIGH
-        bcs     @rs0
-        tya
-        cmp     st_t9,x
-        bcc     @rs0
+        ; --- row table st_rowt: c(u) = number of thresholds <= u, from the
+        ; gaps between them (nibbles: low, then high): level, h(up >> 7) for
+        ; u = 0..511 (T, c from 0); LOOK UP, c(up >> 6) for up >> 6 =
+        ; STAR_TU_BASE + i, i = 0..455 (TU[32..175], c from 1)
+        lda     st_up
+        bne     @tu
+        ldx     #STAR_T_GAPS
+        lda     #<st_tgap
+        ldy     #>st_tgap
+        sec                     ; level: c from 0
+        bcs     @tset
+@tu:    ldx     #STAR_TU_GAPS
+        lda     #<st_tugap
+        ldy     #>st_tugap
+        clc                     ; up: c from 1
+@tset:  sta     st_k
+        sty     st_k+1
+        stx     st_hh           ; gaps
+        lda     #0
+        bcs     :+
+        lda     #1
+:       sta     st_t            ; c
+        lda     #<st_rowt
+        sta     st_p
+        lda     #>st_rowt
+        sta     st_p+1
+        ldx     #0              ; gap
+        ldy     #0
+@ru:    sty     st_hl           ; gap x: nibble x & 1 of byte x >> 1
+        txa
+        lsr     a
+        tay
+        lda     (st_k),y
+        bcc     :+
+        lsr     a
+        lsr     a
+        lsr     a
+        lsr     a
+:       and     #$0F
+        sta     st_t+1
+        ldy     st_hl
+@rufill:
+        lda     st_t
+        sta     (st_p),y
+        iny
+        bne     :+
+        inc     st_p+1
+:       dec     st_t+1
+        bne     @rufill
+        inc     st_t
         inx
-        bne     @rt0
-@rs0:   txa
-        sta     st_rowt,y
-        iny
-        bne     @rt0
-@rt1:   cpx     #STAR_H_MAX     ; u = 256 + Y
-        bcs     @rs1
-        cpx     #STAR_T_HIGH
-        bcc     @ri1            ; T[k] < 256 <= u
-        tya
-        cmp     st_t9,x
-        bcc     @rs1
-@ri1:   inx
-        bne     @rt1
-@rs1:   txa
-        sta     st_rowt+256,y
-        iny
-        bne     @rt1
+        cpx     st_hh
+        bcc     @ru
+        lda     st_t            ; u = 511 (level) or 1023 (up): the last one
+        sta     (st_p),y
+@rdone:
 
         ; --- LST16 = C(day) + Tsid(minute) - (lon >> 1)
         lda     st_day+1
@@ -592,7 +672,9 @@ st_star:
         bne     :+
         jmp     st_skip         ; on the horizon
         ; h = number of T[k] <= up >> 7 (table st_rowt), row = 95 - h
-:       lda     st_acc
+:       lda     st_up
+        bne     @uprow
+        lda     st_acc
         asl     a
         lda     st_acc+1
         rol     a
@@ -608,7 +690,36 @@ st_star:
 :       eor     #$FF            ; 95 - h
         sec
         adc     #95
-        sta     st_rowv
+        jmp     @rowv
+        ; LOOK UP: i = (up >> 6) - STAR_TU_BASE, c = st_rowt[i], row = 64 - c
+@uprow: lda     st_acc+1        ; (st_t : st_t+1) = up >> 6, 10 bits
+        sta     st_t+1
+        lda     #0
+        sta     st_t
+        lda     st_acc
+        asl     a
+        rol     st_t+1
+        rol     st_t
+        asl     a
+        rol     st_t+1
+        rol     st_t
+        lda     st_t+1
+        sec
+        sbc     #<STAR_TU_BASE
+        tax                     ; i, low byte
+        lda     st_t
+        sbc     #>STAR_TU_BASE
+        bcs     :+
+        jmp     st_skip         ; under 33.7 degrees: below the view
+:       lsr     a               ; i >= 256: the second page
+        bcs     :+
+        lda     st_rowt,x
+        bcc     @ucnt
+:       lda     st_rowt+256,x
+@ucnt:  eor     #$FF            ; 64 - c
+        sec
+        adc     #64
+@rowv:  sta     st_rowv
 
         ; N = cf * sd - sf * cdcH, |E| = cd * |sin H|
         ldy     st_sd             ; cf * sd: table of the hour
@@ -703,18 +814,16 @@ st_star:
         stx     st_azhh
 
         ; Moon: hidden by its outer disc (sky_column rows y - half..y + half)
-        ; when the Moon is drawn (rows 16..95)
-        lda     sky_y
-        cmp     #96
-        bcs     st_append
-        cmp     #16
-        bcc     st_append
+        ; when the Moon is drawn (st_mrow, list rows; $80: not drawn)
+        lda     st_mrow
+        cmp     #$80
+        beq     st_append
         sec
-        lda     st_azl          ; d = (az - sky_bearing + 5) mod 560
-        sbc     sky_bearing
+        lda     st_azl          ; d = (az - bearing + 5) mod 560
+        sbc     st_mb
         sta     st_dl
         lda     st_azhh
-        sbc     sky_bearing+1
+        sbc     st_mb+1
         sta     st_dh
         clc
         lda     st_dl
@@ -748,7 +857,7 @@ st_star:
         bcs     st_append
         lda     st_rowv
         sec
-        sbc     sky_y
+        sbc     st_mrow         ; signed: rows -80..95 never differ by 128
         bpl     :+
         eor     #$FF
         clc

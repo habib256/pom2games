@@ -19,20 +19,21 @@ def main():
                     steps += [L.poke(name,value)]
                 steps += [L.poke('px',50,1),L.poke('py',40,1),L.poke('heading',0,1),
                           L.poke('animal_kind',old),L.poke('animal_x',20),L.poke('animal_y',30),
-                          L.poke('animal_bearing',70),L.poke('animal_bearing',0,1),L.poke('animal_age',17),
+                          L.poke('animal_age',17),
                           L.poke('fauna_species',candidate),L.poke('fauna_rng',4),L.poke('fauna_alert',0)]
                 steps += [L.poke('weather_seed',b,i) for i,b in enumerate(seed.to_bytes(4,'little'))]
-                steps += [done,L.peek('animal_kind',6),L.peek('fauna_alert'),
+                steps += [done,L.peek('animal_kind',4),L.peek('fauna_alert'),
                           L.peek('fauna_rng'),L.peek('weather_seed',4),idle]
     r=a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
     for k,(old,candidate,seed,accepted) in enumerate(fixtures):
-        expected=bytes((candidate+6,50,40,140,0,0)) if accepted else bytes((old,20,30,70,0,17))
-        assert r.mem(L['animal_kind'],6,k)==expected,(k,expected,r.mem(L['animal_kind'],6,k))
+        # Kind, cell, age: no bearing since the animal always faces the player.
+        expected=bytes((candidate+6,50,40,0)) if accepted else bytes((old,20,30,17))
+        assert r.mem(L['animal_kind'],4,k)==expected,(k,expected,r.mem(L['animal_kind'],4,k))
         assert r.mem(L['fauna_alert'],1,k)==bytes([int(accepted)])
         assert r.mem(L['fauna_rng'],1,k)==b'\4'
         expected_seed=seed*8192 % 67099547 if old else seed
         assert int.from_bytes(r.mem(L['weather_seed'],4,k),'little')==expected_seed
-    print('  keep/replace all species, presence, bearing, age and interruption flag OK')
+    print('  keep/replace all species, presence, cell, age and interruption flag OK')
 
     m=bytearray((HERE/'build/map.bin').read_bytes())
     m[2:8]=bytes((0,12,0,8,140,0));m[8:10]=bytes((100,40));m[16]=0

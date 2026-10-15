@@ -2,12 +2,21 @@
 """Every screen returns to the same view without disk access or elapsed time.
 
 From a fresh game, one session opens and leaves each screen by the keyboard:
-STATUS (Esc), STATUS -> M -> B -> Esc (medical detail and back), INVENTORY
-(every page), HELP (every page), MAP (scrolled four ways, then C), TOPO and
-QUIT answered N, Return and Esc. After each return:
+STATUS (Esc), STATUS -> M -> S -> Esc (M opens STATUS, MEDICAL's since 15 October
+2026), the six top pages in a cycle (right arrow), INVENTORY (every group), HELP, MAP
+(scrolled four ways by I/J/K/L, then C), TOPO, the bottom pages (DOWN: the
+grid, DOWN past its last row: TOPO, RIGHT: MAP over its sheet, scrolled, LEFT/RIGHT back and forth, UP: the
+view), MAP typed then RIGHT (the whole TOPO) and UP, STATUS then UP on its
+tab row (TOPO, 15 October 2026) and UP, and QUIT answered N,
+Return and Esc. After each return:
 
 * no MLI call: the mli_calls/mli_reads counters of memory.s are unchanged and
-  an a2shot watch on the ProDOS entry $BF00 never fires;
+  an a2shot watch on the ProDOS entry $BF00 never fires, but for the
+  READ_BLOCKs of TOPOGEN when TOPO opens (NEOWILD.BLK since docs/MEMORY.md
+  18: the opening reads it, the return copies the snapshot back), of
+  CRAFT when the CRAFT page opens (lot 3 step 2: the whole module, nine
+  blocks), of STATUS when a top page opens (NeoWildernessXL, docs/MEMORY.md
+  29: fifteen blocks with the post-its' tail);
 * the module loads are exactly the expected ones: an a2shot watch on
   mem_fetch records each directory index, xfer_count grows by that many
   (overlay_reads too, but for TOPOGEN, fetched directly), and xfer_bytes by
@@ -50,24 +59,42 @@ STATE += tuple((name, 76) for name in ('it_place', 'it_pack_lo', 'it_pack_hi',
                                       'it_gnd_lo', 'it_gnd_hi'))
 LAYOUT = json.loads((HERE / 'build/layout.json').read_text())['modules']
 
+# BOTTOM: DOWN opens the grid of commands, DOWN again down to its last row
+# and past it: TOPO, the bottom pages (each DOWN in the grid ends in idle).
+BOTTOM = 'BOTTOM'
 # (name, keystrokes (each followed by the screen's keyboard loop, the last
 # one by the command line), module indexes copied by mem_fetch, in order).
 # The sequence is deterministic from a fresh game:
-# STATUS shows its module (16), which asks ADV (21) for the route progress
-# (DONE=) and is copied again; M adds MEDICAL (17) and its view (19), B
-# returns to STATUS. INVENTORY (2) computes its load totals in SIM (3),
-# whose activation hides the view: the return redraws it (HUD 15, wreck
-# sprite 5). HELP shares module 2; MAP is SITES (10). TOPO copies TOPOGEN
+# STATUS copies its module (16) into the SIM window by a direct mem_fetch
+# (no overlay_reads; NeoWildernessXL reads it from NEOWILD.BLK, docs/MEMORY.md
+# 29), asks ADV (21, $5800) for the route progress (journey_left, as the
+# reference) and MEDICAL (17) for the percentages of its MEDICAL rows (15
+# October 2026: MEDICAL's page merged into STATUS); M opens STATUS again
+# (its arrival: ADV, MEDICAL), S too. The right arrow turns STATUS, OBJECTS
+# (SIM 3, then 16 again), CRAFT (9, read from NEOWILD.BLK over STATUS), HELP
+# (16 again), OPTIONS, MENU (ADV: the rangers' progress) and back to STATUS.
+# OBJECTS computes its load totals in SIM (3) first, then shares the STATUS
+# module (16, SIM window); the return redraws the view (HUD 15, wreck sprite
+# 5). HELP shares module 16 too; MAP is SITES (10). TOPO copies TOPOGEN
 # (0) into the SIM window by a direct mem_fetch (not a module load: no
 # overlay_reads) and copies the snapshot of the view back on return
-# (docs/MEMORY.md 8.4): no HUD or sprite reload. QUIT asks through INP (13).
+# (docs/MEMORY.md 8.4): no HUD or sprite reload. The bottom pages switch
+# TOPO <-> MAP without any load: MAP writes the text page over the sheet,
+# TOPO comes back as its mixed mode and legend (TOPOGEN stays in the SIM
+# window), UP copies the snapshot back. UP on the tab row of STATUS opens
+# TOPO as T does (SITES 10 over the page, then TOPOGEN 0; 15 October 2026).
+# QUIT asks through INP (13).
 SCREENS = (
-    ('STATUS', ['STATUS\r', '\\e'], [16, 21, 16]),
-    ('STATUS M B', ['STATUS\r', 'M', 'B', '\\e'], [21, 16, 17, 19, 16, 21, 16]),
-    ('INVENTORY', ['INVENTORY\r', '2', '3', '4', '5', '1', 'N', 'B', '\\e'], [2, 3, 15, 5]),
-    ('HELP', ['HELP\r', '2', '3', 'N', 'B', '\\e'], [2]),
-    ('MAP', ['MAP\r', 'D', 'S', 'A', 'W', 'D', 'C', '\\e'], [10]),
+    ('STATUS', ['STATUS\r', '\\e'], [16, 21, 17]),
+    ('STATUS M S', ['STATUS\r', 'M', 'S', '\\e'], [16, 21, 17, 21, 17, 21, 17]),
+    ('PAGES', ['STATUS\r'] + ['\\>'] * 6 + ['\\e'], [16, 21, 17, 3, 16, 9, 16, 21, 17, 15, 5]),
+    ('INVENTORY', ['INVENTORY\r', '2', '3', '4', '5', '1', 'N', 'B', '\\e'], [3, 16, 15, 5]),
+    ('HELP', ['HELP\r', '\\e'], [16]),
+    ('MAP', ['MAP\r', 'L', 'K', 'J', 'I', 'L', 'C', '\\e'], [10]),
     ('TOPO', ['TOPO\r', '\\e'], [0]),
+    ('DOWN TOPO MAP', [BOTTOM, '\\>', 'L', '\\<', '\\>', '\\^'], [0]),
+    ('MAP RIGHT', ['MAP\r', '\\>', '\\^'], [0]),
+    ('STATUS UP TOPO', ['STATUS\r', '\\^', '\\^'], [16, 21, 17, 10, 0]),
     ('QUIT N', ['QUIT\r', 'N'], [13]),
     ('QUIT RETURN', ['QUIT\r', '\\r'], []),
     ('QUIT ESC', ['QUIT\r', '\\e'], []),
@@ -131,6 +158,15 @@ def main():
             start = counters()
             mark = len(s.out)
             for k, key in enumerate(keys):
+                if key == BOTTOM:
+                    for _ in range(8):
+                        s.step('key:\\v')
+                        if s.step(f'until:{L["keyboard_wait"]:04X},{L["idle"]:04X}:{LIMIT}').out.find(
+                                f'PC={L["keyboard_wait"]:04X}') >= 0:
+                            break
+                    else:
+                        raise AssertionError('DOWN never reached the bottom pages')
+                    continue
                 text = key[:-1] if key.endswith('\r') else key
                 s.step(f'key:{text}')
                 if key.endswith('\r'):
@@ -142,7 +178,7 @@ def main():
                     if name.startswith('QUIT'):
                         assert 'UNSAVED PROGRESS WILL BE LOST' in screen, screen
                     if key == 'M':
-                        assert 'MEDICAL STATUS' in screen, screen
+                        assert 'SEVERE CUTS' in screen and 'ALTITUDE SICKNESS' in screen, screen
             out = s.out[mark:]
             fetched = [int(x, 16) for x in re.findall(rf'^watch {fetch:04X} .* X=([0-9A-F]{{2}})', out, re.M)]
             # The text bank's fetches (entry 29, docs/MEMORY.md 13): transfers
@@ -154,13 +190,16 @@ def main():
             end = counters()
             delta = {k: end[k] - start[k] for k in end}
             after = snapshot()
-            size = sum(LAYOUT[str(m)].get('stored', LAYOUT[str(m)]['length']) for m in fetched)   # LZ: the stored bytes
+            on_disk = [m for m in fetched if LAYOUT[str(m)]['bank'] == 'disk']
+            blocks = sum(LAYOUT[str(m)]['blocks'] for m in on_disk)    # NEOWILD.BLK: TOPOGEN, CRAFT
+            size = sum(LAYOUT[str(m)]['length' if m in on_disk else 'stored'] for m in fetched)   # LZ: the stored bytes
             print(f'  {name:12} MLI {delta["mli_calls"]} (watch {mli}), module loads '
                   f'{delta["overlay_reads"]} {fetched}, RAM transfers {delta["xfer_count"]} '
                   f'({delta["xfer_bytes"]} bytes)', flush=True)
-            assert mli == 0 and delta['mli_calls'] == delta['mli_reads'] == delta['mli_bytes'] == 0, name
+            assert mli == blocks and delta['mli_calls'] == delta['mli_reads'] == blocks, name
+            assert delta['mli_bytes'] == 512 * blocks, name
             assert fetched == modules or DISCOVER, (name, fetched, modules)
-            direct = fetched.count(0)       # TOPOGEN: mem_fetch without overlay_load
+            direct = fetched.count(0) + fetched.count(16) + fetched.count(9)   # TOPOGEN, STATUS, CRAFT: no overlay_load
             assert delta['xfer_count'] == len(fetched) + texts, (name, delta)
             assert delta['overlay_reads'] == len(fetched) - direct, (name, delta)
             assert delta['xfer_bytes'] == size or texts, (name, delta, size)

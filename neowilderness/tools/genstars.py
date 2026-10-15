@@ -64,8 +64,17 @@ def tables():
     rows += ['.popseg']
     rows += table('st_c_lo', [c & 255 for c in R.C_TABLE])
     rows += table('st_c_hi', [c >> 8 for c in R.C_TABLE])
-    rows.append(f'STAR_T_HIGH = {R.T_HIGH}')
-    rows += table('st_t9', [t & 255 for t in R.T_TABLE])
+    def nibbles(gaps):
+        gaps = list(gaps) + [0] * (len(gaps) & 1)
+        assert max(gaps) < 16
+        return [gaps[i] | gaps[i + 1] << 4 for i in range(0, len(gaps), 2)]
+    rows.append(f'STAR_T_GAPS = {len(R.T_GAPS)}')
+    rows += table('st_tgap', nibbles(R.T_GAPS))
+    rows.append(f'STAR_TU_BASE = {R.TU_BASE}')
+    rows.append(f'STAR_TU_GAPS = {len(R.TU_GAPS)}')
+    rows += ['.pushseg', '.segment STARS_TUGAP']     # the game: resident (GCODE)
+    rows += table('st_tugap', nibbles(R.TU_GAPS))
+    rows += ['.popseg']
     steps = [b - a for a, b in zip(R.AT_TABLE, R.AT_TABLE[1:])]
     assert set(steps) <= {0, 1} and len(steps) == 128
     rows += table('st_atbits', [sum(steps[8 * i + j] << j for j in range(8)) for i in range(16)])

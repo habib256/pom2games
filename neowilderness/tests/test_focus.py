@@ -1,0 +1,268 @@
+#!/usr/bin/env python3
+"""Focus levels of the top pages (src/pages.s page_keys, src/inventory.s).
+
+The tab row holds the focus on arrival; DOWN goes down a level (INVENTORY's
+group row and its pages, the cursor of OPTIONS and MENU, MEDICAL's active
+conditions), UP comes back up, DOWN below the lowest level returns to the
+view; UP on the tab row opens TOPO (15 October 2026: the maps' storey, also
+from CRAFT's own key loop), where UP returns to the view. Each focus move redraws its page differentially: one store per
+changed cell. MEDICAL's focus shows the treatment gestures of the condition
+on row 23 (LEFT/RIGHT choose one, RETURN types it; src/care.s); OPTIONS'
+line F types IGNORE FOOD or GET FOOD; the grid's CARE opens MEDICAL on the
+first active condition."""
+import re
+import sys
+from common import MENU_STORES, L, DISK, a2test, text_screen, text_writes, text_changes, page_frame
+
+IDLE = L.until('idle', 20000)
+READY = L.until('keyboard_wait', 20000)
+SHOW = '-v' in sys.argv
+
+
+def inverse(mem, row):
+    """The inverse columns of a row of the 80-column page (bytes below $80
+    but MouseText, $40-$5F: ALTCHARSET is on, docs/MENUS.md 9)."""
+    o = (row % 8) * 128 + (row // 8) * 40
+    cells = [b for pair in zip(mem[1024 + o:1024 + o + 40], mem[o:o + 40]) for b in pair]
+    return [c for c, b in enumerate(cells) if b < 0x80 and not 0x40 <= b < 0x60]
+
+
+def raw_cell(mem, row, col):
+    """The screen code of a cell of the 80-column page."""
+    o = (row % 8) * 128 + (row // 8) * 40
+    return (mem[1024 + o + col // 2] if col % 2 == 0 else mem[o + col // 2])
+
+
+def walk():
+    with a2test.Session(DISK) as s:
+        s.step(IDLE)
+        options = s.step(L.peek('game_options')).data
+
+        def key(k, redraw=True):
+            """One key that redraws its page (page_top): one store per changed
+            cell; the screen after it."""
+            before = s.step('peek:0400:1024').data
+            s.step('press:' + k)
+            s.step(L.until('page_top', 20000) if redraw else 'wait:2')
+            profile = s.step(f'pcprof:{L["keyboard_wait"]:04X}:20000')
+            after = s.step('peek:0400:1024').data
+            pcs = {int(a, 16): int(c) for a, c in
+                   re.findall(r'^pc ([0-9A-F]{4}) (\d+)$', profile.out, re.M)}
+            writes, changes = text_writes(pcs, MENU_STORES), text_changes(before, after)
+            rows = text_screen(after)
+            if SHOW:
+                print(f'--- {k}: {writes} stores, {changes} changed cells')
+                print('\n'.join(r.rstrip() for r in rows))
+            return rows, writes, changes
+
+        def focus():
+            return s.step(L.peek('pg_focus')).data[0]
+
+        def view():
+            """True when the view's command line comes before a page's key loop."""
+            s.step('wait:2')
+            out = s.step(f'until:{L["keyboard_wait"]:04X},{L["idle"]:04X}:20000').out
+            return f'PC={L["idle"]:04X}' in out
+
+        # OBJECTS: tab row, group row (group in inverse, brackets before)
+        s.step('key:\\^'); s.step(READY)
+        assert focus() == 0
+        rows, _, _ = key('\\>')
+        assert page_frame(rows, 'OBJECTS', '\u2191\u2193 GROUPS/PAGES  1-5 GROUP', 'ESC VIEW'), rows
+        assert not inverse(s.step('peek:0400:1024').data, 2)
+        assert '[1 WORN ' in rows[2], rows[2]       # XL: the group row on row 2 (docs/MENUS.md 9)
+        assert focus() == 0
+        rows, writes, changes = key('\\v')
+        assert focus() == 1 and ' 1 WORN ' in rows[2] and '[' not in rows[2], rows[2]
+        assert writes == changes == 10, (writes, changes)  # brackets, ' 1 WORN 8 ' in inverse
+        mem = s.step('peek:0400:1024').data
+        assert inverse(mem, 2) == list(range(10)) and inverse(mem, 0) == list(range(11, 20)), (inverse(mem, 2), inverse(mem, 0))
+        rows, writes, changes = key('\\>')
+        assert writes == changes and s.step(L.peek('inventory_group')).data[0] == 1, rows[2]
+        assert focus() == 1 and '[' not in rows[2]
+        rows, writes, changes = key('\\^')               # back to the tab row
+        assert focus() == 0 and '[2 IN HAND 3]' in rows[2] and writes == changes == 13, (rows[2], writes, changes)
+        key('\\v')
+        pages = s.step(L.peek('inventory_pages')).data[0]
+        for _ in range(pages - 1):                   # the group's later pages
+            key('\\v')
+        s.step('press:\\v')                           # below the last page
+        assert view(), 'DOWN on the last page returns to the view'
+
+        # OPTIONS: the cursor, RETURN as the line's letter
+        s.step('key:\\^'); s.step(READY)
+        for _ in range(4):
+            key('\\>')
+        rows, _, _ = key('\\v')
+        # XL (docs/MENUS.md 9.3): a post-it a line, rows 3, 6, 9, 12
+        assert focus() == 1 and rows[3].startswith('\u258f >C  WILDLIFE'), rows[3]
+        assert page_frame(rows, 'OPTIONS', '\u2191\u2193 CHOOSE  \u21b5 SELECT', 'ESC VIEW'), rows[23]
+        rows, writes, changes = key('\\v')
+        assert rows[3].startswith('\u258f  C') and rows[6].startswith('\u258f >A  THE PLAYER'), rows[3:7]
+        assert writes == changes == 2, (writes, changes)
+        rows, writes, changes = key('\\r')
+        assert s.step(L.peek('game_options')).data[0] & 0x80, 'RETURN on A turns the player on TOPO on'
+        assert focus() == 2 and rows[6].startswith('\u258f >A') and 'TOPO: ON' in rows[6] and writes == changes, rows[6]
+        key('\\^')
+        rows, writes, changes = key('\\^')
+        assert focus() == 0 and not any('>' in r[:3] for r in rows[3:13]) and writes == changes == 1, rows[3:13]
+        # MENU: down to Q, then ESC (nothing typed)
+        rows, _, _ = key('\\>')
+        assert rows[2].startswith(' SAVE \u005f') and focus() == 0, rows[2]
+        for _ in range(3):
+            rows, writes, changes = key('\\v')
+            assert writes == changes
+        assert focus() == 3 and rows[9].startswith('\u258f >Q  QUIT'), rows[3:10]
+        s.step('press:\\e')
+        assert view(), 'ESC returns to the view'
+        rows = text_screen(s.step('peek:0400:1024').data)
+        assert not any('UNSAVED' in r for r in rows), rows
+
+        # STATUS has no level: DOWN leaves; MENU's cursor below Q leaves too
+        s.step('key:\\^'); s.step(READY)
+        rows = text_screen(s.step('peek:0400:1024').data)
+        assert page_frame(rows, 'STATUS', '\u2191 TOPO', 'ESC/\u2193 VIEW'), rows[23]
+        s.step('press:\\v')
+        assert view()
+        s.step('key:\\^'); s.step(READY)
+        key('\\<')
+        for _ in range(3):
+            key('\\v')
+        s.step('press:\\v')
+        assert view(), 'DOWN below the last line of MENU returns to the view'
+
+        # UP on the tab row: TOPO, the maps' storey; UP there: the view.
+        # STATUS (page_keys), then CRAFT (its own key loop, src/craft.s).
+        view_page = s.step('peek:2000:8192').data
+        for turns in (0, 3):
+            s.step('key:\\^'); s.step(READY)
+            for _ in range(turns):
+                s.step('key:\\>'); s.step('wait:2'); s.step(READY)
+            assert focus() == 0 or turns
+            s.step('key:\\^')
+            s.step(L.until('graphical_topo_key', 40000))
+            assert s.step('peek:C01F:1').data[0] >= 0x80 and s.step('peek:C01A:1').data[0] < 0x80, \
+                'UP on the tab row: TOPO, DHGR mixed'
+            legend = text_screen(s.step('peek:0400:1024').data)[20]
+            assert legend.startswith('TOPO, NORTH UP'), legend
+            s.step('press:\\^')
+            assert view(), 'UP on TOPO returns to the view'
+            assert s.step('peek:2000:8192').data == view_page, 'the view copied back'
+        s.step(L.poke('game_options', options[0]))
+    print('  focus: tab row, INVENTORY groups and pages, OPTIONS/MENU cursor, RETURN; one store per changed cell;'
+          ' UP on the tab row (STATUS, CRAFT): TOPO: OK')
+
+
+def inventory_pages():
+    """A group of three pages (every item in the pack): DOWN from the group row
+    turns the pages, UP comes back to page 1 then to the tab row; DOWN on
+    the last page returns to the view."""
+    with a2test.Session(DISK) as s:
+        s.step(IDLE)
+        for item in range(1, 76):
+            s.step(L.poke('it_place', 2, item)); s.step(L.poke('it_pack_lo', 1, item))
+        s.step('key:INVENTORY\\r'); s.step('wait:1'); s.step(READY)
+        s.step('key:3'); s.step('wait:1'); s.step(READY)
+
+        def key(k):
+            s.step('press:' + k); s.step(L.until('page_top', 20000)); s.step(READY)
+            rows = text_screen(s.step('peek:0400:1024').data)
+            return (s.step(L.peek('pg_focus')).data[0], s.step(L.peek('inventory_page')).data[0],
+                    re.search(r'PAGE \d+/\d+', rows[15]).group(0))      # (row 15: 33 items a page)
+        walk = [key(k) for k in ('\\v', '\\v', '\\^', '\\^', '\\v', '\\v', '\\v')]
+        assert walk == [(1, 0, 'PAGE 1/3'), (1, 1, 'PAGE 2/3'), (1, 0, 'PAGE 1/3'),
+                        (0, 0, 'PAGE 1/3'), (1, 0, 'PAGE 1/3'), (1, 1, 'PAGE 2/3'), (1, 2, 'PAGE 3/3')], walk
+        s.step('press:\\v'); s.step('wait:2')
+        out = s.step(f'until:{L["keyboard_wait"]:04X},{L["idle"]:04X}:20000').out
+        assert f'PC={L["idle"]:04X}' in out, 'DOWN on PAGE 3/3 returns to the view'
+    print('  OBJECTS: DOWN/UP through the pages of a group, the view below the last: OK')
+
+
+def medical():
+    """MEDICAL's care: the focus on the active conditions (the name in
+    inverse), their gestures on row 23 (the chosen one in inverse), RETURN
+    types it; CUT BODY without a blade types USE KNIFE first and queues the
+    gesture; OPTIONS' line F; CARE from the grid."""
+    from test_menu_bar import press, move_to, RET
+    with a2test.Session(DISK) as s:
+        s.step(IDLE)
+        s.step(L.poke('nature_frequency', 0))
+        for k in (0, 7):                            # SEVERE CUTS, POISON BITE
+            s.step(L.poke('injury_active', 1, k))
+
+        def key(k):
+            before = s.step('peek:0400:1024').data
+            s.step('press:' + k)
+            s.step(L.until('page_top', 20000))
+            profile = s.step(f'pcprof:{L["keyboard_wait"]:04X}:40000')
+            after = s.step('peek:0400:1024').data
+            pcs = {int(a, 16): int(c) for a, c in
+                   re.findall(r'^pc ([0-9A-F]{4}) (\d+)$', profile.out, re.M)}
+            return text_screen(after), text_writes(pcs, MENU_STORES), text_changes(before, after), after
+
+        s.step('key:\\^'); s.step(READY)
+        rows = text_screen(s.step('peek:0400:1024').data)
+        assert page_frame(rows, 'STATUS', '\u2191 TOPO', 'ESC VIEW'), rows
+        rows, writes, changes, mem = key('\\v')
+        # STATUS's MEDICAL rows (docs/MENUS.md 9, 15 October 2026): SEVERE CUTS
+        # on row 16 (column 1 in its post-it, XL), POISON BITE on row 18 from
+        # column 27; the inverse X of the ACTIVE ones (columns 23 and 50).
+        assert raw_cell(mem, 16, 23) == raw_cell(mem, 18, 50) == 0x18, 'ACTIVE: an inverse X'
+        assert s.step(L.peek('pg_focus')).data[0] == 1 and inverse(mem, 16) == list(range(1, 12)) + [23], inverse(mem, 16)
+        assert rows[23].startswith(' \u2190\u2192 STOP BLEEDING  USE PRESSURE') and inverse(mem, 23) == list(range(4, 17)) \
+            and rows[23][70:].rstrip() == 'ESC VIEW' and rows[22] == '\u2500' * 80, rows[22:]
+        assert writes == changes, (writes, changes)
+        rows, writes, changes, mem = key('\\>')
+        assert inverse(mem, 23) == list(range(19, 31)) and writes == changes == 25, (inverse(mem, 23), writes, changes)
+        rows, writes, changes, mem = key('\\v')            # POISON BITE: three gestures, the first
+        assert inverse(mem, 16) == [23] and inverse(mem, 18) == list(range(27, 38)) + [50] and rows[23].startswith(
+            ' \u2190\u2192 USE SNAKEBT KIT  CUT BODY  SUCK VENOM') and inverse(mem, 23) == list(range(4, 19)), rows[23]
+        assert writes == changes, (writes, changes)
+        rows, writes, changes, mem = key('\\<')            # LEFT wraps: SUCK VENOM
+        assert inverse(mem, 23) == list(range(31, 41)), inverse(mem, 23)
+        rows, _, _, mem = key('\\<')                       # CUT BODY: no blade in use
+        s.step('press:\\r')
+        s.step(L.until('do_command', 40000))
+        assert s.step(L.peek('inbuf', 20)).data.startswith(b'USE KNIFE\0') and \
+            [s.step(L.peek(n)).data[0] for n in ('mq_n', 'mq_i')] == [2, 1], 'USE KNIFE, then CUT BODY queued'
+        s.step(L.until('get_line', 400000))
+        s.step(L.until('do_command', 40000))
+        assert s.step(L.peek('inbuf', 20)).data.startswith(b'CUT BODY\0'), s.step(L.peek('inbuf', 20)).data
+        s.step(IDLE)
+        assert s.step(L.peek('care_tools')).data[0] & 2 and s.step(L.peek('mq_n')).data[0] == 0
+        # OPTIONS' line F: IGNORE FOOD typed, then GET FOOD.
+        for want in (1, 0):
+            s.step('key:\\^'); s.step(READY)
+            for _ in range(2):
+                key('\\<')                         # STATUS, MENU, OPTIONS (LEFT)
+            rows, _, _, _ = key('\\v')
+            assert rows[2].startswith(' NATURE ') and rows[12].startswith('\u258f  F  FOOD SOURCES ON THE WAY: ' +
+                                                                        ('ON' if want else 'OFF')), rows[2:13]
+            for _ in range(3):
+                key('\\v')
+            s.step('press:\\r')
+            s.step(L.until('do_command', 40000))
+            line = s.step(L.peek('inbuf', 20)).data.split(b'\0')[0]
+            assert line == (b'IGNORE FOOD' if want else b'GET FOOD'), line
+            s.step(f'until:{L["idle"]:04X},{L["keyboard_wait"]:04X}:400000')
+            s.step('key: '); s.step('wait:1'); s.step(f'until:{L["idle"]:04X}:400000')
+            assert s.step(L.peek('fg_ignore')).data[0] == want
+        # CARE from the grid: STATUS, the focus on the first active condition.
+        s.step(L.poke('injury_active', 0, 0))
+        s.step('key:V\\r'); s.step('wait:1'); s.step(IDLE)
+        press(s, RET)
+        move_to(s, 'CARE')
+        s.step(f'press:{RET}')
+        s.step(L.until('page_top', 40000)); s.step(READY)
+        rows = text_screen(s.step('peek:0400:1024').data)
+        assert s.step(L.peek('pg_focus')).data[0] == 1 and rows[23].startswith(' \u2190\u2192 USE SNAKEBT KIT'), rows[23]
+        s.step('press:\\e')
+    print('  STATUS care: the focus on the active conditions, their gestures (LEFT/RIGHT), RETURN types one '
+          '(CUT BODY: USE KNIFE first, queued); OPTIONS line F; CARE from the grid: OK')
+
+
+if __name__ == '__main__':
+    walk()
+    inventory_pages()
+    medical()
+    print('Focus levels: OK')

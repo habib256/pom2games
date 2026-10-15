@@ -37,7 +37,7 @@ def main():
     m[64:64 + 9408] = bytes([10]) * 9408
     frames = [
         ('wreck', 20, 20, 140, 0),
-        ('cabin', 30, 20, 140, 0),
+        ('cabin (log, MAP+16 = 1)', 30, 20, 140, 0),
         ('bear', 40, 20, 140, 6),
         ('cougar', 40, 20, 140, 7),
         ('rattlesnake', 40, 20, 140, 8),
@@ -53,7 +53,7 @@ def main():
         for label, x, y, heading, animal, day, sky in cases:
             steps += poke('s_date', (day + .01) / 365) + poke('s_hour', 0)
             for name, value in [('px', x * 256), ('py', y * 256),
-                                ('heading', heading), ('animal_bearing', heading)]:
+                                ('heading', heading)]:
                 steps += [L.poke(name, value), L.poke(name, value >> 8, 1)]
             steps += [L.poke('animal_kind', animal), L.poke('animal_x', x),
                       L.poke('animal_y', y), L.poke('weather_sky', sky)]
@@ -110,7 +110,7 @@ def main():
         result = a2test.run(disk_with(tmp, bytes(woods)), steps_for([case], True),
                            emulator=a2test.A2SHOT, timeout=900)
     check(woods, result.dumps[:6], *case, forest=True)
-    print(f'  full Moon: {", ".join(sorted(seen))}; terrain, woods, wreck, cabin and all fauna; '
+    print(f'  full Moon: {", ".join(sorted(seen))}; terrain, woods, wreck, cabin (log) and all fauna; '
           f'partial Moon dark: OK')
 
 

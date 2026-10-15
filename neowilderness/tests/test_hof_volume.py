@@ -20,7 +20,11 @@ back):
      the report's byte);
   3. a real journey: Sierra Nevada level 4, walks (the wild food scan
      rewrites MAP+28..MAP+33), meals, rests, views and a sleep, then QUIT,
-     Y. The end module ranks it in the Sierra Nevada (region_number /
+     Y, ten hours and more. Since 14 October 2026 LOOK N/E/S/W puts the
+     carried compass in use and turns the player (it used to answer "FIRST
+     PUT DIRECTION AID IN USE" and leave the heading): the first look is
+     LOOK S, as the walks that follow a LOOK N (or E) are blocked at once
+     and the journey stops at 9 hours. The end module ranks it in the Sierra Nevada (region_number /
      journey_kind; with MAP+32 / MAP+33 it said "FREE JOURNEY: NOT
      RANKED"), a name is typed and saved, the loader comes back to its
      menu. From QUIT to that menu (NEOWILD.END, NEOWILD.HOF, the restart
@@ -59,7 +63,7 @@ FCB = 0xD800                    # ProDOS 8 file control blocks, 32 bytes each
 FCB_EOF, FCB_DIRTY = 0x15, 0x1C
 NONCE_BLOCK = 279               # a free block: finds a2shot's private copy
 JOURNEY = ['WEAR PARKA', 'DRINK WATER 10 OZ', 'EAT CHEESE 8 OZ',
-           'WALK 1 H', 'WALK 1 H', 'LOOK N', 'WALK 1 H', 'WALK 1 H',
+           'WALK 1 H', 'WALK 1 H', 'LOOK S', 'WALK 1 H', 'WALK 1 H',
            'EAT CHEESE 6 OZ', 'DRINK WATER 8 OZ', 'WALK 1 H', 'WALK 1 H',
            'REST 2 H', 'REST 2 H', 'REST 2 H', 'LOOK N', 'LOOK E',
            'SLEEP 8 H', 'WALK 1 H', 'LOOK S']
@@ -140,8 +144,10 @@ def stray_fcb(L):
 
 def prodos_guard(out, L):
     """Stores of the game (not ProDOS) into ProDOS's memory, from the
-    storewatch lines: main language card outside bank 2 $D400-$DFFF, and the
-    global page but its bitmap."""
+    storewatch lines: main language card outside bank 2 $D001-$D0FF (the LZ
+    decoder, docs/MEMORY.md 14), $D100-$D3FF (the bank 2 code of the view and
+    ProDOS's QUIT code put back at exit, docs/MEMORY.md 15) and $D400-$DFFF,
+    and the global page but its bitmap."""
     bad = []
     for line in out.splitlines():
         if not line.startswith('store '):
@@ -160,7 +166,7 @@ def prodos_guard(out, L):
             if ramwrt or 0xBF58 <= ea < 0xBF70:     # auxiliary RAM, or the bitmap
                 continue
             bad.append(line)
-        elif not altzp and not (bank2 and 0xD400 <= ea < 0xE000):
+        elif not altzp and not (bank2 and 0xD001 <= ea < 0xE000):
             bad.append(line)
     assert not bad, 'stores into ProDOS memory:\n' + '\n'.join(bad[:12])
 

@@ -18,7 +18,7 @@ Mesures du 14 octobre 2026 sur la tête `d64afbb` + ce lot.
 | Autre région | refusée avec le nom de la région de la partie : `GAME 1: SIERRA NEVADA ONLY.` (l'original : `C$(IC)" ONLY!"` ; le point remplace le `!`, qui est un code de `message`) |
 | Écrasement | une partie occupée est décrite (`GAME 1: SIERRA NEVADA, 14 H.`) et `REPLACE IT? Y: YES   N/ESC: NO` est demandé ; une partie vide est écrite sans question |
 | Disque | lectures et écritures **seulement** à SAVE, RESTORE et en fin de voyage (`NEOWILD.END`/`.HOF`) ; `tests/test_resident.py` le vérifie |
-| Image 800 Ko | option `DISK_BLOCKS=1600` / `make disk800` ; l'image livrée reste de 140 Ko (§ 9) |
+| Éditions | deux images livrées depuis le 14 octobre 2026 : `dist/NEOWILDERNESS.po` (140 Ko, 224/280 blocs, cinq parties) et `dist/NEOWILDERNESSXL.po` (800 Ko, 305/1 600) ; `tools/build_disk.py --edition` (§ 9) |
 
 ## 2. Dialogues
 
@@ -60,7 +60,7 @@ Sauvé (`sv_ranges`, 1 392 octets) :
 | `sun_alt8` … `text80` | 5 | hauteurs du Soleil et de la Lune, phase, humeur du ciel, mode texte |
 | `tree_in` … `cachey` | 38 | arbre, position, cap, mort, compteurs du voyage, eau non traitée et son hasard (`water_rng`), victoire, nuit, abri trouvé, période, air, vent, poids, cache au sol |
 | `s_hour` … `it_pack_hi` | 855 | horloge (`s_hour`, `s_elap`, `s_date`), énergie, déficits, santé, corps, thermique, mouillé, lever/coucher, `t1`…`t5`, trame de marche, les neuf tables d'objets `it_place`, `it_oz_*`, `it_vol_*`, `it_gnd_*`, `it_pack_*` |
-| `resource_seen` … fin de GDATA | 277 | ressources, marche, vêtements, météo (`weather_seed`, horloge, fronts, ciel, tendance), médical (blessures, traitements, actions), altitude, scènes, animal présent (espèce, case, cap, âge), fréquence NATURE, `fauna_rng`, caches de scène, HUD (`ui_previous`, `ui_pending`…), forêt et géographie fine |
+| `resource_seen` … fin de GDATA | 277 | ressources, marche, vêtements, météo (`weather_seed`, horloge, fronts, ciel, tendance), médical (blessures, traitements, actions), altitude, scènes, animal présent (espèce, case, âge ; plus de cap depuis le 15 octobre 2026), fréquence NATURE, `fauna_rng`, caches de scène, HUD (`ui_previous`, `ui_pending`…), forêt et géographie fine |
 | `it_x`, `it_y` (WILDLO) | 152 | cases des objets posés au sol |
 | en-tête de carte `$7000-$703F` | 64 | abri trouvé (`MAP+16…18`), ressources découvertes (`MAP+26…36`), niveau (`+22`), genre (`+33`), faune et fronts (`+38…40`) |
 | `fauna_named` (TEXT) | 1 | espèce nommée par le dernier message |
@@ -198,27 +198,20 @@ POM2 (IIe enhanced, Disk II, ProDOS 2.4.3), a2shot, secondes invitées :
 | `SAVE 1` (occupée, Y) | ≈ 4,4 s + la réponse | |
 | `RESTORE 1` | 6,2 s de nuit, 9,1 s de jour | module 1,2 s ; lecture 1,9 s ; redessin de la vue 3 à 6 s (comme VIEW) |
 
-## 10. Image 800 Ko
+## 10. Édition XL de 800 Ko
 
-`make DISK_BLOCKS=1600` construit `dist/NEOWILDERNESS.po` sur 1 600 blocs
-(819 200 octets ; bitmap d'un bloc, même catalogue) ; `make disk800`
-construit `build/NEOWILDERNESS-800K.po` sans toucher l'image livrée.
-
-- **a2shot** (cœur POM2, façade publique) n'a qu'un contrôleur Disk II en
-  slot 6 : l'image est refusée (« file size 819200 bytes doesn't match any
-  supported format »). Aucun test automatique ne peut donc la démarrer.
-- **POM2** (application, préréglage IIe enhanced) la monte sur sa carte
-  SmartPort (Liron, slot 5) et démarre dessus (`DEVNUM = $50`) : menu,
-  Sierra niveau 4, première vue identique, `WALK 1 H`, `SAVE 1` (« GAME 1
-  SAVED. »), `WALK 2 H`, `RESTORE 1` (« GAME 1 RESTORED. », état revenu à
-  celui de la sauvegarde), vérifié à la main par le serveur de contrôle
-  (`--ai-control`) sur une copie dont le volume s'appelle `NEOWILD800`
-  (le profil POM2 de la machine monte aussi un `/NEOWILDERNESS` en slot 6 :
-  deux volumes du même nom rendraient le chemin ambigu).
-
-Verdict : l'image livrée reste de **140 Ko** (tous les tests passent par
-a2shot) ; l'image 800 Ko est une option construite, démarrée et essayée
-une fois dans POM2, non couverte par `make test`.
+Depuis le 14 octobre 2026, `make` construit les deux éditions :
+`dist/NEOWILDERNESS.po` (140 Ko, la Sierra seule, cinq parties, 224/280
+blocs) et `dist/NEOWILDERNESSXL.po` (800 Ko, 1 600 blocs, les six
+scénarios, `NEOWILD.BLK` pour CAMP/MEDVIEW/TREE/ORIENT lus à la demande ;
+`tools/build_disk.py --edition xl`). a2shot démarre l'image de 819 200
+octets sur la carte SmartPort 3,5" du slot 5 que POM2 expose dans
+`pom2_core` depuis le 14 octobre (commit POM2 `b93b5f6`) : la suite de
+tests tourne sur l'édition XL (`tests/common.py DISK`), l'édition 140 Ko
+étant couverte par `tests/test_editions.py` et `test_save.py` (WOZ et
+copie 140 Ko). L'historique de la première vérification manuelle sous POM2
+(`SAVE 1` / `RESTORE 1` sur une image 800 Ko, volume `NEOWILD800`) est
+dans CHANGELOG.md (lot 9).
 
 ## 11. Tests
 

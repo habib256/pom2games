@@ -22,7 +22,8 @@ view_loading:
         jsr     text_mode80
         lda     #0
         jsr     vtab
-        jsr     CLREOP
+        XL_ABS  XI_MAIN, page_foot+xl_curtain-xl_pad, @x54  ; (XL: an hourglass
+        jsr     CLREOP                  ; on the curtain, src/mt_pages.s)
         lda     #24
         sta     $23
         lda     #20

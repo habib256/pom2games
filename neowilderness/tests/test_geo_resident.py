@@ -58,8 +58,8 @@ def patchy_native(level=10, tiles=(0, 153)):
     noise (by default the first one and one in the 8-row last tile row):
     those are stored raw, the others coded; the resident grid is rebuilt
     from the patched fine cells. Six tiles until lot 7 (docs/ORIENTATION.md):
-    with its trunk the 140 KB volume holds the level-10 atlas and two raw
-    tiles. The bootable variant (level 4, tiles 0 and 153) keeps a first and
+    with its trunk the 140 KB volume holds the level-10 atlas and one raw
+    tile (two until the STATUS pages of 14 October 2026). The bootable variant (level 4, tiles 0 and 153) keeps a first and
     a last raw tile within the 280 blocks of the volume (lot 13)."""
     mapdata, start, goal = generated_native(1985, level)
     data = bytearray(mapdata)
@@ -94,6 +94,10 @@ def native_maps():
 def fine_of(mapdata):
     fine = mapdata[mkmap.MAP_BYTES + mkmap.FOREST_BYTES:]
     return fine[:224 * 168], fine[224 * 168:]
+
+
+# scene_asset of the site sprites (src/project.s): blocks of the raw image.
+SITE_BLOCKS = {33: 3, 34: 3, 35: 5}
 
 
 def counters(s):
@@ -405,10 +409,16 @@ def check_play(name, mapdata, start, goal, legs=60):
     with tempfile.TemporaryDirectory() as tmp:
         s = session(disk_with(tmp, mapdata))
         try:
+            # Lot 4 (docs/MEMORY.md 16): a comparison disk whose atlas leaves
+            # too little store reads CAMP from NEOWILD.BLK (tools/build_disk.py):
+            # FILL CANTEEN then makes its READ_BLOCK calls, nothing else does.
+            camp = s.step(L.peek('module_dir', 1, 4 * 7)).data[0] == 0x40
+            camp_reads = -(-len((HERE / 'build/wildcamp.bin').read_bytes()) // 512) if camp else 0
             s.step('watch:BF00')
             watched = len(s.out)
             first = counters(s)
             visited = set()
+            site_reads = []
 
             def run(text, answers=()):
                 before = counters(s)
@@ -416,6 +426,12 @@ def check_play(name, mapdata, start, goal, legs=60):
                 message = command(s, text, answers)
                 x1, y1 = position(s)
                 got = delta(counters(s), before)
+                # Lot 6: a view showing a site sprite (the outpost near the
+                # goal) reads its blocks once, when the SIM window lost it.
+                site = SITE_BLOCKS.get(s.step(L.peek('scene_asset')).data[0], 0)
+                extra = got['mli_calls'] - (camp_reads if text.startswith('FILL') else 0)
+                assert extra in (0, site), (text, extra, site)
+                site_reads.append(extra)
                 visited.update(geo_atlas.block_index('tile16', int(x), int(y))
                                for x, y in ((x0, y0), (x1, y1)))
                 rows.append((text, got, (x1, y1)))
@@ -436,6 +452,7 @@ def check_play(name, mapdata, start, goal, legs=60):
                     run('EAT CHEESE 4 OZ')
                     run('DRINK WATER 8 OZ')
             journey = delta(counters(s), first)
+            journey_sites = sum(site_reads)
             reached = position(s)
             # Shore collection where four tiles meet: FILL (one query), then
             # REST (fauna's 3 x 3 around the player: four tiles).
@@ -457,8 +474,11 @@ def check_play(name, mapdata, start, goal, legs=60):
           f'at most {worst} per command')
     print(f'  {name}: shore cell ({x}, {y}) at a tile corner: {fill.split(" // ")[-1].strip()[:60]!r}; '
           f'{shore["geo_queries"]} queries, {shore["geo_decodes"]} decodes')
-    assert hits == 0, f'{hits} ProDOS MLI entries during play'
-    assert journey['mli_calls'] == 0 and shore['mli_calls'] == 0
+    sites = sum(site_reads)
+    if sites:
+        print(f'  {name}: site sprites read from NEOWILD.BLK: {sites} READ_BLOCK')
+    assert hits == camp_reads + sites, f'{hits} ProDOS MLI entries during play ({camp_reads + sites} expected)'
+    assert journey['mli_calls'] == journey_sites and shore['mli_calls'] == camp_reads + sites - journey_sites
     assert math.dist(reached, goal) < 40, ('journey stopped early', reached)
     assert worst <= 4 and shore['geo_decodes'] <= 4, rows
     assert journey['geo_decodes'] <= 2 * len(visited) + 4, (journey, len(visited))
@@ -511,7 +531,9 @@ def main():
     maps = native_maps()
     if len(maps) == 1:
         print('  (no local Sierra data: generated native map only)')
-    patchy = ('generated s1985-L10 + 2 noise tiles', patchy_native())
+    # The STATUS pages (14 October 2026) took the room of the second raw
+    # tile at level 10 (104 bytes short): one noise tile, the last row's.
+    patchy = ('generated s1985-L10 + 1 noise tile', patchy_native(10, (153,)))
     check_build(maps + [patchy])
     check_legacy()
     check_exact(*maps[0][:2])

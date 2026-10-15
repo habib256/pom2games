@@ -112,7 +112,7 @@ def gameplay():
     steps = [idle,L.poke('injury_active',1,8),L.poke('it_place',2,41),
              'key:USE FIRSTAID KIT\r','wait:1',idle,L.peek('injury_treated',15),L.peek('s_elap',5),
              'key:STATUS\r',L.until('wait_key',6000),'key:M','wait:1',L.until('wait_key',6000),
-             'peek:0400:1024','key:B','wait:1',L.until('wait_key',6000),
+             'peek:0400:1024','key:S','wait:1',L.until('wait_key',6000),
              'key:\x1b','wait:1',idle,L.peek('injury_treated',15),
              'key:STOP BLEEDING\r','wait:1',idle,L.peek('medical_actions',30),L.peek('s_elap',5)]
     r = a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
@@ -122,7 +122,10 @@ def gameplay():
     assert abs(fp(r.mem(L['s_elap'],5,1))-1)<1e-6
     assert r.mem(L['medical_actions'],30)[0] == 1
     screen = '\n'.join(text_screen(r.mem(0x400,1024)))
-    assert 'INFECTION' in screen and 'TREATED' in screen and 'MEDICAL STATUS' in screen
+    # STATUS's MEDICAL rows (15 October 2026): the mark after the percent,
+    # XL's check mark for TREATED (docs/MENUS.md 9)
+    assert 'INFECTION' in screen and '\u2713 TREATED' in screen and ' MEDICAL ' in screen
+    assert __import__('re').search(r'INFECTION +\d+% +\u2713', screen), screen
     print('USE FIRSTAID, STOP BLEEDING, STATUS pagination and resident persistence OK')
 
 

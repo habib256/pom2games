@@ -321,6 +321,9 @@ thermal_rate:
         lda     felt_temp
         ldx     shelter_inside
         beq     :+
+        lda     #35             ; the igloo (lot 3, shelter_inside 2): 35 F
+        cpx     #2
+        beq     :+
         lda     airtemp
         clc
         adc     #15
@@ -336,6 +339,9 @@ thermal_rate:
         bne     @fire
         lda     shelter_inside
         beq     @effective
+        ldy     #35                     ; the igloo (lot 3, shelter_inside 2):
+        cmp     #2                      ; 35 F (T0B/S02, B2 of the igloo)
+        beq     @igloo
         ldy     airtemp
         lda     #0
         cpy     #128
@@ -343,6 +349,9 @@ thermal_rate:
         lda     #$FF
 :       jsr     GIVAYF
         fop     FADD, th_shelter15      ; original found shelter: ambient + 15 F
+        jmp     @effective
+@igloo: lda     #0
+        jsr     GIVAYF
 @effective:
         fst     t4                      ; signed wind-adjusted air or water temperature
         jsr     clamp0

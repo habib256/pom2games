@@ -38,7 +38,7 @@ hud_init:
 
 .segment "LOWCODE"
 ; hud_draw -- the ribbon at the current heading (all 16 rows of its groups).
-hud_draw:
+        B2_ENTRY hud_draw, b2_hud_draw
         sec                     ; strip column under the pointer = magnetic
         lda     heading         ; heading / 4
         sbc     hud_offset
@@ -113,7 +113,7 @@ hud_draw:
 @pack0:
         ldy     #0              ; pack the six groups of the row
         ldx     #HUD_G0*2
-@pack:  jsr     dhgr_pack
+@pack:  jsr     b2_dhgr_pack    ; (bank 2: not through the stub)
         inx
         inx
         tya
@@ -135,5 +135,6 @@ hud_on:   .byte 0, HUD_INK, HUD_INK, HUD_INK, HUD_INK, HUD_INK, HUD_INK, HUD_INK
 hud_off:  .byte HUD_BG, HUD_BG, HUD_BG, HUD_BG, HUD_BG, HUD_BG, HUD_BG, HUD_BG
           .byte HUD_BG, HUD_BG, HUD_BG, 0, 0, 0, 0, 0
 hud_ptr:  .byte 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 0, 0   ; rows with mask 0 only
+        B2_END
 
         .include "hud.inc"

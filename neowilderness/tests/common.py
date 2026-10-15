@@ -22,7 +22,10 @@ for name in ('wait_key', 'status_key', 'inventory_key', 'help_key',
              'topo_key', 'graphical_topo_key', 'ending_key'):
     L[name] = L['keyboard_wait']
 L['number_idle'] = L['keyboard_wait']
-DISK = HERE.parent / 'dist/NEOWILDERNESS.po'
+# The tests run on NeoWildernessXL (800 KB, the six scenarios); DISK140 is
+# Neowilderness (140 KB, the Sierra Nevada alone), tests/test_editions.py.
+DISK = HERE.parent / 'dist/NEOWILDERNESSXL.po'
+DISK140 = HERE.parent / 'dist/NEOWILDERNESS.po'
 # HGR / DOS 3.3 / II+ build frozen before the 128 KB migration (lot 0):
 # ../wilderness at the synchronised HEAD, with its own symbol file.
 REFERENCE = HERE / 'build/reference-hgr'
@@ -268,14 +271,17 @@ def mood_name(index):
     return dhgr_palette.MOODS[index[0] if isinstance(index, (bytes, bytearray)) else index]
 
 
-def dhgr_scene(m, px, py, heading, mood, animal=None, forest=False, sprites=True, sky=None, tilt=0):
+def dhgr_scene(m, px, py, heading, mood, animal=None, forest=False, sprites=True, sky=None, tilt=0,
+               built=()):
     """tools/dhgr_ref.view in a mood (name or the sky_mood byte): terrain of
     view_ref.columns, the nearest billboard of tests/scene_ref, canopies of
-    tools/forest_ref; no sun or Moon unless `sky` is given."""
+    tools/forest_ref; no sun or Moon unless `sky` is given; built: the built
+    shelters of XL (scene_ref.built_shelters)."""
     R = dhgr()
     if sky is None:
         sky = R.Sky(mood_name=mood if isinstance(mood, str) else mood_name(mood))
-    return R.view(m, px, py, heading, sky, animal, forest=forest, sprites=sprites, tilt=tilt)
+    return R.view(m, px, py, heading, sky, animal, forest=forest, sprites=sprites, tilt=tilt,
+                  built=built)
 
 
 def view_diff(got, want, rows=range(160)):
@@ -310,10 +316,131 @@ def text80(mem):
     return len(mem) == 2049 and mem[2048] >= 0x80
 
 
+# Docs/MENUS.md 9: ALTCHARSET is on for the whole game, so the screen codes
+# $40-$5F are MouseText (src/mousetext.inc). text_screen() shows them as these
+# characters on the 80-column pages (a 40-column dump keeps the old reading:
+# the frozen reference shows flashing capitals there).
+MOUSETEXT = dict(zip(range(0x40, 0x60),
+                     '\u25cf\u25cb\u2196\u231b\u2713\u2611\u2687\u2688'    # closed/open apple, pointer, hourglass, check, inverse check, running man x2
+                     '\u2190\u2026\u2193\u2191\u203e\u21b5\u2588\u00ab'    # left, ellipsis, down, up, overbar, return, block, scroll left
+                     '\u00bb\u25bc\u25b2\u2500\u2514\u2192\u2592\u2591'    # scroll right/down/up, line, corner, right, checkerboards
+                     '\u2290\u228f\u2595\u25c6\u2550\u253c\u25a3\u258f'))  # folder, right bar, diamond, double line, cross, box, left bar
+MT = {v: k for k, v in MOUSETEXT.items()}
+
+
+# The top pages (src/pages.s page_top, page_foot; docs/MENUS.md 9): the
+# folder tabs on row 0, the line under them on row 1 (open under the page
+# shown), a line across row 22, the keys on row 23.
+# (15 October 2026: MEDICAL merged into STATUS, INVENTORY renamed OBJECTS.)
+PAGES = ('STATUS', 'OBJECTS', 'CRAFT', 'HELP', 'OPTIONS', 'MENU')
+TAB_ROW = (''.join(f'\u2595 {name} \u258f' for name in PAGES) + ' S/O/R/H').ljust(80)
+TAB_ROW_140 = ' STATUS  OBJECTS  CRAFT  HELP  OPTIONS  MENU             S/O/R/H, LEFT/RIGHT'
+FOOT_LINE = '\u2500' * 80
+FOOT_PAGE = ' \u2190\u2192 PAGE  '           # row 23: LEFT/RIGHT turn the pages
+VIEW_DOWN = 'ESC/\u2193 VIEW'               # at column 70 (a page without a level)
+VIEW_ESC = 'ESC VIEW'                        # (a page with levels)
+
+
+def tab_line(page):
+    """Row 1 under the tabs, page = its name: the line, open under its tab
+    (from its leading space to its trailing one)."""
+    start = TAB_ROW.index(f' {page} ')
+    return '\u203e' * start + ' ' * (len(page) + 2) + '\u203e' * (80 - start - len(page) - 2)
+
+
+# Docs/MENUS.md 9.3 (15 October 2026): the post-its of each XL page, as
+# src/mt_pages.s pf_pages draws them: (first row, last row, first column,
+# last column, title; None: the page writes it, in inverse).
+POSTITS = {
+    'STATUS': ((2, 8, 0, 39, None), (9, 14, 0, 39, None), (2, 14, 41, 79, None), (15, 21, 0, 79, None)),
+    'OBJECTS': ((3, 15, 0, 79, None), (16, 20, 0, 79, None)),
+    'CRAFT': ((2, 6, 0, 28, 'SHELTERS'), (7, 13, 0, 28, 'WEAPONS AND TOOLS'), (14, 17, 0, 28, 'PROTECTION'),
+              (2, 20, 30, 79, None)),
+    'HELP': ((2, 9, 0, 39, None), (2, 9, 41, 79, None), (11, 19, 0, 39, None), (11, 19, 41, 79, None)),
+    'OPTIONS': ((2, 4, 0, 39, 'NATURE'), (5, 7, 0, 39, 'TOPO'), (8, 10, 0, 39, 'MAP'), (11, 13, 0, 39, 'FOOD')),
+    'MENU': ((2, 4, 0, 39, 'SAVE'), (5, 7, 0, 39, 'RESTORE'), (8, 10, 0, 39, 'QUIT'), (11, 14, 0, 39, None)),
+}
+
+
+def raw_cell(mem, row, col):
+    """The screen code of a cell of the 80-column page (a merged dump)."""
+    o = (row % 8) * 128 + (row // 8) * 40
+    return mem[1024 + o + col // 2] if col % 2 == 0 else mem[o + col // 2]
+
+
+def postit_errors(mem, page):
+    """The differences between the text page (a merged dump) and the
+    post-its of `page` (POSTITS), read from the raw screen codes: the first
+    row its title in inverse (a space each side) then '_' ($DF) up to the
+    last column, the rows between a bar $5F in the first column and $5A in the
+    last, the last row the line $4C (inverse text allowed: INVENTORY's page
+    number) from the first column to the last. [] when they all match."""
+    errors = []
+    for top, bot, left, right, title in POSTITS[page]:
+        first = [raw_cell(mem, top, c) for c in range(left, right + 1)]
+        if title is None:       # (CRAFT's recipe: from the second column)
+            skip = 1 if first[0] == 0xDF and first[1] < 0x40 else 0
+            n = next((k for k, c in enumerate(first[skip:], skip) if c >= 0x40), len(first))
+            if n - skip < 2:
+                errors.append(f'row {top} col {left}: no title in inverse')
+        else:
+            want = [0x20] + [ord(ch) & 0x3F for ch in title] + [0x20]
+            n = len(want)
+            if first[:n] != want:
+                errors.append(f'row {top} col {left}: title {first[:n]} != {title!r}')
+        # (text may sit on the line after the title: CRAFT's verdict, the
+        # legend of MEDICAL; the line ends the row)
+        if first[-1] != 0xDF:
+            errors.append(f'row {top} cols {left}-{right}: the line {[hex(c) for c in first[n:]]}')
+        for row in range(top + 1, bot):
+            if raw_cell(mem, row, left) != 0x5F or raw_cell(mem, row, right) != 0x5A:
+                errors.append(f'row {row}: bars {raw_cell(mem, row, left):02X} {raw_cell(mem, row, right):02X} '
+                              f'at {left}, {right}')
+        last = [raw_cell(mem, bot, c) for c in range(left, right + 1)]
+        if last[0] != 0x4C or last[-1] != 0x4C or any(c != 0x4C and c >= 0x40 for c in last):
+            errors.append(f'row {bot} cols {left}-{right}: the last line {[hex(c) for c in last]}')
+    return errors
+
+
+def page_frame(rows, page, keys=None, view=None):
+    """True when the text rows show the frame of the top page `page`: tabs,
+    its line, the footer line, and (when given) row 23's keys and its
+    VIEW at column 70."""
+    ok = rows[0].rstrip() == TAB_ROW.rstrip() and rows[1] == tab_line(page) and rows[22] == FOOT_LINE
+    if keys is not None:
+        ok = ok and rows[23].startswith(FOOT_PAGE + keys)
+    if view is not None:
+        ok = ok and rows[23][70:].rstrip() == view
+    return ok
+
+
+def edition_image(name, xl):
+    """A linked image as a disk holds it: NeoWildernessXL's copy with the
+    MouseText pages' tails and bytes (build/*-xl.*, docs/MENUS.md 9), or the
+    shared image (the 140 KB edition, the comparison disks)."""
+    stem, _, ext = name.partition('.')
+    xl_file = HERE / 'build' / f'{stem.replace("-xl", "")}-xl.{ext}'
+    return xl_file if xl and xl_file.exists() else HERE / 'build' / name.replace('-xl', '')
+
+
+def is_status(rows, xl=True):
+    """The STATUS page (docs/MENUS.md 5, 9) under its tabs: CONDITION and
+    LOCAL on row 2, MEDICAL on row 15; on NeoWildernessXL post-its (the
+    halves' last rows on row 14); xl False: the plain page of the 140 KB
+    edition and the comparison disks (disk_with)."""
+    if not xl:
+        return (rows[0].rstrip() == TAB_ROW_140 and rows[2].startswith(' CONDITION: ')
+                and rows[2][41:].startswith(' LOCAL ') and rows[15].startswith(' MEDICAL '))
+    return (page_frame(rows, 'STATUS') and rows[2].startswith(' CONDITION: ')
+            and rows[2][41:].startswith(' LOCAL ') and rows[15].startswith(' MEDICAL ')
+            and rows[14] == '\u203e' * 40 + ' ' + '\u203e' * 39)
+
+
 def text_screen(mem):
     """24 lines of the displayed text page: 40 characters from a $0400-$07FF
     dump, or 80 (aux even, main odd columns) from a merged dump taken while
-    80COL is on (the view's mixed rows, the curtain, MAP)."""
+    80COL is on (the view's mixed rows, the curtain, MAP); there, MouseText
+    ($40-$5F) reads as the characters of MOUSETEXT."""
     lines = []
     wide = text80(mem)
     for r in range(24):
@@ -322,12 +449,15 @@ def text_screen(mem):
         if wide:
             cells = bytes(b for pair in zip(mem[1024 + o:1024 + o + 40], cells) for b in pair)
         # Inverse uppercase letters occupy $00..$1F on the Apple II.
-        chars = [c & 0x7F for c in cells]
-        lines.append(bytes(c+0x40 if c<0x20 else c for c in chars).decode('latin1'))
+        lines.append(''.join(MOUSETEXT[c] if wide and c in MOUSETEXT
+                             else chr((c & 0x7F) + 0x40 if c & 0x7F < 0x20 else c & 0x7F)
+                             for c in cells))
     return lines
 
 
-RESULT_COL = 40            # src/menu.s: the result column of the four mixed rows
+RESULT_COL = 0             # src/menu.s: the result column of the four mixed rows
+RESULT_END = 39            # its end: the separator column
+GRID_COL = 41              # the grid (verbs, lists), up to column 78
 MENU_BASE = 0xBA00         # src/wild.cfg MENU: build/wildmenu.bin, where idle lives
 
 
@@ -338,11 +468,11 @@ def idle_bytes(n=9):
 
 
 def result_rows(screen):
-    """The result column (rows 20..23, columns 40..78) of a text_screen(),
+    """The result column (rows 20..23, columns 0..38) of a text_screen(),
     or of its last four rows; the last row holds the stock row, or "> " and
     the command being typed or composed."""
     rows = screen[20:24] if len(screen) > 4 else screen[:4]
-    return [row[RESULT_COL:79] for row in rows]
+    return [row[RESULT_COL:RESULT_END] for row in rows]
 
 
 def result_text(screen):

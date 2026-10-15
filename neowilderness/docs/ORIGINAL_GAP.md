@@ -1,6 +1,8 @@
 # Neowilderness : ce qui manque par rapport à l'original
 
-Inventaire au 13 octobre 2026 (branche `main`, après `b941346`) de ce que
+Inventaire au 13 octobre 2026 (branche `main`, après `b941346`), tableau du
+§ 1.2 mis à jour le 14 octobre après les lots 1, 2, 7, 9, 13 et LOOK
+UP/DOWN, de ce que
 Wilderness (Electric Transit, 1985) fait et que Neowilderness ne fait pas,
 ou fait seulement de façon provisoire. Il sert de base aux lots de
 réalisation (§ 3). Les preuves sur l'original renvoient aux modules de la
@@ -65,40 +67,43 @@ fait **2 047 octets sur 2 048** : aucun mot ni aucune branche ne peut y
 indispensable ; `resolve_noun` et `dispatch` en sortiraient). Les mots
 manquants ne sont donc pas un problème : ce sont les **branches** derrière
 les mots qui manquent.
+Depuis le 14 octobre, VOCAB est stocké en LZ dans le stock auxiliaire
+(CHANGELOG « descriptions à gauche, grille à droite ») ; la fenêtre reste
+pleine.
 
 | N° | Verbe(s) original | Module original | Port |
 |---:|---|---|---|
-| 1 | CATCH, FIND, GET | eau T$0F/S$00, chasse T$0F/S$07, objets | objets 1–75 et eau à la berge ; gibier, poisson, insectes, plantes, bâtons (76–92) : `m_notyet` |
-| 2 | USE | T$11/S$00 (abris, feu, outils, lampe, crampons, appât, radeau, pacotilles…) | COMPASS et produits médicaux 41–51 seulement ; reste : `m_notyet` |
-| 3 | BUILD, MAKE | T$10/S$00, T$10/S$05, feu par T$11/S$00 | absent (`m_notyet`) |
-| 4 | SKIN | T$11/S$07 | absent |
+| 1 | CATCH, FIND, GET | eau T$0F/S$00, chasse T$0F/S$07, objets | objets 1–75 ; eau : GET RAIN, SNOW, ICE, rivière ou lac, cactus (lot 2) ; gibier, poisson (CATCH : piège, attirail), aliments sauvages, peau (PACK), BAIT, FOOD (lot 4, module FORAGE) |
+| 2 | USE | T$11/S$00 (abris, feu, outils, lampe, crampons, appât, radeau, pacotilles…) | produits médicaux 41–51 ; MATCHES, FUEL, GLASS, FIRE, FLASHLIGHT (lot 2) ; MAP, COMPASS, WATCH, ALTIMETER, CHART, SHADOW (lot 7) ; SPLINT, PRESSURE, AXE, KNIFE (lot 13) ; abris, outils, appât, radeau, pacotilles : `m_notyet` |
+| 3 | BUILD, MAKE | T$10/S$00, T$10/S$05, feu par T$11/S$00 | MAKE FIRE, MAKE WATER, MAKE STICKS (lot 2) ; abris, armes, outils, objets : `m_notyet` (lots 3 et 5) |
+| 4 | SKIN | T$11/S$07 | carcasses d'animaux et de gibier (lot 4, FORAGE) |
 | 5 | WEAR | T$0D/S$0F | porté |
 | 6 | PACK, STORE | T$0D/S$0F | porté |
 | 7 | CARRY, TAKE | temps / transaction | porté |
 | 8 | DROP, REMOVE | T$0D/S$0F | porté |
-| 9 | BOIL | eau, repas, dépeçage | absent |
-| 10 | DRINK | eau, remèdes T$12/S$08 | gourde et remèdes ; eau du sol, pluie, neige, cactus : absents |
-| 11 | COOK, FRY | T$12/S$00 | absent |
-| 12 | EAT | T$12/S$00, remèdes | provisions 23–37 et remèdes ; aliments sauvages et gibier : absents |
-| 13 | DRY, WARM | T$15/S$0A → T$12/S$08 | absent |
-| 14 | COOL | T$12/S$08 | absent |
-| 15 | CURE, HEAL, TREAT | messages seuls (17, 18, 36) | absent (message générique) |
-| 16 | LOOK | T$0F/S$0F → T$10/S$0C | L/R/B/F, N/E/S/W, AZ ; SUN, STARS, MAP, COMPASS, WATCH, méthodes montre et ombre : absents |
-| 17, 18, 37 | ATTACK/KILL, SCARE, IGNORE/SKIP | T$0F/S$07, T$06/S$04 | animaux de la région, hache/couteau seulement ; IGNORE/FLAG FOOD absents |
+| 9 | BOIL | eau, repas, dépeçage | BOIL WATER (ustensiles, réchaud ou feu, lot 2) ; repas : « PLEASE USE 'COOK' COMMAND » (lot 4) |
+| 10 | DRINK | eau, remèdes T$12/S$08 | gourde, remèdes, eau de rivière ou de lac, pluie, neige, glace, cactus (lot 2), au plus 0,2 × poids ; giardiase de l'original |
+| 11 | COOK, FRY | T$12/S$00 | feu ou réchaud, cuisson, détoxication (lot 4, FORAGE) |
+| 12 | EAT | T$12/S$00, remèdes | provisions 23–37 et remèdes ; aliments sauvages, noix, viande, gibier et poisson (lot 4, FORAGE ; provisions selon l'original derrière `FORAGE_FIDELITY`) |
+| 13 | DRY, WARM | T$15/S$0A → T$12/S$08 | messages 117/118 de l'original (lot 13) |
+| 14 | COOL | T$12/S$08 | COOL BODY (lot 13) |
+| 15 | CURE, HEAL, TREAT | messages seuls (17, 18, 36) | messages 18 et 36 pour la nourriture et les animaux (lot 4) ; ailleurs message générique |
+| 16 | LOOK | T$0F/S$0F → T$10/S$0C | L/R/B/F, N/E/S/W, AZ, U/D (LOOK UP/DOWN) ; SUN, STARS, COMPASS, WATCH, ALTIMETER, méthodes montre et ombre (lot 7) |
+| 17, 18, 37 | ATTACK/KILL, SCARE, IGNORE/SKIP | T$0F/S$07, T$06/S$04 | animaux de la région, hache/couteau seulement (carcasse : lot 4) ; GAME/FISH au fusil, à la hache, au couteau ; IGNORE/FLAG/GET FOOD (lot 4) |
 | 19–21, 44 | WAIT/PAUSE, REST/SLEEP, CAMP, EXERCISE | T$15/S$0B | portés |
 | 22–24, 27, 43 | GO/WALK, RUN, SWIM, MOVE, CRAWL | T$08/S$00 → S$01 → S$07 | marche et nage portées ; RUN et CRAWL = marche ; CLIMB de pente, rivière suivie, risques : absents |
 | 25 | CLIMB | arbre, pente | arbre seulement |
-| 26 | DOUSE, STOP | BLEEDING, FIRE, animaux | STOP BLEEDING seulement |
+| 26 | DOUSE, STOP | BLEEDING, FIRE, animaux | STOP BLEEDING, DOUSE FIRE (lot 2) ; animaux : absent |
 | 28 | PADDLE, ROW | radeau T$08/S$07 | absent |
 | 29, 30, 32 | LOWER, SHIELD, SUCK | T$15/S$0A, T$12/S$08 | LOWER HEAD, SHIELD EYES, SUCK VENOM portés ; LOWER FOOD/BACKPACK (alias du port) |
-| 31 | CUT | T$12/S$08 → T$0F/S$07 | absent |
-| 33 | WET | T$15/S$0A → T$0F/S$00 | absent |
-| 34 | HANG | T$15/S$0A → T$12/S$08 | HANG FOOD porté ; vêtements à sécher absents |
+| 31 | CUT | T$12/S$08 → T$0F/S$07 | CUT BODY (lot 13) ; CUT GAME/FISH à la lame (lot 4) |
+| 33 | WET | T$15/S$0A → T$0F/S$00 | WET BODY (lot 13) |
+| 34 | HANG | T$15/S$0A → T$12/S$08 | HANG FOOD ; vêtements à sécher (lot 13) |
 | 35 | SAMPLE, TASTE | T$12/S$08 | absent |
 | 36 | PAN, SCAN | vue | porté (synonyme de LOOK) |
 | 38 | FLAG | FOOD → interruption | absent |
 | 39, 40 | EXIT/LEAVE, ENTER | T$12/S$08 | SHELTER (cabane du port) seulement |
-| 41, 42 | SAVE, RESTORE | T$13/S$0C, T$14/S$03 | absents |
+| 41, 42 | SAVE, RESTORE | T$13/S$0C, T$14/S$03 | cinq parties, `NEOWILD.SAV` (lot 9) |
 | — | noms d'écran T, V, STAT, INV, HELP, CLUE, NATURE | modules d'écran | HELP réécrit (3 pages fixes), CLUE : `m_notyet`, NATURE : animaux seulement |
 
 Les noms de familles 10 (blessures), 13 (thèmes) et 15 (corps) n'ont
@@ -287,10 +292,13 @@ aux chemins non joués par le script.
   `T16/S0`, 2 hutte `T16/S4`, 3 igloo `T16/S9`, 4 tranchée `T16/SD`,
   5 abri naturel (bille `T16/SF`, ou rocher `T17/S4` au-dessus de `$60A3`),
   6 poste `T01/S2`, 7 épave, 8 cité perdue `T00/S8`.
-- Port : seul l'abri « trouvé » existe (cabane, `shelter_inside`, +15 °F,
-  WILDSIT) ; « CRAFTED SHELTERS ARE NOT AVAILABLE » (`src/sites.s`).
-  L'abri ordinaire réduit le risque animal de ×0,1 dans l'original, la
-  cabane du port protège totalement (animals.md).
+- Port : **fait le 15 octobre 2026** (lot 3, étape 1,
+  [CRAFT.md](CRAFT.md) § 3 et § 8) : MAKE, USE, ENTER, EXIT des trois abris
+  et USE TENT, temps et messages sondés sur la ROM, l'abri sur sa case
+  (`cr_sx`, `cr_sy`), igloo à 35 °F, risque ×0,1 (D4, comme l'original :
+  décision du 15 octobre 2026). Sprites (étape 3) faits le même jour sur
+  NeoWildernessXL seul (CRAFT.md § 8.4) : l'ordre de T0D/SE `$5F4C` (igloo,
+  hutte, tente, abri naturel, tranchée) ; l'édition de 140 Ko n'en a pas.
 - Taille : ≈ 400 octets de commandes + 60 octets de thermique (igloo 35 °F)
   + sprites tente 969, igloo 859, tranchée 403 octets.
 - Où : commandes dans le module « CAMP » ; un octet d'abri fabriqué par
@@ -316,7 +324,12 @@ aux chemins non joués par le script.
   msg 205) : 30 min. On ne fabrique que ce qu'on n'a pas (msg 10/11).
   Les armes fabriquées sont des objets du second jeu (B1' 14 arc, 15
   lance, 16 gourdin, 17 pierre, 18 attelle).
-- Port : pas de second jeu d'objets 76–100 (tables `it_*` 0–75 seulement).
+- Port : **fait le 15 octobre 2026** ([CRAFT.md](CRAFT.md) § 4, § 5, § 8) :
+  module CRAFT sur NEOWILD.BLK, état de 12 octets en LOWPAGE et 6 en
+  WILDERNESS (pas de tables `it_*` du second jeu : `cr_b1`, `splint_place`,
+  `cr_cx/cr_cy`, bits de `fg_use`) ; moyens 20, 19, 17 de KILL GAME/FISH ;
+  puis le même jour (CRAFT.md § 8.5) ROCK, GET/PACK/CARRY/DROP du second
+  jeu, une case par objet laissé au sol, les armes contre les animaux.
 - Taille : ≈ 700 octets + tables du second jeu (≈ 25 objets × 6 octets).
 - Où : module « CRAFT » (nouveau) ; tables du second jeu en GDATA
   (résident, ≈ 150 octets) : **exige une récupération de RAM principale**.
@@ -340,7 +353,9 @@ aux chemins non joués par le script.
   (`$58EB-$58FF`) est **endommagée sur la disquette** livrée (sommes de
   contrôle valides) : la branche « naturel » est reconstituée d'après le
   code voisin.
-- Port : rien.
+- Port : rien ; recettes **mesurées** le 15 octobre 2026
+  ([CRAFT.md](CRAFT.md) § 6 : temps de base 240 et 180 / ((lumière + 1)
+  (outils + 1)), menus, tables, bizarreries du menu de la corde).
 - Taille : ≈ 1 600 octets (dont menus de découpe) ; les objets découpés
   exigent la mise à jour des capacités (`load_totals`).
 - Où : module « CRAFT2 » (fenêtre `$5800`).
@@ -431,7 +446,17 @@ aux chemins non joués par le script.
   `build/original_graphics/` : poste 2 289, bille 1 216, rocher 1 158,
   cité 2 428, tente 969, igloo 859, tranchée 403 octets
   ([REGIONS.md](REGIONS.md) § 4).
-- Port : épave et « cabane » seulement. La cabane utilise le sprite de la
+- **Fait le 15 octobre 2026 (lot 6, en partie)** : poste des rangers
+  (panneau et vue locale au but), rondin ou rocher de l'abri naturel
+  trouvé sur carte native ([IMPLEMENTATION.md](IMPLEMENTATION.md)
+  « Sprites de site », [MEMORY.md](MEMORY.md) § 19). Les abris fabriqués
+  suivent le 15 octobre 2026 (lot 3, étape 3, XL seul, [CRAFT.md](CRAFT.md)
+  § 8.4). Restent la cité perdue et plusieurs sites par vue (le site et
+  l'animal d'une même case sont dessinés tous les deux depuis le
+  15 octobre 2026 : D6). La cabane fixe
+  des cartes générées est dessinée de même en rondin ou rocher (niveau de
+  sa case, `tools/mkmap.py`) ; la hutte reviendra avec MAKE HUT (lot 3).
+- Port (avant le lot 6) : épave et « cabane » seulement. La cabane utilise le sprite de la
   **hutte** (code 2) alors que l'abri trouvé de l'original est l'abri
   naturel (code 5 : bille sous `$60A3`, rocher au-dessus) ; la cabane
   fixe au tiers du trajet des cartes héritées est une invention du port
@@ -482,7 +507,11 @@ aux chemins non joués par le script.
 **D4. Protection de l'abri, RUN face à l'animal.**
 - Original : abri = risque ×0,1 (`$5866-$5888`) ; RUN avec un animal
   présent affiche msg 182 et passe par les réactions (T$08/S$00).
-- Port : cabane = protection totale ; RUN = WALK.
+- Port : abri = risque ×0,1, ATTACK et SCARE permis (**fait** le 15 octobre
+  2026 avec le lot 3, `outdoor_hurt`, `test_animal_reactions.py` ; dans
+  tout abri, l'abri naturel compris, comme l'original : décision du même
+  jour) ; la vue
+  de l'intérieur n'amène toujours aucun animal ; RUN = WALK (lot 11).
 - Taille : ≈ 60 octets. Référence : hors script. Test : sonde existante
   (24 cas de posture) réutilisée avec abri actif.
 
@@ -496,6 +525,26 @@ aux chemins non joués par le script.
 - Taille : ≈ 60 octets. Où : WILDOUT ou module USE.
 - Test (sonde) : exécuter T$06/S$06 avec le cannibale présent et
   TRINKETS en usage, relever l'octet 15 et la réaction suivante.
+
+**D6. L'animal présent toujours visible (15 octobre 2026, fait).**
+- Règle de l'utilisateur : « quand un animal est là, on doit voir son
+  sprite sauf dans nos abris » ([LOOK_UPDOWN.md](LOOK_UPDOWN.md) § 4).
+- Fidèle : site et animal de la même case tous deux dessinés (les deux
+  emplacements `$0D84` et `$0D80`), l'animal devant ; aucune vue dans un
+  abri ; aucun sprite en l'air (LOOK UP, SURV3D `$1C52`) : la seule vue
+  sans l'animal, hors abris et pages.
+- **Écarts voulus** : l'animal fait face au joueur quel que soit le cap
+  (centré ; l'original le place au cap de son arrivée) ; il se voit à
+  niveau même « au sol » (crotale, serpents : l'original incline la vue
+  vers le bas à leur arrivée et ne dessine un sprite sans bit 7 que vers
+  le bas, `$1C82`) ; la nuit sans pleine Lune et aux humeurs sans lumière,
+  une silhouette de nuit (bleu foncé et gris) au lieu de rien ; avec un feu
+  de camp (invention du port) sur la case, l'animal se pousse à côté du
+  feu.
+- Réalisé : PROJECT `module_animal` (+180 octets), résident −11 octets
+  (clef du cache de scène sans l'animal, `animal_bearing` supprimé), SIM
+  −12, SITES −5 ; [MEMORY.md](MEMORY.md) § 27. Test :
+  `tests/test_animal_view.py`.
 
 ### 2.6 Déplacement et terrain
 
@@ -888,7 +937,7 @@ d'eau de WET BODY (lot 2), l'effort de T0A/S0C `$5CB6` sur `A1[24]`
 | Messages d'objets déposés, pillage | msg 157, 169 | absents | M4 |
 | NATURE fractionnaire | réel > 0 | entiers 0–100 | extension du port conservée |
 | Taux Sierra | Apple 80/40/100 | idem | fidèle |
-| Plusieurs sites dans la vue | l'original choisit un site (`$0D84`) et un animal (`$0D80`) | un site, un animal | fidèle à vérifier |
+| Plusieurs sites dans la vue | l'original choisit un site (`$0D84`) et un animal (`$0D80`) | deux emplacements aussi depuis le 15 octobre 2026 : le site (local ou panneau le plus proche, `module_project`), puis l'animal de la case par-dessus (`module_animal`) ; avant, l'animal de la case prenait l'unique emplacement et un site local de la case le masquait | fidèle (D6) |
 
 ## 3. Ordre de lots proposé
 
@@ -899,6 +948,9 @@ le lot commence par rebaser la référence HGR (nouvelle référence figée,
 documentée) ou se limite aux chemins non joués.
 
 ### Lot 0 — place (préalable à presque tout)
+
+Fait le 14 octobre 2026 en quatre récupérations (MEMORY.md § 12 à 15) ;
+marges actuelles : MEMORY.md § 15.2.
 
 Sans ce lot, seuls les éléments « chargeur » (P1, P2), « disque à la
 commande » (V1, E2, éventuellement CLUE) et les petits correctifs dans
@@ -951,10 +1003,11 @@ document) :
    balayage des lectures de `$4B44` sur la face Journey, puis exécution ROM ;
 2. durée de présence animale (D1) : relais `$4D56` sur un REST complet ;
 3. GO2 exécuté avec réponses et RND imposés (P1, P2) ;
-4. formules de temps de fabrication (A1–A3) : T$10/S$00 et S$05 avec
-   santé, outils et `$0D5D` imposés (le sens de `$0D5D` comme diviseur
-   « d » reste à confirmer) ;
-5. sens de `$D8`/`$D9` = `$7F` (msg 49 pour abris et tente) ;
+4. formules de temps de fabrication (A1–A3) : **faite** le 15 octobre
+   2026 (`tools/re_craft_probe.py`, [CRAFT.md](CRAFT.md)) ; « d » est
+   `$0D5D`, la lumière ;
+5. sens de `$D8`/`$D9` = `$7F` : **fait** (CRAFT.md § 3.1) : le joueur sur
+   la case du poste (`$D8`) ou de l'épave (`$D9`) ;
 6. équipement du poste en scénario 2 sur Apple II.
 
 ## 4. Ce qui est déjà fidèle

@@ -231,8 +231,8 @@ input_validate:
         cmp     #3
         bne     input_invalid
         lda     input_mode
-        cmp     #2
-        bne     input_invalid
+        cmp     #2              ; OZ: quantities, and FORAGE's (mode 3)
+        bcc     input_invalid
 @byte:  lda     input_mode
         cmp     #3             ; azimuth caller validates the complete 0..359 range
         beq     @accept
@@ -294,9 +294,18 @@ input_spaces:
         bne     input_spaces
 @done:  rts
 
-; Accessible ounces only: carried stock and the ground pile on this cell.
+; Accessible ounces only: carried stock and the ground pile on this cell;
+; BOIL WATER boils the canteen's, else the pile's (camp.s camp_boil: w_avail).
 input_stock:
-        ldx     noun
+        lda     verb
+        cmp     #9
+        bne     :+
+        lda     w_avail
+        sta     stock_available
+        lda     w_avail+1
+        sta     stock_available+1
+        jmp     @show
+:       ldx     noun
         lda     it_place,x
         cmp     #5
         bne     @packed
@@ -429,7 +438,7 @@ input_digit: .byte 0
 input_verbs:
         .byte 4,"WALK",2,"GO",3,"RUN",4,"MOVE",5,"CRAWL",4,"SWIM"
         .byte 4,"REST",5,"SLEEP",4,"CAMP",8,"EXERCISE",4,"WAIT",5,"PAUSE"
-        .byte 3,"EAT",5,"DRINK",6,"NATURE",3,"WET"
+        .byte 3,"EAT",5,"DRINK",6,"NATURE",3,"WET",4,"BOIL"   ; BOIL WATER 8 OZ: the grid's (docs/MENUS.md 4)
         .byte 4,"SAVE",7,"RESTORE",0  ; SAVE 2, RESTORE 2 (lot 9)
 
         .include "hof_load.inc" ; module_end, module_restart (lot 7)

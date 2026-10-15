@@ -9,6 +9,10 @@
 //   poke:ADDR:BYTE  write one guest RAM byte (hex address and value)
 //   joy:X,Y         joystick axes in [-1,1]      btn:N,0|1  game-port button
 //   insert:FILE     swap the drive 1 disk (a private copy, like --disk)
+//
+// An 800 KB ProDOS image (819 200 bytes, or .2mg) boots from a 3.5" SmartPort
+// controller in slot 5 (POM2's block-level card, no mechanical timing);
+// anything else from the Disk II in slot 6.
 //   reset           press RESET (warm: the 6502 RESET line)
 //   pc              print the program counter
 //   until:ADDR:N    run until PC reaches ADDR, with a limit of N video frames
@@ -204,9 +208,19 @@ int main(int argc, char** argv)
         std::fprintf(stderr, "char ROM: %s\n", core.lastError().c_str());
         return 1;
     }
+    // An 800 KB ProDOS image (819 200 bytes, or a .2mg) boots from POM2's
+    // 3.5" SmartPort controller in slot 5; anything else from the Disk II.
+    const bool threeAndHalf = [&] {
+        std::ifstream f(copy, std::ios::binary | std::ios::ate);
+        const auto size = static_cast<long long>(f.tellg());
+        const size_t dot = copy.find_last_of('.');
+        return size == 819200 || (dot != std::string::npos && copy.substr(dot) == ".2mg");
+    }();
     if (!core.loadRom(roms + (iie ? "/apple2e.rom" : "/apple2p.rom")) ||
-        !core.attachDiskII(roms + "/disk2.rom", roms + "/diskii_p6.rom") ||
-        !core.insertDisk(0, copy) || !core.bootDisk()) {
+        (threeAndHalf
+             ? !core.attachSmartPort(5) || !core.insertSmartPortDisk(0, copy) || !core.bootSlot(5)
+             : !core.attachDiskII(roms + "/disk2.rom", roms + "/diskii_p6.rom") ||
+               !core.insertDisk(0, copy) || !core.bootDisk())) {
         std::fprintf(stderr, "boot failed: %s\n", core.lastError().c_str());
         return 1;
     }
@@ -437,7 +451,10 @@ int main(int argc, char** argv)
             std::printf("shot %s\n", arg.c_str());
         } else if (op == "insert") {
             const std::string swapped = privateCopy(arg);
-            if (swapped.empty() || !core.insertDisk(0, swapped)) {
+            // Swapping writes the previous disk's changes back to its file
+            // (both controllers), where a test reads them.
+            if (swapped.empty() || !(threeAndHalf ? core.insertSmartPortDisk(0, swapped)
+                                                  : core.insertDisk(0, swapped))) {
                 std::fprintf(stderr, "insert failed: %s\n", core.lastError().c_str());
                 return 1;
             }

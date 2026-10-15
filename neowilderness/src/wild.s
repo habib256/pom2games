@@ -14,6 +14,7 @@
 ; ============================================================================
 
         .include "apple2.inc"
+        .include "mousetext.inc" ; docs/MENUS.md 9: the glyphs of the text pages
         .include "zp.inc"
         .macpack longbranch
 
@@ -76,21 +77,17 @@ num:     .res 2                 ; print_u16 value
 STARS_HOOK = 1                  ; dhgr.s sky_position marks the star list stale
 DROWS_LC = 1                    ; dhgr.s: the unrolled rows run in bank 2 of
                                 ; the main language card (docs/MEMORY.md 12)
+B2_LC = 1                       ; dhgr.s B2_ENTRY: five routines run in
+                                ; $D100-$D3FF of that bank (docs/MEMORY.md 15)
         .include "dhgr.s"
 
 .segment "CODE"
 
-.import _prodos_video_release
-.export start
-
 ; NEOWILD.SYSTEM has saved ProDOS's zero page, RESET vector and bitmap,
-; claimed the auxiliary memory and preloaded every image before jumping here.
-start:
-        APPLE2_PREAMBLE
-        lda     #1
-        sta     mem_ready
-        jsr     native_video
-        jmp     game_start
+; claimed the auxiliary memory and preloaded every image; its `start`
+; (src/boot.s: stack, mem_ready, native video switches; start-only code
+; kept out of the resident images, docs/MEMORY.md 15) jumps to game_start.
+.export game_start
 
 .segment "LOWCODE"
 ; quit -- end of a game (QUIT, death, arrival): back to the start menu by
@@ -150,7 +147,8 @@ view_turn:
 ;           both banks by `shift` bytes: left when carry is set (bytes
 ;           shift..39 -> 0..39-shift), right otherwise. 35 columns = 5 groups
 ;           = 10 bytes per bank.
-scroll: lda     #0
+        B2_ENTRY scroll, b2_scroll
+        lda     #0
         rol     a               ; 1: left
         tay
         php
@@ -223,6 +221,7 @@ scroll: lda     #0
         bne     @band
         plp
         rts
+        B2_END
 ; Eight rows of one band and bank: one byte column per loop.
 band_copy:
 .repeat 8
@@ -981,14 +980,15 @@ STARS_LIST_LC = 1
         .include "water.s"
         .include "alerts.s"     ; lot 13: alerts, forced sleep, diseases (WILDLO)
         .include "camp.s"
+        .include "fire.s"       ; the animated campfire; segment FIRE: build/wildfire.bin ($9600)
         .include "textbank.inc" ; build/: texts fetched at print time (TBANK, docs/MEMORY.md 13)
         .include "geography.s"
         .include "geoaux.s"
         .include "hof.s"        ; segment HOF: build/wildhof.bin ($9600)
         .include "prepare.s"    ; segment PREPARE: build/wildpre.bin, NEOWILD.PRE ($2000)
         .include "save.s"       ; SAVE/RESTORE; segment SAVEMOD: build/wildsav.bin ($9600)
+        .include "forage.s"     ; lot 4: hunting, fishing, gathering, meals (resident)
+        .include "frg.s"        ; lot 4: segment FORAGE: build/wildfrg.bin ($9600, NEOWILD.BLK)
+        .include "grid.s"       ; segment GRID: build/wildgrid.bin ($A300, the grid's lists and queue)
+        .include "craft.s"      ; lot 3: segment CRAFT: build/wildcrf.bin ($9600, NEOWILD.BLK)
 
-; dev/lib/prodos/video.s borrows two cc65 temporaries, only at boot and exit:
-; the game scratch g0 and the view scratch tmp2.
-tmp1 = g0
-.exportzp tmp1, tmp2

@@ -43,19 +43,27 @@ def main():
           r.mem(0x2000, 8192, 0) == r.mem(0x2000, 8192, 2) and r.mem(0x2000, 8192, 1) == r.mem(0x2000, 8192, 3))
     current = [r.mem(L['overlay_current'], 1, k)[0] for k in range(7)]
     reads = [int.from_bytes(r.mem(L['overlay_reads'], 2, k), 'little') for k in range(7)]
-    check('resident LOOK and screen shortcuts avoid redundant overlays', current == [15, 1, 1, 16, 15, 15, 2])
-    print(f'  cumulative overlay reads: {reads}')
+    # STATUS runs in the SIM window (direct mem_fetch, not counted): the $5800
+    # window keeps MEDICAL (17), which gave it the percentages of its MEDICAL
+    # rows after ADVENTURE (21) gave the route progress (15 October 2026).
+    # INVENTORY shares that module: only its load totals (SIM) count; $5800
+    # keeps HUD.
+    check('resident LOOK and screen shortcuts avoid redundant overlays', current == [15, 1, 1, 17, 15, 15, 15])
+    print(f'  overlay windows: {current}, cumulative overlay reads: {reads}')
     # Measured on both pre-transition and current native-rule builds.
     check('module reads stay bounded across LOOK, STATUS, transfers and REST',
           # RAM module loads; the frozen HGR build's disk reads, plus the
           # health alerts module (lot 13, ID 27) after REST's health update.
-          reads == [4, 5, 5, 8, 12, 23, 25])
+          # (STATUS: ADVENTURE and MEDICAL since 15 October 2026)
+          reads == [4, 5, 5, 7, 11, 22, 23])
     check('clock remains correct through module swaps',
           abs(fp(r.mem(L['s_hour'], 5)) - 10) < 1e-6
           and abs(fp(r.mem(L['s_elap'], 5)) - 3) < 1e-6)
     check('display/parser/input overlays fit the 2 KB window',
           all(0 < (HERE / f'build/wild{name}.bin').stat().st_size <= 2048
-              for name in ('voc', 'scr', 'sta', 'hud', 'sit', 'prj', 'inp', 'itm', 'trv', 'med', 'mvi', 'tre', 'adv', 'out')))
+              for name in ('voc', 'hud', 'sit', 'prj', 'inp', 'itm', 'trv', 'med', 'mvi', 'tre', 'adv', 'out')))
+    check('STATUS, INVENTORY and HELP fit the SIM window below the menu ($9600-$AFFF)',
+          0 < (HERE / 'build/wildsta.bin').stat().st_size <= 0xB000 - 0x9600)
     check('simulation fits the 8 KB SIM window', 0 < (HERE/'build/wildsim.bin').stat().st_size <= 8192)
     print(f'{len(failures)} failures')
     sys.exit(bool(failures))

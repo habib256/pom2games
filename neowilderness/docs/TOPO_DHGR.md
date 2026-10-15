@@ -29,12 +29,12 @@ niveau 4 générée ainsi est identique octet pour octet à `build/dhgr/map.bin`
 | Question | Choix |
 |---|---|
 | Mode | **DHGR mixte** : graphisme rangées 0..159, légende dans les 4 lignes texte (comme la feuille HGR) |
-| Correspondance | **1 cellule = 1 pixel couleur en x, 1,916 rangée en y** ; carte en x 0..111, bandeau de légende en x 112..139 |
+| Correspondance | **1 cellule = 1 pixel couleur en x, 1,916 rangée en y** ; carte **centrée** en x 14..125 (depuis le 15 octobre 2026), marge gauche x 0..13 (nord, distances), marge droite x 126..139 (altitudes) |
 | Courbes | toutes les 400 ft (4 niveaux), interpolées linéairement entre rangées de cellules ; maîtresses (2 000 ft) en gras |
 | Teintes | rampe hypsométrique tramée, vert → jaune → orange → brun → gris → blanc (neige) |
 | Eau | bleu foncé, rive (eau touchant la terre, rivières entières) bleu moyen |
 | Bois | vert foncé sur 3 pixels sur 4, la teinte d’altitude transparaît |
-| Repères | C, H, R : pastille 5 × 7 colorée + lettre 3 × 5, point du site ; flèche du nord et échelle dans le bandeau |
+| Repères | C, H, R : pastille 5 × 7 colorée + lettre 3 × 5, point du site ; flèche du nord et échelle des distances dans la marge gauche, échelle des altitudes dans la droite |
 | Joueur | **non dessiné** : la feuille HGR ne le montre pas (MAP s’en charge) ; option `you=` de la référence seulement |
 | Calcul | à chaque ouverture de TOPO, ligne par ligne, ≈ **1,9 s** à 1,02 MHz (§ 6) |
 | Code | ≈ 1,5 Kio, module chargé dans la fenêtre SIM ; 1,75 Kio de tables/tampons dans la même fenêtre (§ 7) |
@@ -67,7 +67,9 @@ n = (v + 2^(QB-1)) >> QB    rangée de cellules la plus proche (eau, bois)
 est la plus proche d’au moins une rangée d’écran (testé), donc chaque cellule
 d’eau apparaît. Le pas vaut 1 ou 2 demi-cellules (166/159 = 1,044).
 
-Colonne `x` (0..111) = colonne de cellules `x`, sans interpolation.
+Colonne `x` (0..111) = colonne de cellules `x`, sans interpolation, affichée
+en x d’écran `14 + x` (`SHEET_X` de la référence, `TP_SX` de `topo_dhgr.s`).
+Dans ce document, sauf mention « d’écran », `x` est la colonne de cellules.
 
 **DDA sans multiplication** (celle de `Sheet6502`, testée contre la formule) :
 `num = 83 << QB` (166), `step, rem = divmod(num, 159)` (1, 7), `v = num`,
@@ -119,6 +121,7 @@ Sierra, neige au niveau 48 = 7 200 ft) ; `a/b` = damier, `a` si
 | crash C | pastille magenta (1), lettre blanche |
 | cabane H | pastille noire, lettre jaune (13) |
 | rangers R | pastille violette (3), lettre blanche |
+| joueur | pastille blanche (15), flèche bleu foncé (2) selon le huitième de cap le plus proche (N, NE … NW), tracée en dernier : visible même sur l’épave ou la cabane |
 | bandeau, flèche, chiffres | fond noir, encre blanche |
 
 Fenêtre des bois : le vert foncé occupe tous les pixels sauf
@@ -136,21 +139,56 @@ Courbes maîtresses : les niveaux `4k` tels que `(4k + base) % 20 = 0`
 (rivières larges de trois pixels), courbes bleu moyen sur la neige (sommets
 pris pour des lacs).
 
-**Bandeau (x 112..139, rangées 0..159).** Fond noir. Nord : lettre N (x 124..126,
-rangées 3..7), flèche blanche (pointe rangées 10..13, hampe x 125 jusqu’à 25).
-Échelle : colonnes 115..120, 4 rangées par bande de 0 (rangée 157 en bas) à la
+**Marges (rangées 0..159, x d’écran).** Demande de l’utilisateur du
+15 octobre 2026 : « centre-la et place la flèche nord à gauche ». La feuille
+de 112 pixels est centrée dans les 140 (x 14..125, deux groupes de 7 pixels
+de chaque côté : l’emballage par groupes n’a pas changé). Fond noir des deux
+marges ; le bandeau unique de 28 pixels (x 112..139) d’avant devient deux
+marges de 14.
+
+*Marge gauche (x 0..13)* : lettre N (x 5..7, rangées 3..7), flèche blanche
+(pointe rangées 10..13 en x 4..8, hampe x 6 jusqu’à 25), puis l’échelle des
+distances (ci-dessous), le tout centré sur la colonne 6 (trois pixels noirs
+de chaque côté de la barre, avant la feuille).
+
+*Marge droite (x 126..139)* : une colonne noire contre la feuille, puis
+l’échelle : colonnes 127..130 (4 pixels au lieu de 6, pour tenir dans 14),
+4 rangées par bande de 0 (rangée 157 en bas) à la
 bande la plus haute (en-tête +21), teintes et courbes comme sur la carte
 (normale sur la rangée sud de la transition, maîtresse sur les deux) ; à
-chaque courbe maîtresse, un trait blanc en x 121 et les milliers de pieds en
-chiffres 3 × 5 à partir de x 123 (4, 6, 8, 10).
+chaque courbe maîtresse, un trait blanc en x 131 contre la barre et les
+milliers de pieds en chiffres 3 × 5 à partir de x 133 (4, 6, 8 ; 10 en
+133..135 et 137..139, dernier pixel de l’écran). Les écarts d’avant sont
+gardés (trait collé à la barre, une colonne avant les chiffres, une entre
+deux chiffres) : seule la barre perd deux colonnes.
 
-**Lignes texte (rangées 20..23, `t_home` + `puts`, ≤ 40 caractères) :**
+Échelle des distances sous la flèche : barre de 8 pixels (8 cellules d’environ
+0,48 mile, soit 4 miles) en x 3..10 sur la rangée 32, taquets aux deux bouts
+sur les rangées 30 et 31, chiffre 4 en x 5..7 sur les rangées 34..38, sous la
+flèche (marge gauche).
+
+Code (`src/topo_dhgr.s`, +10 octets : TOPOGEN 2 987 → 2 997, six blocs et
+`TOPOBSS` à `$A200` inchangés) : les rangées de couleurs sont indexées par x
+d’écran ; les boucles de pixels et le chemin lent écrivent en
+`$FF00+TP_SX,y` (octet bas constant des opérandes, seul l’octet haut est
+patché), les repères stockent `TP_SX + x` (point et pastille) ; `tp_flush`
+efface les deux marges (deux boucles) avant d’y dessiner. Rien d’autre ne
+suppose l’origine 0 : MAP est une page texte, l’instantané de la vue ne voit
+pas la feuille, et le basculement MAP → TOPO (`topo_frame`) ne la recalcule pas.
+
+**Lignes texte (rangées 20..23, 80 colonnes, `topo_legend` dans SITES) :** comme
+la vue, ce que montre la feuille à gauche (colonnes 0..38), séparateur en
+colonne 39, les touches à droite. Depuis la navigation par pages du
+14 octobre 2026 ([MENUS.md](MENUS.md) § 5), TOPO est la première page du
+bas (flèche bas depuis la vue) : flèche haut, Échap, Retour ou Espace
+reviennent à la vue, gauche ou droite affiche MAP par-dessus la feuille
+(retour à TOPO par `topo_frame` : mode mixte et légende, sans recalcul).
 
 ```
-TOPO  N UP  CONTOURS 400 FT, BOLD 2000
-C CRASH  H CABIN  R RANGERS  SCALE KFT
-MAP: PLAYER MAP
-ESC/RETURN/SPACE: VIEW
+TOPO, NORTH UP. ARROW: YOU             | UP/ESC: VIEW
+C CRASH, H CABIN, R RANGERS            | LEFT/RIGHT: THE TEXT MAP
+CONTOURS 400 FT, BOLD 2000 FT          |
+STRIP: ALTITUDE KFT, BAR 4 MI          |
 ```
 
 ## 4. Règles de la feuille
@@ -479,7 +517,7 @@ du lot 4, la règle « aucune avance du temps, état inchangé » étant la mêm
   tables d’emballage contre l’encodeur ;
 - par carte (1985/4, 7/1, 2026/7, synthétique sans bois) : déterminisme,
   rangées 160..191 non écrites, **`Sheet6502` identique au bit près**, flèche
-  et fond du bandeau, échelle, repères aux positions de l’en-tête (rangée la
+  et fond des marges, marges hors de la carte, échelle, repères aux positions de l’en-tête (rangée la
   plus proche = y du site, glyphe complet, crash au-dessus), eau exactement
   sur les cellules d’eau les plus proches et chaque cellule d’eau montrée, rive
   = eau touchant la terre, bois seulement sur les cellules boisées et partout

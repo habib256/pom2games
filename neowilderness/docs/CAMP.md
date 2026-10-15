@@ -248,7 +248,8 @@ Mesures `make inspect` et `build/wild.map`, base `d64afbb` (main) → lot 2 :
 
 L'état résident à sauvegarder (lot 9) est `camp_state..camp_state_end`
 (`camp_use`, `fire_on`, `fire_near`, `sticks_on`, `light`, puis
-`s_sweat`, `sweat_day` du § 6) ; l'eau garde `water_untreated` (GDATA).
+`s_sweat`, `sweat_day` du § 6) ; l'eau garde `water_untreated` (GDATA),
+le feu sa place et son relèvement (`fire_pos`, GDATA, § 8).
 
 La simulation doit finir avant `$B500`, où le chargeur relit sa table
 d'enregistrements (`boot.s` `TABLE`) : une première version, qui la
@@ -270,9 +271,11 @@ d'eau dans SIM : déplacer 1 Ko de textes dans le stock, ou les compresser
 
 - `python3 tools/re_camp_probe.py` (≈ 20 s) : 19 cas du module T0F/S00
   seul (giardiase à 2 000 et 10 000 ft, recherche sur trois terrains,
-  cactus, quatre condensations, pluie, neige, rivière), puis trois parties
+  cactus, quatre condensations, pluie, neige, rivière), puis quatre parties
   réelles : feu et eau (44 commandes), nuit (lumière, lampe, allumettes),
-  et les drapeaux effacés par `WAIT 1`. Résultats dans
+  les drapeaux effacés par `WAIT 1`, et un feu laissé à lui-même
+  (`LONG_FIRE` : cinq `WAIT 4`, pluie posée avant les deux derniers, puis
+  DOUSE ; la sonde échoue si le feu s'éteint avant DOUSE). Résultats dans
   `build/re_camp/results.json`.
 - `python3 tools/re_thermal_probe.py` : onze cas « près du feu » ajoutés
   aux 30 cas existants de `m0B2`.
@@ -321,3 +324,186 @@ msg 62 ; 0,031 : trouvée, pile 150 oz après 10 oz pris) ; condensation
 12 oz en 150 minutes ; giardiase : 100 gorgées à 2 000 ft et à 10 000 ft,
 graines imposées, même nombre d'infections que le générateur recalculé
 en Python (6 et 1). `tests/test_reference_state.py` reste identique.
+
+## 8. Le feu animé (prototype)
+
+L'original ne dessine aucun feu. Le port en dessine un, animé, sur les
+deux éditions, quand un feu brûle (`fire_on`) et que le joueur est sur sa
+case. M5 interdit de quitter le feu, sauf quand un animal partage la case
+(`camp_walk`) : le joueur qui s'éloigne ainsi laisse le feu derrière lui
+(il n'est plus dessiné ; les règles suivent toujours `fire_on` seul,
+comme l'original).
+
+**Ancré dans le monde.** MAKE FIRE note la place du feu (`fire_light` :
+`fire_pos` = copie de `px`, `py`, `heading` ; `fire_cx`, `fire_cy` sa
+case, `fire_bear` son **relèvement**, le cap du joueur à l'allumage), en
+GDATA dans la plage sauvée de l'horloge (SAVE/RESTORE les gardent). Le feu est un sprite **local** de la case,
+comme la cabane (`MAP+19/20`) : il se
+dessine à ses pieds (rangées 125 à 156, voir **Hauteur** plus bas), à la colonne de son relèvement
+par rapport au cap, avec la projection de `project_center`
+(`src/project.s`) : `ang` = `fire_bear` − `heading` ramené dans
+−280..279 (560 unités par tour, un pixel couleur par unité, la vue de 140
+pixels = un quart de tour), premier pixel = 56 + `ang`. Choix du
+relèvement : le cap à l'allumage, pour que le feu soit **devant** le
+joueur quand il l'allume (au centre, comme avant) puis reste à sa place
+quand la tête tourne ; un relèvement fixe (le centre de la case, le nord)
+le mettrait n'importe où au moment de l'allumage. Conséquences : LOOK R /
+LOOK L (45°, 70 unités) le déplacent de 70 pixels, à moitié hors de la
+vue d'un côté ou de l'autre ; une flèche (22,5°) de 35 pixels ; LOOK BACK
+le met derrière, rien n'est dessiné. Il est **découpé** aux bords de la
+vue : le rectangle est de cinq groupes d'octets (35 pixels) à partir du
+groupe du premier pixel, réduit aux groupes 0 à 19 (`fm_k0`..`fm_k1`) ;
+une position quelconque (phase 0 à 6 dans le groupe, après LOOK AZ ou
+COMPASS) est exacte au pixel. Hors champ (`ang` hors de −83..83), le
+module est lu (comme à chaque invite) mais ne dessine rien (`fm_vis` = 0),
+ne lit plus rien jusqu'à la commande ou la rotation suivante.
+
+**Jusqu'à DOUSE, comme l'original** (décision du 15 octobre 2026). Le
+feu n'a pas de durée de vie : il brûle jusqu'à DOUSE FIRE (ou STOP FIRE),
+au sec comme sous la pluie ou la neige, quelle que soit l'heure ; rien
+d'autre ne l'éteint dans l'original (§ 2.1 : aucun minuteur ; la sonde
+`LONG_FIRE` de `re_camp_probe.py`, cinq WAIT 4 de 7 h 30 à 22 h 30, pluie
+posée avant les deux derniers, le trouve allumé après chacun, éteint
+après DOUSE). Une seule image : flammes pleines, période constante. Le
+port l'a d'abord consumé (`FIRE_LIFE` = 180 minutes, deux fois plus vite
+sous la pluie, trois stades — flammes, petites flammes, braises — et
+« YOUR FIRE HAS BURNED OUT. ») : retiré le 15 octobre 2026 (CHANGELOG.md,
+MEMORY.md § 24). Il n'y a donc rien à alimenter : aucune commande
+n'entretient le feu (STICKS ne fait que prendre les branches en main,
+CRAFT.md § 8.6).
+
+| Fichier | Rôle |
+|---|---|
+| `tools/genfire.py` | l'art (tableau ASCII, quatre images), les couches 2 bits, `build/fire.inc`, aperçus PNG ×4 (`--png DIR`, vue réelle de `dhgr_ref` dans cinq humeurs) |
+| `src/fire.s` | relais résidents (`fire_tick`, `fire_hide`, `fire_st`, `fire_dly` en MENUCODE ; `fire_light`, `fire_fetch` en WILDGAME) et module FIRE (entrée 18 du répertoire, NEOWILD.BLK, fenêtre SIM) |
+| `src/game.s` | `fire_pos` (GDATA, sauvé avec l'horloge) |
+| `src/camp.s` | MAKE FIRE : `JSR fire_light` |
+| `src/forage.s` | `sim_fetch` : lecture d'un module de NEOWILD.BLK en `$9600`, bitmap ProDOS de `$90-$AF` libéré autour (FORAGE et le feu) |
+| `src/memory.s` | `disk_fetch` : `df_kbd` bit 7, une touche entre deux blocs coupe la lecture |
+| `src/menu.s` | `fire_idle` (le `BPL` de `idle`), `STA fire_dly+1` à chaque touche, `JSR fire_hide` dans `done` et avant `turn_view` |
+| `tests/test_fire.py` | sur les deux éditions : lecture (quatre blocs, aucune entre deux images), images, retours d'écrans, rotation, LOOK UP, DOUSE, frappe pendant l'animation et pendant la lecture, feu lié à sa case, latence ; XL : place après LOOK R, L, BACK et une flèche (image = genfire à la colonne calculée, découpée) ; jusqu'à DOUSE (la suite `LONG_FIRE` de l'original rejouée, ciel tenu sec puis pluvieux : allumé après chaque commande comme dans `build/re_camp/results.json`, aucun message, WALK refusé, même image et même cadence des heures plus tard, SAVE/RESTORE, DOUSE) |
+
+**Le feu et l'animal** (décision de l'utilisateur du 15 octobre 2026,
+[LOOK_UPDOWN.md](LOOK_UPDOWN.md) § 4). Un animal présent fait face au
+joueur, centré, et se dessine après la vue ; avec un feu sur la case, il
+ne chevauche jamais les 28 colonnes du feu (`src/project.s animal_fire`) :
+feu à gauche du centre (première colonne ≤ 56, le feu allumé face au cap
+compris) : l'animal à sa droite, découpé au bord droit de la vue (le
+crocodile, 72 colonnes, en garde 56) ; feu à droite du centre : l'animal
+à sa gauche ; feu hors de la vue ou sans recouvrement : l'animal reste
+centré. MAKE FIRE fait tourner la simulation, donc redessine la vue avec
+l'animal déjà déplacé ; le feu animé qui paraît ensuite ne touche que ses
+colonnes (`tests/test_animal_view.py`). DOUSE ne redessine pas la vue :
+l'animal garde sa place jusqu'à la vue suivante. Le module du feu n'a pas
+changé ; la boucle de colonnes de l'animal tourne en `$A000` (le fond
+sauvé `FB_BG`), libre pendant une vue puisque le feu est caché avant
+chaque commande et relu à chaque apparition.
+
+**Hauteur** (demande du 15 octobre 2026 : « remonte-le d'un cran », précisé
+« deux ou trois lignes max »). Le feu commençait à la rangée physique 128
+(bandes de texte 8 à 11) ; il est remonté de **3 rangées** : 125 à 156.
+Une seule constante, `TOP` de `tools/genfire.py`, émise en `FIRE_TOP`
+dans `build/fire.inc` ; `test_fire.py` compare au pixel à `G.TOP`. Toute
+rangée convient : 125 n'est pas dans le même tiers HGR que 128 (rangée =
+64 a + 8 b + c), donc `fm_setrow` calcule l'adresse en général, `$2000 +
+(y & 7) × $400 + ((y >> 3) & 7) × $80 + (y >> 6) × $28` avec y = `FIRE_TOP`
++ r (le feu peut chevaucher deux tiers) ; le fond sauvé (`FB_BG`, r × 20)
+et les masques de rangées restent relatifs au sprite. Coût : +18 octets
+dans le module (fenêtre SIM, toujours quatre blocs, 1 701 octets), rien
+de résident, une dizaine de cycles par rangée. Les rangées 125 à 127 sont
+du terrain de la vue (le bandeau du haut s'arrête bien plus haut, la vue
+finit à 159) ; LOOK UP ne dessine toujours aucun feu.
+
+**Art.** 28 × 32 pixels couleur (rangées physiques 125 à 156, colonnes
+56 + `ang` à 83 + `ang`) : trois bûches brunes à bouts gris, lit de
+braises noir, cercle de pierres grises ; flammes à contour rouge
+(magenta), corps orange, cœur jaune ; braises et étincelles qui changent
+d'une image à l'autre. Le feu est sa propre lumière : aucun ombrage
+d'humeur. La nuit (`sky_mood` ≥ crépuscule civil), une lueur magenta
+tramée entoure les pierres. Couches de codes 2 bits, quatre pixels par
+octet, chacune avec sa palette de trois couleurs :
+
+| Couche | Rangées, colonnes | Couleurs | Octets |
+|---|---|---|---:|
+| 0 statique | 24-31, 0-27 | noir, brun, gris | 56 |
+| 1 lueur (nuit) | 26-31, 0-27 | magenta | 42 |
+| 2 flammes et lit de braises, ×4 images | 0-28, 4-23 | rouge, orange, jaune | 4 × 145 |
+
+**Quand.** Seulement pendant l'attente d'une touche à l'invite (`idle`),
+vue affichée (`RDTEXT` = graphique), pas en LOOK UP (`tilt` = 1). Le
+`BPL` de `idle` saute à `fire_idle` (`JSR fire_tick`, `JMP idle`) ; les
+tests qui s'arrêtent à `idle` ou qui y posent des `JSR` sont inchangés.
+Le feu apparaît après `fire_dly` tours de 256 sans touche : 96 (≈ 1 s)
+après chaque invite, et une touche remet le compte à son code (128 à
+218 : ≈ 1,4 à 2,4 s), pour que la lecture du module ne tombe pas au
+milieu d'une frappe. Un bloc lu ne s'interrompt pas (le premier prend
+jusqu'à 1 s sur 5,25 pouces : moteur et déplacement de la tête ; 0,01 s
+sur 3,5 pouces) et le verrou du clavier garde une touche : `disk_fetch`
+regarde le clavier entre deux blocs (`df_kbd`) et s'arrête ; la touche
+est lue, la commande tapée ensuite l'est entière, le feu revient après
+le silence suivant (`test_fire.py`). Ensuite une image toutes les
+`FIRE_PERIOD` = 14 × 256 tours (≈ 4,6 Hz). Pas de VBL
+(le IIc et le IIe ne lisent pas `$C019` de la même façon) : un compteur
+de tours de boucle.
+
+**Comment.** Au premier tour utile, `fire_fetch` lit le module (entrée
+18, quatre blocs bruts de NEOWILD.BLK) en `$9600` par `sim_fetch`, une
+fois par apparition : la fenêtre SIM est libre à l'invite (la grille
+`MENUSWAP` commence en `$B000`) ; `fire_fetch` remet `sim_loaded` à 0.
+Rien d'autre ne tourne dans la boucle `idle` : le module reste dans sa
+fenêtre d'une image à l'autre. `fm_show` calcule la
+place ; dans le champ, il sauve les octets visibles du rectangle (jusqu'à
+20 × 32, aux et principal) en `$A000-$A27F` (rangée × 20), puis compose
+chaque rangée : fond sauvé, couche statique, lueur, flammes
+(pixel par pixel avec `dc_pat` et `ph_bitsa/b` de `dhgr.s`, comme
+`dhgr_pack`, décalées de la phase du premier pixel) ; n'écrit que **les
+octets visibles qui diffèrent de l'écran**, banque auxiliaire puis
+principale (`PAGE2` sous `80STORE`, interruptions masquées). Une image
+suivante ne recompose que les rangées marquées dans son masque de 32 bits
+(`fire_changed`). Une touche qui arrive pendant une image
+l'interrompt entre deux rangées (`BIT KBD`) : l'image suivante redessine
+alors toutes les rangées (`fm_dirty`).
+
+**Arrêt.** `done` (toute fin de `get_line` : commande, pages du haut et du
+bas, TOPO, MAP, sauvegarde) et la rotation de la vue (flèches) appellent
+`fire_hide`, qui réécrit le fond sauvé (rien hors champ) : tout autre
+code voit la vue nue, octet pour octet (`test_screen_returns`,
+`test_fire`), et le défilement de la vue n'emporte aucune flamme. La vue
+tournée ou redessinée (LOOK, flèches, VIEW, retour de TOPO) reçoit le feu
+à sa nouvelle place à l'invite suivante. MAKE FIRE et DOUSE n'ont aucun
+crochet d'affichage : l'invite suivante montre le feu ou non. La frappe
+d'une commande ne le cache pas (seul le texte change).
+
+**Coûts mesurés** (a2shot, IIe, XL, Sierra au départ) :
+
+| Quoi | Cycles |
+|---|---:|
+| tour de `idle` sans feu | 35 (+28) |
+| tour, feu en attente / affiché entre deux images | 43 / 44 |
+| apparition, XL : attente, lecture, `fm_show` | 1,04 s + 0,03 s + 0,14 s = **1,21 s** |
+| apparition, 140 Ko (Disk II émulé) | 1,04 s + 1,22 s + 0,14 s = **2,4 s** |
+| une image, flammes pleines (≈ 25 rangées recomposées), phase 0 / 3 | 61 000 à 72 000 / 64 000 à 75 000 |
+| `fire_hide` à chaque commande | 29 800 |
+
+À 4,6 Hz, l'animation occupe environ 30 % du temps d'attente ; une
+touche attend au plus une rangée (≈ 3 000 cycles), sauf pendant la
+lecture d'un bloc du module.
+
+**Mémoire.** Les deux éditions lisent le module sur NEOWILD.BLK (choix du
+14 octobre 2026 : aucun octet du stock, un feu aussi sur 140 Ko). Résident :
+MENUCODE +94 (`fire_tick`, `fire_hide`, état, crochets de `menu.s`),
+WILDGAME +55 (`fire_fetch`, `sim_fetch`) puis +24 pour l'ancrage et la
+durée de vie (`fire_light` 17, `fire_pos` 6, `fire_life` 1), TEXT −16
+(`df_kbd` +11, `forage_gate` qui appelle `sim_fetch` −27) ; WILDLO
+inchangé (`fire_cx`, `fire_cy` passés en GDATA) ; CAMP −9 (`JSR fire_light`) ; SIM +70
+(`fire_clock`) ; ALERT +28 (le message). WILDERNESS inchangé. Fenêtre SIM à
+l'invite : module `$9600-$9C92` (1 683 octets, 1 993 avant le 15 octobre ;
+quatre blocs lus jusqu'en `$9DFF`), fond `$A000-$A27F`, variables et rangée composée `$A280-$A2BB`
+(sous la grille, `$A300`). Disque (MEMORY.md § 17.4) : XL 337 → 338
+blocs, 140 Ko 260 → 261. Le retrait de la durée de vie (15 octobre 2026,
+MEMORY.md § 24) rend `fire_life` (GDATA, 1), le réglage de `fire_light`
+(5), `fire_clock` et son appel (SIM −70), le message (ALERT −28) et les
+petites flammes et braises du module (FIRE −310, toujours quatre
+blocs). Pistes pour réduire encore le
+module (trois blocs au-dessous de 1 536 octets) : variables en page zéro
+sauvée (≈ −80 octets), trois images au lieu de quatre, sans lueur (≈ −60).

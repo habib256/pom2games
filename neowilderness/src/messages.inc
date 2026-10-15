@@ -2,6 +2,8 @@
 ; A message is a NUL-terminated string; "|" starts a new line, "^" inserts the
 ; inventory name (or typed noun), "#" the number in msgnum, "$" accessible
 ; stock, "!" the travel stop reason, "~" the first unknown word (12 chars).
+; A literal "!" is written '!'|$80 ($A1, as m_ridiculous): REST and WAIT
+; print m_fauna_stop through message, where "!" would append the reason.
 ; Three lines, 37 characters after the indicator/indent; the last column is
 ; reserved and expanded names are clipped to prevent scrolling.
 
@@ -19,7 +21,7 @@ m_drank:    .byte   "YOU DRANK # OUNCES.|ACCESSIBLE BEFORE: $ OZ.", 0
 ; Written by module_fauna_cause (PROJECT) before it is shown: what stopped
 ; the action, an animal or a resource found (27 bytes: the longest is
 ; "RATTLESNAKE IN YOUR AREA!").
-m_fauna_stop: .byte "WILDLIFE IN YOUR AREA!",0
+m_fauna_stop: .byte "WILDLIFE IN YOUR AREA",'!'|$80,0
         .res    27 - 23
 
 m_duration_end: .byte "REQUESTED TRAVEL TIME ENDED.",0

@@ -5,8 +5,8 @@ forest_bits: .res 294             ; 56 x 42, one bit / four world units
 .segment "GDATA"
 forest_enabled: .byte 1
 .segment "ZEROPAGE"
+forest_x: .res 1               ; forest_x + 2 = forest_y (axis index 0 / 2)
 forest_tmp: .res 1
-forest_x: .res 1
 forest_y: .res 1
 forest_distance: .res 1
 forest_start: .res 1
@@ -114,28 +114,7 @@ forest_probe:
         bcs     @stop
         sta     forest_distance
         sta     divisor
-        lda     (gp),y
-        bmi     @reject
-        clc
-        adc     M_BASE
-        ldx     MAP+27
-        bne     :+
-        ldx     #110
-:       stx     forest_tmp
-        cmp     forest_tmp
-        bcs     @reject
-        tya
-        tax
-        lda     rowsl
-        ldy     dy+1
-        bmi     :+
-        eor     #255
-        clc
-        adc     #GH
-:       tay
-        jsr     forest_contains
-        bcc     @reject
-        jsr     forest_profile
+        jsr     forest_candidate
         bcs     @reject
         jsr     forest_projection
         bcs     @reject
@@ -210,10 +189,10 @@ forest_profile:
 :       cmp     forest_tmp
         bcs     @x
 @use_y: lda     ry
-        ldx     forest_y
-        jmp     @fraction
+        ldx     #0              ; along x, transverse y
+        beq     @fraction
 @x:     lda     rx
-        ldx     forest_x
+        ldx     #2              ; along y, transverse x
 @fraction:
         ; Each cell contains a narrow, centred crown, not a two-cell wall.
         ; 32 native columns span 1/4 cell: the surrounding gaps stay clear.
@@ -223,34 +202,12 @@ forest_profile:
         lsr
         cmp     #31
         bcs     @empty
-        cmp     #16
-        bcc     :+
-        eor     #255
-        clc
-        adc     #31              ; 30 - profile column
-:       asl
-        sta     forest_tmp
-        lda     forest_x
-        eor     forest_y
-        and     #2
-        beq     :+
-        lda     #32
-:       ora     forest_tmp
-        tax
-        lda     forest_tmp
-        cmp     #28             ; three central source columns carry the trunk
-        bcc     :+
-        lda     #0
-        beq     @lo
-:       lda     forest_profiles,x
-@lo:    sta     forest_lo
-        lda     forest_profiles+1,x
-        sta     forest_hi
-        clc
-        rts
+        sta     forest_lo       ; unfolded column, for forest_crown
+        jmp     forest_centre
 @empty: sec
         rts
 
+.segment "FORESTCODE"
 ; Keep a black lower rim above the native canopy bottom at height 31.
 forest_projection:
         jsr     forest_project_base
@@ -273,7 +230,7 @@ forest_projection:
 .segment "GCODE"
 ; 95 - trunc(48 * dz / distance). Keep a 16-bit base below the viewport.
 forest_project_base:
-        lda     dzb
+        lda     forest_proj     ; dz + 128 of the crown's cell (forest_candidate)
         eor     #128
         sta     forest_sign
         bpl     :+
@@ -328,7 +285,183 @@ forest_project_base:
         sec
         rts
 
+.segment "CODE"
+; C clear when the sample of the ray (Y = x cell, rowsl the row) meets a crown:
+; forest_x, forest_y = the crown's own cell (forest_centre), forest_proj = its
+; dz + 128, forest_lo / forest_hi = the heights of the column. The cell must
+; be dry, wooded and under the timberline.
+forest_candidate:
+        sty     forest_x
+        lda     rowsl
+        ldy     dy+1
+        bmi     :+
+        eor     #255
+        clc
+        adc     #GH
+:       sta     forest_y
+        jsr     forest_profile
+        bcs     @no
+        ldy     forest_x
+        ldx     forest_y
+        jsr     cell_at
+        bmi     @no             ; water
+        tay
+        clc
+        adc     eyeb
+        sta     forest_proj
+        tya
+        clc
+        adc     M_BASE
+        ldx     MAP+27
+        bne     :+
+        ldx     #110
+:       stx     forest_tmp
+        cmp     forest_tmp
+        bcs     @no
+        ldx     forest_x
+        ldy     forest_y
+        jsr     forest_contains
+        bcs     forest_crown
+@no:    sec
+        rts
+; Heights of crown column forest_lo of the cell forest_x, forest_y.
+forest_crown:
+        lda     forest_lo
+        cmp     #16
+        bcc     :+
+        eor     #255
+        clc
+        adc     #31              ; 30 - profile column
+:       asl
+        sta     forest_tmp
+        lda     forest_x
+        eor     forest_y
+        and     #2
+        beq     :+
+        lda     #32
+:       ora     forest_tmp
+        tax
+        lda     forest_tmp
+        cmp     #28             ; three central source columns carry the trunk
+        bcc     :+
+        lda     #0
+        beq     @lo
+:       lda     forest_profiles,x
+@lo:    sta     forest_lo
+        lda     forest_profiles+1,x
+        sta     forest_hi
+        clc
+        rts
+
+
+.segment "FORESTCODE"
+forest_limit: .byte GW, 0, GH
+
+; A = cell, Y = fraction, X = axis: A = |(A * 256 + Y - px,x + 8) >> 4|
+; (an arithmetic shift; |difference| < 4096).
+forest_dist:
+        sta     forest_base+1
+        tya
+        sec
+        sbc     px,x
+        tay
+        lda     forest_base+1
+        sbc     px+1,x
+        sta     forest_base+1
+        tya
+        clc
+        adc     #8
+        bcc     :+
+        inc     forest_base+1
+:       ldy     #4
+@div:   lsr     forest_base+1
+        ror     a
+        dey
+        bne     @div
+        ldy     forest_base+1   ; 0 if positive, 15 if negative
+        beq     :+
+        eor     #$FF
+        clc
+        adc     #1
+:       rts
+
+.segment "CODE"
+; A * A: A = high byte, forest_tmp = low byte (Y = 0, forest_hi clobbered).
+forest_square:
+        sta     forest_tmp
+        sta     forest_hi
+        lda     #0
+        ldy     #8
+        lsr     forest_tmp
+@bit:   bcc     :+
+        clc
+        adc     forest_hi
+:       ror     a
+        ror     forest_tmp
+        dey
+        bne     @bit
+        rts
+
 .segment "TEXT"
+; One crown, one cell (tools/forest_ref.centre_cell). The samples of all the
+; columns at step n lie on the circle of radius n cells around the player; a
+; crown stands on the transverse centre line of its cell, so its centre column
+; meets it where that circle crosses the line. An edge column may sample the
+; crown across a cell boundary B along the ray: it must still take the
+; crown's own cell (base, profile kind, stipple phase), or the sides of the
+; triangle drop to the base of the next cell. Only samples within 64 units of
+; B can differ (a centre is within 38 units of its samples); they compare, in
+; rounded 1/16 cells, lat^2 + d^2 with (16 n)^2: d = |B - player| along, lat =
+; |centre line - player| across. Column-independent, so a pan redraws the
+; same crowns. X = 2 * along axis (0 x, 2 y); C set: outside the map.
+forest_centre:
+        lda     rx,x
+        cmp     #64
+        bcc     @edge           ; C clear: B = cell * 256
+        cmp     #192
+        bcc     @own            ; most samples: their own cell
+@edge:  lda     forest_x,x      ; C set: B = (cell + 1) * 256
+        adc     #0
+        sta     forest_end
+        ldy     #0
+        jsr     forest_dist
+        jsr     forest_square
+        sta     forest_start    ; d^2
+        lda     forest_tmp
+        sta     forest_sign
+        lda     forest_distance
+        jsr     forest_square
+        lda     forest_tmp
+        sta     forest_pair     ; n^2
+        txa
+        eor     #2
+        tax
+        lda     forest_x,x
+        ldy     #127
+        jsr     forest_dist
+        jsr     forest_square   ; lat^2
+        tay
+        lda     forest_tmp
+        clc
+        adc     forest_sign
+        tya
+        adc     forest_start
+        cmp     forest_pair     ; C clear: B before the centre (beyond)
+        txa
+        eor     #2
+        tax
+        ldy     dx+1,x          ; cell = B - (C xor ray towards -axis):
+        bmi     :+              ; towards +axis, invert C, then
+        rol     a               ; B - 1 + C
+        eor     #1
+        ror     a
+:       lda     forest_end
+        sbc     #0
+        sta     forest_x,x
+        cmp     forest_limit,x  ; -1 wraps to 255
+        rts
+@own:   clc
+        rts
 ; A / candidate distance, returned in A (profile height in pixels).
 forest_divide:
         ldx     #0

@@ -1,11 +1,73 @@
 .segment "STATUS"
 th_display10: .byte $84,$20,0,0,0
 th_display95: .byte $80,$73,$33,$33,$33
+; STATUS, 80 columns (docs/MENUS.md 5, 9; 15 October 2026: with MEDICAL's
+; conditions and care; the provisions moved to OBJECTS, the rangers to
+; MENU). Under the tab row, the halves of rows 2-14 are each written top to
+; bottom so that every cell is written once (differential, no stale cell of
+; another page), then the full rows 15-21. Left, with the row width set to
+; 41 (a CR pads to it, vtab pads what it skips): CONDITION (the player's
+; word; HEALTH, ENERGY, HUNGER, THIRST, BODY), CONDITIONS (dehydration,
+; starvation, exhaustion, hypo- or hyperthermia; rows 10-13). Right, from
+; column 41 (st_at pads the right half of the rows it passes): LOCAL (date
+; and time, air and felt temperature, sky and wind, altitude and ground, the
+; situation). Rows 15-20: MEDICAL, the thirteen conditions and altitude
+; sickness in three columns (percent, care mark: ACTIVE, TREATED,
+; PROTECTED). Care: DOWN puts the focus on the active conditions in turn
+; (the name in inverse); row 23 then shows the treatment gestures of the
+; condition (LEFT/RIGHT choose, RETURN types it, src/care.s; CUT BODY
+; without a blade in use, the FRSTAID KIT in the dark, type USE KNIFE (AXE)
+; or USE FLASHLIGHT first and leave the gesture to the grid's queue,
+; src/grid.s). On NeoWildernessXL each block is a post-it (src/mt_pages.s):
+; the same cells, framed.
+ST_RIGHT = 41                   ; first column of the right-hand blocks
+ST_FOOD  = 60                   ; CARRYING (OBJECTS): food, water columns
+ST_WATER = 70
+ST_VAL   = 50                   ; LOCAL: value, second label, value
+ST_LBL2  = 62
+ST_VAL2  = 69
+ST_LAST  = 13                   ; last row of the list of conditions
+ST_MED   = 15                   ; MEDICAL's first row
 module_status:
-        jsr     text_screen
-        ; player
+        lda     pg_open         ; the grid's CARE: on the first active
+        beq     :+              ; condition (src/grid.s)
+        lsr     pg_open
+        sta     pg_focus
+        bne     @apply
+:       lda     pg_focus        ; a move of the care's focus: as is
+        bne     status_care
+@apply: jsr     goal_pct        ; brings journey_left up to date (as the
+        jsr     medical_apply   ; reference's STATUS); MEDICAL ($5800): the
+                                ; percentages of now
+status_care:
+        ldx     #0              ; the active conditions, in pg_act
+        ldy     #0
+@act:   lda     injury_active,x
+        beq     :+
+        txa
+        sta     pg_act,y
+        iny
+:       inx
+        cpx     #13
+        bcc     @act
+        sty     pg_levels       ; (PG_STATUS: 0)
+        cpy     pg_focus        ; one healed under the focus: the last
+        bcs     :+
+        sty     pg_focus
+:       lda     pg_focus        ; another condition: its first gesture
+        cmp     pg_gf
+        beq     :+
+        sta     pg_gf
+        lda     #0
+        sta     pg_g
+:       lda     #PG_STATUS
+        jsr     page_top
+        lda     #41             ; rows 2-14 left half: CR pads to column 40
+        sta     WNDWDTH
+        lda     #$3F
+        sta     INVFLG
         jsr     puts
-        .byte   "STATUS: ", 0
+        .byte   " CONDITION: ", 0
         fld     f_hmax          ; s = H / Hmax: MISERABLE < .2 <= POOR < .4 <=
         fop     FDIV, s_health  ; OKAY < .6 <= GOOD < .8 <= FANTASTIC
         fop     FMULT, f_5
@@ -20,138 +82,76 @@ module_status:
         sta     gp2+1
         lda     #9
         jsr     word
-        lda     #28
-        jsr     tab
         jsr     puts
-        .byte   "DONE=", 0
-        jsr     goal_pct
-        jsr     pdec
+        .byte   " ", 0
+        lda     #$FF
+        sta     INVFLG
         jsr     puts
-        .byte   "%|", 0
-        jsr     puts
-        .byte "TO ",0
-        lda     journey_left
-        jsr     pdec
-        jsr     puts
-        .byte " CELLS",0
-        lda     #26
-        jsr     tab
-        jsr     puts
-        .byte   "HEALTH=", 0
+        .byte   "|HEALTH  ", 0
         fld     f_hmax
         fop     FDIV, s_health
         fop     FMULT, f_100
         fop     FADD, f_half
         jsr     AYINT
         lda     $A1
+        sta     st_pct
+        clc                     ; ten cells: (percent + 5) / 10
+        adc     #5
+        ldx     #$FF
+        sec
+:       inx
+        sbc     #10
+        bcs     :-
+        txa
+        jsr     bar
+        lda     st_pct
         jsr     pdec
         jsr     puts
-        .byte "%",0
-        jsr     puts
-        .byte   "|ILL  ", 0
-        ; conditions under 95 %: dehydration, starvation, exhaustion
-        lda     #0
-        sta     g0
-        ldx     #0
-        jsr     cond
-        ldx     #1
-        jsr     cond
-        ldx     #2
-        jsr     cond
-        fld     s_therm_factor
-        fop     FCOMP, th_display95
-        cmp     #$FF
-        bne     @condition_done
-        jsr     CROUT
-        inc     g0
-        fld     s_body
-        fop     FCOMP, f_body
-        cmp     #$FF
-        bne     @hyper
-        jsr     puts
-        .byte "HYPOTHERMIA", 0
-        jmp     @condition_done
-@hyper: jsr     puts
-        .byte "HYPERTHERMIA", 0
-@condition_done:
-        lda     g0
-        bne     :+
-        jsr     puts
-        .byte   "NONE", 0
-:       lda     thermal_mode
-        beq     @thermal_done
-        cmp     #1
-        beq     @sweat
-        jsr     puts
-        .byte "|SHIVERING", 0
-        jmp     @thermal_done
-@sweat: jsr     puts
-        .byte "|SWEATING", 0
-@thermal_done:
-        lda     tree_in
-        beq     :+
-        jsr     puts
-        .byte "|IN A TREE",0
-:       lda     it_place+21
-        cmp     #5
-        bne     :+
-        jsr     puts
-        .byte "|BACKPACK HUNG",0
-:
-        lda     shelter_inside
-        beq     :+
-        jsr     puts
-        .byte "|INSIDE SHELTER", 0
-:
-        lda     wet_mode
-        cmp     #2
-        bne     :+
-        jsr     puts
-        .byte "|IMMERSED", 0
-:
-        jsr     puts
-        .byte   "|ENRG ", 0
-        ; ENRG: BEAT if 16 h without rest, TIRED over 12 h of rest deficit,
+        .byte   "%|ENERGY  ", 0
+        ; ENERGY: BEAT if 16 h without rest, TIRED over 12 h of rest deficit,
         ; OKAY over 7, else GREAT (deficit replaces the original's F1[24])
         lda     #0
-        sta     g1
+        sta     st_lvl
         fld     s_rest
         fop     FCOMP, f_16
         cmp     #1
         beq     @enrg
-        inc     g1
+        inc     st_lvl
         fld     s_defr
         fop     FCOMP, f_12
         cmp     #1
         beq     @enrg
-        inc     g1
+        inc     st_lvl
         fop     FCOMP, f_7
         cmp     #1
         beq     @enrg
-        inc     g1
-@enrg:  ldx     g1
+        inc     st_lvl
+@enrg:  lda     st_lvl          ; BEAT: an empty gauge
+        beq     :+
+        lda     #<s_defr
+        ldy     #>s_defr
+        jsr     hours_fill
+:
+        jsr     bar
+        ldx     st_lvl
         lda     #<w_enrg
         sta     gp2
         lda     #>w_enrg
         sta     gp2+1
         lda     #6
         jsr     word
-        lda     #14
-        jsr     tab
         jsr     puts
-        .byte   "HNGR ", 0
+        .byte   "|HUNGER  ", 0
         lda     #<s_eat         ; VERY over 12 h, SO-SO over 6 h
         ldy     #>s_eat
-        jsr     gauge
-        lda     #28
-        jsr     tab
+        jsr     hours_gauge
         jsr     puts
-        .byte   "THRST ", 0
+        .byte   "|THIRST  ", 0
         lda     #<s_drink
         ldy     #>s_drink
-        jsr     gauge
+        jsr     hours_gauge
         jsr     puts
-        .byte   "|TEMP ", 0
+        .byte   "|BODY    ", 0
         fld     s_body
         fop     FMULT, th_display10
         fop     FADD, f_half
@@ -187,40 +187,65 @@ module_status:
         jsr     COUT
         lda     #'F'|$80
         jsr     COUT
-        lda     #14
-        jsr     tab
+        lda     thermal_mode
+        beq     @thermal_done
+        cmp     #1
+        beq     @sweat
         jsr     puts
-        .byte   "FOOD ", 0
-        lda     #0              ; FOOD: ounces of food 23..37 within reach
-        sta     num
-        sta     num+1
-        ldx     #23
-@food:  jsr     reach_oz
-        inx
-        cpx     #38
-        bcc     @food
-        jsr     print_u16
+        .byte   "  SHIVERING", 0
+        jmp     @thermal_done
+@sweat: jsr     puts
+        .byte   "  SWEATING", 0
+@thermal_done:
         jsr     puts
-        .byte   " OZ", 0
-        lda     #28
-        jsr     tab
-        jsr     puts
-        .byte   "WATER ", 0
+        .byte   "||", 0
+        jsr     st_heading
+        .byte   " CONDITIONS ", 0
+        ; one row each: dehydration, starvation, exhaustion under 95 %,
+        ; hypo- or hyperthermia (the injuries: MEDICAL below)
         lda     #0
-        sta     num
-        sta     num+1
-        ldx     #N_WATER
-        jsr     reach_oz
-        jsr     print_u16
+        sta     g0
+        ldx     #0
+        jsr     cond
+        ldx     #1
+        jsr     cond
+        ldx     #2
+        jsr     cond
+        fld     s_therm_factor
+        fop     FCOMP, th_display95
+        cmp     #$FF
+        bne     @injuries
+        jsr     item
+        fld     s_body
+        fop     FCOMP, f_body
+        cmp     #$FF
+        bne     @hyper
         jsr     puts
-        .byte " OZ",0
-        lda     #0
-        sta     status_stock_kind
-        jsr     status_stock_line
-        inc     status_stock_kind
-        jsr     status_stock_line
+        .byte   "HYPOTHERMIA", 0
+        jmp     @injuries
+@hyper: jsr     puts
+        .byte   "HYPERTHERMIA", 0
+@injuries:
+        lda     g0
+        bne     :+
+        jsr     item
         jsr     puts
-        .byte   "||ENVIRONMENT:|DATE ", 0
+        .byte   "NONE", 0
+:       lda     #ST_MED         ; the rest of the left half, down to row 14
+        jsr     vtab
+        lda     #80             ; right column: rows 2-14 from ST_RIGHT (st_at)
+        sta     WNDWDTH
+        lda     #2
+        sta     CV
+        jsr     st_at
+        jsr     st_heading
+        .byte   " LOCAL ", 0
+        lda     #3
+        jsr     st_at
+        jsr     puts
+        .byte   "DATE", 0
+        lda     #ST_VAL
+        jsr     tab
         ; date: day of year = INT(date * 365 + 1)
         fld     s_date
         fop     FMULT, f_365
@@ -253,12 +278,16 @@ module_status:
         sta     gp2+1
         lda     #3
         jsr     word
+        lda     #' '|$80
+        jsr     COUT
         lda     g0
         jsr     pdec
-        lda     #14
+        lda     #ST_LBL2
         jsr     tab
         jsr     puts
-        .byte   "TIME ", 0
+        .byte   "TIME", 0
+        lda     #ST_VAL2
+        jsr     tab
         ldx     #54             ; WATCH
         jsr     have
         bcc     @noclock
@@ -286,7 +315,7 @@ module_status:
         bcc     :+
         lda     #'P'|$80
 :       jsr     COUT
-        jmp     @temp
+        jmp     @air
 @noclock:
         lda     #<w_period
         sta     gp2
@@ -295,10 +324,12 @@ module_status:
         ldx     period
         lda     #5
         jsr     word
-@temp:  lda     #28
-        jsr     tab
+@air:   lda     #4
+        jsr     st_at
         jsr     puts
-        .byte   "TEMP ", 0
+        .byte   "AIR", 0
+        lda     #ST_VAL
+        jsr     tab
         ldx     #69             ; THERMOMETER
         jsr     have
         bcc     @tword
@@ -311,9 +342,9 @@ module_status:
         clc
         adc     #1
 :       jsr     pdec
-        jsr     puts
-        .byte   "DEG", 0
-        jmp     @sky
+        lda     #'F'|$80
+        jsr     COUT
+        jmp     @felt
 @tword: ldx     #0              ; FREEZE < 32 <= COLD < 60 <= NICE < 80 <= WARM < 95 <= HOT
         lda     airtemp
         bmi     @tw
@@ -328,27 +359,12 @@ module_status:
         sta     gp2+1
         lda     #6
         jsr     word
-@sky:   jsr     puts
-        .byte   "|SKY  ", 0
-        lda     #<sky_words
-        sta     gp2
-        lda     #>sky_words
-        sta     gp2+1
-        ldx     weather_sky
-        lda     #5
-        jsr     word
-        lda     #14
+@felt:  lda     #ST_LBL2
         jsr     tab
         jsr     puts
-        .byte   "WIND ", 0
-        lda     wind
-        jsr     pdec
-        jsr     puts
-        .byte   "MPH", 0
-        lda     #28
+        .byte   "FEELS", 0
+        lda     #ST_VAL2
         jsr     tab
-        jsr     puts
-        .byte "FEEL ", 0
         lda     felt_temp
         sta     num
         lda     felt_temp+1
@@ -365,8 +381,37 @@ module_status:
         sta     num+1
 @felt_abs:
         jsr     print_u16
+        lda     #'F'|$80
+        jsr     COUT
+        lda     #5
+        jsr     st_at
         jsr     puts
-        .byte "F|ALT  ", 0
+        .byte   "SKY", 0
+        lda     #ST_VAL
+        jsr     tab
+        lda     #<sky_words
+        sta     gp2
+        lda     #>sky_words
+        sta     gp2+1
+        ldx     weather_sky
+        lda     #5
+        jsr     word
+        lda     #ST_LBL2
+        jsr     tab
+        jsr     puts
+        .byte   "WIND", 0
+        lda     #ST_VAL2
+        jsr     tab
+        lda     wind
+        jsr     pdec
+        jsr     puts
+        .byte   " MPH", 0
+        lda     #6
+        jsr     st_at
+        jsr     puts
+        .byte   "ALT", 0
+        lda     #ST_VAL
+        jsr     tab
         jsr     level_here
         clc
         adc     M_BASE
@@ -377,7 +422,7 @@ module_status:
         lda     g0
         jsr     pdec
         jsr     puts
-        .byte   "00FT", 0
+        .byte   "00 FT", 0
         jmp     @grnd
 @aword: ldx     #0              ; LOW < 30 <= MEDIUM < 101 <= HIGH
         lda     g0
@@ -393,10 +438,12 @@ module_status:
         sta     gp2+1
         lda     #6
         jsr     word
-@grnd:  lda     #14
+@grnd:  lda     #ST_LBL2
         jsr     tab
         jsr     puts
-        .byte   "GRND ", 0
+        .byte   "GROUND", 0
+        lda     #ST_VAL2
+        jsr     tab
         jsr     level_here
         pha
         jsr     woods_here
@@ -424,28 +471,404 @@ module_status:
         sta     gp2+1
         lda     #5
         jsr     word
-        lda     #22
-        jsr     vtab
+        ; the situation, a row each from row 7
+        lda     #6
+        sta     st_srow
+        lda     tree_in
+        beq     :+
+        jsr     st_next
         jsr     puts
-        .byte "M MEDICAL I INV T TOPO H HELP|ESC/RETURN/SPACE: VIEW",0
+        .byte   "IN A TREE", 0
+:       lda     it_place+21
+        cmp     #5
+        bne     :+
+        jsr     st_next
+        jsr     puts
+        .byte   "BACKPACK HUNG", 0
+:       lda     shelter_inside
+        beq     :+
+        jsr     st_next
+        jsr     puts
+        .byte   "INSIDE SHELTER", 0
+:       lda     wet_mode
+        cmp     #2
+        bne     :+
+        jsr     st_next
+        jsr     puts
+        .byte   "IMMERSED", 0
+:       lda     st_srow
+        cmp     #6
+        bne     :+
+        jsr     st_next
+        jsr     puts
+        .byte   "IN THE OPEN", 0
+:
+        lda     #ST_MED         ; the rest of the right half, down to row 14
+        jsr     st_at
+        lda     #ST_MED         ; MEDICAL: full rows from row 15
+        ldx     #0
+        jsr     st_at_x
+        jsr     st_heading
+        .byte   " MEDICAL ", 0
+        ldx     #0              ; the legend: each mark and its word
+@leg:   stx     st_i
+        jsr     puts
+        .byte   "  ", 0
+        ldx     st_i
+        lda     st_marks,x
+        jsr     COUT
+        lda     #' '|$80
+        jsr     COUT
+        ldx     st_i
+        lda     st_care_lo,x
+        ldy     #>st_care
+        jsr     print_str_ay
+        ldx     st_i
+        inx
+        cpx     #3
+        bcc     @leg
+        ldx     #0              ; rows 16-20: conditions r, r + 5, r + 10
+@row:   stx     st_i
+        jsr     CROUT
+        lda     #0
+        jsr     med_cell
+        lda     #27
+        jsr     tab
+        lda     st_i
+        clc
+        adc     #5
+        tax
+        lda     #27
+        jsr     med_cell
+        lda     #53
+        jsr     tab
+        lda     st_i
+        clc
+        adc     #10
+        cmp     #14
+        bcs     :+
+        tax
+        lda     #53
+        jsr     med_cell
+:       ldx     st_i
+        inx
+        cpx     #5
+        bcc     @row
+        lda     pg_focus        ; the care's focus: the gestures on row 23
+        beq     :+
+        lda     #19
+        jsr     overlay_load
+        jsr     med_foot
+        jmp     status_key
+:       lda     #<st_keys
+        ldy     #>st_keys
+        XL_ABS  XI_STATUS, page_foot_x, @x17
+        jsr     page_foot
 status_key:
 @key:   jsr     wait_key
-        cmp     #'I'
-        jeq     scr_inventory
-        cmp     #'T'
-        jeq     scr_topo
-        cmp     #'H'
-        jeq     scr_help
-        cmp     #'M'
-        jeq     scr_medical
-        cmp     #KC_ESC
-        jeq     back_to_view_now
-        cmp     #KC_RET
-        jeq     back_to_view_now
+        jsr     page_keys
+        ldy     pg_focus
+        beq     @key
+        ldx     pg_g            ; the gestures of the focused condition
+        cmp     #KC_LEFT
+        bne     :+
+        dex
+        bpl     @g
+        ldx     pg_gn
+        dex
+        bpl     @g
+:       cmp     #KC_RIGHT
+        bne     :+
+        inx
+        cpx     pg_gn
+        bcc     @g
+        ldx     #0
+@g:     stx     pg_g
+        jmp     status_care
+:       cmp     #KC_RET
+        beq     :+
         cmp     #' '
-        jeq     back_to_view_now
-        jmp     @key
+        bne     @key
+:       lda     #19             ; MEDVIEW: the gestures (src/care.s)
+        jsr     overlay_load
+        jmp     med_run
 
+; med_cell -- condition X (13: altitude sickness) from column A (the cursor
+; there): its name (in inverse under the focus), its percent at +18, its
+; care mark at +23.
+med_cell:
+        sta     st_col
+        stx     st_cx
+        ldy     pg_focus        ; the focused condition: in inverse
+        beq     :+
+        txa
+        cmp     pg_act-1,y
+        bne     :+
+        lda     #$3F
+        sta     INVFLG
+:       lda     med_name_lo,x
+        ldy     med_name_hi,x
+        jsr     print_str_ay
+        lda     #$FF
+        sta     INVFLG
+        lda     st_col
+        clc
+        adc     #18
+        jsr     tab
+        ldx     st_cx
+        lda     altitude_percent
+        cpx     #13
+        bcs     :+
+        lda     injury_percent,x
+:       jsr     pdec
+        lda     #'%'|$80
+        jsr     COUT
+        lda     st_col
+        clc
+        adc     #23
+        jsr     tab
+        ldx     st_cx
+        cpx     #13
+        bcs     @rts
+        ldy     #1
+        lda     injury_treated,x
+        bne     @mark
+        dey
+        lda     injury_active,x
+        bne     @mark
+        ldy     #2
+        lda     injury_prevented,x
+        beq     @rts
+@mark:  lda     st_marks,y
+        jmp     COUT
+@rts:   rts
+; The care marks: ACTIVE (care needed), TREATED, PROTECTED (XL: MouseText,
+; docs/MENUS.md 9: an inverse X, a check mark, a diamond).
+st_marks: .byte $18, '+'|$80, '*'|$80
+        XL_BYTE XI_STATUS, st_marks+1, MT_CHECK
+        XL_BYTE XI_STATUS, st_marks+2, MT_DIAMOND
+st_care_lo: .byte <st_c_act, <st_c_trt, <st_c_prt
+st_care:
+st_c_act: .byte "ACTIVE", 0
+st_c_trt: .byte "TREATED", 0
+st_c_prt: .byte "PROTECTED", 0
+.assert >st_c_prt = >st_care, error, "st_care: one page"
+st_col: .byte 0
+st_cx:   .byte 0
+
+; st_rangers -- (MENU) a new row: the distance to the rangers, the bearing
+; with a compass.
+st_rangers:
+        jsr     CROUT
+        lda     journey_left
+        sta     num
+        lda     journey_left+1
+        sta     num+1
+        jsr     print_u16
+        jsr     puts
+        .byte   " CELLS AWAY", 0
+        ldx     #53             ; COMPASS
+        jsr     have
+        bcc     @situation
+        jsr     bearing
+@situation:
+        rts
+; st_cells -- A (0..100): the full cells of a gauge, (A + 5) / 10.
+st_cells:
+        clc
+        adc     #5
+        ldx     #$FF
+        sec
+:       inx
+        sbc     #10
+        bcs     :-
+        txa
+        rts
+
+; st_next -- the next row of the situation.
+st_next:
+        inc     st_srow
+        lda     st_srow
+        jmp     st_at
+
+; Helpers of the page (in the module: it runs in the SIM window, with room).
+; st_at -- the cursor on row A (at or below CV), column ST_RIGHT: the rest
+; of the current row and the right half of every skipped row are padded
+; (differential), the left half is left alone. st_at_x: row A, column X,
+; nothing padded.
+st_at:  sta     st_tgt
+@pad:   lda     CV
+        cmp     st_tgt
+        bcs     @set
+        jsr     topo_pad
+        inc     CV
+        jsr     t_vtab
+        lda     #ST_RIGHT
+        sta     CH
+        bne     @pad
+@set:   lda     st_tgt
+        ldx     #ST_RIGHT
+st_at_x:
+        sta     CV
+        jsr     t_vtab
+        stx     CH
+        rts
+; item -- a new row of the list of conditions: C set (nothing to print on)
+; once the list reaches ST_LAST, else the cursor at its start.
+item:   lda     CV
+        cmp     #ST_LAST
+        bcs     @full
+        jsr     CROUT
+        inc     g0
+        clc
+        rts
+@full:  pla                     ; the caller's text is skipped
+        pla
+        rts
+
+; st_heading -- the string after the JSR (0-terminated), in inverse.
+st_heading:
+        pla
+        sta     gp2
+        pla
+        sta     gp2+1
+        lda     #$3F
+        sta     INVFLG
+        ldy     #0
+@ch:    inc     gp2
+        bne     :+
+        inc     gp2+1
+:       lda     (gp2),y
+        beq     @end
+        ora     #$80
+        jsr     COUT
+        jmp     @ch
+@end:   lda     #$FF
+        sta     INVFLG
+        lda     gp2+1
+        pha
+        lda     gp2
+        pha
+        rts
+
+; bar -- a gauge of ten cells, A of them full (inverse spaces), then two
+; spaces.
+bar:    XL_JMP  XI_STATUS, bar_x, @p06          ; (XL: MouseText cells)
+        cmp     #11
+        bcc     :+
+        lda     #10
+:       sta     st_fill
+        lda     #$3F
+        sta     INVFLG
+        ldx     #0
+@on:    cpx     st_fill
+        bcs     @off
+        lda     #' '|$80
+        jsr     COUT
+        inx
+        bne     @on
+@off:   lda     #$FF
+        sta     INVFLG
+@dot:   cpx     #10
+        bcs     @end
+        lda     #'.'|$80
+        jsr     COUT
+        inx
+        bne     @dot
+@end:   jsr     puts
+        .byte   "  ", 0
+        rts
+
+st_fill: .byte  0
+st_keys: .byte  "T TOPO", 0
+        ; XL: the up arrow (UP on the tabs opens TOPO; T still does).
+        XL_BYTE XI_STATUS, st_keys, MS_UP
+; hours_gauge -- the gauge and the word of HUNGER or THIRST, hours at (A,Y).
+hours_gauge:
+        sta     st_ptr
+        sty     st_ptr+1
+        jsr     hours_fill
+        jsr     bar
+        lda     st_ptr
+        ldy     st_ptr+1
+        jmp     gauge
+; hours_fill -- A = full cells of a gauge for the hours at (A,Y): one cell
+; less every 1.5 hours (6 h: six cells, 12 h: two), 0..10.
+hours_fill:
+        jsr     MOVFM
+        fop     FMULT, f_two_thirds
+        jsr     AYINT
+        lda     $A0
+        bmi     @full
+        bne     @empty
+        lda     $A1
+        cmp     #10
+        bcs     @empty
+        eor     #$FF            ; 10 - A
+        sec
+        adc     #10
+        rts
+@full:  lda     #10
+        rts
+@empty: lda     #0
+        rts
+
+; bearing -- ", NORTH-EAST" and so on: the direction of the goal cell (world
+; Y grows north); a component under half of the other is dropped. Nothing
+; on the goal cell itself.
+bearing:
+        lda     M_GOALX
+        sec
+        sbc     px+1
+        sta     st_dx
+        jsr     st_abs
+        sta     st_ax
+        lda     M_GOALY
+        sec
+        sbc     py+1
+        sta     st_dy
+        jsr     st_abs
+        sta     st_ay
+        ora     st_ax
+        beq     @rts
+        jsr     puts
+        .byte   ", ", 0
+        lda     st_ay           ; north or south unless |dy| < |dx| / 2
+        asl     a
+        cmp     st_ax
+        bcc     @east
+        lda     #<w_ns
+        ldy     #>w_ns
+        ldx     #0
+        bit     st_dy
+        bpl     :+
+        inx
+:       jsr     st_word         ; NORTH or SOUTH
+        lda     st_ax           ; then "-" when east or west follows
+        asl     a
+        cmp     st_ay
+        bcc     @rts
+        lda     #'-'|$80
+        jsr     COUT
+@east:  lda     #<w_ew
+        ldy     #>w_ew
+        ldx     #0
+        bit     st_dx
+        bpl     st_word
+        inx
+        bne     st_word         ; always
+@rts:   rts
+; st_word -- word X (5 letters) of the table at (A,Y).
+st_word:
+        sta     gp2
+        sty     gp2+1
+        lda     #5
+        jmp     word
+st_abs: bpl     :+
+        eor     #$FF
+        clc
+        adc     #1
+:       rts
 
 ; gauge -- hunger / thirst word from the hours at (A,Y): VERY over 12,
 ; SO-SO over 6, else OKAY
@@ -483,11 +906,7 @@ cond:   stx     g1
         fop     FCOMP, t1
         cmp     #$FF
         bne     @no
-        lda     g0
-        beq     :+
-        lda     #','|$80
-        jsr     COUT
-:       inc     g0
+        jsr     item
         ldx     g1
         lda     cname_lo,x
         pha
@@ -527,19 +946,16 @@ reach_oz:
 @no:    rts
 
 
-; Explicit transported/here totals; a split food contributes once to each.
+; status_stock_line -- after its label, the food and water ounces of a row of
+; PROVISIONS: carried (kind 0), here (1), within reach (2, as the original's
+; FOOD and WATER). A split food contributes once to each of the first two.
 status_stock_line:
-        jsr     puts
-        .byte "|",0
-        lda     status_stock_kind
-        bne     @here
-        jsr     puts
-        .byte "CARRIED ",0
-        jmp     @food
-@here:  jsr     puts
-        .byte "HERE ",0
-@food:  jsr     puts
-        .byte "FOOD ",0
+        ldx     status_stock_kind
+        lda     st_kind_lo,x
+        ldy     st_kind_hi,x
+        jsr     print_str_ay
+        lda     #ST_FOOD
+        jsr     tab
         lda     #0
         sta     num
         sta     num+1
@@ -550,7 +966,9 @@ status_stock_line:
         bcc     @sum
         jsr     print_u16
         jsr     puts
-        .byte " OZ WATER ",0
+        .byte " OZ",0
+        lda     #ST_WATER
+        jsr     tab
         lda     #0
         sta     num
         sta     num+1
@@ -560,7 +978,16 @@ status_stock_line:
         jsr     puts
         .byte " OZ",0
         rts
+print_str_ay:
+        pha
+        tya
+        tax
+        pla
+        jmp     print_str_ax
 status_stock_oz:
+        lda     status_stock_kind
+        cmp     #2
+        jeq     reach_oz
         lda     it_place,x
         cmp     #255
         beq     @done
@@ -590,6 +1017,17 @@ status_stock_oz:
         sta     num+1
 @done:  rts
 status_stock_kind: .byte 0
+st_done:  .byte 0
+st_pct:   .byte 0
+st_lvl:   .byte 0
+st_i:     .byte 0
+st_srow:   .byte 0
+st_tgt:    .byte 0
+st_ptr:   .word 0
+st_dx:    .byte 0
+st_dy:    .byte 0
+st_ax:    .byte 0
+st_ay:    .byte 0
 
 .segment "STATUS"
 mdays:  .byte   31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30
@@ -602,7 +1040,19 @@ w_grnd: .byte   "CLEARROCKYWOODSSCRUB"
 w_dehyd: .byte  "DEHYDRATION", 0
 w_starv: .byte  "STARVATION", 0
 w_exhau: .byte  "EXHAUSTION", 0
+f_two_thirds: .byte $80,$2A,$AA,$AA,$AB
+w_ns:   .byte   "NORTHSOUTH"
+w_ew:   .byte   "EAST WEST "
+st_kind_lo: .byte <st_carried, <st_here, <st_reach
+st_kind_hi: .byte >st_carried, >st_here, >st_reach
+st_carried: .byte "CARRIED", 0
+st_here:    .byte "HERE", 0
+st_reach:   .byte "IN REACH", 0
 
 
 .segment "ENVIRON"
 tree_effort: .byte $7B,$23,$D7,$0A,$3E ; native T12/S08 $5CBE, .02 * body weight
+
+        .include "inventory.s"   ; INVENTORY, in the same module
+        .include "pages.s"       ; the tab row, MEDICAL, MENU
+        .include "mt_pages.s"    ; NeoWildernessXL: the MouseText pages (STATX)

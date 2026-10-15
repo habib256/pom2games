@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The hall of fame inside the game (after the integration of docs/HOF.md).
 
-On ../dist/NEOWILDERNESS.po (a2shot --iie), with build/wild.lbl:
+On ../dist/NEOWILDERNESSXL.po (a2shot --iie, the six scenarios), with build/wild.lbl:
   1. menu: the BEST cells and the H screen of an empty NEOWILD.HOF;
   2. Sierra Nevada, level 4: the player is moved three cells west of the
      outpost, QUIT, Y: NEOWILD.END runs, its screen equals
@@ -27,7 +27,7 @@ import a2test  # noqa: E402
 import score as R  # noqa: E402
 from read_volume import Image  # noqa: E402
 
-DISK = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'dist/NEOWILDERNESS.po'
+DISK = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'dist/NEOWILDERNESSXL.po'   # six scenarios in the hall
 LABELS = Path(sys.argv[2]) if len(sys.argv) > 2 else HERE / 'build/wild.lbl'
 MAP, STAGE = 0x7000, 0x2000
 
@@ -39,6 +39,47 @@ def screen(mem):
 def show(codes):
     return '\n'.join(''.join(chr(b & 0x7F if b >= 0x80 else (b | 0x40 if b < 0x20 else b))
                              for b in codes[r * 40:r * 40 + 40]) for r in range(24))
+
+
+def xl_end(codes):
+    """NEOWILD.END's screen on NeoWildernessXL (docs/MENUS.md 9) from the
+    oracle's plain one: the title band a double line ($5C) around the
+    inverse title, the total's dashes a MouseText line ($53), and the table
+    of the scenario in a box: its title in inverse with a space each side,
+    then '_'; rows 15-19 between the bars $5F (column 0) and $5A (column
+    39), their text from column 1; row 20 the bottom line ($4C); the
+    breakdown a post-it too (rows 2-13)."""
+    b = bytearray(codes)
+    hi = bytes(x | 0x80 for x in range(256))
+    # The breakdown's post-it (15 October 2026): row 2 its title (the
+    # region, the level) in inverse after a space, then '_'; rows 3-12 between
+    # the bars, their text from column 1 up to column 27, the values (column
+    # 28 on) in place; row 13 the line $4C.
+    title = bytes(b[2 * 40:3 * 40]).rstrip(b'\xa0')
+    inverse = bytes(ch & 0x3F for ch in b' '.translate(hi) + title + b'\xa0')
+    b[2 * 40:3 * 40] = inverse + bytes([0xDF] * (40 - len(inverse)))
+    for r in range(3, 13):
+        line = b[r * 40:r * 40 + 40]
+        assert line[27] == line[39] == 0xA0, (r, line)
+        b[r * 40:r * 40 + 40] = bytes([0x5F]) + line[:27] + line[28:39] + bytes([0x5A])
+    assert b[13 * 40:14 * 40] == b'\xa0' * 40
+    b[13 * 40:14 * 40] = bytes([0x4C] * 40)
+    for c in list(range(13)) + list(range(26, 40)):
+        assert b[c] == 0x20, ('title band', c, b[c])
+        b[c] = 0x5C
+    assert b[9 * 40 + 28:9 * 40 + 33] == b'-----'.translate(bytes(x | 0x80 for x in range(256)))
+    b[9 * 40 + 28:9 * 40 + 33] = bytes([0x53] * 5)
+    title = bytes(b[14 * 40:15 * 40]).rstrip(b'\xa0')
+    if title.endswith(b' - TOP 5'.translate(bytes(x | 0x80 for x in range(256)))):
+        inverse = bytes(ch & 0x3F for ch in b' ' .translate(bytes(x | 0x80 for x in range(256))) + title + b'\xa0')
+        b[14 * 40:15 * 40] = inverse + bytes([0xDF] * (40 - len(inverse)))
+        for r in range(15, 20):
+            line = b[r * 40:r * 40 + 40]
+            assert line[38:] == b'\xa0\xa0', (r, line)
+            b[r * 40:r * 40 + 40] = bytes([0x5F]) + line[:38] + bytes([0x5A])
+        assert b[20 * 40:21 * 40] == b'\xa0' * 40
+        b[20 * 40:21 * 40] = bytes([0x4C] * 40)
+    return bytes(b)
 
 
 def check(label, got, want):
@@ -80,12 +121,12 @@ def main():
         assert 90 <= progress < 100 and health == 100, (progress, health)
         c = R.score(progress, health, hours, outcome, level)
         want, _ = R.end_screen(c, 2, 'SIERRA NEVADA', False, R.empty_file(), '', phase='entry')
-        check('name entry', text(), want.bytes())
+        check('name entry', text(), xl_end(want.bytes()))       # (XL: docs/MENUS.md 9)
         for k in 'GIST\r':
             s.step('key:' + k)
             s.step(L.until('hof_key_wait', 4000))
         want, new = R.end_screen(c, 2, 'SIERRA NEVADA', False, R.empty_file(), 'GIST')
-        check('saved', text(), want.bytes())
+        check('saved', text(), xl_end(want.bytes()))
         s.step('key: ')
         s.step(L.until('menu_key', 40000))
         hof = s.step(f'peek:{STAGE:04X}:512').dumps[0]

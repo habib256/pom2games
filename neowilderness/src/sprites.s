@@ -1,5 +1,7 @@
 ; Original Journey graphics: raw column streams loaded into the shared $5800
-; window. Bitmap bytes remain in ignored build/, never embedded in source.
+; window; the site sprites (log, rock, ranger outpost: lot 6) into the SIM
+; window $9600 (src/project.s module_site_load). Bitmap bytes remain in
+; ignored build/, never embedded in source.
 .segment "GDATA"
 scenes_enabled: .byte 1
 scene_drawn: .byte 0            ; bit 0: geometry; bit 1: multiple nearby candidates
@@ -7,14 +9,13 @@ scene_minutes: .byte 0
 animal_kind: .byte 0            ; overlay 6 bear, 7 cougar, 8 rattlesnake
 animal_x: .byte 0
 animal_y: .byte 0
-animal_bearing: .word 0
 animal_age: .byte 0
 nature_frequency: .byte 1       ; integer multiplier 0..100, original default 1
+game_options: .byte 0           ; MENU page: bit 7 the player on TOPO, bit 6 MAP off
 fauna_rng: .byte $B7            ; independent of the weather RNG
 fauna_alert: .byte 0            ; accepted encounter interrupts travel/rest
 scene_cache_valid: .byte 0
 scene_cache_pos: .res 6
-scene_cache_animal: .res 5
 scene_cache_drawn: .byte 0
 scene_cache_asset: .byte 0
 .segment "SCRATCH"
@@ -91,13 +92,6 @@ scene_prepare:
         bne     @compute
         dex
         bpl     @position
-        ldx     #4
-@animal:
-        lda     animal_kind,x
-        cmp     scene_cache_animal,x
-        bne     @compute
-        dex
-        bpl     @animal
         lda     scene_cache_drawn
         sta     scene_drawn
         lda     scene_cache_asset
@@ -113,12 +107,6 @@ scene_prepare:
         sta     scene_cache_pos,x
         dex
         bpl     @save_pos
-        ldx     #4
-@save_animal:
-        lda     animal_kind,x
-        sta     scene_cache_animal,x
-        dex
-        bpl     @save_animal
         lda     scene_drawn
         sta     scene_cache_drawn
         lda     scene_asset
@@ -157,36 +145,38 @@ sprite_column:
         lda     #0
         sbc     sprite_left+1
         beq     :+
-        jmp     @done
+        jmp     spc_done
 :
         lda     sprite_x
         ldx     sprite_shift
-        beq     @scaled_x
-@scale_x:
+        beq     spc_scaled_x
+spc_scale_x:
         asl     a
         bcc     :+
-        jmp     @done
+        jmp     spc_done
 :
         dex
-        bne     @scale_x
-@scaled_x:
+        bne     spc_scale_x
+spc_scaled_x:
         sta     sprite_x
-        cmp     $5800
+sprite_page0 = *                ; the four page bytes: PROJECT's project_commit
+        cmp     $5800           ; ($58 window, $96 site sprite)
         bcc     :+
-        jmp     @done
+        jmp     spc_done
 :
         lda     #1
         sta     scene_opaque
         ldx     #VIEW_ROWS-1
         lda     #$FF
-@clear: sta     sprite_rows,x
+spc_clear: sta     sprite_rows,x
         dex
         cpx     #$FF
-        bne     @clear
+        bne     spc_clear
         lda     sprite_x
         asl     a
         adc     #1
         sta     dx
+sprite_page1 = *
         lda     #$58
         sta     dx+1
         ldy     #0
@@ -195,6 +185,7 @@ sprite_column:
         iny
         lda     (dx),y
         clc
+sprite_page2 = *
         adc     #$58
         sta     rx+1
         iny
@@ -203,6 +194,7 @@ sprite_column:
         iny
         lda     (dx),y
         clc
+sprite_page3 = *
         adc     #$58
         sta     dy+1
         ldy     #0
@@ -213,65 +205,65 @@ sprite_column:
         jsr     sprite_advance
         lda     #0
         sta     sprite_codes
-@pixel: jsr     sprite_code
+spc_pixel: jsr     sprite_code
         bcc     :+
-        jmp     @done
+        jmp     spc_done
 :
         sta     sprite_colour
-        bne     @paint
+        bne     spc_paint
         jsr     sprite_code
         bcc     :+
-        jmp     @done
+        jmp     spc_done
 :
-        beq     @transparent
-@paint: lda     scene_depth
-        beq     @local
+        beq     spc_transparent
+spc_paint: lda     scene_depth
+        beq     spc_local
         lda     sprite_base
         sec
         sbc     sprite_y
         sta     sprite_scaled
         and     sprite_mask
-        bne     @transparent
+        bne     spc_transparent
         lda     sprite_scaled
         ldx     sprite_shift
-        beq     @scaled_y
-@scale_y:
+        beq     spc_scaled_y
+spc_scale_y:
         lsr     a
         dex
-        bne     @scale_y
-@scaled_y:
+        bne     spc_scale_y
+spc_scaled_y:
         sta     sprite_scaled
         lda     sprite_anchor
         sec
         sbc     sprite_scaled
-        bcc     @transparent    ; above the view
+        bcc     spc_transparent    ; above the view
         adc     tdv             ; carry set: + 1 - 1 below. Looking down,
         tay                     ; rows < 96 wrap to 160..255 (transparent);
         dey                     ; looking up there is no sprite at all
-        jmp     @clip
-@local: lda     sprite_y
+        jmp     spc_clip
+spc_local: lda     sprite_y
         sec
         sbc     sprite_origin    ; lift: 0 wreck, 10 other local sprites
         tay
-@clip:
+spc_clip:
         cpy     #VIEW_ROWS
-        bcs     @transparent
+        bcs     spc_transparent
         lda     sprite_colour
         sta     sprite_rows,y     ; 0..3 opaque, $FF transparent
-@transparent:
+spc_transparent:
         dec     sprite_y
-        jmp     @pixel
-@done:  lda     scene_opaque
-        beq     @return
+        jmp     spc_pixel
+spc_done:  lda     scene_opaque
+        beq     spc_return
         lda     scene_depth
-        beq     @emit
+        beq     spc_emit
         lda     #1
         sta     scene_pending
         lda     #0
         sta     scene_opaque
-@return:
+spc_return:
         rts
-@emit:  jmp     scene_emit
+spc_emit:  jmp     scene_emit
 
 .segment "GCODE"
 ; Delay a distant sprite until all terrain nearer than its plane is known.

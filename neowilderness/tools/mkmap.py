@@ -42,6 +42,7 @@ NEIGHBORS = tuple((dx, dy) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dx or dy
 FOREST_BYTES = (GW // 2) * (GH // 2) // 8
 MAP_BYTES = HEADER + GW * GH
 MAX_LEVEL = 125                 # format limit (see map_bin)
+ROCKY = 96                      # STATUS ROCKY, camp_class, the native shelter (travel.s)
 NO_SNOW = 126                   # snow level above every cell
 # Fixed seeds of the reconstituted maps (lot 7). The Sierra Nevada keeps the
 # map of the build (seed 1985), see docs/REGIONS.md.
@@ -328,7 +329,8 @@ def map_bin(h, water, start, goal, heading, difficulty=4, declination=17, woods=
     +11 snow level, +12 latitude (signed degrees), +13/+14 winter / summer
     mean temperature at sea level (deg F), +15 highest wind (mph): the region
     climate of the Sierra Nevada (TOPO $60A8, $4BB0/$4BB1, $60B9 of the
-    original). +16 cabin flag, +17/+18 cabin cell x/y, +19/+20
+    original). +16 cabin flag: its sprite, 1 the log, 2 the rock (cell level
+    >= ROCKY, as the original's found shelter), +17/+18 cabin cell x/y, +19/+20
     cabin bearing (our placement rule), +21 highest level + 1 (zero = unknown),
     +22 difficulty 1..10, +23 regional climate index (Sierra 31); zero means
     legacy defaults of 4 and 31 respectively. +24 signed magnetic
@@ -359,7 +361,9 @@ def map_bin(h, water, start, goal, heading, difficulty=4, declination=17, woods=
     hdr[26], hdr[27] = bool(woods is not None), 110  # forest extension, timberline /100 ft
     grid = coarse_grid(h, water)
     # One cabin on dry ground, one third of the way toward the outpost.
-    # Header 16 flag, 17/18 cell, 19/20 fixed facing bearing.
+    # Header 16 flag, 17/18 cell, 19/20 fixed facing bearing. The flag is
+    # the sprite (src/project.s cabin_asset): the original has no fixed cabin,
+    # only the natural shelter it finds, a log below ROCKY, else a rock.
     cx, cy = round((2 * sx + goal[0]) / 6), round((2 * sy + goal[1]) / 6)
     candidates = [(i, j) for j in range(1, GH - 1) for i in range(1, GW - 1)
                   if not grid[j*GW+i] & 0x80 and (i, j) != (sx//2, sy//2)
@@ -367,7 +371,8 @@ def map_bin(h, water, start, goal, heading, difficulty=4, declination=17, woods=
     if candidates:
         cx, cy = min(candidates, key=lambda c: (c[0]-cx)**2 + (c[1]-cy)**2)
         facing = heading_to(sx, sy, goal[0], goal[1])
-        hdr[16:21] = bytes((1, cx, cy, facing & 255, facing >> 8))
+        shelter = 2 if grid[cy*GW+cx] & 0x7F >= ROCKY else 1
+        hdr[16:21] = bytes((shelter, cx, cy, facing & 255, facing >> 8))
     hdr[25] = (-120) & 255  # Sierra longitude for added lunar ephemeris (east positive)
     hdr[22], hdr[23] = difficulty, 31  # fauna: difficulty and Sierra climate index
     if not -128 <= declination <= 127:

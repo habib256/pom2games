@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 import random
 import tempfile
-from common import HERE, DISK
+from common import HERE, DISK, edition_image
 from pack_boot import compress, decompress
 from build_disk import TABLE_SIZE
 import struct
@@ -65,6 +65,11 @@ def replay(data, memory, claimed):
         bank = kind & 0x23              # + $20: main language card (lot 7)
         assert kind & 0x80 and bank in (0, 1, 2, 3, 0x22) and stored <= 0x2000 and length <= 0x2000
         assert claimed or bank == 0, 'auxiliary record before the claim'
+        # Docs/MEMORY.md 15: the loader puts ProDOS's QUIT code ($D100-$D3FF
+        # of the main card's bank 2) aside at the claim, before any record
+        # replaces it.
+        assert claimed or not (bank == 0x22 and address < 0xD400 and address + length > 0xD100), \
+            'the QUIT code replaced before the claim'
         payload = data[pos:pos + stored]
         pos += stored
         chunk = decompress(payload, length) if kind & 0x40 else payload
@@ -90,8 +95,10 @@ def volume_check():
     # Lot 9 (docs/SAVE.md): NEOWILD.SAV and the saved games that fit on the
     # volume (five on 800 KB, fewer or none on the 140 KB image).
     saves = ['/NEOWILD.SAV'] + ['/' + n for n in layout['save_games']['files']]
+    # Docs/MEMORY.md 14: NEOWILD.BLK on NeoWildernessXL (the modules read by block).
+    blk = ['/NEOWILD.BLK'] if layout['disk']['bytes'] else []
     assert sorted(files) == sorted(['/NEOWILD.DAT', '/NEOWILD.SYSTEM', '/PRODOS',
-                                    '/NEOWILD.END', '/NEOWILD.HOF'] + saves), sorted(files)
+                                    '/NEOWILD.END', '/NEOWILD.HOF'] + saves + blk), sorted(files)
     lbl = build_disk.labels(HERE / 'build')
     # NEOWILD.DAT holds the trunk, the six packs and the preparation (docs/MEMORY.md
     # 13); NEOWILD.SYSTEM carries their marks (src/boot.s ld_marks).
@@ -101,11 +108,43 @@ def volume_check():
     # NEOWILD.SYSTEM: the stub, then the loader LZ-packed (src/boot.s SYSSTUB).
     system = image.read(files['/NEOWILD.SYSTEM'])
     at = lbl['__LOADER_LOAD__'] - 0x2000
-    built = (HERE / 'build/NEOWILD.SYSTEM').read_bytes()
+    built = (HERE / 'build/NEOWILD-xl.SYSTEM').read_bytes()     # (XL: docs/MENUS.md 9)
     loader = build_disk.unpack_stream(system[at:])
     mark = lbl['ld_marks'] - lbl['__LOADER_RUN__']
     assert system[:at] == built[:at] and len(system) < len(built)
-    assert loader[:mark] == built[at:at + mark] and loader[mark + 23:] == built[at + mark + 23:]
+    assert loader[:mark] == built[at:at + mark] and loader[mark + 34:] == built[at + mark + 34:]
+    # ld_regions follows the marks: the scenarios of the edition (XL: 6);
+    # then ld_blk, NEOWILD.BLK's first block and its first 6 bytes (docs/MEMORY.md 14).
+    assert lbl['ld_regions'] == lbl['ld_marks'] + 23 and loader[mark + 23] == 6
+    assert lbl['ld_blk'] == lbl['ld_regions'] + 1
+    # Docs/MEMORY.md 15: ld_exit, the auxiliary address of the exit state
+    # (directory entry 2), just below the packs' sprite area.
+    assert lbl['ld_exit'] == lbl['ld_blk'] + 8
+    exit_state = layout['exit_state']
+    assert loader[mark + 32:mark + 34] == exit_state['address'].to_bytes(2, 'little')
+    assert exit_state['address'] + exit_state['length'] == layout['pack_area']['start']
+    disk = layout['disk']
+    if blk:
+        data = image.read(files['/NEOWILD.BLK'])
+        assert len(data) == disk['bytes'] and data[:4] == b'NWBK'
+        assert loader[mark + 24:mark + 32] == disk['first_block'].to_bytes(2, 'little') + data[:6]
+        # Index block 7, data from block 8 (build_disk.BLK_FIRST): what the
+        # directory's block numbers assume.
+        assert files['/NEOWILD.BLK'][0] >> 4 == 2
+        key = int.from_bytes(files['/NEOWILD.BLK'][0x11:0x13], 'little')
+        index = image.block(key)
+        assert [index[n] | index[256 + n] << 8 for n in range(len(data) // 512)] == \
+            list(range(disk['first_block'], disk['first_block'] + len(data) // 512))
+        for i, where in disk['modules'].items():
+            module = layout['trunk_modules'][i]
+            raw = (HERE / 'build' / module['image']).read_bytes()
+            at_blk = (where['block'] - disk['first_block']) * 512
+            assert module['bank'] == 'disk' and module['block'] == where['block']
+            assert where['blocks'] == -(-len(raw) // 512) and \
+                module['window'] == build_disk.MODULES[int(i)][1]      # lot 4: FORAGE at $9600
+            assert data[at_blk:at_blk + where['blocks'] * 512] == raw + bytes(where['blocks'] * 512 - len(raw)), i
+    else:
+        assert loader[mark + 24:mark + 32] == bytes(8) and not disk['modules']
     assert loader[mark:mark + 23] == b''.join(m.to_bytes(3, 'little') for m in marks) + \
         (len(whole) - marks[6]).to_bytes(2, 'little')
     assert files['/NEOWILD.SYSTEM'][0x10] == 0xFF and files['/NEOWILD.SYSTEM'][0x1F:0x21] == b'\x00\x20'
@@ -117,7 +156,7 @@ def volume_check():
     # Lot 7 step 6 (docs/HOF.md): the end module, read at $9600, and the
     # empty hall of fame, a one-block seedling file rewritten in place.
     assert files['/NEOWILD.END'][0x10] == 0x06 and files['/NEOWILD.END'][0x1F:0x21] == b'\x00\x96'
-    assert image.read(files['/NEOWILD.END']) == (HERE / 'build/wildhof.bin').read_bytes()
+    assert image.read(files['/NEOWILD.END']) == (HERE / 'build/wildhof-xl.bin').read_bytes()
     assert files['/NEOWILD.HOF'][0x10] == 0x06 and files['/NEOWILD.HOF'][0] >> 4 == 1, 'seedling'
     assert image.read(files['/NEOWILD.HOF']) == (HERE / 'build/NEOWILD.HOF').read_bytes()
     data = whole[:marks[0]]
@@ -135,8 +174,8 @@ def volume_check():
     for name, address in (('wild.bin', 0x6000), ('wildgame.bin', 0x4000), ('wildlo.bin', 0x1000),
                           ('wildpg.bin', 0x0200),
                           ('wildtxt.bin', 0x0A00), ('wildforest.bin', 0x0926)):
-        assert region(trunk, 0, address, len((HERE / 'build' / name).read_bytes())) == \
-            (HERE / 'build' / name).read_bytes(), name
+        linked = edition_image(name, True).read_bytes()      # (DISK: XL's, docs/MENUS.md 9)
+        assert region(trunk, 0, address, len(linked)) == linked, name
     banks = {'aux': 1, 'lc2': 2, 'lc1': 3, 'mlc2': 0x22}
     # Lot 7 step 5: the star drawing code runs in place in the main card.
     code = layout['star_code']
@@ -146,9 +185,24 @@ def volume_check():
     rows = layout['dhgr_rows']
     assert rows['address'] == 0xD400 and region(trunk, banks[rows['bank']], rows['address'], rows['length']) == \
         (HERE / 'build/wilddrows.bin').read_bytes()
-    assert all(not (bank == 0x22 and a < 0xD400) for bank, a in trunk), \
-        'records write the ProDOS QUIT code of the main card'
+    # Docs/MEMORY.md 14: the LZ decoder runs in place at $D001-$D0FF; nothing
+    # touches $D000 (ProDOS's bank signature). Docs/MEMORY.md 15: the QUIT
+    # code area $D100-$D3FF receives the bank 2 code of the view, nothing else.
+    decoder = layout['lz_decoder']
+    assert (decoder['bank'], decoder['address']) == ('mlc2', 0xD001) and decoder['length'] <= 0xFF
+    assert region(trunk, banks['mlc2'], 0xD001, decoder['length']) == \
+        (HERE / 'build/wildlzlc.bin').read_bytes()
+    assert all(not (bank == 0x22 and a == 0xD000) for bank, a in trunk), \
+        'records write the ProDOS signature of the main card'
+    b2 = layout['bank2_code']
+    assert (b2['bank'], b2['address']) == ('mlc2', 0xD100) and b2['length'] <= 0x300
+    assert region(trunk, banks['mlc2'], 0xD100, b2['length']) == (HERE / 'build/wildb2.bin').read_bytes()
+    assert all(not (bank == 0x22 and 0xD100 + b2['length'] <= a < 0xD400) for bank, a in trunk), \
+        'records write the main card past the bank 2 code'
+    assert layout['exit_state']['length'] == lbl['EX_STATE'] + 0x300, 'the exit state keeps the QUIT code'
     for index, module in layout['trunk_modules'].items():
+        if module['bank'] == 'disk':
+            continue                # NEOWILD.BLK (checked above)
         expected = build_disk.stored_bytes(HERE / 'build', module)
         actual = region(trunk, banks[module['bank']], module['address'], module['stored'])
         assert actual == expected, (index, module['image'])
@@ -181,8 +235,21 @@ def volume_check():
                 continue
             if index in (build_disk.TB_FETCH, build_disk.ZP_ENTRY):
                 continue                    # text_fetch's scratch entry, ProDOS's zero page
+            if index == build_disk.EXIT_ENTRY:  # the exit state (docs/MEMORY.md 15): written
+                exit_state = layout['exit_state']   # by the loader, never by a record
+                assert (bank, source, length, window) == (0, exit_state['address'], exit_state['length'],
+                                                          build_disk.EXIT_BUF), (r, 'exit state')
+                assert not any(b == 1 and source <= a < source + length for (b, a) in memory), \
+                    (r, 'a record writes the exit state')
+                spans.append((bank, source, source + length))
+                continue
             module = (info['modules'].get(str(index)) or info['empty_slots'].get(str(index))
                       or layout['trunk_modules'][str(index)])
+            if module['bank'] == 'disk':    # BANK_DISK: first block, raw length, window
+                assert (bank, source, length, window) == \
+                    (build_disk.BANK_DISK, module['block'], module.get('fetch', module['length']),
+                     build_disk.MODULES[int(index)][1]), (r, index)
+                continue
             assert (source, length) == (module['address'], module.get('stored', module['length'])), (r, index)
             if index != 18:
                 spans.append((bank, source, source + length))

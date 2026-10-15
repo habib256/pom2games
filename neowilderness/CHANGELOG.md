@@ -7,6 +7,853 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Pages du haut restructurées, post-its sur NeoWildernessXL
+
+Demandes de l'utilisateur du 15 octobre 2026. **Les deux éditions** : les
+onglets deviennent STATUS | OBJECTS | CRAFT | HELP | OPTIONS | MENU. La
+page MEDICAL disparaît : STATUS montre en bas (rangées 15-20) les treize
+affections et le mal d'altitude en trois colonnes (pourcentage, marque de
+soin, légende) et porte le focus des soins (bas sur une affection active,
+gestes en rangée 23, RETURN les tape ; CARE de la grille y ouvre) ; M ouvre
+STATUS. INVENTORY s'appelle OBJECTS (onglet, lettre O en plus de I) et
+reçoit CARRYING (vivres et eau emportés, ici, à portée ; 33 objets par
+page). RANGERS (distance, direction, JOURNEY DONE et sa jauge) passe dans
+MENU. HERE et la ligne d'état deviennent LOCAL (date, heure, air,
+ressenti, ciel, vent, altitude, sol, situation). Les commandes tapées ne
+changent pas. **XL seul** : chaque bloc de chaque page est un post-it
+(titre en inverse sur le coin, trait `_`, barres, trait du bas), dessiné
+par la sortie elle-même à partir d'une table par page (une routine
+partagée, `src/mt_pages.s`), différentiel ; MENU et OPTIONS un post-it par
+ligne, HELP un par bloc, CRAFT un par groupe et un pour la recette, le
+détail du score de fin en post-it. Les lettres des onglets ne touchent
+plus le bord de l'écran (le `H` de `S/M/I/R/H` y était coupé). STATUS de XL
+est lu de NEOWILD.BLK (≈ 0,13 s au lieu de ≈ 0,39 s de décodage LZ) ; les
+cadres coûtent ≈ 0,11 s par tracé de page. Place : 140 Ko, NEOWILD.DAT
+70 587 → 70 561 octets (95 avant un bloc de plus), STATUS 6 384 → 6 306 ;
+XL, place du tronc 241 → 6 114, 372 blocs ; aucun octet résident de plus
+([MEMORY.md](docs/MEMORY.md) § 29, [MENUS.md](docs/MENUS.md) § 5, § 9).
+
+### Rotation avec un animal : la vue défile, l'animal redessiné seul
+
+Décision de l'utilisateur du 15 octobre 2026 : optimiser la rotation. Avec
+un animal sur la case, une flèche ou LOOK R / L redessinait toute la vue
+pour garder l'animal centré. Désormais, avant de le dessiner, OUTDOOR
+(`module_animal_bg`, `ab_copy`) garde le fond sous ses colonnes (rangées
+16 à 175, deux banques) dans la carte langage auxiliaire, banque 1
+(`$D000`, zone de l'instantané de TOPO, cartes héritées) ; la rotation
+(`turn_view` → `animal_unpan`) le remet, refait la scène du site
+(`module_project`), fait défiler la vue et ne dessine que les colonnes
+neuves puis l'animal (`animal_view`), sur ses seules colonnes. Pixels
+identiques au redessin complet (`tools/dhgr_ref.py`). TOPO prend la zone :
+la rotation suivante redessine ; une carte native (atlas) redessine
+toujours. Mesures, XL, l'ours (flèche droite / gauche, LOOK R / L) :
+4,55 / 4,16 / 4,95 / 4,20 → **2,38 / 1,99 / 3,35 / 2,59 millions de
+cycles** (sans animal 1,25 / 0,85 / 2,33 / 1,57) ; 52 rotations de
+`test_pan` : 4,17 → 2,37 millions en moyenne (−43 %), +86 % sur la même
+rotation sans animal (cible de +10 % non atteinte : voir
+[MEMORY.md](docs/MEMORY.md) § 28.4). Feu sur la case et nuit : mêmes
+coûts. Correctif au passage : `animal_fire` laissait `proj_width` à 28.
+Place : PROJECT +35 octets (calcul compacté de `project_offset`),
+OUTDOOR +107, résident +21 (WILDGAME 2 libres, WILDERNESS 2, WILDLO 0) ;
+le module de la grille (32) est compressé LZ dans le stock des six paquets
+(XL, disques de comparaison) : place du tronc XL 150 → 241, environ 0,1 s
+de plus par choix dans la grille ; 140 Ko : NEOWILD.DAT 70 587 octets
+(69 avant un bloc de plus), 280 / 280 blocs, cinq parties. Tests :
+`test_animal_view.py` (chemin pris et pixels à chaque rotation : site,
+feu des deux côtés, DOUSE, TOPO, nuit, coucher, crocodile découpé et à
+gauche négative, carte native), `test_pan.py` (`scene_drawn` = `$83`,
+−40 % au moins sur le redessin forcé).
+
+### XL : ALTCHARSET au départ ; flèche haut pour TOPO dans les pieds de page
+
+Rapport de l'utilisateur du 15 octobre 2026 : au démarrage, la flèche haut
+menait au STATUS sans les caractères MouseText. Le chargeur levait
+ALTCHARSET avant SETVID, INIT et HOME du Moniteur ; le SETVID du IIc
+(`$FE93`, qui tombe sur un `STA $C00E`) le baisse : STATUS et la grille
+montraient des lettres jusqu'à la page CRAFT. `start` (`src/boot.s`) le
+lève de nouveau sur XL après tous les appels au Moniteur (140 Ko : jeu
+primaire, comme avant). Non reproductible sur le IIe amélioré de l'émulateur
+des tests : `tests/test_altcharset.py` joue le SETVID du IIc par une
+écriture en `$C00E` au menu de départ, puis vérifie `$C01E` et les codes
+MouseText de STATUS au départ, après SAVE / RESTORE, après QUIT et un
+nouveau voyage, après le palmarès ; 140 Ko : jeu primaire, aucun code
+MouseText. Captures a2shot relues : STATUS, MEDICAL, INVENTORY, CRAFT,
+HELP, OPTIONS, MENU, grille, rideau (sablier), invite de QUIT, score.
+Pieds de page de XL : `↑ TOPO` (MouseText `$4B`) au lieu de `T TOPO`
+(STATUS, MEDICAL, HELP, INVENTORY ; T marche toujours) ; 140 Ko garde
+`T TOPO` (« UP: TOPO » aurait grandi son image) ([MENUS.md](docs/MENUS.md)
+§ 9.2).
+
+### L'animal présent toujours visible, sauf dans les abris
+
+Règle de l'utilisateur du 15 octobre 2026 : « quand un animal est là, on
+doit voir son sprite sauf dans nos abris » ; sa présence guide les choix
+du joueur. Les deux éditions ([LOOK_UPDOWN.md](docs/LOOK_UPDOWN.md) § 4).
+L'animal de la case n'est plus l'unique sprite de la scène : PROJECT
+(`module_animal`) le dessine **après la vue**, par-dessus tout, comme le
+second emplacement de l'original (`$0D80`) :
+
+- **site et animal sur la même case** : les deux, le site d'abord (l'épave
+  de la case de départ, l'abri, le poste, les abris fabriqués), l'animal
+  devant ;
+- **face au joueur** quel que soit le cap : centré après LOOK R, L, BACK,
+  N et les flèches (plus de relèvement d'arrivée : `animal_bearing`
+  supprimé) ; une rotation fait défiler la vue (voir ci-dessous) ;
+- **feu de camp** sur la case : jamais de chevauchement ; feu à gauche du
+  centre (allumé face au cap compris) : l'animal à sa droite, découpé au
+  bord droit (le crocodile garde 56 de ses 72 colonnes) ; feu à droite :
+  l'animal à sa gauche ([CAMP.md](docs/CAMP.md) § 8) ;
+- **sans lumière** (nuit sans pleine Lune, « NOT ENOUGH LIGHT. » toujours ;
+  coucher et crépuscule civil en silhouette ; crépuscule nautique et nuit
+  lunaire faible) : une silhouette de nuit, bleu foncé et gris (au coucher
+  et au crépuscule civil aussi : choix confirmé par l'utilisateur) ;
+- **ENTER SHELTER** garde l'animal (D4 : risque × 0,1, ATTACK et SCARE
+  permis ; [CRAFT.md](docs/CRAFT.md) § 3.4) ; aucune vue dans un abri ;
+  EXIT le montre devant l'abri ;
+- carte générée : la fiche s'efface au premier pas hors de la case
+  (`fauna_age`, vérifié, sans code) ; carte native : s'éloigner reste la
+  réaction de l'animal ;
+- **écarts voulus** ([ORIGINAL_GAP.md](docs/ORIGINAL_GAP.md) D6) : le
+  crotale et les animaux au sol se voient à niveau ; LOOK UP reste sans
+  sprite (fidèle), la seule vue sans l'animal hors abris et pages.
+
+Références étendues au pixel près : `tests/scene_ref.py`
+(`animal_geometry`), `tools/dhgr_ref.py`, `tools/dhgr_palette.py`
+(`Lighting.animal`) ; nouveau `tests/test_animal_view.py` (site et animal,
+chaque direction, LOOK DOWN et UP, feu et MAKE FIRE, crocodile, nuit,
+coucher, crépuscules, ENTER/EXIT, départ sur carte générée et native) ;
+`test_sprites`, `test_pan`, `test_menu`, `test_fauna_steps`,
+`test_moonlight`, `test_journey_resident` suivent ;
+`test_reference_state.py` rebasé (comptabilité de scène et flottants de
+projection comparés sans animal sur la case). Captures :
+`build/animal_site.png`, `animal_look_back.png`, `animal_fire.png`,
+`animal_night.png`. Coût : PROJECT +180 octets ; résident −11 (WILDGAME 23
+libres) ; SIM −12 ; le paquet de la Sierra n'écrit plus ses couleurs ni
+ses correctifs, identiques au tronc (−391 octets stockés) : 140 Ko,
+NEOWILD.DAT 70 365 octets (291 avant un bloc de plus), 280 / 280 blocs,
+cinq parties ; XL : 369 blocs, place du tronc 150. Temps : sans animal,
+moins de 0,1 % ; avec un animal, VIEW +12 % ([MEMORY.md](docs/MEMORY.md)
+§ 27).
+
+### TOPO centrée, flèche du nord à gauche ; haut sur les onglets ouvre TOPO
+
+Deux demandes de l'utilisateur du 15 octobre 2026, les deux éditions.
+La feuille TOPO de 112 pixels est centrée (x 14..125) : la marge gauche
+porte le N, la flèche du nord et l'échelle des distances (4 miles), la
+marge droite l'échelle des altitudes, sa barre réduite de 6 à 4 pixels
+pour garder traits et chiffres (10 tient jusqu'au dernier pixel). Couleurs,
+courbes, repères, légende, MAP par-dessus et instantané de la vue
+inchangés ; la référence `tools/topo_dhgr_ref.py` (`SHEET_X`) suit au
+pixel près ([TOPO_DHGR.md](docs/TOPO_DHGR.md) § 3). Dans les pages du haut,
+la flèche haut sur la rangée d'onglets ouvre TOPO (STATUS, MEDICAL,
+INVENTORY, CRAFT, HELP, OPTIONS, MENU ; [MENUS.md](docs/MENUS.md) § 5) :
+la navigation verticale fait le tour dans les deux sens. Coût : TOPOGEN
++10 octets (six blocs, `TOPOBSS` inchangé), STATUS +4, CRAFT +2 ; 140 Ko :
+NEOWILD.DAT +2 octets (24 avant un bloc de plus), toujours 280 blocs ; XL :
+stock et volume inchangés (369 blocs).
+
+### NeoWildernessXL : les pages en MouseText
+
+Plan approuvé par l'utilisateur le 15 octobre 2026, et décision du même
+jour : « le 140Ko n'a pas besoin de mousetext » ([MENUS.md](docs/MENUS.md)
+§ 9, [MEMORY.md](docs/MEMORY.md) § 26). Sur NeoWildernessXL seulement :
+`ALTCHARSET` levé pour toute la partie ; les pages du haut sous des onglets
+de dossier (la page montrée en inverse, ouverte sur la page) et au-dessus
+d'un pied de page uniforme (`←→ PAGE`, les touches de la page en glyphes,
+`ESC VIEW`) ; STATUS en boîtes (CONDITION avec ses jauges en blocs et
+damiers et leurs pourcentages, CONDITIONS, CARRYING, RANGERS, HERE) et une
+ligne d'état (date, heure, ciel, vent, air, ressenti) ; MEDICAL,
+INVENTORY, OPTIONS et MENU en boîtes, l'état des affections avec les
+glyphes de CRAFT ; la page CRAFT une rangée plus bas (sa barre ne
+traverse plus la rangée des onglets) ; les cases de la grille séparées
+par des barres ; un sablier sur le rideau des actions longues ; l'écran du
+score en fenêtre (double trait de titre, trait du total, tableau des cinq
+meilleurs encadré). Mécanisme : queues d'images et octets propres à XL,
+écrits par `build_disk.py` sur des copies des images (`src/mousetext.inc`,
+`src/mt_pages.s`) ; aucun octet résident de plus. L'image de 140 Ko est
+inchangée hormis les 19 octets de la flèche bas ci-dessous. XL : 369 blocs
+(+4), 315 octets de place de tronc dans le stock.
+
+### Neowilderness : bas sur TOPO ou MAP ouvre les pages du haut
+
+Demande du 15 octobre 2026 : la flèche bas ferme TOPO ou MAP comme la
+flèche haut, puis ouvre STATUS ; la navigation verticale fait le tour
+(pages du haut, vue, grille, cartes). Les deux éditions : +19 octets dans
+SITES ; NEOWILD.DAT de 140 Ko à 26 octets d'un bloc de plus.
+
+### Neowilderness : la page CRAFT lisible
+
+Maquette approuvée par l'utilisateur le 15 octobre 2026 ([CRAFT.md](docs/CRAFT.md)
+§ 8.6, [MENUS.md](docs/MENUS.md) § 5, [MEMORY.md](docs/MEMORY.md) § 25) : à
+gauche les recettes en trois groupes (SHELTERS, WEAPONS AND TOOLS,
+PROTECTION), chacune avec son état en MouseText (coche : possible ; X
+inverse : il manque quelque chose ; losange : déjà fait) et le temps que
+MAKE passerait ici, calculé par la routine même de MAKE (`cr_minutes`) avec
+la lumière, la hache ou le couteau en usage et la santé du moment ; à
+droite la recette choisie : son effet, chaque contrôle de MAKE dans son
+ordre, le temps et ce dont il dépend, ce qui le ralentit ; la rangée 23
+dit ce que tape RETURN (`RETURN: MAKE HUT`). `ALTCHARSET` n'est levé que
+sur cette page. Le module CRAFT passe de 6 à 8 blocs de NEOWILD.BLK (MAKE
+en lit toujours 4) : l'édition de 140 Ko est pleine (280 blocs sur 280),
+XL 365 blocs. `tests/test_craft_page.py` : glyphes, une écriture par
+cellule changée, états contre le MAKE tapé en trois lieux, temps affiché =
+avance de l'horloge dans cinq conditions (17 fabrications).
+
+### Neowilderness : le feu remonté de trois rangées
+
+Demande du 15 octobre 2026 : le feu animé est dessiné aux rangées 125 à
+156 au lieu de 128 à 159 (`TOP` de `tools/genfire.py`, `FIRE_TOP`) ;
+`fm_setrow` calcule l'adresse de toute rangée (125 est dans un autre tiers
+HGR que 128). +18 octets dans le module, rien de résident
+([CAMP.md](docs/CAMP.md) § 8, **Hauteur**).
+
+### Neowilderness : le feu brûle jusqu'à DOUSE, comme l'original
+
+Décision du 15 octobre 2026, non commité ([CAMP.md](docs/CAMP.md) § 8 ;
+mémoire : [MEMORY.md](docs/MEMORY.md) § 24).
+
+- **Plus de durée de vie** : le feu brûle jusqu'à DOUSE FIRE (ou STOP
+  FIRE), au sec comme sous la pluie, comme dans l'original, où rien
+  d'autre ne l'éteint (nouvelle partie `LONG_FIRE` de
+  `tools/re_camp_probe.py` : cinq WAIT 4, de 7 h 30 à 22 h 30, pluie
+  posée avant les deux derniers, feu allumé après chacun). Retirés :
+  `FIRE_LIFE` (180 minutes, deux fois plus vite sous la pluie),
+  `fire_life` (GDATA, sauvé), `fire_clock`, le message « YOUR FIRE HAS
+  BURNED OUT. » et les stades petites flammes et braises. Le reste du feu
+  animé ne change pas (images, place, case, WALK refusé par msg 132).
+- **Alimenter le feu** : décidé, aucune commande (il n'y a rien à
+  entretenir) ; la décision en attente de TODO.md est close (CRAFT.md
+  § 8.6).
+- **Octets rendus** : WILDGAME 6 → 12 libres, SIM 74 → 144 sous `$B500`,
+  ALERT −28, module FIRE 1 993 → 1 683 octets (toujours 4 blocs) ; tronc
+  +101 (XL) / +102 (140 Ko) ; NEOWILD.DAT de 140 Ko 140 → 139 blocs,
+  volume **279 → 278 blocs sur 280**. État sauvé 1 701 → 1 700 octets : une
+  partie sauvée avant est refusée comme toute autre construction.
+- **Tests** : `tests/test_fire.py` rejoue `LONG_FIRE` (ciel tenu sec puis
+  pluvieux, comparé à `build/re_camp/results.json`), vérifie l'absence de
+  message, WALK refusé, la même image à la même cadence des heures plus
+  tard, SAVE/RESTORE, puis DOUSE.
+
+### Neowilderness : page CRAFT, second jeu dans la grille (lot 3, étape 2)
+
+Le « livre de recettes » et le reste de la grille ; le lot 3 est fait
+([CRAFT.md](docs/CRAFT.md) § 8.6 ; mémoire : [MEMORY.md](docs/MEMORY.md)
+§ 23). 15 octobre 2026, non commité.
+
+- **Page CRAFT**, entre INVENTORY et HELP dans le cycle des pages du haut
+  (onglet `CRAFT`, lettre R ; `S/M/I/R/H, LEFT/RIGHT`) : les dix MAKE de
+  l'original que le port exécute (HUT, IGLOO, TRENCH, CLUB, SPEAR, BOW,
+  AXE, SPLINT, SUNGLASSES, SUNSCREEN), chacun avec les ingrédients que
+  CRAFT contrôle (terre ferme, ni épave ni poste, forêt, neige, corde ou
+  nécessaire de pêche, sol dégagé ; le raccourci de l'attelle), présents en
+  capitales, manquants en minuscules ; une recette impossible ici, ou déjà
+  faite (« (YOU HAVE ONE) »), est grisée. Même focus que les pages à
+  curseur : onglets, puis haut/bas de recette en recette ; RETURN tape
+  `MAKE x` (chemin du clavier : temps, effort, messages), bip sur une
+  recette grisée. Ni grille 3 × 3 ni recette inventée ; les recettes
+  d'A3 (lot 5) n'y sont pas ; alimenter le feu n'est pas une commande de
+  l'original (rien d'ajouté, TODO.md).
+- **Mémoire de la page** : la queue du module CRAFT (957 octets,
+  NEOWILD.BLK 4 → 6 blocs) ; aucun octet résident : STATUS dessine les
+  onglets puis lit CRAFT, dont le RTS de `sim_fetch` entre dans la page ;
+  l'entrée 9 du répertoire garde la longueur des recettes seules, MAKE lit
+  toujours 4 blocs. Onglets sans espace de séparation (sept pages).
+- **Grille** : GET (`GET x`, en main comme l'original), DROP et USE
+  proposent l'arc, la lance, le gourdin, la pierre et l'attelle ; la file
+  de KILL prend `USE BOW` ou `USE SPEAR` avant la hache, et rien quand une
+  arme fabriquée (ou la pierre) est en usage. Sur une case de terre, la
+  pierre rend GET et USE actifs.
+- **Panneau** : `ITEMS: INV` pour l'arc, la lance, l'attelle, le gourdin
+  au sol ici (pas la pierre).
+- **ATTACK sans arme en usage** : la hache ou le couteau accessibles
+  suffisent toujours, écart voulu (décision du 15 octobre 2026, CRAFT.md
+  § 8.2).
+- **Mémoire.** MENUSWAP 9 → 0 (`append_space` passe dans GRID), MENUCODE
+  15 → 4 (`mn_idx` 32 → 27), fenêtre SUMMARY 25 → 1 (alertes en
+  décalages) ; GRID 2 456 → 2 676, STATUS + 36 ; place du tronc 1 277 → 990
+  (XL), 1 187 → 900 (140 Ko) ; volumes XL 361 → 363 blocs, 140 Ko
+  277 → 279 sur 280.
+- **Tests.** `tests/test_craft_page.py` (les deux éditions : la page, le
+  verdict de chaque recette contre le MAKE tapé, RETURN = clavier, la
+  grille = clavier, l'indice ITEMS) ; `test_focus.py`,
+  `test_interface.py`, `test_screen_returns.py` (rangée d'onglets, lecture
+  de CRAFT), `test_menu_bar.py` (USE grisé sans pierre), `test_boot.py`,
+  `test_pack_boot.py`, `test_transfers.py` (longueur `fetch` de l'entrée 9
+  dans `layout.json`).
+
+### Neowilderness : fabrication, reste de l'étape 1 (lot 3)
+
+Les quatre restes de l'étape 1, fidèles à la ROM ([CRAFT.md](docs/CRAFT.md)
+§ 3.3, § 4.1, § 8.5 ; mémoire : [MEMORY.md](docs/MEMORY.md) § 22).
+15 octobre 2026, non commité.
+
+- **Sonde.** `tools/re_craft_probe.py` partie 3 : la transaction T0E/S02 du
+  second jeu dans la vraie partie (41 commandes : GET, PACK, CARRY, DROP,
+  REMOVE, WEAR, USE, MAKE de la pierre de l'épave, d'un arc, d'une lance,
+  d'un gourdin, d'une attelle ; une marche, LOOK BACK et le retour). Lus
+  aussi à la ROM : la pierre posée à chaque arrivée sur une case de terre
+  (T0D/S00 `$585F`), perdue au départ (T0C/S0B), la découverte des objets
+  laissés (T0A/S00 `$5BD0`), les poids du second jeu, GET AXE en main.
+- **GET, PACK, CARRY, DROP, REMOVE, WEAR** de l'arc, de la lance, du
+  gourdin, de la pierre et de l'attelle (ITEMS lit CRAFT) : GET et CARRY en
+  main, PACK dans le sac, DROP au sol de la case, WEAR l'attelle (sélecteur
+  de soins 3, effacé quand elle quitte le corps) ; « YOU ALREADY HAVE. »,
+  « SORRY, THAT ITEM IS NOT AVAILABLE. » comme l'original.
+- **ROCK.** Une pierre au sol de l'épave, puis de toute case de terre tant
+  que le joueur n'en porte pas : MAKE ROCK (msg 11 ou 21), USE ROCK (en
+  main, en usage), GET ROCK ; moyen 17 de KILL et d'ATTACK avec le gourdin.
+- **Une case par objet laissé au sol.** L'arc, la lance et l'attelle
+  restent sur leur case et s'y retrouvent ; le gourdin est perdu en
+  partant ; la case commune `cr_gx/cr_gy` disparaît. SAVE/RESTORE les
+  garde (`craft_cells` dans `sv_ranges`).
+- **Armes contre les animaux** (avancé du lot 11) : ATTACK prend le premier
+  moyen en usage de l'original (fusil, arc, lance, hache ou couteau en
+  usage, gourdin ou pierre), l'efface, et tire avec les seuils de la fiche
+  de ce moyen ; les paquets de région les écrivent (`fauna_reactions`
+  44 → 76 octets). Sans moyen en usage, la hache ou le couteau accessibles
+  comme avant. Les cas de carcasse au fusil de `test_forage.py` prennent
+  désormais le moyen 21.
+- **Igloo des dangers.** HAZARDS prend 35 °F dans l'igloo comme THERMAL ;
+  la place vient d'un doublon de table du module MEDICAL (`hz_since_lo/hi`
+  = `injury_since_lo/hi`, 30 octets rendus).
+- **EXIT SHELTER** sort toujours de tout abri : écart voulu (décision du
+  15 octobre 2026, CRAFT.md § 8.2).
+- **Mémoire.** LOWPAGE 2 → 1, WILDLO 4 → 2 (crochet de `forage_here`),
+  WILDERNESS 18 → 12 (`craft_cells`), fenêtre MEDICAL 1 → 25 ; CRAFT
+  1 653 → 1 855 octets (4 blocs) ; volumes XL 360 → 361 blocs, 140 Ko
+  276 → 277 sur 280 (NEOWILD.DAT prend le bloc annoncé) ; place du tronc
+  1 469 → 1 277 (XL), 1 379 → 1 187 (140 Ko).
+- **Tests.** `tests/test_craft.py` : parties 1 à 3 contre la ROM (USE ROCK
+  rétabli, MAKE ROCK, la transaction commande par commande), partie 4 :
+  vraie marche, SAVE/RESTORE, ATTACK BEAR avec chaque moyen ;
+  `tests/test_exposure.py` `shelters` ; `test_forage.py`,
+  `test_interface.py` (la pierre au sol), `test_animal_reactions.py`.
+
+### Neowilderness : sprites des abris fabriqués (lot 3, étape 3)
+
+Les abris de MAKE et la tente se voient dans le paysage de NeoWildernessXL
+([CRAFT.md](docs/CRAFT.md) § 8.4, mémoire : [MEMORY.md](docs/MEMORY.md)
+§ 21). 15 octobre 2026, non commité.
+
+- **Tente, hutte, igloo, tranchée.** Les quatre sprites de l'original
+  (`tent`, `cabin` : la hutte de MAKE HUT, `igloo`, `trench`) deviennent des
+  sprites de site, comme le rondin, le rocher et le poste : vue locale sur
+  leur case, panneau jusqu'à 8 cases. La hutte, l'igloo et la tranchée sur
+  la case où ils ont été faits, la tente là où elle est posée (USE TENT,
+  DROP TENT), jamais à l'épave. Sur une même case, l'ordre de l'original
+  (SURV3D T0D/SE `$5F4C`) : épave, poste, igloo, hutte, tente, abri naturel,
+  tranchée. Couleurs fixes : tente orange, hutte brune au chaume vert,
+  igloo blanc aux joints bleu clair, tranchée verte et brune.
+- **Vue à jour.** MAKE d'un abri, USE TENT, DROP et GET oublient le cache
+  de la scène : la vue qui suit montre l'abri ou la tente.
+- **Sur le disque, XL seul.** 8 blocs de NEOWILD.BLK (2 + 3 + 2 + 1), lus
+  dans la fenêtre SIM une fois par apparition, comme les autres sites ;
+  NeoWildernessXL 352 → 360 blocs sur 1 600. PROJECT 1 667 → 1 787 octets
+  sur XL, tout dans une queue que l'édition de 140 Ko n'a pas (sept
+  candidats, ordre local, borne entière qui épargne le calcul flottant
+  d'un abri plus loin que le meilleur panneau : la partie commune garde sa
+  taille, son code resserré) ; rien de résident.
+- **Édition de 140 Ko inchangée** (décision du 15 octobre 2026) : pas de
+  sprite d'abri fabriqué, la vue ne les montre pas, comme avant ; 276 blocs
+  sur 280, PROJECT identique (coupé à `project_tail`), place du tronc
+  1 389 → 1 379 (ITEMS +8 octets).
+- **Coût de vue** (XL, cycles émulés de VIEW) : sans abri à moins de
+  8 cases, ou plus loin que le site le plus proche, + 0,01 % ; un abri
+  choisi coûte la projection d'un site, comme l'épave ou le rondin.
+- **Référence et tests.** `tests/scene_ref.py` (`built_shelters`, `select`)
+  et `tools/dhgr_ref.py` dessinent les abris ; `tests/test_sites.py`
+  `built_shelter_sprites` compare au pixel chaque abri local et en panneau,
+  l'ordre local, la tente de l'épave, les lectures, MAKE TRENCH, DROP et
+  GET TENT, et l'édition de 140 Ko.
+
+### Neowilderness : fabrication, les recettes de MAKE (lot 3, étape 1)
+
+Les MAKE de l'original sondés sur la ROM et portés (fiches A1, A2 et D4
+d'[ORIGINAL_GAP.md](docs/ORIGINAL_GAP.md) ; spécification
+[CRAFT.md](docs/CRAFT.md) ; mémoire [MEMORY.md](docs/MEMORY.md) § 20).
+15 octobre 2026, non commité.
+
+- **Sonde.** `tools/re_craft_probe.py` exécute sur la ROM T10/S00, T10/S05
+  et T11/S00 seuls (176 cas, le pilote de `re_forage_probe.py`) et
+  68 commandes de la vraie partie : conditions, formules de temps, effort,
+  messages, objets créés, pour toutes les recettes, celles du lot 5 (corde,
+  radeau, gourde, ustensiles, hameçons, raquettes, piège, pacotilles,
+  vêtements de peau) comprises. Résultats : `build/re_craft/results.json`
+  (local), chiffres dans CRAFT.md. Les sondes 4 et 5 d'ORIGINAL_GAP.md
+  sont faites : le « d » des abris est la lumière `$0D5D` ; `$D8`/`$D9` =
+  `$7F` marquent la case du poste et de l'épave (« THINK! »).
+- **Abris.** MAKE HUT (forêt), IGLOO (neige), TRENCH : 4 000 k /
+  ((lumière + 2)(hache en usage + 2) × santé) minutes (84, 169, 254 de jour
+  au départ), effort 0,023, refus « YOU'RE IN THE WATER ALREADY! » et
+  « THINK! » ; chaque abri reste sur sa case ; USE, ENTER, EXIT avec les
+  messages mesurés (9, 10, 11, 1) ; USE TENT (30 minutes, la tente posée) ;
+  dedans, air + 15 °F, l'igloo 35 °F.
+- **Armes et outils.** MAKE CLUB (60 / √santé), SPEAR, AXE (600 /
+  (√santé (3 couteau + 1))), BOW (× 4 / (lumière + 1)) en forêt, corde ou
+  matériel de pêche hors Birmanie, Nouvelle-Guinée et Bolivie ; USE BOW,
+  SPEAR, CLUB : en main et en usage. KILL GAME et KILL FISH prennent l'arc
+  (p = 0,2), la lance (0,1) et le gourdin (jamais) dans l'ordre de
+  l'original ; le temps efface leur usage. Les cinq cas des moyens 20, 19,
+  17 de `results.json` reviennent dans `test_forage.py`.
+- **Attelle, visière, boue.** MAKE SPLINT (300 / (√santé (lumière + 1)
+  (couteau + 1)), raccourci par la hache, la lance, l'épave ou le poste),
+  MAKE SUNGLASSES (« GOOD! YOU MADE EYE SHADES FROM SLITTED BARK. ») et
+  SUNSCREEN (« SMEARING MUD… »), 30 minutes.
+- **Toutes les autres MAKE** répondent comme le cœur de l'original
+  (msg 2, 11, 17, 21, 35, 65, 101) ; seuls ceux du lot 5 (vêtements de
+  peau, T10/S05) et de la famille 17 (TREE, BAIT, SHADOW) disent encore
+  « NOT IN THIS VERSION YET. ».
+- **Protection d'abri (D4).** Dans un abri, trouvé ou fabriqué, le risque
+  de blessure d'un animal est multiplié par 0,1, ATTACK et SCARE restent
+  possibles (avant : protection totale) ; `test_animal_reactions.py` suit.
+  Décision du 15 octobre 2026 : comme l'original, l'abri naturel compris.
+- **INVENTORY** montre l'arc, la lance, le gourdin, l'attelle et les abris
+  de la case.
+- **Mémoire.** Module CRAFT (1 645 octets) sur NEOWILD.BLK, 4 blocs, les
+  deux éditions, sur l'entrée de répertoire 9 de l'ancienne hutte ; porte
+  dans CAMP ; état de 11 octets en LOWPAGE (sauvé) ; rien d'autre de
+  résident. Place du tronc XL 1 859 → 1 599, 140 Ko 1 778 → 1 389 ;
+  volume 140 Ko 276 blocs sur 280. Lecture de CRAFT : ≈ 0,03 s sur XL,
+  ≈ 0,3 s sur Disk II.
+- **Tests.** `tests/test_craft.py` (107 cas de la ROM, 33 commandes de la
+  vraie partie, inventaire, KILL à l'arc, édition 140 Ko) ; `--original`
+  et la sonde dans `make test-original`. Écarts restants : CRAFT.md § 8.2
+  (TODO.md, lot 3).
+
+### Neowilderness : panneau au-dessus de la vue
+
+- **Site dominant l'œil enfin dessiné** (15 octobre 2026, non commité).
+  Un panneau (épave, rondin, rocher, poste) dont la case domine l'œil de
+  plus de 5,3 niveaux par case de distance (rocher au niveau 97 vu à
+  3 cases d'un œil au niveau 12) laissait la rangée 0 noire là où
+  `dhgr_ref` montre sa rangée du bas. Cause : `project_ground`
+  (`src/project.s`) rejetait le site quand `3·q/16` dépassait 255, comme
+  un site trop bas, au lieu de l'ancrer à la rangée 0 ; le découpage de
+  `sprite_column` était juste. Correctif : ancre 0 pour `dz ≥ 0`, rejet
+  gardé en dessous (PROJECT +5 octets, rien de résident, coût de vue
+  inchangé). `test_sites.generated_shelter` rend le cas à son sol bas :
+  rocher (profondeurs 2 à 4), rondin, épave et poste coupés à la rangée 0,
+  rocher coupé aux bords gauche, droit et bas, exacts au pixel.
+
+### Neowilderness : sprites de site (rondin, rocher, poste des rangers)
+
+Trois sprites de l'original rejoignent la vue (lot 6,
+[IMPLEMENTATION.md](docs/IMPLEMENTATION.md) « Sprites de site », mémoire :
+[MEMORY.md](docs/MEMORY.md) § 19). 15 octobre 2026, non commité.
+
+- **Rondin ou rocher.** Sur carte native, l'abri naturel trouvé n'est plus
+  la hutte : un rondin sur sol bas, un rocher sur sol rocheux (niveau 96
+  et plus, le ROCKY de STATUS ; règle de l'original SURV3D `$1CAA`, seuil
+  `$60A3`), choisi à la découverte et gardé dans `MAP+16` (1 ou 2, sauvé
+  avec la partie). Vu sur sa case et en panneau. La cabane fixe des cartes
+  générées suit la même règle (l'original n'a pas de cabane fixe, sa
+  hutte n'est qu'un abri fabriqué) : `tools/mkmap.py` écrit 1 ou 2 selon
+  le niveau de sa case, sans code de plus dans le jeu ; les cartes livrées
+  ont toutes un rondin. Le repère `H` de TOPO, ENTER/EXIT SHELTER et leurs
+  règles ne changent pas. La hutte (`cabin.bin`) quitte le stock : 704
+  octets libérés sur chaque édition, elle reviendra avec MAKE HUT (lot 3).
+- **Poste des rangers.** Enfin dessiné : panneau jusqu'à 8 cases dans les
+  huit directions, comme l'épave et la cabane, et vue locale sur la case du
+  but, la dernière vue avant l'écran de fin.
+- **Sur le disque, lus à la demande.** Les trois sprites sont sur
+  NEOWILD.BLK (11 blocs, les deux éditions) et se lisent dans la fenêtre
+  SIM quand une vue les montre, une fois par apparition : rien n'est relu
+  d'une vue ou d'un tour à l'autre tant qu'ils y restent, ni au retour
+  d'un écran. Lecture du poste : 0,04 s sur XL, 1,25 s sur le Disk II
+  (rondin, rocher : 3 blocs au lieu de 5).
+- **Couleurs** fixes, les mêmes dans toutes les régions : rondin orange,
+  brun et jaune ; rocher gris et mousse ; poste blanc au toit brun et à la
+  porte verte. Le moteur de référence (`tools/dhgr_ref.py`,
+  `tests/scene_ref.py`) les dessine de même ; tests : `test_projection.py`
+  (poste, 50 vues exactes et lectures comptées), `test_sites.py` (rondin
+  et rocher sur une carte native de contrôle, SAVE/RESTORE ; cabane fixe
+  d'une carte générée en rondin puis en rocher, et la règle de `mkmap`).
+- **Mémoire.** 28 octets résidents (relais `site_load`, couleurs), pris en
+  déplaçant trois relais de la simulation en TEXT ; PROJECT +289 octets ;
+  sans la hutte, place du tronc XL 1 463 → 1 859, 140 Ko 1 382 → 1 778 ;
+  disque 347 / 1 600 et 272 / 280 blocs.
+
+### Neowilderness : menu d'actions rationalisé
+
+La grille des rangées 20 à 23 se joue désormais aux flèches et à RETURN
+seuls, sans connaître les commandes de l'original
+([MENUS.md](docs/MENUS.md) § 4, mémoire : [MEMORY.md](docs/MEMORY.md) § 18).
+
+- **Onze verbes fixes.** WALK (SWIM dans la même case quand l'eau est là),
+  LOOK, REST, WAIT, EAT, DRINK, GET, WEAR, DROP, USE, MAKE gardent chacun
+  leur case ; celui qui ne peut rien ici est grisé (minuscules) et RETURN
+  ne fait que biper. Suivent les verbes du moment, par urgence : l'animal
+  (KILL, SCARE, IGNORE), DOUSE FIRE, CARE, COOK, BOIL, SKIN, CATCH, KILL
+  du gibier, CLIMB, HANG, LOWER, ENTER, EXIT. TAKE, ATTACK, TASTE et MAKE
+  STICKS quittent la grille (toujours tapables).
+- **Listes.** GET compose `PACK x` ou `CARRY x` selon l'objet et le sac ;
+  WEAR bascule (un vêtement porté, précédé de `-`, s'enlève par `PACK x`) ;
+  EAT montre les piles trouvées d'abord, puis TASTE et les onces (au plus
+  ce qu'il y a) ; DRINK saute la source unique et borne les onces à
+  min(eau ici, poids ÷ 5) ; KILL, SKIN, CATCH, COOK nomment leurs cibles ;
+  MAKE ne propose que ce qui peut se faire ici ; BOIL propose les onces et
+  tape `BOIL WATER n OZ`, que l'analyseur accepte désormais en ligne. Une
+  liste d'une seule entrée est sautée.
+- **File des prérequis (grille seule).** MAKE FIRE tape d'abord USE FUEL
+  (pluie, vent), USE MATCHES, puis USE FIRE sous 50 °F ressentis ; MAKE
+  WATER la bâche ; BOIL les ustensiles ; CATCH l'appât et le piège ou
+  l'attirail ; KILL la meilleure arme ; USE STOVE le combustible et les
+  allumettes ; la trousse dans le noir la lampe. Chaque étape est tapée
+  comme au clavier (temps, tirages, état), une étape déjà faite est
+  sautée, un échec ou une rencontre arrête la file. Les commandes tapées
+  gardent les refus de l'original.
+- **Soins.** CARE ouvre la page MEDICAL sur la première affection active ;
+  bas y passe d'une affection à l'autre, la rangée 23 montre ses gestes
+  (gauche/droite) et RETURN les tape. OPTIONS gagne la ligne F (IGNORE
+  FOOD / GET FOOD).
+- **Mémoire.** Ce que fait RETURN devient le module GRID (entrée 32,
+  2 456 octets, recopié en `$A300`) ; TOPOGEN est lu sur NEOWILD.BLK sur
+  les deux éditions, MEDVIEW aussi sur l'édition 140 Ko. Coût sur le
+  Disk II de l'édition 140 Ko : **+0,66 s** à l'ouverture de TOPO,
+  **+0,44 s** à la première page de soins ; sur XL, seule la lecture
+  de TOPOGEN s'ajoute (6 blocs, non mesurée à part). Place du tronc : 1 562 octets (XL), 1 475 (140 Ko) ; volumes
+  337/1 600 et 260/280 blocs.
+- **Tests.** `tests/test_grid_play.py` joue au joystick, sur les deux
+  éditions, un feu, de l'eau bouillie, une pile de champignons et un
+  saignement soigné ; `test_journey_resident.py` attend la lecture de
+  MEDVIEW au SUCK VENOM quand le disque l'a sur NEOWILD.BLK.
+
+### Neowilderness : messages collés, triangle des arbres, feu animé
+
+- **Messages collés.** Le « ! » nu de `message` est la raison d'arrêt du
+  voyage : « COUGAR IN YOUR AREA! » pendant un WAIT après une marche
+  arrêtée par la nuit affichait « COUGAR IN YOUR AREAIT IS TOO DARK… ».
+  Les « ! » littéraux de `cause_area`, `m_fauna_stop` et `ol_long_msg`
+  deviennent `'!'|$80` ; `test_feedback.py` (`no_glued_reason`) vérifie
+  les textes, dont ceux de FORAGE (`frg.s`, `forage.s`), et rejoue
+  l'arrivée de l'ours, du couguar et du serpent.
+- **Triangle des arbres.** Une couronne, une case : toutes les colonnes
+  d'une couronne prennent la case de son centre (base, profil, phase), les
+  côtés du triangle ne tombent plus à la base de la case voisine
+  ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md), « Arbres et forêts ») ; vue
+  +0,3 à +2 % de cycles ; `test_forest.py` (`coherent_crowns`).
+- **Feu animé.** Un feu de camp animé (28 × 32 pixels, quatre images,
+  ≈ 4,6 Hz, lueur la nuit) brûle au pied du joueur pendant l'attente de
+  l'invite, sur les deux éditions : le module (entrée 18, quatre blocs)
+  est lu sur NEOWILD.BLK à son apparition (1,2 s après l'invite sur XL,
+  2,4 s sur 140 Ko), après un clavier silencieux ; une touche pendant la
+  lecture la coupe entre deux blocs et la commande est lue entière. Le feu
+  est **ancré dans le monde** comme les autres sprites : MAKE FIRE note sa
+  case et son relèvement (le cap à l'allumage : il est devant le joueur
+  qui l'allume), et il se dessine à la colonne de ce relèvement par
+  rapport au cap, avec la projection de la cabane (`project_center`),
+  découpé aux bords de la vue, absent hors du champ : LOOK R ou L le
+  poussent à moitié hors de la vue, une flèche le déplace de 35 pixels,
+  LOOK BACK le met derrière. Il reste sur sa case : le joueur qui part
+  avec un animal ne l'emporte plus. Il **se consume** (écart du port :
+  l'original brûle jusqu'à DOUSE) : 180 minutes de jeu, deux fois plus
+  vite sous la pluie ou la neige, petites flammes la dernière heure,
+  braises les 20 dernières minutes, puis il s'éteint comme par DOUSE avec
+  « YOUR FIRE HAS BURNED OUT. » ; MAKE FIRE le rallume. Place, relèvement
+  et temps restant sont sauvés. [CAMP.md](docs/CAMP.md) § 8,
+  [MEMORY.md](docs/MEMORY.md) § 17, `tests/test_fire.py`.
+
+### Neowilderness : chasse, pêche, cueillette et repas (lot 4)
+
+Le second jeu d'objets de l'original entre dans le port, sur les deux
+éditions ([FORAGE.md](docs/FORAGE.md) § 17, mémoire :
+[MEMORY.md](docs/MEMORY.md) § 16). Le gibier et le poisson trouvés en
+chemin se prennent au piège ou à l'attirail de pêche (USE BAIT, USE TRAP,
+USE GEAR, CATCH GAME/FISH et une durée en heures), ou se tuent au fusil, à
+la hache ou au couteau (KILL, ATTACK, CUT) ; un ours, un couguar ou tout
+animal tué par ATTACK laisse sa carcasse (65 V² onces). Viande, poisson,
+insectes, fruits, cactus, champignons, plantes et noix découverts restent
+sur la case comme piles : PACK et DROP les déplacent entre sol et sac, TASTE
+en donne le goût, EAT les mange (calories, eau, intoxications, sel), COOK
+les cuit au feu ou au réchaud (péremption repoussée, détoxication), SKIN
+prend la peau. La péremption suit l'original : facteur du jour `$4C48` =
+792 / degrés-heures au-dessus de 32 °F, recalculé à minuit, horloge à
+chaque mise à jour de santé, piles du sol perdues en quittant la case,
+« THERE IS A BAD SMELL IN THE AIR. ». IGNORE FOOD, FLAG FOOD, GET FOOD.
+
+- Les commandes sont un module lu sur NEOWILD.BLK à chaque commande
+  (FORAGE, 5 822 octets, 12 blocs, fenêtre SIM : 0,1 s sur XL, 1,3 s sur le
+  Disk II émulé) ; l'état (221 octets) est sauvé par SAVE (parties de 5
+  blocs) ; les découvertes sont rangées dans ITEMS (où passe
+  `module_resource_results`), la carcasse dans OUTDOOR, l'horloge, les
+  messages et le facteur du jour dans ALERT. Sur l'édition de 140 Ko, TREE
+  et ORIENT sont lus sur NEOWILD.BLK pour faire de la place au stock.
+- Grille : CATCH et KILL avec du gibier ou du poisson présent, SKIN avec
+  une carcasse, COOK avec de la nourriture et un feu, TASTE avec de la
+  nourriture ([MENUS.md](docs/MENUS.md)) ; INVENTORY montre les piles et
+  `SPOIL` ; deux lignes de HELP.
+- Provisions selon l'original (étape 5) derrière `FORAGE_FIDELITY`
+  (laissé à 0 : `test_reference_state.py` inchangé).
+- `tests/test_forage.py --original` rejoue 119 cas de
+  `build/re_forage/results.json` (15 écartés avec leur raison : armes du
+  lot 3, faune du lot 11), les 30 commandes de la vraie partie et
+  l'horloge ; `test_editions.py` prend, cuit et mange du gibier sur les deux
+  éditions ; `test_save.py` restaure piles et compteurs. Écarts listés au
+  § 17.3 de FORAGE.md (seuils d'ATTACK de jour, poids des piles, cadence
+  de l'horloge).
+
+### Neowilderness : TODO.md réorganisé par lots de jeu
+
+- `TODO.md` suit désormais les lots d'ORIGINAL_GAP.md § 3 (tableau lot /
+  état / preuve / coût résident, stock par édition, disque), avec une ligne
+  « Prochain lot », la règle de sortie « fait → CHANGELOG le jour même » et
+  les « Terminé quand » comme tests d'acceptation ; trois sections hors
+  lots (interface, image, qualité) et une section « Décisions en attente »
+  (revue des verbes du 14 octobre). Seize entrées faites retirées (dont
+  SAVE/RESTORE, menu de démarrage simplifié, garde-fous de
+  `test_prodos.py`, réserves du § 12.8), trois obsolètes (politique disque
+  de 140 Ko, recopie de SIM écartée au § 12.6, « tout est encore non
+  commité ») ; liste en fin de fichier.
+
+### Neowilderness : niveaux de focus dans les pages (onglets, groupes, curseur)
+
+Dans les pages du haut, haut et bas déplacent désormais un focus entre des
+niveaux avant de quitter la page, gauche et droite agissent sur le niveau qui
+a le focus ([MENUS.md](docs/MENUS.md) § pages du haut). À l'arrivée le focus
+est sur la rangée d'onglets (gauche/droite changent de page, haut ne fait
+rien) ; STATUS, MEDICAL et HELP n'ont pas d'autre niveau, bas y revient à la
+vue comme avant.
+
+- INVENTORY : bas met le focus sur la rangée des groupes, gauche/droite
+  changent de groupe en boucle ; le groupe montré est en inverse quand sa
+  rangée a le focus, entre crochets sinon. Bas parcourt ensuite les pages du
+  groupe (`PAGE 2/2`) et revient à la vue après la dernière ; haut remonte.
+  1-5, N et B inchangés. Pied : `UP/DOWN: TABS/GROUPS/PAGES  1-5 GROUP  N
+  NEXT  B BACK  T TOPO`, `ESC: VIEW`.
+- OPTIONS et MENU : un curseur `>` en colonne 1 ; haut/bas le déplacent,
+  bas sous la dernière ligne revient à la vue, RETURN et espace valent la
+  lettre de la ligne. Pied : `UP/DOWN: CHOOSE  RETURN: SELECT`, `ESC: VIEW`.
+- Un seul octet d'état (`pg_focus`, remis à 0 à chaque arrivée) traité dans
+  `page_keys` (`pg_levels` : rien, les niveaux propres d'INVENTORY, ou le
+  nombre de lignes du curseur) ; chaque déplacement redessine la page en
+  différentiel, seules les cellules changées sont écrites.
+- Mémoire : le module STATUS passe de 5 435 à 5 563 octets (4 270 → 4 407
+  stockés en LZ). Le magasin auxiliaire de l'édition 140 Ko ne pouvait pas
+  tout prendre : `page_foot`, `pg_mark`/`pg_lines` et les deux pieds longs
+  sont résidents (segment CODE, WILDERNESS 659 → 475 octets libres).
+- Tests : `tests/test_focus.py` (nouveau : parcours onglets → groupes →
+  pages, curseurs OPTIONS/MENU, RETURN, Échap ; écritures = cellules
+  changées), `tests/test_transitions.py` (déplacements du focus
+  différentiels), `tests/test_interface.py` (crochets, pieds).
+
+### Neowilderness : RAM résidente libérée (lot de relocalisation)
+
+Deux études mesurées (couverture de douze parties ; banque 2 de la carte
+langage principale) ont guidé un lot de déplacements ; détail et comptes en
+[MEMORY.md](docs/MEMORY.md) § 15. RAM principale résidente libre : 1 486
+octets de plus (TEXT 149 → 216, WILDLO 7 → 412, WILDGAME 14 → 90,
+WILDERNESS 4 → 659, RESIDENT 3 → 129, MENUCODE 9 → 106 après la correction
+de la navigation, qui en prend 60).
+
+- Le démarrage n'est plus résident : `start`, les commutateurs de
+  `native_video` et la prise de /RAM (celle de `dev/lib/prodos/video.s`)
+  passent dans NEOWILD.SYSTEM ; la bibliothèque n'est plus liée au jeu.
+- La sortie vers ProDOS passe dans INPUT (`prodos_restore`, `prodos_quit`,
+  le FORMAT de /RAM) ; RESET garde un relais résident de 12 octets
+  (`reset_exit` : pile, copie directe d'INPUT, `module_reset_exit`). L'état
+  trouvé au démarrage (bitmap, vecteur RESET, unité /RAM) n'est plus en
+  RESBSS : le chargeur l'écrit à la prise de la mémoire dans l'entrée 2 du
+  répertoire (stock auxiliaire, sous la zone des sprites), que la sortie
+  recopie en `$2000`.
+- Les étoiles reprennent `st_inputs` et `st_tugap` dans leur module ; la
+  boîte de dialogue à deux touches de `orient_ask` passe dans ORIENT ;
+  `select` (RETURN dans la grille, ≈ 24 000 cycles de plus par RETURN) et la
+  fin de `do_save` passent dans INPUT.
+- Banque 2 de la carte principale : le code QUIT de ProDOS (`$D100-$D3FF`)
+  est mis de côté par le chargeur dans le même état de sortie et remis par
+  chaque sortie (QUIT, RESET, Q au menu : `ld_unquit`) ; `column_setup`,
+  `scroll`, `clear_rows`, `dhgr_pack` et `hud_draw` y tournent derrière un
+  relais de 10 octets (746 octets, `B2_ENTRY`). Vue complète 6 342 285 →
+  6 325 006 cycles, LOOK L 1 848 836 → 1 844 305.
+- Stock auxiliaire : place du tronc XL 4 293 → 2 949 octets, 140 Ko 1 761 →
+  345. La table des noms d'objets reste résidente (elle ne tient plus sur
+  140 Ko). Les disques de comparaison des tests ont la zone de sprites de la
+  Sierra ; ceux à carte native lisent TREE et ORIENT sur NEOWILD.BLK.
+- Chargeur : HICODE lu en `$5800` (la fenêtre des modules, libre pendant
+  le chargement) au lieu de `$AA00`, ce qui lui rend une page.
+- Tests adaptés : `test_boot`, `test_pack_boot` (entrée 2, `ld_exit`, code
+  de banque 2 après la prise), `test_prodos` (banque 2 `$D000`,
+  `$D100-$D3FF` identiques à l'entrée du chargeur à chaque sortie),
+  `test_hof_volume`, `test_optimizations` (`b2_clear_rows`).
+
+### Neowilderness : navigation par pages (haut / vue / bas)
+
+- La vue est au centre. Sur une ligne vide, gauche et droite la tournent
+  (inchangé), RETURN, TAB ou bas ouvre la grille des commandes, haut ouvre
+  les pages du haut. Dans la grille, bas descend les rangées ; sous la
+  dernière rangée de verbes, il ferme la grille et ouvre les pages du bas
+  (`grid_bottom` tape `T`, TOPO ; au-dessus d'une dernière rangée plus
+  courte, il va d'abord à sa dernière case ; dans une liste, il s'arrête :
+  60 octets de MENUCODE). Haut sur la première rangée revient à la vue,
+  Échap remonte d'un niveau (inchangé). Correction du même jour : bas sur la
+  vue ouvrait directement TOPO.
+- Pages du haut : STATUS → MEDICAL → INVENTORY → HELP → OPTIONS → MENU, en
+  boucle par gauche et droite ; bas ou Échap revient à la vue. L'ancienne
+  page MENU se partage : OPTIONS (C fréquence de la faune par `NATURE`, A le
+  joueur sur TOPO, P MAP) et MENU (S SAVE, R RESTORE, Q QUIT). La rangée
+  d'onglets garde à droite `S/M/I/H, LEFT/RIGHT` ; MAP coupée répond
+  `MAP IS OFF (OPTIONS PAGE).`
+- Pages du bas : TOPO d'abord, puis gauche ou droite passe à MAP et
+  inversement ; haut (ou Échap, RETURN, espace) revient à la vue, bas ne fait
+  plus rien dans TOPO. MAP défile par I, J, K, L (haut, gauche, bas,
+  droite) et recentre par C ; les flèches et WASD ne la font plus défiler.
+  Le passage ne charge rien : MAP écrit sa page texte par-dessus la feuille
+  (TOPOGEN reste dans la fenêtre SIM, `topo_over`), le retour à TOPO
+  réaffiche le mode mixte et la légende (`topo_frame`, sorti de
+  `topo_open`) sans recalculer la feuille, et haut recopie l'instantané de
+  la vue. MAP tapée (`M`, `MAP`) passe à TOPO par le chemin complet ;
+  quand l'option coupe MAP, gauche et droite restent sur TOPO. Légende :
+  `UP/ESC: VIEW`, `LEFT/RIGHT: THE TEXT MAP`.
+- La grille perd STATUS, INVENT, TOPO, MAP, HELP et QUIT, que les flèches et
+  la page MENU atteignent ; ces commandes restent valables au clavier. Sur
+  la carte plate : 13 verbes sur trois rangées. MENUSWAP : 1 536 → 1 489
+  octets (47 libres). HELP décrit la navigation (`LEFT/RIGHT: TURN
+  RETURN: COMMANDS`, `UP: PAGES  DOWN: COMMANDS, THEN TOPO`, `MAP: IJKL
+  SCROLL, C CENTER`).
+- Mémoire : STATUS 5 410 → 5 436 octets (fin `$AB3B`, stocké 4 275), SITES
+  1 631 → 1 679, TOPOGEN 2 981 → 2 987 ; stock auxiliaire libre :
+  NeoWildernessXL 5 696 → 5 627 octets, Neowilderness 140 Ko 1 830 → 1 761.
+- Tests : `test_menu_bar` (verbes de la grille, RETURN/TAB/bas l'ouvrent,
+  bas sous la dernière rangée ouvre TOPO, haut revient à la vue grille
+  fermée), `test_screen_returns` (MAP par I/J/K/L, six pages, cas
+  « DOWN TOPO → MAP → UP », bas jusqu'à passer la grille, et « MAP → RIGHT → UP » sans chargement de
+  module), `test_graphical_topo` (sortie par haut, `bottom_pages` : TOPO ↔
+  MAP sans chargement ni redessin, MAP coupée, vue intacte),
+  `test_interface` (onglets, HELP, `option_pages`, MAP par I/L),
+  `test_transitions` (tour des six pages et bascules d'OPTIONS
+  différentiels), `test_sites` (défilement par I/J/K/L) ;
+  `tools/topo_dhgr_ref.LEGEND`.
+
+### Neowilderness : troisième récupération de mémoire
+
+- Le décodeur LZ des modules (`lz_unpack`, `lz_guard`, `lz_back`, 251
+  octets) tourne en place dans `$D001-$D0FF` de la banque 2 de la carte
+  langage principale, la page que ProDOS 8 n'utilise pas (il ne lit que
+  `$D000`, jamais écrit, et garde son code QUIT en `$D100-$D3FF`). Un relais
+  de 16 octets en TEXT sélectionne la banque (lecture et écriture : le
+  décodeur réécrit ses opérandes) puis remet la ROM. TEXT passe de 11 à 246
+  octets libres.
+- NeoWildernessXL lit CAMP, MEDVIEW, TREE et ORIENT sur le disque quand ils
+  se chargent : nouveau fichier `NEOWILD.BLK` (bloc d'en-tête signé, puis
+  chaque module brut aligné sur 512 octets, alloué le premier : blocs 8 à
+  20), code de banque `BANK_DISK = $40` dans le répertoire, `disk_fetch`
+  résident (READ_BLOCK sur l'unité d'amorçage, page zéro `$3A-$4F`
+  préservée, un bip et une touche pour réessayer si le disque manque). Le
+  chargeur vérifie la signature et refuse une copie fichier par fichier
+  (« NEOWILD.BLK HAS MOVED… ») ; HICODE est lu en `$AA00`. Place libre du
+  tronc dans le stock auxiliaire : 496 → 4 362 octets ; CAMP se charge en
+  34 843 cycles au lieu de 91 364 (décodage LZ). L'édition 140 Ko garde ces
+  modules dans le stock. Aucun de ces modules ne se charge pendant une vue,
+  un pas de marche ou un retour d'écran. Détails et mesures :
+  docs/MEMORY.md § 14.
+- Tests : `test_boot` (octet `$D000`, décodeur, blocs de NEOWILD.BLK, unité),
+  `test_pack_boot` (`ld_blk`, index du fichier, entrées `BANK_DISK`),
+  `test_transfers` (bourrage jusqu'au bloc, coût par bloc), `test_resident`
+  (lectures attendues de MEDVIEW sur XL), `test_editions` (NEOWILD.BLK sur
+  XL seulement, copie déplacée refusée), `test_prodos` (Bitsy Bye liste
+  NEOWILD.BLK), `test_hof_volume` (écritures du chargeur en `$D001-$D0FF`),
+  `test_save` (l'adresse de `hof_key_wait` est aussi du code du chargeur).
+
+### Neowilderness : les pages de STATUS, options, cabane fixe
+
+- STATUS, MEDICAL, INVENTORY, HELP et MENU se suivent en cycle avec les
+  flèches gauche et droite (`src/pages.s`) : rangée d'onglets, pied de page
+  commun, S/M/I/H pour sauter à une page, T pour TOPO, Échap/bas/RETURN/espace
+  pour la vue. MEDICAL passe en 80 colonnes (deux colonnes) dans le module
+  STATUS (l'ancien écran de MEDVIEW disparaît) ; HELP tient sur une page de
+  quatre blocs ; INVENTORY choisit ses groupes par 1-5.
+- Page MENU : SAVE, RESTORE, QUIT, la fréquence de la faune (NATURE) et deux
+  options : le joueur sur TOPO (masqué par défaut) et MAP (activée par
+  défaut ; désactivée, MAP répond `MAP IS OFF (MENU PAGE).`).
+- La cabane ne se téléporte plus : l'abri naturel trouvé par le balayage des
+  ressources de TRAVEL (espèce 12) ne déplace la cabane que sur une carte
+  native ; les cartes générées gardent leur cabane fixe (en-tête 16-20). Le
+  tirage reste fait (flux aléatoire inchangé). `test_sites.shelter_fixed`.
+- Stock auxiliaire : ADVENTURE (21, chargé rarement) est compressé LZ pour
+  faire place aux pages. `wf_storm`, le multiplicateur de précipitations que
+  la préparation corrige dans l'image, passe d'ADVENTURE (compressé) au
+  segment THERMAL de SIM (image brute, `pr_patch_sim`). SIM couvre
+  `$9600-$B452` : `test_stars_game` rappelle `menu_gather` après son appel
+  direct d'`env_hour`, sans quoi les rotations exécutaient la fin de SIM à
+  la place de MENUSWAP (`level1`, `$B005`).
+- Les pages s'écrivent de haut en bas sans effacer l'écran (plus de
+  `t_home`) : chaque cellule est écrite une fois (retour chariot, `tab`,
+  `vtab` complètent par des blancs différentiels), MEDICAL et HELP rangée
+  par rangée sur leurs deux colonnes, STATUS par moitiés (gauche jusqu'à la
+  colonne 42, puis droite par `st_at`). Seules les cellules qui changent
+  sont stockées ; rien de la page précédente ne reste.
+- LOOK N/E/S/W et LOOK AZ mettent en usage la boussole portée (comme USE
+  COMPASS) au lieu de répondre « FIRST PUT DIRECTION AID IN USE » ;
+  `test_hof_volume` commence son voyage par LOOK S (vers le nord, la marche
+  est bloquée).
+
+### Neowilderness : descriptions à gauche, grille à droite
+
+- Les quatre rangées 80 colonnes sont inversées (demande du 14 octobre
+  2026) : le résultat, la ligne de stock et la commande composée occupent
+  les colonnes 0 à 38, le séparateur la colonne 39, la grille les colonnes
+  41 à 78 (`MN_RES`, `MN_END`, `MN_GRID` dans `src/menu.s`). La colonne du
+  résultat est effacée sans toucher à la grille (`res_clear`, `clear_to`
+  borné) ; la colonne 79 n'est jamais écrite.
+- Grille : la flèche haut sur la première rangée de verbes (WALK…) referme
+  la grille et revient à la vue, comme la flèche bas l'a ouverte ; dans une
+  liste elle reste bloquée en haut.
+- Deux éditions : Neowilderness (`dist/NEOWILDERNESS.po`, 140 Ko, la Sierra
+  seule, la préparation, cinq parties ; 221 blocs sur 280) et NeoWildernessXL
+  (`dist/NEOWILDERNESSXL.po`, 800 Ko, les six scénarios). Même jeu, même
+  chargeur : `ld_regions` (écrit par `build_disk.py --edition`) choisit les
+  morceaux du menu (`tools/genmenu.py`), refuse les touches 2-6, saute la
+  question de région du voyage libre et de la préparation, et borne le hall
+  of fame (`hm_regions`, aussi dans NEOWILD.END). Les tests tournent sur XL ;
+  `tests/test_editions.py` couvre les deux.
+- Grille de commandes : SWIM, CLIMB, HANG FOOD et LOWER FOOD n'apparaissent
+  que là où ils peuvent aboutir (eau ou rive devant, arbre, sac porté ou
+  pendu), comme DOUSE avec le feu ; la grille suit les rotations.
+- Disquette 3,5" de 800 Ko : l'image livrée (`../dist/NEOWILDERNESS.po`,
+  296 blocs sur 1 600, les cinq parties sauvegardées) ; `make disk140` garde
+  la disquette 5,25". a2shot démarre une image de 819 200 octets sur la carte
+  SmartPort 3,5" du slot 5 que POM2 expose désormais dans `pom2_core`
+  (commit POM2 `b93b5f6`, SDK copié dans `dev/tools/a2shot/sdk`).
+- FORAGE, étape 1 (docs/FORAGE.md § 4) : les découvertes d'aliments tirent
+  leurs nombres aléatoires comme l'original (troisième tirage du fruit pour
+  0,2 ≤ r < 0,5, tirage de qualité des noix sauvages, huitième ressource) ;
+  `tests/test_forage.py`. `test_save` retire aussi la préparation du voyage
+  de sa copie de 140 Ko pour garder trois parties (`--omit preparation`).
+- INVENTORY en 80 colonnes : les cinq groupes en onglets avec leur nombre
+  d'objets (le groupe montré en inverse), les objets sur trois colonnes de
+  seize rangées (48 par page au lieu de 12), les quatre capacités libres sur
+  une ligne, gauche/droite changent de groupe, bas revient à la vue.
+  INVENTORY et HELP rejoignent STATUS dans un seul module (fenêtre SIM) ; le
+  module SCREENS (2) disparaît, ce qui libère une entrée du répertoire.
+- LOOK UP de nuit claire : le ciel au-dessus de 45° est montré (liste
+  d'étoiles recalculée dans la perspective de la vue levée, 33,7° → zénith ;
+  docs/STARS.md § 15). VOCAB est stocké en LZ pour faire la place.
+- Commandes d'une lettre : `M` = MAP, `T` = TOPO, `S` = STATUS (seules sur la
+  ligne ; `fast_words`).
+- STATUS en 80 colonnes : titre et avancement, à gauche BODY (jauges de dix
+  cases pour HEALTH, ENERGY, HUNGER, THIRST, une rangée d'écart ; température
+  du corps), CONDITIONS (maladies, hypo/hyperthermie, blessures actives avec
+  leur pourcentage, mal d'altitude) ; à droite PROVISIONS (tableau FOOD/WATER ×
+  CARRIED/HERE/IN REACH), ENVIRONMENT, RANGERS (distance ; direction avec la
+  boussole), SITUATION. Le module tourne désormais dans la fenêtre SIM
+  (`$9600`, chargé par `mem_fetch` comme TOPOGEN) ; ses petites routines
+  d'affichage sont résidentes (LOWCODE) ; les noms des blessures viennent de
+  MEDVIEW ; `goal_pct` ne recharge plus STATUS.
+- TOPO : le joueur est tracé (pastille blanche, flèche selon le cap, par-dessus
+  les sites) ; barre d'échelle de 4 miles sous la flèche du nord ; légende en
+  80 colonnes alignée sur la vue (`topo_legend`, module SITES) ; flèche bas
+  revient à la vue.
+- STATUS : la flèche bas revient à la vue (la flèche haut l'ouvre depuis
+  la vue) ; la légende devient `ESC/RETURN/SPACE/DOWN: VIEW`.
+- Ligne de stock raccourcie : `FOOD n WATER n HERE f/w OZ` tient dans
+  la colonne du résultat (l'ancienne `FOOD n OZ  WATER n OZ  HERE f/w`
+  perdait l'eau au sol, faute de place).
+- MAP : le joueur et les sites (P, C, H, R) tiennent en un seul caractère,
+  la lettre inverse, suivie du symbole de terrain de leur case (au lieu
+  d'un bloc inverse lettre + espace sur toute la case).
+- Découverte : « YOU FIND GAME ANIMALS. » remplace « YOU FIND GAME. »
+  (le gibier, et non une partie).
+
 ### Neowilderness : intégration des lots 2, 7, 9, 13 et LOOK, deuxième récupération de mémoire
 
 - Banque de textes (`src/textbank.txt`, `tools/gentextbank.py`) : 150
@@ -181,6 +1028,32 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
   la marche, grille rendue au prompt ; SITES 299 octets plus court
   ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) « MAP plein écran 80 × 24 »,
   `tests/test_sites.py` `full_screen`).
+
+### Neowilderness : réserves de la direction 3 (première récupération de mémoire)
+
+Quatre gains, un commit chacun, mesurés depuis `b941346` (détail et comptes
+en [MEMORY.md](docs/MEMORY.md) § 12). RAM principale résidente libre :
+375 → 2 282 octets ; stock auxiliaire de chaque région +2 478 octets
+(Burma, pire cas : 171 → 2 649).
+
+- Instantané TOPO compressé (`68543db`) : chaque ligne de 40 octets est
+  prédite par la ligne de la même banque deux rangées plus haut (jetons
+  copie / littéraux, 60 octets au plus par ligne) ; 2 128 à 6 962 octets
+  sur 49 vues des six cartes au lieu de 12 800. La banque 2 auxiliaire et
+  `$F100-$FFF9` rejoignent le stock (4 394 octets). Ouverture de TOPO
+  +0,15 s, retour 0,36 → 0,48 s ; un flux trop long redessine la vue comme
+  sur une carte native (`test_graphical_topo.py`).
+- Lignes DHGR déroulées (`drows`, 1 601 octets) et leurs tables (322) en
+  banque 2 de la carte principale, `$D400` (`8acedbf`) : WILDLO 124 →
+  1 718 octets libres, WILDERNESS 5 → 318 ; 12 cycles par span, +0,5 à
+  1,1 % par vue. Tables d'enregistrements de 128 à 256 octets.
+- Faune : les copies de référence de SITES (249 octets) sont retirées ;
+  `test_fauna.py` teste le balayage de production de TRAVEL (`ec9ea61`).
+- Éphéméride lunaire (549 octets) hors de SIM, en carte principale
+  (`b96dbe5`) : SIM 24 → 573 octets libres dans sa fenêtre.
+- Pistes mesurées et écartées (§ 12.6) : recopie partielle de SIM
+  (≈ 0,45 s par WALK 1 H, au seuil), page `SAVE` en auxiliaire, VOCAB en
+  5 bits. Volume : 30 → 27 blocs libres.
 
 ### Neowilderness : intégrité du volume après le hall of fame
 

@@ -24,7 +24,6 @@ al_strong:    .byte 1          ; health above 1 at the last health update
 care_tools:   .byte 0          ; B2 in use: 1 AXE (58), 2 KNIFE (59)
 care_tool_x:  .byte $FF        ; square where they were put in use (T0C/S0B clears
 care_tool_y:  .byte $FF        ; their B2 when the player leaves it)
-splint_place: .byte $FF        ; lot 3 hook: second set item 93 (SPLINT), $FF absent, 1 worn
 disease_triggers: .byte 1      ; H1 switch: infection and malaria onsets (T0B/S07)
 care_state_end:
 ; Per command (not saved).
@@ -59,6 +58,7 @@ al_event:
 
 .segment "ALERT"
 module_health_alerts:
+        jsr     forage_clock    ; lot 4: spoilage (T09/S05, src/forage.s)
         ; T0A/S0C $5BED, before the thermal and health modules of the step.
         lda     al_daily
         lsr     a
@@ -319,9 +319,9 @@ al_show:
 :       inx
         cpx     #10
         bcc     @event
-        rts
+        jmp     forage_news     ; lot 4 (src/forage.s)
 
-; Append alert A under the result (rows 20-23, column 40), in the first row
+; Append alert A under the result (rows 20-23, column 0), in the first row
 ; left blank; an empty result column receives it as an ordinary message.
 al_text:
         tax
@@ -329,12 +329,12 @@ al_text:
         jsr     text_fetch
         sta     gp1
         stx     gp1+1
-        lda     shown
+al_put: lda     shown           ; (forage_news: gp1 = a text of ALERT)
         beq     @fresh
         ldx     #MN_BOTTOM+1-MN_ROWS
 @row:   txa
         jsr     t_bascalc
-        ldy     #MN_RIGHT/2
+        ldy     #MN_RES/2
         sta     PAGE2_AUX
         lda     (BASL),y
         sta     PAGE2_MAIN
@@ -347,7 +347,7 @@ al_text:
         jmp     @fresh          ; a further message of the same turn
 @found: stx     CV
         jsr     t_vtab
-        lda     #MN_RIGHT
+        lda     #MN_RES
         sta     CH
         lda     #0
         sta     msg_wlen
@@ -362,11 +362,13 @@ al_text:
 ; (ALERT module), then an exhausted player sleeps without input (parser
 ; $B033 with $0B).
 alerts_after:
+        jsr     forage_after    ; lot 4: smell, game and fish gone
         lda     dead            ; the journey is over: the ending speaks
         ora     won             ; (no alert under the death or the arrival)
         bne     :+
         lda     al_count
         ora     al_events
+        ora     fg_after        ; lot 4's news
         beq     :+
         lda     #ALERT_MODULE
         jsr     overlay_load

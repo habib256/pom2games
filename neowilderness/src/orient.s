@@ -11,8 +11,8 @@
 ; with its texts, dialogs, the Sun's azimuth and the shadow error (they run
 ; with SIM loaded), in the ORIENT module (ID 26); USE MAP...CHART, USE
 ; SHADOW, LOOK MAP and LOOK CHART in the TREE module (ID 20); resident in
-; WILDLO the gates and orient_ask (keys here, numbers through INPUT, then
-; ORIENT again).
+; WILDLO the gates, in TEXT orient_number (numbers through INPUT, then ORIENT
+; again); orient_ask's key dialog is ORIENT's (docs/MEMORY.md 15).
 
 ORIENT_MODULE = 26
 
@@ -82,21 +82,22 @@ orient_use:
         bcc     orient_take
         rts
 
-.segment "TEXT"                 ; resident (WILDLO is full: docs/MEMORY.md 13)
-; orient_ask -- X = dialog (OA_*): its message, then two keys (resident) or a
-; number read by INPUT; TREE comes back for the caller (its image is
-; restored: state stays resident). C set: cancelled; a choice returns
-; A = 0/1 (Z from it), a number msgnum and input_unit.
+.segment "ORIENT"
+; orient_ask -- X = dialog (OA_*): its message, then two keys (here) or a
+; number read by INPUT (orient_number, resident); ORIENT comes back for the
+; caller (its image is restored: state stays resident). C set: cancelled; a
+; choice returns A = 0/1 (Z from it), a number msgnum and input_unit. Only
+; ORIENT asks: the key dialog moved here from TEXT (docs/MEMORY.md 15).
 orient_ask:
         stx     orient_dialog
         cpx     #OA_DEG
-        bcs     @number
+        jcs     orient_number
         lda     oa_lo,x         ; a text of the bank
         ldx     #0
         jsr     message
         ldx     orient_dialog
         cpx     #OA_NORTH
-        bcs     @number
+        jcs     orient_number
         jsr     prompt          ; $4D39: only the two keys (or ESC) answer
 @key:   jsr     wait_key
         jsr     kbd_upcase
@@ -118,7 +119,14 @@ orient_ask:
         jsr     message
         sec
         rts
-@number:
+oa_one:  .byte 'Y','W'
+oa_zero: .byte 'N','E'
+
+.segment "TEXT"                 ; resident (WILDLO is full: docs/MEMORY.md 13)
+; orient_number -- (orient_ask) X = dialog: the number through INPUT, which
+; replaces ORIENT in $5800, then ORIENT again; returns to orient_ask's caller
+; in the restored image.
+orient_number:
         ldy     #3              ; degrees (0 is north)
         cpx     #OA_HOURS
         beq     :+
@@ -136,8 +144,6 @@ orient_ask:
         jsr     overlay_load
         plp
         rts
-oa_one:  .byte 'Y','W'
-oa_zero: .byte 'N','E'
 
 orient_dialog: .res 1
 orient_base:  .res 2            ; heading of the requested direction (units)
@@ -226,7 +232,17 @@ module_orient_look:
         jeq     ol_stars
         lda     orient_aid
         bne     :+
-        lda     #<ol_aid_msg    ; msg 42
+        ldx     #53             ; port (14 October 2026): a COMPASS at hand
+        jsr     have            ; is put in use, as USE COMPASS does (in
+        bcc     @no_aid         ; hand, bit 0): the grid's NORTH..WEST turn
+        lda     #3
+        sta     it_place+53
+        jsr     load_totals
+        lda     #1
+        sta     orient_aid
+        bne     :+
+@no_aid:
+        lda     #<ol_aid_msg    ; msg 42: no compass
         ldx     #>ol_aid_msg
         jmp     message
 :       lda     #0

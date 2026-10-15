@@ -156,10 +156,9 @@ def main():
     for group in '12345':
         steps += [f'key:{group}', 'wait:1', L.until('wait_key'), 'peek:0400:1024']
     r = run(steps)
-    expected = ('FREE WEIGHT 43 OZ', 'FREE WEAR VOL 1525 IN3',
-                'FREE PACK VOL 4134 IN3', 'FREE HAND VOL 2542 IN3')
+    expected = 'FREE WEIGHT 43 OZ WEAR VOL 1525 IN3 PACK VOL 4134 IN3 HAND VOL 2542 IN3'
     check('inventory displays all four remaining capacities in every group', all(
-          tuple(' '.join(row.split()) for row in text_screen(page)[2:6]) == expected
+          ' '.join(text_screen(page)[21].split()) == expected      # one row (80 columns)
           for page in r.dumps))
     print(f'{len(failures)} failures')
     sys.exit(bool(failures))

@@ -168,12 +168,21 @@ care_pressure:
         jmp     care_apply
 
 ; USE SPLINT: selector 3, the splint worn, W7 30 minutes at .02 x weight.
-; The second item set (crafted splint) is lot 3: splint_place is its hook.
+; MAKE SPLINT (lot 3, src/craft.s) leaves it on the ground of its cell
+; (cr_cx/cr_cy + 2); carried (2, 3) it is put on as well.
 care_splint:
         lda     splint_place
         cmp     #$FF
         jeq     care_missing
-        lda     #1
+        cmp     #0
+        bne     :+
+        lda     px+1
+        cmp     cr_cx+2
+        jne     care_missing
+        lda     py+1
+        cmp     cr_cy+2
+        jne     care_missing
+:       lda     #1
         sta     splint_place
         sta     medical_actions+2
         lda     #30
@@ -488,3 +497,198 @@ care_ok:
 care_minutes: .byte 0
 care_consumed: .byte 0
 care_use_minutes: .byte 30,30,0,0,0,30,0,0,15,0,0
+
+; ----------------------------------------------------------------------------
+; STATUS's care (src/status.s module_status, docs/MENUS.md 5): the
+; treatment gestures of the focused condition, here rather than in the STATUS
+; module (its store is the short one); the page loads this module when the
+; focus reaches a condition. The STATUS module stays in the SIM window: its
+; routines and state are called directly.
+.segment "MEDVIEW"
+; med_foot -- row 23: the gestures of the focused condition (the chosen one,
+; pg_g, in inverse), then "ESC: VIEW"; pg_gn = their count.
+med_foot:
+        XL_JMP  XI_MEDVIEW, med_foot_x, @x40  ; (XL: the footer of the pages)
+        lda     #23
+        jsr     vtab
+med_foot_gest = *
+        jsr     med_gest_at
+        ldx     #0
+@gest:  stx     pg_i
+        cpx     pg_g
+        bne     :+
+        lda     #$3F
+        sta     INVFLG
+:       sty     pg_x
+        lda     med_gest,y
+        jsr     med_word
+        jsr     print_str_ay
+        lda     #$FF
+        sta     INVFLG
+        lda     #' '|$80
+        jsr     COUT
+        jsr     COUT
+        ldy     pg_x
+        iny
+        ldx     pg_i
+        inx
+        cpx     pg_gn
+        bcc     @gest
+        XL_IMM  XI_MEDVIEW, 69, @x41
+        lda     #64
+        jsr     tab
+        jsr     puts
+med_esc_text = *
+        .byte   "ESC: VIEW", 0
+        XL_TEXT XI_MEDVIEW, med_esc_text, " ESC VIEW"   ; (XL: at 70)
+        rts
+
+; med_gest_at -- Y = the first gesture of the focused condition in med_gest,
+; pg_gn = how many it has (1 to 3).
+med_gest_at:
+        ldx     pg_focus
+        lda     pg_act-1,x
+        sta     pg_x
+        asl     a
+        adc     pg_x
+        tay
+        ldx     #0
+:       lda     med_gest,y
+        beq     :+
+        iny
+        inx
+        cpx     #3
+        bcc     :-
+:       stx     pg_gn
+        tya
+        sec
+        sbc     pg_gn
+        tay
+        rts
+
+; med_word -- A = gesture (1..), or MG_KNIFE..MG_FLASH: A/Y = its text.
+med_word:
+        tax
+        lda     mg_lo-1,x
+        ldy     mg_hi-1,x
+        rts
+
+; med_run -- RETURN: the gesture typed (pages.s pg_type); CUT BODY without a
+; blade in use, the FRSTAID KIT in the dark: USE KNIFE (AXE) or USE
+; FLASHLIGHT typed first, the gesture queued after it (src/grid.s).
+med_run:
+        jsr     med_gest_at
+        tya
+        clc
+        adc     pg_g
+        tay
+        lda     med_gest,y
+        sta     pg_x            ; the gesture
+        cmp     #MG_CUT
+        bne     @kit
+        lda     care_tools      ; CUT BODY: an AXE or a KNIFE in use
+        and     #3
+        bne     @type
+        ldy     #S_KNIFE
+        ldx     #59
+        jsr     have
+        lda     #MG_KNIFE
+        bcs     @queue
+        dey                     ; S_AXE
+        ldx     #58
+        jsr     have
+        lda     #MG_AXE
+        bcc     @type
+@queue: sty     mq_list
+        pha                     ; the word typed first
+        ldy     #S_CUT
+        lda     pg_x
+        cmp     #MG_CUT
+        beq     :+
+        ldy     #S_KIT
+:       sty     mq_list+1
+        lda     #2
+        sta     mq_n
+        lda     #1
+        sta     mq_i
+        lda     journey_encounters
+        sta     mq_enc
+        pla
+        bne     @word
+@kit:   cmp     #MG_KIT         ; FRSTAID KIT in the dark: the flashlight
+        bne     @type
+        lda     light
+        bne     @type
+        ldx     #66
+        jsr     have
+        bcc     @type
+        ldy     #S_FLASH
+        lda     #MG_FLASH
+        bne     @queue
+@type:  lda     pg_x
+@word:  jsr     med_word
+        sta     gp2
+        sty     gp2+1
+        jmp     pg_type
+; Gestures per condition (0: none): the care selectors of src/medical.s
+; med_treat1-3 that the port's commands set (src/care.s, camp.s).
+MG_CUT   = 11
+MG_KIT   = 13
+MG_KNIFE = 17
+MG_AXE   = 18
+MG_FLASH = 19
+med_gest:
+        .byte   1, 2, 0         ; SEVERE CUTS: STOP BLEEDING, USE PRESSURE
+        .byte   3, 0, 0         ; BROKEN ARM: USE SPLINT
+        .byte   3, 0, 0         ; BROKEN LEG
+        .byte   4, 5, 0         ; SHOCK: LOWER HEAD, DRINK WATER
+        .byte   5, 6, 0         ; SUNBURN: DRINK WATER, WET BODY
+        .byte   7, 8, 0         ; SNOWBLINDNESS: USE SUNGLASSES, SHIELD EYES
+        .byte   9, 0, 0         ; FROSTBITE: USE FIRE
+        .byte   10, 11, 12      ; POISON BITE: USE SNAKEBT KIT, CUT BODY, SUCK VENOM
+        .byte   13, 0, 0        ; INFECTION: USE FRSTAID KIT
+        .byte   14, 0, 0        ; SALT DEFICIENCY: USE SALT TAB
+        .byte   5, 0, 0         ; FOOD POISONING: DRINK WATER
+        .byte   15, 0, 0        ; GIARDIA: USE FLAGYL
+        .byte   16, 0, 0        ; MALARIA: USE QUININE
+mg_lo:  .byte   <mg_1, <mg_2, <mg_3, <mg_4, <mg_5, <mg_6, <mg_7, <mg_8
+        .byte   <mg_9, <mg_10, <mg_11, <mg_12, <mg_13, <mg_14, <mg_15, <mg_16
+        .byte   <mg_knife, <mg_axe, <mg_flash
+mg_hi:  .byte   >mg_1, >mg_2, >mg_3, >mg_4, >mg_5, >mg_6, >mg_7, >mg_8
+        .byte   >mg_9, >mg_10, >mg_11, >mg_12, >mg_13, >mg_14, >mg_15, >mg_16
+        .byte   >mg_knife, >mg_axe, >mg_flash
+mg_1:     .byte "STOP BLEEDING", 0
+mg_2:     .byte "USE PRESSURE", 0
+mg_3:     .byte "USE SPLINT", 0
+mg_4:     .byte "LOWER HEAD", 0
+mg_5:     .byte "DRINK WATER", 0
+mg_6:     .byte "WET BODY", 0
+mg_7:     .byte "USE SUNGLASSES", 0
+mg_8:     .byte "SHIELD EYES", 0
+mg_9:     .byte "USE FIRE", 0
+mg_10:    .byte "USE SNAKEBT KIT", 0
+mg_11:    .byte "CUT BODY", 0
+mg_12:    .byte "SUCK VENOM", 0
+mg_13:    .byte "USE FRSTAID KIT", 0
+mg_14:    .byte "USE SALT TAB", 0
+mg_15:    .byte "USE FLAGYL", 0
+mg_16:    .byte "USE QUININE", 0
+mg_knife: .byte "USE KNIFE", 0
+mg_axe:   .byte "USE AXE", 0
+mg_flash: .byte "USE FLASHLIGHT", 0
+
+; NeoWildernessXL only (docs/MENUS.md 9): the tail of MEDVIEW (segment
+; MEDVX, build/wildmvx.bin) -- the footer of the pages (src/mt_pages.s
+; page_foot_x, whose helpers are loaded with the page) before the gestures.
+.segment "MEDVX"
+med_foot_x:
+        lda     #22
+        jsr     vtab
+        lda     #MT_LINE
+        ldy     #80             ; (the 80th wraps to row 23)
+        jsr     mt_rep
+        jsr     mt_puts
+        .byte   " ", MS_LEFT, MS_RIGHT, " ", 0
+        jmp     med_foot_gest
+mvx_end:
+.segment "MEDVIEW"

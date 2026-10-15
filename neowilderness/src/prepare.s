@@ -50,10 +50,8 @@ PR_BELL   = $FF3A
 PR_CH     = $24
 PR_CV     = $25
 PR_WNDTOP = $22
-PR_SIM    = 3                   ; module_dir entries patched
-PR_ADV    = 21
+PR_SIM    = 3                   ; module_dir entry patched (raw SIM image)
 SIM_WINDOW = $9600
-ADV_WINDOW = $5800
 
 .import ld_region, ld_level, ld_free, ld_prep, ld_entropy, ld_print, ld_place
 .import ld_hdr, ld_move_src, ld_menu_key
@@ -710,10 +708,9 @@ pr_front:
         beq     :+
         fld     pr_storm
         fst     pr_t1
-        ldx     #PR_ADV
-        lda     #<(wf_storm - ADV_WINDOW)
-        ldy     #>(wf_storm - ADV_WINDOW)
-        jsr     pr_patch
+        lda     #<(wf_storm - SIM_WINDOW)
+        ldy     #>(wf_storm - SIM_WINDOW)
+        jsr     pr_patch_sim
         fld     pr_wild         ; NATURE: an integer 0..100
         jsr     PR_ADDH
         jsr     AYINT
@@ -1431,4 +1428,4 @@ pr_buf:     .res 4
 pr_h:       .res 1
 pr_m:       .res 1
 .assert th_surface >= SIM_WINDOW && th_native_composition < SIM_WINDOW + $2000, error, "SIM labels"
-.assert wf_storm >= ADV_WINDOW && wf_storm < ADV_WINDOW + $800, error, "ADVENTURE label"
+.assert wf_storm >= SIM_WINDOW && wf_storm < SIM_WINDOW + $2000, error, "SIM label wf_storm"

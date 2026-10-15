@@ -35,7 +35,7 @@ def main():
     m = bytearray((HERE / 'build/map.bin').read_bytes())
     lat, lon = signed(m[12]), signed(m[25])
     full_day = next(d for d in range(100, 365) if phase_shape(d) == 11)
-    original = idle_bytes()
+    original = idle_bytes(12)    # three calls and the JMP back
     # (label, day, hour, heading, clouds)
     cases = [('north, Polaris', MAY_6, 23, 0, 0),
              ('south', MAY_6, 23, 280, 0),
@@ -74,7 +74,10 @@ def main():
             run(poke('s_date', (day + .01) / 365) + poke('s_hour', hour))
             run([L.poke('heading', heading), L.poke('heading', heading >> 8, 1),
                  L.poke('weather_sky', clouds)])
-            run(call(['env_hour', 'show_view']) + [f'until:{L["idle"] + 6:04X}:20000'])
+            # env_hour loads SIM, whose THERMAL tail covers the menu's
+            # MENUSWAP ($B000, level1...): menu_gather brings it back, as
+            # get_line does at every prompt, before the turns use it.
+            run(call(['env_hour', 'show_view', 'menu_gather']) + [f'until:{L["idle"] + 9:04X}:20000'])
             dump()
             done.append((label, day, hour, clouds))
             run([L.until('idle', 20000)] + [L.poke('idle', b, i) for i, b in enumerate(original)])
@@ -82,6 +85,18 @@ def main():
                 run([f'press:\\{key}', L.until('turn_view', 20000), L.until('idle', 20000)])
                 dump()
                 done.append((f'{label}, turn {key}', day, hour, clouds))
+        # LOOK UP on a clear night: the list is recomputed in the projection
+        # of the raised view (stars_ref TU), the sky above 45 degrees fills
+        # the top of the view instead of staying empty.
+        run(poke('s_date', (MAY_6 + .01) / 365) + poke('s_hour', 23)
+            + [L.poke('heading', 0), L.poke('heading', 0, 1), L.poke('weather_sky', 0), L.poke('tilt', 1)])
+        run(call(['env_hour', 'show_view', 'menu_gather']) + [f'until:{L["idle"] + 9:04X}:20000'])
+        up_list = card(L.peek('st_a', list_bytes))
+        hb = int.from_bytes(s.step(L.peek('sky_hb', 2)).data, 'little')
+        hy = s.step(L.peek('sky_hy')).data[0]
+        up_mli = s.step(L.peek('mli_calls', 2)).data
+        run([L.until('idle', 20000)] + [L.poke('idle', b, i) for i, b in enumerate(original)]
+            + [L.poke('tilt', 0)])
 
     def check(label, day, hour, clouds, d):
         night, dark, mood, bearing, sky_y, head, x, y, lst, mli, page = d
@@ -113,6 +128,12 @@ def main():
     assert by['south under clouds'][2] == 0 and by['noon'][2] == 0, 'no star by day or under clouds'
     assert 'POLARIS' in by['north, Polaris'][5], 'Polaris drawn'
     assert by['full Moon night'][2] == 0x40, 'full Moon: class 0 (figures) only'
+    up_vis = stars_ref.visible(MAY_6, 23 * 60, lat, lon, (hb, hy), look_up=True)
+    attr, row, buckets, _ = stars_ref.resident(up_vis)
+    assert bytes(up_list) == attr + row + buckets, 'LOOK UP: resident list'
+    high = [v for v in up_vis if (v['row'] + 96) & 255 < 96]
+    assert high and up_mli == mli0, ('LOOK UP: stars in the upper half of the view', len(high))
+    print(f'  LOOK UP, north: list {len(up_vis)}, {len(high)} entries in the upper half of the view: OK')
     for label, mood, thr, count, head, shown in report:
         print(f'  {label}: {mood}, heading {head}, threshold ${thr:02X}, list {count}, '
               f'{len(shown)} stars drawn ({", ".join(sorted(shown)) or "-"}): OK')

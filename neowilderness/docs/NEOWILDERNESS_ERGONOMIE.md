@@ -184,7 +184,7 @@ le message nomme ce qui est arrivé, avec la durée effective comme avant.
 | Cause | Message |
 | --- | --- |
 | Animal accepté sur la case du joueur pendant ce pas | `BEAR IN YOUR AREA!` (espèce de la région : `TIGER`, `ANACONDA`…) |
-| Ressource trouvée par ce pas (bits de `MAP+36`) | `YOU FIND GAME.`, `FISH.`, `INSECTS.`, `FRUIT.`, `CACTI.`, `MUSHROOMS.`, `PLANTS.`, `NUTS.` |
+| Ressource trouvée par ce pas (bits de `MAP+36`) | `YOU FIND GAME ANIMALS.`, `FISH.`, `INSECTS.`, `FRUIT.`, `CACTI.`, `MUSHROOMS.`, `PLANTS.`, `NUTS.` |
 | Abri naturel (aucun animal, aucune ressource) | `YOU FIND SHELTER.` |
 
 Le texte est composé par `module_fauna_cause` (module PROJECT, appelé par le

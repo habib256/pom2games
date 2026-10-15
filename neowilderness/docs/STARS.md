@@ -100,7 +100,10 @@ horaire une soustraction (§ 3). La déclinaison reste une grandeur en unités
 de vue avec son signe à part (Polaris : 139 unités, hors d'un S8).
 
 Le repère de `LOOK STARS` (Polaris, Croix du Sud = Acrux) reste un champ
-Python (`landmark`) : la commande n'existe pas en 6502 (§ 11).
+Python (`landmark`) : le LOOK STARS de l'original (msg 52, direction du
+pôle) est porté au lot 7 de fidélité (`src/orient.s`,
+[ORIENTATION.md](ORIENTATION.md)) ; la version enrichie du § 11 (repères
+nommés, azimut et hauteur) n'existe pas en 6502.
 
 **Ordre** : Acrux, Mimosa, Gacrux, Polaris, δ Crucis d'abord (par magnitude
 entre elles), puis toutes les autres par magnitude.
@@ -491,3 +494,35 @@ Sierra nord : +35 864 cycles sur la même vue sans étoiles), liste de 135 à
 `tests/test_stars_ref.py` vérifie chaque figure complète, les deux entrées
 des premières grandeurs, la table T et la projection ; le banc et
 `test_stars_game.py` comparent toujours liste et banques bit à bit.
+
+## 15. LOOK UP : le ciel au-dessus de 45° (14 octobre 2026)
+
+Avant : la vue levée (`tilt` = 1) décalait simplement de 96 rangées la liste
+de la vue à niveau, où tout le ciel de 45° à 86° est tassé dans les rangées 16
+à 46 : la moitié haute de la vue levée restait vide. Maintenant :
+
+- **Projection de la vue levée.** Rangée d'écran = 191 − k, k = nombre de
+  seuils TU ≤ `up >> 6` (10 bits : 9 ne séparent plus les rangées au-delà de
+  63°) ; TU[k] = ⌈1024 k/√(k² + 48²)⌉ (vraie perspective, celle de la Lune et
+  du relief levés) jusqu'à k = 124 (rangée 67, 68,8°), puis les rangées 66 à
+  16 se partagent sin h à parts égales jusqu'au zénith (TU[175] = 1023). La
+  vue couvre 33,7° → 90°. Seuls TU[32..175] servent : la liste garde la
+  rangée d'écran moins 96 (octet), que le tracé rajoute (`tdv`), comme avant.
+- **Tables par écarts.** `st_rowt` est rempli par une seule boucle depuis les
+  écarts entre seuils (quartets) : T à niveau (80 écarts, dans le module) ou
+  TU (143 écarts, `st_tugap`, résident en GCODE tant que le stock était
+  plein, revenu dans le module le 14 octobre 2026 : MEMORY.md § 15) ; la
+  table `st_t9` et `STAR_T_HIGH` disparaissent.
+- **Entrées du module** (`st_up`, `st_mrow`, `st_mb`, dans le module depuis
+  MEMORY.md § 15 : la page zéro `$A2-$A5` n'est pas libre) posées par
+  `st_inputs` (module aussi) : la Lune
+  dessinée est `sky_y`/`sky_bearing` à niveau, `sky_hy`/`sky_hb` levée (rangée
+  signée −80..63).
+- **Recalcul** : `stars_view_dark` recalcule la liste quand `stars_list_up`
+  diffère de l'inclinaison demandée (LOOK UP puis LOOK AHEAD : deux calculs).
+- Mémoire : module +51 octets (2 418), VOCAB passe en LZ (−82 octets de stock,
+  ≈ 0,07 s de décodage par commande analysée) pour que le stock tienne.
+
+Tests : `tools/stars_ref.py` (`look_up`), banc `make -f stars.mk test` (cas
+levés comparés liste et banques bit à bit), `tests/test_stars_game.py` (LOOK
+UP vers le nord : liste égale à la référence, étoiles dans la moitié haute).

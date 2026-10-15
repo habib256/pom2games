@@ -20,7 +20,7 @@ def expected(px,py,head,name=None,bearing=0,mapbin=MAP):
         im,_=decode((HERE/f'build/original_graphics/{name}.bin').read_bytes())
         left=70-len(im[0])//2+(bearing-head+280)%560-280
         for y,row in enumerate(im):
-            y-=0 if name=='wreck' else 10
+            y-=0 if name in ('wreck','outpost') else 10
             if not 0<=y<160: continue
             for x,c in enumerate(row):
                 x+=left
@@ -44,23 +44,29 @@ def resident_stars(lst):
     return tuple(stars_ref.decode_resident(lst[:m],lst[m:2*m],lst[2*m:]))
 
 
+SITE_NAMES=('wreck','cabin','log','rock','outpost','tent','igloo','trench')
+
+
 def expected_dhgr(px,py,head,name=None,bearing=0,mapbin=MAP,mood='day',region=2,stars=()):
     """160 rows x 140 colours: terrain of the mood (and region palette), then
-    the sprite pixels; at night the stars of the game's list (lot 7)."""
+    the sprite pixels; at night the stars of the game's list (lot 7). An
+    animal (any name but a site's) takes dhgr_palette.Lighting.animal: the
+    mood's shade, or the night silhouette without light."""
     R=dhgr()
     sky=R.Sky(mood_name=mood,region=region,stars=stars)
     view=[list(row) for row in R.view(mapbin,px,py,head,sky,forest=False,sprites=False)]
     if name:
         lit=R.lighting(sky)
+        paint=lit.sprite if name in SITE_NAMES else lit.animal
         im,_=decode((HERE/f'build/original_graphics/{name}.bin').read_bytes())
         left=70-len(im[0])//2+(bearing-head+280)%560-280
         for y,row in enumerate(im):
-            y-=0 if name=='wreck' else 10
+            y-=0 if name in ('wreck','outpost') else 10
             if not 0<=y<160: continue
             for x,c in enumerate(row):
                 x+=left
                 if c<0 or not 0<=x<140: continue
-                view[y][x]=lit.sprite(P.SPRITES[name][c])
+                view[y][x]=paint(P.SPRITES[name][c])
     return view
 
 
@@ -80,16 +86,20 @@ def main():
     frame('leave crash',SX+256,SY,HEAD)
     frame('return to crash',SX,SY,HEAD,'wreck',HEAD)
     cx,cy=MAP[17]<<8,MAP[18]<<8;bh=int.from_bytes(MAP[19:21],'little')
-    frame('original cabin',cx,cy,bh,'cabin',bh)
-    frame('cabin edge clipping',cx,cy,(bh+90)%560,'cabin',bh)
+    # The fixed cabin is drawn as the original's natural shelter (MAP+16 =
+    # 1 the log, 2 the rock: tools/mkmap.py, src/project.s cabin_asset).
+    shelter=('log','rock')[MAP[16]-1]
+    frame(f'cabin ({shelter})',cx,cy,bh,shelter,bh)
+    frame(f'cabin edge clipping ({shelter})',cx,cy,(bh+90)%560,shelter,bh)
     x,y=SX+512,SY
+    # An animal faces the player whatever the heading: centred (PROJECT
+    # module_animal, decision of 15 October 2026).
     for kind,name in [(6,'bear'),(7,'cougar'),(8,'rattlesnake')]:
-        steps.extend([L.poke('animal_kind',kind),L.poke('animal_x',x>>8),L.poke('animal_y',y>>8),
-                      L.poke('animal_bearing',10),L.poke('animal_bearing',0,1)])
+        steps.extend([L.poke('animal_kind',kind),L.poke('animal_x',x>>8),L.poke('animal_y',y>>8)])
         frame(f'original {name}',x,y,10,name,10)
-        frame(f'{name} bearing wrap',x,y,545,name,10)
+        frame(f'{name} at heading 545, still centred',x,y,545,name,545)
     steps.extend([L.poke('night',1),L.poke('view_dark',1)])
-    frame('night hides sprites',x,y,10)
+    frame('night: the animal as a silhouette',x,y,10,'rattlesnake',10)
     # The forced night computes the star list of the game's hour: compare it too.
     steps.extend(['peek:C080',L.peek('st_a',LIST_BYTES),'peek:C082'])   # main card, bank 2
     steps.extend([L.poke('night',0),L.poke('view_dark',0),L.poke('animal_kind',0)])

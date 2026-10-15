@@ -28,7 +28,7 @@
 ;   5. "PRESS A KEY FOR THE MENU.", one key, then INPUT again and
 ;      module_restart (NEOWILD.SYSTEM, the menu).
 ; The score stays on screen in every case. Memory: code at $9600 (SIM
-; window), the file in $5800-$59FF (module window: goal_pct leaves STATUS
+; window), the file in $5800-$59FF (module window: goal_pct leaves ADVENTURE
 ; there, which is no longer needed; $5A00-$5A9F: pathname and the saved
 ; entries), text page 1, zero page gp1/gp2.
 ;
@@ -76,6 +76,9 @@ hof_main:
         sta     TXTSET          ; 40-column text page 1, primary characters
         sta     LOWSCR
         sta     COL80OFF
+.ifndef HOF_BENCH
+        XL_IMM  XI_END, $0F, @x42     ; (XL, docs/MENUS.md 9: ALTCHARSET stays on)
+.endif
         sta     $C00E           ; ALTCHAROFF
         bit     DHIRES_OFF
         jsr     hm_clear
@@ -187,7 +190,7 @@ hof_gather:
         sta     hof_region
         lda     journey_kind
         sta     hof_kind
-        jsr     goal_pct        ; DONE% 0..100 (loads ADVENTURE, then STATUS)
+        jsr     goal_pct        ; DONE% 0..100 (loads ADVENTURE)
         sta     hof_progress
         lda     #<f_hmax        ; health % = round(H / Hmax * 100)
         ldy     #>f_hmax
@@ -395,6 +398,9 @@ hof_breakdown:
         jsr     hm_title
         lda     #2              ; "REGION, LEVEL n (FREE)"
         ldy     #0
+.ifndef HOF_BENCH
+        XL_ABS  XI_END, hx_title_at, @x67       ; (XL: the post-it's title)
+.endif
         jsr     hm_at
         ldx     #0
 :       lda     region_name,x
@@ -414,7 +420,13 @@ hof_breakdown:
         ldy     #>hof_m_free_tag
         jsr     hm_print
 :       lda     #3              ; "ARRIVED AFTER n HOURS"
+.ifndef HOF_BENCH
+        XL_IMM  XI_END, 1, @x68                 ; (XL: right of the post-it's bar)
+.endif
         ldy     #0
+.ifndef HOF_BENCH
+        XL_ABS  XI_END, hx_title_end, @x69
+.endif
         jsr     hm_at
         ldx     hof_outcome
         jsr     hof_outcome_word
@@ -494,6 +506,9 @@ hof_breakdown:
         jsr     hm_at
         lda     #<hof_m_dashes
         ldy     #>hof_m_dashes
+.ifndef HOF_BENCH
+        XL_ABS  XI_END, hm_line_x, @x61         ; (XL: a MouseText line)
+.endif
         jsr     hm_print
         ldx     #10             ; TOTAL
         lda     #<hof_m_total
@@ -540,6 +555,9 @@ hof_line:
         tya
         pha
         txa
+.ifndef HOF_BENCH
+        XL_IMM  XI_END, 1, @x70                 ; (XL: right of the post-it's bar)
+.endif
         ldy     #0
         jsr     hm_at
         pla
@@ -623,6 +641,9 @@ hof_rank_message:
 ; (score_ref.table_line).
 hof_table:
         lda     #14
+.ifndef HOF_BENCH
+        XL_ABS  XI_END, hof_top_x, @x62         ; (XL: the table in a box)
+.endif
         jsr     hm_clear_row
         ldx     #0
 :       lda     region_name,x
@@ -633,12 +654,18 @@ hof_table:
         bne     :-
 :       lda     #<hof_m_top
         ldy     #>hof_m_top
+.ifndef HOF_BENCH
+        XL_ABS  XI_END, hof_title_x, @x63
+.endif
         jsr     hm_print
         lda     #0
         sta     hof_k
 @line:  lda     hof_k
         clc
         adc     #15
+.ifndef HOF_BENCH
+        XL_ABS  XI_END, hof_row_x, @x64
+.endif
         jsr     hm_clear_row
         lda     hof_region
         ldx     hof_k
@@ -827,6 +854,9 @@ hof_name:
         clc
         adc     #15
         sta     hof_k
+.ifndef HOF_BENCH
+        XL_IMM  XI_END, 3, @x65                 ; (XL: right of the box's bar)
+.endif
         ldy     #2
         jsr     hm_at
         lda     #0
@@ -844,6 +874,9 @@ hof_name:
         bcs     @key
         clc
         lda     hof_len
+.ifndef HOF_BENCH
+        XL_IMM  XI_END, 3, @x66
+.endif
         adc     #2
         tay
         lda     hof_k
@@ -919,6 +952,9 @@ hof_key_wait:
 :       rts
 
 ; ----------------------------------------------------------------------------
+; The scenarios of the edition (6 or 1), written by tools/build_disk.py.
+hm_regions: .byte 6
+.export hm_regions
         .include "hof_menu.s"
 
 hof_f100:  .byte $87, $48, 0, 0, 0      ; 100
@@ -986,3 +1022,133 @@ hof_q:        .word 0
 hof_k:        .byte 0
 hof_len:      .byte 0
 hof_end:
+
+.ifndef HOF_BENCH
+; ----------------------------------------------------------------------------
+; NeoWildernessXL only (docs/MENUS.md 9): the tail of NEOWILD.END (segment
+; ENDX, build/wildendx.bin, appended by tools/build_disk.py to XL's copy):
+; the title band a double line ($5C), the total's line MouseText ($53), the
+; table of the scenario in a box (its title in inverse, then '_'; the five
+; rows between the bars $5F and $5A, their text from column 1; the bottom
+; line $4C on row 20).
+.segment "ENDX"
+endx_base:
+; hm_dline_x -- (hm_title's 40 spaces) the double line across row 0.
+hm_dline_x:
+        lda     #MT_DLINE
+        bne     hx_fill
+; hm_line_x -- (the dashes of the total) A/Y = the dashes: as many cells of
+; the line $53.
+hm_line_x:
+        sta     @src+1
+        sty     @src+2
+        ldy     #0
+@src:   lda     $FFFF,y
+        beq     :+
+        iny
+        bne     @src
+:       tya
+        tax
+        lda     #MT_LINE
+; hx_fill -- X cells of A from hm_col.
+hx_fill:
+        ldy     hm_col
+:       sta     (hm_ptr),y
+        iny
+        dex
+        bne     :-
+        sty     hm_col
+        rts
+; hx_title_at -- (row 2, column 0) the breakdown's post-it: its title, the
+; region and level, in inverse after a space.
+hx_title_at:
+        jsr     hm_at
+        lda     #$80
+        sta     hm_inverse
+        lda     #' '
+        jmp     hm_char
+; hx_title_end -- (row 3's hm_at, A/Y kept) the title's last space, then
+; '_' to column 39.
+hx_title_end:
+        pha
+        tya
+        pha
+        jsr     hx_title_fill
+        pla
+        tay
+        pla
+        jmp     hm_at
+; hx_box -- (hof_top_x) the breakdown's post-it: its bars on rows 3-12, its
+; last row the line $4C on row 13.
+hx_box: lda     #12
+@row:   pha
+        ldy     #0
+        jsr     hm_at
+        lda     #MT_LBAR
+        sta     (hm_ptr),y
+        ldy     #39
+        lda     #MT_RBAR
+        sta     (hm_ptr),y
+        pla
+        sec
+        sbc     #1
+        cmp     #3
+        bcs     @row
+        lda     #13
+        ldy     #0
+        jsr     hm_at
+        ldx     #40
+        lda     #MT_TOP
+        jmp     hx_fill
+; hof_top_x -- (row 14 cleared) the box's title starts: in inverse, a space.
+hof_top_x:
+        jsr     hx_box
+        lda     #14
+        jsr     hm_clear_row
+        lda     #$80
+        sta     hm_inverse
+        lda     #' '
+        jmp     hm_char
+; hof_title_x -- (" - TOP 5") the title's end, a space, then '_' to column 39.
+hof_title_x:
+        jsr     hm_print
+hx_title_fill:
+        lda     #' '
+        jsr     hm_char
+        lda     #0
+        sta     hm_inverse
+        lda     #40
+        sec
+        sbc     hm_col
+        tax
+        lda     #MT_BOTTOM
+        bne     hx_fill
+; hof_row_x -- A = row 15 + k cleared, its bars, the cursor at column 1; on
+; the last row, row 20 the bottom line.
+hof_row_x:
+        pha
+        jsr     hm_clear_row
+        ldy     #0
+        lda     #MT_LBAR
+        sta     (hm_ptr),y
+        ldy     #39
+        lda     #MT_RBAR
+        sta     (hm_ptr),y
+        pla
+        cmp     #19
+        bcc     @col
+        lda     #20
+        ldy     #0
+        jsr     hm_at
+        ldx     #40
+        lda     #MT_TOP
+        jsr     hx_fill
+        lda     #19
+        ldy     #1
+        jmp     hm_at
+@col:   lda     #1
+        sta     hm_col
+        rts
+endx_end:
+.segment "HOF"
+.endif

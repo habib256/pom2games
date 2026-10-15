@@ -1,8 +1,15 @@
 # Neowilderness
 
 Port séparé de Wilderness pour Apple IIe enhanced 128 Ko et IIc, avec
-rendu DHGR et modules préchargés en RAM. Le premier objectif est de supprimer
-les lectures disque pendant les commandes et déplacements courants.
+rendu DHGR et modules préchargés en RAM, en deux éditions (14 octobre
+2026), même jeu et même chargeur : **Neowilderness**
+(`dist/NEOWILDERNESS.po`, disquette 5,25" de 140 Ko, Disk II : la Sierra
+Nevada seule, la préparation, cinq parties) et **NeoWildernessXL**
+(`dist/NEOWILDERNESSXL.po`, disquette 3,5" de 800 Ko : IIe avec carte
+contrôleur 3,5" (UniDisk 3.5/Liron, SuperDrive) ou IIc avec lecteur
+SmartPort, IIc Plus ; les six scénarios). Le premier objectif est de
+supprimer les lectures disque pendant les commandes et déplacements
+courants.
 
 ## État actuel
 
@@ -21,12 +28,22 @@ elle aussi (lot 4) : ruban de boussole et panneaux de survie en couleur,
 avertissements sur bande rouge, messages en vrai texte 80 colonnes, carte
 MAP en 80 colonnes, feuille TOPO calculée à l'ouverture depuis la carte en
 mémoire, retours d'écrans sans redessin de la vue. Les quatre lignes du
-bas sont une surface de commande (lot 8, étape 2) : à gauche la grille des
-verbes et leurs listes (RETURN, flèche bas ou TAB l'ouvre, TAB la
-referme, flèches, RETURN, Échap ; la flèche haut affiche STATUS ; toute action s'y trouve, seuls les objets accessibles sont
-proposés, les commandes tapées restent acceptées), à droite les
-descriptions : le dernier message, la ligne de stock ou la commande telle
-que le jeu la lira. **LOOK UP / LOOK DOWN** (`LOOK U`, `LOOK D`, `LOOK
+bas sont une surface de commande (lot 8, étape 2) : à gauche les
+descriptions (le dernier message, la ligne de stock ou la commande telle
+que le jeu la lira), à droite la grille des verbes et leurs listes
+(depuis le 14 octobre ; RETURN, TAB ou la flèche bas l'ouvre, TAB ou haut
+sur sa première rangée la referme, flèches, RETURN, Échap ; toute action
+s'y trouve, seuls les objets accessibles sont proposés, les commandes
+tapées restent acceptées). Navigation par pages : sur une ligne vide,
+gauche et droite tournent la vue, la flèche haut ouvre les pages du haut
+(STATUS, avec les affections et leurs soins ; OBJECTS, l'inventaire et
+les vivres emportés ; CRAFT ; HELP ; OPTIONS ; MENU, avec la distance aux
+rangers ; en boucle par gauche/droite ; bas ou Échap revient à la vue ;
+sur NeoWildernessXL chaque bloc est un post-it en MouseText), la flèche bas ouvre la
+grille, puis, bas sous sa dernière rangée, les pages du bas (TOPO et MAP,
+gauche/droite de l'une à l'autre ; haut ou Échap revient à la vue ; MAP
+défile par I, J, K, L, C recentre).
+**LOOK UP / LOOK DOWN** (`LOOK U`, `LOOK D`, `LOOK
 AHEAD`, `PAN U`/`PAN D`, ou UP/DOWN dans la liste LOOK de la grille)
 inclinent la vue de 96 lignes comme l'original : en l'air, le sommet
 descend au bas de l'écran, le soleil haut devient visible, sans sprite ni
@@ -59,7 +76,7 @@ Sierra sur des cartes reconstituées) avec leur meilleur score, un voyage
 libre (région et niveau au choix, hasard renouvelé, jamais classé), le
 **hall of fame** (`H` : cinq meilleurs voyages par scénario) et le retour à
 ProDOS ; puis le niveau 1–10 (RETURN = 4). Seul le paquet de la région
-choisie est lu (`NEOWILD.R1`…`R6`, 14 à 17 blocs) : la première vue
+choisie est lu (son paquet dans `NEOWILD.DAT`, 14 à 17 blocs) : la première vue
 apparaît 9,2 à 9,8 s après le choix. Chaque région a sa faune (deux à
 quatre espèces, règles de rencontre et de réaction de l'original), ses
 couleurs de sol, d'eau et de végétation, son texte de départ ; un arrêt de
@@ -81,7 +98,7 @@ faune et des orages) et donne le verdict de forme ; tout voyage autre qu'un
 scénario au niveau 4 tire selon le niveau, comme l'original, la blessure du
 crash, le lot de l'épave, les usages des consommables, la date et l'heure,
 le premier front et le vent, et annonce le terrain et la difficulté
-(`NEOWILD.PRE`, lu seulement pour ces voyages). RETURN, RETURN garde le
+(module de préparation compressé en fin de `NEOWILD.DAT`, lu seulement pour ces voyages). RETURN, RETURN garde le
 premier voyage figé de l'original.
 Lot 9 ([SAVE.md](docs/SAVE.md)) : **SAVE** et **RESTORE** gardent cinq
 parties sur la disquette du jeu, comme l'original. Le numéro est demandé
@@ -131,43 +148,67 @@ Les commandes de camp suivent l'original, messages compris
 | `USE RAINCOAT`, `USE GND COVER`, `MAKE WATER` | Condenser de l'eau, de jour par ciel clair |
 | `DRINK WATER`, `DRINK RAIN` | Au plus 0,2 × poids du corps (33 oz) par gorgée ; l'eau non traitée peut donner la giardiase, d'autant plus bas qu'on est |
 
+## Fabrication (lot 3)
+
+Les recettes de MAKE suivent l'original, temps et messages compris
+([CRAFT.md](docs/CRAFT.md)) ; les objets fabriqués restent sur la case :
+
+| Commande | Effet |
+|---|---|
+| `MAKE HUT`, `MAKE IGLOO`, `MAKE TRENCH` | Hutte (en forêt), igloo (sur la neige), tranchée ; ni dans l'eau, ni à l'épave, ni au poste ; 4 000 k / ((lumière + 2)(hache en usage + 2) × santé) minutes, k = 2, 3, 1 (169, 254, 84 de jour au départ) |
+| `USE HUT`, `ENTER HUT`, `EXIT HUT` (IGLOO, TRENCH) | Entrer, sortir ; dedans, l'air + 15 °F (l'igloo : 35 °F) et le risque animal × 0,1 |
+| `USE TENT`, `EXIT TENT` | Monter la tente sur la case (30 minutes) et y entrer, en sortir |
+| `MAKE CLUB`, `MAKE SPEAR`, `MAKE BOW`, `MAKE AXE` | En forêt ; lance, arc et hache demandent une corde ou le matériel de pêche (sauf Birmanie, Nouvelle-Guinée, Bolivie) ; 21 à 852 minutes selon la santé, le couteau en usage et la lumière |
+| `USE BOW`, `USE SPEAR`, `USE CLUB`, `USE ROCK` | L'arme en main et en usage pour `KILL GAME` ou `KILL FISH` (p = 0,2 ; 0,1 ; jamais) et pour `ATTACK` d'un animal (seuils de l'original par arme), jusqu'à ce que le temps passe |
+| `GET`, `CARRY`, `PACK`, `DROP` (BOW, SPEAR, CLUB, ROCK, SPLINT) | En main, dans le sac, au sol de la case ; l'arc, la lance et l'attelle restent sur leur case, le gourdin se perd en partant ; une pierre attend sur toute case de terre ; `WEAR SPLINT` |
+| `MAKE SPLINT` | Attelle, 53 minutes avec la hache ou à l'épave, sinon en forêt avec une corde |
+| `MAKE SUNGLASSES`, `MAKE SUNSCREEN` | Visière d'écorce, boue ; sol dégagé ou forêt, 30 minutes |
+
+Sur NeoWildernessXL, la hutte, l'igloo, la tranchée et la tente posée se
+voient dans le paysage (sprites de l'original, sur leur case et de loin
+jusqu'à 8 cases) ; l'édition de 140 Ko n'a pas la place de ces sprites et
+ne les dessine pas. Vêtements de peau, corde, radeau, gourde et ustensiles :
+lot 5.
+
+La page **CRAFT** (lettre R, entre OBJECTS et HELP) range ces recettes en
+trois groupes, avec leur état en MouseText (coche : possible ici, X
+inverse : il manque quelque chose, losange : déjà fait) et le temps que
+MAKE passerait maintenant ; à droite, la recette choisie : son effet, ce
+qu'il faut (coché ou non), ce dont dépend le temps et ce qui le ralentit ;
+RETURN tape `MAKE x`.
+
 ## Construction
 
 ```sh
-make            # ../dist/NEOWILDERNESS.po : volume ProDOS 5,25 pouces (280 blocs)
+make            # ../dist/NEOWILDERNESS.po (140 Ko, 280 blocs) et ../dist/NEOWILDERNESSXL.po (800 Ko, 1 600 blocs)
 make run        # POM2, préréglage IIe enhanced
 make inspect    # catalogue du volume, enregistrements et placement auxiliaire
 make test       # tests a2shot sur //e : images DHGR, état comparé à la référence HGR
 make -f dhgr.mk test   # banc DHGR indépendant (primitives, humeurs, disque de démonstration)
 make -f stars.mk test  # banc des étoiles (référence Python, module horaire, tracé)
 make -f hof.mk test    # banc du score et du hall of fame (fichier, écrans, disque protégé)
-make disk800           # build/NEOWILDERNESS-800K.po : le même volume sur 1 600 blocs
 ```
 
 `make test` lance aussi les bancs des étoiles et du hall of fame
 (≈ 7 minutes au total dans POM2).
 
-Le volume contient `PRODOS` (2.4.3), `NEOWILD.SYSTEM` (chargeur et menu ; le
-nom `NEOWILDERNESS.SYSTEM` dépasse 15 caractères), le tronc commun
-`NEOWILD.DAT`, lu au démarrage, les six paquets de région `NEOWILD.R1`…`R6`
-(carte, bois, sprites d'animaux, correctifs de faune, couleurs, textes), dont
-un seul est lu après le choix au menu, le module de fin de partie
-`NEOWILD.END`, le hall of fame `NEOWILD.HOF` (un bloc, réécrit en place) et
-la préparation du voyage `NEOWILD.PRE` (lue à `$2000` pour un voyage autre
-que le premier voyage figé).
-36 appels MLI avant la partie, aucun pendant ; 9 en fin de voyage (module,
-lecture et écriture du hall of fame). 34 blocs restent libres
-(`make inspect` : blocs et mémoire libre par paquet). La construction
-`NEOWILD.END`, le hall of fame `NEOWILD.HOF` (un bloc, réécrit en place),
-le module de SAVE/RESTORE `NEOWILD.SAV` et les cinq parties
-`NEOWILD.S1`…`S5` (1 424 octets chacune, réécrites en place, lot 9).
-36 appels MLI avant la partie ; pendant la partie, aucun sauf SAVE (8) et
-RESTORE (6) ; 9 en fin de voyage (module, lecture et écriture du hall of
-fame). 4 blocs restent libres (`make inspect` : blocs et mémoire libre par
-paquet). `make DISK_BLOCKS=1600` construit le même volume sur 800 Ko
-(3,5 pouces) et `make disk800` le construit à part
-(`build/NEOWILDERNESS-800K.po`) : POM2 le démarre sur sa carte SmartPort,
-a2shot (Disk II seulement) non ; l'image livrée reste de 140 Ko. La construction
+Les deux volumes contiennent `PRODOS` (2.4.3), `NEOWILD.SYSTEM` (chargeur
+et menu ; le nom `NEOWILDERNESS.SYSTEM` dépasse 15 caractères),
+`NEOWILD.DAT` (tronc commun, paquets de région et préparation du voyage
+dans un seul fichier ; un seul paquet est lu après le choix au menu), le
+module de fin de partie `NEOWILD.END`, le hall of fame `NEOWILD.HOF` (un
+bloc, réécrit en place), le module de SAVE/RESTORE `NEOWILD.SAV` et les
+cinq parties `NEOWILD.S1`…`S5` (réécrites en place, lot 9) ; XL ajoute
+`NEOWILD.BLK` (CAMP, MEDVIEW, TREE et ORIENT, rarement chargés, lus par
+bloc dans leur fenêtre au lieu d'occuper le stock auxiliaire ; une copie
+fichier par fichier qui déplacerait ce fichier est refusée au démarrage,
+docs/MEMORY.md § 14). 36 appels MLI avant la partie ; pendant la partie,
+aucun sauf SAVE (8), RESTORE (6) et, sur XL, les lectures de
+`NEOWILD.BLK` ; 9 en fin de voyage (module, lecture et écriture du hall of
+fame). Volumes : 140 Ko, 224 blocs sur 280 ; XL, 305 blocs sur 1 600
+(`make inspect` : blocs et mémoire libre par paquet). POM2 et a2shot
+démarrent XL sur la carte SmartPort 3,5" du slot 5 (a2shot choisit le
+contrôleur d'après la taille de l'image), le 140 Ko sur Disk II. La construction
 demande les en-têtes de région et les cartes reconstituées
 (`make regions`, données originales locales). `BOOT_PACKING=raw|lz|auto`
 choisit la compression des enregistrements (`lz` par défaut depuis les
@@ -191,13 +232,15 @@ données originales requises suivent la procédure `make originals` /
 
 - TOPO/T : carte graphique globale en DHGR, calculée à chaque ouverture
   depuis la grille du port (≈ 3 s) ; elle n’est pas une reproduction exacte
-  du TOPO original. Échap, Retour ou Espace rendent la vue intacte.
+  du TOPO original. Flèche haut, Échap, Retour ou Espace rendent la vue
+  intacte ; gauche ou droite passe à MAP.
 - MAP : carte locale centrée sur le joueur, en texte 80 colonnes plein
   écran (40 × 24 cases, animée pendant WALK/SWIM), extension propre au port.
   Étiquette en inverse en haut à gauche : minutes de marche, case, cap
   magnétique, site sous P. Symboles : `=` eau, `T` bois, `t` broussailles,
   `.,:;+*^#` relief du plus bas au plus haut, `P` joueur, `C` épave,
-  `H` cabane, `R` rangers. Flèches/WASD font défiler, C recentre.
+  `H` cabane, `R` rangers. I, J, K, L font défiler, C recentre ; gauche
+  ou droite passe à TOPO, flèche haut revient à la vue.
 - Simulation : conserver les règles natives et leurs tests pendant la
   migration mémoire et vidéo.
 
@@ -209,7 +252,7 @@ STOP BLEEDING, SHIELD EYES, LOWER HEAD et SUCK VENOM
 
 | Commande | Effet |
 |---|---|
-| USE SPLINT | Poser une attelle (bras ou jambe cassés), 30 minutes ; l'attelle se fabrique au lot 3 |
+| USE SPLINT | Poser une attelle (bras ou jambe cassés), 30 minutes ; MAKE SPLINT la fabrique |
 | USE PRESSURE | Compresser une coupure, 30 minutes |
 | USE AXE / USE KNIFE | Mettre l'outil en usage sur la case (en main) |
 | CUT BODY / COOL BODY | Inciser une morsure avec la hache ou le couteau en usage ; sans durée |
@@ -225,6 +268,18 @@ L'infection des coupures non soignées et la malaria (Birmanie,
 Nouvelle-Guinée, Bolivie) peuvent se déclarer
 ([IMPLEMENTATION.md](docs/IMPLEMENTATION.md) « Soins, alertes et maladies
 (lot 13) »).
+
+## Crédits
+
+*Wilderness: A Survival Adventure* (Electric Transit, 1985, © 1984) est
+l'œuvre de Wesley Huntress, Charles Kohlhase et Peter Farson. Le moteur de
+rendu 3D de Wilderness a été développé par Wesley Huntress et Charles
+Kohlhase, deux chercheurs du JPL (NASA) ayant travaillé sur les
+trajectoires et l'imagerie des missions Mariner et Voyager. L'algorithme
+adapte les techniques de modélisation altimétrique spatiale aux contraintes
+extrêmes du MOS 6502 (1,023 MHz, 64 Ko de RAM, aucun coprocesseur
+mathématique). Neowilderness en conserve la projection et les 140 rayons
+([ANALYSE.md](docs/ANALYSE.md)).
 
 Code sous GPL-3.0, voir [LICENSE](../LICENSE). Les références et données
 originales conservent leurs droits et crédits existants.

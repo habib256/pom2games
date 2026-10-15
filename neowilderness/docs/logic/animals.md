@@ -90,7 +90,11 @@ et impose le recalcul de santé pendant la transaction.
   ou morsure empoisonnée (condition 8), avec courbes et soins existants.
   La branche native du cinquième degré et la durée variable des morsures
   restent à porter.
-- ATTACK exige hache/couteau accessible. Une réussite est interprétée comme
+- ATTACK prend le premier moyen en usage de l'original (T0F/S07 `$590F` :
+  fusil 21, arc 20, lance 19, hache ou couteau en usage 18, gourdin ou
+  pierre 17 ; drapeau effacé ; seuils `fiche[moyen]` et `fiche[moyen + 6]`,
+  lot 3, CRAFT.md § 8.5) ; sans moyen en usage, il exige hache/couteau
+  accessible (règle du port, sans USE). Une réussite est interprétée comme
   défense et départ, alors que l’original peut tuer et créer des provisions.
   Chasse, carcasse, autres armes, feu, mode recherche et autres régions manquent.
 - Les animaux peuvent blesser le joueur dans un arbre, comme dans la
@@ -327,6 +331,10 @@ auxiliaires des modules (détail : [MEMORY.md](../MEMORY.md) § 9.2, § 9.6) :
 | `proj_sprites` | PROJECT | 12 | largeurs et bases des six sprites (épave, espèces 1-3, cabane, espèce 4) |
 | `summary_quiet` | SUMMARY | 1 | espèce que le bruit ne chasse pas (octet 14 ≥ 27 : le crotale), 0 ailleurs |
 
+- **Paquet de la Sierra Nevada** (15 octobre 2026) : ses quatre correctifs
+  et ses couleurs DHGR, identiques au tronc, ne sont plus écrits par son
+  paquet (le chargeur lit toujours le tronc d'abord ; `build_disk`
+  l'affirme) ; les cinq autres paquets les écrivent.
 - **Ordre des tirages inchangé** : la quatrième fiche était déjà filtrée et
   tirée (vide en Sierra : taux 0) ; Burma et Bolivia y mettent leur
   quatrième espèce (`animal_kind` 9, sprite du module 23), Chile a ses

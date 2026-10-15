@@ -2,7 +2,9 @@
 """Lot 7 orientation (docs/ORIENTATION.md): the original's rules, measured on
 the ROM by tools/re_orientation_probe.py, played on the port.
 
-LOOK N/E/S/W/AZ need a direction aid in use (msg 42); USE COMPASS, WATCH,
+LOOK N/E/S/W/AZ need a direction aid in use (msg 42), but a COMPASS at hand
+is put in use by the LOOK itself (port, 14 October 2026: the grid offers
+NORTH..WEST in every state); USE COMPASS, WATCH,
 ALTIMETER exclude each other; the watch estimate and the shadow stick give
 the formulas of T$10/S$0C; LOOK SUN follows the Sun of sky_position, LOOK
 STARS the celestial pole of the hemisphere; USE MAP opens the map.
@@ -106,9 +108,15 @@ def main():
               'LOOK COMPASS\r', 'LOOK WATCH\r', 'USE SHADOW\r', 'LOOK N\r', 'E', '2\r', 'LOOK N\r',
               'USE SHADOW\r', 'LOOK E\r', 'W', '30 MIN\r', 'REST 4 H\r', 'USE WATCH\r', 'LOOK SUN\r',
               'LOOK W\r', 'N', '200\r']
+    # The ROM's msg 42 cases without a compass at hand (the port puts a
+    # carried one in use): the compass is set aside for those commands.
+    compass = a2test.run(DISK, [L.until('idle', 20000), L.peek('it_place', 1, 53)],
+                         emulator=a2test.A2SHOT).mem(L['it_place'] + 53, 1)[0]
     steps = [L.until('idle', 20000)] + SNAP
-    for c in script:
-        steps += cmd(c) + SNAP
+    for i, c in enumerate(script):
+        aside = i in (0, 5, 20)
+        steps += ([L.poke('it_place', 0xFF, 53)] if aside else []) + cmd(c) + SNAP
+        steps += [L.poke('it_place', compass, 53)] if aside else []
     r = a2test.run(DISK, steps, emulator=a2test.A2SHOT, timeout=1800)
     s = snaps(r, len(script) + 1)
     d = dict(zip(['start'] + script, s))
@@ -149,6 +157,18 @@ def main():
     check(f'REST ends the watch; at 13.5 h, LOOK W, N, 200: heading {w13}',
           s[26]['aid'] == 0 and abs(s[28]['hour'] - 13.5) < 1e-4 and sun13 == s[28]['sun']
           and near(s[31]['heading'], w13))
+
+    # 1b. The port: LOOK EAST, then NORTH, with the compass only carried.
+    steps = [L.until('idle', 20000)] + SNAP
+    for c in ('LOOK EAST\r', 'LOOK NORTH\r'):
+        steps += cmd(c) + SNAP
+    r = a2test.run(DISK, steps, emulator=a2test.A2SHOT, timeout=900)
+    s = snaps(r, 3)
+    check('LOOK EAST, NORTH with a carried compass: in use (in hand), magnetic headings',
+          s[0]['aid'] == 0 and s[1]['aid'] == 1 and s[1]['place'][1] == 3
+          and 'MAGNETIC, NOT TRUE' in s[1]['text']
+          and near(s[1]['heading'], wrap(140 + units(s[1]['mag'])), 4)
+          and near(s[2]['heading'], wrap(units(s[2]['mag'])), 4))
 
     # 2. Night, clouds, latitude and shelter (state poked as in the ROM probe).
     script = [('poke', 'night', 1), ('poke', 'period', 0), 'LOOK SUN\r', 'LOOK STARS\r', ('poke', 'MAP+12', 0xEF), 'LOOK STARS\r',

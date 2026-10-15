@@ -141,12 +141,18 @@ def check_sheet(data, name):
         raise AssertionError(f'{name}: 6502-style differs first at pixel {bad}')
     # known strip pixels: north arrow shaft white, strip background black
     assert pixel_nibble(main, aux, R.ARROW_X, 20) == P.rot(T.INK)
-    assert pixel_nibble(main, aux, 139, 0) == 0 and pixel_nibble(main, aux, 112, 80) == 0
+    assert pixel_nibble(main, aux, 139, 0) == 0 and pixel_nibble(main, aux, 126, 80) == 0
+    assert pixel_nibble(main, aux, 0, 80) == 0 and pixel_nibble(main, aux, 13, 80) == 0
     base, snow, top, timber = T.header(data)
     # scale bar: band 0 at the bottom row of the bar, the top band at its top
     assert page[R.BAR_BOTTOM][R.BAR_X0 + 1] in (T.pick(T.tint(0, snow), 0), T.pick(T.tint(0, snow), 1))
     assert page[R.BAR_BOTTOM - 4 * (top + 1)][R.BAR_X0] == T.STRIP
 
+    m = R.map_area(page)       # the map columns (cell x), centred on the screen
+    assert len(m[0]) == R.GW and R.SHEET_X == (R.COLS - R.GW) // 2
+    # the margins hold the strip: arrow and distance left, altitude scale right
+    assert all(0 <= x < R.SHEET_X or R.STRIP_X <= x < R.COLS for x, _ in R.strip_pixels(data))
+    assert all(x < R.SHEET_X for x, _ in R.NORTH + R.ARROW + R.SCALE)
     # markers at the header positions
     covered = set()
     for letter, x, y in R.markers(data):
@@ -159,7 +165,7 @@ def check_sheet(data, name):
         box, ink = T.MARKERS[letter]
         row = R.marker_row(y)
         if letter == 'C':
-            assert page[row][x] == box, (letter, x, y)
+            assert m[row][x] == box, (letter, x, y)
         pix = R.marker_pixels(letter, x, y)
         glyph = [p for p, c in pix.items() if c == ink]
         assert len(glyph) == sum(bin(b).count('1') for b in T.GLYPHS[letter])
@@ -174,7 +180,7 @@ def check_sheet(data, name):
     water_px = {(x, sy) for sy in range(R.ROWS) for x in range(R.GW)
                 if grid[R.nearest(sy) * 112 + x] & 0x80}
     shown = {(x, sy) for sy in range(R.ROWS) for x in range(R.GW)
-             if page[sy][x] in (T.WATER, T.SHORE)}
+             if m[sy][x] in (T.WATER, T.SHORE)}
     assert shown - covered == water_px - covered, name
     cells = {(x, R.nearest(sy)) for x, sy in water_px}
     assert cells == {(i % 112, i // 112) for i, v in enumerate(grid) if v & 0x80}
@@ -183,12 +189,12 @@ def check_sheet(data, name):
         land = any((xx, yy) not in water_px for xx, yy in
                    ((x - 1, sy), (x + 1, sy), (x, sy - 1), (x, sy + 1))
                    if 0 <= xx < R.GW and 0 <= yy < R.ROWS)
-        assert page[sy][x] == (T.SHORE if land else T.WATER), (x, sy)
+        assert m[sy][x] == (T.SHORE if land else T.WATER), (x, sy)
 
     # woods: WOODS pixels only on forest cells; every plain forest pixel in the
     # woods window is WOODS
     woods_px = {(x, sy) for sy in range(R.ROWS) for x in range(R.GW)
-                if page[sy][x] == T.WOODS} - covered
+                if m[sy][x] == T.WOODS} - covered
     forest_px = {(x, sy) for sy in range(R.ROWS) for x in range(R.GW)
                  if R.forest(data, x, R.nearest(sy)) and (x, sy) not in water_px}
     assert woods_px <= forest_px, name
@@ -217,7 +223,7 @@ def check_sheet(data, name):
 
 def check_rules(data):
     """Index contours are bold (both sides); normal contours one pixel."""
-    page = R.sheet(data)
+    page = R.map_area(R.sheet(data))
     base, snow, _, _ = T.header(data)
     info = R.samples(data)
     covered = set()
@@ -269,7 +275,7 @@ def check_tables_budget(results):
     for name, cyc in results:
         assert cyc < 2.0 * 1_020_484, (name, cyc)
     for line in R.LEGEND:
-        assert len(line) <= 40, line
+        assert len(line) <= 79, line
     print(f'  tables {sum(sizes.values())} bytes; cycle estimates '
           + ', '.join(f'{n} {c / 1_020_484:.2f} s' for n, c in results) + ': OK')
 

@@ -64,6 +64,42 @@ def assert_foliage(view):
     assert all(sum(c in sky for c in view[row])>=20 for row in range(16,95)),'crowns merged into a wall'
 
 
+def coherent_crowns():
+    """One crown, one cell: the columns of a crown share its base and cell.
+
+    Generated map, the near crown of the Sierra view (56.06, 28.19) heading
+    138: columns 33..39 used to sample it across the x boundary of cell 56,
+    the player's own cell two levels lower, and drew the left side of the
+    triangle 48 rows lower than its centre (forest_ref.centre_cell)."""
+    m=(HERE/'build/map.bin').read_bytes()
+    t=forest_ref.trees(m,14352,7216,138)
+    near=sorted(c for c in t if t[c][4]==1 and c<70)
+    assert near==list(range(34,55)),near
+    assert len({t[c][2:4] for c in near})==1,'near crown split across cells'
+    tops=[t[c][0] for c in near];apex=tops.index(min(tops))
+    assert tops[:apex+1]==sorted(tops[:apex+1],reverse=True) and tops[apex:]==sorted(tops[apex:]),('not a triangle',tops)
+    # Column-independence: every sample of a strip at step n finds one cell.
+    import random
+    rnd=random.Random(1985)
+    for _ in range(150):
+        px,py,h=rnd.randrange(2500,26000),rnd.randrange(2500,19000),rnd.randrange(560)
+        seen={}
+        for col in range(140):
+            dx,dy=view_ref.direction(h-70+col)
+            for n in range(1,9):
+                x,y=px+n*dx,py+n*dy
+                if abs(dy)>=abs(dx): u,v,pu,pv,dv,axis=x,y,px,py,dy,1
+                else: u,v,pu,pv,dv,axis=y,x,py,px,dx,0
+                if 0<=((u&255)-96)//2<31:
+                    cell=forest_ref.centre_cell(pu,pv,u>>8,v>>8,v,dv,n)
+                    assert abs(cell-(v>>8))<=1
+                    assert seen.setdefault((n,axis,dv<0,u>>8),cell)==cell,('crown cell',px,py,h,col,n)
+    m=bytearray(m);m[2:8]=bytes((16,56,48,28,138,0))
+    r=frames(m)
+    assert dhgr_view(r.dumps[0])==dref(m,14352,7216,138),'coherent crowns (6502)'
+    print('  one crown, one cell: base, profile and phase shared by its columns: OK')
+
+
 def main():
     native=HERE/'build/re/page1f.bin'
     if native.exists():
@@ -174,11 +210,12 @@ def main():
         steps += [f'until:{addr+8:04X}:20000',L.peek('fauna_env',6)]
         with tempfile.TemporaryDirectory() as tmp:
             result=a2test.run(disk_with(tmp,case),steps,emulator=a2test.A2SHOT,timeout=900)
-        assert f'GRND {word}' in '\n'.join(text_screen(result.dumps[0])),word
+        assert f'GROUND {word}' in '\n'.join(text_screen(result.dumps[0])),word
         screen=text_screen(result.dumps[1])
         assert any(line.count(char)>20 for line in screen),('woodland map',char)
         assert result.dumps[2][2]==terrain,('woodland fauna',terrain,result.dumps[2])
     print('  STATUS, MAP and fauna use woodland/scrub classification: OK')
+    coherent_crowns()
     view_ref.to_png(str(HERE/'build/forest-view.png'),reference(sparse,20*256+93,20*256+173,140))
     R=dhgr()
     R.to_png(HERE/'build/forest-view-dhgr.png',dref(sparse,20*256+93,20*256+173,140))

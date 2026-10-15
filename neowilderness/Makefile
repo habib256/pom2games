@@ -29,9 +29,11 @@ DISK := $(DIST)/NEOWILDERNESS.po
 # (LZ where the 200/46 cycles-per-byte model says it shortens the boot) or
 # raw; see docs/MEMORY.md 9.5.
 BOOT_PACKING ?= lz
-# Volume size in 512-byte blocks: 280 (5.25-inch, 140 KB, the shipped image)
-# or 1600 (3.5-inch, 800 KB); lot 9, docs/SAVE.md.
-DISK_BLOCKS ?= 280
+# Two editions (14 October 2026): Neowilderness, a 140 KB 5.25-inch disk with
+# the Sierra Nevada alone ($(DISK)), and NeoWildernessXL, an 800 KB 3.5-inch
+# disk with the six scenarios ($(DISKXL)); tools/build_disk.py EDITIONS. The
+# tests run on the XL image (everything), tests/test_editions.py on both.
+DISKXL := $(DIST)/NEOWILDERNESSXL.po
 BIN  := $(BUILD)/wild.bin
 MAPBIN := $(BUILD)/map.bin
 # Reconstituted maps of the five other regions (lot 7, docs/REGIONS.md).
@@ -39,7 +41,7 @@ REGION_MAPS := $(foreach r,1 3 4 5 6,$(BUILD)/maps/r$(r).bin)
 SEED ?= 1985
 LEVEL ?= 4
 
-all: $(DISK)
+all: $(DISK) $(DISKXL)
 
 $(BUILD)/wild.o: src/medical.s src/hazards.s src/care.s src/alerts.s
 $(BUILD)/wild.o: src/clock.inc
@@ -47,8 +49,16 @@ $(BUILD)/wild.o: src/memory.s
 $(BUILD)/wild.o: src/geography.s src/geoaux.s
 $(BUILD)/wild.o: src/water.s src/camp.s src/menu.s
 $(BUILD)/wild.o: src/prepare.s
-$(BUILD)/wild.o: src/save.s
+$(BUILD)/wild.o: src/save.s src/pages.s
 $(BUILD)/wild.o: src/orient.s $(BUILD)/textbank.inc
+$(BUILD)/wild.o: src/forage.s src/frg.s src/craft.s
+$(BUILD)/wild.o: src/fire.s $(BUILD)/fire.inc
+$(BUILD)/wild.o: src/grid.s src/mousetext.inc src/mt_pages.s
+
+# The animated campfire (docs/CAMP.md 8): art and layers of src/fire.s.
+$(BUILD)/fire.inc: tools/genfire.py tools/dhgr_palette.py
+	@mkdir -p $(@D)
+	$(PYTHON) -I $< $@
 
 $(BUILD)/textbank.inc: tools/gentextbank.py src/textbank.txt
 	@mkdir -p $(@D)
@@ -104,17 +114,15 @@ $(BUILD)/wild.o: src/wild.s src/adventure.s src/outdoor.s src/game.s src/input.s
 $(BUILD)/menu.inc: tools/genmenu.py $(BUILD)/regions/regions.json $(MAPBIN) $(REGION_MAPS)
 	$(PYTHON) -I $< $@
 
-$(BUILD)/boot.o: src/boot.s src/hof_menu.s $(BUILD)/menu.inc $(A2_ASM_DEPS)
+$(BUILD)/boot.o: src/boot.s src/hof_menu.s src/mousetext.inc $(BUILD)/menu.inc $(A2_ASM_DEPS)
 	@mkdir -p $(@D)
 	$(CA65) -g -t none $(A2_INCS) -I $(BUILD) -l $(BUILD)/boot.lst -o $@ $<
 
-$(BUILD)/video.o $(BUILD)/mli.o: $(BUILD)/%.o: $(PRODOS)/%.s
-	@mkdir -p $(@D)
-	$(CA65) -g -t none -o $@ $<
-
 # One link: the game images, the resident layer and NEOWILD.SYSTEM share
-# build/wild.lbl, so tests and tools see every symbol.
-LINK_OBJS := $(BUILD)/wild.o $(BUILD)/boot.o $(BUILD)/video.o $(BUILD)/mli.o
+# build/wild.lbl, so tests and tools see every symbol. dev/lib/prodos is not
+# linked (docs/MEMORY.md 15): the loader claims /RAM (src/boot.s ld_claim),
+# the exit path formats it again (src/memory.s prodos_restore).
+LINK_OBJS := $(BUILD)/wild.o $(BUILD)/boot.o
 $(BIN): $(LINK_OBJS) src/wild.cfg
 	$(LD65) -C src/wild.cfg -m $(BUILD)/wild.map -Ln $(BUILD)/wild.lbl -o $@ $(LINK_OBJS)
 
@@ -143,23 +151,20 @@ $(BUILD)/JOURNEY.dsk: original/extras/Wilderness\ -\ Journey.a2r
 
 $(DISK): $(BIN) $(BUILD)/NEOWILD.HOF $(BUILD)/dhgr_tables.inc $(MAPBIN) $(REGION_MAPS) $(BUILD)/regions/regions.json $(SPRITE_BINS) $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py tools/build_disk.py tools/pack_boot.py tools/geo_atlas.py Makefile
 	@mkdir -p $(DIST)
-	$(PYTHON) -I tools/build_disk.py --out $(DISK) --build $(BUILD) --packing $(BOOT_PACKING) --blocks $(DISK_BLOCKS) --layout $(BUILD)/layout.json
-
-# Lot 9 (docs/SAVE.md): the same volume on 1600 blocks (3.5-inch, 800 KB),
-# beside the shipped 140 KB image; POM2 boots it on its SmartPort (Liron)
-# card, a2shot (Disk II only) cannot.
-DISK800 := $(BUILD)/NEOWILDERNESS-800K.po
-disk800: $(DISK)
-	$(PYTHON) -I tools/build_disk.py --out $(DISK800) --build $(BUILD) --packing $(BOOT_PACKING) --blocks 1600
+	$(PYTHON) -I tools/build_disk.py --out $(DISK) --build $(BUILD) --packing $(BOOT_PACKING) --edition neowilderness --layout $(BUILD)/layout-140.json
+$(DISKXL): $(DISK)
+	$(PYTHON) -I tools/build_disk.py --out $(DISKXL) --build $(BUILD) --packing $(BOOT_PACKING) --edition xl --layout $(BUILD)/layout.json
 
 inspect: all
 	$(PYTHON) -I $(DEV)/tools/prodos/read_volume.py $(DISK)
+	$(PYTHON) -I $(DEV)/tools/prodos/read_volume.py $(DISKXL)
 	$(PYTHON) -I tools/inspect_disk.py $(BUILD)/layout.json
 
 test: all $(A2SHOT)
 	$(PYTHON) tests/test_journey.py
 	$(PYTHON) tests/test_pack_boot.py
 	$(PYTHON) tests/test_boot.py
+	$(PYTHON) tests/test_editions.py
 	$(PYTHON) tests/test_prodos.py
 	$(PYTHON) tests/test_menu.py
 	$(PYTHON) tests/test_prepare.py
@@ -174,6 +179,8 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_fast_duration.py
 	$(PYTHON) tests/test_input.py
 	$(PYTHON) tests/test_menu_bar.py
+	$(PYTHON) tests/test_altcharset.py
+	$(PYTHON) tests/test_grid_play.py
 	$(PYTHON) tests/test_sleep.py
 	$(PYTHON) tests/test_clock.py
 	$(PYTHON) tests/test_feedback.py
@@ -190,6 +197,7 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_hud.py
 	$(PYTHON) tests/test_interface.py
 	$(PYTHON) tests/test_transitions.py
+	$(PYTHON) tests/test_focus.py
 	$(PYTHON) tests/test_screen_returns.py
 	$(PYTHON) tests/test_sky.py
 	$(PYTHON) tests/test_moonlight.py
@@ -201,6 +209,7 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_scene_render.py
 	$(PYTHON) tests/test_render_memory.py
 	$(PYTHON) tests/test_sprites.py
+	$(PYTHON) tests/test_animal_view.py
 	$(PYTHON) tests/test_view.py
 	$(PYTHON) tests/test_dhgr_mood.py
 	$(PYTHON) tests/test_dhgr_video.py
@@ -220,6 +229,10 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_memory_cache.py
 	$(PYTHON) tests/test_thermal.py
 	$(PYTHON) tests/test_camp.py
+	$(PYTHON) tests/test_fire.py
+	$(PYTHON) tests/test_forage.py
+	$(PYTHON) tests/test_craft.py
+	$(PYTHON) tests/test_craft_page.py
 	$(PYTHON) tests/test_medical.py
 	$(PYTHON) tests/test_care.py
 	$(PYTHON) tests/test_exposure.py
@@ -253,6 +266,10 @@ test-original: all $(A2SHOT)
 	$(PYTHON) tools/re_animal_reactions_probe.py
 	$(PYTHON) tools/re_thermal_probe.py
 	$(PYTHON) tools/re_camp_probe.py
+	$(PYTHON) tools/re_forage_probe.py
+	$(PYTHON) tests/test_forage.py --original
+	$(PYTHON) tools/re_craft_probe.py
+	$(PYTHON) tests/test_craft.py --original
 	$(PYTHON) tests/test_swim_energy.py --original
 	$(PYTHON) tests/test_swim_cadence.py --original
 	$(PYTHON) tests/test_swim_raster.py --original
@@ -263,7 +280,7 @@ FUZZ_SEED ?= 2
 fuzz: all $(A2SHOT)
 	$(PYTHON) tests/test_fuzz.py $(FUZZ_SEED) 6 16
 
-.PHONY: test test-original fuzz inspect originals extract run-original dump-game topo disk800 FORCE
+.PHONY: test test-original fuzz inspect originals extract run-original dump-game topo FORCE
 FORCE:
 
 # ---------------------------------------------------------------- analysis

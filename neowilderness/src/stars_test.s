@@ -176,6 +176,27 @@ finished:
         lda     cp+1
         adc     #0
         sta     tp+1
+        ldx     #0              ; the module's inputs (the game: st_inputs):
+        lda     bench_flags     ; tilt 1 (bits 5-6) is LOOK UP
+        and     #$60
+        cmp     #$20
+        bne     :+
+        inx
+:       stx     st_up
+        lda     sky_bearing
+        sta     st_mb
+        lda     sky_bearing+1
+        sta     st_mb+1
+        lda     sky_y           ; a Moon drawn at level (the up cases have none)
+        cpx     #0
+        bne     @nomoon
+        cmp     #96
+        bcs     @nomoon
+        cmp     #16
+        bcs     :+
+@nomoon:
+        lda     #$80
+:       sta     st_mrow
         jsr     stars_compute   ; the module, in its window
         jsr     checkpoint      ; list: st_a, st_row, st_bucket
         jsr     page_clear

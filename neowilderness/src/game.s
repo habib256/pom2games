@@ -116,13 +116,22 @@ overlay_text: .res 160          ; scratch shared by sprites and sky
 .segment "GCODE"
 
 scr_status:
-        lda     #16
-        jsr     overlay_load
+        jsr     status_fetch
         jmp     module_status
+; INVENTORY shares the STATUS module: the load totals (SIM) first.
 scr_inventory:
-        lda     #2
-        jsr     overlay_load
+        jsr     load_totals_quiet
+        jsr     status_fetch
         jmp     module_inventory
+status_fetch:
+        ldx     #16             ; STATUS -> $9600 (SIM is reloaded later)
+        XL_ABS  XI_GAME, sim_fetch, @p05        ; (XL: from NEOWILD.BLK, 16 blocks
+        jsr     mem_fetch                       ; up to $B5FF; docs/MEMORY.md 29)
+        lda     #0
+        sta     sim_loaded
+        sta     sim_quiet
+        rts
+.segment "TEXT"                 ; (moved out of WILDGAME for the site sprites)
 env_day:
         lda     #3
         jsr     overlay_load
@@ -136,8 +145,21 @@ thermal:
         lda     #3
         jsr     overlay_load
         jmp     module_thermal
+.segment "GCODE"
+
+; A site sprite (scene_asset SITE_ASSET.., the log, the rock, the outpost)
+; lives in the SIM window: PROJECT checks it is still there, else reads it
+; from NEOWILD.BLK (module_site_load). The $5800 window then holds PROJECT.
+site_load:
+        pha
+        lda     #11
+        jsr     overlay_load
+        pla
+        jmp     module_site_load
 
 overlay_load:
+        cmp     #SITE_ASSET
+        bcs     site_load
         cmp     #18
         bne     :+
         lda     #17             ; hazards and medical share one image
@@ -231,6 +253,11 @@ s_last:  .repeat 3
 health_minutes: .word 0
 health_period: .byte 15
 health_due: .byte 0
+fire_pos: .res  6               ; MAKE FIRE (fire.s fire_light): px, py,
+fire_cx  = fire_pos+1           ; heading then: the fire's cell and its
+fire_cy  = fire_pos+3           ; bearing in the view (src/fire.s)
+fire_bear = fire_pos+4
+.export fire_cx, fire_cy, fire_bear
 meal_remaining: .byte 0
 s_health: .byte $83, $7B, $BB, $44, $34        ; saved first journey Hmax
 s_body:  .byte $87, $45, $33, $33, $33  ; 98.6 F
@@ -471,7 +498,8 @@ fast_words:
         .byte 4,"WALK",V_WALK|$80,4,"REST",V_REST|$C0,4,"SWIM",V_SWIM|$80
         .byte 5,"SLEEP",V_REST|$C0
         .byte 4,"TOPO",103,4,"VIEW",104,6,"STATUS",105
-        .byte 9,"INVENTORY",106,4,"HELP",107,3,"MAP",109,0
+        .byte 9,"INVENTORY",106,4,"HELP",107,3,"MAP",109
+        .byte 1,"M",109,1,"T",103,1,"S",105,0   ; one key: MAP, TOPO, STATUS (alone only)
 .segment "RODATA"
 ; Complete input/vocabulary fallback runs at most once per command.
 general_command:
@@ -776,9 +804,10 @@ resolve_noun:
 resolve_menu:
         lda     menu_noun
         bne     :+
-        jmp     resolve_noun
+        jsr     resolve_noun
+        jmp     forage_gate     ; lot 4: its commands end there
 :       sta     noun
-        rts
+        jmp     forage_gate
 .segment "VOCAB"
 dispatch:
         jsr     resolve_menu
@@ -850,119 +879,137 @@ scr_notyet:
 scr_view = show_view
 .segment "GCODE"
 
+; HELP joins STATUS and INVENTORY in the STATUS module (SIM window): the
+; former SCREENS module (2) is gone.
 scr_help:
-        lda     #2
-        jsr     overlay_load
+        jsr     status_fetch
         jmp     module_help
-.segment "SCREENS"
+.segment "STATUS"
+; HELP, a page of the cycle (src/pages.s): four blocks on one 80-column
+; page, a block's first line its heading (inverse). Written row by row (no
+; stale cell, differential): band 1 from row 2 has TRAVEL at column 0 and
+; EQUIPMENT at ST_RIGHT, band 2 from row 12 SURVIVAL and HEALTH; the two
+; blocks of a band advance a line a row, each stopping at its 0.
 module_help:
-        lda     #0
-        sta     help_page
-help_redraw:
-        jsr     text_screen
-        lda     #$3F
-        sta     $32             ; inverse title, readable on a monochrome display
-        jsr     puts
-        .byte " NEOWILDERNESS - HELP ",0
-        lda     #$FF
-        sta     $32
-        jsr     puts
-        .byte "||",0
-        ldx     help_page
-        lda     help_lo,x
-        pha
-        lda     help_hi,x
-        tax
-        pla
-        jsr     print_str_ax
-        lda     #20
+        lda     #PG_HELP
+        jsr     page_top
+        ldx     #0
+@band:  stx     help_page       ; 0: rows 2.., 1: rows 12..
+        lda     help_row,x
         jsr     vtab
+        lda     help_page
+        asl     a
+        asl     a
+        ora     #3
+        tax
+        ldy     #3
+:       lda     help_band,x     ; the two string cursors of the band
+        sta     help_ptr,y
+        dex
+        dey
+        bpl     :-
+        lda     #$3F            ; the headings
+        sta     help_inv
+@row:   ldx     #0
+        jsr     help_line
+        lda     #ST_RIGHT
+        jsr     tab
+        ldx     #2
+        jsr     help_line
         jsr     puts
-        .byte "1 TRAVEL  2 GEAR  3 SURVIVAL|N/SPACE NEXT   B BACK|ESC/RETURN: VIEW|I INVENTORY  S STATUS  T TOPO",0
+        .byte   "|", 0
+        lda     #$FF
+        sta     help_inv
+        ldy     #0
+        lda     help_ptr
+        sta     gp2
+        lda     help_ptr+1
+        sta     gp2+1
+        lda     (gp2),y
+        bne     @row
+        lda     help_ptr+2
+        sta     gp2
+        lda     help_ptr+3
+        sta     gp2+1
+        lda     (gp2),y
+        bne     @row
+        ldx     help_page
+        inx
+        cpx     #2
+        bcc     @band
+        lda     #<help_keys
+        ldy     #>help_keys
+        XL_ABS  XI_STATUS, page_foot_x, @x30
+        jsr     page_foot
 help_key:
         jsr     wait_key
-        cmp     #'I'
-        jeq     scr_inventory
-        cmp     #'S'
-        jeq     scr_status
-        cmp     #'T'
-        jeq     scr_topo
-        cmp     #KC_ESC
-        jeq     back_to_view_now
-        cmp     #KC_RET
-        jeq     back_to_view_now
-        cmp     #'1'
-        beq     @select
-        cmp     #'2'
-        beq     @select
-        cmp     #'3'
-        beq     @select
-        cmp     #'N'
-        beq     @next
-        cmp     #' '
-        beq     @next
-        cmp     #'B'
-        bne     help_key
-        lda     help_page
+        jsr     page_keys
+        jmp     help_key
+; help_line -- the line at cursor X (0 left, 2 right): printed up to its 13
+; (passed) or its 0 (kept: the block's later rows stay blank).
+help_line:
+        stx     help_x
+        lda     help_ptr,x
+        sta     gp2
+        lda     help_ptr+1,x
+        sta     gp2+1
+        lda     help_inv
+        sta     INVFLG
+@ch:    ldy     #0
+        lda     (gp2),y
+        beq     @end
+        inc     gp2
         bne     :+
-        lda     #3
-:       sec
-        sbc     #1
-        jmp     @page
-@next: lda     help_page
-        clc
-        adc     #1
-        cmp     #3
-        bcc     @page
-        lda     #0
-@page: sta     help_page
-        jmp     help_redraw
-@select:
-        sec
-        sbc     #'1'
-        sta     help_page
-        jmp     help_redraw
+        inc     gp2+1
+:       cmp     #13
+        beq     @end
+        ora     #$80
+        jsr     COUT
+        jmp     @ch
+@end:   lda     #$FF
+        sta     INVFLG
+        ldx     help_x
+        lda     gp2
+        sta     help_ptr,x
+        lda     gp2+1
+        sta     help_ptr+1,x
+        rts
 help_page: .byte 0
-help_lo: .byte <help_travel,<help_gear,<help_survival
-help_hi: .byte >help_travel,>help_gear,>help_survival
+help_x:    .byte 0
+help_inv:  .byte 0
+help_ptr:  .word 0, 0
+help_keys = st_keys
+help_row:  .byte 2, 12
+        XL_BYTE XI_STATUS, help_row+1, 11       ; (XL: the post-its, rows 2-9 and 11-19)
+help_band: .word help_travel, help_gear, help_survival, help_health
 help_travel:
-        .byte "1/3  TRAVEL",13,13
-        .byte "REACH THE RANGER OUTPOST.",13
-        .byte "INVENTORY, STATUS, TOPO.",13,13
-        .byte "LOOK N/E/S/W: FACE NORTH/EAST ETC.",13
-        .byte "LOOK L/R/B: LEFT/RIGHT/BEHIND",13
-        .byte "ARROWS TURN ON AN EMPTY LINE",13,13
-        .byte "WALK 10 MIN / WALK 1 H",13
-        .byte "SWIM 1 H: CROSS WATER",13
-        .byte "ESC: STOP AFTER THIS STEP",13,13
-        .byte "MAP: ARROWS/WASD, C CENTER",13
-        .byte "TOPO: FULL MAP",0
+        .byte " TRAVEL ",13
+        .byte "WALK 10 MIN / WALK 1 H / SWIM 1 H",13
+        .byte "ESC: STOP AFTER THIS STEP.",13
+        .byte "LOOK N/E/S/W, L/R/B, UP, DOWN",13
+        .byte "LEFT/RIGHT: TURN  RETURN: COMMANDS",13
+        .byte "UP: PAGES  DOWN: COMMANDS, THEN TOPO",13
+        .byte "MAP: IJKL SCROLL, C CENTER",0
 help_gear:
-        .byte "2/3  EQUIPMENT",13,13
-        .byte "INVENTORY: GEAR, FREE SPACE",13
-        .byte "1-5: LOCATIONS",13,13
-        .byte "GET AXE: PACK",13
-        .byte "TAKE AXE: HAND",13
-        .byte "WEAR PARKA: WORN",13
-        .byte "DROP AXE: GROUND HERE",13,13
-        .byte "DROP CHEESE: DROPS ALL ITS STOCK",13
-        .byte "ITEMS STAY WHERE DROPPED.",13,13
+        .byte " EQUIPMENT ",13
+        .byte "INVENTORY: OBJECTS, SPACE, WEIGHT",13
+        .byte "GET AXE: PACK     TAKE AXE: HAND",13
+        .byte "WEAR PARKA: WORN  DROP AXE: GROUND",13
         .byte "CLIMB TREE / CLIMB DOWN",13
-        .byte "HANG FOOD: HANG PACK + CONTENTS",13
-        .byte "LOWER FOOD: PACK AT SAME TREE",0
+        .byte "HANG FOOD / LOWER FOOD: THE PACK",0
 help_survival:
-        .byte "3/3  SURVIVAL",13,13
-        .byte "STATUS: HEALTH; M FOR MEDICAL",13
+        .byte " SURVIVAL ",13
         .byte "DRINK WATER 4 OZ / EAT CHEESE 8 OZ",13
         .byte "FILL CANTEEN AT A RIVER BANK",13
-        .byte "REST 1 H / WAIT 10 MIN",13,13
+        .byte "REST 1 H / WAIT 10 MIN",13
         .byte "ENTER SHELTER / EXIT SHELTER",13
-        .byte "AT THE CABIN MAP CELL.",13
-        .byte "IGNORE / SCARE / ATTACK",13,13
-        .byte "EAT FLAGYL: ONE DOSE",13
-        .byte "USE FIRSTAID KIT / STOP BLEEDING",13,13
-        .byte "NO AMOUNT? GAME ASKS.",13
-        .byte "ESC CANCELS; OZ = OUNCES.",0
+        .byte "ANIMALS: IGNORE / SCARE / ATTACK",13
+        .byte "USE BAIT, USE TRAP, CATCH GAME 2 H",13
+        .byte "COOK GAME / TASTE / SKIN / PACK",0
+help_health:
+        .byte " HEALTH ",13
+        .byte "USE FIRSTAID KIT / STOP BLEEDING",13
+        .byte "EAT FLAGYL: ONE DOSE",0
 .segment "GCODE"
 do_site:
         lda     #10
@@ -1000,17 +1047,45 @@ show_view_scene:
         jsr     stars_view_dark ; star list of the hour, then lda view_dark
         bne     @dark
         jsr     scene_prepare
-        jmp     view_full
+        jsr     view_full
+        jmp     animal_view
 @dark:  lda     #0
         sta     scene_drawn
         ; view_full clears the terrain before the dark-sky pass.
         jsr     view_full
+        jsr     animal_view     ; the animal, a night silhouette (2026-10-15)
         lda     shown
         bne     @done
         lda     #<m_nolight
         ldx     #>m_nolight
         jmp     message
 @done:  rts
+; animal_view -- after the view (show_view_scene): an animal is always seen
+; while it is there, but in the shelters (no view) and looking up (PROJECT
+; module_animal, docs/LOOK_UPDOWN.md 5).
+animal_view:
+        lda     animal_kind
+        beq     @none
+        lda     #11
+        jsr     overlay_load
+        jmp     module_animal
+@none:  rts
+; animal_unpan -- (turn_view, scene_drawn $83) the background under the
+; animal back on screen (OUTDOOR), then the scene of the view again (PROJECT
+; module_project: the site's sprite_*, which the animal's replaced): the
+; view scrolls, animal_view draws the animal after. Keeps X.
+animal_unpan:
+        txa
+        pha
+        lda     #22
+        jsr     overlay_load
+        jsr     module_animal_unbg
+        lda     #11
+        jsr     overlay_load
+        jsr     module_project
+        pla
+        tax
+        rts
 
 .segment "LOWCODE"
 ; ----------------------------------------------------------------------------
@@ -1059,7 +1134,14 @@ stars_sky_column:
 ; window keeps its module, so overlay_current is kept too. The module uses
 ; the zero page $5E-$A1, free between two commands, and no random draw.
 stars_view_dark:
-        lda     stars_stale
+        lda     tilt            ; LOOK UP has its own projection: a list
+        cmp     #1              ; computed for the other one is stale
+        beq     :+
+        lda     #0
+:       cmp     stars_list_up
+        beq     :+
+        inc     stars_stale
+:       lda     stars_stale
         beq     @done
         lda     night           ; the list only serves night moods
         beq     @done
@@ -1085,6 +1167,9 @@ stars_mark:
 
 .segment "LOWTEXT"
 stars_stale: .byte 1            ; 1: compute the list at the next night view
+AB_J0:  .byte 0                 ; the animal's background (OUTDOOR ab_copy):
+AB_N:   .byte 0                 ; its first byte, bytes - 1 (PROJECT)
+stars_list_up: .byte 0          ; the list's projection: 1 LOOK UP (stars.s st_inputs)
 .segment "GCODE"
 
 ; Commands such as EAT/DRINK leave no explicit VIEW call. Restore their
@@ -1113,7 +1198,10 @@ turn_view:                      ; X = view_turn kind; fixed geometry scrolls wit
         lda     shelter_inside  ; a dark night scrolls too: its stars and ridge
         bne     @full           ; depend on the azimuth alone (lot 7)
         lda     scene_drawn
-        cmp     #2
+        bpl     :+              ; $83: the animal's background is kept
+        jsr     animal_unpan
+        lda     scene_drawn
+:       cmp     #2
         bcs     @full          ; multiple candidates require nearest-visible selection
 @pan:   jsr     scene_pan_load
         clc
@@ -1124,7 +1212,7 @@ turn_view:                      ; X = view_turn kind; fixed geometry scrolls wit
         plp
         bcc     :+
         jmp     show_view
-:       rts
+:       jmp     animal_view     ; the animal again, centred
 
 .segment "GCODE"
 ; ----------------------------------------------------------------------------
@@ -1344,6 +1432,7 @@ do_walk:
         sta     py
         lda     ny+1
         sta     py+1
+        jsr     forage_here     ; lot 4: the ground piles stay behind
         lda     verb
         cmp     #V_SWIM
         beq     :+
@@ -1801,7 +1890,9 @@ module_do_get:
         jeq     @empty
         cmp     #$FF
         jeq     @empty
-@ready: jsr     save_item
+@ready: lda     #0              ; the tent is a site sprite on XL (lot 3):
+        sta     scene_cache_valid ; the next view recomputes the scene
+        jsr     save_item
         cpx     #N_WATER
         bcc     @gear
         cpx     #38
@@ -1967,6 +2058,7 @@ module_do_drop:
         sta     it_pack_hi,x
 @gear:  lda     #0
         sta     it_place,x
+        sta     scene_cache_valid ; the tent is a site sprite on XL (lot 3)
         lda     px+1
         sta     it_x,x
         lda     py+1
@@ -1988,6 +2080,18 @@ item_noun:
         beq     @what
         cpx     #76
         bcc     @ok
+        cpx     #89             ; lot 3: BOW, SPEAR, CLUB, ROCK, SPLINT, the
+        bcc     @notyet         ; CRAFT module in the SIM window (src/craft.s
+        cpx     #94             ; cr_items); C clear: the caller returns
+        bcs     @notyet
+        lda     #0
+        sta     sim_loaded      ; the module holds the SIM window
+        ldx     #CRAFT_MODULE
+        jsr     sim_fetch
+        jsr     CRAFT_RUN
+        clc
+        rts
+@notyet:
         lda     #<m_notyet
         ldx     #>m_notyet
         jmp     @msg
@@ -2539,6 +2643,150 @@ cell_at:
         lda     (gp2),y
         rts
 
+; tree_ok -- C set when a tree stands here (src/tree.s tree_here: outside,
+; woods, under the timberline). Clobbers gp2 (cell_at).
+.segment "CODE"
+tree_ok:
+        lda     shelter_inside
+        bne     @no
+        jsr     woods_here
+        bcc     @no
+        jsr     level_here
+        clc
+        adc     M_BASE
+        sta     g0
+        lda     MAP+27
+        bne     :+
+        lda     #110
+:       cmp     g0
+        beq     @no
+        bcs     @yes
+@no:    clc
+        rts
+@yes:   sec
+        rts
+
+.segment "GCODE"
+.segment "LOWCODE"
+; water_bits -- (the grid) A = bit 1: the player's cell is water; bit 0: the
+; next half-step of the heading enters water (TRAVEL's own test,
+; module_swim_land: SWIM starts, WALK stops at "WATER AHEAD"). The probe
+; runs only with water in the 3 x 3 cells around, and keeps the travel
+; state (swim_probe). Cached for the position and heading.
+water_bits:
+        ldx     #5
+:       lda     px,x            ; px, py, heading
+        cmp     wb_key,x
+        bne     @new
+        dex
+        bpl     :-
+        bmi     @done
+@new:   ldx     #5
+:       lda     px,x
+        sta     wb_key,x
+        dex
+        bpl     :-
+        lda     px              ; half-cell coordinates (native_here)
+        asl     a
+        lda     px+1
+        rol     a
+        sta     wb_x
+        tay
+        lda     py
+        asl     a
+        lda     py+1
+        rol     a
+        sta     wb_y
+        tax
+        lda     #0
+        sta     wb_bits
+        jsr     cell_native
+        bpl     :+
+        lda     #2
+        sta     wb_bits
+:       ldx     #8              ; water in the 3 x 3 cells?
+@scan:  stx     wb_i
+        lda     wb_x
+        clc
+        adc     wb_dx,x
+        tay
+        lda     wb_y
+        clc
+        adc     wb_dy,x
+        tax
+        jsr     cell_native
+        bmi     @near
+        ldx     wb_i
+        dex
+        bpl     @scan
+        bmi     @done
+@near:  jsr     swim_probe
+        bcc     @done
+        inc     wb_bits
+@done:  lda     wb_bits
+        rts
+
+.segment "GCODE"
+; swim_probe -- C set when the next half-step enters water (TRAVEL loaded
+; into $5800); the travel state the probe writes is put back (t1 ..
+; travel_delta, g0, g1, travel_reason: the state of the reference).
+swim_probe:
+        ldx     #37
+:       lda     t1,x
+        pha
+        dex
+        bpl     :-
+        lda     g0
+        pha
+        lda     g1
+        pha
+        lda     travel_reason
+        pha
+        lda     #12
+        jsr     overlay_load
+        jsr     module_swim_prepare
+        jsr     swim_land_probe
+        pla                     ; C is kept by PLA, STA and INX
+        sta     travel_reason
+        pla
+        sta     g1
+        pla
+        sta     g0
+        ldx     #256-38
+:       pla
+        sta     t1+38-256,x
+        inx
+        bne     :-
+        rts
+.assert travel_delta + 5 - t1 = 38, error, "swim_probe: t1 .. travel_delta"
+
+.segment "MENUCODE"
+wb_dx:  .byte   <-2, 0, 2, <-2, 0, 2, <-2, 0, 2
+wb_dy:  .byte   <-2, <-2, <-2, 0, 0, 0, 2, 2, 2
+.segment "LOWTEXT"
+wb_key:  .res 6
+wb_bits: .res 1
+wb_x:    .res 1
+wb_y:    .res 1
+wb_i:    .res 1
+
+.segment "LOWCODE"
+; lower_ok -- C set when the backpack hangs on this cell (LOWER FOOD).
+lower_ok:
+        lda     it_place+21
+        cmp     #5
+        bne     @no
+        lda     px+1
+        cmp     it_x+21
+        bne     @no
+        lda     py+1
+        cmp     it_y+21
+        bne     @no
+        sec
+        rts
+@no:    clc
+        rts
+
 ; level_here -- A = level of the player's cell
 .segment "CODE"
 level_here:
@@ -2640,7 +2888,7 @@ spend:  stx     act
         lda     #22
         jsr     overlay_load
         jsr     module_medical_day
-        jsr     env_day
+        jsr     forage_day      ; env_day, then lot 4's $4C48 (ALERT)
 :       ; Fauna only reads the new clock and terrain, not air temperature.
         ; Keep ENV loaded for its checks instead of loading THERM, then ENV,
         ; then THERM again when health is due. DOS reads dominate real travel.
@@ -2659,6 +2907,10 @@ spend:  stx     act
         ldy     health_minutes
         jsr     GIVAYF
         fst     s_step          ; thermal update uses time since last update
+        lda     health_minutes  ; lot 4: for the spoilage clock (ALERT)
+        sta     fg_hm
+        lda     health_minutes+1
+        sta     fg_hm+1
         jsr     weather_step
         jsr     thermal
         jsr     health_alerts   ; health, then the original alert rules (alerts.s)
@@ -2697,7 +2949,7 @@ native_finish_travel:
 native_resource_results:
         lda     MAP+36
         beq     @done
-        lda     #21
+        lda     #14             ; ITEMS (lot 4: the piles, src/forage.s)
         jsr     overlay_load
         jmp     module_resource_results
 @done:  rts
@@ -2837,11 +3089,7 @@ do_medical:
         lda     #19
         jsr     overlay_load
         jmp     module_medical_command
-scr_medical:
-        jsr     medical_apply
-        lda     #19
-        jsr     overlay_load
-        jmp     module_medical_status
+.assert print_str_ax > 0, error ; STATUS, INVENTORY print with it (print.asm .ifref)
 medical_apply:
         lda     #17
         jsr     overlay_load
@@ -3037,16 +3285,15 @@ dist_goal:
         jsr     overlay_load
         jmp     module_dist_goal
 
-; STATUS runs at $5800 too: return through resident code after restoring it.
+; STATUS and the hall of fame run in the SIM window: ADVENTURE ($5800)
+; returns to them directly.
+.pushseg
+.segment "LOWCODE"
 goal_pct:
         lda     #21
         jsr     overlay_load
-        jsr     module_progress
-        pha
-        lda     #16
-        jsr     overlay_load
-        pla
-        rts
+        jmp     module_progress
+.popseg
 
 ; goal_pct -- A = GOAL% (0..100):
 ;   u = hours elapsed, v = 0.6 (D0 - d) / u, e = exp(-2.5 u / D0),
@@ -3055,7 +3302,7 @@ goal_pct:
 ; messages
 ; ----------------------------------------------------------------------------
 ; Results replace previous messages without consuming a command key.
-; They fill the result column (rows 20-22, columns 40-78: src/menu.s),
+; They fill the result column (rows 20-22, columns 0-38: src/menu.s),
 ; wrapped by words, and persist until the next action supplies a result.
 message:
         cpx     #0              ; a text of the bank: A = its number
@@ -3274,11 +3521,8 @@ pdec:   sta     num
 tab = pad_to                    ; A = column: differential spaces up to it
 .segment "GCODE"
 
-.segment "SCREENS"
 .segment "STATUS"
 sky_words: .byte "CLEARCLOUDRAIN SNOW "
-.segment "SCREENS"
-        .include "inventory.s"
 
 .segment "GCODE"
 ; ----------------------------------------------------------------------------

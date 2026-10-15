@@ -11,9 +11,17 @@ entry is fetched through the real overlay_load (TOPO through mem_fetch):
 the window holds the exact image, bytes past it are untouched, and the zero
 page, the text page, the I flag and the memory soft switches (RAMRD,
 RAMWRT, ALTZP, 80STORE, language card) are the same before and after.
+Docs/MEMORY.md 14: on NeoWildernessXL, CAMP, MEDVIEW, TREE and ORIENT are
+read by block from NEOWILD.BLK (memory.s disk_fetch): the window holds the
+exact image, the bytes past it up to the block boundary are the file's
+padding (zeros) and the bytes past that boundary are untouched; the zero
+page, the text page and the switches are the same as for a copy. Lot 4:
+FORAGE (31) is read into the SIM window on both editions, ProDOS's bitmap of
+$90-$AF freed around the read as forage_gate does.
 """
 import json
 from common import HERE, DISK, L, a2test
+import build_disk
 
 SWITCHES = 'peek:C011:8'        # LCBNK2 LCRAM RAMRD RAMWRT INTCXROM ALTZP SLOTC3 80STORE
 
@@ -22,20 +30,23 @@ def main():
     layout = json.loads((HERE / 'build/layout.json').read_text())
     images = {}
     for index, module in layout['modules'].items():
-        image = bytearray((HERE / 'build' / module['image']).read_bytes())
+        image = build_disk.module_image(HERE / 'build', module)
+        if 'fetch' in module:       # CRAFT: MAKE reads the recipes' whole blocks
+            image = image[:-(-module['fetch'] // 512) * 512]
         # The Sierra Nevada pack rewrites its fauna patches with the bytes the
         # trunk's images already hold (tools/build_disk.py asserts it).
-        images[int(index)] = (bytes(image), module['window'])
+        images[int(index)] = (bytes(image), module['window'], module['bank'] == 'disk')
     with a2test.Session(DISK) as s:
         s.step(L.until('idle', 20000))
         rows = s.step(L.peek('row_n0', 256)).data
         assert rows == bytes(95+(3*q+15)//16 for q in range(256))
         entry = L['idle']
         costs = []
+        disk_costs = []
         for index in sorted(images):
             if index in (18, 28):
                 continue                # alias of 17; the text bank (fetched by text)
-            expected, window = images[index]
+            expected, window, on_disk = images[index]
             if index == 0:
                 call = (0xA2, 0, 0x20, L['mem_fetch'] & 255, L['mem_fetch'] >> 8)
             else:
@@ -47,7 +58,16 @@ def main():
             s.step(L.poke('sim_loaded', 0))
             limit = window + (0x2000 if window != 0x5800 else 0x800)
             past = window + len(expected)
-            guard = s.step(f'peek:{past:04X}:{min(16, limit - past)}').data
+            if on_disk:             # whole blocks: the padding up to the boundary
+                padding = -len(expected) % 512
+                expected += bytes(padding)
+                past += padding
+            guard = s.step(f'peek:{past:04X}:{min(16, limit - past)}').data if past < limit else b''
+            bitmap = None
+            if on_disk and window == 0x9600:    # FORAGE (lot 4): forage_gate frees
+                bitmap = s.step('peek:BF6A:4').data     # ProDOS's bitmap of $90-$AF
+                for i in range(4):
+                    s.step(f'poke:{0xBF6A + i:04X}:00')
             start = s.step(f'until:{L["mem_fetch"]:04X}:200').cycles[-1]
             zp = s.step('peek:0000:256').data
             text = s.step('peek:0400:1024').data
@@ -55,6 +75,9 @@ def main():
             back = entry + 5
             reply = s.step(f'until:{back:04X}:200')
             end = reply.cycles[-1]
+            if bitmap is not None:
+                for i, b in enumerate(bitmap):
+                    s.step(f'poke:{0xBF6A + i:04X}:{b:02X}')
             # A DHGR page peek yields main + aux: TOPO is copied into main.
             assert s.step(f'peek:{window:04X}:{len(expected)}').data[:len(expected)] == expected, index
             after = s.step('peek:0000:256').data
@@ -63,8 +86,10 @@ def main():
             assert after == zp, (index, 'ZP')
             assert s.step('peek:0400:1024').data == text, (index, 'text page')
             assert s.step(SWITCHES).data == switches, (index, 'soft switches')
-            assert s.step(f'peek:{past:04X}:{len(guard)}').data == guard, (index, 'overrun')
+            assert not guard or s.step(f'peek:{past:04X}:{len(guard)}').data == guard, (index, 'overrun')
             costs.append((index, len(expected), end - start))
+            if on_disk:
+                disk_costs.append((index, len(expected) // 512, end - start))
             s.step(L.until('idle', 100))
     worst = max(c / n for _, n, c in costs)
     total = sum(n for _, n, _ in costs)
@@ -73,6 +98,9 @@ def main():
     print(f'  {total} bytes in {sum(c for *_, c in costs)} cycles; '
           f'worst {worst:.1f} cycles per byte (overlay_load included)')
     print('  reconstructed 256-row projection cache is exact: OK')
+    for index, blocks, cycles in disk_costs:
+        print(f'  module {index} read from NEOWILD.BLK: {blocks} blocks in {cycles} cycles '
+              f'({cycles // blocks} per block)')
 
 
 if __name__ == '__main__':

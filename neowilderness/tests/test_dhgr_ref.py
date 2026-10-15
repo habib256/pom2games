@@ -92,6 +92,18 @@ def check_palette():
         assert t['shade'] is None or len(t['shade']) == 16
     table = P.mood_table()
     assert len(table) <= 300, len(table)
+    # The animal's night silhouette (src/project.s module_animal) tests the
+    # resident shade index: 2 silhouette, 3 dim, $FF none; 0, 1, 4 keep the
+    # mood's shade (day, warm, moonlight).
+    index = {name: table[19 * k + 18] for k, name in enumerate(P.MOODS)}
+    for name in P.MOODS:
+        night = index[name] in (2, 3, 0xFF)
+        assert night == (P.MOOD[name]['shade'] in P.ANIMAL_NIGHT), (name, index[name])
+    lit = P.Lighting('night dark')
+    assert [lit.animal(c) for c in P.SPRITES['bear']] == [P.DARK_BLUE, P.GREY1, P.GREY1, P.GREY1]
+    assert all(len(S.original(n)[0]) <= 80 for n in P.SPRITES
+               if n not in ('wreck', 'cabin', 'log', 'rock', 'outpost', 'tent', 'igloo', 'trench')), \
+        'animal_fire: animal widths up to 80'
     # Mood thresholds (S8 = 128 sin(altitude)) and graded moonlight.
     cases = [((22, 0, 0, 0), 'day'), ((22, 0, 0, 1), 'overcast'), ((21, 0, 0, 0), 'golden'),
              ((4, 0, 0, 0), 'golden'), ((3, 0, 0, 0), 'sunset'), ((-2, 0, 0, 0), 'sunset'),

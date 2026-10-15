@@ -2,15 +2,17 @@
 ; ============================================================================
 ; save.s -- SAVE and RESTORE, five games on the disk (lot 9, docs/SAVE.md)
 ; ============================================================================
-; The only disk accesses of a journey besides its end (NEOWILD.END/.HOF).
-; Resident part (WILDLO): do_save, reached by the verbs SAVE (41) and
-; RESTORE (42), frees pages $96-$AF in the ProDOS bitmap, reads NEOWILD.SAV
+; The only file accesses of a journey besides its end (NEOWILD.END/.HOF);
+; NeoWildernessXL also reads four modules by block (NEOWILD.BLK, memory.s
+; disk_fetch, docs/MEMORY.md 14).
+; do_save (WILDLO), reached by the verbs SAVE (41) and RESTORE (42), loads
+; INPUT, whose module_save frees pages $96-$AF in the ProDOS bitmap, reads NEOWILD.SAV
 ; (this file's SAVEMOD segment, build/wildsav.bin) into the SIM window at
 ; $9600 with an I/O buffer at $AB00, and calls it. The module asks for the
 ; game number (get_number, INPUT), opens NEOWILD.Sn (one fixed-length file
 ; per game, created by tools/build_disk.py: no CREATE, no block allocated)
-; and writes or reads the image of the journey in SV_BUF. Back in the
-; resident part: bitmap bytes put back, SIM marked as not loaded (the window
+; and writes or reads the image of the journey in SV_BUF. Back in INPUT:
+; bitmap bytes put back, SIM marked as not loaded (the window
 ; holds the module), and after a restore the view rebuilt from the restored
 ; state (show_view: it may run the star module in the SIM window, so the
 ; module must have returned first) and "GAME n RESTORED.".
@@ -41,11 +43,39 @@ SV_GAMES  = 5
 ; do_save -- verbs SAVE and RESTORE (verb = 41 or 42). The disk part
 ; (bitmap, path, NEOWILD.SAV read into $9600) is in the INPUT module
 ; (module_save_load, src/hof_load.inc's way of reading NEOWILD.END; since
-; the integration of lots 2, 7 and 13, docs/MEMORY.md 13); then the module
-; runs at $9600 and this resident part restores the bitmap and the view.
+; the integration of lots 2, 7 and 13, docs/MEMORY.md 13), and so is the
+; rest but the view (module_save, docs/MEMORY.md 15): the module runs at
+; $9600, INPUT restores the bitmap, do_save_view rebuilds the view.
 do_save:
         lda     #13
         jsr     overlay_load
+        jmp     module_save     ; INPUT: read, run, the bitmap back
+; do_save_view -- (module_save, tail) a game was restored: its view, then
+; "GAME n RESTORED." (resident: show_view may load modules).
+do_save_view:
+        jsr     show_view
+        lda     sl_slot
+        sta     msgnum
+        lda     #0
+        sta     msgnum+1
+        sta     shown
+        lda     #<m_restored
+        ldx     #>m_restored
+        jmp     message
+
+.segment "LOWTEXT"
+sl_slot:   .byte 0              ; the game restored (module), else 0
+.export do_save, sl_slot
+
+; module_save_load -- (INPUT) the pages $96-$AF released in the bitmap (kept
+; in sl_bitmap), "/VOLUME/NEOWILD.SAV" at SV_PATH, the module read at SV_RUN.
+; C set: it cannot be read.
+.segment "INPUT"
+; module_save -- (do_save) NEOWILD.SAV read and run at $9600 (it loads no
+; module: INPUT stays below it), then the bitmap bytes back and SIM marked as
+; not loaded (the window holds the module); after a restore, do_save_view.
+; In INPUT since docs/MEMORY.md 15.
+module_save:
         jsr     module_save_load
         bcs     @missing
         jsr     SV_RUN          ; sl_slot <> 0: a game was restored
@@ -67,26 +97,10 @@ do_save:
         sta     stars_stale     ; the star list of the restored hour
         lda     #0
         sta     scene_cache_valid
-        jsr     show_view
-        lda     sl_slot
-        sta     msgnum
-        lda     #0
-        sta     msgnum+1
-        sta     shown
-        lda     #<m_restored
-        ldx     #>m_restored
-        jmp     message
+        jmp     do_save_view
 @done:  rts
-
-.segment "LOWTEXT"
-sl_slot:   .byte 0              ; the game restored (module), else 0
 sl_bitmap: .res 4
-.export do_save, sl_slot
 
-; module_save_load -- (INPUT) the pages $96-$AF released in the bitmap (kept
-; in sl_bitmap), "/VOLUME/NEOWILD.SAV" at SV_PATH, the module read at SV_RUN.
-; C set: it cannot be read.
-.segment "INPUT"
 module_save_load:
         ldx     #3              ; pages $90-$AF of the bitmap
 :       lda     $BF58+18,x
@@ -552,8 +566,11 @@ sv_ranges:
         .word   tilt, 1         ; the view's tilt (zero page)
         .word   camp_state, camp_state_end-camp_state   ; lot 2: fire, light, sweat
         .word   care_state, care_state_end-care_state   ; lot 13: alerts, tools, diseases
+        .word   forage_state, forage_state_end-forage_state ; lot 4: piles, spoilage, records
+        .word   craft_state, craft_state_end-craft_state    ; lot 3: crafted weapons, shelters
+        .word   craft_cells, craft_cells_end-craft_cells    ; lot 3: their cells (WILDERNESS)
         .word   0
-SV_STATE = (overlay_current-sun_alt8) + (inbuf-tree_in) + (it_kcal-s_hour) + (__BSS_RUN__-resource_seen) + (it_name_lo-it_x) + 64 + 1 + 3 + 1 + (camp_state_end-camp_state) + (care_state_end-care_state)
+SV_STATE = (overlay_current-sun_alt8) + (inbuf-tree_in) + (it_kcal-s_hour) + (__BSS_RUN__-resource_seen) + (it_name_lo-it_x) + 64 + 1 + 3 + 1 + (camp_state_end-camp_state) + (care_state_end-care_state) + (forage_state_end-forage_state) + (craft_state_end-craft_state) + (craft_cells_end-craft_cells)
 .assert SV_BUF + SV_HEAD + SV_STATE <= SV_IOBUF, error, "slot image overlaps the I/O buffer"
 .assert sv_end <= SV_BUF, error, "NEOWILD.SAV overlaps its slot image"
 

@@ -53,7 +53,7 @@ class Case:
         self.tops = tops if tops is not None else R.ridge(heading)
         self.mood = R.engine_mood(night, view_dark, clouds, sun8, moon8, phase)
         self.thr = R.threshold(self.mood, clouds) if stars else 0
-        self.vis = R.visible(day, minute, self.lat, self.lon, moon)
+        self.vis = R.visible(day, minute, self.lat, self.lon, moon, look_up=tilt == 1)
 
     def record(self):
         bearing, y = self.moon if self.moon else (0, 255)

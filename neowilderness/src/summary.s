@@ -53,6 +53,8 @@ summary_refresh:
         jsr     summary_prepare
         lda     scene_asset
         beq     @done
+        cmp     #SITE_ASSET     ; a site sprite is not in the $5800 window
+        bcs     @done
         jmp     overlay_load
 @done:  rts
 
@@ -60,6 +62,8 @@ summary_refresh:
 module_summary:
         lda     #0
         sta     summary_inverse
+        sta     summary_n
+        sta     summary_field   ; field 0: left panel, upper line: health
         lda     $36
         sta     summary_vector
         lda     $37
@@ -68,9 +72,6 @@ module_summary:
         sta     $36
         lda     #>summary_output
         sta     $37
-        lda     #0
-        sta     summary_n
-        sta     summary_field   ; field 0: left panel, upper line: health
         lda     #UI_LABEL
         sta     summary_ink
         jsr     puts
@@ -124,7 +125,7 @@ module_summary:
 @day:   lda     #UI_LABEL
         sta     summary_ink
         jsr     puts
-        .byte " DAY ",0
+        .byte " - DAY ",0     ; "10:30 - DAY 12": 42 of the panel's 45 pixels
         ; Day of the journey: the day of the year of STATUS (INT(date * 365
         ; + 1)) less 125, plus 365 across New Year: the crash of May 6 (day
         ; 126) is day 1.
@@ -219,8 +220,11 @@ summary_hint:
         sta     summary_ink
 :
         lda     summary_alert_lo-1,x
+        clc
+        adc     #<ui_hunger_worse
         pha
-        lda     summary_alert_hi-1,x
+        lda     #>ui_hunger_worse
+        adc     #0
         tax
         pla
         jsr     print_str_ax
@@ -230,8 +234,7 @@ summary_hint:
         rts
 @thermal:
         lda     ui_previous+5
-        beq     @body
-        jmp     @ill
+        bne     @ill
 @body:
         lda     ui_previous+3
         beq     @wet
@@ -349,7 +352,22 @@ summary_hint:
         beq     @found
 @next:  dex
         bne     @item
-        jmp     @normal
+        ldy     #2              ; lot 3: the BOW, the SPEAR, the SPLINT on
+@craft: ldx     summary_cr,y    ; this cell's ground (not the ROCK: it lies
+        lda     cr_b1,x         ; on every land cell)
+        bne     @crn
+        lda     cr_cx,y
+        cmp     px+1
+        bne     @crn
+        lda     cr_cy,y
+        cmp     py+1
+        beq     @found
+@crn:   dey
+        bpl     @craft
+        lda     cr_b1+2         ; the CLUB, until the player leaves the cell
+        bne     @normal
+        lda     cr_still
+        beq     @normal
 @found: jsr     puts
         .byte "ITEMS: INV",0
         rts
@@ -576,8 +594,12 @@ summary_char: .byte 0
 summary_row: .byte 0
 summary_inverse: .byte 0
 summary_periods: .byte "NIGHTDAWN AM   PM   DUSK "
-summary_alert_lo: .byte <ui_hunger_worse,<ui_thirst_worse,<ui_health_worse,<ui_body_worse,<ui_immersed,<ui_condition,<ui_condition,<ui_condition,<ui_hunger_better,<ui_thirst_better,<ui_health_better,<ui_body_better,<ui_out_water,<ui_recovered
-summary_alert_hi: .byte >ui_hunger_worse,>ui_thirst_worse,>ui_health_worse,>ui_body_worse,>ui_immersed,>ui_condition,>ui_condition,>ui_condition,>ui_hunger_better,>ui_thirst_better,>ui_health_better,>ui_body_better,>ui_out_water,>ui_recovered
+; the alerts, as offsets from ui_hunger_worse
+summary_alert_lo: .byte 0,ui_thirst_worse-ui_hunger_worse,ui_health_worse-ui_hunger_worse,ui_body_worse-ui_hunger_worse
+        .byte ui_immersed-ui_hunger_worse,ui_condition-ui_hunger_worse,ui_condition-ui_hunger_worse,ui_condition-ui_hunger_worse
+        .byte ui_hunger_better-ui_hunger_worse,ui_thirst_better-ui_hunger_worse,ui_health_better-ui_hunger_worse
+        .byte ui_body_better-ui_hunger_worse,ui_out_water-ui_hunger_worse,ui_recovered-ui_hunger_worse
+summary_cr: .byte 0, 1, 4       ; cr_b1 of BOW, SPEAR, SPLINT (cr_cx/cr_cy 0..2)
 ui_hunger_worse: .byte "HUNGER WORSE",0
 ui_thirst_worse: .byte "THIRST WORSE",0
 ui_health_worse: .byte "HEALTH WORSE",0

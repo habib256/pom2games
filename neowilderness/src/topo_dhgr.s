@@ -11,11 +11,14 @@
 ;               auxiliary language card, DHGR mixed mode, legend on text
 ;               rows 20..23, then the sheet, which wipes the view from the
 ;               top (tools/topo_dhgr_ref.Sheet6502, bit for bit).
+;               topo_frame: the mixed mode and the legend alone (MAP -> TOPO).
 ; topo_close -- C clear: the view and its band are back (snapshot copied back,
 ;               0.2 s instead of a full redraw); C set: no snapshot, redraw.
 ;
-; Sheet: rows 0..159, x 0..111 the map (one cell column per colour pixel),
-; x 112..139 the legend strip. Row sy samples v = (159 - sy) * 166 / 159 half
+; Sheet: rows 0..159, x 14..125 the map (one cell column per colour pixel,
+; centred since 15 October 2026), x 0..13 the north arrow and the distance
+; bar, x 126..139 the altitude scale. The colour rows are indexed by screen
+; x: the pixel loops store at TP_SX + cell x (operand low bytes). Row sy samples v = (159 - sy) * 166 / 159 half
 ; cells (DDA); each pixel gets a code K = band | woods ($20) or water ($40),
 ; compared with its east (kr) and north (KP) neighbours: equal -> FILL table
 ; (tint dither or woods texture), else the slow path draws contours, index
@@ -31,6 +34,10 @@ K_WOODS  = $20
 K_WATER  = $40
 TP_ROWS  = 160
 TP_BAR_BOTTOM = 157
+TP_SX    = 14                   ; screen x of cell column 0 (the sheet centred)
+TP_BAR_X = 127                  ; altitude scale: bar 127..130, tick 131,
+TP_LAB_X = 133                  ; digits 133..135 and 137..139
+TP_N_X   = 6                    ; north arrow shaft; distance bar 3..10
 
 ; Renderer scratch (the view is stopped while TOPO is shown).
 tr0   = dx                      ; grid row j
@@ -64,7 +71,7 @@ tp_lrow:   .res 8               ; scale labels: first row, digits ($FF none)
 tp_ltens:  .res 8
 tp_lunits: .res 8
 tp_nlab:   .res 1
-tp_mk:     .res 3*8             ; markers: x, row, box x, box row, box, ink, glyph
+tp_mk:     .res 4*8             ; markers: x, row, box x, box row, box, ink, glyph
 tp_nmk:    .res 1
 tp_v:      .res 1               ; DDA: half cells
 tp_acc:    .res 1
@@ -101,17 +108,17 @@ tp_x:      .res 1
 ; ----------------------------------------------------------------------------
 topo_open:
         jsr     tp_save         ; the view, before anything is drawn
+        jsr     topo_frame
+        jmp     topo_sheet
+; topo_frame -- DHGR mixed mode, the legend on the text rows; also the way
+; back from MAP (src/sites.s), whose text page left the sheet untouched.
+topo_frame:
         jsr     text_mode80     ; from a 40-column menu too
         lda     #20
         sta     WNDTOP
         jsr     t_home
         jsr     show_dhgr       ; the sheet wipes the view from the top
-        jsr     puts
-        .byte   "TOPO  N UP  CONTOURS 400 FT, BOLD 2000|"
-        .byte   "C CRASH  H CABIN  R RANGERS  SCALE KFT|"
-        .byte   "MAP: PLAYER MAP|"
-        .byte   "ESC/RETURN/SPACE: VIEW",0
-        ; fall through
+        jmp     topo_legend     ; SITES (src/sites.s), which called topo_open
 ; ----------------------------------------------------------------------------
 topo_sheet:
         jsr     tp_tables
@@ -277,7 +284,7 @@ kp:     cmp     $FF00,y         ; P: north
         bne     slow
         tax
 fill:   lda     $FF00,x         ; P: fill{row & 3}{x & 1}
-cc:     sta     $FF00,y         ; P: colour of this row
+cc:     sta     $FF00+TP_SX,y   ; P: colour of this row
 .endmacro
 
 .macro TP_LOOP mid, p
@@ -332,7 +339,7 @@ tp_s_kp:
         bne     tps_east
 tps_nrim:  lda     #TP_SHORE
 tp_s_cp1:
-        sta     $FF00,y         ; P: north colour (retro)
+        sta     $FF00+TP_SX,y   ; P: north colour (retro)
         jmp     tps_east
 tps_nland: txa
         and     #$1F
@@ -351,7 +358,7 @@ tps_nland: txa
         ldx     tnk
         lda     tp_indexk,x
 tp_s_cp2:
-        sta     $FF00,y         ; P: north colour (retro)
+        sta     $FF00+TP_SX,y   ; P: north colour (retro)
 tps_east:  lda     tkr
         cmp     tkc
         beq     tps_end
@@ -369,7 +376,7 @@ tps_east:  lda     tkr
         bne     tps_end
 tps_erim:  lda     #TP_SHORE
 tp_s_cc1:
-        sta     $FF01,y         ; P: east colour, x + 1 (retro)
+        sta     $FF01+TP_SX,y   ; P: east colour, x + 1 (retro)
         jmp     tps_end
 tps_eland: txa
         and     #$1F
@@ -388,7 +395,7 @@ tps_eland: txa
         ldx     tnk
         lda     tp_indexk,x
 tp_s_cc2:
-        sta     $FF01,y         ; P: east colour (retro)
+        sta     $FF01+TP_SX,y   ; P: east colour (retro)
 tps_end:   ldx     tkc
         stx     tkr
         lda     tf
@@ -412,7 +419,7 @@ tp_s_fo:
         lda     $FF00,x         ; P: fill, odd x
 tps_store:
 tp_s_cc:
-        sta     $FF00,y         ; P: colour of this row
+        sta     $FF00+TP_SX,y   ; P: colour of this row
         rts
 
 ; tp_patch -- page operands of the row: K / colour buffers, fill tables
@@ -492,8 +499,8 @@ tp_wrow_make:
         rts
 
 ; ----------------------------------------------------------------------------
-; tp_flush -- A = screen row: legend strip and markers into the north colour
-; row, then its 20 byte groups, both banks.
+; tp_flush -- A = screen row: the two margins and markers into the north
+; colour row, then its 20 byte groups, both banks.
 tp_flush:
         sta     tp_row
         lda     #0
@@ -502,10 +509,14 @@ tp_flush:
         sta     tcp+1
         ldy     #COLS_TP-1
         lda     #0
+:       sta     (tcp),y         ; right margin, then the left one
+        dey
+        cpy     #TP_SX+GW
+        bcs     :-
+        ldy     #TP_SX-1
 :       sta     (tcp),y
         dey
-        cpy     #GW
-        bcs     :-
+        bpl     :-
         ; scale bar
         lda     tp_row
         cmp     tp_bartop
@@ -546,7 +557,7 @@ tp_flush:
         lda     tp_indexk,x
 @over:  sta     tp_ov
         inc     tp_ovon
-@bar:   ldy     #115
+@bar:   ldy     #TP_BAR_X
 @barx:  lda     tp_ovon
         beq     :+
         lda     tp_ov
@@ -571,7 +582,7 @@ tp_flush:
 @barput:
         sta     (tcp),y
         iny
-        cpy     #121
+        cpy     #TP_BAR_X+4
         bcc     @barx
 @labels:
         ldx     tp_nlab
@@ -585,16 +596,16 @@ tp_flush:
         sta     ttmp            ; glyph row
         cmp     #2
         bne     :+
-        ldy     #121            ; tick
+        ldy     #TP_BAR_X+4     ; tick
         lda     #TP_INK
         sta     (tcp),y
 :       stx     tval
-        ldy     #123
+        ldy     #TP_LAB_X
         lda     tp_ltens,x
         bmi     :+
         jsr     tp_glyph_row
         ldx     tval
-        ldy     #127
+        ldy     #TP_LAB_X+4
 :       lda     tp_lunits,x
         jsr     tp_glyph_row
         ldx     tval
@@ -606,30 +617,30 @@ tp_flush:
         bcs     @arrow
         sta     ttmp
         lda     #TPG_N
-        ldy     #124
+        ldy     #TP_N_X-1
         jsr     tp_glyph_row
-@arrow: lda     tp_row          ; arrow rows 10..25 at x 125
+@arrow: lda     tp_row          ; arrow rows 10..25 at x 6
         sec
         sbc     #10
         cmp     #16
-        bcs     @marks
+        bcs     @scale
         tax
-        ldy     #125
+        ldy     #TP_N_X
         lda     #TP_INK
         sta     (tcp),y
         cpx     #4
-        bcs     @marks
+        bcs     @scale
         lda     tp_arrow,x      ; half width of the head
-        beq     @marks
+        beq     @scale
         tax
 @ar:    stx     th1
         txa
         clc
-        adc     #125
+        adc     #TP_N_X
         tay
         lda     #TP_INK
         sta     (tcp),y
-        lda     #125
+        lda     #TP_N_X
         sec
         sbc     th1
         tay
@@ -637,6 +648,37 @@ tp_flush:
         sta     (tcp),y
         dex
         bne     @ar
+@scale: lda     tp_row          ; scale, rows 30..38: an 8-pixel bar
+        sec                     ; (8 cells, about 4 miles) at x 3..10,
+        sbc     #30             ; end ticks on rows 30..32, a 4 below
+        cmp     #9
+        bcs     @marks
+        cmp     #4
+        bcc     @bar4
+        sbc     #4
+        sta     ttmp
+        lda     #4
+        ldy     #TP_N_X-1
+        jsr     tp_glyph_row
+        jmp     @marks
+@bar4:  ldy     #TP_N_X+4
+        cmp     #2
+        beq     :+
+        bcs     @marks
+        ldy     #TP_N_X-3
+        lda     #TP_INK
+        sta     (tcp),y
+        ldy     #TP_N_X+4
+        bne     @tick
+:       ldy     #TP_N_X-3
+@line:  lda     #TP_INK
+        sta     (tcp),y
+        iny
+        cpy     #TP_N_X+5
+        bcc     @line
+        bcs     @marks
+@tick:  lda     #TP_INK
+        sta     (tcp),y
 @marks: jsr     tp_markers
         ; pack the 140 pixels: 20 groups
         ldx     tp_row
@@ -800,10 +842,13 @@ TPG_N = 10
 TPG_C = 11
 TPG_H = 12
 TPG_R = 13
+TPG_ARROW = 14                  ; the player: N, NE .. NW
 tp_glyphs:
         .byte   7,5,5,5,7, 2,6,2,2,7, 7,1,7,4,7, 7,1,3,1,7, 5,5,7,1,1
         .byte   7,4,7,1,7, 7,4,7,5,7, 7,1,1,2,2, 7,5,7,5,7, 7,5,7,1,7
         .byte   5,7,7,7,5, 7,4,4,4,7, 5,5,7,5,5, 6,5,6,5,5
+        .byte   2,7,2,2,2, 3,1,2,4,0, 4,6,7,6,4, 0,4,2,1,3
+        .byte   2,2,2,7,2, 0,1,2,4,6, 1,3,7,3,1, 6,4,2,1,0
 
 ; Packing tables (tools/topo_palette.pack_tables), r = rot(c).
 ; (values of tools/topo_palette.pack_tables)
@@ -1102,7 +1147,39 @@ tp_sites:
         lda     MAP+5
         ldy     #2              ; C: magenta box, white letter
         jsr     tp_marker
+        bit     game_options    ; the player only when the MENU page asks
+        bmi     :+
         stx     tp_nmk
+        rts
+:
+        lda     px+1            ; the player last, over any site: a white
+        sta     tval            ; box, a dark blue arrow along the heading
+        lda     py+1
+        ldy     #3
+        jsr     tp_marker
+        stx     tp_nmk
+        lda     heading         ; (heading + 35) / 70: eighths of 560
+        clc
+        adc     #35
+        sta     th1
+        lda     heading+1
+        adc     #0
+        ldy     #TPG_ARROW-1
+:       iny
+        tax
+        lda     th1
+        sec
+        sbc     #70
+        sta     th1
+        txa
+        sbc     #0
+        bcs     :-
+        cpy     #TPG_ARROW+8
+        bcc     :+
+        ldy     #TPG_ARROW
+:       ldx     tp_nmk
+        tya
+        sta     tp_mk+6-8,x
         rts
 ; tp_marker -- tval = cell x, A = cell y, Y = kind, X = slot (+8 on return).
 tp_marker:
@@ -1113,12 +1190,13 @@ tp_marker:
         sta     tp_mk+5,x
         lda     tp_mglyph,y
         sta     tp_mk+6,x
-        lda     tval
-        sta     tp_mk,x
+        lda     tval            ; screen x: the sheet starts at TP_SX
         clc
-        adc     #5
-        cmp     #GW
-        lda     tval
+        adc     #TP_SX
+        sta     tp_mk,x
+        adc     #5              ; carry clear
+        cmp     #TP_SX+GW
+        lda     tp_mk,x
         bcs     :+
         adc     #1              ; carry clear
         bcc     :++
@@ -1138,9 +1216,9 @@ tp_marker:
         adc     #8
         tax
         rts
-tp_mbox:   .byte 3, 0, 1
-tp_mink:   .byte 15, 13, 15
-tp_mglyph: .byte TPG_R, TPG_H, TPG_C
+tp_mbox:   .byte 3, 0, 1, 15
+tp_mink:   .byte 15, 13, 15, 2
+tp_mglyph: .byte TPG_R, TPG_H, TPG_C, TPG_ARROW
 
 ; tp_marker_row -- A = cell row y: first sheet row whose nearest cell row is
 ; y (the DDA of topo_sheet). Preserves X.
@@ -1192,6 +1270,8 @@ tpz_end     = tr1               ; zero page: ALTZP is on); decode: run end
 ; (src/geoaux.s): no snapshot there, topo_close answers C set and the view is
 ; redrawn (shipped regions are legacy maps: they keep the snapshot).
 tp_save:
+        asl     scene_drawn     ; $83 -> 3: the snapshot takes the animal's
+        lsr     scene_drawn     ; background (OUTDOOR AB_BUF), turns redraw
         lda     #0
         sta     tp_valid
         lda     MAP+37

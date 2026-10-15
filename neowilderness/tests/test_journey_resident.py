@@ -20,7 +20,10 @@ fauna_rng is set before IGNORE RATTLER so that the reaction bites
 
 Checks over the whole trip:
 * zero MLI call: mli_calls/mli_reads/mli_bytes unchanged after the preload
-  and an a2shot watch on the ProDOS entry $BF00 never fires;
+  and an a2shot watch on the ProDOS entry $BF00 never fires, except the
+  READ_BLOCK calls of a module the disk keeps on NEOWILD.BLK (MEDVIEW for
+  SUCK VENOM where the store leaves it there, as on the 140 KB edition since
+  docs/MEMORY.md 18): exactly its blocks, for that command alone;
 * every module load is a RAM transfer (overlay_reads = xfer_count, per
   command and in total, plus at most one direct copy of the star catalogue
   head per command at night, lot 7);
@@ -67,6 +70,10 @@ if NATIVE:
 CRASH, RIVER, CABIN, GOAL, ROW = 10, (12, 13), 16, 24, 40
 BITE = seed_for((0, 16))        # IGNORE RATTLER: the first reaction roll bites
 RATTLER = 8
+# Commands of the trip that load a module NEOWILD.BLK may hold: MEDVIEW (19).
+DISK_LOADS = {'SUCK VENOM': (19,)}
+# scene_asset of the site sprites (src/project.s): blocks of the raw image.
+SITE_BLOCKS = {33: 3, 34: 3, 35: 5}
 VERBOSE = '-v' in sys.argv
 
 
@@ -98,8 +105,13 @@ def native():
     return bytes(m) + bytes(cells) + woods
 
 
+def peek_dir(s, module, offset, size):
+    """Bytes of the module directory entry (7 bytes each, memory.s)."""
+    return s.step(L.peek('module_dir', size, module * 7 + offset)).data
+
+
 def report(row):
-    command, delta, position, hour, animal, message = row
+    command, delta, position, hour, animal, message, _ = row
     geo = (f', {delta["geo_queries"]:4} fine queries, {delta["geo_decodes"]} decodes'
            if delta.get('geo_queries') else '')
     print(f'    {command:16} at ({position[0] / 256:5.2f},{position[1] / 256:5.2f}) {hour:5.2f} h, '
@@ -145,9 +157,18 @@ def play(disk, title, strict=True):
             after = counters()
             if hour() < start:
                 notes['midnight'] = True        # the clock wrapped: a new day
-            message = [r[40:79].strip() for r in screen[20:23] if r[40:79].strip()]
+            message = [r[:39].strip() for r in screen[20:23] if r[:39].strip()]
+            modules = sum(blocks.get(m, 0) for m in DISK_LOADS.get(command, ()))
+            # Lot 6: a view that shows a site sprite (the outpost near the
+            # goal) reads it from NEOWILD.BLK, once, when the window lost it.
+            # The main slot's asset: scene_cache_asset (an animal of the cell,
+            # drawn after the view, leaves its own in scene_asset).
+            site = SITE_BLOCKS.get(peek('scene_cache_asset')[0], 0)
+            extra = after['mli_reads'] - before['mli_reads'] - modules
+            assert extra in (0, site), (command, extra, site)
+            notes['site reads'] = notes.get('site reads', 0) + extra
             rows.append((command, {k: after[k] - before[k] for k in after}, state(peek('px', 6)),
-                         hour(), peek('animal_kind')[0], message))
+                         hour(), peek('animal_kind')[0], message, modules + extra))
             report(rows[-1])
             if waiting(reply):
                 notes['ending'] = screen        # the ending waits for a key
@@ -162,6 +183,9 @@ def play(disk, title, strict=True):
             return switches, driver
 
         s.step(IDLE)
+        # The NEOWILD.BLK modules of this disk (directory bank $40): blocks.
+        blocks = {m: -(-int.from_bytes(peek_dir(s, m, 3, 2), 'little') // 512)
+                  for m in (19,) if peek_dir(s, m, 0, 1)[0] == 0x40}
         boot = counters()
         start_health, start_date = fp(peek('s_health', 5)), peek('s_date', 5)
         start_machine = machine()
@@ -233,15 +257,20 @@ def play(disk, title, strict=True):
     print(f'    health {notes["health"][0]:.2f} -> {notes["health"][1]:.2f}, '
           f'{notes["encounters"]} encounters, far bank x={notes.get("far bank")}, '
           f'new day {notes["day"]}, ending {"reached" if ended(notes.get("ending") or []) else "not reached"}')
-    assert watched == 0, f'{watched} ProDOS MLI entries during the trip'
-    assert total['mli_calls'] == total['mli_reads'] == total['mli_bytes'] == 0, total
+    expected = sum(r[-1] for r in rows)
+    if expected:
+        print(f'    NEOWILD.BLK: {expected} READ_BLOCK expected (MEDVIEW on the disk; '
+              f'site sprites {notes.get("site reads", 0)})')
+    assert watched == expected, f'{watched} ProDOS MLI entries during the trip ({expected} expected)'
+    assert total['mli_calls'] == total['mli_reads'] == expected and \
+        total['mli_bytes'] == 512 * expected, total
     # Every module load is a RAM copy; the star module also copies the head
     # of its catalogue (directory entry 24) by a direct mem_fetch, not counted
     # as a module load: at most one per command (night hours outside).
     # The text bank's fetches (two per message, docs/MEMORY.md 13) are
     # transfers too, counted apart in xfer_texts.
-    assert all(d['mli_calls'] == 0 and 0 <= d['xfer_count'] - d['xfer_texts'] - d['overlay_reads'] <= 1
-               for _, d, *_ in rows), [(c, d) for c, d, *_ in rows]
+    assert all(d['mli_calls'] == r[-1] and 0 <= d['xfer_count'] - d['xfer_texts'] - d['overlay_reads'] <= 1
+               for r in rows for d in (r[1],)), [(c, d) for c, d, *_ in rows]
     assert 0 < total['overlay_reads'] <= total['xfer_count']
     assert len(stacks) == 1, ('stack pointer at do_command varies', stacks)
     assert len(flags) == 1, ('I flag at do_command varies', flags)
@@ -271,7 +300,7 @@ def main():
         play(disk_with(tmp, legacy()), 'legacy 112 x 84 map')
         if NATIVE:
             play(disk_with(tmp, native()), 'native map, fine geography resident', strict=False)
-    print(f'Crash -> rangers trip without disk access on {"both maps" if NATIVE else "the legacy map"}: '
+    print(f'Crash -> rangers trip without disk access (but NEOWILD.BLK modules) on {"both maps" if NATIVE else "the legacy map"}: '
           f'OK ({time.monotonic() - started:.0f} s)')
 
 

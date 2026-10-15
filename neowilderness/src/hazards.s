@@ -109,9 +109,9 @@ module_hazards:
         ldx     hz_condition_index
         lda     #1
         sta     injury_active,x
-        lda     hz_since_lo,x
+        lda     injury_since_lo,x ; (src/medical.s: the same module)
         sta     gp2
-        lda     hz_since_hi,x
+        lda     injury_since_hi,x
         sta     gp2+1
         ldy     #4
 @stamp: lda     s_elap,y
@@ -139,7 +139,10 @@ hz_air:
         beq     @done
         lda     #0
         ldy     airtemp
-        cpy     #128
+        cpx     #2              ; the igloo (lot 3, shelter_inside 2): 35 F,
+        bne     :+              ; as THERMAL (T0B/S02, B2 of the igloo)
+        ldy     #35-15
+:       cpy     #128
         bcc     :+
         lda     #255
 :       jsr     GIVAYF
@@ -259,9 +262,3 @@ hz_max: .byte $8F,$40,0,0,0
 hz_min: .byte $8F,$C0,0,0,0
 hz_sin31: .byte $80,$03,$D9,$89,$08
 hz_sin46: .byte $80,$38,$26,$A7,$35
-hz_since_lo: .repeat 15,I
-        .byte <(injury_since+5*I)
-        .endrepeat
-hz_since_hi: .repeat 15,I
-        .byte >(injury_since+5*I)
-        .endrepeat

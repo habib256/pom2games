@@ -81,12 +81,8 @@ fauna_accept:
         sta     animal_x
         lda     py+1
         sta     animal_y
-        lda     heading
-        sta     animal_bearing
-        lda     heading+1
-        sta     animal_bearing+1
-        lda     #0
-        sta     animal_age
+        lda     #0              ; no bearing: the animal faces the player
+        sta     animal_age      ; in every direction (PROJECT module_animal)
 @done:
         lda     MAP+37
         bne     :+

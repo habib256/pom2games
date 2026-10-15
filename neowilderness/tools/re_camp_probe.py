@@ -7,7 +7,9 @@ input entries of the core stubbed: the six sources (rain, snow, river,
 cacti, timed search, condensation), the giardia threshold at two altitudes.
 Part 2 plays the real game (build/SIERRA.woz + build/JOURNEY.dsk) with a few
 RAM pokes between commands: fire, light, batteries, matches, the flags
-"in use" that time clears, water collection and DRINK.
+"in use" that time clears, water collection and DRINK, and a fire left to
+burn five WAIT 4 (15 hours: alerts cut the last ones), rain poked before
+the last two (LONG_FIRE: it burns until DOUSE; tests/test_fire.py compares).
 
 No original byte enters the repository: module and disks stay in build/,
 results go to build/re_camp/results.json (numbers quoted in docs/CAMP.md).
@@ -243,6 +245,11 @@ NIGHT = [
     ('USE MATCHES',), ('WAIT', '1'), ('USE FIRSTAID KIT',), ('USE FLASHLIGHT',), ('poke', 0x4344 + 132, [0, 0]),
     ('USE FLASHLIGHT',), ('poke', 0x4344 + 76, [1, 0]), ('USE MATCHES',), ('USE MATCHES',), ('MAKE FIRE',),
 ]
+# A fire left burning: three WAIT 4 dry, two with rain poked (the original
+# cuts them with alerts: 7:30 to 22:30), then DOUSE. The original keeps no
+# lifetime (CAMP.md 2.1, 8).
+LONG_FIRE = [('USE MATCHES',), ('MAKE FIRE',), ('WAIT', '4'), ('WAIT', '4'), ('WAIT', '4'),
+             ('poke', 0x4B4C, [2]), ('WAIT', '4'), ('poke', 0x4B4C, [2]), ('WAIT', '4'), ('DOUSE FIRE',)]
 
 
 def play(o, items, rows):
@@ -271,6 +278,14 @@ def run_game():
         rows.append(dict(command='WAIT 1 (all B2 = 1 before)',
                          cleared=[i for i in range(1, 76) if m[0x4098 + i] == 0],
                          cleared_second=[i + 75 for i in range(1, 28) if m[0x45DC + i] == 0]))
+    with Original() as o:
+        long_rows = [dict(command='START (long fire)', state=state(o.mem()))]
+        play(o, LONG_FIRE, long_rows)
+        burning = [r['state']['fire'][0] == 0 for r in long_rows[2:]]
+        assert burning == [True] * 6 + [False], ('the original fire must burn until DOUSE', burning)
+        for r in long_rows:
+            r['long_fire'] = True
+        rows += long_rows
     return rows
 
 

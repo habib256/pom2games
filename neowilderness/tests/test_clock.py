@@ -12,12 +12,12 @@ def displays(s, header, status):
     s.step(L.poke('ui_dirty', 1))
     command(s, 'VIEW')
     actual = panels(s.step('peek:2000:8192').data)[2]
-    assert actual == header + ' DAY 1', (header, actual)
+    assert actual == header + ' - DAY 1', (header, actual)
     s.step('key:STATUS')
     s.step('press:\\r')
     s.step(L.until('status_key', 20000))
     text = '\n'.join(text_screen(s.step('peek:0400:1024').data))
-    assert 'TIME ' + status in text, (status, text)
+    assert 'TIME   ' + status in text, (status, text)   # STATUS: value column 69
     assert s.step(L.peek('s_hour', 5)).data == before
     s.step('key:\\e')
     s.step(IDLE)
@@ -50,7 +50,7 @@ def main():
             s.step(L.poke('ui_dirty', 1))
             command(s, 'VIEW')
             actual = panels(s.step('peek:2000:8192').data)[2]
-            assert actual == f'0:00 DAY {expected}', (date, actual)
+            assert actual == f'0:00 - DAY {expected}', (date, actual)
     print('Clock: real 18-minute walk (19 requested), minute/hour/noon/midnight boundaries; HUD and STATUS agree; time preserved; journey day')
 
 

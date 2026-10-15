@@ -17,7 +17,7 @@ manifest.json. Binary format (little endian), version 1:
   4  height         highest up + 1 (rows above and including the anchor row)
   5  shift          0..3
   6  base           bottom opaque row of the original image (0..191)
-  7  origin         local lift: 0 for the wreck, 10 for the other assets
+  7  origin         local lift: 0 for the wreck and the outpost, 10 for the others
   8  offsets        (width + 1) LE16 file offsets; column c = [off[c], off[c+1])
      runs           per column, top to bottom, 2 bytes each: up_top, then
                     (length - 1) << 4 | colour, length 1..16 (longer runs are
@@ -66,7 +66,7 @@ def convert(name, shift, image=None, colours=None):
         columns.append(col)
     height = max((max(c) + 1 for c in columns if c), default=0)
     return dict(name=name, shift=shift, width=width, height=height, base=base,
-                origin=0 if name == 'wreck' else 10, columns=columns)
+                origin=0 if name in ('wreck', 'outpost') else 10, columns=columns)
 
 
 def runs(col):

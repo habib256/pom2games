@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """topo_dhgr_ref.py: reference DHGR TOPO sheet, generated from the resident map.
 
-Layout (mixed mode: graphics rows 0..159, the 4 text lines carry the legend):
-  x   0..111  the journey map, one colour pixel per cell column, north up;
-  x 112..139  legend strip: north arrow, hypsometric scale with index labels.
+Layout (mixed mode: graphics rows 0..159, the 4 text lines carry the legend;
+the sheet centred since 15 October 2026):
+  x   0..13   left margin: north arrow with its N, distance bar (4 miles);
+  x  14..125  the journey map, one colour pixel per cell column, north up;
+  x 126..139  right margin: hypsometric scale with index labels.
+Page coordinates are screen coordinates: cell column x is at SHEET_X + x.
 Rows 0..159 sample the 84 cell rows: row sy is at position
   v(sy) = floor((159 - sy) * 83 * 2^QB / 159) / 2^QB   (cells, 0 = south edge)
 so row 0 is cell row 83 and row 159 cell row 0 (1.916 rows per cell; a cell is
@@ -47,21 +50,27 @@ from hgr_tables import hgr_offset  # noqa: E402
 GW, GH = 112, 84
 HEADER = 64
 ROWS, COLS, PAGE_ROWS = 160, 140, 192
-STRIP_X = 112
+SHEET_X = 14                    # screen x of cell column 0 (centred: 14 + 112 + 14)
+STRIP_X = SHEET_X + GW          # right margin
 QB = 1                          # fraction bits of the vertical position (half cells)
-LEGEND = ('TOPO  N UP  CONTOURS 400 FT, BOLD 2000',
-          'C CRASH  H CABIN  R RANGERS  SCALE KFT',
-          'MAP: PLAYER MAP',
-          'ESC/RETURN/SPACE: VIEW')
-# Strip geometry.
-BAR_X0, BAR_X1 = 115, 120       # scale bar columns (inclusive)
-TICK_X = 121
-LABEL_X = 123
+LEGEND = ('TOPO, NORTH UP. ARROW: YOU             | UP/ESC: VIEW',
+          'C CRASH, H CABIN, R RANGERS            | LEFT/RIGHT: THE TEXT MAP',
+          'CONTOURS 400 FT, BOLD 2000 FT          |',
+          'STRIP: ALTITUDE KFT, BAR 4 MI          |')
+# Margin geometry (right: altitude scale; left: north arrow, distance bar).
+BAR_X0, BAR_X1 = 127, 130       # scale bar columns (inclusive)
+TICK_X = 131
+LABEL_X = 133                   # digits 133..135, 137..139
 BAR_BOTTOM = 157                # bottom row of band 0
 BAR_ROWS = 4                    # rows per band
-ARROW_X = 125
+ARROW_X = 6
 NORTH = [(ARROW_X - 1 + c, 3 + r) for r, bits in enumerate(T.GLYPHS['N'])
          for c in range(3) if bits & (4 >> c)]
+# Distance scale under the arrow: an 8-pixel bar (8 cells of about 0.48
+# mile: 4 miles) at x 3..10, end ticks on rows 30..32, the digit 4 below.
+SCALE = ([(x, 32) for x in range(3, 11)] + [(x, r) for r in (30, 31) for x in (3, 10)]
+         + [(ARROW_X - 1 + c, 34 + r) for r, bits in enumerate(T.GLYPHS['4'])
+            for c in range(3) if bits & (4 >> c)])
 ARROW = ([(ARROW_X, 10)] + [(ARROW_X + d, 11) for d in (-1, 0, 1)]
          + [(ARROW_X + d, 12) for d in (-1, 0, 1)] + [(ARROW_X + d, 13) for d in range(-2, 3)]
          + [(ARROW_X, r) for r in range(14, 26)])
@@ -84,20 +93,30 @@ def marker_row(y):
     return min(sy for sy in range(ROWS) if nearest(sy) == y)
 
 
-def markers(data):
-    """[(letter, cell x, cell y)] in drawing order (crash last, on top)."""
+def markers(data, player=None):
+    """[(glyph, cell x, cell y)] in drawing order (crash last, on top of
+    the sites; then the player, player = (cell x, cell y, heading 0..559),
+    as an arrow A0..A7 along the nearest eighth of the heading)."""
     out = [('R', data[8], data[9])]
     if data[16]:
         out.append(('H', data[17], data[18]))
     out.append(('C', data[3], data[5]))
+    if player is not None:
+        x, y, heading = player
+        out.append((f'A{(heading + 35) // 70 % 8}', x, y))
     return out
+
+
+def colours(glyph):
+    """(box, ink) of a marker glyph: the arrows are the player's."""
+    return T.MARKERS['P' if glyph.startswith('A') else glyph]
 
 
 def marker_pixels(letter, x, y):
     """{(px, row): colour} of one marker: site pixel + 5 x 7 label box
     touching it diagonally (north-east; west near the east edge; south near
     the north edge). Pixels outside the map area are clipped by the caller."""
-    box, ink = T.MARKERS[letter]
+    box, ink = colours(letter)
     row = marker_row(y)
     bx = x + 1 if x + 5 < GW else x - 5          # box north-east of the site, else west
     by = row - 7 if row >= 7 else row + 1         # else south
@@ -113,7 +132,7 @@ def marker_pixels(letter, x, y):
 
 
 def strip_pixels(data):
-    """{(x, row): colour} of the legend strip; everything else there is STRIP."""
+    """{(x, row): colour} of the two margins; everything else there is STRIP."""
     base, snow, top, _ = T.header(data)
     pix = {}
     for b in range(top + 1):
@@ -135,7 +154,7 @@ def strip_pixels(data):
         elif b:                 # as on the map: the line is on the south side
             for x in range(BAR_X0, BAR_X1 + 1):
                 pix[(x, y1 + 1)] = T.LINE[T.ramp_index(b - 1, snow)]
-    for p in NORTH + ARROW:
+    for p in NORTH + ARROW + SCALE:
         pix[p] = T.INK
     return pix
 
@@ -171,7 +190,7 @@ def samples(data):
     return info
 
 
-def sheet(data, you=None):
+def sheet(data, you=None, player=None):
     """192 rows x 140 colours; rows 160..191 black (never written)."""
     if len(data) < HEADER + GW * GH:
         raise ValueError('incomplete journey map')
@@ -199,22 +218,27 @@ def sheet(data, you=None):
                     c = T.WOODS
                 else:
                     c = T.pick(T.tint(b, snow), (x + sy) & 1)
-            page[sy][x] = c
-        for x in range(STRIP_X, COLS):
+            page[sy][SHEET_X + x] = c
+        for x in list(range(SHEET_X)) + list(range(STRIP_X, COLS)):
             page[sy][x] = T.STRIP
     for (x, r), c in strip_pixels(data).items():
         page[r][x] = c
-    for letter, x, y in markers(data):
+    for letter, x, y in markers(data, player):
         for (px, r), c in marker_pixels(letter, x, y).items():
             if 0 <= px < GW and 0 <= r < ROWS:
-                page[r][px] = c
+                page[r][SHEET_X + px] = c
     if you is not None:         # optional: the HGR sheet does not show the player
         x, y = you
         r = marker_row(y)
         for dx, dr in ((0, -1), (-1, 0), (0, 0), (1, 0), (0, 1)):
             if 0 <= x + dx < GW and 0 <= r + dr < ROWS:
-                page[r + dr][x + dx] = P.YELLOW if (dx, dr) == (0, 0) else P.BLACK
+                page[r + dr][SHEET_X + x + dx] = P.YELLOW if (dx, dr) == (0, 0) else P.BLACK
     return page
+
+
+def map_area(page):
+    """The 112 map columns of each row of a page (cell column x at index x)."""
+    return [row[SHEET_X:STRIP_X] for row in page]
 
 
 def encode(page, rows=range(PAGE_ROWS)):
@@ -259,8 +283,9 @@ class Sheet6502:
               both (retro INDEXK[nk]); woods only -> nothing
     flush     strip and markers into CP, then 20 groups packed to row sy - 1
     """
-    def __init__(self, data):
+    def __init__(self, data, player=None):
         self.data = data
+        self.player = player
         self.t = T.tables(data)
         self.pk = T.pack_tables()
         self.n = {}
@@ -307,7 +332,7 @@ class Sheet6502:
         v, acc = num, ROWS - 2                  # v(sy) = num - step*sy - ceil(rem*sy/159)
         cp, kp = None, None
         fy, wr = None, None
-        strip = StripRows(self.data)
+        strip = StripRows(self.data, self.player)
         for sy in range(ROWS):
             j, q = v >> QB, v & ((1 << QB) - 1)
             nb = j + (q >> (QB - 1))
@@ -378,7 +403,7 @@ class Sheet6502:
 
     def flush(self, cp, sy, strip):
         row = bytearray(COLS)
-        row[:GW] = cp
+        row[SHEET_X:STRIP_X] = cp
         self.count('overlay_px', strip.overlay(row, sy))
         self.count('strip_row')
         pk, o = self.pk, hgr_offset(sy)
@@ -393,7 +418,7 @@ class Sheet6502:
 
 class StripRows:
     """Row-by-row strip and markers, as the 6502 draws them before packing."""
-    def __init__(self, data):
+    def __init__(self, data, player=None):
         self.base, self.snow, self.top, _ = T.header(data)
         t = T.tables(data)
         self.mark, self.indexk, self.idxk = t['mark'], t['indexk'], t['idxk']
@@ -405,8 +430,8 @@ class StripRows:
                 text = str((4 * b + self.base) // 10)
                 self.labels.append((BAR_BOTTOM - BAR_ROWS * b - 2, text))
         self.boxes = []                         # (x0, row0, box, ink, glyph, site x, site row)
-        for letter, x, y in markers(data):
-            box, ink = T.MARKERS[letter]
+        for letter, x, y in markers(data, player):
+            box, ink = colours(letter)
             row = marker_row(y)
             bx = x + 1 if x + 5 < GW else x - 5
             by = row - 7 if row >= 7 else row + 1
@@ -415,7 +440,7 @@ class StripRows:
 
     def overlay(self, row, r):
         n = 0
-        for x in range(STRIP_X, COLS):
+        for x in list(range(SHEET_X)) + list(range(STRIP_X, COLS)):
             row[x] = T.STRIP
         if self.bar_top <= r <= BAR_BOTTOM:     # bar: the band of the row, its tint
             d = BAR_BOTTOM - r
@@ -453,15 +478,19 @@ class StripRows:
             for x in range(ARROW_X - half, ARROW_X + half + 1):
                 row[x] = T.INK
                 n += 1
+        for x, sr in SCALE:
+            if sr == r:
+                row[x] = T.INK
+                n += 1
         for bx, by, box, ink, glyph, sx, srow in self.boxes:
             if r == srow:
-                row[sx] = box
+                row[SHEET_X + sx] = box
             if by <= r < by + 7:
                 bits = glyph[r - by - 1] if 1 <= r - by <= 5 else 0
                 for c in range(5):
                     x = bx + c
                     if 0 <= x < GW:
-                        row[x] = ink if 1 <= c <= 3 and bits & (4 >> (c - 1)) else box
+                        row[SHEET_X + x] = ink if 1 <= c <= 3 and bits & (4 >> (c - 1)) else box
                         n += 1
         return n
 

@@ -458,11 +458,13 @@ prenne les rangées HGR 176–191) et disparaît ensuite.
   `weather_frequency`, `wind`, `nature_frequency`.
 - Images des modules en RAM auxiliaire (par `ld_place` du chargeur,
   adresse lue dans `module_dir`) : `th_surface`, `th_a` (Q × 10⁻⁷) et
-  `th_native_composition` (1 − surpoids/poids) de SIM ; `wf_storm` de
-  ADVENTURE, nouveau multiplicateur des précipitations quotidiennes (1,0 :
-  même opération que l'ancien `f_one`, résultat identique ; **+5 octets
-  dans l'image ADVENTURE**, aux. `$AC45`, pris sur le trou de 21 octets qui
-  la suivait).
+  `th_native_composition` (1 − surpoids/poids) et `wf_storm` de SIM,
+  nouveau multiplicateur des précipitations quotidiennes (1,0 : même
+  opération que l'ancien `f_one`, résultat identique). `wf_storm` était
+  dans l'image ADVENTURE ; depuis qu'ADVENTURE est compressé (LZ), il est
+  passé dans le segment THERMAL de SIM, image brute (+5 octets de SIM ; la
+  routine `module_weather_daily` reste dans ADVENTURE et ne tourne que
+  depuis `env_day`, quand SIM est chargé).
 - `NEOWILD.PRE` est compressé (LZ de `tools/pack_boot.py`, 5 005 → 3 702
   octets, 9 blocs) : le chargeur le lit en `$3000` et le décode vers `$2000`
   par `ld_decode_at` (la sortie reste derrière les données compressées).

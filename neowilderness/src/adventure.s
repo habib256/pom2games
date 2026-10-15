@@ -103,14 +103,20 @@ module_goal_pct:
 .segment "ADVENTURE"
 ; T0D/S00 materializes discoveries after both encounter scans. Header scratch
 ; retains quantities and quality rolls for the six wild foods (INSECTS through
-; STICKS); small game/fish are sightings and shelters need no quantity draw.
+; WILD NUTS, item 23: message 155); small game/fish are sightings and shelters
+; need no quantity draw. Draws (docs/FORAGE.md section 4, measured on the
+; ROM): one for the quantity, one for the quality, and for FRUIT a third one
+; when .2 <= quality < .5 (ripe or green). In ITEMS since lot 4 (the piles
+; stored by forage_found, src/forage.s; docs/MEMORY.md 16).
+.segment "ITEMS"
 module_resource_results:
+        jsr     forage_found_begin      ; lot 4: game, fish present
         lda     #2
         sta     adv_resource_index
 @next: ldx     adv_resource_index
         lda     adv_resource_bits,x
         and     MAP+36
-        jeq     @skip
+        jeq     @none
         jsr     weather_random
         inc     FAC
         inc     FAC
@@ -123,9 +129,7 @@ module_resource_results:
         clc
         adc     #4
         sta     MAP+26,x
-        cpx     #7              ; STICKS has no food-quality roll
-        jeq     @skip
-        jsr     weather_random
+        jsr     weather_random  ; quality (NUTS too: r < .1 toxic)
         fst     adv_resource_roll
         inc     FAC
         inc     FAC
@@ -165,14 +169,19 @@ module_resource_results:
         sta     MAP+39
         jmp     @skip
 @other:
-        cpx     #3              ; native fruit: a second roll only when >= .5
+        cpx     #3              ; FRUIT: a third roll when .2 <= r < .5
         bne     @skip
+        fld     adv_resource_roll
+        fop     FCOMP, adv_leaf_p2      ; .2
+        cmp     #$FF
+        beq     @skip           ; r < .2: poisonous, no more
         fld     adv_resource_roll
         fop     FCOMP, f_half
         cmp     #$FF
-        beq     @skip
-        jsr     weather_random
-@skip: inc     adv_resource_index
+        bne     @skip           ; r >= .5: safe, no more
+        jsr     weather_random  ; white or red, ripe or green
+@skip: jsr     forage_found    ; lot 4: the pile, its record and counter
+@none: inc     adv_resource_index
         lda     adv_resource_index
         cmp     #8
         jne     @next
@@ -182,7 +191,7 @@ adv_resource_index: .byte 0
 adv_resource_quality: .byte 0
 .segment "ENVIRON"
 adv_resource_sample: .byte 0
-.segment "ADVENTURE"
+.segment "ITEMS"
 adv_resource_roll: .res 5
 adv_leaf_p1: .byte $7D,$4C,$CC,$CC,$CD
 adv_leaf_p2: .byte $7E,$4C,$CC,$CC,$CD
@@ -191,6 +200,7 @@ adv_leaf_prob_lo: .byte <adv_leaf_p1,<adv_leaf_p2,<adv_leaf_p3,<f_half
 adv_leaf_prob_hi: .byte >adv_leaf_p1,>adv_leaf_p2,>adv_leaf_p3,>f_half
 adv_leaf_method: .byte 8,7,2,1,0
 adv_leaf_kcal: .byte 60,40,80,80,0
+.segment "ADVENTURE"
 
 ; Sierra retains rounded per-part losses. Removing a layer inverts the
 ; previous rounded combination, so reconstructing the wardrobe from bare

@@ -100,6 +100,12 @@ SHADE_SILHOUETTE = (0,) * 16
 SHADE_MOON = (0, 2, 2, 2, 4, 5, 2, 10, 8, 8, 10, 10, 4, 10, 2, 10)
 SHADE_DIM = (0, 0, 2, 2, 0, 2, 2, 2, 0, 2, 2, 2, 2, 2, 2, 2)
 
+# Shades that turn the animal into the night silhouette (src/project.s
+# module_animal tests the resident shade index: 2 silhouette, 3 dim, $FF
+# none; mood_table numbers the shades in the order of MOODS, checked by
+# tests/test_dhgr_ref.py).
+ANIMAL_NIGHT = (None, SHADE_SILHOUETTE, SHADE_DIM)
+
 _ = None
 MOOD = {
     # sky (zenith, mid, glow); ground/snow/water (near, mid, far tier)
@@ -242,6 +248,15 @@ SPRITES = {
     'ferdelance': (BLACK, GREY1, BROWN, YELLOW),    # brown, pale diamonds
     'anaconda': (BLACK, BROWN, DARK_GREEN, YELLOW), # olive green, dark spots
     'cat': (BLACK, BROWN, GREY2, WHITE),            # grey Andean cat
+    # Lot 6: the site sprites, the same in every region (src/project.s
+    # site_colours, checked by tools/build_disk.py).
+    'log': (BLACK, ORANGE, BROWN, YELLOW),          # cut ends, bark, light
+    'rock': (BLACK, GREY1, DARK_GREEN, GREY2),      # grey stone, moss
+    'outpost': (BLACK, BROWN, DARK_GREEN, WHITE),   # roof, door, white walls
+    # Lot 3 step 3: the built shelters (XL; the hut is 'cabin' above).
+    'tent': (BLACK, ORANGE, DARK_GREEN, WHITE),     # canvas, floor, light
+    'igloo': (BLACK, LIGHT_BLUE, GREY2, WHITE),     # joints, snow blocks
+    'trench': (BLACK, BROWN, DARK_GREEN, GREY1),    # earth, fir boughs
 }
 # Sprite of each animal record of a region (species 1-4), from the global
 # animal id of the MS-DOS .CIM files (build/regions/fauna.json); Chile
@@ -325,6 +340,16 @@ class Lighting:
 
     def sprite_colours(self, name):
         return None                     # converted sprites carry day colours
+
+    def animal(self, c):
+        """Colour of an animal's pixel of day colour c (PROJECT module_animal,
+        15 October 2026): the mood's shade, or, without light (no shade,
+        the silhouette and dim shades), the night silhouette: code 0 (day
+        black) dark blue, the other codes grey 1."""
+        shade = self.t['shade']
+        if shade in ANIMAL_NIGHT:
+            return DARK_BLUE if c == BLACK else GREY1
+        return shade[c]
 
 
 def entry_byte(e):

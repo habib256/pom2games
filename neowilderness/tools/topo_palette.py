@@ -26,7 +26,7 @@ BLACK, WHITE = P.BLACK, P.WHITE
 WATER = P.DARK_BLUE             # open water away from the bank
 SHORE = P.MEDIUM_BLUE           # water pixel touching land: lighter rim, whole rivers
 WOODS = P.DARK_GREEN
-STRIP = P.BLACK                 # legend strip background (x 112..139)
+STRIP = P.BLACK                 # margin background (x 0..13 and 126..139)
 INK = P.WHITE                   # north arrow, scale labels
 
 # Ramp entries below the snow line, low to high; the snow tint is separate.
@@ -38,14 +38,17 @@ LINE = (P.BROWN,) * 6 + (P.BLACK,) * 4 + (P.LIGHT_BLUE,)
 INDEX = (P.BLACK,) * 10 + (P.GREY1,)
 
 # Markers: letter -> (box colour, letter colour); drawn R, H, then C on top.
-MARKERS = {'C': (P.MAGENTA, P.WHITE), 'H': (P.BLACK, P.YELLOW), 'R': (P.PURPLE, P.WHITE)}
+MARKERS = {'C': (P.MAGENTA, P.WHITE), 'H': (P.BLACK, P.YELLOW), 'R': (P.PURPLE, P.WHITE),
+           'P': (P.WHITE, P.DARK_BLUE)}   # the player: an arrow A0..A7 (N, NE .. NW)
 
-# 3 x 5 glyphs, one byte per row, bit 2 = left pixel (14 glyphs, 70 bytes).
+# 3 x 5 glyphs, one byte per row, bit 2 = left pixel (22 glyphs, 110 bytes).
 GLYPHS = {
     'C': (7, 4, 4, 4, 7), 'H': (5, 5, 7, 5, 5), 'R': (6, 5, 6, 5, 5), 'N': (5, 7, 7, 7, 5),
     '0': (7, 5, 5, 5, 7), '1': (2, 6, 2, 2, 7), '2': (7, 1, 7, 4, 7), '3': (7, 1, 3, 1, 7),
     '4': (5, 5, 7, 1, 1), '5': (7, 4, 7, 1, 7), '6': (7, 4, 7, 5, 7), '7': (7, 1, 1, 2, 2),
     '8': (7, 5, 7, 5, 7), '9': (7, 5, 7, 1, 7),
+    'A0': (2, 7, 2, 2, 2), 'A1': (3, 1, 2, 4, 0), 'A2': (4, 6, 7, 6, 4), 'A3': (0, 4, 2, 1, 3),
+    'A4': (2, 2, 2, 7, 2), 'A5': (0, 1, 2, 4, 6), 'A6': (1, 3, 7, 3, 1), 'A7': (6, 4, 2, 1, 0),
 }
 
 # Codes of the 6502 row buffers: K = band (0..31) | K_WOODS, or K_WATER.

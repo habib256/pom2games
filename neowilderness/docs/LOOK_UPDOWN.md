@@ -118,7 +118,9 @@ restent au bit près.
   `prompt_key`/`idle` de `src/menu.s` (quelques octets, MENUCODE 182
   libres) et dans `tests/test_menu_bar.py` ; documenter dans MENUS.md.
   Les flèches ne servent donc pas à incliner la vue : LOOK UP/DOWN
-  passent par la grille ou la commande tapée.
+  passent par la grille ou la commande tapée. Depuis le 14 octobre 2026
+  (navigation par pages, [MENUS.md](MENUS.md) § 5), la flèche bas ouvre
+  TOPO et la grille s'ouvre par RETURN ou TAB.
 
 ### 2.3 Rendu DHGR incliné
 
@@ -240,11 +242,11 @@ aucun octet de plus en page `$1000`.
 |---|---|
 | État | `tilt` en page zéro de jeu (`$EE`, GZP, après `forest_crown_end` déplacé dans `game.s` pour garder son adresse `$ED` : la référence compare sa valeur initiale), 0 / 1 / `$FF`, mis à 0 au démarrage (le chargeur laisse en page zéro les valeurs d'Applesoft) ; `tilt_shown` en WILDLO : `stars_dhgr_frame` appelle `tilt_apply` au premier rendu qui suit un changement |
 | Constantes | `dhgr.s tilt_frame` (partagé avec le banc des étoiles) : `tdv` (96 × tilt modulo 256), `tilt2`, `tskylim`, `thoriz` (95 + dv sur 16 bits) et les quatre fins de zones du ciel décalées et bornées à 0..160 (en l'air 128, 144, 160, 160 ; vers le bas 0 : tout le ciel est la lueur) |
-| Sprites | en l'air, `draw_dark` = 1 pour la trame : ni sprite ni panneau ; vers le bas, un panneau lointain suit son relief (`anchor − h + tdv` ; une ligne négative est transparente, ce qui corrige au passage un repli possible à niveau) ; les sprites locaux (épave, cabane, animal au contact) gardent leurs lignes : ce sont déjà celles de l'épave de l'original vers le bas (haut en 67 contre 69) |
+| Sprites | en l'air, `draw_dark` = 1 pour la trame : ni sprite ni panneau ; vers le bas, un panneau lointain suit son relief (`anchor − h + tdv` ; une ligne négative est transparente, ce qui corrige au passage un repli possible à niveau) ; les sprites locaux (épave, cabane, animal au contact) gardent leurs lignes : ce sont déjà celles de l'épave de l'original vers le bas (haut en 67 contre 69). Depuis le 15 octobre 2026, l'animal est dessiné après la vue (§ 4), aux mêmes lignes, jamais en l'air |
 | Plafond des panneaux | `scene_height_bound` retranche 96 vers le bas ; la commande invalide le cache de scène |
 | Arbres | en l'air, `forest_reset` coupe la sonde ; vers le bas, `forest_project_base` part de `thoriz` (−1) sur 16 bits signés |
 | Soleil et Lune | `sky_position_raw` (l'ancien calcul) accepte un astre jusqu'à 96 lignes au-dessus de la vue et rend sa ligne signée à niveau (−96..95, `$80` caché) ; `sky_position_core` la range avec le relèvement dans `sky_hy`/`sky_hb` (WILDLO), puis rend à `sky_y`/`sky_bearing` la règle de la référence (255 et l'ancien relèvement au-dessus de la vue : état comparé par `test_reference_state.py`, masque de Lune des étoiles) ; `sky_column` dessine en `sky_hy + dv` sous `tskylim` (96 à niveau, 160 en l'air, jamais vers le bas) |
-| Étoiles | liste inchangée, pas de recalcul ; `stars_column` ajoute `tdv` à la ligne (une ligne passée sous 0 devient ≥ 160, donc cachée) et borne la fin de la tache à 160 ; `stars_frame` passe en WILDLO pour libérer la place en SKYRES |
+| Étoiles | à niveau et vers le bas, liste inchangée ; **LOOK UP a sa propre liste** (14 octobre 2026 : la vue levée restait vide au-dessus de 45°, tout le ciel étant tassé dans les rangées 16 à 46 de la vue à niveau) : `stars_view_dark` la recalcule quand la projection de la liste (`stars_list_up`) n'est plus celle de l'inclinaison ; le module projette alors en vraie perspective, comme la Lune et le relief, sur 10 bits de sin h (table TU, [STARS.md](STARS.md) § 15) ; `stars_column` ajoute toujours `tdv` à la ligne (une ligne passée sous 0 devient ≥ 160, donc cachée) et borne la fin de la tache à 160 ; `stars_frame` passe en WILDLO pour libérer la place en SKYRES |
 | Nuit | rien de spécifique : terrain noir et ciel bleu foncé suivent les mêmes lignes |
 | Rotations | inchangées : le défilement par bandes déplace l'image inclinée, les colonnes neuves sont dessinées au même angle |
 | Commandes | `tree.s module_tree_look` : U/UP, D/DOWN, F/AHEAD/FORWARD, LOOK et PAN/SCAN (verbe 36) ; refus `NOT NOW.` par `look_standing` (table par région et espèce de T0D/SE) ; LOOK B et WALK/SWIM (`do_walk`) remettent 0 |
@@ -327,9 +329,9 @@ environ +4 cycles par entrée examinée.
   animal (vers le bas pour un animal « au sol », à niveau pour un animal
   debout) ou d'un site, ni la règle « sprite sans bit 7 visible seulement
   vers le bas » : le port garde ses rencontres à niveau, le crotale reste
-  visible sans regarder en bas. Les porter changerait les vues de rencontre
-  que vérifient d'autres tests (`test_fauna`, `test_sprites`) ; c'est une
-  piste de fidélité pour plus tard.
+  visible sans regarder en bas. **Écart voulu, décision de l'utilisateur
+  du 15 octobre 2026** (§ 4) : un animal présent se voit à niveau, au sol
+  ou debout.
 - Message `NOT NOW.` : un `!` dans un message du port insère la raison de
   l'arrêt d'une marche.
 - Étoiles en l'air : la projection comprimée au-delà de 45° reste ; une
@@ -358,3 +360,51 @@ l'original vaut 128 au redessin). Le rendu suit donc sa règle, le test
 était faux : il calcule la limite par `view_ref.columns(steps =
 visibilité / 2 − 1)` (nouveau paramètre de l'oracle) et vérifie le noir à
 partir de la ligne 104 et le ciel jusqu'à la ligne 103.
+
+## 4. L'animal toujours en vue (15 octobre 2026)
+
+Règle de l'utilisateur : « quand un animal est là, on doit voir son sprite
+sauf dans nos abris » ; sa présence guide les choix du joueur (IGNORE,
+SCARE, ATTACK, fuite). Les deux éditions. Code : `src/project.s`
+(`module_animal`, `animal_fire`), `src/game.s` (`animal_view`, appelé par
+`show_view_scene` après la vue, de jour comme dans le noir). Test :
+`tests/test_animal_view.py` ; références : `tests/scene_ref.py`
+(`animal_geometry`), `tools/dhgr_ref.py`, `tools/dhgr_palette.py`
+(`Lighting.animal`).
+
+| Décision | Réalisation |
+|---|---|
+| 1. Site et animal sur la même case | les deux, comme les deux emplacements de l'original (`$0D84` le site, `$0D80` l'animal) : la passe principale dessine le site (local, ou le panneau le plus proche), puis `module_animal` peint l'animal **par-dessus tout** (dessiné en dernier). L'épave de la case de départ comprise |
+| 2. ENTER de l'abri naturel | garde l'animal (D4 : risque × 0,1, ATTACK et SCARE permis ; avant, ENTER l'effaçait) ; aucune vue dedans |
+| 3. Cap | l'animal fait **face au joueur** quel que soit le cap : centré (gauche = 70 − largeur / 2), après LOOK R, L, B, N, les flèches. Plus de relèvement d'arrivée (`animal_bearing` supprimé) ; une rotation (flèches, LOOK R, L) **fait défiler** la vue comme sans animal : le fond sous l'animal, gardé avant de le dessiner, est remis, la vue défile, l'animal est redessiné centré (`scene_drawn` = `$83`, [MEMORY.md](MEMORY.md) § 28) ; sur une carte native, la vue entière est redessinée (`scene_drawn` = 3) |
+| 4. Feu de camp sur la case | les 28 colonnes du feu (`src/fire.s`, première = 56 + `fire_bear` − cap) et l'animal ne se chevauchent jamais : feu à gauche du centre (première colonne ≤ 56, le feu allumé face au cap compris) : l'animal **à sa droite**, découpé au bord droit (le crocodile de New Guinea, 72 colonnes, en garde 56) ; feu à droite du centre : l'animal à sa gauche. MAKE FIRE redessine la vue (la simulation tourne) ; DOUSE non : l'animal garde sa place jusqu'à la vue suivante |
+| 5. Sans lumière | nuit sans pleine Lune (`view_dark`, « NOT ENOUGH LIGHT. » toujours), silhouette du coucher et du crépuscule civil, ombre faible du crépuscule nautique et de la nuit lunaire faible : une **silhouette de nuit** lisible, le code 0 (noir de jour) en bleu foncé, les autres codes en gris 1 (`Lighting.animal`, nuances 2, 3 et sans nuance de `dhgr_palette.mood_table`) ; jour, ambre, clair de Lune : la nuance de l'humeur, comme avant. La silhouette au coucher et au crépuscule civil est **le choix confirmé de l'utilisateur** (15 octobre 2026) |
+| 6. Carte générée | l'animal reste sur sa case : au premier pas qui en sort, `fauna_age` (SIM, à chaque pas de marche) efface la fiche ; vérifié, aucun code ajouté. Carte native : s'éloigner reste la réaction de l'animal (`module_native_walk_reaction`), puis la fiche s'efface |
+| 7. Crotale et animaux au sol | visibles à niveau : écart voulu (§ 3.6) |
+
+**Où l'animal ne se voit pas** : dans les abris (aucune vue), dans les
+pages (STATUS, TOPO, MAP…) et en l'air (**LOOK UP**, la seule vue sans
+l'animal : l'original n'y dessine aucun sprite, SURV3D `$1C52`, règle
+gardée). Vers le bas, l'animal garde ses lignes ; l'ours debout interdit
+toujours LOOK DOWN (`look_standing`, message 64).
+
+**Mécanique.** `animal_view` (résident, 14 octets) ne fait rien sans
+animal ; sinon il charge PROJECT et saute à `module_animal` : contrôle de
+la case et de l'inclinaison, géométrie (`project_ahead` : relèvement =
+cap ; `project_center`), place par rapport au feu (`animal_fire`, avec
+`project_offset`, la moitié de `project_center` qui part d'un relèvement
+et d'une largeur), `project_commit` (sprite dans la fenêtre `$5800`),
+couleurs (`dhgr_sprite_map`, l'entrée de `dhgr_frame` qui calcule
+`spr_map`), puis copie de la boucle de colonnes en `$A000` (fenêtre SIM,
+libre pendant une vue : les tampons du feu) et saut : chargement du sprite
+dans `$5800`, `column_setup` et `sprite_column` sur les 140 colonnes
+(interruptions masquées comme dans `render`). Le cache de scène est
+invalidé (les variables `sprite_*` décrivent alors l'animal) ; la clef du
+cache ne contient plus l'animal (−21 octets résidents).
+
+**Coût.** Sans animal : 7 cycles (`lda animal_kind / beq`) et la copie de
+PROJECT plus longue de 180 octets aux vues recalculées (≈ 3 000 cycles,
+moins de 0,1 %). Avec un animal : VIEW à la case de départ 6,51 → 7,30
+millions de cycles (+12 % : PROJECT 30 000, le sprite LZ 42 000, la boucle
+740 000 pour l'ours) ; une flèche redessine la vue (≈ 6,8 millions au
+lieu de 1,2 à 1,5 en défilement). Place : [MEMORY.md](MEMORY.md) § 27.

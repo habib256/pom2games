@@ -128,7 +128,7 @@ def main():
             if not dressed:
                 screen='\n'.join(text_screen(r.mem(0x400,1024)))
                 check('STATUS shows actual temperature and SHIVERING',
-                      f'TEMP {cold[-1][0]:.1f}F' in screen and 'SHIVERING' in screen and 'HYPOTHERMIA' in screen)
+                      f'BODY    {cold[-1][0]:.1f}F' in screen and 'SHIVERING' in screen and 'HYPOTHERMIA' in screen)
             check(f'cold REST 8 ({"parka" if dressed else "no clothes"}): alive',r.mem(L['dead'],1)==b'\0')
     check('wearing the parka reduces loss and preserves body heat and health',
           cold[1][1]<cold[0][1] and cold[1][0]>cold[0][0] and cold[1][2]>cold[0][2])

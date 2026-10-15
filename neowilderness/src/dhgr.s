@@ -52,6 +52,12 @@ OP_LDAY     = $B9
 ; dhgr_moods..dhgr_tables_end (tools/build_disk.py).
 dhgr_tables_end:
 .export dhgr_tables_end
+; The site sprites (SITE_ASSET..: log, rock, ranger outpost) are the same in
+; every region: PROJECT (project_commit) writes the day colours of the one
+; in view here, slot 6 of dhgr_assets (tools/dhgr_palette.py SPRITES).
+SITE_ASSET = 33
+dhgr_site: .byte 0, 0, 0, 0
+.assert dhgr_site = dhgr_assets + 24, error, "dhgr_site must follow the six dhgr_assets slots"
 
 .segment "ZEROPAGE"
 dm:      .res 1                 ; pass: kept bits
@@ -68,6 +74,37 @@ dpb_bits: .res 1
 dj:      .res 2                 ; pass: entry row
 dp:      .res 2                 ; pass: row that receives the RTS
 dzone:   .res 1                 ; sky zone of render_sky
+
+; ----------------------------------------------------------------------------
+; Bank 2 of the main language card, $D100-$D3FF (docs/MEMORY.md 15). ProDOS
+; 8 keeps its QUIT code there; the loader puts it aside in the auxiliary
+; store at the claim (src/boot.s ld_claim) and every way out puts it back
+; (memory.s prodos_restore, boot.s ld_quit). In the game (B2_LC), the pure
+; 6502 routines below run there: column_setup, scroll, clear_rows,
+; dhgr_pack, hud_draw. Each keeps a stub at its name: bank 2 read (write
+; protected), the body (b2_<name>), the ROM again. Inside bank 2 they call
+; each other by their b2_ names (a stub would give the ROM back under the
+; caller). Their callers run with the ROM selected, and they call nothing
+; that switches the language card (no ROM, MLI, mem_fetch or dspan).
+LC_B2READ = $C080
+.macro B2_ENTRY name, b2name
+.ifdef B2_LC
+name:   bit     LC_B2READ
+        jsr     b2name
+        bit     $C082
+        rts
+.pushseg
+.segment "B2CODE"
+b2name:
+.else
+name:
+.endif
+.endmacro
+.macro B2_END
+.ifdef B2_LC
+.popseg
+.endif
+.endmacro
 
 ; ----------------------------------------------------------------------------
 ; Unrolled rows: logical row I = LDA row,Y / AND dm / ORA dv / STA row,Y,
@@ -194,7 +231,7 @@ dspan_go:
 
 ; column_setup -- per column: bytes, masks and banks of the pixel, and the
 ; dither order (column parity) patched into dspan.
-column_setup:
+        B2_ENTRY column_setup, b2_column_setup
         lda     col
         jsr     div7            ; X = group, A = phase
         tay
@@ -240,6 +277,7 @@ column_setup:
         stx     dspan_ea1+1
         stx     dspan_eb1+1
         rts
+        B2_END
 .assert >dc_pat = >(dc_pat + 63), error, "dc_pat crosses a page"
 
 sky_zone_end: .byte SKY_ROW0, SKY_ROW1, SKY_ROW2, SKY_ROW3, VIEW_ROWS
@@ -346,6 +384,13 @@ div7:   ldx     #0
         bne     @sub
 @done:  rts
 
+; Solid colour bytes dc_pat[j * 16 + c] (Apple IIe TN #3).
+dc_pat:
+.repeat 4, JJ
+.repeat 16, CC
+        .byte   ((((CC >> 1) | (CC << 3)) & 15) * $1111111 >> (7 * JJ)) & $7F
+.endrep
+.endrep
 ; Phase k = x mod 7: part A byte j = (0,0,1,1,2,2,3), part B j = (-,1,-,2,-,3,-).
 ; j: 0 aux 2g, 1 main 2g, 2 aux 2g+1, 3 main 2g+1.
 ph_offa:  .byte 0, 0, 0, 0, 1, 1, 1
@@ -361,13 +406,6 @@ ph_patb:  .byte 0, <dc_pat+16, 0, <dc_pat+32, 0, <dc_pat+48, 0
 ph_bitsb:
 .repeat 7, K
         .byte   (($F << (4 * K)) >> (7 * ((4 * K) / 7 + 1))) & $7F
-.endrep
-; Solid colour bytes dc_pat[j * 16 + c] (Apple IIe TN #3).
-dc_pat:
-.repeat 4, JJ
-.repeat 16, CC
-        .byte   ((((CC >> 1) | (CC << 3)) & 15) * $1111111 >> (7 * JJ)) & $7F
-.endrep
 .endrep
 
 ; ----------------------------------------------------------------------------
@@ -432,15 +470,19 @@ dhgr_frame:
         ldx     view_dark
 @dark:  stx     draw_dark
         txa
-        bne     @done
+        bne     dhgr_map_done
+dhgr_sprite_map:                ; (PROJECT module_animal) spr_map of scene_asset
         lda     scene_asset
         cmp     #23             ; fourth species: colour slot 5
         bne     :+
         lda     #10
+:       cmp     #SITE_ASSET     ; a site sprite: slot 6 (dhgr_site)
+        bcc     :+
+        lda     #11
 :       sec
         sbc     #5
-        cmp     #6
-        bcs     @done
+        cmp     #7
+        bcs     dhgr_map_done
         asl     a
         asl     a
         sta     dzone
@@ -467,7 +509,8 @@ dhgr_frame:
         sta     spr_map,y
         dey
         bpl     @code
-@done:  rts
+dhgr_map_done:
+        rts
 
 ; select_mood -- A = mood (docs/DHGR.md 3.1), integer compares only.
 ; view_dark keeps the HGR rule (only a full lunar disk lights the night):
@@ -615,7 +658,7 @@ band_third: .byte 0, $28, $50
 
 ; clear_rows -- clear byte columns [tmp,tmp2) of both banks, rows 16..175
 ;               (tmp < tmp2); keep the HUD.
-clear_rows:
+        B2_ENTRY clear_rows, b2_clear_rows
         php
         sei
         ldx     #HUD_ROWS/8
@@ -645,6 +688,7 @@ clear_rows:
         bne     @band
         plp
         rts
+        B2_END
 clear_band_go:
         ldx     tmp
         lda     #0
@@ -670,7 +714,7 @@ pk_c:   .res 1
 .segment "CODE"
 ; dhgr_pack -- line_pix[Y..Y+6] -> byte group at X = 2g of row hp2, both
 ;              banks. Preserves X and Y.
-dhgr_pack:
+        B2_ENTRY dhgr_pack, b2_dhgr_pack
         sty     pk_src
         stx     pk_dst
         lda     line_pix,y      ; one colour: its solid bytes (most groups)
@@ -749,6 +793,7 @@ dhgr_pack:
 pk_ja:  .byte 0, 0, 16, 16, 32, 32, 48
 pk_jb:  .byte $FF, 16, $FF, 32, $FF, 48, $FF
 pk_a:   .byte 0, 0, 1, 1, 2, 2, 3, 3        ; pk_a+1,x: j of part B
+        B2_END
 
 ; ----------------------------------------------------------------------------
 ; Video modes and text (lot 4). The view is DHGR + four mixed text rows,

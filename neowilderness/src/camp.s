@@ -9,8 +9,11 @@
 ;   camp_use   the "in use" flags B2 of the camp items (U_*); MATCHES, GLASS,
 ;              FUEL and FLASHLIGHT lose theirs whenever time passes (probe:
 ;              WAIT 1 clears B2 of 38-42, 51, 52, 54-57, 66, 68, 69, 74)
-;   fire_on    a fire burns on the player's cell (second-set B1[FIRE] = 0);
-;              no coordinates: M5 forbids leaving it ($58B5, msg 132)
+;   fire_on    a fire burns (second-set B1[FIRE] = 0); the original keeps no
+;              coordinates: M5 forbids leaving it ($58B5, msg 132), unless
+;              an animal shares the cell (camp_walk)
+;   (fire_pos: the fire's place and bearing, in GDATA, saved with the
+;              clock: src/game.s, src/fire.s; it burns until DOUSE)
 ;   fire_near  USE FIRE: near the fire (B2[FIRE], $45E9), +25 F in THERMAL
 ;   sticks_on  STICKS made (second-set B1[STICKS]): 1 ground, 3 carried
 ;   light      $0D5D: daylight, dawn/dusk under a clear sky, or MATCHES or
@@ -364,6 +367,16 @@ module_camp:
         beq     camp_item
         dey
         bpl     @find
+        cpx     #N_TENT         ; lot 3: USE TENT, BOW, SPEAR, CLUB, ROCK,
+        jeq     camp_craft      ; HUT, IGLOO, TRENCH (the CRAFT module)
+        cpx     #89
+        bcc     camp_notyet
+        cpx     #93
+        jcc     camp_craft
+        cpx     #95
+        bcc     camp_notyet
+        cpx     #98
+        jcc     camp_craft
 camp_notyet:
         lda     #<m_notyet
         ldx     #>m_notyet
@@ -600,7 +613,7 @@ camp_make:
         bne     camp_already
         lda     #M_M75
         jmp     camp_done
-@no:    jmp     camp_notyet
+@no:    jmp     camp_craft      ; lot 3: the other MAKE (the CRAFT module)
 camp_already:
         lda     #M_M11
         jmp     camp_done
@@ -658,11 +671,63 @@ make_fire:
         sta     camp_use
         lda     #1
         sta     fire_on
+        jsr     fire_light      ; its cell and bearing (src/fire.s)
         lda     #24
         sta     camp_med
         jmp     camp_made
 
 camp_k:     .res 2
+
+; camp_craft -- (lot 3, docs/CRAFT.md) MAKE of the others, USE of the
+; shelters, the tent and the weapons: the CRAFT module (src/craft.s,
+; directory entry 9) read from NEOWILD.BLK into the SIM window, after what it
+; cannot compute (the ground class, the snow line: SIM); then its effort and
+; time (camp_done); a shelter entered without time shows the inside.
+camp_craft:
+        jsr     camp_class
+        sta     cr_class
+        jsr     level_here
+        ldx     #0
+        cmp     M_SNOW
+        bcc     :+
+        inx
+:       stx     cr_snow
+        lda     #0
+        sta     cr_eff
+        sta     cr_msg
+        sta     cr_view
+        sta     sim_loaded      ; the module holds the SIM window
+camp_craft_run:                 ; (tests: the context is set, the module next)
+        ldx     #CRAFT_MODULE
+        jsr     sim_fetch
+        jsr     CRAFT_RUN
+craft_ran:                      ; (tests: the module's decisions, before time)
+        lda     camp_minutes
+        ora     camp_minutes+1
+        beq     @now
+        jsr     load_totals     ; SIM back: the load moved, the effort
+        ldx     cr_eff
+        beq     @time
+        lda     cr_eff_lo-1,x
+        ldy     cr_eff_hi-1,x
+        jsr     camp_effort
+@time:  lda     cr_msg
+        jmp     camp_done
+@now:   lda     cr_msg
+        beq     :+
+        jsr     camp_say
+:       lda     cr_view
+        beq     :+
+        jmp     show_view       ; USE HUT, IGLOO, TRENCH: the inside
+:       jmp     report
+cr_eff_lo: .byte <c_0_01, <c_0_02, <cr_0_023
+cr_eff_hi: .byte >c_0_01, >c_0_02, >cr_0_023
+cr_0_023: .byte $7B,$3C,$6A,$7E,$FA     ; T10/S00 $5C5C
+cr_class: .byte 0               ; camp_class: 0 clear, 1 woods, 2 rocky, 3 water
+cr_snow:  .byte 0               ; 1 at the snow line and above ($4B57)
+cr_eff:   .byte 0               ; the module's effort: 1 .01, 2 .02, 3 .023
+cr_msg:   .byte 0               ; the module's last message (M_*), 0: none
+cr_view:  .byte 0               ; 1: a shelter entered (show_view)
 .segment "LOWTEXT"
 ; Original messages (msg n of Journey): texts of the bank (src/textbank.s),
 ; fetched at print time; other lots reuse them.

@@ -16,7 +16,9 @@ $D480-$F0FF, the area of the TOPO snapshot, which native maps do without
 (lot 5, ported from commit 9795a58). A map whose atlas exceeds that budget
 is refused. NEOWILD.END (the end-of-game module, src/hof.s) and NEOWILD.HOF (the
 hall of fame, one block) are plain files read and written at the end of a
-journey (lot 7 step 6, docs/HOF.md).
+journey (lot 7 step 6, docs/HOF.md). NeoWildernessXL adds NEOWILD.BLK
+(docs/MEMORY.md 14): four rarely loaded modules read by block number during
+the game instead of living in the auxiliary store.
 
 A file is a 256-byte record table followed by the payloads, back to back.
 Record: kind, address, length, stored length; kind 0 end, 1 claim, otherwise
@@ -24,8 +26,10 @@ $80 | $40 (LZ, tools/pack_boot.py) | bank (0 main, 1 auxiliary, 2 auxiliary
 language card bank 2, 3 bank 1). Stored data never exceeds 8 KB.
 
 Trunk: WILDERNESS, the claim, the auxiliary store of every common module
-(wreck and cabin sprites included: a single sprite each on the Journey
-side), LOWPAGE, $0926-$1FFF, WILDGAME, RESIDENT and the menu of the four
+(the wreck sprite included, a single sprite on the Journey side; entry 9,
+the hut, waits for MAKE HUT, TODO lot 3: the fixed cabin is drawn as the log
+or the rock of NEOWILD.BLK), LOWPAGE, $0926-$1FFF, WILDGAME, RESIDENT and the
+menu of the four
 80-column rows (src/menu.s: $BA00 resident, and its grid read at $AF00 then
 hidden in the HGR rows 176-191; the loader reads with its own I/O buffer).
 Pack: the 2-4 animal sprites (modules 6, 7, 8, 23) in the auxiliary space
@@ -55,6 +59,7 @@ sys.path.insert(0, str(DEV / 'tools/prodos'))
 sys.path.insert(0, str(HERE / 'tools'))
 from build_volume import Volume, prodos_date   # noqa: E402
 from pack_boot import compress, decompress     # noqa: E402
+from re_graphics import decode                  # noqa: E402
 import dhgr_palette as P                        # noqa: E402
 import geo_atlas                                # noqa: E402
 
@@ -86,49 +91,126 @@ SKYLC = (MLC2, 0xDE18, 'wildskylc.bin')     # src/stars_draw.s, runs in place
 # Direction 3: the unrolled DHGR rows and their entry tables (src/dhgr.s,
 # segment DROWS) run in place at the start of the main card's store.
 DROWS = (MLC2, 0xD400, 'wilddrows.bin')
+# Docs/MEMORY.md 14: the LZ decoder of mem_fetch (src/memory.s, segment LZCODE)
+# runs in place in $D001-$D0FF of that bank, unused by ProDOS 8 ($D000 is its
+# bank signature, $D100-$D3FF its QUIT code).
+LZLC = (MLC2, 0xD001, 'wildlzlc.bin')
+# Docs/MEMORY.md 15: ProDOS's QUIT code area $D100-$D3FF of that bank holds
+# five routines of the view (src/dhgr.s B2_ENTRY) during the game: the loader
+# puts the QUIT code aside in the exit state at the claim, before this
+# record, and every exit puts it back.
+B2LC = (MLC2, 0xD100, 'wildb2.bin')
 SNAPSHOT = [(LC1, 0xD000, 0xE000), (LC2, 0xE000, SNAP_END)]
 # Native maps only: the fine geography takes bank 1 and the common area
 # instead of the snapshot (src/geoaux.s, src/topo_dhgr.s tp_save).
 GEO_CACHE = 0xD000               # 4 decoded tiles + woodland, not stored
 GEO_CODE = 0xD480                # src/geoaux.s (segment GEOAUX), then the atlas
 G = 'original_graphics/'
-# Directory index -> (image, execution window) of the common trunk. 18 is an
-# alias of 17. 25 is the hourly star module (docs/STARS.md); 24 (hall of
+# Directory index -> (image, execution window) of the common trunk. 18 is the
+# animated campfire (src/fire.s; overlay_load turns 18 into 17 by itself and
+# never fetches the entry), read from NEOWILD.BLK on both editions (FIRE_DIR).
+# 25 is the hourly star module (docs/STARS.md); 24 (hall of
 # fame) is read from the disk at the end of a game (NEOWILD.END), so its
 # entry holds the head of the star catalogue (462 bytes: it fills the
 # 464-byte hole of the auxiliary card), which the star module copies in
 # front of itself: both run in the SIM window (free while the simulation is
 # not loaded: show_view_scene, docs/STARS.md). Their windows come from
 # build/wild.lbl (st_cat, st_cat2).
-MODULES = {0: ('wildtpg.bin', 0x9600), 1: ('wildvoc.bin', 0x5800), 2: ('wildscr.bin', 0x5800),
+MODULES = {0: ('wildtpg.bin', 0x9600), 1: ('wildvoc.bin', 0x5800),
            3: ('wildsim.bin', 0x9600), 4: ('wildcamp.bin', 0x5800),
-           5: (G + 'wreck.bin', 0x5800), 9: (G + 'cabin.bin', 0x5800),
+           5: (G + 'wreck.bin', 0x5800),
            10: ('wildsit.bin', 0x5800),
            11: ('wildprj.bin', 0x5800), 12: ('wildtrv.bin', 0x5800), 13: ('wildinp.bin', 0x5800),
-           14: ('wilditm.bin', 0x5800), 15: ('wildhud.bin', 0x5800), 16: ('wildsta.bin', 0x5800),
+           14: ('wilditm.bin', 0x5800), 15: ('wildhud.bin', 0x5800), 16: ('wildsta.bin', 0x9600),
            17: ('wildmed.bin', 0x5800), 19: ('wildmvi.bin', 0x5800), 20: ('wildtre.bin', 0x5800),
-           21: ('wildadv.bin', 0x5800), 22: ('wildout.bin', 0x5800),
+           18: ('wildfire.bin', 0x9600), 21: ('wildadv.bin', 0x5800), 22: ('wildout.bin', 0x5800),
            24: ('wildskycat.bin', 0x9600), 25: ('wildsky.bin', 0x97CE),
            26: ('wildori.bin', 0x5800), 27: ('wildalr.bin', 0x5800),
-           28: ('wildtxb.bin', 0x0000)}
-DIR_ENTRIES = 31                 # memory.s MOD_COUNT
+           9: ('wildcrf.bin', 0x9600),
+           28: ('wildtxb.bin', 0x0000), 31: ('wildfrg.bin', 0x9600),
+           32: ('wildgrid.bin', 0xA300)}
+DIR_ENTRIES = 33                 # memory.s MOD_COUNT
 ZP_ENTRY, ZP_AUX = 30, 0xBF00    # ProDOS's zero page during the game (src/boot.s)
 # The text bank (src/textbank.s): entry 28, never loaded whole; entry 29 is
 # the scratch entry of memory.s text_fetch (its bank and destination here).
 TB_DIR, TB_FETCH = 28, 29
+# Docs/MEMORY.md 15: entry 2 is the exit state, written by the loader at the
+# claim (src/boot.s ld_claim, at the address patched into ld_exit), never by
+# a record: ProDOS's bitmap and RESET vector at entry, the /RAM unit and
+# ProDOS's QUIT code (memory.s EX_SIZE bytes), which the exit path in INPUT
+# copies to EX_BUF (the QUIT code then back to bank 2).
+# It sits in auxiliary $4000-$BEFF, just below the packs' sprite area.
+EXIT_ENTRY, EXIT_BUF = 2, 0x2000
 # Modules stored LZ-packed in the auxiliary store and decoded in their window
 # by mem_fetch (src/memory.s lz_unpack; docs/MEMORY.md 13): the rarely loaded
-# ones (TOPOGEN, SCREENS, CAMP, the wreck, the cabin, ITEMS, STATUS, MEDVIEW,
-# TREE, ORIENT) and ALERT (after a health update: 40 cycles more per byte,
+# ones (TOPOGEN, CAMP, the wreck, ITEMS, STATUS with its five
+# pages, MEDVIEW, TREE, ORIENT, ADVENTURE: start, end, the day's weather,
+# JOURNEY DONE, the clothes of a native map) and ALERT (after a health update: 40 cycles more per byte,
 # under 0.5 % of a REST), whose decoding (about 50 cycles per byte instead
 # of 17 for a copy) never runs during a view. INPUT (13) and the text bank
 # stay raw; the packs patch TRAVEL, OUTDOOR, PROJECT and SUMMARY in place.
-LZ_MODULES = (0, 2, 4, 5, 9, 14, 16, 19, 20, 26, 27)
+LZ_MODULES = (0, 1, 4, 5, 14, 16, 19, 20, 21, 26, 27)
+# Docs/MEMORY.md 28: the store of the six packs (XL, the comparison disks)
+# packs the grid's module (32) too, for the animal's background (OUTDOOR
+# ab_copy): 2,676 -> 2,441 bytes, about 0.1 s more per choice of the grid.
+# The 140 KB edition keeps it raw: its NEOWILD.DAT, LZ-packed as a whole,
+# would grow by a block (its store has room).
+LZ_SIX_PACKS = (32,)
 # The animals of the packs too: one sprite at most is loaded per view
 # (sprites.s scene_prepare), about 40 cycles more per byte, under 1 % of a
 # full view (6.1 million cycles).
 LZ_SPRITES = True
 BANK_LZ = 0x80                   # memory.s BANK_LZ; bits 2-6: the margin
+# Docs/MEMORY.md 14: modules read from the disk during the game (memory.s
+# disk_fetch, MLI READ_BLOCK into their $5800 window), edition by edition
+# (EDITIONS disk_modules). NEOWILD.BLK: a header block (BLK_SIGNATURE, then a
+# 2-byte id of the file's contents; the loader checks both, src/boot.s
+# ld_blk), then each module raw, padded to whole blocks. Its name sorts
+# before every other file of the volume: Volume allocates it first, index
+# block 7 and data from block 8 (BLK_FIRST, checked on the image), so the
+# block numbers are known before NEOWILD.DAT, which holds the directory.
+BANK_DISK = 0x40                 # memory.s BANK_DISK: source = first block
+BLK_FIRST = 8
+# Lot 4 (docs/FORAGE.md 17): FORAGE (31) runs in the SIM window and is read
+# from NEOWILD.BLK on every disk (src/forage.s forage_gate frees ProDOS's
+# bitmap of $90-$AF around the read); whole blocks must stay below the
+# grid of the menu ($B000, src/menu.s MENUSWAP).
+FORAGE_DIR = 31
+# The animated campfire (docs/CAMP.md 8) too: read into the SIM window when
+# the fire appears at the prompt (src/fire.s fire_tick, sim_fetch), on both
+# editions and every comparison disk; it takes no byte of the store.
+FIRE_DIR = 18
+# TOPOGEN (docs/MEMORY.md 18): the TOPO page's sheet, read when the page
+# opens (src/sites.s module_graphical_topo, sim_fetch) on both editions:
+# its 2.7 KB of store made room for the grid's module (GRID, entry 32).
+TOPO_DIR = 0
+# Lot 3 (docs/CRAFT.md): the MAKE recipes, CRAFT (9, the hut's old entry),
+# read by CAMP into the SIM window at a MAKE or a USE of a shelter or weapon
+# (src/camp.s camp_craft), on both editions.
+CRAFT_DIR = 9
+ALWAYS_DISK = (TOPO_DIR, CRAFT_DIR, FIRE_DIR, FORAGE_DIR)
+# Site sprites (lot 6, docs/MEMORY.md 19): the log and the rock of a natural
+# shelter found on a native map, the ranger outpost at the goal. Raw, after
+# the modules of NEOWILD.BLK on every disk, read into the SIM window when a
+# view shows them (src/project.s module_site_load, through the scratch entry
+# TB_FETCH); PROJECT's site_blocks/site_heads are written here.
+SITE_SPRITES = ('log', 'rock', 'outpost', 'tent', 'cabin', 'igloo', 'trench')
+# Lot 3 step 3 (docs/CRAFT.md 8.4): the built shelters, the tent, the hut
+# (cabin.bin), the igloo and the trench, are site sprites too, on
+# NeoWildernessXL and the comparison disks only: the 140 KB edition has no
+# room for their 8 blocks (EDITIONS shelters), PROJECT finds site_blocks 0
+# there and draws no built shelter.
+SHELTER_SPRITES = SITE_SPRITES[3:]
+SITE_WINDOW = 0x9600
+SITE_HEAD = 4                    # bytes of each image compared in the window
+DISK_END = {0x5800: 0x6000, 0x9600: 0xB000}
+# Docs/MEMORY.md 29: STATUS (16) of NeoWildernessXL, read from NEOWILD.BLK with
+# its tail (the post-its), runs up to $B5FF, over the grid's image as when
+# it was decoded from the store (get_line gathers the grid again).
+STATUS_DIR = 16
+DISK_LIMIT = {STATUS_DIR: 0xB600}
+BLK_SIGNATURE = b'NWBK'
+DISK_WINDOW = 0x5800
 LZ_MARGIN = 31
 # Species slots 1-4 of a region -> module IDs (animal_kind = slot + 5; the
 # fourth species takes 23, SCENARIOS.md section 4).
@@ -144,7 +226,8 @@ TEXT_SIZE = 128                  # memory.s REGIONTEXT
 # guest cycles per stored byte read through MLI READ, per byte LZ-decoded.
 DISK_CYCLES = 200
 DECODE_CYCLES = 46
-WINDOW_LIMIT = {0x0000: 0x2000, 0x5800: 0x0800, 0x9600: 0x2000, 0x2000: 0x2000, 0x97CE: 0xB600 - 0x97CE}
+WINDOW_LIMIT = {0x0000: 0x2000, 0x5800: 0x0800, 0x9600: 0x2000, 0x2000: 0x2000, 0x97CE: 0xB600 - 0x97CE,
+                0xA300: 0xB000 - 0xA300}
 
 
 def labels(build):
@@ -266,10 +349,14 @@ def unpack_stream(stream):
                 out.append(out[-distance])
 
 
-def system_file(build, sym, marks, prepare_length, cache=None):
+def system_file(build, sym, marks, prepare_length, cache=None, regions=6, blk=bytes(8), exit_at=0,
+                name='NEOWILD.SYSTEM'):
     """NEOWILD.SYSTEM: the stub (SYSSTUB), then the loader with its marks
-    (ld_marks), LZ-packed; the stub decodes it to __LOADER_RUN__."""
-    raw = (Path(build) / 'NEOWILD.SYSTEM').read_bytes()
+    (ld_marks), the edition's scenario count (ld_regions), NEOWILD.BLK's
+    first block and signature (ld_blk, zeros without it) and the address of
+    the exit state (ld_exit), LZ-packed; the stub decodes it to
+    __LOADER_RUN__."""
+    raw = (Path(build) / name).read_bytes()
     at = sym['__LOADER_LOAD__'] - 0x2000
     loader = bytearray(raw[at:])
     assert len(loader) == sym['__LOADER_SIZE__']
@@ -277,6 +364,15 @@ def system_file(build, sym, marks, prepare_length, cache=None):
     assert loader[mark:mark + 23] == bytes(23), 'NEOWILD.SYSTEM ld_marks'
     loader[mark:mark + 23] = b''.join(m.to_bytes(3, 'little') for m in marks) + \
         prepare_length.to_bytes(2, 'little')
+    count = sym['ld_regions'] - sym['__LOADER_RUN__']
+    assert loader[count] == 0, 'NEOWILD.SYSTEM ld_regions'
+    loader[count] = regions
+    blk_at = sym['ld_blk'] - sym['__LOADER_RUN__']
+    assert loader[blk_at:blk_at + 8] == bytes(8) and len(blk) == 8, 'NEOWILD.SYSTEM ld_blk'
+    loader[blk_at:blk_at + 8] = blk
+    exit_ptr = sym['ld_exit'] - sym['__LOADER_RUN__']
+    assert loader[exit_ptr:exit_ptr + 2] == bytes(2) and 0x4000 <= exit_at < 0xBF00, 'NEOWILD.SYSTEM ld_exit'
+    loader[exit_ptr:exit_ptr + 2] = exit_at.to_bytes(2, 'little')
     stream = lz_stream(bytes(loader), cache)[0]
     assert unpack_stream(stream) == loader
     return raw[:at] + stream, bytes(loader)
@@ -309,9 +405,88 @@ def lz_store(raw, window, cache=None):
     return blob, copy, margin
 
 
+# NeoWildernessXL (decision of 15 October 2026, docs/MENUS.md 9): the
+# MouseText pages. The linked images are the 140 KB edition's; the XL edition
+# (and the comparison disks of the tests) take copies with a tail appended
+# (segments STATX, CRAFTX, MEDVX) and the bytes of the XLPATCH records
+# (src/mousetext.inc XL_*: image, address, byte) written: build/*-xl.bin,
+# NEOWILD-xl.SYSTEM. Image code -> (file, address of its first byte, tail
+# file, label of the tail's first byte).
+XL_IMAGES = {16: ('wildsta.bin', 0x9600, 'wildstx.bin', 'stx_base'),
+             9: ('wildcrf.bin', 0x9600, 'wildcrx.bin', 'crx_base'),
+             19: ('wildmvi.bin', 0x5800, 'wildmvx.bin', 'med_foot_x'),
+             0x80: ('wildhof.bin', 0x9600, 'wildendx.bin', 'endx_base'),
+             0x81: ('NEOWILD.SYSTEM', None, None, None),
+             0x82: ('wildmenusw.bin', 0xB000, None, None),
+             0x83: ('wild.bin', 0x6000, None, None),
+             0x84: ('wildmenu.bin', 0xBA00, None, None),
+             0x85: ('wildpg.bin', 0x0200, None, None),
+             0x86: ('wildgame.bin', 0x4000, None, None)}
+# Resident code of the XL edition, position independent, copied over shared
+# code that XL never runs: (image code, file, first label, end label of the
+# room). xl_pad (src/mt_pages.s, the grid's boxes) over page_foot: the XL
+# pages call page_foot_x instead.
+XL_COPIES = [(0x83, 'wildxlr.bin', 'page_foot', 'pg_lines')]
+
+
+def xl_name(name):
+    stem, dot, ext = name.partition('.')
+    return f'{stem}-xl.{ext}'
+
+
+def xl_files(build, sym):
+    """Write the XL copies of XL_IMAGES; {file: XL file}."""
+    build = Path(build)
+    records = (build / 'wildxlp.bin').read_bytes()
+    assert len(records) % 4 == 0, 'build/wildxlp.bin: 4-byte records'
+    images, shared = {}, {}
+    for code, (name, base, tail, label) in XL_IMAGES.items():
+        data = bytearray((build / name).read_bytes())
+        if code == 0x81:                # the loader, past the stub
+            base = sym['__LOADER_RUN__'] - (sym['__LOADER_LOAD__'] - 0x2000)
+        shared[code] = len(data)
+        if tail:
+            start = sym[label] - base
+            assert len(data) <= start, (name, 'reaches its XL tail')
+            data += bytes(start - len(data)) + (build / tail).read_bytes()
+        images[code] = (data, base)
+    for code, name, first, end in XL_COPIES:
+        data, base = images[code]
+        code_bytes = (build / name).read_bytes()
+        assert first in sym and sym[first] + len(code_bytes) <= sym[end], ('XL copy', name, first)
+        data[sym[first] - base:sym[first] - base + len(code_bytes)] = code_bytes
+    zero = (build / 'wildxlz.bin').read_bytes()
+    for k in range(0, len(zero), 5):          # XL_ZERO: code XL never runs
+        code, first, last = zero[k], zero[k + 1] | zero[k + 2] << 8, zero[k + 3] | zero[k + 4] << 8
+        data, base = images[code]
+        assert 0 <= first - base < last - base <= shared[code], ('XL_ZERO', code, hex(first), hex(last))
+        data[first - base:last - base] = bytes(last - first)
+    for k in range(0, len(records), 4):
+        code, address, value = records[k], records[k + 1] | records[k + 2] << 8, records[k + 3]
+        data, base = images[code]
+        offset = address - base
+        assert 0 <= offset < len(data), ('XL byte outside the image', code, hex(address))
+        data[offset] = value
+    out = {}
+    for code, (data, _) in images.items():
+        name = XL_IMAGES[code][0]
+        (build / xl_name(name)).write_bytes(bytes(data))
+        out[name] = xl_name(name)
+    return out
+
+
+def module_image(build, module):
+    """The raw image of a layout.json module entry, with the bytes this
+    disk writes into it (PROJECT: site_project)."""
+    raw = bytearray((Path(build) / module['image']).read_bytes())[:module['length']]
+    for offset, value in module.get('patches', ()):
+        raw[offset] = value
+    return bytes(raw)
+
+
 def stored_bytes(build, module):
     """The bytes a layout.json module entry occupies in the store."""
-    raw = (Path(build) / module['image']).read_bytes()
+    raw = module_image(build, module)
     if 'lz' not in module:
         return raw
     return lz_store(raw, module['window'], Path(build) / 'lz-cache')[0]
@@ -475,7 +650,7 @@ def fauna_patches(header, region, build):
     from re_graphics import decode
     vocab = nouns()
     travel = bytearray(52)
-    reactions = [bytearray(4) for _ in range(10)]
+    reactions = [bytearray(4) for _ in range(19)]
     quiet = 0
     for k in range(4):
         rec = header[32*k:32*k + 32]
@@ -491,10 +666,13 @@ def fauna_patches(header, region, build):
         venom = rec[22] >= 4
         kind = (0x80 if rec[28] else 0) | (0x40 if venom else 3 * (rec[22] - 1)) | (
             0x20 if region == 4 and k == 0 else 0)
-        values = (noise, threshold(Fraction(2, 100) * rec[14]), threshold(Fraction(2, 100) * rec[18]),
-                  threshold(Fraction(5, 1000) * rec[24]), threshold(Fraction(2, 100) * rec[15]),
+        values = (noise, threshold(Fraction(2, 100) * rec[14]),
+                  *(threshold(Fraction(2, 100) * rec[m]) for m in range(17, 22)),       # ATTACK by means
+                  *(threshold(Fraction(5, 1000) * rec[m + 6]) for m in range(17, 22)),  # (lot 3)
+                  threshold(Fraction(2, 100) * rec[15]),
                   threshold(Fraction(2, 100) * rec[16]), threshold(Fraction(2, 100) * rec[13]),
-                  64 if name in CATS else 192 if venom else 128, vocab[name], kind)
+                  64 if name in CATS else 192 if venom else 128, vocab[name], kind,
+                  rec[30])                              # lot 4: V (src/forage.s forage_kill)
         for table, value in zip(reactions, values):
             table[k] = value
         if not noise and not quiet:
@@ -604,8 +782,121 @@ def save_files(build, sym, trunk, packs):
     return bytes(module), slot_size
 
 
-def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks=280, omit=()):
-    """map_path replaces the map of the Sierra Nevada pack (tests)."""
+# The two editions (14 October 2026): Neowilderness, a 140 KB 5.25" disk
+# with the Sierra Nevada alone (and the journey preparation, the saved
+# games); NeoWildernessXL, an 800 KB 3.5" disk with the six scenarios.
+# Docs/MEMORY.md 14: XL reads CAMP, MEDVIEW, TREE and ORIENT from NEOWILD.BLK;
+# the 140 KB edition reads MEDVIEW, TREE and ORIENT there (lot 4, MEMORY.md
+# 16, 18: its store had no room left for them).
+EDITIONS = {'neowilderness': dict(regions=(2,), blocks=280, volume='NEOWILDERNESS',
+                                  disk_modules=(19, 20, 26), shelters=False, mousetext=False,
+                                  lz_modules=LZ_MODULES),
+            'xl': dict(regions=PACK_REGIONS, blocks=1600, volume='NEOWILDERNESSXL',
+                       disk_modules=(4, 16, 19, 20, 26), shelters=True, mousetext=True)}
+
+
+def blk_file(build, modules, disk_modules, shelters=True):
+    """NEOWILD.BLK: (file bytes, {index: (first block, blocks)}, the 8 bytes
+    of ld_blk). Empty bytes when no module is on the disk."""
+    if not disk_modules:
+        return b'', {}, bytes(8)
+    body, where, block = bytearray(), {}, BLK_FIRST + 1
+    for index in sorted(disk_modules):
+        name, window = modules[index]
+        raw = (Path(build) / name).read_bytes()
+        blocks = -(-len(raw) // 512)
+        assert window in DISK_END and 0 < len(raw) and \
+            window + 512 * blocks <= DISK_LIMIT.get(index, DISK_END[window]), \
+            (index, name, len(raw))
+        where[index] = (block, blocks)
+        body += raw + bytes(blocks * 512 - len(raw))
+        block += blocks
+    for name in SITE_SPRITES:
+        if name in SHELTER_SPRITES and not shelters:
+            continue
+        raw = (Path(build) / G / f'{name}.bin').read_bytes()
+        blocks = -(-len(raw) // 512)
+        assert 0 < len(raw) and SITE_WINDOW + 512 * blocks <= 0xA000, (name, len(raw))
+        where[name] = (block, blocks)
+        body += raw + bytes(blocks * 512 - len(raw))
+        block += blocks
+    ident = hashlib.sha256(bytes(body)).digest()[:2]
+    head = BLK_SIGNATURE + ident
+    data = head + bytes(512 - len(head)) + bytes(body)
+    return data, where, BLK_FIRST.to_bytes(2, 'little') + head
+
+
+def site_project(build, sym, images, raw_images, where, shelters=True):
+    """PROJECT (module 11, raw: the packs patch it) learns where the site
+    sprites are on NEOWILD.BLK (block 0: not on this disk, the built shelters
+    on the 140 KB edition) and how each image begins. No other image of the
+    SIM window may begin like one of them: module_site_load would take it
+    for the sprite (src/project.s). Without the built shelters (the 140 KB
+    edition) PROJECT ends at project_tail: its tail serves them alone."""
+    project = bytearray(images[11])
+    def at(label):
+        return sym[label] - 0x5800
+    count = len(SITE_SPRITES)
+    heads = []
+    for k, name in enumerate(SITE_SPRITES):
+        raw = (Path(build) / G / f'{name}.bin').read_bytes()
+        index = 17 + k if k < 6 else 29            # src/project.s proj_index
+        width, base = at('proj_sprites') + index - 5, at('proj_sprites') + index + 1
+        assert project[at('site_len_lo') + k] | project[at('site_len_lo') + count + k] << 8 == len(raw), name
+        assert project[width] == raw[0], (name, 'width')
+        image = decode(raw)[0]
+        assert project[base] == max(y for y, row in enumerate(image) if any(c >= 0 for c in row)), \
+            (name, 'bottom row')
+        assert bytes(project[at('site_colours') + 4 * k:at('site_colours') + 4 * k + 4]) == \
+            bytes(P.SPRITES[name]), (name, 'colours: tools/dhgr_palette.py SPRITES')
+        if name not in where:
+            assert name in SHELTER_SPRITES, name
+            continue
+        block = where[name][0]
+        assert 0 < block < 256, (name, block)      # module_site_load: one byte
+        project[at('site_blocks') + k] = block
+        head = raw[:SITE_HEAD]
+        project[at('site_heads') + SITE_HEAD * k:at('site_heads') + SITE_HEAD * (k + 1)] = head
+        heads.append(head)
+    assert len(set(heads)) == len(heads)
+    others = [(build / name).read_bytes() for name, window in MODULES.values() if window == SITE_WINDOW]
+    others += [(build / name).read_bytes() for name in ('wildsav.bin', 'wildhof.bin', 'NEOWILD.SYSTEM')]
+    assert not any(o[:SITE_HEAD] in heads for o in others), 'a SIM window image begins like a site sprite'
+    assert len(project) == at('project_end'), 'PROJECT must end with its tail (src/project.s)'
+    if not shelters:
+        assert not any(name in where for name in SHELTER_SPRITES)
+        del project[at('project_tail'):]
+    original = images[11]
+    images[11] = raw_images[11] = bytes(project)
+    return [[k, b] for k, (a, b) in enumerate(zip(original, project)) if a != b]
+
+
+def check_blk(image, data, where):
+    """NEOWILD.BLK on the built image: a sapling whose data blocks are
+    BLK_FIRST.. in order, holding `data` (the directory's block numbers)."""
+    from read_volume import Image
+    volume = Image(bytes(image))
+    entry = next(e for e in volume.entries(2) if e[1:1 + (e[0] & 15)] == b'NEOWILD.BLK')
+    assert entry[0] >> 4 == 2, 'NEOWILD.BLK: a sapling expected'
+    key = int.from_bytes(entry[0x11:0x13], 'little')
+    index = volume.block(key)
+    count = len(data) // 512
+    assert [index[n] | index[256 + n] << 8 for n in range(count)] == \
+        list(range(BLK_FIRST, BLK_FIRST + count)), 'NEOWILD.BLK moved: its blocks are not BLK_FIRST..'
+    assert volume.read(entry) == data
+    for index_, (block, blocks) in where.items():
+        assert BLK_FIRST < block and block + blocks <= BLK_FIRST + count, index_
+
+
+def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks=280, omit=(),
+               regions=PACK_REGIONS, volume_name=VOLUME, disk_modules=(), shelters=True, mousetext=False,
+               lz_modules=LZ_MODULES + LZ_SIX_PACKS):
+    """map_path replaces the map of the Sierra Nevada pack (tests). regions:
+    the packs on the volume (the others stay out of NEOWILD.DAT; the loader's
+    menu follows, src/boot.s ld_regions): all six, or the Sierra Nevada.
+    disk_modules: read from NEOWILD.BLK during the game (docs/MEMORY.md 14).
+    shelters: the built shelters' site sprites on NEOWILD.BLK (lot 3).
+    mousetext: the MouseText pages of NeoWildernessXL (XL_IMAGES)."""
     build = Path(build) if build else HERE / 'build'
     out = Path(out)
     from mkmap import MAP_BYTES, FOREST_BYTES
@@ -616,21 +907,37 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
 
     # ---- common trunk: every module but the animals.
     images, raw_images, lz = {}, {}, {}
-    modules = dict(MODULES)
-    assert 13 not in LZ_MODULES and TB_DIR not in LZ_MODULES, 'INPUT and the text bank stay raw'
+    xl = xl_files(build, sym) if mousetext else {}
+    modules = {i: (xl.get(name, name), window) for i, (name, window) in MODULES.items()}
+    assert 13 not in lz_modules and TB_DIR not in lz_modules, 'INPUT and the text bank stay raw'
     bank = (build / MODULES[TB_DIR][0]).read_bytes()
     first = struct.unpack_from('<H', bank, 2)[0]     # the index ends where text 1 starts
     offsets = struct.unpack_from(f'<{first // 2}H', bank)
     assert all(0 < b - a <= sym['tb_end'] for a, b in zip(offsets[1:], offsets[2:])), 'bank index'
-    assert not set(PATCH_MODULES.values()) & set(LZ_MODULES), 'the packs patch these images'
+    assert not set(PATCH_MODULES.values()) & set(lz_modules), 'the packs patch these images'
+    assert not set(PATCH_MODULES.values()) & set(disk_modules), 'the packs patch these images'
+    # Docs/MEMORY.md 15: a native-map comparison disk (tests) loses 1.2 KB of
+    # store to its atlas; TREE (20) and ORIENT (26) are read from NEOWILD.BLK
+    # there, as on NeoWildernessXL. Since lot 4 (docs/MEMORY.md 16) every
+    # comparison disk does so, as the 140 KB edition: the store of six packs
+    # with the lot's growth no longer holds them.
+    if map_path and not disk_modules:
+        disk_modules = (20, 26)
+    assert mousetext or STATUS_DIR not in disk_modules, \
+        'STATUS on NEOWILD.BLK needs the XL status_fetch (sim_fetch, src/game.s)'
+    disk_modules = tuple(sorted(set(disk_modules) | set(ALWAYS_DISK)))
+    blk, blk_where, blk_head = blk_file(build, modules, disk_modules, shelters)
     for index, (name, window) in modules.items():
         data = (build / name).read_bytes()
         assert 0 < len(data) <= WINDOW_LIMIT[window], (name, len(data))
         images[index] = raw_images[index] = data
-        packed = lz_store(data, window, cache) if index in LZ_MODULES else None
+        if index in blk_where:
+            continue                    # NEOWILD.BLK: neither stored nor packed
+        packed = lz_store(data, window, cache) if index in lz_modules else None
         if packed:
             images[index] = packed[0]
             lz[index] = dict(stored=len(packed[0]), copy=packed[1], margin=packed[2])
+    project_patches = site_project(build, sym, images, raw_images, blk_where, shelters)
     regions_data = {r: region_data(build, r, map_path if r == 2 else None) for r in PACK_REGIONS}
 
     def sprite_image(name):
@@ -670,33 +977,47 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
     geo['store_start'] = store_start
 
     # The packs' sprites get one contiguous area at the top of $4000-$BFFF,
-    # as large as the largest pack (Burma); the trunk fills the rest. Each
-    # pack places its sprites there first, then in the trunk's leftovers.
-    area = max(sprite_sizes.values())
-    # A native-map comparison disk (tests; the shipped maps are legacy) has
-    # its atlas where the legacy store begins: its store is about 1.2 KB
-    # smaller. Its tests play the Sierra Nevada only: the sprite area is
-    # sized for that pack, and another pack whose animals no longer fit
-    # keeps its map and loses its animals (docs/MEMORY.md 13).
-    sierra_only = bool(map_path and geo['loaded'])
+    # as large as the largest pack of the edition (Bolivia on XL; the Sierra
+    # alone on the 140 KB edition: 1,334 bytes more of store); the trunk
+    # fills the rest. Each pack places its sprites there first, then in the
+    # trunk's leftovers.
+    area = max(sprite_sizes[r] for r in regions)
+    # A comparison disk (tests, --map: the Sierra Nevada with another map)
+    # plays the Sierra Nevada only: the sprite area is sized for that pack,
+    # and another pack whose animals no longer fit keeps its map and loses
+    # its animals (docs/MEMORY.md 13). A native map's atlas takes 1.2 KB of
+    # the store; since docs/MEMORY.md 15 a legacy map's comparison disk, which
+    # keeps every module in the store (no NEOWILD.BLK), needs it too.
+    sierra_only = bool(map_path)
     if sierra_only:
         area = sprite_sizes[2]
     trunk_regions = [list(r) for r in REGIONS]
-    trunk_regions[0][2] -= area
+    exit_size = sym['EX_SIZE']
+    exit_at = REGIONS[0][2] - area - exit_size
+    trunk_regions[0][2] -= area + exit_size
     drows = (build / DROWS[2]).read_bytes()
     for r in trunk_regions:
         if r[:2] == [LC2, SNAP_END]:
             r[1] = store_start
         if r[:2] == [DROWS[0], DROWS[1]]:
             r[1] += len(drows)
-    placed, free = place(images, trunk_regions)
+    placed, free = place({i: d for i, d in images.items() if i not in blk_where}, trunk_regions)
     pack_area = (AUX, REGIONS[0][2] - area, REGIONS[0][2])
     free = [list(pack_area)] + free
 
     def directory(placed_all, images_all, lz_all):
         table = bytearray(DIR_ENTRIES * 7)
         for index in range(DIR_ENTRIES):
-            source = 17 if index == 18 else index
+            source = index
+            if source in blk_where:                 # first block, raw length
+                length = len(raw_images[source])
+                if source == CRAFT_DIR:             # MAKE reads the recipes' blocks only;
+                    length = sym['craft_page'] - MODULES[source][1]   # pg_craft: all
+                    end = sym['crx_end' if mousetext else 'craft_end']      # (XL: its tail)
+                    assert end - MODULES[source][1] == len(raw_images[source])
+                table[index*7:index*7+7] = struct.pack('<BHHH', BANK_DISK, blk_where[source][0],
+                                                       length, MODULES[source][1])
+                continue
             if source not in placed_all:
                 continue                            # a missing 23: empty
             bank, address = placed_all[source]
@@ -710,6 +1031,8 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
         bank = placed_all[TB_DIR][0]
         table[TB_FETCH*7:TB_FETCH*7+7] = struct.pack('<BHHH', DIR_BANK[bank], 0, 0, sym['tb_buf'])
         table[ZP_ENTRY*7:ZP_ENTRY*7+7] = struct.pack('<BHHH', DIR_BANK[AUX], ZP_AUX, 256, sym['saved_zp'])
+        assert EXIT_ENTRY not in placed_all and EXIT_ENTRY not in MODULES
+        table[EXIT_ENTRY*7:EXIT_ENTRY*7+7] = struct.pack('<BHHH', DIR_BANK[AUX], exit_at, exit_size, EXIT_BUF)
         return bytes(table)
 
     dir_offset = sym['module_dir'] - 0xB600
@@ -721,21 +1044,27 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
         low[address - 0x0800:address - 0x0800 + len(data)] = data
     skylc = (build / SKYLC[2]).read_bytes()
     assert len(skylc) <= 0x200
-    trunk_sections = [(MAIN, 0x6000, (build / 'wild.bin').read_bytes()), None]
+    trunk_sections = [(MAIN, 0x6000, (build / xl.get('wild.bin', 'wild.bin')).read_bytes()), None]
     trunk_sections += blobs(placed, images)
-    trunk_sections += [(SKYLC[0], SKYLC[1], skylc), (DROWS[0], DROWS[1], drows)]
-    trunk_sections += [(MAIN, 0x0200, (build / 'wildpg.bin').read_bytes()),
+    lzlc = (build / LZLC[2]).read_bytes()
+    assert 0 < len(lzlc) <= 0xFF and sym['lzc_entry'] == LZLC[1], 'the decoder fills $D001-$D0FF at most'
+    b2lc = (build / B2LC[2]).read_bytes()
+    assert 0 < len(b2lc) <= 0x300 and sym['b2_column_setup'] >= B2LC[1], 'bank 2 code: $D100-$D3FF'
+    assert sym['EX_SIZE'] == sym['EX_STATE'] + 0x300, 'the exit state holds the QUIT code'
+    trunk_sections += [(SKYLC[0], SKYLC[1], skylc), (DROWS[0], DROWS[1], drows),
+                       (LZLC[0], LZLC[1], lzlc), (B2LC[0], B2LC[1], b2lc)]
+    trunk_sections += [(MAIN, 0x0200, (build / xl.get('wildpg.bin', 'wildpg.bin')).read_bytes()),
                        (MAIN, 0x0926, bytes(low[0x0126:])),
-                       (MAIN, 0x4000, (build / 'wildgame.bin').read_bytes()),
+                       (MAIN, 0x4000, (build / xl.get('wildgame.bin', 'wildgame.bin')).read_bytes()),
                        (MAIN, 0xB600, bytes(resident)),
-                       (MAIN, 0xBA00, (build / 'wildmenu.bin').read_bytes()),
+                       (MAIN, 0xBA00, (build / xl.get('wildmenu.bin', 'wildmenu.bin')).read_bytes()),
                        # HICODE: moved to $BE00 by the loader once ProDOS's
                        # zero page is in auxiliary $BF00 (src/boot.s).
                        (MAIN, sym['HI_LOAD'] if 'HI_LOAD' in sym else 0xA900,
                         (build / 'wildhi.bin').read_bytes()),
                        # The grid of the menu: read here (free during the load),
                        # hidden in the HGR rows 176-191 by the loader (ld_scatter).
-                       (MAIN, 0xAF00, (build / 'wildmenusw.bin').read_bytes())]
+                       (MAIN, 0xAF00, (build / xl.get('wildmenusw.bin', 'wildmenusw.bin')).read_bytes())]
     trunk, trunk_stats = records(trunk_sections, packing, cache)
 
     # ---- one pack per region.
@@ -746,6 +1075,10 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
     packs, pack_info = {}, {}
     replaced = []
     for region, data in regions_data.items():
+        if region not in regions:       # not on this edition: no pack, no sprite area
+            pack_info[str(region)] = dict(name=data['entry']['name'], filename='NEOWILD.DAT',
+                                          omitted=True, stored=0, file=0, modules={})
+            continue
         raw_sprites = {SLOT_MODULES[k]: (build / G / f'{name}.bin').read_bytes()
                        for k, name in enumerate(data['sprites'])}
         stored_sprites = {SLOT_MODULES[k]: sprite_image(name) for k, name in enumerate(data['sprites'])}
@@ -762,7 +1095,7 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
         except SystemExit:
             if not sierra_only or region == 2:
                 raise
-            print(f'{out}: native-map comparison disk: pack {region} without its animals',
+            print(f'{out}: comparison disk: pack {region} without its animals',
                   file=sys.stderr)
             replaced.append(region)
             sprites, sprite_lz, raw_sprites = {}, {}, {}
@@ -779,19 +1112,24 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
             index = PATCH_MODULES[symbol]
             offset = sym[symbol] - 0x5800
             trunk_bytes = images[index][offset:offset + len(patch)]
-            if region == 2:     # the trunk's images hold the Sierra Nevada
-                assert trunk_bytes == patch, (symbol, trunk_bytes.hex(), patch.hex())
             bank, address = placed[index]
-            sections.append((bank, address + offset, patch))
+            if region == 2:     # the trunk's images hold the Sierra Nevada:
+                assert trunk_bytes == patch, (symbol, trunk_bytes.hex(), patch.hex())
+            else:               # its pack writes them again for nothing
+                sections.append((bank, address + offset, patch))
             patches[symbol] = dict(module=index, bank=BANK_NAMES[bank], address=address + offset,
                                    data=patch.hex())
         dhgr_tables = (build / f'dhgr/dhgr_tables_r{region}.bin').read_bytes()
         assert len(dhgr_tables) == tables_end - tables_start, region
         if region == 2 and geo_record:
             sections.append(geo_record)         # before the map: LZ decodes through $7000
-        sections += [(MAIN, 0x0800, data['mask']),
-                     (MAIN, tables_start, dhgr_tables),
-                     (MAIN, sym['__REGIONTEXT_RUN__'], region_texts(data['entry'], data['header'])),
+        # The Sierra Nevada's colours are the trunk's (GAME, asserted above):
+        # its pack leaves them (15 October 2026, docs/MEMORY.md 27), as its
+        # fauna patches; the loader always reads the trunk first.
+        sections += [(MAIN, 0x0800, data['mask'])]
+        if region != 2:
+            sections.append((MAIN, tables_start, dhgr_tables))
+        sections += [(MAIN, sym['__REGIONTEXT_RUN__'], region_texts(data['entry'], data['header'])),
                      (MAIN, sym['module_dir'], directory(all_placed, all_images, {**lz, **sprite_lz})),
                      (MAIN, 0x7000, data['map'][:MAP_BYTES])]
         packs[region], stats = records(sections, packing, cache)
@@ -822,22 +1160,32 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
     prepare_module = compress((build / 'wildpre.bin').read_bytes())
     assert 0 < len(prepare_module) <= 0x1000 and (build / 'wildpre.bin').stat().st_size <= 0x1F00
     dat, marks = bytearray(trunk), []
+    assert tuple(regions) in ((2,), PACK_REGIONS), 'the Sierra Nevada alone, or the six'
     for region in PACK_REGIONS:
         marks.append(len(dat))
         pack_info[str(region)]['mark'] = len(dat)
-        dat += packs[region]
+        if region in regions:
+            dat += packs[region]
     marks.append(len(dat))
     dat += prepare_module
-    system = system_file(build, sym, marks, len(prepare_module), cache)[0]
+    system_name = xl.get('NEOWILD.SYSTEM', 'NEOWILD.SYSTEM')
+    system = system_file(build, sym, marks, len(prepare_module), cache, len(regions), blk_head, exit_at,
+                         system_name)[0]
     stage = Path(tempfile.mkdtemp(prefix='neowild-stage-'))
     try:
         (stage / 'PRODOS#FF0000').write_bytes((DEV / 'tools/prodos/PRODOS').read_bytes())
         (stage / 'NEOWILD.SYSTEM#FF2000').write_bytes(bytes(system))
         (stage / 'NEOWILD.DAT#060000').write_bytes(bytes(dat))
+        if blk:
+            (stage / 'NEOWILD.BLK#060000').write_bytes(blk)
         # Lot 7 step 6 (docs/HOF.md): the end-of-game module, read from the
         # disk by module_end at $9600 (directory entry 24: the star catalogue), and
         # the empty hall of fame (tools/genhof.py), rewritten in place.
-        end_module = (build / 'wildhof.bin').read_bytes()
+        end_module = bytearray((build / xl.get('wildhof.bin', 'wildhof.bin')).read_bytes())
+        at = sym['hm_regions'] - 0x9600     # the hall of fame's scenarios
+        assert end_module[at] == 6
+        end_module[at] = len(regions)
+        end_module = bytes(end_module)
         hof_file = (build / 'NEOWILD.HOF').read_bytes()
         assert 0 < len(end_module) <= 0x2000 and len(hof_file) == 512
         if 'NEOWILD.END' not in omit:       # tests/test_save.py: room for 3 games
@@ -862,12 +1210,17 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
         # keeps it: it is checked by tests/test_pack_boot.py). The journey
         # preparation is part of NEOWILD.DAT (docs/MEMORY.md 13).
         dropped = []
-        optional = ['NEOWILD.SAV#069600', 'preparation']
+        if 'preparation' in omit:           # tests/test_save.py: room for 3 games
+            (stage / 'NEOWILD.DAT#060000').write_bytes(bytes(dat[:marks[-1]]))
+            (stage / 'NEOWILD.SYSTEM#FF2000').write_bytes(
+                system_file(build, sym, marks, 0, cache, len(regions), blk_head, exit_at, system_name)[0])
+            dropped.append('preparation')
+        optional = ['NEOWILD.SAV#069600'] + ([] if 'preparation' in omit else ['preparation'])
         while True:
             built = False
             for games in range(SAVE_GAMES, -1, -1):
                 try:
-                    volume = Volume(VOLUME, blocks, boot, prodos_date('2026-10-13T12:00'))
+                    volume = Volume(volume_name, blocks, boot, prodos_date('2026-10-13T12:00'))
                     volume.build(stage)
                     built = True
                     break
@@ -882,7 +1235,7 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
             if name == 'preparation':       # NEOWILD.DAT without it (0 bytes)
                 (stage / 'NEOWILD.DAT#060000').write_bytes(bytes(dat[:marks[-1]]))
                 (stage / 'NEOWILD.SYSTEM#FF2000').write_bytes(
-                    system_file(build, sym, marks, 0, cache)[0])
+                    system_file(build, sym, marks, 0, cache, len(regions), blk_head, exit_at, system_name)[0])
             else:
                 (stage / name).unlink()
             dropped.append(name.split('#')[0])
@@ -896,21 +1249,29 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
         for path in stage.iterdir():
             path.unlink()
         stage.rmdir()
+    if blk:
+        check_blk(volume.image, blk, blk_where)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(bytes(volume.image))
 
     # Layout: the trunk plus the Sierra Nevada pack, as after the default
     # menu choice "2, RETURN" (what the tests load), and every pack.
     sierra = pack_info['2']['modules']
-    trunk_modules = {str(i): dict(image=modules[17 if i == 18 else i][0],
-                                  bank=BANK_NAMES[placed[17 if i == 18 else i][0]],
-                                  address=placed[17 if i == 18 else i][1],
-                                  length=len(raw_images[17 if i == 18 else i]),
-                                  stored=len(images[17 if i == 18 else i]),
-                                  window=modules[17 if i == 18 else i][1],
-                                  **({'lz': lz[17 if i == 18 else i]}
-                                     if (17 if i == 18 else i) in lz else {}))
-                     for i in range(DIR_ENTRIES) if (17 if i == 18 else i) in placed}
+    trunk_modules = {str(i): dict(image=modules[i][0], bank=BANK_NAMES[placed[i][0]],
+                                  address=placed[i][1], length=len(raw_images[i]),
+                                  stored=len(images[i]), window=modules[i][1],
+                                  **({'lz': lz[i]} if i in lz else {}))
+                     for i in range(DIR_ENTRIES) if i in placed}
+    trunk_modules['11']['patches'] = project_patches   # module_image: NEOWILD.BLK's site sprites
+    for i, (block, count) in blk_where.items():
+        if i in SITE_SPRITES:
+            continue
+        trunk_modules[str(i)] = dict(image=modules[i][0], bank='disk', block=block, blocks=count,
+                                     length=len(raw_images[i]), stored=count * 512,
+                                     window=modules[i][1])
+        if i == CRAFT_DIR:              # the directory's length: the recipes (MAKE)
+            trunk_modules[str(i)]['fetch'] = sym['craft_page'] - modules[i][1]
+    trunk_modules = dict(sorted(trunk_modules.items(), key=lambda kv: int(kv[0])))
     info = dict(packing=packing, blocks_used=volume.next_free, blocks=blocks,
                 blocks_free=blocks - volume.next_free,
                 dat=trunk_stats, geo=geo,
@@ -922,8 +1283,17 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
                               for n in regions_data[2]['sprites'])), free)[1]],
                 aux_trunk_free=sum(e - s for _, s, e in free),
                 pack_area=dict(bank='aux', start=pack_area[1], end=pack_area[2]),
+                exit_state=dict(bank='aux', address=exit_at, length=exit_size, buffer=EXIT_BUF),
                 star_code=dict(bank=BANK_NAMES[SKYLC[0]], address=SKYLC[1], length=len(skylc)),
                 dhgr_rows=dict(bank=BANK_NAMES[DROWS[0]], address=DROWS[1], length=len(drows)),
+                disk=dict(file='NEOWILD.BLK', bytes=len(blk), first_block=BLK_FIRST if blk else 0,
+                          signature=blk_head[2:].hex(),
+                          modules={str(i): dict(block=b, blocks=n) for i, (b, n) in blk_where.items()
+                                   if i not in SITE_SPRITES},
+                          sites={i: dict(block=b, blocks=n) for i, (b, n) in blk_where.items()
+                                 if i in SITE_SPRITES}),
+                lz_decoder=dict(bank=BANK_NAMES[LZLC[0]], address=LZLC[1], length=len(lzlc)),
+                bank2_code=dict(bank=BANK_NAMES[B2LC[0]], address=B2LC[1], length=len(b2lc)),
                 packs=pack_info,
                 region_text=sym['__REGIONTEXT_RUN__'], dhgr_tables=[tables_start, tables_end],
                 end_module=dict(file='NEOWILD.END', bytes=len(end_module),
@@ -955,8 +1325,60 @@ if __name__ == '__main__':
     # Lot 9: 280 blocks (5.25-inch, the shipped image) or 1600 (3.5-inch 800 KB).
     parser.add_argument('--blocks', type=int, default=280)
     parser.add_argument('--omit', action='append', default=[], help='leave a file out (NEOWILD.END)')
+    parser.add_argument('--mousetext', action='store_true',
+                        help='a comparison disk with the MouseText pages of XL (docs/MENUS.md 9)')
+    parser.add_argument('--edition', choices=sorted(EDITIONS),
+                        help='neowilderness: 140 KB, the Sierra Nevada alone; xl: 800 KB, the six scenarios')
     args = parser.parse_args()
-    info = build_disk(args.out, args.map, args.build, args.packing, args.layout, args.blocks, args.omit)
+    # The comparison disks of the tests (--map, no edition) keep the plain
+    # pages, as the 140 KB edition whose store they share the pressure of
+    # (docs/MENUS.md 9); --mousetext gives them XL's.
+    edition = EDITIONS[args.edition] if args.edition else dict(regions=PACK_REGIONS, volume=VOLUME,
+                                                               disk_modules=(), mousetext=args.mousetext)
+    blocks = edition.get('blocks', args.blocks) if args.edition else args.blocks
+    try:
+        info = build_disk(args.out, args.map, args.build, args.packing, args.layout, blocks, args.omit,
+                          edition['regions'], edition['volume'], edition['disk_modules'],
+                          edition.get('shelters', True), edition.get('mousetext', False),
+                          edition.get('lz_modules', LZ_MODULES + LZ_SIX_PACKS))
+    except SystemExit as e:
+        # Lot 4 (docs/MEMORY.md 16): a comparison disk whose native atlas no
+        # longer leaves room on 280 blocks keeps the Sierra Nevada pack alone
+        # (its tests play the Sierra Nevada; the menu then offers it alone);
+        # one whose atlas leaves the store too small (the noise-tile stress
+        # maps of tests/test_geo_resident.py, which play no command) reads
+        # XL's four modules from NEOWILD.BLK.
+        if not (args.map and not args.edition and ('deborde' in str(e) or 'auxiliary' in str(e))):
+            raise
+        # The fewest modules on the disk first: MEDVIEW, then XL's four
+        # (tests/test_resident.py and test_geo_resident.py read the
+        # directory to expect their reads).
+        regions, disk_modules = PACK_REGIONS, (20, 26)
+        # (STATUS stays in the store: only XL's status_fetch reads it from
+        # the disk, docs/MEMORY.md 29.)
+        steps = [(19, 20, 26), tuple(m for m in EDITIONS['xl']['disk_modules'] if m != STATUS_DIR)] \
+            if 'auxiliary' in str(e) else []
+        info = None
+        while info is None:
+            if 'auxiliary' in str(e):
+                if not steps:
+                    raise e
+                disk_modules = steps.pop(0)
+                print(f'{args.out}: comparison disk: modules {disk_modules} on NEOWILD.BLK',
+                      file=sys.stderr)
+            elif regions != (2,):
+                regions = (2,)
+                print(f'{args.out}: comparison disk: the Sierra Nevada pack alone', file=sys.stderr)
+            else:
+                raise e
+            try:
+                info = build_disk(args.out, args.map, args.build, args.packing, args.layout, blocks,
+                                  args.omit, regions, edition['volume'], disk_modules,
+                                  mousetext=edition.get('mousetext', False))
+            except SystemExit as e2:
+                if 'deborde' not in str(e2) and 'auxiliary' not in str(e2):
+                    raise
+                e = e2
     packs = ', '.join(f'R{r} {p["stored"]}' for r, p in info['packs'].items())
     print(f'{args.out}: NEOWILD.DAT {info["dat"]["raw"]} -> {info["dat"]["stored"]} bytes '
           f'({info["packing"]}, {info["dat"]["records"]} records); packs (bytes) {packs}; '

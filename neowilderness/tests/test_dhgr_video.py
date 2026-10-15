@@ -5,10 +5,10 @@ The view is DHGR page 1 + 4 mixed text rows (80STORE, HIRES, 80COL on, AN3
 low, PAGE2 off). Lot 4: those rows are real 80-column text (even columns in
 the aux page, odd ones in main), printed by the game's own primitives, never
 by the Monitor's 80-column paths; MAP and the simulation curtain are
-80-column text too; STATUS, INVENTORY and HELP stay 40-column text (80COL
+80-column text too, and STATUS since its two-column page; INVENTORY and HELP stay 40-column text (80COL
 off); TOPO is DHGR with its legend in the 80-column rows.
 """
-from common import L, DISK, a2test, text_screen, result_rows, map_cue
+from common import L, DISK, a2test, text_screen, result_rows, map_cue, is_status
 
 # Status bits read in bit 7 ($C07F, RDDHIRES, is not emulated by a2shot: AN3
 # is left to the captures, tools/game_shots.py).
@@ -46,8 +46,8 @@ def main():
         text = text_screen(s.step('peek:0400:1024').data)
         assert len(text[20]) == 80 and result_rows(text)[0].startswith('CRASH IN SIERRA NEVADA USA.'), text[20:]
         aux = aux_rows(s)
-        assert aux[0][20] == ord('C') | 0x80, 'even columns live in the aux page'
-        # Results fill the result column (rows 20..22, columns 40..78), in
+        assert aux[0][0] == ord('C') | 0x80, 'even columns live in the aux page'
+        # Results fill the result column (rows 20..22, columns 0..38), in
         # 80-column layout; the command line is row 23 (src/menu.s).
         for word in ('XYZZY', 'PLUGH', 'FOO'):
             s.step(f'key:{word}\\r')
@@ -59,8 +59,8 @@ def main():
         s.step('key:STATUS\\r')
         s.step('wait:1')
         s.step(L.until('wait_key', 20000))
-        check(s, MENU, 'STATUS page')
-        assert text_screen(s.step('peek:0400:1024').data)[0].startswith('STATUS:')
+        check(s, MAP, 'STATUS page')        # 80 columns, as MAP
+        assert is_status(text_screen(s.step('peek:0400:1024').data))
         s.step('key:\\e')
         s.step('wait:1')
         s.step(idle)
@@ -71,7 +71,7 @@ def main():
         s.step('wait:1')
         s.step(L.until('graphical_topo_key', 20000))
         check(s, TOPO, 'TOPO')
-        assert text_screen(s.step('peek:0400:1024').data)[20].startswith('TOPO  N UP')
+        assert text_screen(s.step('peek:0400:1024').data)[20].startswith('TOPO, NORTH UP')
         s.step('key:\\r')
         s.step('wait:1')
         s.step(idle)
@@ -85,7 +85,7 @@ def main():
         s.step('wait:1')
         s.step(idle)
         check(s, VIEW, 'view after MAP')
-    print('  view DHGR + 80-column mixed rows (both text pages), STATUS 40-column text, '
+    print('  view DHGR + 80-column mixed rows (both text pages), STATUS 80-column text, '
           'MAP 80-column text, TOPO DHGR with its legend, returns: OK')
 
 

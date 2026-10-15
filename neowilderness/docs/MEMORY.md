@@ -1151,6 +1151,9 @@ deux mesures : 10,65 → 9,27 s).
 - Un module du stock peut être LZ : tout ce qui le remplit doit passer par
   `mem_fetch`. INPUT reste brut, les modules corrigés par les paquets
   (TRAVEL, OUTDOOR, PROJECT, SUMMARY) aussi (`build_disk.py` l'affirme).
+  De même pour l'image corrigée par la préparation (`pr_patch_sim`) : SIM,
+  brut, porte `th_surface`, `th_a`, `th_native_composition` et `wf_storm`
+  (ce dernier sorti d'ADVENTURE quand ADVENTURE est devenu LZ).
 - Un texte de la banque n'a pas d'adresse : seul `message` (X = 0) ou
   `text_fetch` le lit ; un texte écrit par le jeu (`m_fauna_stop`) ou lu
   par une autre routine (`puts`, `hm_print`, `message_string` des raisons
@@ -1193,3 +1196,1318 @@ après eux) et « SIM ≥ 150 » sont tenus, à 18 octets près pour le premier 
 ne le sont pas (1 349 octets libres en tout ; 273 blocs sans partie). Leviers
 encore ouverts : LZ de MED/ADVENTURE (+1 Ko de stock, au prix de REST),
 compression de VOCAB, NEOWILD.END dans le fichier unique (2 blocs).
+
+## 14. Troisième récupération (14 octobre 2026)
+
+Deux pistes de l'étude de conception, mesurées sur `build/wild.map`, les
+`layout*.json` et a2shot (IIe, ProDOS 2.4.3, SmartPort du slot 5 pour
+l'édition XL).
+
+### 14.1 Le décodeur LZ en banque 2 de la carte principale (`$D001-$D0FF`)
+
+ProDOS 8 2.4.3 garde `$D100-$D3FF` de la banque 2 pour son code QUIT (Bitsy
+Bye) et ne lit `$D000` que pour reconnaître la banque à l'appel du MLI
+(`$EE` en banque 2, `$D8` en banque 1 : cet octet ne doit jamais changer).
+`$D001-$D0FF` garde le motif de mise sous tension, identique après le
+démarrage et une partie, sur les deux éditions. Le décodeur de `mem_fetch`
+(`lz_unpack`, `lz_guard`, `lz_back` : 251 octets de code) y tourne
+désormais en place (segment `LZCODE`, enregistrement MLC2 du tronc,
+`build_disk.py` `LZLC`, 253 octets avec l'aiguillage d'entrée) ; ses
+variables (36 octets) restent en TEXT.
+
+- Appel : un relais de 16 octets à deux entrées en TEXT (`lz_guard` :
+  `CLC`, `lz_unpack` : `SEC`, puis `BIT $C083` deux fois, `JSR lzc_entry`,
+  `BIT $C082`, `RTS` ; `lzc_entry` aiguille sur C).
+  La banque 2 est lue **et** écrite : `lz_guard` réécrit ses propres
+  opérandes et ceux de `lz_back`. Rien d'autre n'est écrit dans la carte : la
+  sortie va dans la fenêtre (`$5800` ou `$9600`), sous `$C000`.
+- Le décodeur ne touche que la RAM principale sous `$C000` (fenêtre, `mf_*`,
+  `lz_*`, `$50-$55`, pile) : ni ROM, ni MLI, ni banque 1. `mem_fetch`
+  masque les interruptions ; `mf_done` remet ensuite l'état de carte de
+  l'appelant, comme avant.
+- Les tests : `test_boot` lit `$D000` (`$EE`) et l'image du décodeur ;
+  `test_pack_boot` admet un enregistrement en `$D001-$D0FF` et interdit
+  toujours `$D000` et `$D100-$D3FF` ; `test_hof_volume` admet les écritures
+  en `$D001-$D0FF` (le chargeur).
+- TEXT : 11 → 246 octets libres (+235 : 251 de code moins le relais). Coût
+  en temps négligeable (quatre `BIT` et un `JSR` de plus par image décodée).
+
+### 14.2 Levier A, palier 1 : quatre modules lus par bloc (XL seulement)
+
+CAMP (4), MEDVIEW (19), TREE (20) et ORIENT (26), rarement chargés, ne
+sont plus dans le stock auxiliaire de NeoWildernessXL : `mem_fetch` les lit
+sur le disque, bloc par bloc, directement dans leur fenêtre `$5800`.
+
+- **NEOWILD.BLK** (`build_disk.py` `blk_file`) : un bloc d'en-tête
+  (`"NWBK"` et 2 octets d'identité, SHA-256 du contenu), puis chaque module
+  brut (pas LZ : plus rapide, et une lecture n'écrit jamais sous `$5800`),
+  complété de zéros jusqu'au bloc. Son nom précède tous les autres : le
+  constructeur de volume l'alloue le premier, bloc d'index 7, données à
+  partir du bloc 8 (`BLK_FIRST`), sur les deux tailles de volume ; les
+  numéros de bloc sont donc connus avant NEOWILD.DAT, qui contient le
+  répertoire (pas de circularité). `build_disk` relit l'image construite et
+  vérifie l'index et le contenu (`check_blk`). CAMP blocs 9-12, MEDVIEW
+  13-15, TREE 16-17, ORIENT 18-20 ; 13 blocs + l'index.
+- **Répertoire** : nouveau code de banque `BANK_DISK = $40` ; source = le
+  premier bloc absolu, longueur = la longueur brute, fenêtre `$5800`. Une
+  image ≤ `$800` (affirmé) : la lecture du dernier bloc écrit au plus 511
+  octets de bourrage après le module, toujours dans la fenêtre de 2 Ko.
+- **Lecteur résident** : dans `mem_fetch`, après le chargement du code de
+  banque, `CMP #BANK_DISK / BNE / JMP disk_fetch` (7 octets) ; `mf_dst`,
+  `mf_src`, `mf_rest`, `mf_pages` passent en RESBSS derrière deux octets
+  `rb_parms` (3) et `rb_unit` : ensemble, une liste de paramètres
+  READ_BLOCK `[3, unité, tampon, bloc]` (+2 octets). `disk_fetch` (TEXT) : blocs = ⌈longueur / 512⌉, boucle READ_BLOCK par `mli_call`
+  (compté dans `mli_reads`/`mli_bytes`) en avançant tampon et bloc, puis
+  `mf_done` (97 octets avec son compteur). Sur erreur (disque retiré) : un bip, une touche, nouvel essai.
+  ProDOS laisse modifiée la commande de son pilote de blocs (`$42-$47`) et
+  d'autres octets de `$3A-$4F` (mesuré : `$40`, `$41`, `$45`, `$46`, `$4F`) :
+  `disk_fetch` garde `$3A-$4F` sur la pile, `mem_fetch` préserve toujours
+  toute la page zéro. Aucune préparation de plus : `mem_fetch` masque déjà
+  les interruptions, coupe 80STORE, RAMRD et RAMWRT, la page zéro et la
+  pile sont les principales ; les pages `$58-$5F` sont libres dans le bitmap
+  de ProDOS (`boot.s` `game_pages`), sans quoi READ_BLOCK refuserait le
+  tampon (erreur `$56`, mesurée vers `$9800`).
+- **Chargeur** : `rb_unit` = DEVNUM au démarrage (l'unité d'amorçage). Si
+  `ld_blk` (écrit par `build_disk`, 0 sur 140 Ko) est non nul, il lit le
+  bloc d'en-tête et compare ses 6 premiers octets : une copie fichier par
+  fichier qui aurait déplacé les blocs reçoit « NEOWILD.BLK HAS MOVED: COPY
+  THE WHOLE DISK BLOCK BY BLOCK, NOT FILE BY FILE. » puis revient à ProDOS
+  (`test_editions.moved_blk`). Le chargeur a grandi de 157 octets : HICODE
+  est lu en `$AA00` au lieu de `$A900` (`HI_LOAD`, exporté pour
+  `build_disk`), 119 octets restent sous lui.
+- **Quand ils se chargent** : CAMP aux commandes de feu et d'eau (GET
+  WATER, FILL…) et au retour d'un appel imbriqué ; MEDVIEW aux soins (USE
+  SUNSCREEN, USE FIRSTAID KIT…) ; ORIENT à LOOK N/E/S/O/STARS et après les
+  saisies de ses dialogues ; TREE à USE COMPASS et aux commandes d'arbre.
+  Jamais pendant le rendu d'une vue, un demi-pas de marche ou le retour
+  d'un écran : `test_screen_returns` garde zéro appel MLI.
+- **Politique** : XL = palier 1 sur disque ; l'édition 140 Ko (Disk II,
+  lent, et dont le stock a la place : sa zone de sprites est celle de la
+  Sierra seule) garde tout dans le stock (`EDITIONS` `disk_modules`). Le
+  lecteur résident existe dans les deux ; les répertoires diffèrent.
+  Les disques de comparaison des tests (`common.disk_with`, 280 blocs, six
+  paquets) gardent aussi tout dans le stock.
+
+Latence (a2shot, `test_transfers`, `overlay_load` compris) :
+
+| Module | octets | blocs | avant (LZ du stock) | après (disque, XL) |
+|---|---:|---:|---:|---:|
+| CAMP (4) | 1 617 | 4 | 91 364 cycles | **34 843** (8 710 par bloc) |
+| MEDVIEW (19) | 1 058 | 3 | 58 621 | **26 343** |
+| TREE (20) | 710 | 2 | 36 877 | **17 848** |
+| ORIENT (26) | 1 149 | 3 | 64 766 | **26 343** |
+
+Sur le vrai matériel : un lecteur 3,5" arrêté met environ 0,5 à 1 s à
+reprendre sa vitesse ; le premier chargement d'un de ces modules après un
+temps sans accès disque peut donc durer une seconde (l'émulateur ne le
+modélise pas). Les tests qui comptent les appels MLI d'une partie
+(`test_resident` : USE SUNSCREEN et USE FIRSTAID KIT lisent MEDVIEW,
+3 READ_BLOCK chacun) attendent exactement ces lectures sur XL.
+
+### 14.3 Bilan
+
+RAM principale résidente, octets libres (`build/wild.map`) :
+
+| Zone | avant (§ 13, état du 14/10) | après |
+|---|---:|---:|
+| TEXT `$0A00-$0FFF` | 11 | **149** (+235 net du décodeur, −97 de `disk_fetch`) |
+| WILDLO `$1000-$1FFF` | 7 | 7 |
+| WILDGAME `$4000-$577F` | 14 | 14 |
+| WILDERNESS `$6000-$6FFF` | 4 | 4 |
+| RESIDENT `$B600-$B9FF` | 12 | **3** (aiguillage `BANK_DISK` 7, `rb_parms`/`rb_unit` 2) |
+| MENUCODE `$BA00-$BDFF` | 12 | 12 |
+| HICODE `$BE00-$BEFF` | 3 | 3 |
+| banque 2 principale `$D001-$D0FF` | 255 (inutilisé) | 2 |
+| chargeur (sous HICODE) | 20 | 119 (HICODE lu en `$AA00`) |
+
+Stock auxiliaire (`layout.json`, `layout-140.json`) ; « place du tronc » =
+`aux_trunk_free` moins la zone des sprites de l'édition :
+
+| Édition | `aux_trunk_free` avant → après | zone des sprites | place du tronc avant → après |
+|---|---:|---:|---:|
+| XL (800 Ko) | 3 343 → **7 209** | 2 847 (Bolivia) | 496 → **4 362** |
+| Neowilderness (140 Ko) | 3 343 → 3 343 | 1 513 (Sierra) | 1 830 → 1 830 |
+
+Après le paquet le plus lourd de XL (Bolivia), 4 362 octets restent libres
+(Sierra 5 696). Disque XL : 298 → 305 blocs sur 1 600 (NEOWILD.BLK 14
+blocs, NEOWILD.DAT 7 de moins) ; 140 Ko : 222 → 223 blocs sur 280 (le
+chargeur, NEOWILD.SYSTEM, prend un bloc de plus).
+
+## 15. Quatrième récupération : lot de relocalisation (14 octobre 2026)
+
+But : au moins 1,5 Ko de RAM principale résidente pour les travaux à venir
+(FORAGE : chasse, pêche, cueillette ; générateur de terrain). Deux études
+mesurées : la couverture de douze parties (chaque instruction exécutée
+comptée : le code résident est chaud à 87 %, ce qui reste froid est surtout
+le démarrage et la sortie) et la banque 2 de la carte langage principale
+(`$D100-$D3FF`, le code QUIT de ProDOS 8). Comptes : `build/wild.map`
+(zones de `src/wild.cfg`), `build/layout.json` et `layout-140.json`.
+
+### 15.1 Les pas
+
+| Pas | Ce qui bouge | Zones |
+|---|---|---|
+| T1 | `start`, les commutateurs de `native_video` et la prise de /RAM (`_prodos_video_claim`) passent dans le chargeur (`boot.s` `start`, `ld_claim`, et un FORMAT de /RAM dans `ld_quit`) ; `dev/lib/prodos` n'est plus lié au jeu (`video.o`, `mli.o` : 4 octets de BSS en moins) | WILDERNESS +187 (dont 41 rendus par T2), WILDGAME +4 ; chargeur +74 |
+| T2 | La sortie dans INPUT : `prodos_restore` (texte, FORMAT de /RAM, bitmap, vecteur RESET, page zéro), `prodos_quit`, `module_reset_exit`. RESET : relais résident `reset_exit` (12 octets : `CLD`, pile `$FF`, `mem_fetch` direct d'INPUT, brut, puis `module_reset_exit` ; un RESET remet la //e en RAM principale, ALTZP coupé, ROM, interruptions masquées ; `overlay_current` peut mentir, d'où la copie directe). L'état de départ (bitmap 24, vecteur 3, unité /RAM 1) quitte RESBSS : le chargeur l'écrit à la prise dans l'entrée 2 du répertoire (`EX_ENTRY`, stock auxiliaire juste sous la zone des sprites, adresse écrite par `build_disk` dans `ld_exit`), la sortie le recopie en `EX_BUF` = `$2000`. Le FORMAT de /RAM prend `$2000` pour tampon : bitmap et vecteur sont relus avant lui | RESIDENT +127, WILDERNESS +41, INPUT −145, stock −177 |
+| T3 | `st_inputs` et `st_tugap` rentrent dans le module des étoiles (25) | WILDLO +85, WILDGAME +72, SKYSTARS 186 → 32 libres, stock −159/−163 |
+| T4 | La boîte à deux touches d'`orient_ask` passe dans ORIENT ; `orient_number` (le nombre par INPUT, puis ORIENT de nouveau) reste en TEXT | TEXT +67 ; stock 140 Ko −67 (XL : ORIENT est sur le disque) |
+| T5 | `select` (RETURN dans la grille) dans INPUT : relais de 8 octets (`overlay_load` 13, `module_select`). Il n'appelle que du résident et MENUSWAP et finit dans `idle` ou `done_menu` | MENUCODE +157, INPUT −165, stock −165 |
+| T7 | `do_save` : relais (INPUT, `module_save` : lecture, exécution, bitmap) ; `do_save_view` (la vue et « GAME n RESTORED. ») reste résident, `show_view` ne pouvant tourner depuis `$5800` | WILDLO +51 (`sl_bitmap` dans INPUT), INPUT −57 |
+| Banque 2 (B2) | Le chargeur met le code QUIT (`$D100-$D3FF`) dans l'état de sortie, à la prise, avant tout enregistrement qui le remplace (`ldc_put` par `ld_place`) ; `EX_SIZE` = 28 + 768. La sortie d'INPUT le remet (avant le FORMAT de /RAM) ; `ld_quit` aussi (Q au menu, erreur), par une boucle de 15 octets copiée en `$0100` (RAMRD déplace aussi le programme : `ld_unquit`). `column_setup`, `scroll`, `clear_rows`, `dhgr_pack`, `hud_draw` (746 octets, segment `B2CODE`, enregistrement MLC2 du tronc après la prise) y tournent derrière un relais de 10 octets (`B2_ENTRY` : `BIT $C080`, `JSR b2_…`, `BIT $C082`, `RTS`) ; `hud_draw` appelle `b2_dhgr_pack` sans relais | WILDLO +269, WILDERNESS +427, banque 2 libre 770 → 24, stock −768 |
+| Navigation | Correction du même jour (bas ouvre la grille, bas sous sa dernière rangée ouvre TOPO : `grid_bottom`) | MENUCODE −60 |
+
+`dc_pat` (64 octets, ne doit pas franchir une page) passe devant les tables
+de phase dans CODE. Le chargeur lit HICODE en `$5800` (`HI_LOAD`, la fenêtre des modules,
+qu'aucun enregistrement ni la préparation ne touche et que le jeu remplit
+avant de la lire ; pas `$9500` : des variables de SCRATCH y sont lues au
+départ, `test_reference_state` l'a montré) au lieu de `$AA00` : il gagne une
+page ; il garde 105 octets libres sous son
+tampon d'E/S (`$AB00`).
+
+### 15.2 Bilan
+
+RAM principale résidente, octets libres :
+
+| Zone | avant (§ 14) | après |
+|---|---:|---:|
+| TEXT `$0A00-$0FFF` | 149 | **216** |
+| WILDLO `$1000-$1FFF` | 7 | **412** |
+| WILDGAME `$4000-$577F` | 14 | **90** |
+| WILDERNESS `$6000-$6FFF` | 4 | **659** |
+| RESIDENT `$B600-$B9FF` | 3 | **129** |
+| MENUCODE `$BA00-$BDFF` | 9 | **106** (166 avant la navigation) |
+| HICODE `$BE00-$BEFF` | 3 | 3 |
+| MENUSWAP `$B000-$B5FF` | 47 | 47 |
+| banque 2 principale `$D001-$D3FF` | 770 (`$D100-$D3FF` : code QUIT) | 24 |
+| INPUT (fenêtre `$5800`) | 663 | 264 |
+
+Total : **1 486 octets** résidents de plus (1 546 avant la correction de la
+navigation).
+
+Stock auxiliaire ; place du tronc = `aux_trunk_free` moins la zone des
+sprites de l'édition :
+
+| Édition | `aux_trunk_free` | zone des sprites | place du tronc avant → après |
+|---|---:|---:|---:|
+| XL (800 Ko) | 7 140 → 5 796 | 2 847 | 4 293 → **2 949** |
+| Neowilderness (140 Ko) | 3 274 → 1 858 | 1 513 | 1 761 → **345** |
+
+Disque : XL 305 → 304 blocs, 140 Ko 223 → 224 blocs.
+
+Temps (cycles émulés, XL, Sierra, de `do_command` à `idle`) : vue complète
+(V) 6 342 285 → 6 325 006 ; LOOK L 1 848 836 → 1 844 305 (les relais de
+banque 2 coûtent environ 20 cycles par appel, 140 colonnes par vue : moins
+que ce que la vue a gagné ailleurs). Un RETURN dans la grille copie INPUT
+(1 784 octets bruts, ≈ 24 000 cycles) ; SAVE/RESTORE et QUIT chargeaient
+déjà INPUT.
+
+### 15.3 Contraintes nouvelles
+
+- Entrée 2 du répertoire : l'état de sortie, écrit par le chargeur, jamais
+  par un enregistrement (`test_pack_boot`). `$D100-$D3FF` de la banque 2 :
+  le code de la vue pendant la partie ; toute sortie remet le code QUIT
+  (`test_prodos` compare `$D000` et `$D100-$D3FF` à l'entrée du chargeur, à
+  QUIT puis Q et à RESET). Un enregistrement qui écrit `$D100-$D3FF` doit
+  suivre la prise (`test_pack_boot` `replay`).
+- Le code de banque 2 ne doit appeler ni ROM, ni MLI, ni `mem_fetch`, ni
+  `dspan`, ni aucune routine qui rend la ROM ; entre elles, les routines de
+  la banque s'appellent par leur nom `b2_`. Leurs appelants tournent avec la
+  ROM.
+- INPUT porte désormais la sortie : il reste brut dans le stock (le relais
+  RESET le copie directement).
+- Le FORMAT de /RAM écrit `$2000` : tout ce que la sortie lit dans `EX_BUF`
+  doit l'être avant lui.
+- Disques de comparaison des tests (`--map`) : zone de sprites de la Sierra
+  seule (les autres paquets perdent leurs animaux s'ils n'entrent plus,
+  comme à carte native) ; à carte native, TREE et ORIENT sont lus sur
+  NEOWILD.BLK (aucun test ne les joue sur ces cartes).
+
+### 15.4 Pistes écartées
+
+| Piste | Mesure | Décision |
+|---|---|---|
+| T6 : noms d'objets (`it_n*`, `it_name_lo/hi`, 761 octets de WILDLO) et textes d'arrêt de voyage (116 de TEXT) dans le stock | stock +650 à 800 octets ; il en reste 345 sur 140 Ko | Non faite : il faudrait garder au moins 300 octets sur 140 Ko |
+| B1 : relire les deux blocs de PRODOS au lieu de garder le code QUIT dans le stock | rendrait 768 octets de stock (et permettrait T6) | Non faite : dépend du PRODOS du disque de démarrage (une copie de Bitsy Bye modifiée en mémoire ou un autre ProDOS la casserait) ; B2 est sûr sur les deux éditions |
+| `select` dans TREE ou ITEMS | TREE est lu sur le disque (XL), ITEMS est LZ (≈ 50 cycles par octet) | INPUT, brut, est le plus rapide |
+| `grid_bottom` dans INPUT | MENUCODE +47, mais stock 140 Ko 345 → 293 | Gardé en MENUCODE |
+
+## 16. Lot 4 : chasse, pêche, cueillette, repas (14 octobre 2026)
+
+Le lot ([FORAGE.md](FORAGE.md) § 17) ajoute environ 7,8 Ko de code et de
+textes. Les règles retenues : les commandes sont **un module disque** sur
+les deux éditions (le stock de l'édition de 140 Ko n'avait que 345 octets
+de place, les fenêtres `$5800` sont pleines ou presque), ce qui ne sert
+qu'à un moment précis va dans le module déjà chargé à ce moment, le reste
+(état, porte, filtre) est résident. Mesures : `build/wild.map`,
+`build/layout.json`, `build/layout-140.json`, `tests/test_transfers.py`,
+`tests/test_editions.py`.
+
+### 16.1 Où est le lot
+
+| Partie | Zone | Octets |
+|---|---|---:|
+| Module FORAGE (entrée 31 du répertoire, `src/frg.s`) | NEOWILD.BLK, lu en `$9600` (12 blocs, 834 octets libres sous `$B000`) | 5 822 |
+| État `forage_state` (sauvé), `fg_hm`, `fg_after`, `fg_eff`, `fg_t`, `fg_q`, `fg_bm`, `fg_fidelity` | WILDLO (LOWTEXT) | 221 + 12 |
+| `forage_here`, `fg_place`, `forage_hours`, `fg_count` | WILDLO (LOWCODE) | 169 |
+| `forage_gate` (porte, bitmap, effort, `camp_done`) | TEXT | 118 |
+| `forage_wants`, `forage_cond`, `forage_menu`, masques | WILDERNESS (CODE) | 313 |
+| `forage_after` (gibier, poisson partis), `forage_day`, entrée 31 du répertoire, test `X_FORAGE` de `verb_extra` | RESIDENT | 72 |
+| `forage_skip`, crochets de `spend`, `do_walk`, `resolve_menu` | WILDGAME | 41 |
+| CATCH, KILL, SKIN, COOK, TASTE de la grille | MENUSWAP | 37 |
+| `module_resource_results` (venu d'ADVENTURE) + `forage_found` | ITEMS | +686 |
+| `forage_kill`, `out_value` (V, rempli par les paquets) | OUTDOOR | +129 |
+| `forage_clock`, `forage_news`, `module_forage_day`, `fg_seg` | ALERT | +830 |
+| INVENTORY (piles, `SPOIL`), deux lignes de HELP | STATUS | +306 |
+| `forage_skip` à la place de deux tests de verbe | TRAVEL | −8 |
+| `module_resource_results` parti | ADVENTURE | −256 |
+| `sv_ranges` + `forage_state` | SAVEMOD | +4 |
+| SIM | — | 0 (`$B453`, 172 octets sous `$B500`) |
+
+### 16.2 RAM principale résidente, octets libres
+
+| Zone | avant (§ 15.2) | après |
+|---|---:|---:|
+| TEXT `$0A00-$0FFF` | 216 | **98** |
+| WILDLO `$1000-$1FFF` | 412 | **4** |
+| WILDGAME `$4000-$577F` | 90 | **49** |
+| WILDERNESS `$6000-$6FFF` | 477 | **164** |
+| RESIDENT `$B600-$B9FF` | 129 | **57** |
+| MENUCODE `$BA00-$BDFF` | 106 | 106 |
+| HICODE `$BE00-$BEFF` | 3 | 3 |
+| MENUSWAP `$B000-$B5FF` | 47 | **10** |
+| SIM sous `$B500` | 172 | 172 |
+
+Total : 989 octets résidents pris (WILDLO est plein : l'état seul en prend
+221). Fenêtres `$5800` (libre sur 2 048) : ITEMS 396, OUTDOOR 637, ALERT
+346, ADVENTURE 308, TRAVEL 9.
+
+### 16.3 Stock auxiliaire et disque
+
+| | XL (800 Ko) | Neowilderness (140 Ko) |
+|---|---:|---:|
+| Place du tronc (`aux_trunk_free` − zone des sprites) avant | 2 949 | 345 |
+| après | **1 372** | **392** |
+| Modules lus sur NEOWILD.BLK | CAMP, MEDVIEW, TREE, ORIENT, FORAGE | TREE, ORIENT, FORAGE |
+| NEOWILD.BLK | 25 blocs + index (12 800 octets) | 18 blocs + index (9 216 octets) |
+| Volume | 305 → **327** blocs sur 1 600 | 224 → **249** blocs sur 280 (31 libres) |
+| Partie sauvegardée (NEOWILD.Sn) | 1 709 octets, 5 blocs (était 4) | idem, cinq parties |
+
+Le lot fait grandir le stock d'environ 1 440 octets stockés (ITEMS +620,
+ALERT +639, STATUS +256, OUTDOOR +129, ADVENTURE −201, TRAVEL −8) sur les
+deux éditions ; sur 140 Ko, TREE (561 octets LZ) et ORIENT (1 065) passent
+sur NEOWILD.BLK pour les y loger. Les disques de comparaison des tests
+(`--map`) : TREE et ORIENT sur NEOWILD.BLK ; si l'atlas d'une carte native
+laisse trop peu de stock, MEDVIEW aussi, puis les quatre modules de XL
+(carte native de la Sierra, cartes de stress) ; si le volume de 280 blocs
+déborde, le seul paquet de la Sierra (`tools/build_disk.py`, au moins de
+modules possible). `test_resident.py` et `test_geo_resident.py` lisent le
+répertoire du disque pour attendre les lectures de MEDVIEW et de CAMP.
+
+### 16.4 Temps
+
+| Mesure | XL | 140 Ko |
+|---|---:|---:|
+| Lecture de FORAGE (12 blocs, de `forage_gate` à `$9600`) | 103 480 cycles (0,10 s) | **1 328 070 cycles (1,30 s)** |
+| par bloc (`test_transfers.py`, XL) | 8 568 | — |
+
+Une commande du lot coûte donc 0,1 s sur XL et 1,3 s sur le Disk II émulé
+(plus la remise en vitesse d'un lecteur arrêté sur le vrai matériel) ; une
+commande refusée aussi (le filtre résident ne prend que les couples
+verbe-nom du lot). Les découvertes pendant la marche chargent ITEMS (LZ,
+déjà le cas d'ADVENTURE avant), une fois par découverte ; le facteur du
+jour charge ALERT à minuit (une fois par jour) ; l'horloge tourne dans
+ALERT déjà chargé après chaque mise à jour de santé. Aucune lecture disque
+pendant une vue, un demi-pas de marche ou un écran (`test_resident.py`,
+`test_screen_returns.py`).
+
+### 16.5 Contraintes nouvelles
+
+- WILDLO n'a plus que 4 octets : l'état d'un lot futur ira en WILDGAME,
+  TEXT ou WILDERNESS.
+- Un module disque de la fenêtre SIM : son lecteur (la porte) libère les
+  pages `$90-$AF` du bitmap de ProDOS autour de `mem_fetch` ; ses blocs
+  entiers restent sous `$B000` (`build_disk.DISK_END`, affirmé).
+- FORAGE ne peut appeler ni SIM, ni `load_totals`, ni `take_oz` : il a son
+  propre générateur (`fr_rnd`, même graine que `weather_random`) et fait la
+  transaction des onces lui-même ; la porte recharge SIM pour le temps.
+- Les textes du module sont imprimés par `message` avec leur adresse ; un
+  « ! » littéral s'écrit `$A1` (le « ! » est la raison de voyage).
+
+## 17. Messages collés, triangle des arbres, feu animé (14-15 octobre 2026)
+
+Trois correctifs après le lot 4. Mesures : `build/wild.map`,
+`build/layout.json`, `build/layout-140.json`, `tests/test_fire.py`.
+
+| Changement | Zones |
+|---|---|
+| « ! » littéral en `'!'\|$80` (`cause_area`, `m_fauna_stop`, `ol_long_msg`) | 0 |
+| Une couronne, une case (`forest_candidate`, `forest_crown`, `forest_square` en WILDERNESS ; `forest_centre` en TEXT ; `forest_dist` en FORESTCODE) | TEXT +88, WILDERNESS +135, FORESTCODE +1, WILDGAME −40 |
+| Feu : `fire_tick`, `fire_hide`, état, crochets de `menu.s` | MENUCODE +94 |
+| Feu : `fire_fetch` ; `sim_fetch` (lecture SIM commune à FORAGE et au feu) | WILDGAME +55 |
+| `df_kbd` (une touche coupe la lecture entre deux blocs) ; `forage_gate` appelle `sim_fetch` | TEXT +11 −27 |
+| Case du feu `fire_cx`, `fire_cy` dans `camp_state` (sauvée) | WILDLO +2, CAMP +12 |
+| Module FIRE (entrée 18, l'ancien alias de 17) sur NEOWILD.BLK, les deux éditions | stock 0, 3 blocs |
+
+### 17.1 RAM principale résidente, octets libres
+
+| Zone | avant (§ 16.2) | après |
+|---|---:|---:|
+| TEXT `$0A00-$0FFF` | 98 | **26** |
+| WILDLO `$1000-$1FFF` | 4 | **2** |
+| WILDGAME `$4000-$577F` | 49 | **34** |
+| WILDERNESS `$6000-$6FFF` | 164 | **29** |
+| RESIDENT `$B600-$B9FF` | 57 | 57 |
+| MENUCODE `$BA00-$BDFF` | 106 | **12** |
+| HICODE / MENUSWAP | 3 / 10 | 3 / 10 |
+| SIM sous `$B500` | 172 | 172 |
+
+### 17.2 Stock et disque
+
+| | XL (800 Ko) | Neowilderness (140 Ko) |
+|---|---:|---:|
+| Place du tronc avant → après | 1 372 → **1 373** | 392 → **387** |
+| NEOWILD.BLK | + FIRE (3 blocs) | + FIRE (3 blocs) |
+| Volume | 327 → **331** blocs sur 1 600 | 249 → **253** blocs sur 280 (27 libres) |
+
+### 17.3 Temps
+
+| Mesure | XL | 140 Ko |
+|---|---:|---:|
+| Apparition du feu après l'invite : attente, lecture, première image | 1,04 + 0,03 + 0,13 = **1,19 s** | 1,04 + 0,84 + 0,13 = **2,0 s** |
+| Premier bloc d'une lecture coupée par une touche | 0,01 s | 0,96 s |
+| Vue V / LOOK L (cinq scènes de forêt, `landfix/fx/cycles.py`) | +0,3 à +2,0 % / +0,8 à +1,6 % | idem |
+
+Le feu n'est lu qu'à son apparition, pas entre deux images (rien d'autre
+ne tourne dans `idle`) ; chaque invite qui le montre le relit (la commande
+précédente a pu reprendre `$9600`). Contrainte nouvelle : MENUCODE n'a
+plus que 12 octets.
+
+### 17.4 Feu ancré dans le monde et qui se consume (15 octobre 2026)
+
+Le feu se dessine à la colonne de son relèvement (le cap à l'allumage) et
+brûle 180 minutes ([CAMP.md](CAMP.md) § 8). Mesures sur l'arbre intégré :
+
+| Changement | Zones |
+|---|---|
+| `fire_light` (copie `px`, `py`, `heading` ; durée neuve), appelé par MAKE FIRE | WILDGAME +17, CAMP −9 |
+| `fire_pos` (6), `fire_life` (1) en GDATA, plage sauvée de l'horloge ; `fire_cx`, `fire_cy` quittent `camp_state` | WILDGAME +7, WILDLO −2 |
+| `fire_clock` (en tête de `module_health`) ; quatrième nouvelle de `forage_news` (« YOUR FIRE HAS BURNED OUT. ») | SIM +70 (172 → 102 sous `$B500`) ; ALERT +28 |
+| Module FIRE : place, découpe, stades (petites flammes, braises) ; 1 453 → 1 993 octets | NEOWILD.BLK 3 → 4 blocs |
+| Tampons : fond rangée × 20, variables, rangée composée de 20 octets | `$A000-$A2BB` (sous GRID, `$A300`) |
+
+Après : TEXT 26, WILDLO 4, WILDGAME 10, WILDERNESS 18, RESIDENT 5,
+MENUSWAP 9, MENUCODE 15, HICODE 3 octets libres, SIM 102 sous `$B500` ;
+tronc XL 1 562 → 1 463, 140 Ko 1 475 → 1 382 ; volume XL 337 → 338 blocs,
+140 Ko 260 → 261 sur 280.
+Apparition sur 140 Ko : lecture 0,84 → 1,22 s (un bloc de plus). Image :
+61 000 à 75 000 cycles (flammes pleines), 27 000 à 30 000 (petites
+flammes), ≈ 9 500 (braises) ; `fire_hide` 29 800.
+
+## 18. Grille rationalisée : module GRID, TOPOGEN et MEDVIEW sur disque (15 octobre 2026)
+
+La grille d'actions rationalisée ([MENUS.md](MENUS.md) § 4 : onze verbes
+fixes grisés, verbes contextuels par urgence, listes, file des
+prérequis, soins de la page MEDICAL, ligne F d'OPTIONS) ne tenait ni dans
+MENUSWAP (10 octets libres) ni dans MENUCODE (12). Ce que fait RETURN
+devient un module du stock, et deux modules rarement chargés quittent le
+stock pour NEOWILD.BLK. Mesures : `build/wild.map`, `build/layout.json`,
+`build/layout-140.json` ; avant = l'arbre du § 17 reconstruit à part.
+
+| Changement | Zones |
+|---|---|
+| Module GRID (`src/grid.s`, entrée 32, `MOD_COUNT` 33) : `module_select` (venu d'INPUT), listes, composition, file `module_queue` ; exécuté en `$A300-$AC97`, au-dessus des tampons du feu (`$A000-$A2BB`), sous MENUSWAP (`$B000`) | stock +2 456 ; INPUT −139 |
+| `grid_fetch` (recopie de GRID à chaque RETURN de la grille et à chaque étape de la file), `grid_water` | RESIDENT +52 |
+| `mk_stock`, `mk_water` (MAKE grisé ou non), état de la file `mq_*`, crochets de `get_line` | MENUCODE −3 (net, après déplacements) |
+| `verb_table` réordonnée (`K_BASE`, cellule WALK/SWIM) ; TAKE, ATTACK, TASTE, STICKS hors grille | MENUSWAP +1 |
+| Gestes de soin de la page MEDICAL (`med_foot`, rangée 23, CARE) | MEDVIEW +546 (1 058 → 1 604) |
+| Focus sur les affections, `pg_open`, ligne F d'OPTIONS | STATUS +259 (5 869 → 6 128) |
+| `BOIL WATER n OZ` en ligne (analyseur) | INPUT (inclus ci-dessus) |
+| `forage_menu` : le KILL du lot 4 seulement sans animal sur la case ; TASTE hors grille | WILDERNESS +11 |
+| TOPOGEN (entrée 0, 2 987 octets) lu sur NEOWILD.BLK par `sim_fetch` à l'ouverture de TOPO, **les deux éditions** | stock −2 987, disque +6 blocs |
+| MEDVIEW (entrée 19) sur NEOWILD.BLK aussi sur l'édition 140 Ko (XL l'y lisait déjà) | stock 140 Ko −1 604, disque +4 blocs |
+
+### 18.1 RAM principale résidente, octets libres
+
+| Zone | avant (§ 17.1) | après |
+|---|---:|---:|
+| TEXT `$0A00-$0FFF` | 26 | 26 |
+| WILDLO `$1000-$1FFF` | 2 | 2 |
+| WILDGAME `$4000-$577F` | 34 | 34 |
+| WILDERNESS `$6000-$6FFF` | 29 | **18** |
+| RESIDENT `$B600-$B9FF` | 57 | **5** |
+| MENUCODE `$BA00-$BDFF` | 12 | **15** |
+| HICODE / MENUSWAP | 3 / 10 | 3 / **9** |
+| SIM sous `$B500` | 172 | 172 |
+
+### 18.2 Stock et disque
+
+| | XL (800 Ko) | Neowilderness (140 Ko) |
+|---|---:|---:|
+| Place du tronc avant → après | 1 373 → **1 562** | 387 → **1 475** |
+| NEOWILD.BLK avant | CAMP, FIRE, MEDVIEW, TREE, ORIENT, FORAGE | FIRE, TREE, ORIENT, FORAGE |
+| NEOWILD.BLK après | + TOPOGEN (6 blocs) | + TOPOGEN (6 blocs), + MEDVIEW (4 blocs) |
+| Volume | 331 → **337** blocs sur 1 600 | 253 → **260** blocs sur 280 (20 libres) |
+
+GRID reste dans le stock : il est recopié à chaque RETURN de la grille,
+trop souvent pour le disque. La marge du stock regagnée (≈ 1,1 Ko sur
+140 Ko) est la réserve du prochain lot.
+
+### 18.3 Temps
+
+| Mesure | XL | 140 Ko (Disk II émulé) |
+|---|---:|---:|
+| Ouverture de TOPO (lecture de TOPOGEN) | négligeable (non mesuré) | **+0,66 s** |
+| Première page de soins (lecture de MEDVIEW) | inchangé (déjà sur disque) | **+0,44 s** |
+| RETURN dans la grille (recopie de GRID, 2 456 octets, RAM auxiliaire) | à mesurer | idem |
+
+`tests/test_grid_play.py` publie, par action jouée au joystick, les
+commandes tapées, les lectures de blocs et le temps émulé.
+
+### 18.4 Contraintes nouvelles
+
+- RESIDENT n'a plus que 5 octets, MENUCODE 15, WILDERNESS 18 : l'état d'un
+  lot futur ira en WILDGAME, TEXT ou dans un module.
+- GRID, le feu animé (`$9600-$9DC8`, tampons `$A000-$A2BB`), STATUS
+  (`$9600-$ADEF`) et TOPOGEN partagent la fenêtre SIM : GRID est recopié à
+  chaque RETURN et à chaque étape de la file, jamais supposé présent. Une
+  adresse de STATUS (`page_top`, `$A8A6`) tombe dans GRID : un test qui
+  attend une page s'arrête sur une entrée résidente (`scr_status`), pas
+  sur une adresse de la fenêtre.
+- Le trajet crash → rangers de `test_journey_resident.py` lit MEDVIEW
+  (4 blocs) au SUCK VENOM quand le disque l'a sur NEOWILD.BLK, comme
+  l'édition 140 Ko : le test l'attend exactement, pour cette commande seule.
+  De même `test_graphical_topo.py` attend, à chaque ouverture de TOPO, les
+  seuls blocs de TOPOGEN (6), lus du répertoire des modules ; MAP ↔ TOPO
+  ne relit rien.
+
+## 19. Sprites de site : rondin, rocher, poste des rangers (15 octobre 2026)
+
+Lot 6 ([IMPLEMENTATION.md](IMPLEMENTATION.md), « Sprites de site ») :
+trois sprites de l'original de plus (rondin 1 216 octets, rocher 1 158,
+poste 2 289), bruts sur NEOWILD.BLK, lus dans la fenêtre SIM. Mesures :
+`build/wild.map`, `build/layout.json`, `build/layout-140.json`.
+
+| Changement | Zones |
+|---|---|
+| Socle : `scene_asset` 33-35, détournés par `overlay_load` (`cmp`/`bcs`, 4 octets) vers `site_load` (10 octets : PROJECT, puis `module_site_load`) | WILDGAME +14 |
+| Couleurs : `dhgr_frame` donne l'emplacement 6 aux sites (+6), `dhgr_site` (4 octets, après les six emplacements de `dhgr_assets`, hors des tables réécrites par les paquets) | WILDGAME +10 |
+| `summary_refresh` ne recharge pas un sprite de site (il n'est pas en `$5800`) | WILDGAME +4 |
+| `env_day`, `env_hour`, `thermal` (relais de la simulation) passent de WILDGAME en TEXT pour faire la place | WILDGAME −24, TEXT +24 |
+| Page du sprite : les quatre octets `$58` de `sprite_column` (`sprite_page0..3`) sont réécrits par `project_commit` (`$58` ou `$96`) | 0 |
+| Entrée de répertoire du sprite : l'entrée de travail TB_FETCH (29) de `text_fetch`, remplie puis remise par PROJECT (banque, pages) ; `MOD_COUNT` reste 33 | RESIDENT 0 |
+| PROJECT : poste (local et panneau), trois candidats, `cabin_asset`, `module_site_load`, tables (largeurs, bases, blocs, têtes de 8 octets, couleurs) | PROJECT 1 373 → 1 662 octets (386 libres dans sa fenêtre) |
+| Cabane fixe des cartes générées en rondin ou rocher : `tools/mkmap.py` écrit `MAP+16` = 1 ou 2 (niveau de sa case ≥ 96), `cabin_asset` ne teste plus `MAP+37` (−8 octets) ; la hutte (`cabin.bin`, entrée 9) quitte le stock jusqu'à MAKE HUT (TODO lot 3) | stock −704 octets (LZ), les deux éditions ; résident 0 |
+| TRAVEL : rondin ou rocher à la découverte (`level_here`, seuil 96) | TRAVEL 2 039 → 2 046 (2 libres) |
+
+Chaque octet résident ajouté (28) vient des 24 octets de relais déplacés
+en TEXT et de 4 des 10 octets libres de WILDGAME.
+
+### 19.1 RAM principale résidente, octets libres
+
+| Zone | avant (§ 18.1, puis feu § 17.4) | après |
+|---|---:|---:|
+| TEXT `$0A00-$0FFF` | 26 | **2** |
+| WILDLO `$1000-$1FFF` | 4 | 4 |
+| WILDGAME `$4000-$577F` | 10 | **6** |
+| WILDERNESS `$6000-$6FFF` | 18 | 18 |
+| RESIDENT `$B600-$B9FF` | 5 | 5 |
+| MENUSWAP / MENUCODE / HICODE | 9 / 15 / 3 | 9 / 15 / 3 |
+| SIM sous `$B500` | 102 | 102 |
+
+### 19.2 Stock et disque
+
+| | XL (800 Ko) | Neowilderness (140 Ko) |
+|---|---:|---:|
+| Place du tronc avant → avec les sites | 1 463 → 1 155 (PROJECT, brut : +297) | 1 382 → 1 074 |
+| … puis sans la hutte (entrée 9, 704 octets LZ ; PROJECT −8) | **1 859** | **1 778** |
+| NEOWILD.BLK | + rondin 3, rocher 3, poste 5 blocs | idem |
+| Volume | 338 → 349 → **347** blocs sur 1 600 | 261 → 273 → **272** blocs sur 280 (8 libres) |
+
+### 19.3 Temps
+
+Lecture du sprite à sa première vue (cycles émulés, de `do_command` à
+`idle`, même vue avec et sans lecture, disque de test de la Sierra) :
+
+| Sprite | XL (SmartPort) | 140 Ko (Disk II émulé) |
+|---|---:|---:|
+| Poste (5 blocs) | 43 400 cycles (**0,04 s**) | 1 246 000 cycles (**1,25 s**) |
+| Rondin, rocher (3 blocs) | ≈ 0,03 s | ≈ 0,75 s (estimé au prorata) |
+
+Une vue complète coûte ≈ 5 millions de cycles. La lecture n'a lieu qu'à la
+première vue qui montre le site, puis après une commande qui a repris la
+fenêtre SIM (simulation, STATUS, TOPO, feu, sauvegarde) ; jamais au
+retour d'un écran (`test_screen_returns`), ni d'une vue à l'autre tant que
+le sprite est dans la fenêtre (`test_projection` `outpost`,
+`test_sites` `native_shelter` comptent les READ_BLOCK). Le trajet crash →
+rangers en lit le poste près du but : `test_journey_resident` et
+`test_geo_resident` admettent, par commande, zéro lecture ou exactement les
+blocs du sprite de site que montre la vue (15 sur le trajet de
+`test_journey_resident` : chaque WALK près du but recharge la simulation).
+`layout.json` donne les octets que le disque écrit dans PROJECT
+(`patches`, `build_disk.module_image`), et `disk.sites` les blocs.
+
+### 19.4 Contraintes nouvelles
+
+- La fenêtre SIM sert aussi aux sprites de site pendant la préparation
+  d'une vue : aucun code de la simulation ne doit être sur la pile quand
+  une vue, un tour ou `summary_refresh` se prépare (déjà vrai pour les
+  étoiles). Les blocs entiers du poste vont jusqu'à `$9FFF` : les tampons
+  du feu (`$A000`) et GRID (`$A300`) restent intacts.
+- Toute image placée en `$9600` commence en `$9600` et ne doit pas
+  commencer comme un sprite de site (`build_disk.site_project` le vérifie
+  pour les modules de la fenêtre, NEOWILD.SAV, NEOWILD.END) : c'est ce qui
+  dit à `module_site_load` que le sprite est encore là.
+- L'entrée 29 du répertoire (TB_FETCH) sert à deux : `text_fetch` ne réécrit
+  que ses octets 1-3 et 5-6 ; PROJECT remet l'octet de banque (celui de
+  l'entrée 28) et le nombre de pages (0) après sa lecture.
+- TEXT n'a plus que 2 octets, WILDGAME 6 : le prochain lot doit libérer de la
+  place ou vivre dans un module.
+
+## 20. Lot 3, étape 1 : recettes de MAKE (15 octobre 2026)
+
+Le lot ([CRAFT.md](CRAFT.md) § 8) porte MAKE et USE des abris, de la tente,
+des armes, de l'attelle, de la visière et de la boue (A1, A2), et la
+protection d'abri × 0,1 (D4). Aucune récupération : le code est un module
+de NEOWILD.BLK sur l'entrée de répertoire libre depuis le départ de la
+hutte (9), la porte vit dans CAMP (déjà chargé par MAKE et USE), l'état
+dans les 13 octets restants de LOWPAGE. Mesures : `build/wild.map`,
+`build/layout.json`, `build/layout-140.json` ; avant = § 19 (puis la mesure
+des modules de l'arbre avant leurs changements).
+
+| Changement | Zones |
+|---|---|
+| Module CRAFT (`src/craft.s`, entrée 9 : `MOD_COUNT` inchangé) : aiguillage de T05/S00 `$551E`, T10/S00 (abris, armes, attelle, visière, boue, HIDE), USE des abris, de la tente, des armes ; textes originaux | NEOWILD.BLK, 1 645 octets, 4 blocs, lu en `$9600` ; stock 0 |
+| `camp_craft` : contexte (`camp_class`, ligne de neige), `sim_fetch`, effort (`cr_eff`, 0,023 à `$5C5C`), `camp_done`, `show_view` après USE d'un abri ; renvois de `camp_make` et de l'USE de 9, 89-91, 95-97 | CAMP 1 620 → 1 757 (+137) |
+| `craft_state` : `cr_b1` (3), `cr_gx/cr_gy` (2), `cr_sx/cr_sy` (6) | LOWPAGE `$03C3-$03CD` : 13 → **2** libres |
+| `sv_ranges` + `craft_state` | SAVEMOD (disque) ; NEOWILD.Sn 1 716 → 1 727 octets, 5 blocs |
+| ENTER, EXIT des abris fabriqués et de la tente ; `site_specific` réécrit | SITES 1 679 → 1 802 (+123) ; banque de textes : texte plus court |
+| INVENTORY : BOW, SPEAR, CLUB, SPLINT, HUT, IGLOO, TRENCH | STATUS 6 128 → 6 273 (+145) |
+| `fr_means` (arc 20, lance 19, gourdin 17) ; p = 0 pour le gourdin (`DIV10` perd le signe) | FORAGE 5 822 → 5 867 (+45) |
+| BOW, SPEAR, CLUB plus en usage quand le temps passe ; igloo à 35 °F | SIM 7 834 → 7 862 (+28) : 102 → **74** sous `$B500` |
+| D4 : risque × 0,1 dans un abri, plus de couverture ni de départ automatique | OUTDOOR 1 411 → 1 417 (+6) |
+| `care_splint` : l'attelle au sol d'une autre case n'est pas là | MEDVIEW 1 604 → 1 624 (+20) |
+
+### 20.1 RAM principale résidente, octets libres
+
+Inchangée hors LOWPAGE : TEXT 2, WILDLO 4, WILDGAME 6, WILDERNESS 18,
+RESIDENT 5, MENUSWAP 9, MENUCODE 15, HICODE 3 ; LOWPAGE 13 → **2** ; SIM 74
+sous `$B500`.
+
+### 20.2 Stock et disque
+
+| | XL (800 Ko) | Neowilderness (140 Ko) |
+|---|---:|---:|
+| Place du tronc (§ 19.2) → après | 1 859 → **1 599** | 1 778 → **1 389** |
+| NEOWILD.BLK | + CRAFT (4 blocs) | + CRAFT (4 blocs) |
+| Volume | 347 → **352** blocs sur 1 600 | 272 → **276** blocs sur 280 (4 libres) |
+
+Le stock perd surtout STATUS et SITES (CAMP est sur NEOWILD.BLK sur XL,
+LZ dans le stock sur 140 Ko).
+
+### 20.3 Temps
+
+Une commande MAKE ou USE d'abri, de tente ou d'arme lit CRAFT (4 blocs) :
+≈ 0,03 s sur XL (8 568 cycles par bloc, § 16.4), ≈ 0,3 s sur le Disk II
+émulé (au prorata des 12 blocs de FORAGE : 0,89 s dans `test_editions.py`). MAKE FIRE, STICKS,
+WATER, MATCHES, GLASS, FUEL et les USE du lot 2 n'y touchent pas.
+
+### 20.4 Contraintes nouvelles
+
+- L'entrée 9 n'est plus libre : la hutte de MAKE HUT reviendra en sprite de
+  site (`build_disk.SITE_SPRITES`), pas en module de répertoire.
+- LOWPAGE n'a plus que 2 octets ; l'édition de 140 Ko 4 blocs : les sprites
+  des abris (étape 3, ≈ 8 blocs) n'y tiennent pas sans place reprise.
+- CRAFT tourne dans la fenêtre SIM pendant que CAMP reste en `$5800` : il
+  appelle CAMP (`cr_class`, `cr_snow`, `cr_eff`, `cr_msg`, `cr_view` y
+  vivent) et le résident, jamais SIM ni `load_totals` (comme FORAGE).
+
+## 21. Lot 3, étape 3 : sprites des abris fabriqués (15 octobre 2026)
+
+Les quatre abris de MAKE et USE TENT (tente 969 octets, hutte `cabin.bin`
+1 133, igloo 859, tranchée 403) deviennent des sprites de site du § 19 sur
+NeoWildernessXL seul ([CRAFT.md](CRAFT.md) § 8.4). Aucune récupération :
+rien de résident, les octets de plus vont dans une **queue de PROJECT**
+que `build_disk` coupe sur l'édition de 140 Ko. Mesures : `build/wild.map`,
+`build/layout.json`, `build/layout-140.json` ; avant = § 20.
+
+| Changement | Zones |
+|---|---|
+| Sprites de site 36-39 (`SITE_SPRITES` + `SHELTER_SPRITES`), bruts sur NEOWILD.BLK après le poste | XL : + 2 + 3 + 2 + 1 = 8 blocs ; 140 Ko : 0 (`EDITIONS` `shelters`) |
+| PROJECT, partie commune : sept candidats (`SITE_COUNT`), ordre local de l'original (`local_order`, boucle), `project_ahead`, `site_blocks` sur un octet (0 : sprite absent du disque), tables à sept entrées (largeur et base de la tranchée de part et d'autre de `proj_1_256`, `proj_index` 29), `site_heads` sur 4 octets | 1 667 → 1 667 octets (code resserré) |
+| PROJECT, queue (`project_tail` … `project_end`) : têtes des quatre abris, `project_shelter` (case, tente au sol hors de l'épave, borne entière avant le calcul flottant) | XL : + 120 octets (1 787, 261 libres dans la fenêtre) ; 140 Ko : coupée |
+| Cache de `scene_prepare` oublié par MAKE d'un abri et `cr_ground_item` (CRAFT), DROP et GET (ITEMS) | CRAFT 1 645 → 1 653 (NEOWILD.BLK, 4 blocs) ; ITEMS 1 652 → 1 660 (stock LZ) |
+| `tools/dhgr_palette.py` SPRITES : `tent`, `igloo`, `trench` (`cabin` déjà là) | 0 |
+
+`site_project` vérifie pour chaque site la largeur, la ligne de base et les
+couleurs écrites dans PROJECT, met le numéro de bloc (< 256) ou 0, et coupe
+l'image à `project_tail` sans abris ; `module_image` lit `length` (l'image
+coupée). Une seule table (`site_heads`) chevauche la coupure : les têtes
+des trois sites restent avant `project_tail`, celles des abris viennent
+après ; `project_site` teste `site_blocks` avant de sauter dans la queue.
+
+### 21.1 RAM principale résidente, octets libres
+
+Inchangée : TEXT 2, WILDLO 4, WILDGAME 6, WILDERNESS 18, RESIDENT 5,
+MENUSWAP 9, MENUCODE 15, HICODE 3, LOWPAGE 2, banque 2 principale 24 ; SIM
+74 sous `$B500`.
+
+### 21.2 Stock et disque
+
+| | XL (800 Ko) | Neowilderness (140 Ko) |
+|---|---:|---:|
+| Place du tronc (§ 20.2) → après | 1 599 → **1 469** (PROJECT + 120, ITEMS + 8) | 1 389 → **1 379** (ITEMS + 8) |
+| NEOWILD.BLK | + tente 2, hutte 3, igloo 2, tranchée 1 blocs | inchangé |
+| Volume | 352 → **360** blocs sur 1 600 | **276** blocs sur 280 (4 libres) |
+| NEOWILD.DAT | 107 297 octets | 70 646 octets : **10 octets** avant un 140e bloc |
+
+Les disques de comparaison des tests (`build_disk --map`) portent les
+abris comme XL (278 blocs avec la carte native de `test_sites.py`).
+
+### 21.3 Temps
+
+Lecture d'un abri à sa première vue : 1 à 3 blocs, ≈ 0,01 à 0,03 s sur XL
+(8 568 cycles par bloc, § 16.4) ; aucune sur l'édition de 140 Ko. Coût de
+VIEW (cycles émulés, disque de comparaison, `module_project` compris) :
+
+| Cas | VIEW | dont `module_project` |
+|---|---:|---:|
+| Aucun site à moins de 8 cases | 3 541 384 | 2 489 |
+| Quatre abris à plus de 8 cases | 3 541 935 (+ 0,02 %) | 2 990 |
+| Rondin en panneau, sans abri | 2 677 855 | 182 897 |
+| Même vue, une hutte plus loin que le rondin | 2 678 085 (+ 0,01 %) | 183 127 |
+| Même vue, quatre abris proches (la tranchée à moins d'une case du rondin) | 2 732 153 (+ 2,0 %) | 237 145 |
+| Même vue, la hutte plus proche que le rondin (choisie) | 2 671 102 | 278 101 |
+
+Un abri plus loin d'une case que le meilleur panneau ne coûte que sa borne
+entière ; un abri à moins d'une case de lui, ou choisi, coûte la projection
+flottante d'un site (≈ 54 000 cycles), comme l'épave, le rondin ou le poste.
+
+### 21.4 Contraintes nouvelles
+
+- PROJECT finit par sa queue : tout ce qui sert à l'édition de 140 Ko doit
+  rester avant `project_tail` (`site_project` vérifie que l'image finit à
+  `project_end`) ; la queue n'est atteinte que si `site_blocks` ≠ 0.
+- NEOWILD.DAT de l'édition de 140 Ko est à 10 octets d'un bloc de plus :
+  la prochaine croissance du stock de cette édition prend un des 4 blocs
+  libres.
+
+## 22. Lot 3, reste de l'étape 1 : second jeu, pierre, armes, igloo (15 octobre 2026)
+
+Le reste de l'étape 1 ([CRAFT.md](CRAFT.md) § 8.5) : GET, PACK, CARRY,
+DROP, REMOVE et WEAR de l'arc, de la lance, du gourdin, de la pierre et de
+l'attelle ; la pierre de toute case de terre ; une case par objet laissé au
+sol ; les armes contre les animaux ; l'igloo des dangers. Une récupération
+dans le module MEDICAL, une prise dans WILDERNESS, documentées ci-dessous ;
+le reste vit dans des modules. Mesures : `build/wild.map`,
+`build/layout.json`, `build/layout-140.json` ; avant = § 21.
+
+| Changement | Zones |
+|---|---|
+| `craft_state` : `cr_b1` + la pierre (4), `splint_place` (venue de `care_state`, contiguë : `cr_b1` + 4), `cr_still` (1) remplace `cr_gx/cr_gy` (2), `cr_sx/cr_sy` (6) | LOWPAGE `$03C3-$03CE` : 11 → 12 octets, 2 → **1** libre ; `care_state` (WILDLO) − 1 |
+| `craft_cells` : `cr_cx/cr_cy`, la case de l'arc, de la lance, de l'attelle (segment DATA) | **WILDERNESS 18 → 12** (prise documentée : LOWPAGE est plein) |
+| `forage_here` : `sta cr_still` quand le joueur change de case | WILDLO + 3 (− 1 de `care_state`) : 4 → **2** |
+| `sv_ranges` + `craft_cells` | SAVEMOD 1 242 → 1 246 ; NEOWILD.Sn 1 727 → 1 733 octets (5 blocs) |
+| CRAFT : `cr_items` (la transaction), `cr_where`, `cr_put`, `cr_here` (gourdin perdu, pierre posée par `cell_native`), MAKE ROCK, USE ROCK, sélecteur 3 de l'attelle | NEOWILD.BLK : 1 653 → 1 855 octets, **4 blocs** (fenêtre `$9600-$9FFF` : 705 libres) |
+| `item_noun` (ITEMS) : 89 à 93 → `sim_fetch` de CRAFT, `CRAFT_RUN` | ITEMS 1 660 → 1 683 (stock LZ) |
+| `inventory_settle`, `inventory_craft` (cases propres, ROCK), nom ROCK | STATUS 6 273 → 6 344 (stock LZ) |
+| `outdoor_weapon` (premier moyen en usage, drapeau effacé), `out_means_injury/success` (5 moyens × 4 espèces) | OUTDOOR 1 417 → 1 541 (stock LZ) ; paquets de région : `fauna_reactions` 44 → 76 octets |
+| `hz_air` : 35 °F dans l'igloo (+ 6) ; `hz_since_lo/hi` supprimées, `module_hazards` lit `injury_since_lo/hi` du même module (− 30) | fenêtre MEDICAL (MEDICAL + HAZARDS) : 1 → **25** libres |
+| USE de 92 par CAMP (`cpx #93`), USE SPLINT lit `cr_cx/cr_cy` + 2 (MEDVIEW), texte `out_weapon` raccourci | 0 |
+
+**Récupération** : la table `hz_since_lo/hi` (30 octets) de HAZARDS
+doublait `injury_since_lo/hi` de MEDICAL, liés dans la même image
+(`wildmed.bin`) et toujours chargés ensemble ; HAZARDS lit désormais
+celle de MEDICAL. **Prise** : 6 octets d'état résident dans WILDERNESS
+(`craft_cells`, segment DATA lié après RODATA), sauvés par une entrée de
+plus de `sv_ranges`.
+
+### 22.1 RAM principale résidente, octets libres
+
+| Zone | avant (§ 21.1) | après |
+|---|---:|---:|
+| TEXT `$0A00-$0FFF` | 2 | 2 |
+| WILDLO `$1000-$1FFF` | 4 | **2** |
+| WILDGAME `$4000-$577F` | 6 | 6 |
+| WILDERNESS `$6000-$6FFF` | 18 | **12** |
+| RESIDENT `$B600-$B9FF` | 5 | 5 |
+| LOWPAGE `$0200-$03CF` | 2 | **1** |
+| MENUSWAP / MENUCODE / HICODE | 9 / 15 / 3 | 9 / 15 / 3 |
+| banque 2 principale | 24 | 24 |
+| SIM sous `$B500` | 74 | 74 |
+
+### 22.2 Stock et disque
+
+| | XL (800 Ko) | Neowilderness (140 Ko) |
+|---|---:|---:|
+| Place du tronc (`aux_trunk_free` − zone des sprites) | 1 469 → **1 277** | 1 379 → **1 187** |
+| NEOWILD.DAT | 107 297 → 107 652 octets | 70 646 → 70 916 octets, 139 → **140** blocs : 252 octets avant un 141e |
+| NEOWILD.BLK | CRAFT toujours 4 blocs | idem |
+| Volume | 360 → **361** blocs sur 1 600 | 276 → **277** blocs sur 280 (**3** libres) |
+
+Le stock grandit d'ITEMS, STATUS et OUTDOOR (+ 218 octets bruts, − 24
+dans MEDICAL) ; le bloc annoncé au § 21.4 pour NEOWILD.DAT de 140 Ko est
+pris.
+
+### 22.3 Temps
+
+GET, PACK, CARRY, DROP, REMOVE et WEAR d'un objet 89 à 93 lisent CRAFT
+(4 blocs) comme MAKE : ≈ 0,03 s sur XL, ≈ 0,3 s sur le Disk II émulé
+(§ 20.3) ; les autres objets n'y touchent pas. `cr_here` et
+`inventory_settle` ne font qu'une requête de case (`cell_native`) après un
+changement de case. ATTACK : le choix du moyen ajoute moins de 100 cycles.
+
+### 22.4 Contraintes nouvelles
+
+- `splint_place` est `cr_b1` + 4 : `cr_where`, `cr_put` et
+  `inventory_craft` indexent les cinq objets 89 à 93 d'un seul tableau ;
+  ne pas les séparer.
+- `cr_still` n'est remis à 0 que par `forage_here`, appelé à chaque pas
+  de la marche et de la nage : tout autre moyen de changer `px/py` (tests,
+  futur radeau du lot 5) doit appeler `forage_here` pour que le gourdin se
+  perde et que la pierre change de case.
+- CRAFT tourne aussi depuis ITEMS (`cr_items`) : ce chemin n'appelle ni
+  CAMP (`camp_said`, `cr_say`, `cr_class` y vivent) ni `load_totals` ; il
+  écrit ses messages par `message`.
+- `fauna_reactions` (OUTDOOR) a maintenant 76 octets ; `tools/build_disk.py`
+  `fauna_patches` et l'ordre des tables doivent rester accordés
+  (`out_means_injury` puis `out_means_success`, moyens 17 à 21).
+- LOWPAGE n'a plus qu'un octet, WILDLO 2 ; l'édition de 140 Ko 3 blocs.
+
+## 23. Lot 3, étape 2 : page CRAFT, second jeu dans la grille (15 octobre 2026)
+
+La page CRAFT, « livre de recettes » des MAKE de l'original, et l'arc, la
+lance, le gourdin, la pierre et l'attelle dans les listes GET, DROP, USE
+et la file de KILL de la grille, dans l'indice ITEMS du panneau
+([CRAFT.md](CRAFT.md) § 8.6). Aucun octet résident pour la page : son code
+et ses recettes sont la queue du module CRAFT (NEOWILD.BLK) ; une
+récupération dans MENUSWAP et MENUCODE pour la grille, une dans SUMMARY
+pour le panneau. Mesures : `build/wild.map`, `build/layout.json`,
+`build/layout-140.json` ; avant = § 22.
+
+| Changement | Zones |
+|---|---|
+| Page CRAFT (`craft_page` … `craft_end`) : contexte, recettes, ingrédients, focus, touches, `MAKE x` tapé ; `cr_water` partagé avec `cr_here` | CRAFT 1 855 → 2 815 octets (recettes 1 858, page 957) ; NEOWILD.BLK 4 → **6 blocs**, fenêtre `$9600-$A1FF` (CRAFTM `$0C00`) |
+| Longueur de l'entrée 9 : `build_disk` y écrit celle des recettes seules (`craft_page` − `$9600`) : MAKE, USE et la transaction lisent toujours 4 blocs ; `pg_craft` y écrit le module entier avant `sim_fetch`, `craft_page` la remet | RESIDENT 0 |
+| `pg_craft` (onglets, longueur, adresse de retour empilée, `sim_fetch`) ; septième onglet, tables, lettre R ; un espace de moins entre les onglets | STATUS 6 344 → 6 380 (stock LZ) |
+| `member` : 89 à 93 (sur-ensemble des listes : place de `cr_b1`, pierre absente sur terre) | MENUSWAP + 23 ; `append_space` (− 14) passe dans GRID, son seul appelant : **9 → 0** libres |
+| `cr_rock_land` (+ 14), `use_items` + 2 octets (USE de 89 à 93), `filt_hi` de USE 74 → 94 ; `mn_idx` 32 → 27 octets (une case au plus par entrée de `verb_table`, 27) | MENUCODE **15 → 4** |
+| GRID : `gr_where` (place exacte), `gr_ok` pour 89 à 93, noms du second jeu, `GET x`, `gr_r_use`, KILL : `USE BOW`, `USE SPEAR` (étapes S_BOW, S_SPEAR, contrôle 15), rien quand une arme est en usage ; `append_space` | GRID 2 456 → 2 676 (stock brut, fenêtre `$A300-$AFFF` : 652 libres) |
+| SUMMARY : indice ITEMS de l'arc, la lance, l'attelle, le gourdin (+ 40) ; table des alertes en décalages d'un octet (− 10), deux `lda #0` et un `jmp` en moins (− 6) | fenêtre `$5800` : **25 → 1** libre (stock brut) |
+
+**Récupérations** : dans MENUSWAP, `append_space` (14 octets) n'était
+appelé que par GRID ; dans MENUCODE, `mn_idx` réservait 32 cases pour 27
+entrées de `verb_table` au plus (5) ; dans SUMMARY, la table des poids forts
+des alertes (14 octets) devient un décalage depuis `ui_hunger_worse`
+(chaînes de moins de 256 octets), plus deux chargements et un saut
+redondants.
+
+### 23.1 RAM principale résidente, octets libres
+
+| Zone | avant (§ 22.1) | après |
+|---|---:|---:|
+| TEXT `$0A00-$0FFF` | 2 | 2 |
+| WILDLO `$1000-$1FFF` | 2 | 2 |
+| WILDGAME `$4000-$577F` | 6 | 6 |
+| WILDERNESS `$6000-$6FFF` | 12 | 12 |
+| RESIDENT `$B600-$B9FF` | 5 | 5 |
+| LOWPAGE `$0200-$03CF` | 1 | 1 |
+| MENUSWAP / MENUCODE / HICODE | 9 / 15 / 3 | **0 / 4** / 3 |
+| banque 2 principale | 24 | 24 |
+| SIM sous `$B500` | 74 | 74 |
+
+### 23.2 Stock et disque
+
+| | XL (800 Ko) | Neowilderness (140 Ko) |
+|---|---:|---:|
+| Place du tronc (`aux_trunk_free` − zone des sprites) | 1 277 → **990** | 1 187 → **900** |
+| NEOWILD.BLK | CRAFT 4 → 6 blocs | idem |
+| Volume | 361 → **363** blocs sur 1 600 | 277 → **279** blocs sur 280 (**1** libre) |
+| NEOWILD.DAT | 107 652 → 107 888 octets | 70 916 → 70 704 octets, 140 blocs : 464 octets avant un 141e |
+
+Le stock grandit de GRID (+ 220), SUMMARY (+ 24) et STATUS (LZ) : 287
+octets sur les deux éditions.
+
+### 23.3 Temps
+
+MAKE, USE et la transaction du second jeu lisent les 4 blocs des recettes,
+comme avant (≈ 0,03 s sur XL, ≈ 0,3 s sur le Disk II émulé). L'ouverture de
+la page lit les 6 blocs : ≈ 0,05 s sur XL (8 568 cycles par bloc, § 16.4),
+≈ 0,45 s sur le Disk II émulé (au prorata des 12 blocs de FORAGE). Les
+déplacements du focus ne lisent rien (dessin différentiel, une écriture par
+cellule changée). `test_screen_returns` compte la lecture : CRAFT (9) entre
+INVENTORY et HELP dans le cycle, 6 READ_BLOCK.
+
+### 23.4 Contraintes nouvelles
+
+- L'entrée 9 du répertoire n'a pas la longueur de l'image : `build_disk`
+  y met `craft_page` − `$9600` et vérifie `craft_end` (`layout.json` :
+  `fetch` de l'entrée 9, que lisent `test_boot`, `test_pack_boot`,
+  `test_transfers`) ; tout code que MAKE appelle doit rester avant
+  `craft_page`, et la page après.
+- La page lit CRAFT jusqu'à `$A1FF`, sur les tampons du feu animé
+  (`$A000-$A2BB`) : le feu est caché à chaque page (`fire_hide` avant la
+  fin de `get_line`) et relu à l'invite suivante ; GRID (`$A300`) reste
+  intact.
+- MENUSWAP est plein et MENUCODE n'a plus que 4 octets ; SUMMARY 1 dans sa
+  fenêtre ; l'édition de 140 Ko n'a plus qu'un bloc libre (les cinq
+  parties sauvées sont déjà allouées).
+- `member` répond pour 89 à 93 un sur-ensemble : seules les listes de GRID
+  (`gr_where`) sont exactes ; un code qui doit savoir si un objet du second
+  jeu est là appelle `cr_where` (CRAFT) ou `gr_where` (GRID).
+
+## 24. Le feu brûle jusqu'à DOUSE (15 octobre 2026)
+
+Décision du 15 octobre 2026 : la gestion du feu suit l'original, qui le
+laisse brûler jusqu'à DOUSE ([CAMP.md](CAMP.md) § 2.1 et § 8 ; sonde
+`LONG_FIRE` de `re_camp_probe.py`). La durée de vie du § 17.4 est retirée :
+`FIRE_LIFE`, `fire_life`, `fire_clock`, le message « YOUR FIRE HAS BURNED
+OUT. » et les deux stades de fin (petites flammes, braises). Le reste du
+feu animé (images, place, case, cadence) est inchangé. Mesures :
+`build/wild.map`, `build/layout.json`, `build/layout-140.json` ; avant =
+§ 23.
+
+| Retrait | Zones |
+|---|---|
+| `fire_life` (GDATA, plage sauvée) | WILDGAME −1 ; état sauvé 1 701 → 1 700 octets (`NEOWILD.Sn` 1 733 → 1 732, toujours un bloc) |
+| `lda #FIRE_LIFE` / `sta fire_life` de `fire_light` | WILDGAME −5 |
+| `fire_clock` (67) et son `JSR` en tête de `module_health` | SIM −70 (ENVIRON) |
+| quatrième nouvelle de `forage_news` (chaîne 26, deux pointeurs) | ALERT −28 |
+| module FIRE : couche des petites flammes (192), masques des stades 1 et 2 (32), choix du stade, couches 3 et 4 (le lit lu comme une seule couche de flammes avec le reste) | FIRE 1 993 → **1 683** octets (−310), toujours 4 blocs de NEOWILD.BLK |
+
+### 24.1 RAM principale résidente, octets libres
+
+| Zone | avant (§ 23.1) | après |
+|---|---:|---:|
+| TEXT, WILDLO, WILDERNESS, RESIDENT, LOWPAGE | 2, 2, 12, 5, 1 | inchangés |
+| WILDGAME `$4000-$577F` | 6 | **12** |
+| MENUSWAP / MENUCODE / HICODE | 0 / 4 / 3 | inchangés (`fire_tick`, `fire_hide` intacts) |
+| banque 2 principale | 24 | 24 |
+| SIM sous `$B500` | 74 | **144** |
+
+Fenêtres à la demande : ALERT 1 730 → 1 702 octets (`$5800`), FIRE
+`$9600-$9C92` (fond et variables inchangés en `$A000-$A2BB`).
+
+### 24.2 Stock et disque
+
+| | XL (800 Ko) | Neowilderness (140 Ko) |
+|---|---:|---:|
+| Place du tronc (`aux_trunk_free` − zone des sprites) | 990 → **1 091** | 900 → **1 002** |
+| NEOWILD.DAT | 107 888 → 107 852 octets | 70 704 → 70 605 octets, 140 → **139 blocs** : 51 octets avant un 140e |
+| Volume | 363 blocs sur 1 600 | 279 → **278** blocs sur 280 (**2** libres) |
+
+Le stock gagne SIM (−70, brut) et ALERT (LZ, −29) sur les deux éditions.
+NEOWILD.BLK garde sa taille : FIRE reste au-dessus de 1 536 octets (trois
+blocs), il lui faudrait encore 147 octets de moins (pistes : CAMP.md § 8) ;
+165 depuis le feu remonté de trois rangées (1 701 octets, `fm_setrow`
+général, CAMP.md § 8 **Hauteur**).
+
+### 24.3 Temps
+
+Chaque mise à jour de santé économise `fire_clock` (quelques dizaines de
+cycles). L'apparition du feu lit toujours quatre blocs ; une image coûte
+comme avant les flammes pleines (61 000 à 75 000 cycles).
+
+### 24.4 Contraintes nouvelles
+
+- Aucune : `fire_on` seul dit si le feu brûle (comme B1[FIRE] de
+  l'original) ; les tests qui le posent n'ont plus de cas « sans horloge ».
+- Une partie sauvée avant ce changement est refusée comme toute partie
+  d'une autre construction (`GAME n WAS SAVED BY ANOTHER VERSION.`,
+  [SAVE.md](SAVE.md)).
+
+## 25. Lot 3, étape 2 : la page CRAFT lisible (15 octobre 2026)
+
+Deuxième version de la page CRAFT, maquette approuvée par l'utilisateur
+([CRAFT.md](CRAFT.md) § 8.6) : trois groupes, état en MouseText, temps de
+chaque recette, panneau de la recette choisie (contrôles, effet, temps,
+ce qui ralentit), rangée 23 qui dit ce que tape RETURN. Aucun octet
+résident : tout est dans le module CRAFT de NEOWILD.BLK. Mesures :
+`build/wild.map`, `build/layout.json`, `build/layout-140.json` ; avant =
+§ 24.
+
+| Changement | Zones |
+|---|---|
+| `cr_minutes` : le temps de MAKE (formules de la ROM, ordre des opérations inchangé) devient une routine, appelée par MAKE une fois ses contrôles passés et par la page pour chaque recette | recettes 1 858 → **1 878** octets : MAKE, USE et la transaction lisent toujours **4 blocs** (170 octets libres avant un cinquième) |
+| Page : contexte, états et temps calculés une fois à l'arrivée, moitié gauche (groupes, `>`, état, temps), trait, panneau, légende, rangée 23, touches ; `ALTCHARSET` levé à l'arrivée, baissé à chaque sortie | page 957 → **2 209** octets ; CRAFT 2 815 → **4 087** octets, NEOWILD.BLK 6 → **8 blocs** (9 octets libres dans le huitième) ; fenêtre CRAFTM `$9600-$A5FF` (`$1000`) |
+| Octets de travail de la page (12 variables, états, minutes : 42 octets) | après `craft_end`, hors image (`$A5F7-$A620`, fenêtre de GRID) |
+| `pg_craft` (STATUS) : deux constantes (longueur du module) | stock LZ de STATUS : +5 octets (140 Ko), +6 (XL) |
+
+### 25.1 RAM principale résidente, octets libres
+
+Inchangée (§ 24.1) : TEXT 2, WILDLO 2, WILDGAME 12, WILDERNESS 12,
+RESIDENT 5, LOWPAGE 1, MENUSWAP / MENUCODE / HICODE 0 / 4 / 3, banque 2
+principale 24, SIM sous `$B500` 144.
+
+### 25.2 Stock et disque
+
+| | XL (800 Ko) | Neowilderness (140 Ko) |
+|---|---:|---:|
+| Place du tronc (`aux_trunk_free` − zone des sprites) | 1 091 → **1 087** | 1 002 → **998** |
+| NEOWILD.BLK | CRAFT 6 → 8 blocs | idem |
+| Volume | 363 → **365** blocs sur 1 600 | 278 → **280** blocs sur 280 (**0** libre) |
+| NEOWILD.DAT | 107 852 → 107 858 octets | 70 605 → 70 610 octets, 139 blocs : 46 octets avant un 140e |
+
+L'édition de 140 Ko est pleine : un bloc de plus pour CRAFT, ou un octet
+qui fait passer NEOWILD.DAT à 140 blocs, ne tient plus sans place rendue
+ailleurs. La page ne pouvait pas tenir dans 7 blocs avec les lignes
+d'effet (2 209 octets de page pour 1 706 disponibles).
+
+### 25.3 Temps
+
+L'ouverture de la page lit 8 blocs au lieu de 6 : ≈ 0,07 s sur XL
+(8 568 cycles par bloc, § 16.4), ≈ 0,6 s sur le Disk II émulé (au prorata
+des 12 blocs de FORAGE), puis dix `cr_minutes` (cinq racines carrées
+Applesoft) avant le premier dessin. Un déplacement du curseur ne recalcule
+rien : il redessine les deux moitiés en différentiel, seules les cellules
+qui changent sont écrites (13 de la rangée d'onglets à HUT, mesuré par
+`storewatch` dans `test_craft_page.py`). MAKE lit toujours 4 blocs.
+
+### 25.4 Contraintes nouvelles
+
+- La page lit CRAFT jusqu'à `$A5FF` et écrit ses octets de travail
+  jusqu'à `$A620` : par-dessus les tampons du feu (caché à chaque page,
+  § 23.4) et le début de GRID (`$A300`). GRID est recopié du stock à
+  chaque usage (`grid_fetch` : RETURN dans la grille, chaque pas de sa
+  file) et aucune liste n'est ouverte quand une page s'ouvre (`level1` à
+  l'invite) : rien n'y lit entre-temps. Un code qui supposerait GRID
+  présent entre deux commandes devra le recopier.
+- `ALTCHARSET` n'est levé que sur la page CRAFT (140 Ko ; sur XL, pour
+  toute la partie depuis le § 26) : toute nouvelle sortie de
+  la page doit passer par `cp_view` ou la table `cp_go_lo/hi` (qui le
+  baissent). Ailleurs, les codes `$40-$5F` restent des majuscules
+  clignotantes (jamais écrites par le jeu).
+- Tout ce que MAKE appelle reste avant `craft_page` (§ 23.4) :
+  `cr_minutes` y est, la page l'appelle ; 170 octets libres dans les
+  4 blocs de MAKE, 9 dans les 8 blocs du module.
+- 140 Ko : **0 bloc libre** sur le volume.
+
+## 26. Pages en MouseText, sur NeoWildernessXL seul (15 octobre 2026)
+
+Plan de l'utilisateur ([MENUS.md](MENUS.md) § 9) : onglets, boîtes,
+jauges, pied de page, grille, rideau et écran du score en MouseText ;
+décision du même jour : **l'édition de 140 Ko n'en a pas besoin** et ne
+doit pas grandir. Tout est donc sur XL, par des queues d'images et des
+octets propres à XL (§ 9.1 de MENUS.md) ; les images liées restent celles
+de 140 Ko, et la table de symboles est la même pour les deux disques.
+Mesures : `build/wild.map`, `build/layout.json`, `build/layout-140.json` ;
+avant = § 25.
+
+| Changement | Zones |
+|---|---|
+| Queue de STATUS (`STATX`, `src/mt_pages.s`) : onglets, pied de page, boîtes, jauges, page STATUS, MEDICAL, INVENTORY, OPTIONS, MENU | 1 457 octets en `$AF00-$B4B0` ; l'image XL de STATUS (6 380 → 7 857 octets, `$9600-$B4B0`) passe de 5 119 à 5 872 octets dans le stock (LZ), après `XL_ZERO` du code partagé que XL n'exécute plus (`page_top`, `st_at`, `st_heading`, `bar`, `hours_gauge`, les morceaux de `module_status` entre ceux qu'il réutilise) |
+| Queue de CRAFT (`CRAFTX`, `$A640`) : le pied de page | 67 octets ; CRAFT XL 4 227 octets, NEOWILD.BLK **8 → 9 blocs** (MAKE en lit toujours 4) |
+| Queue de MEDVIEW (`MEDVX`, `$5E80`) : le pied de page des gestes | 26 octets, toujours 4 blocs |
+| Queue de NEOWILD.END (`ENDX`, `$A200`) : bande de titre, trait du total, boîte du tableau | 122 octets ; NEOWILD.END XL 3 045 → 3 194 octets, 7 → **8 blocs** |
+| Résident XL : `xl_pad` (barres de la grille) et `xl_curtain` (sablier du rideau) copiés sur `page_foot` (`XL_COPIES`) | 38 octets sur les 54 de `page_foot`, que XL n'appelle plus : **0 octet résident de plus** |
+| Octets changés (`XLPATCH`, 200 enregistrements) : chargeur, CRAFT, STATUS, MEDVIEW, END, `wildmenusw.bin` (séparateur, flèches), `wildmenu.bin` (`cell_put`), `wild.bin` (`view_hide`) | 0 |
+| Les deux éditions : **bas** sur TOPO ou MAP ouvre les pages du haut (`topo_pages`, demande du 15 octobre 2026) | SITES 1 802 → 1 821 octets (stock, brut) |
+| Les deux éditions : TOPO centrée (marges de 14 pixels, `TP_SX`) ; **haut** sur la rangée d'onglets ouvre TOPO (`page_keys`, `cp_key`) | TOPOGEN 2 987 → 2 997 (six blocs, 75 octets avant `TOPOBSS` à `$A200`), STATUS 6 380 → 6 384 (LZ 5 119 → 5 122 ; 16 octets sous STATX), CRAFT 4 087 → 4 089 (7 libres dans `$9600-$A5FF`) ; XL : images à longueur fixe, stock inchangé |
+
+### 26.1 RAM principale résidente, octets libres
+
+Inchangée sur les deux éditions (§ 25.1) : TEXT 2, WILDLO 2, WILDGAME 12,
+WILDERNESS 12, RESIDENT 5, LOWPAGE 1, MENUSWAP / MENUCODE / HICODE
+0 / 4 / 3, banque 2 principale 24, SIM sous `$B500` 144. Sur XL, 16 des
+54 octets de `page_foot` restent libres (code mort de XL, § 26.4).
+
+### 26.2 Stock et disque
+
+| | XL (800 Ko) | Neowilderness (140 Ko) |
+|---|---:|---:|
+| Place du tronc (`aux_trunk_free` − zone des sprites) | 1 087 → **315** (STATUS + 753, SITES + 19) | 998 → **979** (SITES + 19) |
+| NEOWILD.DAT | 107 858 → 108 615 octets, 212 → 214 blocs | 70 610 → **70 630** octets, 139 blocs : 26 octets avant un 140e |
+| NEOWILD.BLK | CRAFT 8 → 9 blocs | inchangé |
+| NEOWILD.END | 7 → 8 blocs | inchangé |
+| Volume | 365 → **369** blocs sur 1 600 | **280** blocs sur 280, cinq parties sauvées |
+
+Après la TOPO centrée et haut → TOPO (dernière ligne du tableau du § 26) :
+140 Ko, NEOWILD.DAT 70 632 octets (24 avant un 140e bloc), place du tronc
+976, toujours 280 blocs ; XL inchangé (108 615 octets, 369 blocs, 315).
+
+L'image de 140 Ko est identique octet pour octet à celle d'avant ces
+travaux, hormis les 19 octets de SITES (vérifié par `cmp` sur le disque de
+référence gardé pendant les travaux).
+
+### 26.3 Temps
+
+Une page du haut de XL décode 753 octets LZ de plus en ouvrant STATUS
+(≈ 0,04 s à 50 cycles par octet) ; les déplacements du focus restent
+différentiels (une écriture par cellule changée, `test_focus.py`,
+`test_transitions.py`). La page CRAFT de XL lit 9 blocs au lieu de 8
+(≈ 0,01 s de plus). La grille ajoute moins de 30 cycles par case.
+
+### 26.4 Contraintes nouvelles
+
+- Le stock de XL n'a plus que **315 octets** de place de tronc : la
+  prochaine croissance de XL doit lire depuis NEOWILD.BLK ou rendre de la
+  place (les pistes du § 22 valent pour XL aussi).
+- La queue de STATUS court sur `$B000-$B5FF` (l'image de la grille) : le
+  code des pages de XL ne doit appeler aucune routine de `MENUSWAP` ; une
+  commande tapée par une page passe par `do_command`, dont aucun chemin
+  n'y touche avant le `get_line` suivant (`forage_wants` n'appelle
+  `ctx_ok` que pour un KILL tapé).
+- Les morceaux de `module_status` (`XL_ENTRY` … `XL_JMP`) et les octets
+  mis à zéro sur XL (`XL_ZERO`) suivent le code de la page de 140 Ko : un
+  changement de cette page doit garder ses bornes (`@c_*`, `@y*`), sinon
+  XL saute au mauvais endroit. `test_reference_state.py` vérifie que
+  STATUS laisse `g0` et `g1` comme la page de 140 Ko.
+- `page_foot` n'est plus du code sur XL : un futur appel de XL doit viser
+  `page_foot_x`.
+- Les disques de comparaison (`--map`) gardent les pages sans cadre :
+  avec celles de XL, le stock d'un disque de 280 blocs déborde et CAMP
+  passe sur NEOWILD.BLK (`--mousetext` pour les essayer).
+
+## 27. L'animal présent toujours visible (15 octobre 2026)
+
+Règle de l'utilisateur : « quand un animal est là, on doit voir son sprite
+sauf dans nos abris » ([LOOK_UPDOWN.md](LOOK_UPDOWN.md) § 4, décisions 1 à
+7). Les deux éditions. Mesures : `build/wild.map`, `build/layout.json`,
+`build/layout-140.json` ; avant = § 26.
+
+| Changement | Zones |
+|---|---|
+| PROJECT : `module_animal` (case, inclinaison, géométrie face au joueur, couleurs, silhouette de nuit), `animal_fire` (à côté du feu), la boucle de colonnes copiée en `$A000` (26 octets) ; `project_offset` (entrée de `project_center`) ; l'animal retiré des candidats de `module_project` (−31) | 1 787 → 1 967 octets (XL), 1 667 → 1 847 (140 Ko, coupé à `project_tail`) : **+180**, brut dans le stock |
+| Résident : `animal_view` (14 octets) et deux appels dans `show_view_scene` (+6) ; `dhgr_sprite_map` (entrée de `dhgr_frame`, 0 octet) ; la clef du cache de scène sans l'animal (`scene_prepare` −21) ; `animal_bearing` (−2) et `scene_cache_animal` (−5) supprimés de GDATA | WILDGAME 12 → **23** libres ; état sauvé 1 732 → 1 725 octets (`NEOWILD.Sn`, toujours 5 blocs) |
+| SIM (ENVIRON) : `fauna_accept` ne note plus de relèvement | −12 : 144 → **156** octets sous `$B500` |
+| SITES : ENTER de l'abri naturel garde l'animal | −5 (1 821 → 1 816) |
+| Paquet de la Sierra Nevada : ses couleurs DHGR (314 octets) et ses quatre correctifs de modules (141 octets) ne sont plus écrits, identiques à ceux du tronc que le chargeur lit toujours d'abord (`tools/build_disk.py`, déjà vérifiés par assertion) | paquet R2 7 059 → **6 668** octets stockés, les deux éditions |
+
+`NEOWILD.DAT` de 140 Ko : 70 632 → **70 365** octets, toujours 139 blocs,
+**291 octets** avant un 140e (étaient 24) ; volume 280 / 280 blocs, cinq
+parties sauvées. Sans l'allègement du paquet de la Sierra, l'animal seul
+débordait d'un bloc (70 756 octets : `build_disk` ne gardait que quatre
+parties) ; le module du feu dans `animal_fire` coûte à lui seul 55 octets
+stockés. XL : 108 615 → 108 764 octets, 369 blocs sur 1 600.
+
+### 27.1 RAM principale résidente, octets libres
+
+TEXT 2, WILDLO 2, **WILDGAME 23** (12), WILDERNESS 12, RESIDENT 5,
+MENUCODE 4, LOWPAGE 1, HICODE 3, banque 2 principale 24, SIM sous `$B500`
+**156** (144). Aucune croissance résidente.
+
+### 27.2 Stock et fenêtres
+
+| | XL (800 Ko) | Neowilderness (140 Ko) |
+|---|---:|---:|
+| Place du tronc (`aux_trunk_free` − zone des sprites) | 315 → **150** | 976 → **811** |
+| PROJECT (fenêtre `$5800`, 2 048) | 261 → **81** | 381 → **201** |
+| NEOWILD.DAT | 108 764 octets, 369 blocs | 70 365 octets (291 avant un bloc de plus), 280 / 280 blocs |
+
+La boucle de l'animal tourne en `$A000-$A019` (fenêtre SIM) : libre
+pendant une vue (le sprite d'un site s'arrête à `$9FFF`, les tampons du feu
+ne servent qu'à l'invite, GRID commence en `$A300`).
+
+### 27.3 Temps
+
+Sans animal : `lda animal_kind / beq` (7 cycles) après chaque vue, PROJECT
+copié avec 180 octets de plus quand la scène est recalculée (≈ 3 000
+cycles) : moins de 0,1 % d'une vue (6,5 millions de cycles à la case de
+départ). Avec un animal (l'ours à la case de départ) : VIEW 6,51 → 7,30
+millions (+12 %) : PROJECT 30 000, le sprite LZ 42 000, la boucle 740 000
+(39 colonnes de sprite, ≈ 19 000 chacune, et 101 colonnes vides) ; une
+rotation redessinait toute la vue (≈ 6,8 millions au lieu de 1,2 à 1,5 par
+défilement), pour garder l'animal centré : elle défile depuis le § 28.
+
+### 27.4 Contraintes nouvelles
+
+- `scene_drawn` = 3 après une vue avec un animal (`$83` depuis le § 28,
+  carte héritée) : `turn_view` redessine (défile) ;
+  `sprite_*` et `scene_asset` décrivent alors l'animal, le cache de scène
+  est invalidé. `scene_cache_asset` reste l'emplacement principal (le site
+  ou le panneau) : `test_journey_resident.py` le lit.
+- La boucle copiée en `$A000` suppose la fenêtre SIM libre pendant une
+  vue (comme `module_site_load`) ; un module de la fenêtre SIM ne doit
+  jamais appeler `show_view` en restant sur la pile.
+- `animal_fire` suppose une largeur d'animal d'au plus 80 colonnes (gauche
+  ≥ 30 ; la plus large, le crocodile, en a 72 : `scene_ref.animal_geometry`
+  le vérifie) ; le fond gardé, au plus 72 (§ 28).
+- La silhouette de nuit dépend des indices des nuances (2 silhouette, 3
+  faible, `$FF` aucune) de `dhgr_palette.mood_table` : `test_dhgr_ref.py`
+  les vérifie.
+- `test_reference_state.py` est rebasé : avec un animal sur la case, la
+  comptabilité de la scène (`scene_drawn`, `scene_cache_*`) et les flottants
+  `t1`…`t5` de sa projection diffèrent de la référence HGR par
+  construction ; ils restent comparés sans animal.
+
+## 28. Rotation avec un animal : le fond gardé, la vue défile (15 octobre 2026)
+
+Décision de l'utilisateur : optimiser la rotation (§ 27.3 : avec un animal,
+une flèche redessinait toute la vue). Mesures : `build/wild.map`,
+`build/layout.json`, `build/layout-140.json`, catalogue ProDOS des
+`dist/*.po` ; avant = § 27.
+
+**Mécanique.** Avant de dessiner l'animal, `ANIMAL_RUN` charge OUTDOOR et
+appelle `module_animal_bg` : sur une carte héritée, `ab_copy` copie les
+octets de ses colonnes (`AB_J0` = l'octet de sa première colonne, `AB_N` + 1
+octets, calculés par PROJECT : colonne 7g + k → octet 2g, + 1 si k ≥ 4 ;
+dernier bit 4c + 3 → 2g, + 1 si k ≥ 3), rangées 16 à 175, banque
+auxiliaire puis principale, vers la carte langage auxiliaire, banque 1
+(`AB_BUF` = `$D000`, au plus 160 × 2 × 22 = 7 040 octets, sous
+`TP_SNAP_END` = `$EC00`) ; `scene_drawn` = `$83`. La copie tourne avec
+ALTZP levé (page zéro, pile et carte auxiliaires, interruptions masquées,
+comme `tp_save`) : pointeurs en `$F0-$F3` auxiliaires, `hgr_row` y écrit
+`hp`. Une rotation (`turn_view`, bit 7 de `scene_drawn`) appelle
+`animal_unpan` : OUTDOOR remet le fond (`module_animal_unbg`), PROJECT
+refait la scène du site (`module_project` : `sprite_*`, `scene_asset`,
+`scene_drawn` 0 à 3), puis le défilement habituel (`scroll`, colonnes
+neuves) et `animal_view` (le fond de la nouvelle vue gardé, l'animal
+dessiné). La boucle de l'animal ne parcourt plus que ses colonnes (`an_last`,
+`an_first`, opérandes de la copie en `$A000`). Pixels identiques au
+redessin complet : le fond remis est exactement l'écran sans animal ;
+le feu de l'invite est caché avant (`fire_hide`) et ne touche jamais les
+colonnes de l'animal.
+
+**Invalidation.** Toute vue complète remet `scene_drawn` (`scene_prepare`,
+nuit noire, abri) ; `tp_save` (TOPO, MAP) prend la zone : `asl` / `lsr`
+de `scene_drawn` (`$83` → 3, la rotation suivante redessine, TOPOGEN
++6 octets) ; une carte native (`MAP+37`, l'atlas occupe la zone) ne garde
+rien (`scene_drawn` = 3 : redessin, comme avant). LOOK B et LOOK N
+redessinent, animal ou non.
+
+| Changement | Zones |
+|---|---|
+| PROJECT : colonnes de l'animal (`AB_J0`, `AB_N`, bornes de la boucle), OUTDOOR appelé par `ANIMAL_RUN` (+8, copiés en `$A000-$A021`) ; `animal_fire` rend `proj_width` (il le laissait à 28 : la largeur du feu) ; `project_offset` et le relèvement de `project_candidate` passent par `wrap_ang` (−34) | XL 1 967 → **2 002** (46 libres dans la fenêtre), 140 Ko 1 847 → 1 882 (166) |
+| OUTDOOR : `module_animal_bg`, `module_animal_unbg`, `ab_copy`, `ab_bank` | 1 541 → **1 648** octets (+107 ; 400 libres) |
+| Résident : `animal_unpan` (GCODE, 19), `turn_view` (+10 : `bpl`, `jsr`, `lda`, `jmp animal_view`), `AB_J0` / `AB_N` (LOWTEXT, 2) | WILDGAME 23 → **2**, WILDERNESS 12 → **2**, WILDLO 2 → **0** |
+| Stock des six paquets (XL, disques de comparaison) : le module de la grille (32) compressé LZ (`build_disk.LZ_SIX_PACKS`) | 2 676 → 2 441 octets stockés ; ≈ 33 cycles de plus par octet, ≈ 88 000 par chargement (0,09 s par choix ou pas de la file de la grille) |
+
+Sans la grille compressée, XL ne plaçait plus ses modules : 44 309 octets
+pour 44 329 libres, mais en morceaux (28 869, 6 144, 4 096, 5 114 et un de
+106 octets, trop petit pour un module) : il fallait 86 octets de plus. La
+140 Ko garde la grille brute : son NEOWILD.DAT, compressé en entier,
+grandissait d'un bloc avec un module déjà compressé (quatre parties au lieu
+de cinq).
+
+### 28.1 RAM principale résidente, octets libres
+
+TEXT 2, WILDLO **0** (2), WILDGAME **2** (23), WILDERNESS **2** (12),
+RESIDENT 5, MENUCODE 4, LOWPAGE 1, HICODE 3, banque 2 principale 24, SIM
+sous `$B500` 156.
+
+### 28.2 Stock, disque
+
+| | XL (800 Ko) | Neowilderness (140 Ko) |
+|---|---:|---:|
+| Place du tronc (`aux_trunk_free` − zone des sprites) | 150 → **241** | 811 → **666** |
+| PROJECT (fenêtre `$5800`, 2 048) | 81 → **46** | 201 → **166** |
+| NEOWILD.DAT | 109 249 octets, 215 blocs | 70 365 → **70 587** octets, 139 blocs (**69** avant un bloc de plus) |
+| Volume | 370 / 1 600 blocs | 280 / 280 blocs, cinq parties |
+
+La carte langage auxiliaire, banque 1 et `$E000-$EBFF`, sert d'instantané
+à TOPO (cartes héritées) ou d'atlas (cartes natives) ; le fond de l'animal
+la partage avec l'instantané, jamais avec l'atlas.
+
+### 28.3 Temps (cycles, XL, l'ours à deux cases à l'est du départ, cap 10)
+
+| Rotation | Sans animal | Avec, avant | Avec, après |
+|---|---:|---:|---:|
+| flèche droite | 1 251 507 | 4 553 305 | **2 382 700** |
+| flèche gauche | 853 340 | 4 160 830 | **1 985 111** |
+| LOOK R | 2 326 650 | 4 946 454 | **3 352 629** |
+| LOOK L | 1 567 960 | 4 195 211 | **2 594 893** |
+| flèche droite, feu allumé face au cap | — | 4 559 236 | **2 388 330** |
+
+`test_pan.py`, 52 rotations (17 + 17 flèches, 9 + 9 LOOK) : redessin forcé
+4,17 millions par rotation, défilement 2,37 millions (−43 %), sans animal
+1,27 million (+86 %). Une vue complète avec un animal coûte en plus la
+copie du fond (≈ 60 000 cycles pour l'ours, 12 octets × 2 × 160 ; 22 au
+pire) et le chargement d'OUTDOOR (≈ 28 000) : ≈ +1 %.
+
+### 28.4 Le reste du surcoût, et pourquoi la cible de +10 % n'est pas atteinte
+
+Par rotation (≈ 1,1 million) : décoder et peindre le sprite (≈ 600 000 :
+`sprite_code`, `spc_clear` et `scene_emit` balaient 160 rangées par colonne
+de sprite, `dspan`), copier OUTDOOR deux fois et PROJECT (≈ 85 000), le
+sprite LZ (42 000), les deux copies du fond (≈ 85 000), `module_project` et
+`module_animal`. Ne plus redessiner l'animal demanderait son image et son
+masque (bit à bit : une couleur de l'animal peut égaler celle du fond),
+deux rectangles de plus que le fond : 3 × 7 040 octets au pire, quand la
+zone libre en a 7 168. Les couleurs des sprites sont pleines (`spr_map`,
+octet `$nn`) et l'animal reste aux mêmes colonnes sans feu : l'image
+gardée resterait juste. Pistes, toutes hors de la place actuelle :
+réserver 14 Ko pour image et masque (lignes du haut de l'animal seulement :
+2 à 3,4 Ko par rectangle selon l'animal, au prix d'un calcul de ses
+rangées) ; ou réduire le balayage de `sprite_column` / `scene_emit` aux
+rangées du sprite (code résident, plein).
+
+## 29. Post-its et pages restructurées (15 octobre 2026)
+
+Deux demandes de l'utilisateur du même jour : généraliser en « post-it »
+la présentation du panneau STATUS de XL ([MENUS.md](MENUS.md) § 9.3), puis
+restructurer les pages du haut **sur les deux éditions** (§ 5 : MEDICAL
+fusionnée dans STATUS, INVENTORY renommée OBJECTS avec CARRYING, RANGERS
+dans MENU, HERE et la ligne d'état devenues LOCAL ; onglets STATUS |
+OBJECTS | CRAFT | HELP | OPTIONS | MENU). Le style MouseText reste propre
+à XL. Mesures : `build/wild.map`, `build/layout.json`,
+`build/layout-140.json`, catalogue ProDOS des `dist/*.po` ; avant = § 28.
+
+**Mécanisme.** Le code partagé dispose les pages pour les deux éditions
+(un titre en inverse par bloc, les rangées depuis la colonne 0 ou 41) ;
+XL encadre chaque bloc par la sortie elle-même : `mt_cout` (le COUT des
+pages) et `mt_pad` (tous les remplissages, par `xl_padhook`, résident)
+lisent la table de post-its de la page (six octets par post-it,
+`pf_pages`, `pf_craft` dans la queue de CRAFT) et un tampon de cadre de 80
+octets (le corps de `page_top`, mort sur XL : `XL_ZERO`, au-dessus des
+neuf blocs de CRAFT ; assertions dans `src/mt_pages.s`). La page STATUS de
+XL n'a plus de code propre (la queue faisait 1 457 octets).
+
+| Changement | Zones |
+|---|---|
+| STATUS partagé : MEDICAL fusionnée (`module_status` porte le focus des soins, `med_cell` en trois colonnes, la liste CONDITIONS sans les blessures), OBJECTS (titre du groupe, `PAGE n/m` sur la rangée 15, CARRYING, 33 objets par page), MENU (RANGERS : `st_rangers`, `st_cells`), HELP (texte d'OBJECTS) ; `goal_pct` à l'arrivée sur STATUS (l'état reste celui de la référence, `test_reference_state.py`) | 6 384 → **6 306** octets (`$9600-$AEA1` : **94** libres sous `$AF00`, étaient 16) ; LZ 5 124 → 5 110 |
+| CRAFT partagé : `cp_medical` supprimé, lettres `SMIHTO` | 4 089 → 4 083 (13 libres dans `$9600-$A5FF`) |
+| WILDGAME : `scr_medical` supprimé (inutilisé) | 5 979 → 5 970 octets (**11** libres) |
+| Queue STATX (XL) : onglets, pied, moteur des cadres, tables | 1 457 → **1 096** octets (`$AF00-$B347`) |
+| Queue CRAFTX (XL) : rangées des post-its, titre de la recette, tracé par `mt_cout` après une touche (`cp_redraw_x`) | 67 → 148 octets ; CRAFT XL 4 308 octets, toujours 9 blocs |
+| Queue ENDX (XL) : le détail du score en post-it | 122 → 192 octets |
+| Queue MEDVX (XL) | 26 → 23 octets |
+| Résident XL (`XL_COPIES`) : `xl_padhook` (15 octets) avec `xl_pad` et `xl_curtain` sur `page_foot` | 38 → **53** octets sur 54 : **0 octet résident de plus** |
+| XL : STATUS lu de NEOWILD.BLK (`status_fetch` → `sim_fetch` par `XL_ABS`, image `XI_GAME` ; pages `$B0-$B5` libres dans la table de ProDOS, `game_pages` par `XL_BYTE` du chargeur ; `DISK_LIMIT` de `build_disk.py`) | STATUS XL 7 496 octets, **15 blocs** (`$9600-$B5FF`) ; quitte le stock LZ |
+
+### 29.1 RAM principale résidente, octets libres
+
+TEXT 2, WILDLO 0, **WILDGAME 11** (2), WILDERNESS 2, RESIDENT 5,
+MENUCODE 4, LOWPAGE 1, HICODE 3, banque 2 principale 24, SIM sous `$B500`
+156. Sur XL, 1 des 54 octets de `page_foot` reste libre.
+
+### 29.2 Stock et disque
+
+| | XL (800 Ko) | Neowilderness (140 Ko) |
+|---|---:|---:|
+| Place du tronc (`aux_trunk_free` − zone des sprites) | 241 → **6 114** | 666 → **679** |
+| NEOWILD.DAT | 109 249 → **102 561** octets, 215 → 202 blocs | 70 587 → **70 561** octets, 139 blocs (**95** avant un bloc de plus ; étaient 69) |
+| NEOWILD.BLK | 65 → **80** blocs (+ STATUS) | inchangé (52) |
+| Volume | 370 → **372** blocs sur 1 600 | **280 / 280** blocs, cinq parties sauvées |
+
+### 29.3 Temps (cycles, émulés)
+
+| | XL | 140 Ko |
+|---|---:|---:|
+| STATUS chargé (`status_fetch`) | **128 555** (15 blocs ; ≈ 395 000 en LZ avant, estimé à 67 cycles par octet stocké) | 345 641 (LZ) |
+| Ouvrir STATUS (de `module_status` à l'invite des touches, avec ADV et MEDICAL) | 531 062 | 351 381 |
+| Tracé des pages (de `page_top` à l'invite) : MENU, OPTIONS, focus d'OPTIONS, HELP, OBJECTS, STATUS | 340 607, 184 228, 183 129, 275 146, 262 104, 323 038 | 224 986, 69 283, 68 539, 137 683, 151 011, 162 470 |
+
+Les cadres coûtent environ 115 000 cycles par tracé de page (≈ 0,11 s) :
+`pf_sync` (construction du cadre d'une rangée, sautée quand la signature
+de la rangée est celle du tampon), `mt_cout` et `mt_pad` (une comparaison
+par cellule). Chaque cellule reste écrite une fois : les déplacements du
+focus ne stockent que les cellules qui changent. L'ouverture d'une page du
+haut sur XL reste plus rapide qu'avant (≈ −0,27 s de chargement contre
++0,11 s de cadres). Piste pour réduire le surcoût : coder dans le tampon
+la longueur de la plage vide suivante (les cellules vides ont le bit 7),
+pour que `mt_pad` saute les plages sans les parcourir.
+
+### 29.4 Contraintes nouvelles
+
+- `PG_*` renumérotés (0 STATUS, 1 OBJECTS, 2 CRAFT, 3 HELP, 4 OPTIONS,
+  5 MENU) ; `pg_letter` / `pg_letpg` (S, I, R, H, O, M).
+- Le corps de `page_top` doit rester d'au moins 83 octets (le tampon des
+  cadres de XL) et au-dessus des blocs de CRAFT : assertions.
+- XL : une page du haut ne doit écrire qu'à travers COUT, `tab`, `vtab`,
+  CR et `topo_pad` (pas de `STA` direct dans la page texte) pour que ses
+  cadres restent justes ; un bloc nouveau demande une entrée dans sa table.
+- XL : STATUS est lu de NEOWILD.BLK jusqu'à `$B5FF` (sa taille au plus
+  8 192 octets, `DISK_LIMIT`) ; les disques de comparaison le gardent dans
+  le stock (`build_disk.py` le refuse sur NEOWILD.BLK sans `mousetext`).
+- 140 Ko : les pages changent (nouvelle disposition) ; l'image n'est plus
+  celle d'avant ces travaux (décision de l'utilisateur : la
+  restructuration vaut pour les deux éditions).

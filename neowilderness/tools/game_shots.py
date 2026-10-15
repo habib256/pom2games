@@ -85,9 +85,8 @@ def region_shots(out):
                 x, y = (px >> 8) + 1, py >> 8
                 s.step(L.poke('px', x, 1))
                 for name, value in (('animal_kind', 9), ('animal_x', x), ('animal_y', y),
-                                    ('animal_age', 0), ('animal_bearing', h & 255)):
+                                    ('animal_age', 0)):
                     s.step(L.poke(name, value))
-                s.step(L.poke('animal_bearing', h >> 8, 1))
                 s.step('key:V\\r')
                 s.step('wait:1')
                 s.step(L.until('idle', 60000))

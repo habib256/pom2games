@@ -319,6 +319,7 @@ HOF_READ_PARMS = bench_read
 HOF_NAMES_LO = names_lo
 HOF_NAMES_HI = names_hi
 HOF_LOADER = 1
+hm_regions: .byte 6
         .include "hof_menu.s"
 bench_read: .byte 4, 0
         .word   0, 0, 0

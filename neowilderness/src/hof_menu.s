@@ -289,6 +289,11 @@ hm_title:
         tay
         jsr     hm_at
         ldx     #40
+.ifdef XI_END                   ; (the game's NEOWILD.END only)
+.ifndef HOF_LOADER
+        XL_ABS  XI_END, hm_dline_x, @x60        ; (XL: a double line, hof.s)
+.endif
+.endif
         jsr     hm_spaces
         lda     #0
         ldy     hm_col0
@@ -482,9 +487,9 @@ hm_best:
         ldy     #5
         jsr     hm_num
 @next:  inc     hm_scen
-        lda     hm_scen
-        cmp     #7
-        bne     @scen
+        lda     hm_regions      ; the scenarios of this edition (1 or 6)
+        cmp     hm_scen
+        bcs     @scen
         rts
 
 ; Blocks: menu key s (tools/genmenu.py MENU_ORDER) at row 2 + 7 * ((s - 1) / 2),
@@ -551,9 +556,9 @@ hm_hall:
         cmp     #HM_RANKS
         bne     @rank
         inc     hm_scen
-        lda     hm_scen
-        cmp     #7
-        beq     :+
+        lda     hm_regions
+        cmp     hm_scen
+        bcc     :+
         jmp     @scen
 :       lda     #22
         ldy     #0

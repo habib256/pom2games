@@ -69,7 +69,7 @@ def decisions():
             assert not injury(s,kind) and s.step(L.peek('animal_kind')).data==b'\0'
         s.step(L.poke('it_place',5,59))
         prepare(s,6,4);before=snapshot(s);command(s,'ATTACK BEAR')
-        assert snapshot(s)==before and 'ACCESSIBLE AXE OR KNIFE' in screen(s)
+        assert snapshot(s)==before and 'AXE OR KNIFE' in screen(s)
         prepare(s,7,4);before=snapshot(s);command(s,'SCARE BEAR')
         assert snapshot(s)==before and 'NO MATCHING ANIMAL' in screen(s)
         prepare(s,6,seed_for((11,256),(13,256),(128,256)))
@@ -81,11 +81,17 @@ def decisions():
         prepare(s,7,seed_for((0,11)))
         command(s,'IGNORE COUGAR')
         assert injury(s,7) and 'INJURES YOU' in screen(s)
-        for flag in ('tree_in','shelter_inside'):
-            prepare(s,6,4);s.step(L.poke(flag,1));before=snapshot(s)
+        prepare(s,6,4);s.step(L.poke('tree_in',1));before=snapshot(s)
+        command(s,'ATTACK BEAR')
+        assert snapshot(s)==before and not injury(s,6) and 'LEAVE COVER' in screen(s)
+        # D4 (lot 3, docs/CRAFT.md 3.4): a shelter is no cover; inside, the
+        # injury risk is x .1 (T06/S04 $5866: bear 180 -> 18 of 256).
+        s.step(L.poke('it_place',2,59))
+        for seed,hurt in ((seed_for((18,180),(4,256)),0),(seed_for((0,18),(4,256)),1)):
+            prepare(s,6,seed);s.step(L.poke('shelter_inside',1))
             command(s,'ATTACK BEAR')
-            assert snapshot(s)==before and not injury(s,6) and 'LEAVE COVER' in screen(s)
-        print('  Species noise, both independent combat rolls, knife/axe access, failed decisions and cover refusals: OK',flush=True)
+            assert injury(s,6)==hurt and 'LEAVE COVER' not in screen(s),(hurt,screen(s))
+        print('  Species noise, both independent combat rolls, knife/axe access, failed decisions, tree cover, shelter x .1: OK',flush=True)
 
 
 def severities():
@@ -138,10 +144,11 @@ def provisions():
             assert s.step(L.peek('it_place',1,item)).data==bytes((place,))
         assert gear==s.step(L.peek('it_place',22)).data
         assert water==tuple(s.step(L.peek(n,1,22)).data for n in ('it_oz_lo','it_pack_lo','it_gnd_lo','it_place'))
-        # Tree theft still follows a separate injury roll. Cabin protects both.
+        # Tree theft still follows a separate injury roll. In the cabin the
+        # injury risk is x .1 (D4: 11 -> 1 of 256), then theft and departure.
         prepare(s,6,seed_for((11,256),(0,26)));s.step(L.poke('tree_in',1))
         command(s,'IGNORE BEAR');assert not injury(s,6)
-        prepare(s,6,4);s.step(L.poke('shelter_inside',1));before=snapshot(s)
+        prepare(s,6,seed_for((1,11),(13,256),(0,128)));s.step(L.poke('shelter_inside',1));before=snapshot(s)
         command(s,'IGNORE BEAR');assert not injury(s,6) and s.step(L.peek('animal_kind')).data==b'\0'
         assert before[6:]==snapshot(s)[6:]
         print('  Theft preserves water, gear, hung and remote stocks; exact 16-bit food totals and cover: OK',flush=True)

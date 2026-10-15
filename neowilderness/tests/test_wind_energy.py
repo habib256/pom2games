@@ -84,7 +84,7 @@ def main():
             results.append([fp(r.mem(L[n],5)) for n in ('s_spent','s_deff','s_elap','s_metabolic')])
             felt=int.from_bytes(r.mem(L['felt_temp'],2),'little',signed=True)
             screen='\n'.join(text_screen(r.mem(0x400,1024)))
-            check(f'STATUS ({mean} F climate): signed FEEL temperature',f'FEEL {felt}F' in screen)
+            check(f'STATUS ({mean} F climate): signed FEELS temperature',f'FEELS  {felt}F' in screen)
     check('cold REST: initial shivering and adaptive 60-minute steps',results[0][0]==600+2*247+2*495)
     check('warm REST: saved initial shivering, then 150-minute base step',results[1][0]==600+247+247)
     check('extra calorie cost increases hunger without changing elapsed time',

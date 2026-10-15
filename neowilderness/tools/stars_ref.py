@@ -52,6 +52,13 @@ Position of a catalogue star (tools/stars_catalog.py, 3-byte records):
   perspective and hides above 59 degrees). h = 80 (up >> 7 = 511, alt >=
   86.4 degrees) is above the view. row = 95 - h. The table holds T[k] &
   255; T[k] >= 256 from k = T_HIGH + 1 on (the sin_lo trick).
+  LOOK UP (docs/LOOK_UPDOWN.md, `up`): the view shows the rows 96 higher,
+  in the Moon's and the terrain's true perspective: TU[k] = ceil(512 k /
+  sqrt(k^2 + 48^2)) up to k = 159 (screen row 32, 73.2 degrees), then the
+  rows 31..16 share sin(alt) evenly up to the zenith (TU[175] = 511). Only
+  TU[32..175] (all >= 256: TU - 256 in a byte) are kept: c = number of them
+  <= up >> 7; c = 0 is below the view (under 33.7 degrees); row = 64 - c
+  (byte), the screen row less 96, which the drawing adds back (tdv).
   Azimuth: |E|, |N| halved when either reaches 65536; q = (small << 8) //
   large (small < large), r = (q + 1) >> 1 (128 when equal), a = AT[r] =
   round(atan(r / 128) * 560 / 2 pi); a' = a if |E| <= |N| else 140 - AT[r of
@@ -142,6 +149,20 @@ KNEE = 48                               # row 47: 45 degrees; above, even in sin
 T_TABLE = tuple(math.ceil(512 * k / math.sqrt(k * k + 48 * 48)) if k <= KNEE
                 else round(363 + (k - KNEE) * 148 / (H_MAX - KNEE)) for k in range(1, H_MAX + 1))
 T_HIGH = next(j for j, t in enumerate(T_TABLE) if t >= 256)     # first entry >= 256
+T_GAPS = (T_TABLE[0],) + tuple(b - a for a, b in zip(T_TABLE, T_TABLE[1:]))   # the module's form
+KNEE_UP, H_UP = 124, 176               # LOOK UP: true perspective to screen row 67
+TU_TABLE = []                           # 10-bit thresholds in sin(alt) (1024 = 1.0)
+for k in range(1, H_UP):
+    TU_TABLE.append(math.ceil(1024 * k / math.sqrt(k * k + 48 * 48)) if k <= KNEE_UP else
+                    round(TU_TABLE[KNEE_UP - 1] + (k - KNEE_UP) * (1023 - TU_TABLE[KNEE_UP - 1])
+                          / (H_UP - 1 - KNEE_UP)))
+TU_TABLE = tuple(TU_TABLE)
+TU_FIRST = 32                           # TU[32..175]: the rows of the view looking up
+TU_KEPT = TU_TABLE[TU_FIRST - 1:]
+TU_BASE = TU_KEPT[0]                    # 568: up >> 6 below it is under the view
+TU_GAPS = tuple(b - a for a, b in zip(TU_KEPT, TU_KEPT[1:]))
+assert all(a < b for a, b in zip(TU_TABLE, TU_TABLE[1:])) and TU_TABLE[-1] == 1023
+assert len(TU_KEPT) == H_UP - TU_FIRST and max(TU_GAPS) < 256 and 1023 - TU_BASE < 512
 AT_TABLE = tuple(round(math.atan(r / 128) * UNITS / (2 * math.pi)) for r in range(129))
 CATALOGUE = K.stars()
 LAYOUT = K.class_layout(CATALOGUE)      # priority classes, first index of classes 1 and 2
@@ -198,9 +219,9 @@ def atan_units(e, n):
     return 140 - a if flip else a
 
 
-def position(lst, lat, star):
+def position(lst, lat, star, look_up=False):
     """(up, az, row) of a catalogue star at LST16 `lst`; row None when not
-    in the view."""
+    in the view (looking up: its row less 96, as a byte)."""
     ha = (lst_quarter(lst) - star['ra_q']) % RA_UNITS
     h = ((ha + 2) >> 2) % UNITS
     sin_h, cos_h = sincos(h)
@@ -218,20 +239,37 @@ def position(lst, lat, star):
     else:
         az = 280 + a if n < 0 else (UNITS - a) % UNITS
     row = None
-    if 0 < up < 65536:
+    if 0 < up < 65536 and look_up:
+        c = bisect.bisect_right(TU_KEPT, up >> 6)
+        if c:
+            row = (HORIZON - (TU_FIRST - 1) - c) & 255
+    elif 0 < up < 65536:
         k = bisect.bisect_right(T_TABLE, up >> 7)
         if k < H_MAX:
             row = HORIZON - k
     return up, az, row
 
 
-def behind_moon(az, row, moon):
-    """moon = (sky_bearing, sky_y): the outer disc of sky_column, when the
-    Moon is drawn (rows 16..95)."""
-    if moon is None or moon[1] > HORIZON or moon[1] < HUD_ROWS:
+def moon_row(moon, look_up=False):
+    """The Moon's row in the list's coordinates when it is drawn, else
+    None. Level: moon = (sky_bearing, sky_y), drawn on rows 16..95; looking
+    up: (sky_hb, sky_hy), a signed level row drawn 96 lower, on 16..159."""
+    if moon is None:
+        return None
+    y = moon[1] - 256 if look_up and moon[1] >= 128 else moon[1]
+    if look_up:
+        return y if moon[1] != 0x80 and HUD_ROWS - TILT_ROWS <= y < VIEW_ROWS - TILT_ROWS else None
+    return y if HUD_ROWS <= y <= HORIZON else None
+
+
+def behind_moon(az, row, moon, look_up=False):
+    """The outer disc of sky_column hides a star of a drawn Moon."""
+    y = moon_row(moon, look_up)
+    if y is None:
         return False
     d = (az - moon[0] + 5) % UNITS
-    return d < 11 and abs(row - moon[1]) <= SKY_OUTER[d]
+    r = row - 256 if look_up and row >= 128 else row
+    return d < 11 and abs(r - y) <= SKY_OUTER[d]
 
 
 def list_attr(k, star, az):
@@ -247,7 +285,7 @@ def entry(attr, row, az):
     return dict(az=az, row=row, attr=attr, colour=COLOURS[look], rows=ROWS[look])
 
 
-def visible(day, minute, lat, lon, moon=None, limit=LIST_MAX):
+def visible(day, minute, lat, lon, moon=None, limit=LIST_MAX, look_up=False):
     """The selected entries in catalogue (selection) order, at most
     LIST_MAX: [dict(index, star, az, row, attr, colour, rows, up)]; a
     first-magnitude star twice, one row apart."""
@@ -256,10 +294,11 @@ def visible(day, minute, lat, lon, moon=None, limit=LIST_MAX):
     for k, star in enumerate(CATALOGUE):
         if never_rises(lat, star):
             continue
-        up, az, row = position(lst, lat, star)
-        if row is None or behind_moon(az, row, moon):
+        up, az, row = position(lst, lat, star, look_up)
+        if row is None or behind_moon(az, row, moon, look_up):
             continue
         for r in range(row, row + 1 + star['big']):
+            r &= 255
             out.append(dict(entry(list_attr(k, star, az), r, az), index=k, star=star, up=up))
             if len(out) == limit:
                 return out
@@ -338,8 +377,10 @@ TILT_ROWS = 96          # LOOK UP / DOWN (docs/LOOK_UPDOWN.md): rows per tilt st
 
 def tilted_spans(v, top, tilt):
     """Rows of entry v in a view of this tilt (src/stars_draw.s): its row
-    moves by 96 * tilt; drawn when 0 <= row < top, clipped to the view."""
-    row = v['row'] + TILT_ROWS * tilt
+    moves by 96 * tilt, as a byte (a row pushed below 0 wraps to 160..255;
+    a LOOK UP list's row less 96 wraps back to its screen row); drawn when
+    0 <= row < top, clipped to the view."""
+    row = (v['row'] + TILT_ROWS * tilt) & 255
     if not 0 <= row < top:
         return range(0)
     return range(row, min(row + v['rows'], 160))

@@ -13,6 +13,9 @@ unused tail of NEOWILD.S5 finds it again after ejection):
     journey) equals the dump taken right after SAVE, the DHGR view (both
     banks, logical rows 0-159: landscape, sky, HUD) equals the view at SAVE,
     then the same continuation gives the same state, byte for byte;
+  - lot 4 (src/forage.s forage_state, saved by SAVE): a game carcass on
+    the cell and a pack pile of mushrooms, with their spoilage counters,
+    come back with RESTORE;
   - refusals that change nothing: game 3 empty, game 9, ESC;
   - QUIT, the Burma: RESTORE 1 answers "GAME 1: SIERRA NEVADA ONLY.";
   - QUIT, the Sierra again: RESTORE 1 across the restart = the dump at SAVE;
@@ -40,7 +43,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from common import HERE, L, DISK, MENU_SKIP, a2test, text_screen, dhgr_view, result_text, fp
+from common import HERE, L, DISK, DISK140, MENU_SKIP, a2test, text_screen, dhgr_view, result_text, fp
 
 sys.path.insert(0, str(HERE.parent / 'dev/tools/prodos'))
 from read_volume import Image  # noqa: E402
@@ -65,7 +68,7 @@ CONSTANT = {'it_kcal', 'verbs', 'verb_lo', 'verb_hi', 'card_lo', 'card_hi', 'cde
 # floating point scratch of the last computation and the scene bookkeeping
 # of the last picture. The continuation after RESTORE compares them too.
 DERIVED = {'t1', 't2', 't3', 't4', 't5', 'scene_drawn', 'scene_cache_valid', 'scene_cache_pos',
-           'scene_cache_animal', 'scene_cache_drawn', 'scene_cache_asset'}
+           'scene_cache_drawn', 'scene_cache_asset'}
 
 
 def segments():
@@ -186,22 +189,34 @@ class Game:
         return self.peek(0xBF58, 24) + self.peek(0x03F2, 3)
 
     def menu(self, region):
-        """QUIT (the score screen: ESC, a key), then the start menu: region."""
+        """QUIT (the score screen: ESC, a key), then the start menu: region.
+        NEOWILD.END and the loader both run at $9600: menu_key's address is
+        also inside the score screen's code, and hof_key_wait's inside the
+        loader's, so an until there is confirmed by the screen. A ranked scenario journey asks for a name
+        (ESC = "NOT RECORDED"), then any key restarts the loader (one key per
+        keyboard wait, as tests/test_hof_game.py does); a free journey goes
+        straight to its key wait; without NEOWILD.END (a 140 KB copy), QUIT
+        goes straight to the menu."""
         self.s.step('key:QUIT\\r')
         self.s.step('wait:30')
         self.s.step('key:Y')
-        out = self.s.step(f'until:{L["hof_key_wait"]:04X},{L["menu_key"]:04X}:{LIMIT}').out
-        if out.rstrip().endswith(f'PC={L["hof_key_wait"]:04X}'):
-            # A ranked scenario journey asks for a name: ESC = "NOT RECORDED",
-            # then any key restarts the loader (as tests/test_hof_game.py does
-            # with key:, one key per keyboard wait); a free journey goes
-            # straight to its key wait. Without NEOWILD.END (the copy of
-            # main()), QUIT goes straight to the menu.
-            self.s.step('key:\x1b')
+        keys = iter(['key:\x1b', 'key: '])
+        for _ in range(40):
             out = self.s.step(f'until:{L["hof_key_wait"]:04X},{L["menu_key"]:04X}:{LIMIT}').out
+            rows = text_screen(self.s.step('peek:0400:1024').data)
+            if any('CHOOSE A JOURNEY' in row for row in rows):
+                break
             if out.rstrip().endswith(f'PC={L["hof_key_wait"]:04X}'):
-                self.s.step('key: ')
-                self.s.step(L.until('menu_key', LIMIT))
+                if any('JOURNEY SCORE' in row for row in rows):
+                    self.s.step(next(keys))
+                else:   # the loader's code at that address (both run at $9600)
+                    self.s.step(f'until:{L["menu_key"]:04X}:{LIMIT}')
+                    if any('CHOOSE A JOURNEY' in row for row in
+                           text_screen(self.s.step('peek:0400:1024').data)):
+                        break
+            self.s.step('wait:1')
+        else:
+            raise AssertionError('QUIT: no start menu')
         self.s.step(f'key:{ {"2": "1", "3": "3"}[region] }\\r')
         self.s.step(L.until('idle', LIMIT))
         assert self.peek(L['region_number'], 1)[0] == int(region)
@@ -316,6 +331,14 @@ def main_session(work, constants):
         hour = fp(g.peek(L['s_hour'], 5))
         night = g.peek(L['night'], 1)[0]
         assert night, ('the save is taken at night', hour)
+        # Lot 4 (src/forage.s forage_state): a game carcass of 36 oz on this
+        # cell (29 hours left, skinnable), 5 oz of mushrooms in the pack.
+        cell = (g.peek(L['px'] + 1, 1)[0], g.peek(L['py'] + 1, 1)[0])
+        for name, k, v in (('fg_x', 0, cell[0]), ('fg_y', 0, cell[1]), ('fg_gl', 4, 36), ('fg_b1', 4, 0),
+                           ('fg_b2', 4, 1), ('fg_skin', 0, 16), ('fg_cl', 15, 29), ('fg_ch', 15, 0),
+                           ('fg_pl', 9, 5), ('fg_b1', 9, 2), ('fg_cl', 9, 40), ('fg_ch', 9, 0)):
+            s.step(L.poke(name, v, k))
+        piles = g.peek(L['forage_state'], L['forage_state_end'] - L['forage_state'])
         knife = g.state()
         seconds, calls = g.type('SAVE', answer='1\\r')
         timings['SAVE (prompt, empty game)'] = seconds
@@ -345,6 +368,8 @@ def main_session(work, constants):
         seconds, calls = g.type('RESTORE 1')
         timings['RESTORE 1 (view rebuilt)'] = seconds
         assert g.result().startswith('GAME 1 RESTORED.'), g.result()
+        assert g.peek(L['forage_state'], len(piles)) == piles, 'lot 4: piles and spoilage restored'
+        print('  lot 4: the carcass, the pack pile, their counters restored: OK')
         assert calls == 3 + 3, ('RESTORE: NEOWILD.SAV, then OPEN READ CLOSE', calls)
         assert g.guards() == guards
         restored = g.state()
@@ -446,7 +471,9 @@ def faults(work, image):
     rename(nomodule, 'NEOWILD.SAV', 'NEOWILD.XAV')
     fault(work, nomodule, 'nomodule', 'NEOWILD.SAV missing', 'SAVE 1', 'NEOWILD.SAV CANNOT BE READ.')
     woz = work / 'protected.woz'
-    woz.write_bytes(po_to_woz(DISK.read_bytes(), write_protected=True))
+    # A write-protected 5.25-inch WOZ: Neowilderness, the 140 KB edition
+    # (the Sierra Nevada, its saved games; NeoWildernessXL is 800 KB).
+    woz.write_bytes(po_to_woz(DISK140.read_bytes(), write_protected=True))
     with a2test.Session(woz, iie=True, timeout=900) as s:
         s.dhgr = True                   # 80-column text and DHGR page peeks
         for step in MENU_SKIP:
@@ -524,6 +551,9 @@ def main():
             build_disk.build_disk(copy, omit=('NEOWILD.END',))
             print(f'  the shipped image holds {shipped} saved games: this test uses a 140 KB copy '
                   f'without NEOWILD.END ({games_on(copy)} games)')
+            if games_on(copy) < 3:      # a2shot reads no 800 KB volume: without the
+                build_disk.build_disk(copy, omit=('NEOWILD.END', 'preparation'))
+                print(f'  ... and without the journey preparation ({games_on(copy)} games)')
             if games_on(copy) < 3:
                 print('SAVE/RESTORE: SKIPPED (fewer than three saved games fit on 140 KB)')
                 return

@@ -679,6 +679,59 @@ def care_commands():
     print('USE SPLINT/PRESSURE, WET BODY, DRY/WARM, CUT/COOL BODY and HANG clothing OK',flush=True)
 
 
+def medical_gestures():
+    """STATUS's care gestures (src/status.s, src/care.s): the focus on an
+    active condition, RETURN types its gesture: the same state as typed. The
+    FRSTAID KIT in the dark types USE FLASHLIGHT first (the grid's queue)."""
+    READY = L.until('keyboard_wait', 20000)
+
+    def state(s):
+        return [s.step(L.peek(n, k)).data for n, k in (('medical_actions', 30), ('s_elap', 5),
+                ('injury_treated', 15), ('it_place', 76), ('it_pack_lo', 76), ('camp_use', 1), ('light', 1))]
+
+    def gesture(s, rights=0):
+        s.step('key:\\^'); s.step(READY)
+        for k in ['\\v'] + ['\\>'] * rights:      # (STATUS holds MEDICAL's rows: 15 October 2026)
+            s.step('press:' + k); s.step(L.until('page_top', 40000)); s.step(READY)
+        line = text_screen(s.step('peek:0400:1024').data)[23]
+        s.step('press:\\r')
+        s.step(L.until('do_command', 40000))
+        return line, s.step(L.peek('inbuf', 20)).data.split(b'\0')[0].decode()
+
+    results = []
+    for by_page in (True, False):
+        with a2test.Session(DISK, timeout=1800) as s:
+            s.step(IDLE); s.step(L.poke('nature_frequency', 0))
+            s.step(L.poke('injury_active', 1, 0))           # SEVERE CUTS
+            if by_page:
+                line, typed = gesture(s)
+                assert line.startswith(' \u2190\u2192 STOP BLEEDING  USE PRESSURE') and typed == 'STOP BLEEDING', (line, typed)
+                s.step(IDLE)
+            else:
+                s.step('key:STOP BLEEDING\r'); s.step('wait:1'); s.step(IDLE)
+            results.append(state(s))
+            assert results[-1][0][0] == 1 and results[-1][2][0] == 1, 'selector 1: the bleeding stopped'
+            # INFECTION in the dark, the kit and the flashlight in the pack.
+            s.step(L.poke('injury_active', 0, 0)); s.step(L.poke('injury_active', 1, 8))
+            for item in (41, 66):
+                s.step(L.poke('it_place', 2, item))
+            s.step(L.poke('light', 0))
+            if by_page:
+                line, typed = gesture(s)
+                assert line.startswith(' \u2190\u2192 USE FRSTAID KIT') and typed == 'USE FLASHLIGHT', (line, typed)
+                s.step(L.until('get_line', 400000)); s.step(L.until('do_command', 40000))
+                assert s.step(L.peek('inbuf', 20)).data.startswith(b'USE FRSTAID KIT\0')
+                s.step(IDLE)
+            else:
+                for text in ('USE FLASHLIGHT', 'USE FRSTAID KIT'):
+                    s.step(f'key:{text}\r'); s.step('wait:1'); s.step(IDLE)
+            results.append(state(s))
+            assert results[-1][0][10] == 1, 'selector 11: the infection treated (the kit, with light)'
+    assert results[0] == results[2] and results[1] == results[3], 'the gestures = the commands typed'
+    print('MEDICAL gestures: STOP BLEEDING, USE FRSTAID KIT in the dark (USE FLASHLIGHT first) = typed: OK',
+          flush=True)
+
+
 def alerts_display():
     """Alerts are appended under the result; the crossing messages 187, 160
     and 176 follow the native thresholds; shivering is announced once."""
@@ -780,6 +833,7 @@ if __name__=='__main__':
         native_use()
     # Lot 13: care commands, placement, alerts, forced sleep, disease onsets.
     care_commands()
+    medical_gestures()
     alerts_display()
     placement(original)
     alerts_native(original)

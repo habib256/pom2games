@@ -27,7 +27,7 @@ import json
 from common import (HERE, L, DISK, a2test, menu_keys, text_screen, result_rows, DHGR_BANKS,
                     dhgr, dhgr_view, mood_name, state, view_diff)
 from test_boot import expected_map
-from test_sprites import expected_dhgr
+import scene_ref
 import dhgr_palette as P
 
 LAYOUT = json.loads((HERE / 'build/layout.json').read_text())
@@ -96,7 +96,7 @@ def scenario(region, level_keys='', level=4):
                      forest=False, sprites=False)
         bad, first = view_diff(dhgr_view(main, aux), ref)
         assert not bad, (region, bad, first)
-        # Play a little: zero MLI calls.
+        # Play a little: zero MLI calls (but STATUS's blocks, XL).
         s.step('key:\\>')
         s.step(L.until('idle', 20000))
         s.step('key:STATUS\\r')
@@ -113,9 +113,8 @@ def scenario(region, level_keys='', level=4):
         for k, name in enumerate(pack['sprites']):
             kind = 6 + k
             for field, value in (('animal_kind', kind), ('animal_x', x), ('animal_y', y),
-                                 ('animal_age', 0), ('animal_bearing', h & 255)):
+                                 ('animal_age', 0)):
                 s.step(L.poke(field, value))
-            s.step(L.poke('animal_bearing', h >> 8, 1))
             s.step('key:V\\r')
             s.step(L.until('idle', 20000))
             mood = s.step(L.peek('sky_mood')).data
@@ -123,7 +122,13 @@ def scenario(region, level_keys='', level=4):
             s.step(DHGR_BANKS[1])
             aux = s.step(DHGR_BANKS[2]).data
             s.step(DHGR_BANKS[3])
-            want = expected_dhgr(x << 8 | (px & 255), py, h, name, h, want_map, mood_name(mood), region)
+            # The animal in front of the wreck's billboard one cell away (two
+            # slots since 15 October 2026: tests/scene_ref.animal_geometry).
+            scene_ref.use_region(region)
+            want = R.view(want_map, x << 8 | (px & 255), py, h,
+                          R.Sky(mood_name=mood_name(mood), region=region),
+                          (23 if kind == 9 else kind, x << 8 | (px & 255), py, 0), forest=False)
+            scene_ref.use_region(2)
             bad, first = view_diff(dhgr_view(main, aux), want)
             assert not bad, (region, name, bad, first)
             s.step('key:IGNORE\\r')
@@ -170,7 +175,10 @@ def scenario(region, level_keys='', level=4):
         assert list(travel[:4]) == [x['rate'] for x in fauna['species']] + [0] * (4 - len(fauna['species']))
         calls = counters(s) - start
         watched = s.out.count('watch BF00')
-    assert calls == 0 and watched == 0, (region, calls, watched)
+    # (NeoWildernessXL reads STATUS from NEOWILD.BLK: docs/MEMORY.md 29)
+    status = json.loads((HERE / 'build/layout.json').read_text())['modules']['16']
+    blocks = status['blocks'] if status['bank'] == 'disk' else 0
+    assert calls == watched == blocks, (region, calls, watched, blocks)
     print(f'  {region} {pack["name"]:16} level {level:2}: map +32/+22/+33, texts and first message, '
           f'colours, directory, {len(pack["sprites"])} sprites drawn and named, fauna patches, '
           f'first view and woods, 0 MLI after start: OK')

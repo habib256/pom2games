@@ -12,14 +12,15 @@ def main():
         s.step(L.until('game_start',20000))
         s.step(L.poke('forest_enabled',0));s.step(L.poke('sky_enabled',0))
         s.step(IDLE);s.step(L.poke('nature_frequency',0))
-        for asset,marker in ((9,'H'),(5,'C')):
+        # The fixed cabin (MAP+16 = 1) is drawn as the log, asset 33.
+        for asset,marker in ((33,'H'),(5,'C')):
             for dx,dy,heading in ((0,4,0),(4,4,70),(4,0,140),(4,-4,210),
                                   (0,-4,280),(-4,-4,350),(-4,0,420),(-4,4,490)):
                 x,y=40+dx,40+dy
                 # Isolate the target; both sprites share the same projector.
                 for address,value in ((0x7002,128),(0x7003,x if asset==5 else 80),
                                       (0x7004,128),(0x7005,y if asset==5 else 70),
-                                      (0x7010,int(asset==9)),(0x7011,x),(0x7012,y)):
+                                      (0x7010,int(asset==33)),(0x7011,x),(0x7012,y)):
                     s.step(f'poke:{address:04X}:{value:02X}')
                 for name in ('px','py'):
                     s.step(L.poke(name,128));s.step(L.poke(name,40,1))

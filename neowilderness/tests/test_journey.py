@@ -7,7 +7,9 @@ from test_input import IDLE,command,flat,snapshot
 
 def screen(s):return '\n'.join(text_screen(s.step('peek:0400:1024').data))
 def status(s):
+    """MENU's RANGERS (15 October 2026: from STATUS), left of STATUS."""
     s.step('key:STATUS');s.step('press:\\r');s.step(L.until('status_key',20000))
+    s.step('key:\\<');s.step('wait:2');s.step(L.until('keyboard_wait',20000))
     result=screen(s)
     s.step('key:\\e');s.step(IDLE)
     return result
@@ -17,13 +19,13 @@ def progress():
     with tempfile.TemporaryDirectory() as tmp,a2test.Session(disk_with(tmp,m)) as s:
         s.step(IDLE);s.step(L.poke('nature_frequency',0))
         before=snapshot(s)
-        assert 'DONE=0%' in status(s)
+        assert 'JOURNEY DONE: 0%' in status(s)
         assert snapshot(s)==before
         command(s,'WALK 38 MIN')
-        assert 'DONE=20%' in status(s)
+        assert 'JOURNEY DONE: 20%' in status(s)
         assert s.step(L.peek('journey_left',2)).data==bytes((8,0))
         command(s,'LOOK B');command(s,'WALK 57 MIN')
-        assert 'DONE=0%' in status(s),'distance away must not become unsigned progress'
+        assert 'JOURNEY DONE: 0%' in status(s),'distance away must not become unsigned progress'
     print('  Route starts at 0, advances with distance, clamps detours, and STATUS changes no survival state')
 
 # FILL/REFILL, river water and giardia follow the original since lot 2
@@ -65,7 +67,7 @@ def fractional_journey():
         s.step(IDLE);s.step(L.poke('nature_frequency',0))
         assert abs(fp(s.step(L.peek('s_d0',5)).data)-19)<1e-6
         command(s,'WALK 19 MIN')
-        assert 'DONE=10%' in status(s)
+        assert 'JOURNEY DONE: 10%' in status(s)
         assert s.step(L.peek('journey_left',2)).data==bytes((9,0))
     m[8:10]=bytes((12,40));m[64:]=bytes([138])*9408
     with tempfile.TemporaryDirectory() as tmp,a2test.Session(disk_with(tmp,m)) as s:

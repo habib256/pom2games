@@ -15,8 +15,7 @@ def scene(m, x, y, heading, mood):
 
 def exercise(name, x, y, bearing, kind=0, full=False):
     steps = [*terrain_boot(20000)]
-    for label, value in [('px', x), ('py', y), ('heading', bearing),
-                         ('animal_bearing', bearing)]:
+    for label, value in [('px', x), ('py', y), ('heading', bearing)]:
         steps += [L.poke(label, value), L.poke(label, value >> 8, 1)]
     steps += [L.poke('animal_kind', kind), L.poke('animal_x', x >> 8),
               L.poke('animal_y', y >> 8), 'key:V\\r', 'wait:1', L.until('idle', 20000)]
@@ -26,6 +25,8 @@ def exercise(name, x, y, bearing, kind=0, full=False):
         if full:
             # Force nearest-visible reprojection instead of scrolling.
             steps += [L.poke('scene_drawn', 3)]
+        elif kind:
+            steps += [L.peek('scene_drawn')]
         if key.endswith('\\r'):
             steps += [f'key:{key[:-2]}', 'press:\\r']
         else:
@@ -38,9 +39,24 @@ def exercise(name, x, y, bearing, kind=0, full=False):
     cycles = [int(c) for c in re.findall(r'pcprof [0-9A-F]+ cycles=(\d+)', result.out)]
     assert len(cycles) == len(turns)
     heading = bearing
+    k = 5 if kind and not full else 4           # + scene_drawn before the turn
+    base = 1 if k == 5 else 0
     for i, (_, delta) in enumerate(turns):
         heading = (heading + delta) % 560
-        assert dhgr_view(result.dumps[4*i]) == expected_dhgr(x, y, heading, name, bearing, mood=mood), (name, i, heading, result.dumps[4*i+2].hex(), result.dumps[4*i+3].hex())
+        # An animal faces the player whatever the heading (PROJECT
+        # module_animal): centred after every turn. Its background is kept
+        # (OUTDOOR ab_copy): the view scrolls, the animal is drawn again;
+        # the pixels of the whole redraw. The site billboards stay behind it.
+        if kind or name is None:
+            R = dhgr()
+            want = R.view(MAP, x, y, heading, R.Sky(mood_name=mood), (kind, x, y, 0) if kind else None,
+                          forest=False)
+        else:
+            want = expected_dhgr(x, y, heading, name, bearing, mood=mood)
+        if k == 5:
+            assert result.dumps[k*i] == b'\x83', (name, i, 'the background kept', result.dumps[k*i].hex())
+        assert dhgr_view(result.dumps[k*i+base]) == want, (name, i, heading, result.dumps[k*i+base+2].hex(),
+                                                            result.dumps[k*i+base+3].hex())
     return cycles, result.dumps[:-1]
 
 
@@ -149,10 +165,21 @@ def main():
     assert pages[2::4] == old_pages[2::4], 'pan must preserve position and heading'
     assert sum(fast) < sum(slow) * .6, 'local pans should save at least 40% of total cycles'
     print(f'  wreck: {sum(slow):,} -> {sum(fast):,} cycles ({100*(1-sum(fast)/sum(slow)):.1f}% saved)')
+    report = []
     for kind, name in [(6, 'bear'), (7, 'cougar'), (8, 'rattlesnake')]:
-        exercise(name, SX+512, SY, 10, kind)
-    exercise('cabin', MAP[17] << 8, MAP[18] << 8, int.from_bytes(MAP[19:21], 'little'))
-    print('  five sprites: both directions, 22.5/45 degrees, offscreen return and full heading wraps: OK')
+        fast, _ = exercise(name, SX+512, SY, 10, kind)
+        report.append((name, sum(fast)))
+    # docs/MEMORY.md 28: with the bear, the turns scroll (scene_drawn $83)
+    # instead of redrawing the view (the full path forced: scene_drawn 3).
+    bare, _ = exercise(None, SX+512, SY, 10)
+    slow, _ = exercise('bear', SX+512, SY, 10, 6, full=True)
+    bear = report[0][1]
+    assert bear < sum(slow) * .6, ('animal turns must scroll', bear, sum(slow))
+    print(f'  bear: {sum(slow):,} -> {bear:,} cycles ({100*(1-bear/sum(slow)):.1f}% saved; '
+          f'{sum(bare):,} without the animal, +{100*(bear/sum(bare)-1):.0f}%)')
+    # The fixed cabin: the log or the rock of MAP+16 (src/project.s cabin_asset).
+    exercise(('log', 'rock')[MAP[16] - 1], MAP[17] << 8, MAP[18] << 8, int.from_bytes(MAP[19:21], 'little'))
+    print('  wreck and shelter pans, animals centred after every turn (redrawn whole): OK')
     distant_regression()
 
 

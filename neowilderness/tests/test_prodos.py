@@ -45,32 +45,64 @@ def check_launcher(result, label, occurrence=0):
 # game_pages): $02-$03, $08-$57, $60-$B9 and $BE; one bit per page, bit 7 =
 # first page of a byte.
 PAGES = set(range(0x02, 0x04)) | set(range(0x08, 0x58)) | set(range(0x60, 0xBA)) | {0xBE}
+PAGES -= set(range(0xB0, 0xB6))     # NeoWildernessXL (DISK): STATUS read up to $B5FF (docs/MEMORY.md 29)
+GAME_PAGES = bytes(sum(0x80 >> k for k in range(8) if 8 * i + k in PAGES) for i in range(24))
+
+
+def main_banks(switches):
+    lcram, ramrd, ramwrt, altzp, store80 = (switches[i] >> 7 for i in (1, 2, 3, 5, 7))
+    text, mixed, hires, col80 = (switches[i] >> 7 for i in (9, 10, 12, 14))
+    return (lcram, ramrd, ramwrt, altzp, store80, text, mixed, hires, col80) == (0, 0, 0, 0, 0, 1, 0, 0, 0)
+
+
+def check_launcher(result, label, occurrence=0):
+    text = screen(result, occurrence)
+    assert 'BITSY' in text and '/NEOWILDERNESS' in text, (label, text)
+    switches = result.mem(0xC011, 15, occurrence)
+    assert main_banks(switches), (label, switches.hex())
+
+
+# Pages the loader marks in the ProDOS bitmap for the game (src/boot.s
+# game_pages): $02-$03, $08-$57, $60-$B9 and $BE; one bit per page, bit 7 =
+# first page of a byte.
+PAGES = set(range(0x02, 0x04)) | set(range(0x08, 0x58)) | set(range(0x60, 0xBA)) | {0xBE}
+PAGES -= set(range(0xB0, 0xB6))     # NeoWildernessXL (DISK): STATUS read up to $B5FF (docs/MEMORY.md 29)
 GAME_PAGES = bytes(sum(0x80 >> k for k in range(8) if 8 * i + k in PAGES) for i in range(24))
 
 
 def exit_state(quit_steps, menu):
     """ProDOS state at the loader's first entry, during play, and at the final QUIT."""
-    entry = ['until:%04X:6000' % L['loader_main'], 'peek:0000:256', 'peek:BF58:24', 'peek:03F2:3']
+    # Bank 2 of the main language card through $C080 (read RAM), then the ROM.
+    bank2 = ['peek:C080', 'peek:D000:1024', 'peek:C082']
+    entry = ['until:%04X:6000' % L['loader_main'], 'peek:0000:256', 'peek:BF58:24', 'peek:03F2:3'] + bank2
     leaves = (('QUIT, Q', quit_steps + [menu, 'press:Q', L.until('ld_mli_quit', 6000)]),
               ('RESET', ['reset', L.until('prodos_quit', 6000)]))
     for name, leave in leaves:
         r = a2test.run(DISK, entry + MENU_SKIP + [IDLE, 'peek:BF58:24', 'peek:03F2:3'] + leave
-                       + ['peek:0000:256', 'peek:BF58:24', 'peek:03F2:3', SWITCHES], menu=False)
+                       + ['peek:0000:256', 'peek:BF58:24', 'peek:03F2:3', SWITCHES] + bank2, menu=False)
         zp, bitmap, vector = r.dumps[0:3]
-        assert r.dumps[3] == bytes(b | g for b, g in zip(bitmap, GAME_PAGES)), \
-            ('game pages marked during play', r.dumps[3].hex(), GAME_PAGES.hex())
-        assert r.dumps[4] == bytes((L['reset_exit'] & 255, L['reset_exit'] >> 8, (L['reset_exit'] >> 8) ^ 0xA5))
+        card = r.mem(0xD000, 1024, 0)
+        # Docs/MEMORY.md 15: the game runs code in ProDOS's QUIT code area
+        # $D100-$D3FF; every exit puts the QUIT code back ($D000, ProDOS's
+        # bank signature, is never written; $D001-$D0FF is the LZ decoder).
+        final = r.mem(0xD000, 1024, 1)
+        assert final[0] == card[0] == 0xEE and final[0x100:] == card[0x100:], \
+            (name, 'QUIT code', [hex(0xD000 + i) for i in range(1024) if final[i] != card[i]][:8])
+        assert r.dumps[6] == bytes(b | g for b, g in zip(bitmap, GAME_PAGES)), \
+            ('game pages marked during play', r.dumps[6].hex(), GAME_PAGES.hex())
+        assert r.dumps[7] == bytes((L['reset_exit'] & 255, L['reset_exit'] >> 8, (L['reset_exit'] >> 8) ^ 0xA5))
         # QUIT reloads NEOWILD.SYSTEM through the MLI before Q: ProDOS's own
         # scratch $40-$4F (volatile across any MLI call) may differ there.
         scratch = range(0x40, 0x50) if name.startswith('QUIT') else ()
-        assert all(r.dumps[5][i] == zp[i] for i in range(256) if i not in scratch), \
-            (name, 'zero page', [i for i in range(256) if r.dumps[5][i] != zp[i]])
-        assert r.dumps[6] == bitmap, (name, 'bitmap', r.dumps[6].hex(), bitmap.hex())
-        assert r.dumps[7] == vector, (name, 'RESET vector')
-        lcram, ramrd, ramwrt, altzp, store80 = (r.dumps[8][i] >> 7 for i in (1, 2, 3, 5, 7))
-        assert (lcram, ramrd, ramwrt, altzp, store80) == (0, 0, 0, 0, 0), (name, r.dumps[8].hex())
+        assert all(r.dumps[8][i] == zp[i] for i in range(256) if i not in scratch), \
+            (name, 'zero page', [i for i in range(256) if r.dumps[8][i] != zp[i]])
+        assert r.dumps[9] == bitmap, (name, 'bitmap', r.dumps[9].hex(), bitmap.hex())
+        assert r.dumps[10] == vector, (name, 'RESET vector')
+        lcram, ramrd, ramwrt, altzp, store80 = (r.dumps[11][i] >> 7 for i in (1, 2, 3, 5, 7))
+        assert (lcram, ramrd, ramwrt, altzp, store80) == (0, 0, 0, 0, 0), (name, r.dumps[11].hex())
     print('  QUIT then Q, and Ctrl-RESET: zero page, bitmap and RESET vector equal to the loader '
-          'entry at the MLI QUIT; main RAM, ROM; exactly the game pages marked during play: OK')
+          'entry at the MLI QUIT; ProDOS\'s QUIT code back in bank 2; main RAM, ROM; exactly the game '
+          'pages marked during play: OK')
 
 
 def main():
@@ -123,13 +155,15 @@ def main():
     check_launcher(r, 'RESET')
     print('  Ctrl-RESET during play: same cleanup and ProDOS launcher: OK')
 
-    # Bitsy Bye lists DAT, END, HOF (three down arrows; the packs and the
+    # Bitsy Bye lists BLK on XL (docs/MEMORY.md 14), DAT, END, HOF (three down arrows; the packs and the
     # preparation are in NEOWILD.DAT since docs/MEMORY.md 13), then the saved
     # games S1..Sn and SAV of lot 9 (docs/SAVE.md; n = what fits on the
     # volume, build/layout.json), then SYSTEM.
     import json
-    saves = len(json.load(open(common.HERE / 'build/layout.json'))['save_games']['files'])
-    r = a2test.run(DISK, [menu, 'key:Q', 'wait:900', 'key:' + '\\v' * (3 + saves + 1), 'key:\\r'] + MENU_SKIP
+    layout = json.load(open(common.HERE / 'build/layout.json'))
+    saves = len(layout['save_games']['files'])
+    blk = 1 if layout['disk']['bytes'] else 0   # NEOWILD.BLK first (docs/MEMORY.md 14)
+    r = a2test.run(DISK, [menu, 'key:Q', 'wait:900', 'key:' + '\\v' * (blk + 3 + saves + 1), 'key:\\r'] + MENU_SKIP
                    + [IDLE, L.peek('mem_ready'), L.peek('xfer_count', 2)], menu=False)
     assert r.mem(L['mem_ready'], 1) == b'\x01'
     print('  relaunch from the ProDOS launcher reaches the menu and the command line again: OK')

@@ -3,19 +3,22 @@
 ; menu.s -- the four 80-column rows as a command surface (lot 8, step 2;
 ; docs/MENUS.md section 4).
 ;
-;   rows 20-23, columns 0-37   the grid of verbs (6 cells of 6), then the
-;                              list of the open verb (durations, directions,
-;                              items in 3 cells of 12, ounces); four rows
-;                              visible, scrolled by row; the selected cell
-;                              in inverse
-;   column 38                  separator
-;   rows 20-23, columns 40-78  the last result, wrapped by words (message),
+;   rows 20-23, columns 0-38   the last result, wrapped by words (message),
 ;                              then, when the result leaves row 23 free,
 ;                              the stock row (food and water carried and
 ;                              here), or "> " + the command as the parser
 ;                              will read it while one is typed or composed
+;   column 39                  separator
+;   rows 20-23, columns 41-78  the grid of verbs (6 cells of 6: eleven
+;                              base verbs at fixed cells, greyed in lower
+;                              case when they cannot act here, then the
+;                              contextual ones that can), then the list of
+;                              the open verb (durations, directions, items
+;                              in 3 cells of 12, ounces); four rows
+;                              visible, scrolled by row; the selected cell
+;                              in inverse
 ;
-; Two homes (docs/MEMORY.md section 11):
+; Three homes (docs/MEMORY.md sections 11 and 18):
 ;   MENUCODE  $BA00-$BDFF, resident: what commands and the INPUT module
 ;             need (message's result column, prompt), the keyboard loop,
 ;             row 23, the stock row, the state. The area is the ProDOS I/O
@@ -27,39 +30,69 @@
 ;             and never drawn (32 chunks of 48 bytes, holes included), put
 ;             there by the loader (boot.s ld_scatter) and copied back by
 ;             get_line at every prompt (menu_gather, 1,536 bytes).
+;   GRID      src/grid.s, a module of the store copied below MENUSWAP at
+;             each RETURN in the grid and each step of its queue: the
+;             lists, the composition, the queue of prerequisites.
 ;
 ; get_line keeps its contract: inbuf / linelen hold a command when it
 ; returns; the menu composes the same text the keyboard would give. An item
 ; chosen in a list is also passed in menu_noun, since display names such
 ; as COTTN SOCKS are not vocabulary words (resolve_noun).
-; Modes: 0 typed line (arrows turn, RETURN, DOWN or TAB opens the grid, UP
-; shows STATUS); 1 grid (arrows move, RETURN selects, ESC backs up, TAB
-; closes it). The numeric
+; Modes: 0 typed line (on an empty line LEFT/RIGHT turn the view, RETURN or
+; TAB opens the grid; UP shows the top pages, STATUS first, DOWN the bottom
+; ones, TOPO first); 1 grid (arrows move, UP on the first row of verbs and TAB
+; close it, RETURN selects, ESC backs up). The numeric
 ; prompt of the INPUT module (prompt) uses the same row. A command issued
 ; from the grid leaves the grid open for the next one.
 ; ============================================================================
 .segment "MENUCODE"
 
-MN_SEP   = 38                   ; separator column
-MN_RIGHT = 40                   ; first column of the result column
+MN_RES   = 0                    ; first column of the result column
+MN_SEP   = 39                   ; separator column
+MN_END   = MN_SEP               ; column after the result column
+MN_GRID  = 41                   ; first column of the grid
 MN_LAST  = 79                   ; reserved column (never written)
 MN_ROWS  = 4                    ; rows of the grid and of the result column
 MN_BOTTOM = 23                  ; last row
 KC_TAB   = $09                  ; TAB (Ctrl-I): the grid on, the grid off
-K_NONE   = 0                    ; verb kinds: the list the verb opens
-K_DUR    = 1
-K_LOOK   = 2
-K_CLIMB  = 3
-K_QTY    = 4
-K_MAKE   = 5                    ; lot 2: FIRE STICKS WATER
-K_ITEMS  = 6                    ; + filter: 0 GET, 1 TAKE, 2 WEAR, 3 DROP, 4 EAT, 5 USE
+; Verb kinds (the first byte of a verb_table entry; bit 7 = K_BASE: a base
+; verb at a fixed cell, shown greyed in lower case when it cannot act here
+; rather than hidden; docs/MENUS.md 4).
+K_NONE   = 0                    ; the label (and its suffix) is the command
+K_DUR    = 1                    ; durations
+K_LOOK   = 2                    ; directions
+K_CLIMB  = 3                    ; TREE or DOWN, the one that applies
+K_MAKE   = 4                    ; lot 2: FIRE, WATER (what can be made here)
+K_CARE   = 5                    ; the MEDICAL page, focus on the first condition
+K_BOIL   = 6                    ; BOIL WATER (UTENSILS first)
+K_ITEMS  = 7                    ; + filter: F_GET .. F_COOK (src/grid.s)
+K_BASE   = $80
+F_GET    = 0                    ; item filters (filt_*, grid.s gr_ranges)
+F_WEAR   = 1
+F_DROP   = 2
+F_EAT    = 3
+F_USE    = 4
+F_DRINK  = 5
+F_KILL   = 6                    ; lot 4: named targets (forage_menu decides)
+F_SKIN   = 7
+F_CATCH  = 8
+F_COOK   = 9
+E_KILL   = 12                   ; verb_table entry of the animal's KILL
 C_SHELTER = 1                   ; context: shown only at the cabin cell, outside
 C_INSIDE = 2                    ; inside the cabin
 C_ANIMAL = 3                    ; an animal on the player's cell
 C_SUFFIX = 4                    ; a second string completes the command
-C_QTY_ITEM = 8                  ; ounces asked after the item (EAT)
-C_QTY    = 16                   ; ounces asked after the verb (DRINK WATER)
-C_FIRE   = 32                   ; shown only while a fire burns (lot 2)
+; Bits 5-7: a condition of the place (src/game.s verb_extra, 14 October 2026:
+; the grid offers only what can be done here).
+X_FIRE   = 32                   ; a fire burns (lot 2: DOUSE)
+X_SWIM   = 64                   ; in water, or the next half-step enters it
+X_CLIMB  = 96                   ; a tree here (TREE), or in a tree (DOWN)
+X_HANG   = 128                  ; a tree here and the backpack carried
+X_LOWER  = 160                  ; the backpack hung on this cell
+X_WALK   = 192                  ; not in water, no water ahead (one cell: WALK or SWIM)
+X_FORAGE = 224                  ; lot 4: CATCH, KILL small game or fish here,
+                                ; SKIN a carcass, COOK (fire) (src/forage.s
+                                ; forage_menu)
 G_WORN   = 1                    ; item group masks (inventory groups)
 G_HAND   = 2
 G_PACK   = 4
@@ -87,8 +120,17 @@ mn_dst: .res 2
 ; ----------------------------------------------------------------------------
 ; get_line -- the prompt: returns with the command in inbuf / linelen.
 ; ----------------------------------------------------------------------------
+; fire_idle -- (idle) no key waits: the campfire's turn (src/fire.s).
+fire_idle:
+        jsr     fire_tick
+        jmp     idle
 get_line:
         jsr     menu_gather
+        lda     mq_n            ; a queue of the grid (src/grid.s): its next
+        beq     get_line_body   ; step, or the end of the queue
+        jsr     grid_fetch
+        jmp     module_queue
+get_line_body:
         lda     mn_mode
         cmp     #1
         beq     :+
@@ -98,8 +140,9 @@ get_line:
         jsr     stock_row
         jsr     redraw
 idle:   lda     KBD             ; tests wait for this loop
-        bpl     idle
+        bpl     fire_idle
         bit     KBDSTRB
+        sta     fire_dly+1      ; a key: the fire waits (src/fire.s)
         and     #$7F
         jsr     kbd_upcase
         ldx     mn_mode
@@ -112,7 +155,7 @@ prompt_key:
         beq     @status
         cmp     #KC_TAB
         beq     @open
-        cmp     #KC_DOWN
+        cmp     #KC_DOWN        ; DOWN opens the grid (its last row: TOPO)
         beq     @open
         cmp     #KC_LEFT
         beq     @left
@@ -158,7 +201,10 @@ prompt_key:
 @right: ldx     linelen
         jne     idle
         ldx     #1
-@turn:  jsr     turn_view
+@turn:  jsr     fire_hide       ; the view scrolls: no fire in it (X kept)
+        jsr     turn_view
+        jsr     level1          ; SWIM depends on the heading
+        jsr     draw_grid
         jmp     idle
 @clear: lda     #0
         sta     linelen         ; inbuf itself is left as the reference does
@@ -166,7 +212,8 @@ prompt_key:
 done_typed:
         lda     #0
         sta     mn_mode         ; the next prompt starts on the typed line
-done:   ldx     linelen
+done:   jsr     fire_hide       ; every command and screen sees the bare view
+        ldx     linelen
         lda     #0
         sta     inbuf,x
         rts
@@ -201,7 +248,7 @@ menu_key:
         cmp     #KC_DOWN
         beq     @down
         cmp     #KC_RET
-        beq     select
+        jeq     select
         jne     idle
 @prev:  ldx     mn_cur
         bne     :+
@@ -219,15 +266,22 @@ menu_key:
 @up:    lda     mn_cur
         sec
         sbc     mn_cols
-        jcc     idle
-        sta     mn_cur
+        bcs     :+
+        lda     mn_level        ; above the first row of verbs: the view
+        cmp     #1
+        beq     @close
+        jmp     idle
+:       sta     mn_cur
         jmp     @moved
 @down:  lda     mn_cur
         clc
         adc     mn_cols
         cmp     mn_count
-        jcs     idle
-        sta     mn_cur
+        bcc     @below
+        jsr     grid_bottom     ; no cell below
+        jcs     done_typed      ; "T": the bottom pages
+        jmp     @moved
+@below: sta     mn_cur
 @moved: jsr     scroll_to_cur
         jsr     draw_grid
         jmp     idle
@@ -239,79 +293,46 @@ menu_key:
 @close: lda     mn_level        ; the grid reopens on the same verb
         cmp     #1
         bne     :+
-        lda     mn_cur
-        sta     mn_verb
+        jsr     verb_of_cur
 :       jsr     to_prompt
 @show:  jsr     redraw
         jmp     idle
 
-; select -- RETURN on the selected cell: the verb opens its list or runs,
-; the list entry completes the command (and may ask the ounces).
-select: lda     mn_level
-        cmp     #1
-        beq     @verb
-        jsr     append_space
-        lda     mn_cur
-        jsr     text_of
-        jsr     append_str
-        lda     mn_level
-        cmp     #3
-        jeq     done_menu
-        lda     mn_items
-        jeq     done_menu
-        ldy     mn_cur
-        lda     overlay_text,y
-        sta     menu_noun
-        lda     mn_ctx
-        and     #C_QTY_ITEM
-        jeq     done_menu
-        lda     menu_noun
-        cmp     #38             ; provisions only: a dose is one item
-        jcs     done_menu
-@ounces:
-        lda     #K_QTY
-        jsr     open_list
-        lda     #3
-        sta     mn_level
-        jmp     @show
-@verb:  lda     mn_cur
-        sta     mn_verb
-        jsr     text_of         ; gp2 = label; its kind and context before it
-        sec
-        lda     gp2
-        sbc     #2
-        sta     gp2
-        bcs     :+
-        dec     gp2+1
-:       ldy     #0
-        lda     (gp2),y
-        sta     mn_kind
-        iny
-        lda     (gp2),y
-        sta     mn_ctx
-        iny
-        tya
-        clc
-        adc     gp2
-        sta     gp2
-        bcc     :+
-        inc     gp2+1
-:       jsr     append_str      ; gp2 then points to the suffix, if any
-        lda     mn_ctx
-        and     #C_SUFFIX
-        beq     :+
-        jsr     append_str
-:       lda     mn_ctx
-        and     #C_QTY
-        bne     @ounces
-        lda     mn_kind
-        jeq     done_menu
-        jsr     open_list
-        lda     #2
-        sta     mn_level
-@show:  jsr     redraw
-        jmp     idle
+; select -- (menu_key) RETURN in the grid: module_select, in GRID (src/grid.s).
+select: jsr     grid_fetch
+        jmp     module_select
 
+; grid_bottom -- (menu_key, DOWN with no cell below) on the last row of the
+; verbs, the grid closes (as UP on its first row does) and the line is "T":
+; TOPO, the bottom pages; C set. Above a shorter last row: its last cell (the
+; next DOWN goes on); in a list: no move; C clear.
+grid_bottom:
+        lda     mn_level
+        cmp     #1
+        bne     @stay
+        lda     #0              ; A = the start of the row below
+:       clc
+        adc     mn_cols
+        cmp     mn_cur
+        beq     :-
+        bcc     :-
+        cmp     mn_count
+        bcs     @pages
+        ldx     mn_count
+        dex
+        stx     mn_cur
+        clc
+        rts
+@pages: jsr     to_prompt
+        lda     #<str_topo
+        sta     gp2
+        lda     #>str_topo
+        sta     gp2+1
+        jsr     append_str
+        sec
+        rts
+@stay:  clc
+        rts
 ; prompt -- the numeric prompt of the INPUT module: "> " on the last row of
 ; the result column, the cursor after it (the module echoes the digits).
 prompt: lda     #0
@@ -320,10 +341,9 @@ prompt: lda     #0
         lda     #MN_BOTTOM
         sta     CV
         jsr     t_vtab
-        ldy     #MN_RIGHT
-        jsr     t_clreol_y
+        jsr     res_clear
         jsr     draw_arrow
-        lda     #MN_RIGHT+2
+        lda     #MN_RES+2
         sta     CH
         rts
 
@@ -381,7 +401,9 @@ menu_gather:
 to_prompt:
         lda     #0
         sta     mn_mode
-; level1 -- the grid of verbs that apply here; the selection is kept.
+; level1 -- the grid of verbs: the base verbs at their fixed cells (greyed
+; when they cannot act here), then the contextual ones that can; the cursor
+; on the last verb chosen, or on KILL when an animal has just arrived.
 level1: lda     #1
         sta     mn_level
         lda     #0
@@ -399,11 +421,27 @@ level1: lda     #1
         lda     #>verb_table
         sta     mn_list+1
         jsr     build_verbs
-        lda     mn_verb         ; back on the last verb chosen
-        cmp     mn_count
-        bcc     :+
+        lda     #C_ANIMAL       ; an animal arrived: the cursor on KILL
+        jsr     ctx_ok
         lda     #0
-:       sta     mn_cur
+        rol     a
+        cmp     mn_anim
+        sta     mn_anim
+        beq     :+
+        bcc     :+
+        lda     #E_KILL
+        sta     mn_verb
+:       ldx     mn_count        ; the cell of the last verb chosen
+:       dex
+        bmi     :+
+        lda     mn_idx,x
+        and     #$7F
+        cmp     mn_verb
+        bne     :-
+        txa
+        .byte   $2C             ; BIT abs: skips the LDA
+:       lda     #0
+        sta     mn_cur
 ; scroll_to_cur -- the three visible rows include the selected cell.
 scroll_to_cur:
         lda     mn_cur
@@ -426,65 +464,13 @@ scroll_to_cur:
         sta     mn_top
 :       rts
 
-; open_list -- A = kind: the list of the open verb, from its first cell.
-open_list:
-        sta     mn_t
-        lda     #0
-        sta     mn_cur
-        sta     mn_top
-        sta     mn_hdr
-        sta     mn_items
-        lda     #6
-        sta     mn_cols
-        sta     mn_wid
-        lda     mn_t
-        cmp     #K_ITEMS
-        bcs     build_items
-        tax
-        lda     list_lo-1,x
-        sta     mn_list
-        sta     gp2
-        lda     list_hi-1,x
-        sta     mn_list+1
-        sta     gp2+1
-        lda     #0
-        sta     mn_count
-@count: ldy     #0
-        lda     (gp2),y
-        beq     @done
-        jsr     skip_str
-        inc     mn_count
-        bne     @count
-@done:  rts
-
-; build_items -- the items the verb may name (mn_t = filter), in
-; overlay_text: accessible here, in a group the verb does not already target.
-build_items:
-        sec
-        sbc     #K_ITEMS
-        sta     mn_t
-        inc     mn_items
-        lda     #3
-        sta     mn_cols
-        lda     #12
-        sta     mn_wid
-        lda     #0
-        sta     mn_count
-        ldy     mn_t
-        ldx     filt_lo,y
-@item:  ldy     mn_t
-        txa
-        cmp     filt_hi,y
-        bcs     @done
-        jsr     item_ok
-        bcc     @next
-        ldy     mn_count
-        txa
-        sta     overlay_text,y
-        inc     mn_count
-@next:  inx
-        bne     @item
-@done:  jmp     use_fire_item
+; verb_of_cur -- mn_verb = the verb_table entry of the selected cell.
+verb_of_cur:
+        ldx     mn_cur
+        lda     mn_idx,x
+        and     #$7F
+        sta     mn_verb
+        rts
 
 ; items_any -- A = filter: C set when one item at least qualifies.
 items_any:
@@ -502,26 +488,37 @@ items_any:
 @none:  clc
 @rts:   rts
 
-; item_ok -- C set when the verb of filter mn_t may name item X: accessible
-; (member), in a group the verb does not target; EAT skips the gear between
-; the provisions and the medicine, and the sunglasses. Preserves X.
+; item_ok -- C set when the verb of filter mn_t (F_GET .. F_DRINK) may name
+; item X: accessible (member), in a group the verb does not target. EAT:
+; the provisions, the oral remedies (FLAGYL, SALT TAB, QUININE) and the
+; piles of food; GET: not the backpack or canteen already in hand. Preserves X.
 item_ok:
         ldy     mn_t
-        cpy     #5
+        cpy     #F_USE
         bne     :+
         jsr     use_item_ok     ; lot 2: the items USE handles
         bcc     @no
-:       cpy     #4
+:       cpy     #F_EAT
         bne     @test
-        cpx     #43
-        beq     @no
         cpx     #38
         bcc     @test
-        cpx     #41
-        bcc     @no
+        cpx     #76
+        bcs     @test
+        cpx     #47
+        beq     @test
+        cpx     #48
+        beq     @test
+        cpx     #50
+        bne     @no
 @test:  jsr     member
         ldy     mn_t
-        sta     mn_n
+        bne     @mask
+        cpx     #21             ; GET: the backpack and the canteen in hand
+        beq     :+              ; are carried already
+        cpx     #64
+        bne     @mask
+:       and     #<~G_HAND
+@mask:  sta     mn_n
         lda     filt_ex,y
         eor     #$FF
         and     mn_n
@@ -534,8 +531,12 @@ item_ok:
 ; member -- A = the groups item X belongs to (G_*) when it is accessible
 ; here, else 0. Provisions: their pack stock (with the pack hung here), their
 ; ground stock on this cell. Gear: its placement, the ground and the hung
-; pack on this cell only. Preserves X.
-member: lda     it_place,x
+; pack on this cell only. The piles of lot 4 (76..86, HIDE 94): their pack
+; and ground stocks (the ground piles are this cell's: forage_here).
+; Preserves X.
+member: cpx     #76
+        bcs     @pile
+        lda     it_place,x
         cmp     #$FF
         beq     @none
         cpx     #N_WATER
@@ -561,7 +562,7 @@ member: lda     it_place,x
         beq     @prov
         jsr     at_ground
         bcc     @prov
-        lda     mn_n
+@both:  lda     mn_n
         ora     #G_GROUND
         sta     mn_n
 @prov:  lda     mn_n
@@ -581,6 +582,43 @@ member: lda     it_place,x
 @here:  jsr     at_ground
         bcs     @rts
         bcc     @none
+@pile:  lda     #FG_HIDE
+        cpx     #94
+        beq     :+
+        cpx     #87
+        bcs     @second
+        txa                     ; (C clear) X - 76
+        sbc     #76-1
+:       tay
+        lda     #0
+        sta     mn_n
+        lda     fg_pl,y
+        ora     fg_ph,y
+        beq     :+
+        lda     #G_PACK
+        sta     mn_n
+:       lda     fg_gl,y
+        ora     fg_gh,y
+        bne     @both
+        beq     @prov
+; lot 3: BOW, SPEAR, CLUB, ROCK, SPLINT (89..93, src/craft.s cr_b1), for the
+; grid's greyed verbs a superset (the lists are exact: src/grid.s gr_ok):
+; their place, the ground of any cell; the ROCK absent, on the land cell
+; reached since (cr_rock_land).
+@second:
+        txa                     ; (C set)
+        sbc     #89
+        bcc     @none           ; 87, 88
+        tay
+        lda     cr_b1,y
+        bpl     @placed
+        cpy     #3
+        bne     @none
+        jmp     cr_rock_land
+@placed:
+        tay
+        lda     place_mask,y
+        rts
 ; hung_here -- C set when the backpack hangs on this cell.
 hung_here:
         lda     px+1
@@ -595,9 +633,12 @@ hung_here:
         rts
 place_mask: .byte G_GROUND, G_WORN, G_PACK, G_HAND, G_PACK, G_HUNG
 
-; build_verbs -- mn_idx = the entries of verb_table whose context applies
-; (mn_c counts the entries: items_any uses mn_n).
+; build_verbs -- mn_idx = the cells of the grid: the entries of verb_table
+; that apply here, and the base ones that do not with bit 7 (greyed); mn_c
+; counts the entries.
 build_verbs:
+        jsr     forage_here     ; the piles of another cell are lost
+        jsr     water_bits      ; (cached: no probe below)
         lda     #0
         sta     mn_count
         sta     mn_c
@@ -613,24 +654,99 @@ build_verbs:
         lda     (gp2),y
         and     #3
         jsr     ctx_ok
-        bcc     @skip
-        jsr     fire_ctx
-        bcc     @skip
-        ldy     #0              ; an item verb: only with something to name
+        bcc     @no
+        ldy     #1              ; the place's condition: a fire here,
+        lda     (gp2),y         ; else verb_extra (resident)
+        and     #$E0
+        cmp     #X_FIRE
+        bne     :+
+        lda     fire_on
+        beq     @no
+        bne     @kind
+:       jsr     verb_extra
+        bcc     @no
+@kind:  ldy     #0              ; the kind's condition (items, care...)
         lda     (gp2),y
-        cmp     #K_ITEMS
-        bcc     @add
-        sbc     #K_ITEMS
-        jsr     items_any
-        bcc     @skip
-@add:   ldy     mn_count
+        and     #$7F
+        jsr     kind_ok
         lda     mn_c
+        bcs     @add
+@no:    ldy     #0              ; a base verb stays, greyed
+        lda     (gp2),y
+        bpl     @skip
+        lda     mn_c
+        ora     #$80
+@add:   ldy     mn_count
         sta     mn_idx,y
         inc     mn_count
 @skip:  jsr     skip_entry
         inc     mn_c
         jmp     @loop
 @done:  rts
+
+; kind_ok -- A = kind: C set when the verb can act here. Items: one to name
+; (a source of water for DRINK, and for GET with the canteen); CARE: a
+; condition active; BOIL: a fire or the stove in use, UTENSILS, water; MAKE:
+; a fire or water (mk_fire, mk_water). Keeps gp2.
+kind_ok:
+        tax
+        lda     gp2
+        pha
+        lda     gp2+1
+        pha
+        txa
+        jsr     @test
+        pla
+        sta     gp2+1
+        pla
+        sta     gp2
+        rts
+@test:  cmp     #K_ITEMS
+        bcs     @items
+        cmp     #K_CARE
+        beq     @care
+        cmp     #K_BOIL
+        beq     @boil
+        cmp     #K_MAKE
+        bne     @yes
+        jsr     mk_fire
+        bcs     @rts
+        jmp     mk_water
+@items: sbc     #K_ITEMS
+        cmp     #F_KILL         ; lot 4's: forage_menu decided
+        bcs     @yes
+        pha
+        jsr     items_any
+        pla
+        bcs     @rts
+        cmp     #F_DRINK
+        beq     :+
+        cmp     #F_GET
+        bne     @no
+        ldx     #64             ; GET of a source: into the canteen
+        jsr     have
+        bcc     @rts
+:       jmp     grid_water
+@rts:   rts
+@care:  ldx     #12
+:       lda     injury_active,x
+        bne     @yes
+        dex
+        bpl     :-
+@no:    clc
+        rts
+@boil:  lda     fire_on
+        bne     :+
+        lda     camp_use
+        and     #U_STOVE
+        beq     @no
+:       ldx     #73             ; UTENSILS (USE UTENSILS goes first)
+        jsr     have
+        bcc     @rts
+        ldx     #N_WATER        ; the canteen, or the pile here
+        jmp     have
+@yes:   sec
+        rts
 
 ; ctx_ok -- C set when context A (0..3) applies now (summary_hint's tests).
 ctx_ok: beq     @yes
@@ -672,11 +788,12 @@ text_of:
         lda     mn_items
         beq     @walk
         ldx     overlay_text,y
-        jmp     item_name
+        jmp     grid_item_name  ; (src/grid.s: a list is open, GRID is here)
 @walk:  lda     mn_level
         cmp     #1
         bne     :+
         lda     mn_idx,y        ; the grid: entry number
+        and     #$7F
         tay
 :       sty     mn_n
         lda     mn_list
@@ -747,22 +864,44 @@ skip_done:
         bcc     :+
         inc     gp2+1
 :       rts
-append_space:
-        lda     #' '
-        ldx     linelen
-        cpx     #MAXLINE
-        bcs     :+
-        sta     inbuf,x
-        inc     linelen
-:       rts
 
+; mk_fire -- C set when MAKE FIRE can succeed here (camp.s make_fire, the
+; grid lighting a match first): no fire yet, not in water nor on snowy
+; rocks, MATCHES with a use left; in rain or a wind of 41 mph and more,
+; FUEL with an ounce left, or the shelter.
+mk_fire:
+        lda     fire_on
+        bne     mk_no
+        jsr     water_bits
+        and     #2
+        bne     mk_no
+        jsr     woods_here      ; rocky (bare, level 96 and more) and snowy
+        bcs     :+
+        jsr     level_here
+        cmp     #96
+        bcc     :+
+        cmp     M_SNOW
+        bcs     mk_no
+:       ldx     #38
+        jsr     mk_stock
+        bcc     mk_rts
+        jsr     camp_storm
+        bcc     mk_yes
+        lda     shelter_inside
+        bne     mk_yes
+        ldx     #40
+        jmp     mk_stock
+mk_yes: sec
+mk_rts: rts
+mk_no:  clc
+        rts
 ; ----------------------------------------------------------------------------
 ; drawing (t_update: one store per changed cell, both pages)
 ; ----------------------------------------------------------------------------
 redraw: jsr     draw_grid
         jmp     draw_line
 
-; draw_grid -- rows 20-23, columns 0-37: the visible cells, the separator.
+; draw_grid -- rows 20-23, columns 41-78: the separator, the visible cells.
 draw_grid:
         lda     #0
         sta     mn_row
@@ -782,15 +921,23 @@ draw_grid:
 @times: cpx     #0
         bne     :-
         sta     mn_i            ; first index of the row
-        lda     #0
+        lda     #MN_GRID
         sta     mn_col
         lda     mn_cols
         sta     mn_c
 @cell:  lda     #0
         sta     mn_inv
-        lda     mn_i
-        cmp     mn_count
+        ldy     mn_i
+        cpy     mn_count
         bcs     @blank
+        lda     mn_level        ; a greyed verb: bit 6 (lower case)
+        cmp     #1
+        bne     :+
+        lda     mn_idx,y
+        and     #$80
+        lsr     a
+        sta     mn_inv
+:       tya
         jsr     text_of
         lda     mn_mode
         cmp     #1
@@ -798,7 +945,9 @@ draw_grid:
         lda     mn_i
         cmp     mn_cur
         bne     @put
-        dec     mn_inv
+        lda     mn_inv          ; the selection: bit 7 (inverse)
+        ora     #$80
+        sta     mn_inv
         bne     @put
 @blank: jsr     empty_text
 @put:   lda     mn_wid
@@ -807,7 +956,7 @@ draw_grid:
         inc     mn_i
         dec     mn_c
         bne     @cell
-        lda     #MN_SEP
+        lda     #MN_LAST
         sec
         sbc     mn_col
         beq     @sep
@@ -815,11 +964,13 @@ draw_grid:
         sta     mn_w
         jsr     empty_text
         jsr     cell_put
-@sep:   lda     #'|'|$80        ; the separator shows the rows out of view
-        ldx     mn_row
+@sep:   XL_IMM  XI_SWAP, MT_LBAR, @x50  ; (XL, docs/MENUS.md 9: MouseText, a
+        lda     #'|'|$80        ; bar and arrows) the separator shows the
+        ldx     mn_row          ; rows out of view
         bne     :+
         ldy     mn_top
         beq     @mark
+        XL_IMM  XI_SWAP, MT_UP, @x51
         lda     #'^'|$80
         bne     @mark
 :       cpx     #MN_ROWS-1
@@ -827,6 +978,7 @@ draw_grid:
         ldy     mn_i            ; first index of the next row
         cpy     mn_count
         bcs     @mark
+        XL_IMM  XI_SWAP, MT_DOWN, @x52
         lda     #'V'|$80
 @mark:  ldy     #MN_SEP
         jsr     t_update
@@ -854,14 +1006,13 @@ draw_line:
         jsr     t_bascalc
         lda     linelen
         bne     @command
-        ldy     #MN_RIGHT       ; an empty line: inbuf keeps the last command
-        jsr     t_clreol_y
+        jsr     res_clear       ; an empty line: inbuf keeps the last command
         jmp     stock_row
 @command:
         jsr     draw_arrow
-        lda     #MN_RIGHT+2
+        lda     #MN_RES+2
         sta     mn_col
-        lda     #MN_LAST-MN_RIGHT-2
+        lda     #MN_END-MN_RES-2
         sta     mn_w
         lda     #0
         sta     mn_inv
@@ -875,16 +1026,25 @@ draw_line:
 ; (BASL set to it).
 draw_arrow:
         lda     #'>'|$80
-        ldy     #MN_RIGHT
+        ldy     #MN_RES
         jsr     t_update
         lda     #' '|$80
-        ldy     #MN_RIGHT+1
+        ldy     #MN_RES+1
         jmp     t_update
+
+; res_clear -- the result column of row BASL in spaces (the grid stays).
+; Preserves X.
+res_clear:
+        lda     #MN_END
+        sta     pad_limit
+        ldy     #MN_RES
+        jmp     clear_to
 
 ; cell_put -- the string at gp2 from column mn_col, padded with spaces to
 ; mn_w cells (one space at least after a longer label: cells are
 ; proportional, a row of six fits in 38 columns for every run of six
-; verbs), in inverse when mn_inv is set. mn_col ends after the cell.
+; verbs; a list row may run one cell long, clipped before column 79), in
+; inverse when mn_inv is set. mn_col ends after the cell.
 cell_put:
         ldy     #0
         sty     mn_k
@@ -904,6 +1064,7 @@ cell_put:
 @one:   ldx     #1
 @spaces:
         lda     #' '
+        XL_ABS  XI_MENU, page_foot, @x53        ; (XL: xl_pad, below)
         jsr     cell_char
         dex
         bne     @spaces
@@ -911,11 +1072,19 @@ cell_put:
 cell_char:
         ora     #$80
         bit     mn_inv
-        bpl     :+
+        bvc     @case           ; a greyed verb: its letters in lower case,
+        cmp     #'A'|$80        ; never inverse (the primary character set
+        bcc     @case           ; has no inverse lower case): selected, its
+        ora     #$20            ; spaces alone are
+        bne     @put
+@case:  bit     mn_inv
+        bpl     @put
         and     #$3F
-:       ldy     mn_col
+@put:   ldy     mn_col
+        cpy     #MN_LAST
+        bcs     :+
         jsr     t_update
-        inc     mn_col
+:       inc     mn_col
         rts
 
 ; ----------------------------------------------------------------------------
@@ -928,15 +1097,14 @@ msg_begin:
         ldx     #MN_BOTTOM+1-MN_ROWS
 @row:   txa
         jsr     t_bascalc
-        ldy     #MN_RIGHT
-        jsr     t_clreol_y
+        jsr     res_clear
         inx
         cpx     #MN_BOTTOM+1
         bcc     @row
         lda     #MN_BOTTOM+1-MN_ROWS
         sta     CV
         jsr     t_vtab
-        lda     #MN_RIGHT
+        lda     #MN_RES
         sta     CH
         lda     #0
         sta     msg_wlen
@@ -950,16 +1118,16 @@ msg_char:
         cmp     #' '|$80
         beq     @space
         ldy     msg_wlen
-        cpy     #MN_LAST-MN_RIGHT
+        cpy     #MN_END-MN_RES
         bcs     @done
         sta     msg_word,y
         inc     msg_wlen
         bne     @done
 @space: jsr     msg_flush
         lda     CH
-        cmp     #MN_RIGHT       ; no space at the start of a row
+        cmp     #MN_RES         ; no space at the start of a row
         beq     @done
-        cmp     #MN_LAST
+        cmp     #MN_END
         bcs     @done
         lda     #' '|$80
         jsr     COUT
@@ -976,7 +1144,7 @@ msg_flush:
 :       sty     msg_y
         clc
         adc     CH
-        cmp     #MN_LAST+1
+        cmp     #MN_END+1
         bcc     @print
         lda     CV
         cmp     #MN_BOTTOM
@@ -984,7 +1152,7 @@ msg_flush:
         jsr     msg_row
 @print: ldy     #0
 @ch:    lda     CH
-        cmp     #MN_LAST
+        cmp     #MN_END
         bcs     @end
         lda     msg_word,y
         jsr     COUT
@@ -998,7 +1166,7 @@ msg_flush:
 msg_row:
         inc     CV
         jsr     t_vtab
-        lda     #MN_RIGHT
+        lda     #MN_RES
         sta     CH
         rts
 ; msg_newline -- "|" of a message: a new row while one is left, else a space.
@@ -1011,13 +1179,15 @@ msg_newline:
         jmp     msg_char
 
 ; stock_row -- the last row of the result column, when the result left it blank:
-; the food and water carried (pack, canteen), then those on this cell.
+; the food and water carried (pack, canteen), then those on this cell, in
+; ounces: "FOOD 192 WATER 64 HERE 248/0 OZ" (39 columns with four digits
+; everywhere).
 .segment "MENUSWAP"
 stock_row:
         lda     #MN_BOTTOM
         jsr     t_bascalc
-        ldy     #MN_RIGHT/2
-        sta     PAGE2_AUX       ; column 40: even, auxiliary page
+        ldy     #MN_RES/2
+        sta     PAGE2_AUX       ; column 0: even, auxiliary page
         lda     (BASL),y
         sta     PAGE2_MAIN
         cmp     #' '|$80
@@ -1026,23 +1196,27 @@ stock_row:
 :       lda     #MN_BOTTOM
         sta     CV
         jsr     t_vtab
-        lda     #MN_RIGHT
+        lda     #MN_RES
         sta     CH
         jsr     puts
         .byte   "FOOD ",0
         ldx     #23
         jsr     sum_pack
         jsr     puts
-        .byte   " OZ  WATER ",0
+        .byte   " WATER ",0
         ldx     #N_WATER
         jsr     sum_pack
         jsr     puts
-        .byte   " OZ  HERE ",0
+        .byte   " HERE ",0
         ldx     #23
         jsr     sum_ground
         jsr     puts
         .byte   "/",0
         ldx     #N_WATER
+        jsr     sum_ground
+        jsr     puts
+        .byte   " OZ",0
+        rts
 ; sum_ground -- X = first item: the ground ounces here of the provisions X..
 sum_ground:
         lda     #$80
@@ -1092,8 +1266,8 @@ sum_items:
         adc     it_gnd_hi,x
         sta     num+1
         jmp     @next
-@print: lda     CH              ; five digits at most: never past column 78
-        cmp     #MN_LAST-5
+@print: lda     CH              ; five digits at most: never past column 38
+        cmp     #MN_END-5
         bcs     @rts
         jmp     print_u16
 @rts:   rts
@@ -1102,69 +1276,53 @@ sum_items:
 ; tables
 ; ----------------------------------------------------------------------------
 .segment "MENUSWAP"
-; verb_table -- kind, context, label, 0 [, suffix, 0]; $FF ends. Contextual
-; verbs come first, as in the survival band.
+; verb_table -- kind, context, label, 0 [, suffix, 0]; $FF ends (docs/MENUS.md
+; 4). The base verbs first, at fixed cells (row 20: WALK or SWIM, LOOK,
+; REST, WAIT, EAT, DRINK; row 21: GET, WEAR, DROP, USE, MAKE), greyed when
+; K_BASE and they cannot act here; then the contextual ones that can, by
+; urgency: the animal, the fire, the care, the lot 4 and lot 2 work, the
+; tree and the cabin. E_KILL is the animal's KILL (ATTACK).
 verb_table:
-        .byte   K_NONE, C_INSIDE|C_SUFFIX, "EXIT", 0, " SHELTER", 0
-        .byte   K_NONE, C_SHELTER|C_SUFFIX, "ENTER", 0, " SHELTER", 0
-        .byte   K_NONE, C_ANIMAL, "IGNORE", 0
-        .byte   K_NONE, C_ANIMAL, "SCARE", 0
-        .byte   K_NONE, C_ANIMAL, "ATTACK", 0
-        .byte   K_DUR, 0, "WALK", 0
-        .byte   K_DUR, 0, "SWIM", 0
+        .byte   K_DUR, X_SWIM, "SWIM", 0
+        .byte   K_DUR, X_WALK, "WALK", 0
         .byte   K_LOOK, 0, "LOOK", 0
         .byte   K_DUR, 0, "REST", 0
         .byte   K_DUR, 0, "WAIT", 0
-        .byte   K_ITEMS+4, C_QTY_ITEM, "EAT", 0
-        .byte   K_ITEMS+6, C_QTY_ITEM, "DRINK", 0
-        .byte   K_ITEMS+0, 0, "GET", 0
-        .byte   K_ITEMS+1, 0, "TAKE", 0
-        .byte   K_ITEMS+2, 0, "WEAR", 0
-        .byte   K_ITEMS+3, 0, "DROP", 0
-        .byte   K_ITEMS+5, 0, "USE", 0
-        .byte   K_CLIMB, 0, "CLIMB", 0
-        .byte   K_NONE, C_SUFFIX, "HANG", 0, " FOOD", 0
-        .byte   K_NONE, C_SUFFIX, "LOWER", 0, " FOOD", 0
-        .byte   K_NONE, 0, "STATUS", 0
-        .byte   K_NONE, C_SUFFIX, "INVENT", 0, "ORY", 0
-        .byte   K_NONE, 0, "TOPO", 0
-        .byte   K_NONE, 0, "MAP", 0
-        .byte   K_NONE, 0, "HELP", 0
-        .byte   K_NONE, 0, "QUIT", 0
-        .byte   K_MAKE, 0, "MAKE", 0
-        .byte   K_NONE, C_SUFFIX, "BOIL", 0, " WATER", 0
-        .byte   K_NONE, C_FIRE|C_SUFFIX, "DOUSE", 0, " FIRE", 0
+        .byte   K_BASE|K_ITEMS+F_EAT, 0, "EAT", 0
+        .byte   K_BASE|K_ITEMS+F_DRINK, 0, "DRINK", 0
+        .byte   K_BASE|K_ITEMS+F_GET, 0, "GET", 0
+        .byte   K_BASE|K_ITEMS+F_WEAR, 0, "WEAR", 0
+        .byte   K_BASE|K_ITEMS+F_DROP, 0, "DROP", 0
+        .byte   K_BASE|K_ITEMS+F_USE, 0, "USE", 0
+        .byte   K_BASE|K_MAKE, 0, "MAKE", 0
+        .byte   K_NONE, C_ANIMAL, "KILL", 0             ; E_KILL
+        .byte   K_NONE, C_ANIMAL, "SCARE", 0
+        .byte   K_NONE, C_ANIMAL, "IGNORE", 0
+        .byte   K_NONE, X_FIRE|C_SUFFIX, "DOUSE", 0, " FIRE", 0
+        .byte   K_CARE, 0, "CARE", 0
+vt_cook:  .byte K_ITEMS+F_COOK, X_FORAGE, "COOK", 0
+        .byte   K_BOIL, 0, "BOIL", 0
+vt_skin:  .byte K_ITEMS+F_SKIN, X_FORAGE, "SKIN", 0
+vt_catch: .byte K_ITEMS+F_CATCH, X_FORAGE, "CATCH", 0
+vt_kill:  .byte K_ITEMS+F_KILL, X_FORAGE, "KILL", 0
+        .byte   K_CLIMB, X_CLIMB, "CLIMB", 0
+        .byte   K_NONE, X_HANG|C_SUFFIX, "HANG", 0, " FOOD", 0
+        .byte   K_NONE, X_LOWER|C_SUFFIX, "LOWER", 0, " FOOD", 0
+        .byte   K_NONE, C_SHELTER|C_SUFFIX, "ENTER", 0, " SHELTER", 0
+        .byte   K_NONE, C_INSIDE|C_SUFFIX, "EXIT", 0, " SHELTER", 0
         .byte   $FF
-list_lo: .byte  <list_dur, <list_look, <list_climb, <list_qty, <list_make
-list_hi: .byte  >list_dur, >list_look, >list_climb, >list_qty, >list_make
-list_dur:   .byte "10 MIN",0,"20 MIN",0,"30 MIN",0,"1 H",0,"2 H",0,"4 H",0,"8 H",0,0
-list_look:  .byte "LEFT",0,"RIGHT",0,"BACK",0,"AHEAD",0,"UP",0,"DOWN",0,"NORTH",0,"EAST",0,"SOUTH",0,"WEST",0,"SUN",0,"STARS",0,0
-list_climb: .byte "TREE",0,"DOWN",0,0
-list_qty:   .byte "2 OZ",0,"4 OZ",0,"8 OZ",0,"12 OZ",0,"16 OZ",0,"24 OZ",0,"32 OZ",0,"48 OZ",0,0
 str_empty:   .byte 0
 str_status:  .byte "STATUS", 0
+str_topo:    .byte "T", 0        ; fast_words: TOPO
+.assert >str_topo = >str_status, error, "prompt_key: one high byte for both"
 .segment "MENUCODE"
-; Item filters: first item, last + 1, the groups the verb already targets
-; (GET, TAKE, WEAR, DROP, EAT, USE, DRINK: the water alone). Resident since
-; the integration of lots 2, 7, 9 and 13 filled MENUSWAP.
-filt_lo: .byte  1, 1, 1, 1, 23, 38, N_WATER
-filt_hi: .byte  76, 76, 21, 76, 52, 74, N_WATER+1   ; USE: 38-73 (lot 2; lot 7's MAP...CHART within)
-filt_ex: .byte  G_PACK, G_HAND, G_WORN, G_GROUND|G_HUNG, G_HUNG, 0, G_HUNG
-; Lot 2 (docs/CAMP.md): MAKE FIRE/STICKS/WATER, BOIL WATER, DOUSE FIRE
-; while a fire burns, USE of the camp items and of the fire itself.
-list_make:  .byte "FIRE",0,"STICKS",0,"WATER",0,0
-; fire_ctx -- C set unless entry gp2 asks for a fire and none burns.
-fire_ctx:
-        ldy     #1
-        lda     (gp2),y
-        and     #C_FIRE
-        beq     @yes
-        lda     fire_on
-        beq     @no
-@yes:   sec
-        rts
-@no:    clc
-        rts
+; Item filters F_GET .. F_DRINK (the grid's test, items_any): first item,
+; last + 1, the groups the verb does not name (GET: not the pack's nor the
+; worn; DRINK: the water alone). The piles of lot 4 (76..86, HIDE 94) are
+; members too (member). Resident since the integration of lots 2, 7, 9 and 13.
+filt_lo: .byte  1, 2, 1, 23, 38, N_WATER
+filt_hi: .byte  95, 21, 95, 87, 94, N_WATER+1   ; USE: 38-73 (lot 2; lot 7's MAP...CHART within), 89-93 (lot 3)
+filt_ex: .byte  G_PACK|G_WORN, 0, G_GROUND|G_HUNG, G_HUNG, 0, G_HUNG
 ; use_item_ok -- C set when USE handles item X: GND COVER, RAINCOAT,
 ; MATCHES, GLASS, FUEL, the medicine (41-51), FLASHLIGHT, STOVE, UTENSILS.
 use_item_ok:
@@ -1184,32 +1342,47 @@ use_item_ok:
         cmp     #1              ; C set when the bit is
         rts
 use_bit:    .byte 1,2,4,8,16,32,64,128
-use_items:  .byte $00,$18,$00,$00,$C0,$FF,$0F,$00,$84,$02 ; 11,12,38-51,66,71,73
-; use_fire_item -- after the items of USE, the fire when one burns.
-use_fire_item:
-        lda     mn_t
-        cmp     #5
-        bne     @rts
-        lda     fire_on
-        beq     @rts
-        ldy     mn_count
-        lda     #88
-        sta     overlay_text,y
-        inc     mn_count
-@rts:   rts
-; item_name -- gp2 = the display name of item X (88: FIRE).
-item_name:
-        cpx     #76
-        bcs     @fire
-        lda     it_name_lo,x
-        sta     gp2
-        lda     it_name_hi,x
-        sta     gp2+1
+use_items:  .byte $00,$18,$00,$00,$C0,$FF,$0F,$00,$84,$02,$00,$3E ; 11,12,38-51,66,71,73, 89-93
+; cr_rock_land -- (member) the ROCK absent: G_GROUND on a land cell once
+; the player has left the settled cell (cr_still 0; water_bits, cached at
+; the prompt: bit 1 water), else 0 (settled: in the water).
+cr_rock_land:
+        lda     cr_still
+        asl     a
+        ora     wb_bits
+        and     #2
+        eor     #2
+        asl     a
+        asl     a
         rts
-@fire:  lda     #<list_make
-        sta     gp2
-        lda     #>list_make
-        sta     gp2+1
+; mk_stock -- C set when item X is here with a use (an ounce) left.
+mk_stock:
+        jsr     have
+        bcc     mk_rts2
+        lda     it_pack_lo,x
+        ora     it_pack_hi,x
+        cmp     #1
+        rts
+; mk_water -- C set when MAKE WATER can: a GND COVER or RAINCOAT here (its
+; USE goes first), AM or PM under a clear sky (water_condense_ok without
+; the sunset).
+mk_water:
+        ldx     #11
+        jsr     have
+        bcs     :+
+        ldx     #12
+        jsr     have
+        bcc     mk_rts2
+:       lda     weather_sky
+        bne     mk_no2
+        lda     period
+        cmp     #2
+        bcc     mk_rts2
+        cmp     #4
+        bcs     mk_no2
+        sec
+mk_rts2: rts
+mk_no2: clc
         rts
 
 ; State: part of the image (zero at the start) rather than BSS, since the
@@ -1218,7 +1391,7 @@ item_name:
 mn_mode:  .byte 0               ; 0 typed line, 1 grid
 mn_level: .byte 0               ; 1 verbs, 2 the list of the verb, 3 ounces
 mn_cur:   .byte 0               ; selected cell
-mn_verb:  .byte 0               ; the verb last chosen (the grid returns to it)
+mn_verb:  .byte 0               ; the verb_table entry last chosen (the grid returns to it)
 mn_top:   .byte 0               ; first visible row
 mn_count: .byte 0
 mn_cols:  .byte 0               ; cells per row
@@ -1227,10 +1400,53 @@ mn_hdr:   .byte 0               ; bytes before a label (2: verb_table)
 mn_items: .byte 0               ; the list names items (overlay_text)
 mn_list:  .word 0
 mn_kind:  .byte 0
-mn_ctx:   .byte 0
+mn_anim:  .byte 0               ; 1: an animal was here at the last grid
 menu_noun: .byte 0              ; item chosen in a list (resolve_noun)
 msg_wlen: .byte 0
 msg_x:    .byte 0
 msg_y:    .byte 0
-mn_idx:   .res 32               ; the grid: applicable entries of verb_table
-msg_word: .res MN_LAST-MN_RIGHT
+mn_idx:   .res 27               ; the grid: entries of verb_table (bit 7: greyed), one at most each
+msg_word: .res MN_END-MN_RES
+
+.segment "RESCODE"
+; grid_fetch -- the GRID module (src/grid.s) into the SIM window, below
+; the grid's image: RETURN in the grid, a step of its queue. Counted as a module
+; load, as load_totals_quiet does.
+grid_fetch:
+        ldx     #GRID_MODULE
+        jsr     mem_fetch
+        lda     #0
+        sta     sim_loaded
+        inc     overlay_reads
+        bne     :+
+        inc     overlay_reads+1
+:       rts
+
+; grid_water -- C set with water to drink or collect here: rain or snow
+; falling, a river or lake (water_here on a legacy map; on a native one, in
+; the water).
+grid_water:
+        lda     weather_sky
+        cmp     #2
+        bcs     @rts
+        lda     MAP+37
+        bne     :+
+        jmp     water_here
+:       jsr     water_bits
+        and     #2
+        cmp     #1
+@rts:   rts
+
+; The queue of the grid (src/grid.s, docs/MENUS.md 4): the steps a choice
+; needs, typed one after the other by get_line. Not saved (a queue never
+; outlives the choice that made it).
+.segment "LOWPAGE"
+mq_n:     .byte 0               ; steps (0: no queue)
+mq_i:     .byte 0               ; the next one
+mq_noun:  .byte 0               ; the item of a step that names one
+mq_enc:   .byte 0               ; journey_encounters when it began
+mq_list:  .res 5                ; the steps (grid.s S_*)
+pg_open:  .byte 0               ; CARE: STATUS opens on MEDICAL, focused
+
+.segment "MENUCODE"
+

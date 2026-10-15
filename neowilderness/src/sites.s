@@ -14,8 +14,8 @@ module_site:
         ldx     #>site_leave
         jmp     message
 @enter: lda     noun
-        cmp     #137             ; SHELTER, not manufactured HUT (95)
-        bne     @specific
+        cmp     #137             ; SHELTER (found); HUT, IGLOO, TRENCH, TENT: lot 3
+        jne     @crafted
         lda     tree_in
         beq     :+
         jmp     do_tree          ; tail-call resident loader before replacing SITES
@@ -38,14 +38,14 @@ module_site:
         lda     py
         cmp     MAP+35
         bne     @absent
+        ; The animal stays (D4, docs/CRAFT.md 3.4): risk x .1 inside,
+        ; ATTACK and SCARE allowed; the shelter shows no view.
 :       lda     #1
         sta     shelter_inside
-        lda     #0
-        sta     animal_kind
         jmp     show_view
 @exit:  lda     noun
         cmp     #137
-        bne     @specific
+        jne     @crafted
         lda     shelter_inside
         beq     @outside
         lda     #0
@@ -75,6 +75,64 @@ module_site:
         ldx     #>site_outside
         jmp     message
 
+; ENTER, EXIT of the HUT, IGLOO, TRENCH (lot 3, docs/CRAFT.md; T12/S08 as
+; probed): absent msg 1; ENTER inside msg 11, else in (msg 10, the IGLOO
+; 35 F, health steps of 15 minutes); EXIT outside msg 11, else out (msg 10).
+; The TENT alike, present here or carried.
+@crafted:
+        ldx     noun
+        cpx     #9
+        beq     :+
+        cpx     #95
+        bcc     @specific
+        cpx     #98
+        bcs     @specific
+        txa
+        sec
+        sbc     #95
+        tay
+        lda     cr_sx,y
+        cmp     px+1
+        bne     @gone
+        lda     cr_sy,y
+        cmp     py+1
+        bne     @gone
+        beq     @here
+:       jsr     have
+        bcc     @gone
+@here:  lda     verb
+        cmp     #V_ENTER
+        bne     @out
+        lda     tree_in
+        beq     :+
+        jmp     do_tree
+:       lda     shelter_inside
+        bne     @have
+        ldx     #1
+        lda     noun
+        cmp     #96             ; IGLOO
+        bne     :+
+        inx
+:       stx     shelter_inside
+        lda     #15
+        sta     health_period
+        bne     @ok
+@out:   lda     shelter_inside
+        beq     @have
+        lda     #0
+        sta     shelter_inside
+        sta     scene_minutes
+@ok:    lda     #<m_ok
+        ldx     #>m_ok
+        jsr     message
+        jmp     show_view
+@have:  lda     #<c_m11
+        ldx     #>c_m11
+        jmp     message
+@gone:  lda     #<c_m1
+        ldx     #>c_m1
+        jmp     message
+
 module_shelter_view:
         lda     #0
         sta     scene_drawn
@@ -97,9 +155,11 @@ module_shelter_view:
 ; 80-column characters per cell (square on screen), north up, centred on
 ; the player and clamped to the grid. Row 0 starts with a short inverse cue
 ; (minutes travelled while walking, the player's cell, magnetic heading
-; and cardinal, the site under P); every other character is map. Arrow keys
-; (or WASD) scroll, C recentres; Return, Space and Escape return to the
-; view (kept intact: MAP only writes the text page). During WALK/SWIM the
+; and cardinal, the site under P); every other character is map. I, J, K, L
+; scroll, C recentres; LEFT and RIGHT turn to TOPO (MAP and TOPO are the
+; bottom pages); UP, Return, Space and Escape return to the view (kept
+; intact: MAP only writes the text page; over TOPO, topo_over, its snapshot
+; comes back). During WALK/SWIM the
 ; window stays put: a half-step rewrites P's old and new cells and the
 ; changed characters of the cue; within TOPO_MARGIN cells of an edge it
 ; scrolls by a quarter window (one full differential redraw).
@@ -119,6 +179,15 @@ topo_cue_end: .res 1            ; cells under that cue; 0: no walking map shown
 .export topo_cue_end
 .segment "SITES"
 module_topo:
+        bit     game_options    ; the OPTIONS page can turn MAP off
+        bvc     :+
+        lda     #<topo_off
+        ldx     #>topo_off
+        jmp     message
+topo_off: .byte "MAP IS OFF (OPTIONS PAGE).", 0
+:       lda     #0              ; over the view
+topo_enter:
+        sta     topo_over
         lda     #0
         sta     topo_walk
         jsr     topo_center
@@ -211,13 +280,18 @@ topo_follow:
         lda     topo_y
         cmp     topo_rows
         bne     @redraw
-        lda     topo_px         ; P's glyph still shown (inverse letter +
-        ldx     topo_py         ; space: $20 in main memory; view_hide
-        jsr     topo_at         ; would have left $A0)
+        lda     topo_px         ; P's glyph still shown (inverse P in the
+        ldx     topo_py         ; aux byte; view_hide would have left $A0)
+        jsr     topo_at
         lsr     a
         tay
+        php
+        sei
+        sta     PAGE2_AUX
         lda     ($28),y
-        cmp     #$20
+        sta     PAGE2_MAIN
+        plp
+        cmp     #'P'&$3F
         bne     @redraw
         clc
         rts
@@ -427,7 +501,8 @@ topo_cue:
         rts
 
 ; MAP is 80-column text: a cell is two characters (square on screen), the
-; terrain symbol twice, a site or the player as an inverse letter + space.
+; terrain symbol twice, a site or the player as a single inverse letter
+; followed by the terrain symbol of its cell (topo_ground, set by topo_cell).
 topo_put2:
         sta     topo_c_main     ; terrain: the symbol twice
         sta     topo_c_aux
@@ -437,9 +512,10 @@ topo_put2:
         dex
         bpl     :-
         bmi     @put
-@mark:  and     #$3F            ; site or player: inverse letter + space
+@mark:  and     #$3F            ; site or player: inverse letter + terrain
         sta     topo_c_aux
-        lda     #$20
+        lda     topo_ground
+        ora     #$80
         sta     topo_c_main
 @put:   lda     CH              ; even column: aux byte CH/2, then main
         lsr     a
@@ -470,38 +546,49 @@ topo_show:
         jsr     show_text
 topo_key:
         jsr     wait_key
-        cmp     #KC_RET
-        beq     topo_done
-        cmp     #KC_ESC
-        beq     topo_done
-        cmp     #' '
-        beq     topo_done
-        cmp     #'C'
-        beq     topo_recenter
-        cmp     #KC_LEFT
-        beq     topo_left
-        cmp     #'A'
-        beq     topo_left
-        cmp     #KC_RIGHT
-        beq     topo_right
-        cmp     #'D'
-        beq     topo_right
-        cmp     #KC_UP
-        beq     topo_up
-        cmp     #'W'
-        beq     topo_up
-        cmp     #KC_DOWN
-        beq     topo_down
-        cmp     #'S'
-        beq     topo_down
-        jmp     topo_key
+        ldx     #topo_k_end-topo_k-1
+:       cmp     topo_k,x
+        beq     @go
+        dex
+        bpl     :-
+        bmi     topo_key
+@go:    lda     topo_go_hi,x
+        pha
+        lda     topo_go_lo,x
+        pha
+        rts
+topo_k:     .byte KC_RET, KC_ESC, ' ', KC_UP, 'C', 'J', 'L', 'I', 'K', KC_LEFT, KC_RIGHT, KC_DOWN
+topo_k_end:
+topo_go_lo: .lobytes topo_done-1, topo_done-1, topo_done-1, topo_done-1, topo_recenter-1, topo_left-1, topo_right-1, topo_up-1, topo_down-1, topo_sheet_on-1, topo_sheet_on-1, topo_pages-1
+topo_go_hi: .hibytes topo_done-1, topo_done-1, topo_done-1, topo_done-1, topo_recenter-1, topo_left-1, topo_right-1, topo_up-1, topo_down-1, topo_sheet_on-1, topo_sheet_on-1, topo_pages-1
+topo_over: .byte 0              ; 1: MAP shown over the TOPO sheet
+; topo_sheet_on -- LEFT/RIGHT: TOPO. Over its sheet, the legend rows and
+; the mixed mode alone (TOPOGEN is still in the SIM window); over the view
+; (MAP typed), the whole of TOPO.
+topo_sheet_on:
+        lda     #0              ; a later walk draws its whole map first
+        sta     topo_cue_end
+        lda     topo_over
+        bne     :+
+        jmp     module_graphical_topo
+:
+        jsr     topo_frame
+        jmp     graphical_topo_key
 topo_done:
         ; Restore the mixed window without waiting for a second key or
         ; redrawing HGR: the text map has preserved all its pixels.
         ; back_to_view_now clears rows 20-23; the prompt redraws them.
         lda     #0              ; a later walk draws its whole map first
         sta     topo_cue_end
-        jmp     back_to_view_now
+        lda     topo_over
+        beq     :+
+        jmp     graphical_topo_done
+:       jmp     back_to_view_now
+; topo_pages -- (DOWN, 15 October 2026) the bottom pages turn to the top
+; ones: MAP or TOPO closed as UP closes them, then STATUS (docs/MENUS.md 5).
+topo_pages:
+        jsr     topo_done
+        jmp     scr_status
 topo_recenter:
         jsr     topo_center
         jmp     topo_redraw
@@ -541,7 +628,11 @@ topo_up:
 :       sta     topo_y
         jmp     topo_redraw
 
+; topo_cell -- A = the glyph of cell (topo_col, topo_row): P, a site, else
+; the terrain symbol, which topo_ground keeps in every case.
 topo_cell:
+        jsr     topo_terrain
+        sta     topo_ground
         lda     topo_col
         cmp     px+1
         bne     @site
@@ -551,9 +642,10 @@ topo_cell:
         lda     #'P'
         rts
 @site:  jsr     topo_site
-        beq     @terrain
-        rts
-@terrain:
+        bne     :+
+        lda     topo_ground
+:       rts
+topo_terrain:
         ldy     topo_col
         lda     (gp1),y
         bpl     @level
@@ -626,6 +718,7 @@ topo_site:
         rts
 topo_levels: .byte ".,:;+*^#"
 topo_height: .byte 0
+topo_ground: .byte 0
 topo_row: .byte 0
 topo_col: .byte 0
 topo_rows: .byte 0
@@ -656,29 +749,71 @@ topo_cardinals: .byte "N NEE SES SWW NW"
 ; SIM window, src/topo_dhgr.s), which also keeps a snapshot of the view:
 ; the return copies it back instead of redrawing. No time passes.
 module_graphical_topo:
-        ldx     #0              ; TOPOGEN -> $9600 (SIM is reloaded later)
-        jsr     mem_fetch
+        ldx     #0              ; TOPOGEN -> $9600 (SIM is reloaded later),
+        jsr     sim_fetch       ; from NEOWILD.BLK (docs/MEMORY.md 18)
         lda     #0
         sta     sim_loaded
         sta     shown
         jsr     topo_open
 graphical_topo_key:
         jsr     wait_key
-        cmp     #KC_ESC
-        beq     @done
-        cmp     #KC_RET
-        beq     @done
-        cmp     #' '
+        ldx     #3
+:       cmp     gt_view,x       ; UP (as DOWN from the view), ESC, RETURN,
+        beq     graphical_topo_done ; SPACE: the view
+        dex
+        bpl     :-
+        cmp     #KC_DOWN        ; DOWN: the top pages, STATUS first
+        bne     :+
+        jsr     graphical_topo_done
+        jmp     scr_status
+:
+        cmp     #KC_LEFT        ; LEFT, RIGHT: MAP over the sheet, unless
+        beq     :+              ; the OPTIONS page turned it off
+        cmp     #KC_RIGHT
         bne     graphical_topo_key
-@done:  jsr     topo_close      ; C clear: view and band copied back
+:       bit     game_options
+        bvs     graphical_topo_key
+        lda     #1
+        jmp     topo_enter
+gt_view: .byte  KC_UP, KC_ESC, KC_RET, ' '
+graphical_topo_done:
+        jsr     topo_close      ; C clear: view and band copied back
         bcs     @redraw
-        jsr     t_home          ; legend rows
-        jmp     show_dhgr
+        jmp     back_to_view_now ; legend rows (MAP: the whole text page)
 @redraw:
         lda     #0
         sta     scene_drawn
         lda     #1
         sta     ui_dirty
         jsr     view_hide
+        lda     #20             ; after MAP too
+        sta     WNDTOP
         jsr     t_home
         jmp     show_view_hidden
+
+; topo_legend -- the four text rows of TOPO (topo_open, before the sheet):
+; what the sheet shows on the left, the keys on the right, as the result
+; column and the grid of the view.
+topo_legend:
+        jsr     puts
+        .byte   "TOPO, NORTH UP. ARROW: YOU",0
+        jsr     tp_sep
+        .byte   "UP/ESC: VIEW|"
+        .byte   "C CRASH, H CABIN, R RANGERS",0
+        jsr     tp_sep
+        .byte   "LEFT/RIGHT: THE TEXT MAP|"
+        .byte   "CONTOURS 400 FT, BOLD 2000 FT",0
+        jsr     tp_sep
+        .byte   "|STRIP: ALTITUDE KFT, BAR 4 MI",0
+        jsr     tp_sep
+        .byte   0
+        rts
+; tp_sep -- the separator of the legend in column 39, then the string after
+; the JSR (puts).
+tp_sep: lda     #39
+        jsr     tab
+        lda     #'|'|$80
+        jsr     COUT
+        lda     #' '|$80
+        jsr     COUT
+        jmp     puts

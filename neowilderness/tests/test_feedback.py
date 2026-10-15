@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Refusal matrix, real stock/capacity numbers, persistence and bounded text."""
 import tempfile
-from common import L, a2test, disk_with, fp, text_screen, result_rows
+from common import HERE, L, a2test, disk_with, fp, text_screen, result_rows
 from test_input import flat, command, IDLE, NUMBER, snapshot
 from test_thermal import call
 
@@ -93,7 +93,40 @@ def exact_travel_end():
     print('  Exact WALK/SWIM duration: no extra obstacle probe; animal/night priority and remaining-time obstacles retained')
 
 
+def no_glued_reason():
+    """A bare "!" of message is the travel stop reason (src/game.s): texts
+    end with '!'|$80, FORAGE texts of frg.s/forage.s too. REST/WAIT print
+    m_fauna_stop through message, after a walk left travel_reason at 3
+    (night): "COUGAR IN YOUR AREAIT IS TOO DARK"."""
+    import re
+    src=HERE/'src'
+    bare={'m_travel','m_weak_travel'}
+    for line in (src/'textbank.txt').read_text().splitlines():
+        name,_,data=line.partition(':')
+        if name not in bare and not line.startswith(';'):
+            assert not any('!' in q for q in re.findall(r'"([^"]*)"',data)),line
+    for path,pat in (('messages.inc',r'^m_\w+:.*'),('project.s',r'^cause_\w+:.*'),
+                     ('frg.s',r'^\s*(?:\w+:)?\s*\.byte\s.*'),('forage.s',r'^\s*(?:\w+:)?\s*\.byte\s.*')):
+        for line in re.findall(pat,(src/path).read_text(),re.M):
+            assert not any('!' in q for q in re.findall(r'"([^"]*)"',line.split(';')[0])),line
+    for kind,name in ((6,'BEAR'),(7,'COUGAR'),(8,'RATTLESNAKE')):
+        with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,flat())) as s:
+            s.step(IDLE)
+            s.step(L.poke('nature_frequency',0))
+            bear(s)
+            s.step(L.poke('animal_kind',kind))
+            s.step(L.poke('travel_reason',3))    # the last walk ended at nightfall
+            s.step('key:WAIT 30 MIN');s.step('press:\\r')
+            s.step(L.until('health_alerts',20000))
+            s.step(L.poke('fauna_alert',1));s.step(L.poke('animal_age',0))
+            s.step(IDLE)
+            actual=column(s)
+            assert f'{name} IN YOUR AREA!' in actual and 'DARK' not in actual,(name,actual)
+    print('  Animal arrival during WAIT: "<SPECIES> IN YOUR AREA!" alone, no stale stop reason appended OK')
+
+
 def main():
+    no_glued_reason()
     exact_travel_end()
     with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,flat())) as s:
         s.step(IDLE)
@@ -201,10 +234,10 @@ def main():
         actual=rows(s)
         assert above==actual[:20]
         # Result column (src/menu.s): a word longer than a row is cut to the
-        # row, placed on its own row; the last column (79) stays free.
+        # row, placed on its own row; the separator (39) and column 79 stay.
         res=result_rows(actual)
         assert res[0].rstrip()=='PACK:' and res[1]=='A'*39 and not res[2].strip(),res
-        assert actual[21][79]==' ',actual[21:]
+        assert actual[21][39]=='|' and actual[21][79]==' ',actual[21:]
         print('  Expanded item names are cut to the result column without scrolling OK')
     with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,flat())) as s:
         s.step(IDLE)

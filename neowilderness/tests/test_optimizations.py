@@ -84,9 +84,10 @@ def night_redraw():
         result = s.step(f'pcprof:{L["idle"]:04X}:20000')
         pcs = {int(a, 16): int(c) for a, c in
                re.findall(r'^pc ([0-9A-F]{4}) (\d+)$', result.out, re.M)}
-        # Entry PHP takes three cycles. One clear suffices even when
+        # Entry PHP takes three cycles (the body in bank 2 since
+        # docs/MEMORY.md 15, behind its stub). One clear suffices even when
         # a command restores its picture through finish_simulation.
-        assert pcs.get(L['clear_rows'], 0) == 3, 'night picture cleared twice'
+        assert pcs.get(L['b2_clear_rows'], 0) == 3, 'night picture cleared twice'
     print('  nighttime DRINK restores its picture with one terrain clear: OK')
 
 

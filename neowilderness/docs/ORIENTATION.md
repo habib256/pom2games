@@ -48,6 +48,10 @@ pour toutes ces directions, mais pas pour LOOK COMPASS/WATCH/ALTIMETER
   `$4B4A` ≠ 0), sinon msg 42 (« FIRST PUT DIRECTION AID IN USE. »).
   **Au départ du voyage figé, aucune aide n'est en usage** : LOOK N répond
   msg 42 sur la ROM, même après CARRY COMPASS (porter n'est pas utiliser).
+  **Écart du portage (14 octobre 2026)** : la grille de commandes propose
+  NORTH..WEST en tout état ; sans aide en usage, une BOUSSOLE à portée est
+  mise en usage par le LOOK lui-même (en main, bit 0, comme USE COMPASS),
+  puis le cap magnétique suit. Sans boussole, msg 42 comme la ROM.
   LOOK AZ demande l'azimut (msg 43, redemandé avec msg 46 au-delà de 359),
   puis l'aide décide, dans cet ordre :
   - **boussole** : msg 44 (« DIRECTION SHOWN IS MAGNETIC, NOT TRUE. »),

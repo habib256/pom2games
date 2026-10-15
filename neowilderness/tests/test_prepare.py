@@ -86,11 +86,12 @@ def run_port(case, region='2', level=None, prepared=True, free=False):
             screens.append(text_screen(s.step('peek:0400:1024').data))
         got = state(s)
         got.update(own)
-        # Patched module images: SIM (th_surface, th_a, composition) and
-        # ADVENTURE (wf_storm), copied into their windows from the idle loop.
+        # Patched module image: SIM (th_surface, th_a, composition, and
+        # wf_storm since ADVENTURE is LZ-packed), copied into its window
+        # from the idle loop.
         s.step(L.until('idle', 20000))
         images = {}
-        for index, names in ((3, ('th_surface', 'th_a', 'th_native_composition')), (21, ('wf_storm',))):
+        for index, names in ((3, ('th_surface', 'th_a', 'th_native_composition', 'wf_storm')),):
             entry = L['idle']
             code = (0xA9, index, 0x20, L['overlay_load'] & 255, L['overlay_load'] >> 8,
                     0x4C, entry & 255, entry >> 8)

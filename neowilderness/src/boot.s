@@ -32,11 +32,13 @@
 ;   - reads NEOWILD.DAT sequentially: records for main RAM, auxiliary RAM
 ;     ($0800-$1FFF, $4000-$BFFF) and the auxiliary language card, raw or LZ
 ;     (tools/pack_boot.py), decoded through main staging buffers;
-;   - takes the auxiliary memory with dev/lib/prodos/video.s when the CLAIM
-;     record arrives. Policy: an empty /RAM is discarded, a /RAM holding files
-;     is erased only after Y; the empty disk is rebuilt at exit;
+;   - takes the auxiliary memory when the CLAIM record arrives (ld_claim:
+;     the claim of dev/lib/prodos/video.s, here, so that the game keeps no
+;     start-only code). Policy: an empty /RAM is discarded, a /RAM holding
+;     files is erased only after Y; the empty disk is rebuilt at exit (FORMAT
+;     of its driver: memory.s prodos_restore, or ld_format here);
 ;   - marks the game pages in the ProDOS bitmap, points RESET at reset_exit
-;     and jumps to start ($6000).
+;     and starts the game (start: stack, video switches, game_start).
 ; NEOWILD.DAT: the trunk, the six packs, the preparation; the trunk and each
 ; pack are a 256-byte table of records, read once to TABLE, then the
 ; payloads back to back: one MLI READ per record.
@@ -48,10 +50,14 @@
 ; decoded at $7000 first, before WILDMAP is loaded there.
 ; ============================================================================
         .include "apple2.inc"
+        .include "mousetext.inc" ; XL_IMM (docs/MENUS.md 9)
         .macpack longbranch
-.import start, _prodos_video_claim, _prodos_video_release, reset_exit
-.import mli_calls, mli_reads, mli_bytes, saved_reset, saved_bitmap, saved_zp
+.import game_start, mem_ready, reset_exit
+.importzp EX_STATE
+.import mli_calls, mli_reads, mli_bytes, saved_zp
+.export start
 .import geo_path, weather_seed, fauna_rng, water_rng, journey_kind
+.import rb_parms, rb_unit, mf_dst, mf_src
 .import __LOADER_LOAD__, __LOADER_RUN__, __LOADER_SIZE__
 .import __LOADBSS_RUN__, __LOADBSS_SIZE__, __RESBSS_RUN__, __RESBSS_SIZE__
 .import __BSS_RUN__, __BSS_SIZE__
@@ -80,13 +86,22 @@ MAP      = $7000
 MENU_ROW = 12                   ; prompts below the menu (tools/genmenu.py MENU_ROW)
 TABLE_SIZE = 256                ; tools/build_disk.py TABLE_SIZE (36 records)
 PRE_PACK = $3000                ; packed NEOWILD.PRE (<= 4 KB; tools/build_disk.py)
-HI_LOAD  = $A900                ; HICODE's record (tools/build_disk.py), moved to $BE00
+HI_LOAD  = $5800                ; HICODE's record (tools/build_disk.py), moved to $BE00
+                                ; ($AA00 until docs/MEMORY.md 15: the module window,
+                                ; which no record and no loader code touches and
+                                ; the game fills before use, gives the loader that
+                                ; page; not SCRATCH $9500, whose bytes the game
+                                ; reads at start, tests/test_reference_state.py)
+                                ; ($A900 until the NEOWILD.BLK check, docs/MEMORY.md 14)
 ZP_AUX   = $BF00                ; auxiliary: ProDOS's zero page during the game
 ALTZPOFF = $C008
 ALTZPON  = $C009
 RAMWRTON = $C005
 LCROM    = $C082
 LCBANK2  = $C083                ; read and write RAM bank 2 (twice)
+LCRAM2R  = $C080                ; read RAM bank 2, write protected
+QUIT_CODE = $D100               ; ProDOS 8's QUIT code in bank 2 ($300 bytes)
+RAMRDON  = $C003
 LCBANK1  = $C08B
 
 .segment "ZEROPAGE"
@@ -100,7 +115,8 @@ offset: .res 1
 length: .res 1
 
 .assert __LOADBSS_RUN__ + __LOADBSS_SIZE__ <= TABLE, lderror, "loader overlaps its record table"
-.assert __LOADBSS_RUN__ + __LOADBSS_SIZE__ <= HI_LOAD, lderror, "loader overlaps HICODE's record"
+.assert __LOADBSS_RUN__ + __LOADBSS_SIZE__ <= LD_IOBUF, lderror, "loader overlaps its I/O buffer"
+.assert HI_LOAD + $100 <= __LOADER_RUN__, lderror, "HICODE's record overlaps the loader"
 .segment "SYSSTUB"
         cld
         ldx     #0              ; ProDOS's zero page before touching any
@@ -206,6 +222,14 @@ digits:    .res 1
 entropy:   .res 2               ; key-wait iterations in the menu
 ld_prep:   .res 1               ; 1: P, the preparation questions (with ld_free)
 ld_part:   .res 1               ; ld_open: part of NEOWILD.DAT
+; The state to restore at exit (docs/MEMORY.md 15), in the layout of
+; memory.s EX_*: copied at the claim to the store's entry EX_ENTRY, where the
+; game's exit path (INPUT prodos_restore) finds it.
+ex_state:
+saved_bitmap: .res 24           ; ProDOS bitmap at entry
+saved_reset:  .res 3            ; RESET vector at entry
+ram_unit:     .res 1            ; /RAM unit claimed ($x0), 1 none
+.assert * - ex_state = EX_STATE, error, "exit state layout: memory.s EX_*"
 ld_entropy = entropy
 ld_hdr     = hdr
 
@@ -237,7 +261,8 @@ loader_main:
         ; Plain 40-column text page 1, Monitor I/O hooks.
         sta     STORE80OFF
         sta     COL80OFF
-        sta     $C00E           ; primary character set
+        XL_IMM  XI_LOADER, $0F, @x43  ; (XL, docs/MENUS.md 9: ALTCHARSET, MouseText,
+        sta     $C00E           ; for the whole game) primary character set
         bit     LCROM
         jsr     SETVID
         jsr     SETKBD
@@ -270,6 +295,7 @@ loader_main:
         ; Full pathnames on the boot volume (as CHROMA.SYSTEM does).
         lda     DEVNUM
         sta     online+1
+        sta     rb_unit         ; memory.s disk_fetch reads the boot unit
         lda     #$C5            ; ONLINE
         ldx     #<online
         ldy     #>online
@@ -279,6 +305,39 @@ loader_main:
         and     #$0F
         jeq     ld_error
         sta     volume
+        ; Docs/MEMORY.md 14 (NeoWildernessXL): the game reads modules of
+        ; NEOWILD.BLK by block number. Its first block must hold the
+        ; signature build_disk.py wrote in ld_blk: a file-by-file copy
+        ; moves the blocks, and the game would read another file's.
+        lda     ld_blk
+        beq     @blk_ok         ; no NEOWILD.BLK (block 0: the 140 KB edition)
+        sta     mf_src
+        lda     ld_blk+1
+        sta     mf_src+1
+        lda     #<STAGE
+        sta     mf_dst
+        lda     #>STAGE
+        sta     mf_dst+1
+        lda     #3
+        sta     rb_parms
+        lda     #$80            ; READ_BLOCK
+        ldx     #<rb_parms
+        ldy     #>rb_parms
+        jsr     ld_mli
+        jcs     ld_error
+        ldx     #5
+:       lda     STAGE,x
+        cmp     ld_blk+2,x
+        bne     @blk_moved
+        dex
+        bpl     :-
+        bmi     @blk_ok
+@blk_moved:
+        lda     #<m_moved
+        ldy     #>m_moved
+        jsr     print
+        jmp     ld_key_quit
+@blk_ok:
         ldx     #<geo_path
         ldy     #>geo_path
         lda     #'G'
@@ -410,7 +469,25 @@ ld_no_prepare:
         cpx     #$B0
         bne     :-
 loader_done:
-        jmp     start
+; start -- the game's entry, start-only, so kept here (docs/MEMORY.md 15):
+; a fresh stack, mem_ready, and the switches dev/lib native_video sets (main
+; RAMRD/RAMWRT, 80STORE, 80COL and DHGR off; the machine was checked above).
+start:  cld
+        ldx     #$FF
+        txs
+        lda     #1
+        sta     mem_ready
+        sta     RAMRDOFF
+        sta     RAMWRTOFF
+        sta     STORE80OFF
+        sta     COL80OFF
+        bit     DHIRES_OFF
+        ; XL: ALTCHARSET again, after the Monitor's SETVID, INIT, HOME and
+        ; the menu (the IIc's SETVID turns it off: STATUS, the grid then
+        ; showed inverse letters instead of MouseText; 15 October 2026).
+        XL_IMM  XI_LOADER, $0F, @x44
+        sta     $C00E           ; 140 KB: the primary set, as before
+        jmp     game_start
 
 ; ld_scatter -- the grid of the menu (menu.s MENUSWAP), read at SWAP_LOAD,
 ; into the HGR rows 176-191 of both banks: 16 chunks of 48 bytes (holes
@@ -588,9 +665,23 @@ menu:
         sta     ld_free
         sta     ld_prep
         jsr     HOME
-        lda     #<m_menu
-        ldy     #>m_menu
+        ldx     #0              ; the parts of the edition's menu
+        lda     ld_regions      ; (tools/genmenu.py menu_xl, menu_1)
+        cmp     #1
+        bne     @part
+        lda     #'/'            ; one scenario: "1/7" in the prompt
+        sta     m_choice+21
+        ldx     #menu_1-menu_xl
+@part:  lda     menu_xl,x
+        ldy     menu_xl+1,x
+        beq     @parts          ; a 0 word ends the list
+        stx     key
         jsr     print
+        ldx     key
+        inx
+        inx
+        bne     @part
+@parts:
         jsr     hm_best
 @ask:   lda     #<m_choice
         ldy     #>m_choice
@@ -603,10 +694,15 @@ menu:
 :       cmp     #'1'|$80
         bcc     @other
         cmp     #'7'|$80
-        bcc     @scenario
+        bcc     @choose
         bne     @other
 @free:  inc     ld_free         ; 7: free journey, then its region
-        lda     #<m_region
+        ldx     ld_regions      ; one scenario: no region to ask
+        dex
+        bne     :+
+        lda     #'1'|$80
+        bne     @scen_key
+:       lda     #<m_region
         ldy     #>m_region
 @ask_region:
         jsr     prompt
@@ -625,6 +721,13 @@ menu:
 @bad_region:
         jsr     BELL
         jmp     @region
+@choose:
+        ldx     ld_regions      ; a scenario key the edition has
+        dex
+        bne     @scenario
+        cmp     #'2'|$80
+        bcc     @scenario
+        bcs     @bad
 @other: cmp     #'P'|$80
         bne     :+
         inc     ld_prep         ; P: a free journey with the questions
@@ -641,6 +744,7 @@ menu:
         jmp     menu
 @scenario:
         jsr     COUT            ; echo the digit (COUT keeps A)
+@scen_key:
         and     #$0F
         tax
         lda     menu_regions-1,x ; menu key -> region (tools/genmenu.py)
@@ -1058,9 +1162,12 @@ ld_decode_at:                   ; source set by the caller (NEOWILD.PRE)
         jmp     @next
 ld_decode_end:
 
-; ld_claim -- the explicit /RAM policy, then dev/lib/prodos/video.s.
+; ld_claim -- the explicit /RAM policy and the claim of dev/lib/prodos/video.s
+; (policy "discard"), kept here: the game's resident ram_unit gets the /RAM
+; unit ($x0, its driver at $FF00), or 1 when there is none; a malformed
+; device list is error 3, as video.s answers.
 ld_claim:
-        ldx     #0              ; video.s keeps its state in the game BSS
+        ldx     #0              ; the game BSS starts cleared
         txa
 :       sta     __BSS_RUN__,x
         inx
@@ -1069,7 +1176,11 @@ ld_claim:
         .assert __BSS_SIZE__ < 256, error, "game BSS: extend the clear"
         ldy     DEVCNT          ; find /RAM as video.s does: driver $FF00
         cpy     #14
-        bcs     ldc_claim          ; empty ($FF) or malformed: video.s decides
+        bcc     ldc_scan
+        iny                     ; $FF: no device, no /RAM
+        beq     ldc_none
+        lda     #3              ; malformed list
+        jmp     ld_error
 ldc_scan:  lda     DEVLST,y
         and     #$F0
         sta     unit
@@ -1084,7 +1195,9 @@ ldc_scan:  lda     DEVLST,y
         beq     ldc_found
 ldc_next:  dey
         bpl     ldc_scan
-        bmi     ldc_claim
+ldc_none:  lda     #0              ; no /RAM
+        sta     unit
+        beq     ldc_claim
 ldc_found: lda     unit            ; its volume directory: file count at $25
         sta     block+1
         lda     #$80            ; READ_BLOCK 2
@@ -1103,16 +1216,58 @@ loader_ram_files:
         cmp     #'Y'|$80
         beq     ldc_erase
         cmp     #'y'|$80
-        bne     ld_quit
+        jne     ld_quit
 ldc_erase: lda     #<m_erase
         ldy     #>m_erase
         jsr     print
-ldc_claim: lda     #1              ; PD_VIDEO_DISCARD_RAM
-        jsr     _prodos_video_claim
-        cmp     #0
-        bne     ld_error
+ldc_claim: lda     unit            ; (a unit 0 cannot name /RAM: none)
+        bne     :+
+        lda     #1
+:       sta     ram_unit
         inc     claimed
+        ; The auxiliary memory is the game's now: the exit state, then
+        ; ProDOS's QUIT code ($D100-$D3FF of bank 2, where records of the
+        ; game go next: src/dhgr.s B2_ENTRY), into the store's entry
+        ; EX_ENTRY (memory.s), at the address build_disk.py writes into
+        ; ld_exit; no record of NEOWILD.DAT goes there. ld_place copies
+        ; main to auxiliary for a kind of bank 1 (the claim's own kind).
+        lda     #<ex_state
+        ldx     #>ex_state
+        ldy     #EX_STATE
+        jsr     ldc_put
+        lda     #<QUIT_CODE     ; $300 bytes, read from bank 2
+        ldx     #>QUIT_CODE
+        ldy     #0
+        bit     LCRAM2R
+        jsr     ldc_put
+        bit     LCROM
 loader_claimed:
+        rts
+; ldc_put -- A/X = source, Y = length (0: $300 bytes): to ld_exit, which
+; then moves past it (ld_quit finds the QUIT code $300 bytes below).
+ldc_put:
+        sta     move_src
+        stx     move_src+1
+        sty     size
+        lda     #0
+        cpy     #0
+        bne     :+
+        lda     #3
+:       sta     size+1
+        lda     ld_exit
+        sta     address
+        lda     ld_exit+1
+        sta     address+1
+        lda     #1
+        sta     kind
+        jsr     ld_place
+        clc
+        lda     ld_exit
+        adc     size
+        sta     ld_exit
+        lda     ld_exit+1
+        adc     size+1
+        sta     ld_exit+1
         rts
 
 ld_error:
@@ -1128,9 +1283,30 @@ ld_key_quit:
         jsr     print
         jsr     ld_wait
 ld_quit:
-        lda     claimed
+        lda     claimed         ; the /RAM disk back, empty (video.s release)
         beq     :+
-        jsr     _prodos_video_release
+        lda     ram_unit
+        cmp     #2
+        bcc     :+
+        sta     $43             ; FORMAT through its driver (mli.s
+        lda     #3              ; _prodos_format_ram); the zero page is
+        sta     $42             ; ProDOS's again just below
+        lda     #0
+        sta     $44
+        sta     $46
+        sta     $47
+        lda     #$20
+        sta     $45
+        php
+        sei
+        bit     LCBANK1
+        bit     LCBANK1
+        jsr     $FF00
+        bit     LCROM
+        plp
+:       lda     claimed         ; ProDOS's QUIT code back in bank 2 (the
+        beq     :+              ; game's records replace it), from the
+        jsr     ld_unquit       ; store's exit state
 :       ldx     #23
 :       lda     saved_bitmap,x
         sta     BITMAP,x
@@ -1151,6 +1327,47 @@ ld_mli_quit:                    ; tests/test_prodos.py: state at the final QUIT
         .byte   $65
         .word   ld_quit_parms
 :       jmp     :-
+
+; ld_unquit -- $300 bytes below ld_exit (moved past the exit state by the
+; claim) in auxiliary RAM back to QUIT_CODE, bank 2 written. Reading
+; auxiliary RAM (RAMRD) moves the program too: the loop runs from the stack
+; page, as memory.s mem_fetch does. source/dest: free (no record now).
+UQ_RUN = $0100
+ld_unquit:
+        ldx     #uq_end-uq_tpl-1
+:       lda     uq_tpl,x
+        sta     UQ_RUN,x
+        dex
+        bpl     :-
+        sec
+        lda     ld_exit+1
+        sbc     #3
+        sta     source+1
+        lda     ld_exit
+        sta     source
+        lda     #<QUIT_CODE
+        sta     dest
+        lda     #>QUIT_CODE
+        sta     dest+1
+        bit     LCBANK2
+        bit     LCBANK2
+        ldx     #3
+        ldy     #0
+:       jsr     UQ_RUN
+        inc     source+1
+        inc     dest+1
+        dex
+        bne     :-
+        bit     LCROM
+        rts
+uq_tpl: sta     RAMRDON         ; (UQ_RUN) one page, Y = 0 on entry and exit
+:       lda     (source),y
+        sta     (dest),y
+        iny
+        bne     :-
+        sta     RAMRDOFF
+        rts
+uq_end:
 
 ld_wait:
         lda     KBD
@@ -1195,6 +1412,7 @@ HOF_READ_PARMS = read           ; ld_mli counts its transfer
 HOF_NAMES_LO = region_names_lo
 HOF_NAMES_HI = region_names_hi
 HOF_LOADER = 1
+hm_regions = ld_regions
         .include "hof_menu.s"
 move_src: .word 0
 ld_move_src := move_src
@@ -1219,13 +1437,27 @@ mark:   .byte   2, 0, 0, 0, 0   ; SET_MARK
 ; the six packs and of the preparation in NEOWILD.DAT, then the stored
 ; length of the preparation (2 bytes).
 ld_marks: .res  23
-.export ld_marks
+; Scenarios of the edition, written by tools/build_disk.py with ld_marks:
+; 6 (NeoWildernessXL, 800 KB) or 1 (Neowilderness, 140 KB: the Sierra only,
+; menu key 1; the free journey and the preparation ask no region).
+ld_regions: .byte 0
+; Docs/MEMORY.md 14, written by tools/build_disk.py too: the first block of
+; NEOWILD.BLK (0: none, the 140 KB edition), then the 6 bytes it starts with
+; (signature "NWBK" and the file's build id).
+ld_blk: .res 8
+; Docs/MEMORY.md 15, written by tools/build_disk.py too: the auxiliary address
+; of the store's exit-state entry (memory.s EX_ENTRY).
+ld_exit: .res 2
+.export ld_marks, ld_regions, ld_blk, ld_exit, HI_LOAD
 
 ; Pages protected in the ProDOS bitmap while the game runs. The module
 ; window $5800-$5FFF and the I/O buffer stay free for the reads of
 ; NEOWILD.END and NEOWILD.HOF at the end of a journey (the fine geography is
 ; resident since the integration of the parallel branch).
 game_pages:
+        ; (XL: pages $B0-$B5 free for READ_BLOCK, STATUS and its tail read
+        ; from NEOWILD.BLK up to $B5FF; sim_fetch frees $90-$AF)
+        XL_BYTE XI_LOADER, game_pages+22, $03
         .repeat 24, I
         .scope
         bits .set 0
@@ -1261,6 +1493,9 @@ applesoft_hi:
         .byte   $00, $FF, $00, $FF, $00, $FF, $00, $FF, $00, $FF, $00, $FF, $00, $FF, $00, $FF
         .byte   $00, $01, $00, $00, $00, $FF, $00, $FF, $F8, $FF, $00, $FF, $00, $FF, $00, $FF
 
+m_moved:
+        .byte   "NEOWILD.BLK HAS MOVED: COPY THE WHOLE", 13
+        .byte   "DISK BLOCK BY BLOCK, NOT FILE BY FILE.", 13, 0
 m_machine:
         .byte   "NEOWILDERNESS NEEDS AN APPLE //E", 13
         .byte   "ENHANCED OR AN APPLE //C WITH 128K.", 13, 0
@@ -1282,8 +1517,9 @@ m_loading:
 m_level:
         .byte   ", LEVEL ", 0
 m_free: .byte   " (FREE)", 0
-m_choice:
+m_choice:                       ; "-" at +21 ("/" with one scenario)
         .byte   "CHOICE (RETURN = 1, 1-7, P, H, Q)? ", 0
+.assert m_choice + 21 = m_choice + .strlen("CHOICE (RETURN = 1, 1"), error, "m_choice dash"
 m_region:
         .byte   "FREE JOURNEY: REGION (1-6, ESC)? ", 0
 m_ask_level:

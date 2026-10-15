@@ -92,7 +92,68 @@ def main():
         cases(cliff,positions,f'cabin below cliff level {level}')
     transitions(m)
     walking()
+    outpost()
     print('Distant sites: OK')
+
+
+# Directions from the player toward the outpost: (east, north) and heading.
+EIGHT=[((0,1),0),((1,1),70),((1,0),140),((1,-1),210),((0,-1),280),((-1,-1),350),((-1,0),420),((-1,1),490)]
+
+
+def outpost():
+    """The ranger outpost (lot 6): a billboard from 1 to 8 cells in the eight
+    directions, the local view on the goal cell, pixel for pixel against
+    tools/dhgr_ref; read from NEOWILD.BLK once per appearance (5 blocks into
+    the SIM window): never again while it stays there (more views, a turn,
+    STATUS and back), once more after the simulation took the window."""
+    m=bytearray(mapbin())
+    m[8:10]=bytes((40,40))
+    gx,gy=40*256+128,40*256+128
+    positions=[(gx,gy,140),(gx,gy,0)]
+    for (dx,dy),h in EIGHT:
+        for k in range(1,9 if 0 in (dx,dy) else 6):
+            positions.append((gx-k*dx*256,gy-k*dy*256,h))
+    positions.append((gx-9*256,gy,140))             # out of range: no sprite
+    # 8 cells is the limit itself (distance < 8): four positions see nothing.
+    with tempfile.TemporaryDirectory() as tmp:
+        disk=disk_with(tmp,m)
+        steps=[*terrain_boot(20000),L.peek('mli_reads',2)]
+        for x,y,head in positions:
+            for name,value in [('px',x),('py',y),('heading',head)]:
+                steps += [L.poke(name,value),L.poke(name,value>>8,1)]
+            steps += ['key:V\r','wait:1',L.until('idle',20000),'peek:2000:8192',L.peek('mli_reads',2)]
+        x,y,head=positions[2]
+        for name,value in [('px',x),('py',y),('heading',head)]:
+            steps += [L.poke(name,value),L.poke(name,value>>8,1)]
+        steps += command('V')+[L.peek('mli_reads',2)]
+        steps += ['key:\\>','wait:1',L.until('idle',20000),L.peek('mli_reads',2)]
+        steps += ['key:STATUS\r','wait:1',L.until('wait_key',6000),
+                  'key: ','wait:1',L.until('idle',20000),L.peek('mli_reads',2)]
+        steps += command('V')+[L.peek('mli_reads',2)]
+        steps += hours('REST',1)+[L.peek('mli_reads',2)]
+        steps += [L.peek('sky_mood'),L.peek('scene_asset')]
+        r=a2test.run(disk,steps,emulator=a2test.A2SHOT,timeout=1800)
+    words=[int.from_bytes(d,'little') for d in r.dumps if len(d)==2]
+    pages=[d for d in r.dumps if len(d)==16384]
+    mood=r.dumps[-2]
+    assert len(pages)==len(positions)
+    seen=0
+    for (x,y,head),page in zip(positions,pages):
+        g=scene_ref.select(m,x,y,head)
+        ref=dhgr_scene(m,x,y,head,mood)
+        got=dhgr_view(page)
+        differences=sum(a!=b for gg,w in zip(got,ref) for a,b in zip(gg,w))
+        assert not differences,(x,y,head,differences,g)
+        seen+=bool(g and g['asset']==35)
+    assert seen==len(positions)-5,seen
+    reads=[b-a for a,b in zip(words,words[1:])]
+    frames=reads[:len(positions)]
+    assert frames[0]==5 and not any(frames[1:]),frames
+    turn,status_back,view,rest=reads[len(positions)+1:]
+    assert reads[len(positions)]==0 and (turn,status_back,view)==(0,0,5) and rest==5,reads[len(positions):]
+    assert r.dumps[-1]==bytes((35,))
+    print(f'  ranger outpost: {seen} exact frames (1 to 7 cells, nothing at 8, eight directions, local at the goal); '
+          f'read once (5 blocks) per appearance, none for views, turns or STATUS, again after REST: OK')
 
 
 def transitions(m):

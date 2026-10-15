@@ -95,7 +95,10 @@ def travel_limits():
 def main():
     idle = L.until('idle', 20000)
     snap = [L.peek(n, 5) for n in ('s_hour', 's_elap', 's_date', 's_defw', 's_health')]
-    status = ['key:STATUS\\r', L.until('wait_key', 6000), 'peek:0400:1024', 'key: ', 'wait:2', idle]
+    # STATUS, then MENU (its left: RANGERS), then OBJECTS (CARRYING), 15 October 2026
+    status = ['key:STATUS\\r', L.until('wait_key', 6000), 'peek:0400:1024', 'key:\\<', 'wait:2',
+              L.until('wait_key', 6000), 'peek:0400:1024', 'key: ', 'wait:2', idle,
+              'key:INVENTORY\\r', 'wait:1', L.until('wait_key', 6000), 'peek:0400:1024', 'key:\\e', 'wait:2', idle]
     steps = [idle, L.poke('nature_frequency',0), 'key:REST', 'press:\\r', L.until('number_idle', 6000), 'key:3\\r', idle] + snap + status
     steps += ['key:EAT CHEESE', 'press:\\r', L.until('number_idle', 6000), 'key:8\\r', idle,
               'key:DRINK WATER', 'press:\\r', L.until('number_idle', 6000), 'key:10\\r', idle,
@@ -112,10 +115,12 @@ def main():
     gx, gy = MAP[8] * 2, MAP[9] * 2
     d0 = math.hypot(gx - 2 * MAP[3], gy - 2 * MAP[5])
     goal = int(100 * math.exp(-2.5 * 3 / d0))
-    check('STATUS: DATE MAY6, TIME 10:00A', 'DATE MAY6' in screen and 'TIME 10:00A' in screen, screen[:200])
-    got = re.search(r'DONE=(\d+)%', screen)
-    check('STATUS: resting leaves route completion at 0%', got and int(got.group(1)) == 0, got and got.group(1))
-    check('STATUS: HEALTH=98% (original integer conditions)', 'HEALTH=98%' in screen)
+    # STATUS's LOCAL (docs/MENUS.md 9): the date and the time.
+    check('STATUS: DATE MAY 6, TIME 10:00A', re.search(r'DATE +MAY 6 +TIME +10:00A', screen), screen[:400])
+    menu = '\n'.join(text_screen(r.mem(0x400, 1024, 1)))
+    got = re.search(r'JOURNEY DONE: (\d+)%', menu)
+    check('MENU: resting leaves route completion at 0%', got and int(got.group(1)) == 0, got and got.group(1))
+    check('STATUS: HEALTH 98% (original integer conditions)', re.search(r'HEALTH +[\u2588\u2592]{10} +98%', screen))
 
     lo, hi, places = (r.mem(L[n], 76) for n in ('it_pack_lo', 'it_pack_hi', 'it_place'))
     pack = lambda i: lo[i] | hi[i] << 8
@@ -123,9 +128,9 @@ def main():
     check('EAT CHEESE 8: pack 32 -> 24', pack(28) == 24, pack(28))
     check('DRINK WATER 10: canteen 64 -> 54', pack(22) == 54, pack(22))
     check('GET APPLES: 32 + 48 in the pack', pack(37) == 80 and place(37) == 2, (pack(37), place(37)))
-    screen = '\n'.join(text_screen(r.mem(0x400, 1024, 1)))
-    check('STATUS: FOOD 432 OZ, WATER 118 OZ', 'FOOD 432 OZ' in screen and 'WATER 118 OZ' in screen,
-          re.findall(r'(FOOD \d+ OZ|WATER \d+ OZ)', screen))
+    screen = '\n'.join(text_screen(r.mem(0x400, 1024, 5)))
+    check('OBJECTS: in reach 432 oz of food, 118 oz of water', re.search(r'IN REACH +432 OZ +118 OZ', screen),
+          re.findall(r'IN REACH .*', screen))
 
     r = a2test.run(DISK, [idle, L.poke('nature_frequency',0), 'key:REST', 'press:\\r', L.until('number_idle', 6000), 'key:200\\r', L.until('wait_key', 180000),
                           L.peek('dead', 1), L.peek('s_defw', 5), L.peek('s_elap', 5), 'peek:0400:1024'],

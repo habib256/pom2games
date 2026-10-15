@@ -197,6 +197,12 @@ zénith/milieu, milieu, trame milieu/horizon, horizon (aussi sous l’horizon
 quand on regarde vers le bas) — au plus cinq segments tramés, sans gabarit.
 L’ombrage des sprites remplace la couleur de jour par une table de 16
 octets : jour, chaud, silhouette (noir), lune, sombre ; `null` = masqués.
+L'animal présent fait exception depuis le 15 octobre 2026
+([LOOK_UPDOWN.md](LOOK_UPDOWN.md) § 4) : sous les nuances silhouette et
+sombre et sans nuance (nuit noire), il prend une **silhouette de nuit**
+lisible, le code 0 (noir de jour) en bleu foncé et les trois autres en
+gris 1 (`dhgr_palette.Lighting.animal`, `src/project.s module_animal`) ;
+les sites gardent la règle des sprites.
 
 Taille résidente : 10 humeurs × 19 octets + 5 tables d’ombrage × 16 =
 **270 octets** (`dhgr_palette.mood_table()`, vérifié ≤ 300 par le test).
@@ -691,7 +697,8 @@ n’ajoute aucune ligne, seulement de la largeur), mises en page et tests
 inchangés. Les messages restent formatés pour 38 colonnes ; la ligne en
 accepte 79 (dernière colonne réservée), pour les messages plus longs du plan
 d’ergonomie. MAP : une cellule = deux caractères 80 colonnes (carrée à
-l’écran), le symbole doublé, sites et joueur en lettre inverse + espace.
+l’écran), le symbole doublé, sites et joueur en une seule lettre inverse suivie du symbole de terrain de
+leur case.
 POM2 affiche ce texte sans franges ; sur composite couleur, le texte 80
 colonnes peut se franger (à voir sur machine).
 

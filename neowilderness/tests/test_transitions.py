@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 import struct
 import zlib
-from common import MENU_SKIP, MENU_STORES, HERE, L, DISK, a2test, hgr_rows, text_screen, text_writes, text_changes, map_rows
+from common import MENU_SKIP, MENU_STORES, HERE, L, DISK, a2test, hgr_rows, text_screen, text_writes, text_changes, map_rows, is_status
 from test_thermal import call
 
 ACTUAL = a2test.labels(HERE / 'build/wild.lbl')
@@ -36,6 +36,18 @@ def picture(session, path):
     stride = width * 3 + 1
     assert all(raw[y * stride] == 0 for y in range(height))
     return b''.join(raw[y * stride + 1:(y + 1) * stride] for y in range(320))
+
+
+def curtain(pixels):
+    """The curtain of a long action on NeoWildernessXL (docs/MENUS.md 9): black
+    but for the hourglass (MouseText) of text row 9, column 39 (dots 273-279
+    of scanlines 144-159), which is lit."""
+    width = 560 * 3
+    cell = [(y, x) for y in range(144, 160) for x in range(273 * 3, 280 * 3)]
+    inside = set(cell)
+    lit = any(pixels[y * width + x] for y, x in cell)
+    rest = any(v for i, v in enumerate(pixels) if (i // width, i % width) not in inside)
+    return lit and not rest
 
 
 def state(session):
@@ -90,7 +102,7 @@ def reveal():
         s.step('wait:2')
         assert picture(s, path) != landscape
         screen = text_screen(s.step('peek:0400:1024').data)
-        assert screen[0].startswith('STATUS:') and not screen[20].strip()
+        assert is_status(screen)
         s.step('key:\\e'); s.step(IDLE)
         s.step('wait:2')
         assert picture(s, path) == landscape
@@ -108,7 +120,7 @@ def reveal():
         s.step('key:VIEW'); s.step('press:\\r')
         s.step(L.until('render_column', 20000))
         s.step('wait:2')
-        assert not any(picture(s, path)), 'explicit VIEW must hide its full redraw'
+        assert curtain(picture(s, path)), 'explicit VIEW must hide its full redraw'
         s.step(IDLE)
         s.step('wait:2')
         assert picture(s, path) == landscape
@@ -129,21 +141,43 @@ def simulation_curtain():
             s.step(step)
         s.step(L.until('overlay_before_transfer', 20000))
         screen = text_screen(s.step('peek:0400:1024').data)
-        assert all(not row.strip() for row in screen[:20])
+        # XL (docs/MENUS.md 9): the curtain of a long action, an hourglass
+        # (MouseText) in its middle, row 9, column 39; nothing else.
+        assert screen[9][39] == '\u231b', screen[9]
+        assert all(not row.strip() for row in screen[:9] + [screen[9][:39] + screen[9][40:]] + screen[10:20])
         assert screen[20:] == before and s.step('peek:0024:2').data == cursor
         s.step('wait:2')
-        assert not any(picture(s, Path(tmp) / 'simulation.png'))
+        assert curtain(picture(s, Path(tmp) / 'simulation.png'))
     print('  SIM hides stale menus before its RAM transfer; command, results and cursor preserved')
 
 
 def differential_pages():
+    # The pages of STATUS (src/pages.s) write their rows top to bottom
+    # without clearing the screen: INVENTORY's group keys and HELP's own
+    # letter H (module_help) redraw them, the arrows turn the top pages
+    # (STATUS, OBJECTS, CRAFT, HELP, OPTIONS, MENU: page_top) and the
+    # OPTIONS letters A and P redraw their page, one store per changed cell;
+    # so do the focus moves (INVENTORY's group row, the OPTIONS and MENU
+    # cursors, RETURN on OPTIONS' line A: four times, game_options kept;
+    # STATUS's focus on two active conditions and their gestures).
     with a2test.Session(DISK) as s:
         s.step(IDLE)
         initial = state(s)
-        for command, redraw, keys in (('INVENTORY', 'inventory_redraw', '123451'),
-                                       ('HELP', 'help_redraw', '1231')):
+        for k in (0, 7):                    # SEVERE CUTS, POISON BITE
+            s.step(L.poke('injury_active', 1, k))
+        for command, redraw, keys in (('INVENTORY', 'inventory_redraw', list('123451')),
+                                       ('HELP', 'module_help', list('HHH')),
+                                       ('STATUS', 'page_top', ['\\>'] * 6),
+                                       ('STATUS', 'page_top', ['\\<', '\\<', 'P', 'A', 'P', 'A']),
+                                       # focus moves: INVENTORY's group row,
+                                       # the cursors of OPTIONS and MENU
+                                       ('INVENTORY', 'inventory_redraw', ['\\v', '\\>', '\\<', '\\^', '\\v', '\\>']),
+                                       ('STATUS', 'page_top', ['\\<', '\\<', '\\v', '\\v', '\\^', '\\v', '\\r', '\\r', '\\r']),
+                                       ('STATUS', 'page_top', ['\\<', '\\v', '\\v', '\\v', '\\^', '\\^']),
+                                       # STATUS's MEDICAL rows: the conditions, their gestures
+                                       ('STATUS', 'page_top', ['\\v', '\\>', '\\>', '\\v', '\\<', '\\^', '\\^', '\\v'])):
             s.step('key:' + command); s.step('press:\\r'); s.step(READY)
-            for key in keys + keys[-1]:
+            for key in keys + keys[-1:]:
                 before = s.step('peek:0400:1024').data
                 s.step('press:' + key)
                 s.step(L.until(redraw, 20000))
@@ -157,8 +191,11 @@ def differential_pages():
                 if before == after:
                     assert writes == 0
             s.step('key:\\e'); s.step(IDLE)
+        assert s.step(L.peek('game_options')).data == b'\x80', 'P twice (MAP on again), A three times (on)'
+        s.step(L.poke('game_options', 0))
         assert state(s) == initial
-    print('  INVENTORY/HELP: one store per changed character, no stores for identical pages; state preserved')
+    print('  OBJECTS/HELP/the top pages/OPTIONS/focus moves (STATUS\'s care gestures too): one store per changed '
+          'character, no stores for identical pages; state preserved')
 
 
 if __name__ == '__main__':

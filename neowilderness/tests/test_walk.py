@@ -102,7 +102,7 @@ def main():
             assert 'TRAVEL: 237 MINUTES.' in '\n'.join(screen), screen
             # The walk's end cleared rows 20-23 (the map's last rows); the
             # prompt redrew the grid, the result column holds the result.
-            assert [row[:40] for row in screen[20:]] == [row[:40] for row in prompt], (prompt, screen[20:])
+            assert [row[39:] for row in screen[20:]] == [row[39:] for row in prompt], (prompt, screen[20:])
             assert all(row[79] == ' ' for row in screen[20:]), screen[20:]
             # Every load was a RAM transfer, never an MLI call.
             loads = int.from_bytes(s.step(L.peek('overlay_reads', 2)).data, 'little') - first_load

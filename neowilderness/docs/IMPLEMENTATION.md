@@ -129,6 +129,14 @@ Les transferts sont refusés entièrement au-delà d'une limite ou en cas de
 débordement sur 16 bits. Le sac et la gourde doivent être vidés avant dépôt ;
 le sac ne peut pas être rangé dans lui-même.
 
+Lot 4 ([FORAGE.md](FORAGE.md) § 17) : les piles du second jeu (viande,
+gibier, poisson, aliments sauvages, peau) n'ont pas de coordonnées, comme
+dans l'original : celles du sol restent sur la case où elles sont nées et
+sont perdues en la quittant ; elles ne pèsent pas dans la charge du port.
+Les champignons découverts tirent leur qualité comme l'original, mais
+l'écrasement de W10[1] (perte thermique du sac de couchage) que fait
+T0D/S00 avec l'Y laissé par FCOMP n'est pas reproduit (FORAGE.md § 12).
+
 ### Thermique
 
 Les formules scalaires et les branches de récupération ont été comparées
@@ -159,9 +167,10 @@ Chaque pas sélectionne immersion 2 sur l'eau, sec 0 sur terre. Aucun séchage
 progressif n'est ajouté. La pluie sélectionne l'humidité ; cabane et raincoat
 porté protègent de cette sélection. Près d'un feu (`USE FIRE`, lot 2,
 [CAMP.md](CAMP.md)), l'octet de température gagne 25 °F et vaut 127 °F
-quand son bit 7 est mis, comme T0B/S02. Abri fabriqué, déclencheurs et
-soins complets restent à intégrer. La cabane trouvée protège déjà du vent
-et utilise l'air ambiant +15 °F ; les abris fabriqués restent à porter.
+quand son bit 7 est mis, comme T0B/S02. Déclencheurs et soins complets
+restent à intégrer. La cabane trouvée, la hutte, la tranchée et la tente
+(lot 3, [CRAFT.md](CRAFT.md)) protègent du vent et donnent l'air ambiant
++15 °F ; l'igloo (`shelter_inside` = 2) donne 35 °F.
 
 ### Sites, sprites et rencontres
 
@@ -169,8 +178,9 @@ L'épave est ancrée à la case de départ et à son cap initial. La cabane est
 placée sur une case sèche, au tiers du trajet vers les rangers ; sa présence
 et son orientation sont stockées dans l'en-tête de carte. `ENTER SHELTER`
 permet d'y entrer, `EXIT SHELTER` ou `LEAVE SHELTER` de ressortir, sans temps
-consommé. Les commandes restent utilisables la nuit. `HUT` désigne les abris
-fabriqués, encore absents.
+consommé. Les commandes restent utilisables la nuit. HUT, IGLOO, TRENCH
+désignent les abris fabriqués (lot 3, [CRAFT.md](CRAFT.md)) : MAKE, USE,
+ENTER et EXIT ; la tente, USE et EXIT TENT.
 
 L'état résident `shelter_inside` est conservé pendant le repos, les rotations,
 STATUS, INVENTORY et TOPO. La marche et la nage sont refusées à l'intérieur.
@@ -208,10 +218,14 @@ rendre la main ; aucun chargement disque n'intervient pendant son remplacement.
 zéro écriture pour une carte inchangée. `test_walk.py` exige exactement autant
 d'écritures que d'octets visiblement modifiés sur chacun des douze pas réels.
 
-Sur la case du site ou de l'animal, les images gardent leur azimut fixe et
-leur taille originale. L'épave conserve ses lignes 67–158 ; les autres
-sprites sont décalés de 10 lignes vers le haut pour tenir dans les 160 lignes.
-Elles sont masquées la nuit et à l'intérieur de la cabane.
+Sur la case du site, les images gardent leur azimut fixe et leur taille
+originale. L'épave conserve ses lignes 67–158 ; les autres sprites sont
+décalés de 10 lignes vers le haut pour tenir dans les 160 lignes. Elles sont
+masquées la nuit et à l'intérieur de la cabane. L'animal de la case (depuis
+le 15 octobre 2026, [LOOK_UPDOWN.md](LOOK_UPDOWN.md) § 4) se dessine après
+la vue, par-dessus le site : face au joueur quel que soit le cap (centré),
+à côté d'un feu de camp de la case, en silhouette de nuit sans lumière,
+jamais en l'air ni dans un abri.
 
 Depuis les cases voisines, l'épave et la cabane se projettent depuis leurs
 coordonnées fixes : point de départ exact pour l'épave, centre de case pour
@@ -227,7 +241,77 @@ y compris le noir opaque, et la base suit la projection du niveau du site.
 Ces paliers et la limite de distance sont des règles du port ; la projection
 exacte de l'original reste à établir. Un seul site est sélectionné dans le
 champ, selon le pas de distance ; à égalité, l'épave passe avant la cabane.
-Le site ou l'animal de la case courante a priorité. Les animaux restent locaux.
+Le site de la case courante a priorité ; l'animal de la case s'y ajoute
+(deux emplacements, comme l'original). Les animaux restent locaux.
+
+**Sprites de site (lot 6, 15 octobre 2026 ; abris fabriqués : lot 3).**
+Trois sprites de l'original de plus : le rondin (`log`, bille `T16/SF`, 88 colonnes) et le rocher
+(`rock`, `T17/S4`, 59 colonnes) de l'abri naturel trouvé, le poste des
+rangers (`outpost`, `T01/S2`, 75 colonnes).
+
+- *Rondin ou rocher.* Règle de l'original (SURV3D `$1CAA-$1CB8`, code de
+  site 5) : rocher si le niveau du sol atteint `$60A3`, rondin sinon. Le
+  port prend le seuil de ses autres règles de sol (niveau 96, le ROCKY de
+  STATUS, `camp_class`) et le fige à la découverte : sur carte native,
+  l'abri trouvé (TRAVEL `rs_resource`) écrit `MAP+16` = 1 rondin ou 2
+  rocher avec sa case et le cap du joueur (`MAP+17..20`) ; SAVE le garde
+  (en-tête de carte). PROJECT (`cabin_asset`) dessine le rondin ou le
+  rocher à la place de la hutte, sur la case et en panneau. Sur une carte
+  générée (`MAP+37` = 0), la cabane fixe de l'en-tête est dessinée de même
+  (décision du 15 octobre 2026 : l'original n'a pas de cabane fixe, sa
+  hutte, code de site 2, n'est qu'un abri fabriqué) : `tools/mkmap.py`
+  écrit `MAP+16` = 2 si le niveau de sa case atteint 96 (`ROCKY`), 1
+  sinon, et `cabin_asset` rend `32 + MAP+16` sur toutes les cartes. Les
+  cartes livrées (Sierra et régions 1, 3-6) ont toutes une cabane sous le
+  niveau 96 : des rondins. Tous les lecteurs de `MAP+16` (TRAVEL, ENTER
+  SHELTER, contexte SHELTER du menu, indice de SUMMARY, repères `H` de
+  TOPO et de la carte DHGR, SAVE) ne testent que « non nul » : le repère
+  `H`, ENTER/EXIT SHELTER et `shelter_inside` ne changent pas. La hutte
+  (`cabin.bin`) a quitté le stock ; son entrée 9 est devenue le module
+  CRAFT (lot 3) : le sprite reviendra en sprite de site (TODO lot 3,
+  étape 3).
+- *Poste des rangers.* Au coin de la case du but (`M_GOALX/Y`) sur carte
+  native (là où `module_at_goal` donne la victoire), au centre sinon.
+  Panneau jusqu'à 8 cases (distance strictement inférieure à 8) comme
+  l'épave et la cabane, troisième candidat (à égalité : épave, cabane,
+  poste) ; sur la case du but, vue locale centrée sur le cap du joueur :
+  c'est la vue de l'arrivée, avant l'écran de fin. Comme l'épave (sites
+  « bit 7 » de l'original), il pose au sol (origine 0) ; rondin et rocher
+  sont relevés de 10 lignes comme les autres sprites locaux.
+- *Où ils sont.* Bruts sur NEOWILD.BLK, sur les deux éditions et sur
+  tous les disques de test (3 + 3 + 5 blocs après les modules,
+  `build_disk.SITE_SPRITES`). Ils se lisent dans la fenêtre SIM (`$9600`,
+  au plus `$9FFF` : sous les tampons du feu `$A000`), libre pendant la
+  préparation d'une vue (comme les étoiles). `scene_asset` 33, 34, 35 ;
+  `overlay_load` détourne ces numéros vers `site_load` (PROJECT, puis
+  `module_site_load`) : si la fenêtre commence par les 4 premiers octets du
+  sprite (`site_heads`, écrits par `build_disk`, qui vérifie qu'aucune autre
+  image de la fenêtre ne commence ainsi), rien n'est lu ; sinon l'entrée de
+  répertoire TB_FETCH (29, l'entrée de travail de `text_fetch`) reçoit le
+  descripteur disque, `sim_fetch` lit les blocs, puis la banque et le
+  nombre de pages de l'entrée sont remis. `sim_loaded` = 0. Les quatre
+  octets de page de `sprite_column` (`sprite_page0..3`) sont réécrits par
+  `project_commit` : `$58` ou `$96`. Couleurs : `dhgr_site` (emplacement 6
+  de `dhgr_assets`), copiées par `project_commit` depuis `site_colours`
+  (`tools/dhgr_palette.py` SPRITES, vérifié à la construction).
+- *Lectures.* Une par apparition : la première vue qui montre le site lit
+  ses blocs ; les vues suivantes et les tours (flèches) ne relisent rien
+  tant que rien d'autre n'a pris la fenêtre, le retour de STATUS ou TOPO
+  non plus (il recopie l'instantané) ; après une commande qui a chargé la
+  simulation (REST…) ou après STATUS, TOPO, le feu, la vue ou le tour
+  suivant relit. `summary_refresh` ne recharge pas un sprite de site.
+  Tests : `test_projection.py` (`outpost`), `test_sites.py`
+  (`shelter_fixed`, `native_shelter`).
+- *Abris fabriqués (lot 3, étape 3, NeoWildernessXL seul).* La tente, la
+  hutte (`cabin.bin`), l'igloo et la tranchée sont les sprites de site 36
+  à 39 ([CRAFT.md](CRAFT.md) § 8.4) : sur la case de MAKE (`cr_sx`, `cr_sy`)
+  ou de la tente posée (objet 9 au sol, hors de l'épave), vue locale
+  centrée sur le cap, panneau jusqu'à 8 cases ; sept candidats, ordre
+  local de l'original (épave, poste, igloo, hutte, tente, abri naturel,
+  tranchée). 8 blocs de NEOWILD.BLK sur XL ; l'édition de 140 Ko n'a ni
+  les sprites (`site_blocks` 0) ni la queue de PROJECT qui les sert
+  (`project_tail`) : ses abris fabriqués ne se voient pas. Test :
+  `test_sites.py` (`built_shelter_sprites`).
 
 `scene_prepare` charge WILDPRJ pour calculer la géométrie et les bornes,
 puis le flux graphique avant `view_full`. Un cache de position, cap et état
@@ -766,7 +850,8 @@ dans [MEMORY.md](MEMORY.md) § 7.
 - **Texte.** Lot 3 : page 40 colonnes dans les cellules impaires. Lot 4 :
   vrai texte 80 colonnes (voir ci-dessous).
 - **Modes.** Lot 4 : DHGR pour la vue et TOPO, texte 80 colonnes pour MAP et
-  le rideau, 40 colonnes pour STATUS, INVENTORY, HELP et la fin. Aucun
+  le rideau, 40 colonnes pour STATUS, INVENTORY, HELP et la fin (depuis le
+  14 octobre, seule la fin reste en 40 colonnes). Aucun
   retour d'écran ne relance le lancer de rayons.
 
 Écarts mesurés (`BASELINE_DHGR.json`, contre HGR 128 Ko) : VIEW +3,6 %,
@@ -1105,11 +1190,12 @@ T11/S00 → T0E/S02 → T0E/S0A → T06/S00.
 
 Écarts et crochets :
 
-- **Attelle.** Le second jeu d'objets (dont l'attelle fabriquée, objet 93)
-  appartient au lot 3. `splint_place` (résident) est le crochet : `$FF`
-  absente, 1 portée ; USE SPLINT fonctionne sur toute attelle présente. Le
-  retrait de l'attelle efface le sélecteur 3 dans l'original (T0E/S0A
-  `$5AC4`) : à porter avec DROP/REMOVE de l'objet 93 au lot 3. L'effort
+- **Attelle.** MAKE SPLINT (lot 3, [CRAFT.md](CRAFT.md) § 5) la pose au
+  sol (`splint_place` 0, sur sa case `cr_cx/cr_cy` + 2) ; `$FF` absente,
+  1 portée, 2 sac, 3 main ; USE SPLINT la prend sur la case ou portée.
+  WEAR SPLINT la porte et lève le sélecteur 3 sans temps ; DROP, REMOVE,
+  PACK ou GET d'une attelle portée l'effacent (T0E/S0A `$5AC4`, mesuré
+  le 15 octobre 2026 ; CRAFT.md § 8.5). L'effort
   original utilise le poids total `$4C02` (213 lb au départ) ; le port, comme
   pour l'arbre, le poids du corps.
 - **Feu.** `care_fire_here` (WILDMVI) répond « pas de feu » ; le lot 2 y
@@ -1275,6 +1361,14 @@ profil conserve son dessous natif, déjà situé à cette hauteur ou au-dessus.
 Le calcul de pente rejette la retenue du produit sur 16 bits avant le
 décalage : une falaise très abrupte ne peut pas ramener une projection
 hors écran dans le ciel par débordement.
+Une couronne, une case : toutes les colonnes d'une couronne prennent la
+case de son centre (base, profil, phase du pointillé). Une colonne de bord
+dont l'échantillon a franchi la limite de case le long du rayon reprend la
+case de la couronne (`forest_centre`, `forest_ref.centre_cell`) : les côtés
+du triangle ne tombent plus à la base, plus basse, de la case voisine. Seuls
+les échantillons à moins de 64 unités d'une limite font le test (comparaison
+en seizièmes de case, indépendante de la colonne : une rotation redessine
+les mêmes couronnes) ; coût de la vue : +0,3 à +2 %.
 La végétation d’altitude reste classée SCRUB mais n’a pas de silhouette
 d’arbre. CLIMB TREE/DOWN, HANG FOOD et la récupération du sac sont portés
 dans WILDTRE ; voir [logic/trees.md](logic/trees.md) pour les preuves natives
@@ -1285,7 +1379,8 @@ le rendu à une référence indépendante : directions cardinales, deux tours
 complets dans les deux sens, égalité des pixels entre rotation et redessin,
 aucune lecture disque pendant une rotation, eau, limite d’altitude, anciens
 fichiers, masque clairsemé, crête au premier plan, troncs jusqu'au sol et
-feuillage des arbres proches sur les pentes descendantes.
+feuillage des arbres proches sur les pentes descendantes, une seule case
+par couronne.
 
 ## Séparation TOPO / MAP
 
@@ -1391,13 +1486,15 @@ Décisions détaillées dans [DHGR.md](DHGR.md) § 11 et
   avertissements en blanc sur bande rouge, indications bleu clair. Même
   contenu et mêmes règles d'alerte qu'au lot 3 ; `tools/dhgr_ui.py` lit les
   champs pour les tests.
-- **Texte.** Les quatre lignes mixtes, le rideau de la simulation et MAP sont
-  du vrai texte 80 colonnes (primitives `t_*` en `$0200-$03CF`) ; depuis le
-  lot 8 (étape 2) les quatre lignes sont une surface de commande, grille de
-  verbes à gauche et colonne de résultat à droite ([MENUS.md](MENUS.md) § 4,
-  `src/menu.s`). Les menus
-  STATUS, INVENTORY, HELP et la fin restent en 40 colonnes. Les messages
-  gardent leur mise en page de 38 colonnes ; la ligne en accepte 79.
+- **Texte.** Les quatre lignes mixtes, le rideau de la simulation, MAP et
+  les pages STATUS, MEDICAL, INVENTORY, CRAFT, HELP, OPTIONS et MENU sont du vrai
+  texte 80 colonnes (primitives `t_*` en `$0200-$03CF`, `src/pages.s`) ;
+  depuis le lot 8 (étape 2) les quatre lignes sont une surface de commande,
+  colonne de résultat à gauche (colonnes 0 à 38) et grille de verbes à
+  droite (41 à 78) depuis le 14 octobre ([MENUS.md](MENUS.md) § 4,
+  `src/menu.s`). Seule la fin de partie (`src/hof.s`) reste en
+  40 colonnes. Les messages gardent leur mise en page de 38 colonnes ; la
+  ligne en accepte 79.
 - **Retours sans lancer de rayons.** STATUS, HELP, MAP : la page DHGR n'est
   pas touchée (retour 6 ms). INVENTORY copiait la simulation pour les totaux
   de charge, ce qui forçait le rideau puis un rendu complet (6,1 s) : il la
@@ -1692,7 +1789,8 @@ même écran.
   porte le masque WOODS). Nord en haut, rangée 0 = Y le plus grand. Fenêtre
   centrée sur le joueur (`topo_x = px − 20`, `topo_y = py − 12` : P en
   colonne 20, rangée 11), bornée à `[0, 72] × [0, 60]` (`GW − 40`,
-  `GH − 24`). Flèches/WASD : un quart de fenêtre par touche (10 cases en
+  `GH − 24`). I, J, K, L (flèches/WASD avant le 14 octobre 2026, qui
+  mènent désormais à TOPO et à la vue) : un quart de fenêtre par touche (10 cases en
   largeur, 6 en hauteur), bornes comprises ; C recentre. Pendant la marche,
   la fenêtre reste fixe (voir « Marche » ci-dessous) ; la bande extérieure
   de deux cases où la marche s'arrête garde P à l'écran, au plus en
@@ -1708,7 +1806,7 @@ même écran.
   grille des verbes, qui le propose à la case de la cabane). L'étiquette
   couvre 8 à 17 cases de la rangée 0 ; toutes les autres sont de la carte,
   et un défilement vers le nord les découvre. Les touches restent dans
-  HELP (`MAP: ARROWS/WASD, C CENTER`) ; la légende des symboles
+  HELP (`MAP: IJKL SCROLL, C CENTER`) ; la légende des symboles
   (`=` eau, `T` bois, `t` broussailles, `.,:;+*^#` du plus bas au plus
   haut) est dans le README.
 - **Écriture.** Inchangée : COUT différentiel pour l'étiquette (`INVFLG`
@@ -1795,7 +1893,8 @@ même écran.
   après la marche. Capture : `build/map80x24.png`. Depuis la marche fixe,
   `test_walk` exige aussi la fenêtre (0, 28) fixée au premier demi-pas,
   au plus 4 caractères changés hors de la rangée 0 (aucun sans changement
-  de case ; 3 en quittant l'épave, `C` + espace) et au plus 4 + les
+  de case ; depuis la lettre unique, 2 par pas : `P` quitte une case, `C`
+  ou le terrain la reprend) et au plus 4 + les
   changements de l'étiquette, 40 en tout ; `full_screen` vérifie la
   fenêtre centrée une fois puis fixe pendant la marche vers le bord est,
   et une marche qui franchit la marge : P de la colonne 35 à 36, un seul

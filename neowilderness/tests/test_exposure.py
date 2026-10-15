@@ -64,6 +64,33 @@ def main():
     assert actual[cases.index((3,30,1.65,7200,0,0))][1]==0
     assert all(value[1] == 0 and value[0] < case[3] for case,value in zip(cases,actual) if case[5])
     print(f'{len(cases)} salt/cold exposure and onset cases OK'+(' (native ROM)' if '--original' in sys.argv else ''))
+    shelters()
+
+
+def shelters():
+    """Lot 3: inside a shelter the hazards take the air + 15 F, inside the
+    igloo (shelter_inside 2) 35 F, as THERMAL (T0B/S02): the frostbite
+    counter in the igloo at -20 F equals the one outside at 35 F."""
+    idle=L.until('idle',20000);done=f'until:{L["idle"]+3:04X}:6000'
+    steps=[idle]+call(['env_hour'])+[done,idle]+call(['injury_health'])+[done,idle]
+    driver=bytes((0xA9,18,0x20,L['overlay_load']&255,L['overlay_load']>>8,
+                  0x20,L['module_hazards']&255,L['module_hazards']>>8,
+                  0x4C,L['idle']&255,L['idle']>>8))
+    steps+=byte_pokes(L['idle'],driver)
+    end=f'until:{L["idle"]+8:04X}:6000'
+    cases=[(0,35,35),(2,-20,-20),(0,-5,-5),(1,-20,-20),(0,-20,-20)]   # shelter, felt, air
+    for shelter,felt,air in cases:
+        steps+=byte_pokes(L['injury_active'],bytes(15))+byte_pokes(L['injury_prevented'],bytes([1])*15)
+        steps+=[L.poke('injury_prevented',0,6),L.poke('shelter_inside',shelter),L.poke('thermal_mode',0),L.poke('felt_temp',felt&255),
+                L.poke('felt_temp',(felt>>8)&255,1),L.poke('airtemp',air&255)]
+        steps+=byte_pokes(L['exposure_counter'],bytes(8))
+        steps+=poke('s_step',60)+poke('s_metabolic',1.65)+poke('s_elap',10)
+        steps+=[end,L.peek('exposure_counter',8),idle]
+    r=a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
+    frost=[int.from_bytes(r.mem(L['exposure_counter'],8,k)[6:8],'little') for k in range(len(cases))]
+    assert frost[1]==frost[0] and frost[3]==frost[2] and frost[4]>frost[2]>frost[0], frost
+    print(f'shelters: frostbite counter at 35 F {frost[0]} = igloo at -20 F {frost[1]}; '
+          f'-5 F {frost[2]} = shelter at -20 F + 15 {frost[3]}; outside -20 F {frost[4]}: OK')
 
 
 if __name__=='__main__':main()

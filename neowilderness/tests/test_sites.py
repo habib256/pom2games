@@ -37,7 +37,7 @@ def playable(disk):
     steps += command('ENTER HUT') + snap
     steps += ['key:MAP\r', 'wait:1', L.until('topo_key',20000),
               'peek:0400:1024', 'peek:2000:8192']
-    for key, count in [('D',12),('W',20),('A',20),('S',20)]:
+    for key, count in [('L',12),('I',20),('J',20),('K',20)]:   # MAP: I/J/K/L scroll
         for _ in range(count):
             steps += [f'key:{key}','wait:1',L.until('topo_key',6000)]
         steps += [L.peek('topo_x'), L.peek('topo_y'), 'peek:0400:1024']
@@ -124,7 +124,7 @@ def topo_refresh(disk):
     snap = [L.peek('topo_x'), L.peek('topo_y'), 'peek:0400:1024']
     steps = [IDLE, 'peek:2000:8192', 'key:MAP', 'press:\\r', ready] + snap
     steps += [L.until('topo_key', 20000)]
-    for key in ('D', 'D', 'W', 'W'):
+    for key in ('L', 'L', 'I', 'I'):
         steps += [f'key:{key}', 'wait:1', L.until('topo_key', 20000)]
     steps += ['key:\\r', 'wait:1', IDLE] + command('WALK 54 MIN')
     steps += [L.peek('px', 6), 'peek:2000:8192']
@@ -235,7 +235,7 @@ def topo_delta(disk):
         s.step(IDLE)
         for step in ('key:MAP', 'press:\\r', L.until('topo_key',20000)):
             s.step(step)
-        for key in ('A','S','D','W','A','S','A','S'):
+        for key in ('J','K','L','I','J','K','J','K'):
             before = s.step('peek:0400:1024').data
             s.step(f'press:{key}')
             s.step(L.until('topo_redraw',6000))
@@ -245,7 +245,7 @@ def topo_delta(disk):
             writes = text_writes(pcs)
             changes = text_changes(before, after)
             assert writes == changes, (key,writes,changes)
-            if key in ('A','S') and before == after:
+            if key in ('J','K') and before == after:
                 assert writes == 0, 'clamped scroll must not write a single screen character'
         s.step('key:\\r')
         s.step(IDLE)
@@ -266,7 +266,7 @@ def full_screen(disk):
     with a2test.Session(disk) as s:
         s.step(IDLE)
         prompt = text_screen(s.step('peek:0400:1024').data)[20:]
-        for x, y, keys in ((2, 2, 'AS'), (GW-3, 2, 'DS'), (2, GH-3, 'AW'), (GW-3, GH-3, 'DW')):
+        for x, y, keys in ((2, 2, 'JK'), (GW-3, 2, 'LK'), (2, GH-3, 'JI'), (GW-3, GH-3, 'LI')):
             for name, value in (('px', x), ('py', y)):
                 s.step(L.poke(name, 128)); s.step(L.poke(name, value, 1))
             for step in ('key:MAP', 'press:\\r', L.until('topo_key', 20000)):
@@ -288,8 +288,8 @@ def full_screen(disk):
             back = text_screen(s.step('peek:0400:1024').data)[20:]
             # The grid comes back; the result column is cleared, as before
             # the full-screen MAP (back_to_view_now), and keeps column 79.
-            assert [row[:40] for row in back] == [row[:40] for row in prompt], ('prompt rows after MAP', prompt, back)
-            assert not any(row[40:79].strip() for row in back[:3]) and back[3][40:].startswith('FOOD'), back
+            assert [row[39:] for row in back] == [row[39:] for row in prompt], ('prompt rows after MAP', prompt, back)
+            assert not any(row[:39].strip() for row in back[:3]) and back[3].startswith('FOOD'), back
             assert all(row[79] == ' ' for row in back), back
         # East edge: WALK east from x = 104 stops before the outer band. The
         # last MAP left the window at (72, 60): P (row 40) is outside it, so
@@ -313,7 +313,7 @@ def full_screen(disk):
         assert seen >= 6, seen
         s.step(IDLE)
         screen = text_screen(s.step('peek:0400:1024').data)
-        assert [row[:40] for row in screen[20:]] == [row[:40] for row in prompt], ('grid after the walk', screen[20:])
+        assert [row[39:] for row in screen[20:]] == [row[39:] for row in prompt], ('grid after the walk', screen[20:])
         assert 'TRAVEL:' in '\n'.join(screen) and all(row[79] == ' ' for row in screen[20:]), screen[20:]
         # Margin: P inside the window keeps it. P in column 35 walks east;
         # reaching column 36 (4 cells from the edge) scrolls the window by
@@ -351,16 +351,351 @@ def full_screen(disk):
           f'centred once; a walk across the 4-cell margin scrolls once (x = 81, origin 45 -> 55): OK')
 
 
+def shelter_fixed(disk):
+    """A natural shelter found by TRAVEL's resource scan (species 12) moves
+    the cabin only on a native map (MAP+37): a generated map keeps its cabin
+    in its cell (header 16-20, here (7, 4) facing 140) and the walk goes on.
+    The idle loop holds the probe LDA #12, JSR overlay_load, LDX #12,
+    JMP rs_resource, stopped at resource_next."""
+    I, ol, rr = L['idle'], L['overlay_load'], L['rs_resource']
+    probe = bytes((0xA9, 12, 0x20, ol & 255, ol >> 8, 0xA2, 12, 0x4C, rr & 255, rr >> 8))
+    got = []
+    with a2test.Session(disk, timeout=600) as s:
+        s.step(IDLE)
+        px = s.step(L.peek('px', 4)).data
+        rocky = 0x7040 + px[3] * 112 + px[1]
+        for native in (0, 1, 2):
+            if native:
+                s.step(f'until:{I:04X}:100')
+            if native == 2:             # rocky ground (level 96 and more): the rock
+                s.step(f'poke:{rocky:04X}:64')
+            s.step(f'poke:7025:{min(native, 1):02X}')
+            s.step(L.poke('act', 1))
+            s.step(L.poke('fauna_alert', 0))
+            for i, b in enumerate(probe):
+                s.step(f'poke:{I + i:04X}:{b:02X}')
+            s.step(L.until('resource_next', 6000))
+            got.append((s.step('peek:7010:5').data, s.step(L.peek('fauna_alert')).data[0],
+                        s.step(L.peek('px', 4)).data, s.step(L.peek('heading', 2)).data))
+            if native < 2:
+                for i, b in enumerate((0x4C, I & 255, I >> 8)):    # the next run stops at idle
+                    s.step(L.poke('resource_next', b, i))
+    (cabin, alert, _, _), (moved, alert2, pos, head), (rock, _, pos2, head2) = got
+    assert cabin == bytes((1, 7, 4, 140, 0)) and alert == 0, (cabin, alert)
+    assert moved == bytes((1, pos[1], pos[3])) + head and alert2 == 1, (moved, pos, head, alert2)
+    assert rock == bytes((2, pos2[1], pos2[3])) + head2, (rock, pos2, head2)
+    print('  natural shelter: the generated map keeps its cabin at (7, 4); a native map records '
+          'the current cell, a log (MAP+16 = 1) below level 96, a rock (2) on rocky ground: OK')
+
+
+def native_mapbin():
+    """mapbin() made native (MAP+37 = 1, flat fine geography appended): the
+    cabin header becomes a natural shelter found at (7, 4), a log; the ground
+    is at level 94, the cell (12, 4) rocky (level 97)."""
+    m = bytearray(mapbin())
+    m[37] = 1
+    for k in range(64, 64 + 9408):                  # high ground, just below rocky
+        m[k] = 94 | (m[k] & 128)
+    m[64+4*112+12] = 97
+    m[21] = 98
+    fine = bytearray([94]) * (224*168)
+    for y in (8, 9):
+        for x in (24, 25):
+            fine[y*224+x] = 97
+        for x in (18, 19):
+            fine[(y+4)*224+x] = 94 | 128            # the water cell (9, 6)
+    return bytes(m) + bytes(294) + bytes(fine) + bytes(28*168)   # no woodland
+
+
+def native_shelter():
+    """Lot 6 on a native map: the natural shelter draws the log (MAP+16 = 1)
+    or the rock (2) instead of the hut, locally and as a billboard, pixel for
+    pixel against tools/dhgr_ref; NEOWILD.BLK is read once per sprite shown;
+    SAVE/RESTORE keeps MAP+16."""
+    from common import terrain_boot, dhgr_view, dhgr_scene
+    import scene_ref
+    from test_save import Game
+    m = bytearray(native_mapbin())
+    frames = [((7, 4, 140), None), ((7, 4, 70), None),
+              ((12, 4, 210), (2, 12, 4, 210)), ((10, 4, 140), None), ((9, 3, 140), None),
+              ((10, 4, 0), (1, 10, 4, 0)), ((14, 4, 140), None)]
+    got = []
+    with tempfile.TemporaryDirectory() as tmp:
+        disk = disk_with(tmp, bytes(m))
+        with a2test.Session(disk, timeout=900) as s:
+            for step in terrain_boot(20000):
+                s.step(step)
+            g = Game(s)
+            for (x, y, head), shelter in frames:
+                if shelter:
+                    kind, cx, cy, bearing = shelter
+                    for i, b in enumerate((kind, cx, cy, bearing & 255, bearing >> 8)):
+                        s.step(f'poke:{0x7010+i:04X}:{b:02X}')
+                    s.step('poke:7022:00')
+                    s.step('poke:7023:00')
+                for name, value in (('px', x*256), ('py', y*256), ('heading', head)):
+                    s.step(L.poke(name, value & 255))
+                    s.step(L.poke(name, value >> 8, 1))
+                reads = g.word('mli_reads')
+                for step in command('V'):
+                    s.step(step)
+                page = s.step('peek:2000:8192').dumps[0]
+                header = s.step('peek:7000:64').dumps[0]
+                got.append((page, g.word('mli_reads') - reads, header, s.step(L.peek('sky_mood')).dumps[0]))
+            g.type('SAVE', answer='1\\r')
+            s.step('poke:7010:00')
+            g.type('RESTORE', answer='1\\r')
+            restored = s.step('peek:7010:5').dumps[0]
+    assets = []
+    for ((x, y, head), _), (page, reads, header, mood) in zip(frames, got):
+        live = header + bytes(m[64:])
+        sel = scene_ref.select(live, x*256, y*256, head)
+        ref = dhgr_scene(live, x*256, y*256, head, mood)
+        n = sum(a != b for r_, w in zip(dhgr_view(page), ref) for a, b in zip(r_, w))
+        assert not n, ((x, y, head), n, sel, [(r, c, g_[c], w[c]) for r, (g_, w) in enumerate(zip(dhgr_view(page), ref)) for c in range(140) if g_[c] != w[c]][:10])
+        assets.append((sel and sel['asset'], reads))
+    assert assets == [(33, 3), (33, 0), (34, 3), (34, 0), (34, 0), (33, 3), (35, 5)], assets
+    assert restored == bytes((1, 10, 4, 0, 0)), restored.hex()
+    print('  native map: the found shelter is a log on low ground, a rock on rocky ground, locally and '
+          'as a billboard (exact frames); each sprite read once from NEOWILD.BLK; SAVE keeps MAP+16: OK')
+
+
+def generated_shelter():
+    """The fixed cabin of a generated map (MAP+37 = 0) is drawn as the
+    original's natural shelter: tools/mkmap.py writes MAP+16 = 1 (the log)
+    below level 96, 2 (the rock) on rocky ground, and PROJECT draws asset
+    32 + MAP+16, locally and as a billboard, pixel for pixel against
+    tools/dhgr_ref. The control map raised to level 90: its cabin (7, 4) is a
+    log; moved to the rocky cell (12, 4) (level 97) with MAP+16 = 2, the rock.
+    Then billboards whose cell towers over the eye, anchored at view row 0
+    where only their bottom row shows (once rejected by PROJECT, leaving the
+    ridge black), and billboards cut by the side and bottom edges."""
+    import mkmap
+    from common import terrain_boot, dhgr_view, dhgr_scene
+    import scene_ref
+    W, H = 2 * mkmap.GW, 2 * mkmap.GH
+    for level, kind in ((10, 1), (95, 1), (96, 2), (110, 2)):
+        h = [[level] * W for _ in range(H)]
+        water = [[False] * W for _ in range(H)]
+        made = mkmap.map_bin(h, water, (20, 20), (180, 140), 140)
+        assert made[16] == kind and made[17:19] != bytes(2), (level, made[16:21].hex())
+    m = bytearray(mapbin())
+    for k in range(64, 64 + 9408):                  # high ground, below rocky
+        m[k] = 90 | (m[k] & 128)
+    m[64 + 4*112 + 12] = 97
+    m[21] = 98
+    rocky = bytearray(m)
+    rocky[16:19] = bytes((2, 12, 4))
+    frames = [(m, (7, 4, 140)), (m, (10, 4, 420)), (rocky, (12, 4, 140)), (rocky, (15, 4, 420))]
+
+    def cliff(base, *cells):
+        """base with these cells at level 125 (MAP+21 = 126): a billboard
+        site 33+ levels above the eye, anchored at view row 0."""
+        live = bytearray(base)
+        live[21] = 126
+        for cx, cy in cells:
+            live[64 + cy*112 + cx] = 125
+        return live
+    # Clipped at the top (3*q/16 >= 256: PROJECT rejected these sites
+    # until 2026-10-15): the rock at depths 2 to 4, the log, the wreck (start
+    # cell (4, 4)) and the outpost (20, 4); the rock cut by the right and left
+    # edges; the rock 8 levels below a raised eye, cut by the bottom of the view.
+    rock_cliff, log_cliff = cliff(rocky, (12, 4)), cliff(m, (7, 4))
+    low_rock = bytearray(rocky)
+    low_rock[21] = 126
+    low_rock[64 + 4*112 + 15] = 103
+    clipped = [(rock_cliff, (15, 4, 420)), (rock_cliff, (14, 4, 420)), (rock_cliff, (16, 4, 420)),
+               (rock_cliff, (15, 4, 380)), (rock_cliff, (15, 4, 500)),
+               (log_cliff, (10, 4, 420)), (cliff(m, (4, 4)), (1, 4, 140)),
+               (cliff(m, (20, 4)), (23, 4, 420)), (low_rock, (15, 4, 420))]
+    frames += clipped
+    got = []
+    with tempfile.TemporaryDirectory() as tmp, \
+            a2test.Session(disk_with(tmp, bytes(m)), timeout=900) as s:
+        for step in terrain_boot(20000):
+            s.step(step)
+        shown = m
+        for live, (x, y, head) in frames:
+            for i in range(16, len(live)):          # header 16..21 and changed cells
+                if live[i] != shown[i] or i < 19:
+                    s.step(f'poke:{0x7000 + i:04X}:{live[i]:02X}')
+            if live[22:] != shown[22:]:             # the scene cache keys on the position
+                s.step(L.poke('scene_cache_valid', 0))
+            shown = live
+            for name, value in (('px', x*256), ('py', y*256), ('heading', head)):
+                s.step(L.poke(name, value & 255))
+                s.step(L.poke(name, value >> 8, 1))
+            for step in command('V'):
+                s.step(step)
+            got.append((s.step('peek:2000:8192').dumps[0], s.step('peek:7000:64').dumps[0],
+                        s.step(L.peek('sky_mood')).dumps[0]))
+    assets = []
+    for (live, (x, y, head)), (page, header, mood) in zip(frames, got):
+        assert header[:22] == bytes(live[:22]), (header[:22].hex(), bytes(live[:22]).hex())
+        sel = scene_ref.select(bytes(live), x*256, y*256, head)
+        ref = dhgr_scene(bytes(live), x*256, y*256, head, mood)
+        n = sum(a != b for r_, w in zip(dhgr_view(page), ref) for a, b in zip(r_, w))
+        assert not n, ((x, y, head), n, sel)
+        assets.append(sel and sel['asset'])
+    assert assets == [33, 33, 34, 34, 34, 34, 34, 34, 34, 33, 5, 35, 34], assets
+    for (live, (x, y, head)) in clipped[:-1]:
+        assert scene_ref.select(bytes(live), x*256, y*256, head)['anchor'] == 0, (x, y, head)
+    edges = [scene_ref.select(bytes(live), x*256, y*256, head) for live, (x, y, head) in clipped]
+    assert edges[3]['left'] + edges[3]['width'] > 140 and edges[4]['left'] < 0, edges[3:5]
+    assert 160 <= edges[-1]['anchor'] < 252, edges[-1]
+    print('  generated map: mkmap writes the log (MAP+16 = 1) below level 96, the rock (2) from 96; '
+          'the fixed cabin is drawn as that log or rock, locally and as a billboard; billboards '
+          'clipped at row 0 (rock, log, wreck, outpost), at the edges and the bottom (exact frames): OK')
+
+
+def poke_built(s, cr_sx, cr_sy, tent):
+    """craft_state's shelters (cr_sx, cr_sy) and the tent (item 9) on the
+    ground at tent = (x, y), or not (None), then a fresh projection."""
+    for i in range(3):
+        s.step(L.poke('cr_sx', cr_sx[i], i))
+        s.step(L.poke('cr_sy', cr_sy[i], i))
+    s.step(L.poke('it_place', 0 if tent else 0xFF, 9))
+    if tent:
+        s.step(L.poke('it_x', tent[0], 9))
+        s.step(L.poke('it_y', tent[1], 9))
+    s.step(L.poke('scene_cache_valid', 0))
+
+
+def built_shelter_sprites():
+    """Lot 3 step 3 (XL): the built tent, hut (cabin.bin), igloo and trench
+    are site sprites, drawn on their cell and as billboards, pixel for pixel
+    against tools/dhgr_ref (scene_ref.built_shelters); the original's local
+    order (wreck, outpost, igloo, hut, tent, natural shelter, trench), ties
+    of billboards to the first (tent, hut, igloo, trench after the others);
+    no pitched tent at the wreck; NEOWILD.BLK read once per sprite shown.
+    Then MAKE TRENCH, DROP TENT and GET TENT redraw the view with the
+    shelter (scene_prepare's cache dropped), and the 140 KB edition, which
+    has none of these sprites, draws nothing for a built shelter."""
+    from common import terrain_boot, dhgr_view, dhgr_scene, DISK140
+    import json
+    import scene_ref
+    from test_save import Game
+    m = bytearray(native_mapbin())
+    NO = (255, 255, 255)
+    hut = ((10, 255, 255), (3, 255, 255))
+    hut_igloo = ((10, 10, 255), (3, 3, 255))
+    trench = ((10, 10, 7), (3, 3, 4))           # the trench on the log's cell
+    trench2 = ((10, 10, 14), (3, 3, 6))
+    hut_log = ((7, 10, 14), (4, 3, 6))
+    frames = [((10, 3, 140), hut, None, 37, 3), ((13, 3, 420), hut, None, 37, 0),
+              ((10, 3, 140), hut_igloo, None, 38, 2), ((10, 6, 280), hut_igloo, None, 37, 3),
+              ((7, 4, 140), trench, None, 33, 3),
+              ((14, 8, 280), trench2, None, 39, 1), ((14, 6, 280), trench2, None, 39, 0),
+              ((16, 3, 140), trench2, (16, 3), 36, 2), ((18, 3, 420), trench2, (16, 3), 36, 0),
+              ((5, 6, 280), (NO, NO), (4, 4), 5, 0), ((5, 6, 280), (NO, NO), (5, 5), 36, 0),
+              ((7, 4, 210), hut_log, None, 37, 3)]
+    got = []
+    with tempfile.TemporaryDirectory() as tmp:
+        disk = disk_with(tmp, bytes(m))
+        layout = None
+        with a2test.Session(disk, timeout=900) as s:
+            for step in terrain_boot(20000):
+                s.step(step)
+            g = Game(s)
+            for (x, y, head), (sx, sy), tent, _, _ in frames:
+                poke_built(s, sx, sy, tent)
+                for name, value in (('px', x*256), ('py', y*256), ('heading', head)):
+                    s.step(L.poke(name, value & 255))
+                    s.step(L.poke(name, value >> 8, 1))
+                reads = g.word('mli_reads')
+                for step in command('V'):
+                    s.step(step)
+                got.append((s.step('peek:2000:8192').dumps[0], g.word('mli_reads') - reads,
+                            s.step('peek:7000:64').dumps[0], s.step(L.peek('sky_mood')).dumps[0],
+                            s.step(L.peek('scene_asset')).dumps[0][0]))
+            # The commands: MAKE TRENCH (anywhere but the water, the wreck and
+            # the outpost), then the tent set down and picked up again.
+            poke_built(s, NO, NO, None)
+            for name, value in (('px', 14*256), ('py', 6*256)):
+                s.step(L.poke(name, value & 255))
+                s.step(L.poke(name, value >> 8, 1))
+            for step in command('V'):
+                s.step(step)
+            before = s.step(L.peek('scene_asset')).dumps[0][0]
+            for step in command('MAKE TRENCH'):
+                s.step(step)
+            made = (s.step(L.peek('cr_sx', 3)).dumps[0], s.step(L.peek('cr_sy', 3)).dumps[0],
+                    s.step(L.peek('scene_asset')).dumps[0][0])
+            for name, value in (('px', 16*256), ('py', 3*256)):
+                s.step(L.poke(name, value & 255))
+                s.step(L.poke(name, value >> 8, 1))
+            s.step(L.poke('it_place', 2, 9))            # the tent in the pack
+            for step in command('V') + command('DROP TENT') + command('V'):
+                s.step(step)
+            dropped = (s.step(L.peek('it_place', 1, 9)).dumps[0][0], s.step(L.peek('scene_asset')).dumps[0][0])
+            for step in command('GET TENT') + command('V'):
+                s.step(step)
+            taken = (s.step(L.peek('it_place', 1, 9)).dumps[0][0], s.step(L.peek('scene_asset')).dumps[0][0])
+    seen = []
+    for ((x, y, head), (sx, sy), tent, asset, blocks), (page, reads, header, mood, shown) in zip(frames, got):
+        live = header + bytes(m[64:])
+        built = scene_ref.built_shelters(live, sx, sy, tent)
+        sel = scene_ref.select(live, x*256, y*256, head, built=built)
+        ref = dhgr_scene(live, x*256, y*256, head, mood, built=built)
+        n = sum(a != b for r_, w in zip(dhgr_view(page), ref) for a, b in zip(r_, w))
+        assert not n, ((x, y, head), n, sel)
+        seen.append((sel and sel['asset'], shown, reads))
+    assert seen == [(a, a, b) for _, _, _, a, b in frames], seen
+    assert before != 39 and made == (bytes((255, 255, 14)), bytes((255, 255, 6)), 39), (before, made)
+    assert dropped == (0, 36) and taken[0] != 0 and taken[1] != 36, (dropped, taken)
+    print('  XL: the built tent, hut, igloo and trench drawn on their cell and as billboards (exact '
+          'frames); local order igloo > hut > tent > log > trench; no tent at the wreck; each sprite '
+          'read once; MAKE TRENCH, DROP TENT, GET TENT redraw the view: OK')
+
+    # The 140 KB edition: no shelter sprite on NEOWILD.BLK, PROJECT cut at
+    # its tail; a hut on the player's cell leaves the view as it was.
+    lay = json.loads((HERE / 'build/layout-140.json').read_text())
+    assert set(lay['disk']['sites']) == {'log', 'rock', 'outpost'}, lay['disk']['sites']
+    assert lay['trunk_modules']['11']['length'] == L['project_tail'] - 0x5800
+    xl = json.loads((HERE / 'build/layout.json').read_text())
+    assert set(xl['disk']['sites']) == {'log', 'rock', 'outpost', 'tent', 'cabin', 'igloo', 'trench'}
+    assert xl['trunk_modules']['11']['length'] == L['project_end'] - 0x5800
+    out = []
+    for disk in (DISK140, DISK):
+        with a2test.Session(disk, timeout=600, menu=False) as s:
+            s.step(L.until('menu_key', 40000))
+            s.step('key:1\r')         # the Sierra Nevada (common.MENU_KEY)
+            s.step(L.until('idle', 60000))
+            s.step(L.poke('nature_frequency', 0))
+            g = Game(s)
+            pos = s.step(L.peek('px', 4)).dumps[0]
+            x, y = pos[1] + 1, pos[3]               # beside the wreck
+            s.step(L.poke('px', x, 1))
+            for step in command('V'):
+                s.step(step)
+            plain = s.step('peek:2000:8192').dumps[0]
+            poke_built(s, (x, 255, 255), (y, 255, 255), None)
+            reads = g.word('mli_reads')
+            for step in command('V'):
+                s.step(step)
+            out.append((plain, s.step('peek:2000:8192').dumps[0], g.word('mli_reads') - reads,
+                        s.step(L.peek('scene_asset')).dumps[0][0]))
+    (plain, hut140, reads140, asset140), (_, hutxl, readsxl, assetxl) = out
+    assert view_rows(hut140) == view_rows(plain) and reads140 == 0 and asset140 != 37, (reads140, asset140)
+    assert assetxl == 37 and readsxl == 3 and view_rows(hutxl) != view_rows(out[1][0]), (assetxl, readsxl)
+    print('  140 KB edition: three site sprites, PROJECT ends at its tail, a hut on the cell draws '
+          'nothing and reads nothing; the same hut on NeoWildernessXL: the hut sprite (3 blocks): OK')
+
+
 def main():
     cardinal_walks()
     with tempfile.TemporaryDirectory() as tmp:
         disk=disk_with(tmp,mapbin())
+        shelter_fixed(disk)
         topo_refresh(disk)
         topo_delta(disk)
         full_screen(disk)
         playable(disk)
         overnight(disk)
     temperatures()
+    generated_shelter()
+    native_shelter()
+    built_shelter_sprites()
     assert 0 < (HERE/'build/wildsit.bin').stat().st_size <= 2048
     print('Cabin and MAP: OK')
 

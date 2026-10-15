@@ -88,11 +88,8 @@ rs_eligible:                      ; the six filters accept (tests/test_fauna.py)
         bcc     rs_animal
         cmp     #12
         beq     rs_shelter
-        lda     verb
-        cmp     #V_REST
-        jeq     rs_next
-        cmp     #V_CAMP
-        jeq     rs_next
+        jsr     forage_skip     ; REST, CAMP, IGNORE FOOD: no draw (lot 4)
+        jcs     rs_next
         jsr     weather_random
         fop     FMULT, resource_tenth
         fst     t1
@@ -123,7 +120,7 @@ rs_rolled:                        ; threshold ready (tests/test_fauna.py)
         jsr     weather_random
         fop     FCOMP, resource_threshold
         cmp     #$FF
-        jne     rs_next
+        bne     rs_next
         ldx     resource_species
         cpx     #4
         bcs     rs_resource
@@ -131,7 +128,11 @@ rs_rolled:                        ; threshold ready (tests/test_fauna.py)
         jsr     fauna_accept
         jmp     rs_next
 rs_resource:
-        lda     act
+        cpx     #12             ; a natural shelter: native maps only; the
+        bne     :+              ; generated maps keep their cabin fixed
+        lda     MAP+37          ; (header 16-20; the draw is kept)
+        beq     rs_next
+:       lda     act
         cmp     #1
         bne     :+
         lda     #1
@@ -144,8 +145,11 @@ rs_resource:
         ora     MAP+36
         sta     MAP+36
         cpx     #12
-        jne     rs_next
-        lda     #1
+        bne     rs_next
+        jsr     level_here      ; SURV3D $1CAA: a log below the rocky level
+        cmp     #96             ; ($60A3, 96 levels as STATUS's ROCKY), else
+        lda     #1              ; the rock: MAP+16 = 1 log, 2 rock (PROJECT)
+        adc     #0
         sta     MAP+16
         lda     px+1
         sta     MAP+17
@@ -487,12 +491,15 @@ trv_half_pi: .byte $81,$49,$0F,$DA,$D5
 ; Probe without committing position, time, or the raster's next-step state.
 module_swim_land:
         jsr     native_here
-        bpl     @entry
+        bpl     swim_land_probe
         lda     #1
         sta     travel_shore
         sec
         rts
-@entry: ldx     #3
+; swim_land_probe -- the next half-step only (swim_ok, src/game.s: the grid
+; tests the player's cell itself, native_here being in the SIM window).
+swim_land_probe:
+        ldx     #3
 @save:  lda     nx,x
         pha
         lda     wdx,x
