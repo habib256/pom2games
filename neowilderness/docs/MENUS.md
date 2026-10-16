@@ -965,3 +965,21 @@ Le curseur conserve sa position quand l’objet est toujours à cette position,
 avant de rechercher son identité ailleurs. Il peut ainsi dépasser les
 provisions présentes à la fois au sol et dans LOCAL HUNG, sans revenir sur
 la première occurrence à chaque déplacement.
+
+## 14. Goûter depuis l’objet (16 octobre 2026, XL)
+
+TASTE est proposé pour les provisions et les aliments sauvages présents
+sur la case ou transportés. Sur l’eau, l’action reste DRINK ; les médicaments,
+équipements, armes fabriquées et la peau ne proposent pas TASTE.
+
+L’action affiche « NO STOCK USED / 0 MIN » et passe directement à la
+confirmation, sans quantité ni TOUT. Échap revient aux actions puis à la
+liste. Le goût vient de la source sélectionnée, même si deux piles du même
+aliment coexistent. Après validation, OBJECTS retrouve le côté et l’objet,
+avec le message sensoriel du moteur. Le stock, l’horloge et les générateurs
+de hasard restent inchangés. Le goût affiché ne garantit pas la comestibilité.
+
+Les aides du dialogue utilisent désormais la banque de textes. À l’ouverture,
+la commande choisie est copiée dans le scratch de la fenêtre ; les messages
+d’aide ne peuvent donc plus écraser son nom dans le tampon de texte partagé.
+La fermeture reconstruit la liste depuis l’état du jeu.

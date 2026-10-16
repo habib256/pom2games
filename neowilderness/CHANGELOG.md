@@ -7,6 +7,18 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### OBJECTS : goûter sans consommer (16 octobre 2026)
+
+- TASTE sur les provisions et aliments sauvages de la source sélectionnée,
+  avec confirmation, sans quantité ni TOUT, sans stock consommé ni temps
+  écoulé. L’eau conserve DRINK ; équipements et médicaments sont exclus.
+- Retour au même objet et au même côté avec le résultat sensoriel natif ;
+  annulation sans effet. Les goûts LOCAL et CARRIED sont distincts.
+- Aides du dialogue placées dans la banque de textes, nom de la commande
+  conservé dans le scratch modal. La fenêtre TREE retrouve 78 octets libres.
+- Validation : `make test-xl`, 23 scripts réussis ; goûts LOCAL/CARRIED,
+  annulation, absence de consommation, d’écoulement de temps et de tirage vérifiés.
+
 ### OBJECTS : soins et sac suspendu (16 octobre 2026)
 
 - Médicaments : usage unique avec nombre de doses et durée native ; EAT

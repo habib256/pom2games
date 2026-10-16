@@ -1,7 +1,13 @@
 ; OBJECTS transaction editor. Lives beside TREE, outside STATUS/MEDVIEW.
 ; Everything up to object_commit is a read-only view of simulation state.
 .segment "TREE"
+om_line = overlay_text          ; modal-only copy; banked hints may overwrite tb_buf
 object_menu:
+        ldx     #MAXLINE
+:       lda     ob_line,x
+        sta     om_line,x
+        dex
+        bpl     :-
         lda     obj_side
         ldx     pg_cur
         cpx     #PG_EQUIPMENT
@@ -13,12 +19,12 @@ object_menu:
         sta     om_action
         sta     om_many
         ldx     #0
-:       lda     ob_line,x
+:       lda     om_line,x
         inx
         cmp     #' '
         bne     :-
         stx     om_name
-        lda     ob_line
+        lda     om_line
         cmp     #'C'
         bne     :+
         inc     om_action
@@ -30,7 +36,7 @@ object_menu:
         bne     :+
         lda     #4
         sta     om_action
-:       lda     ob_line
+:       lda     om_line
         cmp     #'L'
         bne     @normal
         lda     #4
@@ -66,7 +72,15 @@ object_menu:
         bne     @mask
         lda     #5              ; HIDE: PACK or DROP
         bne     @many
-@food:  lda     #$25             ; PACK, DROP, EAT
+@food:  lda     #<om_taste
+        sta     om_words_lo+6
+        lda     #>om_taste
+        sta     om_words_hi+6
+        lda     #<om_t_sense
+        sta     om_to_lo+6
+        lda     #>om_t_sense
+        sta     om_to_hi+6
+        lda     #$65             ; PACK, DROP, EAT, TASTE
 @many:  inc     om_many
         bne     @mask
 @water: inc     om_many
@@ -163,7 +177,7 @@ object_draw:
         ldy     om_words_hi,x
         jsr     print_str_ay
         ldx     om_name
-@name:  lda     ob_line,x
+@name:  lda     om_line,x
         beq     @source
         ora     #$80
         jsr     COUT
@@ -202,7 +216,7 @@ object_draw:
         ldy     om_to_hi,x
         jsr     print_str_ay
 @qty_text:
-        lda     ob_line
+        lda     om_line
         cmp     #'L'
         bne     :+
         jsr     puts
@@ -210,7 +224,7 @@ object_draw:
         jmp     @capacity_line
 :       jsr     puts
         .byte   " QTY ",0
-        lda     om_many
+        jsr     om_quantities
         beq     @single
         lda     om_qty
         sta     num
@@ -221,7 +235,12 @@ object_draw:
         .byte   " OZ",0
         jmp     @preview
 @single:
-        lda     om_action
+        lda     om_many
+        beq     @use
+        lda     #om_sample
+        jsr     om_bank_puts
+        jmp     @preview
+@use:   lda     om_action
         cmp     #4
         bcc     @object
         ldx     menu_noun
@@ -273,8 +292,8 @@ object_draw:
         jsr     om_cr
         lda     om_bad
         beq     :+
-        jsr     puts
-        .byte   "OVERFLOW - TRANSFER WILL BE REFUSED",0
+        lda     #om_overflow
+        jsr     om_bank_puts
         jmp     @preview_end
 :
         lda     menu_noun
@@ -328,9 +347,8 @@ object_draw:
 @preview_end:
         jsr     om_cr
         ldx     om_phase
-        lda     om_help_lo,x
-        ldy     om_help_hi,x
-        jsr     print_str_ay
+        lda     om_help_ids,x
+        jsr     om_bank_puts
         jsr     topo_pad
 object_key:
         jsr     wait_key
@@ -339,7 +357,7 @@ object_key:
         lda     om_phase
         jeq     object_cancel
         dec     om_phase
-        lda     om_many
+        jsr     om_quantities
         bne     :+
         sta     om_phase        ; indivisible uses have no quantity screen
 :       jmp     object_draw
@@ -349,7 +367,7 @@ object_key:
         cmp     #2
         jeq     object_commit
         inc     om_phase
-        lda     om_many
+        jsr     om_quantities
         jne     @draw
         lda     #2
         sta     om_phase
@@ -669,14 +687,14 @@ object_commit:
         iny
         bne     @verb
 @name:  ldx     om_name
-:       lda     ob_line,x
+:       lda     om_line,x
         sta     inbuf,y
         beq     @amount
         inx
         iny
         bne     :-
 @amount:
-        lda     om_many
+        jsr     om_quantities
         beq     @end
         lda     #' '
         sta     inbuf,y
@@ -753,11 +771,7 @@ om_eat: .byte "EAT ",0
 om_drink: .byte "DRINK ",0
 om_get: .byte "GET ",0
 om_bits: .byte 1,2,4,8,16,32,64,128
-om_help_lo: .byte <om_h0,<om_h1,<om_h2
-om_help_hi: .byte >om_h0,>om_h1,>om_h2
-om_h0: .byte "UP/DOWN ACTION  RETURN SELECT  ESC CANCEL",0
-om_h1: .byte "UP +1 DOWN -1 LEFT 1 RIGHT ALL*  RETURN NEXT  ESC BACK",0
-om_h2: .byte "RETURN CONFIRM  ESC BACK",0
+om_help_ids: .byte om_h0,om_h1,om_h2
 om_tens: .word 10000,1000,100,10,1
 om_phase: .byte 0
 om_action: .byte 0
@@ -789,3 +803,22 @@ om_usable_end:
 om_lower: .byte "LOWER ",0
 
 om_t_restore: .byte "CARRIED",0
+
+om_taste: .byte "TASTE ",0
+om_t_sense: .byte "SENSES",0
+; TASTE is a native inspection: no amount, no ounce, no consumption.
+om_quantities:
+        lda     om_action
+        cmp     #6
+        bne     @ordinary
+        lda     menu_noun
+        cmp     #N_WATER
+        beq     @ordinary
+        lda     #0
+        rts
+@ordinary:
+        lda     om_many
+        rts
+om_bank_puts:
+        jsr     text_fetch
+        jmp     print_str_ax

@@ -423,10 +423,10 @@ au seuil de 5 %) ; « tout est encore non commité » ; fenêtres DHGR à la
 place des écrans 40 colonnes (étapes 3-4 de MENUS.md, remplacées par les
 pages 80 colonnes).
 
-Points de contrôle du lot suivant : compléter le filtrage contextuel des
-actions (dont goûter), le choix rapide de quantité et l’aperçu de récupération
-du sac entier. Vérifier ensuite les parcours complets CRAFT/CATCH et le
+Points de contrôle du lot suivant : terminer le filtrage contextuel fin,
+le choix rapide de quantité et l’aperçu de récupération du sac entier. Vérifier ensuite les parcours complets CRAFT/CATCH et le
 matériel réel sans saisie de commande. Les doses médicales (un usage avec
 stock/durée affichés), LOWER FOOD depuis LOCAL HUNG, les quantités d’eau,
 le volume requis, les refus détaillés des objets fabriqués et EQUIPMENT
-sont réalisés (CHANGELOG, 16 octobre).
+ainsi que TASTE depuis la source sélectionnée sont réalisés (CHANGELOG,
+16 octobre).
