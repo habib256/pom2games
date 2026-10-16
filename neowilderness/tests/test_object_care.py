@@ -69,7 +69,7 @@ def hung():
             select(s, 0, 47)  # a medicine in LOCAL HUNG, rather than the bag itself
             assert byte(s, 'om_action') == 4 and byte(s, 'om_mask') == 16
             assert rows(s)[20].startswith('ACTION: LOWER FOOD'), rows(s)[20]
-            assert 'ALL CONTENTS; 0 MIN; LOAD CHECKED' in rows(s)[21], rows(s)[21]
+            assert 'ALL CONTENTS; 0 MIN; PACK NEED' in rows(s)[21], rows(s)[21]
             key(s, '\\r'); key(s, '\\e'); key(s, '\\e')
             assert state(s) == before
             s.step(L.poke('load_limits', 0))

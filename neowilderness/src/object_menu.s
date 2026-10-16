@@ -219,9 +219,11 @@ object_draw:
         lda     om_line
         cmp     #'L'
         bne     :+
-        jsr     puts
-        .byte " ALL CONTENTS; 0 MIN; LOAD CHECKED",0
-        jmp     @capacity_line
+        lda     #om_lower_detail
+        jsr     om_bank_puts
+        lda     om_bad
+        jne     @capacity_line
+        jmp     @need
 :       jsr     puts
         .byte   " QTY ",0
         jsr     om_quantities
@@ -317,16 +319,19 @@ object_draw:
         jsr     puts
         .byte   " OZ ",0
 @forecast:
+        lda     om_line
+        cmp     #'L'
+        beq     @after
         lda     om_action
         cmp     #7
         beq     @after
         cmp     #4
         bcs     :+
 @after: jsr     puts
-        .byte   "AFTER: ",0
+        .byte   "FREE AFTER: ",0
         jmp     @free
 :       jsr     puts
-        .byte   "NOW: ",0
+        .byte   "FREE NOW: ",0
 @free:
         ldy     #0
         jsr     om_free
@@ -510,6 +515,9 @@ om_project:
         sta     om_total,x
         dex
         bpl     :-
+        lda     om_line
+        cmp     #'L'
+        jeq     @bag
         lda     menu_noun
         cmp     #N_WATER
         bne     @normal
@@ -644,6 +652,33 @@ om_project:
         beq     @done
         jsr     om_add
 @done:  rts
+; LOWER restores each first-set item marked 5; water is in its canteen.
+; Reuse the ordinary read-only item calculation with the packed stock.
+@bag:   lda     #4
+        sta     om_dest
+        ldx     #75
+@bag_item:
+        lda     it_place,x
+        cmp     #5
+        bne     @bag_next
+        cpx     #N_WATER
+        beq     @bag_next
+        lda     it_pack_lo,x
+        sta     om_qty
+        lda     it_pack_hi,x
+        sta     om_qty+1
+        jsr     @first
+@bag_next:
+        dex
+        bne     @bag_item
+        sec
+        lda     om_total+4
+        sbc     load_used+4
+        sta     om_v
+        lda     om_total+5
+        sbc     load_used+5
+        sta     om_v+1
+        rts
 om_sub:
         sec
         lda     om_total,y
