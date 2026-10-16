@@ -2904,3 +2904,16 @@ routine : TASTE confirme directement, DRINK WATER reste quantifié.
 TREE : $5800–$5FB1, 78 octets libres. XL reste à 379/1600 blocs ; DAT
 65 293 octets bruts, 56 093 stockés et 19 enregistrements. Les autres
 fenêtres et leurs marges ne changent pas.
+
+### Projection de LOWER FOOD (16 octobre 2026)
+
+L’éditeur parcourt les places 5 du premier ensemble et réutilise son calcul
+unitaire : poids, volume et onces réellement suspendues. L’eau est déjà
+incluse dans la gourde, le volume propre du sac est exclu. `om_total` reçoit
+les capacités projetées et `om_v` le volume PACK supplémentaire ; aucune
+place, quantité réelle ou valeur de `load_used` n’est modifiée. Les retenues
+16 bits gardent l’alerte de dépassement arithmétique jusqu’à la fin du calcul.
+
+TREE : $5800–$5FEB, 20 octets libres. Les textes de LOWER sont dans la
+banque ; les autres fenêtres restent inchangées. XL : 378/1600 blocs,
+65 318 octets DAT bruts, 56 001 stockés, 19 enregistrements, cinq parties.

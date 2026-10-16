@@ -424,9 +424,9 @@ place des écrans 40 colonnes (étapes 3-4 de MENUS.md, remplacées par les
 pages 80 colonnes).
 
 Points de contrôle du lot suivant : terminer le filtrage contextuel fin,
-le choix rapide de quantité et l’aperçu de récupération du sac entier. Vérifier ensuite les parcours complets CRAFT/CATCH et le
+le choix rapide de quantité. Vérifier ensuite les parcours complets CRAFT/CATCH et le
 matériel réel sans saisie de commande. Les doses médicales (un usage avec
 stock/durée affichés), LOWER FOOD depuis LOCAL HUNG, les quantités d’eau,
 le volume requis, les refus détaillés des objets fabriqués et EQUIPMENT
-ainsi que TASTE depuis la source sélectionnée sont réalisés (CHANGELOG,
+ainsi que TASTE depuis la source sélectionnée et l’aperçu du sac entier sont réalisés (CHANGELOG,
 16 octobre).

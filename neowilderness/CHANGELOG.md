@@ -7,6 +7,18 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### OBJECTS : aperçu de récupération du sac complet (16 octobre 2026)
+
+- LOWER FOOD affiche le volume PACK requis et les capacités libres après
+  récupération de tous les éléments suspendus. FREE AFTER et FREE NOW
+  distinguent explicitement l’aperçu de la capacité actuelle.
+- Calcul sans mutation de l’état : gourde/eau comptées une fois, volume du
+  sac exclu de sa propre capacité, provisions suspendues séparées du sol.
+- Dépassements de poids et PACK visibles avant confirmation ; dépassement
+  arithmétique signalé sans quantité tronquée. Refus natif atomique conservé.
+- Validation : `make test-xl`, 24 scripts réussis ; aperçu comparé à la
+  charge après récupération, gourde tenue/rangée et refus sans mutation.
+
 ### OBJECTS : goûter sans consommer (16 octobre 2026)
 
 - TASTE sur les provisions et aliments sauvages de la source sélectionnée,

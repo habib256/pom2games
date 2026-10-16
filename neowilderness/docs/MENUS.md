@@ -954,9 +954,9 @@ afficher zéro dose ne crée pas une nouvelle interdiction de traitement.
 Échap depuis une confirmation sans quantité retourne directement aux actions.
 
 Depuis LOCAL HUNG, Entrée ou H sur le sac ou son contenu ouvre LOWER FOOD.
-La confirmation indique la destination CARRIED, tous les contenus, zéro
-minute et le contrôle de charge. L’aperçu NOW décrit la charge actuelle ;
-il ne prétend pas calculer la charge de tout le sac après récupération.
+La confirmation indique la destination CARRIED, tous les contenus et zéro
+minute. PACK NEED donne le volume à reprendre, FREE AFTER les capacités
+restantes après récupération de l’ensemble (détails au § 15).
 Annuler ne change ni le stock ni le temps. La commande récupère l’ensemble
 ou refuse sans mutation si les capacités natives sont dépassées, puis
 revient à OBJECTS avec sa réponse et un objet valide sous le curseur.
@@ -983,3 +983,19 @@ Les aides du dialogue utilisent désormais la banque de textes. À l’ouverture
 la commande choisie est copiée dans le scratch de la fenêtre ; les messages
 d’aide ne peuvent donc plus écraser son nom dans le tampon de texte partagé.
 La fermeture reconstruit la liste depuis l’état du jeu.
+
+## 15. Aperçu du sac complet (16 octobre 2026, XL)
+
+LOWER FOOD calcule désormais la récupération de tous les éléments suspendus,
+sans remplacer temporairement leurs places ou leurs stocks. PACK NEED
+indique le volume total à remettre dans PACK. FREE AFTER montre le poids
+et les volumes disponibles après l’action ; OVER donne le dépassement exact.
+FREE NOW reste utilisé pour les actions dont la charge n’est pas projetée.
+
+La gourde inclut déjà son eau ; l’eau n’est pas ajoutée une deuxième fois.
+Le sac ajoute son poids mais son propre volume reste hors de sa capacité,
+comme dans le moteur. Les provisions utilisent leur stock suspendu, sans
+prélever la pile indépendante au sol. Les objets fabriqués encore transportés
+restent dans la charge de départ. Un dépassement arithmétique est signalé
+sans afficher un volume requis tronqué. La commande native conserve le
+contrôle final et sa récupération atomique.
