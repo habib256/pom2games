@@ -245,7 +245,8 @@ comparaison des 163 variables avec la référence.
 
 - [ ] Achever le raccordement des entrées communes : questions de préparation
   personnalisée, confirmation d'effacement de /RAM avant chargement du
-  tronc, erreurs disque et lecteur décimal hérité de CATCH tapé sans durée.
+  tronc et erreurs disque. Le lecteur décimal hérité de CATCH/COOK propose
+  désormais les minutes aux directions, avec annulation sans effet.
   Le pilote joystick, le menu de départ, les pages, P/G, les confirmations
   en jeu, le lecteur numérique, MAP et le nom du score sont réalisés :
   CHANGELOG.md (« Navigation commune », 16 octobre 2026).
@@ -424,8 +425,11 @@ place des écrans 40 colonnes (étapes 3-4 de MENUS.md, remplacées par les
 pages 80 colonnes).
 
 Points de contrôle du lot suivant : terminer le filtrage contextuel fin,
-le choix rapide de quantité. Vérifier ensuite les parcours complets CRAFT/CATCH et le
-matériel réel sans saisie de commande. Les doses médicales (un usage avec
+le choix rapide de quantité. Étendre le parcours joystick CRAFT → EQUIPMENT
+→ CATCH → feu → COOK → repas aux soins, sauvegardes/restaurations et fin
+de partie, puis le rejouer sur matériel réel. Le premier parcours complet
+est automatisé sur XL avec une rencontre déterministe, refus de surcharge
+et annulation de cuisson (17 octobre 2026). Les doses médicales (un usage avec
 stock/durée affichés), LOWER FOOD depuis LOCAL HUNG, les quantités d’eau,
 le volume requis, les refus détaillés des objets fabriqués et EQUIPMENT
 ainsi que TASTE depuis la source sélectionnée et l’aperçu du sac entier sont réalisés (CHANGELOG,

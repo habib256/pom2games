@@ -999,3 +999,27 @@ prélever la pile indépendante au sol. Les objets fabriqués encore transporté
 restent dans la charge de départ. Un dépassement arithmétique est signalé
 sans afficher un volume requis tronqué. La commande native conserve le
 contrôle final et sa récupération atomique.
+
+## 16. Cuisson et durée au joystick (17 octobre 2026, XL)
+
+COOK depuis la grille demande les onces avec le lecteur numérique commun,
+puis la durée. Cette dernière question, également utilisée par CATCH sans
+durée explicite, acceptait uniquement les chiffres et le point décimal.
+Elle bloquait ainsi le parcours sans clavier après avoir allumé le feu.
+
+La question annonce désormais les deux modes : heures décimales au clavier,
+ou haut/bas pour régler les minutes. À l’ouverture, le réglage part de
+zéro : chaque direction incrémente ou décrémente d’une minute, sans débordement sous zéro
+ni au-delà de 1499 minutes (limite native strictement inférieure à 25 h).
+L’affichage passe explicitement à TIME IN MINUTES ; Entrée valide,
+Échap annule. Une saisie de chiffre ou l’effacement revient au mode heures,
+avec son unité affichée. Aucun stock ni temps n’est engagé pendant le réglage.
+
+`tests/test_joystick_journey.py` parcourt CRAFT → OBJECTS → EQUIPMENT →
+CATCH → MAKE FIRE → COOK → OBJECTS/EAT avec les seuls axes et boutons,
+démarrage compris. La forêt, la rencontre et le tirage de capture sont des
+fixtures déterministes ; le gibier est réellement capturé par le moteur.
+Le test vérifie aussi le refus de poids, la distinction tenu/actif, le retour
+sur la page mémorisée, l’annulation sans effet et 30 minutes de cuisson.
+Les soins, sauvegardes et fin de partie restent à raccorder à ce parcours
+intégré, ainsi qu’une validation sur contrôleur physique.
