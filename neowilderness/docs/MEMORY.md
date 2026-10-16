@@ -2930,3 +2930,13 @@ FORAGE : 6 148 → 6 390 octets, `$9600–$AEF5`, 266 octets libres sous
 `$B000`, toujours 13 blocs. DAT et occupation XL restent à 65 318 bruts /
 56 001 stockés et 378/1600 blocs ; les marges des autres fenêtres sont
 inchangées.
+
+### Quantités rapides des transferts (17 octobre 2026)
+
+Le doublement de `om_qty` utilise les deux octets existants et leur retenue ;
+les valeurs atteignant ou dépassant `om_max` reprennent le stock source exact.
+Les textes FREE AFTER / FREE NOW passent dans la banque pour récupérer
+la place du raccourci. Aucun état résident ou sauvegardé n’est ajouté.
+
+TREE : `$5800–$5FF7`, 8 octets libres. DAT : 65 354 bruts / 56 018 stockés,
+19 enregistrements ; XL reste à 378/1600 blocs avec cinq parties.

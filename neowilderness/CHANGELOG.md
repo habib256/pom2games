@@ -7,6 +7,23 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### OBJECTS : quantités rapides de transfert (17 octobre 2026)
+
+- Droite double la quantité jusqu’au stock entier exact, puis revient à
+  1 ; gauche revient à 1 et haut/bas gardent le réglage à l’unité.
+  Le transfert démarre toujours sur le stock entier, avec confirmation.
+- Doublement 16 bits sans retour à zéro au dépassement ; eau, provisions
+  et piles utilisent le stock de leur source. EAT/DRINK conservent leur
+  protection contre TOUT ; soins et objets indivisibles restent inchangés.
+- Test au joystick sur 1, 3, 14, 257, 32769 et 65535 onces : sélection,
+  cycle, annulation sans mutation, transfert réel de cinq onces et
+  dépôt de quatre onces depuis CARRIED, remplissage exact de la gourde,
+  consommation sans doublement. Les libellés FREE passent dans la banque
+  de textes pour loger le raccourci sans octet résident ajouté.
+- Validation : `make test-xl`, 26 scripts réussis, et test ciblé des
+  quantités avec PACK, DROP, GET WATER et EAT/DRINK ; parcours intégré
+  complet et comparaison des 163 variables de simulation conservés.
+
 ### Parcours joystick : soins, sauvegardes et score (17 octobre 2026)
 
 - Le parcours intégré continue après le repas : FLAGYL et oxygène depuis

@@ -888,8 +888,9 @@ est valable. Retirer un vêtement passe par CARRY/PACK/DROP. La sélection et
 son côté sont conservés après exécution, avec la réponse du jeu.
 
 Pour les provisions et piles, l’étape quantité propose haut +1, bas −1,
-gauche 1 et droite TOUT. Le transfert démarre sur le stock entier de la
-source ; EAT démarre à 1 OZ et n’accepte pas TOUT. L’étape suivante exige une
+gauche 1 et droite ×2, plafonné au stock entier. Droite depuis ce stock
+entier revient à 1. Le transfert démarre sur le stock entier de la
+source ; EAT démarre à 1 OZ et n’accepte pas TOUT ni le doublement. L’étape suivante exige une
 confirmation distincte ; Échap recule puis quitte sans temps, tirage ou
 modification des stocks. Les équipements restent indivisibles.
 
@@ -1048,3 +1049,23 @@ Le chargeur relit ensuite le nom, le score et le compteur de voyages depuis
 le hall of fame enregistré. Tous les événements clavier sont interdits par
 le pilote du test ; la forêt, la rencontre et le tirage de capture restent
 les seules fixtures de scénario de ce parcours.
+
+## 18. Quantités rapides d’OBJECTS (17 octobre 2026, XL)
+
+Dans l’étape quantité d’un transfert, droite double le nombre choisi :
+1 → 2 → 4 → 8 → … → TOUT, sans dépasser le stock exact de la source.
+Depuis TOUT, droite revient à 1 ; gauche revient directement à 1.
+Haut/bas restent un réglage fin à l’unité. Par exemple, pour cinq onces :
+gauche, droite, droite, haut, puis validation et confirmation.
+
+Le doublement utilise les deux octets de quantité. Si le résultat dépasse
+65535, il prend le stock exact de la source au lieu de reboucler à zéro.
+Le stock entier reste le choix initial des transferts. Ces raccourcis ne
+consomment rien : l’aperçu est recalculé, Échap reste sans effet et la
+confirmation distincte reste requise. EAT/DRINK ne proposent pas le
+doublement vers TOUT ; les soins et objets indivisibles n’ont pas cette étape.
+
+Le test au port joystick couvre les stocks 1, 3, 14, 257, 32769 et 65535,
+les annulations sans mutation des plages persistantes, un transfert réel
+de cinq onces, un dépôt de quatre onces depuis CARRIED, le remplissage
+exact de la gourde et l’absence de TOUT pour EAT/DRINK.
