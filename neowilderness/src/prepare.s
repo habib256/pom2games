@@ -422,45 +422,21 @@ pr_weight_fac:
         ldy     pr_weight
         jmp     GIVAYF
 
-; pr_patch_sim -- A/Y = offset in the SIM window; 5 bytes from pr_t1.
+; Mutable body/weather constants live in resident RAM so SIM can be
+; compressed. Keep the existing offset API; only its storage changes.
 pr_patch_sim:
-        ldx     #PR_SIM
-; pr_patch -- X = module, A/Y = offset in its window: the 5 bytes at pr_t1
-; into its image (module_dir: bank, address), through the loader's ld_place.
-pr_patch:
-        sta     gp1
-        sty     gp1+1
-        stx     g0
-        txa
-        asl     a
-        asl     a
-        asl     a
-        sec
-        sbc     g0
-        tay
-        ldx     module_dir,y
-        lda     pr_kinds,x
-        sta     ld_hdr          ; kind
         clc
-        lda     module_dir+1,y
-        adc     gp1
-        sta     ld_hdr+1        ; address
-        lda     module_dir+2,y
-        adc     gp1+1
-        sta     ld_hdr+2
-        lda     #5
-        sta     ld_hdr+3        ; size
-        lda     #0
-        sta     ld_hdr+4
-        lda     #<pr_t1
-        sta     ld_move_src
-        lda     #>pr_t1
-        sta     ld_move_src+1
-        jsr     ld_place        ; its zero page (source, dest) is $A2-$A5:
-        lda     #0              ; FAC sign, SHIFT.SIGN.EXT, ARG
-        sta     $A4
+        adc     #<SIM_WINDOW
+        sta     @put+1
+        tya
+        adc     #>SIM_WINDOW
+        sta     @put+2
+        ldy     #4
+@copy:  lda     pr_t1,y
+@put:   sta     $FFFF,y
+        dey
+        bpl     @copy
         rts
-pr_kinds: .byte 1, 2, 3, $22    ; module_dir bank -> loader record kind
 
 ; ----------------------------------------------------------------------------
 ; pr_wreck -- GO2 $2565: B1 (it_place) of a new journey, then the food on
@@ -1427,5 +1403,5 @@ pr_col:     .res 1
 pr_buf:     .res 4
 pr_h:       .res 1
 pr_m:       .res 1
-.assert th_surface >= SIM_WINDOW && th_native_composition < SIM_WINDOW + $2000, error, "SIM labels"
-.assert wf_storm >= SIM_WINDOW && wf_storm < SIM_WINDOW + $2000, error, "SIM label wf_storm"
+.assert th_surface >= $4000 && th_native_composition < $5780, error, "resident body constants"
+.assert wf_storm >= $4000 && wf_storm < $5780, error, "resident storm constant"

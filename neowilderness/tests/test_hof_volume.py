@@ -56,12 +56,11 @@ import score as R  # noqa: E402
 from read_volume import Image  # noqa: E402
 from test_hof_game import screen, show, check  # noqa: E402
 
-DISK = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'dist/NEOWILDERNESS.po'
+DISK = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'dist/NEOWILDERNESSXL.po'
 LABELS = Path(sys.argv[2]) if len(sys.argv) > 2 else HERE / 'build/wild.lbl'
 BLOCK = 512
 FCB = 0xD800                    # ProDOS 8 file control blocks, 32 bytes each
 FCB_EOF, FCB_DIRTY = 0x15, 0x1C
-NONCE_BLOCK = 279               # a free block: finds a2shot's private copy
 JOURNEY = ['WEAR PARKA', 'DRINK WATER 10 OZ', 'EAT CHEESE 8 OZ',
            'WALK 1 H', 'WALK 1 H', 'LOOK S', 'WALK 1 H', 'WALK 1 H',
            'EAT CHEESE 6 OZ', 'DRINK WATER 8 OZ', 'WALK 1 H', 'WALK 1 H',
@@ -74,11 +73,26 @@ def entries(img):
 
 
 def private_image(work, nonce):
-    """The volume with a random nonce in a free block (several a2shot runs
-    may be live: the nonce finds this run's copy after the ejection)."""
+    """Identify the private copy even when every volume block is allocated.
+
+    S5's last data block has padding beyond EOF: the nonce changes no file
+    content, allocation bit or directory entry. This journey never saves S5.
+    """
     img = bytearray(DISK.read_bytes())
-    assert not any(img[NONCE_BLOCK * BLOCK:(NONCE_BLOCK + 1) * BLOCK]), 'block 279 must be free'
-    img[NONCE_BLOCK * BLOCK:NONCE_BLOCK * BLOCK + len(nonce)] = nonce
+    volume = Image(img)
+    entry = entries(volume)['NEOWILD.S5']
+    assert entry[0] >> 4 == 2, 'S5 must be a sapling file'
+    eof = int.from_bytes(entry[0x15:0x18], 'little')
+    assert 0 < eof % BLOCK <= BLOCK - len(nonce), 'S5 needs padding for the nonce'
+    index = volume.block(int.from_bytes(entry[0x11:0x13], 'little'))
+    n = (eof - 1) // BLOCK
+    block = index[n] | index[256+n] << 8
+    assert block
+    at = (block + 1) * BLOCK - len(nonce)
+    content = volume.read(entry)
+    assert not any(img[at:at+len(nonce)]), 'S5 padding must be unused'
+    img[at:at+len(nonce)] = nonce
+    assert Image(img).read(entry) == content
     path = work / 'volume.po'
     path.write_bytes(img)
     return path, bytes(img)
@@ -118,7 +132,7 @@ def stray_fcb(L):
     """A stray write into NEOWILD.DAT's FCB before the loader's CLOSE."""
     with tempfile.TemporaryDirectory(prefix='hofvol-') as work:
         work = Path(work)
-        nonce = secrets.token_bytes(32)
+        nonce = secrets.token_bytes(16)
         disk, before = private_image(work, nonce)
         dat_key = entries(Image(before))['NEOWILD.DAT'][0x11:0x13]
         t0 = time.time()
@@ -174,7 +188,7 @@ def prodos_guard(out, L):
 def journey(L):
     with tempfile.TemporaryDirectory(prefix='hofvol-') as work:
         work = Path(work)
-        nonce = secrets.token_bytes(32)
+        nonce = secrets.token_bytes(16)
         disk, before = private_image(work, nonce)
         t0 = time.time()
         with a2test.Session(disk, iie=True, timeout=1800) as s:

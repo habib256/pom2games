@@ -139,9 +139,8 @@ get_line_body:
 :       jsr     level1
         jsr     stock_row
         jsr     redraw
-idle:   lda     KBD             ; tests wait for this loop
-        bpl     fire_idle
-        bit     KBDSTRB
+idle:   jsr     ui_prompt_poll         ; keyboard and game-port navigation
+        beq     fire_idle
         sta     fire_dly+1      ; a key: the fire waits (src/fire.s)
         and     #$7F
         jsr     kbd_upcase
@@ -183,6 +182,7 @@ prompt_key:
         jsr     redraw
         jmp     idle
 @status:
+        dec     pg_open         ; $FF: reopen the last top page (CARE uses 1)
         lda     #<str_status
         sta     gp2
         lda     #>str_status
@@ -1180,7 +1180,7 @@ msg_newline:
 
 ; stock_row -- the last row of the result column, when the result left it blank:
 ; the food and water carried (pack, canteen), then those on this cell, in
-; ounces: "FOOD 192 WATER 64 HERE 248/0 OZ" (39 columns with four digits
+; ounces: "FOOD 192 WATER 64 LOCAL 248/0 OZ" (39 columns with four digits
 ; everywhere).
 .segment "MENUSWAP"
 stock_row:
@@ -1207,7 +1207,7 @@ stock_row:
         ldx     #N_WATER
         jsr     sum_pack
         jsr     puts
-        .byte   " HERE ",0
+        .byte   " LOCAL ",0
         ldx     #23
         jsr     sum_ground
         jsr     puts
@@ -1220,7 +1220,7 @@ stock_row:
 ; sum_ground -- X = first item: the ground ounces here of the provisions X..
 sum_ground:
         lda     #$80
-        bne     sum_items
+        .byte   $2C             ; BIT abs: skips the next LDA
 ; sum_pack -- X = first item: the pack ounces of the provisions X.. (water
 ; alone when X = N_WATER), hung or absent ones excluded.
 sum_pack:

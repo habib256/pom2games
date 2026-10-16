@@ -495,6 +495,19 @@ def run_game():
         rows.append(dict(command=' '.join(cmd) + (f' [RND={rnd}]' if rnd is not None else ''), text=text,
                          state=snapshot(o.mem())))
 
+    def source(o, k):
+        """The answer to "PACK [P] OR GROUND [G]?" for pile k, only when
+        the original asks it (both hold ounces): since PACK takes the whole
+        pile, the pack alone may hold it."""
+        m = o.mem()
+        return ['P'] if word(m, w7 + 2 * k) and word(m, w8 + 2 * k) else []
+
+    def ground(o, k):
+        """The ounces of pile k of the second set on the ground: the answer
+        of PACK since the port's 16 October 2026 (no question, the whole
+        pile: docs/FORAGE.md 17.3), replayed here where the original asks."""
+        return str(word(o.mem(), w7 + 2 * k))
+
     with Original() as o:
         rows.append(dict(command='START', state=snapshot(o.mem())))
         # GAME present, GUN carried and in use
@@ -504,10 +517,10 @@ def run_game():
         do(o, 'KILL GAME', rnd=.1)                 # p .3 (light), 4 + INT(6.4) = 10 oz
         do(o, 'TASTE GAME')
         do(o, 'EAT GAME', '4')
-        do(o, 'PACK GAME', '3')
+        do(o, 'PACK GAME', ground(o, 5))
         do(o, 'COOK GAME', 'G', '1')                # no fire: msg 65
         o.poke(0x45CD, [0])                         # a fire on the cell
-        do(o, 'COOK GAME', '2', 'P', '.5')
+        do(o, 'COOK GAME', '2', *source(o, 5), '.5')
         do(o, 'SKIN GAME')
         do(o, 'REST', '3')                          # spoilage clock
         # wild food on the ground: mushrooms code 2, 80 %
@@ -518,14 +531,14 @@ def run_game():
         o.poke(W9 + 136, w(0))
         o.poke(W10 + 136, w(2))
         o.poke(W11 + 136, w(80))
-        do(o, 'PACK MUSHROOMS', '5')
-        do(o, 'TASTE MUSHROOMS', 'P')
-        do(o, 'EAT MUSHROOMS', '2', 'P', rnd=.9)
-        do(o, 'COOK MUSHROOMS', '3', 'P', '1', rnd=.9)  # cooked from the pack, no detox (RND .9)
+        do(o, 'PACK MUSHROOMS', ground(o, 10))
+        do(o, 'TASTE MUSHROOMS', *source(o, 10))
+        do(o, 'EAT MUSHROOMS', '2', *source(o, 10), rnd=.9)
+        do(o, 'COOK MUSHROOMS', '3', *source(o, 10), '1', rnd=.9)  # cooked from the pack, no detox (RND .9)
         do(o, 'EAT CHEESE', '4', 'G')
         do(o, 'COOK CHEESE', '4', 'P', '1')
         # DROP from the pack: does the pack quality reach the ground record?
-        do(o, 'PACK MUSHROOMS', '4')
+        do(o, 'PACK MUSHROOMS', ground(o, 10))
         o.poke(b3 + 10, [3])
         o.poke(b4 + 10, [5])
         o.poke(w9 + 50, w(15))
@@ -533,7 +546,7 @@ def run_game():
         do(o, 'DROP MUSHROOMS', '2')
         do(o, 'CARRY MUSHROOMS')
         do(o, 'GET MUSHROOMS')
-        do(o, 'PACK MUSHROOMS', '40')
+        do(o, 'PACK MUSHROOMS', ground(o, 10))
     with Original() as o:
         rows.append(dict(command='START (bear)', state=snapshot(o.mem())))
         o.poke(b2 + 1, [0])

@@ -3,7 +3,7 @@
 # DHGR interface, 80-column text and TOPO computed in RAM (lot 4); start
 # menu, six scenarios, night stars, score and hall of fame (lot 7).
 #
-#   make            -> ../dist/NEOWILDERNESS.po (ProDOS 8, 140 KB volume)
+#   make            -> ../dist/NEOWILDERNESSXL.po (ProDOS 8, 800 KB volume)
 #   make run        -> boot it in POM2 (IIe enhanced preset)
 #   make inspect    -> list the volume and the auxiliary-memory placement
 #   make test       -> in a2shot (enhanced //e), through the start menu (Sierra
@@ -23,16 +23,14 @@ APPLE2_PRESET := iie
 include $(DEV)/cc65/apple2.mk
 PRODOS := $(DEV)/lib/prodos
 
-DISK := $(DIST)/NEOWILDERNESS.po
+DISK := $(DIST)/NEOWILDERNESSXL.po
 # Records of NEOWILD.DAT and the packs: lz (default since lot 7 step 5: 23
 # blocks fewer than auto and a shorter choice -> first view, measured), auto
 # (LZ where the 200/46 cycles-per-byte model says it shortens the boot) or
 # raw; see docs/MEMORY.md 9.5.
 BOOT_PACKING ?= lz
-# Two editions (14 October 2026): Neowilderness, a 140 KB 5.25-inch disk with
-# the Sierra Nevada alone ($(DISK)), and NeoWildernessXL, an 800 KB 3.5-inch
-# disk with the six scenarios ($(DISKXL)); tools/build_disk.py EDITIONS. The
-# tests run on the XL image (everything), tests/test_editions.py on both.
+# Active edition since 16 October 2026: XL, 800 KB, six scenarios.
+# The 140 KB edition is archived and has no build target here.
 DISKXL := $(DIST)/NEOWILDERNESSXL.po
 BIN  := $(BUILD)/wild.bin
 MAPBIN := $(BUILD)/map.bin
@@ -41,10 +39,11 @@ REGION_MAPS := $(foreach r,1 3 4 5 6,$(BUILD)/maps/r$(r).bin)
 SEED ?= 1985
 LEVEL ?= 4
 
-all: $(DISK) $(DISKXL)
+all: $(DISKXL)
 
 $(BUILD)/wild.o: src/medical.s src/hazards.s src/care.s src/alerts.s
-$(BUILD)/wild.o: src/clock.inc
+$(BUILD)/wild.o: src/object_menu.s src/equipment.s
+$(BUILD)/wild.o: src/ui_event.s src/ui_choice.inc src/clock.inc
 $(BUILD)/wild.o: src/memory.s
 $(BUILD)/wild.o: src/geography.s src/geoaux.s
 $(BUILD)/wild.o: src/water.s src/camp.s src/menu.s
@@ -126,6 +125,14 @@ LINK_OBJS := $(BUILD)/wild.o $(BUILD)/boot.o
 $(BIN): $(LINK_OBJS) src/wild.cfg
 	$(LD65) -C src/wild.cfg -m $(BUILD)/wild.map -Ln $(BUILD)/wild.lbl -o $@ $(LINK_OBJS)
 
+# TMAP runs before the game, in the free graphics page; no resident cost.
+$(BUILD)/tmap.o: src/tmap.s
+	@mkdir -p $(@D)
+	$(CA65) -g -t none -o $@ $<
+
+$(BUILD)/tmap.bin: $(BUILD)/tmap.o src/tmap.cfg
+	$(LD65) -C src/tmap.cfg -Ln $(BUILD)/tmap.lbl -o $@ $<
+
 # Sprites of the trunk (wreck, cabin) and of the six region packs.
 SPRITE_NAMES := wreck cabin bear cougar rattlesnake grizzly_bc wolf_bc moose_bc \
 	tiger elephant cobra python dani adder crocodile puma jaguar ferdelance anaconda cat
@@ -149,18 +156,40 @@ $(BUILD)/NEOWILD.HOF: tools/genhof.py tools/score_ref.py
 $(BUILD)/JOURNEY.dsk: original/extras/Wilderness\ -\ Journey.a2r
 	$(PYTHON) -I tools/flux2dsk.py "$<" $@
 
-$(DISK): $(BIN) $(BUILD)/NEOWILD.HOF $(BUILD)/dhgr_tables.inc $(MAPBIN) $(REGION_MAPS) $(BUILD)/regions/regions.json $(SPRITE_BINS) $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py tools/build_disk.py tools/pack_boot.py tools/geo_atlas.py Makefile
+$(DISKXL): $(BIN) $(BUILD)/NEOWILD.HOF $(BUILD)/dhgr_tables.inc $(MAPBIN) $(REGION_MAPS) $(BUILD)/regions/regions.json $(SPRITE_BINS) $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py tools/build_disk.py tools/pack_boot.py tools/geo_atlas.py Makefile $(BUILD)/tmap.bin scenarios/archipelago.json tools/scenario.py
 	@mkdir -p $(DIST)
-	$(PYTHON) -I tools/build_disk.py --out $(DISK) --build $(BUILD) --packing $(BOOT_PACKING) --edition neowilderness --layout $(BUILD)/layout-140.json
-$(DISKXL): $(DISK)
 	$(PYTHON) -I tools/build_disk.py --out $(DISKXL) --build $(BUILD) --packing $(BOOT_PACKING) --edition xl --layout $(BUILD)/layout.json
 
 inspect: all
-	$(PYTHON) -I $(DEV)/tools/prodos/read_volume.py $(DISK)
 	$(PYTHON) -I $(DEV)/tools/prodos/read_volume.py $(DISKXL)
 	$(PYTHON) -I tools/inspect_disk.py $(BUILD)/layout.json
 
-test: all $(A2SHOT)
+# Active XL regression suite. Cross-edition historical tests are explicit.
+test: test-xl
+test-xl: all $(A2SHOT)
+	$(PYTHON) tests/test_transfers.py
+	$(PYTHON) tests/test_pack_boot.py
+	$(PYTHON) tests/test_reference_state.py
+	$(PYTHON) tests/test_input.py
+	$(PYTHON) tests/test_navigation.py
+	$(PYTHON) tests/test_object_actions.py
+	$(PYTHON) tests/test_equipment.py
+	$(PYTHON) tests/test_crafted_refusals.py
+	$(PYTHON) tests/test_craft.py
+	$(PYTHON) tests/test_craft_page.py
+	$(PYTHON) tests/test_objects.py
+	$(PYTHON) tests/test_focus.py
+	$(PYTHON) tests/test_transitions.py
+	$(PYTHON) tests/test_grid_play.py
+	$(PYTHON) tests/test_grid_catch.py
+	$(PYTHON) tests/test_feedback.py
+	$(PYTHON) tests/test_load.py
+	$(PYTHON) tests/test_care.py
+	$(PYTHON) tests/test_orientation.py
+	$(PYTHON) tests/test_tree.py
+	$(PYTHON) tests/test_view.py
+
+test-all-editions: all $(A2SHOT)
 	$(PYTHON) tests/test_journey.py
 	$(PYTHON) tests/test_pack_boot.py
 	$(PYTHON) tests/test_boot.py
@@ -178,13 +207,16 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_optimizations.py
 	$(PYTHON) tests/test_fast_duration.py
 	$(PYTHON) tests/test_input.py
+	$(PYTHON) tests/test_navigation.py
 	$(PYTHON) tests/test_menu_bar.py
 	$(PYTHON) tests/test_altcharset.py
 	$(PYTHON) tests/test_grid_play.py
+	$(PYTHON) tests/test_grid_catch.py
 	$(PYTHON) tests/test_sleep.py
 	$(PYTHON) tests/test_clock.py
 	$(PYTHON) tests/test_feedback.py
 	$(PYTHON) tests/test_mapgen.py
+	$(PYTHON) tests/test_tmap.py
 	$(PYTHON) tests/test_regions.py
 	$(PYTHON) tests/test_forest.py
 	$(PYTHON) tests/test_tree.py
@@ -198,6 +230,7 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_interface.py
 	$(PYTHON) tests/test_transitions.py
 	$(PYTHON) tests/test_focus.py
+	$(PYTHON) tests/test_objects.py
 	$(PYTHON) tests/test_screen_returns.py
 	$(PYTHON) tests/test_sky.py
 	$(PYTHON) tests/test_moonlight.py
@@ -270,6 +303,8 @@ test-original: all $(A2SHOT)
 	$(PYTHON) tests/test_forage.py --original
 	$(PYTHON) tools/re_craft_probe.py
 	$(PYTHON) tests/test_craft.py --original
+	$(PYTHON) tools/re_load_probe.py
+	$(PYTHON) tests/test_objects.py --original
 	$(PYTHON) tests/test_swim_energy.py --original
 	$(PYTHON) tests/test_swim_cadence.py --original
 	$(PYTHON) tests/test_swim_raster.py --original

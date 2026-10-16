@@ -205,8 +205,8 @@ def water():
         poke(s, 'nature_frequency', 0)
         ground = b(s, 'it_gnd_lo', 22) + 256 * b(s, 'it_gnd_hi', 22)
         poke(s, 'weather_sky', 2)
-        text = say(s, 'GET RAIN', '40')
-        check('GET RAIN, canteen full: 160 oz on the cell, msg 186',
+        text = say(s, 'GET RAIN')
+        check('GET RAIN, canteen full: 160 oz on the cell, msg 186 (no question: 16 October 2026)',
               'MORE THAN TWO QUARTS' in text and b(s, 'it_gnd_lo', 22) + 256 * b(s, 'it_gnd_hi', 22) == ground + 160
               and b(s, 'water_untreated') == 0, text)
         poke(s, 'weather_sky', 0)
@@ -218,7 +218,9 @@ def water():
         check('DRINK 4 oz: water deficit -4 x .38 (frozen $4C7A = 70/120)', abs(before - f(s, 's_defw') - 1.52) < 1e-6,
               before - f(s, 's_defw'))
         poke(s, 'weather_sky', 3)
-        check('GET SNOW 200 oz: msg 64 (160)', 'AMOUNT OF 160 OUNCES' in say(s, 'GET SNOW', '200'))
+        text = say(s, 'GET SNOW')
+        check('GET SNOW: no question (16 October 2026), the canteen\'s room taken, the ounces said',
+              'YOU TOOK 4 OUNCES' in text and b(s, 'it_pack_lo', 22) == 64, text)
         poke(s, 'weather_sky', 0)
         check('BOIL WATER without UTENSILS in use: msg 25', 'USE THE APPROPRIATE ITEM FIRST.' in say(s, 'BOIL WATER', '10'))
         hour = f(s, 's_hour')
@@ -276,15 +278,17 @@ def river_and_search():
             _, r = lehmer(seed)
             p = 60 * freq * .00033
             hour = f(s, 's_hour')
-            text = say(s, 'GET WATER', 'Y', '1 H', '10')
+            room = 64 - b(s, 'it_pack_lo', 22)
+            text = say(s, 'GET WATER', 'Y', '1 H')
             found = r <= p
             check(f'search 1 h on open ground, RND {r:.4f} vs p {p:.4f}: '
                   + ('msg 56 as the result, 160 oz untreated' if found else 'msg 62 and the condensation hint'),
                   (('YOU WERE SUCCESSFUL!' in text) if found else ('NO GROUND WATER' in text))
                   and abs(f(s, 's_hour') - hour - 1) < 1e-6, text)
             if found:
-                check('found water: 160 oz on the cell, 10 oz to the canteen (asked), untreated',
-                      b(s, 'it_gnd_lo', 22) == 150 and b(s, 'it_x', 22) == 30 and b(s, 'water_untreated') == 1)
+                check(f'found water: 160 oz on the cell, the canteen filled ({room} oz, no question), untreated',
+                      b(s, 'it_gnd_lo', 22) == 160 - room and b(s, 'it_x', 22) == 30
+                      and b(s, 'water_untreated') == 1 and f'YOU TOOK {room} OUNCES' in text, text)
         poke(s, 'px', 40, 1)
         check('no search: the condensation hint, no time', 'MAKE WATER BY CONDENSATION' in say(s, 'GET WATER', 'N')
               or 'PLANTS HIGH IN WATER' in rows(s))

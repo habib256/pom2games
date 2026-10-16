@@ -510,6 +510,17 @@ dhgr_sprite_map:                ; (PROJECT module_animal) spr_map of scene_asset
         dey
         bpl     @code
 dhgr_map_done:
+        ; Optional world background: an open sea continues to the true
+        ; horizon beyond the finite terrain/ray budget. The last sky zone
+        ; becomes distant water below the tilted horizon; normal land,
+        ; islands and opaque sprites still clip these background spans.
+        bit     MAP+1
+        bpl     :+
+        lda     cur_pal+PAL_WATER+2
+        sta     cur_zone+4
+        lda     tskylim
+        sta     sky_zone_end+3
+:
         rts
 
 ; select_mood -- A = mood (docs/DHGR.md 3.1), integer compares only.

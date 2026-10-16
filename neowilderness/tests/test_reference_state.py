@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Simulation state of the ProDOS/128 KB build against the frozen HGR build.
 
-The same ordinary-play script (tests/scenario.py) runs on
+The same ordinary-play script (tests/play_scenario.py) runs on
 build/reference-hgr/WILDERNESS.dsk (II+, DOS 3.3, its own wild.lbl) and on
-dist/NEOWILDERNESS.po (enhanced //e). After every step, every named variable
+dist/NEOWILDERNESSXL.po (enhanced //e). After every step, every named variable
 of the resident game state (segments GDATA and BSS) and of the game zero page
 must hold the same bytes in both builds, located through each label file.
 """
@@ -11,7 +11,7 @@ import re
 import sys
 from pathlib import Path
 from common import HERE, L, DISK, REFERENCE, REFERENCE_DISK, a2test, reference_labels, fp
-from scenario import REFERENCE_SCRIPT as SCRIPT, play
+from play_scenario import REFERENCE_SCRIPT as SCRIPT, play
 
 # Address-valued data, not simulation state: tables of code/text addresses
 # (relocated by the new memory map, checked constant below), the game's

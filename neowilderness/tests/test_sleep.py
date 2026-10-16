@@ -43,7 +43,7 @@ def sleep(prompted):
 def wait_results():
     from test_input import command, screen
     from test_thermal import poke
-    for duration,label in (('10 MIN','10 MINUTES'),('1 H','1 HOURS')):
+    for duration,label in (('10 MIN','10 MINUTES'),('1 H','1 HOUR')):
         results=[]
         for word in ('WAIT','PAUSE','REST'):
             with a2test.Session(DISK) as s:

@@ -6,9 +6,10 @@ HELP et score). Date : 13 octobre 2026.
 Statut au 14 octobre 2026 : étape 2 réalisée (§ 4 ; grille passée à
 droite, navigation par pages du haut et du bas) ; étapes 3 et 4 (fenêtres
 DHGR à la place des écrans 40 colonnes) remplacées par les pages
-80 colonnes (`src/pages.s`, le module SCREENS supprimé) ; étapes 1
-(joystick), 5 (INVENTORY avec actions par objet) et 6 (parcours au
-joystick seul) à réaliser.
+80 colonnes (`src/pages.s`, le module SCREENS supprimé) ; étape 5
+(INVENTORY avec actions par objet) réalisée le 16 octobre 2026 par la
+page OBJECTS de transfert (§ 5.1) ; étape 1 (joystick) raccordée le 16 octobre 2026 dans l'émulateur (§ 10),
+validation sur manette réelle et étape 6 (parcours intégral) à terminer.
 
 Objectif : rendre Neowilderness jouable entièrement au joystick (ou au
 clavier par les flèches, Entrée et Échap), avec une interface qui n'oblige
@@ -124,7 +125,7 @@ primitive 40 colonnes `t_cout` ou déplacer `get_line` entier dans le module
 d'interface, § 6). La répétition, la zone morte et la table des gestes vont
 dans le module d'interface.
 
-Interdit : lire le port pendant la simulation ou pendant un tracé DHGR
+Interdit : mesurer les axes pendant la simulation ou pendant un tracé DHGR
 (perte de 3 ms par lecture, et le ruban de boussole lit `heading` à chaque
 rotation). Le pilote n'est appelé que depuis la boucle d'attente du prompt et
 les boucles d'attente des écrans.
@@ -141,7 +142,7 @@ grille à droite.
 IT TOOK A WHILE TO MAKE YOUR FIRE.     | WALK  LOOK  REST  WAIT  EAT   DRINK
                                        | GET   wear  drop  USE   MAKE  DOUSE
                                        | CARE  BOIL  CLIMB
-FOOD 192 WATER 64 HERE 0/0 OZ          |
+FOOD 192 WATER 64 LOCAL 0/0 OZ         |
 ```
 
 ### 4.1 La grille : onze verbes fixes, puis les verbes du moment
@@ -202,9 +203,25 @@ une liste d'une seule entrée est sautée (l'entrée est choisie d'office).
 | USE | les objets que USE traite, puis l'arc, la lance, le gourdin, la pierre et l'attelle ici ou emportés, puis `FIRE` quand un feu brûle | — | `USE MATCHES`, `USE ROCK`, `USE FIRE` |
 | MAKE | ce qui peut se faire ici : `FIRE`, `WATER` | — | `MAKE FIRE` |
 | BOIL | les onces (au plus le contenu de la gourde, sinon la pile ici) | — | `BOIL WATER 8 OZ` |
-| KILL, SKIN, CATCH, COOK | leurs cibles nommées (gibier, poisson, carcasse, pile) | COOK : — ; CATCH : — | `CATCH FISH`, `KILL GAME` |
+| CATCH | GAME ou FISH présents ici | `10 MIN 20 MIN 30 MIN 1 H 2 H 4 H 8 H` | `CATCH FISH 30 MIN` (appât et matériel en usage d’abord) |
+| KILL, SKIN, COOK | leurs cibles nommées (gibier, poisson, carcasse, pile) | — | `KILL GAME` |
 | CLIMB | `TREE` ou `DOWN`, celle qui s'applique | — | `CLIMB TREE` |
 | CARE | — : STATUS (ses rangées MEDICAL), focus sur la première affection active (§ 5) | — | `STATUS` |
+
+CATCH ouvre sa liste de durées après la cible (16 octobre 2026). Le choix
+ne lance aucune préparation avant RETURN sur la durée ; Échap revient sans
+consommer ni avancer le temps. L'appât et le piège ou le matériel de pêche
+sont ensuite mis en usage si nécessaire. Le dernier des cinq emplacements
+de la file garde l'index de durée : CATCH n'utilise que trois étapes au plus.
+La saisie directe accepte les mêmes durées ; sans durée, la question
+originale permet toujours les fractions d'heure.
+
+Les portions d'EAT, DRINK et BOIL commencent à **1 OZ**, puis 2, 4, 8,
+12, 16, 24, 32 et 48 oz (16 octobre 2026). Seules celles qui respectent
+le stock disponible et, pour DRINK, le plafond de la gorgée sont proposées.
+Cela permet d'utiliser une dernière once sans saisie numérique ; avec un
+seul choix, la grille le sélectionne comme les autres listes d'une entrée.
+EAT garde TASTE avant les portions. Échap annule le choix sans consommer.
 
 Les onces de BOIL sont tapées en ligne : l'analyseur accepte désormais
 `BOIL WATER n OZ` comme `EAT` et `DRINK` (`src/input.s`), sans invite ;
@@ -247,7 +264,7 @@ gardent les refus de l'original : la file n'appartient qu'à la grille.
   à la ligne entre les mots, `|` force une rangée tant qu'il en reste une,
   sinon vaut une espace ; un mot plus long qu'une rangée est coupé à la
   rangée, sans atteindre le séparateur). Quand le message laisse la rangée 23
-  vide, elle reçoit la ligne de stock `FOOD n WATER n HERE f/w OZ`
+  vide, elle reçoit la ligne de stock `FOOD n WATER n LOCAL f/w OZ`
   (provisions et eau emportées, puis au sol sur la case), et, pendant
   qu'une commande est tapée ou composée, `> ` suivi de la commande telle
   que l'analyseur la lira (sans curseur : le texte en tient lieu) ; l'invite
@@ -333,7 +350,7 @@ Fenêtres prévues, en remplacement des écrans 40 colonnes :
 | Écran actuel | Fenêtre | Contenu |
 |---|---|---|
 | STATUS (80 colonnes depuis le 14 octobre 2026 : deux colonnes, jauges, tableau des provisions, blessures, direction des rangers avec la boussole ; `src/status.s`) | pleine largeur, 18 lignes | mêmes sections et unités ; M bascule vers MEDICAL |
-| INVENTORY (80 colonnes depuis le 14 octobre 2026 : onglets des cinq groupes avec leur compte, trois colonnes de seize objets, capacités sur une ligne ; `src/inventory.s`, module STATUS) | pleine largeur | groupes choisis par 1-5, seize objets par colonne, capacités restantes en pied ; haut/bas sélectionnent un objet, bouton 0 ouvre `GET / TAKE / WEAR / DROP` pour cet objet |
+| INVENTORY, devenue OBJECTS (80 colonnes depuis le 14 octobre 2026 ; page de transfert depuis le 16 octobre : § 5.1 ; `src/inventory.s`, module STATUS) | pleine largeur | LOCAL à gauche, CARRIED à droite ; haut/bas choisissent un objet, RETURN le passe de l'autre côté, H le prend en main |
 | HELP (une page 80 colonnes, quatre blocs : TRAVEL, EQUIPMENT, SURVIVAL, HEALTH) | pleine largeur | même page |
 
 **Navigation par pages (14 octobre 2026) : haut, vue, bas.** La vue est au
@@ -351,8 +368,7 @@ et bas sous sa dernière rangée ouvre les pages du bas.
   (distance, direction, `JOURNEY DONE` et sa jauge) passe dans MENU ; HERE
   et la ligne d'état deviennent LOCAL (date, heure, air, ressenti, ciel,
   vent, altitude, sol, situation). Une rangée d'onglets en haut (la page
-  courante en inverse, `S/O/R/H, LEFT/RIGHT` à droite sur 140 Ko,
-  `S/O/R/H` sur XL), les flèches gauche et droite tournent en boucle, S, I
+  courante en inverse, sans rappel `S/O/R/H`), les flèches gauche et droite tournent en boucle, S, I
   ou O (OBJECTS), R (CRAFT), H et M (STATUS, l'ancienne MEDICAL) ouvrent
   une page (sauf sur MENU, dont les lettres sont les siennes), T ouvre
   TOPO, Échap, RETURN et espace reviennent à la vue ; les commandes tapées
@@ -361,7 +377,10 @@ et bas sous sa dernière rangée ouvre les pages du bas.
   `ESC/DOWN: VIEW` sur les pages sans niveau, `ESC: VIEW` sur les autres.
 - **Niveaux de focus des pages du haut** (`pg_focus`, `page_keys`) : à
   l'arrivée sur une page le focus est sur la rangée d'onglets, où gauche et
-  droite changent de page. Bas descend d'un niveau, haut remonte ; **haut
+  droite changent de page. Haut depuis la vue retrouve la dernière page
+  ouverte ; la commande STATUS reste explicite. Dans OBJECTS, bas depuis
+  l'onglet revient à la vue et Entrée active les listes. Ailleurs, bas
+  descend d'un niveau, haut remonte ; **haut
   sur les onglets ouvre TOPO** (demande de l'utilisateur du 15 octobre 2026 :
   l'étage des cartes est au-dessus des pages, la boucle verticale se ferme
   dans les deux sens), Échap revient à la vue de partout. Haut ne quitte
@@ -377,20 +396,21 @@ et bas sous sa dernière rangée ouvre les pages du bas.
   HELP n'a pas de niveau : bas revient à la vue ; STATUS a les affections
   actives de ses rangées MEDICAL (voir plus bas ; sans affection active,
   bas revient à la vue).
-  OBJECTS : bas met le focus sur la rangée des groupes, où gauche et
-  droite changent de groupe (en boucle) ; le groupe montré est en inverse
-  quand sa rangée a le focus, entre crochets (`[3 IN PACK 27]`) quand les
-  onglets l'ont (l'onglet de la page reste toujours en inverse). Sur un
-  groupe de plusieurs pages (33 objets par page depuis l'arrivée de
-  CARRYING), bas passe à la page suivante (`PAGE 2/3`) et
-  bas sur la dernière revient à la vue ; haut remonte les pages puis rend le
-  focus aux onglets. 1-5, N et B marchent comme avant ; RETURN et espace
+  OBJECTS (page de transfert depuis le 16 octobre 2026, demande de
+  l'utilisateur du 15 octobre, les deux éditions ; § 5.1) : Entrée met le
+  focus sur les deux listes, le curseur `>` sur l'objet choisi du côté
+  choisi ; gauche et droite changent de côté (LOCAL, CARRIED), haut et
+  bas d'objet en objet (les en-têtes de groupe ne se choisissent pas),
+  haut au-dessus du premier rend le focus aux onglets, bas sous le
+  dernier revient à la vue. RETURN envoie l'objet de l'autre côté, H le
+  prend en main (sur les onglets, H reste HELP) ; espace et Échap
   reviennent à la vue. OPTIONS et MENU : bas pose un curseur `>` en
   colonne 1 sur la première ligne (C, A, P, F ; S, R, Q), haut et bas le
   déplacent, bas sous la dernière ligne revient à la vue, haut sur la
   première rend le focus aux onglets ; RETURN et espace valent la lettre de
   la ligne (NATURE, bascules, SAVE, RESTORE, QUIT), les lettres marchent
-  toujours. CRAFT (deux moitiés depuis le 15 octobre 2026 : à gauche les
+  toujours. La ligne qui a le focus est en inverse (OPTIONS : du nom
+  jusqu'à la colonne des états ; MENU : son texte). CRAFT (deux moitiés depuis le 15 octobre 2026 : à gauche les
   recettes en trois groupes, SHELTERS, WEAPONS AND TOOLS, PROTECTION, avec
   leur état en MouseText et leur temps ; à droite la recette choisie, ses
   contrôles, son effet, son temps : [CRAFT.md](CRAFT.md) § 8.6) : bas pose
@@ -405,7 +425,10 @@ et bas sous sa dernière rangée ouvre les pages du bas.
   crochets et l'inverse du groupe ; `tests/test_focus.py`,
   `tests/test_transitions.py`).
   STATUS montre dans ses rangées MEDICAL (15 à 20) les treize affections
-  et le mal d'altitude en trois colonnes (pourcentage, marque de soin :
+  et le mal d'altitude en trois colonnes (pourcentage de gravité,
+  `100 − x` de la valeur simulée : 0 % sans mal, demande du 15 octobre
+  2026 ; affichage seul, ni la simulation ni les sauvegardes ne changent ;
+  marque de soin :
   X inverse ACTIVE, `+` TREATED, `*` PROTECTED sur 140 Ko ; coche et
   losange MouseText sur XL ; la légende sur la rangée du titre) ; bas met
   le focus sur les affections actives tour à tour
@@ -420,8 +443,14 @@ et bas sous sa dernière rangée ouvre les pages du bas.
   (`game_options`, GDATA, non sauvegardé) : A, le joueur sur TOPO (bit 7,
   masqué par défaut : `tp_sites`), P, MAP (bit 6 : `module_topo` répond
   `MAP IS OFF (OPTIONS PAGE).`) ; la ligne F (`FOOD SOURCES ON THE WAY`,
-  lot 4) tape `IGNORE FOOD` ou `GET FOOD` selon `fg_ignore`. MENU tape
-  `SAVE`, `RESTORE` ou `QUIT` et montre RANGERS sous ses lignes.
+  lot 4) tape `IGNORE FOOD` ou `GET FOOD` selon `fg_ignore`. Depuis le
+  15 octobre 2026, une option par rangée (3-6 : `C  WILDLIFE FREQUENCY`,
+  `A  PLAYER ON TOPO`, `P  MAP PAGE`, `F  FOOD SOURCES ON THE WAY`), l'état
+  aligné en colonne 31 (`PG_VAL` : la fréquence, ou `[X]` / `[ ]` ; sur XL
+  une coche MouseText dans la case). MENU tape `SAVE`, `RESTORE` ou `QUIT` ;
+  RANGERS en tête (rangées 2-4 : distance et direction, `JOURNEY DONE` et
+  sa jauge), puis SAVE / RESTORE (6-8) et QUIT (rangée 11, sans titre sur
+  140 Ko).
 - **Pages du bas** : TOPO (`module_graphical_topo`) puis MAP
   (`module_topo`) ; gauche ou droite passe de l'une à l'autre, haut, Échap,
   RETURN ou espace revient à la vue. MAP défile par I, J, K, L (haut,
@@ -450,6 +479,96 @@ TOPO reste plein écran : ils ne sont pas des fenêtres.
 Coût de tracé estimé pour STATUS complet (≈ 600 glyphes à ≈ 200 cycles,
 plus le rectangle) : environ 0,15 s, à mesurer. Le retour doit rester
 inférieur à 0,3 s, le niveau d'INVENTORY aujourd'hui.
+
+### 5.1 OBJECTS : la page de transfert (16 octobre 2026)
+
+Demande de l'utilisateur du 15 octobre 2026 : transférer les objets
+vite. Les deux éditions (post-its MouseText sur XL, texte simple sur
+140 Ko), `src/inventory.s` dans le module STATUS ; captures
+`build/objects_v2_xl.png`, `build/objects_v2_140.png`.
+
+```
+ LOCAL _________________________________  HANDS ________________________________
+▏> ENSOL PAD      24 OZ                ▕ ▏  BACKPACK       64 OZ               ▕
+▏  GND COVER      45 OZ                ▕ ▏  TOPO MAP       0 OZ                ▕
+▏  JEANS          24 OZ                ▕ ▏  2QT CANTEEN    80 OZ               ▕
+▏  SHORTS         4 OZ                 ▕ ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+▏  COTTN SOCKS    5 OZ                 ▕ _ PACK ________________________________
+▏  HAT            2 OZ                 ▕ ▏  DOWN PARKA     24 OZ               ▕
+▏  GLOVES         10 OZ                ▕ ▏  TENT           64 OZ               ▕
+▏  WATER          64 OZ                ▕ ▏  RAINCOAT       16 OZ               ▕
+▏  CANDYBARS      16 OZ                ▕ ▏  WATER          64 OZ               ▕
+▏  BACON          16 OZ                ▕ ▏  EGGS           16 OZ               ▕
+▏  CHEESE         16 OZ                ▕ ▏  CHEESE         32 OZ               ▕
+▏  CARROTS        16 OZ                ▕ ▏  POTATOES       32 OZ               ▕
+‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ MORE ‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ MORE ‾‾‾
+ CARRYING ________FOOD_______WATER______  LOAD _________________________________
+▏CARRIED          192 OZ     64 OZ     ▕ ▏█████████▒  772/815 OZ               ▕
+▏LOCAL            248 OZ     64 OZ     ▕ ▏WALK TIME +28% FREE IN3 WEAR 1525    ▕
+▏IN REACH         440 OZ     128 OZ    ▕ ▏PACK █▒▒▒▒▒ 4134 HANDS ▒▒▒▒▒▒ 2542   ▕
+‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
+                                         ↵ PACK ENSOL PAD
+                                         H CARRY ENSOL PAD
+ ←→ PAGE  ↵ LIST/ACT ←→↑↓ MOVE  H HANDS                               ESC VIEW
+```
+
+- **Les deux listes** (`ob_build`, dans `overlay_text`) : à gauche ce qui
+  est au sol de la case (LOCAL), puis l'en-tête `LOCAL HUNG` et le sac
+  pendu ici quand il y en a un ; à droite HANDS, PACK et WORN, toujours
+  avec leur en-tête (inverse). HANDS et PACK sont deux post-it distincts
+  sur XL ; leur séparation suit le défilement. CARRYING et LOAD occupent
+  les rangées 16–20, les aides des transferts à droite les rangées 21–22.
+  Un objet par rangée : son nom (colonne 3
+  de la moitié), son poids (colonne 18 : W5 de l'équipement, les onces
+  d'une provision ou d'une pile à sa place, le W5 du second jeu ; les
+  remèdes 41-51 sauf les lunettes, leurs `USES` comme avant). Douze
+  rangées par côté, la fenêtre suit le curseur (sa dernière rangée quand
+  il est plus bas) ; les abris (95-97) n'y sont pas, ce ne sont pas des
+  objets (la page CRAFT les montre).
+- **La sélection** : `obj_side` et `obj_cur` conservent le côté et les
+  positions de défilement ; `obj_selected` garde l'identité des deux objets
+  dans deux octets BSS résidents, hors sauvegarde. À la reconstruction,
+  `ob_restore` retrouve l'objet même si son indice a changé ; s'il a disparu,
+  `ob_fix` choisit un voisin valide et `ob_remember` retient cette sélection.
+  Une réouverture garde le focus sur les onglets, Entrée reprend la liste.
+- **Le transfert** tape la commande du clavier (`ob_cmd`) : RETURN à
+  gauche `PACK x` (`GET WATER` pour l'eau d'une pile, `CARRY BACKPACK`,
+  `CARRY CANTEEN`), à droite `DROP x` ; H `CARRY x`. Le nom affiché est
+  tapé (sans un premier mot à chiffre : `2QT CANTEEN` → `CANTEEN`, sinon
+  INPUT y voit un nombre), l'objet passe par `menu_noun`. Temps, règles
+  et refus sont ceux de la commande tapée (`tests/test_objects.py`
+  compare l'état après la page à l'état après la ligne tapée). Le sac
+  pendu et son contenu ne se transfèrent pas (LOWER FOOD prend du temps :
+  celui de la grille) ; ainsi aucun transfert de la page ne fait passer
+  le temps.
+- **Le retour** : la page met la commande dans `inbuf`, pose la file de la
+  grille (§ 4.3) `S_CARRY` (sans contrôle) puis `S_OBJECTS` (qui tape
+  `INVENTORY`), lève `obj_keep` et saute à `obj_type` (résident : SIM
+  lue en silence, puis `do_command`). La page reste à l'écran pendant la
+  commande ; `message` écrit la réponse dans les rangées 20-22, colonnes
+  0-38, comme dans la vue ; `get_line` tape `INVENTORY` ; la page revient,
+  le focus sur les listes, le curseur sur la même rangée (l'objet suivant
+  y est venu), la réponse gardée (ses cellules sont sautées). Le bandeau
+  de la vue (`summary_refresh`) attend la sortie de la page
+  (`obj_keep`) : un transfert prend ≈ 1,1 s sur XL, ≈ 1,2 s sur 140 Ko
+  (de RETURN à la page revenue).
+- **LOAD** : la jauge du poids porté sur dix cellules jusqu'à la limite
+  (`load_limits`, 815 oz : le `$4BFA` de l'original, mesuré par
+  `tools/re_load_probe.py`), les onces portées et la limite ; `WALK TIME
+  +n%` : 100 × INT(onces / 16) / (poids du corps + 2), le ralentissement
+  de la marche (T08/S07 : le facteur `$4C84` = (`$4C02` + `$4BBE`) /
+  `$4BF6`, proportionnel au poids dès la première livre, **aucun seuil**
+  avant la limite). La rangée 18 garde le volume libre des vêtements sous
+  `FREE IN3 WEAR`. La rangée 19 montre PACK et HANDS : six cellules de
+  volume occupé (`floor(6 × utilisé / capacité)`, plafonné à six), puis
+  le volume libre exact en pouces cubes. Une capacité nulle donne une jauge
+  vide ; un dépassement remplit la jauge et affiche zéro libre.
+  Mesures de la
+  sonde : 772 oz portés au départ (43 restants), +28,7 % à 48 lb,
+  +29,9 % à 50 lb ; au-delà de la limite tout objet pris au sol est
+  refusé (GET ROCK avec 100 oz restants accepté, 99 refusé, msg 7) :
+  la fin de la jauge est donc le seul seuil, celui du « trop lourd ».
+- **CARRYING** : les vivres et l'eau portés, ici, à portée (inchangé).
 
 ## 6. Plan mémoire du lot
 
@@ -551,11 +670,12 @@ Une seule édition de liaison sert les deux disques. Les images liées sont
 celles de 140 Ko ; `tools/build_disk.py` (`XL_IMAGES`, `xl_files`) en
 fait pour XL des copies `build/*-xl.bin` :
 
-- une **queue** ajoutée à quatre images : STATUS (`STATX`, `$AF00-$B5FF`,
+- une **queue** ajoutée à quatre images : STATUS (`STATX`, `$B100-$B5FF`
+  depuis le 16 octobre 2026, `$AF00` avant la page OBJECTS de transfert,
   `src/mt_pages.s` ; elle déborde sur `$B000-$B5FF`, l'image de la grille,
   comme la simulation entre deux invites : `get_line` la reprend),
   CRAFT (`CRAFTX`, `$A640`, après les octets de travail de la page),
-  MEDVIEW (`MEDVX`, `$5E80`) et NEOWILD.END (`ENDX`, `$A200`) ;
+  MEDVIEW (`MEDVX`, `$5FC0`) et NEOWILD.END (`ENDX`, `$A200`) ;
 - des **octets changés** dans les images partagées, notés dans le source
   par les macros de `src/mousetext.inc` (segment `XLPATCH`, jamais
   chargé) : `XL_IMM` (l'opérande d'une instruction), `XL_ABS` (une
@@ -656,28 +776,43 @@ les cellules qui changent (`tests/test_focus.py`,
 - **Pied de page** (`page_foot_x`, la page CRAFT, `med_foot_x`) :
   rangée 22, le trait `$53` ; rangée 23, `←→ PAGE`, puis les touches de
   la page (`↑↓ CHOOSE  ↵ SELECT`, `↑ TOPO`, les gestes de soin…), et en
-  colonne 70 `ESC/↓ VIEW` (page sans niveau) ou `ESC VIEW`.
-- **STATUS** : CONDITION (rangées 2-8, titre : le mot du joueur ; HEALTH,
-  ENERGY, HUNGER, THIRST en jauges de blocs et damiers, BODY), CONDITIONS
-  (9-14 : déshydratation, inanition, épuisement, hypo- ou hyperthermie),
-  LOCAL à droite (2-14 : DATE / TIME, AIR / FEELS, SKY / WIND, ALT /
-  GROUND, la situation), MEDICAL sur toute la largeur (15-21 : légende
+  colonne 70 `ESC/↓ VIEW` (page sans niveau) ou `ESC VIEW`. OBJECTS
+  (16 octobre 2026) : `page_foot23_x`, sans le trait de la rangée 22
+  (les rangées 20-22 portent la réponse d'un transfert).
+- **STATUS** (15 octobre 2026, les deux éditions) : CONDITION à gauche
+  (rangées 2-14, titre : le mot du joueur ; HEALTH, ENERGY, HUNGER, THIRST
+  en jauges de blocs et damiers suivies de leur pourcentage, `90% OKAY`,
+  puis BODY, une rangée vide entre deux : rangées 4, 6, 8, 10, 12), à
+  droite LOCAL (2-10 : DATE / TIME, AIR / FEELS, SKY / WIND, ALT / GROUND,
+  la situation en rangées 7-9) et CONDITIONS dessous (11-14 :
+  déshydratation, inanition, épuisement, hypo- ou hyperthermie, deux par
+  rangée en colonnes 41 et 60), MEDICAL sur toute la largeur (15-21 : légende
   X inverse ACTIVE, coche TREATED, losange PROTECTED sur la rangée du
   titre ; les treize affections et le mal d'altitude en trois colonnes,
-  pourcentage et marque ; le focus des soins).
-- **OBJECTS** : la rangée des groupes (2), le post-it du groupe montré
-  (3-15 : son nom en titre, 33 objets par page, `PAGE n/m` en inverse sur
-  son trait du bas), CARRYING (16-20 : FOOD et WATER sur le trait du
-  titre ; CARRIED, HERE, IN REACH), les capacités en rangée 21.
+  pourcentage de gravité et marque ; le focus des soins).
+- **OBJECTS** (16 octobre 2026, § 5.1) : quatre post-its, LOCAL et
+  CARRIED (rangées 2-14, colonnes 0-39 et 41-79 : onze objets par côté,
+  `MORE` en inverse sur le trait du bas d'une liste qui continue), puis
+  CARRYING et LOAD (15-19 : FOOD et WATER sur le trait du titre de
+  CARRYING ; la jauge de LOAD en blocs et damiers). Les rangées 20-22 ne
+  sont pas encadrées : à gauche la réponse du jeu au dernier transfert
+  (colonnes 0-38, la colonne de résultat de la vue), à droite ce que
+  tapent RETURN (`↵ PACK ROPE`, glyphe `$4D`) et H ; la rangée 22 n'a
+  pas le trait du pied (`page_foot23_x` : la réponse peut tenir trois
+  rangées), la rangée 23 les touches (`←→ SIDE  ↑↓ CHOOSE  ↵ TO OTHER
+  SIDE  H TO HANDS`, `ESC VIEW` en colonne 70).
 - **CRAFT** : à gauche SHELTERS, WEAPONS AND TOOLS, PROTECTION (titres du
   cadre, `pf_craft`), à droite la recette choisie (rangées 2-20, son nom
   en inverse en titre, le verdict sur le trait), la légende en rangée 21.
 - **HELP** : un post-it par bloc (TRAVEL, EQUIPMENT ; SURVIVAL, HEALTH ;
   rangées 2-9 et 11-19).
-- **OPTIONS** : un post-it par réglage (NATURE, TOPO, MAP, FOOD : lignes
-  en rangées 3, 6, 9, 12, `pg_lines_x`, `pg_mark_x`). **MENU** : SAVE,
-  RESTORE, QUIT (rangées 3, 6, 9), puis RANGERS (11-14 : distance et
-  direction, `JOURNEY DONE` et sa jauge).
+- **OPTIONS** : un seul grand post-it (rangées 2-9, toute la largeur,
+  titre OPTIONS) : une option par rangée (3-6), l'état en colonne 31 (coche
+  `$44` dans `[ ]`), la ligne du focus en inverse jusqu'à l'état, et en
+  rangée 8 une phrase sur l'option choisie (`pg_desc_x`, XL seul : le
+  module STATUS de 140 Ko n'a plus la place). **MENU** : RANGERS (2-5 :
+  distance et direction, `JOURNEY DONE` et sa jauge), SAVE / RESTORE
+  (6-9), QUIT (10-12, titre de la table).
 - **Grille** (vue, rangées 20-23) : chaque case nommée finit par `$5A`,
   le séparateur de la colonne 39 est `$5F`, les marques de défilement
   `↑` / `↓` ; la case choisie reste en inverse, un verbe impossible en
@@ -701,3 +836,108 @@ MouseText sur les pages de 140 Ko hors CRAFT), `tests/test_focus.py`,
 (les deux éditions), `test_grid_play.py` (`frame`, les deux éditions),
 `test_editions.py` (`pages`), `test_hof_game.py` (`xl_end`),
 `test_reference_state.py` (l'état laissé par STATUS est celui de 140 Ko).
+
+
+## 10. Entrées communes de l'audit (16 octobre 2026)
+
+Le premier lot raccorde `src/ui_event.s` à `idle`, `keyboard_wait`, au
+menu du chargeur après le tronc et au lecteur de touches du score. Les
+axes donnent les quatre directions, PB0 validation et PB1 retour. Les
+axes sont échantillonnés ensemble, au plus environ 3 ms par lecture ; une
+lecture toutes les 256 attentes, zone morte aux comptes 26 et 86 (mesure
+sur la boucle, pas les unités de PDL ROM), répétition après 50 lectures
+puis toutes les 15. Les valeurs exactes restent à calibrer sur une manette
+réelle. Deux timers encore hauts après la lecture désignent un port sans
+manette. Un bouton maintenu ne valide pas la prochaine étape. Les axes
+sont suspendus lorsqu'une commande est en cours de frappe.
+
+`UI_TWO` (`src/ui_choice.inc`) affiche le choix courant à l'invite et
+conserve les lettres directes ; les directions le basculent, validation
+répond, retour annule. Utilisé pour les sources P/G, les confirmations en
+jeu et les choix Y/N et E/W d'orientation. Les invites entières communes
+acceptent haut/bas sans changer la validation des unités et des plages.
+
+MAP distingue la navigation entre pages et l'exploration : validation
+entre, les directions font défiler, validation recentre, retour rend
+le focus à la navigation des pages ; un second retour rend la vue. Sa
+rangée 23 annonce le mode. Les raccourcis I/J/K/L/C restent accessibles.
+
+Au score, haut/bas parcourt A–Z, 0–9, espace, point, tiret pour la dernière
+lettre ; droite ajoute une nouvelle lettre A, gauche l'efface. Validation
+garde un nom non vide, retour annule l'entrée. La frappe directe reste.
+
+`tests/test_navigation.py` vérifie ces parcours sur 140 Ko et XL, dont le
+maintien de PB0 au menu et dans la grille, la zone morte à ±0,2, la
+rotation, la protection de la frappe, l'annulation P/G sans effet sur
+l'état/hasard, SAVE 2 sans chiffres tapés, les confirmations, la carte et
+l'enregistrement du nom AB sans lettres tapées. Les questions du mode P,
+/RAM avant le tronc et les lecteurs particuliers restant à raccorder sont
+suivis dans TODO.md ; la jouabilité intégralement sans clavier n'est pas
+encore déclarée terminée.
+
+
+## 11. OBJECTS : transaction et cible XL (16 octobre 2026)
+
+Le développement de l’édition 140 Ko est arrêté à la demande de
+l’utilisateur. Les comportements nouveaux sont réalisés et testés sur XL.
+`make`, `make run`, `make inspect` et `make test` ciblent XL ; les anciennes
+cibles et descriptions de comparaison restent historiques.
+
+Depuis une liste, Entrée ouvre le menu de l’objet. Haut/bas choisissent
+l’action : PACK, CARRY, DROP, WEAR, USE, EAT ou DRINK selon sa catégorie.
+Le raccourci H ouvre le même éditeur en demandant la main lorsque l’action
+est valable. Retirer un vêtement passe par CARRY/PACK/DROP. La sélection et
+son côté sont conservés après exécution, avec la réponse du jeu.
+
+Pour les provisions et piles, l’étape quantité propose haut +1, bas −1,
+gauche 1 et droite TOUT. Le transfert démarre sur le stock entier de la
+source ; EAT démarre à 1 OZ et n’accepte pas TOUT. L’étape suivante exige une
+confirmation distincte ; Échap recule puis quitte sans temps, tirage ou
+modification des stocks. Les équipements restent indivisibles.
+
+L’aperçu AFTER montre le poids et les volumes PACK/HANDS libres après un
+transfert d’équipement ou de provisions ; OVER indique le dépassement exact.
+Les piles sauvages conservent leur règle native sans charge. Pour USE,
+EAT/DRINK et les cas d’eau non encore calculés, NOW montre la capacité
+actuelle, sans annoncer une projection. Les dépassements arithmétiques sont
+signalés explicitement. La commande garde sa validation définitive : le
+menu ne modifie jamais temporairement les stocks pour calculer une charge.
+
+PACK/CARRY/DROP acceptent une quantité entière, éventuellement suivie de OZ,
+pour les provisions. Sans quantité, leur transfert reste intégral. Une
+quantité nulle, une unité de temps, un équipement quantifié ou un stock
+source insuffisant sont refusés avant toute mutation. Les piles sauvages
+acceptent aussi PACK explicite avec quantité. La source choisie reste celle
+du repas même lorsqu’il existe simultanément un stock au sol et dans PACK.
+
+Les limites encore ouvertes (eau, médicaments, objets suspendus, refus CRAFT)
+sont décrites au TODO. La navigation intégralement sans clavier reste un
+objectif en cours, notamment pour CRAFT et CATCH.
+
+## 12. EQUIPMENT et transferts d’eau (16 octobre 2026, XL)
+
+Septième onglet après MENU, également ouvert par EQUIPMENT ou E sur les
+onglets. À l’ouverture, le focus est sur l’onglet : bas revient à la vue,
+Entrée active la liste. Haut au-dessus du premier objet rend les onglets.
+La sélection mémorise l’objet ; les actions et leur annulation y reviennent.
+
+WORN montre les vêtements et protections portés ; HANDS les objets tenus ;
+IN USE les drapeaux effectifs de la simulation ; PACK les objets disponibles.
+Un objet peut figurer dans plusieurs rôles. Un piège dans PACK n’est pas
+préparé ; tenir un couteau ne l’active pas. Certains drapeaux natifs sont
+partagés entre objets : la page le signale. Les actions proposées réemploient
+les commandes natives et l’éditeur avec confirmation ; retirer un vêtement
+se fait par CARRY ou PACK, selon la destination voulue.
+
+Le panneau droit montre les trois états indépendants, le volume occupé en
+mains, les capacités libres et les prérequis d’appât pour piège/pêche. Il
+ne prépare pas automatiquement l’appât. Le panneau CATCH indique la
+préparation réelle, également pilotable par la grille existante.
+
+OBJECTS permet GET/DROP WATER en OZ, y compris TOUT, avec le volume requis,
+la destination de la gourde et sa capacité restante. Un transfert explicite
+qui dépasse 64 OZ est refusé sans prélèvement partiel. Les autres transferts
+affichent également le volume nécessaire et la place WEAR libre. Les objets
+fabriqués signalent séparément chaque limite dépassée (poids et contenant),
+avec besoin et place libre ; les règles natives d’activation restent celles
+du moteur. Les doses médicales et LOWER FOOD restent au TODO.

@@ -1,5 +1,20 @@
 # Neowilderness
 
+**Développement actif : NeoWildernessXL (800 Ko).** La version 140 Ko
+est arrêtée depuis le 16 octobre 2026 ; `make` construit désormais XL seule.
+Les descriptions de l’édition 140 Ko ci-dessous sont historiques.
+
+**EQUIPMENT** : septième onglet, accessible avec les flèches du haut.
+Entrée active sa liste ; chaque objet distingue porté, en mains et en usage,
+avec actions, charge et préparation de la chasse.
+
+**TMAP XL** : touche `T` au menu pour générer un archipel de deux ou trois
+îles, choisir une graine et voir un aperçu avant de jouer. Relief accentué,
+mer jusqu'à l'horizon et sur les quatre bords, chenaux à traverser à la nage.
+Les arbres du prototype ont été retirés. Le scénario est un paquet de
+données distinct du moteur. Voir [TMAP.md](docs/TMAP.md) pour le format
+de scénario, les commandes et la reprise des sauvegardes.
+
 Port séparé de Wilderness pour Apple IIe enhanced 128 Ko et IIc, avec
 rendu DHGR et modules préchargés en RAM, en deux éditions (14 octobre
 2026), même jeu et même chargeur : **Neowilderness**
@@ -27,17 +42,23 @@ coucher, crépuscules, nuit claire de pleine Lune…). L'interface est en DHGR
 elle aussi (lot 4) : ruban de boussole et panneaux de survie en couleur,
 avertissements sur bande rouge, messages en vrai texte 80 colonnes, carte
 MAP en 80 colonnes, feuille TOPO calculée à l'ouverture depuis la carte en
-mémoire, retours d'écrans sans redessin de la vue. Les quatre lignes du
+mémoire, retours d'écrans sans redessin de la vue. Le paysage reste visible pendant
+les calculs de repos et d'attente ; le rideau ne masque que le redessin. Les quatre lignes du
 bas sont une surface de commande (lot 8, étape 2) : à gauche les
 descriptions (le dernier message, la ligne de stock ou la commande telle
 que le jeu la lira), à droite la grille des verbes et leurs listes
 (depuis le 14 octobre ; RETURN, TAB ou la flèche bas l'ouvre, TAB ou haut
 sur sa première rangée la referme, flèches, RETURN, Échap ; toute action
-s'y trouve, seuls les objets accessibles sont proposés, les commandes
+s'y trouve ; CATCH propose aussi sa durée, puis prépare l'appât et le piège
+ou le matériel de pêche avant de lancer la capture ; seuls les objets accessibles sont proposés, les commandes
 tapées restent acceptées). Navigation par pages : sur une ligne vide,
-gauche et droite tournent la vue, la flèche haut ouvre les pages du haut
-(STATUS, avec les affections et leurs soins ; OBJECTS, l'inventaire et
-les vivres emportés ; CRAFT ; HELP ; OPTIONS ; MENU, avec la distance aux
+gauche et droite tournent la vue, la flèche haut retrouve la dernière page du haut ouverte
+(STATUS, avec les affections et leurs soins ; OBJECTS, le sol de la case
+à gauche, HANDS et PACK dans deux post-it à droite sur XL, chaque objet
+avec son poids ; sélections et défilement mémorisés ; Entrée active les listes,
+puis RETURN ouvre les actions, les quantités et la confirmation, H propose la main, la commande tapée
+comme au clavier ; les jauges de poids, de volume PACK et HANDS et les vivres
+emportés ; CRAFT ; HELP ; OPTIONS ; MENU, avec la distance aux
 rangers ; en boucle par gauche/droite ; bas ou Échap revient à la vue ;
 sur NeoWildernessXL chaque bloc est un post-it en MouseText), la flèche bas ouvre la
 grille, puis, bas sous sa dernière rangée, les pages du bas (TOPO et MAP,
@@ -176,6 +197,15 @@ inverse : il manque quelque chose, losange : déjà fait) et le temps que
 MAKE passerait maintenant ; à droite, la recette choisie : son effet, ce
 qu'il faut (coché ou non), ce dont dépend le temps et ce qui le ralentit ;
 RETURN tape `MAKE x`.
+
+Le joystick pilote désormais la vue, la grille, les pages et le menu de
+choix du voyage (bouton 0 : valider, bouton 1 : retour). Les dialogues P/G
+et les confirmations en jeu se choisissent aux directions ; haut/bas règle
+les invites numériques. Dans MAP, Entrée ouvre l'exploration : directions
+pour défiler, Entrée pour recentrer, retour pour quitter ce mode. Le nom
+du score peut se composer avec haut/bas et droite. La préparation
+personnalisée et quelques attentes particulières restent à raccorder ; le
+plan complet, dont les actions et quantités d'OBJECTS, est dans le TODO.
 
 ## Construction
 

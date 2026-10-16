@@ -123,7 +123,7 @@ def layout(disk):
         assert all(rows[k][39] == '|' for k in range(4)), 'every verb in view: no scroll mark'
         res = result_rows(rows)
         assert res[0].startswith('CRASH IN') and res[3].startswith('FOOD '), rows
-        assert re.fullmatch(r'FOOD \d+ WATER \d+ HERE \d+/\d+ OZ *', res[3]), 'the whole stock row fits'
+        assert re.fullmatch(r'FOOD \d+ WATER \d+ LOCAL \d+/\d+ OZ *', res[3]), 'the whole stock row fits'
         assert selected(s) is None, 'typed line: no selection'
         press(s, RET)
         assert selected(s) == 'WALK', bottom(s)
@@ -213,7 +213,7 @@ def composition(disk):
         # goes straight to the ounces, at most .2 x the body weight (33).
         move_to(s, 'DRINK')
         press(s, RET)
-        assert sum(grid_cells(s), []) == ['2', 'OZ', '4', 'OZ', '8', 'OZ', '12', 'OZ', '16', 'OZ', '24', 'OZ',
+        assert sum(grid_cells(s), []) == ['1', 'OZ', '2', 'OZ', '4', 'OZ', '8', 'OZ', '12', 'OZ', '16', 'OZ', '24', 'OZ',
                                           '32', 'OZ'], grid_cells(s)
         press(s, ESC)
         assert choose(s, 'DRINK', '4 OZ') == ('DRINK WATER 4 OZ', 22)
@@ -224,7 +224,7 @@ def composition(disk):
         press(s, RET)
         move_to(s, 'EGGS')
         press(s, RET)
-        assert sum(grid_cells(s), []) == ['TASTE', '2', 'OZ', '4', 'OZ', '8', 'OZ', '12', 'OZ', '16', 'OZ'], grid_cells(s)
+        assert sum(grid_cells(s), []) == ['TASTE', '1', 'OZ', '2', 'OZ', '4', 'OZ', '8', 'OZ', '12', 'OZ', '16', 'OZ'], grid_cells(s)
         press(s, ESC)
         assert choose(s, 'EAT', 'EGGS', '8 OZ') == ('EAT EGGS 8 OZ', 24)
         assert 'YOU ATE 8 OUNCES.' in result_rows(screen(s))[0]
@@ -434,8 +434,8 @@ def queues(disk):
         assert 'BOIL' in sum(grid_cells(s), []), 'a fire, utensils, water: BOIL'
         move_to(s, 'BOIL')
         press(s, RET)
-        assert grid_cells(s)[:2] == [['2', 'OZ', '4', 'OZ', '8', 'OZ', '12', 'OZ', '16', 'OZ', '24', 'OZ'],
-                                     ['32', 'OZ', '48', 'OZ']], 'the ounces, at most the canteen\'s 64'
+        assert grid_cells(s)[:2] == [['1', 'OZ', '2', 'OZ', '4', 'OZ', '8', 'OZ', '12', 'OZ', '16', 'OZ'],
+                                     ['24', 'OZ', '32', 'OZ', '48', 'OZ']], ('the ounces, at most the canteen\'s 64', grid_cells(s))
         move_to(s, '8 OZ')
         s.step(f'press:{RET}')
         s.step(DO_COMMAND)

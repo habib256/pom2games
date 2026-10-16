@@ -14,6 +14,20 @@
 ; otherwise the command ends through camp_done (or a cancelled prompt).
 module_collect:
         jsr     camp_begin
+        lda     input_argument
+        beq     @normal
+        lda     noun
+        cmp     #N_WATER
+        bne     @ordinary
+        ldx     #N_WATER
+        jsr     at_ground
+        bcc     @missing
+        lda     it_gnd_lo+N_WATER
+        ora     it_gnd_hi+N_WATER
+        bne     @ordinary
+@missing:
+        jmp     no_item
+@normal:
         lda     noun
         cmp     #N_WATER
         beq     @water
@@ -290,7 +304,35 @@ water_canteen:
         lda     #M_M186
         sta     camp_last
         bne     @amount
-@ask:   jsr     water_amount
+@ask:   lda     w_avail+1       ; GET (16 October 2026, not the original's
+        bne     :+              ; question): as much as the source, the
+        lda     w_avail         ; canteen's room and the weight left allow
+        cmp     msgnum
+        bcs     :+
+        sta     msgnum
+:       jsr     load_totals
+        sec
+        lda     load_limits
+        sbc     load_used
+        tax
+        lda     load_limits+1
+        sbc     load_used+1
+        bcc     @heavy
+        bne     :+
+        cpx     msgnum
+        bcs     :+
+        stx     msgnum
+:       lda     msgnum
+        beq     :+
+        lda     #$80            ; "YOU TOOK n OUNCES." at the end
+        sta     camp_fill
+        bne     @amount
+:       lda     #M_M186         ; the canteen full
+        ldx     w_room
+        beq     @full
+@heavy: lda     #M_HEAVY
+        jmp     camp_done
+@full:  sta     camp_last
 @amount:
         lda     camp_untreated  ; $5B38: B2[22] AND $4B48
         beq     :+
@@ -337,7 +379,16 @@ water_canteen:
 @next:  dex
         dex
         bpl     @capacity
-        jmp     camp_end
+        lda     camp_last       ; (the source's words: SUCCESSFUL, cacti...)
+        bit     camp_fill       ; GET (16 October 2026): then the ounces
+        bpl     :+              ; taken, instead of OK
+        cmp     #M_OK
+        beq     @took
+        jsr     camp_say
+@took:  lda     #w_took
+        jsr     camp_say_tb
+        lda     #0
+:       jmp     camp_done
 @rollback:
         lda     w_old
         sta     it_pack_lo+N_WATER
@@ -509,9 +560,7 @@ water_amount:
 ; water_yes -- A/X = question [Y/N]: Z set for Y (prompt and key, as QUIT).
 water_yes:
         jsr     camp_say
-        jsr     prompt
-        jsr     wait_key
-        jsr     kbd_upcase
+        jsr     water_confirm
         ldx     #0
         stx     camp_said       ; the answer starts a new message
         cmp     #'Y'
@@ -559,7 +608,11 @@ water_here:
         cpy     #GW
         bcs     @next
         jsr     cell_at
-        bmi     @yes
+        bpl     @next
+        cmp     #$80            ; feature flag: zero-height water is sea
+        bne     @yes
+        bit     MAP+50
+        bpl     @yes
 @next:  inc     w_x
         dec     w_cols
         bne     @cell
@@ -592,6 +645,7 @@ water_named:
         rts
 
 ; water_random -- the shared RND ($0321), SIM loaded.
+.segment "CAMP"                ; only collection calls this helper
 water_random:
         lda     #3
         jsr     overlay_load
@@ -601,5 +655,10 @@ water_random:
 w_x:    .res 1
 w_y:    .res 1
 w_rows: .res 1
+.segment "TEXT"                ; one transient byte, keeps LOW within 4 KB
 w_cols: .res 1
+.segment "LOWTEXT"
 ; Original messages (msg n of Journey), resident: other lots reuse them.
+
+.segment "CAMP"
+        UI_TWO water_confirm, 'N', 'Y'

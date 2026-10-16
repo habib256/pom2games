@@ -25,7 +25,7 @@ CARRY, DROP, REMOVE, WEAR, USE of the ROCK of the start cell and of a BOW,
 SPEAR, CLUB, SPLINT made on the next cell (their b1 poked to 0), a walk
 away and back: b1..b4[14..18] after each command. The tent and the rope
 are dropped first and the player carries one heavy thing at a time, so
-that no weight limit answers (the port's second set weighs nothing).
+that no weight limit answers (the limits: tools/re_load_probe.py).
 
 No original byte enters the repository: modules and disks stay in build/,
 results go to build/re_craft/results.json (numbers quoted in docs/CRAFT.md).

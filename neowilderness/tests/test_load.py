@@ -151,15 +151,15 @@ def main():
     check('water in a carried canteen does not occupy the backpack',
           r.mem(L['it_place'], 76)[21] == 0 and r.mem(L['it_pack_lo'], 76)[22] == 64)
 
-    # Every inventory group keeps the same four remaining capacities visible.
-    steps = ['key:INVENTORY\r', 'wait:1', L.until('wait_key')]
-    for group in '12345':
-        steps += [f'key:{group}', 'wait:1', L.until('wait_key'), 'peek:0400:1024']
+    # OBJECTS (16 October 2026): the LOAD block, the carried weight on its
+    # gauge (772 of 815 oz: 43 left, the original's), the walk slowed by
+    # 100 x pounds / (body + 2) (48 lb, 165 lb: +28 %), the volumes left.
+    steps = ['key:INVENTORY\r', 'wait:1', L.until('wait_key'), 'peek:0400:1024']
     r = run(steps)
-    expected = 'FREE WEIGHT 43 OZ WEAR VOL 1525 IN3 PACK VOL 4134 IN3 HAND VOL 2542 IN3'
-    check('inventory displays all four remaining capacities in every group', all(
-          ' '.join(text_screen(page)[21].split()) == expected      # one row (80 columns)
-          for page in r.dumps))
+    rows = text_screen(r.dumps[0])
+    check('OBJECTS shows the carried weight, the walk\'s slowing and the three volumes left',
+          rows[17][42:79].split()[-2:] == ['772/815', 'OZ'] and 'WALK TIME +28% FREE IN3 WEAR 1525' in rows[18]
+          and 'PACK ' in rows[19] and 'HANDS ' in rows[19] and '4134' in rows[19] and '2542' in rows[19])
     print(f'{len(failures)} failures')
     sys.exit(bool(failures))
 

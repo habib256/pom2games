@@ -791,6 +791,10 @@ d'eau de WET BODY (lot 2), l'effort de T0A/S0C `$5CB6` sur `A1[24]`
   `$4BEE-$4BFC` (corps, sac, main) ; découpe d'objets (A3).
 - Port : lot Sierra fixe pour toutes les régions ; modèle additif
   calibré des capacités (879 oz, 2149/6000/2874 in³), non original.
+  Depuis le 16 octobre 2026 : le second jeu pèse (W5, W6) et son refus au
+  sol suit la règle de T0E/S02 ; la limite de poids `$4BFA` (815 oz) et
+  la marche proportionnelle au poids sans autre seuil sont mesurées
+  (`tools/re_load_probe.py`) et montrées par la jauge LOAD d'OBJECTS.
 - Taille : ≈ 300 octets (formules des conteneurs) ; tirage du lot dans le
   chargeur.
 - Référence : **correction de fidélité** (charge et marche changent sur

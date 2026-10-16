@@ -190,6 +190,7 @@ topo_enter:
         sta     topo_over
         lda     #0
         sta     topo_walk
+        sta     topo_explore
         jsr     topo_center
         jmp     topo_redraw
 
@@ -309,10 +310,9 @@ topo_max:     .byte GW-TOPO_W, GH-TOPO_H
 topo_at:
         sta     topo_col
         stx     topo_row
-        lda     grid_lo,x
+        jsr     grid_row
         sta     gp1
-        lda     grid_hi,x
-        sta     gp1+1
+        sty     gp1+1
         lda     topo_y
         clc
         adc     #TOPO_H-1       ; world Y increases north: highest Y is on top
@@ -382,10 +382,9 @@ topo_draw:
 topo_span:
         sta     topo_cols
         ldx     topo_row
-        lda     grid_lo,x
+        jsr     grid_row
         sta     gp1
-        lda     grid_hi,x
-        sta     gp1+1
+        sty     gp1+1
         lda     CH
         lsr     a
         sta     topo_col
@@ -543,10 +542,35 @@ topo_c_aux:  .byte 0
 topo_marks: .byte 'P'|$80, 'C'|$80, 'H'|$80, 'R'|$80
 
 topo_show:
+        lda     #23
+        jsr     vtab
+        lda     topo_explore
+        beq     @navigation
+        jsr     puts
+        .byte "ARROWS MOVE  RETURN CENTER  ESC BACK",0
+        jmp     @ready
+@navigation:
+        jsr     puts
+        .byte "RETURN EXPLORE MAP  ESC VIEW",0
+@ready: jsr     topo_pad
         jsr     show_text
 topo_key:
         jsr     wait_key
-        ldx     #topo_k_end-topo_k-1
+        cmp     #KC_RET
+        jeq     topo_explore_enter
+        ldx     topo_explore
+        beq     @usual
+        cmp     #KC_ESC
+        jeq     topo_explore_leave
+        cmp     #KC_LEFT
+        jeq     topo_explore_left
+        cmp     #KC_RIGHT
+        jeq     topo_explore_right
+        cmp     #KC_UP
+        jeq     topo_explore_up
+        cmp     #KC_DOWN
+        jeq     topo_explore_down
+@usual: ldx     #topo_k_end-topo_k-1
 :       cmp     topo_k,x
         beq     @go
         dex
@@ -817,3 +841,18 @@ tp_sep: lda     #39
         lda     #' '|$80
         jsr     COUT
         jmp     puts
+
+.segment "SITES"
+topo_explore_enter:
+        lda     #1
+        sta     topo_explore
+        jmp     topo_recenter
+topo_explore_leave:
+        lda     #0
+        sta     topo_explore
+        jmp     topo_redraw
+topo_explore_left: jmp topo_left
+topo_explore_right: jmp topo_right
+topo_explore_up: jmp topo_up
+topo_explore_down: jmp topo_down
+topo_explore: .byte 0

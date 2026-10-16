@@ -98,7 +98,8 @@ def volume_check():
     # Docs/MEMORY.md 14: NEOWILD.BLK on NeoWildernessXL (the modules read by block).
     blk = ['/NEOWILD.BLK'] if layout['disk']['bytes'] else []
     assert sorted(files) == sorted(['/NEOWILD.DAT', '/NEOWILD.SYSTEM', '/PRODOS',
-                                    '/NEOWILD.END', '/NEOWILD.HOF'] + saves + blk), sorted(files)
+                                    '/NEOWILD.END', '/NEOWILD.HOF', '/NEOWILD.SCN',
+                                    '/NEOWILD.TMP'] + saves + blk), sorted(files)
     lbl = build_disk.labels(HERE / 'build')
     # NEOWILD.DAT holds the trunk, the six packs and the preparation (docs/MEMORY.md
     # 13); NEOWILD.SYSTEM carries their marks (src/boot.s ld_marks).

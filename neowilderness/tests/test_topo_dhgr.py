@@ -91,6 +91,8 @@ def check_mapping():
 
 
 def check_layout():
+    assert all(x < R.SHEET_X and 149 <= y <= 157 for x, y in R.SCALE)
+    assert all(y < 26 for _, y in R.NORTH + R.ARROW)
     page = [[P.BLACK] * R.COLS for _ in range(R.PAGE_ROWS)]
     known = {(0, 0): 9, (1, 0): 6, (6, 0): 13, (7, 1): 11, (125, 10): 15, (139, 191): 3,
              (3, 64): 12, (70, 100): 1}

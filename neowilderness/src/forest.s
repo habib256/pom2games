@@ -209,6 +209,8 @@ forest_profile:
 
 .segment "FORESTCODE"
 ; Keep a black lower rim above the native canopy bottom at height 31.
+forest_crown_floor = forest_projection+6 ; scenario data: foliage/trunk boundary
+.export forest_crown_floor
 forest_projection:
         jsr     forest_project_base
         bcs     @done

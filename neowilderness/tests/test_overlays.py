@@ -62,8 +62,11 @@ def main():
     check('display/parser/input overlays fit the 2 KB window',
           all(0 < (HERE / f'build/wild{name}.bin').stat().st_size <= 2048
               for name in ('voc', 'hud', 'sit', 'prj', 'inp', 'itm', 'trv', 'med', 'mvi', 'tre', 'adv', 'out')))
-    check('STATUS, INVENTORY and HELP fit the SIM window below the menu ($9600-$AFFF)',
-          0 < (HERE / 'build/wildsta.bin').stat().st_size <= 0xB000 - 0x9600)
+    # Since 16 October 2026 (the OBJECTS page of transfers) STATUS runs over
+    # the grid's image too, as SIM and XL's tail do (get_line gathers it), up
+    # to STATX, XL's tail ($B100).
+    check('STATUS, OBJECTS and HELP fit the SIM window below XL\'s tail ($9600-$B0FF)',
+          0 < (HERE / 'build/wildsta.bin').stat().st_size <= L['stx_base'] - 0x9600)
     check('simulation fits the 8 KB SIM window', 0 < (HERE/'build/wildsim.bin').stat().st_size <= 8192)
     print(f'{len(failures)} failures')
     sys.exit(bool(failures))

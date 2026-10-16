@@ -353,10 +353,13 @@ geo_levels:
         cpy     #GH
         bcc     :+
         ldy     #GH-1
-:       lda     grid_lo,y
+:       stx     @resume+1
+        tya
+        tax
+        jsr     grid_row
         sta     gd_gp
-        lda     grid_hi,y
-        sta     gd_gp+1
+        sty     gd_gp+1
+@resume:ldx     #0
         lda     gd_x0
         sta     gd_i
         lda     #9

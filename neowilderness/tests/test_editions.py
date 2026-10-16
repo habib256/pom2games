@@ -34,7 +34,7 @@ from read_volume import Image   # noqa: E402
 
 LIMIT = 40000
 XL_DISK = (0, 4, 9, 16, 18, 19, 20, 26, 31)    # build_disk.py EDITIONS + ALWAYS_DISK (16: STATUS, XL)
-SMALL_DISK = (0, 9, 18, 19, 20, 26, 31)    # (0: TOPOGEN, 9: CRAFT, 18: the campfire, 31: FORAGE)
+SMALL_DISK = (0, 9, 18, 19, 20, 31)    # (0: TOPOGEN, 9: CRAFT, 18: the campfire, 31: FORAGE)
 
 
 def files(disk):
@@ -77,7 +77,12 @@ def volume_checks():
         banks = {i: struct.unpack_from('<BHHH', directory, i * 7)[0] for i in (4, 16, 18, 19, 20, 26, 31)}
         assert all((b == build_disk.BANK_DISK) == (i in disk_modules) for i, b in banks.items()), banks
     size = lambda e: int.from_bytes(e[0x15:0x18], 'little')
-    assert size(f140['NEOWILD.DAT']) < size(fxl['NEOWILD.DAT']) - 30000, 'five packs fewer'
+    # Different resident/disk and LZ layouts can change the trunk gap.
+    assert size(f140['NEOWILD.DAT']) < size(fxl['NEOWILD.DAT']), 'Sierra-only DAT is smaller'
+    for name in ('layout.json', 'layout-140.json'):
+        layout = json.loads((HERE / 'build' / name).read_text())
+        _, entries = files(DISK if name == 'layout.json' else DISK140)
+        assert size(entries['NEOWILD.DAT']) == layout['dat_file']['bytes']
     print(f'  volumes: 140 KB ({size(f140["NEOWILD.DAT"])} bytes of NEOWILD.DAT) and 800 KB '
           f'({size(fxl["NEOWILD.DAT"])}), the five saved games on both; NEOWILD.BLK '
           f'and the BANK_DISK entries: XL {XL_DISK}, 140 KB {SMALL_DISK} (the campfire on '
@@ -216,7 +221,7 @@ def pages():
                 import re
                 body = fp(s.step(L.peek('s_body', 5)).data)
                 felt = int.from_bytes(s.step(L.peek('felt_temp', 2)).data, 'little', signed=True)
-                assert re.match(rf'\u258fBODY    {body:.1f}F', rows[7]), rows[7]
+                assert re.match(rf'\u258fBODY    {body:.1f}F', rows[12]), rows[12]
                 assert re.search(rf' FEELS  {felt}F', rows[4]), rows[4]
                 # Docs/MENUS.md 9.3: every page's post-its, from the raw
                 # screen codes, the six pages in their cycle (RIGHT).

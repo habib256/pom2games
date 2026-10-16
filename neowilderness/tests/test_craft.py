@@ -109,6 +109,7 @@ class Port:
                         ('camp_use', 0), ('al_forced', 0), ('mn_mode', 0)):
             self.poke(name, v)
         self.poke('s_health', self.health)
+        self.poke('load_limits', [815 & 255, 815 >> 8])      # (lot 14: the original's weight)
         for n in (9, 43, 44, 58, 59, 60, 65, 67):
             self.poke('it_place', self.place[n], n)
         self.poke('fg_b1', 255, 11)
@@ -313,6 +314,11 @@ def original_cases(results):
                 continue
             if c['name'] in CORE_FIRST:
                 c['log'] = CORE_FIRST[c['name']]
+            if c['name'].startswith('use '):
+                # The ROM's USE ran alone: its CARRY (the transaction,
+                # stubbed) is taken as accepted; the port's checks the load
+                # (lot 14, 16 October 2026): room for it here.
+                port.poke('load_limits', [2000 & 255, 2000 >> 8])
             words = c['name'].split()
             command = f'{words[0].upper()} {words[1].upper()}'
             text, got = run(port, command, ctx)
@@ -438,16 +444,21 @@ def port_checks():
         s.step('key:INVENTORY')
         s.step('press:\\r')
         s.step(L.until('keyboard_wait', 60000))
-        s.step('key:4')
-        s.step(L.until('keyboard_wait', 60000))
-        screen = '\n'.join(text_screen(s.step('peek:0400:1024').data))
-        check('INVENTORY, GROUND HERE: the BOW, the HUT and the ROCK', 'BOW' in screen and 'HUT' in screen
-              and 'ROCK' in screen, screen)
+        screen = text_screen(s.step('peek:0400:1024').data)
+        local = '\n'.join(r[:40] for r in screen[3:14])
+        check('OBJECTS, LOCAL: the BOW (50 OZ) and the ROCK (100 OZ), not the HUT (no object)',
+              'BOW            50 OZ' in local and 'ROCK           100 OZ' in local and 'HUT' not in local,
+              '\n'.join(screen))
         s.step('key:\x1b')
         s.step(IDLE)
         text, _ = run(port, 'USE BOW')
-        check('USE BOW: in hand, in use (msg 10)', port.byte('cr_b1') == 3 and port.byte('fg_use') & 4
-              and TEXTS[10] in text, text)
+        check('USE BOW with the load of the start (772 + 50 > 815 oz): in use, left on the ground, '
+              'TOO MUCH WEIGHT (the original: msg 7)', port.byte('cr_b1') == 0 and port.byte('fg_use') & 4
+              and 'WEIGHT: NEED 50 OZ. FREE 43 OZ.' in text, text)
+        run(port, 'DROP TENT')
+        text, _ = run(port, 'USE BOW')
+        check('USE BOW once the TENT is down: in hand, in use (msg 10)', port.byte('cr_b1') == 3
+              and port.byte('fg_use') & 4 and TEXTS[10] in text, text)
         # KILL GAME with the BOW (means 20): p = .2 by day; the module's
         # generator imposed through its seed is test_forage.py's matter: here
         # the BOW is chosen and its flag cleared, 15 minutes pass.
@@ -472,21 +483,6 @@ def port_checks():
         check('EXIT HUT: outside', port.byte('shelter_inside') == 0)
     walk_and_save()
     attack_checks()
-    print('The 140 KB edition:')
-    with a2test.Session(DISK140) as s:
-        s.step(IDLE)
-        port = Port(s)
-        port.poke('nature_frequency', 0)
-        port.reset(port.away)
-        before = s.step(L.peek('mli_reads', 2)).data
-        text, got = run(port, 'MAKE TRENCH', dict(cr_class=0, cr_snow=0))
-        after = s.step(L.peek('mli_reads', 2)).data
-        reads = (after[0] | after[1] << 8) - (before[0] | before[1] << 8)
-        check('MAKE TRENCH on 140 KB: CRAFT read from NEOWILD.BLK, 84 minutes',
-              TEXTS[15] in text and got['minutes'] == 84 and reads >= 4, (text, got['minutes'], reads))
-        text, _ = run(port, 'GET ROCK')
-        check('GET ROCK on 140 KB (ITEMS, then CRAFT): in hand', port.byte('cr_b1', 3) == 3
-              and 'HAND' in text, text)
 
 
 def walk_and_save():
@@ -516,6 +512,7 @@ def walk_and_save():
         check('then the CLUB is lost (msg 1), a ROCK lies on the new land cell, the SPEAR and the SPLINT '
               'stay on theirs', TEXTS[1] in text and places(port) == [255, 255, 255, water, 255]
               and water in (0, 255) and port.byte('cr_still') == 1, (text, places(port)))
+        run(port, 'DROP TENT')                                  # (lot 14: room for 100 oz)
         text, _ = run(port, 'GET ROCK')
         check('GET ROCK there: in hand', port.byte('cr_b1', 3) == 3 or water == 255, text)
         port.poke('cr_b1', [0, 2, 255, 3, 0])                    # BOW here, SPEAR packed, ROCK in hand

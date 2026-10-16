@@ -115,7 +115,7 @@ def durations(disk):
         assert 'YOU RESTED 10 MINUTES.' in screen(s)
         assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-46)<1e-6
         command(s,'REST 1 H')
-        assert 'YOU RESTED 1 HOURS.' in screen(s)
+        assert 'YOU RESTED 1 HOUR.' in screen(s)
         assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-106)<1e-6
         water=s.step(L.peek('it_pack_lo',1,22)).data[0]
         command(s,'DRINK WATER 4 OZ')
@@ -123,14 +123,14 @@ def durations(disk):
         assert 'YOU DRANK 4 OUNCES.' in screen(s)
         for text in ('  SLEEP 1 MIN', ' REST 1 MIN   '):
             command(s,text)
-            assert 'YOU RESTED 1 MINUTES.' in screen(s),text
+            assert 'YOU RESTED 1 MINUTE.' in screen(s),text
         assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-108)<1e-6
         before=snapshot(s)
         command(s,'  WALK 1 MIN')
         assert snapshot(s)==before, 'leading spaces bypassed short-step refusal'
         command(s,'  DRINK WATER 1 OZ   ')
         assert s.step(L.peek('it_pack_lo',1,22)).data[0]==water-5
-        assert 'YOU DRANK 1 OUNCES.' in screen(s)
+        assert 'YOU DRANK 1 OUNCE.' in screen(s)
     print('  Inline H/MIN/OZ, refused short step, native half-step admission, exact budgets and minute rest: OK')
     print('  Leading/trailing spaces: sleep, rest, qualified drinking and atomic short-step refusal OK')
 
@@ -189,7 +189,7 @@ def editing(disk):
     print('  One, two and three backspaces remove only the last digit; unit entry and ESC remain usable OK')
 
 
-def interrupted(m, swimming=False):
+def interrupted(m, swimming=False, button=False):
     if swimming:
         m=bytearray(m)
         for x in range(10,30):
@@ -206,12 +206,12 @@ def interrupted(m, swimming=False):
             s.step(L.until('walk_progress',20000))
             completed=snapshot(s)
             used=int.from_bytes(s.step(L.peek('used',2)).data,'little')
-            s.step('press:\\e')
+            s.step('btn:1,1' if button else 'press:\\e')
             s.step(IDLE)
             assert snapshot(s)==completed,('swim' if swimming else 'walk')
             assert f'TRAVEL: {used} MINUTES.' in screen(s) and 'STOPPED BY ESC.' in screen(s)
             assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-used)<1e-5
-    print(f'  {"SWIM" if swimming else "WALK"}: ESC after first completed step preserves position, health, supplies and actual time OK')
+    print(f'  {"SWIM" if swimming else "WALK"}: {"button 1" if button else "ESC"} after first completed step preserves position, health, supplies and actual time OK')
 
 
 def main():

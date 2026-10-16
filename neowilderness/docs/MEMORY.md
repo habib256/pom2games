@@ -2511,3 +2511,387 @@ pour que `mt_pad` saute les plages sans les parcourir.
 - 140 Ko : les pages changent (nouvelle disposition) ; l'image n'est plus
   celle d'avant ces travaux (décision de l'utilisateur : la
   restructuration vaut pour les deux éditions).
+
+## 30. OBJECTS de transfert, charge du second jeu, GET sans question (16 octobre 2026)
+
+Demandes de l'utilisateur du 15 octobre 2026 : la page OBJECTS refaite
+pour transférer vite ([MENUS.md](MENUS.md) § 5.1), la jauge de la charge
+aux seuils de l'original (mesurés : `tools/re_load_probe.py`), le poids du
+second jeu ([CRAFT.md](CRAFT.md) § 8.2), GET des quantités sans question
+([FORAGE.md](FORAGE.md) § 17.3, [CAMP.md](CAMP.md) § 3). Les deux éditions.
+Mesures : `build/wild.map`, `build/layout.json`, `build/layout-140.json` ;
+avant = § 29 et l'état du 15 octobre au soir (NEOWILD.DAT de 70 628
+octets, volume plein).
+
+| Changement | Zones |
+|---|---|
+| OBJECTS refaite (`src/inventory.s`) : deux listes, curseur, transfert tapé, LOAD ; les groupes, pages et touches 1-5, N, B retirés ; les abris hors des objets | STATUS 6 396 → **6 830** octets (`$9600-$B0AD`), LZ 5 175 → 5 641 ; il passe au-dessus de `$B000` (l'image de la grille, comme SIM : `get_line` la reprend) |
+| La queue STATX de XL déplacée (`$AF00` → **`$B100-$B5BF`**, `src/wild.cfg`) : post-its d'OBJECTS, `page_foot23_x` | STATUS XL 7 596 → 8 128 octets, NEOWILD.BLK **15 → 16 blocs** (`DISK_LIMIT` `$B600` : 64 libres) |
+| Résident : `obj_keep`, `obj_side`, `obj_cur`, `obj_type` à la place de `pg_lines` (10 octets, mort) ; la chaîne des touches d'OBJECTS raccourcie | WILDERNESS 2 → **22** libres ; WILDGAME 11 → **6** (`summary_refresh` attend la sortie de la page : 5 octets) |
+| GRID : l'étape `S_OBJECTS` (`INVENTORY`), le nom tapé sans mot à chiffre (`2QT CANTEEN`) | 2 676 → 2 728 octets ; **LZ sur 140 Ko aussi** (`LZ_140`, `build_disk.py` : 2 486 stockés) |
+| SIM : le poids et le volume du second jeu dans `module_load_totals` | 7 780 → 7 829 octets |
+| CRAFT : `cr_load` (refus au sol au-delà des limites) | 4 083 → 4 185 octets, NEOWILD.BLK **8 → 9 blocs** sur 140 Ko (recettes 1 980 : toujours 4 blocs pour MAKE) ; fenêtre `CRAFTM` `$1000` → `$1100`, queue CRAFTX de XL `$A640` → `$A700` |
+| ITEMS, CAMP : la charge avant et après CRAFT, l'eau sans question | ITEMS LZ 1 485 → 1 495 ; CAMP 1 757 → 1 849 (LZ 1 544 → 1 621) |
+| FORAGE : PACK sans question, fiches copiées sur une pile vide | 5 867 → 5 979 octets, toujours 12 blocs |
+| Banque de textes : « YOU TOOK # OUNCES. » | + 1 texte |
+| Parties sauvées : les W5/W6 constants hors de `sv_ranges` (SAVE.md § 5) | 1 725 → **1 509** octets, 5 → **4 blocs** chacune |
+
+### 30.1 RAM principale résidente, octets libres
+
+TEXT 2, WILDLO 0, **WILDGAME 6** (11), **WILDERNESS 22** (2), RESIDENT 5,
+MENUCODE 4, LOWPAGE 1, HICODE 3 ; `LOWTEXT` plein (la table des messages
+de CAMP y est : un texte de plus passe par `camp_say_tb`).
+
+### 30.2 Stock et disque
+
+| | XL (800 Ko) | Neowilderness (140 Ko) |
+|---|---:|---:|
+| NEOWILD.DAT | 102 562 → 102 497 octets, 202 blocs | 70 628 → **71 915** octets, 139 → **142 blocs** (277 octets avant un 143e) |
+| Stock auxiliaire (`aux_trunk_free`) | 8 847 | 2 127 → 1 705 ; place des sprites de la Sierra 192 octets |
+| NEOWILD.BLK | 80 → 81 blocs (+ STATUS) | 52 → 53 (+ CRAFT) |
+| Parties | 5 × 4 blocs | 5 × 4 blocs (25 → 20) |
+| Volume | 372 → **368** blocs sur 1 600 | **280 → 279** blocs sur 280, cinq parties sauvées |
+
+Le stock de 140 Ko était le premier plafond : 39 octets de trop avant de
+déplacer le contrôle de la charge dans CRAFT (disque) et de compresser GRID
+(`LZ_140`) ; le module des étoiles (25) ne gagnait que 45 octets en LZ.
+
+### 30.3 Temps (cycles, émulés ; DROP DOWN PARKA depuis la page)
+
+| | XL | 140 Ko |
+|---|---:|---:|
+| `obj_type` : SIM en silence | 120 131 | 120 131 |
+| la commande (ITEMS, `load_totals`) | 245 431 | 245 378 |
+| `alerts_after` → `get_line` (le bandeau attend : 0 au lieu de ≈ 347 000) | ≈ 0 | ≈ 0 |
+| `get_line` → `module_queue` (la grille, GRID LZ) | 179 339 | 179 209 |
+| `scr_inventory` : SIM en silence | 119 985 | 119 985 |
+| STATUS chargé | 137 058 (16 blocs) | 376 108 (LZ) |
+| tracé de la page (différentiel) | 301 680 | 182 928 |
+| **de RETURN à la page revenue** | **≈ 1 112 000 (1,09 s)** | **≈ 1 234 000 (1,21 s)** |
+
+Le bandeau (`summary_refresh`, ≈ 347 000 cycles) ne se redessine plus
+pendant un transfert, invisible sous la page : `obj_keep` le retient
+jusqu'à la sortie de la page (−24 %). GRID en LZ coûte ≈ 85 000 cycles de
+plus par choix de la grille sur 140 Ko (comme XL depuis le § 28).
+
+### 30.4 Contraintes nouvelles
+
+- STATUS dépasse `$B000` sur les deux éditions : comme XL, le code des
+  pages ne doit appeler aucune routine de MENUSWAP ; `ob_line` est
+  `tb_buf` (la page n'imprime aucun texte de la banque).
+- Un transfert de la page ne doit pas faire passer le temps : la file
+  (`S_CARRY`, `S_OBJECTS`) ne s'arrête qu'à une rencontre, et SIM est lue
+  en silence (pas de vue refaite) ; le sac pendu ne se transfère pas.
+- `pg_lines` n'est plus du code (l'état d'OBJECTS) ; `XL_COPIES` s'arrête
+  toujours avant lui.
+- 140 Ko : un 143e bloc de NEOWILD.DAT est encore libre (279/280) ;
+  WILDGAME n'a plus que 6 octets.
+
+
+## 31. SIM conserve la vue pendant ses calculs (16 octobre 2026)
+
+`overlay_load` ne masque plus la vue en chargeant SIM. Il garde `ui_dirty`
+pour reconstruire le résumé après le calcul. `show_view` masque déjà son
+redessin ; `finish_simulation` appelle désormais aussi `view_hide` avant
+le sien. Le chemin `sim_quiet` reste sans redessin. Aucune donnée ni copie
+supplémentaire : le JSR de trois octets passe de GCODE à CODE.
+`test_transitions.py` contrôle les pixels, les deux banques DHGR, le texte
+et le curseur pendant le chargement, puis le rideau au redessin de REST
+après STATUS, sur les deux éditions. Les volumes restent à 279/280 et
+368/1600 blocs.
+
+
+## 32. Accords des messages et objet manquant (16 octobre 2026)
+
+Le marqueur `%` de `message_text` écrit S sauf si `msgnum` vaut exactement
+1 (test sur les deux octets). Le branchement ajoute 7 octets à GCODE et
+la routine 16 à CODE ; aucun état persistant ajouté. CAMP refuse le nom
+absent avant `camp_begin` (+11 octets, image 1 849 → 1 860 ; LZ de 140 Ko
+1 621 → 1 630). Le texte commun `m_object` ajoute MAKE FIRE à ses exemples ;
+`m_unknown` garde seulement le mot fautif et TYPE HELP. La banque de textes
+passe de 4 150 à 4 154 octets, sans nouvel identifiant.
+
+Marges mesurées après construction : WILDGAME **2** octets, WILDERNESS **3** ;
+stock auxiliaire de tronc XL **8 842**, 140 Ko **1 686** (incluant les espaces
+réservés au paquet). NEOWILD.DAT : 61 147 octets sur 140 Ko, 53 350 sur XL ;
+volumes inchangés, **279/280** et **368/1600** blocs. Le placement complet des
+images tient toujours dans les deux éditions.
+
+`test_feedback.py` vérifie 0, 1, 2, 255, 256, 257 et 65535 pour les heures,
+minutes et onces sur les deux éditions, sans modification de la simulation
+ni des banques DHGR. Le même test exerce les six verbes sans objet. Les
+commandes réelles de repas, boisson et repos sont couvertes par les tests
+de saisie et de sommeil.
+
+
+## 33. Retrait thermique au rangement d'un vêtement (16 octobre 2026)
+
+`module_do_get` appelle `native_clothes_changed` lorsque `saved_item` indique
+un objet auparavant porté, après `accept_load` réussi. Il reprend `noun` dans
+X après la mise à jour thermique et la remise en place du module ITEMS.
+PACK/GET et TAKE/CARRY suivent ainsi le même historique des pertes arrondies
+que DROP ; un transfert refusé ne modifie pas cet historique. Le chemin de
+carte héritée reste celui de `native_clothes_changed` (retour immédiat).
+
+ITEMS : 1 692 → **1 704** octets (+12), LZ 1 495 → **1 502** (+7).
+Aucun octet résident ajouté : WILDGAME **2**, WILDERNESS **3** libres.
+Stock auxiliaire de tronc : XL **8 835**, 140 Ko **1 679**. NEOWILD.DAT :
+**61 415** octets sur 140 Ko (25 octets avant un bloc de plus), **53 357**
+sur XL. Volumes : **279/280**, **368/1600** blocs.
+
+`test_items.py` initialise le seul en-tête thermique natif de la Sierra
+(douze pertes et les bits WORN initiaux d'ADVENTURE), sans déplacement ni
+atlas, sur les deux disquettes distribuées. Il compare les cinq verbes,
+les valeurs exactes avant et après retrait, l'état sur refus de volume,
+le temps, les appels MLI et les deux banques DHGR.
+
+
+## 34. Portion d'une once dans la grille (16 octobre 2026)
+
+`gr_size` et `list_qty` commencent par 1 et `1 OZ`. La boucle `gr_sizes`
+utilise désormais la longueur de `gr_size`, au lieu de la constante 8.
+Le même index de portion sert à EAT, DRINK et à la file BOIL : ses prérequis
+restent inchangés. Aucun octet résident ajouté.
+
+GRID : 2 728 → **2 734** octets (+6), LZ 2 486 → **2 488** (+2).
+Stock auxiliaire de tronc : XL **8 833**, 140 Ko **1 677**. NEOWILD.DAT :
+**61 421** octets sur 140 Ko (19 avant un bloc de plus), **53 363** sur XL.
+Les volumes restent à **279/280** et **368/1600** blocs.
+
+`test_grid_play.py` vérifie, sur chaque édition, une dernière once d'œufs,
+d'eau bue et d'eau bouillie, avec les flèches et RETURN seuls : commande
+composée, stocks épuisés, fin de la file et état de simulation identique à
+la saisie du même texte. Il contrôle aussi l'annulation de la portion.
+`test_menu_bar.py` garde les portions jusqu'à 48 oz et les plafonds.
+
+
+## 35. CATCH avec durée dans la grille (16 octobre 2026)
+
+Le choix de CATCH ouvre `list_dur` après la cible ; RETURN range l'index
+choisi dans `mq_list+4` (`MQ_CATCH_DUR`). Ces cinq octets étaient déjà
+réservés : CATCH n'occupe que trois étapes au plus, donc la cinquième
+peut garder cet index entre les chargements de GRID. `Q_SIZE` ajoute la
+durée de `list_dur` pour S_CATCH, la portion de `list_qty` pour BOIL.
+Aucun octet résident ajouté. Les textes du second jeu sont alignés dans
+une même page pour garder leurs pointeurs courts (`GRID`, alignement $100).
+
+INPUT : 1 645 → **1 651** octets (CATCH dans les verbes numériques).
+FORAGE : 5 979 → **6 029**, toujours **12 blocs** ; `fr_hours` reçoit la
+durée validée et refuse 1 500 minutes et plus, ou garde son lecteur décimal
+quand la commande n'a pas de suffixe. GRID : 2 734 → **2 863** octets,
+LZ 2 488 → **2 529**. Pour garder le stock, le module horaire des étoiles
+(25) passe aussi en LZ sur les deux éditions : 2 578 → **2 533** octets,
+marge de décodage 5. Décodage supplémentaire estimé à ≈ 0,08 s à 1 MHz
+lors du recalcul de la liste d'étoiles, sans lecture disque.
+
+Stock auxiliaire de tronc : 140 Ko **1 675**, XL **8 831**.
+NEOWILD.DAT : **61 592** octets sur 140 Ko (122 blocs, 360 octets avant le
+bloc suivant), **53 783** sur XL (107 blocs). Volumes : **280/280** et
+**369/1600** blocs. Les cinq sauvegardes et le hall of fame sont toujours
+préalloués et réécrits en place.
+
+Validation : `test_grid_catch.py`, `test_grid_play.py`, `test_menu_bar.py`,
+`test_forage.py` (130 cas, quatre écarts connus écartés, plus le parcours
+original), `test_reference_state.py`, `test_editions.py`, `test_pack_boot.py`
+et `test_stars_game.py` (sur les deux éditions).
+
+
+## 36. Dernière page et disposition des listes (16 octobre 2026)
+
+`pg_cur` occupe le dernier octet libre de LOWPAGE et survit aux chargements
+SIM/STATUS ; `pg_open = $FF` demande sa réouverture depuis la vue.
+La commande STATUS garde son ouverture explicite. OBJECTS distingue le focus
+sur l'onglet (bas : vue, Entrée : listes) du focus sur les objets.
+
+HANDS et PACK ont des post-it séparés sur XL, dont la séparation suit le
+curseur ; douze entrées visibles, CARRYING/LOAD aux rangées 16–20, aides
+à droite aux rangées 21–22. Le titre PACK n'est écrit qu'une fois lorsque
+son en-tête atteint le haut du défilement. Le tampon de cadre reste constitué
+des 80 octets du corps inutilisé de `page_top` sur XL : le retrait de
+S/O/R/H conserve explicitement cette réserve.
+
+MAIN et LOWPAGE sont pleins ; STATUS utilise 6 912 octets (`$9600–$B0FF`),
+STATX 1 280 (`$B100–$B5FF`). Les huit octets du programme des groupes
+d'OBJETS sont résidents dans CODE. Pour tenir dans le stock 140 Ko,
+MEDICAL (17) est aussi compressé ; INPUT reste brut.
+
+Stock auxiliaire libre : 2 186 octets sur 140 Ko, 8 833 sur XL.
+NEOWILD.DAT : 61 921 octets (122 blocs) et 53 806 octets (107 blocs),
+respectivement. Volumes reconstruits : 280/280 et 369/1600 blocs.
+L'échelle de distance de TOPO est aux lignes 149–157, en bas à gauche ;
+la dernière cellule DRINK conserve son espacement sans barre à droite.
+
+Validation : `test_objects.py` (dont 22 positions de défilement des cadres),
+`test_focus.py` (six pages mémorisées sur les deux éditions), les parcours
+OBJECTS de `test_interface.py`, le tracé différentiel de
+`test_transitions.py`, `test_craft_page.py`, `test_grid_play.py`,
+`test_topo_dhgr.py`, `test_graphical_topo.py` et `test_care.py`.
+Les gestes MEDICAL de l'édition 140 Ko sont aussi comparés aux commandes
+tapées. `test_reference_state.py` : 163 variables, 1 324 octets, 24 étapes,
+état identique à la référence.
+
+
+## 37. Sélection stable et jauges PACK/HANDS (16 octobre 2026)
+
+`obj_selected` utilise les deux derniers octets BSS libres de WILDGAME,
+avec un identifiant par côté. L'ouverture reconstruit les listes puis
+retrouve les identifiants ; un objet disparu utilise le repli existant
+sur l'indice du curseur, borné à un objet valide. Les mouvements mettent
+l'identifiant à jour avant de redessiner. Le défilement reste dérivé du
+curseur ; le focus d'arrivée reste sur les onglets. L'état est résident
+pendant la partie, hors des plages de sauvegarde : format et taille des
+parties inchangés (`test_save.py`).
+
+LOAD garde le poids sur dix cellules et ajoute PACK/HANDS sur six cellules
+à la rangée 19 : volume occupé, puis IN3 libres exacts. Le volume libre des
+vêtements suit le ralentissement à la rangée 18. La multiplication utilise
+six fois un volume légal (6000 IN3 au plus) ; une surcharge est traitée
+avant multiplication et le libre est borné à zéro. La capacité nulle
+n'appelle pas la division et affiche une jauge vide.
+
+Les calculs `ob_mul`/`ob_div`, la recherche des sélections et les jauges
+partagent maintenant MEDVIEW (19), chargé après la préparation d'OBJECTS.
+Cette lecture de quatre blocs à l'ouverture permet de conserver les cadres
+et informations existants dans la fenêtre STATUS pleine. Aucun chargement
+n'est ajouté aux mouvements dans une liste. Le pied de page XL MEDVX passe
+de $5E80 à $5FC0 ; MEDVIEW 1624 → 1860 octets ($5800–$5F43), toujours
+quatre blocs sur chaque édition, y compris sa queue XL.
+STATUS 6912 → 6864 octets ($9600–$B0CF), 48 libres. WILDGAME et MAIN
+sont pleins. Le stock de tronc 140 Ko passe de 2186 à 2239 octets libres ;
+XL conserve 8833. NEOWILD.DAT : 61859 octets sur 140 Ko, 53805 sur XL.
+Volumes inchangés : 280/280 et 369/1600 blocs.
+
+Validation : `test_objects.py` vérifie les deux sélections, le côté, le
+retour après SIM/HELP, les changements d'indices et l'objet disparu ; les
+jauges vides, à moitié, pleines, surchargées, de capacité nulle et aux
+sixièmes sur les deux éditions, avec les codes bruts et les IN3 exacts.
+Les transferts restent identiques aux commandes tapées. `test_focus.py`,
+`test_load.py`, les parcours OBJECTS de `test_interface.py`, le tracé
+différentiel de `test_transitions.py`, `test_save.py` et les gestes de soin
+sur les deux éditions passent également.
+`test_reference_state.py` confirme les 163 variables (1324 octets) après
+chacune des 24 étapes : simulation identique à la référence.
+
+
+## 38. Entrées communes : place et chargeur (16 octobre 2026)
+
+Le pilote et les dialogues de l'audit approuvé remplacent les entrées
+clavier seules (`ui_event.s`, `ui_choice.inc`). Pour obtenir leurs octets
+résidents sans réduire la carte, les sprites ni les sauvegardes :
+
+- `grid_row` calcule `GRID + 112 * X` par `128X - 16X`, en coût fixe,
+  à la place des deux tables de 84 octets. Il retourne A/Y et conserve X ;
+  `cell_at` garde séparément son Y d'entrée, et le décodeur de géographie
+  garde son index de sortie. Le rendu et la géographie sont testés.
+- `module_take_oz` vit dans ITEMS, appelé par le relais résident `take_oz`,
+  qui rétablit le module du demandeur après consommation. Les points
+  d'entrée des nombres vivent dans GCODE ; les trois octets du pilote
+  sont dans RESBSS, hors du format des parties.
+- Sur 140 Ko SIM est LZ (7 809 → 5 005 octets en stock) et ORIENT est en
+  RAM (1 356 → 1 168). Les quatre constantes variables de préparation
+  `th_surface`, `th_a`, `th_native_composition`, `wf_storm` sont en GDATA :
+  PRE écrit directement ces valeurs, sans modifier un flux compressé.
+  Les deux premières ont leurs plages SAVE explicites ; les autres sont
+  dans la plage résidente déjà sauvée. Une partie occupe 1 529 octets,
+  toujours trois blocs de données et un index, cinq parties par volume.
+  Les cartes de stress des tests compressent SIM également.
+- Le chargeur utilise `$B000-$B3FF` comme tampon ProDOS. La grille attend
+  en `$5800-$5DFF`, HICODE en `$5E00-$5EFF`, puis est dispersée dans les
+  rangées graphiques cachées comme auparavant. TABLE reste en `$B500`.
+  Le chargeur et son BSS finissent en `$ABAA`, donc restent sous le tampon.
+- Le code de fin de voyage atteint `$A25F` ; sa queue XL commence en
+  `$A400`, avant les autres zones libres de SIM.
+
+Marges de la construction : MAIN plein, BSS termine en `$576D` (18 octets
+avant REGIONTEXT), RESBSS en `$B9FD` (2 libres). INPUT 1 875 octets (173
+libres), ITEMS 1 846 (202 libres), SITES 1 977 (71 libres). Stock de tronc
+libre : 3 309 sur 140 Ko, 8 325 sur XL ; après les sprites Sierra : 1 796
+et 6 812. Volumes : 280/280 et 370/1600 blocs, cinq sauvegardes chacun.
+Une construction d'édition livrée refuse désormais une réduction de ce
+nombre. La taille de NEOWILD.DAT est 73 696 et 103 345 octets.
+
+Mesures `profile_actions.py`, Sierra niveau 4, fréquence animale nulle,
+chaque commande depuis un nouveau démarrage, secondes invitées à 1 MHz :
+
+| Commande | 140 Ko | XL |
+|---|---:|---:|
+| LOOK R | 2,269 | 2,268 |
+| STATUS | 0,782 | 0,634 |
+| Retour de STATUS | 0,091 | 0,092 |
+| REST 1 H | 9,114 | 8,699 |
+| WALK 1 H | 10,001 | 9,585 |
+
+SIM en LZ évite les suppressions de sauvegardes mais ajoute du décodage
+sur 140 Ko. Les mesures ci-dessus fixent cette contrepartie ; aucun appel
+au pilote d'axes n'est ajouté pendant la simulation ou le rendu. Le bouton
+retour seul est testé à la frontière des pas WALK/SWIM.
+
+
+## 39. TMAP XL et paquet de scénario (16 octobre 2026)
+
+TMAP est chargé à `$2000` avant la préparation du voyage, depuis
+`NEOWILD.TMP` (table d'enregistrements et programme brut). Le moteur ne le
+garde pas en RAM. `NEOWILD.SCN` utilise le même chargeur pour les données
+du scénario et les palettes ; les profils prototypes des cocotiers sont
+désactivés après rejet du rendu. La grille générée
+reste à `$7000-$94FF`, les bois à `$0800-$0925` ; pas d'atlas fin en v1.
+
+L'identité du terrain emploie 48–55 de l'en-tête des cartes non natives,
+déjà sauvé par SAVE. RESTORE la vérifie avant de recopier l'état. Aucun
+nouvel état de partie résident. Le drapeau de salinité utilise le bit 7 de
+`MAP+50`, lu par la recherche d'eau douce des cartes non natives.
+
+`water_random`, appelé seulement par CAMP, passe de LOWCODE à CAMP pour
+loger ce contrôle. `water_named` reste résident : DRINK RAIN/SNOW/ICE
+l'appelle sans charger CAMP. Le temporaire `w_cols` passe de LOWTEXT à
+TEXT : TEXT garde un octet libre, LOW est plein. Le profil de végétation
+et sa séparation feuillage/tronc sont remplacés par les données du paquet,
+sans code supplémentaire dans la projection.
+
+Le chargeur ajoute un octet `ld_tmap` dans sa BSS de démarrage. Les parties
+de menu exclusivement XL sont remplacées par des zéros dans le chargeur
+140 Ko avant compression, sans déplacer les symboles : ses cinq fichiers
+SAVE sont préservés. Les deux éditions restent à 280/280 et 385/1600 blocs.
+Les marges du stock de tronc sont 3 304 octets (140 Ko) et 8 324 (XL) dans
+cette construction. Détails et limites du format : [TMAP.md](TMAP.md).
+
+Le fond marin ajoute 17 octets dans GCODE (un octet reste libre). Le bit 7
+de l'octet de version `MAP+1` active ce fond ; les sept bits bas restent
+la version 1. La cinquième zone du ciel devient la mer lointaine sous
+l'horizon incliné, ce qui prolonge l'océan après la sortie des rayons de
+la carte sans lecture de cellules supplémentaires. Le relief se règle
+dans le scénario (`relief_shift: 2`, recopié en `MAP+56`) ; les crêtes
+culminent à 53 ou 61 niveaux, sans nouvelle mémoire résidente.
+
+
+### Suite OBJECTS, XL seule (16 octobre 2026)
+
+L’édition 140 Ko n’est plus une contrainte de livraison. Le nouveau menu
+OBJECTS partage la fenêtre TREE (`object_menu.s`) sans nouvelle entrée du
+répertoire résident. Les commandes d’orientation USE ont rejoint ORIENT ;
+son chargement est adapté. La sauvegarde temporaire des places pour LOWER
+utilise `tb_buf`, sans lecture de texte avant restauration. Le calcul de
+l’aperçu travaille dans les données du module, sans modifier `load_used`.
+Les aides de sortie se placent dans STATUS. Le format SAVE est inchangé et
+les cinq fichiers de partie sont conservés sur XL. Les expériences de
+compression disque faites pour 140 Ko ont été retirées.
+
+### EQUIPMENT et marges XL (16 octobre 2026)
+
+Le répertoire passe à 34 entrées. Le module 33 EQUIPMENT est chargé par
+`mem_fetch` directement à $5800 ; `overlay_load(33)` garde sa signification
+historique d’asset de site. Le trampoline de retour vers TREE réside dans
+STATUS, hors de la fenêtre remplacée. `overlay_current` est invalidé.
+Trois drapeaux temporaires du copieur deviennent des opérandes immédiats
+modifiables ; les commutateurs et le registre d’état sont préservés.
+
+Les commandes TREE rejoignent ORIENT (module 26), TAKE OZ rejoint OUTDOOR
+(module 22). La légende OBJECTS rejoint la queue MEDVX déjà chargée. Le
+calcul des prévisualisations et le rapport des refus utilisent des données
+locales aux modules, sans ajout au format SAVE.
+
+Construction XL : 393/1600 blocs occupés, NEOWILD.DAT 65 156 octets bruts,
+56 093 stockés, 19 enregistrements, cinq parties conservées. Marges des
+fenêtres : EQUIPMENT 334 octets ; TREE 19 ; CRAFT avant $A700 43 (dont 13
+réservés au travail de page) ; STATUS 36 ; STATX 28 ; MEDVX 11. Les anciens
+tableaux à deux éditions ci-dessus sont historiques ; XL seule est construite.

@@ -467,6 +467,32 @@ fr_asked:
 ; "TOO LONG!" and again; a second point: a beep and again. fr_min; C set:
 ; cancelled (ESC).
 fr_hours:
+        lda     input_argument
+        beq     @prompted
+        lda     #<w_m27
+        ldx     #>w_m27
+        jsr     get_duration
+        bcs     @inline_end
+        jsr     prepare_minutes
+        lda     minutes
+        cmp     #<1500          ; same strict limit as the decimal reader: <25 h
+        lda     minutes+1
+        sbc     #>1500
+        bcs     @inline_long
+        lda     minutes
+        sta     fr_min
+        lda     minutes+1
+        sta     fr_min+1
+        clc
+        jmp     fr_asked
+@inline_long:
+        lda     #<ol_long_msg
+        ldx     #>ol_long_msg
+        jsr     message
+        sec
+@inline_end:
+        rts
+@prompted:
         lda     #<w_m27
         ldx     #>w_m27
         jsr     message
@@ -579,7 +605,15 @@ fr_hours:
 ; fr_source -- the pile eaten or cooked: b1 0 ground, 2 pack, 4 msg 71 (P
 ; or G); fr_src 0 ground, 1 pack, fr_av its ounces. C set: cancelled.
 fr_source:
-        lda     fr_b1
+        lda     obj_keep
+        bpl     :+
+        lda     menu_noun
+        cmp     noun
+        bne     :+
+        lda     obj_side
+        bne     @pack
+        beq     @ground
+:       lda     fr_b1
         cmp     #2
         beq     @pack
         cmp     #4
@@ -587,16 +621,10 @@ fr_source:
         lda     #<fr_m71
         ldx     #>fr_m71
         jsr     message
-        jsr     prompt
-@key:   jsr     wait_key
-        jsr     kbd_upcase
+        jsr     fr_choose_source
         cmp     #KC_ESC
         beq     @esc
-        cmp     #'G'
-        beq     :+
-        cmp     #'P'
-        bne     @key
-:       pha
+        pha
         lda     #0
         sta     fr_said
         pla
@@ -835,13 +863,44 @@ fr_cure:                        ; CURE: food msg 18, animals msg 36
 fr_pack:
         lda     fr_k
         jeq     fr_sense
-        jsr     fr_amount
-        bcc     :+
+        lda     input_argument
+        bne     @ask
+        lda     verb            ; PACK (the grid's GET), 16 October 2026: no
+        cmp     #8              ; question, the whole pile of the ground (the
+        beq     @ask            ; piles weigh nothing: FORAGE.md 17.3)
+        lda     fr_gnd
+        sta     fr_oz
+        lda     fr_gnd+1
+        sta     fr_oz+1
+        jmp     @amount
+@ask:   jsr     fr_amount       ; DROP: the original's question
+        bcc     @amount
         rts
-:       lda     fr_oz
+@amount:
+        lda     fr_oz
         ora     fr_oz+1
         jeq     fr_sense
-        ldx     fr_j
+        lda     verb
+        cmp     #8
+        beq     @sum_ground
+        lda     fr_pk
+        clc
+        adc     fr_oz
+        lda     fr_pk+1
+        adc     fr_oz+1
+        jmp     @sum_check
+@sum_ground:
+        lda     fr_gnd
+        clc
+        adc     fr_oz
+        lda     fr_gnd+1
+        adc     fr_oz+1
+@sum_check:
+        bcc     :+
+        lda     #m_overflow
+        ldx     #0
+        jmp     fr_say
+:       ldx     fr_j
         lda     verb
         cmp     #8
         beq     @drop
@@ -852,12 +911,47 @@ fr_pack:
         jsr     fr_exceeds
         bcc     :+
         rts
+:       lda     fr_pk           ; the ground's record and counter copied
+        ora     fr_pk+1         ; onto an empty pack pile (one that holds
+        bne     :+              ; some keeps its own: ROM, 16 October 2026)
+        jsr     fr_rec_gp
 :       ldx     fr_j
         jsr     fr_ground_minus
         jsr     fr_pack_plus
-        lda     fr_q            ; the ground's record and counter copied
+@done:  ldx     fr_j
+        jsr     fg_place
+        lda     verb
+        cmp     #8
+        jeq     fr_ok
+        lda     fr_oz           ; PACK: the ounces taken
+        sta     msgnum
+        lda     fr_oz+1
+        sta     msgnum+1
+        lda     #w_took
+        ldx     #0
+        jmp     fr_say
+@drop:  lda     fr_pk           ; DROP: the ground's record is kept, but
+        sta     fr_av           ; an empty ground pile takes the pack's
+        lda     fr_pk+1
+        sta     fr_av+1
+        jsr     fr_exceeds
+        bcc     :+
+        rts
+:       lda     fr_gnd
+        ora     fr_gnd+1
+        bne     :+
+        jsr     fr_rec_pg
+:       ldx     fr_j
+        jsr     fr_pack_minus
+        jsr     fr_ground_plus
+        jmp     @done
+
+; fr_rec_gp, fr_rec_pg -- the record (taste, code, percent: fr_q's) and the
+; spoilage counter (fr_j's, the wild foods) of the ground's pile onto the
+; pack's, or back.
+fr_rec_gp:
+        ldy     fr_q
         bmi     :+
-        tay
         lda     fg_gt,y
         sta     fg_pt,y
         lda     fg_gx,y
@@ -866,26 +960,31 @@ fr_pack:
         sta     fg_pp,y
 :       lda     fr_k
         cmp     #12
-        bcs     @done
+        bcs     :+
         ldy     fr_j
         lda     fg_cl+FG_CGND,y
         sta     fg_cl+FG_CPACK,y
         lda     fg_ch+FG_CGND,y
         sta     fg_ch+FG_CPACK,y
-@done:  ldx     fr_j
-        jsr     fg_place
-        jmp     fr_ok
-@drop:  lda     fr_pk           ; DROP: the ground's record is kept
-        sta     fr_av
-        lda     fr_pk+1
-        sta     fr_av+1
-        jsr     fr_exceeds
-        bcc     :+
-        rts
-:       ldx     fr_j
-        jsr     fr_pack_minus
-        jsr     fr_ground_plus
-        jmp     @done
+:       rts
+fr_rec_pg:
+        ldy     fr_q
+        bmi     :+
+        lda     fg_pt,y
+        sta     fg_gt,y
+        lda     fg_px,y
+        sta     fg_gx,y
+        lda     fg_pp,y
+        sta     fg_gp,y
+:       lda     fr_k
+        cmp     #12
+        bcs     :+
+        ldy     fr_j
+        lda     fg_cl+FG_CPACK,y
+        sta     fg_cl+FG_CGND,y
+        lda     fg_ch+FG_CPACK,y
+        sta     fg_ch+FG_CGND,y
+:       rts
 
 ; fr_exceeds -- C set (msg 64 printed) when fr_oz > fr_av.
 fr_exceeds:
@@ -1974,3 +2073,6 @@ fr_p:    .res 5
 fr_mf:   .res 5
 frg_end:
 .export frg_main, frg_end
+
+.segment "FORAGE"
+        UI_TWO fr_choose_source, 'P', 'G'

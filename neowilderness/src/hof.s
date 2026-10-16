@@ -847,6 +847,8 @@ hof_restore:
 hof_name:
         lda     #0
         sta     hof_len
+        lda     #38
+        sta     hof_wheel
 @draw:  lda     hof_region
         ldx     hof_rank
         jsr     hm_entry
@@ -888,6 +890,12 @@ hof_name:
         lda     #0
         sta     hm_inverse
 @key:   jsr     hof_key
+        cmp     #KC_UP
+        jeq     @wheel_up
+        cmp     #KC_DOWN
+        jeq     @wheel_down
+        cmp     #KC_RIGHT
+        jeq     @wheel_next
         cmp     #KC_RET
         bne     @esc
         lda     hof_len
@@ -936,14 +944,51 @@ hof_name:
 @bad:   jsr     HOF_BELL
         jmp     @key
 
+@wheel_up:
+        inc     hof_wheel
+        lda     hof_wheel
+        cmp     #39
+        bcc     @wheel_put
+        lda     #0
+        beq     @wheel_put
+@wheel_down:
+        dec     hof_wheel
+        lda     hof_wheel
+        bpl     @wheel_put
+        lda     #38
+@wheel_put:
+        sta     hof_wheel
+        tax
+        lda     hof_letters,x
+        ora     #$80
+        ldy     hof_len
+        bne     :+
+        inc     hof_len
+        iny
+:       dey
+        sta     (hm_ent),y
+        jmp     @draw
+@wheel_next:
+        lda     #0
+        sta     hof_wheel
+        lda     #'A'
+        jmp     @char
+hof_wheel: .byte 38
+hof_letters: .byte "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .-"
+
 ; hof_key -- wait for a key: A = ASCII, letters in upper case. Tests stop
 ; at hof_key_wait (tests/test_hof.py).
 hof_key:
 hof_key_wait:
+.ifndef HOF_BENCH
+        jsr     ui_poll
+        beq     hof_key_wait
+.else
         lda     KBD
         bpl     hof_key_wait
         bit     KBDSTRB
         and     #$7F
+.endif
         cmp     #'a'
         bcc     :+
         cmp     #'z'+1
@@ -993,7 +1038,7 @@ hof_m_not_top:   .byte "NOT IN THE TOP 5.", 0
 hof_m_skipped:   .byte "NOT RECORDED.", 0
 hof_m_rank:      .byte "NEW RECORD: RANK ", 0
 hof_m_type:      .byte ". TYPE YOUR NAME.", 0
-hof_m_help:      .byte "RETURN: SAVE   ESC: DO NOT RECORD", 0
+hof_m_help:      .byte "UP/DN LETTER > NEXT RET SAVE ESC SKIP", 0
 hof_m_saved:     .byte "HALL OF FAME SAVED.", 0
 hof_m_protected: .byte "DISK WRITE-PROTECTED: NOT SAVED.", 0
 hof_m_disk:      .byte "DISK ERROR $", 0

@@ -2,6 +2,7 @@
 ; A message is a NUL-terminated string; "|" starts a new line, "^" inserts the
 ; inventory name (or typed noun), "#" the number in msgnum, "$" accessible
 ; stock, "!" the travel stop reason, "~" the first unknown word (12 chars).
+; "%" appends S unless the 16-bit msgnum is exactly 1 (HOUR%, OUNCE%).
 ; A literal "!" is written '!'|$80 ($A1, as m_ridiculous): REST and WAIT
 ; print m_fauna_stop through message, where "!" would append the reason.
 ; Three lines, 37 characters after the indicator/indent; the last column is
@@ -14,8 +15,8 @@ m_no_water: .byte   "NO WATER AHEAD. USE WALK.", 0
 m_dark:     .byte   "IT IS TOO DARK TO TRAVEL.", 0
 .segment "ENVIRON"
 ; Meals and drinks already have the simulation loaded when printing results.
-m_ate:      .byte   "YOU ATE # OUNCES.|ACCESSIBLE BEFORE: $ OZ.", 0
-m_drank:    .byte   "YOU DRANK # OUNCES.|ACCESSIBLE BEFORE: $ OZ.", 0
+m_ate:      .byte   "YOU ATE # OUNCE%.|ACCESSIBLE BEFORE: $ OZ.", 0
+m_drank:    .byte   "YOU DRANK # OUNCE%.|ACCESSIBLE BEFORE: $ OZ.", 0
 .segment "TEXT"
 
 ; Written by module_fauna_cause (PROJECT) before it is shown: what stopped

@@ -92,7 +92,7 @@ page_top_x:
         cpx     #PG_COUNT
         bcc     @tab
         jsr     puts
-        .byte   " S/O/R/H|", 0
+        .byte   "|", 0
         ldy     #0              ; row 1: the line, open under the tab
 @line:  lda     #MT_TOP
         cpy     pg_gap
@@ -122,6 +122,7 @@ page_foot_x:
         lda     #MT_LINE
         ldy     #80             ; (the 80th wraps to row 23)
         jsr     mt_rep
+pf_keys:
         jsr     mt_puts
         .byte   " ", MS_LEFT, MS_RIGHT, " PAGE  ", 0
         pla
@@ -140,6 +141,16 @@ page_foot_x:
 :       jsr     puts
         .byte   " VIEW", 0
         rts
+
+; page_foot23_x -- (OBJECTS' JSR page_foot, XL) the footer without the line
+; of row 22: rows 20-22 hold the answer of the last transfer (columns 0-38).
+page_foot23_x:
+        pha
+        tya
+        pha
+        lda     #23
+        jsr     vtab
+        jmp     pf_keys
 
 ; mt_rep -- Y times the character A: a MouseText glyph ($40-$5F) or a
 ; character with bit 7 set. A and X kept.
@@ -183,39 +194,23 @@ mt_puts:
         tya
         pha
         rts
-; mt_skip -- (the JSR st_heading of OPTIONS and MENU, XL: the tab names the
-; page) the string after the JSR skipped.
-mt_skip:
-        pla
-        sta     gp2
-        pla
-        sta     gp2+1
-        ldy     #1
-:       lda     (gp2),y
+; pg_desc_x -- (OPTIONS' JSR vtab, XL) A = the row: there, the sentence of
+; the option holding the focus (none on the tab row).
+pg_desc_x:
+        jsr     vtab
+        ldx     pg_focus
         beq     :+
-        iny
-        bne     :-
-:       tya
-        clc
-        adc     gp2
-        tay
-        lda     gp2+1
-        adc     #0
-        pha
-        tya
-        pha
-        rts
-; OPTIONS and MENU (XL): a post-it a line (rows 3, 6, 9, 12). pg_lines_x --
-; (the page's JSR pg_lines) the first line; pg_mark_x -- (its JSR pg_mark)
-; the next ones, three rows down (the post-its' last and first rows).
-pg_lines_x:
-        lda     #0
-        sta     pg_i
-        jmp     pg_mark
-pg_mark_x:
-        jsr     CROUT
-        jsr     CROUT
-        jmp     pg_mark
+        lda     pg_desc_lo-1,x
+        ldy     #>pg_desc
+        jmp     print_str_ay
+:       rts
+pg_desc_lo: .byte <pg_d1, <pg_d2, <pg_d3, <pg_d4
+pg_desc:
+pg_d1:  .byte   " HOW OFTEN ANIMALS APPEAR, 0 TO 100 (NATURE).", 0
+pg_d2:  .byte   " YOUR POSITION ON THE TOPO SHEET.", 0
+pg_d3:  .byte   " THE TEXT MAP, NEXT TO TOPO.", 0
+pg_d4:  .byte   " STOP AT FOOD FOUND ON THE WAY (GET FOOD).", 0
+.assert >pg_d4 = >pg_desc, error, "pg_desc: one page"
 ; bar_x -- (bar's head, XL) a gauge of ten cells, A of them full: solid
 ; blocks ($4E), checkerboards ($56) for the rest, then two spaces.
 bar_x:  sta     pf_n
@@ -499,17 +494,62 @@ pf_n:    .byte 0
 
 ; The post-its of each page (PF, src/mousetext.inc): first row, last row,
 ; first column, last column, title (0: the page's heading). docs/MENUS.md 9.
-pf_pages_lo: .byte <pf_status, <pf_objects, <pf_craft, <pf_help, <pf_options, <pf_menu
-pf_pages_hi: .byte >pf_status, >pf_objects, >pf_craft, >pf_help, >pf_options, >pf_menu
+pf_pages_lo: .byte <pf_status, <pf_objects, <pf_craft, <pf_help, <pf_options, <pf_menu, <eq_frames
+pf_pages_hi: .byte >pf_status, >pf_objects, >pf_craft, >pf_help, >pf_options, >pf_menu, >eq_frames
 pf_status:
-        PF      2, 8, 0, 39, 0                  ; CONDITION
-        PF      9, 14, 0, 39, 0                 ; CONDITIONS
-        PF      2, 14, 41, 79, 0                ; LOCAL
+        PF      2, 14, 0, 39, 0                 ; CONDITION
+        PF      2, 10, 41, 79, 0                ; LOCAL
+        PF      11, 14, 41, 79, 0               ; CONDITIONS
         PF      15, 21, 0, 79, 0                ; MEDICAL
         .byte   PF_END
+ob_frames_x:
+        lda     #2
+        sta     pf_obj_hands
+        jsr     ob_build
+        ldx     #1
+        jsr     ob_top
+        sta     ob_e
+        ldx     ob_at+1
+@find:  lda     overlay_text,x
+        cmp     #$82
+        beq     @found
+        inx
+        bne     @find
+@found: txa
+        sec
+        sbc     ob_at+1
+        sbc     ob_e
+        bcc     @past
+        beq     @past
+        clc
+        adc     #3
+        cmp     #15
+        bcs     @below
+        sta     pf_obj_pack
+        tax
+        dex
+        stx     pf_obj_hands+1
+        rts
+@past:  lda     #$8A             ; skip a PACK heading repeated below its frame title
+        sta     overlay_text,x
+        lda     #$FE
+        sta     pf_obj_hands
+        lda     #2
+        sta     pf_obj_pack
+        rts
+@below: lda     #$FE
+        sta     pf_obj_pack
+        lda     #15
+        sta     pf_obj_hands+1
+        rts
 pf_objects:
-        PF      3, 15, 0, 79, 0                 ; the group shown
-        PF      16, 20, 0, 79, 0                ; CARRYING
+        PF      2, 15, 0, 39, 0                 ; LOCAL
+pf_obj_hands:
+        PF      2, 3, 41, 79, 0                 ; HANDS, bottom computed
+pf_obj_pack:
+        PF      4, 15, 41, 79, 0                ; PACK, top computed
+        PF      16, 20, 0, 39, 0                ; CARRYING
+        PF      16, 20, 41, 79, 0               ; LOAD
         .byte   PF_END
 pf_help:
         PF      2, 9, 0, 39, 0                  ; (the blocks' headings)
@@ -518,23 +558,21 @@ pf_help:
         PF      11, 19, 41, 79, 0
         .byte   PF_END
 pf_options:
-        PF      2, 4, 0, 39, mn_nature
-        PF      5, 7, 0, 39, st_keys+2          ; ("TOPO")
-        PF      8, 10, 0, 39, pf_t_map
-        PF      11, 13, 0, 39, mn_food+4        ; ("FOOD")
+        PF      2, 9, 0, 79, 0                  ; OPTIONS
         .byte   PF_END
 pf_menu:
-        PF      2, 4, 0, 39, mn_save
-        PF      5, 7, 0, 39, mn_restore
-        PF      8, 10, 0, 39, mn_quit
-        PF      11, 14, 0, 39, 0                ; RANGERS
+        PF      2, 5, 0, 39, 0                  ; RANGERS
+        PF      6, 9, 0, 39, 0                  ; SAVE / RESTORE
+        PF      10, 12, 0, 39, mn_quit          ; QUIT
         .byte   PF_END
-pf_t_map: .byte "MAP", 0
 
 ; The keys of the cursor pages and of OBJECTS (page_foot's pg_k_menu,
 ; inventory_keys).
 pg_k_menu_x: .byte MS_UP, MS_DOWN, " CHOOSE  ", MS_RET, " SELECT", 0
-inventory_keys_x: .byte MS_UP, MS_DOWN, " GROUPS/PAGES  1-5 GROUP  N NEXT  B BACK  ", MS_UP, " TOPO", 0
+.pushseg
+.segment "MEDVX"
+inventory_keys_x: .byte MS_RET, " LIST/ACT ", MS_LEFT, MS_RIGHT, MS_UP, MS_DOWN, " MOVE  H HANDS", 0
+.popseg
 stx_end:
 .assert PF_BUF + 80 <= page_keys, error, "PF_BUF: page_top's body too short"
 .assert PF_BUF >= CRAFT_RUN + (crx_end - CRAFT_RUN + 511) / 512 * 512, error, "PF_BUF under CRAFT's blocks"
@@ -556,8 +594,8 @@ xl_pad: cpx     #1
         ldy     mn_col
         cpy     #MN_GRID        ; (the result column's command line: spaces)
         bcc     @space
-        cpy     #MN_LAST
-        bcs     @skip
+        cpy     #MN_GRID+6*6-1 ; right edge stays open (after DRINK)
+        bcs     @space
         lda     #MT_RBAR
         jsr     t_update
 @skip:  inc     mn_col

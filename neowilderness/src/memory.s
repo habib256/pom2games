@@ -62,7 +62,7 @@ MLI       = $BF00
 PD_BITMAP = $BF58
 PD_DEVNUM = $BF30
 
-MOD_COUNT = 33                  ; directory entries: TOPOGEN + modules 1..27
+MOD_COUNT = 34                  ; directory entries: TOPOGEN + modules 1..27
                                 ; (2: the exit state, EX_ENTRY)
                                 ; (23 fourth species, 24 hall of fame, 25 stars,
                                 ; 26 orientation, 27 health alerts), 28 the
@@ -97,9 +97,6 @@ geo_path:   .res 40             ; "/VOLUME/NEOWILD.GEO", length first: the
                                 ; template of the NEOWILD.END/.HOF paths (HOF_PATH)
 geo_decodes: .res 2             ; fine geography tiles decoded (src/geoaux.s)
 geo_queries: .res 3             ; fine geography queries (native maps)
-xfer_80:    .res 1
-xfer_wrt:   .res 1
-xfer_lc:    .res 1
 mf_lz:      .res 1              ; bit 7: the entry is an LZ image
 ; mem_fetch's entry, laid out as a READ_BLOCK parameter list for disk_fetch
 ; (docs/MEMORY.md 14): the count is set by disk_fetch, the unit by the
@@ -284,17 +281,23 @@ mf_done:
         bit     mf_lz           ; RAMWRT still off: decode in the window
         bpl     :+
         jsr     lz_unpack
-:       bit     xfer_lc         ; the game normally runs with the ROM; a
+:
+xfer_lc = *+1
+        lda     #0         ; the game normally runs with the ROM; a
         bpl     :+              ; caller with RAM read keeps it, read-only
         lda     RDLCBNK2
         bpl     @bank1
         lda     LCRAM2
         bmi     :+
 @bank1: lda     LCRAM1
-:       bit     xfer_wrt
+:
+xfer_wrt = *+1
+        lda     #0
         bpl     :+
         sta     RAMWRTON
-:       bit     xfer_80
+:
+xfer_80 = *+1
+        lda     #0
         bpl     :+
         sta     STORE80ON
 :       plp
@@ -421,18 +424,9 @@ disk_fetch:
         ldy     #>rb_parms
         jsr     mli_call
         bcc     @next
-        ldy     #0              ; a beep, then a key (C stays set)
-@beep:  bit     SPKR
-        ldx     #$60
-:       dex
-        bne     :-
-        dey
-        bne     @beep
-        bit     KBDSTRB
-:       lda     KBD
-        bpl     :-
-        bit     KBDSTRB
-        bcs     @read           ; always
+        jsr     $FBDD           ; bell, then the common keyboard/joystick reader
+        jsr     wait_key
+        jmp     @read
 @next:  inc     mf_dst+1        ; 512 bytes further, next block
         inc     mf_dst+1
         inc     mf_src

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Refusal matrix, real stock/capacity numbers, persistence and bounded text."""
+import re
 import tempfile
-from common import HERE, L, a2test, disk_with, fp, text_screen, result_rows
+from common import HERE, DISK, DISK140, L, a2test, disk_with, fp, text_screen, result_rows
 from test_input import flat, command, IDLE, NUMBER, snapshot
 from test_thermal import call
 
@@ -125,7 +126,44 @@ def no_glued_reason():
     print('  Animal arrival during WAIT: "<SPECIES> IN YOUR AREA!" alone, no stale stop reason appended OK')
 
 
+def plural_messages():
+    """The optional S follows the whole 16-bit count, in both editions."""
+    ids = {name: int(value) for name, value in re.findall(
+        r'^(\w+) = (\d+)$', (HERE/'build/textbank.inc').read_text(), re.M)}
+    for disk in (DISK,):
+        with a2test.Session(disk) as s:
+            s.step(IDLE)
+            initial = snapshot(s)
+            view = s.step('peek:2000:8192').data
+            for name, prefix, unit in (('m_rested', 'YOU RESTED', 'HOUR'),
+                                       ('m_wait_minutes', 'YOU WAITED', 'MINUTE'),
+                                       ('w_took', 'YOU TOOK', 'OUNCE')):
+                for value in (0, 1, 2, 255, 256, 257, 65535):
+                    set16(s, 'msgnum', value)
+                    target = L['message']
+                    idle = L['idle']
+                    code = bytes((0xA9, ids[name], 0xA2, 0,
+                                  0x20, target & 255, target >> 8,
+                                  0x4C, idle & 255, idle >> 8))
+                    for i, byte in enumerate(code):
+                        s.step(f'poke:{idle+i:04X}:{byte:02X}')
+                    s.step('wait:1')
+                    s.step(f'until:{idle+7:04X}:6000')
+                    suffix = '' if value == 1 else 'S'
+                    expected = f'{prefix} {value} {unit}{suffix}.'
+                    assert expected in column(s), (disk, expected, column(s))
+                    assert snapshot(s) == initial
+                    assert s.step('peek:2000:8192').data == view
+        # Missing objects must give examples and leave the journey intact.
+        with a2test.Session(disk) as s:
+            s.step(IDLE)
+            for verb in ('MAKE', 'BUILD', 'USE', 'BOIL', 'DOUSE', 'STOP'):
+                refuse(s, verb, ('NAME AN ITEM', 'MAKE FIRE'))
+    print('  both editions: singular/plural for 0..65535, including 257; incomplete camp commands give examples; state/view preserved')
+
+
 def main():
+    plural_messages()
     no_glued_reason()
     exact_travel_end()
     with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp,flat())) as s:

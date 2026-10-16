@@ -7,12 +7,14 @@ th_display95: .byte $80,$73,$33,$33,$33
 ; bottom so that every cell is written once (differential, no stale cell of
 ; another page), then the full rows 15-21. Left, with the row width set to
 ; 41 (a CR pads to it, vtab pads what it skips): CONDITION (the player's
-; word; HEALTH, ENERGY, HUNGER, THIRST, BODY), CONDITIONS (dehydration,
-; starvation, exhaustion, hypo- or hyperthermia; rows 10-13). Right, from
-; column 41 (st_at pads the right half of the rows it passes): LOCAL (date
-; and time, air and felt temperature, sky and wind, altitude and ground, the
-; situation). Rows 15-20: MEDICAL, the thirteen conditions and altitude
-; sickness in three columns (percent, care mark: ACTIVE, TREATED,
+; word; HEALTH, ENERGY, HUNGER, THIRST with their gauge and percent, BODY;
+; rows 4-12, a blank row between two: 15 October 2026). Right, from column
+; 41 (st_at pads the right half of the rows it passes): LOCAL (rows 2-10:
+; date and time, air and felt temperature, sky and wind, altitude and
+; ground, the situation on rows 7-9), CONDITIONS (rows 11-14: dehydration,
+; starvation, exhaustion, hypo- or hyperthermia, two a row). Rows 15-20:
+; MEDICAL, the thirteen conditions and altitude sickness in three columns
+; (severity: 100 - the simulation's percent; care mark: ACTIVE, TREATED,
 ; PROTECTED). Care: DOWN puts the focus on the active conditions in turn
 ; (the name in inverse); row 23 then shows the treatment gestures of the
 ; condition (LEFT/RIGHT choose, RETURN types it, src/care.s; CUT BODY
@@ -21,14 +23,21 @@ th_display95: .byte $80,$73,$33,$33,$33
 ; src/grid.s). On NeoWildernessXL each block is a post-it (src/mt_pages.s):
 ; the same cells, framed.
 ST_RIGHT = 41                   ; first column of the right-hand blocks
-ST_FOOD  = 60                   ; CARRYING (OBJECTS): food, water columns
-ST_WATER = 70
+ST_FOOD  = 18                   ; CARRYING (OBJECTS): food, water columns
+ST_WATER = 29
 ST_VAL   = 50                   ; LOCAL: value, second label, value
 ST_LBL2  = 62
 ST_VAL2  = 69
-ST_LAST  = 13                   ; last row of the list of conditions
+ST_COND  = 11                   ; CONDITIONS' heading (right, under LOCAL)
+ST_COL2  = 60                   ; its second column
 ST_MED   = 15                   ; MEDICAL's first row
 module_status:
+        lda     pg_open
+        bpl     :+
+        inc     pg_open         ; $FF -> 0: UP resumes; typed STATUS stays explicit
+        ldx     pg_cur
+        jmp     page_dispatch
+:
         lda     pg_open         ; the grid's CARE: on the first active
         beq     :+              ; condition (src/grid.s)
         lsr     pg_open
@@ -87,7 +96,7 @@ status_care:
         lda     #$FF
         sta     INVFLG
         jsr     puts
-        .byte   "|HEALTH  ", 0
+        .byte   "||HEALTH  ", 0
         fld     f_hmax
         fop     FDIV, s_health
         fop     FMULT, f_100
@@ -95,19 +104,12 @@ status_care:
         jsr     AYINT
         lda     $A1
         sta     st_pct
-        clc                     ; ten cells: (percent + 5) / 10
-        adc     #5
-        ldx     #$FF
-        sec
-:       inx
-        sbc     #10
-        bcs     :-
-        txa
+        jsr     st_cells        ; ten cells: (percent + 5) / 10
         jsr     bar
         lda     st_pct
         jsr     pdec
         jsr     puts
-        .byte   "%|ENERGY  ", 0
+        .byte   "%||ENERGY  ", 0
         ; ENERGY: BEAT if 16 h without rest, TIRED over 12 h of rest deficit,
         ; OKAY over 7, else GREAT (deficit replaces the original's F1[24])
         lda     #0
@@ -132,7 +134,7 @@ status_care:
         ldy     #>s_defr
         jsr     hours_fill
 :
-        jsr     bar
+        jsr     gauge_bar
         ldx     st_lvl
         lda     #<w_enrg
         sta     gp2
@@ -141,17 +143,17 @@ status_care:
         lda     #6
         jsr     word
         jsr     puts
-        .byte   "|HUNGER  ", 0
+        .byte   "||HUNGER  ", 0
         lda     #<s_eat         ; VERY over 12 h, SO-SO over 6 h
         ldy     #>s_eat
         jsr     hours_gauge
         jsr     puts
-        .byte   "|THIRST  ", 0
+        .byte   "||THIRST  ", 0
         lda     #<s_drink
         ldy     #>s_drink
         jsr     hours_gauge
         jsr     puts
-        .byte   "|BODY    ", 0
+        .byte   "||BODY    ", 0
         fld     s_body
         fop     FMULT, th_display10
         fop     FADD, f_half
@@ -197,41 +199,7 @@ status_care:
 @sweat: jsr     puts
         .byte   "  SWEATING", 0
 @thermal_done:
-        jsr     puts
-        .byte   "||", 0
-        jsr     st_heading
-        .byte   " CONDITIONS ", 0
-        ; one row each: dehydration, starvation, exhaustion under 95 %,
-        ; hypo- or hyperthermia (the injuries: MEDICAL below)
-        lda     #0
-        sta     g0
-        ldx     #0
-        jsr     cond
-        ldx     #1
-        jsr     cond
-        ldx     #2
-        jsr     cond
-        fld     s_therm_factor
-        fop     FCOMP, th_display95
-        cmp     #$FF
-        bne     @injuries
-        jsr     item
-        fld     s_body
-        fop     FCOMP, f_body
-        cmp     #$FF
-        bne     @hyper
-        jsr     puts
-        .byte   "HYPOTHERMIA", 0
-        jmp     @injuries
-@hyper: jsr     puts
-        .byte   "HYPERTHERMIA", 0
-@injuries:
-        lda     g0
-        bne     :+
-        jsr     item
-        jsr     puts
-        .byte   "NONE", 0
-:       lda     #ST_MED         ; the rest of the left half, down to row 14
+        lda     #ST_MED         ; the rest of the left half, down to row 14
         jsr     vtab
         lda     #80             ; right column: rows 2-14 from ST_RIGHT (st_at)
         sta     WNDWDTH
@@ -503,7 +471,42 @@ status_care:
         jsr     puts
         .byte   "IN THE OPEN", 0
 :
-        lda     #ST_MED         ; the rest of the right half, down to row 14
+        ; CONDITIONS (rows 11-14, under LOCAL; 15 October 2026): dehydration,
+        ; starvation, exhaustion under 95 %, hypo- or hyperthermia, two a row
+        ; (the injuries: MEDICAL below)
+        lda     #ST_COND
+        jsr     st_at
+        jsr     st_heading
+        .byte   " CONDITIONS ", 0
+        lda     #0
+        sta     st_lvl
+        ldx     #0
+        jsr     cond
+        ldx     #1
+        jsr     cond
+        ldx     #2
+        jsr     cond
+        fld     s_therm_factor
+        fop     FCOMP, th_display95
+        cmp     #$FF
+        bne     @injuries
+        jsr     item
+        fld     s_body
+        fop     FCOMP, f_body
+        cmp     #$FF
+        bne     @hyper
+        jsr     puts
+        .byte   "HYPOTHERMIA", 0
+        jmp     @injuries
+@hyper: jsr     puts
+        .byte   "HYPERTHERMIA", 0
+@injuries:
+        lda     st_lvl
+        bne     :+
+        jsr     item
+        jsr     puts
+        .byte   "NONE", 0
+:       lda     #ST_MED         ; the rest of the right half, down to row 14
         jsr     st_at
         lda     #ST_MED         ; MEDICAL: full rows from row 15
         ldx     #0
@@ -620,7 +623,10 @@ med_cell:
         cpx     #13
         bcs     :+
         lda     injury_percent,x
-:       jsr     pdec
+:       eor     #$FF            ; shown as the severity: 100 - x (0%: none)
+        clc
+        adc     #101
+        jsr     pdec
         lda     #'%'|$80
         jsr     COUT
         lda     st_col
@@ -713,18 +719,17 @@ st_at_x:
         jsr     t_vtab
         stx     CH
         rts
-; item -- a new row of the list of conditions: C set (nothing to print on)
-; once the list reaches ST_LAST, else the cursor at its start.
-item:   lda     CV
-        cmp     #ST_LAST
-        bcs     @full
-        jsr     CROUT
-        inc     g0
-        clc
-        rts
-@full:  pla                     ; the caller's text is skipped
-        pla
-        rts
+; item -- the cursor on the next cell of the list of conditions (st_lvl:
+; the cells used), two a row from row ST_COND+1: column ST_RIGHT, then ST_COL2.
+; Four at most (dehydration, starvation, exhaustion, a thermal one).
+item:   lda     st_lvl
+        inc     st_lvl
+        lsr     a
+        bcs     @col2
+        adc     #ST_COND+1      ; (C clear)
+        jmp     st_at
+@col2:  lda     #ST_COL2
+        jmp     tab
 
 ; st_heading -- the string after the JSR (0-terminated), in inverse.
 st_heading:
@@ -783,12 +788,27 @@ st_fill: .byte  0
 st_keys: .byte  "T TOPO", 0
         ; XL: the up arrow (UP on the tabs opens TOPO; T still does).
         XL_BYTE XI_STATUS, st_keys, MS_UP
+; gauge_bar -- A = the full cells (0..10): the gauge, then their percent
+; (ten a cell) and a space, before the gauge's word ("90% OKAY").
+gauge_bar:
+        pha
+        jsr     bar
+        pla
+        asl     a
+        sta     st_i
+        asl     a
+        asl     a
+        adc     st_i            ; (C clear: 80 at most)
+        jsr     pdec
+        jsr     puts
+        .byte   "% ", 0
+        rts
 ; hours_gauge -- the gauge and the word of HUNGER or THIRST, hours at (A,Y).
 hours_gauge:
         sta     st_ptr
         sty     st_ptr+1
         jsr     hours_fill
-        jsr     bar
+        jsr     gauge_bar
         lda     st_ptr
         ldy     st_ptr+1
         jmp     gauge
@@ -893,12 +913,12 @@ gauge:  jsr     MOVFM
 
 ; cond -- X = 0 dehydration, 1 starvation, 2 exhaustion: print its name when
 ; its factor is under 95 %, i.e. deficit > 0.2236 x tolerance
-cond:   stx     g1
-        lda     cdef_lo,x
+cond:   stx     st_cx           ; (not g1: STATUS leaves g0, g1 as the
+        lda     cdef_lo,x       ; reference does, tests/test_reference_state.py)
         ldy     cdef_hi,x
         jsr     MOVFM
         fst     t1
-        ldx     g1
+        ldx     st_cx
         lda     ctol_lo,x
         ldy     ctol_hi,x
         jsr     MOVFM
@@ -907,7 +927,7 @@ cond:   stx     g1
         cmp     #$FF
         bne     @no
         jsr     item
-        ldx     g1
+        ldx     st_cx
         lda     cname_lo,x
         pha
         lda     cname_hi,x
@@ -1046,7 +1066,7 @@ w_ew:   .byte   "EAST WEST "
 st_kind_lo: .byte <st_carried, <st_here, <st_reach
 st_kind_hi: .byte >st_carried, >st_here, >st_reach
 st_carried: .byte "CARRIED", 0
-st_here:    .byte "HERE", 0
+st_here:    .byte "LOCAL", 0
 st_reach:   .byte "IN REACH", 0
 
 

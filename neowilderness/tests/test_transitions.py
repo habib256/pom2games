@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 import struct
 import zlib
-from common import MENU_SKIP, MENU_STORES, HERE, L, DISK, a2test, hgr_rows, text_screen, text_writes, text_changes, map_rows, is_status
+from common import MENU_SKIP, MENU_STORES, HERE, L, DISK, DISK140, a2test, hgr_rows, text_screen, text_writes, text_changes, map_rows, is_status
 from test_thermal import call
 
 ACTUAL = a2test.labels(HERE / 'build/wild.lbl')
@@ -127,37 +127,63 @@ def reveal():
     print('  persistent loading introduction, prepared STATUS, clean text return, TOPO return without raycast, VIEW: incomplete frames hidden; view/state preserved')
 
 
-def simulation_curtain():
-    with tempfile.TemporaryDirectory() as tmp, a2test.Session(DISK) as s:
-        s.step(IDLE)
-        # Plant an old full-screen menu above the live command/result rows.
-        for row in range(20):
-            offset = (row % 8) * 128 + (row // 8) * 40
-            for col in range(40):
-                s.step(f'poke:{0x400+offset+col:04X}:D8')
-        before = text_screen(s.step('peek:0400:1024').data)[20:]
-        cursor = s.step('peek:0024:2').data
-        for step in call(['thermal']):
-            s.step(step)
-        s.step(L.until('overlay_before_transfer', 20000))
-        screen = text_screen(s.step('peek:0400:1024').data)
-        # XL (docs/MENUS.md 9): the curtain of a long action, an hourglass
-        # (MouseText) in its middle, row 9, column 39; nothing else.
-        assert screen[9][39] == '\u231b', screen[9]
-        assert all(not row.strip() for row in screen[:9] + [screen[9][:39] + screen[9][40:]] + screen[10:20])
-        assert screen[20:] == before and s.step('peek:0024:2').data == cursor
-        s.step('wait:2')
-        assert curtain(picture(s, Path(tmp) / 'simulation.png'))
-    print('  SIM hides stale menus before its RAM transfer; command, results and cursor preserved')
+def simulation_landscape():
+    """SIM preserves the last complete frame; only drawing needs a curtain."""
+    for disk in (DISK,):
+        with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk) as s:
+            path = Path(tmp) / 'simulation.png'
+            s.step(IDLE)
+            s.step('wait:2')
+            landscape = picture(s, path)
+            # Stale text above the command window must stay invisible while
+            # SIM loads. Neither the live rows nor the cursor may be touched.
+            for row in range(20):
+                offset = (row % 8) * 128 + (row // 8) * 40
+                for col in range(40):
+                    s.step(f'poke:{0x400+offset+col:04X}:D8')
+            before = s.step('peek:0400:1024').data
+            cursor = s.step('peek:0024:2').data
+            banks = s.step('peek:2000:8192').data
+            for step in call(['thermal']):
+                s.step(step)
+            s.step(L.until('overlay_before_transfer', 20000))
+            assert picture(s, path) == landscape, disk
+            assert s.step('peek:0400:1024').data == before
+            assert s.step('peek:0024:2').data == cursor
+            assert s.step('peek:2000:8192').data == banks
+        # Real keyboard path, including a page that evicts SIM first.
+        for command, prepare, result in (
+                ('REST 1 H', 'module_rest_prepare', 'YOU RESTED 1 HOUR.'),
+                ('WAIT 10 MIN', 'module_rest_prepare', 'YOU WAITED 10 MINUTES.'),
+                ('EAT CHEESE 4 OZ', 'module_meal_prepare', 'YOU ATE')):
+            with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk) as s:
+                path = Path(tmp) / 'rest.png'
+                s.step(IDLE)
+                s.step('key:STATUS'); s.step('press:\\r'); s.step(READY)
+                s.step('key:\\e'); s.step(IDLE)
+                s.step('wait:2')
+                landscape = picture(s, path)
+                s.step('key:' + command); s.step('press:\\r')
+                s.step(L.until(prepare, 20000))
+                assert picture(s, path) == landscape, disk
+                s.step(L.until('render_column', 20000))
+                s.step('wait:2')
+                pixels = picture(s, path)
+                assert curtain(pixels) if disk == DISK else not any(pixels)
+                s.step(IDLE)
+                s.step('wait:2')
+                assert not curtain(picture(s, path))
+                assert result in '\n'.join(text_screen(s.step('peek:0400:1024').data))
+    print('  both editions: SIM keeps landscape, text, cursor and DHGR banks; REST/WAIT/EAT after STATUS hide only their redraw')
 
 
 def differential_pages():
     # The pages of STATUS (src/pages.s) write their rows top to bottom
-    # without clearing the screen: INVENTORY's group keys and HELP's own
-    # letter H (module_help) redraw them, the arrows turn the top pages
+    # without clearing the screen: OBJECTS' cursor and sides (16 October
+    # 2026) and HELP's own letter H (module_help) redraw them, the arrows turn the top pages
     # (STATUS, OBJECTS, CRAFT, HELP, OPTIONS, MENU: page_top) and the
     # OPTIONS letters A and P redraw their page, one store per changed cell;
-    # so do the focus moves (INVENTORY's group row, the OPTIONS and MENU
+    # so do the focus moves (OBJECTS' lists, the OPTIONS and MENU
     # cursors, RETURN on OPTIONS' line A: four times, game_options kept;
     # STATUS's focus on two active conditions and their gestures).
     with a2test.Session(DISK) as s:
@@ -165,15 +191,15 @@ def differential_pages():
         initial = state(s)
         for k in (0, 7):                    # SEVERE CUTS, POISON BITE
             s.step(L.poke('injury_active', 1, k))
-        for command, redraw, keys in (('INVENTORY', 'inventory_redraw', list('123451')),
+        for command, redraw, keys in (('INVENTORY', 'inventory_redraw', ['\\r', '\\v', '\\v', '\\>', '\\v', '\\<']),
                                        ('HELP', 'module_help', list('HHH')),
-                                       ('STATUS', 'page_top', ['\\>'] * 6),
-                                       ('STATUS', 'page_top', ['\\<', '\\<', 'P', 'A', 'P', 'A']),
-                                       # focus moves: INVENTORY's group row,
+                                       ('STATUS', 'page_top', ['\\>'] * 7),
+                                       ('STATUS', 'page_top', ['\\<', '\\<', '\\<', 'P', 'A', 'P', 'A']),
+                                       # focus moves: OBJECTS' lists,
                                        # the cursors of OPTIONS and MENU
-                                       ('INVENTORY', 'inventory_redraw', ['\\v', '\\>', '\\<', '\\^', '\\v', '\\>']),
-                                       ('STATUS', 'page_top', ['\\<', '\\<', '\\v', '\\v', '\\^', '\\v', '\\r', '\\r', '\\r']),
-                                       ('STATUS', 'page_top', ['\\<', '\\v', '\\v', '\\v', '\\^', '\\^']),
+                                       ('INVENTORY', 'inventory_redraw', ['\\r', '\\>', '\\<', '\\^', '\\^', '\\r', '\\>']),
+                                       ('STATUS', 'page_top', ['\\<', '\\<', '\\<', '\\v', '\\v', '\\^', '\\v', '\\r', '\\r', '\\r']),
+                                       ('STATUS', 'page_top', ['\\<', '\\<', '\\v', '\\v', '\\v', '\\^', '\\^']),
                                        # STATUS's MEDICAL rows: the conditions, their gestures
                                        ('STATUS', 'page_top', ['\\v', '\\>', '\\>', '\\v', '\\<', '\\^', '\\^', '\\v'])):
             s.step('key:' + command); s.step('press:\\r'); s.step(READY)
@@ -187,7 +213,7 @@ def differential_pages():
                        re.findall(r'^pc ([0-9A-F]{4}) (\d+)$', profile.out, re.M)}
                 writes = text_writes(pcs, MENU_STORES)
                 changes = text_changes(before, after)
-                assert writes == changes, (command, key, writes, changes)
+                assert writes == changes, (command, key, s.step(L.peek('pg_cur')).data, writes, changes)
                 if before == after:
                     assert writes == 0
             s.step('key:\\e'); s.step(IDLE)
@@ -199,5 +225,5 @@ def differential_pages():
 
 
 if __name__ == '__main__':
-    reveal(); simulation_curtain(); differential_pages()
+    reveal(); simulation_landscape(); differential_pages()
     print('Visual transitions: OK')

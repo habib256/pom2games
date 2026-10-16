@@ -47,8 +47,8 @@ def main():
             if index in (18, 28):
                 continue                # alias of 17; the text bank (fetched by text)
             expected, window, on_disk = images[index]
-            if index == 0:
-                call = (0xA2, 0, 0x20, L['mem_fetch'] & 255, L['mem_fetch'] >> 8)
+            if index in (0, 33):
+                call = (0xA2, index, 0x20, L['mem_fetch'] & 255, L['mem_fetch'] >> 8)
             else:
                 call = (0xA9, index, 0x20, L['overlay_load'] & 255, L['overlay_load'] >> 8)
             code = bytes(call + (0x4C, entry & 255, entry >> 8))

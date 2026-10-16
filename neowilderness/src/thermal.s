@@ -249,7 +249,10 @@ module_native_clothes_index:
         sta     g0
         jmp     thermal_clothes_weighted
 .segment "THERMAL"
+.pushseg
+.segment "GDATA"
 th_native_composition: .byte $80,$7C,$E5,$9F,$CE ; 1 - 2/165
+.popseg
 
 ; thermal_wind -- original m098 $59E5: T-floor(sqrt(mph)/12*(100-T)).
 ; Keep both subtraction bytes: the original low-byte result can wrap a

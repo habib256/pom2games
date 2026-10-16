@@ -133,6 +133,9 @@ Lot 4 ([FORAGE.md](FORAGE.md) § 17) : les piles du second jeu (viande,
 gibier, poisson, aliments sauvages, peau) n'ont pas de coordonnées, comme
 dans l'original : celles du sol restent sur la case où elles sont nées et
 sont perdues en la quittant ; elles ne pèsent pas dans la charge du port.
+L'arc, la lance, le gourdin, la pierre et l'attelle pèsent leurs W5 et W6
+depuis le 16 octobre 2026 ([CRAFT.md](CRAFT.md) § 8.2) ; pris au sol, ils
+sont refusés au-delà des limites, comme dans l'original.
 Les champignons découverts tirent leur qualité comme l'original, mais
 l'écrasement de W10[1] (perte thermique du sac de couchage) que fait
 T0D/S00 avec l'Y laissé par FCOMP n'est pas reproduit (FORAGE.md § 12).
@@ -1082,7 +1085,7 @@ sprites désactivés, démarrage/LOOK R/LOOK L/STATUS/GET PARKA/REST 3/INVENTORY
 produisent respectivement 3/5/7/10/15/19/22 lectures cumulées, contrôlées par
 `test_overlays.py` avec préservation de la page zéro, texte et états résidents.
 
-STATUS place santé et conditions avant besoins, réserves CARRIED/HERE et
+STATUS place santé et conditions avant besoins, réserves CARRIED/LOCAL et
 environnement. Les conditions thermiques commencent sur une nouvelle ligne
 pour éviter de couper leur nom. Toutes les conditions médicales, frissons,
 abri et immersion simultanés tiennent dans les 24 lignes du test. INVENTORY

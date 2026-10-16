@@ -17,7 +17,8 @@ PG_CRAFT = 2                    ; lot 3: the recipes (src/craft.s craft_page)
 PG_HELP = 3
 PG_OPTIONS = 4
 PG_MENU = 5
-PG_COUNT = 6
+PG_EQUIPMENT = 6
+PG_COUNT = 7
 
 ; page_top -- A = the page: an 80-column text page, its tab row; the cursor
 ; on row 2 (row 1 blank). Nothing is cleared: each page writes its rows top to bottom (a
@@ -48,10 +49,10 @@ page_top:
         inx
         cpx     #PG_COUNT
         bcc     @tab
-        lda     #57
+        lda     #72
         jsr     tab
         jsr     puts
-        .byte   "S/O/R/H, LEFT/RIGHT||", 0
+        .byte   "||", 0
         rts
 
         XL_ZERO XI_STATUS, page_top+3, page_keys        ; (XL: page_top_x)
@@ -68,6 +69,9 @@ page_top:
 ; RETURN and SPACE return to the view; any other key comes back (A kept).
 ; The focus moves redraw the page: the drawing is differential, so only
 ; the cells of the marker that moved are stored.
+.if (* - (page_top+3)) < 80
+        .res 80 - (* - (page_top+3)), 0
+.endif
 page_keys:
         ldx     pg_cur
         ldy     pg_focus
@@ -78,7 +82,7 @@ page_keys:
         bne     @keys
         ldy     pg_levels,x     ; (A kept for INVENTORY)
         beq     @view           ; no level: DOWN leaves
-        bmi     @own            ; INVENTORY: its group row
+        bmi     @view           ; OBJECTS tab: DOWN returns to the view
 @down:  inc     pg_focus
         bne     @show
 @level: ldy     pg_levels,x
@@ -146,33 +150,38 @@ page_keys:
         sty     pg_focus
 @show:  pla                     ; the page's key loop is left
         pla
+page_dispatch:                 ; X = page, also used when UP reopens the storey
         lda     pg_go_lo,x
         sta     gp1
         lda     pg_go_hi,x
         sta     gp1+1
         jmp     (gp1)
 
-pg_go_lo: .byte <module_status, <scr_inventory, <pg_craft, <module_help, <module_options, <module_menu
-pg_go_hi: .byte >module_status, >scr_inventory, >pg_craft, >module_help, >module_options, >module_menu
+pg_go_lo: .byte <module_status, <scr_inventory, <pg_craft, <module_help, <module_options, <module_menu, <scr_equipment
+pg_go_hi: .byte >module_status, >scr_inventory, >pg_craft, >module_help, >module_options, >module_menu, >scr_equipment
 pg_view:   .byte KC_ESC, KC_RET, ' '
 pg_view_end:
-pg_letter: .byte "SIRHOM"
-pg_letpg:  .byte PG_STATUS, PG_INVENTORY, PG_CRAFT, PG_HELP, PG_INVENTORY, PG_STATUS
+pg_letter: .byte "SIRHOME"
+pg_letpg:  .byte PG_STATUS, PG_INVENTORY, PG_CRAFT, PG_HELP, PG_INVENTORY, PG_STATUS, PG_EQUIPMENT
 ; pg_levels -- below the tab row: 0 nothing, $80 OBJECTS' own levels, else
 ; the lines of the cursor (STATUS: its active conditions, counted by
 ; module_status).
-pg_levels: .byte 0, $80, 0, 0, 4, 3
-pg_line_at: .byte $FF, 0, 0, 0, 0, 4    ; first of pg_line_keys ($FF: the page's own)
+pg_levels: .byte 0, $80, 0, 0, 4, 3, $80
+pg_line_at: .byte $FF, 0, 0, 0, 0, 4, 0    ; first of pg_line_keys ($FF: the page's own)
 pg_focus: .byte 0
-pg_name_lo: .byte <pg_n0, <pg_n2, <pg_nc, <pg_n3, <pg_n4, <pg_n5
-pg_name_hi: .byte >pg_n0, >pg_n2, >pg_nc, >pg_n3, >pg_n4, >pg_n5
+pg_name_lo: .byte <pg_n0, <pg_n2, <pg_nc, <pg_n3, <pg_n4, <pg_n5, <pg_ne
+pg_name_hi: .byte >pg_n0, >pg_n2, >pg_nc, >pg_n3, >pg_n4, >pg_n5, >pg_ne
 pg_n0:  .byte   "STATUS", 0
 pg_n2:  .byte   "OBJECTS", 0
 pg_nc:  .byte   "CRAFT", 0
 pg_n3:  .byte   "HELP", 0
 pg_n4:  .byte   "OPTIONS", 0
 pg_n5:  .byte   "MENU", 0
-pg_cur: .byte   0
+pg_ne:  .byte   "EQUIPMENT",0
+.pushseg
+.segment "LOWPAGE"
+pg_cur: .byte   0               ; survives STATUS/CRAFT/SIM swaps
+.popseg
 pg_i:   .byte   0
 ; pg_craft -- the CRAFT page (lot 3 step 2): its tab row here, then the
 ; CRAFT module read over this one (NEOWILD.BLK, the SIM window): sim_fetch
@@ -193,7 +202,6 @@ pg_craft:
         pha
         ldx     #CRAFT_MODULE
         jmp     sim_fetch
-pg_col: .byte   0
 pg_x:   .byte   0
 
 ; ----------------------------------------------------------------------------
@@ -221,42 +229,46 @@ med_malaria: .byte "MALARIA",0
 med_alt_text: .byte "ALTITUDE SICKNESS",0
 
 ; ----------------------------------------------------------------------------
-; OPTIONS: wildlife frequency (the NATURE command, typed for the player),
-; the player on TOPO and MAP on or off (game_options bits 7 and 6).
+; OPTIONS (15 October 2026: one post-it, a line an option, its state in
+; a column, the line of the focus in inverse, what it does below): wildlife
+; frequency (the NATURE command, typed for the player), the player on TOPO
+; and the MAP page on or off (game_options bits 7 and 6), the food sources
+; on the way (IGNORE FOOD / GET FOOD).
+PG_VAL = 31                     ; the column of the states
+PG_DESC = 8                     ; the row of the description
 module_options:
         lda     #PG_OPTIONS
         jsr     page_top
-        XL_ABS  XI_STATUS, mt_skip, @y25        ; (XL: the tab names it)
         jsr     st_heading
         .byte   " OPTIONS ", 0
-        XL_ABS  XI_STATUS, pg_lines_x, @p02     ; (XL: a post-it a line)
-        jsr     pg_lines
+        jsr     pg_first
         jsr     puts
-        .byte   "C  WILDLIFE FREQUENCY (0-100): ", 0
+        .byte   "C  WILDLIFE FREQUENCY", 0
+        jsr     pg_val
         lda     nature_frequency
         jsr     pdec
-        XL_ABS  XI_STATUS, pg_mark_x, @p11
-        jsr     pg_mark
+        jsr     pg_line
         jsr     puts
-        .byte   "A  THE PLAYER ON TOPO: ", 0
+        .byte   "A  PLAYER ON TOPO", 0
         lda     game_options
         and     #$80
         jsr     pg_onoff
-        XL_ABS  XI_STATUS, pg_mark_x, @p12
-        jsr     pg_mark
+        jsr     pg_line
         jsr     puts
-        .byte   "P  MAP: ", 0
+        .byte   "P  MAP PAGE", 0
         lda     game_options
         and     #$40
         eor     #$40
         jsr     pg_onoff
-        XL_ABS  XI_STATUS, pg_mark_x, @p13
-        jsr     pg_mark         ; lot 4: food found on the way (FORAGE.md 11)
+        jsr     pg_line         ; lot 4: food found on the way (FORAGE.md 11)
         jsr     puts
-        .byte   "F  FOOD SOURCES ON THE WAY: ", 0
+        .byte   "F  FOOD SOURCES ON THE WAY", 0
         lda     fg_ignore
         eor     #1
         jsr     pg_onoff
+        lda     #PG_DESC        ; (XL: the focused option, in a sentence)
+        XL_ABS  XI_STATUS, pg_desc_x, @x27
+        jsr     vtab
         XL_IMM  XI_STATUS, <pg_k_menu_x, @x19
         lda     #<pg_k_menu
         XL_IMM  XI_STATUS, >pg_k_menu_x, @x20
@@ -321,24 +333,6 @@ pg_type:
 module_menu:
         lda     #PG_MENU
         jsr     page_top
-        XL_ABS  XI_STATUS, mt_skip, @y26
-        jsr     st_heading
-        .byte   " JOURNEY ", 0
-        XL_ABS  XI_STATUS, pg_lines_x, @p03
-        jsr     pg_lines
-        jsr     puts
-        .byte   "S  SAVE (GAMES 1-5)", 0
-        XL_ABS  XI_STATUS, pg_mark_x, @p21
-        jsr     pg_mark
-        jsr     puts
-        .byte   "R  RESTORE", 0
-        XL_ABS  XI_STATUS, pg_mark_x, @p22
-        jsr     pg_mark
-        jsr     puts
-        .byte   "Q  QUIT", 0
-        XL_IMM  XI_STATUS, 11, @p04             ; (XL: below the third post-it)
-        lda     #8
-        jsr     vtab
         jsr     goal_pct        ; also brings journey_left up to date
         sta     st_done
         jsr     st_heading
@@ -353,6 +347,23 @@ module_menu:
         lda     st_done
         jsr     st_cells
         jsr     bar
+        lda     #6              ; (XL: under the RANGERS post-it)
+        jsr     vtab
+        jsr     st_heading
+        .byte   " SAVE / RESTORE ", 0
+        jsr     pg_first
+        jsr     puts
+        .byte   "S  SAVE (GAMES 1-5)", 0
+        jsr     pg_line
+        jsr     puts
+        .byte   "R  RESTORE", 0
+        lda     #10             ; (XL: the QUIT post-it, its title from
+        jsr     vtab            ; the table; 140 KB: a blank row)
+        jsr     pg_line
+        jsr     puts
+        .byte   "Q  QUIT", 0
+        lda     #$FF
+        sta     INVFLG
         XL_IMM  XI_STATUS, <pg_k_menu_x, @x23
         lda     #<pg_k_menu
         XL_IMM  XI_STATUS, >pg_k_menu_x, @x24
@@ -360,8 +371,12 @@ module_menu:
         XL_ABS  XI_STATUS, page_foot_x, @x25
         jsr     page_foot
         jmp     pg_menu_key
-; pg_onoff -- ON when A <> 0, else OFF.
+; pg_onoff -- the states' column, then [X] when A <> 0, else [ ] (XL: a
+; check mark in the box).
 pg_onoff:
+        pha
+        jsr     pg_val
+        pla
         tax
         lda     #<pg_on
         ldy     #>pg_on
@@ -369,9 +384,11 @@ pg_onoff:
         bne     :+
         lda     #<pg_off
         ldy     #>pg_off
-:       jmp     print_str_ay
-pg_on:  .byte   "ON", 0
-pg_off: .byte   "OFF", 0
+:       XL_ABS  XI_STATUS, mt_str, @x26         ; (XL: the glyph)
+        jmp     print_str_ay
+pg_on:  .byte   "[X]", 0
+pg_off: .byte   "[ ]", 0
+        XL_BYTE XI_STATUS, pg_on+1, MS_CHECK
 pg_line_keys: .byte "CAPF"     ; the lines of OPTIONS, then of MENU
 mn_keys:    .byte "SRQ"
 mn_word_lo: .byte <mn_save, <mn_restore, <mn_quit, <mn_nature, <mn_ignore, <mn_food
@@ -382,6 +399,32 @@ mn_nature:  .byte "NATURE", 0
 mn_quit:    .byte "QUIT", 0
 mn_ignore:  .byte "IGNORE FOOD", 0
 mn_food:    .byte "GET FOOD", 0
+; pg_first -- the first line of a cursor page, under its heading;
+; pg_line -- the next one (pg_mark): its text in inverse when it holds the
+; focus.
+pg_first:
+        lda     #0
+        sta     pg_i
+pg_line:
+        lda     #$FF            ; (the marker in normal video)
+        sta     INVFLG
+        jsr     pg_mark
+        ldx     pg_i
+        cpx     pg_focus
+        bne     :+
+        lda     #$3F            ; the line of the focus: in inverse
+        sta     INVFLG
+:       rts
+; pg_val -- spaces (in the line's video) up to the states' column, then
+; the normal video for the state.
+pg_val: lda     #' '|$80
+:       jsr     COUT
+        ldx     CH
+        cpx     #PG_VAL
+        bcc     :-
+        lda     #$FF
+        sta     INVFLG
+        rts
 
 .segment "CODE"
 ; page_foot -- (resident, MAIN: the STATUS module's store is full on the
@@ -411,13 +454,19 @@ page_foot:
         .byte   ": VIEW", 0
         rts
 
-; pg_lines -- (resident too) the end of the heading row, then the first line of a cursor
-; page (row 4, pg_mark).
+; pg_lines -- (resident) the OBJECTS page's state and its command since
+; 16 October 2026 (the cursor pages' header, unused since 15 October, held
+; these ten bytes: the resident image does not move).
 pg_lines:
-        jsr     puts
-        .byte   "|", 0
-        lda     #0
-        sta     pg_i
+obj_keep: .byte 0               ; $80: back from a transfer (src/inventory.s)
+obj_side: .byte 0               ; 0 LOCAL, 1 CARRIED
+obj_cur:  .byte 0, 0            ; each side's entry under the cursor
+; obj_type -- (OBJECTS, after it has typed a transfer in inbuf) SIM quietly
+; over the STATUS module (no curtain; finish_simulation keeps the page),
+; then the command as typed.
+obj_type:
+        jsr     load_totals_quiet
+        jmp     do_command
 ; pg_mark -- (resident too) a new line of a cursor page: CR, then ">" in column 1 on the
 ; line holding the focus (pg_i counts the lines from 1).
 pg_mark:
@@ -432,5 +481,5 @@ pg_mark:
 :       jmp     COUT
 ; the keys of the cursor pages and of INVENTORY
 pg_k_menu: .byte "UP/DOWN: CHOOSE  RETURN: SELECT", 0
-inventory_keys: .byte "UP/DOWN: TABS/GROUPS/PAGES  1-5 GROUP  N NEXT  B BACK  T TOPO",0
+inventory_keys: .byte "RETURN LIST/ACT  ARROWS MOVE H HANDS",0
 .segment "STATUS"

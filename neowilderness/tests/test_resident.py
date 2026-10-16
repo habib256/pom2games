@@ -19,7 +19,7 @@ import re
 import sys
 import tempfile
 from common import HERE, L, DISK, a2test, disk_with, text_screen
-from scenario import SCRIPT, play
+from play_scenario import SCRIPT, play
 
 COUNTERS = (('mli_calls', 2), ('mli_reads', 2), ('mli_bytes', 3),
             ('xfer_count', 2), ('xfer_bytes', 3), ('overlay_reads', 2),

@@ -14,6 +14,7 @@
 ; ============================================================================
 
         .include "apple2.inc"
+        .include "ui_choice.inc"
         .include "mousetext.inc" ; docs/MENUS.md 9: the glyphs of the text pages
         .include "zp.inc"
         .macpack longbranch
@@ -320,10 +321,9 @@ render_clr:   jsr     clear_rows
         sbc     #1
         sta     col
 :       ldx     py+1
-        lda     grid_lo,x
+        jsr     grid_row
         sta     gp
-        lda     grid_hi,x
-        sta     gp+1
+        sty     gp+1
         ldy     px+1
         lda     (gp),y
         and     #$7F
@@ -388,10 +388,9 @@ render_direction:
         ; fraction moves it (patched per column for the signs of dx, dy;
         ; BIT turns the branch off for a step of exactly +1 cell)
         ldx     py+1
-        lda     grid_lo,x
+        jsr     grid_row
         sta     gp
-        lda     grid_hi,x
-        sta     gp+1
+        sty     gp+1
         lda     px+1
         sta     cx
         lda     dx+1
@@ -847,14 +846,41 @@ turn_sh: .byte  10, 10, 20, 20          ; bytes scrolled in each bank
 
 
 .segment "RODATA"
-grid_lo:
-        .repeat GH, J
-        .byte   <(GRID + J * GW)
-        .endrep
-grid_hi:
-        .repeat GH, J
-        .byte   >(GRID + J * GW)
-        .endrep
+; grid_row -- X = row, A/Y = its little-endian pointer. X is kept.
+; Fixed-cost 128*X - 16*X replaces 168 resident table bytes.
+grid_row:
+        txa
+        asl     a
+        asl     a
+        asl     a
+        asl     a
+        sta     @sublo+1
+        txa
+        lsr     a
+        lsr     a
+        lsr     a
+        lsr     a
+        sta     @subhi+1
+        txa
+        lsr     a
+        tay
+        lda     #0
+        ror     a
+        clc
+        adc     #<GRID
+        sta     @lo+1
+        tya
+        adc     #>GRID
+        sta     @hi+1
+@lo:    lda     #0
+        sec
+@sublo: sbc     #0
+        pha
+@hi:    lda     #0
+@subhi: sbc     #0
+        tay
+        pla
+        rts
 
         .include "tables.inc"   ; build/, from tools/gentables.py
 
@@ -951,7 +977,7 @@ tilt_shown: .byte 0             ; tilt of the constants and the hook
         .include "print.asm"
         .include "transitions.s"
         .define wait_key keyboard_wait
-        .include "kbd.asm"
+        .include "ui_event.s"
         .undefine wait_key
         .include "hgr.asm"
         .include "memory.s"

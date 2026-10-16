@@ -66,10 +66,10 @@ BAR_ROWS = 4                    # rows per band
 ARROW_X = 6
 NORTH = [(ARROW_X - 1 + c, 3 + r) for r, bits in enumerate(T.GLYPHS['N'])
          for c in range(3) if bits & (4 >> c)]
-# Distance scale under the arrow: an 8-pixel bar (8 cells of about 0.48
-# mile: 4 miles) at x 3..10, end ticks on rows 30..32, the digit 4 below.
-SCALE = ([(x, 32) for x in range(3, 11)] + [(x, r) for r in (30, 31) for x in (3, 10)]
-         + [(ARROW_X - 1 + c, 34 + r) for r, bits in enumerate(T.GLYPHS['4'])
+# Distance scale at the bottom left: an 8-pixel bar (8 cells of about 0.48
+# mile: 4 miles) at x 3..10, end ticks on rows 149..151, the digit 4 below.
+SCALE = ([(x, 151) for x in range(3, 11)] + [(x, r) for r in (149, 150) for x in (3, 10)]
+         + [(ARROW_X - 1 + c, 153 + r) for r, bits in enumerate(T.GLYPHS['4'])
             for c in range(3) if bits & (4 >> c)])
 ARROW = ([(ARROW_X, 10)] + [(ARROW_X + d, 11) for d in (-1, 0, 1)]
          + [(ARROW_X + d, 12) for d in (-1, 0, 1)] + [(ARROW_X + d, 13) for d in range(-2, 3)]

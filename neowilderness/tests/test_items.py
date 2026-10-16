@@ -1,10 +1,77 @@
 #!/usr/bin/env python3
 """Exercise item transfers, qualifiers and ground locations in the emulator."""
+import struct
 import sys
-from common import L, DISK, a2test, fp, text_screen
+from common import L, DISK, DISK140, a2test, fp, text_screen
+
+
+def clothing_transfers():
+    """Native rounded garment losses must change on every accepted removal.
+
+    Only the clothing header/cache is made native: no travel is performed,
+    so this exercises both distributed editions without a geography atlas.
+    These twelve initial losses and WORN bits are ADVENTURE's Sierra seed.
+    """
+    from test_input import command, snapshot, screen
+
+    def thermal(s):
+        return (s.step('peek:7028:24').data,
+                s.step(L.peek('s_insul', 5)).data,
+                s.step(L.peek('clothing_cache', 3)).data)
+
+    for disk in (DISK,):
+        outcomes = []
+        for verb, place, result in (('DROP', 0, 'GROUND: DOWN PARKA'),
+                                     ('PACK', 2, 'PACK: DOWN PARKA'),
+                                     ('GET', 2, 'PACK: DOWN PARKA'),
+                                     ('TAKE', 3, 'HAND: DOWN PARKA'),
+                                     ('CARRY', 3, 'HAND: DOWN PARKA')):
+            with a2test.Session(disk) as s:
+                s.step(L.until('idle', 20000))
+                s.step('poke:7025:01')
+                header = struct.pack('<12H', 500,42,46,97,70,54,2000,74,76,148,104,77)
+                for k, byte in enumerate(header):
+                    s.step(f'poke:{0x7028+k:04X}:{byte:02X}')
+                for k, byte in enumerate((0x7E, 0x10, 0)):
+                    s.step(L.poke('clothing_cache', byte, k))
+                s.step(L.poke('clothing_cache_valid', 0))
+                clock = s.step(L.peek('s_hour', 10)).data
+                view = s.step('peek:2000:8192').data
+                command(s, 'WEAR PARKA')
+                worn = thermal(s)
+                calls = s.step(L.peek('mli_calls', 2)).data
+                assert int.from_bytes(worn[0][2:4], 'little') == 14
+                assert fp(worn[1]) == 37
+                # A full destination refuses the transfer before changing
+                # the native clothing history or the cached insulation.
+                if verb != 'DROP':
+                    offset = 6 if place == 3 else 4
+                    limit = s.step(L.peek('load_limits', 2, offset)).data
+                    for k in range(2):
+                        s.step(L.poke('load_limits', 0, offset+k))
+                    before = snapshot(s)
+                    command(s, verb + ' PARKA')
+                    assert 'TRANSFER REFUSED' in screen(s)
+                    assert snapshot(s) == before
+                    assert thermal(s) == worn
+                    for k, byte in enumerate(limit):
+                        s.step(L.poke('load_limits', byte, offset+k))
+                command(s, verb + ' PARKA')
+                assert s.step(L.peek('it_place', 1, 2)).data == bytes((place,))
+                assert result in screen(s), (verb, screen(s))
+                after = thermal(s)
+                assert int.from_bytes(after[0][2:4], 'little') == 47
+                assert fp(after[1]) == 48
+                outcomes.append(after)
+                assert s.step(L.peek('mli_calls', 2)).data == calls
+                assert s.step(L.peek('s_hour', 10)).data == clock
+                assert s.step('peek:2000:8192').data == view
+        assert all(value == outcomes[0] for value in outcomes), disk
+    print('  both editions: PACK/GET/TAKE/CARRY remove parka protection like DROP; exact rounded losses, atomic load refusals, clock/view preserved')
 
 
 def main():
+    clothing_transfers()
     steps = [L.until('idle', 20000)]
     cases = []
     fields = ('it_place', 'it_pack_lo', 'it_pack_hi', 'it_gnd_lo', 'it_gnd_hi',
