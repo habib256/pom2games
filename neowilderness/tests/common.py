@@ -209,12 +209,12 @@ a2test.Session = _Session
 
 
 def disk_with(tmp, mapbin):
-    """dist/NEOWILDERNESS.po with another map."""
+    """The active XL edition with another map."""
     m = Path(tmp) / 'map.bin'
     m.write_bytes(mapbin)
     d = Path(tmp) / 'test.po'
     subprocess.run(['python3', str(HERE / 'tools/build_disk.py'),
-                    '--out', str(d), '--map', str(m)], check=True, capture_output=True)
+                    '--out', str(d), '--map', str(m), '--edition', 'xl'], check=True, capture_output=True)
     return d
 
 

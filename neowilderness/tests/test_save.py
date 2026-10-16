@@ -488,6 +488,10 @@ def faults(work, image):
     nomodule = bytearray(image)
     rename(nomodule, 'NEOWILD.SAV', 'NEOWILD.XAV')
     fault(work, nomodule, 'nomodule', 'NEOWILD.SAV missing', 'SAVE 1', 'NEOWILD.SAV CANNOT BE READ.')
+
+
+def protected_140(work):
+    """Historical write-protection case; excluded from current XL validation."""
     woz = work / 'protected.woz'
     # A write-protected 5.25-inch WOZ: Neowilderness, the 140 KB edition
     # (the Sierra Nevada, its saved games; NeoWildernessXL is 800 KB).

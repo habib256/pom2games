@@ -86,7 +86,6 @@ qui touche le chemin de référence rebase d'abord `test_reference_state.py`.
 | 13 | Médecine | fait ; reste les chutes | `868d9fa`, `test_care.py --original` | — | — | — | — |
 | 14 | Conteneurs et charge (P3) | en partie (16 octobre 2026 : poids du second jeu, refus au sol, jauge LOAD aux seuils mesurés) ; restent les formules des conteneurs | `re_load_probe.py`, `test_objects.py --original` | 0,3 Ko (ITM, GDATA) | — | — | — |
 | 15 | Régions : R1, R2, géographie fine (R3) | ouvert | REGIONS.md § 7 | 0,1 Ko | Sierra seule | atlas : partage `$D000-$F0FF` avec l'instantané TOPO | XL : ≈ 13 blocs par atlas |
-| — | TMAP, générateur de terrain | archipel v1 réalisé, XL ; restent export et généralisation | TMAP.md, `test_tmap.py` | programme séparé | — | données de décor | deux fichiers XL |
 
 Ordre proposé : 3 → 6 → 8 → 5 → 10 → 11 → 15 → 12 → 14
 (ORIGINAL_GAP.md § 3). Les lots de fidélité 12 et 14 viennent ensemble, en
@@ -166,12 +165,6 @@ régions (sonde ROM), le score original est affiché à la fin.
   géographie fine des six régions — décision de jeu (la simulation des
   cartes héritées changerait) ; pistes : résolution réduite (1–2 Ko) ou
   atlas de la Sierra seule.
-- [ ] TMAP XL : exporter le scénario généré dans un paquet rechargeable,
-  étendre le manifeste aux fiches/sprites d'animaux, sites et objectifs,
-  puis aux autres terrains. L'archipel de deux ou trois îles, la graine,
-  le relief renforcé, la mer à l'horizon et les traversées sont réalisés.
-  Les arbres du prototype ont été retirés ; un décor tropical satisfaisant
-  reste à dessiner. Voir [TMAP.md](docs/TMAP.md).
 - [ ] Lot 13, reste : les chutes (IMPLEMENTATION.md, « Conditions
   médicales »).
 
@@ -430,9 +423,10 @@ au seuil de 5 %) ; « tout est encore non commité » ; fenêtres DHGR à la
 place des écrans 40 colonnes (étapes 3-4 de MENUS.md, remplacées par les
 pages 80 colonnes).
 
-Points de contrôle du lot suivant : distinguer les doses des médicaments ;
-proposer LOWER FOOD depuis LOCAL HUNG avec son coût en temps ; compléter
-le filtrage contextuel des actions (dont goûter). Vérifier ensuite les
-parcours complets CRAFT/CATCH et le matériel réel sans saisie de commande.
-Les quantités d’eau, le volume requis, les refus détaillés des objets
-fabriqués et la page EQUIPMENT sont réalisés (CHANGELOG, 16 octobre).
+Points de contrôle du lot suivant : compléter le filtrage contextuel des
+actions (dont goûter), le choix rapide de quantité et l’aperçu de récupération
+du sac entier. Vérifier ensuite les parcours complets CRAFT/CATCH et le
+matériel réel sans saisie de commande. Les doses médicales (un usage avec
+stock/durée affichés), LOWER FOOD depuis LOCAL HUNG, les quantités d’eau,
+le volume requis, les refus détaillés des objets fabriqués et EQUIPMENT
+sont réalisés (CHANGELOG, 16 octobre).

@@ -576,6 +576,8 @@ ob_crw: .byte   50, 50, 100, 100, 50
 ; the cursor in ob_line (ob_len), the item in menu_noun (its display name
 ; is not always a word of the vocabulary); C clear without an item. (Not
 ; inbuf: the page leaves the typed line as the reference's INVENTORY.)
+.pushseg
+.segment "MEDVIEW"
 ob_cmd: sta     ob_t
         ldx     obj_side
         lda     obj_cur,x
@@ -590,14 +592,17 @@ ob_cmd: sta     ob_t
         lda     overlay_text,y
         sta     menu_noun
         tax
-        cpx     #76             ; LOCAL HUNG: no transfer (LOWER FOOD first,
-        bcs     :+              ; from the grid: it takes time, the page's
-        lda     it_place,x      ; transfers none)
-        cmp     #5
-        bne     :+
+        lda     obj_side
+        bne     @default
+@group: lda     overlay_text,y  ; only the LOCAL HUNG heading is stored on the left
+        bmi     @hung           ; independent LOCAL piles still have normal actions
+        dey
+        bpl     @group
+        bmi     @default
 @no:    clc
         rts
-:       ldy     #OB_CARRY       ; H: CARRY x
+@default:
+        ldy     #OB_CARRY       ; H: CARRY x
         lda     ob_t
         bne     @verb
         ldy     #OB_DROP        ; RETURN from the right: DROP x
@@ -646,6 +651,17 @@ ob_cmd: sta     ob_t
 :       stx     ob_len
         sec
 @rts:   rts
+@hung:  ldx     #10
+:       lda     ob_lower,x
+        sta     ob_line,x
+        dex
+        bpl     :-
+        sec
+        rts
+.pushseg
+.segment "STATUS"
+ob_lower: .byte "LOWER FOOD",0
+.popseg
 ob_verbs:
 OB_PACK  = * - ob_verbs
         .byte   "PACK "
@@ -657,6 +673,7 @@ OB_GET   = * - ob_verbs
         .byte   "GET "
 
 ; ob_ld -- num and ob_m = the carried ounces (load_used).
+.popseg
 ob_ld:  lda     load_used
         sta     num
         sta     ob_m
@@ -666,21 +683,7 @@ ob_ld:  lda     load_used
         rts
 .pushseg
 .segment "MEDVIEW"
-; ob_mul -- num = Y x the word at ob_m.
-ob_mul: lda     #0
-        sta     num
-        sta     num+1
-@add:   dey
-        bmi     @rts
-        clc
-        lda     num
-        adc     ob_m
-        sta     num
-        lda     num+1
-        adc     ob_m+1
-        sta     num+1
-        jmp     @add
-@rts:   rts
+; ob_mul lives in STATX; num = Y x the word at ob_m.
 ; ob_div -- A = INT(num / (A + 256 X)), at most 255.
 ob_div: sta     ob_m
         stx     ob_m+1
@@ -703,17 +706,23 @@ ob_div: sta     ob_m
 ; Persistent item identities complement obj_cur (the fallback row if an
 ; item disappears). X is the side; no state is added to saved game data.
 ob_restore:
-        ldy     ob_at,x
-        lda     ob_n,x
-        sta     ob_e
-@find:  lda     ob_e
-        beq     @end
+        lda     obj_cur,x       ; keep the exact row when its identity survives
+        clc                     ; LOCAL and LOCAL HUNG can contain the same noun
+        adc     ob_at,x
+        tay
         lda     overlay_text,y
+        cmp     obj_selected,x
+        beq     @end
+        ldy     ob_at,x
+@find:  lda     overlay_text,y
         cmp     obj_selected,x
         beq     @found
         iny
-        dec     ob_e
-        bne     @find
+        tya
+        sec
+        sbc     ob_at,x
+        cmp     ob_n,x
+        bcc     @find
 @end:   rts
 @found: tya
         sec

@@ -608,11 +608,7 @@ water_here:
         cpy     #GW
         bcs     @next
         jsr     cell_at
-        bpl     @next
-        cmp     #$80            ; feature flag: zero-height water is sea
-        bne     @yes
-        bit     MAP+50
-        bpl     @yes
+        bmi     @yes
 @next:  inc     w_x
         dec     w_cols
         bne     @cell

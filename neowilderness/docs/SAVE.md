@@ -1,14 +1,5 @@
 # SAVE et RESTORE (lot 9)
 
-**TMAP XL (16 octobre 2026).** Les cartes générées gardent leur identité
-dans les octets 48–55 de l'en-tête. RESTORE compare cette identité avant
-de recopier l'état et refuse un autre terrain, sans modifier le voyage.
-Après redémarrage, générer le même archipel (graine, nombre d'îles et niveau)
-avant RESTORE. L'identifiant de construction XL couvre aussi le programme
-TMAP et le paquet de scénario, pour refuser une sauvegarde produite par un
-ancien algorithme. Voir [TMAP.md](TMAP.md). Les cartes natives gardent leur
-usage de 40–63 pour les vêtements et ne subissent pas cette comparaison.
-
 Cinq parties sur la disquette du jeu, comme l'original (V1 de
 [ORIGINAL_GAP.md](ORIGINAL_GAP.md) § 2.11, lot 9 du § 3). Code :
 [`src/save.s`](../src/save.s) ; construction : `tools/build_disk.py`

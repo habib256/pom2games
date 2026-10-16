@@ -537,10 +537,8 @@ vite. Les deux éditions (post-its MouseText sur XL, texte simple sur
   tapé (sans un premier mot à chiffre : `2QT CANTEEN` → `CANTEEN`, sinon
   INPUT y voit un nombre), l'objet passe par `menu_noun`. Temps, règles
   et refus sont ceux de la commande tapée (`tests/test_objects.py`
-  compare l'état après la page à l'état après la ligne tapée). Le sac
-  pendu et son contenu ne se transfèrent pas (LOWER FOOD prend du temps :
-  celui de la grille) ; ainsi aucun transfert de la page ne fait passer
-  le temps.
+  compare l'état après la page à l'état après la ligne tapée). Le sac pendu et son contenu ouvrent désormais la confirmation
+  LOWER FOOD (§ 13). HANG coûte 30 minutes ; LOWER est instantané.
 - **Le retour** : la page met la commande dans `inbuf`, pose la file de la
   grille (§ 4.3) `S_CARRY` (sans contrôle) puis `S_OBJECTS` (qui tape
   `INVENTORY`), lève `obj_keep` et saute à `obj_type` (résident : SIM
@@ -910,8 +908,8 @@ source insuffisant sont refusés avant toute mutation. Les piles sauvages
 acceptent aussi PACK explicite avec quantité. La source choisie reste celle
 du repas même lorsqu’il existe simultanément un stock au sol et dans PACK.
 
-Les limites encore ouvertes (eau, médicaments, objets suspendus, refus CRAFT)
-sont décrites au TODO. La navigation intégralement sans clavier reste un
+Les cas d’eau, doses médicales, objets suspendus et refus CRAFT sont
+détaillés aux § 12–13 ; les limites encore ouvertes sont au TODO. La navigation intégralement sans clavier reste un
 objectif en cours, notamment pour CRAFT et CATCH.
 
 ## 12. EQUIPMENT et transferts d’eau (16 octobre 2026, XL)
@@ -940,4 +938,30 @@ qui dépasse 64 OZ est refusé sans prélèvement partiel. Les autres transferts
 affichent également le volume nécessaire et la place WEAR libre. Les objets
 fabriqués signalent séparément chaque limite dépassée (poids et contenant),
 avec besoin et place libre ; les règles natives d’activation restent celles
-du moteur. Les doses médicales et LOWER FOOD restent au TODO.
+du moteur. Les doses médicales et LOWER FOOD sont décrits au § 13.
+
+## 13. Doses et sac suspendu (16 octobre 2026, XL)
+
+USE sur les objets médicaux affiche « 1 USE », le nombre de doses restantes
+et la durée native. EAT est également proposé pour les trois médicaments
+oraux (47, 48, 50) ; l’oxygène reste appliqué avec USE. Les transferts de
+ces équipements restent indivisibles. Aucun sélecteur d’onces ou TOUT n’est
+proposé pour le soin : un usage confirmé applique une seule action native.
+La durée vient de la même table que la simulation : trousses et traitement
+concerné 30 minutes, oxygène 15 minutes, autres médicaments zéro minute.
+Les règles natives des objets vides ou réutilisables restent conservées ;
+afficher zéro dose ne crée pas une nouvelle interdiction de traitement.
+Échap depuis une confirmation sans quantité retourne directement aux actions.
+
+Depuis LOCAL HUNG, Entrée ou H sur le sac ou son contenu ouvre LOWER FOOD.
+La confirmation indique la destination CARRIED, tous les contenus, zéro
+minute et le contrôle de charge. L’aperçu NOW décrit la charge actuelle ;
+il ne prétend pas calculer la charge de tout le sac après récupération.
+Annuler ne change ni le stock ni le temps. La commande récupère l’ensemble
+ou refuse sans mutation si les capacités natives sont dépassées, puis
+revient à OBJECTS avec sa réponse et un objet valide sous le curseur.
+
+Le curseur conserve sa position quand l’objet est toujours à cette position,
+avant de rechercher son identité ailleurs. Il peut ainsi dépasser les
+provisions présentes à la fois au sol et dans LOCAL HUNG, sans revenir sur
+la première occurrence à chaque déplacement.

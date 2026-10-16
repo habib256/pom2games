@@ -326,7 +326,7 @@ sv_restore:
         bne     @damaged
         lda     SV_BUF+3        ; the region of the loaded pack only
         cmp     region_number
-        beq     @terrain_check
+        beq     @scatter
         ldx     #0              ; "BURMA ONLY!"
         jsr     sv_name
         ldy     #0
@@ -343,25 +343,6 @@ sv_restore:
 @damaged:
         lda     #<sv_m_damaged
         ldx     #>sv_m_damaged
-        jmp     sv_message
-@terrain_check:
-        ; Geometry is constant during a journey and is not in the save.
-        ; A generated journey may only restore onto the identical terrain.
-        ; Native maps use 40..63 for clothes, not scenario identity.
-        lda     MAP+37
-        ora     SV_MAP+37
-        bne     @scatter
-        ldx     #7
-@identity:
-        lda     MAP+48,x
-        cmp     SV_MAP+48,x
-        bne     @terrain
-        dex
-        bpl     @identity
-        bmi     @scatter
-@terrain:
-        lda     #<sv_m_terrain
-        ldx     #>sv_m_terrain
         jmp     sv_message
 @scatter:
         lda     #1              ; image -> state
@@ -601,7 +582,6 @@ sv_ranges:
         .word   th_a, 5
         .word   0
 SV_STATE = 10 + (overlay_current-sun_alt8) + (inbuf-tree_in) + (it_oz_lo+41-s_hour) + (it_oz_hi+41-(it_oz_lo+75)) + 4 + (it_kcal-(it_vol_hi+75)) + (__BSS_RUN__-resource_seen) + (it_name_lo-it_x) + 64 + 1 + 3 + 1 + (camp_state_end-camp_state) + (care_state_end-care_state) + (forage_state_end-forage_state) + (craft_state_end-craft_state) + (craft_cells_end-craft_cells)
-SV_MAP = SV_BUF+SV_HEAD+SV_STATE-64-1-3-1-10-(camp_state_end-camp_state)-(care_state_end-care_state)-(forage_state_end-forage_state)-(craft_state_end-craft_state)-(craft_cells_end-craft_cells)
 .assert SV_BUF + SV_HEAD + SV_STATE <= SV_IOBUF, error, "slot image overlaps the I/O buffer"
 .assert SV_HEAD + SV_STATE <= 3 * 512, error, "a game no longer fits three blocks"
 .assert sv_end <= SV_BUF, error, "NEOWILD.SAV overlaps its slot image"
@@ -638,7 +618,6 @@ sv_m_empty:     .byte "GAME # IS EMPTY.", 0
 sv_m_other:     .byte "GAME # WAS SAVED BY ANOTHER VERSION.", 0
 sv_m_damaged:   .byte "GAME # IS DAMAGED.", 0
 sv_m_only:      .byte " ONLY.", 0     ; message: "!" names a travel reason
-sv_m_terrain:   .byte "LOAD THE SAME TERRAIN AND TMAP SEED.|SAME ISLAND COUNT AND LEVEL REQUIRED.",0
 sv_end:
 .export sv_entry, sv_build, sv_ranges, sv_slot, sv_size, sv_end
 

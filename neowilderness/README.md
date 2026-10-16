@@ -8,13 +8,6 @@ Les descriptions de l’édition 140 Ko ci-dessous sont historiques.
 Entrée active sa liste ; chaque objet distingue porté, en mains et en usage,
 avec actions, charge et préparation de la chasse.
 
-**TMAP XL** : touche `T` au menu pour générer un archipel de deux ou trois
-îles, choisir une graine et voir un aperçu avant de jouer. Relief accentué,
-mer jusqu'à l'horizon et sur les quatre bords, chenaux à traverser à la nage.
-Les arbres du prototype ont été retirés. Le scénario est un paquet de
-données distinct du moteur. Voir [TMAP.md](docs/TMAP.md) pour le format
-de scénario, les commandes et la reprise des sauvegardes.
-
 Port séparé de Wilderness pour Apple IIe enhanced 128 Ko et IIc, avec
 rendu DHGR et modules préchargés en RAM, en deux éditions (14 octobre
 2026), même jeu et même chargeur : **Neowilderness**

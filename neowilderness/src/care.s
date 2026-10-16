@@ -496,7 +496,10 @@ care_ok:
         jmp     message
 care_minutes: .byte 0
 care_consumed: .byte 0
+.pushseg
+.segment "LOWCODE"
 care_use_minutes: .byte 30,30,0,0,0,30,0,0,15,0,0
+.popseg
 
 ; ----------------------------------------------------------------------------
 ; STATUS's care (src/status.s module_status, docs/MENUS.md 5): the
@@ -677,18 +680,19 @@ mg_knife: .byte "USE KNIFE", 0
 mg_axe:   .byte "USE AXE", 0
 mg_flash: .byte "USE FLASHLIGHT", 0
 
-; NeoWildernessXL only (docs/MENUS.md 9): the tail of MEDVIEW (segment
-; MEDVX, build/wildmvx.bin) -- the footer of the pages (src/mt_pages.s
-; page_foot_x, whose helpers are loaded with the page) before the gestures.
-.segment "MEDVX"
+; NeoWildernessXL footer: resident prefix, then the gestures in MEDVIEW.
+; MEDVX now holds the OBJECTS legend at $5FE0.
+.segment "GCODE"
 med_foot_x:
         lda     #22
         jsr     vtab
         lda     #MT_LINE
         ldy     #80             ; (the 80th wraps to row 23)
         jsr     mt_rep
+        jmp     med_foot_prefix
+.segment "TEXT"
+med_foot_prefix:
         jsr     mt_puts
         .byte   " ", MS_LEFT, MS_RIGHT, " ", 0
         jmp     med_foot_gest
-mvx_end:
 .segment "MEDVIEW"

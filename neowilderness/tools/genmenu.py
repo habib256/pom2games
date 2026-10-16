@@ -75,7 +75,7 @@ def screen(regions, build=HERE / 'build', count=6):
         name = entry['name'].ljust(CLIMATE_COL - NAME_COL)
         climate = climate_tag(entry, header).ljust(BEST_COL - CLIMATE_COL)
         rows.append((f'{key} {name}{climate}{"-":>{WIDTH - BEST_COL}}', False))
-    rows.append(('T TMAP           GENERATE AN ARCHIPELAGO' if count > 1 else '', False))
+    rows.append(('', False))
     rows.append(('7 FREE JOURNEY    ' + ('ANY REGION, ' if count > 1 else '') + 'NOT RANKED', False))
     # Fidelity lot 1 (src/prepare.s): the original's preparation questions.
     rows.append(('P PREPARATION     QUESTIONS, NOT RANKED', False))
@@ -124,7 +124,7 @@ def generate(build=HERE / 'build'):
     # parts of its list): menu_xl, NeoWildernessXL's six scenarios; menu_1,
     # Neowilderness (140 KB), the Sierra Nevada alone (src/boot.s ld_regions).
     xl, one = screen(regions, build, 6), screen(regions, build, 1)
-    assert xl[1:3] == one[1:3] and xl[-2:] == one[-2:] and one[3] == ('', False)
+    assert xl[1:3] == one[1:3] and xl[-2:] == one[-2:] and xl[8] == one[3] == ('', False)
     parts = {'m_title_xl': xl[:1], 'm_title': one[:1], 'm_head': xl[1:3], 'm_more': xl[3:8],
              'm_free_xl': xl[8:10], 'm_free_1': one[3:5], 'm_tail': xl[-2:]}
     for label, rows in parts.items():

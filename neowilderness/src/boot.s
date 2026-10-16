@@ -221,7 +221,6 @@ ld_free:   .res 1               ; 1: free journey (not ranked, random seeds)
 digits:    .res 1
 entropy:   .res 2               ; key-wait iterations in the menu
 ld_prep:   .res 1               ; 1: P, the preparation questions (with ld_free)
-ld_tmap:   .res 1               ; XL only: separate TMAP + scenario data pack
 ld_part:   .res 1               ; ld_open: part of NEOWILD.DAT
 ; The state to restore at exit (docs/MEMORY.md 15), in the layout of
 ; memory.s EX_*: copied at the claim to the store's entry EX_ENTRY, where the
@@ -353,17 +352,10 @@ loader_menu:
         lda     #<m_intro
         ldy     #>m_intro
         jsr     print
-        lda     ld_tmap
-        beq     :+
-        lda     #<m_archipelago
-        ldy     #>m_archipelago
-        jsr     print
-        jmp     @intro_level
-:       ldx     ld_region
+        ldx     ld_region
         lda     region_names_lo-1,x
         ldy     region_names_hi-1,x
         jsr     print
-@intro_level:
         lda     #<m_level
         ldy     #>m_level
         jsr     print
@@ -379,23 +371,8 @@ loader_menu:
         jsr     print
 loader_pack:
         ldx     ld_region       ; the pack of the region, behind the trunk
-        lda     ld_tmap
-        beq     :+
-        ldx     #8              ; NEOWILD.SCN: scenario, independent of engine
-:
         jsr     load_file
         jcs     ld_error
-        lda     ld_tmap
-        beq     @journey
-        ldx     #9              ; NEOWILD.TMP: start-only generator at $2000
-        jsr     load_file
-        jcs     ld_error
-        lda     entropy
-        ldx     entropy+1
-        ldy     ld_level
-        jsr     $2000
-        jcs     loader_menu
-@journey:
         lda     ld_level        ; the journey's own header bytes
         sta     MAP+22
         lda     ld_free
@@ -574,13 +551,6 @@ ld_scatter:
 ld_open:
         stx     ld_part
         lda     #'D'
-        cpx     #8
-        bcc     :+
-        lda     #'S'
-        cpx     #8
-        beq     :+
-        lda     #'T'
-:
         ldx     #<ld_path
         ldy     #>ld_path
         jsr     make_path
@@ -595,11 +565,6 @@ ld_open:
         sta     mark+1
         lda     ld_part
         beq     @done           ; C clear
-        cmp     #8
-        bcc     :+
-        clc
-        rts                     ; separate file, no DAT mark
-:
         asl     a
         adc     ld_part
         tax
@@ -705,7 +670,6 @@ menu:
         sta     ld_nav_cur
         sta     ld_free
         sta     ld_prep
-        sta     ld_tmap
         jsr     HOME
         ldx     #0              ; the parts of the edition's menu
         lda     ld_regions      ; (tools/genmenu.py menu_xl, menu_1)
@@ -789,18 +753,7 @@ menu:
         cmp     #'2'|$80
         bcc     @scenario
         bcs     @bad
-@other: cmp     #'T'|$80
-        bne     @preparation
-        lda     ld_regions
-        cmp     #6
-        bne     @bad
-        inc     ld_tmap
-        inc     ld_free
-        lda     #4              ; compatibility environment of the data pack
-        sta     ld_region
-        jmp     @level
-@preparation:
-        cmp     #'P'|$80
+@other: cmp     #'P'|$80
         bne     :+
         inc     ld_prep         ; P: a free journey with the questions
         bne     @free           ; (after the pack, src/prepare.s)
@@ -840,7 +793,6 @@ menu:
         lda     #0
         sta     ld_free
         sta     ld_prep
-        sta     ld_tmap
         jmp     @ask
 :       cmp     #'0'|$80
         bcc     @lbad
@@ -923,10 +875,6 @@ ld_nav_prev:
         cpx     #$FF
         bne     ld_nav_set
         ldx     #9
-        lda     ld_regions
-        cmp     #1
-        beq     ld_nav_set
-        inx
         bne     ld_nav_set
 :       cpx     #0
         bne     ld_nav_set
@@ -946,7 +894,7 @@ ld_nav_next:
         cpx     #10
         bcc     ld_nav_set
         bcs     @wrap
-@xl:    cpx     #11
+@xl:    cpx     #10
         bcc     ld_nav_set
 @wrap:
         ldx     #0
@@ -992,7 +940,7 @@ ld_nav_draw:
 :       txa
         jsr     print_level
         jmp     menu_key
-ld_nav_keys: .byte "1234567PHQT"
+ld_nav_keys: .byte "1234567PHQ"
 ld_nav_hint: .byte "ARROWS CHOOSE, RETURN SELECT: ",0
 ld_nav_mode: .byte 0
 ld_nav_cur:  .byte 0
@@ -1035,12 +983,6 @@ make_path:
         cmp     #'D'
         beq     @suffix
         ldx     #5
-        cmp     #'G'
-        beq     @suffix
-        ldx     #8
-        cmp     #'S'
-        beq     @suffix
-        ldx     #11
 @suffix:
         lda     #3
         sta     digits
@@ -1607,9 +1549,6 @@ file_name: .byte "/NEOWILD."
 file_suffix:
 file_dat: .byte "DAT"
 file_geo: .byte "GEO"
-file_scn: .byte "SCN"
-file_tmp: .byte "TMP"
-m_archipelago: .byte "ARCHIPELAGO",0
 mark:   .byte   2, 0, 0, 0, 0   ; SET_MARK
 ; Written by tools/build_disk.py into NEOWILD.SYSTEM: the marks (3 bytes) of
 ; the six packs and of the preparation in NEOWILD.DAT, then the stored
@@ -1619,7 +1558,6 @@ ld_marks: .res  23
 ; 6 (NeoWildernessXL, 800 KB) or 1 (Neowilderness, 140 KB: the Sierra only,
 ; menu key 1; the free journey and the preparation ask no region).
 ld_regions: .byte 0
-.export ld_tmap
 ; Docs/MEMORY.md 14, written by tools/build_disk.py too: the first block of
 ; NEOWILD.BLK (0: none, the 140 KB edition), then the 6 bytes it starts with
 ; (signature "NWBK" and the file's build id).
