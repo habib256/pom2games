@@ -54,3 +54,7 @@ ces décisions ; ne pas rétablir les anciennes attentes par défaut.
   LOWER FOOD avec confirmation ; HANG coûte 30 minutes, LOWER est instantané.
   Préserver l’accès aux occurrences distinctes d’un même objet au sol et
   dans le sac suspendu, ainsi que l’annulation sans effet.
+
+- TASTE depuis OBJECTS inspecte la source sélectionnée sans consommer de
+  stock, sans délai, sans quantité ni TOUT ; garder la confirmation et
+  l’annulation. Ne pas confondre le goût affiché et une garantie de sécurité.

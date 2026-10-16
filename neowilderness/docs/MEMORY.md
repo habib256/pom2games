@@ -2891,3 +2891,16 @@ sont construites explicitement en XL ; la version 140 Ko reste historique.
 Marges : TREE 1 octet, MEDVIEW 1 avant sa queue, MEDVX 2, STATUS 1, STATX 0,
 TEXT 7, BSS 3 et fin de LOW 2. XL : 379/1600 blocs, cinq parties ; DAT
 65 153 octets bruts, 56 094 stockés, 19 enregistrements.
+
+### TASTE et textes de dialogue (16 octobre 2026)
+
+La commande d’ouverture de l’éditeur est copiée dans les 37 premiers octets
+`overlay_text` ($9500) pendant le dialogue ; les listes sont reconstruites à
+la fermeture. Ainsi les aides peuvent passer par `text_fetch` sans écraser
+le nom sélectionné dans `tb_buf`. Aucun nouvel octet résident ni format de
+sauvegarde. Les décisions d’édition et d’émission de quantité partagent une
+routine : TASTE confirme directement, DRINK WATER reste quantifié.
+
+TREE : $5800–$5FB1, 78 octets libres. XL reste à 379/1600 blocs ; DAT
+65 293 octets bruts, 56 093 stockés et 19 enregistrements. Les autres
+fenêtres et leurs marges ne changent pas.
