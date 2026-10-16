@@ -327,11 +327,11 @@ object_draw:
         beq     @after
         cmp     #4
         bcs     :+
-@after: jsr     puts
-        .byte   "FREE AFTER: ",0
-        jmp     @free
-:       jsr     puts
-        .byte   "FREE NOW: ",0
+@after: lda     #om_free_after
+        bne     @free_text
+:       lda     #om_free_now
+@free_text:
+        jsr     om_bank_puts
 @free:
         ldy     #0
         jsr     om_free
@@ -396,6 +396,20 @@ object_key:
         jeq     object_key
         cmp     #6
         jeq     object_key
+        lda     om_qty
+        cmp     om_max
+        lda     om_qty+1
+        sbc     om_max+1
+        bcs     @one            ; ALL -> 1: restart the quick quantity cycle
+        asl     om_qty
+        rol     om_qty+1
+        bcs     @all            ; preserve exact source stock on 16-bit overflow
+        lda     om_qty
+        cmp     om_max
+        lda     om_qty+1
+        sbc     om_max+1
+        jcc     @draw
+@all:
         jsr     om_all
         jmp     object_draw
 @one:   lda     #1

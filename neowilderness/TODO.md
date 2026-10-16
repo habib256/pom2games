@@ -201,11 +201,6 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
   prendre en main, ranger et déposer selon sa nature. Garder son identité
   et sa source (LOCAL/PACK/HANDS/WORN), les sélections et le défilement ;
   revenir au contexte avec la réponse après une action.
-- [ ] **OBJECTS — quantités à compléter.** Choix fin, quantités rapides et TOUT avec le
-  stock exact de la source ; équipements indivisibles et médicaments en
-  usages/doses. Ne pas confondre tout transférer et tout consommer. Étendre
-  les commandes de transfert pour que page et saisie passent par les
-  mêmes règles ; annulation sans changement de temps, stock ni hasard.
 - [ ] **OBJECTS — aperçu à compléter.** Avant validation : source, destination réelle,
   quantité, poids ajouté, volume nécessaire et place restante après
   transfert ; eau/gourde, sac, vêtements et objets fabriqués compris.
@@ -255,8 +250,8 @@ comparaison des 163 variables avec la référence.
   en jeu, le lecteur numérique, MAP et le nom du score sont réalisés :
   CHANGELOG.md (« Navigation commune », 16 octobre 2026).
 - [ ] Observation d’un nouveau joueur au joystick seul (étape 6), après
-  le parcours intégré automatisé ; terminer les quantités rapides et le
-  filtrage contextuel des actions par objet (étape 5).
+  le parcours intégré automatisé ; terminer le filtrage contextuel des
+  actions par objet (étape 5).
 - [ ] Fin de partie : ne pas réécrire le hall of fame quand rien ne change
   (1,9 s ; message à chaque voyage sur disquette protégée ; HOF.md l. 333).
 - [ ] Messages : refus précis, retours persistants, causes d'arrêt nommées
@@ -430,11 +425,13 @@ place des écrans 40 colonnes (étapes 3-4 de MENUS.md, remplacées par les
 pages 80 colonnes).
 
 Points de contrôle du lot suivant : terminer le filtrage contextuel fin,
-le choix rapide de quantité, puis rejouer sur matériel réel le parcours
+puis rejouer sur matériel réel le parcours
 joystick CRAFT → EQUIPMENT → CATCH → feu → COOK → repas → soins →
 sauvegarde/restauration → score. Il est automatisé sur XL avec une rencontre
 déterministe, refus de surcharge et de marche avant extinction du feu,
 annulations et restauration après redémarrage (17 octobre 2026).
+Les quantités rapides par doublement, le réglage fin et TOUT exact sont
+réalisés ; la consommation conserve une quantité explicite (17 octobre).
 Les doses médicales (un usage avec
 stock/durée affichés), LOWER FOOD depuis LOCAL HUNG, les quantités d’eau,
 le volume requis, les refus détaillés des objets fabriqués et EQUIPMENT
