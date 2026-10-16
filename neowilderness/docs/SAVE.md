@@ -1,5 +1,14 @@
 # SAVE et RESTORE (lot 9)
 
+**TMAP XL (16 octobre 2026).** Les cartes générées gardent leur identité
+dans les octets 48–55 de l'en-tête. RESTORE compare cette identité avant
+de recopier l'état et refuse un autre terrain, sans modifier le voyage.
+Après redémarrage, générer le même archipel (graine, nombre d'îles et niveau)
+avant RESTORE. L'identifiant de construction XL couvre aussi le programme
+TMAP et le paquet de scénario, pour refuser une sauvegarde produite par un
+ancien algorithme. Voir [TMAP.md](TMAP.md). Les cartes natives gardent leur
+usage de 40–63 pour les vêtements et ne subissent pas cette comparaison.
+
 Cinq parties sur la disquette du jeu, comme l'original (V1 de
 [ORIGINAL_GAP.md](ORIGINAL_GAP.md) § 2.11, lot 9 du § 3). Code :
 [`src/save.s`](../src/save.s) ; construction : `tools/build_disk.py`
@@ -115,6 +124,17 @@ La longueur du fichier (`sv_size`) est lue dans le module par
 | `NEOWILD.SAV` | 1 218 | 4 (3 + index) |
 | `NEOWILD.S1`…`S5` | 1 424 chacun | 4 chacun (3 + index), 20 en tout |
 | **Total du lot** | | **24** |
+
+État au 16 octobre 2026 : la partie était passée à 1 725 octets (4 blocs
+de données, 5 avec l'index) avec les lots 2, 3, 4 et 13, et le volume de
+140 Ko était plein (280/280). Depuis, `sv_ranges` ne sauve plus les poids
+et volumes constants des objets (W5 `it_oz_*`, W6 `it_vol_*`) : seulement
+ceux que le jeu écrit (provisions et eau 22-37, FUEL 40 et GOLD 75 de la
+préparation ; la gourde, 64, est recalculée par `load_totals`) ; l'état
+fait 1 477 octets, la partie 32 + 1 477 = 1 509 octets, **4 blocs** (3 +
+index ; assertion dans `src/save.s`), cinq blocs rendus au volume.
+`tests/test_save.py` vérifie que les octets laissés de côté restent ceux de
+l'image (`ITEM_TABLES`).
 
 Volume 140 Ko : 252 → **276 blocs occupés sur 280, 4 libres**. Un volume
 trop petit pour les cinq parties (disque de comparaison à carte native,

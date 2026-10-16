@@ -86,7 +86,7 @@ craft_main:
         jsr     cr_here
         lda     verb
         cmp     #3
-        beq     cr_make
+        jeq     cr_make
         cmp     #2
         jne     cr_items        ; GET, PACK, CARRY, DROP, WEAR (from ITEMS)
         ldx     noun            ; USE (camp_use_more: 9, 89..92, 95..97)
@@ -98,14 +98,72 @@ craft_main:
 ; hand. The ROCK's b2 counts as the CLUB's (both are means 17, cleared
 ; together: T0F/S07 $590F).
         jsr     cr_item
+        sta     cr_n
         cmp     #$FF
         jeq     cr_m1
-        lda     #3
-        sta     cr_b1,x
-        lda     cr_ft,x
-        ora     fg_use
+        lda     cr_ft,x         ; in use, even when the hand cannot take it
+        ora     fg_use          ; (the original: msg 7, the weapon stays)
         sta     fg_use
+        lda     #3
+        jsr     cr_load
+        bcs     cr_heavy
+        sta     cr_b1,x
         jmp     cr_ok
+cr_heavy:
+        stx     cr_report_item
+        lda     #0
+        sta     cr_report_pass
+        lda     #cr_refused
+        ldx     #0
+        jsr     message
+        inc     camp_said
+@part:  ldx     cr_report_item
+        ldy     #0
+        lda     cr_report_pass
+        bne     @volume
+        lda     cr_w,x
+        jmp     @need
+@volume:
+        ldy     cr_ld
+        lda     cr_v,x
+@need:  sta     msgnum
+        lda     #0
+        sta     msgnum+1
+        sty     cr_report_slot
+        sec
+        lda     load_limits,y
+        sbc     load_used,y
+        sta     stock_available
+        lda     load_limits+1,y
+        sbc     load_used+1,y
+        sta     stock_available+1
+        bcs     :+
+        lda     #0
+        sta     stock_available
+        sta     stock_available+1
+:       lda     stock_available
+        cmp     msgnum
+        lda     stock_available+1
+        sbc     #0
+        bcs     @next
+        jsr     msg_newline
+        lda     cr_report_slot
+        lsr     a
+        tax
+        lda     cr_report_texts,x
+        jsr     text_fetch
+        sta     gp1
+        stx     gp1+1
+        jsr     message_body
+@next:  inc     cr_report_pass
+        lda     cr_report_pass
+        cmp     #2
+        bcc     @part
+        rts
+cr_report_texts: .byte cr_weight,cr_wear,cr_pack,cr_hands
+cr_report_item: .byte 0
+cr_report_pass: .byte 0
+cr_report_slot: .byte 0
 cr_ft:  .byte   FT_BOW, FT_SPEAR, FT_CLUB, FT_CLUB
 
 ; ---------------------------------------------------------------------------
@@ -536,8 +594,8 @@ cr_put:
 ; cell, WEAR the SPLINT only ("TRY ANOTHER VERB.": the port's text; worn,
 ; the care selector 3 of USE SPLINT, no time); there
 ; already msg 11, absent msg 1. Run from ITEMS (src/game.s item_noun): CAMP
-; is not in $5800, the messages are printed by message directly. No load:
-; the second set weighs nothing in the port.
+; is not in $5800, the messages are printed by message directly. Lot 14
+; (16 October 2026): taken from the ground, within the load (cr_load).
 ; ---------------------------------------------------------------------------
 cr_items:
         jsr     cr_item
@@ -565,7 +623,9 @@ cr_items:
         beq     @nopack
         cpy     #5
         bcs     @nopack
-:       pha
+:       jsr     cr_load         ; lot 14: from the ground, within the limits
+        bcs     @heavy
+        pha
         cpx     #4              ; the SPLINT: worn, care selector 3 (USE
         bne     @put            ; SPLINT's); any other place clears it
         ldy     #0              ; (T0E/S0A $5AC4, measured)
@@ -579,10 +639,52 @@ cr_items:
         lda     cr_said,x
 @say:   ldx     #0              ; a text of the bank
         jmp     message
+@heavy: jmp     cr_heavy        ; both capacity causes, without changing cr_load
 @nopack:
         lda     #m_needpack
         bne     @say
 cr_dest: .byte  3, 0, 0, 0, 1, 2, 3, 0  ; verbs 1 GET, 5 WEAR, 6 PACK, 7 CARRY, 8 DROP
+
+; cr_load -- (lot 14, T0E/S02) X = 0..4 taken from place cr_n to place A
+; (1 worn, 2 pack, 3 hand): from the ground, the load made by the caller
+; (load_totals, ITEMS or CAMP) plus its weight and its volume (W5, W6 of
+; CRAFT.md 4.1) must stay within load_limits; C set when it passes one
+; (the original's msg 7). A, X kept.
+cr_load:
+        pha
+        ldy     cr_n
+        bne     @ok             ; carried already: its weight stays
+        asl     a
+        sta     cr_ld
+        ldy     #0
+        lda     cr_w,x
+        jsr     cr_fit
+        bcc     @no
+        ldy     cr_ld
+        lda     cr_v,x
+        jsr     cr_fit
+        bcc     @no
+@ok:    pla
+        clc
+        rts
+@no:    pla
+        sec
+        rts
+; cr_fit -- C clear when A more in word Y of load_used passes load_limits.
+cr_fit: clc
+        adc     load_used,y
+        sta     cr_ld+1
+        lda     #0
+        adc     load_used+1,y
+        sta     cr_ld+2
+        lda     load_limits,y
+        cmp     cr_ld+1
+        lda     load_limits+1,y
+        sbc     cr_ld+2
+        rts
+cr_w:   .byte   50, 50, 100, 100, 50    ; W5 (oz), as src/game.s lt_crw
+cr_v:   .byte   90, 90, 200, 100, 120   ; W6 (in3)
+cr_ld:  .res    3
 cr_said: .byte  m_dropped, m_worn, m_taken, m_carried
 
 ; cr_have -- X = noun (1..75): C set when present (have), X kept.

@@ -36,8 +36,7 @@ def commands():
     steps += [L.poke('injury_active',0,7),L.peek('medical_actions',30),
               'key:SUCK VENOM\r','wait:1',IDLE,L.peek('medical_actions',30),L.peek('s_elap',5)]
     steps += ['key:INVENTORY\r','wait:1',L.until('inventory_key',12000),
-              'key:3','wait:1',L.until('inventory_key',12000),
-              'key:N','wait:1',L.until('inventory_key',12000),'peek:0400:1024']
+              L.peek('ob_n',2),L.peek('ob_at',2),L.peek('overlay_text',160)]
     r = a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=1800)
     elapsed=0
     for i,(_,selector,minutes) in enumerate(cases):
@@ -55,8 +54,11 @@ def commands():
     last=len(cases)+2*len(REFUSALS)
     assert r.mem(L['medical_actions'],30,last)==r.mem(L['medical_actions'],30,last+1)
     assert abs(fp(r.mem(L['s_elap'],5,last))-elapsed)<1e-7
-    screen='\n'.join(text_screen(r.mem(0x400,1024)))
-    assert 'USES' in screen,screen
+    # OBJECTS (16 October 2026): the remedies carried are on its
+    # CARRIED side (their uses: tests/test_objects.py)
+    n,at=r.mem(L['ob_n'],2),r.mem(L['ob_at'],2)
+    right=r.mem(L['overlay_text'],160)[at[1]:at[1]+n[1]]
+    assert all(i in right for i in (45,47,48,50)),right
     print('Medical commands, oral medicines, doses, refusals and inventory quantities OK',flush=True)
 
 
@@ -705,7 +707,7 @@ def medical_gestures():
             s.step(L.poke('injury_active', 1, 0))           # SEVERE CUTS
             if by_page:
                 line, typed = gesture(s)
-                assert line.startswith(' \u2190\u2192 STOP BLEEDING  USE PRESSURE') and typed == 'STOP BLEEDING', (line, typed)
+                assert line.removeprefix(' \u2190\u2192 ').startswith('STOP BLEEDING  USE PRESSURE') and typed == 'STOP BLEEDING', (line, typed)
                 s.step(IDLE)
             else:
                 s.step('key:STOP BLEEDING\r'); s.step('wait:1'); s.step(IDLE)
@@ -718,7 +720,7 @@ def medical_gestures():
             s.step(L.poke('light', 0))
             if by_page:
                 line, typed = gesture(s)
-                assert line.startswith(' \u2190\u2192 USE FRSTAID KIT') and typed == 'USE FLASHLIGHT', (line, typed)
+                assert line.removeprefix(' \u2190\u2192 ').startswith('USE FRSTAID KIT') and typed == 'USE FLASHLIGHT', (line, typed)
                 s.step(L.until('get_line', 400000)); s.step(L.until('do_command', 40000))
                 assert s.step(L.peek('inbuf', 20)).data.startswith(b'USE FRSTAID KIT\0')
                 s.step(IDLE)

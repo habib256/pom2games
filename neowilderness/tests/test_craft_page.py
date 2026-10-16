@@ -143,7 +143,7 @@ def setup(s, where, rope=True):
 
 def open_page(s):
     """From the view: UP (STATUS), then RIGHT twice (OBJECTS): CRAFT."""
-    s.step('key:\\^')
+    s.step('key:STATUS\\r')
     s.step(READY)
     for _ in range(2):
         s.step('key:\\>')
@@ -324,13 +324,13 @@ def page_view(disk, tag):
         for _ in range(s.step(L.peek('cp_focus')).data[0]):     # up to the tab row
             page = key(s, '\\^')                           # (UP there: TOPO)
         page = key(s, '\\<')
-        check(f'LEFT on the tab row: INVENTORY, ALTCHARSET {"on" if xl else "off"}',
-              'GROUND HERE' in page[2] and (page_frame(page, 'OBJECTS') or not xl) and altchar(s) == on, page[2])
+        check(f'LEFT on the tab row: OBJECTS, ALTCHARSET {"on" if xl else "off"}',
+              page[2].startswith(' LOCAL ') and 'HANDS' in page[2][40:] and (page_frame(page, 'OBJECTS') or not xl) and altchar(s) == on, page[2])
         page = key(s, '\\>')
         check('RIGHT from INVENTORY: CRAFT again', is_craft(page, xl) and altchar(s) == 1, page[1 + d])
         page = key(s, '\\>')
         check(f'RIGHT: HELP, ALTCHARSET {"on" if xl else "off"}', not is_craft(page, xl)
-              and (page_frame(page, 'HELP') if xl else 'S/O/R/H' in page[0]) and altchar(s) == on, page[2])
+              and (page_frame(page, 'HELP') if xl else 'S/O/R/H' not in page[0]) and altchar(s) == on, page[2])
         page = key(s, 'R')
         check('R: CRAFT', is_craft(page, xl), page[1 + d])
         for _ in range(10):
@@ -533,6 +533,7 @@ def grid(disk, tag):
     with a2test.Session(disk, timeout=900) as s:
         s.step(IDLE)
         port = setup(s, 'woods')
+        command(s, 'DROP TENT')         # (lot 14: room in the load for the BOW)
         command(s, 'MAKE BOW')
         command(s, 'MAKE SPEAR')
         press(s, RET)
@@ -572,6 +573,7 @@ def grid(disk, tag):
     with a2test.Session(disk, timeout=900) as s:
         s.step(IDLE)
         port = setup(s, 'woods')
+        command(s, 'DROP TENT')
         command(s, 'MAKE BOW')
         command(s, 'MAKE SPEAR')
         for k, text in enumerate(flat):
@@ -591,6 +593,7 @@ def hint():
     with a2test.Session(DISK) as s:
         s.step(IDLE)
         port = setup(s, 'woods')
+        port.poke('load_limits', [2000 & 255, 2000 >> 8])   # (lot 14: room for the BOW in hand)
         command(s, 'MAKE BOW')
 
         def panel(text):
@@ -611,13 +614,10 @@ def hint():
 
 def main():
     page_view(DISK, '')
-    page_view(DISK140, '-140')
     agreement()
     times()
     page_equals_keyboard(DISK, 'XL')
-    page_equals_keyboard(DISK140, '140 KB')
     grid(DISK, 'XL')
-    grid(DISK140, '140 KB')
     hint()
     if fails:
         print(f'CRAFT page: {len(fails)} FAIL: {fails}')

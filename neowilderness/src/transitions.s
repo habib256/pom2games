@@ -1,5 +1,6 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
-; Full redraws and SIM use a clean text curtain. Preserve the live command
+; Full redraws use a clean text curtain; SIM keeps the last complete view.
+; Preserve the live command
 ; and result rows and the cursor; restore the four-row command window. Never expose
 ; an earlier STATUS/HELP page or executable bytes in HGR.
 ; The curtain is 80-column text, like the four mixed rows of the view: the

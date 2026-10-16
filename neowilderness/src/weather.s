@@ -215,7 +215,10 @@ weather_daily:
         jmp     module_weather_daily
 ; The preparation's storm frequency (src/prepare.s): in the raw SIM image,
 ; which NEOWILD.PRE patches through pr_patch_sim (ADVENTURE is LZ-packed).
+.pushseg
+.segment "GDATA"
 wf_storm: .byte $81,0,0,0,0
+.popseg
 .segment "ADVENTURE"
 module_weather_daily:
         fld     s_date

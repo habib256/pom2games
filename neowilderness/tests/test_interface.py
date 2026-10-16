@@ -195,20 +195,20 @@ def ground_hint():
             assert s.step(L.peek('it_pack_lo',1,item)).data==b'\0'
         s.step('key:INVENTORY\\r')
         s.step(L.until('inventory_key',20000))
-        s.step('key:4')
-        s.step('wait:1')
-        s.step(L.until('inventory_key',6000))
         screen=text_screen(s.step('peek:0400:1024').data)
         # The ROCK lies on every land cell (lot 3, docs/CRAFT.md 3.3): the
-        # ground hint names the first set only.
-        assert '4 GROUND HERE 1' in screen[2] and screen[4].startswith('\u258fROCK'), screen[:6]   # XL: docs/MENUS.md 9
+        # ground hint names the first set only. OBJECTS (16 October 2026):
+        # LOCAL holds it alone.
+        assert (screen[2].startswith(' LOCAL ') and screen[3].startswith('\u258f  ROCK           100 OZ')
+                and not screen[4][1:39].strip()), screen[:6]   # XL: docs/MENUS.md 9
     print('  Ground hints agree with inventory after retrieving gear and exhausting food/water (the ROCK aside): OK')
 
 
 def inventory_status():
-    """OBJECTS, 80 columns: the five groups in tabs with their counts, the
-    items of the page in three columns (33 a page), CARRYING, the four
-    capacities on row 21, the keys on rows 22-23."""
+    """OBJECTS, 80 columns (16 October 2026, docs/MENUS.md 5): LOCAL on the
+    left, CARRIED on the right (HANDS, PACK, WORN, always headed), each item
+    with its weight, eleven entries a side ("MORE" below a longer list),
+    CARRYING and LOAD under them, the keys on row 23."""
     steps=[IDLE]
     # Empty groups, then 16 provisions split between the pack and the ground.
     for i in range(1,76): steps += [L.poke('it_place',255,i),L.poke('it_pack_lo',0,i),L.poke('it_pack_hi',0,i)]
@@ -217,15 +217,12 @@ def inventory_status():
     start = (HERE / 'build/map.bin').read_bytes()
     steps += [L.poke('cr_b1',255,3),L.poke('cr_still',1),L.poke('fg_x',start[3]),L.poke('fg_y',start[5])]
     steps += ['key:INVENTORY\\r','wait:1',L.until('inventory_key',20000),'peek:0400:1024']
-    for key in ('2','3','4'):
-        steps += [f'key:{key}','wait:1',L.until('inventory_key',6000),'peek:0400:1024']
     steps += ['key:\\e','wait:1',IDLE]
     for i in range(22,38):
         steps += [L.poke('it_place',2,i),L.poke('it_pack_lo',10,i),L.poke('it_gnd_lo',20,i),L.poke('it_gnd_hi',0,i),
                   L.poke('it_x',0,i),L.poke('it_y',0,i)]
     steps += [L.poke('px',0,1),L.poke('py',0,1),L.poke('fg_x',0),L.poke('fg_y',0),L.peek('s_hour',5),L.peek('s_health',5),
-              'key:INVENTORY\\r','wait:1',L.until('inventory_key',6000),'key:3','wait:1',L.until('inventory_key',6000),'peek:0400:1024',
-              'key:4','wait:1',L.until('inventory_key',6000),'peek:0400:1024',
+              'key:INVENTORY\\r','wait:1',L.until('inventory_key',6000),'peek:0400:1024',
               'key:\\e','wait:1',IDLE]
     # Worst simultaneous STATUS: all illnesses, cold, shelter, immersion.
     steps+=poke('s_defw',60)+poke('s_deff',120)+poke('s_defr',40)+poke('s_therm_factor',.5)+poke('s_body',90)
@@ -233,32 +230,34 @@ def inventory_status():
               'key:STATUS\\r','wait:1',L.until('wait_key',20000),'peek:0400:1024',
               'key:\\e','wait:1',IDLE,L.peek('s_hour',5),L.peek('s_health',5)]
     r=a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
-    for k,group in enumerate(('WORN','IN HAND','IN PACK','GROUND HERE')):
-        screen=text_screen(r.dumps[k])
-        # XL (docs/MENUS.md 9): the group row on row 2, the items in the
-        # group's post-it (rows 3-20, its name the title), its page in its last row
-        assert page_frame(screen, 'OBJECTS') and ' PAGE 1/1 ' in screen[15] and \
-            screen[3] == f' {group} '.ljust(80, '_'), screen
-        assert f'[{k+1} {group} 0]' in screen[2] and screen[4].startswith('\u258fNONE'),screen
-    pages=[text_screen(d) for d in r.dumps[6:8]]
-    for screen,qty in zip(pages,('10 OZ','20 OZ')):
-        assert '3 IN PACK 16' in screen[2] and '4 GROUND HERE 16' in screen[2], screen[2]
-        cells=[line[c:c+26] for line in screen[4:15] for c in (1,27,53) if line[c:c+26].strip()]
-        assert len(cells)==16 and len({c[:13] for c in cells})==16 and all(qty in c for c in cells), cells
-        assert screen[21].startswith('FREE  WEIGHT ') and screen[21].count(' IN3')==3 and screen[21][79]==' ', screen[21]
-        assert page_frame(screen, 'OBJECTS', '\u2191\u2193 GROUPS/PAGES  1-5 GROUP  N NEXT  B BACK  \u2191 TOPO', 'ESC VIEW'), screen[22:]
-        # CARRYING (from STATUS, 15 October 2026): food and water in their own columns.
-        for row in (r'CARRIED +150 OZ +10 OZ',r'HERE +300 OZ +20 OZ'):
-            assert __import__('re').search(row,'\n'.join(screen)), (row,screen[16:21])
-    screen=text_screen(r.dumps[8]); joined='\n'.join(screen)
+    keys='\u21b5 LIST/ACT \u2190\u2192\u2191\u2193 MOVE  H HANDS'
+    screen=text_screen(r.dumps[0])
+    assert page_frame(screen, 'OBJECTS', keys, 'ESC VIEW'), screen
+    assert screen[2].startswith(' LOCAL ') and screen[2][41:].startswith(' HANDS '), screen[2]
+    assert not any(row[1:39].strip() for row in screen[3:14]), screen[3:14]        # nothing here
+    assert ' PACK ' in screen[4][41:] and ' WORN ' in screen[5][41:] and \
+        not any(row[42:78].strip() for row in screen[6:15]), screen[3:15]
+    assert 'MORE' not in screen[15], screen[14]
+    screen=text_screen(r.dumps[3])
+    assert page_frame(screen, 'OBJECTS', keys, 'ESC VIEW'), screen
+    left=[row[1:39].split() for row in screen[3:15]]
+    assert all(cells[-2:] == ['20', 'OZ'] for cells in left), left                  # 11 of the 16 ground piles
+    assert ' PACK ' in screen[4][41:], screen[3:5]
+    assert all(row[42:78].split()[-2:] == ['10', 'OZ'] for row in screen[5:15]), screen[5:15]
+    assert screen[15].count(' MORE ') == 2, screen[14]                              # both lists go on
+    # CARRYING (from STATUS, 15 October 2026): food and water in their own columns.
+    for row in (r'CARRIED +150 OZ +10 OZ',r'LOCAL +300 OZ +20 OZ'):
+        assert __import__('re').search(row,'\n'.join(screen)), (row,screen[15:20])
+    assert screen[16][41:].startswith(' LOAD ') and 'WALK TIME +' in screen[18], screen[15:20]
+    screen=text_screen(r.dumps[4]); joined='\n'.join(screen)
     assert is_status(screen), 'worst STATUS must not scroll away its heading'
     assert page_frame(screen, 'STATUS', '\u2191 TOPO', 'ESC/\u2193 VIEW'), screen
     # LOCAL (15 October 2026): the date, the time, the air and the felt temperature.
     assert 'DATE    MAY 6' in screen[3] and ' FEELS ' in screen[4], screen[3:5]
     for word in ('DEHYDRATION','STARVATION','EXHAUSTION','HYPOTHERMIA','SHIVERING','INSIDE SHELTER','IMMERSED'):
         assert word in joined, (word,joined)
-    assert r.dumps[4]==r.dumps[9] and r.dumps[5]==r.dumps[10], 'consultation must not spend time or health'
-    print('  INVENTORY 80 columns: tabs and counts, empty groups, split ounces in three columns, capacities, keys; worst STATUS: OK')
+    assert r.dumps[1]==r.dumps[5] and r.dumps[2]==r.dumps[6], 'consultation must not spend time or health'
+    print('  OBJECTS 80 columns: LOCAL and CARRIED, empty groups, split ounces on both sides, MORE, CARRYING, LOAD; worst STATUS: OK')
 
 
 def help_pages():
@@ -321,20 +320,21 @@ def option_pages():
                 s.step(f'key:{key}'); s.step('wait:1'); s.step(L.until('wait_key',20000))
             return text_screen(s.step('peek:0400:1024').data)
         rows=page('\\<')
-        # XL (docs/MENUS.md 9.3): a post-it a line, then RANGERS (15 October 2026)
-        assert rows[2].startswith(' SAVE ') and rows[3].startswith('\u258f  S  SAVE') and rows[9].startswith('\u258f  Q  QUIT'), rows[:10]
-        assert rows[11].startswith(' RANGERS ') and ' CELLS AWAY' in rows[12] and rows[13].startswith('\u258fJOURNEY DONE: 0%'), rows[11:15]
-        assert not any(r.strip() for r in rows[15:22]) and page_frame(rows, 'MENU', '\u2191\u2193 CHOOSE  \u21b5 SELECT', 'ESC VIEW'), rows
+        # XL (docs/MENUS.md 9.3): RANGERS first, then SAVE / RESTORE, then QUIT (15 October 2026)
+        assert rows[2].startswith(' RANGERS ') and ' CELLS AWAY' in rows[3] and rows[4].startswith('\u258fJOURNEY DONE: 0%'), rows[2:5]
+        assert rows[6].startswith(' SAVE / RESTORE ') and rows[7].startswith('\u258f  S  SAVE') and \
+            rows[8].startswith('\u258f  R  RESTORE') and rows[11].startswith('\u258f  Q  QUIT'), rows[6:12]
+        assert not any(r.strip() for r in rows[13:22]) and page_frame(rows, 'MENU', '\u2191\u2193 CHOOSE  \u21b5 SELECT', 'ESC VIEW'), rows
         s.step('press:Q'); s.step(L.until('do_command',20000))
         assert s.step(L.peek('inbuf',5)).data==b'QUIT\0'
         s.step(L.until('wait_key',20000))
         assert 'UNSAVED PROGRESS WILL BE LOST' in '\n'.join(text_screen(s.step('peek:0400:1024').data))
         s.step('key:N'); s.step(IDLE)
         rows=page('\\<','\\<')
-        assert rows[2].startswith(' NATURE ') and 'P  MAP: ON' in rows[9], rows[:10]
+        assert rows[2].startswith(' OPTIONS ') and rows[5].startswith('\u258f  P  MAP PAGE') and rows[5][31:34] == '[\u2713]', rows[:10]
         s.step('key:P'); s.step('wait:1'); s.step(L.until('wait_key',20000))
         rows=text_screen(s.step('peek:0400:1024').data)
-        assert 'P  MAP: OFF' in rows[9] and s.step(L.peek('game_options')).data==b'\x40', rows[9]
+        assert rows[5][31:34] == '[ ]' and s.step(L.peek('game_options')).data==b'\x40', rows[5]
         s.step('key:\\e'); s.step(IDLE)
         s.step('key:MAP\\r'); s.step('wait:1'); s.step(IDLE)
         assert 'MAP IS OFF (OPTIONS PAGE).' in result_text(text_screen(s.step('peek:0400:1024').data))
@@ -437,31 +437,43 @@ def main_view_hints():
 
 
 def inventory_backward():
-    """Every item in the pack: three pages (33 + 33 + 9); B across groups returns to
-    the previous group's last page; 1-5 choose the group (the arrows turn the
-    pages of the STATUS cycle, src/pages.s)."""
-    steps=[IDLE,L.poke('px',0,1),L.poke('py',0,1)]
-    for item in range(1,76):
-        steps += [L.poke('it_place',2,item),L.poke('it_pack_lo',1,item),L.poke('it_pack_hi',0,item)]
-    for item in range(23,38):
-        steps += [L.poke('it_gnd_lo',2,item),L.poke('it_gnd_hi',0,item),
-                  L.poke('it_x',0,item),L.poke('it_y',0,item)]
-    steps += [L.peek('s_hour',5),L.peek('it_pack_lo',76),
-              'key:INVENTORY\\r','wait:1',L.until('inventory_key',20000)]
-    for key in ('3','N','N','B','B','B','3','2'):
-        steps += [f'key:{key}','wait:1',L.until('inventory_key',6000),'peek:0400:1024',
-                  L.peek('inventory_group',2)]     # group, page (adjacent)
-    steps += ['key:\\e','wait:1',IDLE,L.peek('s_hour',5),L.peek('it_pack_lo',76)]
-    r=a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
-    shots=[(text_screen(r.dumps[2+2*k]),r.dumps[3+2*k][0],r.dumps[3+2*k][1]) for k in range(8)]
-    where=[(g,p) for _,g,p in shots]
-    assert where==[(2,0),(2,1),(2,2),(2,1),(2,0),(1,0),(2,0),(1,0)], where
-    assert ' PAGE 1/3 ' in shots[0][0][15] and ' PAGE 2/3 ' in shots[1][0][15]
-    assert '[3 IN PACK 75]' in shots[0][0][2], shots[0][0][2]
-    assert shots[3][0]==shots[1][0], 'B from pack page 3 must return to pack page 2'
-    assert shots[4][0]==shots[0][0], 'B within the pack must return to page 1'
-    assert r.dumps[0]==r.dumps[-2] and r.dumps[1]==r.dumps[-1]
-    print('  three pack pages; B across groups returns to the previous last page; 3, 2; time and stocks preserved: OK')
+    """OBJECTS (16 October 2026): every item in the pack, a list of 78
+    entries on the right; DOWN moves the cursor and the window follows it
+    (the cursor on its last row), UP back above the window's top shows the
+    list from its first entry again; past the last item, the view. Time and
+    stocks untouched."""
+    with a2test.Session(DISK) as s:
+        s.step(IDLE)
+        s.step(L.poke('px',0,1)); s.step(L.poke('py',0,1))
+        for item in range(1,76):
+            for name,v in (('it_place',2),('it_pack_lo',1),('it_pack_hi',0)):
+                s.step(L.poke(name,v,item))
+        for item in range(23,38):
+            for name,v in (('it_gnd_lo',2),('it_gnd_hi',0),('it_x',0),('it_y',0)):
+                s.step(L.poke(name,v,item))
+        before=(s.step(L.peek('s_hour',5)).data,s.step(L.peek('it_pack_lo',76)).data)
+        s.step('key:INVENTORY\\r'); s.step(L.until('inventory_key',20000))
+
+        def key(k, times=1):
+            for _ in range(times):
+                s.step(f'press:{k}'); s.step('wait:1'); s.step(L.until('inventory_key',6000))
+            return text_screen(s.step('peek:0400:1024').data)
+        screen=key('\\r')                                   # the lists
+        screen=key('\\>')                                   # CARRIED
+        assert screen[5][42] == '>' and screen[2][41:].startswith(' HANDS ') and ' PACK ' in screen[4][41:], screen[3:6]
+        screen=key('\\v',15)                                # 15 items down: the window follows
+        assert screen[14][42] == '>' and not any(row[42] == '>' for row in screen[3:14]), screen[3:14]
+        assert s.step(L.peek('obj_cur',1,1)).data[0] == 17 and screen[15].count(' MORE ') == 2, screen[14]
+        screen=key('\\^',11)                                # above the window: from the first entry
+        assert screen[9][42] == '>' and screen[2][41:].startswith(' HANDS '), screen[3:14]
+        n=s.step(L.peek('ob_n',1,1)).data[0]                # (..., the last item, WORN)
+        key('\\v',n-2-s.step(L.peek('obj_cur',1,1)).data[0])  # the last item of the pack
+        s.step('press:\\v'); s.step('wait:2')
+        out=s.step(f'until:{L["keyboard_wait"]:04X},{L["idle"]:04X}:20000').out
+        assert f'PC={L["idle"]:04X}' in out, 'DOWN past the last item: the view'
+        assert (s.step(L.peek('s_hour',5)).data,s.step(L.peek('it_pack_lo',76)).data) == before
+    print('  OBJECTS: every item in the pack, the window follows the cursor, the view past the last item; '
+          'time and stocks preserved: OK')
 
 
 def timberline_display():

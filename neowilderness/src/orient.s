@@ -62,7 +62,7 @@ orient_take:
         lda     #ORIENT_MODULE
         jsr     overlay_load
         jmp     module_orient_look
-@use:   lda     #20
+@use:   lda     #ORIENT_MODULE
         jsr     overlay_load
         jmp     module_orient_use
 orient_no:
@@ -98,9 +98,13 @@ orient_ask:
         ldx     orient_dialog
         cpx     #OA_NORTH
         jcs     orient_number
-        jsr     prompt          ; $4D39: only the two keys (or ESC) answer
-@key:   jsr     wait_key
-        jsr     kbd_upcase
+        cpx     #OA_SHADOW
+        beq     @shadow
+        jsr     orient_confirm
+        jmp     @read
+@shadow:
+        jsr     orient_eastwest
+@read:
         ldx     orient_dialog
         cmp     #KC_ESC
         beq     @esc
@@ -109,7 +113,7 @@ orient_ask:
         beq     @answer
         dey
         cmp     oa_zero,x
-        bne     @key
+        bne     @esc
 @answer:
         tya
         clc
@@ -644,7 +648,7 @@ os_481:   .byte $89,$70,$80,$00,$00     ; 481 ($5AEC)
 
 oa_lo: .byte <oa_watch, <oa_shadow, <oa_north, <oa_south, <oa_hours
 
-.segment "TREE"
+.segment "ORIENT"
 ; USE (T$11/S$00 $5BF9 family 6, $5DAC SHADOW).
 module_orient_use:
         lda     noun
@@ -725,3 +729,7 @@ ou_missing:
         lda     #<m_noitem
         ldx     #>m_noitem
         jmp     message
+
+.segment "ORIENT"
+        UI_TWO orient_confirm, 'N', 'Y'
+        UI_TWO orient_eastwest, 'E', 'W'

@@ -67,16 +67,20 @@ def main():
     assert d[4]['it_place']==d[0]['it_place'] and d[4]['load']==d[0]['load']
     print('  packed canteen, independent ground food/water, correct accessible ounces and recovery: OK',flush=True)
     steps=cmd('CLIMB TREE')+cmd('HANG FOOD')+snap()
-    steps+=['key:INVENTORY\r','wait:1',L.until('inventory_key',12000),'key:5','wait:1',L.until('inventory_key',12000),'peek:0400:1024',r'press:\e','wait:1',IDLE]
+    steps+=['key:INVENTORY\r','wait:1',L.until('inventory_key',12000),'peek:0400:1024',
+            L.peek('ob_n',2),L.peek('overlay_text',160),r'press:\e','wait:1',IDLE]
     steps+=['key:STATUS\r','wait:1',L.until('status_key',12000),'peek:0400:1024',r'press:\e','wait:1',IDLE]+snap()+cmd('CLIMB DOWN')+cmd('LOWER FOOD')+snap()
     r=run(steps)
     # Extra screen peeks interleave only the text-screen occurrences.
     screens=['\n'.join(text_screen(r.mem(0x400,1024,i))) for i in range(5)]
-    assert 'HUNG HERE' in screens[1] and 'BACKPACK' in screens[1]
+    # OBJECTS (16 October 2026): the list LOCAL ends with its LOCAL HUNG
+    # heading ($84: group 4) and the hung pack (21), below the ground's items
+    left=r.mem(L['overlay_text'],160)[:r.mem(L['ob_n'],2)[0]]
+    assert screens[1].split('\n')[2].startswith(' LOCAL ') and 0x84 in left and 21 in left[left.index(0x84):], (left, screens[1])
     assert 'IN A TREE' in screens[2] and 'BACKPACK HUNG' in screens[2]
     assert r.mem(L['it_place'],76,0)==r.mem(L['it_place'],76,1)
     assert r.mem(L['tree_in'],1,2)==b'\0' and r.mem(L['it_place'],76,2)[21]==3
-    print('  HUNG HERE inventory and STATUS across overlays: OK',flush=True)
+    print('  LOCAL HUNG inventory and STATUS across overlays: OK',flush=True)
     # Exercise real travel: the pack is not carried or teleported to the next cell.
     steps=cmd('NATURE 0')+snap()+cmd('HANG FOOD')+snap()
     steps+=cmd('WALK 9 MIN')*2+snap()+cmd('GET BACKPACK')+snap()

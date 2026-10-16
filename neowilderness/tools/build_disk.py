@@ -128,8 +128,8 @@ MODULES = {0: ('wildtpg.bin', 0x9600), 1: ('wildvoc.bin', 0x5800),
            26: ('wildori.bin', 0x5800), 27: ('wildalr.bin', 0x5800),
            9: ('wildcrf.bin', 0x9600),
            28: ('wildtxb.bin', 0x0000), 31: ('wildfrg.bin', 0x9600),
-           32: ('wildgrid.bin', 0xA300)}
-DIR_ENTRIES = 33                 # memory.s MOD_COUNT
+           32: ('wildgrid.bin', 0xA300), 33: ('wildeqp.bin', 0x5800)}
+DIR_ENTRIES = 34                 # memory.s MOD_COUNT
 ZP_ENTRY, ZP_AUX = 30, 0xBF00    # ProDOS's zero page during the game (src/boot.s)
 # The text bank (src/textbank.s): entry 28, never loaded whole; entry 29 is
 # the scratch entry of memory.s text_fetch (its bank and destination here).
@@ -153,9 +153,15 @@ LZ_MODULES = (0, 1, 4, 5, 14, 16, 19, 20, 21, 26, 27)
 # Docs/MEMORY.md 28: the store of the six packs (XL, the comparison disks)
 # packs the grid's module (32) too, for the animal's background (OUTDOOR
 # ab_copy): 2,676 -> 2,441 bytes, about 0.1 s more per choice of the grid.
-# The 140 KB edition keeps it raw: its NEOWILD.DAT, LZ-packed as a whole,
-# would grow by a block (its store has room).
-LZ_SIX_PACKS = (32,)
+# The 140 KB edition kept it raw until 16 October 2026 (LZ_140).
+# CATCH durations (MEMORY.md 35): also pack the hourly star module (25),
+# saving 45 bytes. It runs only when the night sky list needs refreshing.
+LZ_SIX_PACKS = (25, 32)
+# Docs/MEMORY.md 30 (16 October 2026): since the OBJECTS page of transfers
+# the 140 KB edition packs the grid's module too (its store is full; its
+# NEOWILD.DAT has room again since the saved games take four blocks).
+# The taller OBJECTS layout also packs MEDICAL (17) on 140 KB.
+LZ_140 = (3, 17, 25, 32)
 # The animals of the packs too: one sprite at most is loaded per view
 # (sprites.s scene_prepare), about 40 cycles more per byte, under 1 % of a
 # full view (6.1 million cycles).
@@ -360,6 +366,12 @@ def system_file(build, sym, marks, prepare_length, cache=None, regions=6, blk=by
     at = sym['__LOADER_LOAD__'] - 0x2000
     loader = bytearray(raw[at:])
     assert len(loader) == sym['__LOADER_SIZE__']
+    if regions == 1:
+        # These menu parts are never used by the 140 KB edition. Keep the
+        # linked addresses but compress zeros, preserving its five saves.
+        for first, last in (('m_title_xl', 'm_title'), ('m_more', 'm_free_1')):
+            a, b = (sym[n] - sym['__LOADER_RUN__'] for n in (first, last))
+            loader[a:b] = bytes(b - a)
     mark = sym['ld_marks'] - sym['__LOADER_RUN__']
     assert loader[mark:mark + 23] == bytes(23), 'NEOWILD.SYSTEM ld_marks'
     loader[mark:mark + 23] = b''.join(m.to_bytes(3, 'little') for m in marks) + \
@@ -766,14 +778,15 @@ def file_blocks(size):
     return data + (data > 1)
 
 
-def save_files(build, sym, trunk, packs):
+def save_files(build, sym, trunk, packs, extra=b''):
     """NEOWILD.SAV (build/wildsav.bin) with its build id, and the length of
     a NEOWILD.Sn file (src/save.s sv_size). The id is two bytes of the
-    SHA-256 of the trunk and the six packs (maps included), never 0."""
+    SHA-256 of the trunk, packs and optional generated-scenario program/data,
+    never 0. A generator change must invalidate saves of its old geometry."""
     module = bytearray((build / 'wildsav.bin').read_bytes())
     base = 0x9600
     assert 0 < len(module) <= 0x9C00 - base, 'NEOWILD.SAV overlaps its slot image'
-    digest = hashlib.sha256(trunk + b''.join(packs[r] for r in sorted(packs))).digest()
+    digest = hashlib.sha256(trunk + b''.join(packs[r] for r in sorted(packs)) + extra).digest()
     build_id = int.from_bytes(digest[:2], 'little') or 1
     at = sym['sv_build'] - base
     module[at:at + 2] = build_id.to_bytes(2, 'little')
@@ -789,8 +802,8 @@ def save_files(build, sym, trunk, packs):
 # the 140 KB edition reads MEDVIEW, TREE and ORIENT there (lot 4, MEMORY.md
 # 16, 18: its store had no room left for them).
 EDITIONS = {'neowilderness': dict(regions=(2,), blocks=280, volume='NEOWILDERNESS',
-                                  disk_modules=(19, 20, 26), shelters=False, mousetext=False,
-                                  lz_modules=LZ_MODULES),
+                                  disk_modules=(19, 20), shelters=False, mousetext=False,
+                                  lz_modules=LZ_MODULES + LZ_140),
             'xl': dict(regions=PACK_REGIONS, blocks=1600, volume='NEOWILDERNESSXL',
                        disk_modules=(4, 16, 19, 20, 26), shelters=True, mousetext=True)}
 
@@ -905,6 +918,10 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
     assert (sym['st_cat'], sym['st_cat2']) == (MODULES[24][1], MODULES[25][1]), \
         'src/wild.cfg SKYCAT/SKYSTARS and MODULES[24]/[25]'
 
+    # Native-map stress fixtures also need the compressed SIM image.
+    # Its four mutable preparation constants now live in resident RAM.
+    if map_path:
+        lz_modules = tuple(sorted(set(lz_modules) | {3}))
     # ---- common trunk: every module but the animals.
     images, raw_images, lz = {}, {}, {}
     xl = xl_files(build, sym) if mousetext else {}
@@ -939,6 +956,11 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
             lz[index] = dict(stored=len(packed[0]), copy=packed[1], margin=packed[2])
     project_patches = site_project(build, sym, images, raw_images, blk_where, shelters)
     regions_data = {r: region_data(build, r, map_path if r == 2 else None) for r in PACK_REGIONS}
+    # XL's generated journeys use a separate scenario pack. Its declarative
+    # data supplies scenery and environment; TMAP is a separate program.
+    import scenario
+    archipelago = scenario.manifest() if mousetext and not map_path else None
+    archipelago_pack = None
 
     def sprite_image(name):
         """(stored bytes, LZ entry or None) of an animal sprite."""
@@ -1064,7 +1086,7 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
                         (build / 'wildhi.bin').read_bytes()),
                        # The grid of the menu: read here (free during the load),
                        # hidden in the HGR rows 176-191 by the loader (ld_scatter).
-                       (MAIN, 0xAF00, (build / xl.get('wildmenusw.bin', 'wildmenusw.bin')).read_bytes())]
+                       (MAIN, sym['SWAP_LOAD'], (build / xl.get('wildmenusw.bin', 'wildmenusw.bin')).read_bytes())]
     trunk, trunk_stats = records(trunk_sections, packing, cache)
 
     # ---- one pack per region.
@@ -1115,7 +1137,7 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
             bank, address = placed[index]
             if region == 2:     # the trunk's images hold the Sierra Nevada:
                 assert trunk_bytes == patch, (symbol, trunk_bytes.hex(), patch.hex())
-            else:               # its pack writes them again for nothing
+            if region != 2 or mousetext:  # XL may return from TMAP to Sierra
                 sections.append((bank, address + offset, patch))
             patches[symbol] = dict(module=index, bank=BANK_NAMES[bank], address=address + offset,
                                    data=patch.hex())
@@ -1127,12 +1149,30 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
         # its pack leaves them (15 October 2026, docs/MEMORY.md 27), as its
         # fauna patches; the loader always reads the trunk first.
         sections += [(MAIN, 0x0800, data['mask'])]
-        if region != 2:
+        if region != 2 or mousetext:
             sections.append((MAIN, tables_start, dhgr_tables))
+        if mousetext:
+            # Every normal pack restores its scenery after a cancelled TMAP.
+            text_image = (build / 'wildtxt.bin').read_bytes()
+            at = sym['forest_profiles'] - 0x0A00
+            sections += [(MAIN, sym['forest_profiles'], text_image[at:at + 64]),
+                         (MAIN, sym['forest_crown_floor'], bytes((32,)))]
         sections += [(MAIN, sym['__REGIONTEXT_RUN__'], region_texts(data['entry'], data['header'])),
                      (MAIN, sym['module_dir'], directory(all_placed, all_images, {**lz, **sprite_lz})),
                      (MAIN, 0x7000, data['map'][:MAP_BYTES])]
         packs[region], stats = records(sections, packing, cache)
+        if archipelago and region == archipelago['base_pack']:
+            # Same store/directory ABI as this base environment. Suppress its
+            # four large species; the resource filters (fish, plants, game)
+            # remain environment data. Sprite slots are reserved, never met.
+            index = PATCH_MODULES['fauna_travel']
+            bank, address = all_placed[index]
+            offset = sym['fauna_travel'] - MODULES[index][1]
+            arc_sections = list(sections[:-1])  # map last: LZ staging uses $7000
+            arc_sections.append((bank, address + offset, bytes(4)))
+            arc_sections += scenario.scenery_sections(archipelago, sym)
+            arc_sections.append((MAIN, 0x7000, scenario.header(archipelago)))
+            archipelago_pack = records(arc_sections, packing, cache)[0]
         pack_info[str(region)] = dict(
             name=data['entry']['name'], filename='NEOWILD.DAT', **stats,
             sprites=list(data['sprites']), sprite_bytes=sum(map(len, raw_sprites.values())),
@@ -1176,6 +1216,15 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
         (stage / 'PRODOS#FF0000').write_bytes((DEV / 'tools/prodos/PRODOS').read_bytes())
         (stage / 'NEOWILD.SYSTEM#FF2000').write_bytes(bytes(system))
         (stage / 'NEOWILD.DAT#060000').write_bytes(bytes(dat))
+        if archipelago:
+            assert archipelago_pack is not None
+            (stage / 'NEOWILD.SCN#060000').write_bytes(archipelago_pack)
+            generator = (build / 'tmap.bin').read_bytes()
+            assert 0 < len(generator) <= 0x2000
+            # STAGE is also $2000: this program must load raw, not decode
+            # over its own compressed input.
+            tmap = records([(MAIN, 0x2000, generator)], 'raw', cache)[0]
+            (stage / 'NEOWILD.TMP#062000').write_bytes(tmap)
         if blk:
             (stage / 'NEOWILD.BLK#060000').write_bytes(blk)
         # Lot 7 step 6 (docs/HOF.md): the end-of-game module, read from the
@@ -1195,7 +1244,8 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
         # do_save, with the build id of this volume (a game saved by another
         # build is refused), and the five games, fixed-length files written
         # in place (no CREATE, no block allocated), empty (zeros) here.
-        save_module, slot_size = save_files(build, sym, trunk, packs)
+        identity = archipelago_pack + generator if archipelago else b''
+        save_module, slot_size = save_files(build, sym, trunk, packs, identity)
         (stage / 'NEOWILD.SAV#069600').write_bytes(save_module)
         for game in range(1, SAVE_GAMES + 1):
             (stage / f'NEOWILD.S{game}#060000').write_bytes(bytes(slot_size))
@@ -1379,6 +1429,8 @@ if __name__ == '__main__':
                 if 'deborde' not in str(e2) and 'auxiliary' not in str(e2):
                     raise
                 e = e2
+    if args.edition and not args.omit:
+        assert len(info['save_games']['files']) == SAVE_GAMES, 'shipping editions must keep all five saves'
     packs = ', '.join(f'R{r} {p["stored"]}' for r, p in info['packs'].items())
     print(f'{args.out}: NEOWILD.DAT {info["dat"]["raw"]} -> {info["dat"]["stored"]} bytes '
           f'({info["packing"]}, {info["dat"]["records"]} records); packs (bytes) {packs}; '

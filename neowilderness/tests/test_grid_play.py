@@ -136,17 +136,73 @@ def frame(disk):
         mem = s.step('peek:0400:1024').data
         rows = text_screen(mem)[20:24]
         if disk == DISK:
-            assert rows[0][39:] == '\u258f WALK \u2595LOOK \u2595REST \u2595WAIT \u2595EAT  \u2595DRINK\u2595   ', rows[0]
+            assert rows[0][39:] == '\u258f WALK \u2595LOOK \u2595REST \u2595WAIT \u2595EAT  \u2595DRINK    ', rows[0]
             assert all(r[39] == '\u258f' for r in rows), rows
         else:
             assert rows[0][39:] == '| WALK  LOOK  REST  WAIT  EAT   DRINK    ', rows[0]
     print(f'  {disk.name}: the grid\'s cells ' + ('in MouseText boxes' if disk == DISK else 'plain') + ': OK')
 
 
+def one_ounce(disk):
+    """The last ounce can be chosen with arrows alone, exactly as typed."""
+    from test_menu_bar import choose, typed, move_to, press, ESC
+    from test_input import snapshot
+
+    def state(s):
+        return (snapshot(s), s.step(L.peek('s_hour', L['s_t0']+5-L['s_hour'])).data)
+
+    for labels, line in ((('DRINK',), 'DRINK WATER 1 OZ'),
+                         (('EAT', 'EGGS', '1 OZ'), 'EAT EGGS 1 OZ'),
+                         (('BOIL',), 'BOIL WATER 1 OZ')):
+        outcomes = []
+        for grid in (True, False):
+            with a2test.Session(disk) as s:
+                s.step(IDLE)
+                s.step(L.poke('nature_frequency', 0))
+                # One ounce in the canteen and of eggs in the pack; none
+                # on the ground. A ready fire/utensils skips BOIL's setup.
+                for item in (22, 24):
+                    for name, value in (('it_pack_lo', 1), ('it_pack_hi', 0),
+                                        ('it_gnd_lo', 0), ('it_gnd_hi', 0),
+                                        ('it_place', 2)):
+                        s.step(L.poke(name, value, item))
+                s.step(L.poke('fire_on', 1))
+                s.step(L.poke('camp_use', 32))
+                typed(s, 'LOOK AHEAD')       # rebuild the contextual verbs
+                if grid:
+                    press(s, RET)
+                    if labels[0] == 'EAT':
+                        before = state(s)
+                        move_to(s, 'EAT'); press(s, RET)
+                        move_to(s, 'EGGS'); press(s, RET)
+                        assert sum(grid_cells(s), []) == ['TASTE', '1', 'OZ'], bottom(s)
+                        press(s, ESC, ESC)
+                        assert state(s) == before, 'cancelling the portion changed the journey'
+                        if selected(s) is None:
+                            press(s, RET)
+                    composed, _ = choose(s, *labels)
+                    assert composed == line, (labels, composed)
+                    assert peek(s, 'mq_n') == 0
+                else:
+                    typed(s, line)
+                item = 24 if labels[0] == 'EAT' else 22
+                assert peek(s, 'it_pack_lo', item) == 0, (line, bottom(s))
+                if labels[0] == 'BOIL':
+                    assert peek(s, 'it_gnd_lo', 22) == 1, bottom(s)
+                else:
+                    result = 'YOU ATE 1 OUNCE.' if item == 24 else 'YOU DRANK 1 OUNCE.'
+                    assert result in '\n'.join(bottom(s)), bottom(s)
+                outcomes.append(state(s))
+        assert outcomes[0] == outcomes[1], (disk, line, 'grid differs from typed command')
+    print(f'  {disk.name}: last ounce of food/water, BOIL 1 OZ, atomic ESC; grid = typed simulation, no numeric prompt: OK')
+
+
 def main():
-    for disk in (DISK, DISK140):
+    for disk in (DISK,):
+        one_ounce(disk)
+    for disk in (DISK,):
         frame(disk)
-    for disk in (DISK, DISK140):
+    for disk in (DISK,):
         play(disk)
     print('The grid with the arrows and RETURN alone (fire, boiled water, mushrooms, bleeding), both editions: OK')
 

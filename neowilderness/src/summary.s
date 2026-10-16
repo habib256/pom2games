@@ -46,6 +46,8 @@ summary_prepare:
 @done:  rts
 ; Item commands need a new hint/clock, but arrow turns reuse the header.
 summary_refresh:
+        bit     obj_keep        ; a transfer of OBJECTS: the page comes back
+        bmi     @done           ; (the header waits: ui_dirty, at its exit)
         lda     ui_enabled
         beq     @done
         lda     ui_dirty

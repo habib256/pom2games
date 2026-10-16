@@ -71,7 +71,9 @@ CRASH, RIVER, CABIN, GOAL, ROW = 10, (12, 13), 16, 24, 40
 BITE = seed_for((0, 16))        # IGNORE RATTLER: the first reaction roll bites
 RATTLER = 8
 # Commands of the trip that load a module NEOWILD.BLK may hold: MEDVIEW (19).
-DISK_LOADS = {'SUCK VENOM': (19,)}
+# (CAMP, 4: on NEOWILD.BLK of the comparison disks since 16 October 2026,
+# when their store overflows: build_disk.py moves it there.)
+DISK_LOADS = {'SUCK VENOM': (19,), 'FILL CANTEEN': (4,)}
 # scene_asset of the site sprites (src/project.s): blocks of the raw image.
 SITE_BLOCKS = {33: 3, 34: 3, 35: 5}
 VERBOSE = '-v' in sys.argv
@@ -185,7 +187,7 @@ def play(disk, title, strict=True):
         s.step(IDLE)
         # The NEOWILD.BLK modules of this disk (directory bank $40): blocks.
         blocks = {m: -(-int.from_bytes(peek_dir(s, m, 3, 2), 'little') // 512)
-                  for m in (19,) if peek_dir(s, m, 0, 1)[0] == 0x40}
+                  for m in (4, 19) if peek_dir(s, m, 0, 1)[0] == 0x40}
         boot = counters()
         start_health, start_date = fp(peek('s_health', 5)), peek('s_date', 5)
         start_machine = machine()

@@ -128,7 +128,7 @@ look_standing:
 look_stand_bits: .byte %001, %101, %001, %010, %001, 0, 0
 
 ; Placement 5 stores the pack and its contents at the pack's ground anchor.
-.segment "TREE"
+.segment "ORIENT"
 module_tree_command:
         lda     verb
         cmp     #V_CLIMB
@@ -354,6 +354,11 @@ tree_lower:
 
 tree_height: .byte 0
 tree_health_min: .byte $82,$20,0,0,0
-tree_saved_places: .res 76
+tree_saved_places = tb_buf       ; rollback only; no text fetch before restore
+.assert TB_MAX >= 76, error, "tree rollback scratch"
 
         .include "orient.s"     ; lot 7: orientation
+
+        .include "object_menu.s"
+
+        .include "equipment.s"

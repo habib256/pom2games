@@ -252,7 +252,11 @@ def main():
         out.append(f'{name}: .byte   ' + ', '.join(f'${b:02X}' for b in fp(v)) + f'   ; {v}')
     out.append('.segment "THERMAL"')
     for name, v in THERMAL_FLOATS.items():
+        if name in ('th_surface', 'th_a'):
+            out += ['.pushseg', '.segment "GDATA"']
         out.append(f'{name}: .byte ' + ', '.join(f'${b:02X}' for b in fp(v)))
+        if name in ('th_surface', 'th_a'):
+            out.append('.popseg')
     open(sys.argv[1], 'w').write('\n'.join(out) + '\n')
 
 

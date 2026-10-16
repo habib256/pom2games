@@ -7,6 +7,288 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### EQUIPMENT, eau quantifiée et refus CRAFT (16 octobre 2026)
+
+- Septième onglet EQUIPMENT : WORN, HANDS, IN USE et PACK disponible,
+  état réel de chaque objet, volume des mains et capacités libres.
+- Actions depuis l’équipement avec confirmation et retour sur le même
+  objet ; posséder ou tenir un outil ne simule pas son activation.
+  Préparation du piège, de la pêche et de l’appât lue dans la simulation.
+- GET/DROP WATER quantifiés depuis OBJECTS, volume nécessaire et destination
+  du récipient ; refus atomique si les 64 OZ de la gourde sont dépassées.
+- Aperçu du volume requis et de la place WEAR restante. USE filtré selon
+  les actions reconnues. Refus des objets fabriqués détaillant séparément
+  poids et volume PACK/HANDS/WEAR, avec quantité requise et place libre.
+- Validation : `make test-xl` (21 scripts), plus TMAP (96 archipels)
+  et mémoire graphique ; comparaison de 163 variables de simulation après
+  24 étapes identiques à la référence. Tests en émulateur, manette réelle
+  restant à vérifier.
+- Répertoire de 34 modules ; EQUIPMENT partage la fenêtre $5800, les
+  commandes TREE rejoignent ORIENT, TAKE OZ rejoint OUTDOOR. Aucun nouvel
+  état sauvegardé et aucune modification des règles natives de charge.
+
+### XL seule et transactions OBJECTS (16 octobre 2026)
+
+- Arrêt du développement 140 Ko demandé par l’utilisateur. Construction,
+  lancement et suite de tests courante ciblent NeoWildernessXL.
+- Entrée sur un objet ouvre son menu d’actions, puis une quantité pour les
+  provisions et piles, puis une confirmation. Échap revient sans mutation.
+- Transferts partiels PACK/CARRY/DROP, quantités entières 16 bits et OZ,
+  validation atomique des unités, du stock et des équipements indivisibles.
+- EAT utilise la source sélectionnée ; un repas commence à une once et
+  n’offre pas TOUT. Les actions rechargent OBJECTS en conservant son contexte.
+- Aperçu de charge des transferts usuels, capacités restantes et dépassement
+  exact ; les cas non projetés affichent la capacité actuelle. Les cas
+  particuliers restant à réaliser sont au TODO et dans MENUS § 11.
+
+
+### TMAP XL et premier paquet archipel (16 octobre 2026)
+
+- Entrée T du menu XL : programme séparé `NEOWILD.TMP`, deux ou trois îles,
+  graine hexadécimale, aperçu, régénération et annulation avant le voyage.
+- `NEOWILD.SCN`, produit depuis `scenarios/archipelago.json` : climat,
+  palettes et profils de décor ; rencontres de grands animaux absentes.
+  Le moteur reçoit des données de décor, sans branche propre à l'archipel.
+- Mer jusqu'aux bords, départ et poste sur des îles distinctes, chenaux
+  courts. L'eau salée est exclue des sources de boisson. RESTORE refuse un
+  autre terrain ; même graine, nombre d'îles et niveau permettent la reprise.
+- Les paquets classiques restaurent leurs décors après annulation. Les
+  textes de menu réservés à XL sont neutralisés dans le chargeur 140 Ko
+  pour conserver ses cinq sauvegardes. Documentation : `docs/TMAP.md`.
+- Ajustements demandés : arbres désactivés dans le scénario après rejet
+  du premier rendu ; relief renforcé (sommets à 53 ou 61 niveaux), océan
+  bleu continu jusqu'à l'horizon même quand les rayons quittent la carte.
+
+### Navigation commune : premier lot de l'audit approuvé (16 octobre 2026)
+
+- Pilote joystick dans `src/ui_event.s` : lecture simultanée des axes,
+  zone morte, répétition directionnelle, bouton 0 valider et bouton 1
+  retour ; boutons sur front, saisie d'une commande protégée des axes.
+  Les pages, la grille et les attentes usuelles partagent cette entrée.
+- Menu de départ : choix et niveau aux directions puis validation ;
+  les raccourcis et le défaut Sierra/niveau 4 restent. Les questions
+  personnalisées de préparation et le dialogue /RAM initial restent à finir.
+- P/G des aliments répartis entre sol et sac, Y/N de QUIT, remplacement de
+  sauvegarde et recherche d'eau, Y/N et E/W d'orientation : choix aux
+  directions puis validation ; N reste le défaut des confirmations.
+- Les invites numériques acceptent haut/bas (entiers), en plus des nombres
+  tapés ; SAVE/RESTORE devient accessible aux directions. WALK/SWIM accepte
+  le bouton retour à la frontière d'un pas, sans lecture des axes.
+- MAP : validation entre en exploration, directions font défiler,
+  validation recentre, retour quitte ce mode puis rend la vue. Les touches
+  I/J/K/L/C et la navigation MAP/TOPO sont conservées hors exploration.
+- Score : haut/bas choisit la dernière lettre, droite ajoute un A à modifier,
+  gauche efface, validation enregistre le nom, retour annule. Les lettres
+  tapées et les autres caractères du nom restent reconnus.
+- Place : pointeurs de rangée de carte calculés, consommation d'onces dans
+  ITEMS, lecteur de nombre résident déplacé ; nouveau placement temporaire
+  du chargeur. SIM compressé sur 140 Ko, ORIENT dans son stock RAM ; les
+  constantes de corps/météo sont résidentes et sauvegardées. Les cinq
+  sauvegardes restent sur les deux volumes ; construction refusée si une
+  édition livrée les perd. MEMORY.md § 38 détaille le placement.
+- `tests/test_navigation.py` couvre les deux éditions avec de vraies entrées
+  de port de jeu et les dialogues bloquants, la carte et le nom du score.
+  Les quatre évolutions OBJECTS, le retour après soin et les prolongements
+  de CRAFT/CATCH restent dans le TODO approuvé ; ce lot ne les déclare pas faits.
+
+
+### OBJECTS : sélections mémorisées et jauges de volume (16 octobre 2026)
+
+- Le côté choisi, les sélections des deux listes et le défilement sont
+  retrouvés après un retour à la vue, une autre page ou une simulation.
+  La sélection suit l'identité de l'objet si des lignes sont ajoutées ou
+  retirées avant lui ; si l'objet disparaît, le curseur choisit un voisin.
+  L'arrivée garde le focus sur l'onglet, Entrée active les listes.
+- LOAD ajoute deux jauges de six cellules pour le volume occupé dans PACK
+  et HANDS, avec le volume libre exact en IN3. Poids total, ralentissement
+  de marche et volume libre des vêtements restent affichés.
+- Deux octets BSS gardent les identités, sans modifier les sauvegardes.
+  Les calculs et petites routines de page partagent MEDVIEW, chargé à
+  l'ouverture d'OBJECTS ; son pied de page XL passe à $5FC0.
+
+
+### Disposition et navigation des pages (16 octobre 2026)
+
+- OBJECTS sépare HANDS et PACK en deux post-it sur XL. Les listes gagnent
+  une ligne (douze entrées visibles), CARRYING et LOAD descendent d'une ligne.
+- À l'ouverture, le focus reste sur l'onglet : bas revient à la vue,
+  Entrée active les listes, puis les flèches parcourent les objets.
+- Haut depuis la vue retrouve la dernière page du haut ouverte, même après
+  une commande de simulation. La commande STATUS ouvre toujours STATUS.
+- Retrait de S/O/R/H en haut des pages et de la barre après DRINK dans la
+  grille. L'échelle de distance de TOPO et son chiffre 4 passent en bas à gauche.
+
+
+### CATCH : durée choisie dans la grille (16 octobre 2026)
+
+- Après GAME ou FISH, CATCH propose `10 MIN`, `20 MIN`, `30 MIN`, `1 H`,
+  `2 H`, `4 H`, `8 H`. La file prépare l'appât et le piège ou le matériel
+  de pêche, puis tape par exemple `CATCH FISH 30 MIN`, sans invite numérique.
+  Échap annule le choix ; un prérequis refusé ou une nouvelle rencontre
+  arrête la file comme auparavant.
+- La saisie directe accepte aussi CATCH avec une durée entière en H ou MIN,
+  strictement inférieure à 25 h. CATCH seul avec sa cible garde la question
+  originale, fractions d'heure comprises ; les règles et tirages sont inchangés.
+- Aucun état résident ajouté : le dernier emplacement de la file garde le
+  choix de durée (CATCH utilise trois étapes au plus). Le module horaire des
+  étoiles est maintenant compressé en stock (45 octets gagnés) pour faire
+  tenir l'ajout ; le rendu des étoiles est vérifié sur les deux éditions.
+- `test_grid_catch.py` compare grille, commande en ligne et invite décimale
+  sur les deux éditions, avec refus, annulation et interruption. Les tests de
+  grille, FORAGE, référence de simulation, étoiles, éditions et compression
+  passent. Images reconstruites : **280/280** et **369/1600** blocs ;
+  [MEMORY.md](docs/MEMORY.md) § 35.
+
+### Dernière once accessible depuis la grille (16 octobre 2026)
+
+- EAT, DRINK et BOIL proposent désormais `1 OZ`, avant 2, 4, 8, 12, 16,
+  24, 32 et 48 oz. Un stock d'une once peut être consommé ou bouilli avec
+  les seules flèches et RETURN ; la grille proposait auparavant 2 oz,
+  qui dépassait ce stock et provoquait un refus.
+- Les plafonds de stock et de boisson restent appliqués ; TASTE reste le
+  premier choix d'EAT. Les listes à un seul choix gardent leur sélection
+  automatique, les annulations n'avancent pas le temps.
+- `test_grid_play.py` compare les derniers repas, boissons et ébullitions
+  d'une once aux commandes tapées sur les deux éditions, sans invite
+  numérique. `test_menu_bar.py`, `test_camp.py`, `test_forage.py` et
+  `test_reference_state.py` vérifient les autres portions et la simulation.
+  Volumes inchangés : 279 et 368 blocs ; [MEMORY.md](docs/MEMORY.md) § 34.
+
+### Protection thermique retirée avec le vêtement (16 octobre 2026)
+
+- Sur carte native, PACK, GET, TAKE et CARRY d'un vêtement porté mettent
+  immédiatement à jour les pertes thermiques et l'isolation, comme DROP.
+  La bascule WEAR de la grille (qui tape PACK) en bénéficie aussi. Auparavant,
+  la parka restait comptée dans la protection jusqu'au calcul thermique suivant.
+- Le calcul intervient après acceptation du transfert : une capacité de sac
+  ou de main insuffisante conserve le vêtement porté et sa protection.
+  Le message garde le bon objet et la bonne destination après le calcul.
+- `test_items.py` vérifie les cinq destinations/verbes sur les deux éditions,
+  les pertes arrondies de la Sierra (torse 14 → 47, isolation 37 → 48),
+  les refus atomiques et l'absence de temps, de lecture disque et de changement
+  des banques DHGR. Vérifications complémentaires : `test_reference_state.py`,
+  `test_thermal.py`, `test_menu_bar.py`, `test_load.py`, `test_objects.py`.
+  Les deux disquettes restent à 279 et 368 blocs ; [MEMORY.md](docs/MEMORY.md) § 33.
+
+### Messages accordés et commandes de camp incomplètes (16 octobre 2026)
+
+- Les nombres des résultats de repos, attente, déplacement, repas, boisson,
+  collecte d'eau et cap magnétique accordent leur unité : `1 HOUR`,
+  `1 MINUTE`, `1 OUNCE`, `1 DEGREE` ; les autres nombres gardent le pluriel.
+  Le marqueur `%` prend en compte les deux octets du nombre, y compris 257.
+- MAKE, BUILD, USE, BOIL, DOUSE et STOP sans objet affichent `NAME AN ITEM`
+  avec des exemples, dont `MAKE FIRE`, sans consommer de temps ni de stock.
+  Le message de verbe inconnu conserve le mot et `TYPE HELP` en moins de texte.
+- Vérifications : `test_feedback.py` (les deux éditions, valeurs limites,
+  état et vue conservés), `test_input.py`, `test_sleep.py`,
+  `test_transitions.py`, `test_reference_state.py` et `test_camp.py`.
+  Les deux disquettes restent à 279 et 368 blocs ; [MEMORY.md](docs/MEMORY.md) § 32.
+
+### Paysage conservé pendant la simulation (16 octobre 2026)
+
+- Les deux éditions gardent la dernière vue complète pendant les calculs de
+  REST, SLEEP, WAIT et les chargements de SIM. Le rideau texte ne commence
+  qu'au redessin, pour masquer les images incomplètes ; les messages et le
+  curseur restent conservés.
+- Aucun accès disque ni changement des règles ajouté. La vérification de
+  référence conserve les 163 variables (1 324 octets) sur 24 étapes.
+- Validation : `test_transitions.py` (les deux éditions), `test_sleep.py`,
+  `test_reference_state.py`, `test_screen_returns.py`, `test_camp.py` et
+  `test_interface.py`. Images `.po` reconstruites : 279 et 368 blocs.
+
+### OBJECTS, page de transfert ; poids du second jeu ; GET sans question
+
+Demandes de l'utilisateur du 15 octobre 2026, **les deux éditions**
+(post-its MouseText sur XL, texte simple sur 140 Ko) :
+
+- **OBJECTS** ([MENUS.md](docs/MENUS.md) § 5.1) : à gauche ce qui est au sol
+  de la case (LOCAL, puis LOCAL HUNG), à droite ce qui est porté (HANDS,
+  PACK, WORN), chaque objet avec son poids (les remèdes avec leurs USES),
+  onze par côté, `MORE` sous une liste qui continue. Gauche et droite
+  changent de côté, haut et bas d'objet ; RETURN l'envoie de l'autre côté
+  (`PACK x`, `GET WATER`, `CARRY BACKPACK`/`CANTEEN` ; `DROP x` depuis la
+  droite), H le prend en main (`CARRY x`) : la commande est tapée comme au
+  clavier (temps, règles et refus de l'original), la page revient avec la
+  réponse du jeu (rangées 20-22) et le curseur au même endroit ; les
+  rangées 20-21 disent ce que RETURN et H tapent. Un transfert prend
+  ≈ 1,1 s (XL) à 1,2 s (140 Ko). CARRYING reste ; LOAD montre la jauge du
+  poids porté jusqu'à la limite (772/815 OZ au départ), le ralentissement
+  de la marche (`WALK TIME +28%`) et les volumes libres. Les groupes, leurs
+  pages et les touches 1-5, N, B disparaissent ; les abris ne sont plus
+  dans les objets (la page CRAFT les montre).
+- **Seuils de la charge mesurés sur la ROM** (`tools/re_load_probe.py`) :
+  la marche ralentit proportionnellement au poids dès la première livre
+  (100 × livres / (corps + 2) %, T08/S07, déjà ainsi dans TRAVEL) ; le
+  seul seuil est la limite (`$4BFA`, 815 oz), au-delà de laquelle tout
+  objet pris au sol est refusé (msg 7) : c'est la fin de la jauge.
+- **Le second jeu pèse** ([CRAFT.md](docs/CRAFT.md) § 8.2) : arc et lance
+  50 oz, gourdin et pierre 100, attelle 50 (et leurs volumes) comptent dans
+  la charge, la marche et l'effort ; pris au sol au-delà des limites, ils
+  sont refusés (« TOO MUCH WEIGHT OR VOLUME. ») : GET ROCK au départ est
+  refusé, comme dans l'original.
+- **GET sans question** : **écart voulu, décision du 15 octobre 2026**
+  ([FORAGE.md](docs/FORAGE.md) § 17.3, [CAMP.md](docs/CAMP.md) § 3). PACK
+  d'une pile du lot 4 (le GET de la grille : INSECTS, PLANTS…) prend toute
+  la pile du sol ; GET d'une source d'eau remplit la gourde au plus de ce
+  que la source, la gourde et le poids restant permettent ; le message dit
+  les onces prises (« YOU TOOK n OUNCES. »). La sonde de l'original rejoue
+  la pile entière là où l'original demande.
+- **Corrections** : PACK et DROP d'une pile ne copient la fiche et le
+  compteur de la pile source que sur une pile vide (mesuré sur la ROM) ;
+  USE BOW/SPEAR/CLUB/ROCK laissait l'écran en texte (le rideau) jusqu'à la
+  commande suivante : la vue revient ; DROP du `2QT CANTEEN` depuis la
+  grille répondait « INVALID VALUE OR UNIT » (le chiffre du nom) : le nom
+  tapé est `CANTEEN`.
+- **Place** ([MEMORY.md](docs/MEMORY.md) § 30) : les parties sauvées ne
+  gardent plus les poids et volumes constants des objets : 1 509 octets,
+  4 blocs au lieu de 5 chacune ([SAVE.md](docs/SAVE.md) § 5) ; 140 Ko :
+  NEOWILD.DAT 70 628 → 71 915 octets (142 blocs), CRAFT 9 blocs, GRID
+  compressé dans le stock (≈ 0,08 s de plus par choix de la grille, comme
+  XL), volume **279/280** blocs avec les cinq parties (280/280 avant) ;
+  XL 368 blocs, STATUS 16 blocs ; aucun octet résident de plus
+  (WILDGAME 11 → 6, WILDERNESS 2 → 22).
+
+### STATUS, MENU et OPTIONS réagencés ; gravité des affections
+
+Demandes de l'utilisateur du 15 octobre 2026, **les deux éditions** (le
+post-it sur XL, le même contenu en texte simple sur 140 Ko ; focus et
+touches inchangés) :
+
+- **STATUS** : CONDITIONS passe à droite sous LOCAL (rangées 11-14, deux
+  affections par rangée) ; CONDITION occupe toute la hauteur à gauche
+  (2-14), une rangée vide entre HEALTH, ENERGY, HUNGER, THIRST et BODY, et
+  le pourcentage revient après chaque jauge (`90% OKAY`). La situation de
+  LOCAL tient en rangées 7-9. MEDICAL reste en bas sur toute la largeur.
+- **MEDICAL** : les pourcentages des affections sont affichés en gravité,
+  `100 − x` : un corps sain lit 0 % partout (affichage seul : simulation et
+  sauvegardes inchangées).
+- **MENU** : RANGERS en tête, puis SAVE et RESTORE dans un même post-it
+  (SAVE / RESTORE), puis QUIT.
+- **OPTIONS** : un seul grand post-it, une option par rangée, l'état aligné
+  (`[X]` / `[ ]` ; coche MouseText sur XL ; la fréquence de la faune en
+  chiffres), la ligne du focus en inverse ; sur XL une phrase décrit
+  l'option choisie en bas du post-it (pas la place dans le module STATUS
+  de 140 Ko). Libellés : `PLAYER ON TOPO`, `MAP PAGE`.
+
+Place : module STATUS 6 306 → 6 396 octets (`$9600-$AEFB`, 5 libres sous
+`$AF00`) ; 140 Ko : NEOWILD.DAT 70 560 → 70 628 octets, toujours 280/280
+blocs avec les cinq parties ; aucun octet résident de plus (le
+`pg_lines` résident ne sert plus). XL : la queue STATX garde la phrase des
+options ; `mt_skip`, `pg_lines_x`, `pg_mark_x` retirés.
+
+### HERE devient LOCAL dans les libellés
+
+Demande de l'utilisateur du 15 octobre 2026, **les deux éditions** : les
+libellés affichés qui disaient HERE disent LOCAL. CARRYING (OBJECTS) :
+`CARRIED / LOCAL / IN REACH` ; ligne de stock du bas :
+`FOOD n WATER n LOCAL f/w OZ` (39 colonnes avec quatre chiffres partout) ;
+groupes d'OBJECTS `4 LOCAL GROUND` et `5 LOCAL HUNG` (au lieu de
+`GROUND HERE`, `HUNG HERE`). Les phrases des messages (`NOT ACCESSIBLE
+HERE.`, `STOP HERE. THE MAP ENDS AHEAD.`…) et les commandes tapées ne
+changent pas. Place : l'octet de plus de MENUSWAP (plein) est repris par
+un `BIT abs` dans `sum_ground` ; aucun octet résident de plus ; 140 Ko
+toujours 280/280 blocs avec les cinq parties.
+
 ### Pages du haut restructurées, post-its sur NeoWildernessXL
 
 Demandes de l'utilisateur du 15 octobre 2026. **Les deux éditions** : les

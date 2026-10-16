@@ -56,7 +56,7 @@ les placements et les totaux reviennent à leur état précédent. Les quantité
 ne changent pas. Le sac peut rester suspendu pendant un déplacement et être
 récupéré au retour. Suspendre à nouveau un sac déjà suspendu est refusé.
 
-INVENTORY ajoute `5 HUNG` / `HUNG HERE`, visible seulement à la case du sac.
+OBJECTS ajoute le groupe `5 LOCAL HUNG`, visible seulement à la case du sac.
 STATUS exclut les provisions suspendues des totaux transportés et accessibles,
 et affiche `IN A TREE` / `BACKPACK HUNG`. Le résumé suggère CLIMB DOWN.
 `tests/test_tree.py` couvre les seuils, le temps et le taux, les stocks,

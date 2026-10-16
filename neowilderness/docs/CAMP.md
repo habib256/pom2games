@@ -199,6 +199,17 @@ aussi dans l'original mais n'ont pas encore d'action dans le port.
   choix sol/gourde (msg 192 : la gourde d'abord, comme DRINK) ni « YOU HAVE
   SOME. DO YOU WANT MORE [Y/N]? » (msg 54). La question de recherche
   (msg 55) et la durée (« SPECIFY TIME IN HOURS. », msg 27) sont posées.
+- **GET sans question** (écart voulu, décision du 15 octobre 2026,
+  demande de l'utilisateur ; [FORAGE.md](FORAGE.md) § 17.3) : GET d'une
+  source (pluie, neige, glace, rivière, lac, eau trouvée) ne demande plus
+  les onces (« HOW MANY OUNCES? ») ; la gourde prend le plus possible, au
+  plus les 160 oz de la source, sa place (64 oz moins son contenu) et le
+  poids restant (`load_limits` − `load_used`, `water_canteen`), puis « YOU
+  TOOK n OUNCES. » (après « YOU WERE SUCCESSFUL! » ou les cactus, à la
+  place de « OK, WHAT NEXT? »). Gourde pleine : msg 186 ; aucun poids
+  restant : « TOO MUCH WEIGHT OR VOLUME. » ; le msg 64 ne peut plus venir.
+  FILL et REFILL ne changent pas ; BOIL, DRINK et EAT gardent leur
+  question.
 - **Messages successifs** : l'original attend une touche entre deux
   messages ; le port les enchaîne dans la colonne de droite. « YOU WERE
   SUCCESSFUL! » et « THESE CACTI ARE LOADED WITH WATER! » sont affichés

@@ -1,416 +1,820 @@
-; Grouped inventory, 80 columns (14 October 2026): each placement is a group
-; (tab), its items in three columns of sixteen rows, no duplicate ounces.
-; Part of the STATUS module (SIM window, src/status.s): scr_inventory
-; computes the load totals (SIM) first, then fetches the module.
+; OBJECTS, the transfer page (16 October 2026, docs/MENUS.md 5, 9): what
+; lies on this cell on the left (LOCAL, then LOCAL HUNG), what the player
+; carries on the right (HANDS, PACK, WORN), each item with its weight; LEFT
+; and RIGHT choose the side, UP and DOWN the item, RETURN sends it to the
+; other side (PACK x, or GET WATER, CARRY BACKPACK / CANTEEN; DROP x from
+; the right), H takes it in hand (CARRY x). The page types the command as
+; the keyboard would (do_command, through obj_type: SIM quietly first, so
+; the page stays on the screen), and the grid's queue types INVENTORY
+; after it: the page comes back with the game's answer in rows 20-22,
+; columns 0-38 (the view's result column, written by message itself). Part
+; of the STATUS module (SIM window, src/status.s): scr_inventory computes
+; the load totals (SIM) first, then fetches the module.
 ;
-;   row 0       the tab row: OBJECTS (15 October 2026)
-;   row 2       the five groups and their counts, the shown one in inverse
-;               when the group row has the focus, else in brackets
-;   row 3       the group's name (in inverse)
-;   rows 4-14   the items of the page, across then down (33 a page)
-;   row 15      PAGE p/n (in inverse, at column 67)
-;   rows 16-19  CARRYING (from STATUS, 15 October 2026): food and water
-;               carried, here, within reach
-;   row 21      FREE: the four capacities left
-;   rows 22-23  the keys
-; On NeoWildernessXL the group and CARRYING are post-its (src/mt_pages.s).
-INV_ROWS = 11                   ; rows of items
-INV_PAGE = 3 * INV_ROWS         ; items a page
-INV_COL  = 26                   ; column width; quantity at +13
+;   row 0       the tab row: OBJECTS
+;   row 2       the titles: LOCAL (left), HANDS or PACK (right)
+;   rows 3-14   the two lists (overlay_text), twelve entries a side, the
+;               window scrolled to the cursor; the groups' headings in
+;               inverse; "MORE" on row 15 under a list that goes on
+;   rows 16-19  CARRYING (left: food and water carried, here, in reach),
+;               LOAD (right: the gauge of the carried weight up to the
+;               limit, the walk's slowing, the free volumes)
+;   rows 20-22  the answer of the last transfer (left), what RETURN and H
+;               type (right)
+;   row 23      the keys
+; On NeoWildernessXL the blocks are post-its (src/mt_pages.s).
+OB_ROWS  = 12                   ; entries a side on the screen (rows 3-14)
+OB_NAME  = 3                    ; the name's column in a half
+OB_OZ    = 18                   ; the weight's column in a half
+OB_RIGHT = 41                   ; the right half
 .segment "STATUS"
 module_inventory:
         jsr     forage_here     ; lot 4: the ground piles of this cell
         jsr     inventory_settle ; lot 3: the CLUB, the ROCK of this cell
+        lda     #19             ; shared page helpers in the $5800 window
+        jsr     overlay_load
+        lda     obj_keep        ; back from a transfer: the answer stays,
+        bpl     inventory_redraw ; the focus on the lists
         lda     #0
-        sta     inventory_group
-        sta     inventory_page
+        sta     obj_keep
+        sta     ob_clear
+        lda     #1
+        sta     pg_focus
 inventory_redraw:
-        lda     #PG_INVENTORY   ; the tab row (src/pages.s)
+        XL_ABS  XI_STATUS, ob_frames_x, @xobj
+        jsr     ob_build
+        lda     #PG_INVENTORY
         jsr     page_top
-        jsr     inventory_counts
-        ldx     inventory_group
-        lda     inventory_n,x
-        sta     inventory_count
-        ldx     #1              ; pages: 1 + (count - 1) / INV_PAGE
-        sec
-        sbc     #1
-        bcc     @pages_done     ; no item: one page
-@pages: sbc     #INV_PAGE
-        bcc     @pages_done
-        inx
-        bne     @pages
-@pages_done:
-        stx     inventory_pages
-        lda     inventory_page
-        cmp     inventory_pages
-        bcc     :+
-        dex                     ; backward group transition selects last page
-        stx     inventory_page
-:
-        ; the tabs (row 2)
-        ldx     #0
-@tab:   stx     inventory_tab
-        ldy     #' '|$80        ; the group's edges
-        cpx     inventory_group
-        bne     @edge
-        lda     pg_focus        ; the group shown: in inverse when its row
-        cmp     #1              ; has the focus, else between brackets
-        bne     :+
-        lda     #$3F
-        sta     INVFLG
-        bne     @edge
-:       ldy     #'['|$80
-@edge:  sty     inventory_edge
-        tya
-        jsr     COUT
-        txa
-        clc
-        adc     #'1'|$80
-        jsr     COUT
-        lda     #' '|$80
-        jsr     COUT
-        ldx     inventory_tab
-        lda     inventory_name_lo,x
-        ldy     inventory_name_hi,x
-        jsr     print_str_ay
-        lda     #' '|$80
-        jsr     COUT
-        ldx     inventory_tab
-        lda     inventory_n,x
-        jsr     pdec
-        lda     inventory_edge  ; ' ' stays ' ', '[' becomes ']'
-        cmp     #'['|$80
-        bne     :+
-        lda     #']'|$80
-:       jsr     COUT
-        lda     #$FF
-        sta     INVFLG
-        lda     #' '|$80
-        jsr     COUT
-        ldx     inventory_tab
-        inx
-        cpx     #5
-        bcc     @tab
-        jsr     puts            ; row 3: the group's name in inverse; each
-        .byte "|",0             ; item row starts with CROUT
-        lda     #$3F
-        sta     INVFLG
-        jsr     inv_space
-        ldx     inventory_group
-        lda     inventory_name_lo,x
-        ldy     inventory_name_hi,x
-        jsr     print_str_ay
-        jsr     inv_space
-        lda     #$FF
-        sta     INVFLG
-        ; the items of the page, across then down
-        lda     #0
-        sta     inventory_skip
-        sta     inventory_lines
-        ldx     inventory_page
-        beq     @items
-@skip:  clc
-        adc     #INV_PAGE
-        dex
-        bne     @skip
-        sta     inventory_skip
-@items: lda     #1
-        sta     inventory_item
-@item:  ldx     inventory_item
-        jsr     inventory_match
-        jcc     @next
-        lda     inventory_skip
-        beq     @print
-        dec     inventory_skip
-        jmp     @next
-@print: lda     inventory_lines ; column (lines mod 3) * INV_COL
-        ldx     #0
-:       cmp     #3
-        bcc     :+
-        sbc     #3
-        bcs     :-
-:       tax
-        lda     inventory_cols,x
-        bne     :+
-        jsr     CROUT           ; a new row
-        lda     #0
-:       jsr     tab
-        lda     CH
-        sta     inventory_x
-        ldx     inventory_item
-        jsr     inventory_name
-        jsr     print_str_ax
-        lda     inventory_x
-        clc
-        adc     #13
-        jsr     tab
-        ldx     inventory_item
-        cpx     #76
-        jcs     @second
-        cpx     #N_WATER
-        bcc     @line
-        cpx     #38
-        bcs     @uses
-        jsr     inventory_match
-        jsr     print_u16
-        jsr     puts
-        .byte " OZ",0
-        jmp     @line
-@uses:  cpx     #41
-        bcc     @line
-        cpx     #52
-        bcs     @line
-        cpx     #43             ; sunglasses are equipment, not a consumable
-        beq     @line
-        lda     it_pack_lo,x
-        sta     num
-        lda     it_pack_hi,x
-        sta     num+1
-        jsr     print_u16
-        jsr     puts
-        .byte " USES",0
-        jmp     @line
-@second:                        ; lot 4: ounces, SPOIL past its counter
-        cpx     #89             ; lot 3: the crafted things, no quantity
-        bcc     :+
-        cpx     #94
-        jne     @line
-:       jsr     inventory_match
-        jsr     print_u16
-        jsr     puts
-        .byte " OZ",0
-        lda     inventory_pile
-        cmp     #FG_HIDE
-        beq     @line
-        clc
-        ldy     inventory_group
-        cpy     #2
-        beq     :+
-        adc     #FG_CGND
-:       tax
-        lda     fg_ch,x
-        bmi     :+
-        ora     fg_cl,x
-        bne     @line
-:       jsr     puts
-        .byte " SPOIL",0
-@line:  inc     inventory_lines
-        lda     inventory_lines
-        cmp     #INV_PAGE
-        bcs     @footer
-@next:  inc     inventory_item
-        lda     inventory_item
-        cmp     #98             ; lots 4, 3: the second set up to TRENCH
-        jcc     @item
-        lda     inventory_lines
-        bne     @footer
-        jsr     puts
-        .byte "|NONE",0
-@footer:
-        lda     #15             ; PAGE p/n on row 15, in inverse
-        jsr     vtab
-        lda     #67
-        jsr     tab
-        lda     #$3F
-        sta     INVFLG
-        jsr     puts
-        .byte " PAGE ",0
-        lda     inventory_page
-        clc
-        adc     #1
-        jsr     pdec
-        lda     #'/'|$80
-        jsr     COUT
-        lda     inventory_pages
-        jsr     pdec
-        jsr     inv_space
-        lda     #$FF
-        sta     INVFLG
-        jsr     puts            ; rows 16-19: CARRYING, food and water
-        .byte "|",0
         jsr     st_heading
-        .byte " CARRYING ",0
+        .byte   " LOCAL ",0
+        lda     #OB_RIGHT
+        jsr     tab
+        lda     #$3F
+        sta     INVFLG
+        jsr     inv_space
+        ldx     ob_title
+        lda     inventory_name_lo,x
+        ldy     inventory_name_hi,x
+        jsr     print_str_ay
+        jsr     inv_space
+        lda     #$FF
+        sta     INVFLG
+        lda     #0              ; rows 3-14: the lists
+        sta     ob_row
+@row:   jsr     CROUT
+        ldx     #0
+        jsr     ob_entry
+        ldx     #1
+        jsr     ob_entry
+        inc     ob_row
+        lda     ob_row
+        cmp     #OB_ROWS
+        bcc     @row
+        jsr     CROUT           ; row 15: MORE under a list that goes on
+        ldx     #0
+        jsr     ob_more
+        ldx     #1
+        jsr     ob_more
+        jsr     CROUT           ; rows 16-19: CARRYING, LOAD
+        jsr     st_heading
+        .byte   " CARRYING ",0
         lda     #ST_FOOD
         jsr     tab
         jsr     puts
-        .byte "FOOD",0
+        .byte   "FOOD",0
         lda     #ST_WATER
         jsr     tab
         jsr     puts
-        .byte "WATER",0
+        .byte   "WATER",0
+        lda     #OB_RIGHT
+        jsr     tab
+        jsr     st_heading
+        .byte   " LOAD ",0
         lda     g1              ; (g1 kept: reach_oz's scratch; the
         pha                     ; reference's INVENTORY leaves it alone)
         lda     #0
         sta     status_stock_kind
-:       jsr     CROUT
+@stock: jsr     CROUT
         jsr     status_stock_line
-        inc     status_stock_kind
+        lda     #OB_RIGHT
+        jsr     tab
+        jsr     ob_ld           ; (ob_m, num: the carried ounces)
+        ldx     status_stock_kind
+        bne     @walk
+        ldy     #10             ; the gauge: ten cells up to the limit
+        jsr     ob_mul
+        lda     load_limits
+        ldx     load_limits+1
+        jsr     ob_div
+        jsr     bar
+        jsr     ob_ld
+        jsr     print_u16
+        lda     #'/'|$80        ; the limit: the gauge's end (the original's
+        jsr     COUT            ; $4BFA; past it, any GET is refused)
+        lda     load_limits
+        sta     num
+        lda     load_limits+1
+        sta     num+1
+        jsr     print_u16
+        jsr     puts
+        .byte   " OZ",0
+        jmp     @next
+@walk:  dex
+        bne     @free
+        jsr     puts            ; the walk: 100 x pounds / (body + 2) slower
+        .byte   "WALK TIME +",0 ; (T08/S07: tools/re_load_probe.py)
+        ldx     #4              ; pounds: INT(ounces / 16), as the core's $50A1
+:       lsr     ob_m+1
+        ror     ob_m
+        dex
+        bne     :-
+        ldy     #100
+        jsr     ob_mul
+        lda     body_weight
+        clc
+        adc     #2
+        pha
+        lda     body_weight+1
+        adc     #0
+        tax
+        pla
+        jsr     ob_div
+        jsr     pdec
+        lda     #'%'|$80
+        jsr     COUT
+        jsr     puts
+        .byte   " FREE IN3 WEAR ",0
+        lda     #2
+        sta     ob_t
+        jsr     ob_free
+        jsr     print_u16
+        jmp     @next
+@free:  jsr     puts
+        .byte   "PACK ",0
+        lda     #4
+        jsr     ob_volume
+        jsr     puts
+        .byte   " HANDS ",0
+        lda     #6
+        jsr     ob_volume
+        lda     #8              ; preserve INVENTORY's word scratch
+        sta     g2
+@next:  inc     status_stock_kind
         lda     status_stock_kind
         cmp     #3
-        bcc     :-
+        jcc     @stock
         pla
         sta     g1
-        lda     #21
-        jsr     vtab
-        jsr     puts            ; at most 77 characters: never column 79
-        .byte "FREE  ",0
-        lda     #0
-        sta     inventory_capacity
-@capacity:
+        lda     #20             ; rows 20-22: the answer (kept after a
+        jsr     vtab            ; transfer: its cells are skipped), the
+        lda     #0              ; commands of RETURN and H
+        sta     ob_row
+@res:   lda     ob_clear
         beq     :+
-        jsr     puts
-        .byte "  ",0
+        lda     #39             ; (an arrival: the left cleared)
+        jsr     tab
+:       lda     #39
+        sta     CH
+        lda     #OB_RIGHT
+        jsr     tab
+        lda     ob_row
+        beq     @res_end         ; row 20: bottom border, hints on 21 and 22
+        dec     ob_row
+        lda     ob_row
+        jsr     ob_cmd
+        bcc     @res_next
+        lda     pg_focus
+        beq     @res_next
+        ldx     ob_row
+        lda     ob_hint_lo,x
+        ldy     ob_hint_hi,x
+        XL_ABS  XI_STATUS, mt_str, @x26
+        jsr     print_str_ay
+        lda     #<ob_line
+        ldx     #>ob_line
+        jsr     print_str_ax
+@res_next:
+        inc     ob_row
+@res_end:
+        jsr     CROUT
+        inc     ob_row
+        lda     ob_row
+        cmp     #3
+        bcc     @res
+        lda     #0
+        sta     ob_clear
+        XL_IMM  XI_STATUS, <inventory_keys_x, @x27
+        lda     #<inventory_keys
+        XL_IMM  XI_STATUS, >inventory_keys_x, @x28
+        ldy     #>inventory_keys
+        XL_ABS  XI_STATUS, page_foot23_x, @x29
+        jsr     page_foot
+inventory_key:
+        jsr     wait_key
+        ldy     pg_focus        ; the lists: RETURN, H
+        bne     :+
+        cmp     #KC_RET         ; tab row: RETURN enters the lists; DOWN leaves
+        beq     @down
+        bne     @page
 :
-        ldx     inventory_capacity
-        lda     #<load_words
-        sta     gp2
-        lda     #>load_words
-        sta     gp2+1
-        lda     #8
-        jsr     word
-        lda     #' '|$80
-        jsr     COUT
-        lda     inventory_capacity
-        asl     a
+        cmp     #KC_RET
+        beq     @return
+        cmp     #'H'
+        beq     @hand
+@page:  jsr     page_keys       ; the tabs, the pages, TOPO, the view
+        ldx     obj_side        ; (below the tab row the arrows come back)
+        cmp     #KC_DOWN
+        beq     @down
+        cmp     #KC_UP
+        beq     @up
+        cmp     #KC_LEFT
+        beq     @side
+        cmp     #KC_RIGHT
+        bne     inventory_key
+@side:  txa                     ; the other side
+        eor     #1
+        sta     obj_side
+@redraw:
+        jmp     inventory_redraw
+@down:  lda     pg_focus        ; the tab row: RETURN enters the lists
+        bne     :+
+        inc     pg_focus
+        bne     @redraw
+:       lda     obj_cur,x       ; the next item; past the last, the view
+        clc
+        adc     #1
+        ldy     #1
+        jsr     ob_seek
+        bcc     @end
+@set:   sta     obj_cur,x
+        jsr     ob_remember
+        jmp     @redraw
+@up:    lda     obj_cur,x       ; the item before; above the first, the tabs
+        sec
+        sbc     #1
+        ldy     #$FF
+        jsr     ob_seek
+        bcs     @set
+        dec     pg_focus
+        bpl     @redraw
+@end:   jmp     back_to_view_now
+@hand:  lda     #1
+        bne     :+
+@return:
+        lda     #0
+:       jsr     ob_cmd
+        bcc     inventory_key
+        sta     ob_item         ; ob_cmd returns no useful A: use the noun
+        lda     menu_noun
+        sta     ob_item
+        lda     obj_side
+        sta     ob_s
+        tax
+        lda     obj_cur,x
+        sta     ob_e
+        jsr     ob_weight       ; capture source stock before replacing MEDVIEW
+        lda     num
+        sta     ob_m
+        lda     num+1
+        sta     ob_m+1
+        lda     #20
+        jsr     overlay_load
+        jmp     object_menu
+
+; ob_build -- the entries of the two sides in overlay_text (ob_at: the
+; first of a side, ob_n: how many): item numbers, a group's heading $80 +
+; group. Left: the ground here, then LOCAL HUNG when something hangs here;
+; right: HANDS items, separator, PACK and WORN headings. The cursors are put back on an
+; item of their side (ob_fix).
+ob_build:
+        ldy     #0              ; ob_prog
+        sty     ob_k
+        ldx     #0
+@side:  stx     ob_s
+        lda     ob_k
+        sta     ob_at,x
+@group: lda     ob_prog,y
+        iny
+        cmp     #$FF
+        beq     @end
+        cmp     #$8A            ; blank separator below HANDS
+        bne     :+
+        ldx     ob_k
+        sta     overlay_text,x
+        inc     ob_k
+        bne     @group
+:
+        sty     ob_t
+        sta     ob_g
+        and     #7
+        sta     inventory_group
+        ldx     ob_k
+        stx     ob_e            ; (the heading's entry)
+        lda     ob_g
+        bpl     @items
+        and     #$87
+        sta     overlay_text,x
+        inc     ob_k
+@items: ldx     #1
+@item:  jsr     inventory_match
+        bcc     :+
+        txa
+        ldy     ob_k
+        sta     overlay_text,y
+        inc     ob_k
+:       inx
+        cpx     #95             ; (the shelters are not objects)
+        bcc     @item
+        lda     ob_g            ; LOCAL HUNG: no heading alone
+        and     #$C0
+        cmp     #$80
+        bne     :+
+        ldx     ob_e
+        inx
+        cpx     ob_k
+        bne     :+
+        dec     ob_k
+:       ldy     ob_t
+        jmp     @group
+@end:   ldx     ob_s
+        lda     ob_k
+        sec
+        sbc     ob_at,x
+        sta     ob_n,x
+        inx
+        cpx     #2
+        jcc     @side
+; ob_fix -- each side's cursor on an item: the one under it, else the next,
+; else the one before (0 without any).
+        dex
+@fix:   jsr     ob_restore
+        lda     obj_cur,x
+        cmp     ob_n,x
+        bcc     :+
+        lda     ob_n,x          ; past the end: the last entry
+        sbc     #1
+        bcs     :+
+        lda     #0
+:       pha
+        ldy     #1
+        jsr     ob_seek
+        bcs     :+
+        pla
+        pha
+        ldy     #$FF
+        jsr     ob_seek
+        bcs     :+
+        lda     #0
+:       sta     obj_cur,x
+        jsr     ob_remember
+        pla
+        dex
+        bpl     @fix
+        ldx     #1              ; heading of the right viewport: HANDS or PACK
+        stx     ob_title
+        jsr     ob_top
+        clc
+        adc     ob_at+1
         tay
+@title: cpy     ob_at+1
+        beq     @title_end
+        lda     overlay_text,y
+        cmp     #$82
+        bne     :+
+        inc     ob_title
+        rts
+:       dey
+        bne     @title
+@title_end:
+        rts
+        .pushseg
+        .segment "CODE"
+ob_prog: .byte  3, $84, $FF, 1, $8A, $C2, $C0, $FF
+        .popseg
+
+; ob_seek -- X = side, A = the first entry to try, Y = 1 forward or $FF
+; back: C set and A = the first item found that way; C clear at an end. X kept.
+ob_seek:
+        sta     ob_e
+        sty     ob_d
+@try:   lda     ob_e
+        cmp     ob_n,x          ; (back past 0: $FF)
+        bcs     @no
+        adc     ob_at,x
+        tay
+        lda     overlay_text,y
+        bpl     @yes
+        lda     ob_e
+        clc
+        adc     ob_d
+        sta     ob_e
+        jmp     @try
+@yes:   lda     ob_e
+        sec
+        rts
+@no:    clc
+        rts
+
+; ob_top -- X = side: A = its first entry on the screen (the cursor's entry
+; on the last row when it lies below).
+ob_top: lda     obj_cur,x
+        sec
+        sbc     #OB_ROWS-1
+        bcs     :+
+        lda     #0
+:       rts
+
+; ob_entry -- X = side: its entry on the screen row ob_row (from the half's
+; first column): the cursor ">" (the lists hold the focus, this side), the
+; name, the weight; a group's heading in inverse.
+ob_entry:
+        stx     ob_s
+        jsr     ob_top
+        clc
+        adc     ob_row
+        cmp     ob_n,x
+        bcs     @rts
+        sta     ob_e
+        adc     ob_at,x
+        tay
+        lda     overlay_text,y
+        cmp     #$8A
+        beq     @rts
+        sta     ob_item
+        lda     #1
+        jsr     ob_col
+        lda     ob_item
+        bpl     @item
+        and     #7
+        tax
+        lda     #$3F
+        sta     INVFLG
+        jsr     inv_space
+        lda     inventory_name_lo,x
+        ldy     inventory_name_hi,x
+        jsr     print_str_ay
+        jsr     inv_space
+        lda     #$FF
+        sta     INVFLG
+@rts:   rts
+@item:  ldy     #' '|$80
+        lda     pg_focus
+        beq     :+
+        lda     ob_s
+        cmp     obj_side
+        bne     :+
+        tax
+        lda     obj_cur,x
+        cmp     ob_e
+        bne     :+
+        ldy     #'>'|$80
+:       tya
+        jsr     COUT
+        lda     #OB_NAME
+        jsr     ob_col
+        ldx     ob_item
+        jsr     inventory_name
+        jsr     print_str_ax
+        lda     #OB_OZ
+        jsr     ob_col
+        jsr     ob_weight
+        jsr     print_u16
+        ldx     ob_item         ; the remedies: their uses (as before)
+        jsr     ob_uses
+        bcc     :+
+        jsr     puts
+        .byte   " USES",0
+        rts
+:       jsr     puts
+        .byte   " OZ",0
+        rts
+; ob_uses -- C set for item X, a remedy counted in uses (41-51 but the
+; SUNGLASSES, 43).
+ob_uses:
+        cpx     #43
+        beq     :+
+        cpx     #41
+        bcc     :+
+        cpx     #52
+        bcs     :+
+        sec
+        rts
+:       clc
+        rts
+; ob_col -- A = a column of the half ob_s: tab there.
+ob_col: ldx     ob_s
+        beq     :+
+        clc
+        adc     #OB_RIGHT
+:       jmp     tab
+; ob_more -- X = side: "MORE" when its list goes on below the screen.
+ob_more:
+        stx     ob_s
+        jsr     ob_top
+        clc
+        adc     #OB_ROWS
+        cmp     ob_n,x
+        bcs     :+
+        lda     #30
+        jsr     ob_col
+        jsr     st_heading
+        .byte   " MORE ",0
+:       rts
+
+; ob_weight -- num = the weight of the entry ob_item (ob_e of side ob_s):
+; W5 for the gear, the ounces of a food or a pile in its place, the second
+; set's W5 (CRAFT.md 4.1: BOW, SPEAR 50, CLUB, ROCK 100, SPLINT 50).
+ob_weight:
+        ldx     ob_item
+        cpx     #N_WATER
+        bcc     @gear
+        cpx     #38
+        bcc     @oz
+        jsr     ob_uses
+        bcc     :+
+        lda     it_pack_lo,x    ; a remedy: its uses
+        sta     num
+        lda     it_pack_hi,x
+        sta     num+1
+        rts
+:       cpx     #76
+        bcc     @gear
+        cpx     #89
+        bcc     @oz
+        cpx     #94
+        bcs     @oz
+        lda     ob_crw-89,x
+        sta     num
+        lda     #0
+        sta     num+1
+        rts
+@gear:  lda     it_oz_lo,x
+        sta     num
+        lda     it_oz_hi,x
+        sta     num+1
+        rts
+@oz:    ldx     ob_s            ; its group: the heading above it (left:
+        lda     ob_e            ; the ground without one)
+        clc
+        adc     ob_at,x
+        tay
+        lda     ob_at,x
+        sta     ob_d
+@up:    lda     #3
+        cpy     ob_d
+        beq     @group
+        dey
+        lda     overlay_text,y
+        bpl     @up
+        and     #7
+@group: sta     inventory_group
+        ldx     ob_item
+        jmp     inventory_match ; (num: the ounces there)
+ob_crw: .byte   50, 50, 100, 100, 50
+
+; ob_cmd -- A = 0 RETURN, 1 H: C set with the command for the item under
+; the cursor in ob_line (ob_len), the item in menu_noun (its display name
+; is not always a word of the vocabulary); C clear without an item. (Not
+; inbuf: the page leaves the typed line as the reference's INVENTORY.)
+ob_cmd: sta     ob_t
+        ldx     obj_side
+        lda     obj_cur,x
+        ldy     #1
+        jsr     ob_seek
+        bcc     @no
+        cmp     obj_cur,x       ; (an item under the cursor itself)
+        clc
+        bne     @no
+        adc     ob_at,x
+        tay
+        lda     overlay_text,y
+        sta     menu_noun
+        tax
+        cpx     #76             ; LOCAL HUNG: no transfer (LOWER FOOD first,
+        bcs     :+              ; from the grid: it takes time, the page's
+        lda     it_place,x      ; transfers none)
+        cmp     #5
+        bne     :+
+@no:    clc
+        rts
+:       ldy     #OB_CARRY       ; H: CARRY x
+        lda     ob_t
+        bne     @verb
+        ldy     #OB_DROP        ; RETURN from the right: DROP x
+        lda     obj_side
+        bne     @verb
+        ldy     #OB_GET         ; from the left: GET WATER (the canteen),
+        cpx     #N_WATER        ; CARRY BACKPACK, CARRY CANTEEN, PACK x
+        beq     @verb
+        ldy     #OB_CARRY
+        cpx     #21
+        beq     @verb
+        cpx     #64
+        beq     @verb
+        ldy     #OB_PACK
+@verb:  ldx     #0
+:       lda     ob_verbs,y
+        sta     ob_line,x
+        iny
+        inx
+        cmp     #' '
+        bne     :-
+        stx     ob_len
+        ldx     menu_noun
+        jsr     inventory_name
+        sta     gp2
+        stx     gp2+1
+        ldy     #0              ; "2QT CANTEEN": CANTEEN (a digit would make
+        lda     (gp2),y         ; the line a number for INPUT)
+        cmp     #'9'+1
+        bcs     @name
+:       iny
+        lda     (gp2),y
+        cmp     #' '
+        bne     :-
+        iny
+@name:  ldx     ob_len
+:       lda     (gp2),y
+        sta     ob_line,x
+        beq     :+
+        inx
+        iny
+        cpx     #MAXLINE
+        bcc     :-
+        lda     #0
+        sta     ob_line,x
+:       stx     ob_len
+        sec
+@rts:   rts
+ob_verbs:
+OB_PACK  = * - ob_verbs
+        .byte   "PACK "
+OB_DROP  = * - ob_verbs
+        .byte   "DROP "
+OB_CARRY = * - ob_verbs
+        .byte   "CARRY "
+OB_GET   = * - ob_verbs
+        .byte   "GET "
+
+; ob_ld -- num and ob_m = the carried ounces (load_used).
+ob_ld:  lda     load_used
+        sta     num
+        sta     ob_m
+        lda     load_used+1
+        sta     num+1
+        sta     ob_m+1
+        rts
+.pushseg
+.segment "MEDVIEW"
+; ob_mul -- num = Y x the word at ob_m.
+ob_mul: lda     #0
+        sta     num
+        sta     num+1
+@add:   dey
+        bmi     @rts
+        clc
+        lda     num
+        adc     ob_m
+        sta     num
+        lda     num+1
+        adc     ob_m+1
+        sta     num+1
+        jmp     @add
+@rts:   rts
+; ob_div -- A = INT(num / (A + 256 X)), at most 255.
+ob_div: sta     ob_m
+        stx     ob_m+1
+        ldx     #0
+@sub:   lda     num
+        sec
+        sbc     ob_m
+        tay
+        lda     num+1
+        sbc     ob_m+1
+        bcc     @end
+        sta     num+1
+        sty     num
+        inx
+        bne     @sub
+        dex
+@end:   txa
+        rts
+
+; Persistent item identities complement obj_cur (the fallback row if an
+; item disappears). X is the side; no state is added to saved game data.
+ob_restore:
+        ldy     ob_at,x
+        lda     ob_n,x
+        sta     ob_e
+@find:  lda     ob_e
+        beq     @end
+        lda     overlay_text,y
+        cmp     obj_selected,x
+        beq     @found
+        iny
+        dec     ob_e
+        bne     @find
+@end:   rts
+@found: tya
+        sec
+        sbc     ob_at,x
+        sta     obj_cur,x
+        rts
+ob_remember:
+        lda     obj_cur,x
+        clc
+        adc     ob_at,x
+        tay
+        lda     overlay_text,y
+        sta     obj_selected,x
+        rts
+
+; Six cells of occupied volume, then the free cubic inches. Capacities
+; are at most 6000 IN3: multiplying a legal load by six fits in 16 bits.
+ob_volume:
+        sta     ob_t
+        tay
+        lda     load_limits,y
+        ora     load_limits+1,y
+        beq     @empty
+        lda     load_used,y
+        cmp     load_limits,y
+        lda     load_used+1,y
+        sbc     load_limits+1,y
+        bcs     @full
+        lda     load_used,y
+        sta     ob_m
+        lda     load_used+1,y
+        sta     ob_m+1
+        ldy     #6
+        jsr     ob_mul
+        ldy     ob_t
+        lda     load_limits,y
+        ldx     load_limits+1,y
+        jsr     ob_div
+        jmp     @bar
+@empty: lda     #0
+        beq     @bar
+@full:  lda     #6
+@bar:   sta     ob_fill
+        ldx     #0
+@cell:  XL_IMM  XI_MEDVIEW, MT_BLOCK, @fullglyph
+        lda     #$20            ; inverse space on 140 KB
+        cpx     ob_fill
+        bcc     :+
+        XL_IMM  XI_MEDVIEW, MT_HALF1, @emptyglyph
+        lda     #'.'|$80
+:       jsr     COUT
+        inx
+        cpx     #6
+        bcc     @cell
+        jsr     inv_space
+        jsr     ob_free
+        jmp     print_u16
+ob_free:
+        ldy     ob_t
         sec
         lda     load_limits,y
         sbc     load_used,y
         sta     num
         lda     load_limits+1,y
         sbc     load_used+1,y
-        sta     num+1
-        jsr     print_u16
-        lda     inventory_capacity
-        bne     @volume
-        jsr     puts
-        .byte " OZ",0
-        jmp     @capacity_next
-@volume:
-        jsr     puts
-        .byte " IN3",0
-@capacity_next:
-        inc     inventory_capacity
-        lda     inventory_capacity
-        cmp     #4
-        jcc     @capacity
-        XL_IMM  XI_STATUS, <inventory_keys_x, @x26
-        lda     #<inventory_keys
-        XL_IMM  XI_STATUS, >inventory_keys_x, @x27
-        ldy     #>inventory_keys
-        XL_ABS  XI_STATUS, page_foot_x, @x28
-        jsr     page_foot
-inventory_key:
-        jsr     wait_key
-        jsr     page_keys       ; the pages, TOPO, the view
-        ldy     pg_focus        ; the focus: 0 the tab row, 1 the group row
-        cmp     #KC_DOWN        ; and the pages of its group
-        beq     @down
-        cmp     #KC_UP
-        beq     @up
-        ldx     inventory_group ; LEFT/RIGHT (below the tab row: page_keys
-        cmp     #KC_RIGHT       ; turns the pages on it) change the group
-        bne     :+
-        inx
-        cpx     #5
-        bcc     @group_x
-        ldx     #0
-        beq     @group_x
-:       cmp     #KC_LEFT
-        bne     @digit
-        dex
-        bpl     @group_x
-        ldx     #4
-@group_x:
-        txa
-        bpl     @group
-@down:  tya                     ; the tab row: down to the group row
-        beq     @focus
-        ldx     inventory_page  ; then the next page, the view after the
-        inx                     ; last one
-        cpx     inventory_pages
-        bcs     @end
-        stx     inventory_page
-        bcc     @redraw
-@up:    tya                     ; nothing above the tab row
-        beq     inventory_key
-        lda     inventory_page  ; up a page, the tab row above the first
-        beq     @focus
-        dec     inventory_page
-        jmp     inventory_redraw
-@focus: tya                     ; Y = 0: focus 1, Y = 1: focus 0
-        eor     #1
-        sta     pg_focus
-        jmp     inventory_redraw
-@digit: cmp     #'1'
-        bcc     @navigation
-        cmp     #'6'
-        bcs     @navigation
-        sec
-        sbc     #'1'
-@group: sta     inventory_group
-        lda     #0
-        sta     inventory_page
-        jmp     inventory_redraw
-@navigation:
-        cmp     #'B'
-        beq     @back
-        cmp     #'N'
-        bne     inventory_key
-@forward:
-        inc     inventory_page
-        lda     inventory_page
-        cmp     inventory_pages
-        bcc     @redraw
-        lda     #0
-        sta     inventory_page
-        inc     inventory_group
-        lda     inventory_group
-        cmp     #4
-        bcc     @redraw
-        bne     @end
-        lda     it_place+21
-        cmp     #5
-        beq     @redraw
-@end:   jmp     back_to_view_now
-@redraw: jmp    inventory_redraw
-@back:  lda     inventory_page
-        beq     @group_back
-        dec     inventory_page
-        jmp     inventory_redraw
-@group_back:
-        lda     inventory_group
-        jeq     inventory_key
-        dec     inventory_group
-        lda     #255            ; resolved after counting the preceding group
-        sta     inventory_page
-        jmp     inventory_redraw
-
-; inventory_counts -- inventory_n: the items of each group (the tabs).
-inventory_counts:
-        lda     inventory_group
-        pha
-        ldy     #4
-@group: sty     inventory_group
-        lda     #0
-        sta     inventory_n,y
-        ldx     #1
-@count: jsr     inventory_match
-        bcc     :+
-        ldy     inventory_group
-        lda     inventory_n,y
-        clc
-        adc     #1
-        sta     inventory_n,y
-:       inx
-        cpx     #98
-        bcc     @count
-        ldy     inventory_group
-        dey
-        bpl     @group
-        pla
-        sta     inventory_group
+        bcs     :+
+        lda     #0              ; an overloaded container has no free room
+        sta     num
+:       sta     num+1
         rts
+ob_fill: .byte 0
+
+.popseg
+ob_hint_lo: .byte <ob_h_ret, <ob_h_hand
+ob_hint_hi: .byte >ob_h_ret, >ob_h_hand
+ob_hints:
+ob_h_ret:  .byte "RETURN: ",0
+ob_h_hand: .byte "H: ",0
+        XL_BYTE XI_STATUS, ob_h_ret, MS_RET
+        XL_BYTE XI_STATUS, ob_h_ret+1, ' '
+        XL_BYTE XI_STATUS, ob_h_ret+2, 0
+        XL_BYTE XI_STATUS, ob_h_hand+1, ' '
+        XL_BYTE XI_STATUS, ob_h_hand+2, 0
+ob_clear: .byte 1               ; 1: an arrival, the answer's rows cleared
+ob_title: .byte 1
+ob_row:  .byte 0
+ob_s:    .byte 0
+ob_e:    .byte 0
+ob_d:    .byte 0
+ob_g:    .byte 0
+ob_k:    .byte 0
+ob_t:    .byte 0
+ob_item: .byte 0
+ob_m:    .word 0
+ob_at:   .res 2
+ob_n:    .res 2
+ob_len:  .byte 0
+ob_line = tb_buf                ; the command of RETURN or H (the text bank's
+                                ; buffer: the page prints none of its texts)
+.assert TB_MAX >= MAXLINE + 1, error, "ob_line: tb_buf too short"
+inventory_group: .byte 0
 
 ; X is preserved; carry means membership, num holds provision ounces.
 inventory_match:
@@ -525,8 +929,6 @@ inventory_second:
 ; BOW, the SPEAR, the SPLINT on their own cell; the CLUB and the ROCK
 ; settled by inventory_settle), the HUT, IGLOO, TRENCH standing here.
 inventory_craft:
-        cpx     #95
-        bcs     @shelter
         txa
         sec
         sbc     #89
@@ -555,18 +957,6 @@ inventory_craft:
         sta     num+1
         sec
         rts
-@shelter:
-        txa
-        sbc     #95             ; (C set)
-        tay
-        lda     cr_sx,y
-        cmp     px+1
-        bne     @no
-        lda     cr_sy,y
-        cmp     py+1
-        bne     @no
-        lda     #0
-        beq     @group
 @no:    clc
         rts
 
@@ -636,32 +1026,22 @@ inventory_name:
         inx
         rts
 inv_second: .byte "GAME",0,"FISH",0,"INSECTS",0,"FRUIT",0,"CACTI",0,"MUSHROOMS",0,"PLANTS",0
-            .byte "BOW",0,"SPEAR",0,"CLUB",0,"SPLINT",0,"HIDE",0,"HUT",0,"IGLOO",0,"TRENCH",0
-            .byte "ROCK",0
+            .byte "BOW",0,"SPEAR",0,"CLUB",0,"SPLINT",0,"HIDE",0,"ROCK",0
 inv_second_at: .byte 0, 5, 10, 18, 24, 30, 40, 0, 0     ; 80..88
-            .byte 47, 51, 57, 91, 62, 69, 74, 78, 84    ; 89..97 (lot 3)
+            .byte 47, 51, 57, 74, 62, 69                ; 89..94 (lot 3)
 inventory_pile: .byte 0
 inventory_places: .byte 1,3,2,0,5
-inventory_cols:   .byte 0, INV_COL+1, 2 * INV_COL+1   ; (0: column 1 in a post-it, XL)
 inv_space:
         lda     #' '|$80
         jmp     COUT
-inventory_name_lo: .byte <inv_worn, <inv_hand, <inv_pack, <inv_ground, <inv_hung
-inventory_name_hi: .byte >inv_worn, >inv_hand, >inv_pack, >inv_ground, >inv_hung
+inventory_name_lo: .byte <inv_worn, <inv_hand, <inv_pack, 0, <inv_hung
+inventory_name_hi: .byte >inv_worn, >inv_hand, >inv_pack, 0, >inv_hung
 inv_worn:   .byte "WORN",0
-inv_hand:   .byte "IN HAND",0
-inv_pack:   .byte "IN PACK",0
-inv_ground: .byte "GROUND HERE",0
-inv_hung:   .byte "HUNG HERE",0
-inventory_group: .byte 0
-inventory_page: .byte 0
-inventory_pages: .byte 0
-inventory_count: .byte 0
-inventory_capacity: .byte 0
-inventory_skip: .byte 0
-inventory_lines: .byte 0
-inventory_item: .byte 0
-inventory_tab:  .byte 0
+inv_hand:   .byte "HANDS",0
+inv_pack:   .byte "PACK",0
+inv_hung:   .byte "LOCAL HUNG",0
 inventory_x:    .byte 0
-inventory_edge: .byte 0
-inventory_n:    .res 5
+        .pushseg
+        .segment "BSS"
+obj_selected: .res 2            ; last item on each side; 0 is not an item
+        .popseg

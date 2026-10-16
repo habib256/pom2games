@@ -332,9 +332,9 @@ MT = {v: k for k, v in MOUSETEXT.items()}
 # folder tabs on row 0, the line under them on row 1 (open under the page
 # shown), a line across row 22, the keys on row 23.
 # (15 October 2026: MEDICAL merged into STATUS, INVENTORY renamed OBJECTS.)
-PAGES = ('STATUS', 'OBJECTS', 'CRAFT', 'HELP', 'OPTIONS', 'MENU')
-TAB_ROW = (''.join(f'\u2595 {name} \u258f' for name in PAGES) + ' S/O/R/H').ljust(80)
-TAB_ROW_140 = ' STATUS  OBJECTS  CRAFT  HELP  OPTIONS  MENU             S/O/R/H, LEFT/RIGHT'
+PAGES = ('STATUS', 'OBJECTS', 'CRAFT', 'HELP', 'OPTIONS', 'MENU', 'EQUIPMENT')
+TAB_ROW = (''.join(f'\u2595 {name} \u258f' for name in PAGES) ).ljust(80)
+TAB_ROW_140 = ' STATUS  OBJECTS  CRAFT  HELP  OPTIONS  MENU'
 FOOT_LINE = '\u2500' * 80
 FOOT_PAGE = ' \u2190\u2192 PAGE  '           # row 23: LEFT/RIGHT turn the pages
 VIEW_DOWN = 'ESC/\u2193 VIEW'               # at column 70 (a page without a level)
@@ -352,13 +352,16 @@ def tab_line(page):
 # src/mt_pages.s pf_pages draws them: (first row, last row, first column,
 # last column, title; None: the page writes it, in inverse).
 POSTITS = {
-    'STATUS': ((2, 8, 0, 39, None), (9, 14, 0, 39, None), (2, 14, 41, 79, None), (15, 21, 0, 79, None)),
-    'OBJECTS': ((3, 15, 0, 79, None), (16, 20, 0, 79, None)),
+    'EQUIPMENT': ((2,19,0,39,'EQUIPMENT'),(2,11,41,79,'SELECTED - REAL STATE'),(12,19,41,79,'CATCH PREPARATION')),
+    'STATUS': ((2, 14, 0, 39, None), (2, 10, 41, 79, None), (11, 14, 41, 79, None), (15, 21, 0, 79, None)),
+    # 16 October 2026: LOCAL and CARRIED, then CARRYING and LOAD; rows
+    # 20-22 hold the answer of a transfer (left) and the commands (right).
+    'OBJECTS': ((2, 15, 0, 39, None), (2, 6, 41, 79, None), (7, 15, 41, 79, None), (16, 20, 0, 39, None), (16, 20, 41, 79, None)),
     'CRAFT': ((2, 6, 0, 28, 'SHELTERS'), (7, 13, 0, 28, 'WEAPONS AND TOOLS'), (14, 17, 0, 28, 'PROTECTION'),
               (2, 20, 30, 79, None)),
     'HELP': ((2, 9, 0, 39, None), (2, 9, 41, 79, None), (11, 19, 0, 39, None), (11, 19, 41, 79, None)),
-    'OPTIONS': ((2, 4, 0, 39, 'NATURE'), (5, 7, 0, 39, 'TOPO'), (8, 10, 0, 39, 'MAP'), (11, 13, 0, 39, 'FOOD')),
-    'MENU': ((2, 4, 0, 39, 'SAVE'), (5, 7, 0, 39, 'RESTORE'), (8, 10, 0, 39, 'QUIT'), (11, 14, 0, 39, None)),
+    'OPTIONS': ((2, 9, 0, 79, None),),
+    'MENU': ((2, 5, 0, 39, None), (6, 9, 0, 39, None), (10, 12, 0, 39, 'QUIT')),
 }
 
 
@@ -376,7 +379,15 @@ def postit_errors(mem, page):
     last, the last row the line $4C (inverse text allowed: INVENTORY's page
     number) from the first column to the last. [] when they all match."""
     errors = []
-    for top, bot, left, right, title in POSTITS[page]:
+    frames = POSTITS[page]
+    if page == 'OBJECTS':
+        # HANDS/PACK split follows the scrolling right list.
+        pack = next((r for r in range(3, 15)
+                     if raw_cell(mem, r, 43) == (ord('P') & 0x3F)
+                     and raw_cell(mem, r, 44) == (ord('A') & 0x3F)), None)
+        right = ((2, pack - 1, 41, 79, None), (pack, 15, 41, 79, None)) if pack else ((2, 15, 41, 79, None),)
+        frames = (frames[0],) + right + frames[-2:]
+    for top, bot, left, right, title in frames:
         first = [raw_cell(mem, top, c) for c in range(left, right + 1)]
         if title is None:       # (CRAFT's recipe: from the second column)
             skip = 1 if first[0] == 0xDF and first[1] < 0x40 else 0
@@ -406,7 +417,8 @@ def page_frame(rows, page, keys=None, view=None):
     """True when the text rows show the frame of the top page `page`: tabs,
     its line, the footer line, and (when given) row 23's keys and its
     VIEW at column 70."""
-    ok = rows[0].rstrip() == TAB_ROW.rstrip() and rows[1] == tab_line(page) and rows[22] == FOOT_LINE
+    ok = (rows[0].rstrip() == TAB_ROW.rstrip() and rows[1] == tab_line(page)
+          and (rows[22] == FOOT_LINE or page == 'OBJECTS'))     # (OBJECTS: its answer's rows 20-22)
     if keys is not None:
         ok = ok and rows[23].startswith(FOOT_PAGE + keys)
     if view is not None:

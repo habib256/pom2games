@@ -102,6 +102,7 @@ camp_walk:
 camp_say:
         tay
         lda     camp_msgs-1,y   ; a text of the bank (src/textbank.s)
+camp_say_tb:                    ; (A = the number of a text of the bank)
         ldx     #0
         ldy     camp_said
         inc     camp_said
@@ -348,6 +349,12 @@ camp_light:
 .segment "CAMP"
 ; Entry for MAKE/BUILD, BOIL, USE and DOUSE/STOP (camp_verb, camp_command).
 module_camp:
+        lda     noun
+        bne     :+
+        lda     #<m_object
+        ldx     #>m_object
+        jmp     message
+:
         jsr     camp_begin
         lda     verb
         cmp     #3
@@ -686,6 +693,7 @@ camp_k:     .res 2
 camp_craft:
         jsr     camp_class
         sta     cr_class
+        jsr     load_totals     ; lot 14: the load (USE: CRAFT checks it)
         jsr     level_here
         ldx     #0
         cmp     M_SNOW
@@ -713,7 +721,8 @@ craft_ran:                      ; (tests: the module's decisions, before time)
         jsr     camp_effort
 @time:  lda     cr_msg
         jmp     camp_done
-@now:   lda     cr_msg
+@now:   jsr     load_totals     ; SIM back: the load moved (USE BOW: the
+        lda     cr_msg          ; hand), the view rebuilt after the curtain
         beq     :+
         jsr     camp_say
 :       lda     cr_view

@@ -370,10 +370,21 @@ Mesures de place : [MEMORY.md](MEMORY.md) § 20.
   case et sont retrouvés au retour, le gourdin est perdu, la pierre revient
   sur toute case de terre (§ 3.3, § 8.5) ; au retour, ni le message
   « THERE IS A PREVIOUSLY DROPPED ITEM HERE » ni le message 157 des abris.
-- **Poids** : le second jeu (armes, pierre, attelle) ne pèse rien dans le
-  port (comme les piles du lot 4) ; GET, PACK, CARRY et USE ne refusent
-  jamais pour la charge, alors que l'original refuse GET ROCK au départ
-  (§ 4.1 : 100 oz). Reste du lot 14 (conteneurs et charge).
+- **Poids** (16 octobre 2026) : le second jeu pèse ses W5 et W6 (arc et
+  lance 50 oz, 90 in³ ; gourdin 100 oz, 200 in³ ; pierre 100 oz,
+  100 in³ ; attelle 50 oz, 120 in³) portés, rangés ou en main
+  (`module_load_totals`, `lt_crw`/`lt_crv`) : ils comptent dans la charge,
+  la marche et l'effort comme le premier jeu. Pris au sol (GET, PACK,
+  CARRY, WEAR, USE), il est refusé quand le poids ou le volume de sa
+  place dépasserait la limite (`cr_load`, la règle de T0E/S02 : le poids
+  restant `$4BF8` doit rester ≥ 0 ; mesuré par `tools/re_load_probe.py` :
+  GET ROCK avec 100 oz restants accepté, 99 refusé) ; GET ROCK au départ
+  est donc refusé, comme dans l'original. Réponse du port « TOO MUCH
+  WEIGHT OR VOLUME. DROP SOME GEAR. » au lieu du msg 7 ; USE garde l'arme
+  « en usage » au sol, comme l'original (§ 4). Un objet déjà porté qui
+  change de place n'est pas contrôlé (son poids ne change pas ; son
+  volume passe d'une place à l'autre). Reste du lot 14 : les formules des
+  conteneurs.
 - **Réponses de la transaction** : un succès affiche le texte du port
   (« HAND: BOW », « PACK: », « GROUND: », « WEARING: », comme le premier
   jeu) au lieu de « OK, WHAT NEXT? » ; WEAR d'une arme ou de la pierre
@@ -702,3 +713,11 @@ vérifie MAKE après le passage à `cr_minutes` (109 cas de la ROM).
   la question 26 (peau pour la gourde) n'a pas été mesuré.
 - B2[9] de la tente n'est remis à zéro que par la marche ; l'effet d'une
   tente « en usage » hors de l'abri n'est pas lu.
+
+### Refus de charge (16 octobre 2026, XL)
+
+Les objets fabriqués affichent TRANSFER REFUSED puis chaque limite dépassée :
+WEIGHT en OZ et WEAR/PACK/HANDS en IN3, avec NEED et FREE exacts. Le calcul
+ne change ni les stocks ni les règles natives : notamment USE peut conserver
+son drapeau natif même si la prise en main échoue. EQUIPMENT expose cet état
+réel indépendamment de la position physique de l’objet.

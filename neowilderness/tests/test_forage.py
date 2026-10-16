@@ -744,6 +744,7 @@ def game_script(results):
         port = Port(s)
         port.poke('nature_frequency', 0)
         prev = None
+        mushrooms = False
         for row in rows:
             cmd = row['command']
             want = row['state']
@@ -767,9 +768,10 @@ def game_script(results):
             words, rnd = m[1].split(), m[2]
             line = ' '.join(words[:2])
             answers = words[2:]
-            if line == 'COOK GAME' and answers == ['2', 'P', '.5']:
+            if line == 'COOK GAME' and answers[-1:] == ['.5']:
                 port.poke('fire_on', 1)                 # o.poke(0x45CD, [0]) before it
-            if line == 'PACK MUSHROOMS' and answers == ['5']:
+            if line == 'PACK MUSHROOMS' and not mushrooms:  # (the ROM's pokes before it)
+                mushrooms = True
                 port.set_pile(9, w7=20, b1=0)
                 port.set_counter(FG_CGND + 9, 50)
                 for name, v in (('fg_gt', 0), ('fg_gx', 2), ('fg_gp', 80)):
@@ -804,6 +806,11 @@ def game_script(results):
                     if abs(dg - dw) > 1e-6:
                         bad.append((k, dg, dw))
             last = row.get('text', '').split(' / ')[-1].strip().rstrip('!')
+            if line.startswith('PACK ') and last == 'OK, WHAT NEXT?':
+                # 16 October 2026 (docs/FORAGE.md 17.3, an intended
+                # difference): PACK asks nothing and says the ounces taken;
+                # the ROM was given the whole pile where it asks.
+                last = f'YOU TOOK {answers[0]} OUNCES.'
             if last and '?' not in last and last.split('!')[0][:20] not in text and line != 'KILL BEAR':
                 bad.append(('text', text, last))
             check(f'{cmd}', not bad, str(bad))
@@ -1035,10 +1042,16 @@ def grid_lists(port):
     line = chosen('SKIN')
     check('SKIN: its one target, at once', line[:2] == ('SKIN GAME', 80), line)
     back()
+    before = port.pile(4)
     line = chosen('GET', 'GAME')
     check('GET GAME: PACK GAME (a pile goes to the pack)', line[:2] == ('PACK GAME', 80), line)
     back()
-    check('PACK GAME from the grid: 8 oz in the pack', port.pile(4)['w8'] == 8, port.pile(4))
+    text = rows(s)
+    after = port.pile(4)
+    check(f'PACK GAME from the grid: no question, the whole pile ({before["w7"]} oz) in the pack, '
+          'the ounces said (16 October 2026)',
+          after['w8'] == before['w8'] + before['w7'] and after['w7'] == 0
+          and f'YOU TOOK {before["w7"]} OUNCES' in text, (before, after, text))
     port.poke('fg_b2', 0, 4)            # game present again (seen: it stays)
     port.poke('resource_seen', 1)
     animal = port.byte('animal_kind')
@@ -1055,7 +1068,7 @@ def grid_lists(port):
     port.poke('fg_bait', 0)
     port.poke('it_place', 2, 72)        # the TRAP in the pack
     run(port, 'LOOK R')
-    line = chosen('CATCH')
+    line = chosen('CATCH', '1 H')
     check('CATCH: GAME, the bait and the TRAP first', line == ('USE BAIT', 175, [S_BAIT, S_TRAP, S_CATCH]), line)
     back()
     port.poke('animal_kind', animal)

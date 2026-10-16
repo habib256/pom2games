@@ -171,9 +171,8 @@ overlay_load:
 @sim:   lda     sim_loaded
         beq     :+
         rts
-:       lda     #1              ; keep the HGR version's presentation: the
-        sta     ui_dirty        ; header is redrawn and the view hidden until
-        jsr     view_hide       ; it is rebuilt after the simulation
+:       lda     #1              ; keep the completed landscape during SIM;
+        sta     ui_dirty        ; hide it only when its redraw actually starts
         lda     #3
 @load:  sta     overlay_wanted
 overlay_before_transfer = *
@@ -350,7 +349,7 @@ vtab_target:
 
 ; Common inline durations are resident; the general numeric reader remains
 ; in INPUT for prompted entry, quantities and more elaborate syntax.
-.segment "RODATA"
+.segment "GCODE"
 get_duration:
         ldy     #1
         bne     number_entry
@@ -499,6 +498,7 @@ fast_words:
         .byte 5,"SLEEP",V_REST|$C0
         .byte 4,"TOPO",103,4,"VIEW",104,6,"STATUS",105
         .byte 9,"INVENTORY",106,4,"HELP",107,3,"MAP",109
+        .byte 9,"EQUIPMENT",110
         .byte 1,"M",109,1,"T",103,1,"S",105,0   ; one key: MAP, TOPO, STATUS (alone only)
 .segment "RODATA"
 ; Complete input/vocabulary fallback runs at most once per command.
@@ -1182,6 +1182,7 @@ finish_simulation:
         sta     sim_loaded
         lsr     sim_quiet       ; loaded quietly: the view was never hidden
         bcs     @done
+        jsr     view_hide       ; SIM kept the old frame; hide partial drawing
         jsr     summary_prepare
         lda     shown
         pha
@@ -1225,7 +1226,7 @@ look_invalid:
         ldx     #>m_oops
         jmp     message
 do_tree:
-        lda     #20
+        lda     #26
         jsr     overlay_load
         jmp     module_tree_command
 
@@ -1334,8 +1335,10 @@ do_walk:
         inc     travel_action
 @cell:  lda     KBD
         cmp     #KC_ESC|$80
-        bne     :+
-        bit     KBDSTRB
+        beq     @cancel
+        bit     $C062
+        bpl     :+
+@cancel:bit     KBDSTRB
         inc     input_interrupted
         jmp     @stop
 :       jsr     swim_next
@@ -1733,7 +1736,14 @@ module_drink_water:
         bne     :+
         lda     #0              ; a hung pack is not a source for this drink
 :       sta     water_drinking_untreated
-        jsr     at_ground
+        lda     obj_keep
+        bpl     :+
+        lda     obj_side
+        bne     @consume
+        lda     water_ground_untreated
+        sta     water_drinking_untreated
+        jmp     @consume
+:       jsr     at_ground
         bcc     @consume
         lda     it_place+N_WATER
         cmp     #5
@@ -1890,7 +1900,10 @@ module_do_get:
         jeq     @empty
         cmp     #$FF
         jeq     @empty
-@ready: lda     #0              ; the tent is a site sprite on XL (lot 3):
+@ready: jsr     transfer_amount
+        bcc     :+
+        rts
+:       lda     #0              ; the tent is a site sprite on XL (lot 3):
         sta     scene_cache_valid ; the next view recomputes the scene
         jsr     save_item
         cpx     #N_WATER
@@ -1901,15 +1914,19 @@ module_do_get:
         bcc     @packed
         clc
         lda     it_pack_lo,x
-        adc     it_gnd_lo,x
+        adc     msgnum
         sta     it_pack_lo,x
         lda     it_pack_hi,x
-        adc     it_gnd_hi,x
+        adc     msgnum+1
         sta     it_pack_hi,x
         bcc     :+
         jmp     reject_overflow  ; even an overflowing quantity is atomic
-:       lda     #0
+:       sec
+        lda     it_gnd_lo,x
+        sbc     msgnum
         sta     it_gnd_lo,x
+        lda     it_gnd_hi,x
+        sbc     msgnum+1
         sta     it_gnd_hi,x
 @packed:
         lda     it_gnd_lo,x
@@ -1932,7 +1949,13 @@ module_do_get:
         jsr     accept_load
         bcs     @result         ; ground water is safe (T0F/S00 $587C, lot 2)
         rts
-@result: lda     it_place,x
+@result:
+        lda     saved_item      ; packing/holding worn clothing removes a layer
+        cmp     #1              ; only after the load check has accepted it
+        bne     :+
+        jsr     native_clothes_changed
+        ldx     noun            ; thermal_clothes and its overlay clobber X
+:       lda     it_place,x
         cmp     #3
         beq     @carried
         lda     #<m_taken
@@ -2022,7 +2045,10 @@ module_do_drop:
         ldx     #>m_empty_can
         jmp     message
 @drop:  ldx     noun
-        lda     it_place,x
+        jsr     transfer_amount
+        bcc     :+
+        rts
+:       lda     it_place,x
         jeq     @missing
         cmp     #$FF
         jeq     @missing
@@ -2046,17 +2072,31 @@ module_do_drop:
         jmp     message
 @merge: clc
         lda     it_gnd_lo,x
-        adc     it_pack_lo,x
+        adc     msgnum
         sta     it_gnd_lo,x
         lda     it_gnd_hi,x
-        adc     it_pack_hi,x
+        adc     msgnum+1
         sta     it_gnd_hi,x
         bcc     :+
         jmp     reject_overflow
-:       lda     #0
+:       sec
+        lda     it_pack_lo,x
+        sbc     msgnum
         sta     it_pack_lo,x
+        lda     it_pack_hi,x
+        sbc     msgnum+1
         sta     it_pack_hi,x
-@gear:  lda     #0
+@gear:  lda     it_pack_lo,x
+        ora     it_pack_hi,x
+        beq     :+
+        cpx     #N_WATER
+        bcc     :+
+        cpx     #38
+        bcs     :+
+        lda     #4
+        bne     @place
+:       lda     #0
+@place:
         sta     it_place,x
         sta     scene_cache_valid ; the tent is a site sprite on XL (lot 3)
         lda     px+1
@@ -2084,11 +2124,14 @@ item_noun:
         bcc     @notyet         ; CRAFT module in the SIM window (src/craft.s
         cpx     #94             ; cr_items); C clear: the caller returns
         bcs     @notyet
-        lda     #0
+        jsr     load_totals_quiet ; lot 14: the load now (CRAFT checks it;
+        lda     #0              ; SIM quietly: no curtain, the view intact)
+        sta     sim_quiet
         sta     sim_loaded      ; the module holds the SIM window
         ldx     #CRAFT_MODULE
         jsr     sim_fetch
         jsr     CRAFT_RUN
+        jsr     load_totals_quiet ; the load moved (TRAVEL's pounds)
         clc
         rts
 @notyet:
@@ -2124,10 +2167,100 @@ load_limits: .word 815, 2149, 6000, 2686
 load_vol: .res 2
 load_bad: .byte 0
 saved_item: .res 5
-load_words: .byte "WEIGHT  WEAR VOLPACK VOLHAND VOL"
+; EQUIPMENT has a distinct page and keeps its selected item across overlays.
+eq_selected: .byte 0
+scr_equipment:
+        jsr     load_totals_quiet
+        jsr     status_fetch
+        ldx     #33             ; direct fetch: 33 is also the first scene asset
+        jsr     mem_fetch
+        jmp     module_equipment
 .segment "GCODE"
 
 .segment "ITEMS"
+ ; Transfer quantities are ounces of first-set provisions only. Omitted
+; quantity keeps ALL. Reject before saving/changing anything; never clamp.
+transfer_amount:
+        cpx     #N_WATER
+        jcc     @gear
+        cpx     #38
+        jcs     @gear
+        lda     verb
+        cmp     #V_DROP
+        beq     @pack
+        jsr     at_ground
+        bcs     :+
+        lda     input_argument
+        jne     @missing
+        clc
+        rts
+:       lda     it_gnd_lo,x
+        sta     msgnum
+        lda     it_gnd_hi,x
+        jmp     @stock
+@pack:  lda     it_pack_lo,x
+        sta     msgnum
+        lda     it_pack_hi,x
+@stock: sta     msgnum+1
+        lda     input_argument
+        beq     @ok
+        lda     input_unit
+        beq     :+
+        cmp     #3
+        bne     @bad
+:       lda     input_value
+        ora     input_value+1
+        beq     @bad
+        lda     msgnum
+        cmp     input_value
+        lda     msgnum+1
+        sbc     input_value+1
+        bcc     @short
+        lda     input_value
+        sta     msgnum
+        lda     input_value+1
+        sta     msgnum+1
+        cpx     #N_WATER
+        bne     @ok
+        lda     verb
+        cmp     #V_DROP
+        beq     @ok
+        lda     #0
+        sta     stock_available
+        sta     stock_available+1
+        lda     it_pack_hi+N_WATER
+        bne     @capacity
+        sec
+        lda     #64
+        sbc     it_pack_lo+N_WATER
+        bcc     @capacity
+        sta     stock_available
+        lda     msgnum+1
+        bne     @capacity
+        lda     stock_available
+        cmp     msgnum
+        bcs     @ok
+@capacity:
+        lda     #<water_capacity
+        ldx     #>water_capacity
+        jmp     @say
+@ok:    clc
+        rts
+@gear:  lda     input_argument
+        beq     @ok
+@bad:   lda     #<transfer_bad
+        ldx     #>transfer_bad
+        jmp     @say
+@short: lda     #<transfer_short
+        ldx     #>transfer_short
+        jmp     @say
+@missing:
+        lda     #<m_notthere
+        ldx     #>m_notthere
+@say:   jsr     message
+        sec
+        rts
+
 save_item:
         lda     it_place,x
         sta     saved_item+0
@@ -2259,8 +2392,30 @@ module_load_totals:
 @next:  dex
         beq     :+
         jmp     @item
-:       ldx     noun
+:       ldx     #4              ; lot 14: the second set carried (BOW, SPEAR,
+@craft: lda     cr_b1,x         ; CLUB, ROCK, SPLINT: W5, W6 of CRAFT.md
+        beq     @cnext          ; 4.1), its volume in its place (1 worn,
+        cmp     #4              ; 2 pack, 3 hand); 0 ground, $FF none
+        bcs     @cnext
+        asl     a
+        pha
+        lda     lt_crw,x
+        sta     num
+        lda     #0
+        sta     num+1
+        tay
+        jsr     load_add
+        lda     lt_crv,x
+        sta     num
+        pla
+        tay
+        jsr     load_add
+@cnext: dex
+        bpl     @craft
+        ldx     noun
         rts
+lt_crw: .byte   50, 50, 100, 100, 50    ; oz
+lt_crv: .byte   90, 90, 200, 100, 120   ; in3
 
 load_add:
         clc
@@ -2531,6 +2686,21 @@ at_ground:
 ; take_oz -- remove up to msgnum ounces of item X (pack first, then the ground
 ; at the item's ground cell); msgnum = ounces removed (at most 255)
 take_oz:
+        stx     take_oz_item+1
+        lda     overlay_current
+        pha
+        lda     #22
+        jsr     overlay_load
+take_oz_item:
+        ldx     #0
+        jsr     module_take_oz
+        pla
+        jsr     overlay_load
+        ldx     take_oz_item+1
+        rts
+.pushseg
+.segment "OUTDOOR"
+module_take_oz:
         stx     g2
         lda     msgnum+1
         beq     :+
@@ -2541,7 +2711,13 @@ take_oz:
         lda     #0
         sta     msgnum+1
         sta     g1              ; taken
-        lda     it_place,x
+        lda     obj_keep
+        bpl     :+
+        cpx     menu_noun
+        bne     :+
+        lda     obj_side
+        beq     @ground
+:       lda     it_place,x
         cmp     #5
         beq     @ground
         lda     it_pack_hi,x    ; from the pack
@@ -2563,6 +2739,12 @@ take_oz:
         sbc     g1
         sta     g0
         beq     @done
+        lda     obj_keep
+        bpl     @ground
+        cpx     menu_noun
+        bne     @ground
+        lda     obj_side
+        bne     @done
 @ground:
         jsr     at_ground        ; then from the ground, at the item's ground cell
         bcc     @done
@@ -2596,6 +2778,8 @@ take_oz:
         sbc     #0
         sta     it_oz_hi,x
         jmp     load_totals
+
+.popseg
 
 ; oz_times -- FAC = msgnum (byte) * g0
 .segment "ENVIRON"
@@ -2636,10 +2820,12 @@ module_mul60: lda     msgnum
 .segment "GCODE"
 ; cell_at -- A = grid byte of cell (Y = x, X = y); N = water
 cell_at:
-        lda     grid_lo,x
+        sty     cell_at_y+1
+        jsr     grid_row
         sta     gp2
-        lda     grid_hi,x
-        sta     gp2+1
+        sty     gp2+1
+cell_at_y:
+        ldy     #0
         lda     (gp2),y
         rts
 
@@ -3330,6 +3516,8 @@ message_text:                   ; alerts.s appends from the cursor (gp1 set)
         jeq     @unknown
         cmp     #'@'
         jeq     message_region
+        cmp     #'%'
+        jeq     message_plural
         ora     #$80
         jsr     message_char
 @next:  iny
@@ -3428,6 +3616,19 @@ message_string:
         iny
         bne     @char
 @end:   rts
+
+.pushseg
+.segment "CODE"
+; Optional S for the 16-bit number printed by '#'; 257 is plural too.
+message_plural:
+        lda     msgnum
+        eor     #1
+        ora     msgnum+1
+        beq     @next
+        lda     #'S'|$80
+        jsr     message_char
+@next:  jmp     message_next
+.popseg
 
 ; Words are placed whole in the result column; the last column stays
 ; reserved, so an expanded name can never scroll the window (src/menu.s).
@@ -3530,9 +3731,9 @@ sky_words: .byte "CLEARCLOUDRAIN SNOW "
 ; ----------------------------------------------------------------------------
 .segment "LOWTEXT"
 screen_lo:
-        .byte   <scr_topo, <scr_view, <scr_status, <scr_inventory, <scr_help, <scr_notyet, <scr_map
+        .byte   <scr_topo, <scr_view, <scr_status, <scr_inventory, <scr_help, <scr_notyet, <scr_map, <scr_equipment
 screen_hi:
-        .byte   >scr_topo, >scr_view, >scr_status, >scr_inventory, >scr_help, >scr_notyet, >scr_map
+        .byte   >scr_topo, >scr_view, >scr_status, >scr_inventory, >scr_help, >scr_notyet, >scr_map, >scr_equipment
 .segment "GDATA"
 verbs:  .byte   17, 18, 37, V_WEAR, V_DROP, V_GET, V_CARRY, V_PACK, V_DRINK, V_EAT, V_LOOK, V_PAN
         .byte   41, 42          ; SAVE, RESTORE (lot 9, src/save.s)

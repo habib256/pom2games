@@ -223,7 +223,7 @@ Le message de départ rappelle l’objectif des rangers et propose INVENTORY,
 STATUS, TOPO et HELP. Il reste visible à la première invite, sans touche
 supplémentaire ni temps simulé. HELP reprend ces indications dans sa première
 page. Les trois pages séparent déplacement, équipement et survie, avec des
-exemples complets et les emplacements PACK, HAND, WORN et GROUND HERE.
+exemples complets et les emplacements PACK, HAND, WORN et LOCAL GROUND.
 DROP CHEESE avertit du dépôt de tout le stock ; les objets déposés restent
 sur leur case. Les touches 1/2/3 sélectionnent une page ; N/Espace et B
 parcourent les pages dans les deux sens avec retour circulaire. Échap ou
@@ -305,15 +305,18 @@ la santé privilégie une transition, le danger thermique, immersion/vêtements
 mouillés, frissons ou sueur, puis l'abri ou les objets récupérables ici. Les
 seuils sont repris de STATUS. Une classe inchangée ne répète pas l'alerte à chaque pas ; une
 action longue conserve une seule alerte prioritaire jusqu'au compte rendu.
-STATUS distingue CARRIED et HERE, avec les unités OZ, et place les conditions
+STATUS distingue CARRIED et LOCAL, avec les unités OZ, et place les conditions
 avant besoins et environnement. Le cas simultané de toutes les conditions,
 abri, immersion et frissons tient dans les 24 lignes sans pagination.
 
-INVENTORY regroupe WORN, IN HAND, IN PACK et GROUND HERE, sélectionnables
+INVENTORY regroupe WORN, IN HAND, IN PACK et LOCAL GROUND, sélectionnables
 par 1–4. Chaque groupe contient douze objets par page ; N/Espace/Entrée
 avancent, B recule et Échap revient immédiatement. Les quatre capacités
 restantes, les unités et les commandes de manipulation restent visibles.
 Les réserves réparties ont une quantité distincte dans sac et sol.
+(Depuis le 16 octobre 2026, INVENTORY est la page OBJECTS de transfert :
+LOCAL à gauche, HANDS, PACK et WORN à droite, RETURN et H transfèrent ;
+[MENUS.md](MENUS.md) § 5.1.)
 TOPO ajoute C pour recentrer et un libellé cardinal magnétique cohérent avec
 le ruban ; une ligne nomme le site masqué par P et rappelle ENTER/EXIT SHELTER.
 Le bandeau signale les objets récupérables sans message répété à chaque rotation.

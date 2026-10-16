@@ -9,18 +9,29 @@ d'[ORIGINAL_GAP.md](docs/ORIGINAL_GAP.md) § 3 (numéros, tailles, nature
 « ajout » ou « fidélité »), puis trois sections hors lots : interface,
 image, qualité. Ce qui est fait est décrit dans [CHANGELOG.md](CHANGELOG.md).
 
-**Prochain lot : 6, sites (reste)** : le lot 3, fabrication, est fait le
+**Édition active : NeoWildernessXL uniquement.** Le 16 octobre 2026,
+l’utilisateur a demandé l’arrêt de la version 140 Ko. Sa construction et
+sa validation sortent du travail courant ; les anciennes mesures ci-dessous
+sont historiques.
+
+**Priorité en cours : navigation complète sans clavier**, audit approuvé
+le 16 octobre 2026 ; entrées communes et premier éditeur d’actions/quantités
+d’OBJECTS réalisés, cas particuliers puis CRAFT/CATCH à poursuivre
+(section interface ci-dessous).
+
+**Prochain lot de fidélité : 6, sites (reste)** : le lot 3, fabrication, est fait le
 15 octobre 2026 (recettes de MAKE, page CRAFT, second jeu dans la grille,
 sprites des abris sur XL : [CRAFT.md](docs/CRAFT.md), CHANGELOG.md). Le
 lot 4 est fait (14 octobre 2026, CHANGELOG.md, [FORAGE.md](docs/FORAGE.md)
 § 17), la grille rationalisée aussi (15 octobre 2026,
 [MENUS.md](docs/MENUS.md) § 4) ; le lot 6 en partie (sprites de site,
-15 octobre 2026). TEXT (2 octets), WILDLO (0), RESIDENT (5), LOWPAGE (1)
-et MENUSWAP (0) sont pleins, MENUCODE presque (4), WILDERNESS 2, WILDGAME
-2 : l'état d'un lot futur ira dans un module ou demandera une récupération
-([MEMORY.md](docs/MEMORY.md) § 16 à 28) ; l'édition de 140 Ko est pleine
-(280 / 280 blocs), son NEOWILD.DAT 69 octets avant un bloc de plus ; le
-stock de XL a 241 octets de place de tronc (§ 28, la grille compressée).
+15 octobre 2026). TEXT (2 octets), WILDLO (0), RESIDENT (5), LOWPAGE (0)
+et MENUSWAP (0) sont pleins, MENUCODE presque (4), WILDGAME 0, WILDERNESS
+0 : l'état d'un lot futur ira dans un module ou demandera une
+récupération ([MEMORY.md](docs/MEMORY.md) § 16 à 37) ; l'édition de
+140 Ko est pleine (280 / 280, les parties en 4 blocs depuis le
+16 octobre), son NEOWILD.DAT occupe 122 blocs et son stock
+auxiliaire a 2 239 octets de tronc libres.
 
 **Règle de sortie.** Une entrée est faite quand son « Terminé quand » est
 vrai, tests à l'appui ; le même jour, elle quitte ce fichier et devient une
@@ -28,28 +39,28 @@ puce de CHANGELOG.md (« Non publié », avec le commit ou la date). Aucune
 case cochée ne reste ici. « En cours » : deux lots au plus (un agent par
 lot, un seul qui construit dans l'arbre).
 
-## Marges (MEMORY.md § 29, 15 octobre 2026, post-its et pages restructurées)
+## Marges historiques (avant EQUIPMENT ; mesures actuelles dans MEMORY.md)
 
 | Zone | Libre |
 |---|---:|
 | TEXT `$0A00-$0FFF` | 2 |
 | WILDLO `$1000-$1FFF` | 0 |
-| WILDGAME `$4000-$577F` | 11 |
-| WILDERNESS `$6000-$6FFF` | 2 (XL : et 1 dans `page_foot`, code mort de XL) |
+| WILDGAME `$4000-$577F` | **0** |
+| WILDERNESS `$6000-$6FFF` | **0** (XL : et 1 dans `page_foot`, code mort de XL) |
 | RESIDENT `$B600-$B9FF` | 5 |
 | MENUCODE `$BA00-$BDFF` | 4 |
-| LOWPAGE `$0200-$03CF` | 1 |
+| LOWPAGE `$0200-$03CF` / LOWTEXT | 0 / 0 (la table des messages de CAMP y est) |
 | HICODE / MENUSWAP / banque 2 principale | 3 / 0 / 24 |
-| SIM sous `$B500` | 156 |
-| Stock auxiliaire, place du tronc : XL / 140 Ko | 6 114 / 679 |
-| Disque occupé : XL / 140 Ko | 372 / 1 600 ; **280 / 280** blocs (`read_volume.py`) |
-| NEOWILD.DAT de 140 Ko avant un bloc de plus | **95** octets |
+| SIM sous `$B500` | 107 |
+| Stock auxiliaire, place du tronc : XL / 140 Ko | 8 833 / **2 239** (sprites de la Sierra : 192) |
+| Disque occupé : XL / 140 Ko | 369 / 1 600 ; **280 / 280** blocs (`read_volume.py`) |
+| NEOWILD.DAT de 140 Ko avant un bloc de plus | **360** octets (122 blocs) |
 | PROJECT (fenêtre `$5800`, 2 048) : XL / 140 Ko | **46** / 166 (queue des abris coupée) |
-| CRAFT (fenêtre `$9600-$A5FF`, 8 blocs ; MAKE en lit 4 : 170 libres) / MEDICAL (`$5800`) | 13 / 25 |
-| STATUS partagé (`$9600-$AEFF`, sous STATX) / TOPOGEN (`$9600-$A1FF`, avant `TOPOBSS`) | 94 / 75 |
-| SUMMARY (`$5800`) / GRID (`$A300-$AFFF`) | 1 / 652 |
-| Queues de XL (MENUS.md § 9.1) : STATX (`$AF00-$B5FF`) / CRAFTX (jusqu'à `$A7FF` pour 9 blocs ; au-delà, sous le tampon des cadres) / MEDVX / ENDX | 696 / 300 / 361 / 320 |
-| STATUS de XL sur NEOWILD.BLK (`$9600-$B5FF`, 16 blocs au plus) | 696 octets (15 blocs) |
+| CRAFT (fenêtre `$9600-$A6FF`, 9 blocs ; MAKE en lit 4 : 68 libres) / MEDICAL (`$5800`) | 167 / 25 |
+| STATUS partagé (`$9600-$B0FF`, sous STATX) / TOPOGEN (`$9600-$A1FF`, avant `TOPOBSS`) | 82 / 75 |
+| SUMMARY (`$5800`) / GRID (`$A300-$AFFF`) | 1 / 600 |
+| Queues de XL (MENUS.md § 9.1) : STATX (`$B100-$B5FF`) / CRAFTX (`$A700`, jusqu'à `$A7FF` pour 9 blocs) / MEDVX / ENDX | 64 / 108 / 361 / 320 |
+| STATUS de XL sur NEOWILD.BLK (`$9600-$B5FF`, 16 blocs au plus) | 64 octets (16 blocs) |
 
 Les coûts du tableau ci-dessous viennent d'ORIGINAL_GAP.md § 3 et de
 FORAGE.md § 15 ; « à chiffrer » veut dire qu'aucune mesure n'existe. Un lot
@@ -73,9 +84,9 @@ qui touche le chemin de référence rebase d'abord `test_reference_state.py`.
 | 11 | Faune complète (durée, déplacements, RUN, feu et animaux) | ouvert | — | 0,6 Ko (WILDOUT scindé) | à chiffrer | à chiffrer | — |
 | 12 | Terrain, pentes, risques, REST interrompu par la météo | ouvert, **fidélité** | — | 1,0 Ko (TRAVEL, SIM) | à chiffrer | à chiffrer | — |
 | 13 | Médecine | fait ; reste les chutes | `868d9fa`, `test_care.py --original` | — | — | — | — |
-| 14 | Conteneurs et charge (P3) | ouvert, **fidélité** | — | 0,3 Ko (ITM, GDATA) | — | — | — |
+| 14 | Conteneurs et charge (P3) | en partie (16 octobre 2026 : poids du second jeu, refus au sol, jauge LOAD aux seuils mesurés) ; restent les formules des conteneurs | `re_load_probe.py`, `test_objects.py --original` | 0,3 Ko (ITM, GDATA) | — | — | — |
 | 15 | Régions : R1, R2, géographie fine (R3) | ouvert | REGIONS.md § 7 | 0,1 Ko | Sierra seule | atlas : partage `$D000-$F0FF` avec l'instantané TOPO | XL : ≈ 13 blocs par atlas |
-| — | TMAKE, générateur de terrain | ouvert, XL | — | à chiffrer | — | à chiffrer | à chiffrer |
+| — | TMAP, générateur de terrain | archipel v1 réalisé, XL ; restent export et généralisation | TMAP.md, `test_tmap.py` | programme séparé | — | données de décor | deux fichiers XL |
 
 Ordre proposé : 3 → 6 → 8 → 5 → 10 → 11 → 15 → 12 → 14
 (ORIGINAL_GAP.md § 3). Les lots de fidélité 12 et 14 viennent ensemble, en
@@ -137,15 +148,30 @@ régions (sonde ROM), le score original est affiché à la fin.
 - [ ] Lot 12 : pentes, risques de déplacement, REST interrompu par la
   météo (**fidélité**).
 - [ ] Lot 14 : capacités des conteneurs selon le poids (`$4BF8`, `$4BEE`,
-  `$4BF2`) (**fidélité**) ; poids du second jeu, aujourd'hui nul (arc et
-  lance 50 oz, gourdin et pierre 100, attelle 50 : CRAFT.md § 4.1 ;
-  l'original refuse GET ROCK au départ).
+  `$4BF2`) (**fidélité**). Fait le 16 octobre 2026 : le poids du second
+  jeu (CRAFT.md § 8.2) et son refus au sol (GET ROCK refusé au départ,
+  comme l'original) ; la jauge LOAD d'OBJECTS (MENUS.md § 5.1) aux seuils
+  mesurés sur la ROM (`tools/re_load_probe.py`) : la marche ralentit
+  proportionnellement au poids dès la première livre (T08/S07, déjà porté
+  par TRAVEL), le seul seuil est la limite `$4BFA` (815 oz pour la Sierra),
+  au-delà de laquelle tout objet pris au sol est refusé. Restent : la
+  limite et les volumes selon le personnage (`$4BFA` et les capacités
+  calculées par le chargeur : aujourd'hui les constantes de
+  `load_limits`), la comptabilité originale du sac et de la gourde
+  (state.md § Réimplémentation : charge), le volume d'un objet du second
+  jeu qui change de place sans quitter le joueur (non contrôlé), le poids
+  des piles du lot 4 (aucun, FORAGE.md § 17.3).
 - [ ] Lot 15 : terrain et altitude de base par région, gravité des
   blessures, branches non sondées (radeau, cannibales ; REGIONS.md § 7) ;
   géographie fine des six régions — décision de jeu (la simulation des
   cartes héritées changerait) ; pistes : résolution réduite (1–2 Ko) ou
   atlas de la Sierra seule.
-- [ ] TMAKE, générateur de terrain, pour XL.
+- [ ] TMAP XL : exporter le scénario généré dans un paquet rechargeable,
+  étendre le manifeste aux fiches/sprites d'animaux, sites et objectifs,
+  puis aux autres terrains. L'archipel de deux ou trois îles, la graine,
+  le relief renforcé, la mer à l'horizon et les traversées sont réalisés.
+  Les arbres du prototype ont été retirés ; un décor tropical satisfaisant
+  reste à dessiner. Voir [TMAP.md](docs/TMAP.md).
 - [ ] Lot 13, reste : les chutes (IMPLEMENTATION.md, « Conditions
   médicales »).
 
@@ -160,13 +186,78 @@ les demi-pas et leurs coûts restent ceux de l'original
 
 ## Hors lots : interface et expérience de jeu
 
-- [ ] Joystick (étape 1 de [MENUS.md](docs/MENUS.md) § 8) : pilote dans la
-  boucle `idle` de `src/menu.s`, selon le modèle de navigation du
-  14 octobre (vue, pages du haut, pages du bas, niveaux de focus).
+### Navigation complète sans clavier — audit approuvé le 16 octobre 2026
+
+Priorité demandée par l'utilisateur : réaliser le parcours entier avec les
+directions, valider et retour, du démarrage à la fin de partie, sur NeoWildernessXL. Garder les commandes tapées, les décisions d'AGENTS.md,
+les cinq sauvegardes et les règles de simulation existantes.
+
+- [ ] **En cours — événements et dialogues.** Unifier les entrées clavier et
+  joystick (zone morte, répétition, fronts des boutons, relâchement entre
+  deux étapes) ; convertir PACK/GROUND (P/G), confirmations Y/N, E/W,
+  quantités, durées et azimuts en choix navigables. Inclure les messages
+  qui attendent une touche et l'interruption de WALK/SWIM.
+Le deuxième lot est présent : menu d’actions, quantité directionnelle et
+confirmation, aperçu de charge des transferts usuels, consommation de la
+source sélectionnée. `test_object_actions.py` vérifie la transaction sans
+mutation et les quantités 16 bits. Les points ci-dessous restent ouverts
+pour les cas particuliers ; ils ne sont pas déclarés terminés.
+
+- [ ] **OBJECTS — actions.** Entrée dans les listes conservée ; un objet
+  sélectionné donne accès à utiliser, goûter/manger, boire, mettre/retirer,
+  prendre en main, ranger et déposer selon sa nature. Garder son identité
+  et sa source (LOCAL/PACK/HANDS/WORN), les sélections et le défilement ;
+  revenir au contexte avec la réponse après une action.
+- [ ] **OBJECTS — quantités à compléter.** Choix fin, quantités rapides et TOUT avec le
+  stock exact de la source ; équipements indivisibles et médicaments en
+  usages/doses. Ne pas confondre tout transférer et tout consommer. Étendre
+  les commandes de transfert pour que page et saisie passent par les
+  mêmes règles ; annulation sans changement de temps, stock ni hasard.
+- [ ] **OBJECTS — aperçu à compléter.** Avant validation : source, destination réelle,
+  quantité, poids ajouté, volume nécessaire et place restante après
+  transfert ; eau/gourde, sac, vêtements et objets fabriqués compris.
+  Aucun changement temporaire de l'état réel pour calculer l'aperçu.
+- [ ] **OBJECTS — refus à compléter.** Causes précises et cumulées : poids dépassé,
+  PACK plein, HANDS pleines, contenant absent, sac suspendu, contenant à
+  vider ; afficher besoin/disponible/manque. Réduire la quantité ou choisir
+  explicitement le maximum transportable, sans transfert partiel caché.
+  Harmoniser les messages des objets fabriqués avec ceux des équipements
+  sans modifier implicitement leurs règles de charge.
+- [ ] **STATUS.** Expliciter jauges et états ACTIVE/TREATED/PROTECTED ;
+  prérequis et temps du soin sélectionné ; retour au soin après action.
+- [ ] **CRAFT.** Après fabrication : prendre/utiliser/entrer ou revenir aux
+  recettes ; distinguer outil disponible et en usage ; annoncer le coût
+  temporel et l'heure de fin estimée des travaux longs ; rendre le lien
+  avec FIRE/WATER de la grille compréhensible.
+- [ ] **CATCH.** Distinguer capture, chasse active et combat ; montrer cible,
+  appât, matériel, durée et rendement attendu avant validation ; refus des
+  prérequis lisibles ; résultat avec quantité au sol et accès à ramasser,
+  dépecer si applicable, cuire ou manger.
+- [ ] **Parcours périphériques.** MAP : mode d'exploration directionnel et
+  recentrage ; démarrage, région/niveau, préparation personnalisée,
+  SAVE/RESTORE et remplacement, QUIT, score et nom du hall of fame.
+- [ ] **Retour visuel.** Focus des onglets explicite, étape courante des
+  choix, activité pendant l'attente et protection contre la validation
+  maintenue ; conserver inverse/symboles/libellés indépendants de la couleur.
+- [ ] **Mémoire et disque.** Mesurer chaque lot ; récupérer de la place dans le résident avant ajout ; développer XL seule et publier les marges et latences réelles.
+
+**Terminé quand :** un test parcourt démarrage → équipement → fabrication
+→ capture → consommation/soins → sauvegarde/restauration → fin de partie
+aux directions et boutons seuls, sur NeoWildernessXL, avec stocks sol
+et sac simultanés, surcharge, matériel absent, annulation à chaque niveau
+et interruption. Les mêmes actions gardent l'état de simulation des
+commandes tapées ; aucun temps ni tirage pendant la navigation. Rejouer
+les tests OBJECTS, CRAFT, CATCH, grille, focus, cartes, sauvegardes et la
+comparaison des 163 variables avec la référence.
+
+- [ ] Achever le raccordement des entrées communes : questions de préparation
+  personnalisée, confirmation d'effacement de /RAM avant chargement du
+  tronc, erreurs disque et lecteur décimal hérité de CATCH tapé sans durée.
+  Le pilote joystick, le menu de départ, les pages, P/G, les confirmations
+  en jeu, le lecteur numérique, MAP et le nom du score sont réalisés :
+  CHANGELOG.md (« Navigation commune », 16 octobre 2026).
 - [ ] INVENTORY avec actions par objet (étape 5) ; parcours d'un nouveau
   joueur au joystick seul (étape 6).
-- [ ] REST et les chargements de simulation gardent l'image DHGR au lieu du
-  rideau texte (`load_totals_quiet` n'est utilisé que par INVENTORY).
 - [ ] Fin de partie : ne pas réécrire le hall of fame quand rien ne change
   (1,9 s ; message à chaque voyage sur disquette protégée ; HOF.md l. 333).
 - [ ] Messages : refus précis, retours persistants, causes d'arrêt nommées
@@ -258,25 +349,20 @@ ligne de lot ou une ligne « Retiré ».
   met la hache dans le sac) ; BOIL : une seule ébullition protège-t-elle de
   la giardiase pour tout le voyage (sélecteur 22 jamais remis à zéro alors
   que l'iode l'est ; puis +1 octet dans `hz_daily`) ?
-- **Édition de 140 Ko : deux blocs libres.** CRAFT a pris 2 blocs (6 au
-  lieu de 4) pour la page, le retrait de la durée de vie du feu en a rendu
-  un (NEOWILD.DAT, 51 octets avant d'en reprendre un) ; la prochaine
-  croissance du disque de cette édition (lot 6, 8, 10) demandera de la
-  place reprise (NEOWILD.BLK : le module FIRE, 1 701 octets depuis le
-  feu remonté, tiendrait en 3 blocs au-dessous de 1 536 ; ou moins de
-  parties sauvées : 5 × 5 blocs).
+- **Édition de 140 Ko pleine (16 octobre 2026).** CATCH avec sa durée
+  prend le dernier bloc libre : 280/280, cinq sauvegardes de quatre blocs.
+  Le prochain ajout disque demande de récupérer de la place. Piste : réduire
+  FIRE sous 1 536 octets pour passer de quatre à trois blocs ; une réduction
+  du nombre de sauvegardes demanderait une décision de jeu.
 - **Restes de la grille.** Garder le module FORAGE entre deux étapes de la
   file (aujourd'hui relu à chaque étape : 12 blocs sur 140 Ko) ; gestes
   DRY et HANG dans la page MEDICAL (`WET`, vêtements mouillés) ; onces de
-  COOK et heures de CATCH en ligne dans les listes, comme `BOIL WATER n
-  OZ` (aujourd'hui l'invite numérique les demande).
-- **Petits défauts relevés le 14 octobre.** Pluriel « 1 HOURS »
-  (`textbank.txt:21-22`) ; `MAKE` seul répond « NOT IN THIS VERSION
-  YET. » au lieu de « WHAT? » (CAMP +6) ; l'invite de `BOIL WATER` tapé
+  COOK dans les listes, comme `BOIL WATER n OZ` (aujourd'hui l'invite
+  numérique les demande).
+- **Petits défauts relevés le 14 octobre.** L'invite de `BOIL WATER` tapé
   annonce 128 oz pour 64 disponibles (`w_avail`, CAMP +10) ; à
   revérifier depuis la bascule WEAR : la liste omet SUNGLASSES et WATCH,
-  REMOVE jette au sol, PACK/TAKE d'un vêtement porté ne recalculent pas
-  l'isolation.
+  REMOVE jette au sol.
 - **Alerte en double.** « YOU ARE HUNGRY ENOUGH TO EAT A HORSE. » deux
   fois après deux `REST 8 H` (lot 13, à examiner).
 - **Sondes ROM encore à lancer** (ORIGINAL_GAP.md § 3) : durée de présence
@@ -343,3 +429,10 @@ Obsolète : politique disque « 140 Ko seulement » (800 Ko adoptée, deux
 au seuil de 5 %) ; « tout est encore non commité » ; fenêtres DHGR à la
 place des écrans 40 colonnes (étapes 3-4 de MENUS.md, remplacées par les
 pages 80 colonnes).
+
+Points de contrôle du lot suivant : distinguer les doses des médicaments ;
+proposer LOWER FOOD depuis LOCAL HUNG avec son coût en temps ; compléter
+le filtrage contextuel des actions (dont goûter). Vérifier ensuite les
+parcours complets CRAFT/CATCH et le matériel réel sans saisie de commande.
+Les quantités d’eau, le volume requis, les refus détaillés des objets
+fabriqués et la page EQUIPMENT sont réalisés (CHANGELOG, 16 octobre).

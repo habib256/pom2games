@@ -427,8 +427,8 @@ par `$4D00` (`$4B73` ≠ 0) le fait. Observé dans la partie réelle :
 | EAT n (sac) | w8, w5 −= n |
 | COOK n (sac) | n oz du sac au sol (w8 −= n, w7 += n) ; fiche du sac recopiée sur le sol si non détoxiqué (§ 6) |
 | COOK n (sol) | rien ne bouge |
-| PACK n | sol → sac, **aucun temps** ; fiche du sol copiée sur le sac (b3 ← W10[i], b4 ← W9[i], w9[k + 15] ← W11[i], w11[k] ← compteur du sol ; mesuré 2/80/50 puis 2/80/72) ; plus que le sol : msg 64 (16) |
-| DROP n | sac → sol, aucun temps ; **la fiche du sol est gardée** (mesuré : sac 3/5/15 %/5 h, sol resté 2/0/80 %/72 h) |
+| PACK n | sol → sac, **aucun temps** ; fiche du sol copiée sur le sac (b3 ← W10[i], b4 ← W9[i], w9[k + 15] ← W11[i], w11[k] ← compteur du sol ; mesuré 2/80/50 puis 2/80/72) **quand le sac n'en a pas** : une pile du sac qui en a garde son compteur (mesuré le 16 octobre 2026 : 45 gardé) ; plus que le sol : msg 64 (16) |
+| DROP n | sac → sol, aucun temps ; **la fiche du sol est gardée** (mesuré : sac 3/5/15 %/5 h, sol resté 2/0/80 %/72 h), **sauf sur une pile du sol vide**, qui prend la fiche et le compteur du sac (mesuré le 16 octobre 2026 : 5/3/15 %, compteur 5) |
 | GET/CARRY d'un aliment | « PLEASE USE 'PACK' COMMAND » |
 
 ## 10. Péremption
@@ -774,7 +774,27 @@ toujours par le module.
   590 au lieu de 489,69), écart du modèle de l'air antérieur au lot. Le
   1,61734 sauvé vaut jusqu'au premier minuit.
 - **Poids** : les piles du second jeu ne pèsent pas dans la charge du port
-  (ni dans l'effort `$4C02`).
+  (ni dans l'effort `$4C02`) ; l'arc, la lance, le gourdin, la pierre et
+  l'attelle, si, depuis le 16 octobre 2026 ([CRAFT.md](CRAFT.md) § 8.2).
+- **PACK sans question** (le GET de la grille) : **écart voulu, décision
+  du 15 octobre 2026** (demande de l'utilisateur). PACK d'une pile du
+  second jeu prend toute la pile du sol de la case, sans « PLEASE SPECIFY
+  AMOUNT IN OUNCES. » (msg 32), et le dit : « YOU TOOK n OUNCES. » au lieu
+  de « OK, WHAT NEXT? » ; les piles ne pesant rien dans le port, rien
+  d'autre ne limite ce qui est pris. DROP garde la question de l'original.
+  De même, GET d'une source d'eau (pluie, neige, glace, rivière, lac,
+  eau trouvée) ne demande plus les onces : la gourde prend le plus
+  possible, au plus ce que la source donne, la place de la gourde et le
+  poids restant (`load_limits` − `load_used`), et le dit ; une gourde
+  pleine répond toujours msg 186 ([CAMP.md](CAMP.md)). La sonde de l'original
+  (`tools/re_forage_probe.py`) rejoue la pile entière là où l'original
+  demande (`ground`), et ne répond plus « [P] » quand une seule pile
+  existe (`source`) ; `tests/test_forage.py` attend « YOU TOOK n
+  OUNCES. » là où l'original dit « OK, WHAT NEXT? » après PACK.
+- **Fiches des piles** (corrigé le 16 octobre 2026, révélé par la pile
+  entière) : PACK et DROP copient la fiche et le compteur de la pile
+  source seulement sur une pile de destination vide (`fr_rec_gp`,
+  `fr_rec_pg`) ; le port copiait toujours au PACK et jamais au DROP.
 - **NOIX** : PACK/DROP NUTS restent le transfert d'objets du port ; la
   fiche du sac des noix est celle du sol.
 - **Provision cuite depuis le sac** : refusée (`m_pile`) si sa pile du sol
@@ -805,3 +825,25 @@ découvertes) qui compte aussi les tirages ; OUTDOOR tire ses propres jets
 feu, cuisson et repas de gibier sur les deux éditions et chronomètre la
 lecture du module ; `tests/test_save.py` sauve et restaure une carcasse et
 une pile du sac avec leurs compteurs.
+
+
+## 18. Durée de CATCH depuis la grille (16 octobre 2026)
+
+La grille propose une durée après GAME ou FISH : 10, 20, 30 minutes,
+1, 2, 4, 8 heures. Elle prépare l'appât, puis le piège ou le matériel de
+pêche, et termine par une commande complète (`CATCH GAME 1 H`,
+`CATCH FISH 30 MIN`). Une préparation déjà faite est sautée ; une
+préparation refusée ou une nouvelle rencontre arrête la file.
+
+INPUT reconnaît désormais le suffixe numérique de CATCH. `fr_hours` passe
+alors par le lecteur de durée validé, convertit en minutes et garde la
+limite originale stricte de moins de 25 h (1 500 minutes). Zéro annule,
+une mauvaise unité est refusée, une durée trop longue affiche TOO LONG.
+Sans suffixe, le lecteur original reste disponible, dont les fractions
+d'heure (`.5` pour trente minutes). Le calcul de prise ne change pas.
+
+`test_grid_catch.py` compare, sur les deux éditions, les stocks, le temps,
+les paramètres de santé, les hasards et tout l'état FORAGE après trois
+parcours équivalents : grille, commande avec durée, question originale.
+Il vérifie Échap, les limites, l'unité erronée, les prérequis déjà faits,
+le piège absent et l'interruption par rencontre.

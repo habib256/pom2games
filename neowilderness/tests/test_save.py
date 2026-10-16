@@ -61,7 +61,15 @@ SV_HEAD = 32
 VOLATILE = {'overlay_current', 'overlay_wanted', 'overlay_reads', 'sim_loaded', 'sim_quiet',
             'inbuf', 'nounbuf'}
 CONSTANT = {'it_kcal', 'verbs', 'verb_lo', 'verb_hi', 'card_lo', 'card_hi', 'cdef_lo',
-            'cdef_hi', 'ctol_lo', 'ctol_hi', 'm_dead_travel', 'm_goal_travel', 'm_weak_travel'}
+            'cdef_hi', 'ctol_lo', 'ctol_hi', 'm_dead_travel', 'm_goal_travel', 'm_weak_travel',
+            'it_vol_lo', 'it_vol_hi'}
+# Since 16 October 2026 (src/save.s sv_ranges) the weights and volumes of the
+# items (W5 it_oz_*, W6 it_vol_*) are saved only where the game writes them
+# (the provisions and the water 22-37, FUEL 40 and GOLD 75 of the
+# preparation): the bytes left out of these tables are constants of the
+# image, but the canteen's (64), which load_totals recomputes.
+ITEM_TABLES = ('it_oz_lo', 'it_oz_hi', 'it_vol_lo', 'it_vol_hi')
+CANTEEN = 64
 
 
 # Saved, but rewritten by the redraw that follows RESTORE (show_view): the
@@ -107,9 +115,19 @@ def coverage():
     image = (HERE / 'build/wildgame.bin').read_bytes()
     spans = []
     for k, (a, n) in enumerate(names):
-        if n in CONSTANT:
+        if n in CONSTANT and n not in ITEM_TABLES:
             end = names[k + 1][0] if k + 1 < len(names) else hi
             spans.append((n, a, end - a, image[a - 0x4000:end - 0x4000]))
+    for n in ITEM_TABLES:               # their runs of bytes left out
+        run = []
+        for i in range(77):
+            a = L[n] + i
+            if i < 76 and i != CANTEEN and not covered(a):
+                run.append(a)
+            elif run:
+                spans.append((f'{n}+{run[0] - L[n]}', run[0], len(run),
+                              image[run[0] - 0x4000:run[-1] + 1 - 0x4000]))
+                run = []
     covered_bytes = sum(n for a, n in RANGES if lo <= a < hi)
     print(f'  {len(names)} GDATA labels: {covered_bytes} bytes saved, '
           f'{len(VOLATILE)} volatile and {len(CONSTANT)} constant labels left out; '

@@ -78,9 +78,7 @@ input_quit:
         lda     #<input_quit_message
         ldx     #>input_quit_message
         jsr     message
-        jsr     prompt
-        jsr     wait_key
-        jsr     kbd_upcase
+        jsr     input_confirm
         cmp     #'Y'
         jne     input_cancel
         jmp     quit
@@ -178,6 +176,10 @@ input_number_idle:
         jsr     kbd_upcase
         cmp     #KC_ESC
         jeq     input_cancel
+        cmp     #KC_UP
+        jeq     input_spin_up
+        cmp     #KC_DOWN
+        jeq     input_spin_down
         cmp     #KC_RET
         beq     @done
         cmp     #KC_LEFT
@@ -439,9 +441,90 @@ input_verbs:
         .byte 4,"WALK",2,"GO",3,"RUN",4,"MOVE",5,"CRAWL",4,"SWIM"
         .byte 4,"REST",5,"SLEEP",4,"CAMP",8,"EXERCISE",4,"WAIT",5,"PAUSE"
         .byte 3,"EAT",5,"DRINK",6,"NATURE",3,"WET",4,"BOIL"   ; BOIL WATER 8 OZ: the grid's (docs/MENUS.md 4)
-        .byte 4,"SAVE",7,"RESTORE",0  ; SAVE 2, RESTORE 2 (lot 9)
+        .byte 3,"GET",4,"PACK",4,"DROP",5,"CARRY"
+        .byte 4,"SAVE",7,"RESTORE",5,"CATCH",0  ; CATCH GAME 1 H: the grid's duration
 
         .include "hof_load.inc" ; module_end, module_restart (lot 7)
 .segment "CODE"
 
 .segment "INPUT"
+
+.segment "INPUT"
+        UI_TWO input_confirm, 'N', 'Y'
+
+.segment "INPUT"
+; Numeric questions accept UP/DOWN as a spinner as well as typed digits.
+; Only the text buffer changes; validation still uses input_validate.
+input_spin_up:
+        lda     #1
+        bne     input_spin
+input_spin_down:
+        lda     #$FF
+input_spin:
+        sta     input_spin_delta+1
+        ldx     linelen
+        lda     #0
+        sta     inbuf,x
+        sta     input_value
+        sta     input_value+1
+        txa
+        beq     input_spin_change
+        ldx     #0
+        jsr     input_parse
+        jcs     input_number_idle
+input_spin_change:
+input_spin_delta:
+        lda     #1
+        bmi     input_spin_subtract
+        inc     input_value
+        bne     input_spin_draw
+        inc     input_value+1
+        bne     input_spin_draw
+        dec     input_value+1
+        dec     input_value
+        bne     input_spin_draw
+input_spin_subtract:
+        lda     input_value
+        ora     input_value+1
+        beq     input_spin_draw
+        lda     input_value
+        bne     :+
+        dec     input_value+1
+:       dec     input_value
+input_spin_draw:  jsr     prompt
+        lda     input_value
+        sta     num
+        lda     input_value+1
+        sta     num+1
+        ldx     #8
+input_spin_place: ldy     #0
+input_spin_digit: sec
+        lda     num
+        sbc     pow10,x
+        sta     input_spin_lo+1
+        lda     num+1
+        sbc     pow10+1,x
+        bcc     input_spin_emit
+        sta     num+1
+input_spin_lo:
+        lda     #0
+        sta     num
+        iny
+        bne     input_spin_digit
+input_spin_emit:  tya
+        bne     input_spin_put
+        cpx     #0
+        beq     input_spin_put
+        lda     linelen
+        beq     input_spin_next
+        tya
+input_spin_put:   ora     #'0'
+        ldy     linelen
+        sta     inbuf,y
+        inc     linelen
+        ora     #$80
+        jsr     COUT
+input_spin_next:  dex
+        dex
+        bpl     input_spin_place
+        jmp     input_number_idle

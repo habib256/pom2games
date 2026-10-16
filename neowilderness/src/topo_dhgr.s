@@ -38,6 +38,7 @@ TP_SX    = 14                   ; screen x of cell column 0 (the sheet centred)
 TP_BAR_X = 127                  ; altitude scale: bar 127..130, tick 131,
 TP_LAB_X = 133                  ; digits 133..135 and 137..139
 TP_N_X   = 6                    ; north arrow shaft; distance bar 3..10
+TP_SCALE_Y = 149                ; distance scale at the bottom left
 
 ; Renderer scratch (the view is stopped while TOPO is shown).
 tr0   = dx                      ; grid row j
@@ -151,17 +152,15 @@ topo_sheet:
         adc     tj
         sta     tp_nb
         ldx     tj
-        lda     grid_lo,x
+        jsr     grid_row
         sta     tr0
-        lda     grid_hi,x
-        sta     tr0+1
+        sty     tr0+1
         cpx     #GH-1
         bcs     :+
         inx
-:       lda     grid_lo,x
+:       jsr     grid_row
         sta     tr1
-        lda     grid_hi,x
-        sta     tr1+1
+        sty     tr1+1
         lda     tp_nb
         lsr     a
         cmp     tp_fy
@@ -648,9 +647,9 @@ tp_flush:
         sta     (tcp),y
         dex
         bne     @ar
-@scale: lda     tp_row          ; scale, rows 30..38: an 8-pixel bar
+@scale: lda     tp_row          ; scale, rows 149..157: an 8-pixel bar
         sec                     ; (8 cells, about 4 miles) at x 3..10,
-        sbc     #30             ; end ticks on rows 30..32, a 4 below
+        sbc     #TP_SCALE_Y     ; end ticks, then the 4 below the bar
         cmp     #9
         bcs     @marks
         cmp     #4

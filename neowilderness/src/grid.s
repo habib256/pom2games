@@ -50,7 +50,7 @@ BELL1    = $FBDD                ; Monitor: the speaker alone
 Q_PRE    = $80                  ; skipped when its check holds already
 Q_POST   = $40                  ; the queue ends when its check fails
 Q_INV    = $20                  ; the queue ends when its check holds
-Q_SIZE   = $10                  ; the ounces of list_qty entry mq_noun follow
+Q_SIZE   = $10                  ; append a portion (BOIL) or duration (CATCH)
 S_FUEL   = 0
 S_MATCH  = 1
 S_MKFIRE = 2
@@ -76,6 +76,9 @@ S_PACK   = 21
 S_CARRY  = 22
 S_BOW    = 23                   ; lot 3: the crafted weapons of KILL
 S_SPEAR  = 24
+S_OBJECTS = 25                  ; the OBJECTS page again after its transfer
+S_EQUIPMENT = 26
+MQ_CATCH_DUR = mq_list+4        ; CATCH uses at most 3 of the 5 queue slots
 
 .segment "GRID"
 ; ----------------------------------------------------------------------------
@@ -276,6 +279,9 @@ gr_entry:
         jmp     gr_mkfire
 :       lda     mn_items
         bne     gr_item
+        lda     gr_f
+        cmp     #F_CATCH
+        jeq     gr_catch_queue
         lda     mn_level        ; durations, directions, ounces: appended
         cmp     #3
         bne     gr_append
@@ -437,14 +443,15 @@ gr_sizes:
         bcs     @done
 @in:    inc     mn_count
         iny
-        cpy     #8
+        cpy     #gr_size_end-gr_size
         bcc     :-
 @done:  tya
         bne     :+
         inc     mn_count        ; none fits: the smallest anyway
 :       ldy     #>list_qty
         jmp     gr_open
-gr_size: .byte 2, 4, 8, 12, 16, 24, 32, 48
+gr_size: .byte 1, 2, 4, 8, 12, 16, 24, 32, 48
+gr_size_end:
 
 ; gr_avail -- gr_cap = the ounces of menu_noun here (255: plenty): its pack
 ; stock (not in a hung pack) and its ground stock on this cell; a pile of
@@ -585,6 +592,13 @@ gr_kill:
 
 ; CATCH x: the bait, then the TRAP (GAME) or the FISHNG GEAR (FISH).
 gr_catch:
+        jsr     gr_with_name
+        ldx     #<list_dur
+        ldy     #>list_dur
+        jmp     gr_strings
+gr_catch_queue:
+        lda     mn_cur
+        sta     MQ_CATCH_DUR    ; survives loading each prerequisite
         jsr     q_clear
         lda     #S_BAIT
         jsr     q_add
@@ -673,12 +687,12 @@ module_queue:
         jsr     q_check
         bit     gr_t
         bvc     :+
-        bcc     q_stop          ; POST: failed
+        jcc     q_stop          ; POST: failed
 :       bvs     q_next
-        bcs     q_stop          ; INV: done, the fallback is not needed
+        jcs     q_stop          ; INV: done, the fallback is not needed
 q_next: ldx     mq_i
         cpx     mq_n
-        bcs     q_stop
+        jcs     q_stop
         inc     mq_i
         lda     mq_list,x
         jsr     q_step
@@ -686,7 +700,8 @@ q_next: ldx     mq_i
         jsr     q_check
         bcs     q_next          ; PRE: done already
 ; q_type -- the step at gp2 (after its flags) in inbuf: its text, its noun
-; (or mq_noun and its name); the last step leaves no queue.
+; (or mq_noun and its name), then its portion/duration; the last step
+; leaves no queue.
 q_type: lda     #0
         sta     linelen
         ldy     #1
@@ -706,14 +721,24 @@ q_type: lda     #0
         bne     :+
         lda     mq_noun
         jsr     gr_name_of
-:       lda     gr_t            ; BOIL: " n OZ", entry mq_noun of list_qty
+:       lda     gr_t            ; BOIL: list_qty[mq_noun]; CATCH: its duration
         and     #Q_SIZE
         beq     @last
+        ldx     mq_i
+        lda     mq_list-1,x
+        cmp     #S_CATCH
+        beq     @duration
         lda     #<list_qty
         sta     gp2
         lda     #>list_qty
-        sta     gp2+1
         ldx     mq_noun
+        jmp     @size
+@duration:
+        lda     #<list_dur
+        sta     gp2
+        lda     #>list_dur
+        ldx     MQ_CATCH_DUR
+@size:  sta     gp2+1
 :       dex
         bmi     :+
         jsr     skip_str
@@ -806,11 +831,13 @@ gr_steps:
         .byte   0, 41, "USE FRSTAID KIT", 0                      ; S_KIT
         .byte   0, 158, "CUT BODY", 0                            ; S_CUT
         .byte   0, 0, "KILL", 0                                  ; S_KILL
-        .byte   0, 0, "CATCH", 0                                 ; S_CATCH
+        .byte   Q_SIZE, 0, "CATCH", 0                             ; S_CATCH (list_dur)
         .byte   Q_INV|14, 0, "PACK", 0                           ; S_PACK
         .byte   0, 0, "CARRY", 0                                 ; S_CARRY
         .byte   Q_PRE|Q_POST|15, 89, "USE BOW", 0                ; S_BOW
         .byte   Q_PRE|Q_POST|15, 90, "USE SPEAR", 0              ; S_SPEAR
+        .byte   0, 106, "INVENTORY", 0                           ; S_OBJECTS
+        .byte   0, 110, "EQUIPMENT", 0                           ; S_EQUIPMENT
 
 ; ----------------------------------------------------------------------------
 ; the lists of items
@@ -1045,9 +1072,9 @@ append_space:                   ; (from MENUSWAP: the grid alone uses it)
 grid_item_name:
         ldy     #0
         cpx     #169
-        beq     @rain
+        jeq     @rain
         cpx     #170
-        beq     @snow
+        jeq     @snow
         txa
         bpl     :+
         and     #$7F
@@ -1060,6 +1087,23 @@ grid_item_name:
         lda     it_name_lo,x
         sta     gp1
         lda     it_name_hi,x
+        sta     gp1+1
+        sty     gn_o            ; "2QT CANTEEN": CANTEEN (16 October 2026:
+        ldy     #0              ; a digit makes the typed line a number for
+        lda     (gp1),y         ; INPUT, "INVALID VALUE OR UNIT")
+        cmp     #'9'+1
+        bcs     @name
+:       iny
+        lda     (gp1),y
+        cmp     #' '
+        bne     :-
+        tya                     ; (C set: past the space)
+        adc     gp1
+        sta     gp1
+        bcc     @name
+        inc     gp1+1
+@name:  ldy     gn_o
+        lda     gp1+1
 @copy:  sta     gp1+1
         sty     gn_o
         ldy     #0
@@ -1117,6 +1161,7 @@ grid_item_name:
 gr_second: .byte <str_game, <str_fish, <str_insects, <str_fruit, <str_cacti
            .byte <str_mushrooms, <str_plants, 0, 0
            .byte <str_bow, <str_spear, <str_club, <str_rock, <str_splint
+        .align $100            ; grid_item_name shares this page's high byte
 str_fire:     .byte "FIRE", 0
 str_game:     .byte "GAME", 0
 str_fish:     .byte "FISH", 0
@@ -1143,7 +1188,7 @@ list_look:  .byte "LEFT",0,"RIGHT",0,"BACK",0,"AHEAD",0,"UP",0,"DOWN",0,"NORTH",
 list_make:  .byte "FIRE",0
 list_water: .byte "WATER",0,0
 list_taste: .byte "TASTE",0
-list_qty:   .byte "2 OZ",0,"4 OZ",0,"8 OZ",0,"12 OZ",0,"16 OZ",0,"24 OZ",0,"32 OZ",0,"48 OZ",0,0
+list_qty:   .byte "1 OZ",0,"2 OZ",0,"4 OZ",0,"8 OZ",0,"12 OZ",0,"16 OZ",0,"24 OZ",0,"32 OZ",0,"48 OZ",0,0
 .assert >list_taste = >list_qty, error, "gr_sizes: one high byte"
 ; Module state (fresh at each copy).
 gr_f:    .byte 0                ; the item filter of the open verb

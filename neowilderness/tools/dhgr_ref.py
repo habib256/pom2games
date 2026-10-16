@@ -207,7 +207,16 @@ def view(m, px, py, heading, sky=None, animal=None, forest=True, sprites=True, p
         for kind, r0, r1, n in evs:
             for r in range(r0, r1):
                 if kind == 'sky':
-                    c = lit.sky(r - dv, az)     # zones move with dv (dhgr.s tilt_frame)
+                    local_row = r - dv
+                    if m[1] & 128 and local_row >= HORIZON + 1:
+                        c = lit.band('water', view_ref.STEPS, r, az)
+                    elif m[1] & 128 and local_row >= P.SKY_ROWS[2]:
+                        # Marine backgrounds extend the last sky transition
+                        # to the horizon and use the last zone for the sea.
+                        mid, glow = lit.t['sky'][1:]
+                        c = P.pick((P.pick(mid, r, az), P.pick(glow, r, az)), r, az)
+                    else:
+                        c = lit.sky(local_row, az)  # zones move with tilt
                 elif kind == 'ridge':
                     c = lit.ridge(r, az)
                 else:

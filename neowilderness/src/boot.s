@@ -52,7 +52,7 @@
         .include "apple2.inc"
         .include "mousetext.inc" ; XL_IMM (docs/MENUS.md 9)
         .macpack longbranch
-.import game_start, mem_ready, reset_exit
+.import game_start, mem_ready, reset_exit, ui_poll
 .importzp EX_STATE
 .import mli_calls, mli_reads, mli_bytes, saved_zp
 .export start
@@ -78,7 +78,7 @@ SETKBD   = $FE89
 STAGE    = $2000
 TEMP     = $7000
 TABLE    = $B500                ; record table of NEOWILD.DAT / NEOWILD.Rn
-LD_IOBUF = $AB00                ; ProDOS I/O buffer of the loader's files: between
+LD_IOBUF = $B000                ; ProDOS I/O buffer of the loader's files: between
                                 ; its BSS and TABLE, so that $BA00-$BDFF (the
                                 ; game's io_buffer) receives a record (menu.s)
 CLREOP   = $FC42
@@ -86,7 +86,7 @@ MAP      = $7000
 MENU_ROW = 12                   ; prompts below the menu (tools/genmenu.py MENU_ROW)
 TABLE_SIZE = 256                ; tools/build_disk.py TABLE_SIZE (36 records)
 PRE_PACK = $3000                ; packed NEOWILD.PRE (<= 4 KB; tools/build_disk.py)
-HI_LOAD  = $5800                ; HICODE's record (tools/build_disk.py), moved to $BE00
+HI_LOAD  = $5E00                ; HICODE's record (tools/build_disk.py), moved to $BE00
                                 ; ($AA00 until docs/MEMORY.md 15: the module window,
                                 ; which no record and no loader code touches and
                                 ; the game fills before use, gives the loader that
@@ -221,6 +221,7 @@ ld_free:   .res 1               ; 1: free journey (not ranked, random seeds)
 digits:    .res 1
 entropy:   .res 2               ; key-wait iterations in the menu
 ld_prep:   .res 1               ; 1: P, the preparation questions (with ld_free)
+ld_tmap:   .res 1               ; XL only: separate TMAP + scenario data pack
 ld_part:   .res 1               ; ld_open: part of NEOWILD.DAT
 ; The state to restore at exit (docs/MEMORY.md 15), in the layout of
 ; memory.s EX_*: copied at the claim to the store's entry EX_ENTRY, where the
@@ -352,10 +353,17 @@ loader_menu:
         lda     #<m_intro
         ldy     #>m_intro
         jsr     print
-        ldx     ld_region
+        lda     ld_tmap
+        beq     :+
+        lda     #<m_archipelago
+        ldy     #>m_archipelago
+        jsr     print
+        jmp     @intro_level
+:       ldx     ld_region
         lda     region_names_lo-1,x
         ldy     region_names_hi-1,x
         jsr     print
+@intro_level:
         lda     #<m_level
         ldy     #>m_level
         jsr     print
@@ -371,8 +379,23 @@ loader_menu:
         jsr     print
 loader_pack:
         ldx     ld_region       ; the pack of the region, behind the trunk
+        lda     ld_tmap
+        beq     :+
+        ldx     #8              ; NEOWILD.SCN: scenario, independent of engine
+:
         jsr     load_file
         jcs     ld_error
+        lda     ld_tmap
+        beq     @journey
+        ldx     #9              ; NEOWILD.TMP: start-only generator at $2000
+        jsr     load_file
+        jcs     ld_error
+        lda     entropy
+        ldx     entropy+1
+        ldy     ld_level
+        jsr     $2000
+        jcs     loader_menu
+@journey:
         lda     ld_level        ; the journey's own header bytes
         sta     MAP+22
         lda     ld_free
@@ -495,7 +518,11 @@ start:  cld
 ; $80 further; the main bank, then the auxiliary one through RAMWRT
 ; (80STORE off meanwhile: the page is not displayed yet). The game copies
 ; it back at every prompt (menu_gather) and never draws those rows.
-SWAP_LOAD = $AF00               ; tools/build_disk.py: the record's address
+SWAP_LOAD = $5800               ; tools/build_disk.py: the record's address
+.assert SWAP_LOAD + $600 <= HI_LOAD, error, "menu staging overlaps HICODE"
+.assert HI_LOAD + $100 <= __LOADER_RUN__, lderror, "HICODE overlaps loader"
+.assert __LOADBSS_RUN__ + __LOADBSS_SIZE__ <= LD_IOBUF, lderror, "loader overlaps ProDOS buffer"
+.assert LD_IOBUF + $400 <= TABLE, error, "ProDOS buffer overlaps record table"
 SWAP_ROW  = $2350               ; menu.s SWAP_ROW
 RD80STORE = $C018
 ld_scatter:
@@ -547,6 +574,13 @@ ld_scatter:
 ld_open:
         stx     ld_part
         lda     #'D'
+        cpx     #8
+        bcc     :+
+        lda     #'S'
+        cpx     #8
+        beq     :+
+        lda     #'T'
+:
         ldx     #<ld_path
         ldy     #>ld_path
         jsr     make_path
@@ -561,6 +595,11 @@ ld_open:
         sta     mark+1
         lda     ld_part
         beq     @done           ; C clear
+        cmp     #8
+        bcc     :+
+        clc
+        rts                     ; separate file, no DAT mark
+:
         asl     a
         adc     ld_part
         tax
@@ -662,8 +701,11 @@ ld_close:                       ; tests/test_hof_volume.py: the CLOSE of each fi
 ; Sets ld_region (1-6), ld_level (1-10) and ld_free. Q leaves to ProDOS.
 menu:
         lda     #0
+        sta     ld_nav_mode
+        sta     ld_nav_cur
         sta     ld_free
         sta     ld_prep
+        sta     ld_tmap
         jsr     HOME
         ldx     #0              ; the parts of the edition's menu
         lda     ld_regions      ; (tools/genmenu.py menu_xl, menu_1)
@@ -683,14 +725,26 @@ menu:
         bne     @part
 @parts:
         jsr     hm_best
-@ask:   lda     #<m_choice
+@ask:   lda     #0
+        sta     ld_nav_mode
+        sta     ld_nav_cur
+        lda     #<m_choice
         ldy     #>m_choice
         jsr     prompt
 @key:   jsr     menu_key
         cmp     #KC_RET|$80
         bne     :+
-        lda     #'1'|$80        ; RETURN alone: the first scenario (Sierra)
-        bne     @scenario
+        ldx     ld_nav_cur
+        lda     ld_nav_keys,x
+        ora     #$80
+        jmp     @nav_choice
+@nav_choice:
+        cmp     #'1'|$80
+        bcc     @other
+        cmp     #'7'|$80
+        bcc     @choose
+        beq     @free
+        jmp     @other
 :       cmp     #'1'|$80
         bcc     @other
         cmp     #'7'|$80
@@ -701,14 +755,21 @@ menu:
         dex
         bne     :+
         lda     #'1'|$80
-        bne     @scen_key
+        jmp     @scen_key
 :       lda     #<m_region
         ldy     #>m_region
 @ask_region:
         jsr     prompt
+        lda     #1
+        sta     ld_nav_mode
+        sta     ld_nav_cur
 @region:
         jsr     menu_key
-        cmp     #KC_ESC|$80
+        cmp     #KC_RET|$80
+        bne     :+
+        lda     ld_nav_cur
+        ora     #'0'|$80
+:       cmp     #KC_ESC|$80
         bne     :+
         lda     #0
         sta     ld_free
@@ -728,7 +789,18 @@ menu:
         cmp     #'2'|$80
         bcc     @scenario
         bcs     @bad
-@other: cmp     #'P'|$80
+@other: cmp     #'T'|$80
+        bne     @preparation
+        lda     ld_regions
+        cmp     #6
+        bne     @bad
+        inc     ld_tmap
+        inc     ld_free
+        lda     #4              ; compatibility environment of the data pack
+        sta     ld_region
+        jmp     @level
+@preparation:
+        cmp     #'P'|$80
         bne     :+
         inc     ld_prep         ; P: a free journey with the questions
         bne     @free           ; (after the pack, src/prepare.s)
@@ -750,7 +822,11 @@ menu:
         lda     menu_regions-1,x ; menu key -> region (tools/genmenu.py)
         sta     ld_region
 ; level -- 1..10, RETURN alone = 4, ESC back to the choice.
-@level: lda     #<m_ask_level
+@level: lda     #2
+        sta     ld_nav_mode
+        lda     #4
+        sta     ld_nav_cur
+        lda     #<m_ask_level
         ldy     #>m_ask_level
         jsr     prompt
         lda     #0
@@ -764,6 +840,7 @@ menu:
         lda     #0
         sta     ld_free
         sta     ld_prep
+        sta     ld_tmap
         jmp     @ask
 :       cmp     #'0'|$80
         bcc     @lbad
@@ -786,7 +863,7 @@ menu:
         jmp     @lkey
 @enter: lda     digits
         bne     :+
-        lda     #4
+        lda     ld_nav_cur
         sta     ld_level
         rts
 :       lda     ld_level
@@ -818,15 +895,107 @@ menu_key:
         inc     entropy
         bne     :+
         inc     entropy+1
-:       lda     KBD
-        bpl     menu_key
-        bit     KBDSTRB
-        cmp     #'a'|$80
-        bcc     :+
-        cmp     #'z'|$80+1
-        bcs     :+
-        and     #$DF
-:       rts
+:       jsr     ui_poll
+        beq     menu_key
+        cmp     #KC_UP
+        beq     ld_nav_prev
+        cmp     #KC_LEFT
+        beq     ld_nav_prev
+        cmp     #KC_DOWN
+        beq     ld_nav_next
+        cmp     #KC_RIGHT
+        beq     ld_nav_next
+        ora     #$80
+        rts
+ld_nav_prev:
+        ldx     ld_nav_cur
+        dex
+        lda     ld_nav_mode
+        bne     :+
+        lda     ld_regions
+        cmp     #1
+        bne     :+
+        cpx     #5
+        bne     :+
+        ldx     #0
+:       lda     ld_nav_mode
+        bne     :+
+        cpx     #$FF
+        bne     ld_nav_set
+        ldx     #9
+        lda     ld_regions
+        cmp     #1
+        beq     ld_nav_set
+        inx
+        bne     ld_nav_set
+:       cpx     #0
+        bne     ld_nav_set
+        ldx     #6
+        cmp     #1
+        beq     ld_nav_set
+        ldx     #10
+        bne     ld_nav_set
+ld_nav_next:
+        ldx     ld_nav_cur
+        inx
+        lda     ld_nav_mode
+        bne     :+
+        lda     ld_regions
+        cmp     #1
+        bne     @xl
+        cpx     #10
+        bcc     ld_nav_set
+        bcs     @wrap
+@xl:    cpx     #11
+        bcc     ld_nav_set
+@wrap:
+        ldx     #0
+        beq     ld_nav_set
+:       cpx     #7
+        bcc     ld_nav_set
+        cmp     #1
+        beq     ld_nav_first
+        cpx     #11
+        bcc     ld_nav_set
+ld_nav_first:
+        ldx     #1
+ld_nav_set:
+        stx     ld_nav_cur
+        lda     ld_nav_mode
+        bne     ld_nav_draw
+        lda     ld_regions
+        cmp     #1
+        bne     ld_nav_draw
+        cpx     #1
+        bcc     ld_nav_draw
+        cpx     #6
+        bcs     ld_nav_draw
+        ldx     #6
+        stx     ld_nav_cur
+ld_nav_draw:
+        lda     #MENU_ROW+2
+        sta     CV
+        jsr     VTAB
+        lda     #0
+        sta     CH
+        jsr     $FC9C
+        lda     #<ld_nav_hint
+        ldy     #>ld_nav_hint
+        jsr     print
+        ldx     ld_nav_cur
+        lda     ld_nav_mode
+        bne     :+
+        lda     ld_nav_keys,x
+        ora     #$80
+        jsr     COUT
+        jmp     menu_key
+:       txa
+        jsr     print_level
+        jmp     menu_key
+ld_nav_keys: .byte "1234567PHQT"
+ld_nav_hint: .byte "ARROWS CHOOSE, RETURN SELECT: ",0
+ld_nav_mode: .byte 0
+ld_nav_cur:  .byte 0
 
 ; print_level -- A = 1..10 in decimal.
 print_level:
@@ -866,6 +1035,12 @@ make_path:
         cmp     #'D'
         beq     @suffix
         ldx     #5
+        cmp     #'G'
+        beq     @suffix
+        ldx     #8
+        cmp     #'S'
+        beq     @suffix
+        ldx     #11
 @suffix:
         lda     #3
         sta     digits
@@ -1416,7 +1591,7 @@ hm_regions = ld_regions
         .include "hof_menu.s"
 move_src: .word 0
 ld_move_src := move_src
-ld_menu_key := menu_key
+ld_menu_key := ld_event_key
 online: .byte   2, 0
         .word   volume
 open:   .byte   3
@@ -1432,6 +1607,9 @@ file_name: .byte "/NEOWILD."
 file_suffix:
 file_dat: .byte "DAT"
 file_geo: .byte "GEO"
+file_scn: .byte "SCN"
+file_tmp: .byte "TMP"
+m_archipelago: .byte "ARCHIPELAGO",0
 mark:   .byte   2, 0, 0, 0, 0   ; SET_MARK
 ; Written by tools/build_disk.py into NEOWILD.SYSTEM: the marks (3 bytes) of
 ; the six packs and of the preparation in NEOWILD.DAT, then the stored
@@ -1441,6 +1619,7 @@ ld_marks: .res  23
 ; 6 (NeoWildernessXL, 800 KB) or 1 (Neowilderness, 140 KB: the Sierra only,
 ; menu key 1; the free journey and the preparation ask no region).
 ld_regions: .byte 0
+.export ld_tmap
 ; Docs/MEMORY.md 14, written by tools/build_disk.py too: the first block of
 ; NEOWILD.BLK (0: none, the 140 KB edition), then the 6 bytes it starts with
 ; (signature "NWBK" and the file's build id).
@@ -1448,7 +1627,7 @@ ld_blk: .res 8
 ; Docs/MEMORY.md 15, written by tools/build_disk.py too: the auxiliary address
 ; of the store's exit-state entry (memory.s EX_ENTRY).
 ld_exit: .res 2
-.export ld_marks, ld_regions, ld_blk, ld_exit, HI_LOAD
+.export ld_marks, ld_regions, ld_blk, ld_exit, HI_LOAD, SWAP_LOAD
 
 ; Pages protected in the ProDOS bitmap while the game runs. The module
 ; window $5800-$5FFF and the I/O buffer stay free for the reads of
@@ -1532,3 +1711,10 @@ m_erase:
 m_error:
         .byte   13, "NEOWILD DISK ERROR $", 0
 m_key:  .byte   13, "PRESS A KEY TO RETURN TO PRODOS.", 0
+
+.segment "LOADER"
+ld_event_key:
+        jsr     ui_poll
+        beq     ld_event_key
+        ora     #$80
+        rts
