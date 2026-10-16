@@ -394,6 +394,16 @@ Relever le nombre de commandes rejetées, les recours au README, les hésitation
 
 ## Suivi des travaux
 
+Le 17 octobre 2026, `tests/test_joystick_journey.py` couvre sur XL le
+démarrage, CRAFT, prise et activation d’une lance, CATCH, feu, cuisson,
+repas, soins, sauvegarde/restauration après redémarrage, QUIT, score et nom
+du hall of fame, avec les axes et boutons du port joystick exclusivement.
+Les plages persistantes sont comparées après restauration ; le résultat
+classé est relu par le chargeur. La forêt, la rencontre et le tirage de
+capture sont déterministes ; le déplacement qui produit le score est réel.
+La préparation personnalisée et les chemins d’erreur périphériques restent
+à couvrir ; le parcours humain et le contrôleur physique restent à valider.
+
 - [x] Lot 1 : annulation, sortie explicite, saisie et interruption marche/nage.
 - [x] Lot 2 : refus précis, quantités et comptes rendus d’action.
 - [ ] Lot 3 : accueil, aide et indications contextuelles.
