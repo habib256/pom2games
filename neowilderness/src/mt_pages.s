@@ -572,7 +572,22 @@ pg_k_menu_x: .byte MS_UP, MS_DOWN, " CHOOSE  ", MS_RET, " SELECT", 0
 .pushseg
 .segment "MEDVX"
 inventory_keys_x: .byte MS_RET, " LIST/ACT ", MS_LEFT, MS_RIGHT, MS_UP, MS_DOWN, " MOVE  H HANDS", 0
+mvx_end:
 .popseg
+ob_mul: lda     #0
+        sta     num
+        sta     num+1
+@add:   dey
+        bmi     @rts
+        clc
+        lda     num
+        adc     ob_m
+        sta     num
+        lda     num+1
+        adc     ob_m+1
+        sta     num+1
+        jmp     @add
+@rts:   rts
 stx_end:
 .assert PF_BUF + 80 <= page_keys, error, "PF_BUF: page_top's body too short"
 .assert PF_BUF >= CRAFT_RUN + (crx_end - CRAFT_RUN + 511) / 512 * 512, error, "PF_BUF under CRAFT's blocks"

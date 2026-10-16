@@ -36,6 +36,14 @@ def state(s):
 def joystick(disk):
     with a2test.Session(disk, menu=False) as s:
         s.step(L.until('menu_key', 60000))
+        assert 'TMAP' not in '\n'.join(rows(s))
+        assert 'ARCHIPELAGO' not in '\n'.join(rows(s))
+        key(s, '\\<', L.until('menu_key', 60000))
+        assert byte(s, 'ld_nav_cur') == 9  # wrap from Sierra to QUIT
+        key(s, '\\>', L.until('menu_key', 60000))
+        assert byte(s, 'ld_nav_cur') == 0
+        key(s, 'T', L.until('menu_key', 60000))
+        assert 'LEVEL 1-10' not in rows(s)[12]
         s.step('btn:0,1'); s.step('wait:8')
         s.step(L.until('menu_key', 60000))
         assert 'LEVEL 1-10' in rows(s)[12]

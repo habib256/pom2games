@@ -7,6 +7,23 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### OBJECTS : soins et sac suspendu (16 octobre 2026)
+
+- Médicaments : usage unique avec nombre de doses et durée native ; EAT
+  pour les médicaments oraux, USE pour l’oxygène. Aucun TOUT ni quantité
+  en onces pour un traitement. Règles de simulation conservées.
+- LOCAL HUNG ouvre la confirmation LOWER FOOD depuis le sac ou son contenu :
+  récupération complète, destination CARRIED, zéro minute et contrôle de
+  charge natif ; annulation et refus sans perte de stock.
+- Navigation corrigée sur les provisions présentes au sol et dans le sac
+  suspendu ; Échap ne traverse plus une étape de quantité inexistante pour
+  les équipements et soins indivisibles.
+- Routines de commande/confirmation redistribuées entre MEDVIEW et STATUS ;
+  multiplication de charge dans STATX, durée médicale résidente partagée.
+  Les cartes de test courantes utilisent désormais l’édition XL.
+- Validation : `make test-xl`, 22 scripts réussis ; 163 variables identiques
+  à la référence après 24 étapes, tests d’annulation et de refus inclus.
+
 ### EQUIPMENT, eau quantifiée et refus CRAFT (16 octobre 2026)
 
 - Septième onglet EQUIPMENT : WORN, HANDS, IN USE et PACK disponible,
@@ -19,8 +36,7 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 - Aperçu du volume requis et de la place WEAR restante. USE filtré selon
   les actions reconnues. Refus des objets fabriqués détaillant séparément
   poids et volume PACK/HANDS/WEAR, avec quantité requise et place libre.
-- Validation : `make test-xl` (21 scripts), plus TMAP (96 archipels)
-  et mémoire graphique ; comparaison de 163 variables de simulation après
+- Validation : `make test-xl` (21 scripts), plus mémoire graphique ; comparaison de 163 variables de simulation après
   24 étapes identiques à la référence. Tests en émulateur, manette réelle
   restant à vérifier.
 - Répertoire de 34 modules ; EQUIPMENT partage la fenêtre $5800, les
@@ -42,22 +58,17 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
   particuliers restant à réaliser sont au TODO et dans MENUS § 11.
 
 
-### TMAP XL et premier paquet archipel (16 octobre 2026)
+### Retrait de TMAP et de l’archipel (16 octobre 2026)
 
-- Entrée T du menu XL : programme séparé `NEOWILD.TMP`, deux ou trois îles,
-  graine hexadécimale, aperçu, régénération et annulation avant le voyage.
-- `NEOWILD.SCN`, produit depuis `scenarios/archipelago.json` : climat,
-  palettes et profils de décor ; rencontres de grands animaux absentes.
-  Le moteur reçoit des données de décor, sans branche propre à l'archipel.
-- Mer jusqu'aux bords, départ et poste sur des îles distinctes, chenaux
-  courts. L'eau salée est exclue des sources de boisson. RESTORE refuse un
-  autre terrain ; même graine, nombre d'îles et niveau permettent la reprise.
-- Les paquets classiques restaurent leurs décors après annulation. Les
-  textes de menu réservés à XL sont neutralisés dans le chargeur 140 Ko
-  pour conserver ses cinq sauvegardes. Documentation : `docs/TMAP.md`.
-- Ajustements demandés : arbres désactivés dans le scénario après rejet
-  du premier rendu ; relief renforcé (sommets à 53 ou 61 niveaux), océan
-  bleu continu jusqu'à l'horizon même quand les rayons quittent la carte.
+- Suppression demandée par l’utilisateur : entrée T et navigation associée,
+  générateur, manifeste archipel, fichiers NEOWILD.TMP/NEOWILD.SCN et leurs
+  sources, outils, tests et documentation dédiés.
+- Retrait du fond marin spécifique et des contrôles d’identité de terrain
+  généré à la reprise. Les six scénarios classiques restent disponibles.
+- XL reconstruite : 379/1600 blocs occupés, soit 14 blocs récupérés ;
+  les cinq emplacements de sauvegarde sont conservés.
+- Validation : menu des six régions, joystick, contenu du disque,
+  SAVE/RESTORE, EQUIPMENT, OBJECTS, rendu DHGR et comparaison de simulation.
 
 ### Navigation commune : premier lot de l'audit approuvé (16 octobre 2026)
 

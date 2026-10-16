@@ -2827,42 +2827,14 @@ au pilote d'axes n'est ajouté pendant la simulation ou le rendu. Le bouton
 retour seul est testé à la frontière des pas WALK/SWIM.
 
 
-## 39. TMAP XL et paquet de scénario (16 octobre 2026)
+## 39. Retrait du générateur de terrain (16 octobre 2026)
 
-TMAP est chargé à `$2000` avant la préparation du voyage, depuis
-`NEOWILD.TMP` (table d'enregistrements et programme brut). Le moteur ne le
-garde pas en RAM. `NEOWILD.SCN` utilise le même chargeur pour les données
-du scénario et les palettes ; les profils prototypes des cocotiers sont
-désactivés après rejet du rendu. La grille générée
-reste à `$7000-$94FF`, les bois à `$0800-$0925` ; pas d'atlas fin en v1.
-
-L'identité du terrain emploie 48–55 de l'en-tête des cartes non natives,
-déjà sauvé par SAVE. RESTORE la vérifie avant de recopier l'état. Aucun
-nouvel état de partie résident. Le drapeau de salinité utilise le bit 7 de
-`MAP+50`, lu par la recherche d'eau douce des cartes non natives.
-
-`water_random`, appelé seulement par CAMP, passe de LOWCODE à CAMP pour
-loger ce contrôle. `water_named` reste résident : DRINK RAIN/SNOW/ICE
-l'appelle sans charger CAMP. Le temporaire `w_cols` passe de LOWTEXT à
-TEXT : TEXT garde un octet libre, LOW est plein. Le profil de végétation
-et sa séparation feuillage/tronc sont remplacés par les données du paquet,
-sans code supplémentaire dans la projection.
-
-Le chargeur ajoute un octet `ld_tmap` dans sa BSS de démarrage. Les parties
-de menu exclusivement XL sont remplacées par des zéros dans le chargeur
-140 Ko avant compression, sans déplacer les symboles : ses cinq fichiers
-SAVE sont préservés. Les deux éditions restent à 280/280 et 385/1600 blocs.
-Les marges du stock de tronc sont 3 304 octets (140 Ko) et 8 324 (XL) dans
-cette construction. Détails et limites du format : [TMAP.md](TMAP.md).
-
-Le fond marin ajoute 17 octets dans GCODE (un octet reste libre). Le bit 7
-de l'octet de version `MAP+1` active ce fond ; les sept bits bas restent
-la version 1. La cinquième zone du ciel devient la mer lointaine sous
-l'horizon incliné, ce qui prolonge l'océan après la sortie des rayons de
-la carte sans lecture de cellules supplémentaires. Le relief se règle
-dans le scénario (`relief_shift: 2`, recopié en `MAP+56`) ; les crêtes
-culminent à 53 ou 61 niveaux, sans nouvelle mémoire résidente.
-
+À la demande de l’utilisateur, le générateur et le scénario archipel sont
+supprimés : programme, manifeste, chargeur des fichiers supplémentaires,
+contrôle d’identité des terrains générés et fond marin spécifique. Les six
+régions, la préparation et les cinq emplacements de sauvegarde restent actifs.
+Les sections de mémoire ci-dessous précèdent ce retrait ; nouvelles mesures
+à la fin du document.
 
 ### Suite OBJECTS, XL seule (16 octobre 2026)
 
@@ -2895,3 +2867,27 @@ Construction XL : 393/1600 blocs occupés, NEOWILD.DAT 65 156 octets bruts,
 fenêtres : EQUIPMENT 334 octets ; TREE 19 ; CRAFT avant $A700 43 (dont 13
 réservés au travail de page) ; STATUS 36 ; STATX 28 ; MEDVX 11. Les anciens
 tableaux à deux éditions ci-dessus sont historiques ; XL seule est construite.
+
+### Mesures après retrait de TMAP (16 octobre 2026)
+
+XL occupe 379/1600 blocs (14 récupérés). NEOWILD.DAT : 65 137 octets
+bruts, 56 056 stockés, 19 enregistrements. NEOWILD.TMP et NEOWILD.SCN
+ne sont plus produits ; cinq emplacements de sauvegarde sont conservés.
+
+### Soins et récupération depuis OBJECTS (16 octobre 2026)
+
+`ob_cmd` rejoint MEDVIEW, déjà chargé par OBJECTS ; `object_commit` rejoint
+STATUS afin que le remplacement ultérieur des modules ne reprenne pas dans
+un code écrasé. `ob_mul` occupe les 28 derniers octets de STATX. La légende
+OBJECTS reste dans MEDVX, déplacé de $5FC0 à $5FE0 ; le début du pied médical
+est résident, réparti entre GCODE et TEXT. La table `care_use_minutes` est
+résidente en LOWCODE et partagée avec l’aperçu : aucune durée dupliquée.
+
+Les sélections réutilisent la position existante avant la recherche par nom,
+ce qui permet de traverser les occurrences LOCAL et LOCAL HUNG. Aucun nouvel
+état de partie ni changement du format SAVE. Les cartes de test courantes
+sont construites explicitement en XL ; la version 140 Ko reste historique.
+
+Marges : TREE 1 octet, MEDVIEW 1 avant sa queue, MEDVX 2, STATUS 1, STATX 0,
+TEXT 7, BSS 3 et fin de LOW 2. XL : 379/1600 blocs, cinq parties ; DAT
+65 153 octets bruts, 56 094 stockés, 19 enregistrements.

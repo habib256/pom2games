@@ -30,7 +30,25 @@ object_menu:
         bne     :+
         lda     #4
         sta     om_action
-:       ldx     menu_noun
+:       lda     ob_line
+        cmp     #'L'
+        bne     @normal
+        lda     #4
+        sta     om_action
+        lda     #135            ; LOWER acts on FOOD/the whole bag, not this item
+        sta     menu_noun
+        lda     #$10
+        sta     om_mask
+        lda     #<om_lower
+        sta     om_words_lo+4
+        lda     #>om_lower
+        sta     om_words_hi+4
+        lda     #<om_t_restore
+        sta     om_to_lo+4
+        lda     #>om_t_restore
+        sta     om_to_hi+4
+        jmp     @valid_mask
+@normal:ldx     menu_noun
         lda     #$17            ; PACK, HANDS, DROP, USE
         cpx     #22
         beq     @water
@@ -56,7 +74,14 @@ object_menu:
         sta     om_action
         lda     #$C4            ; DROP, DRINK, GET
         bne     @mask
-@gear:  cpx     #2
+@gear:  cpx     #47
+        bcc     :+
+        cpx     #51
+        bcs     :+
+        cpx     #49             ; oxygen is applied, never swallowed
+        beq     :+
+        ora     #$20            ; oral medicine: EAT exactly one dose
+:       cpx     #2
         bcc     @mask
         cpx     #9
         bcc     @wear
@@ -90,18 +115,10 @@ object_menu:
         bne     @source_mask
 @carried_mask:
         lda     om_many
-        beq     @water_mask
+        beq     @masked
         lda     om_mask
         and     #$FE            ; PACK of carried provisions would read LOCAL
         bne     @source_mask
-@water_mask:
-        ldx     menu_noun
-        cpx     #22
-        bne     @masked
-        lda     #2
-        sta     om_action
-        lda     om_mask
-        and     #$7F
 @source_mask:
         sta     om_mask
 @masked:
@@ -185,7 +202,13 @@ object_draw:
         ldy     om_to_hi,x
         jsr     print_str_ay
 @qty_text:
+        lda     ob_line
+        cmp     #'L'
+        bne     :+
         jsr     puts
+        .byte " ALL CONTENTS; 0 MIN; LOAD CHECKED",0
+        jmp     @capacity_line
+:       jsr     puts
         .byte   " QTY ",0
         lda     om_many
         beq     @single
@@ -198,7 +221,38 @@ object_draw:
         .byte   " OZ",0
         jmp     @preview
 @single:
+        lda     om_action
+        cmp     #4
+        bcc     @object
+        ldx     menu_noun
+        cpx     #41
+        bcc     @object
+        cpx     #52
+        bcs     @object
+        cpx     #43
+        beq     @object
         jsr     puts
+        .byte "1 USE; DOSES LEFT ",0
+        lda     it_pack_lo,x
+        sta     num
+        lda     it_pack_hi,x
+        bpl     :+
+        lda     #0
+        sta     num
+:       sta     num+1
+        jsr     print_u16
+        jsr     puts
+        .byte " / ",0
+        ldx     menu_noun
+        lda     care_use_minutes-41,x
+        sta     num
+        lda     #0
+        sta     num+1
+        jsr     print_u16
+        jsr     puts
+        .byte " MIN",0
+        jmp     @preview
+@object:jsr     puts
         .byte   "ONE OBJECT",0
 @preview:
         lda     om_action
@@ -285,7 +339,10 @@ object_key:
         lda     om_phase
         jeq     object_cancel
         dec     om_phase
-        jmp     object_draw
+        lda     om_many
+        bne     :+
+        sta     om_phase        ; indivisible uses have no quantity screen
+:       jmp     object_draw
 @enter: cmp     #KC_RET
         bne     @arrows
         lda     om_phase
@@ -597,6 +654,8 @@ om_dest: .byte 0
 om_w: .word 0
 om_v: .word 0
 
+.pushseg
+.segment "STATUS"
 object_commit:
         ldx     om_action
         lda     om_words_lo,x
@@ -682,6 +741,7 @@ object_commit:
         lda     #0
         sta     shown
         jmp     obj_type
+.popseg
 om_words_lo: .byte <om_pack,<om_hand,<om_drop,<om_wear,<om_use,<om_eat,<om_drink,<om_get
 om_words_hi: .byte >om_pack,>om_hand,>om_drop,>om_wear,>om_use,>om_eat,>om_drink,>om_get
 om_pack: .byte "PACK ",0
@@ -725,3 +785,7 @@ om_t_can: .byte "CANTEEN",0
 
 om_usable: .byte 9,11,12,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,66,67,71,72,73
 om_usable_end:
+
+om_lower: .byte "LOWER ",0
+
+om_t_restore: .byte "CARRIED",0

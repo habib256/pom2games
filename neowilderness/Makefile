@@ -125,14 +125,6 @@ LINK_OBJS := $(BUILD)/wild.o $(BUILD)/boot.o
 $(BIN): $(LINK_OBJS) src/wild.cfg
 	$(LD65) -C src/wild.cfg -m $(BUILD)/wild.map -Ln $(BUILD)/wild.lbl -o $@ $(LINK_OBJS)
 
-# TMAP runs before the game, in the free graphics page; no resident cost.
-$(BUILD)/tmap.o: src/tmap.s
-	@mkdir -p $(@D)
-	$(CA65) -g -t none -o $@ $<
-
-$(BUILD)/tmap.bin: $(BUILD)/tmap.o src/tmap.cfg
-	$(LD65) -C src/tmap.cfg -Ln $(BUILD)/tmap.lbl -o $@ $<
-
 # Sprites of the trunk (wreck, cabin) and of the six region packs.
 SPRITE_NAMES := wreck cabin bear cougar rattlesnake grizzly_bc wolf_bc moose_bc \
 	tiger elephant cobra python dani adder crocodile puma jaguar ferdelance anaconda cat
@@ -156,7 +148,7 @@ $(BUILD)/NEOWILD.HOF: tools/genhof.py tools/score_ref.py
 $(BUILD)/JOURNEY.dsk: original/extras/Wilderness\ -\ Journey.a2r
 	$(PYTHON) -I tools/flux2dsk.py "$<" $@
 
-$(DISKXL): $(BIN) $(BUILD)/NEOWILD.HOF $(BUILD)/dhgr_tables.inc $(MAPBIN) $(REGION_MAPS) $(BUILD)/regions/regions.json $(SPRITE_BINS) $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py tools/build_disk.py tools/pack_boot.py tools/geo_atlas.py Makefile $(BUILD)/tmap.bin scenarios/archipelago.json tools/scenario.py
+$(DISKXL): $(BIN) $(BUILD)/NEOWILD.HOF $(BUILD)/dhgr_tables.inc $(MAPBIN) $(REGION_MAPS) $(BUILD)/regions/regions.json $(SPRITE_BINS) $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py tools/build_disk.py tools/pack_boot.py tools/geo_atlas.py Makefile
 	@mkdir -p $(DIST)
 	$(PYTHON) -I tools/build_disk.py --out $(DISKXL) --build $(BUILD) --packing $(BOOT_PACKING) --edition xl --layout $(BUILD)/layout.json
 
@@ -173,6 +165,7 @@ test-xl: all $(A2SHOT)
 	$(PYTHON) tests/test_input.py
 	$(PYTHON) tests/test_navigation.py
 	$(PYTHON) tests/test_object_actions.py
+	$(PYTHON) tests/test_object_care.py
 	$(PYTHON) tests/test_equipment.py
 	$(PYTHON) tests/test_crafted_refusals.py
 	$(PYTHON) tests/test_craft.py
@@ -216,7 +209,6 @@ test-all-editions: all $(A2SHOT)
 	$(PYTHON) tests/test_clock.py
 	$(PYTHON) tests/test_feedback.py
 	$(PYTHON) tests/test_mapgen.py
-	$(PYTHON) tests/test_tmap.py
 	$(PYTHON) tests/test_regions.py
 	$(PYTHON) tests/test_forest.py
 	$(PYTHON) tests/test_tree.py

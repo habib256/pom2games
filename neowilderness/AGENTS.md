@@ -45,3 +45,12 @@ ces décisions ; ne pas rétablir les anciennes attentes par défaut.
   et effectivement en usage. La possession ne vaut pas activation. Les
   actions utilisent les prérequis natifs et reviennent sur le même objet ;
   afficher charge, volume des mains et préparation de CATCH.
+
+- TMAP et le scénario archipel ont été supprimés sur demande utilisateur.
+  Ne pas réintroduire leur entrée au menu, générateur ou paquet de données.
+
+- OBJECTS : les médicaments s’utilisent une fois, avec doses restantes et
+  durée native affichées, sans TOUT ni onces pour le soin. LOCAL HUNG ouvre
+  LOWER FOOD avec confirmation ; HANG coûte 30 minutes, LOWER est instantané.
+  Préserver l’accès aux occurrences distinctes d’un même objet au sol et
+  dans le sac suspendu, ainsi que l’annulation sans effet.
