@@ -7,6 +7,23 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Parcours joystick : fabrication, chasse et repas (17 octobre 2026)
+
+- Blocage de COOK corrigé : la question des heures décimales accepte
+  haut/bas pour régler exactement 0 à 1499 minutes, puis validation ou
+  annulation. L’unité affichée change explicitement ; la saisie décimale
+  et les limites natives restent disponibles.
+- Nouveau parcours XL piloté par les axes et boutons du port joystick,
+  depuis le démarrage : fabriquer une lance, refuser sa prise en surcharge,
+  déposer la parka, prendre puis activer la lance dans EQUIPMENT, préparer
+  CATCH, capturer, faire du feu, cuire et manger via OBJECTS.
+- Carte forestière, rencontre et tirage de capture fixés pour ce test ;
+  aucune commande saisie. Annulation de cuisson sans stock, temps ou tirage
+  modifié ; durée de 30 minutes et consommation d’une once vérifiées.
+- Validation : `make test-xl` (25 scripts), `tests/test_forage.py` et
+  parcours joystick avec bornes 0/1499 minutes réussis ; 163 variables
+  identiques à la référence sur les 24 étapes de comparaison.
+
 ### OBJECTS : aperçu de récupération du sac complet (16 octobre 2026)
 
 - LOWER FOOD affiche le volume PACK requis et les capacités libres après

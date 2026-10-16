@@ -493,12 +493,14 @@ fr_hours:
 @inline_end:
         rts
 @prompted:
-        lda     #<w_m27
-        ldx     #>w_m27
+        lda     #<fr_hour_hint
+        ldx     #>fr_hour_hint
         jsr     message
 @again: jsr     prompt
         ldx     #0
         stx     fr_t            ; length
+        stx     fr_min          ; arrow entry is an exact number of minutes
+        stx     fr_min+1
 @key:   jsr     wait_key
         jsr     kbd_upcase
         cmp     #KC_ESC
@@ -508,11 +510,18 @@ fr_hours:
         jsr     message
         sec
         jmp     fr_asked
-:       cmp     #KC_RET
+:       cmp     #KC_UP
+        jeq     @minute_up
+        cmp     #KC_DOWN
+        jeq     @minute_down
+        cmp     #KC_RET
         beq     @parse
         cmp     #KC_LEFT
         bne     @char
         ldx     fr_t
+        cpx     #$FF
+        jeq     @clear
+        cpx     #0
         beq     @key
         dec     fr_t
         dec     CH
@@ -527,6 +536,14 @@ fr_hours:
         cmp     #'9'+1
         bcs     @key
 :       ldx     fr_t
+        cpx     #$FF
+        bne     :+
+        pha
+        jsr     fr_hour_prompt
+        ldx     #0
+        stx     fr_t
+        pla
+:       ldx     fr_t
         cpx     #8
         bcs     @key
         sta     fr_buf,x
@@ -534,7 +551,12 @@ fr_hours:
         ora     #$80
         jsr     COUT
         jmp     @key
-@parse: lda     #0
+@parse: ldx     fr_t
+        cpx     #$FF
+        bne     :+
+        clc
+        jmp     fr_asked        ; minute wheel bypasses decimal-hour parsing
+:       lda     #0
         sta     FAC             ; h = 0
         sta     fr_u            ; integer digits
         sta     fr_dec          ; decimals ($80: the point seen)
@@ -601,6 +623,49 @@ fr_hours:
         ldx     #>ol_long_msg
         jsr     message
         jmp     @again
+
+@clear: jsr     fr_hour_prompt
+        lda     #0
+        sta     fr_t
+        jmp     @key
+@minute_up:
+        lda     fr_min
+        cmp     #<1499
+        lda     fr_min+1
+        sbc     #>1499
+        bcs     @minute_draw
+        inc     fr_min
+        bne     @minute_draw
+        inc     fr_min+1
+        bne     @minute_draw
+@minute_down:
+        lda     fr_min
+        ora     fr_min+1
+        beq     @minute_draw
+        lda     fr_min
+        bne     :+
+        dec     fr_min+1
+:       dec     fr_min
+@minute_draw:
+        lda     #<fr_minute_hint
+        ldx     #>fr_minute_hint
+        jsr     message
+        jsr     prompt
+        lda     fr_min
+        sta     num
+        lda     fr_min+1
+        sta     num+1
+        jsr     print_u16
+        lda     #$FF
+        sta     fr_t
+        jmp     @key
+fr_minute_hint: .byte "TIME IN MINUTES: UP/DOWN, RETURN.",0
+fr_hour_prompt:
+        lda     #<fr_hour_hint
+        ldx     #>fr_hour_hint
+        jsr     message
+        jmp     prompt
+fr_hour_hint: .byte "SPECIFY TIME IN HOURS.|UP/DOWN: MINUTES. RETURN: CONFIRM.",0
 
 ; fr_source -- the pile eaten or cooked: b1 0 ground, 2 pack, 4 msg 71 (P
 ; or G); fr_src 0 ground, 1 pack, fr_av its ounces. C set: cancelled.

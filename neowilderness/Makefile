@@ -177,6 +177,7 @@ test-xl: all $(A2SHOT)
 	$(PYTHON) tests/test_transitions.py
 	$(PYTHON) tests/test_grid_play.py
 	$(PYTHON) tests/test_grid_catch.py
+	$(PYTHON) tests/test_joystick_journey.py
 	$(PYTHON) tests/test_feedback.py
 	$(PYTHON) tests/test_load.py
 	$(PYTHON) tests/test_care.py

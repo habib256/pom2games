@@ -2917,3 +2917,16 @@ place, quantité réelle ou valeur de `load_used` n’est modifiée. Les retenue
 TREE : $5800–$5FEB, 20 octets libres. Les textes de LOWER sont dans la
 banque ; les autres fenêtres restent inchangées. XL : 378/1600 blocs,
 65 318 octets DAT bruts, 56 001 stockés, 19 enregistrements, cinq parties.
+
+### Durée de cuisson au joystick (17 octobre 2026)
+
+Le lecteur décimal de FORAGE conserve ses heures et accepte haut/bas pour
+régler les minutes exactes, bornées à 0–1499. Le mot scratch `fr_min`
+porte le réglage, `fr_t = $FF` distingue les minutes du tampon décimal.
+Les indications d’unité restent dans FORAGE ; aucun état résident ou
+sauvegardé n’est ajouté, INPUT et le moteur de cuisson restent inchangés.
+
+FORAGE : 6 148 → 6 390 octets, `$9600–$AEF5`, 266 octets libres sous
+`$B000`, toujours 13 blocs. DAT et occupation XL restent à 65 318 bruts /
+56 001 stockés et 378/1600 blocs ; les marges des autres fenêtres sont
+inchangées.
