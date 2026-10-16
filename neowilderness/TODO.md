@@ -229,6 +229,10 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
 - [ ] **Parcours périphériques.** MAP : mode d'exploration directionnel et
   recentrage ; démarrage, région/niveau, préparation personnalisée,
   SAVE/RESTORE et remplacement, QUIT, score et nom du hall of fame.
+  Le parcours intégré couvre désormais les soins, SAVE/RESTORE avec refus
+  et annulation, restauration après redémarrage, QUIT et nom du score
+  au port joystick. Restent la préparation personnalisée, les erreurs
+  périphériques et la validation sur contrôleur physique.
 - [ ] **Retour visuel.** Focus des onglets explicite, étape courante des
   choix, activité pendant l'attente et protection contre la validation
   maintenue ; conserver inverse/symboles/libellés indépendants de la couleur.
@@ -250,8 +254,9 @@ comparaison des 163 variables avec la référence.
   Le pilote joystick, le menu de départ, les pages, P/G, les confirmations
   en jeu, le lecteur numérique, MAP et le nom du score sont réalisés :
   CHANGELOG.md (« Navigation commune », 16 octobre 2026).
-- [ ] INVENTORY avec actions par objet (étape 5) ; parcours d'un nouveau
-  joueur au joystick seul (étape 6).
+- [ ] Observation d’un nouveau joueur au joystick seul (étape 6), après
+  le parcours intégré automatisé ; terminer les quantités rapides et le
+  filtrage contextuel des actions par objet (étape 5).
 - [ ] Fin de partie : ne pas réécrire le hall of fame quand rien ne change
   (1,9 s ; message à chaque voyage sur disquette protégée ; HOF.md l. 333).
 - [ ] Messages : refus précis, retours persistants, causes d'arrêt nommées
@@ -425,11 +430,12 @@ place des écrans 40 colonnes (étapes 3-4 de MENUS.md, remplacées par les
 pages 80 colonnes).
 
 Points de contrôle du lot suivant : terminer le filtrage contextuel fin,
-le choix rapide de quantité. Étendre le parcours joystick CRAFT → EQUIPMENT
-→ CATCH → feu → COOK → repas aux soins, sauvegardes/restaurations et fin
-de partie, puis le rejouer sur matériel réel. Le premier parcours complet
-est automatisé sur XL avec une rencontre déterministe, refus de surcharge
-et annulation de cuisson (17 octobre 2026). Les doses médicales (un usage avec
+le choix rapide de quantité, puis rejouer sur matériel réel le parcours
+joystick CRAFT → EQUIPMENT → CATCH → feu → COOK → repas → soins →
+sauvegarde/restauration → score. Il est automatisé sur XL avec une rencontre
+déterministe, refus de surcharge et de marche avant extinction du feu,
+annulations et restauration après redémarrage (17 octobre 2026).
+Les doses médicales (un usage avec
 stock/durée affichés), LOWER FOOD depuis LOCAL HUNG, les quantités d’eau,
 le volume requis, les refus détaillés des objets fabriqués et EQUIPMENT
 ainsi que TASTE depuis la source sélectionnée et l’aperçu du sac entier sont réalisés (CHANGELOG,

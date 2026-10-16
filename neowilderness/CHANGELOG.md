@@ -7,6 +7,25 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Parcours joystick : soins, sauvegardes et score (17 octobre 2026)
+
+- Le parcours intégré continue après le repas : FLAGYL et oxygène depuis
+  OBJECTS, une dose par usage, durée native et annulation sans mutation.
+- MENU au joystick : annuler SAVE/RESTORE, refuser un emplacement vide,
+  enregistrer en partie 2, garder l’ancienne sauvegarde au remplacement,
+  puis restaurer les plages d’état persistantes après dépôt du couteau.
+  La même restauration est vérifiée après une sortie et un redémarrage.
+- QUIT annulé puis confirmé ; score nul non classé, retour au menu,
+  marche réelle après extinction du feu, score classé, nom AB saisi aux
+  directions et résultat relu depuis le disque au redémarrage du chargeur.
+- Le refus de WALK tant que le feu brûle conserve l’état ; DOUSE débloque
+  la marche. Les soins natifs prennent le médicament en main ; quand il
+  quitte LOCAL, OBJECTS garde une sélection voisine valide.
+- Ce lot étend les vérifications et la documentation ; aucun changement
+  du moteur, du format SAVE ni de l’image XL.
+- Validation : `make test-xl`, 25 scripts réussis, dont le parcours
+  étendu et les 163 variables de référence identiques sur 24 étapes.
+
 ### Parcours joystick : fabrication, chasse et repas (17 octobre 2026)
 
 - Blocage de COOK corrigé : la question des heures décimales accepte

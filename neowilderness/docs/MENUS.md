@@ -1021,5 +1021,30 @@ démarrage compris. La forêt, la rencontre et le tirage de capture sont des
 fixtures déterministes ; le gibier est réellement capturé par le moteur.
 Le test vérifie aussi le refus de poids, la distinction tenu/actif, le retour
 sur la page mémorisée, l’annulation sans effet et 30 minutes de cuisson.
-Les soins, sauvegardes et fin de partie restent à raccorder à ce parcours
-intégré, ainsi qu’une validation sur contrôleur physique.
+Les soins, sauvegardes et fin de partie sont raccordés au parcours au § 17.
+La validation sur contrôleur physique reste à réaliser.
+
+## 17. Soins, sauvegardes et score au joystick (17 octobre 2026, XL)
+
+Après le repas, le même test utilise FLAGYL puis l’oxygène disponibles dans
+le scénario : une dose, respectivement zéro et quinze minutes, confirmation
+sans étape de quantité et annulation sans modification de l’état sauvegardé.
+L’usage natif prend le médicament en main ; s’il quitte LOCAL, la sélection
+reste sur un voisin valide de ce côté.
+
+La page MENU donne accès à SAVE, RESTORE et QUIT par bas puis validation.
+Le test annule les questions de partie, vérifie le refus d’une partie vide,
+enregistre la partie 2, dépose le couteau et conserve la sauvegarde existante
+avec la réponse par défaut au remplacement. RESTORE retrouve toutes les
+plages d’état persistantes, hors les seuls champs dérivés du dessin déjà
+identifiés par les tests de sauvegarde. La vérification est répétée après
+QUIT, retour au menu initial et nouveau démarrage de la Sierra.
+
+Le feu restauré empêche WALK avec un refus explicite sans mutation ; DOUSE
+permet ensuite une vraie marche. Aucun déplacement n’est injecté pour
+obtenir le score. Le parcours vérifie un abandon sans score classé, puis un
+score classé, le refus d’un nom vide et la saisie directionnelle de AB.
+Le chargeur relit ensuite le nom, le score et le compteur de voyages depuis
+le hall of fame enregistré. Tous les événements clavier sont interdits par
+le pilote du test ; la forêt, la rencontre et le tirage de capture restent
+les seules fixtures de scénario de ce parcours.
