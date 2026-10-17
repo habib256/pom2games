@@ -7,6 +7,18 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### EQUIPMENT entre OBJECTS et CRAFT (17 octobre 2026)
+
+- Ordre des onglets : STATUS, OBJECTS, EQUIPMENT, CRAFT, HELP, OPTIONS, MENU.
+  Les flèches suivent cet ordre et gauche depuis CRAFT ouvre EQUIPMENT.
+- Tables des pages, cadres, focus et parcours au joystick adaptés ;
+  mémorisation de la dernière page et sélection des objets conservées.
+  I/O reste OBJECTS et E ouvre EQUIPMENT depuis CRAFT également.
+- Le passage direct CRAFT → EQUIPMENT efface aussi la colonne séparatrice,
+  sans caractères résiduels de la page précédente.
+- Image XL régénérée dans `dist/NEOWILDERNESSXL.po`. Les 46 scripts de
+  la suite XL sont validés, avec parcours complet au joystick et sauvegardes.
+
 ### CRAFT : préparation des outils et fin estimée (17 octobre 2026)
 
 - Les facteurs de durée distinguent AXE/KNIFE ON et OFF. Une ligne précise

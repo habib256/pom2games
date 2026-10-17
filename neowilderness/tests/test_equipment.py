@@ -17,7 +17,7 @@ def open_page(s):
     s.step('key:EQUIPMENT\\r')
     s.step('wait:1')
     s.step(L.until('keyboard_wait', 200000))
-    assert byte(s, 'pg_cur') == 6
+    assert byte(s, 'pg_cur') == 2
 
 
 def selected(s):
@@ -43,7 +43,7 @@ def act(s, item, action):
         key(s, '\\v')
     assert byte(s, 'om_action') == action
     confirm(s)
-    assert byte(s, 'pg_cur') == 6 and byte(s, 'pg_focus') == 1
+    assert byte(s, 'pg_cur') == 2 and byte(s, 'pg_focus') == 1
     assert byte(s, 'eq_selected') == item
 
 
@@ -52,11 +52,12 @@ def read_only():
         s.step(IDLE)
         before = state(s)
         rng = s.step(L.peek('fauna_rng')).data
+        key(s, '\\^')
+        key(s, '\\>')  # OBJECTS initializes its selections on first visit.
         objects = tuple(s.step(L.peek(n, size)).data for n, size in
                         [('obj_side', 1), ('obj_cur', 2), ('obj_selected', 2)])
-        key(s, '\\^')
-        key(s, '\\<')
-        assert byte(s, 'pg_cur') == 6
+        key(s, '\\>')
+        assert byte(s, 'pg_cur') == 2
         assert byte(s, 'pg_focus') == 0
         assert 'EQUIPMENT' in rows(s)[0]
         mem = s.step('peek:0400:1024').data
@@ -71,13 +72,13 @@ def read_only():
         go(s, 5)
         assert 'WORN: YES' in rows(s)[5] and 'IN USE: NO' in rows(s)[7]
         key(s, '\\r'); key(s, '\\e')
-        assert byte(s, 'pg_cur') == 6
+        assert byte(s, 'pg_cur') == 2
         assert tuple(s.step(L.peek(n, size)).data for n, size in
                      [('obj_side', 1), ('obj_cur', 2), ('obj_selected', 2)]) == objects
         assert state(s) == before and s.step(L.peek('fauna_rng')).data == rng
         s.step('press:\\e'); s.step('wait:1'); s.step(IDLE)
         key(s, '\\^')
-        assert byte(s, 'pg_cur') == 6 and byte(s, 'pg_focus') == 0
+        assert byte(s, 'pg_cur') == 2 and byte(s, 'pg_focus') == 0
     print('  EQUIPMENT tab, roles, hand volume, read-only browsing/cancel and remembered page: OK')
 
 

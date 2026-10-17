@@ -142,10 +142,10 @@ def setup(s, where, rope=True):
 
 
 def open_page(s):
-    """From the view: UP (STATUS), then RIGHT twice (OBJECTS): CRAFT."""
+    """From the view: UP (STATUS), then RIGHT through OBJECTS and EQUIPMENT: CRAFT."""
     s.step('key:STATUS\\r')
     s.step(READY)
-    for _ in range(2):
+    for _ in range(3):
         s.step('key:\\>')
         s.step('wait:2')
         s.step(READY)
@@ -213,12 +213,12 @@ def page_view(disk, tag):
         scr = raw(s)
         (HERE / f'build/craft_page{tag}.txt').write_text('\n'.join(page) + '\n')
         if xl:
-            check('the frame (docs/MENUS.md 9): CRAFT between OBJECTS and HELP, R in the letters, its line '
+            check('the frame (docs/MENUS.md 9): CRAFT between EQUIPMENT and HELP, R in the letters, its line '
                   'open under it, the footer line', page_frame(text_screen(s.step('peek:0400:1024').data), 'CRAFT'),
                   page[:2] + page[22:])
         else:
             from common import TAB_ROW_140
-            check('tab row: CRAFT between OBJECTS and HELP, R in the letters', page[0] == TAB_ROW_140, page[0])
+            check('tab row: CRAFT between EQUIPMENT and HELP, R in the letters', page[0] == TAB_ROW_140, page[0])
         check('ALTCHARSET on (MouseText) on the page', altchar(s) == 1)
         groups, rowmap = (GROUPS, ROW) if xl else (GROUPS140, ROW140)
         check('three groups, headers in column 1', all(page[r][:29].rstrip() == g for r, g in groups.items()),
@@ -324,10 +324,11 @@ def page_view(disk, tag):
         for _ in range(s.step(L.peek('cp_focus')).data[0]):     # up to the tab row
             page = key(s, '\\^')                           # (UP there: TOPO)
         page = key(s, '\\<')
-        check(f'LEFT on the tab row: OBJECTS, ALTCHARSET {"on" if xl else "off"}',
-              page[2].startswith(' LOCAL ') and 'HANDS' in page[2][40:] and (page_frame(page, 'OBJECTS') or not xl) and altchar(s) == on, page[2])
+        check(f'LEFT on the tab row: EQUIPMENT, ALTCHARSET {"on" if xl else "off"}',
+              'HANDS VOLUME:' in page[8] and (page_frame(page, 'EQUIPMENT') or not xl)
+              and all(row.ljust(80)[40] == ' ' for row in page[2:20]) and altchar(s) == on, '\n'.join(page[2:20]))
         page = key(s, '\\>')
-        check('RIGHT from INVENTORY: CRAFT again', is_craft(page, xl) and altchar(s) == 1, page[1 + d])
+        check('RIGHT from EQUIPMENT: CRAFT again', is_craft(page, xl) and altchar(s) == 1, page[1 + d])
         page = key(s, '\\>')
         check(f'RIGHT: HELP, ALTCHARSET {"on" if xl else "off"}', not is_craft(page, xl)
               and (page_frame(page, 'HELP') if xl else 'S/O/R/H' not in page[0]) and altchar(s) == on, page[2])

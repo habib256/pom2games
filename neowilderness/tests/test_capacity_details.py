@@ -99,9 +99,9 @@ def pages(disk):
                      'SNOWBLINDNESS', 'FROSTBITE', 'POISON BITE', 'INFECTION',
                      'SALT DEFICIENCY', 'FOOD POISONING', 'GIARDIA', 'MALARIA', 'ALTITUDE SICKNESS'):
             assert name in screen, (name, screen)
-        for _ in range(3):
+        for _ in range(2):
             event(s, 'left')
-        assert byte(s, 'pg_cur') == 4
+        assert byte(s, 'pg_cur') == 5
         event(s, 'down')
         for i, text in enumerate(('HOW OFTEN ANIMALS APPEAR, 0 TO 100 (NATURE).',
                                   'YOUR POSITION ON THE TOPO SHEET.',

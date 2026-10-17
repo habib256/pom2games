@@ -117,7 +117,7 @@ def bearings(disk):
             s.step(f'poke:7008:{20+dx:02X}')
             s.step(f'poke:7009:{20+dy:02X}')
             event(s, 'up')
-            while byte(s, 'pg_cur') != 5:  # bearings are on MENU
+            while byte(s, 'pg_cur') != 6:  # bearings are on MENU
                 event(s, 'left')
             assert label in '\n'.join(rows(s)), (label, rows(s))
             event(s, 'cancel', IDLE)

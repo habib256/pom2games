@@ -83,8 +83,8 @@ def requirements(disk):
         print('  First aid: missing light, native refusal, USE FLASHLIGHT, ready hint, one dose/30 MIN: OK', flush=True)
 
         event(s, 'cancel', IDLE)
-        event(s, 'up'); event(s, 'left'); event(s, 'left')
-        assert byte(s, 'pg_cur') == 6
+        event(s, 'up'); event(s, 'right')
+        assert byte(s, 'pg_cur') == 2
         event(s, 'ok')
         for _ in range(140):
             if byte(s, 'overlay_text', byte(s, 'eq_cur')) == 72:
@@ -105,7 +105,7 @@ def requirements(disk):
             assert text in rows(s)[22] and byte(s, 'om_phase') == 2
             event(s, 'cancel'); event(s, 'cancel')
             assert not differing(before, saved_state(s), DERIVED_BYTES)
-            assert byte(s, 'pg_cur') == 6 and byte(s, 'eq_selected') == 72
+            assert byte(s, 'pg_cur') == 2 and byte(s, 'eq_selected') == 72
         print('  EQUIPMENT uses the same live prerequisite hints and preserves selection on cancel: OK', flush=True)
 
 

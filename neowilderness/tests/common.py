@@ -332,7 +332,7 @@ MT = {v: k for k, v in MOUSETEXT.items()}
 # folder tabs on row 0, the line under them on row 1 (open under the page
 # shown), a line across row 22, the keys on row 23.
 # (15 October 2026: MEDICAL merged into STATUS, INVENTORY renamed OBJECTS.)
-PAGES = ('STATUS', 'OBJECTS', 'CRAFT', 'HELP', 'OPTIONS', 'MENU', 'EQUIPMENT')
+PAGES = ('STATUS', 'OBJECTS', 'EQUIPMENT', 'CRAFT', 'HELP', 'OPTIONS', 'MENU')
 TAB_ROW = (''.join(f'\u2595 {name} \u258f' for name in PAGES) ).ljust(80)
 TAB_ROW_140 = ' STATUS  OBJECTS  CRAFT  HELP  OPTIONS  MENU'
 FOOT_LINE = '\u2500' * 80
@@ -418,7 +418,7 @@ def page_frame(rows, page, keys=None, view=None):
     its line, the footer line, and (when given) row 23's keys and its
     VIEW at column 70."""
     ok = (rows[0].rstrip() == TAB_ROW.rstrip() and rows[1] == tab_line(page)
-          and (rows[22] == FOOT_LINE or page == 'OBJECTS'))     # (OBJECTS: its answer's rows 20-22)
+          and (rows[22] == FOOT_LINE or page in ('OBJECTS', 'EQUIPMENT')))     # item pages reserve rows 20-22 for action results
     if keys is not None:
         ok = ok and rows[23].startswith(FOOT_PAGE + keys)
     if view is not None:

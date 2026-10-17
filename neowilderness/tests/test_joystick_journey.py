@@ -93,10 +93,10 @@ def menu_action(s, choice):
     """From the view, select SAVE=1, RESTORE=2 or QUIT=3 in MENU."""
     event(s, 'up')
     for _ in range(7):
-        if byte(s, 'pg_cur') == 5:
+        if byte(s, 'pg_cur') == 6:
             break
         event(s, 'left')
-    assert byte(s, 'pg_cur') == 5 and byte(s, 'pg_focus') == 0
+    assert byte(s, 'pg_cur') == 6 and byte(s, 'pg_focus') == 0
     for _ in range(choice):
         event(s, 'down')
     event(s, 'ok')
@@ -232,8 +232,8 @@ def journey(disk):
         event(s, 'ok', IDLE)
         s.step(L.poke('nature_frequency', 0))
         event(s, 'up')
-        event(s, 'right'); event(s, 'right')
-        assert byte(s, 'pg_cur') == 2
+        event(s, 'right'); event(s, 'right'); event(s, 'right')
+        assert byte(s, 'pg_cur') == 3
         for _ in range(5):
             event(s, 'down')
         event(s, 'ok', L.until('get_line', 100000))
@@ -243,7 +243,7 @@ def journey(disk):
         assert byte(s, 'cr_b1', 1) == 0, rows(s)
         print('  Joystick boot and CRAFT SPEAR: OK', flush=True)
 
-        event(s, 'up'); event(s, 'left')
+        event(s, 'up'); event(s, 'left'); event(s, 'left')
         object_item(s, 0, 90)
         before = s.step(L.peek('s_elap', 5)).data
         action(s, 1)
@@ -259,8 +259,8 @@ def journey(disk):
         print('  Capacity refusal, DROP PARKA, CARRY SPEAR without activation: OK', flush=True)
 
         event(s, 'cancel', IDLE)
-        event(s, 'up'); event(s, 'left'); event(s, 'left')
-        assert byte(s, 'pg_cur') == 6
+        event(s, 'up'); event(s, 'right')
+        assert byte(s, 'pg_cur') == 2
         event(s, 'ok')
         for _ in range(140):
             if byte(s, 'overlay_text', byte(s, 'eq_cur')) == 90:
@@ -326,7 +326,7 @@ def journey(disk):
         print('  Fire and COOK GAME: OK', flush=True)
         if byte(s, 'mn_mode'):
             event(s, 'cancel', IDLE)
-        event(s, 'up'); event(s, 'right'); event(s, 'right')
+        event(s, 'up'); event(s, 'left')
         assert byte(s, 'pg_cur') == 1
         object_item(s, 0, 80)
         action(s, 5)

@@ -14,7 +14,7 @@ RECIPES = (95, 96, 97, 91, 90, 89, 58, 93, 43, 44)
 
 def open_recipe(s, index):
     event(s, 'up')
-    while byte(s, 'pg_cur') != 2:
+    while byte(s, 'pg_cur') != 3:
         event(s, 'right')
     for _ in range(index+1):
         event(s, 'down')
@@ -62,7 +62,7 @@ def main():
             event(s, 'left', RESULT)
             assert saved_state(s) == before
             event(s, 'ok')
-            assert byte(s, 'pg_cur') == 2 and byte(s, 'cp_focus') == 5
+            assert byte(s, 'pg_cur') == 3 and byte(s, 'cp_focus') == 5
             assert byte(s, 'cp_st', 4) == 2
             assert not differing(before, saved_state(s), DERIVED_BYTES)
             event(s, 'cancel', IDLE)

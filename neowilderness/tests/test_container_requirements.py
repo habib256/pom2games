@@ -89,8 +89,8 @@ def containers(disk):
 
         # EQUIPMENT must show the same real DROP prerequisite and keep focus.
         event(s, 'cancel', IDLE)
-        event(s, 'up'); event(s, 'left'); event(s, 'left')
-        assert byte(s, 'pg_cur') == 6
+        event(s, 'up'); event(s, 'right')
+        assert byte(s, 'pg_cur') == 2
         event(s, 'ok')
         entries = s.step(L.peek('overlay_text', byte(s, 'eq_n'))).data
         target = entries.index(21)
@@ -107,7 +107,7 @@ def containers(disk):
         event(s, 'cancel'); event(s, 'cancel')
         assert byte(s, 'eq_selected') == 21
         event(s, 'cancel', IDLE)
-        event(s, 'up'); event(s, 'right'); event(s, 'right')
+        event(s, 'up'); event(s, 'left')
 
         # Follow DROP ITS CONTENTS through actual UI actions, not fixture edits.
         for item in range(1, 76):

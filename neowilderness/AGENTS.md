@@ -58,3 +58,7 @@ ces décisions ; ne pas rétablir les anciennes attentes par défaut.
 - TASTE depuis OBJECTS inspecte la source sélectionnée sans consommer de
   stock, sans délai, sans quantité ni TOUT ; garder la confirmation et
   l’annulation. Ne pas confondre le goût affiché et une garantie de sécurité.
+
+- Ordre des onglets demandé : STATUS, OBJECTS, EQUIPMENT, CRAFT, HELP,
+  OPTIONS, MENU. EQUIPMENT se trouve entre OBJECTS et CRAFT ; gauche depuis
+  CRAFT y revient, droite depuis EQUIPMENT ouvre CRAFT.

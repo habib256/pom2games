@@ -1269,17 +1269,17 @@ cp_key: jsr     wait_key
         jmp     cp_draw
 :       cmp     #KC_ESC
         beq     cp_view
-        ldx     #5
-:       cmp     cp_letter,x     ; S, M, I, H, T, O
+        ldx     #6
+:       cmp     cp_letter,x     ; S, M, I, H, T, O, E
         beq     @letter
         dex
         bpl     :-
         cpy     #0
         bne     @line
-        ldx     #2
+        ldx     #6
         cmp     #KC_LEFT        ; the tab row: the pages turn
-        beq     @letter         ; (INVENTORY)
-        inx
+        beq     @letter         ; (EQUIPMENT)
+        ldx     #3
         cmp     #KC_RIGHT
         beq     @letter         ; (HELP)
         cmp     #KC_RET
@@ -1630,9 +1630,9 @@ cp_e_screen: .byte "PROTECTION: SUNBURN", 0
 cp_names: .byte "HUT",0,"IGLOO",0,"TRENCH",0,"CLUB",0,"SPEAR",0,"BOW",0,"AXE",0
           .byte "SPLINT",0,"SUNGLASSES",0,"SUNSCREEN",0
 cp_make_t: .byte "MAKE "
-cp_letter: .byte "SMIHTO"      ; (M: STATUS, MEDICAL's since 15 October 2026; O, I: OBJECTS)
-cp_go_lo: .byte <(scr_status-1), <(scr_status-1), <(scr_inventory-1), <(scr_help-1), <(scr_topo-1), <(scr_inventory-1)
-cp_go_hi: .byte >(scr_status-1), >(scr_status-1), >(scr_inventory-1), >(scr_help-1), >(scr_topo-1), >(scr_inventory-1)
+cp_letter: .byte "SMIHTOE"      ; (M: STATUS, MEDICAL's since 15 October 2026; O, I: OBJECTS)
+cp_go_lo: .byte <(scr_status-1), <(scr_status-1), <(scr_inventory-1), <(scr_help-1), <(scr_topo-1), <(scr_inventory-1), <(scr_equipment-1)
+cp_go_hi: .byte >(scr_status-1), >(scr_status-1), >(scr_inventory-1), >(scr_help-1), >(scr_topo-1), >(scr_inventory-1), >(scr_equipment-1)
 cp_tok_lo: .byte <cp_t_short, <cp_t_land, <cp_t_away, <cp_t_woods, <cp_t_snow, <cp_t_rope, <cp_t_soil
 cp_tok_hi: .byte >cp_t_short, >cp_t_land, >cp_t_away, >cp_t_woods, >cp_t_snow, >cp_t_rope, >cp_t_soil
 cp_grp_lo: .byte <cp_g0, <cp_g1, <cp_g2

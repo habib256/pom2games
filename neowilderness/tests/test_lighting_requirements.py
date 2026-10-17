@@ -106,8 +106,8 @@ def lighting(disk):
         print('  Glass: shelter/night/cloud/rain, low/high Sun, native 15 MIN and no fire: OK', flush=True)
 
         event(s, 'cancel', IDLE)
-        event(s, 'up'); event(s, 'left'); event(s, 'left')
-        assert byte(s, 'pg_cur') == 6
+        event(s, 'up'); event(s, 'right')
+        assert byte(s, 'pg_cur') == 2
         equipment_preview(s, 39, SUN)
         # Return from list to view and reopen with tab focus for each fixture.
         event(s, 'cancel', IDLE); event(s, 'up')
