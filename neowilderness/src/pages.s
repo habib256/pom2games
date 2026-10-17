@@ -210,23 +210,8 @@ pg_act: .res 13                 ; the active conditions (pg_focus - 1)
 pg_g:   .byte 0                 ; the gesture chosen
 pg_gn:  .byte 0                 ; the condition's gestures (med_foot)
 pg_gf:  .byte 0                 ; the focus they belong to
-med_name_lo: .byte <med_cuts,<med_arm,<med_leg,<med_shock,<med_sunburn,<med_blind,<med_frost,<med_bite,<med_infection,<med_salt,<med_poison,<med_giardia,<med_malaria,<med_alt_text
-med_name_hi: .byte >med_cuts,>med_arm,>med_leg,>med_shock,>med_sunburn,>med_blind,>med_frost,>med_bite,>med_infection,>med_salt,>med_poison,>med_giardia,>med_malaria,>med_alt_text
-med_cuts: .byte "SEVERE CUTS",0
-med_arm: .byte "BROKEN ARM",0
-med_leg: .byte "BROKEN LEG",0
-med_shock: .byte "SHOCK",0
-med_sunburn: .byte "SUNBURN",0
-med_blind: .byte "SNOWBLINDNESS",0
-med_frost: .byte "FROSTBITE",0
-med_bite: .byte "POISON BITE",0
-med_infection: .byte "INFECTION",0
-med_salt: .byte "SALT DEFICIENCY",0
-med_poison: .byte "FOOD POISONING",0
-med_giardia: .byte "GIARDIA",0
-med_malaria: .byte "MALARIA",0
-
-med_alt_text: .byte "ALTITUDE SICKNESS",0
+med_name_offsets: .byte 0,12,23,34,40,48,62,0,12,22,38,53,61,69
+med_name_ids: .byte pg_med_a,pg_med_a,pg_med_a,pg_med_a,pg_med_a,pg_med_a,pg_med_a,pg_med_b,pg_med_b,pg_med_b,pg_med_b,pg_med_b,pg_med_b,pg_med_b
 
 ; ----------------------------------------------------------------------------
 ; OPTIONS (15 October 2026: one post-it, a line an option, its state in

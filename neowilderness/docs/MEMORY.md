@@ -3110,3 +3110,29 @@ STATX : `$B100–$B5FD`, deux libres. HICODE : `$BE00–$BEFE`, un libre ;
 TEXT : `$0A00–$0FFC`, trois libres. DAT : 67 548 bruts / 57 009 stockés,
 19 enregistrements ; XL : 380/1600 blocs, cinq parties. Banque : 254 textes,
 32 mots ; les décodages natifs sont comparés aux octets sources.
+
+### Détail NEED/FREE/MISSING des capacités (17 octobre 2026)
+
+Le détail utilise les totaux projetés et les limites natives déjà préparés.
+Pour chaque dimension : NEED = max(0, projeté − actuel), FREE = max(0,
+limite − actuel), MISSING = max(0, projeté − limite). Les soustractions
+non signées conservent les valeurs de 0 à 65 535 ; la retenue borne les
+résultats négatifs à zéro. Aucun calcul ne modifie les stocks ou les limites.
+Les deux octets `overlay_text+70..71` mémorisent la vue et l’indice de charge.
+Ils ne font pas partie de SAVE ; retour de confirmation et nouvelle ouverture
+réinitialisent le détail.
+
+Les quatorze noms médicaux sont répartis sur deux entrées bankées à NUL
+internes ; trois descriptions OPTIONS partagent une entrée et des offsets.
+Leurs textes exacts sont vérifiés à l’écran. `pg_desc_x` rejoint STATUS pour
+faire place au petit formateur numérique dans STATX, ajouté après les routines
+existantes. `om_free` rejoint également STATUS ; les tables de détail restent
+dans TREE, chargé pendant le dialogue. `stx_base` reste à `$B100`.
+
+La banque atteint ses 255 ID publics et 32 mots de dictionnaire : un nouveau
+texte public demande désormais de regrouper ou retirer une entrée existante.
+
+TREE : `$5800–$5FFE`, un octet libre ; STATUS : `$9600–$B0F6`, neuf libres ;
+STATX : `$B100–$B5FB`, quatre libres. TEXT : `$0A00–$0FFC`, trois libres ;
+HICODE : `$BE00–$BEFE`, un libre. DAT : 67 745 bruts / 57 550 stockés,
+19 enregistrements ; XL : 381/1600 blocs, cinq parties.

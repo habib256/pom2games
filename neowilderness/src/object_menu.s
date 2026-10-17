@@ -4,7 +4,7 @@
 .export om_total, om_from, om_dest, om_w, om_v
 .export om_phase, om_action, om_many, om_mask, om_name, om_max, om_qty
 .export om_out, om_digit, om_started, om_bad, om_side
-om_line = overlay_text          ; command [0,36], modal state [37,64]; no page list is live
+om_line = overlay_text          ; command [0,36], modal state [37,71]; no page list is live
 object_menu:
         ldx     #MAXLINE
 :       lda     ob_line,x
@@ -19,6 +19,7 @@ object_menu:
 :       sta     om_side
         lda     #0
         sta     om_phase
+        sta     om_detail
         sta     om_action
         sta     om_many
         ldx     #0
@@ -311,7 +312,11 @@ object_draw:
         jsr     om_bank_puts
         jmp     @preview_end
 :
-        lda     menu_noun
+        lda     om_detail
+        beq     :+
+        jsr     om_detail_draw
+        jmp     @preview_end
+:       lda     menu_noun
         cmp     #N_WATER
         bne     @forecast
         lda     #om_can_free
@@ -375,6 +380,8 @@ object_key:
         lda     om_phase
         jeq     object_cancel
         dec     om_phase
+        lda     #0
+        sta     om_detail
         jsr     om_quantities
         bne     :+
         sta     om_phase        ; indivisible uses have no quantity screen
@@ -393,7 +400,9 @@ object_key:
 @arrows:
         ldx     om_phase
         cpx     #2
-        beq     object_key
+        bne     :+
+        jmp     om_detail_key
+:
         cmp     #KC_UP
         beq     @up
         cmp     #KC_DOWN
@@ -501,6 +510,8 @@ om_all: lda     ob_m
         lda     om_max+1
         sta     om_qty+1
         jmp     om_fit_prepare
+.pushseg
+.segment "STATUS"
 om_free:
         sec
         lda     load_limits,y
@@ -515,8 +526,6 @@ om_free:
         jsr     om_bank_puts
 :       jmp     print_u16
 
-.pushseg
-.segment "STATUS"
 om_neg_num:
         lda     num
         eor     #$FF
@@ -1223,4 +1232,81 @@ om_fit_print:
         sta     num+1
         jmp     print_u16
 @done:  rts
+.popseg
+
+; Confirmation-only capacity detail, 0 = cumulative summary.
+om_detail = overlay_text+70
+om_detail_slot = overlay_text+71
+.export om_detail
+.pushseg
+.segment "STATUS"
+om_detail_key:
+        cmp     #KC_RIGHT
+        beq     @next
+        cmp     #KC_LEFT
+        bne     @ignore
+        lda     om_detail
+        bne     :+
+        lda     #5
+:       sec
+        sbc     #1
+        bcs     @set
+@next:  lda     om_detail
+        clc
+        adc     #1
+        cmp     #5
+        bcc     @set
+        lda     #0
+@set:   sta     om_detail
+        jmp     object_draw
+@ignore:jmp     object_key
+
+om_detail_draw:
+        ldx     om_detail
+        lda     om_detail_slots-1,x
+        sta     om_detail_slot
+        lda     om_detail_names-1,x
+        jsr     om_detail_text
+        lda     #27             ; NEED: additional load, clamped to zero on a release
+        jsr     om_detail_text
+        ldy     om_detail_slot
+        sec
+        lda     om_total,y
+        sbc     load_used,y
+        sta     num
+        lda     om_total+1,y
+        sbc     load_used+1,y
+        jsr     om_detail_num
+        lda     #33             ; FREE: before the transfer
+        jsr     om_detail_text
+        ldy     om_detail_slot
+        sec
+        lda     load_limits,y
+        sbc     load_used,y
+        sta     num
+        lda     load_limits+1,y
+        sbc     load_used+1,y
+        jsr     om_detail_num
+        lda     #40             ; MISSING: projected excess, including existing overload
+        jsr     om_detail_text
+        ldy     om_detail_slot
+        sec
+        lda     om_total,y
+        sbc     load_limits,y
+        sta     num
+        lda     om_total+1,y
+        sbc     load_limits+1,y
+        jsr     om_detail_num
+        lda     #om_unit_oz
+        ldx     om_detail_slot
+        beq     :+
+        lda     #om_in3_label
+:       jmp     om_bank_puts
+om_detail_text:
+        pha
+        lda     #om_detail_texts
+        jmp     st_bank_suffix
+.segment "TREE"
+om_detail_slots: .byte 0,4,6,2
+om_detail_names: .byte 0,8,14,21
 .popseg

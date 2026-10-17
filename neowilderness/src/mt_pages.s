@@ -196,16 +196,19 @@ mt_puts:
         rts
 ; pg_desc_x -- (OPTIONS' JSR vtab, XL) A = the row: there, the sentence of
 ; the option holding the focus (none on the tab row).
+.pushseg
+.segment "STATUS"
 pg_desc_x:
         jsr     vtab
         ldx     pg_focus
         beq     :+
+        lda     pg_desc_offsets-1,x
+        pha
         lda     pg_desc_ids-1,x
-        jmp     om_bank_puts
+        jmp     st_bank_suffix
 :       rts
-.pushseg
-.segment "STATUS"
-pg_desc_ids: .byte pg_d1,pg_d2,pg_d3,pg_d4
+pg_desc_ids: .byte pg_desc_texts,pg_desc_texts,pg_desc_texts,pg_d4
+pg_desc_offsets: .byte 0,46,80,0
 .popseg
 ; bar_x -- (bar's head, XL) a gauge of ten cells, A of them full: solid
 ; blocks ($4E), checkerboards ($56) for the rest, then two spaces.
