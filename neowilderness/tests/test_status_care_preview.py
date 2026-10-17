@@ -84,7 +84,8 @@ def kit(disk, stock, light, place=2, execute=False):
         assert saved_state(s) == before and rows(s)[22] == line
         if execute:
             elapsed = fp(s.step(L.peek('s_elap', 5)).data)
-            event(s, 'ok', IDLE)
+            event(s, 'ok', L.until('q_care_wait', 60000))
+            event(s, 'cancel', IDLE)
             assert abs(fp(s.step(L.peek('s_elap', 5)).data)-elapsed-.5) < 1e-6
             actual = byte(s, 'it_pack_lo', 41)+256*byte(s, 'it_pack_hi', 41)
             assert actual == (stock-1 if 0 < stock < 32768 else stock)

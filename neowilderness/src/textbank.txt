@@ -190,7 +190,7 @@ om_hands_free: " IN3  HANDS ",0
 om_action_label: "ACTION: ",0
 om_from_label: "FROM ",0
 om_local_label: "LOCAL",0
-om_carried_label: "CARRIED",0
+om_carried_label: "CARRIED",0,"IN REACH",0,"DEHYDRATION",0,"STARVATION",0,"EXHAUSTION",0
 om_to_label: " TO ",0
 om_qty_label: " QTY ",0
 om_doses_label: "1 USE",59," DOSES LEFT ",0,"ACTIVE: NEEDS CARE",0,"TREATED: CARE GIVEN",0,"PROTECTED: PREVENTION",0,"NO ITEM NEEDED",0,"SPLINT REQUIRED",0
@@ -262,7 +262,7 @@ ob_walk_label: "WALK TIME +",0
 ob_wear_label: " FREE IN3 WEAR ",0
 om_weight_label: " WT ",0
 
-om_hung_label: "LOCAL HUNG",0
+om_hung_label: "LOCAL HUNG",0,"STATUS",0,"OBJECTS",0,"CRAFT",0,"HELP",0,"OPTIONS",0,"MENU",0,"EQUIPMENT",0
 om_need_canteen = out_no_canteen
 
 st_gauge_labels: 13,13,"HEALTH  ",0,"%",13,13,"ENERGY  ",0,13,13,"HUNGER  ",0,13,13,"THIRST  ",0,13,13,"BODY    ",0,"HYPOTHERMIA",0,"HYPERTHERMIA",0,"GROUND",0,"FEELS",0,"00 FT",0," MPH",0," USES",0

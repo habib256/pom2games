@@ -40,8 +40,7 @@ module_status:
 :
         lda     pg_open         ; the grid's CARE: on the first active
         beq     :+              ; condition (src/grid.s)
-        lsr     pg_open
-        sta     pg_focus
+        jsr     sr_open
         bne     @apply
 :       lda     pg_focus        ; a move of the care's focus: as is
         bne     status_care
@@ -906,12 +905,8 @@ cond:   stx     st_cx           ; (not g1: STATUS leaves g0, g1 as the
         bne     @no
         jsr     item
         ldx     st_cx
-        lda     cname_lo,x
-        pha
-        lda     cname_hi,x
-        tax
-        pla
-        jsr     print_str_ax
+        lda     cname_offsets,x
+        jsr     st_kind_suffix
 @no:    rts
 
 ; reach_oz -- num += ounces of item X within reach (pack, plus the ground at
@@ -949,9 +944,7 @@ reach_oz:
 ; FOOD and WATER). A split food contributes once to each of the first two.
 status_stock_line:
         ldx     status_stock_kind
-        lda     st_kind_lo,x
-        ldy     st_kind_hi,x
-        jsr     print_str_ay
+        jsr     st_kind_text
         lda     #ST_FOOD
         jsr     tab
         lda     #0
@@ -1029,23 +1022,16 @@ st_ay:    .byte 0
 
 .segment "STATUS"
 mdays:  .byte   31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30
-cname_lo: .byte <w_dehyd, <w_starv, <w_exhau
-cname_hi: .byte >w_dehyd, >w_starv, >w_exhau
+cname_offsets: .byte 17,29,40
 tlimits: .byte  32, 60, 80, 95
 w_temp: .byte   "FREEZECOLD  NICE  WARM  HOT   "
 w_alt:  .byte   "LOW   MEDIUMHIGH  "
 w_grnd: .byte   "CLEARROCKYWOODSSCRUB"
-w_dehyd: .byte  "DEHYDRATION", 0
-w_starv: .byte  "STARVATION", 0
-w_exhau: .byte  "EXHAUSTION", 0
 f_two_thirds: .byte $80,$2A,$AA,$AA,$AB
 w_ns:   .byte   "NORTHSOUTH"
 w_ew:   .byte   "EAST WEST "
-st_kind_lo: .byte <st_carried, <st_here, <st_reach
-st_kind_hi: .byte >st_carried, >st_here, >st_reach
-st_carried: .byte "CARRIED", 0
-st_here:    .byte "LOCAL", 0
-st_reach:   .byte "IN REACH", 0
+st_kind_ids: .byte om_carried_label,om_local_label,om_carried_label
+st_kind_offsets: .byte 0,0,8
 
 
 .segment "ENVIRON"
@@ -1058,6 +1044,19 @@ tree_effort: .byte $7B,$23,$D7,$0A,$3E ; native T12/S08 $5CBE, .02 * body weight
 .pushseg
 .segment "STATUS"
 ; Several short gauge labels share one fetched text, with embedded NULs.
+pg_tab_text:
+        pha
+        lda     #om_hung_label
+        jmp     st_bank_suffix
+st_kind_text:
+        lda     st_kind_offsets,x
+        pha
+        lda     st_kind_ids,x
+        jmp     st_bank_suffix
+st_kind_suffix:
+        pha
+        lda     #om_carried_label
+        jmp     st_bank_suffix
 pg_heading_text:
         pha
         lda     #pg_heading_texts
@@ -1169,4 +1168,47 @@ om_detail_num:
         sta     num
         sta     num+1
 :       jmp     print_u16
+.popseg
+
+.pushseg
+.segment "STATUS"
+; Capture identity before the care overlay can be replaced by simulation.
+sr_prepare:
+        ldx     pg_focus
+        stx     sr_focus
+        lda     pg_act-1,x
+        sta     sr_condition
+        lda     pg_g
+        sta     sr_gesture
+        lda     #S_CARE_RETURN
+        sta     mq_list
+        sta     mq_list+1
+        lda     #2
+        sta     mq_n
+        lsr     a
+        sta     mq_i
+        lda     journey_encounters
+        sta     mq_enc
+        rts
+; CARE uses 1; a completed return uses bit 6 and its rebuilt active index.
+sr_open:
+        tax
+        and     #$3F
+        sta     pg_focus
+        sta     pg_gf
+        lda     #0
+        sta     pg_open
+        txa
+        and     #$40
+        beq     :+
+        lda     sr_gesture
+        sta     pg_g
+:       lda     pg_focus
+        rts
+.popseg
+.pushseg
+.segment "BSS"
+sr_condition: .res 1
+sr_focus: .res 1
+sr_gesture: .res 1
 .popseg

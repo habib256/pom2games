@@ -3161,3 +3161,36 @@ HICODE : `$BE00–$BEFE`, un libre. GCODE finit à `$51AA`, GDATA à `$5753`.
 DAT : 68 132 bruts / 57 458 stockés, 19 enregistrements ; XL : 381/1600
 blocs, cinq parties. Les marges des régions auxiliaires restent vérifiées
 par la construction des six paquets et leurs tests de chargement.
+
+### Retour aux soins et frontières du lecteur de textes (17 octobre 2026)
+
+Les trois octets `sr_condition`, `sr_focus`, `sr_gesture` résident en BSS,
+hors état SAVE, et sont tous écrits avant emploi. STATUS prépare une file
+dont la dernière étape `S_CARE_RETURN` porte un garde sans condition ; les
+préparations existantes gardent leurs contrôles natifs. GRID laisse le résultat
+lisible, puis reconstruit le rang depuis `injury_active` avant de composer
+STATUS. `pg_open` porte le bit 6 et le rang pour cette seule réouverture ;
+`sr_open` le consomme et restaure le geste. Une rencontre termine toujours
+la file ; un prérequis refusé saute le soin et propose la lecture du refus.
+
+Le corps historique de `page_top` devient explicitement le tampon PF_BUF
+de 80 octets ; il ne doit jamais être réutilisé pour du code. Les sept noms
+d’onglets et les libellés de stock/conditions rejoignent des suffixes bankés,
+ce qui libère STATUS pour les routines de préparation et de réouverture.
+Le module EQUIPMENT (33), chargé à l’ouverture de sa page, rejoint les
+modules compressés de XL. Les mises à jour médicales restent dans leur
+format précédent ; la décompression est contrôlée par les tests de transfert.
+
+`tf_get` rétablit explicitement la retenue avant de calculer l’alignement
+du texte dans `tb_buf`. La soustraction des offsets bas peut l’effacer
+lorsqu’un enregistrement traverse 256 octets ; elle ne doit pas influencer
+l’adresse de destination. Les 255 décodages sont comparés aux sources,
+dont 26 traversées de page ; cet octet occupe la dernière place de HICODE.
+
+STATUS : `$9600–$B0D6`, 41 octets libres ; STATX : `$B100–$B5F8`, sept libres.
+MEDVIEW : `$5800–$5FDF`, plein avant MEDVX ; GRID : `$A300–$AEA6`, 345 libres.
+HICODE : `$BE00–$BEFF`, plein ; TREE : `$5800–$5FFE`, un libre ; TEXT :
+`$0A00–$0FFC`, trois libres. GDATA finit à `$5753`, BSS à `$577B`, quatre
+octets avant REGIONTEXT. EQUIPMENT : 1 714 bruts / 1 458 stockés, soit
+256 octets auxiliaires récupérés. DAT : 68 088 bruts / 57 862 stockés,
+19 enregistrements ; XL : 382/1600 blocs, cinq parties.

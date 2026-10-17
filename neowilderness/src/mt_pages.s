@@ -35,9 +35,7 @@ stx_base:
 ; when more text does. Every cell is still written once with its final
 ; value (differential, one store per changed cell): the frames cost no
 ; store when the page is drawn again.
-PF_BUF = page_top+3             ; the frame of row pf_row, a byte a column (0:
-                                ; none): page_top's body, which XL never runs
-                                ; (XL_ZERO), above CRAFT's blocks
+PF_BUF = page_top+3             ; dedicated 80-byte row frame, above CRAFT's blocks
 
 ; page_top_x -- (page_top's head jumps here) A = the page: an 80-column text
 ; page and its folder tabs: row 0, each page a tab between two MouseText
@@ -74,9 +72,8 @@ page_top_x:
         sta     INVFLG
 :       lda     #' '|$80
         jsr     COUT
-        lda     pg_name_lo,x
-        ldy     pg_name_hi,x
-        jsr     print_str_ay
+        lda     pg_name_offsets,x
+        jsr     pg_tab_text
         lda     #' '|$80
         jsr     COUT
         lda     #$FF
