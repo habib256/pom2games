@@ -252,9 +252,11 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
   sans répétition du soin (17 octobre). Attelle accessible sur sa case ou
   transportée et feu allumé indiqués par HERE/NOT HERE ; contrôle d’attelle
   partagé avec USE SPLINT et effets natifs préservés (17 octobre).
-  Restent l’explication détaillée des jauges, la disponibilité et l’activation
-  de la lame, les sources d’eau et les conditions contextuelles d’utilisation
-  du feu au-delà de sa présence.
+  CUT BODY distingue maintenant lame active, disponible à préparer et absente ;
+  les indicateurs périmés ne bloquent plus la préparation couteau/hache,
+  sans mutation à la consultation (17 octobre).
+  Restent l’explication détaillée des jauges, les sources d’eau et les
+  conditions contextuelles d’utilisation du feu au-delà de sa présence.
 - [ ] **CRAFT.** Après fabrication : prendre/utiliser/entrer ou revenir aux
   recettes ; distinguer outil disponible et en usage ; annoncer le coût
   temporel et l'heure de fin estimée des travaux longs ; rendre le lien

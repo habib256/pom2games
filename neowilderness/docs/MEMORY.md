@@ -3211,3 +3211,35 @@ STATUS : `$9600–$B0FA`, cinq octets libres ; MEDVIEW : `$5800–$5FDC`, trois
 octets avant MEDVX ; STATX : `$B100–$B5F8`, sept libres. HICODE reste plein
 à `$BEFF`. DAT : 68 088 bruts / 57 864 stockés, 19 enregistrements ; XL :
 382/1600 blocs, cinq parties.
+
+### Prérequis de lame en lecture seule (17 octobre 2026)
+
+`med_tool_check` partage le contrôle natif d’outil en usage : coordonnées
+entières d’activation, bits de `care_tools`, accès par `have`. Y=0 interroge
+sans écriture ; `care_tool_in_use` entre avec Y=1 pour conserver le nettoyage
+natif des indicateurs d’une autre case. L’aperçu et la préparation de CUT BODY
+emploient le mode sans écriture. Les tables de conseils rejoignent STATUS,
+qui héberge aussi le choix des trois messages et leurs suffixes bankés.
+Aucun état SAVE ni scratch supplémentaire n’est ajouté.
+
+Les trois messages partagent `om_object_label`, aux offsets 11, 24 et 61.
+Les mots qualitatifs de température, altitude et terrain partagent
+`om_in3_label`, aux offsets 5/12/19/26/33, 40/47/54 et 61/67/73/79.
+Les préfixes historiques, espaces de largeur fixe et le scratch `g2` restent
+identiques ; les trois ID identiques de `st_care_ids` deviennent une constante.
+La banque conserve 255 ID publics, 32 mots et 118 octets maximum par texte ;
+les 255 décodages sont vérifiés, dont 27 traversées de page.
+
+STATUS : `$9600–$B0FF`, plein ; MEDVIEW : `$5800–$5FDA`, cinq octets avant
+MEDVX ; STATX : `$B100–$B5F8`, sept libres. HICODE reste plein à `$BEFF` ;
+GDATA et BSS ne bougent pas. DAT : 68 220 bruts / 57 671 stockés,
+19 enregistrements ; XL : 382/1600 blocs, cinq parties. Les six paquets
+restent dans leurs limites. La comparaison native porte sur 163 variables,
+1 324 octets, après 24 étapes et conserve notamment le scratch d’affichage.
+
+`care_hypothermia` ne doit pas appeler `al_percent` dans ALERTS : cette
+fenêtre contient alors MEDVIEW. Le déplacement du code faisait coïncider
+l’adresse cible avec le saut lui-même et bouclait sur WARM d’un corps froid.
+`care_percent` conserve localement les 25 octets de conversion native
+(clamp, deux multiplications par dix, entier, borne 100), vérifiés par
+`test_care.py`. Cette copie occupe une partie de la marge MEDVIEW récupérée.

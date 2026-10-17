@@ -7,6 +7,24 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### STATUS : lame active ou à préparer pour CUT BODY (17 octobre 2026)
+
+- CUT BODY distingue BLADE IN USE, BLADE AVAILABLE; USE KNIFE/AXE FIRST
+  et NO BLADE HERE; FIND KNIFE/AXE. Tenir un outil ne l’active pas :
+  l’aperçu contrôle l’usage, l’accès et la case d’activation sans écriture.
+- Un ancien indicateur d’usage sur une autre case ou pour un outil devenu
+  inaccessible ne bloque plus la préparation automatique. Le couteau reste
+  prioritaire sur la hache ; sans outil, le refus natif reste lisible.
+  Seule la commande réelle nettoie les indicateurs périmés selon ses règles.
+- Correction de WARM sur un corps froid : la conversion en pourcentage
+  devient locale au module médical, au lieu d’appeler ALERTS non chargé.
+- Les mots qualitatifs de température, altitude et terrain rejoignent la
+  banque de textes avec leur affichage et le scratch natif conservés.
+- Validation : 41 scripts XL ; seize scénarios de lame au port joystick,
+  navigation et annulation sans mutation, préparation puis soin à 0 MIN,
+  retour au même geste, cinq cas d’affichage qualitatif et état de simulation
+  identique à la référence native après 24 étapes.
+
 ### STATUS : disponibilité de l’attelle et du feu (17 octobre 2026)
 
 - USE SPLINT affiche HERE/NOT HERE : une attelle au sol n’est accessible

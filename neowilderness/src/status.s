@@ -320,12 +320,9 @@ status_care:
         inx
         cpx     #4
         bcc     @tl
-@tw:    lda     #<w_temp
-        sta     gp2
-        lda     #>w_temp
-        sta     gp2+1
-        lda     #6
-        jsr     word
+@tw:    lda     w_temp_offsets,x
+        ldy     #6
+        jsr     st_weather_text
 @felt:  lda     #ST_LBL2
         jsr     tab
         lda     #st_feels_label
@@ -399,12 +396,9 @@ status_care:
         cmp     #101
         bcc     :+
         inx
-:       lda     #<w_alt
-        sta     gp2
-        lda     #>w_alt
-        sta     gp2+1
-        lda     #6
-        jsr     word
+:       lda     w_alt_offsets,x
+        ldy     #6
+        jsr     st_weather_text
 @grnd:  lda     #ST_LBL2
         jsr     tab
         lda     #st_ground_label
@@ -432,12 +426,9 @@ status_care:
         bcc     @ground_word
         inx
 @ground_word:
-        lda     #<w_grnd
-        sta     gp2
-        lda     #>w_grnd
-        sta     gp2+1
-        lda     #5
-        jsr     word
+        lda     w_grnd_offsets,x
+        ldy     #5
+        jsr     st_weather_text
         ; the situation, a row each from row 7
         lda     #6
         sta     st_srow
@@ -648,7 +639,6 @@ med_cell:
 st_marks: .byte $18, '+'|$80, '*'|$80
         XL_BYTE XI_STATUS, st_marks+1, MT_CHECK
         XL_BYTE XI_STATUS, st_marks+2, MT_DIAMOND
-st_care_ids: .byte om_doses_label,om_doses_label,om_doses_label
 st_care_offsets: .byte 19,38,58
 st_col: .byte 0
 st_cx:   .byte 0
@@ -1024,9 +1014,9 @@ st_ay:    .byte 0
 mdays:  .byte   31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30
 cname_offsets: .byte 17,29,40
 tlimits: .byte  32, 60, 80, 95
-w_temp: .byte   "FREEZECOLD  NICE  WARM  HOT   "
-w_alt:  .byte   "LOW   MEDIUMHIGH  "
-w_grnd: .byte   "CLEARROCKYWOODSSCRUB"
+w_temp_offsets: .byte 5,12,19,26,33
+w_alt_offsets: .byte 40,47,54
+w_grnd_offsets: .byte 61,67,73,79
 f_two_thirds: .byte $80,$2A,$AA,$AA,$AB
 w_ns:   .byte   "NORTHSOUTH"
 w_ew:   .byte   "EAST WEST "
@@ -1044,6 +1034,11 @@ tree_effort: .byte $7B,$23,$D7,$0A,$3E ; native T12/S08 $5CBE, .02 * body weight
 .pushseg
 .segment "STATUS"
 ; Several short gauge labels share one fetched text, with embedded NULs.
+st_weather_text:
+        sty     g2              ; preserve the native fixed-width word scratch
+        pha
+        lda     #om_in3_label
+        jmp     st_bank_suffix
 pg_tab_text:
         pha
         lda     #om_hung_label
@@ -1080,7 +1075,7 @@ st_bank_suffix:
 st_care_text:
         lda     st_care_offsets,x
         pha
-        lda     st_care_ids,x
+        lda     #om_doses_label
         jmp     st_bank_suffix
 med_name_text:
         lda     med_name_offsets,x
