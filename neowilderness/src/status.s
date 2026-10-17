@@ -824,8 +824,7 @@ bearing:
         asl     a
         cmp     st_ax
         bcc     @east
-        lda     #<w_ns
-        ldy     #>w_ns
+        lda     #85
         ldx     #0
         bit     st_dy
         bpl     :+
@@ -837,20 +836,21 @@ bearing:
         bcc     @rts
         lda     #'-'|$80
         jsr     COUT
-@east:  lda     #<w_ew
-        ldy     #>w_ew
+@east:  lda     #97
         ldx     #0
         bit     st_dx
         bpl     st_word
         inx
         bne     st_word         ; always
 @rts:   rts
-; st_word -- word X (5 letters) of the table at (A,Y).
+; st_word -- direction X (0/1), bank suffix base A; preserve 5-letter padding.
 st_word:
-        sta     gp2
-        sty     gp2+1
-        lda     #5
-        jmp     word
+        cpx     #0
+        beq     :+
+        clc
+        adc     #6
+:       ldy     #5
+        jmp     st_weather_text
 st_abs: bpl     :+
         eor     #$FF
         clc
@@ -1018,8 +1018,6 @@ w_temp_offsets: .byte 5,12,19,26,33
 w_alt_offsets: .byte 40,47,54
 w_grnd_offsets: .byte 61,67,73,79
 f_two_thirds: .byte $80,$2A,$AA,$AA,$AB
-w_ns:   .byte   "NORTHSOUTH"
-w_ew:   .byte   "EAST WEST "
 st_kind_ids: .byte om_carried_label,om_local_label,om_carried_label
 st_kind_offsets: .byte 0,0,8
 

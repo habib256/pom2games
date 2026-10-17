@@ -3243,3 +3243,45 @@ l’adresse cible avec le saut lui-même et bouclait sur WARM d’un corps froid
 `care_percent` conserve localement les 25 octets de conversion native
 (clamp, deux multiplications par dix, entier, borne 100), vérifiés par
 `test_care.py`. Cette copie occupe une partie de la marge MEDVIEW récupérée.
+
+### Aperçu des sources d’eau médicales (17 octobre 2026)
+
+`med_water_word` reste dans STATUS : WET BODY vérifie front/immersion puis
+source naturelle avant `have`, DRINK vérifie `have` avant la source naturelle.
+`med_water_near` ne charge pas SIM : sur carte fine, `inventory_here` interroge
+l’atlas et restaure `geo_wooded`/`geo_water_kind` ; sur carte historique,
+`med_water_legacy` parcourt les neuf cases en bornant lignes et colonnes.
+Ni `water_here` ni `care_water_near` ne sont appelés par la page. Aucun
+`camp_untreated`, stock, soin ou RNG n’est modifié par cet aperçu.
+Les quatre octets `overlay_text+74..77` portent seulement les coordonnées et
+compteurs du parcours historique, hors SAVE. Le cache d’atlas peut évoluer.
+
+Les messages partagent `om_to_use` aux offsets 4/30/56/72. Les treize noms
+du second jeu partagent `om_to_sense` à partir de 7 ; `inventory_name` retourne
+leur pointeur dans `tb_buf`. `ob_cmd` doit donc lire le nom avant de construire
+son texte dans ce même tampon : le préfixe SENSES et son NUL protègent le
+nom contre les six octets maximum du verbe. Les quatre directions et leurs
+espaces de largeur fixe rejoignent `om_in3_label` aux offsets 85/91/97/103 ;
+le scratch natif `g2=5` est conservé. Toujours 255 ID et 32 mots de dictionnaire.
+
+La zone `page_foot` réserve explicitement les 53 octets copiés de XLRES
+(pad, rideau, crochet du cadre). Elle reste active et ne peut pas servir à
+l’aperçu. Les anciens libellés de touches résidents deviennent des alias
+vers les libellés XL, libérant le code du parcours des berges. L’édition
+140 Ko historique n’est pas reconstruite.
+
+MEDICAL (17) est maintenant compressé dans le stock auxiliaire de XL,
+comme il l’était sur l’édition historique : 2 023 bruts / 1 472 stockés,
+551 octets récupérés. `mem_fetch` le décompresse avec le chemin existant ;
+les tests de transfert comparent tous les octets, les gardes et les banques.
+La comparaison native contrôle l’état après 24 étapes de simulation.
+
+MAIN finit à `$6FFC`, trois octets libres ; STATUS à `$B0FC`, trois libres ;
+MEDVIEW à `$5FDA`, cinq avant MEDVX ; STATX à `$B5F8`, sept libres.
+GDATA, BSS et SAVE ne bougent pas. DAT : 67 829 bruts / 57 605 stockés,
+19 enregistrements ; XL : 382/1600 blocs, cinq parties.
+
+`DRINK_FIDELITY` reste à zéro : la consommation d’eau garde les calculs
+d’hydratation du scénario de référence et n’appelle pas `drink_care`.
+Le test d’onces vérifie cette limite existante, consignée dans le TODO ;
+il n’active pas silencieusement le sélecteur 6. WET BODY conserve le 9.

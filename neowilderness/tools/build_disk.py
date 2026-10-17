@@ -158,7 +158,9 @@ LZ_MODULES = (0, 1, 4, 5, 14, 16, 19, 20, 21, 26, 27)
 # saving 45 bytes. It runs only when the night sky list needs refreshing.
 # EQUIPMENT (33) is loaded only when its page opens; packing it makes room
 # for care return logic without slowing the simulation's medical updates.
-LZ_SIX_PACKS = (25, 32, 33)
+# MEDICAL (17): native updates already support LZ on the historical disk;
+# packing XL too recovers auxiliary space for read-only water care previews.
+LZ_SIX_PACKS = (17, 25, 32, 33)
 # Docs/MEMORY.md 30 (16 October 2026): since the OBJECTS page of transfers
 # the 140 KB edition packs the grid's module too (its store is full; its
 # NEOWILD.DAT has room again since the saved games take four blocks).

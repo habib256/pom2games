@@ -1395,9 +1395,8 @@ LIT ou DARK, et rappellent la lampe si nécessaire.
 Les rappels indiquent notamment SPLINT REQUIRED, WATER OZ NEXT, FIRE NEEDED,
 la préparation KNIFE/AXE de CUT BODY et la nécessité d’une morsure active
 pour SUCK VENOM. Les autres prérequis ne sont pas tous calculés dynamiquement :
-le rappel de l’eau ne certifie pas sa disponibilité. L’attelle
-et le feu ajoutent leur présence réelle (§ 31), la lame son accès et son
-activation (§ 32). Pour les lunettes
+l’attelle et le feu ajoutent leur présence réelle (§ 31), la lame son accès
+et son activation (§ 32), l’eau sa source accessible pour le geste (§ 33). Pour les lunettes
 et médicaments, HERE suit le test natif d’accès à l’objet, y compris au sol
 sur la bonne case, et exclut un objet suspendu ou absent.
 
@@ -1514,3 +1513,53 @@ indicateur d’un autre outil. Il compare l’aperçu à la première commande
 réellement exécutée, au résultat natif et à l’état sauvegardable. Cinq cas
 complémentaires vérifient les mots de température, altitude et terrain
 passés en banque pour loger ce contrôle.
+
+## 33. Eau disponible pour DRINK et WET BODY (17 octobre 2026, XL)
+
+La rangée 22 conserve 0 MIN et donne la situation du geste sélectionné :
+
+- WATER STOCK HERE; OZ NEXT : du stock est accessible, transporté ou au
+  sol sur la case. Confirmer ouvre le choix natif d’onces au joystick.
+- RIVER/LAKE HERE : une source naturelle est à portée. DRINK demandera une
+  quantité ; WET BODY utilise directement la source, sans dépenser de stock.
+- ALREADY WET; NO OZ NEEDED : pour WET BODY, un front météorologique ou
+  l’immersion satisfait déjà le contrôle natif. Aucun choix d’onces.
+- NO WATER HERE; FIND WATER : aucune source accessible pour ce geste.
+  Confirmer conserve le refus natif et le retour au soin.
+
+DRINK cherche d’abord le stock accessible ; WET BODY cherche d’abord l’état
+déjà mouillé, puis la rivière ou le lac, avant de proposer les onces de stock.
+Un simple vêtement humide ne vaut pas immersion. Le stock d’un sac suspendu
+ne convient pas ; une pile indépendante au sol sur la case reste utilisable.
+L’absence de l’objet eau conserve le refus natif, même avec des compteurs
+résiduels. Les stocks sont interprétés sur 16 bits selon les règles de l’eau,
+sans leur appliquer les règles signées des médicaments.
+
+Sur les cartes historiques, la source peut être dans la case ou ses huit
+voisines. Sur les cartes à géographie fine, seule la cellule précise du
+joueur compte ; une rivière dans l’autre moitié de la même case grossière
+ne suffit pas. Le conseil n’indique pas la potabilité. La pluie et la neige
+à collecter restent accessibles par leurs commandes propres ; DRINK WATER
+n’est pas transformé en DRINK RAIN.
+
+Consulter, changer de geste ou quitter STATUS ne crée pas de pile d’eau,
+ne dépense pas de stock ou de temps et ne tire pas de hasard. Après
+confirmation, le moteur garde son comportement : DRINK à une source
+naturelle crée une pile locale de 160 OZ avant de demander la quantité.
+Annuler cette question conserve cette pile native ; au retour, le conseil
+montre alors le stock local. Annuler une quantité sur un stock déjà présent
+le conserve. Le résultat reste lisible avant RETURN CARE / ESC VIEW.
+
+`tests/test_care_water_preview.py` vérifie 43 scénarios au port joystick,
+avec contrôle d’état avant/après consultation, refus, annulation, consommation
+de quatre onces, absence de temps supplémentaire et retour au même geste.
+Les cas comprennent stocks mixtes et 65 535 OZ, sac suspendu avec pile
+indépendante, front, immersion, rivière/lac, berge diagonale et voisinage
+fin, ainsi que la priorité différente de DRINK et WET BODY.
+
+Limite de fidélité existante : `DRINK_FIDELITY=0` conserve les calculs
+d’hydratation de la référence actuelle et désactive le sélecteur médical 6.
+Boire les onces choisies améliore donc l’hydratation sans marquer ce traitement
+médical. Ce blocage reste au TODO pour le lot de fidélité de l’eau ; les tests
+conservent explicitement ce comportement. WET BODY applique son sélecteur 9.
+Les huit directions du but sont également vérifiées après leur passage en banque.

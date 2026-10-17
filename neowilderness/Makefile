@@ -181,6 +181,7 @@ test-xl: all $(A2SHOT)
 	$(PYTHON) tests/test_status_care_preview.py
 	$(PYTHON) tests/test_care_presence.py
 	$(PYTHON) tests/test_care_blade.py
+	$(PYTHON) tests/test_care_water_preview.py
 	$(PYTHON) tests/test_status_care_return.py
 	$(PYTHON) tests/test_object_taste.py
 	$(PYTHON) tests/test_hung_preview.py
