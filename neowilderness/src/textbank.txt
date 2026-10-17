@@ -242,3 +242,10 @@ om_glass_outside: "MAGNF GLASS NEEDS OUTDOOR SUNLIGHT.",0
 om_glass_day: "MAGNF GLASS NEEDS DAYLIGHT.",0
 om_glass_clear: "MAGNF GLASS NEEDS A CLEAR SKY.",0
 om_glass_sun: "SUN >=30 DEG NEEDED. 15 MIN / NO FIRE.",0
+
+om_instrument_dark: "TOO DARK. COMPASS/WATCH AID CLEARED.",0
+om_map_ready: "OPEN TOPO. CLEAR COMPASS/WATCH / 0 MIN.",0
+om_compass_ready: "NO LIGHT NEEDED. WATCH OFF / 0 MIN.",0
+om_watch_ready: "WATCH AID. REPLACES COMPASS / 0 MIN.",0
+om_altimeter_ready: "IN HAND. CLEAR COMPASS/WATCH / 0 MIN.",0
+om_chart_refused: "CHART REFUSED. COMPASS/WATCH CLEARED.",0

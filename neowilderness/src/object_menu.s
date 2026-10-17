@@ -1,7 +1,10 @@
 ; OBJECTS transaction editor. Lives beside TREE, outside STATUS/MEDVIEW.
 ; Everything up to object_commit is a read-only view of simulation state.
 .segment "TREE"
-om_line = overlay_text          ; modal-only copy; banked hints may overwrite tb_buf
+.export om_total, om_from, om_dest, om_w, om_v
+.export om_phase, om_action, om_many, om_mask, om_name, om_max, om_qty
+.export om_out, om_digit, om_started, om_bad, om_side
+om_line = overlay_text          ; command [0,36], modal state [37,64]; no page list is live
 object_menu:
         ldx     #MAXLINE
 :       lda     ob_line,x
@@ -169,11 +172,7 @@ object_menu:
         inx
         bne     @valid
 @found: stx     om_action
-:       lda     ob_m
-        sta     om_max
-        lda     ob_m+1
-        sta     om_max+1
-        jsr     om_all
+:       jsr     om_all
 object_draw:
         jsr     om_project
         lda     #20
@@ -575,7 +574,6 @@ om_project:
         lda     om_action
         cmp     #4
         jcs     @done           ; USE/EAT/DRINK: simulation changes, no transfer forecast
-        asl     a
         tax
         lda     om_destinations,x
         sta     om_dest
@@ -725,12 +723,12 @@ om_add:
         inc     om_bad
 :       rts
 om_crvol: .byte 90,90,200,100,120
-om_destinations: .word 4,6,0,2
-om_total: .res 8
-om_from: .byte 0
-om_dest: .byte 0
-om_w: .word 0
-om_v: .word 0
+om_destinations: .byte 4,6,0,2
+om_total = overlay_text+37
+om_from = overlay_text+45
+om_dest = overlay_text+46
+om_w = overlay_text+47
+om_v = overlay_text+49
 
 .pushseg
 .segment "STATUS"
@@ -823,19 +821,20 @@ om_words: .byte om_pack_word,om_hand_word,om_drop_word,om_wear_word,om_use_word,
 om_bits: .byte 1,2,4,8,16,32,64,128
 om_place_masks: .byte $FF,$F7,$FE,$FD
 om_help_ids: .byte om_h0,om_h1,om_h2
-om_phase: .byte 0
-om_action: .byte 0
-om_many: .byte 0
-om_mask: .byte 0
-om_name: .byte 0
-om_max: .word 0
-om_qty: .word 0
-om_out: .byte 0
-om_digit: .byte 0
-om_started: .byte 0
-om_bad: .byte 0
+om_phase = overlay_text+51
+om_action = overlay_text+52
+om_many = overlay_text+53
+om_mask = overlay_text+54
+om_name = overlay_text+55
+om_max = overlay_text+56
+om_qty = overlay_text+58
+om_out = overlay_text+60
+om_digit = overlay_text+61
+om_started = overlay_text+62
+om_bad = overlay_text+63
 
-om_side: .byte 0
+om_side = overlay_text+64
+.assert om_side < overlay_text+160, error, "modal scratch exceeds overlay_text"
 
 om_to: .byte om_to_pack,om_to_hand,om_local_label,om_to_worn,om_to_use,om_to_body,om_to_body,om_to_can
 
@@ -865,6 +864,11 @@ om_requirement:
         cmp     #4
         bne     @none
         ldx     menu_noun
+        txa
+        sec
+        sbc     #52
+        cmp     #5
+        bcc     @instrument
         cpx     #71
         beq     @stove
         cpx     #66
@@ -896,6 +900,26 @@ om_requirement:
         rts
 @none:  lda     #0
         rts
+@instrument:
+        cpx     #53
+        beq     @instrument_ready
+        lda     period
+        beq     @instrument_dark
+        cmp     #2
+        bcc     @twilight
+        cmp     #4
+        bcc     @instrument_ready
+@twilight:
+        lda     weather_sky
+        beq     @instrument_ready
+@instrument_dark:
+        lda     #om_instrument_dark
+        rts
+@instrument_ready:
+        lda     @instrument_ids-52,x
+        rts
+@instrument_ids:
+        .byte om_map_ready,om_compass_ready,om_watch_ready,om_altimeter_ready,om_chart_refused
 @stove:
         lda     camp_use
         and     #U_FUEL

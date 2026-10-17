@@ -207,8 +207,10 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
   de FRSTAID KIT, ainsi que le combustible/allumage du réchaud et les
   conditions des allumettes sont visibles avant confirmation (17 octobre).
   La lampe annonce sa charge et la loupe ses conditions de lumière, son
-  seuil solaire de 30° et ses 15 minutes sans feu (17 octobre). Restent les
-  instruments ; les refus natifs restent accessibles.
+  seuil solaire de 30° et ses 15 minutes sans feu (17 octobre). Les instruments
+  indiquent désormais luminosité, remplacement de boussole/montre et effet
+  natif de USE, y compris CHART refusé et TOPO (17 octobre). Les refus
+  natifs restent accessibles.
 - [ ] **OBJECTS — aperçu à compléter.** Avant validation : source, destination réelle,
   quantité, poids ajouté, volume nécessaire et place restante après
   transfert ; eau/gourde, sac, vêtements et objets fabriqués compris.
@@ -432,8 +434,10 @@ au seuil de 5 %) ; « tout est encore non commité » ; fenêtres DHGR à la
 place des écrans 40 colonnes (étapes 3-4 de MENUS.md, remplacées par les
 pages 80 colonnes).
 
-Points de contrôle du lot suivant : terminer le filtrage contextuel fin,
-en explicitant les prérequis d’usage restants des instruments.
+Points de contrôle du lot suivant : compléter l’aperçu des transferts et
+les refus de capacité cumulés avec besoin/disponible/manque.
+Les instruments affichent leurs conditions de lumière, le remplacement
+de boussole/montre et les effets natifs de USE (17 octobre).
 Appât des dispositifs CATCH, lumière des premiers soins, combustible et
 allumage du réchaud, conditions météo/eau des allumettes, charge de la lampe
 et conditions de la loupe sont affichés (angle solaire exact vérifié sur USE) ;

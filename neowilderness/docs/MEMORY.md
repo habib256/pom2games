@@ -2998,3 +2998,23 @@ l’identifiant de texte, indépendamment des comparaisons d’objet.
 TREE : `$5800–$5FFF`, zéro octet libre. STATUS reste `$9600–$B0FF`, plein
 avant STATX. DAT : 66 813 bruts / 56 407 stockés, 19 enregistrements ;
 XL : 379/1600 blocs, cinq parties. Aucun nouvel état résident ou sauvegardé.
+
+
+### Instruments dans le dialogue partagé (17 octobre 2026)
+
+Les 28 octets d’état temporaire du dialogue rejoignent `overlay_text+37`
+à `+64`, après la commande protégée de 37 octets. Les listes OBJECTS et
+EQUIPMENT sont fermées durant cet usage et reconstruites au retour ;
+l’état modal est initialisé avant lecture et libéré avant la simulation.
+Les alias restent exportés pour les contrôles d’émulation. La table des
+quatre destinations devient octet et l’initialisation redondante de la
+quantité maximale est retirée. Aucun état persistant ni SAVE ne change.
+
+Le contrôle des instruments reproduit `ou_light` en lecture seule depuis
+`period` et `weather_sky`, avec exception COMPASS ; il ne charge pas ORIENT.
+Cinq textes distincts indiquent l’effet natif et un texte commun explique
+le refus sombre et la perte d’aide boussole/montre après confirmation.
+
+TREE : `$5800–$5FFC`, trois octets libres ; STATUS et STATX restent pleins.
+DAT : 67 196 bruts / 56 591 stockés, 19 enregistrements ; XL : 380/1600
+blocs, cinq parties. Aucune règle d’orientation ou simulation modifiée.

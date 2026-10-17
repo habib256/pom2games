@@ -1180,3 +1180,35 @@ pas l’allumage pour MAKE FIRE ensuite. Le dialogue explicite cette limite.
 `tests/test_lighting_requirements.py` vérifie ces indications et leurs
 résultats natifs par le port joystick uniquement, ainsi que l’absence de
 mutation au choix, à la confirmation et à l’annulation dans les deux pages.
+
+
+## 23. Instruments et remplacement des aides (17 octobre 2026, XL)
+
+Le dialogue commun d’OBJECTS/EQUIPMENT explique USE pour les instruments :
+
+| Objet | Prévisualisation de l’usage natif |
+|---|---|
+| MAP | Ouvre TOPO, met la carte en main, efface boussole/montre ; zéro minute. |
+| COMPASS | Aucune lumière requise, en main, aide magnétique activée et montre désactivée ; zéro minute. |
+| WATCH | En main, aide montre activée et boussole désactivée ; zéro minute. |
+| ALTIMETER | En main, boussole/montre désactivées ; zéro minute. Aucun drapeau d’aide altimètre. |
+| CHART | Refus natif après désactivation de boussole/montre, sans prise en main ni délai. |
+
+Hormis COMPASS, la luminosité acceptée est celle du moteur d’orientation :
+AM ou PM, même sous ciel couvert ; aube et crépuscule seulement sous ciel
+clair ; nuit refusée. Ni l’abri ni FLASHLIGHT ne modifient ce prédicat
+actuel. Le dialogue annonce TOO DARK et COMPASS/WATCH AID CLEARED lorsque
+USE va refuser : le moteur efface ces aides avant son contrôle de lumière.
+Le bâton d’ombre reste conservé. Aucun de ces effets n’arrive pendant
+l’aperçu ou l’annulation ; ils ont lieu seulement après confirmation.
+
+La montre en usage ne garantit pas que le Soleil soit visible pour LOOK
+avec une direction : cette commande conserve son contrôle de visibilité
+et ses propres questions d’estimation. La carte céleste demeure accessible
+avec son refus expliqué ; le dialogue ne lui invente pas un nouvel usage.
+
+`tests/test_instrument_requirements.py` parcourt les 75 combinaisons des
+cinq instruments, cinq périodes et trois ciels avec aperçu/confirmation/
+annulation sans mutation. Il vérifie les activations, les refus avec perte
+d’aide, la conservation du bâton et du temps, ainsi que USE MAP → TOPO →
+OBJECTS et les indications dans EQUIPMENT, exclusivement au port joystick.
