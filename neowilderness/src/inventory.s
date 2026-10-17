@@ -983,7 +983,17 @@ inventory_settle:
         beq     :+
         cmp     #$FF
         bne     @rts
-:       lda     px
+:       jsr     inventory_here
+        asl     a
+        lda     #0
+        bcc     :+
+        lda     #$FF
+:       sta     cr_b1+3
+@rts:   rts
+
+; Shared cell query while STATUS is present (also the object USE preview).
+inventory_here:
+        lda     px
         asl     a
         lda     px+1
         rol     a
@@ -993,13 +1003,7 @@ inventory_settle:
         lda     py+1
         rol     a
         tax
-        jsr     cell_native
-        asl     a
-        lda     #0
-        bcc     :+
-        lda     #$FF
-:       sta     cr_b1+3
-@rts:   rts
+        jmp     cell_native
 
 ; inventory_name -- A/X = the name of item X: the vocabulary's, the region's
 ; species for 76..79, the second set's words (lot 4).

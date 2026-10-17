@@ -1123,3 +1123,33 @@ le prérequis manque. Les autres prérequis contextuels restent à détailler.
 d’action, les annulations, les refus et l’activation réelle des dispositifs.
 Il suit aussi le conseil USE FLASHLIGHT avant un soin effectif, avec les
 axes et boutons du port joystick exclusivement.
+
+## 21. Réchaud, combustible et allumettes (17 octobre 2026, XL)
+
+USE STOVE exige FUEL effectivement activé et soit des allumettes activées,
+soit la proximité active du feu (`fire_near`, obtenue avec USE FIRE).
+Un feu allumé seul (`fire_on`) ne suffit pas. Le dialogue indique d’abord
+le combustible inactif, puis l’allumage absent, ou READY lorsque ces
+conditions sont satisfaites. Il annonce la durée native : 30 minutes pour
+poser le réchaud transporté, zéro s’il est déjà au sol ici.
+
+USE FUEL indique la présence d’un stock positif et rappelle qu’une once
+est activée. Le combustible simplement rangé ne prépare pas le réchaud.
+USE MATCHES indique les refus liés à l’eau, à la pluie ou à un vent d’au
+moins 41 mph sans FUEL activé, puis le stock d’allumettes. Le vent de
+40 mph reste permis ; le combustible activé lève la restriction de pluie
+ou de vent, mais pas celle de l’eau. Dans un abri, le moteur avertit et
+autorise l’usage sans examiner ces conditions extérieures : l’aperçu
+conserve ce comportement avec CAUTION, sans le transformer en refus.
+
+Ces indications occupent la ligne de prérequis avant confirmation dans
+le dialogue commun d’OBJECTS/EQUIPMENT. Changer d’action les retire,
+annuler ne modifie ni les stocks, ni la préparation, ni l’horloge.
+Valider exécute les règles natives, y compris les effets des stocks vides ;
+l’aperçu ne crée pas une nouvelle interdiction. La lecture de la case
+pour l’eau préserve les indicateurs géographiques existants.
+
+`tests/test_camp_requirements.py` parcourt les conditions et la préparation
+réelle au port joystick, avec annulation et refus sans mutation lorsque
+le moteur refuse pour météo, eau ou réchaud non préparé. Il vérifie les
+stocks signés, les durées 30/0 minutes et les deux notions de feu.

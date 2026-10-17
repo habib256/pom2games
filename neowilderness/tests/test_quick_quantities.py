@@ -111,6 +111,24 @@ def quick(disk):
         leave(s)
         print('  GET water uses ground stock, fills the exact canteen space; DRINK has no ALL: OK', flush=True)
 
+        # The banked command builder must preserve multi-byte decimal quantities.
+        s.step(L.poke('it_place', 0, 25))
+        s.step(L.poke('it_pack_lo', 0, 25)); s.step(L.poke('it_pack_hi', 0, 25))
+        s.step(L.poke('it_gnd_lo', 44, 25)); s.step(L.poke('it_gnd_hi', 1, 25))
+        s.step(L.poke('load_limits', 2000 & 255))
+        s.step(L.poke('load_limits', 2000 >> 8, 1))
+        open_item(s, 25)
+        event(s, 'ok'); event(s, 'left')
+        for _ in range(8):
+            event(s, 'right')
+        event(s, 'up')
+        assert quantity(s) == 257
+        event(s, 'ok'); event(s, 'ok')
+        assert int.from_bytes(s.step(L.peek('it_pack_lo', 1, 25)).data +
+                              s.step(L.peek('it_pack_hi', 1, 25)).data, 'little') == 257
+        assert byte(s, 'it_gnd_lo', 25) == 43 and byte(s, 'it_gnd_hi', 25) == 0
+        print('  Banked PACK command preserves the exact 257-ounce decimal quantity: OK', flush=True)
+
 
 if __name__ == '__main__':
     with tempfile.TemporaryDirectory() as tmp:
