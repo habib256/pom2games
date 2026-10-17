@@ -151,12 +151,15 @@ object_menu:
         cpx     #89
         bcs     @valid_mask
         ldy     #om_usable_end-om_usable-1
-@usable:
         txa
+@usable:
         cmp     om_usable,y
-        beq     @valid_mask
+        bcs     @range
         dey
         bpl     @usable
+@range: tya
+        and     #1
+        beq     @valid_mask     ; even boundary: within a usable range
         lda     om_mask
         and     #$EF
         sta     om_mask
@@ -517,6 +520,8 @@ om_free:
         jsr     om_bank_puts
 :       jmp     print_u16
 
+.pushseg
+.segment "STATUS"
 om_neg_num:
         lda     num
         eor     #$FF
@@ -528,6 +533,7 @@ om_neg_num:
         adc     #0
         sta     num+1
         rts
+.popseg
 
 om_project:
         lda     #0
@@ -574,8 +580,8 @@ om_project:
         lda     om_action
         cmp     #4
         jcs     @done           ; USE/EAT/DRINK: simulation changes, no transfer forecast
-        tax
-        lda     om_destinations,x
+        eor     #2
+        asl     a
         sta     om_dest
         ldx     menu_noun
         cpx     #22
@@ -723,7 +729,6 @@ om_add:
         inc     om_bad
 :       rts
 om_crvol: .byte 90,90,200,100,120
-om_destinations: .byte 4,6,0,2
 om_total = overlay_text+37
 om_from = overlay_text+45
 om_dest = overlay_text+46
@@ -818,9 +823,12 @@ object_commit:
         jmp     obj_type
 .popseg
 om_words: .byte om_pack_word,om_hand_word,om_drop_word,om_wear_word,om_use_word,om_eat_word,om_drink_word,om_get_word
-om_bits: .byte 1,2,4,8,16,32,64,128
+om_bits = forest_masks
 om_place_masks: .byte $FF,$F7,$FE,$FD
+.pushseg
+.segment "STATUS"
 om_help_ids: .byte om_h0,om_h1,om_h2
+.popseg
 om_phase = overlay_text+51
 om_action = overlay_text+52
 om_many = overlay_text+53
@@ -838,7 +846,7 @@ om_side = overlay_text+64
 
 om_to: .byte om_to_pack,om_to_hand,om_local_label,om_to_worn,om_to_use,om_to_body,om_to_body,om_to_can
 
-om_usable: .byte 9,11,12,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,66,67,71,72,73
+om_usable: .byte 9,10,11,13,38,60,66,68,71,74 ; start/end-exclusive boundaries
 om_usable_end:
 
 ; TASTE is a native inspection: no amount, no ounce, no consumption.
@@ -859,6 +867,17 @@ om_quantities:
 .segment "STATUS"
 om_bank_puts:
         jsr     text_fetch
+        ldy     #0
+@flat:  lda     tb_buf,y
+        beq     @print
+        cmp     #'|'
+        bne     @next
+        lda     #' '
+        sta     tb_buf,y         ; keep native refusal and remedy on one modal row
+@next:  iny
+        bne     @flat
+@print: lda     #<tb_buf
+        ldx     #>tb_buf
         jmp     print_str_ax
 
 om_source_id:
@@ -898,19 +917,58 @@ om_source_id:
 @pile:  lda     #om_carried_label
         rts
 
-; A selected GET uses the ITEMS path, which requires a carried canteen.
+; Container predicates match ITEMS and CRAFT; wild piles have no pack gate.
 om_container_hint:
-        lda     it_place+64
+        lda     om_action
+        beq     @pack
+        cmp     #7
+        beq     @canteen
+        cmp     #2
+        bne     @none
+        ldx     menu_noun
+        cpx     #21
+        bne     @drop_can
+        lda     load_used+4
+        ora     load_used+5
+        beq     @none
+        lda     #m_empty_pack
+        rts
+@drop_can:
+        cpx     #64
+        bne     @none
+        lda     it_pack_lo+N_WATER
+        ora     it_pack_hi+N_WATER
+        beq     @none
+        lda     #m_empty_can
+        rts
+@pack:  ldx     menu_noun
+        cpx     #76
+        bcc     @backpack
+        cpx     #89
+        bcc     @none
+        cpx     #94
+        bcs     @none
+@backpack:
+        ldx     #21
+        bne     @check
+@canteen:
+        ldx     #64
+@check: lda     it_place,x
         beq     @missing
-        bmi     @missing        ; $FF is the only negative placement: absent
+        bmi     @missing        ; absent is $FF
         cmp     #5
         bne     @none
 @missing:
+        lda     #m_needpack
+        cpx     #21
+        beq     @return
         lda     #om_need_canteen
+@return:ora     #0              ; caller branches on the returned text ID
         rts
 @none:  lda     #0
         rts
 
+.segment "TREE"
 ; Signed change in carried ounces, not item weight: internal moves cost 0.
 ; LOWER uses the aggregate projection, never the last visited item's weight.
 om_weight_change:
@@ -942,12 +1000,11 @@ om_source_places:
 
 ; Exact native prerequisites only; no preparation or simulation during drawing.
 om_requirement:
-        lda     om_action
-        cmp     #7
-        bne     :+
         jsr     om_container_hint
+        beq     :+
         rts
-:       cmp     #4
+:       lda     om_action
+        cmp     #4
         bne     @none
         ldx     menu_noun
         txa

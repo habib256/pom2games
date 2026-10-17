@@ -631,10 +631,8 @@ text_fetch:
         cmp     #$22
         bcc     :+
         sbc     #1
-:       clc
-        adc     #TB_DICT
-        ldx     tf_out
-        jsr     tf_get
+:       ldx     tf_out
+        jsr     tf_word
         clc
         lda     tf_out
         adc     tf_len
@@ -652,12 +650,19 @@ text_fetch:
 ; tf_get -- A = number, X = index in tb_buf ($FF: end-aligned): its bytes
 ; there; X = the index used, tf_len = their count.
 tf_get:
+        ldy     #0              ; public text directory: indices 1..255
+        beq     tf_index
+tf_word:
+        ldy     #2              ; dictionary directory: indices 256..287
+tf_index:
+        sty     @index_high+1
         stx     tf_dst
         ldy     #<tf_idx        ; the index pair into tf_idx
         sty     module_dir+TB_FETCH*DIR_SIZE+5
         ldy     #>tf_idx
         sty     module_dir+TB_FETCH*DIR_SIZE+6
-        asl     a               ; 2 bytes per number: X = the carry
+        asl     a               ; 2 bytes per number, on the selected index page
+@index_high:
         ldx     #0
         bcc     :+
         inx
@@ -702,7 +707,10 @@ tf_copy:                        ; A/X = offset in the bank, Y = length
         inc     xfer_texts+1
 :       ldx     #TB_FETCH
         jmp     mem_fetch
-tf_idx:  .res 4
+.pushseg
+.segment "TEXT"
+tf_idx:  .res 4                 ; transfer scratch, initialized before every read
+.popseg
 tf_len:  .res 1
 tf_dst:  .res 1
 tf_in:   .res 1

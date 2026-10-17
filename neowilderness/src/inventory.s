@@ -80,12 +80,12 @@ inventory_redraw:
         .byte   " CARRYING ",0
         lda     #ST_FOOD
         jsr     tab
-        jsr     puts
-        .byte   "FOOD",0
+        lda     #ob_food_label
+        jsr     om_bank_puts
         lda     #ST_WATER
         jsr     tab
-        jsr     puts
-        .byte   "WATER",0
+        lda     #ob_water_label
+        jsr     om_bank_puts
         lda     #OB_RIGHT
         jsr     tab
         jsr     st_heading
@@ -116,8 +116,8 @@ inventory_redraw:
         lda     load_limits+1
         sta     num+1
         jsr     print_u16
-        jsr     puts
-        .byte   " OZ",0
+        lda     #om_unit_oz
+        jsr     om_bank_puts
         jmp     @next
 @walk:  dex
         bne     @free
@@ -150,12 +150,12 @@ inventory_redraw:
         jsr     ob_free
         jsr     print_u16
         jmp     @next
-@free:  jsr     puts
-        .byte   "PACK ",0
+@free:  lda     #om_pack_word
+        jsr     om_bank_puts
         lda     #4
         jsr     ob_volume
-        jsr     puts
-        .byte   " HANDS ",0
+        lda     #ob_hands_label
+        jsr     om_bank_puts
         lda     #6
         jsr     ob_volume
         lda     #8              ; preserve INVENTORY's word scratch
@@ -188,7 +188,7 @@ inventory_redraw:
         beq     @res_next
         ldx     ob_row
         lda     ob_hint_lo,x
-        ldy     ob_hint_hi,x
+        ldy     #>ob_hints
         XL_ABS  XI_STATUS, mt_str, @x26
         jsr     print_str_ay
         lda     #<ob_line
@@ -483,11 +483,11 @@ ob_entry:
         ldx     ob_item         ; the remedies: their uses (as before)
         jsr     ob_uses
         bcc     :+
-        jsr     puts
-        .byte   " USES",0
+        lda     #ob_uses_label
+        jsr     om_bank_puts
         rts
-:       jsr     puts
-        .byte   " OZ",0
+:       lda     #om_unit_oz
+        jsr     om_bank_puts
         rts
 ; ob_uses -- C set for item X, a remedy counted in uses (41-51 but the
 ; SUNGLASSES, 43).
@@ -798,15 +798,10 @@ ob_fill: .byte 0
 
 .popseg
 ob_hint_lo: .byte <ob_h_ret, <ob_h_hand
-ob_hint_hi: .byte >ob_h_ret, >ob_h_hand
 ob_hints:
-ob_h_ret:  .byte "RETURN: ",0
-ob_h_hand: .byte "H: ",0
-        XL_BYTE XI_STATUS, ob_h_ret, MS_RET
-        XL_BYTE XI_STATUS, ob_h_ret+1, ' '
-        XL_BYTE XI_STATUS, ob_h_ret+2, 0
-        XL_BYTE XI_STATUS, ob_h_hand+1, ' '
-        XL_BYTE XI_STATUS, ob_h_hand+2, 0
+ob_h_ret:  .byte MS_RET," ",0
+ob_h_hand: .byte "H ",0          ; XL-only hints; retired text edition is not rebuilt
+.assert >ob_h_ret = >ob_h_hand, error, "object hints share a page"
 ob_clear: .byte 1               ; 1: an arrival, the answer's rows cleared
 ob_title: .byte 1
 ob_row:  .byte 0

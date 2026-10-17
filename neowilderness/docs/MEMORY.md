@@ -3053,3 +3053,33 @@ sous 80 colonnes, même avec des chiffres sur cinq positions.
 TREE : `$5800–$5FFF` ; STATUS : `$9600–$B0FF`, tous deux pleins avant STATX.
 DAT : 68 154 bruts / 56 440 stockés, 19 enregistrements ; XL : 379/1600
 blocs, cinq parties. Banque : 247 textes et huit mots de dictionnaire.
+
+
+### Contenants et dictionnaire indépendant (17 octobre 2026)
+
+Les ID publics de textes restent sur un octet (1–255). Le dictionnaire
+commence désormais à l’index 256 et conserve jusqu’à 32 mots, indépendamment
+du nombre de textes. `tf_get` sélectionne la page d’index publique, `tf_word`
+la page du dictionnaire ; le calcul d’offset inclut cette page. Les entrées
+publiques inutilisées pointent vers la fin des textes. Le constructeur
+vérifie séparément textes, remplissage et dictionnaire, en conservant le
+contrôle du format des données de référence figées.
+
+`tf_idx` (quatre octets de scratch, initialisés avant lecture) rejoint TEXT.
+Les cinq libellés de jauge partagent une entrée bankée avec NUL internes et
+retours chariot explicites ; `st_gauge_text` sélectionne un suffixe. Les
+messages bankés ordinaires du dialogue remplacent les `|` par des espaces
+uniquement dans `tb_buf`. Le moteur reprend ses messages multi-lignes à
+la prochaine lecture. Aucun nouvel état de partie ni changement de SAVE.
+
+Les intervalles USE remplacent la liste de 30 ID par dix bornes ; la table
+de bits est celle de la forêt résidente. Les destinations de transfert sont
+calculées par `(action XOR 2) * 2`. Les conversions négatives résident dans
+STATUS et le calcul WT dans TREE. Les anciens libellés de touches de
+l’édition texte retirée sont remplacés par les courts libellés XL.
+
+TREE : `$5800–$5FFE` ; STATUS : `$9600–$B0FE` ; HICODE : `$BE00–$BEFE`,
+un octet libre chacun. TEXT : `$0A00–$0FFC`, trois octets libres.
+DAT : 67 245 bruts / 56 801 stockés, 19 enregistrements ; XL : 380/1600
+blocs, cinq parties. Banque : 254 textes, 32 mots ; 254 décodages natifs
+comparés à leurs octets sources, dont NUL internes et références de région.

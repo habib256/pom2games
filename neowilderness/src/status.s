@@ -96,7 +96,7 @@ status_care:
         lda     #$FF
         sta     INVFLG
         lda     #st_health_label
-        jsr     om_bank_puts
+        jsr     st_gauge_text
         fld     f_hmax
         fop     FDIV, s_health
         fop     FMULT, f_100
@@ -109,7 +109,7 @@ status_care:
         lda     st_pct
         jsr     pdec
         lda     #st_energy_label
-        jsr     om_bank_puts
+        jsr     st_gauge_text
         ; ENERGY: BEAT if 16 h without rest, TIRED over 12 h of rest deficit,
         ; OKAY over 7, else GREAT (deficit replaces the original's F1[24])
         lda     #0
@@ -143,17 +143,17 @@ status_care:
         lda     #6
         jsr     word
         lda     #st_hunger_label
-        jsr     om_bank_puts
+        jsr     st_gauge_text
         lda     #<s_eat         ; VERY over 12 h, SO-SO over 6 h
         ldy     #>s_eat
         jsr     hours_gauge
         lda     #st_thirst_label
-        jsr     om_bank_puts
+        jsr     st_gauge_text
         lda     #<s_drink
         ldy     #>s_drink
         jsr     hours_gauge
-        jsr     puts
-        .byte   "||BODY    ", 0
+        lda     #st_body_label
+        jsr     st_gauge_text
         fld     s_body
         fop     FMULT, th_display10
         fop     FADD, f_half
@@ -329,8 +329,8 @@ status_care:
         jsr     word
 @felt:  lda     #ST_LBL2
         jsr     tab
-        jsr     puts
-        .byte   "FEELS", 0
+        lda     #st_feels_label
+        jsr     om_bank_puts
         lda     #ST_VAL2
         jsr     tab
         lda     felt_temp
@@ -372,8 +372,8 @@ status_care:
         jsr     tab
         lda     wind
         jsr     pdec
-        jsr     puts
-        .byte   " MPH", 0
+        lda     #st_mph_label
+        jsr     om_bank_puts
         lda     #6
         jsr     st_at
         jsr     puts
@@ -389,8 +389,8 @@ status_care:
         bcc     @aword
         lda     g0
         jsr     pdec
-        jsr     puts
-        .byte   "00 FT", 0
+        lda     #st_feet_label
+        jsr     om_bank_puts
         jmp     @grnd
 @aword: ldx     #0              ; LOW < 30 <= MEDIUM < 101 <= HIGH
         lda     g0
@@ -408,8 +408,8 @@ status_care:
         jsr     word
 @grnd:  lda     #ST_LBL2
         jsr     tab
-        jsr     puts
-        .byte   "GROUND", 0
+        lda     #st_ground_label
+        jsr     om_bank_puts
         lda     #ST_VAL2
         jsr     tab
         jsr     level_here
@@ -495,11 +495,11 @@ status_care:
         fop     FCOMP, f_body
         cmp     #$FF
         bne     @hyper
-        jsr     puts
-        .byte   "HYPOTHERMIA", 0
+        lda     #st_hypo_label
+        jsr     om_bank_puts
         jmp     @injuries
-@hyper: jsr     puts
-        .byte   "HYPERTHERMIA", 0
+@hyper: lda     #st_hyper_label
+        jsr     om_bank_puts
 @injuries:
         lda     st_lvl
         bne     :+
@@ -985,8 +985,8 @@ status_stock_line:
         cpx     #38
         bcc     @sum
         jsr     print_u16
-        jsr     puts
-        .byte " OZ",0
+        lda     #om_unit_oz
+        jsr     om_bank_puts
         lda     #ST_WATER
         jsr     tab
         lda     #0
@@ -995,8 +995,8 @@ status_stock_line:
         ldx     #N_WATER
         jsr     status_stock_oz
         jsr     print_u16
-        jsr     puts
-        .byte " OZ",0
+        lda     #om_unit_oz
+        jsr     om_bank_puts
         rts
 print_str_ay:
         pha
@@ -1076,3 +1076,18 @@ tree_effort: .byte $7B,$23,$D7,$0A,$3E ; native T12/S08 $5CBE, .02 * body weight
         .include "inventory.s"   ; INVENTORY, in the same module
         .include "pages.s"       ; the tab row, MEDICAL, MENU
         .include "mt_pages.s"    ; NeoWildernessXL: the MouseText pages (STATX)
+
+.pushseg
+.segment "STATUS"
+; Several short gauge labels share one fetched text, with embedded NULs.
+st_gauge_text:
+        pha
+        lda     #st_gauge_labels
+        jsr     text_fetch
+        pla
+        clc
+        adc     #<tb_buf
+        ldx     #>tb_buf
+        jmp     print_str_ax
+.assert >tb_buf = >(tb_buf+st_body_label), error, "gauge suffix crosses a page"
+.popseg

@@ -219,7 +219,8 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
   mouvements internes à zéro, eau et sac suspendu agrégé ; les prévisions
   sont comparées aux transferts natifs. Sources LOCAL/HUNG/PACK/HANDS/WORN/
   CANTEEN précisées, objets fabriqués et piles sauvages distingués (17 octobre).
-  Restent les cas de contenants à compléter.
+  Sac transporté pour PACK et contenus à vider pour DROP explicités avant
+  confirmation, avec remèdes joués au joystick (17 octobre).
 - [ ] **OBJECTS — refus à compléter.** Causes précises et cumulées : poids dépassé,
   PACK plein, HANDS pleines, contenant absent, sac suspendu, contenant à
   vider ; afficher besoin/disponible/manque. Réduire la quantité ou choisir
@@ -228,8 +229,11 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
   sans modifier implicitement leurs règles de charge.
   GET WATER affiche désormais la gourde non transportée avant confirmation
   (sol, suspendue, absente), et les refus natifs sont testés au joystick
-  (17 octobre). Restent notamment le prérequis de BACKPACK transporté pour
-  PACK et l’explication préventive des contenants à vider.
+  (17 octobre). PACK annonce maintenant BACKPACK non transporté pour les
+  classes natives concernées ; DROP annonce sac occupé et gourde à vider.
+  Remèdes, annulations et refus vérifiés au port joystick, ainsi que les
+  exceptions natives des piles sauvages (17 octobre). Restent les chiffres
+  besoin/disponible/manque et le choix explicite du maximum transportable.
 - [ ] **STATUS.** Expliciter jauges et états ACTIVE/TREATED/PROTECTED ;
   prérequis et temps du soin sélectionné ; retour au soin après action.
 - [ ] **CRAFT.** Après fabrication : prendre/utiliser/entrer ou revenir aux
@@ -444,9 +448,9 @@ place des écrans 40 colonnes (étapes 3-4 de MENUS.md, remplacées par les
 pages 80 colonnes).
 
 Points de contrôle du lot suivant : compléter l’aperçu des transferts et
-les refus de capacité cumulés avec besoin/disponible/manque, notamment
-BACKPACK non transporté et contenants à vider. Sources précises et prérequis
-GET WATER de gourde transportée réalisés (17 octobre).
+les refus de capacité cumulés avec besoin/disponible/manque et le choix
+explicite du maximum transportable. Sources précises, prérequis GET WATER,
+BACKPACK non transporté et contenants à vider réalisés (17 octobre).
 Le poids ajouté/retiré est affiché, les changements internes restent à zéro,
 et les dépassements simultanés poids/HANDS ou poids/PACK sont testés au
 joystick (17 octobre).

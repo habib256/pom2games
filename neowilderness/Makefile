@@ -161,6 +161,7 @@ test: test-xl
 test-xl: all $(A2SHOT)
 	$(PYTHON) tests/test_transfers.py
 	$(PYTHON) tests/test_pack_boot.py
+	$(PYTHON) tests/test_textbank.py
 	$(PYTHON) tests/test_reference_state.py
 	$(PYTHON) tests/test_input.py
 	$(PYTHON) tests/test_navigation.py
@@ -173,6 +174,7 @@ test-xl: all $(A2SHOT)
 	$(PYTHON) tests/test_quick_quantities.py
 	$(PYTHON) tests/test_transfer_weight_preview.py
 	$(PYTHON) tests/test_transfer_sources.py
+	$(PYTHON) tests/test_container_requirements.py
 	$(PYTHON) tests/test_object_care.py
 	$(PYTHON) tests/test_object_taste.py
 	$(PYTHON) tests/test_hung_preview.py
