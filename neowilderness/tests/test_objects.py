@@ -219,7 +219,7 @@ def layout(disk, xl):
         s.step(f'shot:{HERE / f"build/objects_v2_{tag}.png"}')
         (HERE / f'build/objects_v2_{tag}.txt').write_text('\n'.join(screen) + '\n')
         if xl:
-            keys = '↵ LIST/ACT ←→↑↓ MOVE  H HANDS'
+            keys = '↵ LIST/ACTIONS ←→↑↓ MOVE'
             check('tabs, post-its (LOCAL, CARRIED, CARRYING, LOAD) from the raw codes, keys',
                   page_frame(screen, 'OBJECTS', keys, 'ESC VIEW') and not postit_errors(mem, 'OBJECTS'),
                   (postit_errors(mem, 'OBJECTS'), screen))
@@ -249,7 +249,7 @@ def layout(disk, xl):
               screen[3][1] == '>' and screen[3][3:17].strip() and re.match(r'\d+ OZ', screen[3][18:]), screen[3])
         check('separate HANDS and PACK post-its', screen[2][41:].startswith(' HANDS ')
               and any(' PACK ' in row[41:] for row in screen[3:15]), screen[2:15])
-        check('MORE in inverse under both lists (the wreck and the pack)', screen[15].count(' MORE ') == 2
+        check('MORE in inverse under both lists (the wreck and the pack)', len(re.findall(r'\d+-\d+/\d+', screen[15])) == 2
               and raw_cell(mem, 15, 31) < 0x40, screen[14])
         check('CARRYING: food and water carried, local, in reach', [r[o:o + 8].strip() for r in screen[17:20]]
               == ['CARRIED', 'LOCAL', 'IN REACH'], screen[17:20])

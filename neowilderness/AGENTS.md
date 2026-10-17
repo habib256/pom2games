@@ -62,3 +62,21 @@ ces décisions ; ne pas rétablir les anciennes attentes par défaut.
 - Ordre des onglets demandé : STATUS, OBJECTS, EQUIPMENT, CRAFT, HELP,
   OPTIONS, MENU. EQUIPMENT se trouve entre OBJECTS et CRAFT ; gauche depuis
   CRAFT y revient, droite depuis EQUIPMENT ouvre CRAFT.
+
+- Réorganisation MouseText du 17 octobre 2026 : STATUS présente HEALTH,
+  ENERGY, MEAL, WATER et BODY sur les rangées 3–7. Les explications sont
+  dans HELP ; MEDICAL masque les affections inactives et garde les
+  protections. Après les soins actifs, le dernier focus permet d’afficher
+  ou masquer le catalogue complet sans action de simulation.
+- EQUIPMENT : Entrée active les listes ; gauche/droite choisissent WORN,
+  HANDS, ACTIVE ou PACK, haut/bas sélectionnent un objet. Sur l’onglet,
+  gauche/droite continuent de changer de page. Une action suit l’objet
+  dans sa nouvelle catégorie ; une catégorie vide ne doit pas agir sur
+  une ancienne sélection. Ne pas réafficher les détails des drapeaux internes.
+- CRAFT : synthèse par défaut, prérequis manquants seulement, durée et
+  outil utiles ; droite développe les facteurs, gauche restaure la
+  synthèse. Sur l’onglet, les flèches changent toujours de page.
+- HELP : quatre rubriques sélectionnables, une explication à la fois.
+  OBJECTS garde ses trois post-its et ses jauges ; les plages de lignes
+  remplacent MORE. OPTIONS et MENU affichent les noms sans lettres de
+  raccourci devant chaque ligne ; conserver les raccourcis fonctionnels.

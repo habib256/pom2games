@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Read-only container advice and real joystick remedies, without new blocks."""
+from test_joystick_journey import equipment_item
 import tempfile
 from common import L, disk_with
 from test_forest import map_fixture
@@ -55,8 +56,8 @@ def containers(disk):
         s.step(L.poke('nature_frequency', 0))
         put_word(s, 'load_limits', 2000)
         event(s, 'up')
-        for row, label in ((4, 'HEALTH'), (6, 'ENERGY'), (8, 'HUNGER'),
-                           (10, 'THIRST'), (12, 'BODY')):
+        for row, label in ((3, 'HEALTH'), (4, 'ENERGY'), (5, 'MEAL'),
+                           (6, 'WATER'), (7, 'BODY')):
             assert label in rows(s)[row][:41], (row, rows(s)[row])
         print('  STATUS: five gauges keep their real rows and line breaks after text banking: OK', flush=True)
         event(s, 'right')
@@ -92,12 +93,7 @@ def containers(disk):
         event(s, 'up'); event(s, 'right')
         assert byte(s, 'pg_cur') == 2
         event(s, 'ok')
-        entries = s.step(L.peek('overlay_text', byte(s, 'eq_n'))).data
-        target = entries.index(21)
-        for _ in range(140):
-            if byte(s, 'eq_cur') == target:
-                break
-            event(s, 'up' if byte(s, 'eq_cur') > target else 'down')
+        equipment_item(s, 21)
         event(s, 'ok')
         assert byte(s, 'om_action') == 2 and BAG in rows(s)[22]
         before = saved_state(s)

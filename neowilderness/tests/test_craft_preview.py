@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """CRAFT tool readiness and finish estimates through the real game port."""
+from test_joystick_journey import equipment_item
 import re
 import tempfile
 from common import L, disk_with, fp
@@ -44,7 +45,10 @@ def main():
                     name = 'AXE' if item == 58 else 'KNIFE'
                     status = 'IN USE HERE' if active and not stale else 'MISSING HERE' if place == 255 else 'AVAILABLE - USE IN EQUIPMENT'
                     assert name+': '+status in text, text
-                    assert name+(' ON' if active and not stale else ' OFF') in text, text
+                    event(s, 'right')
+                    details = '\n'.join(rows(s))
+                    assert name+(' ON' if active and not stale else ' OFF') in details, details
+                    event(s, 'left')
                     estimate(s, index)
                     before = saved_state(s)
                     event(s, 'down'); event(s, 'up')
@@ -75,12 +79,7 @@ def main():
             event(s, 'left')
             assert byte(s, 'pg_cur') == 2
             event(s, 'ok')
-            for _ in range(140):
-                if byte(s, 'overlay_text', byte(s, 'eq_cur')) == 59:
-                    break
-                event(s, 'down')
-            else:
-                raise AssertionError('KNIFE missing from EQUIPMENT')
+            equipment_item(s, 59)
             action(s, 4)
             assert byte(s, 'care_tools') & 2
             event(s, 'cancel', IDLE)

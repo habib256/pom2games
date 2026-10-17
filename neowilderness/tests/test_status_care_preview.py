@@ -31,9 +31,9 @@ def matrix(disk):
     with GamePortSession(disk, menu=False) as s:
         boot(s); activate(s); event(s, 'up')
         legend = rows(s)[15]
-        for phrase in ('ACTIVE: NEEDS CARE', 'TREATED: CARE GIVEN', 'PROTECTED: PREVENTION'):
+        for phrase in ('X CARE', '✓ TREATED', '◆ PROTECTED'):
             assert phrase in legend, legend
-        assert 'SEVERE CUTS' in rows(s)[16] and 'ALTITUDE SICKNESS' in rows(s)[19]
+        assert 'SEVERE CUTS' in rows(s)[16] and 'MALARIA' in '\n'.join(rows(s)[16:21])
         event(s, 'down')
         before = saved_state(s)
         count = 0

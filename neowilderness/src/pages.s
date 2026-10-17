@@ -136,8 +136,8 @@ pg_letpg:  .byte PG_STATUS, PG_INVENTORY, PG_CRAFT, PG_HELP, PG_INVENTORY, PG_ST
 ; pg_levels -- below the tab row: 0 nothing, $80 OBJECTS' own levels, else
 ; the lines of the cursor (STATUS: its active conditions, counted by
 ; module_status).
-pg_levels: .byte 0, $80, $80, 0, 0, 4, 3
-pg_line_at: .byte $FF, 0, 0, 0, 0, 0, 4    ; first of pg_line_keys ($FF: the page's own)
+pg_levels: .byte 0, $80, $80, 0, 4, 4, 3
+pg_line_at: .byte $FF, 0, 0, 0, $FF, 0, 4    ; first of pg_line_keys ($FF: the page's own)
 pg_focus: .byte 0
 pg_name_offsets: .byte 11,18,50,26,32,37,45
 .pushseg
@@ -182,33 +182,33 @@ med_name_ids: .byte pg_med_a,pg_med_a,pg_med_a,pg_med_a,pg_med_a,pg_med_a,pg_med
 ; and the MAP page on or off (game_options bits 7 and 6), the food sources
 ; on the way (IGNORE FOOD / GET FOOD).
 PG_VAL = 31                     ; the column of the states
-PG_DESC = 8                     ; the row of the description
+PG_DESC = 9                     ; the row of the description
 module_options:
         lda     #PG_OPTIONS
         jsr     page_top
         lda     #56
         jsr     st_heading
         jsr     pg_first
-        lda     #0
+        lda     #3
         jsr     pg_line_text
         jsr     pg_val
         lda     nature_frequency
         jsr     pdec
         jsr     pg_line
-        lda     #22
+        lda     #25
         jsr     pg_line_text
         lda     game_options
         and     #$80
         jsr     pg_onoff
         jsr     pg_line
-        lda     #40
+        lda     #43
         jsr     pg_line_text
         lda     game_options
         and     #$40
         eor     #$40
         jsr     pg_onoff
         jsr     pg_line         ; lot 4: food found on the way (FORAGE.md 11)
-        lda     #52
+        lda     #55
         jsr     pg_line_text
         lda     fg_ignore
         eor     #1
@@ -306,15 +306,13 @@ module_menu:
         lda     #76
         jsr     st_heading
         jsr     pg_first
-        lda     #79
+        lda     #82
         jsr     pg_line_text
         jsr     pg_line
-        lda     #99
+        lda     #102
         jsr     pg_line_text
-        lda     #10             ; (XL: the QUIT post-it, its title from
-        jsr     vtab            ; the table; 140 KB: a blank row)
         jsr     pg_line
-        lda     #110
+        lda     #113
         jsr     pg_line_text
         lda     #$FF
         sta     INVFLG

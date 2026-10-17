@@ -70,7 +70,7 @@ def walk():
         s.step('key:\\^'); s.step(READY)
         assert focus() == 0
         rows, _, _ = key('\\>')
-        keys = '\u21b5 LIST/ACT \u2190\u2192\u2191\u2193 MOVE  H HANDS'
+        keys = '\u21b5 LIST/ACTIONS \u2190\u2192\u2191\u2193 MOVE'
         assert page_frame(rows, 'OBJECTS', keys, 'ESC VIEW'), rows
         assert not any('>' in r[1:3] or '>' in r[42:44] for r in rows[3:14]) and not rows[21][41:].strip(), rows
         rows, writes, changes = key('\\r')
@@ -94,16 +94,16 @@ def walk():
         rows, _, _ = key('\\v')
         # XL (docs/MENUS.md 9.3): one post-it, a line an option, rows 3-6,
         # the focused option's sentence on row 8
-        assert focus() == 1 and rows[3].startswith('\u258f >C  WILDLIFE'), rows[3]
-        assert rows[8].startswith('\u258f HOW OFTEN ANIMALS APPEAR'), rows[8]
+        assert focus() == 1 and rows[3].startswith('\u258f >WILDLIFE'), rows[3]
+        assert rows[9].startswith(' HOW OFTEN ANIMALS APPEAR'), rows[9]
         assert page_frame(rows, 'OPTIONS', '\u2191\u2193 CHOOSE  \u21b5 SELECT', 'ESC VIEW'), rows[23]
         rows, writes, changes = key('\\v')
-        assert rows[3].startswith('\u258f  C') and rows[4].startswith('\u258f >A  PLAYER ON TOPO'), rows[3:7]
-        assert rows[8].startswith('\u258f YOUR POSITION ON THE TOPO SHEET.'), rows[8]
+        assert rows[3].startswith('\u258f  WILDLIFE') and rows[4].startswith('\u258f >PLAYER ON TOPO'), rows[3:7]
+        assert rows[9].startswith(' YOUR POSITION ON THE TOPO SHEET.'), rows[9]
         assert writes == changes, (writes, changes)      # differential: the marker, the inverse, the sentence
         rows, writes, changes = key('\\r')
         assert s.step(L.peek('game_options')).data[0] & 0x80, 'RETURN on A turns the player on TOPO on'
-        assert focus() == 2 and rows[4].startswith('\u258f >A') and rows[4][31:34] == '[\u2713]' and writes == changes, rows[4]
+        assert focus() == 2 and rows[4].startswith('\u258f >PLAYER') and rows[4][31:34] == '[\u2713]' and writes == changes, rows[4]
         key('\\^')
         rows, writes, changes = key('\\^')
         assert focus() == 0 and not any('>' in r[:3] for r in rows[3:13]) and writes == changes, rows[3:13]
@@ -113,7 +113,7 @@ def walk():
         for _ in range(3):
             rows, writes, changes = key('\\v')
             assert writes == changes
-        assert focus() == 3 and rows[11].startswith('\u258f >Q  QUIT'), rows[3:12]
+        assert focus() == 3 and rows[9].startswith('\u258f >QUIT'), rows[3:12]
         s.step('press:\\e')
         assert view(), 'ESC returns to the view'
         rows = text_screen(s.step('peek:0400:1024').data)
@@ -122,9 +122,10 @@ def walk():
         # STATUS has no level: DOWN leaves; MENU's cursor below Q leaves too
         s.step('key:STATUS'); s.step('press:\\r'); s.step(READY)
         rows = text_screen(s.step('peek:0400:1024').data)
-        assert page_frame(rows, 'STATUS', '\u2191 TOPO', 'ESC/\u2193 VIEW'), rows[23]
-        s.step('press:\\v')
-        assert view()
+        assert page_frame(rows, 'STATUS', '\u2191 TOPO', 'ESC VIEW'), rows[23]
+        rows, _, _ = key('\\v')
+        assert focus() == 1 and 'ALL CONDITIONS' in rows[23]
+        s.step('press:\\e'); assert view()
         s.step('key:\\^'); s.step(READY)
         key('\\<')
         for _ in range(3):
@@ -214,15 +215,15 @@ def medical():
         # STATUS's MEDICAL rows (docs/MENUS.md 9, 15 October 2026): SEVERE CUTS
         # on row 16 (column 1 in its post-it, XL), POISON BITE on row 18 from
         # column 27; the inverse X of the ACTIVE ones (columns 23 and 50).
-        assert raw_cell(mem, 16, 23) == raw_cell(mem, 18, 50) == 0x18, 'ACTIVE: an inverse X'
-        assert s.step(L.peek('pg_focus')).data[0] == 1 and inverse(mem, 16) == list(range(1, 12)) + [23], inverse(mem, 16)
+        assert raw_cell(mem, 16, 24) == raw_cell(mem, 17, 24) == 0x18, 'ACTIVE: an inverse X'
+        assert s.step(L.peek('pg_focus')).data[0] == 1 and inverse(mem, 16) == list(range(1, 12)) + [24], inverse(mem, 16)
         assert rows[23].startswith(' \u2190\u2192 STOP BLEEDING  USE PRESSURE') and inverse(mem, 23) == list(range(4, 17)) \
             and rows[23][70:].rstrip() == 'ESC VIEW' and '30 MIN; NO ITEM NEEDED' in rows[22], rows[22:]
         assert writes == changes, (writes, changes)
         rows, writes, changes, mem = key('\\>')
         assert inverse(mem, 23) == list(range(19, 31)) and writes == changes, (inverse(mem, 23), writes, changes)
         rows, writes, changes, mem = key('\\v')            # POISON BITE: three gestures, the first
-        assert inverse(mem, 16) == [23] and inverse(mem, 18) == list(range(27, 38)) + [50] and rows[23].startswith(
+        assert inverse(mem, 16) == [24] and inverse(mem, 17) == list(range(1, 12)) + [24] and rows[23].startswith(
             ' \u2190\u2192 USE SNAKEBT KIT  CUT BODY  SUCK VENOM') and inverse(mem, 23) == list(range(4, 19)), rows[23]
         assert writes == changes, (writes, changes)
         rows, writes, changes, mem = key('\\<')            # LEFT wraps: SUCK VENOM
@@ -244,7 +245,7 @@ def medical():
             for _ in range(2):
                 key('\\<')                         # STATUS, MENU, OPTIONS
             rows, _, _, _ = key('\\v')
-            assert rows[2].startswith(' OPTIONS ') and rows[6].startswith('\u258f  F  FOOD SOURCES ON THE WAY') and \
+            assert rows[2].startswith(' OPTIONS ') and rows[6].startswith('\u258f  FOOD SOURCES ON THE WAY') and \
                 rows[6][31:34] == ('[\u2713]' if want else '[ ]'), rows[2:9]
             for _ in range(3):
                 key('\\v')

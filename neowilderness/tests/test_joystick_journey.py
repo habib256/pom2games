@@ -60,6 +60,23 @@ def object_item(s, side, item):
     raise AssertionError(('object missing', side, item, rows(s)))
 
 
+def equipment_item(s, item):
+    """Choose the equipment role, then an item, using only the game port."""
+    if not byte(s, 'pg_focus'):
+        event(s, 'ok')
+    for _ in range(4):
+        entries = s.step(L.peek('overlay_text', byte(s, 'eq_n'))).data
+        if item in entries:
+            target = entries.index(item)
+            for _ in range(140):
+                if byte(s, 'eq_cur') == target:
+                    return
+                event(s, 'up' if byte(s, 'eq_cur') > target else 'down')
+            raise AssertionError(('equipment cursor', item, rows(s)))
+        event(s, 'right')
+    raise AssertionError(('equipment role', item, rows(s)))
+
+
 def action(s, target):
     event(s, 'ok')
     for _ in range(8):
@@ -262,14 +279,11 @@ def journey(disk):
         event(s, 'up'); event(s, 'right')
         assert byte(s, 'pg_cur') == 2
         event(s, 'ok')
-        for _ in range(140):
-            if byte(s, 'overlay_text', byte(s, 'eq_cur')) == 90:
-                break
-            event(s, 'down')
-        assert 'IN HANDS: YES' in rows(s)[6] and 'IN USE: NO' in rows(s)[7]
+        equipment_item(s, 90)
+        assert 'LOCATION: HANDS' in rows(s)[5] and 'ACTIVE: NO' in rows(s)[7]
         action(s, 4)
         assert byte(s, 'fg_use') & 8
-        assert 'IN USE: YES' in rows(s)[7]
+        assert 'ACTIVE: YES' in rows(s)[7]
         event(s, 'cancel', IDLE)
         print('  EQUIPMENT activates the held spear: OK', flush=True)
 

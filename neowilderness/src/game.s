@@ -893,60 +893,66 @@ scr_help:
 module_help:
         lda     #PG_HELP
         jsr     page_top
-        ldx     #0
-@band:  stx     help_page       ; 0: rows 2.., 1: rows 12..
-        lda     help_row,x
-        jsr     vtab
-        lda     help_page
-        asl     a
-        asl     a
-        ora     #3
-        tax
-        ldy     #3
-:       lda     help_band,x     ; the two string cursors of the band
-        sta     help_ptr,y
-        dex
-        dey
-        bpl     :-
-        lda     #$3F            ; the headings
-        sta     help_inv
-@row:   ldx     #0
-        jsr     help_line
-        lda     #ST_RIGHT
-        jsr     tab
-        ldx     #2
-        jsr     help_line
+        lda     #30
+        sta     WNDWDTH
+        lda     #$3F
+        sta     INVFLG
         jsr     puts
-        .byte   "|", 0
-        lda     #$FF
-        sta     help_inv
-        ldy     #0
-        lda     help_ptr
-        sta     gp2
-        lda     help_ptr+1
-        sta     gp2+1
-        lda     (gp2),y
-        bne     @row
-        lda     help_ptr+2
-        sta     gp2
-        lda     help_ptr+3
-        sta     gp2+1
-        lda     (gp2),y
-        bne     @row
+        .byte   " HELP ", 0
+        jsr     pg_first
+        ldx     #0
+@topic: stx     help_page
+        lda     help_names_lo,x
+        ldy     help_names_hi,x
+        jsr     print_str_ay
         ldx     help_page
         inx
-        cpx     #2
-        bcc     @band
-        lda     #<help_keys
-        ldy     #>help_keys
-        XL_ABS  XI_STATUS, page_foot_x, @x30
-        jsr     page_foot
+        cpx     #4
+        beq     @body
+        jsr     pg_line
+        ldx     help_page
+        inx
+        jmp     @topic
+@body:  lda     #22
+        jsr     vtab
+        lda     #80
+        sta     WNDWDTH
+        lda     #2
+        ldx     #30
+        jsr     st_at_x
+        ldx     pg_focus
+        beq     :+
+        dex
+:       stx     help_page
+        lda     #0
+        sta     help_part
+        jsr     help_load
+        lda     #$3F
+        sta     help_inv
+@line:  ldx     #0
+        jsr     help_line
+        jsr     topo_pad
+        inc     CV
+        jsr     t_vtab
+        lda     #30
+        sta     CH
+        lda     #$FF
+        sta     help_inv
+        lda     CV
+        cmp     #22
+        bcs     @footer
+        lda     #' '|$80
+        jsr     COUT
+        jmp     @line
+@footer:
+        lda     #<pg_k_menu_x
+        ldy     #>pg_k_menu_x
+        jsr     page_foot_x
 help_key:
         jsr     wait_key
         jsr     page_keys
         jmp     help_key
-; help_line -- the line at cursor X (0 left, 2 right): printed up to its 13
-; (passed) or its 0 (kept: the block's later rows stay blank).
+; Print the selected topic one line at a time, leaving all other topics folded.
 help_line:
         stx     help_x
         lda     help_ptr,x
@@ -957,8 +963,13 @@ help_line:
         sta     INVFLG
 @ch:    ldy     #0
         lda     (gp2),y
-        beq     @end
-        inc     gp2
+        bne     @char
+        lda     help_part
+        bne     @end
+        inc     help_part
+        jsr     help_load
+        jmp     help_line
+@char:  inc     gp2
         bne     :+
         inc     gp2+1
 :       cmp     #13
@@ -977,39 +988,39 @@ help_line:
 help_page: .byte 0
 help_x:    .byte 0
 help_inv:  .byte 0
-help_ptr:  .word 0, 0
-help_keys = st_keys
-help_row:  .byte 2, 12
-        XL_BYTE XI_STATUS, help_row+1, 11       ; (XL: the post-its, rows 2-9 and 11-19)
-help_band: .word help_travel, help_gear, help_survival, help_health
-help_travel:
-        .byte " TRAVEL ",13
-        .byte "WALK 10 MIN / WALK 1 H / SWIM 1 H",13
-        .byte "ESC: STOP AFTER THIS STEP.",13
-        .byte "LOOK N/E/S/W, L/R/B, UP, DOWN",13
-        .byte "LEFT/RIGHT: TURN  RETURN: COMMANDS",13
-        .byte "UP: PAGES  DOWN: COMMANDS, THEN TOPO",13
-        .byte "MAP: IJKL SCROLL, C CENTER",0
-help_gear:
-        .byte " EQUIPMENT ",13
-        .byte "INVENTORY: OBJECTS, SPACE, WEIGHT",13
-        .byte "GET AXE: PACK     TAKE AXE: HAND",13
-        .byte "WEAR PARKA: WORN  DROP AXE: GROUND",13
-        .byte "CLIMB TREE / CLIMB DOWN",13
-        .byte "HANG FOOD / LOWER FOOD: THE PACK",0
-help_survival:
-        .byte " SURVIVAL ",13
-        .byte "DRINK WATER 4 OZ / EAT CHEESE 8 OZ",13
-        .byte "FILL CANTEEN AT A RIVER BANK",13
-        .byte "REST 1 H / WAIT 10 MIN",13
-        .byte "ENTER SHELTER / EXIT SHELTER",13
-        .byte "ANIMALS: IGNORE / SCARE / ATTACK",13
-        .byte "USE BAIT, USE TRAP, CATCH GAME 2 H",13
-        .byte "COOK GAME / TASTE / SKIN / PACK",0
-help_health:
-        .byte " HEALTH ",13
-        .byte "USE FIRSTAID KIT / STOP BLEEDING",13
-        .byte "EAT FLAGYL: ONE DOSE",0
+help_ptr:  .word 0
+help_names_lo: .byte <hp_move,<hp_items,<hp_live,<hp_save
+help_names_hi: .byte >hp_move,>hp_items,>hp_live,>hp_save
+help_ids: .byte om_need,om_qty_label,om_eat_word,om_lower_word
+help_part: .byte 0
+help_load:
+        ldx     help_page
+        lda     help_part
+        bne     @more
+        lda     help_ids,x
+        jsr     text_fetch
+        lda     #<(tb_buf+8)
+        ldx     #>(tb_buf+8)
+        bne     @store
+@more:  lda     help_more_lo,x
+        pha
+        lda     help_more_hi,x
+        tax
+        pla
+@store: sta     help_ptr
+        stx     help_ptr+1
+        ldx     #0
+        rts
+help_more_lo: .byte <hp_m0,<hp_m1,<hp_m2,<hp_m3
+help_more_hi: .byte >hp_m0,>hp_m1,>hp_m2,>hp_m3
+hp_m0: .byte "CANCEL: STOP AFTER THIS STEP.",13,13,"UP: PAGES    DOWN: ACTIONS",13,"TOPO IS ABOVE THE PAGES.",0
+hp_m1: .byte "QUANTITY -> REVIEW -> CONFIRM",13,"CANCEL: BACK WITHOUT TRANSFERRING.",13,13,"EQUIPMENT: USE ACTIVATES THE TOOL.",0
+hp_m2: .byte "REST/SLEEP RESTORES ENERGY.",13,13,"STATUS: SELECT AN INJURY TO TREAT.",13,"CATCH: BAIT, THEN TRAP/FISHING GEAR.",0
+hp_m3: .byte "CANCEL: GO BACK",13,13,"OVERWRITE AND QUIT ASK FIRST.",0
+hp_move: .byte " MOVE",0
+hp_items: .byte " OBJECTS & GEAR",0
+hp_live: .byte " SURVIVE",0
+hp_save: .byte " SAVE & LEAVE",0
 .segment "GCODE"
 do_site:
         lda     #10

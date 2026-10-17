@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Real joystick: live USE prerequisites, read-only preview and native outcomes."""
+from test_joystick_journey import equipment_item
 import tempfile
 from common import L, disk_with, fp
 from test_forest import map_fixture
@@ -86,10 +87,7 @@ def requirements(disk):
         event(s, 'up'); event(s, 'right')
         assert byte(s, 'pg_cur') == 2
         event(s, 'ok')
-        for _ in range(140):
-            if byte(s, 'overlay_text', byte(s, 'eq_cur')) == 72:
-                break
-            event(s, 'down')
+        equipment_item(s, 72)
         assert byte(s, 'overlay_text', byte(s, 'eq_cur')) == 72
         for bait, text in ((0, 'BAIT MISSING'), (1, 'BAIT READY')):
             s.step(L.poke('fg_bait', bait))

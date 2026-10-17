@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Joystick lighting previews, native sunlight gates and battery edge cases."""
+from test_joystick_journey import equipment_item
 import tempfile
 from common import L, disk_with, fp
 from gendata import fp as encode
@@ -21,12 +22,7 @@ def stock(s, value):
 
 def equipment_preview(s, item, expected):
     event(s, 'ok')
-    for _ in range(140):
-        if byte(s, 'overlay_text', byte(s, 'eq_cur')) == item:
-            break
-        entries = s.step(L.peek('overlay_text', byte(s, 'eq_n'))).data
-        event(s, 'up' if entries.index(item) < byte(s, 'eq_cur') else 'down')
-    assert byte(s, 'overlay_text', byte(s, 'eq_cur')) == item
+    equipment_item(s, item)
     event(s, 'ok')
     for _ in range(8):
         if byte(s, 'om_action') == 4:

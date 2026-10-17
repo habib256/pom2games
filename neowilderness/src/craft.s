@@ -1149,17 +1149,21 @@ cp_draw:
         ldy     cp_eff_hi,x
         jsr     cp_str
         jsr     cp_nl
-        jsr     cp_puts
-        .byte   "NEEDS:", 0
+        jsr     cp_requirement_title
         lda     cp_one
         beq     :+
         jsr     cp_cond
         jsr     cp_puts
         .byte   G_DONE, " YOU HAVE ONE ALREADY", 0
-:       lda     #1              ; each check, in craft.s's order
+:       lda     cp_low
+        beq     @requirements_done
+        lda     #1              ; show missing checks only
 @bit:   sta     cp_b
         and     cp_need
         beq     @next
+        lda     cp_b
+        and     cp_have
+        bne     @next
         jsr     cp_cond
         lda     cp_b
         and     cp_have
@@ -1181,6 +1185,7 @@ cp_draw:
 @next:  lda     cp_b
         asl     a
         bpl     @bit
+@requirements_done:
         lda     cp_one          ; done: MAKE spends no time
         bne     @fill
         jsr     cp_nl
@@ -1189,12 +1194,13 @@ cp_draw:
         ldx     cp_i
         clc
         jsr     cp_time
+        lda     cp_more
+        beq     @fill
+        jsr     cp_nl
         jsr     cp_puts
-        .byte   " (", 0
+        .byte   "FACTORS: ", 0
         clc
         jsr     cp_factors
-        lda     #')'
-        jsr     cp_ch
         ldx     cp_i
         lda     cp_fac,x
         beq     @fill
@@ -1295,7 +1301,8 @@ cp_key: jsr     wait_key
         XL_IMM  XI_CRAFT, <ALTCHARON, @x38    ; (XL: MouseText for the whole game)
         sta     ALTCHAROFF_
         rts
-@line:  cmp     #KC_RET         ; a recipe: RETURN (or SPACE) makes it
+@line:  jsr     cp_detail_key
+        cmp     #KC_RET         ; a recipe: RETURN (or SPACE) makes it
         beq     :+
         cmp     #' '
         bne     cp_key
@@ -1701,19 +1708,28 @@ cr_foot_x:
 :       jsr     COUT
         dey
         bne     :-
-        ldx     #0
-@ch:    lda     crx_keys,x
+        lda     #<crx_keys
+        ldy     #>crx_keys
+        ldx     cp_focus
+        beq     :+
+        lda     #<crx_recipe_keys
+        ldy     #>crx_recipe_keys
+:       sta     gp1
+        sty     gp1+1
+        ldy     #0
+@ch:    lda     (gp1),y
         beq     @end
         cmp     #$20
         bcs     :+
-        eor     #$50            ; MS_*: a MouseText glyph
+        eor     #$50
         bne     @out
 :       ora     #$80
 @out:   jsr     COUT
-        inx
+        iny
         bne     @ch
 @end:   jmp     cp_after_keys
-crx_keys: .byte " ", MS_LEFT, MS_RIGHT, " PAGE  ", MS_UP, MS_DOWN, " CHOOSE  ", MS_RET, " ", 0
+crx_keys: .byte " ", MS_LEFT, MS_RIGHT, " PAGE ", MS_DOWN, " RECIPES ", MS_RET, " ",0
+crx_recipe_keys: .byte " ", MS_LEFT, MS_RIGHT, " DETAILS ", MS_UP, MS_DOWN, " RECIPE ", MS_RET, " ",0
 ; The post-its (src/mt_pages.s fr_craft): left SHELTERS (rows 2-6), WEAPONS
 ; AND TOOLS (7-13), PROTECTION (14-17), their titles drawn by the frame
 ; (crx_rts: the group rows print nothing), columns 0-28; right the recipe
@@ -1922,6 +1938,37 @@ cp_two: cmp     #10
 cp_days: .byte 0
 cp_hour: .byte 0
 cp_minute: .byte 0
+cp_requirement_title:
+        lda     cp_one
+        bne     @result
+        lda     cp_low
+        bne     @missing
+        jsr     cp_puts
+        .byte   "READY TO MAKE",0
+        rts
+@result:
+        jsr     cp_puts
+        .byte   "RESULT:",0
+        rts
+@missing:
+        jsr     cp_puts
+        .byte   "MISSING HERE:",0
+        rts
+cp_detail_key:
+        cmp     #KC_LEFT
+        beq     @summary
+        cmp     #KC_RIGHT
+        bne     @rts
+        lda     #1
+        bne     @set
+@summary:
+        lda     #0
+@set:   sta     cp_more
+        pla
+        pla
+        jmp     cp_redraw_x
+@rts:   rts
+cp_more: .byte 0
 crx_end:
 .assert >cp_g2 = >cp_grp, error, "CRAFT group pointers share a page"
 .assert >(cp_v2+4) = >cp_word, error, "CRAFT factor/verdict pointers share a page"

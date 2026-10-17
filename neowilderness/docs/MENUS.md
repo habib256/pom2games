@@ -1717,3 +1717,55 @@ depuis EQUIPMENT, droite retrouve CRAFT. Les sélections, le retour à la
 dernière page et les actions des objets gardent leur fonctionnement.
 Les raccourcis I/O pour OBJECTS, E pour EQUIPMENT et R pour CRAFT restent
 cohérents, y compris dans la boucle de touches propre à CRAFT.
+
+## 39. Présentation allégée et détails à la demande (17 octobre 2026)
+
+Cette organisation remplace les dispositions précédentes lorsqu’elles
+montraient toutes les explications ou toutes les affections en permanence.
+Les sept onglets gardent l’ordre du § 38 et la dernière page reste mémorisée.
+
+- **Vue** : introduction courte, objectif et accès aux pages/actions.
+  Les rencontres continuent d’afficher les réponses du moteur natif.
+- **STATUS** : HEALTH, ENERGY, MEAL, WATER, BODY sur les rangées 3–7.
+  Le remplissage est tracé en lignes MouseText pour distinguer les barres
+  empilées ; LOAD garde ses cellules pleines. Les calculs, pourcentages et
+  alertes thermiques restent natifs ; MEAL et
+  WATER expriment le remplissage lié à la récence, pas un pourcentage de
+  faim ou de soif. Le cadre de gauche finit à la rangée 10. MEDICAL affiche
+  les affections actives, les soins donnés et les protections, sans les
+  affections inactives à 0 %. Les protections seules ne montrent pas de
+  gravité à 0 %. Bas parcourt les soins actifs, puis un choix de catalogue ;
+  Entrée sur ce dernier montre/masque les quatorze affections. Les soins
+  conservent leurs gestes et retours natifs. Le cadre médical s’adapte au
+  nombre d’entrées, jusqu’aux rangées 18 ou 21.
+- **OBJECTS** : LOCAL, HANDS et PACK, douze lignes et les jauges demandées
+  sont conservés. La plage `1-12/28` indique la position parmi les lignes
+  de la liste, en incluant ses groupes ; ce n’est pas un nombre d’objets.
+  Les détails d’action, quantités et refus restent dans la sélection et
+  la confirmation. H prend toujours en main ; son rappel permanent est retiré.
+- **EQUIPMENT** : Entrée depuis l’onglet active la liste. Gauche/droite
+  choisissent WORN, HANDS, ACTIVE ou PACK ; haut/bas choisissent un objet.
+  En haut de liste, haut rend le focus à l’onglet, où gauche/droite changent
+  de page. La fiche montre l’emplacement réel, l’activation et les capacités.
+  Les prérequis particuliers sont détaillés au choix de l’action. Les trois
+  indicateurs CATCH restent visibles. Après une action, l’objet reste
+  sélectionné dans la catégorie correspondant à son nouvel emplacement ;
+  ACTIVE est conservé si son activation native le permet. Une catégorie
+  vide peut être quittée aux directions et ne réutilise pas un ancien objet.
+- **CRAFT** : résultat, disponibilité, seuls prérequis manquants, durée,
+  outil et heure de fin estimée. Sur une recette, droite développe les
+  facteurs et ralentissements ; gauche retrouve la synthèse. Sur l’onglet,
+  ces directions changent de page. L’aperçu n’active aucun outil et ne
+  consomme ni temps ni ressource.
+- **HELP** : MOVE, OBJECTS & GEAR, SURVIVE, SAVE & LEAVE. Bas entre dans
+  les rubriques et haut/bas les parcourent ; une seule explication reste
+  développée. Les instructions privilégient les gestes de navigation.
+- **OPTIONS** : quatre lignes compactes, sans lettres de raccourci affichées ;
+  l’explication de la ligne sélectionnée apparaît à la rangée 9.
+- **MENU** : objectif au-dessus d’une liste unique SAVE, RESTORE, QUIT.
+  Les choix natifs d’emplacement et de confirmation ne changent pas.
+
+`test_readable_pages.py` vérifie ces parcours au port joystick, les cadres,
+les catégories vides, les détails repliables et l’absence de mutations de
+simulation. Les autres tests conservent la comparaison aux commandes tapées,
+la fidélité des durées, les contraintes de charge et les sauvegardes.

@@ -509,16 +509,38 @@ ob_col: ldx     ob_s
 ; ob_more -- X = side: "MORE" when its list goes on below the screen.
 ob_more:
         stx     ob_s
+        lda     ob_n,x
+        cmp     #OB_ROWS+1
+        bcc     @done
+        lda     #27
+        jsr     ob_col
+        lda     #$3F
+        sta     INVFLG
+        jsr     inv_space
+        ldx     ob_s
+        jsr     ob_top
+        clc
+        adc     #1
+        jsr     pdec
+        lda     #'-'|$80
+        jsr     COUT
+        ldx     ob_s
         jsr     ob_top
         clc
         adc     #OB_ROWS
         cmp     ob_n,x
-        bcs     :+
-        lda     #30
-        jsr     ob_col
-        lda     #26
-        jsr     st_heading
-:       rts
+        bcc     :+
+        lda     ob_n,x
+:       jsr     pdec
+        lda     #'/'|$80
+        jsr     COUT
+        ldx     ob_s
+        lda     ob_n,x
+        jsr     pdec
+        jsr     inv_space
+        lda     #$FF
+        sta     INVFLG
+@done:  rts
 
 ; ob_weight -- num = the weight of the entry ob_item (ob_e of side ob_s):
 ; W5 for the gear, the ounces of a food or a pile in its place, the second

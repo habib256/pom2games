@@ -352,16 +352,16 @@ def tab_line(page):
 # src/mt_pages.s pf_pages draws them: (first row, last row, first column,
 # last column, title; None: the page writes it, in inverse).
 POSTITS = {
-    'EQUIPMENT': ((2,19,0,39,'EQUIPMENT'),(2,11,41,79,'SELECTED - REAL STATE'),(12,19,41,79,'CATCH PREPARATION')),
-    'STATUS': ((2, 14, 0, 39, None), (2, 10, 41, 79, None), (11, 14, 41, 79, None), (15, 21, 0, 79, None)),
+    'EQUIPMENT': ((2,19,0,39,'EQUIPMENT'),(2,11,41,79,'SELECTED ITEM'),(12,16,41,79,'CATCH READINESS')),
+    'STATUS': ((2, 10, 0, 39, None), (2, 10, 41, 79, None), (11, 14, 41, 79, None), (15, 18, 0, 79, None)),
     # 16 October 2026: LOCAL and CARRIED, then CARRYING and LOAD; rows
     # 20-22 hold the answer of a transfer (left) and the commands (right).
     'OBJECTS': ((2, 15, 0, 39, None), (2, 6, 41, 79, None), (7, 15, 41, 79, None), (16, 20, 0, 39, None), (16, 20, 41, 79, None)),
     'CRAFT': ((2, 6, 0, 28, 'SHELTERS'), (7, 13, 0, 28, 'WEAPONS AND TOOLS'), (14, 17, 0, 28, 'PROTECTION'),
               (2, 20, 30, 79, None)),
-    'HELP': ((2, 9, 0, 39, None), (2, 9, 41, 79, None), (11, 19, 0, 39, None), (11, 19, 41, 79, None)),
-    'OPTIONS': ((2, 9, 0, 79, None),),
-    'MENU': ((2, 5, 0, 39, None), (6, 9, 0, 39, None), (10, 12, 0, 39, 'QUIT')),
+    'HELP': ((2, 8, 0, 27, None), (2, 20, 30, 79, None)),
+    'OPTIONS': ((2, 7, 0, 79, None),),
+    'MENU': ((2, 5, 0, 79, None), (6, 10, 0, 79, None)),
 }
 
 
@@ -380,6 +380,8 @@ def postit_errors(mem, page):
     number) from the first column to the last. [] when they all match."""
     errors = []
     frames = POSTITS[page]
+    if page == 'STATUS' and raw_cell(mem, 18, 0) != 0x4C:
+        frames = frames[:-1]+((15,21,0,79,None),)
     if page == 'OBJECTS':
         # HANDS/PACK split follows the scrolling right list.
         pack = next((r for r in range(3, 15)
@@ -445,7 +447,7 @@ def is_status(rows, xl=True):
                 and rows[2][41:].startswith(' LOCAL ') and rows[15].startswith(' MEDICAL '))
     return (page_frame(rows, 'STATUS') and rows[2].startswith(' CONDITION: ')
             and rows[2][41:].startswith(' LOCAL ') and rows[15].startswith(' MEDICAL ')
-            and rows[14] == '\u203e' * 40 + ' ' + '\u203e' * 39)
+            and rows[10] == '\u203e' * 40 + ' ' + '\u203e' * 39)
 
 
 def text_screen(mem):
