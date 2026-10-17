@@ -3442,3 +3442,13 @@ La table médicale adapte sa hauteur avant le tracé, afin d’éviter un cadre
 intermédiaire. HELP écrit chaque moitié dans sa largeur propre et quitte
 son parcours avant la ligne 22 : aucun effacement/rétablissement de cellule
 sur la ligne du pied de page lors d’un affichage identique.
+
+
+### Liste EQUIPMENT en deux colonnes (17 octobre 2026)
+
+Le module 33 finit à `$5E7C` : 381 octets restent avant `$6000`.
+`eq_split` vit dans l’overlay, sans ajout à SAVE ni à BSS. Les deux colonnes
+partagent les quatorze rangées 5–18 et gardent la fiche à droite. L’ancien
+rendu d’en-têtes de groupes, devenu inutile avec les catégories, est retiré.
+DAT : 65 716 octets bruts / 58 039 stockés, 19 enregistrements ; XL reste à
+383/1600 blocs. Aucun nouveau texte de TEXTBANK ni changement de sauvegarde.

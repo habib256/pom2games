@@ -7,6 +7,15 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### EQUIPMENT en deux colonnes (17 octobre 2026)
+
+- Liste équilibrée en deux colonnes, jusqu’à 28 objets visibles, puis
+  défilement. Haut/bas parcourent les colonnes ; gauche/droite gardent les
+  catégories. La fiche complète, les actions et CATCH restent à droite.
+- Vérification au joystick de toutes les sélections sur une liste de
+  59 objets, des limites, des cadres et de l’absence d’effet de simulation.
+  Correction de l’effacement des trois dernières lignes de la liste.
+
 ### Réorganisation des pages MouseText (17 octobre 2026)
 
 - STATUS : cinq indicateurs compacts avec traits MouseText distincts,

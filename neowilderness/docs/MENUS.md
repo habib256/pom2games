@@ -1745,6 +1745,11 @@ Les sept onglets gardent l’ordre du § 38 et la dernière page reste mémoris�
   la confirmation. H prend toujours en main ; son rappel permanent est retiré.
 - **EQUIPMENT** : Entrée depuis l’onglet active la liste. Gauche/droite
   choisissent WORN, HANDS, ACTIVE ou PACK ; haut/bas choisissent un objet.
+  La liste utilise deux colonnes équilibrées dans le cadre de gauche,
+  jusqu’à quatorze lignes chacune. Bas parcourt la première de haut en bas,
+  puis la seconde ; au-delà de 28 objets, la fenêtre suit la sélection.
+  Les noms longs sont abrégés dans les cellules, avec le nom complet dans
+  la fiche à droite. L’activation est indiquée dans cette fiche et dans ACTIVE.
   En haut de liste, haut rend le focus à l’onglet, où gauche/droite changent
   de page. La fiche montre l’emplacement réel, l’activation et les capacités.
   Les prérequis particuliers sont détaillés au choix de l’action. Les trois
