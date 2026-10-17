@@ -186,8 +186,8 @@ object_draw:
         jsr     om_project
         lda     #20
         jsr     vtab
-        jsr     puts
-        .byte   "ACTION: ",0
+        lda     #om_action_label
+        jsr     om_bank_puts
         ldx     om_action
         lda     om_words_lo,x
         ldy     om_words_hi,x
@@ -201,18 +201,18 @@ object_draw:
         bne     @name
 @source:
         jsr     om_cr
-        jsr     puts
-        .byte   "FROM ",0
+        lda     #om_from_label
+        jsr     om_bank_puts
         lda     om_side
         bne     :+
-        jsr     puts
-        .byte   "LOCAL",0
+        lda     #om_local_label
+        jsr     om_bank_puts
         jmp     @quantity
-:       jsr     puts
-        .byte   "CARRIED",0
+:       lda     #om_carried_label
+        jsr     om_bank_puts
 @quantity:
-        jsr     puts
-        .byte   " TO ",0
+        lda     #om_to_label
+        jsr     om_bank_puts
         ldx     om_action
         lda     om_to_lo,x
         ldy     om_to_hi,x
@@ -240,8 +240,8 @@ object_draw:
         lda     om_bad
         jne     @capacity_line
         jmp     @need
-:       jsr     puts
-        .byte   " QTY ",0
+:       lda     #om_qty_label
+        jsr     om_bank_puts
         jsr     om_quantities
         beq     @single
         lda     om_qty
@@ -268,8 +268,9 @@ object_draw:
         bcs     @object
         cpx     #43
         beq     @object
-        jsr     puts
-        .byte "1 USE; DOSES LEFT ",0
+        lda     #om_doses_label
+        jsr     om_bank_puts
+        ldx     menu_noun
         lda     it_pack_lo,x
         sta     num
         lda     it_pack_hi,x
@@ -289,8 +290,8 @@ object_draw:
         jsr     puts
         .byte " MIN",0
         jmp     @preview
-@object:jsr     puts
-        .byte   "ONE OBJECT",0
+@object:lda     #om_object_label
+        jsr     om_bank_puts
 @preview:
         lda     om_action
         cmp     #7
@@ -304,13 +305,18 @@ object_draw:
         lda     om_v+1
         sta     num+1
         jsr     print_u16
-        jsr     puts
-        .byte   " IN3",0
+        lda     #om_in3_label
+        jsr     om_bank_puts
 @capacity_line:
         jsr     om_cr
         lda     om_bad
         beq     :+
         lda     #om_overflow
+        jsr     om_bank_puts
+        jmp     @preview_end
+:
+        jsr     om_requirement
+        beq     :+
         jsr     om_bank_puts
         jmp     @preview_end
 :
@@ -363,8 +369,8 @@ object_draw:
         .byte   " WEAR ",0
         ldy     #2
         jsr     om_free
-        jsr     puts
-        .byte   " IN3",0
+        lda     #om_in3_label
+        jsr     om_bank_puts
 @preview_end:
         jsr     om_cr
         ldx     om_phase
@@ -888,3 +894,31 @@ om_quantities:
 om_bank_puts:
         jsr     text_fetch
         jmp     print_str_ax
+
+; Exact native prerequisites only; no preparation or simulation during drawing.
+om_requirement:
+        lda     om_action
+        cmp     #4
+        bne     @none
+        ldx     menu_noun
+        cpx     #67
+        beq     @bait
+        cpx     #72
+        beq     @bait
+        cpx     #41
+        bne     @none
+        lda     light
+        beq     @dark
+        lda     #om_light_ready
+        rts
+@dark:  lda     #om_need_light
+        rts
+@bait:  lda     fg_bait
+        beq     @missing
+        lda     #om_bait_ready
+        rts
+@missing:
+        lda     #om_need_bait
+        rts
+@none:  lda     #0
+        rts

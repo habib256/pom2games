@@ -1095,3 +1095,31 @@ valide et l’affiche ; aucune commande n’est lancée avant confirmation.
 boutons seuls, sans mutation des plages persistantes, ainsi que le refus
 de USE TRAP sans appât. Les tests EQUIPMENT et le parcours complet vérifient
 le même dialogue depuis la page d’équipement et pendant une partie.
+
+## 20. Prérequis d’usage avant confirmation (17 octobre 2026, XL)
+
+Pour USE TRAP et USE FISHNG GEAR, la troisième ligne du dialogue indique
+BAIT MISSING ou BAIT READY. Le premier cas rappelle que la file de CATCH
+commence par USE BAIT ; le second annonce que USE prépare le dispositif.
+Le contrôle utilise `fg_bait`, comme le moteur, et ne prépare rien pendant
+la navigation. Tenir ou posséder le matériel ne satisfait pas ce prérequis.
+
+Pour USE FRSTAID KIT, cette ligne indique LIGHT MISSING ou LIGHT READY,
+selon le même indicateur `light` que le soin natif. En cas de manque,
+USE FLASHLIGHT est proposé comme action à effectuer d’abord depuis les
+objets. Le stock de doses et les 30 minutes du soin restent sur la ligne
+précédente. L’indication de lumière disponible ne crée pas une interdiction
+d’utiliser une trousse vide : les effets réutilisables natifs sont conservés.
+
+Ces indications remplacent les capacités actuelles de la ligne FREE NOW
+uniquement pour ces trois usages. Elles sont recalculées au choix de USE
+et sur sa confirmation, dans OBJECTS comme dans EQUIPMENT. Les transferts
+gardent leur aperçu et les autres usages gardent leur affichage habituel.
+La sélection d’une autre action retire l’indication. Annuler ne change ni
+stock, temps, préparation ni hasard ; confirmer conserve le refus natif si
+le prérequis manque. Les autres prérequis contextuels restent à détailler.
+
+`tests/test_use_requirements.py` vérifie les messages, le changement
+d’action, les annulations, les refus et l’activation réelle des dispositifs.
+Il suit aussi le conseil USE FLASHLIGHT avant un soin effectif, avec les
+axes et boutons du port joystick exclusivement.

@@ -7,6 +7,23 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### OBJECTS/EQUIPMENT : prérequis de USE avant confirmation (17 octobre 2026)
+
+- USE TRAP/FISHNG GEAR affiche l’appât manquant ou prêt, et rappelle que
+  CATCH prépare d’abord l’appât. USE FRSTAID KIT affiche la lumière
+  manquante ou disponible et propose USE FLASHLIGHT si nécessaire.
+- Indication visible au choix de l’action et à la confirmation, recalculée
+  depuis les mêmes indicateurs que le moteur. Changer d’action retire
+  l’indication ; annuler ne prépare rien et ne dépense ni dose ni temps.
+- Les refus natifs restent exécutables et inchangés. Test au port joystick
+  dans OBJECTS et EQUIPMENT, appât absent/prêt et lumière absente/prête,
+  puis usage réel de la lampe et de la trousse (une dose, 30 minutes).
+- Libellés du dialogue placés dans la banque de textes ; aucun état
+  résident ou sauvegardé ajouté.
+- Validation : `make test-xl`, 28 scripts réussis ; test ciblé des prérequis
+  réussi avec consommation native de la lampe et de la trousse. Parcours
+  complet au joystick et 163 variables de référence conservés.
+
 ### OBJECTS/EQUIPMENT : actions selon la position (17 octobre 2026)
 
 - Retrait de PACK sur l’équipement déjà dans PACK, CARRY sur l’équipement
