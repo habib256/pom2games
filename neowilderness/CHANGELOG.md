@@ -7,6 +7,25 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### STATUS : conditions et remèdes de USE FIRE (17 octobre 2026)
+
+- L’aperçu annonce feu absent à préparer, feu disponible pour se réchauffer,
+  prudence dans un abri, immersion ou météo bloquante. Pluie et vent
+  d’au moins 41 MPH indiquent ACTIVATE FUEL FIRST ; l’eau indique de
+  rejoindre la terre. Les priorités suivent la commande native : abri
+  avant immersion et météo, combustible actif avant refus de tempête.
+- Le contrôle de présence accepte tout indicateur de feu non nul comme
+  le moteur. L’aperçu n’active ni lumière, ni chaleur, ni soin ; après
+  confirmation, les effets natifs et RETURN CARE restent inchangés, à 0 MIN.
+- Les commandes MENU/OPTIONS et les titres de groupes OBJECTS rejoignent
+  les entrées existantes de la banque de textes pour loger le contrôle.
+  Les textes et commandes restent identiques ; le titre QUIT du cadre
+  garde sa chaîne locale.
+- Validation : 43 scripts XL ; vingt scénarios supplémentaires au port
+  joystick couvrent le seuil 40/41, vent fort, pluie, combustible, abri,
+  eau et géographie fine. Aperçu/annulation sans mutation, avertissements,
+  refus et effets réels sont comparés ; simulation de référence inchangée.
+
 ### STATUS : sources d’eau pour DRINK et WET BODY (17 octobre 2026)
 
 - L’aperçu distingue WATER STOCK HERE; OZ NEXT, RIVER/LAKE HERE,

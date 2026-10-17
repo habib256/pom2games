@@ -42,30 +42,51 @@ def splint(disk, place, local=True, condition=1, wrong_y=False):
         print(f'  Splint place {place}, local={local}, wrong_y={wrong_y}, condition={condition}: read-only presence = native USE, {spent*60:.0f} MIN: OK', flush=True)
 
 
-def fire(disk, burning, rain=False, immersed=False, inside=False):
+def fire(disk, burning, rain=False, immersed=False, inside=False, wind=0, fuel=False, native=False):
     with GamePortSession(disk, menu=False) as s:
         boot(s)
         s.step(L.poke('injury_active', 1, 6))
         s.step(L.poke('fire_on', burning))
         s.step(L.poke('fire_near', 0))
         s.step(L.poke('weather_sky', 2 if rain else 0))
-        s.step(L.poke('wind', 0)); s.step(L.poke('camp_use', 0))
-        if immersed:
+        s.step(L.poke('wind', wind)); s.step(L.poke('camp_use', 4 if fuel else 0))
+        if immersed and not native:
             # Native cell byte, with the fixture map using its legacy grid.
             address = 0x7040+byte(s, 'py', 1)*112+byte(s, 'px', 1)
             s.step(f'poke:{address:04X}:80')
         if inside:
             s.step(L.poke('shelter_inside', 1))
-        preview(s, f'0 MIN; FIRE NEEDED; {"HERE" if burning else "NOT HERE"}')
-        assert 'READY' not in rows(s)[22]
+        if not burning:
+            hint = 'NO FIRE. MAKE FIRE FIRST.'
+        elif inside:
+            hint = 'CAUTION: USING FIRE INSIDE SHELTER.'
+        elif immersed:
+            hint = 'IN WATER. MOVE TO LAND FIRST.'
+        elif rain and not fuel:
+            hint = 'RAIN. ACTIVATE FUEL FIRST.'
+        elif wind >= 41 and not fuel:
+            hint = 'WIND >=41 MPH. ACTIVATE FUEL FIRST.'
+        else:
+            hint = 'FIRE READY. USE TO WARM.'
+        preview(s, f'0 MIN; {hint}')
         before_time = s.step(L.peek('s_elap', 5)).data
         event(s, 'ok', RESULT)
-        accepted = bool(burning) and not rain and not immersed
+        accepted = bool(burning) and (inside or (not immersed and (fuel or (not rain and wind < 41))))
         assert byte(s, 'fire_near') == int(accepted)
         assert byte(s, 'medical_actions', 23) == int(accepted)
+        if accepted:
+            assert byte(s, 'light') == 1 and byte(s, 'health_period') == 15
+        assert byte(s, 'camp_use') == (4 if fuel else 0)
+        result = '\n'.join(r[:39] for r in rows(s)[20:23])
+        if burning and inside:
+            assert 'PLEASE BE CAREFUL' in result, result
+        elif burning and immersed:
+            assert 'WATER' in result, result
+        elif burning and not accepted:
+            assert 'TOO MUCH RAIN OR WIND' in result, result
         assert s.step(L.peek('s_elap', 5)).data == before_time
         returned(s, 6, 0)
-        print(f'  Fire {burning}, rain={rain}, immersed={immersed}, shelter={inside}: presence does not promise READY, native use={accepted}, 0 MIN: OK', flush=True)
+        print(f'  Fire {burning}, rain={rain}, wind={wind}, fuel={fuel}, immersed={immersed}, shelter={inside}: {hint}; native use={accepted}, 0 MIN: OK', flush=True)
 
 
 if __name__ == '__main__':

@@ -778,23 +778,20 @@ med_preview:
 @done:  rts
 .pushseg
 .segment "STATUS"
-med_items: .byte 0,0,93,0,0,0,43,0,88,42,0,0,41,48,47,50
+med_items: .byte 0,0,93,0,0,0,43,0,0,42,0,0,41,48,47,50
 med_have:
         cpx     #93
         beq     @splint
-        cpx     #88
-        bne     @item
-        lda     fire_on
-        cmp     #1
-        rts
+        jmp     have
 @splint:jmp     med_splint_here
-@item:  jmp     have
 .popseg
 med_selected = overlay_text+72
 med_item = overlay_text+73
 .pushseg
 .segment "STATUS"
 med_hint_word:
+        cpx     #9              ; USE FIRE: follow native use_checks order
+        beq     med_fire_word
         cpx     #5              ; DRINK WATER
         beq     med_water_word
         cpx     #6              ; WET BODY
@@ -854,5 +851,47 @@ med_water_word:
 @wet:   lda     #72
 @word:  pha
         lda     #om_to_use
+        jmp     med_bank_word
+.popseg
+
+.pushseg
+.segment "STATUS"
+med_fire_word:
+        lda     fire_on
+        beq     @missing
+        lda     shelter_inside
+        bne     @inside
+        jsr     med_water_native ; exact current cell on both map formats
+        bcs     @water
+        lda     camp_use
+        and     #U_FUEL
+        bne     @ready
+        lda     weather_sky
+        cmp     #2
+        beq     @rain
+        lda     wind
+        cmp     #41
+        bcs     @wind
+@ready: lda     #om_to_worn
+        ldy     #31
+        bne     @word
+@missing:
+        lda     #om_to_worn
+        ldy     #5
+        bne     @word
+@inside:
+        lda     #om_to_worn
+        ldy     #56
+        bne     @word
+@water: lda     #om_matches_water
+        bne     @whole
+@rain:  lda     #om_matches_rain
+        bne     @whole
+@wind:  lda     #om_matches_wind
+@whole: ldy     #0
+@word:  tax
+        tya
+        pha
+        txa
         jmp     med_bank_word
 .popseg

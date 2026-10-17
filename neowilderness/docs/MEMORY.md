@@ -3285,3 +3285,32 @@ GDATA, BSS et SAVE ne bougent pas. DAT : 67 829 bruts / 57 605 stockés,
 d’hydratation du scénario de référence et n’appelle pas `drink_care`.
 Le test d’onces vérifie cette limite existante, consignée dans le TODO ;
 il n’active pas silencieusement le sélecteur 6. WET BODY conserve le 9.
+
+### Conditions de USE FIRE dans STATUS (17 octobre 2026)
+
+`med_fire_word` suit `use_fire`/`use_checks` sans charger CAMP ni SIM :
+feu non nul, abri, eau sur la cellule, combustible actif, pluie, vent >=41.
+`med_water_native` fournit le contrôle de cellule pour les deux formats de
+carte et restaure les deux indicateurs géographiques. Les conditions d’eau
+et de météo réutilisent les textes des allumettes, identiques pour ce refus.
+Les nouveaux textes partagent `om_to_worn` aux offsets 5/31/56. Le feu sort
+de `med_items` et du prédicat de présence `med_have` : aucun suffixe HERE
+ni compteur de doses ne complète désormais son conseil contextualisé.
+
+Les six commandes MENU/OPTIONS partagent `om_to_can`, offsets 8/13/28/21/
+33/45 (SAVE/RESTORE/QUIT/NATURE/IGNORE FOOD/GET FOOD). `pg_run` conserve le
+pointeur dans `gp2` avec report de retenue et copie dans `inbuf` avant de
+quitter la page. Le titre QUIT du cadre garde sa chaîne locale, car la
+composition différée du cadre exige un pointeur stable.
+
+Les quatre titres de groupes OBJECTS partagent `om_to_body`, offsets
+5/10/16/21 (WORN/HANDS/PACK/LOCAL HUNG). Ils sont imprimés par le lecteur
+de suffixes déjà utilisé par les autres titres ; les listes, leur défilement
+et les commandes gardent leurs règles. Aucun état SAVE ni scratch ajouté.
+Toujours 255 ID publics et 32 mots de dictionnaire ; les 255 décodages
+passent, dont 28 traversées de page.
+
+STATUS finit à `$B0FB`, quatre octets libres ; MEDVIEW à `$5FDA`, cinq avant
+MEDVX ; STATX à `$B5F8`, sept libres ; MAIN à `$6FFC`, trois libres.
+GDATA et BSS ne bougent pas. DAT : 67 952 bruts / 58 042 stockés,
+19 enregistrements ; XL : 382/1600 blocs, cinq parties.
