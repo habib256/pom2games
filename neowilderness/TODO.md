@@ -232,8 +232,11 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
   (17 octobre). PACK annonce maintenant BACKPACK non transporté pour les
   classes natives concernées ; DROP annonce sac occupé et gourde à vider.
   Remèdes, annulations et refus vérifiés au port joystick, ainsi que les
-  exceptions natives des piles sauvages (17 octobre). Restent les chiffres
-  besoin/disponible/manque et le choix explicite du maximum transportable.
+  exceptions natives des piles sauvages (17 octobre). FIT affiche et propose
+  explicitement le maximum pour PACK des provisions locales du premier jeu
+  et GET WATER, sans remplacer TOUT à l’ouverture (17 octobre). FIT 0 reste
+  informatif ; aucune quantité n’est réduite en cachette. Restent les chiffres
+  besoin/disponible/manque et l’examen des autres classes de transfert.
 - [ ] **STATUS.** Expliciter jauges et états ACTIVE/TREATED/PROTECTED ;
   prérequis et temps du soin sélectionné ; retour au soin après action.
 - [ ] **CRAFT.** Après fabrication : prendre/utiliser/entrer ou revenir aux
@@ -448,8 +451,9 @@ place des écrans 40 colonnes (étapes 3-4 de MENUS.md, remplacées par les
 pages 80 colonnes).
 
 Points de contrôle du lot suivant : compléter l’aperçu des transferts et
-les refus de capacité cumulés avec besoin/disponible/manque et le choix
-explicite du maximum transportable. Sources précises, prérequis GET WATER,
+les refus de capacité cumulés avec besoin/disponible/manque. Le choix
+explicite FIT est réalisé pour les provisions locales du premier jeu et
+GET WATER ; examiner les autres classes de transfert. Sources précises, prérequis GET WATER,
 BACKPACK non transporté et contenants à vider réalisés (17 octobre).
 Le poids ajouté/retiré est affiché, les changements internes restent à zéro,
 et les dépassements simultanés poids/HANDS ou poids/PACK sont testés au

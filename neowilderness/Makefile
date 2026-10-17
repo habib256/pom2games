@@ -172,6 +172,7 @@ test-xl: all $(A2SHOT)
 	$(PYTHON) tests/test_lighting_requirements.py
 	$(PYTHON) tests/test_instrument_requirements.py
 	$(PYTHON) tests/test_quick_quantities.py
+	$(PYTHON) tests/test_fit_quantities.py
 	$(PYTHON) tests/test_transfer_weight_preview.py
 	$(PYTHON) tests/test_transfer_sources.py
 	$(PYTHON) tests/test_container_requirements.py

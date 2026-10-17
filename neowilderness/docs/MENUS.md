@@ -1313,3 +1313,31 @@ compactage de leur table, et les cinq positions des jauges STATUS.
 
 Les jauges bankées utilisent des retours chariot explicites. Le test de
 positions protège HEALTH en rangée 4, ENERGY 6, HUNGER 8, THIRST 10 et BODY 12.
+
+## 27. Maximum transportable FIT (17 octobre 2026, XL)
+
+PACK des provisions locales du premier jeu et GET WATER affichent FIT sur
+la ligne de projection : c’est le maximum en onces compatible avec le stock,
+le poids, les volumes portés et la contenance de la gourde. Un sac manquant,
+une gourde non transportée ou une surcharge déjà présente donnent FIT 0.
+Le calcul ne change ni inventaire, ni temps, ni RNG.
+
+À l’ouverture, la quantité reste TOUT, soit le stock source exact. Gauche
+choisit 1 ; haut/bas ajustent d’une unité. Droite double en insérant FIT
+lorsqu’il est positif et au-dessus de la quantité actuelle : par exemple
+1 → 2 → 4 → 8 → 16 → 32 → FIT 37 → 74 → … → TOUT → 1.
+FIT égal à TOUT ne crée pas de palier supplémentaire. FIT 0 est uniquement
+informatif : aucune quantité nulle n’est sélectionnée. Le joueur peut
+toujours dépasser FIT et confirmer pour obtenir le refus natif, sans
+transfert partiel caché. Annuler conserve la sélection et l’état de la partie.
+
+Les objets indivisibles, soins, piles sauvages, HIDE, EAT, DRINK et TASTE
+n’ajoutent pas ce palier. Leurs règles natives restent applicables. Pour une
+quantité dont la projection déborde sur 16 bits, les nombres NEED/WT ne sont
+pas affichés ; FIT reste disponible avec le message de dépassement.
+
+`tests/test_fit_quantities.py` vérifie seize scénarios au port joystick :
+limites indépendantes de poids, PACK, HANDS et gourde, volume natif zéro
+signifiant 256, FIT 0/1/TOUT, annulation et refus sans mutation, stock 65 535
+et transfert accepté de 63 669 unités. Les transferts acceptés comparent
+les huit octets de charge projetée aux totaux natifs après exécution.

@@ -64,7 +64,9 @@ def sources(disk):
         for place in (0, 5, 255):
             s.step(L.poke('it_place', place, 64))
             refresh(s)
+            code = s.step('peek:9600:256').data
             open_action(s, 0, 22, 7)
+            assert s.step('peek:9600:256').data == code, 'water forecast overwrote STATUS code'
             before = saved_state(s)
             assert HINT in rows(s)[22], rows(s)[22]
             event(s, 'up')
@@ -73,6 +75,7 @@ def sources(disk):
             assert HINT in rows(s)[22]
             event(s, 'ok'); event(s, 'left'); event(s, 'ok')
             assert byte(s, 'om_phase') == 2 and HINT in rows(s)[22]
+            assert s.step('peek:9600:256').data == code
             assert saved_state(s) == before
             event(s, 'cancel'); event(s, 'cancel'); event(s, 'cancel')
             assert not differing(before, saved_state(s), DERIVED_BYTES)

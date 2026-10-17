@@ -4,6 +4,7 @@ import tempfile
 from common import L, disk_with
 from test_forest import map_fixture
 from test_joystick_journey import GamePortSession, event, byte, object_item, IDLE, saved_state
+from test_transfer_weight_preview import word
 
 
 def quantity(s):
@@ -39,9 +40,13 @@ def quick(disk):
             before = saved_state(s)
             event(s, 'right')
             assert quantity(s) == 1
+            fit = min(stock, max(0, word(s, 'load_limits')-word(s, 'load_used')),
+                      max(0, word(s, 'load_limits', 4)-word(s, 'load_used', 4)) // (byte(s, 'it_vol_lo', 25) or 256))
+            assert word(s, 'om_fit') == fit
             value = 1
             while value < stock:
-                value = min(value*2, stock)
+                ceiling = fit if value < fit else stock
+                value = min(value*2, ceiling)
                 event(s, 'right')
                 assert quantity(s) == value, (stock, value, quantity(s))
             # Reaching ALL and wrapping must never alter source or simulation.
@@ -52,7 +57,7 @@ def quick(disk):
                 event(s, 'up'); assert quantity(s) == 2
                 event(s, 'down'); assert quantity(s) == 1
             leave(s)
-        print('  Quick doubling, exact ALL, wrap, fine steps and atomic cancel through 65535 OZ: OK', flush=True)
+        print('  Quick doubling/FIT, exact ALL, wrap, fine steps and atomic cancel through 65535 OZ: OK', flush=True)
 
         # An exact partial transfer still goes through explicit confirmation.
         s.step(L.poke('it_gnd_lo', 14, 25)); s.step(L.poke('it_gnd_hi', 0, 25))

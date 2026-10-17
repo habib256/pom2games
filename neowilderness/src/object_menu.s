@@ -284,7 +284,9 @@ object_draw:
         beq     @need
         cmp     #4
         bcs     @capacity_line
-@need:  lda     #om_need
+@need:  lda     om_bad
+        bne     @fit_number
+        lda     #om_need
         jsr     om_bank_puts
         lda     om_v
         sta     num
@@ -294,6 +296,8 @@ object_draw:
         lda     #om_in3_label
         jsr     om_bank_puts
         jsr     om_weight_change
+@fit_number:
+        jsr     om_fit_print
 @capacity_line:
         jsr     om_cr
         lda     om_bad
@@ -410,16 +414,7 @@ object_key:
         lda     om_qty+1
         sbc     om_max+1
         bcs     @one            ; ALL -> 1: restart the quick quantity cycle
-        asl     om_qty
-        rol     om_qty+1
-        bcs     @all            ; preserve exact source stock on 16-bit overflow
-        lda     om_qty
-        cmp     om_max
-        lda     om_qty+1
-        sbc     om_max+1
-        jcc     @draw
-@all:
-        jsr     om_all
+        jsr     om_quick_fit
         jmp     object_draw
 @one:   lda     #1
         sta     om_qty
@@ -505,7 +500,7 @@ om_all: lda     ob_m
         sta     om_qty
         lda     om_max+1
         sta     om_qty+1
-        rts
+        jmp     om_fit_prepare
 om_free:
         sec
         lda     load_limits,y
@@ -557,6 +552,9 @@ om_project:
         cmp     #7
         jne     @done
 @water: lda     it_place+64
+        jeq     @done
+        cmp     #4
+        jcs     @done           ; no transfer load belongs to a non-carried canteen
         asl     a
         sta     om_from
         sta     om_dest
@@ -1152,3 +1150,77 @@ om_requirement:
         bne     @return
         lda     #om_matches_empty
         rts
+
+; Modal-only quantity bounds; no new journey state.
+om_fit_valid = overlay_text+65
+om_fit = overlay_text+66
+om_fit_upper = overlay_text+68
+.export om_fit_valid, om_fit
+
+.pushseg
+.segment "STATUS"
+; Choose FIT as the next doubling ceiling only while below that threshold.
+om_quick_fit:
+        ldx     #0
+        lda     om_fit_valid
+        beq     @double
+        lda     om_qty
+        cmp     om_fit
+        lda     om_qty+1
+        sbc     om_fit+1
+        bcs     @double
+        ldx     #om_fit-om_max
+@double:
+        asl     om_qty
+        rol     om_qty+1
+        bcs     @copy
+        lda     om_qty
+        cmp     om_max,x
+        lda     om_qty+1
+        sbc     om_max+1,x
+        bcc     @done
+@copy:  lda     om_max,x
+        sta     om_qty
+        lda     om_max+1,x
+        sta     om_qty+1
+@done:  rts
+
+om_fit_prepare:
+        lda     #0
+        sta     om_fit_valid
+        sta     om_fit
+        sta     om_fit+1
+        lda     om_side
+        bne     @done
+        lda     om_action
+        cmp     #7
+        beq     @pickup
+        cmp     #0
+        bne     @done
+        ldx     menu_noun
+        cpx     #23
+        bcc     @done
+        cpx     #38
+        bcs     @done
+@pickup:
+        inc     om_fit_valid
+        lda     load_bad
+        bne     @done
+        jsr     om_container_hint
+        bne     @done
+        jmp     om_fit_search
+@done:  rts
+
+.segment "STATUS"
+om_fit_print:
+        lda     om_fit_valid
+        beq     @done
+        lda     #om_fit_label
+        jsr     om_bank_puts
+        lda     om_fit
+        sta     num
+        lda     om_fit+1
+        sta     num+1
+        jmp     print_u16
+@done:  rts
+.popseg

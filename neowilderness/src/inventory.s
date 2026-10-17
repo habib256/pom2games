@@ -45,8 +45,8 @@ inventory_redraw:
         jsr     ob_build
         lda     #PG_INVENTORY
         jsr     page_top
+        lda     #0
         jsr     st_heading
-        .byte   " LOCAL ",0
         lda     #OB_RIGHT
         jsr     tab
         lda     #$3F
@@ -76,8 +76,8 @@ inventory_redraw:
         ldx     #1
         jsr     ob_more
         jsr     CROUT           ; rows 16-19: CARRYING, LOAD
+        lda     #8
         jsr     st_heading
-        .byte   " CARRYING ",0
         lda     #ST_FOOD
         jsr     tab
         lda     #ob_food_label
@@ -88,8 +88,8 @@ inventory_redraw:
         jsr     om_bank_puts
         lda     #OB_RIGHT
         jsr     tab
+        lda     #19
         jsr     st_heading
-        .byte   " LOAD ",0
         lda     g1              ; (g1 kept: reach_oz's scratch; the
         pha                     ; reference's INVENTORY leaves it alone)
         lda     #0
@@ -484,7 +484,7 @@ ob_entry:
         jsr     ob_uses
         bcc     :+
         lda     #ob_uses_label
-        jsr     om_bank_puts
+        jsr     st_gauge_text
         rts
 :       lda     #om_unit_oz
         jsr     om_bank_puts
@@ -518,8 +518,8 @@ ob_more:
         bcs     :+
         lda     #30
         jsr     ob_col
+        lda     #26
         jsr     st_heading
-        .byte   " MORE ",0
 :       rts
 
 ; ob_weight -- num = the weight of the entry ob_item (ob_e of side ob_s):
