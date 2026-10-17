@@ -120,8 +120,15 @@ page_foot_x:
         ldy     #80             ; (the 80th wraps to row 23)
         jsr     mt_rep
 pf_keys:
+        lda     pg_focus
+        bne     @inside
         jsr     mt_puts
         .byte   " ", MS_LEFT, MS_RIGHT, " PAGE  ", 0
+        jmp     @controls
+@inside:
+        jsr     mt_puts
+        .byte   " LIST  ",0
+@controls:
         pla
         tay
         pla
@@ -566,7 +573,10 @@ pf_menu:
 
 ; The keys of the cursor pages and of OBJECTS (page_foot's pg_k_menu,
 ; inventory_keys).
+.pushseg
+.segment "STATUS"
 pg_k_menu_x: .byte MS_UP, MS_DOWN, " CHOOSE  ", MS_RET, " SELECT", 0
+.popseg
 .pushseg
 .segment "MEDVX"
 inventory_keys_x: .byte MS_RET, " LIST/ACTIONS ", MS_LEFT, MS_RIGHT, MS_UP, MS_DOWN, " MOVE", 0

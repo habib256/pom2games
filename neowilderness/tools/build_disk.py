@@ -128,7 +128,7 @@ MODULES = {0: ('wildtpg.bin', 0x9600), 1: ('wildvoc.bin', 0x5800),
            26: ('wildori.bin', 0x5800), 27: ('wildalr.bin', 0x5800),
            9: ('wildcrf.bin', 0x9600),
            28: ('wildtxb.bin', 0x0000), 31: ('wildfrg.bin', 0x9600),
-           32: ('wildgrid.bin', 0xA300), 33: ('wildeqp.bin', 0x5800)}
+           32: ('wildgrid.bin', 0xA000), 33: ('wildeqp.bin', 0x5800)}
 DIR_ENTRIES = 34                 # memory.s MOD_COUNT
 ZP_ENTRY, ZP_AUX = 30, 0xBF00    # ProDOS's zero page during the game (src/boot.s)
 # The text bank (src/textbank.s): entry 28, never loaded whole; entry 29 is
@@ -239,7 +239,7 @@ TEXT_SIZE = 128                  # memory.s REGIONTEXT
 DISK_CYCLES = 200
 DECODE_CYCLES = 46
 WINDOW_LIMIT = {0x0000: 0x2000, 0x5800: 0x0800, 0x9600: 0x2000, 0x2000: 0x2000, 0x97CE: 0xB600 - 0x97CE,
-                0xA300: 0xB000 - 0xA300}
+                0xA000: 0xB000 - 0xA000}
 
 
 def labels(build):

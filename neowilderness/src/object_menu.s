@@ -808,26 +808,18 @@ object_commit:
 @end:   lda     #0
         sta     inbuf,y
         sty     linelen
-        lda     #S_OBJECTS
-        ldx     pg_cur
-        cpx     #PG_EQUIPMENT
-        bne     :+
-        lda     #S_EQUIPMENT
-:       sta     mq_list         ; previous-step guard: both page entries have flags 0
-        sta     mq_list+1
-        lda     #2
-        sta     mq_n
-        lsr     a
-        sta     mq_i
-        lda     journey_encounters
-        sta     mq_enc
         lda     #$80
         sta     obj_keep
         lda     #20
         sta     WNDTOP
         lda     #0
         sta     shown
-        jmp     obj_type
+        ; grid_fetch overwrites STATUS: return directly into the new module.
+        lda     #>(module_object_use-1)
+        pha
+        lda     #<(module_object_use-1)
+        pha
+        jmp     grid_fetch
 .popseg
 om_words: .byte om_pack_word,om_hand_word,om_drop_word,om_wear_word,om_use_word,om_eat_word,om_drink_word,om_get_word
 om_bits = forest_masks

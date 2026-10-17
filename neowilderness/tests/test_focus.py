@@ -119,7 +119,7 @@ def walk():
         rows = text_screen(s.step('peek:0400:1024').data)
         assert not any('UNSAVED' in r for r in rows), rows
 
-        # STATUS has no level: DOWN leaves; MENU's cursor below Q leaves too
+        # STATUS exposes care/catalog; MENU stops at its final entry
         s.step('key:STATUS'); s.step('press:\\r'); s.step(READY)
         rows = text_screen(s.step('peek:0400:1024').data)
         assert page_frame(rows, 'STATUS', '\u2191 TOPO', 'ESC VIEW'), rows[23]
@@ -131,7 +131,9 @@ def walk():
         for _ in range(3):
             key('\\v')
         s.step('press:\\v')
-        assert view(), 'DOWN below the last line of MENU returns to the view'
+        s.step(READY)
+        assert focus() == 3, 'DOWN stays on the last menu entry'
+        s.step('press:\\e'); assert view()
 
         # UP on the tab row: TOPO, the maps' storey; UP there: the view.
         # STATUS (page_keys), then CRAFT (its own key loop, src/craft.s).

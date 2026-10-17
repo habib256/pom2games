@@ -30,8 +30,8 @@ def estimate(s, index):
 def main():
     with tempfile.TemporaryDirectory() as tmp:
         disk = disk_with(tmp, map_fixture())
-        # Presence never implies activation. Stale activation on another
-        # square is OFF, without clearing the saved native activation flag.
+        # Preview includes the available tool, without activating it or clearing
+        # any stale flag. Actual MAKE prepares it only after validation.
         for item, index in ((58, 0), (59, 4)):
             for place, active, stale in ((255, 0, False), (0, 0, False), (2, 0, False), (3, 0, False), (2, 1, False), (3, 1, True)):
                 with GamePortSession(disk, menu=False) as s:
@@ -43,11 +43,11 @@ def main():
                     open_recipe(s, index)
                     text = '\n'.join(rows(s))
                     name = 'AXE' if item == 58 else 'KNIFE'
-                    status = 'IN USE HERE' if active and not stale else 'MISSING HERE' if place == 255 else 'AVAILABLE - USE IN EQUIPMENT'
+                    status = 'MISSING HERE' if place == 255 else 'AUTO USE WHEN MAKING'
                     assert name+': '+status in text, text
                     event(s, 'right')
                     details = '\n'.join(rows(s))
-                    assert name+(' ON' if active and not stale else ' OFF') in details, details
+                    assert name+(' OFF' if place == 255 else ' ON') in details, details
                     event(s, 'left')
                     estimate(s, index)
                     before = saved_state(s)
@@ -74,7 +74,7 @@ def main():
             s.step(L.poke('it_place', 3, 59))
             open_recipe(s, 4)
             _, slow = estimate(s, 4)
-            assert 'KNIFE: AVAILABLE' in '\n'.join(rows(s))
+            assert 'KNIFE: AUTO USE WHEN MAKING' in '\n'.join(rows(s))
             event(s, 'cancel', IDLE); event(s, 'up')
             event(s, 'left')
             assert byte(s, 'pg_cur') == 2
@@ -84,11 +84,11 @@ def main():
             assert byte(s, 'care_tools') & 2
             event(s, 'cancel', IDLE)
             open_recipe(s, 4)
-            assert 'KNIFE: IN USE HERE' in '\n'.join(rows(s))
+            assert 'KNIFE: AUTO USE WHEN MAKING' in '\n'.join(rows(s))
             _, fast = estimate(s, 4)
-            assert fast == slow//4 and fast < slow, (slow, fast)
+            assert fast == slow, (slow, fast)
             s.step('shot:/tmp/nw-craft-preview.png')
-            print('  CRAFT -> EQUIPMENT -> USE KNIFE -> CRAFT: held is OFF, explicit USE is ON, native duration /4: OK', flush=True)
+            print('  CRAFT -> EQUIPMENT -> USE KNIFE -> CRAFT: tool auto-prepared by MAKE; explicit USE leaves the same forecast: OK', flush=True)
         with GamePortSession(disk, menu=False) as s:
             setup(s, 90); open_recipe(s, 0)
             event(s, 'down')  # IGLOO has no snow

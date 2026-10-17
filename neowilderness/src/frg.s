@@ -514,6 +514,8 @@ fr_hours:
         jeq     @minute_up
         cmp     #KC_DOWN
         jeq     @minute_down
+        cmp     #KC_RIGHT
+        jeq     @preset
         cmp     #KC_RET
         beq     @parse
         cmp     #KC_LEFT
@@ -628,6 +630,29 @@ fr_hours:
         lda     #0
         sta     fr_t
         jmp     @key
+@preset:
+        ldx     #0
+@preset_next:
+        lda     fr_presets_lo,x
+        cmp     fr_min
+        lda     fr_presets_hi,x
+        sbc     fr_min+1
+        bcc     @preset_skip
+        bne     @preset_set
+        lda     fr_presets_lo,x
+        cmp     fr_min
+        bne     @preset_set
+@preset_skip:
+        inx
+        cpx     #7
+        bcc     @preset_next
+        ldx     #0
+@preset_set:
+        lda     fr_presets_lo,x
+        sta     fr_min
+        lda     fr_presets_hi,x
+        sta     fr_min+1
+        jmp     @minute_draw
 @minute_up:
         lda     fr_min
         cmp     #<1499
@@ -659,13 +684,15 @@ fr_hours:
         lda     #$FF
         sta     fr_t
         jmp     @key
-fr_minute_hint: .byte "TIME IN MINUTES: UP/DOWN, RETURN.",0
+fr_presets_lo: .byte <10,<20,<30,<60,<120,<240,<480
+fr_presets_hi: .byte >10,>20,>30,>60,>120,>240,>480
+fr_minute_hint: .byte "MINUTES: UP/DOWN +/-1, RIGHT PRESETS.|RETURN CONFIRM. ESC CANCEL.",0
 fr_hour_prompt:
         lda     #<fr_hour_hint
         ldx     #>fr_hour_hint
         jsr     message
         jmp     prompt
-fr_hour_hint: .byte "SPECIFY TIME IN HOURS.|UP/DOWN: MINUTES. RETURN: CONFIRM.",0
+fr_hour_hint: .byte "SPECIFY TIME IN HOURS.|RIGHT: 10/20/30/60/120/240/480 MIN.|UP/DOWN: +/-1 MIN. RETURN CONFIRM.",0
 
 ; fr_source -- the pile eaten or cooked: b1 0 ground, 2 pack, 4 msg 71 (P
 ; or G); fr_src 0 ground, 1 pack, fr_av its ounces. C set: cancelled.

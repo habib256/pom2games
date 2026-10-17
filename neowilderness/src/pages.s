@@ -65,7 +65,7 @@ page_keys:
         bne     :+
         cpy     pg_focus
         bne     @down
-        beq     @view           ; past the last line
+        rts                     ; stay on the last line
 :       cmp     #KC_RET
         beq     :+
         cmp     #' '

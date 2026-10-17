@@ -40,10 +40,10 @@
 ; keyboard would (same time, draws, state); a step already done is skipped
 ; (PRE), a step that failed (POST: its flag not set) or a new encounter
 ; ends the queue, the refusal visible. Typed commands keep the original's
-; refusals: the queue belongs to the grid alone.
+; refusals: only menu intentions request preparation.
 ; ============================================================================
 GRID_MODULE = 32                ; directory entry (memory.s MOD_COUNT)
-GRID_RUN = $A300                ; src/wild.cfg GRIDM
+GRID_RUN = $A000                ; src/wild.cfg GRIDM
 BELL1    = $FBDD                ; Monitor: the speaker alone
 ; Steps of the queue (gr_steps): flags + check, noun (0: mq_noun, named
 ; after the text), text.
@@ -80,6 +80,7 @@ S_OBJECTS = 25                  ; the OBJECTS page again after its transfer
 S_EQUIPMENT = 26
 S_CARE_RETURN = 27
 S_CRAFT_RETURN = 28
+S_CRAFT_MAKE = 30
 S_CRAFT_USE = 29
 MQ_CATCH_DUR = mq_list+4        ; CATCH uses at most 3 of the 5 queue slots
 
@@ -522,24 +523,69 @@ gr_avail:
 ; USE x: STOVE wants FUEL and MATCHES (or the fire) in use first; the
 ; FRSTAID KIT in the dark, the flashlight (camp.s use_stove, care.s).
 gr_use:
+        jsr     q_clear
+        jsr     q_use_prepare
+        lda     #S_CRAFT_USE
+        jmp     q_last
+
+; Shared by the grid and both object pages. Only called after validation.
+; The selected tool remains explicit; auxiliary tools are prepared here.
+q_use_prepare:
         lda     menu_noun
         cmp     #71
-        bne     :+
-        jsr     q_clear
+        bne     @kit
         lda     #S_FUEL
         jsr     q_add
         lda     fire_near
-        bne     @stove
+        bne     @done
         lda     #S_MATCH
-        jsr     q_add
-@stove: lda     #S_STOVE
-        jmp     q_last
-:       cmp     #41
-        jne     gr_named
+        jmp     q_add
+@kit:   cmp     #41
+        beq     gr_flash
+        cmp     #67
+        beq     @bait
+        cmp     #72
+        bne     @done
+@bait:  lda     #S_BAIT
+        jmp     q_add
+@done:  rts
+
+; Entered through a stack trampoline after STATUS has been replaced by GRID.
+; Non-USE commands retain their precise source and quantity in inbuf.
+module_object_use:
+        jsr     menu_gather     ; page rendering replaced the menu string helpers
+        lda     menu_noun
+        sta     mq_noun
         jsr     q_clear
-        jsr     gr_flash
-        lda     #S_KIT
-        jmp     q_last
+        lda     inbuf
+        cmp     #'U'
+        bne     @ordinary
+        jsr     q_use_prepare
+        lda     #S_CRAFT_USE
+        jsr     q_add
+        lda     pg_cur
+        cmp     #PG_EQUIPMENT
+        lda     #S_OBJECTS
+        bcc     :+
+        lda     #S_EQUIPMENT
+:       jsr     q_add
+        jsr     q_start
+        jmp     obj_type
+@ordinary:
+        lda     pg_cur
+        cmp     #PG_EQUIPMENT
+        lda     #S_OBJECTS
+        bcc     :+
+        lda     #S_EQUIPMENT
+:       sta     mq_list
+        sta     mq_list+1
+        lda     #2
+        sta     mq_n
+        lsr     a
+        sta     mq_i
+        lda     journey_encounters
+        sta     mq_enc
+        jmp     obj_type
 ; gr_flash -- (the kit, the MEDICAL page) USE FLASHLIGHT when it is dark and
 ; the flashlight is here.
 gr_flash:
@@ -767,9 +813,21 @@ q_stop: lda     journey_encounters
         lda     mq_list,x
         cmp     #S_CARE_RETURN
         jeq     q_care_return    ; preparation failed: show refusal, skip the care
+        cmp     #S_CRAFT_RETURN
+        jeq     q_craft_return
+        cmp     #S_OBJECTS
+        beq     @page
+        cmp     #S_EQUIPMENT
+        beq     @page
 @clear: lda     #0
         sta     mq_n
         jmp     get_line_body
+@page:  pha
+        lda     #0
+        sta     mq_n
+        pla
+        jsr     q_step
+        jmp     q_type
 
 ; q_step -- A = step: gp2 = its entry, A = gr_t = its flags (N = Q_PRE).
 q_step: tax
@@ -801,6 +859,21 @@ q_check:
         tax
         cpx     #14
         beq     @pack
+        cpx     #11
+        beq     @tool_cell
+        cpx     #12
+        bne     @flag_address
+@tool_cell:
+        lda     care_tool_x
+        cmp     px+1
+        bne     @not_here
+        lda     care_tool_y
+        cmp     py+1
+        beq     @flag_address
+@not_here:
+        clc
+        rts
+@flag_address:
         lda     q_chk_lo-1,x
         sta     @flag+1
         lda     q_chk_hi-1,x
@@ -836,7 +909,7 @@ gr_steps:
         .byte   0, N_WATER, "MAKE WATER", 0                      ; S_MKWAT
         .byte   Q_PRE|Q_POST|6, 73, "USE UTENSILS", 0            ; S_UTENS
         .byte   Q_SIZE, N_WATER, "BOIL WATER", 0                 ; S_BOIL
-        .byte   Q_PRE|7, 175, "USE BAIT", 0                      ; S_BAIT
+        .byte   Q_PRE|Q_POST|7, 175, "USE BAIT", 0                      ; S_BAIT
         .byte   Q_PRE|Q_POST|8, 72, "USE TRAP", 0                ; S_TRAP
         .byte   Q_PRE|Q_POST|9, 67, "USE FISHNG GEAR", 0         ; S_GEAR
         .byte   Q_PRE|Q_POST|10, 57, "USE GUN", 0                ; S_GUN
@@ -857,6 +930,7 @@ gr_steps:
         .byte   0, 106, "STATUS", 0                              ; S_CARE_RETURN
         .byte   0, 106, "STATUS", 0                              ; S_CRAFT_RETURN guard only
         .byte   0, 0, "USE", 0                                   ; S_CRAFT_USE
+        .byte   0, 0, "MAKE", 0                                  ; S_CRAFT_MAKE
 
 ; ----------------------------------------------------------------------------
 ; the lists of items
@@ -1386,3 +1460,31 @@ q_craft_available:
         bne     @no
 @yes:   sec
         rts
+
+; CRAFT uses the same native preparation queue as object USE.
+module_craft_prepare:
+        jsr     menu_gather
+        jsr     q_clear
+        lda     mq_noun
+        cmp     #95
+        bcs     @axe
+        cmp     #91
+        beq     @make
+        cmp     #58
+        bcc     @make
+        ldx     #59
+        lda     #S_KNIFE
+        bne     @tool
+@axe:   ldx     #58
+        lda     #S_AXE
+@tool:  pha
+        jsr     have
+        pla
+        bcc     @make
+        jsr     q_add
+@make:  lda     #S_CRAFT_MAKE
+        jsr     q_add
+        lda     #S_CRAFT_RETURN
+        jsr     q_add
+        jsr     q_start
+        jmp     obj_type
