@@ -179,7 +179,7 @@ def made(s, recipe):
     return 'IT TOOK A WHILE' in text
 
 
-def formula(recipe, health, light=1, axe=0, knife=0):
+def formula(recipe, health, light=1, axe=1, knife=1):
     """docs/CRAFT.md 3.1, 4, 5 (the ROM's, measured)."""
     r = math.sqrt(health)
     if recipe in ('HUT', 'IGLOO', 'TRENCH'):
@@ -277,12 +277,12 @@ def page_view(disk, tag):
               hut[1] == '   SHELTER: AIR +15 F, ANIMALS 10X SAFER'
               and hut[2] == '   READY TO MAKE'
               and hut[3] == '   TIME: '+fmt(formula('HUT', health))
-              and 'AXE: AVAILABLE' in hut[4] and 'EST. FINISH:' in hut[5]
+              and 'AXE: AUTO USE WHEN MAKING' in hut[4] and 'EST. FINISH:' in hut[5]
               and 'SLOWER:' not in '\n'.join(page), '\n'.join(hut))
         summary = page
         page = key(s, '\\>')
         check('RIGHT shows factors and slower conditions on demand',
-              'FACTORS: DAY, AXE OFF' in '\n'.join(page) and 'SLOWER: NIGHT' in '\n'.join(page))
+              'FACTORS: DAY, AXE ON' in '\n'.join(page) and 'SLOWER: NIGHT' in '\n'.join(page))
         page = key(s, '\\<')
         check('LEFT restores exactly the readable summary', page == summary)
         check('row 23: RETURN: MAKE HUT', footer('MAKE HUT'), page[23])
@@ -312,7 +312,7 @@ def page_view(disk, tag):
         check('RETURN on a done recipe (AXE): no command', f'PC={L["keyboard_wait"]:04X}' in r.out)
         page = key(s, '\\v')
         check('SPLINT shortcut: ready without listing optional missing ingredients',
-              page[4][31:] == '   READY TO MAKE' and 'KNIFE: AVAILABLE' in page[6]
+              page[4][31:] == '   READY TO MAKE' and 'KNIFE: AUTO USE WHEN MAKING' in page[6]
               and page[2].endswith('POSSIBLE') and 'MISSING HERE:' not in '\n'.join(page), '\n'.join(page[2:9]))
         page = key(s, '\\v')
         page = key(s, '\\v')
@@ -455,8 +455,7 @@ def make_timed(s, cond, recipe, seed):
     s.step(DO_COMMAND)
     finish_page_make(s)
     delta = round((fp(s.step(L.peek('s_elap', 5)).data) - t0) * 60)
-    tools = cond.get('tools', 0)
-    rom = formula(recipe, health, cond.get('light', 1), tools & 1, tools >> 1 & 1)
+    rom = formula(recipe, health, cond.get('light', 1), 1, 1)
     return listed, panel, line, delta, rom, bool(port.byte('fauna_alert'))
 
 
@@ -484,9 +483,13 @@ def page_equals_keyboard(disk, tag):
             s.step(READY)                          # cache of the page) as the
             s.step('key:\\e')                    # page's way there
             s.step(IDLE)
+            if recipe == 'HUT':
+                command(s, 'USE AXE')
+            elif recipe == 'SPLINT':
+                command(s, 'USE KNIFE')
             command(s, f'MAKE {recipe}')
         typed = state(s), craft(s)
-    check('the page typed MAKE HUT, MAKE CLUB, MAKE SPLINT', typed_in == [f'MAKE {r}' for r, _ in picks], typed_in)
+    check('the page prepares the needed tools before MAKE', typed_in == ['USE AXE', 'MAKE CLUB', 'USE KNIFE'], typed_in)
     check('same journey state as typed (clock, body, items, crafted things, messages)', page == typed)
 
 

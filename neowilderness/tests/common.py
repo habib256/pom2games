@@ -422,7 +422,7 @@ def page_frame(rows, page, keys=None, view=None):
     ok = (rows[0].rstrip() == TAB_ROW.rstrip() and rows[1] == tab_line(page)
           and (rows[22] == FOOT_LINE or page in ('OBJECTS', 'EQUIPMENT')))     # item pages reserve rows 20-22 for action results
     if keys is not None:
-        ok = ok and rows[23].startswith(FOOT_PAGE + keys)
+        ok = ok and rows[23].startswith((FOOT_PAGE + keys, " LIST  " + keys))
     if view is not None:
         ok = ok and rows[23][70:].rstrip() == view
     return ok

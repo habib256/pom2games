@@ -245,7 +245,7 @@ inventory_key:
         adc     #1
         ldy     #1
         jsr     ob_seek
-        bcc     @end
+        bcc     inventory_key
 @set:   sta     obj_cur,x
         jsr     ob_remember
         jmp     @redraw

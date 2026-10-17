@@ -4,7 +4,7 @@
 est arrêtée depuis le 16 octobre 2026 ; `make` construit désormais XL seule.
 Les descriptions de l’édition 140 Ko ci-dessous sont historiques.
 
-**EQUIPMENT** : septième onglet, accessible avec les flèches du haut.
+**EQUIPMENT** : entre OBJECTS et CRAFT, accessible avec les flèches du haut.
 Entrée active sa liste ; chaque objet distingue porté, en mains et en usage,
 avec actions, charge et préparation de la chasse.
 
@@ -51,7 +51,7 @@ gauche et droite tournent la vue, la flèche haut retrouve la dernière page du 
 avec son poids ; sélections et défilement mémorisés ; Entrée active les listes,
 puis RETURN ouvre les actions, les quantités et la confirmation, H propose la main, la commande tapée
 comme au clavier ; les jauges de poids, de volume PACK et HANDS et les vivres
-emportés ; CRAFT ; HELP ; OPTIONS ; MENU, avec la distance aux
+emportés ; EQUIPMENT ; CRAFT ; HELP ; OPTIONS ; MENU, avec la distance aux
 rangers ; en boucle par gauche/droite ; bas ou Échap revient à la vue ;
 sur NeoWildernessXL chaque bloc est un post-it en MouseText), la flèche bas ouvre la
 grille, puis, bas sous sa dernière rangée, les pages du bas (TOPO et MAP,
@@ -184,12 +184,23 @@ jusqu'à 8 cases) ; l'édition de 140 Ko n'a pas la place de ces sprites et
 ne les dessine pas. Vêtements de peau, corde, radeau, gourde et ustensiles :
 lot 5.
 
-La page **CRAFT** (lettre R, entre OBJECTS et HELP) range ces recettes en
-trois groupes, avec leur état en MouseText (coche : possible ici, X
-inverse : il manque quelque chose, losange : déjà fait) et le temps que
-MAKE passerait maintenant ; à droite, la recette choisie : son effet, ce
-qu'il faut (coché ou non), ce dont dépend le temps et ce qui le ralentit ;
-RETURN tape `MAKE x`.
+La page **CRAFT** (lettre R, entre EQUIPMENT et HELP) range les recettes en
+trois groupes. Elle affiche leur disponibilité, les prérequis manquants,
+la durée et l’heure de fin estimée. Droite développe les facteurs, gauche
+revient à la synthèse. La hache ou le couteau accessible est pris en compte
+dans l’estimation et préparé automatiquement après validation, avant MAKE.
+
+Dans OBJECTS, EQUIPMENT et la grille, USE prépare aussi l’appât du piège ou
+du matériel de pêche, le combustible/allumette du réchaud et l’éclairage des
+premiers secours. L’aperçu annonce AUTO ; consulter ou annuler ne consomme
+rien. Une préparation échouée arrête la suite en conservant son message.
+Les étapes déjà exécutées gardent leurs coûts. Les armes s’activent toujours
+explicitement, et les commandes tapées conservent leurs prérequis natifs.
+
+Pour la durée de COOK/CATCH, droite propose 10, 20, 30, 60, 120, 240 et
+480 minutes ; haut/bas ajustent à la minute, Entrée valide, Échap annule.
+Le pied de page distingue PAGE et LIST. Descendre après la dernière entrée
+d’OBJECTS, HELP, OPTIONS ou MENU conserve la sélection ; Échap quitte la page.
 
 Le joystick pilote désormais la vue, la grille, les pages et le menu de
 choix du voyage (bouton 0 : valider, bouton 1 : retour). Les dialogues P/G

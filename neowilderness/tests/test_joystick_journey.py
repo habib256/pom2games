@@ -329,8 +329,9 @@ def journey(disk):
                      [('s_elap', 5), ('fg_gl', 12), ('fg_gh', 12), ('weather_seed', 4)]) == before
         grid(s, 'COOK', ready=READY)
         event(s, 'up'); event(s, 'ok')
-        for _ in range(30):
-            event(s, 'up')
+        for expected in (10, 20, 30, 60, 120, 240, 480, 10, 20, 30):
+            event(s, 'right')
+            assert int.from_bytes(s.step(L.peek('fr_min', 2)).data, 'little') == expected
         assert s.step(L.peek('fr_min', 2)).data == b'\x1e\0'
         before_cook = fp(s.step(L.peek('s_elap', 5)).data)
         old_counter = byte(s, 'fg_cl', 15) + 256*byte(s, 'fg_ch', 15)

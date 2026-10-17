@@ -116,18 +116,12 @@ def trap():
         assert 'RETURN: CHOOSE AN ACTION' in rows(s)[4]
         before = state(s)
         act(s, 72, 4)
-        assert byte(s, 'fg_use') & 1 == 0
-        assert state(s) == before
-        assert 'BAIT' in ' '.join(r[:39] for r in rows(s)[20:23])
-        s.step('press:\\e'); s.step('wait:1'); s.step(IDLE)
-        command(s, 'USE BAIT')
-        open_page(s)
-        act(s, 72, 4)
+        assert byte(s, 'fg_bait')
         assert byte(s, 'it_place', 72) == 2  # prepared does not mean held
         assert byte(s, 'fg_use') & 1
         assert 'LOCATION: PACK' in rows(s)[5] and 'ACTIVE: YES' in rows(s)[7]
         assert 'TRAP PREPARED: YES' in rows(s)[13]
-    print('  A trap in PACK is not prepared; missing bait refusal, then native preparation without pretending it is held: OK')
+    print('  A trap in PACK is not prepared; automatic bait and native preparation without pretending it is held: OK')
 
 
 def two_columns():

@@ -707,6 +707,22 @@ cr_rope:
 ; cr_tool -- A = 1 the AXE, 2 the KNIFE: A = 1 when it is in use on this
 ; cell (B2[58], B2[59]: care_tools, lot 13), else 0.
 cr_tool:
+        ldy     cp_preview
+        beq     @native
+        tay
+        txa
+        pha
+        tya
+        clc
+        adc     #57
+        tax
+        jsr     have
+        pla
+        tax
+        lda     #0
+        rol     a
+        rts
+@native:
         and     care_tools
         beq     @no
         lda     px+1
@@ -982,7 +998,10 @@ G_NO   = 2                      ; inverse X, diamond, up and down arrows
 G_DONE = 3
 G_UP   = 4
 G_DOWN = 5
+cp_preview: .byte 0
 craft_page:
+        lda     #1
+        sta     cp_preview
         jsr     cp_return_restore
         lda     #<(craft_page-CRAFT_RUN)        ; MAKE reads the recipes only
         sta     module_dir+CRAFT_MODULE*DIR_SIZE+3
@@ -1331,7 +1350,11 @@ cp_key: jsr     wait_key
         lda     #0              ; the words name the noun
         sta     menu_noun
         jsr     cp_return_prepare
-        jmp     do_command
+        lda     #>(module_craft_prepare-1)
+        pha
+        lda     #<(module_craft_prepare-1)
+        pha
+        jmp     grid_fetch
 cp_view:
         XL_IMM  XI_CRAFT, <ALTCHARON, @x39
         sta     ALTCHAROFF_
@@ -1775,15 +1798,6 @@ cp_return_prepare:
         ldx     cp_i
         lda     cp_noun,x
         sta     mq_noun
-        lda     #S_CRAFT_RETURN
-        sta     mq_list
-        sta     mq_list+1
-        lda     #2
-        sta     mq_n
-        lsr     a
-        sta     mq_i
-        lda     journey_encounters
-        sta     mq_enc
         jmp     cp_view
 cp_return_restore:
         lda     cr_return_focus
@@ -1794,7 +1808,7 @@ cp_return_restore:
         sta     cr_return_focus
 @done:  sta     ALTCHARON
         rts
-; UI-only context: uses the same activation flag/cell as native MAKE.
+; UI-only context: forecasts the accessible tool prepared by the menu queue.
 ; Nothing is activated by previewing a recipe.
 cp_tool_factor:
         txa
@@ -1840,7 +1854,7 @@ cp_details:
         jsr     cr_tool
         beq     @available
         jsr     cp_puts
-        .byte   "IN USE HERE", 0
+        .byte   "AUTO USE WHEN MAKING", 0
         jmp     @next
 @available:
         lda     cp_f
@@ -1850,7 +1864,7 @@ cp_details:
         jsr     have
         bcc     @missing
         jsr     cp_puts
-        .byte   "AVAILABLE - USE IN EQUIPMENT", 0
+        .byte   "AVAILABLE - AUTO USE", 0
         jmp     @next
 @missing:
         jsr     cp_puts

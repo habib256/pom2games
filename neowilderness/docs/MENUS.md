@@ -1774,3 +1774,62 @@ Les sept onglets gardent l’ordre du § 38 et la dernière page reste mémoris�
 les catégories vides, les détails repliables et l’absence de mutations de
 simulation. Les autres tests conservent la comparaison aux commandes tapées,
 la fidélité des durées, les contraintes de charge et les sauvegardes.
+
+
+## 40. Actions par intention et navigation stable (17 octobre 2026, XL)
+
+Cette évolution remplace les refus demandant une préparation manuelle dans
+les § 19–21 lorsque le menu peut effectuer cette préparation. Après validation,
+la grille, OBJECTS et EQUIPMENT utilisent `q_use_prepare` :
+
+| Intention | Préparation avant l’action |
+|---|---|
+| USE TRAP / FISHNG GEAR | USE BAIT si nécessaire |
+| USE STOVE | USE FUEL si nécessaire, puis USE MATCHES sans feu déjà utilisable |
+| USE FRSTAID KIT | USE FLASHLIGHT si nécessaire et lampe accessible |
+| MAKE depuis CRAFT | USE AXE ou USE KNIFE accessible selon la recette |
+
+La navigation et l’annulation restent sans effet. Les opérations préparatoires
+ont leurs coûts natifs : une once de combustible, une allumette ou une unité
+électrique selon le besoin ; les étapes déjà satisfaites sont sautées. La
+préparation ne constitue pas une transaction globale : si les allumettes
+manquent après USE FUEL, le combustible utilisé reste dépensé, mais le réchaud
+n’est pas installé. Le refus reste visible et OBJECTS/EQUIPMENT retrouvent
+l’objet choisi. Une rencontre arrête toute la file avant le retour forcé.
+
+Les aperçus indiquent AUTO et les fournitures concernées. Le soin conserve
+sa dose et sa durée affichées. CRAFT montre AUTO USE WHEN MAKING et calcule
+sa durée avec l’outil accessible. L’aperçu ne modifie pas `care_tools` : la
+préparation réelle appelle USE après validation. Les commandes tapées gardent
+les règles natives ; ni le port Wilderness ni son moteur de référence ne sont
+modifiés. Le choix d’une arme active reste explicite.
+
+Les transferts conservent leur commande exacte et la source sélectionnée.
+Le planificateur ne reconstruit que les actions USE et MAKE, sans quantité
+ni pile à distinguer. LOWER FOOD, TASTE et les médicaments gardent leur parcours.
+Les étapes action/quantité/confirmation sont conservées dans ce premier lot ;
+leur fusion reste un travail distinct, notamment pour conserver l’accès aux
+aperçus de capacité et les confirmations demandées.
+
+Dans la question de durée COOK/CATCH, droite choisit la prochaine valeur de
+10, 20, 30, 60, 120, 240, 480 minutes, puis revient à 10. Haut/bas règlent une
+minute dans les limites 0–1499 ; la saisie décimale en heures reste possible.
+Les valeurs présélectionnées ne déclenchent pas l’action avant Entrée.
+
+Le pied de page affiche PAGE pour les onglets, LIST pour le contenu. Descendre
+au-delà du dernier objet ou de la dernière ligne HELP/OPTIONS/MENU conserve
+la sélection ; Échap reste la sortie explicite. Les transitions demandées
+sur les onglets et la mémoire des pages/listes sont préservées.
+
+Validation : `test_menu_intents.py` contrôle le réchaud préparé en une action,
+l’annulation, la dépense unique, l’arrêt sur allumettes absentes et la reprise
+de l’objet. Il vérifie aussi une ancienne activation du couteau sur une autre
+case. Les tests USE, CRAFT, focus et parcours joystick couvrent les aperçus,
+les durées effectives, les retours et la sauvegarde/restauration.
+
+Les 48 scripts de la cible `test-xl` passent après adaptation des attentes
+liées aux nouvelles préparations et au focus. Le parcours du feu animé XL
+et sa sauvegarde/restauration passent également. Deux constructions de
+fixtures ont été rejouées isolément après concurrence sur les fichiers de
+construction ; elles passent. Vérification visuelle de la fiche CRAFT dans
+l’émulateur. La manette physique reste à essayer.

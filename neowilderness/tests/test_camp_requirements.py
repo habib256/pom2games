@@ -33,8 +33,8 @@ def camp(disk):
                    camp_use=0, fire_on=0, fire_near=0)
         s.step(L.poke('it_place', 2, 71))
         event(s, 'up'); event(s, 'right')
-        preview(s, 71, 'FUEL INACTIVE. USE FUEL FIRST.')
-        refused(s, 71, 'BOTH FUEL AND FIRE')
+        preview(s, 71, 'AUTO FUEL 1 OZ / MATCH AS NEEDED.')
+        # Preview cancellation must leave preparation untouched.
 
         for stock in (0, 0xFFFF):
             s.step(L.poke('it_pack_lo', stock & 255, 40))
@@ -44,14 +44,14 @@ def camp(disk):
         preview(s, 40, 'FUEL AVAILABLE. USE ACTIVATES ONE OZ.')
         action(s, 4)
         assert byte(s, 'camp_use') & 4 and byte(s, 'it_pack_lo', 40) == 7
-        preview(s, 71, 'NO IGNITION. USE MATCHES OR USE FIRE.')
-        refused(s, 71, 'BOTH FUEL AND FIRE')
+        preview(s, 71, 'AUTO: 1 MATCH, THEN STOVE.')
+        # Preview cancellation must leave preparation untouched.
         # A lit fire alone is insufficient: USE FIRE (fire_near) is the native gate.
         set_fields(s, fire_on=1, fire_near=0)
-        preview(s, 71, 'NO IGNITION. USE MATCHES OR USE FIRE.')
+        preview(s, 71, 'AUTO: 1 MATCH, THEN STOVE.')
         set_fields(s, fire_near=1)
         preview(s, 71, 'READY. SET DOWN STOVE / 30 MIN.')
-        print('  Stove: active fuel, ignition and nearby fire distinguished; refusals atomic: OK', flush=True)
+        print('  Stove: fuel/ignition preparation announced; nearby fire skips matches: OK', flush=True)
 
         set_fields(s, camp_use=0, fire_on=0, fire_near=0, weather_sky=0, wind=40)
         preview(s, 38, 'MATCHES READY. USE THEN MAKE FIRE.')

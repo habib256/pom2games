@@ -228,7 +228,7 @@ def layout(disk, xl):
             full = used * 10 // limit
             check(f'the gauge: {full} MouseText blocks then checkerboards ({used} of {limit} oz)',
                   cells == [0x4E] * full + [0x56] * (10 - full), [hex(c) for c in cells])
-            check('row 23: the arrows in MouseText', [raw_cell(mem, 23, c) for c in (10,)] == [0x4D])
+            check('row 23: LIST focus and MouseText return glyph', screen[23].startswith(' LIST  ') and raw_cell(mem, 23, 7) == 0x4D)
             check('RETURN\'s hint: the return glyph', raw_cell(mem, 21, 41) == 0x4D, hex(raw_cell(mem, 21, 41)))
         else:
             check('tab row of 140 KB, no MouseText code on the page',

@@ -3452,3 +3452,20 @@ partagent les quatorze rangées 5–18 et gardent la fiche à droite. L’ancien
 rendu d’en-têtes de groupes, devenu inutile avec les catégories, est retiré.
 DAT : 65 716 octets bruts / 58 039 stockés, 19 enregistrements ; XL reste à
 383/1600 blocs. Aucun nouveau texte de TEXTBANK ni changement de sauvegarde.
+
+
+### Menus par intention — 17 octobre 2026
+
+Le planificateur partagé USE/CRAFT étend GRID. Ses adresses sont désormais
+`$A000–$AFFF` (entrée 32 de NEOWILD.DAT), sous MENUSWAP inchangé à `$B000`.
+Le feu animé garde son code à `$9600–$9CA4` ; son fond et ses variables sont
+replacés à `$9D00–$9FBB`. L’assertion sur la fin des tampons utilise GRID_RUN.
+La limite FIREM est ramenée à `$0700` pour empêcher un recouvrement futur.
+CRAFTX commence à `$A800`, après les variables de travail de CRAFT ; ses
+adresses de chargement et longueurs restent produites depuis les symboles.
+Aucun nouveau code résident, aucune extension de sauvegarde.
+
+OBJECTS termine son dialogue par un retour de pile vers le planificateur
+chargé avec GRID : il restaure MENUSWAP avant de composer les commandes.
+La commande originale des transferts reste intacte. Les actions USE utilisent
+la même préparation que la grille, puis reviennent à la page d’origine.

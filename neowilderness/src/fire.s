@@ -51,7 +51,7 @@ FIRE_RUN    = $9600             ; the module's jump table
 FIRE_PERIOD = 14                ; frames: 14 x 256 idle turns (about 5 Hz)
 FIRE_SOON   = 96                ; the read: 96 x 256 idle turns after the
                                 ; prompt (about 1 s of quiet keyboard)
-FB_BG       = $A000             ; saved background, row * 20 + k (640 bytes)
+FB_BG       = $9D00             ; saved background, row * 20 + k (640 bytes)
 
 .segment "MENUCODE"
 ; fire_tick -- menu.s fire_idle: one turn of the idle loop, no key waiting.
@@ -135,7 +135,7 @@ fire_fetch:
 ; saved background and the layers of tools/genfire.py, then only its bytes
 ; that differ from the screen are written. Variables and the background
 ; live past the image (FB_*), in the free SIM window.
-FM_VARS  = FB_BG + 32*20        ; $A280 (FIRE_ROWS rows of 20 bytes)
+FM_VARS  = FB_BG + 32*20        ; $9F80 (FIRE_ROWS rows of 20 bytes)
 fm_r     = FM_VARS              ; fm_setrow's row
 fm_rr    = FM_VARS+1            ; row being drawn
 fm_lo    = FM_VARS+2            ; its screen address
@@ -166,7 +166,7 @@ fm_k1    = FM_VARS+30           ; last k on screen (3, 7 ... 19)
 fm_ytop  = FM_VARS+31           ; screen offset of fm_k1
 fm_tmp   = FM_VARS+40           ; 20 bytes
 .export fm_frame, fm_cnt, fm_dirty, fm_vis, fm_g0, fm_ph   ; (tests/test_fire.py)
-.assert fm_tmp + 20 <= $A300, error, "FIRE: the buffers reach the grid (GRIDM)"
+.assert fm_tmp + 20 <= GRID_RUN, error, "FIRE: the buffers reach the grid (GRIDM)"
 
 .segment "FIRE"
 fire_module:

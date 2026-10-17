@@ -60,15 +60,14 @@ def filters(disk):
         check(s, 22, 4, 0, (6, 7))
         check(s, 22, 4, 1, (2, 6))
 
-        # Missing bait is a recoverable native prerequisite, not a hidden USE.
+        # Available bait is prepared only after confirming USE.
         s.step(L.poke('fg_bait', 0)); s.step(L.poke('fg_use', 0))
         check(s, 72, 2, 1, (1, 2, 4))
         before = saved_state(s)
         action(s, 4)
-        assert saved_state(s) == before
-        assert 'BAIT' in '\n'.join(rows(s)[20:23])
+        assert byte(s, 'fg_bait') and byte(s, 'fg_use') & 1
         assert byte(s, 'pg_cur') == 1 and byte(s, 'obj_selected', 1) == 72
-        print('  USE TRAP remains offered; missing bait refuses atomically and keeps selection: OK', flush=True)
+        print('  USE TRAP remains offered; available bait is prepared automatically and keeps selection: OK', flush=True)
 
         # Restore ordinary load before testing actual native placement changes.
         s.step(L.poke('cr_b1', 255, 1)); s.step(L.poke('cr_b1', 255, 4))

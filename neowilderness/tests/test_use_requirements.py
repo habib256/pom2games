@@ -49,39 +49,35 @@ def requirements(disk):
 
         for item, bit in ((72, 1), (67, 2)):
             s.step(L.poke('fg_bait', 0)); s.step(L.poke('fg_use', 0))
-            preview(s, item, 'BAIT MISSING. CATCH PREPARES BAIT FIRST.')
+            preview(s, item, 'AUTO BAIT, THEN TRAP/FISHING.')
             before = saved_state(s)
             action(s, 4)
-            assert not differing(before, saved_state(s), DERIVED_BYTES)
-            assert not byte(s, 'fg_use') & bit
-            assert 'BAIT' in '\n'.join(rows(s)[20:23])
+            assert byte(s, 'fg_bait') and byte(s, 'fg_use') & bit
+            assert byte(s, 'pg_cur') == 1 and byte(s, 'obj_selected', 1) == item
             s.step(L.poke('fg_bait', 1))
             preview(s, item, 'BAIT READY. USE PREPARES TRAP/FISHING.')
             elapsed = s.step(L.peek('s_elap', 5)).data
             action(s, 4)
             assert byte(s, 'fg_use') & bit and byte(s, 'it_place', item) == 2
             assert s.step(L.peek('s_elap', 5)).data == elapsed
-        print('  Trap/fishing: missing/ready bait shown before confirmation; cancel/refuse atomic; USE prepares: OK', flush=True)
+        print('  Trap/fishing: auto/ready bait shown before confirmation; cancel atomic; USE prepares: OK', flush=True)
 
         s.step(L.poke('light', 0))
-        preview(s, 41, 'LIGHT MISSING. USE FLASHLIGHT FIRST.')
-        before = saved_state(s)
-        action(s, 4)
-        assert not differing(before, saved_state(s), DERIVED_BYTES)
-        assert byte(s, 'it_pack_lo', 41) == 3
-        assert 'LIGHT' in '\n'.join(rows(s)[20:23])
-        # Follow the proposed remedy through the same visible object dialog.
-        object_item(s, 1, 66)
+        preview(s, 41, 'AUTO LAMP IF HERE: 1 BATTERY.')
         batteries = byte(s, 'it_pack_lo', 66)
+        elapsed = fp(s.step(L.peek('s_elap', 5)).data)
         action(s, 4)
         assert byte(s, 'light') and byte(s, 'it_place', 66) == 3
         assert byte(s, 'it_pack_lo', 66) == batteries-1
+        assert byte(s, 'it_pack_lo', 41) == 2
+        assert abs(fp(s.step(L.peek('s_elap', 5)).data)-elapsed-.5) < .001
         preview(s, 41, 'LIGHT READY. CONFIRM TO APPLY FIRST AID.')
         elapsed = fp(s.step(L.peek('s_elap', 5)).data)
         action(s, 4)
-        assert byte(s, 'it_pack_lo', 41) == 2
+        assert byte(s, 'it_pack_lo', 41) == 1
+        assert byte(s, 'it_pack_lo', 66) == batteries-1
         assert abs(fp(s.step(L.peek('s_elap', 5)).data)-elapsed-.5) < .001
-        print('  First aid: missing light, native refusal, USE FLASHLIGHT, ready hint, one dose/30 MIN: OK', flush=True)
+        print('  First aid: automatic flashlight once, ready hint, one dose/30 MIN: OK', flush=True)
 
         event(s, 'cancel', IDLE)
         event(s, 'up'); event(s, 'right')
@@ -89,7 +85,7 @@ def requirements(disk):
         event(s, 'ok')
         equipment_item(s, 72)
         assert byte(s, 'overlay_text', byte(s, 'eq_cur')) == 72
-        for bait, text in ((0, 'BAIT MISSING'), (1, 'BAIT READY')):
+        for bait, text in ((0, 'AUTO BAIT'), (1, 'BAIT READY')):
             s.step(L.poke('fg_bait', bait))
             event(s, 'ok')
             for _ in range(8):

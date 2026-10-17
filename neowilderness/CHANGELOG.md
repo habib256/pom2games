@@ -7,6 +7,24 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Actions MouseText par intention (17 octobre 2026)
+
+- OBJECTS, EQUIPMENT et la grille partagent la préparation de USE : appât
+  avant piège/pêche, combustible et allumettes avant réchaud, lampe avant
+  premiers secours dans le noir. Les aperçus annoncent ces préparations.
+  Une étape échouée arrête la suite ; le refus reste visible et la page
+  retrouve sa sélection. Une rencontre interrompt toujours la file.
+- CRAFT prend en compte l’outil accessible dans son estimation, puis le
+  prépare après validation. Les commandes MAKE tapées gardent leurs règles.
+  Une activation sur une ancienne case ne dispense plus de préparer ici.
+- La saisie de durée COOK/CATCH propose à droite 10, 20, 30, 60, 120,
+  240 et 480 minutes ; haut/bas ajustent à la minute, Échap annule.
+- Le pied de page distingue PAGE et LIST. OBJECTS, HELP, OPTIONS et MENU
+  restent sur leur dernière entrée quand on descend encore.
+- Réorganisation des fenêtres du feu et de GRID, sans ajout de code résident.
+  Les confirmations et le ciblage précis des stocks restent conservés.
+
+
 ### EQUIPMENT en deux colonnes (17 octobre 2026)
 
 - Liste équilibrée en deux colonnes, jusqu’à 28 objets visibles, puis

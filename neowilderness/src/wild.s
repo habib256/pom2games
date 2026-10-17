@@ -1015,6 +1015,6 @@ STARS_LIST_LC = 1
         .include "save.s"       ; SAVE/RESTORE; segment SAVEMOD: build/wildsav.bin ($9600)
         .include "forage.s"     ; lot 4: hunting, fishing, gathering, meals (resident)
         .include "frg.s"        ; lot 4: segment FORAGE: build/wildfrg.bin ($9600, NEOWILD.BLK)
-        .include "grid.s"       ; segment GRID: build/wildgrid.bin ($A300, the grid's lists and queue)
+        .include "grid.s"       ; segment GRID: build/wildgrid.bin ($A000, the grid's lists and queue)
         .include "craft.s"      ; lot 3: segment CRAFT: build/wildcrf.bin ($9600, NEOWILD.BLK)
 
