@@ -374,32 +374,10 @@ pg_val: lda     #' '|$80
         rts
 
 .segment "CODE"
-; page_foot -- (resident, MAIN: the STATUS module's store is full on the
-; 140 KB edition) A/Y = the page's keys, on row 23 (vtab pads the rows on the
-; way); at its right "ESC/DOWN: VIEW", or "ESC: VIEW" on a page with a
-; level (DOWN leaves only from its lowest level).
+; The retired text footer's resident area now explicitly reserves the XL
+; pad, curtain and frame hook copied by build_disk.py (XL_COPIES).
 page_foot:
-        pha
-        tya
-        pha
-        lda     #23
-        jsr     vtab
-        pla
-        tay
-        pla
-        jsr     print_str_ay
-        lda     #64
-        jsr     tab
-        jsr     puts
-        .byte   "ESC", 0
-        ldx     pg_cur
-        lda     pg_levels,x
-        bne     :+
-        jsr     puts
-        .byte   "/DOWN", 0
-:       jsr     puts
-        .byte   ": VIEW", 0
-        rts
+        .res    53, 0           ; dedicated XLRES copy: pad, curtain, frame hook
 
 ; pg_lines -- (resident) the OBJECTS page's state and its command since
 ; 16 October 2026 (the cursor pages' header, unused since 15 October, held
@@ -427,6 +405,60 @@ pg_mark:
         lda     #'>'|$80
 :       jmp     COUT
 ; the keys of the cursor pages and of INVENTORY
-pg_k_menu: .byte "UP/DOWN: CHOOSE  RETURN: SELECT", 0
-inventory_keys: .byte "RETURN LIST/ACT  ARROWS MOVE H HANDS",0
+pg_k_menu = pg_k_menu_x
+inventory_keys = inventory_keys_x
+
+; Read-only equivalent of water_here: native cell, legacy adjacent banks.
+; No SIM load, camp_untreated update or saved-state writes.
+med_water_legacy:
+        lda     py+1
+        sec
+        sbc     #1
+        sta     mw_y
+        lda     #3
+        sta     mw_rows
+@row:   lda     px+1
+        sec
+        sbc     #1
+        sta     mw_x
+        lda     #3
+        sta     mw_cols
+@cell:  ldx     mw_y
+        cpx     #GH
+        bcs     @next
+        ldy     mw_x
+        cpy     #GW
+        bcs     @next
+        jsr     cell_at
+        bmi     @yes
+@next:  inc     mw_x
+        dec     mw_cols
+        bne     @cell
+        inc     mw_y
+        dec     mw_rows
+        bne     @row
+        clc
+        rts
+@yes:  sec
+        rts
+mw_x = overlay_text+74
+mw_y = overlay_text+75
+mw_rows = overlay_text+76
+mw_cols = overlay_text+77
 .segment "STATUS"
+
+med_water_near:
+        lda     MAP+37
+        jeq     med_water_legacy
+med_water_native:
+        lda     geo_wooded
+        pha
+        lda     geo_water_kind
+        pha
+        jsr     inventory_here
+        asl     a
+        pla
+        sta     geo_water_kind
+        pla
+        sta     geo_wooded
+        rts

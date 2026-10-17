@@ -603,6 +603,10 @@ ob_cmd: sta     ob_t
 @no:    clc
         rts
 @default:
+        ldx     menu_noun
+        jsr     inventory_name ; fetch before constructing ob_line in tb_buf
+        sta     gp2
+        stx     gp2+1
         ldy     #OB_CARRY       ; H: CARRY x
         lda     ob_t
         bne     @verb
@@ -626,10 +630,6 @@ ob_cmd: sta     ob_t
         cmp     #' '
         bne     :-
         stx     ob_len
-        ldx     menu_noun
-        jsr     inventory_name
-        sta     gp2
-        stx     gp2+1
         ldy     #0              ; "2QT CANTEEN": CANTEEN (a digit would make
         lda     (gp2),y         ; the line a number for INPUT)
         cmp     #'9'+1
@@ -817,7 +817,7 @@ ob_at:   .res 2
 ob_n:    .res 2
 ob_len:  .byte 0
 ob_line = tb_buf                ; the command of RETURN or H (the text bank's
-                                ; buffer: the page prints none of its texts)
+                                ; buffer: banked names are fetched before constructing the command)
 .assert TB_MAX >= MAXLINE + 1, error, "ob_line: tb_buf too short"
 inventory_group: .byte 0
 
@@ -1028,14 +1028,16 @@ inventory_name:
 @rts:   rts
 @second:
         lda     inv_second_at-80,x
+        pha
+        lda     #om_to_sense
+        jsr     text_fetch
+        pla
         clc
-        adc     #<inv_second
-        ldx     #>inv_second
+        adc     #<tb_buf+7
+        ldx     #>tb_buf
         bcc     @rts
         inx
         rts
-inv_second: .byte "GAME",0,"FISH",0,"INSECTS",0,"FRUIT",0,"CACTI",0,"MUSHROOMS",0,"PLANTS",0
-            .byte "BOW",0,"SPEAR",0,"CLUB",0,"SPLINT",0,"HIDE",0,"ROCK",0
 inv_second_at: .byte 0, 5, 10, 18, 24, 30, 40, 0, 0     ; 80..88
             .byte 47, 51, 57, 74, 62, 69                ; 89..94 (lot 3)
 inventory_pile: .byte 0

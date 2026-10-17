@@ -255,8 +255,14 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
   CUT BODY distingue maintenant lame active, disponible à préparer et absente ;
   les indicateurs périmés ne bloquent plus la préparation couteau/hache,
   sans mutation à la consultation (17 octobre).
-  Restent l’explication détaillée des jauges, les sources d’eau et les
-  conditions contextuelles d’utilisation du feu au-delà de sa présence.
+  DRINK et WET BODY montrent le stock d’eau accessible, la rivière/le lac,
+  l’état déjà mouillé ou l’absence d’eau ; ordre des sources et géographie
+  natifs conservés, choix d’onces au joystick et consultation sans mutation
+  (17 octobre). Restent l’explication détaillée des jauges et les conditions
+  contextuelles d’utilisation du feu au-delà de sa présence. Blocage de
+  fidélité à résoudre après rebasage : `DRINK_FIDELITY=0` améliore l’hydratation
+  mais laisse le sélecteur médical 6 désactivé ; un DRINK conseillé par
+  STATUS ne marque donc pas ce traitement (17 octobre).
 - [ ] **CRAFT.** Après fabrication : prendre/utiliser/entrer ou revenir aux
   recettes ; distinguer outil disponible et en usage ; annoncer le coût
   temporel et l'heure de fin estimée des travaux longs ; rendre le lien

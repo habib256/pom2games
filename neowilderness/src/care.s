@@ -795,12 +795,17 @@ med_item = overlay_text+73
 .pushseg
 .segment "STATUS"
 med_hint_word:
+        cpx     #5              ; DRINK WATER
+        beq     med_water_word
+        cpx     #6              ; WET BODY
+        beq     med_water_word
         cpx     #MG_CUT
         beq     med_blade_word
         lda     med_hint_offset-1,x
         pha
         lda     med_hint_bank-1,x
         jmp     med_bank_word
+.segment "STATUS"
 med_blade_word:
         ldy     #0
         jsr     med_tool_check
@@ -821,4 +826,33 @@ med_blade_word:
         lda     #om_object_label
         jmp     med_bank_word
 
+.popseg
+
+.pushseg
+.segment "STATUS"
+med_water_word:
+        cpx     #6
+        bne     @drink
+        lda     weather_inside_front
+        bne     @wet
+        lda     wet_mode
+        cmp     #2
+        beq     @wet
+        jsr     med_water_near
+        bcs     @near
+@drink: ldx     #N_WATER
+        jsr     have
+        bcs     @stock
+        jsr     med_water_near
+        bcs     @near
+        lda     #30
+        bne     @word
+@stock: lda     #4
+        bne     @word
+@near:  lda     #56
+        bne     @word
+@wet:   lda     #72
+@word:  pha
+        lda     #om_to_use
+        jmp     med_bank_word
 .popseg

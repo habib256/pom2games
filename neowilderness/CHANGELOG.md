@@ -7,6 +7,26 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### STATUS : sources d’eau pour DRINK et WET BODY (17 octobre 2026)
+
+- L’aperçu distingue WATER STOCK HERE; OZ NEXT, RIVER/LAKE HERE,
+  ALREADY WET; NO OZ NEEDED et NO WATER HERE; FIND WATER. DRINK privilégie
+  le stock accessible ; WET BODY vérifie d’abord l’état déjà mouillé puis
+  l’eau proche. Le stock suspendu et les piles distantes restent exclus.
+- Le contrôle respecte les berges voisines des cartes historiques et la
+  case précise des cartes à géographie fine. Consulter ou annuler STATUS
+  ne crée aucune eau et ne change ni stocks, temps, RNG ni soins.
+  Les choix d’onces, effets et refus restent natifs après confirmation.
+- Libellés des objets du second jeu et directions regroupés en banque ;
+  zone résidente du cadre XL conservée explicitement. MEDICAL rejoint les
+  modules compressés de XL pour libérer le stock auxiliaire.
+- Validation : 42 scripts XL, dont 43 scénarios d’eau au port joystick :
+  stocks accessibles ou non, grandes quantités, annulation, consommation
+  de quatre onces, météo, immersion, rivières/lacs et priorité des sources.
+  Huit directions du but vérifiées après regroupement des textes.
+  Comparaison de simulation native inchangée après 24 étapes ; limite
+  médicale existante de DRINK (`DRINK_FIDELITY=0`) consignée dans l’audit.
+
 ### STATUS : lame active ou à préparer pour CUT BODY (17 octobre 2026)
 
 - CUT BODY distingue BLADE IN USE, BLADE AVAILABLE; USE KNIFE/AXE FIRST
