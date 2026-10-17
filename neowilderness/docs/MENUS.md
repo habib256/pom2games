@@ -1280,3 +1280,36 @@ après annulation au port joystick, les cas de gourde au sol/suspendue/absente,
 le refus sans mutation, puis une collecte acceptée dans PACK et HANDS.
 Il vérifie aussi le dialogue depuis EQUIPMENT. Le test de sac suspendu
 contrôle FROM LOCAL HUNG en plus du poids agrégé et des capacités.
+
+
+## 26. Sac transporté et contenants à vider (17 octobre 2026, XL)
+
+PACK affiche BACKPACK NEEDED et CARRY BACKPACK lorsque le sac est au sol,
+suspendu ou absent. Ce contrôle concerne les équipements et provisions
+du premier jeu, ainsi que les objets fabriqués. Les piles sauvages et HIDE
+conservent leur règle native : leur PACK ne demande pas de sac transporté.
+Le dialogue ne leur ajoute pas cette interdiction. Changer d’action retire
+le conseil lorsqu’il ne s’applique plus ; les actions restent accessibles.
+
+DROP BACKPACK lit le volume PACK natif : tant qu’il est non nul, le dialogue
+annonce EMPTY THE BACKPACK BEFORE DROPPING et DROP ITS CONTENTS FIRST.
+DROP CANTEEN annonce EMPTY THE CANTEEN BEFORE DROPPING et DRINK WATER OR
+DROP WATER tant que le compteur d’eau n’est pas nul. Les deux octets des
+compteurs sont pris en compte. La lecture utilise les totaux déjà préparés
+par la page ; elle ne règle pas provisoirement l’inventaire.
+
+Ces messages natifs sont repris avec leurs remèdes sur la seule ligne 22,
+les séparateurs de ligne étant transformés en espaces dans la copie
+temporaire. Le message natif exécuté après confirmation garde ses lignes
+habituelles. La ligne 23 reste disponible pour choisir, confirmer ou revenir.
+Les contrôles continuent d’être ceux du moteur ; l’aperçu n’ajoute pas de
+nouveau refus, et son annulation ne change ni stocks, ni temps, ni sélection.
+
+`tests/test_container_requirements.py` vérifie les prérequis dans OBJECTS
+et EQUIPMENT au port joystick. Il suit aussi les remèdes réels : DROP WATER
+puis DROP CANTEEN ; DROP des contenus de PACK, puis DROP BACKPACK. Il vérifie
+la collecte de piles sauvages sans sac, les 41 choix USE d’équipement après
+compactage de leur table, et les cinq positions des jauges STATUS.
+
+Les jauges bankées utilisent des retours chariot explicites. Le test de
+positions protège HEALTH en rangée 4, ENERGY 6, HUNGER 8, THIRST 10 et BODY 12.

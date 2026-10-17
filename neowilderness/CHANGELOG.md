@@ -7,6 +7,25 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### OBJECTS/EQUIPMENT : contenants prêts avant transfert (17 octobre 2026)
+
+- PACK explique le sac à dos non transporté pour équipements, provisions
+  et objets fabriqués. DROP explique le sac encore occupé ou la gourde
+  contenant de l’eau, avec le remède natif avant confirmation.
+- Messages et remèdes tiennent sur une ligne, en gardant les commandes
+  de confirmation visibles. Annuler reste sans effet ; la commande native
+  décide à la validation. Les piles sauvages gardent leur règle distincte.
+- Le parcours joystick vérifie les refus, puis vide réellement la gourde
+  et le sac par les actions OBJECTS avant de les déposer. Même avertissement
+  dans EQUIPMENT, avec sélection conservée.
+- Correction des retours à la ligne des cinq jauges STATUS récemment
+  déplacées en banque : HEALTH/ENERGY/HUNGER/THIRST/BODY retrouvent leurs
+  rangées. Le dictionnaire de textes dispose désormais de son propre index,
+  sans se réduire quand on ajoute des libellés ; aucun état de jeu ajouté.
+- Validation : `make test-xl`, 35 scripts, dont les 254 textes comparés
+  octet par octet après décodage natif, limites du compilateur et 41 choix
+  USE conservés. Contrôles ProDOS, sortie et relancement également vérifiés.
+
 ### OBJECTS/EQUIPMENT : sources précises et gourde requise (17 octobre 2026)
 
 - FROM distingue maintenant LOCAL, LOCAL HUNG, PACK, HANDS, WORN et

@@ -929,7 +929,15 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
     bank = (build / MODULES[TB_DIR][0]).read_bytes()
     first = struct.unpack_from('<H', bank, 2)[0]     # the index ends where text 1 starts
     offsets = struct.unpack_from(f'<{first // 2}H', bank)
-    assert all(0 < b - a <= sym['tb_end'] for a, b in zip(offsets[1:], offsets[2:])), 'bank index'
+    if 'TB_TEXTS' in sym:
+        count, base = sym['TB_TEXTS'], sym['TB_DICT']
+        pairs = list(zip(offsets[1:count+1], offsets[2:count+2]))
+        pairs += list(zip(offsets[base:-1], offsets[base+1:]))
+        assert len(offsets) == base + sym['TB_WORDS'] + 1, 'bank directory size'
+        assert all(a == offsets[base] for a in offsets[count+1:base]), 'bank index padding'
+    else:
+        pairs = list(zip(offsets[1:], offsets[2:]))  # frozen reference format
+    assert all(0 < b - a <= sym['tb_end'] for a, b in pairs), 'bank index'
     assert not set(PATCH_MODULES.values()) & set(lz_modules), 'the packs patch these images'
     assert not set(PATCH_MODULES.values()) & set(disk_modules), 'the packs patch these images'
     # Docs/MEMORY.md 15: a native-map comparison disk (tests) loses 1.2 KB of
