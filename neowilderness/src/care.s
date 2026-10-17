@@ -221,6 +221,8 @@ care_tool:
 ; The kits never qualify: T0A/S05 $58C4 clears their B2 at the first step of
 ; the timed USE that set it.
 care_tool_in_use:
+        ldy     #1              ; real command expires a tool left on another cell
+med_tool_check:                  ; Y = 0: read-only query, including stale flags
         lda     px+1
         cmp     care_tool_x
         bne     @lost
@@ -238,7 +240,9 @@ care_tool_in_use:
         beq     @no
         ldx     #59
         jmp     have
-@lost:  lda     #0
+@lost:  tya
+        beq     @no
+        lda     #0
         sta     care_tools
 @no:    clc
 @done:  rts
@@ -317,9 +321,23 @@ care_hypothermia:
         cmp     #$FF
         bne     @warm
         fld     s_therm_factor
-        jmp     al_percent
+        jmp     care_percent
 @warm:  lda     #100
         rts
+
+; Same conversion as al_percent, but ALERTS is not loaded over MEDVIEW.
+care_percent:
+        jsr     clamp0
+        jsr     $EA39
+        jsr     $EA39
+        jsr     AYINT
+        lda     $A0
+        bne     @full
+        lda     $A1
+        cmp     #101
+        bcc     @done
+@full:  lda     #100
+@done:  rts
 
 ; HANG clothing (T12/S08 $58F9): a tree, then wet clothes outside the rain;
 ; the Sun or a fire dries them ($4B70 = 0); the item is dropped (DROP).
@@ -606,9 +624,9 @@ med_run:
         sta     pg_x            ; the gesture
         cmp     #MG_CUT
         bne     @kit
-        lda     care_tools      ; CUT BODY: an AXE or a KNIFE in use
-        and     #3
-        bne     @type
+        ldy     #0              ; same current-cell/access predicate as CUT
+        jsr     med_tool_check
+        bcs     @type
         ldy     #S_KNIFE
         ldx     #59
         jsr     have
@@ -675,8 +693,11 @@ med_gest:
         .byte   16, 0, 0        ; MALARIA: USE QUININE
 mg_bank: .byte pg_med_a,pg_med_a,pg_med_a,pg_med_b,pg_med_b,om_need_light,om_need_light,om_need_light,om_need_light,om_need_light,om_need_light,om_need_light,om_light_ready,om_light_ready,om_light_ready,om_light_ready,om_light_ready,pg_med_a,om_light_ready
 mg_offset: .byte 72,86,99,87,98,37,46,61,73,82,98,107,41,57,70,81,93,110,103
+.pushseg
+.segment "STATUS"
 med_hint_bank: .byte om_doses_label,om_doses_label,om_doses_label,om_can_free,om_can_free,om_can_free,om_can_free,om_can_free,om_can_free,om_can_free,om_sample,om_sample,om_sample,om_can_free,om_can_free,om_can_free
 med_hint_offset: .byte 80,80,95,10,28,42,64,78,99,64,22,52,73,64,64,64
+.popseg
 .pushseg
 .segment "STATUS"
 med_times: .byte 30,30,30,0,0,0,0,0,0,30,0,15,30,0,0,0
@@ -774,8 +795,30 @@ med_item = overlay_text+73
 .pushseg
 .segment "STATUS"
 med_hint_word:
+        cpx     #MG_CUT
+        beq     med_blade_word
         lda     med_hint_offset-1,x
         pha
         lda     med_hint_bank-1,x
         jmp     med_bank_word
+med_blade_word:
+        ldy     #0
+        jsr     med_tool_check
+        bcs     @active
+        ldx     #59             ; preparation uses KNIFE before AXE
+        jsr     have
+        bcs     @prepare
+        dex
+        jsr     have
+        bcs     @prepare
+        lda     #61
+        bne     @word
+@active:lda     #11
+        bne     @word
+@prepare:
+        lda     #24
+@word:  pha
+        lda     #om_object_label
+        jmp     med_bank_word
+
 .popseg

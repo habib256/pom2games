@@ -1395,8 +1395,9 @@ LIT ou DARK, et rappellent la lampe si nécessaire.
 Les rappels indiquent notamment SPLINT REQUIRED, WATER OZ NEXT, FIRE NEEDED,
 la préparation KNIFE/AXE de CUT BODY et la nécessité d’une morsure active
 pour SUCK VENOM. Les autres prérequis ne sont pas tous calculés dynamiquement :
-le rappel de la lame ou de l’eau ne certifie pas leur disponibilité. L’attelle
-et le feu ajoutent désormais leur présence réelle (§ 31). Pour les lunettes
+le rappel de l’eau ne certifie pas sa disponibilité. L’attelle
+et le feu ajoutent leur présence réelle (§ 31), la lame son accès et son
+activation (§ 32). Pour les lunettes
 et médicaments, HERE suit le test natif d’accès à l’objet, y compris au sol
 sur la bonne case, et exclut un objet suspendu ou absent.
 
@@ -1481,3 +1482,35 @@ positions de l’attelle, mauvaise abscisse ou ordonnée, bras et jambe,
 feu absent/allumé, pluie, immersion et abri. Chaque aperçu est comparé à
 l’usage réellement exécuté, avec contrôle de durée et de conservation de
 l’état pendant navigation et annulation.
+
+## 32. CUT BODY : lame active, disponible ou absente (17 octobre 2026, XL)
+
+L’aperçu de CUT BODY affiche 0 MIN et l’un de ces trois états :
+
+- BLADE IN USE : une hache ou un couteau est accessible et son usage a été
+  activé sur la case actuelle.
+- BLADE AVAILABLE; USE KNIFE/AXE FIRST : un outil est accessible mais ne
+  remplit pas ce contrôle d’usage. Confirmer prépare le couteau en priorité,
+  sinon la hache, puis exécute CUT BODY avec les contrôles natifs.
+- NO BLADE HERE; FIND KNIFE/AXE : aucun de ces outils n’est accessible.
+  Confirmer conserve le refus natif, puis propose RETURN CARE / ESC VIEW.
+
+La possession et l’activation restent distinctes : un couteau simplement
+pris en main n’est pas actif. Le moteur accepte un outil déjà actif resté
+accessible dans PACK ou au sol sur la case ; le conseil respecte cette règle.
+Un outil suspendu ou au sol ailleurs ne convient pas. Un ancien indicateur
+d’usage associé à une autre case ne vaut pas activation ici, même si l’outil
+est transporté. Il ne doit plus empêcher la préparation automatique.
+
+L’aperçu ne nettoie aucun indicateur : consulter, changer de geste et annuler
+conservent tout l’état de partie. La commande réelle garde son nettoyage
+natif des indicateurs d’une autre case. Préparation et CUT BODY restent à
+0 MIN ; leur résultat reste lisible avant le retour au même geste.
+
+`tests/test_care_blade.py` exerce seize scénarios au port joystick : outils
+seuls ou concurrents, possession sans activation, usages actifs, PACK et
+sol local, outil suspendu ou distant, coordonnées d’activation périmées et
+indicateur d’un autre outil. Il compare l’aperçu à la première commande
+réellement exécutée, au résultat natif et à l’état sauvegardable. Cinq cas
+complémentaires vérifient les mots de température, altitude et terrain
+passés en banque pour loger ce contrôle.
