@@ -745,3 +745,27 @@ et conservation de l’état pendant la lecture. Les tests de page conservent
 les preuves précédentes : durée affichée = durée native dépensée dans les
 cinq conditions, et MAKE depuis la page = mêmes commandes tapées.
 Les détails de navigation sont dans MENUS.md § 36.
+
+## 11. Outils et fin estimée (17 octobre 2026, XL)
+
+Les facteurs de TIME affichent AXE ON/OFF ou KNIFE ON/OFF selon le drapeau
+et la case d’activation que MAKE utilise réellement. La ligne d’outil
+explique IN USE HERE, AVAILABLE - USE IN EQUIPMENT ou MISSING HERE.
+Un outil au sol ici, dans PACK ou dans HANDS est disponible sans être
+forcément en usage. Le joueur rejoint EQUIPMENT par les onglets, sélectionne
+l’outil, puis choisit USE ; la consultation de CRAFT ne l’active jamais.
+Un drapeau d’une autre case reste intact et ne compte pas comme actif ici.
+Les conditions et les formules de fabrication ne changent pas.
+
+Une recette POSSIBLE affiche EST. FINISH: HH:MM en heure sur 24 heures.
+Le suffixe +nD indique combien de jours plus tard elle se termine ; l’heure
+courante est arrondie à la minute comme le HUD, puis on ajoute exactement
+les minutes natives annoncées par la recette. Il s’agit d’une estimation
+avant les éventuelles rencontres ou interruptions, pas d’une garantie de
+réussite. Une recette MISSING conserve sa durée indicative mais n’affiche
+pas de fin ; DONE ne propose ni durée ni estimation.
+
+`test_craft_preview.py` couvre les états de présence/activation des deux
+outils au port joystick, la case d’activation quittée, la navigation sans
+mutation, l’arrondi des minutes, minuit, les travaux dépassant 24 heures
+et la concordance avec le temps effectivement dépensé par MAKE.

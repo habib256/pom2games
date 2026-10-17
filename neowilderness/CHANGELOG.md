@@ -7,6 +7,25 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### CRAFT : préparation des outils et fin estimée (17 octobre 2026)
+
+- Les facteurs de durée distinguent AXE/KNIFE ON et OFF. Une ligne précise
+  IN USE HERE, AVAILABLE - USE IN EQUIPMENT ou MISSING HERE ; tenir un
+  outil ne l’active pas. Un drapeau d’activation sur une autre case est
+  affiché inactif sans modifier l’état natif.
+- Une recette possible affiche EST. FINISH en heure sur 24 heures, avec
+  +nD si elle finit un autre jour. Le calcul additionne la durée native
+  aux minutes arrondies comme l’horloge ; une recette manquante ou déjà
+  terminée ne promet pas de fin. Consulter la page ne dépense aucun temps.
+- Les pointeurs des ingrédients portent désormais leur octet haut propre,
+  afin de conserver leurs libellés lorsqu’ils traversent une page mémoire.
+- XL : CRAFT finit à $A6A8, queue CRAFTX à $A951 ; chargement de la page
+  de neuf à dix blocs, MAKE conserve ses quatre blocs de recettes.
+  Nouvelle couverture au port joystick : présence/activation, case quittée,
+  annulation, lecture seule, limites horaires, minuit et travaux sur deux jours.
+  Validation : `make test-xl`, 46 scripts réussis, dont les 20 scénarios
+  du nouvel aperçu et le parcours CRAFT → EQUIPMENT → USE → CRAFT.
+
 ### CRAFT : résultat lisible et suite au joystick (17 octobre 2026)
 
 - Après MAKE depuis CRAFT, le résultat natif reste affiché. Gauche choisit

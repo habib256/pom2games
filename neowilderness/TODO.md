@@ -246,9 +246,9 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
   traitement. Préserver les calculs de référence jusqu’au lot de fidélité
   correspondant ; les autres explications des jauges, états et soins sont
   réalisées (17 octobre, CHANGELOG et MENUS.md § 29–35).
-- [ ] **CRAFT.** Distinguer outil disponible et en usage ; annoncer le coût
-  temporel et l’heure de fin estimée des travaux longs ; rendre le lien avec
-  FIRE/WATER de la grille compréhensible. Le résultat lisible et les suites
+- [ ] **CRAFT.** Rendre le lien avec FIRE/WATER de la grille compréhensible.
+  La distinction outil disponible/en usage et l’heure de fin estimée sont
+  réalisées (17 octobre, CRAFT.md § 11). Le résultat lisible et les suites
   au joystick vers la même recette, l’objet sélectionné ou l’entrée dans
   l’abri sont réalisés (17 octobre, MENUS.md § 36 et CRAFT.md § 10).
 - [ ] **CATCH.** Distinguer capture, chasse active et combat ; montrer cible,

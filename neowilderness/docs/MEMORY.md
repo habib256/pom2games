@@ -3380,3 +3380,20 @@ de neuf blocs ; CRAFT reste à `$A6D4`, avec ses tableaux de travail jusqu’à
 `$A6FE`. BSS finit à `$577C`, trois octets avant REGIONTEXT ; GDATA et les
 plages SAVE ne bougent pas. STATUS reste à `$B0D7`. DAT : 65 602 bruts /
 57 975 stockés, 19 enregistrements ; XL : 382/1600 blocs, cinq parties.
+
+
+### CRAFT : outils et heure de fin estimée (17 octobre 2026)
+
+Les explications et le calcul de fin sont dans CRAFTX, sans nouveau résident,
+BSS ni plage SAVE. Le facteur d’outil appelle un auxiliaire plutôt que de
+dupliquer le texte ; CRAFT finit à `$A6A8` (44 octets récupérés), ses tableaux
+vont jusqu’à `$A6D2`, 45 octets avant CRAFTX `$A700`. Les pointeurs de chaque
+ingrédient portent leur octet haut : les chaînes traversent désormais `$A600`.
+
+CRAFTX finit à `$A951`, soit 386 octets supplémentaires. La page entière
+requiert dix blocs au lieu de neuf, 174 octets avant `$AA00` ; la fenêtre de
+queue autorise toujours jusqu’à `$AFFF`. MAKE ne charge que ses quatre blocs
+de recettes. Ce bloc de lecture de page supplémentaire ne dépense pas de
+temps simulé. GRID, STATUS, GDATA et BSS ne bougent pas. DAT : 65 602 bruts /
+57 975 stockés, 19 enregistrements ; fichier avec table : 58 231 octets.
+XL : 383/1600 blocs, cinq sauvegardes.
