@@ -1599,3 +1599,52 @@ immersion et abri combinés, berge historique, rivière/lac sur cellule fine
 et rivière dans la cellule fine voisine. Chaque conseil est comparé à la
 commande réelle ; les tests vérifient annulation sans mutation, effets,
 refus, avertissement d’abri, durée nulle et retour au même soin.
+
+## 35. Comprendre les jauges de STATUS (17 octobre 2026, XL)
+
+La page utilise les lignes libres du bloc CONDITION : un rappel FULLER BARS
+= BETTER CONDITION au-dessus des barres, puis une explication sous chaque
+indicateur. Tout est visible à l’ouverture au joystick, sans nouveau mode
+ni commande. Les cinq indicateurs restent sur les rangées 4/6/8/10/12,
+les explications sur 5/7/9/11/13 ; le rappel est sur 3. Les blocs de droite,
+la légende médicale et les gestes sélectionnés gardent leurs positions.
+
+HEALTH affiche la santé rapportée au maximum du personnage, arrondie au
+pourcentage entier. La barre de dix cellules arrondit ensuite à la dizaine
+la plus proche. CONDITION utilise le rapport avant cet arrondi pour ses
+cinq mots, de MISERABLE à FANTASTIC, avec transitions autour de 20/40/60/80 %.
+Les calculs flottants natifs peuvent influer sur la valeur exacte d’une
+frontière ; cette présentation ne les modifie pas.
+
+ENERGY affiche une échelle inversée de dette de repos et rappelle REST/SLEEP.
+Une cellule disparaît par tranche entière de 1,5 heure de dette ; la barre
+reste entre zéro et dix cellules. Le nombre vaut dix fois les cellules :
+il donne un niveau sur cette échelle. Une dette nulle ou négative remplit
+la barre. Le mot est GREAT jusqu’à sept heures de dette, OKAY au-delà de
+sept, TIRED au-delà de douze. Plus de seize heures depuis le dernier repos
+impose BEAT et une barre vide, même avec une dette faible.
+
+HUNGER et THIRST suivent respectivement le temps depuis le dernier repas
+et la dernière boisson, avec la même échelle inversée de dix cellules.
+Ils rappellent EAT ou DRINK pour la rafraîchir. Ils ne lisent pas les stocks
+d’OBJECTS et ne représentent pas les déficits nutritionnels ou hydriques
+utilisés ailleurs par la simulation. À six heures, la barre affiche six
+cellules et 60 % ; à douze heures, deux cellules et 20 % ; à quinze heures,
+zéro. Le mot reste OKAY jusqu’à six heures, SO-SO au-delà de six, VERY
+au-delà de douze. Les mots et les cellules ont des seuils distincts :
+60 % peut donc accompagner OKAY puis SO-SO, sans modification de la barre.
+Ces échelles ne prédisent pas un délai avant décès ou une quantité à consommer.
+
+BODY reste une température corporelle en degrés Fahrenheit, avec une
+référence de 98,6 °F. SHIVERING et SWEATING décrivent le mode thermique du
+moteur ; le personnage peut déjà frissonner à 98,6 °F sous l’effet du milieu.
+Leur présence ne remplace pas la température affichée. Les traitements
+médicaux restent dans la partie basse et leurs conseils détaillent les
+conditions natives. Les nouveaux textes n’avancent ni horloge ni simulation.
+
+`tests/test_status_gauges.py` vérifie 49 cas au port joystick : seize
+valeurs de santé et de maximum autour des arrondis et transitions de CONDITION, onze
+cas de repos/dette, neuf valeurs de récence pour chacun de HUNGER et THIRST,
+et quatre combinaisons de température/mode thermique. Les dix cellules,
+pourcentages, mots et légendes sont comparés aux valeurs attendues ;
+consulter les gestes, annuler et rouvrir conserve l’état de partie.
