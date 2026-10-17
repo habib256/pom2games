@@ -7,6 +7,23 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### OBJECTS/EQUIPMENT : variation de poids avant transfert (17 octobre 2026)
+
+- Le dialogue ajoute WT avec le changement de poids transporté : positif
+  au ramassage, négatif au dépôt, zéro pour un déplacement entre PACK,
+  HANDS et vêtements. Il conserve le volume nécessaire et les places
+  restantes ou dépassements simultanés, avant confirmation.
+- Eau : le poids compte les onces transférées une seule fois, avec la
+  gourde dans PACK ou en main. LOWER FOOD utilise le poids agrégé du sac
+  entier. Un débordement de calcul ne produit pas un poids trompeur.
+- La prévisualisation reste sans effet ; accepter exécute le transfert
+  natif, refuser ou annuler préserve stocks et horloge. Les soins, TASTE
+  et USE gardent leurs indications propres, sans prévision de transfert.
+- Validation : `make test-xl`, 32 scripts ; nouveau parcours joystick
+  comparant prévision et charge réelle, vérifiant les dépassements
+  poids/HANDS et poids/PACK, et aperçu de sac suspendu étendu. Contrôles
+  ciblés réussis sur ±40 000 onces et annulation dans EQUIPMENT.
+
 ### OBJECTS/EQUIPMENT : instruments et aide d’orientation (17 octobre 2026)
 
 - USE MAP/COMPASS/WATCH/ALTIMETER/CHART explique le résultat avant

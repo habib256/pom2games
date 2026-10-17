@@ -3018,3 +3018,18 @@ le refus sombre et la perte d’aide boussole/montre après confirmation.
 TREE : `$5800–$5FFC`, trois octets libres ; STATUS et STATX restent pleins.
 DAT : 67 196 bruts / 56 591 stockés, 19 enregistrements ; XL : 380/1600
 blocs, cinq parties. Aucune règle d’orientation ou simulation modifiée.
+
+
+### Variation de poids des transferts (17 octobre 2026)
+
+Le dialogue soustrait les poids `om_total` et `load_used` sur 16 bits,
+avec le signe issu de l’emprunt, puis affiche la magnitude. Ce calcul lit
+uniquement la projection existante, y compris l’agrégat de LOWER. Il est
+omis si `om_bad` signale un débordement. Aucun nouvel état de partie.
+
+Dix libellés de situation/charge rejoignent la banque. `om_bank_puts`
+rejoint STATUS, partagé par ces pages et le dialogue TREE ; STATUS reste
+chargé pendant l’édition. Le calcul de poids est également dans STATUS.
+TREE : `$5800–$5FF9`, six octets libres. STATUS : `$9600–$B0DE`, 33 octets
+avant STATX ; STATX reste plein. DAT : 67 778 bruts / 57 021 stockés,
+19 enregistrements ; XL : 380/1600 blocs, cinq parties. SAVE inchangé.

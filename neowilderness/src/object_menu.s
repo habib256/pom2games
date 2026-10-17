@@ -295,6 +295,7 @@ object_draw:
         jsr     print_u16
         lda     #om_in3_label
         jsr     om_bank_puts
+        jsr     om_weight_change
 @capacity_line:
         jsr     om_cr
         lda     om_bad
@@ -854,9 +855,47 @@ om_quantities:
 @ordinary:
         lda     om_many
         rts
+; Shared bank printer is in STATUS, which stays loaded while the modal runs.
+.pushseg
+.segment "STATUS"
 om_bank_puts:
         jsr     text_fetch
         jmp     print_str_ax
+
+; Signed change in carried ounces, not item weight: internal moves cost 0.
+; LOWER uses the aggregate projection, never the last visited item's weight.
+om_weight_change:
+        lda     om_bad
+        bne     @done
+        lda     #om_weight_label
+        jsr     om_bank_puts
+        sec
+        lda     om_total
+        sbc     load_used
+        sta     num
+        lda     om_total+1
+        sbc     load_used+1
+        sta     num+1
+        bcs     @positive
+        lda     num
+        eor     #$FF
+        clc
+        adc     #1
+        sta     num
+        lda     num+1
+        eor     #$FF
+        adc     #0
+        sta     num+1
+        lda     #'-'|$80
+        bne     @sign
+@positive:
+        lda     #'+'|$80
+@sign:  jsr     COUT
+        jsr     print_u16
+        lda     #om_unit_oz
+        jmp     om_bank_puts
+@done:  rts
+.popseg
 
 ; Exact native prerequisites only; no preparation or simulation during drawing.
 om_requirement:

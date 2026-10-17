@@ -121,8 +121,9 @@ inventory_redraw:
         jmp     @next
 @walk:  dex
         bne     @free
-        jsr     puts            ; the walk: 100 x pounds / (body + 2) slower
-        .byte   "WALK TIME +",0 ; (T08/S07: tools/re_load_probe.py)
+        ; Walk: 100 x INT(ounces/16) / (body + 2), T08/S07.
+        lda     #ob_walk_label
+        jsr     om_bank_puts
         ldx     #4              ; pounds: INT(ounces / 16), as the core's $50A1
 :       lsr     ob_m+1
         ror     ob_m
@@ -142,8 +143,8 @@ inventory_redraw:
         jsr     pdec
         lda     #'%'|$80
         jsr     COUT
-        jsr     puts
-        .byte   " FREE IN3 WEAR ",0
+        lda     #ob_wear_label
+        jsr     om_bank_puts
         lda     #2
         sta     ob_t
         jsr     ob_free

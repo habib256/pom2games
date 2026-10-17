@@ -215,6 +215,10 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
   quantité, poids ajouté, volume nécessaire et place restante après
   transfert ; eau/gourde, sac, vêtements et objets fabriqués compris.
   Aucun changement temporaire de l'état réel pour calculer l'aperçu.
+  Variation de poids WT signée ajoutée (17 octobre) : ramassage, dépôt,
+  mouvements internes à zéro, eau et sac suspendu agrégé ; les prévisions
+  sont comparées aux transferts natifs. Restent la précision des sources
+  PACK/HANDS/WORN et les cas de contenants à compléter.
 - [ ] **OBJECTS — refus à compléter.** Causes précises et cumulées : poids dépassé,
   PACK plein, HANDS pleines, contenant absent, sac suspendu, contenant à
   vider ; afficher besoin/disponible/manque. Réduire la quantité ou choisir
@@ -436,6 +440,9 @@ pages 80 colonnes).
 
 Points de contrôle du lot suivant : compléter l’aperçu des transferts et
 les refus de capacité cumulés avec besoin/disponible/manque.
+Le poids ajouté/retiré est affiché, les changements internes restent à zéro,
+et les dépassements simultanés poids/HANDS ou poids/PACK sont testés au
+joystick (17 octobre).
 Les instruments affichent leurs conditions de lumière, le remplacement
 de boussole/montre et les effets natifs de USE (17 octobre).
 Appât des dispositifs CATCH, lumière des premiers soins, combustible et

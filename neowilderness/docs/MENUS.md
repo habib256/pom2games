@@ -1212,3 +1212,35 @@ cinq instruments, cinq périodes et trois ciels avec aperçu/confirmation/
 annulation sans mutation. Il vérifie les activations, les refus avec perte
 d’aide, la conservation du bâton et du temps, ainsi que USE MAP → TOPO →
 OBJECTS et les indications dans EQUIPMENT, exclusivement au port joystick.
+
+
+## 24. Poids ajouté ou retiré par un transfert (17 octobre 2026, XL)
+
+La ligne de source/destination, quantité et volume nécessaire ajoute
+`WT +n OZ` ou `WT -n OZ`. Il s’agit du changement de poids transporté,
+calculé depuis la projection complète moins la charge actuelle :
+
+- ramasser cinq onces de provisions ou d’eau affiche `WT +5 OZ` ;
+- déposer trois onces affiche `WT -3 OZ` ;
+- déplacer un vêtement entre PACK, HANDS et WORN affiche `WT +0 OZ`.
+
+Zéro ne signifie donc pas que l’objet est sans poids. Le changement de
+volume reste visible avec NEED, puis FREE AFTER pour le poids et les
+volumes PACK, HANDS et vêtements. OVER indique le manque exact de place ;
+les dépassements simultanés ne se masquent pas. Par exemple, prendre la
+couverture au sol peut afficher `WT +45 OZ`, avec OVER pour le poids et
+HANDS OVER pour les mains. La validation conserve le refus natif atomique.
+
+La gourde conserve son volume natif propre : l’eau supplémentaire ajoute
+son poids une fois, dans le compartiment où se trouve la gourde. LOWER
+FOOD montre le poids de tous les contenus récupérés, pas le dernier objet
+parcouru. Si la projection déborde 16 bits, OVERFLOW remplace les chiffres
+non fiables et aucun WT n’est ajouté. L’aperçu et la confirmation
+ne modifient pas provisoirement l’inventaire.
+
+`tests/test_transfer_weight_preview.py` compare la charge projetée à celle
+réellement obtenue par des transferts au joystick, pour provisions, matériel,
+vêtements et eau. Il vérifie l’annulation, l’absence de mutation avant
+confirmation et les refus simultanés poids/HANDS et poids/PACK.
+`tests/test_hung_preview.py` vérifie aussi le poids agrégé et l’absence
+d’indication de poids en cas de débordement du sac suspendu.

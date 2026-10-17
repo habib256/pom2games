@@ -193,11 +193,11 @@ status_care:
         beq     @thermal_done
         cmp     #1
         beq     @sweat
-        jsr     puts
-        .byte   "  SHIVERING", 0
+        lda     #st_shivering_hint
+        jsr     om_bank_puts
         jmp     @thermal_done
-@sweat: jsr     puts
-        .byte   "  SWEATING", 0
+@sweat: lda     #st_sweating_hint
+        jsr     om_bank_puts
 @thermal_done:
         lda     #ST_MED         ; the rest of the left half, down to row 14
         jsr     vtab
@@ -445,31 +445,31 @@ status_care:
         lda     tree_in
         beq     :+
         jsr     st_next
-        jsr     puts
-        .byte   "IN A TREE", 0
+        lda     #st_tree_hint
+        jsr     om_bank_puts
 :       lda     it_place+21
         cmp     #5
         bne     :+
         jsr     st_next
-        jsr     puts
-        .byte   "BACKPACK HUNG", 0
+        lda     #st_hung_hint
+        jsr     om_bank_puts
 :       lda     shelter_inside
         beq     :+
         jsr     st_next
-        jsr     puts
-        .byte   "INSIDE SHELTER", 0
+        lda     #st_inside_hint
+        jsr     om_bank_puts
 :       lda     wet_mode
         cmp     #2
         bne     :+
         jsr     st_next
-        jsr     puts
-        .byte   "IMMERSED", 0
+        lda     #st_immersed_hint
+        jsr     om_bank_puts
 :       lda     st_srow
         cmp     #6
         bne     :+
         jsr     st_next
-        jsr     puts
-        .byte   "IN THE OPEN", 0
+        lda     #st_open_hint
+        jsr     om_bank_puts
 :
         ; CONDITIONS (rows 11-14, under LOCAL; 15 October 2026): dehydration,
         ; starvation, exhaustion under 95 %, hypo- or hyperthermia, two a row
@@ -671,8 +671,8 @@ st_rangers:
         lda     journey_left+1
         sta     num+1
         jsr     print_u16
-        jsr     puts
-        .byte   " CELLS AWAY", 0
+        lda     #st_cells_hint
+        jsr     om_bank_puts
         ldx     #53             ; COMPASS
         jsr     have
         bcc     @situation
