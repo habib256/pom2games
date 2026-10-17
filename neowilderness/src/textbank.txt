@@ -200,3 +200,32 @@ om_need_bait: "BAIT MISSING. CATCH PREPARES BAIT FIRST.",0
 om_bait_ready: "BAIT READY. USE PREPARES TRAP/FISHING.",0
 om_need_light: "LIGHT MISSING. USE FLASHLIGHT FIRST.",0
 om_light_ready: "LIGHT READY. CONFIRM TO APPLY FIRST AID.",0
+om_pack_word: "PACK ",0
+om_hand_word: "CARRY ",0
+om_drop_word: "DROP ",0
+om_wear_word: "WEAR ",0
+om_use_word: "USE ",0
+om_eat_word: "EAT ",0
+om_drink_word: "DRINK ",0
+om_get_word: "GET ",0
+om_lower_word: "LOWER ",0
+om_taste_word: "TASTE ",0
+om_to_pack: "PACK",0
+om_to_hand: "HANDS",0
+om_to_worn: "WORN",0
+om_to_use: "USE",0
+om_to_body: "BODY",0
+om_to_can: "CANTEEN",0
+om_to_sense: "SENSES",0
+om_fuel_inactive: "FUEL INACTIVE. USE FUEL FIRST.",0
+om_no_ignition: "NO IGNITION. USE MATCHES OR USE FIRE.",0
+om_stove_ready: "READY. SET DOWN STOVE / 30 MIN.",0
+om_stove_already_down: "READY. STOVE ALREADY DOWN / 0 MIN.",0
+om_fuel_ready: "FUEL AVAILABLE. USE ACTIVATES ONE OZ.",0
+om_fuel_empty: "NO USABLE FUEL LEFT.",0
+om_matches_inside: "CAUTION: USING MATCHES INSIDE SHELTER.",0
+om_matches_water: "IN WATER. MOVE TO LAND FIRST.",0
+om_matches_rain: "RAIN. ACTIVATE FUEL FIRST.",0
+om_matches_wind: "WIND >=41 MPH. ACTIVATE FUEL FIRST.",0
+om_matches_ready: "MATCHES READY. USE THEN MAKE FIRE.",0
+om_matches_empty: "NO MATCHES LEFT. FIND ANOTHER IGNITION.",0

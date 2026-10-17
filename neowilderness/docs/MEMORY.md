@@ -2965,3 +2965,22 @@ le nom de commande reste protégé dans le scratch modal existant.
 TREE : `$5800–$5FFC`, 3 octets libres. DAT : 65 679 bruts / 56 174 stockés,
 19 enregistrements ; XL reste à 379/1600 blocs avec cinq parties. Aucun
 octet résident, nouvel état de partie ou changement de SAVE.
+
+### Réchaud et météo des allumettes (17 octobre 2026)
+
+Les verbes et destinations du dialogue deviennent des identifiants de
+banque ; `object_commit` récupère le verbe avant de composer sa commande
+depuis la copie de nom protégée dans `overlay_text`. Les quantités utilisent
+la table `pow10` résidente avec un indice décroissant ; aucune nouvelle
+table numérique ni aucun nouvel état n’est ajouté. Le garde de la file
+emploie l’entrée de page sans drapeaux, comme le faisait l’ancienne entrée
+CARRY, puis retourne à la page sélectionnée.
+
+`inventory_here` partage la requête native de case entre le règlement de
+l’inventaire et l’aperçu météo ; l’aperçu préserve `geo_wooded` et
+`geo_water_kind`. Les conditions relisent `camp_use`, `fire_near`, la
+météo, la position et les stocks, sans charger SIM ni préparer du matériel.
+
+TREE : `$5800–$5FDF`, 32 octets libres. STATUS : `$9600–$B0FF`, zéro octet
+avant STATX ; les autres marges restent inchangées. DAT : 66 367 bruts /
+56 318 stockés, 19 enregistrements ; XL : 379/1600 blocs, cinq parties.

@@ -9,8 +9,8 @@ from test_joystick_journey import (
 from test_save import differing, DERIVED_BYTES
 
 
-def choose_use(s, item):
-    object_item(s, 1, item)
+def choose_use(s, item, side=1):
+    object_item(s, side, item)
     event(s, 'ok')
     for _ in range(8):
         if byte(s, 'om_action') == 4:
@@ -19,8 +19,8 @@ def choose_use(s, item):
     assert byte(s, 'om_action') == 4
 
 
-def preview(s, item, expected):
-    choose_use(s, item)
+def preview(s, item, expected, side=1):
+    choose_use(s, item, side)
     before = saved_state(s)
     assert expected in rows(s)[22], rows(s)[22]
     event(s, 'up')

@@ -45,14 +45,10 @@ object_menu:
         sta     menu_noun
         lda     #$10
         sta     om_mask
-        lda     #<om_lower
-        sta     om_words_lo+4
-        lda     #>om_lower
-        sta     om_words_hi+4
-        lda     #<om_t_restore
-        sta     om_to_lo+4
-        lda     #>om_t_restore
-        sta     om_to_hi+4
+        lda     #om_lower_word
+        sta     om_words+4
+        lda     #om_carried_label
+        sta     om_to+4
         jmp     @valid_mask
 @normal:ldx     menu_noun
         lda     #$17            ; PACK, HANDS, DROP, USE
@@ -72,14 +68,10 @@ object_menu:
         bne     @mask
         lda     #5              ; HIDE: PACK or DROP
         bne     @many
-@food:  lda     #<om_taste
-        sta     om_words_lo+6
-        lda     #>om_taste
-        sta     om_words_hi+6
-        lda     #<om_t_sense
-        sta     om_to_lo+6
-        lda     #>om_t_sense
-        sta     om_to_hi+6
+@food:  lda     #om_taste_word
+        sta     om_words+6
+        lda     #om_to_sense
+        sta     om_to+6
         lda     #$65             ; PACK, DROP, EAT, TASTE
 @many:  inc     om_many
         bne     @mask
@@ -189,9 +181,8 @@ object_draw:
         lda     #om_action_label
         jsr     om_bank_puts
         ldx     om_action
-        lda     om_words_lo,x
-        ldy     om_words_hi,x
-        jsr     print_str_ay
+        lda     om_words,x
+        jsr     om_bank_puts
         ldx     om_name
 @name:  lda     om_line,x
         beq     @source
@@ -214,9 +205,8 @@ object_draw:
         lda     #om_to_label
         jsr     om_bank_puts
         ldx     om_action
-        lda     om_to_lo,x
-        ldy     om_to_hi,x
-        jsr     print_str_ay
+        lda     om_to,x
+        jsr     om_bank_puts
         lda     om_action
         cmp     #7
         bne     @qty_text
@@ -228,9 +218,8 @@ object_draw:
         beq     @can_side
         inx
 @can_side:
-        lda     om_to_lo,x
-        ldy     om_to_hi,x
-        jsr     print_str_ay
+        lda     om_to,x
+        jsr     om_bank_puts
 @qty_text:
         lda     om_line
         cmp     #'L'
@@ -747,10 +736,10 @@ om_v: .word 0
 .segment "STATUS"
 object_commit:
         ldx     om_action
-        lda     om_words_lo,x
+        lda     om_words,x
+        jsr     text_fetch
         sta     gp2
-        lda     om_words_hi,x
-        sta     gp2+1
+        stx     gp2+1
         ldy     #0
 @verb:  lda     (gp2),y
         beq     @name
@@ -775,16 +764,17 @@ object_commit:
         sta     num
         lda     om_qty+1
         sta     num+1
-        ldx     #0
-        stx     om_started
+        lda     #0
+        sta     om_started
+        ldx     #8
 @digit: lda     #'0'
         sta     om_digit
 @sub:   sec
         lda     num
-        sbc     om_tens,x
+        sbc     pow10,x
         tay
         lda     num+1
-        sbc     om_tens+1,x
+        sbc     pow10+1,x
         bcc     @emit
         sta     num+1
         sty     num
@@ -795,28 +785,26 @@ object_commit:
         bne     :+
         ldy     om_started
         bne     :+
-        cpx     #8
+        cpx     #0
         bne     @next
 :       inc     om_started
         ldy     om_out
         sta     inbuf,y
         inc     om_out
-@next:  inx
-        inx
-        cpx     #10
-        bcc     @digit
+@next:  dex
+        dex
+        bpl     @digit
         ldy     om_out
 @end:   lda     #0
         sta     inbuf,y
         sty     linelen
-        lda     #S_CARRY
-        sta     mq_list
         lda     #S_OBJECTS
         ldx     pg_cur
         cpx     #PG_EQUIPMENT
         bne     :+
         lda     #S_EQUIPMENT
-:       sta     mq_list+1
+:       sta     mq_list         ; previous-step guard: both page entries have flags 0
+        sta     mq_list+1
         lda     #2
         sta     mq_n
         lsr     a
@@ -831,20 +819,10 @@ object_commit:
         sta     shown
         jmp     obj_type
 .popseg
-om_words_lo: .byte <om_pack,<om_hand,<om_drop,<om_wear,<om_use,<om_eat,<om_drink,<om_get
-om_words_hi: .byte >om_pack,>om_hand,>om_drop,>om_wear,>om_use,>om_eat,>om_drink,>om_get
-om_pack: .byte "PACK ",0
-om_hand: .byte "CARRY ",0
-om_drop: .byte "DROP ",0
-om_wear: .byte "WEAR ",0
-om_use: .byte "USE ",0
-om_eat: .byte "EAT ",0
-om_drink: .byte "DRINK ",0
-om_get: .byte "GET ",0
+om_words: .byte om_pack_word,om_hand_word,om_drop_word,om_wear_word,om_use_word,om_eat_word,om_drink_word,om_get_word
 om_bits: .byte 1,2,4,8,16,32,64,128
 om_place_masks: .byte $FF,$F7,$FE,$FD
 om_help_ids: .byte om_h0,om_h1,om_h2
-om_tens: .word 10000,1000,100,10,1
 om_phase: .byte 0
 om_action: .byte 0
 om_many: .byte 0
@@ -859,25 +837,11 @@ om_bad: .byte 0
 
 om_side: .byte 0
 
-om_to_lo: .byte <om_t_pack,<om_t_hand,<om_t_local,<om_t_worn,<om_t_use,<om_t_body,<om_t_body,<om_t_can
-om_to_hi: .byte >om_t_pack,>om_t_hand,>om_t_local,>om_t_worn,>om_t_use,>om_t_body,>om_t_body,>om_t_can
-om_t_pack: .byte "PACK",0
-om_t_hand: .byte "HANDS",0
-om_t_local: .byte "LOCAL",0
-om_t_worn: .byte "WORN",0
-om_t_use: .byte "USE",0
-om_t_body: .byte "BODY",0
-om_t_can: .byte "CANTEEN",0
+om_to: .byte om_to_pack,om_to_hand,om_local_label,om_to_worn,om_to_use,om_to_body,om_to_body,om_to_can
 
 om_usable: .byte 9,11,12,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,66,67,71,72,73
 om_usable_end:
 
-om_lower: .byte "LOWER ",0
-
-om_t_restore: .byte "CARRIED",0
-
-om_taste: .byte "TASTE ",0
-om_t_sense: .byte "SENSES",0
 ; TASTE is a native inspection: no amount, no ounce, no consumption.
 om_quantities:
         lda     om_action
@@ -901,6 +865,12 @@ om_requirement:
         cmp     #4
         bne     @none
         ldx     menu_noun
+        cpx     #71
+        beq     @stove
+        cpx     #40
+        jeq     @stock
+        cpx     #38
+        beq     @matches
         cpx     #67
         beq     @bait
         cpx     #72
@@ -921,4 +891,74 @@ om_requirement:
         lda     #om_need_bait
         rts
 @none:  lda     #0
+        rts
+@stove:
+        lda     camp_use
+        and     #U_FUEL
+        beq     @fuel_inactive
+        lda     fire_near
+        bne     @ignited
+        lda     camp_use
+        and     #U_MATCH
+        beq     @no_ignition
+@ignited:
+        lda     it_place+71
+        beq     @stove_down
+        lda     #om_stove_ready
+        rts
+@stove_down:
+        lda     #om_stove_already_down
+        rts
+@fuel_inactive:
+        lda     #om_fuel_inactive
+        rts
+@no_ignition:
+        lda     #om_no_ignition
+        rts
+@matches:
+        lda     shelter_inside
+        beq     @outside
+        lda     #om_matches_inside
+        rts
+@outside:
+        lda     geo_wooded
+        pha
+        lda     geo_water_kind
+        pha
+        jsr     inventory_here
+        tax
+        pla
+        sta     geo_water_kind
+        pla
+        sta     geo_wooded
+        txa
+        bmi     @water
+        jsr     camp_storm
+        bcc     @stock
+        lda     camp_use
+        and     #U_FUEL
+        bne     @stock
+        lda     weather_sky
+        cmp     #2
+        beq     @rain
+        lda     #om_matches_wind
+        rts
+@rain:  lda     #om_matches_rain
+        rts
+@water: lda     #om_matches_water
+        rts
+@stock: ldx     menu_noun
+        lda     it_pack_hi,x
+        bmi     @empty
+        ora     it_pack_lo,x
+        beq     @empty
+        lda     #om_fuel_ready
+        cpx     #38
+        bne     @return
+        lda     #om_matches_ready
+@return:rts
+@empty: lda     #om_fuel_empty
+        cpx     #38
+        bne     @return
+        lda     #om_matches_empty
         rts

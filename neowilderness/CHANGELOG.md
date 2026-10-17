@@ -7,6 +7,24 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### OBJECTS/EQUIPMENT : préparation du réchaud et des allumettes (17 octobre 2026)
+
+- USE STOVE distingue combustible inactif, allumage absent et dispositif
+  prêt ; un feu simplement allumé ne remplace pas USE FIRE. La mise en
+  place annonce 30 minutes si le réchaud est transporté, zéro s’il est posé.
+- USE MATCHES annonce l’eau, la pluie, le vent d’au moins 41 mph sans
+  combustible activé et les allumettes épuisées ; l’usage dans un abri
+  reste un avertissement natif, sans interdiction supplémentaire.
+- USE FUEL indique le combustible disponible ou épuisé ; la prévisualisation
+  ne consomme rien. La séquence au joystick USE FUEL → USE MATCHES →
+  USE STOVE est vérifiée avec ses stocks, positions et durées natives.
+- Verbes et destinations du dialogue déplacés dans la banque de textes,
+  table décimale résidente réutilisée et requête de case partagée pour
+  dégager la place du contrôle sans nouvel état résident ou sauvegardé.
+- Validation : `make test-xl`, 29 scripts réussis, et `tests/test_camp.py`
+  réussi. Contrôles ciblés EQUIPMENT et transfert réel de 257 onces réussis ;
+  parcours complet au joystick et 163 variables de référence conservés.
+
 ### OBJECTS/EQUIPMENT : prérequis de USE avant confirmation (17 octobre 2026)
 
 - USE TRAP/FISHNG GEAR affiche l’appât manquant ou prêt, et rappelle que
