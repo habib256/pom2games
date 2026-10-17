@@ -2984,3 +2984,17 @@ météo, la position et les stocks, sans charger SIM ni préparer du matériel.
 TREE : `$5800–$5FDF`, 32 octets libres. STATUS : `$9600–$B0FF`, zéro octet
 avant STATX ; les autres marges restent inchangées. DAT : 66 367 bruts /
 56 318 stockés, 19 enregistrements ; XL : 379/1600 blocs, cinq parties.
+
+
+### Prévisualisation de la lampe et de la loupe (17 octobre 2026)
+
+Les derniers fragments d’unités et de jauges du dialogue rejoignent la
+banque pour financer les contrôles. FLASHLIGHT partage le contrôle de
+stock signé de FUEL/MATCHES. MAGNF GLASS lit l’abri, la nuit et le ciel,
+puis rappelle le seuil solaire exact sans calculer une position ni utiliser
+le cache arrondi. Le retour du contrôle restaure les indicateurs Z/N depuis
+l’identifiant de texte, indépendamment des comparaisons d’objet.
+
+TREE : `$5800–$5FFF`, zéro octet libre. STATUS reste `$9600–$B0FF`, plein
+avant STATX. DAT : 66 813 bruts / 56 407 stockés, 19 enregistrements ;
+XL : 379/1600 blocs, cinq parties. Aucun nouvel état résident ou sauvegardé.

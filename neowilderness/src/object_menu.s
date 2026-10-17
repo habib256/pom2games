@@ -238,8 +238,8 @@ object_draw:
         lda     om_qty+1
         sta     num+1
         jsr     print_u16
-        jsr     puts
-        .byte   " OZ",0
+        lda     #om_unit_oz
+        jsr     om_bank_puts
         jmp     @preview
 @single:
         lda     om_many
@@ -268,16 +268,16 @@ object_draw:
         sta     num
 :       sta     num+1
         jsr     print_u16
-        jsr     puts
-        .byte " / ",0
+        lda     #om_separator
+        jsr     om_bank_puts
         ldx     menu_noun
         lda     care_use_minutes-41,x
         sta     num
         lda     #0
         sta     num+1
         jsr     print_u16
-        jsr     puts
-        .byte " MIN",0
+        lda     #om_unit_min
+        jsr     om_bank_puts
         jmp     @preview
 @object:lda     #om_object_label
         jsr     om_bank_puts
@@ -327,8 +327,8 @@ object_draw:
 @can_free:
         sta     num
         jsr     print_u16
-        jsr     puts
-        .byte   " OZ ",0
+        lda     #om_unit_oz_space
+        jsr     om_bank_puts
 @forecast:
         lda     om_line
         cmp     #'L'
@@ -354,8 +354,8 @@ object_draw:
         jsr     om_bank_puts
         ldy     #6
         jsr     om_free
-        jsr     puts
-        .byte   " WEAR ",0
+        lda     #om_wear_free
+        jsr     om_bank_puts
         ldy     #2
         jsr     om_free
         lda     #om_in3_label
@@ -526,8 +526,8 @@ om_free:
         eor     #$FF
         adc     #0
         sta     num+1
-        jsr     puts
-        .byte   "OVER ",0
+        lda     #om_over
+        jsr     om_bank_puts
 :       jmp     print_u16
 
 om_project:
@@ -867,6 +867,10 @@ om_requirement:
         ldx     menu_noun
         cpx     #71
         beq     @stove
+        cpx     #66
+        jeq     @stock
+        cpx     #39
+        jeq     @glass
         cpx     #40
         jeq     @stock
         cpx     #38
@@ -947,17 +951,36 @@ om_requirement:
         rts
 @water: lda     #om_matches_water
         rts
+@glass:
+        lda     #om_glass_outside
+        ldx     shelter_inside
+        bne     @return
+        lda     #om_glass_day
+        ldx     night
+        bne     @return
+        lda     #om_glass_clear
+        ldx     weather_sky
+        bne     @return
+        lda     #om_glass_sun
+        rts
 @stock: ldx     menu_noun
         lda     it_pack_hi,x
         bmi     @empty
         ora     it_pack_lo,x
         beq     @empty
+        lda     #om_flash_ready
+        cpx     #66
+        beq     @return
         lda     #om_fuel_ready
         cpx     #38
         bne     @return
         lda     #om_matches_ready
-@return:rts
-@empty: lda     #om_fuel_empty
+@return:tax                     ; callers branch on the returned text ID
+        rts
+@empty: lda     #om_flash_empty
+        cpx     #66
+        beq     @return
+        lda     #om_fuel_empty
         cpx     #38
         bne     @return
         lda     #om_matches_empty
