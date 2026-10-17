@@ -511,9 +511,7 @@ care_use_minutes: .byte 30,30,0,0,0,30,0,0,15,0,0
 ; med_foot -- row 23: the gestures of the focused condition (the chosen one,
 ; pg_g, in inverse), then "ESC: VIEW"; pg_gn = their count.
 med_foot:
-        XL_JMP  XI_MEDVIEW, med_foot_x, @x40  ; (XL: the footer of the pages)
-        lda     #23
-        jsr     vtab
+        jmp     med_foot_x       ; active XL edition
 med_foot_gest = *
         jsr     med_gest_at
         ldx     #0
@@ -572,9 +570,18 @@ med_gest_at:
 ; med_word -- A = gesture (1..), or MG_KNIFE..MG_FLASH: A/Y = its text.
 med_word:
         tax
-        lda     mg_lo-1,x
-        ldy     mg_hi-1,x
-        rts
+        lda     mg_offset-1,x
+        pha
+        lda     mg_bank-1,x
+med_bank_word:
+        jsr     text_fetch
+        pla
+        clc
+        adc     #<tb_buf
+        ldy     #>tb_buf
+        bcc     :+
+        iny
+:       rts
 
 ; med_run -- RETURN: the gesture typed (pages.s pg_type); CUT BODY without a
 ; blade in use, the FRSTAID KIT in the dark: USE KNIFE (AXE) or USE
@@ -654,41 +661,22 @@ med_gest:
         .byte   5, 0, 0         ; FOOD POISONING: DRINK WATER
         .byte   15, 0, 0        ; GIARDIA: USE FLAGYL
         .byte   16, 0, 0        ; MALARIA: USE QUININE
-mg_lo:  .byte   <mg_1, <mg_2, <mg_3, <mg_4, <mg_5, <mg_6, <mg_7, <mg_8
-        .byte   <mg_9, <mg_10, <mg_11, <mg_12, <mg_13, <mg_14, <mg_15, <mg_16
-        .byte   <mg_knife, <mg_axe, <mg_flash
-mg_hi:  .byte   >mg_1, >mg_2, >mg_3, >mg_4, >mg_5, >mg_6, >mg_7, >mg_8
-        .byte   >mg_9, >mg_10, >mg_11, >mg_12, >mg_13, >mg_14, >mg_15, >mg_16
-        .byte   >mg_knife, >mg_axe, >mg_flash
-mg_1:     .byte "STOP BLEEDING", 0
-mg_2:     .byte "USE PRESSURE", 0
-mg_3:     .byte "USE SPLINT", 0
-mg_4:     .byte "LOWER HEAD", 0
-mg_5:     .byte "DRINK WATER", 0
-mg_6:     .byte "WET BODY", 0
-mg_7:     .byte "USE SUNGLASSES", 0
-mg_8:     .byte "SHIELD EYES", 0
-mg_9:     .byte "USE FIRE", 0
-mg_10:    .byte "USE SNAKEBT KIT", 0
-mg_11:    .byte "CUT BODY", 0
-mg_12:    .byte "SUCK VENOM", 0
-mg_13:    .byte "USE FRSTAID KIT", 0
-mg_14:    .byte "USE SALT TAB", 0
-mg_15:    .byte "USE FLAGYL", 0
-mg_16:    .byte "USE QUININE", 0
-mg_knife: .byte "USE KNIFE", 0
-mg_axe:   .byte "USE AXE", 0
-mg_flash: .byte "USE FLASHLIGHT", 0
+mg_bank: .byte pg_med_a,pg_med_a,pg_med_a,pg_med_b,pg_med_b,om_need_light,om_need_light,om_need_light,om_need_light,om_need_light,om_need_light,om_need_light,om_light_ready,om_light_ready,om_light_ready,om_light_ready,om_light_ready,pg_med_a,om_light_ready
+mg_offset: .byte 72,86,99,87,98,37,46,61,73,82,98,107,41,57,70,81,93,110,103
+med_hint_bank: .byte om_doses_label,om_doses_label,om_doses_label,om_can_free,om_can_free,om_can_free,om_can_free,om_can_free,om_can_free,om_can_free,om_sample,om_sample,om_sample,om_can_free,om_can_free,om_can_free
+med_hint_offset: .byte 80,80,95,10,28,42,64,78,99,64,22,52,73,64,64,64
+.pushseg
+.segment "STATUS"
+med_times: .byte 30,30,30,0,0,0,0,0,0,30,0,15,30,0,0,0
+.popseg
 
 ; NeoWildernessXL footer: resident prefix, then the gestures in MEDVIEW.
 ; MEDVX now holds the OBJECTS legend at $5FE0.
 .segment "GCODE"
 med_foot_x:
-        lda     #22
+        jsr     med_preview
+        lda     #23
         jsr     vtab
-        lda     #MT_LINE
-        ldy     #80             ; (the 80th wraps to row 23)
-        jsr     mt_rep
         jmp     med_foot_prefix
 .segment "TEXT"
 med_foot_prefix:
@@ -696,3 +684,71 @@ med_foot_prefix:
         .byte   " ", MS_LEFT, MS_RIGHT, " ", 0
         jmp     med_foot_gest
 .segment "MEDVIEW"
+
+; Informational only: no care flags, inventory, clock or RNG writes.
+med_preview:
+        lda     #22
+        jsr     vtab
+        jsr     med_gest_at
+        tya
+        clc
+        adc     pg_g
+        tay
+        lda     med_gest,y
+        sta     med_selected
+        tax
+        lda     med_times-1,x
+        jsr     pdec
+        jsr     puts
+        .byte   " MIN; ",0
+        ldx     med_selected
+        jsr     med_hint_word
+        jsr     print_str_ay
+        ldx     med_selected
+        lda     med_items-1,x
+        beq     @done
+        tax
+        stx     med_item
+        jsr     have
+        bcs     @here
+        jsr     puts
+        .byte   "; NOT HERE",0
+        rts
+@here:  jsr     puts
+        .byte   "; HERE",0
+        ldx     med_item
+        cpx     #43             ; sunglasses have no dose counter
+        beq     @done
+        jsr     puts
+        .byte   "; DOSES ",0
+        ldx     med_item
+        lda     it_pack_lo,x
+        sta     num
+        lda     it_pack_hi,x
+        bpl     :+
+        lda     #0
+        sta     num
+:       sta     num+1
+        jsr     print_u16
+        lda     med_selected
+        cmp     #MG_KIT
+        bne     @done
+        lda     light
+        beq     @dark
+        jsr     puts
+        .byte   "; LIT",0
+        rts
+@dark:  jsr     puts
+        .byte   "; DARK",0
+@done:  rts
+med_items: .byte 0,0,0,0,0,0,43,0,0,42,0,0,41,48,47,50
+med_selected = overlay_text+72
+med_item = overlay_text+73
+.pushseg
+.segment "STATUS"
+med_hint_word:
+        lda     med_hint_offset-1,x
+        pha
+        lda     med_hint_bank-1,x
+        jmp     med_bank_word
+.popseg

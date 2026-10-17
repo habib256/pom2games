@@ -1373,3 +1373,44 @@ les grands nombres, les mouvements internes, dépôts, surcharges préexistantes
 annulations et dépassements arithmétiques. Le test de variation de poids
 rejoue aussi ce cycle depuis EQUIPMENT. Les quatorze noms médicaux et les
 quatre descriptions OPTIONS sont comparés à leur texte attendu.
+
+## 29. STATUS : états et aperçu du geste de soin (17 octobre 2026, XL)
+
+La légende MEDICAL reste sur la rangée 15 avec ses trois marques : ACTIVE:
+NEEDS CARE signifie affection active à soigner ; TREATED: CARE GIVEN signifie
+soin reconnu par le moteur, sans guérison immédiate ; PROTECTED: PREVENTION
+signifie prévention de cette affection selon ses conditions natives.
+Le pourcentage reste la gravité affichée, non un compte à rebours de guérison.
+Une affection active et traitée garde sa marque TREATED ; les priorités natives
+de présentation des marques restent inchangées.
+
+Quand le focus atteint une affection, la rangée 22 remplace le séparateur par
+l’aperçu du geste sélectionné : minutes natives, conditions nécessaires et,
+pour les lunettes ou médicaments, disponibilité HERE/NOT HERE. Les doses
+médicales positives sont affichées sur 16 bits ; zéro ou un compteur signé
+négatif donne DOSES 0. Les kits vides peuvent conserver leurs effets natifs :
+cette indication ne bloque pas leur usage. Les premiers secours ajoutent
+LIT ou DARK, et rappellent la lampe si nécessaire.
+
+Les rappels indiquent notamment SPLINT REQUIRED, WATER OZ NEXT, FIRE NEEDED,
+la préparation KNIFE/AXE de CUT BODY et la nécessité d’une morsure active
+pour SUCK VENOM. Les autres prérequis ne sont pas tous calculés dynamiquement :
+le rappel de l’attelle, du feu, de la lame ou de l’eau ne certifie pas leur
+disponibilité. HERE suit le test natif d’accès à l’objet, y compris au sol
+sur la bonne case, et exclut un objet suspendu ou absent.
+
+La rangée 23 conserve la liste des gestes, le geste sélectionné en inverse
+et ESC VIEW. Gauche/droite change de geste, haut/bas d’affection ; consulter
+et annuler ne dépensent rien et ne modifient ni stocks, ni temps, ni RNG.
+Retour exécute la commande native, avec les préparations existantes de lampe
+ou lame. DRINK WATER et WET BODY gardent leurs choix de quantité natifs.
+USE FIRE affiche 0 MIN : les pas de santé de 15 minutes ne sont pas une
+durée dépensée par cette commande. Le retour automatique au même soin après
+action reste au TODO ; l’action revient encore à la vue.
+
+`tests/test_status_care_preview.py` parcourt les 19 choix des treize
+affections au port joystick. Il compare les durées, les conseils, la présence,
+les doses et la lumière, avec conservation de l’état pendant la navigation.
+Il exécute les premiers secours en lumière et après préparation de lampe,
+ainsi que les usages de kits à zéro ou compteur négatif. Les tests de focus
+gardent le contrôle des marques, sélections et écritures différentielles.

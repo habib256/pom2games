@@ -242,6 +242,13 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
   natives qui n’appliquent pas le même modèle de charge.
 - [ ] **STATUS.** Expliciter jauges et états ACTIVE/TREATED/PROTECTED ;
   prérequis et temps du soin sélectionné ; retour au soin après action.
+  Légende des trois états explicitée et durée native affichée pour les
+  19 choix de soin ; conditions du geste, présence des lunettes/médicaments,
+  doses et lumière des premiers secours visibles (17 octobre). Navigation
+  sans mutation et usages natifs des kits vides vérifiés au joystick.
+  Restent le retour au même soin après action, l’explication détaillée des
+  jauges et la vérification dynamique des autres prérequis (attelle, feu,
+  lame et sources d’eau) au-delà du rappel de leur nécessité.
 - [ ] **CRAFT.** Après fabrication : prendre/utiliser/entrer ou revenir aux
   recettes ; distinguer outil disponible et en usage ; annoncer le coût
   temporel et l'heure de fin estimée des travaux longs ; rendre le lien
@@ -453,8 +460,10 @@ au seuil de 5 %) ; « tout est encore non commité » ; fenêtres DHGR à la
 place des écrans 40 colonnes (étapes 3-4 de MENUS.md, remplacées par les
 pages 80 colonnes).
 
-Points de contrôle du lot suivant : STATUS, sens des états et prérequis des
-soins, puis enchaînements CRAFT/CATCH. Les refus de capacité cumulés et
+Points de contrôle du lot suivant : STATUS, retour au même soin après action,
+jauges et prérequis dynamiques restants, puis enchaînements CRAFT/CATCH.
+Le sens des trois états, la durée et les conditions des gestes sont affichés
+(17 octobre). Les refus de capacité cumulés et
 leurs chiffres besoin/disponible/manque sont réalisés (17 octobre). Le choix
 explicite FIT est réalisé pour les provisions locales du premier jeu et
 GET WATER ; examiner les autres classes de transfert. Sources précises, prérequis GET WATER,

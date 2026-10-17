@@ -523,9 +523,7 @@ status_care:
         lda     #' '|$80
         jsr     COUT
         ldx     st_i
-        lda     st_care_lo,x
-        ldy     #>st_care
-        jsr     print_str_ay
+        jsr     st_care_text
         ldx     st_i
         inx
         cpx     #3
@@ -651,12 +649,8 @@ med_cell:
 st_marks: .byte $18, '+'|$80, '*'|$80
         XL_BYTE XI_STATUS, st_marks+1, MT_CHECK
         XL_BYTE XI_STATUS, st_marks+2, MT_DIAMOND
-st_care_lo: .byte <st_c_act, <st_c_trt, <st_c_prt
-st_care:
-st_c_act: .byte "ACTIVE", 0
-st_c_trt: .byte "TREATED", 0
-st_c_prt: .byte "PROTECTED", 0
-.assert >st_c_prt = >st_care, error, "st_care: one page"
+st_care_ids: .byte om_doses_label,om_doses_label,om_doses_label
+st_care_offsets: .byte 19,38,58
 st_col: .byte 0
 st_cx:   .byte 0
 
@@ -1084,6 +1078,11 @@ st_bank_suffix:
         bcc     :+
         inx
 :       jmp     print_str_ax
+st_care_text:
+        lda     st_care_offsets,x
+        pha
+        lda     st_care_ids,x
+        jmp     st_bank_suffix
 med_name_text:
         lda     med_name_offsets,x
         pha

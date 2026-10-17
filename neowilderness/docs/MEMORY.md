@@ -3136,3 +3136,28 @@ TREE : `$5800–$5FFE`, un octet libre ; STATUS : `$9600–$B0F6`, neuf libres ;
 STATX : `$B100–$B5FB`, quatre libres. TEXT : `$0A00–$0FFC`, trois libres ;
 HICODE : `$BE00–$BEFE`, un libre. DAT : 67 745 bruts / 57 550 stockés,
 19 enregistrements ; XL : 381/1600 blocs, cinq parties.
+
+### Aperçu des soins STATUS (17 octobre 2026)
+
+Les dix-neuf commandes médicales passent de chaînes locales MEDVIEW à des
+suffixes bankés. Le lecteur retourne le pointeur A/Y dans `tb_buf` avant que
+le geste soit imprimé ou copié dans `inbuf`. Les nouveaux conseils et la
+légende partagent également des entrées à NUL internes déjà existantes ;
+leur premier texte reste identique pour les anciens appelants. La banque
+reste à 255 ID publics et 32 mots, avec des enregistrements de 118 octets
+au plus. Les conseils répétés sont partagés pour limiter le stock auxiliaire.
+
+Le lecteur des conseils et les seize durées résident dans STATUS ; le
+formateur de rangée 22 reste dans MEDVIEW. `overlay_text+72..73` sert
+uniquement au geste et à l’objet en cours de consultation. La lecture des
+stocks, positions et lumière n’applique aucun soin. Les commandes natives
+et leurs durées ne sont pas modifiées. Le pied de page XL n’utilise plus
+son détour historique de l’édition texte retirée.
+
+MEDVIEW : `$5800–$5FD8`, sept octets avant la queue MEDVX de `$5FE0` ;
+STATUS : `$9600–$B0FF`, plein ; STATX : `$B100–$B5FB`, quatre libres.
+TREE : `$5800–$5FFE`, un libre ; TEXT : `$0A00–$0FFC`, trois libres ;
+HICODE : `$BE00–$BEFE`, un libre. GCODE finit à `$51AA`, GDATA à `$5753`.
+DAT : 68 132 bruts / 57 458 stockés, 19 enregistrements ; XL : 381/1600
+blocs, cinq parties. Les marges des régions auxiliaires restent vérifiées
+par la construction des six paquets et leurs tests de chargement.
