@@ -178,6 +178,7 @@ test-xl: all $(A2SHOT)
 	$(PYTHON) tests/test_transfer_sources.py
 	$(PYTHON) tests/test_container_requirements.py
 	$(PYTHON) tests/test_object_care.py
+	$(PYTHON) tests/test_status_care_preview.py
 	$(PYTHON) tests/test_object_taste.py
 	$(PYTHON) tests/test_hung_preview.py
 	$(PYTHON) tests/test_equipment.py

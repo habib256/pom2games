@@ -218,10 +218,10 @@ def medical():
         assert raw_cell(mem, 16, 23) == raw_cell(mem, 18, 50) == 0x18, 'ACTIVE: an inverse X'
         assert s.step(L.peek('pg_focus')).data[0] == 1 and inverse(mem, 16) == list(range(1, 12)) + [23], inverse(mem, 16)
         assert rows[23].startswith(' \u2190\u2192 STOP BLEEDING  USE PRESSURE') and inverse(mem, 23) == list(range(4, 17)) \
-            and rows[23][70:].rstrip() == 'ESC VIEW' and rows[22] == '\u2500' * 80, rows[22:]
+            and rows[23][70:].rstrip() == 'ESC VIEW' and '30 MIN; NO ITEM NEEDED' in rows[22], rows[22:]
         assert writes == changes, (writes, changes)
         rows, writes, changes, mem = key('\\>')
-        assert inverse(mem, 23) == list(range(19, 31)) and writes == changes == 25, (inverse(mem, 23), writes, changes)
+        assert inverse(mem, 23) == list(range(19, 31)) and writes == changes, (inverse(mem, 23), writes, changes)
         rows, writes, changes, mem = key('\\v')            # POISON BITE: three gestures, the first
         assert inverse(mem, 16) == [23] and inverse(mem, 18) == list(range(27, 38)) + [50] and rows[23].startswith(
             ' \u2190\u2192 USE SNAKEBT KIT  CUT BODY  SUCK VENOM') and inverse(mem, 23) == list(range(4, 19)), rows[23]

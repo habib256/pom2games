@@ -7,6 +7,22 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### STATUS : sens des états et aperçu du soin (17 octobre 2026)
+
+- La légende MEDICAL explicite ACTIVE: NEEDS CARE, TREATED: CARE GIVEN et
+  PROTECTED: PREVENTION, en conservant les marques et les colonnes.
+- Avec une affection sélectionnée, la rangée 22 affiche la durée native du
+  geste choisi et ses conditions : attelle, eau, feu, lunettes, lame ou
+  lumière. La rangée 23 conserve tous les gestes et leur sélection inverse.
+- Les lunettes et médicaments indiquent HERE/NOT HERE ; les médicaments
+  affichent les doses restantes, les premiers secours LIT/DARK. Zéro dose
+  reste informatif : les effets natifs des kits vides ne sont pas bloqués.
+- Les gestes et conseils partagent les entrées existantes de la banque de
+  textes, sans nouvel ID public. Navigation et annulation n’altèrent pas la
+  partie ; les commandes et la préparation lampe/lame restent natives.
+- Validation : 38 scripts XL ; 19 choix de soin au port joystick, durées,
+  doses signées, kit absent et enchaînement lampe → premiers secours.
+
 ### OBJECTS/EQUIPMENT : chiffres des refus de capacité (17 octobre 2026)
 
 - À la confirmation, gauche/droite parcourt le résumé des dépassements,
