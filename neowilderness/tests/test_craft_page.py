@@ -246,10 +246,9 @@ def page_view(disk, tag):
               scr[legend][:32] == bytes([0xA0, OK]) + b' POSSIBLE   '.translate(HI) + bytes([NO]) +
               b' MISSING   '.translate(HI) + bytes([DONE]) + b' DONE'.translate(HI), scr[legend][:33])
         if xl:
-            check('row 23 on the tab row: the footer (MouseText arrows, return), RETURN: VIEW, ESC VIEW',
-                  scr[23][:22] == b' '.translate(HI) + bytes([0x48, 0x55]) + b' PAGE  '.translate(HI) +
-                  bytes([0x4B, 0x4A]) + b' CHOOSE  '.translate(HI) + bytes([0x4D])
-                  and page_frame(page, 'CRAFT', '↑↓ CHOOSE  ↵ VIEW', 'ESC VIEW'), page[23])
+            check('row 23 on the tab row: pages, recipes, RETURN VIEW, ESC VIEW',
+                  scr[23][:3] == b' '.translate(HI)+bytes([0x48,0x55])
+                  and 'PAGE ↓ RECIPES ↵ VIEW' in page[23] and page[23].endswith('ESC VIEW'), page[23])
         else:
             check('row 23 on the tab row: arrows (MouseText), RETURN: VIEW, ESC: VIEW',
                   scr[23][:2] == bytes([0x4B, 0x4A]) and page[23][2:].startswith(' CHOOSE   RETURN: VIEW')
@@ -258,7 +257,7 @@ def page_view(disk, tag):
         def footer(text):
             """Row 23: RETURN's text."""
             if xl:
-                return page_frame(page, 'CRAFT', '↑↓ CHOOSE  ↵ ' + text, 'ESC VIEW')
+                return text in page[23] and page[23].endswith('ESC VIEW')
             return page[23][2:].startswith(' CHOOSE   RETURN: ' + text) and page[23].endswith('ESC: VIEW')
         # The focus: DOWN on HUT, the panel, one store per changed cell.
         before = raw(s)
@@ -273,17 +272,19 @@ def page_view(disk, tag):
               page[2 + d].startswith(' > HUT') and s.step(L.peek('cp_focus')).data[0] == 1
               and 0 < len(stores) == changed, (page[2 + d], len(stores), changed))
         scr = raw(s)
-        hut = [r[31:] for r in page[1 + d:9 + d]]
-        want = [' > HUT' + ' ' * 33 + 'POSSIBLE',
-                '   SHELTER: AIR +15 F, ANIMALS 10X SAFER',
-                '   NEEDS:',
-                f'    {CHK} DRY LAND',
-                f'    {CHK} NOT AT THE WRECK OR THE POST',
-                f'    {CHK} WOODS',
-                f'   TIME: {fmt(formula("HUT", health))} (DAY, AXE OFF, HEALTH {round(100 * health / hmax(s))}%)',
-                '   SLOWER: NIGHT, AXE NOT IN USE, LOW HEALTH']
-        check('the panel of HUT: effect, the three checks of craft.s (check marks), time, slower',
-              hut == want and all(scr[r + d][35] == OK for r in (4, 5, 6)), '\n'.join(hut))
+        hut = [r[31:] for r in page[2:9]]
+        check('HUT summary: effect, ready, native time, available tool and estimated finish',
+              hut[1] == '   SHELTER: AIR +15 F, ANIMALS 10X SAFER'
+              and hut[2] == '   READY TO MAKE'
+              and hut[3] == '   TIME: '+fmt(formula('HUT', health))
+              and 'AXE: AVAILABLE' in hut[4] and 'EST. FINISH:' in hut[5]
+              and 'SLOWER:' not in '\n'.join(page), '\n'.join(hut))
+        summary = page
+        page = key(s, '\\>')
+        check('RIGHT shows factors and slower conditions on demand',
+              'FACTORS: DAY, AXE OFF' in '\n'.join(page) and 'SLOWER: NIGHT' in '\n'.join(page))
+        page = key(s, '\\<')
+        check('LEFT restores exactly the readable summary', page == summary)
         check('row 23: RETURN: MAKE HUT', footer('MAKE HUT'), page[23])
         s.step(f'shot:{HERE / f"build/craft_page_v2{tag}.png"}')
         (HERE / f'build/craft_page_v2{tag}.txt').write_text('\n'.join(page) + '\n')
@@ -292,7 +293,7 @@ def page_view(disk, tag):
         s.step(f'shot:{HERE / f"build/craft_page_v2_missing{tag}.png"}')
         check('the panel of IGLOO: MISSING, SNOW with an inverse X, RETURN: NOTHING (MISSING)',
               page[1 + d][31:].startswith(' > IGLOO') and page[1 + d].endswith('MISSING')
-              and page[6 + d][31:] == '    X SNOW' and scr[6 + d][35] == NO and footer('NOTHING (MISSING)'),
+              and page[5][31:] == '    X SNOW' and scr[5][35] == NO and footer('NOTHING (MISSING)'),
               '\n'.join(page[1 + d:9 + d] + page[23:]))
         # A missing recipe: RETURN beeps, nothing runs.
         before = state_of(s)
@@ -304,20 +305,19 @@ def page_view(disk, tag):
             page = key(s, '\\v')
         check('the AXE: DONE, YOU HAVE ONE ALREADY (diamond), no time',
               page[rowmap['AXE']].startswith(' > AXE') and page[1 + d].endswith('DONE')
-              and page[4 + d][31:] == f'    {DIA} YOU HAVE ONE ALREADY'
+              and page[5][31:] == f'    {DIA} YOU HAVE ONE ALREADY'
               and 'TIME' not in ''.join(page[1 + d:20 + d]), '\n'.join(page[1 + d:9 + d]))
         s.step('key:\\r')
         r = s.step(f'until:{L["do_command"]:04X},{L["keyboard_wait"]:04X}:60000')
         check('RETURN on a done recipe (AXE): no command', f'PC={L["keyboard_wait"]:04X}' in r.out)
         page = key(s, '\\v')
-        check('the SPLINT: the shortcut first (the AXE: check mark), then WOODS, ROPE OR FISHING GEAR (missing)',
-              page[4 + d][31:] == f'    {CHK} AXE, SPEAR, WRECK OR POST; OR:' and page[5 + d][31:] == f'    {CHK} WOODS'
-              and page[6 + d][31:] == '    X ROPE OR FISHING GEAR' and page[1 + d].endswith('POSSIBLE')
-              and page[8 + d][31:] == '   SLOWER: NIGHT, KNIFE NOT IN USE, LOW HEALTH', '\n'.join(page[1 + d:9 + d]))
+        check('SPLINT shortcut: ready without listing optional missing ingredients',
+              page[4][31:] == '   READY TO MAKE' and 'KNIFE: AVAILABLE' in page[6]
+              and page[2].endswith('POSSIBLE') and 'MISSING HERE:' not in '\n'.join(page), '\n'.join(page[2:9]))
         page = key(s, '\\v')
         page = key(s, '\\v')
         check('SUNSCREEN: 30 MIN (ALWAYS), no SLOWER',
-              page[5 + d][31:] == '   TIME: 30 MIN (ALWAYS)' and page[6 + d][31:].startswith('   EST. FINISH: '), '\n'.join(page[1 + d:7 + d]))
+              page[5][31:] == '   TIME: 30 MIN' and page[6][31:].startswith('   EST. FINISH: '), '\n'.join(page[1 + d:7 + d]))
         # The page keys of the cycle. XL keeps ALTCHARSET on for the whole
         # game; the 140 KB edition only while the page is shown.
         on = 1 if xl else 0

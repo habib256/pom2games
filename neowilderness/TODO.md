@@ -248,7 +248,8 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
   réalisées (17 octobre, CHANGELOG et MENUS.md § 29–35).
 - [ ] **CRAFT.** Rendre le lien avec FIRE/WATER de la grille compréhensible.
   La distinction outil disponible/en usage et l’heure de fin estimée sont
-  réalisées (17 octobre, CRAFT.md § 11). Le résultat lisible et les suites
+  réalisées (17 octobre, CRAFT.md § 11) ; synthèse et détails repliables
+  sont réalisés (CRAFT.md § 12). Le résultat lisible et les suites
   au joystick vers la même recette, l’objet sélectionné ou l’entrée dans
   l’abri sont réalisés (17 octobre, MENUS.md § 36 et CRAFT.md § 10).
 - [ ] **CATCH.** Distinguer capture, chasse active et combat ; montrer cible,
@@ -265,6 +266,9 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
 - [ ] **Retour visuel.** Focus des onglets explicite, étape courante des
   choix, activité pendant l'attente et protection contre la validation
   maintenue ; conserver inverse/symboles/libellés indépendants de la couleur.
+  La réorganisation des pages est réalisée (17 octobre, MENUS.md § 39) :
+  jauges compactes distinctes, catalogue médical replié, catégories
+  d’équipement, aide par rubrique, détails CRAFT et listes simplifiées.
 - [ ] **Mémoire et disque.** Mesurer chaque lot ; récupérer de la place dans le résident avant ajout ; développer XL seule et publier les marges et latences réelles.
 
 **Terminé quand :** un test parcourt démarrage → équipement → fabrication

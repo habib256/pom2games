@@ -7,6 +7,31 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Réorganisation des pages MouseText (17 octobre 2026)
+
+- STATUS : cinq indicateurs compacts avec traits MouseText distincts,
+  sans bloc blanc fusionné entre les lignes ; MEAL/WATER sans ambiguïté de faim,
+  explications déplacées dans HELP. MEDICAL montre les soins utiles et les
+  protections ; le catalogue complet reste accessible aux directions et
+  au bouton, avec cadre adapté et sans gravité à 0 % sur les protections seules.
+- EQUIPMENT : catégories WORN, HANDS, ACTIVE, PACK accessibles à gauche/droite
+  dans les listes. Une seule fiche, emplacement et activation distincts ;
+  l’objet suit son changement de catégorie après une action. Catégorie vide
+  navigable, sans utilisation de l’ancienne sélection. Les mentions de
+  drapeaux internes et les explications répétées sont retirées.
+- CRAFT : synthèse et seuls prérequis manquants ; droite ouvre les facteurs,
+  gauche replie. Durées et suites MAKE inchangées. OBJECTS conserve les
+  blocs et jauges, avec position dans la liste au lieu de MORE.
+- HELP : quatre rubriques, une explication développée. OPTIONS : liste
+  compacte et aide de sélection. MENU : objectif et liste unique des actions.
+  Les raccourcis restent fonctionnels malgré le retrait de leurs lettres
+  devant les lignes. Introduction de jeu raccourcie avec accès aux commandes.
+- Image XL régénérée ; nouvelles vérifications des parcours et des cadres
+  dans `test_readable_pages.py`. Les 47 scripts de la suite XL sont validés,
+  dont les transferts rejoués après la fin de construction de l’image,
+  la comparaison native et le parcours complet au joystick.
+  Voir MENUS.md § 39 et CRAFT.md § 12.
+
 ### EQUIPMENT entre OBJECTS et CRAFT (17 octobre 2026)
 
 - Ordre des onglets : STATUS, OBJECTS, EQUIPMENT, CRAFT, HELP, OPTIONS, MENU.

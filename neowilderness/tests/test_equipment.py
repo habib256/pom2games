@@ -27,10 +27,15 @@ def selected(s):
 def go(s, item):
     if not byte(s, 'pg_focus'):
         key(s, '\\r')
-    for _ in range(140):
-        if selected(s) == item:
-            return
-        key(s, '\\v')
+    for _ in range(4):
+        entries = s.step(L.peek('overlay_text', byte(s, 'eq_n'))).data
+        if item in entries:
+            target = entries.index(item)
+            for _ in range(140):
+                if byte(s, 'eq_cur') == target:
+                    return
+                key(s, '\\^' if byte(s, 'eq_cur') > target else '\\v')
+        key(s, '\\>')
     raise AssertionError(('equipment not listed', item, rows(s)))
 
 
@@ -63,14 +68,14 @@ def read_only():
         mem = s.step('peek:0400:1024').data
         assert not postit_errors(mem, 'EQUIPMENT'), postit_errors(mem, 'EQUIPMENT')
         entries = s.step(L.peek('overlay_text', byte(s, 'eq_n'))).data
-        assert all(128+g in entries for g in range(4))
+        assert entries and all(byte(s, 'it_place', item) == 1 for item in entries)
         assert 'WORN' in '\n'.join(rows(s)[2:19])
         assert 'HANDS' in '\n'.join(rows(s)[2:19])
         assert 'HANDS VOLUME:' in rows(s)[8]
         assert 'TRAP PREPARED: NO' in rows(s)[13]
         assert state(s) == before and s.step(L.peek('fauna_rng')).data == rng
         go(s, 5)
-        assert 'WORN: YES' in rows(s)[5] and 'IN USE: NO' in rows(s)[7]
+        assert 'LOCATION: WORN' in rows(s)[5] and 'ACTIVE: NO' in rows(s)[7]
         key(s, '\\r'); key(s, '\\e')
         assert byte(s, 'pg_cur') == 2
         assert tuple(s.step(L.peek(n, size)).data for n, size in
@@ -88,16 +93,16 @@ def placement_and_use():
         open_page(s)
         act(s, 59, 1)           # CARRY KNIFE
         assert byte(s, 'it_place', 59) == 3 and byte(s, 'care_tools') & 2 == 0
-        assert 'IN HANDS: YES' in rows(s)[6] and 'IN USE: NO' in rows(s)[7]
+        assert 'LOCATION: HANDS' in rows(s)[5] and 'ACTIVE: NO' in rows(s)[7]
         act(s, 59, 4)           # USE KNIFE
         assert byte(s, 'care_tools') & 2
-        assert 'IN HANDS: YES' in rows(s)[6] and 'IN USE: YES' in rows(s)[7]
+        assert 'LOCATION: HANDS' in rows(s)[5] and 'ACTIVE: YES' in rows(s)[7]
         act(s, 2, 3)            # WEAR DOWN PARKA
-        assert byte(s, 'it_place', 2) == 1 and 'WORN: YES' in rows(s)[5]
+        assert byte(s, 'it_place', 2) == 1 and 'LOCATION: WORN' in rows(s)[5]
         act(s, 2, 1)            # CARRY removes the layer
-        assert byte(s, 'it_place', 2) == 3 and 'WORN: NO' in rows(s)[5]
+        assert byte(s, 'it_place', 2) == 3 and 'LOCATION: HANDS' in rows(s)[5]
         act(s, 2, 0)            # PACK restores the hand room
-        assert byte(s, 'it_place', 2) == 2 and 'IN HANDS: NO' in rows(s)[6]
+        assert byte(s, 'it_place', 2) == 2 and 'LOCATION: PACK' in rows(s)[5]
     print('  Holding a knife does not activate it; native USE, WEAR, REMOVE/CARRY and PACK return to the same item: OK')
 
 
@@ -107,8 +112,8 @@ def trap():
         s.step(L.poke('it_place', 2, 72))
         open_page(s)
         go(s, 72)
-        assert 'IN HANDS: NO' in rows(s)[6] and 'IN USE: NO' in rows(s)[7]
-        assert 'BAIT REQUIRED' in rows(s)[4]
+        assert 'LOCATION: PACK' in rows(s)[5] and 'ACTIVE: NO' in rows(s)[7]
+        assert 'RETURN: CHOOSE AN ACTION' in rows(s)[4]
         before = state(s)
         act(s, 72, 4)
         assert byte(s, 'fg_use') & 1 == 0
@@ -120,7 +125,7 @@ def trap():
         act(s, 72, 4)
         assert byte(s, 'it_place', 72) == 2  # prepared does not mean held
         assert byte(s, 'fg_use') & 1
-        assert 'IN HANDS: NO' in rows(s)[6] and 'IN USE: YES' in rows(s)[7]
+        assert 'LOCATION: PACK' in rows(s)[5] and 'ACTIVE: YES' in rows(s)[7]
         assert 'TRAP PREPARED: YES' in rows(s)[13]
     print('  A trap in PACK is not prepared; missing bait refusal, then native preparation without pretending it is held: OK')
 

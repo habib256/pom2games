@@ -3408,3 +3408,37 @@ et conserve I/O pour OBJECTS : quatre octets de plus dans CRAFT, fin à
 à `$A951` ; la page reste sur dix blocs, les recettes MAKE sur quatre.
 DAT : 65 598 bruts / 57 971 stockés, 19 enregistrements, fichier de
 58 227 octets ; XL reste à 383/1600 blocs, cinq sauvegardes.
+
+### Réorganisation MouseText et détails repliables (17 octobre 2026)
+
+La page CRAFT conserve ses dix blocs et MAKE ses quatre blocs de recettes.
+Le tri médical et les listes de catégories utilisent les tampons d’interface
+existants. `eq_view` prend un octet BSS hors SAVE : le rôle survit au
+chargement des overlays, et le chargeur le remet à zéro au nouveau jeu.
+Les critères d’activation, les stocks et les durées de simulation ne changent pas.
+
+HELP ne charge plus quatre notices en parallèle à l’écran. Quatre débuts
+de rubrique partagent des suffixes de textes déjà indexés, à l’offset 8
+(om_need, om_qty_label, om_eat_word, om_lower_word), en préservant leurs
+préfixes publics. Les suites des rubriques restent dans STATUS. La lecture
+n’utilise aucun nouvel identifiant de texte. Les anciens longs commentaires
+permanents des jauges sont remplacés par les cinq libellés compacts ; les
+préfixes PACK/CARRY/DROP/WEAR/HANDS restent inchangés. La compilation garde
+255 identifiants et 32 mots de dictionnaire, avec le même tampon TB_MAX.
+
+| Zone | Fin incluse | Marge |
+|---|---:|---:|
+| STATUS | `$B0F0` | 15 octets avant STATX |
+| STATX | `$B5EF` | 16 octets |
+| EQUIPMENT | `$5E62` | 413 octets avant `$6000` |
+| CRAFT | `$A6BF` | tableaux jusqu’à `$A6E9`, puis 22 octets avant CRAFTX |
+| CRAFTX | `$A9CA` | 53 octets avant la limite des dix blocs |
+| TEXTBANK | `$1FFC` | 3 octets dans sa fenêtre logique de 8 Ko |
+| BSS | `$577D` | 2 octets avant REGIONTEXT |
+
+DAT : 65 691 bruts / 58 014 stockés, 19 enregistrements ; fichier avec
+index : 58 270 octets. XL reste à 383/1600 blocs et conserve cinq sauvegardes.
+La table médicale adapte sa hauteur avant le tracé, afin d’éviter un cadre
+intermédiaire. HELP écrit chaque moitié dans sa largeur propre et quitte
+son parcours avant la ligne 22 : aucun effacement/rétablissement de cellule
+sur la ligne du pied de page lors d’un affichage identique.

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Joystick transfer forecasts: signed load change, cumulative excess and no mutation."""
+from test_joystick_journey import equipment_item
 import tempfile
 from common import L, disk_with
 from test_forest import map_fixture
@@ -119,12 +120,7 @@ def transfers(disk):
         event(s, 'up'); event(s, 'right')
         assert byte(s, 'pg_cur') == 2
         event(s, 'ok')
-        entries = s.step(L.peek('overlay_text', byte(s, 'eq_n'))).data
-        target = entries.index(2)  # Packed parka: wearing it changes no total weight.
-        for _ in range(140):
-            if byte(s, 'eq_cur') == target:
-                break
-            event(s, 'up' if byte(s, 'eq_cur') > target else 'down')
+        equipment_item(s, 2)
         event(s, 'ok')
         for _ in range(8):
             if byte(s, 'om_action') == 3:

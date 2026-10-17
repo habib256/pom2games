@@ -211,11 +211,15 @@ pg_desc_offsets: .byte 0,46,80,0
 ; blocks ($4E), checkerboards ($56) for the rest, then two spaces.
 bar_x:  sta     pf_n
         ldx     #0
-@cell:  lda     #MT_BLOCK
-        cpx     pf_n
-        bcc     :+
+@cell:  cpx     pf_n
         lda     #MT_HALF1
-:       jsr     COUT
+        bcs     @out
+        lda     pg_cur
+        bne     @solid
+        lda     #MT_LINE        ; stacked STATUS gauges remain distinct
+        bne     @out
+@solid: lda     #MT_BLOCK       ; LOAD and journey retain solid cells
+@out:   jsr     COUT
         inx
         cpx     #10
         bcc     @cell
@@ -493,10 +497,11 @@ pf_n:    .byte 0
 pf_pages_lo: .byte <pf_status, <pf_objects, <eq_frames, <pf_craft, <pf_help, <pf_options, <pf_menu
 pf_pages_hi: .byte >pf_status, >pf_objects, >eq_frames, >pf_craft, >pf_help, >pf_options, >pf_menu
 pf_status:
-        PF      2, 14, 0, 39, 0                 ; CONDITION
+        PF      2, 10, 0, 39, 0                 ; CONDITION
         PF      2, 10, 41, 79, 0                ; LOCAL
         PF      11, 14, 41, 79, 0               ; CONDITIONS
-        PF      15, 21, 0, 79, 0                ; MEDICAL
+pf_medical:
+        PF      15, 21, 0, 79, 0                ; MEDICAL, bottom follows visible entries
         .byte   PF_END
 ob_frames_x:
         lda     #2
@@ -548,18 +553,15 @@ pf_obj_pack:
         PF      16, 20, 41, 79, 0               ; LOAD
         .byte   PF_END
 pf_help:
-        PF      2, 9, 0, 39, 0                  ; (the blocks' headings)
-        PF      2, 9, 41, 79, 0
-        PF      11, 19, 0, 39, 0
-        PF      11, 19, 41, 79, 0
+        PF      2, 8, 0, 27, 0
+        PF      2, 20, 30, 79, 0
         .byte   PF_END
 pf_options:
-        PF      2, 9, 0, 79, 0                  ; OPTIONS
+        PF      2, 7, 0, 79, 0                  ; OPTIONS
         .byte   PF_END
 pf_menu:
-        PF      2, 5, 0, 39, 0                  ; RANGERS
-        PF      6, 9, 0, 39, 0                  ; SAVE / RESTORE
-        PF      10, 12, 0, 39, mn_quit          ; QUIT
+        PF      2, 5, 0, 79, 0                  ; RANGERS
+        PF      6, 10, 0, 79, 0                 ; SAVE / RESTORE / QUIT
         .byte   PF_END
 
 ; The keys of the cursor pages and of OBJECTS (page_foot's pg_k_menu,
@@ -567,7 +569,7 @@ pf_menu:
 pg_k_menu_x: .byte MS_UP, MS_DOWN, " CHOOSE  ", MS_RET, " SELECT", 0
 .pushseg
 .segment "MEDVX"
-inventory_keys_x: .byte MS_RET, " LIST/ACT ", MS_LEFT, MS_RIGHT, MS_UP, MS_DOWN, " MOVE  H HANDS", 0
+inventory_keys_x: .byte MS_RET, " LIST/ACTIONS ", MS_LEFT, MS_RIGHT, MS_UP, MS_DOWN, " MOVE", 0
 mvx_end:
 .popseg
 ob_mul: lda     #0

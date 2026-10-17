@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Real joystick: offered actions reflect placement, source and native USE gates."""
+from test_joystick_journey import equipment_item
 import tempfile
 from common import L, disk_with
 from test_forest import map_fixture
@@ -76,10 +77,7 @@ def filters(disk):
         event(s, 'up'); event(s, 'right')
         assert byte(s, 'pg_cur') == 2
         event(s, 'ok')
-        for _ in range(140):
-            if byte(s, 'overlay_text', byte(s, 'eq_cur')) == 59:
-                break
-            event(s, 'down')
+        equipment_item(s, 59)
         assert byte(s, 'overlay_text', byte(s, 'eq_cur')) == 59
         event(s, 'ok')
         assert byte(s, 'om_mask') == 0x15

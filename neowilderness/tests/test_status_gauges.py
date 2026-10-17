@@ -9,14 +9,7 @@ from test_fit_quantities import boot
 from test_thermal import poke
 from test_joystick_journey import GamePortSession, event, byte, rows, saved_state, IDLE
 
-CAPTIONS = {
-    3: 'FULLER BARS = BETTER CONDITION',
-    5: 'HEALTH RELATIVE TO YOUR MAXIMUM',
-    7: 'REST DEBT SCALE; REST/SLEEP HELPS',
-    9: 'MEAL RECENCY SCALE; EAT TO REFRESH',
-    11: 'DRINK RECENCY SCALE; DRINK TO REFRESH',
-    13: 'BODY HEAT; 98.6F REFERENCE',
-}
+CAPTIONS = {9: 'HIGH BARS = BETTER RESERVES'}
 
 
 def put(s, name, value):
@@ -27,8 +20,8 @@ def put(s, name, value):
 def open_status(s):
     event(s, 'up')
     screen = rows(s)
-    for row, label in ((4, 'HEALTH'), (6, 'ENERGY'), (8, 'HUNGER'),
-                       (10, 'THIRST'), (12, 'BODY')):
+    for row, label in ((3, 'HEALTH'), (4, 'ENERGY'), (5, 'MEAL'),
+                       (6, 'WATER'), (7, 'BODY')):
         assert label in screen[row][:41], (row, screen[row])
     for row, text in CAPTIONS.items():
         assert text in screen[row][:41], (row, text, screen[row])
@@ -39,7 +32,7 @@ def open_status(s):
 
 def gauge(screen, row, cells, percent, word=''):
     line = screen[row][:41]
-    assert line.count('█') == cells and line.count('▒') == 10-cells, line
+    assert line.count('─') == cells and line.count('▒') == 10-cells, line
     assert re.search(rf'\b{percent}%', line), line
     if word:
         assert word in line, line
@@ -58,14 +51,14 @@ def main():
             put(s, 's_health', health)
             screen = open_status(s)
             percent = math.floor(health+.5)
-            gauge(screen, 4, min(10, (percent+5)//10), percent)
+            gauge(screen, 3, min(10, (percent+5)//10), percent)
             condition = ('MISERABLE', 'POOR', 'OKAY', 'GOOD', 'FANTASTIC')[min(4, int(health/20))]
             assert condition in screen[2], (health, condition, screen[2])
             event(s, 'cancel', IDLE)
         for maximum, health, percent, condition in ((200, 150, 75, 'GOOD'), (50, 25, 50, 'OKAY')):
             put(s, 'f_hmax', maximum); put(s, 's_health', health)
             screen = open_status(s)
-            gauge(screen, 4, min(10, (percent+5)//10), percent)
+            gauge(screen, 3, min(10, (percent+5)//10), percent)
             assert condition in screen[2], (maximum, health, screen[2])
             event(s, 'cancel', IDLE)
         put(s, 'f_hmax', 100)
@@ -77,11 +70,11 @@ def main():
             screen = open_status(s)
             cells = 0 if rest > 16 else hours_cells(debt)
             word = 'BEAT' if rest > 16 else 'TIRED' if debt > 12 else 'OKAY' if debt > 7 else 'GREAT'
-            gauge(screen, 6, cells, 10*cells, word)
+            gauge(screen, 4, cells, 10*cells, word)
             event(s, 'cancel', IDLE)
         print('  Rest debt scale, negative credit, labels and >16-hour exhaustion override: 11 cases OK', flush=True)
         put(s, 's_rest', 0); put(s, 's_defr', 0)
-        for name, row in (('s_eat', 8), ('s_drink', 10)):
+        for name, row in (('s_eat', 5), ('s_drink', 6)):
             for hours in (0, 1.4, 1.6, 6, 6.1, 12, 12.1, 15, 18):
                 put(s, name, hours)
                 screen = open_status(s)
@@ -93,10 +86,10 @@ def main():
         for body, mode, label in ((95, 2, 'SHIVERING'), (98.6, 0, ''), (98.6, 2, 'SHIVERING'), (101, 1, 'SWEATING')):
             put(s, 's_body', body); s.step(L.poke('thermal_mode', mode))
             screen = open_status(s)
-            assert f'{body:.1f}F' in screen[12], screen[12]
-            assert '%' not in screen[12] and label in screen[12]
+            assert f'{body:.1f}F' in screen[7], screen[7]
+            assert '%' not in screen[7] and label in screen[7]
             if not mode:
-                assert 'SHIVERING' not in screen[12] and 'SWEATING' not in screen[12]
+                assert 'SHIVERING' not in screen[7] and 'SWEATING' not in screen[7]
             event(s, 'cancel', IDLE)
         print('  Body heat is Fahrenheit with its reference and thermal sign: 4 cases OK', flush=True)
         # Entering and leaving the care focus must keep every caption and state.

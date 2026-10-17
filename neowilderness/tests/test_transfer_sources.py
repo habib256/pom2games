@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Real game-port source labels and carried-canteen prerequisite before GET."""
+from test_joystick_journey import equipment_item
 import tempfile
 from common import L, disk_with
 from test_forest import map_fixture
@@ -100,12 +101,7 @@ def sources(disk):
         event(s, 'cancel', IDLE); event(s, 'up'); event(s, 'right')
         assert byte(s, 'pg_cur') == 2
         event(s, 'ok')
-        entries = s.step(L.peek('overlay_text', byte(s, 'eq_n'))).data
-        target = entries.index(66)
-        for _ in range(140):
-            if byte(s, 'eq_cur') == target:
-                break
-            event(s, 'up' if byte(s, 'eq_cur') > target else 'down')
+        equipment_item(s, 66)
         event(s, 'ok')
         before = saved_state(s)
         assert 'FROM PACK TO ' in rows(s)[21], rows(s)[21]

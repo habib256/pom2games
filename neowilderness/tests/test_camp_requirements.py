@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Joystick camp previews: actual native gates, no side effects during browsing."""
+from test_joystick_journey import equipment_item
 import tempfile
 from common import L, disk_with, fp
 from test_forest import map_fixture
@@ -107,10 +108,7 @@ def camp(disk):
         event(s, 'up'); event(s, 'right')
         assert byte(s, 'pg_cur') == 2
         event(s, 'ok')
-        for _ in range(140):
-            if byte(s, 'overlay_text', byte(s, 'eq_cur')) == 71:
-                break
-            event(s, 'down')
+        equipment_item(s, 71)
         assert byte(s, 'overlay_text', byte(s, 'eq_cur')) == 71
         event(s, 'ok')
         assert 'STOVE ALREADY DOWN / 0 MIN' in rows(s)[22]
@@ -120,10 +118,7 @@ def camp(disk):
         assert byte(s, 'eq_selected') == 71
         set_fields(s, camp_use=0, weather_sky=0, wind=41)
         event(s, 'cancel', IDLE); event(s, 'up'); event(s, 'ok')
-        for _ in range(140):
-            if byte(s, 'overlay_text', byte(s, 'eq_cur')) == 38:
-                break
-            event(s, 'down')
+        equipment_item(s, 38)
         assert byte(s, 'overlay_text', byte(s, 'eq_cur')) == 38
         event(s, 'ok')
         for _ in range(8):

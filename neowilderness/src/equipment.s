@@ -1,7 +1,7 @@
 ; EQUIPMENT: physical placement and effective use are independent states.
 ; Directory 33 is fetched directly; scene asset 33 still uses site_load.
 .segment "EQUIPMENT"
-EQ_ROWS = 16
+EQ_ROWS = 14
 module_equipment:
         lda     #$FF
         sta     overlay_current ; the $5800 window was fetched directly
@@ -16,6 +16,7 @@ module_equipment:
         sta     pg_focus
         pla
         bpl     :+              ; $40: modal cancel; $80: command result
+        jsr     eq_follow_role
         lda     #1
         sta     eq_keep
 :       jsr     eq_build
@@ -28,7 +29,7 @@ module_equipment:
         inx
         cpx     eq_n
         bcc     @find
-        ldx     #1              ; first item below WORN heading
+        ldx     #0              ; first item in the selected role
 @found: stx     eq_cur
         jsr     eq_forward
         bcs     equipment_draw
@@ -45,10 +46,39 @@ equipment_draw:
         bcs     :+
         lda     #0
 :       sta     eq_top
-        lda     #0
-        sta     eq_row
         lda     #41
         jsr     tab
+        lda     #3
+        ldx     #1
+        jsr     st_at_x
+        lda     #0
+        sta     eq_row
+@role:  ldx     eq_row
+        lda     #$FF
+        cpx     eq_view
+        bne     :+
+        lda     #$3F
+:       sta     INVFLG
+        lda     eq_groups_lo,x
+        ldy     eq_groups_hi,x
+        jsr     print_str_ay
+        lda     #$FF
+        sta     INVFLG
+        jsr     puts
+        .byte   "  ",0
+        inc     eq_row
+        lda     eq_row
+        cmp     #4
+        bcc     @role
+        lda     #41
+        jsr     tab
+        lda     #4
+        ldx     #0
+        jsr     st_at_x
+        lda     #41
+        jsr     tab
+        lda     #0
+        sta     eq_row
 @row:   inc     CV
         jsr     t_vtab
         lda     #0
@@ -115,7 +145,14 @@ equipment_draw:
         jsr     st_at_x
         lda     #80
         jsr     tab             ; right title before its contents
-        lda     eq_cur
+        lda     eq_n
+        bne     :+
+        lda     #3
+        jsr     eq_at
+        jsr     puts
+        .byte   "NO ITEM IN THIS ROLE",0
+        jmp     @details_done
+:       lda     eq_cur
         tax
         lda     overlay_text,x
         jmi     @details_done
@@ -128,36 +165,17 @@ equipment_draw:
         jsr     print_str_ax
         lda     #4
         jsr     eq_at
-        lda     eq_item
-        cmp     #67
-        beq     @bait_hint
-        cmp     #72
-        beq     @bait_hint
         jsr     puts
-        .byte   "ACCESS + CAPACITY; USE MAY NEED LIGHT",0
-        jmp     @states
-@bait_hint:
-        jsr     puts
-        .byte   "ACTIVATE: ACCESS + BAIT REQUIRED",0
-@states:
+        .byte   "RETURN: CHOOSE AN ACTION",0
         lda     #5
         jsr     eq_at
         jsr     puts
-        .byte   "WORN: ",0
-        jsr     eq_place
-        cmp     #1
-        jsr     eq_yes
-        lda     #6
-        jsr     eq_at
-        jsr     puts
-        .byte   "IN HANDS: ",0
-        jsr     eq_place
-        cmp     #3
-        jsr     eq_yes
+        .byte   "LOCATION: ",0
+        jsr     eq_location
         lda     #7
         jsr     eq_at
         jsr     puts
-        .byte   "IN USE: ",0
+        .byte   "ACTIVE: ",0
         ldx     eq_item
         jsr     eq_active
         beq     @inactive
@@ -232,14 +250,6 @@ equipment_draw:
         lda     fg_bait
         cmp     #1
         jsr     eq_yes
-        lda     #17
-        jsr     eq_at
-        jsr     puts
-        .byte   "TRAP/FISHING: USE BAIT FIRST",0
-        lda     #18
-        jsr     eq_at
-        jsr     puts
-        .byte   "THEN USE TRAP / FISHNG GEAR",0
         lda     #20
         jsr     vtab
         ldx     #3
@@ -259,16 +269,8 @@ equipment_draw:
         sta     eq_keep
         lda     #20
         jsr     eq_at
-        jsr     puts
-        .byte   "HOLDING DOES NOT ACTIVATE.",0
-        lda     #21
+        lda     #23
         jsr     eq_at
-        jsr     puts
-        .byte   "SOME USE FLAGS ARE SHARED.",0
-        lda     #22
-        jsr     eq_at
-        jsr     puts
-        .byte   "STOW/WEAR ACTIONS CHECK THE LOAD.",0
         lda     #<eq_keys
         ldy     #>eq_keys
         jsr     page_foot23_x
@@ -281,10 +283,13 @@ equipment_key:
         beq     @focus
         jmp     @page
 @focus: jsr     eq_forward
-        jcc     equipment_key
         inc     pg_focus
         jmp     equipment_draw
-@list:  cmp     #KC_RET
+@list:  cmp     #KC_LEFT
+        beq     @role_left
+        cmp     #KC_RIGHT
+        beq     @role_right
+        cmp     #KC_RET
         jeq     eq_act
         cmp     #KC_DOWN
         beq     @down
@@ -292,6 +297,22 @@ equipment_key:
         beq     @up
 @page:  jsr     page_keys
         jmp     equipment_key
+@role_left:
+        lda     eq_view
+        clc
+        adc     #3
+        bne     @role_set
+@role_right:
+        lda     eq_view
+        clc
+        adc     #1
+@role_set:
+        and     #3
+        sta     eq_view
+        jsr     eq_build
+        lda     #0
+        sta     eq_cur
+        jmp     equipment_draw
 @down:  lda     eq_cur
         pha
         inc     eq_cur
@@ -367,10 +388,8 @@ eq_free:
 eq_build:
         lda     #0
         sta     eq_n
+        lda     eq_view
         sta     eq_g
-@group: lda     eq_g
-        ora     #$80
-        jsr     eq_append
         ldx     #1
 @item:  cpx     #22
         bne     :+
@@ -395,10 +414,6 @@ eq_build:
 @next:  inx
         cpx     #94
         bcc     @item
-        inc     eq_g
-        lda     eq_g
-        cmp     #4
-        bcc     @group
         rts
 
 eq_append:
@@ -474,6 +489,8 @@ eq_name:
         rts
 
 eq_act:
+        lda     eq_n
+        jeq     equipment_key
         ldx     eq_cur
         lda     overlay_text,x
         jmi     equipment_key
@@ -518,14 +535,47 @@ eq_act:
         sta     ob_m+1
         jmp     equipment_object
 
+eq_location:
+        jsr     eq_place
+        bne     @carried
+        lda     #om_local_label
+        jmp     om_bank_puts
+@carried:
+        tay
+        lda     eq_place_names,y
+        pha
+        lda     #om_to_body
+        jmp     st_bank_suffix
+eq_follow_role:
+        lda     eq_selected
+        beq     @done
+        sta     eq_item
+        tax
+        lda     eq_view
+        cmp     #2
+        bne     @place
+        jsr     eq_active
+        bne     @done
+@place: jsr     eq_place
+        ldx     #0
+        cmp     #1
+        beq     @set
+        inx
+        cmp     #3
+        beq     @set
+        ldx     #3
+@set:   stx     eq_view
+@done:  rts
+; Offsets in om_to_body: BODY, WORN, HANDS, PACK, LOCAL HUNG.
+eq_place_names: .byte 21,5,16,10,21,21
 eq_groups_lo: .byte <eq_worn,<eq_hands,<eq_used,<eq_pack
 eq_groups_hi: .byte >eq_worn,>eq_hands,>eq_used,>eq_pack
 eq_worn: .byte "WORN",0
 eq_hands: .byte "HANDS",0
-eq_used: .byte "IN USE",0
-eq_pack: .byte "PACK - AVAILABLE",0
+eq_used: .byte "ACTIVE",0
+eq_pack: .byte "PACK",0
 eq_places: .byte 1,3,$FF,2
-eq_keys: .byte MS_RET," LIST/ACTIONS ",MS_UP,MS_DOWN," SELECT",0
+eq_keys: .byte MS_RET," ACTIONS ",MS_UP,MS_DOWN," ITEM ",MS_LEFT,MS_RIGHT," ROLE",0
 eq_use: .byte "USE "
 eq_names_lo: .byte <eq_bow,<eq_spear,<eq_club,<eq_rock,<eq_splint
 eq_names_hi: .byte >eq_bow,>eq_spear,>eq_club,>eq_rock,>eq_splint
@@ -545,11 +595,11 @@ eq_active_masks: .byte U_MATCH,U_GLASS,U_FUEL,U_FLASH,U_STOVE,U_UTENS,U_GUN,U_CO
 eq_frames:
         PF 2,19,0,39,eq_title
         PF 2,11,41,79,eq_state
-        PF 12,19,41,79,eq_catch
+        PF 12,16,41,79,eq_catch
         .byte PF_END
 eq_title: .byte "EQUIPMENT",0
-eq_state: .byte "SELECTED - REAL STATE",0
-eq_catch: .byte "CATCH PREPARATION",0
+eq_state: .byte "SELECTED ITEM",0
+eq_catch: .byte "CATCH READINESS",0
 eq_n: .byte 0
 eq_g: .byte 0
 eq_row: .byte 0
@@ -565,4 +615,9 @@ equipment_object:
         lda     #20
         jsr     overlay_load
         jmp     object_menu
+.popseg
+
+.pushseg
+.segment "BSS"
+eq_view: .res 1                 ; interface role, outside SAVE
 .popseg

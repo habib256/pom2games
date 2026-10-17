@@ -58,6 +58,7 @@ status_care:
 :       inx
         cpx     #13
         bcc     @act
+        iny                     ; last focus: show/hide the full care catalogue
         sty     pg_levels       ; (PG_STATUS: 0)
         cpy     pg_focus        ; one healed under the focus: the last
         bcs     :+
@@ -68,7 +69,8 @@ status_care:
         sta     pg_gf
         lda     #0
         sta     pg_g
-:       lda     #PG_STATUS
+:       jsr     st_catalog_build
+        lda     #PG_STATUS
         jsr     page_top
         lda     #41             ; rows 2-14 left half: CR pads to column 40
         sta     WNDWDTH
@@ -505,48 +507,34 @@ status_care:
         jsr     st_at_x
         lda     #46
         jsr     st_heading
-        ldx     #0              ; the legend: each mark and its word
-@leg:   stx     st_i
-        jsr     puts
-        .byte   "  ", 0
-        ldx     st_i
-        lda     st_marks,x
-        jsr     COUT
-        lda     #' '|$80
-        jsr     COUT
-        ldx     st_i
-        jsr     st_care_text
-        ldx     st_i
-        inx
-        cpx     #3
-        bcc     @leg
-        ldx     #0              ; rows 16-20: conditions r, r + 5, r + 10
-@row:   stx     st_i
-        jsr     CROUT
+        jsr     mt_puts
+        .byte   "  X CARE  ", MS_CHECK, " TREATED  ", MS_DIAMOND, " PROTECTED", 0
         lda     #0
-        jsr     med_cell
+        sta     st_j
+        sta     st_i
+@row:   jsr     CROUT
+        lda     #1
+        jsr     st_med_cell
         lda     #27
         jsr     tab
-        lda     st_i
-        clc
-        adc     #5
-        tax
         lda     #27
-        jsr     med_cell
+        jsr     st_med_cell
         lda     #53
         jsr     tab
-        lda     st_i
-        clc
-        adc     #10
-        cmp     #14
-        bcs     :+
-        tax
         lda     #53
-        jsr     med_cell
-:       ldx     st_i
-        inx
-        cpx     #5
+        jsr     st_med_cell
+        inc     st_i
+        lda     st_i
+        cmp     #5
         bcc     @row
+        lda     pg_focus
+        cmp     pg_levels
+        bne     @care_footer
+        lda     #<st_catalog_keys
+        ldy     #>st_catalog_keys
+        jsr     page_foot_x
+        jmp     status_key
+@care_footer:
         lda     pg_focus        ; the care's focus: the gestures on row 23
         beq     :+
         lda     #19
@@ -562,6 +550,18 @@ status_key:
         jsr     page_keys
         ldy     pg_focus
         beq     @key
+        cpy     pg_levels
+        bne     @gesture
+        cmp     #KC_RET
+        beq     @catalog
+        cmp     #' '
+        bne     @key
+@catalog:
+        lda     st_all
+        eor     #1
+        sta     st_all
+        jmp     status_care
+@gesture:
         ldx     pg_g            ; the gestures of the focused condition
         cmp     #KC_LEFT
         bne     :+
@@ -586,6 +586,53 @@ status_key:
         jsr     overlay_load
         jmp     med_run
 
+st_catalog_build:
+        lda     #0
+        sta     st_med_n
+        ldx     #0
+@catalog:
+        lda     st_all
+        bne     @include
+        cpx     #13
+        bcc     @injury
+        lda     altitude_percent
+        cmp     #100
+        bcc     @include
+        bcs     @next_med
+@injury:
+        lda     injury_active,x
+        ora     injury_treated,x
+        ora     injury_prevented,x
+        beq     @next_med
+@include:
+        txa
+        ldy     st_med_n
+        sta     overlay_text,y
+        inc     st_med_n
+@next_med:
+        inx
+        cpx     #14
+        bcc     @catalog
+        lda     #18
+        ldx     st_med_n
+        cpx     #7
+        bcc     :+
+        lda     #21
+:       sta     pf_medical+1
+        rts
+st_med_cell:
+        ldy     st_j
+        cpy     st_med_n
+        bcs     @empty
+        ldx     overlay_text,y
+        inc     st_j
+        jmp     med_cell
+@empty: rts
+st_all: .byte 0
+st_med_n:   .byte 0
+st_j:   .byte 0
+st_catalog_keys: .byte MS_RET, " SHOW/HIDE ALL CONDITIONS",0
+
 ; med_cell -- condition X (13: altitude sickness) from column A (the cursor
 ; there): its name (in inverse under the focus), its percent at +18, its
 ; care mark at +23.
@@ -593,6 +640,8 @@ med_cell:
         sta     st_col
         stx     st_cx
         ldy     pg_focus        ; the focused condition: in inverse
+        beq     :+
+        cpy     pg_levels
         beq     :+
         txa
         cmp     pg_act-1,y
@@ -602,6 +651,15 @@ med_cell:
 :       jsr     med_name_text
         lda     #$FF
         sta     INVFLG
+        lda     st_all
+        bne     @severity
+        ldx     st_cx
+        cpx     #13
+        bcs     @severity
+        lda     injury_active,x
+        ora     injury_treated,x
+        beq     @mark_only
+@severity:
         lda     st_col
         clc
         adc     #18
@@ -617,6 +675,7 @@ med_cell:
         jsr     pdec
         lda     #'%'|$80
         jsr     COUT
+@mark_only:
         lda     st_col
         clc
         adc     #23
@@ -641,7 +700,6 @@ med_cell:
 st_marks: .byte $18, '+'|$80, '*'|$80
         XL_BYTE XI_STATUS, st_marks+1, MT_CHECK
         XL_BYTE XI_STATUS, st_marks+2, MT_DIAMOND
-st_care_offsets: .byte 19,38,58
 st_col: .byte 0
 st_cx:   .byte 0
 
@@ -728,7 +786,7 @@ st_heading:
 ; The active XL bar already lives in STATX; retire its unused text body.
 bar:    jmp     bar_x
 
-st_keys: .byte  "T TOPO", 0
+st_keys: .byte  "T TOPO ", MS_DOWN, " CARE/ALL", 0
         ; XL: the up arrow (UP on the tabs opens TOPO; T still does).
         XL_BYTE XI_STATUS, st_keys, MS_UP
 ; gauge_bar -- A = the full cells (0..10): the gauge, then their percent
@@ -1052,11 +1110,6 @@ st_bank_suffix:
         bcc     :+
         inx
 :       jmp     print_str_ax
-st_care_text:
-        lda     st_care_offsets,x
-        pha
-        lda     #om_doses_label
-        jmp     st_bank_suffix
 med_name_text:
         lda     med_name_offsets,x
         pha

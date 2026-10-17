@@ -769,3 +769,16 @@ pas de fin ; DONE ne propose ni durée ni estimation.
 outils au port joystick, la case d’activation quittée, la navigation sans
 mutation, l’arrondi des minutes, minuit, les travaux dépassant 24 heures
 et la concordance avec le temps effectivement dépensé par MAKE.
+
+## 12. Synthèse et détails (17 octobre 2026, XL)
+
+La fiche affiche d’abord l’effet, READY TO MAKE ou les seuls prérequis
+manquants, la durée native et les informations d’outil/fin du § 11.
+Les alternatives facultatives de SPLINT ne sont pas présentées comme des
+blocages lorsque le raccourci natif suffit. Une recette déjà disponible
+montre le résultat possédé sans annoncer de nouveau temps de travail.
+
+Sur une recette, droite affiche FACTORS et SLOWER ; gauche retrouve
+exactement la synthèse. L’onglet utilise toujours gauche/droite pour les
+pages. Les libellés du bas distinguent PAGE / RECIPES de DETAILS / RECIPE.
+Aucun état de fabrication, tirage ou durée ne change pendant cette lecture.

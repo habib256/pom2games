@@ -59,7 +59,7 @@ def identity(disk, gone=False, empty=False):
             s.step(L.poke('injury_active', 1, 0))  # earlier active item reorders the list
         if empty:
             event(s, 'ok')
-            assert byte(s, 'pg_focus') == 0 and byte(s, 'pg_levels') == 0
+            assert byte(s, 'pg_focus') == 0 and byte(s, 'pg_levels') == 1
         else:
             returned(s, 3 if gone else 7, 0 if gone else 1)
         assert byte(s, 'mq_n') == 0
