@@ -7,6 +7,21 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### OBJECTS/EQUIPMENT : instruments et aide d’orientation (17 octobre 2026)
+
+- USE MAP/COMPASS/WATCH/ALTIMETER/CHART explique le résultat avant
+  confirmation : TOPO, aide magnétique, aide montre, simple prise en main
+  ou refus de la carte céleste. Les usages acceptés ne prennent pas de temps.
+- La boussole n’exige pas de lumière. Les autres instruments acceptent
+  AM/PM, et l’aube/crépuscule sous ciel clair ; la lampe ne lève pas
+  leur refus nocturne natif. Un refus annonce aussi la désactivation
+  de la boussole/montre précédente, en conservant le bâton d’ombre.
+- La prévisualisation et l’annulation n’ont aucun effet sur ces aides.
+  Le dialogue réutilise le scratch des listes pendant leur fermeture,
+  sans nouvel état résident ni modification de SAVE.
+- Validation : `make test-xl`, 31 scripts ; 75 combinaisons d’aperçu au
+  joystick, activations/refus natifs, retour TOPO → OBJECTS et EQUIPMENT.
+
 ### OBJECTS/EQUIPMENT : éclairage et loupe (17 octobre 2026)
 
 - USE FLASHLIGHT indique la charge disponible ou épuisée avant confirmation,
