@@ -25,37 +25,10 @@ PG_COUNT = 7
 ; CR, tab and vtab pad what they pass, differentially), so every cell is
 ; written once and only the cells that change are stored.
 page_top:
-        XL_JMP  XI_STATUS, page_top_x, @x13   ; (XL: the folder tabs, src/mt_pages.s)
-        sta     pg_cur
-        jsr     text_screen
-        jsr     text_mode80
-        ldx     #0
-@tab:   stx     pg_i
-        cpx     pg_cur
-        bne     :+
-        lda     #$3F            ; the page shown, in inverse
-        sta     INVFLG
-:       lda     #' '|$80
-        jsr     COUT
-        ldx     pg_i
-        lda     pg_name_lo,x
-        ldy     pg_name_hi,x
-        jsr     print_str_ay
-        lda     #' '|$80
-        jsr     COUT
-        lda     #$FF
-        sta     INVFLG
-        ldx     pg_i
-        inx
-        cpx     #PG_COUNT
-        bcc     @tab
-        lda     #72
-        jsr     tab
-        jsr     puts
-        .byte   "||", 0
-        rts
+        jmp     page_top_x       ; active XL edition
+        .res    80,0            ; dedicated MouseText row frame (PF_BUF)
+        XL_ZERO XI_STATUS, page_top+3, page_top+83
 
-        XL_ZERO XI_STATUS, page_top+3, page_keys        ; (XL: page_top_x)
 ; page_keys -- A = a key of a page. pg_focus is the level holding the focus
 ; (0: the tab row, reset on every arrival; pg_levels says what lies below).
 ; On the tab row the arrows turn the pages, DOWN goes down a level (or back
@@ -69,9 +42,6 @@ page_top:
 ; RETURN and SPACE return to the view; any other key comes back (A kept).
 ; The focus moves redraw the page: the drawing is differential, so only
 ; the cells of the marker that moved are stored.
-.if (* - (page_top+3)) < 80
-        .res 80 - (* - (page_top+3)), 0
-.endif
 page_keys:
         ldx     pg_cur
         ldy     pg_focus
@@ -169,15 +139,7 @@ pg_letpg:  .byte PG_STATUS, PG_INVENTORY, PG_CRAFT, PG_HELP, PG_INVENTORY, PG_ST
 pg_levels: .byte 0, $80, 0, 0, 4, 3, $80
 pg_line_at: .byte $FF, 0, 0, 0, 0, 4, 0    ; first of pg_line_keys ($FF: the page's own)
 pg_focus: .byte 0
-pg_name_lo: .byte <pg_n0, <pg_n2, <pg_nc, <pg_n3, <pg_n4, <pg_n5, <pg_ne
-pg_name_hi: .byte >pg_n0, >pg_n2, >pg_nc, >pg_n3, >pg_n4, >pg_n5, >pg_ne
-pg_n0:  .byte   "STATUS", 0
-pg_n2:  .byte   "OBJECTS", 0
-pg_nc:  .byte   "CRAFT", 0
-pg_n3:  .byte   "HELP", 0
-pg_n4:  .byte   "OPTIONS", 0
-pg_n5:  .byte   "MENU", 0
-pg_ne:  .byte   "EQUIPMENT",0
+pg_name_offsets: .byte 11,18,26,32,37,45,50
 .pushseg
 .segment "LOWPAGE"
 pg_cur: .byte   0               ; survives STATUS/CRAFT/SIM swaps

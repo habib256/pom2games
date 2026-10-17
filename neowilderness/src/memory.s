@@ -676,7 +676,8 @@ tf_index:
         inx
         bne     :+
         lda     #TB_MAX         ; end-aligned
-        sbc     tf_len          ; C set
+        sec                     ; a bank record may cross a 256-byte boundary
+        sbc     tf_len
         tax
         inx
 :       dex

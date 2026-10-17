@@ -7,6 +7,26 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### STATUS : résultat lisible et retour au même soin (17 octobre 2026)
+
+- Après un soin, le résultat natif reste visible. RETURN CARE retrouve la
+  même affection et le même geste ; ESC VIEW permet de rester dans la vue.
+  Un bouton maintenu ne valide pas cette étape ni ne répète le soin.
+- L’affection est retrouvée par identité si la liste change. Si elle a
+  disparu, un voisin valide est sélectionné, ou l’onglet si aucune ne reste.
+  La préparation lampe/lame reste native. Si elle échoue, le soin est sauté
+  et son refus reste lisible avant le retour ; une rencontre arrête la file.
+- L’annulation d’une quantité d’eau retrouve aussi le geste sans modifier
+  la partie. La sélection de retour reste hors sauvegarde.
+- Les noms d’onglets et quelques libellés STATUS passent en banque ; les
+  80 octets du cadre MouseText restent réservés. EQUIPMENT est compressé
+  dans le stock auxiliaire pour conserver les six régions.
+- Correction du lecteur de textes traversant une frontière de 256 octets :
+  l’alignement ne dépend plus de la retenue du calcul de longueur.
+- Validation : 39 scripts XL ; retours au port joystick, refus, annulations,
+  interruptions, maintien du bouton et 255 textes dont 26 frontières de page.
+  Retour à ProDOS également vérifié : banques, page zéro, bitmap et RESET restaurés.
+
 ### STATUS : sens des états et aperçu du soin (17 octobre 2026)
 
 - La légende MEDICAL explicite ACTIVE: NEEDS CARE, TREATED: CARE GIVEN et

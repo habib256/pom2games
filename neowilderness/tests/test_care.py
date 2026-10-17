@@ -700,6 +700,11 @@ def medical_gestures():
         s.step(L.until('do_command', 40000))
         return line, s.step(L.peek('inbuf', 20)).data.split(b'\0')[0].decode()
 
+    def close_result(s):
+        s.step(L.until('q_care_wait', 60000))
+        assert 'RETURN CARE' in text_screen(s.step('peek:0400:1024').data)[23]
+        s.step('press:\\e'); s.step(IDLE)
+
     results = []
     for by_page in (True, False):
         with a2test.Session(DISK, timeout=1800) as s:
@@ -708,7 +713,7 @@ def medical_gestures():
             if by_page:
                 line, typed = gesture(s)
                 assert line.removeprefix(' \u2190\u2192 ').startswith('STOP BLEEDING  USE PRESSURE') and typed == 'STOP BLEEDING', (line, typed)
-                s.step(IDLE)
+                close_result(s)
             else:
                 s.step('key:STOP BLEEDING\r'); s.step('wait:1'); s.step(IDLE)
             results.append(state(s))
@@ -723,7 +728,7 @@ def medical_gestures():
                 assert line.removeprefix(' \u2190\u2192 ').startswith('USE FRSTAID KIT') and typed == 'USE FLASHLIGHT', (line, typed)
                 s.step(L.until('get_line', 400000)); s.step(L.until('do_command', 40000))
                 assert s.step(L.peek('inbuf', 20)).data.startswith(b'USE FRSTAID KIT\0')
-                s.step(IDLE)
+                close_result(s)
             else:
                 for text in ('USE FLASHLIGHT', 'USE FRSTAID KIT'):
                     s.step(f'key:{text}\r'); s.step('wait:1'); s.step(IDLE)

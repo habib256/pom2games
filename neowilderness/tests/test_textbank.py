@@ -47,6 +47,10 @@ def main():
     texts = list(source_texts())
     assert L['TB_TEXTS'] == len(texts) and L['TB_DICT'] == 256
     assert L['TB_WORDS'] == 32  # dictionary no longer shrinks with text count
+    bank = (HERE/'build/wildtxb.bin').read_bytes()
+    offsets = [int.from_bytes(bank[i:i+2], 'little') for i in range(0, 2*(len(texts)+2), 2)]
+    crossings = sum((a & 255) > (b & 255) for a, b in zip(offsets[1:-1], offsets[2:]))
+    assert crossings, 'exercise end-aligned fetches across 256-byte bank boundaries'
     stub = L['idle']
     done = f'until:{stub+5:04X}:60000'
     with a2test.Session(DISK) as s:
@@ -60,7 +64,7 @@ def main():
             actual = s.step(L.peek('tb_buf', len(expected))).data
             assert actual == expected, (ident, name, actual, expected)
             s.step(L.until('idle', 60000))
-    print(f'  {len(texts)} native decodes = source bytes, text IDs across 128, dictionary indices >=256, embedded NUL/CR and literals: OK')
+    print(f'  {len(texts)} native decodes = source bytes, {crossings} bank page crossings, text IDs across 128, dictionary indices >=256, embedded NUL/CR and literals: OK')
 
 
 if __name__ == '__main__':

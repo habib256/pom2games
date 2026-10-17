@@ -78,6 +78,7 @@ S_BOW    = 23                   ; lot 3: the crafted weapons of KILL
 S_SPEAR  = 24
 S_OBJECTS = 25                  ; the OBJECTS page again after its transfer
 S_EQUIPMENT = 26
+S_CARE_RETURN = 27
 MQ_CATCH_DUR = mq_list+4        ; CATCH uses at most 3 of the 5 queue slots
 
 .segment "GRID"
@@ -695,6 +696,8 @@ q_next: ldx     mq_i
         jcs     q_stop
         inc     mq_i
         lda     mq_list,x
+        cmp     #S_CARE_RETURN
+        jeq     q_care_return
         jsr     q_step
         bpl     q_type
         jsr     q_check
@@ -751,7 +754,16 @@ q_type: lda     #0
         lda     #0
         sta     mq_n
 :       jmp     done            ; (the grid or the typed line, as it began)
-q_stop: lda     #0
+q_stop: lda     journey_encounters
+        cmp     mq_enc
+        bne     @clear
+        ldx     mq_n
+        beq     @clear
+        dex
+        lda     mq_list,x
+        cmp     #S_CARE_RETURN
+        jeq     q_care_return    ; preparation failed: show refusal, skip the care
+@clear: lda     #0
         sta     mq_n
         jmp     get_line_body
 
@@ -838,6 +850,7 @@ gr_steps:
         .byte   Q_PRE|Q_POST|15, 90, "USE SPEAR", 0              ; S_SPEAR
         .byte   0, 106, "INVENTORY", 0                           ; S_OBJECTS
         .byte   0, 110, "EQUIPMENT", 0                           ; S_EQUIPMENT
+        .byte   0, 106, "STATUS", 0                              ; S_CARE_RETURN
 
 ; ----------------------------------------------------------------------------
 ; the lists of items
@@ -1201,3 +1214,49 @@ gr_worn: .byte 0
 gn_i:    .byte 0
 gn_o:    .byte 0
 gr_name: .res 14
+
+; Preserve native feedback until the player acknowledges or stays in the view.
+q_care_return:
+        lda     #0
+        sta     mq_n
+        lda     #23
+        sta     CV
+        jsr     t_vtab
+        lda     #41
+        sta     CH
+        jsr     puts
+        .byte   "RETURN CARE  ESC VIEW",0
+q_care_wait:
+        jsr     wait_key
+        cmp     #KC_ESC
+        jeq     get_line_body
+        cmp     #KC_RET
+        beq     @open
+        cmp     #' '
+        bne     q_care_wait
+@open:  ldx     #0
+        ldy     #0
+        sty     gr_f
+@scan:  lda     injury_active,x
+        beq     @next
+        iny
+        cpx     sr_condition
+        bne     @next
+        sty     gr_f
+@next:  inx
+        cpx     #13
+        bcc     @scan
+        lda     gr_f
+        bne     @focus          ; still active: retain condition and gesture
+        lda     #0
+        sta     sr_gesture
+        lda     sr_focus
+        sty     gr_f
+        cmp     gr_f
+        bcc     @focus
+        tya                     ; gone: nearest valid neighbour, or tab if none
+@focus: ora     #$40
+        sta     pg_open
+        lda     #S_CARE_RETURN
+        jsr     q_step
+        jmp     q_type

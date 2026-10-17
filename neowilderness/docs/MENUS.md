@@ -1405,8 +1405,8 @@ et annuler ne dépensent rien et ne modifient ni stocks, ni temps, ni RNG.
 Retour exécute la commande native, avec les préparations existantes de lampe
 ou lame. DRINK WATER et WET BODY gardent leurs choix de quantité natifs.
 USE FIRE affiche 0 MIN : les pas de santé de 15 minutes ne sont pas une
-durée dépensée par cette commande. Le retour automatique au même soin après
-action reste au TODO ; l’action revient encore à la vue.
+durée dépensée par cette commande. Après action, le résultat reste visible
+avant RETURN CARE ou ESC VIEW, comme détaillé au § 30.
 
 `tests/test_status_care_preview.py` parcourt les 19 choix des treize
 affections au port joystick. Il compare les durées, les conseils, la présence,
@@ -1414,3 +1414,41 @@ les doses et la lumière, avec conservation de l’état pendant la navigation.
 Il exécute les premiers secours en lumière et après préparation de lampe,
 ainsi que les usages de kits à zéro ou compteur négatif. Les tests de focus
 gardent le contrôle des marques, sélections et écritures différentielles.
+
+## 30. Reprendre le même soin après le résultat (17 octobre 2026, XL)
+
+Retour sur un geste exécute sa commande native et ses éventuelles
+préparations de lampe ou de lame. Le résultat reste dans les trois lignes
+de gauche de la vue ; en bas à droite apparaît RETURN CARE / ESC VIEW.
+Un nouvel appui sur le bouton principal rouvre STATUS, sur la même affection
+et le même geste. Le bouton d’annulation laisse la vue et rétablit la grille ;
+le soin déjà exécuté reste appliqué.
+Les axes sont ignorés pendant cette lecture. Un bouton maintenu depuis le
+déclenchement du soin ne passe pas cette étape. La lecture et le retour ne
+dépensent pas de temps supplémentaire.
+
+L’affection est mémorisée par identité, pas seulement par rang. Une autre
+affection apparue ou guérie plus haut ne déplace donc pas la sélection vers
+un autre soin. Si l’affection sélectionnée n’est plus active, le retour
+choisit un voisin valide et son premier geste ; si la liste est vide,
+STATUS revient sur l’onglet. Les pourcentages, doses et traitements sont
+recalculés par les routines habituelles de la page.
+
+Une préparation refusée n’exécute pas le soin suivant : le joueur lit le
+refus natif, puis choisit de revenir au soin ou de garder la vue. Un refus
+du soin lui-même suit la même lecture. Annuler la quantité de DRINK WATER
+permet également de retrouver le geste sans consommation. Une nouvelle
+rencontre conserve la priorité de la simulation : elle termine la file
+avant le retour proposé et laisse la vue disponible.
+
+La sélection est une donnée d’interface hors SAVE. Une sortie vers la vue
+ou une interruption ne laisse pas de retour en attente ; ouvrir STATUS
+manuellement ou reprendre la dernière page retrouve les règles d’arrivée
+habituelles. Les autres files de la grille ne changent pas de comportement.
+
+`tests/test_status_care_return.py` joue au port joystick le soin temporisé,
+la préparation de lame, les premiers secours après lampe, le kit absent,
+la lampe vide, la liste réordonnée, l’affection disparue, la liste vide,
+le choix de rester en vue, l’interruption par rencontre, le bouton maintenu
+et l’annulation d’une quantité d’eau. Les tests de soins, de focus et de
+grille intègrent aussi la lecture du résultat avant de poursuivre.

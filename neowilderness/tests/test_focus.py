@@ -232,11 +232,12 @@ def medical():
         s.step('press:\\r')
         s.step(L.until('do_command', 40000))
         assert s.step(L.peek('inbuf', 20)).data.startswith(b'USE KNIFE\0') and \
-            [s.step(L.peek(n)).data[0] for n in ('mq_n', 'mq_i')] == [2, 1], 'USE KNIFE, then CUT BODY queued'
+            [s.step(L.peek(n)).data[0] for n in ('mq_n', 'mq_i')] == [3, 1], 'USE KNIFE, then CUT BODY and care return queued'
         s.step(L.until('get_line', 400000))
         s.step(L.until('do_command', 40000))
         assert s.step(L.peek('inbuf', 20)).data.startswith(b'CUT BODY\0'), s.step(L.peek('inbuf', 20)).data
-        s.step(IDLE)
+        s.step(L.until('q_care_wait', 60000))
+        s.step('press:\\e'); s.step(IDLE)
         assert s.step(L.peek('care_tools')).data[0] & 2 and s.step(L.peek('mq_n')).data[0] == 0
         # OPTIONS' line F: IGNORE FOOD typed, then GET FOOD.
         for want in (1, 0):

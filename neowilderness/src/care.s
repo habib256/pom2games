@@ -587,6 +587,7 @@ med_bank_word:
 ; blade in use, the FRSTAID KIT in the dark: USE KNIFE (AXE) or USE
 ; FLASHLIGHT typed first, the gesture queued after it (src/grid.s).
 med_run:
+        jsr     sr_prepare
         jsr     med_gest_at
         tya
         clc
@@ -617,9 +618,11 @@ med_run:
         beq     :+
         ldy     #S_KIT
 :       sty     mq_list+1
-        lda     #2
+        lda     #S_CARE_RETURN
+        sta     mq_list+2
+        lda     #3
         sta     mq_n
-        lda     #1
+        lsr     a
         sta     mq_i
         lda     journey_encounters
         sta     mq_enc

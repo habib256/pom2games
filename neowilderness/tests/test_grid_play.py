@@ -115,7 +115,8 @@ def play(disk):
         s.step(f'press:{RET}')
         s.step(L.until('do_command', LIMIT))
         typed = s.step(L.peek('inbuf', 20)).data.split(b'\0')[0].decode()
-        s.step(IDLE)
+        s.step(L.until('q_care_wait', LIMIT))
+        s.step(f'press:{RET}'); s.step(L.until('keyboard_wait', LIMIT))
         log.append(('bleeding', [typed], int.from_bytes(s.step(L.peek('mli_reads', 2)).data, 'little') - reads, 0))
         assert typed == 'STOP BLEEDING' and peek(s, 'medical_actions', 0) == 1 and \
             peek(s, 'injury_treated', 0) == 1, log
