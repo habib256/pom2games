@@ -229,3 +229,16 @@ om_matches_rain: "RAIN. ACTIVATE FUEL FIRST.",0
 om_matches_wind: "WIND >=41 MPH. ACTIVATE FUEL FIRST.",0
 om_matches_ready: "MATCHES READY. USE THEN MAKE FIRE.",0
 om_matches_empty: "NO MATCHES LEFT. FIND ANOTHER IGNITION.",0
+
+om_unit_oz: " OZ",0
+om_separator: " / ",0
+om_unit_min: " MIN",0
+om_unit_oz_space: " OZ ",0
+om_wear_free: " WEAR ",0
+om_over: "OVER ",0
+om_flash_ready: "BATTERIES AVAILABLE. ONE USE / 0 MIN.",0
+om_flash_empty: "BATTERY CHARGE EXHAUSTED.",0
+om_glass_outside: "MAGNF GLASS NEEDS OUTDOOR SUNLIGHT.",0
+om_glass_day: "MAGNF GLASS NEEDS DAYLIGHT.",0
+om_glass_clear: "MAGNF GLASS NEEDS A CLEAR SKY.",0
+om_glass_sun: "SUN >=30 DEG NEEDED. 15 MIN / NO FIRE.",0

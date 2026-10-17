@@ -1153,3 +1153,30 @@ pour l’eau préserve les indicateurs géographiques existants.
 réelle au port joystick, avec annulation et refus sans mutation lorsque
 le moteur refuse pour météo, eau ou réchaud non préparé. Il vérifie les
 stocks signés, les durées 30/0 minutes et les deux notions de feu.
+
+
+## 22. Lampe et loupe (17 octobre 2026, XL)
+
+USE FLASHLIGHT affiche BATTERIES AVAILABLE pour un compteur positif,
+BATTERY CHARGE EXHAUSTED pour un compteur nul ou négatif. Un usage positif
+consomme une unité, active la lumière et met la lampe en main, sans délai.
+L’aperçu ne bloque pas la commande native : au compteur nul, elle refuse ;
+au compteur négatif, elle allume encore la lumière et prend la lampe en main,
+sans activer son bit d’usage ni consommer de stock. Après la dernière unité,
+le bit d’usage reste actif même si une nouvelle tentative à zéro refuse.
+
+USE MAGNF GLASS exige d’être dehors, de jour, sous ciel clair, avec le
+Soleil à au moins 30° au-dessus de l’horizon. Le dialogue explique l’abri,
+la nuit ou le ciel couvert ; sinon il rappelle SUN >=30 DEG NEEDED, le coût
+de 15 minutes et NO FIRE. Il n’annonce pas READY : le cache d’altitude est
+arrondi et ne suffit pas à distinguer exactement le seuil. L’angle est
+recalculé par la simulation à la confirmation. Aucun calcul astronomique
+ni chargement de simulation n’a lieu pendant la prévisualisation.
+
+L’usage accepté met la loupe en main et avance de 15 minutes. Dans les
+règles natives, ce délai fait expirer sa préparation : la loupe ne fournit
+pas l’allumage pour MAKE FIRE ensuite. Le dialogue explicite cette limite.
+
+`tests/test_lighting_requirements.py` vérifie ces indications et leurs
+résultats natifs par le port joystick uniquement, ainsi que l’absence de
+mutation au choix, à la confirmation et à l’annulation dans les deux pages.

@@ -7,6 +7,21 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### OBJECTS/EQUIPMENT : éclairage et loupe (17 octobre 2026)
+
+- USE FLASHLIGHT indique la charge disponible ou épuisée avant confirmation,
+  avec un usage consommé et zéro minute. Les compteurs signés et l’activation
+  du dernier usage conservent leurs effets natifs.
+- USE MAGNF GLASS explique le besoin de sortir de l’abri, de lumière du jour
+  et de ciel clair. Sinon, le dialogue annonce le seuil solaire de 30°,
+  les 15 minutes et l’absence de feu produit. Aucun READY n’est déduit
+  du cache solaire arrondi ; l’angle exact reste vérifié par USE.
+- Même aperçu dans les deux pages, sans modifier stocks, horloge ou état
+  de préparation ; retour sur l’objet sélectionné après annulation.
+- Validation : `make test-xl` (30 scripts) et `tests/test_camp.py` ; nouveau
+  parcours joystick couvrant batteries vides/négatives/257/dernier usage,
+  abri/nuit/nuages/pluie, Soleil bas/haut et EQUIPMENT.
+
 ### OBJECTS/EQUIPMENT : préparation du réchaud et des allumettes (17 octobre 2026)
 
 - USE STOVE distingue combustible inactif, allumage absent et dispositif

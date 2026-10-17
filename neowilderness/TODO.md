@@ -206,8 +206,9 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
   (17 octobre). Les prérequis d’appât de TRAP/FISHNG GEAR et de lumière
   de FRSTAID KIT, ainsi que le combustible/allumage du réchaud et les
   conditions des allumettes sont visibles avant confirmation (17 octobre).
-  Restent les usages d’éclairage, de loupe et d’instruments ; les refus
-  natifs restent accessibles.
+  La lampe annonce sa charge et la loupe ses conditions de lumière, son
+  seuil solaire de 30° et ses 15 minutes sans feu (17 octobre). Restent les
+  instruments ; les refus natifs restent accessibles.
 - [ ] **OBJECTS — aperçu à compléter.** Avant validation : source, destination réelle,
   quantité, poids ajouté, volume nécessaire et place restante après
   transfert ; eau/gourde, sac, vêtements et objets fabriqués compris.
@@ -432,9 +433,10 @@ place des écrans 40 colonnes (étapes 3-4 de MENUS.md, remplacées par les
 pages 80 colonnes).
 
 Points de contrôle du lot suivant : terminer le filtrage contextuel fin,
-en explicitant les prérequis d’usage restants (éclairage, loupe et instruments).
+en explicitant les prérequis d’usage restants des instruments.
 Appât des dispositifs CATCH, lumière des premiers soins, combustible et
-allumage du réchaud, conditions météo/eau des allumettes sont affichés ;
+allumage du réchaud, conditions météo/eau des allumettes, charge de la lampe
+et conditions de la loupe sont affichés (angle solaire exact vérifié sur USE) ;
 le filtre de position et les actions impossibles du sac
 sont réalisés (17 octobre),
 puis rejouer sur matériel réel le parcours
