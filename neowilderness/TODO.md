@@ -249,9 +249,12 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
   Le résultat natif reste maintenant visible ; RETURN CARE retrouve la même
   affection et le même geste, ESC VIEW reste dans la vue. Affection disparue,
   préparation refusée, quantité annulée et rencontre sont pris en compte
-  sans répétition du soin (17 octobre). Restent l’explication détaillée des
-  jauges et la vérification dynamique des autres prérequis (attelle, feu,
-  lame et sources d’eau) au-delà du rappel de leur nécessité.
+  sans répétition du soin (17 octobre). Attelle accessible sur sa case ou
+  transportée et feu allumé indiqués par HERE/NOT HERE ; contrôle d’attelle
+  partagé avec USE SPLINT et effets natifs préservés (17 octobre).
+  Restent l’explication détaillée des jauges, la disponibilité et l’activation
+  de la lame, les sources d’eau et les conditions contextuelles d’utilisation
+  du feu au-delà de sa présence.
 - [ ] **CRAFT.** Après fabrication : prendre/utiliser/entrer ou revenir aux
   recettes ; distinguer outil disponible et en usage ; annoncer le coût
   temporel et l'heure de fin estimée des travaux longs ; rendre le lien

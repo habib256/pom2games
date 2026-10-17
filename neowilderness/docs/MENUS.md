@@ -1395,8 +1395,9 @@ LIT ou DARK, et rappellent la lampe si nécessaire.
 Les rappels indiquent notamment SPLINT REQUIRED, WATER OZ NEXT, FIRE NEEDED,
 la préparation KNIFE/AXE de CUT BODY et la nécessité d’une morsure active
 pour SUCK VENOM. Les autres prérequis ne sont pas tous calculés dynamiquement :
-le rappel de l’attelle, du feu, de la lame ou de l’eau ne certifie pas leur
-disponibilité. HERE suit le test natif d’accès à l’objet, y compris au sol
+le rappel de la lame ou de l’eau ne certifie pas leur disponibilité. L’attelle
+et le feu ajoutent désormais leur présence réelle (§ 31). Pour les lunettes
+et médicaments, HERE suit le test natif d’accès à l’objet, y compris au sol
 sur la bonne case, et exclut un objet suspendu ou absent.
 
 La rangée 23 conserve la liste des gestes, le geste sélectionné en inverse
@@ -1452,3 +1453,31 @@ la lampe vide, la liste réordonnée, l’affection disparue, la liste vide,
 le choix de rester en vue, l’interruption par rencontre, le bouton maintenu
 et l’annulation d’une quantité d’eau. Les tests de soins, de focus et de
 grille intègrent aussi la lecture du résultat avant de poursuivre.
+
+## 31. Attelle et feu disponibles pour le soin (17 octobre 2026, XL)
+
+USE SPLINT ajoute HERE ou NOT HERE après SPLINT REQUIRED. L’attelle absente
+est refusée ; au sol, elle doit être sur la case du joueur ; dans PACK,
+en mains ou déjà portée, elle reste accessible. L’aperçu utilise le même
+test de présence que la commande native, sans mettre l’attelle ni activer
+le soin. Il ne montre pas de doses. Après confirmation, l’usage accepté
+met l’attelle et conserve les 30 minutes et l’effort natifs. Les soins de
+bras et de jambe utilisent ce même affichage.
+
+USE FIRE ajoute HERE si un feu est allumé, NOT HERE sinon. Cet état décrit
+la présence du feu, indépendamment du fait de l’avoir effectivement mis
+en usage. Il ne signifie pas READY : l’immersion ou la pluie sans combustible
+actif peuvent encore produire le refus natif après confirmation. Le conseil
+ne transforme pas ces règles en nouvelles interdictions et ne masque pas
+l’avertissement natif dans un abri. L’usage reste à 0 MIN ; il n’affiche
+aucun compteur de doses.
+
+Consulter, changer de geste, annuler et rouvrir STATUS conserve les stocks,
+le temps et les drapeaux de soin. Le résultat natif et RETURN CARE restent
+disponibles après l’action, avec mise à jour de l’état de l’attelle.
+
+`tests/test_care_presence.py` vérifie quinze scénarios au port joystick :
+positions de l’attelle, mauvaise abscisse ou ordonnée, bras et jambe,
+feu absent/allumé, pluie, immersion et abri. Chaque aperçu est comparé à
+l’usage réellement exécuté, avec contrôle de durée et de conservation de
+l’état pendant navigation et annulation.

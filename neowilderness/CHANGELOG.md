@@ -7,6 +7,20 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### STATUS : disponibilité de l’attelle et du feu (17 octobre 2026)
+
+- USE SPLINT affiche HERE/NOT HERE : une attelle au sol n’est accessible
+  que sur sa case ; une attelle transportée ou portée reste disponible.
+  L’aperçu et la commande partagent le même contrôle natif, sans mutation.
+- USE FIRE affiche la présence d’un feu allumé, distincte de la mise en usage
+  du feu. HERE ne garantit pas son utilisation sous la pluie ou dans l’eau ;
+  les avertissements et refus restent ceux du moteur.
+- Ni l’attelle ni le feu n’affichent de compteur de doses. Les médicaments
+  et lunettes conservent leurs indications et règles d’utilisation.
+- Validation : 40 scripts XL, dont quinze scénarios de présence au port
+  joystick : positions et coordonnées de l’attelle, bras/jambe, feu absent,
+  allumé, pluie, immersion et abri. Annulation et navigation restent sans effet.
+
 ### STATUS : résultat lisible et retour au même soin (17 octobre 2026)
 
 - Après un soin, le résultat natif reste visible. RETURN CARE retrouve la
