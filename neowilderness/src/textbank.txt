@@ -175,7 +175,7 @@ cr_pack: "PACK: NEED # IN3. FREE $ IN3.",0
 cr_hands: "HANDS: NEED # IN3. FREE $ IN3.",0
 
 om_h0: "UP/DOWN ACTION  RETURN SELECT  ESC CANCEL",0
-om_h1: "UP/DOWN 1 LEFT 1 RIGHT X2/ALL (TRANSFERS) RETURN NEXT ESC BACK",0
+om_h1: "UP/DOWN 1 LEFT 1 RIGHT X2/FIT/ALL (TRANSFERS) RETURN NEXT ESC BACK",0
 om_h2: "RETURN CONFIRM  ESC BACK",0
 om_overflow: "OVERFLOW - TRANSFER WILL BE REFUSED",0
 om_sample: "NO STOCK USED / 0 MIN",0
@@ -265,20 +265,30 @@ om_weight_label: " WT ",0
 om_hung_label: "LOCAL HUNG",0
 om_need_canteen = out_no_canteen
 
-st_gauge_labels: 13,13,"HEALTH  ",0,"%",13,13,"ENERGY  ",0,13,13,"HUNGER  ",0,13,13,"THIRST  ",0,13,13,"BODY    ",0
+st_gauge_labels: 13,13,"HEALTH  ",0,"%",13,13,"ENERGY  ",0,13,13,"HUNGER  ",0,13,13,"THIRST  ",0,13,13,"BODY    ",0,"HYPOTHERMIA",0,"HYPERTHERMIA",0,"GROUND",0,"FEELS",0,"00 FT",0," MPH",0," USES",0
 st_health_label = 0
 st_energy_label = 11
 st_hunger_label = 23
 st_thirst_label = 34
 st_body_label = 45
 
-st_hypo_label: "HYPOTHERMIA",0
-st_hyper_label: "HYPERTHERMIA",0
-st_ground_label: "GROUND",0
-st_feels_label: "FEELS",0
-st_feet_label: "00 FT",0
-st_mph_label: " MPH",0
-ob_uses_label: " USES",0
+st_hypo_label = 56
+st_hyper_label = 68
+st_ground_label = 81
+st_feels_label = 88
+st_feet_label = 94
+st_mph_label = 100
+ob_uses_label = 105
 ob_hands_label: " HANDS ",0
 ob_water_label: "WATER",0
 ob_food_label: "FOOD",0
+
+pg_line_texts: "C  WILDLIFE FREQUENCY",0,"A  PLAYER ON TOPO",0,"P  MAP PAGE",0,"F  FOOD SOURCES ON THE WAY",0,"S  SAVE (GAMES 1-5)",0,"R  RESTORE",0,"Q  QUIT",0
+
+pg_d1: " HOW OFTEN ANIMALS APPEAR, 0 TO 100 (NATURE).",0
+pg_d2: " YOUR POSITION ON THE TOPO SHEET.",0
+pg_d3: " THE TEXT MAP, NEXT TO TOPO.",0
+pg_d4: " STOP AT FOOD FOUND ON THE WAY (GET FOOD).",0
+om_fit_label: " FIT ",0
+
+pg_heading_texts: " LOCAL ",0," CARRYING ",0," LOAD ",0," MORE ",0," CONDITIONS ",0," MEDICAL ",0," OPTIONS ",0," RANGERS ",0," SAVE / RESTORE ",0

@@ -200,17 +200,13 @@ pg_desc_x:
         jsr     vtab
         ldx     pg_focus
         beq     :+
-        lda     pg_desc_lo-1,x
-        ldy     #>pg_desc
-        jmp     print_str_ay
+        lda     pg_desc_ids-1,x
+        jmp     om_bank_puts
 :       rts
-pg_desc_lo: .byte <pg_d1, <pg_d2, <pg_d3, <pg_d4
-pg_desc:
-pg_d1:  .byte   " HOW OFTEN ANIMALS APPEAR, 0 TO 100 (NATURE).", 0
-pg_d2:  .byte   " YOUR POSITION ON THE TOPO SHEET.", 0
-pg_d3:  .byte   " THE TEXT MAP, NEXT TO TOPO.", 0
-pg_d4:  .byte   " STOP AT FOOD FOUND ON THE WAY (GET FOOD).", 0
-.assert >pg_d4 = >pg_desc, error, "pg_desc: one page"
+.pushseg
+.segment "STATUS"
+pg_desc_ids: .byte pg_d1,pg_d2,pg_d3,pg_d4
+.popseg
 ; bar_x -- (bar's head, XL) a gauge of ten cells, A of them full: solid
 ; blocks ($4E), checkerboards ($56) for the rest, then two spaces.
 bar_x:  sta     pf_n

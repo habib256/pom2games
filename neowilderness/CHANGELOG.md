@@ -7,6 +7,23 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### OBJECTS : maximum transportable explicite (17 octobre 2026)
+
+- PACK des provisions locales du premier jeu et GET WATER affichent FIT,
+  le maximum compatible avec le poids, les volumes et la gourde. Droite
+  insère ce palier dans le doublement, puis permet de continuer vers TOUT.
+  L’ouverture conserve TOUT exact ; aucune réduction automatique du transfert.
+- FIT 0 signale qu’aucune unité ne passe ; les quantités positives restent
+  accessibles pour consulter le refus natif. Manger, boire et les piles
+  sauvages conservent leurs règles de quantité.
+- Calcul sans modification de la partie, en seize projections au plus,
+  même pour un stock de 65 535 unités. L’aperçu d’eau ignore désormais les
+  positions non transportées de la gourde, évitant un indice de charge invalide.
+  Les nombres NEED/WT dépassant le calcul 16 bits sont masqués, FIT reste lisible.
+- Validation : 36 scripts XL, dont seize scénarios FIT au port joystick,
+  refus, annulations, limites de volume/poids/gourde et transfert de 63 669
+  unités ; contrôle de l’intégrité du code avec gourde absente ou suspendue.
+
 ### OBJECTS/EQUIPMENT : contenants prêts avant transfert (17 octobre 2026)
 
 - PACK explique le sac à dos non transporté pour équipements, provisions

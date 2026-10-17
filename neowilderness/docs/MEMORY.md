@@ -3083,3 +3083,30 @@ un octet libre chacun. TEXT : `$0A00–$0FFC`, trois octets libres.
 DAT : 67 245 bruts / 56 801 stockés, 19 enregistrements ; XL : 380/1600
 blocs, cinq parties. Banque : 254 textes, 32 mots ; 254 décodages natifs
 comparés à leurs octets sources, dont NUL internes et références de région.
+
+### Quantité FIT et regroupement des textes de page (17 octobre 2026)
+
+FIT réutilise la projection de charge en recherche binaire, seize essais au
+plus pour un stock 16 bits. Préparation et sélection rapide résident dans
+STATUS ; recherche dans STATX, après les routines existantes afin de garder
+`stx_base` à `$B100`. Les cinq octets `overlay_text+65..69` contiennent
+validité, borne basse et borne haute ; aucun état sauvegardé supplémentaire.
+La quantité initiale est restaurée au stock exact après la recherche.
+
+Les petits libellés STATUS rejoignent le bloc des jauges. Les lignes
+OPTIONS/MENU et les titres inverses partagent chacun une entrée bankée à
+NUL internes ; les descriptions OPTIONS rejoignent aussi la banque. Le
+lecteur de suffixe gère la retenue d’adresse, y compris à travers une page.
+Les titres ne lisent plus des chaînes derrière l’adresse de retour en pile.
+Le texte et la disposition des pages restent identiques.
+
+La projection d’eau vérifie la position transportée de la gourde avant de
+calculer son indice de charge : les positions sol, suspendue et absente ne
+peuvent plus déborder du scratch vers le code STATUS. Les tests comparent
+les 256 premiers octets de ce code pendant ces dialogues.
+
+TREE : `$5800–$5FFE`, un octet libre ; STATUS : `$9600–$B0C4`, 59 libres ;
+STATX : `$B100–$B5FD`, deux libres. HICODE : `$BE00–$BEFE`, un libre ;
+TEXT : `$0A00–$0FFC`, trois libres. DAT : 67 548 bruts / 57 009 stockés,
+19 enregistrements ; XL : 380/1600 blocs, cinq parties. Banque : 254 textes,
+32 mots ; les décodages natifs sont comparés aux octets sources.

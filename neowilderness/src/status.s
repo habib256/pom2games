@@ -206,8 +206,8 @@ status_care:
         lda     #2
         sta     CV
         jsr     st_at
+        lda     #0
         jsr     st_heading
-        .byte   " LOCAL ", 0
         lda     #3
         jsr     st_at
         jsr     puts
@@ -330,7 +330,7 @@ status_care:
 @felt:  lda     #ST_LBL2
         jsr     tab
         lda     #st_feels_label
-        jsr     om_bank_puts
+        jsr     st_gauge_text
         lda     #ST_VAL2
         jsr     tab
         lda     felt_temp
@@ -373,7 +373,7 @@ status_care:
         lda     wind
         jsr     pdec
         lda     #st_mph_label
-        jsr     om_bank_puts
+        jsr     st_gauge_text
         lda     #6
         jsr     st_at
         jsr     puts
@@ -390,7 +390,7 @@ status_care:
         lda     g0
         jsr     pdec
         lda     #st_feet_label
-        jsr     om_bank_puts
+        jsr     st_gauge_text
         jmp     @grnd
 @aword: ldx     #0              ; LOW < 30 <= MEDIUM < 101 <= HIGH
         lda     g0
@@ -409,7 +409,7 @@ status_care:
 @grnd:  lda     #ST_LBL2
         jsr     tab
         lda     #st_ground_label
-        jsr     om_bank_puts
+        jsr     st_gauge_text
         lda     #ST_VAL2
         jsr     tab
         jsr     level_here
@@ -476,8 +476,8 @@ status_care:
         ; (the injuries: MEDICAL below)
         lda     #ST_COND
         jsr     st_at
+        lda     #33
         jsr     st_heading
-        .byte   " CONDITIONS ", 0
         lda     #0
         sta     st_lvl
         ldx     #0
@@ -496,10 +496,10 @@ status_care:
         cmp     #$FF
         bne     @hyper
         lda     #st_hypo_label
-        jsr     om_bank_puts
+        jsr     st_gauge_text
         jmp     @injuries
 @hyper: lda     #st_hyper_label
-        jsr     om_bank_puts
+        jsr     st_gauge_text
 @injuries:
         lda     st_lvl
         bne     :+
@@ -511,8 +511,8 @@ status_care:
         lda     #ST_MED         ; MEDICAL: full rows from row 15
         ldx     #0
         jsr     st_at_x
+        lda     #46
         jsr     st_heading
-        .byte   " MEDICAL ", 0
         ldx     #0              ; the legend: each mark and its word
 @leg:   stx     st_i
         jsr     puts
@@ -731,29 +731,15 @@ item:   lda     st_lvl
 @col2:  lda     #ST_COL2
         jmp     tab
 
-; st_heading -- the string after the JSR (0-terminated), in inverse.
+; st_heading -- A = offset of a banked page heading, in inverse.
 st_heading:
-        pla
-        sta     gp2
-        pla
-        sta     gp2+1
+        pha
         lda     #$3F
         sta     INVFLG
-        ldy     #0
-@ch:    inc     gp2
-        bne     :+
-        inc     gp2+1
-:       lda     (gp2),y
-        beq     @end
-        ora     #$80
-        jsr     COUT
-        jmp     @ch
-@end:   lda     #$FF
+        pla
+        jsr     pg_heading_text
+        lda     #$FF
         sta     INVFLG
-        lda     gp2+1
-        pha
-        lda     gp2
-        pha
         rts
 
 ; bar -- a gauge of ten cells, A of them full (inverse spaces), then two
@@ -1080,14 +1066,94 @@ tree_effort: .byte $7B,$23,$D7,$0A,$3E ; native T12/S08 $5CBE, .02 * body weight
 .pushseg
 .segment "STATUS"
 ; Several short gauge labels share one fetched text, with embedded NULs.
+pg_heading_text:
+        pha
+        lda     #pg_heading_texts
+        bne     st_bank_suffix
+pg_line_text:
+        pha
+        lda     #pg_line_texts
+        bne     st_bank_suffix
 st_gauge_text:
         pha
         lda     #st_gauge_labels
+st_bank_suffix:
         jsr     text_fetch
         pla
         clc
         adc     #<tb_buf
         ldx     #>tb_buf
-        jmp     print_str_ax
-.assert >tb_buf = >(tb_buf+st_body_label), error, "gauge suffix crosses a page"
+        bcc     :+
+        inx
+:       jmp     print_str_ax
+.popseg
+
+.pushseg
+.segment "STATX"
+; Upper-mid binary search reuses the read-only transfer projection.
+; At most 16 trials, even with a 65535-ounce source.
+om_fit_search:
+        lda     om_max
+        sta     om_fit_upper
+        lda     om_max+1
+        sta     om_fit_upper+1
+@loop:  lda     om_fit
+        cmp     om_fit_upper
+        lda     om_fit+1
+        sbc     om_fit_upper+1
+        bcs     @done
+        sec
+        lda     om_fit
+        adc     om_fit_upper
+        sta     om_qty
+        lda     om_fit+1
+        adc     om_fit_upper+1
+        ror     a
+        sta     om_qty+1
+        ror     om_qty
+        lda     om_action
+        cmp     #7
+        bne     @project
+        lda     it_pack_hi+N_WATER
+        ora     om_qty+1
+        bne     @bad
+        clc
+        lda     it_pack_lo+N_WATER
+        adc     om_qty
+        bcs     @bad
+        cmp     #65
+        bcs     @bad
+@project:
+        jsr     om_project
+        lda     om_bad
+        bne     @bad
+        ldy     #6
+@check: lda     load_limits,y
+        cmp     om_total,y
+        lda     load_limits+1,y
+        sbc     om_total+1,y
+        bcc     @bad
+        dey
+        dey
+        bpl     @check
+        lda     om_qty
+        sta     om_fit
+        lda     om_qty+1
+        sta     om_fit+1
+        jmp     @loop
+@bad:   lda     om_qty
+        bne     :+
+        dec     om_qty+1
+:       sec
+        sbc     #1
+        sta     om_fit_upper
+        lda     om_qty+1
+        sta     om_fit_upper+1
+        jmp     @loop
+@done:  lda     om_max
+        sta     om_qty
+        lda     om_max+1
+        sta     om_qty+1
+        rts
+
 .popseg

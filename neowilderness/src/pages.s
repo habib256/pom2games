@@ -239,30 +239,30 @@ PG_DESC = 8                     ; the row of the description
 module_options:
         lda     #PG_OPTIONS
         jsr     page_top
+        lda     #56
         jsr     st_heading
-        .byte   " OPTIONS ", 0
         jsr     pg_first
-        jsr     puts
-        .byte   "C  WILDLIFE FREQUENCY", 0
+        lda     #0
+        jsr     pg_line_text
         jsr     pg_val
         lda     nature_frequency
         jsr     pdec
         jsr     pg_line
-        jsr     puts
-        .byte   "A  PLAYER ON TOPO", 0
+        lda     #22
+        jsr     pg_line_text
         lda     game_options
         and     #$80
         jsr     pg_onoff
         jsr     pg_line
-        jsr     puts
-        .byte   "P  MAP PAGE", 0
+        lda     #40
+        jsr     pg_line_text
         lda     game_options
         and     #$40
         eor     #$40
         jsr     pg_onoff
         jsr     pg_line         ; lot 4: food found on the way (FORAGE.md 11)
-        jsr     puts
-        .byte   "F  FOOD SOURCES ON THE WAY", 0
+        lda     #52
+        jsr     pg_line_text
         lda     fg_ignore
         eor     #1
         jsr     pg_onoff
@@ -335,8 +335,8 @@ module_menu:
         jsr     page_top
         jsr     goal_pct        ; also brings journey_left up to date
         sta     st_done
+        lda     #66
         jsr     st_heading
-        .byte   " RANGERS ", 0
         jsr     st_rangers
         jsr     puts
         .byte   "|JOURNEY DONE: ", 0
@@ -349,19 +349,19 @@ module_menu:
         jsr     bar
         lda     #6              ; (XL: under the RANGERS post-it)
         jsr     vtab
+        lda     #76
         jsr     st_heading
-        .byte   " SAVE / RESTORE ", 0
         jsr     pg_first
-        jsr     puts
-        .byte   "S  SAVE (GAMES 1-5)", 0
+        lda     #79
+        jsr     pg_line_text
         jsr     pg_line
-        jsr     puts
-        .byte   "R  RESTORE", 0
+        lda     #99
+        jsr     pg_line_text
         lda     #10             ; (XL: the QUIT post-it, its title from
         jsr     vtab            ; the table; 140 KB: a blank row)
         jsr     pg_line
-        jsr     puts
-        .byte   "Q  QUIT", 0
+        lda     #110
+        jsr     pg_line_text
         lda     #$FF
         sta     INVFLG
         XL_IMM  XI_STATUS, <pg_k_menu_x, @x23
