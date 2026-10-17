@@ -80,3 +80,8 @@ ces décisions ; ne pas rétablir les anciennes attentes par défaut.
   OBJECTS garde ses trois post-its et ses jauges ; les plages de lignes
   remplacent MORE. OPTIONS et MENU affichent les noms sans lettres de
   raccourci devant chaque ligne ; conserver les raccourcis fonctionnels.
+
+- EQUIPMENT : la liste d’objets occupe deux colonnes équilibrées dans le
+  post-it de gauche, jusqu’à quatorze lignes par colonne. Haut/bas parcourent
+  la première colonne puis la seconde ; gauche/droite gardent les catégories.
+  Conserver la fiche complète et CATCH à droite, ainsi que le défilement.

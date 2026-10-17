@@ -2,6 +2,7 @@
 ; Directory 33 is fetched directly; scene asset 33 still uses site_load.
 .segment "EQUIPMENT"
 EQ_ROWS = 14
+EQ_VISIBLE = EQ_ROWS * 2
 module_equipment:
         lda     #$FF
         sta     overlay_current ; the $5800 window was fetched directly
@@ -42,10 +43,18 @@ equipment_draw:
         jsr     page_top
         lda     eq_cur
         sec
-        sbc     #EQ_ROWS-1
+        sbc     #EQ_VISIBLE-1
         bcs     :+
         lda     #0
 :       sta     eq_top
+        lda     eq_n
+        clc
+        adc     #1
+        lsr
+        cmp     #EQ_ROWS
+        bcc     :+
+        lda     #EQ_ROWS
+:       sta     eq_split
         lda     #41
         jsr     tab
         lda     #3
@@ -86,49 +95,21 @@ equipment_draw:
         lda     #1
         jsr     tab
         lda     eq_row
+        cmp     eq_split
+        bcs     @empty
         clc
         adc     eq_top
         tax
-        cpx     eq_n
-        bcs     @blank
-        lda     overlay_text,x
-        bpl     @item
-        and     #3
-        tay
-        lda     #$3F
-        sta     INVFLG
-        lda     eq_groups_lo,y
-        sta     gp2
-        lda     eq_groups_hi,y
-        sta     gp2+1
-        lda     #3
+        jsr     eq_cell
+        lda     #21
         jsr     tab
-        lda     gp2
-        ldy     gp2+1
-        jsr     print_str_ay
-        lda     #$FF
-        sta     INVFLG
-        jmp     @blank
-@item:  sta     eq_item
-        cpx     eq_cur
-        bne     :+
-        lda     pg_focus
-        beq     :+
-        lda     #'>'|$80
-        jsr     COUT
-:       lda     #3
-        jsr     tab
-        ldx     eq_item
-        jsr     eq_name
-        jsr     print_str_ax
-        ldx     eq_item
-        jsr     eq_active
-        beq     @blank
-        lda     #32
-        jsr     tab
-        jsr     puts
-        .byte   "ACTIVE",0
-@blank: lda     #41
+        lda     eq_row
+        clc
+        adc     eq_top
+        adc     eq_split
+        tax
+        jsr     eq_cell
+@empty: lda     #41
         jsr     tab
         inc     eq_row
         lda     eq_row
@@ -251,7 +232,10 @@ equipment_draw:
         cmp     #1
         jsr     eq_yes
         lda     #20
-        jsr     vtab
+        jsr     eq_at           ; finish the right-hand frame only
+        lda     #20
+        ldx     #0
+        jsr     st_at_x         ; keep the last rows of both item columns
         ldx     #3
 @answer:
         lda     eq_keep
@@ -472,6 +456,48 @@ eq_active:
         and     fg_use
         rts
 
+; Two 20-column cells, top-to-bottom in each column. The selected item's
+; full name remains in the right-hand sheet and in native action commands.
+eq_cell:
+        cpx     eq_n
+        bcs     @done
+        lda     overlay_text,x
+        sta     eq_item
+        cpx     eq_cur
+        bne     @plain
+        lda     pg_focus
+        beq     @plain
+        lda     #'>'|$80
+        bne     @mark
+@plain: lda     #' '|$80
+@mark:  jsr     COUT
+        lda     #' '|$80
+        jsr     COUT
+        ldx     eq_item
+        jsr     eq_name
+        sta     gp2
+        stx     gp2+1
+        ldy     #0
+@name:  lda     (gp2),y
+        beq     @done
+        cpy     #15
+        bcc     @char
+        pha
+        iny
+        lda     (gp2),y
+        dey
+        tax
+        pla
+        cpx     #0
+        beq     @char
+        lda     #'.'
+@char:  ora     #$80
+        jsr     COUT
+        iny
+        cpy     #16
+        bcc     @name
+@done:  rts
+
 eq_name:
         cpx     #89
         bcs     :+
@@ -603,6 +629,7 @@ eq_catch: .byte "CATCH READINESS",0
 eq_n: .byte 0
 eq_g: .byte 0
 eq_row: .byte 0
+eq_split: .byte 0
 eq_top: .byte 0
 eq_cur: .byte 0
 eq_item: .byte 0

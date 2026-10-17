@@ -130,8 +130,49 @@ def trap():
     print('  A trap in PACK is not prepared; missing bait refusal, then native preparation without pretending it is held: OK')
 
 
+def two_columns():
+    from test_joystick_journey import GamePortSession, event, saved_state, READY
+    from test_fit_quantities import boot
+    for crowded in (False, True):
+        with GamePortSession(DISK, menu=False) as s:
+            boot(s)
+            if crowded:
+                # More than a screenful, including long names, in one role.
+                for item in (*range(1,22), *range(38,76)):
+                    s.step(L.poke('it_place', 1, item))
+            event(s, 'up'); event(s, 'right'); event(s, 'right')
+            event(s, 'ok')
+            before = saved_state(s)
+            count = byte(s, 'eq_n')
+            split = (count+1)//2 if count < 28 else 14
+            assert count > 28 if crowded else 1 < count <= 28
+            for index in range(count):
+                assert byte(s, 'eq_cur') == index
+                top = max(0, index-27)
+                offset = index-top
+                row, column = 5+offset % split, 1+20*(offset//split)
+                page = rows(s)
+                assert page[row][column] == '>', (index, row, column, page)
+                full_name = page[3][42:79].strip()
+                expected = full_name if len(full_name) <= 16 else full_name[:15]+'.'
+                assert page[row][column+2:column+18].strip() == expected, (index, expected, page[row])
+                assert not postit_errors(s.step('peek:0400:1024').data, 'EQUIPMENT')
+                if index+1 < count:
+                    event(s, 'down')
+            event(s, 'down'); assert byte(s, 'eq_cur') == count-1
+            if not crowded:
+                s.step('wait:3'); s.step(READY)
+                s.step('shot:/tmp/neowilderness-equipment-columns.png')
+            for _ in range(count):
+                event(s, 'up')
+            assert byte(s, 'pg_focus') == 0
+            assert saved_state(s) == before
+    print('  Two balanced columns: every joystick selection, long names, overflow scrolling, borders and readonly browsing: OK')
+
+
 if __name__ == '__main__':
     read_only()
     placement_and_use()
     trap()
+    two_columns()
     print('EQUIPMENT: OK')
