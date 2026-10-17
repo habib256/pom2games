@@ -3314,3 +3314,28 @@ STATUS finit à `$B0FB`, quatre octets libres ; MEDVIEW à `$5FDA`, cinq avant
 MEDVX ; STATX à `$B5F8`, sept libres ; MAIN à `$6FFC`, trois libres.
 GDATA et BSS ne bougent pas. DAT : 67 952 bruts / 58 042 stockés,
 19 enregistrements ; XL : 382/1600 blocs, cinq parties.
+
+### Repères des jauges STATUS (17 octobre 2026)
+
+`st_gauge_help` prend l’ID d’un texte et imprime son suffixe à l’offset 8
+par `st_bank_suffix`. Les préfixes publics restent identiques, puis des NUL
+de remplissage alignent les suffixes : `om_to_hand` (rappel général et HEALTH),
+`om_to_pack` (pourcentage HEALTH, explication et ENERGY), `om_pack_word`
+(explication ENERGY et HUNGER), `om_hand_word` (explication HUNGER et THIRST),
+`om_drop_word` (explication THIRST et BODY), `om_wear_word` (référence BODY).
+Les CR utilisent les rangées jusque-là vides ; le pourcentage de santé garde
+son suffixe avant le premier saut. Les autres appelants des six entrées
+s’arrêtent toujours au premier NUL. Toujours 255 ID et 32 mots de dictionnaire ;
+les 255 décodages passent, dont 29 traversées de page.
+
+Le corps historique de `bar` n’était pas exécuté sur XL : ses trois premiers
+octets étaient remplacés par un saut vers `bar_x`. Il devient directement
+ce saut, et son octet `st_fill` disparaît ; `bar_x` conserve ses dix cellules
+MouseText et son scratch `pf_n`. Aucune donnée de partie n’est déplacée.
+Les calculs de santé, dette, récence et température restent identiques.
+
+STATUS finit à `$B0D7`, 40 octets libres ; MEDVIEW à `$5FDA`, cinq avant
+MEDVX ; STATX à `$B5F8`, sept libres ; MAIN à `$6FFC`, trois libres.
+GDATA, BSS et SAVE ne bougent pas. DAT : 68 163 bruts / 58 166 stockés,
+19 enregistrements ; XL : 383/1600 blocs, cinq parties. Les six régions
+restent dans leurs budgets. L’image historique 140 Ko n’est pas reconstruite.

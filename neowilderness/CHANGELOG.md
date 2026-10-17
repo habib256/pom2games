@@ -7,6 +7,23 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### STATUS : sens des jauges lisible sans clavier (17 octobre 2026)
+
+- Les lignes libres sous les indicateurs expliquent HEALTH (part du maximum),
+  ENERGY (échelle de dette de repos), HUNGER et THIRST (échelles de récence
+  du repas/de la boisson), BODY (température avec référence de 98,6 °F).
+  Un rappel précise que les barres plus pleines correspondent au meilleur état.
+- Les conseils REST/SLEEP, EAT et DRINK restent visibles pendant la navigation
+  dans les soins. Les cinq indicateurs gardent leurs rangées et leurs calculs,
+  les blocs LOCAL/CONDITIONS et le focus médical restent accessibles.
+- Les textes partagent six entrées existantes de la banque, sans nouvel ID.
+  L’ancien corps de barre de l’édition texte retirée est supprimé ; XL garde
+  son dessin MouseText déjà utilisé, avec une marge STATUS récupérée.
+- Validation : 44 scripts XL, dont 49 cas de valeurs/seuils au port joystick,
+  navigation et annulation sans mutation, et contrôle visuel de l’écran.
+  Les arrondis, libellés, dette négative, priorité de fatigue après 16 heures,
+  récence repas/boisson et température restent conformes aux calculs existants.
+
 ### STATUS : conditions et remèdes de USE FIRE (17 octobre 2026)
 
 - L’aperçu annonce feu absent à préparer, feu disponible pour se réchauffer,

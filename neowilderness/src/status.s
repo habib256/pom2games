@@ -94,8 +94,8 @@ status_care:
         .byte   " ", 0
         lda     #$FF
         sta     INVFLG
-        lda     #st_health_label
-        jsr     st_gauge_text
+        lda     #om_to_hand
+        jsr     st_gauge_help
         fld     f_hmax
         fop     FDIV, s_health
         fop     FMULT, f_100
@@ -107,8 +107,8 @@ status_care:
         jsr     bar
         lda     st_pct
         jsr     pdec
-        lda     #st_energy_label
-        jsr     st_gauge_text
+        lda     #om_to_pack
+        jsr     st_gauge_help
         ; ENERGY: BEAT if 16 h without rest, TIRED over 12 h of rest deficit,
         ; OKAY over 7, else GREAT (deficit replaces the original's F1[24])
         lda     #0
@@ -141,18 +141,18 @@ status_care:
         sta     gp2+1
         lda     #6
         jsr     word
-        lda     #st_hunger_label
-        jsr     st_gauge_text
+        lda     #om_pack_word
+        jsr     st_gauge_help
         lda     #<s_eat         ; VERY over 12 h, SO-SO over 6 h
         ldy     #>s_eat
         jsr     hours_gauge
-        lda     #st_thirst_label
-        jsr     st_gauge_text
+        lda     #om_hand_word
+        jsr     st_gauge_help
         lda     #<s_drink
         ldy     #>s_drink
         jsr     hours_gauge
-        lda     #st_body_label
-        jsr     st_gauge_text
+        lda     #om_drop_word
+        jsr     st_gauge_help
         fld     s_body
         fop     FMULT, th_display10
         fop     FADD, f_half
@@ -198,6 +198,8 @@ status_care:
 @sweat: lda     #st_sweating_hint
         jsr     om_bank_puts
 @thermal_done:
+        lda     #om_wear_word
+        jsr     st_gauge_help
         lda     #ST_MED         ; the rest of the left half, down to row 14
         jsr     vtab
         lda     #80             ; right column: rows 2-14 from ST_RIGHT (st_at)
@@ -723,35 +725,9 @@ st_heading:
         sta     INVFLG
         rts
 
-; bar -- a gauge of ten cells, A of them full (inverse spaces), then two
-; spaces.
-bar:    XL_JMP  XI_STATUS, bar_x, @p06          ; (XL: MouseText cells)
-        cmp     #11
-        bcc     :+
-        lda     #10
-:       sta     st_fill
-        lda     #$3F
-        sta     INVFLG
-        ldx     #0
-@on:    cpx     st_fill
-        bcs     @off
-        lda     #' '|$80
-        jsr     COUT
-        inx
-        bne     @on
-@off:   lda     #$FF
-        sta     INVFLG
-@dot:   cpx     #10
-        bcs     @end
-        lda     #'.'|$80
-        jsr     COUT
-        inx
-        bne     @dot
-@end:   jsr     puts
-        .byte   "  ", 0
-        rts
+; The active XL bar already lives in STATX; retire its unused text body.
+bar:    jmp     bar_x
 
-st_fill: .byte  0
 st_keys: .byte  "T TOPO", 0
         ; XL: the up arrow (UP on the tabs opens TOPO; T still does).
         XL_BYTE XI_STATUS, st_keys, MS_UP
@@ -1058,6 +1034,12 @@ pg_line_text:
         pha
         lda     #pg_line_texts
         bne     st_bank_suffix
+st_gauge_help:
+        tax
+        lda     #8
+        pha
+        txa
+        jmp     st_bank_suffix
 st_gauge_text:
         pha
         lda     #st_gauge_labels

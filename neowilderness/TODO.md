@@ -240,31 +240,12 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
   confirmation dans OBJECTS et EQUIPMENT (17 octobre). Restent l’examen
   des autres classes de transfert pour FIT et l’harmonisation des exceptions
   natives qui n’appliquent pas le même modèle de charge.
-- [ ] **STATUS.** Expliciter jauges et états ACTIVE/TREATED/PROTECTED ;
-  prérequis et temps du soin sélectionné ; retour au soin après action.
-  Légende des trois états explicitée et durée native affichée pour les
-  19 choix de soin ; conditions du geste, présence des lunettes/médicaments,
-  doses et lumière des premiers secours visibles (17 octobre). Navigation
-  sans mutation et usages natifs des kits vides vérifiés au joystick.
-  Le résultat natif reste maintenant visible ; RETURN CARE retrouve la même
-  affection et le même geste, ESC VIEW reste dans la vue. Affection disparue,
-  préparation refusée, quantité annulée et rencontre sont pris en compte
-  sans répétition du soin (17 octobre). Attelle accessible sur sa case ou
-  transportée et feu allumé indiqués par HERE/NOT HERE ; contrôle d’attelle
-  partagé avec USE SPLINT et effets natifs préservés (17 octobre).
-  CUT BODY distingue maintenant lame active, disponible à préparer et absente ;
-  les indicateurs périmés ne bloquent plus la préparation couteau/hache,
-  sans mutation à la consultation (17 octobre).
-  DRINK et WET BODY montrent le stock d’eau accessible, la rivière/le lac,
-  l’état déjà mouillé ou l’absence d’eau ; ordre des sources et géographie
-  natifs conservés, choix d’onces au joystick et consultation sans mutation
-  (17 octobre). USE FIRE annonce désormais absence, disponibilité, prudence
-  dans un abri ou refus lié à l’eau, la pluie et au vent, avec remèdes et
-  priorités natifs vérifiés (17 octobre). Reste l’explication détaillée des
-  jauges. Blocage de
-  fidélité à résoudre après rebasage : `DRINK_FIDELITY=0` améliore l’hydratation
-  mais laisse le sélecteur médical 6 désactivé ; un DRINK conseillé par
-  STATUS ne marque donc pas ce traitement (17 octobre).
+- [ ] **STATUS — soin par boisson.** Blocage de fidélité à résoudre après
+  rebasage : `DRINK_FIDELITY=0` améliore l’hydratation mais laisse le sélecteur
+  médical 6 désactivé ; un DRINK conseillé par STATUS ne marque donc pas ce
+  traitement. Préserver les calculs de référence jusqu’au lot de fidélité
+  correspondant ; les autres explications des jauges, états et soins sont
+  réalisées (17 octobre, CHANGELOG et MENUS.md § 29–35).
 - [ ] **CRAFT.** Après fabrication : prendre/utiliser/entrer ou revenir aux
   recettes ; distinguer outil disponible et en usage ; annoncer le coût
   temporel et l'heure de fin estimée des travaux longs ; rendre le lien
@@ -476,9 +457,9 @@ au seuil de 5 %) ; « tout est encore non commité » ; fenêtres DHGR à la
 place des écrans 40 colonnes (étapes 3-4 de MENUS.md, remplacées par les
 pages 80 colonnes).
 
-Points de contrôle du lot suivant : STATUS, jauges et prérequis dynamiques
-restants, puis enchaînements CRAFT/CATCH. Le retour au même soin après lecture
-du résultat est réalisé (17 octobre).
+Points de contrôle du lot suivant : enchaînements CRAFT/CATCH ; cohérence
+entre hydratation et traitement médical dans le lot de fidélité de l’eau.
+Le retour au même soin après lecture du résultat est réalisé (17 octobre).
 Le sens des trois états, la durée et les conditions des gestes sont affichés
 (17 octobre). Les refus de capacité cumulés et
 leurs chiffres besoin/disponible/manque sont réalisés (17 octobre). Le choix
