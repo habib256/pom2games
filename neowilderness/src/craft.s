@@ -983,7 +983,7 @@ G_DONE = 3
 G_UP   = 4
 G_DOWN = 5
 craft_page:
-        sta     ALTCHARON
+        jsr     cp_return_restore
         lda     #<(craft_page-CRAFT_RUN)        ; MAKE reads the recipes only
         sta     module_dir+CRAFT_MODULE*DIR_SIZE+3
         lda     #>(craft_page-CRAFT_RUN)
@@ -1322,7 +1322,7 @@ cp_key: jsr     wait_key
 :       stx     linelen
         lda     #0              ; the words name the noun
         sta     menu_noun
-        jsr     cp_view
+        jsr     cp_return_prepare
         jmp     do_command
 cp_view:
         XL_IMM  XI_CRAFT, <ALTCHARON, @x39
@@ -1696,6 +1696,7 @@ cp_pct   = craft_end+11         ; the health in percent
 cp_st    = craft_end+12         ; 0 possible, 1 missing, 2 done
 cp_mlo   = cp_st+CP_N           ; the minutes MAKE would spend here
 cp_mhi   = cp_mlo+CP_N
+.export cp_st, cp_mlo, cp_mhi
 .assert cp_mhi+CP_N <= crx_base, error, "CRAFT page: work bytes below its XL tail"
 
 ; ---------------------------------------------------------------------------
@@ -1767,5 +1768,36 @@ cp_redraw_x:
         lda     #>mt_cout
         sta     $37
         jmp     cp_draw
+; Only the page arms a return; typed MAKE keeps its ordinary completion.
+cp_return_prepare:
+        lda     cp_focus
+        sta     cr_return_focus
+        ldx     cp_i
+        lda     cp_noun,x
+        sta     mq_noun
+        lda     #S_CRAFT_RETURN
+        sta     mq_list
+        sta     mq_list+1
+        lda     #2
+        sta     mq_n
+        lsr     a
+        sta     mq_i
+        lda     journey_encounters
+        sta     mq_enc
+        jmp     cp_view
+cp_return_restore:
+        lda     cr_return_focus
+        bpl     @done
+        and     #$7F
+        sta     cp_focus
+        lda     #0
+        sta     cr_return_focus
+@done:  sta     ALTCHARON
+        rts
 crx_end:
 .segment "CRAFT"
+
+.pushseg
+.segment "BSS"
+cr_return_focus: .res 1         ; interface identity, outside saved game ranges
+.popseg
