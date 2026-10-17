@@ -258,8 +258,10 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
   DRINK et WET BODY montrent le stock d’eau accessible, la rivière/le lac,
   l’état déjà mouillé ou l’absence d’eau ; ordre des sources et géographie
   natifs conservés, choix d’onces au joystick et consultation sans mutation
-  (17 octobre). Restent l’explication détaillée des jauges et les conditions
-  contextuelles d’utilisation du feu au-delà de sa présence. Blocage de
+  (17 octobre). USE FIRE annonce désormais absence, disponibilité, prudence
+  dans un abri ou refus lié à l’eau, la pluie et au vent, avec remèdes et
+  priorités natifs vérifiés (17 octobre). Reste l’explication détaillée des
+  jauges. Blocage de
   fidélité à résoudre après rebasage : `DRINK_FIDELITY=0` améliore l’hydratation
   mais laisse le sélecteur médical 6 désactivé ; un DRINK conseillé par
   STATUS ne marque donc pas ce traitement (17 octobre).

@@ -257,9 +257,16 @@ pg_menu_key:
 
 ; pg_run -- the command X of mn_word (SAVE, RESTORE, QUIT, NATURE) in inbuf,
 ; the view back, then do_command.
-pg_run: lda     mn_word_lo,x
+pg_run: lda     mn_word_offsets,x
+        pha
+        lda     #om_to_can
+        jsr     text_fetch
+        pla
+        clc
+        adc     #<tb_buf
         sta     gp2
-        lda     mn_word_hi,x
+        lda     #>tb_buf
+        adc     #0
         sta     gp2+1
 ; pg_type -- (MEDVIEW's gestures too) the string at gp2.
 pg_type:
@@ -338,14 +345,8 @@ pg_off: .byte   "[ ]", 0
         XL_BYTE XI_STATUS, pg_on+1, MS_CHECK
 pg_line_keys: .byte "CAPF"     ; the lines of OPTIONS, then of MENU
 mn_keys:    .byte "SRQ"
-mn_word_lo: .byte <mn_save, <mn_restore, <mn_quit, <mn_nature, <mn_ignore, <mn_food
-mn_word_hi: .byte >mn_save, >mn_restore, >mn_quit, >mn_nature, >mn_ignore, >mn_food
-mn_save:    .byte "SAVE", 0
-mn_restore: .byte "RESTORE", 0
-mn_nature:  .byte "NATURE", 0
-mn_quit:    .byte "QUIT", 0
-mn_ignore:  .byte "IGNORE FOOD", 0
-mn_food:    .byte "GET FOOD", 0
+mn_word_offsets: .byte 8,13,28,21,33,45
+mn_quit: .byte "QUIT",0
 ; pg_first -- the first line of a cursor page, under its heading;
 ; pg_line -- the next one (pg_mark): its text in inverse when it holds the
 ; focus.

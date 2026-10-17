@@ -1395,8 +1395,9 @@ LIT ou DARK, et rappellent la lampe si nécessaire.
 Les rappels indiquent notamment SPLINT REQUIRED, WATER OZ NEXT, FIRE NEEDED,
 la préparation KNIFE/AXE de CUT BODY et la nécessité d’une morsure active
 pour SUCK VENOM. Les autres prérequis ne sont pas tous calculés dynamiquement :
-l’attelle et le feu ajoutent leur présence réelle (§ 31), la lame son accès
-et son activation (§ 32), l’eau sa source accessible pour le geste (§ 33). Pour les lunettes
+l’attelle ajoute sa présence réelle (§ 31), la lame son accès et son
+activation (§ 32), l’eau sa source accessible pour le geste (§ 33), le feu
+ses conditions et remèdes (§ 34). Pour les lunettes
 et médicaments, HERE suit le test natif d’accès à l’objet, y compris au sol
 sur la bonne case, et exclut un objet suspendu ou absent.
 
@@ -1464,13 +1465,9 @@ le soin. Il ne montre pas de doses. Après confirmation, l’usage accepté
 met l’attelle et conserve les 30 minutes et l’effort natifs. Les soins de
 bras et de jambe utilisent ce même affichage.
 
-USE FIRE ajoute HERE si un feu est allumé, NOT HERE sinon. Cet état décrit
-la présence du feu, indépendamment du fait de l’avoir effectivement mis
-en usage. Il ne signifie pas READY : l’immersion ou la pluie sans combustible
-actif peuvent encore produire le refus natif après confirmation. Le conseil
-ne transforme pas ces règles en nouvelles interdictions et ne masque pas
-l’avertissement natif dans un abri. L’usage reste à 0 MIN ; il n’affiche
-aucun compteur de doses.
+USE FIRE indiquait initialement la présence d’un feu par HERE/NOT HERE.
+L’aperçu donne maintenant les conditions et remèdes du § 34. L’usage reste
+à 0 MIN et n’affiche aucun compteur de doses.
 
 Consulter, changer de geste, annuler et rouvrir STATUS conserve les stocks,
 le temps et les drapeaux de soin. Le résultat natif et RETURN CARE restent
@@ -1563,3 +1560,42 @@ Boire les onces choisies améliore donc l’hydratation sans marquer ce traiteme
 médical. Ce blocage reste au TODO pour le lot de fidélité de l’eau ; les tests
 conservent explicitement ce comportement. WET BODY applique son sélecteur 9.
 Les huit directions du but sont également vérifiées après leur passage en banque.
+
+## 34. USE FIRE : conditions d’usage et remèdes (17 octobre 2026, XL)
+
+Avec FROSTBITE sélectionné, la rangée 22 conserve 0 MIN et affiche le
+premier état applicable, selon la priorité de la commande réelle :
+
+- NO FIRE. MAKE FIRE FIRST. : le feu est absent ; il faut le fabriquer.
+- CAUTION: USING FIRE INSIDE SHELTER. : le joueur est dans un abri et le
+  feu existe. Confirmer conserve l’avertissement PLEASE BE CAREFUL ; le
+  moteur autorise l’usage même si la cellule est aquatique ou la météo mauvaise.
+- IN WATER. MOVE TO LAND FIRST. : à l’extérieur, la cellule du joueur est
+  aquatique. Le combustible actif ne contourne pas ce refus.
+- RAIN. ACTIVATE FUEL FIRST. : il pleut, sans combustible actif.
+- WIND >=41 MPH. ACTIVATE FUEL FIRST. : il y a au moins 41 MPH de vent,
+  sans combustible actif. En cas de pluie et de vent, le conseil de pluie prime.
+- FIRE READY. USE TO WARM. : les conditions permettent l’usage.
+
+Un combustible possédé ne suffit pas : il faut USE FUEL pour l’activer.
+Un abri fournit aussi la voie autorisée par le moteur, avec son avertissement.
+Le feu est présent dès que son indicateur est non nul ; l’ancienne limitation
+de l’aperçu à la valeur 1 est retirée. READY décrit les conditions d’usage ;
+EQUIPMENT et la simulation gardent la distinction entre présence et activation.
+Le contrôle de l’eau porte sur la cellule précise du joueur, sur les deux
+formats de carte. Une berge voisine peut fournir de l’eau pour DRINK sans
+empêcher USE FIRE sur la terre ferme.
+
+Consulter ou annuler ne modifie ni feu, ni combustible, ni lumière, ni temps,
+ni soin. Confirmer exécute USE FIRE inchangé : l’usage accepté active lumière
+et proximité du feu, donne le sélecteur de soin 24 et règle la période de santé
+à 15 minutes. Cette période n’est pas un temps dépensé ; l’action reste à
+0 MIN et n’utilise pas une nouvelle once de combustible. Le refus natif reste
+lisible avant RETURN CARE / ESC VIEW, et le retour retrouve FROSTBITE.
+
+`tests/test_care_fire_context.py` ajoute vingt scénarios au port joystick :
+indicateurs 0/1/2, vent 40/41/255 MPH, combustible actif ou non, pluie,
+immersion et abri combinés, berge historique, rivière/lac sur cellule fine
+et rivière dans la cellule fine voisine. Chaque conseil est comparé à la
+commande réelle ; les tests vérifient annulation sans mutation, effets,
+refus, avertissement d’abri, durée nulle et retour au même soin.

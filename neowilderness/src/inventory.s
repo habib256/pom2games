@@ -53,9 +53,8 @@ inventory_redraw:
         sta     INVFLG
         jsr     inv_space
         ldx     ob_title
-        lda     inventory_name_lo,x
-        ldy     inventory_name_hi,x
-        jsr     print_str_ay
+        lda     inventory_group_offsets,x
+        jsr     inventory_group_text
         jsr     inv_space
         lda     #$FF
         sta     INVFLG
@@ -451,9 +450,8 @@ ob_entry:
         lda     #$3F
         sta     INVFLG
         jsr     inv_space
-        lda     inventory_name_lo,x
-        ldy     inventory_name_hi,x
-        jsr     print_str_ay
+        lda     inventory_group_offsets,x
+        jsr     inventory_group_text
         jsr     inv_space
         lda     #$FF
         sta     INVFLG
@@ -1045,12 +1043,11 @@ inventory_places: .byte 1,3,2,0,5
 inv_space:
         lda     #' '|$80
         jmp     COUT
-inventory_name_lo: .byte <inv_worn, <inv_hand, <inv_pack, 0, <inv_hung
-inventory_name_hi: .byte >inv_worn, >inv_hand, >inv_pack, 0, >inv_hung
-inv_worn:   .byte "WORN",0
-inv_hand:   .byte "HANDS",0
-inv_pack:   .byte "PACK",0
-inv_hung:   .byte "LOCAL HUNG",0
+inventory_group_offsets: .byte 5,10,16,0,21
+inventory_group_text:
+        pha
+        lda     #om_to_body
+        jmp     st_bank_suffix
 inventory_x:    .byte 0
         .pushseg
         .segment "BSS"

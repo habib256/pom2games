@@ -212,10 +212,10 @@ om_lower_word: "LOWER ",0
 om_taste_word: "TASTE ",0
 om_to_pack: "PACK",0
 om_to_hand: "HANDS",0
-om_to_worn: "WORN",0
+om_to_worn: "WORN",0,"NO FIRE. MAKE FIRE FIRST.",0,"FIRE READY. USE TO WARM.",0,"CAUTION: USING FIRE INSIDE SHELTER.",0
 om_to_use: "USE",0,"WATER STOCK HERE",59," OZ NEXT",0,"NO WATER HERE",59," FIND WATER",0,"RIVER/LAKE HERE",0,"ALREADY WET",59," NO OZ NEEDED",0
-om_to_body: "BODY",0
-om_to_can: "CANTEEN",0
+om_to_body: "BODY",0,"WORN",0,"HANDS",0,"PACK",0,"LOCAL HUNG",0
+om_to_can: "CANTEEN",0,"SAVE",0,"RESTORE",0,"NATURE",0,"QUIT",0,"IGNORE FOOD",0,"GET FOOD",0
 om_to_sense: "SENSES",0,"GAME",0,"FISH",0,"INSECTS",0,"FRUIT",0,"CACTI",0,"MUSHROOMS",0,"PLANTS",0,"BOW",0,"SPEAR",0,"CLUB",0,"SPLINT",0,"HIDE",0,"ROCK",0
 om_fuel_inactive: "FUEL INACTIVE. USE FUEL FIRST.",0
 om_no_ignition: "NO IGNITION. USE MATCHES OR USE FIRE.",0

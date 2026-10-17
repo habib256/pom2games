@@ -180,6 +180,7 @@ test-xl: all $(A2SHOT)
 	$(PYTHON) tests/test_object_care.py
 	$(PYTHON) tests/test_status_care_preview.py
 	$(PYTHON) tests/test_care_presence.py
+	$(PYTHON) tests/test_care_fire_context.py
 	$(PYTHON) tests/test_care_blade.py
 	$(PYTHON) tests/test_care_water_preview.py
 	$(PYTHON) tests/test_status_care_return.py
