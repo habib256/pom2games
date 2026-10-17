@@ -35,6 +35,7 @@ def run(packed_can, refuse=False, slot=0):
             need = int.from_bytes(forecast[4:6], 'little') - word(s, 'load_used', 4)
             assert f'PACK NEED {need} IN3' in rows(s)[21], rows(s)[21]
             assert 'CARRIED ALL CONTENTS' in rows(s)[21], rows(s)[21]
+            assert 'FROM LOCAL HUNG TO CARRIED' in rows(s)[21], rows(s)[21]
             for _ in range(3):
                 key(s, '\\v')  # only LOWER exists, so redraw the same forecast
                 assert read(s, 'om_total', 8) == forecast

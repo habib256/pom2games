@@ -1244,3 +1244,39 @@ vêtements et eau. Il vérifie l’annulation, l’absence de mutation avant
 confirmation et les refus simultanés poids/HANDS et poids/PACK.
 `tests/test_hung_preview.py` vérifie aussi le poids agrégé et l’absence
 d’indication de poids en cas de débordement du sac suspendu.
+
+
+## 25. Sources précises et prérequis de gourde (17 octobre 2026, XL)
+
+FROM ne se limite plus à CARRIED dans le dialogue partagé :
+
+| Sélection | Source affichée |
+|---|---|
+| Pile ou équipement au sol ici | LOCAL |
+| Contenu du sac suspendu, commande LOWER FOOD | LOCAL HUNG |
+| Équipement ou objet fabriqué transporté | WORN, PACK ou HANDS selon sa position réelle |
+| Provisions du premier jeu transportées | PACK, indépendamment d’une autre pile au sol |
+| Eau contenue dans la gourde | CANTEEN |
+| Piles sauvages et peaux transportées | CARRIED, selon leur modèle natif distinct |
+
+La source reste physique, y compris pour USE depuis EQUIPMENT : un objet
+peut être effectivement en usage tout en restant dans PACK. L’aperçu ne
+confond pas son activation et sa position. Les objets fabriqués utilisent
+leur propre tableau de positions, et non celui des équipements du premier
+jeu. HIDE reste traité comme une pile, sans lecture hors de ce tableau.
+
+GET WATER avec une quantité explicite exige une gourde transportée. Si elle
+est au sol, suspendue ou absente, la ligne de prérequis conseille CARRY A
+CANTEEN BEFORE COLLECTING WATER. Une gourde accessible au sol ne satisfait
+pas ce contrôle natif. Passer à DRINK retire ce conseil propre à GET.
+Ce message ne bloque pas une nouvelle fois la commande : la confirmation
+exécute les mêmes contrôles natifs et conserve leurs refus atomiques.
+Avec une gourde transportée, la ligne continue d’afficher CAN FREE et la
+destination CANTEEN/PACK ou CANTEEN/HANDS. Les autres commandes de collecte
+et remplissage gardent leurs règles actuelles.
+
+`tests/test_transfer_sources.py` vérifie les sources avant confirmation et
+après annulation au port joystick, les cas de gourde au sol/suspendue/absente,
+le refus sans mutation, puis une collecte acceptée dans PACK et HANDS.
+Il vérifie aussi le dialogue depuis EQUIPMENT. Le test de sac suspendu
+contrôle FROM LOCAL HUNG en plus du poids agrégé et des capacités.

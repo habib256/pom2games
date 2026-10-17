@@ -7,6 +7,21 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### OBJECTS/EQUIPMENT : sources précises et gourde requise (17 octobre 2026)
+
+- FROM distingue maintenant LOCAL, LOCAL HUNG, PACK, HANDS, WORN et
+  CANTEEN. Les provisions du premier jeu restent dans PACK, même avec
+  une pile indépendante au sol ; les objets fabriqués suivent leur position
+  propre. Les piles sauvages et peaux gardent leur source native CARRIED.
+- GET WATER conseille de transporter une gourde avant confirmation si
+  elle est au sol, suspendue ou absente. Une gourde transportée conserve
+  la destination CANTEEN/PACK ou CANTEEN/HANDS et sa place libre exacte.
+- Même source dans EQUIPMENT ; aperçu et annulation restent sans effet.
+  Les règles natives de GET et les autres usages de la gourde sont conservés.
+- Validation : `make test-xl`, 33 scripts ; nouveau parcours au port joystick
+  vérifiant sources, changements d’action, annulations, refus natifs sans
+  mutation et collecte effective. LOCAL HUNG vérifié avec le sac entier.
+
 ### OBJECTS/EQUIPMENT : variation de poids avant transfert (17 octobre 2026)
 
 - Le dialogue ajoute WT avec le changement de poids transporté : positif

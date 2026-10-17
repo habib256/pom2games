@@ -3033,3 +3033,23 @@ chargé pendant l’édition. Le calcul de poids est également dans STATUS.
 TREE : `$5800–$5FF9`, six octets libres. STATUS : `$9600–$B0DE`, 33 octets
 avant STATX ; STATX reste plein. DAT : 67 778 bruts / 57 021 stockés,
 19 enregistrements ; XL : 380/1600 blocs, cinq parties. SAVE inchangé.
+
+
+### Sources et prérequis de gourde (17 octobre 2026)
+
+`om_source_id` lit le côté sélectionné, la commande LOWER et les positions
+natives/craft, en distinguant provisions, eau et piles sauvages/HIDE.
+Il ne dépend pas de `om_from`, temporaire de projection qui n’est pas
+calculé pour USE. La table de sources est dans TREE, le contrôle dans STATUS.
+GET affiche le conseil de gourde existant si sa position est 0, 5 ou $FF.
+Aucune nouvelle variable de partie, aucune modification de SAVE.
+
+La conversion de magnitude 16 bits est partagée par WT et OVER dans
+`om_neg_num`. Quatre libellés de jauge STATUS rejoignent la banque, sans
+modifier leur texte ; le conseil de gourde réutilise `out_no_canteen`.
+Le détail LOWER est raccourci d’une espace pour garder la ligne complète
+sous 80 colonnes, même avec des chiffres sur cinq positions.
+
+TREE : `$5800–$5FFF` ; STATUS : `$9600–$B0FF`, tous deux pleins avant STATX.
+DAT : 68 154 bruts / 56 440 stockés, 19 enregistrements ; XL : 379/1600
+blocs, cinq parties. Banque : 247 textes et huit mots de dictionnaire.
