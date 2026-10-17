@@ -609,9 +609,7 @@ med_cell:
         bne     :+
         lda     #$3F
         sta     INVFLG
-:       lda     med_name_lo,x
-        ldy     med_name_hi,x
-        jsr     print_str_ay
+:       jsr     med_name_text
         lda     #$FF
         sta     INVFLG
         lda     st_col
@@ -1086,6 +1084,11 @@ st_bank_suffix:
         bcc     :+
         inx
 :       jmp     print_str_ax
+med_name_text:
+        lda     med_name_offsets,x
+        pha
+        lda     med_name_ids,x
+        jmp     st_bank_suffix
 .popseg
 
 .pushseg
@@ -1156,4 +1159,15 @@ om_fit_search:
         sta     om_qty+1
         rts
 
+.popseg
+
+.pushseg
+.segment "STATX"
+om_detail_num:
+        sta     num+1
+        bcs     :+
+        lda     #0
+        sta     num
+        sta     num+1
+:       jmp     print_u16
 .popseg

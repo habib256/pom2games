@@ -136,6 +136,8 @@ def transfers(disk):
         event(s, 'ok')
         assert byte(s, 'om_phase') == 2 and ' WT +0 OZ' in rows(s)[21]
         assert saved_state(s) == before
+        from test_capacity_details import details
+        details(s)
         event(s, 'cancel'); event(s, 'cancel')
         assert byte(s, 'eq_selected') == 2
         assert not differing(before, saved_state(s), DERIVED_BYTES)

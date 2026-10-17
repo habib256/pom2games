@@ -7,6 +7,22 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### OBJECTS/EQUIPMENT : chiffres des refus de capacité (17 octobre 2026)
+
+- À la confirmation, gauche/droite parcourt le résumé des dépassements,
+  puis WEIGHT, PACK, HANDS et WORN. Chaque détail donne NEED (besoin
+  supplémentaire), FREE (libre avant transfert) et MISSING (dépassement
+  après transfert), en OZ ou IN3. Les limites simultanées restent dans le résumé.
+- Un mouvement interne ajoute zéro poids ; un dépôt ne demande pas de place
+  supplémentaire. Une surcharge déjà présente reste visible dans MISSING.
+  Les prérequis de contenant et les débordements arithmétiques gardent leur
+  message prioritaire. Annuler revient au résumé ; confirmer depuis un détail
+  exécute la même commande native.
+- Les noms médicaux et trois descriptions OPTIONS sont regroupés en banque
+  de textes pour libérer la mémoire du dialogue, sans changer leur affichage.
+- Validation : 37 scripts XL, chiffres sur 16 bits, refus cumulés et atomiques,
+  transferts acceptés, annulation, détail depuis EQUIPMENT et textes des pages.
+
 ### OBJECTS : maximum transportable explicite (17 octobre 2026)
 
 - PACK des provisions locales du premier jeu et GET WATER affichent FIT,

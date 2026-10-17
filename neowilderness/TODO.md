@@ -235,8 +235,11 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
   exceptions natives des piles sauvages (17 octobre). FIT affiche et propose
   explicitement le maximum pour PACK des provisions locales du premier jeu
   et GET WATER, sans remplacer TOUT à l’ouverture (17 octobre). FIT 0 reste
-  informatif ; aucune quantité n’est réduite en cachette. Restent les chiffres
-  besoin/disponible/manque et l’examen des autres classes de transfert.
+  informatif ; aucune quantité n’est réduite en cachette. Les chiffres
+  NEED/FREE/MISSING de poids, PACK, HANDS et WORN sont consultables à la
+  confirmation dans OBJECTS et EQUIPMENT (17 octobre). Restent l’examen
+  des autres classes de transfert pour FIT et l’harmonisation des exceptions
+  natives qui n’appliquent pas le même modèle de charge.
 - [ ] **STATUS.** Expliciter jauges et états ACTIVE/TREATED/PROTECTED ;
   prérequis et temps du soin sélectionné ; retour au soin après action.
 - [ ] **CRAFT.** Après fabrication : prendre/utiliser/entrer ou revenir aux
@@ -450,8 +453,9 @@ au seuil de 5 %) ; « tout est encore non commité » ; fenêtres DHGR à la
 place des écrans 40 colonnes (étapes 3-4 de MENUS.md, remplacées par les
 pages 80 colonnes).
 
-Points de contrôle du lot suivant : compléter l’aperçu des transferts et
-les refus de capacité cumulés avec besoin/disponible/manque. Le choix
+Points de contrôle du lot suivant : STATUS, sens des états et prérequis des
+soins, puis enchaînements CRAFT/CATCH. Les refus de capacité cumulés et
+leurs chiffres besoin/disponible/manque sont réalisés (17 octobre). Le choix
 explicite FIT est réalisé pour les provisions locales du premier jeu et
 GET WATER ; examiner les autres classes de transfert. Sources précises, prérequis GET WATER,
 BACKPACK non transporté et contenants à vider réalisés (17 octobre).

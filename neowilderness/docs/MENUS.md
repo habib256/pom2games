@@ -1341,3 +1341,35 @@ limites indépendantes de poids, PACK, HANDS et gourde, volume natif zéro
 signifiant 256, FIT 0/1/TOUT, annulation et refus sans mutation, stock 65 535
 et transfert accepté de 63 669 unités. Les transferts acceptés comparent
 les huit octets de charge projetée aux totaux natifs après exécution.
+
+## 28. Détail des capacités à la confirmation (17 octobre 2026, XL)
+
+Sur RETURN CONFIRM, gauche/droite parcourt cinq vues de la ligne 22 :
+résumé habituel, WEIGHT, PACK, HANDS, WORN, puis de nouveau le résumé.
+Gauche parcourt le même cycle en sens inverse. La quantité, la source et
+la destination restent visibles ; ces flèches ne règlent plus la quantité
+à cette étape. Le pied de page annonce LEFT/RIGHT LOAD DETAILS.
+
+Chaque détail affiche NEED, FREE et MISSING, en OZ pour le poids et IN3
+pour les volumes. Exemple : `PACK NEED 100 FREE 80 MISSING 20 IN3`.
+NEED vaut le supplément de charge projetée, FREE la capacité libre avant
+transfert, MISSING le dépassement après transfert. Les valeurs négatives
+sont ramenées à zéro : déposer libère de la place, et un mouvement interne
+ne demande pas de poids supplémentaire. Une surcharge préexistante peut
+donc afficher NEED 0, FREE 0 et MISSING positif. Le résumé conserve tous
+les dépassements simultanés et la place restante après transfert.
+
+Les prérequis de contenant ou d’usage et les débordements de calcul restent
+prioritaires sur le détail chiffré : ils ne sont jamais remplacés par des
+nombres trompeurs. La place restante dans la gourde reste dans le résumé
+d’eau. Les classes sans charge native conservent leur projection actuelle.
+Confirmer depuis n’importe quel détail exécute la commande native inchangée.
+Annuler rend le résumé à l’étape précédente et préserve stocks, temps et
+sélection. OBJECTS et EQUIPMENT utilisent le même dialogue.
+
+`tests/test_capacity_details.py` vérifie le cycle dans les deux sens, les
+trois chiffres des quatre dimensions, les refus poids/PACK et poids/HANDS,
+les grands nombres, les mouvements internes, dépôts, surcharges préexistantes,
+annulations et dépassements arithmétiques. Le test de variation de poids
+rejoue aussi ce cycle depuis EQUIPMENT. Les quatorze noms médicaux et les
+quatre descriptions OPTIONS sont comparés à leur texte attendu.
