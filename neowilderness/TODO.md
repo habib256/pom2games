@@ -203,8 +203,9 @@ pour les cas particuliers ; ils ne sont pas déclarés terminés.
   revenir au contexte avec la réponse après une action.
   Le filtre de position retire désormais PACK/CARRY/WEAR redondants et
   PACK BACKPACK, en préservant USE et les sources séparées des provisions
-  (17 octobre). Reste à exposer les prérequis avant confirmation et à
-  affiner les usages contextuels ; les refus natifs restent accessibles.
+  (17 octobre). Les prérequis d’appât de TRAP/FISHNG GEAR et de lumière
+  de FRSTAID KIT sont visibles avant confirmation (17 octobre). Reste à
+  détailler les autres usages contextuels ; les refus natifs restent accessibles.
 - [ ] **OBJECTS — aperçu à compléter.** Avant validation : source, destination réelle,
   quantité, poids ajouté, volume nécessaire et place restante après
   transfert ; eau/gourde, sac, vêtements et objets fabriqués compris.
@@ -429,8 +430,10 @@ place des écrans 40 colonnes (étapes 3-4 de MENUS.md, remplacées par les
 pages 80 colonnes).
 
 Points de contrôle du lot suivant : terminer le filtrage contextuel fin,
-en explicitant les prérequis d’usage avant confirmation ; le filtre de
-position et les actions impossibles du sac sont réalisés (17 octobre),
+en explicitant les prérequis d’usage restants (réchaud, feu/météo, éclairage
+et instruments). Appât des dispositifs CATCH et lumière des premiers soins
+sont affichés ; le filtre de position et les actions impossibles du sac
+sont réalisés (17 octobre),
 puis rejouer sur matériel réel le parcours
 joystick CRAFT → EQUIPMENT → CATCH → feu → COOK → repas → soins →
 sauvegarde/restauration → score. Il est automatisé sur XL avec une rencontre

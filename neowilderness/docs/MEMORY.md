@@ -2952,3 +2952,16 @@ pour loger le calcul sans état résident ou sauvegardé supplémentaire.
 TREE : `$5800–$5FFB`, 4 octets libres. DAT : 65 416 bruts / 56 052 stockés,
 19 enregistrements ; XL : 379/1600 blocs, toujours cinq parties. Les autres
 marges de code restent inchangées.
+
+### Indications préalables de USE (17 octobre 2026)
+
+Le dialogue lit `fg_bait` pour le piège et le matériel de pêche, `light`
+pour la trousse de premiers soins, uniquement sur USE. Il affiche un texte
+de la banque à la place de FREE NOW ; aucun appel de préparation ou de
+simulation n’a lieu pendant le dessin. Les libellés ACTION, FROM, LOCAL,
+CARRIED, TO, QTY, doses, objet indivisible et IN3 rejoignent la banque ;
+le nom de commande reste protégé dans le scratch modal existant.
+
+TREE : `$5800–$5FFC`, 3 octets libres. DAT : 65 679 bruts / 56 174 stockés,
+19 enregistrements ; XL reste à 379/1600 blocs avec cinq parties. Aucun
+octet résident, nouvel état de partie ou changement de SAVE.
