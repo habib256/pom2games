@@ -29,6 +29,8 @@ def run(packed_can, refuse=False, slot=0):
             rng = read(s, 'weather_seed', 4), read(s, 'fauna_rng')
             forecast = read(s, 'om_total', 8)
             assert forecast[:2] != read(s, 'load_used', 2)
+            delta = int.from_bytes(forecast[:2], 'little') - word(s, 'load_used')
+            assert f' WT {delta:+d} OZ' in rows(s)[21], rows(s)[21]
             assert 'FREE AFTER:' in rows(s)[22], rows(s)[22]
             need = int.from_bytes(forecast[4:6], 'little') - word(s, 'load_used', 4)
             assert f'PACK NEED {need} IN3' in rows(s)[21], rows(s)[21]
@@ -71,6 +73,7 @@ def overflow():
             assert read(s, 'om_bad') != b'\0'
             assert 'OVERFLOW' in rows(s)[22], rows(s)[22]
             assert 'PACK NEED' not in rows(s)[21], rows(s)[21]
+            assert ' WT ' not in rows(s)[21], rows(s)[21]
             confirm(s)
             assert state(s) == before
             assert 'LOAD CAPACITY' in ' '.join(rows(s)[20:23])
