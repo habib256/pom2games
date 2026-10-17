@@ -280,7 +280,7 @@ def page_view(disk, tag):
                 f'    {CHK} DRY LAND',
                 f'    {CHK} NOT AT THE WRECK OR THE POST',
                 f'    {CHK} WOODS',
-                f'   TIME: {fmt(formula("HUT", health))} (DAY, NO AXE, HEALTH {round(100 * health / hmax(s))}%)',
+                f'   TIME: {fmt(formula("HUT", health))} (DAY, AXE OFF, HEALTH {round(100 * health / hmax(s))}%)',
                 '   SLOWER: NIGHT, AXE NOT IN USE, LOW HEALTH']
         check('the panel of HUT: effect, the three checks of craft.s (check marks), time, slower',
               hut == want and all(scr[r + d][35] == OK for r in (4, 5, 6)), '\n'.join(hut))
@@ -317,7 +317,7 @@ def page_view(disk, tag):
         page = key(s, '\\v')
         page = key(s, '\\v')
         check('SUNSCREEN: 30 MIN (ALWAYS), no SLOWER',
-              page[5 + d][31:] == '   TIME: 30 MIN (ALWAYS)' and not page[6 + d][31:].strip(), '\n'.join(page[1 + d:7 + d]))
+              page[5 + d][31:] == '   TIME: 30 MIN (ALWAYS)' and page[6 + d][31:].startswith('   EST. FINISH: '), '\n'.join(page[1 + d:7 + d]))
         # The page keys of the cycle. XL keeps ALTCHARSET on for the whole
         # game; the 140 KB edition only while the page is shown.
         on = 1 if xl else 0

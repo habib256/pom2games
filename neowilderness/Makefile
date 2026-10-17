@@ -192,6 +192,7 @@ test-xl: all $(A2SHOT)
 	$(PYTHON) tests/test_craft.py
 	$(PYTHON) tests/test_craft_page.py
 	$(PYTHON) tests/test_craft_followup.py
+	$(PYTHON) tests/test_craft_preview.py
 	$(PYTHON) tests/test_objects.py
 	$(PYTHON) tests/test_focus.py
 	$(PYTHON) tests/test_transitions.py

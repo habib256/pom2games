@@ -1694,3 +1694,16 @@ annulation, interruption par rencontre et refus natif après disparition
 de corde. `test_craft_page.py` conserve les comparaisons de durées et d’état
 avec MAKE tapé, en quittant explicitement le nouveau dialogue. Le parcours
 joystick intégré lit aussi ce résultat avant de poursuivre.
+
+## 37. CRAFT : outils et estimation de fin (17 octobre 2026)
+
+Sous les facteurs de durée, la page distingue l’outil en usage ici, celui
+qui est disponible et doit être activé dans EQUIPMENT, et celui qui manque.
+AXE/KNIFE ON/OFF dans TIME suit le même état que la formule native de MAKE.
+Les onglets permettent de rejoindre EQUIPMENT et d’utiliser l’outil sans
+clavier. Le retour à CRAFT recalcule les durées sans lancer de fabrication.
+
+EST. FINISH annonce l’heure sur 24 heures et +nD en cas de changement de
+jour, uniquement pour une recette possible. Le calcul ne touche pas
+l’horloge et ne masque pas les rencontres susceptibles d’interrompre MAKE.
+Le résultat et les suites décrites au § 36 sont conservés. Voir CRAFT.md § 11.

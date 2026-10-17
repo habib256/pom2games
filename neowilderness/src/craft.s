@@ -1176,7 +1176,7 @@ cp_draw:
         lsr     a
         bcc     :-
         lda     cp_tok_lo,x
-        ldy     #>cp_tok
+        ldy     cp_tok_hi,x
         jsr     cp_str
 @next:  lda     cp_b
         asl     a
@@ -1203,12 +1203,13 @@ cp_draw:
         .byte   "SLOWER: ", 0
         sec
         jsr     cp_factors
-@fill:  lda     CV              ; the rows below, cleared
+@fill:  jsr     cp_details
+@clear: lda     CV              ; the rows below, cleared
         XL_IMM  XI_CRAFT, CP_LAST-1, @x35
         cmp     #CP_LAST
         bcs     :+
         jsr     cp_nl
-        jmp     @fill
+        jmp     @clear
 :       jsr     topo_pad
         XL_IMM  XI_CRAFT, 21, @x36
         lda     #22
@@ -1444,7 +1445,7 @@ cp_pad2:
 :       jmp     pdec
 
 ; cp_factors -- what the time of recipe cp_i depends on: C clear, as they
-; are now ("DAY, NO AXE, HEALTH 100%"); C set, what makes it slower
+; are now ("DAY, AXE OFF, HEALTH 100%"); C set, what makes it slower
 ; ("NIGHT, AXE NOT IN USE, LOW HEALTH"); none: "ALWAYS".
 cp_factors:
         ror     cp_pad
@@ -1483,25 +1484,7 @@ cp_factors:
         jmp     @nx
 @tool:  cpx     #3
         beq     @health
-        txa                     ; 1 the AXE, 2 the KNIFE
-        jsr     cr_tool
-        ldx     cp_f
-        bit     cp_pad
-        bmi     @slow
-        cmp     #1              ; in use: "AXE", else "NO AXE"
-        lda     cp_tool_lo-1,x
-        bcc     :+
-        adc     #2              ; (+3: past "NO ")
-:       ldy     #>cp_word
-        jsr     cp_str
-        jmp     @nx
-@slow:  lda     cp_tool_lo-1,x
-        clc
-        adc     #3
-        ldy     #>cp_word
-        jsr     cp_str
-        jsr     cp_puts
-        .byte   " NOT IN USE", 0
+        jsr     cp_tool_factor
         jmp     @nx
 @health:
         bit     cp_pad
@@ -1651,6 +1634,7 @@ cp_letter: .byte "SMIHTO"      ; (M: STATUS, MEDICAL's since 15 October 2026; O,
 cp_go_lo: .byte <(scr_status-1), <(scr_status-1), <(scr_inventory-1), <(scr_help-1), <(scr_topo-1), <(scr_inventory-1)
 cp_go_hi: .byte >(scr_status-1), >(scr_status-1), >(scr_inventory-1), >(scr_help-1), >(scr_topo-1), >(scr_inventory-1)
 cp_tok_lo: .byte <cp_t_short, <cp_t_land, <cp_t_away, <cp_t_woods, <cp_t_snow, <cp_t_rope, <cp_t_soil
+cp_tok_hi: .byte >cp_t_short, >cp_t_land, >cp_t_away, >cp_t_woods, >cp_t_snow, >cp_t_rope, >cp_t_soil
 cp_grp_lo: .byte <cp_g0, <cp_g1, <cp_g2
 cp_light_lo: .byte <cp_w_night, <cp_w_day
 cp_tool_lo: .byte <cp_w_noaxe, <cp_w_noknife
@@ -1794,7 +1778,153 @@ cp_return_restore:
         sta     cr_return_focus
 @done:  sta     ALTCHARON
         rts
+; UI-only context: uses the same activation flag/cell as native MAKE.
+; Nothing is activated by previewing a recipe.
+cp_tool_factor:
+        txa
+        jsr     cr_tool
+        pha
+        jsr     cp_tool_name
+        pla
+        bit     cp_pad
+        bmi     @slow
+        cmp     #0
+        beq     @off
+        jsr     cp_puts
+        .byte   " ON", 0
+        rts
+@off:   jsr     cp_puts
+        .byte   " OFF", 0
+        rts
+@slow:  jsr     cp_puts
+        .byte   " NOT IN USE", 0
+        rts
+cp_tool_name:
+        ldx     cp_f
+        lda     cp_tool_lo-1,x
+        clc
+        adc     #3
+        ldy     #>cp_word
+        jmp     cp_str
+
+cp_details:
+        lda     cp_one
+        jne     @done
+        ldx     #1
+@tool:  stx     cp_f
+        lda     cp_fac_bits-1,x
+        ldy     cp_i
+        and     cp_fac,y
+        beq     @next
+        jsr     cp_nl
+        jsr     cp_tool_name
+        jsr     cp_puts
+        .byte   ": ", 0
+        lda     cp_f
+        jsr     cr_tool
+        beq     @available
+        jsr     cp_puts
+        .byte   "IN USE HERE", 0
+        jmp     @next
+@available:
+        lda     cp_f
+        clc
+        adc     #57
+        tax
+        jsr     have
+        bcc     @missing
+        jsr     cp_puts
+        .byte   "AVAILABLE - USE IN EQUIPMENT", 0
+        jmp     @next
+@missing:
+        jsr     cp_puts
+        .byte   "MISSING HERE", 0
+@next:  ldx     cp_f
+        inx
+        cpx     #3
+        bcc     @tool
+        ldx     cp_i
+        lda     cp_st,x
+        bne     @done           ; no completion promise for a missing recipe
+        jmp     cp_finish
+@done:  rts
+cp_fac_bits: .byte 2, 4
+
+; Round the present clock as the HUD does, then add integer MAKE minutes.
+; Use a 24-hour clock and an explicit day offset, including multi-day jobs.
+cp_finish:
+        fld     s_hour
+        fop     FMULT, f_60
+        fop     FADD, f_half
+        jsr     AYINT
+        ldx     cp_i
+        clc
+        lda     $A1
+        adc     cp_mlo,x
+        sta     num
+        lda     $A0
+        adc     cp_mhi,x
+        sta     num+1
+        lda     #0
+        sta     cp_days
+@day:   sec
+        lda     num
+        sbc     #<1440
+        tay
+        lda     num+1
+        sbc     #>1440
+        bcc     @hours
+        sta     num+1
+        sty     num
+        inc     cp_days
+        bne     @day
+@hours: ldx     #0
+@hour:  sec
+        lda     num
+        sbc     #60
+        tay
+        lda     num+1
+        sbc     #0
+        bcc     @display
+        sta     num+1
+        sty     num
+        inx
+        bne     @hour
+@display:
+        stx     cp_hour
+        lda     num
+        sta     cp_minute
+        jsr     cp_nl
+        jsr     cp_puts
+        .byte   "EST. FINISH: ", 0
+        lda     cp_hour
+        jsr     cp_two
+        lda     #':'
+        jsr     cp_ch
+        lda     cp_minute
+        jsr     cp_two
+        lda     cp_days
+        beq     @rts
+        jsr     cp_puts
+        .byte   " +", 0
+        lda     cp_days
+        jsr     pdec
+        jsr     cp_puts
+        .byte   "D", 0
+@rts:   rts
+cp_two: cmp     #10
+        bcs     @digit
+        pha
+        lda     #'0'
+        jsr     cp_ch
+        pla
+@digit: jmp     pdec
+cp_days: .byte 0
+cp_hour: .byte 0
+cp_minute: .byte 0
 crx_end:
+.assert >cp_g2 = >cp_grp, error, "CRAFT group pointers share a page"
+.assert >(cp_v2+4) = >cp_word, error, "CRAFT factor/verdict pointers share a page"
 .segment "CRAFT"
 
 .pushseg
