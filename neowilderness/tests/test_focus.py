@@ -89,7 +89,7 @@ def walk():
 
         # OPTIONS: select STATUS explicitly; UP remembers OBJECTS.
         s.step('key:STATUS'); s.step('press:\\r'); s.step(READY)
-        for _ in range(4):
+        for _ in range(5):
             key('\\>')
         rows, _, _ = key('\\v')
         # XL (docs/MENUS.md 9.3): one post-it, a line an option, rows 3-6,
@@ -126,7 +126,6 @@ def walk():
         s.step('press:\\v')
         assert view()
         s.step('key:\\^'); s.step(READY)
-        key('\\<')
         key('\\<')
         for _ in range(3):
             key('\\v')
@@ -242,8 +241,8 @@ def medical():
         # OPTIONS' line F: IGNORE FOOD typed, then GET FOOD.
         for want in (1, 0):
             s.step('key:STATUS'); s.step('press:\\r'); s.step(READY)
-            for _ in range(3):
-                key('\\<')                         # STATUS, EQUIPMENT, MENU, OPTIONS
+            for _ in range(2):
+                key('\\<')                         # STATUS, MENU, OPTIONS
             rows, _, _, _ = key('\\v')
             assert rows[2].startswith(' OPTIONS ') and rows[6].startswith('\u258f  F  FOOD SOURCES ON THE WAY') and \
                 rows[6][31:34] == ('[\u2713]' if want else '[ ]'), rows[2:9]
@@ -278,8 +277,8 @@ def remembered_pages():
             s.step('press:\\^'); s.step(READY)
             assert s.step(L.peek('pg_cur')).data == b'\0'
             s.step('press:\\e'); s.step(IDLE)
-            for page, keys in ((0, ()), (1, ('O',)), (2, ('R',)),
-                               (3, ('H',)), (4, ('\\<','\\<','\\<')), (5, ('\\<','\\<')), (6, ('\\<',))):
+            for page, keys in ((0, ()), (1, ('O',)), (2, ('E',)), (3, ('R',)),
+                               (4, ('H',)), (5, ('\\<','\\<')), (6, ('\\<',))):
                 command_text = 'STATUS'
                 s.step('key:'+command_text); s.step('press:\\r'); s.step(READY)
                 for key in keys:

@@ -85,8 +85,8 @@ def instruments(disk):
         # The same shared dialog must preserve EQUIPMENT selection and show
         # the warning before a dark refusal, not merely after executing USE.
         event(s, 'cancel', IDLE)
-        event(s, 'up'); event(s, 'left'); event(s, 'left')
-        assert byte(s, 'pg_cur') == 6
+        event(s, 'up'); event(s, 'right')
+        assert byte(s, 'pg_cur') == 2
         set_fields(s, period=0, orient_aid=5)
         equipment_preview(s, 54, DARK)
         event(s, 'cancel', IDLE); event(s, 'up')

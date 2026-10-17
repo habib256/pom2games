@@ -73,8 +73,8 @@ def filters(disk):
         s.step(L.poke('cr_b1', 255, 1)); s.step(L.poke('cr_b1', 255, 4))
         s.step(L.poke('it_place', 0, 72))
         event(s, 'cancel', IDLE)
-        event(s, 'up'); event(s, 'left'); event(s, 'left')
-        assert byte(s, 'pg_cur') == 6
+        event(s, 'up'); event(s, 'right')
+        assert byte(s, 'pg_cur') == 2
         event(s, 'ok')
         for _ in range(140):
             if byte(s, 'overlay_text', byte(s, 'eq_cur')) == 59:
@@ -98,7 +98,7 @@ def filters(disk):
         event(s, 'ok')
         assert byte(s, 'om_mask') == 0x15 and byte(s, 'care_tools') & 2
         event(s, 'cancel')
-        assert byte(s, 'pg_cur') == 6 and byte(s, 'eq_selected') == 59
+        assert byte(s, 'pg_cur') == 2 and byte(s, 'eq_selected') == 59
         print('  EQUIPMENT refreshes choices after PACK/USE/CARRY and keeps the active knife selected: OK', flush=True)
 
 

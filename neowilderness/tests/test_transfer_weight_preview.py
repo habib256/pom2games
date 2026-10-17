@@ -116,8 +116,8 @@ def transfers(disk):
         print('  Simultaneous weight/HANDS and weight/PACK excess before confirmation; native refusal atomic: OK', flush=True)
 
         event(s, 'cancel', IDLE)
-        event(s, 'up'); event(s, 'left'); event(s, 'left')
-        assert byte(s, 'pg_cur') == 6
+        event(s, 'up'); event(s, 'right')
+        assert byte(s, 'pg_cur') == 2
         event(s, 'ok')
         entries = s.step(L.peek('overlay_text', byte(s, 'eq_n'))).data
         target = entries.index(2)  # Packed parka: wearing it changes no total weight.

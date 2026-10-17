@@ -1,6 +1,6 @@
 ; pages.s -- the top pages of the STATUS module (14 October 2026): STATUS
 ; (with MEDICAL's conditions and care since 15 October 2026), OBJECTS (the
-; inventory), CRAFT (lot 3 step 2: its page is the CRAFT module's, read over
+; inventory), EQUIPMENT, CRAFT (lot 3 step 2: its page is the CRAFT module's, read over
 ; this one, pg_craft), HELP, OPTIONS and MENU share a tab row (row 0, the
 ; page shown in inverse) and turn in a cycle with the left and right arrows;
 ; the up arrow of the view opens them, ESC returns to it. UP/DOWN move a
@@ -13,11 +13,11 @@
 .segment "STATUS"
 PG_STATUS = 0
 PG_INVENTORY = 1                ; OBJECTS (15 October 2026)
-PG_CRAFT = 2                    ; lot 3: the recipes (src/craft.s craft_page)
-PG_HELP = 3
-PG_OPTIONS = 4
-PG_MENU = 5
-PG_EQUIPMENT = 6
+PG_CRAFT = 3                    ; lot 3: the recipes (src/craft.s craft_page)
+PG_HELP = 4
+PG_OPTIONS = 5
+PG_MENU = 6
+PG_EQUIPMENT = 2
 PG_COUNT = 7
 
 ; page_top -- A = the page: an 80-column text page, its tab row; the cursor
@@ -127,8 +127,8 @@ page_dispatch:                 ; X = page, also used when UP reopens the storey
         sta     gp1+1
         jmp     (gp1)
 
-pg_go_lo: .byte <module_status, <scr_inventory, <pg_craft, <module_help, <module_options, <module_menu, <scr_equipment
-pg_go_hi: .byte >module_status, >scr_inventory, >pg_craft, >module_help, >module_options, >module_menu, >scr_equipment
+pg_go_lo: .byte <module_status, <scr_inventory, <scr_equipment, <pg_craft, <module_help, <module_options, <module_menu
+pg_go_hi: .byte >module_status, >scr_inventory, >scr_equipment, >pg_craft, >module_help, >module_options, >module_menu
 pg_view:   .byte KC_ESC, KC_RET, ' '
 pg_view_end:
 pg_letter: .byte "SIRHOME"
@@ -136,10 +136,10 @@ pg_letpg:  .byte PG_STATUS, PG_INVENTORY, PG_CRAFT, PG_HELP, PG_INVENTORY, PG_ST
 ; pg_levels -- below the tab row: 0 nothing, $80 OBJECTS' own levels, else
 ; the lines of the cursor (STATUS: its active conditions, counted by
 ; module_status).
-pg_levels: .byte 0, $80, 0, 0, 4, 3, $80
-pg_line_at: .byte $FF, 0, 0, 0, 0, 4, 0    ; first of pg_line_keys ($FF: the page's own)
+pg_levels: .byte 0, $80, $80, 0, 0, 4, 3
+pg_line_at: .byte $FF, 0, 0, 0, 0, 0, 4    ; first of pg_line_keys ($FF: the page's own)
 pg_focus: .byte 0
-pg_name_offsets: .byte 11,18,26,32,37,45,50
+pg_name_offsets: .byte 11,18,50,26,32,37,45
 .pushseg
 .segment "LOWPAGE"
 pg_cur: .byte   0               ; survives STATUS/CRAFT/SIM swaps

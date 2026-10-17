@@ -97,8 +97,8 @@ def sources(disk):
         print('  Carried canteen: PACK/HANDS destination, exact room and successful GET at the game port: OK', flush=True)
 
         refresh(s)
-        event(s, 'cancel', IDLE); event(s, 'up'); event(s, 'left'); event(s, 'left')
-        assert byte(s, 'pg_cur') == 6
+        event(s, 'cancel', IDLE); event(s, 'up'); event(s, 'right')
+        assert byte(s, 'pg_cur') == 2
         event(s, 'ok')
         entries = s.step(L.peek('overlay_text', byte(s, 'eq_n'))).data
         target = entries.index(66)

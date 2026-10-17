@@ -47,7 +47,7 @@ equipment_draw:
 :       sta     eq_top
         lda     #0
         sta     eq_row
-        lda     #40
+        lda     #41
         jsr     tab
 @row:   inc     CV
         jsr     t_vtab
@@ -98,7 +98,7 @@ equipment_draw:
         jsr     tab
         jsr     puts
         .byte   "ACTIVE",0
-@blank: lda     #40
+@blank: lda     #41
         jsr     tab
         inc     eq_row
         lda     eq_row
@@ -108,7 +108,7 @@ equipment_draw:
         jsr     t_vtab
         lda     #0
         sta     CH
-        lda     #40
+        lda     #41
         jsr     tab             ; left bottom; right column is drawn separately
         lda     #2
         ldx     #41

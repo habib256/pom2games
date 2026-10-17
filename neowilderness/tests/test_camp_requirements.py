@@ -104,8 +104,8 @@ def camp(disk):
         print('  Joystick USE FUEL -> USE MATCHES -> USE STOVE: 30 MIN carried, 0 MIN already down: OK', flush=True)
 
         event(s, 'cancel', IDLE)
-        event(s, 'up'); event(s, 'left'); event(s, 'left')
-        assert byte(s, 'pg_cur') == 6
+        event(s, 'up'); event(s, 'right')
+        assert byte(s, 'pg_cur') == 2
         event(s, 'ok')
         for _ in range(140):
             if byte(s, 'overlay_text', byte(s, 'eq_cur')) == 71:
@@ -136,7 +136,7 @@ def camp(disk):
         assert byte(s, 'om_phase') == 2 and 'WIND >=41 MPH' in rows(s)[22]
         assert saved_state(s) == before
         event(s, 'cancel'); event(s, 'cancel')
-        assert byte(s, 'pg_cur') == 6 and byte(s, 'eq_selected') == 38
+        assert byte(s, 'pg_cur') == 2 and byte(s, 'eq_selected') == 38
         print('  EQUIPMENT shows ready stove timing and live wind prerequisite without mutation: OK', flush=True)
 
 

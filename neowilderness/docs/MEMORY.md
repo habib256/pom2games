@@ -3397,3 +3397,14 @@ de recettes. Ce bloc de lecture de page supplémentaire ne dépense pas de
 temps simulé. GRID, STATUS, GDATA et BSS ne bougent pas. DAT : 65 602 bruts /
 57 975 stockés, 19 enregistrements ; fichier avec table : 58 231 octets.
 XL : 383/1600 blocs, cinq sauvegardes.
+
+
+### Ordre des onglets : EQUIPMENT avant CRAFT (17 octobre 2026)
+
+Les tables des pages et des cadres sont réordonnées sans extension. La
+boucle de CRAFT partage l’entrée EQUIPMENT entre gauche et le raccourci E,
+et conserve I/O pour OBJECTS : quatre octets de plus dans CRAFT, fin à
+`$A6AC`, tableaux jusqu’à `$A6D6` (41 octets avant CRAFTX). CRAFTX finit
+à `$A951` ; la page reste sur dix blocs, les recettes MAKE sur quatre.
+DAT : 65 598 bruts / 57 971 stockés, 19 enregistrements, fichier de
+58 227 octets ; XL reste à 383/1600 blocs, cinq sauvegardes.

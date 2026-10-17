@@ -72,9 +72,8 @@ def main():
             _, slow = estimate(s, 4)
             assert 'KNIFE: AVAILABLE' in '\n'.join(rows(s))
             event(s, 'cancel', IDLE); event(s, 'up')
-            for _ in range(3):
-                event(s, 'left')
-            assert byte(s, 'pg_cur') == 6
+            event(s, 'left')
+            assert byte(s, 'pg_cur') == 2
             event(s, 'ok')
             for _ in range(140):
                 if byte(s, 'overlay_text', byte(s, 'eq_cur')) == 59:

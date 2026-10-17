@@ -490,8 +490,8 @@ pf_n:    .byte 0
 
 ; The post-its of each page (PF, src/mousetext.inc): first row, last row,
 ; first column, last column, title (0: the page's heading). docs/MENUS.md 9.
-pf_pages_lo: .byte <pf_status, <pf_objects, <pf_craft, <pf_help, <pf_options, <pf_menu, <eq_frames
-pf_pages_hi: .byte >pf_status, >pf_objects, >pf_craft, >pf_help, >pf_options, >pf_menu, >eq_frames
+pf_pages_lo: .byte <pf_status, <pf_objects, <eq_frames, <pf_craft, <pf_help, <pf_options, <pf_menu
+pf_pages_hi: .byte >pf_status, >pf_objects, >eq_frames, >pf_craft, >pf_help, >pf_options, >pf_menu
 pf_status:
         PF      2, 14, 0, 39, 0                 ; CONDITION
         PF      2, 10, 41, 79, 0                ; LOCAL

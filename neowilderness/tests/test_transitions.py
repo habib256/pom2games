@@ -181,7 +181,7 @@ def differential_pages():
     # The pages of STATUS (src/pages.s) write their rows top to bottom
     # without clearing the screen: OBJECTS' cursor and sides (16 October
     # 2026) and HELP's own letter H (module_help) redraw them, the arrows turn the top pages
-    # (STATUS, OBJECTS, CRAFT, HELP, OPTIONS, MENU: page_top) and the
+    # (STATUS, OBJECTS, EQUIPMENT, CRAFT, HELP, OPTIONS, MENU: page_top) and the
     # OPTIONS letters A and P redraw their page, one store per changed cell;
     # so do the focus moves (OBJECTS' lists, the OPTIONS and MENU
     # cursors, RETURN on OPTIONS' line A: four times, game_options kept;
@@ -194,12 +194,12 @@ def differential_pages():
         for command, redraw, keys in (('INVENTORY', 'inventory_redraw', ['\\r', '\\v', '\\v', '\\>', '\\v', '\\<']),
                                        ('HELP', 'module_help', list('HHH')),
                                        ('STATUS', 'page_top', ['\\>'] * 7),
-                                       ('STATUS', 'page_top', ['\\<', '\\<', '\\<', 'P', 'A', 'P', 'A']),
+                                       ('STATUS', 'page_top', ['\\<', '\\<', 'P', 'A', 'P', 'A']),
                                        # focus moves: OBJECTS' lists,
                                        # the cursors of OPTIONS and MENU
                                        ('INVENTORY', 'inventory_redraw', ['\\r', '\\>', '\\<', '\\^', '\\^', '\\r', '\\>']),
-                                       ('STATUS', 'page_top', ['\\<', '\\<', '\\<', '\\v', '\\v', '\\^', '\\v', '\\r', '\\r', '\\r']),
-                                       ('STATUS', 'page_top', ['\\<', '\\<', '\\v', '\\v', '\\v', '\\^', '\\^']),
+                                       ('STATUS', 'page_top', ['\\<', '\\<', '\\v', '\\v', '\\^', '\\v', '\\r', '\\r', '\\r']),
+                                       ('STATUS', 'page_top', ['\\<', '\\v', '\\v', '\\v', '\\^', '\\^']),
                                        # STATUS's MEDICAL rows: the conditions, their gestures
                                        ('STATUS', 'page_top', ['\\v', '\\>', '\\>', '\\v', '\\<', '\\^', '\\^', '\\v'])):
             s.step('key:' + command); s.step('press:\\r'); s.step(READY)

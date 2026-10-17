@@ -359,7 +359,7 @@ ouvre la grille (§ 4), haut ouvre les pages du haut, bas ouvre la grille,
 et bas sous sa dernière rangée ouvre les pages du bas.
 
 - **Pages du haut** (restructurées le 15 octobre 2026, demande de
-  l'utilisateur, les deux éditions) : STATUS, OBJECTS, CRAFT (lot 3 :
+  l'utilisateur, les deux éditions) : STATUS, OBJECTS, EQUIPMENT, CRAFT (lot 3 :
   [CRAFT.md](CRAFT.md) § 8.6), HELP, OPTIONS et MENU forment un cycle
   (`src/pages.s`, module STATUS dans la fenêtre SIM ; la page CRAFT est
   celle du module CRAFT, lu par-dessus). MEDICAL n'est plus une page : ses
@@ -1707,3 +1707,13 @@ EST. FINISH annonce l’heure sur 24 heures et +nD en cas de changement de
 jour, uniquement pour une recette possible. Le calcul ne touche pas
 l’horloge et ne masque pas les rencontres susceptibles d’interrompre MAKE.
 Le résultat et les suites décrites au § 36 sont conservés. Voir CRAFT.md § 11.
+
+## 38. Position de EQUIPMENT (17 octobre 2026)
+
+L’ordre des onglets est STATUS → OBJECTS → EQUIPMENT → CRAFT → HELP →
+OPTIONS → MENU, avec bouclage entre MENU et STATUS. Les flèches suivent
+cet ordre dans les deux sens. Depuis CRAFT, gauche ouvre EQUIPMENT ;
+depuis EQUIPMENT, droite retrouve CRAFT. Les sélections, le retour à la
+dernière page et les actions des objets gardent leur fonctionnement.
+Les raccourcis I/O pour OBJECTS, E pour EQUIPMENT et R pour CRAFT restent
+cohérents, y compris dans la boucle de touches propre à CRAFT.
