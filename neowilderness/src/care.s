@@ -171,22 +171,31 @@ care_pressure:
 ; MAKE SPLINT (lot 3, src/craft.s) leaves it on the ground of its cell
 ; (cr_cx/cr_cy + 2); carried (2, 3) it is put on as well.
 care_splint:
-        lda     splint_place
-        cmp     #$FF
-        jeq     care_missing
-        cmp     #0
-        bne     :+
-        lda     px+1
-        cmp     cr_cx+2
-        jne     care_missing
-        lda     py+1
-        cmp     cr_cy+2
-        jne     care_missing
-:       lda     #1
+        jsr     med_splint_here
+        jcc     care_missing
+        lda     #1
         sta     splint_place
         sta     medical_actions+2
         lda     #30
         jmp     medical_spend_effort
+
+; Shared read-only presence predicate, with the native ground-cell rule.
+med_splint_here:
+        lda     splint_place
+        cmp     #$FF
+        beq     @no
+        cmp     #0
+        bne     @yes
+        lda     px+1
+        cmp     cr_cx+2
+        bne     @no
+        lda     py+1
+        cmp     cr_cy+2
+        bne     @no
+@yes:   sec
+        rts
+@no:    clc
+        rts
 
 ; USE AXE / USE KNIFE: in use (B2) on this square, carried, no time.
 care_tool:
@@ -712,7 +721,7 @@ med_preview:
         beq     @done
         tax
         stx     med_item
-        jsr     have
+        jsr     med_have
         bcs     @here
         jsr     puts
         .byte   "; NOT HERE",0
@@ -722,6 +731,8 @@ med_preview:
         ldx     med_item
         cpx     #43             ; sunglasses have no dose counter
         beq     @done
+        cpx     #52             ; fire and splint have no dose counter either
+        bcs     @done
         jsr     puts
         .byte   "; DOSES ",0
         ldx     med_item
@@ -744,7 +755,20 @@ med_preview:
 @dark:  jsr     puts
         .byte   "; DARK",0
 @done:  rts
-med_items: .byte 0,0,0,0,0,0,43,0,0,42,0,0,41,48,47,50
+.pushseg
+.segment "STATUS"
+med_items: .byte 0,0,93,0,0,0,43,0,88,42,0,0,41,48,47,50
+med_have:
+        cpx     #93
+        beq     @splint
+        cpx     #88
+        bne     @item
+        lda     fire_on
+        cmp     #1
+        rts
+@splint:jmp     med_splint_here
+@item:  jmp     have
+.popseg
 med_selected = overlay_text+72
 med_item = overlay_text+73
 .pushseg

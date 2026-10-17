@@ -3194,3 +3194,20 @@ HICODE : `$BE00–$BEFF`, plein ; TREE : `$5800–$5FFE`, un libre ; TEXT :
 octets avant REGIONTEXT. EQUIPMENT : 1 714 bruts / 1 458 stockés, soit
 256 octets auxiliaires récupérés. DAT : 68 088 bruts / 57 862 stockés,
 19 enregistrements ; XL : 382/1600 blocs, cinq parties.
+
+### Présence de l’attelle et du feu dans STATUS (17 octobre 2026)
+
+`med_splint_here` extrait le contrôle natif de USE SPLINT en un prédicat
+sans écriture : place absente, sol avec les deux coordonnées, autres positions
+natives. La commande et l’aperçu le partagent. `med_have`, dans STATUS,
+emploie ce prédicat pour l’attelle, `fire_on` pour le feu et le test `have`
+existant pour les lunettes/médicaments. Aucun appel SIM n’est nécessaire
+pendant la consultation. Les objets de soin hors premier jeu ne lisent
+pas les tableaux de doses du premier jeu.
+
+La table de seize objets de soin rejoint STATUS ; le code MEDVIEW ajoute
+le filtre des doses. Aucun état sauvegardé, scratch ou ID de texte ajouté.
+STATUS : `$9600–$B0FA`, cinq octets libres ; MEDVIEW : `$5800–$5FDC`, trois
+octets avant MEDVX ; STATX : `$B100–$B5F8`, sept libres. HICODE reste plein
+à `$BEFF`. DAT : 68 088 bruts / 57 864 stockés, 19 enregistrements ; XL :
+382/1600 blocs, cinq parties.
