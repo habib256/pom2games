@@ -180,7 +180,7 @@ om_h2: "RETURN CONFIRM  ESC BACK",0
 om_overflow: "OVERFLOW - TRANSFER WILL BE REFUSED",0
 om_sample: "NO STOCK USED / 0 MIN",0
 
-om_lower_detail: " ALL CONTENTS",59," 0 MIN",59," PACK",0
+om_lower_detail: " ALL CONTENTS",59,"0 MIN",59," PACK",0
 om_free_after: "FREE AFTER: ",0
 om_free_now: "FREE NOW: ",0
 om_need: " NEED ",0
@@ -261,3 +261,10 @@ st_cells_hint: " CELLS AWAY",0
 ob_walk_label: "WALK TIME +",0
 ob_wear_label: " FREE IN3 WEAR ",0
 om_weight_label: " WT ",0
+
+st_health_label: "||HEALTH  ",0
+st_energy_label: "%||ENERGY  ",0
+st_hunger_label: "||HUNGER  ",0
+st_thirst_label: "||THIRST  ",0
+om_hung_label: "LOCAL HUNG",0
+om_need_canteen = out_no_canteen

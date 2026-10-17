@@ -95,8 +95,8 @@ status_care:
         .byte   " ", 0
         lda     #$FF
         sta     INVFLG
-        jsr     puts
-        .byte   "||HEALTH  ", 0
+        lda     #st_health_label
+        jsr     om_bank_puts
         fld     f_hmax
         fop     FDIV, s_health
         fop     FMULT, f_100
@@ -108,8 +108,8 @@ status_care:
         jsr     bar
         lda     st_pct
         jsr     pdec
-        jsr     puts
-        .byte   "%||ENERGY  ", 0
+        lda     #st_energy_label
+        jsr     om_bank_puts
         ; ENERGY: BEAT if 16 h without rest, TIRED over 12 h of rest deficit,
         ; OKAY over 7, else GREAT (deficit replaces the original's F1[24])
         lda     #0
@@ -142,13 +142,13 @@ status_care:
         sta     gp2+1
         lda     #6
         jsr     word
-        jsr     puts
-        .byte   "||HUNGER  ", 0
+        lda     #st_hunger_label
+        jsr     om_bank_puts
         lda     #<s_eat         ; VERY over 12 h, SO-SO over 6 h
         ldy     #>s_eat
         jsr     hours_gauge
-        jsr     puts
-        .byte   "||THIRST  ", 0
+        lda     #st_thirst_label
+        jsr     om_bank_puts
         lda     #<s_drink
         ldy     #>s_drink
         jsr     hours_gauge

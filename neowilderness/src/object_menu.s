@@ -193,12 +193,7 @@ object_draw:
         jsr     om_cr
         lda     #om_from_label
         jsr     om_bank_puts
-        lda     om_side
-        bne     :+
-        lda     #om_local_label
-        jsr     om_bank_puts
-        jmp     @quantity
-:       lda     #om_carried_label
+        jsr     om_source_id
         jsr     om_bank_puts
 @quantity:
         lda     #om_to_label
@@ -517,6 +512,12 @@ om_free:
         sbc     om_total+1,y
         sta     num+1
         bcs     :+
+        jsr     om_neg_num
+        lda     #om_over
+        jsr     om_bank_puts
+:       jmp     print_u16
+
+om_neg_num:
         lda     num
         eor     #$FF
         clc
@@ -526,9 +527,7 @@ om_free:
         eor     #$FF
         adc     #0
         sta     num+1
-        lda     #om_over
-        jsr     om_bank_puts
-:       jmp     print_u16
+        rts
 
 om_project:
         lda     #0
@@ -862,6 +861,56 @@ om_bank_puts:
         jsr     text_fetch
         jmp     print_str_ax
 
+om_source_id:
+        lda     om_side
+        bne     @carried
+        lda     om_line
+        cmp     #'L'
+        beq     @hung
+        lda     #om_local_label
+        rts
+@hung:  lda     #om_hung_label
+        rts
+@carried:
+        ldx     menu_noun
+        cpx     #22
+        beq     @water
+        cpx     #23
+        bcc     @gear
+        cpx     #38
+        bcc     @pack
+        cpx     #76
+        bcc     @gear
+        cpx     #89
+        bcc     @pile
+        cpx     #94
+        bcs     @pile
+        lda     cr_b1-89,x
+        bpl     @place          ; a selected carried craft has place 1..3
+@gear:  lda     it_place,x
+@place: tax
+        lda     om_source_places,x
+        rts
+@pack:  lda     #om_to_pack
+        rts
+@water: lda     #om_to_can
+        rts
+@pile:  lda     #om_carried_label
+        rts
+
+; A selected GET uses the ITEMS path, which requires a carried canteen.
+om_container_hint:
+        lda     it_place+64
+        beq     @missing
+        bmi     @missing        ; $FF is the only negative placement: absent
+        cmp     #5
+        bne     @none
+@missing:
+        lda     #om_need_canteen
+        rts
+@none:  lda     #0
+        rts
+
 ; Signed change in carried ounces, not item weight: internal moves cost 0.
 ; LOWER uses the aggregate projection, never the last visited item's weight.
 om_weight_change:
@@ -877,15 +926,7 @@ om_weight_change:
         sbc     load_used+1
         sta     num+1
         bcs     @positive
-        lda     num
-        eor     #$FF
-        clc
-        adc     #1
-        sta     num
-        lda     num+1
-        eor     #$FF
-        adc     #0
-        sta     num+1
+        jsr     om_neg_num
         lda     #'-'|$80
         bne     @sign
 @positive:
@@ -896,11 +937,17 @@ om_weight_change:
         jmp     om_bank_puts
 @done:  rts
 .popseg
+om_source_places:
+        .byte om_local_label,om_to_worn,om_to_pack,om_to_hand,om_to_pack,om_hung_label
 
 ; Exact native prerequisites only; no preparation or simulation during drawing.
 om_requirement:
         lda     om_action
-        cmp     #4
+        cmp     #7
+        bne     :+
+        jsr     om_container_hint
+        rts
+:       cmp     #4
         bne     @none
         ldx     menu_noun
         txa
