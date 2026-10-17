@@ -1648,3 +1648,49 @@ cas de repos/dette, neuf valeurs de récence pour chacun de HUNGER et THIRST,
 et quatre combinaisons de température/mode thermique. Les dix cellules,
 pourcentages, mots et légendes sont comparés aux valeurs attendues ;
 consulter les gestes, annuler et rouvrir conserve l’état de partie.
+
+## 36. Après MAKE depuis CRAFT (17 octobre 2026, XL)
+
+Une fabrication lancée depuis la page ne renvoie plus directement à la
+navigation ordinaire. Son résultat natif reste à gauche de la vue, puis
+un choix apparaît en bas à droite. Gauche sélectionne RETURN RECIPES ;
+droite sélectionne RETURN OBJECTS pour un objet ou RETURN ENTER pour un
+abri présent. Le bouton principal valide ce choix, le second bouton quitte
+par ESC VIEW. Haut/bas sont ignorés. Maintenir une direction conserve son
+choix ; maintenir le bouton de fabrication ne valide pas l’étape suivante.
+
+RECIPES revient sur la même recette parmi les dix, avec état et durée
+recalculés. Une fabrication achevée affiche normalement DONE ; un refus
+retrouve la recette et ses ingrédients manquants. Cette sélection forcée
+est consommée au retour : une ouverture ordinaire suivante arrive sur
+l’onglet, selon les règles habituelles de CRAFT.
+
+OBJECTS ouvre les listes avec le produit sélectionné par identité, au sol
+ou du côté transporté selon sa position réelle. Un nouvel appui ouvre ses
+actions : prendre en main, utiliser, porter ou ranger selon l’objet et
+les règles natives. La page garde ensuite ses règles de sélection et de
+capacité : après CARRY, on peut passer dans HANDS pour retrouver l’objet
+et choisir USE. La possession n’active pas l’outil ou l’arme. Le résultat
+n’effectue aucun transfert automatique et ne contourne pas la charge.
+
+ENTER exécute explicitement USE HUT, USE IGLOO ou USE TRENCH. Les effets
+et refus sont ceux du moteur ; entrer dans ces abris ne relance pas MAKE
+et ne dépense pas de temps supplémentaire. Le joueur reste ensuite dans
+la vue. TENTE et les recettes non implémentées ne sont pas ajoutées à la liste.
+
+Le choix du produit est proposé uniquement si le produit est accessible :
+contrôle natif de l’objet, emplacement de l’arme/attelle ou coordonnées de
+l’abri. Si les prérequis disparaissent après l’aperçu et que MAKE échoue,
+son refus reste lisible et droite garde RECIPES ; aucun objet voisin n’est
+présenté comme le produit. Une nouvelle rencontre termine la file avant
+le dialogue. ESC et les arrivées normales ne laissent pas de retour forcé.
+MAKE tapé conserve sa fin habituelle. La lecture du résultat, le changement
+de choix et le retour aux recettes ne dépensent ni stock, ni temps, ni hasard.
+
+`tests/test_craft_followup.py` joue quinze scénarios sans événement clavier :
+retour à la lance fabriquée, accès aux sept produits, entrée dans les trois
+abris, séquence MAKE → OBJECTS → CARRY → USE SPEAR, bouton maintenu,
+annulation, interruption par rencontre et refus natif après disparition
+de corde. `test_craft_page.py` conserve les comparaisons de durées et d’état
+avec MAKE tapé, en quittant explicitement le nouveau dialogue. Le parcours
+joystick intégré lit aussi ce résultat avant de poursuivre.

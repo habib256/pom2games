@@ -7,6 +7,26 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### CRAFT : résultat lisible et suite au joystick (17 octobre 2026)
+
+- Après MAKE depuis CRAFT, le résultat natif reste affiché. Gauche choisit
+  RETURN RECIPES, droite RETURN OBJECTS ou RETURN ENTER pour un abri ;
+  le bouton principal confirme et ESC VIEW garde la vue. Un bouton maintenu
+  ne passe pas le résultat et ne répète pas la fabrication.
+- RECIPES retrouve la même recette et recalcule son état. OBJECTS sélectionne
+  le produit sur son côté réel et donne ses actions natives ; ENTER exécute
+  explicitement USE HUT/IGLOO/TRENCH. Rien n’est pris, activé ou porté sans
+  choix du joueur. Un produit inaccessible n’est pas proposé après un refus.
+- Une rencontre termine la file et garde la priorité du moteur. MAKE tapé
+  conserve sa fin habituelle ; consulter les choix et retourner aux recettes
+  ne dépense pas de temps supplémentaire. Les valeurs de retour sont hors SAVE.
+- SIM rejoint les modules compressés de XL par le chemin déjà employé sur
+  l’édition historique, pour loger la navigation. Son image décompressée et
+  l’état de simulation restent identiques ; INPUT et le chemin RESET restent bruts.
+- Validation : 45 scripts XL, quinze scénarios dédiés au port joystick,
+  durées et état de MAKE comparés aux commandes tapées ; QUIT, RESET et
+  restauration de l’état ProDOS également vérifiés. Audit et TODO actualisés.
+
 ### STATUS : sens des jauges lisible sans clavier (17 octobre 2026)
 
 - Les lignes libres sous les indicateurs expliquent HEALTH (part du maximum),

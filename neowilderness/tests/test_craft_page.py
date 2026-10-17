@@ -415,6 +415,19 @@ def times():
                       listed == panel == delta == rom and not animal, got)
 
 
+def finish_page_make(s):
+    # Native intermediate messages may pause before resident get_line.
+    stop = f'until:{L["get_line"]:04X},{L["keyboard_wait"]:04X}:400000'
+    r = s.step(stop)
+    while f'PC={L["get_line"]:04X}' not in r.out:
+        s.step('key: ')
+        r = s.step(stop)
+    r = s.step(f'until:{L["idle"]:04X},{L["q_craft_wait"]:04X}:400000')
+    if f'PC={L["q_craft_wait"]:04X}' in r.out:
+        s.step('key:\\e')
+        s.step(IDLE)
+
+
 def make_timed(s, cond, recipe, seed):
     """The recipe chosen on the page in conditions cond, RETURN: (listed,
     panel minutes, TIME line, clock delta, ROM formula, an animal came)."""
@@ -439,13 +452,7 @@ def make_timed(s, cond, recipe, seed):
     t0 = fp(s.step(L.peek('s_elap', 5)).data)
     s.step('press:\\r')
     s.step(DO_COMMAND)
-    # Up to 14 hours of journey; the messages of a long one may wait for a
-    # key (a full result column) on the way.
-    stop = f'until:{L["idle"]:04X},{L["keyboard_wait"]:04X}:400000'
-    r = s.step(stop)
-    while f'PC={L["idle"]:04X}' not in r.out:
-        s.step('key: ')
-        r = s.step(stop)
+    finish_page_make(s)
     delta = round((fp(s.step(L.peek('s_elap', 5)).data) - t0) * 60)
     tools = cond.get('tools', 0)
     rom = formula(recipe, health, cond.get('light', 1), tools & 1, tools >> 1 & 1)
@@ -466,7 +473,7 @@ def page_equals_keyboard(disk, tag):
             s.step('press:\\r')
             s.step(DO_COMMAND)
             typed_in.append(s.step(L.peek('inbuf', 16)).data.split(b'\0')[0].decode())
-            s.step(IDLE)
+            finish_page_make(s)
         page = state(s), craft(s)
     with a2test.Session(disk, timeout=900) as s:
         s.step(IDLE)

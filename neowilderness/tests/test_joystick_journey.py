@@ -236,7 +236,10 @@ def journey(disk):
         assert byte(s, 'pg_cur') == 2
         for _ in range(5):
             event(s, 'down')
-        event(s, 'ok', IDLE)
+        event(s, 'ok', L.until('get_line', 100000))
+        s.step(L.until('q_craft_wait', 100000))
+        assert 'RETURN RECIPES' in rows(s)[23]
+        event(s, 'cancel', IDLE)
         assert byte(s, 'cr_b1', 1) == 0, rows(s)
         print('  Joystick boot and CRAFT SPEAR: OK', flush=True)
 

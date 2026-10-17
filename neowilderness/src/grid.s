@@ -79,6 +79,8 @@ S_SPEAR  = 24
 S_OBJECTS = 25                  ; the OBJECTS page again after its transfer
 S_EQUIPMENT = 26
 S_CARE_RETURN = 27
+S_CRAFT_RETURN = 28
+S_CRAFT_USE = 29
 MQ_CATCH_DUR = mq_list+4        ; CATCH uses at most 3 of the 5 queue slots
 
 .segment "GRID"
@@ -698,6 +700,8 @@ q_next: ldx     mq_i
         lda     mq_list,x
         cmp     #S_CARE_RETURN
         jeq     q_care_return
+        cmp     #S_CRAFT_RETURN
+        jeq     q_craft_return
         jsr     q_step
         bpl     q_type
         jsr     q_check
@@ -851,6 +855,8 @@ gr_steps:
         .byte   0, 106, "INVENTORY", 0                           ; S_OBJECTS
         .byte   0, 110, "EQUIPMENT", 0                           ; S_EQUIPMENT
         .byte   0, 106, "STATUS", 0                              ; S_CARE_RETURN
+        .byte   0, 106, "STATUS", 0                              ; S_CRAFT_RETURN guard only
+        .byte   0, 0, "USE", 0                                   ; S_CRAFT_USE
 
 ; ----------------------------------------------------------------------------
 ; the lists of items
@@ -1171,9 +1177,6 @@ grid_item_name:
         txa
         ldy     #0
         beq     @copy
-gr_second: .byte <str_game, <str_fish, <str_insects, <str_fruit, <str_cacti
-           .byte <str_mushrooms, <str_plants, 0, 0
-           .byte <str_bow, <str_spear, <str_club, <str_rock, <str_splint
         .align $100            ; grid_item_name shares this page's high byte
 str_fire:     .byte "FIRE", 0
 str_game:     .byte "GAME", 0
@@ -1189,6 +1192,13 @@ str_spear:    .byte "SPEAR", 0
 str_club:     .byte "CLUB", 0
 str_rock:     .byte "ROCK", 0
 str_splint:   .byte "SPLINT", 0
+str_hut:      .byte "HUT",0
+str_igloo:    .byte "IGLOO",0
+str_trench:   .byte "TRENCH",0
+gr_second: .byte <str_game, <str_fish, <str_insects, <str_fruit, <str_cacti
+           .byte <str_mushrooms, <str_plants, 0, 0
+           .byte <str_bow, <str_spear, <str_club, <str_rock, <str_splint
+           .byte <str_hide, <str_hut, <str_igloo, <str_trench
 .assert >str_fire = >str_splint, error, "grid_item_name: one page for the second set"
 str_rain:     .byte "RAIN", 0
 str_snow:     .byte "SNOW", 0
@@ -1260,3 +1270,119 @@ q_care_wait:
         lda     #S_CARE_RETURN
         jsr     q_step
         jmp     q_type
+
+; MAKE result remains visible. LEFT/RIGHT changes only the follow-up choice.
+q_craft_return:
+        lda     #0
+        sta     mq_n
+        sta     gr_f
+q_craft_draw:
+        lda     #23
+        sta     CV
+        jsr     t_vtab
+        lda     #41
+        sta     CH
+        lda     gr_f
+        beq     @recipes
+        lda     mq_noun
+        cmp     #95
+        bcc     @objects
+        jsr     puts
+        .byte   "RETURN ENTER",0
+        jmp     @keys
+@objects:
+        jsr     puts
+        .byte   "RETURN OBJECTS",0
+        jmp     @keys
+@recipes:
+        jsr     puts
+        .byte   "RETURN RECIPES",0
+@keys:  jsr     puts
+        .byte   "  </>  ESC VIEW",0
+        lda     #79
+        jsr     tab
+q_craft_wait:
+        jsr     wait_key
+        cmp     #KC_ESC
+        beq     @view
+        cmp     #KC_LEFT
+        beq     @recipes_choice
+        cmp     #KC_RIGHT
+        beq     @product_choice
+        cmp     #KC_RET
+        beq     @open
+        cmp     #' '
+        bne     q_craft_wait
+@open:  lda     gr_f
+        bne     @product
+        lda     cr_return_focus
+        ora     #$80
+        sta     cr_return_focus
+        lda     #PG_CRAFT
+        sta     pg_cur
+        lda     #$FF
+        sta     pg_open
+        jmp     scr_status
+@product:
+        ldx     mq_noun
+        cpx     #95
+        bcs     @enter
+        cpx     #89
+        bcc     @gear
+        jsr     gr_where
+        bne     @carried
+        beq     @local
+@gear:  lda     it_place,x
+        beq     @local
+@carried:
+        ldy     #1
+        bne     @side
+@local: ldy     #0
+@side:  sty     obj_side
+        txa
+        sta     obj_selected,y
+        lda     #$80
+        sta     obj_keep
+        jmp     scr_inventory
+@enter: lda     #S_CRAFT_USE
+        jsr     q_step
+        jmp     q_type          ; explicit native USE, never replay MAKE
+@recipes_choice:
+        lda     #0
+        beq     @choice
+@product_choice:
+        jsr     q_craft_available
+        bcc     q_craft_wait
+        lda     #1
+@choice:sta     gr_f
+        jmp     q_craft_draw
+@view:  lda     #0
+        sta     cr_return_focus
+        jmp     get_line_body
+
+; Only offer the product when it is reachable after native MAKE.
+q_craft_available:
+        ldx     mq_noun
+        cpx     #95
+        bcs     @shelter
+        cpx     #89
+        bcc     @gear
+        jsr     gr_where
+        cmp     #$FF
+        bne     @yes
+@no:    clc
+        rts
+@gear:  jmp     have
+@shelter:
+        txa
+        sec
+        sbc     #95
+        tax
+        lda     cr_sx,x
+        cmp     px+1
+        bne     @no
+        lda     cr_sy,x
+        cmp     py+1
+        bne     @no
+@yes:   sec
+        rts

@@ -3339,3 +3339,44 @@ MEDVX ; STATX à `$B5F8`, sept libres ; MAIN à `$6FFC`, trois libres.
 GDATA, BSS et SAVE ne bougent pas. DAT : 68 163 bruts / 58 166 stockés,
 19 enregistrements ; XL : 383/1600 blocs, cinq parties. Les six régions
 restent dans leurs budgets. L’image historique 140 Ko n’est pas reconstruite.
+
+### Retour et produit après MAKE depuis CRAFT (17 octobre 2026)
+
+Seule `cp_return_prepare`, appelée par la page avant `cp_view`, arme deux
+étapes `S_CRAFT_RETURN` de garde nul : la première représente MAKE déjà
+en cours, la seconde ouvre le résultat. `mq_noun` conserve le nom du produit,
+`mq_enc` le compteur de rencontres. `module_queue` ignore le dialogue si une
+rencontre a changé ce compteur. Le choix du résultat vide immédiatement la
+file ; `gr_f` porte seulement le choix recettes/produit dans GRID.
+
+`cr_return_focus` ajoute un octet en BSS, hors SAVE. La page y conserve
+le rang 1..10 ; seul le choix RECIPES pose son bit 7 et reprend la dernière
+page via `pg_open=$FF`, `pg_cur=CRAFT`. `cp_return_restore` consomme ce bit
+au chargement de la page, restaure `cp_focus` et conserve ALTCHARSET.
+Les deux appels remplacent des instructions existantes pour ne pas déplacer
+`craft_end` : les tableaux de travail remplissent déjà presque l’espace
+jusqu’à CRAFTX. Les tableaux `cp_st`, `cp_mlo`, `cp_mhi` sont exportés pour
+les contrôles, sans coût en mémoire.
+
+`q_craft_available` reprend `have`, `gr_where` et les coordonnées natives
+d’abri. OBJECTS prépare `obj_side`, `obj_selected` et `obj_keep=$80` avant
+son entrée résidente : la liste retrouve le produit et garde le résultat.
+Le choix ENTER emploie `S_CRAFT_USE` et le formateur de commande existant ;
+les noms HUT/IGLOO/TRENCH complètent la table des objets du second jeu.
+Cette table de pointeurs passe après les chaînes alignées pour éviter de
+perdre une page entière à leur alignement. Le lecteur conserve leur octet
+haut partagé ; les autres noms gardent leur sortie native.
+
+SIM (3) est compressé dans le stock auxiliaire XL : 7 828 bruts / 5 026
+stockés, 2 802 octets récupérés. Le chemin LZ déjà utilisé sur l’édition
+historique restitue exactement l’image dans la même fenêtre ; le chargement
+coûte davantage de cycles qu’une copie brute. Aucun temps de simulation
+n’est ajouté. INPUT (13), utilisé par RESET, reste brut. Les tests de transfert
+vérifient les octets, les gardes, la page zéro et les banques ; référence,
+QUIT, RESET et restauration ProDOS sont également contrôlés.
+
+GRID finit à `$AFE6`, 25 octets libres ; CRAFTX à `$A7CF`, 48 avant la limite
+de neuf blocs ; CRAFT reste à `$A6D4`, avec ses tableaux de travail jusqu’à
+`$A6FE`. BSS finit à `$577C`, trois octets avant REGIONTEXT ; GDATA et les
+plages SAVE ne bougent pas. STATUS reste à `$B0D7`. DAT : 65 602 bruts /
+57 975 stockés, 19 enregistrements ; XL : 382/1600 blocs, cinq parties.

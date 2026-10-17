@@ -721,3 +721,27 @@ WEIGHT en OZ et WEAR/PACK/HANDS en IN3, avec NEED et FREE exacts. Le calcul
 ne change ni les stocks ni les règles natives : notamment USE peut conserver
 son drapeau natif même si la prise en main échoue. EQUIPMENT expose cet état
 réel indépendamment de la position physique de l’objet.
+
+## 10. Résultat et suites sans clavier (17 octobre 2026, XL)
+
+Après une fabrication depuis la page, le résultat reste visible dans la vue.
+Gauche choisit le retour à la même recette, droite l’accès au produit dans
+OBJECTS ou l’entrée dans l’abri fabriqué ; le bouton principal confirme,
+le bouton d’annulation garde la vue. Les états de recette sont recalculés
+au retour. Les prérequis, effets, durée et interruption de MAKE restent
+ceux de la commande native ; MAKE tapé ne reçoit pas ce dialogue.
+
+OBJECTS sélectionne le produit et expose ses actions habituelles. Prendre
+une lance ne la met pas en usage : après CARRY, retrouver la lance dans
+HANDS permet de choisir USE. Les contraintes de poids et de volume restent
+appliquées. Pour HUT/IGLOO/TRENCH, la confirmation de RETURN ENTER envoie
+USE avec le nom de l’abri ; aucune fabrication supplémentaire n’est exécutée.
+Un refus sans produit accessible ne propose que le retour aux recettes.
+Une rencontre termine la file avant cette étape.
+
+Les quinze scénarios de `tests/test_craft_followup.py` contrôlent ces suites
+au port joystick, avec annulation, bouton maintenu, refus, durée réelle
+et conservation de l’état pendant la lecture. Les tests de page conservent
+les preuves précédentes : durée affichée = durée native dépensée dans les
+cinq conditions, et MAKE depuis la page = mêmes commandes tapées.
+Les détails de navigation sont dans MENUS.md § 36.
