@@ -7,6 +7,26 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### OBJECTS/EQUIPMENT : actions selon la position (17 octobre 2026)
+
+- Retrait de PACK sur l’équipement déjà dans PACK, CARRY sur l’équipement
+  déjà en mains et WEAR sur ce qui est déjà porté. PACK BACKPACK est
+  toujours retiré : le sac ne peut pas se contenir lui-même.
+- Les piles séparées LOCAL/CARRIED et l’eau conservent leurs actions par
+  source ; les armes et l’attelle fabriquées utilisent leur position native.
+  USE reste accessible, même sur un objet tenu ou actif : possession,
+  préparation et activation restent distinctes.
+- Les prérequis récupérables restent contrôlés par le moteur : par exemple
+  USE TRAP sans appât garde son refus précis, sans mutation, et sa sélection.
+  Une action proposée est toujours choisie explicitement puis confirmée.
+- Test au port joystick : positions portées/rangées/tenues, sac au sol ou
+  en mains, gourde, médicaments, objets fabriqués, piles doubles et eau.
+  Le parcours des actions ne modifie aucune plage d’état persistante.
+- EQUIPMENT recalcule les choix après PACK/USE/CARRY et conserve l’objet
+  sélectionné avec son activation native. Validation : `make test-xl`,
+  27 scripts réussis ; test ciblé étendu EQUIPMENT réussi, parcours complet
+  et comparaison des 163 variables de simulation conservés.
+
 ### OBJECTS : quantités rapides de transfert (17 octobre 2026)
 
 - Droite double la quantité jusqu’au stock entier exact, puis revient à

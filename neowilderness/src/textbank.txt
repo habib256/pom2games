@@ -183,3 +183,7 @@ om_sample: "NO STOCK USED / 0 MIN",0
 om_lower_detail: " ALL CONTENTS",59," 0 MIN",59," PACK",0
 om_free_after: "FREE AFTER: ",0
 om_free_now: "FREE NOW: ",0
+om_need: " NEED ",0
+om_can_free: "CAN FREE ",0
+om_pack_free: " OZ  PACK ",0
+om_hands_free: " IN3  HANDS ",0

@@ -137,6 +137,22 @@ object_menu:
         sta     om_mask
 @masked:
         ldx     menu_noun
+        lda     om_many
+        bne     @usable_check   ; split piles use source quantities, not place
+        cpx     #89
+        bcs     @crafted_place
+        lda     it_place,x
+        bcc     @place
+@crafted_place:
+        lda     cr_b1-89,x
+@place: tay
+        lda     om_place_masks,y
+        and     om_mask
+        cpx     #21             ; the backpack can never contain itself
+        bne     :+
+        and     #$FE
+:       sta     om_mask
+@usable_check:
         cpx     #89
         bcs     @valid_mask
         ldy     #om_usable_end-om_usable-1
@@ -281,8 +297,8 @@ object_draw:
         beq     @need
         cmp     #4
         bcs     @capacity_line
-@need:  jsr     puts
-        .byte   " NEED ",0
+@need:  lda     #om_need
+        jsr     om_bank_puts
         lda     om_v
         sta     num
         lda     om_v+1
@@ -301,8 +317,8 @@ object_draw:
         lda     menu_noun
         cmp     #N_WATER
         bne     @forecast
-        jsr     puts
-        .byte   "CAN FREE ",0
+        lda     #om_can_free
+        jsr     om_bank_puts
         lda     #0
         sta     num+1
         lda     it_pack_hi+N_WATER
@@ -335,12 +351,12 @@ object_draw:
 @free:
         ldy     #0
         jsr     om_free
-        jsr     puts
-        .byte   " OZ  PACK ",0
+        lda     #om_pack_free
+        jsr     om_bank_puts
         ldy     #4
         jsr     om_free
-        jsr     puts
-        .byte   " IN3  HANDS ",0
+        lda     #om_hands_free
+        jsr     om_bank_puts
         ldy     #6
         jsr     om_free
         jsr     puts
@@ -820,6 +836,7 @@ om_eat: .byte "EAT ",0
 om_drink: .byte "DRINK ",0
 om_get: .byte "GET ",0
 om_bits: .byte 1,2,4,8,16,32,64,128
+om_place_masks: .byte $FF,$F7,$FE,$FD
 om_help_ids: .byte om_h0,om_h1,om_h2
 om_tens: .word 10000,1000,100,10,1
 om_phase: .byte 0
