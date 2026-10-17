@@ -2940,3 +2940,15 @@ la place du raccourci. Aucun état résident ou sauvegardé n’est ajouté.
 
 TREE : `$5800–$5FF7`, 8 octets libres. DAT : 65 354 bruts / 56 018 stockés,
 19 enregistrements ; XL reste à 378/1600 blocs avec cinq parties.
+
+### Filtre de position d’OBJECTS/EQUIPMENT (17 octobre 2026)
+
+Le dialogue lit la position de l’équipement (`it_place`) ou de l’objet
+fabriqué (`cr_b1`), puis enlève le bit de l’action redondante. Les piles
+quantifiées et le cas LOWER sont exclus de ce filtre. Les textes NEED,
+CAN FREE et les fragments de capacités PACK/HANDS passent dans la banque
+pour loger le calcul sans état résident ou sauvegardé supplémentaire.
+
+TREE : `$5800–$5FFB`, 4 octets libres. DAT : 65 416 bruts / 56 052 stockés,
+19 enregistrements ; XL : 379/1600 blocs, toujours cinq parties. Les autres
+marges de code restent inchangées.

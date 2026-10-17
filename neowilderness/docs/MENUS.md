@@ -1069,3 +1069,29 @@ Le test au port joystick couvre les stocks 1, 3, 14, 257, 32769 et 65535,
 les annulations sans mutation des plages persistantes, un transfert réel
 de cinq onces, un dépôt de quatre onces depuis CARRIED, le remplissage
 exact de la gourde et l’absence de TOUT pour EAT/DRINK.
+
+## 19. Actions selon la position (17 octobre 2026, XL)
+
+Le dialogue partagé par OBJECTS et EQUIPMENT retire les actions qui
+reproduisent la position actuelle : PACK pour l’équipement déjà rangé,
+CARRY pour celui déjà tenu et WEAR pour celui déjà porté. Le sac ne
+propose jamais PACK, même lorsqu’il est au sol ; CARRY reste sa prise
+correcte. Retirer un vêtement reste possible par PACK, CARRY ou DROP.
+La position des armes et de l’attelle fabriquées vient du moteur CRAFT.
+
+Ce filtre ne traite pas une provision présente au sol et transportée comme
+un équipement : transférer les onces LOCAL vers PACK reste possible même
+si l’autre pile est déjà rangée. Les menus distincts LOCAL/CARRIED de l’eau,
+la récupération du sac suspendu et les quantités restent conservés.
+
+USE n’est pas retiré parce qu’un objet est tenu ou déjà actif : l’activation
+et la possession sont distinctes, et certains usages sont réutilisables.
+Les conditions telles que l’appât du piège ou la capacité disponible restent
+des refus natifs explicites. La saisie des commandes conserve ses règles.
+Lorsqu’un raccourci demande une action retirée, l’éditeur choisit une action
+valide et l’affiche ; aucune commande n’est lancée avant confirmation.
+
+`tests/test_action_filter.py` contrôle les choix et leur cycle aux axes et
+boutons seuls, sans mutation des plages persistantes, ainsi que le refus
+de USE TRAP sans appât. Les tests EQUIPMENT et le parcours complet vérifient
+le même dialogue depuis la page d’équipement et pendant une partie.
