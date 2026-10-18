@@ -82,6 +82,7 @@ S_CARE_RETURN = 27
 S_CRAFT_RETURN = 28
 S_CRAFT_MAKE = 30
 S_CRAFT_USE = 29
+S_DEPARTURE_RETURN = 31
 MQ_CATCH_DUR = mq_list+4        ; CATCH uses at most 3 of the 5 queue slots
 
 .segment "GRID"
@@ -94,9 +95,14 @@ module_select:
         jne     gr_entry
         ldx     mn_cur
         lda     mn_idx,x
+        cmp     #126
+        jeq     gr_quick_fetch
+        lda     mn_idx,x        ; CMP must not replace the native grey bit
         bpl     :+
+        and     #$7F
+        jmp     gr_refusal_fetch
 gr_beep:
-        jsr     BELL1           ; greyed: it cannot act here
+        jsr     BELL1
         jmp     idle
 :       sta     mn_verb
         txa
@@ -130,6 +136,12 @@ gr_beep:
         jeq     done_menu       ; K_NONE: the label is the command
         cmp     #K_ITEMS
         jcs     gr_items
+        cmp     #K_DUR
+        bne     :+
+        ldx     mn_verb
+        cpx     #5              ; common selector for WALK/SWIM/REST/WAIT
+        jcc     done_menu
+:       lda     mn_kind
         cmp     #K_LOOK+1
         bcs     :+
         ldx     #<list_dur      ; K_DUR, K_LOOK
@@ -163,7 +175,12 @@ gr_word:
         bne     gr_word
 :       cmp     #K_BOIL
         bne     gr_make
-        lda     it_pack_lo+N_WATER      ; BOIL: the ounces, at most the
+        lda     camp_use
+        and     #U_UTENS
+        bne     :+
+        lda     #18             ; preparation is deliberate before choosing ounces
+        jmp     gr_refusal_fetch
+:       lda     it_pack_lo+N_WATER      ; BOIL: the ounces, at most the
         ldy     it_pack_hi+N_WATER      ; canteen's (else the pile's here:
         bne     @big                    ; camp.s camp_boil)
         tax
@@ -231,6 +248,8 @@ gr_level:
         sta     mn_cur
         sta     mn_top
         inc     mn_level
+        jsr     gr_recall
+        jsr     gr_catch_focus
         lda     mn_count
         beq     :+
         cmp     #1
@@ -240,6 +259,36 @@ gr_level:
 :       jsr     level1          ; nothing to name (cannot happen: the verb
         jsr     redraw          ; would be greyed)
         jmp     gr_beep
+
+ ; A local carcass suggests GET; opening that list selects the catch itself
+; rather than unrelated water or equipment. RETURN still confirms the item.
+gr_catch_focus:
+        lda     mn_level
+        cmp     #2
+        bne     @done
+        lda     mn_items
+        beq     @done
+        lda     gr_f
+        bne     @done           ; F_GET = 0
+        lda     mn_anim
+        cmp     #8              ; context identity GET + 1
+        bne     @done
+        ldy     #0
+@scan:  lda     overlay_text,y
+        cmp     #80
+        bcc     @next
+        cmp     #82
+        bcs     @next
+        tax
+        lda     fg_b2-76,x
+        cmp     #1
+        beq     @found
+@next:  iny
+        cpy     mn_count
+        bcc     @scan
+@done:  rts
+@found: sty     mn_cur
+        rts
 
 ; gr_items -- an item verb: its list (gr_build) at level 2.
 gr_items:
@@ -265,6 +314,9 @@ gr_entry:
         lda     mn_kind
         cmp     #K_BOIL
         bne     :+
+        ldy     mn_cur
+        lda     gr_size,y
+        sta     menu_portion+2
         lda     mn_cur          ; BOIL WATER n OZ: USE UTENSILS first
         sta     mq_noun
         jsr     q_clear
@@ -304,6 +356,7 @@ gr_entry:
         jsr     gr_name_of
         jmp     done_menu
 gr_append:
+        jsr     gr_remember
         jsr     append_space
         lda     mn_cur
         jsr     text_of
@@ -457,6 +510,74 @@ gr_sizes:
 gr_size: .byte 1, 2, 4, 8, 12, 16, 24, 32, 48
 gr_size_end:
 
+; Remember choices only when their final entry is validated, never while
+; moving or cancelling. EAT's TASTE entry deliberately keeps the last meal.
+gr_remember:
+@portion:
+        lda     mn_level
+        cmp     #3
+        bne     @done
+        ldx     #0
+        ldy     mn_cur
+        lda     gr_f
+        cmp     #F_EAT
+        bne     @drink
+        dey
+        bmi     @done
+        bpl     @save
+@drink: cmp     #F_DRINK
+        bne     @done
+        inx
+@save:  lda     gr_size,y
+        sta     menu_portion,x
+@done:  rts
+
+; Clamp a recalled portion down to a currently offered quantity. The
+; selected source and all menu entries remain available to the player.
+gr_recall:
+        lda     mn_kind
+        jmp     @quantity
+@done:  rts
+@quantity:
+        ldx     #2
+        cmp     #K_BOIL
+        beq     @portion
+        lda     mn_level
+        cmp     #3
+        bne     @done
+        ldx     #0
+        lda     gr_f
+        cmp     #F_EAT
+        beq     @portion
+        cmp     #F_DRINK
+        bne     @done
+        inx
+@portion:
+        lda     menu_portion,x
+        beq     @done
+        ldy     #0
+@find:  cmp     gr_size,y
+        bcc     @found
+        iny
+        cpy     #gr_size_end-gr_size
+        bcc     @find
+@found: tya
+        beq     @offset
+        sec
+        sbc     #1
+@offset:
+        cpx     #0
+        bne     @clamp
+        clc
+        adc     #1              ; EAT keeps TASTE before the portions
+@clamp: cmp     mn_count
+        bcc     @select
+        lda     mn_count
+        sec
+        sbc     #1
+@select:sta     mn_cur
+        rts
+
 ; gr_avail -- gr_cap = the ounces of menu_noun here (255: plenty): its pack
 ; stock (not in a hung pack) and its ground stock on this cell; a pile of
 ; lot 4 the same; WATER also a source (160 oz: water_pile), RAIN, SNOW 160.
@@ -609,9 +730,14 @@ gr_kill:
         bne     @kill
         lda     camp_use
         and     #U_GUN
-        ora     care_tools
-        and     #U_GUN|3
         bne     @kill
+        lda     #11             ; AXE/KNIFE only count on their activation cell
+        sta     gr_t
+        jsr     q_check
+        bcs     @kill
+        inc     gr_t
+        jsr     q_check
+        bcs     @kill
         ldy     #S_GUN
         ldx     #57
         jsr     mk_stock        ; (menu.s: here, with a shot left)
@@ -636,9 +762,17 @@ gr_kill:
         bcc     @kill
 @use:   tya
         jsr     q_add
-@kill:  lda     #S_KILL
+@kill:  jmp     gr_hunt_review
+module_hunt_go:
+        lda     #S_KILL
         jmp     q_last
 
+; Tail-call through SITES: NAVIGATION may overwrite GRID. The untouched
+; queue is a proposal until review returns via hunt_execute.
+gr_hunt_review:
+        lda     #10
+        jsr     overlay_load
+        jmp     hunt_open
 ; CATCH x: the bait, then the TRAP (GAME) or the FISHNG GEAR (FISH).
 gr_catch:
         jsr     gr_with_name
@@ -748,6 +882,8 @@ q_next: ldx     mq_i
         jeq     q_care_return
         cmp     #S_CRAFT_RETURN
         jeq     q_craft_return
+        cmp     #S_DEPARTURE_RETURN
+        jeq     q_departure_return
         jsr     q_step
         bpl     q_type
         jsr     q_check
@@ -815,6 +951,8 @@ q_stop: lda     journey_encounters
         jeq     q_care_return    ; preparation failed: show refusal, skip the care
         cmp     #S_CRAFT_RETURN
         jeq     q_craft_return
+        cmp     #S_DEPARTURE_RETURN
+        jeq     q_departure_return
         cmp     #S_OBJECTS
         beq     @page
         cmp     #S_EQUIPMENT
@@ -931,6 +1069,36 @@ gr_steps:
         .byte   0, 106, "STATUS", 0                              ; S_CRAFT_RETURN guard only
         .byte   0, 0, "USE", 0                                   ; S_CRAFT_USE
         .byte   0, 0, "MAKE", 0                                  ; S_CRAFT_MAKE
+        .byte   0, 106, "STATUS", 0                              ; S_DEPARTURE_RETURN
+
+; One already composed native command, then return to the optional checklist.
+module_departure_queue:
+        lda     #0
+        sta     obj_keep
+        lda     #S_DEPARTURE_RETURN
+        sta     mq_list
+        sta     mq_list+1
+        lda     #2
+        sta     mq_n
+        lda     #1
+        sta     mq_i
+        lda     journey_encounters
+        sta     mq_enc
+        jmp     obj_type
+q_departure_return:
+        ; A callback comes from get_line, while the initial checklist came
+        ; from do_command (typed STATUS and game-port UP both type STATUS).
+        ; Resume with the latter return address: obj_type executes the next
+        ; command itself; main must not execute its trimmed line a second time.
+        pla
+        pla
+        lda     #>(main_command_done-1)
+        pha
+        lda     #<(main_command_done-1)
+        pha
+        lda     #10
+        jsr     overlay_load
+        jmp     departure_resume
 
 ; ----------------------------------------------------------------------------
 ; the lists of items
@@ -1032,7 +1200,7 @@ gr_r_wear: .byte 2, 55, 0
 gr_r_drop: .byte 1, 95, 0
 gr_r_eat:  .byte 76, 87
 gr_r_prov: .byte 23, 51, 0
-gr_r_use:  .byte 38, 74, 89, 94, 0
+gr_r_use:  .byte 9, 74, 89, 94, 0
 gr_r_game: .byte 80, 82, 0
 gr_r_skin: .byte 76, 81, 0
 gr_r_cook: .byte 76, 87, 23, 24, 0
@@ -1251,6 +1419,18 @@ grid_item_name:
         txa
         ldy     #0
         beq     @copy
+; This trampoline fits the padding before the aligned names. The native
+; INPUT/CAMP window at $5800 may still be live when a greyed verb is chosen.
+gr_refusal_fetch:
+        pha
+        lda     #10
+        jsr     overlay_load
+        pla
+        jmp     refusal_open
+gr_quick_fetch:
+        lda     #10
+        jsr     overlay_load
+        jmp     context_open
         .align $100            ; grid_item_name shares this page's high byte
 str_fire:     .byte "FIRE", 0
 str_game:     .byte "GAME", 0
@@ -1280,8 +1460,11 @@ str_tree:     .byte "TREE", 0
 str_down:     .byte "DOWN", 0
 str_taste:    .byte "TASTE", 0
 ; The string lists (the empty string ends one).
+.pushseg
+.segment "LOWTEXT"
 list_dur:   .byte "10 MIN",0,"20 MIN",0,"30 MIN",0,"1 H",0,"2 H",0,"4 H",0,"8 H",0,0
-list_look:  .byte "LEFT",0,"RIGHT",0,"BACK",0,"AHEAD",0,"UP",0,"DOWN",0,"NORTH",0,"EAST",0,"SOUTH",0,"WEST",0,"SUN",0,"STARS",0,0
+list_look:  .byte "LEFT",0,"RIGHT",0,"BACK",0,"AHEAD",0,"UP",0,"DOWN",0,"NORTH",0,"EAST",0,"SOUTH",0,"WEST",0,"SUN",0,"STARS",0,"AZIMUTH",0,0
+.popseg
 list_make:  .byte "FIRE",0
 list_water: .byte "WATER",0,0
 list_taste: .byte "TASTE",0
@@ -1488,3 +1671,164 @@ module_craft_prepare:
         jsr     q_add
         jsr     q_start
         jmp     obj_type
+
+; A useful context changes the initial verb once. Movement, cancellation and
+; subsequent actions in that context keep the player's explicit choice. This
+; routine only selects an offered verb: RETURN still follows native lists,
+; quantities and confirmations. An animal never selects an attack implicitly.
+module_context_focus:
+        ldy     mn_count
+        lda     #126
+        sta     mn_idx,y
+        inc     mn_count
+        ; A reachable catch takes priority over resuming an interrupted
+        ; journey. Packing it leaves that journey intact for the next prompt.
+        ldx     #80             ; only an actual local catch, not live game
+@catch: lda     fg_b2-76,x
+        cmp     #1
+        bne     @next
+        jsr     member
+        and     #G_GROUND
+        bne     @get
+@next:  inx
+        cpx     #82
+        bcc     @catch
+        lda     travel_pending
+        beq     @crossing
+        cmp     #V_SWIM
+        beq     @swim
+        lda     #1              ; pending WALK and its native synonyms
+        bne     @candidate
+@crossing:
+        lda     #0              ; offered SWIM means water here or ahead
+        jsr     context_offered
+        bcs     @swim
+        lda     s_drink         ; native hours since drinking >= 4
+        cmp     #$83
+        bcc     @none
+        lda     #6              ; DRINK must also have an offered source
+        bne     @candidate
+@get:   lda     #7
+        bne     @candidate
+@swim:  lda     #0
+@candidate:
+        jsr     context_offered
+        bcc     @none
+        tax
+        inx                     ; zero remains the absence of a suggestion
+        cpx     mn_anim
+        stx     mn_anim
+        beq     @done
+        sta     mn_verb
+@done:  rts
+@none:  lda     #0
+        sta     mn_anim
+        rts
+; A=verb_table identity. Greyed entries deliberately do not match.
+context_offered:
+        ldy     mn_count
+@scan:  dey
+        bmi     @no
+        cmp     mn_idx,y
+        bne     @scan
+        sec
+        rts
+@no:    clc
+        rts
+
+; NAVIGATION returns one deliberate action; no follow-up runs implicitly.
+module_flows_execute:
+        cmp     #$FF
+        beq     @cancel
+        ldx     #0
+@find:  cmp     mn_idx,x
+        beq     @open
+        inx
+        cpx     mn_count
+        bcc     @find
+        jmp     gr_refusal_fetch ; A is still the requested verb identity
+@open:  stx     mn_cur
+        lda     #1
+        sta     mn_mode
+        jmp     module_select
+@cancel:
+        jmp     get_line_body
+
+verb_of_cur:
+        ldx     mn_cur
+        lda     mn_idx,x
+        and     #$7F
+        sta     mn_verb
+        rts
+
+quick_label:
+        lda     #<quick_text
+        sta     gp2
+        lda     #>quick_text
+        sta     gp2+1
+        rts
+quick_text: .byte "QUICK",0
+
+; GRID stays loaded throughout menu navigation: level1 fetches it before
+; selecting the initial cell, and both callers run before a command starts.
+; scroll_to_cur -- the three visible rows include the selected cell.
+scroll_to_cur:
+        lda     mn_cur
+        ldx     #0
+:       cmp     mn_cols
+        bcc     :+
+        sbc     mn_cols
+        inx
+        bne     :-
+:       cpx     mn_top          ; X = row of the selection
+        bcs     :+
+        stx     mn_top
+        rts
+:       txa
+        sec
+        sbc     #MN_ROWS-1
+        bcc     :+
+        cmp     mn_top
+        bcc     :+
+        sta     mn_top
+:       rts
+
+module_hunt_execute:
+        cmp     #0
+        beq     @cancel
+        cmp     #2
+        beq     @craft
+        lda     mq_n
+        beq     @hunt
+        lda     #$85
+        jsr     hunt_arm
+        jmp     q_start         ; activate once, then return to the review
+@hunt: lda     #$86
+        jsr     hunt_arm
+        jmp     module_hunt_go
+@craft:lda     #$85
+        jsr     hunt_arm
+        lda     #2
+        jmp     hunter_result_fetch
+@cancel:
+        jsr     q_clear
+        jmp     get_line_body
+hunt_arm:
+        sta     dep_running
+        lda     mq_noun
+        sta     dep_mask
+        lda     journey_encounters
+        sta     dep_cursor
+        rts
+module_hunt_again:
+        jsr     q_clear
+        lda     dep_mask
+        sta     mq_noun
+        sta     menu_noun
+        jmp     gr_kill
+hunter_result_fetch:
+        pha
+        lda     #10
+        jsr     overlay_load
+        pla
+        jmp     hunter_result_execute

@@ -90,6 +90,10 @@ module_survival_clock:
         rts
 
 module_rest_prepare:
+        lda     #0
+        sta     used
+        sta     used+1
+        sta     input_interrupted
         lda     #1
         sta     resource_retention_due
         lda     #30
@@ -97,25 +101,141 @@ module_rest_prepare:
         lda     verb
         cmp     #V_WAIT
         beq     @done
-        lda     minutes+1
-        ldy     minutes
+        fld     s_elap
+        fst     s_last+10
+        fld     f_zero
+        fst     t1
+        jsr     alert_rest      ; reset a new session, credit only elapsed time
+        fld     f_half
+        fst     s_rest
+@done:  jmp     module_fauna_cap
+
+; Credit each interval immediately before its clock/health update. This
+; prevents an interrupted long request receiving unearned recovery, and
+; prevents a health clamp discarding the remainder of a long rest's credit.
+module_rest_step:
+        lda     used
+        ora     used+1
+        beq     @continue       ; finish one interval before checking STOP
+        lda     KBD
+        cmp     #KC_ESC|$80
+        beq     @stop
+        bit     $C062
+        bpl     @continue
+@stop:  bit     KBDSTRB
+        inc     input_interrupted
+        sec
+        rts
+@continue:
+        clc
+        lda     used
+        adc     stepmin
+        sta     used
+        bcc     :+
+        inc     used+1
+:       lda     verb
+        cmp     #V_WAIT
+        beq     @done
+        lda     #0
+        ldy     stepmin
+        jsr     GIVAYF
+        fop     FMULT, sv_0_05
+        fop     FSUB, s_defr
+        fst     s_defr
+@done:  clc
+        rts
+
+module_rest_finish:
+        lda     verb
+        cmp     #V_WAIT
+        bne     @recover
+        rts
+@recover:
+        lda     used+1
+        ldy     used
         jsr     GIVAYF
         fst     t1
-        fop     FMULT, sv_0_05
-        fop     FSUB, s_defr     ; original credits requested rest before clock
-        fst     s_defr
+        fop     FMULT, f_inv60
+        fop     FSUB, s_elap
+        fst     t2              ; session start = current clock - elapsed
         fld     t1
         fop     FMULT, sv_0_017
         jsr     AYINT
         lda     $A0
         ldy     $A1
         jsr     GIVAYF
-        fop     FADD, s_elap
+        fop     FADD, t2
         fst     s_last+10
-        jsr     alert_rest      ; lot 13: hours of the rest session ($4BE2)
         fld     f_half
         fst     s_rest
-@done:  jmp     module_fauna_cap
+        jsr     alert_rest
+        ; The last interval may not yet be due for a health refresh. Include
+        ; its pending clock debt when deciding whether forced sleep remains
+        ; necessary, without changing the native health update cadence.
+        lda     health_minutes+1
+        ldy     health_minutes
+        jsr     GIVAYF
+        fop     FMULT, f_inv60
+        fop     FADD, s_defr
+        fop     FCOMP, f_60
+        cmp     #$FF
+        bne     @done
+        lda     #0
+        sta     al_forced
+        lda     al_events
+        and     #$EF
+        sta     al_events
+@done:  rts
+
+module_rest_result:
+        lda     fauna_alert
+        ora     input_interrupted
+        beq     @normal
+        jsr     prepare_minutes
+        lda     minutes
+        sta     stock_available
+        lda     minutes+1
+        sta     stock_available+1
+        lda     used
+        sta     msgnum
+        lda     used+1
+        sta     msgnum+1
+        lda     #5
+        ldx     input_interrupted
+        beq     :+
+        lda     #6
+:       sta     travel_reason
+        lda     #<sv_rested_stop
+        ldx     #>sv_rested_stop
+        ldy     verb
+        cpy     #V_WAIT
+        bne     @print
+        lda     #<sv_waited_stop
+        ldx     #>sv_waited_stop
+        bne     @print
+@normal:
+        lda     verb
+        cmp     #V_WAIT
+        bne     @rest
+        lda     #<m_waited
+        ldx     #>m_waited
+        ldy     input_unit
+        cpy     #2
+        bne     @print
+        lda     #<m_wait_minutes
+        ldx     #>m_wait_minutes
+        jmp     @print
+@rest:  lda     #<m_rested
+        ldx     #>m_rested
+        ldy     input_unit
+        cpy     #2
+        bne     @print
+        lda     #<m_rest_minutes
+        ldx     #>m_rest_minutes
+@print: jsr     message
+        jmp     report
+sv_rested_stop: .byte "YOU RESTED # MIN.|REQUESTED: $ MIN. !",0
+sv_waited_stop: .byte "YOU WAITED # MIN.|REQUESTED: $ MIN. !",0
 
 module_meal_prepare:
         lda     #1
@@ -248,7 +368,9 @@ module_fauna_cap:
         jsr     overlay_load
         jsr     module_outdoor_fauna_cap
         pla
+        bmi     @done           ; $FF marks an invalidated, non-callable window
         jmp     overlay_load    ; a TRAVEL caller must regain its running window
+@done:  rts
 
 .segment "OUTDOOR"
 module_outdoor_fauna_cap:

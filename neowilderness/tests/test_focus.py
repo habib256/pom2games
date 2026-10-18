@@ -76,10 +76,10 @@ def walk():
         rows, writes, changes = key('\\r')
         assert focus() == 1 and rows[3][1:3] == '> ' and writes == changes, (rows[3], writes, changes)
         name = rows[3][3:17].strip()
-        assert rows[21][41:].rstrip() == f'\u21b5 PACK {name}' and rows[22][41:].rstrip() == f'H CARRY {name}', rows[20:22]
+        assert rows[21][41:].rstrip() == '\u21b5 ITEM ACTIONS' and rows[22][41:].rstrip() == 'H ITEM ACTIONS', rows[20:22]
         rows, writes, changes = key('\\>')
         assert rows[3][1] == ' ' and rows[3][42] == '>' and writes == changes, (rows[3:5], writes, changes)
-        assert s.step(L.peek('obj_side')).data[0] == 1 and rows[21][41:].startswith('\u21b5 DROP '), rows[21]
+        assert s.step(L.peek('obj_side')).data[0] == 1 and rows[21][41:].startswith('\u21b5 ITEM ACTIONS'), rows[21]
         rows, writes, changes = key('\\<')
         assert rows[3][1] == '>' and writes == changes
         rows, writes, changes = key('\\^')               # back to the tab row
@@ -124,15 +124,17 @@ def walk():
         rows = text_screen(s.step('peek:0400:1024').data)
         assert page_frame(rows, 'STATUS', '\u2191 TOPO', 'ESC VIEW'), rows[23]
         rows, _, _ = key('\\v')
-        assert focus() == 1 and 'ALL CONDITIONS' in rows[23]
+        assert focus() == 1 and 'NEEDS/CARE' in rows[23]
+        rows, _, _ = key('\\r')
+        assert focus() == 6 and 'ALL CONDITIONS' in rows[23]
         s.step('press:\\e'); assert view()
         s.step('key:\\^'); s.step(READY)
         key('\\<')
-        for _ in range(3):
+        for _ in range(7):
             key('\\v')
         s.step('press:\\v')
         s.step(READY)
-        assert focus() == 3, 'DOWN stays on the last menu entry'
+        assert focus() == 7, 'DOWN stays on NEXT ACTION, the last menu entry'
         s.step('press:\\e'); assert view()
 
         # UP on the tab row: TOPO, the maps' storey; UP there: the view.
@@ -148,7 +150,7 @@ def walk():
             assert s.step('peek:C01F:1').data[0] >= 0x80 and s.step('peek:C01A:1').data[0] < 0x80, \
                 'UP on the tab row: TOPO, DHGR mixed'
             legend = text_screen(s.step('peek:0400:1024').data)[20]
-            assert legend.startswith('TOPO, NORTH UP'), legend
+            assert legend.startswith('TOPO, TRUE N UP. ARROW: YOU'), legend
             s.step('press:\\^')
             assert view(), 'UP on TOPO returns to the view'
             assert s.step('peek:2000:8192').data == view_page, 'the view copied back'
@@ -213,12 +215,14 @@ def medical():
         s.step('key:\\^'); s.step(READY)
         rows = text_screen(s.step('peek:0400:1024').data)
         assert page_frame(rows, 'STATUS', '\u2191 TOPO', 'ESC VIEW'), rows
-        rows, writes, changes, mem = key('\\v')
+        rows, _, _, _ = key('\\v')
+        assert focus_of(s) == 1
+        rows, writes, changes, mem = key('\\r')
         # STATUS's MEDICAL rows (docs/MENUS.md 9, 15 October 2026): SEVERE CUTS
         # on row 16 (column 1 in its post-it, XL), POISON BITE on row 18 from
         # column 27; the inverse X of the ACTIVE ones (columns 23 and 50).
         assert raw_cell(mem, 16, 24) == raw_cell(mem, 17, 24) == 0x18, 'ACTIVE: an inverse X'
-        assert s.step(L.peek('pg_focus')).data[0] == 1 and inverse(mem, 16) == list(range(1, 12)) + [24], inverse(mem, 16)
+        assert s.step(L.peek('pg_focus')).data[0] == 6 and inverse(mem, 16) == list(range(1, 12)) + [24], inverse(mem, 16)
         assert rows[23].startswith(' \u2190\u2192 STOP BLEEDING  USE PRESSURE') and inverse(mem, 23) == list(range(4, 17)) \
             and rows[23][70:].rstrip() == 'ESC VIEW' and '30 MIN; NO ITEM NEEDED' in rows[22], rows[22:]
         assert writes == changes, (writes, changes)
@@ -247,7 +251,7 @@ def medical():
             for _ in range(2):
                 key('\\<')                         # STATUS, MENU, OPTIONS
             rows, _, _, _ = key('\\v')
-            assert rows[2].startswith(' OPTIONS ') and rows[6].startswith('\u258f  FOOD SOURCES ON THE WAY') and \
+            assert rows[2].startswith(' OPTIONS ') and rows[6].startswith('\u258f  STOP FOR FOOD DISCOVERY') and \
                 rows[6][31:34] == ('[\u2713]' if want else '[ ]'), rows[2:9]
             for _ in range(3):
                 key('\\v')
@@ -266,7 +270,7 @@ def medical():
         s.step(f'press:{RET}')
         s.step(L.until('page_top', 40000)); s.step(READY)
         rows = text_screen(s.step('peek:0400:1024').data)
-        assert s.step(L.peek('pg_focus')).data[0] == 1 and rows[23].startswith(' \u2190\u2192 USE SNAKEBT KIT'), rows[23]
+        assert s.step(L.peek('pg_focus')).data[0] == 6 and rows[23].startswith(' \u2190\u2192 USE SNAKEBT KIT'), rows[23]
         s.step('press:\\e')
     print('  STATUS care: the focus on the active conditions, their gestures (LEFT/RIGHT), RETURN types one '
           '(CUT BODY: USE KNIFE first, queued); OPTIONS line F; CARE from the grid: OK')

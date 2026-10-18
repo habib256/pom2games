@@ -31,8 +31,8 @@ def main():
                        for col,char in enumerate(line) if char in ('P',marker)}
                 assert set(marks)=={'P',marker},(asset,dx,dy,marks,rows)
                 p,target=marks['P'],marks[marker]
-                assert (target[0]-p[0],p[1]-target[1])==(dx,dy)
-                s.step('press:\\r');s.step(IDLE)
+                assert (target[0]-p[0],p[1]-target[1])==(dx,dy),(asset,dx,dy,marks,rows)
+                s.step('press:\\e');s.step(IDLE)
                 s.step(L.poke('heading',heading));s.step(L.poke('heading',heading>>8,1))
                 command(s,'V')
                 page=s.step('peek:2000:8192').data

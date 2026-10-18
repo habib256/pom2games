@@ -146,7 +146,7 @@ def test_screens():
     scr, new = R.end_screen(c, 2, 'SIERRA NEVADA', False, R.empty_file(), 'ALICE')
     t = scr.text()
     assert t[0].strip() == 'JOURNEY SCORE' and t[0].index('J') == 13
-    assert t[12].startswith('SCORE') and t[12][28:33] == ' 2718'
+    assert t[12].startswith('POINTS') and t[12][28:33] == ' 2718'
     assert scr.rows[12][28] == 0x20, 'score in inverse'
     assert t[15].startswith('1 ALICE     2718   312H L4  ARRIVED')
     assert t[22].startswith(R.MSG_SAVED) and t[23].startswith(R.MSG_KEY)

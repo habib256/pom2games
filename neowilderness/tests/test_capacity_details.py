@@ -93,13 +93,17 @@ def run(disk):
 def pages(disk):
     # Text banking to recover modal space must preserve the exact visible pages.
     with GamePortSession(disk, menu=False) as s:
-        boot(s); event(s, 'up'); event(s, 'down'); event(s, 'ok')
+        boot(s); event(s, 'up')
+        for _ in range(6):
+            event(s, 'down')
+        event(s, 'ok')
         screen = '\n'.join(rows(s))
         for name in ('SEVERE CUTS', 'BROKEN ARM', 'BROKEN LEG', 'SHOCK', 'SUNBURN',
                      'SNOWBLINDNESS', 'FROSTBITE', 'POISON BITE', 'INFECTION',
                      'SALT DEFICIENCY', 'FOOD POISONING', 'GIARDIA', 'MALARIA', 'ALTITUDE SICKNESS'):
             assert name in screen, (name, screen)
-        event(s, 'up')
+        while byte(s, 'pg_focus'):
+            event(s, 'up')
         for _ in range(2):
             event(s, 'left')
         assert byte(s, 'pg_cur') == 5
@@ -107,7 +111,7 @@ def pages(disk):
         for i, text in enumerate(('HOW OFTEN ANIMALS APPEAR, 0 TO 100 (NATURE).',
                                   'YOUR POSITION ON THE TOPO SHEET.',
                                   'THE TEXT MAP, NEXT TO TOPO.',
-                                  'STOP AT FOOD FOUND ON THE WAY (GET FOOD).'), 1):
+                                  'ON: FIND FOOD. OFF: WALK PAST FOOD.'), 1):
             assert byte(s, 'pg_focus') == i and text in rows(s)[9], rows(s)[9]
             if i < 4:
                 event(s, 'down')

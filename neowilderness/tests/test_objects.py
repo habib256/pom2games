@@ -115,7 +115,7 @@ def pile_here(s):
     return [('fg_x', x, 0), ('fg_y', y, 0), ('fg_gl', 20, 6), ('fg_gh', 0, 6), ('fg_b1', 0, 6)]
 
 
-def transfer(disk, side, item, key, prep=(), pile=False):
+def transfer(disk, side, item, key, prep=(), pile=False, expected=None):
     """The page's transfer (`key` on `item` of `side`) and the same line
     typed: (command, page state, typed state, rows after the page, cycles)."""
     with a2test.Session(disk) as s:
@@ -123,13 +123,24 @@ def transfer(disk, side, item, key, prep=(), pile=False):
         setup(s, list(prep) + (pile_here(s) if pile else []))
         open_page(s)
         assert go(s, side, item), (side, item)
-        hint = rows(s)[21 if key == '\\r' else 22][41:].strip()
-        command = hint.split(' ', 1)[1]
         before = state(s)
         r = s.step(f'until:{L["keyboard_wait"]:04X}:20000')
         start = int(re.findall(r'cycles=(\d+)', r.out)[-1])
         s.step('press:' + key)
         s.step('wait:1'); s.step(READY)
+        command = expected
+        assert command is not None
+        # These cases test the named transfer, independently of the useful
+        # contextual default (carried tools now open USE).
+        target = {'PACK': 0, 'CARRY': 1, 'DROP': 2, 'WEAR': 3,
+                  'USE': 4, 'EAT': 5, 'DRINK': 6, 'GET': 7}[command.split()[0]]
+        if item == 22 and side == 0:
+            target = 7          # source-aware water editor uses GET internally
+        for _ in range(8):
+            if s.step(L.peek('om_action')).data[0] == target:
+                break
+            s.step('press:\\v'); s.step('wait:1'); s.step(READY)
+        assert s.step(L.peek('om_action')).data[0] == target
         many = s.step(L.peek('om_many')).data[0]
         if many:
             amount = int.from_bytes(s.step(L.peek('om_qty', 2)).data, 'little')
@@ -174,9 +185,12 @@ def transfers():
         ('PACK ROCK, the TENT down first', 0, 92, '\\r', (('it_place', 0, 9),), False),
         ('PACK INSECTS: the whole pile, no question', 0, 82, '\\r', (), True),
     )
+    expected = ('PACK ENSOL PAD', 'PACK GND COVER', 'DROP TENT',
+                'CARRY DOWN PARKA', 'PACK WATER', 'PACK ROCK',
+                'PACK ROCK', 'PACK INSECTS')
     times = []
-    for name, side, item, key, prep, pile in cases:
-        command, before, page, typed, screen, kept, cycles, answer = transfer(DISK, side, item, key, prep, pile)
+    for (name, side, item, key, prep, pile), wanted in zip(cases, expected):
+        command, before, page, typed, screen, kept, cycles, answer = transfer(DISK, side, item, key, prep, pile, wanted)
         same = page == typed
         diff = {k: (page[k].hex(), typed[k].hex()) for k in page if page[k] != typed[k]}
         left = ' '.join(' '.join(r[:39].split()) for r in screen[20:23]).strip()
@@ -258,8 +272,9 @@ def layout(disk, xl):
               and 'FREE IN3 WEAR' in screen[18] and 'PACK ' in screen[19] and 'HANDS ' in screen[19], screen[15:20])
         hint = screen[21][41:].strip()
         name = screen[3][3:17].strip()
-        check('what RETURN and H type (rows 20-21, right)', hint.endswith(f'PACK {name}')
-              and screen[22][41:].strip().endswith(f'CARRY {name}'), screen[20:22])
+        check('RETURN and H open item actions without promising a transfer',
+              hint.endswith('ITEM ACTIONS')
+              and screen[22][41:].strip().endswith('ITEM ACTIONS'), screen[20:22])
         go(s, 1, 45)                                 # the remedy: its uses
         screen = rows(s)
         line = next((r for r in screen[3:15] if r[42] == '>'), '')

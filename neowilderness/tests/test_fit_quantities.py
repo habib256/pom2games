@@ -49,7 +49,7 @@ def accept(s, item, amount, before, source):
     return packed, ground
 
 
-def food(disk, source=257, volume=2, weight=37, space=1000, blocked=None, cancel=False, all_refused=False):
+def food(disk, source=257, volume=2, weight=37, space=1000, blocked=None, cancel=False, all_refused=False, correction=False):
     with GamePortSession(disk, menu=False) as s:
         boot(s)
         s.step(L.poke('it_place', 0, 25))
@@ -88,7 +88,19 @@ def food(disk, source=257, volume=2, weight=37, space=1000, blocked=None, cancel
             event(s, 'ok')
             assert not differing(before, saved_state(s), DERIVED_BYTES)
         else:
-            choose_fit(s, expected)
+            if correction:
+                identity = tuple(byte(s, name) for name in ('menu_noun', 'om_side', 'om_action'))
+                command = s.step(L.peek('overlay_text', 37)).data
+                event(s, 'ok'); event(s, 'ok')
+                assert byte(s, 'om_phase') == 2 and word(s, 'om_qty') == source
+                assert saved_state(s) == before
+                event(s, 'up')  # Deliberately apply the advertised FIT correction.
+                assert byte(s, 'om_phase') == 1 and word(s, 'om_qty') == expected
+                assert tuple(byte(s, name) for name in ('menu_noun', 'om_side', 'om_action')) == identity
+                assert s.step(L.peek('overlay_text', 37)).data == command
+                assert saved_state(s) == before, 'FIT correction executed a native command'
+            else:
+                choose_fit(s, expected)
             if cancel:
                 event(s, 'ok'); assert saved_state(s) == before
                 event(s, 'cancel'); event(s, 'cancel'); event(s, 'cancel')
@@ -141,6 +153,8 @@ if __name__ == '__main__':
         food(disk, blocked='hands')
         food(disk, blocked='bag')
         food(disk, cancel=True)
+        food(disk, correction=True, cancel=True)
+        food(disk, correction=True)
         water(disk)
         water(disk, place=2, space=8)
         water(disk, weight=2, space=100)

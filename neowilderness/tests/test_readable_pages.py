@@ -31,7 +31,12 @@ def main():
             assert 'SUNBURN' in '\n'.join(page) and '◆' in page[16]
             assert '0%' not in '\n'.join(page[16:21])
             before = saved_state(s)
+            for focus in range(1, 6):
+                event(s, 'down')
+                assert byte(s, 'pg_focus') == focus
+                readonly(before, s)
             event(s, 'down'); assert 'ALL CONDITIONS' in rows(s)[23]
+            assert byte(s, 'pg_focus') == 6
             event(s, 'ok'); frame(s, 'STATUS')
             assert byte(s, 'st_all') == 1 and byte(s, 'st_med_n') == 14
             assert 'BROKEN ARM' in '\n'.join(rows(s)) and 'ALTITUDE SICKNESS' in '\n'.join(rows(s))

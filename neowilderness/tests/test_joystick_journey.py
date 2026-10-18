@@ -8,7 +8,7 @@ import tempfile
 from common import L, a2test, disk_with, text_screen, fp
 from test_forest import map_fixture
 from test_objects import entry
-from test_menu_bar import selected, grid_cells
+from test_menu_bar import selected, grid_cells, duration_control
 from test_forage import seed_for
 from test_save import RANGES, DERIVED_BYTES, differing
 from score import Hof
@@ -40,8 +40,15 @@ def event(s, control, ready=READY):
         start, stop = f'btn:{button},1', f'btn:{button},0'
     s.step(start)
     s.step('wait:8')
-    s.step(ready)
-    s.step(stop)
+    if ready.startswith(f'until:{L["nav_key"]:04X}:'):
+        # Fast planner redraws can already have passed nav_key after eight
+        # frames. Release now so waiting for another checkpoint cannot hold
+        # the stick through autorepeat and create a second cursor move.
+        s.step(stop)
+        s.step(f'until:{L["nav_key"]:04X},{L["keyboard_wait"]:04X}:60000')
+    else:
+        s.step(ready)
+        s.step(stop)
     s.step('wait:6')
 
 
@@ -91,6 +98,18 @@ def action(s, target):
 
 
 def grid(s, *labels, ready=IDLE):
+    if len(labels) == 2 and labels[0] in ('WALK', 'SWIM', 'REST', 'WAIT'):
+        number, unit = labels[1].split()
+        target = int(number) * (60 if unit == 'H' else 1)
+        grid(s, labels[0], ready=READY)
+        while True:
+            current = int.from_bytes(s.step(L.peek('input_value', 2)).data, 'little')
+            if current == target:
+                break
+            control = duration_control(current, target)
+            event(s, control)
+        event(s, 'ok', ready)
+        return
     if not byte(s, 'mn_mode'):
         event(s, 'ok', IDLE)
     for label in labels:
@@ -212,7 +231,7 @@ def care_save_end(s):
     print('  Restart and RESTORE 2: full saved state recovered: OK', flush=True)
     before_walk = saved_state(s)
     position = s.step(L.peek('px', 4)).data
-    grid(s, 'WALK', '1 H')
+    grid(s, 'WALK')  # native fire refusal precedes any duration prompt
     assert 'DOUSE YOUR FIRE' in '\n'.join(rows(s))
     assert not differing(before_walk, saved_state(s), DERIVED_BYTES)
     grid(s, 'DOUSE')
@@ -335,7 +354,9 @@ def journey(disk):
         assert s.step(L.peek('fr_min', 2)).data == b'\x1e\0'
         before_cook = fp(s.step(L.peek('s_elap', 5)).data)
         old_counter = byte(s, 'fg_cl', 15) + 256*byte(s, 'fg_ch', 15)
-        event(s, 'ok', IDLE)
+        event(s, 'ok', READY)
+        from test_survival_flows import decline_result_followup
+        decline_result_followup(s)
         assert byte(s, 'fg_cl', 15) + 256*byte(s, 'fg_ch', 15) > old_counter
         assert abs(fp(s.step(L.peek('s_elap', 5)).data)-before_cook-.5) < .001
         print('  Fire and COOK GAME: OK', flush=True)

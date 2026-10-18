@@ -199,18 +199,18 @@ summary_hint:
         and     #1
         beq     @starvation
         jsr     puts
-        .byte "DEHYDRATION",0
+        .byte "DRINK NOW",0
         jmp     @alert_done
 @starvation:
         lda     ui_previous+5
         and     #2
         beq     @exhaustion
         jsr     puts
-        .byte "STARVATION",0
+        .byte "EAT NOW",0
         jmp     @alert_done
 @exhaustion:
         jsr     puts
-        .byte "EXHAUSTION",0
+        .byte "REST NOW",0
         jmp     @alert_done
 @alert_table:
         tax
@@ -244,10 +244,10 @@ summary_hint:
         cmp     #1
         bne     @hot
         jsr     puts
-        .byte "HYPOTHERMIA",0
+        .byte "BODY: WARM",0
         rts
 @hot:   jsr     puts
-        .byte "HYPERTHERMIA",0
+        .byte "BODY: COOL",0
         rts
 @wet:   lda     wet_mode
         beq     @shelter
@@ -255,10 +255,10 @@ summary_hint:
         cmp     #2
         bne     @damp
         jsr     puts
-        .byte "IMMERSED",0
+        .byte "BODY: WET",0
         rts
 @damp:  jsr     puts
-        .byte "WET CLOTHES",0
+        .byte "BODY: DRY",0
         rts
 @shelter:
         lda     tree_in
@@ -270,7 +270,7 @@ summary_hint:
         lda     shelter_inside
         beq     @cabin
         jsr     puts
-        .byte "EXIT SHELTER",0
+        .byte "EXIT",0
         rts
 @cabin: lda     MAP+16
         beq     @items
@@ -319,19 +319,25 @@ summary_hint:
         cmp     #1
         bne     @shiver
         jsr     puts
-        .byte "SWEATING",0
+        .byte "GEAR: COOL",0
         rts
 @shiver: jsr    puts
-        .byte "SHIVERING",0
+        .byte "GEAR: WARM",0
         rts
 @water_stock:
+        fld     s_rest
+        fop     FCOMP, f_12
+        cmp     #1
+        bne     @water_check
+        jmp     @rest_hint
+@water_check:
         lda     it_pack_hi+N_WATER
         bne     @scan
         lda     it_pack_lo+N_WATER
         cmp     #17
         bcs     @scan
         jsr     puts
-        .byte "WATER LOW:INV",0
+        .byte "GET WATER",0
         rts
 @scan:  lda     #UI_HINT
         sta     summary_ink
@@ -371,19 +377,20 @@ summary_hint:
         lda     cr_still
         beq     @normal
 @found: jsr     puts
-        .byte "ITEMS: INV",0
+        .byte "GET/OBJECTS",0
         rts
 @normal:
         lda     #UI_CALM
         sta     summary_ink
         lda     night
         beq     @map_hint
+@rest_hint:
         jsr     puts
-        .byte "REST / HELP",0
+        .byte "NEXT: REST",0
         rts
 @map_hint:
         jsr     puts
-        .byte "TOPO / HELP",0
+        .byte "MENU: NEXT",0
         rts
 summary_gauge:
         fop     FCOMP, f_12
@@ -602,8 +609,8 @@ summary_alert_lo: .byte 0,ui_thirst_worse-ui_hunger_worse,ui_health_worse-ui_hun
         .byte ui_hunger_better-ui_hunger_worse,ui_thirst_better-ui_hunger_worse,ui_health_better-ui_hunger_worse
         .byte ui_body_better-ui_hunger_worse,ui_out_water-ui_hunger_worse,ui_recovered-ui_hunger_worse
 summary_cr: .byte 0, 1, 4       ; cr_b1 of BOW, SPEAR, SPLINT (cr_cx/cr_cy 0..2)
-ui_hunger_worse: .byte "HUNGER WORSE",0
-ui_thirst_worse: .byte "THIRST WORSE",0
+ui_hunger_worse: .byte "EAT SOON",0
+ui_thirst_worse: .byte "DRINK SOON",0
 ui_health_worse: .byte "HEALTH WORSE",0
 ui_body_worse: .byte "BODY WORSE",0
 ui_immersed: .byte "NOW IMMERSED",0

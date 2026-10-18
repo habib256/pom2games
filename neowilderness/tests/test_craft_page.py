@@ -20,9 +20,9 @@ Pictures: build/craft_page_v2.png (HUT, possible), build/craft_page_v2_missing.p
 (IGLOO, missing), and build/craft_page*.txt.
 
 Grid: GET, DROP and USE name the BOW, SPEAR, CLUB, ROCK and SPLINT (GET x
-into the hand, as the original's GET), the KILL queue takes the BOW or the
-SPEAR before the AXE and nothing when a crafted weapon is in use; every
-choice equals the typed commands. The panel's ITEMS hint counts the BOW,
+into the hand, as the original's GET). KILL proposes BOW or SPEAR before
+AXE; activation and the attempt are confirmed separately. Every accepted
+command equals its typed native counterpart. The panel's ITEMS hint counts the BOW,
 SPEAR, SPLINT and CLUB on the ground here, not the ROCK.
 
   python3 tests/test_craft_page.py
@@ -520,13 +520,46 @@ def choose(s, verb, item=None):
     s.step(f'press:{RET}')
     steps = []
     while True:
-        s.step(DO_COMMAND)
+        stopped = s.step(f'until:{L["do_command"]:04X},{L["keyboard_wait"]:04X}:400000')
+        if f'PC={L["keyboard_wait"]:04X}' in stopped.out:
+            raise AssertionError(('Unexpected form while composing', verb, rows(s)))
         steps.append(s.step(L.peek('inbuf', 20)).data.split(b'\0')[0].decode())
         if not s.step(L.peek('mq_n')).data[0]:
             break
         s.step(L.until('get_line', 400000))
     s.step(IDLE)
     press(s, '\\e')
+    return steps
+
+
+def choose_hunt(s):
+    """Confirm preparation and attempt separately, recording native commands."""
+    press(s, RET)
+    move_to(s, 'KILL')
+    s.step(f'press:{RET}')
+    s.step(READY)
+    assert 'IN USE:' in ' '.join(rows(s)) and '> ' in ' '.join(rows(s)), rows(s)
+    steps = []
+    if s.step(L.peek('mq_n')).data[0]:
+        assert '(OWNED)' in ' '.join(rows(s)), rows(s)
+        s.step(f'press:{RET}')
+        s.step(DO_COMMAND)
+        steps.append(s.step(L.peek('inbuf', 20)).data.split(b'\0')[0].decode())
+        s.step(READY)
+        assert 'PREPARATION RESULT' in ' '.join(rows(s)), rows(s)
+        s.step(f'press:{RET}')
+        s.step('wait:1')  # leave the result's existing keyboard checkpoint
+        s.step(READY)
+        assert 'IN USE:' in ' '.join(rows(s)), rows(s)
+        assert not s.step(L.peek('mq_n')).data[0]
+    s.step(f'press:{RET}')
+    s.step(DO_COMMAND)
+    steps.append(s.step(L.peek('inbuf', 20)).data.split(b'\0')[0].decode())
+    s.step(READY)
+    assert 'HUNT RESULT:' in ' '.join(rows(s)), rows(s)
+    s.step('press:\\e')  # native result retained; optional continuation declined
+    s.step(IDLE)
+    press(s, '\\e')  # leave the remembered grid, as choose() does
     return steps
 
 
@@ -570,13 +603,13 @@ def grid(disk, tag):
               'BOW' in items and 'SPEAR' not in items and 'ROCK' not in items, items)
         game_here(s, port)
         command(s, 'V')
-        steps.append(choose(s, 'KILL'))
-        check('KILL GAME, nothing in use: USE BOW first (before the AXE), then KILL GAME',
+        steps.append(choose_hunt(s))
+        check('KILL GAME: confirm USE BOW before AXE, review, then confirm KILL GAME',
               steps[-1] == ['USE BOW', 'KILL GAME'], steps[-1])
         steps.append(choose(s, 'USE', 'SPEAR'))
         game_here(s, port)
         command(s, 'V')
-        steps.append(choose(s, 'KILL'))
+        steps.append(choose_hunt(s))
         check('KILL GAME with the SPEAR in use: KILL GAME alone', steps[-1] == ['KILL GAME'], steps[-1])
         steps.append(choose(s, 'DROP', 'BOW'))
         final = state(s), craft(s)
@@ -594,6 +627,13 @@ def grid(disk, tag):
                     command(s, 'V')
             command(s, text)
         typed = state(s), craft(s)
+    if final != typed:
+        for block, (left, right) in enumerate(zip(final[0][0], typed[0][0])):
+            if left != right:
+                print('  State block difference:', block,
+                      [(i, a, b) for i, (a, b) in enumerate(zip(left, right)) if a != b])
+        if final[0][1] != typed[0][1]:
+            print('  Result difference:', final[0][1], typed[0][1])
     check(f'the grid = the same commands typed ({", ".join(flat)})', final == typed)
 
 
@@ -616,11 +656,11 @@ def hint():
             command(s, 'VIEW')
             return panels(s.step('peek:2000:8192').data)[1]
 
-        check('the BOW on the ground here: ITEMS: INV', panel('V') == 'ITEMS: INV', panel('V'))
+        check('the BOW on the ground here: GET/OBJECTS', panel('V') == 'GET/OBJECTS', panel('V'))
         got = panel('GET BOW')
-        check('the BOW in hand, the ROCK on the ground: no ITEMS hint', got != 'ITEMS: INV', got)
+        check('the BOW in hand, the ROCK on the ground: no ITEMS hint', got != 'GET/OBJECTS', got)
         got = panel('DROP BOW')
-        check('dropped again: ITEMS: INV', got == 'ITEMS: INV', got)
+        check('dropped again: GET/OBJECTS', got == 'GET/OBJECTS', got)
 
 
 def main():

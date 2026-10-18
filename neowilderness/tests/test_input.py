@@ -47,11 +47,11 @@ def cancellations(disk):
             s.step(IDLE)
             assert s.step(L.peek('linelen')).data == b'\0'
             assert snapshot(s)==before
-        for text,answer in [('WALK','\\e'),('REST','\\r'),('DRINK WATER','0\\r'),
+        for text,answer in [('WALK','\\e'),('REST','\\e'),('DRINK WATER','0\\r'),
                             ('EAT CHEESE','12\\e'),('NATURE','\\e')]:
             s.step(f'key:{text}')
             s.step('press:\\r')
-            s.step(NUMBER)
+            s.step(L.until('keyboard_wait', 20000) if text in ('WALK', 'REST') else NUMBER)
             s.step(f'key:{answer}')
             s.step(IDLE)
             assert snapshot(s)==before,(text,answer)
@@ -94,29 +94,28 @@ def cancellations(disk):
 def durations(disk):
     with a2test.Session(disk) as s:
         s.step(IDLE)
-        # Native flat-ground pace is 9 minutes per half-cell here. Admission
-        # needs floor(dt/2): three minutes refuse, four admit a full 9-minute
-        # step, and an exact 9-minute request finishes without a second probe.
+        # Native flat-ground pace is nine minutes per half-cell. An entire
+        # step must fit the requested duration, including its final minute.
         command(s,'WALK 3 MIN')
         assert s.step(L.peek('px',2)).data == bytes((0,10))
         assert fp(s.step(L.peek('s_elap',5)).data)==0
         command(s,'WALK 4 MIN')
+        assert s.step(L.peek('px',2)).data == bytes((0,10))
+        assert fp(s.step(L.peek('s_elap',5)).data)==0
+        assert 'NEXT STEP 9 MIN.' in screen(s)
+        command(s,'WALK 9 MIN')
         assert s.step(L.peek('px',2)).data == bytes((128,10))
         assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-9)<1e-6
-        assert 'TRAVEL: 9 MINUTES.' in screen(s)
-        command(s,'WALK 9 MIN')
-        assert s.step(L.peek('px',2)).data == bytes((0,11))
-        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-18)<1e-6
         command(s,'WALK 19 MIN')
-        assert s.step(L.peek('px',2)).data == bytes((0,12))
-        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-36)<1e-6
+        assert s.step(L.peek('px',2)).data == bytes((128,11))
+        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-27)<1e-6
         assert 'TRAVEL: 18 MINUTES.' in screen(s)
         command(s,'REST 10 MIN')
         assert 'YOU RESTED 10 MINUTES.' in screen(s)
-        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-46)<1e-6
+        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-37)<1e-6
         command(s,'REST 1 H')
         assert 'YOU RESTED 1 HOUR.' in screen(s)
-        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-106)<1e-6
+        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-97)<1e-6
         water=s.step(L.peek('it_pack_lo',1,22)).data[0]
         command(s,'DRINK WATER 4 OZ')
         assert s.step(L.peek('it_pack_lo',1,22)).data[0]==water-4
@@ -124,14 +123,18 @@ def durations(disk):
         for text in ('  SLEEP 1 MIN', ' REST 1 MIN   '):
             command(s,text)
             assert 'YOU RESTED 1 MINUTE.' in screen(s),text
-        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-108)<1e-6
+        assert abs(fp(s.step(L.peek('s_elap',5)).data)*60-99)<1e-6
+        for text in ('CAMP 1 MIN', 'WAIT 1 MIN', 'PAUSE 1 MIN', 'EXERCISE 1 MIN'):
+            elapsed = fp(s.step(L.peek('s_elap',5)).data)
+            command(s, text)
+            assert abs((fp(s.step(L.peek('s_elap',5)).data)-elapsed)*60-1)<1e-6, text
         before=snapshot(s)
         command(s,'  WALK 1 MIN')
         assert snapshot(s)==before, 'leading spaces bypassed short-step refusal'
         command(s,'  DRINK WATER 1 OZ   ')
         assert s.step(L.peek('it_pack_lo',1,22)).data[0]==water-5
         assert 'YOU DRANK 1 OUNCE.' in screen(s)
-    print('  Inline H/MIN/OZ, refused short step, native half-step admission, exact budgets and minute rest: OK')
+    print('  Inline H/MIN/OZ, refused short step, complete native steps, exact budgets and minute rest: OK')
     print('  Leading/trailing spaces: sleep, rest, qualified drinking and atomic short-step refusal OK')
 
 
@@ -174,7 +177,7 @@ def editing(disk):
             s.step(IDLE)
             s.step('key:REST')
             s.step('press:\\r')
-            s.step(NUMBER)
+            s.step(L.until('keyboard_wait', 20000))
             s.step(f'key:{typed}')
             assert s.step(L.peek('linelen')).data[0]==len(str(expected))
             assert f'> {expected}' in screen(s)
@@ -200,7 +203,7 @@ def interrupted(m, swimming=False, button=False):
             s.step(IDLE)
             s.step('key:SWIM' if swimming else 'key:WALK')
             s.step('press:\\r')
-            s.step(NUMBER)
+            s.step(L.until('keyboard_wait', 20000))
             s.step('key:4')
             s.step('press:\\r')
             s.step(L.until('walk_progress',20000))

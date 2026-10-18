@@ -24,6 +24,7 @@ PG_COUNT = 7
 ; on row 2 (row 1 blank). Nothing is cleared: each page writes its rows top to bottom (a
 ; CR, tab and vtab pad what they pass, differentially), so every cell is
 ; written once and only the cells that change are stored.
+        .align  $100            ; keep the row frame above CRAFT's disk blocks
 page_top:
         jmp     page_top_x       ; active XL edition
         .res    80,0            ; dedicated MouseText row frame (PF_BUF)
@@ -136,7 +137,7 @@ pg_letpg:  .byte PG_STATUS, PG_INVENTORY, PG_CRAFT, PG_HELP, PG_INVENTORY, PG_ST
 ; pg_levels -- below the tab row: 0 nothing, $80 OBJECTS' own levels, else
 ; the lines of the cursor (STATUS: its active conditions, counted by
 ; module_status).
-pg_levels: .byte 0, $80, $80, 0, 4, 4, 3
+pg_levels: .byte 0, $80, $80, 0, 4, 4, 7
 pg_line_at: .byte $FF, 0, 0, 0, $FF, 0, 4    ; first of pg_line_keys ($FF: the page's own)
 pg_focus: .byte 0
 pg_name_offsets: .byte 11,18,50,26,32,37,45
@@ -168,7 +169,7 @@ pg_x:   .byte   0
 
 ; ----------------------------------------------------------------------------
 ; The conditions of STATUS's MEDICAL rows (src/status.s), their care.
-pg_act: .res 13                 ; the active conditions (pg_focus - 1)
+pg_act: .res 18                 ; the active conditions (pg_focus - 1)
 pg_g:   .byte 0                 ; the gesture chosen
 pg_gn:  .byte 0                 ; the condition's gestures (med_foot)
 pg_gf:  .byte 0                 ; the focus they belong to
@@ -248,7 +249,29 @@ module_options:
 pg_menu_key:
         jsr     wait_key
         jsr     page_keys
-        ldx     #2
+        cmp     #'N'
+        bne     :+
+        lda     #4
+        bne     @guide
+:       cmp     #'A'
+        bne     :+
+        lda     #5
+        bne     @guide
+:       cmp     #'G'
+        bne     @departure
+        lda     #0
+@guide: pha
+        lda     #10
+        jsr     overlay_load
+        pla
+        jmp     guidance_open
+@departure:
+        cmp     #'D'
+        bne     :+
+        lda     #10
+        jsr     overlay_load
+        jmp     departure_open
+:       ldx     #2
 :       cmp     mn_keys,x
         beq     pg_run
         dex
@@ -289,40 +312,11 @@ module_menu:
         jsr     page_top
         jsr     goal_pct        ; also brings journey_left up to date
         sta     st_done
-        lda     #66
-        jsr     st_heading
-        jsr     st_rangers
-        jsr     puts
-        .byte   "|JOURNEY DONE: ", 0
-        lda     st_done
-        jsr     pdec
-        jsr     puts
-        .byte   "%  ", 0
-        lda     st_done
-        jsr     st_cells
-        jsr     bar
-        lda     #6              ; (XL: under the RANGERS post-it)
-        jsr     vtab
-        lda     #76
-        jsr     st_heading
-        jsr     pg_first
-        lda     #82
-        jsr     pg_line_text
-        jsr     pg_line
-        lda     #102
-        jsr     pg_line_text
-        jsr     pg_line
-        lda     #113
-        jsr     pg_line_text
+        ldx     #33             ; direct fetch: directory 33 is also a scene asset
+        jsr     mem_fetch
         lda     #$FF
-        sta     INVFLG
-        XL_IMM  XI_STATUS, <pg_k_menu_x, @x23
-        lda     #<pg_k_menu
-        XL_IMM  XI_STATUS, >pg_k_menu_x, @x24
-        ldy     #>pg_k_menu
-        XL_ABS  XI_STATUS, page_foot_x, @x25
-        jsr     page_foot
-        jmp     pg_menu_key
+        sta     overlay_current
+        jmp     menu_draw
 ; pg_onoff -- the states' column, then [X] when A <> 0, else [ ] (XL: a
 ; check mark in the box).
 pg_onoff:
@@ -335,14 +329,14 @@ pg_onoff:
         cpx     #0
         bne     :+
         lda     #<pg_off
-        ldy     #>pg_off
 :       XL_ABS  XI_STATUS, mt_str, @x26         ; (XL: the glyph)
         jmp     print_str_ay
 pg_on:  .byte   "[X]", 0
 pg_off: .byte   "[ ]", 0
+        .assert >pg_on = >pg_off, lderror, "option strings must share a page"
         XL_BYTE XI_STATUS, pg_on+1, MS_CHECK
 pg_line_keys: .byte "CAPF"     ; the lines of OPTIONS, then of MENU
-mn_keys:    .byte "SRQ"
+mn_keys:    .byte "SRQDGNA"
 mn_word_offsets: .byte 8,13,28,21,33,45
 mn_quit: .byte "QUIT",0
 ; pg_first -- the first line of a cursor page, under its heading;
@@ -393,6 +387,7 @@ obj_type:
         jmp     do_command
 ; pg_mark -- (resident too) a new line of a cursor page: CR, then ">" in column 1 on the
 ; line holding the focus (pg_i counts the lines from 1).
+.segment "STATUS"              ; only pg_line in the loaded STATUS image calls this
 pg_mark:
         inc     pg_i
         jsr     CROUT

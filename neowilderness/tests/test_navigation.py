@@ -119,19 +119,21 @@ def numbers_and_map(disk):
         key(s, '\\>', READY); key(s, '\\e', IDLE)
         assert state(s) == before
         command(s, 'MAP')
-        assert 'RETURN EXPLORE MAP' in rows(s)[23]
-        key(s, '\\r')
-        assert byte(s, 'topo_explore') == 1
-        position = (byte(s, 'topo_x'), byte(s, 'topo_y'))
-        key(s, '\\<'); key(s, '\\v')
-        assert (byte(s, 'topo_x'), byte(s, 'topo_y')) != position
-        key(s, '\\r')
-        assert (byte(s, 'topo_x'), byte(s, 'topo_y')) == position
+        assert 'RETURN PLAN' in rows(s)[23]
+        nav = L.until('nav_key', 60000)
+        key(s, '\\r', L.until('nav_menu_key', 60000))
+        key(s, '\\r', nav)
+        position = (byte(s, 'nav_x'), byte(s, 'nav_y'))
+        key(s, '\\>', nav); key(s, '\\^', nav)
+        assert (byte(s, 'nav_x'), byte(s, 'nav_y')) != position
+        key(s, '\\r', nav)
+        assert byte(s, 'nav_review') == 1
+        key(s, '\\e', nav)
+        assert byte(s, 'nav_review') == 0
         key(s, '\\e')
-        assert byte(s, 'topo_explore') == 0
         key(s, '\\e', IDLE)
         assert state(s) == before
-    print(f'  {disk.name}: numeric SAVE, overwrite/QUIT cancel, MAP exploration/recenter: OK')
+    print(f'  {disk.name}: numeric SAVE, overwrite/QUIT cancel, MAP target/review/cancel: OK')
 
 
 def hall_name(disk):

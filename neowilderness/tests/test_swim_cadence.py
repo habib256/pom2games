@@ -100,8 +100,8 @@ def main():
         print(f'{len(CASES)} health/load/diagonal swimming durations: OK')
 
     # Real command: after a first 39-minute step at H=4 the health update
-    # returns near Hmax. The second 28-minute step is admitted with only
-    # 21 minutes remaining, and stops the action at 67 minutes, not 60.
+    # returns near Hmax. Its second 28-minute step cannot fit the remaining
+    # 21-minute budget. Keep native step costs without overshooting 60.
     m = bytearray((HERE / 'build/map.bin').read_bytes())
     m[2:8] = (10 << 8).to_bytes(2, 'little') * 2 + (140).to_bytes(2, 'little')
     m[8:10] = bytes((80, 70))
@@ -115,9 +115,9 @@ def main():
         steps += ['key:SWIM\r', L.until('number_idle', 6000), 'key:1\r',
                   'wait:1', L.until('idle', 20000), L.peek('px', 6), L.peek('s_elap', 5)]
         r = a2test.run(d, steps, emulator=a2test.A2SHOT, timeout=1800)
-        assert state(r.mem(L['px'], 6)) == (11 << 8, 10 << 8, 140)
-        assert abs(fp(r.mem(L['s_elap'], 5)) * 60 - 67) < 1e-5
-    print('SWIM 1: half-cell steps and admitted final step spend 67 minutes: OK')
+        assert state(r.mem(L['px'], 6)) == ((10 << 8)+128, 10 << 8, 140)
+        assert abs(fp(r.mem(L['s_elap'], 5)) * 60 - 39) < 1e-5
+    print('SWIM 1: native first step spends 39 minutes without exceeding 60: OK')
 
 
 if __name__ == '__main__':

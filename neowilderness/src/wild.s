@@ -546,7 +546,7 @@ render_neg:   lda     #128            ; dz < 0: |dz| = 128 - (dz + 128)
         lda     #$FF
         adc     #0
         sta     tinc+1
-        lda     row_n0,x
+        jsr     row_negative
         jmp     render_drawchk
 render_nbig:  jsr     bigdiv          ; |dz| >= n: q >= 256
         eor     #$FF
@@ -563,7 +563,7 @@ render_nbig:  jsr     bigdiv          ; |dz| >= n: q >= 256
         ldx     qlo
         cpx     #86
         bcs     render_nhide          ; truncated row_n1's former $FF suffix
-        lda     row_n0,x
+        jsr     row_negative
         clc
         adc     #48                   ; <= 191: no carry
         bcc     render_drawchk
@@ -894,8 +894,15 @@ grid_row:
 .segment "LOWCODE"
 ; Rebuild the negative projection cache once, rather than transfer it.
 ; ceil(3*q/16) = floor(3*q/16) + (q mod 16 != 0).
-.segment "LOWCACHE"
-row_n0: .res 256
+.segment "LOWCODE"
+row_negative:
+        txa
+        and     #15
+        cmp     #1
+        lda     row_p0,x
+        eor     #255
+        adc     #191
+        rts
 .segment "LOWCODE"
 
 ; ----------------------------------------------------------------------------
@@ -950,7 +957,7 @@ tilt_row:
         tax
         bcc     :+
         iny
-:       lda     row_n0,x        ; row_n0[lo] + 48 * hi, hidden past 255
+:       jsr     row_negative        ; row_n0[lo] + 48 * hi, hidden past 255
         cpy     #0
         beq     @rts
 @add:   clc
@@ -1016,5 +1023,21 @@ STARS_LIST_LC = 1
         .include "forage.s"     ; lot 4: hunting, fishing, gathering, meals (resident)
         .include "frg.s"        ; lot 4: segment FORAGE: build/wildfrg.bin ($9600, NEOWILD.BLK)
         .include "grid.s"       ; segment GRID: build/wildgrid.bin ($A000, the grid's lists and queue)
+        .include "navigation.s" ; map destination selection, loaded through scratch directory entry
+        .include "departure.s"  ; optional departure checklist and native transfer queue
+        .include "hunt.s"       ; explicit hunt preparation and recovery guidance
+        .include "duration.s"
+        .include "trip.s"       ; small, frequently loaded trip dialogues
+        .include "guidance.s"   ; read-only survival guidance
+        .include "flows.s"      ; deliberate meat and water follow-ups
+        .include "help.s"       ; cold help renderer, leaving room for STATUS needs
+        .include "campguide.s"
+        .include "context.s"
+        .include "followup.s"
+        .include "threat.s"
+        .include "route_followup.s"
+        .include "refusal.s"
+        .include "night.s"
+        .include "priority.s"
         .include "craft.s"      ; lot 3: segment CRAFT: build/wildcrf.bin ($9600, NEOWILD.BLK)
 

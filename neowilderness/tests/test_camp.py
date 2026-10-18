@@ -40,6 +40,12 @@ def say(s, text, *answers):
         seen.append(rows(s))
         if int(re.search(r'PC=([0-9A-F]{4})', r.out)[1], 16) == L['idle']:
             return ' // '.join(seen)
+        screen = ' '.join(text_screen(s.step('peek:0400:1024').data))
+        if 'RET:SELECT ESC:CANCEL' in screen:
+            # Result continuity is optional. This native command/probability
+            # suite declines it before providing the next numeric answer.
+            s.step('key:\\e')
+            continue
         a = answers.pop(0) if answers else ' '
         s.step(f'key:{a}')
         if len(a) > 1 or a.isdigit():
@@ -358,8 +364,14 @@ def menu():
         move_to(s, 'USE')
         press(s, RET)
         items = sum(grid_cells(s), [])
-        check('USE lists MATCHES, MAGNF GLASS, FUEL, the medicine, FLASHLGHT', all(
-            ('MATCHES' in items, 'MAGNF' in items, 'FUEL' in items, 'OXYGEN' in items, 'FLASHLGHT' in items)), items)
+        # USE now includes the native tent/cover/raincoat before the camp
+        # tools. Scroll the actual list to verify later entries as well.
+        for label in ('OXYGEN', 'FLASHLGHT'):
+            move_to(s, label)
+            items += sum(grid_cells(s), [])
+        check('USE scrolls through TENT, covers, ignition, medicine and FLASHLGHT', all(
+            label in items for label in ('TENT', 'COVER', 'RAINCOAT', 'MATCHES',
+                                         'MAGNF', 'FUEL', 'OXYGEN', 'FLASHLGHT')), items)
         press(s, ESC)
         check('typed MAKE FIRE without a match in use: refused (no queue)',
               'APPROPRIATE ITEM' in say(s, 'MAKE FIRE') and not b(s, 'fire_on') and not b(s, 'mq_n'))
@@ -377,7 +389,11 @@ def menu():
         sizes = sum(grid_cells(s), [])
         press(s, ESC)
         check('BOIL from the grid: the ounces, at most the canteen\'s 64', sizes[-2:] == ['48', 'OZ'], sizes)
-        line = choose(s, 'BOIL', '16 OZ')
+        line = choose(s, 'BOIL', '16 OZ', settle=False)
+        s.step(L.until('keyboard_wait', 60000))
+        screen = ' '.join(text_screen(s.step('peek:0400:1024').data))
+        check('BOIL result opens optional next action directly', 'BOILED PORTION' in screen, screen)
+        press(s, ESC)  # Decline DRINK; retain native BOIL quantities/protection.
         s.step(IDLE)
         check('BOIL 16 OZ from the grid: USE UTENSILS, then BOIL WATER 16 OZ (no prompt)',
               line == ('USE UTENSILS', 73) and b(s, 'camp_use') & 32 and

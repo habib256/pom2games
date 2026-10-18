@@ -4,17 +4,20 @@ import tempfile
 from common import L, disk_with, fp
 from test_forest import map_fixture
 from test_fit_quantities import boot
-from test_joystick_journey import GamePortSession, event, byte, rows, saved_state, IDLE
+from test_joystick_journey import GamePortSession, event, byte, rows, saved_state, IDLE, READY
 from test_save import differing, DERIVED_BYTES
 
-RESULT = L.until('q_care_wait', 60000)
+# GRID shares its address with running simulation overlays; wait at the
+# resident input routine and verify the visible care callback before accepting.
+RESULT = READY
 
 
 def open_care(s, conditions, selected, gesture=0):
     for condition in conditions:
         s.step(L.poke('injury_active', 1, condition))
     event(s, 'up')
-    for _ in range(conditions.index(selected)+1):
+    event(s, 'down'); event(s, 'ok')  # HEALTH -> first active care
+    for _ in range(conditions.index(selected)):
         event(s, 'down')
     for _ in range(gesture):
         event(s, 'right')
@@ -23,6 +26,7 @@ def open_care(s, conditions, selected, gesture=0):
 
 
 def returned(s, condition, gesture):
+    assert 'RETURN CARE' in rows(s)[23] and 'ESC VIEW' in rows(s)[23], rows(s)[20:24]
     event(s, 'ok')
     assert byte(s, 'pg_cur') == 0
     focus = byte(s, 'pg_focus')
@@ -59,7 +63,7 @@ def identity(disk, gone=False, empty=False):
             s.step(L.poke('injury_active', 1, 0))  # earlier active item reorders the list
         if empty:
             event(s, 'ok')
-            assert byte(s, 'pg_focus') == 0 and byte(s, 'pg_levels') == 1
+            assert byte(s, 'pg_focus') == 0 and byte(s, 'pg_levels') == 6
         else:
             returned(s, 3 if gone else 7, 0 if gone else 1)
         assert byte(s, 'mq_n') == 0
@@ -112,7 +116,10 @@ def leave(disk, encounter=False):
 def held(disk):
     with GamePortSession(disk, menu=False) as s:
         boot(s); open_care(s, [0], 0)
-        s.step('btn:0,1'); s.step(RESULT)
+        s.step('btn:0,1')
+        s.step(L.until('do_command', 60000))
+        s.step(RESULT)
+        assert 'RETURN CARE' in rows(s)[23], rows(s)[20:24]
         before = saved_state(s)
         s.step('wait:30')
         assert 'RETURN CARE' in rows(s)[23] and saved_state(s) == before

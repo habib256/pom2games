@@ -49,7 +49,7 @@ module_status:
                                 ; percentages of now
 status_care:
         ldx     #0              ; the active conditions, in pg_act
-        ldy     #0
+        ldy     #5              ; first five levels are the CONDITION gauges
 @act:   lda     injury_active,x
         beq     :+
         txa
@@ -535,13 +535,15 @@ status_care:
         jsr     page_foot_x
         jmp     status_key
 @care_footer:
-        lda     pg_focus        ; the care's focus: the gestures on row 23
-        beq     :+
+        lda     pg_focus
+        cmp     #6
+        bcc     @needs_footer
         lda     #19
         jsr     overlay_load
         jsr     med_foot
         jmp     status_key
-:       lda     #<st_keys
+@needs_footer:
+        lda     #<st_keys
         ldy     #>st_keys
         XL_ABS  XI_STATUS, page_foot_x, @x17
         jsr     page_foot
@@ -550,6 +552,10 @@ status_key:
         jsr     page_keys
         ldy     pg_focus
         beq     @key
+        cpy     #6
+        bcs     @medical
+        jmp     st_need_key
+@medical:
         cpy     pg_levels
         bne     @gesture
         cmp     #KC_RET
@@ -585,6 +591,26 @@ status_key:
 :       lda     #19             ; MEDVIEW: the gestures (src/care.s)
         jsr     overlay_load
         jmp     med_run
+
+; Gauge levels lead to advice; HEALTH enters the first active care or catalogue.
+st_need_key:
+        cmp     #KC_RET
+        beq     @select
+        cmp     #' '
+        bne     status_key
+@select:
+        cpy     #1
+        bne     @guide
+        lda     #6
+        sta     pg_focus
+        jmp     status_care
+@guide: lda     st_need_ids-2,y
+        pha
+        lda     #10             ; stable SITES before STATUS is replaced
+        jsr     overlay_load
+        pla
+        jmp     guidance_open
+st_need_ids: .byte 2,0,1,3      ; ENERGY, MEAL, WATER, BODY
 
 st_catalog_build:
         lda     #0
@@ -640,7 +666,8 @@ med_cell:
         sta     st_col
         stx     st_cx
         ldy     pg_focus        ; the focused condition: in inverse
-        beq     :+
+        cpy     #6
+        bcc     :+
         cpy     pg_levels
         beq     :+
         txa
@@ -786,7 +813,7 @@ st_heading:
 ; The active XL bar already lives in STATX; retire its unused text body.
 bar:    jmp     bar_x
 
-st_keys: .byte  "T TOPO ", MS_DOWN, " CARE/ALL", 0
+st_keys: .byte  "T TOPO ", MS_DOWN, " NEEDS/CARE ", MS_RET, " SELECT", 0
         ; XL: the up arrow (UP on the tabs opens TOPO; T still does).
         XL_BYTE XI_STATUS, st_keys, MS_UP
 ; gauge_bar -- A = the full cells (0..10): the gauge, then their percent
@@ -1057,7 +1084,7 @@ st_kind_offsets: .byte 0,0,8
 
 
 .segment "ENVIRON"
-tree_effort: .byte $7B,$23,$D7,$0A,$3E ; native T12/S08 $5CBE, .02 * body weight
+tree_effort = c_0_02           ; identical native .02 constant in resident LOWCODE
 
         .include "inventory.s"   ; INVENTORY, in the same module
         .include "pages.s"       ; the tab row, MEDICAL, MENU
@@ -1094,6 +1121,20 @@ pg_line_text:
         bne     st_bank_suffix
 st_gauge_help:
         tax
+        lda     CV
+        sec
+        sbc     #1
+        cmp     #6
+        bcs     :+
+        cmp     pg_focus
+        bne     :+
+        lda     #$3F
+        sta     INVFLG
+:       jsr     st_gauge_label
+        lda     #$FF
+        sta     INVFLG
+        rts
+st_gauge_label:
         lda     #8
         pha
         txa
@@ -1203,7 +1244,10 @@ om_detail_num:
 ; Capture identity before the care overlay can be replaced by simulation.
 sr_prepare:
         ldx     pg_focus
-        stx     sr_focus
+        txa
+        sec
+        sbc     #5
+        sta     sr_focus
         lda     pg_act-1,x
         sta     sr_condition
         lda     pg_g
@@ -1222,7 +1266,10 @@ sr_prepare:
 sr_open:
         tax
         and     #$3F
-        sta     pg_focus
+        beq     :+
+        clc
+        adc     #5
+:       sta     pg_focus
         sta     pg_gf
         lda     #0
         sta     pg_open

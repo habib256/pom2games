@@ -201,7 +201,7 @@ def differential_pages():
                                        ('STATUS', 'page_top', ['\\<', '\\<', '\\v', '\\v', '\\^', '\\v', '\\r', '\\r', '\\r']),
                                        ('STATUS', 'page_top', ['\\<', '\\v', '\\v', '\\v', '\\^', '\\^']),
                                        # STATUS's MEDICAL rows: the conditions, their gestures
-                                       ('STATUS', 'page_top', ['\\v', '\\>', '\\>', '\\v', '\\<', '\\^', '\\^', '\\v'])):
+                                       ('STATUS', 'page_top', ['\\v'] * 6 + ['\\>', '\\>', '\\v', '\\<', '\\^', '\\^', '\\v'])):
             s.step('key:' + command); s.step('press:\\r'); s.step(READY)
             for key in keys + keys[-1:]:
                 before = s.step('peek:0400:1024').data

@@ -10,9 +10,9 @@ open verb (durations, directions, items, ounces), scrolled by row, the
 selected cell in inverse.
 
 The grid: eleven base verbs at fixed cells (a verb that cannot act here is
-greyed, in lower case, and RETURN on it only beeps), then the contextual
-verbs that can act, by urgency (an animal's KILL first, the cursor on it
-when the animal arrives). Every choice composes the text the keyboard
+greyed, in lower case, and RETURN explains the missing prerequisite), then the contextual
+verbs that can act. An animal's KILL remains explicitly selectable; its
+arrival never puts an attack under RETURN automatically. Every choice composes the text the keyboard
 would give (read in inbuf when do_command starts) and the simulation state
 equals the typed command's; an item chosen in a list names its noun through
 menu_noun (COTTN SOCKS is not a vocabulary word); a list of one entry is
@@ -92,19 +92,84 @@ def move_to(s, label, limit=40):
     raise AssertionError((label, grid_cells(s), selected(s)))
 
 
-def choose(s, *labels):
+def open_boil_quantities(s):
+    """Open BOIL and explicitly accept its carried-utensils prerequisite."""
+    move_to(s, 'BOIL')
+    if s.step(L.peek('camp_use')).data[0] & 32:
+        press(s, RET)
+        return []
+    before = state(s)[0]
+    s.step(f'press:{RET}')
+    s.step(L.until('keyboard_wait', 60000))
+    assert s.step(L.peek('camp_pending')).data[0] == 128
+    assert 'USE UTENSILS' in ' '.join(bottom(s)), bottom(s)
+    after = state(s)[0]
+    # Opening the intent composes "BOIL WATER" in the parser line. Every
+    # simulation byte, camp flag, item and RNG byte must stay unchanged.
+    line_start = L['inbuf'] - L['px']
+    line_end = L['nounbuf'] - L['px']
+    assert after[0][:line_start] + after[0][line_end:] == before[0][:line_start] + before[0][line_end:]
+    assert after[1:] == before[1:], 'Opening preparation must not activate utensils'
+    s.step(f'press:{RET}')                         # deliberate USE UTENSILS
+    s.step(DO_COMMAND)
+    command = s.step(L.peek('inbuf', 24)).data.split(b'\0')[0].decode()
+    assert command == 'USE UTENSILS', command
+    assert s.step(L.peek('mq_n')).data[0] == 0, 'Preparation must not queue BOIL'
+    s.step(L.until('keyboard_wait', 60000))
+    assert 'PREPARATION READY' in ' '.join(bottom(s)), bottom(s)
+    s.step(f'press:{RET}')                         # review original BOIL quantity
+    s.step(IDLE)
+    assert not s.step(L.peek('camp_pending')).data[0]
+    assert s.step(L.peek('camp_use')).data[0] & 32
+    return [command]
+
+
+def duration_control(current, target):
+    presets = (1, 5, 10, 20, 30, 60, 120, 240, 480, 960, 1440,
+               2880, 5760, 10080, 15300)
+    if target > current:
+        following = next((n for n in presets if n > current), 15300)
+        return 'up' if current < following <= target else 'right'
+    previous = next((n for n in reversed(presets) if n < current), 1)
+    return 'down' if target <= previous < current else 'left'
+
+
+def choose(s, *labels, settle=True):
     """Select each label in turn with RETURN; the last one runs the command:
     returns (inbuf, menu_noun) as do_command sees them."""
+    if len(labels) == 2 and labels[0] in ('WALK', 'SWIM', 'REST', 'WAIT'):
+        move_to(s, labels[0])
+        s.step(f'press:{RET}')
+        s.step(DO_COMMAND)
+        inbuf = s.step(L.peek('inbuf', 37)).data.split(b'\0')[0].decode()
+        s.step(L.until('keyboard_wait', 20000))
+        number, unit = labels[1].split()
+        target = int(number) * (60 if unit == 'H' else 1)
+        while True:
+            current = int.from_bytes(s.step(L.peek('input_value', 2)).data, 'little')
+            if current == target:
+                break
+            key = {'up': UP, 'down': DOWN, 'right': RIGHT, 'left': LEFT}[duration_control(current, target)]
+            s.step(f'key:{key}')
+            s.step('wait:1')
+            s.step(L.until('keyboard_wait', 20000))
+        s.step(f'press:{RET}')
+        if settle:
+            s.step(IDLE)
+        return inbuf, 0
     for label in labels:
         move_to(s, label)
         if label is labels[-1]:
             s.step(f'press:{RET}')  # in the latch at once: do_command is on the way
             s.step(DO_COMMAND)
+        elif label == 'BOIL':
+            open_boil_quantities(s)
         else:
             press(s, RET)
     inbuf = s.step(L.peek('inbuf', 37)).data.split(b'\0')[0].decode()
     noun = s.step(L.peek('menu_noun')).data[0]
-    s.step(IDLE)
+    if settle:
+        s.step(IDLE)
     return inbuf, noun
 
 
@@ -119,8 +184,8 @@ def layout(disk):
     with a2test.Session(disk) as s:
         s.step(IDLE)
         rows = bottom(s)
-        assert grid_cells(s) == [BASE[:6], BASE[6:], [], []], rows
-        assert all(rows[k][39] == '|' for k in range(4)), 'every verb in view: no scroll mark'
+        assert grid_cells(s) == [BASE[:6], BASE[6:] + ['QUICK'], [], []], rows
+        assert all(rows[k][39] == '\u258f' for k in range(4)), 'XL separator, no scroll mark'
         res = result_rows(rows)
         assert res[0].startswith('CRASH IN') and res[3].startswith('FOOD '), rows
         assert re.fullmatch(r'FOOD \d+ WATER \d+ LOCAL \d+/\d+ OZ *', res[3]), 'the whole stock row fits'
@@ -145,8 +210,8 @@ def layout(disk):
         press(s, RIGHT, RIGHT)
         assert selected(s) == 'DRINK'
         press(s, DOWN)
-        assert selected(s) == 'MAKE', 'no cell below: the last cell of the shorter last row'
-        press(s, LEFT, LEFT, LEFT, LEFT, LEFT, LEFT, LEFT)
+        assert selected(s) == 'QUICK', 'QUICK follows the eleven fixed base cells'
+        press(s, LEFT, LEFT, LEFT, LEFT, LEFT, LEFT, LEFT, LEFT)
         assert selected(s) == 'WAIT'
         press(s, ESC)
         # DOWN on the view opens the grid (on the last verb), DOWN moves
@@ -158,15 +223,18 @@ def layout(disk):
         assert selected(s) == 'USE'
         s.step(f'key:{DOWN}')
         s.step(L.until('graphical_topo_key', 20000))
-        assert screen(s)[20].startswith('TOPO, NORTH UP'), bottom(s)
+        assert screen(s)[20].startswith('TOPO, TRUE N UP. ARROW: YOU'), bottom(s)
         press(s, UP)
         assert selected(s) is None and snapshot(s) == before, 'DOWN past the last row: TOPO, UP: the view, no grid'
         press(s, TAB)
         assert selected(s) == 'WAIT', 'TAB too'
-        press(s, RET)                               # WAIT: its list of durations
-        assert grid_cells(s)[0][0] == '10', grid_cells(s)
-        press(s, TAB)
-        assert selected(s) is None and grid_cells(s)[0] == BASE[:6], 'TAB closes the grid from a list'
+        s.step(f'press:{RET}')                       # WAIT: shared minute selector
+        s.step(L.until('keyboard_wait', 20000))
+        assert 'DURATION 60 MIN' in ' '.join(screen(s)), screen(s)
+        s.step(f'press:{ESC}')
+        s.step(IDLE)
+        press(s, ESC)
+        assert selected(s) is None and grid_cells(s)[0] == BASE[:6], 'Cancel returns from duration selector'
         before = snapshot(s)
         press(s, TAB, RIGHT, ESC)
         assert snapshot(s) == before, 'navigation runs no command'
@@ -176,10 +244,10 @@ def layout(disk):
         move_to(s, 'EAT')
         press(s, RET)
         cells = grid_cells(s)
-        assert cells[0] == ['EGGS', 'CANDYBARS', 'BACON'] and rows[0][39] == '|', cells
-        assert bottom(s)[3][39] == 'V', 'more rows below: V in the separator'
+        assert cells[0] == ['EGGS', 'CANDYBARS', 'BACON'] and rows[0][39] == '\u258f', cells
+        assert bottom(s)[3][39] == '\u2193', bottom(s)
         press(s, DOWN, DOWN, DOWN, DOWN)
-        assert bottom(s)[0][39] == '^', bottom(s)
+        assert bottom(s)[0][39] == '\u2191', bottom(s)
         press(s, ESC, ESC)
     print('  eleven base verbs at fixed cells, selection, RETURN, ESC and TAB, DOWN = grid then TOPO, '
           'scrolling marks of a list: OK')
@@ -196,16 +264,22 @@ def composition(disk):
         assert choose(s, 'GET', 'COTTN SOCKS') == ('PACK COTTN SOCKS', 18)
         assert s.step(L.peek('it_place', 1, 18)).data[0] == 2 and 'PACK: COTTN SOCKS' in result_rows(screen(s))[0]
         assert s.step(L.peek('mq_n')).data[0] == 0, 'PACK done: the fallback CARRY is dropped'
-        assert choose(s, 'WALK', '20 MIN') == ('WALK 20 MIN', 0)
+        assert choose(s, 'WALK', '20 MIN') == ('WALK', 0)
         assert selected(s) == 'WALK', 'a command from the grid leaves it open'
         assert 'TRAVEL: 18 MINUTES.' in '\n'.join(result_rows(screen(s)))
+        # The remaining two minutes now reopen the explicit resume choice.
+        s.step(f'press:{RET}')
+        s.step(L.until('keyboard_wait', 20000))
+        assert 'NEXT STEP NEEDS 9 MIN' in '\n'.join(screen(s)), screen(s)
+        s.step(f'press:{ESC}')
+        s.step(IDLE)
         menu = (s.step(L.peek('px', 2)).data, s.step(L.peek('s_elap', 5)).data)
         assert choose(s, 'LOOK', 'RIGHT') == ('LOOK RIGHT', 0)
         heading = s.step(L.peek('heading', 2)).data
         for label, tilt in (('UP', 1), ('DOWN', 255), ('AHEAD', 0)):    # LOOK UP / DOWN
             assert choose(s, 'LOOK', label) == (f'LOOK {label}', 0)
             assert s.step(L.peek('tilt')).data[0] == tilt, label
-        assert choose(s, 'REST', '10 MIN') == ('REST 10 MIN', 0)
+        assert choose(s, 'REST', '10 MIN') == ('REST', 0)
         assert 'YOU RESTED 10 MINUTES.' in result_rows(screen(s))[0]
         assert result_rows(screen(s))[3].startswith('FOOD ') and 'WATER' in result_rows(screen(s))[3], \
             'the stock row takes the free last row'
@@ -218,6 +292,9 @@ def composition(disk):
         press(s, ESC)
         assert choose(s, 'DRINK', '4 OZ') == ('DRINK WATER 4 OZ', 22)
         assert 'YOU DRANK 4 OUNCES.' in result_rows(screen(s))[0]
+        move_to(s, 'DRINK'); press(s, RET)
+        assert selected(s) == '4 OZ', bottom(s)
+        press(s, ESC)
         water = s.step(L.peek('it_pack_lo', 1, 22)).data[0]
         # EAT: TASTE first, then the ounces, at most what is here (16 oz).
         move_to(s, 'EAT')
@@ -229,12 +306,22 @@ def composition(disk):
         assert choose(s, 'EAT', 'EGGS', '8 OZ') == ('EAT EGGS 8 OZ', 24)
         assert 'YOU ATE 8 OUNCES.' in result_rows(screen(s))[0]
         assert s.step(L.peek('it_pack_lo', 1, 24)).data[0] == 16 - 8
+        move_to(s, 'EAT'); press(s, RET); move_to(s, 'EGGS'); press(s, RET)
+        assert selected(s) == '8 OZ', bottom(s)
+        press(s, ESC)
+        s.step(L.poke('it_pack_lo', 3, 24))
+        move_to(s, 'EAT'); press(s, RET); move_to(s, 'EGGS'); press(s, RET)
+        assert selected(s) == '2 OZ', bottom(s)
+        assert s.step(L.peek('menu_portion')).data[0] == 8
+        press(s, ESC)
+        s.step(L.poke('it_pack_lo', 8, 24))
         assert choose(s, 'EAT', 'EGGS', 'TASTE') == ('TASTE EGGS', 24)
         # WEAR: the clothes not worn, then the worn ones ("-"), which PACK
         # takes off.
         move_to(s, 'WEAR')
         press(s, RET)
-        items = [c.strip() for r in bottom(s) for c in (r[41:53], r[53:65], r[65:79]) if c.strip()]
+        items = [c.replace('\u2595', ' ').strip() for r in bottom(s)
+                 for c in (r[41:53], r[53:65], r[65:79]) if c.strip()]
         assert items[0] == 'DOWN PARKA' and '-WOOL PANTS' in items and \
             items.index('RAINCOAT') < items.index('-BALACLAVA'), items
         press(s, ESC)
@@ -271,17 +358,20 @@ def contexts(disk):
         s.step(IDLE)
         s.step(L.poke('shelter_inside', 1))
         typed(s, 'V')
-        assert grid_cells(s)[:2] == [BASE[:6], BASE[6:] + ['EXIT']], grid_cells(s)
+        assert grid_cells(s) == [BASE[:6], BASE[6:] + ['EXIT'], ['QUICK'], []], grid_cells(s)
         s.step(L.poke('shelter_inside', 0))
         x, y = (s.step(L.peek(n, 1, 1)).data[0] for n in ('px', 'py'))
         # An animal arrives: KILL (ATTACK), SCARE, IGNORE first among the
-        # contextual verbs, the cursor on KILL.
+        # contextual verbs, without implicitly selecting an attack.
         for name, value in (('animal_kind', 6), ('animal_x', x), ('animal_y', y)):
             s.step(L.poke(name, value))
         typed(s, 'V')
-        assert grid_cells(s)[1:3] == [BASE[6:] + ['KILL'], ['SCARE', 'IGNORE']], grid_cells(s)
+        assert grid_cells(s) == [BASE[:6], BASE[6:] + ['KILL'], ['SCARE', 'IGNORE', 'QUICK'], []], grid_cells(s)
+        before = snapshot(s)
         press(s, RET)
-        assert selected(s) == 'KILL', 'the cursor on KILL when an animal arrives'
+        assert selected(s) != 'KILL', 'an animal never implicitly selects an attack'
+        move_to(s, 'KILL')
+        assert selected(s) == 'KILL' and snapshot(s) == before, 'KILL remains an explicit, inert selection'
         press(s, ESC)
         s.step(L.poke('animal_kind', 0))
         typed(s, 'V')
@@ -346,10 +436,10 @@ def contexts(disk):
         assert result_rows(screen(s))[3].startswith('FOOD ')
         # A base verb with nothing to name stays at its cell, greyed (lower
         # case): no medicine, no instrument (lot 7: USE MAP...CHART) and no
-        # camp item (lot 2: MATCHES, GLASS, FUEL, FLASHLIGHT, STOVE,
-        # UTENSILS), no USE; no water at hand, no DRINK. RETURN on it beeps
-        # and does nothing else.
-        for item in list(range(38, 57)) + [66, 71, 73]:
+        # camp item (TENT, GND COVER, RAINCOAT, MATCHES, GLASS, FUEL, FLASHLIGHT, STOVE,
+        # UTENSILS), no USE; no water at hand, no DRINK. RETURN explains
+        # the refusal without changing stocks, time or RNG.
+        for item in [9, 11, 12] + list(range(38, 57)) + [66, 71, 73]:
             s.step(L.poke('it_place', 255, item))
         s.step(L.poke('cr_b1', 255, 3))           # no ROCK (lot 3: USE ROCK on land)
         s.step(L.poke('cr_still', 1))
@@ -357,14 +447,20 @@ def contexts(disk):
         s.step(L.poke('it_gnd_lo', 0, 22))        # site's water pile both empty
         typed(s, 'V')
         assert grid_cells(s)[:2] == [BASE[:5] + ['drink'], BASE[6:9] + ['use', 'MAKE' if
-                                     'MAKE' in grid_cells(s)[1] else 'make']], grid_cells(s)
-        before = snapshot(s)
+                                     'MAKE' in grid_cells(s)[1] else 'make', 'QUICK']], grid_cells(s)
         press(s, RET)
         move_to(s, 'use')
-        line = result_rows(screen(s))[3]
-        press(s, RET)
-        assert selected(s) == 'use' and snapshot(s) == before and result_rows(screen(s))[3] == line, \
-            'RETURN on a greyed verb: nothing'
+        before = state(s)[0]
+        grid_before = [row[41:79] for row in bottom(s)]
+        s.step(f'key:{RET}')
+        s.step(L.until('keyboard_wait', 30000))
+        assert 'NO ACCESSIBLE OBJECT FOR THIS ACTION.' in ' '.join(bottom(s)), bottom(s)
+        assert [row[41:79] for row in bottom(s)] == grid_before, bottom(s)
+        assert state(s)[0] == before, 'Refusal inspection changed simulation state'
+        s.step(f'key:{ESC}')
+        s.step(IDLE)
+        assert [row[41:79] for row in bottom(s)] == grid_before, bottom(s)
+        assert state(s)[0] == before, 'Refusal cancellation changed simulation state'
         press(s, ESC)
         s.step(L.poke('it_pack_lo', 40, 22))
         typed(s, 'V')
@@ -373,20 +469,20 @@ def contexts(disk):
         # last row of the result column.
         s.step(f'key:{UP}')
         s.step(L.until('status_key', 20000))
-        assert is_status(screen(s), xl=False)          # (disk_with: the plain pages)
+        assert is_status(screen(s), xl=True)           # disk_with builds XL
         s.step(f'key:{ESC}')
         s.step(IDLE)
         assert grid_cells(s)[0] == BASE[:6], 'the grid is back after a screen'
         s.step('key:WALK')
         s.step(f'press:{RET}')
-        s.step(L.until('input_number_idle', 20000))
+        s.step(L.until('keyboard_wait', 20000))
         res = result_rows(screen(s))
-        assert res[3].startswith('> ') and 'DURATION?' in res[0], res
+        assert 'DURATION' in ' '.join(res) and 'MIN' in ' '.join(res), res
         s.step(f'key:{ESC}')
         s.step(IDLE)
         assert 'ACTION CANCELLED.' in result_rows(screen(s))[0]
     print('  contextual verbs (shelter, animal, water ahead or around: SWIM/WALK, tree, hung pack), ESC and letters from a list, '
-          'verbs without items hidden, UP = STATUS, numeric prompt: OK')
+          'greyed verbs explain missing items without state changes, UP = STATUS, numeric prompt: OK')
 
 
 def state(s):
@@ -405,8 +501,8 @@ def state(s):
 
 def queues(disk):
     """A choice that needs commands first queues them (src/grid.s): MAKE
-    FIRE lights a match first and warms up at the fire in the cold, BOIL
-    sets the utensils down first; every step is typed as the keyboard would
+    FIRE lights a match first and warms up at the fire in the cold; BOIL
+    explicitly prepares utensils before reviewing its ounces; every step is typed as the keyboard would
     (same time, draws and state), a step already done is skipped."""
     with a2test.Session(disk) as s:
         s.step(IDLE)
@@ -432,18 +528,20 @@ def queues(disk):
         assert s.step(L.peek('fire_on')).data[0] and s.step(L.peek('fire_near')).data[0] == bool(cold)
         fire = state(s)
         assert 'BOIL' in sum(grid_cells(s), []), 'a fire, utensils, water: BOIL'
-        move_to(s, 'BOIL')
-        press(s, RET)
+        assert open_boil_quantities(s) == ['USE UTENSILS']
         assert grid_cells(s)[:2] == [['1', 'OZ', '2', 'OZ', '4', 'OZ', '8', 'OZ', '12', 'OZ', '16', 'OZ'],
                                      ['24', 'OZ', '32', 'OZ', '48', 'OZ']], ('the ounces, at most the canteen\'s 64', grid_cells(s))
         move_to(s, '8 OZ')
         s.step(f'press:{RET}')
         s.step(DO_COMMAND)
-        assert s.step(L.peek('inbuf', 20)).data.startswith(b'USE UTENSILS\0')
-        s.step(L.until('get_line', 400000))
-        s.step(DO_COMMAND)
         assert s.step(L.peek('inbuf', 20)).data.startswith(b'BOIL WATER 8 OZ\0'), s.step(L.peek('inbuf', 20)).data
+        s.step(L.until('keyboard_wait', 30000))
+        assert 'BOILED PORTION' in ' '.join(bottom(s)), bottom(s)
+        assert 'RET:SELECT ESC:CANCEL' in ' '.join(bottom(s)), bottom(s)
+        boiled_state = state(s)[0]
+        s.step(f'key:{ESC}')
         s.step(IDLE)
+        assert state(s)[0] == boiled_state, 'Cancelling BOIL follow-up changed simulation'
         assert s.step(L.peek('mq_n')).data[0] == 0
         boil = state(s)
     with a2test.Session(disk) as s:
@@ -468,7 +566,7 @@ def queues(disk):
         typed(s, 'MAKE FIRE')
         assert 'APPROPRIATE ITEM' in ' '.join(result_rows(screen(s))) and \
             not s.step(L.peek('fire_on')).data[0], result_rows(screen(s))
-    print(f'  queues: MAKE FIRE ({", ".join(typed_fire)}: {felt} F felt), BOIL 8 OZ (USE UTENSILS, BOIL WATER '
+    print(f'  queues: MAKE FIRE ({", ".join(typed_fire)}: {felt} F felt), BOIL 8 OZ (explicit USE UTENSILS, BOIL WATER '
           "8 OZ) = the same commands typed; typed BOIL WATER asks the canteen's ounces; typed MAKE FIRE keeps its refusal: OK")
 
 

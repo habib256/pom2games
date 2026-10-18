@@ -537,7 +537,7 @@ wf_3: .byte $82,$40,0,0,0
 wf_0_999: .byte $80,$7F,$BE,$76,$CA ; native literal, one bit above Python .999
 wf_180: .byte $88,$34,0,0,0
 wf_20000: .byte $8F,$1C,$40,0,0
-wf_40: .byte $86,$20,0,0,0
+wf_40 = al_k40               ; bit-identical resident constant, never written
 wf_90: .byte $87,$34,0,0,0
 wf_120: .byte $87,$70,0,0,0
 wf_2_4: .byte $82,$19,$99,$99,$9A

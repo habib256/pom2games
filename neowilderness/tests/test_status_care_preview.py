@@ -34,11 +34,11 @@ def matrix(disk):
         for phrase in ('X CARE', '✓ TREATED', '◆ PROTECTED'):
             assert phrase in legend, legend
         assert 'SEVERE CUTS' in rows(s)[16] and 'MALARIA' in '\n'.join(rows(s)[16:21])
-        event(s, 'down')
+        event(s, 'down'); event(s, 'ok')  # HEALTH -> active care
         before = saved_state(s)
         count = 0
         for condition, gestures in enumerate(GESTURES, 1):
-            assert byte(s, 'pg_focus') == condition
+            assert byte(s, 'pg_focus') == condition+5
             for index, gesture in enumerate(gestures):
                 line = rows(s)[22]
                 assert f'{MINUTES[gesture-1]} MIN; {HINTS[gesture-1]}' in line, (condition, index, line)
@@ -71,7 +71,7 @@ def kit(disk, stock, light, place=2, execute=False):
         if execute and not light:
             s.step(L.poke('it_place', 2, 66))
             s.step(L.poke('it_pack_lo', 2, 66)); s.step(L.poke('it_pack_hi', 0, 66))
-        event(s, 'up'); event(s, 'down')
+        event(s, 'up'); event(s, 'down'); event(s, 'ok')
         line = rows(s)[22]
         assert line.startswith('30 MIN; LIGHT NEEDED; FLASHLIGHT IF DARK'), line
         if place == 255:

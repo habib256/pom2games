@@ -1,5 +1,14 @@
 .segment "ADVENTURE"
 module_game_init:
+        lda     #0
+        sta     travel_pending
+        sta     route_active
+        sta     route_setting
+        sta     threat_context
+        sta     threat_seen
+        sta     route_context
+        sta     camp_pending
+        sta     dep_running
         jsr     module_view_init
         lda     px+1
         sta     cachex
@@ -441,7 +450,7 @@ module_ending:
         jsr     puts
         .byte " OZ",13,0
         jsr     puts
-        .byte "NATIVE JOURNEY SCORE: ",0
+        .byte "NATIVE JOURNEY RATING: ",0
         jsr     module_goal_pct
         jsr     pdec
         jsr     puts
@@ -494,14 +503,29 @@ module_view_init:
         jmp     t_home
 
 project_init:
-        ldx     #0
-@row:   txa
-        and     #15
-        cmp     #1
-        lda     row_p0,x
-        eor     #255
-        adc     #191            ; modulo 256: 190 - row_p0 + fractional carry
-        sta     row_n0,x
-        inx
-        bne     @row
+        rts
+; Called by SIM before take_oz. Only clean, entirely carried drinking keeps
+; the preserved landscape. Native consumption, hazards and HUD still run.
+.segment "ADVENTURE"
+module_drink_frame:
+        lda     water_drinking_untreated
+        bne     @done
+        lda     it_place+N_WATER
+        cmp     #5
+        beq     @done
+        lda     obj_keep
+        bpl     @pack_amount
+        lda     obj_side
+        beq     @done
+@pack_amount:
+        lda     msgnum+1
+        bne     @done
+        lda     it_pack_hi+N_WATER
+        bne     @quiet
+        lda     it_pack_lo+N_WATER
+        cmp     msgnum
+        bcc     @done
+@quiet: lda     #1
+        sta     sim_quiet
+@done:  ldx     #N_WATER        ; overlay_load used X for ADVENTURE's directory
         rts

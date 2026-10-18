@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""A long real WALK: bounded module loads, MAP progress (fixed window), no disk access.
+"""A long WALK: cached steps, fixed-window MAP, one final route UI fetch.
 
 overlay_reads counts module loads. Since lots 1-2 each one is a copy from
 auxiliary RAM (memory.s), not a DOS read: the same per-step counts as the
 HGR version are checked, then that every load was a RAM transfer
-(xfer_count) and that no MLI call happened (mli_calls).
+(xfer_count) and that no step calls the MLI. The final itinerary report is an on-demand fetch.
 """
 import tempfile
 import re
@@ -91,33 +91,41 @@ def main():
                 assert set(''.join(rows[1:])) <= set('.,:;+*^#=TtPCHR'), ('stray characters on the map', screen)
                 assert rows[0].strip() and set(rows[0].strip()) <= set('.,:;+*^#=TtPCHR'), screen[0]
                 assert s.step('peek:2000:8192').data == before_sim, 'MAP touched simulation/HGR RAM'
+                assert s.step(L.peek('mli_calls', 2)).data == calls, 'travel step called the MLI'
                 s.step(L.until('at_goal', 6000))
                 # No progress message: the result column stays under the map.
                 assert text_screen(s.step('peek:0400:1024').data) == screen, 'a message overwrote the map'
                 assert s.step(L.peek('shown')).data == b'\0'
                 s.step('wait:1')
-            s.step(L.until('idle', 6000))
-            assert int.from_bytes(s.step(L.peek('minutes', 2)).data, 'little') == 3
+            s.step(L.until('keyboard_wait', 6000))
             screen = text_screen(s.step('peek:0400:1024').data)
             assert 'TRAVEL: 237 MINUTES.' in '\n'.join(screen), screen
+            if 'YOU ARE SWEATING.' in '\n'.join(screen):
+                s.step('press:\\r')
+                s.step(L.until('idle', 6000))
+            assert int.from_bytes(s.step(L.peek('minutes', 2)).data, 'little') == 3
+            screen = text_screen(s.step('peek:0400:1024').data)
             # The walk's end cleared rows 20-23 (the map's last rows); the
             # prompt redrew the grid, the result column holds the result.
             assert [row[39:] for row in screen[20:]] == [row[39:] for row in prompt], (prompt, screen[20:])
             assert all(row[79] == ' ' for row in screen[20:]), screen[20:]
-            # Every load was a RAM transfer, never an MLI call.
+            # Simulation overlays stay in RAM; the final itinerary uses one disk fetch.
             loads = int.from_bytes(s.step(L.peek('overlay_reads', 2)).data, 'little') - first_load
             copies = int.from_bytes(s.step(L.peek('xfer_count', 2)).data, 'little') - transfers
             # The text bank's fetches (docs/MEMORY.md 13) are counted apart.
             texts = int.from_bytes(s.step(L.peek('xfer_texts', 2)).data, 'little') - fetched_texts
-            assert loads == copies - texts, (loads, copies, texts)
-            assert s.step(L.peek('mli_calls', 2)).data == calls, 'WALK called the MLI'
+            # The itinerary report fetches NAVIGATION through sim_fetch;
+            # this copy does not count as an overlay_load call.
+            assert loads == copies - texts - 1, (loads, copies, texts)
+            end_calls = int.from_bytes(s.step(L.peek('mli_calls', 2)).data, 'little')
+            assert end_calls - int.from_bytes(calls, 'little') == 5, (calls, end_calls)
             # The game stays at the command prompt without loading more modules.
             before = s.step(L.peek('overlay_reads', 2)).data
             s.step('wait:600')
             assert s.step(L.peek('overlay_reads', 2)).data == before
     print(f'WALK 4: 25 native half-step map updates write exactly the changed characters (fixed window: at most '
           f'{most} after the first, P\'s two cells + the cue); messages, simulation '
-          f'and output vector preserved; {loads} module loads, all RAM transfers, no MLI call OK')
+          f'and output vector preserved; {loads} cached module loads, one final itinerary fetch OK')
 
 
 if __name__ == '__main__':

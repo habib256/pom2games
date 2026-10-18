@@ -14,6 +14,13 @@
 ; otherwise the command ends through camp_done (or a cancelled prompt).
 module_collect:
         jsr     camp_begin
+        lda     mn_mode
+        beq     :+
+        lda     mq_n
+        bne     :+
+        lda     #$20            ; collect may reload CAMP after an hours prompt
+        sta     dep_running
+:
         lda     input_argument
         beq     @normal
         lda     noun
@@ -379,6 +386,11 @@ water_canteen:
 @next:  dex
         dex
         bpl     @capacity
+        lda     msgnum
+        beq     :+
+        lda     #$81
+        jsr     water_followup_arm
+:
         lda     camp_last       ; (the source's words: SUCCESSFUL, cacti...)
         bit     camp_fill       ; GET (16 October 2026): then the ounces
         bpl     :+              ; taken, instead of OK
@@ -519,7 +531,35 @@ camp_boil:
         lda     #15
         sta     camp_minutes
         jsr     camp_effort1
+        lda     #$83
+        jsr     water_followup_arm
         jmp     camp_end
+
+; UI continuation records the exact successful portion before CAMP advances
+; time. A new encounter during that advance invalidates the proposal.
+water_followup_arm:
+        ldx     mn_mode
+        bne     :+
+        ldx     obj_keep
+        cpx     #$C0             ; exact guided source survives the native prompt
+        beq     :+
+        ldx     dep_running
+        cpx     #$20
+        bne     @done
+:
+        ldx     mq_n
+        bne     @done
+        sta     dep_running
+        lda     #N_WATER
+        sta     dep_mask
+        lda     msgnum
+        ldx     msgnum+1
+        beq     :+
+        lda     #255
+:       sta     dep_mask+1
+        lda     journey_encounters
+        sta     dep_cursor
+@done:  rts
 
 ; water_amount -- the ounces (msgnum); returns only with a valid amount:
 ; zero (msg 2), more than w_avail (msg 64, $5B80) or ESC end the command.
@@ -636,7 +676,7 @@ water_named:
         beq     @yes
         jsr     level_here
         cmp     M_SNOW
-        bcc     @no
+        rts                     ; comparison already supplies the answer in C
 @yes:   sec
         rts
 

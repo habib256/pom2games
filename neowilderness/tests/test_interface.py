@@ -27,8 +27,8 @@ def summary_display():
     steps=[IDLE,'peek:2000:8192',L.peek('s_hour',5),L.peek('s_health',5),
            'key:\\>','wait:1',IDLE,'peek:2000:8192']
     steps += call(['summary_refresh']) + [L.poke('scene_asset',0)]
-    alerts={1:'HUNGER WORSE',2:'THIRST WORSE',3:'HEALTH WORSE',4:'BODY WORSE',
-            5:'NOW IMMERSED',6:'DEHYDRATION',9:'HUNGER BETTER',10:'THIRST BETTER',
+    alerts={1:'EAT SOON',2:'DRINK SOON',3:'HEALTH WORSE',4:'BODY WORSE',
+            5:'NOW IMMERSED',6:'DRINK NOW',9:'HUNGER BETTER',10:'THIRST BETTER',
             11:'HEALTH BETTER',12:'BODY BETTER',13:'OUT OF WATER',14:'ILL IMPROVED'}
     for event in alerts:
         steps += [L.poke('ui_previous',1,5),L.poke('ui_pending',event),L.poke('ui_dirty',1),
@@ -39,14 +39,14 @@ def summary_display():
     steps += [L.peek('s_hour',5),L.peek('s_health',5)]
     r=a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
     initial=panels(r.dumps[0])
-    assert initial==('HEALTH 100%','SHIVERING','7:00 - DAY 1','HUNGER OKAY'),initial
+    assert initial==('HEALTH 100%','USE WARM GEAR','7:00 - DAY 1','HUNGER OKAY'),initial
     assert panels(r.dumps[3])==initial,'arrows must preserve side panels'
     for k,expected in enumerate(alerts.values()):
         assert panels(r.dumps[4+2*k])[1]==expected,(expected,panels(r.dumps[4+2*k]))
         inverse=list(alerts)[k]<9
         assert warned(r.dumps[4+2*k],1,expected)==inverse, (expected,'warning contrast')
         assert r.dumps[5+2*k]==b'\0','displayed transition must be consumed once'
-    assert panels(r.dumps[-4])[1]=='SWEATING' and panels(r.dumps[-3])[1]=='SHIVERING'
+    assert panels(r.dumps[-4])[1]=='SHED A LAYER' and panels(r.dumps[-3])[1]=='USE WARM GEAR'
     assert r.dumps[1]==r.dumps[-2] and r.dumps[2]==r.dumps[-1]
     print('  exact panel glyphs, arrow persistence, twelve transition messages and thermal hint priority: OK')
 
@@ -117,9 +117,9 @@ def transient_condition():
     cases=[((60,0,0),(0,0,0),'ILL IMPROVED'),
            ((0,120,0),(0,0,0),'ILL IMPROVED'),
            ((0,0,40),(0,0,0),'ILL IMPROVED'),
-           ((60,0,0),(60,0,0),'DEHYDRATION'),
-           ((60,0,0),(0,120,0),'STARVATION'),
-           ((0,120,0),(0,0,40),'EXHAUSTION')]
+           ((60,0,0),(60,0,0),'DRINK NOW'),
+           ((60,0,0),(0,120,0),'EAT NOW'),
+           ((0,120,0),(0,0,40),'REST NOW')]
     size=L['s_therm_factor']+5-L['s_hour']
     for before,after,expected in cases:
         steps=[IDLE]+call(['thermal'])+poke('s_step',0)+[DONE,IDLE]+call(['ui_monitor'])
@@ -161,7 +161,7 @@ def drinking_recovery():
             assert before==[s.step(L.peek(name,5)).data for name in ('s_hour','s_elap','s_health')]
             s.step(L.poke('ui_dirty',1))
             command(s,'VIEW')
-            assert panels(s.step('peek:2000:8192').data)[1]==('DEHYDRATION' if condition else 'SHIVERING')
+            assert panels(s.step('peek:2000:8192').data)[1]==('DRINK NOW' if condition else 'USE WARM GEAR')
     print('  DRINK updates thirst/illness immediately, preserves clock/health and consumes recovery once: OK')
 
 
@@ -175,12 +175,12 @@ def ground_hint():
         command(s,'GET WATER')   # collect the crash's water pile before moving
         s.step(L.poke('px',30,1))
         s.step(L.poke('py',30,1))
-        for text,expected in (('DROP ROPE','ITEMS: INV'),('GET ROPE','TOPO / HELP'),
-                              ('DROP ROPE','ITEMS: INV'),('CARRY ROPE','TOPO / HELP'),
-                              ('DROP AXE','ITEMS: INV'),('GET AXE','TOPO / HELP'),
-                              ('DROP EGGS','ITEMS: INV'),('EAT EGGS 255 OZ','TOPO / HELP'),
-                              ('DROP WATER','WATER LOW:INV'),('DRINK WATER 32 OZ','WATER LOW:INV'),
-                              ('DRINK WATER 32 OZ','WATER LOW:INV')):  # 33 oz at most (lot 2)
+        for text,expected in (('DROP ROPE','ITEMS: INV'),('GET ROPE','TOPO'),
+                              ('DROP ROPE','ITEMS: INV'),('CARRY ROPE','TOPO'),
+                              ('DROP AXE','ITEMS: INV'),('GET AXE','TOPO'),
+                              ('DROP EGGS','ITEMS: INV'),('EAT EGGS 255 OZ','TOPO'),
+                              ('DROP WATER','CHECK WATER'),('DRINK WATER 32 OZ','CHECK WATER'),
+                              ('DRINK WATER 32 OZ','CHECK WATER')):  # 33 oz at most (lot 2)
             command(s,text)
             s.step(L.poke('thermal_mode',0))
             s.step(L.poke('ui_pending',0))
@@ -395,28 +395,35 @@ def main_view_hints():
             page=s.step('peek:2000:8192').data
             assert panels(page)[1]==expected,(expected,panels(page))
             return page
-        view('TOPO / HELP')
+        view('TOPO')
         command(s,'HANG FOOD')
         view('LOWER FOOD')
         s.step(L.poke('px',21,1))
-        view('TOPO / HELP')
+        view('TOPO')
         s.step(L.poke('night',1))
-        view('REST / HELP')
+        view('REST')
         s.step(L.poke('night',0))
+        before=[s.step(L.peek(name,5)).data for name in ('s_hour','s_health')]
+        for step in poke('s_rest',13):
+            s.step(step)
+        view('REST')
+        assert before==[s.step(L.peek(name,5)).data for name in ('s_hour','s_health')]
+        for step in poke('s_rest',0):
+            s.step(step)
         for step in poke('s_eat',13)+poke('s_drink',13):
             s.step(step)
-        page=view('TOPO / HELP')
+        page=view('TOPO')
         # The lower right field shows the worse need, hunger when equal.
         assert panels(page)[3]=='HUNGER VERY',panels(page)
         assert warned(page,3,'VERY'),'critical gauges must stand out (white on red)'
         assert not warned(page,3,'HUNGER')
         for step in poke('s_eat',7):
             s.step(step)
-        page=view('TOPO / HELP')
+        page=view('TOPO')
         assert panels(page)[3]=='THIRST VERY',panels(page)
         for step in poke('s_drink',0):
             s.step(step)
-        page=view('TOPO / HELP')
+        page=view('TOPO')
         assert panels(page)[3]=='HUNGER SO-SO',panels(page)
         assert not warned(page,3,'SO-SO')
         for step in poke('s_eat',13)+poke('s_drink',13):

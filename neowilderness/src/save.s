@@ -352,6 +352,17 @@ sv_restore:
         sta     mn_top
         sta     mn_verb
         sta     menu_noun
+        sta     route_active
+        sta     route_setting
+        sta     threat_context
+        sta     threat_seen
+        sta     route_context
+        sta     camp_pending
+        sta     dep_running
+        ldx     #5              ; discard the unsaved UI itinerary on restore
+:       sta     travel_remaining,x
+        dex
+        bpl     :-
         lda     sv_slot
         sta     sl_slot         ; do_save rebuilds the view
         rts

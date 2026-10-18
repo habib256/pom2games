@@ -4,9 +4,114 @@
 est arrêtée depuis le 16 octobre 2026 ; `make` construit désormais XL seule.
 Les descriptions de l’édition 140 Ko ci-dessous sont historiques.
 
+**Chasse et rencontres** : le bilan distingue l’arme effectivement en usage
+de celle qu’il faut préparer. Les flèches permettent de changer d’arme ou
+de fabriquer une lance lorsque les prérequis natifs sont réunis. La
+préparation revient au bilan ; attaquer demande une nouvelle confirmation.
+Après un échec, réessayer, changer d’arme ou abandonner restent des choix.
+Après réussite, les suites conservent la proie pour dépecer puis récupérer.
+Une rencontre animale conserve le résultat natif et propose les réponses
+possibles ; lorsque le danger n’est plus présent, le trajet ou le repos
+interrompu peut être revu explicitement.
+
+**Campement et reprise** : les préparations retrouvent l’étape choisie dans
+la liste actualisée du camp. Le départ donne aussi accès au trajet suivi.
+Après un soin ou une action de survie au joystick, la cible et le temps de
+trajet restant sont conservés ; revoir le cap ou choisir la reprise en
+marche/nage ouvre les confirmations habituelles. Le recalage du cap est
+disponible dans le dialogue de trajet suivi, même loin de la cible.
+
+**Nuit et prochaine action** : MENU → NIGHT réunit abri, protection,
+couchage, nourriture, eau et repos. La durée proposée tient compte de
+l’heure et reste modifiable. NEXT ACTION ouvre le conseil prioritaire,
+les soins utiles ou la carte ; aucune action de survie n’est automatique.
+
+**Durées** : marche/nage, repos et attente mémorisent chacun leur durée.
+Haut/bas choisissent un palier rapide (1, 5, 10, 20, 30, 60 minutes, puis
+des durées plus longues) ; gauche/droite ajustent d’une minute.
+Annuler et les propositions de NIGHT ne remplacent pas ces habitudes.
+En journée, NIGHT propose 30, 120 ou 480 minutes selon la fatigue ;
+PLAN NEXT DAWN permet de préparer explicitement la prochaine nuit.
+La nuit, la durée jusqu’à la fin de nuit est arrondie à la minute supérieure,
+sans la limiter à huit heures. Si le repos traverse minuit, le calcul prévoit
+le prochain lever du soleil et ajoute une minute de marge annoncée.
+Les interruptions natives restent possibles.
+
+**QUICK** : depuis la grille, accès court au campement, au conseil prioritaire
+et à la carte. Une quatrième action, quand elle est utile, propose d’éteindre
+le feu, ouvrir les sources de boisson ou de nourriture, ou revoir une portion
+adaptée à la capacité. Le campement permet de préparer la nuit, quitter l’abri,
+récupérer la tente locale ou éteindre le feu, avec une confirmation par action.
+Les préparations manquantes pour COOK et BOIL sont proposées séparément avant
+de retrouver l’objet, la source et la portion choisis.
+Dans la confirmation d’un transfert divisible trop volumineux, haut applique
+explicitement FIT et revient au choix de quantité, avec le même objet,
+la même source et la même destination. Confirmer reste nécessaire.
+
+**Approche d’une cible** : les dialogues de trajet affichent la destination,
+la distance restante et la cause d’arrêt. À deux cellules ou moins,
+choisir ONE NATIVE STEP paie exactement un pas natif ; READJUST CAP ouvre
+le réglage avec les aides disponibles. À la cible exacte, un déplacement
+sans durée explicite s’arrête avant de repartir.
+
 **EQUIPMENT** : entre OBJECTS et CRAFT, accessible avec les flèches du haut.
 Entrée active sa liste ; chaque objet distingue porté, en mains et en usage,
 avec actions, charge et préparation de la chasse.
+
+**Survie guidée** : MENU → SURVIVAL explique les besoins MEAL, WATER,
+ENERGY et BODY, les ressources accessibles et les prérequis manquants.
+La portion conseillée tient compte du stock ; le froid et la chaleur ont
+des conseils distincts. Les choix rejoignent les formulaires habituels.
+STATUS donne aussi accès direct aux cinq besoins : sélectionner une jauge
+puis Entrée ; HEALTH rejoint les soins.
+
+**Viande et eau** : depuis ce guide, MEAL propose récupération, dépeçage,
+cuisson et repas ; WATER propose collecte, ébullition et boisson. Chaque
+étape reste une décision explicite. COOK et BOIL indiquent que la portion
+portée est déposée au sol après traitement, selon les règles natives.
+Après récupération ou traitement, une proposition conserve l'objet,
+la source et la portion. La quantité reste modifiable et Échap annule.
+Le résultat natif reste à gauche et les choix suivants apparaissent
+immédiatement à droite, sans écran d’acquittement supplémentaire.
+Le parcours comparatif collecte → bouillir 1 OZ → boire 1 OZ demande
+14 gestes de joystick, contre 16 lors de la livraison précédente.
+
+**Commandes et réactivité** : EQUIPMENT indique les commandes correspondant
+au focus actuel. Un stock d'une once passe directement à la confirmation.
+Les dialogues de trajet utilisent un module séparé. Les anciens chiffres
+comparatifs de lectures disque sont datés dans les documents de mesure ;
+le module inclut désormais aussi le choix commun des durées.
+Les actions indisponibles expliquent leurs prérequis. Les transferts
+CARRY/PACK/DROP AXE testés évitent le redessin du paysage et économisent
+environ 82 % des cycles émulés, avec la même image et la même simulation.
+
+**Départ groupé** : MENU → PREPARE propose une sélection d'équipement local,
+un aperçu du poids et des volumes, puis une confirmation commune. Les transferts
+restent soumis aux capacités natives ; un refus arrête la suite. La préparation
+manuelle reste disponible. L'eau demandée est de 64 OZ, les noix sont prises
+en totalité ; porter un outil ne l'active pas.
+
+**Action contextuelle** : la grille propose la reprise du trajet, la traversée,
+la récupération d'une prise ou une boisson selon la situation. Votre choix
+reste conservé tant que ce contexte ne change pas. Confirmer un nouveau cap
+annule l'ancien trajet en attente.
+
+**Destination suivie** : après un cap validé, MAP conserve la cible et affiche
+son nom, sa distance et son cap recalculés. Le joystick permet de reprendre
+ce cap, changer de cible ou l'abandonner. Un refus d'orientation conserve la
+cible précédente. Un trajet interrompu peut aussi être abandonné explicitement.
+
+**Chasse** : avant de préparer une arme, le bilan annonce l'outil, la durée
+et les limites connues liées à la lumière ou à l'arme. Une arme efficace
+déjà active garde son accès direct. Après une prise, GET devient prioritaire
+et sélectionne la carcasse ; récupérer la prise ne supprime pas le trajet
+en attente.
+
+**Trajets interrompus** : WALK/SWIM permet de reprendre le cap et le temps
+restant, ou de choisir une nouvelle durée. Une étape trop longue pour le
+budget restant est annoncée et demande un accord pour prolonger le trajet.
+Les coûts de déplacement sont inchangés. La préparation d'une arme est
+présentée avant la chasse ; une annulation ne prépare ni ne consomme rien.
 
 Port séparé de Wilderness pour Apple IIe enhanced 128 Ko et IIc, avec
 rendu DHGR et modules préchargés en RAM, en deux éditions (14 octobre
@@ -25,8 +130,9 @@ Les sources reprennent `../wilderness/` au 13 octobre 2026, synchronisées
 avec sa tête Git (transitions texte/HGR, introduction conservée pendant le
 chargement, correctifs de nage et de tests). Les lots 1 et 2 du [TODO](TODO.md)
 sont en place : le jeu démarre sous ProDOS 8 sur Apple IIe enhanced ou IIc
-128 Ko, précharge tous ses modules, la simulation vierge et la feuille TOPO
-en RAM auxiliaire, puis ne lit plus jamais le disque pendant la partie.
+128 Ko, précharge ses modules courants et la simulation vierge en RAM
+auxiliaire. Certains écrans et modules XL sont chargés à la demande ; le
+planificateur de direction, notamment, lit son module sur le disque.
 Le paysage est dessiné en **DHGR 16 couleurs** (lot 3) : ciel en
 zones tramées, sol, neige et eau en trois paliers de distance, bois, sprites
 originaux colorés, soleil et Lune, dans dix humeurs choisies selon la hauteur
@@ -66,8 +172,27 @@ entière. Trois angles, aucun temps de jeu, refus « NOT NOW. » devant un
 ours au contact ; la marche remet la vue à niveau
 ([LOOK_UPDOWN.md](docs/LOOK_UPDOWN.md)). Les règles sont
 inchangées : l'état de simulation est identique, octet pour octet, à celui
-de la version HGR/DOS 3.3 de référence, et aucune lecture disque n'a lieu
-pendant la partie.
+de la version HGR/DOS 3.3 de référence pour les parcours de fidélité testés.
+Le repos progressif et le planificateur de direction sont des évolutions
+propres à XL ; ils sont détaillés dans [IMPLEMENTATION.md](docs/IMPLEMENTATION.md).
+
+Depuis le 18 octobre, les portions validées d’EAT, DRINK et BOIL sont
+mémorisées ; un stock moindre réduit la proposition. OBJECTS montre les
+onces restantes dans la source choisie, et WALK/SWIM retrouve la dernière
+durée choisie dans la grille. Les confirmations et l’annulation restent
+distinctes. Dans OPTIONS, STOP FOR FOOD DISCOVERY règle les recherches
+alimentaires qui interrompent le trajet.
+
+LOOK → AZIMUTH se règle aux flèches : gauche/droite par degré, haut/bas
+par dix degrés. Dans MAP, Entrée ouvre le choix d’une destination puis un
+curseur ; une revue affiche distance et cap, et une seconde validation
+demande de prendre ce cap avec les aides d’orientation disponibles.
+La marche se lance ensuite par WALK/SWIM. REST/WAIT peut être arrêté par
+Échap ou le bouton d’annulation, entre deux intervalles ; le compte rendu
+distingue alors le temps réalisé du temps demandé. Les avertissements
+de faim et de soif distinguent besoin prochain, dégradation et danger.
+Le bilan conserve la note native en pourcentage, nommée NATIVE JOURNEY
+RATING ; POINTS désigne le classement propre à XL.
 
 Mesures (secondes invitées à environ 1 MHz, [BASELINE_128K.json](docs/BASELINE_128K.json)
 contre [BASELINE_HGR.json](docs/BASELINE_HGR.json)) : STATUS 8,90 → 0,24 s,

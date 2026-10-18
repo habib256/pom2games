@@ -25,7 +25,7 @@ def check(disk, name, knife=255, axe=255, flags=0, stale=None,
         s.step(L.poke('care_tools', flags))
         s.step(L.poke('care_tool_x', byte(s, 'px', 1)+int(stale == 'x')))
         s.step(L.poke('care_tool_y', byte(s, 'py', 1)+int(stale == 'y')))
-        event(s, 'up'); event(s, 'down'); event(s, 'right')
+        event(s, 'up'); event(s, 'down'); event(s, 'ok'); event(s, 'right')
         assert byte(s, 'pg_g') == 1
         line = rows(s)[22]
         assert f'0 MIN; {expected}' in line and 'DOSES' not in line, (name, line)
@@ -35,7 +35,7 @@ def check(disk, name, knife=255, axe=255, flags=0, stale=None,
         assert byte(s, 'care_tools') == flags, 'preview expired a stale native flag'
         event(s, 'cancel', IDLE)
         assert saved_state(s) == before
-        event(s, 'up'); event(s, 'down'); event(s, 'right')
+        event(s, 'up'); event(s, 'down'); event(s, 'ok'); event(s, 'right')
         clock = s.step(L.peek('s_elap', 5)).data
         # Observe the first command before it executes; buttons are the only input.
         s.step('btn:0,1'); s.step(L.until('do_command', 60000))

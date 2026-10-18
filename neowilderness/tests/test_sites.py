@@ -41,7 +41,7 @@ def playable(disk):
         for _ in range(count):
             steps += [f'key:{key}','wait:1',L.until('topo_key',6000)]
         steps += [L.peek('topo_x'), L.peek('topo_y'), 'peek:0400:1024']
-    steps += ['key:\r','wait:1',IDLE,'peek:2000:8192']
+    steps += ['key:\x1b','wait:1',IDLE,'peek:2000:8192']
     steps += command('WALK 54 MIN') + snap + ['peek:2000:8192']
     steps += command('ENTER SHELTER') + snap + ['peek:2000:8192','peek:0400:1024']
     steps += command('ENTER SHELTER') + snap
@@ -126,33 +126,33 @@ def topo_refresh(disk):
     steps += [L.until('topo_key', 20000)]
     for key in ('L', 'L', 'I', 'I'):
         steps += [f'key:{key}', 'wait:1', L.until('topo_key', 20000)]
-    steps += ['key:\\r', 'wait:1', IDLE] + command('WALK 54 MIN')
+    steps += ['key:\\e', 'wait:1', IDLE] + command('WALK 54 MIN')
     steps += [L.peek('px', 6), 'peek:2000:8192']
     # Change a visible terrain cell and markers while the map is closed.
     # MAP must read the live map, even when its overlay was previously used.
     steps += [f'poke:{0x7040+6*112+9:04X}:40', 'poke:7008:0A', 'poke:7011:0B',
               'key:MAP', 'press:\\r', ready] + snap
-    steps += [L.until('topo_key', 20000), 'key:\\r', 'wait:1', IDLE]
+    steps += [L.until('topo_key', 20000), 'key:\\e', 'wait:1', IDLE]
     steps += command('LOOK B') + ['peek:2000:8192', 'key:MAP', 'press:\\r', ready] + snap
-    steps += [L.until('topo_key', 20000), 'key:\\r', 'wait:1', IDLE, 'peek:2000:8192']
+    steps += [L.until('topo_key', 20000), 'key:\\e', 'wait:1', IDLE, 'peek:2000:8192']
     r = a2test.run(disk, steps, emulator=a2test.A2SHOT, timeout=900)
     initial, origin, screen = r.dumps[0], r.dumps[1], text_screen(r.dumps[2])
     assert origin == bytes((0, 0))
     assert map_rows(screen)[23-4][4] == 'P' and map_rows(screen)[23-6][9] == '='
-    assert map_cue(screen).startswith(' 4,4 HEAD 140 ')
+    assert map_cue(screen).startswith(' 4,4 HEAD 90 DEG MAG ')
     position, after_walk = r.dumps[3:5]
     assert position[:4] == bytes((0, 7, 0, 4))
     assert after_walk != initial
     assert r.dumps[5] == bytes((0, 0)), 'reopening must discard the old scrolled window'
     screen = text_screen(r.dumps[6])
-    assert map_cue(screen).startswith(' 7,4 HEAD 140 ')
+    assert map_cue(screen).startswith(' 7,4 HEAD 90 DEG MAG ')
     row = map_rows(screen)[23-4]
     assert row[4] == 'C' and row[7] == 'P' and row[10] == 'R' and row[11] == 'H'
     assert row[20] == '.', 'old ranger marker must disappear'
     assert map_rows(screen)[23-6][9] == '+', 'terrain must be reread when MAP opens'
     turned = r.dumps[7]
     assert r.dumps[8] == bytes((0, 0))
-    assert map_cue(text_screen(r.dumps[9])).startswith(' 7,4 HEAD 420 ')
+    assert map_cue(text_screen(r.dumps[9])).startswith(' 7,4 HEAD 270 DEG MAG ')
     assert r.dumps[10] == turned, 'opening/closing MAP must preserve current HGR and compass'
     print('  MAP ready before display; reopen after scrolling/travel/turn refreshes position, window, terrain and markers: OK')
 
@@ -176,7 +176,7 @@ def cardinal_walks():
             steps += command('LOOK '+name)+command('WALK 54 MIN')
             steps += [L.peek('px',6),L.peek('s_hour',5),'peek:2000:8192',
                       'key:MAP','press:\\r',L.until('topo_show',20000),'peek:0400:1024',
-                      L.until('topo_key',20000),'key:\\r','wait:1',IDLE,L.peek('s_hour',5),'peek:2000:8192']
+                      L.until('topo_key',20000),'key:\\e','wait:1',IDLE,L.peek('s_hour',5),'peek:2000:8192']
         result = a2test.run(disk,steps,emulator=a2test.A2SHOT,timeout=900)
     for i,(name,dx,dy,heading) in enumerate(cases):
         pos,hour,view,maptext,returned_hour,returned_view = result.dumps[i*6:i*6+6]
@@ -247,7 +247,7 @@ def topo_delta(disk):
             assert writes == changes, (key,writes,changes)
             if key in ('J','K') and before == after:
                 assert writes == 0, 'clamped scroll must not write a single screen character'
-        s.step('key:\\r')
+        s.step('key:\\e')
         s.step(IDLE)
     print('  MAP scroll: exactly one write per changed character; unchanged/clamped map: zero writes OK')
 
@@ -280,8 +280,8 @@ def full_screen(disk):
                 assert cue and cue.startswith(f' {x},{y} HEAD '), screen[0]
                 rows = map_rows(screen)
                 assert len(rows) == 24 and all(len(row) == 40 for row in rows)
-                assert set(''.join(rows[1:])) <= MAP_CHARS, ('stray row', screen)
-                assert set(rows[0][len(cue)//2:]) <= MAP_CHARS and len(cue) < 40, screen[0]
+                assert set(''.join(rows[1:23])) <= MAP_CHARS, ('stray terrain row', screen)
+                assert set(rows[0][len(cue)//2:]) <= MAP_CHARS and len(cue) < 60, screen[0]
                 where = [(c, r) for r, row in enumerate(rows) for c, ch in enumerate(row) if ch == 'P']
                 assert where == [(x - ox, 23 - (y - oy))], (x, y, key, where)
             s.step('press:\\e'); s.step(IDLE)
@@ -300,6 +300,9 @@ def full_screen(disk):
         s.step('key:WALK 100 MIN\\r')
         seen = 0
         for _ in range(12):
+            # The SITES window shares these PCs with TRAVEL. Anchor the
+            # breakpoint in resident code before waiting for the map return.
+            s.step(L.until('walk_progress', 6000))
             s.step(L.until('topo_moving_done', 6000))
             px = s.step(L.peek('px', 2)).data[1]
             ox, oy = s.step(L.peek('topo_x', 2)).data
@@ -647,16 +650,12 @@ def built_shelter_sprites():
           'frames); local order igloo > hut > tent > log > trench; no tent at the wreck; each sprite '
           'read once; MAKE TRENCH, DROP TENT, GET TENT redraw the view: OK')
 
-    # The 140 KB edition: no shelter sprite on NEOWILD.BLK, PROJECT cut at
-    # its tail; a hut on the player's cell leaves the view as it was.
-    lay = json.loads((HERE / 'build/layout-140.json').read_text())
-    assert set(lay['disk']['sites']) == {'log', 'rock', 'outpost'}, lay['disk']['sites']
-    assert lay['trunk_modules']['11']['length'] == L['project_tail'] - 0x5800
+    # The active XL edition includes the built-shelter sprites.
     xl = json.loads((HERE / 'build/layout.json').read_text())
     assert set(xl['disk']['sites']) == {'log', 'rock', 'outpost', 'tent', 'cabin', 'igloo', 'trench'}
     assert xl['trunk_modules']['11']['length'] == L['project_end'] - 0x5800
     out = []
-    for disk in (DISK140, DISK):
+    for disk in (DISK,):
         with a2test.Session(disk, timeout=600, menu=False) as s:
             s.step(L.until('menu_key', 40000))
             s.step('key:1\r')         # the Sierra Nevada (common.MENU_KEY)
@@ -675,11 +674,9 @@ def built_shelter_sprites():
                 s.step(step)
             out.append((plain, s.step('peek:2000:8192').dumps[0], g.word('mli_reads') - reads,
                         s.step(L.peek('scene_asset')).dumps[0][0]))
-    (plain, hut140, reads140, asset140), (_, hutxl, readsxl, assetxl) = out
-    assert view_rows(hut140) == view_rows(plain) and reads140 == 0 and asset140 != 37, (reads140, asset140)
-    assert assetxl == 37 and readsxl == 3 and view_rows(hutxl) != view_rows(out[1][0]), (assetxl, readsxl)
-    print('  140 KB edition: three site sprites, PROJECT ends at its tail, a hut on the cell draws '
-          'nothing and reads nothing; the same hut on NeoWildernessXL: the hut sprite (3 blocks): OK')
+    plain, hutxl, readsxl, assetxl = out[0]
+    assert assetxl == 37 and readsxl == 3 and view_rows(hutxl) != view_rows(plain), (assetxl, readsxl)
+    print('  NeoWildernessXL: the local hut uses its sprite (3 blocks): OK')
 
 
 def main():

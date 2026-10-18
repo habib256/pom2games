@@ -693,7 +693,7 @@ def medical_gestures():
 
     def gesture(s, rights=0):
         s.step('key:\\^'); s.step(READY)
-        for k in ['\\v'] + ['\\>'] * rights:      # (STATUS holds MEDICAL's rows: 15 October 2026)
+        for k in ['\\v', '\\r'] + ['\\>'] * rights:      # (STATUS holds MEDICAL's rows: 15 October 2026)
             s.step('press:' + k); s.step(L.until('page_top', 40000)); s.step(READY)
         line = text_screen(s.step('peek:0400:1024').data)[23]
         s.step('press:\\r')
@@ -701,7 +701,7 @@ def medical_gestures():
         return line, s.step(L.peek('inbuf', 20)).data.split(b'\0')[0].decode()
 
     def close_result(s):
-        s.step(L.until('q_care_wait', 60000))
+        s.step(READY)
         assert 'RETURN CARE' in text_screen(s.step('peek:0400:1024').data)[23]
         s.step('press:\\e'); s.step(IDLE)
 
@@ -749,11 +749,11 @@ def alerts_display():
         s.step('key:REST 30 MIN\r');s.step('wait:1');s.step(IDLE)
         rows=result_rows(text_screen(s.step('peek:0400:1024').data))
         assert rows[0].startswith('YOU RESTED 30 MINUTES'),rows
-        assert any(r.startswith('YOU ARE HUNGRY ENOUGH TO EAT A HORSE.') for r in rows[1:]),rows
+        assert any(r.startswith('YOU ARE HUNGRY. EAT SOON.') for r in rows[1:]),rows
         assert s.step(L.peek('al_daily')).data[0]&1
         s.step('key:REST 30 MIN\r');s.step('wait:1');s.step(IDLE)
         rows=result_rows(text_screen(s.step('peek:0400:1024').data))
-        assert not any('HORSE' in r for r in rows),'once a day'
+        assert not any('YOU ARE HUNGRY.' in r for r in rows),'once a day'
     idle=L.until('idle',20000);done=f'until:{L["idle"]+3:04X}:6000'
     steps=[idle,L.poke('nature_frequency',0)]+call(['env_hour'])+[done,idle]+call(['health_alerts'])
     cases=[]
@@ -771,8 +771,8 @@ def alerts_display():
          for i in range(len(cases))]
     # Dehydration 1-(47/190.5)^2 = 93.9 % (187 from 97), 1-(20/190.5)^2 = 98.9 %;
     # 1-(140/190.5)^2 = 45.9 %: from 60 the event 160, from 40 nothing.
-    assert got[0]==([4],0) and got[1]==([],0),got[:2]
-    assert got[2]==([],1) and got[3]==([],0),got[2:4]
+    assert got[0]==([10,4],0) and got[1]==([],0),got[:2]
+    assert got[2]==([12],1) and got[3]==([],0),got[2:4]
     assert got[4][0]==[2] and got[5][0]==[3],'203 shivering, 204 sweating'
     assert got[6][1]&4 and not got[7][1]&4,'176 once health passes under 1'
     print('Alert display, daily hunger, crossings 160/176 and shiver/sweat messages OK',flush=True)

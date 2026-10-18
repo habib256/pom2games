@@ -53,6 +53,13 @@ $(BUILD)/wild.o: src/orient.s $(BUILD)/textbank.inc
 $(BUILD)/wild.o: src/forage.s src/frg.s src/craft.s
 $(BUILD)/wild.o: src/fire.s $(BUILD)/fire.inc
 $(BUILD)/wild.o: src/grid.s src/mousetext.inc src/mt_pages.s
+$(BUILD)/wild.o: src/navigation.s
+$(BUILD)/wild.o: src/threat.s src/route_followup.s
+$(BUILD)/wild.o: src/departure.s
+$(BUILD)/wild.o: src/hunt.s
+$(BUILD)/wild.o: src/trip.s src/guidance.s src/flows.s
+$(BUILD)/wild.o: src/help.s src/followup.s src/refusal.s
+$(BUILD)/wild.o: src/night.s src/priority.s src/duration.s src/campguide.s src/context.s
 
 # The animated campfire (docs/CAMP.md 8): art and layers of src/fire.s.
 $(BUILD)/fire.inc: tools/genfire.py tools/dhgr_palette.py
@@ -165,6 +172,32 @@ test-xl: all $(A2SHOT)
 	$(PYTHON) tests/test_reference_state.py
 	$(PYTHON) tests/test_input.py
 	$(PYTHON) tests/test_navigation.py
+	$(PYTHON) tests/test_menu_bar.py
+	$(PYTHON) tests/test_route_planning.py
+	$(PYTHON) tests/test_travel_resume.py
+	$(PYTHON) tests/test_context_actions.py
+	$(PYTHON) tests/test_primary_context.py
+	$(PYTHON) tests/test_departure.py
+	$(PYTHON) tests/test_guidance.py
+	$(PYTHON) tests/test_duration.py
+	$(PYTHON) tests/test_night.py
+	$(PYTHON) tests/test_campguide.py
+	$(PYTHON) tests/test_camp_departure.py
+	$(PYTHON) tests/test_camp_progress.py
+	$(PYTHON) tests/test_threat_context.py
+	$(PYTHON) tests/test_route_followup.py
+	$(PYTHON) tests/test_quick_context.py
+	$(PYTHON) tests/test_ui_transition_cost.py
+	$(PYTHON) tests/test_priority_advice.py
+	$(PYTHON) tests/test_actionable_hud.py
+	$(PYTHON) tests/test_guidance_redraw.py
+	$(PYTHON) tests/test_tracked_arrival.py
+	$(PYTHON) tests/test_result_followups.py
+	$(PYTHON) tests/test_refusals.py
+	$(PYTHON) tests/test_transfer_redraw.py
+	$(PYTHON) tests/test_survival_flows.py
+	$(PYTHON) tests/test_menu_survival.py
+	$(PYTHON) tests/test_sleep.py
 	$(PYTHON) tests/test_object_actions.py
 	$(PYTHON) tests/test_action_filter.py
 	$(PYTHON) tests/test_use_requirements.py

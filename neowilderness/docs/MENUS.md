@@ -1833,3 +1833,605 @@ et sa sauvegarde/restauration passent également. Deux constructions de
 fixtures ont été rejouées isolément après concurrence sur les fichiers de
 construction ; elles passent. Vérification visuelle de la fiche CRAFT dans
 l’émulateur. La manette physique reste à essayer.
+
+## 41. Portions, direction et temps réalisé (18 octobre 2026, XL)
+
+### Quantités et durée rappelées
+
+Une quantité validée d’EAT, DRINK ou BOIL devient la proposition suivante
+pour cette action. EAT/DRINK partagent ce choix entre grille et OBJECTS.
+Dans la grille, la sélection reprend le plus grand palier proposé inférieur
+ou égal au choix mémorisé, puis respecte le stock disponible. OBJECTS
+reprend la quantité exacte dans sa limite disponible. Une quantité supérieure
+à 255 OZ y mémorise 255 OZ. Le rappel est une préférence d’interface ;
+il ne modifie ni les stocks ni les règles de consommation.
+
+OBJECTS affiche FROM et TO, la quantité, puis SOURCE LEFT en onces pour
+EAT/DRINK : il s’agit de la source LOCAL ou CARRIED choisie. L’annulation
+ne mémorise pas une quantité seulement parcourue. Les doses médicales,
+TASTE, l’absence de TOUT pour la consommation et les confirmations sont
+conservés. La grille rappelle également la dernière durée validée de
+WALK/SWIM ; REST/WAIT gardent leurs listes de durée.
+
+Les listes d’une seule entrée étaient déjà sautées. Une seule nourriture
+ne supprime pas le choix TASTE/portion ; une unique source DRINK mène
+directement aux onces. HELP précise GET: PACK/HANDS et USE: ACTIVATE.
+OPTIONS nomme STOP FOR FOOD DISCOVERY : ON recherche les sources
+alimentaires et peut arrêter le trajet, OFF les ignore. Les rencontres
+dangereuses gardent leurs propres interruptions.
+
+### Choisir et prendre un cap
+
+LOOK → AZIMUTH ouvre le nombre de degrés 0–359. Gauche/droite règle un
+degré ; haut/bas règle dix degrés, avec bouclage au nord. Entrée valide,
+Échap annule. Les autres questions numériques gardent leurs réglages.
+
+Depuis MAP, Entrée ouvre les destinations CURSOR, RANGERS, CRASH SITE et
+CABIN si connue. Les quatre directions choisissent une entrée ; Entrée
+ouvre la carte de cible. Les flèches y déplacent le signe + ; les raccourcis
+C/H/R restent disponibles au clavier. Le haut de l’écran donne les
+coordonnées choisies, la distance euclidienne en cellules et le relèvement
+TRUE ; MAG apparaît avec une boussole accessible. Le calcul utilise la
+position exacte du joueur, y compris ses demi-cases.
+
+Entrée ouvre la revue ; une seconde Entrée prend le cap par la procédure
+native d’orientation. Ses prérequis restent applicables : une aide en usage,
+les limites de la montre et du soleil, et le temps éventuel de l’observation
+de l’ombre. Aucun WALK/SWIM n’est lancé. Échap revient de la revue à la
+cible, de la cible à MAP, puis de MAP à la vue. Aucun calcul de chemin
+ni recherche d’obstacles cachés ne remplace les décisions du joueur.
+
+### Repos et messages de survie
+
+Échap ou le bouton d’annulation arrête REST/WAIT entre deux intervalles,
+après au moins un intervalle réalisé. Une rencontre conserve son arrêt.
+Le rapport indique les minutes effectuées et REQUESTED pour la demande
+initiale lorsqu’il y a interruption. Le repos crédite la récupération au
+fil de ces intervalles, avec finalisation sur la durée réelle ; WAIT ne
+crédite pas de récupération. Cette évolution corrige le crédit anticipé
+du repos natif et ne revendique pas l’identité de son état intermédiaire.
+
+La faim et la soif ont un premier message EAT SOON/DRINK SOON, puis une
+alerte de dégradation au franchissement de 95 % du facteur de santé
+correspondant et de danger au franchissement de 50 %. Ces facteurs ne
+sont pas les barres de récence MEAL/WATER. Une récupération réarme les
+franchissements et peut retirer une demande de sommeil forcé devenue inutile.
+
+Validation ciblée : `test_menu_bar.py`, `test_quick_quantities.py`,
+`test_object_actions.py`, `test_action_filter.py`, `test_route_planning.py`,
+`test_navigation.py`, `test_sites.py` et `test_sleep.py`. Les tests au port
+de jeu émulé ne remplacent pas un essai de manette physique.
+
+Validation intégrée : tous les scripts de `test-xl` passent, avec reprise
+de la fin de suite après adaptation des attentes de libellés et du retour
+à la ligne des messages. Une partie native Sierra Nevada niveau 1 a été
+menée jusqu'aux Rangers dans un aperçu visible, uniquement par directions
+et boutons du port de jeu, en prenant les décisions à partir de l'écran.
+Elle comprend repas, boisson, deux nuits de repos, tentatives de chasse,
+rencontre d'un ours et traversée à la nage : 2 978 minutes, 155 pas,
+77,5 cellules, santé finale 95 %, 64 OZ d'eau, rating natif 100 %.
+Les tentatives de chasse n'ont pas réussi dans cette partie. Ce parcours
+ne valide pas à lui seul les autres niveaux ou climats.
+
+
+## 42. Reprise et décisions explicites (18 octobre 2026, XL)
+
+WALK/SWIM mémorise le cap et le temps restant après une interruption. Depuis
+la grille, sélectionner le déplacement ouvre directement RESUME ou NEW TRIP,
+sans redemander une durée avant la reprise. Les flèches changent ce choix,
+Entrée valide et Échap annule sans simulation. La reprise garde le cap ;
+elle utilise WALK ou SWIM selon l'action sélectionnée, notamment à une rive.
+Une commande tapée avec durée explicite démarre une nouvelle demande.
+
+Le budget accepte uniquement une étape entière dont le coût tient dans le
+reste. LEFT indique les minutes inutilisées ; NEXT STEP annonce le coût
+minimal de la prochaine étape. Si nécessaire, RETURN TAKE STEP autorise
+explicitement cette étape plus longue. Il ne s'agit pas d'un découpage des
+cellules ni d'un changement de vitesse : les coûts natifs restent identiques.
+Le rapport conserve le temps réellement dépensé. Une découverte de la
+commande précédente n'est pas répétée lorsqu'aucun nouveau pas n'a été fait.
+
+La préparation de chasse affiche la commande USE proposée avant son exécution.
+Annuler ne prépare rien et ne consomme rien ; une arme déjà prête évite cette
+revue. Une ancienne activation d'AXE/KNIFE sur une autre case ne suffit pas.
+Dans OBJECTS, un objet transporté utilisable propose USE plutôt que DROP.
+Les confirmations de consommation, de transfert et de soins restent présentes.
+
+Les conseils de la vue deviennent des actions : EAT SOON, DRINK SOON, REST,
+SHED A LAYER ou USE WARM GEAR. Le rappel de repos de jour apparaît après
+12 heures depuis le dernier repos ; il ne modifie pas l'énergie. Les échecs
+KILL distinguent absence de lumière, arme peu adaptée et tentative manquée.
+CATCH suggère davantage de temps. Aucun taux de réussite n'est modifié.
+
+Six octets de préférence de trajet et un petit helper résident utilisent la
+zone TEXT. Ces préférences ne sont pas sauvegardées ; RESTORE les efface.
+Les choix et rapports utilisent le module NAV chargé à la demande. Aucun
+chargement disque n'est ajouté entre les pas d'un même déplacement ; les
+chargements d'interface ont lieu avant ou après celui-ci.
+
+Mesure de gestes : le script `tests/measure_context_actions.py` mesure
+l'activation d'une AXE déjà sélectionnée, de l'ouverture des actions à la
+validation. La référence précédente demande quatre gestes, la version actuelle
+trois, soit 25 % de moins. La reprise d'une durée mémorisée reste à deux gestes.
+Ces mesures ne démontrent pas l'objectif de réduction globale de 40 %.
+
+
+Validation visible de cette passe : Sierra Nevada niveau 1, directions et
+boutons du port de jeu uniquement, décisions fondées sur l'écran. Arrivée
+aux Rangers après 1 965 minutes, 130 pas et 65 cellules ; trois rencontres,
+santé finale 92 %, eau 96 OZ, nourriture 16 OZ, rating natif 100 %. Le parcours
+inclut préparation d'arme et tentative de chasse, repas, repos, deux traversées
+et choix explicite d'un nouveau cap. Le pilote a émis 614 gestes ; ce total
+n'est pas un benchmark comparable au parcours précédent, dont le trajet et
+les erreurs de pilotage différaient. Les six régions ont également passé les
+contrôles de chargement, de géographie et d'affichage aux niveaux 1 et 4.
+
+
+Les 53 scripts de la cible `test-xl` passent, exécutés par lots avec reprises
+après correction des attentes de durée et de texte. Le test de référence garde
+ses 163 variables sur 25 étapes ; ses marches utilisent des durées alignées
+sur des pas entiers, tandis que `test_travel_resume.py` et la cadence de nage
+vérifient le nouveau budget strict. Les tests supplémentaires SAVE, FORAGE,
+marche, menus de régions et mesure d'activation passent également.
+
+
+### Départ groupé et action principale — 18 octobre 2026
+
+MENU propose PREPARE après SAVE, RESTORE et QUIT. Haut/bas choisissent
+un objet ; Entrée le coche. REVIEW AND APPLY affiche la confirmation ;
+Échap revient à la sélection, puis à la vue. La sélection et son annulation
+ne modifient ni le temps, ni les stocks, ni les tirages aléatoires.
+
+La checklist distingue LOCAL, ALREADY CARRIED et NOT AVAILABLE HERE. Elle
+annonce 64 OZ d’eau et toutes les noix locales, ainsi que le poids et les
+volumes demandés. BACKPACK et CANTEEN passent en premier. Chaque transfert
+utilise le moteur natif ; au premier refus, la suite s’arrête et le motif
+reste visible. Les transferts précédents restent acquis. Posséder un outil
+ne l’active pas : USE reste une action distincte.
+
+La grille donne priorité à un trajet en attente, à une traversée disponible,
+à une prise récupérable, puis à une boisson après quatre heures natives.
+Un changement de contexte peut suggérer une autre action ; les simples
+rafraîchissements conservent le choix manuel. La présence d’un animal vivant
+ne sélectionne plus automatiquement KILL. Un nouveau cap confirmé efface
+l’ancien trajet en attente, contrairement à une annulation ou un refus.
+
+Mesure reproductible : `tests/measure_departure.py --baseline DIR` puis
+`tests/measure_departure.py --group`. Pour BACKPACK, CANTEEN, 64 OZ d’eau,
+48 OZ de noix et COMPASS activée, le total passe de 161 à 41 gestes
+(−74,5 %). Les neuf tableaux d’inventaire comparés sont identiques ; le poids
+prévu et obtenu est 307 OZ. Ce résultat mesure cette préparation précise,
+pas une réduction globale de tous les gestes d’une partie.
+
+Validation de cette livraison : les 55 scripts `test-xl` passent par lots,
+avec relance des tests affectés après correction du cadre MENU et de la
+saisie rapide depuis la grille. Les quatre scénarios de départ couvrent
+annulation, refus natif avec motif visible, cinq essentiels et les quatorze
+entrées. Le parcours visible au port de jeu confirme le départ groupé ;
+ce n’est pas une nouvelle partie complète jusqu’aux Rangers.
+
+
+### Destination suivie et chasse — 18 octobre 2026
+
+La validation d’un cap depuis MAP conserve la cible seulement après réussite
+de l’orientation native. À la réouverture du planificateur, le nom du lieu
+(RANGERS, CRASH SITE, CABIN ou point choisi), la distance et le cap sont
+recalculés. Les flèches choisissent RESUME CAP, CHANGE TARGET ou ABANDON
+TARGET. Reprendre applique le cap sans déplacement ; abandonner efface aussi
+le trajet en attente. Échap conserve la cible et le trajet. Changer seulement
+l’angle de vue ne supprime pas la destination suivie.
+
+Le dialogue d’un trajet interrompu ajoute ABANDON TRIP. La reprise conserve
+le budget restant et propose explicitement le coût du prochain pas s’il le
+dépasse. Pour la nage, les indications rappellent l’accès à l’eau ici ou au
+demi-pas suivant, et l’influence native du poids et de la santé.
+
+La chasse nécessitant une activation annonce l’outil et les quinze minutes
+natives. Une arme faible ou l’absence de lumière déclenche aussi un bilan
+avant tentative. Aucune commande ni aucun tirage n’est effectué avant
+confirmation ; Échap efface la proposition. Une arme efficace déjà active
+en pleine lumière garde son parcours direct.
+
+Une prise locale donne désormais priorité à GET, même avec un trajet en
+attente. La liste GET sélectionne cette prise plutôt que le premier objet
+disponible. La récupération reste une décision du joueur. Le trajet reste
+mémorisé et redevient la suggestion après récupération.
+
+Mesure `tests/measure_route_resume.py` : réappliquer le cap vers les Rangers
+depuis la vue, ouverture de MAP comprise, passe de 8 à 5 gestes (−37,5 %).
+Les deux parcours au joystick, sans injection d’état, aboutissent à la même
+destination, au même cap et à la même position, sans temps simulé écoulé.
+Cette mesure concerne la reprise de cible, pas la vitesse de chargement.
+
+Validation : les 55 scripts de `test-xl` passent en une exécution complète.
+Les tests supplémentaires d’orientation et SAVE/RESTORE passent également.
+La seule correction suivante est le texte du refus CATCH, qui nomme
+explicitement TRAP pour GAME et FISHNG GEAR pour FISH.
+
+Parcours visible Sierra Nevada niveau 1 : arrivée aux Rangers après
+2 919 minutes, 131 pas et 65,5 cellules ; trois rencontres faune, santé finale
+94 %, eau 32 OZ, nourriture 24 OZ, rating natif 100 %. Le parcours utilise
+les directions et boutons du port de jeu, avec décisions fondées sur l’écran.
+Il inclut repas, repos, reprise annulée puis rouverte, réapplication de la
+cible, plusieurs chasses manquées puis un KILL réussi et SKIN, ainsi qu’une
+traversée SWIM puis WALK. La viande n’a pas été récupérée dans ce parcours ;
+la récupération ciblée après succès est vérifiée dans le test contrôlé
+`test_context_actions.py`. Les 1 236 gestes comprennent des erreurs du pilote
+externe : ils ne servent pas à mesurer un gain global de fluidité.
+
+La suite FORAGE complète passe également après correction de ses appels
+directs de test : ils chargent maintenant SIM avant d’appeler son générateur
+aléatoire, que GRID recouvre dans cette fenêtre mémoire. Les comparaisons
+avec les résultats natifs, dont le refus CATCH sans piège, sont conservées.
+
+
+### Survie guidée et continuité des actions — 18 octobre 2026
+
+MENU propose SURVIVAL en cinquième ligne. Le guide parcourt MEAL, WATER,
+ENERGY et BODY avec haut/bas. Il inspecte les ressources accessibles et
+annonce les prérequis manquants. La portion conseillée est limitée au stock
+de la source nommée. Le corps confortable n’appelle aucun traitement ;
+Entrée garde le guide ouvert. La chaleur conseille ombre, repos et boisson ;
+le froid renvoie aux moyens natifs de feu et de protection.
+
+MEAL ouvre les intentions RECOVER MEAT, SKIN, COOK, EAT ; WATER ouvre
+COLLECT, BOIL, DRINK. Le dernier choix est mémorisé hors sauvegarde. Chaque
+choix rejoint le formulaire natif, sans exécuter d’autre étape implicitement.
+Le guide reste accessible après la récupération. GET direct reste identique.
+Les textes rappellent que COOK et BOIL déplacent la portion portée au sol ;
+si les deux stocks existent, EAT conserve son choix natif PACK/GROUND.
+
+Dans EQUIPMENT, les instructions dépendent du focus réel : l’onglet ouvre
+les listes et gauche/droite changent de page ; les listes ouvrent les actions
+et gauche/droite changent de catégorie. Une catégorie vide explique l’absence
+d’action. Pour un stock de exactement une once, OBJECTS saute uniquement
+l’écran de quantité sans alternative. La confirmation explicite et la
+quantité écrite dans la commande sont conservées.
+
+Le dialogue de trajet utilise TRIPUI, indépendant de la carte et du guide.
+`tests/measure_travel_latency.py --baseline DIR` puis sans cette option
+compare le même WALK 1 H : 22 contre 4 appels READ_BLOCK, état natif final
+identique sur position, cap, temps, santé, repos, RNG, stocks et reste de trajet.
+La durée CPU émulée observée passe de 10,371 à 10,231 secondes ; le dessin
+reste le coût dominant de ce scénario. Cette mesure ne prédit pas le délai
+d’un lecteur physique. Le passage guide→action évite aussi un deuxième
+chargement identique de GRID.
+
+Les 58 scripts de `test-xl` passent, ainsi que SAVE/RESTORE et FORAGE.
+Les scénarios guide vérifient neuf cas, dont corps confortable, chaleur, stock
+d’une once, ressources absentes et annulation. Les parcours contrôlés incluent
+une chasse native réussie puis récupération/cuisson/repas, et collecte puis
+ébullition/boisson ; les stocks, le temps et le RNG sont vérifiés.
+
+Validation visible de cette passe : Sierra Nevada niveau 1, 2 921 minutes,
+130 pas, 65 cellules, deux rencontres faune ; santé finale 95 %, eau 24 OZ,
+nourriture 12 OZ et rating natif 100 %. Une prise de 46 OZ a été récupérée ;
+4 OZ ont été cuits au feu pendant 30 minutes puis consommés depuis LOCAL.
+La dernière once a validé le saut de quantité, l’annulation de confirmation
+puis la consommation explicite. Le guide WATER a aussi conservé son dernier
+choix DRINK. Deux transitions SWIM→WALK, repas et repos ont été observés.
+Les 793 gestes du pilote externe ne constituent pas un benchmark comparable
+aux parties précédentes. La victoire est conservée à l’écran.
+
+Dernier ajustement validé : ENERGY présélectionne 30 min, 2 h ou 8 h selon
+les seuils natifs, sans lancer le repos. Les neuf scénarios du guide passent ;
+les tests affectés de quantités, reprise, pêche/chasse, préparation et parcours
+viande/eau ont été relancés après cet ajustement.
+
+
+### Accès direct et propositions après résultat — 18 octobre 2026
+
+Dans STATUS, bas sélectionne successivement HEALTH, ENERGY, MEAL, WATER
+et BODY ; Entrée ouvre les soins ou le conseil correspondant. Les soins
+actifs et le catalogue complet restent accessibles après ces cinq besoins.
+
+Après un GET de nourriture ou d’eau, COOK ou BOIL lancé au joystick,
+une proposition permet de préparer ou de consommer la portion obtenue.
+Les flèches changent le choix proposé ; Entrée rejoint le formulaire natif,
+Échap revient à la vue. La portion est présélectionnée mais modifiable.
+Après COOK et BOIL, la consommation vise le stock traité au sol ; le stock
+restant dans le sac ou la gourde est conservé. Il n’y a pas de consommation
+automatique. Une nouvelle rencontre ou une fin de partie annule la suite.
+
+Une intention indisponible explique la condition manquante dans la colonne
+de résultat. Retour ou Échap ferme cette explication sans modifier le temps,
+les stocks ou le générateur aléatoire.
+
+Sur le parcours comparatif collecte → BOIL 1 OZ → DRINK 1 OZ, les suites
+réduisent les gestes de joystick de 28 à 16. Les deux parcours emploient
+les mêmes portions natives ; cette mesure ne concerne pas une partie entière.
+Le rendu des transferts CARRY/PACK/DROP AXE économise environ 82 % des cycles
+CPU émulés, avec pixels, messages et simulation identiques au rendu forcé.
+
+Validation finale : les 61 scripts de test-xl passent sur l’image produite,
+ainsi que la suite FORAGE complète, dont 130 cas comparés à la référence.
+
+Partie visible sur cette image : Sierra Nevada niveau 1, arrivée aux rangers
+en 2 637 minutes, 135 pas et 67,5 cellules, deux rencontres, santé finale
+66 %, eau 108 OZ, nourriture 24 OZ, rating natif 100 %. La chasse a connu
+un échec puis un succès, suivi du dépeçage. La nouvelle proposition après
+collecte, sa quantité préremplie et son annulation ont été montrées à l’écran.
+Les traversées et reprises, le refus nocturne, le repos et le recalage final
+de cap utilisent uniquement le joystick. Les 743 gestes de ce pilote ne
+constituent pas une mesure comparable à une autre partie.
+
+
+### Campement, approche et dialogues directs — 18 octobre 2026
+
+Le résultat natif reste dans la colonne gauche. La colonne droite présente
+l’objet récupéré ou traité, sa portion exacte, sa source et le prochain choix.
+Le choix est directement actif : il n’y a plus d’acquittement intermédiaire.
+Annuler conserve le résultat et ne déclenche aucune suite. Le même parcours
+collecte → BOIL 1 OZ → DRINK 1 OZ demande maintenant 14 gestes, contre 16
+à la passe précédente et 28 avant les propositions après résultat.
+
+MENU ajoute NIGHT et NEXT ACTION après SURVIVAL. NIGHT affiche abri,
+protection thermique, couchage, nourriture, eau et repos. Le repos proposé
+est borné à huit heures et arrondi aux durées natives selon la prochaine
+fin de nuit ; le joueur peut le modifier. Ce calcul ne garantit pas un
+réveil au jour : les interruptions et le bilan restent ceux du jeu natif.
+Chaque ligne ouvre un formulaire ; parcourir ou annuler ne simule rien.
+Le sac de couchage accessible est signalé, mais le moteur ne propose ni
+WEAR ni USE pour cet objet. L’aide l’indique et ouvre WEAR CLOTHES pour
+les vêtements réellement portables ; elle n’invente pas d’activation.
+USE propose désormais aussi la tente et les protections déjà prises en
+charge par le moteur ; USE TENT conserve son installation native de 30 min.
+
+NEXT ACTION choisit un conseil à partir des besoins observés : soins actifs,
+alerte thermique ou humidité, nourriture/eau, nuit, fatigue, puis carte.
+Il ne lance aucune action. Les bandeaux de la vue donnent des indications
+courtes comme BODY: WARM, GET WATER ou NEXT: REST.
+
+Un trajet suivi affiche cible, coordonnées, distance fractionnaire, temps
+écoulé/restant et raison native d’arrêt. À deux cellules ou moins, le joueur
+peut payer un seul pas natif, recalculer son cap ou choisir sa durée.
+Le recalage revient à la carte sans reprendre le mouvement. Une distance
+nulle empêche un nouveau départ implicite ; une durée explicite conserve
+les règles habituelles. L’annulation ne change ni cible ni simulation.
+
+Le retour des conseils à la vue réutilise le paysage conservé. Comparaison
+sur le même exécutable : 6 594 503 → 317 813 cycles de jour et
+4 889 284 → 324 797 de nuit, soit environ 93–95 % économisés pour cette
+transition uniquement. Les deux banques DHGR, la simulation et le RNG sont
+identiques ; les anciens rappels de conseil sont effacés au retour.
+
+Validation : les 66 scripts XL passent, ainsi que FORAGE (130 cas ROM,
+quatre exclusions historiques). Les tests contrôlent notamment le pas natif
+court, le recalage sans mouvement, les conseils sans action automatique,
+les durées de nuit, les sources et quantités des suites après résultat.
+
+
+Parcours visible de cette passe : Sierra Nevada niveau 1, chasse réussie
+et récupération de 50 OZ de GAME avec proposition directe de cuisson,
+repas, boisson et deux nuits. Arrivée aux rangers en 2 691 minutes,
+133 pas, 66,5 cellules, santé finale 97 %, rating natif 100 %.
+Les 964 gestes sont le journal du pilote, pas un benchmark de fluidité.
+Cette partie a révélé puis motivé les dernières corrections d’accès :
+la tente dans USE, l’indication honnête du sac de couchage et le passage
+de la grille au choix du pas court. Elle s’est terminée sur l’image
+précédant ces trois corrections ; les tests de leurs chemins au joystick
+sont exécutés sur la dernière image. La victoire reste visible sur 8768.
+
+
+Sur la dernière image, une seconde session visible au joystick vérifie
+NIGHT, WEAR CLOTHES et la présence de TENT dans USE. Une cible POINT à
+1,1 cellule ouvre bien ONE NATIVE STEP depuis WALK : confirmation,
+8 minutes natives payées, distance restante 0,7 cellule. READJUST CAP
+ouvre ensuite le planificateur natif ; annuler ne déplace pas le joueur.
+Ces 128 gestes sont conservés séparément du journal de la victoire.
+Les sept suites affectées par la dernière correction ont été relancées,
+dont le campement complet et l’intégration au game port.
+
+
+### Durées communes, campement et QUICK — 18 octobre 2026
+
+WALK, SWIM, REST et WAIT ouvrent le même sélecteur de minutes, partagé
+entre la grille et les demandes natives sans durée. Haut/bas modifient de
+15 minutes, gauche/droite d’une minute. Retour confirme et mémorise ; Échap
+annule sans mémoriser l’édition. La saisie des heures/minutes reste possible,
+et les commandes tapées avec durée explicite conservent leur interprétation.
+Les propositions ENERGY (30/120/480 minutes) restent disponibles.
+
+NIGHT propose la première minute entière atteignant la fin de nuit. Pour
+un repos traversant minuit, le calcul reproduit uniquement l’astronomie
+native au prochain changement de date, sans appeler la simulation ni le RNG.
+Une minute de marge annoncée couvre l’actualisation native après minuit.
+Il s’agit d’une prévision modifiable : rencontres et risques interrompent
+le repos normalement. Test réel : une demande unique de 541 minutes,
+supérieure à huit heures, coûte exactement 541 minutes et atteint l’aube.
+Les acquittements d’alertes natives après le bilan ne déclenchent pas un
+second repos. Le cas des trente dernières secondes de nuit est aussi testé.
+
+QUICK est ajouté après les verbes contextuels ; les onze verbes de base
+conservent leurs cases. Il ouvre CAMP, NEXT ACTION ou MAP, conserve son
+focus et affiche une condition concrète lorsqu’elle existe : feu actif,
+absence d’eau ou de nourriture portée, capacité pleine. Il ne transfère ni
+n’active rien automatiquement. CAMP présente PREPARE NIGHT, EXIT SHELTER,
+PACK LOCAL TENT et DOUSE FIRE selon la situation, ainsi que BACK. Chaque
+confirmation utilise la commande native et conserve la destination suivie.
+
+Les préparations de cuisson et d’ébullition utilisent CAMPUI. Le dernier
+résultat reste à gauche ; le prérequis et le prochain choix sont à droite.
+Allumette, combustible, feu, réchaud et ustensiles demandent des accords
+séparés. Après préparation, l’objet, sa source et la portion modifiable
+sont retrouvés. Le passage à la portion efface les anciens choix du guide.
+Après BOIL, la proposition DRINK vise bien la portion traitée au sol ; le
+reste éventuel dans la gourde demeure distinct. Annuler ne simule rien.
+
+Deux transitions sont optimisées et comparées au rendu forcé dans le même
+binaire : boisson propre issue entièrement de la gourde, 7 756 350 →
+1 545 276 cycles ; revue/retour d’une cible sans changement de cadrage,
+466 650 → 61 248 et 467 578 → 62 176 cycles. Les deux banques DHGR de la
+vue, les résultats natifs, la carte texte complète, l’état sauvegardé et le
+RNG sont comparés selon la transition. L’eau au sol et l’eau non traitée
+conservent leur rendu habituel. Ces gains ne mesurent pas une partie entière.
+
+La réduction du temps d’affichage a révélé une course dans le pilote de test :
+il pouvait manquer nav_key puis tenir le stick jusqu’à la répétition suivante.
+Le banc relâche désormais le stick après son impulsion et accepte nav_key
+ou l’attente clavier comme fin de dessin. Les assertions de coordonnées
+et de cap sont conservées ; les règles de répétition du jeu sont inchangées.
+
+
+Validation finale de cette passe : les 71 scripts XL passent, ainsi que
+FORAGE (130 cas comparés à la ROM, quatre exclusions historiques).
+Le contrôle complet a été suivi de relances ciblées après l’ajout de la
+préparation explicite des ustensiles depuis BOIL dans la grille. Les tests
+conservent les comparaisons d’état natif, RNG, sources, portions et pixels.
+
+Démonstration visible, Sierra niveau 4 : 157 gestes de joystick, sans
+clavier, fixture ni modification de la mémoire du jeu. QUICK, les trois
+raccourcis, l’édition/annulation d’une durée, WAIT 1 MIN, NIGHT, allumette,
+feu de 30 minutes, ustensiles de 15 minutes, BOIL 1 OZ, DRINK 1 OZ et DOUSE
+ont été montrés. GET WATER a conservé son refus natif de capacité ; cette
+collecte n’est pas comptée comme réussie. La récupération de la tente est
+validée par le test de campement, pas par ce parcours visible borné.
+Les captures et le journal sont dans /tmp/neowilderness-ux8-visible ; la
+session reste disponible sur le port 8770 et la victoire précédente sur
+8768. La démonstration précède le dernier ajout du prérequis d’ustensiles
+à l’accès BOIL direct ; ce chemin final a son test au game port.
+
+### Durées par activité et avertissements actionnables — 18 octobre 2026
+
+WALK/SWIM, REST/CAMP et WAIT disposent de trois mémoires de durée séparées.
+Annuler ne mémorise pas l’édition. Les recommandations ponctuelles, notamment
+NIGHT, restent séparées même lorsqu’elles sont confirmées. Les arguments
+explicitement tapés suivent toujours le lecteur natif ; ils ne modifient pas
+la mémoire du sélecteur au joystick.
+
+Haut/bas choisissent le palier strictement supérieur/inférieur parmi 1, 5,
+10, 20, 30, 60, 120, 240, 480, 960, 1440, 2880, 5760, 10080 et 15300 minutes.
+Gauche/droite ajustent d’une minute, sans dépasser 1–15300. RETURN confirme
+la valeur affichée. Les tests de parcours choisissent un palier seulement
+s’il ne dépasse pas la cible, puis affinent à la minute.
+
+NIGHT ne propose plus vingt heures de repos par défaut en pleine journée.
+Les seuils natifs d’ENERGY donnent 30, 120 ou 480 minutes ; PLAN NEXT DAWN
+est un septième choix séparé. La nuit, le calcul astronomique prévisionnel,
+l’arrondi supérieur et la marge annoncée de minuit sont conservés. Après un
+repos proposé, son bilan natif reste à gauche et REST FOLLOW-UP apparaît à
+droite : revoir le repos jusqu’à l’aube si la nuit continue, ou ouvrir CAMP
+DEPARTURE de jour. RETURN ouvre une inspection ; ESC retrouve la vue.
+Revoir le repos recalcule sa proposition, sans reprendre automatiquement
+la durée restante ni avancer le temps. CAMP offre ensuite les actions
+natives de sortie d’abri, récupération de tente et extinction du feu.
+
+QUICK conserve CAMP, NEXT ACTION et MAP et ajoute un quatrième choix lorsqu’un
+avertissement le justifie. FIX DOUSE demande une confirmation distincte ;
+FIX DRINK et FIX EAT ouvrent les sources réellement accessibles ; FIX FIT
+ouvre GET avec son aperçu de quantité. La priorité observée reste feu,
+absence d’eau portée, absence de nourriture portée, puis capacité pleine.
+
+Dans OBJECTS, les détails de charge et la quantité FIT restent calculés par
+les contrôles existants. À la confirmation d’un transfert divisible, UP FIT
+reprend explicitement la quantité admissible si elle est positive et plus
+petite que la demande. Le même objet, son occurrence, la destination et
+l’action sont conservés ; la quantité redevient éditable et le transfert
+exige encore confirmation. FIT 0 ne déclenche aucun transfert.
+
+Mesure reproductible (`tests/measure_duration.py`, image précédente figée
+avec ses propres labels contre image courante) : sélectionner 1 minute
+depuis 60 prend 17 → 5 gestes et 4 059 789 → 1 195 175 cycles émulés.
+Chaque comparaison vérifie l’absence de changement d’état sauvegardable
+et de RNG pendant l’édition. Ce gain d’environ 71 % concerne cette sélection,
+pas la durée totale d’une partie.
+
+Validation de cette intégration : 71 scripts XL complets et FORAGE contre
+la ROM (130 cas comparés, quatre exclusions historiques). Les régressions
+couvrent WAIT 1 puis WALK 60, le maintien de la mémoire REST après une
+proposition NIGHT confirmée, le repos interrompu au second bouton,
+la revue de l’aube et son annulation, CAMP → NIGHT annulé sans répétition
+de commande, les sources natives QUICK et la correction FIT conservant
+l’occurrence exacte. Les comparaisons natives d’état, RNG et images sont
+conservées. L’image finale occupe 425 blocs sur 1600.
+
+Le parcours visible utilise cette image finale (SHA-256
+`0aa7e8f48332afb517c8b8e7956a82015bcf3c7a9e88aa3b5aad4a111b75bb38`).
+Une première séquence Sierra niveau 1 a montré une chasse naturelle réussie,
+le dépeçage et la récupération de 45 OZ de GAME, la cuisson de 8 OZ et le
+repas. Une correction du pilote a nécessité un redémarrage : son émulateur
+travaille sur une copie privée du disque, et la sauvegarde n’a pas été
+retrouvée après ce redémarrage. Cette séquence ne constitue donc pas la
+première moitié d’une partie restaurée.
+
+Le pilote corrigé attend seulement les points d’entrée résidents idle et
+keyboard_wait, puis laisse le joystick au neutre avant la commande suivante.
+Il n’utilise plus l’adresse nav_key comme arrêt global : cette adresse peut
+désigner d’autres instructions lorsque SIM remplace NAVIGATION.
+
+La seconde partie, Sierra niveau 4, a montré une nuit en tente interrompue
+par un cougar après 120 minutes sur une demande de 484. Après son départ,
+le joueur a revu et confirmé les 289 minutes recalculées jusqu’au jour,
+puis ouvert CAMP DEPARTURE depuis le résultat. Le menu de campement a été
+annulé sans action supplémentaire. Captures 10 à 13 dans
+`/tmp/neowilderness-ux9-visible`, session visible sur le port 8771.
+
+Cette seconde partie a ensuite abattu du GAME avec la lance fabriquée,
+dépecé la prise et récupéré 26 OZ. COOK 8 OZ a été confirmé, puis EAT
+depuis la proposition explicite de suite ; les captures 14 à 16 montrent
+ces étapes. La même partie a atteint les rangers (capture 19) : 3377 minutes,
+175 pas natifs, 87,5 cellules, cinq rencontres animales, santé finale 89 %,
+16 OZ d’eau, 172 OZ de nourriture et note native 100 %.
+
+Le compteur global de 2093 gestes comprend la première tentative et les
+diagnostics. La séquence du pilote corrigé en compte 1212, y compris le
+démarrage et l’essai de restauration vide ; ces chiffres ne constituent
+pas une comparaison contrôlée avec la victoire précédente au niveau 1.
+Les seules entrées de jeu sont les axes et boutons du game port, sans
+commande tapée, fixture ni modification de mémoire dans les parties
+visibles. L’écran de victoire de cette image reste ouvert sur le port 8771.
+
+Le journal `journey-summary.json`, les entrées et les durées sont conservés
+avec les captures. Sur les 1212 événements du pilote corrigé, l’attente
+mesurée dans l’émulateur jusqu’au retour prêt totalise 12,472 secondes,
+médiane 4 ms, 95e percentile 59 ms et maximum 130 ms pour la confirmation
+du repos de 289 minutes. Ces chiffres excluent captures, HTTP, pilotage
+et pauses humaines ; ils ne mesurent pas la vitesse sur Apple II réel.
+Aucun nouveau blocage d’attente n’a justifié de modifier encore le moteur.
+La réduction contrôlée des gestes et cycles du choix de durée est décrite
+plus haut ; elle reste distincte du temps total de ce parcours.
+
+## Chasse suivie, campement et interruptions — livraison UX10
+
+La chasse présente l’arme réellement en usage et permet de préparer une
+arme possédée ou de fabriquer une lance si les conditions natives sont
+réunies. Cette préparation revient au bilan avant l’attaque. Après un
+échec, reprendre, changer d’arme ou abandonner sont des choix explicites.
+Après réussite, le menu suit la même prise : SKIN, récupération native,
+puis les propositions existantes de cuisson et de repas. Les flèches et
+le bouton suffisent ; aucune suite ne lance plusieurs actions cachées.
+
+CAMP retrouve l’étape sélectionnée après chaque action, avec ses
+prérequis actualisés. NIGHT et les actions du matin conservent leurs
+confirmations. CAMP DEPARTURE permet aussi de revoir le trajet suivi.
+Une correction QUICK du feu reste indépendante de ce parcours.
+
+Une rencontre conserve le résultat natif et présente l’état réel du feu
+et de l’équipement. ATTACK, SCARE, IGNORE, USE, FIRE, WALK et SWIM
+ouvrent les actions natives correspondantes. Le trajet ou le repos
+interrompu est conservé ; après résolution, sa reprise demande un choix.
+Une annulation n’exécute pas d’action ni de tirage aléatoire.
+
+Après un soin ou une action de survie au joystick, un trajet suivi peut
+être revu ou repris avec WALK/SWIM. Le menu rappelle les terrains utiles,
+conserve le cap et le reste du trajet, et permet aussi le recalage loin
+de la cible. L’approche proche garde les pas natifs individuels. Les
+commandes tapées conservent leur comportement natif.
+
+Sur la même chasse réussie, SKIN, PACK, COOK 8 OZ pendant 30 minutes,
+puis EAT 8 OZ passent de 27 à 12 gestes. Les 1497 octets sauvegardables
+sont identiques après la chasse, la cuisson et le repas. Le coût mesuré
+passe de 32 632 702 à 28 800 420 cycles émulés, impulsions de joystick
+comprises, hors mise en place et allumage. Le script reproductible est
+`tests/measure_hunt_flow.py`, avec une image et ses propres labels par
+répertoire de comparaison. Cette mesure ne décrit pas une partie entière.
+
+Validation : les 74 scripts XL ont réussi sur l’image finale, ainsi que
+FORAGE contre la ROM avec 130 cas comparés et quatre exclusions
+historiques. Les régressions couvrent aussi les interruptions de repos,
+les échecs de chasse, l’annulation, les retours au même choix, la reprise
+du trajet et les comparaisons natives d’état, de RNG et d’images.
+L’image occupe 432 blocs sur 1600, SHA-256
+`349e9c3f00c5414cb6429305d6d0e3b3762a079b5ffe3338e58e3061ffd52f1f`.
+Le parcours visible sur le port 8771 décrit ci-dessus utilise l’image
+précédente ; il ne constitue pas une démonstration de cette livraison.

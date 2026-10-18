@@ -190,9 +190,8 @@ inventory_redraw:
         ldy     #>ob_hints
         XL_ABS  XI_STATUS, mt_str, @x26
         jsr     print_str_ay
-        lda     #<ob_line
-        ldx     #>ob_line
-        jsr     print_str_ax
+        jsr     puts
+        .byte   "ITEM ACTIONS",0
 @res_next:
         inc     ob_row
 @res_end:

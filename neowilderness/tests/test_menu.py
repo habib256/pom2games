@@ -80,7 +80,7 @@ def scenario(region, level_keys='', level=4):
         assert sentence == entry['fauna_sentence'] and intro == entry['intro_name'], (sentence, intro)
         rows = text_screen(s.step('peek:0400:1024').data)
         welcome = ' '.join(r.strip() for r in result_rows(rows)[:3] if r.strip())   # row 23: the stock row
-        assert welcome == f'CRASH IN {intro}. REACH THE RANGERS. WILDLIFE: {sentence}', rows[20:]
+        assert welcome == f'CRASH IN {intro}. GOAL: REACH THE RANGERS. UP: PAGES. RETURN: ACTIONS.', rows[20:]
         tables = s.step(L.peek('dhgr_moods', L['dhgr_tables_end'] - L['dhgr_moods'])).data
         assert tables == (HERE / f'build/dhgr/dhgr_tables_r{region}.bin').read_bytes(), (region, 'colours')
         # First view: geometry and palette of the region's own map.

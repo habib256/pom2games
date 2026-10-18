@@ -469,7 +469,7 @@ def port_checks():
         port.poke('fg_y', y)
         text, _ = run(port, 'KILL GAME')
         check('KILL GAME with the BOW: the flag cleared, a result', port.byte('fg_use') & 4 == 0
-              and ('BITTEN THE DUST' in text or 'BETTER LUCK' in text), text)
+              and ('BITTEN THE DUST' in text or 'MISSED. TRY AGAIN.' in text), text)
         run(port, 'USE BOW')
         run(port, 'WAIT 1')
         check('the BOW no longer in use once time passes', port.byte('fg_use') & 4 == 0)
