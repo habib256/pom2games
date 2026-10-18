@@ -121,11 +121,15 @@ mn_dst: .res 2
 ; get_line -- the prompt: returns with the command in inbuf / linelen.
 ; ----------------------------------------------------------------------------
 ; fire_idle -- (idle) no key waits: the campfire's turn (src/fire.s).
+.pushseg
+.segment "CODE"
 fire_idle:
         jsr     fire_tick
         jmp     idle
+.popseg
 get_line:
         jsr     menu_gather
+        jsr     followup_poll
         lda     mq_n            ; a queue of the grid (src/grid.s): its next
         beq     get_line_body   ; step, or the end of the queue
         jsr     grid_fetch
@@ -140,7 +144,7 @@ get_line_body:
         jsr     stock_row
         jsr     redraw
 idle:   jsr     ui_prompt_poll         ; keyboard and game-port navigation
-        beq     fire_idle
+        jeq     fire_idle
         sta     fire_dly+1      ; a key: the fire waits (src/fire.s)
         and     #$7F
         jsr     kbd_upcase
@@ -285,7 +289,7 @@ menu_key:
 @moved: jsr     scroll_to_cur
         jsr     draw_grid
         jmp     idle
-@back:  lda     mn_level
+@back:  jsr     camp_cancel_menu
         cmp     #1
         beq     @close
         jsr     level1          ; a list: back to the verbs
@@ -401,9 +405,13 @@ menu_gather:
 to_prompt:
         lda     #0
         sta     mn_mode
+        lda     mn_level
+        cmp     #1
+        bne     level1
+        rts                     ; existing verb grid: accept typing immediately
 ; level1 -- the grid of verbs: the base verbs at their fixed cells (greyed
 ; when they cannot act here), then the contextual ones that can; the cursor
-; on the last verb chosen, or on KILL when an animal has just arrived.
+; on the last verb chosen, with a safe default when useful context changes.
 level1: lda     #1
         sta     mn_level
         lda     #0
@@ -421,17 +429,9 @@ level1: lda     #1
         lda     #>verb_table
         sta     mn_list+1
         jsr     build_verbs
-        lda     #C_ANIMAL       ; an animal arrived: the cursor on KILL
-        jsr     ctx_ok
-        lda     #0
-        rol     a
-        cmp     mn_anim
-        sta     mn_anim
-        beq     :+
-        bcc     :+
-        lda     #E_KILL
-        sta     mn_verb
-:       ldx     mn_count        ; the cell of the last verb chosen
+        jsr     grid_fetch
+        jsr     module_context_focus
+        ldx     mn_count        ; the cell of the last verb chosen
 :       dex
         bmi     :+
         lda     mn_idx,x
@@ -442,36 +442,10 @@ level1: lda     #1
         .byte   $2C             ; BIT abs: skips the LDA
 :       lda     #0
         sta     mn_cur
-; scroll_to_cur -- the three visible rows include the selected cell.
-scroll_to_cur:
-        lda     mn_cur
-        ldx     #0
-:       cmp     mn_cols
-        bcc     :+
-        sbc     mn_cols
-        inx
-        bne     :-
-:       cpx     mn_top          ; X = row of the selection
-        bcs     :+
-        stx     mn_top
-        rts
-:       txa
-        sec
-        sbc     #MN_ROWS-1
-        bcc     :+
-        cmp     mn_top
-        bcc     :+
-        sta     mn_top
-:       rts
+        jmp     scroll_to_cur
+
 
 ; verb_of_cur -- mn_verb = the verb_table entry of the selected cell.
-verb_of_cur:
-        ldx     mn_cur
-        lda     mn_idx,x
-        and     #$7F
-        sta     mn_verb
-        rts
-
 ; items_any -- A = filter: C set when one item at least qualifies.
 items_any:
         sta     mn_t
@@ -794,6 +768,8 @@ text_of:
         bne     :+
         lda     mn_idx,y        ; the grid: entry number
         and     #$7F
+        cmp     #126
+        jeq     quick_label
         tay
 :       sty     mn_n
         lda     mn_list
@@ -1320,10 +1296,10 @@ str_topo:    .byte "T", 0        ; fast_words: TOPO
 ; last + 1, the groups the verb does not name (GET: not the pack's nor the
 ; worn; DRINK: the water alone). The piles of lot 4 (76..86, HIDE 94) are
 ; members too (member). Resident since the integration of lots 2, 7, 9 and 13.
-filt_lo: .byte  1, 2, 1, 23, 38, N_WATER
-filt_hi: .byte  95, 21, 95, 87, 94, N_WATER+1   ; USE: 38-73 (lot 2; lot 7's MAP...CHART within), 89-93 (lot 3)
+filt_lo: .byte  1, 2, 1, 23, 9, N_WATER
+filt_hi: .byte  95, 21, 95, 87, 94, N_WATER+1   ; USE whitelist includes tent and covers, 38-73, 89-93
 filt_ex: .byte  G_PACK|G_WORN, 0, G_GROUND|G_HUNG, G_HUNG, 0, G_HUNG
-; use_item_ok -- C set when USE handles item X: GND COVER, RAINCOAT,
+; use_item_ok -- C set when USE handles item X: TENT, GND COVER, RAINCOAT,
 ; MATCHES, GLASS, FUEL, the medicine (41-51), FLASHLIGHT, STOVE, UTENSILS.
 use_item_ok:
         txa
@@ -1342,7 +1318,7 @@ use_item_ok:
         cmp     #1              ; C set when the bit is
         rts
 use_bit:    .byte 1,2,4,8,16,32,64,128
-use_items:  .byte $00,$18,$00,$00,$C0,$FF,$0F,$00,$84,$02,$00,$3E ; 11,12,38-51,66,71,73, 89-93
+use_items:  .byte $00,$1A,$00,$00,$C0,$FF,$0F,$00,$84,$02,$00,$3E ; 9,11,12,38-51,66,71,73,89-93
 ; cr_rock_land -- (member) the ROCK absent: G_GROUND on a land cell once
 ; the player has left the settled cell (cr_still 0; water_bits, cached at
 ; the prompt: bit 1 water), else 0 (settled: in the water).
@@ -1400,8 +1376,12 @@ mn_hdr:   .byte 0               ; bytes before a label (2: verb_table)
 mn_items: .byte 0               ; the list names items (overlay_text)
 mn_list:  .word 0
 mn_kind:  .byte 0
-mn_anim:  .byte 0               ; 1: an animal was here at the last grid
+mn_anim:  .byte 0               ; UI-only signature of the last useful context
 menu_noun: .byte 0              ; item chosen in a list (resolve_noun)
+; UI preferences only, outside the saved simulation state. Zero means the
+; first interaction keeps the historical minimum/default selection.
+menu_portion: .byte 0,0,0       ; last confirmed EAT, DRINK, BOIL ounces
+menu_duration: .byte 0          ; last confirmed WALK/SWIM duration index
 msg_wlen: .byte 0
 msg_x:    .byte 0
 msg_y:    .byte 0
@@ -1450,3 +1430,21 @@ pg_open:  .byte 0               ; CARE: STATUS opens on MEDICAL, focused
 
 .segment "MENUCODE"
 
+
+; Cancellation clears only an unaccepted CAMP preparation, preserving the
+; independent cooking guide. Same-size call site keeps MENUCODE within RAM.
+.pushseg
+.segment "LOWCODE"
+camp_cancel_menu:
+        jsr     camp_cancel_preparation
+        lda     mn_level
+        rts
+camp_cancel_preparation:
+        lda     camp_pending
+        and     #$40
+        beq     :+
+        lda     #0
+        sta     camp_pending
+        sta     dep_running
+:       rts
+.popseg

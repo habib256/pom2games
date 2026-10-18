@@ -568,7 +568,7 @@ pf_options:
         .byte   PF_END
 pf_menu:
         PF      2, 5, 0, 79, 0                  ; RANGERS
-        PF      6, 10, 0, 79, 0                 ; SAVE / RESTORE / QUIT
+        PF      6, 14, 0, 79, 0                 ; journey and survival actions
         .byte   PF_END
 
 ; The keys of the cursor pages and of OBJECTS (page_foot's pg_k_menu,
@@ -648,3 +648,9 @@ xl_pad_end:
         XL_BYTE XI_LOWPG, pad_to, $4C
         XL_BYTE XI_LOWPG, pad_to+1, <(page_foot+xl_padhook-xl_pad)
         XL_BYTE XI_LOWPG, pad_to+2, >(page_foot+xl_padhook-xl_pad)
+
+; Modal lookup tables follow stx_base so the XL tail is appended at its
+; physical start. They remain loaded while the TREE editor runs.
+om_to: .byte om_to_pack,om_to_hand,om_local_label,om_to_worn,om_to_use,om_to_body,om_to_body,om_to_can
+om_source_places:
+        .byte om_local_label,om_to_worn,om_to_pack,om_to_hand,om_to_pack,om_hung_label

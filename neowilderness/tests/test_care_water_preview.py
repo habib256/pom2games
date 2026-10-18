@@ -50,9 +50,13 @@ def check(disk, name, expected, gesture=0, place=2, packed=0, ground=0,
         s.step(L.poke('wet_mode', wet))
         s.step(L.poke('camp_untreated', 7))
         s.step(L.poke('geo_wooded', 91)); s.step(L.poke('geo_water_kind', 64))
+        # This fixture selects the first active care row. Journey preparation
+        # may supply other injuries; only dehydration belongs in this case.
+        for condition in range(13):
+            s.step(L.poke('injury_active', 0, condition))
         s.step(L.poke('injury_active', 1, 4))
         before = saved_state(s)
-        event(s, 'up'); event(s, 'down')
+        event(s, 'up'); event(s, 'down'); event(s, 'ok')
         if gesture:
             event(s, 'right')
         line = rows(s)[22]

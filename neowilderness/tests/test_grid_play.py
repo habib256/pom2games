@@ -2,7 +2,8 @@
 """The grid played with the arrows and RETURN alone (docs/MENUS.md 4), on
 both editions: from the start of the Sierra Nevada journey, light a fire
 (MAKE, FIRE: USE MATCHES, MAKE FIRE and USE FIRE in the morning cold, the
-grid's queue), boil water (BOIL, 8 OZ: USE UTENSILS, BOIL WATER 8 OZ),
+grid's queue), explicitly prepare utensils through CAMP then boil water
+(BOIL, 8 OZ: USE UTENSILS, BOIL WATER 8 OZ),
 eat a pile of mushrooms found here (EAT, MUSHROOMS, 8 OZ, lot 4) and stop a
 bleeding (CARE: the MEDICAL page on SEVERE CUTS, RETURN on STOP BLEEDING).
 Only the keys a joystick gives are pressed: LEFT, RIGHT, UP, DOWN, RETURN.
@@ -11,7 +12,7 @@ Each action reports its keys, the commands typed for the player, its disk
 reads (NEOWILD.BLK: FORAGE, MEDVIEW on both editions) and its emulated time.
 """
 from common import L, DISK, DISK140, a2test, text_screen
-from test_menu_bar import grid_cells, selected, bottom, RIGHT, RET
+from test_menu_bar import grid_cells, selected, bottom, RIGHT, RET, open_boil_quantities
 
 LIMIT = 400000
 IDLE = L.until('idle', LIMIT)
@@ -21,6 +22,16 @@ MUSHROOMS = 85 - 76                     # their pile (src/forage.s fg_*)
 
 def peek(s, name, k=0):
     return s.step(L.peek(name, 1, k)).data[0]
+
+
+def decline_followup(s):
+    """Keep this native-comparison scenario on its own explicit action path."""
+    ready = L.until('keyboard_wait', LIMIT)
+    s.step(ready)
+    assert peek(s, 'dep_running') & 0x80, bottom(s)
+    assert 'BOILED PORTION' in '\n'.join(bottom(s)), bottom(s)
+    assert 'RET:SELECT ESC:CANCEL' in ' '.join(bottom(s)), bottom(s)
+    s.step('key:\\e'); s.step('wait:1'); s.step(IDLE)
 
 
 def play(disk):
@@ -50,14 +61,18 @@ def play(disk):
             # The MEDICAL page (CARE types STATUS) is detected at the resident
             # entry scr_status: page_top lies in the SIM window, where the GRID
             # image ($A300) runs the queue at the same addresses.
+            preparation = []
             for label in labels[:-1]:
-                to(label)
-                key(RET)
-                s.step(IDLE)
+                if label == 'BOIL':
+                    preparation += open_boil_quantities(s)
+                else:
+                    to(label)
+                    key(RET)
+                    s.step(IDLE)
             to(labels[-1])
             reads = int.from_bytes(s.step(L.peek('mli_reads', 2)).data, 'little')
             s.step(f'press:{RET}')              # in the latch at once: do_command is on the way
-            commands = []
+            commands = preparation[:]
             out = s.step(L.until('do_command', LIMIT))
             cycles0 = out.cycles[-1]
             while True:
@@ -65,7 +80,11 @@ def play(disk):
                 out = s.step(f'until:{L["get_line"]:04X},{L["scr_status"]:04X}:{LIMIT}')
                 if f'PC={L["scr_status"]:04X}' in out.out:
                     break
-                out = s.step(f'until:{L["do_command"]:04X},{L["idle"]:04X}:{LIMIT}')
+                out = s.step(f'until:{L["do_command"]:04X},{L["idle"]:04X},{L["keyboard_wait"]:04X}:{LIMIT}')
+                if f'PC={L["keyboard_wait"]:04X}' in out.out:
+                    decline_followup(s)
+                    out = s.step(IDLE)
+                    break
                 if f'PC={L["idle"]:04X}' in out.out:
                     break
             log.append((name, commands, int.from_bytes(s.step(L.peek('mli_reads', 2)).data, 'little') - reads,
@@ -79,7 +98,7 @@ def play(disk):
         action('fire', 'MAKE', 'FIRE')
         assert peek(s, 'fire_on') and peek(s, 'fire_near') and peek(s, 'mq_n') == 0, (log, bottom(s))
         assert log[-1][1] == ['USE MATCHES', 'MAKE FIRE', 'USE FIRE'], log
-        # Water: BOIL, 8 OZ (the utensils first).
+        # Water: explicitly confirm UTENSILS and READY before BOIL, 8 OZ.
         water = peek(s, 'it_pack_lo', 22)
         action('boil', 'BOIL', '8 OZ')
         assert log[-1][1] == ['USE UTENSILS', 'BOIL WATER 8 OZ'], log
@@ -94,14 +113,19 @@ def play(disk):
         action('mushrooms', 'EAT', 'MUSHROOMS', '8 OZ')
         assert log[-1][1] == ['EAT MUSHROOMS 8 OZ'] and peek(s, 'fg_gl', MUSHROOMS) == 12, \
             (log, peek(s, 'fg_gl', MUSHROOMS))
-        # A bleeding (poked: the next grid offers CARE; UP above the first
-        # row closes the grid and rebuilds it, RETURN reopens it): CARE,
-        # the MEDICAL page on SEVERE CUTS, RETURN.
+        # A bleeding fixture: close the existing grid, then turn the view
+        # to refresh offered actions without simulation. Native injuries
+        # refresh them when simulation returns; injected state needs this
+        # explicit refresh. CARE opens MEDICAL on SEVERE CUTS.
         s.step(L.poke('injury_active', 1, 0))
         for _ in range(4):
             if selected(s) is None:
                 break
             key('\\^')
+            s.step(IDLE)
+        # Closing/reopening alone deliberately retains the existing grid.
+        for turn in (RIGHT, '\\<'):
+            key(turn)
             s.step(IDLE)
         key(RET)
         s.step(IDLE)
@@ -110,7 +134,7 @@ def play(disk):
         s.step(L.until('keyboard_wait', LIMIT))
         row = text_screen(s.step('peek:0400:1024').data)[23]
         foot = ' \u2190\u2192 ' if disk == DISK else ''     # XL: the pages' footer (docs/MENUS.md 9)
-        assert peek(s, 'pg_focus') == 1 and row.startswith(foot + 'STOP BLEEDING'), row
+        assert peek(s, 'pg_focus') == 6 and row.startswith(foot + 'STOP BLEEDING'), row
         reads = int.from_bytes(s.step(L.peek('mli_reads', 2)).data, 'little')
         s.step(f'press:{RET}')
         s.step(L.until('do_command', LIMIT))
@@ -181,7 +205,9 @@ def one_ounce(disk):
                         assert state(s) == before, 'cancelling the portion changed the journey'
                         if selected(s) is None:
                             press(s, RET)
-                    composed, _ = choose(s, *labels)
+                    composed, _ = choose(s, *labels, settle=labels[0] != 'BOIL')
+                    if labels[0] == 'BOIL':
+                        decline_followup(s)
                     assert composed == line, (labels, composed)
                     assert peek(s, 'mq_n') == 0
                 else:

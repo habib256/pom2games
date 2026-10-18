@@ -2,136 +2,151 @@
 ; Found shelter and a first text TOPO. No disk loads while this module runs:
 ; transitions tail-call show_view, which may replace the shared window.
 .segment "SITES"
-module_site:
-        lda     #1
-        sta     ui_dirty
-        lda     verb
-        cmp     #V_ENTER
-        beq     @enter
-        cmp     #V_EXIT
-        beq     @exit
-        lda     #<site_leave
-        ldx     #>site_leave
-        jmp     message
-@enter: lda     noun
-        cmp     #137             ; SHELTER (found); HUT, IGLOO, TRENCH, TENT: lot 3
-        jne     @crafted
-        lda     tree_in
-        beq     :+
-        jmp     do_tree          ; tail-call resident loader before replacing SITES
-:
-        lda     shelter_inside
-        bne     @already
-        lda     MAP+16
-        beq     @absent
-        lda     px+1
-        cmp     MAP+17
-        bne     @absent
-        lda     py+1
-        cmp     MAP+18
-        bne     @absent
-        lda     MAP+37
-        beq     :+
-        lda     px
-        cmp     MAP+34
-        bne     @absent
-        lda     py
-        cmp     MAP+35
-        bne     @absent
-        ; The animal stays (D4, docs/CRAFT.md 3.4): risk x .1 inside,
-        ; ATTACK and SCARE allowed; the shelter shows no view.
-:       lda     #1
-        sta     shelter_inside
-        jmp     show_view
-@exit:  lda     noun
-        cmp     #137
-        jne     @crafted
-        lda     shelter_inside
-        beq     @outside
-        lda     #0
-        sta     shelter_inside
-        sta     scene_minutes
-        lda     night
-        bne     @exit_view       ; dark view supplies its own single message
-        lda     #<site_outside
-        ldx     #>site_outside
-        jsr     message
-@exit_view:
-        jmp     show_view
-@specific:
-        lda     #<site_specific
-        ldx     #>site_specific
-        jmp     message
-@absent:
-        lda     #<site_absent
-        ldx     #>site_absent
-        jmp     message
-@already:
-        lda     #<site_already
-        ldx     #>site_already
-        jmp     message
-@outside:
-        lda     #<site_outside
-        ldx     #>site_outside
-        jmp     message
-
-; ENTER, EXIT of the HUT, IGLOO, TRENCH (lot 3, docs/CRAFT.md; T12/S08 as
-; probed): absent msg 1; ENTER inside msg 11, else in (msg 10, the IGLOO
-; 35 F, health steps of 15 minutes); EXIT outside msg 11, else out (msg 10).
-; The TENT alike, present here or carried.
-@crafted:
-        ldx     noun
-        cpx     #9
-        beq     :+
-        cpx     #95
-        bcc     @specific
-        cpx     #98
-        bcs     @specific
-        txa
-        sec
-        sbc     #95
+; Trampolines stay in $5800 while NAVIGATION/GRID replace one another.
+departure_open:
+        jsr     navigation_load
+        jmp     module_departure
+departure_resume:
+        jsr     navigation_load
+        jmp     module_departure_resume
+departure_execute:
+        jsr     grid_fetch
+        jmp     module_departure_queue
+hunt_open:
+        jsr     guidance_load
+        jmp     navigation_hunt_review
+hunt_execute:
+        pha
+        jsr     grid_fetch
+        pla
+        jmp     module_hunt_execute
+hunter_result_open:
+        jsr     guidance_load
+        jmp     navigation_hunt_result
+hunter_result_execute:
+        pha
+        jsr     campui_load
+        pla
+        jmp     fu_hunt_execute
+hunter_again:
+        jsr     grid_fetch
+        jmp     module_hunt_again
+guidance_open:
+        pha
+        jsr     guidance_load
+        pla
+        jmp     guidance_dispatch
+navigation_route_open:
+        jsr     navigation_load
+        jmp     module_navigation
+flows_execute:
+        ; The guide was entered as a STATUS command. Native forms instead
+        ; return a composed line from get_line, before main executes it.
         tay
-        lda     cr_sx,y
-        cmp     px+1
-        bne     @gone
-        lda     cr_sy,y
-        cmp     py+1
-        bne     @gone
-        beq     @here
-:       jsr     have
-        bcc     @gone
-@here:  lda     verb
-        cmp     #V_ENTER
-        bne     @out
-        lda     tree_in
-        beq     :+
-        jmp     do_tree
-:       lda     shelter_inside
-        bne     @have
-        ldx     #1
-        lda     noun
-        cmp     #96             ; IGLOO
-        bne     :+
-        inx
-:       stx     shelter_inside
-        lda     #15
-        sta     health_period
-        bne     @ok
-@out:   lda     shelter_inside
-        beq     @have
+        pla
+        pla
+        lda     #>(main_command-1)
+        pha
+        lda     #<(main_command-1)
+        pha
+        tya
+        pha
+        jsr     back_to_view_now
+        jsr     menu_gather
+        jsr     level1          ; build offers and fetch GRID once, not twice
+        pla
+        jmp     module_flows_execute
+
+campguide_execute:
+        cmp     #$FF
+        beq     refusal_close
+        cmp     #$FE
+        bne     @command
+        lda     menu_noun
+        bne     @command
+        lda     camp_intent
+        jmp     flows_execute
+@command:
+        jsr     menu_gather
+        jmp     done_menu
+followup_open:
+        jsr     campui_load
+        jmp     followup_check
+followup_execute:
+        cmp     #$FF
+        beq     refusal_close
+        pha
+        jsr     menu_gather
+        jsr     back_to_view_now
+        pla
+        cmp     #18             ; BOIL keeps the existing UTENSILS queue
+        beq     @boil
+        jmp     done_menu       ; exact noun/source command already composed
+@boil: pha
+        jsr     level1          ; fetches GRID, then opens its native portion list
+        pla
+        jmp     module_flows_execute
+refusal_open:
+        pha
+        jsr     campui_load
+        pla
+        jmp     module_refusal
+refusal_close:
+        jsr     show_dhgr      ; restore the preserved image without clearing the result
+        jsr     menu_gather
+        jmp     get_line_body
+
+module_site:
+        jsr     navigation_load
+        jmp     navigation_site
+
+; The planner and shelter commands share an on-demand SIM-window image.
+; Restore the two scratch-directory bytes which text_fetch expects intact.
+navigation_load:
+        ldx     #0
+        beq     ui_overlay_load
+trip_load:
+        ldx     #2
+        bne     ui_overlay_load
+guidance_load:
+        ldx     #4
+        bne     ui_overlay_load
+campui_load:
+        ldx     #6
+ui_overlay_load:
+        lda     #BANK_DISK
+        sta     SITE_ENTRY
+        lda     nav_disk_block,x
+        sta     SITE_ENTRY+1
+        lda     nav_disk_block+1,x
+        sta     SITE_ENTRY+2
+        lda     nav_disk_length,x
+        sta     SITE_ENTRY+3
+        lda     nav_disk_length+1,x
+        sta     SITE_ENTRY+4
         lda     #0
-        sta     shelter_inside
-        sta     scene_minutes
-@ok:    lda     #<m_ok
-        ldx     #>m_ok
-        jsr     message
-        jmp     show_view
-@have:  lda     #<c_m11
-        ldx     #>c_m11
-        jmp     message
-@gone:  lda     #<c_m1
-        ldx     #>c_m1
-        jmp     message
+        sta     SITE_ENTRY+5
+        sta     sim_loaded
+        lda     #$96
+        sta     SITE_ENTRY+6
+        ldx     #TB_FETCH
+        jsr     sim_fetch
+        lda     SITE_BANK_OF
+        sta     SITE_ENTRY
+        lda     #0
+        sta     SITE_ENTRY+4
+        rts
+nav_disk_block: .word 0
+trip_disk_block: .word 0
+guidance_disk_block: .word 0
+campui_disk_block: .word 0
+threat_disk_block: .word 0
+nav_disk_length: .word 0
+trip_disk_length: .word 0
+guidance_disk_length: .word 0
+campui_disk_length: .word 0
+threat_disk_length: .word 0
+.export nav_disk_block, nav_disk_length, guidance_disk_block, guidance_disk_length
 
 module_shelter_view:
         lda     #0
@@ -184,7 +199,10 @@ module_topo:
         lda     #<topo_off
         ldx     #>topo_off
         jmp     message
+.pushseg
+.segment "LOWTEXT"
 topo_off: .byte "MAP IS OFF (OPTIONS PAGE).", 0
+.popseg
 :       lda     #0              ; over the view
 topo_enter:
         sta     topo_over
@@ -367,6 +385,10 @@ topo_draw:
         jsr     vtab
         jsr     topo_cue
         lda     #TOPO_H
+        ldx     topo_walk
+        bne     :+
+        lda     #TOPO_H-1       ; the interactive footer is not a terrain row
+:
         sta     topo_rows
 @row:   lda     #TOPO_W
         jsr     topo_span
@@ -440,13 +462,28 @@ topo_cue:
         sbc     hud_offset+1
         sta     ang+1
         jsr     wrap_ang
+        ; Preserve the geometric angle for the cardinal; show degrees to humans.
         lda     ang
-        sta     num
+        pha
         lda     ang+1
+        pha
+        ldy     ang
+        lda     ang+1
+        jsr     GIVAYF
+        fop     FMULT, topo_deg
+        fop     FADD, f_half
+        jsr     AYINT
+        lda     $A1
+        sta     num
+        lda     $A0
         sta     num+1
         jsr     print_u16
         jsr     puts
-        .byte " ",0
+        .byte " DEG MAG ",0
+        pla
+        sta     ang+1
+        pla
+        sta     ang
         clc
         lda     ang
         adc     #35
@@ -551,7 +588,7 @@ topo_show:
         jmp     @ready
 @navigation:
         jsr     puts
-        .byte "RETURN EXPLORE MAP  ESC VIEW",0
+        .byte "TRUE N UP  RETURN PLAN  ESC VIEW",0
 @ready: jsr     topo_pad
         jsr     show_text
 topo_key:
@@ -593,7 +630,11 @@ topo_sheet_on:
         lda     #0              ; a later walk draws its whole map first
         sta     topo_cue_end
         lda     topo_over
+        beq     @fresh
+        cmp     #$80
+        beq     @fresh
         bne     :+
+@fresh:
         jmp     module_graphical_topo
 :
         jsr     topo_frame
@@ -605,6 +646,9 @@ topo_done:
         lda     #0              ; a later walk draws its whole map first
         sta     topo_cue_end
         lda     topo_over
+        cmp     #$80
+        jeq     graphical_topo_redraw
+        cmp     #0
         beq     :+
         jmp     graphical_topo_done
 :       jmp     back_to_view_now
@@ -805,6 +849,7 @@ graphical_topo_done:
         bcs     @redraw
         jmp     back_to_view_now ; legend rows (MAP: the whole text page)
 @redraw:
+graphical_topo_redraw:
         lda     #0
         sta     scene_drawn
         lda     #1
@@ -820,7 +865,7 @@ graphical_topo_done:
 ; column and the grid of the view.
 topo_legend:
         jsr     puts
-        .byte   "TOPO, NORTH UP. ARROW: YOU",0
+        .byte   "TOPO, TRUE N UP. ARROW: YOU",0
         jsr     tp_sep
         .byte   "UP/ESC: VIEW|"
         .byte   "C CRASH, H CABIN, R RANGERS",0
@@ -844,15 +889,37 @@ tp_sep: lda     #39
 
 .segment "SITES"
 topo_explore_enter:
-        lda     #1
-        sta     topo_explore
-        jmp     topo_recenter
-topo_explore_leave:
+        ; Planning uses the SIM window. Restore TOPO before replacing its
+        ; snapshot code; the map remains over the preserved outdoor view.
+        lda     topo_over
+        cmp     #1
+        bne     :+
+        jsr     topo_close
         lda     #0
-        sta     topo_explore
-        jmp     topo_redraw
+        sta     scene_drawn
+        bcc     @closed
+        lda     #$80            ; native geography has no saved DHGR view
+@closed:
+        sta     topo_over
+:       jsr     navigation_load
+        jmp     module_navigation
+; Kept as aliases for callers; planning now owns its cursor and keys.
+topo_explore_leave: jmp topo_redraw
 topo_explore_left: jmp topo_left
 topo_explore_right: jmp topo_right
 topo_explore_up: jmp topo_up
 topo_explore_down: jmp topo_down
 topo_explore: .byte 0
+topo_deg: .byte $80,$24,$92,$49,$25 ; 9/14, internal heading -> degrees
+
+.export campui_disk_block, campui_disk_length
+
+context_open:
+        pla
+        pla
+        lda     #>(main-1)
+        pha
+        lda     #<(main-1)
+        pha
+        jsr     campui_load
+        jmp     module_context

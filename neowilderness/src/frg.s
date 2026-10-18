@@ -23,6 +23,8 @@
 ; ============================================================================
 .segment "FORAGE"
 frg_main:
+        lda     mn_mode
+        sta     fr_followup_mode
         lda     #0
         sta     fr_said
         sta     fr_fam
@@ -1015,6 +1017,8 @@ fr_pack:
         lda     verb
         cmp     #8
         jeq     fr_ok
+        lda     #$80
+        jsr     fr_followup_arm
         lda     fr_oz           ; PACK: the ounces taken
         sta     msgnum
         lda     fr_oz+1
@@ -1582,7 +1586,11 @@ fr_cook:
         sta     fg_gx,x
         lda     #2
         sta     fr_cook_st
-@move:  lda     fr_src          ; from the pack: onto the ground
+@move:  lda     fr_cook_st
+        beq     :+
+        lda     #$82
+        jsr     fr_followup_arm
+:       lda     fr_src          ; from the pack: onto the ground
         bne     :+
         jmp     fr_ok
 :       lda     fr_cook_st
@@ -1652,6 +1660,28 @@ fr_cook:
 ; ---------------------------------------------------------------------------
 ; SKIN (T11/S07 $5848): V = header byte 30, .5 for GAME; no tool needed.
 ; ---------------------------------------------------------------------------
+; Arm only after native success. These four UI bytes are an exclusive union
+; with PREPARE: a native prerequisite must never replace its checklist.
+fr_followup_arm:
+        ldx     fr_followup_mode ; INPUT's prompt changes mn_mode while editing
+        beq     @done           ; typed native commands retain their prompt
+        ldx     mq_n
+        bne     @done
+        ldx     noun
+        cpx     #94             ; a hide cannot continue as a meal
+        beq     @done
+        sta     dep_running
+        stx     dep_mask
+        lda     fr_oz
+        ldx     fr_oz+1
+        beq     :+
+        lda     #255
+:       sta     dep_mask+1
+        lda     journey_encounters
+        sta     dep_cursor
+@done:  rts
+fr_followup_mode: .byte 0
+
 fr_skin:
         lda     fr_fam
         cmp     #3
@@ -1912,8 +1942,27 @@ fr_tool_here:                   ; AXE, KNIFE put in use on this cell
 :       clc
         rts
 fr_missed:
+        ; Explain only observable limits. Keep the native draw and effort.
+        lda     verb
+        cmp     #1
+        beq     @catch
+        lda     light
+        beq     @dark
+        lda     fr_t
+        cmp     #19
+        bcc     @weapon
         lda     #<fr_m67        ; msg 67
         ldx     #>fr_m67
+        jmp     fr_say
+@catch: lda     #<fr_no_catch
+        ldx     #>fr_no_catch
+        jmp     fr_say
+@dark:  lda     #<fr_dark_aim
+        ldx     #>fr_dark_aim
+        jmp     fr_say
+@weapon:
+        lda     #<fr_better_weapon
+        ldx     #>fr_better_weapon
         jmp     fr_say
 
 ; CATCH ($5B48): TRAP (GAME) or FISHNG GEAR (FISH) in use, the hours, one
@@ -2115,8 +2164,11 @@ fr_m33:  .byte "I'LL INTERRUPT YOUR TRAVEL IF YOU COME ACROSS FOOD SOURCES.",0
 fr_m36:  .byte "YOU MUST BE WITH THE SPCA",$A1,0
 fr_m38:  .byte "YOU MUST KILL THE ^ FIRST.",0
 fr_m47:  .byte "HMM. UNRIPE RED FRUIT.",0
-fr_m66:  .byte "USE THE PROPER DEVICE TO CATCH, OR WEAPON TO KILL.",0
-fr_m67:  .byte "SORRY, BETTER LUCK NEXT TIME.",0
+fr_m66:  .byte "CATCH GAME: USE TRAP; FISH: USE FISHNG GEAR. KILL: USE GUN/BOW/SPEAR.",0
+fr_m67:  .byte "MISSED. TRY AGAIN.",0
+fr_no_catch: .byte "NO CATCH. TRY MORE TIME.",0
+fr_dark_aim: .byte "TOO DARK TO AIM. WAIT.",0
+fr_better_weapon: .byte "TRY A BOW, SPEAR OR GUN.",0
 fr_m70:  .byte "ONE ^ HAS JUST BITTEN THE DUST",$A1,0
 fr_m71:  .byte "IS THE FOOD FROM YOUR PACK [P] OR FROM THE GROUND [G]?",0
 fr_m84:  .byte "YOU NEED SOME BAIT.",0

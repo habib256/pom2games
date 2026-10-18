@@ -132,6 +132,10 @@ equipment_draw:
         jsr     eq_at
         jsr     puts
         .byte   "NO ITEM IN THIS ROLE",0
+        lda     #4
+        jsr     eq_at
+        jsr     puts
+        .byte   "NO ACTION: CHOOSE A NONEMPTY ROLE",0
         jmp     @details_done
 :       lda     eq_cur
         tax
@@ -146,8 +150,15 @@ equipment_draw:
         jsr     print_str_ax
         lda     #4
         jsr     eq_at
+        lda     pg_focus
+        bne     @action_hint
+        jsr     puts
+        .byte   "RETURN: ENTER THE LIST",0
+        jmp     @location
+@action_hint:
         jsr     puts
         .byte   "RETURN: CHOOSE AN ACTION",0
+@location:
         lda     #5
         jsr     eq_at
         jsr     puts
@@ -257,7 +268,11 @@ equipment_draw:
         jsr     eq_at
         lda     #<eq_keys
         ldy     #>eq_keys
-        jsr     page_foot23_x
+        ldx     pg_focus
+        bne     :+
+        lda     #<eq_tab_keys
+        ldy     #>eq_tab_keys
+:       jsr     page_foot23_x
 
 equipment_key:
         jsr     wait_key
@@ -602,6 +617,7 @@ eq_used: .byte "ACTIVE",0
 eq_pack: .byte "PACK",0
 eq_places: .byte 1,3,$FF,2
 eq_keys: .byte MS_RET," ACTIONS ",MS_UP,MS_DOWN," ITEM ",MS_LEFT,MS_RIGHT," ROLE",0
+eq_tab_keys: .byte MS_RET," LIST",0
 eq_use: .byte "USE "
 eq_names_lo: .byte <eq_bow,<eq_spear,<eq_club,<eq_rock,<eq_splint
 eq_names_hi: .byte >eq_bow,>eq_spear,>eq_club,>eq_rock,>eq_splint
@@ -648,3 +664,55 @@ equipment_object:
 .segment "BSS"
 eq_view: .res 1                 ; interface role, outside SAVE
 .popseg
+
+; MENU shares this disk window; resident dispatch abandons its caller.
+menu_draw:
+        lda     #66
+        jsr     st_heading
+        jsr     st_rangers
+        jsr     puts
+        .byte   "|JOURNEY DONE: ", 0
+        lda     st_done
+        jsr     pdec
+        jsr     puts
+        .byte   "%  ", 0
+        lda     st_done
+        jsr     st_cells
+        jsr     bar
+        lda     #6              ; (XL: under the RANGERS post-it)
+        jsr     vtab
+        lda     #76
+        jsr     st_heading
+        jsr     pg_first
+        lda     #82
+        jsr     pg_line_text
+        jsr     pg_line
+        lda     #102
+        jsr     pg_line_text
+        jsr     pg_line
+        lda     #113
+        jsr     pg_line_text
+        jsr     pg_line
+        jsr     puts
+        .byte   "PREPARE",0
+        lda     #$FF
+        sta     INVFLG
+        jsr     pg_line
+        jsr     puts
+        .byte   "SURVIVAL",0
+        lda     #$FF
+        sta     INVFLG
+        jsr     pg_line
+        jsr     puts
+        .byte   "NIGHT",0
+        lda     #$FF
+        sta     INVFLG
+        jsr     pg_line
+        jsr     puts
+        .byte   "NEXT ACTION",0
+        lda     #$FF
+        sta     INVFLG
+        lda     #<pg_k_menu_x
+        ldy     #>pg_k_menu_x
+        jsr     page_foot_x
+        jmp     pg_menu_key

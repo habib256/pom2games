@@ -137,7 +137,7 @@ def volume_check():
             list(range(disk['first_block'], disk['first_block'] + len(data) // 512))
         for i, where in disk['modules'].items():
             module = layout['trunk_modules'][i]
-            raw = (HERE / 'build' / module['image']).read_bytes()
+            raw = build_disk.module_image(HERE / 'build', module)
             at_blk = (where['block'] - disk['first_block']) * 512
             assert module['bank'] == 'disk' and module['block'] == where['block']
             assert where['blocks'] == -(-len(raw) // 512) and \

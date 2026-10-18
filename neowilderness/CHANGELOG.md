@@ -7,6 +7,203 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Chasse suivie, campement et interruptions (18 octobre 2026, XL)
+
+- Le bilan de chasse distingue arme en usage et préparation proposée.
+  Changer d’arme et fabriquer une lance sont accessibles au joystick.
+  Une préparation revient au bilan avant toute attaque. Le résultat garde
+  la proie : reprise ou changement après échec, dépeçage puis récupération
+  après réussite, et suites existantes de cuisson et repas.
+- Une préparation du camp revient sur l’étape choisie, avec état actualisé.
+  Le départ conserve les actions explicites de sortie, tente et feu, et
+  ajoute la revue du trajet suivi.
+- Un dialogue de rencontre conserve le résultat natif, l’état réel des
+  armes et du feu, puis ouvre une réponse native explicitement choisie.
+  Le trajet ou le repos interrompu peut être revu après résolution.
+- Après une action de survie au joystick, le trajet conservé propose revue
+  du cap ou reprise en marche/nage, avec confirmation native. Le recalage
+  du cap est aussi proposé loin de la cible ; le dialogue reste lisible
+  dans les quatre lignes de la vue.
+- Comparaison contrôlée après la même chasse réussie : dépecer, récupérer,
+  cuire 8 OZ et manger ces 8 OZ demande 27 → 12 gestes au joystick
+  (−55,6 %). Les 1497 octets sauvegardables sont identiques aux trois
+  points de contrôle. Le temps du test en cycles émulés baisse de 11,7 %,
+  impulsions de joystick comprises ; mise en place et allumage exclus.
+- Le calcul négatif de projection remplace un cache de 256 octets pour
+  loger ces ajouts. Comparaison de six vues avec l’image précédente : mêmes
+  pixels visibles et état natif ; coût de rendu supplémentaire mesuré de
+  0,23 % à 3,99 % selon la vue, sans lecture disque supplémentaire.
+- Validation finale : 74 scripts XL réussis et FORAGE contre la ROM
+  (130 cas comparés, quatre exclusions historiques). Image : 432/1600 blocs.
+
+### Durées par activité, jour/nuit et corrections explicites (18 octobre 2026, XL)
+
+- Marche/nage, repos et attente ont trois mémoires distinctes. Haut/bas
+  parcourent les paliers rapides ; gauche/droite ajustent la minute. Une
+  proposition de NIGHT ne remplace pas la durée habituelle du repos.
+- En journée, NIGHT conseille 30, 120 ou 480 minutes selon les seuils
+  natifs d’ENERGY. Préparer le prochain lever du jour est un choix séparé.
+  Après le repos proposé, le résultat reste visible : revoir la durée
+  jusqu’à l’aube ou ouvrir les actions de départ demande confirmation.
+- QUICK propose une correction selon l’avertissement : DOUSE confirmé,
+  sources natives DRINK/EAT ou sélection GET avec aperçu FIT. Dans une
+  confirmation OBJECTS, UP FIT reprend une portion admissible sans perdre
+  l’objet, la source ni la destination ; aucun transfert n’est implicite.
+- Mesure comparée avec l’image précédente figée : sélectionner 1 minute
+  depuis 60 demande 5 gestes au lieu de 17 ; 1 195 175 cycles au lieu de
+  4 059 789. L’état sauvegardable et le RNG restent identiques avant/après
+  chaque sélection (`tests/measure_duration.py`).
+- Validation : les 71 scripts XL passent, ainsi que FORAGE contre la ROM
+  (130 cas comparés, quatre exclusions historiques). Image XL : 425/1600 blocs.
+- Partie visible complète sur l’image finale, au joystick : fabrication
+  d’une lance, chasse, dépeçage, récupération, cuisson, repas, nuit interrompue
+  par un cougar et reprise confirmée, puis victoire aux rangers. Sierra
+  niveau 4 : 175 pas, santé finale 89 %, note native 100 %. Captures et
+  limites de mesure décrites dans MENUS.md ; session conservée sur le port 8771.
+
+### Durées communes, campement et accès QUICK (18 octobre 2026, XL)
+
+- WALK, SWIM, REST et WAIT partagent une durée confirmée en minutes,
+  modifiable par pas de 15 ou d’une minute ; les commandes tapées restent
+  disponibles. Annuler laisse la durée mémorisée et la simulation intactes.
+- NIGHT prévoit la fin de nuit, y compris le lever du soleil après minuit,
+  arrondit à la minute supérieure et annonce sa marge d’une minute en cas
+  de changement de date. Les demandes dépassant huit heures sont possibles.
+- QUICK rejoint CAMP, NEXT ACTION et MAP sans parcourir les onglets.
+  CAMP permet de préparer la nuit, sortir de l’abri, récupérer une tente
+  locale et éteindre le feu. Chaque commande demande un geste explicite.
+- Les préparations de COOK/BOIL conservent le choix d’objet, de source et
+  de portion. Allumage, combustible et ustensiles sont des actions séparées.
+- La boisson issue du stock propre de la gourde réutilise le paysage ;
+  la revue d’une cible conserve les cellules de carte lorsque son cadrage
+  ne change pas. Comparaisons sur le même binaire : environ 80 % et 87 %
+  de cycles émulés économisés sur ces transitions, avec état natif, RNG
+  et images comparées identiques.
+- Validation : 71 scripts XL, FORAGE (130 cas ROM, quatre exclusions
+  historiques), démonstration visible de 157 gestes au joystick. L’image
+  finale occupe 424 blocs sur 1600.
+
+### Campement, approche et dialogues directs (18 octobre 2026, XL)
+
+- Les résultats de récupération et de traitement restent lisibles à gauche ;
+  l’objet, les onces, la source et l’action suivante sont présentés à droite.
+  L’acquittement intermédiaire et les anciens rappels du pied sont retirés.
+- MENU → NIGHT passe en revue les six besoins d’un campement, distingue
+  couchage accessible et porté, puis ouvre les formulaires natifs. Le repos
+  proposé dépend de l’heure ; son interruption conserve le bilan natif.
+  USE expose la tente ; l’aide signale l’absence d’activation native du
+  sac de couchage et propose les vêtements réellement portables.
+- MENU → NEXT ACTION choisit un conseil selon les besoins observés, ou
+  ouvre la carte. Les bandeaux nomment des actions de protection et d’équipement.
+- Le trajet suivi affiche cible, distance fractionnaire et cause d’arrêt.
+  À proximité, un pas natif court et un recalage du cap sont proposés
+  explicitement. Une cible exacte bloque un nouveau départ sans durée.
+- Quitter les conseils réutilise l’image conservée et efface les anciens
+  rappels de texte, au lieu de calculer à nouveau le paysage.
+- Validation : 66 scripts XL et FORAGE (130 cas ROM). Le parcours eau
+  comparatif passe de 16 à 14 gestes ; quitter le guide économise environ
+  93–95 % des cycles émulés sur les deux transitions mesurées.
+
+### Besoins directs et suites explicites (18 octobre 2026, XL)
+
+- STATUS permet de sélectionner HEALTH, ENERGY, MEAL, WATER et BODY.
+  HEALTH rejoint les soins ; les autres besoins ouvrent le conseil associé.
+- Après récupération de nourriture ou d'eau, cuisson ou ébullition, une
+  proposition explicite conserve l'objet, sa source et la portion traitée.
+  Les quantités restent modifiables et aucune étape suivante n'est automatique.
+- Une intention indisponible explique ses prérequis dans la zone de résultat.
+- Les transferts d'objets sans effet sur le paysage évitent son redessin
+  complet. Les changements de tente conservent le rendu de la scène.
+- HELP et les conseils utilisent des images séparées chargées à la demande.
+- Validation : 61 scripts XL et suite FORAGE complète (130 cas ROM).
+  Le parcours collecte/ébullition/boisson passe de 28 à 16 gestes ; les
+  transferts AXE comparés économisent environ 82 % des cycles émulés.
+
+### Survie guidée, enchaînements et réactivité (18 octobre 2026, XL)
+
+- MENU → SURVIVAL : quatre besoins, ressources et prérequis locaux,
+  portions limitées au stock, conseils distincts pour froid et chaleur.
+- Parcours viande et eau toujours accessibles depuis le guide, choix suivant
+  mémorisé, formulaires natifs et annulation sans consommation. Les textes
+  précisent le transfert vers le sol après COOK et BOIL.
+- EQUIPMENT distingue les commandes de l'onglet et celles des listes ;
+  une catégorie vide explique l'absence d'action. Les provisions d'une once
+  conservent la confirmation mais évitent un choix de quantité sans alternative.
+- MENU dessinée dans la fenêtre EQUIPMENT pour libérer de la place dans STATUS.
+  Les retours vers REST et EAT ignorent correctement une ancienne fenêtre
+  d'interface invalidée, au lieu de tenter de charger cet indicateur comme module.
+- TRIPUI est séparé de NAVIGATION : 4 lectures disque au lieu de 22 sur
+  le scénario WALK comparatif, avec position, stocks, temps et RNG identiques.
+
+### Destination suivie et récupération après chasse (18 octobre 2026, XL)
+
+- MAP mémorise une cible après orientation réussie, recalcule distance et cap,
+  et propose reprendre, changer ou abandonner. Abandonner la cible efface aussi
+  le trajet en attente ; annuler conserve les intentions précédentes.
+- Le choix d'un trajet interrompu propose aussi son abandon explicite.
+  Les indications de nage rappellent les conditions natives d'accès à l'eau.
+- La préparation d'une chasse annonce l'outil, le délai natif et les limites
+  connues. Les tentatives sans chance connue sont signalées avant validation.
+  Les armes efficaces déjà actives conservent le parcours direct.
+- Une carcasse locale donne priorité à GET et est présélectionnée dans sa liste,
+  même si un trajet attend d'être repris. Après récupération, la reprise reste
+  disponible. Aucun changement des probabilités de chasse.
+
+### Départ groupé et action contextuelle (18 octobre 2026, XL)
+
+- MENU → PREPARE : checklist de quatorze équipements, stock local distingué
+  des objets déjà transportés, aperçu de charge et confirmation commune.
+  Les commandes natives exécutent les transferts dans l'ordre ; un refus
+  arrête la suite, sans annuler les transferts déjà réussis.
+- La grille suggère reprise, traversée, récupération d'une prise puis boisson.
+  Un choix manuel reste stable dans le même contexte. Un animal vivant ne
+  déclenche plus la sélection automatique d'une attaque.
+- Un nouveau cap confirmé remplace le trajet en attente ; annulation et
+  refus de l'orientation le conservent.
+
+### Reprise des trajets et actions explicites (18 octobre 2026, XL)
+
+- Un déplacement interrompu conserve son cap et ses minutes restantes.
+  WALK/SWIM propose la reprise ou une nouvelle durée ; la grille saute
+  son choix de durée lorsqu'une reprise est disponible. RESTORE efface
+  cette intention d'interface, distincte de l'état sauvegardé.
+- Le budget de déplacement ne peut plus être dépassé par une étape entière.
+  Le rapport indique le reste et, si nécessaire, le coût de l'étape suivante.
+  Une extension demande un accord explicite. Les coûts et distances des
+  étapes restent natifs ; cette limite de budget est une évolution XL.
+- La préparation d'une arme pour la chasse est annoncée et annulable avant
+  exécution. Une arme déjà prête évite cette confirmation supplémentaire.
+  OBJECTS propose USE par défaut pour un objet transporté utilisable.
+- Les conseils indiquent une action : manger, boire, se reposer ou adapter
+  ses vêtements. Les échecs de chasse distinguent obscurité, arme peu adaptée
+  et tentative manquée ; les probabilités restent inchangées.
+
+### Fluidité, orientation et survie (18 octobre 2026, XL)
+
+- Portions EAT/DRINK/BOIL partagées entre grille et OBJECTS après validation,
+  rappelées dans les limites de la source ; la grille choisit une portion
+  proposée inférieure ou égale. OBJECTS affiche SOURCE LEFT en onces.
+  WALK/SWIM mémorise la dernière durée choisie dans la grille.
+- HELP distingue GET vers PACK/HANDS de USE pour activer. OPTIONS nomme
+  STOP FOR FOOD DISCOVERY ; les règles de recherche et d’interruption natives
+  restent utilisées.
+- LOOK propose AZIMUTH, réglable par 1° horizontalement et 10° verticalement.
+  MAP ouvre un choix de destination, un curseur et une revue distance/cap.
+  Prendre le cap utilise les aides natives ; le déplacement reste explicite.
+  Le module de navigation est lu sur disque à la demande.
+- REST/WAIT accepte l’annulation entre intervalles et rapporte la durée
+  réellement effectuée lors d’un arrêt. Le repos crédite sa récupération
+  progressivement : une demande interrompue ne récupère plus sa durée entière.
+  Cette correction modifie volontairement l’ordre des opérations natif.
+- Faim/soif : avertissement initial adouci, puis messages spécifiques aux
+  franchissements des seuils de santé 95 % et 50 %. Une récupération peut
+  annuler un sommeil forcé devenu inutile.
+- NATIVE JOURNEY RATING identifie le pourcentage natif ; POINTS identifie
+  le calcul de classement XL. Les formules de classement sont conservées.
+- Régressions adaptées aux pages et glyphes XL, avec contrôles automatisés
+  des portions, annulations, trajets, repos interrompus et orientation.
+  Ces contrôles ne constituent pas une validation sur manette physique.
+
 ### Actions MouseText par intention (17 octobre 2026)
 
 - OBJECTS, EQUIPMENT et la grille partagent la préparation de USE : appât

@@ -3,7 +3,7 @@
 import tempfile
 from common import L, disk_with
 from test_forest import map_fixture
-from test_joystick_journey import GamePortSession, event, byte, object_item, IDLE, saved_state
+from test_joystick_journey import GamePortSession, event, byte, object_item, IDLE, saved_state, rows
 from test_transfer_weight_preview import word
 
 
@@ -36,6 +36,18 @@ def quick(disk):
                 s.step(L.poke(name, value, 25))
             open_item(s, 25)
             event(s, 'ok')
+            if stock == 1:
+                # No editable choice: action goes straight to confirmation.
+                assert byte(s, 'om_phase') == 2 and quantity(s) == 1
+                before = saved_state(s)
+                event(s, 'cancel')
+                assert byte(s, 'om_phase') == 0 and saved_state(s) == before
+                event(s, 'ok')
+                assert byte(s, 'om_phase') == 2 and saved_state(s) == before
+                event(s, 'ok')
+                assert byte(s, 'it_pack_lo', 25) == 1 and byte(s, 'it_gnd_lo', 25) == 0
+                event(s, 'cancel', IDLE)
+                continue
             assert byte(s, 'om_phase') == 1 and quantity(s) == stock
             before = saved_state(s)
             event(s, 'right')
@@ -91,6 +103,45 @@ def quick(disk):
         assert quantity(s) == 1
         leave(s)
         print('  EAT retains one-ounce default and no quick ALL consumption: OK', flush=True)
+
+        # Only the final confirmation remembers a portion. The remembered
+        # value belongs to the action, while the bound belongs to this source.
+        open_item(s, 25)
+        while byte(s, 'om_action') != 5:
+            event(s, 'down')
+        event(s, 'ok')
+        for _ in range(3):
+            event(s, 'up')
+        assert quantity(s) == 4
+        assert 'SOURCE LEFT 9 OZ' in ' '.join(rows(s))
+        before = saved_state(s)
+        event(s, 'ok')
+        assert byte(s, 'menu_portion') == 0
+        event(s, 'cancel'); event(s, 'cancel'); event(s, 'cancel')
+        assert saved_state(s) == before and byte(s, 'menu_portion') == 0
+        object_item(s, 0, 25); event(s, 'ok')
+        while byte(s, 'om_action') != 5:
+            event(s, 'down')
+        event(s, 'ok')
+        for _ in range(3):
+            event(s, 'up')
+        event(s, 'ok'); event(s, 'ok')
+        assert byte(s, 'menu_portion') == 4
+        object_item(s, 0, 25); event(s, 'ok')
+        while byte(s, 'om_action') != 5:
+            event(s, 'down')
+        event(s, 'ok')
+        assert quantity(s) == 4
+        leave(s)
+        s.step(L.poke('it_gnd_lo', 3, 25))
+        open_item(s, 25)
+        while byte(s, 'om_action') != 5:
+            event(s, 'down')
+        event(s, 'ok')
+        assert quantity(s) == 3
+        leave(s)
+        assert byte(s, 'menu_portion') == 4
+        print('  Confirmed EAT portion is recalled, clamped to its source and unaffected by cancellation: OK', flush=True)
 
         s.step(L.poke('it_gnd_lo', 9, 22)); s.step(L.poke('it_gnd_hi', 0, 22))
         s.step(L.poke('it_pack_lo', 60, 22)); s.step(L.poke('it_pack_hi', 0, 22))

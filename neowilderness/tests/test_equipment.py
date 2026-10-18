@@ -164,9 +164,45 @@ def two_columns():
     print('  Two balanced columns: every joystick selection, long names, overflow scrolling, borders and readonly browsing: OK')
 
 
+def focus_hints_and_cancel():
+    from test_joystick_journey import GamePortSession, event, saved_state
+    from test_fit_quantities import boot
+    with GamePortSession(DISK, menu=False) as s:
+        boot(s)
+        event(s, 'up'); event(s, 'right'); event(s, 'right')
+        before = saved_state(s)
+        assert byte(s, 'pg_focus') == 0
+        assert 'RETURN: ENTER THE LIST' in rows(s)[4]
+        assert 'PAGE' in rows(s)[23] and 'ROLE' not in rows(s)[23]
+        event(s, 'ok')
+        item = selected(s)
+        assert 'RETURN: CHOOSE AN ACTION' in rows(s)[4]
+        assert 'ROLE' in rows(s)[23]
+        event(s, 'ok')
+        assert byte(s, 'om_phase') == 0
+        event(s, 'ok')
+        assert byte(s, 'om_phase') == 2  # indivisible equipment: explicit confirmation
+        event(s, 'cancel')
+        assert byte(s, 'om_phase') == 0
+        event(s, 'cancel')
+        assert byte(s, 'pg_cur') == 2 and byte(s, 'pg_focus') == 1
+        assert selected(s) == item
+        assert saved_state(s) == before
+        event(s, 'right'); event(s, 'right')  # ACTIVE initially has no item
+        assert byte(s, 'eq_view') == 2 and byte(s, 'eq_n') == 0
+        assert 'NO ACTION: CHOOSE A NONEMPTY ROLE' in rows(s)[4]
+        event(s, 'ok')
+        assert byte(s, 'pg_cur') == 2 and byte(s, 'eq_n') == 0
+        assert saved_state(s) == before
+        event(s, 'up')
+        assert byte(s, 'pg_focus') == 0 and 'PAGE' in rows(s)[23]
+    print('  Joystick hints follow focus; confirmation cancel preserves item and stock; empty role cannot act: OK')
+
+
 if __name__ == '__main__':
     read_only()
     placement_and_use()
     trap()
     two_columns()
+    focus_hints_and_cancel()
     print('EQUIPMENT: OK')

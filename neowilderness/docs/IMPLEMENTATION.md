@@ -5,6 +5,38 @@ de l'original sont documentées dans [ANALYSE.md](ANALYSE.md) et
 [logic/ENGINE.md](logic/ENGINE.md). Le [TODO](../TODO.md) organise les travaux
 restants ; le [CHANGELOG](../CHANGELOG.md) conserve l'historique des étapes.
 
+## Évolutions XL du 18 octobre 2026
+
+Les détails de navigation et de confirmation sont dans [MENUS.md § 41](MENUS.md#41-portions-direction-et-temps-réalisé-18-octobre-2026-xl).
+Les portions validées et la durée de marche/nage sont des préférences
+d’interface hors état sauvegardé. OBJECTS indique la quantité restante
+dans la source sélectionnée. Le planificateur MAP calcule une distance
+euclidienne et un cap vers une cible explicite, puis appelle l’orientation
+native ; il ne lance aucun déplacement et ne planifie pas un chemin sûr.
+
+La récupération de REST est désormais appliquée intervalle par intervalle,
+et finalisée sur le temps effectivement réalisé. L’arrêt par rencontre ou
+annulation ne crédite plus la demande entière. Cette évolution change
+volontairement l’ordre natif, qui créditait le repos avant la progression
+de l’horloge. Les assertions de référence adaptées documentent cet écart ;
+une égalité générale octet pour octet avec l’original n’est pas revendiquée
+pour ces parcours de repos. Les alertes spécifiques de faim/soif suivent
+les franchissements 95 % puis 50 % des facteurs de santé correspondants.
+
+Les modules courants restent préchargés ou mis en cache selon leur
+organisation. `wildnav.bin`, incluant le planificateur et le corps des
+commandes d’entrée/sortie d’abri, est chargé à la demande depuis
+NEOWILD.BLK dans `$9600`. Le chargement de navigation peut donc lire le
+disque pendant la partie. Les anciennes mesures de lectures figurant
+plus bas décrivent leurs versions et parcours mesurés.
+
+Le bilan distingue NATIVE JOURNEY RATING, le pourcentage natif de
+progression, et POINTS, le calcul de classement XL décrit dans [HOF.md](HOF.md).
+Ces noms ne changent pas les formules du classement. Les validations
+automatisées portent sur des parcours ciblés en émulation ; elles
+n’établissent ni une partie complète sur matériel réel ni la compatibilité
+de sauvegardes produites par une ancienne version.
+
 ## Fonctionnalités en place
 
 | Domaine | Implémentation actuelle | Vérification |

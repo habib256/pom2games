@@ -27,7 +27,7 @@ import json
 import math
 import re
 import sys
-from common import HERE, L, DISK, a2test, idle_bytes, fp, text_screen
+from common import HERE, L, DISK, a2test, fp, text_screen
 from gendata import fp as encode
 from test_input import IDLE
 
@@ -68,28 +68,58 @@ def draws(before, after):
     raise AssertionError((before, after))
 
 
+def direct_call(s, target, before=(), after=()):
+    """Call native code and stop at resident idle, without executing its branch.
+
+    SIM replaces MENUSWAP, including fire_idle. A test must never resume at
+    idle+3 with the native routine's flags: Z could branch into that displaced
+    module. A JMP trampoline keeps the original stack and returns to the idle
+    entry, where execution stops before its three restored bytes can run.
+    """
+    caller = STUB + 0x80
+    idle = L['idle']
+    original = s.step(L.peek('idle', 3)).data
+    code = (*before, 0x20, target & 255, target >> 8, *after,
+            0x4C, idle & 255, idle >> 8)
+    pokes(s, caller, code)
+    pokes(s, idle, (0x4C, caller & 255, caller >> 8))
+    s.step(f'until:{caller:04X}:20000')
+    s.step(IDLE)
+    pokes(s, idle, original)
+
+
+def restore_prompt_after_hooks(s):
+    """Restore the menu window before native keyboard input resumes."""
+    direct_call(s, L['menu_gather'])
+    s.step(L.poke('sim_loaded', 0))
+
+
+def load_sim_for_hook(s):
+    """Load THERMAL before direct calls, as native do_command does.
+
+    The prompt may retain GRID over weather_random. Install RNG fixtures
+    after this load. The injected caller stays in SCRATCH outside SIM.
+    """
+    direct_call(s, L['overlay_load'], before=(0xA9, 3))
+
+
 # ---------------------------------------------------------------------------
 # Step 1: the discovery draws (kept as written for step 1)
 # ---------------------------------------------------------------------------
 def discovery_draws():
     cases = [(3, .1999, 2), (3, .2001, 3), (3, .4999, 3), (3, .5001, 2), (7, .05, 2), (7, .5, 2)]
     cases += [(x, .5, 2) for x in (2, 4, 5, 6)]
-    original = idle_bytes(3)
     a = L['native_resource_results']
     results = []
     with a2test.Session(DISK) as s:
         s.step(IDLE)
+        load_sim_for_hook(s)
         for x, quality, want in cases:
             seed = seed_for(quality)
             s.step(f'poke:{MAP + 36:04X}:{1 << x:02X}')
             for i in range(4):
                 s.step(L.poke('weather_seed', seed >> 8 * i & 255, i))
-            for i, b in enumerate((0x20, a & 255, a >> 8)):     # JSR, then idle again
-                s.step(L.poke('idle', b, i))
-            s.step(L.until('native_resource_results', 20000))   # (idle + 3 is also the loop's BPL)
-            s.step(f'until:{L["idle"] + 3:04X}:20000')
-            for i, b in enumerate(original):
-                s.step(L.poke('idle', b, i))
+            direct_call(s, a)
             after = int.from_bytes(s.step(L.peek('weather_seed', 4)).data, 'little')
             qty = s.step(f'peek:{MAP + 26 + x:04X}:1').data[0]
             n = draws(seed, after)
@@ -225,6 +255,9 @@ def run(port, command, answers=(), rnd=None, decisions=None):
     forage_ran (the module's state before its time). Returns (screens, final
     result text, decisions' value or None, draws or None)."""
     s = port.s
+    # Direct SIM hooks bypass get_line's normal MENUSWAP restoration.
+    # Re-enter the real keyboard/menu path with its resident helpers ready.
+    restore_prompt_after_hooks(s)
     s.step(f'key:{command}')
     s.step('press:\\r')
     s.step(L.until('do_command', 40000))    # the line is read (not idle's poll)
@@ -250,6 +283,16 @@ def run(port, command, answers=(), rnd=None, decisions=None):
             break
         if pc == idle:
             break
+        full_screen = text_screen(s.step('peek:0400:1024').data)
+        if ('RET:SELECT ESC:CANCEL' in ' '.join(full_screen[20:24])
+                and port.byte('dep_running') >= 0x80):
+            # A preceding grid transfer may still own this resident keyboard
+            # checkpoint. Decline its optional continuation, then submit this
+            # native command from the restored view, with its answers intact.
+            s.step('key:\\e')
+            s.step('wait:1')
+            s.step(IDLE)
+            return run(port, command, answers, rnd, decisions)
         # A question: the reader waits and the message rows changed (the
         # keys of the previous answer echo on row 23 only).
         question = '\n'.join(text_screen(s.step('peek:0400:1024').data)[20:23])
@@ -288,7 +331,7 @@ TEXTS = {1: 'SORRY, THAT ITEM IS NOT AVAILABLE.', 2: "YOU'RE NOT MAKING MUCH SEN
          38: 'YOU MUST KILL THE', 39: "THAT'S NOT VERY WISE.", 47: 'HMM. UNRIPE RED FRUIT.',
          56: 'YOU WERE SUCCESSFUL!', 64: 'YOU CANNOT EXCEED THE AVAILABLE AMOUNT OF',
          65: 'YOU NEED A FIRE TO BOIL OR COOK THINGS.',
-         66: 'USE THE PROPER DEVICE TO CATCH, OR WEAPON TO KILL.', 67: 'SORRY, BETTER LUCK NEXT TIME.',
+         66: 'CATCH GAME: USE TRAP; FISH: USE FISHNG GEAR. KILL: USE GUN/BOW/SPEAR.', 67: 'MISSED. TRY AGAIN.',
          70: 'HAS JUST BITTEN THE DUST!', 71: 'IS THE FOOD FROM YOUR PACK [P] OR FROM THE GROUND [G]?',
          87: "DON'T BE RIDICULOUS!", 89: 'AHA! NICE RIPE RED FRUIT.', 93: 'IT APPEARS TO BE UNRIPE WHITE FRUIT.',
          94: 'IT IS SOME FORM OF RIPE WHITE FRUIT.', 119: 'YOUR FISH HAS FLABBY SKIN AND SUNKEN EYES.',
@@ -526,6 +569,8 @@ def module_case(port, c):
     port.poke('fg_fidelity', 1 if c['name'].startswith(FIDELITY) else 0)
     apply_pokes(port, c)
     command = command_of(c)
+    hunt_light = port.byte('light')
+    hunt_weak = not (port.byte('camp_use') & 128 or port.byte('fg_use') & 12)
     numbers, key, hours = answers_of(c, command)
     ans = []
     log = [m for m in c['log']]
@@ -591,7 +636,17 @@ def module_case(port, c):
         extra.append(('draws', count, c['rnd_calls']))
     text = ' // '.join(screens + [final])
     for m in c['log']:
-        if m in TEXTS and TEXTS[m] not in text:
+        expected = TEXTS.get(m)
+        if m == 67:
+            # Advice uses the known light and selected means, with identical
+            # native draws, outcomes, elapsed time and resource consumption.
+            if command.startswith('CATCH'):
+                expected = 'NO CATCH. TRY MORE TIME.'
+            elif not hunt_light:
+                expected = 'TOO DARK TO AIM. WAIT.'
+            elif hunt_weak:
+                expected = 'TRY A BOW, SPEAR OR GUN.'
+        if expected and expected not in text:
             extra.append(('msg', m, text))
     if c['exit'] is None and got and got.get('$4BC6 minutes'):
         extra.append(('minutes', got['$4BC6 minutes'], 0))
@@ -604,11 +659,11 @@ def module_case(port, c):
 def discovery_case(port, c):
     """T0D/S00: the event x ($0D90 + x) through module_resource_results."""
     s = port.s
+    load_sim_for_hook(s)
     x = next(a - 0x0D90 for a, _ in c['pokes'] if 0x0D9D <= a <= 0x0DA4) - 0x0D
     season = next((d[0] for a, d in c['pokes'] if a == 0x4ADA), None)
     if season is not None:
         s.step(L.poke('fauna_env', season))
-    original = idle_bytes(3)
     a = L['native_resource_results']
     s.step(f'poke:{MAP + 36:04X}:{1 << x:02X}')
     port.poke('resource_seen', 1 << x if x < 2 else 0)
@@ -616,12 +671,7 @@ def discovery_case(port, c):
     saved = s.step(f'peek:{wr:04X}:3').data
     port.stub(c['rnd'])
     port.jump('weather_random')
-    for i, b in enumerate((0x20, a & 255, a >> 8)):
-        s.step(L.poke('idle', b, i))
-    s.step(L.until('native_resource_results', 20000))
-    s.step(f'until:{L["idle"] + 3:04X}:20000')
-    for i, b in enumerate(original):
-        s.step(L.poke('idle', b, i))
+    direct_call(s, a)
     pokes(s, wr, saved)
     s.step(f'poke:{MAP + 36:04X}:00')
     count = port.stub_count()
@@ -653,6 +703,7 @@ def carcass_case(port, c):
     else:
         port.poke('fauna_rng', winning_rng(slot, means))
     noun = ('BEAR', 'COUGAR', 'RATTLESNAKE')[slot]
+    restore_prompt_after_hooks(s)
     s.step(f'key:ATTACK {noun}')
     s.step('press:\\r')
     s.step(L.until('do_outdoor_done', 60000))
@@ -894,15 +945,9 @@ def saved_factor(state):
 def call_carry(port, label):
     """JSR label from the idle loop: its carry (1 set)."""
     s = port.s
-    original = idle_bytes(3)
-    stub = (0x20, L[label] & 255, L[label] >> 8, 0xA9, 0, 0x2A, 0x8D, COUNT & 255, COUNT >> 8, 0x60)
-    pokes(s, STUB, stub)
-    for i, b in enumerate((0x20, STUB & 255, STUB >> 8)):
-        s.step(L.poke('idle', b, i))
-    s.step(f'until:{STUB:04X}:20000')
-    s.step(f'until:{L["idle"] + 3:04X}:20000')
-    for i, b in enumerate(original):
-        s.step(L.poke('idle', b, i))
+    load_sim_for_hook(s)
+    result = (0xA9, 0, 0x2A, 0x8D, COUNT & 255, COUNT >> 8)
+    direct_call(s, L[label], after=result)
     return s.step(f'peek:{COUNT:04X}:1').data[0]
 
 
@@ -986,14 +1031,14 @@ def port_checks():
 def grid_lists(port):
     """The grid's lists name lot 4's piles and targets (src/grid.s): EAT the
     piles first, TASTE before the ounces; GET packs a pile (PACK x); SKIN,
-    COOK, KILL, CATCH their targets (one: chosen at once); KILL takes the
-    best weapon first, CATCH the bait and the trap (the queue)."""
+    COOK and CATCH their targets (one: chosen at once); KILL reviews a
+    separate native activation, CATCH queues the bait and the trap."""
     from test_menu_bar import move_to, press, grid_cells, bottom, RET, ESC, TAB
     s = port.s
-
     def at(*labels):
         """RETURN on each label in turn: the screen, then the composed line."""
-        press(s, TAB)
+        if not port.byte('mn_mode'):
+            press(s, TAB)
         for label in labels:
             move_to(s, label)
             press(s, RET)
@@ -1001,13 +1046,16 @@ def grid_lists(port):
 
     def chosen(*labels):
         """The command the labels compose (the first one typed when queued)."""
-        press(s, TAB)
+        if not port.byte('mn_mode'):
+            press(s, TAB)
         for label in labels[:-1]:
             move_to(s, label)
             press(s, RET)
         move_to(s, labels[-1])
         s.step('press:\\r')
-        s.step(L.until('do_command', 40000))
+        stopped = s.step(f'until:{L["do_command"]:04X},{L["keyboard_wait"]:04X}:40000')
+        if f'PC={L["keyboard_wait"]:04X}' in stopped.out:
+            raise AssertionError(('Unexpected form while composing', labels, rows(s)))
         line = s.step(L.peek('inbuf', 30)).data.split(b'\0')[0].decode()
         queued = [s.step(L.peek('mq_list', 1, k)).data[0] for k in range(s.step(L.peek('mq_n')).data[0])]
         return line, s.step(L.peek('menu_noun')).data[0], queued
@@ -1019,7 +1067,14 @@ def grid_lists(port):
             r = s.step(f'until:{L["idle"]:04X},{L["keyboard_wait"]:04X}:400000')
             if int(re.search(r'PC=([0-9A-F]{4})', r.out)[1], 16) == L['idle']:
                 break
-            if 'HOURS' in rows(s) or 'OUNCES' in rows(s):
+            full = ' '.join(text_screen(s.step('peek:0400:1024').data)[20:24])
+            if ('RET:SELECT ESC:CANCEL' in full or 'PREPARATION RESULT' in full
+                    or 'HUNT RESULT:' in full or 'MEAT READY TO RECOVER' in full
+                    or 'RET:OPEN ARROWS:CHOOSE ESC:VIEW' in full):
+                # Preserve the native transfer result for the assertions;
+                # this fixture does not accept the optional follow-up.
+                s.step('key:\\e')
+            elif 'HOURS' in rows(s) or 'OUNCES' in rows(s):
                 s.step('key:8' if 'OUNCES' in rows(s) else 'key:1')
                 s.step('press:\\r')
             else:
@@ -1058,15 +1113,33 @@ def grid_lists(port):
     port.poke('animal_kind', 0)         # (an animal's KILL would come first)
     port.poke('fg_skin', 0)
     port.poke('fire_on', 0)
+    if port.byte('mn_mode'):
+        press(s, TAB)  # native typed inspection starts from the view
     run(port, 'LOOK R')
-    line = chosen('KILL')
-    check('KILL: GAME, the AXE in use first (no gun)', line == ('USE AXE', 58, [S_AXE, S_KILL]), line)
+    # Explicitly confirm only native activation; no attempt is queued.
+    if not port.byte('mn_mode'):
+        press(s, TAB)
+    move_to(s, 'KILL')
+    s.step('press:\\r')
+    s.step(L.until('keyboard_wait', 40000))
+    assert 'NEXT: AXE (OWNED)' in rows(s), rows(s)
+    assert '> PREPARE WEAPON' in rows(s), rows(s)
+    s.step('press:\\r')
+    s.step(L.until('do_command', 40000))
+    line = (s.step(L.peek('inbuf', 30)).data.split(b'\0')[0].decode(),
+            port.byte('menu_noun'),
+            [port.byte('mq_list', k) for k in range(port.byte('mq_n'))])
+    check('KILL preparation: GAME retained, native USE AXE only (no hidden attempt)',
+          line == ('USE AXE', 58, []) and port.byte('dep_running') == 0x85,
+          (line, port.byte('dep_running')))
     back()
     port.poke('fg_b2', 0, 4)
     port.poke('resource_seen', 1)
     port.poke('care_tools', 0)
     port.poke('fg_bait', 0)
     port.poke('it_place', 2, 72)        # the TRAP in the pack
+    if port.byte('mn_mode'):
+        press(s, TAB)  # native typed inspection starts from the view
     run(port, 'LOOK R')
     line = chosen('CATCH', '1 H')
     check('CATCH: GAME, the bait and the TRAP first', line == ('USE BAIT', 175, [S_BAIT, S_TRAP, S_CATCH]), line)

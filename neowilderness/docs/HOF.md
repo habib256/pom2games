@@ -73,6 +73,11 @@ Entrées, lues dans l'état résident à la fin du voyage :
 
 Formule (`tools/score_ref.py`, `hof_score` dans `src/hof.s`) :
 
+Depuis le 18 octobre 2026, l’écran nomme le résultat de cette formule
+**POINTS**. Le bilan natif affiche séparément **NATIVE JOURNEY RATING** en
+pourcentage (progression vers l’objectif). Ces deux nombres ont des échelles
+et des usages différents ; le renommage conserve la formule et le classement.
+
 ```
 P = progression × 10                                  0 – 1 000
 A = 1 000 si arrivée                                  0 / 1 000
@@ -191,7 +196,7 @@ SPEED     720 - 312           408           (hors arrivée : "NO")
                             -----
 TOTAL                        2718
 LEVEL       4 X 14/14        2718
-SCORE                        2718           (valeur en inverse)
+POINTS                       2718           (valeur en inverse)
 ```
 
 3. Voyage libre ou région hors 1–6 : ligne 21 « FREE JOURNEY: NOT

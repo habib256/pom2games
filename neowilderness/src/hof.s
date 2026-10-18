@@ -1031,7 +1031,7 @@ hof_m_total:     .byte "TOTAL", 0
 hof_m_level_row: .byte "LEVEL     ", 0
 hof_m_times:     .byte " X ", 0
 hof_m_14:        .byte "/14", 0
-hof_m_score:     .byte "SCORE", 0
+hof_m_score:     .byte "POINTS", 0
 hof_m_top:       .byte " - TOP 5", 0
 hof_m_free:      .byte "FREE JOURNEY: NOT RANKED.", 0
 hof_m_not_top:   .byte "NOT IN THE TOP 5.", 0

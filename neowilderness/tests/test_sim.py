@@ -5,8 +5,8 @@
   MAY6, 10:00A and GOAL = floor(100 e^(-2.5 x 3 / D0)) (no move: v = 0).
 - EAT CHEESE 8 (from the pack), DRINK WATER 10, GET APPLES: ounces, place,
   and the FOOD / WATER totals of STATUS.
-- REST 200 without supplies: port stress test, death near the exhaustion
-  tolerance after the initial rest credit is clamped. This exceeds the
+- REST 200 without supplies: port stress test, death from unmet water/food
+  needs while actual rest continues to restore energy. This exceeds the
   original's accepted command duration and does not prove native parity.
 The floats are read from RAM and decoded (tests/common.fp).
 Synthetic maps also exercise climbing time overflow, travel at night and
@@ -120,7 +120,7 @@ def main():
     menu = '\n'.join(text_screen(r.mem(0x400, 1024, 1)))
     got = re.search(r'JOURNEY DONE: (\d+)%', menu)
     check('MENU: resting leaves route completion at 0%', got and int(got.group(1)) == 0, got and got.group(1))
-    check('STATUS: HEALTH 98% (original integer conditions)', re.search(r'HEALTH +[\u2588\u2592]{10} +98%', screen))
+    check('STATUS: HEALTH 98% (integer conditions)', re.search(r'HEALTH +[\u2500\u2588\u2592]{10} +98%', screen))
 
     lo, hi, places = (r.mem(L[n], 76) for n in ('it_pack_lo', 'it_pack_hi', 'it_place'))
     pack = lambda i: lo[i] | hi[i] << 8

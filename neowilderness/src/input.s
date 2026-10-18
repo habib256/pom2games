@@ -63,7 +63,7 @@ module_input_command:
         sta     inbuf,x
         inc     input_argument
 @ordinary:
-        jmp     input_rest_command
+        jmp     input_ordinary
 input_ordinary:
         clc
         rts
@@ -83,47 +83,8 @@ input_quit:
         jne     input_cancel
         jmp     quit
 
-; Exact, unqualified rest verbs can dispatch while INPUT is already present.
-; Drop module_input_command's return address before entering resident code:
-; SLEEP loads SIM/MEDICAL, which replace this overlay before it returns.
-input_rest_command:
-        ldx     #0
-@entry: stx     input_pos
-        lda     input_rest_words,x
-        beq     input_ordinary
-        sta     g2
-        ldy     #0
-@word:  inx
-        lda     input_rest_words,x
-        cmp     inbuf,y
-        bne     @next
-        iny
-        cpy     g2
-        bcc     @word
-        lda     inbuf,y
-        bne     @next
-        lda     input_rest_words+1,x
-        sta     verb
-        lda     #0
-        sta     qual
-        sta     noun
-        sta     nounbuf
-        sta     parser_badverb
-        lda     #1
-        sta     found
-        pla
-        pla
-        jmp     do_rest
-@next:  lda     input_pos
-        clc
-        adc     g2
-        adc     #2
-        tax
-        bne     @entry
-
-input_rest_words:
-        .byte 4,"REST",V_REST,5,"SLEEP",V_REST,4,"CAMP",V_CAMP
-        .byte 8,"EXERCISE",V_EXER,4,"WAIT",V_WAIT,5,"PAUSE",V_WAIT,0
+; general_command resumes fast_command after this parser returns. Its
+; resident REST/SLEEP dispatch also handles the numeric command just trimmed.
 
 ; Only supported numeric verbs may take an inline argument.
 input_allowed:
@@ -166,7 +127,19 @@ module_number:
         bne     :+
         jsr     input_stock
 :       lda     input_argument
-        bne     input_validate
+        jne     input_validate
+        lda     dep_running
+        and     #$C0
+        cmp     #$40
+        bne     input_read
+        lda     dep_mask+1
+        beq     input_read
+        sta     input_value
+        lda     #0
+        sta     input_value+1
+        sta     linelen
+        sta     dep_running    ; prefill once; RETURN still validates it
+        jmp     input_spin_draw
 input_read:
         jsr     prompt
         lda     #0
@@ -183,7 +156,18 @@ input_number_idle:
         cmp     #KC_RET
         beq     @done
         cmp     #KC_LEFT
-        beq     @erase
+        bne     :+
+        jsr     input_angle_mode
+        bne     @erase
+        lda     #$FF
+        jmp     input_angle_fine
+:       cmp     #KC_RIGHT
+        bne     :+
+        jsr     input_angle_mode
+        bne     input_number_idle
+        lda     #1
+        jmp     input_angle_fine
+:
         cmp     #' '
         bcc     input_number_idle
         cmp     #'Z'+1
@@ -460,7 +444,14 @@ input_spin_up:
         bne     input_spin
 input_spin_down:
         lda     #$FF
+        bne     input_spin
+input_angle_fine:
+        ldx     #1
+        bne     input_spin_start
 input_spin:
+        ldx     #10
+input_spin_start:
+        stx     input_angle_step+1
         sta     input_spin_delta+1
         ldx     linelen
         lda     #0
@@ -473,6 +464,8 @@ input_spin:
         jsr     input_parse
         jcs     input_number_idle
 input_spin_change:
+        jsr     input_angle_mode
+        jeq     input_angle_change
 input_spin_delta:
         lda     #1
         bmi     input_spin_subtract
@@ -528,3 +521,68 @@ input_spin_next:  dex
         dex
         bpl     input_spin_place
         jmp     input_number_idle
+
+; Degree dialogs use the same editable number as the keyboard: fine horizontal
+; steps, ten-degree vertical steps, and circular 0..359 limits. Other callers
+; (FORAGE also uses input_mode 3) keep their quantity spinner unchanged.
+input_angle_mode:
+        lda     input_mode
+        cmp     #3
+        bne     :+
+        lda     noun
+        cmp     #155
+:       rts
+input_angle_change:
+        lda     input_value
+        cmp     #<360
+        lda     input_value+1
+        sbc     #>360
+        jcs     input_number_idle
+input_angle_step:
+        ldx     #1
+@step:  lda     input_spin_delta+1
+        bmi     @subtract
+        inc     input_value
+        bne     :+
+        inc     input_value+1
+:       lda     input_value
+        cmp     #<360
+        bne     @next
+        lda     input_value+1
+        cmp     #>360
+        bne     @next
+        lda     #0
+        sta     input_value
+        sta     input_value+1
+        beq     @next
+@subtract:
+        lda     input_value
+        ora     input_value+1
+        bne     :+
+        lda     #>360
+        sta     input_value+1
+        lda     #<360
+        sta     input_value
+:       lda     input_value
+        bne     :+
+        dec     input_value+1
+:       dec     input_value
+@next:  dex
+        bne     @step
+        jmp     input_spin_draw
+
+; Reloaded from the duration selector for the original hours/minutes parser.
+input_duration_typed:
+        jsr     prompt
+        lda     #0
+        sta     linelen
+        lda     input_value
+        cmp     #'0'
+        bcc     @idle
+        cmp     #'9'+1
+        bcs     @idle
+        sta     inbuf
+        inc     linelen
+        ora     #$80
+        jsr     COUT
+@idle:  jmp     input_number_idle

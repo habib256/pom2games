@@ -124,7 +124,14 @@ module_health_alerts:
         fld     s_defr          ; A1[24] >= 60: $0B, event 43 (message 178)
         fop     FCOMP, al_k60
         cmp     #$FF
-        beq     @tired
+        bne     @exhausted
+        lda     #0              ; recovery during this action cancels pending sleep
+        sta     al_forced
+        lda     al_events
+        and     #$EF
+        sta     al_events
+        jmp     @tired
+@exhausted:
         lda     #1
         sta     al_forced
         lda     #16
@@ -171,6 +178,7 @@ module_health_alerts:
         jsr     al_percents
         ldx     #0
 @compare:
+        jsr     al_need_alert
         lda     al_last,x
         cmp     #96
         bcc     @serious
@@ -226,6 +234,37 @@ al_add: ldx     al_count
         sta     al_queue,x
         inc     al_count
 @full:  rts
+
+; Specific food/water warnings follow the same condition percentages as
+; health, rather than interpreting an early appetite warning as danger.
+; Crossings rearm naturally after eating/drinking restores the factor.
+al_need_alert:
+        cpx     #15             ; water, then food in al_now
+        bcc     @done
+        cpx     #17
+        bcs     @done
+        lda     al_now,x
+        cmp     #50
+        bcs     @risk
+        lda     al_last,x
+        cmp     #50
+        bcc     @done
+        txa
+        sec
+        sbc     #3              ; water danger 12 / food danger 13
+        bne     @queue
+@risk:  cmp     #95
+        bcs     @done
+        lda     al_last,x
+        cmp     #95
+        bcc     @done
+        txa
+        sec
+        sbc     #5              ; water risk 10 / food risk 11
+@queue: stx     al_i
+        jsr     al_add
+        ldx     al_i
+@done:  rts
 
 ; al_now <- percentages of conditions 1..21: the 15 conditions, the three
 ; deficits (native INT(100 (1 - (d/tol)^2))), altitude, hypo- and hyperthermia.
@@ -325,6 +364,14 @@ al_show:
 ; left blank; an empty result column receives it as an ordinary message.
 al_text:
         tax
+        cpx     #10
+        bcc     @bank
+        lda     al_need_lo-10,x
+        sta     gp1
+        lda     al_need_hi-10,x
+        sta     gp1+1
+        jmp     al_put
+@bank:
         lda     al_lo,x         ; a text of the bank
         jsr     text_fetch
         sta     gp1
@@ -644,4 +691,10 @@ al_now:   .res 21
 ; Alert texts: messages 173, 174, 187, 203, 204 (direct), then the events
 ; 25, 40, 41, 42, 43 (messages 160, 175, 176, 177, 178).
 al_lo: .byte <al_173,<al_174,<al_203,<al_204,<al_187,<al_160,<al_175,<al_176,<al_177,<al_178
+al_need_lo: .byte <al_thirst_risk,<al_hunger_risk,<al_thirst_danger,<al_hunger_danger
+al_need_hi: .byte >al_thirst_risk,>al_hunger_risk,>al_thirst_danger,>al_hunger_danger
+al_thirst_risk:   .byte "THIRST IS REDUCING YOUR HEALTH.",0
+al_hunger_risk:   .byte "HUNGER IS REDUCING YOUR HEALTH.",0
+al_thirst_danger: .byte "DANGEROUS DEHYDRATION. DRINK NOW.",0
+al_hunger_danger: .byte "DANGEROUS STARVATION. EAT NOW.",0
 .segment "GCODE"

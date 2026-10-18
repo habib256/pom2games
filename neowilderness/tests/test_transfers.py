@@ -27,6 +27,17 @@ SWITCHES = 'peek:C011:8'        # LCBNK2 LCRAM RAMRD RAMWRT INTCXROM ALTZP SLOTC
 
 
 def main():
+    # Exhaust the actual resident projection routine without a 256-byte cache.
+    with a2test.Session(DISK) as s:
+        s.step(L.until('idle', 20000))
+        entry, routine = L['idle'], L['row_negative']
+        code = bytes((0xA2, 0, 0x20, routine & 255, routine >> 8,
+                      0x9D, 0, 0x95, 0xE8, 0xD0, 0xF7))
+        for i, value in enumerate(code):
+            s.step(f'poke:{entry+i:04X}:{value:02X}')
+        s.step(f'until:{entry+len(code):04X}:100')
+        rows = s.step('peek:9500:256').data
+        assert rows == bytes(95+(3*q+15)//16 for q in range(256))
     layout = json.loads((HERE / 'build/layout.json').read_text())
     images = {}
     for index, module in layout['modules'].items():
@@ -38,8 +49,6 @@ def main():
         images[int(index)] = (bytes(image), module['window'], module['bank'] == 'disk')
     with a2test.Session(DISK) as s:
         s.step(L.until('idle', 20000))
-        rows = s.step(L.peek('row_n0', 256)).data
-        assert rows == bytes(95+(3*q+15)//16 for q in range(256))
         entry = L['idle']
         costs = []
         disk_costs = []
@@ -97,7 +106,7 @@ def main():
           f'RAMRD/RAMWRT/ALTZP/80STORE/LC preserved: OK')
     print(f'  {total} bytes in {sum(c for *_, c in costs)} cycles; '
           f'worst {worst:.1f} cycles per byte (overlay_load included)')
-    print('  reconstructed 256-row projection cache is exact: OK')
+    print('  all 256 negative projection results are exact: OK')
     for index, blocks, cycles in disk_costs:
         print(f'  module {index} read from NEOWILD.BLK: {blocks} blocks in {cycles} cycles '
               f'({cycles // blocks} per block)')

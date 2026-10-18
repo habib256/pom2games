@@ -165,7 +165,7 @@ object_menu:
         and     #$EF
         sta     om_mask
 @valid_mask:
-        ldx     om_action
+        jsr     om_context_action
         lda     om_bits,x
         and     om_mask
         bne     :+
@@ -337,6 +337,32 @@ object_draw:
         lda     #om_unit_oz_space
         jsr     om_bank_puts
 @forecast:
+        lda     om_action
+        cmp     #5
+        beq     @remaining
+        cmp     #6
+        bne     @transfer
+@remaining:
+        lda     om_many
+        beq     @transfer       ; a medicine is a dose, never ounces
+        jsr     puts
+        .byte   "SOURCE LEFT ",0
+        sec
+        lda     ob_m
+        sbc     om_qty
+        sta     num
+        lda     ob_m+1
+        sbc     om_qty+1
+        sta     num+1
+        bcs     :+
+        lda     #0
+        sta     num
+        sta     num+1
+:       jsr     print_u16
+        lda     #om_unit_oz
+        jsr     om_bank_puts
+        jmp     @preview_end
+@transfer:
         lda     om_line
         cmp     #'L'
         beq     @after
@@ -382,7 +408,7 @@ object_key:
         dec     om_phase
         lda     #0
         sta     om_detail
-        jsr     om_quantities
+        jsr     om_quantity_choice
         bne     :+
         sta     om_phase        ; indivisible uses have no quantity screen
 :       jmp     object_draw
@@ -392,7 +418,7 @@ object_key:
         cmp     #2
         jeq     object_commit
         inc     om_phase
-        jsr     om_quantities
+        jsr     om_quantity_choice
         jne     @draw
         lda     #2
         sta     om_phase
@@ -468,13 +494,7 @@ object_key:
         and     om_mask
         beq     @cycle
         jsr     om_all
-        lda     om_action
-        cmp     #5
-        beq     @meal_one
-        cmp     #6
-        jne     @draw
-@meal_one:
-        jmp     @one
+        jmp     object_draw
 object_cancel:
         lda     pg_cur
         cmp     #PG_EQUIPMENT
@@ -509,7 +529,67 @@ om_all: lda     ob_m
         sta     om_qty
         lda     om_max+1
         sta     om_qty+1
+        jmp     om_recall
+
+; These helpers stay loaded alongside the modal, outside the TREE window.
+.pushseg
+.segment "STATUS"
+; On carried usable equipment, activation is the useful first action.
+; This only chooses a menu entry: possession never changes an active flag.
+om_context_action:
+        ldx     om_action
+        cpx     #2              ; preserve explicit USE and local transfers
+        bne     @done
+        lda     om_side
+        beq     @done
+        lda     om_mask
+        and     #$10
+        beq     @done
+        ldx     #4
+        stx     om_action
+@done:  rts
+
+om_recall:
+        lda     om_action
+        sec
+        sbc     #5
+        cmp     #2
+        bcs     @fit
+        tax
+        lda     om_many
+        beq     @fit
+        lda     menu_portion,x
+        bne     :+
+        lda     #1              ; retain the initial one-ounce meal
+:       ldy     om_max+1
+        bne     @remembered
+        cmp     om_max
+        bcs     @fit            ; stock smaller: keep the available amount
+@remembered:
+        sta     om_qty
+        lda     #0
+        sta     om_qty+1
+@fit:
         jmp     om_fit_prepare
+
+; Called solely at the existing confirmation point. Movement, previews and
+; cancellation never change the remembered consumption quantity.
+om_remember:
+        lda     om_action
+        sec
+        sbc     #5
+        cmp     #2
+        bcs     @done
+        tax
+        lda     om_many
+        beq     @done
+        lda     om_qty
+        ldy     om_qty+1
+        beq     :+
+        lda     #255
+:       sta     menu_portion,x
+@done:  rts
+.popseg
 .pushseg
 .segment "STATUS"
 om_free:
@@ -745,6 +825,7 @@ om_v = overlay_text+49
 .pushseg
 .segment "STATUS"
 object_commit:
+        jsr     om_remember
         ldx     om_action
         lda     om_words,x
         jsr     text_fetch
@@ -843,12 +924,26 @@ om_bad = overlay_text+63
 om_side = overlay_text+64
 .assert om_side < overlay_text+160, error, "modal scratch exceeds overlay_text"
 
-om_to: .byte om_to_pack,om_to_hand,om_local_label,om_to_worn,om_to_use,om_to_body,om_to_body,om_to_can
 
 om_usable: .byte 9,10,11,13,38,60,66,68,71,74 ; start/end-exclusive boundaries
 om_usable_end:
 
 ; TASTE is a native inspection: no amount, no ounce, no consumption.
+.pushseg
+.segment "STATUS"
+; A single ounce has no editable quantity; keep its explicit confirmation.
+; Display and native command emission still use om_quantities.
+om_quantity_choice:
+        jsr     om_quantities
+        beq     @done
+        lda     om_max+1
+        bne     @done
+        lda     om_max
+        cmp     #1
+        bne     @done
+        lda     #0
+@done:  rts
+
 om_quantities:
         lda     om_action
         cmp     #6
@@ -861,6 +956,7 @@ om_quantities:
 @ordinary:
         lda     om_many
         rts
+.popseg
 ; Shared bank printer is in STATUS, which stays loaded while the modal runs.
 .pushseg
 .segment "STATUS"
@@ -994,8 +1090,6 @@ om_weight_change:
         jmp     om_bank_puts
 @done:  rts
 .popseg
-om_source_places:
-        .byte om_local_label,om_to_worn,om_to_pack,om_to_hand,om_to_pack,om_hung_label
 
 ; Exact native prerequisites only; no preparation or simulation during drawing.
 om_requirement:
@@ -1091,18 +1185,8 @@ om_requirement:
         lda     #om_matches_inside
         rts
 @outside:
-        lda     geo_wooded
-        pha
-        lda     geo_water_kind
-        pha
-        jsr     inventory_here
-        tax
-        pla
-        sta     geo_water_kind
-        pla
-        sta     geo_wooded
-        txa
-        bmi     @water
+        jsr     med_water_native ; shared exact-cell check preserves geo scratch
+        bcs     @water
         jsr     camp_storm
         bcc     @stock
         lda     camp_use
@@ -1233,6 +1317,8 @@ om_detail_slot = overlay_text+71
 .pushseg
 .segment "STATUS"
 om_detail_key:
+        cmp     #KC_UP
+        beq     om_correct_fit
         cmp     #KC_RIGHT
         beq     @next
         cmp     #KC_LEFT
@@ -1250,6 +1336,31 @@ om_detail_key:
         bcc     @set
         lda     #0
 @set:   sta     om_detail
+        jmp     object_draw
+@ignore:jmp     object_key
+
+; Explicit correction keeps the same occurrence, destination and action.
+; Reopen its quantity editor; a second confirmation still runs the native
+; transfer and its authoritative capacity checks. Never silently clamp.
+om_correct_fit:
+        lda     om_fit_valid
+        beq     @ignore
+        lda     om_fit
+        ora     om_fit+1
+        beq     @ignore
+        lda     om_fit
+        cmp     om_qty
+        lda     om_fit+1
+        sbc     om_qty+1
+        bcs     @ignore
+        lda     om_fit
+        sta     om_qty
+        lda     om_fit+1
+        sta     om_qty+1
+        lda     #1
+        sta     om_phase
+        lda     #0
+        sta     om_detail
         jmp     object_draw
 @ignore:jmp     object_key
 

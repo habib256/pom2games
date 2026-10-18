@@ -14,6 +14,21 @@ figée (DOS 3.3, II+) est `build/reference-hgr/` (disque, `wild.lbl`,
 `wild.map`), hors Git ; `docs/BASELINE_128K.json` garde les mesures HGR 128 Ko
 des lots 1–2.
 
+**État XL du 18 octobre 2026 :** les inventaires historiques ci-dessous
+ne signifient plus que tout le jeu réside en permanence dans le magasin
+auxiliaire. Le module `wildnav.bin` est chargé à la demande depuis
+NEOWILD.BLK dans `$9600` pour le planificateur MAP et les commandes
+d’entrée/sortie d’abri. Ce chargement peut effectuer des lectures disque
+pendant la partie ; les limites de fenêtre sont contrôlées par la construction.
+Le cache des modules courants conserve son fonctionnement.
+
+Les nouvelles préférences de portions et de durée utilisent exactement
+quatre octets MENUCODE (`menu_portion[3]`, `menu_duration`), hors SAVE et
+hors BSS. Les helpers de portions sont dans STATUS ; les tables modales
+`om_to` et `om_source_places` occupent quatorze octets à la fin de STATX,
+après `stx_base`. TREE réutilise `med_water_native` pour la vérification de
+terrain, sans copier de code dans le tampon MouseText `PF_BUF`.
+
 ## 1. Inventaire des segments
 
 Octets = taille liée par ld65 (`build/wild.map`). Nature : C code,
@@ -3469,3 +3484,279 @@ OBJECTS termine son dialogue par un retour de pile vers le planificateur
 chargé avec GRID : il restaure MENUSWAP avant de composer les commandes.
 La commande originale des transferts reste intacte. Les actions USE utilisent
 la même préparation que la grille, puis reviennent à la page d’origine.
+
+
+### Reprise de déplacement XL — 18 octobre 2026
+
+Le trajet en attente utilise six octets dans TEXT : minutes restantes,
+drapeau, coût du prochain pas et cap. Ils restent hors des plages SAVE et
+sont effacés par RESTORE. Le stockage de fin de déplacement est résident ;
+les choix et le rapport utilisent NAVIGATION à la demande. Il n'y a pas
+de lecture disque ajoutée entre les pas. Les tests distinguent les étapes
+sans accès disque et les chargements d'interface avant/après le déplacement.
+
+### Préparation groupée XL — 18 octobre 2026
+
+La checklist utilise quatre octets d'interface dans TEXT (masque, curseur,
+phase), hors sauvegarde. Son code et son aperçu de charge sont dans
+NAVIGATION. Les transitions NAVIGATION/GRID passent par des trampolines
+SITES à $5800 : aucun retour ne doit viser un module remplacé à $9600 ou
+$A000. La file exécute des commandes de transfert natives, sans mutation
+directe des stocks. L'action contextuelle réutilise l'octet `mn_anim` comme
+signature de contexte et ne crée pas de nouvel état de simulation.
+
+Après cette livraison : TEXT $0A00–$0FFF, STATUS $9600–$B0FE,
+NAVIGATION $9600–$A5A0, GRID $A000–$AF89, MENUSWAP $B000–$B5F6.
+L’image XL occupe 395 blocs sur 1600 ; NEOWILD.DAT contient 19 records
+(66 676 octets bruts, 59 235 stockés). Le retour de file de préparation
+reprend après `do_command` pour éviter une seconde exécution par la boucle
+principale. Aucun format de sauvegarde ne change.
+
+
+### Suivi de cible et bilan de chasse XL — 18 octobre 2026
+
+BSS finit désormais à $577F : route_x, route_y, route_active et route_setting
+occupent les quatre octets restants, hors SAVE. La proposition de cible
+utilise temporairement dep_mask/dep_cursor, une union avec la checklist
+inactive. Cette copie résidente survit au chargement de SIM lors de
+l’activation d’une boussole. ORIENT ne valide la cible qu’au succès natif.
+RESTORE et une nouvelle partie effacent les indicateurs de suivi.
+
+ORIENT finit à $5FFD, SITES à $5F64, NAVIGATION à $AA3E et GRID à $AF89.
+Le bilan de chasse se trouve dans NAVIGATION ; les trampolines SITES
+chargent NAVIGATION puis GRID sans retour vers du code remplacé.
+L’image XL occupe 398 blocs. Le module NAVIGATION atteint onze blocs :
+le scénario WALK du test SAVE lit deux fois onze blocs, à l’interface avant
+et après déplacement. Le test vérifie l’absence de lecture aux positions
+intermédiaires. Cette livraison ne revendique pas une accélération des
+chargements disque.
+
+
+### Guide de survie et petit module de trajet — 18 octobre 2026
+
+TRIPUI ($9600–$989E, 671 octets) est stocké séparément dans NEOWILD.BLK.
+Les trampolines SITES utilisent le même emplacement temporaire de répertoire
+que NAVIGATION, avec deux paires bloc/longueur patchées à la construction.
+Les déplacements lisent deux fois deux blocs au lieu de charger les onze
+blocs de l’ancienne image NAVIGATION. Les contrôles SAVE continuent de
+vérifier qu’aucune lecture ne survient aux positions intermédiaires.
+
+NAVIGATION finit à $AF5D, GRID à $AFD0, SITES à $5FBA, EQUIPMENT à $5F5A
+et STATUS à $B0BF. Le dessin de MENU se trouve dans EQUIPMENT ; son dispatcher
+reste dans STATUS. Comme scr_equipment, il utilise mem_fetch 33 directement,
+pas overlay_load qui traite les identifiants de scène à partir de 33.
+
+Le guide réutilise dep_cursor, dep_mask et dep_running ; aucun nouveau champ
+SAVE ou résident. menu_gather restaure MENUSWAP avant d’appeler ses inspecteurs.
+Le retour guide→formulaire remplace le retour de pile vers la boucle principale
+par le point situé après get_line : une commande composée est ainsi exécutée
+exactement une fois. La fenêtre d’interface invalidée ($FF) n’est plus restaurée
+comme un module natif dans fauna_cap et take_oz.
+
+L’image XL occupe 402 blocs sur 1600, avec 19 enregistrements NEOWILD.DAT.
+
+Le conseil ENERGY reprend les seuils natifs de STATUS : repos de 8 h pour
+BEAT, 2 h pour TIRED, sinon 30 min. Le formulaire présélectionne cette durée
+une seule fois, sans exécuter le repos. Le marqueur partage dep_mask ;
+quitter PREPARE efface son masque avant cette réutilisation. Le nouveau
+helper de durée est placé après les tables alignées GRID pour éviter un
+saut de page qui dépasserait la fenêtre.
+
+
+### Besoins directs, suites et rendu des transferts — 18 octobre 2026
+
+GUIDANCE regroupe conseils, parcours viande/eau, bilan de chasse, suites
+après résultat et explications de refus dans une image disque indépendante
+($9600–$A7E7). NAVIGATION conserve la carte et le départ ; TRIPUI reste
+indépendant. HELPUI ($5800–$5A09) est chargé depuis STATUS, dont les mots
+bloc/longueur sont patchés aussi dans sa copie NEOWILD.BLK. Les quatre
+images ont leurs métadonnées de construction séparées.
+
+Les transitions passent par SITES ($5800–$5FF4). Le retour après résultat
+retire uniquement son appel de contrôle, puis rend la commande composée
+au get_line déjà actif : chaque geste natif est exécuté une fois. Le contexte
+du résultat partage dep_running/dep_mask/dep_cursor avec les interfaces
+inactives ; il ne modifie pas le format SAVE.
+
+FORAGE atteint $B036 et peut employer la fenêtre jusqu’à $B5FF : le retour
+get_line restaure MENUSWAP avant ses inspecteurs. MENUSWAP occupe maintenant
+exactement $B000–$B5FF ; scroll_to_cur est placé après les tables alignées
+de GRID ($A000–$AFF5). STATUS finit à $AFC9, son tampon de ligne reste
+au-dessus des blocs disque CRAFT grâce à un alignement avant page_top.
+L’image XL occupe 410 blocs sur 1600.
+
+Les transferts sans changement de tente utilisent le calcul de charge
+silencieux. test_transfer_redraw compare au même exécutable dont le seuil
+de redessin est forcé : CARRY AXE 7 593 820→1 336 257 cycles, PACK AXE
+7 593 397→1 335 834, DROP AXE 7 593 755→1 336 192. Les deux banques DHGR
+visibles, les messages, l’état natif et le RNG sont identiques ; seul le
+cache graphique évite sa reconstruction. CARRY/DROP TENT conservent le
+redessin complet. Ces mesures portent sur ces commandes instantanées,
+pas sur la vitesse globale des déplacements.
+
+Les appels directs de test dans SIM/FORAGE doivent revenir par un trampoline
+résident vers idle, puis restaurer MENUSWAP avant de reprendre le clavier.
+Reprendre à idle+3 avec les indicateurs de la routine appelée pouvait entrer
+dans fire_idle, désormais dans MENUSWAP recouvert. Le banc FORAGE utilise
+ce retour explicite ; les assertions natives restent inchangées.
+
+
+### Nuit, approche et retour sans redessin — 18 octobre 2026
+
+GUIDANCE regroupe maintenant night.s et priority.s. guidance_dispatch reçoit
+les quatre besoins historiques, NIGHT (4) ou NEXT ACTION (5). Aucun champ
+n’est ajouté à SAVE. Le contexte temporaire des interfaces reste partagé
+avec les commandes inactives ; parcourir ou annuler conserve l’état natif.
+
+Le retour des conseils utilise back_to_view_now. test_guidance_redraw force
+le retour ancien dans le même binaire pour comparer le paysage DHGR, le RNG
+et les données natives. Les rappels de texte périmés sont nettoyés ; ils ne
+font pas partie de l’égalité des pixels du paysage.
+
+TRIPUI occupe désormais quatre blocs, contre deux à la passe précédente :
+les deux chargements du scénario WALK représentent donc huit lectures.
+Les anciens chiffres quatre/vingt-deux restent des mesures historiques.
+Le rapport conserve le motif natif et ajoute cible et distance en 8.8.
+Le pas court utilise dep_running bit 6, consommé lors du calcul du coût
+natif ; le bit 7 reste réservé aux propositions après résultat.
+Le retour vers le réglage de cap passe par navigation_route_open dans SITES.
+
+pg_mark et med_water_legacy résident dans STATUS, leur seul appelant.
+scr_help est résident pour libérer la place de la garde de rapport dans
+GCODE. MENUSWAP reste plein à 1 536 octets ; aucun champ ZP n’est déplacé.
+Le contrôle des quantités et du stock dans followup.s garde ses conventions
+résidentes, avec un seul affichage du résultat et du prochain choix.
+
+Après cette passe : GUIDANCE $9600–$ADED, TRIPUI $9600–$9CA6,
+SITES $5800–$5FFA, SUMMARY $5800–$5FF8, STATUS $9600–$B035.
+L’image XL occupe 415 blocs sur 1600 ; NEOWILD.DAT comporte 19 images,
+67 084 octets avant compression et 59 670 après.
+
+Le garde de durée dans GRID appelle travel_dialogue_needed à taille égale.
+Toute marche/nage suivie entre ainsi dans TRIPUI avant la composition d’une
+durée : le pas court est accessible depuis le joystick. Une commande tapée
+avec durée explicite conserve le comportement natif. Ce chemin fait l’objet
+d’un test de grille au game port, en plus des appels natifs sans argument.
+
+
+### Durées, CAMPUI et raccourcis — 18 octobre 2026
+
+CAMPUI est une image disque indépendante dans la fenêtre $9600, avec sa
+paire bloc/longueur patchée dans SITES et sa propre entrée de layout.json.
+Elle regroupe campguide, followup, refusal et context. GUIDANCE conserve
+SURVIVAL, NIGHT, les parcours et les priorités. TRIPUI reçoit duration.s.
+Le chargeur SITES reste commun aux images ; aucun champ SAVE n’est ajouté.
+
+La demande commune de durée passe par duration_entry avant INPUT ; les
+arguments explicitement tapés suivent toujours l’ancien lecteur. Le choix
+est un mot de minutes confirmé, avec une proposition ponctuelle séparée.
+NIGHT prévoit le lever du soleil avec des variables locales à GUIDANCE.
+
+Le contexte de cuisson conserve 49 octets CODE et un indicateur RESBSS,
+hors sauvegarde. Son bit haut emprunte le contrôle existant de followup_poll,
+qui rejoint CAMPUI en priorité. Le retour d’une commande de CAMP rétablit
+le point main_command, tandis qu’une annulation revient à main sans exécuter
+une ancienne ligne. La source exacte $C0 permet encore d’armer la suite de
+BOIL après le formulaire natif de quantité, même si INPUT a rendu mn_mode nul.
+
+L’ancien rappel d’indice de durée GRID est retiré ; menu_duration devient
+le focus de QUICK. verb_of_cur rejoint GRID. Les tables alignées sont
+conservées et la pseudo-identité 126 n’est jamais envoyée au parseur natif.
+Le contrôle de gris relit mn_idx après sa comparaison spéciale, afin de
+conserver le bit de disponibilité d’origine.
+
+La détection de boisson propre est dans ADVENTURE : cette fenêtre peut être
+chargée sans remplacer SIM. Elle ne fait qu’armer le chemin sim_quiet déjà
+utilisé par les actions instantanées. Deux constantes identiques et lues
+seulement sont partagées pour libérer dix octets de SIM : tree_effort avec
+c_0_02 résident, wf_40 avec al_k40 résident. Aucune formule ni précision
+native n’est changée. Le rendu différentiel de la carte conserve son
+cadrage d’origine ; les déplacements de cadrage gardent le dessin complet.
+
+
+État final : SITES $5800–$5FFD ; CODE $6000–$6D3A, RODATA/DATA jusqu’à
+$6FF9 ; CAMPUI $9600–$A800 ; GUIDANCE $9600–$A836 ; TRIPUI $9600–$9E15 ;
+GRID $A000–$AFF9 ; MENUSWAP $B000–$B5F7 ; SIM finit à $B5FC.
+L’image XL occupe 424/1600 blocs ; NEOWILD.DAT contient toujours 19 images,
+67 214 octets avant compression et 59 721 après. Les modules d’interface
+sur disque ne consomment pas de nouvel identifiant résident du répertoire.
+Le garde BOIL avant quantité tient dans la marge avant les tables alignées
+GRID, sans décaler les noms vers une page supplémentaire.
+
+### Mémoires par activité et suite du repos — 18 octobre 2026
+
+Les trois mots contigus duration_last (trajet), duration_rest et duration_wait
+occupent quatre octets résidents supplémentaires. La sélection de la famille,
+les paliers et le marqueur de proposition restent dans TRIPUI. Une proposition
+confirmée ne modifie pas ces mémoires. Les arguments tapés gardent le lecteur
+natif ; leur saisie ne modifie pas la mémoire du sélecteur au joystick.
+
+La suite d’un repos proposé utilise la valeur exclusive $84 de dep_running,
+avec le compteur de rencontre dans dep_cursor. Aucun octet SAVE n’est ajouté.
+Après les gardes existants, CAMPUI préserve le résultat natif et propose une
+revue de l’aube ou CAMP. Revoir NIGHT remplace le retour get_line par
+main_command_done avant de charger GUIDANCE, pour qu’une annulation ne
+réexécute pas la ligne précédente. Le même garde s’applique à CAMP → NIGHT.
+
+UP FIT réutilise les mots du calcul natif de l’éditeur OBJECTS, en STATUS ;
+il conserve son occurrence, son action et sa destination dans le même modal.
+Le champ de quantité revient à la phase éditable et reste à confirmer.
+
+Après intégration : CODE $6000–$6D3E ; RODATA/DATA jusqu’à $6FFD (2 octets
+libres) ; CAMPUI $9600–$AA20 ; GUIDANCE $9600–$A912 ; TRIPUI $9600–$9EBC ;
+STATUS $9600–$B035 et STATX $B100–$B5FC. SITES, GRID et SIM sont inchangés.
+L’image XL occupe 425/1600 blocs. NEOWILD.DAT : 67 207 octets avant
+compression, 59 702 après, toujours 19 images.
+
+### Chasse suivie, campement et rencontres — 18 octobre 2026
+
+THREATUI est une image disque indépendante à $9600, chargée par le même
+répertoire temporaire que NAVIGATION, TRIPUI, GUIDANCE et CAMPUI. Les tables
+bloc/longueur ajoutent un cinquième choix (index 8) ; aucune entrée du
+répertoire résident de modules ni image de NEOWILD.DAT supplémentaire n’est
+nécessaire. Le constructeur patche son emplacement dans SITES et l’inscrit
+séparément dans layout.json.
+
+Les mots d’interface conservés ne font pas partie de SAVE : dep_running
+$85–$88 suit préparation, résultat de chasse et dépeçage, avec la proie exacte
+dans dep_mask. camp_pending utilise $40 pour un formulaire de camp ouvert,
+$C0 après dispatch de sa commande, et les bits bas pour retrouver l’étape.
+L’ancien $80 de préparation de cuisson reste distinct. Trois octets résidents
+gardent le contexte de menace, l’animal déjà vu et l’origine joystick de
+l’action pouvant proposer le trajet. Démarrage et restauration effacent ces
+contextes. Les commandes tapées gardent leur retour natif.
+
+Le rappel de suivi passe après une commande native, sans simuler pour
+découvrir une possibilité. Une menace locale a priorité sur le retour au
+camp, la chasse et le trajet. Les choix rejoignent les formulaires natifs
+par des appels terminaux depuis SITES ; les retours de revue utilisent
+main_command_done afin qu’annuler ne rejoue pas une ancienne commande.
+L’origine du menu de départ reste locale à CAMPUI : QUICK DOUSE ne doit
+pas armer le retour de CAMP simplement parce qu’il partage son exécuteur.
+
+Le cache négatif row_n0 de 256 octets est retiré. Ses trois lecteurs appellent
+row_negative, routine résidente de 13 octets calculant exactement la même
+projection à partir de row_p0. Les 256 sorties sont vérifiées dans
+test_transfers.py. Les six vues comparées à l’image précédente ont les mêmes
+pixels visibles et le même état enregistré ; le surcoût de rendu est de
+0,23 à 3,99 % selon la vue. Les octets des trous HGR et des lignes cachées
+diffèrent parce que du code de menu y est conservé, pas à cause du paysage.
+
+Ce gain de 243 octets permet de déplacer duration_entry, travel_short_budget
+et finish_simulation en LOWCODE, ainsi que des listes et un texte de carte
+en LOWTEXT. Les constantes restent toujours résidentes. Le bloc d’exécution
+de la chasse est placé après les noms alignés de GRID pour éviter une page
+de remplissage supplémentaire ; leurs assertions de page sont conservées.
+
+Le choix de trajet garde le motif d’arrêt dans le compte rendu, puis affiche
+dans son propre dialogue le choix, la cible et une ligne de terrain courte.
+Il ne doit pas dépasser les quatre lignes disponibles. Les dépendances de
+construction incluent explicitement threat.s et route_followup.s.
+
+État intégré : LOWCODE $1100–$1902, LOWTEXT $1903–$1FF1 (14 octets libres) ;
+CODE $6000–$6D16, RODATA/DATA jusqu’à $6FD5 (42 libres) ; SITES $5800–$5FFA
+(5 libres) ; GRID $A000–$AFE2 (29 libres) ; MENUSWAP $B000–$B5F7.
+CAMPUI $9600–$AE56 ; GUIDANCE $9600–$ADA2 ; TRIPUI $9600–$9EF7 ;
+THREATUI $9600–$9B0C. L’image XL occupe 432/1600 blocs. La charge utile
+des 19 images de NEOWILD.DAT représente 67 133 octets avant compression et
+59 821 après (hors en-tête du fichier).

@@ -220,7 +220,7 @@ DISK_END = {0x5800: 0x6000, 0x9600: 0xB000}
 # its tail (the post-its), runs up to $B5FF, over the grid's image as when
 # it was decoded from the store (get_line gathers the grid again).
 STATUS_DIR = 16
-DISK_LIMIT = {STATUS_DIR: 0xB600}
+DISK_LIMIT = {STATUS_DIR: 0xB600, FORAGE_DIR: 0xB600}
 BLK_SIGNATURE = b'NWBK'
 DISK_WINDOW = 0x5800
 LZ_MARGIN = 31
@@ -838,6 +838,21 @@ def blk_file(build, modules, disk_modules, shelters=True):
         where[name] = (block, blocks)
         body += raw + bytes(blocks * 512 - len(raw))
         block += blocks
+    # Navigation uses the scratch directory entry, like site sprites. It
+    # occupies no persistent directory slot or auxiliary store space.
+    for key, image, window, limit in (
+            ('navigation', 'wildnav.bin', 0x9600, 0xB000),
+            ('trip', 'wildtrip.bin', 0x9600, 0xB000),
+            ('guidance', 'wildguide.bin', 0x9600, 0xB000),
+            ('campui', 'wildcampui.bin', 0x9600, 0xB000),
+            ('threat', 'wildthreat.bin', 0x9600, 0xB000),
+            ('help', 'wildhelp.bin', 0x5800, 0x6000)):
+        raw = (Path(build) / image).read_bytes()
+        blocks = -(-len(raw) // 512)
+        assert 0 < len(raw) and window + blocks * 512 <= limit, (key, len(raw))
+        where[key] = (block, blocks)
+        body += raw + bytes(blocks * 512 - len(raw))
+        block += blocks
     ident = hashlib.sha256(bytes(body)).digest()[:2]
     head = BLK_SIGNATURE + ident
     data = head + bytes(512 - len(head)) + bytes(body)
@@ -957,8 +972,32 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
         'STATUS on NEOWILD.BLK needs the XL status_fetch (sim_fetch, src/game.s)'
     disk_modules = tuple(sorted(set(disk_modules) | set(ALWAYS_DISK)))
     blk, blk_where, blk_head = blk_file(build, modules, disk_modules, shelters)
+    custom_patches = {10: [], STATUS_DIR: []}
     for index, (name, window) in modules.items():
         data = (build / name).read_bytes()
+        if index in custom_patches:
+            data = bytearray(data)
+            if index == 10:
+                targets = (('nav_disk_block', blk_where['navigation'][0]),
+                           ('nav_disk_length', len((build / 'wildnav.bin').read_bytes())),
+                           ('trip_disk_block', blk_where['trip'][0]),
+                           ('trip_disk_length', len((build / 'wildtrip.bin').read_bytes())),
+                           ('guidance_disk_block', blk_where['guidance'][0]),
+                           ('guidance_disk_length', len((build / 'wildguide.bin').read_bytes())),
+                           ('campui_disk_block', blk_where['campui'][0]),
+                           ('campui_disk_length', len((build / 'wildcampui.bin').read_bytes())),
+                           ('threat_disk_block', blk_where['threat'][0]),
+                           ('threat_disk_length', len((build / 'wildthreat.bin').read_bytes())))
+            else:
+                targets = (('help_disk_block', blk_where['help'][0]),
+                           ('help_disk_length', len((build / 'wildhelp.bin').read_bytes())))
+            for label, value in targets:
+                offset = sym[label] - window
+                assert 0 <= offset <= len(data) - 2, label
+                for n, value_byte in enumerate(value.to_bytes(2, 'little')):
+                    data[offset + n] = value_byte
+                    custom_patches[index].append((offset + n, value_byte))
+            data = bytes(data)
         assert 0 < len(data) <= WINDOW_LIMIT[window], (name, len(data))
         images[index] = raw_images[index] = data
         if index in blk_where:
@@ -967,6 +1006,16 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
         if packed:
             images[index] = packed[0]
             lz[index] = dict(stored=len(packed[0]), copy=packed[1], margin=packed[2])
+    # STATUS is read directly from NEOWILD.BLK on XL. Apply its custom-loader
+    # pointers to that disk copy too, then sign the final patched payload.
+    if STATUS_DIR in blk_where:
+        patched_blk = bytearray(blk)
+        start = (blk_where[STATUS_DIR][0] - BLK_FIRST) * 512
+        patched_blk[start:start + len(raw_images[STATUS_DIR])] = raw_images[STATUS_DIR]
+        head = BLK_SIGNATURE + hashlib.sha256(bytes(patched_blk[512:])).digest()[:2]
+        patched_blk[:len(head)] = head
+        blk = bytes(patched_blk)
+        blk_head = BLK_FIRST.to_bytes(2, 'little') + head
     project_patches = site_project(build, sym, images, raw_images, blk_where, shelters)
     regions_data = {r: region_data(build, r, map_path if r == 2 else None) for r in PACK_REGIONS}
     def sprite_image(name):
@@ -1293,13 +1342,15 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
                      for i in range(DIR_ENTRIES) if i in placed}
     trunk_modules['11']['patches'] = project_patches   # module_image: NEOWILD.BLK's site sprites
     for i, (block, count) in blk_where.items():
-        if i in SITE_SPRITES:
+        if i in SITE_SPRITES or i in ('navigation', 'trip', 'guidance', 'campui', 'threat', 'help'):
             continue
         trunk_modules[str(i)] = dict(image=modules[i][0], bank='disk', block=block, blocks=count,
                                      length=len(raw_images[i]), stored=count * 512,
                                      window=modules[i][1])
         if i == CRAFT_DIR:              # the directory's length: the recipes (MAKE)
             trunk_modules[str(i)]['fetch'] = sym['craft_page'] - modules[i][1]
+    for index, patches in custom_patches.items():
+        trunk_modules[str(index)]['patches'] = patches
     trunk_modules = dict(sorted(trunk_modules.items(), key=lambda kv: int(kv[0])))
     info = dict(packing=packing, blocks_used=volume.next_free, blocks=blocks,
                 blocks_free=blocks - volume.next_free,
@@ -1318,7 +1369,23 @@ def build_disk(out, map_path=None, build=None, packing='lz', layout=None, blocks
                 disk=dict(file='NEOWILD.BLK', bytes=len(blk), first_block=BLK_FIRST if blk else 0,
                           signature=blk_head[2:].hex(),
                           modules={str(i): dict(block=b, blocks=n) for i, (b, n) in blk_where.items()
-                                   if i not in SITE_SPRITES},
+                                   if i not in SITE_SPRITES and i not in ('navigation', 'trip', 'guidance', 'campui', 'threat', 'help')},
+                          navigation=dict(image='wildnav.bin', window=0x9600,
+                                          block=blk_where['navigation'][0],
+                                          blocks=blk_where['navigation'][1]),
+                          trip=dict(image='wildtrip.bin', window=0x9600,
+                                    block=blk_where['trip'][0],
+                                    blocks=blk_where['trip'][1]),
+                          guidance=dict(image='wildguide.bin', window=0x9600,
+                                        block=blk_where['guidance'][0],
+                                        blocks=blk_where['guidance'][1]),
+                          campui=dict(image='wildcampui.bin', window=0x9600,
+                                      block=blk_where['campui'][0], blocks=blk_where['campui'][1]),
+                          threat=dict(image='wildthreat.bin', window=0x9600,
+                                      block=blk_where['threat'][0], blocks=blk_where['threat'][1]),
+                          help=dict(image='wildhelp.bin', window=0x5800,
+                                    block=blk_where['help'][0],
+                                    blocks=blk_where['help'][1]),
                           sites={i: dict(block=b, blocks=n) for i, (b, n) in blk_where.items()
                                  if i in SITE_SPRITES}),
                 lz_decoder=dict(bank=BANK_NAMES[LZLC[0]], address=LZLC[1], length=len(lzlc)),

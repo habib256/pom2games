@@ -169,7 +169,19 @@ OA_TIME   = 6                   ; a duration (message already shown)
 
 .segment "ORIENT"
 ; LOOK with noun 52-56 (T$0F/S$0F) or a direction (T$10/S$0C).
+; A map target supplies degrees, then follows the ordinary equipment gates
+; and native compass/watch/shadow procedures, with no automatic walking.
+module_orient_target:
+        lda     #7
+        sta     orient_dialog
+        lda     #155
+        sta     noun
+        jmp     ol_look_start
 module_orient_look:
+        lda     #0
+        sta     route_setting   ; a refused/cancelled map target cannot commit later
+        sta     orient_dialog
+ol_look_start:
         lda     noun
         cmp     #57
         jcs     @direction
@@ -246,6 +258,8 @@ module_orient_look:
         sta     orient_aid
         bne     :+
 @no_aid:
+        lda     #0
+        sta     orient_dialog
         lda     #<ol_aid_msg    ; msg 42: no compass
         ldx     #>ol_aid_msg
         jmp     message
@@ -255,6 +269,9 @@ module_orient_look:
         lda     noun
         cmp     #155            ; AZ: msg 43
         bne     @card
+        lda     orient_dialog
+        cmp     #7
+        beq     @target
         lda     #<ol_az_msg
         ldx     #>ol_az_msg
         jsr     message
@@ -265,6 +282,8 @@ module_orient_look:
         sta     orient_deg
         lda     msgnum+1
         sta     orient_deg+1
+@target:
+        ; No dialog follows without orient_ask first setting its own type.
         jsr     ol_add_deg
         jmp     @aid
 @card:  sec                     ; N E S W -> 0, 140, 280, 420
@@ -498,6 +517,20 @@ ol_degrees:
 
 ; ol_heading -- heading = orient_base
 ol_heading:
+        ; Only successful native orientation commits a proposed map target.
+        ; dep_mask/dep_cursor hold x/y/active in the inactive checklist UI union.
+        ldx     route_setting
+        beq     @heading
+        ldx     #2
+@target:
+        lda     dep_mask,x
+        sta     route_x,x
+        dex
+        bpl     @target
+        lsr     route_setting   ; pending 1 -> 0, proposal committed
+@heading:
+        lda     #0              ; a chosen bearing replaces the previous trip
+        sta     travel_pending
         lda     orient_base
         sta     heading
         lda     orient_base+1

@@ -55,7 +55,7 @@ def victory():
         assert s.step(L.peek('dead')).data==b'\0'
         assert s.step(L.peek('journey_steps',2)).data==bytes((6,0))
         assert 68 < fp(s.step(L.peek('s_elap',5)).data)*60 <= 308
-        for text in ('RANGER OUTPOST REACHED','YOU SURVIVED WILDERNESS','JOURNEY TIME:','TRAVEL STEPS: 6','TRAVEL DISTANCE: 3 CELLS','FINAL HEALTH:','WATER LEFT: 60 OZ','FOOD LEFT:','NATIVE JOURNEY SCORE:'):
+        for text in ('RANGER OUTPOST REACHED','YOU SURVIVED WILDERNESS','JOURNEY TIME:','TRAVEL STEPS: 6','TRAVEL DISTANCE: 3 CELLS','FINAL HEALTH:','WATER LEFT: 60 OZ','FOOD LEFT:','NATIVE JOURNEY RATING:'):
             assert text in actual,(text,actual)
         s.step('wait:120');assert screen(s)==actual
     print('  Artificial-map arrival: ending mechanism only, no native adventure parity claim')

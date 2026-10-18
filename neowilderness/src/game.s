@@ -307,9 +307,12 @@ main:   lda     dead
         ora     won
         bne     the_end
         jsr     get_line
+main_command:
+        jsr     camp_command_begin
         lda     #0
         sta     shown
         jsr     do_command
+main_command_done:
         jsr     finish_simulation
         jsr     alerts_after    ; lot 13: original alerts, forced sleep, summary
         jmp     main
@@ -351,8 +354,7 @@ vtab_target:
 ; in INPUT for prompted entry, quantities and more elaborate syntax.
 .segment "GCODE"
 get_duration:
-        ldy     #1
-        bne     number_entry
+        jmp     duration_entry
 get_quantity:
         ldy     #2
         bne     number_entry
@@ -503,13 +505,6 @@ fast_words:
 .segment "RODATA"
 ; Complete input/vocabulary fallback runs at most once per command.
 general_command:
-        lda     linelen
-        cmp     #5
-        bne     :+
-        lda     inbuf
-        cmp     #'S'
-        beq     @input          ; SLEEP avoids VOCAB -> INPUT round trip
-:
         ldx     #0
 @scan:  lda     inbuf,x
         beq     @ordinary
@@ -881,9 +876,12 @@ scr_view = show_view
 
 ; HELP joins STATUS and INVENTORY in the STATUS module (SIM window): the
 ; former SCREENS module (2) is gone.
+.pushseg
+.segment "CODE"
 scr_help:
         jsr     status_fetch
         jmp     module_help
+.popseg
 .segment "STATUS"
 ; HELP, a page of the cycle (src/pages.s): four blocks on one 80-column
 ; page, a block's first line its heading (inverse). Written row by row (no
@@ -893,134 +891,31 @@ scr_help:
 module_help:
         lda     #PG_HELP
         jsr     page_top
-        lda     #30
-        sta     WNDWDTH
-        lda     #$3F
-        sta     INVFLG
-        jsr     puts
-        .byte   " HELP ", 0
-        jsr     pg_first
-        ldx     #0
-@topic: stx     help_page
-        lda     help_names_lo,x
-        ldy     help_names_hi,x
-        jsr     print_str_ay
-        ldx     help_page
-        inx
-        cpx     #4
-        beq     @body
-        jsr     pg_line
-        ldx     help_page
-        inx
-        jmp     @topic
-@body:  lda     #22
-        jsr     vtab
-        lda     #80
-        sta     WNDWDTH
-        lda     #2
-        ldx     #30
-        jsr     st_at_x
-        ldx     pg_focus
-        beq     :+
-        dex
-:       stx     help_page
+        lda     #BANK_DISK
+        sta     SITE_ENTRY
+        lda     help_disk_block
+        sta     SITE_ENTRY+1
+        lda     help_disk_block+1
+        sta     SITE_ENTRY+2
+        lda     help_disk_length
+        sta     SITE_ENTRY+3
+        lda     help_disk_length+1
+        sta     SITE_ENTRY+4
         lda     #0
-        sta     help_part
-        jsr     help_load
-        lda     #$3F
-        sta     help_inv
-@line:  ldx     #0
-        jsr     help_line
-        jsr     topo_pad
-        inc     CV
-        jsr     t_vtab
-        lda     #30
-        sta     CH
+        sta     SITE_ENTRY+5
+        lda     #$58
+        sta     SITE_ENTRY+6
+        ldx     #TB_FETCH
+        jsr     mem_fetch
+        lda     SITE_BANK_OF
+        sta     SITE_ENTRY
+        lda     #0
+        sta     SITE_ENTRY+4
         lda     #$FF
-        sta     help_inv
-        lda     CV
-        cmp     #22
-        bcs     @footer
-        lda     #' '|$80
-        jsr     COUT
-        jmp     @line
-@footer:
-        lda     #<pg_k_menu_x
-        ldy     #>pg_k_menu_x
-        jsr     page_foot_x
-help_key:
-        jsr     wait_key
-        jsr     page_keys
-        jmp     help_key
-; Print the selected topic one line at a time, leaving all other topics folded.
-help_line:
-        stx     help_x
-        lda     help_ptr,x
-        sta     gp2
-        lda     help_ptr+1,x
-        sta     gp2+1
-        lda     help_inv
-        sta     INVFLG
-@ch:    ldy     #0
-        lda     (gp2),y
-        bne     @char
-        lda     help_part
-        bne     @end
-        inc     help_part
-        jsr     help_load
-        jmp     help_line
-@char:  inc     gp2
-        bne     :+
-        inc     gp2+1
-:       cmp     #13
-        beq     @end
-        ora     #$80
-        jsr     COUT
-        jmp     @ch
-@end:   lda     #$FF
-        sta     INVFLG
-        ldx     help_x
-        lda     gp2
-        sta     help_ptr,x
-        lda     gp2+1
-        sta     help_ptr+1,x
-        rts
-help_page: .byte 0
-help_x:    .byte 0
-help_inv:  .byte 0
-help_ptr:  .word 0
-help_names_lo: .byte <hp_move,<hp_items,<hp_live,<hp_save
-help_names_hi: .byte >hp_move,>hp_items,>hp_live,>hp_save
-help_ids: .byte om_need,om_qty_label,om_eat_word,om_lower_word
-help_part: .byte 0
-help_load:
-        ldx     help_page
-        lda     help_part
-        bne     @more
-        lda     help_ids,x
-        jsr     text_fetch
-        lda     #<(tb_buf+8)
-        ldx     #>(tb_buf+8)
-        bne     @store
-@more:  lda     help_more_lo,x
-        pha
-        lda     help_more_hi,x
-        tax
-        pla
-@store: sta     help_ptr
-        stx     help_ptr+1
-        ldx     #0
-        rts
-help_more_lo: .byte <hp_m0,<hp_m1,<hp_m2,<hp_m3
-help_more_hi: .byte >hp_m0,>hp_m1,>hp_m2,>hp_m3
-hp_m0: .byte "CANCEL: STOP AFTER THIS STEP.",13,13,"UP: PAGES    DOWN: ACTIONS",13,"TOPO IS ABOVE THE PAGES.",0
-hp_m1: .byte "QUANTITY -> REVIEW -> CONFIRM",13,"CANCEL: BACK WITHOUT TRANSFERRING.",13,13,"EQUIPMENT: USE ACTIVATES THE TOOL.",0
-hp_m2: .byte "REST/SLEEP RESTORES ENERGY.",13,13,"STATUS: SELECT AN INJURY TO TREAT.",13,"CATCH: BAIT, THEN TRAP/FISHING GEAR.",0
-hp_m3: .byte "CANCEL: GO BACK",13,13,"OVERWRITE AND QUIT ASK FIRST.",0
-hp_move: .byte " MOVE",0
-hp_items: .byte " OBJECTS & GEAR",0
-hp_live: .byte " SURVIVE",0
-hp_save: .byte " SAVE & LEAVE",0
+        sta     overlay_current
+        jmp     module_help_body
+help_disk_block: .word 0
+help_disk_length: .word 0
 .segment "GCODE"
 do_site:
         lda     #10
@@ -1185,7 +1080,7 @@ stars_list_up: .byte 0          ; the list's projection: 1 LOOK UP (stars.s st_i
 
 ; Commands such as EAT/DRINK leave no explicit VIEW call. Restore their
 ; picture silently: preserve their messages and do not add key prompts.
-.segment "CODE"
+.segment "LOWCODE"
 finish_simulation:
         lda     sim_loaded
         beq     @done
@@ -1300,6 +1195,37 @@ module_magnetic_heading:
 compass_error: .res 5
 .segment "GCODE"
 
+.pushseg
+.segment "BSS"
+route_x: .res 1
+route_y: .res 1
+route_active: .res 1
+route_setting: .res 1
+.segment "TEXT"
+travel_remaining: .word 0
+travel_pending: .byte 0
+travel_next_minutes: .byte 0
+travel_heading: .word 0
+
+travel_ui_load:
+        lda     #10
+        jsr     overlay_load
+        jmp     trip_load
+travel_state_save:
+        ldx     #1
+@copy:  lda     heading,x
+        sta     travel_heading,x
+        lda     minutes,x
+        sta     travel_remaining,x
+        dex
+        bpl     @copy
+        ora     minutes+1       ; A still holds the low byte after the loop
+        beq     @done
+        lda     verb
+        sta     travel_pending
+@done:  rts
+.popseg
+
 ; WALK, GO, RUN, MOVE, CRAWL, SWIM: hours, then cells along the
 ; heading. WALK and SWIM use original integer-unit raster paths and costs.
 ; Both stop before the two-cell outer band; a rejected step spends no time.
@@ -1318,17 +1244,12 @@ do_walk:
         ldx     #>m_dark
         jmp     message
 :
-        lda     #<m_hours
-        ldx     #>m_hours
-        jsr     get_duration
-        bcs     @quit
-        lda     msgnum
-        ora     msgnum+1
-        bne     @start
-@quit:  rts
-@start: lda     #0              ; travel levels the view (as the original)
+        jsr     travel_ui_load
+        jsr     navigation_travel_duration
+        bcc     :+
+        rts
+:       lda     #0              ; travel levels the view (as the original)
         sta     tilt
-        jsr     prepare_minutes           ; minutes = hours * 60
         lda     verb
         cmp     #V_SWIM
         bne     @walk_prepare
@@ -1338,6 +1259,7 @@ do_walk:
         jsr     walk_prepare
 @prepared:
         lda     #0
+        sta     fauna_alert     ; this trip has no new encounter before its first step
         sta     used
         sta     used+1
         sta     input_interrupted
@@ -1412,11 +1334,10 @@ do_walk:
         bcc     :+
         jmp     @pace
 :       jmp     @time
-@time:  lda     minutes+1
+@time:  jsr     travel_short_budget
         bne     @go
         lda     stepmin
-        lsr                     ; native admits >= floor(dt/2), then spends all dt
-        cmp     minutes
+        cmp     minutes         ; a complete native step must fit the budget
         bcc     @go
         beq     @go
         jmp     @time_end
@@ -1427,11 +1348,6 @@ do_walk:
         lda     minutes+1
         sbc     #0
         sta     minutes+1
-        bcs     :+
-        lda     #0              ; stop after a swimming step overshoots the request
-        sta     minutes
-        sta     minutes+1
-:
         clc
         lda     used
         adc     stepmin
@@ -1490,10 +1406,12 @@ do_walk:
         lda     minutes
         ora     minutes+1
         beq     @stop
+        lda     stepmin
+        sta     travel_next_minutes
         lda     #9
         sta     travel_reason
-        jmp     @stop
-@stop:  jsr     t_home          ; the full-screen MAP covered rows 20-23
+@stop:  jsr     travel_state_save
+        jsr     t_home          ; the full-screen MAP covered rows 20-23
         lda     #0              ; and the next walk redraws all of it
         sta     topo_cue_end
         lda     used
@@ -1517,7 +1435,12 @@ do_walk:
         lda     #<m_travel
         ldx     #>m_travel
         jsr     message
-        jmp     report
+        lda     travel_pending
+        ora     route_active
+        beq     :+
+        jsr     travel_ui_load
+        jsr     navigation_travel_report
+:       jmp     report
 .export walk_progress := @progress
 
 ; REST, SLEEP, WAIT, PAUSE, CAMP, EXERCISE: hours at rest
@@ -1549,23 +1472,25 @@ do_rest:
         lda     minutes+1
         sbc     #0
         sta     minutes+1
+        lda     #3
+        jsr     overlay_load
+        jsr     module_rest_step
+        bcs     @done
         lda     stepmin
         ldx     #0
         jsr     spend
         lda     dead
         ora     fauna_alert
         beq     @step
-@done:  lda     dead            ; died on the way: just the news
+@done:  lda     #3
+        jsr     overlay_load
+        jsr     module_rest_finish
+        lda     dead            ; died on the way: just the news
         beq     :+
         pla
         pla
         jmp     report
-:       lda     verb            ; WAIT and PAUSE do not count as rest
-        cmp     #V_WAIT
-        beq     @msg
-        fld     f_half          ; original REST leaves A2[18] at .5 hours
-        fst     s_rest
-@msg:   pla
+:       pla
         sta     msgnum
         pla
         sta     msgnum+1
@@ -1576,33 +1501,12 @@ do_rest:
 .segment "TEXT"
 ; Resident result printer: the scene may have replaced the shared overlay.
 rest_result:
-        lda     verb
-        cmp     #V_WAIT
-        bne     @rest
-        lda     #<m_waited
-        ldx     #>m_waited
-        ldy     input_unit
-        cpy     #2
-        bne     @fauna
-        lda     #<m_wait_minutes
-        ldx     #>m_wait_minutes
-        jmp     @fauna
-@rest:
-        lda     #<m_rested
-        ldx     #>m_rested
-        ldy     input_unit
-        cpy     #2
-        bne     @fauna
-        lda     #<m_rest_minutes
-        ldx     #>m_rest_minutes
-@fauna: ldy     fauna_alert
+        lda     fauna_alert
         beq     :+
         jsr     fauna_cause
-        lda     #<m_fauna_stop
-        ldx     #>m_fauna_stop
-:
-        jsr     message
-        jmp     report
+:       lda     #3
+        jsr     overlay_load
+        jmp     module_rest_result
 
 ; EAT food: ounces, from the pack first, then the ground at the item's ground cell.
 ; T12/S00 credits .8*kcal/body weight and the food's water, then spends
@@ -1775,6 +1679,9 @@ module_drink_water:
         ora     water_drinking_untreated
         sta     water_drinking_untreated
 @consume:
+        lda     #21
+        jsr     overlay_load
+        jsr     module_drink_frame
         jsr     take_oz
         lda     msgnum
         beq     @none
@@ -1961,6 +1868,7 @@ module_do_get:
         bcs     @result         ; ground water is safe (T0F/S00 $587C, lot 2)
         rts
 @result:
+        jsr     item_followup_arm
         lda     saved_item      ; packing/holding worn clothing removes a layer
         cmp     #1              ; only after the load check has accepted it
         bne     :+
@@ -1991,6 +1899,42 @@ module_do_get:
         lda     #<m_needcan
         ldx     #>m_needcan
         jmp     message
+
+; A real increase of a provision's carried stock can continue as a meal.
+; Already-carried items and refused transfers leave the UI union alone.
+item_followup_arm:
+        cpx     #N_WATER
+        bcc     @done
+        cpx     #38
+        bcs     @done
+        lda     mn_mode
+        beq     @done
+        lda     mq_n
+        bne     @done
+        sec
+        lda     it_pack_lo,x
+        sbc     saved_item+1
+        tay
+        lda     it_pack_hi,x
+        sbc     saved_item+2
+        bcc     @done
+        bne     @large
+        tya
+        beq     @done
+        bne     @portion
+@large: lda     #255
+@portion:
+        sta     dep_mask+1
+        stx     dep_mask
+        lda     #$80
+        cpx     #N_WATER
+        bne     :+
+        lda     #$81
+:
+        sta     dep_running
+        lda     journey_encounters
+        sta     dep_cursor
+@done:  rts
 
 module_do_wear:
         jsr     item_noun
@@ -2036,7 +1980,7 @@ module_do_drop:
         jmp     item_missing
 :       cpx     #21
         bne     @notbag
-        jsr     load_totals
+        jsr     load_totals_quiet ; capacity inspection cannot change the scene
         lda     load_used+4
         ora     load_used+5
         bne     @container
@@ -2114,7 +2058,7 @@ module_do_drop:
         sta     it_x,x
         lda     py+1
         sta     it_y,x
-        jsr     load_totals     ; the canteen stays contaminated (B2[22])
+        jsr     item_load_totals ; TENT changes a site sprite; other drops keep the view
         lda     saved_item
         cmp     #1
         bne     :+
@@ -2443,8 +2387,16 @@ load_add:
 ; accept_load -- C set if the tentative transfer fits; otherwise restore
 ; all five changed fields and report the refusal. X returns as noun.
 .segment "ITEMS"
+; Inventory transfers take no time. The tent alone changes the rendered
+; scene (its site sprite); keep the ordinary repaint for that item. Clothes
+; retain native_clothes_changed and any simulation it requests afterwards.
+item_load_totals:
+        cpx     #9              ; N_TENT / SITE_TENT
+        beq     @scene
+        jmp     load_totals_quiet
+@scene: jmp     load_totals
 accept_load:
-        jsr     load_totals
+        jsr     item_load_totals
         lda     load_bad
         bne     reject_overflow
         ldy     #6
@@ -2505,7 +2457,7 @@ restore_item:
         sta     it_gnd_lo,x
         lda     saved_item+4
         sta     it_gnd_hi,x
-        jsr     load_totals
+        jsr     item_load_totals
         ldy     #0
 @free:  sec
         lda     load_limits,y
@@ -2660,7 +2612,6 @@ have:   lda     it_place,x
         bcc     @gear
         cpx     #38
         bcs     @gear
-        lda     it_place,x
         cmp     #5
         beq     @ground_food
         lda     it_pack_lo,x
@@ -2706,7 +2657,9 @@ take_oz_item:
         ldx     #0
         jsr     module_take_oz
         pla
+        bmi     @restored       ; invalidated UI window has no native caller
         jsr     overlay_load
+@restored:
         ldx     take_oz_item+1
         rts
 .pushseg

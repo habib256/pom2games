@@ -122,7 +122,7 @@ def no_glued_reason():
             s.step(L.poke('fauna_alert',1));s.step(L.poke('animal_age',0))
             s.step(IDLE)
             actual=column(s)
-            assert f'{name} IN YOUR AREA!' in actual and 'DARK' not in actual,(name,actual)
+            assert f'{name} IN YOUR AREA!' in ' '.join(actual.split()) and 'DARK' not in actual,(name,actual)
     print('  Animal arrival during WAIT: "<SPECIES> IN YOUR AREA!" alone, no stale stop reason appended OK')
 
 
@@ -210,11 +210,11 @@ def main():
         s.step(L.poke('it_gnd_lo',old,37));s.step(L.poke('it_gnd_hi',0,37))
         result=refuse(s,'DROP',('NAME AN ITEM',))
         s.step('wait:600')
-        assert column(s)==result
+        assert column(s)==result, (column(s), result)
         command(s,'')
-        assert column(s)==result
+        assert column(s)==result, (column(s), result)
         s.step('key:REST');s.step('key:\\e');s.step(IDLE)
-        assert column(s)==result
+        assert column(s)==result, (column(s), result)
         print('  Refusal matrix: causes, correction commands, exact excess/free capacity, atomic state and persistence OK')
         before=snapshot(s)
         s.step('key:EAT CHEESE');s.step('press:\\r');s.step(NUMBER)

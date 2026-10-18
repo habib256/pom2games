@@ -361,7 +361,7 @@ POSTITS = {
               (2, 20, 30, 79, None)),
     'HELP': ((2, 8, 0, 27, None), (2, 20, 30, 79, None)),
     'OPTIONS': ((2, 7, 0, 79, None),),
-    'MENU': ((2, 5, 0, 79, None), (6, 10, 0, 79, None)),
+    'MENU': ((2, 5, 0, 79, None), (6, 14, 0, 79, None)),
 }
 
 
@@ -518,12 +518,12 @@ def text_changes(before, after, rows=range(24)):
                for o in [(row % 8) * 128 + (row // 8) * 40] for c in range(40))
 
 
-MAP_CUE = re.compile(r' (\d+ MIN )?\d+,\d+ HEAD \d+ (N |NE|E |SE|S |SW|W |NW)( P\+[CHR])? ')
+MAP_CUE = re.compile(r' (\d+ MIN )?\d+,\d+ HEAD \d+ DEG MAG (N |NE|E |SE|S |SW|W |NW)( P\+[CHR])? ')
 
 
 def map_cue(screen):
     """The inverse cue at the start of MAP's row 0 (src/sites.s topo_draw):
-    " [N MIN ]X,Y HEAD H CARD[ P+S] ", padded to whole cells; None if absent."""
+    " [N MIN ]X,Y HEAD DEGREES DEG MAG CARD[ P+S] ", padded to whole cells; None if absent."""
     m = MAP_CUE.match(screen[0])
     if not m:
         return None
@@ -535,9 +535,13 @@ def map_rows(screen):
     one character per cell: MAP draws each cell as two 80-column characters
     (src/sites.s). The cells under the cue of row 0 read as spaces."""
     rows = [row[0:80:2] for row in screen[0:24]]
+    if screen[23].startswith('TRUE N UP '):
+        rows[23] = ' ' * 40  # the interactive navigation legend is not terrain
     cue = map_cue(screen)
     if cue:
         rows[0] = ' ' * (len(cue) // 2) + rows[0][len(cue) // 2:]
+        if ' MIN ' not in cue:
+            rows[23] = ' ' * 40  # interactive MAP reserves its footer
     return rows
 
 

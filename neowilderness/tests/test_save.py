@@ -56,6 +56,13 @@ OPEN, READ, WRITE, CLOSE, SET_MARK = 0xC8, 0xCA, 0xCB, 0xCC, 0xCE
 GAMES = 5
 SV_HEAD = 32
 
+
+def ordinary_io(line, calls):
+    # WALK loads TRIPUI for duration input and again for the final report.
+    # Both use one ProDOS READ_BLOCK per image block; no SAVE I/O occurs here.
+    nav_blocks = ((HERE / 'build/wildtrip.bin').stat().st_size + 511) // 512
+    assert calls == (2 * nav_blocks if line.startswith('WALK') else 0), (line, calls)
+
 # GDATA labels left out of the saved image (src/save.s sv_ranges): the module
 # cache bookkeeping, the parser's line and the tables the game never writes.
 VOLATILE = {'overlay_current', 'overlay_wanted', 'overlay_reads', 'sim_loaded', 'sim_quiet',
@@ -344,8 +351,21 @@ def main_session(work, constants):
         journey = ['WALK 1 H', 'EAT CHEESE 4 OZ', 'DRINK WATER 4 OZ', 'GET KNIFE', 'WALK 1 H',
                    'DROP CHEESE', 'REST 9 H', 'WAIT 4 H']
         for line in journey:
+            if line.startswith('WALK'):
+                # Observe the actual disk reads at the two interface loads.
+                # No raster step may cause another disk-read burst.
+                start_position = g.peek(L['px'], 4).hex().upper()
+                s.step(f'watch:{L["mli_call"]:04X}:{L["px"]:04X}:4')
+                trace_start = len(s.out)
             _, calls = g.type(line)
-            assert calls == 0, (line, 'MLI call outside SAVE/RESTORE')
+            ordinary_io(line, calls)
+            if line.startswith('WALK'):
+                trace = s.out[trace_start:]
+                end_position = g.peek(L['px'], 4).hex().upper()
+                s.step('unwatch')
+                reads = re.findall(r'watch [0-9A-F]+ A=80 .* mem=([0-9A-F]+)', trace)
+                nav_blocks = ((HERE / 'build/wildtrip.bin').stat().st_size + 511) // 512
+                assert reads == [start_position] * nav_blocks + [end_position] * nav_blocks, reads
         hour = fp(g.peek(L['s_hour'], 5))
         night = g.peek(L['night'], 1)[0]
         assert night, ('the save is taken at night', hour)
@@ -370,7 +390,7 @@ def main_session(work, constants):
 
         later = ['SLEEP 8 H', 'WALK 1 H', 'EAT CHEESE 2 OZ', 'LOOK R']
         for line in later:
-            assert g.type(line)[1] == 0
+            ordinary_io(line, g.type(line)[1])
         reference = g.state()
         assert reference != saved
 
@@ -383,6 +403,11 @@ def main_session(work, constants):
         assert g.state() == reference
         print(f'  SAVE 1 again: "{want.splitlines()[0]}" + question, N keeps it: OK')
 
+        s.step(L.poke('travel_pending', 1))
+        s.step(L.poke('route_active', 1))
+        s.step(L.poke('route_setting', 1))
+        s.step(L.poke('travel_remaining', 69))
+        s.step(L.poke('travel_remaining', 35, 1))
         seconds, calls = g.type('RESTORE 1')
         timings['RESTORE 1 (view rebuilt)'] = seconds
         assert g.result().startswith('GAME 1 RESTORED.'), g.result()
@@ -391,13 +416,17 @@ def main_session(work, constants):
         assert calls == 3 + 3, ('RESTORE: NEOWILD.SAV, then OPEN READ CLOSE', calls)
         assert g.guards() == guards
         restored = g.state()
+        assert g.peek(L['travel_pending'], 1) == b'\x00'
+        assert g.peek(L['route_active'], 1) == b'\x00'
+        assert g.peek(L['route_setting'], 1) == b'\x00'
+        assert g.peek(L['travel_remaining'], 2) == b'\x00\x00'
         assert not differing(saved, restored, DERIVED_BYTES), ('RESTORE', diff(saved, restored))
         assert g.view() == view, 'the view after RESTORE differs from the view at SAVE'
         assert g.peek(L['stars_stale'], 1) == b'\x00', 'the star list of the restored night was computed'
         print(f'  RESTORE 1: {STATE} state bytes and the DHGR view (rows 0-159, both banks) equal '
               f'to SAVE time, {calls} MLI calls, {seconds:.2f} s: OK')
         for line in later:
-            assert g.type(line)[1] == 0
+            ordinary_io(line, g.type(line)[1])
         again = g.state()
         assert again == reference, ('continuation after RESTORE', diff(reference, again))
         print(f'  the same {len(later)} commands after RESTORE: identical journey, byte for byte: OK')

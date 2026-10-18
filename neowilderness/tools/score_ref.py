@@ -243,7 +243,7 @@ def breakdown(scr, c, region_name, free):
         scr.put(row, 0, label)
         scr.put(row, VALUE_COL, num(value))
     scr.put(9, VALUE_COL, '-----')
-    scr.put(12, 0, 'SCORE')
+    scr.put(12, 0, 'POINTS')
     scr.put(12, VALUE_COL, num(c['score']), inverse=True)
 
 

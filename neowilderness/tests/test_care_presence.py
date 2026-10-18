@@ -9,7 +9,7 @@ from test_status_care_return import RESULT, returned
 
 
 def preview(s, expected):
-    event(s, 'up'); event(s, 'down')
+    event(s, 'up'); event(s, 'down'); event(s, 'ok')
     line = rows(s)[22]
     assert expected in line and 'DOSES' not in line, line
     before = saved_state(s)
@@ -17,7 +17,7 @@ def preview(s, expected):
     assert rows(s)[22] == line and saved_state(s) == before
     event(s, 'cancel', IDLE)
     assert saved_state(s) == before
-    event(s, 'up'); event(s, 'down')
+    event(s, 'up'); event(s, 'down'); event(s, 'ok')
     assert expected in rows(s)[22]
     return before
 
