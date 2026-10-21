@@ -41,7 +41,7 @@ def state(b):
     return bytes(s + b.ground + b.wheel_ang + [1 if b.crashed else 0, b.laps])
 
 
-TRICK_LEN = 10                          # score .. tr_safe in src/tricks.inc
+TRICK_LEN = 12                          # score .. tr_jmp in src/tricks.inc
 
 
 def bcd(v, n):
@@ -50,7 +50,7 @@ def bcd(v, n):
 
 def trick_state(t):
     return (bcd(t.score, 3) + bcd(t.pend, 2) +
-            bytes([t.flips, t.air, t.rot & 0xFF, t.sector, t.safe]))
+            bytes([t.flips, t.air, t.rot & 0xFF, t.sector, t.safe, t.wh, t.jump]))
 
 
 def segments(inputs):

@@ -8,12 +8,16 @@
 ; per tick of a jump of AIR_MIN ticks or more, FLIP_PTS per full turn
 ; x turns^2 (8 sectors of 45 degrees of the wheel axis, counted while both wheels
 ; are off the ground); they wait in pend and are banked after SAFE ticks on
-; the wheels -- a crash loses them. pend (4 digits) and score (6) are BCD.
-; A bank shows "FLIP +NNNN" / "JUMP +NNNN" for TR_MSG_FRAMES frames.
+; the wheels -- a crash loses them. A wheelie (rear wheel down, front up) of
+; WH_MIN ticks or more pays WH_PTS a tick when it ends. pend (4 digits) and
+; score (6) are BCD. A bank shows "FLIP +NNNN" / "JUMP +NNNN" /
+; "WHEELIE +NNNN" for TR_MSG_FRAMES frames.
 ; ============================================================================
 
 AIR_MIN  = 12
 SAFE     = 20
+WH_MIN   = 15
+TR_MSG_W = 13                   ; message width
 TR_MSG_FRAMES = 60
 
 .segment "BSS"
@@ -24,15 +28,18 @@ tr_air:   .res 1
 tr_rot:   .res 1                ; signed sectors turned in this jump
 tr_sec:   .res 1                ; sector of the wheel axis, 0..7
 tr_safe:  .res 1
+tr_wh:    .res 1                ; ticks of the wheelie going on
+tr_jmp:   .res 1                ; a jump scored in pend (the message)
 tr_msgt:  .res 1                ; frames left for the message
 tr_t:     .res 1                ; scratch: turns of this jump
-tr_msg:   .res 12               ; "SALTO +1234", 0
+.segment "TXT4"
+tr_msg:   .res TR_MSG_W + 1     ; "FLIP +1234", 0
 
 .segment "CODE"
 
 trick_reset:
         LDA     #0
-        LDX     #tr_safe - score
+        LDX     #tr_jmp - score
 @z:     STA     score,X
         DEX
         BPL     @z
@@ -48,6 +55,8 @@ trick_tick:
         STA     tr_flips
         STA     tr_air
         STA     tr_rot
+        STA     tr_wh
+        STA     tr_jmp
         RTS
 @alive: LDA     #0                      ; the wheel axis: dx, dy
         STA     ca
@@ -61,7 +70,21 @@ trick_tick:
         AND     #7
         TAY
         STX     tr_sec
+        LDA     wheel_gnd+1             ; a wheelie: rear down, front up
+        BNE     @wend
         LDA     wheel_gnd
+        BEQ     @wend
+        INC     tr_wh
+        BNE     @wh
+        DEC     tr_wh
+        BNE     @wh                     ; (always)
+@wend:  LDX     tr_wh                   ; it ends: WH_PTS a tick
+        CPX     #WH_MIN
+        BCC     @wh0
+        JSR     tr_add10
+@wh0:   LDA     #0
+        STA     tr_wh
+@wh:    LDA     wheel_gnd
         ORA     wheel_gnd+1
         BNE     @ground
         LDA     tr_step,Y               ; in the air: turn, time
@@ -92,21 +115,9 @@ trick_tick:
         CMP     #AIR_MIN                ; landing: AIR_PTS a tick...
         BCC     @flips
         TAX
-        SED
-@air:   CLC
-        LDA     pend
-        ADC     #$10
-        STA     pend
-        LDA     pend+1
-        ADC     #0
-        STA     pend+1
-        BCC     @a1
-        LDA     #$99                    ; 9999 at most
-        STA     pend
-        STA     pend+1
-@a1:    DEX
-        BNE     @air
-        CLD
+        JSR     tr_add10
+        LDA     #1
+        STA     tr_jmp
 @flips: LDA     tr_rot                  ; ...and FLIP_PTS a turn,
         BPL     @abs                    ; turns = (|rot| + 2) >> 3
         EOR     #$FF
@@ -181,9 +192,12 @@ trick_bank:
         STA     score
         STA     score+1
         STA     score+2
-@msg:   LDX     #0                      ; "SALTO +" or "SAUT +"
+@msg:   LDX     #0                      ; "FLIP +", "JUMP +" or "WHEELIE +"
+        LDY     #msg_whl - msg_saut
+        LDA     tr_jmp
+        BEQ     @f
         LDY     #0
-        LDA     tr_flips
+@f:     LDA     tr_flips
         BEQ     @w
         LDY     #msg_salto - msg_saut
 @w:     LDA     msg_saut,Y
@@ -197,10 +211,10 @@ trick_bank:
         JSR     tr_hex2
         LDA     pend
         JSR     tr_hex2
-@pad:   LDA     #' '                    ; 11 wide: covers a longer one
+@pad:   LDA     #' '                    ; full width: covers a longer one
         STA     tr_msg,X
         INX
-        CPX     #11
+        CPX     #TR_MSG_W
         BCC     @pad
         LDA     #0
         STA     tr_msg,X
@@ -210,6 +224,26 @@ trick_bank:
         STA     pend
         STA     pend+1
         STA     tr_flips
+        STA     tr_jmp
+        RTS
+
+; pend += 10 x X (BCD, 9999 at most), X > 0. Keeps Y.
+tr_add10:
+        SED
+@a:     CLC
+        LDA     pend
+        ADC     #$10
+        STA     pend
+        LDA     pend+1
+        ADC     #0
+        STA     pend+1
+        BCC     @n
+        LDA     #$99
+        STA     pend
+        STA     pend+1
+@n:     DEX
+        BNE     @a
+        CLD
         RTS
 
 ; two BCD digits of A into tr_msg,X (Y = 0 while only zeros so far)
@@ -290,4 +324,5 @@ tr_abs: CPX     #$80
 tr_step:   .byte 0, 1, 2, 0, 0, 0, <(-2), <(-1)
 msg_saut:  .byte "JUMP +", 0
 msg_salto: .byte "FLIP +", 0
+msg_whl:   .byte "WHEELIE +", 0
 .segment "CODE"
