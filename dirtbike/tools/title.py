@@ -4,7 +4,8 @@
     python3 tools/title.py OUT.hgr [preview.png]
 
 A slanted DIRTBIKE logo (the game font x4), a subtitle, a rider in mid-air
-over a kicker, speed lines and white hills. Rows TITLE_PROMPT..+7 stay black
+over a kicker, speed lines and white hills, the port's credit on a black
+band at the bottom. Rows TITLE_PROMPT..+7 (columns PROMPT_X) stay black
 for the blinking prompt the game prints (src/title.inc). Strokes are at
 least 2 pixels wide: a lone HGR pixel shows a colour fringe. The Makefile
 packs it with fhpack (file TITLE on the disk).
@@ -21,7 +22,10 @@ import fonts  # noqa: E402
 from a2test import hgr_offset  # noqa: E402
 
 W, H = 280, 192
-TITLE_PROMPT = 150              # = src/title.inc
+TITLE_PROMPT = 66               # = src/title.inc: under the subtitle
+PROMPT_X = (84, 190)            # its columns (13..25 x 7 px), kept black
+CREDIT = 'APPLE II PORT: VERHILLE ARNAUD'
+CREDIT_Y = 183                  # white on a black band under the ground
 
 
 class Canvas:
@@ -106,6 +110,10 @@ def picture():
         t = x / 63
         ground[x] = min(ground[x], 176 - 46 * t ** 1.7)
     c.fill_below(ground)
+    # the credit: white on a black band at the bottom
+    for y in range(CREDIT_Y - 3, H):
+        c.px[y] = [0] * W
+    c.text(CREDIT, (W - 8 * len(CREDIT)) // 2, CREDIT_Y)
     # the rider in mid-air, nose up, flying away from the kicker
     ang, k = math.radians(-16), 1.5
     cx, cy = 198, 120
@@ -146,16 +154,17 @@ def picture():
     for j, (dy, ln) in enumerate(((-16, 38), (-4, 54), (8, 40), (20, 26))):
         x1 = cx - 50 - 5 * j
         c.line(x1 - ln, cy + dy, x1, cy + dy, 0.7)
+    hint = 'H: HELP'                        # under the blinking prompt
+    c.text(hint, (W - 8 * len(hint)) // 2, TITLE_PROMPT + 13)
     # no lone pixel (it would show a colour fringe): every stroke 2 wide
     for row in c.px:
         for x in range(W - 1, 0, -1):
             if row[x - 1]:
                 row[x] = 1
-    # keep the prompt rows black
+    # keep the prompt black
     for y in range(TITLE_PROMPT - 2, TITLE_PROMPT + 10):
-        for x in range(W):
-            if c.px[y][x] and y < ground[x]:
-                c.px[y][x] = 0
+        for x in range(*PROMPT_X):
+            c.px[y][x] = 0
     return c
 
 

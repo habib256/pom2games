@@ -19,6 +19,8 @@ racine par table de départ, LFSR).
 .include "zp.inc"            ; si random.asm est utilisé (prng_lo/prng_hi)
 MUL_TABLES = $0800           ; 2 Ko alignés sur la page, au choix du programme
 MUL_ACC    = 1               ; optionnel : accumulateur mul_acc0..2 (+3 o de ZP)
+MUL_INIT_BOOT = 1            ; optionnel : mul_init dans le segment "INIT" (code de
+                             ; démarrage qu'un tampon recouvre ensuite)
 .include "math.inc"          ; EN TÊTE : page zéro et macros
 
         JSR mul_init          ; une fois au démarrage (~110 000 cycles)

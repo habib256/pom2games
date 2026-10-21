@@ -32,6 +32,8 @@ def menu_keys(k):
 
 def main():
     L = a2test.labels(GAME / 'build/dirtbike.lbl')
+    global TITLE                        # every track finished: all open in the menu
+    TITLE = [L.until('tick_wait', 3000)] + [L.poke('rec_min', 0, i) for i in range(30)] + TITLE
     ks = [int(a) for a in sys.argv[1:]] or [1, 9, 17, 30]
     bad = 0
     for k in ks:
@@ -40,13 +42,13 @@ def main():
         n = len(pats)
         steps = ['wait:1300'] + TITLE + menu_keys(k) + [L.until('new_race', 600),
                  L.peek('finish_x', 2), L.peek('pat_k', n), L.peek('pat_rel0', n),
-                 L.peek('pat_plo', n), L.peek('pat_phi', n), L.peek('pool', len(pool)),
+                 L.peek('pat_plo', n), L.peek('pat_phi', n), L.peek('__OVL_START__', len(pool)),
                  'peek:9600:4096', 'peek:A600:4096']
         r = a2test.run(DISK, steps)
         fx, pk, pr = r.mem(L['finish_x'], 2), r.mem(L['pat_k'], n), r.mem(L['pat_rel0'], n)
-        plo, phi, pl = r.mem(L['pat_plo'], n), r.mem(L['pat_phi'], n), r.mem(L['pool'], len(pool))
+        plo, phi, pl = r.mem(L['pat_plo'], n), r.mem(L['pat_phi'], n), r.mem(L['__OVL_START__'], len(pool))
         hh, ii = r.mem(0x9600, 4096), r.mem(0xA600, 4096)
-        pool_at = L['pool']
+        pool_at = L['__OVL_START__']        # pool = the OVL area (dirtbike.cfg)
         want_addr = [pool_at + o for o in offs]
         checks = [
             ('finish', int.from_bytes(fx, 'little') == fin),

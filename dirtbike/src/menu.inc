@@ -2,7 +2,10 @@
 ; menu.inc -- choose one of the 30 tracks (HGR page 1)
 ; ============================================================================
 ;   menu      draw the menu, wait for a choice; returns A = sel (0..29)
-;             when the player starts a race
+;             when the player starts a race. Only the tracks already
+;             finished (a best time in the hall of fame) can be chosen, and
+;             the lowest one not finished yet; a game then runs on through
+;             the next ones.
 ; Two columns of 15 tracks; the marker follows arrows / J K L I or the
 ; joystick, RETURN / SPACE / button 0 starts. Under the list: the record of
 ; the session and the reference time (tools/solver.py) of the track.
@@ -19,10 +22,19 @@ sel:      .res 1                ; selected track
 msel:     .res 1                ; scratch
 mrep:     .res 1
 
+.segment "DATA"
+lbl_lock: .byte 0               ; bit 7: put_track_label prints no name
+
 .segment "CODE"
 
+.segment "TXTC5"                 ; runs in the text page (copied at boot)
 menu:
-        JSR     page1_text
+        LDA     sel                     ; a locked track: back to track 1
+        JSR     is_locked
+        BCC     @open
+        LDA     #0
+        STA     sel
+@open:  JSR     page1_text
         LDA     #<msg_title
         LDY     #>msg_title
         LDX     #16
@@ -43,13 +55,20 @@ menu:
         CMP     #NTRACKS
         BNE     @list
         JSR     mark_sel
-@wait:  JSR     menu_input              ; A = new selection, or $FF/$FE/$FD
-        CMP     #$FD
+@wait:  JSR     menu_input              ; A = new selection, or $FF/$FE/$FD/$FC
+        CMP     #$FC
+        BNE     @nh
+        LDX     #0                      ; H: the help page, then the menu again
+        JSR     show_page
+        JMP     menu
+@nh:    CMP     #$FD
         BEQ     @esc
         CMP     #$FE
         BEQ     @go
         CMP     #$FF
         BEQ     @wait
+        JSR     is_locked               ; not finished yet: the marker stays
+        BCS     @wait
         PHA
         LDA     #' '                    ; move the marker
         JSR     put_marker
@@ -63,6 +82,7 @@ menu:
 @esc:   SEC                             ; ESC: back to the title
         RTS
 
+.segment "CODE"
 ; page1_text -- page 1 on screen, black, set up for text
 page1_text:
         LDA     #0
@@ -77,6 +97,7 @@ page1_text:
         RTS
 
 ; mark_sel -- the marker and the info line of `sel`
+.segment "TXTC7"                 ; runs in the text page (copied at boot)
 mark_sel:
         LDA     #'>'
         JSR     put_marker
@@ -119,6 +140,7 @@ mark_sel:
         BNE     @par
         RTS
 
+.segment "CODE"
 ; put_marker -- char A left of entry `sel`
 put_marker:
         PHA
@@ -143,11 +165,38 @@ entry_pos:
         STA     ht_sl
         RTS
 
-; draw_entry -- "NN NAME" of track msel at its place in the list
+; is_locked -- C = 1: track A not open. Open: the tracks finished (a best
+; time) and the lowest one not finished yet. Keeps A.
+is_locked:
+        TAX
+        LDY     #0                      ; Y = the lowest not finished
+@low:   LDA     rec_min,Y
+        CMP     #$FF
+        BEQ     @first
+        INY
+        CPY     #NTRACKS
+        BNE     @low
+@first: LDA     rec_min,X
+        CMP     #$FF                    ; C = 0: finished
+        BCC     @r
+        STY     pen
+        TXA
+        CMP     pen
+        BEQ     @open
+        SEC
+        RTS
+@open:  CLC
+@r:     TXA
+        RTS
+
+; draw_entry -- "NN NAME" of track msel at its place in the list ("NN ----"
+; while locked)
 draw_entry:
         LDA     msel
         JSR     entry_pos
         LDA     msel
+        JSR     is_locked
+        ROR     lbl_lock
         ; fall through
 
 ; put_track_label -- "NN NAME" of track A at ht_col / ht_sl
@@ -169,7 +218,15 @@ put_track_label:
         ORA     #'0'
         JSR     hgr_putc8
         INC     ht_col
-        LDA     #<track_names           ; the A-th name
+        ASL     lbl_lock                ; locked: no name
+        BCC     @name
+        PLA
+        LDA     #<msg_locked
+        STA     ht_src_lo
+        LDA     #>msg_locked
+        STA     ht_src_hi
+        BNE     @put
+@name:  LDA     #<track_names           ; the A-th name
         STA     ht_src_lo
         LDA     #>track_names
         STA     ht_src_hi
@@ -236,6 +293,8 @@ menu_input:
         BEQ     @esc
         CMP     #' '
         BEQ     @start
+        CMP     #'H'
+        BEQ     @help
         CMP     #KC_UP
         BEQ     @up
         CMP     #'I'
@@ -257,6 +316,8 @@ menu_input:
 @start: LDA     #$FE
         RTS
 @esc:   LDA     #$FD
+        RTS
+@help:  LDA     #$FC
         RTS
 @stick: LDA     joy_ok
         BEQ     @none
@@ -336,7 +397,8 @@ clear_page1:
 
 .segment "RODATA"
 msg_title: .byte "DIRTBIKE", 0
-msg_help:  .byte "ARROWS: CHOOSE     RETURN: RACE", 0
+msg_locked: .byte "----------", 0
+msg_help:  .byte "ARROWS: CHOOSE  RETURN: RACE  H: HELP", 0
 msg_info:  .byte "BEST   -:--.-     REF ", 0
 msg_load:  .byte "LOADING...                   ", 0
 msg_derr:  .byte "DISK ERROR: PRESS A KEY      ", 0

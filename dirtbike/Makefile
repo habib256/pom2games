@@ -12,9 +12,11 @@
 DEV ?= ../dev
 include $(DEV)/cc65/apple2.mk
 include $(DEV)/cc65/fhpack.mk
+MOUSE := $(DEV)/lib/mouse
+include $(MOUSE)/mouse.mk
 
 DISK := $(DIST)/DIRTBIKE.dsk
-GEN  := src/physconst.inc src/sprites.inc src/music.inc
+GEN  := src/physconst.inc src/sprites.inc src/music.inc src/pages.inc
 SRCS := src/dirtbike.s src/input.inc src/physics.inc src/render.inc \
         src/menu.inc src/loader.inc src/tricks.inc src/hof.inc src/title.inc
 TRACKS := $(foreach k,01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 \
@@ -29,6 +31,10 @@ src/music.inc $(BUILD)/tune.bin: tools/music.py
 	@mkdir -p $(BUILD)
 	$(PYTHON) tools/music.py src/music.inc $(BUILD)/tune.bin
 
+src/pages.inc $(BUILD)/pages.bin: tools/pages.py
+	@mkdir -p $(BUILD)
+	$(PYTHON) tools/pages.py src/pages.inc $(BUILD)/pages.bin
+
 src/sprites.inc: tools/sprites.py
 	$(PYTHON) tools/sprites.py $@
 
@@ -40,9 +46,9 @@ $(BUILD)/title.hgr: tools/title.py
 	@mkdir -p $(BUILD)
 	$(PYTHON) tools/title.py $@
 
-$(BUILD)/TITLE.bin: $(BUILD)/title.hgr $(BUILD)/tune.bin $(FHPACK)
+$(BUILD)/TITLE.bin: $(BUILD)/title.hgr $(BUILD)/tune.bin $(BUILD)/pages.bin $(FHPACK)
 	$(FHPACK) -c -9 -h $< $(BUILD)/title.lz4
-	cat $(BUILD)/tune.bin $(BUILD)/title.lz4 > $@
+	cat $(BUILD)/tune.bin $(BUILD)/pages.bin $(BUILD)/title.lz4 > $@
 
 $(BUILD)/hof.bin: tools/hof.py
 	@mkdir -p $(BUILD)
@@ -52,8 +58,13 @@ $(BUILD)/dirtbike.o: $(SRCS) $(GEN) $(BUILD)/tracks/menu_data.inc $(A2_ASM_DEPS)
 	@mkdir -p $(BUILD)
 	$(CA65) -t none -g $(A2_INCS) -I $(BUILD)/tracks -l $(BUILD)/dirtbike.lst -o $@ $<
 
-$(BUILD)/dirtbike.bin: $(BUILD)/dirtbike.o src/dirtbike.cfg
-	$(LD65) -C src/dirtbike.cfg -m $(BUILD)/dirtbike.map -Ln $(BUILD)/dirtbike.lbl -o $@ $<
+$(BUILD)/mouse.o: $(MOUSE_SRCS)
+	@mkdir -p $(BUILD)
+	$(CA65) -t none -D MOUSE_INIT_BOOT -o $@ $<
+
+$(BUILD)/dirtbike.bin: $(BUILD)/dirtbike.o $(BUILD)/mouse.o src/dirtbike.cfg
+	$(LD65) -C src/dirtbike.cfg -m $(BUILD)/dirtbike.map -Ln $(BUILD)/dirtbike.lbl -o $@ \
+		$(BUILD)/dirtbike.o $(BUILD)/mouse.o
 
 $(DISK): $(BUILD)/dirtbike.bin $(TRACKS) $(BUILD)/TITLE.bin $(BUILD)/hof.bin tools/patchdir.py $(DOS33_DEPS)
 	@mkdir -p $(DIST)
@@ -69,3 +80,8 @@ test: all $(A2RUN)
 	$(PYTHON) tests/test_attract.py
 
 .PHONY: test
+
+POM2_SRC ?= ../../pom2
+test-mouse: all
+	$(PYTHON) tests/test_mouse.py --pom2-src $(POM2_SRC)
+.PHONY: test-mouse

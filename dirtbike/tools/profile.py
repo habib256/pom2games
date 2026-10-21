@@ -17,7 +17,8 @@ A2SHOT = GAME.parent / 'dev/tools/a2shot/a2shot'
 
 GROUPS = [
     ('physics', ('mul', 'constrain', 'ground_contact', 'quarter_abs', 'integrate', 'add_', 'sub_',
-                 'delta_ab', 'clamp_v', 'phys_', 'do_lean', 'neg_prod', 'tptr')),
+                 'delta_ab', 'clamp_v', 'phys_', 'do_lean', 'neg_prod', 'tptr', 'spin_damp', 'sd_shift',
+                 'heavy', 'con_pass', 'vt_less')),
     ('ground', ('rg_', 'render_ground', 'write_rows', 'wr_', 'fill', 'hgr_hi_site0', 'hgr_hi_site1', 'hgr_hi_site2',
                 'part_lda', 'sky_rows', 'compute_col', 'camera', 'pa_lda', 'pb_lda', 'rs_lda',
                 'ls_lda', 'sa_sta', 'sb_')),

@@ -16,17 +16,24 @@ def main():
     for name in ('GRAVITY', 'VMAX_X', 'VMAX_Y', 'WHEEL_R', 'BOUNCE', 'VT_MAX', 'BRAKE',
                  'LEAN_MAX', 'THROTTLE_MAX', 'CONSTRAINT_PASSES', 'RIDER_HIT',
                  'SLOPE_MAX', 'LAPS', 'WRAP_MARGIN', 'LEFT_WALL', 'FAR', 'CEILING', 'WHEELBASE',
-                 'RIDER_UP'):
+                 'RIDER_UP', 'ROLL_LOSS', 'ENGINE_BRAKE', 'FLIP_DX', 'SPIN_DAMP',
+                 'GYRO_BRAKE', 'GYRO_DIV', 'RIDER_HEAVY', 'L2Q_MIN'):
         out.append(f'{name:18} = ${getattr(P, name):04X}')
     out.append(f'NCONSTRAINTS       = {len(P.CON_TAB)}')
     out.append('')
     out.append('.segment "RODATA"')
-    out.append('; constraints: point a, point b, rest length^2 (quarter px), k8')
+    out.append('; constraints: point a, point b; rest length^2 (quarter px) and k8 at')
+    out.append('; index constraint * NLEAN + lean + LEAN_MAX (the lean shifts the rider)')
+    nlean = 2 * P.LEAN_MAX + 1
+    rows = [[P.Bike._cons(lean)[c][2:] for lean in range(-P.LEAN_MAX, P.LEAN_MAX + 1)]
+            for c in range(len(P.CON_TAB))]
+    flat = [v for row in rows for v in row]
+    out.insert(out.index(f'NCONSTRAINTS       = {len(P.CON_TAB)}') + 1, f'NLEAN              = {nlean}')
     out.append('con_a:   .byte ' + ', '.join(str(c[0]) for c in P.CON_TAB))
     out.append('con_b:   .byte ' + ', '.join(str(c[1]) for c in P.CON_TAB))
-    out.append('con_l2l: .byte ' + ', '.join(f'<{c[2]}' for c in P.CON_TAB))
-    out.append('con_l2h: .byte ' + ', '.join(f'>{c[2]}' for c in P.CON_TAB))
-    out.append('con_k8:  .byte ' + ', '.join(str(c[3]) for c in P.CON_TAB))
+    out.append('con_l2l: .byte ' + ', '.join(f'<{v[0]}' for v in flat))
+    out.append('con_l2h: .byte ' + ', '.join(f'>{v[0]}' for v in flat))
+    out.append('con_k8:  .byte ' + ', '.join(str(v[1]) for v in flat))
     out.append('; ground normal for slope index s+SLOPE_MAX, 64 = 1.0')
     out.append('norm_x:  .byte ' + ', '.join(f'<{v}' for v in P.NORM_X))
     out.append('norm_y:  .byte ' + ', '.join(f'<{v}' for v in P.NORM_Y))

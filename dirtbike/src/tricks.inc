@@ -211,11 +211,6 @@ trick_bank:
         JSR     tr_hex2
         LDA     pend
         JSR     tr_hex2
-@pad:   LDA     #' '                    ; full width: covers a longer one
-        STA     tr_msg,X
-        INX
-        CPX     #TR_MSG_W
-        BCC     @pad
         LDA     #0
         STA     tr_msg,X
         LDA     #TR_MSG_FRAMES

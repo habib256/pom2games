@@ -3,6 +3,8 @@
 ; mul.asm -- quarter-square products, exact, for fixed-point physics
 ; ============================================================================
 ;   mul_init      build the 2 KB of tables (once, at start). ~110 000 cycles.
+;                 MUL_INIT_BOOT = 1 before the include puts it in segment
+;                 "INIT" (boot code that a buffer overwrites afterwards).
 ;   mul_u8u8      mul_p0..p1 = mul_x (low byte) * mul_y, unsigned. ~55 cycles
 ;   mul_u16u8     mul_p0..p2 = mul_x * mul_y, unsigned. ~110 cycles
 ;   mul_s16s8     mul_p0..p2 = mul_x * mul_y, both signed, exact 24 bits
@@ -217,6 +219,9 @@ mul_u8u8:
 
 ; mul_init -- sqr1[x] = floor(x*x/4) by steps of floor((x+1)/2), x = 0..511;
 ; sqr2[x] = sqr1[255-x] (x < 256), sqr1[x-255] (x >= 256)
+.ifdef MUL_INIT_BOOT
+.segment "INIT"
+.endif
 mul_init:
         LDA     #0
         STA     mul_p0                  ; f = sqr1[x]
@@ -280,5 +285,6 @@ mul_init:
         LDA     #>mul_sqr2_hi
         STA     mul_s2h+1
         RTS
+.segment "CODE"
 
 .endif  ; _MUL_ASM_LOADED_

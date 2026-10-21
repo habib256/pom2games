@@ -18,6 +18,8 @@
 ;                    rwts_track / rwts_sector = its T/S list.
 ; All return C = 1 on an error (rwts_find_file: also when not found), after
 ; RWTS_RETRIES tries of each sector (default 1: RWTS retries by itself).
+; RWTS_SEI = 1 masks interrupts during each RWTS call (the caller's I flag
+; is put back): for programs that enable IRQs, e.g. the //c mouse.
 ; Clobber A, X, Y. Buffers are whole pages.
 ;
 ; Why: once a game runs, DOS's file manager is the slow part (BLOAD moves
@@ -265,6 +267,10 @@ rwts_cmd:
         JSR     rwts_put
         LDA     #RWTS_RETRIES
         STA     rwts_try
+.ifdef RWTS_SEI
+        PHP                             ; no interrupt in the disk's timing
+        SEI
+.endif
 @try:   LDY     rwts_iob
         LDA     rwts_iob+1
         JSR     RWTS_ENTRY
@@ -272,6 +278,11 @@ rwts_cmd:
         DEC     rwts_try
         BNE     @try
 @ok:
+.ifdef RWTS_SEI
+        ROR     rwts_try                ; C kept across the caller's flags
+        PLP
+        ROL     rwts_try
+.endif
 .ifdef RWTS_KEEP_ZP
         PHP
         LDX     #0

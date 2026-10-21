@@ -43,7 +43,9 @@ native ; `exit.asm` restaure la page zéro pour rendre la main à DOS proprement
   être des alias en page zéro.
 - **`rwts.asm`** — `rwts_read`, `rwts_write`, `rwts_cmd`, `rwts_read_tslist`,
   `rwts_find_file` : secteurs DOS 3.3 en direct par RWTS (IOB de DOS, lecteur
-  de démarrage, essais `RWTS_RETRIES`, page zéro gardée avec `RWTS_KEEP_ZP`),
+  de démarrage, essais `RWTS_RETRIES`, page zéro gardée avec `RWTS_KEEP_ZP`,
+  interruptions masquées pendant chaque accès avec `RWTS_SEI`, pour les
+  programmes qui les activent, comme la souris du //c),
   sans page zéro propre. L'adresse de l'IOB est demandée à `$03E3` au premier
   appel puis gardée : `$03E3` la lit dans la mémoire du gestionnaire de
   fichiers, qu'un jeu peut ensuite reprendre (DIRTBIKE). Utilisé par DIRTBIKE

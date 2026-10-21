@@ -23,6 +23,10 @@ BEAM = 24
 ACTIONS = [(thr, brk, lean) for thr, brk in ((P.THROTTLE_MAX, 0), (P.THROTTLE_MAX // 2, 0), (0, 0), (0, 1))
            for lean in (-4, -2, 0, 2, 4)]
 MAX_TICKS = 4000 * P.LAPS
+# leaning back costs: per tick, lean back levels x TILT_COST, taken off the
+# progress when the beam sorts (without it the rider sat back most of the
+# time: the demos looked leaning back; wheelies are fine)
+TILT_COST = 256
 
 
 def clone(b):
@@ -30,6 +34,7 @@ def clone(b):
     c.h, c.lap_len, c.laps = b.h, b.lap_len, b.laps
     c.x, c.y, c.ox, c.oy = b.x[:], b.y[:], b.ox[:], b.oy[:]
     c.ground, c.wheel_ang, c.crashed = b.ground[:], b.wheel_ang[:], b.crashed
+    c.tilt = b.tilt
     return c
 
 
@@ -42,6 +47,7 @@ def solve(h, fin, beam=BEAM):
 
 def _beam(h, fin, beam, per_speed):
     start = P.Bike(h)
+    start.tilt = 0
     states = [(start, [])]
     for _ in range(MAX_TICKS // STEP):
         cand = []
@@ -50,6 +56,7 @@ def _beam(h, fin, beam, per_speed):
                 c = clone(b)
                 for t in range(STEP):
                     c.tick(*act)
+                    c.tilt += -act[2] if act[2] < 0 else 0
                     if c.crashed:
                         break
                     if c.finished(fin):
@@ -58,7 +65,7 @@ def _beam(h, fin, beam, per_speed):
                     cand.append((c, path + [act] * STEP))
         if not cand:
             return None
-        cand.sort(key=lambda s: -s[0].progress())
+        cand.sort(key=lambda s: s[0].tilt * TILT_COST - s[0].progress())
         seen, band, states = set(), {}, []
         for c, path in cand:
             v = (c.x[0] - c.ox[0]) >> 7
