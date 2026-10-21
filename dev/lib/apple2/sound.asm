@@ -11,8 +11,10 @@
 ;           X = $28 -> ~4.8 kHz blip, $C0 -> ~1 kHz, $FF -> ~780 Hz thud.
 ;           Length ~ A * (13 + 5*X) cycles: A = $60, X = $C0 ~ 95 ms.
 ;
-; One byte of BSS (snd_period), no zero page. A taken branch that crosses a
-; page costs one more cycle per turn: the pitch shifts by <1 %, so no assert.
+; One byte of BSS (snd_period), no zero page. The delay loop must not cross
+; a page: a taken branch that does costs one more cycle per turn (6 X
+; instead of 5 X: notes ~20 % longer and lower); the link fails if it does
+; (place the include where it fits, e.g. at the start of CODE).
 ;
 ; Caller responsibility: .include "apple2.inc" first (SPKR).
 ; Mirror for C: a2_tone() in ../apple2c/apple2game.h.
@@ -36,5 +38,6 @@ tone:
         DEY
         BNE     @t
         RTS
+.assert >(@d) = >(* - 4), lderror, "tone: its delay loop crosses a page (+20 % per note)"
 
 .endif  ; _SOUND_ASM_LOADED_

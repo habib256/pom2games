@@ -37,6 +37,14 @@ jphase:      .res 1             ; frame parity of the race (new_race clears it)
 
 .segment "BSS"
 gas_tm:      .res 1
+.segment "SYSBSS"
+inp_dev:     .res 1             ; INP_KEYS / INP_STICK / INP_MOUSE
+joy_found:   .res 1             ; a stick answered at start
+stk_mx:      .res 1             ; its centre
+stk_my:      .res 1
+INP_KEYS  = 0
+INP_STICK = 1
+INP_MOUSE = 2
 
 .segment "CODE"
 
@@ -56,16 +64,40 @@ input_init:
         STA     joy_mx
         LDA     joy_y
         STA     joy_my
-        JSR     _mouse_init             ; a mouse (A = slot): it replaces the stick
+        STA     stk_my                  ; (the stick's centre, for a change of
+        LDA     joy_mx                  ;  device in the main menu)
+        STA     stk_mx
+        LDA     joy_ok                  ; the device: the mouse if there is
+        STA     joy_found               ; one, else the stick, else the keys
+        STA     inp_dev                 ; (INP_STICK = 1)
+        JSR     _mouse_init
         TAX
-        BEQ     @nom
+        LDA     inp_dev
+        CPX     #0
+        BEQ     @set
+        LDA     #INP_MOUSE
+@set:   JMP     inp_set
+.segment "CODE"
+
+; inp_set -- A = the input device (INP_KEYS / INP_STICK / INP_MOUSE)
+inp_set:
+        STA     inp_dev
+        LDX     #0                      ; the stick only when chosen
+        CMP     #INP_STICK
+        BNE     @nost
+        INX
+@nost:  STX     joy_ok
+        LDX     stk_mx                  ; centres: the stick's or the mouse's
+        LDY     stk_my
+        CMP     #INP_MOUSE
+        BNE     @c
+        LDX     #70                     ; dev/lib/mouse: X 0..139, starts at 70
+        LDY     #MOUSE_Y_START
+@c:     STX     joy_mx
+        STY     joy_my
         LDA     #0
-        STA     joy_ok
-        LDA     #70                     ; dev/lib/mouse: X 0..139, starts at 70
-        STA     joy_mx
-        LDA     #MOUSE_Y_START
-        STA     joy_my
-@nom:   RTS
+        STA     _mouse_buttons
+        RTS
 
 .segment "CODE"
 read_input:
@@ -134,8 +166,9 @@ read_input:
 @kl:    STA     in_lean
         LDA     brake_tm
         STA     in_brake
-        LDA     _mouse_slot             ; a mouse: its position for the stick's
-        BEQ     @stick                  ; (X = lean, up = gas, down = brake)
+        LDA     inp_dev                 ; the mouse: its position for the stick's
+        CMP     #INP_MOUSE              ; (X = lean, up = gas, down = brake)
+        BNE     @stick
         JSR     _mouse_poll
         LDA     _mouse_x
         STA     joy_x

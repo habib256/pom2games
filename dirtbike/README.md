@@ -22,7 +22,7 @@ chute. Les meilleurs temps et scores restent sur la disquette.
 | | | H | page d'aide (titre, menu) |
 | | | R | recommencer le parcours |
 | | | S | son coupé / remis |
-| | | ESC | retour au menu (depuis le menu : la page de titre) |
+| | | ESC | en course : le menu principal (depuis le menu des parcours : la page de titre) |
 | | | Ctrl-RESET | la page de titre |
 
 La position de la manette au démarrage sert de centre. La souris
@@ -57,6 +57,23 @@ record). Sous la liste : le record et le temps de
 référence, celui trouvé par le solveur.
 
 **Course.** Compte à rebours « 3, 2, 1, GO! » (on peut déjà doser les gaz).
+Ses images durent autant qu'en course (une attente de ~2 images vidéo) :
+plus courtes, elles changeaient de page presque à chaque image vidéo, et le
+rendu « beam racing » de POM2, qui relit la mémoire en fin d'image, montrait
+la page en cours de redessin (la moto clignotait ; voir
+`dev/tools/a2shot/LETTRE_POM2_AFFICHAGE_MANETTE.md`).
+
+**Menu principal** (ESC en course, `src/mainmenu.inc`) : page de titre,
+aide, périphérique d'entrée (clavier, joystick ou souris, parmi ceux
+détectés au démarrage), hall of fame, retour à BASIC. Flèches (I / K) et
+RETURN, ou les chiffres 1 à 5 ; ESC : la page de titre. Son code et ses
+textes sont un overlay du fichier `TITLE` : lié pour s'exécuter en `$9C00`
+(`build/menu.bin`, rangé par `tools/titlefile.py`), il arrive avec `TITLE`
+dans le tampon de chargement, sur le parcours chargé (rechargé avant chaque
+course de toute façon). « QUIT TO BASIC » coupe la souris, laisse la marque
+« QU » en `$8000` et redémarre la disquette : HELLO la voit, l'efface et
+s'arrête (« DIRTBIKE: BYE! ») au lieu de relancer le jeu ; on retrouve
+BASIC avec DOS 3.3.
 Après une chute, la moto repart à l'arrêt, après « 1, GO! », au début de la
 dernière portion de sol plat où elle a roulé sur ses deux roues (`note_safe` :
 une seule hauteur de sol sous la moto, à une roue près de chaque côté ; le
@@ -92,9 +109,11 @@ triple). Un wheeling (roue arrière au sol, roue avant en l'air) d'au moins
 
 **Ligne d'arrivée.** Un drapeau (mât de 2 pixels et fanion, `draw_flag`)
 marque la ligne, qui est aussi celle des tours. Il est marqué comme la moto
-(`bk_top`/`bk_bot`) : le rendu du sol lui rend son ciel quand il défile. Il
-n'apparaît qu'à 244 pixels du bord gauche (les x de `hgr_line8` tiennent sur
-8 bits) ; le numéro du tour (1 à 3) est écrit sous son fanion.
+(`bk_top`/`bk_bot`) : le rendu du sol lui rend son ciel quand il défile.
+Il est tracé point par point sur toute la largeur (x de 0 à 279, coupé au
+bord droit) : à l'époque où il passait par `hgr_line8` (x sur 8 bits), il
+n'existait qu'en deçà de 244 et clignotait à cette limite quand la caméra
+oscillait d'un pixel. Le numéro du tour (1 à 3) est écrit sous son fanion.
 
 **Bandeau.** En haut : le chrono à gauche, le score à droite et, au milieu,
 les messages (figures, tours, compte à rebours, CRASH, FINISH, DEMO),
@@ -233,8 +252,9 @@ lecture du hall of fame) et les images des routines de la page texte, la
 fin du fichier, exécutés une fois puis recouverts par la réserve de motifs
 du parcours (`pool`) au premier chargement ; ~60 octets y restent.
 Le fichier `TITLE` porte l'air du titre, les pages de texte (aide,
-félicitations : `tools/pages.py`) et l'image : relu à la demande, il ne
-coûte pas de RAM.
+félicitations : `tools/pages.py`), le menu principal (en `$9C00`) et
+l'image (`tools/titlefile.py`) : relu à la demande, il ne coûte pas de RAM.
+Les variables du jeu (BSS) sont dans une bande de la page texte (`TXT6`).
 `$9600-$B5FF` : le parcours (à la place de DOS ; le titre et le hall of fame
 y passent aussi). `$B700-$BFFF` : RWTS. La page zéro du jeu (`$50-$FB`) est
 presque pleine.
@@ -255,6 +275,7 @@ presque pleine.
 | `tools/title.py` | l'image de titre (`OUT.hgr [aperçu.png]`) |
 | `tools/hof.py` | le fichier `DIRTHOF` vide |
 | `tools/music.py` | les airs : `src/music.inc` (jingles) et `build/tune.bin` (titre) |
+| `tools/titlefile.py` | le fichier `TITLE` : air, pages, menu principal (`$9C00`), image |
 | `tools/pages.py` | pages d'aide et de félicitations : `src/pages.inc` et `build/pages.bin` (dans `TITLE`) |
 | `tests/test_mouse.py` | `make test-mouse` : la souris avec les vraies ROM, dans le cœur POM2 (`POM2_SRC`) |
 | `tools/sprites.py` | génère `src/sprites.inc` : roue (4 positions de rayons × 7 décalages), tête |

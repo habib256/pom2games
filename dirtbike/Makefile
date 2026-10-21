@@ -18,7 +18,7 @@ include $(MOUSE)/mouse.mk
 DISK := $(DIST)/DIRTBIKE.dsk
 GEN  := src/physconst.inc src/sprites.inc src/music.inc src/pages.inc
 SRCS := src/dirtbike.s src/input.inc src/physics.inc src/render.inc \
-        src/menu.inc src/loader.inc src/tricks.inc src/hof.inc src/title.inc
+        src/menu.inc src/loader.inc src/tricks.inc src/hof.inc src/title.inc src/mainmenu.inc
 TRACKS := $(foreach k,01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 \
             21 22 23 24 25 26 27 28 29 30,$(BUILD)/tracks/T$(k).bin)
 
@@ -46,9 +46,10 @@ $(BUILD)/title.hgr: tools/title.py
 	@mkdir -p $(BUILD)
 	$(PYTHON) tools/title.py $@
 
-$(BUILD)/TITLE.bin: $(BUILD)/title.hgr $(BUILD)/tune.bin $(BUILD)/pages.bin $(FHPACK)
+$(BUILD)/TITLE.bin: $(BUILD)/title.hgr $(BUILD)/tune.bin $(BUILD)/pages.bin $(BUILD)/dirtbike.bin \
+		tools/titlefile.py $(FHPACK)
 	$(FHPACK) -c -9 -h $< $(BUILD)/title.lz4
-	cat $(BUILD)/tune.bin $(BUILD)/pages.bin $(BUILD)/title.lz4 > $@
+	$(PYTHON) tools/titlefile.py $@ $(BUILD)/tune.bin $(BUILD)/pages.bin $(BUILD)/menu.bin $(BUILD)/title.lz4
 
 $(BUILD)/hof.bin: tools/hof.py
 	@mkdir -p $(BUILD)

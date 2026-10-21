@@ -115,7 +115,15 @@ show_page:
         LDA     page_hi,X
         STA     sptr+1
         JSR     page1_text
-@line:  LDY     #0                      ; row, column, text, 0 ... $FF
+        JSR     page_lines
+@wait:  LDY     #0
+        JSR     tick_wait
+        BCC     @wait
+@rts:   RTS
+
+; page_lines -- print the lines at sptr: row, column, text, 0 ... $FF
+page_lines:
+@line:  LDY     #0
         LDA     (sptr),Y
         CMP     #$FF
         BEQ     @wait
@@ -143,10 +151,7 @@ show_page:
         BCC     @line
         INC     sptr+1
         BNE     @line
-@wait:  LDY     #0
-        JSR     tick_wait
-        BCC     @wait
-@rts:   RTS
+@wait:  RTS
 
 ; title_show -- page 1: the title picture, or the name if the disk fails
 title_show:
@@ -374,7 +379,8 @@ music_tick:
 @wait:  LDA     #79
         JMP     WAIT
 
-PICTURE = LOADBUF + 4 + TUNE_LEN + PAGES_LEN
+.import __MENUOVL_SIZE__
+PICTURE = MENU_AT + __MENUOVL_SIZE__    ; tools/titlefile.py: after the menu
 .segment "RODATA"
 page_lo:   .byte <(LOADBUF + 4 + TUNE_LEN + PAGE_HELP), <(LOADBUF + 4 + TUNE_LEN + PAGE_CONGRATS)
 page_hi:   .byte >(LOADBUF + 4 + TUNE_LEN + PAGE_HELP), >(LOADBUF + 4 + TUNE_LEN + PAGE_CONGRATS)

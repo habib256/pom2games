@@ -10,6 +10,8 @@
     the next boot; the game goes on to track 2;
   * on a write-protected disk the game says so and goes on;
   * a new disk: the menu opens track 1 only (the others are not finished);
+  * ESC in a race opens the main menu: the input device changes, QUIT boots
+    the disk again into BASIC;
   * the title tune plays once, the demo starts when it ends; H on the title
     shows the help page; finishing track 30 shows the congratulations;
   * the countdown holds the bike; after a crash it restarts at rest at the
@@ -48,11 +50,12 @@ def hgr_rows():
     return lo + hi
 
 
-GUARD = ['peek:0200:384', 'peek:0800:2048']    # tables the drawing must never write over
+HGR_LO = a2test.labels(GAME / 'build/dirtbike.lbl')['hgr_lo']      # hgr_lo, hgr_hi: SYSBSS
+GUARD = [f'peek:{HGR_LO:04X}:384', 'peek:0800:2048']    # tables the drawing must never write over
 
 
 def guarded(r):
-    return r.mem(0x0200, 384) == hgr_rows() and r.mem(0x0800, 2048) == MUL_TABLES
+    return r.mem(HGR_LO, 384) == hgr_rows() and r.mem(0x0800, 2048) == MUL_TABLES
 
 
 def record_steps(L):
@@ -172,6 +175,16 @@ def main():
         steps += [L.poke('crashed', 1), L.poke('pt_yh', y, 2), L.poke('pt_oyh', y, 2), 'wait:3']
     ok = guarded(a2test.run(DISK, steps + ['wait:60'] + GUARD))
     print('bike below the screen: the drawing never writes over the tables: ' + ('ok' if ok else 'DIFF'))
+    bad += not ok
+
+    # ESC in a race: the main menu (an overlay in TITLE); 3 changes the input
+    # device; 5 quits: the disk boots again and HELLO stops at BASIC
+    r = a2test.run(DISK, ['wait:1000', 'key: ', 'wait:60', 'key:\r', L.until('new_race', 900), 'wait:100',
+                          L.peek('inp_dev', 1), 'key:\x1b', L.until('main_menu', 300), 'wait:20', 'key:3', 'wait:20',
+                          L.peek('inp_dev', 1), 'key:5', 'wait:800', 'peek:0400:40'])
+    text = bytes(c & 0x7F for c in r.mem(0x0400, 40)).decode()
+    ok = r.dumps[0] != r.dumps[1] and text.startswith('DIRTBIKE: BYE!')
+    print(f'ESC: the main menu, input {r.dumps[0][0]} -> {r.dumps[1][0]}, quit to BASIC: ' + ('ok' if ok else f'DIFF {text!r}'))
     bad += not ok
 
     # a new disk: only track 1 open in the menu, the marker stays on it
