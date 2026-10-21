@@ -10,9 +10,10 @@ par elle, ni que toutes les familles d'une archive sont liées dans le binaire.
 | Logiciel | Ressources partagées effectivement intégrées |
 |---|---|
 | ARKABREAKOUT | `apple2` : HGR, clavier, joystick, son, sortie ; `hgr` : tables et texte ; `font` |
-| MICRO-SOKOBAN | `apple2` : HGR, clavier, joystick, son, sortie ; `hgr` : tables, pages et glyphes natifs ; sous-ensemble de `font` généré par les outils communs |
+| MICRO-SOKOBAN | `apple2` : HGR, clavier, joystick, son, sortie, RWTS ; `hgr` : tables, pages et glyphes natifs ; sous-ensemble de `font` généré par les outils communs |
 | CHESS | `apple2` : HGR, clavier, joystick, son, délai, texte ; `hgr` : tables, glyphes natifs et bitmaps des pièces ; `font` |
 | MAZE3D | `apple2` : HGR, joystick, son, DOS, sortie et LZ4FH ; `hgr` : pages, texte, sprites compactés, lignes, spans et effacement de lignes |
+| DIRTBIKE | `apple2` : HGR, clavier, manette rapide, LZ4FH, RWTS ; `hgr` : tables, texte, lignes, pages par patch ; `math` : produits, sommes, raccourcis de direction ; `font` |
 | SNAKE | `hgrc` : rendu HGR, cellules, texte, nombres ; `apple2c` : entrées ; police partagée |
 | PINBALL | `mouse` : pilote AppleMouse et contexte résident ; rendu et simulation historiques de Bill Budge conservés |
 | LIGHT3DBALL | `hgrc`, `apple2c`, `mouse` ; `perspective` : couloir natif ; `hgr` : fil de fer et spans ; `apple2` : son ; `font` |

@@ -36,7 +36,18 @@ native ; `exit.asm` restaure la page zéro pour rendre la main à DOS proprement
   `APPLE2_EXIT_HOOK` (défini avant l'include) nomme une routine appelée
   après la restauration, avant le retour à DOS (aussi sur Ctrl-RESET).
 - **`sound.asm`** — `tone` : bip carré sur le haut-parleur.
-- **`joy.asm`** — `read_stick`, `stick_dir` : manette (deux paddles).
+- **`joy.asm`** — `read_stick`, `stick_dir` : manette (deux paddles) ;
+  `read_stick_fast` (DIRTBIKE) rend la main dès que les deux minuteries sont
+  écoulées (0,1-2,8 ms au lieu de 6 ms), sur sa propre échelle (~0..80, centre
+  ~40) : calibrer sur la position de repos. `joy_x`/`joy_y`/`joy_cnt` peuvent
+  être des alias en page zéro.
+- **`rwts.asm`** — `rwts_read`, `rwts_write`, `rwts_cmd`, `rwts_read_tslist`,
+  `rwts_find_file` : secteurs DOS 3.3 en direct par RWTS (IOB de DOS, lecteur
+  de démarrage, essais `RWTS_RETRIES`, page zéro gardée avec `RWTS_KEEP_ZP`),
+  sans page zéro propre. L'adresse de l'IOB est demandée à `$03E3` au premier
+  appel puis gardée : `$03E3` la lit dans la mémoire du gestionnaire de
+  fichiers, qu'un jeu peut ensuite reprendre (DIRTBIKE). Utilisé par DIRTBIKE
+  et MICRO-SOKOBAN.
 - **`lz4fh.asm`** — `lz4fh_unpack` : décompression fhpack/LZ4FH vers une zone
   de 8 Ko alignée (notamment les pages HGR). Entrées `lz4fh_src/dst`, scratch
   configurable ; code en RAM, flux validé à la compilation. Une erreur de
@@ -78,6 +89,7 @@ un autre module, aussi). Un objet C qui aliase une routine vers un import
 | `apple2_return` | `exit.asm` | — | même restauration, puis `RTS` vers le `CALL` BASIC (programme lancé par `BLOAD` + `CALL`) | tout | — |
 | `tone` | `sound.asm` | A = bascules (0 → 256), X = demi-période (0 → 256) ; ~(13 + 5·X) cycles par bascule | — | A, X, Y | — |
 | `read_stick` | `joy.asm` | — | `joy_x`, `joy_y` = 0 (gauche / haut) … ~60 (centre) … ~120 ; ~6 ms ; C = 1 si rien n'est branché (valeurs centrées) | A, X, Y | — |
+| `read_stick_fast` | `joy.asm` | — | `joy_x`, `joy_y` = comptes de 35 cycles (33-34 quand l'autre axe a fini), ~40 au centre ; s'arrête dès que les deux minuteries ont fini ; C = 1 après 255 tours (rien de branché) | A, X, Y | — |
 | `stick_dir` | `joy.asm` | `joy_x`, `joy_y` | A = `JOY_NONE` (0, Z = 1) / `JOY_UP` / `JOY_DOWN` / `JOY_LEFT` / `JOY_RIGHT` ; zone morte `JOY_LO`–`JOY_HI` (30–90, à définir avant l'include pour changer) ; la verticale l'emporte | A | — |
 | `dos_cmd_new` | `dos.asm` | — | tampon de commande vide | A | — |
 | `dos_cmd_add` | `dos.asm` | A = lo, Y = hi (ASCIIZ) | chaîne ajoutée | A, X, Y | — |

@@ -1,0 +1,302 @@
+; ============================================================================
+; title.inc -- title page, attract mode, demo rides
+; ============================================================================
+;   attract      the title (TITLE from the disk) with a blinking prompt;
+;                after TITLE_SECONDS without a key: a demo ride, then the two
+;                hall of fame pages, then the title again. A key or button 0
+;                anywhere: the menu.
+;   demo_step    in a demo race, instead of read_input: the next inputs of
+;                the ride (C = 1: a key or the button stops the demo)
+;   demo_end     a demo race is over: the hall of fame
+;   music_tick   one tick (~1/60 s) of the playing tune, or a pause; the
+;                title tune (tools/music.py, at the start of the TITLE file)
+;                plays through tick_wait while the title is up
+;   play_tune    A/Y = a jingle: played to its end
+;
+; The demo rides are tools/solver.py's proven rides (tests/solutions.txt,
+; packed by tools/packtrack.py at the end of each track file, copied into
+; demobuf by load_track; menu_data.inc lists the demo tracks): the physics is the
+; model's bit for bit, so replaying the inputs from the start finishes the
+; track exactly as the solver did.
+; ============================================================================
+
+TITLE_PROMPT  = 150             ; = tools/title.py
+TITLE_SECONDS = 15
+HOF_TICKS     = 180             ; x 2: each hall of fame page, ~6 s
+DEMO_END_FRAMES = 90            ; after a demo's finish line
+
+.segment "ZEROPAGE"
+demo_ptr:  .res 2
+mus_ptr:   .res 2               ; the note playing (hi 0: no tune)
+
+.segment "BSS"
+demo_left: .res 1               ; ticks left in the current run
+mus_t:     .res 1               ; ticks of the note played
+mus_loop:  .res 2               ; at the end, again from here (hi 0: stop)
+
+.segment "DATA"                 ; (BSS is not cleared: these need a start value)
+demo:      .byte 0              ; non-zero: this race is a demo
+demo_next: .byte 0              ; next demo ride
+titledir_t: .byte 0             ; TITLE's T/S list (tools/patchdir.py)
+titledir_s: .byte 0
+
+.segment "CODE"
+
+attract:
+        LDA     #0
+        STA     demo
+        JSR     title_show
+        LDX     #TITLE_SECONDS * 2      ; the prompt on / off every 1/2 s
+@blink: TXA
+        PHA
+        LDA     #<msg_press
+        LDY     #>msg_press
+        TXA
+        LSR     A
+        LDA     #<msg_press
+        BCC     @on
+        LDA     #<msg_blank
+        LDY     #>msg_blank
+@on:    LDX     #13
+        STX     ht_col
+        LDX     #TITLE_PROMPT
+        JSR     puts_at
+        LDY     #30
+        JSR     tick_wait
+        PLA
+        TAX
+        BCS     @go
+        DEX
+        BNE     @blink
+        JMP     demo_start
+@go:    JMP     to_menu
+
+; title_show -- page 1: the title picture, or the name if the disk fails
+title_show:
+        JSR     page1_text
+        LDA     titledir_t
+        STA     rwts_track
+        LDA     titledir_s
+        STA     rwts_sector
+        LDA     #>TSLBUF
+        STA     rwts_tsl
+        LDA     #>LOADBUF
+        STA     rwts_page
+        JSR     rwts_read_tslist
+        BCS     @plain
+        LDA     #<(LOADBUF+4)           ; after DOS's header: the tune,
+        LDY     #>(LOADBUF+4)
+        JSR     music_start
+        LDA     #<(LOADBUF+4+TUNE_LEN)  ; then the picture
+        STA     lz4fh_src
+        LDA     #>(LOADBUF+4+TUNE_LEN)
+        STA     lz4fh_src+1
+        LDA     #0
+        STA     lz4fh_dst
+        LDA     #$20
+        STA     lz4fh_dst+1
+        JMP     lz4fh_unpack
+@plain: JSR     music_stop
+        LDA     #<msg_title
+        LDY     #>msg_title
+        LDX     #16
+        STX     ht_col
+        LDX     #64
+        JMP     puts_at
+
+; tick_wait -- Y ticks of ~1/60 s; C = 1 as soon as a key (strobe cleared)
+; or button 0 (released) is pressed. Keeps nothing.
+tick_wait:
+@t:     TYA
+        PHA
+        JSR     music_tick
+        PLA
+        TAY
+        LDA     KBD
+        BMI     @key
+        LDA     joy_ok
+        BEQ     @n
+        LDA     BUTN0
+        BMI     @btn
+@n:     DEY
+        BNE     @t
+        CLC
+        RTS
+@key:   BIT     KBDSTRB
+        SEC
+        RTS
+@btn:   LDA     BUTN0
+        BMI     @btn
+        SEC
+        RTS
+
+; demo_start -- the next demo ride, from the start of its track
+demo_start:
+        JSR     music_stop              ; (load_track overwrites the tune)
+        LDX     demo_next
+        LDA     #<demobuf               ; the ride comes with the track
+        STA     demo_ptr
+        LDA     #>demobuf
+        STA     demo_ptr+1
+        LDA     demo_track,X
+        INX
+        CPX     #NDEMOS
+        BCC     @n
+        LDX     #0
+@n:     STX     demo_next
+        LDX     #0
+        STX     demo_left
+        JSR     load_track
+        BCS     demo_end                ; disk error: skip the ride
+        LDA     #1
+        STA     demo
+        JMP     new_race
+
+demo_end:
+        LDA     #0
+        STA     demo
+        JSR     hof_page                ; A = 0: tracks 1-15
+        JSR     hof_pause
+        BCS     @menu
+        LDA     #15
+        JSR     hof_page
+        JSR     hof_pause
+        BCS     @menu
+        JMP     attract
+@menu:  JMP     to_menu
+
+hof_pause:
+        LDY     #HOF_TICKS
+        JSR     tick_wait
+        BCS     @rts
+        LDY     #HOF_TICKS
+        JMP     tick_wait
+@rts:   RTS
+
+; demo_step -- in_throttle / in_brake / in_lean of this tick. One run =
+; count, then throttle / 4 (bits 5-6), brake (bit 4), lean + 4 (bits 0-3).
+demo_step:
+        LDA     KBD
+        BMI     @key
+        LDA     joy_ok
+        BEQ     @in
+        LDA     BUTN0
+        BMI     @btn
+@in:    LDA     demo_left
+        BNE     @same
+        LDY     #0
+        LDA     (demo_ptr),Y
+        BEQ     @hold                   ; end of the ride: keep the inputs
+        STA     demo_left
+        INY
+        LDA     (demo_ptr),Y
+        PHA
+        AND     #$0F
+        SEC
+        SBC     #4
+        STA     in_lean
+        PLA
+        PHA
+        LSR     A
+        LSR     A
+        LSR     A
+        LSR     A
+        AND     #1
+        STA     in_brake
+        PLA
+        LSR     A
+        LSR     A
+        LSR     A
+        AND     #$0C                    ; (throttle / 4) * 4
+        STA     in_throttle
+        CLC
+        LDA     demo_ptr
+        ADC     #2
+        STA     demo_ptr
+        BCC     @same
+        INC     demo_ptr+1
+@same:  DEC     demo_left
+@hold:  CLC
+        RTS
+@key:   BIT     KBDSTRB
+        SEC
+        RTS
+@btn:   LDA     BUTN0
+        BMI     @btn
+        SEC
+        RTS
+
+; music_start -- A/Y = a tune, from its first note, looping
+music_start:
+        STA     mus_ptr
+        STA     mus_loop
+        STY     mus_ptr+1
+        STY     mus_loop+1
+        LDA     #0
+        STA     mus_t
+        RTS
+
+music_stop:
+        LDA     #0
+        STA     mus_ptr+1
+        RTS
+
+; play_tune -- A/Y = a tune, played once (muted: its length in silence)
+play_tune:
+        JSR     music_start
+        LDA     #0
+        STA     mus_loop+1
+@n:     JSR     music_tick
+        LDA     mus_ptr+1
+        BNE     @n
+        RTS
+
+; music_tick -- one ~1/60 s tick: a slice of the note (the last tick of a
+; note is silent), or a pause without a tune. Keeps nothing.
+music_tick:
+        LDA     mus_ptr+1
+        BEQ     @wait
+        LDY     #0
+        LDX     mus_t
+        INX
+        TXA
+        CMP     (mus_ptr),Y
+        BEQ     @rest
+        LDA     snd_on
+        BEQ     @rest
+        INY
+        LDA     (mus_ptr),Y             ; half period (0: a rest)
+        BEQ     @rest
+        TAX
+        INY
+        LDA     (mus_ptr),Y             ; flips in a tick
+        JSR     tone
+        JMP     @next
+@rest:  JSR     @wait
+@next:  INC     mus_t
+        LDY     #0
+        LDA     mus_t
+        CMP     (mus_ptr),Y
+        BCC     @rts
+        STY     mus_t                   ; the next note
+        CLC
+        LDA     mus_ptr
+        ADC     #3
+        STA     mus_ptr
+        BCC     @n1
+        INC     mus_ptr+1
+@n1:    LDA     (mus_ptr),Y
+        BNE     @rts
+        LDA     mus_loop                ; the end: again, or stop
+        STA     mus_ptr
+        LDA     mus_loop+1
+        STA     mus_ptr+1
+@rts:   RTS
+@wait:  LDA     #79
+        JMP     WAIT
+
+.segment "RODATA"
+msg_press: .byte "PRESS ANY KEY", 0
+msg_blank: .byte "             ", 0
+msg_demo:  .byte "DEMO", 0
+.segment "CODE"

@@ -18,12 +18,16 @@ io_track: .res 1
 io_sector: .res 1
 io_page: .res 1
 io_count: .res 1
-io_entry: .res 1
 io_index: .res 1
 io_mask: .res 1
 save_mask: .res 1
 io_sp: .res 1                   ; stack pointer on entry, for disk_error
-io_iob: .res 2
+; dev/lib/apple2/rwts.asm works on these, and keeps the game's zero page
+rwts_track = io_track
+rwts_sector = io_sector
+rwts_page = io_page
+rwts_zp_buf = dos_zp_prog
+RWTS_KEEP_ZP = 1
 .code
 init_disk_cache:
         LDX #0
@@ -215,77 +219,21 @@ disk_error:
         RTS
 
 find_disk_file:
-        LDA #17
-        STA io_track
-        LDA #15
-        STA io_sector
-@catalog:
+        LDA io_name                     ; T/S list of the file -> io_track/sector
+        LDY io_name+1                   ; (the catalog is read into io_page)
+        JSR rwts_find_file
+        BCC @found
+        JMP disk_error
+@found: LDA io_track
+        STA sol_ts_track
+        LDA io_sector
+        STA sol_ts_sector
         LDA #1
         JSR io_rwts
         LDA #0
         STA src_lo
         LDA io_page
         STA src_hi
-        LDA #11
-        STA io_entry
-@entry: LDY io_entry
-        LDA (src_lo),Y
-        BEQ @next
-        CMP #$FF
-        BEQ @next
-        LDA io_name
-        STA ptr_lo
-        LDA io_name+1
-        STA ptr_hi
-        LDA io_entry
-        CLC
-        ADC #3
-        STA temp2
-        LDX #0
-@name:  TXA
-        TAY
-        LDA (ptr_lo),Y
-        BEQ @endname
-        CMP #','
-        BEQ @endname
-        STA temp
-        LDY temp2
-        LDA (src_lo),Y
-        AND #$7F
-        CMP temp
-        BNE @next
-        INC temp2
-        INX
-        BNE @name
-@endname:
-        LDY temp2
-        LDA (src_lo),Y
-        CMP #$A0
-        BEQ @found
-@next:  LDA io_entry
-        CLC
-        ADC #35
-        STA io_entry
-        BCC @entry
-        LDY #1
-        LDA (src_lo),Y
-        STA io_track
-        INY
-        LDA (src_lo),Y
-        STA io_sector
-        LDA io_track
-        BNE @catalog
-        JMP disk_error
-@found: LDY io_entry
-        LDA (src_lo),Y
-        STA io_track
-        STA sol_ts_track
-        INY
-        LDA (src_lo),Y
-        STA io_sector
-        STA sol_ts_sector
-        LDA #1
-        JSR io_rwts
         ; All our files fit one T/S list, at most nine data sectors.
         LDX #0
 @pair:  TXA
@@ -319,49 +267,11 @@ find_disk_file:
         JMP disk_error
 @done:  RTS
 
-; Use DOS's own IOB/DCT so drive/head/motor state remains coherent with DOS.
-; RWTS borrows zero page: preserve the game's complete declared range.
+; A = RWTS command, io_track / io_sector <-> page io_page (rwts.asm: DOS's
+; own IOB, the boot drive, the game's zero page kept). An error ends in
+; disk_error.
 io_rwts:
-        PHA
-        LDX #DOS_ZP_LEN-1
-@save:  LDA DOS_ZP_START,X
-        STA dos_zp_prog,X
-        DEX
-        BPL @save
-        JSR $03E3
-        STY $80
-        STA $81
-        LDY #2
-        LDA #1
-        STA ($80),Y                     ; drive 1
-        INY
-        LDA #0
-        STA ($80),Y                     ; accept mounted volume
-        INY
-        LDA io_track
-        STA ($80),Y
-        INY
-        LDA io_sector
-        STA ($80),Y
-        LDY #8
-        LDA #0
-        STA ($80),Y
-        INY
-        LDA io_page
-        STA ($80),Y
-        LDY #12
-        PLA
-        STA ($80),Y
-        JSR $03E3
-        JSR $03D9
-        PHP
-        LDX #DOS_ZP_LEN-1
-@restore:
-        LDA dos_zp_prog,X
-        STA DOS_ZP_START,X
-        DEX
-        BPL @restore
-        PLP
+        JSR rwts_cmd
         BCC @done
         JMP disk_error
 @done:  RTS
