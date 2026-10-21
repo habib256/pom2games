@@ -156,11 +156,14 @@ phys_tick:
 @int:   JSR     integrate
         DEX
         BPL     @int
-        ; the turn: brake (nose down); in the air also lean - throttle / 8;
-        ; in the air or on one wheel (last tick's contact) the spin fades
+        ; the turn: brake (nose down) unless the front wheel is down; in the
+        ; air also lean - throttle / 8; in the air or on one wheel (last
+        ; tick's contact) the spin fades
         LDA     #0
         LDX     in_brake
         BEQ     @nb
+        LDX     wheel_gnd+1
+        BNE     @nb
         LDA     #GYRO_BRAKE
 @nb:    STA     turn
         LDA     wheel_gnd
@@ -936,12 +939,18 @@ constrain:
         JMP     sub_yv
 
 ; heavy -- a rider link's move c (val): val = c + (c >> RIDER_HEAVY) for the
-; wheel, vn = c - (c >> RIDER_HEAVY) for the rider (heavier than a wheel)
+; wheel, vn = c - (c >> RIDER_HEAVY) for the rider (heavier than a wheel);
+; c >> RIDER_HEAVY rounded toward 0 (rounded down, the bike crept backwards)
 heavy:
         LDA     val
-        STA     pen
-        LDA     val+1
-        STA     pen+1
+        LDY     val+1
+        BPL     @p
+        CLC
+        ADC     #(1 << RIDER_HEAVY) - 1
+        BCC     @p
+        INY
+@p:     STA     pen
+        STY     pen+1
         LDY     #RIDER_HEAVY
 @s:     LDA     pen+1
         CMP     #$80

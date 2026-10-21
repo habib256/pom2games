@@ -3,6 +3,10 @@
 De : pom2games (jeu DIRTBIKE, Apple II+ 48 Ko, DOS 3.3)
 Date : 21 octobre 2026
 
+> **État :** transmise et corrigée dans POM2 (`28700c39` journal des écritures
+> vidéo, `37f5316c` stick 1 → joystick Apple II). a2shot reconstruit avec ce
+> core : le compte à rebours sans l'attente ne clignote plus.
+
 Bonjour,
 
 En testant DIRTBIKE dans POM2 (et dans `a2shot`, qui embarque `pom2_core`),

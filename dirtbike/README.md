@@ -144,12 +144,14 @@ disquette protégée, il le dit et continue. `make` recrée un hall of fame vide
 faite de trois points de Verlet : roue arrière, roue avant et pilote, reliés
 par l'empattement (rigide, 24 px) et deux liaisons roue-pilote (la
 suspension). Le pilote pèse un peu plus qu'une roue (9/7 : dans une liaison,
-la roue prend `c + c >> 3` de la correction, le pilote `c - c >> 3` ; à 3
-fois, la moto devenait intenable dans les whoops). À chaque tick :
+la roue prend `c + c >> 3` de la correction, le pilote `c - c >> 3`, `c >> 3`
+arrondi vers zéro : arrondi vers le bas, la moto arrêtée reculait toute
+seule ; à 3 fois, la moto devenait intenable dans les whoops). À chaque tick :
 1. gravité, puis vitesses bornées : 18 px/tick le long de la piste, 8 en
    vertical ; la traction pousse jusqu'à 13,5 px/tick ;
 2. rotation de l'axe des roues : le frein arrière fait plonger l'avant
-   (réaction de la roue sur le cadre, sol compris) ; en l'air, l'inclinaison
+   (réaction de la roue sur le cadre), sauf roue avant au sol : le sol
+   tient l'avant (frein tenu, la moto arrêtée basculait) ; en l'air, l'inclinaison
    et les gaz (nez qui monte) la tournent aussi. En l'air ou sur une seule
    roue, la rotation s'amortit (`>> 4` par tick : plus de vrille sans fin) ;
 3. contraintes de distance sans racine carrée. L'inclinaison déplace le

@@ -117,6 +117,16 @@ def main():
         print('next boot reads it back: ' + ('ok' if ok else 'DIFF'))
         bad += not ok
 
+        # R (restart) after a record: the initials first, the record saved
+        # (R once started the race again, the record unsaved and nameless)
+        rkey = Path(tmp) / 'rkey.dsk'
+        steps = [s if s != 'key: ' else 'key:R' for s in record_steps(L)]
+        r = a2test.run(DISK, steps + [L.until('new_race', 900), f'dsk:{rkey}'])
+        hof = dos33.read_file(rkey.read_bytes(), 'DIRTHOF')
+        ok = hof[4 + 3 * NT:4 + 3 * NT + 3] == b'XYZ'
+        print('R after a record: the initials asked, the record saved: ' + ('ok' if ok else 'DIFF'))
+        bad += not ok
+
         # write protected: said, not written, on to the menu
         prot = Path(tmp) / 'prot.dsk'
         r = a2test.run(DISK, record_steps(L) + [L.until('new_race', 900), f'dsk:{prot}'], wp=True)
@@ -164,6 +174,24 @@ def main():
         return all(p[a2test.hgr_offset(y) + c] == 0 for y in range(8) for c in range(8, 32))
     ok = not blank(r.dumps[0]) and not blank(r.dumps[1]) and blank(r.dumps[2]) and blank(r.dumps[3])
     print('HUD message: shown on both pages, then no trace: ' + ('ok' if ok else 'DIFF'))
+    bad += not ok
+
+    # a crash right after GO: CRASH, not the rest of GO! (a timed message
+    # outlasted CRASH_FRAMES)
+    r = a2test.run(DISK, ['wait:1000', 'key: ', 'wait:60', 'key:\r', L.until('new_race', 900),
+                          L.until('main_loop', 60), L.poke('count_t', 1), 'wait:4', L.poke('crashed', 1),
+                          'wait:30', L.peek('hud_sh', 2 * 26)])
+    shown = bytes(c & 0x7F for c in r.mem(L['hud_sh'], 2 * 26)).decode('latin-1')
+    ok = shown[12:26].strip() == 'CRASH !' and shown[38:52].strip() == 'CRASH !'
+    print(f'crash after GO: {shown[12:26].strip()!r} / {shown[38:52].strip()!r}: ' + ('ok' if ok else 'DIFF'))
+    bad += not ok
+
+    # ESC typed while the track loads: the race still starts (it once went
+    # straight to the main menu)
+    r = a2test.run(DISK, ['wait:1000', 'key: ', 'wait:60', 'key:\r', 'press:\x1b', L.until('main_loop', 900),
+                          'wait:60', L.peek('count_t', 1)])
+    ok = r.mem(L['count_t'], 1)[0] < 50
+    print(f'ESC during the load: ignored, countdown at {r.mem(L["count_t"], 1)[0]}: ' + ('ok' if ok else 'DIFF'))
     bad += not ok
 
     # a crashed bike sinking below the screen (rider forced to rows 196-205,
