@@ -88,14 +88,17 @@ def main():
         h, fin = tracks.build(k)
         _, t = tricks.ride(h, sols[k], fin)
         steps = ['wait:600', L.until('tick_wait', 3000), L.poke('demo_next', i), L.until('demo_start', 3000),
-                 L.until('new_race', 900), L.until('demo_end', 9000), L.peek('score', 3), L.peek('state', 1)]
+                 L.until('new_race', 900), L.until('demo_end', 9000), L.peek('score', 3), L.peek('state', 1),
+                 L.peek('crashed', 1)]
         if i == 0:
             steps.append(L.until('hof_page', 60))
         r = a2test.run(DISK, steps + GUARD)
         score = r.mem(L['score'], 3)
         got = int(f'{score[2]:02x}{score[1]:02x}{score[0]:02x}')
-        ok = got == t.score and r.mem(L['state'], 1)[0] == 2 and guarded(r)
-        print(f'demo {i + 1}: track {k} finished with {got} points (model {t.score}): ' + ('ok' if ok else 'DIFF'))
+        up = r.mem(L['crashed'], 1)[0] == 0      # still up when the hall of fame comes
+        ok = got == t.score and r.mem(L['state'], 1)[0] == 2 and up and guarded(r)
+        print(f'demo {i + 1}: track {k} finished with {got} points (model {t.score}), '
+              f'{"still up" if up else "FELL"} after the line: ' + ('ok' if ok else 'DIFF'))
         bad += not ok
 
     # a record, saved
@@ -213,6 +216,16 @@ def main():
     text = bytes(c & 0x7F for c in r.mem(0x0400, 40)).decode()
     ok = r.dumps[0] != r.dumps[1] and text.startswith('DIRTBIKE: BYE!')
     print(f'ESC: the main menu, input {r.dumps[0][0]} -> {r.dumps[1][0]}, quit to BASIC: ' + ('ok' if ok else f'DIFF {text!r}'))
+    bad += not ok
+
+    # the main menu with the stick: down moves the marker once per push, the
+    # button chooses (HELP), a key or the button leaves the page
+    r = a2test.run(DISK, ['wait:1000', 'key: ', 'wait:60', 'key:\r', L.until('new_race', 900), 'wait:100',
+                          'key:\x1b', L.until('mm_key', 300), 'joy:0,1', 'wait:6', 'joy:0,0', 'wait:10',
+                          L.peek('mm_sel', 1), 'btn:0,1', 'wait:3', 'btn:0,0', L.until('mm_help', 60), 'wait:30',
+                          'btn:0,1', 'wait:3', 'btn:0,0', L.until('mm_key', 120), L.peek('mm_sel', 1)])
+    ok = r.dumps[0][0] == 1 and r.dumps[1][0] == 1
+    print(f'main menu with the stick: down -> item {r.dumps[0][0] + 1}, button: help, back: ' + ('ok' if ok else 'DIFF'))
     bad += not ok
 
     # a new disk: only track 1 open in the menu, the marker stays on it

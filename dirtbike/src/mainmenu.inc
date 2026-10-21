@@ -8,6 +8,8 @@
 ;                ones found) / HALL OF FAME / QUIT TO BASIC (the disk boots
 ;                again, HELLO sees QUIT_MARK and ends: DOS 3.3 is back). Arrows (I / K)
 ;                and RETURN or SPACE, or the digits 1-5; ESC: the title.
+;                The stick moves the marker, the mouse's height points at an
+;                item; their button chooses (and leaves the help / scores).
 ;
 ; The code and its text cost no RAM: they come with TITLE into LOADBUF,
 ; over the loaded track (load_track runs before every race anyway).
@@ -22,10 +24,14 @@ BOOT_SLOT6 = $C600              ; the disk drive's boot ROM (slot 6, the //c's t
 MENU_AT  = $9C00                ; = dirtbike.cfg MENUOVL, tools/titlefile.py
 MM_N     = 5                    ; items
 MM_ROW   = 6                    ; first item's text row (8 scanlines)
+MM_REPEAT = 20                  ; stick: turns (~10 ms) between moves
+MM_MSTEP = 39                   ; mouse: rows per item (0..191 / 5)
+MM_PICK  = 1                    ; mm_pad: the mouse chose another item
 .assert LOADBUF + 4 + TUNE_LEN + PAGES_LEN <= MENU_AT, error, "TITLE: tune + pages reach MENU_AT"
 
 .segment "SYSBSS"
 mm_sel:  .res 1                 ; the item marked
+mm_mi:   .res 1                 ; the item the mouse last pointed at
 
 .segment "CODE"
 esc_menu:
@@ -34,6 +40,9 @@ esc_menu:
         JMP     to_menu
 @ok:    LDA     #0
         STA     mm_sel
+        STA     mrep                    ; (the stick's repeat delay)
+        LDA     #$FF
+        STA     mm_mi
         JMP     main_menu
 
 .segment "MENUOVL"
@@ -69,12 +78,18 @@ mm_show:
         STX     ht_col
         LDX     #(MM_ROW + 4) * 8
         JSR     puts_at
-mm_key: LDA     KBD                     ; a key
-        BPL     mm_key
-        BIT     KBDSTRB
+mm_key: LDA     KBD                     ; a key, or the stick / mouse
+        BMI     @kbd
+        JSR     mm_pad
+        BEQ     mm_key
+        BNE     @act                    ; (always)
+@kbd:   BIT     KBDSTRB
         AND     #$7F
         JSR     kbd_upcase
-        CMP     #KC_ESC
+@act:   CMP     #MM_PICK
+        BNE     @esc
+        JMP     mm_show
+@esc:   CMP     #KC_ESC
         BEQ     mm_title
         CMP     #KC_UP
         BEQ     @up
@@ -165,10 +180,84 @@ mm_input:                               ; the next device found
         JSR     inp_set
         JMP     mm_show
 
-mm_wait:                                ; a key or the button
-        LDY     #0
+mm_wait:                                ; a key, the button or the mouse's
+        LDY     #1
         JSR     tick_wait
+        BCS     @rts
+        JSR     mm_click
         BCC     mm_wait
+@rts:   RTS
+
+; mm_click -- C = 1: the mouse (the input device) clicked, now released
+mm_click:
+        LDA     inp_dev
+        CMP     #INP_MOUSE
+        BNE     @no
+        JSR     _mouse_poll
+        LDA     _mouse_buttons
+        BPL     @no
+@rel:   JSR     _mouse_poll
+        LDA     _mouse_buttons
+        BMI     @rel
+        SEC
+        RTS
+@no:    CLC
+        RTS
+
+; mm_pad -- one turn (~10 ms) of the stick or the mouse: A = KC_UP, KC_DOWN,
+; KC_RET (the button, on release), MM_PICK (the mouse points at another
+; item: mm_sel set); 0 (Z = 1): nothing
+mm_pad: LDA     #40
+        JSR     WAIT
+        JSR     mm_click
+        BCS     @go
+        LDA     inp_dev
+        CMP     #INP_MOUSE
+        BEQ     @mouse
+        LDA     joy_ok
+        BEQ     @none
+        LDA     BUTN0
+        BPL     @nob
+@rel:   LDA     BUTN0
+        BMI     @rel
+@go:    LDA     #KC_RET
+        RTS
+@nob:   LDA     mrep                    ; the repeat delay
+        BEQ     @read
+        DEC     mrep
+@none:  LDA     #0
+        RTS
+@read:  JSR     read_stick_fast
+        SEC
+        LDA     joy_y
+        SBC     joy_my
+        BCS     @dn
+        CMP     #<(-STICK_ON)
+        BCS     @none
+        LDA     #KC_UP
+        BNE     @rep                    ; (always)
+@dn:    CMP     #STICK_ON
+        BCC     @none
+        LDA     #KC_DOWN
+@rep:   LDX     #MM_REPEAT
+        STX     mrep
+        RTS
+@mouse: LDA     _mouse_y                ; (mm_click polled it) its item
+        LDX     #0
+@div:   CMP     #MM_MSTEP
+        BCC     @item
+        SBC     #MM_MSTEP
+        INX
+        CPX     #MM_N - 1
+        BCC     @div
+@item:  CPX     mm_mi                   ; only when it points elsewhere: the
+        BEQ     @none                   ; keys keep their choice meanwhile
+        LDA     mm_mi
+        STX     mm_mi
+        CMP     #$FF                    ; (the first look only notes it)
+        BEQ     @none
+        STX     mm_sel
+        LDA     #MM_PICK
         RTS
 
 mm_text:
