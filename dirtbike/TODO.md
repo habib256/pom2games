@@ -15,16 +15,20 @@ Lot 1 quinquies (fait, 2026-10-21) : circuits de 3 tours, reprise après une
 chute, compte à rebours, sons d'événements, musique de titre, jingle
 d'arrivée (et de record), vitesse x3 du premier réglage (18 px/tick).
 
+Lot 2a (fait, 2026-10-21) : ~420 octets libérés (page texte 1 en BSS, hall
+of fame en LOWBSS), drapeau sur la ligne d'arrivée et de tour, points de
+wheeling.
+
 ## Lot 2 — jouabilité
 - AppleMouse (dev/lib/mouse) : X = inclinaison, Y = gaz, comme sur le Mac.
 - Régler la conduite à la main dans POM2 : traction, inclinaison, souplesse
   de la suspension, rebond (modèle d'abord, puis `make test`).
 - Fantôme : enregistrer les entrées de chaque tick (rejouables au bit près,
   comme la démo) ; course contre le fantôme du record.
-- Autres figures (wheeling, atterrissage sur une roue) ; multiplicateur.
-- Ligne d'arrivée visible (drapeau).
-- RAM principale pleine (7 octets libres) : toute nouveauté doit d'abord en
-  libérer (tables en LOWBSS, données dans les fichiers de piste).
+- Autres figures (atterrissage sur une roue) ; multiplicateur de combo.
+- Drapeau visible dès le bord droit (x > 255 : une ligne verticale 16 bits).
+- Encore de la place : 3,5 bandes de la page texte ($0680-$07F7), ~220
+  octets en RAM principale.
 
 ## Lot 3 — contenu
 - Moto et pilote plus détaillés (jambes, guidon, fourche) ; animation de la

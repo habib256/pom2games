@@ -356,7 +356,7 @@ follow_wrap:
         JMP     beep
 @rts:   RTS
 
-; show_msg -- A/Y = message (lo/hi): shown under the HUD, 11 wide. (A trick
+; show_msg -- A/Y = message (lo/hi): shown under the HUD, TR_MSG_W wide. (A trick
 ; bank sets TR_MSG_FRAMES, this one frame less: trick_sounds tells them apart.)
 show_msg:
         STA     ht_src_lo
@@ -370,7 +370,7 @@ show_msg:
 @pad:   LDA     #' '
         STA     tr_msg,Y
         INY
-        CPY     #11
+        CPY     #TR_MSG_W
         BCC     @pad
         LDA     #0
         STA     tr_msg,Y
@@ -710,11 +710,11 @@ draw_hud:
         LDX     #<tr_msg
         LDY     #>tr_msg
         BCS     @msg2
-        LDX     #<msg_blank12
-        LDY     #>msg_blank12
+        LDX     #<msg_blank13
+        LDY     #>msg_blank13
 @msg2:  STX     ht_src_lo
         STY     ht_src_hi
-        LDA     #14
+        LDA     #13
         STA     ht_col
         LDA     #32
         STA     ht_sl
@@ -764,7 +764,7 @@ safe_laps:  .res 1
 count_t:    .res 1                      ; countdown frames (0: racing)
 air_before: .res 1
 .segment "DATA"
-.segment "BSS"
+.segment "TXT4"
 hud_sh:   .res 32                 ; per page: 16 (pidx * 16 + k)
 .segment "RODATA"
 hud_cols: .byte 1, 2, 3, 4, 5, 6, 34, 35, 17, 18, 19, 20, 21, 22, 27, 28
@@ -772,7 +772,7 @@ hud_cols: .byte 1, 2, 3, 4, 5, 6, 34, 35, 17, 18, 19, 20, 21, 22, 27, 28
 .segment "RODATA"
 hun_step:   .byte $03, $03, $04
 msg_crash:  .byte " CRASH ! ", 0
-msg_blank12: .byte "            ", 0
+msg_blank13: .byte "             ", 0
 msg_finish: .byte " FINISH !", 0
 msg_final:  .byte "FINAL LAP", 0
 msg_go:     .byte "    GO!", 0

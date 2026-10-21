@@ -13,13 +13,17 @@ Called once per race tick after the physics (Bike.tick):
     wheels anyway, or crash). The points wait in `pend` (at most 9999);
   * they are banked into `score` (at most 999999) after SAFE ticks on the
     ground (hops shorter than AIR_MIN do not restart that wait), or at the
-    finish; a crash loses them.
+    finish; a crash loses them;
+  * a wheelie (rear wheel down, front wheel up) of WH_MIN ticks or more
+    pays WH_PTS a tick when it ends, into `pend` like a jump.
 The 6502 keeps pend and score in BCD; the values are the same.
 """
 
 AIR_MIN = 12                # ticks in the air before a jump scores
 AIR_PTS = 10                # per tick in the air
 FLIP_PTS = 1000             # per full turn
+WH_MIN = 15                 # ticks on the rear wheel before a wheelie scores
+WH_PTS = 10                 # per tick of wheelie
 SAFE = 20                   # ticks on the wheels that bank the points
 PEND_MAX = 9999
 SCORE_MAX = 999999
@@ -55,15 +59,23 @@ class Tricks:
         self.rot = 0
         self.sector = 0             # the bike starts level
         self.safe = 0
+        self.wh = 0                 # ticks of the wheelie going on
+        self.jump = 0               # a jump scored in pend (for the message)
         self.banked = []            # (flips, points) per bank, for tests
 
     def tick(self, b):
         if b.crashed:
-            self.pend = self.flips = self.air = self.rot = 0
+            self.pend = self.flips = self.air = self.rot = self.wh = self.jump = 0
             return
         sec = octant(s16(b.x[1] - b.x[0]), s16(b.y[1] - b.y[0]))
         d = STEP[(sec - self.sector) & 7]
         self.sector = sec
+        if b.ground[0] and not b.ground[1]:
+            self.wh = min(255, self.wh + 1)
+        else:
+            if self.wh >= WH_MIN:
+                self.pend = min(PEND_MAX, self.pend + self.wh * WH_PTS)
+            self.wh = 0
         if not (b.ground[0] or b.ground[1]):
             self.rot = max(-128, min(127, self.rot + d))
             self.air = min(255, self.air + 1)
@@ -72,6 +84,8 @@ class Tricks:
             return
         if self.air:                                    # landing
             flips = (abs(self.rot) + 2) >> 3
+            if self.air >= AIR_MIN:
+                self.jump = 1
             pts = (self.air * AIR_PTS if self.air >= AIR_MIN else 0) + flips * flips * FLIP_PTS
             self.pend = min(PEND_MAX, self.pend + pts)
             self.flips = min(255, self.flips + flips)
@@ -84,7 +98,7 @@ class Tricks:
         if self.pend:
             self.banked.append((self.flips, self.pend))
             self.score = min(SCORE_MAX, self.score + self.pend)
-        self.pend = self.flips = 0
+        self.pend = self.flips = self.jump = 0
 
 
 def ride(h, inputs, finish_x):

@@ -19,7 +19,7 @@
 HOFBUF   = TSLBUF - $100
 HOF_CHARS_N = 38                ; A-Z, 0-9, space, -
 
-.segment "BSS"
+.segment "LOWBSS"
 hof_img:                        ; = the file after its DOS header
 hof_magic: .res 4               ; "DBH", version 1
 rec_min:  .res NTRACKS          ; best time per track, rec_min = $FF: none
@@ -34,6 +34,7 @@ HOF_LEN = * - hof_img
 hof_new:  .res 1                ; the race's records: bit 0 time, bit 1 points
 hpos:     .res 1                ; initials: the letter being changed
 hrep:     .res 1                ; joystick auto-repeat
+.segment "BSS"
 
 .segment "DATA"
 hof_t:    .byte 0, 0            ; DIRTHOF's data sectors (tools/patchdir.py)

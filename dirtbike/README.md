@@ -65,9 +65,16 @@ ne coûte pas de RAM. Les jingles restent dans le programme.
 12 ticks (0,4 s) rapporte 10 points par tick en l'air ; chaque salto (un tour
 complet, avant ou arrière, compté par secteurs de 45° de l'axe des roues)
 rapporte 1000 points × le nombre de tours au carré (4000 le double, 9000 le
-triple). Les points attendent 20 ticks sur les roues avant de
-s'ajouter au score (« JUMP +nnn », « FLIP +nnnn ») : une chute les fait
-perdre. Le score s'affiche en haut, au milieu, le tour (`L1`-`L3`) à côté.
+triple). Un wheeling (roue arrière au sol, roue avant en l'air) d'au moins
+15 ticks rapporte 10 points par tick quand il s'arrête. Les points attendent
+20 ticks sur les roues avant de s'ajouter au score (« JUMP +nnn »,
+« FLIP +nnnn », « WHEELIE +nnn ») : une chute les fait perdre.
+
+**Ligne d'arrivée.** Un drapeau (mât de 2 pixels et fanion, `draw_flag`)
+marque la ligne, qui est aussi celle des tours. Il est marqué comme la moto
+(`bk_top`/`bk_bot`) : le rendu du sol lui rend son ciel quand il défile. Il
+n'apparaît qu'à 244 pixels du bord gauche (les x de `hgr_line8` tiennent sur
+8 bits). Le score s'affiche en haut, au milieu, le tour (`L1`-`L3`) à côté.
 
 **Circuits.** Chaque parcours est une boucle (longueur multiple de 7, au
 plus 3760 pixels) : 400 pixels plats au départ, une ligne droite plate de
@@ -160,10 +167,14 @@ courses (3 tours) durent de 27 s à 49 s. Les messages sous le bandeau ne sont
 écrits que sur les premières images, puis 2 images sur 8 (le rendu du sol ne
 touche pas au ciel).
 
-**Mémoire.** `$0800-$0FFF` : tables de multiplication (là où dormait le
-programme HELLO). `$1000-$1FFF` : écrivains de lignes, tables du rendu et
-des motifs, entrées de la démo. `$6000-$9556` : le jeu, ~170 octets libres
-jusqu'à `$95FF`.
+**Mémoire.** `$0400-$07FF` : la page texte 1, jamais affichée (le jeu ne
+revient pas à DOS) ; ses huit bandes de 120 octets (segments `TXT0`-`TXT7`)
+reçoivent des tables du rendu et les tampons du HUD, les trous d'écran
+(`$x78-$x7F`, `$xF8-$xFF`, où RWTS et les cartes gardent leur état) sont
+laissés tranquilles ; 3 bandes et demie restent libres. `$0800-$0FFF` :
+tables de multiplication (là où dormait le programme HELLO). `$1000-$1FFF` :
+écrivains de lignes, tables du rendu et des motifs, entrées de la démo,
+hall of fame. `$6000-$9523` : le jeu, ~220 octets libres jusqu'à `$95FF`.
 `$9600-$B5FF` : le parcours (à la place de DOS ; le titre et le hall of fame
 y passent aussi). `$B700-$BFFF` : RWTS. La page zéro du jeu (`$50-$FB`) est
 presque pleine.

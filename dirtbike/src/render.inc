@@ -79,13 +79,18 @@ pat_k:    .res 256              ; the loaded track's patterns: partial rows,
 pat_rel0: .res 256              ; row of the window's first pixel,
 pat_plo:  .res 256              ; address of the partial bytes (pool + offset)
 pat_phi:  .res 256
+.segment "TXT0"
 st_mn:  .res 80                 ; per page and column: mn / mx shown
+.segment "TXT1"
 st_mx:  .res 80
+.segment "LOWBSS"
 pg_camx: .res 4                 ; per page: camx it shows (lo, hi)
 bb_c0:  .res 2                  ; per page: columns the bike covers,
 bb_c1:  .res 2
 bb_top: .res 2                  ; and its highest row
+.segment "TXT2"
 bk_top: .res 80                 ; per page and column: rows the bike covers
+.segment "TXT3"
 bk_bot: .res 80
 
 .segment "LOWBSS"
@@ -615,6 +620,7 @@ draw_bike:
         LDA     #3
 @hy:    STA     spry
         JSR     mark_bike
+        JSR     draw_flag
         ; frame: rear-front, rear-rider, front-rider, rider-shoulders
         LDX     #0
         LDY     #1
@@ -913,6 +919,80 @@ mark:   LDX     pidx
         INC     col
         BCC     @col
         RTS
+
+; ---------------------------------------------------------------------------
+; draw_flag -- the finish / lap line: a 2-pixel pole and a pennant on the
+; ground at finish_x, while on screen (x < 244: hgr_line8's x is 8 bits);
+; marked like the bike, so render_ground gives its sky back
+; ---------------------------------------------------------------------------
+FLAG_H = 32
+
+draw_flag:
+        SEC
+        LDA     finish_x
+        SBC     camx
+        STA     bx0
+        LDA     finish_x+1
+        SBC     camx+1
+        BNE     @rts
+        LDA     bx0
+        CMP     #244
+        BCS     @rts
+        ADC     #11
+        STA     bx1
+        CLC                             ; the ground row there
+        LDA     #<track_h
+        ADC     finish_x
+        STA     sptr
+        LDA     #>track_h
+        ADC     finish_x+1
+        STA     sptr+1
+        LDY     #0
+        LDA     (sptr),Y
+        SEC
+        SBC     #1
+        STA     by1
+        SBC     #FLAG_H
+        STA     by0
+        JSR     mark
+        LDX     #10                     ; pole (x, x+1), then 9 pennant rows
+@l:     TXA
+        PHA
+        CPX     #9
+        BCC     @pen
+        LDA     by1
+        STA     hl_ln_y1
+        LDA     by0
+        STA     hl_ln_y0
+        TXA                             ; X = 10 / 9: x / x + 1
+        EOR     #10
+        BEQ     @x
+        LDA     #1
+@x:     CLC
+        ADC     bx0
+        STA     hl_ln_x0
+        STA     hl_ln_x1
+        BCC     @draw                   ; (always)
+@pen:   TXA
+        CLC
+        ADC     by0
+        STA     hl_ln_y0
+        STA     hl_ln_y1
+        LDA     bx0
+        ADC     #2
+        STA     hl_ln_x0
+        ADC     flag_w,X
+        STA     hl_ln_x1
+@draw:  JSR     hgr_line8
+        PLA
+        TAX
+        DEX
+        BPL     @l
+@rts:   RTS
+
+.segment "RODATA"
+flag_w: .byte 1, 3, 5, 7, 9, 7, 5, 3, 1 ; pennant row widths - 1
+.segment "CODE"
 
 ; line between screen points X and Y
 line_pts:
