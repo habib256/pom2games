@@ -146,7 +146,9 @@ fois, la moto devenait intenable dans les whoops). À chaque tick :
    entre ~18 et 27 px (il tombait à 1 px avant, la moto se repliait) ;
    suspension ferme (raideur 0,9 ; 1,2 puis 1,0 rendaient le jeu un peu
    trop facile) : les grandes réceptions bien prises passent ;
-6. chute si le pilote approche du sol, si une liaison pilote-roue tombe
+6. chute si le pilote approche du sol, si sa tête (dessinée à pilote +
+   3 × (dy/8, −dx/8), l'axe des roues tourné vers le haut) passe sous le
+   sol, si une liaison pilote-roue tombe
    sous la moitié de sa longueur (pilote écrasé) ou si la moto passe sur le
    dos (une roue au sol, l'avant derrière l'arrière : wheeling bouclé).
 

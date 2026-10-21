@@ -2,9 +2,9 @@
 """Title page, attract demo, hall of fame on the disk.
 
   * the title picture on page 1 is build/title.hgr (outside the prompt rows);
-  * left alone, the title starts the first demo ride after ~15 s: it ends at
-    the finish line with the model's points (tools/tricks.py), then the hall
-    of fame;
+  * left alone, the title starts a demo ride when its tune ends: each of
+    the six ends at the finish line with the model's points
+    (tools/tricks.py), then the hall of fame;
   * a record (the finish line moved near the start, points set): initials
     XYZ typed, both records written into DIRTHOF on the disk, read back by
     the next boot; the game goes on to track 2;
@@ -37,6 +37,24 @@ NT = 30
 PROMPT = range(64, 76)          # title.py TITLE_PROMPT - 2 .. + 10
 
 
+SQ1 = [x * x // 4 for x in range(512)]
+SQ2 = [SQ1[255 - x] if x < 256 else SQ1[x - 255] for x in range(512)]
+MUL_TABLES = bytes(v & 255 for v in SQ1) + bytes(v >> 8 for v in SQ1) + bytes(v & 255 for v in SQ2) + bytes(v >> 8 for v in SQ2)
+
+
+def hgr_rows():
+    lo = bytes((((y >> 3) & 7) * 0x80 + (y >> 6) * 0x28) & 255 for y in range(192))
+    hi = bytes(0x20 + (y & 7) * 4 + ((y >> 3) & 7) // 2 for y in range(192))
+    return lo + hi
+
+
+GUARD = ['peek:0200:384', 'peek:0800:2048']    # tables the drawing must never write over
+
+
+def guarded(r):
+    return r.mem(0x0200, 384) == hgr_rows() and r.mem(0x0800, 2048) == MUL_TABLES
+
+
 def record_steps(L):
     """Title -> track 1; last lap, finish line behind the bike (x 40), 1200 points; the record's
     initials XYZ."""
@@ -59,19 +77,23 @@ def main():
     print('title page: ' + ('ok' if not rows else f'DIFF rows {rows[:8]}'))
     bad += bool(rows)
 
-    # the attract demo
-    k = packtrack.DEMOS[0]
-    h, fin = tracks.build(k)
-    _, t = tricks.ride(h, trackcheck.solutions()[k], fin)
-    r = a2test.run(DISK, ['wait:600', L.until('demo_start', 3000), L.until('new_race', 900),
-                          L.until('demo_end', 8000), L.peek('score', 3), L.peek('state', 1),
-                          L.until('hof_page', 60)])
-    score = r.mem(L['score'], 3)
-    got = int(f'{score[2]:02x}{score[1]:02x}{score[0]:02x}')
-    ok = got == t.score and r.mem(L['state'], 1)[0] == 2
-    print(f'demo: track {k} finished with {got} points (model {t.score}), then the hall of fame: '
-          + ('ok' if ok else 'DIFF'))
-    bad += not ok
+    # the attract demos, all six: each ends at the finish line with the
+    # model's points, then the hall of fame (a sprite drawn off screen once
+    # broke the multiply tables in two of them: only one was checked)
+    sols = trackcheck.solutions()
+    for i, k in enumerate(packtrack.DEMOS):
+        h, fin = tracks.build(k)
+        _, t = tricks.ride(h, sols[k], fin)
+        steps = ['wait:600', L.until('tick_wait', 3000), L.poke('demo_next', i), L.until('demo_start', 3000),
+                 L.until('new_race', 900), L.until('demo_end', 9000), L.peek('score', 3), L.peek('state', 1)]
+        if i == 0:
+            steps.append(L.until('hof_page', 60))
+        r = a2test.run(DISK, steps + GUARD)
+        score = r.mem(L['score'], 3)
+        got = int(f'{score[2]:02x}{score[1]:02x}{score[0]:02x}')
+        ok = got == t.score and r.mem(L['state'], 1)[0] == 2 and guarded(r)
+        print(f'demo {i + 1}: track {k} finished with {got} points (model {t.score}): ' + ('ok' if ok else 'DIFF'))
+        bad += not ok
 
     # a record, saved
     with tempfile.TemporaryDirectory(prefix='dirtbike-hof-') as tmp:
@@ -139,6 +161,17 @@ def main():
         return all(p[a2test.hgr_offset(y) + c] == 0 for y in range(8) for c in range(8, 32))
     ok = not blank(r.dumps[0]) and not blank(r.dumps[1]) and blank(r.dumps[2]) and blank(r.dumps[3])
     print('HUD message: shown on both pages, then no trace: ' + ('ok' if ok else 'DIFF'))
+    bad += not ok
+
+    # a crashed bike sinking below the screen (rider forced to rows 196-205,
+    # as a tumble can reach): drawn clamped, the tables stay untouched (a
+    # sprite or line drawn off screen once wrote into them through hgr_lo /
+    # hgr_hi; the demos check the top of the screen)
+    steps = ['wait:1000', 'key: ', 'wait:60', 'key:\r', L.until('new_race', 900), 'wait:250']
+    for y in (196, 200, 205):
+        steps += [L.poke('crashed', 1), L.poke('pt_yh', y, 2), L.poke('pt_oyh', y, 2), 'wait:3']
+    ok = guarded(a2test.run(DISK, steps + ['wait:60'] + GUARD))
+    print('bike below the screen: the drawing never writes over the tables: ' + ('ok' if ok else 'DIFF'))
     bad += not ok
 
     # a new disk: only track 1 open in the menu, the marker stays on it
