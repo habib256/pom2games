@@ -897,23 +897,29 @@ mark_wheel:
         ; fall through
 
 ; mark columns of x bx0..bx1 with rows by0..by1
-mark:   LDX     pidx
-        LDA     by0
-        CMP     bb_top,X
-        BCS     @t
-        STA     bb_top,X
-@t:     LDY     bx0
+mark:   LDY     bx0
         LDA     div7,Y
         STA     col
-        CMP     bb_c0,X
-        BCS     @c0
-        STA     bb_c0,X
-@c0:    LDY     bx1
+        LDY     bx1
         LDA     div7,Y
         CMP     #40
         BCC     @c1
         LDA     #39
 @c1:    STA     rend1                   ; last column
+        ; fall through
+
+; mark columns col..rend1 with rows by0..by1
+mark_cols:
+        LDX     pidx
+        LDA     by0
+        CMP     bb_top,X
+        BCS     @t
+        STA     bb_top,X
+@t:     LDA     col
+        CMP     bb_c0,X
+        BCS     @c0
+        STA     bb_c0,X
+@c0:    LDA     rend1
         CMP     bb_c1,X
         BCC     @c2
         STA     bb_c1,X
@@ -938,26 +944,35 @@ mark:   LDX     pidx
 
 ; ---------------------------------------------------------------------------
 ; draw_flag -- the finish / lap line: a 2-pixel pole, a pennant and the lap
-; number on the ground at finish_x, while on screen (x < 244: hgr_line8's x
-; is 8 bits);
-; marked like the bike, so render_ground gives its sky back
+; number on the ground at finish_x, anywhere on the screen (x 0..279, cut
+; at the right edge: no pop-in, no blinking at a limit), plotted pixel by
+; pixel; marked like the bike, so render_ground gives its sky back
 ; ---------------------------------------------------------------------------
 FLAG_H = 32
 
 draw_flag:
-        SEC
+        SEC                             ; screen x = finish_x - camx
         LDA     finish_x
         SBC     camx
-        STA     bx0
+        TAX
         LDA     finish_x+1
         SBC     camx+1
-        BEQ     @hi0
-@out:   RTS
-@hi0:   LDA     bx0
-        CMP     #244
-        BCS     @out
-        ADC     #15                     ; (the digit's byte reaches x + 15)
-        STA     bx1
+        BEQ     df_lo
+        CMP     #1                      ; 256..279: column 36 + (x - 252) / 7
+        BNE     df_no
+        TXA
+        CMP     #280 - 256
+        BCS     df_no
+        ADC     #4
+        TAX
+        LDA     div7,X
+        ADC     #36
+        BNE     df_cb                   ; (always)
+df_no:  RTS
+df_lo:  LDA     div7,X
+df_cb:  STA     fl_c                    ; the pole's column and bit
+        LDA     mod7,X
+        STA     fl_b
         CLC                             ; the ground row there
         LDA     #<track_h
         ADC     finish_x
@@ -972,61 +987,98 @@ draw_flag:
         STA     by1
         SBC     #FLAG_H
         STA     by0
-        JSR     mark
-        LDX     #10                     ; pole (x, x+1), then 9 pennant rows
-@l:     TXA
-        PHA
-        CPX     #9
-        BCC     @pen
-        LDA     by1
-        STA     hl_ln_y1
-        LDA     by0
-        STA     hl_ln_y0
-        TXA                             ; X = 10 / 9: x / x + 1
-        EOR     #10
-        BEQ     @x
+        LDA     fl_c                    ; columns c .. c + 2 (pixels to + 13)
+        STA     col
+        CLC
+        ADC     #2
+        CMP     #40
+        BCC     df_c1
+        LDA     #39
+df_c1:  STA     rend1
+        JSR     mark_cols
+        LDY     by0                     ; the pole: pixels 0, 1, rows by0..by1
+df_pole:
+        LDA     #0
+        JSR     fl_plot
         LDA     #1
-@x:     CLC
-        ADC     bx0
-        STA     hl_ln_x0
-        STA     hl_ln_x1
-        BCC     @draw                   ; (always)
-@pen:   TXA
+        JSR     fl_plot
+        CPY     by1
+        INY
+        BCC     df_pole
+        LDX     #8                      ; the pennant: 9 rows from by0
+df_pen: TXA
         CLC
         ADC     by0
-        STA     hl_ln_y0
-        STA     hl_ln_y1
-        LDA     bx0
+        TAY
+        LDA     flag_w,X
+        STA     fl_n
+df_px:  LDA     fl_n                    ; pixels 2 .. 2 + width
+        CLC
         ADC     #2
-        STA     hl_ln_x0
-        ADC     flag_w,X
-        STA     hl_ln_x1
-@draw:  JSR     hgr_line8
-        PLA
-        TAX
+        JSR     fl_plot
+        DEC     fl_n
+        BPL     df_px
         DEX
-        BPL     @l
-        CLC                             ; the lap, 1..LAPS, under the pennant
-        LDA     bx0                     ; (a byte right of the pole's)
+        BPL     df_pen
+        LDA     fl_b                    ; the lap, 1..LAPS, under the pennant,
+        CLC                             ; a byte right of the pole's
         ADC     #2
         TAX
-        LDY     div7,X
-        INY
-        STY     ht_col
+        LDA     div7,X
+        SEC
+        ADC     fl_c
+        CMP     #40
+        BCS     df_out
+        STA     ht_col
         CLC
         LDA     by0
         ADC     #12
         STA     ht_sl
         LDA     laps
         CMP     #LAPS
-        BCC     @lap
+        BCC     df_lap
         LDA     #LAPS - 1
-@lap:   CLC
+df_lap: CLC
         ADC     #'1'
         JMP     hgr_putc8
+df_out: RTS
 
+; fl_plot -- set the pixel A (0..13) right of the pole's, row Y, on the draw
+; page (none past column 39). Keeps X, Y.
+fl_plot:
+        STX     fl_x
+        CLC
+        ADC     fl_b
+        TAX
+        LDA     div7,X
+        ADC     fl_c
+        CMP     #40
+        BCS     fl_ret
+        ADC     hgr_lo,Y
+        STA     rptr
+        HGR_HI_SITE
+        LDA     hgr_hi,Y
+        STA     rptr+1
+        LDA     mod7,X
+        TAX
+        LDA     fl_bits,X
+        STY     fl_y
+        LDY     #0
+        ORA     (rptr),Y
+        STA     (rptr),Y
+        LDY     fl_y
+fl_ret: LDX     fl_x
+        RTS
+
+.segment "BSS"
+fl_c:   .res 1                  ; the pole's column, bit
+fl_b:   .res 1
+fl_n:   .res 1
+fl_x:   .res 1
+fl_y:   .res 1
 .segment "RODATA"
 flag_w: .byte 1, 3, 5, 7, 9, 7, 5, 3, 1 ; pennant row widths - 1
+fl_bits: .byte $01, $02, $04, $08, $10, $20, $40
 .segment "CODE"
 
 ; line between screen points X and Y

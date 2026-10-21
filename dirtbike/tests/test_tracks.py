@@ -64,12 +64,13 @@ def main():
         print(f'track {k:2} {tracks.NAMES[k - 1]:15} ' + ('ok' if not failed else 'DIFF ' + ' '.join(failed)))
     # a second load in the same session: DOS's file manager is gone by then
     h, fin = tracks.build(30)
-    steps = ['wait:1300'] + TITLE + menu_keys(1) + [L.until('new_race', 600), 'wait:60', 'key:\\e', 'wait:200'] + \
+    steps = ['wait:1300'] + TITLE + menu_keys(1) + [L.until('new_race', 600), 'wait:60', 'key:\\e', L.until('main_menu', 300),
+                                             'key:1', L.until('tick_wait', 900), 'key: ', 'wait:60'] + \
         menu_keys(30) + [L.until('new_race', 900), L.peek('finish_x', 2), 'peek:9600:4096']
     r = a2test.run(DISK, steps)
     ok = int.from_bytes(r.mem(L['finish_x'], 2), 'little') == fin and list(r.mem(0x9600, 4096)) == h
     bad += not ok
-    print('track 30 after track 1 and ESC: ' + ('ok' if ok else 'DIFF'))
+    print('track 30 after track 1, ESC, the main menu and the title: ' + ('ok' if ok else 'DIFF'))
     if bad:
         sys.exit('tracks: the game loads differently')
 

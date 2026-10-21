@@ -57,7 +57,8 @@ frames: .res 2                  ; frames drawn (profiling, tests)
 
 .segment "CODE"
         JMP     start                   ; BRUN entry: the first byte
-.import _mouse_init, _mouse_poll, _mouse_slot, _mouse_x, _mouse_y, _mouse_buttons
+.include "sound.asm"                    ; first: its delay loop never crosses a page
+.import _mouse_init, _mouse_poll, _mouse_close, _mouse_slot, _mouse_x, _mouse_y, _mouse_buttons
 MOUSE_Y_START = 96                      ; = dev/lib/mouse's default
 .import __TXTC5_LOAD__, __TXTC5_RUN__, __TXTC7_LOAD__, __TXTC7_RUN__
 .import __TXTC5_SIZE__, __TXTC7_SIZE__
@@ -70,6 +71,7 @@ MOUSE_Y_START = 96                      ; = dev/lib/mouse's default
 .include "menu.inc"
 .include "hof.inc"
 .include "title.inc"
+.include "mainmenu.inc"
 
 .segment "INIT"                 ; boot only: the pool overwrites it
 start:
@@ -161,7 +163,7 @@ reset:  LDX     #$FF                    ; Ctrl-RESET: the title
 
 ; leave_race -- after the finish: the initials if it was a record, then the
 ; next track (a game runs through them in order); after the last one, the
-; congratulations page; ESC: the menu
+; congratulations page; ESC: the main menu (mainmenu.inc)
 leave_race:
         LDA     state
         CMP     #ST_FINISH
@@ -188,7 +190,7 @@ leave_race:
 @on:    STX     sel
         JSR     page1_text
         JMP     race_sel
-@menu:  JMP     to_menu
+@menu:  JMP     esc_menu
 
 new_race:
         LDA     #1                      ; page 1 shown: draw page 2 first
@@ -289,8 +291,11 @@ main_loop:
         JMP     leave_race
 @run:   LDA     count_t
         BEQ     @go
-        JSR     countdown               ; frozen until GO
-        JMP     @draw
+        JSR     countdown               ; frozen until GO; a frame as long as
+        LDA     #79                     ; a race's (~2 video frames): a page
+        JSR     WAIT                    ; flip in every video frame shows the
+        JMP     @draw                   ; page being redrawn on beam-racing
+                                        ; emulators (POM2)
 @go:    LDA     tr_air
         STA     air_before
         JSR     phys_tick
@@ -831,7 +836,6 @@ msg_record: .byte "RECORD !", 0
 ; libraries after their callers (.ifref)
 .include "hgr.asm"
 .include "kbd.asm"
-.include "sound.asm"
 .include "joy.asm"                      ; read_stick_fast (joy_* in zero page)
 .include "mul.asm"
 HGR_LINE_DIV7 = div7

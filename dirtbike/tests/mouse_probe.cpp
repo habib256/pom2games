@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
     host();
     until("attract", 120000000);
     require(read("_mouse_slot") == 4, "mouse detected in slot 4");
-    require(read("joy_ok") == 0, "with a mouse the joystick is not read");
+    require(read("joy_ok") == 0 && read("inp_dev") == 2, "the mouse is the input device, the stick not read");
     mem.queueKey(' '); until("menu_input");
     mem.queueKey('\r'); until("new_race"); until("main_loop");
     // movement goes through the card, the game reads the firmware's position;
@@ -123,8 +123,11 @@ int main(int argc, char** argv) {
     hold(); down = true; host(); run(200000); hold(); until("countdown");
     require(read("in_brake") != 0, "mouse button: brake" + state());
     down = false; host(); run(200000);
-    // ESC, another track: the disk reads with the mouse running
-    mem.queueKey(27); until("menu_input");
+    // ESC: the main menu, the title, another race: the disk reads with the
+    // mouse running
+    mem.queueKey(27); until("main_menu");
+    mem.queueKey('1'); until("tick_wait", 120000000);
+    mem.queueKey(' '); until("menu_input");
     mem.queueKey('\r'); until("new_race", 120000000);
     std::cout << "mouse (" << variant << "): found in slot 4, gas / lean / brake, track reloads: ok\n";
     return 0;
