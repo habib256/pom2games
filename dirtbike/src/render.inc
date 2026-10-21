@@ -22,6 +22,7 @@
 ; Caller provides track, hgr_lo/hgr_hi (page 1) and pidx = 0 / 1.
 ; ============================================================================
 
+SPY_MAX  = 183                  ; lowest point row drawn: wheel +6, torso +-6
 CAM_LEAD = 100                  ; rear wheel this far from the left edge
 CAM_MAX  = TRACK_LEN - 280 - 7  ; windows stay inside the track
 POOL_MAX = 1024                 ; = tools/packtrack.py
@@ -596,8 +597,11 @@ draw_bike:
         LDA     pt_xl,X
         SBC     camx
         STA     spx,X
-        LDA     pt_yh,X
-        STA     spy,X
+        LDA     pt_yh,X                 ; (a crashed bike sinks below the
+        CMP     #SPY_MAX+1              ;  screen: kept in, or the sprites,
+        BCC     @sy                     ;  lines and marks would write
+        LDA     #SPY_MAX                ;  anywhere through hgr_lo / hgr_hi)
+@sy:    STA     spy,X
         DEX
         BPL     @sc
         SEC                             ; torso step = (dy/8, -dx/8)
@@ -621,9 +625,15 @@ draw_bike:
         ADC     hdy
         ADC     hdy
         ADC     hdy
-        CMP     #3                      ; (row 3 at the highest)
-        BCS     @hy
-        LDA     #3
+        CMP     #224                    ; above row 0 (wrapped): row 3, the
+        BCS     @top                    ; highest the sprite can go; 188 the
+        CMP     #3                      ; lowest (rows +-2 stay in 0..191:
+        BCC     @top                    ; outside, hgr_lo / hgr_hi would send
+        CMP     #189                    ; the sprite anywhere in memory)
+        BCC     @hy
+        LDA     #188
+        BNE     @hy
+@top:   LDA     #3
 @hy:    STA     spry
         JSR     mark_bike
         JSR     draw_flag

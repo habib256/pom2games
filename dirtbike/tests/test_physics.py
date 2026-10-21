@@ -33,6 +33,9 @@ SCRIPT = [
 ]
 
 
+HEAD_SCRIPT = [(10, 4, 0, 2), (40, 4, 1, 2), (20, 0, 0, -4)]   # (found by a search: crash at tick 40)
+
+
 def state(b):
     s = []
     for arr, sh in ((b.x, 0), (b.x, 8), (b.x, 16), (b.y, 0), (b.y, 8),
@@ -120,6 +123,13 @@ def main():
     t = track.track1()
     ticks = run(t, [(s, 1) for s in SCRIPT])
     print(f'physics: 6502 == model on {ticks} scripted ticks')
+    b = physics.Bike(t)                 # brake leaning forward: over the front, head first
+    for n, thr, brk, lean in HEAD_SCRIPT:
+        for _ in range(n):
+            b.tick(thr, bool(brk), lean)
+    assert b.crashed and b._head_hit(), 'HEAD_SCRIPT: the head hits the ground'
+    run(t, [(s, 1) for s in HEAD_SCRIPT])
+    print('physics: 6502 == model, head under the ground: crash')
     sols = trackcheck.solutions()
     for k in (1, 19, 30):               # whole proven rides: hills, a double flip, big jumps
         h, fin = tracks.build(k)

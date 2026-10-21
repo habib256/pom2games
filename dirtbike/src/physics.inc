@@ -236,6 +236,8 @@ phys_tick:
         BCC     @crash
         LDA     squashed                ; a rider link squashed
         BNE     @crash
+        JSR     head_hit                ; the head under the ground
+        BCS     @crash
         LDA     wheel_gnd               ; over: a wheel down and the front
         ORA     wheel_gnd+1             ; more than FLIP_DX behind the rear
         BEQ     @alive
@@ -251,6 +253,82 @@ phys_tick:
 @crash: LDA     #1
         STA     crashed
 @alive: JMP     phys_wrap
+
+; head_hit -- C = 1: the head, at rider + 3 (dy >> 3, -dx >> 3) (wheel
+; axis (dx, dy), as drawn), is under the ground: hy > h[hx >> 8] << 8
+head_hit:
+        LDA     #0
+        STA     ca
+        LDA     #1
+        STA     cb
+        JSR     delta_ab
+        LDA     dy                      ; hx = x2 + 3 (dy >> 3), 24 bits
+        LDX     dy+1
+        JSR     times3_8
+        CLC
+        LDA     pt_xf+2
+        ADC     w0
+        LDA     pt_xl+2
+        ADC     w1
+        STA     hxl
+        LDA     pt_xh+2
+        ADC     w2
+        STA     hxh
+        LDA     dx                      ; hy = y2 - 3 (dx >> 3), 24 bits
+        LDX     dx+1
+        JSR     times3_8
+        SEC
+        LDA     pt_yf+2
+        SBC     w0
+        STA     w0
+        LDA     pt_yh+2
+        SBC     w1
+        STA     w1
+        LDA     #0
+        SBC     w2
+        BMI     @no                     ; above the screen
+        BNE     @yes                    ; (row >= 256)
+        JSR     height_at
+        CMP     w1                      ; h << 8 < hy ?
+        BCC     @yes
+        BNE     @no
+        LDA     w0
+        BEQ     @no
+@yes:   SEC
+        RTS
+@no:    CLC
+        RTS
+
+; A/X = signed 16 -> w0, w1, w2 = 3 * (value >> 3) (arithmetic), sign-extended
+times3_8:
+        STA     w0
+        STX     w1
+        LDY     #3
+@s:     LDA     w1
+        CMP     #$80
+        ROR     w1
+        ROR     w0
+        DEY
+        BNE     @s
+        LDA     w0                      ; 3 t = 2 t + t
+        ASL     A
+        STA     val
+        LDA     w1
+        ROL     A
+        STA     val+1
+        CLC
+        LDA     w0
+        ADC     val
+        STA     w0
+        LDA     w1
+        ADC     val+1
+        STA     w1
+        LDA     #0
+        BIT     w1
+        BPL     @p
+        LDA     #$FF
+@p:     STA     w2
+        RTS
 
 ; con_pass -- the constraints once, in the model's order
 con_pass:

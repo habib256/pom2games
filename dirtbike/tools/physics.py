@@ -17,7 +17,8 @@ their difference. One tick:
      brake, rolling loss;
   5. the constraints again (the frame stays a frame after the ground);
   6. crash tests: rider too close to the ground, a rider link squashed, the
-     bike over (front behind rear with a wheel down); finish test.
+     head under the ground, the bike over (front behind rear with a wheel
+     down); finish test.
 
 Units: x = 16.8 fixed point world pixels (24 bits), y = 8.8 screen rows
 (rows grow downwards). Velocities and deltas are signed 8.8. Every product
@@ -164,7 +165,8 @@ class Bike:
         for c in cons:                      # the frame again, after the ground
             self._constrain(*c)
         self._ceiling()
-        self.crashed = self.crashed or self._rider_hit() or self.squashed or self._flipped()
+        self.crashed = (self.crashed or self._rider_hit() or self.squashed or self._head_hit()
+                        or self._flipped())
         self._wrap()
 
     @staticmethod
@@ -291,6 +293,15 @@ class Bike:
             if self.y[i] < CEILING:
                 self.y[i] = CEILING
                 self.oy[i] = CEILING
+
+    def _head_hit(self):
+        """The head (drawn at rider + 3 (dy/8, -dx/8), the wheel axis turned
+        up) under the ground."""
+        dx = s16(self.x[1] - self.x[0])
+        dy = s16(self.y[1] - self.y[0])
+        hx = self.x[2] + 3 * (dy >> 3)
+        hy = self.y[2] - 3 * (dx >> 3)
+        return hy > (self.h[hx >> 8] << 8)
 
     def _rider_hit(self):
         px = self.x[2] >> 8
