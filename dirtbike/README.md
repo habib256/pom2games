@@ -66,7 +66,9 @@ la page en cours de redessin (la moto clignotait ; voir
 **Menu principal** (ESC en course, `src/mainmenu.inc`) : page de titre,
 aide, périphérique d'entrée (clavier, joystick ou souris, parmi ceux
 détectés au démarrage), hall of fame, retour à BASIC. Flèches (I / K) et
-RETURN, ou les chiffres 1 à 5 ; ESC : la page de titre. Son code et ses
+RETURN, ou les chiffres 1 à 5 ; ESC : la page de titre. Au joystick, haut /
+bas déplacent la marque ; à la souris, sa hauteur désigne l'option ; leur
+bouton choisit, et referme l'aide et le hall of fame. Son code et ses
 textes sont un overlay du fichier `TITLE` : lié pour s'exécuter en `$9C00`
 (`build/menu.bin`, rangé par `tools/titlefile.py`), il arrive avec `TITLE`
 dans le tampon de chargement, sur le parcours chargé (rechargé avant chaque
@@ -195,7 +197,9 @@ parcours. Chacun est prouvé faisable : `tools/solver.py` cherche un trajet
 dans le modèle physique (recherche en faisceau sur l'inclinaison, plein ou
 demi-gaz et le frein ; à défaut, un faisceau qui garde toutes les vitesses,
 pour les crêtes qu'il faut aborder freiné ; chaque tick penché en arrière
-lui coûte un peu, sinon le pilote des démos restait assis en arrière) et
+lui coûte un peu, sinon le pilote des démos restait assis en arrière ;
+une arrivée ne compte que si la moto tient ensuite 90 ticks, freinée comme
+le jeu le fait après la ligne : les démos tombaient sous « FINISH ! ») et
 `tests/solutions.txt` le garde ;
 `make test` le rejoue (`tools/trackcheck.py`). Les trajets (3 tours) durent
 de 27 s à 49 s. Une nouvelle graine doit aussi tenir dans les limites du rendu

@@ -27,6 +27,19 @@ MAX_TICKS = 4000 * P.LAPS
 # progress when the beam sorts (without it the rider sat back most of the
 # time: the demos looked leaning back; wheelies are fine)
 TILT_COST = 256
+# past the line the game rides on its own (src/dirtbike.s @fin: no gas,
+# brake): a finish counts only if the bike then stays up that long (a demo
+# shows DEMO_END_FRAMES before the hall of fame; it once fell under FINISH)
+AFTER_TICKS = 90
+
+
+def stays_up(b):
+    c = clone(b)
+    for _ in range(AFTER_TICKS):
+        c.tick(0, True, 0)
+        if c.crashed:
+            return False
+    return True
 
 
 def clone(b):
@@ -60,7 +73,10 @@ def _beam(h, fin, beam, per_speed):
                     if c.crashed:
                         break
                     if c.finished(fin):
-                        return path + [act] * (t + 1)
+                        if stays_up(c):
+                            return path + [act] * (t + 1)
+                        c.crashed = True        # a finish it falls after
+                        break
                 if not c.crashed:
                     cand.append((c, path + [act] * STEP))
         if not cand:

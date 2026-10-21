@@ -126,6 +126,32 @@ int main(int argc, char** argv) {
     // ESC: the main menu, the title, another race: the disk reads with the
     // mouse running
     mem.queueKey(27); until("main_menu");
+    // the main menu with the mouse: its height points at an item (rows
+    // 117-155: HALL OF FAME), a click chooses, a click leaves each page
+    until("mm_key");
+    for (int n = 0; read("_mouse_y") != 130; ++n) {
+        require(n < 2000, "menu: mouse y not reached" + state());
+        hostY += read("_mouse_y") < 130 ? 1 : -1;
+        host(); run(20000);
+    }
+    run(300000);
+    require(read("mm_sel") == 3, "menu: the mouse points at HALL OF FAME (" + std::to_string(read("mm_sel")) + ")");
+    // a click until the game reaches `name` (a click while a page draws is
+    // not seen: the firmware is polled)
+    auto click_to = [&](const std::string& name) {
+        unsigned pc = at(name);
+        for (int n = 0; n < 6; ++n) {
+            down = true; host(); run(300000); down = false; host();
+            for (long cycles = 0; cycles < 1500000; cycles += cpu.getCurrentInstructionCycles()) {
+                cpu.step();
+                if (cpu.getProgramCounter() == pc) return;
+            }
+        }
+        throw std::runtime_error("menu: clicks never reached " + name + state());
+    };
+    click_to("mm_hof");
+    click_to("hof_page");               // the second page
+    click_to("main_menu");
     mem.queueKey('1'); until("tick_wait", 120000000);
     mem.queueKey(' '); until("menu_input");
     mem.queueKey('\r'); until("new_race", 120000000);
@@ -140,7 +166,7 @@ int main(int argc, char** argv) {
     mem.queueKey('\r'); until("new_race"); until("main_loop");
     move(70, 96); move(70, 40);
     require(read("in_throttle") == 8, "after Ctrl-RESET: mouse up, full gas" + state());
-    std::cout << "mouse (" << variant << "): found in slot 4, gas / lean / brake, track reloads, Ctrl-RESET: ok\n";
+    std::cout << "mouse (" << variant << "): found in slot 4, gas / lean / brake, main menu, track reloads, Ctrl-RESET: ok\n";
     return 0;
  } catch (const std::exception& e) {
     std::cerr << "mouse (" << argv[4] << "): " << e.what() << "\n";
