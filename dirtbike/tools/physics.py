@@ -142,13 +142,16 @@ class Bike:
     def tick(self, throttle=0, brake=False, lean=0):
         air = not (self.ground[0] or self.ground[1])    # (last tick's contact)
         one = self.ground[0] != self.ground[1]          # on one wheel
+        front = self.ground[1]
         for i in range(3):
             self._integrate(i)
         # the rear wheel's torque turns the frame the other way: the brake
-        # pulls the nose down; in the air the throttle lifts it (on the ground
+        # pulls the nose down (not with the front wheel down: the ground holds
+        # it, a held brake flipped a standing bike); in the air the throttle
+        # lifts it (on the ground
         # the traction already does) and the rider turns the bike (lean); on
         # the ground only his weight acts (the lean shifts it, _cons)
-        turn = GYRO_BRAKE if brake else 0
+        turn = GYRO_BRAKE if brake and not front else 0
         if air or one:
             self._spin_damp()
         if air:
@@ -233,10 +236,14 @@ class Bike:
         cx = (dx * f) >> 8
         cy = (dy * f) >> 8
         if b == 2:                      # the rider is heavier than a wheel
-            self.x[a] += cx + (cx >> RIDER_HEAVY)
-            self.y[a] += cy + (cy >> RIDER_HEAVY)
-            self.x[b] -= cx - (cx >> RIDER_HEAVY)
-            self.y[b] -= cy - (cy >> RIDER_HEAVY)
+            # (c >> RIDER_HEAVY rounded toward 0: rounded down, the bike crept
+            # backwards)
+            hx = (cx + (cx < 0) * ((1 << RIDER_HEAVY) - 1)) >> RIDER_HEAVY
+            hy = (cy + (cy < 0) * ((1 << RIDER_HEAVY) - 1)) >> RIDER_HEAVY
+            self.x[a] += cx + hx
+            self.y[a] += cy + hy
+            self.x[b] -= cx - hx
+            self.y[b] -= cy - hy
             return
         self.x[a] += cx
         self.y[a] += cy

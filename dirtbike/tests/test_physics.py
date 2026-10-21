@@ -33,7 +33,7 @@ SCRIPT = [
 ]
 
 
-HEAD_SCRIPT = [(10, 4, 0, 2), (40, 4, 1, 2), (20, 0, 0, -4)]   # (found by a search: crash at tick 40)
+HEAD_SCRIPT = [(10, 4, 0, 2), (60, 4, 0, 4), (10, 0, 1, 4)]   # (found by a search; again after the brake fix)
 
 
 def state(b):

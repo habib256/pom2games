@@ -158,6 +158,12 @@ race_sel:                               ; load track sel, race
 reset:  LDX     #$FF                    ; Ctrl-RESET: the title
         TXS
         CLD
+        LDA     _mouse_slot             ; RESET stopped the mouse (the card's
+        BEQ     :+                      ; controller, the //c's IRQs) and its
+        LDA     TXTSET                  ; set-up is boot code: boot again
+        LDA     LOWSCR
+        JMP     BOOT_SLOT6
+:
         JSR     hgr_init
         JMP     attract
 
@@ -193,6 +199,7 @@ leave_race:
 @menu:  JMP     esc_menu
 
 new_race:
+        BIT     KBDSTRB                 ; no key typed during the load
         LDA     #1                      ; page 1 shown: draw page 2 first
         STA     pidx
         LDA     #START_X
@@ -236,6 +243,9 @@ main_loop:
 @player:
         JSR     read_input
         BCC     @nokey
+        LDX     state                   ; a key after the finish (R and S
+        CPX     #ST_FINISH              ; too): leave_race, the initials of
+        BCS     @menu                   ; a record first
         CMP     #KC_ESC
         BEQ     @menu
         CMP     #'S'                    ; sound on / off
@@ -245,12 +255,8 @@ main_loop:
         STA     snd_on
         JMP     @nokey
 @nos:   CMP     #'R'
-        BNE     @nor
+        BNE     @nokey
         JMP     new_race
-@nor:
-        LDX     state
-        CPX     #ST_FINISH              ; a key after the finish: the menu
-        BCC     @nokey
 @menu:  JMP     leave_race
 @nokey: LDA     state
         BEQ     @run
@@ -292,10 +298,9 @@ main_loop:
 @run:   LDA     count_t
         BEQ     @go
         JSR     countdown               ; frozen until GO; a frame as long as
-        LDA     #79                     ; a race's (~2 video frames): a page
-        JSR     WAIT                    ; flip in every video frame shows the
-        JMP     @draw                   ; page being redrawn on beam-racing
-                                        ; emulators (POM2)
+        LDA     #79                     ; a race's (~2 video frames): the
+        JSR     WAIT                    ; countdown's pace (older POM2s also
+        JMP     @draw                   ; flickered on faster page flips)
 @go:    LDA     tr_air
         STA     air_before
         JSR     phys_tick
@@ -713,15 +718,19 @@ draw_hud:
         INY
         DEX
         BPL     @sc
-        LDX     #<tr_msg                ; the message: a timed one first,
+        LDA     state                   ; the message: the race's state
+        BEQ     @tm                     ; first (a trick's outlasted CRASH),
+        LDX     #0                      ; the timed one dropped
+        STX     tr_msgt
+        BEQ     @st                     ; (always)
+@tm:    LDX     #<tr_msg                ; then a timed one,
         LDY     #>tr_msg
         LDA     tr_msgt
-        BEQ     @st
+        BEQ     @dm
         DEC     tr_msgt
         BNE     @src
-@st:    LDA     state                   ; then the race's state,
-        BEQ     @dm
-        LDX     #<msg_crash
+        BEQ     @dm                     ; (always)
+@st:    LDX     #<msg_crash
         LDY     #>msg_crash
         CMP     #ST_CRASH
         BEQ     @src
@@ -823,10 +832,10 @@ msg_crash:  .byte "CRASH !", 0
 msg_none:   .byte 0
 msg_finish: .byte "FINISH !", 0
 msg_final:  .byte "FINAL LAP", 0
-msg_go:     .byte "    GO!", 0
-msg_c3:     .byte "     3", 0
-msg_c2:     .byte "     2", 0
-msg_c1:     .byte "     1", 0
+msg_go:     .byte "GO!", 0
+msg_c3:     .byte "3", 0
+msg_c2:     .byte "2", 0
+msg_c1:     .byte "1", 0
 cd_at:      .byte COUNT_STEP, COUNT_STEP*2, COUNT_STEP*3
 cd_lo:      .byte <msg_c1, <msg_c2, <msg_c3
 cd_hi:      .byte >msg_c1, >msg_c2, >msg_c3

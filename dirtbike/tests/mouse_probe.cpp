@@ -129,7 +129,18 @@ int main(int argc, char** argv) {
     mem.queueKey('1'); until("tick_wait", 120000000);
     mem.queueKey(' '); until("menu_input");
     mem.queueKey('\r'); until("new_race", 120000000);
-    std::cout << "mouse (" << variant << "): found in slot 4, gas / lean / brake, track reloads: ok\n";
+    // Ctrl-RESET stops the mouse and its set-up is boot code: the disk boots
+    // again, and the mouse drives the next race
+    until("main_loop");
+    mem.resetSoftSwitchesWarm(); mem.slotBus().reset(); cpu.softReset();
+    until("input_init", 200000000);
+    until("attract", 120000000);
+    require(read("_mouse_slot") == 4 && read("inp_dev") == 2, "after Ctrl-RESET: the mouse again" + state());
+    mem.queueKey(' '); until("menu_input");
+    mem.queueKey('\r'); until("new_race"); until("main_loop");
+    move(70, 96); move(70, 40);
+    require(read("in_throttle") == 8, "after Ctrl-RESET: mouse up, full gas" + state());
+    std::cout << "mouse (" << variant << "): found in slot 4, gas / lean / brake, track reloads, Ctrl-RESET: ok\n";
     return 0;
  } catch (const std::exception& e) {
     std::cerr << "mouse (" << argv[4] << "): " << e.what() << "\n";
