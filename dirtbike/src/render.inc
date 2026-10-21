@@ -102,14 +102,19 @@ fill2:  .res 192 * 3 + 1        ; (page 1, page 2)
 m3lo:   .res 193                ; 3 * row: offset of a row in a writer
 m3hi:   .res 193
 
-.segment "BSS"
-pool:   .res POOL_MAX           ; partial bytes of the loaded track's patterns
+; pool: partial bytes of the loaded track's patterns, over the boot code
+; (segment INIT, loaded at the end of the program and run once before any
+; track is loaded; dirtbike.cfg)
+.import __OVL_START__, __OVL_SIZE__
+pool = __OVL_START__
+.assert POOL_MAX = __OVL_SIZE__, lderror, "render.inc: POOL_MAX = dirtbike.cfg OVL"
 
 .segment "CODE"
 
 ; ---------------------------------------------------------------------------
 ; render_init -- once: page-2 row table, row writers, 3 * row, div7 / mod7
 ; ---------------------------------------------------------------------------
+.segment "INIT"                 ; boot only: overwritten by the pool
 render_init:
         JSR     hgr_pages_init
         LDA     #<fill1                 ; row writers: $99 lo hi per row
@@ -198,6 +203,7 @@ render_init:
         BNE     @d7b
         RTS
 
+.segment "CODE"
 ; ---------------------------------------------------------------------------
 ; render_reset -- both pages unknown: the next frames repaint every row;
 ; camera back to the start of the track
@@ -921,8 +927,9 @@ mark:   LDX     pidx
         RTS
 
 ; ---------------------------------------------------------------------------
-; draw_flag -- the finish / lap line: a 2-pixel pole and a pennant on the
-; ground at finish_x, while on screen (x < 244: hgr_line8's x is 8 bits);
+; draw_flag -- the finish / lap line: a 2-pixel pole, a pennant and the lap
+; number on the ground at finish_x, while on screen (x < 244: hgr_line8's x
+; is 8 bits);
 ; marked like the bike, so render_ground gives its sky back
 ; ---------------------------------------------------------------------------
 FLAG_H = 32
@@ -934,11 +941,12 @@ draw_flag:
         STA     bx0
         LDA     finish_x+1
         SBC     camx+1
-        BNE     @rts
-        LDA     bx0
+        BEQ     @hi0
+@out:   RTS
+@hi0:   LDA     bx0
         CMP     #244
-        BCS     @rts
-        ADC     #11
+        BCS     @out
+        ADC     #15                     ; (the digit's byte reaches x + 15)
         STA     bx1
         CLC                             ; the ground row there
         LDA     #<track_h
@@ -988,7 +996,24 @@ draw_flag:
         TAX
         DEX
         BPL     @l
-@rts:   RTS
+        CLC                             ; the lap, 1..LAPS, under the pennant
+        LDA     bx0                     ; (a byte right of the pole's)
+        ADC     #2
+        TAX
+        LDY     div7,X
+        INY
+        STY     ht_col
+        CLC
+        LDA     by0
+        ADC     #12
+        STA     ht_sl
+        LDA     laps
+        CMP     #LAPS
+        BCC     @lap
+        LDA     #LAPS - 1
+@lap:   CLC
+        ADC     #'1'
+        JMP     hgr_putc8
 
 .segment "RODATA"
 flag_w: .byte 1, 3, 5, 7, 9, 7, 5, 3, 1 ; pennant row widths - 1

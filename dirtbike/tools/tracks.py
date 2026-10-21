@@ -52,6 +52,8 @@ SEEDS.update({26: 120, 29: 120})  # and for the flat start / finish straight
 SEEDS.update({11: 130, 19: 132, 20: 130, 27: 130})  # and for 3-lap circuits
 SEEDS.update({11: 200, 13: 201, 16: 200, 17: 200, 20: 203, 22: 203, 23: 202,  # and for
               24: 200, 26: 204, 29: 200, 30: 201})                           # x1.5 speed
+SEEDS.update({8: 300, 10: 301, 16: 303, 17: 302, 18: 300, 20: 300, 24: 302,  # and for
+              29: 304})                                                      # the engine brake
 
 
 class Builder:

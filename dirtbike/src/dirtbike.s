@@ -22,11 +22,13 @@
 .include "zp.inc"
 MUL_TABLES = $0800              ; HELLO area (dirtbike.cfg)
 MUL_ACC    = 1
+MUL_INIT_BOOT = 1               ; mul_init in INIT (dirtbike.cfg)
 .include "math.inc"
 .include "hgr_pages.inc"
 .include "physconst.inc"
 .include "sprites.inc"
 .include "music.inc"
+.include "pages.inc"
 
 TRACK_LEN = 4096
 NTRACKS   = 30                  ; = tools/tracks.py
@@ -55,6 +57,11 @@ frames: .res 2                  ; frames drawn (profiling, tests)
 
 .segment "CODE"
         JMP     start                   ; BRUN entry: the first byte
+.import _mouse_init, _mouse_poll, _mouse_slot, _mouse_x, _mouse_y, _mouse_buttons
+MOUSE_Y_START = 96                      ; = dev/lib/mouse's default
+.import __TXTC5_LOAD__, __TXTC5_RUN__, __TXTC7_LOAD__, __TXTC7_RUN__
+.import __TXTC5_SIZE__, __TXTC7_SIZE__
+.assert __TXTC5_SIZE__ <= 120 .and __TXTC7_SIZE__ <= 120, lderror, "TXTC: 120 bytes a run"
 .include "input.inc"
 .include "physics.inc"
 .include "tricks.inc"
@@ -64,8 +71,17 @@ frames: .res 2                  ; frames drawn (profiling, tests)
 .include "hof.inc"
 .include "title.inc"
 
-.segment "CODE"
+.segment "INIT"                 ; boot only: the pool overwrites it
 start:
+        JSR     hgr_scanline_init       ; hgr_lo / hgr_hi
+        LDX     #0                      ; routines that run in the text page
+@cpy:   LDA     __TXTC5_LOAD__,X
+        STA     __TXTC5_RUN__,X
+        LDA     __TXTC7_LOAD__,X
+        STA     __TXTC7_RUN__,X
+        INX
+        CPX     #120                    ; (a run: the screen holes stay)
+        BNE     @cpy
         LDA     #<reset                 ; Ctrl-RESET: back to the menu
         STA     SOFTEV
         LDA     #>reset
@@ -106,14 +122,16 @@ start:
         JSR     hof_load                ; (first RWTS call: DOS still whole)
         JMP     attract
 
+.segment "CODE"
+
 to_menu:
         JSR     music_stop
         LDA     #0
         STA     demo
         JSR     menu                    ; A = the chosen track, C = 1: ESC
-        BCC     @race
+        BCC     race_sel
         JMP     attract
-@race:
+race_sel:                               ; load track sel, race
         LDA     #<msg_load
         LDY     #>msg_load
         LDX     #2
@@ -141,12 +159,35 @@ reset:  LDX     #$FF                    ; Ctrl-RESET: the title
         JSR     hgr_init
         JMP     attract
 
-; leave_race -- after the finish: the initials if it was a record, the menu
+; leave_race -- after the finish: the initials if it was a record, then the
+; next track (a game runs through them in order); after the last one, the
+; congratulations page; ESC: the menu
 leave_race:
         LDA     state
+        CMP     #ST_FINISH
+        BCC     @menu
+        LDA     inkey                   ; ESC after the finish: the menu
+        PHA
+        LDA     state
         CMP     #ST_RECORD
-        BNE     @menu
+        BNE     @nr
         JSR     hof_entry
+@nr:    PLA
+        CMP     #KC_ESC
+        BEQ     @menu
+        LDX     sel
+        INX
+        CPX     #NTRACKS
+        BCC     @on
+        LDA     #<jingle_rec            ; all 30: the congratulations
+        LDY     #>jingle_rec
+        JSR     play_tune
+        LDX     #1
+        JSR     show_page
+        JMP     to_menu
+@on:    STX     sel
+        JSR     page1_text
+        JMP     race_sel
 @menu:  JMP     to_menu
 
 new_race:
@@ -167,8 +208,11 @@ new_race:
         STA     t_sec
         STA     t_min
         STA     kb_throttle
+        STA     gas_tm
         STA     safe_x+1                ; the restart point: the start
         STA     safe_laps
+        LDA     #1
+        STA     on_flat
         LDA     #START_X
         STA     safe_x
         LDA     #COUNT_STEP*3+1         ; 3, 2, 1, GO!
@@ -356,24 +400,19 @@ follow_wrap:
         JMP     beep
 @rts:   RTS
 
-; show_msg -- A/Y = message (lo/hi): shown under the HUD, TR_MSG_W wide. (A trick
-; bank sets TR_MSG_FRAMES, this one frame less: trick_sounds tells them apart.)
+; show_msg -- A/Y = message (lo/hi): shown in the HUD's middle (draw_hud).
+; (A trick bank sets TR_MSG_FRAMES, this one frame less: trick_sounds tells
+; them apart.)
 show_msg:
         STA     ht_src_lo
         STY     ht_src_hi
         LDY     #0
 @cp:    LDA     (ht_src_lo),Y
-        BEQ     @pad
         STA     tr_msg,Y
+        BEQ     @end
         INY
         BNE     @cp
-@pad:   LDA     #' '
-        STA     tr_msg,Y
-        INY
-        CPY     #TR_MSG_W
-        BCC     @pad
-        LDA     #0
-        STA     tr_msg,Y
+@end:
         LDA     #TR_MSG_FRAMES-1
         STA     tr_msgt
         RTS
@@ -407,20 +446,36 @@ countdown:
         LDX     #$50
         JMP     beep
 
-; note_safe -- both wheels down and the bike level: the restart point
+; note_safe -- the restart point: where the bike rolls onto flat ground
+; (both wheels down, one ground row under it and a wheel radius around:
+; rear x - SAFE_M .. front x + SAFE_M). The start of each flat stretch, so a
+; restart at rest has all of it ahead for a run-up.
+SAFE_M = 6
+.assert <track_h = 0, error, "note_safe: track_h must be page aligned"
+
 note_safe:
         LDA     wheel_gnd
         AND     wheel_gnd+1
-        BEQ     @rts
-        SEC
-        LDA     pt_yh+1
-        SBC     pt_yh
-        BPL     @abs
-        EOR     #$FF
+        BEQ     @off
+        SEC                             ; sptr = track_h + rear x - SAFE_M
+        LDA     pt_xl
+        SBC     #SAFE_M
+        STA     sptr
+        LDA     pt_xh
+        SBC     #0
         CLC
-        ADC     #1
-@abs:   CMP     #3
-        BCS     @rts
+        ADC     #>track_h
+        STA     sptr+1
+        LDY     #0
+        LDA     (sptr),Y
+        LDY     #WHEELBASE + 2 * SAFE_M
+@f:     CMP     (sptr),Y
+        BNE     @off
+        DEY
+        BNE     @f
+        LDA     on_flat
+        BNE     @rts                    ; still the same flat
+        INC     on_flat
         LDA     pt_xl
         STA     safe_x
         LDA     pt_xh
@@ -428,6 +483,9 @@ note_safe:
         LDA     laps
         STA     safe_laps
 @rts:   RTS
+@off:   LDA     #0
+        STA     on_flat
+        RTS
 
 ; respawn -- after a crash: at rest at the restart point, a short count
 respawn:
@@ -602,11 +660,14 @@ clock_tick:
 @done:  RTS
 
 ; ---------------------------------------------------------------------------
-; draw_hud -- clock top left, throttle top right; only the characters that
-; differ from what this page shows (hud_sh, $FF = unknown) are drawn.
-; CRASH / FINISH in the middle.
+; draw_hud -- the top row: clock left, score right, the message in the
+; middle (MSG_W wide, centred: a trick, a lap, the countdown, CRASH /
+; FINISH / RECORD, DEMO). Only the characters that differ from what this
+; page shows (hud_sh, $FF = unknown) are drawn: a shorter message blanks
+; what is left of a longer one, on both pages.
 ; ---------------------------------------------------------------------------
-HUD_N = 16                      ; clock, throttle, score, lap (<= 16)
+HUD_N = 6 + 6 + MSG_W           ; clock, score, message
+MSG_W = 14
 
 draw_hud:
         LDA     t_min
@@ -630,11 +691,8 @@ draw_hud:
         LSR     A
         ORA     #'0'
         STA     hud_new+5
-        LDA     in_throttle
-        ORA     #'0'
-        STA     hud_new+7
         LDX     #2                      ; score: 6 BCD digits
-        LDY     #8
+        LDY     #6
 @sc:    LDA     score,X
         LSR     A
         LSR     A
@@ -650,22 +708,63 @@ draw_hud:
         INY
         DEX
         BPL     @sc
-        LDX     laps                    ; lap 1..LAPS
-        CPX     #LAPS
-        BCC     @lap
-        LDX     #LAPS-1
-@lap:   TXA
-        CLC
-        ADC     #'1'
-        STA     hud_new+15
-        LDA     #0
+        LDX     #<tr_msg                ; the message: a timed one first,
+        LDY     #>tr_msg
+        LDA     tr_msgt
+        BEQ     @st
+        DEC     tr_msgt
+        BNE     @src
+@st:    LDA     state                   ; then the race's state,
+        BEQ     @dm
+        LDX     #<msg_crash
+        LDY     #>msg_crash
+        CMP     #ST_CRASH
+        BEQ     @src
+        LDX     #<msg_finish
+        LDY     #>msg_finish
+        CMP     #ST_FINISH
+        BEQ     @src
+        LDX     #<msg_record
+        LDY     #>msg_record
+        BNE     @src
+@dm:    LDX     #<msg_demo              ; DEMO, or nothing
+        LDY     #>msg_demo
+        LDA     demo
+        BNE     @src
+        LDX     #<msg_none
+        LDY     #>msg_none
+@src:   STX     ht_src_lo
+        STY     ht_src_hi
+        LDX     #MSG_W - 1              ; blank, then the text centred
+        LDA     #' '
+@bl:    STA     hud_new+12,X
+        DEX
+        BPL     @bl
+        LDY     #0
+@len:   LDA     (ht_src_lo),Y
+        BEQ     @cen
+        INY
+        CPY     #MSG_W
+        BNE     @len
+@cen:   STY     w0                      ; X = (MSG_W - length) / 2
+        SEC
+        LDA     #MSG_W
+        SBC     w0
+        LSR     A
+        TAX
+        LDY     #0
+@cp:    CPY     w0
+        BEQ     @draw
+        LDA     (ht_src_lo),Y
+        STA     hud_new+12,X
+        INX
+        INY
+        BNE     @cp
+@draw:  LDA     #0
         STA     ht_sl
-        LDA     pidx
-        ASL     A
-        ASL     A
-        ASL     A
-        ASL     A
-        TAX                             ; X = pidx * 16 + k
+        LDX     pidx                    ; X = this page's hud_sh
+        LDA     hud_pg,X
+        TAX
         LDY     #0
 @k:     LDA     hud_new,Y
         CMP     hud_sh,X
@@ -680,71 +779,11 @@ draw_hud:
         INY
         CPY     #HUD_N
         BNE     @k
-        LDA     demo                    ; (sky rows: only the bike can spoil
-        BEQ     @nodemo                 ;  them, so 2 frames in 8 are enough)
-        LDA     frames
-        AND     #6
-        BNE     @nodemo
-        LDA     #<msg_demo
-        LDY     #>msg_demo
-        LDX     #18
-        STX     ht_col
-        LDX     #16
-        JSR     puts_at
-@nodemo:
-        LDA     state
-        BNE     @state
-        LDA     tr_msgt                 ; a message: on both pages at first,
-        BEQ     @done                   ; then 2 frames in 8; erased on both
-        DEC     tr_msgt                 ; pages in the last two frames
-        CMP     #3
-        BCC     @put
-        CMP     #TR_MSG_FRAMES-2
-        BCS     @put
-        LDA     frames
-        AND     #6
-        BEQ     @put
         RTS
-@put:   LDA     tr_msgt
-        CMP     #2
-        LDX     #<tr_msg
-        LDY     #>tr_msg
-        BCS     @msg2
-        LDX     #<msg_blank13
-        LDY     #>msg_blank13
-@msg2:  STX     ht_src_lo
-        STY     ht_src_hi
-        LDA     #13
-        STA     ht_col
-        LDA     #32
-        STA     ht_sl
-        JMP     hgr_puts8
-@state: LDX     #<msg_crash
-        LDY     #>msg_crash
-        CMP     #ST_CRASH
-        BEQ     @msg
-        LDX     #<msg_finish
-        LDY     #>msg_finish
-        CMP     #ST_FINISH
-        BEQ     @msg
-        LDX     #<msg_record
-        LDY     #>msg_record
-@msg:   STX     ht_src_lo
-        STY     ht_src_hi
-        LDA     #15
-        STA     ht_col
-        LDA     #32
-        STA     ht_sl
-        JSR     hgr_puts8
-@done:  RTS
 
 ; hud_forget -- page X (0/1): its HUD is unknown, redraw it all
 hud_forget:
-        TXA
-        ASL     A
-        ASL     A
-        ASL     A
-        ASL     A
+        LDA     hud_pg,X
         TAX
         LDY     #HUD_N
         LDA     #$FF
@@ -755,25 +794,29 @@ hud_forget:
         RTS
 
 .segment "DATA"
-hud_new:  .byte "0:00.0T0000000L1"
+hud_new:  .byte "0:00.0000000", "              "
 msg_lapn: .byte "LAP 2", 0          ; (the digit is written in)
 snd_on:   .byte 1                       ; S: sound on / off
 .segment "BSS"
 safe_x:     .res 2                      ; the restart point after a crash
+on_flat:    .res 1                      ; the bike is on the flat of safe_x
 safe_laps:  .res 1
 count_t:    .res 1                      ; countdown frames (0: racing)
 air_before: .res 1
 .segment "DATA"
 .segment "TXT4"
-hud_sh:   .res 32                 ; per page: 16 (pidx * 16 + k)
+hud_sh:   .res 2 * HUD_N          ; per page (hud_pg + k)
 .segment "RODATA"
-hud_cols: .byte 1, 2, 3, 4, 5, 6, 34, 35, 17, 18, 19, 20, 21, 22, 27, 28
+hud_pg:   .byte 0, HUD_N
+hud_cols: .byte 1, 2, 3, 4, 5, 6, 33, 34, 35, 36, 37, 38
+          .byte 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26
+.assert * - hud_cols = HUD_N, error, "hud_cols"
 
 .segment "RODATA"
 hun_step:   .byte $03, $03, $04
-msg_crash:  .byte " CRASH ! ", 0
-msg_blank13: .byte "             ", 0
-msg_finish: .byte " FINISH !", 0
+msg_crash:  .byte "CRASH !", 0
+msg_none:   .byte 0
+msg_finish: .byte "FINISH !", 0
 msg_final:  .byte "FINAL LAP", 0
 msg_go:     .byte "    GO!", 0
 msg_c3:     .byte "     3", 0
@@ -782,7 +825,7 @@ msg_c1:     .byte "     1", 0
 cd_at:      .byte COUNT_STEP, COUNT_STEP*2, COUNT_STEP*3
 cd_lo:      .byte <msg_c1, <msg_c2, <msg_c3
 cd_hi:      .byte >msg_c1, >msg_c2, >msg_c3
-msg_record: .byte " RECORD !", 0
+msg_record: .byte "RECORD !", 0
 
 
 ; libraries after their callers (.ifref)
@@ -799,7 +842,11 @@ HGR_TEXT8_HGR_ORDER = 1
 .include "hgr_text8.asm"
 
 .segment "RODATA"
-.include "hgr_scanline.inc"
+.define HGR_SCANLINE_SEGMENT "SYSBSS"    ; hgr_lo / hgr_hi at $0200 (dirtbike.cfg)
+.pushseg
+.segment "INIT"
+.include "hgr_scanline_ram.asm"
+.popseg
 
 .segment "RODATA"
 BBFONT_FIRST = $20
@@ -807,5 +854,8 @@ BBFONT_LAST  = $5F
 .include "bbfont.inc"
 .include "lz4fh.asm"
 .segment "CODE"
+RWTS_SEI   = 1                       ; the //c mouse enables IRQs (dev/lib/mouse)
 .include "rwts.asm"
+.exportzp ptr1
+ptr1 = sptr                             ; dev/lib/mouse's pointer (boot only)
 .include "menu_data.inc"

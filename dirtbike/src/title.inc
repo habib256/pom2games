@@ -20,7 +20,7 @@
 ; track exactly as the solver did.
 ; ============================================================================
 
-TITLE_PROMPT  = 150             ; = tools/title.py
+TITLE_PROMPT  = 66              ; = tools/title.py (under the subtitle)
 TITLE_SECONDS = 15
 HOF_TICKS     = 180             ; x 2: each hall of fame page, ~6 s
 DEMO_END_FRAMES = 90            ; after a demo's finish line
@@ -45,15 +45,17 @@ titledir_s: .byte 0
 attract:
         LDA     #0
         STA     demo
-        JSR     title_show
+        JSR     title_show              ; the tune starts if the title loaded:
+        LDA     #0                      ; played once, the demo when it ends
+        STA     mus_loop+1
+        LDA     mus_ptr+1
+        STA     msel                    ; (no tune: TITLE_SECONDS)
         LDX     #TITLE_SECONDS * 2      ; the prompt on / off every 1/2 s
 @blink: TXA
         PHA
-        LDA     #<msg_press
-        LDY     #>msg_press
-        TXA
         LSR     A
         LDA     #<msg_press
+        LDY     #>msg_press
         BCC     @on
         LDA     #<msg_blank
         LDY     #>msg_blank
@@ -63,17 +65,32 @@ attract:
         JSR     puts_at
         LDY     #30
         JSR     tick_wait
+        TAY
         PLA
         TAX
+        TYA
         BCS     @go
         DEX
+        LDA     msel
+        BEQ     @cnt
+        LDA     mus_ptr+1               ; the tune is over: the demo
         BNE     @blink
-        JMP     demo_start
-@go:    JMP     to_menu
+        BEQ     @demo
+@cnt:   TXA
+        BNE     @blink
+@demo:  JMP     demo_start
+@go:    AND     #$7F                    ; H: the help page
+        JSR     kbd_upcase
+        CMP     #'H'
+        BNE     @menu
+        LDX     #0
+        JSR     show_page
+        JMP     attract
+@menu:  JMP     to_menu
 
-; title_show -- page 1: the title picture, or the name if the disk fails
-title_show:
-        JSR     page1_text
+; title_read -- the TITLE file into LOADBUF: tune, text pages, picture.
+; C = 1: disk error
+title_read:
         LDA     titledir_t
         STA     rwts_track
         LDA     titledir_s
@@ -82,14 +99,66 @@ title_show:
         STA     rwts_tsl
         LDA     #>LOADBUF
         STA     rwts_page
-        JSR     rwts_read_tslist
+        JMP     rwts_read_tslist
+
+; show_page -- X = text page (0 help, 1 congratulations, tools/pages.py),
+; read again from TITLE, on page 1; back on a key or the button
+show_page:
+        TXA
+        PHA
+        JSR     title_read
+        PLA
+        TAX
+        BCS     @rts
+        LDA     page_lo,X
+        STA     sptr
+        LDA     page_hi,X
+        STA     sptr+1
+        JSR     page1_text
+@line:  LDY     #0                      ; row, column, text, 0 ... $FF
+        LDA     (sptr),Y
+        CMP     #$FF
+        BEQ     @wait
+        STA     ht_sl
+        INY
+        LDA     (sptr),Y
+        STA     ht_col
+        CLC
+        LDA     sptr
+        ADC     #2
+        STA     ht_src_lo
+        LDA     sptr+1
+        ADC     #0
+        STA     ht_src_hi
+        JSR     hgr_puts8
+        LDY     #1
+@sk:    INY
+        LDA     (sptr),Y
+        BNE     @sk
+        INY
+        TYA
+        CLC
+        ADC     sptr
+        STA     sptr
+        BCC     @line
+        INC     sptr+1
+        BNE     @line
+@wait:  LDY     #0
+        JSR     tick_wait
+        BCC     @wait
+@rts:   RTS
+
+; title_show -- page 1: the title picture, or the name if the disk fails
+title_show:
+        JSR     page1_text
+        JSR     title_read
         BCS     @plain
         LDA     #<(LOADBUF+4)           ; after DOS's header: the tune,
         LDY     #>(LOADBUF+4)
         JSR     music_start
-        LDA     #<(LOADBUF+4+TUNE_LEN)  ; then the picture
+        LDA     #<PICTURE               ; then (after the text pages) the picture
         STA     lz4fh_src
-        LDA     #>(LOADBUF+4+TUNE_LEN)
+        LDA     #>PICTURE
         STA     lz4fh_src+1
         LDA     #0
         STA     lz4fh_dst
@@ -104,13 +173,23 @@ title_show:
         LDX     #64
         JMP     puts_at
 
-; tick_wait -- Y ticks of ~1/60 s; C = 1 as soon as a key (strobe cleared)
-; or button 0 (released) is pressed. Keeps nothing.
+; tick_wait -- Y ticks of ~1/60 s (Y = 0: 256); C = 1 as soon as a key
+; (strobe cleared, A = it) or button 0 (released) is pressed; C = 0 at the
+; end, or as soon as the tune playing ends. Keeps nothing.
 tick_wait:
 @t:     TYA
         PHA
+        LDA     mus_ptr+1               ; a tune before this tick
+        PHA
         JSR     music_tick
         PLA
+        BEQ     @nt
+        LDA     mus_ptr+1               ; and none after: it ended (C = 0)
+        BNE     @nt
+        PLA
+        CLC
+        RTS
+@nt:    PLA
         TAY
         LDA     KBD
         BMI     @key
@@ -295,7 +374,10 @@ music_tick:
 @wait:  LDA     #79
         JMP     WAIT
 
+PICTURE = LOADBUF + 4 + TUNE_LEN + PAGES_LEN
 .segment "RODATA"
+page_lo:   .byte <(LOADBUF + 4 + TUNE_LEN + PAGE_HELP), <(LOADBUF + 4 + TUNE_LEN + PAGE_CONGRATS)
+page_hi:   .byte >(LOADBUF + 4 + TUNE_LEN + PAGE_HELP), >(LOADBUF + 4 + TUNE_LEN + PAGE_CONGRATS)
 msg_press: .byte "PRESS ANY KEY", 0
 msg_blank: .byte "             ", 0
 msg_demo:  .byte "DEMO", 0

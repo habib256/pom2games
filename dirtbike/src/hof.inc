@@ -42,6 +42,7 @@ hof_s:    .byte 0, 0
 
 .segment "CODE"
 
+.segment "INIT"                 ; boot only: overwritten by the pool
 hof_load:
         JSR     hof_read
         BCS     @empty
@@ -86,6 +87,7 @@ hof_load:
         STA     last_ini+2
         RTS
 
+.segment "CODE"
 hof_save:
         JSR     hof_read                ; keep DOS's header (bytes 0-3)
         BCS     @rts

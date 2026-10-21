@@ -27,6 +27,12 @@ Le client ChromaBreak utilise aussi `_mouse_timing_mode` et `_mouse_serve_irq`
 pour le mode 9 (VBL) du //c, avec un gestionnaire alloué par ProDOS.
 La fermeture désactive ce mode avant de libérer le gestionnaire.
 
+`ca65 -D MOUSE_INIT_BOOT` place `mouse_init` (détection et réglages) dans le
+segment `INIT` : du code de démarrage qu'un tampon peut recouvrir ensuite
+(DIRTBIKE, où le pilote reste sinon résident). Avec la souris du //c, qui
+active les interruptions, un programme DOS 3.3 doit les masquer pendant
+RWTS (`RWTS_SEI`, `apple2/rwts.asm`).
+
 ## Contexte optionnel pour les programmes assembleur historiques
 
 `mouse_context.asm`, extrait de Pinball, protège toute la zéro-page et les

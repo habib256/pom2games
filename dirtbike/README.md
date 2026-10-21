@@ -14,36 +14,55 @@ chute. Les meilleurs temps et scores restent sur la disquette.
 
 ## Commandes
 
-| Manette | Clavier | Effet |
-|---|---|---|
-| X gauche / droite | ← → ou J / L | se pencher en arrière / en avant |
-| haut (plus ou moins) | A / ↑, Z / ↓ | gaz (niveaux 0 à 8, affichés `T0`-`T8`) |
-| bas, bouton 0 | ESPACE | frein |
-| | R | recommencer le parcours |
-| | S | son coupé / remis |
-| | ESC | retour au menu (depuis le menu : la page de titre) |
-| | Ctrl-RESET | la page de titre |
+| Manette | Souris | Clavier | Effet |
+|---|---|---|---|
+| X gauche / droite | gauche / droite | ← → ou J / L | se pencher en arrière / en avant |
+| haut (plus ou moins) | vers le haut | A / ↑ plein gaz, Z / ↓ demi-gaz | gaz ; au clavier tant qu'on appuie : relâchés, ils retombent à zéro en ~1 s et la moto ralentit |
+| bas, bouton 0 | vers le bas, bouton | ESPACE | frein |
+| | | H | page d'aide (titre, menu) |
+| | | R | recommencer le parcours |
+| | | S | son coupé / remis |
+| | | ESC | retour au menu (depuis le menu : la page de titre) |
+| | | Ctrl-RESET | la page de titre |
 
-La position de la manette au démarrage sert de centre. Au clavier,
+La position de la manette au démarrage sert de centre. La souris
+AppleMouse (carte du //e, souris intégrée du //c ; `dev/lib/mouse`) remplace
+alors la manette : sa position compte comme celle du manche (centre 70, 96
+du pilote) et son bouton freine. Les interruptions qu'active la souris du
+//c sont masquées pendant les accès disque (`RWTS_SEI`). `make test-mouse`
+le vérifie avec les vraies ROM (cartes AppleWin et MAME, //c 16 et 32 Ko)
+dans le cœur POM2. Au clavier,
 l'inclinaison et le frein durent 6 images après chaque appui ;
 l'auto-répétition du //e les prolonge tant que la touche reste enfoncée.
 
 **Titre et démo** (`src/title.inc`, image `tools/title.py`). Le jeu s'ouvre
-sur une page de titre (fichier `TITLE`, LZ4FH, 1,8 Ko) ; une touche ou le
-bouton mène au menu. Sans rien toucher pendant 15 s, une démo se lance : les
+sur une page de titre (fichier `TITLE`, LZ4FH, 1,8 Ko), avec le crédit du
+portage (« APPLE II PORT: VERHILLE ARNAUD », sur une bande noire en bas) et
+« PRESS ANY KEY » qui clignote sous le sous-titre ; une touche ou le bouton
+mène au menu, H à la page d'aide. La musique du titre joue une fois : à sa
+fin (~13 s), une démo se lance : les
 3 tours d'un des circuits 5, 19, 10, 26, 22, 30 (à tour de rôle, 35 à 45 s)
 rejoués au bit près depuis la solution du solveur, rangée à la fin du
 fichier de la piste et copiée au chargement dans `$1000-$1FFF`, puis les
 deux pages du hall of fame, puis le titre.
 
 **Menu.** Les 30 parcours sur deux colonnes : flèches (ou I J K L) ou
-manette pour choisir, RETURN, ESPACE ou bouton 0 pour partir. Sous la liste :
-le record et le temps de référence, celui trouvé par le solveur.
+manette pour choisir, RETURN, ESPACE ou bouton 0 pour partir. Seuls les
+parcours déjà terminés (ceux qui ont un temps au hall of fame, donc sauvés
+sur la disquette) se choisissent, et le premier pas encore terminé ; les autres montrent
+leur numéro et des tirets. Une partie enchaîne ensuite les parcours : après
+l'arrivée (et les initiales d'un record), une touche lance le suivant ; ESC
+revient au menu ; après le 30, une page de félicitations (et l'envolée du
+record). Sous la liste : le record et le temps de
+référence, celui trouvé par le solveur.
 
 **Course.** Compte à rebours « 3, 2, 1, GO! » (on peut déjà doser les gaz).
-Après une chute, la moto repart à l'arrêt du dernier endroit où elle roulait
-à plat sur ses deux roues, après « 1, GO! » : le chrono a tourné pendant la
-chute, le tour et le score restent, seuls les points en attente sont perdus
+Après une chute, la moto repart à l'arrêt, après « 1, GO! », au début de la
+dernière portion de sol plat où elle a roulé sur ses deux roues (`note_safe` :
+une seule hauteur de sol sous la moto, à une roue près de chaque côté ; le
+début, pour avoir toute la ligne droite pour reprendre de l'élan). Chaque
+tour en compte 6 à 22, jamais plus de ~820 pixels d'écart. Le chrono a
+tourné pendant la chute, le tour et le score restent, seuls les points en attente sont perdus
 (R recommence la course).
 
 **Son.** Pas de bruit de moteur. Une petite musique en boucle sur la page
@@ -58,8 +77,9 @@ durée en ticks de 1/60 s, demi-période, et le nombre d'alternances qui
 remplit un tick). `music_tick` (`src/title.inc`) joue une tranche d'un tick
 à la place de l'attente de `tick_wait` : la page de titre clignote et répond
 aux touches pendant la musique. L'air du titre est placé en tête du fichier
-`TITLE`, avant l'image LZ4FH, et se joue depuis le tampon de chargement : il
-ne coûte pas de RAM. Les jingles restent dans le programme.
+`TITLE`, avant les pages de texte et l'image LZ4FH, et se joue depuis le
+tampon de chargement : il ne coûte pas de RAM. `tick_wait` s'arrête dès qu'il
+finit : la démo démarre à la dernière note. Les jingles restent dans le programme.
 
 **Points** (`src/tricks.inc`, modèle `tools/tricks.py`). Un saut d'au moins
 12 ticks (0,4 s) rapporte 10 points par tick en l'air ; chaque salto (un tour
@@ -74,7 +94,13 @@ triple). Un wheeling (roue arrière au sol, roue avant en l'air) d'au moins
 marque la ligne, qui est aussi celle des tours. Il est marqué comme la moto
 (`bk_top`/`bk_bot`) : le rendu du sol lui rend son ciel quand il défile. Il
 n'apparaît qu'à 244 pixels du bord gauche (les x de `hgr_line8` tiennent sur
-8 bits). Le score s'affiche en haut, au milieu, le tour (`L1`-`L3`) à côté.
+8 bits) ; le numéro du tour (1 à 3) est écrit sous son fanion.
+
+**Bandeau.** En haut : le chrono à gauche, le score à droite et, au milieu,
+les messages (figures, tours, compte à rebours, CRASH, FINISH, DEMO),
+centrés sur 14 caractères. Le bandeau ne redessine que les caractères qui
+changent, page par page : un message plus court efface ce qui reste du
+précédent sur les deux pages.
 
 **Circuits.** Chaque parcours est une boucle (longueur multiple de 7, au
 plus 3760 pixels) : 400 pixels plats au départ, une ligne droite plate de
@@ -96,28 +122,46 @@ disquette protégée, il le dit et continue. `make` recrée un hall of fame vide
 ## Comment ça marche
 
 **Physique** (`src/physics.inc`, modèle `tools/physics.py`). La moto est
-faite de trois points de Verlet : roue arrière, roue avant et pilote. À
-chaque tick :
+faite de trois points de Verlet : roue arrière, roue avant et pilote, reliés
+par l'empattement (rigide, 24 px) et deux liaisons roue-pilote (la
+suspension). Le pilote pèse un peu plus qu'une roue (9/7 : dans une liaison,
+la roue prend `c + c >> 3` de la correction, le pilote `c - c >> 3` ; à 3
+fois, la moto devenait intenable dans les whoops). À chaque tick :
 1. gravité, puis vitesses bornées : 18 px/tick le long de la piste, 8 en
-   vertical ; la traction pousse jusqu'à 13,5 px/tick, trois fois la vitesse
-   du premier réglage, assez pour de vrais sauts (jusqu'à ~2,1 s en l'air et
-   ~130 pixels de haut) et des saltos, l'inclinaison tournant la moto de
-   ~320° par seconde en vol ;
-2. inclinaison : le segment entre les roues tourne autour de son milieu ;
-3. contraintes de distance sans racine carrée, en une passe : l'empattement
-   est rigide et les deux liaisons roue-pilote font la suspension (raideur
-   1,2 : à 0,6, elle talonnait à chaque réception et le pilote tombait) ;
+   vertical ; la traction pousse jusqu'à 13,5 px/tick ;
+2. rotation de l'axe des roues : le frein arrière fait plonger l'avant
+   (réaction de la roue sur le cadre, sol compris) ; en l'air, l'inclinaison
+   et les gaz (nez qui monte) la tournent aussi. En l'air ou sur une seule
+   roue, la rotation s'amortit (`>> 4` par tick : plus de vrille sans fin) ;
+3. contraintes de distance sans racine carrée. L'inclinaison déplace le
+   pilote le long de la moto (1 px par cran, tables de longueurs de repos
+   par cran dans `physconst.inc`) : au sol, c'est son poids qui lève ou
+   pose l'avant, plus de rotation directe (la moto ne roule plus debout) ;
 4. contact des roues avec le sol, en suivant la normale tirée de la pente
-   `h[x+2] - h[x-2]` : rebond, puis traction (roue arrière), frein et
-   résistance au roulement ;
-5. chute si le pilote approche du sol.
+   `h[x+2] - h[x-2]` : rebond, puis traction (roue arrière), frein, frein
+   moteur sans gaz (roue arrière, `vt -= vt >> 7`) et résistance au
+   roulement (`vt -= vt >> 7`) : sans gaz, la vitesse baisse de ~30 % en
+   ~1,5 s et de moitié en ~3 s sur le plat ;
+5. les contraintes encore une fois, après le sol : l'empattement reste
+   entre ~18 et 27 px (il tombait à 1 px avant, la moto se repliait) ;
+   suspension ferme (raideur 0,9 ; 1,2 puis 1,0 rendaient le jeu un peu
+   trop facile) : les grandes réceptions bien prises passent ;
+6. chute si le pilote approche du sol, si une liaison pilote-roue tombe
+   sous la moitié de sa longueur (pilote écrasé) ou si la moto passe sur le
+   dos (une roue au sol, l'avant derrière l'arrière : wheeling bouclé).
+
+Le wheeling : gaz et pilote en arrière lèvent l'avant ; le relâcher, pencher
+en avant ou freiner le reposent ; insister le fait boucler. Les carrés des
+contraintes se lisent dans la table des quarts de carrés (x² = 4·⌊x²/4⌋ +
+(x & 1)) au lieu d'une multiplication : la physique coûte ~14 400 cycles
+par image.
 
 Les positions sont en virgule fixe : x en 16.8 (pixels du monde), y en 8.8.
 Les produits passent par `dev/lib/math` (quarts de carrés, 2 Ko construits au
 démarrage en `$0800`, raccourcis pour les normales ×0 / ±1,0). L'asm reproduit
 le modèle Python au bit près : `tests/test_physics.py` le vérifie, points
 compris, sur un script de 545 ticks (chute et culbutes comprises) et sur les
-3 tours complets des circuits 1, 11 (deux saltos) et 30 (cinq) tirés de
+3 tours complets des circuits 1, 19 (un salto, des wheelings) et 30 tirés de
 `tests/solutions.txt`.
 
 **Parcours** (`tools/tracks.py`). Les parcours 1 à 3 sont écrits à la
@@ -127,7 +171,9 @@ et la sévérité croissent avec le numéro, selon une graine fixée par
 parcours. Chacun est prouvé faisable : `tools/solver.py` cherche un trajet
 dans le modèle physique (recherche en faisceau sur l'inclinaison, plein ou
 demi-gaz et le frein ; à défaut, un faisceau qui garde toutes les vitesses,
-pour les crêtes qu'il faut aborder freiné) et `tests/solutions.txt` le garde ;
+pour les crêtes qu'il faut aborder freiné ; chaque tick penché en arrière
+lui coûte un peu, sinon le pilote des démos restait assis en arrière) et
+`tests/solutions.txt` le garde ;
 `make test` le rejoue (`tools/trackcheck.py`). Les trajets (3 tours) durent
 de 27 s à 49 s. Une nouvelle graine doit aussi tenir dans les limites du rendu
 (`POOL_MAX`, 256 motifs : `make` le vérifie).
@@ -167,14 +213,26 @@ courses (3 tours) durent de 27 s à 49 s. Les messages sous le bandeau ne sont
 écrits que sur les premières images, puis 2 images sur 8 (le rendu du sol ne
 touche pas au ciel).
 
-**Mémoire.** `$0400-$07FF` : la page texte 1, jamais affichée (le jeu ne
-revient pas à DOS) ; ses huit bandes de 120 octets (segments `TXT0`-`TXT7`)
-reçoivent des tables du rendu et les tampons du HUD, les trous d'écran
-(`$x78-$x7F`, `$xF8-$xFF`, où RWTS et les cartes gardent leur état) sont
-laissés tranquilles ; 3 bandes et demie restent libres. `$0800-$0FFF` :
-tables de multiplication (là où dormait le programme HELLO). `$1000-$1FFF` :
+**Mémoire.** `$0200-$03CF` : tampon de saisie et page utilisateur, inutiles
+ici (ni BASIC ni commande DOS) : `hgr_lo` / `hgr_hi`, calculées au démarrage
+(`dev/lib/hgr/hgr_scanline_ram.asm` : 384 octets de moins dans le fichier).
+`$0400-$07FF` : la page texte 1, jamais affichée (le jeu ne revient pas à
+DOS) ; ses huit bandes de 120 octets (segments `TXT0`-`TXT7`) reçoivent des
+tables du rendu, les tampons du HUD et deux routines (le menu, l'affichage
+d'un parcours dans le menu : `TXTC5`, `TXTC7`, recopiées au démarrage) ; les
+trous d'écran (`$x78-$x7F`, `$xF8-$xFF`, où RWTS, la souris et les cartes
+gardent leur état) sont laissés tranquilles. `$0800-$0FFF` : tables de
+multiplication (là où dormait le programme HELLO). `$1000-$1FFF` :
 écrivains de lignes, tables du rendu et des motifs, entrées de la démo,
-hall of fame. `$6000-$9523` : le jeu, ~220 octets libres jusqu'à `$95FF`.
+hall of fame. `$6000-$91FF` : le jeu (code, données, BSS ; ~250 octets
+libres). `$9200-$95FF` : le code de démarrage (segment `INIT` : init, tables
+du rendu, des lignes HGR et de multiplication, détection de la souris,
+lecture du hall of fame) et les images des routines de la page texte, la
+fin du fichier, exécutés une fois puis recouverts par la réserve de motifs
+du parcours (`pool`) au premier chargement ; ~60 octets y restent.
+Le fichier `TITLE` porte l'air du titre, les pages de texte (aide,
+félicitations : `tools/pages.py`) et l'image : relu à la demande, il ne
+coûte pas de RAM.
 `$9600-$B5FF` : le parcours (à la place de DOS ; le titre et le hall of fame
 y passent aussi). `$B700-$BFFF` : RWTS. La page zéro du jeu (`$50-$FB`) est
 presque pleine.
@@ -195,6 +253,8 @@ presque pleine.
 | `tools/title.py` | l'image de titre (`OUT.hgr [aperçu.png]`) |
 | `tools/hof.py` | le fichier `DIRTHOF` vide |
 | `tools/music.py` | les airs : `src/music.inc` (jingles) et `build/tune.bin` (titre) |
+| `tools/pages.py` | pages d'aide et de félicitations : `src/pages.inc` et `build/pages.bin` (dans `TITLE`) |
+| `tests/test_mouse.py` | `make test-mouse` : la souris avec les vraies ROM, dans le cœur POM2 (`POM2_SRC`) |
 | `tools/sprites.py` | génère `src/sprites.inc` : roue (4 positions de rayons × 7 décalages), tête |
 | `tools/autopilot.py` | pilote automatique simple (réglé pour l'ancienne vitesse ; le test physique rejoue désormais les solutions) |
 | `tools/profile.py` | profil a2shot : cycles par image et par routine |

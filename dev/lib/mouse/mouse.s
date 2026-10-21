@@ -2,6 +2,8 @@
 ; Firmware X=$Cn,Y=$n0. IIe polling mode 1; IIc native IRQs count motion.
 ; The pointer is kept in 0..139 by MOUSE_Y_LOW..MOUSE_Y_HIGH (0..191 unless
 ; the program defines them) and starts at 70, MOUSE_Y_START.
+; ca65 -D MOUSE_INIT_BOOT puts mouse_init (detection, set-up) in segment
+; INIT: boot code a buffer may overwrite after the call.
 .ifndef MOUSE_Y_LOW
 MOUSE_Y_LOW = 0
 .endif
@@ -30,6 +32,9 @@ lookup: ldy $C400,x
 xparam: ldx #$C4
 yparam: ldy #$40
 jump:   jmp $C400
+.ifdef MOUSE_INIT_BOOT
+.segment "INIT"         ; boot code (ca65 -D MOUSE_INIT_BOOT): may be overwritten later
+.endif
 _mouse_init:
         lda #0
         sta _mouse_slot
@@ -115,6 +120,7 @@ again:  inc ptr1+1
 :        lda #0
         tax
         rts
+.code
 _mouse_poll:
         lda _mouse_slot
         beq done

@@ -6,13 +6,17 @@
 ;                (upper case), for the main loop's own keys.
 ;
 ; Joystick: X = lean (dead zone in the middle), up = throttle (further up =
-; more), down or button 0 = brake. Keyboard: the throttle is a level that
-; A / up arrow raise and Z / down arrow lower; left / right (J / L) lean and
-; SPACE brakes for KEY_HOLD frames, which the keyboard's auto-repeat renews
-; while the key is held.
+; more), down or button 0 = brake. AppleMouse (//e card, //c built-in,
+; dev/lib/mouse): the same from its position (centre 70, 96), button =
+; brake; with a mouse the joystick is not read. Keyboard: A / up arrow = full throttle,
+; Z / down arrow = half, for GAS_HOLD frames, then it fades one level a
+; frame (the bike never runs on by itself); left / right (J / L) lean and
+; SPACE brakes for KEY_HOLD frames. The keyboard's auto-repeat renews them
+; while a key is held (GAS_HOLD covers its first delay).
 ; ============================================================================
 
 KEY_HOLD = 6
+GAS_HOLD = 20
 JOY_DEAD = 9                    ; counts of read_stick_fast (lib/apple2/joy.asm)
 JOY_GAS  = 10                   ; joy_y this far above centre: throttle
 JOY_BRK  = 18                   ; this far below: brake
@@ -31,11 +35,16 @@ brake_tm:    .res 1
 inkey:       .res 1
 jphase:      .res 1             ; frame parity of the race (new_race clears it)
 
+.segment "BSS"
+gas_tm:      .res 1
+
 .segment "CODE"
 
+.segment "INIT"                 ; boot only: overwritten by the pool
 input_init:
         LDA     #0
         STA     kb_throttle
+        STA     gas_tm
         STA     lean_tm
         STA     brake_tm
         JSR     read_stick_fast            ; the stick at rest is the centre
@@ -47,8 +56,18 @@ input_init:
         STA     joy_mx
         LDA     joy_y
         STA     joy_my
-        RTS
+        JSR     _mouse_init             ; a mouse (A = slot): it replaces the stick
+        TAX
+        BEQ     @nom
+        LDA     #0
+        STA     joy_ok
+        LDA     #70                     ; dev/lib/mouse: X 0..139, starts at 70
+        STA     joy_mx
+        LDA     #MOUSE_Y_START
+        STA     joy_my
+@nom:   RTS
 
+.segment "CODE"
 read_input:
         LDA     #0
         STA     inkey
@@ -58,7 +77,14 @@ read_input:
 @l0:    LDA     brake_tm
         BEQ     @b0
         DEC     brake_tm
-@b0:    LDA     KBD
+@b0:    LDA     gas_tm                  ; throttle held, then fading
+        BEQ     @g1
+        DEC     gas_tm
+        BPL     @g0                     ; (always)
+@g1:    LDA     kb_throttle
+        BEQ     @g0
+        DEC     kb_throttle
+@g0:    LDA     KBD
         BPL     @nokey
         BIT     KBDSTRB
         AND     #$7F
@@ -68,19 +94,17 @@ read_input:
         BEQ     @up
         CMP     #'A'
         BNE     @n1
-@up:    LDA     kb_throttle
-        CMP     #THROTTLE_MAX
-        BCS     @nokey
-        INC     kb_throttle
-        BCC     @nokey
+@up:    LDA     #THROTTLE_MAX
+        BNE     @gas
 @n1:    CMP     #KC_DOWN
         BEQ     @down
         CMP     #'Z'
         BNE     @n2
-@down:  LDA     kb_throttle
-        BEQ     @nokey
-        DEC     kb_throttle
-        JMP     @nokey
+@down:  LDA     #THROTTLE_MAX / 2
+@gas:   STA     kb_throttle
+        LDA     #GAS_HOLD
+        STA     gas_tm
+        BNE     @nokey
 @n2:    CMP     #KC_LEFT
         BEQ     @left
         CMP     #'J'
@@ -110,7 +134,15 @@ read_input:
 @kl:    STA     in_lean
         LDA     brake_tm
         STA     in_brake
-        LDA     joy_ok
+        LDA     _mouse_slot             ; a mouse: its position for the stick's
+        BEQ     @stick                  ; (X = lean, up = gas, down = brake)
+        JSR     _mouse_poll
+        LDA     _mouse_x
+        STA     joy_x
+        LDA     _mouse_y
+        STA     joy_y
+        JMP     @jold
+@stick: LDA     joy_ok
         BEQ     @out
         LDA     jphase                  ; the stick every other frame (~1500
         EOR     #1                      ; cycles; the hand is not faster)
@@ -159,7 +191,8 @@ read_input:
         BCC     @btn
         LDA     #1
         STA     in_brake
-@btn:   LDA     BUTN0
+@btn:   LDA     BUTN0                   ; button 0, or the mouse's
+        ORA     _mouse_buttons
         BPL     @out
         LDA     #1
         STA     in_brake

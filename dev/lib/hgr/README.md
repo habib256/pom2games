@@ -21,6 +21,7 @@ murs, caisses et autres éléments graphiques conservent leurs couleurs.
 | Fichier | Contenu | Utilisé par |
 |---|---|---|
 | `hgr_scanline.inc` | `hgr_lo` / `hgr_hi` : adresse de chaque ligne 0..191 | arkabreakout, chess, logo, maze3d, micro-sokoban |
+| `hgr_scanline_ram.asm` | les mêmes tables en RAM (segment `HGR_SCANLINE_SEGMENT`), construites par `hgr_scanline_init` (~50 o, code de démarrage) : 384 o de moins dans le fichier | dirtbike |
 | `hgr_plot_tables.inc` | `hgr_col` / `hgr_mask` : octet et bit des colonnes 0..255, ou 0..279 avec `HGR_FULL_WIDTH_TABLES=1` | logo |
 | `hgr_clear.asm` | `clear_hgr` : efface `$2000-$3FFF` (`HGR_CLEAR_LOOP`, sans ZP) | logo |
 | `hgr_flip.asm` | `hgr_draw_hidden` / `hgr_show_draw` / `hgr_set_draw_page` : double tampon en réécrivant `hgr_hi` sur place (`hgr_scanline.inc` dans un segment modifiable) | maze3d, micro-sokoban |

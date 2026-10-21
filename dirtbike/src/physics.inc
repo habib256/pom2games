@@ -60,6 +60,10 @@ wrapped:    .res 1              ; set when the bike moved back a lap
 in_throttle: .res 1             ; 0..THROTTLE_MAX
 in_brake:   .res 1              ; 0 / non-zero
 in_lean:    .res 1              ; signed, -LEAN_MAX..LEAN_MAX
+turn:       .res 1              ; this tick's turn of the wheel axis (do_lean)
+lidx:       .res 1              ; in_lean + LEAN_MAX (rider link tables)
+cidx:       .res 1              ; constraint table index
+squashed:   .res 1              ; a rider link too short (pass after the ground)
 
 .segment "CODE"
 
@@ -152,25 +156,53 @@ phys_tick:
 @int:   JSR     integrate
         DEX
         BPL     @int
-        LDA     in_lean
-        BEQ     @nolean
+        ; the turn: brake (nose down); in the air also lean - throttle / 8;
+        ; in the air or on one wheel (last tick's contact) the spin fades
+        LDA     #0
+        LDX     in_brake
+        BEQ     @nb
+        LDA     #GYRO_BRAKE
+@nb:    STA     turn
+        LDA     wheel_gnd
+        CMP     wheel_gnd+1
+        BEQ     @both
+        JSR     spin_damp               ; one wheel down
+        JMP     @turn
+@both:  LDA     wheel_gnd               ; both down: no damping, or the air
+        BNE     @turn
+        JSR     spin_damp
+        LDA     in_throttle
+        LSR     A
+        LSR     A
+        LSR     A
+        .assert GYRO_DIV = 8, error, "phys_tick: throttle / GYRO_DIV"
+        STA     w0
+        CLC
+        LDA     turn
+        ADC     in_lean
+        SEC
+        SBC     w0
+        STA     turn
+@turn:  LDA     turn
+        BEQ     @noturn
         JSR     do_lean
-@nolean:
+@noturn:
+        CLC
+        LDA     in_lean
+        ADC     #LEAN_MAX
+        STA     lidx
         LDA     #CONSTRAINT_PASSES
         STA     cpass
-@pass:  LDX     #0                      ; in the model's order
-@con:   STX     cur
-        JSR     constrain
-        LDX     cur
-        INX
-        CPX     #NCONSTRAINTS
-        BNE     @con
+@pass:  JSR     con_pass
         DEC     cpass
         BNE     @pass
         LDX     #0
         JSR     ground_contact
         LDX     #1
         JSR     ground_contact
+        LDA     #0                      ; the frame again, after the ground
+        STA     squashed
+        JSR     con_pass
         LDX     #2
 @ceil:  LDA     pt_yh,X
         CMP     #>CEILING
@@ -201,10 +233,134 @@ phys_tick:
         CMP     w0
         LDA     hgt
         SBC     w1
-        BCS     @alive
-        LDA     #1
+        BCC     @crash
+        LDA     squashed                ; a rider link squashed
+        BNE     @crash
+        LDA     wheel_gnd               ; over: a wheel down and the front
+        ORA     wheel_gnd+1             ; more than FLIP_DX behind the rear
+        BEQ     @alive
+        SEC
+        LDA     pt_xf+1
+        SBC     pt_xf
+        LDA     pt_xl+1
+        SBC     pt_xl
+        BPL     @alive
+        CMP     #<(-(FLIP_DX >> 8))
+        .assert <FLIP_DX = 0, error, "phys_tick: FLIP_DX whole pixels"
+        BCS     @alive                  ; (hi >= -4: not past it)
+@crash: LDA     #1
         STA     crashed
 @alive: JMP     phys_wrap
+
+; con_pass -- the constraints once, in the model's order
+con_pass:
+        LDX     #0
+@con:   STX     cur
+        JSR     constrain
+        LDX     cur
+        INX
+        CPX     #NCONSTRAINTS
+        BNE     @con
+        RTS
+
+; spin_damp -- the spin of the wheel axis fades: d = (v1 - v0) >> SPIN_DAMP
+; (velocities right after integrate: 16 bits), old front += d, old rear -= d
+spin_damp:
+        SEC                             ; x: d = (x1 - ox1) - (x0 - ox0)
+        LDA     pt_xf+1
+        SBC     pt_oxf+1
+        STA     w0
+        LDA     pt_xl+1
+        SBC     pt_oxl+1
+        STA     w1
+        SEC
+        LDA     pt_xf
+        SBC     pt_oxf
+        STA     val
+        LDA     pt_xl
+        SBC     pt_oxl
+        STA     val+1
+        SEC
+        LDA     w0
+        SBC     val
+        STA     val
+        LDA     w1
+        SBC     val+1
+        STA     val+1
+        JSR     sd_shift
+        CLC                             ; ox1 += d (24 bits)
+        LDA     pt_oxf+1
+        ADC     val
+        STA     pt_oxf+1
+        LDA     pt_oxl+1
+        ADC     val+1
+        STA     pt_oxl+1
+        LDA     pt_oxh+1
+        ADC     w2
+        STA     pt_oxh+1
+        SEC                             ; ox0 -= d
+        LDA     pt_oxf
+        SBC     val
+        STA     pt_oxf
+        LDA     pt_oxl
+        SBC     val+1
+        STA     pt_oxl
+        LDA     pt_oxh
+        SBC     w2
+        STA     pt_oxh
+        SEC                             ; y: d = (y1 - oy1) - (y0 - oy0)
+        LDA     pt_yf+1
+        SBC     pt_oyf+1
+        STA     w0
+        LDA     pt_yh+1
+        SBC     pt_oyh+1
+        STA     w1
+        SEC
+        LDA     pt_yf
+        SBC     pt_oyf
+        STA     val
+        LDA     pt_yh
+        SBC     pt_oyh
+        STA     val+1
+        SEC
+        LDA     w0
+        SBC     val
+        STA     val
+        LDA     w1
+        SBC     val+1
+        STA     val+1
+        JSR     sd_shift
+        CLC
+        LDA     pt_oyf+1
+        ADC     val
+        STA     pt_oyf+1
+        LDA     pt_oyh+1
+        ADC     val+1
+        STA     pt_oyh+1
+        SEC
+        LDA     pt_oyf
+        SBC     val
+        STA     pt_oyf
+        LDA     pt_oyh
+        SBC     val+1
+        STA     pt_oyh
+        RTS
+
+; val >>= SPIN_DAMP (arithmetic), w2 = its sign byte
+sd_shift:
+        LDY     #SPIN_DAMP
+@s:     LDA     val+1
+        CMP     #$80
+        ROR     val+1
+        ROR     val
+        DEY
+        BNE     @s
+        LDA     #0
+        BIT     val+1
+        BPL     @p
+        LDA     #$FF
+@p:     STA     w2
+        RTS
 
 ; ---------------------------------------------------------------------------
 ; phys_wrap -- a looping track (lap_len > 0) repeats its first pixels after
@@ -333,6 +489,31 @@ sub_yv: SEC
         STA     val+1
         RTS
 .endmacro
+; vt -= vt >> (8 - Y) (floor), Y = 1..7. Keeps X.
+vt_less:
+        LDA     vt
+        STA     w0
+        LDA     vt+1
+        STA     w1
+        LDA     #0
+        BIT     vt+1
+        BPL     @p
+        LDA     #$FF
+@p:     STA     w2
+@s:     ASL     w0
+        ROL     w1
+        ROL     w2
+        DEY
+        BNE     @s
+        SEC
+        LDA     vt
+        SBC     w1
+        STA     vt
+        LDA     vt+1
+        SBC     w2
+        STA     vt+1
+        RTS
+
 clamp_vx: CLAMP_VAL VMAX_X
 clamp_vy: CLAMP_VAL VMAX_Y
 
@@ -418,7 +599,7 @@ delta_ab:
         RTS
 
 ; ---------------------------------------------------------------------------
-; do_lean -- turn the axis: front += lean * perp, rear -= lean * perp,
+; do_lean -- turn the axis: front += turn * perp, rear -= turn * perp,
 ; perp = (-dy, dx)
 ; ---------------------------------------------------------------------------
 do_lean:
@@ -434,7 +615,7 @@ do_lean:
         LDA     #0
         SBC     dy+1
         STA     mul_x+1
-        LDA     in_lean
+        LDA     turn
         STA     mul_y
         JSR     mul_s16s8
         LDA     mul_p1
@@ -449,7 +630,7 @@ do_lean:
         STA     mul_x
         LDA     dx+1
         STA     mul_x+1
-        LDA     in_lean
+        LDA     turn
         STA     mul_y
         JSR     mul_s16s8
         LDA     mul_p1
@@ -493,6 +674,24 @@ quarter_abs:
 @max:   LDA     #180
 @ok:    RTS
 
+; A = x (0..180) -> A/Y = x^2 (lo/hi) = 4 floor(x^2 / 4) + (x & 1), from the
+; quarter-square table (lib/math): ~40 cycles instead of a product
+square:
+        TAX
+        LDA     mul_sqr1_hi,X
+        STA     w2
+        LDA     mul_sqr1_lo,X
+        ASL     A
+        ROL     w2
+        ASL     A
+        ROL     w2
+        STA     w0
+        TXA
+        AND     #1
+        ORA     w0
+        LDY     w2
+        RTS
+
 ; ---------------------------------------------------------------------------
 ; constrain -- constraint `cur`
 ; ---------------------------------------------------------------------------
@@ -502,6 +701,10 @@ constrain:
         STA     ca
         LDA     con_b,X
         STA     cb
+        LDA     con_nl,X                ; cidx = cur * NLEAN + lean + LEAN_MAX
+        CLC
+        ADC     lidx
+        STA     cidx
         JSR     delta_ab
         LDA     dy
         LDX     dy+1
@@ -510,33 +713,34 @@ constrain:
         LDA     dx
         LDX     dx+1
         JSR     quarter_abs
-        STA     mul_x
-        STA     mul_y
-        LDA     #0
-        STA     mul_x+1
-        JSR     mul_u16u8               ; qx^2 (16 bits)
-        LDA     mul_p0
+        JSR     square                  ; qx^2 (16 bits)
         STA     pen
-        LDA     mul_p1
-        STA     pen+1
+        STY     pen+1
         LDA     qx
-        STA     mul_x
-        STA     mul_y
-        LDA     #0
-        STA     mul_x+1
-        JSR     mul_u16u8               ; qy^2
-        LDX     cur                     ; w = qx^2 + qy^2 - L^2 (24 bits)
+        JSR     square                  ; qy^2
+        LDX     cidx                    ; w = qx^2 + qy^2 - L^2 (24 bits)
         CLC
-        LDA     mul_p0
         ADC     pen
         STA     w0
-        LDA     mul_p1
+        TYA
         ADC     pen+1
         STA     w1
         LDA     #0
         ADC     #0
         STA     w2
-        SEC
+        LDA     cb                      ; a rider link: squashed below L2Q_MIN?
+        CMP     #2
+        BNE     @nsq
+        LDA     w2
+        BNE     @nsq
+        LDA     w0
+        CMP     #<L2Q_MIN
+        LDA     w1
+        SBC     #>L2Q_MIN
+        BCS     @nsq
+        LDA     #1
+        STA     squashed
+@nsq:   SEC
         LDA     w0
         SBC     con_l2l,X
         STA     w0
@@ -608,11 +812,24 @@ constrain:
         STA     val
         LDA     mul_p2
         STA     val+1
+        LDA     cb
+        CMP     #2
+        BNE     @px
+        JSR     heavy                   ; the rider: c - c >> 3, the wheel c + c >> 3
         LDX     ca
         JSR     add_xv
-        LDX     cb
+        LDA     vn
+        STA     val
+        LDA     vn+1
+        STA     val+1
+@px:    LDX     cb
         JSR     sub_xv
-        LDA     dy                      ; cy = (dy * f) >> 8
+        LDA     cb
+        CMP     #2
+        BEQ     @cy
+        LDX     ca
+        JSR     add_xv
+@cy:    LDA     dy                      ; cy = (dy * f) >> 8
         STA     mul_x
         LDA     dy+1
         STA     mul_x+1
@@ -623,10 +840,56 @@ constrain:
         STA     val
         LDA     mul_p2
         STA     val+1
+        LDA     cb
+        CMP     #2
+        BNE     @py
+        JSR     heavy
         LDX     ca
+        JSR     add_yv
+        LDA     vn
+        STA     val
+        LDA     vn+1
+        STA     val+1
+        LDX     cb
+        JMP     sub_yv
+@py:    LDX     ca
         JSR     add_yv
         LDX     cb
         JMP     sub_yv
+
+; heavy -- a rider link's move c (val): val = c + (c >> RIDER_HEAVY) for the
+; wheel, vn = c - (c >> RIDER_HEAVY) for the rider (heavier than a wheel)
+heavy:
+        LDA     val
+        STA     pen
+        LDA     val+1
+        STA     pen+1
+        LDY     #RIDER_HEAVY
+@s:     LDA     pen+1
+        CMP     #$80
+        ROR     pen+1
+        ROR     pen
+        DEY
+        BNE     @s
+        SEC
+        LDA     val
+        SBC     pen
+        STA     vn
+        LDA     val+1
+        SBC     pen+1
+        STA     vn+1
+        CLC
+        LDA     val
+        ADC     pen
+        STA     val
+        LDA     val+1
+        ADC     pen+1
+        STA     val+1
+        RTS
+
+.segment "RODATA"
+con_nl: .byte 0, NLEAN, 2 * NLEAN       ; constraint * NLEAN
+.segment "CODE"
 
 ; ---------------------------------------------------------------------------
 ; ground_contact -- wheel X (0 rear: traction; 1 front)
@@ -869,26 +1132,13 @@ ground_contact:
 @bzero: LDA     #0
         STA     vt
         STA     vt+1
-@nobrk: ; vt -= vt >> 7 (floor)
-        LDA     vt
-        STA     w0
-        LDA     vt+1
-        STA     w1
-        LDY     #0
-        CMP     #$80
-        BCC     @rp
-        DEY
-@rp:    STY     w2
-        ASL     w0
-        ROL     w1
-        ROL     w2
-        SEC
-        LDA     vt
-        SBC     w1
-        STA     vt
-        LDA     vt+1
-        SBC     w2
-        STA     vt+1
+@nobrk: LDA     cur                     ; engine brake: rear wheel, no throttle
+        ORA     in_throttle
+        BNE     @noeb
+        LDY     #8 - ENGINE_BRAKE
+        JSR     vt_less
+@noeb:  LDY     #8 - ROLL_LOSS          ; rolling loss
+        JSR     vt_less
         ; vx = (vn nx + vt (-ny)) >> 6
         LDA     vn
         LDX     vn+1

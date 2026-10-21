@@ -7,10 +7,14 @@
     of fame;
   * a record (the finish line moved near the start, points set): initials
     XYZ typed, both records written into DIRTHOF on the disk, read back by
-    the next boot;
-  * on a write-protected disk the game says so and goes on to the menu;
+    the next boot; the game goes on to track 2;
+  * on a write-protected disk the game says so and goes on;
+  * a new disk: the menu opens track 1 only (the others are not finished);
+  * the title tune plays once, the demo starts when it ends; H on the title
+    shows the help page; finishing track 30 shows the congratulations;
   * the countdown holds the bike; after a crash it restarts at rest at the
-    last safe point (both wheels down, level), clock running on.
+    last safe point (the start of a flat stretch, both wheels down), clock
+    running on.
 """
 from pathlib import Path
 import sys
@@ -26,10 +30,11 @@ import packtrack  # noqa: E402
 import trackcheck  # noqa: E402
 import tracks  # noqa: E402
 import tricks  # noqa: E402
+import music  # noqa: E402
 
 DISK = GAME.parent / 'dist/DIRTBIKE.dsk'
 NT = 30
-PROMPT = range(148, 160)
+PROMPT = range(64, 76)          # title.py TITLE_PROMPT - 2 .. + 10
 
 
 def record_steps(L):
@@ -71,15 +76,15 @@ def main():
     # a record, saved
     with tempfile.TemporaryDirectory(prefix='dirtbike-hof-') as tmp:
         saved = Path(tmp) / 'saved.dsk'
-        r = a2test.run(DISK, record_steps(L) + [L.until('menu', 900), f'dsk:{saved}'])
+        r = a2test.run(DISK, record_steps(L) + [L.until('new_race', 900), L.peek('sel', 1), f'dsk:{saved}'])
         image = saved.read_bytes()
         hof = dos33.read_file(image, 'DIRTHOF')
         rec_min, ini = hof[4], hof[4 + 3 * NT:4 + 3 * NT + 3]
         pts = hof[4 + 6 * NT:4 + 6 * NT + 3]
         pini = hof[4 + 9 * NT:4 + 9 * NT + 3]
-        ok = (r.mem(L['state'], 1)[0] == 3 and rec_min != 0xFF and ini == b'XYZ' and
+        ok = (r.mem(L['sel'], 1)[0] == 1 and rec_min != 0xFF and ini == b'XYZ' and
               pts == bytes([0x00, 0x12, 0x00]) and pini == b'XYZ' and hof[-3:] == b'XYZ')
-        print(f'record saved: time {rec_min}:{hof[4 + NT]:02x}.{hof[4 + 2 * NT] >> 4} {ini.decode()}, '
+        print(f'record saved, then on to track 2: time {rec_min}:{hof[4 + NT]:02x}.{hof[4 + 2 * NT] >> 4} {ini.decode()}, '
               f'points {pts[2]:02x}{pts[1]:02x}{pts[0]:02x} {pini.decode()}: ' + ('ok' if ok else 'DIFF'))
         bad += not ok
         r = a2test.run(saved, ['wait:600', L.until('tick_wait', 3000), L.peek('rec_ini', 3), L.peek('rec_pts', 3)])
@@ -89,10 +94,59 @@ def main():
 
         # write protected: said, not written, on to the menu
         prot = Path(tmp) / 'prot.dsk'
-        r = a2test.run(DISK, record_steps(L) + [L.until('menu', 900), f'dsk:{prot}'], wp=True)
+        r = a2test.run(DISK, record_steps(L) + [L.until('new_race', 900), f'dsk:{prot}'], wp=True)
         ok = dos33.read_file(prot.read_bytes(), 'DIRTHOF') == dos33.read_file(DISK.read_bytes(), 'DIRTHOF')
-        print('write-protected disk: not written, back to the menu: ' + ('ok' if ok else 'DIFF'))
+        print('write-protected disk: not written, on to the next track: ' + ('ok' if ok else 'DIFF'))
         bad += not ok
+    # the title tune plays once; the demo starts when it ends
+    T = sum(music.tune(music.TITLE, 8)[0::3])
+    r = a2test.run(DISK, ['wait:600', L.until('tick_wait', 3000), f'wait:{T - 60}', L.peek('mus_ptr', 2),
+                          'wait:120', L.peek('mus_ptr', 2)])
+    ok = r.dumps[0][1] != 0 and r.dumps[1][1] == 0
+    print(f'title tune ({T} ticks), then the demo: ' + ('ok' if ok else f'DIFF {[d.hex() for d in r.dumps]}'))
+    bad += not ok
+
+    # H on the title: the help page, a key: the title again
+    def row_lit(page, y):
+        return any(page[a2test.hgr_offset(y):a2test.hgr_offset(y) + 40])
+    r = a2test.run(DISK, ['wait:1000', 'key:H', 'wait:200', 'peek:2000:8192', 'key: ', 'wait:300',
+                          'peek:2000:8192'])
+    page, back = r.dumps[0], r.dumps[1]
+    title = [y for y in range(192) if y not in PROMPT and
+             back[a2test.hgr_offset(y):a2test.hgr_offset(y) + 40] != want[a2test.hgr_offset(y):a2test.hgr_offset(y) + 40]]
+    ok = row_lit(page, 8) and row_lit(page, 23 * 8) and not row_lit(page, 2 * 8) and not title
+    print('title, H: the help page, then the title: ' + ('ok' if ok else 'DIFF'))
+    bad += not ok
+
+    # track 30 finished: the congratulations page
+    unlock = [L.poke('rec_min', 0, i) for i in range(30)]
+    keys = [s for c in ['L'] + ['K'] * 14 for s in (f'key:{c}', 'wait:3')]
+    r = a2test.run(DISK, ['wait:1000'] + unlock + ['key: ', 'wait:60'] + keys + ['key:\r', L.until('new_race', 900),
+                          L.until('main_loop', 60), L.poke('finish_x', 40), L.poke('finish_x', 0, 1), L.poke('laps', 2),
+                          'wait:220', L.peek('sel', 1), 'key: ', L.until('show_page', 600), 'wait:150', 'peek:2000:8192'])
+    page = r.mem(0x2000, 8192)
+    ok = r.mem(L['sel'], 1)[0] == 29 and row_lit(page, 3 * 8) and not row_lit(page, 8)
+    print('track 30 finished: the congratulations page: ' + ('ok' if ok else 'DIFF'))
+    bad += not ok
+
+    # the message in the HUD's middle: CRASH on both pages, then after the
+    # restart's "1", "GO!", nothing left on either page
+    r = a2test.run(DISK, ['wait:1000', 'key: ', 'wait:60', 'key:\r', L.until('new_race', 900), 'wait:300',
+                          L.poke('crashed', 1), 'wait:30', 'peek:2000:8191', 'peek:4000:8191',
+                          L.until('respawn', 600), 'wait:300', 'peek:2000:8191', 'peek:4000:8191'])
+
+    def blank(p):
+        return all(p[a2test.hgr_offset(y) + c] == 0 for y in range(8) for c in range(8, 32))
+    ok = not blank(r.dumps[0]) and not blank(r.dumps[1]) and blank(r.dumps[2]) and blank(r.dumps[3])
+    print('HUD message: shown on both pages, then no trace: ' + ('ok' if ok else 'DIFF'))
+    bad += not ok
+
+    # a new disk: only track 1 open in the menu, the marker stays on it
+    r = a2test.run(DISK, ['wait:1300', 'key: ', 'wait:60', 'key:K', 'wait:10', 'key:L', 'wait:10',
+                          'key:K', 'wait:10', L.peek('sel', 1)])
+    ok = r.mem(L['sel'], 1)[0] == 0
+    print('menu: tracks not finished are locked: ' + ('ok' if ok else 'DIFF'))
+    bad += not ok
     # countdown, then a crash: the restart point
     st = ['wait:1300', 'key: ', 'wait:60', 'key:\r', L.until('new_race', 900), 'wait:40',
           L.peek('count_t', 1), L.peek('pt_xl', 1), 'wait:100'] + \
@@ -105,9 +159,12 @@ def main():
     d = r.dumps
     held = d[0][0] > 0 and d[1][0] == 48
     x, safe = d[5][0] | d[6][0] << 8, d[7][0] | d[7][1] << 8
-    ok = (held and d[3][0] == 1 and d[4][0] == 0 and x == safe and safe > 300 and d[8][0] > d[2][0]
-          and d[9][0] == 0 and d[10][0] > 0)
-    print(f'countdown holds the bike, crash -> restart at x {x} (safe point {safe}), clock on: '
+    h1, _ = tracks.build(1)
+    flat = len({h1[i] for i in range(safe - 6, safe + 24 + 7)}) == 1    # note_safe: SAFE_M, WHEELBASE
+    # (safe > START_X 48: the restart point moved on from the start)
+    ok = (held and d[3][0] == 1 and d[4][0] == 0 and x == safe and safe > 48 and d[8][0] > d[2][0]
+          and d[9][0] == 0 and d[10][0] > 0 and flat)
+    print(f'countdown holds the bike, crash -> restart at x {x} (safe point {safe}, flat {flat}), clock on: '
           + ('ok' if ok else f'DIFF {[v.hex() for v in d]}'))
     bad += not ok
     if bad:
