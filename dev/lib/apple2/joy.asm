@@ -8,6 +8,18 @@
 ;                 discharges its timers (PADDL0 / PADDL1 still read bit 7
 ;                 after the 6 ms), and joy_x / joy_y are then set to centre
 ;                 so stick_dir answers JOY_NONE.
+;   read_stick_fast -- the same two timers, but returns as soon as both have
+;                 run out: ~0.1-2.8 ms instead of 6 ms (a game loop at
+;                 30 fps keeps ~5 ms a frame). A 35-cycle turn (34 with
+;                 joy_cnt in zero page), so its counts run ~0..80, centre
+;                 ~40, not read_stick's scale (25 cycles, centre ~56):
+;                 calibrate (take the rest position at start) rather than
+;                 using JOY_LO / JOY_HI. C = 1 after 255 turns with an
+;                 axis still running: no stick, or one axis missing (read_stick
+;                 needs both); joy_x / joy_y then hold the raw counts. That
+;                 case takes ~8.7 ms, longer than read_stick: test C once at
+;                 start and skip the call when there is no stick.
+;                 Clobbers A, X, Y. From DIRTBIKE.
 ;   stick_dir  -- after read_stick: A = JOY_UP / JOY_DOWN / JOY_LEFT /
 ;                 JOY_RIGHT, or JOY_NONE (0, Z set) inside the dead zone.
 ;                 The vertical axis wins a diagonal. Clobbers A.
@@ -23,7 +35,8 @@
 ; Dead zone: JOY_LO / JOY_HI (count below / above = deflected). Define them
 ; before the include to retune; defaults suit a centred stick at ~60.
 ;
-; BSS: joy_x, joy_y, joy_cnt. No zero page. Only the routines referenced
+; BSS: joy_x, joy_y, joy_cnt, each skipped if defined before the include
+; (a zero-page alias is fine). No zero page otherwise. Only the routines referenced
 ; before the include are assembled (.ifref).
 ; Caller responsibility: .include "apple2.inc" first (PTRIG, PADDL0/1).
 ; Mirror for C: a2_read_stick() in ../apple2c/apple2game.h.
@@ -46,9 +59,15 @@ JOY_LEFT  = 3
 JOY_RIGHT = 4
 
 .segment "BSS"
+.ifndef joy_x
 joy_x:          .res 1
+.endif
+.ifndef joy_y
 joy_y:          .res 1
+.endif
+.ifndef joy_cnt
 joy_cnt:        .res 1
+.endif
 
 .segment "CODE"
 
@@ -78,6 +97,34 @@ read_stick:
         SEC
         RTS
 @have:  CLC
+        RTS
+.endif
+
+.ifref read_stick_fast
+read_stick_fast:
+        LDX     #0
+        LDY     #0
+        LDA     #255
+        STA     joy_cnt
+        LDA     PTRIG
+@lp:    LDA     PADDL0
+        BPL     @xd
+        INX
+@xd:    LDA     PADDL1
+        BPL     @yd
+        INY
+@yd:    LDA     PADDL0                  ; both run out: done
+        ORA     PADDL1
+        BPL     @done
+        DEC     joy_cnt
+        BNE     @lp
+        STX     joy_x
+        STY     joy_y
+        SEC
+        RTS
+@done:  STX     joy_x
+        STY     joy_y
+        CLC
         RTS
 .endif
 

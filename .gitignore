@@ -21,3 +21,7 @@ neowilderness/original
 dist/NEODHGR_TEST.po
 dist/NEOSTARS_TEST.po
 dist/NEOHOF_TEST.po
+
+# Physics reference disk and the bytes extracted from it (original, local only)
+physics/orig/
+physics/work/

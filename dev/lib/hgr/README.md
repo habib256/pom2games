@@ -32,7 +32,8 @@ murs, caisses et autres éléments graphiques conservent leurs couleurs.
 | `hgr_line16.asm` | `hgr_line16` : Bresenham avec X signé 16 bits, raster historique LOGO | logo |
 | `hgr_xor.asm` | rectangles natifs et glyphes précalés XOR, double tampon chez l’appelant | arkabreakout |
 | `hgr_sprite_update.asm` | `ds_present` / `ds_hide` : sprite transparent par octets, sauvegarde et restauration du fond | logo |
-| `hgr_line.asm` | `hgr_line8` : ligne OR rapide, X natif 0..255, Y 0..191 | maze3d |
+| `hgr_line.asm` | `hgr_line8` : ligne OR rapide, X natif 0..255, Y 0..191 ; `HGR_LINE_DIV7`/`HGR_LINE_MOD7` (tables de l'appelant) remplacent la boucle de division ; suit `hgr_select_page` si `hgr_pages.inc` est inclus | maze3d, dirtbike |
+| `hgr_pages.inc` / `hgr_pages.asm` | page de dessin choisie en patchant les opérandes : `HGR_HI_SITE` devant chaque lecture de `hgr_hi`, `hgr_select_page` (A = 0 / ≠ 0) les réécrit vers `hgr_hi` ou `hgr_hi2` (~8 cycles par site, rien par accès) ; `hgr_pages_init` construit `hgr_hi2`. Un site agit comme un label (fin de portée des `@`) | dirtbike |
 | `hgr_span.asm` | `hgr_hspan` / `hgr_vspan` : spans par colonnes et masques d’octets, largeur HGR complète | maze3d |
 | `hgr_wireframe.asm` | contours découpés en X, historique par page et effacement rapide des anciens traits en noir | light3dball |
 | `hgr_clear_rows.asm` | effacement de lignes visibles, écran, HUD et viewport 160 lignes | maze3d |

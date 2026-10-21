@@ -13,6 +13,8 @@ utilisent la vidéo native de l'Apple II. Tous les jeux du dépôt les partagent
                        contexte optionnel ZP/boîtes pour les clients historiques
       lib/audio/       lecteur PWM optionnel, échantillons haut-parleur 8 kHz
       lib/perspective/ plan HGR sur 280 pixels et couloir natif à deux axes
+      lib/math/        asm : produits exacts (quarts de carrés), racine,
+                       division, LFSR pour la physique en virgule fixe
       tools/prodos/    constructeur/lecteur de disquettes ProDOS (.po)
       lib/font/        police Beautiful Boot 8x8 : une table maîtresse, découpée
                        à la demande (asm, C, outils Python)
@@ -28,6 +30,8 @@ utilisent la vidéo native de l'Apple II. Tous les jeux du dépôt les partagent
       tools/fonts.py   la police Beautiful Boot côté Python (tables dérivées)
       tools/a2test.py  harnais des tests : labels ld65, lancement a2run/a2shot,
                        décodage des dumps mémoire, disque de test
+      tools/re6502/    rétro-ingénierie 6502 : opcodes 6502/65C02, traceur de
+                       code, info da65, secteurs physiques ; cli.py (physics/)
       tools/build_dhgr_font.py  image binaire de la petite police DHGR relogée
                        (lib/hgrc, DHGR_SMALL_FONT_EXTERNAL)
       tools/assets/    convertisseur PNG/PPM -> banques HGR/DHGR, masques, aperçus

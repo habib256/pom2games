@@ -9,7 +9,7 @@
 #
 # Each folder builds on its own too: make -C chess [run], still into ./dist.
 
-II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake pinball light3dball mcs wilderness
+II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake pinball light3dball mcs wilderness dirtbike
 IIE_PRODOS_GAMES := chromabreak
 DIRS := $(II_PLUS_GAMES) $(IIE_PRODOS_GAMES) logo dev/examples/hello dev/examples/hgr dev/examples/dhgr dev/examples/perspective
 
@@ -22,6 +22,10 @@ test: all test-pinball test-chromabreak test-arkabreakout test-chess test-hgr te
 test-hgr:
 	python3 dev/tests/test_asm_boundaries.py
 	python3 dev/tests/test_dos_reuse.py
+	python3 dev/tests/test_math.py
+	python3 dev/tests/test_rwts.py
+	python3 dev/tests/test_hgr_pages.py
+	python3 dev/tests/test_joy_fast.py
 	python3 dev/tests/test_exit_modes.py
 	python3 dev/tests/test_hgr_host.py
 	python3 dev/tests/test_hgr_x2.py
@@ -196,3 +200,8 @@ test: test-mcs
 test-mcs:
 	$(MAKE) -C mcs test
 .PHONY: test-mcs
+
+test: test-dirtbike
+test-dirtbike:
+	$(MAKE) -C dirtbike test
+.PHONY: test-dirtbike
