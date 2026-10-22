@@ -1,6 +1,8 @@
 ; GPL-3.0. Shared wireframe contours, projection, sprite clipping and ray repairs.
 .include "apple2.inc"
-.export _game_sound
+HGR_PAGES_ORA = 1                ; no RAM left for a second row table
+.include "hgr_pages.inc"         ; before the first HGR_HI_SITE
+.export _game_sound, _select_page, _hud_rows, _pace_wait
 .export _depth_gauge, _reset_gauge
 .import _camera_z, _ball_z, _lives, _level_slots
 .export _fast_line, _line_x0, _line_y0, _line_x1, _line_y1
@@ -12,6 +14,7 @@
 .import _ray_upper_y
 .import _bg_offset_lo, _bg_offset_hi, _bg_bytes
 .import _hgr_rowlo, _hgr_rowhi, _hgr_base, _hgr_col7, _hgr_mask7
+.import hgr_fixed_rowhi, _hgr_draw_page2
 .export _project_x, _project_y, _perspective, _clip_ball
 .export _ball_clip_left, _ball_clip_right
 .import _sx, _sy, _left, _top, _depth, _scale_x, _scale_y
@@ -21,7 +24,9 @@
 .importzp ptr1, ptr2, ptr3
 PAGE2_EOR = $60
 hgr_lo = _hgr_rowlo
-hgr_hi = _hgr_rowhi
+; Every high-byte read is HGR_LDA_HI_X: the page-free offsets (already linked
+; by the masked sprites) ORed with the draw page that select_page patches in.
+hgr_hi = hgr_fixed_rowhi
 .zeropage
 _ray_left_top: .res 1
 _ray_left_bottom: .res 1
@@ -75,7 +80,7 @@ _draw_paddle:
     sta paddle_phase
     lda #0
     sta paddle_row
-@row:
+paddle_row_loop:            ; not an @ label: the page site ends its scope
     ldx #16                 ; transparent middle, with vertical borders
     lda paddle_row
     cmp #3
@@ -117,7 +122,7 @@ _draw_paddle:
     clc
     adc paddle_col
     sta ptr1
-    lda hgr_hi,x
+    HGR_LDA_HI_X
     adc #0
     sta ptr1+1
     ldy #7
@@ -131,7 +136,7 @@ _draw_paddle:
     inc paddle_row
     lda paddle_row
     cmp #28
-    bne @row
+    bne paddle_row_loop
     rts
 .segment "RODATA"
 paddle_phase_offset: .byte 0,24,48,72,96,120,144
@@ -291,6 +296,38 @@ gauge_divisor: .res 1
 gauge_icon_x: .res 1
 .code
 
+; Draw page A = 1 or 2: patch every HGR_HI_SITE's ORA, and set hgr_base
+; (masked sprites) and hgr_draw_page2 (hgr_show_page). About 60 cycles,
+; where hgr_set_draw_page rewrote all 192 high bytes (~2 500); the reads
+; pay 2 cycles each (~35 a light frame, ~230 a scene redraw).
+_select_page:
+    lsr a                   ; page 1 -> 0, page 2 -> 1
+    sta _hgr_draw_page2
+    jsr hgr_select_page     ; X = $20 or $40
+    stx _hgr_base
+    rts
+
+; Keep main's play speed: the loop is paced by its own length (II+ WAIT 1,
+; IIe/IIgs next VBL), so spend in WAIT what the patched page reads saved
+; (~2 300 cycles on a light frame; WAIT A=27 is ~2 200).
+PACE_WAIT = 27
+_pace_wait:
+    lda #PACE_WAIT
+    jmp WAIT
+
+; The hgrc HUD kernels (hgr_fill_rect, hgr_puts8) read _hgr_rowhi, which
+; main leaves on page 2 for good: move its HUD rows 160-191 to the other page, and back,
+; around a page-1 HUD redraw.
+_hud_rows:
+    ldx #31
+@flip:
+    lda _hgr_rowhi+160,x
+    eor #PAGE2_EOR
+    sta _hgr_rowhi+160,x
+    dex
+    bpl @flip
+    rts
+
 ; Twelve speaker toggles: short contact cues, bounded to 12 ms at 1 MHz.
 _game_sound:
     tax
@@ -361,7 +398,7 @@ _clip_ball:
     lda clip_keep
     and clip_keep+1
     cmp #$7F
-    beq @done
+    beq clip_ball_done
     ldx _hgr_ms_x
     lda _hgr_col7,x
     sta clip_col
@@ -374,13 +411,13 @@ _clip_ball:
     sta repair_src
     lda _hgr_ms_under+1
     sta repair_src+1
-@row:
+clip_ball_row:              ; not @ labels: the page site ends their scope
     ldx clip_row
     lda _hgr_rowlo,x
     clc
     adc clip_col
     sta repair_ptr
-    lda _hgr_rowhi,x
+    HGR_LDA_HI_X
     adc #0
     sta repair_ptr+1
     ldy #0
@@ -407,8 +444,8 @@ _clip_ball:
 @next:
     inc clip_row
     dec clip_rows
-    bne @row
-@done:
+    bne clip_ball_row
+clip_ball_done:
     rts
 
 _frame_mark:
@@ -433,10 +470,9 @@ restore_ray_row:
     lda #0
     sta ray_clear
 update_rays:
-@row:
     lda _hgr_rowlo,x
     sta repair_ptr
-    lda _hgr_rowhi,x
+    HGR_LDA_HI_X
     sta repair_ptr+1
     clc
     txa
@@ -498,7 +534,7 @@ update_rays:
     cpx _ray_row1
     beq @done
     inx
-    jmp @row
+    jmp update_rays
 @done:
     rts
 
@@ -565,3 +601,5 @@ restore_neighbors:
     bne @row
 @done:
     rts
+
+.include "hgr_pages.asm"         ; after the last HGR_HI_SITE

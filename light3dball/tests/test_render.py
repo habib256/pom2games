@@ -30,8 +30,9 @@ def fixture(body, clear=False):
     # normal frame marker. Repeating the trampoline avoids executing game C.
     program = []
     if clear:
-        program += absolute(0xAD, L['hgr_base']) + [0x49, 0x60]
-        program += absolute(0x8D, L['hgr_base']) + call('hgr_flip_rows')
+        # Draw on the hidden page: select_page(2 - hgr_draw_page2).
+        program += absolute(0xAD, L['hgr_draw_page2']) + [0x49, 0x01, 0x18, 0x69, 0x01]
+        program += call('select_page')
         program += [0xA9, 0x55] + call('hgr_clear')
     program += body + call('frame_mark') + absolute(0x4C, 0x0400)
     return ['wait:1100', L.until('physics')] + write(0x0400, program) + \
