@@ -6,6 +6,8 @@
 ; DHGR-only program never needs the HGR row tables.
 .export _hgr_init, _hgr_text_restore
 
+.import native_video            ; hgr_native_asm.s: one copy in the link
+HGR_NATIVE_VIDEO_IMPORT = 1
 .segment "CODE"
 .include "apple2.inc"
 _hgr_init         = hgr_init         ; referenced before the include: assembled

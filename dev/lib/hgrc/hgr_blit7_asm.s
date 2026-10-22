@@ -1,6 +1,6 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_blit7_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
-.export _hgr_blit7_run
+.export _hgr_blit7_run, _hgr_preshift_xor_run
 .import _hgr_rowhi, _hgr_rowlo
 .importzp _hgr_b_col, _hgr_b_h, _hgr_b_mode, _hgr_b_src, _hgr_b_stride, _hgr_b_w, _hgr_b_y
 .importzp ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
@@ -54,5 +54,9 @@ _hgr_blit7_run:
         BLIT7_LOOP 1                     ; 1 = CLEAR (fall-through)
 blit7_set:
         BLIT7_LOOP 0
+; _hgr_preshift_xor_run: the XOR loop entered directly, for the pre-shift engine
+; (hgr_sprite's HGR_XOR hot path and hgr_xs_run): no mode test per call; the
+; inner loop is lda (src),y / eor (dst),y / sta (dst),y, ~24 cycles a byte.
+_hgr_preshift_xor_run:
 blit7_xor:
         BLIT7_LOOP 2

@@ -2,6 +2,8 @@
 ; hgr_lores_init_asm.s — LORES mode switch for C, its own archive member.
 .export _hgr_lores_init
 
+.import native_video            ; hgr_native_asm.s: one copy in the link
+HGR_NATIVE_VIDEO_IMPORT = 1
 .segment "CODE"
 .include "apple2.inc"
 _hgr_lores_init:

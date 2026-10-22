@@ -140,6 +140,8 @@ extern unsigned char hgr_lo_rowhi[24];        /* LORES text-row base high byte *
 extern unsigned char hgr_lo_base;             /* LORES page base ($04 or $08;
                                                   BSS 0 = unset, lazy -> $04)  */
 extern unsigned char hgr_lo_ready;            /* LORES tables built once       */
+void hgr_lores_build(void);                   /* hgr_lores.c: row table, once  */
+unsigned char *hgr_lores_cell(unsigned char x, unsigned char y); /* x<40, y<48 */
 
 /* --- Cross-module helpers: hgr_base / hgr_draw_page2 in hgr_state.c,
  * hgr_build_rows in hgr_init.c, columns / masks / phases in their .s,
