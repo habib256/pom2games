@@ -128,7 +128,7 @@ def check_archive(work):
          ('hgr_mode_asm.o', 'hgr_mode_clear_asm.o', 'hgr_clear_asm.o', 'hgr_pixrect_asm.o')),
         ('clear', 'hgr_clear(0u);', 'hgr_clear_asm.o',
          ('hgr_text16_asm.o', 'hgr_text8_asm.o', 'hgr_sprite_params.o', 'hgr_pixrect_asm.o',
-          'hgr_init.o', 'hgr_columns.o', 'hgr_masks.o', 'hgr_phases.o', 'hgr_x7_fill.o', 'hgr_tables.o')),
+          'hgr_init.o', 'hgr_columns.o', 'hgr_masks.o', 'hgr_phases.o', 'hgr_tables.o')),
         ('text8', 'hgr_puts8(0u, 0u, "A");', 'hgr_text8_asm.o',
          ('hgr_text16_asm.o', 'hgr_carrier_params.o', 'hgr_utoa_asm.o', 'hgr_pixrect_asm.o', 'hgr_sprite_params.o')),
         ('text16', 'hgr_puts(0u, 0u, "A");', 'hgr_text16_asm.o',
