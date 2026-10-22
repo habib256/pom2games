@@ -103,7 +103,7 @@ rectangle noir ne masque les obstacles. Seules les portions des arêtes fixes
 touchées par l'effacement ou un changement de visibilité sont réparées.
 Le module réutilisable est
 [`hgr_wireframe.asm`](../dev/lib/hgr/hgr_wireframe.asm), avec son
-[API documentée](../dev/lib/hgr/README.md#contours-en-fil-de-fer).
+[API documentée](../dev/lib/hgr/README.md#wireframe-outlines).
 Le décor n'examine que les quatre plans d'obstacles les plus proches et
 conserve au plus 32 traits par page. Les collisions utilisent la grille du
 niveau entier, en temps constant : les murs éloignés continuent à arrêter
@@ -120,7 +120,7 @@ murs, les deux faces des obstacles et le plan de la raquette. Les contacts
 incluent un rayon de deux unités et la correction de dépassement. Des
 tables précalculent la perspective et les trois tailles de balle.
 Le noyau de projection X/Y et de sélection de profondeur est partagé dans
-[`dev/lib/perspective/corridor.asm`](../dev/lib/perspective/README.md#couloir-6502--cc65).
+[`dev/lib/perspective/corridor.asm`](../dev/lib/perspective/README.md#6502--cc65-corridor).
 Les centres 128/80, le pas de profondeur de deux unités et les facteurs
 252/148 sont ceux du jeu ; leur extraction conserve les binaires et le rendu
 octet pour octet. Les tableaux sont générés par l'outil commun de perspective.
