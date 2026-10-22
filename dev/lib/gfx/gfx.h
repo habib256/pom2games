@@ -19,7 +19,8 @@
  * card (a future framebuffer board) is a handful of one-line wrappers. */
 
 /* Set one pixel (already clipped to the screen by the caller / by gfx_plot
- * itself — both existing backends bounds-check). x:0..width-1, y:0..191. */
+ * itself — all three backends, HGR and DHGR mono/colour, bounds-check).
+ * x:0..width-1, y:0..191. */
 void gfx_plot(unsigned x, unsigned char y);
 
 /* Inclusive horizontal/vertical runs, dispatched to the selected backend's

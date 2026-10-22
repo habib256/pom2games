@@ -2,6 +2,8 @@
 ; Main RAM/ZP, D=0; caller owns the IRQ source. No vectors/banks installed.
 ; tick: single producer (IRQ), preserves A/X/Y, alters NZ only.
 ; init/wait: main thread only, preserve caller I, destroy A/X/Y and flags.
+; wait's watchdog is 4096 polls, sized for 1 MHz: on an accelerated CPU it
+; runs out sooner, and a slow tick reads as a stopped clock ($FFFF).
 .export _a2_cadence_tick, _a2_cadence_ticks, _a2_cadence_missed
 .export _a2_cadence_init, _a2_cadence_wait
 .bss
@@ -81,6 +83,7 @@ started:
         sta misses+1
         sta watchdog
         lda #$10             ; 4096 polls, finite even with disabled/stopped IRQ
+                             ; (counted at 1 MHz: an accelerator ends it sooner)
         sta watchdog+1
 poll:
         jsr snapshot

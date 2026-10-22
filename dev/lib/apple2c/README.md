@@ -48,12 +48,12 @@ trois boutons et le nombre de bascules du haut-parleur (zéro vaut 256).
 
 | Fonction | Effet |
 |---|---|
-| `a2_tone(flips, period)` | `flips` bascules du haut-parleur, ~(13 + 5·period) cycles chacune |
+| `a2_tone(flips, period)` | `flips` bascules du haut-parleur, 12 + 5·period cycles chacune ; une bascule est une demi-période : 1,02 MHz / (2·(12 + 5·period)), soit ~2,4 kHz à `$28`, ~526 Hz à `$C0`, ~397 Hz à `$FF` |
 | `a2_read_stick()` | lit la manette (~6 ms) : `A2_JOY_NONE/UP/DOWN/LEFT/RIGHT`, valeurs brutes dans `a2_joy_x`, `a2_joy_y` |
 | `a2_button(n)` | ≠ 0 tant que le bouton n (0-2) est enfoncé |
 | `a2_dos_cmd("BLOAD HISCORE,A$1000")` | une commande DOS complète |
 | `a2_dos_new()`, `a2_dos_add(s)`, `a2_dos_hex(b)`, `a2_dos_run()` | construire une commande avec des adresses calculées |
-| `a2_disk_protected()` | 1 si la disquette du slot 6 est protégée en écriture |
+| `a2_disk_protected()` | 1 si la disquette du dernier accès de DOS (slot lu dans son IOB) est protégée en écriture |
 
 `a2_dos_*` rendent à DOS la page zéro que `crt0_apple2.s` a sauvée au
 démarrage (exportée sous le nom `apple2_zp_buf`, comme dans `exit.asm`). Une
@@ -98,7 +98,9 @@ indique `A2_FRAME_VBL` sur IIe ou `A2_FRAME_DELAY` sur II/II+, IIc et IIgs.
 `a2_frame_wait()` attend le prochain front VBL sur IIe. Un signal bloqué
 entraîne un repli borné en temporisation, jusqu’au prochain `a2_frame_init`.
 Chaque phase de sondage est limitée à 6 144 lectures, avec une marge pour
-PAL/NTSC. Le test d'un signal bloqué mesure environ 84 848 cycles, délai de
+PAL/NTSC à 1 MHz : la borne compte des lectures, pas du temps, et une carte
+accélératrice peut l’épuiser avant le VBL (repli en temporisation). De même,
+le chien de garde d’`a2_cadence_wait` (4 096 lectures) suppose 1 MHz. Le test d'un signal bloqué mesure environ 84 848 cycles, délai de
 repli inclus, contre 739 088 auparavant.
 `a2_frame_mode()` permet de lire le mode courant. Aucun commutateur vidéo
 ou d’interruption n’est modifié ; le masque IRQ est préservé.

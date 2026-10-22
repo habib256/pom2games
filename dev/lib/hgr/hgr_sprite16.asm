@@ -16,8 +16,8 @@
 ; pixel column per source byte; at x2 the resulting seams skew the art
 ; visibly (proven on TMS_Maze3D's goblin). Byte-column mapping stays fine
 ; for 8-px-grid text and line work -- never for sprite art. Cost of the
-; repack: ~130 cycles per output byte (a x4 blit = 64 rows x 10 B ~ 80k
-; cycles, fine for screen builds).
+; repack: ~390 cycles per output byte (7 bits x ~50 cycles of 9 shifts; a
+; x4 blit = 64 rows x 10 B ~ 250k cycles, fine for screen builds).
 ;
 ; API (all coordinates in pixels, sp_x / sp_y MULTIPLES OF 8):
 ;   hgr_spr16_x1 / _x2 / _x4  blit sp_ptr's pattern at (sp_x, sp_y).

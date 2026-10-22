@@ -6,6 +6,9 @@ HGR_PLOT_COLUMNS = 280
 .else
 HGR_PLOT_COLUMNS = 256
 .endif
+.ifdef _HGR_PLOT_LOADED_                ; hgr_plot16 reads columns 256..279
+.assert HGR_PLOT_COLUMNS = 280, error, "hgr_plot16 needs HGR_FULL_WIDTH_TABLES = 1 (columns 256..279)"
+.endif
 hgr_col:
         .repeat HGR_PLOT_COLUMNS, col
         .byte col / 7

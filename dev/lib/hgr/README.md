@@ -20,12 +20,12 @@ murs, caisses et autres éléments graphiques conservent leurs couleurs.
 
 | Fichier | Contenu | Utilisé par |
 |---|---|---|
-| `hgr_scanline.inc` | `hgr_lo` / `hgr_hi` : adresse de chaque ligne 0..191 | arkabreakout, chess, logo, maze3d, micro-sokoban |
+| `hgr_scanline.inc` | `hgr_lo` / `hgr_hi` : adresse de chaque ligne 0..191 | arkabreakout, chess, logo, maze3d, micro-sokoban, wilderness |
 | `hgr_scanline_ram.asm` | les mêmes tables en RAM (segment `HGR_SCANLINE_SEGMENT`), construites par `hgr_scanline_init` (~50 o, code de démarrage) : 384 o de moins dans le fichier | dirtbike |
 | `hgr_plot_tables.inc` | `hgr_col` / `hgr_mask` : octet et bit des colonnes 0..255, ou 0..279 avec `HGR_FULL_WIDTH_TABLES=1` | logo |
 | `hgr_clear.asm` | `clear_hgr` : efface `$2000-$3FFF` (`HGR_CLEAR_LOOP`, sans ZP) | logo |
 | `hgr_flip.asm` | `hgr_draw_hidden` / `hgr_show_draw` / `hgr_set_draw_page` : double tampon en réécrivant `hgr_hi` sur place (`hgr_scanline.inc` dans un segment modifiable) | maze3d, micro-sokoban |
-| `hgr_text8.asm` | `hgr_putc8` / `hgr_puts8` : texte 8x8 aligné sur l'octet, couleurs. `HGR_TEXT8_HGR_ORDER` (police en ordre HGR : plus de `ht_rev` ni de `rev7_tab`, −256 o), `HGR_TEXT8_NO_PUTS` | arkabreakout, maze3d |
+| `hgr_text8.asm` | `hgr_putc8` / `hgr_puts8` : texte 8x8 aligné sur l'octet, couleurs. `HGR_TEXT8_HGR_ORDER` (police en ordre HGR : plus de `ht_rev` ni de `rev7_tab`, −256 o), `HGR_TEXT8_NO_PUTS` | arkabreakout, dirtbike, maze3d |
 | `hgr_sprite16.asm` | `hgr_spr16_x1/_x2/_x4` : sprites TMS 16x16 convertis à l’exécution | ancien chemin TMS |
 | `hgr_sprite_packed.asm` | `hgr_sprite_packed` : lignes HGR précompactées, répétition verticale et bord masqué | maze3d |
 | `hgr_sprite_color.inc` | attributs de couleur partagés par les deux blitters | moteurs de sprites |
@@ -35,7 +35,7 @@ murs, caisses et autres éléments graphiques conservent leurs couleurs.
 | `hgr_sprite_update.asm` | `ds_present` / `ds_hide` : sprite transparent par octets, sauvegarde et restauration du fond | logo |
 | `hgr_line.asm` | `hgr_line8` : ligne OR rapide, X natif 0..255, Y 0..191 ; `HGR_LINE_DIV7`/`HGR_LINE_MOD7` (tables de l'appelant) remplacent la boucle de division ; suit `hgr_select_page` si `hgr_pages.inc` est inclus | maze3d, dirtbike |
 | `hgr_pages.inc` / `hgr_pages.asm` | page de dessin choisie en patchant les opérandes : `HGR_HI_SITE` devant chaque lecture de `hgr_hi`, `hgr_select_page` (A = 0 / ≠ 0) les réécrit vers `hgr_hi` ou `hgr_hi2` (~8 cycles par site, rien par accès) ; `hgr_pages_init` construit `hgr_hi2`. Un site agit comme un label (fin de portée des `@`) | dirtbike |
-| `hgr_span.asm` | `hgr_hspan` / `hgr_vspan` : spans par colonnes et masques d’octets, largeur HGR complète | maze3d |
+| `hgr_span.asm` | `hgr_hspan` / `hgr_vspan` : spans par colonnes et masques d’octets, largeur HGR complète | maze3d, light3dball (via `hgr_wireframe.asm`) |
 | `hgr_wireframe.asm` | contours découpés en X, historique par page et effacement rapide des anciens traits en noir | light3dball |
 | `hgr_clear_rows.asm` | effacement de lignes visibles, écran, HUD et viewport 160 lignes | maze3d |
 | `rev7.inc` | `rev7_tab` : ordre des bits TMS → HGR | hgr_text8, hgr_sprite16 |

@@ -16,9 +16,11 @@
 ; Explicit ProDOS claim adds 20 bytes to game.c. The assembly policy service
 ; saves 25 CODE bytes; its smaller size and the new error string are absorbed
 ; below, preserving every asserted code/table/workspace address.
+; mouse.s's no-mouse check (+5 library CODE) and dhgr_base moving from BSS to
+; DATA (+1) are absorbed the same way (RODATA -5, BSS -1).
 CODE_SPARE   = 38
-RODATA_SPARE = 35
-BSS_SPARE    = 13
+RODATA_SPARE = 30
+BSS_SPARE    = 12
 
 .code
         .res CODE_SPARE

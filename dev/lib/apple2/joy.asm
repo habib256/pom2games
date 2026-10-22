@@ -4,19 +4,19 @@
 ; ============================================================================
 ;   read_stick -- sample both axes. joy_x, joy_y = 0 (left / up) .. ~120
 ;                 (right / down), ~60 centred. Clobbers A, X, Y. ~6 ms.
-;                 C = 1 when no stick is connected: an open game port never
-;                 discharges its timers (PADDL0 / PADDL1 still read bit 7
-;                 after the 6 ms), and joy_x / joy_y are then set to centre
-;                 so stick_dir answers JOY_NONE.
+;                 An open axis never discharges its timer (PADDLn still
+;                 reads bit 7 after the 6 ms): that axis is set to centre
+;                 (60), so stick_dir ignores it -- e.g. a single paddle.
+;                 C = 1 when both are open: no stick is connected.
 ;   read_stick_fast -- the same two timers, but returns as soon as both have
 ;                 run out: ~0.1-2.8 ms instead of 6 ms (a game loop at
 ;                 30 fps keeps ~5 ms a frame). A 35-cycle turn (34 with
 ;                 joy_cnt in zero page), so its counts run ~0..80, centre
-;                 ~40, not read_stick's scale (25 cycles, centre ~56):
+;                 ~40, not read_stick's scale (23-25 cycles, centre ~56):
 ;                 calibrate (take the rest position at start) rather than
 ;                 using JOY_LO / JOY_HI. C = 1 after 255 turns with an
 ;                 axis still running: no stick, or one axis missing (read_stick
-;                 needs both); joy_x / joy_y then hold the raw counts. That
+;                 centres it instead); joy_x / joy_y then hold the raw counts. That
 ;                 case takes ~8.7 ms, longer than read_stick: test C once at
 ;                 start and skip the call when there is no stick.
 ;                 Clobbers A, X, Y. From DIRTBIKE.
@@ -29,8 +29,9 @@
 ;
 ; Why one fixed loop: PTRIG starts both timers, and each PADDLn reads bit 7
 ; = 1 until its capacitor has charged (up to ~2.8 ms). Counting both in the
-; same 256-turn, 24-cycle loop (6 ms, longer than a full charge) avoids the
-; classic bug of reading the second paddle before the first has discharged.
+; same 256-turn loop (23-25 cycles a turn, 25 while both run: 6 ms, longer
+; than a full charge) avoids the classic bug of reading the second paddle
+; before the first has discharged.
 ;
 ; Dead zone: JOY_LO / JOY_HI (count below / above = deflected). Define them
 ; before the include to retune; defaults suit a centred stick at ~60.
@@ -86,17 +87,16 @@ read_stick:
         INY
 @yd:    DEC     joy_cnt
         BNE     @lp
-        STX     joy_x
-        STY     joy_y
-        LDA     PADDL0          ; both timers still running after 6 ms:
-        AND     PADDL1          ; nothing is plugged into the game port
-        BPL     @have
-        LDA     #60
-        STA     joy_x
-        STA     joy_y
-        SEC
-        RTS
-@have:  CLC
+        LDA     PADDL0          ; a timer still running after 6 ms: that
+        BPL     @x              ; axis is open (its count wrapped), centre it
+        LDX     #60
+@x:     STX     joy_x
+        AND     PADDL1          ; both open: nothing is plugged in, C = 1
+        ASL     A
+        LDA     PADDL1
+        BPL     @y
+        LDY     #60
+@y:     STY     joy_y
         RTS
 .endif
 

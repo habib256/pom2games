@@ -43,13 +43,13 @@ mouse_context_workspace_saved:
 
 mouse_context_install_holes:
     ldx #7
-mouse_context_save_holes:
+mouse_context_install_holes_loop:
 .repeat 8, row
     lda mouse_context_firmware_holes + row*8,x
     sta $0478 + row*$80,x
 .endrepeat
     dex
-    bpl mouse_context_save_holes
+    bpl mouse_context_install_holes_loop
     rts
 
 mouse_context_restore_workspace:
@@ -64,13 +64,13 @@ mouse_context_restore_zp:
 
 mouse_context_capture_holes:
     ldx #7
-mouse_context_restore_holes:
+mouse_context_capture_holes_loop:
 .repeat 8, row
     lda $0478 + row*$80,x
     sta mouse_context_firmware_holes + row*8,x
 .endrepeat
     dex
-    bpl mouse_context_restore_holes
+    bpl mouse_context_capture_holes_loop
     rts
 .ifdef MOUSE_CONTEXT_DOS_ENTRY
 ; DOS dialogs clear their buffers in the same RAM as native mouse state.

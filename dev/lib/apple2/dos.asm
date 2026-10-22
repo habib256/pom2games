@@ -10,7 +10,7 @@
 ;   dos_cmd_hex  -- append A as two hex digits (for ",A$6000", ",L$024E").
 ;   dos_cmd_run  -- have DOS run the command; returns when DOS is done.
 ;                   Retains the buffer/length for reuse or later appends.
-;   disk_protected -- C = 1 if the disk in slot 6 is write protected.
+;   disk_protected -- C = 1 if the disk DOS last used is write protected.
 ;   All clobber A, X, Y. add/hex/run: C=1 on buffer overflow, C=0 on
 ;   success. Overflow stays sticky until new; run refuses partial commands.
 ;
@@ -41,7 +41,17 @@
 ; the module needs no zero page. The buffer holds DOS_CMD_MAX - 1 characters
 ; (define DOS_CMD_MAX before the include to change it; 1..256, default 40).
 ; DOS_CMD_WORKBSS = 1 places that buffer and its index in WORKBSS instead.
-; disk_protected assumes the boot drive is in slot 6 (the usual Disk II).
+;
+; Interrupts: RWTS must run with IRQs masked (a disk byte arrives every 32
+; cycles). DOS_SEI = 1 wraps each dos_cmd_run in PHP / SEI ... PLP: for
+; programs that enable IRQs (the //c mouse). Default 0: no change to I.
+;
+; disk_protected senses the drive of DOS's last access: the slot (* 16) is
+; byte 1 of DOS's own IOB, $B7E9 in a 48 KB DOS 3.3 (the boot disk unless
+; the program has read another one since). From MICRO-SOKOBAN.
+;
+; .ifref: include after the callers; the dos_cmd_* group (and its BSS) is
+; assembled when one of them is referenced, disk_protected on its own.
 ;
 ; BSS: dos_cmd_buf, dos_cmd_ix, dos_cmd_overflow, dos_zp_prog (256).
 ; Caller responsibility: .include "apple2.inc" and "exit.asm".
@@ -58,6 +68,9 @@ DOS_CMD_MAX = 40
 .ifndef DOS_CMD_WORKBSS
 DOS_CMD_WORKBSS = 0
 .endif
+.ifndef DOS_SEI
+DOS_SEI = 0
+.endif
 
 ; A program may keep only its own zero-page range between DOS commands.
 ; DOS still gets/restores a complete page through apple2_zp_buf.
@@ -72,7 +85,9 @@ DOS_ZP_LEN = 256
 .assert DOS_ZP_START + DOS_ZP_LEN <= 256, error, "DOS zero-page range exceeds $FF"
 
 DOS_HOOKS = $03EA               ; DOS: reconnect its I/O hooks to CSW / KSW
+DOS_IOB_SLOT = $B7E9            ; DOS's IOB (48 KB DOS 3.3): slot * 16
 
+.if .referenced(dos_cmd_new) .or .referenced(dos_cmd_add) .or .referenced(dos_cmd_hex) .or .referenced(dos_cmd_run)
 .if DOS_CMD_WORKBSS
 .segment "WORKBSS"
 .else
@@ -162,6 +177,10 @@ dos_cmd_run:
         SEC
         RTS
 @valid:
+.if DOS_SEI
+        PHP                     ; no interrupt inside RWTS's disk timing
+        SEI
+.endif
         LDA     dos_cmd_ix      ; output uses ix as a cursor; retain append position
         PHA
 .if DOS_ZP_START = 0 && DOS_ZP_LEN = 256
@@ -221,17 +240,25 @@ dos_cmd_run:
 .endif
         PLA
         STA     dos_cmd_ix
+.if DOS_SEI
+        PLP
+.endif
         CLC
         RTS
+.endif  ; dos_cmd_*
 
-; Disk II sense, slot 6: motor on, Q6 high, then Q7 low reads the
-; write-protect switch in bit 7. The drive keeps spinning ~1 s after.
+.ifref disk_protected
+.segment "CODE"
+; Disk II sense, slot of DOS's last access: motor on, Q6 high, then Q7 low
+; reads the write-protect switch in bit 7. The drive keeps spinning ~1 s.
 disk_protected:
-        LDA     $C0E9           ; motor on
-        LDA     $C0ED           ; Q6H
-        LDA     $C0EE           ; Q7L: bit 7 = write protect
+        LDX     DOS_IOB_SLOT
+        LDA     $C089,X         ; motor on
+        LDA     $C08D,X         ; Q6H
+        LDA     $C08E,X         ; Q7L: bit 7 = write protect
         ASL     A               ; -> C
-        LDA     $C0E8           ; motor off
+        LDA     $C088,X         ; motor off
         RTS
+.endif
 
 .endif  ; _DOS_ASM_LOADED_

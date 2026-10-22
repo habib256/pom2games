@@ -16,8 +16,16 @@ _hgr_c_cy:    .res 1        ; cell row    (py = cy*8)
 _hgr_c_set:   .res 1        ; 1 = fill, 0 = clear
 
 .segment "CODE"
+; Cells outside the 35x24 grid (cx >= 35 or cy >= 24) draw nothing: the
+; kernel below has no clip and would index past its tables.
+cell_out:   rts
 _hgr_cell_asm:
+        ldx     _hgr_c_cy
+        cpx     #24
+        bcs     cell_out
         lda     _hgr_c_cx
+        cmp     #35
+        bcs     cell_out
         sta     _hgr_r_x
         lda     #0
         sta     _hgr_r_x+1
@@ -34,7 +42,7 @@ _hgr_cell_asm:
         lda     _hgr_r_x+1
         adc     #0
         sta     _hgr_r_xr+1         ; hgr_r_xr = hgr_r_x + 5
-        lda     _hgr_c_cy
+        txa                         ; cy
         asl     a
         asl     a
         asl     a

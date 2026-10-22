@@ -3,7 +3,8 @@
  * The assembler kernels own their per-family zero-page parameter blocks;
  * shared text/sprite/carrier blocks live in *_params.s. Each C declaration
  * needs a matching zpsym so cc65 uses zero-page addressing.
- * Lookup tables and draw-page state live in hgr_init.c.
+ * Row tables live in hgr_init.c, the column / mask / phase tables in
+ * hgr_columns.s / hgr_masks.s / hgr_phases.s, draw-page state in hgr_state.c.
  */
 #ifndef HGR_INTERNAL_H
 #define HGR_INTERNAL_H
@@ -140,7 +141,9 @@ extern unsigned char hgr_lo_base;             /* LORES page base ($04 or $08;
                                                   BSS 0 = unset, lazy -> $04)  */
 extern unsigned char hgr_lo_ready;            /* LORES tables built once       */
 
-/* --- Cross-module helpers (defined in hgr_init.c) -------------------------- */
+/* --- Cross-module helpers: hgr_base / hgr_draw_page2 in hgr_state.c,
+ * hgr_build_rows in hgr_init.c, columns / masks / phases in their .s,
+ * hgr_build_tables in hgr_tables.c --------------------------------------- */
 extern unsigned char hgr_base;
 extern unsigned char hgr_draw_page2;
 extern void hgr_build_rows(void);

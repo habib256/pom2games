@@ -9,7 +9,10 @@ frame_delay: .res 1
 
 .segment "CODE"
 ; 24 * 256 polls: about 68k cycles per edge, enough for PAL/NTSC
-; with a bounded fallback even when the VBL signal is stuck.
+; with a bounded fallback even when the VBL signal is stuck. The bound is a
+; poll count, so it assumes 1 MHz: an accelerator spends less time per poll
+; (~68k cycles at 4 MHz is ~17 ms, about one frame), may time out and fall
+; back to the WAIT delay.
 FRAME_POLL_PAGES = 24
 _a2_frame_init:
         lda #80

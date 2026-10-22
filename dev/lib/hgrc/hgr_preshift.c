@@ -14,8 +14,9 @@
  * (flicker), so this path is tuned the Buzzard-Bait way:
  *   - x/7 and x%7 come from the hgr_col7[] / hgr_phase7[] TABLES, not cc65's
  *     16-bit software divide (~150-300 cyc each — the dominant per-call cost);
- *   - HGR_XOR (the hot animation path) uses hgr_preshift_xor_run, a dedicated
- *     XOR loop with no per-byte mode dispatch (~24 vs ~34 cyc/byte).
+ *   - HGR_XOR (the hot animation path) uses hgr_preshift_xor_run, an XOR
+ *     loop fused after the phase lookup. hgr_blit7_run's loop is specialised
+ *     per mode too: both cost ~24 cyc/byte (CLEAR 26), no per-byte test.
  * See hgr.h for the data ABI and POM1's a2port_buzzard_bait/DISASSEMBLY.md (S3)
  * for the method. */
 

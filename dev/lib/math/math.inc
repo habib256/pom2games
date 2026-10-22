@@ -7,8 +7,8 @@
 ;   math.inc    (this file) at the TOP of the program: the zero-page operands,
 ;               the table addresses and the MUL_K16 / MUL_KS16 macros;
 ;   mul.asm, sqrt.asm, div.asm, random.asm at the END: the routines, assembled
-;               only when referenced before the include (.ifref). Include
-;               sqrt.asm before mul.asm (it calls into the tables).
+;               only when referenced before the include (.ifref), in any
+;               order (sqrt.asm only reads the tables, through math.inc).
 ;
 ; Zero page (13 bytes, +3 with MUL_ACC):
 ;   mul_x  (2)  16-bit operand (unsigned or signed, by routine)
@@ -36,6 +36,10 @@
 
 .ifndef _MATH_INC_LOADED_
 _MATH_INC_LOADED_ = 1
+
+.ifndef MUL_ACC                         ; 1 = on, 0 or undefined = off
+MUL_ACC = 0
+.endif
 
 .segment "ZEROPAGE"
 .ifdef _ZP_INC_LOADED_                  ; zp.inc's multiply slots, if it is in
@@ -76,7 +80,7 @@ mul_s2l: .res 2
 .ifndef mul_s2h
 mul_s2h: .res 2
 .endif
-.ifdef MUL_ACC
+.if MUL_ACC
 .ifndef mul_acc0
 mul_acc0: .res 1
 .endif
