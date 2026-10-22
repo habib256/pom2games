@@ -1,7 +1,7 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_text16_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
 .export _hgr_blit_glyph, _hgr_puts_run
-.import _hgr_rowhi, _hgr_rowlo, glyph_addr
+.import _hgr_rowhi, _hgr_rowlo, glyph_addr, hgr_dbl_lo, hgr_dbl_hi
 .importzp _hgr_g_col, _hgr_g_glyph, _hgr_g_bit, _hgr_g_y, _hgr_t_bit, _hgr_t_col, _hgr_t_font, _hgr_t_n, _hgr_t_s, _hgr_z_ce, _hgr_z_co, _hgr_z_hi
 .importzp ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
 curcol = tmp1
@@ -11,7 +11,7 @@ rowcnt = tmp4
 
 .segment "ZEROPAGE"
 gr_or:    .res 1             ; scratch: byte to OR into the framebuffer (cell|hi)
-gbc_bit:  .res 1             ; shift count derived from g_mask (0..6)
+gbc_bit:  .res 1             ; pen bit (shift count 0..6) * 16
 gbc_car0: .res 1             ; carrier byte for cell at g_col + 0
 gbc_car1: .res 1             ; carrier byte for cell at g_col + 1
 gbc_car2: .res 1             ; carrier byte for cell at g_col + 2
@@ -22,8 +22,8 @@ gbc_m2:   .res 1             ;   byte 2 (bits 16..23 — only bits 0..5 ever set
 
 .segment "CODE"
 ; --- _hgr_blit_glyph : row-at-a-time 16x16 glyph blitter, white or tinted --
-; Expand the 8-bit source row to a 16-bit doubled mask in two nibble LUT
-; lookups (dbl4tbl), shift left by `bit` to align with the pen offset, then OR
+; Expand the 8-bit source row to a 16-bit doubled mask, already shifted left
+; by `bit` to align with the pen offset, in two nibble lookups, then OR
 ; each of the 3-4 spanning bytes (one per 7-bit cell) into both scanlines —
 ; carrier and palette bit applied per BYTE, not per pixel. White text is the
 ; carrier pair $7F/$7F with hgr_z_hi = 0 (hgr_text.c sets it): the same OR of
@@ -32,8 +32,12 @@ gbc_m2:   .res 1             ;   byte 2 (bits 16..23 — only bits 0..5 ever set
 ; count are precomputed once per glyph (they depend on g_col parity and g_mask,
 ; both fixed across the 8 source rows).
 _hgr_blit_glyph:
-        ldx _hgr_g_bit         ; pen bit 0..6 = shift count
-        stx gbc_bit
+        lda _hgr_g_bit         ; pen bit 0..6 = shift count, times 16
+        asl a
+        asl a
+        asl a
+        asl a
+        sta gbc_bit
         ; Precompute carriers for cells 0..3. Carrier parity alternates from
         ; g_col: even col -> ce/co/ce/co ; odd col -> co/ce/co/ce.
         lda _hgr_g_col
@@ -70,35 +74,31 @@ _hgr_blit_glyph:
         sta ptr2
         lda _hgr_rowhi,y
         sta ptr2+1
-        ; Expand 8 source bits to 16 doubled bits via two nibble lookups.
+        ; Expand 8 source bits to 16 doubled bits shifted left by `bit`, by
+        ; two nibble lookups (hgr_glyph_shift.s). The bits occupy positions
+        ; bit..bit+15 (<= 21), so m2 bits 6..7 stay zero.
         ldy rowcnt
         lda (_hgr_g_glyph),y
-        pha
+        tax
         and #$0F
+        ora gbc_bit
         tay
-        lda _hgr_dbl4tbl,y
+        lda hgr_dbl_lo,y
         sta gbc_m0             ; doubled bits 0..7
-        pla
+        lda hgr_dbl_hi,y
+        sta gbc_m1
+        txa
         lsr a
         lsr a
         lsr a
         lsr a
+        ora gbc_bit
         tay
-        lda _hgr_dbl4tbl,y
+        lda hgr_dbl_lo,y
+        ora gbc_m1
         sta gbc_m1             ; doubled bits 8..15
-        lda #0
-        sta gbc_m2             ; doubled bits 16..23 (filled in by the shift)
-        ; Shift (m2:m1:m0) left by `bit` positions; bit = 0 leaves them as-is.
-        ; A 3-byte chain is enough: the original 16 bits occupy positions
-        ; bit..bit+15 (<= 21), so m2 bits 6..7 stay zero and m3 isn't needed.
-        ldy gbc_bit
-        beq @nosh
-@sh:    asl gbc_m0
-        rol gbc_m1
-        rol gbc_m2
-        dey
-        bne @sh
-@nosh:
+        lda hgr_dbl_hi,y
+        sta gbc_m2             ; doubled bits 16..23
         ; --- Cell 0 (column g_col): doubled bits 0..6 = m0 & $7F ------------
         lda gbc_m0
         and #$7F
@@ -190,12 +190,6 @@ _hgr_blit_glyph:
         beq @cdone
         jmp @crow
 @cdone: rts
-
-; 4-bit -> 8-bit doubled bit LUT: dbl4tbl[n] has each of n's bits 0..3
-; replicated horizontally (bit k of n -> bits 2k and 2k+1 of the entry).
-_hgr_dbl4tbl:
-        .byte $00, $03, $0C, $0F, $30, $33, $3C, $3F
-        .byte $C0, $C3, $CC, $CF, $F0, $F3, $FC, $FF
 
 ; --- _hgr_puts_run : draw a whole NUL-terminated string in ONE asm loop -------
 ; Replaces the per-character C loop of hgr_puts / hgr_puts_color. Walks

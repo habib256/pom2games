@@ -1,12 +1,15 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* Link exactly one DHGR backend. Color coordinates are 140x192. */
 #include "gfx.h"
-#include "dhgr.h"
+#include "dhgr_internal.h"
 const unsigned gfx_width = 140u;
 const unsigned char gfx_height = 192u;
-static unsigned char pen;
+#define pen dhgr_dot_color
 void dhgr_set_color(unsigned char color) { pen = color & 15u; }
-void gfx_plot(unsigned x, unsigned char y) { if (x < 140u) dhgr_plot_color((unsigned char)x, y, pen); }
+void gfx_plot(unsigned x, unsigned char y)
+{
+    if (x < 140u) { dhgr_dot_x = (unsigned char)x; dhgr_color_dot(y); }
+}
 void gfx_filled_rect(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1)
 {
     unsigned t; unsigned char b;

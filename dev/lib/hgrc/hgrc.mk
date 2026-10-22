@@ -12,9 +12,10 @@ HGRC_ASM_SRCS := $(addprefix $(HGRC)/,hgr_mode_asm.s hgr_mode_clear_asm.s \
     hgr_text16_asm.s hgr_text8_asm.s hgr_text_params.s hgr_utoa_asm.s \
     hgr_byte_rect_asm.s hgr_pixrect_asm.s hgr_pixrect_params.s hgr_cell_asm.s \
     hgr_pixel_asm.s hgr_colorize_asm.s hgr_carrier_params.s \
-    hgr_bitmap_asm.s hgr_blit7_asm.s hgr_preshift_asm.s hgr_sprite_params.s)
+    hgr_bitmap_asm.s hgr_blit7_asm.s hgr_preshift_asm.s hgr_sprite_params.s \
+    hgr_glyph_shift.s)
 HGRC_CORE_SRCS := $(addprefix $(HGRC)/,hgr_state.c hgr_init.c hgr_draw_page.s hgr_row_page.s hgr_fixed_rows.s hgr_tables.c hgr_columns.s hgr_masks.s hgr_phases.s) $(HGRC_ASM_SRCS)
-HGRC_PIXEL_SRCS := $(HGRC)/hgr_pixel.c
+HGRC_PIXEL_SRCS := $(HGRC)/hgr_pixel_asm.s
 HGRC_RECT_SRCS := $(addprefix $(HGRC)/,hgr_rect.c hgr_pixrect.c hgr_cell.c \
     hgr_colorize.c hgr_carrier.c)
 HGRC_TEXT_SRCS := $(addprefix $(HGRC)/,hgr_font.c hgr_text.c hgr_text8.c \
@@ -50,12 +51,13 @@ HGRC_ASM_DEPS := $(wildcard $(HGRC)/*.inc $(HGRC)/../apple2/*.inc $(HGRC)/../app
 # Host-only x2 reference: hgr_x2.c; cc65 selects hgr_x2_target.c above.
 # IIe/IIc DHGR stays opt-in, independent from HGR and gfx.
 HGRC_DHGR_STATE_SRCS := $(HGRC)/dhgr.c $(HGRC)/dhgr_asm.s
-HGRC_DHGR_PIXEL_SRCS := $(addprefix $(HGRC)/,dhgr_pixel.c dhgr_getpixel.c dhgr_pixel_address.c dhgr_access_asm.s dhgr_write_asm.s dhgr_read_asm.s)
-HGRC_DHGR_CLEAR_SRCS := $(addprefix $(HGRC)/,dhgr_clear.c dhgr_pattern.c dhgr_clear_asm.s dhgr_clear_rows.c dhgr_clear_rows_asm.s)
-HGRC_DHGR_FILL_SRCS := $(HGRC_DHGR_CLEAR_SRCS) $(addprefix $(HGRC)/,dhgr_fill.c dhgr_plot_color.c dhgr_fill_bits.c dhgr_bit_rect.c dhgr_span_asm.s)
-HGRC_DHGR_TRANSFER_SRCS := $(addprefix $(HGRC)/,dhgr_address.c dhgr_block.c dhgr_sprite.c dhgr_transfer_params.c dhgr_block_asm.s)
-HGRC_DHGR_CORE_SRCS := $(HGRC_DHGR_STATE_SRCS) $(HGRC_DHGR_PIXEL_SRCS) $(HGRC_DHGR_FILL_SRCS)
-HGRC_DHGR_SRCS := $(sort $(HGRC_DHGR_CORE_SRCS) $(HGRC)/dhgr_span.c $(HGRC_DHGR_TRANSFER_SRCS) $(HGRC)/dhgr_text.c $(HGRC)/dhgr_text_asm.s $(HGRC)/dhgr_access_asm.s $(HGRC)/dhgr_write_asm.s $(HGRC)/hgr_font.c)
+HGRC_DHGR_TABLE_SRCS := $(HGRC)/dhgr_rows.s $(HGRC)/dhgr_cells.s
+HGRC_DHGR_PIXEL_SRCS := $(addprefix $(HGRC)/,dhgr_pixel_asm.s dhgr_getpixel_asm.s) $(HGRC_DHGR_TABLE_SRCS)
+HGRC_DHGR_CLEAR_SRCS := $(addprefix $(HGRC)/,dhgr_clear.c dhgr_pattern_asm.s dhgr_clear_asm.s dhgr_clear_rows.c dhgr_clear_rows_asm.s dhgr_rows.s)
+HGRC_DHGR_FILL_SRCS := $(sort $(HGRC_DHGR_CLEAR_SRCS) $(addprefix $(HGRC)/,dhgr_fill.c dhgr_plot_color_asm.s dhgr_fill_bits.c dhgr_bit_rect.c dhgr_span_asm.s) $(HGRC_DHGR_TABLE_SRCS))
+HGRC_DHGR_TRANSFER_SRCS := $(addprefix $(HGRC)/,dhgr_address_asm.s dhgr_block.c dhgr_sprite.c dhgr_transfer_params.c dhgr_block_asm.s) $(HGRC_DHGR_TABLE_SRCS)
+HGRC_DHGR_CORE_SRCS := $(sort $(HGRC_DHGR_STATE_SRCS) $(HGRC_DHGR_PIXEL_SRCS) $(HGRC_DHGR_FILL_SRCS))
+HGRC_DHGR_SRCS := $(sort $(HGRC_DHGR_CORE_SRCS) $(HGRC)/dhgr_span.c $(HGRC_DHGR_TRANSFER_SRCS) $(HGRC)/dhgr_text_asm.s $(HGRC)/hgr_font.c)
 HGRC_DHGR_SMALL_TEXT_SRCS := $(HGRC)/dhgr_small.c $(HGRC)/dhgr_small_params.c $(HGRC)/dhgr_small_asm.s $(HGRC)/dhgr_small_string.s
 HGRC_65C02_NUM_SRCS := $(GFX)/gfx_u16_digits.s
 HGRC_DHGR_COLOR_BACKEND := $(GFX)/gfx_backend_dhgr_color.c

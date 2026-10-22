@@ -14,15 +14,21 @@ extern unsigned char *dhgr_buffer;
 extern unsigned char dhgr_count;
 extern const unsigned char *dhgr_sprite_mask;
 
-void dhgr_write_asm(void);
-unsigned char dhgr_read_asm(void);
+/* Per color pixel: interleaved byte (4x)/7 and first dot (4x)%7 (dhgr_cells.s). */
+extern const unsigned char dhgr_cellbyte[140], dhgr_cellphase[140];
+/* dhgr_span_asm: dots span_x..span_end (clipped) on rows_y>>8 (>=1) rows
+ * from rows_y&255, in dhgr_pattern. */
+extern unsigned dhgr_span_x, dhgr_span_end;
+/* dhgr_color_dot: color pixel dhgr_dot_x, y, pen dhgr_dot_color (0..15). */
+extern unsigned char dhgr_dot_x, dhgr_dot_color;
+
 void dhgr_clear_asm(void);
-void dhgr_span_asm(void);
+void __fastcall__ dhgr_span_asm(unsigned rows_y);
+void __fastcall__ dhgr_color_dot(unsigned char y);
 void dhgr_read_block_asm(void);
 void dhgr_write_block_asm(void);
 void dhgr_sprite_asm(void);
 void dhgr_byte_address(unsigned char bx, unsigned char y);
-void dhgr_pixel_address(unsigned x, unsigned char y);
 void dhgr_prepare_pattern(unsigned char color);
 void dhgr_bit_rect(unsigned x, unsigned char y, unsigned width,
                    unsigned char height);
