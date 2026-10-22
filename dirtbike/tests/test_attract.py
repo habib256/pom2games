@@ -11,7 +11,7 @@
   * on a write-protected disk the game says so and goes on;
   * a new disk: the menu opens track 1 only (the others are not finished);
   * ESC in a race opens the main menu: the input device changes, QUIT boots
-    the disk again into BASIC;
+    the disk again into BASIC (the stick: tests/test_input.py);
   * the title tune plays once, the demo starts when it ends; H on the title
     shows the help page; finishing track 30 shows the congratulations;
   * the countdown holds the bike; after a crash it restarts at rest at the
@@ -209,25 +209,14 @@ def main():
     bad += not ok
 
     # ESC in a race: the main menu (an overlay in TITLE); 3 changes the input
-    # device; 5 quits: the disk boots again and HELLO stops at BASIC
+    # device (the joystick to the keyboard: tests/test_input.py); 5 quits: the
+    # disk boots again and HELLO stops at BASIC
     r = a2test.run(DISK, ['wait:1000', 'key: ', 'wait:60', 'key:\r', L.until('new_race', 900), 'wait:100',
                           L.peek('inp_dev', 1), 'key:\x1b', L.until('main_menu', 300), 'wait:20', 'key:3', 'wait:20',
                           L.peek('inp_dev', 1), 'key:5', 'wait:800', 'peek:0400:40'])
     text = bytes(c & 0x7F for c in r.mem(0x0400, 40)).decode()
     ok = r.dumps[0] != r.dumps[1] and text.startswith('DIRTBIKE: BYE!')
     print(f'ESC: the main menu, input {r.dumps[0][0]} -> {r.dumps[1][0]}, quit to BASIC: ' + ('ok' if ok else f'DIFF {text!r}'))
-    bad += not ok
-
-    # the main menu with the stick (chosen with 3): down moves the marker
-    # once per push, the button chooses (HELP), a key or the button leaves
-    # the page
-    r = a2test.run(DISK, ['wait:1000', 'key: ', 'wait:60', 'key:\r', L.until('new_race', 900), 'wait:100',
-                          'key:\x1b', L.until('mm_key', 300), 'key:3', 'wait:10', 'key:I', 'wait:10', 'key:I',
-                          'wait:10', L.peek('inp_dev', 1), 'joy:0,1', 'wait:6', 'joy:0,0', 'wait:10',
-                          L.peek('mm_sel', 1), 'btn:0,1', 'wait:3', 'btn:0,0', L.until('mm_help', 60), 'wait:30',
-                          'btn:0,1', 'wait:3', 'btn:0,0', L.until('mm_key', 120), L.peek('mm_sel', 1)])
-    ok = r.dumps[0][0] == 1 and r.dumps[1][0] == 2 and r.dumps[2][0] == 2
-    print(f'main menu with the stick: down -> item {r.dumps[1][0]}, button: help, back: ' + ('ok' if ok else 'DIFF'))
     bad += not ok
 
     # ESC in a race, ESC in the main menu: the same race goes on (the track
@@ -244,28 +233,6 @@ def main():
     print(f'ESC, ESC: back to the race at x {x1} (left at {x0}), countdown {r.dumps[6][0]}, track read again: ' +
           ('ok' if ok else 'DIFF'))
     bad += not ok
-
-    # the device chosen alone drives the bike, and DIRTHOF keeps it: the
-    # stick chosen (centred), the keys A do not throttle, its button brakes,
-    # the race runs on (still in the game's code); the next boot takes the
-    # stick again
-    with tempfile.TemporaryDirectory(prefix='dirtbike-inp-') as tmp:
-        saved = Path(tmp) / 'inp.dsk'
-        r = a2test.run(DISK, ['wait:1000', 'key: ', 'wait:60', 'key:\r', L.until('new_race', 900), 'wait:20',
-                              L.peek('inp_dev', 1), 'key:\x1b', L.until('mm_key', 300), 'key:3', 'wait:10',
-                              'key:\x1b', L.until('main_loop', 900), 'wait:100'] +
-                       [s for _ in range(10) for s in ('key:A', 'wait:2')] +
-                       [L.peek('in_throttle', 1), L.peek('kb_throttle', 1), L.peek('inp_dev', 1), 'btn:0,1',
-                        'wait:4', L.peek('in_brake', 1), 'btn:0,0', 'wait:200', 'pc', f'dsk:{saved}'])
-        hof = dos33.read_file(saved.read_bytes(), 'DIRTHOF')
-        pref = hof[L['inp_pref'] - L['hof_img']]
-        r2 = a2test.run(saved, ['wait:600', L.until('attract', 3000), L.peek('inp_dev', 1)])
-        ok = (r.dumps[0][0] == 0 and r.dumps[1][0] == 0 and r.dumps[2][0] == 0 and r.dumps[3][0] == 1 and
-              r.dumps[4][0] == 1 and 'PC=F' not in r.out and pref == 1 and r2.dumps[0][0] == 1)
-        print(f'keyboard first, then the stick alone (keys: gas {r.dumps[1][0]}, button: brake '
-              f'{r.dumps[4][0]}), saved ({pref}), '
-              f'next boot: device {r2.dumps[0][0]}: ' + ('ok' if ok else 'DIFF'))
-        bad += not ok
 
     # a new disk: only track 1 open in the menu, the marker stays on it
     r = a2test.run(DISK, ['wait:1300', 'key: ', 'wait:60', 'key:K', 'wait:10', 'key:L', 'wait:10',

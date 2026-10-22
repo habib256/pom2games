@@ -54,8 +54,9 @@ def clone(b):
 def solve(h, fin, beam=BEAM):
     """-> list of per-tick (throttle, brake, lean), or None. The fastest
     states first; failing that, a beam that keeps every speed band (the
-    slow ride that brakes before a crest)."""
-    return _beam(h, fin, beam, None) or _beam(h, fin, 2 * beam, 4)
+    slow ride that brakes before a crest); then a wider fastest-first beam
+    (track 12's whoops after the brake fix, 2026-10-22)."""
+    return _beam(h, fin, beam, None) or _beam(h, fin, 2 * beam, 4) or _beam(h, fin, beam * 3 // 2, None)
 
 
 def _beam(h, fin, beam, per_speed):

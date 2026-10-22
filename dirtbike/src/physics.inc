@@ -64,6 +64,10 @@ turn:       .res 1              ; this tick's turn of the wheel axis (do_lean)
 lidx:       .res 1              ; in_lean + LEAN_MAX (rider link tables)
 cidx:       .res 1              ; constraint table index
 squashed:   .res 1              ; a rider link too short (pass after the ground)
+hold_on:    .res 2              ; the brake stopped the wheel this tick: it holds
+hold_xf:    .res 2              ; at its x when the tick began
+hold_xl:    .res 2
+hold_xh:    .res 2
 
 .segment "CODE"
 
@@ -152,7 +156,11 @@ height_at:
 ; phys_tick
 ; ---------------------------------------------------------------------------
 phys_tick:
-        LDX     #2
+        LDA     in_brake                ; the brake wins: the throttle is cut
+        BEQ     @int0                   ; (in_throttle cleared: the inputs are
+        LDA     #0                      ; set again before every tick)
+        STA     in_throttle
+@int0:  LDX     #2
 @int:   JSR     integrate
         DEX
         BPL     @int
@@ -206,6 +214,21 @@ phys_tick:
         LDA     #0                      ; the frame again, after the ground
         STA     squashed
         JSR     con_pass
+        LDX     #1                      ; a stopped, braked wheel holds (static
+@hold:  LDA     hold_on,X               ; friction): x = old x = its x at the
+        BEQ     @nohold                 ; tick's start
+        LDA     hold_xf,X
+        STA     pt_xf,X
+        STA     pt_oxf,X
+        LDA     hold_xl,X
+        STA     pt_xl,X
+        STA     pt_oxl,X
+        LDA     hold_xh,X
+        STA     pt_xh,X
+        STA     pt_oxh,X
+@nohold:
+        DEX
+        BPL     @hold
         LDX     #2
 @ceil:  LDA     pt_yh,X
         CMP     #>CEILING
@@ -985,6 +1008,7 @@ ground_contact:
         STX     cur
         LDA     #0
         STA     wheel_gnd,X
+        STA     hold_on,X
         SEC                             ; ground rows at px - 2, px, px + 2
         LDA     pt_xl,X
         SBC     #2
@@ -1216,9 +1240,17 @@ ground_contact:
         ADC     #>BRAKE
         STA     vt+1
         JMP     @nobrk
-@bzero: LDA     #0
-        STA     vt
-        STA     vt+1
+@bzero: LDA     #0                      ; stopped: the wheel holds where
+        STA     vt                      ; the tick found it (old x, not yet
+        STA     vt+1                    ; rewritten; phys_tick)
+        LDX     cur
+        LDA     pt_oxf,X
+        STA     hold_xf,X
+        LDA     pt_oxl,X
+        STA     hold_xl,X
+        LDA     pt_oxh,X
+        STA     hold_xh,X
+        INC     hold_on,X
 @nobrk: LDA     cur                     ; engine brake: rear wheel, no throttle
         ORA     in_throttle
         BNE     @noeb

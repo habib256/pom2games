@@ -86,7 +86,7 @@ hof_load:
         STA     last_ini
         STA     last_ini+1
         STA     last_ini+2
-        LDA     #INP_KEYS
+        LDA     #INP_STICK              ; (the stick if one is found)
         STA     inp_pref
         RTS
 
