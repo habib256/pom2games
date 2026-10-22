@@ -1,19 +1,60 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
-; hgr_pixel_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
-.export _hgr_plot_asm, _hgr_unplot_asm
+; hgr_pixel_asm.s — single white pixel set/clear: x 0..279, y 0..191, others
+; ignored. col7/mask7 LUTs + the scanline table, NO per-pixel division; the
+; three lazy tables are built on first use (their guards return at once).
+.export _hgr_plot, _hgr_unplot, _hgr_plot_asm, _hgr_unplot_asm
 .exportzp _hgr_p_x, _hgr_p_y
 .import _hgr_col7, _hgr_mask7, _hgr_rowhi, _hgr_rowlo
-.importzp ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
-curcol = tmp1
-curmask = tmp2
-curbits = tmp3
-rowcnt = tmp4
+.import _hgr_build_rows, _hgr_build_columns, _hgr_build_masks, incsp2
+.importzp sp, ptr1, tmp1, tmp2
 
 .segment "ZEROPAGE"
 _hgr_p_x:     .res 2        ; pixel x (0..279)
 _hgr_p_y:     .res 1        ; pixel y (0..191)
 
 .segment "CODE"
+; void hgr_plot(unsigned x, unsigned char y) — set (OR in) one white pixel.
+_hgr_plot:
+        jsr hgr_pixarg
+        bcs @out
+        ora (ptr1),y
+        sta (ptr1),y
+@out:   jmp incsp2
+
+; void hgr_unplot(unsigned x, unsigned char y) — clear (AND off) one pixel.
+_hgr_unplot:
+        jsr hgr_pixarg
+        bcs @out
+        eor #$ff
+        and (ptr1),y
+        sta (ptr1),y
+@out:   jmp incsp2
+
+; C arguments (y in A, x on the C stack, left there) -> C=1 off-screen, else
+; C=0 and hgr_pixsetup's Y=col, A=mask, ptr1=scanline, tables built.
+hgr_pixarg:
+        cmp #192
+        bcs @rts
+        sta _hgr_p_y
+        ldy #1
+        lda (sp),y
+        sta _hgr_p_x+1
+        tax
+        dey
+        lda (sp),y
+        sta _hgr_p_x
+        cpx #1
+        bcc @in
+        bne @rts                ; C=1
+        cmp #24                 ; 256..279
+        bcs @rts
+@in:    jsr _hgr_build_rows
+        jsr _hgr_build_columns
+        jsr _hgr_build_masks
+        jsr hgr_pixsetup
+        clc
+@rts:   rts
+
 hgr_pixsetup:
         lda _hgr_p_x+1      ; x high byte
         bne @hi
