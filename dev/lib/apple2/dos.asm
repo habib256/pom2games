@@ -52,6 +52,8 @@
 ;
 ; .ifref: include after the callers; the dos_cmd_* group (and its BSS) is
 ; assembled when one of them is referenced, disk_protected on its own.
+; DOS_CMD_HEX_IFREF = 1: dos_cmd_hex only when it is referenced itself
+; (43 bytes; default 0 keeps it with the group, as older programs had it).
 ;
 ; BSS: dos_cmd_buf, dos_cmd_ix, dos_cmd_overflow, dos_zp_prog (256).
 ; Caller responsibility: .include "apple2.inc" and "exit.asm".
@@ -70,6 +72,9 @@ DOS_CMD_WORKBSS = 0
 .endif
 .ifndef DOS_SEI
 DOS_SEI = 0
+.endif
+.ifndef DOS_CMD_HEX_IFREF
+DOS_CMD_HEX_IFREF = 0
 .endif
 
 ; A program may keep only its own zero-page range between DOS commands.
@@ -140,6 +145,7 @@ dos_cmd_full:
         SEC
         RTS
 
+.if .referenced(dos_cmd_hex) .or (DOS_CMD_HEX_IFREF = 0)
 dos_cmd_hex:
 .if DOS_CMD_MAX < 3
         JMP     dos_cmd_full
@@ -169,6 +175,7 @@ dos_cmd_hex:
         STX     dos_cmd_ix
         CLC
         RTS
+.endif
 .endif
 
 dos_cmd_run:

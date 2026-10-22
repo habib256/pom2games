@@ -1981,6 +1981,7 @@ EXIT_USE_NATIVE_VIDEO = 1        ; hgr.asm's native_video, above
 DOS_ZP_START = $50
 DOS_ZP_LEN = $B0
 DOS_SEI = 1                       ; the //c mouse runs with IRQs on (interface.inc)
+DOS_CMD_HEX_IFREF = 1            ; no dos_cmd_hex: it is not called
 .include "dos.asm"
 .include "mouse_context.asm"
 

@@ -4710,6 +4710,7 @@ EXIT_USE_NATIVE_VIDEO = 1        ; hgr.asm's native_video, above
 .include "exit.asm"              ; dev/lib/apple2: apple2_zp_save / apple2_exit
 DOS_ZP_START = $50
 DOS_ZP_LEN = $B0
+DOS_CMD_HEX_IFREF = 1            ; no dos_cmd_hex: it is not called
 .include "dos.asm"               ; DOS score file, preserving the game's ZP
 
 ; Shared asset data and rendering modules.
