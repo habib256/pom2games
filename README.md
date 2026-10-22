@@ -49,10 +49,16 @@ avec sa disquette ProDOS et sa [description](docs/releases/chromabreak-1.0.md).
     make                 # toutes les disquettes, dans dist/
     make -C chess        # une seule (elle va aussi dans dist/)
     make -C chess run    # la lancer dans POM2 installé (/Applications/POM2.app)
-    make test            # tout construire, puis CHROMABREAK, ARKABREAKOUT, CHESS,
-                         # HGR, cadence, exemple HGR, assets, budgets de performance
-                         # et les 454 niveaux de MICRO-SOKOBAN dans a2run
+    make test            # palier rapide : tout construire, puis le `make test`
+                         # de chaque programme et les vérifications rapides de
+                         # dev/ (HGR, cadence, exemples, assets, budgets)
+    make test-long       # palier long : campagne ARKABREAKOUT, 454 niveaux de
+                         # MICRO-SOKOBAN, campagne LIGHT3DBALL, parcours WILDERNESS...
+    make test-all        # les deux paliers (l'ancien `make test`)
+    make test-changed    # seulement ce que l'arbre de travail change (BASE=<ref>,
+                         # défaut origin/main ; LONG=1 ajoute le palier long)
     make test-arkabreakout # collisions, bonus, niveaux, paddle et sortie DOS
+                           # (test-<jeu> = palier rapide, test-<jeu>-long = long)
     make test-chess      # roque, promotion, règle des 50 coups, matériel mort
     make test-mcs        # éditeur musical, sauvegarde/rechargement et son
     make test-hgr        # primitives, texte gfx, moteur de sprites et archive
@@ -77,8 +83,26 @@ images de `dist/`, faites sous macOS, se reconstruisent à l'octet près avec le
 cc65 2.19 d'Ubuntu 24.04.
 
 L'intégration continue (`.github/workflows/build.yml`) lance `make check` puis
-`make test` sous Ubuntu à chaque push : une modification des sources sans
+`make test-all` sous Ubuntu à chaque push : une modification des sources sans
 `dist/` reconstruit et commité fait échouer le build.
+
+## Tests : rapide d'abord
+
+Chaque programme a deux paliers de tests :
+
+- `make -C <jeu> test` : rapide (une à deux minutes au plus), à lancer après
+  chaque modification ; c'est le réflexe de la boucle de développement ;
+- `make -C <jeu> test-long` : campagnes complètes, tous les niveaux, longs
+  parcours ; la cible peut être vide.
+
+Un nouveau jeu suit la même convention (voir `dev/cc65/apple2.mk` et le
+squelette `wargalagaii/Makefile`) et s'ajoute à `TESTED` dans le Makefile
+racine. Avant de livrer, `make test-changed` lance le palier rapide des seuls
+programmes touchés : ceux dont un fichier du dossier a changé, ou dont l'image
+disque, reconstruite à neuf, diffère de celle de BASE (un changement de
+`dev/lib` qui atteint leurs octets) ; plus `make test-dev` si `dev/` a changé.
+Il affiche pour chaque programme pourquoi il est testé ou sauté.
+`make test-all` reste la vérification complète (environ une heure).
 
 ## dev/
 

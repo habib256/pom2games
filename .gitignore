@@ -12,7 +12,7 @@ dev/tools/a2run/a2run
 __pycache__/
 
 # Wilderness reference images (copyrighted originals, local only)
-wilderness/original/
+wilderness/original
 
 # Neowilderness reference images (copyrighted originals, local only)
 neowilderness/original

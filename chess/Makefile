@@ -38,4 +38,9 @@ $(DISK): $(BIN) $(DOS33_DEPS)
 test: $(DISK) $(A2RUN)
 	$(PYTHON) tests/test_game.py --a2run $(A2RUN) --disk $(DISK) --labels $(BUILD)/chess.lbl
 
+# Long tier (convention of ../dev/cc65/apple2.mk): nothing slow yet.
+test-long:
+	@echo "chess: no long tests"
+.PHONY: test-long
+
 .PHONY: test

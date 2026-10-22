@@ -2,7 +2,9 @@
 #
 #   make            -> ../dist/MICRO-SOKOBAN.dsk (bootable 5.25" DOS 3.3 image)
 #   make run        -> boot it in POM2 as an Apple II+
-#   make test       -> play the checked solution of every level (all 454,
+#   make test       -> fast tier: exit, graphics, menus, resume, play, score,
+#                      and the checked solution of a few levels per collection
+#   make test-long  -> play the checked solution of every level (all 454,
 #                      levels/solutions.txt) in a2run, headless
 #   make clean      -> remove build/ (the disk stays)
 #   make distclean  -> remove build/ and the disk
@@ -68,9 +70,15 @@ test: $(DISK) $(A2RUN)
 	$(PYTHON) tools/test_damage.py --a2run $(A2RUN) --disk $(DISK)
 	$(PYTHON) tools/test_tutorial_options.py --a2run $(A2RUN) --disk $(DISK)
 	$(PYTHON) tools/test_score.py --a2run $(A2RUN) --disk $(DISK)
+	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) 1 2 3
+	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --coll 2 1
+	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --coll 3 1
+	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --coll 4 1
+
+test-long: $(DISK) $(A2RUN)
 	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --all
 	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --coll 2 --all
 	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --coll 3 --all
 	$(PYTHON) tools/test_levels.py --a2run $(A2RUN) --disk $(DISK) --coll 4 --all
 
-.PHONY: test
+.PHONY: test test-long

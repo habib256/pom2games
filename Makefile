@@ -1,88 +1,124 @@
 # pom2games — build every disk
 #
 #   make            -> dist/*.dsk et dist/*.po (every disk lands in this one folder)
-#   make test       -> build, test HGR, then play MICRO-SOKOBAN in a2run
+#   make test       -> build, then the FAST tier: each program's `make test`
+#                      plus the quick dev/ checks (libraries, tools, bench-check)
+#   make test-long  -> the LONG tier: each program's `make test-long` (full
+#                      campaigns, every level, journeys...)
+#   make test-all   -> both tiers (what `make test` ran before the split)
+#   make test-changed [BASE=<ref>] [LONG=1] [SOURCES_ONLY=1]
+#                   -> only the programs the working tree changes vs BASE
+#                      (default origin/main, else HEAD): their sources or
+#                      their freshly built disk image differ; dev/ checks
+#                      when dev/ changed (dev/tools/test_changed.py)
 #   make check      -> rebuild every disk from scratch and fail if one differs
 #                      from the committed dist/*.dsk et dist/*.po (sources and disks agree)
 #   make clean      -> remove the build/ folders (the disks stay)
 #   make distclean  -> remove the build/ folders and dist/*.dsk et dist/*.po
 #
 # Each folder builds on its own too: make -C chess [run], still into ./dist.
+# Test tiers, the convention for every program (and a new game):
+#   make -C <game> test       fast (a minute or two): run it after each change
+#   make -C <game> test-long  long campaigns; may be empty
+# test-<game> runs the first, test-<game>-long the second.
+
+PYTHON ?= python3
 
 II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake pinball light3dball mcs wilderness dirtbike
 IIE_PRODOS_GAMES := chromabreak
 DIRS := $(II_PLUS_GAMES) $(IIE_PRODOS_GAMES) logo dev/examples/hello dev/examples/hgr dev/examples/dhgr dev/examples/perspective
+# Programs whose own `make test` / `make test-long` belong to the root tiers.
+TESTED := pinball chromabreak arkabreakout chess micro-sokoban light3dball wilderness logo mcs dirtbike
 
 all:
 	@for d in $(DIRS); do $(MAKE) -C $$d || exit 1; done
 
-test: all test-pinball test-chromabreak test-arkabreakout test-chess test-hgr test-frame test-hgr-example test-assets bench-check
-	$(MAKE) -C micro-sokoban test
+# Quick dev/ checks: shared libraries, examples, tools, performance budgets.
+DEV_CHECKS := test-hgr test-frame test-hgr-example test-assets bench-check \
+              test-techniques test-tools test-minimal
+
+test: all $(DEV_CHECKS) $(TESTED:%=test-%)
+test-long: all $(TESTED:%=test-%-long)
+test-all: test test-long
+test-dev: $(DEV_CHECKS)
+
+$(TESTED:%=test-%):
+	$(MAKE) -C $(@:test-%=%) test
+$(TESTED:%=test-%-long):
+	$(MAKE) -C $(@:test-%-long=%) test-long
+
+BASE ?=
+test-changed:
+	$(PYTHON) dev/tools/test_changed.py $(if $(BASE),--base $(BASE)) \
+	    $(if $(LONG),--long) $(if $(SOURCES_ONLY),--sources-only) $(TESTED)
+
+.PHONY: test test-long test-all test-dev test-changed \
+        $(TESTED:%=test-%) $(TESTED:%=test-%-long)
 
 test-hgr:
-	python3 dev/tests/test_asm_boundaries.py
-	python3 dev/tests/test_dos_reuse.py
-	python3 dev/tests/test_math.py
-	python3 dev/tests/test_rwts.py
-	python3 dev/tests/test_lib_options.py
-	python3 dev/tests/test_hgr_pages.py
-	python3 dev/tests/test_joy_fast.py
-	python3 dev/tests/test_exit_modes.py
-	python3 dev/tests/test_hgr_host.py
-	python3 dev/tests/test_hgr_x2.py
-	python3 dev/tests/test_gfx_boundaries.py
-	python3 dev/tests/test_gfx_outlines.py
-	python3 dev/tests/test_hgr_logo.py
-	python3 dev/tests/test_hgr_glyph8.py
-	python3 dev/tests/test_logo_glyphs.py
-	python3 dev/tests/test_hgr_sprite_update.py
-	python3 dev/tests/test_video_memory.py
-	python3 dev/tests/test_lores_modes.py
-	python3 dev/tests/test_preshift_bounds.py
-	python3 dev/tests/test_sprmask_bounds.py
-	python3 dev/tests/test_sprite16_bounds.py
-	python3 dev/tests/test_text8_strings.py
-	python3 dev/tests/test_hgr_native.py
-	python3 dev/tests/test_hgr_wireframe.py
-	python3 dev/tests/test_hgr_lines.py
-	python3 dev/tests/test_hgr_hud.py
-	python3 dev/tests/test_hgr_hud.py --compact
-	python3 dev/tests/test_presentation_strategies.py
-	python3 dev/tests/test_hgr.py
-	python3 dev/tests/test_hgr_glyphs.py
-	python3 dev/tests/test_sprengine.py
-	python3 dev/tests/test_sprengine_stress.py
-	python3 dev/tests/test_sprengine_dirty.py
-	python3 dev/tests/test_tilemap.py
+	$(PYTHON) dev/tests/test_asm_boundaries.py
+	$(PYTHON) dev/tests/test_dos_reuse.py
+	$(PYTHON) dev/tests/test_math.py
+	$(PYTHON) dev/tests/test_rwts.py
+	$(PYTHON) dev/tests/test_lib_options.py
+	$(PYTHON) dev/tests/test_hgr_pages.py
+	$(PYTHON) dev/tests/test_joy_fast.py
+	$(PYTHON) dev/tests/test_exit_modes.py
+	$(PYTHON) dev/tests/test_hgr_host.py
+	$(PYTHON) dev/tests/test_hgr_x2.py
+	$(PYTHON) dev/tests/test_gfx_boundaries.py
+	$(PYTHON) dev/tests/test_gfx_outlines.py
+	$(PYTHON) dev/tests/test_hgr_logo.py
+	$(PYTHON) dev/tests/test_hgr_glyph8.py
+	$(PYTHON) dev/tests/test_logo_glyphs.py
+	$(PYTHON) dev/tests/test_hgr_sprite_update.py
+	$(PYTHON) dev/tests/test_video_memory.py
+	$(PYTHON) dev/tests/test_lores_modes.py
+	$(PYTHON) dev/tests/test_preshift_bounds.py
+	$(PYTHON) dev/tests/test_sprmask_bounds.py
+	$(PYTHON) dev/tests/test_sprite16_bounds.py
+	$(PYTHON) dev/tests/test_text8_strings.py
+	$(PYTHON) dev/tests/test_hgr_native.py
+	$(PYTHON) dev/tests/test_hgr_wireframe.py
+	$(PYTHON) dev/tests/test_hgr_lines.py
+	$(PYTHON) dev/tests/test_hgr_hud.py
+	$(PYTHON) dev/tests/test_hgr_hud.py --compact
+	$(PYTHON) dev/tests/test_presentation_strategies.py
+	$(PYTHON) dev/tests/test_hgr.py
+	$(PYTHON) dev/tests/test_hgr_glyphs.py
+	$(PYTHON) dev/tests/test_sprengine.py
+	$(PYTHON) dev/tests/test_sprengine_stress.py
+	$(PYTHON) dev/tests/test_sprengine_dirty.py
+	$(PYTHON) dev/tests/test_tilemap.py
 
 test-frame:
-	python3 dev/tests/test_frame.py
+	$(PYTHON) dev/tests/test_frame.py
 
 test-hgr-example:
-	python3 dev/tests/test_hgr_example.py
+	$(PYTHON) dev/tests/test_hgr_example.py
 
 test-dhgr:
-	python3 dev/tests/test_audio.py --iie
-	python3 dev/tests/test_perspective.py --iie
-	python3 dev/tests/test_shufflepuck_example.py --iie
+	$(PYTHON) dev/tests/test_audio.py --iie
+	$(PYTHON) dev/tests/test_perspective.py --iie
+	$(PYTHON) dev/tests/test_shufflepuck_example.py --iie
 	$(MAKE) -C dev/examples/dhgr test
-	python3 dev/tests/test_dhgr_extended.py
-	python3 dev/tests/test_dhgr_spans.py
-	python3 dev/tests/test_dhgr_clear_rows.py
-	python3 dev/tests/test_gfx_dhgr_lines.py
-	python3 dev/tests/test_minimal_examples.py --dhgr
-	python3 dev/tests/test_stack_profile.py --iie
-	python3 dev/tests/test_hgr_hud.py --iie
-	python3 dev/tests/test_presentation_strategies.py --iie
-	python3 dev/tests/test_sprengine_dirty.py --iie
-	python3 dev/tests/test_frame.py --iie
-	python3 dev/tests/test_cadence.py
-	python3 dev/tests/test_game_cadence.py
-	python3 dev/tests/test_tilemap.py --iie
-	python3 dev/tests/test_hgr_hud.py --compact --iie
-	python3 dev/tests/test_sprengine_dirty.py --damage --iie
-	python3 dev/tests/test_sprengine_damage.py
-	python3 dev/tests/test_hgr_example.py --iie
+	$(PYTHON) dev/tests/test_dhgr_extended.py
+	$(PYTHON) dev/tests/test_dhgr_spans.py
+	$(PYTHON) dev/tests/test_dhgr_clear_rows.py
+	$(PYTHON) dev/tests/test_gfx_dhgr_lines.py
+	$(PYTHON) dev/tests/test_minimal_examples.py --dhgr
+	$(PYTHON) dev/tests/test_stack_profile.py --iie
+	$(PYTHON) dev/tests/test_hgr_hud.py --iie
+	$(PYTHON) dev/tests/test_presentation_strategies.py --iie
+	$(PYTHON) dev/tests/test_sprengine_dirty.py --iie
+	$(PYTHON) dev/tests/test_frame.py --iie
+	$(PYTHON) dev/tests/test_cadence.py
+	$(PYTHON) dev/tests/test_game_cadence.py
+	$(PYTHON) dev/tests/test_tilemap.py --iie
+	$(PYTHON) dev/tests/test_hgr_hud.py --compact --iie
+	$(PYTHON) dev/tests/test_sprengine_dirty.py --damage --iie
+	$(PYTHON) dev/tests/test_sprengine_damage.py
+	$(PYTHON) dev/tests/test_hgr_example.py --iie
 
 check: distclean
 	$(MAKE) all
@@ -100,27 +136,19 @@ distclean:
 .PHONY: all test test-hgr test-frame test-hgr-example test-dhgr check clean distclean
 
 test-assets:
-	python3 dev/tools/fonts.py --check
-	python3 dev/tests/test_assets.py
+	$(PYTHON) dev/tools/fonts.py --check
+	$(PYTHON) dev/tests/test_assets.py
 
 bench:
-	python3 dev/bench/run.py
+	$(PYTHON) dev/bench/run.py
 
 bench-dhgr:
-	python3 dev/bench/run.py --dhgr
+	$(PYTHON) dev/bench/run.py --dhgr
 
 bench-check:
-	python3 dev/bench/run.py --check
+	$(PYTHON) dev/bench/run.py --check
 
 .PHONY: test-assets bench bench-dhgr bench-check
-
-test-arkabreakout:
-	$(MAKE) -C arkabreakout test
-
-test-chess:
-	$(MAKE) -C chess test
-
-.PHONY: test-arkabreakout test-chess
 
 profile-ii-plus:
 	@for d in $(II_PLUS_GAMES); do $(MAKE) -C $$d || exit 1; done
@@ -128,82 +156,46 @@ profile-ii-plus:
 profile-iie-prodos:
 	$(MAKE) -C chromabreak
 
-test-chromabreak:
-	$(MAKE) -C chromabreak test
-
-.PHONY: profile-ii-plus profile-iie-prodos test-chromabreak
-
-test-pinball:
-	$(MAKE) -C pinball test
-
-.PHONY: test-pinball
-
-test: test-light3dball
-test-light3dball:
-	$(MAKE) -C light3dball test
-.PHONY: test-light3dball
-
-test: test-wilderness
-test-wilderness:
-	$(MAKE) -C wilderness test
-.PHONY: test-wilderness
-
-test: test-techniques
+.PHONY: profile-ii-plus profile-iie-prodos
 
 test-techniques:
 	$(MAKE) -C arkabreakout
 	$(MAKE) -C micro-sokoban
-	python3 dev/tests/techniques/run.py
+	$(PYTHON) dev/tests/techniques/run.py
 
 .PHONY: test-techniques
 
 # Native HGR lookup tables and checked fixed-sector DOS construction.
-test: test-tools
 test-tools:
-	python3 dev/tests/test_corridor.py
-	python3 dev/tests/test_audio.py
-	python3 dev/tests/test_perspective.py
-	python3 dev/tests/test_shufflepuck_example.py
-	python3 dev/tests/test_stack_profile.py
-	python3 dev/tests/test_build_config.py
-	python3 dev/tests/test_prodos_video.py
-	python3 dev/tests/test_apple2game.py
-	python3 dev/tests/test_mouse_context.py
-	python3 dev/tests/test_mouse_noslot.py
-	python3 dev/tests/test_hgr_tables_disk.py
+	$(PYTHON) dev/tests/test_corridor.py
+	$(PYTHON) dev/tests/test_audio.py
+	$(PYTHON) dev/tests/test_perspective.py
+	$(PYTHON) dev/tests/test_shufflepuck_example.py
+	$(PYTHON) dev/tests/test_stack_profile.py
+	$(PYTHON) dev/tests/test_build_config.py
+	$(PYTHON) dev/tests/test_prodos_video.py
+	$(PYTHON) dev/tests/test_apple2game.py
+	$(PYTHON) dev/tests/test_mouse_context.py
+	$(PYTHON) dev/tests/test_mouse_noslot.py
+	$(PYTHON) dev/tests/test_hgr_tables_disk.py
 .PHONY: test-tools
 
 bench-corridor:
-	python3 dev/bench/corridor_projection.py
+	$(PYTHON) dev/bench/corridor_projection.py
 .PHONY: bench-corridor
 
 # Optional RGB and Mockingboard ASM primitives, with traced hardware buses.
 test-tools: test-hardware
 test-hardware:
-	python3 dev/tests/test_rgb_mockingboard.py
+	$(PYTHON) dev/tests/test_rgb_mockingboard.py
 .PHONY: test-hardware
 
-test: test-minimal
 test-minimal:
-	python3 dev/tests/test_minimal_examples.py
+	$(PYTHON) dev/tests/test_minimal_examples.py
 .PHONY: test-minimal
-
-test: test-logo
-test-logo:
-	$(MAKE) -C logo test
-.PHONY: test-logo
 
 # Compiler-derived shared-library usage and transitive build dependencies.
 audit-libs:
-	python3 dev/tools/audit_lib_usage.py
+	$(PYTHON) dev/tools/audit_lib_usage.py
 .PHONY: audit-libs
 
-test: test-mcs
-test-mcs:
-	$(MAKE) -C mcs test
-.PHONY: test-mcs
-
-test: test-dirtbike
-test-dirtbike:
-	$(MAKE) -C dirtbike test
-.PHONY: test-dirtbike

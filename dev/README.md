@@ -216,11 +216,28 @@ LOGO sur //e, a2shot reste l'outil.
 
 Licence : GPL v3, comme les sources POM1 dont ces bibliothèques dérivent.
 
+## Tests : deux paliers
+
+Chaque programme a deux cibles (convention de `cc65/apple2.mk`) :
+
+- `make test` : le palier **rapide** (une à deux minutes), le réflexe de la
+  boucle de développement : `make -C <jeu> test` après chaque modification ;
+- `make test-long` : ce qui est trop lent pour cela (campagnes complètes,
+  tous les niveaux, parcours longs) ; la cible peut être vide.
+
+À la racine, `make test` lance les paliers rapides et les vérifications
+rapides de `dev/` (`make test-dev` : bibliothèques, outils, exemples,
+`bench-check`), `make test-long` les paliers longs, `make test-all` les deux.
+`make test-changed [BASE=<ref>] [LONG=1]` ne teste que les programmes que
+l'arbre de travail touche (sources du dossier, ou image disque reconstruite
+différente de celle de BASE : voir `tools/test_changed.py`), plus
+`make test-dev` si `dev/` a changé.
+
 ## Assets et mesures
 
 - [Conversion PNG/PPM HGR/DHGR](tools/assets/README.md) : banques, masques, aperçus et tailles.
 - [Benchmarks et budgets de régression](bench/README.md) : `make bench`, `make bench-dhgr`.
-- `make test-assets` et `make bench-check` font partie de `make test`.
+- `make test-assets` et `make bench-check` font partie de `make test` (`make test-dev`).
 - `make test-dhgr` vérifie les deux pages, les deux banques et les deux backends.
 
 ## Cadence et exemple animé

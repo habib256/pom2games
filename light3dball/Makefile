@@ -61,5 +61,10 @@ test: all $(A2RUN)
 	$(PYTHON) tests/test_occlusion.py
 	$(PYTHON) tests/test_levels.py
 
+# Long tier (convention of ../dev/cc65/apple2.mk): nothing slow yet.
+test-long:
+	@echo "light3dball: no long tests"
+.PHONY: test-long
+
 include $(HGRC)/hgrc_build.mk
 .PHONY: test

@@ -77,4 +77,9 @@ test: all $(A2RUN)
 	$(PYTHON) tests/test_tracks.py
 	$(PYTHON) tests/test_attract.py
 
+# Long tier (convention of ../dev/cc65/apple2.mk): nothing slow yet.
+test-long:
+	@echo "dirtbike: no long tests"
+.PHONY: test-long
+
 .PHONY: test

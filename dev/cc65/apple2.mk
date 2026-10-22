@@ -9,6 +9,16 @@
 #     $(DISK): $(BIN) $(DOS33_DEPS)
 #     	@mkdir -p $(DIST)
 #     	$(DOS33) --bin NAME=$(BIN)@$(LOAD) --catalog
+#     test: all $(A2RUN)         # fast tier: a minute or two, after each change
+#     	$(PYTHON) tests/test_game.py
+#     test-long: all $(A2RUN)    # long tier: full campaigns, every level...
+#     	$(PYTHON) tests/test_campaign.py       # (may be empty: `test-long:`)
+#
+# Tests come in two tiers in every program: `make test` is the dev-loop
+# reflex (make -C <game> test) and the root `make test` / `make test-changed`
+# run it; `make test-long` holds what is too slow for that (root `make
+# test-long`, `make test-all` = both). Keep `test` short: move a script to
+# `test-long` rather than letting the fast tier grow past a couple of minutes.
 #
 # Provides the tool variables (all overridable: make CA65=... DIST=...), the
 # library paths, the asm include path and dependency list, the DOS 3.3 disk
