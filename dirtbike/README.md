@@ -37,13 +37,20 @@ recopié dans `tests/test_input.py`) donne 0 à moins de 6 crans de
 avec le signe de d : le niveau 8 dès 34 crans (~80 % de la course, ±42 à
 fond), 4 à mi-course. Chaque niveau déplace le pilote le long de la moto
 (`LEAN_BACK`, `LEAN_FWD` de `tools/physics.py`) : 0,5 px par niveau
-jusqu'au 4 (2 px : le réglage fin d'un wheeling), puis vers l'arrière 1 px
-par niveau jusqu'à 6 px, vers l'avant 0,5 px jusqu'à 4 px. Avant (2026-10-22),
-4 niveaux de 1 px, 4 px des deux côtés : moteur et pilote en arrière, l'avant
-montait à −20° en 16 à 19 ticks et jamais à −45° lancé à 9 px/tick ;
-maintenant −20° en 10 ticks, −45° en 16. Plus de 6 px en arrière ou de
-4 px en avant renversait la moto quand le manche passait d'un bout à
-l'autre. En l'air, la rotation par niveau (`AIR_TURN`) reste au plus 4
+jusqu'au 4 (2 px : le réglage fin d'un wheeling), puis 1 px par niveau
+jusqu'à 6 px, des deux côtés. Avant (2026-10-22), 4 niveaux de 1 px, 4 px
+des deux côtés : moteur et pilote en arrière, l'avant montait à −20° en 16
+à 19 ticks et jamais à −45° lancé à 9 px/tick ; maintenant −20° en 10
+ticks, −45° en 16. En avant du milieu, le pilote **se déplace** (`FWD_K`,
+`_shift`) : son point et son ancienne position avancent ensemble le long
+de l'axe des roues, sans vitesse. Avant, le changement des longueurs de
+repos le tirait en place en un tick : un coup de manche d'un bout à
+l'autre (10 px) arrachait la roue avant vers le haut (~4 px/tick),
+enfonçait la roue arrière et jetait la moto en l'air, où l'inclinaison
+avant la retournait ; à 6 px, la correction linéaire (elle dépasse quand
+une liaison est bien plus longue que sa longueur de repos) écrasait une
+liaison pilote au tick suivant. D'où l'avant bridé à 4 px. Le côté
+arrière garde ce coup : c'est lui qui lève l'avant. En l'air, la rotation par niveau (`AIR_TURN`) reste au plus 4
 (45° en 10 ticks, comme avant). Le clavier donne le niveau 8, comme le
 manche poussé à fond. **Boutons** : le bouton 0 (la gâchette de la
 plupart des manettes Apple, la touche Pomme ouverte du //e) est le gaz,
@@ -218,9 +225,10 @@ seule ; à 3 fois, la moto devenait intenable dans les whoops). À chaque tick :
    l'air, l'inclinaison et les gaz (nez qui monte) la tournent aussi. En l'air ou sur une seule
    roue, la rotation s'amortit (`>> 4` par tick : plus de vrille sans fin) ;
 3. contraintes de distance sans racine carrée. L'inclinaison déplace le
-   pilote le long de la moto (`LEAN_BACK` / `LEAN_FWD` : jusqu'à 6 px en
-   arrière, 4 en avant, 8 niveaux ; tables de longueurs de repos par niveau
-   dans `physconst.inc`) : au sol, c'est son poids qui lève ou
+   pilote le long de la moto (`LEAN_BACK` / `LEAN_FWD` : jusqu'à 6 px des
+   deux côtés, 8 niveaux ; tables de longueurs de repos par niveau dans
+   `physconst.inc` ; en avant du milieu il est déplacé, sans vitesse,
+   `fwd_k`) : au sol, c'est son poids qui lève ou
    pose l'avant, plus de rotation directe (la moto ne roule plus debout) ;
 4. contact des roues avec le sol, en suivant la normale tirée de la pente
    `h[x+2] - h[x-2]` : rebond, puis traction (roue arrière), frein, frein
@@ -309,8 +317,9 @@ ici (ni BASIC ni commande DOS) : `hgr_lo` / `hgr_hi`, calculées au démarrage
 (`dev/lib/hgr/hgr_scanline_ram.asm` : 384 octets de moins dans le fichier).
 `$0400-$07FF` : la page texte 1, jamais affichée (le jeu ne revient pas à
 DOS) ; ses huit bandes de 120 octets (segments `TXT0`-`TXT7`) reçoivent des
-tables du rendu, les tampons du HUD et deux routines (le menu, l'affichage
-d'un parcours dans le menu : `TXTC5`, `TXTC7`, recopiées au démarrage) ; les
+tables du rendu, les tampons du HUD et des routines (le menu, l'affichage
+d'un parcours dans le menu, `do_shift` et `mul_turn` de la physique :
+`TXTC4`, `TXTC5`, `TXTC7`, recopiées au démarrage) ; les
 trous d'écran (`$x78-$x7F`, `$xF8-$xFF`, où RWTS et les cartes
 gardent leur état) sont laissés tranquilles. `$0800-$0FFF` : tables de
 multiplication (là où dormait le programme HELLO). `$1000-$1FFF` :

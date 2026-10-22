@@ -8,6 +8,8 @@ MUL_TABLES = $0800
 MUL_ACC    = 1
 .include "math.inc"
 .include "physconst.inc"
+.import __TXTC4_LOAD__, __TXTC4_RUN__, __TXTC4_SIZE__
+.import __TXTC7_LOAD__, __TXTC7_RUN__, __TXTC7_SIZE__
 
 .segment "ZEROPAGE"
 snap_ptr: .res 2
@@ -16,6 +18,16 @@ left:   .res 1
 
 .segment "CODE"
 start:
+        LDX     #<__TXTC4_SIZE__        ; the physics routines that run in
+@c4:    LDA     __TXTC4_LOAD__-1,X      ; the text page (as dirtbike.s does)
+        STA     __TXTC4_RUN__-1,X
+        DEX
+        BNE     @c4
+        LDX     #<__TXTC7_SIZE__
+@c7:    LDA     __TXTC7_LOAD__-1,X
+        STA     __TXTC7_RUN__-1,X
+        DEX
+        BNE     @c7
         JSR     mul_init
         LDA     #48
         JSR     phys_reset
