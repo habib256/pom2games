@@ -93,9 +93,18 @@ int main(int argc, char** argv) {
     host();
     until("attract", 120000000);
     require(read("_mouse_slot") == 4, "mouse detected in slot 4");
-    require(read("joy_ok") == 0 && read("inp_dev") == 2, "the mouse is the input device, the stick not read");
+    require(read("joy_ok") == 0 && read("inp_dev") == 0, "a new disk: the keyboard alone drives");
     mem.queueKey(' '); until("menu_input");
     mem.queueKey('\r'); until("new_race"); until("main_loop");
+    // the mouse chosen in the main menu (3: the next device found), ESC:
+    // back to the race, the choice written into DIRTHOF
+    mem.queueKey(27); until("mm_key");
+    for (int n = 0; read("inp_dev") != 2; ++n) {
+        require(n < 3, "menu: 3 never reaches the mouse");
+        mem.queueKey('3'); run(2000000); until("mm_key");
+    }
+    require(read("joy_ok") == 0, "the mouse chosen: the stick not read");
+    mem.queueKey(27); until("race_resume"); until("main_loop", 120000000);
     // movement goes through the card, the game reads the firmware's position;
     // the countdown holds the bike meanwhile (no crash: inputs stay live), and
     // the inputs are read at countdown (read_input has finished by then)
@@ -127,7 +136,7 @@ int main(int argc, char** argv) {
     // mouse running
     mem.queueKey(27); until("main_menu");
     // the main menu with the mouse: its height points at an item (rows
-    // 117-155: HALL OF FAME), a click chooses, a click leaves each page
+    // 128-159: HALL OF FAME), a click chooses, a click leaves each page
     until("mm_key");
     for (int n = 0; read("_mouse_y") != 130; ++n) {
         require(n < 2000, "menu: mouse y not reached" + state());
@@ -135,7 +144,7 @@ int main(int argc, char** argv) {
         host(); run(20000);
     }
     run(300000);
-    require(read("mm_sel") == 3, "menu: the mouse points at HALL OF FAME (" + std::to_string(read("mm_sel")) + ")");
+    require(read("mm_sel") == 4, "menu: the mouse points at HALL OF FAME (" + std::to_string(read("mm_sel")) + ")");
     // a click until the game reaches `name` (a click while a page draws is
     // not seen: the firmware is polled)
     auto click_to = [&](const std::string& name) {
@@ -156,7 +165,7 @@ int main(int argc, char** argv) {
     mem.queueKey(' '); until("menu_input");
     mem.queueKey('\r'); until("new_race", 120000000);
     // Ctrl-RESET stops the mouse and its set-up is boot code: the disk boots
-    // again, and the mouse drives the next race
+    // again, DIRTHOF names the mouse, and it drives the next race
     until("main_loop");
     mem.resetSoftSwitchesWarm(); mem.slotBus().reset(); cpu.softReset();
     until("input_init", 200000000);
@@ -166,7 +175,7 @@ int main(int argc, char** argv) {
     mem.queueKey('\r'); until("new_race"); until("main_loop");
     move(70, 96); move(70, 40);
     require(read("in_throttle") == 8, "after Ctrl-RESET: mouse up, full gas" + state());
-    std::cout << "mouse (" << variant << "): found in slot 4, gas / lean / brake, main menu, track reloads, Ctrl-RESET: ok\n";
+    std::cout << "mouse (" << variant << "): found in slot 4, gas / lean / brake, chosen and kept, main menu, back to the race, track reloads, Ctrl-RESET: ok\n";
     return 0;
  } catch (const std::exception& e) {
     std::cerr << "mouse (" << argv[4] << "): " << e.what() << "\n";

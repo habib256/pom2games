@@ -1,14 +1,19 @@
 ; ============================================================================
 ; input.inc -- joystick and keyboard -> in_throttle / in_brake / in_lean
 ; ============================================================================
-;   input_init   detects the joystick and takes its rest position as centre
+;   input_init   detects the joystick (its rest position: the centre) and
+;                the mouse; inp_boot then sets the device DIRTHOF names
 ;   read_input   once per frame. C = 1 and A = key when a key was typed
 ;                (upper case), for the main loop's own keys.
 ;
+; Only the device chosen in the main menu drives the bike (inp_dev, kept in
+; DIRTHOF: hof.inc's inp_pref; the keyboard on a new disk): a stick or a
+; mouse not quite centred would lean or throttle by itself. The keys R, S
+; and ESC work with every device.
 ; Joystick: X = lean (dead zone in the middle), up = throttle (further up =
 ; more), down or button 0 = brake. AppleMouse (//e card, //c built-in,
 ; dev/lib/mouse): the same from its position (centre 70, 96), button =
-; brake; with a mouse the joystick is not read. Keyboard: A / up arrow = full throttle,
+; brake. Keyboard: A / up arrow = full throttle,
 ; Z / down arrow = half, for GAS_HOLD frames, then it fades one level a
 ; frame (the bike never runs on by itself); left / right (J / L) lean and
 ; SPACE brakes for KEY_HOLD frames. The keyboard's auto-repeat renews them
@@ -67,15 +72,23 @@ input_init:
         STA     stk_my                  ; (the stick's centre, for a change of
         LDA     joy_mx                  ;  device in the main menu)
         STA     stk_mx
-        LDA     joy_ok                  ; the device: the mouse if there is
-        STA     joy_found               ; one, else the stick, else the keys
-        STA     inp_dev                 ; (INP_STICK = 1)
-        JSR     _mouse_init
-        TAX
-        LDA     inp_dev
-        CPX     #0
-        BEQ     @set
-        LDA     #INP_MOUSE
+        LDA     joy_ok
+        STA     joy_found
+        JMP     _mouse_init
+
+; inp_boot -- the device of DIRTHOF (after hof_load), if it is there; else
+; the keyboard
+inp_boot:
+        LDA     inp_pref
+        CMP     #INP_STICK
+        BNE     @m
+        LDX     joy_found
+        BNE     @set
+@m:     CMP     #INP_MOUSE
+        BNE     @k
+        LDX     _mouse_slot
+        BNE     @set
+@k:     LDA     #INP_KEYS
 @set:   JMP     inp_set
 .segment "CODE"
 
@@ -122,6 +135,8 @@ read_input:
         AND     #$7F
         JSR     kbd_upcase
         STA     inkey
+        LDX     inp_dev                 ; drive keys: the keyboard's only
+        BNE     @nokey
         CMP     #KC_UP
         BEQ     @up
         CMP     #'A'
@@ -224,9 +239,12 @@ read_input:
         BCC     @btn
         LDA     #1
         STA     in_brake
-@btn:   LDA     BUTN0                   ; button 0, or the mouse's
-        ORA     _mouse_buttons
-        BPL     @out
+@btn:   LDA     _mouse_buttons          ; the mouse's button (0 unless it
+        LDX     joy_ok                  ; polls), or the stick's
+        BEQ     @b
+        ORA     BUTN0
+@b:     ASL     A
+        BCC     @out
         LDA     #1
         STA     in_brake
 @out:   LDA     inkey

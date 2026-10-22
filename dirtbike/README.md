@@ -22,13 +22,18 @@ chute. Les meilleurs temps et scores restent sur la disquette.
 | | | H | page d'aide (titre, menu) |
 | | | R | recommencer le parcours |
 | | | S | son coupé / remis |
-| | | ESC | en course : le menu principal (depuis le menu des parcours : la page de titre) |
+| | | ESC | en course : le menu principal, ESC encore : la course reprend (depuis le menu des parcours : la page de titre) |
 | | | Ctrl-RESET | la page de titre |
 
-La position de la manette au démarrage sert de centre. La souris
-AppleMouse (carte du //e, souris intégrée du //c ; `dev/lib/mouse`) remplace
-alors la manette : sa position compte comme celle du manche (centre 70, 96
-du pilote) et son bouton freine. Les interruptions qu'active la souris du
+Seul le périphérique choisi au menu principal (option 3) pilote la moto :
+une manette ou une souris mal centrée penchait ou accélérait toute seule, et
+gênait le jeu au clavier. Les touches R, S et ESC restent actives avec tous.
+Le choix est écrit dans `DIRTHOF` en quittant le menu (`inp_pref`) et repris
+au démarrage s'il est toujours branché ; une disquette neuve démarre au
+clavier. La position de la manette au démarrage sert de centre. Avec la
+souris AppleMouse (carte du //e, souris intégrée du //c ; `dev/lib/mouse`),
+sa position compte comme celle du manche (centre 70, 96 du pilote) et son
+bouton freine. Les interruptions qu'active la souris du
 //c sont masquées pendant les accès disque (`RWTS_SEI`). `make test-mouse`
 le vérifie avec les vraies ROM (cartes AppleWin et MAME, //c 16 et 32 Ko)
 dans le cœur POM2. Au clavier,
@@ -63,10 +68,14 @@ rendu « beam racing » de POM2, qui relit la mémoire en fin d'image, montrait
 la page en cours de redessin (la moto clignotait ; voir
 `dev/tools/a2shot/LETTRE_POM2_AFFICHAGE_MANETTE.md`).
 
-**Menu principal** (ESC en course, `src/mainmenu.inc`) : page de titre,
-aide, périphérique d'entrée (clavier, joystick ou souris, parmi ceux
-détectés au démarrage), hall of fame, retour à BASIC. Flèches (I / K) et
-RETURN, ou les chiffres 1 à 5 ; ESC : la page de titre. Au joystick, haut /
+**Menu principal** (ESC en course, `src/mainmenu.inc`) : retour à la
+course (0, seulement pendant une course pas finie), page de titre, aide,
+périphérique d'entrée (clavier, joystick ou souris, parmi ceux détectés au
+démarrage), hall of fame, retour à BASIC. Flèches (I / K) et RETURN, ou les
+chiffres 0 à 5 ; ESC : retour à la course, sinon la page de titre. Le retour
+(`race_resume`) relit le parcours, que `TITLE` a recouvert, redessine les
+deux pages et repart après un compte à rebours, la moto et le chrono là où
+ils étaient. Au joystick, haut /
 bas déplacent la marque ; à la souris, sa hauteur désigne l'option ; leur
 bouton choisit, et referme l'aide et le hall of fame. Son code et ses
 textes sont un overlay du fichier `TITLE` : lié pour s'exécuter en `$9C00`
