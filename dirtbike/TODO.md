@@ -23,7 +23,10 @@ Lot 2b (fait, 2026-10-22) : souris retirée ; manette : X = inclinaison
 analogique, bouton 0 = gaz, bouton 1 = frein, menus au manche (un cran par
 poussée) ; frein revu (il coupe les gaz, ~1 g au lieu de ~0,6 g, une roue
 arrêtée par le frein tient : la moto ne recule plus) ; 30 parcours résolus
-de nouveau.
+de nouveau. Puis le frein en l'air : il n'arrête plus que la rotation des
+roues (un petit couple fini, ~12°), plus de rotation sans fin.
+Inclinaison sur 8 niveaux (fins au milieu, jusqu'à 6 px en arrière) pour
+les wheelings.
 
 ## Lot 2 — jouabilité
 - Régler la conduite à la main dans POM2 : traction, inclinaison, souplesse

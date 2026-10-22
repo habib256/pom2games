@@ -13,8 +13,8 @@ Tnn payload (what the game finds at $9604, after DOS's 4-byte header):
       pool offset lo[256], hi[256], then the pool of partial bytes
       +   stream 1: fhpack of 8192 bytes: heights[4096], pattern ids[4096]
       +   the proven ride (tests/solutions.txt) as runs, for the attract
-          demo: count (1..255), then throttle / 4 (bits 5-6), brake (bit 4),
-          lean + 4 (bits 0-3); count 0 ends. At most DEMO_MAX bytes.
+          demo: count (1..255), then throttle / 4 (bits 5-6), brake (bit 7),
+          lean + 8 (bits 0-4); count 0 ends. At most DEMO_MAX bytes.
 Both streams unpack to HGR page 2; the game copies them out (render.inc).
 build/tracks/menu_data.inc: track names and reference times (tools/solver.py).
 """
@@ -65,10 +65,10 @@ def payload(k, tool, work):
 def demo_runs(inputs):
     runs = []
     for n, (thr, brk, lean) in solver.rle(inputs):
-        assert thr in (0, 4, 8) and brk in (0, 1) and -4 <= lean <= 4, (thr, brk, lean)
+        assert thr in (0, 4, 8) and brk in (0, 1) and -8 <= lean <= 8, (thr, brk, lean)
         while n:
             c = min(n, 255)
-            runs += [c, (thr // 4) << 5 | brk << 4 | (lean + 4)]
+            runs += [c, (thr // 4) << 5 | brk << 7 | (lean + 8)]
             n -= c
     runs.append(0)
     assert len(runs) <= DEMO_MAX, len(runs)

@@ -29,8 +29,10 @@ KEY_HOLD = 6
 GAS_HOLD = 20
 BRAKE_HOLD = GAS_HOLD
 JOY_DEAD = 6                    ; counts of read_stick_fast (lib/apple2/joy.asm,
-JOY_STEP = 3                    ; centre ~40): lean 1 past it, one more every
-                                ; 2^JOY_STEP counts (= tests/test_input.py)
+JOY_STEP = 2                    ; centre ~40): lean 1 past it, one more every
+                                ; 2^JOY_STEP counts, LEAN_MAX (8) from 34 on
+                                ; (= tests/test_input.py); physics.py's tables
+                                ; make the levels fine near the middle
 STICK_ON  = 16                  ; stick_menu: a push, and back inside
 STICK_OFF = 8                   ; this: armed again
 
@@ -214,8 +216,7 @@ lean_level:
         RTS
 @on:    LSR     A
         LSR     A
-        LSR     A
-        .assert JOY_STEP = 3, error, "lean_level: >> JOY_STEP"
+        .assert JOY_STEP = 2, error, "lean_level: >> JOY_STEP"
         CLC
         ADC     #1
         CMP     #LEAN_MAX+1

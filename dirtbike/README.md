@@ -33,9 +33,19 @@ une disquette neuve la prend si elle répond au démarrage ; le choix est
 repris au démarrage si elle est toujours branchée. Sa position au démarrage
 sert de centre. **Inclinaison analogique** : `stick_lean` (`src/input.inc`,
 recopié dans `tests/test_input.py`) donne 0 à moins de 6 crans de
-`read_stick_fast` du centre (zone morte), puis 1 + (|d| − 6) / 8, au plus 4,
-avec le signe de d : poussé à fond (±40 crans), le manche penche au
-maximum, à moitié de 2. **Boutons** : le bouton 0 (la gâchette de la
+`read_stick_fast` du centre (zone morte), puis 1 + (|d| − 6) / 4, au plus 8,
+avec le signe de d : le niveau 8 dès 34 crans (~80 % de la course, ±42 à
+fond), 4 à mi-course. Chaque niveau déplace le pilote le long de la moto
+(`LEAN_BACK`, `LEAN_FWD` de `tools/physics.py`) : 0,5 px par niveau
+jusqu'au 4 (2 px : le réglage fin d'un wheeling), puis vers l'arrière 1 px
+par niveau jusqu'à 6 px, vers l'avant 0,5 px jusqu'à 4 px. Avant (2026-10-22),
+4 niveaux de 1 px, 4 px des deux côtés : moteur et pilote en arrière, l'avant
+montait à −20° en 16 à 19 ticks et jamais à −45° lancé à 9 px/tick ;
+maintenant −20° en 10 ticks, −45° en 16. Plus de 6 px en arrière ou de
+4 px en avant renversait la moto quand le manche passait d'un bout à
+l'autre. En l'air, la rotation par niveau (`AIR_TURN`) reste au plus 4
+(45° en 10 ticks, comme avant). Le clavier donne le niveau 8, comme le
+manche poussé à fond. **Boutons** : le bouton 0 (la gâchette de la
 plupart des manettes Apple, la touche Pomme ouverte du //e) est le gaz,
 tenu presque toute la course ; le bouton 1, le frein. Les deux ensemble :
 le frein gagne. L'axe Y ne sert qu'aux menus. Sans manette (les deux
@@ -48,9 +58,11 @@ sur un II+) ; ESPACE coupe les gaz du clavier, A / Z coupent le frein.
 
 **Frein** (2026-10-22, modèle `tools/physics.py`, vérifié par
 `tests/test_physics.py`). Il retire `BRAKE` de la vitesse tangentielle de
-chaque roue au sol, jusqu'à zéro (jamais au-delà : pas de marche arrière),
-et, roue avant en l'air, fait plonger l'avant (`GYRO_BRAKE`). Avant, il
-était bizarre :
+chaque roue au sol, jusqu'à zéro (jamais au-delà : pas de marche arrière).
+Une roue en l'air ne freine pas la moto : le frein arrête seulement sa
+rotation, et tant qu'elle tourne encore, son moment cinétique passe au
+cadre (1 unité de rotation par tick et par roue, nez en bas pour une roue
+qui roulait en avant). Avant, il était bizarre :
 1. les gaz l'emportaient : la traction plein gaz (8 × 31 par tick) noyait
    le frein (2 × 32) ; or au clavier les gaz restent tenus 20 images après
    A : ESPACE juste après les gaz ne freinait pas, la moto accélérait
@@ -61,14 +73,24 @@ et, roue avant en l'air, fait plonger l'avant (`GYRO_BRAKE`). Avant, il
    (le poids du pilote) déplaçait les roues que le frein venait d'arrêter
    (~1 à 2 px en 10 s sur le plat, ~85 px en 200 ticks sur une pente
    de 1/2) ;
-4. au clavier, ESPACE ne freinait que 6 images par appui.
+4. au clavier, ESPACE ne freinait que 6 images par appui ;
+5. en l'air ou en wheeling, tenu, il tournait la moto de 4 crans par tick
+   (`GYRO_BRAKE`, autant qu'une inclinaison maximale) aussi longtemps
+   qu'on le tenait : +150° en 20 ticks de saut, et un wheeling freiné
+   basculait sur l'avant (+48°, roue arrière levée).
 
 Maintenant : le frein coupe les gaz (`phys_tick`) ; `BRAKE` = $40 (~1 g) :
 de 13 px/tick à l'arrêt en 72 ticks (2,4 s) et ~430 px, en décroissant
 régulièrement (12,9 → 10,1 → 7,5 → 5,1 → 2,9 → 0,9 → 0 px/tick toutes les
 12 ticks, sur le plat) ; une roue que le frein arrête dans le tick reste
 où le tick l'a trouvée (x et ancien x : frottement statique) : la moto
-s'arrête et reste arrêtée, en côte comme en descente.
+s'arrête et reste arrêtée, en côte comme en descente. En l'air, la
+rotation de chaque roue (`spin`, sa vitesse au dernier contact) perd
+`AIR_SPIN_BRAKE` = $0600 par tick freiné : une roue à pleine vitesse
+s'arrête en 3 ticks, et la moto tourne en tout de ~12° (inclinaison
+maximale pendant 20 ticks : ~145°), plus rien ensuite ; sa vitesse ne
+change pas. Un wheeling freiné se repose doucement (la roue arrière freine
+au sol).
 
 **Titre et démo** (`src/title.inc`, image `tools/title.py`). Le jeu s'ouvre
 sur une page de titre (fichier `TITLE`, LZ4FH, 1,8 Ko), avec le crédit du
@@ -191,14 +213,14 @@ arrondi vers zéro : arrondi vers le bas, la moto arrêtée reculait toute
 seule ; à 3 fois, la moto devenait intenable dans les whoops). À chaque tick :
 1. gravité, puis vitesses bornées : 18 px/tick le long de la piste, 8 en
    vertical ; la traction pousse jusqu'à 13,5 px/tick ;
-2. rotation de l'axe des roues : le frein arrière fait plonger l'avant
-   (réaction de la roue sur le cadre), sauf roue avant au sol : le sol
-   tient l'avant (frein tenu, la moto arrêtée basculait) ; en l'air, l'inclinaison
-   et les gaz (nez qui monte) la tournent aussi. En l'air ou sur une seule
+2. rotation de l'axe des roues : une roue en l'air que le frein arrête
+   donne sa rotation au cadre (1 unité par tick tant qu'elle tourne) ; en
+   l'air, l'inclinaison et les gaz (nez qui monte) la tournent aussi. En l'air ou sur une seule
    roue, la rotation s'amortit (`>> 4` par tick : plus de vrille sans fin) ;
 3. contraintes de distance sans racine carrée. L'inclinaison déplace le
-   pilote le long de la moto (1 px par cran, tables de longueurs de repos
-   par cran dans `physconst.inc`) : au sol, c'est son poids qui lève ou
+   pilote le long de la moto (`LEAN_BACK` / `LEAN_FWD` : jusqu'à 6 px en
+   arrière, 4 en avant, 8 niveaux ; tables de longueurs de repos par niveau
+   dans `physconst.inc`) : au sol, c'est son poids qui lève ou
    pose l'avant, plus de rotation directe (la moto ne roule plus debout) ;
 4. contact des roues avec le sol, en suivant la normale tirée de la pente
    `h[x+2] - h[x-2]` : rebond, puis traction (roue arrière), frein, frein
@@ -293,7 +315,7 @@ trous d'écran (`$x78-$x7F`, `$xF8-$xFF`, où RWTS et les cartes
 gardent leur état) sont laissés tranquilles. `$0800-$0FFF` : tables de
 multiplication (là où dormait le programme HELLO). `$1000-$1FFF` :
 écrivains de lignes, tables du rendu et des motifs, entrées de la démo,
-hall of fame. `$6000-$91FF` : le jeu (code, données, BSS ; ~210 octets
+hall of fame. `$6000-$91FF` : le jeu (code, données, BSS ; ~25 octets
 libres). `$9200-$95FF` : le code de démarrage (segment `INIT` : init, tables
 du rendu, des lignes HGR et de multiplication, détection de la manette,
 lecture du hall of fame) et les images des routines de la page texte, la
