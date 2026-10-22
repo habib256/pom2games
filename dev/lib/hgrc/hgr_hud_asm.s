@@ -3,7 +3,7 @@
 ; A = ASCII digit or space. Main RAM/ZP, D=0. IRQ flags/banks unchanged.
 ; Reuses text parameters, destroys A/X/Y, ptr1/ptr2/tmp1. Non-reentrant.
 .export _hgr_hud_cell_run, _hgr_hud_cell_width
-.import _hgr_font, _hgr_rowlo, _hgr_rowhi, glyph_addr
+.import _hgr_font, _hgr_rowlo, _hgr_rowhi, glyph_addr, hgr_dbl_lo, hgr_dbl_hi
 .importzp _hgr_g_col, _hgr_g_bit, _hgr_g_y, _hgr_g_glyph, _hgr_t_font
 .importzp ptr1, ptr2, tmp1
 .bss
@@ -14,6 +14,7 @@ row: .res 1
 m0: .res 1
 m1: .res 1
 m2: .res 1
+shift: .res 1                   ; pen bit * 16
 .code
 _hgr_hud_cell_run:
         pha
@@ -33,6 +34,12 @@ _hgr_hud_cell_run:
         ldx _hgr_g_bit
         lda lowbits,x
         sta keep
+        txa
+        asl
+        asl
+        asl
+        asl
+        sta shift
         txa
         clc
         adc _hgr_hud_cell_width
@@ -68,32 +75,29 @@ _hgr_hud_cell_run:
         sta ptr2
         lda _hgr_rowhi,y
         sta ptr2+1
+        ; Doubled and shifted by the pen bit through hgr_glyph_shift.s.
         ldy row
         lda (_hgr_g_glyph),y
-        pha
+        tax
         and #15
-        tax
-        lda doubled,x
+        ora shift
+        tay
+        lda hgr_dbl_lo,y
         sta m0
-        pla
-        lsr
-        lsr
-        lsr
-        lsr
-        tax
-        lda doubled,x
+        lda hgr_dbl_hi,y
         sta m1
-        lda #0
+        txa
+        lsr
+        lsr
+        lsr
+        lsr
+        ora shift
+        tay
+        lda hgr_dbl_lo,y
+        ora m1
+        sta m1
+        lda hgr_dbl_hi,y
         sta m2
-        ldx _hgr_g_bit
-        beq @packed
-@shift:
-        asl m0
-        rol m1
-        rol m2
-        dex
-        bne @shift
-@packed:
         ldy _hgr_g_col
         lda m0
         and #$7f
@@ -183,6 +187,3 @@ store3:
         sta (ptr2),y
         rts
 lowbits: .byte 0,1,3,7,15,31,63
-; Each source nibble becomes eight doubled pixels.
-doubled: .byte $00,$03,$0c,$0f,$30,$33,$3c,$3f
-         .byte $c0,$c3,$cc,$cf,$f0,$f3,$fc,$ff

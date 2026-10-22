@@ -1,6 +1,6 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_preshift_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
-.export _hgr_xs_run
+.export _hgr_xs_run, _hgr_xs_setup
 .exportzp _hgr_xs_x, _hgr_xs_y, _hgr_xs_spr
 .import _hgr_col7, _hgr_phase7, _hgr_rowhi, _hgr_rowlo
 .import _hgr_build_columns, _hgr_build_phases, _hgr_preshift_xor_run
@@ -17,7 +17,9 @@ _hgr_xs_y:    .res 1        ; pixel y (0..191)
 _hgr_xs_spr:  .res 2        ; pointer to the hgr_sprite_t {bits, stride, h}
 
 .segment "CODE"
-_hgr_xs_run:
+; hgr_xs_x/y/spr -> the clipped hgr_b_* block of the selected phase, for the
+; XOR loop below or hgr_blit7_run (SET/CLEAR). Rows built by the caller.
+_hgr_xs_setup:
         jsr _hgr_build_columns
         jsr _hgr_build_phases
         ; col = hgr_col7[x] -> _hgr_b_col ; phase = hgr_phase7[x] -> tmp1
@@ -110,4 +112,8 @@ _hgr_xs_run:
         dex
         bne @ploop
 @offdone:
+        rts
+
+_hgr_xs_run:
+        jsr _hgr_xs_setup
         jmp _hgr_preshift_xor_run   ; the XOR row loop, in hgr_blit7_asm.s

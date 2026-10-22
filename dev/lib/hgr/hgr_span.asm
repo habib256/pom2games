@@ -7,6 +7,7 @@
 ; hs_left_mask=pixel mask. Require 0<=start<end<=192. OR preserves bit 7.
 ; Clobbers A,X,Y, hs_ptr; writable CODE for vertical loop end operand.
 ; Define hs_* aliases before inclusion to share caller ZP scratch.
+; With hgr_pages.inc included first, the hgr_hi read is an HGR_HI_SITE.
 .ifndef _HGR_SPAN_LOADED_
 _HGR_SPAN_LOADED_ = 1
 .zeropage
@@ -45,17 +46,23 @@ hgr_hspan:
         RTS
 
 hgr_vspan:
-        STA @end+1
-@row:   LDA hgr_lo,X
+        STA hs_vspan_end+1
+hs_vspan_row:                   ; not @ labels: a page site ends their scope
+        LDA hgr_lo,X
         STA hs_ptr
+.ifdef _HGR_PAGES_INC_LOADED_
+        HGR_LDA_HI_X
+.else
         LDA hgr_hi,X
+.endif
         STA hs_ptr+1
         LDA (hs_ptr),Y
         ORA hs_left_mask
         STA (hs_ptr),Y
         INX
-@end:   CPX #0
-        BNE @row
+hs_vspan_end:
+        CPX #0
+        BNE hs_vspan_row
         RTS
 
 

@@ -24,6 +24,13 @@
 ;
 ; lib/hgr routines that read hgr_hi (hgr_line.asm) mark their sites
 ; themselves when this file is included.
+;
+; ORA variant, for a program with no room for hgr_hi2: define
+; HGR_PAGES_ORA = 1 before the include, let hgr_hi hold the page-free
+; offsets ($00-$1F, e.g. hgrc's hgr_fixed_rowhi) and read through
+; HGR_LDA_HI_X. Each read is followed by ORA #$20/#$40, whose immediate
+; hgr_select_page rewrites: 2 cycles more a read, 4 a site per change, no
+; table. HGR_LDA_HI_X also suits the default mode (a site + LDA hgr_hi,X).
 ; ============================================================================
 
 .ifndef _HGR_PAGES_INC_LOADED_
@@ -35,8 +42,21 @@ HGR_HI_SITES .set 0
 .ifdef _HGR_PAGES_ASM_LOADED_
         .error "HGR_HI_SITE after hgr_pages.asm: that site would never be patched"
 .endif
-        .ident(.sprintf("hgr_hi_site%d", HGR_HI_SITES)) = *
+        ; Count first: the site symbol, defined last, is unique and so opens
+        ; a fresh @ scope (the counter's .set would share one between sites).
 HGR_HI_SITES .set HGR_HI_SITES + 1
+        .ident(.sprintf("hgr_hi_site%d", HGR_HI_SITES - 1)) = *
+.endmacro
+
+.macro HGR_LDA_HI_X
+.ifdef HGR_PAGES_ORA
+        LDA     hgr_hi,X
+        HGR_HI_SITE                     ; the ORA immediate is patched
+        ORA     #$20
+.else
+        HGR_HI_SITE
+        LDA     hgr_hi,X
+.endif
 .endmacro
 
 .endif  ; _HGR_PAGES_INC_LOADED_

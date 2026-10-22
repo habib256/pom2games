@@ -24,11 +24,11 @@ def main():
     linkmap=a.labels.with_suffix('.map').read_text()
     linked=set(re.findall(r'platform\.lib\(([^)]+)\):',linkmap))
     assert {'dhgr_clear_asm.o','gfx_u16_digits.o'}<=linked, 'missing library modules'
-    unused={'dhgr_pixel.o','dhgr_getpixel.o','dhgr_pixel_address.o',
-            'dhgr_access_asm.o','dhgr_write_asm.o','dhgr_read_asm.o','dhgr_fill.o','dhgr_fill_bits.o',
-            'dhgr_bit_rect.o','dhgr_span_asm.o','dhgr_plot_color.o','dhgr_span.o',
-            'dhgr_block.o','dhgr_block_asm.o','dhgr_sprite.o','dhgr_address.o',
-            'dhgr_text.o','dhgr_text_asm.o','hgr_font.o','dhgr_small.o',
+    unused={'dhgr_pixel_asm.o','dhgr_getpixel_asm.o','dhgr_rows.o','dhgr_cells.o',
+            'dhgr_pattern_asm.o','dhgr_fill.o','dhgr_fill_bits.o',
+            'dhgr_bit_rect.o','dhgr_span_asm.o','dhgr_plot_color_asm.o','dhgr_span.o',
+            'dhgr_block.o','dhgr_block_asm.o','dhgr_sprite.o','dhgr_address_asm.o',
+            'dhgr_text_asm.o','hgr_font.o','dhgr_small.o',
             # Text is Beautiful Boot (finetext.s); only the $0800 tables remain.
             'dhgr_small_asm.o','dhgr_small_string.o','dhgr_small_params.o',
             # The game clears to $80 (bit 7: Chat Mauve colour) itself.

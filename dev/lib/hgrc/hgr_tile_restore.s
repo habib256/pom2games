@@ -4,6 +4,7 @@
 .export _hgr_tile_restore
 .import popa,popax,hgr_fixed_rowlo,hgr_fixed_rowhi
 .importzp ptr1,ptr2,ptr3,ptr4
+column = ptr4                  ; destination byte column
 .macpack longbranch
 .bss
 ctx: .res 2
@@ -18,8 +19,7 @@ count: .res 2
 left: .res 1
 rows: .res 1
 scan: .res 1
-pixel: .res 1
-column: .res 1
+rowhi: .res 1
 .rodata
 maplo: .repeat 24,I
  .byte <(I*40)
@@ -136,6 +136,13 @@ checked:
  asl
  sta scan
 draw_row:
+ ; A tile row keeps one row offset: its eight scanlines step $0400 apart.
+ ldx scan
+ lda hgr_fixed_rowlo,x
+ sta ptr3
+ lda hgr_fixed_rowhi,x
+ ora base
+ sta rowhi
  lda col
  sta column
  lda width
@@ -143,49 +150,44 @@ draw_row:
 draw_tile:
  ldy #0
  lda (ptr1),y
- sta ptr2
- lda #0
+ tax
+ lsr
+ lsr
+ lsr
+ lsr
+ lsr
  sta ptr2+1
- asl ptr2
- rol ptr2+1
- asl ptr2
- rol ptr2+1
- asl ptr2
- rol ptr2+1
+ txa
+ asl
+ asl
+ asl
  clc
- lda ptr2
  adc tiles
  sta ptr2
  lda ptr2+1
  adc tiles+1
  sta ptr2+1
- lda #0
- sta pixel
-draw_pixel:
- lda scan
- clc
- adc pixel
- tax
- lda hgr_fixed_rowlo,x
- sta ptr3
- lda hgr_fixed_rowhi,x
- ora base
+ lda rowhi
  sta ptr3+1
- ldy pixel
+ clc                    ; stays clear: high bytes never pass $5F
+.repeat 8,P
+ ldy #P
  lda (ptr2),y
  ldy column
  sta (ptr3),y
- inc pixel
- lda pixel
- cmp #8
- bcc draw_pixel
+.if P<7
+ lda ptr3+1
+ adc #4
+ sta ptr3+1
+.endif
+.endrepeat
  inc ptr1
  bne map_advanced
  inc ptr1+1
 map_advanced:
  inc column
  dec left
- bne draw_tile
+ jne draw_tile
  ; ptr1 already advanced width bytes. Skip to next map row.
  lda #40
  sec

@@ -13,14 +13,15 @@
 
 static void gfx_plot_clip(int x, int y)
 {
-    if (x >= 0 && x < (int)gfx_width && y >= 0 && y < (int)gfx_height)
+    /* Negative coordinates become large unsigned values: one test per axis. */
+    if ((unsigned)x < gfx_width && (unsigned)y < gfx_height)
         gfx_plot((unsigned)x, (unsigned char)y);
 }
 
 void gfx_circle(unsigned xc, unsigned char yc, unsigned char r)
 {
     int cx, cy = (int)yc;
-    int x = 0, y = (int)r;
+    unsigned char x = 0, y = r;
     int d = 1 - (int)r;
     /* Reject circles wholly to the right before narrowing an unsigned
      * centre to cc65's signed 16-bit int. Otherwise e.g. 65535 becomes -1
@@ -30,6 +31,30 @@ void gfx_circle(unsigned xc, unsigned char yc, unsigned char r)
     if (xc >= gfx_width && xc - gfx_width >= (unsigned)r) return;
     if (yc >= gfx_height && (unsigned)(yc - gfx_height) >= (unsigned)r) return;
     if (r == 0u) { gfx_plot(xc, yc); return; }
+    /* After the rejections above, xc + r cannot wrap. */
+    if (xc >= r && xc + r < gfx_width && yc >= r && (unsigned)yc + r < gfx_height) {
+        /* Wholly on screen: same points and order, without clipping. */
+        while (x <= y) {
+            if (x != 0) {
+                gfx_plot(xc + x, yc + y);
+                gfx_plot(xc - x, yc - y);
+            }
+            gfx_plot(xc - x, yc + y);
+            gfx_plot(xc + x, yc - y);
+            if (x != y) {
+                gfx_plot(xc + y, yc + x);
+                gfx_plot(xc - y, yc + x);
+                if (x != 0) {
+                    gfx_plot(xc + y, yc - x);
+                    gfx_plot(xc - y, yc - x);
+                }
+            }
+            if (d < 0) { d += ((int)x << 1) + 3; }
+            else       { d += ((int)x - (int)y) * 2 + 5; --y; }
+            ++x;
+        }
+        return;
+    }
     cx = (int)xc;
     while (x <= y) {
         /* At x=0, opposite x signs coincide. At x=y, exchanging the
@@ -48,8 +73,8 @@ void gfx_circle(unsigned xc, unsigned char yc, unsigned char r)
                 gfx_plot_clip(cx - y, cy - x);
             }
         }
-        if (d < 0) { d += (x << 1) + 3; }
-        else       { d += 2 * (x - y) + 5; --y; }
+        if (d < 0) { d += ((int)x << 1) + 3; }
+        else       { d += ((int)x - (int)y) * 2 + 5; --y; }
         ++x;
     }
 }

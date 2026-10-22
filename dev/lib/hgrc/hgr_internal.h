@@ -64,6 +64,7 @@ extern unsigned hgr_xs_x;
 extern unsigned char hgr_xs_y;
 extern const hgr_sprite_t *hgr_xs_spr;
 extern void hgr_xs_run(void);
+extern void hgr_xs_setup(void);   /* xs_run's clip/phase setup, without drawing */
 
 /* Masked pre-shifted sprite kernels (hgr_sprmask.s -- the SPRMASK family).
  * The sprite engine (hgr_sprengine.c) only stores these zp args and JSRs. */

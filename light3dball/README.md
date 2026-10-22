@@ -130,6 +130,14 @@ balle est masquée pixel par pixel aux bords des ouvertures.
 Les déplacements X/Y et la correction d'angle utilisent désormais
 `src/physics.s`, séparé du rendu. La jauge garde ses anciens repères par page,
 efface seulement leurs traits noirs et évite de redessiner une position fixe.
+Le changement de page ne réécrit plus les 192 octets hauts de la table des
+lignes (~2 500 cycles par image) : chaque lecture du rendu natif lit la table
+fixe sans page puis un `ORA #page` que `select_page` réécrit (7 sites,
+[`hgr_pages.inc`](../dev/lib/hgr/hgr_pages.inc), variante `HGR_PAGES_ORA`).
+Le HUD hgrc lit toujours `_hgr_rowhi`, laissée sur la page 2 ; ses lignes
+160–191 passent sur la page 1 le temps d'un redessin. Le travail gagné
+(−6 % sur une image courante) est rendu en `WAIT` avant l'attente de trame :
+la vitesse de jeu reste celle d'avant, sur II+ comme sur IIe.
 
 | Mémoire | Usage |
 |---|---|

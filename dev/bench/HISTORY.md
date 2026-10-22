@@ -215,3 +215,31 @@ Ces observations décrivent les chemins exécutés. Le détecteur suppose un
 usage normal des instructions de pile ; il n'analyse pas statiquement toutes
 les manipulations de S ni toutes les interruptions possibles. Le profilage
 n'ajoute aucun cycle CPU émulé.
+
+## 2026-10-22 : tailles acceptées contre des cycles (branche lib-dhgr)
+
+Références recalées par `run.py --dhgr --update` après examen. Les hausses
+de taille dépassent le seuil de 3 % du gate ; elles sont acceptées pour les
+gains de cycles suivants (sortie écran identique à la version précédente).
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après | Origine |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `hgr_diagonal` | 61 457 | 21 200 | 3 028 | 3 241 | tracé de ligne rapide, +159 octets de code |
+| `hgr_diagonal_cold` | 122 688 | 82 175 | 2 997 | 3 210 | idem |
+| `gfx_diagonal` | 61 418 | 21 263 | 3 486 | 3 655 | idem, +115 octets de code |
+| `hgr_hud_changed_phase0..6` | 20 211–22 235 | 18 450–19 552 | 3 550 | 3 795 | table de glyphes 16×16 pré-décalés |
+| `hgr_hud_warm` | 39 172 | 37 118 | 4 571 | 4 821 | idem |
+| `hgr_hud_cold` | 106 877 | 104 876 | 4 481 | 4 731 | idem |
+
+La table `hgr_glyph_shift.s` (224 octets de RODATA, indexée par
+bit × 16 + quartet) remplace jusqu'à six décalages de 3 octets par rangée de
+glyphe 16×16 : `hgr_puts` passe de 22 541 à 19 982 cycles (−11 %). Les scènes
+et boucles qui lient le HUD 16×16 (`hgr_scene*`, `hgr_loop_*`) prennent les
+mêmes +245 octets, à cycles stables.
+
+Les cas DHGR recalés en même temps proviennent des primitives à tables de la
+même branche : `dhgr_text` 239 492 → 44 259 cycles (+146 octets),
+`dhgr_rect` 75 830 → 15 034 (+176), `dhgr_span` 12 117 → 3 279 (+418),
+`dhgr_block` 10 966 → 6 839 (+255), `dhgr_sprite` 5 158 → 2 314 (+458).
+Autres gains de la branche, sans dépassement : `hgr_tile_background`
+9 546 → 6 782 cycles (+76 octets).
