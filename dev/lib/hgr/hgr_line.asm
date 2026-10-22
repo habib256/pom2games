@@ -7,7 +7,8 @@
 ; Define hl_* ZP aliases before including to reuse caller scratch.
 ; HGR_LINE_DIV7 / HGR_LINE_MOD7 = tables of x div 7 / x mod 7 (x = 0..255),
 ; defined BEFORE the include (e.g. HGR_LINE_DIV7 = div7), replace the
-; subtraction loop (up to 36 turns) by two lookups.
+; default split (two 32-byte tables indexed by x/8, then at most one
+; correction step) by two lookups.
 ; With hgr_pages.inc included first, the three hgr_hi reads are HGR_HI_SITEs
 ; (the draw page follows hgr_select_page).
 ; Apache-2.0 provenance: dev/tests/techniques/upstream/fdraw.
@@ -91,19 +92,24 @@ hl_positive:
         STA hl_pix_mask
         LDY HGR_LINE_DIV7,X     ; native byte column
 .else
+        ; x = 8k + j: k's floor(8k/7) is the column or one short of it
         LDA hl_ln_x0
-        LDX #0
-hl_div:   CMP #7
+        LSR
+        LSR
+        LSR
+        TAX
+        LDA hl_ln_x0
+        SEC
+        SBC hl_div7x7,X         ; x - 7 * floor(8k/7) = 0..13
+        LDY hl_div7q,X
+        CMP #7
         BCC hl_remainder
         SBC #7                  ; carry set by CMP
-        INX
-        BNE hl_div
+        INY
 hl_remainder:
-        TAY
-        LDA hl_native_mask,Y
-        STA hl_pix_mask
-        TXA
-        TAY                     ; native byte column
+        TAX
+        LDA hl_native_mask,X
+        STA hl_pix_mask         ; Y = native byte column
 .endif
         LDX hl_ln_y0
         LDA hl_ln_dx
@@ -176,4 +182,14 @@ hl_vy_step:
 hl_done:  RTS
 
 hl_native_mask: .byte 1,2,4,8,16,32,64
+.ifndef HGR_LINE_DIV7
+hl_div7q:
+.repeat 32, K
+        .byte K * 8 / 7
+.endrepeat
+hl_div7x7:
+.repeat 32, K
+        .byte K * 8 / 7 * 7
+.endrepeat
+.endif
 .endif

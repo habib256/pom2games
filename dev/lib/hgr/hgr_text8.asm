@@ -76,6 +76,7 @@ ht_g_lo:    .res 1      ; glyph pointer
 ht_g_hi:    .res 1
 ht_lin_lo:  .res 1      ; scanline pointer
 ht_lin_hi:  .res 1
+ht_end:     .res 1      ; last scanline + 1 of this glyph (bottom clip)
 ht_cm_ev:   .res 1      ; colour: pixel mask for EVEN byte columns (public)
 ht_cm_od:   .res 1      ; colour: pixel mask for ODD byte columns (public)
 ht_cbit:    .res 1      ; colour: palette bit $00/$80 (public)
@@ -98,17 +99,15 @@ hgr_putc8:
         ; draws its next char at the head of the next text row.
         LDA ht_col
         CMP ht_wrap
-        BCC @nowrap
-        LDA ht_left
-        STA ht_col
         LDA ht_sl
+        BCC @nowrap
+        LDX ht_left
+        STX ht_col
         CMP #192
-        BCS @nowrap             ; off-screen rows stay off-screen
-        CLC
+        BCS @out                ; off-screen rows stay off-screen
         ADC #8
         STA ht_sl
 @nowrap:
-        LDA ht_sl
         CMP #192
         BCS @out                ; off-screen: skip draw, still advance
 .ifdef HGR_TEXT8_FILTER
@@ -117,35 +116,46 @@ hgr_putc8:
         ; may be destroyed; preserve ht_a and the ht_* cursor/font/attributes.
         JSR HGR_TEXT8_FILTER
         BCS @out
+        LDA ht_sl
 .endif
+        ADC #8                  ; C = 0: last scanline + 1, partial glyphs
+        CMP #192                ; clip at the bottom edge
+        BCC @end
+        LDA #192
+@end:   STA ht_end
         ; glyph index: fold lowercase, control chars to space
         LDA ht_a
         AND #$7F
         CMP #$60
         BCC @nofold
-        SBC #$20                ; $60..$7F -> uppercase (C set by the CMP)
+        SBC #$21                ; $60..$7F -> uppercase - 1 (C stays set)
 @nofold:
-        SEC
-        SBC #$20
+        SBC #$1F                ; - $20 with C = 0, the fold's - $1F with C = 1
         BCS @idx_ok             ; $00..$3F: at most $5F - $20 after the fold
         LDA #0                  ; control chars -> space
 @idx_ok:
         ; glyph ptr = font + idx * 8: idx < 64, so the product is 9 bits and
         ; three shifts in A leave its bit 8 in the carry.
+        ; The pointer is biased by -ht_sl: the scanline then indexes the
+        ; glyph and the row tables alike.
         ASL A
         ASL A
         ASL A
-        STA ht_t
-        LDA #0
-        ROL A
+        TAX
+        LDA ht_font_hi
+        ADC #0                  ; + bit 8 of the product
         STA ht_g_hi
-        LDA ht_t
+        TXA
         CLC
         ADC ht_font_lo
+        BCC @g_lo
+        INC ht_g_hi
+@g_lo:  SEC
+        SBC ht_sl
         STA ht_g_lo
-        LDA ht_g_hi
-        ADC ht_font_hi
-        STA ht_g_hi
+        BCS @c_par
+        DEC ht_g_hi
+@c_par:
         ; artifact colour: the pixel mask follows the byte-column parity and
         ; is constant for the 8 rows. WHITE ($7F/$7F/$00) is a pass-through --
         ; the caller's boot MUST init the three attributes (garbage masks =
@@ -156,35 +166,30 @@ hgr_putc8:
         BCC @c_m
         LDA ht_cm_od
 @c_m:   STA ht_t
-        LDX #0                  ; glyph row 0..7
-@row:   TXA
+        LDY ht_sl
+        LDX #0                  ; (ht_lin_lo,X): Y stays the scanline
         CLC
-        ADC ht_sl
-        TAY
-        CPY #192
-        BCS @out                ; clip partial glyphs at the bottom edge
-        LDA hgr_lo,Y
+@row:   LDA hgr_lo,Y
+        ADC ht_col              ; C = 0; hgr_lo + 39 never carries
         STA ht_lin_lo
         LDA hgr_hi,Y
         EOR ht_page
         STA ht_lin_hi
-        TXA
-        TAY
         LDA (ht_g_lo),Y         ; glyph row byte
 .ifndef HGR_TEXT8_HGR_ORDER
-        LDY ht_rev
+        LDX ht_rev
         BEQ @put
-        TAY
-        LDA rev7_tab,Y          ; TMS bit order -> HGR
+        TAX
+        LDA rev7_tab,X          ; TMS bit order -> HGR
+        LDX #0
 @put:
 .endif
         AND ht_t                ; glyph bit 7 is always stripped: the palette
         ORA ht_cbit             ; bit comes from ht_cbit, never from the font
-        LDY ht_col
-        STA (ht_lin_lo),Y       ; STORE: text overwrites its cell
-        INX
-        CPX #8
-        BNE @row
+        STA (ht_lin_lo,X)       ; STORE: text overwrites its cell
+        INY
+        CPY ht_end
+        BCC @row                ; (C = 0 for the ADC)
 @out:
         INC ht_col
         PLA

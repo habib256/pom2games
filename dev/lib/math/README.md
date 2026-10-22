@@ -49,9 +49,9 @@ LOWBSS, ou la page HGR inutilisée.
 | | `MUL_K16 k` | `mul_p = mul_x × k`, k constante 0..255, en ligne | ~60 c |
 | | `MUL_KS16 k` | idem avec `mul_x` signé | ~70 c |
 | `mul.asm` | `mul_init` | construit les tables de carrés (rien sur le disque) | ~110 000 c |
-| | `mul_u8u8` | `mul_p0..1 = mul_x(bas) × mul_y` | ~55 c |
-| | `mul_u16u8` | `mul_p = mul_x × mul_y`, non signés | ~110 c |
-| | `mul_s16s8` | idem, signés, 24 bits exacts | ~130 c |
+| | `mul_u8u8` | `mul_p0..1 = mul_x(bas) × mul_y` | ~45 c |
+| | `mul_u16u8` | `mul_p = mul_x × mul_y`, non signés | ~85 c |
+| | `mul_s16s8` | idem, signés, 24 bits exacts (produit en ligne sans `mul_u16u8`) | ~115 c |
 | | `mul_dir` | `mul_p = A/X × Y` signés ; Y = 0, +64, −64 (direction ±1,0 à l'échelle 64) prennent un raccourci | 15-50 c / ~150 c |
 | | `mul_shr6` | `mul_p1..2 = ⌊mul_p / 64⌋` | 30 c |
 | | `mul_acc_set` / `_add` / `_shr6` | somme de produits sur 24 bits puis ⌊/64⌋ | |
@@ -62,8 +62,9 @@ LOWBSS, ou la page HGR inutilisée.
 ### Les astuces
 
 * **Quarts de carrés** : a·b = ⌊(a+b)²/4⌋ − ⌊(a−b)²/4⌋. Les octets bas des
-  quatre pointeurs valent `mul_y`, les octets de `mul_x` servent d'index
-  (`(mul_s1l),Y`), et `EOR #$FF` donne a−b+255 pour la seconde table. Aucun
+  pointeurs de sqr1 valent `mul_y`, ceux de sqr2 `mul_y EOR $FF` (a−b+255),
+  et les octets de `mul_x` servent d'index tels quels (`(mul_s1l),Y`,
+  `(mul_s2l),Y`). Aucun
   code automodifié (contrairement à `mul8x8` de PHYSICS, qui patche 8
   opérandes pour un produit 16×8).
 * **Signé** : produit des motifs non signés, puis deux corrections en

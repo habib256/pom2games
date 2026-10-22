@@ -4,7 +4,7 @@
 ; ============================================================================
 ; Every drawing routine of the program reads hgr_lo / hgr_hi (hgr_scanline.inc,
 ; which must then live in a WRITABLE segment). Switching the draw page is one
-; pass over hgr_hi: $2x <-> $4x is EOR #$60 per entry (~3 500 cycles, ~1/5 of
+; pass over hgr_hi: $2x <-> $4x is EOR #$60 per entry (~2 350 cycles, ~1/7 of
 ; a frame), far cheaper than parameterising every routine.
 ;
 ;   hgr_draw_hidden    draw page := the page NOT on screen (nothing changes
@@ -50,12 +50,14 @@ hgr_set_draw_page:
         CMP     hgr_draw_page
         BEQ     @done
         STA     hgr_draw_page
-        LDX     #191
-@lp:    LDA     hgr_hi,X
+        LDX     #48             ; four quarters of 48 entries per turn
+@lp:
+.repeat 4, Q
+        LDA     hgr_hi-1+Q*48,X
         EOR     #PAGE2_EOR
-        STA     hgr_hi,X
+        STA     hgr_hi-1+Q*48,X
+.endrepeat
         DEX
-        CPX     #$FF            ; 191 > 127: BPL would stop at once
         BNE     @lp
 @done:  RTS
 
