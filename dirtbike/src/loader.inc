@@ -5,7 +5,7 @@
 ; its disk driver RWTS ($B700-$BFFF) is kept (lib/apple2/rwts.asm: page-3
 ; vectors, DOS's own I/O block, the boot drive). The track files T01..T30
 ; stay ordinary DOS files: trackdir_t / trackdir_s give the track and sector
-; of each one's T/S list (patched into the binary by tools/patchdir.py
+; of each one's T/S list (patched into the binary by dev/tools/dos33patch.py
 ; after the disk is built). The file is read sector by sector into the track
 ; area, then (tools/packtrack.py has the layout):
 ;   stream 2 unpacks to HGR page 2 -> pat_k, pat_rel0, pat_plo/phi (offsets
@@ -171,6 +171,6 @@ copy_pages:
         RTS
 
 .segment "DATA"
-trackdir_t: .res NTRACKS        ; T/S list of T01..T30: tools/patchdir.py
+trackdir_t: .res NTRACKS        ; T/S list of T01..T30: dev/tools/dos33patch.py
 trackdir_s: .res NTRACKS
 .segment "CODE"

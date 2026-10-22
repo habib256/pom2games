@@ -252,9 +252,9 @@ mm_click:
 @no:    CLC
         RTS
 
-; mm_pad -- one turn (~10 ms) of the stick or the mouse: A = KC_UP, KC_DOWN,
-; KC_RET (the button, on release), MM_PICK (the mouse points at another
-; item: mm_sel set); 0 (Z = 1): nothing
+; mm_pad -- one turn (~10 ms) of the stick or the mouse: A = KC_UP, KC_DOWN
+; (KC_LEFT / KC_RIGHT: ignored), KC_RET (the button, on release), MM_PICK
+; (the mouse points at another item: mm_sel set); 0 (Z = 1): nothing
 mm_pad: LDA     #40
         JSR     WAIT
         JSR     mm_click
@@ -262,33 +262,11 @@ mm_pad: LDA     #40
         LDA     inp_dev
         CMP     #INP_MOUSE
         BEQ     @mouse
-        LDA     joy_ok
-        BEQ     @none
-        LDA     BUTN0
-        BPL     @nob
-@rel:   LDA     BUTN0
-        BMI     @rel
+        LDY     #MM_REPEAT
+        JMP     stick_menu
 @go:    LDA     #KC_RET
         RTS
-@nob:   LDA     mrep                    ; the repeat delay
-        BEQ     @read
-        DEC     mrep
 @none:  LDA     #0
-        RTS
-@read:  JSR     read_stick_fast
-        SEC
-        LDA     joy_y
-        SBC     joy_my
-        BCS     @dn
-        CMP     #<(-STICK_ON)
-        BCS     @none
-        LDA     #KC_UP
-        BNE     @rep                    ; (always)
-@dn:    CMP     #STICK_ON
-        BCC     @none
-        LDA     #KC_DOWN
-@rep:   LDX     #MM_REPEAT
-        STX     mrep
         RTS
 @mouse: LDA     _mouse_y                ; (mm_click polled it) its item
         LDX     #0

@@ -9,7 +9,7 @@
 ;   hof_page    A = 0 / 15: 15 tracks from that one (HGR page 1)
 ;
 ; DIRTHOF is an ordinary DOS binary file of two sectors, made by
-; tools/hof.py; tools/patchdir.py writes the track / sector of both data
+; tools/hof.py; dev/tools/dos33patch.py writes the track / sector of both data
 ; sectors into hof_t / hof_s. They are read and written whole through RWTS
 ; in HOFBUF..+511 (track_ids' last page and the T/S list page: free outside
 ; load_track, which runs again before the next race): bytes 0-3 are DOS's
@@ -34,11 +34,11 @@ HOF_LEN = * - hof_img
 .assert HOF_LEN + 4 <= 512, error, "hof_img: more than DIRTHOF's two sectors"
 hof_new:  .res 1                ; the race's records: bit 0 time, bit 1 points
 hpos:     .res 1                ; initials: the letter being changed
-hrep:     .res 1                ; joystick auto-repeat
+hrow:     .res 1                ; hof_page: the row of the line
 .segment "BSS"
 
 .segment "DATA"
-hof_t:    .byte 0, 0            ; DIRTHOF's data sectors (tools/patchdir.py)
+hof_t:    .byte 0, 0            ; DIRTHOF's data sectors (dev/tools/dos33patch.py)
 hof_s:    .byte 0, 0
 
 .segment "CODE"
@@ -202,54 +202,29 @@ hof_entry:
         JSR     puts_at
         LDA     #0
         STA     hpos
-        STA     hrep
+        STA     hrow
 @show:  JSR     ini_draw
 @wait:  LDA     #79                     ; ~1/60 s a turn
         JSR     WAIT
         LDA     KBD
         BMI     @key
-        LDA     joy_ok
+        LDY     #REPEAT * 2
+        JSR     stick_menu
         BEQ     @wait
-        LDA     BUTN0
-        BPL     @stick
-@rel:   LDA     BUTN0                   ; button: next letter, then done
-        BMI     @rel
-        LDA     hpos
+        CMP     #KC_RET
+        BNE     @arrow
+        LDA     hpos                    ; button: next letter, then done
         CMP     #2
         BCC     @nxt
         JMP     @done
 @nxt:   INC     hpos
         JMP     @show
-@stick: LDA     hrep
-        BEQ     @read
-        DEC     hrep
-        JMP     @wait
-@read:  JSR     read_stick_fast
-        SEC
-        LDA     joy_y
-        SBC     joy_my
-        BCS     @ydn
-        CMP     #<(-STICK_ON)
-        BCC     @up
-        BCS     @x
-@ydn:   CMP     #STICK_ON
-        BCS     @down
-@x:     SEC
-        LDA     joy_x
-        SBC     joy_mx
-        BCS     @xr
-        CMP     #<(-STICK_ON)
-        BCC     @left
-        JMP     @wait
-@xr:    CMP     #STICK_ON
-        BCS     @right
-        JMP     @wait
 @key:   BIT     KBDSTRB
         AND     #$7F
         JSR     kbd_upcase
         CMP     #KC_RET
         BEQ     @done
-        CMP     #KC_LEFT
+@arrow: CMP     #KC_LEFT
         BEQ     @left
         CMP     #$7F                    ; DELETE (//e)
         BEQ     @left
@@ -294,9 +269,7 @@ hof_entry:
 @t1:    TAX
         LDA     hof_chars,X
         JSR     ini_put
-@rep:   LDA     #REPEAT * 2
-        STA     hrep
-        JMP     @show
+@rep:   JMP     @show
 @done:  LDA     sel                     ; the records' initials
         STA     msel
         ASL     A
@@ -414,10 +387,10 @@ hof_page:
         LDX     #20
         JSR     puts_at
         LDA     #34
-        STA     mrep                    ; (row of the line)
+        STA     hrow
 @line:  LDA     #0
         STA     ht_col
-        LDA     mrep
+        LDA     hrow
         STA     ht_sl
         LDA     msel
         JSR     put_track_label
@@ -429,7 +402,7 @@ hof_page:
         BNE     @time
         LDA     #<msg_notime
         LDY     #>msg_notime
-        LDX     mrep
+        LDX     hrow
         JSR     puts_at
         JMP     @ini
 @time:  LDY     rec_sec,X
@@ -453,9 +426,9 @@ hof_page:
         LDX     #>rec_pini
         JSR     put_ini
         CLC
-        LDA     mrep
+        LDA     hrow
         ADC     #9
-        STA     mrep
+        STA     hrow
         INC     msel
         LDA     msel
         CMP     #15

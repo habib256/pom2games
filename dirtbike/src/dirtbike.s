@@ -285,10 +285,8 @@ main_loop:
         DEC     stimer
         BNE     @draw
         JMP     demo_end
-@finp:  LDA     BUTN0                   ; finished: button 0 too
-        BPL     @draw
-@rel:   LDA     BUTN0
-        BMI     @rel
+@finp:  JSR     stick_button            ; finished: the stick's button too
+        BCC     @draw
         JMP     leave_race
 @run:   LDA     count_t
         BEQ     @go

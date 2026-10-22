@@ -14,13 +14,11 @@
 MENU_TOP  = 32                  ; first row of the list
 MENU_INFO = 160
 MENU_HELP = 176
-STICK_ON  = 16                  ; stick deflection that moves the marker
-REPEAT    = 6                   ; menu turns between repeats
+REPEAT    = 6                   ; menu turns between stick repeats
 
 .segment "ZEROPAGE"
 sel:      .res 1                ; selected track
 msel:     .res 1                ; scratch
-mrep:     .res 1
 
 .segment "DATA"
 lbl_lock: .byte 0               ; bit 7: put_track_label prints no name
@@ -283,11 +281,15 @@ menu_input:
         LDA     #40
         JSR     WAIT
         LDA     KBD
-        BPL     @stick
-        BIT     KBDSTRB
+        BMI     @key
+        LDY     #REPEAT
+        JSR     stick_menu
+        BEQ     @none
+        BNE     @act                    ; (always)
+@key:   BIT     KBDSTRB
         AND     #$7F
         JSR     kbd_upcase
-        CMP     #KC_RET
+@act:   CMP     #KC_RET
         BEQ     @start
         CMP     #KC_ESC
         BEQ     @esc
@@ -319,64 +321,25 @@ menu_input:
         RTS
 @help:  LDA     #$FC
         RTS
-@stick: LDA     joy_ok
-        BEQ     @none
-        LDA     BUTN0
-        BPL     @nob
-@rel:   LDA     BUTN0                   ; start on release
-        BMI     @rel
-        BPL     @start
-@nob:   LDA     mrep                    ; auto-repeat delay
-        BEQ     @read
-        DEC     mrep
-        JMP     @none
-@read:  JSR     read_stick_fast
-        SEC
-        LDA     joy_y
-        SBC     joy_my
-        BCS     @ydn
-        CMP     #<(-STICK_ON)
-        BCC     @up1
-        BCS     @x
-@ydn:   CMP     #STICK_ON
-        BCS     @down1
-@x:     SEC
-        LDA     joy_x
-        SBC     joy_mx
-        BCS     @xr
-        CMP     #<(-STICK_ON)
-        BCC     @left1
-        BCS     @none
-@xr:    CMP     #STICK_ON
-        BCS     @right1
-        BCC     @none
-@up1:   JSR     @rep
 @up:    LDA     sel
         BEQ     @none
         SEC
         SBC     #1
         RTS
-@down1: JSR     @rep
 @down:  LDA     sel
         CMP     #NTRACKS-1
         BCS     @none
         ADC     #1
         RTS
-@left1: JSR     @rep
 @left:  LDA     sel
         CMP     #15
         BCC     @none
         SBC     #15
         RTS
-@right1:
-        JSR     @rep
 @right: LDA     sel
         CMP     #15
         BCS     @none
         ADC     #15
-        RTS
-@rep:   LDA     #REPEAT
-        STA     mrep
         RTS
 
 ; clear_page1 -- HGR page 1 black

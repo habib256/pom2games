@@ -227,7 +227,7 @@ que son pilote de disque RWTS (`$B700-$BFFF`). Le parcours choisi est lu
 secteur par secteur dans la zone libérée, puis décompressé :
 hauteurs en `$9600`, motifs en `$A600`. La position de la liste de secteurs
 de chaque fichier est écrite dans le jeu après la construction du disque
-(`tools/patchdir.py`). `tests/test_tracks.py` vérifie que la mémoire après
+(`dev/tools/dos33patch.py`, appelé par le Makefile). `tests/test_tracks.py` vérifie que la mémoire après
 chargement correspond exactement à la compilation Python.
 
 **Rendu** (`src/render.inc`). Double tampon HGR, défilement au pixel. Une
@@ -285,7 +285,6 @@ presque pleine.
 | `tools/solver.py` | trouve un trajet par parcours (`--all tests/solutions.txt` après un changement de parcours ou de physique) |
 | `tools/trackcheck.py` | rejoue les solutions, vérifie les limites du format |
 | `tools/packtrack.py` | fichiers `T01`..`T30` (LZ4FH) et données du menu |
-| `tools/patchdir.py` | écrit dans le jeu où sont les fichiers sur la disquette (parcours, titre, hall of fame) |
 | `tools/tricks.py` | modèle des points (sauts, saltos), rejoué par le test physique |
 | `tools/title.py` | l'image de titre (`OUT.hgr [aperçu.png]`) |
 | `tools/hof.py` | le fichier `DIRTHOF` vide |
@@ -295,7 +294,7 @@ presque pleine.
 | `tests/test_mouse.py` | `make test-mouse` : la souris avec les vraies ROM, dans le cœur POM2 (`POM2_SRC`) |
 | `tools/sprites.py` | génère `src/sprites.inc` : roue (4 positions de rayons × 7 décalages), tête |
 | `tools/autopilot.py` | pilote automatique simple (réglé pour l'ancienne vitesse ; le test physique rejoue désormais les solutions) |
-| `tools/profile.py` | profil a2shot : cycles par image et par routine |
+| `tools/profile.py` | profil a2shot : cycles par image et par routine (`dev/tools/a2profile.py`) |
 
 Les bibliothèques de `dev/lib` utilisées sont `apple2` (HGR, clavier,
 manette, LZ4FH, RWTS), `hgr` (tables, texte 8×8, lignes, pages), `math` et

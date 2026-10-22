@@ -26,10 +26,15 @@ utilisent la vidéo native de l'Apple II. Tous les jeux du dépôt les partagent
                        le fragment Makefile commun à tous les programmes
       tools/dos33.py   fabrique une image DOS 3.3 amorçable (.dsk) et relit
                        les fichiers d'une image existante (tests de sauvegarde)
+      tools/dos33patch.py  écrit dans un programme du disque où sont ses
+                       fichiers (listes T/S, secteurs d'une sauvegarde), pour
+                       les lire par RWTS une fois DOS libéré ($(DOS33PATCH))
       tools/hgr_tables.py  disposition HGR, division/modulo 7 et décalages runtime
       tools/fonts.py   la police Beautiful Boot côté Python (tables dérivées)
       tools/a2test.py  harnais des tests : labels ld65, lancement a2run/a2shot,
                        décodage des dumps mémoire, disque de test
+      tools/a2profile.py  réponse `pcprof` d'a2shot : cycles par adresse, par
+                       routine (labels ld65), par région, par groupe ; tableau
       tools/re6502/    rétro-ingénierie 6502 : opcodes 6502/65C02, traceur de
                        code, info da65, secteurs physiques ; cli.py (physics/)
       tools/build_dhgr_font.py  image binaire de la petite police DHGR relogée

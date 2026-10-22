@@ -37,7 +37,7 @@ mus_loop:  .res 2               ; at the end, again from here (hi 0: stop)
 .segment "DATA"                 ; (BSS is not cleared: these need a start value)
 demo:      .byte 0              ; non-zero: this race is a demo
 demo_next: .byte 0              ; next demo ride
-titledir_t: .byte 0             ; TITLE's T/S list (tools/patchdir.py)
+titledir_t: .byte 0             ; TITLE's T/S list (dev/tools/dos33patch.py)
 titledir_s: .byte 0
 
 .segment "CODE"
@@ -198,19 +198,14 @@ tick_wait:
         TAY
         LDA     KBD
         BMI     @key
-        LDA     joy_ok
-        BEQ     @n
-        LDA     BUTN0
-        BMI     @btn
+        JSR     stick_button
+        BCC     @n
+        RTS
 @n:     DEY
         BNE     @t
         CLC
         RTS
 @key:   BIT     KBDSTRB
-        SEC
-        RTS
-@btn:   LDA     BUTN0
-        BMI     @btn
         SEC
         RTS
 
@@ -262,10 +257,9 @@ hof_pause:
 demo_step:
         LDA     KBD
         BMI     @key
-        LDA     joy_ok
-        BEQ     @in
-        LDA     BUTN0
-        BMI     @btn
+        JSR     stick_button
+        BCC     @in
+        RTS
 @in:    LDA     demo_left
         BNE     @same
         LDY     #0
@@ -303,10 +297,6 @@ demo_step:
 @hold:  CLC
         RTS
 @key:   BIT     KBDSTRB
-        SEC
-        RTS
-@btn:   LDA     BUTN0
-        BMI     @btn
         SEC
         RTS
 

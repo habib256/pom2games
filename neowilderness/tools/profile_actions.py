@@ -14,13 +14,13 @@ profile cannot tell from the ROM by address: it is counted under ROM.
 import argparse
 import hashlib
 import json
-import re
 from pathlib import Path
 import sys
 
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE.parent / 'dev/tools'))
 import a2test
+import a2profile
 
 
 # Raw keys measured from turn_view to the next command prompt.
@@ -64,8 +64,7 @@ def measure(disk, labels, command, setup=(), profile=False):
                 breakdown = dict(resident=0, simulation=0, overlays=0, transfers=0, ROM=0)
             else:
                 breakdown = dict(resident=0, simulation=0, overlays=0, DOS=0, ROM=0)
-            for address, cycles in re.findall(r'^pc ([0-9A-F]{4}) (\d+)$', result.out, re.M):
-                address = int(address, 16)
+            for address, cycles in a2profile.pcs(result.out).items():
                 if resident:
                     # No MLI call happens during commands (test_resident.py):
                     # $D000+ is the Applesoft/Monitor ROM only.
@@ -78,7 +77,7 @@ def measure(disk, labels, command, setup=(), profile=False):
                               'DOS' if address >= 0x9600 else
                               'overlays' if 0x5800 <= address < 0x6000 else
                               'simulation' if 0x2000 <= address < 0x4000 else 'resident')
-                breakdown[region] += int(cycles)
+                breakdown[region] += cycles
             assert sum(breakdown.values()) == end - start
         else:
             end = s.step(L.until(target, 20000)).cycles[-1]
@@ -119,7 +118,7 @@ def measure(disk, labels, command, setup=(), profile=False):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--disk', type=Path, default=HERE.parent/'dist/NEOWILDERNESS.po')
+    p.add_argument('--disk', type=Path, default=HERE.parent/'dist/NEOWILDERNESSXL.po')
     p.add_argument('--labels', type=Path, default=HERE/'build/wild.lbl')
     p.add_argument('--out', type=Path)
     p.add_argument('--profile', action='store_true', help='count guest instruction cycles by memory region')
