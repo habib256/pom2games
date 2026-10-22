@@ -117,13 +117,13 @@ class Result:
 
 
 def have_a2shot(what=None):
-    """True when a2shot is built. It links an arm64 macOS POM2 core, so on
-    other hosts (Linux CI) the //e parts of a test are skipped: give `what`
-    to print the SKIP line."""
+    """True when a2shot is built. It links a POM2 core vendored for macOS
+    arm64 and Linux x86_64 only, so on other hosts the //e parts of a test
+    are skipped: give `what` to print the SKIP line."""
     if A2SHOT.exists():
         return True
     if what:
-        print(f'SKIP {what}: needs a2shot (macOS arm64: make -C dev/tools/a2shot)')
+        print(f'SKIP {what}: needs a2shot (macOS arm64 or Linux x86_64: make -C dev/tools/a2shot)')
     return False
 
 

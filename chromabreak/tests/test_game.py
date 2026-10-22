@@ -59,8 +59,8 @@ def main():
     print('PASS bootable ProDOS 2.4.3 volume, SYS loader and payload round trip')
     emulator=ROOT/'dev/tools/a2shot/a2shot'
     if a.image_only: return
-    if sys.platform!='darwin' or not emulator.exists():
-        print('SKIP IIe execution: requires macOS arm64 a2shot (make -C dev/tools/a2shot)')
+    if not emulator.exists():
+        print('SKIP IIe execution: requires a2shot (macOS arm64 or Linux x86_64: make -C dev/tools/a2shot)')
         return
     labels=a2test.labels(a.labels,strip=True)
     peek,poke=labels.peek,labels.poke

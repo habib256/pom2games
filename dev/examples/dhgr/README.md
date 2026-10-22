@@ -45,7 +45,7 @@ both banks with the general DHGR primitives, with the seven sprite phases,
 overlaps, edges and all digits.
 
 The disk is `dist/DHGR.dsk`. `a2shot` for the tests is built with
-`make -C dev/tools/a2shot` on macOS arm64, with libslirp and zlib.
+`make -C dev/tools/a2shot` on macOS arm64 or Linux x86_64, with libslirp and zlib.
 
 ```c
 #include "dhgr.h"

@@ -37,10 +37,11 @@ POM2    ?= /Applications/POM2.app/Contents/MacOS/POM2
 SYSTEM  ?= $(DEV)/tools/dos33_system.bin
 A2RUN   ?= $(DEV)/tools/a2run/a2run
 A2SHOT  ?= $(DEV)/tools/a2shot/a2shot
-# a2shot links an arm64 macOS POM2 core: elsewhere (Linux CI) the tests that
-# need it are skipped. `make A2SHOT_HOST=` simulates that on a Mac.
+# a2shot links a vendored POM2 core built for macOS arm64 and Linux x86_64:
+# on other hosts the tests that need it are skipped. `make A2SHOT_HOST=`
+# simulates that.
 ifeq ($(origin A2SHOT_HOST),undefined)
-A2SHOT_HOST := $(if $(filter Darwin-arm64,$(shell uname -sm | tr ' ' -)),yes)
+A2SHOT_HOST := $(if $(filter Darwin-arm64 Linux-x86_64,$(shell uname -sm | tr ' ' -)),yes)
 endif
 LOAD    ?= 0x6000
 APPLE2_PRESET ?= ii+
@@ -86,7 +87,7 @@ distclean: clean
 $(A2RUN): $(wildcard $(DEV)/tools/a2run/*.[ch] $(DEV)/tools/a2run/Makefile)
 	$(MAKE) -C $(DEV)/tools/a2run
 
-$(A2SHOT): $(DEV)/tools/a2shot/a2shot.cpp $(DEV)/tools/a2shot/Makefile
+$(A2SHOT): $(DEV)/tools/a2shot/a2shot.cpp $(DEV)/tools/a2shot/Makefile $(DEV)/tools/a2shot/sdk.mk
 	$(MAKE) -C $(DEV)/tools/a2shot
 
 .PHONY: all run clean distclean

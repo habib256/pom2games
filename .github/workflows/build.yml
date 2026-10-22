@@ -1,5 +1,7 @@
 # Build every disk from scratch, check it matches the committed dist/*.dsk,
 # then test HGR primitives and play MICRO-SOKOBAN levels headless in a2run.
+# a2shot (the vendored POM2 core, Linux x86_64 and macOS arm64) runs the
+# //e, DHGR and Wilderness tests on both runners.
 name: build
 
 on:
@@ -11,12 +13,19 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
-      - name: Install cc65 and zlib
-        run: sudo apt-get update && sudo apt-get install -y cc65 zlib1g-dev
+      - name: Install cc65, zlib and the headless core dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cc65 zlib1g-dev g++ pkg-config libslirp-dev libglib2.0-dev
+      - name: Build the Apple IIe headless runner
+        run: make -C dev/tools/a2shot
       - name: Disks match the sources
         run: make check
       - name: Every test, fast and long tiers
         run: make test-all
+      - name: DHGR, banks and transitions
+        run: make test-dhgr
   dhgr:
     runs-on: macos-15
     steps:

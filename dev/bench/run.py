@@ -7,6 +7,7 @@ Use --check for regression gates, --update to intentionally accept a baseline.
 import argparse
 import hashlib
 import json
+import platform
 from pathlib import Path
 import re
 import sys
@@ -294,7 +295,8 @@ def environment(dhgr, pal=False):
     runner=DEV/'tools'/('a2shot/a2shot' if dhgr else 'a2run/a2run')
     paths=[runner,DEV/'tools/a2shot/roms'/('apple2e.rom' if dhgr else 'apple2p.rom'),
            DEV/'tools/a2shot/roms/disk2.rom',DEV/'tools/dos33_system.bin']
-    paths += ([DEV/'tools/a2shot/sdk/lib/libpom2_core.a'] if dhgr else
+    host={'Darwin-arm64':'darwin-arm64','Linux-x86_64':'linux-x86_64'}.get(platform.system()+'-'+platform.machine(),'')
+    paths += ([DEV/'tools/a2shot/sdk/lib'/host/'libpom2_core.a'] if dhgr else
               [DEV/'tools/a2run/cpu6502.c', DEV/'tools/a2run/a2run.c'])
     return dict(cpu='65C02' if dhgr else 'NMOS6502',model='IIe enhanced 128K' if dhgr else 'II+ 48K',
                 frame_cycles=20280 if pal else 17030,artifacts=[identity(p) for p in paths])

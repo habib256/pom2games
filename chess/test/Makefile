@@ -14,9 +14,8 @@ SRC     ?= ../src
 DEFS    := -D CHESS_SMART_EVAL
 BUILD   := build
 
-LIBS := $(A2SHOT)/sdk/lib/libpom2_core.a \
-        -framework CoreAudio -framework AudioToolbox -framework AudioUnit \
-        $(shell pkg-config --libs slirp) -lz
+A2SHOT_DIR := $(A2SHOT)
+include $(A2SHOT)/sdk.mk
 
 BENCH   := $(BUILD)/bench --roms $(A2SHOT)/roms --bin $(BUILD)/engine.bin --lbl $(BUILD)/engine.lbl
 FEN     ?= rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1
@@ -28,7 +27,7 @@ all: $(BUILD)/bench $(BUILD)/engine.bin
 
 $(BUILD)/bench: bench.cpp
 	@mkdir -p $(BUILD)
-	$(CXX) -std=c++17 -O2 -I $(A2SHOT)/sdk/include $< $(LIBS) -o $@
+	$(CXX) $(POM2_CORE_CFLAGS) -O2 $< $(POM2_CORE_LIBS) -o $@
 
 $(BUILD)/bench.o: bench.s
 	@mkdir -p $(BUILD)
