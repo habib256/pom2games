@@ -1,74 +1,74 @@
-# lib/apple2c — texte + clavier Apple II pour C (cc65)
+# lib/apple2c — Apple II text + keyboard for C (cc65)
 
 *[← dev](../../README.md)*
 
-Base texte/clavier pour les programmes C Apple II, indépendante du mode
-graphique. La sortie passe par COUT (`$FDED`) sur la page texte, l'entrée lit le verrou clavier
-(`$C000`, acquitté par `$C010`). Le miroir asm est [`../apple2/`](../apple2/).
+Text/keyboard base for Apple II C programs, independent of the graphics
+mode. Output goes through COUT (`$FDED`) on the text page, input reads the keyboard latch
+(`$C000`, acknowledged by `$C010`). The asm mirror is [`../apple2/`](../apple2/).
 
-## Fichiers
+## Files
 
-| Fichier | Rôle |
+| File | Role |
 |---|---|
-| `apple2io.h` | l'API (ou `apple2c.h`) |
-| `apple2io_asm.s` | les routines qui appellent la ROM ou lisent le clavier |
+| `apple2io.h` | the API (or `apple2c.h`) |
+| `apple2io_asm.s` | the routines that call the ROM or read the keyboard |
 | `apple2io_str.s` | `a2_puts`, `a2_print_hexword` |
-| `apple2frame.h` + `apple2frame.s` | cadence optionnelle : IIe VBL, temporisation de repli bornée |
-| `apple2c.h` | en-tête parapluie |
-| `apple2c.mk` | fragment Makefile : `APPLE2C_SRCS`, `APPLE2C_INCS`, `APPLE2C_GAME_SRCS`, `APPLE2C_DOS_SRCS`, `APPLE2C_FRAME_SRCS`, `APPLE2C_AFLAGS` |
-| `apple2game.h` + `apple2game_asm.s` | haut-parleur, manette, boutons (optionnel) |
-| `apple2dos.h` + `apple2dos_asm.s` | commandes DOS 3.3 : BLOAD, BSAVE… (optionnel) |
+| `apple2frame.h` + `apple2frame.s` | optional frame pacing: IIe VBL, bounded fallback delay |
+| `apple2c.h` | umbrella header |
+| `apple2c.mk` | Makefile fragment: `APPLE2C_SRCS`, `APPLE2C_INCS`, `APPLE2C_GAME_SRCS`, `APPLE2C_DOS_SRCS`, `APPLE2C_FRAME_SRCS`, `APPLE2C_AFLAGS` |
+| `apple2game.h` + `apple2game_asm.s` | speaker, joystick, buttons (optional) |
+| `apple2dos.h` + `apple2dos_asm.s` | DOS 3.3 commands: BLOAD, BSAVE… (optional) |
 
 ## API
 
-| Fonction Apple II | Effet |
+| Apple II function | Effect |
 |---|---|
-| `a2_putc(c)` | un caractère (`'\r'` = retour à la ligne) |
-| `a2_puts(s)` | chaîne terminée par 0 |
-| `a2_print_hex(b)` | octet en hexadécimal |
-| `a2_print_hexword(w)` | mot 16 bits en hexadécimal |
-| `a2_dos()` | retour au prompt DOS `]`, ZP restaurée |
-| `a2_home()` | efface l'écran texte |
-| `a2_text()` | TEXT + plein écran + page 1 |
-| `a2_wait(a)` | pause Moniteur `WAIT` (`a2_wait(A2_WAIT_FRAME)` ≈ une trame) |
-| `apple2_iskeypressed()` | ≠ 0 si une touche attend |
-| `apple2_getkey()` | attend une touche, `& 0x7F`, majuscule |
-| `apple2_readkey()` | 0 ou la touche, sans attendre |
+| `a2_putc(c)` | one character (`'\r'` = new line) |
+| `a2_puts(s)` | zero-terminated string |
+| `a2_print_hex(b)` | byte in hexadecimal |
+| `a2_print_hexword(w)` | 16-bit word in hexadecimal |
+| `a2_dos()` | return to the DOS `]` prompt, ZP restored |
+| `a2_home()` | clears the text screen |
+| `a2_text()` | TEXT + full screen + page 1 |
+| `a2_wait(a)` | Monitor `WAIT` pause (`a2_wait(A2_WAIT_FRAME)` ≈ one frame) |
+| `apple2_iskeypressed()` | ≠ 0 if a key is waiting |
+| `apple2_getkey()` | waits for a key, `& 0x7F`, upper case |
+| `apple2_readkey()` | 0 or the key, without waiting |
 
-### Son, manette, DOS (objets optionnels)
+### Sound, joystick, DOS (optional objects)
 
-Les mêmes routines que les modules asm `../apple2/sound.asm`, `joy.asm` et
-`dos.asm`, appelées depuis C. Ce sont des objets à part (`apple2game_asm.s`,
-`apple2dos_asm.s`, assemblés avec `-I dev/lib/apple2`) : un programme qui ne
-s'en sert pas ne paie rien (ANIMALS tient tout juste sous DOS).
+The same routines as the asm modules `../apple2/sound.asm`, `joy.asm` and
+`dos.asm`, called from C. They are separate objects (`apple2game_asm.s`,
+`apple2dos_asm.s`, assembled with `-I dev/lib/apple2`): a program that does not
+use them pays nothing (ANIMALS only just fits under DOS).
 
-`make test-tools` compile l'objet son/manette avec un programme C et vérifie
-dans l'émulateur les directions, la priorité verticale en diagonale, les
-trois boutons et le nombre de bascules du haut-parleur (zéro vaut 256).
+`make test-tools` compiles the sound/joystick object with a C program and checks
+in the emulator the directions, vertical priority on diagonals, the
+three buttons and the number of speaker toggles (zero means 256).
 
-| Fonction | Effet |
+| Function | Effect |
 |---|---|
-| `a2_tone(flips, period)` | `flips` bascules du haut-parleur, 12 + 5·period cycles chacune ; une bascule est une demi-période : 1,02 MHz / (2·(12 + 5·period)), soit ~2,4 kHz à `$28`, ~526 Hz à `$C0`, ~397 Hz à `$FF` |
-| `a2_read_stick()` | lit la manette (~6 ms) : `A2_JOY_NONE/UP/DOWN/LEFT/RIGHT`, valeurs brutes dans `a2_joy_x`, `a2_joy_y` |
-| `a2_button(n)` | ≠ 0 tant que le bouton n (0-2) est enfoncé |
-| `a2_dos_cmd("BLOAD HISCORE,A$1000")` | une commande DOS complète |
-| `a2_dos_new()`, `a2_dos_add(s)`, `a2_dos_hex(b)`, `a2_dos_run()` | construire une commande avec des adresses calculées |
-| `a2_disk_protected()` | 1 si la disquette du dernier accès de DOS (slot lu dans son IOB) est protégée en écriture |
+| `a2_tone(flips, period)` | `flips` speaker toggles, 12 + 5·period cycles each; a toggle is a half-period: 1.02 MHz / (2·(12 + 5·period)), i.e. ~2.4 kHz at `$28`, ~526 Hz at `$C0`, ~397 Hz at `$FF` |
+| `a2_read_stick()` | reads the joystick (~6 ms): `A2_JOY_NONE/UP/DOWN/LEFT/RIGHT`, raw values in `a2_joy_x`, `a2_joy_y` |
+| `a2_button(n)` | ≠ 0 while button n (0-2) is held down |
+| `a2_dos_cmd("BLOAD HISCORE,A$1000")` | a complete DOS command |
+| `a2_dos_new()`, `a2_dos_add(s)`, `a2_dos_hex(b)`, `a2_dos_run()` | build a command with computed addresses |
+| `a2_disk_protected()` | 1 if the disk of DOS's last access (slot read from its IOB) is write-protected |
 
-`a2_dos_*` rendent à DOS la page zéro que `crt0_apple2.s` a sauvée au
-démarrage (exportée sous le nom `apple2_zp_buf`, comme dans `exit.asm`). Une
-erreur DOS arrête le programme au prompt : mettre les fichiers sur la
-disquette et tester `a2_disk_protected()` avant d'écrire.
+`a2_dos_*` give DOS back the zero page that `crt0_apple2.s` saved at
+startup (exported as `apple2_zp_buf`, as in `exit.asm`). A
+DOS error stops the program at the prompt: put the files on the
+disk and test `a2_disk_protected()` before writing.
 
-Macros : `puts_apple2(s)`, `println_apple2(s)`, `getchar_apple2()`, plus les
+Macros: `puts_apple2(s)`, `println_apple2(s)`, `getchar_apple2()`, plus the
 codes `KC_LEFT` `KC_RIGHT` `KC_UP` `KC_DOWN` `KC_RET` `KC_ESC`.
 
-`a2_dos()` et le retour de `main()` reposent sur
-[`../../cc65/crt0_apple2.s`](../../cc65/crt0_apple2.s) : il sauvegarde la page
-zéro au démarrage et la remet avant de sauter en `$03D0`. Pendant l'exécution,
-Ctrl-RESET passe aussi par ce chemin.
+`a2_dos()` and returning from `main()` rely on
+[`../../cc65/crt0_apple2.s`](../../cc65/crt0_apple2.s): it saves the zero
+page at startup and puts it back before jumping to `$03D0`. While running,
+Ctrl-RESET also goes through this path.
 
-## Programme minimal
+## Minimal program
 
 ```c
 #include "apple2c.h"
@@ -78,77 +78,77 @@ void main(void) {
     a2_home();
     puts_apple2("HELLO WORLD\r");
     apple2_getkey();
-}                                   /* retour à DOS */
+}                                   /* back to DOS */
 ```
 
     ca65 -t none -o crt0_apple2.o dev/cc65/crt0_apple2.s
     cl65 -t none -Oirs -I dev/lib/apple2c -c -o hello.o hello.c
     ...
     cl65 -t none -C dev/cc65/apple2_hgr_c.cfg -o hello.bin \
-         crt0_apple2.o hello.o apple2io_str.o apple2io_asm.o      # crt0 en premier
+         crt0_apple2.o hello.o apple2io_str.o apple2io_asm.o      # crt0 first
 
-Exemple complet : [`../../examples/hello`](../../examples/hello).
+Full example: [`../../examples/hello`](../../examples/hello).
 
-Auteur : VERHILLE Arnaud. Licence : [GPL-3.0](../../../LICENSE).
+Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).
 
-## Cadence optionnelle
+## Optional frame pacing
 
-Lier `APPLE2C_FRAME_SRCS`, puis appeler `a2_frame_init()` : le résultat
-indique `A2_FRAME_VBL` sur IIe ou `A2_FRAME_DELAY` sur II/II+, IIc et IIgs.
-`a2_frame_wait()` attend le prochain front VBL sur IIe. Un signal bloqué
-entraîne un repli borné en temporisation, jusqu’au prochain `a2_frame_init`.
-Chaque phase de sondage est limitée à 6 144 lectures, avec une marge pour
-PAL/NTSC à 1 MHz : la borne compte des lectures, pas du temps, et une carte
-accélératrice peut l’épuiser avant le VBL (repli en temporisation). De même,
-le chien de garde d’`a2_cadence_wait` (4 096 lectures) suppose 1 MHz. Le test d'un signal bloqué mesure environ 84 848 cycles, délai de
-repli inclus, contre 739 088 auparavant.
-`a2_frame_mode()` permet de lire le mode courant. Aucun commutateur vidéo
-ou d’interruption n’est modifié ; le masque IRQ est préservé.
+Link `APPLE2C_FRAME_SRCS`, then call `a2_frame_init()`: the result
+reports `A2_FRAME_VBL` on IIe or `A2_FRAME_DELAY` on II/II+, IIc and IIgs.
+`a2_frame_wait()` waits for the next VBL edge on IIe. A stuck signal
+causes a bounded fallback to the delay, until the next `a2_frame_init`.
+Each polling phase is limited to 6,144 reads, with a margin for
+PAL/NTSC at 1 MHz: the bound counts reads, not time, and an
+accelerator card can exhaust it before the VBL (fallback to the delay). Likewise,
+the watchdog of `a2_cadence_wait` (4,096 reads) assumes 1 MHz. The stuck-signal test measures about 84,848 cycles, fallback
+delay included, against 739,088 before.
+`a2_frame_mode()` reads the current mode. No video or
+interrupt switch is changed; the IRQ mask is preserved.
 
-`a2_frame_set_delay(n)` règle l’argument de WAIT ROM (0 devient 1). Le défaut
-80 représente environ 17 093 cycles CPU, auxquels s’ajoute le dessin. Ce
-service ne fournit donc pas de délai compensé ni une cadence exacte sur les
-machines sans VBL. Le sondage suppose ROM/RAM principales et page zéro
-principale ; les routines ne sont pas réentrantes ou appelables depuis une IRQ.
+`a2_frame_set_delay(n)` sets the ROM WAIT argument (0 becomes 1). The default
+80 represents about 17,093 CPU cycles, to which drawing adds. This
+service therefore provides neither a compensated delay nor an exact rate on
+machines without VBL. Polling assumes main ROM/RAM and main zero
+page; the routines are not reentrant or callable from an IRQ.
 
-En double tampon : dessiner, attendre, puis basculer. En simple tampon :
-attendre avant de dessiner ; le dessin peut encore dépasser le VBL.
-Voir l’[exemple HGR](../../examples/hgr/README.md).
+With double buffering: draw, wait, then flip. With single buffering:
+wait before drawing; the drawing can still overrun the VBL.
+See the [HGR example](../../examples/hgr/README.md).
 
-## Échéances à deux rafraîchissements
+## Two-refresh deadlines
 
-Avec une IRQ applicative disponible, lier `APPLE2C_CADENCE_SRCS` et inclure
-`apple2frame.h`. Le gestionnaire appelle `a2_cadence_tick` exactement une fois
-par refresh. Pour présenter dans le VBL, sa période **et sa phase** doivent
-suivre la vidéo. La bibliothèque n'installe aucun gestionnaire ou périphérique
-et ne force pas l'activation des interruptions.
+With an application IRQ available, link `APPLE2C_CADENCE_SRCS` and include
+`apple2frame.h`. The handler calls `a2_cadence_tick` exactly once
+per refresh. To present within the VBL, its period **and its phase** must
+follow the video. The library installs no handler or peripheral
+and does not force interrupts on.
 
 ```c
-/* La source IRQ est déjà installée et active, synchronisée au VBL. */
+/* The IRQ source is already installed and active, synchronised to VBL. */
 if (!a2_cadence_init(2)) return 1;
 for (;;) {
-    /* Clavier, logique, puis dessin dans la page cachée. */
+    /* Keyboard, logic, then drawing into the hidden page. */
     hgr_spr_render();
     if (a2_cadence_wait() == A2_CADENCE_TIMEOUT) break;
     hgr_spr_present();
 }
 ```
 
-Deux ticks donnent nominalement 30 FPS NTSC / 25 FPS PAL. Une charge en retard
-fait sauter les échéances dépassées et attend la prochaine de la grille
-initiale ; le retour compte ces pertes. Aucun rattrapage en rafale. Une horloge
-arrêtée produit $FFFF après une attente bornée et désactive la cadence ; refaire
-`init` après réparation de la source. Les IRQ doivent rester actives pendant
-`wait`, qui préserve I. Le tick préserve A/X/Y, modifie NZ ; le retour d'IRQ
-doit restaurer les flags. Les lectures du compteur 16 bits doivent être atomiques.
+Two ticks nominally give 30 FPS NTSC / 25 FPS PAL. A late workload
+skips the missed deadlines and waits for the next one on the initial
+grid; the return value counts those losses. No burst catch-up. A stopped
+clock produces $FFFF after a bounded wait and disables pacing; redo
+`init` after repairing the source. IRQs must stay enabled during
+`wait`, which preserves I. The tick preserves A/X/Y and modifies NZ; the IRQ return
+must restore the flags. Reads of the 16-bit counter must be atomic.
 
-La période acceptée est 1..8 ; une valeur invalide conserve l'ancien échéancier.
-Les compteurs bouclent modulo 65536 ; appeler `wait` avant 32767 ticks de retard.
-Le test [test_cadence.py](../../tests/test_cadence.py) fournit une intégration
-VIA complète dans une machine POM2 temporaire, restaure son vecteur et son état
-IRQ, et vérifie 1 000 présentations par standard avec surcharges.
+The accepted period is 1..8; an invalid value keeps the previous schedule.
+The counters wrap modulo 65536; call `wait` before falling 32767 ticks behind.
+The [test_cadence.py](../../tests/test_cadence.py) test provides a complete VIA
+integration in a temporary POM2 machine, restores its vector and its IRQ
+state, and checks 1,000 presentations per standard with overloads.
 
-Sans carte IRQ, l'[exemple HGR minimal](../../examples/minimal/README.md)
-répartit sa charge sur deux intervalles VBL sur IIe. Chaque étape doit rester
-plus courte qu'un refresh. Sur les modèles en repli WAIT, la cadence reste
-dépendante du coût du rendu et de la vitesse CPU.
+Without an IRQ card, the [minimal HGR example](../../examples/minimal/README.md)
+spreads its workload over two VBL intervals on IIe. Each step must stay
+shorter than one refresh. On the models that fall back to WAIT, pacing remains
+dependent on rendering cost and CPU speed.

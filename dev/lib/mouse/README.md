@@ -1,59 +1,59 @@
 # AppleMouse II
 
-Pilote cc65/6502 du firmware AppleMouse en slots 1 à 7. `mouse_init()` détecte
-la carte, initialise le mode 1 par scrutation, borne X à 0–139 et Y à 0–191,
-et positionne la souris au centre. Il renvoie le slot, ou zéro en son absence.
+cc65/6502 driver for the AppleMouse firmware in slots 1 to 7. `mouse_init()` detects
+the card, initialises polled mode 1, clamps X to 0–139 and Y to 0–191,
+and positions the mouse at the centre. It returns the slot, or zero if there is none.
 
-`mouse_poll()` fournit `mouse_x`, `mouse_y` et `mouse_buttons` (bit 7 : bouton
-principal pressé). Le jeu calcule le front montant pour distinguer un clic
-d'un bouton maintenu. `mouse_close()` désactive la carte à la sortie.
+`mouse_poll()` provides `mouse_x`, `mouse_y` and `mouse_buttons` (bit 7: main
+button pressed). The game computes the rising edge to tell a click
+from a held button. `mouse_close()` disables the card on exit.
 
-Sur //e, le pilote ne demande pas d'interruptions souris et conserve le masque
-IRQ. Sur //c, il active les interruptions natives nécessaires au comptage des
-déplacements, tout en lisant la position par scrutation. Dans les deux cas, il
-copie les résultats de READMOUSE avant de rétablir ce masque. L'appelant doit
-utiliser la RAM et la page zéro principales, 80STORE désactivé, ROM visible.
-Les coordonnées correspondent aux pixels de couleur DHGR ; la raquette suit
-X et aucun curseur logiciel supplémentaire n'est dessiné.
+On //e, the driver does not request mouse interrupts and preserves the IRQ
+mask. On //c, it enables the native interrupts needed to count
+movements, while still reading the position by polling. In both cases, it
+copies the READMOUSE results before restoring that mask. The caller must
+use main RAM and main zero page, 80STORE off, ROM visible.
+Coordinates correspond to DHGR colour pixels; the paddle follows
+X and no extra software cursor is drawn.
 
-Validé avec les deux cartes POM2 `mouse` (MC68705) et `mouseaw` (AppleWin),
-toutes deux exécutant la ROM de slot Apple. Également validé avec la souris
-**intégrée native du //c**, sans substitution de ROM, versions 16 et 32 Ko.
-Le //c+ n'est pas encore validé.
+Validated with both POM2 cards `mouse` (MC68705) and `mouseaw` (AppleWin),
+both running the Apple slot ROM. Also validated with the **native built-in
+//c mouse**, without ROM substitution, 16 and 32 KB versions.
+The //c+ is not validated yet.
 
-Référence : [Apple II Mouse Technical Notes, notes 1 et 5](https://mirrors.apple2.org.za/Apple%20II%20Documentation%20Project/Interface%20Cards/Digitizers/Apple%20Mouse%20Interface%20Card/Documentation/Apple%20II%20Mouse%20Technical%20Notes.pdf).
+Reference: [Apple II Mouse Technical Notes, notes 1 and 5](https://mirrors.apple2.org.za/Apple%20II%20Documentation%20Project/Interface%20Cards/Digitizers/Apple%20Mouse%20Interface%20Card/Documentation/Apple%20II%20Mouse%20Technical%20Notes.pdf).
 
-Le client ChromaBreak utilise aussi `_mouse_timing_mode` et `_mouse_serve_irq`
-pour le mode 9 (VBL) du //c, avec un gestionnaire alloué par ProDOS.
-La fermeture désactive ce mode avant de libérer le gestionnaire. Sans souris
-(`mouse_slot` = 0, ou avant `mouse_init`), les deux rendent C = 1 aussitôt,
-sans appel au firmware.
+The ChromaBreak client also uses `_mouse_timing_mode` and `_mouse_serve_irq`
+for the //c's mode 9 (VBL), with a handler allocated through ProDOS.
+Closing disables this mode before releasing the handler. Without a mouse
+(`mouse_slot` = 0, or before `mouse_init`), both return C = 1 immediately,
+without calling the firmware.
 
-`ca65 -D MOUSE_INIT_BOOT` place `mouse_init` (détection et réglages) dans le
-segment `INIT` : du code de démarrage qu'un tampon peut recouvrir ensuite
-(DIRTBIKE, où le pilote reste sinon résident). Avec la souris du //c, qui
-active les interruptions, un programme DOS 3.3 doit les masquer pendant
-RWTS (`RWTS_SEI`, `apple2/rwts.asm` ; `DOS_SEI` pour les commandes de
+`ca65 -D MOUSE_INIT_BOOT` puts `mouse_init` (detection and settings) in the
+`INIT` segment: startup code that a buffer can later overwrite
+(DIRTBIKE, where the driver otherwise stays resident). With the //c mouse, which
+enables interrupts, a DOS 3.3 program must mask them during
+RWTS (`RWTS_SEI`, `apple2/rwts.asm`; `DOS_SEI` for the commands of
 `apple2/dos.asm`).
 
-## Contexte optionnel pour les programmes assembleur historiques
+## Optional context for legacy assembly programs
 
-`mouse_context.asm`, extrait de Pinball, protège toute la zéro-page et les
-64 octets des boîtes de communication dans les trous de la page texte.
-Le pilote `mouse.s` reste indépendant : inclure ce module seulement dans
-les programmes qui réutilisent ces zones. `mouse.mk` fournit la dépendance
-`MOUSE_CONTEXT_SRCS` et le chemin `MOUSE_INCS`.
+`mouse_context.asm`, extracted from Pinball, protects the whole zero page and the
+64 bytes of mailboxes in the text page holes.
+The `mouse.s` driver stays independent: include this module only in
+programs that reuse those areas. `mouse.mk` provides the
+`MOUSE_CONTEXT_SRCS` dependency and the `MOUSE_INCS` path.
 
-Initialiser `mouse_context_native_mouse` à zéro avant la détection, puis le
-mettre à une valeur non nulle pour le firmware natif du //c. Les fonctions
-`mouse_context_save_workspace` et `mouse_context_restore_workspace`
-entourent l’appel au firmware ; l’appelant masque les IRQ pendant toute la
-transaction. Sur une carte en slot, la copie des boîtes est réinstallée ;
-sur //c, les coordonnées mises à jour par les IRQ restent en mémoire vive.
-`mouse_context_capture_holes` / `mouse_context_install_holes` permettent
-aussi de protéger ces boîtes autour d’un autre utilisateur de la page texte.
+Initialise `mouse_context_native_mouse` to zero before detection, then
+set it to a non-zero value for the native //c firmware. The functions
+`mouse_context_save_workspace` and `mouse_context_restore_workspace`
+wrap the firmware call; the caller masks IRQs for the whole
+transaction. On a slot card, the mailbox copy is reinstalled;
+on //c, the coordinates updated by the IRQs stay in RAM.
+`mouse_context_capture_holes` / `mouse_context_install_holes` also
+make it possible to protect these mailboxes around another user of the text page.
 
-Le client DOS est optionnel et se configure avant l’include :
+The DOS client is optional and is configured before the include:
 
 ```asm
 MOUSE_CONTEXT_DOS_ENTRY = $AAFD
@@ -63,20 +63,20 @@ MOUSE_CONTEXT_CLEAR_PAGES = 3
 .include "mouse_context.asm"
 ```
 
-Ces valeurs sont celles de PCS ; un autre client fournit les siennes.
-`mouse_context_clear_buffers` efface les pages demandées et conserve les
-boîtes natives du //c. `mouse_context_file_manager` échange atomiquement les
-copies DOS/souris sur //c autour de l’entrée configurée et conserve les
-résultats A/X/Y, les indicateurs d’erreur et le masque IRQ de l’appelant.
-L’entrée reçoit X/Y et A contenant le drapeau natif, conformément à l’ABI
-historique de PCS. Les appels ne sont pas réentrants.
+These values are PCS's; another client supplies its own.
+`mouse_context_clear_buffers` clears the requested pages and keeps the
+native //c mailboxes. `mouse_context_file_manager` atomically swaps the
+DOS/mouse copies on //c around the configured entry point and keeps the
+caller's A/X/Y results, error flags and IRQ mask.
+The entry point receives X/Y, and A holding the native flag, following PCS's
+legacy ABI. The calls are not reentrant.
 
-Sans client DOS, le module réserve 321 octets de BSS, aucune zéro-page ;
-le client PCS ajoute 53 octets de BSS. L’appelant garde ces buffers et le
-code résidents, initialise leur contenu et laisse les boîtes matérielles
-libres de ses propres tables. Les adresses PCS, le choix des paddles, la
-conversion des coordonnées et l’ancrage du glissement restent dans Pinball.
+Without a DOS client, the module reserves 321 bytes of BSS and no zero page;
+the PCS client adds 53 bytes of BSS. The caller keeps these buffers and the
+code resident, initialises their contents and keeps its own tables out of the
+hardware mailboxes. The PCS addresses, the choice of paddles, the
+coordinate conversion and the drag anchoring stay in Pinball.
 
-`python3 dev/tests/test_mouse_context.py` teste le module sans client DOS.
-`make -C pinball test-mouse` valide l’intégration avec les cartes `mouse` et
-`mouseaw`, les slots 4/5 et les ROM natives //c de 16/32 Ko.
+`python3 dev/tests/test_mouse_context.py` tests the module without a DOS client.
+`make -C pinball test-mouse` validates the integration with the `mouse` and
+`mouseaw` cards, slots 4/5 and the native 16/32 KB //c ROMs.

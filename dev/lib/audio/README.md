@@ -1,35 +1,35 @@
-# Échantillons audio sur le haut-parleur Apple II
+# Audio samples on the Apple II speaker
 
-Module optionnel 6502/cc65 : `a2_sample_play(sample)` joue un clip PWM sur
-le haut-parleur natif. Aucun matériel audio supplémentaire n'est nécessaire.
-Le lecteur est dérivé du générateur de Colin Leroy-Mira utilisé par
+Optional 6502/cc65 module: `a2_sample_play(sample)` plays a PWM clip on
+the native speaker. No extra audio hardware is needed.
+The player is derived from Colin Leroy-Mira's generator used by
 [Shufflepuck](https://github.com/colinleroy/a2tools/tree/main/src/shufflepuck).
-Attribution, révision et adaptations : [NOTICE.txt](../../tools/audio/NOTICE.txt).
-Licence du lecteur et du générateur : GPL-3.0-or-later.
+Attribution, revision and adaptations: [NOTICE.txt](../../tools/audio/NOTICE.txt).
+Licence of the player and the generator: GPL-3.0-or-later.
 
 ```make
 include $(DEV)/cc65/apple2.mk
 include $(AUDIO)/audio.mk
-# Ajouter $(AUDIO_SRCS) aux sources et $(AUDIO_INCS) aux flags C.
+# Add $(AUDIO_SRCS) to the sources and $(AUDIO_INCS) to the C flags.
 ```
 
-Les configurations ld65 communes déclarent le segment optionnel `AUDIOCODE`,
-aligné sur 256 octets. Sans le module, ce segment ne consomme aucune mémoire.
-Une autre configuration doit déclarer ce segment en RAM principale modifiable,
-avec `align=$100`. Le lecteur n'alloue aucune BSS ni nouvelle zéro-page ;
-il emprunte `ptr1`, `ptr3`, le premier octet de `ptr4` et `tmp3` de cc65.
-Son code coûte 1 950 octets plus l'alignement : les configurations C le
-placent juste après `STARTUP` (taille fixe du crt0), soit 93 octets de
-bourrage constants au lieu de 0 à 255 derrière un `CODE` de longueur
-quelconque ; `apple2_hgr.cfg` (asm) le garde après `CODE`.
+The common ld65 configurations declare the optional `AUDIOCODE` segment,
+aligned on 256 bytes. Without the module, this segment uses no memory.
+Any other configuration must declare this segment in writable main RAM,
+with `align=$100`. The player allocates no BSS and no new zero page;
+it borrows cc65's `ptr1`, `ptr3`, the first byte of `ptr4` and `tmp3`.
+Its code costs 1,950 bytes plus alignment: the C configurations
+place it right after `STARTUP` (fixed crt0 size), i.e. a constant 93 bytes of
+padding instead of 0 to 255 behind a `CODE` of arbitrary
+length; `apple2_hgr.cfg` (asm) keeps it after `CODE`.
 
-## Convertir et jouer
+## Converting and playing
 
 ```sh
 python3 dev/tools/audio/pack_wav.py effet.wav --out build/effet --name effet
 ```
 
-Assembler `build/effet.s`, inclure `build/effet.h`, puis :
+Assemble `build/effet.s`, include `build/effet.h`, then:
 
 ```c
 #include "audio.h"
@@ -37,32 +37,32 @@ Assembler `build/effet.s`, inclure `build/effet.h`, puis :
 a2_sample_play(effet);
 ```
 
-Le convertisseur accepte les WAV PCM 8/16/24/32 bits, mélange les canaux,
-rééchantillonne à 8 kHz nominaux et quantifie sur 48 niveaux. La décimation
-utilise une moyenne par intervalle ; l'interpolation est linéaire en montée.
-Un fondu de 2 ms atténue les extrémités (`--fade-ms 0` pour le désactiver).
-Chaque échantillon coûte un octet ; la fin `$92` ajoute un octet. Les seuls
-codes valides sont les octets pairs `$32..$90`, suivis de `$92`.
-Un clip vide contient seulement la fin et ne touche pas le haut-parleur.
+The converter accepts 8/16/24/32-bit PCM WAV files, mixes the channels down,
+resamples to a nominal 8 kHz and quantises to 48 levels. Decimation
+uses a per-interval average; interpolation when upsampling is linear.
+A 2 ms fade softens the ends (`--fade-ms 0` disables it).
+Each sample costs one byte; the `$92` terminator adds one byte. The only
+valid codes are the even bytes `$32..$90`, followed by `$92`.
+An empty clip contains only the terminator and does not touch the speaker.
 
-La lecture **bloque le CPU et masque les IRQ pendant tout le clip** ; elle
-rétablit ensuite le masque d'entrée. La souris native du //c, une horloge IRQ
-ou une réception série peuvent donc perdre des événements pendant la lecture.
-Privilégier les effets courts et les jingles hors animation. Ce lecteur ne
-fournit pas de mixage ni de lecture en arrière-plan.
+Playback **blocks the CPU and masks IRQs for the whole clip**; it
+then restores the entry mask. The //c's native mouse, an IRQ clock
+or serial reception can therefore lose events during playback.
+Prefer short effects and jingles outside animation. This player does
+not provide mixing or background playback.
 
-Exiger D=0, RAM/ZP principales et CPU à sa vitesse nominale de 1 MHz.
-Le module ne détecte ni ne configure les accélérateurs ou le IIgs.
-Aucun commutateur vidéo, banque mémoire ou vecteur IRQ n'est modifié.
-Un pointeur nul est accepté ; les autres buffers doivent être immuables,
-terminés et ne pas franchir `$FFFF`. Il n'y a pas de validation du flux cible.
+Requires D=0, main RAM/ZP and the CPU at its nominal 1 MHz speed.
+The module neither detects nor configures accelerators or the IIgs.
+No video switch, memory bank or IRQ vector is changed.
+A null pointer is accepted; other buffers must be immutable,
+terminated and must not cross `$FFFF`. There is no validation of the target stream.
 
-Deux périodes PWM de 63 cycles donnent **126 cycles par échantillon**.
-« 8 kHz » est la fréquence nominale de conversion ; la fréquence effective
-vaut horloge CPU / 126 (environ 8,1 kHz sur Apple II). Les clips longs occupent
-vite la RAM : une seconde convertie coûte environ 8 Ko.
+Two PWM periods of 63 cycles give **126 cycles per sample**.
+"8 kHz" is the nominal conversion rate; the effective rate
+is CPU clock / 126 (about 8.1 kHz on an Apple II). Long clips quickly
+fill RAM: one converted second costs about 8 KB.
 
-## Vérifier et régénérer
+## Checking and regenerating
 
 ```sh
 python3 dev/tools/audio/generate_player.py --check
@@ -71,9 +71,9 @@ python3 dev/tests/test_audio.py --iie
 make -C dev/examples/perspective run
 ```
 
-Le lecteur assemblable est livré : un compilateur C hôte sert uniquement à
-sa régénération. Les tests exécutent les 48 niveaux, des transitions dans les
-deux sens, plusieurs franchissements de pages, les masques IRQ et l'API cc65.
-Sur a2run, le journal des impulsions est horodaté au début des instructions ;
-sur POM2/65C02, les visites du code vérifient les intervalles d'échantillonnage.
-La validation est émulée ; aucun essai sur machine physique n'est revendiqué.
+The assemblable player is shipped: a host C compiler is only needed to
+regenerate it. The tests exercise the 48 levels, transitions in both
+directions, several page crossings, the IRQ masks and the cc65 API.
+On a2run, the pulse log is timestamped at the start of instructions;
+on POM2/65C02, code visits check the sampling intervals.
+Validation is emulated; no test on physical hardware is claimed.

@@ -1,216 +1,216 @@
-# Contrats d'intégration 6502 / cc65
+# 6502 / cc65 integration contracts
 
-Les en-têtes publics décrivent les coordonnées, buffers et retours de chaque
-fonction. Les noyaux assembleur décrivent leurs registres et leur scratch.
-Ce document fixe les préconditions communes.
+The public headers describe each function's coordinates, buffers and return
+values. The assembly kernels describe their registers and their scratch.
+This document sets the common preconditions.
 
-## Entrée et mémoire
+## Entry and memory
 
-- D=0 (arithmétique binaire), code et pile matérielle en RAM principale.
-- Sur IIe/IIc : page zéro principale, ROM visible, RAMRD/RAMWRT principaux,
-  80STORE désactivé à l'entrée des primitives bancaires.
-- Le code auto-modifié doit être chargé en mémoire modifiable. La propriété
-  `type=ro` d'un segment ld65 n'empêche pas son exécution depuis la RAM.
-- Sources, buffers, pile C et pools de sauvegarde résident hors des pages
-  vidéo utilisées. Leurs pointeurs et leur contenu restent valides pendant
-  les opérations et les restaurations différées des sprites.
-- Le CRT sauvegarde la ZP empruntée et initialise la BSS. LOWBSS doit être
-  initialisée explicitement par l'application. Dans une configuration
-  `load==run`, `copydata` ne conserve pas une copie des valeurs initiales
-  pour un nouvel appel BASIC sans rechargement.
+- D=0 (binary arithmetic), code and hardware stack in main RAM.
+- On IIe/IIc: main zero page, ROM visible, RAMRD/RAMWRT main,
+  80STORE off on entry to the banked primitives.
+- Self-modifying code must be loaded into writable memory. The
+  `type=ro` property of an ld65 segment does not prevent executing it from RAM.
+- Sources, buffers, C stack and save pools live outside the video
+  pages in use. Their pointers and contents stay valid during
+  the operations and the deferred sprite restores.
+- The CRT saves the borrowed ZP and initialises BSS. LOWBSS must be
+  initialised explicitly by the application. In a
+  `load==run` configuration, `copydata` does not keep a copy of the initial values
+  for a new BASIC call without reloading.
 
-## Appels, état et interruptions
+## Calls, state and interrupts
 
-Les API utilisent la convention fastcall de cc65 (défaut du compilateur) :
-l'argument le plus à droite arrive dans A ou A/X, les autres sur la pile C. Le
-résultat d'un octet est dans A, avec X=0. Depuis l'assembleur, utiliser le
-contrat du noyau, et non supposer que les autres arguments C sont en registres.
+The APIs use the cc65 fastcall convention (the compiler default):
+the rightmost argument arrives in A or A/X, the others on the C stack. A
+one-byte result is in A, with X=0. From assembly, use the
+kernel's contract rather than assuming the other C arguments are in registers.
 
-Les primitives de dessin partagent leurs paramètres et leur scratch ; elles
-ne sont pas réentrantes et ne doivent pas être appelées depuis une IRQ. Un
-gestionnaire IRQ applicatif doit préserver les registres et la ZP qu'il
-utilise, sans appeler ces primitives ni changer leurs banques.
+The drawing primitives share their parameters and their scratch; they
+are not reentrant and must not be called from an IRQ. An
+application IRQ handler must preserve the registers and ZP it
+uses, without calling these primitives or changing their banks.
 
-| Famille | Effet d'état et obligation de l'appelant |
+| Family | State effect and caller obligation |
 |---|---|
-| HGR C | Tables construites à la demande ; dessin sur la page choisie ; aucune attente VBL implicite |
-| Lignes gfx | HGR : noyau ASM ; DHGR : fallback C sélectionné explicitement à la liaison ; aucune allocation dynamique |
-| Noyaux ASM HGR C | Préparer toutes les tables avec `hgr_build_tables` avant les accès directs ; le rendu natif de Light3dball suit ce contrat |
-| HGR ASM inclus | `.ifref` exige les références avant l'inclusion ; scratch éventuellement aliasé ; bornes du noyau à respecter |
-| DHGR | État I conservé ; sortie en RAM principale ; page affichée conservée sauf présentation explicite |
-| `dhgr_clear` | Deux banques, trous compris ; IRQ masquées pendant toute l'opération (~189 000 cycles) |
-| `dhgr_clear_rows` | Lignes visibles ; banques principales et masque IRQ rétablis entre les lignes ; noyau <1 300 cycles par ligne |
-| Sprites sauvegardés | Restaurer avant de modifier le fond ou de redéfinir une forme ; conserver un fond par page |
-| Cadence | VBL IIe ou délai ajouté au dessin ; repli borné en cas de signal bloqué ; masque IRQ conservé |
-| Audio PWM optionnel | CPU nominal 1 MHz, clip encodé terminé `$92` ; lecture bloquante, IRQ masquées puis masque rétabli ; emprunte ptr1/ptr3/ptr4 bas/tmp3 cc65 ; segment AUDIOCODE aligné $100 en RAM (après STARTUP dans les cfg C) |
-| Perspective | X 0..279, profondeur dans les tables empruntées ; sortie hors HGR refusée ; aucun état vidéo/bancaire modifié, hors IRQ |
-| Couloir natif | X/Y monde 0..127, profondeur 16 bits non signée ; deux tables de 256 octets empruntées, centres/pas fixés à la compilation ; état partagé 5 BSS + 1 ZP ou alias appelant ; aucun clipping ni changement I/banques |
-| ProDOS vidéo | Politique explicite pour `/RAM` avant le dessin auxiliaire ; libération à la sortie |
+| HGR C | Tables built on demand; drawing on the chosen page; no implicit VBL wait |
+| gfx lines | HGR: ASM kernel; DHGR: C fallback selected explicitly at link time; no dynamic allocation |
+| HGR C ASM kernels | Prepare all tables with `hgr_build_tables` before direct access; Light3dball's native renderer follows this contract |
+| Included HGR ASM | `.ifref` requires the references before the include; scratch possibly aliased; kernel bounds must be respected |
+| DHGR | I state preserved; exit in main RAM; displayed page preserved unless explicitly presented |
+| `dhgr_clear` | Both banks, holes included; IRQs masked for the whole operation (~189,000 cycles) |
+| `dhgr_clear_rows` | Visible lines; main banks and IRQ mask restored between lines; kernel <1,300 cycles per line |
+| Saved sprites | Restore before changing the background or redefining a shape; keep one background per page |
+| Frame pacing | IIe VBL or delay added to drawing; bounded fallback if the signal is stuck; IRQ mask preserved |
+| Optional PWM audio | Nominal 1 MHz CPU, encoded clip terminated by `$92`; blocking playback, IRQs masked then mask restored; borrows cc65 ptr1/ptr3/ptr4 low/tmp3; AUDIOCODE segment aligned to $100 in RAM (after STARTUP in the C cfgs) |
+| Perspective | X 0..279, depth in the borrowed tables; output outside HGR rejected; no video/bank state changed, outside IRQ |
+| Native corridor | World X/Y 0..127, unsigned 16-bit depth; two borrowed 256-byte tables, centres/steps fixed at compile time; shared state 5 BSS + 1 ZP or caller alias; no clipping, no I/bank changes |
+| ProDOS video | Explicit policy for `/RAM` before auxiliary drawing; released on exit |
 
-La page affichée et la page de dessin sont distinctes. Attendre un front VBL
-avant la présentation synchronise la bascule sur IIe. Sur II/II+, le délai de
-repli ne fournit pas cette synchronisation.
+The displayed page and the drawing page are distinct. Waiting for a VBL edge
+before presenting synchronises the flip on IIe. On II/II+, the fallback
+delay does not provide that synchronisation.
 
-## Construction
+## Building
 
-Lier les objets applicatifs avant les archives. Le nom de chaque membre de
-`hgrc.lib` encode son répertoire et son extension pour éviter les collisions.
-La signature couvre les flags C/ASM, les outils et les sources ; un changement
-invalide les objets même avec GNU make 3.81 et dans la même seconde.
+Link the application objects before the archives. The name of each member of
+`hgrc.lib` encodes its directory and extension to avoid collisions.
+The signature covers the C/ASM flags, the tools and the sources; a change
+invalidates the objects even with GNU make 3.81 and within the same second.
 
-`make test-tools` vérifie les constructions incrémentales et les politiques
-ProDOS ; `make test-hgr` vérifie les limites, lignes, tables et pools de sprites ;
-`make test-dhgr` vérifie les banques et la durée du noyau par ligne.
+`make test-tools` checks incremental builds and the ProDOS
+policies; `make test-hgr` checks bounds, lines, tables and sprite pools;
+`make test-dhgr` checks the banks and the per-line kernel duration.
 
-## Unités et durée de vie
+## Units and lifetime
 
-| Entrées | Unités, bornes et comportement |
+| Inputs | Units, bounds and behaviour |
 |---|---|
-| HGR pixels | X 0..279, Y 0..191 ; dimensions en pixels sauf API explicitement en octets |
-| `hgr_line` | Deux extrémités inclusives ; refuse toute extrémité hors écran, même pour les axes |
-| `gfx_line` | Pixels du backend ; axes triés/rognés par les spans, diagonales hors écran refusées |
-| Rectangles `gfx` | Deux coins inclusifs triés et rognés ; toute la largeur du backend est accessible |
-| Rectangles HGR bas niveau | `hgr_fill_rect` en colonnes d'octets ; `*_pixrect` en pixels avec largeur 8 bits ; zéro ne dessine rien |
-| DHGR mono / couleur | X 0..559 bits / X 0..139 pixels couleur ; Y 0..191 ; couleurs masquées à 0..15 |
-| Blocs DHGR | X en octets entrelacés 0..79 ; stride >= largeur ; buffer valide de stride×hauteur octets, même si une partie est rognée |
-| Sprite DHGR | X couleur ; sept banques data/mask de stride×hauteur chacune ; masque 1 conserve le fond |
-| Sprite HGR sauvegardé | Dimensions stride×hauteur en octets ; capacité par sprite/page fournie à init, 96 pour l'API historique |
+| HGR pixels | X 0..279, Y 0..191; dimensions in pixels unless the API is explicitly in bytes |
+| `hgr_line` | Two inclusive endpoints; rejects any off-screen endpoint, even for axis-aligned lines |
+| `gfx_line` | Backend pixels; axis-aligned lines sorted/clipped by the spans, off-screen diagonals rejected |
+| `gfx` rectangles | Two inclusive corners, sorted and clipped; the full backend width is reachable |
+| Low-level HGR rectangles | `hgr_fill_rect` in byte columns; `*_pixrect` in pixels with an 8-bit width; zero draws nothing |
+| DHGR mono / colour | X 0..559 bits / X 0..139 colour pixels; Y 0..191; colours masked to 0..15 |
+| DHGR blocks | X in interleaved bytes 0..79; stride >= width; valid buffer of stride×height bytes, even if part of it is clipped |
+| DHGR sprite | Colour X; seven data/mask banks of stride×height each; mask 1 keeps the background |
+| Saved HGR sprite | Dimensions stride×height in bytes; per-sprite/per-page capacity supplied at init, 96 for the legacy API |
 
-Les chaînes sont terminées par NUL ; les sources sont empruntées, sans copie
-de leur contenu par la bibliothèque. Une source de sprite HGR doit rester
-valide et immuable tant qu'un fond associé doit être restauré, y compris sur
-l'autre page. Une réinitialisation valide oublie les fonds : nettoyer les deux
-pages avant de réinitialiser. Les buffers ne peuvent chevaucher les pages
-vidéo actives ni le scratch du moteur. Aucun garde mémoire n'est alloué sur cible.
+Strings are NUL-terminated; sources are borrowed, and the library does not copy
+their contents. An HGR sprite source must stay
+valid and immutable as long as an associated background must be restored, including on
+the other page. A valid reinitialisation forgets the backgrounds: clean both
+pages before reinitialising. Buffers must not overlap the active video
+pages or the engine's scratch. No memory guard is allocated on target.
 
-Les appels C de dessin peuvent détruire le scratch cc65 partagé et leurs
-paramètres privés ; un appel ASM direct doit suivre l'en-tête du noyau pour
-A/X/Y et les octets ZP concernés. Un gestionnaire IRQ doit préserver tout ce
-qu'il utilise ; le test VIA vérifie le service réel pendant `dhgr_clear_rows`,
-avec contrôle des banques à l'entrée de l'IRQ et comparaison des deux pages.
+C drawing calls may destroy the shared cc65 scratch and their
+private parameters; a direct ASM call must follow the kernel header for
+A/X/Y and the ZP bytes involved. An IRQ handler must preserve everything
+it uses; the VIA test checks the real service during `dhgr_clear_rows`,
+with bank checks on IRQ entry and a comparison of both pages.
 
-`make test-minimal` vérifie les intégrations DOS HGR ; `make test-dhgr` ajoute
-les intégrations IIe/ProDOS. Les essais physiques sont suivis séparément dans
-[HARDWARE.md](HARDWARE.md), sans transformer un succès émulé en certification.
+`make test-minimal` checks the DOS HGR integrations; `make test-dhgr` adds
+the IIe/ProDOS integrations. Physical tests are tracked separately in
+[HARDWARE.md](HARDWARE.md), without turning an emulated success into a certification.
 
 
-## Champs HUD différentiels
+## Differential HUD fields
 
-Les champs `hgr_hud_field_t` appartiennent à l'appelant et possèdent une boîte
-noire sur chaque page. Leur structure ne doit pas être modifiée pendant le rendu.
-Après une écriture extérieure dans la boîte, invalider l'historique de cette page.
-Une valeur trop large est refusée avec 255, sans modifier le champ. L'API historique
-`hgr_putu_field` reste sans historique et permet son ancien débordement à droite.
-Le double tampon garde les deux valeurs et contenus de chiffres séparément.
+`hgr_hud_field_t` fields belong to the caller and own a black
+box on each page. Their structure must not be modified during rendering.
+After an outside write into the box, invalidate that page's history.
+A value that is too wide is rejected with 255, without changing the field. The legacy
+`hgr_putu_field` API keeps no history and allows its old overflow to the right.
+Double buffering keeps both values and digit contents separately.
 
-Les tables HGR conservent leur format et leur adresse ; la bascule est déroulée
-sur huit groupes de lignes, sans changement de scratch. La stratégie à base fixe
-est testée comme prototype, sans changer le contrat des noyaux ASM actuels.
+The HGR tables keep their format and address; the flip is unrolled
+over eight groups of lines, with no scratch change. The fixed-base strategy
+is tested as a prototype, without changing the contract of the current ASM kernels.
 
-Le nombre maximum de sprites peut être fixé par `HGR_SPR_MAX` (1..8).
-Compiler l'application et sa bibliothèque avec la même valeur ; la valeur
-par défaut conserve huit slots et le moteur reste non réentrant.
+The maximum number of sprites can be set with `HGR_SPR_MAX` (1..8).
+Compile the application and its library with the same value; the default
+value keeps eight slots and the engine remains non-reentrant.
 
-## Rendu incrémental et adressage explicite
+## Incremental rendering and explicit addressing
 
-Le HUD compact `hgr_hud8_field_t` possède 19 octets d'état cc65 et cinq cellules
-au maximum, chacune 8×8 avec un pitch de 8. Il partage les contrats de retour,
-de cache par page et d'invalidation du HUD 16×16 ; chaque famille est dans des
-membres d'archive distincts. Les noyaux partagent le scratch texte, sans nouvelle ZP.
+The compact `hgr_hud8_field_t` HUD has 19 bytes of cc65 state and at most five
+cells, each 8×8 with a pitch of 8. It shares the return,
+per-page cache and invalidation contracts of the 16×16 HUD; each family lives in
+separate archive members. The kernels share the text scratch, with no new ZP.
 
-`APPLE2C_CADENCE_SRCS` ajoute un ordonnanceur optionnel à échéances, alimenté
-par `a2_cadence_tick` depuis l'IRQ détenue par l'application. Il n'installe
-aucun vecteur ni périphérique. Le tick préserve A/X/Y, modifie NZ ; l'IRQ doit
-restaurer les flags. `init`/`wait` exigent D=0 et préservent I. La source doit
-avancer pendant l'attente et être synchronisée au VBL pour éviter les déchirures.
-Les échéances en retard sont sautées, le retour vaut leur nombre ; $FFFF
-signale un timeout et désactive l'ordonnanceur jusqu'au prochain `init`.
-Les lectures 16 bits du compteur IRQ doivent être atomiques. Ne pas laisser
-passer 32767 ticks sans appeler `wait`. Les fonctions de dessin restent hors IRQ.
+`APPLE2C_CADENCE_SRCS` adds an optional deadline scheduler, fed
+by `a2_cadence_tick` from the IRQ owned by the application. It installs
+no vector or peripheral. The tick preserves A/X/Y and modifies NZ; the IRQ must
+restore the flags. `init`/`wait` require D=0 and preserve I. The source must
+advance during the wait and be synchronised to VBL to avoid tearing.
+Late deadlines are skipped, and the return value is their count; $FFFF
+signals a timeout and disables the scheduler until the next `init`.
+16-bit reads of the IRQ counter must be atomic. Do not let
+32767 ticks go by without calling `wait`. Drawing functions stay out of IRQs.
 
-`HGR_SPR_DAMAGE=1` est une option de compilation du moteur : elle ajoute
-4×HGR_SPR_MAX+11 octets BSS pour une fermeture conservatrice des intersections
-des rectangles en octets, anciens/nouveaux. L'ordre restauration inverse puis
-dessin direct est conservé. Le défaut utilise toujours le préfixe/suffixe simple.
+`HGR_SPR_DAMAGE=1` is a compile-time option of the engine: it adds
+4×HGR_SPR_MAX+11 bytes of BSS for a conservative closure of the intersections
+of the old/new byte rectangles. The order (reverse restore, then
+direct draw) is preserved. The default still uses the simple prefix/suffix.
 
-Le moteur de sprites garde un préfixe de couches inchangées par page ; il
-restaure et redessine tout le suffixe dès la première couche modifiée.
-Le contenu des formes doit rester immuable, même pour un sprite immobile.
-`hgr_spr_invalidate` force un redessin, sans autoriser les écritures sous les
-sprites. La présentation reprend explicitement la page possédée par le moteur.
+The sprite engine keeps a prefix of unchanged layers per page; it
+restores and redraws the whole suffix from the first modified layer.
+Shape contents must stay immutable, even for a still sprite.
+`hgr_spr_invalidate` forces a redraw, without allowing writes under the
+sprites. Presentation explicitly takes back the page owned by the engine.
 
-`hgr_row_on_page` est indépendant de l'état global. Ses tables immuables
-coûtent 384 octets chargés, aucune BSS ; les sprites masqués et le HUD 8×8
-utilisent ces offsets avec la base sélectionnée. Les autres noyaux historiques
-conservent leurs tables mutables. Le noyau HUD utilise les paramètres texte
-partagés et reste non réentrant. Préparer le HUD sur chaque page avant animation.
+`hgr_row_on_page` is independent of global state. Its immutable tables
+cost 384 loaded bytes, no BSS; masked sprites and the 8×8 HUD
+use these offsets with the selected base. The other legacy kernels
+keep their mutable tables. The HUD kernel uses the shared text
+parameters and remains non-reentrant. Prepare the HUD on each page before animating.
 
-Le moteur de sprites calcule stride×hauteur lors de la définition, puis utilise
-des contrôleurs assembleur ; ses symboles `spr_*` servent uniquement à la liaison
-interne C/ASM. Le contenu des formes reste immuable. Les contrôleurs HUD acceptent
-les pas +1/+2 via les chiffres en cache ; les autres valeurs utilisent la conversion
-16 bits. Un overflow conserve les pixels et les historiques.
+The sprite engine computes stride×height when a shape is defined, then uses
+assembly controllers; its `spr_*` symbols serve only for internal C/ASM
+linking. Shape contents stay immutable. The HUD controllers accept
++1/+2 steps via the cached digits; other values use the 16-bit
+conversion. An overflow keeps the pixels and the histories.
 
-`hgr_tile_restore` est optionnel, fastcall, non réentrant et hors IRQ. Il écrit
-directement la page demandée sans modifier les pages globales ni les banques.
-La carte 40×24 et les glyphes 7×8 résident hors des deux pages vidéo. La région
-est rognée avant une validation complète des IDs, puis reconstruite en ASM.
-L'application possède les régions sales, l'ordre des couches et les historiques
-de ses pages ; ce chemin ne modifie pas le moteur save-under existant.
+`hgr_tile_restore` is optional, fastcall, non-reentrant and outside IRQs. It writes
+directly to the requested page without changing the global pages or the banks.
+The 40×24 map and the 7×8 glyphs live outside both video pages. The region
+is clipped before a full validation of the IDs, then rebuilt in ASM.
+The application owns the dirty regions, the layer order and the histories
+of its pages; this path does not change the existing save-under engine.
 
-La pile matérielle est observée séparément de la pile cc65. La profondeur
-matérielle compte aussi les octets déjà occupés à l'entrée de la charge.
-Le détecteur signale les passages de S sous $00 à travers les instructions
-observées ; ce profil ne constitue pas une preuve statique de toutes les IRQ,
-de changements explicites de S ou de chemins non exécutés.
+The hardware stack is observed separately from the cc65 stack. The
+hardware depth also counts the bytes already in use on entry to the workload.
+The detector reports S going below $00 across the observed
+instructions; this profile is not a static proof covering all IRQs,
+explicit changes of S or paths that were not executed.
 
-## Options vitesse/RAM
+## Speed/RAM options
 
-Une bibliothèque n'impose pas un compromis à tous les programmes : quand deux
-variantes d'un module se justifient (plus rapide ou plus petite en code contre
-plus de RAM, tables dans le fichier contre tables construites au démarrage),
-les deux restent disponibles et chaque programme choisit à la compilation.
+A library does not impose one trade-off on every program: when two
+variants of a module are justified (faster or smaller code against
+more RAM, tables in the file against tables built at startup),
+both stay available and each program chooses at compile time.
 
-Convention, pour toute nouvelle option (les noms existants restent tels quels) :
+Convention for any new option (existing names stay as they are):
 
-- Nom `<MODULE>_<FONCTION>_<VARIANTE>` en majuscules : `<MODULE>` est le
-  préfixe du module ou de l'archive (`HGR_` pour lib/hgr, `HGRC_` pour une
-  option de l'archive cc65 hgrc, `MUL_`, `DOS_`…), `<VARIANTE>` nomme la
-  technique choisie (`TABLES`, `RAM`, `ORA`, `FOLDED`, `IFREF`…), pas un
-  jugement `FAST`/`SMALL` : une variante est souvent plus rapide pour un
-  programme et plus grosse pour un autre.
-- Non définie = le défaut, celui que les programmes existants utilisent déjà.
-  Ajouter une option ne change aucun binaire existant ni la baseline du bench.
-- Assembleur : `NOM = 1` (ou l'adresse/la table attendue) avant l'`.include`.
-  Archive hgrc : `HGRC_DEFINES := -D NOM=1` dans le Makefile du programme,
-  avant `hgrc_build.mk` ; passé aux membres C et assembleur, il reconstruit
-  l'archive. Une option visible dans un en-tête passe aussi dans les CFLAGS
-  du programme.
-- Le commentaire d'en-tête du module donne le coût des deux variantes ;
-  le bench mesure la variante non défaut quand il couvre le module (cas
-  `<cas>_<variante>`, option `variant` de `dev/bench/run.py`).
+- Name `<MODULE>_<FUNCTION>_<VARIANT>` in upper case: `<MODULE>` is the
+  prefix of the module or archive (`HGR_` for lib/hgr, `HGRC_` for an
+  option of the cc65 hgrc archive, `MUL_`, `DOS_`…), `<VARIANT>` names the
+  chosen technique (`TABLES`, `RAM`, `ORA`, `FOLDED`, `IFREF`…), not a
+  `FAST`/`SMALL` judgement: a variant is often faster for one
+  program and bigger for another.
+- Undefined = the default, the one existing programs already use.
+  Adding an option changes no existing binary and no bench baseline.
+- Assembly: `NAME = 1` (or the expected address/table) before the `.include`.
+  hgrc archive: `HGRC_DEFINES := -D NAME=1` in the program's Makefile,
+  before `hgrc_build.mk`; passed to the C and assembly members, it rebuilds
+  the archive. An option visible in a header also goes into the program's
+  CFLAGS.
+- The module's header comment gives the cost of both variants;
+  the bench measures the non-default variant when it covers the module (case
+  `<case>_<variant>`, `variant` option of `dev/bench/run.py`).
 
-Options de ce type (mesures : bench hgrc, ou commit qui a introduit l'option) :
+Options of this kind (measurements: hgrc bench, or the commit that introduced the option):
 
-| Option | Module | Effet de l'option (contre le défaut) | Programmes |
+| Option | Module | Effect of the option (against the default) | Programs |
 |---|---|---|---|
-| `HGRC_X7_FOLDED` | hgrc `hgr_columns.s` | Un seul constructeur pour `hgr_col7`/`hgr_mask7`/`hgr_phase7` : code −107 o, premier usage −7 000 cycles (texte, sprites : 97 462 au lieu de 104 439, 35 526 au lieu de 42 598) ; mais les trois tables (841 o BSS) toujours réservées : +279 o pour un programme qui n'en utilise que deux (lignes et pixels : code −49 o, −360 cycles) | aucun (bench `*_x7folded`) |
-| `HGR_PAGES_ORA` | `hgr_pages.inc/.asm` | Pas de `hgr_hi2` (−192 o BSS) ; +2 cycles par lecture de ligne, ~4 par site à la sélection de page | light3dball (dirtbike : défaut) |
-| `HGR_LINE_DIV7` / `HGR_LINE_MOD7` | `hgr_line.asm` | Deux lectures dans les tables 256 o du programme au lieu de deux tables de 32 o et d'une correction ; à prendre quand le programme a déjà ces tables | dirtbike |
-| `HGR_FULL_WIDTH_TABLES` | `hgr_plot_tables.inc` | Colonnes 0..279 au lieu de 0..255 : +48 o de tables ; requis par `hgr_plot16`/`hgr_line16` | logo |
-| `HGR_PLOT_TABLES_RAM` | `hgr_plot_tables.inc` | Tables en BSS + `hgr_plot_tables_init` (39 o) : fichier −513 o pour LOGO, même RAM, construction une fois au démarrage | logo |
-| `hgr_div7_ram.asm` (inclusion) | lib/hgr | `div7`/`mod7` en BSS, `hgr_div7_init` (28 o, ~6 000 cycles une fois) : fichier −482 o, RAM +28 o | arkabreakout |
-| `hgr_scanline_ram.asm` (inclusion) | lib/hgr | Tables de lignes en RAM, `hgr_scanline_init` (~50 o) : 384 o de moins dans le fichier | dirtbike |
-| `HGR_TEXT8_HGR_ORDER` | `hgr_text8.asm` | Police en ordre HGR : plus de `rev7_tab` (−256 o) ni de chemin d'inversion | arkabreakout, dirtbike |
-| `HGR_TEXT8_NO_PUTS` | `hgr_text8.asm` | Pas de `hgr_puts8` (code en moins) | maze3d |
-| `HG_STORE_ONLY` / `HG_STORE_UNCLIPPED` | `hgr_glyph8.asm` | Sans les entrées non alignées / sans contrôles de STORE (plus court et plus rapide ; l'appelant garantit `hg_col<40`, `hg_y<=184`) | chess / chess, micro-sokoban |
-| `HGR_SPR_DAMAGE` | hgrc moteur de sprites | +4×`HGR_SPR_MAX`+11 o BSS : fermeture des rectangles d'intersection au lieu du préfixe/suffixe simple | aucun (bench `hgr_isolated_damage`) |
-| `MUL_ACC` | `math.inc`/`mul.asm` | Accumulateur `mul_acc0..2` : +3 o de ZP | dirtbike |
-| `MUL_INIT_BOOT` / `MOUSE_INIT_BOOT` | `mul.asm` / `mouse.s` | Code d'initialisation dans le segment `INIT`, réutilisable après le démarrage | dirtbike / dirtbike |
-| `DOS_CMD_HEX_IFREF` | `dos.asm` | `dos_cmd_hex` assemblé seulement s'il est référencé : −48 o | arkabreakout, maze3d |
-| `EXIT_USE_NATIVE_VIDEO` | `exit.asm` | Réutilise `native_video` de `hgr.asm` : −21 o | arkabreakout, maze3d, micro-sokoban |
-| `SOUND_GATE` | `sound.asm` | Coupure du son par un octet : −7 o et −10 cycles par note contre une enveloppe dans le programme | maze3d |
+| `HGRC_X7_FOLDED` | hgrc `hgr_columns.s` | A single builder for `hgr_col7`/`hgr_mask7`/`hgr_phase7`: code −107 B, first use −7,000 cycles (text, sprites: 97,462 instead of 104,439, 35,526 instead of 42,598); but all three tables (841 B BSS) always reserved: +279 B for a program that uses only two of them (lines and pixels: code −49 B, −360 cycles) | none (bench `*_x7folded`) |
+| `HGR_PAGES_ORA` | `hgr_pages.inc/.asm` | No `hgr_hi2` (−192 B BSS); +2 cycles per line read, ~4 per site on page selection | light3dball (dirtbike: default) |
+| `HGR_LINE_DIV7` / `HGR_LINE_MOD7` | `hgr_line.asm` | Two reads from the program's 256 B tables instead of two 32 B tables and a correction; use it when the program already has these tables | dirtbike |
+| `HGR_FULL_WIDTH_TABLES` | `hgr_plot_tables.inc` | Columns 0..279 instead of 0..255: +48 B of tables; required by `hgr_plot16`/`hgr_line16` | logo |
+| `HGR_PLOT_TABLES_RAM` | `hgr_plot_tables.inc` | Tables in BSS + `hgr_plot_tables_init` (39 B): file −513 B for LOGO, same RAM, built once at startup | logo |
+| `hgr_div7_ram.asm` (include) | lib/hgr | `div7`/`mod7` in BSS, `hgr_div7_init` (28 B, ~6,000 cycles once): file −482 B, RAM +28 B | arkabreakout |
+| `hgr_scanline_ram.asm` (include) | lib/hgr | Line tables in RAM, `hgr_scanline_init` (~50 B): 384 B less in the file | dirtbike |
+| `HGR_TEXT8_HGR_ORDER` | `hgr_text8.asm` | Font in HGR order: no more `rev7_tab` (−256 B) nor reversal path | arkabreakout, dirtbike |
+| `HGR_TEXT8_NO_PUTS` | `hgr_text8.asm` | No `hgr_puts8` (less code) | maze3d |
+| `HG_STORE_ONLY` / `HG_STORE_UNCLIPPED` | `hgr_glyph8.asm` | Without the unaligned entry points / without STORE checks (shorter and faster; the caller guarantees `hg_col<40`, `hg_y<=184`) | chess / chess, micro-sokoban |
+| `HGR_SPR_DAMAGE` | hgrc sprite engine | +4×`HGR_SPR_MAX`+11 B BSS: closure of the intersection rectangles instead of the simple prefix/suffix | none (bench `hgr_isolated_damage`) |
+| `MUL_ACC` | `math.inc`/`mul.asm` | `mul_acc0..2` accumulator: +3 B of ZP | dirtbike |
+| `MUL_INIT_BOOT` / `MOUSE_INIT_BOOT` | `mul.asm` / `mouse.s` | Initialisation code in the `INIT` segment, reusable after startup | dirtbike / dirtbike |
+| `DOS_CMD_HEX_IFREF` | `dos.asm` | `dos_cmd_hex` assembled only if referenced: −48 B | arkabreakout, maze3d |
+| `EXIT_USE_NATIVE_VIDEO` | `exit.asm` | Reuses `native_video` from `hgr.asm`: −21 B | arkabreakout, maze3d, micro-sokoban |
+| `SOUND_GATE` | `sound.asm` | Sound muted by one byte: −7 B and −10 cycles per note against an envelope in the program | maze3d |
 
-Les autres définitions des modules (adresses ZP, `DOS_ZP_*`, `RWTS_*`,
-`HGR_SPR_MAX`, crochets `HG_HOOK_*`/`HP_OR_PLOT`, tables `WF_*_TABLE`…)
-placent ou branchent le code : ce ne sont pas des compromis vitesse/RAM.
+The modules' other definitions (ZP addresses, `DOS_ZP_*`, `RWTS_*`,
+`HGR_SPR_MAX`, `HG_HOOK_*`/`HP_OR_PLOT` hooks, `WF_*_TABLE` tables…)
+place or wire the code: they are not speed/RAM trade-offs.
