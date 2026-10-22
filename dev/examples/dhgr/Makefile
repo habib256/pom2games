@@ -7,9 +7,11 @@ include $(HGRC)/hgrc.mk
 include $(APPLE2C)/apple2c.mk
 DISK := $(DIST)/DHGR.dsk
 SRCS := $(HGRC_DHGR_SRCS) $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) $(HGRC_DHGR_COLOR_BACKEND) $(GFX)/gfx_circle.c
-OBJS := $(BUILD)/crt0_apple2.o $(BUILD)/dhgr_demo.o $(BUILD)/ball_render.o \
-        $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o)))
-OBJS := $(OBJS:.s=.o)
+# Library objects go into a private archive: ld65 extracts only what the
+# demo calls (no pixel readback, blocks or sprites).
+LIB_OBJS := $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o)))
+LIB_OBJS := $(LIB_OBJS:.s=.o)
+OBJS := $(BUILD)/crt0_apple2.o $(BUILD)/dhgr_demo.o $(BUILD)/ball_render.o
 CFLAGS := -t none -Oirs $(HGRC_INCS) $(APPLE2C_INCS)
 vpath %.c src $(HGRC) $(APPLE2C) $(GFX)
 vpath %.s src $(DEV)/cc65 $(HGRC) $(APPLE2C)
@@ -26,8 +28,12 @@ $(BUILD)/%.o: %.s $(APPLE2)/apple2.inc
 
 $(BUILD)/ball_render.o: src/ball.bin src/digits.inc
 
-$(BUILD)/dhgr.bin: $(OBJS) $(A2_HGR_C_CFG)
-	$(CL65) -t none -C $(A2_HGR_C_CFG) -m $(BUILD)/dhgr.map -Ln $(BUILD)/dhgr.lbl -o $@ $(OBJS)
+$(BUILD)/dhgr.lib: $(LIB_OBJS)
+	$(PYTHON) -c 'from pathlib import Path; Path("$@").unlink(missing_ok=True)'
+	$(AR65) a $@ $(LIB_OBJS)
+
+$(BUILD)/dhgr.bin: $(OBJS) $(BUILD)/dhgr.lib $(A2_HGR_C_CFG)
+	$(CL65) -t none -C $(A2_HGR_C_CFG) -m $(BUILD)/dhgr.map -Ln $(BUILD)/dhgr.lbl -o $@ $(OBJS) $(BUILD)/dhgr.lib
 
 $(DISK): $(BUILD)/dhgr.bin $(DOS33_DEPS)
 	@mkdir -p $(DIST)
