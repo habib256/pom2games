@@ -5,17 +5,35 @@
 ; A/X/Y, ptr1,tmp1,tmp2 destroyed; non-reentrant; <1300 masked cycles/row.
 .include "apple2.inc"
 RAMWRTON = $C005
-.export _dhgr_clear_row_asm
-.import _dhgr_addr, _dhgr_pattern
-.importzp ptr1, tmp1, tmp2
+.export _dhgr_clear_row_asm, _dhgr_clear_rows_asm
+.import _dhgr_addr, _dhgr_pattern, _dhgr_base, dhgr_rowlo, dhgr_rowhi
+.importzp ptr1, tmp1, tmp2, tmp3, tmp4
 .code
+; void __fastcall__ dhgr_clear_rows_asm(unsigned rows_y): rows (>=1, clipped)
+; in the high byte, first row in the low byte, on the draw page; the row
+; kernel below without dhgr_addr. tmp3/tmp4 destroyed too.
+_dhgr_clear_rows_asm:
+        sta tmp4
+        stx tmp3
+@row:   ldy tmp4
+        lda dhgr_rowlo,y
+        sta ptr1
+        lda dhgr_rowhi,y
+        ora _dhgr_base
+        sta ptr1+1
+        jsr clear_row
+        inc tmp4
+        dec tmp3
+        bne @row
+        rts
 _dhgr_clear_row_asm:
-        php
-        sei
         lda _dhgr_addr
         sta ptr1
         lda _dhgr_addr+1
         sta ptr1+1
+clear_row:
+        php
+        sei
         lda _dhgr_pattern
         sta tmp1
         lda _dhgr_pattern+2
