@@ -45,7 +45,10 @@ $(A2RUN): $(wildcard dev/tools/a2run/*.[ch] dev/tools/a2run/Makefile)
 $(DEV_CHECKS) test-dhgr: $(A2RUN)
 
 test: all $(DEV_CHECKS) $(TESTED:%=test-%)
-test-long: all $(TESTED:%=test-%-long)
+# LONG_SKIP=<programs> leaves their long tier out (CI runs wilderness's,
+# half an hour, in a job of its own).
+LONG_SKIP ?=
+test-long: all $(patsubst %,test-%-long,$(filter-out $(LONG_SKIP),$(TESTED)))
 test-all: test test-long
 test-dev: $(DEV_CHECKS)
 

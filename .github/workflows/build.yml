@@ -22,10 +22,22 @@ jobs:
         run: make -C dev/tools/a2shot
       - name: Disks match the sources
         run: make check
-      - name: Every test, fast and long tiers
-        run: make test-all
+      - name: Every test, fast and long tiers (Wilderness long tier aside)
+        run: make test-all LONG_SKIP=wilderness
       - name: DHGR, banks and transitions
         run: make test-dhgr
+  wilderness-long:
+    # Half an hour of a2shot campaigns: run beside the other tests.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install cc65, zlib and the headless core dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cc65 zlib1g-dev g++ pkg-config libslirp-dev libglib2.0-dev
+      - name: Wilderness long tier
+        run: make -C wilderness test-long
   dhgr:
     runs-on: macos-15
     steps:
