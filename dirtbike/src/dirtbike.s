@@ -122,6 +122,7 @@ start:
         JSR     render_init
         JSR     input_init
         JSR     hof_load                ; (first RWTS call: DOS still whole)
+        JSR     inp_boot                ; the device it names
         JMP     attract
 
 .segment "CODE"
@@ -200,15 +201,9 @@ leave_race:
 
 new_race:
         BIT     KBDSTRB                 ; no key typed during the load
-        LDA     #1                      ; page 1 shown: draw page 2 first
-        STA     pidx
         LDA     #START_X
         JSR     phys_reset
-        JSR     render_reset
-        LDX     #0
-        JSR     hud_forget
-        LDX     #1
-        JSR     hud_forget
+        JSR     race_view
         LDA     #0
         STA     jphase                  ; the stick on even frames of the race:
         STA     state                   ; the same ride from every start
@@ -348,6 +343,32 @@ main_loop:
         BNE     @nf
         INC     frames+1
 @nf:    JMP     main_loop
+
+; race_view -- both pages and their HUD unknown: the next frames draw them
+; whole (page 1 shown: page 2 first); race_resume -- back to the race the
+; main menu stopped (its TITLE file took the track's place): the track
+; again, then a countdown while racing (the hands back on the controls)
+.segment "TXTC7"                ; runs in the text page (copied at boot)
+race_view:
+        LDA     #1
+        STA     pidx
+        JSR     render_reset
+        LDX     #0
+        JSR     hud_forget
+        LDX     #1
+        JMP     hud_forget
+.segment "CODE"
+race_resume:
+        LDA     sel
+        JSR     load_track
+        BCS     @err
+        JSR     race_view
+        LDA     state
+        BNE     @go
+        LDA     #COUNT_STEP*3+1
+        STA     count_t
+@go:    JMP     main_loop
+@err:   JMP     to_menu
 
 ; ---------------------------------------------------------------------------
 ; follow_wrap -- the bike moved back a lap (phys_wrap): so do the camera and

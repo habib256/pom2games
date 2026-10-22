@@ -29,6 +29,7 @@ rec_ini:  .res NTRACKS * 3      ; initials of each best time
 rec_pts:  .res NTRACKS * 3      ; best points per track, BCD (low byte first)
 rec_pini: .res NTRACKS * 3      ; initials of each best points
 last_ini: .res 3                ; the last initials typed (the next default)
+inp_pref: .res 1                ; the input device chosen (input.inc)
 HOF_LEN = * - hof_img
 .assert HOF_LEN + 4 <= 512, error, "hof_img: more than DIRTHOF's two sectors"
 hof_new:  .res 1                ; the race's records: bit 0 time, bit 1 points
@@ -85,6 +86,8 @@ hof_load:
         STA     last_ini
         STA     last_ini+1
         STA     last_ini+2
+        LDA     #INP_KEYS
+        STA     inp_pref
         RTS
 
 .segment "CODE"
