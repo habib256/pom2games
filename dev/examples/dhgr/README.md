@@ -62,7 +62,7 @@ dhgr_text_restore();                          /* before ROM text routines */
 
 The C configuration places the code at `$6000`, above **both** video pages.
 The details of RAMRD/RAMWRT accesses, the ZP trampoline and the backends are
-in the [library's memory contract](../../lib/hgrc/README.md#contrat-mémoire-et-transitions).
+in the [library's memory contract](../../lib/hgrc/README.md#memory-contract-and-transitions).
 The archive only loads the families in use; a DHGR `gfx` backend is linked
 explicitly. The [converter](../../tools/assets/README.md) produces the banks
 and masks of `src/ball.h`; `src/ball.json` gives their size.
