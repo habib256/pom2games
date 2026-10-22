@@ -18,8 +18,10 @@
 ; below, preserving every asserted code/table/workspace address.
 ; mouse.s's no-mouse check (+5 library CODE) and dhgr_base moving from BSS to
 ; DATA (+1) are absorbed the same way (RODATA -5, BSS -1).
+; a2_puts/a2_print_hexword in asm (apple2io_str.s, -50 library CODE bytes
+; with the cc65 helpers they no longer need): RODATA +50.
 CODE_SPARE   = 38
-RODATA_SPARE = 30
+RODATA_SPARE = 80
 BSS_SPARE    = 12
 
 .code

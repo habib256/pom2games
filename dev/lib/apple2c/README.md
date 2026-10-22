@@ -12,7 +12,7 @@ graphique. La sortie passe par COUT (`$FDED`) sur la page texte, l'entrée lit l
 |---|---|
 | `apple2io.h` | l'API (ou `apple2c.h`) |
 | `apple2io_asm.s` | les routines qui appellent la ROM ou lisent le clavier |
-| `apple2io.c` | `a2_puts`, `a2_print_hexword` |
+| `apple2io_str.s` | `a2_puts`, `a2_print_hexword` |
 | `apple2frame.h` + `apple2frame.s` | cadence optionnelle : IIe VBL, temporisation de repli bornée |
 | `apple2c.h` | en-tête parapluie |
 | `apple2c.mk` | fragment Makefile : `APPLE2C_SRCS`, `APPLE2C_INCS`, `APPLE2C_GAME_SRCS`, `APPLE2C_DOS_SRCS`, `APPLE2C_FRAME_SRCS`, `APPLE2C_AFLAGS` |
@@ -85,7 +85,7 @@ void main(void) {
     cl65 -t none -Oirs -I dev/lib/apple2c -c -o hello.o hello.c
     ...
     cl65 -t none -C dev/cc65/apple2_hgr_c.cfg -o hello.bin \
-         crt0_apple2.o hello.o apple2io.o apple2io_asm.o      # crt0 en premier
+         crt0_apple2.o hello.o apple2io_str.o apple2io_asm.o      # crt0 en premier
 
 Exemple complet : [`../../examples/hello`](../../examples/hello).
 

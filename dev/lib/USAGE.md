@@ -40,7 +40,7 @@ Cette comparaison ne détecte pas toutes les variantes d'un même algorithme.
   dépendance de `chess.o`. Le modifier déclenche la recompilation.
 - `HGRC_HEADERS` inclut les en-têtes de `apple2c`, que `hgr.h` inclut
   transitivement. Cela couvre SNAKE, LIGHT3DBALL, CHROMABREAK et les exemples
-  minimaux, y compris l'objet `apple2io.o` de CHROMABREAK.
+  minimaux.
 - LIGHT3DBALL déclare aussi le contrat public `mouse.h` pour son objet C.
 - `APPLE2C_HEADERS` fournit la liste commune des en-têtes ; HELLO la déclare
   pour son objet C utilisant l'en-tête parapluie `apple2c.h`.

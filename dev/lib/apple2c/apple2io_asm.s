@@ -2,8 +2,7 @@
 ; ----------------------------------------------------------------------------
 ; apple2io_asm.s — Apple II Monitor + keyboard hooks for cc65 (see apple2io.h).
 ;
-; Named *_asm.s (not apple2io.s) because cc65 compiles apple2io.c through an
-; intermediate apple2io.s, which would clobber a hand-written file.
+; a2_puts and a2_print_hexword are a separate object, apple2io_str.s.
 ;
 ; cc65 calling convention: an `unsigned char` argument arrives in A, a char
 ; return value leaves in A (X cleared so an int promotion reads it right).

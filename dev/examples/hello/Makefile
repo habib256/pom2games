@@ -24,7 +24,7 @@ $(BUILD)/hello_asm.bin: $(BUILD)/hello_asm.o $(A2_HGR_CFG)
 	$(LD65) -C $(A2_HGR_CFG) -o $@ $<
 
 # --- C track (crt0_apple2 first) ---------------------------------------------
-C_OBJS := $(BUILD)/crt0_apple2.o $(BUILD)/hello_c.o $(BUILD)/apple2io.o $(BUILD)/apple2io_asm.o
+C_OBJS := $(BUILD)/crt0_apple2.o $(BUILD)/hello_c.o $(BUILD)/apple2io_str.o $(BUILD)/apple2io_asm.o
 
 $(BUILD)/crt0_apple2.o: $(A2_CRT0)
 	@mkdir -p $(BUILD)
@@ -32,9 +32,9 @@ $(BUILD)/crt0_apple2.o: $(A2_CRT0)
 $(BUILD)/apple2io_asm.o: $(APPLE2C)/apple2io_asm.s
 	@mkdir -p $(BUILD)
 	$(CA65) -t none -o $@ $<
-$(BUILD)/apple2io.o: $(APPLE2C)/apple2io.c $(APPLE2C)/apple2io.h
+$(BUILD)/apple2io_str.o: $(APPLE2C)/apple2io_str.s $(APPLE2)/apple2.inc
 	@mkdir -p $(BUILD)
-	$(CL65) -t none -Oirs $(APPLE2C_INCS) -c -o $@ $<
+	$(CA65) -t none -o $@ $<
 $(BUILD)/hello_c.o: src/hello_c.c $(APPLE2C_HEADERS)
 	@mkdir -p $(BUILD)
 	$(CL65) -t none -Oirs $(APPLE2C_INCS) -c -o $@ $<
