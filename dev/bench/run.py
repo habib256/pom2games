@@ -163,6 +163,10 @@ SCENES['hgr_tile_background']=dict(sprites=True,sprite_width=7,sprite_height=8,s
     'hgr_ms_spr=&shape;hgr_ms_x=29;hgr_ms_y=60;hgr_ms_run();'+
     'hgr_ms_x=43;hgr_ms_y=60;hgr_ms_run();hgr_show_page();')
 SCENES['hgr_tile_background_pal']=dict(SCENES['hgr_tile_background'],iie=True,pal=True)
+# Non-default compile-time variants (dev/lib/ABI.md, "Options vitesse/RAM"):
+# the listed members are reassembled with the define and linked before hgrc.lib.
+for name in ('hgr_diagonal_cold','hgr_hud_cold','hgr_scene_cold'):
+    SCENES[name+'_x7folded']=dict(SCENES[name],variant=('HGRC_X7_FOLDED',('hgr_columns.s',)))
 
 
 def segment_sizes(mapfile):
@@ -216,7 +220,7 @@ def presentation_source(variant):
 
 def measure(work,name,call,dhgr=False,setup='',sprites=False,warmup=True,
             declarations='',sprite_width=None,sprite_height=4,sprite_stride=2,presentation=None,iie=False,cadence=False,
-            pal=False,damage=False):
+            pal=False,damage=False,variant=None):
     source=work/(name+'.c'); obj=source.with_suffix('.o'); binary=source.with_suffix('.bin')
     source.write_text('#include "hgr.h"\n#include "gfx.h"\n#include "dhgr.h"\n#include "apple2io.h"\n'
       'void hgr_build_tables(void); void bench_begin(void); void bench_end(void); void bench_present(void);\n'+
@@ -241,6 +245,12 @@ def measure(work,name,call,dhgr=False,setup='',sprites=False,warmup=True,
                        ['-t','none','-Oirs','-DHGR_SPR_DAMAGE=1','-I',DEV/'lib/hgrc',
                         '-I',DEV/'lib/apple2c'])
         extra.append(damage_obj)
+    if variant:
+        define,members=variant
+        for member in members:
+            variant_obj=work/(name+'_'+Path(member).stem+'.o')
+            run(['ca65','-t','none','-D',define+'=1','-I',DEV/'lib/hgrc','-o',variant_obj,DEV/'lib/hgrc'/member])
+            extra.append(variant_obj)
     if cadence:
         frame_obj=work/(name+'_frame.o')
         run(['ca65','-t','none','-o',frame_obj,DEV/'lib/apple2c/apple2frame.s'])

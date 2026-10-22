@@ -1163,6 +1163,48 @@
       "c_stack_reserved_bytes": 2048,
       "hardware_stack_peak_bytes": 8,
       "hardware_stack_available_bytes": 255
+    },
+    "hgr_diagonal_cold_x7folded": {
+      "code_bytes": 3060,
+      "init_code_bytes": 12,
+      "rodata_bytes": 64,
+      "ram_bytes": 1586,
+      "zp_bytes": 40,
+      "binary_bytes": 3161,
+      "cycles": 81816,
+      "row_kernel_bytes": 70,
+      "c_stack_peak_bytes": 15,
+      "c_stack_reserved_bytes": 2048,
+      "hardware_stack_peak_bytes": 12,
+      "hardware_stack_available_bytes": 255
+    },
+    "hgr_hud_cold_x7folded": {
+      "code_bytes": 3515,
+      "init_code_bytes": 12,
+      "rodata_bytes": 1062,
+      "ram_bytes": 1576,
+      "zp_bytes": 68,
+      "binary_bytes": 4614,
+      "cycles": 97462,
+      "row_kernel_bytes": 70,
+      "c_stack_peak_bytes": 28,
+      "c_stack_reserved_bytes": 2048,
+      "hardware_stack_peak_bytes": 12,
+      "hardware_stack_available_bytes": 255
+    },
+    "hgr_scene_cold_x7folded": {
+      "code_bytes": 5470,
+      "init_code_bytes": 12,
+      "rodata_bytes": 1511,
+      "ram_bytes": 1787,
+      "zp_bytes": 82,
+      "binary_bytes": 7018,
+      "cycles": 35526,
+      "row_kernel_bytes": 70,
+      "c_stack_peak_bytes": 31,
+      "c_stack_reserved_bytes": 2048,
+      "hardware_stack_peak_bytes": 12,
+      "hardware_stack_available_bytes": 255
     }
   },
   "legacy_references": {
@@ -1491,7 +1533,10 @@
     "hgr_game_compact_phase6_pal": "iie_pal",
     "hgr_hud8_carry": "nmos",
     "hgr_tile_background": "nmos",
-    "hgr_tile_background_pal": "iie_pal"
+    "hgr_tile_background_pal": "iie_pal",
+    "hgr_diagonal_cold_x7folded": "nmos",
+    "hgr_hud_cold_x7folded": "nmos",
+    "hgr_scene_cold_x7folded": "nmos"
   },
   "pre_incremental_references": {
     "hgr_scene_cold": {

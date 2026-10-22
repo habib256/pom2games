@@ -14,10 +14,10 @@ import shutil
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--check', action='store_true')
-    parser.add_argument('values', nargs=7)
+    parser.add_argument('values', nargs=8)
     args = parser.parse_args()
     target = Path(args.values[0])
-    names = ('HGRC_CFLAGS', 'HGRC_ASMFLAGS', 'CL65', 'CA65', 'AR65',
+    names = ('HGRC_CFLAGS', 'HGRC_ASMFLAGS', 'HGRC_DEFINES', 'CL65', 'CA65', 'AR65',
              'HGRC_ARCHIVE_SRCS')
     config = dict(zip(names, args.values[1:]))
     config['tools'] = {}

@@ -163,3 +163,54 @@ matérielle compte aussi les octets déjà occupés à l'entrée de la charge.
 Le détecteur signale les passages de S sous $00 à travers les instructions
 observées ; ce profil ne constitue pas une preuve statique de toutes les IRQ,
 de changements explicites de S ou de chemins non exécutés.
+
+## Options vitesse/RAM
+
+Une bibliothèque n'impose pas un compromis à tous les programmes : quand deux
+variantes d'un module se justifient (plus rapide ou plus petite en code contre
+plus de RAM, tables dans le fichier contre tables construites au démarrage),
+les deux restent disponibles et chaque programme choisit à la compilation.
+
+Convention, pour toute nouvelle option (les noms existants restent tels quels) :
+
+- Nom `<MODULE>_<FONCTION>_<VARIANTE>` en majuscules : `<MODULE>` est le
+  préfixe du module ou de l'archive (`HGR_` pour lib/hgr, `HGRC_` pour une
+  option de l'archive cc65 hgrc, `MUL_`, `DOS_`…), `<VARIANTE>` nomme la
+  technique choisie (`TABLES`, `RAM`, `ORA`, `FOLDED`, `IFREF`…), pas un
+  jugement `FAST`/`SMALL` : une variante est souvent plus rapide pour un
+  programme et plus grosse pour un autre.
+- Non définie = le défaut, celui que les programmes existants utilisent déjà.
+  Ajouter une option ne change aucun binaire existant ni la baseline du bench.
+- Assembleur : `NOM = 1` (ou l'adresse/la table attendue) avant l'`.include`.
+  Archive hgrc : `HGRC_DEFINES := -D NOM=1` dans le Makefile du programme,
+  avant `hgrc_build.mk` ; passé aux membres C et assembleur, il reconstruit
+  l'archive. Une option visible dans un en-tête passe aussi dans les CFLAGS
+  du programme.
+- Le commentaire d'en-tête du module donne le coût des deux variantes ;
+  le bench mesure la variante non défaut quand il couvre le module (cas
+  `<cas>_<variante>`, option `variant` de `dev/bench/run.py`).
+
+Options de ce type (mesures : bench hgrc, ou commit qui a introduit l'option) :
+
+| Option | Module | Effet de l'option (contre le défaut) | Programmes |
+|---|---|---|---|
+| `HGRC_X7_FOLDED` | hgrc `hgr_columns.s` | Un seul constructeur pour `hgr_col7`/`hgr_mask7`/`hgr_phase7` : code −107 o, premier usage −7 000 cycles (texte, sprites : 97 462 au lieu de 104 439, 35 526 au lieu de 42 598) ; mais les trois tables (841 o BSS) toujours réservées : +279 o pour un programme qui n'en utilise que deux (lignes et pixels : code −49 o, −360 cycles) | aucun (bench `*_x7folded`) |
+| `HGR_PAGES_ORA` | `hgr_pages.inc/.asm` | Pas de `hgr_hi2` (−192 o BSS) ; +2 cycles par lecture de ligne, ~4 par site à la sélection de page | light3dball (dirtbike : défaut) |
+| `HGR_LINE_DIV7` / `HGR_LINE_MOD7` | `hgr_line.asm` | Deux lectures dans les tables 256 o du programme au lieu de deux tables de 32 o et d'une correction ; à prendre quand le programme a déjà ces tables | dirtbike |
+| `HGR_FULL_WIDTH_TABLES` | `hgr_plot_tables.inc` | Colonnes 0..279 au lieu de 0..255 : +48 o de tables ; requis par `hgr_plot16`/`hgr_line16` | logo |
+| `HGR_PLOT_TABLES_RAM` | `hgr_plot_tables.inc` | Tables en BSS + `hgr_plot_tables_init` (39 o) : fichier −513 o pour LOGO, même RAM, construction une fois au démarrage | logo |
+| `hgr_div7_ram.asm` (inclusion) | lib/hgr | `div7`/`mod7` en BSS, `hgr_div7_init` (28 o, ~6 000 cycles une fois) : fichier −482 o, RAM +28 o | arkabreakout |
+| `hgr_scanline_ram.asm` (inclusion) | lib/hgr | Tables de lignes en RAM, `hgr_scanline_init` (~50 o) : 384 o de moins dans le fichier | dirtbike |
+| `HGR_TEXT8_HGR_ORDER` | `hgr_text8.asm` | Police en ordre HGR : plus de `rev7_tab` (−256 o) ni de chemin d'inversion | arkabreakout, dirtbike |
+| `HGR_TEXT8_NO_PUTS` | `hgr_text8.asm` | Pas de `hgr_puts8` (code en moins) | maze3d |
+| `HG_STORE_ONLY` / `HG_STORE_UNCLIPPED` | `hgr_glyph8.asm` | Sans les entrées non alignées / sans contrôles de STORE (plus court et plus rapide ; l'appelant garantit `hg_col<40`, `hg_y<=184`) | chess / chess, micro-sokoban |
+| `HGR_SPR_DAMAGE` | hgrc moteur de sprites | +4×`HGR_SPR_MAX`+11 o BSS : fermeture des rectangles d'intersection au lieu du préfixe/suffixe simple | aucun (bench `hgr_isolated_damage`) |
+| `MUL_ACC` | `math.inc`/`mul.asm` | Accumulateur `mul_acc0..2` : +3 o de ZP | dirtbike |
+| `MUL_INIT_BOOT` / `MOUSE_INIT_BOOT` | `mul.asm` / `mouse.s` | Code d'initialisation dans le segment `INIT`, réutilisable après le démarrage | dirtbike / dirtbike |
+| `DOS_CMD_HEX_IFREF` | `dos.asm` | `dos_cmd_hex` assemblé seulement s'il est référencé : −48 o | arkabreakout, maze3d |
+| `EXIT_USE_NATIVE_VIDEO` | `exit.asm` | Réutilise `native_video` de `hgr.asm` : −21 o | arkabreakout, maze3d, micro-sokoban |
+| `SOUND_GATE` | `sound.asm` | Coupure du son par un octet : −7 o et −10 cycles par note contre une enveloppe dans le programme | maze3d |
+
+Les autres définitions des modules (adresses ZP, `DOS_ZP_*`, `RWTS_*`,
+`HGR_SPR_MAX`, crochets `HG_HOOK_*`/`HP_OR_PLOT`, tables `WF_*_TABLE`…)
+placent ou branchent le code : ce ne sont pas des compromis vitesse/RAM.
