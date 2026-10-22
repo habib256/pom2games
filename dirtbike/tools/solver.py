@@ -21,12 +21,12 @@ BEAM = 24
 # full or half throttle, coast, brake: at the faster speeds (2026-10-21) some
 # crests need the speed taken off before them
 ACTIONS = [(thr, brk, lean) for thr, brk in ((P.THROTTLE_MAX, 0), (P.THROTTLE_MAX // 2, 0), (0, 0), (0, 1))
-           for lean in (-4, -2, 0, 2, 4)]
+           for lean in (-8, -4, 0, 4, 8)]
 MAX_TICKS = 4000 * P.LAPS
 # leaning back costs: per tick, lean back levels x TILT_COST, taken off the
 # progress when the beam sorts (without it the rider sat back most of the
 # time: the demos looked leaning back; wheelies are fine)
-TILT_COST = 256
+TILT_COST = 128             # (256 when the lean had 4 levels)
 # past the line the game rides on its own (src/dirtbike.s @fin: no gas,
 # brake): a finish counts only if the bike then stays up that long (a demo
 # shows DEMO_END_FRAMES before the hall of fame; it once fell under FINISH)

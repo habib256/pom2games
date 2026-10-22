@@ -95,7 +95,14 @@ def centre_vx(b):
     return (b.x[0] - b.ox[0] + b.x[1] - b.ox[1]) / 512
 
 
-HEAD_SCRIPT = [(10, 4, 0, 2), (60, 4, 0, 4), (10, 0, 1, 4)]   # (found by a search; again after the brake fix)
+# the front lifted and put down again on the flat, across the lean levels
+# (the rider's shift tables, -8..8)
+WHEELIE_SCRIPT = [(20, 0, 0, 0), (10, 8, 0, 0), (6, 8, 0, -8), (4, 0, 0, 4), (4, 8, 0, -2), (4, 0, 0, 3),
+                  (4, 8, 0, -4), (4, 0, 0, 5), (4, 8, 0, -6), (4, 0, 0, 8), (4, 0, 0, -3), (10, 0, 1, 0),
+                  (20, 0, 0, 0)]
+
+
+HEAD_SCRIPT = [(10, 4, 0, 2), (60, 4, 0, 4), (20, 0, 1, 6)]   # (found by a search; again after the lean levels)
 
 
 def state(b):
@@ -208,9 +215,18 @@ def main():
             sys.exit(f'brake ({name}): not a smooth stop {v}')
         run(t, [(seg, int((k - 1) % 5 == 0)) for k, seg in enumerate(brake_script(gas))])
         print(f'physics: 6502 == model, brake {name}')
+    b = physics.Bike([160] * 4096)
+    lifted = 0
+    for n, thr, brk, lean in WHEELIE_SCRIPT:
+        for _ in range(n):
+            b.tick(thr, bool(brk), lean)
+            lifted += b.ground[0] and not b.ground[1]
+    assert not b.crashed and lifted > 8, ('WHEELIE_SCRIPT', b.crashed, lifted)
+    run([160] * 4096, [(seg, 1) for seg in WHEELIE_SCRIPT])
+    print(f'physics: 6502 == model, a wheelie ({lifted} ticks on the rear wheel), lean levels -8..8')
     gas = cliff_launch()
     free, brk, brk3, lean = (cliff_ride(gas, sc) for sc in (
-        [(20, 0, 0, 0)], [(20, 0, 1, 0)], [(3, 0, 1, 0), (17, 0, 0, 0)], [(20, 0, 0, 4)]))
+        [(20, 0, 0, 0)], [(20, 0, 1, 0)], [(3, 0, 1, 0), (17, 0, 0, 0)], [(20, 0, 0, physics.LEAN_MAX)]))
     d_brk, d_brk3, d_lean = (b.angle() - free.angle() for b in (brk, brk3, lean))
     ok = (all(not (b.ground[0] or b.ground[1]) for b in (free, brk, brk3, lean)) and 0 < d_brk < 20
           and d_brk == d_brk3 and d_brk < d_lean / 5 and abs(centre_vx(brk) - centre_vx(free)) < 0.15)

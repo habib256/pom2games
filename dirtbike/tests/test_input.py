@@ -2,8 +2,9 @@
 """The joystick and the keyboard, in the game (a2run's joy:X,Y and btn:N,b).
 
   * the stick's X leans the bike, analog: in_lean = stick_lean(joy_x -
-    joy_mx) at several deflections both ways (the formula below is
-    src/input.inc's), from 0 in the dead zone to LEAN_MAX;
+    joy_mx) every 5 % of the travel both ways (the formula below is
+    src/input.inc's), from 0 in the dead zone through every level to
+    LEAN_MAX (the rider's shift per level: tools/physics.py);
   * button 0 = full throttle, button 1 = brake; both: the brake wins (the
     bike, sped up with button 0, stops with both held and stays stopped);
   * the stick in the menus: a button leaves the title and starts track 1;
@@ -28,7 +29,7 @@ import dos33  # noqa: E402
 import physics  # noqa: E402
 
 DISK = GAME.parent / 'dist/DIRTBIKE.dsk'
-JOY_DEAD, JOY_STEP = 6, 3                    # = src/input.inc
+JOY_DEAD, JOY_STEP = 6, 2                    # = src/input.inc
 INP_STICK, INP_KEYS = 0, 1
 RACE = ['wait:1000', 'key: ', 'wait:60', 'key:\r']
 
@@ -53,7 +54,7 @@ def main():
         return [L.until('main_loop', 60), f'peek:{JOY:04X}:5', f'peek:{IN:04X}:3']
 
     # analog lean, the countdown held (count_t) so the bike stays still
-    xs = (0, 0.1, 0.2, 0.3, 0.45, 0.6, 1, -0.1, -0.2, -0.35, -0.6, -1)
+    xs = [k / 20 for k in range(21)] + [-k / 20 for k in range(1, 21)]     # 0 .. 1, then -0.05 .. -1
     steps = RACE + [L.until('new_race', 900)]
     for x in xs:
         steps += [L.poke('count_t', 60), f'joy:{x},0', 'wait:6'] + look()
@@ -65,8 +66,10 @@ def main():
         want, have = stick_lean(d), s8(inp[2])
         seen.append(have)
         ok &= j[0] == 1 and want == have
-        print(f'  stick {x:+5}: count {j[1]:3} (centre {j[3]}), d {d:+4}: lean {have:+} (model {want:+})')
-    ok &= set(seen) == set(range(-4, 5)) and seen == sorted(seen[:7]) + sorted(seen[7:], reverse=True)
+        print(f'  stick {x:+5.2f}: count {j[1]:3} (centre {j[3]}), d {d:+4}: lean {have:+} (model {want:+})'
+              f'  shift {physics.LEAN_FWD[have] if have >= 0 else -physics.LEAN_BACK[-have]:+.1f} px')
+    m = physics.LEAN_MAX
+    ok &= set(seen) == set(range(-m, m + 1)) and seen == sorted(seen[:21]) + sorted(seen[21:], reverse=True)
     print('stick X: analog lean, every level both ways, 6502 == stick_lean: ' + ('ok' if ok else 'DIFF'))
     bad += not ok
 

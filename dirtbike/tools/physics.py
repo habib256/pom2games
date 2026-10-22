@@ -53,8 +53,16 @@ VT_MAX = 0x0D80             # traction stops adding speed above this (3x lot 1)
 BRAKE = 0x0040              # 8.8 px / tick^2 removed from |vt| on each wheel: ~1 g
                             # of the game's gravity (0x0020 was ~0.6 g: 3.8 s and
                             # 660 px to stop from full speed, weaker than the engine)
-LEAN_MAX = 4                # lean levels -4..4 (+: forward / nose down)
-LEAN_SHIFT = 1.0            # the rider moves this far along the bike per level, px
+LEAN_MAX = 8                # lean levels -8..8 (+: forward / nose down)
+# the rider's shift along the bike per level, px: fine near the middle (the
+# balance of a wheelie), then faster; back to 6 px, forward to 4 (was 1 px a
+# level, 4 levels: 4 px both ways; 6 forward, or 5 and more both ways, threw
+# the bike over the front when the stick went from one end to the other)
+LEAN_BACK = (0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0)
+LEAN_FWD = (0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0)
+# in the air the rider turns the bike by this much a tick per level (as
+# before at full lean: 4)
+AIR_TURN = (0, 1, 1, 2, 2, 3, 3, 4, 4)
 GYRO_DIV = 8                # in the air, throttle / GYRO_DIV turns the nose up
 AIR_SPIN_BRAKE = 0x0600     # the brake takes this off a wheel's spin in the air
                             # (8.8 px / tick): full speed stops in 3 ticks, each
@@ -86,7 +94,7 @@ CONSTRAINTS = [
 
 def rider_len(lean, wheel):
     """Rest length of a rider link with the rider shifted lean levels forward."""
-    s = lean * LEAN_SHIFT
+    s = LEAN_FWD[lean] if lean >= 0 else -LEAN_BACK[-lean]
     return math.hypot(WHEELBASE / 2 + (s if wheel == 0 else -s), RIDER_UP)
 
 LAPS = 3                    # a race: laps of a looping track (tracks.Track)
@@ -178,7 +186,7 @@ class Bike:
         if air or one:
             self._spin_damp()
         if air:
-            turn += lean - throttle // GYRO_DIV
+            turn += (AIR_TURN[lean] if lean >= 0 else -AIR_TURN[-lean]) - throttle // GYRO_DIV
         if turn:
             self._lean(turn)
         cons = self._cons(lean)

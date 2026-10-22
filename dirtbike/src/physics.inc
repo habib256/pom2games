@@ -168,7 +168,7 @@ phys_tick:
         BPL     @int
         ; the turn: a wheel in the air (last tick's contact) that the brake
         ; stops gives its spin to the frame, 1 a tick (+: rolling forward)
-        ; while it still turns; in the air also lean - throttle / 8; in the
+        ; while it still turns; in the air also air_turn - throttle / 8; in the
         ; air or on one wheel the spin of the axis fades
         LDA     #0
         STA     turn
@@ -220,9 +220,13 @@ phys_tick:
         LSR     A
         .assert GYRO_DIV = 8, error, "phys_tick: throttle / GYRO_DIV"
         STA     w0
+        CLC                             ; the lean's turn: air_turn (by level)
+        LDA     in_lean
+        ADC     #LEAN_MAX
+        TAY
         CLC
         LDA     turn
-        ADC     in_lean
+        ADC     air_turn,Y
         SEC
         SBC     w0
         STA     turn

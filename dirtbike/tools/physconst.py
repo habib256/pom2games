@@ -37,6 +37,9 @@ def main():
     out.append('; ground normal for slope index s+SLOPE_MAX, 64 = 1.0')
     out.append('norm_x:  .byte ' + ', '.join(f'<{v}' for v in P.NORM_X))
     out.append('norm_y:  .byte ' + ', '.join(f'<{v}' for v in P.NORM_Y))
+    out.append('; air turn per lean level (index lean + LEAN_MAX)')
+    out.append('air_turn: .byte ' + ', '.join(f'<{-P.AIR_TURN[-l] if l < 0 else P.AIR_TURN[l]}'
+                                              for l in range(-P.LEAN_MAX, P.LEAN_MAX + 1)))
     out.append('; traction per throttle level')
     out.append('thr_acc: .byte ' + ', '.join(str(n * P.THROTTLE_ACC)
                                               for n in range(P.THROTTLE_MAX + 1)))

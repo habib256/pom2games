@@ -253,7 +253,7 @@ hof_pause:
 @rts:   RTS
 
 ; demo_step -- in_throttle / in_brake / in_lean of this tick. One run =
-; count, then throttle / 4 (bits 5-6), brake (bit 4), lean + 4 (bits 0-3).
+; count, then throttle / 4 (bits 5-6), brake (bit 7), lean + 8 (bits 0-4).
 demo_step:
         LDA     KBD
         BMI     @key
@@ -269,19 +269,18 @@ demo_step:
         INY
         LDA     (demo_ptr),Y
         PHA
-        AND     #$0F
+        AND     #$1F
         SEC
-        SBC     #4
+        SBC     #LEAN_MAX
         STA     in_lean
         PLA
+        ASL     A                       ; C = brake (bit 7)
         PHA
-        LSR     A
-        LSR     A
-        LSR     A
-        LSR     A
-        AND     #1
+        LDA     #0
+        ROL     A
         STA     in_brake
-        PLA
+        PLA                             ; throttle / 4 now in bits 6-7
+        LSR     A
         LSR     A
         LSR     A
         LSR     A
