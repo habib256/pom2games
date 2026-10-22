@@ -6,15 +6,19 @@ The bike is three Verlet points: 0 = rear wheel, 1 = front wheel,
 their difference. One tick:
 
   1. integrate every point (gravity, speed clamp);
-  2. in the air or on one wheel, the spin of the wheel axis fades; the axis
-     turns: the brake pulls the nose down (the wheel's reaction on the
-     frame), in the air the lean and the throttle turn it too;
+  2. in the air or on one wheel, the spin of the wheel axis fades; in the
+     air the lean and the throttle turn the axis; the brake stops a wheel
+     spinning in the air, and while it does, its angular momentum turns
+     the frame a little (one unit a tick, a quarter of a full lean: nose
+     down for a wheel rolling forward), then nothing;
   3. distance constraints, CONSTRAINT_PASSES times: wheelbase (stiff),
      rear-rider and front-rider (soft: the suspension). The lean shifts the
      rider along the bike (their rest lengths); he is heavier than a wheel;
   4. ground contact for both wheels: push out along the ground normal,
      bounce, then traction (throttle on the rear wheel), brake, engine
-     brake, rolling loss. Braking cuts the throttle;
+     brake, rolling loss. On a wheel down, braking cuts the throttle. The
+     wheel's spin (its rolling speed) is kept for the air; the brake slows
+     the bike only through a wheel on the ground;
   5. the constraints again (the frame stays a frame after the ground); a
      braked wheel that the brake stopped this tick stays where the tick
      found it (x and old x: static friction; the rider's weight dragged a
@@ -51,8 +55,11 @@ BRAKE = 0x0040              # 8.8 px / tick^2 removed from |vt| on each wheel: ~
                             # 660 px to stop from full speed, weaker than the engine)
 LEAN_MAX = 4                # lean levels -4..4 (+: forward / nose down)
 LEAN_SHIFT = 1.0            # the rider moves this far along the bike per level, px
-GYRO_DIV = 8                # in the air, throttle / GYRO_DIV turns the nose up and
-GYRO_BRAKE = 4              # the brake turns it down (the rear wheel is a gyroscope)
+GYRO_DIV = 8                # in the air, throttle / GYRO_DIV turns the nose up
+AIR_SPIN_BRAKE = 0x0600     # the brake takes this off a wheel's spin in the air
+                            # (8.8 px / tick): full speed stops in 3 ticks, each
+                            # turning the frame 1 (was GYRO_BRAKE = 4 every tick
+                            # the brake was held, as strong as a full lean)
 CONSTRAINT_PASSES = 1       # before the ground contact (one more after it)
 RIDER_HIT = 0x0300          # crash if the rider gets this close to the ground
 RIDER_MIN = 0.5             # crash if a rider link gets this short (x rest length)
@@ -140,25 +147,34 @@ class Bike:
         self.oy = list(self.y)
         self.ground = [0, 0]
         self.wheel_ang = [0, 0]
+        self.spin = [0, 0]          # rolling speed at the last contact (8.8)
         self.crashed = False
         self.squashed = False
 
     # --- one tick ---------------------------------------------------------
     def tick(self, throttle=0, brake=False, lean=0):
-        if brake:                   # the brake wins: the throttle is cut (gas still
-            throttle = 0            # held from the keyboard or button 0 made it useless)
         air = not (self.ground[0] or self.ground[1])    # (last tick's contact)
         one = self.ground[0] != self.ground[1]          # on one wheel
-        front = self.ground[1]
         for i in range(3):
             self._integrate(i)
-        # the rear wheel's torque turns the frame the other way: the brake
-        # pulls the nose down (not with the front wheel down: the ground holds
-        # it, a held brake flipped a standing bike); in the air the throttle
-        # lifts it (on the ground
-        # the traction already does) and the rider turns the bike (lean); on
-        # the ground only his weight acts (the lean shifts it, _cons)
-        turn = GYRO_BRAKE if brake and not front else 0
+        # in the air the throttle lifts the nose (the rear wheel's torque
+        # turns the frame the other way; on the ground the traction already
+        # does) and the rider turns the bike (lean); on the ground only his
+        # weight acts (the lean shifts it, _cons). A wheel in the air that
+        # the brake stops gives its spin to the frame: 1 a tick while it
+        # still turns (a held brake once turned the bike 4 a tick for good)
+        turn = 0
+        if brake:
+            for i in range(2):
+                s = self.spin[i]
+                if self.ground[i] or not s:
+                    continue
+                if s > 0:
+                    self.spin[i] = max(0, s - AIR_SPIN_BRAKE)
+                    turn += 1
+                else:
+                    self.spin[i] = min(0, s + AIR_SPIN_BRAKE)
+                    turn -= 1
         if air or one:
             self._spin_damp()
         if air:
@@ -288,6 +304,8 @@ class Bike:
         vt = (vx * tx + vy * ty) >> 6
         if vn < 0:
             vn = (-vn * BOUNCE) >> 8
+        if brake:                   # the brake wins: no traction (gas held from the
+            throttle = 0            # keyboard or button 0 drowned it), engine brake
         if throttle and vt < VT_MAX:
             vt += throttle * THROTTLE_ACC
         if brake:
@@ -306,6 +324,7 @@ class Bike:
         self.ox[i] = self.x[i] - vx
         self.oy[i] = self.y[i] - vy
         self.wheel_ang[i] = (self.wheel_ang[i] + (vt >> 5)) & 0xFF
+        self.spin[i] = vt
 
     def _ceiling(self):
         for i in range(3):

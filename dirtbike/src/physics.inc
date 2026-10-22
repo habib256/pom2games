@@ -64,6 +64,8 @@ turn:       .res 1              ; this tick's turn of the wheel axis (do_lean)
 lidx:       .res 1              ; in_lean + LEAN_MAX (rider link tables)
 cidx:       .res 1              ; constraint table index
 squashed:   .res 1              ; a rider link too short (pass after the ground)
+spin_l:     .res 2              ; rolling speed at the last contact (8.8):
+spin_h:     .res 2              ; the brake stops it in the air (phys_tick)
 hold_on:    .res 2              ; the brake stopped the wheel this tick: it holds
 hold_xf:    .res 2              ; at its x when the tick began
 hold_xl:    .res 2
@@ -113,6 +115,10 @@ phys_place:
         STA     wheel_gnd+1
         STA     wheel_ang
         STA     wheel_ang+1
+        STA     spin_l
+        STA     spin_l+1
+        STA     spin_h
+        STA     spin_h+1
         STA     crashed
         JSR     height_at               ; ground row under the rear wheel
         SEC
@@ -156,25 +162,51 @@ height_at:
 ; phys_tick
 ; ---------------------------------------------------------------------------
 phys_tick:
-        LDA     in_brake                ; the brake wins: the throttle is cut
-        BEQ     @int0                   ; (in_throttle cleared: the inputs are
-        LDA     #0                      ; set again before every tick)
-        STA     in_throttle
-@int0:  LDX     #2
+        LDX     #2
 @int:   JSR     integrate
         DEX
         BPL     @int
-        ; the turn: brake (nose down) unless the front wheel is down; in the
-        ; air also lean - throttle / 8; in the air or on one wheel (last
-        ; tick's contact) the spin fades
+        ; the turn: a wheel in the air (last tick's contact) that the brake
+        ; stops gives its spin to the frame, 1 a tick (+: rolling forward)
+        ; while it still turns; in the air also lean - throttle / 8; in the
+        ; air or on one wheel the spin of the axis fades
         LDA     #0
-        LDX     in_brake
-        BEQ     @nb
-        LDX     wheel_gnd+1
-        BNE     @nb
-        LDA     #GYRO_BRAKE
-@nb:    STA     turn
-        LDA     wheel_gnd
+        STA     turn
+        LDA     in_brake
+        BEQ     @nsb
+        LDX     #1
+@sb:    LDA     wheel_gnd,X             ; down: the brake acts on the ground
+        BNE     @snx
+        LDA     spin_h,X
+        BMI     @sng
+        ORA     spin_l,X
+        BEQ     @snx                    ; stopped
+        SEC                             ; s -= AIR_SPIN_BRAKE, not below 0
+        LDA     spin_l,X
+        SBC     #<AIR_SPIN_BRAKE
+        STA     spin_l,X
+        LDA     spin_h,X
+        SBC     #>AIR_SPIN_BRAKE
+        BPL     @sp
+        LDA     #0
+        STA     spin_l,X
+@sp:    STA     spin_h,X
+        INC     turn
+        BNE     @snx                    ; (always: turn 1 or 2)
+@sng:   CLC                             ; s += AIR_SPIN_BRAKE, not above 0
+        LDA     spin_l,X
+        ADC     #<AIR_SPIN_BRAKE
+        STA     spin_l,X
+        LDA     spin_h,X
+        ADC     #>AIR_SPIN_BRAKE
+        BMI     @sm
+        LDA     #0
+        STA     spin_l,X
+@sm:    STA     spin_h,X
+        DEC     turn
+@snx:   DEX
+        BPL     @sb
+@nsb:   LDA     wheel_gnd
         CMP     wheel_gnd+1
         BEQ     @both
         JSR     spin_damp               ; one wheel down
@@ -1192,8 +1224,11 @@ ground_contact:
         STA     vn
         LDA     mul_p2
         STA     vn+1
-@nob:   ; traction (rear wheel only): throttle and vt < VT_MAX
+@nob:   ; traction (rear wheel only): throttle, no brake (it wins: gas
+        ; held from the keys or button 0 drowned it) and vt < VT_MAX
         LDA     cur
+        BNE     @nothr
+        LDA     in_brake
         BNE     @nothr
         LDY     in_throttle
         BEQ     @nothr
@@ -1252,9 +1287,12 @@ ground_contact:
         STA     hold_xh,X
         INC     hold_on,X
 @nobrk: LDA     cur                     ; engine brake: rear wheel, no throttle
-        ORA     in_throttle
+        BNE     @noeb                   ; (or braking: it cut the throttle)
+        LDA     in_brake
+        BNE     @eb
+        LDA     in_throttle
         BNE     @noeb
-        LDY     #8 - ENGINE_BRAKE
+@eb:    LDY     #8 - ENGINE_BRAKE
         JSR     vt_less
 @noeb:  LDY     #8 - ROLL_LOSS          ; rolling loss
         JSR     vt_less
@@ -1330,4 +1368,8 @@ ground_contact:
         CLC
         ADC     wheel_ang,X
         STA     wheel_ang,X
+        LDA     vt                      ; the spin, for the air
+        STA     spin_l,X
+        LDA     vt+1
+        STA     spin_h,X
         RTS

@@ -48,9 +48,11 @@ sur un II+) ; ESPACE coupe les gaz du clavier, A / Z coupent le frein.
 
 **Frein** (2026-10-22, modèle `tools/physics.py`, vérifié par
 `tests/test_physics.py`). Il retire `BRAKE` de la vitesse tangentielle de
-chaque roue au sol, jusqu'à zéro (jamais au-delà : pas de marche arrière),
-et, roue avant en l'air, fait plonger l'avant (`GYRO_BRAKE`). Avant, il
-était bizarre :
+chaque roue au sol, jusqu'à zéro (jamais au-delà : pas de marche arrière).
+Une roue en l'air ne freine pas la moto : le frein arrête seulement sa
+rotation, et tant qu'elle tourne encore, son moment cinétique passe au
+cadre (1 cran de rotation par tick et par roue, nez en bas pour une roue
+qui roulait en avant). Avant, il était bizarre :
 1. les gaz l'emportaient : la traction plein gaz (8 × 31 par tick) noyait
    le frein (2 × 32) ; or au clavier les gaz restent tenus 20 images après
    A : ESPACE juste après les gaz ne freinait pas, la moto accélérait
@@ -61,14 +63,24 @@ et, roue avant en l'air, fait plonger l'avant (`GYRO_BRAKE`). Avant, il
    (le poids du pilote) déplaçait les roues que le frein venait d'arrêter
    (~1 à 2 px en 10 s sur le plat, ~85 px en 200 ticks sur une pente
    de 1/2) ;
-4. au clavier, ESPACE ne freinait que 6 images par appui.
+4. au clavier, ESPACE ne freinait que 6 images par appui ;
+5. en l'air ou en wheeling, tenu, il tournait la moto de 4 crans par tick
+   (`GYRO_BRAKE`, autant qu'une inclinaison maximale) aussi longtemps
+   qu'on le tenait : +150° en 20 ticks de saut, et un wheeling freiné
+   basculait sur l'avant (+48°, roue arrière levée).
 
 Maintenant : le frein coupe les gaz (`phys_tick`) ; `BRAKE` = $40 (~1 g) :
 de 13 px/tick à l'arrêt en 72 ticks (2,4 s) et ~430 px, en décroissant
 régulièrement (12,9 → 10,1 → 7,5 → 5,1 → 2,9 → 0,9 → 0 px/tick toutes les
 12 ticks, sur le plat) ; une roue que le frein arrête dans le tick reste
 où le tick l'a trouvée (x et ancien x : frottement statique) : la moto
-s'arrête et reste arrêtée, en côte comme en descente.
+s'arrête et reste arrêtée, en côte comme en descente. En l'air, la
+rotation de chaque roue (`spin`, sa vitesse au dernier contact) perd
+`AIR_SPIN_BRAKE` = $0600 par tick freiné : une roue à pleine vitesse
+s'arrête en 3 ticks, et la moto tourne en tout de ~12° (inclinaison
+maximale pendant 20 ticks : ~145°), plus rien ensuite ; sa vitesse ne
+change pas. Un wheeling freiné se repose doucement (la roue arrière freine
+au sol).
 
 **Titre et démo** (`src/title.inc`, image `tools/title.py`). Le jeu s'ouvre
 sur une page de titre (fichier `TITLE`, LZ4FH, 1,8 Ko), avec le crédit du
@@ -191,10 +203,9 @@ arrondi vers zéro : arrondi vers le bas, la moto arrêtée reculait toute
 seule ; à 3 fois, la moto devenait intenable dans les whoops). À chaque tick :
 1. gravité, puis vitesses bornées : 18 px/tick le long de la piste, 8 en
    vertical ; la traction pousse jusqu'à 13,5 px/tick ;
-2. rotation de l'axe des roues : le frein arrière fait plonger l'avant
-   (réaction de la roue sur le cadre), sauf roue avant au sol : le sol
-   tient l'avant (frein tenu, la moto arrêtée basculait) ; en l'air, l'inclinaison
-   et les gaz (nez qui monte) la tournent aussi. En l'air ou sur une seule
+2. rotation de l'axe des roues : une roue en l'air que le frein arrête
+   donne sa rotation au cadre (1 cran par tick tant qu'elle tourne) ; en
+   l'air, l'inclinaison et les gaz (nez qui monte) la tournent aussi. En l'air ou sur une seule
    roue, la rotation s'amortit (`>> 4` par tick : plus de vrille sans fin) ;
 3. contraintes de distance sans racine carrée. L'inclinaison déplace le
    pilote le long de la moto (1 px par cran, tables de longueurs de repos
@@ -244,7 +255,7 @@ une arrivée ne compte que si la moto tient ensuite 90 ticks, freinée comme
 le jeu le fait après la ligne : les démos tombaient sous « FINISH ! ») et
 `tests/solutions.txt` le garde ;
 `make test` le rejoue (`tools/trackcheck.py`). Les trajets (3 tours) durent
-de 20 s à 41 s. Une nouvelle graine doit aussi tenir dans les limites du rendu
+de 20 s à 39 s. Une nouvelle graine doit aussi tenir dans les limites du rendu
 (`POOL_MAX`, 256 motifs : `make` le vérifie).
 
 **Format** (`tools/track.py`, `tools/packtrack.py`). Pour chaque pixel du
@@ -278,7 +289,7 @@ qui changent.
 
 **Temps.** Le chrono compte les ticks (30 par seconde), donc un temps ne
 dépend pas de la vitesse d'affichage (25 à 30 images par seconde). Les
-courses (3 tours) durent de 20 s à 41 s. Les messages sous le bandeau ne sont
+courses (3 tours) durent de 20 s à 39 s. Les messages sous le bandeau ne sont
 écrits que sur les premières images, puis 2 images sur 8 (le rendu du sol ne
 touche pas au ciel).
 

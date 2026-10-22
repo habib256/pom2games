@@ -65,6 +65,36 @@ def brake_curve(t, gas):
     return [(mid[i + 6] - mid[i]) // 12 for i in range(0, BRAKE_TICKS, 6)], b.crashed
 
 
+# the brake in the air (2026-10-22): off a cliff at full speed, the brake
+# only stops the wheels' spin, turning the frame nose down a little while
+# they still turn (AIR_SPIN_BRAKE), then nothing; no slowing down
+CLIFF = [100] * 600 + [184] * 3496
+
+
+def cliff_launch():
+    """-> ticks of full throttle until both wheels left the cliff (after 20 at rest)."""
+    b = physics.Bike(CLIFF)
+    for _ in range(20):
+        b.tick()
+    n = 0
+    while b.x[0] < (600 << 8) or b.ground[0] or b.ground[1]:
+        b.tick(8)
+        n += 1
+    return n
+
+
+def cliff_ride(gas, script):
+    b = physics.Bike(CLIFF)
+    for n, thr, brk, lean in [(20, 0, 0, 0), (gas, 8, 0, 0)] + script:
+        for _ in range(n):
+            b.tick(thr, bool(brk), lean)
+    return b
+
+
+def centre_vx(b):
+    return (b.x[0] - b.ox[0] + b.x[1] - b.ox[1]) / 512
+
+
 HEAD_SCRIPT = [(10, 4, 0, 2), (60, 4, 0, 4), (10, 0, 1, 4)]   # (found by a search; again after the brake fix)
 
 
@@ -178,6 +208,20 @@ def main():
             sys.exit(f'brake ({name}): not a smooth stop {v}')
         run(t, [(seg, int((k - 1) % 5 == 0)) for k, seg in enumerate(brake_script(gas))])
         print(f'physics: 6502 == model, brake {name}')
+    gas = cliff_launch()
+    free, brk, brk3, lean = (cliff_ride(gas, sc) for sc in (
+        [(20, 0, 0, 0)], [(20, 0, 1, 0)], [(3, 0, 1, 0), (17, 0, 0, 0)], [(20, 0, 0, 4)]))
+    d_brk, d_brk3, d_lean = (b.angle() - free.angle() for b in (brk, brk3, lean))
+    ok = (all(not (b.ground[0] or b.ground[1]) for b in (free, brk, brk3, lean)) and 0 < d_brk < 20
+          and d_brk == d_brk3 and d_brk < d_lean / 5 and abs(centre_vx(brk) - centre_vx(free)) < 0.15)
+    print(f'brake in the air: {d_brk:+.1f} degrees in 20 ticks (3 ticks of it: {d_brk3:+.1f}; a full lean '
+          f'{d_lean:+.1f}), speed {centre_vx(brk):.2f} px/tick (free {centre_vx(free):.2f}): '
+          + ('ok' if ok else 'DIFF'))
+    if not ok:
+        sys.exit('brake in the air')
+    run(CLIFF, [((20, 0, 0, 0), 0), ((gas, 8, 0, 0), 1)] + [((5, 0, 1, 0), 1)] * 4 +
+        [((5, 8, 1, -4), 1)] * 2)
+    print('physics: 6502 == model, brake in the air')
     sols = trackcheck.solutions()
     for k in (1, 19, 30):               # whole proven rides: hills, a double flip, big jumps
         h, fin = tracks.build(k)

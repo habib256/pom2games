@@ -17,7 +17,7 @@ def main():
                  'LEAN_MAX', 'THROTTLE_MAX', 'CONSTRAINT_PASSES', 'RIDER_HIT',
                  'SLOPE_MAX', 'LAPS', 'WRAP_MARGIN', 'LEFT_WALL', 'FAR', 'CEILING', 'WHEELBASE',
                  'RIDER_UP', 'ROLL_LOSS', 'ENGINE_BRAKE', 'FLIP_DX', 'SPIN_DAMP',
-                 'GYRO_BRAKE', 'GYRO_DIV', 'RIDER_HEAVY', 'L2Q_MIN'):
+                 'GYRO_DIV', 'AIR_SPIN_BRAKE', 'RIDER_HEAVY', 'L2Q_MIN'):
         out.append(f'{name:18} = ${getattr(P, name):04X}')
     out.append(f'NCONSTRAINTS       = {len(P.CON_TAB)}')
     out.append('')
