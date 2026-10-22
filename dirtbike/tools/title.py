@@ -26,7 +26,7 @@ TITLE_PROMPT = 66               # = src/title.inc: under the subtitle
 PROMPT_X = (84, 190)            # its columns (13..25 x 7 px), kept black
 CREDIT = 'APPLE II PORT: VERHILLE ARNAUD'
 CREDIT_Y = 183                  # white on a black band under the ground
-VERSION = 'V1.0'                # right of the subtitle
+VERSION = 'V1.0'                # bottom left, just above the ground
 
 
 class Canvas:
@@ -105,13 +105,14 @@ def picture():
                     c.px[y][x] = 1
     sub = 'MOTOCROSS TIME TRIAL'
     c.text(sub, (W - 8 * len(sub)) // 2, 52)
-    c.text(VERSION, W - 8 * len(VERSION) - 4, 52)
     # rolling hills along the bottom, a curved kicker on the left
     ground = [172 - 5 * math.sin(x / 21) - 3 * math.sin(x / 8 + 1) for x in range(W)]
     for x in range(0, 64):
         t = x / 63
         ground[x] = min(ground[x], 176 - 46 * t ** 1.7)
     c.fill_below(ground)
+    vx = 2                                  # the version, resting on the slope
+    c.text(VERSION, vx, int(min(ground[vx:vx + 8 * len(VERSION)])) - 9)
     # the credit: white on a black band at the bottom
     for y in range(CREDIT_Y - 3, H):
         c.px[y] = [0] * W
