@@ -1976,6 +1976,7 @@ hud_end:
 .include "joy.asm"
 .include "sound.asm"
 APPLE2_EXIT_HOOK = mouse_shutdown
+EXIT_USE_NATIVE_VIDEO = 1        ; hgr.asm's native_video, above
 .include "exit.asm"
 DOS_ZP_START = $50
 DOS_ZP_LEN = $B0

@@ -3782,6 +3782,7 @@ restore_basic:
         RTS
 basic_load_cmd: .byte $0D, $04, "LOAD HELLO", $0D
 .define APPLE2_EXIT_HOOK restore_basic
+EXIT_USE_NATIVE_VIDEO = 1        ; hgr.asm's native_video, above
 .include "exit.asm"              ; apple2_zp_save, apple2_exit
 .include "sound.asm"             ; tone
 .include "joy.asm"               ; read_stick, stick_dir (JOY_LO/HI above)

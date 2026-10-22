@@ -36,6 +36,9 @@
 ; DOSWARM (also on Ctrl-RESET). It may restore BASIC overwritten by the game;
 ; it runs with DOS's zero page and must return without relying on game ZP.
 ;
+; Optional EXIT_USE_NATIVE_VIDEO = 1, with hgr.asm included BEFORE this file
+; and its native_video assembled: the IIe/c switch reset calls that copy
+; instead of repeating it (-21 bytes).
 ; A program that never exits (it runs until RESET or power-off) can skip both.
 ; apple2_return is assembled only if referenced before the include (.ifref).
 ; The snapshot goes to BSS unless the program defined apple2_zp_buf (256 bytes)
@@ -111,6 +114,10 @@ exit_restore:
         ; BEFORE writing the RESET vector or DOS's zero-page snapshot: with
         ; RAMWRT enabled those stores otherwise go into auxiliary RAM.
         ; Check the ROM model before touching IIe/c switches on a II/II+.
+.if .defined(EXIT_USE_NATIVE_VIDEO) .and .defined(native_video)
+        ; opt-in: hgr.asm's copy (included before this file) instead of ours
+        JSR     native_video
+.else
         LDA     $FBB3
         CMP     #$06
         BNE     @native
@@ -121,6 +128,7 @@ exit_restore:
         STA     COL80OFF
         BIT     DHIRES_OFF
 @native:
+.endif
         JSR     exit_armed      ; no snapshot: nothing to put back
         BNE     @text
         LDX     #2

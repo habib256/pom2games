@@ -13,6 +13,10 @@
 ;           $C0 -> ~526 Hz, $FF -> ~397 Hz thud.
 ;           Length = A * (12 + 5*X) cycles: A = $60, X = $C0 ~ 91 ms.
 ;
+; Optional mute gate: define SOUND_GATE (the address of a byte) before the
+; include; while that byte is 0, tone returns at once (6 cycles more per tone
+; otherwise, Y = 0 when muted).
+;
 ; One byte of BSS (snd_period), no zero page. The loops must not cross a
 ; page: a taken branch that does costs one more cycle per turn (6 X
 ; instead of 5 X: notes ~20 % longer and lower; the outer loop +1 a flip);
@@ -32,6 +36,10 @@ snd_period:     .res 1
 .segment "CODE"
 
 tone:
+.ifdef SOUND_GATE
+        LDY     SOUND_GATE      ; 0: muted, return at once (A, X kept)
+        BEQ     @off
+.endif
         TAY                     ; Y = flips left
         STX     snd_period
 @t:     LDA     SPKR
@@ -40,7 +48,7 @@ tone:
         BNE     @d
         DEY
         BNE     @t
-        RTS
+@off:   RTS
 .assert >(@d) = >(* - 4), lderror, "tone: its delay loop crosses a page (+20 % per note)"
 .assert >(@t) = >(* - 1), lderror, "tone: its flip loop crosses a page (+1 cycle per flip)"
 

@@ -4703,19 +4703,10 @@ font_base:
 HGR_TEXT8_NO_PUTS = 1            ; write_char drives hgr_putc8 itself
 .include "hgr_text8.asm"
 .include "hgr.asm"               ; dev/lib/apple2: hgr_init_clear
-; Keep the shared tone implementation, with a game-local mute gate.
-.define tone speaker_tone
+SOUND_GATE = sound_enabled       ; the shared tone, silent while it is 0
 .include "sound.asm"
-.undefine tone
-tone:
-        PHA
-        LDA sound_enabled
-        BEQ @muted
-        PLA
-        JMP speaker_tone
-@muted: PLA
-        RTS
 .include "joy.asm"               ; two axes and dead zone, no zero-page scratch
+EXIT_USE_NATIVE_VIDEO = 1        ; hgr.asm's native_video, above
 .include "exit.asm"              ; dev/lib/apple2: apple2_zp_save / apple2_exit
 DOS_ZP_START = $50
 DOS_ZP_LEN = $B0
