@@ -87,5 +87,7 @@ if __name__ == '__main__':
     subprocess.run(['make','-C',str(ROOT/'logo')],check=True,stdout=subprocess.DEVNULL)
     labels = a2test.labels(ROOT/'logo/build/logo.lbl')
     for iie in (False,True):
+        if iie and not a2test.have_a2shot('LOGO on the IIe'):
+            continue
         check(ROOT/'dist/LOGO.dsk',labels,iie)
         reset(ROOT/'dist/LOGO.dsk',labels,iie)
