@@ -1,8 +1,8 @@
-# Évaluation de techniques HGR
+# Evaluating HGR techniques
 
-Cette suite compare **fhpack**, **fdraw** et un prototype de **sprites compilés**
-aux chemins existants de `pom2games`. Les prototypes restent dans les tests ;
-aucune bibliothèque de production ne les utilise.
+This suite compares **fhpack**, **fdraw** and a prototype of **compiled
+sprites** with the existing `pom2games` code paths. The prototypes stay in the
+tests; no production library uses them.
 
 ```sh
 make test-techniques
@@ -11,231 +11,229 @@ python3 dev/tests/techniques/run.py --suite sprites
 python3 dev/tests/techniques/run.py --suite compression --out /tmp/compression.json
 ```
 
-`make test` inclut `test-techniques`. La commande dédiée reconstruit les deux
-disquettes utilisées pour les captures. Prérequis : cc65, Python 3, un
-compilateur C pour a2run et un compilateur C++ pour fhpack. Aucun téléchargement
-ni module Python externe n'est nécessaire. Les programmes, disquettes et
-mesures générés sont dans `build/`, ignoré par Git.
+`make test` includes `test-techniques`. The dedicated command rebuilds the two
+disks used for the captures. Prerequisites: cc65, Python 3, a C compiler for
+a2run and a C++ compiler for fhpack. No download or external Python module is
+needed. The generated programs, disks and measurements are in `build/`,
+ignored by Git.
 
-## Résultats et décisions
+## Results and decisions
 
-Mesures du 7 octobre 2026 : cc65 V2.18, `-Oirs`, CPU **NMOS 6502 dans a2run**.
-Les données détaillées sont dans [RESULTS.json](RESULTS.json).
-La suite a validé **123 scénarios de comparaison, soit 304 exécutions mesurées**.
-Les temps en millisecondes sont des cycles émulés convertis à 1 020 484 Hz,
-pas des durées d'exécution sur le Mac.
+Measurements of 7 October 2026: cc65 V2.18, `-Oirs`, CPU **NMOS 6502 in a2run**.
+The detailed data are in [RESULTS.json](RESULTS.json).
+The suite validated **123 comparison scenarios, i.e. 304 measured runs**.
+Times in milliseconds are emulated cycles converted at 1,020,484 Hz, not run
+times on the Mac.
 
-| Technique | Résultat | Décision proposée pour `dev` |
+| Technique | Result | Proposed decision for `dev` |
 |---|---|---|
-| fhpack | Quatre captures de jeux : 8 Ko deviennent 637–1 747 octets ; chargement DOS avec décompression 2,57–3,19 fois plus rapide | **À intégrer comme option de la chaîne d'assets**, avec conservation du fichier brut si la compression l'agrandit |
-| Lignes fdraw | 10,4–14,4 fois plus rapides sur les grandes diagonales de l'API C ; 2,4–2,7 fois face à l'assembleur de maze3d | **Portage ciblé des lignes à envisager** ; vérifier les choix de pixels et préserver le contrat des coordonnées |
-| Rectangles et effacement fdraw | Environ 1,3–1,4 fois plus rapides ; package complet FAST de 5 108 octets | **Ne justifie pas un remplacement global** des primitives actuelles |
-| Sprites compilés, dessin seul | Environ 2,6–4,4 fois plus rapides à la position représentative ; +1,3 à +4,6 Ko par forme à sept phases | **Option pour quelques sprites très fréquents**, quand le budget mémoire le permet |
-| Sprites compilés avec sauvegarde/dessin/restauration | Rapport de vitesse 0,95–1,01 sur les trois formes synthétiques ; 0,99 sur le vaisseau des démos | **Conserver le moteur masqué actuel** pour l'animation sur décor |
+| fhpack | Four game captures: 8 KB become 637–1,747 bytes; DOS loading with decompression 2.57–3.19 times faster | **To integrate as an option of the asset pipeline**, keeping the raw file if compression makes it larger |
+| fdraw lines | 10.4–14.4 times faster on the long diagonals of the C API; 2.4–2.7 times against maze3d's assembler | **Targeted port of the lines worth considering**; check the pixel choices and preserve the coordinate contract |
+| fdraw rectangles and clear | About 1.3–1.4 times faster; full FAST package of 5,108 bytes | **Does not justify a global replacement** of the current primitives |
+| Compiled sprites, drawing only | About 2.6–4.4 times faster at the representative position; +1.3 to +4.6 KB per shape with seven phases | **Option for a few very frequent sprites**, when the memory budget allows |
+| Compiled sprites with save/draw/restore | Speed ratio 0.95–1.01 on the three synthetic shapes; 0.99 on the demos' ship | **Keep the current masked engine** for animation over a background |
 
-### Compression et chargement
+### Compression and loading
 
-| Capture HGR | Brut | fhpack `-9 -h` | BLOAD brut | BLOAD + décompression |
+| HGR capture | Raw | fhpack `-9 -h` | Raw BLOAD | BLOAD + decompression |
 |---|---:|---:|---:|---:|
-| Arkabreakout, titre | 8 192 o | 1 373 o | 5 036 ms | 1 826 ms |
-| Arkabreakout, après espace | 8 192 o | 637 o | 5 036 ms | 1 654 ms |
-| Micro-sokoban, titre | 8 192 o | 1 747 o | 5 036 ms | 1 961 ms |
-| Micro-sokoban, après espace | 8 192 o | 785 o | 5 036 ms | 1 580 ms |
+| Arkabreakout, title | 8,192 B | 1,373 B | 5,036 ms | 1,826 ms |
+| Arkabreakout, after space | 8,192 B | 637 B | 5,036 ms | 1,654 ms |
+| Micro-sokoban, title | 8,192 B | 1,747 B | 5,036 ms | 1,961 ms |
+| Micro-sokoban, after space | 8,192 B | 785 B | 5,036 ms | 1,580 ms |
 
-Les captures viennent de la mémoire HGR des disquettes actuelles, après
-`wait:1100`, ou `wait:1100 key:" " wait:60`. Leurs SHA-256 sont enregistrés.
-« Après espace » désigne cette séquence exacte, sans supposer un état de jeu.
-Le corpus ajoute une image vide, un motif répétitif et du bruit déterministe.
-Le bruit grossit à **8 292 octets** : un futur outil doit conserver le brut
-dans ce cas.
+The captures come from the HGR memory of the current disks, after
+`wait:1100`, or `wait:1100 key:" " wait:60`. Their SHA-256 hashes are
+recorded. "After space" means this exact sequence, without assuming any game
+state. The corpus adds an empty image, a repetitive pattern and deterministic
+noise. The noise grows to **8,292 bytes**: a future tool must keep the raw
+file in this case.
 
-Le décompresseur FAST occupe **194 octets**, contre **186** pour SMALL.
-Sur les captures de jeux, la décompression seule prend environ
-158–173 ms. Une copie RAM déroulée de l'image brute prend environ **74 ms**
-(75 520 cycles). La compression accélère donc le **chargement disque** et
-réduit le stockage ; elle ne remplace pas une copie RAM rapide pour chaque
-image d'une animation.
+The FAST decompressor takes **194 bytes**, against **186** for SMALL. On the
+game captures, decompression alone takes about 158–173 ms. An unrolled RAM
+copy of the raw image takes about **74 ms** (75,520 cycles). Compression
+therefore speeds up **disk loading** and reduces storage; it does not replace
+a fast RAM copy for each frame of an animation.
 
-Les tests disque utilisent réellement le BLOAD de DOS 3.3, avec un binaire de
-démarrage de même taille dans les deux variantes pour conserver le placement
-du fichier IMAGE. Le chemin comprimé charge en page 1, puis décompresse en
-page 2. Il emploie donc une page vidéo comme tampon temporaire. Une intégration
-doit choisir un tampon source compatible avec le jeu et le double tampon.
-Les temps concernent le Disk II d'a2run et cette disposition de fichiers ;
-ils ne prédisent pas les temps d'un disque dur ProDOS ou d'un autre chargeur.
+The disk tests really use the DOS 3.3 BLOAD, with a boot binary of the same
+size in both variants to keep the placement of the IMAGE file. The compressed
+path loads into page 1, then decompresses into page 2. It therefore uses a
+video page as a temporary buffer. An integration must choose a source buffer
+compatible with the game and double buffering. The times apply to a2run's
+Disk II and this file layout; they do not predict the times of a ProDOS hard
+disk or another loader.
 
-### Primitives graphiques
+### Graphics primitives
 
-| Opération, page 1 | Actuel | fdraw FAST | Rapport |
+| Operation, page 1 | Current | fdraw FAST | Ratio |
 |---|---:|---:|---:|
-| Ligne horizontale 280 px | 3 771 cycles | 903 | 4,18 |
-| Ligne verticale 192 px | 13 215 | 8 581 | 1,54 |
-| Diagonale (0,0) → (279,191), API C | 270 506 | 25 981 | 10,41 |
-| Rectangle 140 × 16 | 6 867 | 5 317 | 1,29 |
-| Effacement HGR | 53 561 | 39 789 | 1,35 |
-| Grande diagonale de maze3d, assembleur extrait | 45 419 | 16 771 | 2,71 |
+| Horizontal line 280 px | 3,771 cycles | 903 | 4.18 |
+| Vertical line 192 px | 13,215 | 8,581 | 1.54 |
+| Diagonal (0,0) → (279,191), C API | 270,506 | 25,981 | 10.41 |
+| Rectangle 140 × 16 | 6,867 | 5,317 | 1.29 |
+| HGR clear | 53,561 | 39,789 | 1.35 |
+| Long maze3d diagonal, extracted assembler | 45,419 | 16,771 | 2.71 |
 
-fdraw FAST et SMALL sont compilés à partir des sources Merlin épinglées.
-`merlin.py` adapte les directives, les labels locaux et le placement à ca65.
-Les instructions et les algorithmes sont conservés. Les 16 octets de scratch
-privés de fdraw sont alloués hors du scratch cc65, et le segment est aligné.
-Les deux variantes incluent ici **tout le package** : 5 108 octets pour FAST,
-4 352 pour SMALL. Un portage d'une seule famille pourrait réduire ce coût ;
-ce gain potentiel n'est pas mesuré ici.
+fdraw FAST and SMALL are compiled from the pinned Merlin sources. `merlin.py`
+adapts the directives, local labels and placement to ca65. The instructions
+and algorithms are kept. fdraw's 16 private scratch bytes are allocated
+outside the cc65 scratch, and the segment is aligned. Both variants include
+**the whole package** here: 5,108 bytes for FAST, 4,352 for SMALL. A port of
+a single family could reduce this cost; that potential gain is not measured
+here.
 
-Les lignes sont contrôlées pour leurs extrémités, leur nombre de points, leur
-connexité et leur distance à la ligne idéale. Certains choix d'arrondi diffèrent
-du Bresenham actuel : le cas inversé produit six pixels différents. Les tests
-enregistrent cette différence sans la confondre avec une ligne incorrecte.
-Les rectangles sont comparés octet par octet sur les lignes visibles.
-L'effacement fdraw ne traite pas les trous mémoire comme `hgr_clear` : le
-résultat visible est identique, mais 512 octets de trous diffèrent en FAST.
+Lines are checked for their endpoints, their number of points, their
+connectivity and their distance to the ideal line. Some rounding choices
+differ from the current Bresenham: the reversed case produces six different
+pixels. The tests record this difference without mistaking it for an
+incorrect line. Rectangles are compared byte by byte on the visible lines.
+The fdraw clear does not treat the memory holes like `hgr_clear`: the visible
+result is identical, but 512 bytes of holes differ in FAST.
 
-La comparaison maze3d extrait **la routine réellement utilisée par le jeu**.
-Elle est aussi vérifiée contre un Bresenham indépendant. Le jeu transforme
-ses coordonnées virtuelles de huit pixels en groupes de sept pixels HGR ;
-fdraw travaille directement dans les coordonnées HGR. Les tracés diffèrent
-donc davantage : un remplacement dans le jeu demande une validation visuelle,
-même lorsque les extrémités coïncident.
+The maze3d comparison extracts **the routine actually used by the game**. It
+is also checked against an independent Bresenham. The game converts its
+virtual coordinates of eight pixels into HGR groups of seven pixels; fdraw
+works directly in HGR coordinates. The plots therefore differ more: a
+replacement in the game needs visual validation, even when the endpoints
+match.
 
-### Sprites compilés
+### Compiled sprites
 
-| Forme / opération, x=45 | Actuel | Compilé | Rapport | Binaire supplémentaire |
+| Shape / operation, x=45 | Current | Compiled | Ratio | Extra binary |
 |---|---:|---:|---:|---:|
-| Vaisseau 8 × 8, XOR | 1 198 cycles | 461 | 2,60 | 1 336 o |
-| Vaisseau 16 × 16, masqué | 4 173 | 943 | 4,43 | 3 516 o |
-| Tuile 16 × 16, masquée | 4 173 | 1 208 | 3,45 | 4 572 o |
-| Vaisseau réel des démos 21 × 9, XOR | 1 759 | 584 | 3,01 | 1 821 o |
-| Vaisseau 16 × 16, sauvegarde/dessin/restauration | 8 090 | 8 007 | 1,01 | 3 519 o |
+| Ship 8 × 8, XOR | 1,198 cycles | 461 | 2.60 | 1,336 B |
+| Ship 16 × 16, masked | 4,173 | 943 | 4.43 | 3,516 B |
+| Tile 16 × 16, masked | 4,173 | 1,208 | 3.45 | 4,572 B |
+| Real ship from the demos 21 × 9, XOR | 1,759 | 584 | 3.01 | 1,821 B |
+| Ship 16 × 16, save/draw/restore | 8,090 | 8,007 | 1.01 | 3,519 B |
 
-Le prototype génère sept routines déroulées, avec données et masques immédiats
-et omission des octets transparents. C'est une **implémentation originale de
-la technique de HiSprite**, adaptée à notre ABI ; le générateur Python 2 de
-HiSprite n'est ni copié ni exécuté.
+The prototype generates seven unrolled routines, with immediate data and masks
+and transparent bytes skipped. It is an **original implementation of the
+HiSprite technique**, adapted to our ABI; HiSprite's Python 2 generator is
+neither copied nor run.
 
-La référence est le noyau assembleur rapide des sprites prédécalés actuels,
-avec la même préparation des paramètres. Pour le cycle sur décor, la référence
-emploie `hgr_msu_run`, qui combine sauvegarde et dessin, puis restaure le décor.
-Le prototype doit sauvegarder séparément, dessiner, puis restaurer : ce travail
-efface presque tout le gain du dessin compilé.
+The reference is the fast assembler kernel of the current pre-shifted sprites,
+with the same parameter preparation. For the cycle over a background, the
+reference uses `hgr_msu_run`, which combines save and draw, then restores the
+background. The prototype has to save separately, draw, then restore: this
+work wipes out almost all the gain of compiled drawing.
 
-Les sept phases, les coordonnées au-delà de 255, les deux pages, la conservation
-du bit de palette et le clipping droit/bas sont vérifiés. Aux bords, le
-prototype revient au noyau générique : ces cas ne gagnent pas en vitesse.
-Les gains cités concernent le dessin seul, sans gestion d'un moteur complet
-à plusieurs sprites, changement de page ou attente de VBL.
+The seven phases, coordinates beyond 255, both pages, preservation of the
+palette bit and right/bottom clipping are checked. At the edges, the
+prototype falls back to the generic kernel: these cases gain no speed. The
+quoted gains concern drawing alone, without managing a complete multi-sprite
+engine, page flipping or waiting for VBL.
 
-## Contrôles et limites
+## Checks and limits
 
-- Les marqueurs excluent l'initialisation et les douze cycles des appels de
-  mesure. Les coûts des paramètres et des appels restent inclus.
-- Les tests vérifient le framebuffer, la page inactive et, sauf pour
-  l'effacement fdraw, les trous mémoire. La compression avec `-h` doit restituer
-  les 8 192 octets exactement, en page 1 et en page 2.
-- Les rapports conservent cycles, tailles liées, RAM et zéro-page, compilateur,
-  révisions et empreintes des sources amont. Les tailles sont celles des
-  programmes de test complets ; elles ne comptent pas les pages vidéo ni la
-  pile C réservée. Le champ `code_bytes` inclut tout le segment FDRAW, donc ses
-  tables et buffers internes aussi.
-- Les tests échouent sur un résultat incorrect. Ils ne fixent pas de seuil
-  automatique de vitesse : cette suite sert à évaluer des candidats, tandis
-  que `make bench-check` garde les budgets des bibliothèques de production.
-- Cette évaluation porte sur HGR / 6502. Aucun résultat n'est extrapolé à DHGR,
-  au 65C02 ou au IIgs.
+- The markers exclude initialisation and the twelve cycles of the measurement
+  calls. The costs of parameters and calls remain included.
+- The tests check the framebuffer, the inactive page and, except for the
+  fdraw clear, the memory holes. Compression with `-h` must restore the
+  8,192 bytes exactly, in page 1 and in page 2.
+- The reports keep cycles, linked sizes, RAM and zero page, compiler,
+  revisions and hashes of the upstream sources. The sizes are those of the
+  complete test programs; they do not count the video pages or the reserved C
+  stack. The `code_bytes` field includes the whole FDRAW segment, so its
+  internal tables and buffers too.
+- The tests fail on an incorrect result. They set no automatic speed
+  threshold: this suite is for evaluating candidates, while
+  `make bench-check` guards the budgets of the production libraries.
+- This evaluation covers HGR / 6502. No result is extrapolated to DHGR, the
+  65C02 or the IIgs.
 
-Les chargeurs qboot/prorwts et le prototype a2render ne sont pas inclus : les
-trois priorités retenues sont compression HGR, primitives rapides et sprites
-compilés. Évaluer les chargeurs demanderait un format disque et un contrat de
-chargement précis ; a2render demanderait un prototype de rendu texturé distinct.
+The qboot/prorwts loaders and the a2render prototype are not included: the
+three priorities chosen are HGR compression, fast primitives and compiled
+sprites. Evaluating the loaders would require a disk format and a precise
+loading contract; a2render would require a separate textured-rendering
+prototype.
 
-## Recherche DHGR — 8 octobre 2026
+## DHGR research — 8 October 2026
 
-Une exploration séparée a confronté ces techniques au code DHGR du dépôt.
-Les prototypes sont restés dans `/tmp/pom2-dhgr-research`, sans modification
-des bibliothèques ni des références de performance. Les mesures ci-dessous
-utilisent cc65 `-Oirs` et le 65C02 du cœur IIe d'a2shot.
+A separate exploration compared these techniques with the repository's DHGR
+code. The prototypes stayed in `/tmp/pom2-dhgr-research`, without changing
+the libraries or the performance references. The measurements below use
+cc65 `-Oirs` and the 65C02 of a2shot's IIe core.
 
-### Effacement : gain mesuré
+### Clearing: measured gain
 
-Un prototype déroule les écritures sur les 32 blocs de 256 octets d'une banque,
-avec adressage absolu indexé et deux chemins pour les deux pages vidéo. Il
-conserve les quatre octets du motif couleur et traite les trous mémoire comme
-la routine actuelle. Comme elle, il masque les interruptions pendant l'opération.
+A prototype unrolls the writes over the 32 blocks of 256 bytes of a bank,
+with absolute indexed addressing and two paths for the two video pages. It
+keeps the four bytes of the colour pattern and treats the memory holes like
+the current routine. Like it, it masks interrupts during the operation.
 
-| Effacement, couleur 9 | Actuel | Prototype | Rapport |
+| Clear, colour 9 | Current | Prototype | Ratio |
 |---|---:|---:|---:|
-| Page 1, main + aux | 207 861 cycles | 88 171 cycles | 2,36 |
-| Page 2, main + aux | 207 861 cycles | 88 169 cycles | 2,36 |
+| Page 1, main + aux | 207,861 cycles | 88,171 cycles | 2.36 |
+| Page 2, main + aux | 207,861 cycles | 88,169 cycles | 2.36 |
 
-Le programme lié gagne 393 octets de code, sans augmentation de RAM ni de
-zéro-page. Chaque variante a passé 33 contrôles : les 16 couleurs sur chacune
-des deux pages, puis un motif `$FF` conservant le bit 7. Les contrôles comparent
-les 32 Ko vidéo (pages actives et inactives, main et aux, trous inclus) et
-vérifient que RAMRD/RAMWRT reviennent en main. Ce gain concerne l'effacement,
-pas la cadence complète d'un jeu ; CHROMABREAK ne redessine pas tout son écran
-à chaque image.
+The linked program gains 393 bytes of code, with no increase in RAM or zero
+page. Each variant passed 33 checks: the 16 colours on each of the two pages,
+then a `$FF` pattern keeping bit 7. The checks compare the 32 KB of video
+(active and inactive pages, main and aux, holes included) and verify that
+RAMRD/RAMWRT return to main. This gain concerns clearing, not the full frame
+rate of a game; CHROMABREAK does not redraw its whole screen every frame.
 
-### fhpack : compression possible, chargement non mesuré
+### fhpack: compression possible, loading not measured
 
-Chaque capture DHGR de 16 Ko a été séparée en deux banques de 8 Ko, compressées
-avec `fhpack -c -9 -h`, puis décompressées sur l'hôte et comparées octet par
-octet, bit 7 et trous inclus.
+Each 16 KB DHGR capture was split into two 8 KB banks, compressed with
+`fhpack -c -9 -h`, then decompressed on the host and compared byte by byte,
+bit 7 and holes included.
 
-| Capture de la page affichée | Brut | Deux flux comprimés |
+| Capture of the displayed page | Raw | Two compressed streams |
 |---|---:|---:|
-| Introduction de DHGR.dsk | 16 384 o | 1 212 o |
-| Animation de DHGR.dsk | 16 384 o | 1 490 o |
-| Titre de CHROMABREAK.po | 16 384 o | 2 511 o |
-| CHROMABREAK après espace | 16 384 o | 3 559 o |
+| DHGR.dsk introduction | 16,384 B | 1,212 B |
+| DHGR.dsk animation | 16,384 B | 1,490 B |
+| CHROMABREAK.po title | 16,384 B | 2,511 B |
+| CHROMABREAK after space | 16,384 B | 3,559 B |
 
-Séquences : `wait:2600`, puis pour l'animation `key:" " wait:1800`, et pour
-CHROMABREAK après espace `key:" " wait:600`. La page est sélectionnée selon
-le softswitch PAGE2. Ces noms décrivent les séquences, sans vérifier l'état
-interne du jeu.
+Sequences: `wait:2600`, then for the animation `key:" " wait:1800`, and for
+CHROMABREAK after space `key:" " wait:600`. The page is selected according to
+the PAGE2 softswitch. These names describe the sequences, without checking
+the internal state of the game.
 
-Le décodeur 6502 amont lit les références LZ dans la destination : activer
-seulement RAMWRT aux ne suffit donc pas. Une première intégration pourrait
-décompresser chaque banque dans un tampon main compatible avec `$2000` ou
-`$4000`, puis transférer la banque auxiliaire. Un décodeur direct aux exigerait
-une gestion distincte des lectures de source, des lectures de références et
-des écritures, ainsi qu'une exécution sûre lors des commutations RAMRD.
-Le chargement ProDOS complet, le tampon et le transfert aux restent à mesurer.
-Ces écrans sont aujourd'hui construits par du code : les compresser serait une
-nouvelle stratégie de présentation, pas l'accélération d'un chargement d'image
-brute déjà présent dans CHROMABREAK.
+The upstream 6502 decoder reads LZ references from the destination: enabling
+only aux RAMWRT is therefore not enough. A first integration could decompress
+each bank into a main buffer compatible with `$2000` or `$4000`, then transfer
+the auxiliary bank. A direct aux decoder would require separate handling of
+source reads, reference reads and writes, as well as safe execution during
+RAMRD switches. The complete ProDOS load, the buffer and the aux transfer
+remain to be measured. These screens are currently built by code: compressing
+them would be a new presentation strategy, not the speed-up of a raw image
+load already present in CHROMABREAK.
 
-### Lignes, rectangles et sprites : pistes de portage
+### Lines, rectangles and sprites: porting leads
 
-fdraw cible le HGR 280 × 192. Ses principes (adresses incrémentales, masques
-préparés, boucles spécialisées) peuvent guider un moteur DHGR, mais ses routines
-ne se substituent pas directement aux nôtres. Le fallback DHGR `gfx_line.c`
-passe par `gfx_plot` pour chaque point diagonal ; le backend couleur passe
-ensuite par un rectangle 1 × 1. Le backend HGR sélectionne maintenant
-`gfx_line_hgr.c` et son noyau assembleur ; ce constat concerne donc DHGR. C'est une cible plausible, sans facteur de vitesse mesuré.
-Les spans génériques commutent aussi les écritures aux octet par octet : un
-traitement séparé de main et aux mérite un prototype préservant les bords.
+fdraw targets 280 × 192 HGR. Its principles (incremental addresses, prepared
+masks, specialised loops) can guide a DHGR engine, but its routines do not
+directly replace ours. The DHGR fallback `gfx_line.c` goes through `gfx_plot`
+for each diagonal point; the colour backend then goes through a 1 × 1
+rectangle. The HGR backend now selects `gfx_line_hgr.c` and its assembler
+kernel; this finding therefore concerns DHGR. It is a plausible target, with
+no measured speed factor.
+The generic spans also switch aux writes byte by byte: handling main and aux
+separately deserves a prototype that preserves the edges.
 
-Les sprites compilés pourraient spécialiser les données et les masques et
-regrouper les écritures par banque. Leur intérêt doit être mesuré avec
-sauvegarde, dessin et restauration. CHROMABREAK dispose déjà d'un moteur
-assembleur avec boucle miroir main/aux, masques précalculés et sauvegarde
-combinée au dessin : les gains HGR ne s'y transposent pas automatiquement.
-Ses contraintes d'adresses figées et son bit 7 de mode RGB mixte doivent être
-préservés.
+Compiled sprites could specialise data and masks and group the writes by
+bank. Their benefit must be measured with save, draw and restore. CHROMABREAK
+already has an assembler engine with a mirrored main/aux loop, precomputed
+masks and save combined with drawing: the HGR gains do not carry over
+automatically. Its fixed-address constraints and its bit 7 for mixed RGB
+mode must be preserved.
 
-Sources techniques : [manuel fdraw](https://github.com/fadden/fdraw/blob/master/docs/manual.md),
+Technical sources: [fdraw manual](https://github.com/fadden/fdraw/blob/master/docs/manual.md),
 [fhpack](https://github.com/fadden/fhpack),
-[format des sprites DHGR de Bmp2DHR](https://www.appleoldies.ca/bmp2dhr/sprites/).
+[Bmp2DHR DHGR sprite format](https://www.appleoldies.ca/bmp2dhr/sprites/).
 
 ## Provenance
 
 - [fdraw](https://github.com/fadden/fdraw/tree/a1657e8e4d4b19f62497228d070c699c19e96cde),
-  Andy McFadden, Apache-2.0, sources et licence conservées dans `upstream/fdraw`.
+  Andy McFadden, Apache-2.0, sources and licence kept in `upstream/fdraw`.
 - [fhpack](https://github.com/fadden/fhpack/tree/18988e93ea7da79f837453e361b84395c4bd06a1),
-  Andy McFadden ; décompresseur optimisé par Peter Ferrie, Apache-2.0,
-  sources et licence conservées dans `upstream/fhpack`.
-- [HiSprite](https://github.com/blondie7575/HiSprite), Quinn Dunki : référence
-  pour le principe des sprites compilés. Aucune licence explicite repérée dans
-  ce dépôt ; aucun de ses fichiers n'est repris.
-- Les formes des démos et la routine maze3d viennent de ce dépôt, GPL-3.0.
-  Les scripts et prototypes nouveaux suivent la licence GPL-3.0 de pom2games.
+  Andy McFadden; decompressor optimised by Peter Ferrie, Apache-2.0, sources
+  and licence kept in `upstream/fhpack`.
+- [HiSprite](https://github.com/blondie7575/HiSprite), Quinn Dunki: reference
+  for the principle of compiled sprites. No explicit licence found in that
+  repository; none of its files is reused.
+- The demo shapes and the maze3d routine come from this repository, GPL-3.0.
+  The new scripts and prototypes follow the GPL-3.0 licence of pom2games.

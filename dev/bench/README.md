@@ -1,13 +1,13 @@
-# Mesures actuelles cc65
+# Current cc65 measurements
 
-Le noyau de couloir extrait de Light3DBall se mesure séparément avec
-`python3 dev/bench/corridor_projection.py` (`make bench-corridor`). Tous les
-65 536 écarts de profondeur et les coordonnées 0..127 pour tous les facteurs
-admissibles sont vérifiés avec les deux masques IRQ. Les coûts incluent
-JSR/RTS, sans arguments C : sélection 65..77 cycles, X 135..170, Y 129..164.
-L'extraction garde les binaires identiques et change ces mesures de 0 %.
-`--before DIR` compare une capture antérieure contenant `game.bin`, `game.lbl`
-et `assets.bin`. Les adresses des branches et tables influencent ces coûts.
+The corridor kernel extracted from Light3DBall is measured separately with
+`python3 dev/bench/corridor_projection.py` (`make bench-corridor`). All
+65,536 depth differences and coordinates 0..127 for every admissible factor
+are checked with both IRQ masks. Costs include JSR/RTS, with no C arguments:
+selection 65..77 cycles, X 135..170, Y 129..164. The extraction keeps the
+binaries identical and changes these measurements by 0 %. `--before DIR`
+compares an earlier capture containing `game.bin`, `game.lbl` and
+`assets.bin`. The addresses of branches and tables affect these costs.
 
 ```sh
 make bench
@@ -18,117 +18,117 @@ python3 dev/bench/run.py --dhgr --out /tmp/apple2-metrics.json
 make test-dhgr
 ```
 
-Le script compile un programme par charge avec `-Oirs`, démarre DOS et mesure
-entre deux marqueurs d'instruction. Les cycles incluent les arguments et appels
-C, excluent l'initialisation et les 12 cycles des marqueurs. Les cas froids
-incluent les tables paresseuses ; les cas chauds préparent les deux historiques.
-HGR utilise a2run NMOS 6502 ; les variantes IIe utilisent le SDK POM2 65C02.
-Les anciennes mesures sont regroupées dans [HISTORY.md](HISTORY.md).
+The script compiles one program per workload with `-Oirs`, boots DOS and
+measures between two instruction markers. Cycles include C arguments and
+calls, and exclude initialisation and the 12 cycles of the markers. Cold
+cases include the lazy tables; warm cases prepare both histories. HGR uses
+a2run NMOS 6502; the IIe variants use the POM2 65C02 SDK. Older measurements
+are collected in [HISTORY.md](HISTORY.md).
 
-## Cadence et budgets absolus
+## Frame rate and absolute budgets
 
-La cible est deux rafraîchissements par présentation : nominalement 30 FPS
-NTSC et 25 FPS PAL. Le faisceau SDK mesure 17 030/20 280 cycles par refresh,
-contrôlés par les fronts VBL. Les profils natifs POM2 ont des unités différentes
-(17 045/20 313) : elles ne sont pas mélangées dans ces budgets.
+The target is two refreshes per presentation: nominally 30 FPS NTSC and
+25 FPS PAL. The SDK beam measures 17,030/20,280 cycles per refresh, checked
+against the VBL edges. Native POM2 profiles use different units
+(17,045/20,313): they are not mixed into these budgets.
 
-`budgets.json` fixe une limite indépendante des régressions : deux périodes,
-moins **6 000 cycles réservés** à davantage de logique, au son et aux IRQ.
-`--check` échoue si la charge dépasse cette limite, même après un recalage de
-baseline. La réservation est une enveloppe choisie, pas une mesure de toute
-logique ou musique possible. Le rapport fournit limite, coût et marge.
+`budgets.json` sets a limit independent of regressions: two periods, minus
+**6,000 cycles reserved** for more logic, sound and IRQs. `--check` fails if
+the workload exceeds this limit, even after a baseline reset. The reservation
+is a chosen envelope, not a measurement of every possible logic or music. The
+report gives limit, cost and margin.
 
-| Charge actuelle | Cycles |
+| Current workload | Cycles |
 |---|---:|
-| HUD 16×16, valeur inchangée | 312 |
-| HUD 16×16, un chiffre changé | 4 739 |
-| HUD 16×16, cinq chiffres changés, maximum de sept phases | 22 235 |
-| HUD 8×8, valeur inchangée | 312 |
-| HUD 8×8, cinq chiffres changés, maximum de sept phases | 7 850 |
-| Jeu compact : deux sprites 7×8 mobiles, trois chiffres tous changés, clavier, positions, présentation | 16 774..17 040 |
-| Quatre sprites 21×16 isolés, seul le premier mobile, moteur par défaut | 31 031 |
-| Même scène, option `HGR_SPR_DAMAGE=1` | 14 662 |
-| Stress : quatre sprites 21×16 tous mobiles + compteur + présentation | 39 217 |
+| 16×16 HUD, value unchanged | 312 |
+| 16×16 HUD, one digit changed | 4,739 |
+| 16×16 HUD, five digits changed, maximum over seven phases | 22,235 |
+| 8×8 HUD, value unchanged | 312 |
+| 8×8 HUD, five digits changed, maximum over seven phases | 7,850 |
+| Compact game: two moving 7×8 sprites, three digits all changed, keyboard, positions, presentation | 16,774..17,040 |
+| Four isolated 21×16 sprites, only the first one moving, default engine | 31,031 |
+| Same scene, option `HGR_SPR_DAMAGE=1` | 14,662 |
+| Stress: four 21×16 sprites all moving + counter + presentation | 39,217 |
 
-Le jeu compact est mesuré dans les sept alignements, en NTSC et PAL. Les
-limites après réservation sont **28 060/34 560 cycles** ; sa pire phase laisse
-encore 11 020/17 520 cycles au-delà de la réservation. Les positions et valeurs
-utilisent une période de trois pour que chaque page retrouve un état modifié.
-La valeur HUD n'alterne pas seulement avec la page : ses trois chiffres changent
-réellement dans le cas mesuré. Le modulo commun aux déplacements et au score
-est calculé une fois par frame.
+The compact game is measured at all seven alignments, in NTSC and PAL. The
+limits after the reservation are **28,060/34,560 cycles**; its worst phase
+still leaves 11,020/17,520 cycles beyond the reservation. Positions and values
+use a period of three so that each page finds a modified state again. The HUD
+value does not just alternate with the page: its three digits really change
+in the measured case. The modulo shared by the movements and the score is
+computed once per frame.
 
-La scène isolée économise 52,8 % avec le calcul assembleur des intersections :
-437 octets chargés et 43 octets BSS supplémentaires à huit slots. L'option
-reste désactivée par défaut. Quatre grands sprites tous mobiles coûtent encore
-39 217 cycles : ils dépassent deux périodes NTSC et la limite PAL après réserve.
-Les stress surchargés restent des diagnostics.
+The isolated scene saves 52.8 % with the assembly computation of the
+intersections: 437 loaded bytes and 43 extra BSS bytes at eight slots. The
+option stays disabled by default. Four large sprites all moving still cost
+39,217 cycles: they exceed two NTSC periods and the PAL limit after the
+reservation. The overloaded stress cases remain diagnostics.
 
-Le compteur natif utilise les chiffres en cache pour +1/+2 ; le passage
-9999 → 10000 coûte 7 109 cycles en HUD 8×8. Ses chiffres prédécalés prennent
-1 386 octets de RODATA, partagés entre champs. Un client HUD seul évite les
-LUT mutables de lignes/colonnes et la police générale ; un client qui affiche
-également du texte paie les deux banques. Le jeu compact passe ainsi de
-6 895 à 7 231 octets chargés et de 1 571 à 1 620 octets RAM, sans hausse ZP.
+The native counter uses the cached digits for +1/+2; the 9999 → 10000
+transition costs 7,109 cycles in the 8×8 HUD. Its pre-shifted digits take
+1,386 bytes of RODATA, shared between fields. A HUD-only client avoids the
+mutable row/column LUTs and the general font; a client that also displays
+text pays for both banks. The compact game thus goes from 6,895 to 7,231
+loaded bytes and from 1,571 to 1,620 bytes of RAM, with no ZP increase.
 
-Le backend tilemap optionnel restaure huit tuiles 7×8 puis dessine deux sprites
-masqués sans save-under en 9 546 cycles. La carte fait 960 octets, fournie par
-l'application ; une reconstruction complète n'est pas présentée comme une
-charge à 30 FPS. Les profils de région conservent la réserve de 6 000 cycles.
+The optional tilemap backend restores eight 7×8 tiles then draws two masked
+sprites without save-under in 9,546 cycles. The map is 960 bytes, supplied by
+the application; a full rebuild is not presented as a 30 FPS workload. The
+region profiles keep the 6,000-cycle reservation.
 
-`test_cadence.py` teste 1 000 présentations par standard avec une IRQ VIA
-alignée sur le VBL, une charge variable et deux dépassements volontaires :
-deux ticks par frame normale, échéance sautée sur surcharge, aucun rattrapage
-en rafale. Il vérifie aussi le VBL au flip, le wrap, les arguments invalides,
-l'arrêt de l'horloge et I. L'application doit fournir la source IRQ ; la
-bibliothèque n'installe ni carte ni vecteur.
+`test_cadence.py` tests 1,000 presentations per standard with a VIA IRQ
+aligned to the VBL, a variable workload and two deliberate overruns: two
+ticks per normal frame, deadline skipped on overload, no burst catch-up. It
+also checks the VBL at flip, the wrap, invalid arguments, stopping the clock
+and I. The application must provide the IRQ source; the library installs
+neither a card nor a vector.
 
-`test_game_cadence.py` exécute aussi un jeu complet : quatre sprites mobiles,
-collisions, clavier, HUD et musique AY sous IRQ, 1 000 images par standard.
-Il vérifie 2 000 ticks musicaux, zéro échéance manquée, le flip VBL, les deux
-piles et le wrap : 33 969..34 151 / 40 468..40 647 cycles entre présentations.
-Les tables et historiques sont préparés avant le démarrage de l'horloge.
-La cadence teste aussi seize suspensions longues : 10 000/32 760 ticks,
-périodes 1..8. La division ASM en 16 étapes évite le faux timeout du rattrapage.
+`test_game_cadence.py` also runs a complete game: four moving sprites,
+collisions, keyboard, HUD and AY music under IRQ, 1,000 frames per standard.
+It checks 2,000 music ticks, zero missed deadlines, the VBL flip, both stacks
+and the wrap: 33,969..34,151 / 40,468..40,647 cycles between presentations.
+Tables and histories are prepared before the clock starts. The cadence test
+also covers sixteen long suspensions: 10,000/32,760 ticks, periods 1..8. The
+16-step ASM division avoids the false timeout of the catch-up.
 
-L'exemple minimal double tampon n'exige pas de carte : il répartit son dessin
-et son HUD 8×8 sur deux phases VBL. Ses 1 000 images NTSC/PAL couvrent le
-compteur 65535 → 0, avec **34 050..34 070 / 40 550..40 570 cycles** par image,
-sans refresh manqué. Ce résultat est propre à cette charge sur POM2 IIe ; le
-repli temporisé II/II+/IIc ajoute le rendu à son attente.
+The minimal double-buffer example needs no card: it spreads its drawing and
+its 8×8 HUD over two VBL phases. Its 1,000 NTSC/PAL frames cover the counter
+65535 → 0, with **34,050..34,070 / 40,550..40,570 cycles** per frame, with no
+missed refresh. This result is specific to this workload on POM2 IIe; the
+timed fallback on II/II+/IIc adds the rendering to its wait.
 
-## Mémoire et piles
+## Memory and stacks
 
-Les tailles couvrent le programme de mesure entier : CRT, runtime cc65,
-CODE/STARTUP/LOWCODE/INIT/ONCE, RODATA, BSS/LOWBSS/DATA/ZPSAVE, ZP et binaire.
-Code + données chargées sont confrontés à la taille réelle du binaire.
-Les pages vidéo et la pile C réservée sont séparées de BSS.
+The sizes cover the whole measurement program: CRT, cc65 runtime,
+CODE/STARTUP/LOWCODE/INIT/ONCE, RODATA, BSS/LOWBSS/DATA/ZPSAVE, ZP and binary.
+Code + loaded data are checked against the actual size of the binary. The
+video pages and the reserved C stack are kept separate from BSS.
 
-Les compteurs C observent le pointeur cc65 aux frontières cohérentes d'appel,
-retour, saut et accès `(sp),Y` ; a2run observe aussi les écritures de pile.
-`hwstackwatch` suit S instruction par instruction ; la profondeur matérielle
-inclut l'occupation initiale et les IRQ de la fenêtre. `hwstack` rapporte le
-maximum `255-S` et un débordement sur passage sous zéro. Les sondes vérifient
-37 poussées et un débordement volontaire sur les deux runners. Ces observations
-couvrent les chemins exécutés, sans constituer une analyse statique universelle.
-Le profilage n'ajoute aucun cycle CPU émulé.
+The C counters observe the cc65 pointer at consistent call, return, jump and
+`(sp),Y` access boundaries; a2run also observes stack writes. `hwstackwatch`
+follows S instruction by instruction; the hardware depth includes the initial
+occupancy and the IRQs in the window. `hwstack` reports the maximum `255-S`
+and an overflow on wrapping below zero. The probes check 37 pushes and a
+deliberate overflow on both runners. These observations cover the executed
+paths, without amounting to a universal static analysis. Profiling adds no
+emulated CPU cycles.
 
-## Références et reproductibilité
+## References and reproducibility
 
-`baseline.json` conserve compilateur, flags, CPU, modèle, période du faisceau
-et SHA256 des runners, cœurs et ROM. `--check` refuse une hausse des cycles
-supérieure à 5 % (minimum 16), des tailles supérieure à 3 % (minimum 16 octets)
-ou toute hausse ZP. Le gate vérifie cœur/ROM/modèle ; les binaires hôtes peuvent
-varier entre systèmes. Les budgets absolus restent contrôlés indépendamment.
-Les références historiques, `pre_incremental_references` et `pre_native_references` restent conservées. Les plafonds des primitives indépendantes ne sont pas recalés.
+`baseline.json` records compiler, flags, CPU, model, beam period and SHA256
+of the runners, cores and ROM. `--check` rejects a cycle increase above 5 %
+(minimum 16), a size increase above 3 % (minimum 16 bytes) or any ZP
+increase. The gate checks core/ROM/model; host binaries may vary between
+systems. The absolute budgets remain checked independently.
+The historical references, `pre_incremental_references` and `pre_native_references` are kept. The caps of the independent primitives are not reset.
 
-Après examen d'une modification intentionnelle :
+After reviewing an intentional change:
 
 ```sh
 python3 dev/bench/run.py --dhgr --update
 ```
 
-Cela remplace les références des cas mesurés. Une exécution normale ou `--check`
-ne les modifie pas. Le SDK fourni exige macOS ARM64 ; les cas HGR a2run restent
-portables. L'évaluation des techniques alternatives est séparée dans
-[tests/techniques](../tests/techniques/README.md), via `make test-techniques`.
+This replaces the references for the measured cases. A normal run or `--check`
+does not modify them. The bundled SDK requires macOS ARM64; the a2run HGR
+cases remain portable. The evaluation of alternative techniques is separate,
+in [tests/techniques](../tests/techniques/README.md), via `make test-techniques`.

@@ -1,18 +1,18 @@
-# tools/re6502 — rétro-ingénierie de programmes 6502
+# tools/re6502 — reverse engineering of 6502 programs
 
 *[← dev](../../README.md)*
 
-Les outils génériques sortis de la reconstruction de la démo PHYSICS
-([`physics/`](../../../physics/README.md)), qui les utilise encore pour
-regénérer ses sources et les recouper avec da65.
+The generic tools that came out of the reconstruction of the PHYSICS demo
+([`physics/`](../../../physics/README.md)), which still uses them to
+regenerate its sources and cross-check them against da65.
 
-| Module | Rôle |
+| Module | Role |
 |---|---|
-| `opcodes.py` | `OPS` (6502 NMOS documenté), `C02OPS` (ajouts 65C02), `LEN` ; `decode()`, `branch_target()`, `operand_text()`, `text()` |
-| `trace.py` | `trace(img, entrées, régions, stops)` : parcours récursif (branches, JSR, JMP) → octets de code, cibles, problèmes (opcode inconnu, 65C02, saut indirect ou hors image) ; `runs()` |
-| `da65.py` | `info(code, lo, hi, labels, zp)` : fichier info da65 tiré de la trace, pour un désassemblage indépendant |
-| `disk.py` | `PHYS2LOG`, `phys_sector()` : secteurs physiques d'une image .dsk en ordre DOS (chargeurs maison) |
-| `cli.py` | `trace`, `listing`, `refs abs|zp` sur une image mémoire de 64 Ko |
+| `opcodes.py` | `OPS` (documented NMOS 6502), `C02OPS` (65C02 additions), `LEN`; `decode()`, `branch_target()`, `operand_text()`, `text()` |
+| `trace.py` | `trace(img, entries, regions, stops)`: recursive walk (branches, JSR, JMP) → code bytes, targets, problems (unknown opcode, 65C02, indirect jump or jump outside the image); `runs()` |
+| `da65.py` | `info(code, lo, hi, labels, zp)`: da65 info file derived from the trace, for an independent disassembly |
+| `disk.py` | `PHYS2LOG`, `phys_sector()`: physical sectors of a .dsk image in DOS order (custom loaders) |
+| `cli.py` | `trace`, `listing`, `refs abs|zp` on a 64 KB memory image |
 
 ```
 python3 dev/tools/re6502/cli.py trace physics/work/image.bin --region 800-1D00 --region 9400-9B00
@@ -20,13 +20,13 @@ python3 dev/tools/re6502/cli.py listing physics/work/image.bin 0800 0900 --regio
 python3 dev/tools/re6502/cli.py refs physics/work/image.bin zp --region 800-1D00
 ```
 
-Dans un script, importer le paquet depuis `dev/tools` :
-`sys.path.insert(0, '<racine>/dev/tools')` puis `from re6502.trace import trace`.
-Les scripts de `physics/tools` le trouvent par un chemin relatif à leur
-propre emplacement, et restent compatibles avec `python3 -I`.
+In a script, import the package from `dev/tools`:
+`sys.path.insert(0, '<root>/dev/tools')` then `from re6502.trace import trace`.
+The scripts in `physics/tools` find it through a path relative to their own
+location, and stay compatible with `python3 -I`.
 
-Vérifié lors de l'extraction : sources régénérées, image extraite et fichiers
-info da65 identiques à l'octet près à ceux des anciens scripts ; le disque
-reconstruit reste identique à l'original et `make da65check` passe.
+Checked during the extraction: regenerated sources, extracted image and da65
+info files byte-identical to those of the old scripts; the rebuilt disk is
+still identical to the original and `make da65check` passes.
 
-Auteur : VERHILLE Arnaud. Licence : [GPL-3.0](../../../LICENSE).
+Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).

@@ -1,4 +1,4 @@
-# Grille en perspective et échantillon PWM
+# Perspective grid and PWM sample
 
 ```sh
 make -C dev/examples/perspective
@@ -6,13 +6,13 @@ make -C dev/examples/perspective run
 make -C dev/examples/perspective test
 ```
 
-La disquette DOS 3.3 est `build/PERSPECTIVE.dsk` ; elle fonctionne dans le
-profil Apple II+ 48 Ko et sur IIe. Une grille illustre la projection complète
-sur 280 pixels. Espace joue un effet synthétique de 40 ms ; ESC revient à DOS.
-Le son masque les IRQ et suspend le programme pendant sa lecture.
+The DOS 3.3 disk is `build/PERSPECTIVE.dsk`; it runs on the Apple II+ 48 KB
+profile and on the IIe. A grid illustrates the full projection across 280
+pixels. Space plays a 40 ms synthetic effect; ESC returns to DOS. The sound
+masks IRQs and suspends the program while it plays.
 
-La caméra et le WAV sont générés dans `build/`. Aucun fichier audio extérieur
-n'est requis. Modifier les paramètres de la règle `camera.h` pour régler la
-perspective ; remplacer le WAV pour essayer un autre effet. Les bibliothèques
-[perspective](../../lib/perspective/README.md) et
-[audio](../../lib/audio/README.md) restent indépendantes et optionnelles.
+The camera and the WAV are generated in `build/`. No external audio file is
+required. Change the parameters of the `camera.h` rule to adjust the
+perspective; replace the WAV to try another effect. The
+[perspective](../../lib/perspective/README.md) and
+[audio](../../lib/audio/README.md) libraries remain independent and optional.
