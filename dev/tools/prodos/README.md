@@ -1,25 +1,25 @@
-# Fabriquer un disque ProDOS
+# Building a ProDOS disk
 
     python3 build_volume.py stage dist/GAME.po --volume GAME --boot boot.bin --blocks 280
     python3 read_volume.py dist/GAME.po
 
-Image brute en ordre de blocs ProDOS, 280 blocs de 512 octets pour une
-disquette 5,25 pouces. Dates fixes et allocation déterministe. Le lecteur
-permet de vérifier le contenu produit sans monter le disque.
+Raw image in ProDOS block order, 280 blocks of 512 bytes for a 5.25-inch
+floppy. Fixed dates and deterministic allocation. The reader lets you check
+the generated contents without mounting the disk.
 
-Dans `stage`, utiliser par exemple `PRODOS#FF0000` et
-`CHROMA.SYSTEM#FF2000` et `CHROMA.SYS#FF2000` : suffixe `#TTAAAA` pour le type
-et l'adresse auxiliaire. Le suffixe est retiré sur le volume. `CHROMA.SYSTEM`
-est le chargeur de type SYS (`$FF`) lancé automatiquement par ProDOS ; il
-charge ensuite le jeu `CHROMA.SYS`.
+In `stage`, use for example `PRODOS#FF0000` and
+`CHROMA.SYSTEM#FF2000` and `CHROMA.SYS#FF2000`: the `#TTAAAA` suffix gives the
+type and the auxiliary address. The suffix is stripped on the volume.
+`CHROMA.SYSTEM` is the SYS-type (`$FF`) loader launched automatically by
+ProDOS; it then loads the game `CHROMA.SYS`.
 
-`PRODOS` est ProDOS 8 **2.4.3**, redistribué en tant que système Apple, et
-`boot.bin` contient ses deux blocs d'amorce. Ces deux fichiers proviennent des
-ressources ProDOS locales utilisées par A2 File Cmd ; le système est identique
-à celui du disque officiel ProDOS 2.4.3. Ils conservent leurs droits Apple et
-les crédits de leurs auteurs, distincts de la licence du code du dépôt.
-[ProDOS 2.4.3 et ses crédits](https://prodos8.com/releases/prodos-243/).
+`PRODOS` is ProDOS 8 **2.4.3**, redistributed as an Apple system, and
+`boot.bin` holds its two boot blocks. Both files come from the local ProDOS
+resources used by A2 File Cmd; the system is identical to the one on the
+official ProDOS 2.4.3 disk. They keep their Apple rights and their authors'
+credits, separate from the licence of the repository's code.
+[ProDOS 2.4.3 and its credits](https://prodos8.com/releases/prodos-243/).
 
-Les deux scripts sont adaptés des outils GPL-3.0 d'A2 File Cmd, de VERHILLE
-Arnaud (`tools/mkvolume.py` et `tools/prodos_read.py`). Aucune dépendance à ce
-projet n'est nécessaire pour construire un jeu.
+Both scripts are adapted from the GPL-3.0 tools of A2 File Cmd, by VERHILLE
+Arnaud (`tools/mkvolume.py` and `tools/prodos_read.py`). No dependency on that
+project is needed to build a game.

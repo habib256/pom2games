@@ -1,52 +1,51 @@
 # DHGR — Apple IIe / IIc
 
-Une première page présente les 16 couleurs, le texte blanc et un cercle `gfx`.
-Une touche lance ensuite une animation DHGR de trois balles couleur sur une
-grille, avec compteur de trames. Elles rebondissent sur les bords et entre
-elles en échangeant leurs directions au contact (distance de 6 pixels).
-Flèches : direction des trois balles ; espace : pause/reprise ; Échap : DOS
-(également depuis la page d'introduction).
-Les sprites masqués sauvegardent et restaurent le fond séparément sur les deux
-pages, dans l'ordre inverse du dessin pour préserver les chevauchements.
-Un II/II+ reçoit un message indiquant que le DHGR est indisponible.
+A first page shows the 16 colours, white text and a `gfx` circle. A key then
+starts a DHGR animation of three colour balls over a grid, with a frame
+counter. They bounce off the edges and off each other, swapping their
+directions on contact (distance of 6 pixels).
+Arrows: direction of the three balls; space: pause/resume; Escape: DOS
+(also from the introduction page).
+The masked sprites save and restore the background separately on both
+pages, in reverse drawing order to preserve overlaps.
+A II/II+ gets a message saying that DHGR is unavailable.
 
-Matériel : IIe **révision B**, carte 80 colonnes **étendue** avec 64 Ko
-auxiliaires et cavalier DHGR adéquat, ou IIc. La RAM est sondée ; la révision
-et le cavalier vidéo ne sont pas détectables en logiciel. La démo utilise
-`a2_frame_init` / `a2_frame_wait` : VBLBAR sur IIe, temporisation sur IIc.
-Les attentes sont bornées et la temporisation ne garantit pas une bascule
-sans déchirure. Voir le [service de cadence](../../lib/apple2c/apple2frame.h).
+Hardware: IIe **revision B**, **extended** 80-column card with 64 KB of
+auxiliary memory and the appropriate DHGR jumper, or IIc. The RAM is probed;
+the revision and the video jumper cannot be detected in software. The demo
+uses `a2_frame_init` / `a2_frame_wait`: VBLBAR on the IIe, a timed delay on
+the IIc. The waits are bounded and the timed delay does not guarantee a
+tear-free flip. See the [frame-rate service](../../lib/apple2c/apple2frame.h).
 
 ```sh
 make -C dev/examples/dhgr
 make -C dev/examples/dhgr run
 make -C dev/examples/dhgr assets
-make -C dev/examples/dhgr test  # primitives et animation sur IIe
+make -C dev/examples/dhgr test  # primitives and animation on the IIe
 make test-dhgr
 ```
 
-L'animation utilise les coordonnées couleur DHGR **140 × 192**, les sprites
-DHGR et les transferts entre RAM principale et auxiliaire ; les primitives HGR
-ne sont pas utilisées. Les modules de sprites et de transfert de blocs font
-déjà partie de `HGRC_DHGR_SRCS`, lié avec le backend `gfx` DHGR couleur.
+The animation uses the **140 × 192** DHGR colour coordinates, the DHGR
+sprites and transfers between main and auxiliary RAM; the HGR primitives are
+not used. The sprite and block-transfer modules are already part of
+`HGRC_DHGR_SRCS`, linked with the colour DHGR `gfx` backend.
 
-La boucle utilise `src/ball_render.s`, un rendu assembleur spécialisé pour les
-trois sprites 6 × 6 (stride de 5 octets), avec tables d'adresses et de phases.
-La sauvegarde du fond et le dessin masqué se font en un seul passage.
-Le compteur utilise des chiffres DHGR précalculés depuis la police Beautiful Boot (`dev/tools/fonts.py`) dans
-`src/digits.inc` et ne réécrit que les chiffres modifiés sur chaque page.
-Les balles doivent rester entièrement dans l'écran : ce rendu ne fait pas de
-clipping. Les primitives générales restent utilisées pour l'introduction et
-la grille.
+The loop uses `src/ball_render.s`, a specialised assembler renderer for the
+three 6 × 6 sprites (5-byte stride), with address and phase tables. Saving
+the background and masked drawing are done in a single pass.
+The counter uses DHGR digits precomputed from the Beautiful Boot font (`dev/tools/fonts.py`) in
+`src/digits.inc` and only rewrites the digits that changed on each page.
+The balls must stay entirely on screen: this renderer does no clipping. The
+general primitives are still used for the introduction and the grid.
 
-Mesure dans le cœur IIe de POM2 à environ 1 MHz : **299 trames en 10 secondes**,
-contre 37 avant optimisation, soit environ **30 images/s et un gain de 8×**.
-Le test d'animation impose au moins 20 images/s ; le test de rendu compare les
-deux banques aux primitives DHGR générales, avec les sept phases de sprite,
-les chevauchements, les bords et tous les chiffres.
+Measured in the POM2 IIe core at about 1 MHz: **299 frames in 10 seconds**,
+against 37 before optimisation, i.e. about **30 frames/s and an 8× gain**.
+The animation test requires at least 20 frames/s; the rendering test compares
+both banks with the general DHGR primitives, with the seven sprite phases,
+overlaps, edges and all digits.
 
-La disquette est `dist/DHGR.dsk`. `a2shot` pour les tests se compile avec
-`make -C dev/tools/a2shot` sur macOS arm64, avec libslirp et zlib.
+The disk is `dist/DHGR.dsk`. `a2shot` for the tests is built with
+`make -C dev/tools/a2shot` on macOS arm64, with libslirp and zlib.
 
 ```c
 #include "dhgr.h"
@@ -54,20 +53,20 @@ La disquette est `dist/DHGR.dsk`. `a2shot` pour les tests se compile avec
 if (!dhgr_init()) return 1;
 dhgr_draw_page(2);
 dhgr_clear(DHGR_BLACK);
-dhgr_plot(559u, 191u, 1u);                     /* bits 560×192 */
-dhgr_fill_rect(10u, 20u, 40u, 30u, DHGR_ORANGE); /* couleurs 140×192 */
-dhgr_puts("APPLE II", 10u, 8u);                /* texte couleur blanc */
-dhgr_flip();                                  /* attendre VBL avant si nécessaire */
-dhgr_text_restore();                          /* avant routines texte ROM */
+dhgr_plot(559u, 191u, 1u);                     /* 560×192 bits */
+dhgr_fill_rect(10u, 20u, 40u, 30u, DHGR_ORANGE); /* 140×192 colours */
+dhgr_puts("APPLE II", 10u, 8u);                /* white colour text */
+dhgr_flip();                                  /* wait for VBL first if needed */
+dhgr_text_restore();                          /* before ROM text routines */
 ```
 
-La configuration C place le code à `$6000`, au-dessus des **deux** pages vidéo.
-Les détails des accès RAMRD/RAMWRT, du trampoline ZP et des backends sont dans
-le [contrat mémoire de la bibliothèque](../../lib/hgrc/README.md#contrat-mémoire-et-transitions).
-L’archive ne charge que les familles utilisées ; un backend `gfx` DHGR se lie
-explicitement. Le [convertisseur](../../tools/assets/README.md) produit les
-banques et masques de `src/ball.h` ; `src/ball.json` donne leur taille.
-Le rendu assembleur lit les mêmes données dans `src/ball.bin`.
+The C configuration places the code at `$6000`, above **both** video pages.
+The details of RAMRD/RAMWRT accesses, the ZP trampoline and the backends are
+in the [library's memory contract](../../lib/hgrc/README.md#contrat-mémoire-et-transitions).
+The archive only loads the families in use; a DHGR `gfx` backend is linked
+explicitly. The [converter](../../tools/assets/README.md) produces the banks
+and masks of `src/ball.h`; `src/ball.json` gives their size.
+The assembler renderer reads the same data from `src/ball.bin`.
 
-Sources matérielles : [Apple IIe Technical Note 3, Double High-Resolution Graphics](https://mirrors.apple2.org.za/ftp.apple.asimov.net/documentation/hardware/misc/Apple%20IIe%20Technical%20Notes.pdf)
-et [Apple II Miscellaneous 7, Family Identification](https://mirrors.apple2.org.za/apple.cabi.net/FAQs.and.INFO/A2.TECH.NOTES.ETC/A2.CLASSIC.TNTS/a2misc007%281%29.htm).
+Hardware sources: [Apple IIe Technical Note 3, Double High-Resolution Graphics](https://mirrors.apple2.org.za/ftp.apple.asimov.net/documentation/hardware/misc/Apple%20IIe%20Technical%20Notes.pdf)
+and [Apple II Miscellaneous 7, Family Identification](https://mirrors.apple2.org.za/apple.cabi.net/FAQs.and.INFO/A2.TECH.NOTES.ETC/A2.CLASSIC.TNTS/a2misc007%281%29.htm).
