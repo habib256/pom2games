@@ -1,154 +1,160 @@
 # pom2games
 
-Programmes Apple II sur disquettes DOS 3.3 ou ProDOS, pour
-[POM2](https://github.com/habib256/pom2) ou un vrai Apple II. Ce sont surtout des
-ports de programmes de [POM1](https://github.com/habib256/pom1), adaptés à
-la vidéo native de l'Apple II.
+Apple II programs on DOS 3.3 or ProDOS disks, for
+[POM2](https://github.com/habib256/pom2) or a real Apple II. Most of them are
+ports of programs from [POM1](https://github.com/habib256/pom1), adapted to
+the Apple II's native video.
 
-| Dossier | Programme | Machine | Disquette |
+| Folder | Program | Machine | Disk |
 |---|---|---|---|
-| [`chromabreak/`](chromabreak/) | Casse-briques DHGR 16 couleurs, souris AppleMouse et clavier | Apple //e enhanced ou //c 128 Ko / ProDOS | `dist/CHROMABREAK.po` |
-| [`arkabreakout/`](arkabreakout/) | Casse-briques HGR : 60 secteurs, 6 bonus, combos, joystick/paddles/AppleMouse II | Apple II+ 48 Ko | `dist/ARKABREAKOUT.dsk` |
-| [`micro-sokoban/`](micro-sokoban/) | MICRO-SOKOBAN, tutoriel de 5 niveaux + 454 Microban I à IV, Hall of Fame sauvegardé, manette ou clavier | Apple II+ | `dist/MICRO-SOKOBAN.dsk` |
-| [`chess/`](chess/) | Échecs contre l'ordinateur ou à deux | Apple II+ | `dist/CHESS.dsk` |
-| [`maze3d/`](maze3d/) | Dungeon crawler 3D en fil de fer, double tampon HGR | Apple II+ | `dist/MAZE3D.dsk` |
-| [`light3dball/`](light3dball/) | Balle en couloir 3D HGR, cinq niveaux, souris ou clavier et cibles finales | Apple II+ 48 Ko | `dist/LIGHT3DBALL.dsk` |
-| [`pinball/`](pinball/) | Pinball Construction Set de Bill Budge, éditeur et moteur 6502 adaptés à ca65/ld65 | Apple II+ 48 Ko ou //c, souris ou manette | `dist/PINBALL.dsk` |
-| [`wilderness/`](wilderness/) | Réimplémentation de Wilderness (Electric Transit, 1985) : vue 3D, sprites originaux, marche/nage, objets, charge et simulation thermique | Apple II+ 48 Ko / DOS 3.3 | `wilderness/build/WILDERNESS.dsk` (hors dist/) |
-| [`dirtbike/`](dirtbike/) | Moto-cross en vue de côté inspiré de Dirt Bike (Mac) : 30 parcours du très simple au très dur, physique Verlet, défilement HGR au pixel, manette ou clavier | Apple II+ 48 Ko / DOS 3.3 | `dist/DIRTBIKE.dsk` |
-| [`mcs/`](mcs/) | Éditeur musical inspiré de Music Construction Set : deux portées HGR, clavier, haut-parleur et sauvegarde | Apple II+ 48 Ko / DOS 3.3 | `dist/MCS.dsk` |
-| [`snake/`](snake/) | Snake en C (cc65) | Apple II+ | `dist/SNAKE.dsk` |
-| [`logo/`](logo/) | LOGO V2.6 : tortue HGR, texte / mixte / graphique, 40 ou 80 colonnes | Apple //e (80 col.) ou II+ (40 col.) | `dist/LOGO.dsk` |
-| [`dev/examples/hgr/`](dev/examples/hgr/) | Exemple HGR animé : sprite masqué, compteur, clavier, cadence | Apple II+ / IIe / IIc | `dist/HGR.dsk` |
-| [`dev/examples/dhgr/`](dev/examples/dhgr/) | Palette 16 couleurs et grille DHGR | Apple IIe 128 Ko / IIc | `dist/DHGR.dsk` |
-| [`dev/examples/hello/`](dev/examples/hello/) | Programme de départ, assembleur et C sur la même disquette | Apple II+ | `dist/HELLO.dsk` |
+| [`chromabreak/`](chromabreak/) | 16-colour DHGR brick-breaker, AppleMouse and keyboard | Apple //e enhanced or //c 128 KB / ProDOS | `dist/CHROMABREAK.po` |
+| [`arkabreakout/`](arkabreakout/) | HGR brick-breaker: 60 sectors, 6 bonuses, combos, joystick/paddles/AppleMouse II | Apple II+ 48 KB | `dist/ARKABREAKOUT.dsk` |
+| [`micro-sokoban/`](micro-sokoban/) | MICRO-SOKOBAN, a 5-level tutorial + 454 Microban I to IV levels, saved Hall of Fame, joystick or keyboard | Apple II+ | `dist/MICRO-SOKOBAN.dsk` |
+| [`chess/`](chess/) | Chess against the computer or two players | Apple II+ | `dist/CHESS.dsk` |
+| [`maze3d/`](maze3d/) | 3D wireframe dungeon crawler, double-buffered HGR | Apple II+ | `dist/MAZE3D.dsk` |
+| [`light3dball/`](light3dball/) | Ball in a 3D HGR corridor, five levels, mouse or keyboard and final targets | Apple II+ 48 KB | `dist/LIGHT3DBALL.dsk` |
+| [`pinball/`](pinball/) | Bill Budge's Pinball Construction Set, editor and 6502 engine adapted to ca65/ld65 | Apple II+ 48 KB or //c, mouse or joystick | `dist/PINBALL.dsk` |
+| [`wilderness/`](wilderness/) | Reimplementation of Wilderness (Electric Transit, 1985): 3D view, original sprites, walking/swimming, items, load and thermal simulation | Apple II+ 48 KB / DOS 3.3 | `wilderness/build/WILDERNESS.dsk` (not in dist/) |
+| [`dirtbike/`](dirtbike/) | Side-view motocross inspired by Dirt Bike (Mac): 30 tracks from very easy to very hard, Verlet physics, pixel-smooth HGR scrolling, joystick or keyboard | Apple II+ 48 KB / DOS 3.3 | `dist/DIRTBIKE.dsk` |
+| [`mcs/`](mcs/) | Music editor inspired by Music Construction Set: two HGR staves, keyboard, speaker and saving | Apple II+ 48 KB / DOS 3.3 | `dist/MCS.dsk` |
+| [`snake/`](snake/) | Snake in C (cc65) | Apple II+ | `dist/SNAKE.dsk` |
+| [`logo/`](logo/) | LOGO V2.6: HGR turtle, text / mixed / graphics, 40 or 80 columns | Apple //e (80 col.) or II+ (40 col.) | `dist/LOGO.dsk` |
+| [`dev/examples/hgr/`](dev/examples/hgr/) | Animated HGR example: masked sprite, counter, keyboard, frame pacing | Apple II+ / IIe / IIc | `dist/HGR.dsk` |
+| [`dev/examples/dhgr/`](dev/examples/dhgr/) | 16-colour palette and DHGR grid | Apple IIe 128 KB / IIc | `dist/DHGR.dsk` |
+| [`dev/examples/hello/`](dev/examples/hello/) | Starter program, assembly and C on the same disk | Apple II+ | `dist/HELLO.dsk` |
 
-Deux profils de jeux sont définis : **Apple II+ 48 Ko / DOS 3.3** pour
-Arkabreakout et les ports classiques, et **Apple //e enhanced 128 Ko / ProDOS**
-pour CHROMABREAK. Le premier utilise HGR et clavier/paddle ; le second utilise
-DHGR 16 couleurs et AppleMouse II, avec prise en charge de la souris intégrée
-du //c 128 Ko dans ce même profil ProDOS.
+Two game profiles are defined: **Apple II+ 48 KB / DOS 3.3** for
+Arkabreakout and the classic ports, and **Apple //e enhanced 128 KB / ProDOS**
+for CHROMABREAK. The first uses HGR and keyboard/paddle; the second uses
+16-colour DHGR and the AppleMouse II, with support for the //c 128 KB's
+built-in mouse in the same ProDOS profile.
 
-Toutes les disquettes sont rangées dans [`dist/`](dist/), prêtes à l'emploi : on
-démarre dessus et le programme se lance. Chaque dossier a son `README.md`
-(commandes, différences avec l'original) et, pour les jeux, un `TODO.md`
-d'améliorations prévues.
+All the disks are in [`dist/`](dist/), ready to use: boot from one and the
+program starts. Each folder has its own `README.md` (controls, differences
+from the original) and, for the games, a `TODO.md` of planned improvements.
 
-MICRO-SOKOBAN 1.2 est disponible dans les
-[releases GitHub](https://github.com/habib256/pom2games/releases/tag/1.2), avec
-sa disquette amorçable et la [description de la version](docs/releases/1.2.md).
-CHROMABREAK 1.0 l'est aussi, sous l'étiquette
+MICRO-SOKOBAN 1.2 is available in the
+[GitHub releases](https://github.com/habib256/pom2games/releases/tag/1.2), with
+its bootable disk and the [release notes](docs/releases/1.2.md).
+CHROMABREAK 1.0 is too, under the tag
 [`chromabreak-1.0`](https://github.com/habib256/pom2games/releases/tag/chromabreak-1.0),
-avec sa disquette ProDOS et sa [description](docs/releases/chromabreak-1.0.md).
+with its ProDOS disk and its [release notes](docs/releases/chromabreak-1.0.md).
+DIRTBIKE 1.0 is out under
+[`dirtbike-1.0`](https://github.com/habib256/pom2games/releases/tag/dirtbike-1.0),
+with its DOS 3.3 disk.
 
-## Construire
+## Building
 
-    make profile-ii-plus # jeux Apple II+ 48 Ko / DOS 3.3
-    make profile-iie-prodos # CHROMABREAK, //e enhanced 128 Ko / ProDOS
-    make test-chromabreak # volume ProDOS et tests //e lorsque a2shot est disponible
-    make                 # toutes les disquettes, dans dist/
-    make -C chess        # une seule (elle va aussi dans dist/)
-    make -C chess run    # la lancer dans POM2 installé (/Applications/POM2.app)
-    make test            # palier rapide : tout construire, puis le `make test`
-                         # de chaque programme et les vérifications rapides de
-                         # dev/ (HGR, cadence, exemples, assets, budgets)
-    make test-long       # palier long : campagne ARKABREAKOUT, 454 niveaux de
-                         # MICRO-SOKOBAN, campagne LIGHT3DBALL, parcours WILDERNESS...
-    make test-all        # les deux paliers (l'ancien `make test`)
-    make test-changed    # seulement ce que l'arbre de travail change (BASE=<ref>,
-                         # défaut origin/main ; LONG=1 ajoute le palier long)
-    make test-arkabreakout # collisions, bonus, niveaux, paddle et sortie DOS
-                           # (test-<jeu> = palier rapide, test-<jeu>-long = long)
-    make test-chess      # roque, promotion, règle des 50 coups, matériel mort
-    make test-mcs        # éditeur musical, sauvegarde/rechargement et son
-    make test-hgr        # primitives, texte gfx, moteur de sprites et archive
-    make test-frame      # cadence, délais et repli en cas de VBL bloqué
-    make test-hgr-example # animation, pause/reprise et retour à DOS
-    make test-dhgr       # validation DHGR dans a2shot (macOS arm64)
-    make test-assets     # police (dev/tools/fonts.py --check) et conversion d'assets
-    make test-techniques # comparaison fhpack, fdraw et sprites compilés (HGR/6502)
-    make bench           # mesure les primitives (dev/bench), bench-check compare
-                         # aux budgets de dev/bench/baseline.json
-    make check           # tout reconstruire, échouer si dist/ ne correspond pas
-    make clean           # efface les build/ (les disquettes restent)
-    make distclean       # efface aussi dist/*.dsk et dist/*.po
+    make profile-ii-plus # Apple II+ 48 KB / DOS 3.3 games
+    make profile-iie-prodos # CHROMABREAK, //e enhanced 128 KB / ProDOS
+    make test-chromabreak # ProDOS volume and //e tests when a2shot is available
+    make                 # every disk, into dist/
+    make -C chess        # just one (it goes into dist/ too)
+    make -C chess run    # run it in an installed POM2 (/Applications/POM2.app)
+    make test            # fast tier: build everything, then each program's
+                         # `make test` and the quick dev/ checks
+                         # (HGR, frame pacing, examples, assets, budgets)
+    make test-long       # long tier: ARKABREAKOUT campaign, the 454
+                         # MICRO-SOKOBAN levels, LIGHT3DBALL campaign, WILDERNESS journeys...
+    make test-all        # both tiers (the former `make test`)
+    make test-changed    # only what the working tree changes (BASE=<ref>,
+                         # default origin/main; LONG=1 adds the long tier)
+    make test-arkabreakout # collisions, bonuses, levels, paddle and DOS exit
+                           # (test-<game> = fast tier, test-<game>-long = long)
+    make test-chess      # castling, promotion, fifty-move rule, dead material
+    make test-mcs        # music editor, save/reload and sound
+    make test-hgr        # primitives, gfx text, sprite engine and archive
+    make test-frame      # frame pacing, delays and fallback when VBL is stuck
+    make test-hgr-example # animation, pause/resume and return to DOS
+    make test-dhgr       # DHGR validation in a2shot (macOS arm64)
+    make test-assets     # font (dev/tools/fonts.py --check) and asset conversion
+    make test-techniques # fhpack, fdraw and compiled-sprite comparison (HGR/6502)
+    make bench           # measures the primitives (dev/bench); bench-check compares
+                         # against the budgets in dev/bench/baseline.json
+    make check           # rebuild everything, fail if dist/ does not match
+    make clean           # delete the build/ folders (the disks stay)
+    make distclean       # also delete dist/*.dsk and dist/*.po
 
-Prérequis : [cc65](https://cc65.github.io/) (`brew install cc65`, ou
-`apt install cc65`) et python3 ; des compilateurs C/C++ et zlib pour `make test`
-(C pour `dev/tools/a2run`, C++ pour les tests fhpack). Les tests //e et DHGR passent par
-`dev/tools/a2shot` (macOS arm64, libslirp via brew) : `make test-dhgr` l'exige,
-`make test` les saute s'il manque.
-Le dépôt ne dépend d'aucun autre dossier. La construction est déterministe : les
-images de `dist/`, faites sous macOS, se reconstruisent à l'octet près avec le
-cc65 2.19 d'Ubuntu 24.04.
+Requirements: [cc65](https://cc65.github.io/) (`brew install cc65`, or
+`apt install cc65`) and python3; C/C++ compilers and zlib for `make test`
+(C for `dev/tools/a2run`, C++ for the fhpack tests). The //e and DHGR tests go
+through `dev/tools/a2shot` (macOS arm64, libslirp via brew): `make test-dhgr`
+requires it, `make test` skips them when it is missing.
+The repository depends on no other folder. Builds are deterministic: the
+`dist/` images, made on macOS, rebuild byte for byte with Ubuntu 24.04's
+cc65 2.19.
 
-L'intégration continue (`.github/workflows/build.yml`) lance `make check` puis
-`make test-all` sous Ubuntu à chaque push : une modification des sources sans
-`dist/` reconstruit et commité fait échouer le build.
+Continuous integration (`.github/workflows/build.yml`) runs `make check` then
+`make test-all` on Ubuntu on every push: a source change committed without
+the rebuilt `dist/` fails the build.
 
-## Tests : rapide d'abord
+## Tests: fast first
 
-Chaque programme a deux paliers de tests :
+Every program has two test tiers:
 
-- `make -C <jeu> test` : rapide (une à deux minutes au plus), à lancer après
-  chaque modification ; c'est le réflexe de la boucle de développement ;
-- `make -C <jeu> test-long` : campagnes complètes, tous les niveaux, longs
-  parcours ; la cible peut être vide.
+- `make -C <game> test`: fast (one or two minutes at most), to run after
+  every change; it is the reflex of the development loop;
+- `make -C <game> test-long`: full campaigns, every level, long playthroughs;
+  the target may be empty.
 
-Un nouveau jeu suit la même convention (voir `dev/cc65/apple2.mk` et le
-squelette `wargalagaii/Makefile`) et s'ajoute à `TESTED` dans le Makefile
-racine. Avant de livrer, `make test-changed` lance le palier rapide des seuls
-programmes touchés : ceux dont un fichier du dossier a changé, ou dont l'image
-disque, reconstruite à neuf, diffère de celle de BASE (un changement de
-`dev/lib` qui atteint leurs octets) ; plus `make test-dev` si `dev/` a changé.
-Il affiche pour chaque programme pourquoi il est testé ou sauté.
-`make test-all` reste la vérification complète (environ une heure).
+A new game follows the same convention (see `dev/cc65/apple2.mk` and the
+`wargalagaii/Makefile` skeleton) and is added to `TESTED` in the root
+Makefile. Before shipping, `make test-changed` runs the fast tier of only the
+programs affected: those with a changed file in their folder, or whose disk
+image, rebuilt from scratch, differs from BASE's (a `dev/lib` change that
+reaches their bytes); plus `make test-dev` if `dev/` changed. It prints, for
+each program, why it is tested or skipped.
+`make test-all` remains the full check (about an hour).
 
 ## dev/
 
-[`dev/`](dev/) est la boîte à outils commune pour développer sur Apple II :
+[`dev/`](dev/) is the shared toolbox for developing on the Apple II:
 
-- `dev/lib/apple2` et `dev/lib/apple2c` : clavier, texte, HGR, retour propre à
-  DOS ou à un menu BASIC, son, manette, commandes DOS (BLOAD / BSAVE), en
-  assembleur et en C ;
-- `dev/lib/prodos` et `dev/lib/mouse` : MLI ProDOS, sortie SYS et AppleMouse II ;
-- `dev/tools/prodos` : constructeur et lecteur de volumes ProDOS amorçables ;
-- `dev/lib/font` : la police Beautiful Boot 8x8, une table maîtresse découpée
-  à la demande (assembleur, C et `dev/tools/fonts.py`) ;
-- `dev/lib/hgr` : texte, sprites et tables HGR (assembleur) ;
-- `dev/lib/hgrc` et `dev/lib/gfx` : runtime graphique C HGR/DHGR et géométrie ;
-- [`dev/examples/hgr`](dev/examples/hgr/) : exemple animé, clavier, compteur,
-  sprites masqués, double tampon et cadence selon le modèle ;
-- [`dev/examples/dhgr`](dev/examples/dhgr/) : palette et grille DHGR sur
-  //e 128 Ko ou //c ;
-- `dev/cc65` : configurations de l'éditeur de liens, démarrage C et
-  `apple2.mk`, le fragment Makefile commun à tous les programmes ;
-- `dev/tools/dos33.py` : fabrique les disquettes DOS 3.3 et relit leurs
-  fichiers ;
-- `dev/tools/a2test.py` : harnais commun des tests (labels ld65, lancement
-  a2run/a2shot, décodage des dumps mémoire) ;
-- `dev/tools/assets`, `dev/tests`, `dev/bench` : conversion PNG/PPM en
-  HGR/DHGR, tests des bibliothèques et budgets de performance ;
-- `dev/tools/a2shot` : fait tourner une disquette sans fenêtre sur le cœur de
-  POM2, tape au clavier et prend des captures — c'est ainsi que les ports sont
-  testés ;
-- `dev/tools/a2run` : la même chose en C portable (Linux, macOS), avec
-  l'écriture disque pour vérifier les sauvegardes ;
-- `dev/examples/hello` : programme de départ en assembleur et en C.
+- `dev/lib/apple2` and `dev/lib/apple2c`: keyboard, text, HGR, clean return
+  to DOS or to a BASIC menu, sound, joystick, DOS commands (BLOAD / BSAVE),
+  in assembly and in C;
+- `dev/lib/prodos` and `dev/lib/mouse`: ProDOS MLI, SYS exit and AppleMouse II;
+- `dev/tools/prodos`: bootable ProDOS volume builder and reader;
+- `dev/lib/font`: the Beautiful Boot 8x8 font, one master table sliced on
+  demand (assembly, C and `dev/tools/fonts.py`);
+- `dev/lib/hgr`: HGR text, sprites and tables (assembly);
+- `dev/lib/hgrc` and `dev/lib/gfx`: HGR/DHGR C graphics runtime and geometry;
+- `dev/lib/math`: multiply, divide, square root, random numbers and decimal
+  conversion (assembly);
+- [`dev/examples/hgr`](dev/examples/hgr/): animated example, keyboard, counter,
+  masked sprites, double buffering and frame pacing as in the model;
+- [`dev/examples/dhgr`](dev/examples/dhgr/): DHGR palette and grid on a
+  //e 128 KB or //c;
+- `dev/cc65`: linker configurations, C startup and `apple2.mk`, the Makefile
+  fragment shared by every program;
+- `dev/tools/dos33.py`: builds DOS 3.3 disks and reads their files back;
+- `dev/tools/a2test.py`: the shared test harness (ld65 labels, a2run/a2shot
+  runs, memory dump decoding);
+- `dev/tools/assets`, `dev/tests`, `dev/bench`: PNG/PPM to HGR/DHGR
+  conversion, library tests and performance budgets;
+- `dev/tools/a2shot`: runs a disk headless on the POM2 core, types on the
+  keyboard and takes screenshots — this is how the ports are tested;
+- `dev/tools/a2run`: the same in portable C (Linux, macOS), with disk writes
+  to check saves;
+- `dev/examples/hello`: starter program in assembly and C.
 
-## Licences et crédits
+The speed/RAM trade-off switches offered by the libraries (fast variants that
+use more RAM, or frugal ones) are listed in [`dev/lib/ABI.md`](dev/lib/ABI.md):
+each program picks the variant that fits its goals and memory limits.
 
-Code : GPL-3.0 ([LICENSE](LICENSE)), comme POM1 et POM2 dont il dérive
+## Licences and credits
+
+Code: GPL-3.0 ([LICENSE](LICENSE)), like POM1 and POM2 from which it derives
 (VERHILLE Arnaud).
 
-- Niveaux Microban : David W. Skinner.
-- Pièces d'échecs : cc65-Chess de Stefan Wessels, portage Apple II Oliver
-  Schmidt, dessins Frank Gebhart.
-- Sprites des monstres et emotes : SCROLL-O-SPRITES de Quale (CC-BY-3.0).
-- Police 8x8 : Beautiful Boot, Michael Pohoreski.
+- Microban levels: David W. Skinner.
+- Chess pieces: cc65-Chess by Stefan Wessels, Apple II port by Oliver
+  Schmidt, drawings by Frank Gebhart.
+- Monster sprites and emotes: SCROLL-O-SPRITES by Quale (CC-BY-3.0).
+- 8x8 font: Beautiful Boot, Michael Pohoreski.
 
-Les ROM Apple II / //e / Disk II (`dev/tools/a2shot/roms/`) et les pistes
-système de DOS 3.3 (`dev/tools/dos33_system.bin`, présentes aussi sur chaque
-disquette) sont des œuvres d'Apple Computer, Inc. Elles sont reprises de POM2,
-où elles sont déjà publiées, pour que le dépôt se construise et se teste seul.
-`dev/tools/a2shot/sdk/` contient le cœur de POM2 compilé (GPL-3.0).
+The Apple II / //e / Disk II ROMs (`dev/tools/a2shot/roms/`) and the DOS 3.3
+system tracks (`dev/tools/dos33_system.bin`, also present on every disk) are
+works of Apple Computer, Inc. They are taken from POM2, where they are already
+published, so that the repository builds and tests on its own.
+`dev/tools/a2shot/sdk/` contains the compiled POM2 core (GPL-3.0).
