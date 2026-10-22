@@ -326,8 +326,9 @@ skeleton) and joins `TESTED` in the root Makefile.
 
 **Requirements**: cc65 (`brew install cc65` or `apt install cc65`) and
 python3; C/C++ compilers and zlib for `make test` (`dev/tools/a2run`, fhpack
-tests). The //e and DHGR tests use `dev/tools/a2shot` (macOS arm64, libslirp
-via brew); `make test` skips them when it is missing.
+tests). The //e and DHGR tests use `dev/tools/a2shot` (macOS arm64 or Linux
+x86_64; libslirp via `brew install libslirp` or `apt install libslirp-dev`);
+`make test` skips them when it is missing.
 
 **Determinism and CI**: builds are byte-for-byte reproducible — the `dist/`
 images made on macOS rebuild identically with Ubuntu 24.04's cc65 2.19.
@@ -357,4 +358,5 @@ The Apple II / //e / Disk II ROMs (`dev/tools/a2shot/roms/`) and the DOS 3.3
 system tracks (`dev/tools/dos33_system.bin`, also present on every disk) are
 works of Apple Computer, Inc. They are taken from POM2, where they are already
 published, so that the repository builds and tests on its own.
-`dev/tools/a2shot/sdk/` contains the compiled POM2 core (GPL-3.0).
+`dev/tools/a2shot/sdk/` contains the compiled POM2 core (GPL-3.0; macOS arm64
+and Linux x86_64 builds of one POM2 commit, see `dev/tools/a2shot/sdk.mk`).

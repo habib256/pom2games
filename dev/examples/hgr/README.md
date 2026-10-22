@@ -69,7 +69,7 @@ python3 dev/tests/test_frame.py --iie
 python3 dev/tests/test_hgr_example.py --iie
 ```
 
-The last two commands require `a2shot` (POM2 SDK, macOS arm64). The tests
+The last two commands require `a2shot` (POM2 SDK, macOS arm64 or Linux x86_64). The tests
 with IIc/IIgs ROM signatures only check the mode selection; they are not a
 validation on IIc/IIgs hardware.
 

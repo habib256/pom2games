@@ -98,7 +98,7 @@ $(DISK): $(BIN) $(MAPBIN) $(BUILD)/boot.bin $(SPRITE_BINS) $(DOS33_DEPS) tools/b
 # overlays, render memory, transitions, weather and swimming arithmetic.
 test: all $(if $(A2SHOT_HOST),$(A2SHOT))
 ifeq ($(A2SHOT_HOST),)
-	@echo "wilderness: SKIP tests, they need a2shot (macOS arm64)"
+	@echo "wilderness: SKIP tests, they need a2shot (macOS arm64 or Linux x86_64)"
 else
 	$(PYTHON) tests/test_boot.py
 	$(PYTHON) tests/test_mapgen.py
@@ -119,7 +119,7 @@ endif
 # projection, pans, simulation, random commands, fuzz...), ~40 min.
 test-long: all $(if $(A2SHOT_HOST),$(A2SHOT))
 ifeq ($(A2SHOT_HOST),)
-	@echo "wilderness: SKIP long tests, they need a2shot (macOS arm64)"
+	@echo "wilderness: SKIP long tests, they need a2shot (macOS arm64 or Linux x86_64)"
 else
 	$(PYTHON) tests/test_journey.py
 	$(PYTHON) tests/test_pack_boot.py

@@ -280,7 +280,7 @@ accesses with endpoint masking.
   24 sprite-engine scenes and sixteen minimal link edits.
 - `make test-dhgr`: 21 historical checks + 48 additional checks,
   two pages/banks, two backends, sprites, blocks, text, transitions and II+ rejection.
-  The POM2 IIe core in `a2shot` is required (macOS arm64).
+  The POM2 IIe core in `a2shot` is required (macOS arm64 or Linux x86_64).
 - `make test` includes HGR, assets, HGR budgets and MICRO-SOKOBAN on Linux/macOS.
 
 See the [animated demo](../../examples/dhgr/README.md).

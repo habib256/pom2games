@@ -179,9 +179,11 @@ thus examine the displayed question before supplying the answer; a timeout
 or an emulator stop raises an exception.
 
 a2shot is self-contained: `sdk/` holds the POM2 core SDK (`core.hpp` and
-`libpom2_core.a`, arm64, without debug symbols) and `roms/` the Apple ][+,
+`lib/darwin-arm64/` and `lib/linux-x86_64/libpom2_core.a`, without debug
+symbols; provenance in `sdk.mk`) and `roms/` the Apple ][+,
 Apple //e (+ character ROM) and Disk II ROMs, copied from POM2 (`--roms DIR` to use others). Only
-libslirp (brew) and zlib come from the system.
+libslirp (`brew install libslirp`, `apt install libslirp-dev`) and zlib come
+from the system.
 DOS 3.3 takes about 900 frames to launch an 8-12 KB game.
 
 ## a2run
