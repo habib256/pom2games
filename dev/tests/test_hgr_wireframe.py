@@ -120,7 +120,7 @@ SEGMENTS {
     steps = []
     for name in stops:
         steps += [labels.until(name), 'peek:2000:16384']
-    result = a2test.run(disk, steps, emulator=a2test.A2SHOT)
+    result = a2test.run(disk, steps)
     for index, wanted in enumerate(expected):
         actual = result.dumps[index]
         assert actual == wanted, ('wireframe pixel mismatch', page, cases[index//2],

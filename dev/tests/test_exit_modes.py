@@ -2,7 +2,7 @@
 """ASM exit must restore main-bank DOS state after extended video modes."""
 from pathlib import Path
 import tempfile
-from test_asm_boundaries import fixture
+from test_asm_boundaries import a2test, fixture
 
 
 def check(work, iie, saved, shared=False):
@@ -55,6 +55,8 @@ EXIT_USE_NATIVE_VIDEO = 1
 if __name__ == '__main__':
     with tempfile.TemporaryDirectory(prefix='exit-modes-') as tmp:
         for iie in (True, False):
+            if iie and not a2test.have_a2shot('ASM exit on the IIe'):
+                continue
             for saved in (True, False):
                 check(Path(tmp), iie, saved)
             check(Path(tmp), iie, True, shared=True)

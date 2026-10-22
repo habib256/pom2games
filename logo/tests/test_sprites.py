@@ -143,4 +143,6 @@ def check(disk,L,iie):
 if __name__=='__main__':
     subprocess.run(['make','-C',str(ROOT/'logo')],check=True,stdout=subprocess.DEVNULL)
     L=a2test.labels(ROOT/'logo/build/logo.lbl')
-    for iie in (False,True): check(ROOT/'dist/LOGO.dsk',L,iie)
+    for iie in (False,True):
+        if not iie or a2test.have_a2shot('LOGO sprites on the IIe'):
+            check(ROOT/'dist/LOGO.dsk',L,iie)
