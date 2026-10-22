@@ -131,9 +131,13 @@ l'ordre de l'arc-en-ciel débloque le Super Autofire [F, Advanced].
 Gardé : 100 niveaux en 25 paquets de 4 (4e = bonus/kamikaze en alternance),
 boss aux niveaux 25/50/75/100, boucle avec trajectoires en miroir ;
 formation + plongées ; pièces et une quinzaine de bonus ; jauges S, B, T,
-armure (max 2), 3 vies (max 4), EXTRA ; boutique après chaque paquet si
+armure (max 2, contre les tirs seulement : une collision avec un alien
+tue), 3 vies (max 4), EXTRA ; boutique après chaque paquet si
 ≥ 50 crédits, ~12 objets ; 6 marques de rang ; Meteor Storm et Memory
 Station.
+
+Dessins : 6 petits aliens, 2 gros, 1 boss, en 4 teintes HGR, au lieu
+d'un dessin par paquet.
 
 Laissé de côté (au moins au départ) : profils, secrets à acheter, mode
 deux joueurs, contre-la-montre, Gem Drop, scoop/miroir/drunk, missiles à tête

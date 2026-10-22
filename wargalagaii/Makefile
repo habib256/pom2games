@@ -2,8 +2,8 @@
 #
 #   make            -> pour l'instant : rappelle l'état, ne construit rien
 #   (prévu) make            -> ../dist/WARGALAGAII.po
-#   (prévu) make run        -> POM2, //e enhanced + AppleMouse
-#   (prévu) make run-iic    -> POM2, //c et sa souris intégrée
+#   (prévu) make run        -> POM2, //e enhanced (horloge : VBL $C019)
+#   (prévu) make run-iic    -> POM2, //c (horloge : VBL du firmware souris)
 #   (prévu) make test       -> logique 6502 == modèle Python, son avec et
 #                              sans Mockingboard, cadence, démarrage
 #
@@ -13,12 +13,12 @@
 
 DEV ?= ../dev
 APPLE2_PRESET := iie
-APPLE2_RUN_FLAGS := --slot 4=mouseaw
+APPLE2_RUN_FLAGS :=
 include $(DEV)/cc65/apple2.mk
 # include $(HGRC)/hgrc.mk
 # include $(APPLE2C)/apple2c.mk
 # PRODOS := $(DEV)/lib/prodos
-# MOUSE  := $(DEV)/lib/mouse
+# MOUSE  := $(DEV)/lib/mouse        # //c : horloge VBL seulement, pas d'entrée
 # include $(PRODOS)/prodos.mk
 # include $(MOUSE)/mouse.mk
 

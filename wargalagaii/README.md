@@ -38,17 +38,17 @@ démarrage et la cadence.
   `chromabreak/src/boot.s` (test `INC A` = `NOP` sur NMOS). IIgs : non visé
   (polarité VBL différente, `apple2frame` l'exclut) ; s'il démarre, tant
   mieux, sans test.
-- **128 Ko** : la mémoire auxiliaire sert de réserve (dessins d'aliens des
-  25 paquets, trajectoires, musiques PT3, écrans de boutique), copiée en
+- **128 Ko** : la mémoire auxiliaire sert de réserve (dessins d'aliens et
+  leurs variantes de couleur, trajectoires, musiques PT3, écrans), copiée en
   mémoire principale entre deux niveaux. `/RAM` est réclamé au démarrage et
   reformaté à la sortie (`dev/lib/prodos/video.s`,
   `PD_VIDEO_DISCARD_RAM`, comme CHROMABREAK).
 - **ProDOS** plutôt que DOS 3.3 : 128 Ko, gestionnaire d'interruptions
-  officiel (`ALLOC_INTERRUPT`, nécessaire pour la souris du //c en mode VBL
-  et pour la Mockingboard), fichiers de scores simples, volume 140 Ko
-  (`.po`, 280 blocs), 800 Ko seulement si le contenu dépasse.
+  officiel (`ALLOC_INTERRUPT`, nécessaire pour l'interruption VBL du //c
+  et pour la Mockingboard), fichiers de scores simples, volume **140 Ko**
+  (`.po`, 280 blocs : décision du 2026-10-22, pas de 800 Ko).
 
-### HGR en jeu, pas DHGR
+### HGR partout, DHGR plus tard
 
 | | HGR (280×192, 6 couleurs) | DHGR (140×192, 16 couleurs) |
 |---|---|---|
@@ -62,9 +62,10 @@ Estimation pour un alien de 14×10 points HGR (3 octets par ligne une fois
 prédécalé) : ~600 cycles pour le dessiner en `ORA` sur fond noir, ~400 pour
 l'effacer (`STA` de zéros), soit ~1 000 par alien qui bouge et par image.
 Le même alien en DHGR coûte ~2 000-2 200. Avec le budget d'une image à
-30 i/s (ci-dessous), HGR fait bouger ~18 aliens par image, DHGR ~8-9. **Choix : HGR double tampon en jeu.** La
-DHGR reste une option pour les écrans fixes (titre, boutique) — voir les
-questions ouvertes du `TODO.md`.
+30 i/s (ci-dessous), HGR fait bouger ~18 aliens par image, DHGR ~8-9.
+**Choix (2026-10-22) : HGR double tampon partout**, jeu comme écrans fixes
+(titre, boutique, Memory Station). La DHGR 16 couleurs des écrans fixes
+est remise à **plus tard** ; elle prendrait aux `$2000-$5FFF` à la réserve.
 
 Couleurs HGR : les sprites colorés se déplacent par pas de 2 points (la
 couleur dépend de la parité de colonne) ; sept prédécalages couvrent un
@@ -73,14 +74,41 @@ groupe de 14 points (2 octets), chacun avec le bon bit de palette par octet
 pas de sauvegarde du fond sous les sprites, on efface en écrivant des zéros
 et les étoiles sont redessinées à chaque image.
 
+### Aliens : peu de dessins, plusieurs couleurs
+
+Au départ **6 dessins de petits aliens, 2 de gros aliens (niveau 3 de chaque
+paquet, porteurs des marques de rang) et 1 boss**, chacun en **4 teintes** :
+les 25 paquets de 4 niveaux prennent le dessin `n mod 6` et la teinte
+`n div 6` (24 combinaisons ; le boss garde sa teinte par niveau 25/50/75/100).
+D'autres dessins plus tard.
+
+En HGR, une teinte n'est pas un attribut : un point coloré est un point
+allumé sur une colonne paire ou impaire, et le bit 7 de chaque octet choisit
+le groupe (0 : violet / vert ; 1 : bleu / orange) ; deux points voisins
+allumés donnent du blanc. Le dessin est donc tracé en « cellules » de
+2 points (forme) et `tools/sprites.py` en tire les 4 teintes : violet =
+point de gauche de chaque cellule, vert = point de droite, bit 7 à 0 ;
+bleu et orange idem avec bit 7 à 1. Le blanc (les deux points) reste
+disponible pour les reflets ; un même octet ne peut mélanger les deux
+groupes. Les teintes sont **précalculées**, pas appliquées au dessin par un
+`AND` (+3 cycles par octet, ~90 par alien, ~9 % du rendu des aliens).
+
+Coût des tables : petit alien 14×10, 3 octets × 10 lignes × 7 phases ×
+2 images d'animation = **420 octets** par dessin et par teinte ; 6 × 4 =
+10 Ko. Gros alien 21×16 : 4 × 16 × 7 × 2 = 896 octets, 2 × 4 = 7 Ko.
+Tout est rangé en mémoire aux ; seul le jeu du paquet courant (un petit,
+un gros, ~1,3 Ko) est copié en `$1000-$1FFF` à chaque téléportation, avec le
+vaisseau, les tirs et les bonus (~1,5 Ko).
+
 ### Cadence
 
 Une image = **2 rafraîchissements** : 30 i/s NTSC, 25 PAL (comme
-CHROMABREAK ; le jeu est donc ~17 % plus lent en PAL). Le faisceau mesure
+CHROMABREAK ; le jeu est donc ~17 % plus lent en PAL, c'est accepté : pas
+de vitesses recalculées par seconde). Le faisceau mesure
 17 030 cycles par rafraîchissement NTSC (20 280 PAL) ; le budget du dépôt
 (`dev/bench/budgets.json`) en garde 2 × 17 030 − 6 000 = **28 060** pour le
-rendu et la logique, les 6 000 réservés couvrant la musique sous IRQ et la
-souris. Répartition visée (NTSC) :
+rendu et la logique, les 6 000 réservés couvrant la musique et l'horloge
+sous IRQ. Répartition visée (NTSC) :
 
 | Poste | Cycles |
 |---|---:|
@@ -99,9 +127,15 @@ vitesse du jeu**, car la logique avance d'un pas fixe par paire de
 rafraîchissements, comptés par l'horloge (VBL), pas par image dessinée.
 
 L'horloge vient du VBL : scrutation de `RDVBLBAR` (`$C019`, bit 7 à 0
-pendant le VBL) sur //e (`apple2frame`), interruption VBL de la souris
-(mode 9) sur //c (`chromabreak/src/timing.s`, `dev/lib/mouse`). Elle ne
-dépend ni du son ni de la carte présente.
+pendant le VBL) sur //e (`apple2frame`). Le //c n'a pas de VBL lisible de
+la même façon (`$C019` y est un drapeau d'interruption verrouillé) : on
+prend l'**interruption VBL du firmware souris intégré** (mode 9,
+`chromabreak/src/timing.s`, `dev/lib/mouse`). C'est une source de temps,
+pas une entrée : la souris n'est jamais lue. Alternative écartée :
+programmer l'IOU soi-même (`$C05B`, acquittement par `$C070`) ; la ROM
+du //c sert déjà ces interruptions par le firmware souris, et le chemin
+mode 9 est celui que CHROMABREAK a testé sur les ROM 16 et 32 Ko. L'horloge
+ne dépend ni du son ni de la carte présente.
 
 ### Son : avec ou sans Mockingboard
 
@@ -109,16 +143,19 @@ La Mockingboard est **facultative**. `mb_detect`
 (`dev/lib/apple2/mockingboard.asm`) cherche une carte au démarrage, slots
 7 à 1 sur //e, et la **Mockingboard 4c** sur //c (carte interne d'Ian Kim,
 2016, vue en slot 4 : la détection la réveille à `$C403` et peut masquer la
-ROM souris du slot 4, donc détecter **avant** la souris).
+ROM souris du slot 4, donc détecter **avant** d'installer l'horloge VBL du
+//c ; que ce VBL reste utilisable avec une 4c est **à vérifier sur
+machine**).
 
 - Avec carte : musique PT3 et bruitages AY, servis par l'interruption du
   timer T1 de la VIA (50 Hz). Le lecteur PT3 n'existe pas encore dans
   `dev/lib` (base envisagée : lecteur de Vince Weaver 0BSD, ou le port
   GROUiK/French Touch d'A2FileCmd, voir `dev/lib/apple2/README.md`).
-- Sans carte : haut-parleur. Bruitages non bloquants, joués **dans
-  l'attente du VBL** avant la bascule (le temps libre de l'image, jamais plus) ;
-  musique à deux voix (`duet`) seulement hors jeu (titre, boutique, fins),
-  où elle peut bloquer.
+- Sans carte : haut-parleur. **En jeu, bruitages seulement**, non
+  bloquants, joués **dans l'attente du VBL** avant la bascule (le temps
+  libre de l'image, jamais plus) ; **musique seulement hors jeu** (titre,
+  boutique, fins), à deux voix (`duet`), où elle peut bloquer (décision du
+  2026-10-22).
 
 Le jeu se joue et va à la même vitesse dans les deux cas.
 
@@ -127,21 +164,23 @@ au mieux un très court échantillon hors jeu (un mot au titre).
 
 ### Commandes
 
-| Clavier | Manette | Souris | Effet |
-|---|---|---|---|
-| ← → (ou J / L) | X | X | déplacer le vaisseau |
-| Pomme ouverte, ESPACE | bouton 0 | bouton | tirer (tir automatique si acheté) |
-| Pomme fermée | bouton 1 | — | missiles, si on en a |
-| ↑ ↓ ← → RETURN | | | boutique, Memory Station |
-| ESC | | | pause / menu |
-| S | | | son coupé / remis |
+| Clavier | Manette | Effet |
+|---|---|---|
+| ← → (ou J / L) | X | déplacer le vaisseau |
+| Pomme ouverte, ESPACE | bouton 0 | tirer (tir automatique si acheté) |
+| Pomme fermée | bouton 1 | missiles, si on en a |
+| ↑ ↓ ← → RETURN | Y, bouton 0 | boutique, Memory Station |
+| ESC | | pause / menu |
+| S | | son coupé / remis |
+
+Pas de souris : elle n'apporte rien à ce jeu (choix du 2026-10-22).
 
 Sur //e, les touches tenues se lisent : `$C010` bit 7 (une touche est
 enfoncée) et les boutons/pommes `$C061/$C062` en continu, donc gauche/droite
-se tiennent sans attendre l'auto-répétition. La manette et la souris sont
-lues pendant l'attente du VBL (temps de lecture des paddles jusqu'à ~3 ms,
-compté comme dans `chromabreak/src/timing.s`). Manette : port jeu du //e,
-prise DB-9 du //c. Souris : AppleMouse II sur //e, souris intégrée sur //c.
+se tiennent sans attendre l'auto-répétition. La manette est lue pendant
+l'attente du VBL (temps de lecture des paddles jusqu'à ~3 ms, compté comme
+dans `chromabreak/src/timing.s`). Manette : port jeu du //e, prise DB-9 du
+//c.
 
 ## Mémoire (prévue)
 
@@ -159,7 +198,7 @@ n'écrit pas les pages aux).
 | `$2000-$3FFF`, `$4000-$5FFF` | pages HGR 1 et 2 |
 | `$6000-$BDFF` | code, données, BSS (~23,5 Ko) |
 | `$BE00-$BEFF` | pile C ; `$BF00` page globale ProDOS |
-| aux `$0200-$BFFF` | réserve : dessins des 25 paquets, PT3, écrans, niveaux (copie par `AUXMOVE` `$C311` entre deux niveaux) |
+| aux `$0200-$BFFF` | réserve : dessins × teintes (~17 Ko), PT3, écrans, niveaux (copie par `AUXMOVE` `$C311` entre deux niveaux) |
 
 ## Disquette
 

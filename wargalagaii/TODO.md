@@ -1,13 +1,14 @@
 # WARGALAGA II — plan de travail
 
-Cible : Apple //e enhanced et //c, 128 Ko, 65C02, ProDOS, HGR double tampon,
-30 i/s NTSC (2 rafraîchissements par image), avec ou sans Mockingboard.
+Cible : Apple //e enhanced et //c, 128 Ko, 65C02, ProDOS, HGR double tampon
+partout, 30 i/s NTSC (2 rafraîchissements par image ; 25 en PAL, jeu 17 %
+plus lent, accepté), avec ou sans Mockingboard, clavier et manette (pas de
+souris), disquette 140 Ko.
 Raisons et carte mémoire : [README](README.md). Règles reprises de Warblade :
 [docs/warblade-reference.md](docs/warblade-reference.md).
 
 Modèle de projet : [CHROMABREAK](../chromabreak/README.md) pour l'amorce
-ProDOS, `/RAM`, la cadence //e et //c, la souris et la manette lues dans
-l'attente ; [DIRTBIKE](../dirtbike/README.md) pour le modèle Python oracle
+ProDOS, `/RAM`, la cadence //e et //c, la manette lue dans l'attente ; [DIRTBIKE](../dirtbike/README.md) pour le modèle Python oracle
 au bit près, le rendu « ne réécrire que ce qui change » et les lots.
 Seuil de performance : un gain mesuré de 5 % mérite d'être fait.
 
@@ -34,7 +35,8 @@ propre au jeu, dans `wargalagaii/src` ou `tools`.
       `$(PRODOS)/mli.s`, `$(PRODOS)/video.s`. `--cpu 65c02`, `.setcpu "65C02"`.
 - [ ] `/RAM` : `prodos_video_claim(PD_VIDEO_DISCARD_RAM)` avant toute
       écriture en aux, libération à la sortie ; `game_shutdown()` remet le
-      texte, coupe la souris et la Mockingboard (`mb_stop`).
+      texte, rend l'interruption VBL du //c et coupe la Mockingboard
+      (`mb_stop`).
 - [ ] HGR : `hgr_init` / `hgr_init_clear` (`hgrc`, `hgr_mode_asm.s`,
       `hgr_mode_clear_asm.s`), tables de lignes en RAM
       (`dev/lib/hgr/hgr_scanline_ram.asm` en `$0200`), page de dessin par
@@ -42,8 +44,10 @@ propre au jeu, dans `wargalagaii/src` ou `tools`.
       `HGR_HI_SITE`), bascule `$C054/$C055` après le VBL.
 - [ ] Horloge (`[jeu]` d'abord, `[lib]` ensuite) : //e = front VBL de
       `$C019` (`dev/lib/apple2c/apple2frame.s`, `a2_frame_init/wait`) ;
-      //c = mode 9 de la souris + gestionnaire ProDOS `ALLOC_INTERRUPT`
-      (`dev/lib/mouse/mouse.s` : `_mouse_timing_mode`, `_mouse_serve_irq`),
+      //c = interruption VBL du firmware souris intégré (mode 9, source de
+      temps seulement : la souris n'est jamais lue comme entrée) + gestionnaire
+      ProDOS `ALLOC_INTERRUPT` (`dev/lib/mouse/mouse.s` :
+      `_mouse_timing_mode`, `_mouse_serve_irq`),
       compteur `a2_cadence_tick` (`dev/lib/apple2c/apple2cadence.s`, période 2).
       Repli borné si le VBL disparaît. **Factoriser** `chromabreak/src/timing.s`
       en `[lib]` `dev/lib/apple2c/apple2vbl.s` (VBL //e + //c + manette lue
@@ -67,9 +71,15 @@ propre au jeu, dans `wargalagaii/src` ou `tools`.
 
 ## Lot 2 — V0.2 : sprites, formation, plongées
 
-- [ ] `[jeu]` `tools/sprites.py` : dessins en ASCII → 7 prédécalages HGR
-      (groupe de 14 points, bit de palette par octet, parité de colonne),
-      largeur 2 → 3 octets, avec ou sans masque. Base :
+- [ ] `[jeu]` `tools/sprites.py` : dessins en ASCII par cellules de
+      2 points → 4 teintes précalculées (violet / vert, bit 7 à 0 ; bleu /
+      orange, bit 7 à 1 : point gauche ou droit de chaque cellule ; blanc =
+      les deux) → 7 prédécalages HGR (groupe de 14 points), largeur 2 → 3
+      octets, sans masque (fond noir). Au départ 6 petits aliens, 2 gros,
+      1 boss, le vaisseau, tirs, bonus ; paquet `n` = dessin `n mod 6`,
+      teinte `n div 6`. Tables : 420 octets par petit dessin et teinte
+      (7 phases × 3 octets × 10 lignes × 2 images), ~17 Ko au total en aux.
+      Plus de dessins plus tard. Base :
       `dev/tools/assets/pack_hgr_sprites.py` (l'étendre plutôt que copier :
       `[lib]`).
 - [ ] `[jeu]` `src/sprites.s` : dessin `ORA` sur fond noir, effacement par
@@ -109,7 +119,8 @@ propre au jeu, dans `wargalagaii/src` ou `tools`.
       grossière par colonne pour ne tester que les aliens proches.
 - [ ] Vies (3, max 4), réapparition, invulnérabilité courte.
 - [ ] Armure (max 2) : absorbe un tir ennemi puis bouclier quelques
-      secondes. Contre une collision : à décider (voir questions).
+      secondes. **Une collision avec un alien tue directement**, armure ou
+      pas (décision du 2026-10-22).
 - [ ] Score BCD (mode décimal du 65C02, comme CHROMABREAK) ; crédits.
 - [ ] HUD : `hgr_hud8` (`dev/lib/hgrc` : `hgr_hud8_asm.s`, `hgr_hud8_putu.s`,
       historique par page, 7 850 cycles pour 5 chiffres) **un chiffre au plus
@@ -124,13 +135,11 @@ propre au jeu, dans `wargalagaii/src` ou `tools`.
 
 ## Lot 4 — son : Mockingboard ou haut-parleur
 
-- [ ] Détection au démarrage, **avant la souris** : `mb_detect`
+- [ ] Détection au démarrage, **avant d'installer l'horloge VBL du //c**
+      (firmware souris) : `mb_detect`
       (`dev/lib/apple2/mockingboard.asm`) ; //e : slots 7..1 sauf 3 ;
       //c : réveil de la Mockingboard 4c à `$C403`. Résultat dans une
       variable `audio_backend` (0 = haut-parleur, n = slot).
-- [ ] Vérifier sur //c avec Mockingboard 4c que la souris (et donc le VBL du
-      mode 9) reste utilisable ; sinon horloge par le timer T1 de la VIA
-      (régulière mais pas calée sur le VBL : déchirure possible à la bascule).
 - [ ] `[lib]` `mockingboard.asm` : `mb_write` en `STA $Cn00/$Cn01` absolus
       patchés par `mb_init` (−35 % estimé par l'audit, **non fait**).
 - [ ] `[lib]` `dev/lib/apple2/pt3.asm` : lecteur PT3 (aucun dans `dev/lib`).
@@ -144,7 +153,8 @@ propre au jeu, dans `wargalagaii/src` ou `tools`.
       l'interruption. Mesurer le pire tick (10-15 % du CPU annoncé en amont,
       soit ~3 000-4 300 cycles par image de jeu) : il doit tenir dans les
       6 000 réservés.
-- [ ] Back-end haut-parleur : bruitages non bloquants joués **dans
+- [ ] Back-end haut-parleur (décision du 2026-10-22 : en jeu, bruitages
+      seulement ; musique seulement hors jeu) : bruitages non bloquants joués **dans
       l'attente du VBL** (boucle comptée qui bascule `$C030` tant que
       l'échéance n'est pas atteinte ; sans temps libre, l'effet est sauté,
       jamais l'image retardée). `[lib]` candidat :
@@ -181,7 +191,7 @@ propre au jeu, dans `wargalagaii/src` ou `tools`.
       bonus / kamikaze en alternance, boss aux niveaux 25/50/75/100, boucle
       en miroir et plus rapide après le 100.
 - [ ] Réserve en mémoire aux : `WG2.AUX` chargé une fois au démarrage
-      (dessins des 25 paquets, trajectoires, musiques) ; copie du paquet
+      (dessins × teintes, trajectoires, musiques) ; copie du paquet
       courant en `$1000-$1FFF` par `AUXMOVE` (`$C311`) pendant la
       « téléportation ». Compression LZ4FH si besoin
       (`dev/lib/apple2/lz4fh.asm`, outil `$(FHPACK)` de `dev/cc65/fhpack.mk`).
@@ -196,7 +206,8 @@ propre au jeu, dans `wargalagaii/src` ou `tools`.
 - [ ] Boutique après chaque paquet si ≥ 50 crédits : ~12 objets
       (vitesse, tir supplémentaire, double/triple, tir automatique, armure,
       vie, temps, marque de rang, 2-3 armes), prix d'après la référence ;
-      écran fixe, routines lentes permises (texte, chiffres, cadres).
+      écran fixe **HGR**, routines lentes permises (texte, chiffres, cadres) ;
+      flèches + RETURN, ou manette haut/bas + bouton 0.
       Overlay chargé à `$4000` comme le `ENDING` de CHROMABREAK (hors jeu).
 - [ ] Rangs : 6 marques de couleur ; les 6 réunies → rang supérieur à la
       sortie de la boutique ; marque sombre : rang inférieur.
@@ -208,20 +219,22 @@ propre au jeu, dans `wargalagaii/src` ou `tools`.
       choc = retour au jeu sans perte de vie, prime selon la vitesse.
       Mêmes sprites et même cadence que le jeu.
 - [ ] Memory Station : grille de paires, temps = jauge T, grille plus grande
-      à chaque réussite (+25 000), pavillon pirate = fin. Écran fixe,
-      souris possible (`dev/lib/mouse`).
+      à chaque réussite (+25 000), pavillon pirate = fin. Écran fixe HGR,
+      curseur au clavier ou à la manette.
 
 ## Lot 9 — titre, démo, records, intégration
 
-- [ ] Titre (image LZ4FH), démo en attract mode rejouant un script
+- [ ] Titre HGR (image LZ4FH), démo en attract mode rejouant un script
       d'entrées (comme DIRTBIKE), aide.
 - [ ] `HIGHSCORES` ProDOS (`records.c` de CHROMABREAK comme modèle : MLI
       `OPEN/READ/WRITE`, disquette protégée signalée), initiales.
-- [ ] Choix du périphérique : clavier, manette (port //e, DB-9 //c), souris
-      (AppleMouse II //e, intégrée //c), retenu dans `HIGHSCORES`.
+- [ ] Choix du périphérique : clavier ou manette (port //e, DB-9 //c),
+      retenu dans `HIGHSCORES`. Pas de souris.
 - [ ] Construction : `dist/WARGALAGAII.po` (`dev/tools/prodos/build_volume.py
-      --volume WARGALAGAII --blocks 280`), `make run` (`APPLE2_PRESET := iie`,
-      `--slot 4=mouseaw`), `make run-iic`.
+      --volume WARGALAGAII --blocks 280`, 140 Ko suffisent), `make run`
+      (`APPLE2_PRESET := iie`, sans carte souris), `make run-iic`
+      (`--preset iic --slot 4=iicmouse` : le firmware souris intégré donne
+      l'horloge VBL).
 - [ ] Racine : ajouter `wargalagaii` à `IIE_PRODOS_GAMES` (donc `all`,
       `profile-iie-prodos`), une cible `test-wargalagaii` dans `test`, la
       ligne du tableau du README racine ; `make check` (disque identique
@@ -231,8 +244,16 @@ propre au jeu, dans `wargalagaii/src` ou `tools`.
       et comparées à 28 060 / 34 560 cycles (NTSC / PAL, réserve de 6 000
       comprise, `dev/bench/budgets.json`) ; entrée `bench-check` si une
       partie passe en lib.
-- [ ] Validation sur vraies machines (//e enhanced + Mockingboard, //c,
-      //c + Mockingboard 4c), selon `dev/lib/HARDWARE.md`.
+- [ ] Validation sur vraies machines (//e enhanced + Mockingboard, //c),
+      selon `dev/lib/HARDWARE.md`.
+
+## À vérifier sur machine
+
+- [ ] //c + Mockingboard 4c : la détection réveille la carte à `$C403` et
+      peut masquer la ROM souris du slot 4. L'interruption VBL du firmware
+      souris (notre horloge //c) reste-t-elle utilisable ? Sinon : horloge par
+      le timer T1 de la VIA (régulière, pas calée sur le VBL : déchirure
+      possible à la bascule de page).
 
 ## Écueils connus du dépôt
 
@@ -256,23 +277,23 @@ propre au jeu, dans `wargalagaii/src` ou `tools`.
   (CHROMABREAK copie sa boucle de sprite dans les deux banques). Préférer
   `AUXMOVE` entre deux niveaux.
 - IRQ : le gestionnaire ne touche ni la ZP cc65 ni sa pile, ni les
-  commutateurs graphiques ; la souris du //c envoie 60 IRQ/s ; la
-  Mockingboard 4c se détecte avant la souris.
+  commutateurs graphiques ; le firmware souris du //c envoie 60 IRQ/s
+  (horloge VBL) ; la Mockingboard 4c se détecte avant de l'installer.
 - `$C05E/$C05F` règlent la souris sur //c si IOUDIS n'est pas mis
   (CHROMABREAK) : ne pas toucher AN3 en HGR.
 - POM2 relit la mémoire en fin d'image (« beam racing ») : une bascule de
   page trop rapprochée montre une page en cours de dessin
   (`dev/tools/a2shot/LETTRE_POM2_AFFICHAGE_MANETTE.md`).
 
-## Questions ouvertes
+## Décisions (questions closes le 2026-10-22)
 
-1. Écrans fixes (titre, boutique, Memory Station) en DHGR 16 couleurs ?
-   Plus beau, mais la DHGR occupe aux `$2000-$5FFF` (à exclure de la
-   réserve) et ajoute les libs DHGR. Proposition : HGR partout d'abord.
-2. PAL : jeu 17 % plus lent (comme CHROMABREAK) ou vitesses par seconde ?
-3. Collision alien/vaisseau : mort directe, ou l'armure protège aussi ?
-4. Volume 140 Ko suffit-il (estimation : ~24 Ko de code, ~40 Ko de
-   paquets, musiques), ou 800 Ko comme NeoWildernessXL ?
-5. Musique en jeu sans Mockingboard : aucune (bruitages seuls) — d'accord ?
-6. Combien de dessins d'aliens : 25 (un par paquet, comme Warblade) ou moins
-   avec des palettes ?
+1. HGR partout, écrans fixes compris ; DHGR plus tard.
+2. PAL : le jeu va 17 % moins vite, comme CHROMABREAK ; pas de vitesses par
+   seconde.
+3. L'armure protège des tirs ennemis seulement ; une collision tue.
+4. Disquette 140 Ko.
+5. Sans Mockingboard : bruitages en jeu, musique hors jeu seulement.
+6. Peu de dessins (6 petits, 2 gros, 1 boss) × 4 teintes HGR précalculées ;
+   d'autres dessins plus tard.
+7. Pas de souris comme entrée ; sur //c, son firmware sert seulement
+   d'horloge VBL.
