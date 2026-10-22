@@ -28,6 +28,11 @@ $(DISK): $(BINS) $(BUILD)/boot.bin $(BUILD)/mouse.bin tools/build_disk.py $(wild
 .PRECIOUS: $(BUILD)/%.s
 test: all $(A2RUN)
 	$(PYTHON) tests/test_pinball.py
+
+# Long tier (convention of ../dev/cc65/apple2.mk): nothing slow yet.
+test-long:
+	@echo "pinball: no long tests"
+.PHONY: test-long
 .PHONY: test
 POM2_SRC ?= ../../pom2
 test-mouse: all

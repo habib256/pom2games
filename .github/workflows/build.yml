@@ -15,8 +15,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y cc65 zlib1g-dev
       - name: Disks match the sources
         run: make check
-      - name: HGR, assets, performance budgets and MICRO-SOKOBAN
-        run: make test
+      - name: Every test, fast and long tiers
+        run: make test-all
   dhgr:
     runs-on: macos-15
     steps:

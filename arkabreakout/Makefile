@@ -2,7 +2,8 @@
 #
 #   make            -> ../dist/ARKABREAKOUT.dsk
 #   make run        -> boot it in POM2 as an Apple II+
-#   make test       -> game checks in a2run, then the paddle campaign (pilot)
+#   make test       -> game checks in a2run (fast tier, under a minute)
+#   make test-long  -> the paddle campaign: all sixty boards (pilot)
 #   make clean / distclean
 #
 # The shared rules and tool variables come from ../dev/cc65/apple2.mk.
@@ -73,9 +74,10 @@ test: all $(A2RUN)
 	$(PYTHON) tests/test_bonus_visuals.py --disk $(DISK) --labels $(BUILD)/game.lbl
 	$(PYTHON) tests/test_game.py --disk $(DISK) --labels $(BUILD)/game.lbl
 	$(PYTHON) tests/test_records.py --disk $(DISK) --labels $(BUILD)/game.lbl
-	$(MAKE) test-campaign
 
-.PHONY: assets test test-campaign
+test-long: test-campaign
+
+.PHONY: assets test test-long test-campaign
 
 # Optional integration with real AppleMouse firmware on II+ and native //c ROMs.
 POM2_SRC ?= ../../pom2

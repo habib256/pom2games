@@ -4,10 +4,12 @@
 #   (prévu) make            -> ../dist/WARGALAGAII.po
 #   (prévu) make run        -> POM2, //e enhanced (horloge : VBL $C019)
 #   (prévu) make run-iic    -> POM2, //c (horloge : VBL du firmware souris)
-#   (prévu) make test       -> logique 6502 == modèle Python, son avec et
+#   (prévu) make test       -> palier rapide (1-2 min, à chaque modification) :
+#                              logique 6502 == modèle Python, son avec et
 #                              sans Mockingboard, cadence, démarrage
+#   (prévu) make test-long  -> palier long : vagues complètes, partie entière
 #
-# Pas encore dans les listes all / test du Makefile racine (TODO.md, lot 9).
+# Pas encore dans les listes all / TESTED du Makefile racine (TODO.md, lot 9).
 # Modèle complet : ../chromabreak/Makefile (ProDOS, crt0_prodos, archive des
 # libs, volume 280 blocs).
 
@@ -54,10 +56,15 @@ all:
 #
 # run-iic: all
 # 	$(POM2) --preset iic --slot 4=iicmouse $(DISK)
+# Deux paliers (convention de ../dev/cc65/apple2.mk) : `test` reste rapide,
+# c'est le réflexe make -C wargalagaii test ; ce qui dépasse une minute ou
+# deux va dans `test-long`.
 # test: all
 # 	$(PYTHON) tests/test_logic.py          # 6502 == tools/model.py
 # 	$(PYTHON) tests/test_audio.py          # haut-parleur
 # 	$(PYTHON) tests/test_audio.py --mockingboard   # a2shot --iie --mockingboard
 # 	$(PYTHON) tests/test_cadence.py        # même vitesse avec et sans carte
+# test-long: all
+# 	$(PYTHON) tests/test_waves.py --all    # toutes les vagues, pilote automatique
 
 .PHONY: all

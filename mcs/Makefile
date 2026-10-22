@@ -40,5 +40,10 @@ $(DISK): $(BIN) $(BUILD)/song.bin $(DOS33_DEPS)
 test: all $(A2RUN)
 	$(PYTHON) tests/test_mcs.py
 
+# Long tier (convention of ../dev/cc65/apple2.mk): nothing slow yet.
+test-long:
+	@echo "mcs: no long tests"
+.PHONY: test-long
+
 include $(HGRC)/hgrc_build.mk
 .PHONY: test

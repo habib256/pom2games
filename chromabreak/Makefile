@@ -91,6 +91,11 @@ run-iic: all
 	$(POM2) --preset iic --slot 4=iicmouse $(DISK)
 test: all
 	$(PYTHON) tests/test_game.py --disk $(DISK) --labels $(BUILD)/game.lbl
+
+# Long tier (convention of ../dev/cc65/apple2.mk): nothing slow yet.
+test-long:
+	@echo "chromabreak: no long tests"
+.PHONY: test-long
 .PHONY: run-iic test
 
 # Optional real-firmware integration. Normal build/test has no sibling dependency.

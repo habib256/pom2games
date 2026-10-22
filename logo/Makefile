@@ -49,4 +49,9 @@ test: all $(BUILD)/logo.lbl
 	$(PYTHON) tests/test_logo.py
 	$(PYTHON) tests/test_sprites.py
 
+# Long tier (convention of ../dev/cc65/apple2.mk): nothing slow yet.
+test-long:
+	@echo "logo: no long tests"
+.PHONY: test-long
+
 .PHONY: test
