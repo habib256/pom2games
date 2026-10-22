@@ -13,10 +13,13 @@ $(error HGRC sources produce duplicate archive member names)
 endif
 HGRC_CFLAGS ?= -t none -Oirs $(HGRC_INCS) -I $(HGRC)/../apple2c
 HGRC_ASMFLAGS ?= -t none $(HGRC_AFLAGS)
+# Compile-time trade-off switches for every member, C and asm (dev/lib/ABI.md,
+# "Options vitesse/RAM"), e.g. HGRC_DEFINES := -D HGRC_X7_FOLDED=1.
+HGRC_DEFINES ?=
 HGRC_CONFIG := $(HGRC_BUILD)/config.json
 # Quote every configuration value as one shell argument, including apostrophes.
 hgrc_quote = '$(subst ','"'"',$(1))'
-HGRC_CONFIG_ARGS = $(foreach v,HGRC_CONFIG HGRC_CFLAGS HGRC_ASMFLAGS CL65 CA65 AR65 HGRC_ARCHIVE_SRCS,$(call hgrc_quote,$($(v))))
+HGRC_CONFIG_ARGS = $(foreach v,HGRC_CONFIG HGRC_CFLAGS HGRC_ASMFLAGS HGRC_DEFINES CL65 CA65 AR65 HGRC_ARCHIVE_SRCS,$(call hgrc_quote,$($(v))))
 # GNU make 3.81 compares whole-second timestamps. An explicit change check
 # forces rebuilds even when flags change within the same second; --check is
 # read-only, including during make -n. The recipe records the new signature.
@@ -30,9 +33,9 @@ $(HGRC_CONFIG): $(HGRC_CONFIG_FORCE) $(HGRC)/../../tools/build_config.py
 define hgrc_compile
 $(call hgrc_object,$(1)): $(1) $(HGRC_CONFIG) $(HGRC_CONFIG_FORCE) $(HGRC_HEADERS) $(HGRC_ASM_DEPS) $(wildcard $(HGRC)/../apple2c/*.h) $(HGRC)/hgrc_build.mk $(HGRC)/../../tools/build_deps.py
 	@mkdir -p $$(@D)
-$(if $(filter %.c,$(1)),	$$(CL65) $$(HGRC_CFLAGS) --create-dep $$@.d -S -o $$@.s $$<
+$(if $(filter %.c,$(1)),	$$(CL65) $$(HGRC_CFLAGS) $$(HGRC_DEFINES) --create-dep $$@.d -S -o $$@.s $$<
 	$$(PYTHON) $$(HGRC)/../../tools/build_deps.py $$@.d $$@
-	$$(CL65) $$(HGRC_CFLAGS) -c -o $$@ $$@.s,	$$(CA65) $$(HGRC_ASMFLAGS) --create-dep $$@.d -o $$@ $$<)
+	$$(CL65) $$(HGRC_CFLAGS) $$(HGRC_DEFINES) -c -o $$@ $$@.s,	$$(CA65) $$(HGRC_ASMFLAGS) $$(HGRC_DEFINES) --create-dep $$@.d -o $$@ $$<)
 endef
 $(foreach s,$(HGRC_ARCHIVE_SRCS),$(eval $(call hgrc_compile,$(s))))
 

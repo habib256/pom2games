@@ -39,7 +39,7 @@ def build(work, adapter):
     if adapter:
         names = ['ln_x0','ln_x0h','ln_y0','ln_x1','ln_x1h','ln_y1',
                  'pix_x','pix_xh','pix_y','pen_color','plot_mode']
-        imports = '.import line_xy16, plot_set_x16\n.importzp ' + ','.join(names[:-1]) + '\n'
+        imports = '.import line_xy16, plot_set_x16, init_vdp_g2\n.importzp ' + ','.join(names[:-1]) + '\n'
         exports = '.exportzp tmp,tmp2\n.export plot_mode\n.zeropage\ntmp: .res 1\ntmp2: .res 1\n.bss\nplot_mode: .res 1\n'
         library = ''
     else:
@@ -64,7 +64,7 @@ kind: .res 1
 .code
 entry:
         cld
-ready:
+''' + ('        jsr init_vdp_g2         ; LOGO builds hgr_col/hgr_mask in BSS\n' if adapter else '') + '''ready:
         jsr wait_key
         lda #0
         sta fill_ptr

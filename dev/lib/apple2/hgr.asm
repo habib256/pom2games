@@ -124,7 +124,9 @@ text_restore:
 .endif
 
 ; Main bank entry; no ZP/stack bank switching. ROM machine ID: Apple TN #7.
-.ifref native_video
+; exit.asm calls this copy when hgr.asm is included before it. HGR_NATIVE_
+; VIDEO_IMPORT = 1: the program imports it instead (hgrc: hgr_native_asm.s).
+.if .referenced(native_video) .and (.not .defined(HGR_NATIVE_VIDEO_IMPORT))
 native_video:
         LDA     $FBB3
         CMP     #$06

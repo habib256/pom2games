@@ -1,4 +1,6 @@
 ; VERHILLE Arnaud — GPL-3.0. Optional HGR table, main RAM/ZP.
+; Empty with HGRC_X7_FOLDED: hgr_columns.s then builds this table too.
+.ifndef HGRC_X7_FOLDED
 ; No inputs. Clobbers A/X/Y, ptr1, tmp1/tmp2/tmp3; not reentrant.
 .export _hgr_build_masks, _hgr_mask7
 .importzp ptr1, tmp1, tmp2, tmp3
@@ -45,3 +47,4 @@ _hgr_build_masks:
 @done:
         inc ready
         rts
+.endif

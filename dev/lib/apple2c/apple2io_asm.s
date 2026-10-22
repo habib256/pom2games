@@ -2,8 +2,7 @@
 ; ----------------------------------------------------------------------------
 ; apple2io_asm.s — Apple II Monitor + keyboard hooks for cc65 (see apple2io.h).
 ;
-; Named *_asm.s (not apple2io.s) because cc65 compiles apple2io.c through an
-; intermediate apple2io.s, which would clobber a hand-written file.
+; a2_puts and a2_print_hexword are a separate object, apple2io_str.s.
 ;
 ; cc65 calling convention: an `unsigned char` argument arrives in A, a char
 ; return value leaves in A (X cleared so an int promotion reads it right).
@@ -12,15 +11,10 @@
         .export _apple2_iskeypressed, _apple2_getkey, _apple2_readkey
         .import _exit
 
-COUT    = $FDED
-PRBYTE  = $FDDA
-HOME    = $FC58
-WAIT    = $FCA8
-KBD     = $C000
-KBDSTRB = $C010
-TXTSET  = $C051
-MIXCLR  = $C052
-LOWSCR  = $C054
+; Equates from lib/apple2 (found next to this file: no -I needed). The key
+; routines stay here rather than wrapping kbd.asm's wait_key/poll_key: the
+; wrappers (X = 0 for cc65) would cost 18 bytes more than this shared tail.
+.include "../apple2/apple2.inc"
 
         .segment "CODE"
 

@@ -166,6 +166,7 @@ HGR_XOR_MOD7 = mod7
 main:
         APPLE2_PREAMBLE
         jsr apple2_zp_save
+        jsr hgr_div7_init
         lda #0
         ldx #0
 @zp:    sta ptr,x
@@ -1976,10 +1977,12 @@ hud_end:
 .include "joy.asm"
 .include "sound.asm"
 APPLE2_EXIT_HOOK = mouse_shutdown
+EXIT_USE_NATIVE_VIDEO = 1        ; hgr.asm's native_video, above
 .include "exit.asm"
 DOS_ZP_START = $50
 DOS_ZP_LEN = $B0
 DOS_SEI = 1                       ; the //c mouse runs with IRQs on (interface.inc)
+DOS_CMD_HEX_IFREF = 1            ; no dos_cmd_hex: it is not called
 .include "dos.asm"
 .include "mouse_context.asm"
 
@@ -2035,14 +2038,11 @@ col3:
 .repeat 12,I
 .byte I*3
 .endrepeat
-div7:
-.repeat 256,I
-.byte I/7
-.endrepeat
-mod7:
-.repeat 256,I
-.byte I .mod 7
-.endrepeat
+.code
+.include "hgr_div7_ram.asm"       ; div7/mod7 in BSS, built by main
+.rodata
+div7 = hgr_div7
+mod7 = hgr_mod7
 .include "hgr_scanline.inc"
 font:
 .include "bbfont.inc"           ; font = bbfont, ASCII $20-$5F

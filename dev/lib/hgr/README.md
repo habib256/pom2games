@@ -22,7 +22,8 @@ murs, caisses et autres éléments graphiques conservent leurs couleurs.
 |---|---|---|
 | `hgr_scanline.inc` | `hgr_lo` / `hgr_hi` : adresse de chaque ligne 0..191 | arkabreakout, chess, logo, maze3d, micro-sokoban, wilderness |
 | `hgr_scanline_ram.asm` | les mêmes tables en RAM (segment `HGR_SCANLINE_SEGMENT`), construites par `hgr_scanline_init` (~50 o, code de démarrage) : 384 o de moins dans le fichier | dirtbike |
-| `hgr_plot_tables.inc` | `hgr_col` / `hgr_mask` : octet et bit des colonnes 0..255, ou 0..279 avec `HGR_FULL_WIDTH_TABLES=1` | logo |
+| `hgr_plot_tables.inc` | `hgr_col` / `hgr_mask` : octet et bit des colonnes 0..255, ou 0..279 avec `HGR_FULL_WIDTH_TABLES=1` ; `HGR_PLOT_TABLES_RAM=1` les réserve en BSS et assemble `hgr_plot_tables_init` (39 o) | logo (RAM) |
+| `hgr_div7_ram.asm` | `hgr_div7` / `hgr_mod7` (x/7, x mod 7, x = 0..255) en BSS, construites par `hgr_div7_init` (28 o) : 512 o de moins dans le fichier | arkabreakout |
 | `hgr_clear.asm` | `clear_hgr` : efface `$2000-$3FFF` (`HGR_CLEAR_LOOP`, sans ZP) | logo |
 | `hgr_flip.asm` | `hgr_draw_hidden` / `hgr_show_draw` / `hgr_set_draw_page` : double tampon en réécrivant `hgr_hi` sur place (`hgr_scanline.inc` dans un segment modifiable) | maze3d, micro-sokoban |
 | `hgr_text8.asm` | `hgr_putc8` / `hgr_puts8` : texte 8x8 aligné sur l'octet, couleurs. `HGR_TEXT8_HGR_ORDER` (police en ordre HGR : plus de `ht_rev` ni de `rev7_tab`, −256 o), `HGR_TEXT8_NO_PUTS` | arkabreakout, dirtbike, maze3d |
@@ -203,7 +204,8 @@ l'effacement, les trous HGR et l'autre page. Ces tests font partie de
 
 `hgr_glyph8.asm` est le noyau utilisé par CHESS, LOGO et MICRO-SOKOBAN.
 Il lit huit lignes à `hg_src` (pointeur ZP, bit 0 à gauche) et utilise
-`hgr_lo/hi` pour la page cible. Ses entrées ne déplacent aucun curseur :
+`hgr_lo/hi` pour la page cible. Ses entrées ne déplacent aucun curseur ; seules celles référencées avant
+l'include sont assemblées (`.ifref`), avec leurs boucles et masques :
 
 | Entrée | Coordonnées | Écriture |
 |---|---|---|

@@ -3513,6 +3513,13 @@ draw_compact_glyph:
         JSR set_hud_font_ptr
         JMP hgr_glyph8_cell
 
+; Shared byte-aligned white glyph (before the include: .ifref).
+draw_title_glyph:
+        STX temp
+        STY temp2
+        JSR set_hud_font_ptr
+        JMP hgr_glyph8_store
+
 hg_src = src_lo
 hg_ptr = ptr_lo
 hg_col = temp
@@ -3554,13 +3561,6 @@ color_glyph_pair:
         STA big_byte1
 @done:  RTS
 glyph_masks: .byte $55, $2A, $2A, $55
-
-; Shared byte-aligned white glyph.
-draw_title_glyph:
-        STX temp
-        STY temp2
-        JSR set_hud_font_ptr
-        JMP hgr_glyph8_store
 
 ; --- Strings: glyph indices, $FF terminated (GSTR, see bbfont_subset.inc) ---
 title_micro_sokoban:  GSTR "MICRO-SOKOBAN"
@@ -3782,6 +3782,7 @@ restore_basic:
         RTS
 basic_load_cmd: .byte $0D, $04, "LOAD HELLO", $0D
 .define APPLE2_EXIT_HOOK restore_basic
+EXIT_USE_NATIVE_VIDEO = 1        ; hgr.asm's native_video, above
 .include "exit.asm"              ; apple2_zp_save, apple2_exit
 .include "sound.asm"             ; tone
 .include "joy.asm"               ; read_stick, stick_dir (JOY_LO/HI above)

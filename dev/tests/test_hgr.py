@@ -108,6 +108,9 @@ def build(work, fixture=None, extra_sources=(), gfx_backend=None, cflags=()):
              '--asm-include-dir', DEV / 'lib/hgrc'])
         objects.append(obj)
     archive = work / 'hgrc.lib'
+    # ar65 'a' adds to an existing archive: a persistent work directory would
+    # keep members whose source was deleted (duplicate exports at link time).
+    archive.unlink(missing_ok=True)
     run(['ar65', 'a', archive, *objects])
     objects = []
     for source in (DEV / 'cc65/crt0_apple2.s', fixture or DEV / 'tests/hgr_fixture.c',

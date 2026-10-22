@@ -11,12 +11,5 @@ unsigned char hgr_hud8_init(hgr_hud8_field_t *field, unsigned x,
     return 1u;
 }
 
-void hgr_hud8_invalidate(hgr_hud8_field_t *field, unsigned char page)
-{
-    if (!field) return;
-    if (page == 1u) field->valid &= 2u;
-    else if (page == 2u) field->valid &= 1u;
-    else if (!page) field->valid=0u;
-}
-
-/* The frequently called putu entry is implemented in hgr_hud8_putu.s. */
+/* invalidate is hgr_hud_invalidate.s (shared by both HUDs); the frequently
+ * called putu entry is implemented in hgr_hud8_putu.s. */

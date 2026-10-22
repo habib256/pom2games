@@ -73,11 +73,11 @@ void gfx_circle(unsigned xc, unsigned char yc, unsigned char r);
 void gfx_ellipse(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1);
 
 /* ===========================================================================
- * Shared integer -> ASCII (gfx_num_dec/hex.c) — STRING BUILDERS only.
+ * Shared integer -> ASCII (gfx_num_dec.s, gfx_num_hex.c) — STRING BUILDERS only.
  * ===========================================================================
  * These produce NUL-terminated strings without drawing. Render them through
- * the chosen native text API. gfx_utoa/gfx_itoa use portable C division;
- * hgr_putu_field retains an assembler conversion for frequently updated HUDs. */
+ * the chosen native text API. gfx_utoa/gfx_itoa wrap hgr_utoa, the lib/math
+ * dec.asm conversion (no cc65 division runtime), shared with hgr_putu*. */
 
 /* Unsigned decimal, no leading zeros. `buf` must hold >= 6 bytes (65535 + NUL).
  * Returns the digit count written (excluding the NUL). */

@@ -12,6 +12,8 @@
 ; Define HG_STORE_ONLY to omit unaligned entries and their scratch. hg_*
 ; HG_STORE_UNCLIPPED removes STORE checks: caller guarantees col<40,y<=184.
 ; aliases may reuse caller memory. Non-reentrant. No video switches touched.
+; Only the entries referenced before the include are assembled (.ifref): an
+; OR-only program drops CELL's loop and masks, a CELL-only one the OR loop.
 .ifndef _HGR_GLYPH8_LOADED_
 _HGR_GLYPH8_LOADED_ = 1
 .zeropage
@@ -56,6 +58,7 @@ hg_color: .res 1
 .endif
 .endif
 .code
+.ifref hgr_glyph8_store
 hgr_glyph8_store:
 .ifndef HG_STORE_UNCLIPPED
         lda hg_col
@@ -85,7 +88,12 @@ hgr_glyph8_store:
         cpx #8
         bcc @row
 @done:  rts
+.endif
 .ifndef HG_STORE_ONLY
+HG_OR   = .referenced(hgr_glyph8_or)
+HG_CELL = .referenced(hgr_glyph8_cell)
+.if HG_OR .or HG_CELL
+.if HG_OR .and HG_CELL
 hgr_glyph8_or:
         lda #0
         beq hg_start
@@ -93,6 +101,11 @@ hgr_glyph8_cell:
         lda #1
 hg_start:
         sta hg_mode
+.elseif HG_OR
+hgr_glyph8_or:
+.else
+hgr_glyph8_cell:
+.endif
         lda hg_y
         cmp #192
         bcs @invalid
@@ -126,17 +139,26 @@ hg_start:
 @column:
         sta hg_shift
         stx hg_col
+.if HG_CELL
         tax
         lda hg_cell_keep_lo,x
         sta hg_keep_lo
         lda hg_cell_keep_hi,x
         sta hg_keep_hi
+.endif
         lda #0
         sta hg_row
+.if HG_OR .and HG_CELL
         ldx hg_mode
         bne hg_cell_loop
         jmp hg_row_loop
+.elseif HG_OR
+        beq hg_row_loop           ; Z = 1: always
+.else
+        beq hg_cell_loop
+.endif
 @invalid: rts
+.if HG_CELL
 hg_cell_loop:
         ldy hg_row
         lda (hg_src),y
@@ -180,6 +202,8 @@ hg_cell_loop:
         cmp hg_end
         bcc hg_cell_loop
         rts
+.endif
+.if HG_OR
 hg_row_loop:
         lda hg_row
         clc
@@ -241,9 +265,13 @@ hg_or_byte:
 .endif
         sta (hg_ptr),y
 @done:  rts
+.endif
+.if HG_CELL
 ; Keep bits outside the 8-pixel cell. Bit 7 is cleared by CELL, while OR
 ; preserves the byte palette unless HG_COLOR_TABLE explicitly replaces it.
 hg_cell_keep_lo: .byte $00,$01,$03,$07,$0f,$1f,$3f
 hg_cell_keep_hi: .byte $7e,$7c,$78,$70,$60,$40,$00
+.endif
+.endif
 .endif
 .endif

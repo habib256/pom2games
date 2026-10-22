@@ -22,12 +22,8 @@ _a2_joy_y = joy_y
 ; void a2_tone(unsigned char flips, unsigned char period): period in A,
 ; flips on the C stack.
 _a2_tone:
-        pha
-        jsr     popa            ; A = flips
-        tay
-        pla
         tax                     ; X = period
-        tya
+        jsr     popa            ; A = flips (popa keeps X)
         jmp     tone
 
 ; unsigned char a2_read_stick(void): sample, return A2_JOY_* direction.

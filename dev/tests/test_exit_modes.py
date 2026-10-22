@@ -5,7 +5,7 @@ import tempfile
 from test_asm_boundaries import fixture
 
 
-def check(work, iie, saved):
+def check(work, iie, saved, shared=False):
     source = '''.include "apple2.inc"
 .code
 entry:
@@ -32,9 +32,12 @@ entry:
     sta $C005                 ; auxiliary writes, main code and stack
 @classic:
     jmp apple2_exit
-.include "exit.asm"
+''' + ('''    jsr hgr_init               ; references native_video
+.include "hgr.asm"
+EXIT_USE_NATIVE_VIDEO = 1
+''' if shared else '') + '''.include "exit.asm"
 '''
-    result = fixture(work, f'exit{int(iie)}{int(saved)}', source,
+    result = fixture(work, f'exit{int(iie)}{int(saved)}{int(shared)}', source,
                      lambda labels: ['until:03D0:3000', 'peek:C013:2',
                                      'peek:C018:8', 'peek:0060:1',
                                      'peek:1000:3', 'peek:03F2:3'], iie=iie)
@@ -45,7 +48,8 @@ entry:
         assert flags[2] & 128, 'exit did not select TEXT'
     assert zp == b'\x5A', ('DOS zero page not restored in main bank',zp.hex())
     assert vector == original, ('RESET vector not restored in main bank',vector.hex(),original.hex())
-    print(f'ASM exit: {"IIe" if iie else "II+"}, snapshot={saved}, banking/video and DOS state OK.')
+    print(f'ASM exit: {"IIe" if iie else "II+"}, snapshot={saved}, '
+          f'{"hgr.asm native_video, " if shared else ""}banking/video and DOS state OK.')
 
 
 if __name__ == '__main__':
@@ -53,3 +57,4 @@ if __name__ == '__main__':
         for iie in (True, False):
             for saved in (True, False):
                 check(Path(tmp), iie, saved)
+            check(Path(tmp), iie, True, shared=True)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """lib/math in a2run against Python: products, short cuts, constants,
-floor shifts, sums, square roots, division and the LFSR, bit for bit.
+floor shifts, sums, square roots, division, decimal conversion and the
+LFSR, bit for bit.
 Built twice: tables at $0800 with the seed in BSS, then both in HGR page 2."""
 from pathlib import Path
 import math
@@ -13,6 +14,7 @@ sys.path.insert(0, str(ROOT / 'dev/tools'))
 import a2test  # noqa: E402
 
 KS = (0, 1, 2, 64, 73, 128, 183, 255)
+DEC_CASES = ('b2d', 'div10', 'dec16')   # dec.asm, outputs in BSS (LOWBSS is full)
 
 
 def s8(v):
@@ -66,6 +68,16 @@ def cases(rng):
                  [(n, d) for n in edge16() for d in (1, 2, 3, 7, 0x80, 0xFF) ] +
                  [(rng.randrange(65536), rng.randrange(1, 256)) for _ in range(40)] +
                  [(rng.randrange(256 * d), d) for d in (rng.randrange(1, 256) for _ in range(40))]]),
+        'b2d': (['A'], ['A', 'vx', 'vy'], 'JSR byte_to_dec\n STX vx\n STY vy',
+                [([n], [n % 10, n // 100, n // 10 % 10]) for n in range(0, 256, 3)] + [([255], [5, 2, 5])]),
+        'div10': (['A', 'X'], ['A', 'vx', 'vy'], 'JSR byte_div10\n STX vx\n STY vy',
+                  [([n, n ^ 0x5A], [n % 10, n ^ 0x5A, n // 10]) for n in range(0, 256, 3)]),
+        'dec16': (['dec_lo', 'dec_hi'], [f'decbuf+{i}' for i in range(6)] + ['vy'],
+                  'LDA #$FF\n LDY #5\n:STA decbuf,Y\n DEY\n BPL :-\n LDA #<decbuf\n STA dec_ptr\n'
+                  ' LDA #>decbuf\n STA dec_ptr+1\n JSR u16_to_dec\n STY vy',
+                  [(le(n, 2), list((str(n).encode() + bytes(1) + bytes([255] * 5))[:6]) + [len(str(n))])
+                   for n in edge16() + [9, 10, 99, 100, 999, 1000, 9999, 10000, 10001, 65530] +
+                   [rng.randrange(65536) for _ in range(40)]]),
     }
     w16 = w16[:25]
     for k in KS:
@@ -135,7 +147,7 @@ def loop(name, ins, outs, call, rows):
 .pushseg
 .rodata
 in_{name}: .byte {data}
-.segment "{'BSS' if name[0] == 'k' else 'LOWBSS'}"
+.segment "{'BSS' if name[0] == 'k' or name in DEC_CASES else 'LOWBSS'}"
 out_{name}: .res {n * nout}
 .popseg
 '''
@@ -161,6 +173,13 @@ v3: .res 1
 v4: .res 1
 v5: .res 1
 va: .res 1
+vx: .res 1
+vy: .res 1
+dec_lo: .res 1
+dec_hi: .res 1
+dec_ptr: .res 2
+.bss
+decbuf: .res 6
 .code
  JSR mul_init
  JSR sqrt_init
@@ -182,6 +201,7 @@ out_rand: .res 256
 .include "div.asm"
 .include "random.asm"
 .include "mul.asm"
+.include "dec.asm"
 .export done
 ''' + ''.join(f'.export out_{n}\n' for n in table) + '.export out_rand\n'
     (work / 'm.s').write_text(src)
@@ -226,7 +246,7 @@ def main():
     alone = {k: v for k, v in table.items() if k not in ('u8u8', 'u16u8')}
     check('MUL_TABLES = $0800', alone, 'mul_s16s8 inline')
     print(f'lib/math: {n} cases x 2 table placements == Python (products, mul_dir short cuts, '
-          f'MUL_K16/KS16, shr6, sums, isqrt16, div16by8, rand8); mul_s16s8 inline too.')
+          f'MUL_K16/KS16, shr6, sums, isqrt16, div16by8, byte_to_dec, u16_to_dec, rand8); mul_s16s8 inline too.')
 
 
 if __name__ == '__main__':

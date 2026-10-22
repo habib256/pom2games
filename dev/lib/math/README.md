@@ -57,6 +57,9 @@ LOWBSS, ou la page HGR inutilisée.
 | | `mul_acc_set` / `_add` / `_shr6` | somme de produits sur 24 bits puis ⌊/64⌋ | |
 | `sqrt.asm` | `sqrt_init`, `isqrt16` | `A = ⌊√mul_x⌋` ; départ `sqrt_seed[mul_x+1]`, puis pas de 1 avec n² = sqr1[2n] | ~40 c + ~25 c/pas |
 | `div.asm` | `div16by8` | `mul_x = mul_x / A`, `A = reste` ; 8 pas si le quotient tient sur un octet | ~190 c / ~400 c |
+| `dec.asm` | `byte_to_dec` | `A` (0..255) → `X` centaines, `Y` dizaines, `A` unités (0..9) ; sans mémoire | 30-110 c |
+| | `byte_div10` | `Y = A / 10` (0..25), `A = A mod 10`, X gardé | 15-110 c |
+| | `u16_to_dec` | `dec_lo/hi` → ASCII en `(dec_ptr)`, sans zéros de tête, NUL ; `Y` = nb de chiffres. Page zéro `dec_lo`, `dec_hi`, `dec_ptr`, `dec_t`, `dec_d` allouée sauf si définie avant (hgrc : `hgr_utoa`, `gfx_utoa`) | 250-900 c |
 | `random.asm` | `rand8` | LFSR de Galois 16 bits (taps `$B400`) sur `prng_lo/hi` ; graine non nulle | ~20 c |
 
 ### Les astuces

@@ -12,7 +12,7 @@
 # Link with dev/cc65/apple2_hgr_c.cfg and put dev/cc65/crt0_apple2.s FIRST on
 # the link line (a2_dos() and returning from main() rely on its _exit).
 
-APPLE2C_SRCS := $(APPLE2C)/apple2io.c $(APPLE2C)/apple2io_asm.s
+APPLE2C_SRCS := $(APPLE2C)/apple2io_str.s $(APPLE2C)/apple2io_asm.s
 APPLE2C_INCS := -I $(APPLE2C)
 
 # Opt-in objects (assemble them with $(APPLE2C_AFLAGS)): speaker + joystick,

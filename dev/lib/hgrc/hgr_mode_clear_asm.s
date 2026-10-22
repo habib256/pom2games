@@ -3,6 +3,8 @@
 .export _hgr_init_clear
 .import _hgr_init
 
+.import native_video            ; hgr_native_asm.s: one copy in the link
+HGR_NATIVE_VIDEO_IMPORT = 1
 .segment "CODE"
 .include "apple2.inc"
 hgr_init = _hgr_init                 ; the tail JMP lands on hgr_mode_asm's copy

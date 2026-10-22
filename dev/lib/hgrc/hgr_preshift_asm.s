@@ -1,9 +1,9 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_preshift_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
-.export _hgr_preshift_xor_run, _hgr_xs_run, _hgr_xs_setup
+.export _hgr_xs_run, _hgr_xs_setup
 .exportzp _hgr_xs_x, _hgr_xs_y, _hgr_xs_spr
 .import _hgr_col7, _hgr_phase7, _hgr_rowhi, _hgr_rowlo
-.import _hgr_build_columns, _hgr_build_phases
+.import _hgr_build_columns, _hgr_build_phases, _hgr_preshift_xor_run
 .importzp _hgr_b_col, _hgr_b_h, _hgr_b_src, _hgr_b_stride, _hgr_b_w, _hgr_b_y
 .importzp ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
 curcol = tmp1
@@ -115,41 +115,5 @@ _hgr_xs_setup:
         rts
 
 _hgr_xs_run:
-        jsr _hgr_xs_setup       ; then the XOR row loop below
-
-; --- _hgr_preshift_xor_run : dedicated XOR blit for the pre-shift engine -------
-; Same as _hgr_blit7_run's XOR loop, entered straight after the phase lookup:
-; the inner loop is the Buzzard-Bait minimum -- lda (src),y / eor (dst),y /
-; sta (dst),y (~24 cyc/byte; _hgr_blit7_run specialises its loop per mode once
-; per call, so it costs the same, CLEAR 26). hgr_sprite() calls this for
-; HGR_XOR (the hot animation path) so an erase+redraw pair fits inside
-; V-blank; SET/CLEAR go through _hgr_blit7_run. Same hgr_b_* zero-page block.
-_hgr_preshift_xor_run:
-@row:
-        ldy _hgr_b_y           ; ptr1 = rowbase(y) + col
-        lda _hgr_rowlo,y
-        clc
-        adc _hgr_b_col
-        sta ptr1
-        lda _hgr_rowhi,y
-        adc #0
-        sta ptr1+1
-        ldy #0                  ; Y indexes src[j] AND dest[col+j] together
-@col:
-        lda (_hgr_b_src),y     ; pre-shifted source byte
-        eor (ptr1),y            ; dest ^= src  (no mode test)
-        sta (ptr1),y
-        iny
-        cpy _hgr_b_w
-        bne @col
-        clc                     ; src += stride ; y += 1 ; rows--
-        lda _hgr_b_src
-        adc _hgr_b_stride
-        sta _hgr_b_src
-        bcc @nyc
-        inc _hgr_b_src+1
-@nyc:
-        inc _hgr_b_y
-        dec _hgr_b_h
-        bne @row
-        rts
+        jsr _hgr_xs_setup
+        jmp _hgr_preshift_xor_run   ; the XOR row loop, in hgr_blit7_asm.s

@@ -55,6 +55,7 @@ test_end:
     subprocess.run(['ca65', '-g', '-t', 'none', '-I', str(GAME / 'src'),
                     '-I', str(GAME / 'build'), '-I', str(ROOT / 'dev/lib/apple2'),
                     '-I', str(ROOT / 'dev/lib/hgr'), '-I', str(ROOT / 'dev/lib/font'),
+                    '-I', str(ROOT / 'dev/lib/math'),
                     '-o', str(obj), str(src)], check=True)
     subprocess.run(['ld65', '-C', str(config), '-Ln', str(labels), '-o', str(binary), str(obj)], check=True)
     disk = a2test.build_disk(work, 'FIXTURE', binary)
