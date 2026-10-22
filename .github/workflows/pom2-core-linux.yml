@@ -1,0 +1,64 @@
+# Build the POM2 core SDK archive (libpom2_core.a) for Linux x86_64, the one
+# a2shot vendors in dev/tools/a2shot/sdk/lib/linux-x86_64/. Run by hand with
+# the POM2 commit the vendored header comes from (the default is the commit
+# vendored now; a push that edits this file also runs it, so a new pin can be
+# built from a branch before the workflow is on main):
+#
+#   gh workflow run pom2-core-linux.yml -f pom2_commit=<sha>
+#   gh run download <run-id> -n pom2-core-linux-x86_64
+#
+# POM2 configures its GUI target unconditionally, so GLFW and GL headers are
+# installed for the configure step only; just pom2_core is built.
+name: pom2-core-linux
+
+on:
+  workflow_dispatch:
+    inputs:
+      pom2_commit:
+        description: POM2 commit (github.com/habib256/pom2) to build
+        default: 28700c39e0450b9f7b20262687a608f897da4b53
+  push:
+    paths:
+      - .github/workflows/pom2-core-linux.yml
+
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake g++ pkg-config libglfw3-dev libgl1-mesa-dev libslirp-dev zlib1g-dev
+      - name: Fetch POM2 at the commit, and its pinned Dear ImGui (miniaudio.h)
+        env:
+          POM2_COMMIT: ${{ inputs.pom2_commit || '28700c39e0450b9f7b20262687a608f897da4b53' }}
+        run: |
+          set -euo pipefail
+          git init -q pom2
+          git -C pom2 remote add origin https://github.com/habib256/pom2.git
+          git -C pom2 fetch -q --depth 1 origin "$POM2_COMMIT"
+          git -C pom2 checkout -q FETCH_HEAD
+          cd pom2
+          source ./imgui_pin.env
+          git init -q imgui
+          git -C imgui remote add origin "$IMGUI_REPO"
+          git -C imgui fetch -q --depth 1 origin "$IMGUI_COMMIT"
+          git -C imgui checkout -q FETCH_HEAD
+      - name: Build pom2_core and install the SDK component
+        run: |
+          set -euo pipefail
+          cmake -S pom2 -B build -DCMAKE_BUILD_TYPE=Release -DPOM2_ENABLE_TESTS=OFF
+          cmake --build build --parallel 4 --target pom2_core
+          cmake --install build --component pom2_core_sdk --prefix "$PWD/sdk"
+          lib=$(find sdk -name libpom2_core.a)
+          strip -S "$lib"
+          mkdir -p out/include out/lib/linux-x86_64
+          cp -R sdk/include/pom2 out/include/
+          cp "$lib" out/lib/linux-x86_64/
+          git -C pom2 rev-parse HEAD > out/POM2_COMMIT
+          ls -lR out
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pom2-core-linux-x86_64
+          path: out/

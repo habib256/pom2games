@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install cc65 and zlib
         run: sudo apt-get update && sudo apt-get install -y cc65 zlib1g-dev
       - name: Disks match the sources
@@ -20,7 +20,7 @@ jobs:
   dhgr:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install cc65 and the headless core dependencies
         run: brew install cc65 libslirp pkgconf
       - name: Build the Apple IIe headless runner
