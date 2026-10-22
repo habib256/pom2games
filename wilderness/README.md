@@ -51,7 +51,7 @@ TOPO reste soumis aux lectures disque et au rendu du port 48 Ko.
 Depuis `wilderness/`, avec les outils cc65 et les outils partagés de `dev/` :
 
 ```sh
-make                 # construit ../dist/WILDERNESS.dsk
+make                 # construit build/WILDERNESS.dsk
 make run             # lance la disquette dans POM2
 make test            # tests dans l'émulateur a2shot
 make fuzz            # comparaisons de rendu plus longues

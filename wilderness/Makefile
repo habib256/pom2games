@@ -1,6 +1,6 @@
 # Wilderness: A Survival Adventure (Electric Transit, 1985), reimplementation.
 #
-#   make            -> ../dist/WILDERNESS.dsk (Apple II+ 48 KB, DOS 3.3)
+#   make            -> build/WILDERNESS.dsk (Apple II+ 48 KB, DOS 3.3)
 #   make run        -> boot it in POM2
 #   make test       -> in a2shot: the view bit for bit against tools/view_ref.py
 #                      (turns, random positions, random commands against a
@@ -14,7 +14,7 @@
 DEV ?= ../dev
 include $(DEV)/cc65/apple2.mk
 
-DISK := $(DIST)/WILDERNESS.dsk
+DISK := $(BUILD)/WILDERNESS.dsk
 BIN  := $(BUILD)/wild.bin
 MAPBIN := $(BUILD)/map.bin
 SEED ?= 1985
@@ -88,7 +88,7 @@ $(BUILD)/boot.bin: $(BUILD)/boot.o src/boot.cfg
 	$(LD65) -C src/boot.cfg -m $(BUILD)/boot.map -Ln $(BUILD)/boot.lbl -o $@ $<
 
 $(DISK): $(BIN) $(MAPBIN) $(BUILD)/boot.bin $(SPRITE_BINS) $(DOS33_DEPS) tools/build_disk.py tools/graphical_topo.py tools/pack_boot.py tools/pack_overlay.py tools/smalldos.py Makefile
-	@mkdir -p $(DIST)
+	@mkdir -p $(BUILD)
 	$(PYTHON) -I tools/build_disk.py --out $(DISK) --build $(BUILD) --master $(SYSTEM)
 
 test: all $(A2SHOT)

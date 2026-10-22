@@ -64,7 +64,7 @@ def measure(disk, labels, command, setup=(), profile=False):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--disk', type=Path, default=HERE.parent/'dist/WILDERNESS.dsk')
+    p.add_argument('--disk', type=Path, default=HERE/'build/WILDERNESS.dsk')
     p.add_argument('--labels', type=Path, default=HERE/'build/wild.lbl')
     p.add_argument('--out', type=Path)
     p.add_argument('--profile', action='store_true', help='count guest instruction cycles by memory region')

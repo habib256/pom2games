@@ -16,11 +16,11 @@ for name in ('wait_key', 'status_key', 'inventory_key', 'help_key',
              'topo_key', 'graphical_topo_key', 'ending_key'):
     L[name] = L['keyboard_wait']
 L['number_idle'] = L['keyboard_wait']
-DISK = HERE.parent / 'dist/WILDERNESS.dsk'
+DISK = HERE.parent / 'wilderness/build/WILDERNESS.dsk'
 
 
 def disk_with(tmp, mapbin):
-    """dist/WILDERNESS.dsk with another map."""
+    """build/WILDERNESS.dsk with another map."""
     m = Path(tmp) / 'map.bin'
     m.write_bytes(mapbin)
     d = Path(tmp) / 'test.dsk'
