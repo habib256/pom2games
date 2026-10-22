@@ -12,15 +12,10 @@
         .export _apple2_iskeypressed, _apple2_getkey, _apple2_readkey
         .import _exit
 
-COUT    = $FDED
-PRBYTE  = $FDDA
-HOME    = $FC58
-WAIT    = $FCA8
-KBD     = $C000
-KBDSTRB = $C010
-TXTSET  = $C051
-MIXCLR  = $C052
-LOWSCR  = $C054
+; Equates from lib/apple2 (found next to this file: no -I needed). The key
+; routines stay here rather than wrapping kbd.asm's wait_key/poll_key: the
+; wrappers (X = 0 for cc65) would cost 18 bytes more than this shared tail.
+.include "../apple2/apple2.inc"
 
         .segment "CODE"
 
