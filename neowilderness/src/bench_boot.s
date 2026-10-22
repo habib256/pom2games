@@ -1,9 +1,23 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
-; NEOHOF.SYSTEM -- ProDOS 8 loader of the hall of fame bench (lot 7).
-; ProDOS runs it at $2000. It moves itself to $0800 (the bench uses
-; $2000), sets the prefix to the boot volume, then loads HOFTEST and SCENE
-; at their auxiliary-type addresses and jumps to HOFTEST. Same pattern as
-; chromabreak/src/boot.s. A ][ or ][+ gets a message and returns to ProDOS.
+; NEODHGR.SYSTEM, NEOHOF.SYSTEM, NEOSTARS.SYSTEM -- ProDOS 8 loader of the
+; standalone benches (dhgr.mk, hof.mk, stars.mk via bench.mk), one of
+; -D BENCH_DHGR, BENCH_HOF or BENCH_STARS. ProDOS runs it at $2000. It moves
+; itself to $0800 (the benches draw over $2000), sets the prefix to the boot
+; volume, then loads the bench and SCENE at their auxiliary-type addresses
+; and jumps to the bench. Same pattern as chromabreak/src/boot.s. A ][ or ][+
+; gets a message and returns to ProDOS.
+.if .defined(BENCH_DHGR)
+.define SYSTEM_NAME "NEODHGR"
+.define BENCH_NAME  "DHGRTEST"
+.elseif .defined(BENCH_HOF)
+.define SYSTEM_NAME "NEOHOF"
+.define BENCH_NAME  "HOFTEST"
+.elseif .defined(BENCH_STARS)
+.define SYSTEM_NAME "NEOSTARS"
+.define BENCH_NAME  "STARTEST"
+.else
+.error "define BENCH_DHGR, BENCH_HOF or BENCH_STARS"
+.endif
 .setcpu "6502"
 .macpack longbranch
 .import __LOADER_LOAD__, __LOADER_SIZE__
@@ -35,7 +49,7 @@ old:    ldx     #0
         .byte   $65             ; QUIT
         .word   quit_params
 quit_params: .byte 4, 0, 0, 0, 0, 0, 0
-old_text: .byte "NEOHOF NEEDS AN APPLE //E OR //C, 128K.", $0D
+old_text: .byte SYSTEM_NAME, " NEEDS AN APPLE //E OR //C, 128K.", $0D
         .byte "PRESS A KEY TO RETURN TO PRODOS.", 0
 
 .segment "LOADER"
@@ -136,9 +150,9 @@ read_count: .word 0
         .word   0
 close:  .byte   1
 close_ref: .byte 0
-name_bench: .byte 7, "HOFTEST"
+name_bench: .byte .strlen(BENCH_NAME), BENCH_NAME
 name_scene: .byte 5, "SCENE"
-message: .byte  "NEOHOF: CANNOT LOAD HOFTEST/SCENE", 0
+message: .byte  SYSTEM_NAME, ": CANNOT LOAD ", BENCH_NAME, "/SCENE", 0
 prefix: .byte   0               ; length, then "/" + volume name
 volume: .res    16
 .assert * - start <= $200, error, "loader must fit in two pages"

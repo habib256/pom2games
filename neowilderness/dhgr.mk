@@ -16,6 +16,7 @@ APPLE2_PRESET := iie
 
 DISK  := $(DIST)/NEODHGR_TEST.po
 BOOT  := $(BUILD)/NEODHGR.SYSTEM
+BENCH_ID := DHGR
 BIN   := $(BUILD)/dhgr_test.bin
 BIN4  := $(BUILD)/dhgr_test4.bin
 MAPBIN := $(BUILD)/map.bin
@@ -25,6 +26,8 @@ PYDEPS := tools/dhgr_ref.py tools/dhgr_palette.py tools/dhgr_sprites.py tools/vi
           tests/scene_ref.py tests/test_forest.py
 
 all: $(DISK) $(BIN4) $(BOOT)
+
+include bench.mk
 
 $(MAPBIN): tools/mkmap.py tools/topo.py
 	@mkdir -p $(@D)
@@ -45,20 +48,7 @@ $(BUILD)/dhgr_clear_asm.o: $(HGRC)/dhgr_clear_asm.s
 	@mkdir -p $(@D)
 	$(CA65) $(CA65FLAGS) -o $@ $<
 
-$(BUILD)/prodos_video.o: $(DEV)/lib/prodos/video.s
-	@mkdir -p $(@D)
-	$(CA65) $(CA65FLAGS) -o $@ $<
-
-$(BUILD)/prodos_mli.o: $(DEV)/lib/prodos/mli.s
-	@mkdir -p $(@D)
-	$(CA65) $(CA65FLAGS) -o $@ $<
-
 LIBOBJS := $(BUILD)/dhgr_clear_asm.o $(BUILD)/prodos_video.o $(BUILD)/prodos_mli.o
-
-$(BOOT): src/dhgr_boot.s src/dhgr_boot.cfg
-	@mkdir -p $(@D)
-	$(CA65) -t none -o $(BUILD)/dhgr_boot.o $<
-	$(LD65) -C src/dhgr_boot.cfg -o $@ $(BUILD)/dhgr_boot.o
 
 $(BIN): $(BUILD)/dhgr_test.o $(BUILD)/dhgr_cols.o $(LIBOBJS) src/dhgr_test.cfg
 	$(LD65) -C src/dhgr_test.cfg -m $(BUILD)/dhgr_test.map -Ln $(BUILD)/dhgr_test.lbl -o $@ $(filter %.o,$^)
@@ -76,8 +66,7 @@ $(BIN4): $(BUILD)/dhgr_test4.o $(BUILD)/dhgr_cols4.o $(LIBOBJS) src/dhgr_test.cf
 	$(LD65) -C src/dhgr_test.cfg -m $(BUILD)/dhgr_test4.map -Ln $(BUILD)/dhgr_test4.lbl -o $@ $(filter %.o,$^)
 
 # Demo: SCENE starts at the golden hour, MOOD0..9 cycle on a key press.
-$(DISK): $(BIN) $(BOOT) tests/test_dhgr_cols.py $(PYDEPS) $(MAPBIN) $(SPRITES) \
-         $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py
+$(DISK): $(BIN) $(BOOT) tests/test_dhgr_cols.py $(PYDEPS) $(MAPBIN) $(SPRITES) $(BENCH_DISK_DEPS)
 	@mkdir -p $(DIST)
 	$(PYTHON) tests/test_dhgr_cols.py --demo-po $@ --map $(MAPBIN)
 	rm -f $(DIST)/NEODHGR_TEST.dsk

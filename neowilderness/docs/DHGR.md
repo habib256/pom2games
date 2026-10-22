@@ -17,7 +17,7 @@ entre le plan et l’intégration sont résumés au § 10.
 | `tools/dhgr_sprites.py` | conversion des 5 sprites originaux, 4 échelles, PNG |
 | `src/dhgr_cols.s` | primitives 6502 : effacement, colonnes, bandes, groupes, tampons |
 | `src/dhgr_test.s`, `src/dhgr_test.cfg` | banc IIe autonome piloté par script (ProDOS) |
-| `src/dhgr_boot.s`, `src/dhgr_boot.cfg` | `NEODHGR.SYSTEM`, chargeur SYS ProDOS du banc |
+| `src/bench_boot.s`, `src/bench_boot.cfg`, `bench.mk` | `NEODHGR.SYSTEM`, chargeur SYS ProDOS commun aux bancs (`-D BENCH_DHGR`) |
 | `tests/test_dhgr_ref.py` | contrôles Python purs (palette, octets, sprites, géométrie) |
 | `tests/test_dhgr_cols.py` | primitives exécutées sur le cœur POM2 IIe, octet par octet |
 

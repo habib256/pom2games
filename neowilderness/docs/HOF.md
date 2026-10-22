@@ -21,7 +21,7 @@ adaptés (section 9). Volume final : MEMORY.md § 9.1.
 | Lecture/écriture du fichier et primitives texte, partagées | `src/hof_menu.s` | ≈ 1 136 octets dans le chargeur |
 | `module_end` et `module_restart` (module INPUT) | `src/hof_load.inc` | + 64 octets dans INPUT |
 | WOZ protégé en écriture pour les tests | `tools/po2woz.py` | — |
-| Banc IIe | `src/hof_test.s`, `src/hof_test.cfg`, `src/hof_boot.s`, `hof.mk` | `../dist/NEOHOF_TEST.po` |
+| Banc IIe | `src/hof_test.s`, `src/hof_test.cfg`, `src/bench_boot.s`, `hof.mk` | `../dist/NEOHOF_TEST.po` |
 | Tests | `tests/test_hof_ref.py` (Python pur), `tests/test_hof.py` (a2shot `--iie`), `tests/test_hof_game.py` (jeu intégré), `tests/test_hof_volume.py` (volume entier, § 10) | `make -f hof.mk test` |
 
 ## 1. Décisions en bref

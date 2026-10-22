@@ -2,7 +2,7 @@
 ; ============================================================================
 ; hof_test.s -- standalone bench of the score and the hall of fame (lot 7)
 ; ============================================================================
-; HOFTEST, loaded at $4000 by NEOHOF.SYSTEM (src/hof_boot.s) with the case
+; HOFTEST, loaded at $4000 by NEOHOF.SYSTEM (src/bench_boot.s) with the case
 ; records SCENE at $8000. The volume also holds NEOWILD.END (the module,
 ; src/hof.s assembled with HOF_BENCH, linked at $9600) and NEOWILD.HOF.
 ; The bench plays the game's part:

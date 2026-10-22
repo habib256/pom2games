@@ -20,7 +20,7 @@ nuit noire : section 14.
 | Tête du catalogue `wildskycat.bin` (ID 24, `$9600`) | segment `SKYCAT` | 462 octets (154 étoiles) |
 | Module horaire `wildsky.bin` (ID 25, `$97CE`) | `src/stars.s` | 2 337 octets (reste du catalogue 384, code 1 758, tables 195) + 3 346 de BSS |
 | Liste visible et tracé par colonne | `src/stars_draw.s` | 487 octets en carte langage principale (`$DE18-$DFFE` : liste 356, code 131) + 4 de variables (WILDLO) |
-| Banc IIe | `src/stars_test.s`, `src/stars_test.cfg`, `src/stars_boot.s`, `stars.mk` | `../dist/NEOSTARS_TEST.po` |
+| Banc IIe | `src/stars_test.s`, `src/stars_test.cfg`, `src/bench_boot.s`, `stars.mk` | `../dist/NEOSTARS_TEST.po` |
 | Tests | `tests/test_stars_ref.py` (Python pur), `tests/test_stars.py` (a2shot `--iie`), `tests/test_stars_game.py` (jeu) | `make -f stars.mk test`, `make test` |
 
 ## 1. Décisions en bref
@@ -305,8 +305,8 @@ k), produits de l'heure (−40 k), division sur registres (−10 k).
 ## 8. Banc et tests
 
 `make -f stars.mk` construit `../dist/NEOSTARS_TEST.po` (ProDOS 2.4.3) :
-`NEOSTARS.SYSTEM` (`src/stars_boot.s`, copie du chargeur de
-`dhgr_boot.s`, même `dhgr_boot.cfg`) charge `STARTEST` à `$4000`
+`NEOSTARS.SYSTEM` (`src/bench_boot.s -D BENCH_STARS`, chargeur
+commun aux bancs, `bench.mk`) charge `STARTEST` à `$4000`
 (`src/stars_test.s` : banc, `dhgr.s` complet, `stars_draw.s`, puis la tête
 du catalogue à `$8000` et le module juste après, comme dans la fenêtre SIM ;
 BSS à `$8C00`) puis `SCENE` à `$A000` (enregistrements de 160 octets :

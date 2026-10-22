@@ -7,6 +7,18 @@ suivies dans [TODO.md](TODO.md) et les limites du portage dans
 
 ## Non publié
 
+### Bancs autonomes : chargeur commun (22 octobre 2026)
+
+- `NEODHGR.SYSTEM`, `NEOHOF.SYSTEM` et `NEOSTARS.SYSTEM` viennent d’un seul
+  source, `src/bench_boot.s` (`-D BENCH_DHGR`, `BENCH_HOF` ou `BENCH_STARS`),
+  lié par `src/bench_boot.cfg`. Les trois binaires sont identiques octet par
+  octet aux anciens. `bench.mk` regroupe le chargeur, les objets
+  `dev/lib/prodos` et les dépendances ProDOS des disques de banc.
+- `hof.mk` assemble de nouveau : `hof.s` seul (`HOF_BENCH`) charge
+  `.macpack longbranch`, que `wild.s` fournit au jeu.
+- `print_byte` (`wild.s`), jamais appelé, est retiré ; `pdec` fait le même
+  travail.
+
 ### Chasse suivie, campement et interruptions (18 octobre 2026, XL)
 
 - Le bilan de chasse distingue arme en usage et préparation proposée.
