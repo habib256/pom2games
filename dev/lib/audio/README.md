@@ -18,7 +18,10 @@ aligné sur 256 octets. Sans le module, ce segment ne consomme aucune mémoire.
 Une autre configuration doit déclarer ce segment en RAM principale modifiable,
 avec `align=$100`. Le lecteur n'alloue aucune BSS ni nouvelle zéro-page ;
 il emprunte `ptr1`, `ptr3`, le premier octet de `ptr4` et `tmp3` de cc65.
-Son code coûte 1 950 octets, plus jusqu'à 255 octets d'alignement.
+Son code coûte 1 950 octets plus l'alignement : les configurations C le
+placent juste après `STARTUP` (taille fixe du crt0), soit 93 octets de
+bourrage constants au lieu de 0 à 255 derrière un `CODE` de longueur
+quelconque ; `apple2_hgr.cfg` (asm) le garde après `CODE`.
 
 ## Convertir et jouer
 
