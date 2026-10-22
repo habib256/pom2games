@@ -15,7 +15,10 @@ _hgr_b_mask:  .res 1        ; start bit mask (1 << (x % 7))
 b_srcidx:      .res 1        ; source byte index within the current row
 
 .segment "CODE"
-.include "hgr_pen.inc"
+; Pixels of one destination byte are gathered in `acc` and the mode is applied
+; once per byte: each pixel is set, cleared or toggled at most once, so the
+; result is the per-pixel one with a fraction of the work.
+acc = ptr2
 _hgr_blit_run:
 @row:
         ldy _hgr_b_y           ; ptr1 = scanline base
@@ -24,10 +27,11 @@ _hgr_blit_run:
         lda _hgr_rowhi,y
         sta ptr1+1
         lda _hgr_b_col         ; reset pen to the sprite's left edge
-        sta tmp1                ; curcol
+        sta curcol
         lda _hgr_b_mask
-        sta tmp2                ; curmask
+        sta curmask
         ldy #0                  ; load first source byte of this row
+        sty acc
         lda (_hgr_b_src),y
         sta tmp3                ; srcbits (MSB-first shift register)
         lda #8
@@ -36,12 +40,18 @@ _hgr_blit_run:
         ldx _hgr_b_w           ; pixels this row
 @px:
         asl tmp3                ; C = next pixel (bit 7 first)
-        bcc @skip
-        jsr blit_apply          ; pixel set: SET/CLEAR/XOR + advance pen
-        jmp @after
-@skip:
-        jsr advance             ; pixel clear: just advance the pen
-@after:
+        bcc @advance
+        lda acc
+        ora curmask
+        sta acc
+@advance:
+        asl curmask             ; bit 6 passed: byte complete, next column
+        bpl @consumed
+        jsr apply
+        lda #$01
+        sta curmask
+        inc curcol
+@consumed:
         dec tmp4                ; consumed a source bit
         bne @next
         cpx #1                  ; final pixel: no next byte is needed
@@ -55,6 +65,7 @@ _hgr_blit_run:
 @next:
         dex
         bne @px
+        jsr apply               ; partial last byte
         clc                     ; next source row + next scanline
         lda _hgr_b_src
         adc _hgr_b_stride
@@ -67,25 +78,29 @@ _hgr_blit_run:
         bne @row
         rts
 
-; apply one pixel at (curcol=tmp1, curmask=tmp2) on scanline ptr1, then advance.
-blit_apply:
-        ldy tmp1                ; curcol
+; Apply `acc` at column curcol on scanline ptr1 (SET/CLEAR/XOR), clear it.
+apply:
+        lda acc
+        beq @done
+        ldy curcol
         lda _hgr_b_mode
         beq @bset
         cmp #2
         beq @bxor
-        lda tmp2                ; CLEAR: dest &= ~mask (keeps the palette bit)
+        lda acc                 ; CLEAR: dest &= ~mask (keeps the palette bit)
         eor #$FF
         and (ptr1),y
         sta (ptr1),y
-        jmp advance
+        jmp @clear
 @bset:
-        lda tmp2                ; SET: dest |= mask
+        lda acc                 ; SET: dest |= mask
         ora (ptr1),y
         sta (ptr1),y
-        jmp advance
+        jmp @clear
 @bxor:
-        lda tmp2                ; XOR: dest ^= mask
+        lda acc                 ; XOR: dest ^= mask
         eor (ptr1),y
         sta (ptr1),y
-        jmp advance
+@clear: lda #0
+        sta acc
+@done:  rts

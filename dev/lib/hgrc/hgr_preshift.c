@@ -26,43 +26,19 @@
 void hgr_sprite(unsigned x, unsigned char y,
                      const hgr_sprite_t *spr, unsigned char mode)
 {
-    /* No stack locals for the clip math: write straight to the hgr_b_* zero-page
-     * block (cf. the hgr_blit note — cc65 -Oirs reuses stack-local slots as
-     * 16-bit scratch and silently clobbers them). phase_off is the only 16-bit
-     * temp; it is consumed immediately. */
-    unsigned char col, phase, stride, h;
-    unsigned      phase_off;
-
+    /* Clip, x/7 + x%7 from the hgr_col7[] / hgr_phase7[] tables and the
+     * phase block offset p*(h*stride) (see hgr.h ABI) are hgr_xs_setup's,
+     * in asm: no cc65 multiply. It writes the hgr_b_* zero-page block. */
     hgr_build_rows();
-    hgr_build_columns();
-    hgr_build_phases();
-    stride = spr->stride;
-    h      = spr->h;
-    if (h == 0u || stride == 0u || y > 191u || x > 279u) return;
-
-    /* Table lookups, NOT x/7 + x%7: cc65 has no hardware divide, so each of those
-     * is a ~150-300 cyc runtime call. x <= 279 is guaranteed above, so the tables
-     * (built by hgr_build_tables) are always in range; col is therefore <= 39. */
-    col   = hgr_col7[x];
-    phase = hgr_phase7[x];                     /* sub-byte phase 0..6           */
-
-    /* Phase block p starts at p*(h*stride) bytes into the bank (see hgr.h ABI). */
-    phase_off     = (unsigned)phase * ((unsigned)h * stride);
-    hgr_b_src    = spr->bits + phase_off;
-    hgr_b_col    = col;
-    hgr_b_stride = stride;                     /* full source row length        */
-    /* bytes actually drawn this row, right-clipped to the 40-byte page */
-    hgr_b_w      = ((unsigned)col + stride > 40u)
-                        ? (unsigned char)(40u - col)
-                        : stride;
-    hgr_b_y      = y;
-    hgr_b_h      = ((unsigned)y + h > 192u)    /* bottom clip                   */
-                        ? (unsigned char)(192u - y)
-                        : h;
+    if (spr->stride == 0u || spr->h == 0u || y > 191u || x > 279u) return;
+    hgr_xs_x   = x;
+    hgr_xs_y   = y;
+    hgr_xs_spr = spr;
     if (mode == HGR_XOR) {
-        hgr_preshift_xor_run();                /* hot path: no per-byte mode test */
+        hgr_xs_run();                          /* hot path: no per-byte mode test */
     } else {
         hgr_b_mode = mode;
+        hgr_xs_setup();
         hgr_blit7_run();
     }
 }
