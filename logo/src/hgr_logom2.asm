@@ -111,7 +111,7 @@ init_vdp_g2:
         lda $C05F               ; AN3 on: plain HGR even with 80 columns on
         lda #$0F                ; default pen = white (15)
         sta pen_color
-        rts
+        jmp hgr_plot_tables_init ; hgr_col / hgr_mask, built in BSS
 
 ; clear_bitmap: zero the 8 KB HGR page-1 framebuffer ($2000-$3FFF) --
 ; dev/lib/hgr clear_hgr (no zero page).
@@ -199,4 +199,5 @@ HGR_LINE16_PLOT = plot_set_x16
 ; --- HGR lookup tables ------------------------------------------------------
         .include "hgr_scanline.inc"     ; hgr_lo[192] / hgr_hi[192]
         HGR_FULL_WIDTH_TABLES = 1
+        HGR_PLOT_TABLES_RAM = 1         ; in BSS, not the file: init_vdp_g2
         .include "hgr_plot_tables.inc"  ; hgr_col[280] / hgr_mask[280]
