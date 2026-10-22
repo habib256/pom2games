@@ -786,13 +786,6 @@ smalldiv:
         lda     qlo
         rts
 
-.segment "LOWCODE"
-print_byte:
-        sta     num
-        lda     #0
-        sta     num+1
-        ; fall through
-
 ; print_u16 -- num in decimal, no leading zeros
 .segment "GCODE"
 print_u16:

@@ -41,6 +41,7 @@
 
 .ifdef HOF_BENCH
         .include "apple2.inc"
+        .macpack longbranch     ; wild.s gives it to the game
 .import won, dead, s_elap, s_health, f_hmax, region_name, geo_path
 .import region_number, journey_kind
 .import mli_call, goal_pct, overlay_load, module_restart, bench_next, io_buffer

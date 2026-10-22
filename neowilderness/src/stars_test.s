@@ -2,7 +2,7 @@
 ; ============================================================================
 ; stars_test.s -- standalone IIe bench of the night-sky stars (lot 7)
 ; ============================================================================
-; ProDOS boots NEOSTARS.SYSTEM (src/stars_boot.s), which loads this program
+; ProDOS boots NEOSTARS.SYSTEM (src/bench_boot.s), which loads this program
 ; (STARTEST, $4000-$7FFF, then the star module and its BSS at $8000) and
 ; SCENE (case records at $A000, tests/test_stars.py), then runs it. The bench links
 ; the real engine pieces: src/dhgr.s (dhgr_frame, select_mood, column_setup,

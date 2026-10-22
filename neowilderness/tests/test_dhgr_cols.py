@@ -137,7 +137,7 @@ BENCH_LOAD = 0x7400
 
 
 def build_po(out, binary, files, volume='NEODHGR', work=None):
-    """Bootable ProDOS 5.25" image: PRODOS, NEODHGR.SYSTEM (src/dhgr_boot.s)
+    """Bootable ProDOS 5.25" image: PRODOS, NEODHGR.SYSTEM (src/bench_boot.s)
     and the bench DHGRTEST at $7400, plus {name: (bytes, load address)}."""
     with tempfile.TemporaryDirectory(prefix='dhgr-stage-') as stage:
         stage = Path(stage)

@@ -18,12 +18,15 @@ APPLE2_PRESET := iie
 
 DISK  := $(DIST)/NEOHOF_TEST.po
 BOOT  := $(BUILD)/NEOHOF.SYSTEM
+BENCH_ID := HOF
 BIN   := $(BUILD)/hof_test.bin
 MODULE := $(BUILD)/NEOWILD.END
 CA65FLAGS := -g -t none -I src -I $(APPLE2)
 PYDEPS := tools/score_ref.py tools/po2woz.py tests/score.py
 
 all: $(DISK)
+
+include bench.mk
 
 # The module, as the game builds it, with the game labels imported from the
 # bench (HOF_BENCH); the bench links it at $9600 into NEOWILD.END.
@@ -38,14 +41,7 @@ $(BUILD)/hof_test.o: src/hof_test.s src/hof_menu.s src/hof_load.inc hof.mk
 $(BIN) $(MODULE): $(BUILD)/hof_test.o $(BUILD)/hof.o src/hof_test.cfg
 	$(LD65) -C src/hof_test.cfg -m $(BUILD)/hof_test.map -Ln $(BUILD)/hof_test.lbl -o $(BIN) $(BUILD)/hof_test.o $(BUILD)/hof.o
 
-# Same loader as the DHGR and star benches (src/dhgr_boot.cfg layout).
-$(BOOT): src/hof_boot.s src/dhgr_boot.cfg
-	@mkdir -p $(@D)
-	$(CA65) -t none -o $(BUILD)/hof_boot.o $<
-	$(LD65) -C src/dhgr_boot.cfg -o $@ $(BUILD)/hof_boot.o
-
-$(DISK): $(BIN) $(MODULE) $(BOOT) tests/test_hof.py $(PYDEPS) \
-         $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py
+$(DISK): $(BIN) $(MODULE) $(BOOT) tests/test_hof.py $(PYDEPS) $(BENCH_DISK_DEPS)
 	@mkdir -p $(DIST)
 	$(PYTHON) tests/test_hof.py --demo-po $@
 

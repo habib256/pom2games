@@ -2,7 +2,7 @@
 ; ============================================================================
 ; dhgr_test.s -- standalone IIe test bench of src/dhgr_cols.s (lot 3)
 ; ============================================================================
-; ProDOS boots NEODHGR.SYSTEM (src/dhgr_boot.s), which loads this program
+; ProDOS boots NEODHGR.SYSTEM (src/bench_boot.s), which loads this program
 ; (DHGRTEST) and a script (SCENE, tests/test_dhgr_cols.py) at their aux-type
 ; addresses. The bench claims the auxiliary memory from ProDOS (/RAM is
 ; discarded, dev/lib/prodos/video.s), shows DHGR (page 1 with 80STORE, or
