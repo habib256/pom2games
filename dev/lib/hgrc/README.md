@@ -1,60 +1,60 @@
-# lib/hgrc — runtime C HGR (cc65), version Apple II
+# lib/hgrc — C HGR runtime (cc65), Apple II version
 
 *[← dev](../../README.md)*
 
-Runtime C pour la vidéo HGR native de l'Apple II, dérivé de
+C runtime for native Apple II HGR video, derived from
 [POM1](https://github.com/habib256/pom1) (Arnaud Verhille, GPL-3.0).
-L'API est déclarée dans `hgr.h` : fonctions `hgr_*`, constantes `HGR_*`.
-Les commutateurs sont en `$C050-$C057`, les pages en `$2000` et `$4000`.
-La base texte/clavier est [`../apple2c`](../apple2c/).
+The API is declared in `hgr.h`: `hgr_*` functions, `HGR_*` constants.
+The soft switches are at `$C050-$C057`, the pages at `$2000` and `$4000`.
+The text/keyboard base is [`../apple2c`](../apple2c/).
 
-Utilisé par [`../../../snake`](../../../snake/) et
-[`../../../light3dball`](../../../light3dball/). Les fonctions de dessin vectoriel passent par
+Used by [`../../../snake`](../../../snake/) and
+[`../../../light3dball`](../../../light3dball/). The vector drawing functions go through
 [`../gfx`](../gfx/).
 
-**Règle impérative : texte ×1 toujours blanc ; seule l'écriture agrandie ×2
-peut être colorée.** Employer `hgr_puts8` pour le petit texte blanc et réserver
-`hgr_puts_color` aux titres ×2. La coloration des petits glyphes supprime
-des traits et dégrade leur lisibilité. Prévoir une marge noire si le texte
-voisine avec un décor coloré. Voir aussi la règle dans [`../hgr`](../hgr/README.md).
+**Mandatory rule: ×1 text is always white; only ×2 enlarged lettering
+may be coloured.** Use `hgr_puts8` for small white text and reserve
+`hgr_puts_color` for ×2 titles. Colouring small glyphs removes
+strokes and degrades their legibility. Leave a black margin if the text
+sits next to coloured scenery. See also the rule in [`../hgr`](../hgr/README.md).
 
-## Compilation par archive
+## Building as an archive
 
-Les noyaux assembleur sont séparés : initialisation (mode, effacement initial,
-LORES, basculement des tables de lignes), effacement, rectangles en octets,
-rectangles en pixels, cellules, pixels, coloration, texte ×1, texte ×2,
-conversion décimale, sprites bitmap, sprites alignés et sprites prédécalés.
-Les wrappers C suivent le même découpage. La police et les paramètres
-partagés sont définis une seule fois dans leurs propres objets.
+The assembler kernels are split: initialisation (mode, initial clear,
+LORES, line-table switching), clearing, byte rectangles,
+pixel rectangles, cells, pixels, colourising, ×1 text, ×2 text,
+decimal conversion, bitmap sprites, aligned sprites and preshifted sprites.
+The C wrappers follow the same split. The font and the shared
+parameters are defined only once, in their own objects.
 
-Compiler `HGRC_ALL_SRCS` dans une archive `ar65`, puis lier le programme à
-cette archive. `ld65` extrait uniquement les objets nécessaires : les familles
-inutilisées n'occupent ni code ni page zéro. Les drapeaux d'exclusion par
-programme ont été supprimés. Les trois démos C partagent une seule archive.
-Un lien direct de tous les `.o` embarquerait au contraire toutes les familles.
+Compile `HGRC_ALL_SRCS` into an `ar65` archive, then link the program against
+that archive. `ld65` extracts only the objects it needs: unused
+families take up neither code nor zero page. The per-program exclusion flags
+have been removed. The three C demos share a single archive.
+Linking all the `.o` files directly would instead pull in every family.
 
-Trois objets portent les commutateurs de mode : `hgr_mode_asm.s` (`hgr_init`,
-`hgr_text_restore`), `hgr_mode_clear_asm.s` (`hgr_init_clear`) et
-`hgr_lores_init_asm.s` (`hgr_lores_init`) ; `hgr_flip_rows` est dans
-`hgr_rows_asm.s`. Comme les autres membres de l'archive, chacun n'est lié que
-si le programme appelle l'un de ses points d'entrée.
+Three objects carry the mode switches: `hgr_mode_asm.s` (`hgr_init`,
+`hgr_text_restore`), `hgr_mode_clear_asm.s` (`hgr_init_clear`) and
+`hgr_lores_init_asm.s` (`hgr_lores_init`); `hgr_flip_rows` is in
+`hgr_rows_asm.s`. Like the other archive members, each one is linked only
+if the program calls one of its entry points.
 
-Coûts mesurés par `make bench` (cycles à 1,02 MHz) : effacement d'une page
-46 000 (boucle auto-modifiée de `HGR_CLEAR_LOOP`, lib/apple2), basculement de
-page par `hgr_flip_rows` (boucle déroulée, un EOR par ligne), texte
-8x8 `hgr_puts8` ~9 000 pour « APPLE II » (glyphe décalé en deux octets par
-ligne), texte 16x16 `hgr_puts` par le blitter couleur avec les porteuses
-blanches `$7F/$7F` (un seul blitter, ~5 fois plus rapide que l'ancien tracé
-pixel par pixel). Les enveloppes C lisent `hgr_col7` / `hgr_phase7` /
-`hgr_mask7` au lieu de diviser par 7, et les tables de lignes se calculent
-sans multiplication.
+Costs measured by `make bench` (cycles at 1.02 MHz): clearing a page
+46 000 (self-modifying loop from `HGR_CLEAR_LOOP`, lib/apple2), page flip
+via `hgr_flip_rows` (unrolled loop, one EOR per line), 8x8 text
+`hgr_puts8` ~9 000 for "APPLE II" (glyph shifted across two bytes per
+line), 16x16 text `hgr_puts` through the colour blitter with the white
+carriers `$7F/$7F` (a single blitter, ~5 times faster than the old
+pixel-by-pixel drawing). The C wrappers read `hgr_col7` / `hgr_phase7` /
+`hgr_mask7` instead of dividing by 7, and the line tables are computed
+without multiplication.
 
-## Intégration
+## Integration
 
-`$(DEV)/cc65/apple2.mk` fournit `HGRC`, `GFX`, `APPLE2C`, `BUILD`, les outils
-et la règle `$(DISK)` ; inclure ensuite `hgrc.mk` et `../apple2c/apple2c.mk`.
-Les règles communes de `hgrc_build.mk` construisent `$(BUILD)/hgrc/hgrc.lib`
-(`$(HGRC_LIB)`). Exemple :
+`$(DEV)/cc65/apple2.mk` provides `HGRC`, `GFX`, `APPLE2C`, `BUILD`, the tools
+and the `$(DISK)` rule; then include `hgrc.mk` and `../apple2c/apple2c.mk`.
+The shared rules in `hgrc_build.mk` build `$(BUILD)/hgrc/hgrc.lib`
+(`$(HGRC_LIB)`). Example:
 
 ```make
 DEV ?= ../dev
@@ -66,7 +66,7 @@ HGRC_EXTRA_SRCS := $(APPLE2C_SRCS)
 
 all: $(DISK)
 
-# Fournir les règles de compilation de crt0_apple2.o ($(A2_CRT0)) et main.o.
+# Provide the compile rules for crt0_apple2.o ($(A2_CRT0)) and main.o.
 $(BUILD)/game.bin: $(BUILD)/crt0_apple2.o $(BUILD)/main.o $(HGRC_LIB)
 	$(CL65) -t none -C $(A2_HGR_C_CFG) -o $@ $^
 
@@ -74,466 +74,466 @@ $(DISK): $(BUILD)/game.bin $(DOS33_DEPS)
 	@mkdir -p $(DIST)
 	$(DOS33) --bin GAME=$(BUILD)/game.bin@$(LOAD)
 
-# Après la première cible, pour conserver « all » comme cible par défaut.
+# After the first target, so that "all" stays the default target.
 include $(HGRC)/hgrc_build.mk
 ```
 
-`HGRC_BUILD`, `HGRC_CFLAGS` et `HGRC_ASMFLAGS` sont personnalisables.
-Les objets encodent leur répertoire et leur extension dans le nom du membre
-d'archive. `config.json` enregistre les options, outils et sources ; changer
-les flags invalide les objets sans nettoyage préalable. Une construction
-identique laisse les objets et l'archive intacts.
-Les listes `HGRC_*_SRCS` restent disponibles pour construire une archive
-avec un sous-ensemble de familles. Voir les Makefiles de Snake, des démos et
-de l'[exemple HGR](../../examples/hgr/Makefile).
+`HGRC_BUILD`, `HGRC_CFLAGS` and `HGRC_ASMFLAGS` can be customised.
+Objects encode their directory and extension in the archive member
+name. `config.json` records the options, tools and sources; changing
+the flags invalidates the objects without a prior clean. An identical
+build leaves the objects and the archive untouched.
+The `HGRC_*_SRCS` lists remain available for building an archive
+with a subset of families. See the Makefiles of Snake, the demos and
+the [HGR example](../../examples/hgr/Makefile).
 
-## Taille mesurée
+## Measured size
 
-Comparaison historique avant/après le premier découpage, avec cc65 2.18 et `-Oirs`, sur
-les mêmes sources de jeux (taille du fichier `.bin` et segment ZEROPAGE du
-fichier `.map`). Cette mesure historique inclut les transitions vidéo IIe et les noyaux
-assembleur du texte, de l'effacement et du basculement de page. La page zéro
-inclut le runtime C du programme.
+Historical before/after comparison for the first split, with cc65 2.18 and `-Oirs`, on
+the same game sources (size of the `.bin` file and ZEROPAGE segment of the
+`.map` file). This historical measurement includes the IIe video transitions and the assembler
+kernels for text, clearing and page flipping. The zero page
+includes the program's C runtime.
 
-| Programme | Binaire avant → après | Page zéro avant → après |
+| Program | Binary before → after | Zero page before → after |
 |---|---:|---:|
-| Snake | 10 218 → 8 573 octets | 99 → 80 octets |
-| Bounces | 12 263 → 11 348 octets | 99 → 79 octets |
-| Animals | 13 139 → 13 121 octets | 99 → 51 octets |
-| Preshift | 4 611 → 4 247 octets | 99 → 60 octets |
+| Snake | 10 218 → 8 573 bytes | 99 → 80 bytes |
+| Bounces | 12 263 → 11 348 bytes | 99 → 79 bytes |
+| Animals | 13 139 → 13 121 bytes | 99 → 51 bytes |
+| Preshift | 4 611 → 4 247 bytes | 99 → 60 bytes |
 
-Animals gagne surtout de la page zéro : le contrôle d'abscisse et la
-restauration des commutateurs vidéo IIe lui avaient coûté 76 octets, que les
-noyaux assembleur ont repris. Les autres programmes bénéficient aussi de
-l'exclusion de routines jusque-là liées inutilement.
+Animals mostly gains zero page: the abscissa check and the
+restoring of the IIe video soft switches had cost it 76 bytes, which the
+assembler kernels took over. The other programs also benefit from
+excluding routines that were previously linked for nothing.
 
-## Limites et vérification
+## Limits and verification
 
-- `gfx_filled_rect` accepte deux coins inclusifs, les remet dans l'ordre,
-  les rogne à 280×192 et découpe les largeurs dépassant 255 pixels.
-- `hgr_fill_pixrect` / `hgr_clear_pixrect` conservent une largeur sur 8 bits ;
-  zéro ne dessine rien. Ces fonctions remettent le bit de palette à zéro
-  dans les octets touchés, même aux bords du rectangle.
-- `hgr_colorize` et `hgr_blit7` rejettent les abscisses hors écran avant
-  toute conversion en colonne sur 8 bits.
-- `hgr_blit` ne lit que les octets nécessaires aux pixels dessinés, y compris
-  lorsque la dernière ligne finit exactement sur une limite d'octet.
-- `hgr_sprite_xor` rogne aussi les lignes sources de grande largeur, jusqu'à
-  un stride de 255 octets, sans débordement du calcul de colonne sur 8 bits.
-- Les quatre noyaux ASM de `hgr_sprmask.s` rognent également les strides
-  jusqu'à 255 octets lors d'un appel direct. `test_sprmask_bounds.py` vérifie
-  les deux pages, les sept phases et les limites du tampon de sauvegarde ;
-  le moteur C conserve sa limite de stride à 40 octets.
-- `hgr_lores_clear` remplit les 960 octets visibles de la page de dessin et
-  préserve les 64 octets réservés au firmware des périphériques.
-- `hgr_lores_init` revient au mode natif 40 colonnes après un affichage DHGR
-  ou 80 colonnes, avec `80STORE` désactivé et les lectures/écritures en RAM
-  principale. La détection de modèle évite ces commutateurs sur Apple II+.
+- `gfx_filled_rect` accepts two inclusive corners, puts them in order,
+  clips them to 280×192 and splits widths above 255 pixels.
+- `hgr_fill_pixrect` / `hgr_clear_pixrect` keep an 8-bit width;
+  zero draws nothing. These functions reset the palette bit to zero
+  in the bytes they touch, even at the edges of the rectangle.
+- `hgr_colorize` and `hgr_blit7` reject off-screen abscissas before
+  any conversion to an 8-bit column.
+- `hgr_blit` reads only the bytes needed for the drawn pixels, including
+  when the last line ends exactly on a byte boundary.
+- `hgr_sprite_xor` also clips wide source lines, up to
+  a stride of 255 bytes, without overflowing the 8-bit column computation.
+- The four ASM kernels of `hgr_sprmask.s` also clip strides
+  up to 255 bytes when called directly. `test_sprmask_bounds.py` checks
+  both pages, the seven phases and the limits of the save buffer;
+  the C engine keeps its 40-byte stride limit.
+- `hgr_lores_clear` fills the 960 visible bytes of the drawing page and
+  preserves the 64 bytes reserved for peripheral firmware.
+- `hgr_lores_init` returns to native 40-column mode after a DHGR or
+  80-column display, with `80STORE` off and reads/writes in main
+  RAM. Model detection avoids these soft switches on the Apple II+.
 
-`make test-hgr` compile et exécute les routines dans **a2run**, sous Linux et
-macOS. Les 21 étapes comparent les deux pages vidéo avec un modèle Python :
-rectangles 256/280 pixels, limites, pixels, sprites SET/CLEAR/XOR et sept
-phases, texte blanc/coloré, nombres, cellules, coloration. Quatre scènes supplémentaires vérifient le texte par cellules `gfx` sur
-la page 2, le curseur et les conversions numériques. Seize programmes
-minimaux vérifient aussi que l'archive exclut les noyaux et blocs de page zéro
-inutilisés. Ce test fait partie de `make test` et de la CI.
+`make test-hgr` compiles and runs the routines in **a2run**, on Linux and
+macOS. Its 21 steps compare both video pages with a Python model:
+256/280-pixel rectangles, limits, pixels, SET/CLEAR/XOR sprites and seven
+phases, white/coloured text, numbers, cells, colourising. Four additional scenes check `gfx` cell text on
+page 2, the cursor and the numeric conversions. Sixteen minimal
+programs also check that the archive excludes unused kernels and zero-page
+blocks. This test is part of `make test` and of CI.
 
-L’agrandissement de sprites ×2 est disponible sur cc65 avec
-[`hgr_x2.h`](hgr_x2.h). `hgr_inflate_x2` convertit une source monochrome
-dans un tampon fourni par l’appelant ; `hgr_blit_x2` convertit et dessine
-à la demande avec un tampon interne de 256 octets. Ces fonctions sont dans
-`HGRC_X2_SRCS` et l’archive commune, extraites seulement si elles sont appelées.
-Pour une animation, convertir une fois au démarrage, puis utiliser `hgr_blit7`
-à chaque image. Placer le sprite à `x = 14*n` pour conserver sa teinte.
-Les banques peuvent aussi être préparées avant compilation.
+×2 sprite enlargement is available on cc65 with
+[`hgr_x2.h`](hgr_x2.h). `hgr_inflate_x2` converts a monochrome source
+into a buffer supplied by the caller; `hgr_blit_x2` converts and draws
+on demand with an internal 256-byte buffer. These functions are in
+`HGRC_X2_SRCS` and the shared archive, extracted only if they are called.
+For an animation, convert once at startup, then use `hgr_blit7`
+on every frame. Place the sprite at `x = 14*n` to keep its hue.
+Banks can also be prepared before compilation.
 
 ## DHGR (Apple IIe / IIc)
 
-L’API [`dhgr.h`](dhgr.h) fournit les points 560×192, les couleurs 140×192,
-les segments, rectangles, transferts de blocs, sprites masqués et texte blanc.
-Les objets DHGR sont dans `HGRC_ALL_SRCS` et l’archive ; ils ne sont extraits
-que lorsqu’une fonction DHGR est appelée. On peut aussi lier
-`HGRC_DHGR_SRCS` directement. Le calcul des adresses de lignes est partagé
-avec HGR dans `hgr_layout.h`.
+The [`dhgr.h`](dhgr.h) API provides 560×192 points, 140×192 colours,
+segments, rectangles, block transfers, masked sprites and white text.
+The DHGR objects are in `HGRC_ALL_SRCS` and the archive; they are extracted
+only when a DHGR function is called. `HGRC_DHGR_SRCS` can also be linked
+directly. The line-address computation is shared
+with HGR in `hgr_layout.h`.
 
-- `dhgr_capabilities()` : bits `DHGR_CAP_EXTENDED` et `DHGR_CAP_AUX_VIDEO`.
-  Le sondage conserve l’affichage et les octets utilisés dans les trous vidéo.
-- `dhgr_init()` : retourne 1 si le modèle ROM et la RAM auxiliaire conviennent,
-  0 sinon. Un II/II+ est refusé sans toucher aux commutateurs IIe.
-  La révision B et le cavalier DHGR d’un IIe ne sont pas détectables en logiciel.
-- `dhgr_draw_page(1/2)` et `dhgr_show_page(1/2)` sont indépendants.
-  `dhgr_flip()` affiche la page de dessin et choisit l’ancienne page affichée
-  pour le dessin suivant. La synchronisation VBL appartient à l’appelant.
-- `dhgr_read_block` / `dhgr_write_block` : coordonnées en octets entrelacés
-  0..79, ordre auxiliaire/principal ; `stride >= width`. Les parties hors
-  écran ne sont pas transférées. Le buffer appartient à l’appelant.
-- `dhgr_sprite` : x en **pixels couleur**, banques précalculées pour les sept
-  décalages de bits, masque 1 = conserver le décor. Chaque banque contient
-  `stride * hauteur` octets. Sauver puis restaurer un bloc permet le save-under.
-- `dhgr_puts` : texte opaque blanc/noir, glyphes 8×8 **pixels couleur**,
-  quatre bits DHGR par point de police, pour éviter une teinte d’artifact.
-- `dhgr_puts_small` (famille optionnelle `HGRC_DHGR_SMALL_TEXT_SRCS`) : petite police opaque blanche, glyphes **4×5 pixels
-  couleur**, avance de cinq colonnes. Accepte tous les alignements DHGR,
-  convertit les minuscules en majuscules et conserve les pixels voisins.
-  Une cellule incomplète au bord droit ou inférieur n’est pas dessinée.
-- `dhgr_small_char` : même police, un caractère par appel rapide ; renseigner
-  `dhgr_small_x` et `dhgr_small_y` pour un bandeau mis à jour progressivement.
-  Les accès auxiliaires sont brefs et préservent l’état des interruptions.
-  Par défaut, les tables sont liées avec la bibliothèque. L’option assembleur
-  `DHGR_SMALL_FONT_EXTERNAL=1` permet de les reloger à `$0800` (ou à
-  `DHGR_SMALL_FONT_BASE`) : l’application doit alors y copier les **1 653 octets**
-  de données avant le rendu. `dev/tools/build_dhgr_font.py --out font.bin`
-  produit une image de 2 Ko prête à charger ; `--base` et `--capacity` permettent
-  de choisir son emplacement et sa taille. La base doit correspondre à celle
-  utilisée pour assembler le moteur.
-- `dhgr_small_string` : chaîne rapide aux coordonnées `dhgr_small_x/y`, utilisée
-  aussi par `dhgr_puts_small`. L’option assembleur `DHGR_SMALL_USE_PROGRESS=1`
-  appelle le point d’entrée applicatif `dhgr_small_progress` entre les caractères
-  pour suivre la VBL ; ce callback doit préserver `ptr4`. Aucun callback n’est
-  requis par défaut. L’appel caractère seul reste indépendant de ce suivi.
+- `dhgr_capabilities()`: bits `DHGR_CAP_EXTENDED` and `DHGR_CAP_AUX_VIDEO`.
+  The probe keeps the display and the bytes used in the video holes.
+- `dhgr_init()`: returns 1 if the ROM model and auxiliary RAM are suitable,
+  0 otherwise. A II/II+ is rejected without touching the IIe soft switches.
+  Revision B and the DHGR jumper of a IIe cannot be detected in software.
+- `dhgr_draw_page(1/2)` and `dhgr_show_page(1/2)` are independent.
+  `dhgr_flip()` shows the drawing page and selects the previously shown page
+  for the next drawing. VBL sync belongs to the caller.
+- `dhgr_read_block` / `dhgr_write_block`: coordinates in interleaved bytes
+  0..79, auxiliary/main order; `stride >= width`. Off-screen parts
+  are not transferred. The buffer belongs to the caller.
+- `dhgr_sprite`: x in **colour pixels**, banks precomputed for the seven
+  bit shifts, mask 1 = keep the scenery. Each bank holds
+  `stride * height` bytes. Saving then restoring a block gives save-under.
+- `dhgr_puts`: opaque white/black text, 8×8 glyphs in **colour pixels**,
+  four DHGR bits per font dot, to avoid an artifact tint.
+- `dhgr_puts_small` (optional family `HGRC_DHGR_SMALL_TEXT_SRCS`): small opaque white font, **4×5 colour
+  pixel** glyphs, five-column advance. Accepts every DHGR alignment,
+  converts lower case to upper case and keeps the neighbouring pixels.
+  An incomplete cell at the right or bottom edge is not drawn.
+- `dhgr_small_char`: same font, one character per fast call; set
+  `dhgr_small_x` and `dhgr_small_y` for a banner updated progressively.
+  Auxiliary accesses are brief and preserve the interrupt state.
+  By default, the tables are linked with the library. The assembler option
+  `DHGR_SMALL_FONT_EXTERNAL=1` relocates them to `$0800` (or to
+  `DHGR_SMALL_FONT_BASE`): the application must then copy the **1,653 bytes**
+  of data there before rendering. `dev/tools/build_dhgr_font.py --out font.bin`
+  produces a 2 KB image ready to load; `--base` and `--capacity` choose
+  its location and size. The base must match the one
+  used to assemble the engine.
+- `dhgr_small_string`: fast string at coordinates `dhgr_small_x/y`, also used
+  by `dhgr_puts_small`. The assembler option `DHGR_SMALL_USE_PROGRESS=1`
+  calls the application entry point `dhgr_small_progress` between characters
+  to track the VBL; this callback must preserve `ptr4`. No callback is
+  required by default. The single-character call stays independent of this tracking.
 
-`dhgr_small_font` expose les glyphes pour les titres agrandis : 64 caractères
-ASCII à partir de 32, six octets par glyphe (`DHGR_SMALL_FONT_STRIDE`). Les
-constantes `DHGR_SMALL_ADVANCE` et `DHGR_SMALL_HEIGHT` décrivent la cellule.
-Les tables `dhgr_row_lo/hi` et `dhgr_color_byte` peuvent être partagées avec un
-moteur de sprites ; les deux tables de lignes sont contiguës et les indices de
-colonnes incluent la borne 140. `dhgr_small_layout.inc` définit leur disposition
-avec des assertions d’assemblage, et `dhgr_layout.inc` centralise les formules
-d’adressage et de masquage.
+`dhgr_small_font` exposes the glyphs for enlarged titles: 64 ASCII
+characters starting at 32, six bytes per glyph (`DHGR_SMALL_FONT_STRIDE`). The
+constants `DHGR_SMALL_ADVANCE` and `DHGR_SMALL_HEIGHT` describe the cell.
+The tables `dhgr_row_lo/hi` and `dhgr_color_byte` can be shared with a
+sprite engine; the two line tables are contiguous and the column indices
+include the bound 140. `dhgr_small_layout.inc` defines their layout
+with assembly-time assertions, and `dhgr_layout.inc` centralises the
+addressing and masking formulas.
 
-Les objets DHGR sont séparés pour que l’archive ne lie que les fonctions utilisées.
-Les consommateurs qui compilent directement les sources peuvent choisir :
+The DHGR objects are split so that the archive links only the functions used.
+Consumers that compile the sources directly can choose:
 
-| Famille Make | Contenu |
+| Make family | Contents |
 |---|---|
-| `HGRC_DHGR_STATE_SRCS` | État vidéo, initialisation, trampoline auxiliaire et pages |
-| `HGRC_DHGR_PIXEL_SRCS` | Points monochromes et lecture de pixels |
-| `HGRC_DHGR_CLEAR_SRCS` | Effacement seul, sans rectangles ni lecture de pixels |
-| `HGRC_DHGR_FILL_SRCS` | Effacement et rectangles couleur/monochromes |
-| `HGRC_DHGR_CORE_SRCS` | Les trois familles précédentes |
-| `HGRC_DHGR_TRANSFER_SRCS` | Blocs et sprites, avec un adressage partagé |
-| `HGRC_DHGR_SMALL_TEXT_SRCS` | Petite police et chaînes rapides |
+| `HGRC_DHGR_STATE_SRCS` | Video state, initialisation, auxiliary trampoline and pages |
+| `HGRC_DHGR_PIXEL_SRCS` | Monochrome points and pixel reads |
+| `HGRC_DHGR_CLEAR_SRCS` | Clearing only, without rectangles or pixel reads |
+| `HGRC_DHGR_FILL_SRCS` | Clearing and colour/monochrome rectangles |
+| `HGRC_DHGR_CORE_SRCS` | The three previous families |
+| `HGRC_DHGR_TRANSFER_SRCS` | Blocks and sprites, with shared addressing |
+| `HGRC_DHGR_SMALL_TEXT_SRCS` | Small font and fast strings |
 
-`HGRC_DHGR_SRCS` conserve l’ensemble historique des primitives, transferts et
-texte 8×8. `dhgr_internal.h` centralise les paramètres et prototypes privés des
-primitives bancaires. Lors d’une compilation manuelle, `dhgr.c` fournit maintenant
-l’état et les pages : utiliser les listes de familles ci-dessus pour inclure
-leurs dépendances. Les noyaux assembleur d’écriture masquée, de lecture,
-d’effacement et de scanline sont des objets distincts. L’adresse de pixel et le
-motif couleur sont partagés, tandis que chaque API de lecture, point, rectangle
-et effacement garde son propre objet. Les paramètres de petite police sont
-séparés du wrapper C : un HUD assembleur n’impose pas `dhgr_puts_small`.
+`HGRC_DHGR_SRCS` keeps the historical set of primitives, transfers and
+8×8 text. `dhgr_internal.h` centralises the private parameters and prototypes of the
+banked primitives. When compiling manually, `dhgr.c` now provides
+the state and the pages: use the family lists above to include
+their dependencies. The assembler kernels for masked writing, reading,
+clearing and scanlines are separate objects. The pixel address and the
+colour pattern are shared, while each read, point, rectangle
+and clear API keeps its own object. The small-font parameters are
+separate from the C wrapper: an assembler HUD does not pull in `dhgr_puts_small`.
 
-La sélection des familles ne suffit pas à éliminer toutes les fonctions inutiles
-si leurs objets sont passés directement à ld65. Construire une archive ar65 et
-la placer après les objets applicatifs permet à ld65 d’extraire uniquement les
-membres référencés et leurs dépendances. ChromaBreak suit cette règle avec
-`platform.lib`, y compris pour les modules Apple II, ProDOS et souris. Son test
-contrôle le fichier de liaison pour exclure les pixels, rectangles et transferts
-génériques, le texte 8×8 et les wrappers de texte inutilisés. Les tests de
-bibliothèque contrôlent aussi seize consommateurs minimaux de l’archive.
+Selecting families is not enough to eliminate every unneeded function
+if their objects are passed directly to ld65. Building an ar65 archive and
+placing it after the application objects lets ld65 extract only the
+referenced members and their dependencies. ChromaBreak follows this rule with
+`platform.lib`, including for the Apple II, ProDOS and mouse modules. Its test
+checks the link map to exclude generic pixels, rectangles and transfers,
+8×8 text and unused text wrappers. The library tests also check
+sixteen minimal consumers of the archive.
 
-### Contrat mémoire et transitions
+### Memory contract and transitions
 
-| État | Convention |
+| State | Convention |
 |---|---|
-| Pages vidéo | `$2000–$3FFF` et `$4000–$5FFF`, chacune en principal et auxiliaire |
-| Code, pile C, buffers, sources | Hors `$2000–$5FFF`, en RAM principale |
-| Entrée | `RAMRD/RAMWRT` principaux, `ALTZP` désactivé, ROM principale |
-| Sortie des primitives | `RAMRD/RAMWRT` principaux, `80STORE` désactivé, page affichée conservée |
-| Interruptions | État I conservé ; accès bancaires protégés, routines non réentrantes |
-| Lecture auxiliaire | Petit trampoline exécutable de **9 octets de page zéro**, installé par init |
+| Video pages | `$2000–$3FFF` and `$4000–$5FFF`, each in main and auxiliary |
+| Code, C stack, buffers, sources | Outside `$2000–$5FFF`, in main RAM |
+| Entry | Main `RAMRD/RAMWRT`, `ALTZP` off, main ROM |
+| Primitive exit | Main `RAMRD/RAMWRT`, `80STORE` off, displayed page kept |
+| Interrupts | I state kept; banked accesses protected, non-reentrant routines |
+| Auxiliary read | Small executable trampoline of **9 zero-page bytes**, installed by init |
 
-Le mode garde `80COL` actif et `80STORE` désactivé : `PAGE2` choisit ainsi
-la page affichée. `RAMWRT` permet les écritures auxiliaires ; le trampoline
-lit avec `RAMRD` sans perdre l’accès au code principal. Les primitives ne
-sont pas appelables depuis une interruption. L’effacement bloque les IRQ
-pendant environ 189 000 cycles ; privilégier les blocs/segments en animation.
+The mode keeps `80COL` on and `80STORE` off: `PAGE2` thus selects
+the displayed page. `RAMWRT` allows auxiliary writes; the trampoline
+reads with `RAMRD` without losing access to the main code. The primitives
+cannot be called from an interrupt. Clearing blocks IRQs
+for about 189 000 cycles; prefer blocks/segments in animation.
 
-`hgr_init`, `hgr_init_clear` et `hgr_text_restore` remettent les commutateurs
-IIe en état HGR/texte natif. `dhgr_text_restore` prépare les routines texte ROM.
-Le CRT C restaure aussi ces commutateurs lors du retour et du Ctrl-RESET.
-Une initialisation HGR ne change pas automatiquement la page de **dessin** HGR :
-utiliser `hgr_set_draw_page(1)` si l’on veut aussi réinitialiser ce choix.
+`hgr_init`, `hgr_init_clear` and `hgr_text_restore` put the IIe soft switches
+back into native HGR/text state. `dhgr_text_restore` prepares the ROM text routines.
+The C CRT also restores these soft switches on return and on Ctrl-RESET.
+An HGR initialisation does not automatically change the HGR **drawing** page:
+use `hgr_set_draw_page(1)` if you also want to reset that choice.
 
-### Backends gfx
+### gfx backends
 
-Lier **un seul** backend, en plus des algorithmes `gfx` nécessaires :
+Link **a single** backend, in addition to the `gfx` algorithms needed:
 
-| Backend | Coordonnées | `dhgr_set_color` |
+| Backend | Coordinates | `dhgr_set_color` |
 |---|---|---|
-| `HGRC_DHGR_COLOR_BACKEND` | 140×192 pixels couleur | Couleur LORES 0..15 |
-| `HGRC_DHGR_MONO_BACKEND` | 560×192 bits | 0 = éteint, autre = allumé |
+| `HGRC_DHGR_COLOR_BACKEND` | 140×192 colour pixels | LORES colour 0..15 |
+| `HGRC_DHGR_MONO_BACKEND` | 560×192 bits | 0 = off, other = on |
 
-Le backend reste choisi à l’édition de liens. Le mode monochrome produit des
-couleurs d’artifact sur un moniteur couleur. Les lignes/cercles/rectangles
-partagent les algorithmes `gfx` génériques pour DHGR ; les segments horizontaux/verticaux utilisent les accès
-par octets avec masquage des extrémités.
+The backend is still chosen at link time. Monochrome mode produces
+artifact colours on a colour monitor. Lines/circles/rectangles
+share the generic `gfx` algorithms for DHGR; horizontal/vertical segments use byte
+accesses with endpoint masking.
 
-### Outils et vérification
+### Tools and verification
 
-- [Convertisseur d’assets](../../tools/assets/README.md) : PNG/PPM, HGR/DHGR,
-  sprites, masques, sept phases, aperçu et bilan mémoire.
-- Les déclarations de conversion ×2 hôte sont dans `hgr_host.h`.
-- [Mesures et budgets](../../bench/README.md) : cycles CPU, code, ROM, RAM et ZP.
-- `make test-hgr` : 21 contrôles de primitives, quatre scènes de texte `gfx`,
-  24 scènes du moteur de sprites et seize éditions de liens minimales.
-- `make test-dhgr` : 21 contrôles historiques + 48 contrôles supplémentaires,
-  deux pages/banques, deux backends, sprites, blocs, texte, transitions et refus II+.
-  Le cœur IIe POM2 dans `a2shot` est requis (macOS arm64).
-- `make test` inclut HGR, assets, budgets HGR et MICRO-SOKOBAN sous Linux/macOS.
+- [Asset converter](../../tools/assets/README.md): PNG/PPM, HGR/DHGR,
+  sprites, masks, seven phases, preview and memory report.
+- The host ×2 conversion declarations are in `hgr_host.h`.
+- [Measurements and budgets](../../bench/README.md): CPU cycles, code, ROM, RAM and ZP.
+- `make test-hgr`: 21 primitive checks, four `gfx` text scenes,
+  24 sprite-engine scenes and sixteen minimal link edits.
+- `make test-dhgr`: 21 historical checks + 48 additional checks,
+  two pages/banks, two backends, sprites, blocks, text, transitions and II+ rejection.
+  The POM2 IIe core in `a2shot` is required (macOS arm64).
+- `make test` includes HGR, assets, HGR budgets and MICRO-SOKOBAN on Linux/macOS.
 
-Voir la [démo animée](../../examples/dhgr/README.md).
+See the [animated demo](../../examples/dhgr/README.md).
 
-Auteur : VERHILLE Arnaud. Licence : [GPL-3.0](../../../LICENSE).
+Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).
 
-## Moteur de sprites et présentation
+## Sprite engine and presentation
 
-`hgr_spr_render()` restaure puis dessine les sprites sans attendre ni afficher.
-`hgr_spr_present()` affiche la page rendue et sélectionne l’autre page de
-dessin en double tampon ; en simple tampon, il ne fait rien.
-`hgr_spr_update()` conserve le comportement immédiat render + present.
-`hgr_get_draw_page()` retourne la page de dessin actuelle (1 ou 2).
-Le programme doit attendre entre render et present s’il veut synchroniser la
-bascule ; voir [`apple2frame.h`](../apple2c/apple2frame.h) et l’[exemple HGR](../../examples/hgr/README.md).
+`hgr_spr_render()` restores then draws the sprites without waiting or displaying.
+`hgr_spr_present()` shows the rendered page and selects the other drawing
+page when double buffering; when single buffering, it does nothing.
+`hgr_spr_update()` keeps the immediate render + present behaviour.
+`hgr_get_draw_page()` returns the current drawing page (1 or 2).
+The program must wait between render and present if it wants to synchronise the
+flip; see [`apple2frame.h`](../apple2c/apple2frame.h) and the [HGR example](../../examples/hgr/README.md).
 
-Avec les huit slots par défaut, le pool statique réserve 1 536 octets même en simple tampon.
-Cette réservation appartient uniquement à l'objet de compatibilité
-`hgr_spr_init`. `hgr_spr_init_pool(dbuf, pool, taille, nombre, capacité)`
-utilise un pool fourni par l'appelant et ne lie pas cet objet. Il faut
-`nombre * capacité * (dbuf ? 2 : 1)` octets ; nombre vaut 1..8 et capacité
-1..255 octets par sprite/page. L'exemple HGR utilise cette API pour trois
-sprites. Une configuration invalide retourne zéro et conserve l'ancien
-moteur ; les fonds doivent être propres avant une réinitialisation valide.
-`hgr_spr_define()` retourne 1 si la définition est acceptée, 0 sinon.
-Les pointeurs nuls, dimensions nulles, stride > 40, hauteur > 192 et
-`stride * hauteur > capacité` sont refusés (96 avec le pool de compatibilité,
-1..255 avec le pool externe). Une redéfinition encore dessinée sur
-une page est refusée en gardant l’ancienne définition ; masquer et restaurer
-chaque page avant de redéfinir. Les données de la forme doivent rester valides
-pendant ces restaurations. Ne pas modifier le fond sous un sprite dessiné.
+With the default eight slots, the static pool reserves 1,536 bytes even when single buffering.
+This reservation belongs only to the compatibility object
+`hgr_spr_init`. `hgr_spr_init_pool(dbuf, pool, size, count, capacity)`
+uses a pool supplied by the caller and does not link that object. It needs
+`count * capacity * (dbuf ? 2 : 1)` bytes; count is 1..8 and capacity
+1..255 bytes per sprite/page. The HGR example uses this API for three
+sprites. An invalid configuration returns zero and keeps the old
+engine; backgrounds must be clean before a valid reinitialisation.
+`hgr_spr_define()` returns 1 if the definition is accepted, 0 otherwise.
+Null pointers, zero dimensions, stride > 40, height > 192 and
+`stride * height > capacity` are rejected (96 with the compatibility pool,
+1..255 with the external pool). A redefinition still drawn on
+a page is rejected, keeping the old definition; hide and restore
+each page before redefining. The shape data must stay valid
+during these restorations. Do not modify the background under a drawn sprite.
 
-`make test-hgr` ajoute 24 scènes du moteur : chevauchements, sept phases,
-deux pages, bord droit/bas, masquage, redéfinition et géométries invalides.
-Les comparaisons couvrent aussi les bits de palette et les trous vidéo.
-Les mêmes 24 scènes sont exécutées avec un pool externe de 24 octets,
-gardes mémoire et configurations invalides. La carte de liaison vérifie
-l'absence du pool de compatibilité.
+`make test-hgr` adds 24 engine scenes: overlaps, seven phases,
+two pages, right/bottom edge, hiding, redefinition and invalid geometries.
+The comparisons also cover palette bits and video holes.
+The same 24 scenes are run with a 24-byte external pool,
+memory guards and invalid configurations. The link map checks
+that the compatibility pool is absent.
 
-## Tables et lignes HGR
+## HGR tables and lines
 
-Les tables de lignes, colonnes, masques et phases sont des objets séparés,
-construits à la demande en RAM. Un effacement seul n'embarque aucune table ;
-un blitter aligné ne réserve ni les masques ni les phases. L'initialisateur
-`hgr_build_tables` reste disponible pour préparer toutes les tables.
-La sélection de page prépare seulement les lignes. `hgr_row(y)` suit la page
-de dessin et renvoie NULL hors écran. Les noyaux de sprites masqués et XOR
-préparent aussi les tables X lorsqu'ils sont appelés directement.
+The line, column, mask and phase tables are separate objects,
+built on demand in RAM. A clear alone pulls in no table;
+an aligned blitter reserves neither the masks nor the phases. The initialiser
+`hgr_build_tables` remains available to prepare all the tables.
+Page selection prepares only the lines. `hgr_row(y)` follows the drawing
+page and returns NULL off screen. The masked and XOR sprite kernels
+also prepare the X tables when called directly.
 
-`hgr_line` utilise un Bresenham assembleur pour les diagonales sur 280 pixels,
-avec les mêmes choix de pixels que l'ancienne API C. Les axes gardent les
-spans rapides. Les extrémités hors écran sont refusées ; aucun clipping de
-segment implicite n'est ajouté. `gfx_line` sélectionne ce noyau sur HGR et le fallback C
-sur les backends génériques/DHGR. `test_hgr_lines.py` compare 464 lignes via `hgr_line` et `gfx_line` aux pixels attendus sur les
-deux pages, y compris les directions inverses, égalités et X >= 256.
+`hgr_line` uses an assembler Bresenham for diagonals over 280 pixels,
+with the same pixel choices as the old C API. Axis-aligned lines keep the
+fast spans. Off-screen endpoints are rejected; no implicit segment
+clipping is added. `gfx_line` selects this kernel on HGR and the C fallback
+on the generic/DHGR backends. `test_hgr_lines.py` compares 464 lines via `hgr_line` and `gfx_line` against the expected pixels on
+both pages, including reversed directions, ties and X >= 256.
 
-## Effacement DHGR avec service des IRQ
+## DHGR clearing with IRQ servicing
 
-`dhgr_clear_rows(y, rows, color)` remplit les lignes visibles de la page de
-dessin, rogne à 192 et préserve les trous mémoire. Chaque ligne rétablit
-RAMWRT principal et le masque IRQ de l'appelant ; les IRQ autorisées peuvent
-être servies entre les lignes. Le noyau mesuré prend 1 177 cycles, sous une
-borne testée de 1 300. Un test avec timer VIA Mockingboard vérifie aussi que des IRQ périodiques
-sont réellement servies pendant les deux effacements de page, avec contrôle
-des banques, gardes mémoire et pixels. Le service reste non réentrant. Employer de petites
-tranches pour traiter aussi les entrées entre les appels. L'effacement complet
-historique conserve son comportement et ses performances.
+`dhgr_clear_rows(y, rows, color)` fills the visible lines of the drawing
+page, clips at 192 and preserves the memory holes. Each line restores
+main RAMWRT and the caller's IRQ mask; enabled IRQs can
+be serviced between lines. The measured kernel takes 1 177 cycles, under a
+tested bound of 1 300. A test with a Mockingboard VIA timer also checks that periodic IRQs
+are actually serviced during both page clears, with checks on
+banks, memory guards and pixels. Servicing remains non-reentrant. Use small
+slices so that input is also handled between calls. The historical full
+clear keeps its behaviour and performance.
 
-La référence hôte `hgr_inflate_x2` (`hgr_x2.c`) et la version cible
-(`hgr_x2_target.c`) calculent les strides agrandis sans troncature à huit bits.
-La cible transforme chaque octet avec une table de 16 octets, sans boucle
-par pixel ni division. Réserver `4*wbytes*h` octets de sortie, sans
-chevauchement avec la source ; la cible refuse les tailles supérieures
-à 65535 octets. `hgr_host.h` reste un include compatible de `hgr_x2.h`.
-`hgr_blit_x2` contrôle la
-taille source avant de doubler les dimensions, afin de respecter son tampon
-fixe même pour des entrées supérieures à 127. `test_hgr_host.py` vérifie les
-couleurs et les gardes mémoire avec ASan/UBSan, ainsi que les 65 536 couples
-de dimensions du wrapper. `test_hgr_x2.py` exécute le code cc65 et vérifie
-les six couleurs, les strides de 510 octets, les gardes mémoire, les tailles
-invalides et les dessins rognés sur la page 2. Les deux tests font partie
-de `make test-hgr`.
-
-
-## Choisir l'implémentation gfx
-
-`HGRC_VECTOR_SRCS` et l'archive par défaut utilisent `gfx_line_hgr.c`, qui
-route les diagonales vers `hgr_line` assembleur. Les axes de `gfx_line`
-conservent leur clipping historique par les spans ; `hgr_line` refuse toute
-extrémité hors écran, axes compris. Les pixels diagonaux valides sont identiques.
-Pour DHGR ou un backend externe, utiliser `HGRC_GENERIC_VECTOR_SRCS`
-(`gfx_line.c` + rectangles), avec exactement un backend explicite.
-Ne pas lier directement les deux implémentations de `gfx_line`.
-
-Les [exemples minimaux](../../examples/minimal/README.md) fournissent les trois
-intégrations HGR simple/double tampon et DHGR ProDOS, avec un bilan mémoire
-calculé depuis les cartes de liaison. Les contrats communs et les unités sont
-dans [ABI.md](../ABI.md). Le protocole de [validation matérielle](../HARDWARE.md)
-distingue les résultats émulés des essais physiques restant à effectuer.
+The host reference `hgr_inflate_x2` (`hgr_x2.c`) and the target version
+(`hgr_x2_target.c`) compute the enlarged strides without 8-bit truncation.
+The target transforms each byte with a 16-byte table, with no per-pixel
+loop and no division. Reserve `4*wbytes*h` bytes of output, not
+overlapping the source; the target rejects sizes above
+65535 bytes. `hgr_host.h` remains a compatible include of `hgr_x2.h`.
+`hgr_blit_x2` checks the
+source size before doubling the dimensions, so as to respect its fixed
+buffer even for inputs above 127. `test_hgr_host.py` checks the
+colours and memory guards with ASan/UBSan, as well as all 65 536 dimension
+pairs of the wrapper. `test_hgr_x2.py` runs the cc65 code and checks
+the six colours, 510-byte strides, memory guards, invalid
+sizes and clipped drawings on page 2. Both tests are part
+of `make test-hgr`.
 
 
-## HUD avec historique par page
+## Choosing the gfx implementation
 
-`hgr_hud_field_t` est un état fourni par l'appelant, de 37 octets sur cc65.
-`hgr_hud_init(&champ,x,y,largeur)` accepte une boîte entière à l'écran,
-largeur 1..14 cellules de 16×16, pitch 18 ; une entrée invalide conserve l'ancien
-champ. `hgr_hud_putu(&champ,valeur)` renvoie le nombre de cellules redessinées,
-0 pour une valeur inchangée, `HGR_HUD_INVALID` (255) si la valeur ne tient pas
-ou le pointeur est nul. Contrairement au champ historique, il refuse le
-débordement numérique sans modifier l'image ni l'historique.
+`HGRC_VECTOR_SRCS` and the default archive use `gfx_line_hgr.c`, which
+routes diagonals to the assembler `hgr_line`. The axis-aligned lines of `gfx_line`
+keep their historical span clipping; `hgr_line` rejects any
+off-screen endpoint, axis-aligned lines included. Valid diagonal pixels are identical.
+For DHGR or an external backend, use `HGRC_GENERIC_VECTOR_SRCS`
+(`gfx_line.c` + rectangles), with exactly one explicit backend.
+Do not link both `gfx_line` implementations directly.
 
-Les chiffres sont blancs sur une boîte noire dont le champ possède le contenu.
-Le passage à une valeur plus courte efface les cellules devenues vides.
-Les pages 1 et 2 ont leur propre historique. Après un effacement ou une écriture
-externe dans la boîte, appeler `hgr_hud_invalidate(&champ,page)` ; page 0 invalide
-les deux. Ne pas superposer ce champ à une région de sprites sauvegardés sans
-gérer aussi leur fond. L'état doit rester valide pendant son utilisation.
-
-L'exemple animé utilise ce format ; les deux exemples HGR minimaux utilisent
-sa variante compacte 8×8 décrite ci-dessous.
-`test_hgr_hud.py` compare 168 mises à jour sur les sept phases, fonds colorés,
-les deux pages, les valeurs qui raccourcissent et les refus de géométrie/overflow.
-Les anciens champs restent disponibles pour du dessin sans historique.
+The [minimal examples](../../examples/minimal/README.md) provide the three
+integrations: HGR single/double buffering and DHGR ProDOS, with a memory report
+computed from the link maps. The shared contracts and units are
+in [ABI.md](../ABI.md). The [hardware validation](../HARDWARE.md) protocol
+separates emulated results from the physical trials still to be carried out.
 
 
-## Dimensionner les métadonnées de sprites
+## HUD with per-page history
 
-`HGR_SPR_MAX` est une limite de compilation de 1..8 (8 par défaut). Passer le
-même `-D HGR_SPR_MAX=N` au programme et à son archive dimensionne les tableaux
-privés et le pool historique. La signature de build invalide l'archive si ce
-flag change. Le moteur continue d'accepter un nombre runtime inférieur ou égal
-à cette limite. Les deux historiques de page restent disponibles.
+`hgr_hud_field_t` is a state supplied by the caller, 37 bytes on cc65.
+`hgr_hud_init(&field,x,y,width)` accepts a box entirely on screen,
+width 1..14 cells of 16×16, pitch 18; an invalid input keeps the old
+field. `hgr_hud_putu(&field,value)` returns the number of redrawn cells,
+0 for an unchanged value, `HGR_HUD_INVALID` (255) if the value does not fit
+or the pointer is null. Unlike the historical field, it rejects
+numeric overflow without modifying the image or the history.
 
-Un moteur à deux slots réserve 42 octets d’état de tableaux contre 132 à huit slots :
-**90 octets économisés**, indépendamment du pool externe. Les 24 scènes de
-régression sont aussi exécutées avec cette configuration. L'exemple de trois
-balles compile programme et archive avec une limite de trois slots, soit
-75 octets de métadonnées économisés. Les autres programmes gardent le défaut.
+The digits are white on a black box whose contents the field owns.
+Switching to a shorter value clears the cells that have become empty.
+Pages 1 and 2 have their own history. After a clear or an external write
+into the box, call `hgr_hud_invalidate(&field,page)`; page 0 invalidates
+both. Do not overlay this field on a region of saved sprites without
+also managing their background. The state must stay valid while it is in use.
 
-## Rendu incrémental et présentation robuste
+The animated example uses this format; the two minimal HGR examples use
+its compact 8×8 variant described below.
+`test_hgr_hud.py` compares 168 updates over the seven phases, coloured backgrounds,
+both pages, values that get shorter and geometry/overflow rejections.
+The old fields remain available for drawing without history.
 
-Le moteur conserve les sprites inchangés au début de la liste de couches.
-À partir du premier sprite modifié (position ou visibilité), il restaure les
-couches suivantes en ordre inverse, puis les redessine dans l'ordre initial.
-Cette stratégie conservatrice préserve les fonds en cas de chevauchement,
-sans tables de collision supplémentaires. Une page entièrement inchangée
-ne restaure et ne redessine aucun sprite. Les formes empruntées restent immuables.
-Un déplacement invisible hors écran ne force pas un redessin.
 
-`hgr_spr_present` sélectionne explicitement la page du moteur avant de l'afficher,
-même si l'application a changé sa propre page après `render`. Il choisit ensuite
-l'autre page pour le prochain rendu. Aucun état vidéo n'est ajouté en simple tampon.
-`hgr_spr_invalidate(1/2)` force le prochain rendu de cette page ; 0 vise les deux,
-les autres valeurs sont ignorées. L'invalidation ne permet pas de modifier un fond
-sous des sprites dessinés : les masquer et restaurer les pages avant ce changement.
-Les historiques restent séparés par page. Le contrôleur de rendu, les
-déplacements et la présentation sont en ASM ; stride×hauteur est préparé lors
-de la définition. Les restaurations ne recalculent ni phases ni pointeurs de
-dessin ; les largeurs visibles de deux/quatre octets utilisent des boucles déroulées.
+## Sizing the sprite metadata
 
-`test_sprengine_dirty.py` compare les pixels des deux pages et le coût des
-frames immobiles, des changements de couche supérieure/inférieure, du masquage
-et du clipping. Sur POM2 IIe, il vérifie aussi la page effectivement affichée
-après un changement applicatif de la page de dessin.
+`HGR_SPR_MAX` is a compile-time limit of 1..8 (8 by default). Passing the
+same `-D HGR_SPR_MAX=N` to the program and to its archive sizes the private
+arrays and the historical pool. The build signature invalidates the archive if this
+flag changes. The engine still accepts a runtime count less than or equal
+to this limit. Both page histories remain available.
 
-## Noyau HUD opaque
+A two-slot engine reserves 42 bytes of array state against 132 with eight slots:
+**90 bytes saved**, independently of the external pool. The 24
+regression scenes are also run with this configuration. The three-ball
+example compiles program and archive with a three-slot limit, i.e.
+75 bytes of metadata saved. The other programs keep the default.
 
-Le chemin compact `hgr_hud8_init/putu/invalidate` utilise une structure
-`hgr_hud8_field_t` de 19 octets, largeur 1..5, cellules 8×8, pitch 8.
-La boîte entière doit tenir à l'écran : y≤184, x+8×largeur≤280.
-Les mêmes règles de cache, retour, fond opaque et overflow s'appliquent.
-Son objet séparé permet de ne lier que le format utilisé. Le changement des
-cinq chiffres coûte au maximum 7 850 cycles sur les sept phases du benchmark,
-contre 22 235 pour le format 16×16. Préparer les deux pages avant animation.
+## Incremental rendering and robust presentation
 
-L'exemple minimal utilise ce format. En double tampon IIe, il répartit dessin
-et HUD sur deux intervalles VBL ; chaque étape tient dans un rafraîchissement.
-Son test POM2 suit 1 000 présentations par standard, y compris le débordement
-du compteur : deux rafraîchissements par image, soit nominalement 30/25 FPS.
-Pour une charge pouvant dépasser un intervalle, utiliser l'ordonnanceur
-`a2_cadence_*` et une source IRQ déjà détenue par l'application. Voir les
-contrats dans [apple2frame.h](../apple2c/apple2frame.h).
+The engine keeps unchanged sprites at the start of the layer list.
+From the first modified sprite (position or visibility) on, it restores the
+following layers in reverse order, then redraws them in the original order.
+This conservative strategy preserves backgrounds when sprites overlap,
+without extra collision tables. A completely unchanged page
+restores and redraws no sprite. Borrowed shapes remain immutable.
+An invisible off-screen move does not force a redraw.
 
-Le moteur compilé avec `-DHGR_SPR_DAMAGE=1` propage les changements par
-intersections des boîtes anciennes/nouvelles, en octets sauvegardés plutôt
-qu'en pixels visibles. Il peut conserver des couches immobiles isolées,
-mais ajoute 43 octets de BSS au défaut de huit slots et du travail assembleur de
-comparaison. La scène de quatre grands sprites isolés, dont seul le premier
-bouge, passe de 31 031 à 14 662 cycles (+437 octets chargés).
-L'option reste désactivée par défaut ; choisir à partir de scènes représentatives.
-Les tests vérifient aussi les chaînes de quatre couches et les octets de padding.
+`hgr_spr_present` explicitly selects the engine's page before showing it,
+even if the application changed its own page after `render`. It then selects
+the other page for the next render. No video state is added when single buffering.
+`hgr_spr_invalidate(1/2)` forces the next render of that page; 0 targets both,
+other values are ignored. Invalidation does not allow modifying a background
+under drawn sprites: hide them and restore the pages before that change.
+Histories remain separate per page. The render controller, the
+moves and the presentation are in ASM; stride×height is prepared at
+definition time. Restorations recompute neither phases nor drawing
+pointers; visible widths of two/four bytes use unrolled loops.
 
-Les chiffres du champ différentiel utilisent un noyau assembleur dédié :
-il remplace le fond et écrit le glyphe blanc dans le même parcours des lignes.
-Il efface aussi les deux pixels d'espacement des cellules internes, conserve
-les pixels voisins et remet à zéro la palette des octets touchés.
-Le format 16×16 utilise la police existante et une LUT de 16 octets. Le format
-8×8 utilise une banque espace/chiffres prédécalée aux sept phases : 1 386 octets
-chargés, tables de pointeurs comprises. Il évite les LUT mutables et la police
-générale quand seul le HUD est lié. Les contrôleurs de chiffres sont en ASM ;
-les pas +1/+2 réutilisent les caractères en cache avec propagation des retenues. Les règles d'invalidation du
-champ restent identiques. Le noyau n'impose plus le texte agrandi général
-ni les paramètres des rectangles en pixels à un client HUD seul.
+`test_sprengine_dirty.py` compares the pixels of both pages and the cost of
+still frames, upper/lower layer changes, hiding
+and clipping. On POM2 IIe, it also checks the page actually displayed
+after the application changes the drawing page.
 
-Les tests vérifient 168 mises à jour avec retenue décimale et wrap et 70 chiffres placés
-contre les bords droit et inférieur, dans les sept phases. Le même oracle
-est exécuté avec a2run et POM2 IIe. Les exemples préparent les deux historiques
-HUD avant leur boucle, pour déplacer ce coût vers le chargement.
+## Opaque HUD kernel
 
-## Adressage explicite optionnel
+The compact path `hgr_hud8_init/putu/invalidate` uses a 19-byte
+`hgr_hud8_field_t` structure, width 1..5, 8×8 cells, pitch 8.
+The whole box must fit on screen: y≤184, x+8×width≤280.
+The same cache, return-value, opaque background and overflow rules apply.
+Its separate object lets only the format in use be linked. Changing all
+five digits costs at most 7 850 cycles over the benchmark's seven phases,
+against 22 235 for the 16×16 format. Prepare both pages before animating.
 
-`hgr_row_on_page(page,y)` retourne une adresse pour la page 1/2 et la ligne
-0..191, ou NULL si une entrée est invalide. Il ne change ni la page de dessin,
-ni celle affichée, ni les tables historiques. Les offsets immuables occupent
-384 octets de RODATA, dans un membre d'archive séparé ; aucun tableau de lignes
-mutable n'est lié par cet accès seul. Ce n'est pas une substitution automatique
-pour les noyaux existants qui lisent `hgr_rowhi`.
+The minimal example uses this format. With IIe double buffering, it spreads drawing
+and HUD over two VBL intervals; each step fits in one refresh.
+Its POM2 test follows 1 000 presentations per standard, including counter
+overflow: two refreshes per frame, i.e. nominally 30/25 FPS.
+For a load that may exceed one interval, use the `a2_cadence_*`
+scheduler and an IRQ source already owned by the application. See the
+contracts in [apple2frame.h](../apple2c/apple2frame.h).
 
-En assembleur, `hgr_fixed_rowlo/hi` exposent les offsets (HI sans base vidéo).
-Combiner HI avec $20/$40 via OR pour former les adresses. Les données seules
-n'importent aucun runtime C. `hgr_rowptr_on_page` offre également un point
-d'entrée A=page, Y=ligne, résultat A/X, NULL pour entrée invalide ; ce noyau
-partage tmp2 cc65 et le membre de l'enveloppe C, donc exige le runtime cc65.
-Le parcours natif et l'enveloppe C sont mesurés séparément : le coût des appels
-C répétés ne constitue pas une optimisation de scanline.
+The engine compiled with `-DHGR_SPR_DAMAGE=1` propagates changes through
+intersections of old/new boxes, in saved bytes rather than
+visible pixels. It can keep isolated still layers,
+but adds 43 bytes of BSS to the eight-slot default plus assembler
+comparison work. The scene with four large isolated sprites, of which only the first
+moves, goes from 31 031 to 14 662 cycles (+437 bytes loaded).
+The option stays off by default; decide based on representative scenes.
+The tests also check chains of four layers and padding bytes.
 
-## Dépendances réelles des consommateurs
+The digits of the differential field use a dedicated assembler kernel:
+it replaces the background and writes the white glyph in the same pass over the lines.
+It also clears the two spacing pixels of the inner cells, keeps
+the neighbouring pixels and resets the palette of the bytes it touches.
+The 16×16 format uses the existing font and a 16-byte LUT. The 8×8
+format uses a space/digits bank preshifted for the seven phases: 1,386 bytes
+loaded, pointer tables included. It avoids the mutable LUTs and the general
+font when only the HUD is linked. The digit controllers are in ASM;
++1/+2 steps reuse the cached characters with carry propagation. The field's invalidation
+rules are unchanged. The kernel no longer imposes general enlarged text
+or the pixel-rectangle parameters on a HUD-only client.
 
-Les fichiers `.d` de cc65/ca65 suivent les includes transitifs, y compris ceux
-de `HGRC_EXTRA_SRCS`. Pour la compilation C en deux étapes, la dépendance est
-réattribuée de l'assembleur généré à l'objet final. Les tests modifient un
-header imbriqué et un include assembleur situés hors de la bibliothèque,
-puis vérifient la reconstruction, le changement du binaire et le no-op suivant.
+The tests check 168 updates with decimal carry and wrap and 70 digits placed
+against the right and bottom edges, in all seven phases. The same oracle
+runs on a2run and POM2 IIe. The examples prepare both HUD
+histories before their loop, to move this cost to load time.
 
-## Fond reconstruit depuis une tilemap
+## Optional explicit addressing
 
-`hgr_tilemap_init` valide un contexte emprunté : carte 40×24 de 960 IDs,
-1..256 tuiles de 7×8 pixels, huit octets HGR par tuile avec leur palette.
-`hgr_tile_restore(&fond,page,col,row,largeur,hauteur)` reconstruit une région
-en coordonnées de tuiles, rognée à droite/en bas, sans modifier la page de
-dessin ni l'affichage. La validation de tous les IDs précède toute écriture ;
-un refus laisse l'image intacte. Carte et banque doivent rester valides hors
-vidéo ; l'initialisation invalide conserve l'ancien contexte.
+`hgr_row_on_page(page,y)` returns an address for page 1/2 and line
+0..191, or NULL if an input is invalid. It changes neither the drawing page,
+nor the displayed page, nor the historical tables. The immutable offsets take
+384 bytes of RODATA, in a separate archive member; no mutable line array
+is linked by this access alone. It is not an automatic substitute
+for the existing kernels that read `hgr_rowhi`.
 
-L'application restaure toutes ses anciennes/nouvelles régions sales avant
-le dessin des couches touchées, et conserve un historique distinct par page.
-Ce backend optionnel s'utilise avec le blitter masqué `hgr_ms_run` (contrat
-interne explicite dans `hgr_internal.h`) pour éviter le pool save-under.
-Le moteur historique conserve sa restauration de fonds sauvegardés.
-Une région de huit tuiles avec deux dessins masqués coûte 9 546 cycles dans
-le benchmark ; le coût d'une page entière reste à budgéter pour chaque jeu.
-La famille `HGRC_TILEMAP_SRCS` est extraite uniquement lorsqu'elle est appelée.
+In assembler, `hgr_fixed_rowlo/hi` expose the offsets (HI without video base).
+OR HI with $20/$40 to form the addresses. The data alone
+imports no C runtime. `hgr_rowptr_on_page` also offers an
+entry point A=page, Y=line, result in A/X, NULL for an invalid input; this kernel
+shares cc65's tmp2 and the C wrapper's member, so it requires the cc65 runtime.
+The native walk and the C wrapper are measured separately: the cost of repeated
+C calls does not make a scanline optimisation.
 
-Les dépendances `HGRC_HEADERS` comprennent aussi les en-têtes de `apple2c`,
-inclus transitivement par `hgr.h`, pour recompiler les consommateurs C lors
-des changements du contrat de la plateforme.
+## Real consumer dependencies
+
+The cc65/ca65 `.d` files track transitive includes, including those
+of `HGRC_EXTRA_SRCS`. For two-step C compilation, the dependency is
+reassigned from the generated assembler to the final object. The tests modify a
+nested header and an assembler include located outside the library,
+then check the rebuild, the binary change and the following no-op.
+
+## Background rebuilt from a tilemap
+
+`hgr_tilemap_init` validates a borrowed context: a 40×24 map of 960 IDs,
+1..256 tiles of 7×8 pixels, eight HGR bytes per tile with their palette.
+`hgr_tile_restore(&bg,page,col,row,width,height)` rebuilds a region
+in tile coordinates, clipped at right/bottom, without changing the drawing
+page or the display. Validation of all IDs precedes any write;
+a rejection leaves the image intact. Map and bank must stay valid outside
+video memory; an invalid initialisation keeps the old context.
+
+The application restores all its old/new dirty regions before
+drawing the affected layers, and keeps a separate history per page.
+This optional backend is used with the masked blitter `hgr_ms_run` (explicit
+internal contract in `hgr_internal.h`) to avoid the save-under pool.
+The historical engine keeps its saved-background restoration.
+An eight-tile region with two masked draws costs 9 546 cycles in
+the benchmark; the cost of a whole page remains to be budgeted for each game.
+The `HGRC_TILEMAP_SRCS` family is extracted only when it is called.
+
+The `HGRC_HEADERS` dependencies also include the `apple2c` headers,
+included transitively by `hgr.h`, so that C consumers are recompiled when
+the platform contract changes.

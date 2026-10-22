@@ -1,65 +1,65 @@
-# lib/gfx — géométrie commune (cc65)
+# lib/gfx — shared geometry (cc65)
 
 *[← dev](../../README.md)*
 
-La couche vectorielle de [POM1](https://github.com/habib256/pom1)
-(`dev/lib/gfx`, GPL-3.0) : lignes, rectangles, cercles, ellipses et nombres, sur
-un backend HGR ou DHGR. Le backend HGR (`gfx_backend_hgr*.c`) appelle
-[`../hgrc`](../hgrc/). Les dimensions et couleurs dépendent du backend choisi.
+The vector layer from [POM1](https://github.com/habib256/pom1)
+(`dev/lib/gfx`, GPL-3.0): lines, rectangles, circles, ellipses and numbers, on
+an HGR or DHGR backend. The HGR backend (`gfx_backend_hgr*.c`) calls
+[`../hgrc`](../hgrc/). Dimensions and colours depend on the chosen backend.
 
-À compiler avec `-I dev/lib/hgrc -I dev/lib/apple2c -I dev/lib/gfx`, de
-préférence dans une archive `ar65` pour que seules les fonctions appelées soient
-liées (voir [`../hgrc/hgrc_build.mk`](../hgrc/hgrc_build.mk)).
+Compile with `-I dev/lib/hgrc -I dev/lib/apple2c -I dev/lib/gfx`, preferably
+into an `ar65` archive so that only the functions actually called get linked
+(see [`../hgrc/hgrc_build.mk`](../hgrc/hgrc_build.mk)).
 
 ## Apple II DHGR
 
-Deux backends explicites : `gfx_backend_dhgr_color.c` (140×192, couleur LORES
-0..15) ou `gfx_backend_dhgr_mono.c` (560×192, bit 0/1). Lier exactement un
-backend avec `HGRC_GENERIC_VECTOR_SRCS` et la bibliothèque DHGR. La couleur
-courante se règle par `dhgr_set_color`. Les coordonnées sont celles du backend
-choisi ; les blocs et sprites natifs gardent leur API propre dans `dhgr.h`.
-Les rectangles sont inclusifs, triés et rognés avant le calcul de dimensions.
+Two explicit backends: `gfx_backend_dhgr_color.c` (140×192, LORES colour
+0..15) or `gfx_backend_dhgr_mono.c` (560×192, bit 0/1). Link exactly one
+backend with `HGRC_GENERIC_VECTOR_SRCS` and the DHGR library. The current
+colour is set with `dhgr_set_color`. Coordinates are those of the chosen
+backend; native blocks and sprites keep their own API in `dhgr.h`.
+Rectangles are inclusive, sorted and clipped before their dimensions are computed.
 
-Auteur : VERHILLE Arnaud. Licence : [GPL-3.0](../../../LICENSE).
+Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).
 
-## Archive et texte
+## Archive and text
 
-`HGRC_ALL_SRCS` inclut les conversions décimales et hexadécimales, `gfx_text.c`
-et le backend texte HGR : `gfx_utoa`, `gfx_itoa`, `gfx_hexstr`, `gfx_gotoxy`,
-`gfx_text`, `gfx_putu`, `gfx_puti` et `gfx_putx` se lient sans ajout manuel.
-Le texte utilise une grille HGR 35×24 de glyphes blancs 8×8 sur la page de
-dessin courante. Les appels passent à la ligne au bord droit ; la dernière
-ligne ne défile pas. `gfx_cell_color` est sans effet avec ce backend.
-Il n’existe pas de backend texte par cellules DHGR ; utiliser `dhgr_puts`.
+`HGRC_ALL_SRCS` includes the decimal and hexadecimal conversions, `gfx_text.c`
+and the HGR text backend: `gfx_utoa`, `gfx_itoa`, `gfx_hexstr`, `gfx_gotoxy`,
+`gfx_text`, `gfx_putu`, `gfx_puti` and `gfx_putx` link without any manual addition.
+Text uses a 35×24 HGR grid of white 8×8 glyphs on the current drawing
+page. Calls wrap at the right edge; the last line does not scroll.
+`gfx_cell_color` has no effect with this backend.
+There is no cell-based DHGR text backend; use `dhgr_puts`.
 
-`gfx_u16_digits` fournit cinq chiffres ASCII, avec zéros initiaux, pour une
-valeur non signée de 0 à 65535. Son buffer statique est réutilisé au prochain
-appel. Le noyau assembleur `gfx_u16_digits.s` est **réservé au 65C02** ; la
-famille optionnelle `HGRC_65C02_NUM_SRCS` le sélectionne sans modifier les
-conversions 6502 utilisées sur Apple II+. Il préserve les flags, notamment
-les états des interruptions et du mode décimal.
+`gfx_u16_digits` returns five ASCII digits, with leading zeros, for an
+unsigned value from 0 to 65535. Its static buffer is reused on the next
+call. The assembler kernel `gfx_u16_digits.s` is **65C02-only**; the
+optional family `HGRC_65C02_NUM_SRCS` selects it without changing the
+6502 conversions used on the Apple II+. It preserves the flags, including
+the interrupt and decimal-mode states.
 
-Les segments diagonaux refusent les extrémités hors écran ; ils n’effectuent
-pas de clipping de ligne complet. Les axes passent par les spans rognés. Les rectangles pleins trient et rognent
-leurs coins ; les cercles rognent les points tracés. Un centre hors écran
-reste accepté : les arcs proches du bord sont visibles, les cercles entièrement
-à droite ou sous l’écran sont écartés avant la boucle de tracé. Les coordonnées
-X sont vérifiées avant leur conversion signée sur 16 bits.
-Les cercles ne retracent pas les points communs aux symétries sur les axes et
-diagonales ; le rayon zéro trace un seul point. Les rectangles ne retracent
-pas leurs coins : un point, une ligne horizontale ou une ligne verticale
-utilise un seul span. Chaque pixel du contour est donc écrit une seule fois.
-Le rognage conserve les arêtes d’origine : un rectangle qui déborde ne crée
-pas une nouvelle arête au bord de l’écran.
-`test_gfx_outlines.py` vérifie 1 792 cercles et 625 rectangles avec un backend
-qui refuse les écritures répétées, puis compare 54 scènes cc65 aux pixels
-attendus sur les deux pages HGR, y compris les trous mémoire. Il fait partie
-de `make test-hgr`.
+Diagonal segments reject off-screen endpoints; they do not perform full
+line clipping. Axis-aligned lines go through the clipped spans. Filled rectangles sort and clip
+their corners; circles clip the plotted points. An off-screen centre
+is still accepted: arcs near the edge are visible, and circles entirely
+to the right of or below the screen are discarded before the drawing loop. X
+coordinates are checked before their signed 16-bit conversion.
+Circles do not redraw the points shared by the symmetries on the axes and
+diagonals; radius zero draws a single point. Rectangles do not redraw
+their corners: a point, a horizontal line or a vertical line
+uses a single span. Each outline pixel is therefore written exactly once.
+Clipping keeps the original edges: a rectangle that overflows does not create
+a new edge at the screen border.
+`test_gfx_outlines.py` checks 1,792 circles and 625 rectangles with a backend
+that rejects repeated writes, then compares 54 cc65 scenes against the expected
+pixels on both HGR pages, memory holes included. It is part
+of `make test-hgr`.
 
-Mesures du 9 octobre 2026, cc65 `-Oirs`, HGR sur a2run NMOS 6502, tables
-chaudes, arguments et appels inclus, marqueurs exclus comme dans `dev/bench` :
+Measurements from 9 October 2026, cc65 `-Oirs`, HGR on a2run NMOS 6502, warm
+tables, arguments and calls included, markers excluded as in `dev/bench`:
 
-| Appel | Avant (cycles) | Après (cycles) |
+| Call | Before (cycles) | After (cycles) |
 |---|---:|---:|
 | `gfx_circle(140,96,0)` | 8 159 | 1 043 |
 | `gfx_circle(140,96,16)` | 89 287 | 86 439 |
@@ -68,25 +68,25 @@ chaudes, arguments et appels inclus, marqueurs exclus comme dans `dev/bench` :
 | `gfx_rect(10,20,10,20)` | 5 897 | 1 508 |
 | `gfx_rect(10,20,50,20)` | 6 097 | 2 018 |
 
-Les ellipses dont un rayon entier vaut zéro se réduisent à un segment ou
-à un point dans leur boîte, sans déborder autour des formes très étroites.
-Les boîtes entièrement à droite ou sous l’écran sont écartées avant le
-calcul des points, sans tracer de ligne parasite sur le bord.
-Les coins X acceptent toute la plage 0..65535, même pour une boîte
-partiellement visible, sans débordement du centre ni des produits sur cc65.
-Les décalages sont arrondis vers zéro, y compris lorsqu’ils sont négatifs :
-le rendu cc65 suit celui du C hôte. Les extrémités des segments sont ramenées
-aux limites de l’écran ; ce comportement ne constitue pas un clipping
-géométrique complet. Chaque sommet est calculé une seule fois puis partagé
-entre les deux segments voisins.
-Les primitives HGR bas niveau peuvent avoir des largeurs sur 8 bits ;
-`gfx_filled_rect` gère toute la largeur. Le choix du backend reste explicite
-à la liaison.
+Ellipses with an integer radius of zero reduce to a segment or
+a point within their box, without spilling around very narrow shapes.
+Boxes entirely to the right of or below the screen are discarded before
+the points are computed, without drawing a stray line on the edge.
+X corners accept the full 0..65535 range, even for a partially
+visible box, without overflowing the centre or the products on cc65.
+Offsets are rounded towards zero, including when negative:
+the cc65 output matches the host C output. Segment endpoints are clamped
+to the screen limits; this behaviour is not full geometric
+clipping. Each vertex is computed once and then shared
+between its two neighbouring segments.
+Low-level HGR primitives may have 8-bit widths;
+`gfx_filled_rect` handles the full width. The backend choice remains explicit
+at link time.
 
 
-L'archive HGR sélectionne `gfx_line_hgr.c` : les diagonales utilisent le noyau
-assembleur 280 pixels de `hgr_line`. Le fallback C `gfx_line.c` reste destiné
-aux backends génériques/DHGR. Ces deux fichiers définissent le même symbole :
-choisir une implémentation à la liaison. Aucun pointeur de fonction n'est ajouté.
-Les deux API HGR sont comparées sur 464 lignes ; le fallback est testé dans les
-deux modes DHGR, sur les deux pages et banques, y compris les entrées refusées.
+The HGR archive selects `gfx_line_hgr.c`: diagonals use the 280-pixel
+assembler kernel of `hgr_line`. The C fallback `gfx_line.c` remains intended
+for the generic/DHGR backends. Both files define the same symbol:
+pick one implementation at link time. No function pointer is added.
+The two HGR APIs are compared on 464 lines; the fallback is tested in both
+DHGR modes, on both pages and banks, rejected inputs included.
