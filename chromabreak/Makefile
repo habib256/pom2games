@@ -43,7 +43,8 @@ $(BUILD)/levels.bin src/levels.inc: src/levels.txt tools/pack_levels.py
 src/layout.inc src/collision_tables.h: src/layout.h tools/generate_layout.py
 	$(PYTHON) tools/generate_layout.py
 $(BUILD)/game.o $(BUILD)/records.o: src/records.h src/sound.h
-$(BUILD)/sound.o: src/music_offsets.inc src/levels.inc src/fine_font.inc src/duet.inc
+$(BUILD)/sound.o: src/duet.inc $(APPLE2)/duet.asm
+$(BUILD)/sound.o: src/music_offsets.inc src/levels.inc src/fine_font.inc
 $(BUILD)/finale_music.o: src/music_fanfare.inc
 src/music_aux.inc src/music_offsets.inc src/music_fanfare.inc: tools/generate_music.py
 	$(PYTHON) tools/generate_music.py
@@ -68,8 +69,8 @@ $(GAME_LIB): $(LIB_OBJS) Makefile $(HGRC)/hgrc.mk
 	$(AR65) a $@ $(LIB_OBJS)
 $(BUILD)/game.bin: $(OBJS) $(GAME_LIB) Makefile $(DEV)/cc65/apple2_dhgr_prodos_c.cfg
 	$(CL65) -t none -C $(DEV)/cc65/apple2_dhgr_prodos_c.cfg -m $(BUILD)/game.map -Ln $(BUILD)/game.lbl -o $@ $(OBJS) $(GAME_LIB)
-$(BUILD)/CHROMA.SYS: $(BUILD)/game.bin $(BUILD)/tables.bin $(BUILD)/levels.bin src/levels.inc src/fine_font.inc src/music_aux.inc src/music_offsets.inc src/duet.inc src/startup.s src/startup.cfg
-	$(CA65) --bin-include-dir $(BUILD) --bin-include-dir src -I src -o $(BUILD)/startup.o src/startup.s
+$(BUILD)/CHROMA.SYS: $(BUILD)/game.bin $(BUILD)/tables.bin $(BUILD)/levels.bin src/levels.inc src/fine_font.inc src/music_aux.inc src/music_offsets.inc src/duet.inc $(APPLE2)/duet.asm src/startup.s src/startup.cfg
+	$(CA65) --bin-include-dir $(BUILD) --bin-include-dir src -I src -I $(APPLE2) -o $(BUILD)/startup.o src/startup.s
 	$(LD65) -C src/startup.cfg -o $@ $(BUILD)/startup.o
 $(BUILD)/CHROMA.SYSTEM: src/boot.s src/boot.cfg
 	@mkdir -p $(@D)

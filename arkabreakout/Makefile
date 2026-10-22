@@ -36,9 +36,9 @@ src/capsules.inc: tools/generate_sprites.py $(DEV)/tools/fonts.py $(FONT)/bbfont
 $(BUILD)/game.bin: $(BUILD)/game.o $(BUILD)/mouse.o $(A2_HGR_CFG)
 	$(LD65) -C $(A2_HGR_CFG) -m $(BUILD)/game.map -Ln $(BUILD)/game.lbl -o $@ $(BUILD)/game.o $(BUILD)/mouse.o
 
-$(BUILD)/music.bin: src/music_player.s src/music.cfg src/duet.inc src/music_aux.inc src/music_fanfare.inc
+$(BUILD)/music.bin: src/music_player.s src/music.cfg src/duet.inc $(APPLE2)/duet.asm src/music_aux.inc src/music_fanfare.inc
 	@mkdir -p $(BUILD)
-	$(CA65) -I src -o $(BUILD)/music.o src/music_player.s
+	$(CA65) -I src -I $(APPLE2) -o $(BUILD)/music.o src/music_player.s
 	$(LD65) -C src/music.cfg -o $@ $(BUILD)/music.o
 
 $(BUILD)/records.bin: tools/seed_records.py

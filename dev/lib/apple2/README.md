@@ -17,7 +17,8 @@ native ; `exit.asm` restaure la page zéro pour rendre la main à DOS proprement
 - **`zp.inc`** — les 8 octets de ZP partagés (`tmp`, `tmp2`, `print_ptr_*`,
   `mul_*`, `prng_*`), en tête du segment ZEROPAGE.
 - **`print.asm`** — `print_str_ax` : chaîne ASCIIZ via COUT.
-- **`print_num.asm`** — `print_byte_dec` : octet en trois chiffres via COUT.
+- **`print_num.asm`** — `print_byte_dec` : octet en trois chiffres via COUT
+  (conversion `byte_to_dec` de `lib/math/dec.asm`, incluse par le fichier).
 - **`kbd.asm`** — `wait_key` (bloquant), `poll_key` (non bloquant) et
   `kbd_upcase` (repli minuscules → majuscules).
 - **`delay.asm`** — `delay_ms_a` : ~A millisecondes à 1,0205 MHz.
@@ -36,6 +37,10 @@ native ; `exit.asm` restaure la page zéro pour rendre la main à DOS proprement
   `APPLE2_EXIT_HOOK` (défini avant l'include) nomme une routine appelée
   après la restauration, avant le retour à DOS (aussi sur Ctrl-RESET).
 - **`sound.asm`** — `tone` : bip carré sur le haut-parleur.
+- **`duet.asm`** — deux voix sur le haut-parleur (partage du temps, 33 cycles
+  par tour, comptes auto-modifiés), assemblé sous `.org DUET_BASE` dans sa
+  propre page : `DUET_PLAY` (A = mélodie, X = basse, Y = tranches),
+  `DUET_KEYS`, `DUET_SLICE`. ARKABREAKOUT ($1300) et CHROMABREAK ($0310).
 - **`joy.asm`** — `read_stick`, `stick_dir` : manette (deux paddles) ;
   `read_stick_fast` (DIRTBIKE) rend la main dès que les deux minuteries sont
   écoulées (0,1-2,8 ms au lieu de 6 ms), sur sa propre échelle (~0..80, centre
@@ -81,7 +86,7 @@ un autre module, aussi). Un objet C qui aliase une routine vers un import
 | Routine | Module | Entrée | Sortie | Écrase | ZP |
 |---|---|---|---|---|---|
 | `print_str_ax` | `print.asm` | A=lo, X=hi (ASCIIZ) | — | A, Y | `print_ptr_*` |
-| `print_byte_dec` | `print_num.asm` | A = octet | "DDD" | A, X | — |
+| `print_byte_dec` | `print_num.asm` | A = octet | "DDD" | A, X, Y | — |
 | `wait_key` | `kbd.asm` | — | A = touche & $7F, majuscule | A | — |
 | `poll_key` | `kbd.asm` | — | A = touche ou 0, Z à jour | A | — |
 | `kbd_upcase` | `kbd.asm` | A = touche | A = majuscule, Z/N à jour | A | — |
