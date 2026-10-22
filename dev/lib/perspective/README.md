@@ -1,28 +1,28 @@
-# Projection de plans et de couloirs
+# Plane and corridor projection
 
-Deux modules indépendants : `perspective.c` projette un plan HGR sur 280
-pixels ; `corridor.asm`, extrait de Light3DBall, projette les deux axes d'une
-section de couloir selon la profondeur. Chaque client choisit son module.
+Two independent modules: `perspective.c` projects an HGR plane onto 280
+pixels; `corridor.asm`, extracted from Light3DBall, projects both axes of a
+corridor cross-section according to depth. Each client picks its module.
 
-## Plan HGR
+## HGR plane
 
-`a2_perspective_project(camera,x,y,&point)` projette un point du plan de jeu
-dans l'écran HGR 280×192. Le calcul cible utilise des tables et un produit
-16 bits ; aucune division perspective ni virgule flottante n'est nécessaire.
-L'approche est inspirée des tables de
+`a2_perspective_project(camera,x,y,&point)` projects a point of the playfield
+onto the 280×192 HGR screen. The target computation uses tables and a 16-bit
+product; no perspective division or floating point is needed.
+The approach is inspired by the tables of
 [Shufflepuck](https://github.com/colinleroy/a2tools/blob/main/src/shufflepuck/generators/gen_transform.c).
-Le générateur et le runtime sont une nouvelle implémentation GPL-3.0.
+The generator and the runtime are a new GPL-3.0 implementation.
 
 ```sh
 python3 dev/tools/perspective.py --out build/camera.h --name camera \
   --rows 192 --focal 78 --center 140 --horizon 31 --bottom 191
 ```
 
-Inclure `perspective.mk` après `apple2.mk`, ajouter `$(PERSPECTIVE_SRCS)` aux
-sources et `$(PERSPECTIVE_INCS)` aux flags C. Le fichier généré appartient à
-l'application ; l'inclure dans une seule unité C pour éviter de dupliquer
-les tables. Une caméra de 192 lignes coûte 768 octets de tables et un
-descripteur de 7 octets sur cc65. Le runtime n'alloue pas de pool ni de BSS.
+Include `perspective.mk` after `apple2.mk`, add `$(PERSPECTIVE_SRCS)` to the
+sources and `$(PERSPECTIVE_INCS)` to the C flags. The generated file belongs to
+the application; include it in a single C unit to avoid duplicating
+the tables. A 192-row camera costs 768 bytes of tables and a
+7-byte descriptor on cc65. The runtime allocates no pool and no BSS.
 
 ```c
 #include "perspective.h"
@@ -32,10 +32,10 @@ if (a2_perspective_project(&camera,279,96,&point))
     hgr_plot(point.x,point.y);
 ```
 
-L'abscisse d'entrée vaut 0..279 ; la profondeur va de 0 (loin) à rows-1
-(près). `focal` est une distance positive, dans les mêmes unités que la
-profondeur. L'horizon et le bas sont des lignes HGR. `center` est le centre
-de projection horizontal, dans l'écran. Le rapport à la ligne y vaut :
+The input abscissa is 0..279; depth runs from 0 (far) to rows-1
+(near). `focal` is a positive distance, in the same units as the
+depth. The horizon and the bottom are HGR lines. `center` is the horizontal
+projection centre, on screen. The ratio at row y is:
 
 ```
 r = focal / (focal + rows - 1 - y)
@@ -44,17 +44,17 @@ screen_x = floor(x*q/256) + floor(center*(256-q)/256)
 screen_y = horizon + floor((bottom-horizon)*r)
 ```
 
-Les tables stockent q sur un octet : zéro représente 256, donc l'identité
-sur la dernière ligne. Le calcul X gère le passage 255→256 sans produit
-32 bits. La quantification peut fusionner des points ou des lignes au loin.
-Ce module projette un plan, pas une scène 3D arbitraire ; il n'agrandit pas
-les sprites et ne gère pas l'ordre de profondeur.
+The tables store q in one byte: zero stands for 256, hence the identity
+on the last row. The X computation handles the 255→256 transition without a
+32-bit product. Quantisation can merge distant points or rows.
+This module projects a plane, not an arbitrary 3D scene; it does not scale
+sprites and does not handle depth ordering.
 
-Les tables sont empruntées et doivent rester valides pendant l'appel.
-Les pointeurs nuls, X hors limites, profondeur hors table, nombre de lignes
-invalide et résultat hors HGR sont refusés avec zéro, sans modifier le point
-de sortie. Le succès vaut un. Appeler hors IRQ, en RAM/ZP principales et D=0.
-L'affichage, les banques et le masque IRQ restent ceux de l'appelant.
+The tables are borrowed and must stay valid during the call.
+Null pointers, out-of-range X, depth outside the table, an invalid row
+count and a result outside HGR are rejected with zero, without modifying the
+output point. Success returns one. Call outside IRQ, in main RAM/ZP and with D=0.
+Display, banks and the IRQ mask remain the caller's.
 
 ```sh
 python3 dev/tests/test_perspective.py
@@ -62,14 +62,14 @@ python3 dev/tests/test_perspective.py --iie
 make -C dev/examples/perspective run
 ```
 
-## Couloir 6502 / cc65
+## 6502 / cc65 corridor
 
-`corridor.asm` partage le noyau de Light3DBall et `corridor.h` expose son API C.
-La section du monde utilise X/Y de 0 à 127. La profondeur est une distance
-non signée sur 16 bits devant la caméra ; calculer cette distance avant l'appel.
-Le résultat est sur un octet par axe : X/Y écran 0..255. L'application garde
-le clipping HGR à 192 lignes, les occultations, les tailles de sprites et les
-collisions. La bibliothèque ne connaît pas les niveaux ou les objets du jeu.
+`corridor.asm` shares the Light3DBall kernel and `corridor.h` exposes its C API.
+The world cross-section uses X/Y from 0 to 127. Depth is an unsigned
+16-bit distance in front of the camera; compute this distance before the call.
+The result is one byte per axis: screen X/Y 0..255. The application keeps
+HGR clipping to 192 lines, occlusion, sprite sizes and
+collisions. The library knows nothing about the game's levels or objects.
 
 ```sh
 python3 dev/tools/perspective.py --kind corridor --name corridor \
@@ -77,8 +77,8 @@ python3 dev/tools/perspective.py --kind corridor --name corridor \
   --out build/corridor_tables.h
 ```
 
-Inclure les tables générées dans une seule unité C. Ajouter un fichier
-assembleur au programme, avec le chemin `PERSPECTIVE_CORRIDOR_INCS` :
+Include the generated tables in a single C unit. Add an assembler file
+to the program, with the `PERSPECTIVE_CORRIDOR_INCS` path:
 
 ```asm
 PC_CENTER_X = 128
@@ -87,21 +87,21 @@ PC_DEPTH_SHIFT = 1
 .include "corridor.asm"
 ```
 
-Déclarer `PERSPECTIVE_CORRIDOR_DEPS` parmi les dépendances de cette unité et
-des clients de `corridor.h`. Les centres et le pas de profondeur sont fixés à
-la compilation ; les tables sont fournies par l'application. Leur nom par
-défaut est `corridor_scale_x/y`. Le runtime emprunte leur contenu immuable.
+Declare `PERSPECTIVE_CORRIDOR_DEPS` among the dependencies of this unit and
+of the clients of `corridor.h`. The centres and the depth step are fixed at
+compile time; the tables are supplied by the application. Their default
+names are `corridor_scale_x/y`. The runtime borrows their immutable contents.
 
 ```c
 #include "corridor.h"
-#include "corridor_tables.h" /* Une seule unité C définit les deux tables. */
+#include "corridor_tables.h" /* A single C unit defines both tables. */
 
 a2_corridor_select(distance);
 screen_x = a2_corridor_x(world_x);
 screen_y = a2_corridor_y(world_y);
 ```
 
-Les formules exactes sont :
+The exact formulas are:
 
 ```
 depth = min(distance >> PC_DEPTH_SHIFT, 255)
@@ -113,24 +113,24 @@ screen_x = left + floor(world_x*span_x/128)
 screen_y = top  + floor(world_y*span_y/128)
 ```
 
-Le générateur remplit chaque table avec `floor(span*focal/(focal+depth))`.
-`focal` est exprimée en **entrées de table** : avec `PC_DEPTH_SHIFT=1`, une
-entrée correspond à deux unités du monde. Le pas peut aller de 0 à 8 ; au-delà
-de la dernière entrée, la projection conserve les facteurs de cette entrée.
-Une profondeur négative doit être traitée par le client avant conversion.
+The generator fills each table with `floor(span*focal/(focal+depth))`.
+`focal` is expressed in **table entries**: with `PC_DEPTH_SHIFT=1`, one
+entry corresponds to two world units. The step can range from 0 to 8; beyond
+the last entry, the projection keeps that entry's factors.
+A negative depth must be handled by the client before conversion.
 
-L'état actif contient cinq octets BSS (`a2_corridor_sx/sy/left/top/depth`) et
-le calcul emprunte un octet ZP. Toujours appeler `select` avant de projeter.
-Deux tables de 256 octets coûtent 512 octets. Pour réutiliser des allocations
-existantes, définir les alias assembleur `PC_BITS`, `PC_SX`, `PC_SY`, `PC_LEFT`,
-`PC_TOP`, `PC_DEPTH`, `PC_TABLE_X` et `PC_TABLE_Y` avant l'inclusion. C'est ce
-que fait Light3DBall, sans allocation supplémentaire ni trampoline d'appel.
+The active state holds five BSS bytes (`a2_corridor_sx/sy/left/top/depth`) and
+the computation borrows one ZP byte. Always call `select` before projecting.
+Two 256-byte tables cost 512 bytes. To reuse existing allocations,
+define the assembler aliases `PC_BITS`, `PC_SX`, `PC_SY`, `PC_LEFT`,
+`PC_TOP`, `PC_DEPTH`, `PC_TABLE_X` and `PC_TABLE_Y` before the include. This is
+what Light3DBall does, with no extra allocation and no call trampoline.
 
-Le produit est exact en sept étapes décalage/addition, sans helper C ou
-produit 32 bits. Aucun état vidéo, banque ou masque IRQ n'est modifié.
-Appels non réentrants, hors IRQ, D=0, en RAM/ZP principales. Le noyau ne
-valide ni les coordonnées ni les tables : les facteurs doivent garder
-`center - floor(span/2)` et les points projetés dans 0..255.
+The product is exact in seven shift/add steps, with no C helper or
+32-bit product. No video state, bank or IRQ mask is modified.
+Calls are non-reentrant, outside IRQ, D=0, in main RAM/ZP. The kernel
+validates neither the coordinates nor the tables: the factors must keep
+`center - floor(span/2)` and the projected points within 0..255.
 
 ```sh
 python3 dev/tests/test_corridor.py
@@ -138,9 +138,9 @@ python3 dev/bench/corridor_projection.py
 make -C light3dball test
 ```
 
-L'extraction conserve octet pour octet le binaire et les ressources de
-Light3DBall. Les coûts mesurés sur ce placement sont 65..77 cycles pour la
-sélection, 135..170 pour X, 129..164 pour Y, JSR/RTS inclus : variation de
-**0 %** par rapport au code local. Les franchissements de pages des tables
-et des branches font varier les coûts ; ces intervalles ne sont pas un
-budget universel pour d'autres placements du noyau.
+The extraction keeps Light3DBall's binary and resources byte-for-byte
+identical. The costs measured at this placement are 65..77 cycles for
+select, 135..170 for X, 129..164 for Y, JSR/RTS included: a change of
+**0 %** compared with the local code. Page crossings in the tables
+and branches make the costs vary; these ranges are not a
+universal budget for other placements of the kernel.
