@@ -14,7 +14,7 @@ la vidéo native de l'Apple II.
 | [`maze3d/`](maze3d/) | Dungeon crawler 3D en fil de fer, double tampon HGR | Apple II+ | `dist/MAZE3D.dsk` |
 | [`light3dball/`](light3dball/) | Balle en couloir 3D HGR, cinq niveaux, souris ou clavier et cibles finales | Apple II+ 48 Ko | `dist/LIGHT3DBALL.dsk` |
 | [`pinball/`](pinball/) | Pinball Construction Set de Bill Budge, éditeur et moteur 6502 adaptés à ca65/ld65 | Apple II+ 48 Ko ou //c, souris ou manette | `dist/PINBALL.dsk` |
-| [`wilderness/`](wilderness/) | Réimplémentation de Wilderness (Electric Transit, 1985) : vue 3D, sprites originaux, marche/nage, objets, charge et simulation thermique | Apple II+ 48 Ko / DOS 3.3 | `dist/WILDERNESS.dsk` |
+| [`wilderness/`](wilderness/) | Réimplémentation de Wilderness (Electric Transit, 1985) : vue 3D, sprites originaux, marche/nage, objets, charge et simulation thermique | Apple II+ 48 Ko / DOS 3.3 | `wilderness/build/WILDERNESS.dsk` (hors dist/) |
 | [`dirtbike/`](dirtbike/) | Moto-cross en vue de côté inspiré de Dirt Bike (Mac) : 30 parcours du très simple au très dur, physique Verlet, défilement HGR au pixel, manette ou clavier | Apple II+ 48 Ko / DOS 3.3 | `dist/DIRTBIKE.dsk` |
 | [`mcs/`](mcs/) | Éditeur musical inspiré de Music Construction Set : deux portées HGR, clavier, haut-parleur et sauvegarde | Apple II+ 48 Ko / DOS 3.3 | `dist/MCS.dsk` |
 | [`snake/`](snake/) | Snake en C (cc65) | Apple II+ | `dist/SNAKE.dsk` |

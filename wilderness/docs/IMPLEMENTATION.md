@@ -522,7 +522,7 @@ Le décalage peut être reproduit ou comparé séparément de la compression :
 
 ```sh
 python3 tools/build_disk.py --out /tmp/wilderness-skew0.dsk --track-skew 0
-python3 tools/profile_loading.py /tmp/wilderness-skew0.dsk ../dist/WILDERNESS.dsk
+python3 tools/profile_loading.py /tmp/wilderness-skew0.dsk build/WILDERNESS.dsk
 ```
 
 Pour comparer un ancien binaire, fournir sa disquette **et ses symboles** :
