@@ -19,7 +19,7 @@ def build(work, mono):
     assets.png_write(work/'sprite.png',2,2,pixels)
     assets.convert(work/'sprite.png',work/'sprite','dhgr','sprite','sprite')
     sources=[DEV/'cc65/crt0_apple2.s',DEV/'tests/dhgr_extended_fixture.c',
-             *[DEV/'lib/hgrc'/name for name in ('dhgr.c','dhgr_pixel_asm.s','dhgr_getpixel_asm.s','dhgr_rows.s','dhgr_cells.s','dhgr_fill.c','dhgr_clear.c','dhgr_pattern_asm.s','dhgr_plot_color_asm.s','dhgr_fill_bits.c','dhgr_bit_rect.c','dhgr_clear_asm.s','dhgr_span_asm.s','dhgr_address_asm.s','dhgr_asm.s','dhgr_span.c','dhgr_block.c','dhgr_sprite.c','dhgr_transfer_params.c','dhgr_block_asm.s','dhgr_text_asm.s','dhgr_small.c','dhgr_small_params.c','dhgr_small_asm.s','dhgr_small_string.s','hgr_font.c','hgr_mode_asm.s')],
+             *[DEV/'lib/hgrc'/name for name in ('dhgr.c','dhgr_pixel_asm.s','dhgr_getpixel_asm.s','dhgr_rows.s','dhgr_cells.s','dhgr_fill.c','dhgr_clear.c','dhgr_pattern_asm.s','dhgr_plot_color_asm.s','dhgr_fill_bits.c','dhgr_bit_rect.c','dhgr_clear_asm.s','dhgr_span_asm.s','dhgr_address_asm.s','dhgr_asm.s','dhgr_span.c','dhgr_block.c','dhgr_sprite.c','dhgr_transfer_params.c','dhgr_block_asm.s','dhgr_text_asm.s','dhgr_small.c','dhgr_small_params.c','dhgr_small_asm.s','dhgr_small_string.s','hgr_font.c','hgr_mode_asm.s','hgr_native_asm.s')],
              DEV/'lib/gfx'/('gfx_backend_dhgr_mono.c' if mono else 'gfx_backend_dhgr_color.c'),
              DEV/'lib/apple2c/apple2io_asm.s']
     objects=[]
