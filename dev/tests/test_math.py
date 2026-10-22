@@ -222,8 +222,11 @@ def main():
     table = cases(random.Random(1))
     n = check('MUL_TABLES = $0800', table, 'tables at $0800')
     check('MUL_TABLES = $4000\nSQRT_SEED = $4800', table, 'tables in HGR page 2')
+    # Without mul_u16u8 referenced, mul_s16s8 inlines the product.
+    alone = {k: v for k, v in table.items() if k not in ('u8u8', 'u16u8')}
+    check('MUL_TABLES = $0800', alone, 'mul_s16s8 inline')
     print(f'lib/math: {n} cases x 2 table placements == Python (products, mul_dir short cuts, '
-          f'MUL_K16/KS16, shr6, sums, isqrt16, div16by8, rand8).')
+          f'MUL_K16/KS16, shr6, sums, isqrt16, div16by8, rand8); mul_s16s8 inline too.')
 
 
 if __name__ == '__main__':

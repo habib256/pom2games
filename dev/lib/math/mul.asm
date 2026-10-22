@@ -5,8 +5,8 @@
 ;   mul_init      build the 2 KB of tables (once, at start). ~110 000 cycles.
 ;                 MUL_INIT_BOOT = 1 before the include puts it in segment
 ;                 "INIT" (boot code that a buffer overwrites afterwards).
-;   mul_u8u8      mul_p0..p1 = mul_x (low byte) * mul_y, unsigned. ~55 cycles
-;   mul_u16u8     mul_p0..p2 = mul_x * mul_y, unsigned. ~110 cycles
+;   mul_u8u8      mul_p0..p1 = mul_x (low byte) * mul_y, unsigned. ~45 cycles
+;   mul_u16u8     mul_p0..p2 = mul_x * mul_y, unsigned. ~85 cycles
 ;   mul_s16s8     mul_p0..p2 = mul_x * mul_y, both signed, exact 24 bits
 ;   mul_dir       A/X (lo/hi, signed) * Y (signed) -> mul_p0..p2. For
 ;                 direction components scaled by 64 (64 = 1.0): Y = 0, +64
@@ -23,11 +23,11 @@
 ; mul_shr6 shifts left twice first, so p1:p2 = floor(p/64). A Python model
 ; (x * y >> 6) matches bit for bit.
 ;
-; How the pointers work: the four pointers' low bytes are mul_y, so with Y
-; = a byte of mul_x, (mul_s1l),Y = sqr1[mul_y + Y] and, with Y EOR $FF,
-; (mul_s2l),Y = sqr2[mul_y - Y + 255] = sqr1[|mul_y - Y|]. No code is
-; patched (the routines may live in ROM-like segments), and both bytes of
-; mul_x are plain indexes.
+; How the pointers work: the sqr1 pointers' low bytes are mul_y and the
+; sqr2 ones' mul_y EOR $FF, so with Y = a byte of mul_x, (mul_s1l),Y =
+; sqr1[mul_y + Y] and (mul_s2l),Y = sqr2[Y - mul_y + 255] = sqr1[|Y -
+; mul_y|]. No code is patched (the routines may live in ROM-like segments),
+; and both bytes of mul_x are plain indexes.
 ;
 ; Clobbers A, X, Y (mul_dir: A, Y on its short cuts). .ifref: only the
 ; routines referenced before the include are assembled; mul_init always is.
@@ -40,21 +40,14 @@ _MUL_ASM_LOADED_ = 1
 
 .segment "CODE"
 
-; low byte of mul_x * mul_y -> mul_p0/p1 (pointers set)
+; low byte of mul_x * mul_y -> mul_p0/p1 (pointers set). Enter with C = 1;
+; leaves C = 1 (the 16-bit difference is the product: no borrow).
 .macro MUL_LOW_BYTE
         LDY     mul_x
         LDA     (mul_s1l),Y
-        STA     mul_p0
-        LDA     (mul_s1h),Y
-        STA     mul_p1
-        TYA
-        EOR     #$FF
-        TAY
-        SEC
-        LDA     mul_p0
         SBC     (mul_s2l),Y
         STA     mul_p0
-        LDA     mul_p1
+        LDA     (mul_s1h),Y
         SBC     (mul_s2h),Y
         STA     mul_p1
 .endmacro
@@ -63,8 +56,35 @@ _MUL_ASM_LOADED_ = 1
         LDA     mul_y
         STA     mul_s1l
         STA     mul_s1h
+        EOR     #$FF
         STA     mul_s2l
         STA     mul_s2h
+.endmacro
+
+; mul_x * mul_y, unsigned: the high byte's product first (into p1/p2), so
+; that the low byte's leaves its high half in A for the sum
+.macro MUL_U16U8
+        MUL_SET_POINTERS
+        LDY     mul_x+1
+        SEC
+        LDA     (mul_s1l),Y
+        SBC     (mul_s2l),Y
+        STA     mul_p1
+        LDA     (mul_s1h),Y
+        SBC     (mul_s2h),Y
+        STA     mul_p2
+        LDY     mul_x                   ; C = 1 (no borrow above)
+        LDA     (mul_s1l),Y
+        SBC     (mul_s2l),Y
+        STA     mul_p0
+        LDA     (mul_s1h),Y
+        SBC     (mul_s2h),Y
+        CLC
+        ADC     mul_p1
+        STA     mul_p1
+        BCC     :+
+        INC     mul_p2
+:
 .endmacro
 
 .ifref mul_acc_shr6
@@ -163,7 +183,11 @@ mul_dir:
 ; complement corrections (y < 0: p -= x << 8; x < 0: p -= y << 16)
 .ifref mul_s16s8
 mul_s16s8:
-        JSR     mul_u16u8
+.ifref mul_u16u8
+        JSR     mul_u16u8               ; both used: one copy of the product
+.else
+        MUL_U16U8                       ; inline: no JSR/RTS (-12 cycles)
+.endif
         LDA     mul_y
         BPL     @ypos
         SEC
@@ -184,35 +208,14 @@ mul_s16s8:
 
 .ifref mul_u16u8
 mul_u16u8:
-        MUL_SET_POINTERS
-        MUL_LOW_BYTE
-        LDY     mul_x+1                 ; high byte * mul_y -> + p1/p2
-        LDA     (mul_s1l),Y
-        STA     mul_t
-        LDA     (mul_s1h),Y
-        STA     mul_p2
-        TYA
-        EOR     #$FF
-        TAY
-        SEC
-        LDA     mul_t
-        SBC     (mul_s2l),Y
-        STA     mul_t
-        LDA     mul_p2
-        SBC     (mul_s2h),Y
-        STA     mul_p2
-        CLC
-        LDA     mul_p1
-        ADC     mul_t
-        STA     mul_p1
-        BCC     @nc
-        INC     mul_p2
-@nc:    RTS
+        MUL_U16U8
+        RTS
 .endif
 
 .ifref mul_u8u8
 mul_u8u8:
         MUL_SET_POINTERS
+        SEC
         MUL_LOW_BYTE
         RTS
 .endif
