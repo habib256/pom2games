@@ -96,7 +96,10 @@ $(DISK): $(BIN) $(MAPBIN) $(BUILD)/boot.bin $(SPRITE_BINS) $(DOS33_DEPS) tools/b
 
 # Fast tier (about a minute): boot, map generation, the view bit for bit,
 # overlays, render memory, transitions, weather and swimming arithmetic.
-test: all $(A2SHOT)
+test: all $(if $(A2SHOT_HOST),$(A2SHOT))
+ifeq ($(A2SHOT_HOST),)
+	@echo "wilderness: SKIP tests, they need a2shot (macOS arm64)"
+else
 	$(PYTHON) tests/test_boot.py
 	$(PYTHON) tests/test_mapgen.py
 	$(PYTHON) tests/test_transitions.py
@@ -110,10 +113,14 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_weather_frequency.py
 	$(PYTHON) tests/test_swim_energy.py
 	$(PYTHON) tests/test_swim_raster.py
+endif
 
 # Long tier: every other emulator scenario (journey, inventory, sites,
 # projection, pans, simulation, random commands, fuzz...), ~40 min.
-test-long: all $(A2SHOT)
+test-long: all $(if $(A2SHOT_HOST),$(A2SHOT))
+ifeq ($(A2SHOT_HOST),)
+	@echo "wilderness: SKIP long tests, they need a2shot (macOS arm64)"
+else
 	$(PYTHON) tests/test_journey.py
 	$(PYTHON) tests/test_pack_boot.py
 	$(PYTHON) tests/test_overlay_codec.py
@@ -155,6 +162,7 @@ test-long: all $(A2SHOT)
 	$(PYTHON) tests/test_swim_cadence.py
 	$(PYTHON) tests/test_shore.py
 	$(PYTHON) tests/test_wet.py
+endif
 
 # longer differential fuzz: make fuzz FUZZ_SEED=7
 # The original disks must already be available locally (make extract).

@@ -37,6 +37,13 @@ all:
 DEV_CHECKS := test-hgr test-frame test-hgr-example test-assets bench-check \
               test-techniques test-tools test-minimal
 
+# The dev/ checks run on the portable headless II+ (a fresh checkout has to
+# build it first; the program Makefiles already list it, see apple2.mk).
+A2RUN := dev/tools/a2run/a2run
+$(A2RUN): $(wildcard dev/tools/a2run/*.[ch] dev/tools/a2run/Makefile)
+	$(MAKE) -C dev/tools/a2run
+$(DEV_CHECKS) test-dhgr: $(A2RUN)
+
 test: all $(DEV_CHECKS) $(TESTED:%=test-%)
 test-long: all $(TESTED:%=test-%-long)
 test-all: test test-long

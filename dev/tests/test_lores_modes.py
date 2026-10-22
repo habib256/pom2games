@@ -27,6 +27,8 @@ int main(void) {
 ''')
     disk = test_hgr.build(work, source)
     for iie in (True,False):
+        if iie and not test_hgr.a2test.have_a2shot('LORES modes on the IIe'):
+            continue
         steps = ['wait:1100']
         for _ in range(2):
             steps += ['peek:1000:2', 'peek:C013:2', 'peek:C018:8',

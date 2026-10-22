@@ -150,7 +150,7 @@ SEGMENTS {
     for name in ('lines_done','clear_done','visible_done','hud_done','rows_done','other_done',
                  'sprite_done','decode_done'):
         steps += [labels.until(name), 'peek:2000:16384']
-    result=a2test.run(disk,steps,emulator=a2test.A2SHOT)
+    result=a2test.run(disk,steps)
     base=8192 if page else 0
     expected=bytearray(16384)
     for line in lines:

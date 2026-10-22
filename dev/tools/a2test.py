@@ -116,6 +116,17 @@ class Result:
         return re.findall(r'(?:^\|.{40}\|\n){24}', self.out, re.M)
 
 
+def have_a2shot(what=None):
+    """True when a2shot is built. It links an arm64 macOS POM2 core, so on
+    other hosts (Linux CI) the //e parts of a test are skipped: give `what`
+    to print the SKIP line."""
+    if A2SHOT.exists():
+        return True
+    if what:
+        print(f'SKIP {what}: needs a2shot (macOS arm64: make -C dev/tools/a2shot)')
+    return False
+
+
 def run(disk, steps, emulator=None, iie=False, wp=False, timeout=120, check=True,
         pad_until=False, cwd=None):
     """Boot `disk` and play `steps`. emulator defaults to a2run (a2shot when

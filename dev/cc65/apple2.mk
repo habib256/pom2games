@@ -37,6 +37,11 @@ POM2    ?= /Applications/POM2.app/Contents/MacOS/POM2
 SYSTEM  ?= $(DEV)/tools/dos33_system.bin
 A2RUN   ?= $(DEV)/tools/a2run/a2run
 A2SHOT  ?= $(DEV)/tools/a2shot/a2shot
+# a2shot links an arm64 macOS POM2 core: elsewhere (Linux CI) the tests that
+# need it are skipped. `make A2SHOT_HOST=` simulates that on a Mac.
+ifeq ($(origin A2SHOT_HOST),undefined)
+A2SHOT_HOST := $(if $(filter Darwin-arm64,$(shell uname -sm | tr ' ' -)),yes)
+endif
 LOAD    ?= 0x6000
 APPLE2_PRESET ?= ii+
 APPLE2_RUN_FLAGS ?=
