@@ -163,7 +163,7 @@ SCENES['hgr_tile_background']=dict(sprites=True,sprite_width=7,sprite_height=8,s
     'hgr_ms_spr=&shape;hgr_ms_x=29;hgr_ms_y=60;hgr_ms_run();'+
     'hgr_ms_x=43;hgr_ms_y=60;hgr_ms_run();hgr_show_page();')
 SCENES['hgr_tile_background_pal']=dict(SCENES['hgr_tile_background'],iie=True,pal=True)
-# Non-default compile-time variants (dev/lib/ABI.md, "Options vitesse/RAM"):
+# Non-default compile-time variants (dev/lib/ABI.md, "Speed/RAM options"):
 # the listed members are reassembled with the define and linked before hgrc.lib.
 for name in ('hgr_diagonal_cold','hgr_hud_cold','hgr_scene_cold'):
     SCENES[name+'_x7folded']=dict(SCENES[name],variant=('HGRC_X7_FOLDED',('hgr_columns.s',)))

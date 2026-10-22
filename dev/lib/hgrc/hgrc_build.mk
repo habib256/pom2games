@@ -14,7 +14,7 @@ endif
 HGRC_CFLAGS ?= -t none -Oirs $(HGRC_INCS) -I $(HGRC)/../apple2c
 HGRC_ASMFLAGS ?= -t none $(HGRC_AFLAGS)
 # Compile-time trade-off switches for every member, C and asm (dev/lib/ABI.md,
-# "Options vitesse/RAM"), e.g. HGRC_DEFINES := -D HGRC_X7_FOLDED=1.
+# "Speed/RAM options"), e.g. HGRC_DEFINES := -D HGRC_X7_FOLDED=1.
 HGRC_DEFINES ?=
 HGRC_CONFIG := $(HGRC_BUILD)/config.json
 # Quote every configuration value as one shell argument, including apostrophes.
