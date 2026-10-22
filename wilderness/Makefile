@@ -2,9 +2,12 @@
 #
 #   make            -> build/WILDERNESS.dsk (Apple II+ 48 KB, DOS 3.3)
 #   make run        -> boot it in POM2
-#   make test       -> in a2shot: the view bit for bit against tools/view_ref.py
-#                      (turns, random positions, random commands against a
-#                      model of the player) and the simulation (tests/test_sim.py)
+#   make test       -> fast tier in a2shot (about a minute): boot, map, the
+#                      view bit for bit against tools/view_ref.py, overlays,
+#                      weather and swimming arithmetic
+#   make test-long  -> every other scenario (~40 min): random positions and
+#                      commands against a model of the player, the simulation
+#                      (tests/test_sim.py), journey, items, sites, pans...
 #   make fuzz       -> longer random positions / synthetic maps
 #
 # Analysis of the original (docs/ANALYSE.md). Its images are copyrighted and
@@ -91,18 +94,35 @@ $(DISK): $(BIN) $(MAPBIN) $(BUILD)/boot.bin $(SPRITE_BINS) $(DOS33_DEPS) tools/b
 	@mkdir -p $(BUILD)
 	$(PYTHON) -I tools/build_disk.py --out $(DISK) --build $(BUILD) --master $(SYSTEM)
 
+# Fast tier (about a minute): boot, map generation, the view bit for bit,
+# overlays, render memory, transitions, weather and swimming arithmetic.
 test: all $(A2SHOT)
+	$(PYTHON) tests/test_boot.py
+	$(PYTHON) tests/test_mapgen.py
+	$(PYTHON) tests/test_transitions.py
+	$(PYTHON) tests/test_render_memory.py
+	$(PYTHON) tests/test_view.py
+	$(PYTHON) tests/test_overlays.py
+	$(PYTHON) tests/test_memory_cache.py
+	$(PYTHON) tests/test_exposure.py
+	$(PYTHON) tests/test_temperature_wave.py
+	$(PYTHON) tests/test_weather_cycle.py
+	$(PYTHON) tests/test_weather_frequency.py
+	$(PYTHON) tests/test_swim_energy.py
+	$(PYTHON) tests/test_swim_raster.py
+
+# Long tier: every other emulator scenario (journey, inventory, sites,
+# projection, pans, simulation, random commands, fuzz...), ~40 min.
+test-long: all $(A2SHOT)
 	$(PYTHON) tests/test_journey.py
 	$(PYTHON) tests/test_pack_boot.py
 	$(PYTHON) tests/test_overlay_codec.py
-	$(PYTHON) tests/test_boot.py
 	$(PYTHON) tests/test_optimizations.py
 	$(PYTHON) tests/test_fast_duration.py
 	$(PYTHON) tests/test_input.py
 	$(PYTHON) tests/test_sleep.py
 	$(PYTHON) tests/test_clock.py
 	$(PYTHON) tests/test_feedback.py
-	$(PYTHON) tests/test_mapgen.py
 	$(PYTHON) tests/test_forest.py
 	$(PYTHON) tests/test_tree.py
 	$(PYTHON) tests/test_fauna.py
@@ -117,12 +137,9 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_site_directions.py
 	$(PYTHON) tests/test_projection.py
 	$(PYTHON) tests/test_graphical_topo.py
-	$(PYTHON) tests/test_transitions.py
 	$(PYTHON) tests/test_sites.py
 	$(PYTHON) tests/test_scene_render.py
-	$(PYTHON) tests/test_render_memory.py
 	$(PYTHON) tests/test_sprites.py
-	$(PYTHON) tests/test_view.py
 	$(PYTHON) tests/test_pan.py
 	$(PYTHON) tests/test_fuzz.py 1 3 8
 	$(PYTHON) tests/test_play.py 1 30
@@ -130,20 +147,12 @@ test: all $(A2SHOT)
 	$(PYTHON) tests/test_sim.py
 	$(PYTHON) tests/test_items.py
 	$(PYTHON) tests/test_load.py
-	$(PYTHON) tests/test_overlays.py
-	$(PYTHON) tests/test_memory_cache.py
 	$(PYTHON) tests/test_thermal.py
 	$(PYTHON) tests/test_medical.py
 	$(PYTHON) tests/test_care.py
-	$(PYTHON) tests/test_exposure.py
 	$(PYTHON) tests/test_wind_energy.py
-	$(PYTHON) tests/test_temperature_wave.py
-	$(PYTHON) tests/test_weather_cycle.py
 	$(PYTHON) tests/test_weather_front.py
-	$(PYTHON) tests/test_weather_frequency.py
-	$(PYTHON) tests/test_swim_energy.py
 	$(PYTHON) tests/test_swim_cadence.py
-	$(PYTHON) tests/test_swim_raster.py
 	$(PYTHON) tests/test_shore.py
 	$(PYTHON) tests/test_wet.py
 
@@ -169,7 +178,7 @@ FUZZ_SEED ?= 2
 fuzz: all $(A2SHOT)
 	$(PYTHON) tests/test_fuzz.py $(FUZZ_SEED) 6 16
 
-.PHONY: test test-original fuzz originals extract run-original dump-game topo FORCE
+.PHONY: test test-long test-original fuzz originals extract run-original dump-game topo FORCE
 FORCE:
 
 # ---------------------------------------------------------------- analysis
