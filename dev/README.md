@@ -1,280 +1,280 @@
-# dev — bibliothèques et outils Apple II
+# dev — Apple II libraries and tools
 
-Bibliothèques et outils pour deux profils avec cc65 : **Apple II+ 48 Ko /
-DOS 3.3** et **Apple //e enhanced 128 Ko / ProDOS**. Dérivés de [POM1](https://github.com/habib256/pom1) (GPL v3), ils
-utilisent la vidéo native de l'Apple II. Tous les jeux du dépôt les partagent.
+Libraries and tools for two profiles with cc65: **Apple II+ 48 KB /
+DOS 3.3** and **Apple //e enhanced 128 KB / ProDOS**. Derived from [POM1](https://github.com/habib256/pom1) (GPL v3), they
+use the Apple II's native video. Every game in the repository shares them.
 
     dev/
-      lib/apple2/      asm : matériel, texte, clavier, HGR, sortie DOS,
-                       son, manette, commandes DOS
-      lib/apple2c/     C   : texte, clavier, son, manette, DOS
-      lib/prodos/      MLI ProDOS 8 et remise en état après DHGR
-      lib/mouse/       AppleMouse II : scrutation, IRQ firmware et VBL,
-                       contexte optionnel ZP/boîtes pour les clients historiques
-      lib/audio/       lecteur PWM optionnel, échantillons haut-parleur 8 kHz
-      lib/perspective/ plan HGR sur 280 pixels et couloir natif à deux axes
-      lib/math/        asm : produits exacts (quarts de carrés), racine,
-                       division, LFSR pour la physique en virgule fixe
-      tools/prodos/    constructeur/lecteur de disquettes ProDOS (.po)
-      lib/font/        police Beautiful Boot 8x8 : une table maîtresse, découpée
-                       à la demande (asm, C, outils Python)
-      lib/hgr/         texte, sprites TMS/précompactés, lignes, spans,
-                       effacements et tables HGR en assembleur
-      lib/hgrc/        runtime C HGR : hgr.h, fonctions hgr_*
-      lib/gfx/         géométrie C (lignes, rectangles, cercles) pour hgrc
-      cc65/            configs ld65 (asm et C), crt0 Apple II et apple2.mk,
-                       le fragment Makefile commun à tous les programmes
-      tools/dos33.py   fabrique une image DOS 3.3 amorçable (.dsk) et relit
-                       les fichiers d'une image existante (tests de sauvegarde)
-      tools/dos33patch.py  écrit dans un programme du disque où sont ses
-                       fichiers (listes T/S, secteurs d'une sauvegarde), pour
-                       les lire par RWTS une fois DOS libéré ($(DOS33PATCH))
-      tools/hgr_tables.py  disposition HGR, division/modulo 7 et décalages runtime
-      tools/fonts.py   la police Beautiful Boot côté Python (tables dérivées)
-      tools/a2test.py  harnais des tests : labels ld65, lancement a2run/a2shot,
-                       décodage des dumps mémoire, disque de test
-      tools/a2profile.py  réponse `pcprof` d'a2shot : cycles par adresse, par
-                       routine (labels ld65), par région, par groupe ; tableau
-      tools/re6502/    rétro-ingénierie 6502 : opcodes 6502/65C02, traceur de
-                       code, info da65, secteurs physiques ; cli.py (physics/)
-      tools/build_dhgr_font.py  image binaire de la petite police DHGR relogée
+      lib/apple2/      asm : hardware, text, keyboard, HGR, DOS exit,
+                       sound, joystick, DOS commands
+      lib/apple2c/     C   : text, keyboard, sound, joystick, DOS
+      lib/prodos/      ProDOS 8 MLI and cleanup after DHGR
+      lib/mouse/       AppleMouse II: polling, firmware IRQ and VBL,
+                       optional ZP/mailbox context for legacy clients
+      lib/audio/       optional PWM player, 8 kHz speaker samples
+      lib/perspective/ HGR plane over 280 pixels and native two-axis corridor
+      lib/math/        asm : exact products (quarter squares), square root,
+                       division, LFSR for fixed-point physics
+      tools/prodos/    ProDOS disk image (.po) builder/reader
+      lib/font/        Beautiful Boot 8x8 font: one master table, sliced
+                       on demand (asm, C, Python tools)
+      lib/hgr/         text, TMS/pre-packed sprites, lines, spans,
+                       clears and HGR tables in assembly
+      lib/hgrc/        C HGR runtime: hgr.h, hgr_* functions
+      lib/gfx/         C geometry (lines, rectangles, circles) for hgrc
+      cc65/            ld65 configs (asm and C), Apple II crt0 and apple2.mk,
+                       the Makefile fragment shared by every program
+      tools/dos33.py   builds a bootable DOS 3.3 image (.dsk) and reads back
+                       the files of an existing image (save tests)
+      tools/dos33patch.py  writes into a program on the disk where its
+                       files are (T/S lists, sectors of a save), so it can
+                       read them through RWTS once DOS is released ($(DOS33PATCH))
+      tools/hgr_tables.py  HGR layout, divide/modulo 7 and runtime offsets
+      tools/fonts.py   the Beautiful Boot font on the Python side (derived tables)
+      tools/a2test.py  test harness: ld65 labels, a2run/a2shot launch,
+                       memory dump decoding, test disk
+      tools/a2profile.py  a2shot `pcprof` response: cycles per address, per
+                       routine (ld65 labels), per region, per group; table
+      tools/re6502/    6502 reverse engineering: 6502/65C02 opcodes, code
+                       tracer, da65 info, physical sectors; cli.py (physics/)
+      tools/build_dhgr_font.py  binary image of the relocated small DHGR font
                        (lib/hgrc, DHGR_SMALL_FONT_EXTERNAL)
-      tools/assets/    convertisseur PNG/PPM -> banques HGR/DHGR, masques, aperçus
-      tools/audio/     WAV PCM -> clips PWM ; générateur du lecteur 6502
-      tools/perspective.py  tables de caméra fixe paramétrables
-      tools/dos33_system.bin  pistes système DOS 3.3 (0-2) du disque maître Apple
-      tools/a2shot/    exécutions sans interface, scriptées, avec captures PNG
-      tools/a2run/     la même chose en C portable, avec écriture disque
-      tests/           tests Python des bibliothèques : HGR, moteur de sprites,
-                       DHGR, cadence, exemples, assets (make test, make test-dhgr)
-      bench/           mesures de cycles et de tailles, budgets de régression
-      examples/hello/  programme de départ asm + C sur un disque
-      examples/hgr/    démarrage HGR animé : sprites, compteur, clavier, cadence
-      examples/dhgr/   DHGR 560×192 / 16 couleurs, Apple IIe 128 Ko ou IIc
-      examples/perspective/ grille HGR + effet audio ; disque dans build/
+      tools/assets/    PNG/PPM -> HGR/DHGR bank converter, masks, previews
+      tools/audio/     PCM WAV -> PWM clips; 6502 player generator
+      tools/perspective.py  configurable fixed-camera tables
+      tools/dos33_system.bin  DOS 3.3 system tracks (0-2) from the Apple master disk
+      tools/a2shot/    headless, scripted runs with PNG captures
+      tools/a2run/     the same thing in portable C, with disk writes
+      tests/           Python tests for the libraries: HGR, sprite engine,
+                       DHGR, frame pacing, examples, assets (make test, make test-dhgr)
+      bench/           cycle and size measurements, regression budgets
+      examples/hello/  asm + C starter program on one disk
+      examples/hgr/    animated HGR starter: sprites, counter, keyboard, pacing
+      examples/dhgr/   DHGR 560×192 / 16 colours, Apple IIe 128 KB or IIc
+      examples/perspective/ HGR grid + audio effect; disk in build/
 
-## Démarrer
+## Getting started
 
-Les [contrats d'intégration ASM/C](lib/ABI.md) précisent la mémoire,
-les conventions d'appel, les banques et les interruptions.
+The [ASM/C integration contracts](lib/ABI.md) specify memory,
+calling conventions, banks and interrupts.
 
     cd examples/hello
-    make            # -> ../../../dist/HELLO.dsk (HELLOASM au boot, puis BRUN HELLOC)
-    make run        # dans POM2, profil Apple ][+
+    make            # -> ../../../dist/HELLO.dsk (HELLOASM at boot, then BRUN HELLOC)
+    make run        # in POM2, Apple ][+ profile
 
-Copier `examples/hello` pour commencer un programme texte, ou
-[`examples/hgr`](examples/hgr/README.md) pour une animation avec sprites,
-compteur, clavier et double tampon. Pour placer le nouveau dossier à côté de
-`micro-sokoban/`, mettre `DEV ?= ../dev` et `DIST ?= ../dist` dans son `Makefile`
-pour que la disquette rejoigne les autres dans `dist/`.
+Copy `examples/hello` to start a text program, or
+[`examples/hgr`](examples/hgr/README.md) for an animation with sprites,
+a counter, keyboard and double buffering. To put the new folder next to
+`micro-sokoban/`, set `DEV ?= ../dev` and `DIST ?= ../dist` in its `Makefile`
+so the disk joins the others in `dist/`.
 
-Chaque `Makefile` commence par `include $(DEV)/cc65/apple2.mk`, qui fournit les
-variables d'outils (`CA65`, `CL65`, `PYTHON`, `POM2`, `A2RUN`…), les chemins des
-bibliothèques (`APPLE2`, `HGR`, `FONT`, `HGRC`, `GFX`, `APPLE2C`), `A2_INCS` et
-`A2_ASM_DEPS` pour l'assembleur, la commande `$(DOS33)` qui fabrique la
-disquette, et les cibles `run` (`APPLE2_PRESET`, `APPLE2_RUN_FLAGS`), `clean`,
-`distclean` et `$(A2RUN)`. Le `Makefile` du programme ne garde que ses règles
-de compilation et sa règle `$(DISK)`.
+Every `Makefile` starts with `include $(DEV)/cc65/apple2.mk`, which provides the
+tool variables (`CA65`, `CL65`, `PYTHON`, `POM2`, `A2RUN`…), the library
+paths (`APPLE2`, `HGR`, `FONT`, `HGRC`, `GFX`, `APPLE2C`), `A2_INCS` and
+`A2_ASM_DEPS` for the assembler, the `$(DOS33)` command that builds the
+disk, and the `run` (`APPLE2_PRESET`, `APPLE2_RUN_FLAGS`), `clean`,
+`distclean` and `$(A2RUN)` targets. The program's `Makefile` keeps only its
+compile rules and its `$(DISK)` rule.
 
-Les bibliothèques assembleur s'incluent **après** le code qui les appelle : une
-routine n'est assemblée que si elle a été référencée avant l'include (`.ifref`),
-donc un jeu ne paie que ce qu'il utilise.
+Assembly libraries are included **after** the code that calls them: a
+routine is only assembled if it was referenced before the include (`.ifref`),
+so a game only pays for what it uses.
 
-`pom2games` ne dépend d'aucun autre dossier : il suffit de cc65 et de python3
-pour construire les disques (et de libslirp pour a2shot). `make run` lance POM2
-installé (`/Applications/POM2.app`, ou `make run POM2=chemin/vers/POM2`).
+`pom2games` depends on no other folder: cc65 and python3 are all you need
+to build the disks (plus libslirp for a2shot). `make run` launches the installed
+POM2 (`/Applications/POM2.app`, or `make run POM2=path/to/POM2`).
 
-Le profil ProDOS complet est [`chromabreak`](../chromabreak/README.md) :
-`crt0_prodos.s`, `apple2_dhgr_prodos_c.cfg`, bibliothèques
-[`prodos`](lib/prodos/README.md) et [`mouse`](lib/mouse/README.md).
-Il démarre par un fichier SYS et quitte avec l'appel MLI QUIT.
+The full ProDOS profile is [`chromabreak`](../chromabreak/README.md):
+`crt0_prodos.s`, `apple2_dhgr_prodos_c.cfg`, the
+[`prodos`](lib/prodos/README.md) and [`mouse`](lib/mouse/README.md) libraries.
+It starts from a SYS file and quits with the MLI QUIT call.
 
-## Matériel Apple II
+## Apple II hardware
 
-- Clavier : lire `$C000`, puis toucher `$C010` pour acquitter la touche.
-- Vidéo : commutateurs `$C050-$C057`, texte et deux pages HGR indépendantes.
-- Pas de drapeau V-blank lisible sur II/II+ : dessiner sur la page cachée,
-  puis basculer l'affichage.
-- Page zéro partagée avec le Moniteur et DOS : sauvegarde/restauration par
-  les routines de démarrage et de sortie.
+- Keyboard: read `$C000`, then touch `$C010` to acknowledge the key.
+- Video: soft switches `$C050-$C057`, text and two independent HGR pages.
+- No readable V-blank flag on II/II+: draw on the hidden page,
+  then flip the display.
+- Zero page shared with the Monitor and DOS: saved/restored by
+  the startup and exit routines.
 
-## Rendre la main
+## Handing control back
 
-Deux façons de quitter, selon la façon dont le programme a été lancé :
+Two ways to quit, depending on how the program was launched:
 
-- **`BRUN` (un jeu)** : `APPLE2_PREAMBLE` puis `apple2_exit`, qui revient au prompt
-  DOS. En C : le `crt0_apple2.s` par défaut.
-- **`BLOAD` + `CALL` depuis un menu BASIC** : `APPLE2_PREAMBLE_CALL` (la pile de
-  l'appelant n'est pas touchée) puis `apple2_return`, qui fait un `RTS` vers le
-  BASIC. En C : `__EXIT_RTS__ = 1` dans la config ld65. Un `BRUN` depuis un programme BASIC, lui, ne
-  revient pas proprement : c'est pour ça que le menu utilise `CALL`.
+- **`BRUN` (a game)**: `APPLE2_PREAMBLE` then `apple2_exit`, which returns to the DOS
+  prompt. In C: the default `crt0_apple2.s`.
+- **`BLOAD` + `CALL` from a BASIC menu**: `APPLE2_PREAMBLE_CALL` (the caller's
+  stack is left untouched) then `apple2_return`, which does an `RTS` back to
+  BASIC. In C: `__EXIT_RTS__ = 1` in the ld65 config. A `BRUN` from a BASIC program, on the other hand, does
+  not return cleanly: that is why the menu uses `CALL`.
 
-Dans les deux cas, Ctrl-RESET revient au prompt DOS avec la page zéro restaurée.
+In both cases, Ctrl-RESET returns to the DOS prompt with the zero page restored.
 
-## Carte mémoire (Apple II+ 48 Ko, DOS 3.3)
+## Memory map (Apple II+ 48 KB, DOS 3.3)
 
-    $0000-$004F  Moniteur / DOS          — laissé tranquille (COUT fonctionne)
-    $0050-$00FF  ZEROPAGE du programme   — à restaurer si on revient à DOS
-    $0100-$01FF  pile 6502
-    $0200-$02FF  tampon d'entrée         — libre pendant l'exécution
-    $0300-$03FF  vecteurs DOS / Moniteur — ne pas toucher ($03F2 = RESET)
-    $0400-$07FF  page texte 1
-    $0800-$0FFF  programme BASIC d'accueil (HELLO) — gardé par DOS, ne pas écraser
-    $1000-$1FFF  libre (LOWBSS)
+    $0000-$004F  Monitor / DOS           — left alone (COUT works)
+    $0050-$00FF  program ZEROPAGE        — restore it if returning to DOS
+    $0100-$01FF  6502 stack
+    $0200-$02FF  input buffer            — free while running
+    $0300-$03FF  DOS / Monitor vectors   — do not touch ($03F2 = RESET)
+    $0400-$07FF  text page 1
+    $0800-$0FFF  BASIC greeting program (HELLO) — kept by DOS, do not overwrite
+    $1000-$1FFF  free (LOWBSS)
     $2000-$3FFF  HGR page 1
     $4000-$5FFF  HGR page 2
-    $6000-$95FF  le binaire BRUN (13,8 Ko max), puis BSS / pile C
+    $6000-$95FF  the BRUN binary (13.8 KB max), then BSS / C stack
     $9600-$BFFF  DOS 3.3
 
-## Tests en Python
+## Tests in Python
 
-[`tools/a2test.py`](tools/a2test.py) regroupe ce que tous les scripts de test
-refaisaient : `labels(fichier.lbl)` lit les symboles ld65 et donne
-`peek()` / `poke()` / `until()` ; `run(disque, étapes, iie=, wp=, emulator=,
-pad_until=)` lance a2run, ou a2shot avec `--iie` (les touches brutes sont
-échappées pour lui), et rend un `Result` avec `.dumps` (un `bytes` par `peek:`),
-`.data`, `.mem(adresse, n)`, `.cycles` (un par `until:`), `.spk`,
-`.text_screens()` ; `hgr_offset(y)`, `hgr_visible(page)`, `page_dump()` et
-`build_disk()` complètent.
-`tools/dos33.py` relit aussi une image : `catalog()`, `read_file()`,
-`replace_file()` (sauvegardes des jeux). Les scripts de MICRO-SOKOBAN,
-ARKABREAKOUT, CHROMABREAK, Maze3D, `tests/` et `bench/` l'utilisent.
+[`tools/a2test.py`](tools/a2test.py) gathers what every test script used to
+redo: `labels(fichier.lbl)` reads the ld65 symbols and provides
+`peek()` / `poke()` / `until()`; `run(disque, étapes, iie=, wp=, emulator=,
+pad_until=)` launches a2run, or a2shot with `--iie` (raw keys are
+escaped for it), and returns a `Result` with `.dumps` (one `bytes` per `peek:`),
+`.data`, `.mem(adresse, n)`, `.cycles` (one per `until:`), `.spk`,
+`.text_screens()`; `hgr_offset(y)`, `hgr_visible(page)`, `page_dump()` and
+`build_disk()` round it out.
+`tools/dos33.py` also reads an image back: `catalog()`, `read_file()`,
+`replace_file()` (game saves). The MICRO-SOKOBAN,
+ARKABREAKOUT, CHROMABREAK, Maze3D, `tests/` and `bench/` scripts use it.
 
 ## a2shot
 
-Démarre un disque sur un Apple II+ émulé (cœur de POM2, sans fenêtre, sans
-horloge murale, donc déterministe) et déroule un script :
+Boots a disk on an emulated Apple II+ (the POM2 core, no window, no
+wall clock, hence deterministic) and runs a script:
 
     cd tools/a2shot && make
     ./a2shot --disk ../../../dist/CHESS.dsk \
         wait:900 shot:menu.png key:2 wait:60 shot:board.png peek:0800:2
 
-| Étape             | Effet                                              |
+| Step              | Effect                                             |
 |-------------------|----------------------------------------------------|
-| `wait:N`          | exécute N trames (17 030 cycles chacune)           |
-| `until:ADR:N`     | exécute jusqu'à PC = ADR (N trames au plus, sinon échec) et affiche le compteur de cycles |
-| `until:A,B:N`     | s'arrête à l'une des adresses indiquées ; utile pour les questions à plusieurs points d'entrée |
-| `key:TEXTE`       | tape le texte (`\r` RETURN, `\e` ESC, `\<` `\>` flèches), trois trames par touche |
-| `press:TEXTE`     | met les touches en file sans exécuter (pour un `until:` exact) |
-| `shot:F.png`      | capture l'écran en 560×384 (HGR et DHGR)             |
-| `peek:ADR[:LEN]`  | vide la mémoire (lecture bus)                      |
-| `poke:ADR:OCTET` | écrit un octet en mémoire (valeurs hexadécimales) |
-| `watch:ADR[:MEM:LEN]` | affiche les registres à chaque passage du PC à ADR, et éventuellement LEN octets à MEM (adresses hexadécimales, longueur décimale, 4096 au plus, sans dépasser $FFFF) |
-| `unwatch`         | désactive toutes les traces `watch:`              |
-| `joy:X,Y`, `btn:N,0\|1` | manette                                      |
-| `reset`           | appuie sur RESET                                   |
-| `pc`              | affiche le PC                                      |
+| `wait:N`          | runs N frames (17,030 cycles each)                 |
+| `until:ADR:N`     | runs until PC = ADR (N frames at most, otherwise fails) and prints the cycle counter |
+| `until:A,B:N`     | stops at any of the given addresses; useful for questions with several entry points |
+| `key:TEXTE`       | types the text (`\r` RETURN, `\e` ESC, `\<` `\>` arrows), three frames per key |
+| `press:TEXTE`     | queues the keys without running (for an exact `until:`) |
+| `shot:F.png`      | captures the screen at 560×384 (HGR and DHGR)      |
+| `peek:ADR[:LEN]`  | dumps memory (bus read)                            |
+| `poke:ADR:OCTET` | writes one byte to memory (hexadecimal values) |
+| `watch:ADR[:MEM:LEN]` | prints the registers each time PC reaches ADR, and optionally LEN bytes at MEM (hexadecimal addresses, decimal length, 4096 at most, not past $FFFF) |
+| `unwatch`         | disables all `watch:` traces                       |
+| `joy:X,Y`, `btn:N,0\|1` | joystick                                     |
+| `reset`           | presses RESET                                      |
+| `pc`              | prints the PC                                      |
 
-`--iie` démarre un Apple //e enhanced (65C02, carte 80 colonnes et mémoire
-auxiliaire) au lieu du ][+ : c'est ce qui permet de tester LOGO en 80 colonnes.
+`--iie` boots an Apple //e enhanced (65C02, 80-column card and auxiliary
+memory) instead of the ][+: this is what allows testing LOGO in 80 columns.
 
-a2shot démarre une **copie** du disque : POM2 réécrit les images modifiées, et
-un test ne doit pas altérer le disque qu'il vérifie.
+a2shot boots a **copy** of the disk: POM2 writes modified images back, and
+a test must not alter the disk it is checking.
 
-`--stdin` accepte des étapes supplémentaires, une par ligne. Chaque réponse
-se termine par `a2shot:done`, immédiatement vidé vers stdout ; EOF termine
-la session. `a2test.Session(disque, cwd=...)`, utilisé avec `with`, expose
-`step(étape) -> Result` et conserve le journal dans `.out`. Le pilote peut
-ainsi examiner la question affichée avant de fournir la réponse ; un délai
-dépassé ou un arrêt de l'émulateur lève une exception.
+`--stdin` accepts additional steps, one per line. Each response
+ends with `a2shot:done`, flushed to stdout immediately; EOF ends
+the session. `a2test.Session(disque, cwd=...)`, used with `with`, exposes
+`step(étape) -> Result` and keeps the log in `.out`. The driver can
+thus examine the displayed question before supplying the answer; a timeout
+or an emulator stop raises an exception.
 
-a2shot est autonome : `sdk/` contient le SDK du cœur de POM2 (`core.hpp` et
-`libpom2_core.a`, arm64, sans symboles de débogage) et `roms/` les ROM Apple ][+,
-Apple //e (+ ROM caractères) et Disk II, copiés depuis POM2 (`--roms DIR` pour en prendre d'autres). Seules
-libslirp (brew) et zlib viennent du système.
-Un DOS 3.3 met environ 900 trames à lancer un jeu de 8-12 Ko.
+a2shot is self-contained: `sdk/` holds the POM2 core SDK (`core.hpp` and
+`libpom2_core.a`, arm64, without debug symbols) and `roms/` the Apple ][+,
+Apple //e (+ character ROM) and Disk II ROMs, copied from POM2 (`--roms DIR` to use others). Only
+libslirp (brew) and zlib come from the system.
+DOS 3.3 takes about 900 frames to launch an 8-12 KB game.
 
 ## a2run
 
-En bibliothèque (`-DA2RUN_LIB`, `a2run.h`) : `a2run_main()` démarre un disque
-et joue un script, puis l'appelant pilote lui-même `cpu`, `ram` et `kbd_latch`
-(`arkabreakout/tests/pilot.c` joue la campagne à la manette).
+As a library (`-DA2RUN_LIB`, `a2run.h`): `a2run_main()` boots a disk
+and plays a script, then the caller drives `cpu`, `ram` and `kbd_latch`
+itself (`arkabreakout/tests/pilot.c` plays the campaign with the joystick).
 
-L'équivalent portable d'a2shot (Linux et macOS, C99 + zlib, sans le cœur de
-POM2) : un 6502 NMOS (validé par la suite de tests fonctionnels de Klaus
-Dormann), 48 Ko, clavier, haut-parleur, manette et un Disk II au niveau des
-quartets, en lecture **et en écriture**. Mêmes ROM (`a2shot/roms`), même
-syntaxe de script, plus quelques étapes pour les tests :
+The portable equivalent of a2shot (Linux and macOS, C99 + zlib, without the POM2
+core): an NMOS 6502 (validated by Klaus Dormann's functional test
+suite), 48 KB, keyboard, speaker, joystick and a nibble-level Disk II,
+for reading **and writing**. Same ROMs (`a2shot/roms`), same
+script syntax, plus a few steps for tests:
 
     cd tools/a2run && make
     ./a2run --disk ../../../dist/MICRO-SOKOBAN.dsk \
         wait:900 shot:titre.png key:" " wait:30 key:LLK spk dsk:apres.dsk
 
-| Étape             | Effet                                              |
+| Step              | Effect                                             |
 |-------------------|----------------------------------------------------|
-| `wait:N`, `until:`, `key:`, `press:`, `shot:`, `peek:`, `joy:`, `btn:`, `reset`, `pc` | comme a2shot (`\^` `\v` : flèches haut/bas) |
-| `text`            | affiche la page texte 40×24                        |
-| `poke:ADR:VAL`    | écrit un octet en RAM                              |
-| `spk`             | nombre de basculements du haut-parleur depuis le dernier `spk` |
-| `spklog:F.txt`    | écrit ensuite le cycle de chaque basculement, un par ligne (hauteur, tempo) |
-| `dsk:F.dsk`       | écrit la disquette telle que le programme l'a laissée (sauvegardes) |
+| `wait:N`, `until:`, `key:`, `press:`, `shot:`, `peek:`, `joy:`, `btn:`, `reset`, `pc` | as in a2shot (`\^` `\v`: up/down arrows) |
+| `text`            | prints the 40×24 text page                         |
+| `poke:ADR:VAL`    | writes one byte to RAM                             |
+| `spk`             | number of speaker toggles since the last `spk`     |
+| `spklog:F.txt`    | from then on, writes the cycle of each toggle, one per line (pitch, tempo) |
+| `dsk:F.dsk`       | writes the disk as the program left it (saves)     |
 
-Le disque passé à `--disk` n'est jamais modifié ; `--wp` le présente protégé
-en écriture (tests de sauvegarde). Un DOS 3.3 met environ
-400 trames à lancer un jeu. Pas de carte langage, pas de 80 colonnes : pour
-LOGO sur //e, a2shot reste l'outil.
+The disk given to `--disk` is never modified; `--wp` presents it
+write-protected (save tests). DOS 3.3 takes about
+400 frames to launch a game. No language card, no 80 columns: for
+LOGO on //e, a2shot remains the tool.
 
-Licence : GPL v3, comme les sources POM1 dont ces bibliothèques dérivent.
+Licence: GPL v3, like the POM1 sources these libraries derive from.
 
-## Tests : deux paliers
+## Tests: two tiers
 
-Chaque programme a deux cibles (convention de `cc65/apple2.mk`) :
+Each program has two targets (convention from `cc65/apple2.mk`):
 
-- `make test` : le palier **rapide** (une à deux minutes), le réflexe de la
-  boucle de développement : `make -C <jeu> test` après chaque modification ;
-- `make test-long` : ce qui est trop lent pour cela (campagnes complètes,
-  tous les niveaux, parcours longs) ; la cible peut être vide.
+- `make test`: the **fast** tier (one to two minutes), the reflex of the
+  development loop: `make -C <jeu> test` after each change;
+- `make test-long`: what is too slow for that (full campaigns,
+  every level, long runs); the target may be empty.
 
-À la racine, `make test` lance les paliers rapides et les vérifications
-rapides de `dev/` (`make test-dev` : bibliothèques, outils, exemples,
-`bench-check`), `make test-long` les paliers longs, `make test-all` les deux.
-`make test-changed [BASE=<ref>] [LONG=1]` ne teste que les programmes que
-l'arbre de travail touche (sources du dossier, ou image disque reconstruite
-différente de celle de BASE : voir `tools/test_changed.py`), plus
-`make test-dev` si `dev/` a changé.
+At the root, `make test` runs the fast tiers and the fast checks
+of `dev/` (`make test-dev`: libraries, tools, examples,
+`bench-check`), `make test-long` the long tiers, `make test-all` both.
+`make test-changed [BASE=<ref>] [LONG=1]` tests only the programs that
+the working tree touches (sources in the folder, or a rebuilt disk image
+that differs from BASE's: see `tools/test_changed.py`), plus
+`make test-dev` if `dev/` changed.
 
-## Assets et mesures
+## Assets and measurements
 
-- [Conversion PNG/PPM HGR/DHGR](tools/assets/README.md) : banques, masques, aperçus et tailles.
-- [Benchmarks et budgets de régression](bench/README.md) : `make bench`, `make bench-dhgr`.
-- `make test-assets` et `make bench-check` font partie de `make test` (`make test-dev`).
-- `make test-dhgr` vérifie les deux pages, les deux banques et les deux backends.
+- [HGR/DHGR PNG/PPM conversion](tools/assets/README.md): banks, masks, previews and sizes.
+- [Benchmarks and regression budgets](bench/README.md): `make bench`, `make bench-dhgr`.
+- `make test-assets` and `make bench-check` are part of `make test` (`make test-dev`).
+- `make test-dhgr` checks both pages, both banks and both backends.
 
-## Cadence et exemple animé
+## Frame pacing and animated example
 
-Le service optionnel [`lib/apple2c/apple2frame.h`](lib/apple2c/apple2frame.h)
-attend le prochain VBL sur IIe, ou utilise une temporisation sur II/II+ et
-IIc. Les attentes sont bornées ; le service ne configure aucune interruption.
-Lier `APPLE2C_FRAME_SRCS` et appeler `a2_frame_init()` avant la boucle.
-La temporisation ajoute un délai au dessin ; elle ne garantit pas une fréquence
-fixe. Voir l’[exemple HGR](examples/hgr/README.md) pour les contrats par modèle.
+The optional [`lib/apple2c/apple2frame.h`](lib/apple2c/apple2frame.h) service
+waits for the next VBL on IIe, or uses a delay loop on II/II+ and
+IIc. Waits are bounded; the service configures no interrupts.
+Link `APPLE2C_FRAME_SRCS` and call `a2_frame_init()` before the loop.
+The delay adds to the drawing time; it does not guarantee a fixed
+rate. See the [HGR example](examples/hgr/README.md) for the per-model contracts.
 
-`make test-frame` et `make test-hgr-example` font partie de `make test`.
-Les tests du moteur de sprites font partie de `make test-hgr`.
+`make test-frame` and `make test-hgr-example` are part of `make test`.
+The sprite engine tests are part of `make test-hgr`.
 
-## Disques DOS à secteurs fixes
+## Fixed-sector DOS disks
 
-`tools/dos33.py` expose `Dos33Image.blank()` pour un chargeur personnalisé :
-catalogue vide, pistes 0–2 réservées, sans recopier le démarrage DOS standard.
-`reserve_sectors(start, count)` réserve des secteurs linéaires en ordre DOS
-avant l’ajout des fichiers. `write_fixed(start, data, capacity)` écrit un
-module dans ces secteurs ; `capacity` est un nombre d’octets multiple de 256.
-La capacité inutilisée est remplie de zéros. Les dépassements, chevauchements,
-secteurs non réservés et écritures sur la piste du catalogue/VTOC sont refusés
-avant toute mutation. `save()` écrit le bitmap de réservation sur le disque.
+`tools/dos33.py` exposes `Dos33Image.blank()` for a custom loader:
+empty catalog, tracks 0–2 reserved, without copying the standard DOS boot.
+`reserve_sectors(start, count)` reserves linear sectors in DOS order
+before files are added. `write_fixed(start, data, capacity)` writes a
+module into those sectors; `capacity` is a byte count that is a multiple of 256.
+Unused capacity is filled with zeros. Overflows, overlaps,
+unreserved sectors and writes to the catalog/VTOC track are rejected
+before any mutation. `save()` writes the reservation bitmap to the disk.
 
-Pinball garde sa recette de placement et son chargeur, mais utilise cette API
-publique. Les fichiers ajoutés ensuite ne peuvent pas réutiliser ses pistes.
-`make test-tools` vérifie les tables HGR, le placement/réservation des secteurs
-et le contexte souris autonome ; cette cible fait partie de `make test`.
+Pinball keeps its own placement recipe and loader, but uses this public
+API. Files added afterwards cannot reuse its tracks.
+`make test-tools` checks the HGR tables, sector placement/reservation
+and the standalone mouse context; this target is part of `make test`.
 
-Les [trois intégrations minimales](examples/minimal/README.md) fournissent des
-images DOS/ProDOS et un bilan mémoire calculé. Le [registre matériel](lib/HARDWARE.md)
-sépare les essais physiques restant à effectuer des validations émulées.
+The [three minimal integrations](examples/minimal/README.md) provide
+DOS/ProDOS images and a computed memory budget. The [hardware register](lib/HARDWARE.md)
+separates the physical tests still to be done from the emulated validations.
 
-## Audit des ressources partagées
+## Shared resource audit
 
-`make audit-libs`, depuis la racine, vérifie les dépendances réelles des
-15 projets avec ca65/cc65 et le graphe de compilation de make. Construire
-d’abord les logiciels et les exemples minimaux pour disposer des ressources
-générées. Voir [l’inventaire et les possibilités de mutualisation](lib/USAGE.md).
+`make audit-libs`, from the root, checks the actual dependencies of the
+15 projects with ca65/cc65 and make's build graph. Build
+the software and the minimal examples first so the generated resources
+are available. See [the inventory and sharing opportunities](lib/USAGE.md).
