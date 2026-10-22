@@ -14,8 +14,11 @@ their difference. One tick:
      rider along the bike (their rest lengths); he is heavier than a wheel;
   4. ground contact for both wheels: push out along the ground normal,
      bounce, then traction (throttle on the rear wheel), brake, engine
-     brake, rolling loss;
-  5. the constraints again (the frame stays a frame after the ground);
+     brake, rolling loss. Braking cuts the throttle;
+  5. the constraints again (the frame stays a frame after the ground); a
+     braked wheel that the brake stopped this tick stays where the tick
+     found it (x and old x: static friction; the rider's weight dragged a
+     stopped, braked bike back down a slope, ~9 px/s on 1/2);
   6. crash tests: rider too close to the ground, a rider link squashed, the
      head under the ground, the bike over (front behind rear with a wheel
      down); finish test.
@@ -43,7 +46,9 @@ ENGINE_BRAKE = 7            # rear wheel, no throttle: also vt -= vt >> ENGINE_B
 THROTTLE_ACC = 31           # per throttle level, 8.8 px / tick^2 (8 x 31 < 256)
 THROTTLE_MAX = 8            # levels 0..8
 VT_MAX = 0x0D80             # traction stops adding speed above this (3x lot 1)
-BRAKE = 0x0020              # 8.8 px / tick^2 removed from |vt| on each wheel
+BRAKE = 0x0040              # 8.8 px / tick^2 removed from |vt| on each wheel: ~1 g
+                            # of the game's gravity (0x0020 was ~0.6 g: 3.8 s and
+                            # 660 px to stop from full speed, weaker than the engine)
 LEAN_MAX = 4                # lean levels -4..4 (+: forward / nose down)
 LEAN_SHIFT = 1.0            # the rider moves this far along the bike per level, px
 GYRO_DIV = 8                # in the air, throttle / GYRO_DIV turns the nose up and
@@ -140,6 +145,8 @@ class Bike:
 
     # --- one tick ---------------------------------------------------------
     def tick(self, throttle=0, brake=False, lean=0):
+        if brake:                   # the brake wins: the throttle is cut (gas still
+            throttle = 0            # held from the keyboard or button 0 made it useless)
         air = not (self.ground[0] or self.ground[1])    # (last tick's contact)
         one = self.ground[0] != self.ground[1]          # on one wheel
         front = self.ground[1]
@@ -162,11 +169,15 @@ class Bike:
         for _ in range(CONSTRAINT_PASSES):
             for c in cons:
                 self._constrain(*c)
+        self.hold = [None, None]            # _ground: a braked wheel stopped
         for i in range(2):
             self._ground(i, throttle if i == 0 else 0, brake)
         self.squashed = False
         for c in cons:                      # the frame again, after the ground
             self._constrain(*c)
+        for i in range(2):                  # a stopped, braked wheel holds
+            if self.hold[i] is not None:
+                self.x[i] = self.ox[i] = self.hold[i]
         self._ceiling()
         self.crashed = (self.crashed or self._rider_hit() or self.squashed or self._head_hit()
                         or self._flipped())
@@ -286,6 +297,7 @@ class Bike:
                 vt += BRAKE
             else:
                 vt = 0
+                self.hold[i] = self.ox[i]   # (the tick's start: ox is set below)
         if i == 0 and not throttle:
             vt -= vt >> ENGINE_BRAKE
         vt -= vt >> ROLL_LOSS

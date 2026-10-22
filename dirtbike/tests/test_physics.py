@@ -33,6 +33,38 @@ SCRIPT = [
 ]
 
 
+# the brake (2026-10-22): sped up, then throttle AND brake held (the brake
+# wins) on the flat, up and down slopes: the bike slows down smoothly, stops
+# and stays stopped (braked, it slid back down slopes)
+def brake_track(slope):
+    t = [160] * 200
+    for x in range(200, 4096):
+        t.append(min(184, max(64, 160 + (x - 200) * slope[0] // slope[1])))
+    return t
+
+
+BRAKE_CASES = [('flat', (0, 1), 60), ('up 1/4', (-1, 4), 40), ('up 1/8', (-1, 8), 60),
+               ('down 1/12', (1, 12), 60), ('down 1/6', (1, 6), 80)]
+BRAKE_TICKS = 240
+
+
+def brake_script(gas):
+    return [(40, 0, 0, 0), (gas, 8, 0, 0)] + [(6, 8, 1, 0)] * (BRAKE_TICKS // 6)
+
+
+def brake_curve(t, gas):
+    """The model's speed while braking: wheel midpoint, px/tick 8.8, over 6 ticks."""
+    b = physics.Bike(t)
+    for n, thr, brk, lean in brake_script(gas)[:2]:
+        for _ in range(n):
+            b.tick(thr, bool(brk), lean)
+    mid = []
+    for _ in range(BRAKE_TICKS + 1):
+        mid.append(b.x[0] + b.x[1])
+        b.tick(8, True, 0)
+    return [(mid[i + 6] - mid[i]) // 12 for i in range(0, BRAKE_TICKS, 6)], b.crashed
+
+
 HEAD_SCRIPT = [(10, 4, 0, 2), (60, 4, 0, 4), (10, 0, 1, 4)]   # (found by a search; again after the brake fix)
 
 
@@ -134,6 +166,18 @@ def main():
     assert b.crashed and b._head_hit(), 'HEAD_SCRIPT: the head hits the ground'
     run(t, [(s, 1) for s in HEAD_SCRIPT])
     print('physics: 6502 == model, head under the ground: crash')
+    for name, slope, gas in BRAKE_CASES:
+        t = brake_track(slope)
+        v, crashed = brake_curve(t, gas)
+        stop = next(i for i, w in enumerate(v) if w <= 0)     # (within 1/32 px a tick, then 0)
+        ok = (not crashed and v[0] > 0 and all(b < a for a, b in zip(v[:stop], v[1:stop + 1]))
+              and v[stop] >= -8 and all(w == 0 for w in v[stop + 1:]))
+        print(f'brake, {name}: px/tick x 256 every 6 ticks {v[:stop + 2]}..., stopped after '
+              f'{6 * stop} ticks: ' + ('ok' if ok else 'DIFF'))
+        if not ok:
+            sys.exit(f'brake ({name}): not a smooth stop {v}')
+        run(t, [(seg, int((k - 1) % 5 == 0)) for k, seg in enumerate(brake_script(gas))])
+        print(f'physics: 6502 == model, brake {name}')
     sols = trackcheck.solutions()
     for k in (1, 19, 30):               # whole proven rides: hills, a double flip, big jumps
         h, fin = tracks.build(k)

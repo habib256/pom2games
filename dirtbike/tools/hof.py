@@ -5,7 +5,7 @@
 
 "DBH" v1, then per track: best time (min = $FF: none, sec, hun), initials,
 best points (BCD, 3 bytes) and their initials; the last initials typed;
-the input device chosen (0: the keyboard).
+the input device chosen (0: the joystick when one is found, 1: the keyboard).
 The game rewrites its two sectors in place through RWTS, so the file is made
 once, at its full size. (`make` rebuilding the disk empties it again.)
 """

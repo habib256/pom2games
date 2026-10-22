@@ -19,8 +19,13 @@ Lot 2a (fait, 2026-10-21) : ~420 octets libérés (page texte 1 en BSS, hall
 of fame en LOWBSS), drapeau sur la ligne d'arrivée et de tour, points de
 wheeling.
 
+Lot 2b (fait, 2026-10-22) : souris retirée ; manette : X = inclinaison
+analogique, bouton 0 = gaz, bouton 1 = frein, menus au manche (un cran par
+poussée) ; frein revu (il coupe les gaz, ~1 g au lieu de ~0,6 g, une roue
+arrêtée par le frein tient : la moto ne recule plus) ; 30 parcours résolus
+de nouveau.
+
 ## Lot 2 — jouabilité
-- AppleMouse (dev/lib/mouse) : X = inclinaison, Y = gaz, comme sur le Mac.
 - Régler la conduite à la main dans POM2 : traction, inclinaison, souplesse
   de la suspension, rebond (modèle d'abord, puis `make test`).
 - Fantôme : enregistrer les entrées de chaque tick (rejouables au bit près,

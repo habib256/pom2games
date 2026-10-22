@@ -9,36 +9,66 @@ chute. Les meilleurs temps et scores restent sur la disquette.
 
     make             # ../dist/DIRTBIKE.dsk (hall of fame vide)
     make run         # dans POM2 (Apple II+)
-    make test        # 30 parcours faisables, physique et points 6502 ==
-                     # modèle, chargement exact, titre, démo, sauvegarde
+    make test        # 30 parcours faisables, physique, frein et points 6502 ==
+                     # modèle, manette et clavier, chargement exact, titre,
+                     # démo, sauvegarde
 
 ## Commandes
 
-| Manette | Souris | Clavier | Effet |
-|---|---|---|---|
-| X gauche / droite | gauche / droite | ← → ou J / L | se pencher en arrière / en avant |
-| haut (plus ou moins) | vers le haut | A / ↑ plein gaz, Z / ↓ demi-gaz | gaz ; au clavier tant qu'on appuie : relâchés, ils retombent à zéro en ~1 s et la moto ralentit |
-| bas, bouton 0 | vers le bas, bouton | ESPACE | frein |
-| | | H | page d'aide (titre, menu) |
-| | | R | recommencer le parcours |
-| | | S | son coupé / remis |
-| | | ESC | en course : le menu principal, ESC encore : la course reprend (depuis le menu des parcours : la page de titre) |
-| | | Ctrl-RESET | la page de titre |
+| Manette | Clavier | Effet |
+|---|---|---|
+| X gauche / droite (analogique) | ← → ou J / L | se pencher en arrière / en avant |
+| bouton 0 | A / ↑ plein gaz, Z / ↓ demi-gaz | gaz ; au clavier, relâchés, ils retombent à zéro en ~1 s et la moto ralentit |
+| bouton 1 | ESPACE | frein (il coupe les gaz) |
+| | H | page d'aide (titre, menu) |
+| | R | recommencer le parcours |
+| | S | son coupé / remis |
+| | ESC | en course : le menu principal, ESC encore : la course reprend (depuis le menu des parcours : la page de titre) |
+| | Ctrl-RESET | la page de titre |
 
-Seul le périphérique choisi au menu principal (option 3) pilote la moto :
-une manette ou une souris mal centrée penchait ou accélérait toute seule, et
-gênait le jeu au clavier. Les touches R, S et ESC restent actives avec tous.
-Le choix est écrit dans `DIRTHOF` en quittant le menu (`inp_pref`) et repris
-au démarrage s'il est toujours branché ; une disquette neuve démarre au
-clavier. La position de la manette au démarrage sert de centre. Avec la
-souris AppleMouse (carte du //e, souris intégrée du //c ; `dev/lib/mouse`),
-sa position compte comme celle du manche (centre 70, 96 du pilote) et son
-bouton freine. Les interruptions qu'active la souris du
-//c sont masquées pendant les accès disque (`RWTS_SEI`). `make test-mouse`
-le vérifie avec les vraies ROM (cartes AppleWin et MAME, //c 16 et 32 Ko)
-dans le cœur POM2. Au clavier,
-l'inclinaison et le frein durent 6 images après chaque appui ;
-l'auto-répétition du //e les prolonge tant que la touche reste enfoncée.
+Le clavier conduit toujours. La manette conduit aussi quand elle est le
+périphérique choisi au menu principal (option 3, JOYSTICK ou KEYBOARD) :
+une disquette neuve la prend si elle répond au démarrage ; le choix est
+écrit dans `DIRTHOF` en quittant le menu (`inp_pref`, 0 : la manette) et
+repris au démarrage si elle est toujours branchée. Sa position au démarrage
+sert de centre. **Inclinaison analogique** : `stick_lean` (`src/input.inc`,
+recopié dans `tests/test_input.py`) donne 0 à moins de 6 crans de
+`read_stick_fast` du centre (zone morte), puis 1 + (|d| − 6) / 8, au plus 4,
+avec le signe de d : poussé à fond (±40 crans), le manche penche au
+maximum, à moitié de 2. **Boutons** : le bouton 0 (la gâchette de la
+plupart des manettes Apple, la touche Pomme ouverte du //e) est le gaz,
+tenu presque toute la course ; le bouton 1, le frein. Les deux ensemble :
+le frein gagne. L'axe Y ne sert qu'aux menus. Sans manette (les deux
+minuteries des paddles ne retombent jamais), le jeu ne lit rien du port
+de jeu : les entrées des boutons flottent et liraient « appuyé » sur un
+II+. Au clavier, l'inclinaison dure 6 images après chaque appui, les gaz
+et le frein 20 (le premier délai de l'auto-répétition du //e : un ESPACE
+tenu freinait 6 images, puis plus rien jusqu'à la répétition, et jamais
+sur un II+) ; ESPACE coupe les gaz du clavier, A / Z coupent le frein.
+
+**Frein** (2026-10-22, modèle `tools/physics.py`, vérifié par
+`tests/test_physics.py`). Il retire `BRAKE` de la vitesse tangentielle de
+chaque roue au sol, jusqu'à zéro (jamais au-delà : pas de marche arrière),
+et, roue avant en l'air, fait plonger l'avant (`GYRO_BRAKE`). Avant, il
+était bizarre :
+1. les gaz l'emportaient : la traction plein gaz (8 × 31 par tick) noyait
+   le frein (2 × 32) ; or au clavier les gaz restent tenus 20 images après
+   A : ESPACE juste après les gaz ne freinait pas, la moto accélérait
+   encore (gaz et frein tenus : 13,5 px/tick, sans fin) ;
+2. il était faible : ~0,6 g de la gravité du jeu, moins que le moteur ;
+   de 13 px/tick à l'arrêt : 120 ticks (4 s) et ~670 px ;
+3. une moto arrêtée et freinée reculait : la seconde passe des contraintes
+   (le poids du pilote) déplaçait les roues que le frein venait d'arrêter
+   (~1 à 2 px en 10 s sur le plat, ~85 px en 200 ticks sur une pente
+   de 1/2) ;
+4. au clavier, ESPACE ne freinait que 6 images par appui.
+
+Maintenant : le frein coupe les gaz (`phys_tick`) ; `BRAKE` = $40 (~1 g) :
+de 13 px/tick à l'arrêt en 72 ticks (2,4 s) et ~430 px, en décroissant
+régulièrement (12,9 → 10,1 → 7,5 → 5,1 → 2,9 → 0,9 → 0 px/tick toutes les
+12 ticks, sur le plat) ; une roue que le frein arrête dans le tick reste
+où le tick l'a trouvée (x et ancien x : frottement statique) : la moto
+s'arrête et reste arrêtée, en côte comme en descente.
 
 **Titre et démo** (`src/title.inc`, image `tools/title.py`). Le jeu s'ouvre
 sur une page de titre (fichier `TITLE`, LZ4FH, 1,8 Ko), avec le crédit du
@@ -52,7 +82,8 @@ fichier de la piste et copiée au chargement dans `$1000-$1FFF`, puis les
 deux pages du hall of fame, puis le titre.
 
 **Menu.** Les 30 parcours sur deux colonnes : flèches (ou I J K L) ou
-manette pour choisir, RETURN, ESPACE ou bouton 0 pour partir. Seuls les
+manette pour choisir (un cran par poussée, le manche revient au centre
+pour le suivant ; tenu, il répète), RETURN, ESPACE ou un bouton pour partir. Seuls les
 parcours déjà terminés (ceux qui ont un temps au hall of fame, donc sauvés
 sur la disquette) se choisissent, et le premier pas encore terminé ; les autres montrent
 leur numéro et des tirets. Une partie enchaîne ensuite les parcours : après
@@ -70,18 +101,18 @@ la page en cours de redessin (la moto clignotait ; voir
 
 **Menu principal** (ESC en course, `src/mainmenu.inc`) : retour à la
 course (0, seulement pendant une course pas finie), page de titre, aide,
-périphérique d'entrée (clavier, joystick ou souris, parmi ceux détectés au
-démarrage), hall of fame, retour à BASIC. Flèches (I / K) et RETURN, ou les
+périphérique d'entrée (joystick, s'il a répondu au démarrage, ou
+clavier seul), hall of fame, retour à BASIC. Flèches (I / K) et RETURN, ou les
 chiffres 0 à 5 ; ESC : retour à la course, sinon la page de titre. Le retour
 (`race_resume`) relit le parcours, que `TITLE` a recouvert, redessine les
 deux pages et repart après un compte à rebours, la moto et le chrono là où
 ils étaient. Au joystick, haut /
-bas déplacent la marque ; à la souris, sa hauteur désigne l'option ; leur
-bouton choisit, et referme l'aide et le hall of fame. Son code et ses
+bas déplacent la marque, un cran par poussée ; un bouton choisit, et
+referme l'aide et le hall of fame. Son code et ses
 textes sont un overlay du fichier `TITLE` : lié pour s'exécuter en `$9C00`
 (`build/menu.bin`, rangé par `tools/titlefile.py`), il arrive avec `TITLE`
 dans le tampon de chargement, sur le parcours chargé (rechargé avant chaque
-course de toute façon). « QUIT TO BASIC » coupe la souris, laisse la marque
+course de toute façon). « QUIT TO BASIC » laisse la marque
 « QU » en `$8000` et redémarre la disquette : HELLO la voit, l'efface et
 s'arrête (« DIRTBIKE: BYE! ») au lieu de relancer le jeu ; on retrouve
 BASIC avec DOS 3.3.
@@ -145,7 +176,7 @@ plutôt qu'une piste deux fois plus longue.
 
 **Hall of fame** (`src/hof.inc`). Pour chaque parcours, le meilleur temps et
 le meilleur score, chacun avec trois initiales. Après un record, on tape ses
-initiales (lettres, ou manette haut/bas et gauche/droite, RETURN ou bouton) ;
+initiales (lettres, ou manette haut/bas et gauche/droite, RETURN ou un bouton) ;
 le jeu réécrit alors les deux secteurs du fichier `DIRTHOF` par RWTS. Sur une
 disquette protégée, il le dit et continue. `make` recrée un hall of fame vide.
 
@@ -173,11 +204,12 @@ seule ; à 3 fois, la moto devenait intenable dans les whoops). À chaque tick :
    `h[x+2] - h[x-2]` : rebond, puis traction (roue arrière), frein, frein
    moteur sans gaz (roue arrière, `vt -= vt >> 7`) et résistance au
    roulement (`vt -= vt >> 7`) : sans gaz, la vitesse baisse de ~30 % en
-   ~1,5 s et de moitié en ~3 s sur le plat ;
+   ~1,5 s et de moitié en ~3 s sur le plat. Le frein coupe les gaz ;
 5. les contraintes encore une fois, après le sol : l'empattement reste
    entre ~18 et 27 px (il tombait à 1 px avant, la moto se repliait) ;
    suspension ferme (raideur 0,9 ; 1,2 puis 1,0 rendaient le jeu un peu
-   trop facile) : les grandes réceptions bien prises passent ;
+   trop facile) : les grandes réceptions bien prises passent ; une roue
+   que le frein a arrêtée revient où le tick l'a trouvée (voir **Frein**) ;
 6. chute si le pilote approche du sol, si sa tête (dessinée à pilote +
    3 × (dy/8, −dx/8), l'axe des roues tourné vers le haut) passe sous le
    sol, si une liaison pilote-roue tombe
@@ -205,13 +237,14 @@ et la sévérité croissent avec le numéro, selon une graine fixée par
 parcours. Chacun est prouvé faisable : `tools/solver.py` cherche un trajet
 dans le modèle physique (recherche en faisceau sur l'inclinaison, plein ou
 demi-gaz et le frein ; à défaut, un faisceau qui garde toutes les vitesses,
-pour les crêtes qu'il faut aborder freiné ; chaque tick penché en arrière
+pour les crêtes qu'il faut aborder freiné, puis un faisceau 1,5 fois plus
+large (le parcours 12 après le frein revu) ; chaque tick penché en arrière
 lui coûte un peu, sinon le pilote des démos restait assis en arrière ;
 une arrivée ne compte que si la moto tient ensuite 90 ticks, freinée comme
 le jeu le fait après la ligne : les démos tombaient sous « FINISH ! ») et
 `tests/solutions.txt` le garde ;
 `make test` le rejoue (`tools/trackcheck.py`). Les trajets (3 tours) durent
-de 27 s à 49 s. Une nouvelle graine doit aussi tenir dans les limites du rendu
+de 20 s à 41 s. Une nouvelle graine doit aussi tenir dans les limites du rendu
 (`POOL_MAX`, 256 motifs : `make` le vérifie).
 
 **Format** (`tools/track.py`, `tools/packtrack.py`). Pour chaque pixel du
@@ -245,7 +278,7 @@ qui changent.
 
 **Temps.** Le chrono compte les ticks (30 par seconde), donc un temps ne
 dépend pas de la vitesse d'affichage (25 à 30 images par seconde). Les
-courses (3 tours) durent de 27 s à 49 s. Les messages sous le bandeau ne sont
+courses (3 tours) durent de 20 s à 41 s. Les messages sous le bandeau ne sont
 écrits que sur les premières images, puis 2 images sur 8 (le rendu du sol ne
 touche pas au ciel).
 
@@ -256,16 +289,16 @@ ici (ni BASIC ni commande DOS) : `hgr_lo` / `hgr_hi`, calculées au démarrage
 DOS) ; ses huit bandes de 120 octets (segments `TXT0`-`TXT7`) reçoivent des
 tables du rendu, les tampons du HUD et deux routines (le menu, l'affichage
 d'un parcours dans le menu : `TXTC5`, `TXTC7`, recopiées au démarrage) ; les
-trous d'écran (`$x78-$x7F`, `$xF8-$xFF`, où RWTS, la souris et les cartes
+trous d'écran (`$x78-$x7F`, `$xF8-$xFF`, où RWTS et les cartes
 gardent leur état) sont laissés tranquilles. `$0800-$0FFF` : tables de
 multiplication (là où dormait le programme HELLO). `$1000-$1FFF` :
 écrivains de lignes, tables du rendu et des motifs, entrées de la démo,
-hall of fame. `$6000-$91FF` : le jeu (code, données, BSS ; ~250 octets
+hall of fame. `$6000-$91FF` : le jeu (code, données, BSS ; ~210 octets
 libres). `$9200-$95FF` : le code de démarrage (segment `INIT` : init, tables
-du rendu, des lignes HGR et de multiplication, détection de la souris,
+du rendu, des lignes HGR et de multiplication, détection de la manette,
 lecture du hall of fame) et les images des routines de la page texte, la
 fin du fichier, exécutés une fois puis recouverts par la réserve de motifs
-du parcours (`pool`) au premier chargement ; ~60 octets y restent.
+du parcours (`pool`) au premier chargement ; ~200 octets y restent.
 Le fichier `TITLE` porte l'air du titre, les pages de texte (aide,
 félicitations : `tools/pages.py`), le menu principal (en `$9C00`) et
 l'image (`tools/titlefile.py`) : relu à la demande, il ne coûte pas de RAM.
@@ -291,7 +324,7 @@ presque pleine.
 | `tools/music.py` | les airs : `src/music.inc` (jingles) et `build/tune.bin` (titre) |
 | `tools/titlefile.py` | le fichier `TITLE` : air, pages, menu principal (`$9C00`), image |
 | `tools/pages.py` | pages d'aide et de félicitations : `src/pages.inc` et `build/pages.bin` (dans `TITLE`) |
-| `tests/test_mouse.py` | `make test-mouse` : la souris avec les vraies ROM, dans le cœur POM2 (`POM2_SRC`) |
+| `tests/test_input.py` | manette (inclinaison analogique, boutons, menus, sans manette) et choix du périphérique, dans a2run |
 | `tools/sprites.py` | génère `src/sprites.inc` : roue (4 positions de rayons × 7 décalages), tête |
 | `tools/autopilot.py` | pilote automatique simple (réglé pour l'ancienne vitesse ; le test physique rejoue désormais les solutions) |
 | `tools/profile.py` | profil a2shot : cycles par image et par routine (`dev/tools/a2profile.py`) |

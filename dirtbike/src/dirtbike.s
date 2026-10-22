@@ -13,9 +13,9 @@
 ; (render.inc), show it. Race time counts ticks (30 per second), so it does
 ; not depend on how long a frame takes to draw.
 ;
-; Controls (input.inc): joystick X = lean, up = throttle, down / button 0 =
-; brake. Keyboard: A/Z or up/down = throttle level, left/right or J/L =
-; lean, SPACE = brake, R = restart, ESC = menu.
+; Controls (input.inc): joystick X = lean (analog), button 0 = throttle,
+; button 1 = brake. Keyboard: A/Z or up/down = throttle level, left/right
+; or J/L = lean, SPACE = brake, R = restart, ESC = menu.
 ; ============================================================================
 
 .include "apple2.inc"
@@ -58,8 +58,6 @@ frames: .res 2                  ; frames drawn (profiling, tests)
 .segment "CODE"
         JMP     start                   ; BRUN entry: the first byte
 .include "sound.asm"                    ; first: its delay loop never crosses a page
-.import _mouse_init, _mouse_poll, _mouse_close, _mouse_slot, _mouse_x, _mouse_y, _mouse_buttons
-MOUSE_Y_START = 96                      ; = dev/lib/mouse's default
 .import __TXTC5_LOAD__, __TXTC5_RUN__, __TXTC7_LOAD__, __TXTC7_RUN__
 .import __TXTC5_SIZE__, __TXTC7_SIZE__
 .assert __TXTC5_SIZE__ <= 120 .and __TXTC7_SIZE__ <= 120, lderror, "TXTC: 120 bytes a run"
@@ -159,12 +157,6 @@ race_sel:                               ; load track sel, race
 reset:  LDX     #$FF                    ; Ctrl-RESET: the title
         TXS
         CLD
-        LDA     _mouse_slot             ; RESET stopped the mouse (the card's
-        BEQ     :+                      ; controller, the //c's IRQs) and its
-        LDA     TXTSET                  ; set-up is boot code: boot again
-        LDA     LOWSCR
-        JMP     BOOT_SLOT6
-:
         JSR     hgr_init
         JMP     attract
 
@@ -215,6 +207,8 @@ new_race:
         STA     gas_tm
         STA     safe_x+1                ; the restart point: the start
         STA     safe_laps
+        LDA     #$80                    ; a button down now (gas) is not a
+        STA     bheld                   ; press for stick_button
         LDA     #1
         STA     on_flat
         LDA     #START_X
@@ -886,8 +880,5 @@ BBFONT_LAST  = $5F
 .include "bbfont.inc"
 .include "lz4fh.asm"
 .segment "CODE"
-RWTS_SEI   = 1                       ; the //c mouse enables IRQs (dev/lib/mouse)
 .include "rwts.asm"
-.exportzp ptr1
-ptr1 = sptr                             ; dev/lib/mouse's pointer (boot only)
 .include "menu_data.inc"
