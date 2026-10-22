@@ -376,21 +376,21 @@ loop:
         beq @keyboard_delay
         cmp #2
         beq @mouse_delay
-        lda #68
+        lda #70
         bne @wait
 @mouse_delay:
-        lda #40
+        lda #42
         bne @wait
 @keyboard_delay:
-        lda #80
+        lda #81
         bne @wait
 @multi_delay:
         lda mode
         cmp #2
         bne :+
-        lda #15
+        lda #20
         bne @wait
-:       lda #50
+:       lda #52
 @wait:  jsr WAIT
         jmp loop
 @next:  jsr music_jingle
