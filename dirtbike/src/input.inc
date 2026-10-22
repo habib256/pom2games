@@ -39,6 +39,7 @@ lean_tm:     .res 1
 brake_tm:    .res 1
 inkey:       .res 1
 jphase:      .res 1             ; frame parity of the race (new_race clears it)
+mrep:        .res 1             ; stick_menu: looks before a held push repeats
 
 .segment "BSS"
 gas_tm:      .res 1
@@ -249,6 +250,67 @@ read_input:
         STA     in_brake
 @out:   LDA     inkey
         CMP     #1                      ; C = 1 when a key came
+        RTS
+
+; stick_button -- C = 1: the stick is the input device and its button was
+; pressed (now released). Keeps X, Y.
+stick_button:
+        LDA     joy_ok
+        BEQ     @no
+        LDA     BUTN0
+        BPL     @no
+@rel:   LDA     BUTN0
+        BMI     @rel
+        SEC
+        RTS
+@no:    CLC
+        RTS
+
+; stick_menu -- one look at the stick for a menu: A = KC_RET (its button,
+; on release), KC_UP / KC_DOWN / KC_LEFT / KC_RIGHT (pushed past STICK_ON
+; from its centre; held, again after Y more looks), 0 (Z = 1): nothing
+STICK_ON = 16
+stick_menu:
+        JSR     stick_button
+        BCC     @nob
+        LDA     #KC_RET
+        RTS
+@nob:   LDA     joy_ok
+        BEQ     @none
+        LDA     mrep                    ; the repeat delay
+        BEQ     @read
+        DEC     mrep
+@none:  LDA     #0
+        RTS
+@read:  TYA
+        PHA
+        JSR     read_stick_fast
+        PLA
+        TAY
+        SEC
+        LDA     joy_y
+        SBC     joy_my
+        BCS     @dn
+        CMP     #<(-STICK_ON)
+        BCS     @x
+        LDA     #KC_UP
+        BNE     @rep                    ; (always)
+@dn:    CMP     #STICK_ON
+        BCC     @x
+        LDA     #KC_DOWN
+        BNE     @rep
+@x:     SEC
+        LDA     joy_x
+        SBC     joy_mx
+        BCS     @rt
+        CMP     #<(-STICK_ON)
+        BCS     @none
+        LDA     #KC_LEFT
+        BNE     @rep
+@rt:    CMP     #STICK_ON
+        BCC     @none
+        LDA     #KC_RIGHT
+@rep:   STY     mrep
         RTS
 
 ; A = |stick deflection| -> 0..LEAN_MAX
