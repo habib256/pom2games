@@ -55,11 +55,21 @@ BRAKE = 0x0040              # 8.8 px / tick^2 removed from |vt| on each wheel: ~
                             # 660 px to stop from full speed, weaker than the engine)
 LEAN_MAX = 8                # lean levels -8..8 (+: forward / nose down)
 # the rider's shift along the bike per level, px: fine near the middle (the
-# balance of a wheelie), then faster; back to 6 px, forward to 4 (was 1 px a
-# level, 4 levels: 4 px both ways; 6 forward, or 5 and more both ways, threw
-# the bike over the front when the stick went from one end to the other)
+# balance of a wheelie), then faster; 6 px both ways (was 1 px a level, 4
+# levels: 4 px both ways; then forward stayed at 4 px, see FWD_K)
 LEAN_BACK = (0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0)
-LEAN_FWD = (0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0)
+LEAN_FWD = (0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0)
+# Forward of the middle the rider MOVES when the lean changes: his point and
+# its old position go FWD_K[level] / 256 of the wheel axis (x, ox, y, oy
+# alike: no speed). Before (2026-10-22), every lean change only changed the
+# rest lengths, and the constraints pulled him there in one tick: a 10 px
+# swing (-8 -> 8) was a kick, the front wheel snatched up at ~4 px / tick,
+# the rear one pushed into the ground and the whole bike thrown up, then
+# turned nose down in the air (AIR_TURN) -- or the rider link, pulled in too
+# far by the linear correction (it overshoots when the link is much longer
+# than its rest length), squashed the next tick: the 1-tick flip. The back
+# half (wheelies) keeps that kick: it is what lifts the front. (FWD_K is
+# set below WHEELBASE.)
 # in the air the rider turns the bike by this much a tick per level (as
 # before at full lean: 4)
 AIR_TURN = (0, 1, 1, 2, 2, 3, 3, 4, 4)
@@ -81,6 +91,7 @@ RIDER_HEAVY = 3             # rider links: the wheel takes c + c >> 3, the rider
 WHEELBASE = 24              # px
 RIDER_UP = 16               # rider above the middle of the axis, px
 RIDER_LEN = math.hypot(WHEELBASE / 2, RIDER_UP)
+FWD_K = tuple(int(round(f * 256 / WHEELBASE)) for f in LEAN_FWD)    # (LEAN_FWD)
 
 # constraint (a, b, rest length px, stiffness /1, the half move is folded in).
 # The rider is heavier than a wheel (RIDER_HEAVY); a 3x heavier rider made
@@ -158,6 +169,7 @@ class Bike:
         self.spin = [0, 0]          # rolling speed at the last contact (8.8)
         self.crashed = False
         self.squashed = False
+        self.fwd = 0                # forward lean level last tick (FWD_K)
 
     # --- one tick ---------------------------------------------------------
     def tick(self, throttle=0, brake=False, lean=0):
@@ -189,6 +201,11 @@ class Bike:
             turn += (AIR_TURN[lean] if lean >= 0 else -AIR_TURN[-lean]) - throttle // GYRO_DIV
         if turn:
             self._lean(turn)
+        f = max(lean, 0)                    # forward of the middle: the rider
+        k = FWD_K[f] - FWD_K[self.fwd]      # moves along the axis (FWD_K)
+        self.fwd = f
+        if k:
+            self._shift(k)
         cons = self._cons(lean)
         for _ in range(CONSTRAINT_PASSES):
             for c in cons:
@@ -256,6 +273,18 @@ class Bike:
         self.y[1] += py
         self.x[0] -= px
         self.y[0] -= py
+
+    def _shift(self, k):
+        """The rider moves k / 256 of the wheel axis forward, with his old
+        position: a move, no speed."""
+        dx = s16(self.x[1] - self.x[0])
+        dy = s16(self.y[1] - self.y[0])
+        mx = (dx * k) >> 8
+        my = (dy * k) >> 8
+        self.x[2] += mx
+        self.ox[2] += mx
+        self.y[2] += my
+        self.oy[2] += my
 
     def _constrain(self, a, b, l2q, k8):
         dx = s16(self.x[b] - self.x[a])

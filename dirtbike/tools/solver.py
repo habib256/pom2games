@@ -48,6 +48,7 @@ def clone(b):
     c.x, c.y, c.ox, c.oy = b.x[:], b.y[:], b.ox[:], b.oy[:]
     c.ground, c.wheel_ang, c.crashed = b.ground[:], b.wheel_ang[:], b.crashed
     c.spin = b.spin[:]
+    c.fwd = b.fwd
     c.tilt = b.tilt
     return c
 

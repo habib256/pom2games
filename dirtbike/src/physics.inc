@@ -62,6 +62,7 @@ in_brake:   .res 1              ; 0 / non-zero
 in_lean:    .res 1              ; signed, -LEAN_MAX..LEAN_MAX
 turn:       .res 1              ; this tick's turn of the wheel axis (do_lean)
 lidx:       .res 1              ; in_lean + LEAN_MAX (rider link tables)
+flev:       .res 1              ; forward lean level of the last tick (fwd_k)
 cidx:       .res 1              ; constraint table index
 squashed:   .res 1              ; a rider link too short (pass after the ground)
 spin_l:     .res 2              ; rolling speed at the last contact (8.8):
@@ -120,6 +121,7 @@ phys_place:
         STA     spin_h
         STA     spin_h+1
         STA     crashed
+        STA     flev                    ; (the rider placed in the middle)
         JSR     height_at               ; ground row under the rear wheel
         SEC
         SBC     #6
@@ -238,7 +240,19 @@ phys_tick:
         LDA     in_lean
         ADC     #LEAN_MAX
         STA     lidx
-        LDA     #CONSTRAINT_PASSES
+        LDY     #0                      ; forward of the middle the rider
+        LDA     in_lean                 ; moves along the axis (fwd_k:
+        BMI     @fw                     ; no speed, no kick)
+        TAY
+@fw:    LDX     flev
+        STY     flev
+        LDA     fwd_k,Y
+        SEC
+        SBC     fwd_k,X
+        BEQ     @nosh
+        STA     turn                    ; (the multiplier of do_shift)
+        JSR     do_shift
+@nosh:  LDA     #CONSTRAINT_PASSES
         STA     cpass
 @pass:  JSR     con_pass
         DEC     cpass
@@ -743,33 +757,63 @@ delta_ab:
 ; perp = (-dy, dx)
 ; ---------------------------------------------------------------------------
 do_lean:
-        LDA     #0
-        STA     ca
-        LDA     #1
-        STA     cb
-        JSR     delta_ab
-        SEC                             ; mul_x = -dy
+        JSR     axis
+        SEC                             ; -dy
         LDA     #0
         SBC     dy
-        STA     mul_x
+        TAY
         LDA     #0
         SBC     dy+1
-        STA     mul_x+1
-        LDA     turn
-        STA     mul_y
-        JSR     mul_s16s8
-        LDA     mul_p1
-        STA     val
-        LDA     mul_p2
-        STA     val+1
+        TAX
+        TYA
+        JSR     mul_turn
         LDX     #1
         JSR     add_xv
         LDX     #0
         JSR     sub_xv
         LDA     dx
+        LDX     dx+1
+        JSR     mul_turn
+        LDX     #1
+        JSR     add_yv
+        LDX     #0
+        JMP     sub_yv
+
+; do_shift -- the rider (and his old position: no speed) += turn * axis
+; (physics.py _shift)
+; (in the text page, copied there at boot: no room left in main RAM)
+.assert pt_oxf - pt_xf = 15 .and pt_oyf - pt_yf = 15, error, "do_shift: o* = x* + 15"
+.segment "TXTC4"
+do_shift:
+        JSR     axis
+        LDA     dx
+        LDX     dx+1
+        JSR     mul_turn
+        LDX     #2
+        JSR     add_xv
+        LDX     #2 + 15
+        JSR     add_xv
+        LDA     dy
+        LDX     dy+1
+        JSR     mul_turn
+        LDX     #2
+        JSR     add_yv
+        LDX     #2 + 15
+        JMP     add_yv
+
+; axis -- dx/dy = front wheel - rear wheel
+axis:   LDA     #0
+        STA     ca
+        LDA     #1
+        STA     cb
+        JMP     delta_ab
+.segment "CODE"
+
+; mul_turn -- val = (A/X (lo/hi, signed) * turn) >> 8 (in the text page)
+.segment "TXTC7"
+mul_turn:
         STA     mul_x
-        LDA     dx+1
-        STA     mul_x+1
+        STX     mul_x+1
         LDA     turn
         STA     mul_y
         JSR     mul_s16s8
@@ -777,10 +821,8 @@ do_lean:
         STA     val
         LDA     mul_p2
         STA     val+1
-        LDX     #1
-        JSR     add_yv
-        LDX     #0
-        JMP     sub_yv
+        RTS
+.segment "CODE"
 
 ; A/X = 16-bit signed delta (lo/hi) -> A = min(|floor(d / 64)|, 180)
 quarter_abs:

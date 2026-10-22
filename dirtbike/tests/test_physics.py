@@ -102,6 +102,45 @@ WHEELIE_SCRIPT = [(20, 0, 0, 0), (10, 8, 0, 0), (6, 8, 0, -8), (4, 0, 0, 4), (4,
                   (20, 0, 0, 0)]
 
 
+# a full swing, back to forward (2026-10-22): the rider moves forward of the
+# middle (FWD_K), no kick; a rider link was squashed in 1 tick (forward
+# 6 px), or the bike thrown up and turned over the front. Then the forward
+# levels one by one, up and down, and the swing again from a wheelie.
+SWING_SCRIPT = [(20, 0, 0, 0), (12, 8, 0, 0), (3, 8, 0, -8), (6, 0, 0, 8), (20, 4, 0, 0),
+                (2, 4, 0, 1), (2, 4, 0, 2), (2, 4, 0, 3), (2, 4, 0, 4), (2, 4, 0, 5), (2, 4, 0, 6),
+                (2, 4, 0, 7), (4, 4, 0, 8), (2, 4, 0, 5), (2, 4, 0, -2), (2, 4, 0, 6), (10, 4, 0, 0),
+                (8, 8, 0, -8), (6, 0, 0, 8), (30, 0, 0, 0)]
+
+
+def swing_cases():
+    """Back lean held hb ticks (and gas or not), then full forward: (crash
+    tick or None while forward is held 40 ticks, crash tick or None when
+    forward is held 6 ticks then released)."""
+    out = []
+    for v in (0, 3, 6, 9, 12):
+        for hb in (1, 2, 3, 5, 8):
+            for gb in (0, 8):
+                for gf in (0, 8):
+                    res = []
+                    for hold in (40, 6):
+                        b = physics.Bike([160] * 4096)
+                        for _ in range(20):
+                            b.tick()
+                        while b.speed_px() < v:
+                            b.tick(8, False, 0)
+                        for _ in range(hb):
+                            b.tick(gb, False, -8)
+                        crash = None
+                        for n in range(46):
+                            b.tick(gf, False, 8 if n < hold else 0)
+                            if b.crashed:
+                                crash = n
+                                break
+                        res.append(crash)
+                    out.append(((v, hb, gb, gf), res))
+    return out
+
+
 HEAD_SCRIPT = [(10, 4, 0, 2), (60, 4, 0, 4), (20, 0, 1, 6)]   # (found by a search; again after the lean levels)
 
 
@@ -224,6 +263,21 @@ def main():
     assert not b.crashed and lifted > 8, ('WHEELIE_SCRIPT', b.crashed, lifted)
     run([160] * 4096, [(seg, 1) for seg in WHEELIE_SCRIPT])
     print(f'physics: 6502 == model, a wheelie ({lifted} ticks on the rear wheel), lean levels -8..8')
+    cases = swing_cases()
+    held = [c[1][0] for c in cases if c[1][0] is not None]
+    bad = [c for c in cases if c[1][1] is not None or c[1][0] is not None and c[1][0] < 15]
+    print(f'full swing back -> forward: {len(cases)} cases, none falls when forward is let go after '
+          f'6 ticks; held 40 ticks, the earliest fall at tick {min(held) if held else "-"} '
+          f'(over the front, turned in the air) ' + ('ok' if not bad else f'DIFF {bad[:4]}'))
+    if bad:
+        sys.exit('swing: the bike falls')
+    b = physics.Bike([160] * 4096)
+    for n, thr, brk, lean in SWING_SCRIPT:
+        for _ in range(n):
+            b.tick(thr, bool(brk), lean)
+    assert not b.crashed, 'SWING_SCRIPT'
+    run([160] * 4096, [(seg, 1) for seg in SWING_SCRIPT])
+    print('physics: 6502 == model, swings and forward levels 1..8 (the rider moved, FWD_K)')
     gas = cliff_launch()
     free, brk, brk3, lean = (cliff_ride(gas, sc) for sc in (
         [(20, 0, 0, 0)], [(20, 0, 1, 0)], [(3, 0, 1, 0), (17, 0, 0, 0)], [(20, 0, 0, physics.LEAN_MAX)]))

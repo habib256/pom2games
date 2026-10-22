@@ -40,6 +40,8 @@ def main():
     out.append('; air turn per lean level (index lean + LEAN_MAX)')
     out.append('air_turn: .byte ' + ', '.join(f'<{-P.AIR_TURN[-l] if l < 0 else P.AIR_TURN[l]}'
                                               for l in range(-P.LEAN_MAX, P.LEAN_MAX + 1)))
+    out.append('; forward lean level -> the rider\'s shift, /256 of the wheel axis')
+    out.append('fwd_k:   .byte ' + ', '.join(str(k) for k in P.FWD_K))
     out.append('; traction per throttle level')
     out.append('thr_acc: .byte ' + ', '.join(str(n * P.THROTTLE_ACC)
                                               for n in range(P.THROTTLE_MAX + 1)))

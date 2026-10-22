@@ -59,7 +59,7 @@ frames: .res 2                  ; frames drawn (profiling, tests)
         JMP     start                   ; BRUN entry: the first byte
 .include "sound.asm"                    ; first: its delay loop never crosses a page
 .import __TXTC5_LOAD__, __TXTC5_RUN__, __TXTC7_LOAD__, __TXTC7_RUN__
-.import __TXTC5_SIZE__, __TXTC7_SIZE__
+.import __TXTC5_SIZE__, __TXTC7_SIZE__, __TXTC4_LOAD__, __TXTC4_RUN__, __TXTC4_SIZE__
 .assert __TXTC5_SIZE__ <= 120 .and __TXTC7_SIZE__ <= 120, lderror, "TXTC: 120 bytes a run"
 .include "input.inc"
 .include "physics.inc"
@@ -82,6 +82,11 @@ start:
         INX
         CPX     #120                    ; (a run: the screen holes stay)
         BNE     @cpy
+        LDX     #<__TXTC4_SIZE__        ; (after TXT4's variables: its size)
+@cp4:   LDA     __TXTC4_LOAD__-1,X
+        STA     __TXTC4_RUN__-1,X
+        DEX
+        BNE     @cp4
         LDA     #<reset                 ; Ctrl-RESET: back to the menu
         STA     SOFTEV
         LDA     #>reset

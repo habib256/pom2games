@@ -26,7 +26,9 @@ arrêtée par le frein tient : la moto ne recule plus) ; 30 parcours résolus
 de nouveau. Puis le frein en l'air : il n'arrête plus que la rotation des
 roues (un petit couple fini, ~12°), plus de rotation sans fin.
 Inclinaison sur 8 niveaux (fins au milieu, jusqu'à 6 px en arrière) pour
-les wheelings.
+les wheelings. Puis 6 px en avant aussi : en avant du milieu le pilote se
+déplace sans vitesse (plus de coup qui jetait la moto en l'air ou écrasait
+le pilote quand le manche passait d'un bout à l'autre).
 
 ## Lot 2 — jouabilité
 - Régler la conduite à la main dans POM2 : traction, inclinaison, souplesse
