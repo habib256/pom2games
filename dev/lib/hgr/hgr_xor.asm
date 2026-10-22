@@ -76,20 +76,17 @@ hgr_xor_rect:
         eor hx_page
         sta hx_ptr+1
         ldy hx_first
-@byte:  lda #$7f
-        cpy hx_first
-        bne :+
-        and hx_lm
-:       cpy hx_last
-        bne :+
-        and hx_rm
-:       eor (hx_ptr),y
+        lda hx_lm                       ; first byte: left mask
+@byte:  cpy hx_last
+        beq @last
+        eor (hx_ptr),y
         sta (hx_ptr),y
-        cpy hx_last
-        beq @line_end
         iny
+        lda #$7f                        ; middle bytes: all seven pixels
         bne @byte
-@line_end:
+@last:  and hx_rm
+        eor (hx_ptr),y
+        sta (hx_ptr),y
         inc hx_row
         dec hx_h
         bne @line
