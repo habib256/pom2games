@@ -218,7 +218,22 @@ fits:
         sta _hgr_g_col
         sta index
         sta changed
-        ; Origin /7 once per changed call. No 560-byte column/phase LUTs.
+        ; Origin /7 once per changed call. No 560-byte column/phase LUTs:
+        ; whole groups of 56 pixels (8 columns) first, then single columns.
+divide56:
+        sec
+        lda remaining
+        sbc #56
+        tay
+        lda remaining+1
+        sbc #0
+        bcc divide7
+        sta remaining+1
+        sty remaining
+        lda _hgr_g_col
+        adc #7                  ; C=1: +8 columns
+        sta _hgr_g_col
+        jmp divide56
 divide7:
         sec
         lda remaining

@@ -12,7 +12,8 @@ HGRC_ASM_SRCS := $(addprefix $(HGRC)/,hgr_mode_asm.s hgr_mode_clear_asm.s \
     hgr_text16_asm.s hgr_text8_asm.s hgr_text_params.s hgr_utoa_asm.s \
     hgr_byte_rect_asm.s hgr_pixrect_asm.s hgr_pixrect_params.s hgr_cell_asm.s \
     hgr_pixel_asm.s hgr_colorize_asm.s hgr_carrier_params.s \
-    hgr_bitmap_asm.s hgr_blit7_asm.s hgr_preshift_asm.s hgr_sprite_params.s)
+    hgr_bitmap_asm.s hgr_blit7_asm.s hgr_preshift_asm.s hgr_sprite_params.s \
+    hgr_glyph_shift.s)
 HGRC_CORE_SRCS := $(addprefix $(HGRC)/,hgr_state.c hgr_init.c hgr_draw_page.s hgr_row_page.s hgr_fixed_rows.s hgr_tables.c hgr_columns.s hgr_masks.s hgr_phases.s) $(HGRC_ASM_SRCS)
 HGRC_PIXEL_SRCS := $(HGRC)/hgr_pixel_asm.s
 HGRC_RECT_SRCS := $(addprefix $(HGRC)/,hgr_rect.c hgr_pixrect.c hgr_cell.c \
