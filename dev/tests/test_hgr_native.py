@@ -59,8 +59,27 @@ def check(work, page, compressor):
         JSR fill_ff
         JSR hgr_clear_viewport160
 clear_done:
+        JSR fill_ff
+        JSR hgr_clear_visible
+visible_done:
+        JSR fill_ff
+        JSR hgr_clear_hud32
+hud_done:
+        JSR fill_ff
+        LDA #37
+        LDX #101
+        JSR hgr_clear_rows
+rows_done:
+        JSR fill_ff
+        LDA #%d
+        JSR hgr_set_draw_page
+        JSR hgr_clear_hud32
+        LDA #%d
+        JSR hgr_set_draw_page
+        JSR hgr_clear_viewport160
+other_done:
         JSR fill_zero
-'''
+''' % (page ^ 0x60, page)
     # Both engines share the colour module; repeat includes exercise guards.
     pat = [0xA5 if y % 2 else 0xFF for y in range(32)]
     data = packed(pat, 4)
@@ -128,7 +147,8 @@ SEGMENTS {
     disk=a2test.build_disk(work,'NATIVE',binary)
     labels=a2test.labels(lbl)
     steps=[]
-    for name in ('lines_done','clear_done','sprite_done','decode_done'):
+    for name in ('lines_done','clear_done','visible_done','hud_done','rows_done','other_done',
+                 'sprite_done','decode_done'):
         steps += [labels.until(name), 'peek:2000:16384']
     result=a2test.run(disk,steps,emulator=a2test.A2SHOT)
     base=8192 if page else 0
@@ -146,6 +166,18 @@ SEGMENTS {
         offset=base+a2test.hgr_offset(y)
         expected[offset:offset+40]=bytes(40)
     assert result.dumps[1] == expected, 'clear changed HUD, padding or other page'
+    def cleared(spans):
+        image=bytearray([255]*16384)
+        for start, end, at in spans:
+            for y in range(start, end):
+                offset=at+a2test.hgr_offset(y)
+                image[offset:offset+40]=bytes(40)
+        return image
+    other=8192-base
+    for index, spans in ((2, [(0,192,base)]), (3, [(160,192,base)]), (4, [(37,101,base)]),
+                         (5, [(160,192,other), (0,160,base)])):
+        assert result.dumps[index] == cleared(spans), ('clear rows/holes/page mismatch', spans)
+    del result.dumps[2:6]
     expected=bytearray(16384)
     for y in range(64):
         for col in range(10):
