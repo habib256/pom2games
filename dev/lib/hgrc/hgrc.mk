@@ -28,7 +28,7 @@ HGRC_X2_SRCS := $(HGRC)/hgr_x2_target.c $(HGRC)/hgr_blit_x2.c
 HGRC_SPRMASK_SRCS := $(HGRC)/hgr_sprmask.s
 HGRC_SPRENGINE_SRCS := $(HGRC)/hgr_sprengine.c $(HGRC)/hgr_sprengine_asm.s $(HGRC)/hgr_sprdamage.s $(HGRC)/hgr_sprdefault.c
 HGRC_GEOM_SRCS := $(addprefix $(HGRC)/,hgr_geom.c hgr_line.c hgr_outline.c \
-    hgr_circle.c hgr_ellipse.c hgr_line_asm.s)
+    hgr_circle.s hgr_ellipse.s hgr_line_asm.s)
 HGRC_LORES_SRCS := $(addprefix $(HGRC)/,hgr_lores.c hgr_lores_clear.c hgr_lores_setblock.c \
     hgr_lores_getblock.c hgr_lores_hlin.c hgr_lores_vlin.c hgr_lores_rect.c)
 HGRC_TILEMAP_SRCS := $(HGRC)/hgr_tilemap.c $(HGRC)/hgr_tile_restore.s

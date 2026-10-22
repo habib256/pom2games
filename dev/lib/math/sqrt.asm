@@ -62,17 +62,15 @@ isqrt_from_y:                           ; Y = r <= floor(sqrt(mul_x))
         LDA     mul_x+1
         SBC     mul_sqr1_hi,X
         BCS     @step
-        DEY
+@over:  DEY
 @done:  TYA
         RTS
 @hi:    LDA     mul_x
         CMP     mul_sqr1_lo+256,X
         LDA     mul_x+1
         SBC     mul_sqr1_hi+256,X
+        BCC     @over                   ; the low half's tail
         BCS     @step
-        DEY
-        TYA
-        RTS
 .endif
 
 .endif  ; _SQRT_ASM_LOADED_
