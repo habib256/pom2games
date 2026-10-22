@@ -29,7 +29,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            cmake g++ pkg-config libglfw3-dev libgl1-mesa-dev libslirp-dev zlib1g-dev
+            cmake g++ pkg-config libglfw3-dev libgl1-mesa-dev libslirp-dev libglib2.0-dev zlib1g-dev
       - name: Fetch POM2 at the commit, and its pinned Dear ImGui (miniaudio.h)
         env:
           POM2_COMMIT: ${{ inputs.pom2_commit || '28700c39e0450b9f7b20262687a608f897da4b53' }}
@@ -48,7 +48,10 @@ jobs:
       - name: Build pom2_core and install the SDK component
         run: |
           set -euo pipefail
-          cmake -S pom2 -B build -DCMAKE_BUILD_TYPE=Release -DPOM2_ENABLE_TESTS=OFF
+          # Like the macOS archive, the core is built with libslirp (Uthernet I):
+          # slirp.pc requires glib-2.0, without which CMake drops it silently.
+          cmake -S pom2 -B build -DCMAKE_BUILD_TYPE=Release -DPOM2_ENABLE_TESTS=OFF | tee configure.log
+          grep -q 'POM2: libslirp .* found' configure.log
           cmake --build build --parallel 4 --target pom2_core
           cmake --install build --component pom2_core_sdk --prefix "$PWD/sdk"
           lib=$(find sdk -name libpom2_core.a)
