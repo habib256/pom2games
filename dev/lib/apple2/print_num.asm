@@ -5,9 +5,11 @@
 ;   print_byte_dec -- A = unsigned byte (0..255). Prints exactly three ASCII
 ;                     decimal digits through COUT ($FDED). Leading zeros are
 ;                     emitted ("042", not " 42") so columns stay aligned.
-;                     Clobbers A, X. Y preserved (COUT preserves Y).
+;                     Clobbers A, X, Y.
 ;
-; No ZP usage — intermediate digits live on the 6502 stack.
+; No ZP usage — intermediate digits live on the 6502 stack. The conversion is
+; lib/math dec.asm (byte_to_dec), included at the end of this file (needs
+; -I lib/math, in A2_INCS).
 ;
 ; Caller responsibility: COUT in scope (.include "apple2.inc").
 ; Assembled only if referenced before the include (.ifref).
@@ -20,35 +22,19 @@ _PRINT_NUM_ASM_LOADED_ = 1
 
 .ifref print_byte_dec
 print_byte_dec:
-        ; Hundreds digit -- subtract 100 until carry clear, X counts how many.
-        LDX     #$00
-@h:     CMP     #100
-        BCC     @hd
-        SBC     #100            ; C set by the CMP, no SEC needed
-        INX
-        JMP     @h
-@hd:    PHA
+        JSR     byte_to_dec     ; X = hundreds, Y = tens, A = units
+        PHA
+        TYA
+        PHA
         TXA
-        ORA     #'0' | $80
-        JSR     COUT
+        JSR     @digit
         PLA
-
-        ; Tens digit -- same pattern.
-        LDX     #$00
-@t:     CMP     #10
-        BCC     @td
-        SBC     #10
-        INX
-        JMP     @t
-@td:    PHA
-        TXA
-        ORA     #'0' | $80
-        JSR     COUT
+        JSR     @digit
         PLA
-
-        ; Units digit -- whatever's left in A.
-        ORA     #'0' | $80
+@digit: ORA     #'0' | $80
         JMP     COUT
 .endif
+
+.include "dec.asm"
 
 .endif  ; _PRINT_NUM_ASM_LOADED_

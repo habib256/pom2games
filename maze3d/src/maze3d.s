@@ -3584,31 +3584,15 @@ sprite_color_white:
 ; " 0" — the broken-HUD bug). The ones digit now rides the stack.
 ; =============================================
 write_decimal_2d:
-        STA tmp
-        ; tens
-        LDX #0
-@dv:    LDA tmp
-        CMP #10
-        BCC @dvd
-        SEC
-        SBC #10
-        STA tmp
-        INX
-        JMP @dv
-@dvd:   LDA tmp
+        JSR byte_div10          ; Y = tens (A / 10, whole), A = ones
         PHA                     ; ones digit — write_char-proof
-        ; print tens (or space if 0)
-        TXA
+        TYA
         BNE @nz
-        LDA #' '
-        JMP @stz
-@nz:    CLC
-        ADC #'0'
-@stz:   STA ch_code
-        JSR write_char
-        INC ch_cx
-        ; ones
+        LDA #<(' '-'0')         ; blank leading zero
+@nz:    JSR write_digit
         PLA
+; A = 0..9 (or ' '-'0'): one glyph at the current cell, next cell.
+write_digit:
         CLC
         ADC #'0'
         STA ch_code
@@ -3618,39 +3602,16 @@ write_decimal_2d:
 
 ; A=0..255, three digits for scores.
 write_decimal_3d:
-        LDX #0
-@hundreds:
-        CMP #100
-        BCC @remainder
-        SEC
-        SBC #100
-        INX
-        JMP @hundreds
-@remainder:
+        JSR byte_to_dec         ; X = hundreds, Y = tens, A = ones
+        PHA
+        TYA
         PHA
         TXA
-        CLC
-        ADC #'0'
-        STA ch_code
-        JSR write_char
-        INC ch_cx
+        JSR write_digit
         PLA
-        CMP #10
-        BCS @two_digits
-        PHA
-        LDA #'0'
-        STA ch_code
-        JSR write_char
-        INC ch_cx
+        JSR write_digit
         PLA
-        CLC
-        ADC #'0'
-        STA ch_code
-        JSR write_char
-        INC ch_cx
-        RTS
-@two_digits:
-        JMP write_decimal_2d
+        JMP write_digit
 
 ; Print one byte as two hexadecimal characters at the current text cell.
 write_hex_byte:
@@ -3664,19 +3625,9 @@ write_hex_byte:
         AND #$0F
 write_hex_nibble:
         CMP #10
-        BCC @digit
-        SEC
-        SBC #10
-        CLC
-        ADC #'A'
-        JMP @print
-@digit:
-        CLC
-        ADC #'0'
-@print: STA ch_code
-        JSR write_char
-        INC ch_cx
-        RTS
+        BCC write_digit
+        ADC #'A'-'0'-10-1       ; C = 1: A..F, then write_digit adds '0'
+        BNE write_digit
 
 ; =============================================
 ; render_map - top-down view of the maze with player position
@@ -4813,3 +4764,4 @@ hs_end_col = pix_col
 hs_left_mask = tmp
 hs_right_mask = tmp2
 .include "hgr_span.asm"
+.include "dec.asm"               ; dev/lib/math: byte_to_dec / byte_div10
