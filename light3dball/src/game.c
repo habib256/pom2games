@@ -65,6 +65,10 @@ extern void step_xy(void);
 extern unsigned char paddle_contact(void);
 extern int __fastcall__ aim_bias(int offset);
 extern void __fastcall__ depth_gauge(unsigned char page);
+/* render.s: draw page by patched row-table reads; HUD rows to page 1 and back. */
+extern void __fastcall__ select_page(unsigned char page);
+extern void hud_rows(void);
+extern void pace_wait(void);
 extern void __fastcall__ reset_gauge(unsigned char page);
 static unsigned char scene_lines[2][128], scene_count[2];
 static unsigned char old_rays[2][4];
@@ -357,6 +361,7 @@ static void hud(unsigned char pg)
         blocked ? blocked+8 : 1;
     if (hud_status!=status) { hud_status=status; ++dirty_hud; }
     if (page_hud[pg]==dirty_hud) return;
+    if (!pg) hud_rows();
     hgr_fill_rect(160,32,0,40,0);
     hgr_puts8(7,160,level_title);
     level_text[0]='1'+level;
@@ -368,6 +373,7 @@ static void hud(unsigned char pg)
         (mouse_enabled ? "CLICK:SERVE  MOVE MOUSE" : "RETURN:SERVE  IJKL:MOVE") :
         status==9 ? "BLOCKED:MOVE LEFT" : status==10 ? "BLOCKED:MOVE RIGHT" : "");
     hgr_puts8(7,182,"1-5:LEVEL P:PAUSE M:SOUND Q:QUIT");
+    if (!pg) hud_rows();
     page_hud[pg]=dirty_hud;
     reset_gauge(pg);
 }
@@ -376,7 +382,7 @@ void render(void)
 {
     unsigned char pg=draw_page-1, i, edge, first=(unsigned char)(camera_z>>7), last=first+4;
     int dist;
-    hgr_set_draw_page(draw_page);
+    select_page(draw_page);
     restore(pg);
     /* Cache the exact pose used to draw each page. A four-unit cache key
      * retained different two-unit projections on alternating pages at rest. */
@@ -421,7 +427,7 @@ void render(void)
         if (!muted) game_sound(sound_period);
         sound_period=0;
     }
-    a2_frame_wait();
+    pace_wait(); a2_frame_wait();
     hgr_show_page(); draw_page=3-draw_page;
     ++frame_count; frame_mark();
 }
@@ -431,6 +437,7 @@ void main(void)
     unsigned char i;
     hgr_init();
     hgr_build_tables(); /* Native wireframe renderer reads the shared X tables. */
+    /* Leaves _hgr_rowhi on page 2 for good: select_page relies on it. */
     for (i=1; i<=2; ++i) { hgr_set_draw_page(i); hgr_clear(0); }
     a2_frame_init(); a2_frame_set_delay(1);
     mouse_enabled=mouse_init();

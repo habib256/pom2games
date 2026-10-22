@@ -13,8 +13,17 @@
 ; after an old contour is erased. Endpoints remain in wf_x0/y0/x1/y1; hooks
 ; must preserve wf_history and wf_count. Default backdrop is plain black.
 ; All calls clobber A/X/Y and scratch; non-reentrant, no display synchronization.
+; With hgr_pages.inc included first, the hgr_hi reads are HGR_HI_SITEs
+; (the draw page follows hgr_select_page).
 .ifndef _HGR_WIREFRAME_LOADED_
 _HGR_WIREFRAME_LOADED_ = 1
+.macro WF_LDA_HI
+.ifdef _HGR_PAGES_INC_LOADED_
+    HGR_LDA_HI_X
+.else
+    lda hgr_hi,x
+.endif
+.endmacro
 .ifndef WF_COL_TABLE
 WF_COL_TABLE = hgr_col
 .endif
@@ -84,7 +93,7 @@ wf_horizontal:
     tax
     lda hgr_lo,x
     sta hs_ptr
-    lda hgr_hi,x
+    WF_LDA_HI
     sta hs_ptr+1
     ldx wf_x0
     lda WF_COL_TABLE,x
@@ -265,7 +274,7 @@ hgr_wire_clear_span:
     tax
     lda hgr_lo,x
     sta wf_ptr
-    lda hgr_hi,x
+    WF_LDA_HI
     sta wf_ptr+1
     ldx wf_x0
     lda WF_COL_TABLE,x
@@ -325,10 +334,10 @@ wf_erase_vertical:
     eor #255
     sta wf_keep_left
     ldx wf_y0
-@row:
+wf_erase_row:               ; not an @ label: a page site ends its scope
     lda hgr_lo,x
     sta wf_ptr
-    lda hgr_hi,x
+    WF_LDA_HI
     sta wf_ptr+1
     lda (wf_ptr),y
     and wf_keep_left
@@ -336,7 +345,7 @@ wf_erase_vertical:
     cpx wf_y1
     beq @done
     inx
-    jmp @row
+    jmp wf_erase_row
 @done:
     .ifdef HGR_WIRE_AFTER_VLINE
     jmp HGR_WIRE_AFTER_VLINE
