@@ -62,6 +62,9 @@ native ; `exit.asm` restaure la page zéro pour rendre la main à DOS proprement
   bornés à `DOS_CMD_MAX-1` caractères ; les deux chiffres hexadécimaux sont
   ajoutés ensemble ou refusés. Un dépassement renvoie carry=1 et interdit
   l’exécution de la commande partielle jusqu’au prochain `dos_cmd_new`.
+  `DOS_SEI = 1` masque les IRQ pendant `dos_cmd_run` (RWTS ne supporte pas
+  d’interruption : programmes qui font `CLI`, souris du //c). `disk_protected`
+  lit le slot du dernier accès de DOS dans son IOB (`$B7E9`, DOS 48 Ko).
 
 `sound.asm`, `joy.asm` et `dos.asm` sont sortis de MICRO-SOKOBAN pour que les autres jeux (sons,
 manette, sauvegarde dans leurs `TODO.md`) partagent le même code ; leur miroir
@@ -91,15 +94,15 @@ un autre module, aussi). Un objet C qui aliase une routine vers un import
 | `apple2_zp_save` | `exit.asm` | — | copie $00-$FF (256 o de BSS, ou `apple2_zp_buf` défini par le programme avant l'include), RESET → `apple2_exit` | A, X | — |
 | `apple2_exit` | `exit.asm` | — | vecteur RESET et ZP restaurés (fenêtre texte et curseur `$20-$29` gardés), écran texte, `JMP $03D0` | tout | — |
 | `apple2_return` | `exit.asm` | — | même restauration, puis `RTS` vers le `CALL` BASIC (programme lancé par `BLOAD` + `CALL`) | tout | — |
-| `tone` | `sound.asm` | A = bascules (0 → 256), X = demi-période (0 → 256) ; ~(13 + 5·X) cycles par bascule | — | A, X, Y | — |
-| `read_stick` | `joy.asm` | — | `joy_x`, `joy_y` = 0 (gauche / haut) … ~60 (centre) … ~120 ; ~6 ms ; C = 1 si rien n'est branché (valeurs centrées) | A, X, Y | — |
+| `tone` | `sound.asm` | A = bascules (0 → 256), X = demi-période (0 → 256) ; 12 + 5·X cycles par bascule, hauteur 1,02 MHz / (2·(12 + 5·X)) : ~2,4 kHz à `$28`, ~526 Hz à `$C0`, ~397 Hz à `$FF` | — | A, X, Y | — |
+| `read_stick` | `joy.asm` | — | `joy_x`, `joy_y` = 0 (gauche / haut) … ~60 (centre) … ~120 ; ~6 ms ; un axe ouvert (minuterie jamais finie) est centré à 60 ; C = 1 si les deux le sont (rien de branché) | A, X, Y | — |
 | `read_stick_fast` | `joy.asm` | — | `joy_x`, `joy_y` = comptes de 35 cycles (33-34 quand l'autre axe a fini), ~40 au centre ; s'arrête dès que les deux minuteries ont fini ; C = 1 après 255 tours (rien de branché) | A, X, Y | — |
 | `stick_dir` | `joy.asm` | `joy_x`, `joy_y` | A = `JOY_NONE` (0, Z = 1) / `JOY_UP` / `JOY_DOWN` / `JOY_LEFT` / `JOY_RIGHT` ; zone morte `JOY_LO`–`JOY_HI` (30–90, à définir avant l'include pour changer) ; la verticale l'emporte | A | — |
 | `dos_cmd_new` | `dos.asm` | — | tampon de commande vide | A | — |
 | `dos_cmd_add` | `dos.asm` | A = lo, Y = hi (ASCIIZ) | chaîne ajoutée | A, X, Y | — |
 | `dos_cmd_hex` | `dos.asm` | A = octet | deux chiffres hexadécimaux ajoutés | A, X | — |
 | `dos_cmd_run` | `dos.asm` | tampon | DOS exécute la commande, page zéro de DOS remise pendant ce temps | tout | — |
-| `disk_protected` | `dos.asm` | — | C = 1 si la disquette du slot 6 est protégée en écriture | A | — |
+| `disk_protected` | `dos.asm` | — | C = 1 si la disquette du dernier accès de DOS est protégée en écriture (slot × 16 lu dans l'IOB de DOS, `$B7E9`) | A, X | — |
 
 ## apple2.inc — symboles publics
 

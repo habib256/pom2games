@@ -81,6 +81,10 @@ int main(void)
     hgr_putu8(220u, 60u, 65535u);
     checkpoint(16u);
     hgr_cell(34u, 23u, 1u);
+    hgr_cell(35u, 0u, 1u);                  /* outside the 35x24 grid: nothing */
+    hgr_cell(0u, 24u, 1u);
+    hgr_cell(0u, 32u, 1u);                  /* cy*8 would wrap to row 0 */
+    hgr_cell(255u, 255u, 1u);
     checkpoint(17u);
     hgr_cell(34u, 23u, 0u);
     checkpoint(18u);

@@ -28,6 +28,6 @@ void a2_dos_new(void);                   /* start building a command          */
 void a2_dos_add(const char *s);          /* append a string                   */
 void a2_dos_hex(unsigned char b);        /* append b as two hex digits        */
 void a2_dos_run(void);                   /* run; retain buffer for reuse/add  */
-unsigned char a2_disk_protected(void);   /* 1 if the slot 6 disk is protected */
+unsigned char a2_disk_protected(void);   /* 1 if DOS's last disk is protected */
 
 #endif /* APPLE2DOS_H */

@@ -14,6 +14,8 @@
  *   peek:ADDR[:LEN] hex-dump memory (RAM only, no I/O side effects)
  *   poke:ADDR:VAL   write one RAM byte
  *   joy:X,Y         joystick axes in [-1,1]      btn:N,0|1  game-port button
+ *                   (an axis above 1, e.g. joy:9,0: unplugged, its timer
+ *                   never runs out)
  *   reset           press RESET
  *   pc              print the program counter
  *   spk             print the speaker toggles since the last spk
@@ -68,6 +70,7 @@ static int v_text = 1, v_mixed, v_page2, v_hires;
 static unsigned long spk_count;
 static FILE *spk_log;
 static uint8_t paddle[2] = { 128, 128 };
+static uint8_t paddle_open[2];          /* 1: nothing plugged, PADDLn stays 1 */
 static uint8_t button[3];
 static uint64_t ptrig_at;
 /* Optional cc65 software-stack profiling. Observe coherent pointers at call,
@@ -297,7 +300,8 @@ static uint8_t io(uint16_t a, int write, uint8_t val)
     case 0x57: v_hires = 1; return 0;
     case 0x61: case 0x62: case 0x63: return button[lo - 0x61] ? 0x80 : 0x00;
     case 0x64: case 0x65:
-        return (cpu.cycles - ptrig_at) < (uint64_t)paddle[lo - 0x64] * 11 ? 0x80 : 0x00;
+        return paddle_open[lo - 0x64] ||
+               (cpu.cycles - ptrig_at) < (uint64_t)paddle[lo - 0x64] * 11 ? 0x80 : 0x00;
     case 0x66: case 0x67: return 0;
     }
     if (lo >= 0x70 && lo < 0x80) { ptrig_at = cpu.cycles; return 0; }
@@ -595,8 +599,10 @@ int a2run_main(int argc, char **argv)
         } else if (!strncmp(s, "joy:", 4)) {
             double x = 0, y = 0;
             sscanf(s + 4, "%lf,%lf", &x, &y);
-            paddle[0] = (uint8_t)((x + 1) * 127.5 + 0.5);
-            paddle[1] = (uint8_t)((y + 1) * 127.5 + 0.5);
+            paddle_open[0] = x > 1;
+            paddle_open[1] = y > 1;
+            paddle[0] = (uint8_t)((x > 1 ? 1 : x) * 127.5 + 127.5 + 0.5);
+            paddle[1] = (uint8_t)((y > 1 ? 1 : y) * 127.5 + 127.5 + 0.5);
         } else if (!strncmp(s, "btn:", 4)) {
             int n = 0, v = 0;
             sscanf(s + 4, "%d,%d", &n, &v);

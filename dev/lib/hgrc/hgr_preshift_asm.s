@@ -113,12 +113,12 @@ _hgr_xs_run:
         ; fall through into the XOR row loop below.
 
 ; --- _hgr_preshift_xor_run : dedicated XOR blit for the pre-shift engine -------
-; Same as _hgr_blit7_run but mode is hardwired to XOR, so the per-byte mode
-; dispatch (ldx _hgr_b_mode / beq / cpx #2 / beq) is gone: the inner loop is the
-; Buzzard-Bait minimum -- lda (src),y / eor (dst),y / sta (dst),y (~24 cyc/byte
-; vs ~34 for the general path). hgr_sprite() calls this for HGR_XOR (the hot
-; animation path) so an erase+redraw pair fits inside V-blank; SET/CLEAR still go
-; through _hgr_blit7_run. Same hgr_b_* zero-page block.
+; Same as _hgr_blit7_run's XOR loop, entered straight after the phase lookup:
+; the inner loop is the Buzzard-Bait minimum -- lda (src),y / eor (dst),y /
+; sta (dst),y (~24 cyc/byte; _hgr_blit7_run specialises its loop per mode once
+; per call, so it costs the same, CLEAR 26). hgr_sprite() calls this for
+; HGR_XOR (the hot animation path) so an erase+redraw pair fits inside
+; V-blank; SET/CLEAR go through _hgr_blit7_run. Same hgr_b_* zero-page block.
 _hgr_preshift_xor_run:
 @row:
         ldy _hgr_b_y           ; ptr1 = rowbase(y) + col

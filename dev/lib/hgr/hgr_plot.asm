@@ -10,6 +10,11 @@
 ; D=0, main RAM, caller selects page/banks; A/X/Y and hp_ptr/mask destroyed.
 .ifndef _HGR_PLOT_LOADED_
 _HGR_PLOT_LOADED_ = 1
+; Columns 256..279 read hgr_col/mask+256: with hgr_plot_tables.inc (either
+; include order) the build fails unless they are full width.
+.ifdef HGR_PLOT_COLUMNS
+.assert HGR_PLOT_COLUMNS = 280, error, "hgr_plot16 needs HGR_FULL_WIDTH_TABLES = 1 (columns 256..279)"
+.endif
 .zeropage
 .ifndef hp_x
 hp_x: .res 2

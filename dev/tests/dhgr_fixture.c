@@ -13,6 +13,7 @@ int main(void)
     unsigned x;
     unsigned char c;
     RESULT = 0;
+    if (dhgr_get_draw_page() != 1u) RESULT = 3;   /* page 1 before dhgr_init */
     dhgr_init();
     for (c = 0; c < 16u; ++c) {
         dhgr_clear(c);

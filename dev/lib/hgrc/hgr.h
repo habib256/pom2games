@@ -173,7 +173,8 @@ unsigned char * HGR_FASTCALL hgr_row_on_page(unsigned char page, unsigned char y
 void hgr_fill_pixrect(unsigned x, unsigned char y, unsigned char w, unsigned char h);
 void hgr_clear_pixrect(unsigned x, unsigned char y, unsigned char w, unsigned char h);
 /* Fill (set=1) / erase (set=0) a 6x6 block in the 8x8 grid cell (cx, cy).
- * cx*8/cy*8 done in asm, no clip — for 8px-grid games drawing one cell/call. */
+ * cx*8/cy*8 done in asm — for 8px-grid games drawing one cell/call. Grid
+ * cx 0..34, cy 0..23: a cell outside it (cx >= 35 or cy >= 24) draws nothing. */
 void hgr_cell(unsigned char cx, unsigned char cy, unsigned char set);
 
 /* Set a white pixel. x: 0..279, y: 0..191. Apple II interleaved HIRES layout. */

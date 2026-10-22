@@ -1,7 +1,7 @@
 ; VERHILLE Arnaud — GPL-3.0. AppleMouse II Tech Notes 1 and 5.
 ; Firmware X=$Cn,Y=$n0. IIe polling mode 1; IIc native IRQs count motion.
-; The pointer is kept in 0..139 by MOUSE_Y_LOW..MOUSE_Y_HIGH (0..191 unless
-; the program defines them) and starts at 70, MOUSE_Y_START.
+; The pointer is clamped to X 0..139 and Y MOUSE_Y_LOW..MOUSE_Y_HIGH (0..191
+; unless the program defines them); it starts at X 70, Y MOUSE_Y_START.
 ; ca65 -D MOUSE_INIT_BOOT puts mouse_init (detection, set-up) in segment
 ; INIT: boot code a buffer may overwrite after the call.
 .ifndef MOUSE_Y_LOW
@@ -26,12 +26,6 @@ _mouse_buttons: .res 1
 offsets: .byte $05,$07,$0B,$0C,$FB
 values:  .byte $38,$18,$01,$20,$D6
 .code
-firmware:
-lookup: ldy $C400,x
-        sty jump+1
-xparam: ldx #$C4
-yparam: ldy #$40
-jump:   jmp $C400
 .ifdef MOUSE_INIT_BOOT
 .segment "INIT"         ; boot code (ca65 -D MOUSE_INIT_BOOT): may be overwritten later
 .endif
@@ -154,6 +148,9 @@ _mouse_close:
 
 ; Optional timing client: mouse VBL mode and firmware acknowledge.
 ; A=mode (1 polling, 9 polling + VBL). Caller masks IRQ while changing mode.
+; serve_irq: C=0 if the mouse raised a VBL interrupt, C=1 otherwise.
+; No mouse (mouse_slot 0: none found, or the cleared BSS before mouse_init):
+; both return C=1 at once, without calling any firmware (firmware checks).
 .export _mouse_timing_mode, _mouse_serve_irq
 _mouse_timing_mode:
         ldx #$12
@@ -161,12 +158,22 @@ _mouse_timing_mode:
 _mouse_serve_irq:
         ldx #$13
         jsr firmware
-        bcs :+
+        bcs not_ours
         ldx _mouse_slot
         lda $0778,x
         and #8
-        beq :+
+        beq not_ours
         clc
         rts
-:       sec
+not_ours:
+        sec
         rts
+; X = firmware entry offset. Every call checks the slot: none, C = 1.
+firmware:
+        ldy _mouse_slot
+        beq not_ours
+lookup: ldy $C400,x
+        sty jump+1
+xparam: ldx #$C4
+yparam: ldy #$40
+jump:   jmp $C400

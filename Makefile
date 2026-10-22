@@ -24,6 +24,7 @@ test-hgr:
 	python3 dev/tests/test_dos_reuse.py
 	python3 dev/tests/test_math.py
 	python3 dev/tests/test_rwts.py
+	python3 dev/tests/test_lib_options.py
 	python3 dev/tests/test_hgr_pages.py
 	python3 dev/tests/test_joy_fast.py
 	python3 dev/tests/test_exit_modes.py
@@ -168,6 +169,7 @@ test-tools:
 	python3 dev/tests/test_prodos_video.py
 	python3 dev/tests/test_apple2game.py
 	python3 dev/tests/test_mouse_context.py
+	python3 dev/tests/test_mouse_noslot.py
 	python3 dev/tests/test_hgr_tables_disk.py
 .PHONY: test-tools
 

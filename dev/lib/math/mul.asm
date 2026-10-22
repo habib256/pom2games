@@ -219,8 +219,10 @@ mul_u8u8:
 
 ; mul_init -- sqr1[x] = floor(x*x/4) by steps of floor((x+1)/2), x = 0..511;
 ; sqr2[x] = sqr1[255-x] (x < 256), sqr1[x-255] (x >= 256)
-.ifdef MUL_INIT_BOOT
+.if .defined(MUL_INIT_BOOT)             ; no symbol defined here: it would
+.if MUL_INIT_BOOT                       ; end the scope of the @ labels
 .segment "INIT"
+.endif
 .endif
 mul_init:
         LDA     #0

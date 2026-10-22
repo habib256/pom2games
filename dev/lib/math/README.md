@@ -27,7 +27,7 @@ MUL_INIT_BOOT = 1            ; optionnel : mul_init dans le segment "INIT" (code
         JSR sqrt_init         ; si isqrt16 est utilisé (après mul_init)
         ...
 ; à la fin du source, après les appelants (.ifref) :
-.include "sqrt.asm"          ; avant mul.asm
+.include "sqrt.asm"          ; ordre libre (lit seulement les tables)
 .include "div.asm"
 .include "random.asm"
 .include "mul.asm"

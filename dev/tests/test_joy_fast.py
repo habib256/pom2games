@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """joy.asm read_stick_fast in a2run: counts follow both axes (~35 cycles a
 turn with joy_cnt in BSS, a2run's paddle timer is value * 11 cycles), C = 0 with a stick,
-read_stick unchanged beside it, joy_x / joy_y aliased in zero page."""
+read_stick beside it, joy_x / joy_y aliased in zero page. Unplugged axes
+(a2run joy:9,..): read_stick centres each one (60, no wrap to 0) and sets C
+only when both are open; read_stick_fast sets C."""
 import subprocess
 import sys
 import tempfile
@@ -25,13 +27,16 @@ loop:   JSR     read_stick_fast
         LDA     joy_y
         STA     res+1
         JSR     read_stick
+        LDA     #0
+        ROL     A
+        STA     res+5
         LDA     joy_x
         STA     res+3
         LDA     joy_y
         STA     res+4
         JMP     loop
 .bss
-res:    .res 5
+res:    .res 6
 .code
 .include "joy.asm"
 .export res, loop
@@ -50,21 +55,28 @@ def main():
         L = a2test.labels(work / 'j.lbl')
         assert L['joy_x'] < 0x100, 'joy_x alias not kept in zero page'
         disk = a2test.build_disk(work, 'JOY', work / 'j.bin')
-        axes = [(-1, -1), (0, 0), (1, 1), (-1, 1), (0.5, -0.5)]
+        axes = [(-1, -1), (0, 0), (1, 1), (-1, 1), (0.5, -0.5), (9, 1), (-1, 9), (9, 9)]
         steps = ['wait:200', L.until('loop', 4000)]
         for x, y in axes:
-            steps += [f'joy:{x},{y}', 'wait:5', L.peek('res', 5)]
+            steps += [f'joy:{x},{y}', 'wait:5', L.peek('res', 6)]
         r = a2test.run(disk, steps)
-        rows = [r.mem(L['res'], 5, i) for i in range(len(axes))]
+        rows = [r.mem(L['res'], 6, i) for i in range(len(axes))]
     for (x, y), row in zip(axes, rows):
+        if x > 1 or y > 1:
+            assert row[2] == 1, f'joy {x},{y}: read_stick_fast C = 0 with an open axis'
+            assert row[5] == (x > 1 and y > 1), f'joy {x},{y}: read_stick C = {row[5]}'
         for axis, v, slow in ((x, row[0], row[3]), (y, row[1], row[4])):
+            if axis > 1:
+                assert slow == 60, f'joy {x},{y}: open axis read {slow}, not centred'
+                continue
             timer = int((axis + 1) * 127.5 + 0.5) * 11            # cycles
             # 35 cycles a turn while both run, 33-34 once the other axis is done
             assert timer / 35 - 1 <= v <= timer / 33 + 1, f'joy {x},{y}: fast count {v}, timer {timer}'
             assert timer / 25 - 1 <= slow <= timer / 24 + 1, f'joy {x},{y}: read_stick {slow}'
-        assert row[2] == 0, f'joy {x},{y}: C = 1 with a stick'
+        if x <= 1 and y <= 1:
+            assert row[2] == 0 and row[5] == 0, f'joy {x},{y}: C = 1 with a stick'
     print('read_stick_fast: counts follow both axes (left/centre/right/mixed), C = 0, '
-          'read_stick beside it, zero-page aliases kept.')
+          'read_stick beside it, open axes centred one by one, zero-page aliases kept.')
 
 
 if __name__ == '__main__':

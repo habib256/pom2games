@@ -12,7 +12,6 @@
         .import apple2_zp_buf
 
 .include "apple2.inc"
-.include "dos.asm"
 
         .segment "CODE"
 
@@ -45,10 +44,13 @@ _a2_dos_cmd:
         jsr     dos_cmd_add
         jmp     dos_cmd_run
 
-; unsigned char a2_disk_protected(void): 1 if the slot 6 disk is protected.
+; unsigned char a2_disk_protected(void): 1 if DOS's last disk is protected.
 _a2_disk_protected:
         jsr     disk_protected
         lda     #0
         rol     a
         ldx     #0
         rts
+
+; dos.asm emits its routines only when referenced before inclusion.
+.include "dos.asm"

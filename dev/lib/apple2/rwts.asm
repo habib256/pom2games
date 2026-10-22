@@ -57,6 +57,12 @@ RWTS_CATALOG_SECTOR = 15
 RWTS_RETRIES = 1
 .endif
 .assert RWTS_RETRIES >= 1 .and RWTS_RETRIES <= 255, error, "RWTS_RETRIES: 1..255"
+.ifndef RWTS_SEI                        ; options: 1 = on, 0 or undefined = off
+RWTS_SEI = 0
+.endif
+.ifndef RWTS_KEEP_ZP
+RWTS_KEEP_ZP = 0
+.endif
 
 .segment "BSS"
 .ifndef rwts_track
@@ -91,7 +97,7 @@ rwts_count:  .res 1
 rwts_t:      .res 1
 .endif
 .endif
-.ifdef RWTS_KEEP_ZP
+.if RWTS_KEEP_ZP
 .ifndef rwts_zp_buf
 rwts_zp_buf: .res DOS_ZP_LEN
 .endif
@@ -140,12 +146,14 @@ rwts_find_file:
         INX
         CPX     #30
         BNE     @ch
-        BEQ     @found
-@end:   CPX     #30
-        BEQ     @found
+@end:   CPX     #30                     ; the name ended: only spaces up to
+        BEQ     @found                  ; byte 30 ("AB" is not "AB CD")
         JSR     rwts_cat
-        CMP     #$A0                    ; and no more characters there
-        BEQ     @found
+        CMP     #$A0
+        BNE     @skip
+        INY
+        INX
+        BNE     @end                    ; always (X < 30)
 @skip:  CLC
         LDA     rwts_ix
         ADC     #35
@@ -219,7 +227,7 @@ rwts_read:
         LDA     #1
 rwts_cmd:
         PHA                             ; the command, until IOB byte 12
-.ifdef RWTS_KEEP_ZP
+.if RWTS_KEEP_ZP
         LDX     #0
 @save:  LDA     DOS_ZP_START,X
         STA     rwts_zp_buf,X
@@ -267,7 +275,7 @@ rwts_cmd:
         JSR     rwts_put
         LDA     #RWTS_RETRIES
         STA     rwts_try
-.ifdef RWTS_SEI
+.if RWTS_SEI
         PHP                             ; no interrupt in the disk's timing
         SEI
 .endif
@@ -278,12 +286,12 @@ rwts_cmd:
         DEC     rwts_try
         BNE     @try
 @ok:
-.ifdef RWTS_SEI
+.if RWTS_SEI
         ROR     rwts_try                ; C kept across the caller's flags
         PLP
         ROL     rwts_try
 .endif
-.ifdef RWTS_KEEP_ZP
+.if RWTS_KEEP_ZP
         PHP
         LDX     #0
 @rest:  LDA     rwts_zp_buf,X

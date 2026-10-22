@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """lib/apple2/rwts.asm in a2run: the IOB kept after the first call ($03E3
 broken after it, as when a game takes the file manager's memory), catalog look-up (a longer name sharing the
-prefix, a comma-ended name, a missing file), whole files through their T/S
+prefix, one that goes on after a space, a comma-ended name, a missing file), whole files through their T/S
 lists, a sector written then read back. Built twice: plain, and with
 RWTS_KEEP_ZP + RWTS_RETRIES."""
 from pathlib import Path
@@ -131,6 +131,7 @@ def run(defines, files, work):
 
 def main():
     files = [('DATA10', bytes([0xEE]) * 300),                     # same prefix, listed first
+             ('DATA1 X', bytes([0xDD]) * 300),                   # "DATA1" then a space: not DATA1
              ('DATA1', bytes((i * 7) & 0xFF for i in range(700))),   # 3 sectors with the header
              ('DATA2', bytes((i * 13 + 5) & 0xFF for i in range(20 * 256 - 4)))]
     for label, defines in (('plain', ''),
@@ -143,14 +144,14 @@ def main():
             d2 = dos33.read_file(image, 'DATA2')
             assert res[0] == 0 and res[1] == 0, f'{label}: DATA1 not found / not read {list(res)}'
             assert res[2] == 3 and res[3] == 0x14, f'{label}: DATA1 pages {res[2]}, next page {res[3]:02X}'
-            assert r.mem(0x1100, 4 + len(d1)) == bytes([0, 0x40, len(d1) & 255, len(d1) >> 8]) + d1, f'{label}: DATA1 content (DATA10 matched?)'
+            assert r.mem(0x1100, 4 + len(d1)) == bytes([0, 0x40, len(d1) & 255, len(d1) >> 8]) + d1, f'{label}: DATA1 content (DATA10 or "DATA1 X" matched?)'
             assert res[4] == 0 and res[5] == 0 and res[6] == 20, f'{label}: DATA2 {list(res[4:7])}'
             assert r.mem(0x4000, 4 + len(d2))[4:] == d2, f'{label}: DATA2 content'
             assert res[7] == 1, f'{label}: DATA3 should be missing'
             assert res[8] == 0 and res[9] == 0, f'{label}: write/read error {list(res[8:10])}'
             assert r.mem(0x1F00, 256) == bytes(i ^ 0x5A for i in range(256)), f'{label}: read back'
             assert res[10] == 0, f'{label}: zero page $50-$5F changed'
-    print('RWTS: catalog look-up (prefix, comma, missing), T/S-list file reads, '
+    print('RWTS: catalog look-up (prefix, name + space + more, comma, missing), T/S-list file reads, '
           'write + read back; plain and RWTS_KEEP_ZP/RETRIES builds.')
 
 

@@ -1003,7 +1003,8 @@ move_pad:
         ldx joy_x
         lda paddle_map,x
         sta pad_x
-        ; A standalone paddle 0 leaves timer 1 charged: stay on the floor.
+        ; A standalone paddle 0 leaves timer 1 charged (read_stick centres
+        ; joy_y then): stay on the floor.
         lda PADDL1
         bpl @two_axes
         lda #175
@@ -1978,6 +1979,7 @@ APPLE2_EXIT_HOOK = mouse_shutdown
 .include "exit.asm"
 DOS_ZP_START = $50
 DOS_ZP_LEN = $B0
+DOS_SEI = 1                       ; the //c mouse runs with IRQs on (interface.inc)
 .include "dos.asm"
 .include "mouse_context.asm"
 

@@ -28,8 +28,8 @@
 ;                fine for fonts, which keep a blank right column).
 ; A program whose font is in HGR order can define HGR_TEXT8_HGR_ORDER before
 ; the include: ht_rev, the rev7 path and the 256-byte rev7_tab disappear.
-; Chars < $20 render as space, $60..$7F fold to uppercase, past the
-; 64-glyph window renders as space. ht_sl >= 192 skips the draw (the
+; Chars < $20 render as space, $60..$7F fold to uppercase: every char
+; lands in the 64-glyph window $20..$5F. ht_sl >= 192 skips the draw (the
 ; cursor still advances). Partial glyphs at y=185..191 clip at the bottom;
 ; an off-screen cursor stays off-screen when wrapping.
 ;
@@ -49,10 +49,10 @@
 ; Caller provides hgr_lo / hgr_hi (include hgr_scanline.inc). The module
 ; allocates its own ZP (~12 B) and pulls rev7.inc (shared, guarded).
 ;
-; Consumers in this repo: arkabreakout (bbfont, HGR order, HGR_TEXT8_HGR_ORDER)
-; and maze3d (its own font, TMS order) -- one module, both bit orders
-; exercised. First written for POM1's game_rogue and game_maze3d; chess keeps
-; its private putc_hgr (chess/src/chess.s).
+; Consumers in this repo: arkabreakout and dirtbike (bbfont, HGR order,
+; HGR_TEXT8_HGR_ORDER) and maze3d (its own font, TMS order) -- one module,
+; both bit orders exercised. First written for POM1's game_rogue and
+; game_maze3d; chess draws through hgr_glyph8.asm (see above).
 ; ============================================================================
 
 .ifndef _HGR_TEXT8_LOADED_
@@ -118,7 +118,7 @@ hgr_putc8:
         JSR HGR_TEXT8_FILTER
         BCS @out
 .endif
-        ; glyph index: fold lowercase, map out-of-window to space
+        ; glyph index: fold lowercase, control chars to space
         LDA ht_a
         AND #$7F
         CMP #$60
@@ -127,12 +127,8 @@ hgr_putc8:
 @nofold:
         SEC
         SBC #$20
-        BCS @sub_ok
+        BCS @idx_ok             ; $00..$3F: at most $5F - $20 after the fold
         LDA #0                  ; control chars -> space
-@sub_ok:
-        CMP #64
-        BCC @idx_ok
-        LDA #0                  ; past the 64-glyph window -> space
 @idx_ok:
         ; glyph ptr = font + idx * 8: idx < 64, so the product is 9 bits and
         ; three shifts in A leave its bit 8 in the carry.

@@ -3786,6 +3786,7 @@ basic_load_cmd: .byte $0D, $04, "LOAD HELLO", $0D
 .include "sound.asm"             ; tone
 .include "joy.asm"               ; read_stick, stick_dir (JOY_LO/HI above)
 .include "rwts.asm"              ; rwts_cmd, rwts_find_file (used by fast_disk.inc)
+.include "dos.asm"               ; disk_protected (the drive RWTS uses)
 ; Disk I/O lives in fast_disk.inc; DOS command parsing is only used by HELLO.
 
 

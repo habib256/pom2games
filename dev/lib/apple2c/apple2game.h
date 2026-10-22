@@ -7,9 +7,10 @@
 #define APPLE2GAME_H
 
 /* Square wave: `flips` speaker toggles (0 = 256), `period` delay between them
- * (0 = 256), ~(13 + 5*period) cycles per flip at 1.02 MHz. The CPU is busy
- * meanwhile. Examples: a2_tone(0x30, 0x28) short high blip, a2_tone(0x60,
- * 0xC0) ~95 ms at ~1 kHz, a2_tone(0x06, 0xFF) dull thud. */
+ * (0 = 256), 12 + 5*period cycles per flip. A flip is half a period: pitch =
+ * 1.02 MHz / (2 * (12 + 5*period)). The CPU is busy meanwhile. Examples:
+ * a2_tone(0x30, 0x28) short ~2.4 kHz blip, a2_tone(0x60, 0xC0) ~91 ms at
+ * ~526 Hz, a2_tone(0x06, 0xFF) dull ~397 Hz thud. */
 void a2_tone(unsigned char flips, unsigned char period);
 
 /* Sample both paddle timers (~6 ms), leave the counts in a2_joy_x / a2_joy_y

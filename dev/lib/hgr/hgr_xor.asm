@@ -4,22 +4,49 @@
 ; HGR_XOR_DIV7/MOD7 alias caller tables (256 entries). No colour bit touched.
 ; hgr_xor_sprite: hx_data points to 8 rows of two seven-bit bytes, hx_x/y.
 ; Caller pre-shifts hx_data for x modulo seven. A/X/Y and scratch destroyed.
+; ZP: each hx_* is skipped if defined before the include (caller alias).
 .ifndef _HGR_XOR_LOADED_
 _HGR_XOR_LOADED_ = 1
 .zeropage
+.ifndef hx_ptr
 hx_ptr: .res 2
+.endif
+.ifndef hx_data
 hx_data: .res 2
+.endif
+.ifndef hx_x
 hx_x: .res 1
+.endif
+.ifndef hx_y
 hx_y: .res 1
+.endif
+.ifndef hx_w
 hx_w: .res 1
+.endif
+.ifndef hx_h
 hx_h: .res 1
+.endif
+.ifndef hx_page
 hx_page: .res 1
+.endif
+.ifndef hx_first
 hx_first: .res 1
+.endif
+.ifndef hx_last
 hx_last: .res 1
+.endif
+.ifndef hx_lm
 hx_lm: .res 1
+.endif
+.ifndef hx_rm
 hx_rm: .res 1
+.endif
+.ifndef hx_row
 hx_row: .res 1
+.endif
+.ifndef hx_index
 hx_index: .res 1
+.endif
 .code
 hgr_xor_rect:
         ldx hx_x
@@ -32,9 +59,8 @@ hgr_xor_rect:
         lda hx_x
         clc
         adc hx_w
-        sec
-        sbc #1
         tax
+        dex                             ; x + w - 1: the last pixel
         lda HGR_XOR_DIV7,x
         sta hx_last
         lda HGR_XOR_MOD7,x
@@ -104,4 +130,5 @@ hgr_xor_sprite:
 .rodata
 hx_left_masks: .byte $7f,$7e,$7c,$78,$70,$60,$40
 hx_right_masks: .byte $01,$03,$07,$0f,$1f,$3f,$7f
+.code                                   ; end in CODE, like the other kernels
 .endif

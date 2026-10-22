@@ -33,10 +33,11 @@ inutilisées n'occupent ni code ni page zéro. Les drapeaux d'exclusion par
 programme ont été supprimés. Les trois démos C partagent une seule archive.
 Un lien direct de tous les `.o` embarquerait au contraire toutes les familles.
 
-Trois objets portent les commutateurs de mode : `hgr_mode_asm.s` (toujours lié :
-`hgr_init`, `hgr_text_restore`, `hgr_flip_rows`), `hgr_mode_clear_asm.s`
-(`hgr_init_clear`) et `hgr_lores_init_asm.s` (`hgr_lores_init`). Un programme ne
-paie que les points d'entrée qu'il appelle.
+Trois objets portent les commutateurs de mode : `hgr_mode_asm.s` (`hgr_init`,
+`hgr_text_restore`), `hgr_mode_clear_asm.s` (`hgr_init_clear`) et
+`hgr_lores_init_asm.s` (`hgr_lores_init`) ; `hgr_flip_rows` est dans
+`hgr_rows_asm.s`. Comme les autres membres de l'archive, chacun n'est lié que
+si le programme appelle l'un de ses points d'entrée.
 
 Coûts mesurés par `make bench` (cycles à 1,02 MHz) : effacement d'une page
 46 000 (boucle auto-modifiée de `HGR_CLEAR_LOOP`, lib/apple2), basculement de
