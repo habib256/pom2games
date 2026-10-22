@@ -67,12 +67,14 @@ $(BUILD)/dirtbike.bin: $(BUILD)/dirtbike.o $(BUILD)/mouse.o src/dirtbike.cfg
 	$(LD65) -C src/dirtbike.cfg -m $(BUILD)/dirtbike.map -Ln $(BUILD)/dirtbike.lbl -o $@ \
 		$(BUILD)/dirtbike.o $(BUILD)/mouse.o
 
-$(DISK): $(BUILD)/dirtbike.bin $(TRACKS) $(BUILD)/TITLE.bin $(BUILD)/hof.bin tools/patchdir.py $(DOS33_DEPS)
+$(DISK): $(BUILD)/dirtbike.bin $(TRACKS) $(BUILD)/TITLE.bin $(BUILD)/hof.bin $(DOS33_DEPS) $(DOS33PATCH_DEPS)
 	@mkdir -p $(DIST)
 	$(DOS33) --bin DIRTBIKE=$(BUILD)/dirtbike.bin@$(LOAD) \
 		--bin TITLE=$(BUILD)/TITLE.bin@0x9600 --bin DIRTHOF=$(BUILD)/hof.bin@0xB500 \
 		$(foreach t,$(TRACKS),--bin $(basename $(notdir $(t)))=$(t)@0x9600)
-	$(PYTHON) tools/patchdir.py $@ $(BUILD)/dirtbike.lbl
+	$(DOS33PATCH) $@ DIRTBIKE $(BUILD)/dirtbike.lbl \
+		--tslist trackdir_t trackdir_s $(basename $(notdir $(TRACKS))) \
+		--tslist titledir_t titledir_s TITLE --sectors hof_t hof_s DIRTHOF
 
 test: all $(A2RUN)
 	$(PYTHON) tools/trackcheck.py

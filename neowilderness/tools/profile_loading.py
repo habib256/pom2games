@@ -14,7 +14,6 @@ calls (lot 7).
 """
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -22,20 +21,18 @@ HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE / 'tests'))
 sys.path.insert(0, str(HERE / 'tools'))
 from common import L, a2test   # noqa: E402
-from build_disk import build_disk   # noqa: E402
+from build_disk import build_disk, EDITIONS, LZ_MODULES, LZ_SIX_PACKS   # noqa: E402
+sys.path.insert(0, str(HERE.parent / 'dev/tools'))
+import a2profile   # noqa: E402
 
 HZ = a2test.CPU_HZ
 
 
 def split(result, profile):
     """Cycles of one pcprof reply: MLI/disk, LZ decoding, loader copies."""
-    out = dict(disk=0, decode=0, loader=0)
-    for address, cycles in re.findall(r'^pc ([0-9A-F]{4}) (\d+)$', profile, re.M):
-        address, cycles = int(address, 16), int(cycles)
-        key = ('decode' if L['ld_decode'] <= address < L['ld_decode_end'] else
-               'disk' if address >= 0xBF00 else 'loader')
-        out[key] += cycles
-    return out
+    return dict(dict(disk=0, decode=0, loader=0), **a2profile.by_region(
+        a2profile.pcs(profile), lambda pc: 'decode' if L['ld_decode'] <= pc < L['ld_decode_end'] else
+                                           'disk' if pc >= 0xBF00 else 'loader'))
 
 
 def measure(disk, choice='2'):
@@ -83,7 +80,11 @@ def main():
     results = {}
     for packing in args.packings.split(','):
         disk = work / f'{packing}.po'
-        info = build_disk(disk, args.map, packing=packing)
+        ed = EDITIONS['xl']                 # the active edition, as the Makefile builds it
+        info = build_disk(disk, args.map, packing=packing, blocks=ed['blocks'], regions=ed['regions'],
+                          volume_name=ed['volume'], disk_modules=ed['disk_modules'],
+                          shelters=ed.get('shelters', True), mousetext=ed.get('mousetext', False),
+                          lz_modules=ed.get('lz_modules', LZ_MODULES + LZ_SIX_PACKS))
         value = measure(disk, args.choice)
         pack = info['packs'][args.choice]
         value.update(dat_raw=info['dat']['raw'], dat_stored=info['dat']['stored'],

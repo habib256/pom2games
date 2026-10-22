@@ -52,6 +52,10 @@ A2_CRT0      := $(DEV)/cc65/crt0_apple2.s
 # Bootable DOS 3.3 disk: $(DOS33) --bin NAME=file@addr ... [--catalog]
 DOS33      = $(PYTHON) $(DEV)/tools/dos33.py --master $(SYSTEM) --out $@ --bas HELLO=src/hello.bas
 DOS33_DEPS := src/hello.bas $(DEV)/tools/dos33.py $(SYSTEM)
+# where files lie on the disk, patched into a program that reads them through
+# RWTS once DOS is gone (dev/tools/dos33patch.py)
+DOS33PATCH = $(PYTHON) $(DEV)/tools/dos33patch.py
+DOS33PATCH_DEPS := $(DEV)/tools/dos33patch.py $(DEV)/tools/dos33.py
 
 .DEFAULT_GOAL := all
 

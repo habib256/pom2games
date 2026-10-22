@@ -42,7 +42,9 @@ native ; `exit.asm` restaure la page zéro pour rendre la main à DOS proprement
   ~40) : calibrer sur la position de repos. `joy_x`/`joy_y`/`joy_cnt` peuvent
   être des alias en page zéro.
 - **`rwts.asm`** — `rwts_read`, `rwts_write`, `rwts_cmd`, `rwts_read_tslist`,
-  `rwts_find_file` : secteurs DOS 3.3 en direct par RWTS (IOB de DOS, lecteur
+  `rwts_find_file` : secteurs DOS 3.3 en direct par RWTS (sans lire le
+  catalogue à l'exécution : `dev/tools/dos33patch.py` écrit les listes T/S
+  ou les secteurs dans le programme après la construction du disque ; IOB de DOS, lecteur
   de démarrage, essais `RWTS_RETRIES`, page zéro gardée avec `RWTS_KEEP_ZP`,
   interruptions masquées pendant chaque accès avec `RWTS_SEI`, pour les
   programmes qui les activent, comme la souris du //c),
