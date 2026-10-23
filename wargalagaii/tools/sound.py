@@ -23,7 +23,8 @@ CPU = 1_020_484
 MUS_HZ = 25                     # PT3 ticks a second (timer 1; tools/pt3.py's
                                 # SPEED follows): half the usual 50, half the
                                 # cost (~1 600 cycles a tick, lot 6 measures)
-SPK_TURN = 63                   # cycles of one wait-loop turn (timing.s)
+SPK_TURN = 63                   # cycles of one wait-loop turn (timing.s; the
+                                # test checks it: bug hunts 5 and 6)
 
 NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 

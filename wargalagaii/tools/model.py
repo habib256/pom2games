@@ -396,6 +396,8 @@ class Game:
 
     # --- levels -------------------------------------------------------------
     def level_step(self):
+        if self.game_over:              # (levels went on behind GAME OVER)
+            return
         if self.phase:                  # teleporting
             self.clear_t -= 1
             if not self.clear_t:
@@ -403,13 +405,15 @@ class Game:
                 self.level += 1
                 if self.level == LEVELS:
                     self.level = 0
-                    self.loop = (self.loop + 1) & 0xFF
+                    self.loop = min(255, self.loop + 1)   # (wrapped to 0: easy again)
                 self.setup_level()
             return
         self.level_t = min(0xFFFF, self.level_t + 1)
         if not self.hurry and self.level_t >= HURRY_T and self.lkind in (NORMAL, BIG):
             self.hurry, self.h_x, self.h_dir, self.h_t = 1, 0, 1, HURRY_FIRE
-        if self.entry_w != ROWS or any(self.a_state) or self.boss_hp or self.boss_boom:
+        # (objects still falling hold the end: the boss's life and coin were
+        # wiped 40 steps after it fell, half-way down; bug hunt 6)
+        if self.entry_w != ROWS or any(self.a_state) or self.boss_hp or self.boss_boom or any(self.obj_y):
             return
         if self.lkind == BONUS and self.bonus_kills == NALIENS:
             self.add_score(BONUS_PRIZE)
@@ -421,7 +425,7 @@ class Game:
 
     # --- bonuses ------------------------------------------------------------
     def add_score(self, points):
-        self.score += points * self.mult
+        self.score = min(999999, self.score + points * self.mult)   # (wrapped to 0)
 
     def drop(self, i):
         if self.rand8() >= DROP_RATE:

@@ -68,8 +68,24 @@ def model_invariants(games=30, steps=3000):
         g.drop(0)
         kinds.update(g.obj_kind[k] for k in range(M.N_OBJ) if g.obj_y[k])
     assert len(kinds) >= 28, sorted(M.KINDS[k] for k in kinds)   # the bug: 5
+    # Bug hunt 6: the boss's life and 200 coin fell half-way, then the level
+    # ended (40 steps after the boss) and wiped them. A ship under them
+    # takes both now.
+    g = M.Game(24)
+    for k in range(2000):
+        if k == 300:                     # shot down
+            g.boss_hp = 0
+            g.boss_down()
+        under = [7 * g.obj_k[i] for i in range(M.N_OBJ) if g.obj_y[i]]
+        if under:
+            g.ship_c = min(under[0], M.SHIP_MAX)
+        g.invul_t = 50
+        g.step(0, False, False)
+        if g.phase:
+            break
+    assert g.lives == M.LIVES + 1, ('the boss life', g.lives)
     print(f'PASS model invariants: {games} random games x {steps} steps, everything drawable, '
-          f'gauges in range; drop() gives {len(kinds)} of {len(M.KINDS)} kinds')
+          f'gauges in range; drop() gives {len(kinds)} of {len(M.KINDS)} kinds; the boss life caught')
 
 
 def volume(disk, build):
@@ -155,14 +171,26 @@ def vbl_edges(disk, L):
     edge slows the game and shows a frame late unnoticed (bug hunt
     2026-10-23: aliens_pass and the column clears ran ~6 000 cycles
     without a scan). Every vbl_count increment comes <= 1.5 refresh after
-    the previous one, during the entry waves and the 10-shot bench."""
+    the previous one, during the entry waves and the 10-shot bench, and
+    through level changes with the card (bug hunt 5: the new pack's tables
+    came from aux in one AUXMOVE under SEI, ~50 000 cycles without a scan
+    or the music; now 64 bytes at a time)."""
     vc = L['vbl_count']
     fire = [L.until('logic_step', 10), L.poke('fire_req', 0x80), L.until('logic_done', 10)]
     scenes = (('entry waves', ['wait:1', f'storewatch:{vc:04X}:{vc:04X}', 'wait:1500']),
               ('bench', [L.poke('shot_limit', 10), L.poke('nohit', 1), L.poke('armour', 99),
-                         'wait:1100', f'storewatch:{vc:04X}:{vc:04X}'] + fire * 600))
+                         'wait:1100', f'storewatch:{vc:04X}:{vc:04X}'] + fire * 600),
+              ('level changes, Mockingboard', 'levels'))
+    cheat = [L.poke('invul_t', 60), L.poke('fire_held', 0x80), L.poke('autofire_t', 255), 'wait:40']
     for name, steps in scenes:
-        r = a2test.run(disk, [L.until('game_tick', 3000)] + steps, iie=True, timeout=600)
+        start = [L.until('game_tick', 3000)]
+        if steps == 'levels':            # level 4 -> 5: a new pack
+            start = [L.until('main', 3000), L.poke('start_level', 3), L.until('game_tick', 3000),
+                     L.poke('weapon', 2), L.poke('shot_limit', 10)]
+            steps = [f'storewatch:{vc:04X}:{vc:04X}'] + cheat * 120 + [L.peek('level')]
+        r = a2test.run(disk, start + steps, iie=True, timeout=900, mockingboard=name.endswith('board'))
+        if name.endswith('board'):
+            assert r.mem(L['level'], 1)[0] >= 4, ('a new pack', r.mem(L['level'], 1))
         stamps = [int(c) for c in re.findall(r'^store \w+ \w+ .* cycles=(\d+)', r.out, re.M)]
         gaps = [b - a for a, b in zip(stamps, stamps[1:])]
         assert len(stamps) > 500 and max(gaps) < 17030 * 3 // 2, (name, len(stamps), max(gaps))
@@ -255,7 +283,7 @@ def game_over(disk, L):
           '(clock, /RAM unit and saved zero page intact)')
 
 
-def level_oracle(disk, L, start, count=3000, every=5, seed=5, cheats=()):
+def level_oracle(disk, L, start, count=3000, every=5, seed=5, cheats=(), later=None):
     """Lot 6: from level `start` (poked before game_init), a strong cheating
     player (kept invulnerable, triple shot, 10 shots, autofire) goes through
     level ends, teleports and the next levels; state == model at every
@@ -273,6 +301,7 @@ def level_oracle(disk, L, start, count=3000, every=5, seed=5, cheats=()):
         if rng.random() < 0.2:
             move = rng.choice((-1, 0, 1))
         pokes = list(cheats0) if k == 0 else []
+        pokes += (later or {}).get(k, [])
         plan.append((move, pokes))
         steps += [L.until('logic_step', 10), L.poke('move_dir', move & 0xFF), L.poke('fire_req', 0x80),
                   L.poke('fire_held', 0x80)] + [L.poke(n, v >> 8 * b, b) for n, v in pokes
@@ -396,6 +425,32 @@ def play(disk, L):
     print('PASS arrows move, SPACE and open apple fire, TAB -> joystick moves and stops')
 
 
+def score_cap(disk, L):
+    """The score stops at 999 999 (bug hunt 6: it wrapped to 0)."""
+    steps = [L.until('game_tick', 3000), L.poke('score', 0x90), L.poke('score', 0x99, 1),
+             L.poke('score', 0x99, 2), L.poke('shot_limit', 10), L.poke('weapon', 2)]
+    for _ in range(60):
+        steps += [L.poke('invul_t', 60), 'press: ', 'wait:20']
+    steps += [L.peek('score', 3)]
+    for _ in range(60):
+        steps += [L.poke('invul_t', 60), 'press: ', 'wait:20']
+    r = a2test.run(disk, steps + [L.peek('score', 3)], iie=True)
+    assert r.mem(L['score'], 3, 0) == r.mem(L['score'], 3, 1) == b'\x99\x99\x99', \
+        (r.mem(L['score'], 3, 0).hex(), r.mem(L['score'], 3, 1).hex())
+    print('PASS score stops at 999999 (from 999990, still there 60 shots later)')
+
+
+def joystick_delay(disk, L):
+    """Without a video clock (delays: a //c whose interrupt stopped, no
+    mouse firmware) the stick is read too (bug hunt 5: it stayed centred)."""
+    r = a2test.run(disk, [L.until('game_tick', 3000), L.poke('timing_mode', 0), 'key:\t',
+                          'joy:1,0', 'wait:60', L.peek('joy_x'), 'joy:-1,0', 'wait:60', L.peek('joy_x')],
+                   iie=True)
+    right, left = r.mem(L['joy_x'], 1, 0)[0], r.mem(L['joy_x'], 1, 1)[0]
+    assert 150 < right < 180 and left < 10, (right, left)   # (17 cycles a count, as the others)
+    print(f'PASS joystick with the delay clock: right {right}, left {left}')
+
+
 def exits(disk, L):
     for how in ('key:\\e', 'reset'):
         r = a2test.run(disk, [L.until('game_tick', 3000), 'wait:30', how, 'wait:300',
@@ -477,6 +532,10 @@ def main():
         assert start not in (24, 99) or len(seen) >= 2, 'the boss shot down'
         print(f'PASS level oracle from level {start + 1} ({why}): levels {[l + 1 + 100 * p for l, p in seen]} '
               f'== model (score {game.score})')
+    # bug hunt 6: frozen on a big level, the seated big aliens stay targets
+    # (the 6502 let shots through them, the model hit them)
+    game, seen = level_oracle(a.disk, L, 2, 1500, every=10, later={140: [('freeze_t', 300)]})
+    print(f'PASS level oracle, frozen big aliens: levels {[l + 1 for l, p in seen]} == model')
     # a level that drags: the hurry-up saucer, its aimed bombs, gone at the level's end
     game, seen = level_oracle(a.disk, L, 1, 1500, every=10, cheats=[('level_t', model.HURRY_T - 60)])
     assert game.hurried > 100 and len(seen) >= 2 and not game.hurry, (game.hurried, seen)
@@ -487,6 +546,8 @@ def main():
     vbl_edges(a.disk, L)
     game_over(a.disk, L)
     play(a.disk, L)
+    joystick_delay(a.disk, L)
+    score_cap(a.disk, L)
     exits(a.disk, L)
     small_machine(a.disk, L)
     missing_sys(a.labels.parent)

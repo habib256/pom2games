@@ -22,9 +22,12 @@ sys.path.insert(0, str(ROOT / 'dev/tools'))
 sys.path.insert(0, str(GAME / 'tools'))
 import a2test
 import autopilot
+import test_game
 
-LATE_MAX = 0.12            # measured 2026-10-23: 4 to 10 %
-LATE_MAX_MB = 0.25         # with the card: 6 to 22 %
+# The scene is chaotic: shifting its start by 2-10 refreshes gives 46 to
+# 76 late frames out of ~570 on level 97 (bug hunt 6). Bounds with room:
+LATE_MAX = 0.15            # without a card (measured up to 13 %)
+LATE_MAX_MB = 0.28         # with the card, PT3 music (measured up to 22 %)
 WORST = ((96, 'level 97: 7 divers, fastest bombs'), (24, 'boss of level 25'),
          (99, 'boss of level 100'))
 
@@ -66,6 +69,11 @@ def main():
     if not a2test.have_a2shot('worst levels'):
         return
     L = a2test.labels(a.labels, strip=True)
+    # the last loop: level 100 of loop 255 shot through, loop 255 again
+    # (bug hunt 6: 255 + 1 was loop 0, the game easy again)
+    game, seen = test_game.level_oracle(a.disk, L, 99, 6000, every=30, seed=12, cheats=[('loop', 255)])
+    assert seen[0] == (99, 255) and seen[1:] and all(p == 255 for l, p in seen), seen
+    print(f'PASS level oracle, loop 255: levels {[l + 1 for l, p in seen]} of loop 255 == model')
     for mockingboard in (False, True):
         for start, why in WORST:
             worst(a.disk, L, start, why, a.frames, mockingboard)

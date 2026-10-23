@@ -114,9 +114,12 @@ ship_drawn: .res 2              ; cell drawn on each page
 ship_img: .res 2                ; image drawn: 0 ship, 1-2 explosion, $FF none
 ship_want: .res 1
 msg_drawn: .res 2               ; message id each page shows
-msg_text: .res 9
-mu_tens:  .res 1
-mu_units: .res 1
+msg_text: .res 11               ; MSG_LEN
+mn:       .res 2                ; LEVEL n: the number
+mn_t:     .res 2
+mn_k:     .res 1
+mn_d:     .res 1
+mn_lead:  .res 1
 hud_seen: .res 80               ; HUD characters each page shows
 hud_key:  .res 2*HUD_KEYS       ; the state each page's HUD shows
 hud_buf:  .res 40
@@ -500,46 +503,73 @@ msg_draw:
         dex
         bpl :--
         cpy #2
-        bne md_put
-        ldx #MSG_LEN-1           ; LEVEL nnn: (level + 2) + 100 * loop
+        jne md_put
+        ldx #MSG_LEN-1           ; LEVEL n: (level + 2) + 100 * loop
 :       lda msg_level,x
         sta msg_text,x
         dex
         bpl :-
-        lda level
-        clc
-        adc #2
-        ldx loop                 ; hundreds: loop, + 1 past 99
-        cmp #100
+        lda loop                 ; n = 100 * loop + level + 2 (16 bits: up
+        sta mn_t                 ; to 25 601; the hundreds were loop mod 10,
+        stz mn_t+1               ; wrong past level 1 000, bug hunt 6)
+        stz mn
+        stz mn+1
+        lda #100
+        sta mn_k
+md_mul: lsr mn_k                 ; n += loop << bit, for each bit of 100
         bcc :+
-        sbc #100
-        inx
-:       ldy #'0'-1               ; tens, units
-:       iny
+        clc
+        lda mn
+        adc mn_t
+        sta mn
+        lda mn+1
+        adc mn_t+1
+        sta mn+1
+:       asl mn_t
+        rol mn_t+1
+        lda mn_k
+        bne md_mul
+        lda level
+        sec                      ; (+ 1 with the carry: + 2)
+        adc #1
+        clc
+        adc mn
+        sta mn
+        bcc :+
+        inc mn+1
+:       ldx #6                   ; the digits from column 6, no leading 0
+        ldy #0
+        stz mn_lead
+md_pow: lda #'0'
+        sta mn_d
+:       lda mn                   ; subtract 10 000, 1 000, 100, 10
         sec
-        sbc #10
-        bcs :-
-        adc #10+'0'
-        sta mu_units
-        sty mu_tens
-        txa
-        jsr mod10
-        ldx #6                   ; the digits from column 6, no leading 0
-        tay
-        beq :+
-        ora #'0'
-        sta msg_text,x
-        inx
-        bra md_tens
-:       lda mu_tens
+        sbc p10_lo,y
+        pha
+        lda mn+1
+        sbc p10_hi,y
+        bcc :+
+        sta mn+1
+        pla
+        sta mn
+        inc mn_d
+        bra :-
+:       pla
+        lda mn_d
         cmp #'0'
-        beq md_units
-md_tens:
-        lda mu_tens
-        sta msg_text,x
+        bne :+
+        bit mn_lead
+        bpl md_next
+:       sta msg_text,x
         inx
-md_units:
-        lda mu_units
+        lda #$80
+        sta mn_lead
+md_next:
+        iny
+        cpy #4
+        bne md_pow
+        lda mn
+        ora #'0'
         sta msg_text,x
 md_put: ldx #0
 :       phx
@@ -560,14 +590,11 @@ md_put: ldx #0
 md_none:
         rts
 ; A mod 10 (A < 256). Z set if 0.
-mod10:  sec
-:       sbc #10
-        bcs :-
-        adc #10
-        rts
-msg_level: .byte "LEVEL    "
+p10_lo: .lobytes 10000, 1000, 100, 10
+p10_hi: .hibytes 10000, 1000, 100, 10
+msg_level: .byte "LEVEL      "
 MSG_ROW = 96
-MSG_LEN = 9
+MSG_LEN = 11                     ; LEVEL nnnnn (GAME OVER: centred in it)
 MSG_COL = (40 - MSG_LEN) / 2
 
 ; ---------------------------------------------------------------------------

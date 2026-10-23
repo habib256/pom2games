@@ -26,6 +26,7 @@
 .export extra_bits, marks, mark_dark, subgame
 .export level, loop, phase, clear_t, level_t, lkind, bonus_kills, w_kills
 .export dive_gap, max_divers, fire_gap, bomb_dy, kami_dy, start_level, cur_alien, pack_loaded
+.export mus_ticks
 .export a_big, a_hp, cur_big, e_dx, boss_hp, boss_x, boss_dir, boss_boom, boss_gap, boss_t, boss_mv, hurry, h_x, h_dir, h_t, spk_period, audio_slot, sound_on, snd_ev
 .export shots_erase, aliens_pass, form_draw, movers_draw, stars_draw, hud_draw
 .export alien_sta, alien_sta_done, alien_eor, alien_eor_done, alien_clr, alien_clr_done
@@ -255,6 +256,10 @@ pack_loaded: .byte $FF          ; WG2.AUX table in cur_alien ($FF: none)
 .bss
 aux_bitmap:  .res 4
 aux_total:   .res 2
+af_src:      .res 2             ; aux_fetch
+af_dst:      .res 2
+af_len:      .res 2
+af_n:        .res 1
 fire_held:   .res 1             ; input: fire held down (autofire)
 nohit:       .res 1             ; tests: shots hit nothing (the bench)
 .data
@@ -454,55 +459,97 @@ aux_fail:
         jmp fail
 
 ; The level's pack table aux -> cur_alien, when it changed (between two
-; levels: no alien of the old pack is drawn any more). IRQs held off
-; while the bank is switched (the music interrupt).
+; levels: no alien of the old pack is drawn any more).
 pack_check:
         ldx level
         lda lv_combo,x
         cmp pack_loaded
-        beq :+
+        jeq pc_done
         sta pack_loaded
         tax
         lda combo_lo,x
-        sta $3C
-        clc
-        adc #<(ALIEN_TABLE-1)
-        sta $3E
-        lda combo_hi,x
-        sta $3D
-        adc #>(ALIEN_TABLE-1)
-        sta $3F
-        lda #<cur_alien
-        sta $42
-        lda #>cur_alien
-        sta $43
-        php
-        sei
-        clc                      ; aux -> main
-        jsr $C311                ; AUXMOVE
-        plp
+        ldy combo_hi,x
+        ldx #<cur_alien
+        stx af_dst
+        ldx #>cur_alien
+        stx af_dst+1
+        ldx #<ALIEN_TABLE
+        stx af_len
+        ldx #>ALIEN_TABLE
+        stx af_len+1
+        jsr aux_fetch
         ldx level                ; and the pack's big alien
         lda lv_big,x
         tax
         lda big_aux_lo,x
+        ldy big_aux_hi,x
+        ldx #<cur_big
+        stx af_dst
+        ldx #>cur_big
+        stx af_dst+1
+        ldx #<BIG_TABLE
+        stx af_len
+        ldx #>BIG_TABLE
+        stx af_len+1
+        ; fall through
+; Aux (A lo, Y hi) -> main af_dst, af_len bytes, through AUXMOVE: AF_CHUNK
+; bytes at a time, IRQs off only while the bank is switched (the music
+; interrupt), a VBL scan between two. (One AUXMOVE of the 1 232 bytes
+; under SEI held the interrupts and the scans off for ~50 000 cycles: a
+; music tick and //e VBL edges lost at every pack change, bug hunt 5.)
+AF_CHUNK = 64                    ; ~2 300 cycles each
+aux_fetch:
+        sta af_src
+        sty af_src+1
+af_chunk:
+        lda af_len+1
+        bne :+
+        lda af_len
+        beq pc_done
+        cmp #AF_CHUNK
+        bcc :++
+:       lda #AF_CHUNK
+:       sta af_n
+        lda af_src               ; A1 = src, A2 = src + n - 1, A4 = dst
         sta $3C
         clc
-        adc #<(BIG_TABLE-1)
-        sta $3E
-        lda big_aux_hi,x
+        adc af_n
+        sta af_src
+        lda af_src+1
         sta $3D
-        adc #>(BIG_TABLE-1)
+        adc #0
+        sta af_src+1
+        lda af_src
+        sec
+        sbc #1
+        sta $3E
+        lda af_src+1
+        sbc #0
         sta $3F
-        lda #<cur_big
+        lda af_dst
         sta $42
-        lda #>cur_big
-        sta $43
-        php
-        sei
         clc
-        jsr $C311
+        adc af_n
+        sta af_dst
+        lda af_dst+1
+        sta $43
+        adc #0
+        sta af_dst+1
+        lda af_len
+        sec
+        sbc af_n
+        sta af_len
+        bcs :+
+        dec af_len+1
+:       php
+        sei
+        clc                      ; aux -> main
+        jsr $C311                ; AUXMOVE
         plp
-:       rts
+        jsr timing_scan
+        bra af_chunk
+pc_done:
+        rts
 
 ; Clean screens and records, fresh state.
 new_game:
@@ -836,7 +883,7 @@ hud_template:
         .res 5, GLYPH_EMPTY
         .byte " T30$0000-----"
 .assert * - hud_template = 40, error, "HUD template: 40 characters"
-msg_over: .byte "GAME OVER"
+msg_over: .byte " GAME OVER "
 extra_letters: .byte "EXTRA"
 ; Lot 5 tables. A kill's drop: drop_table[rand & 63] (weights: model.py).
 .include "bonus.inc"

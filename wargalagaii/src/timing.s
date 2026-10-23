@@ -10,7 +10,7 @@
 ; The IRQ handler uses neither cc65's zero page nor its stack.
 .setcpu "65C02"
 .import _a2_frame_init, _a2_frame_wait, _a2_frame_set_delay
-.import spk_period
+.import spk_period, mus_ticks
 .import _mouse_init, _mouse_close, _mouse_timing_mode, _mouse_serve_irq, _mouse_slot
 .export timing_init, timing_close, timing_present, timing_scan
 JOY_CENTRE = 83
@@ -29,6 +29,7 @@ wanted: .res 1                  ; page to show: 0 = page 1, 1 = page 2
 joy_mode: .res 1                ; nonzero: read paddle 0 while waiting
 from: .res 1
 spk_cnt: .res 1                 ; turns to the next speaker toggle
+joy_irq: .res 1                 ; mus_ticks when the paddle count started
 .data
 joy_x: .byte JOY_CENTRE         ; paddle 0 count (0..~165), centre until read
 allocate: .byte 2,0
@@ -94,20 +95,26 @@ closed: stz timing_mode
         jmp _mouse_close
 
 ; Count //e VBL edges. Call at most ~4 000 cycles apart while drawing (the
-; blank lasts ~4 550): no edge is then missed. ~32 cycles; A clobbered.
-; Atomic: the music interrupt (sound.s, a PT3 tick of up to ~3 000 cycles)
-; scans too, on entry and on exit; interrupted between its read and its
-; store, a scan here would count an edge twice.
+; blank lasts ~4 550): no edge is then missed. ~25 cycles; A clobbered.
+; The music interrupt (sound.s, a PT3 tick of up to ~3 000 cycles) scans
+; too, on entry and on exit: an edge seen here is read again under SEI, or
+; an interrupt between the read and the store would count it twice. (SEI
+; on every scan cost 9 cycles a call: ~2 % more late frames, and longer
+; speaker turns; bug hunt 6.)
 timing_scan:
         lda timing_mode
         cmp #1
         bne scanned
+        lda $C019
+        and #$80
+        cmp beam
+        beq scanned              ; (the common case: nothing written)
         php
         sei
         lda $C019
         and #$80
         cmp beam
-        beq :+
+        beq :+                   ; the interrupt took it
         sta beam
         cmp #$80
         beq :+                   ; blank -> picture: nothing
@@ -161,6 +168,7 @@ shown:  sec
 ; drawing, made it run at ~57 %, bug hunt 2026-10-23).
 DELAY = 60
 present_delay:
+        jsr joy_read_delay       ; (the stick was dead here, bug hunt 5)
         jsr _a2_frame_wait
         ldx wanted
         lda $C054,x
@@ -207,8 +215,8 @@ irq_shown:
         lda flip_count
         bra shown
 
-spk_pad:                         ; 12 + 25 cycles
-        bit $00
+spk_pad:                         ; 12 + 25 cycles (timing_scan's 33, less
+        bit $00                  ; bit ready's 6, plus the 10 after it)
 .repeat 11
         nop
 .endrepeat
@@ -233,7 +241,7 @@ next_edge:
         ldx #0
         ldy #>WAIT_TURNS
 ne_turn:
-        jsr timing_scan          ; 33
+        jsr timing_scan          ; 33 (no edge)
         lda vbl_count            ; 10
         cmp from
         bne ne_edge
@@ -296,27 +304,47 @@ joy_read_vbl:
         dex
         bne :-
         rts
-:       ldx #0
-        lda $C070
+:       jsr joy_start
 :       bit $C019
         bpl joy_done
         inx
         beq joy_done
         lda $C064
         bmi :-
+joy_store:                       ; a music interrupt during the count stopped
+        lda mus_ticks            ; X, not the paddle timer: reading too low
+        cmp joy_irq              ; (bug hunt 5), dropped
+        bne joy_done
         stx joy_x
 joy_done:
+        rts
+; No clock to stop at: the full count (at most 255 x 17 cycles).
+joy_read_delay:
+        lda joy_mode
+        beq joy_done
+        jsr joy_start
+:       nop                      ; 6: the other loops' bit/branch (17 a
+        nop                      ; count, the scale game.s expects)
+        nop
+        inx
+        beq joy_done
+        lda $C064
+        bmi :-
+        bra joy_store
+joy_start:
+        lda mus_ticks
+        sta joy_irq
+        ldx #0
+        lda $C070
         rts
 joy_read_irq:
         lda joy_mode
         beq joy_done
-        ldx #0
-        lda $C070
+        jsr joy_start
 :       bit ready
         bpl joy_done
         inx
         beq joy_done
         lda $C064
         bmi :-
-        stx joy_x
-        rts
+        bra joy_store
