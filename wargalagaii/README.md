@@ -1,10 +1,17 @@
 # WARGALAGA II
 
-**En préparation : aucun code de jeu pour l'instant.** Ce dossier contient le
-cahier des charges ([`TODO.md`](TODO.md)), la référence vérifiée du jeu modèle
-([`docs/warblade-reference.md`](docs/warblade-reference.md)) et un squelette de
-`Makefile`. Le jeu n'est pas encore dans les listes `all` / `test` du
-`Makefile` racine.
+**En cours : lots 1 et 2 faits (2026-10-23)** — démarrage ProDOS, horloge
+VBL, étoiles, vaisseau et tirs, 40 aliens qui entrent en vagues, se posent
+en formation qui respire et plongent, à 30 i/s. Plan et état :
+[`TODO.md`](TODO.md) ; référence du jeu modèle :
+[`docs/warblade-reference.md`](docs/warblade-reference.md). Le jeu n'est pas
+encore dans les listes `all` / `test` du `Makefile` racine (lot 9).
+
+    make            # ../dist/WARGALAGAII.po
+    make run        # POM2, //e enhanced
+    make run-iic    # POM2, //c
+    make test       # ~8 s : volume, cadence NTSC/PAL, oracle, banc, commandes, sorties
+    python3 tools/profile.py [--shots 10]   # cycles par image et par routine
 
 Shoot'em up fixe dans l'esprit de **Warblade** (Edgar M. Vigdal, PC/Mac 2003),
 lui-même réécriture de son *Deluxe Galaga* (Amiga, années 1990) : vaisseau
@@ -71,8 +78,10 @@ Couleurs HGR : les sprites colorés se déplacent par pas de 2 points (la
 couleur dépend de la parité de colonne) ; sept prédécalages couvrent un
 groupe de 14 points (2 octets), chacun avec le bon bit de palette par octet
 (note `x = 14*n` de `dev/lib/hgrc`). Le fond est noir avec des étoiles :
-pas de sauvegarde du fond sous les sprites, on efface en écrivant des zéros
-et les étoiles sont redessinées à chaque image.
+pas de sauvegarde du fond sous les sprites. La formation posée est tracée en
+`STA` et effacée en zéros ; ce qui vole (plongeurs, tirs) est tracé et
+effacé en `EOR`, dans l'ordre inverse du tracé, ce qui rend la formation
+dessous intacte sans la redessiner (lot 2, `src/render.s`).
 
 ### Aliens : peu de dessins, plusieurs couleurs
 
@@ -97,7 +106,7 @@ Coût des tables : petit alien 14×10, 3 octets × 10 lignes × 7 phases ×
 2 images d'animation = **420 octets** par dessin et par teinte ; 6 × 4 =
 10 Ko. Gros alien 21×16 : 4 × 16 × 7 × 2 = 896 octets, 2 × 4 = 7 Ko.
 Tout est rangé en mémoire aux ; seul le jeu du paquet courant (un petit,
-un gros, ~1,3 Ko) est copié en `$1000-$1FFF` à chaque téléportation, avec le
+un gros, ~1,3 Ko) est copié en `$1300-$1FFF` à chaque téléportation, avec le
 vaisseau, les tirs et les bonus (~1,5 Ko).
 
 ### Cadence
@@ -172,6 +181,7 @@ au mieux un très court échantillon hors jeu (un mot au titre).
 | ↑ ↓ ← → RETURN | Y, bouton 0 | boutique, Memory Station |
 | ESC | | pause / menu |
 | S | | son coupé / remis |
+| TAB | | clavier ↔ manette (provisoire, en attendant le menu du lot 9) |
 
 Pas de souris : elle n'apporte rien à ce jeu (choix du 2026-10-22).
 
@@ -191,10 +201,11 @@ n'écrit pas les pages aux).
 | Zone | Usage |
 |---|---|
 | `$0050-$00FF` | page zéro du jeu et de cc65 (`ZP` du cfg) ; le gestionnaire IRQ n'utilise ni la ZP cc65 ni sa pile |
-| `$0200-$03FF` | tables de lignes `hgr_lo/hi` (`hgr_scanline_ram.asm`) ; page 3 : lecteur haut-parleur (boucle à cycles comptés, sans franchir de page) |
+| `$0200-$03FF` | libre ; page 3 : lecteur haut-parleur prévu (boucle à cycles comptés, sans franchir de page) |
 | `$0400-$07FF` | page texte 1, jamais affichée en jeu : tables (en évitant les trous `$x78-$x7F`, `$xF8-$xFF`) |
 | `$0800-$0FFF` | libre sous ProDOS : tampon de fichier, trajectoires du niveau |
-| `$1000-$1FFF` | `LOWBSS` : sprites prédécalés du paquet courant |
+| `$1000-$12FF` | tables de lignes `hgr_lo`, `hgr_hi`, `hgr_hi2` alignées sur une page (segment `ROWS`) |
+| `$1300-$1FFF` | `LOWBSS` : sprites prédécalés du paquet courant (lot 6) |
 | `$2000-$3FFF`, `$4000-$5FFF` | pages HGR 1 et 2 |
 | `$6000-$BDFF` | code, données, BSS (~23,5 Ko) |
 | `$BE00-$BEFF` | pile C ; `$BF00` page globale ProDOS |
@@ -207,8 +218,6 @@ valide). `WARGALAGA.SYSTEM` ferait 16 caractères, un de trop : l'amorce
 s'appelle `WG2.SYSTEM`, le programme `WG2.SYS` (même schéma que
 `CHROMA.SYSTEM` / `CHROMA.SYS`), plus `HIGHSCORES`, les données aux
 (`WG2.AUX`) et les overlays (boutique, sous-jeux).
-
-    make            # squelette : affiche l'état, ne construit rien
 
 Auteur : VERHILLE Arnaud. Licence : [GPL-3.0](../LICENSE). Warblade est une
 œuvre d'Edgar M. Vigdal (EMV Software) ; rien n'en est repris.
