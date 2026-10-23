@@ -65,6 +65,8 @@ def play(level, limit=12000, log=None):
             return False, k, 0
         move = choose(game) if game.alive() and not game.phase else 0
         game.step(move, True, True)
+        if game.station:                # (nothing turned)
+            game.station_exit()
         if game.shop:                   # (nothing bought)
             game.shop_exit()
         if log is not None:

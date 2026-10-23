@@ -1,11 +1,13 @@
 # WARGALAGA II
 
-**En cours : lots 1 à 5 faits (2026-10-23)** — démarrage ProDOS, horloge
+**En cours : lots 1 à 8 faits (2026-10-23)** — démarrage ProDOS, horloge
 VBL, étoiles, vaisseau et tirs, 40 aliens qui entrent en vagues, se posent
 en formation qui respire, plongent et bombardent ; collisions, explosions,
-vies, armure, score et HUD, GAME OVER, à 30 i/s ; son (musique et
-bruitages sur Mockingboard, bruitages au haut-parleur, S coupe) ; 32 bonus qui tombent, jauges S/B/T,
-armes double et triple, tir automatique, ×2/×5, bouclier, gel. Plan et état :
+vies, armure, score et HUD, GAME OVER, à 30 i/s ; son (musique PT3 et
+bruitages sur Mockingboard, bruitages au haut-parleur, S coupe) ; 32 bonus
+qui tombent, jauges S/B/T, armes double et triple, tir automatique, ×2/×5,
+bouclier, gel ; 100 niveaux en paquets, boss, soucoupe ; boutique et rangs ;
+sous-jeux Meteor Storm et Memory Station. Plan et état :
 [`TODO.md`](TODO.md) ; référence du jeu modèle :
 [`docs/warblade-reference.md`](docs/warblade-reference.md). Le jeu n'est pas
 encore dans les listes `all` / `test` du `Makefile` racine (lot 9).
@@ -183,7 +185,9 @@ au mieux un très court échantillon hors jeu (un mot au titre).
 | ← → (ou J / L) | X | déplacer le vaisseau |
 | Pomme ouverte, ESPACE | bouton 0 | tirer (tir automatique si acheté) |
 | Pomme fermée | bouton 1 | missiles, si on en a |
-| ↑ ↓ ← → RETURN (ou ESPACE), ESC | Y, bouton 0 | boutique (← ↑ monter, → ↓ descendre, ESC : sortir), Memory Station |
+| ↑ ↓ ← → RETURN (ou ESPACE), ESC | Y, bouton 0 | boutique (← ↑ monter, → ↓ descendre, ESC : sortir) |
+| ↑ ↓ ← → (ou I K J L), RETURN (ou ESPACE), ESC | X, Y, bouton 0 | Memory Station (retourner une carte, ESC : sortir) |
+| Pomme ouverte, ESPACE tenus | bouton 0 tenu | Meteor Storm : accélérer (relâcher : ralentir) |
 | ESC | | pause / menu |
 | S | | son coupé / remis |
 | TAB | | clavier ↔ manette (provisoire, en attendant le menu du lot 9) |
@@ -209,7 +213,7 @@ n'écrit pas les pages aux).
 | `$00D0-$00EF` | page zéro du lecteur PT3 (gardée entre deux ticks) |
 | `$0200-$03FF` | libre ; page 3 : lecteur haut-parleur prévu (boucle à cycles comptés, sans franchir de page) |
 | `$0400-$07FF` | page texte 1, jamais affichée en jeu : tables (en évitant les trous `$x78-$x7F`, `$xF8-$xFF`) |
-| `$0800-$0FFF` | libre sous ProDOS : tampon de fichier, trajectoires du niveau |
+| `$0800-$0FFF` | code de Meteor Storm (`storm.s`, zone `LOWM`), copié de `WG2.AUX` au démarrage ; le crt0 protège cette zone |
 | `$1000-$12FF` | tables de lignes `hgr_lo`, `hgr_hi`, `hgr_hi2` alignées sur une page (segment `ROWS`) |
 | `$1300-$1FDF` | tampon ProDOS (`IOBUF`, démarrage), `LOWBSS` : sprites prédécalés du paquet courant |
 | `$1FE0-$1FFF` | trampolines vers la mémoire aux (mêmes octets en aux) |
@@ -218,7 +222,8 @@ n'écrit pas les pages aux).
 | `$BE00-$BEFF` | pile C ; `$BF00` page globale ProDOS |
 | aux `$2000-$5B7F` | `WG2.AUX` : dessins × teintes des paquets (15 232 octets, copie par `AUXMOVE` `$C311` entre deux niveaux) |
 | aux `$6000-$6C55` | lecteur PT3 et morceau ; trampolines en aux `$1FE0` |
-| aux `$7000-…` | overlay de la boutique (fin de `WG2.AUX`), copié en `$4000` à l'ouverture |
+| aux `$7000-$7FFF` | overlay de la boutique et de Memory Station, copié en `$4000` à l'ouverture |
+| aux `$8000-…` | code de Meteor Storm (fin de `WG2.AUX`), copié en `$0800` au démarrage |
 
 ## Disquette
 
