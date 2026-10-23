@@ -322,6 +322,8 @@ def level_oracle(disk, L, start, count=3000, every=5, seed=5, cheats=(), later=N
                 out.append(L.poke('invul_t', 60))
                 plan[k] = (move, pokes + [('invul_t', 60)])
             sim.step(move, True, True)
+            if sim.station:              # noshop: closed at once (lot 8)
+                sim.station_exit()
             if sim.shop:                 # noshop: closed at once
                 sim.shop_exit()
             k += 1
@@ -334,6 +336,8 @@ def level_oracle(disk, L, start, count=3000, every=5, seed=5, cheats=(), later=N
         for n, v in pokes:
             setattr(game, n, v)
         game.step(move, True, True)
+        if game.station:
+            game.station_exit()
         if game.shop:
             game.shop_exit()
         states.update(game.a_state)

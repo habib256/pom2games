@@ -291,7 +291,8 @@ NBIG = 8
 AUX_BIG = AUX_BASE + 8064
 big_lo: .lobytes cur_big+0,cur_big+64,cur_big+128,cur_big+192,cur_big+256,cur_big+320,cur_big+384,cur_big+448,cur_big+512,cur_big+576,cur_big+640,cur_big+704,cur_big+768,cur_big+832
 big_hi: .hibytes cur_big+0,cur_big+64,cur_big+128,cur_big+192,cur_big+256,cur_big+320,cur_big+384,cur_big+448,cur_big+512,cur_big+576,cur_big+640,cur_big+704,cur_big+768,cur_big+832
-AUX_SIZE = 15232
+AUX_ROCK = AUX_BIG + 7168
+AUX_SIZE = 15568
 BOOM_W = 3              ; bytes per row
 BOOM_H = 8
 BOOM_CELLS = 7

@@ -4,15 +4,21 @@
 ; bombs, falling objects, stars, entry waves, formation sway, dive launcher,
 ; aliens (all frozen by the freeze bonus but for explosions), flying list,
 ; shots against aliens (and drops), the ship against bombs then aliens,
-; pickups, enemy fire, ship and bonus timers. Included by game.s.
+; pickups, enemy fire, ship and bonus timers. Included by game.s. Meteor
+; Storm has its own step (storm.s, lot 8).
 
 logic_step:
-        lda shop                 ; the game waits for the shop (lot 7)
+        lda shop                 ; the game waits for the shop (lot 7) or
+        ora station              ; Memory Station (lot 8)
         beq :+
         rts
 :       inc step_count
         bne :+
         inc step_count+1
+:       lda storm
+        beq :+
+        jsr storm_step
+        jmp logic_done
 :       lda ship_state           ; exploding or game over: no move, no shot
         ora game_over
         sta tmp2
@@ -200,7 +206,15 @@ fired:  lda freeze_t
         cmp #LK_BONUS
         beq :+
         jsr enemy_fire
-:       lda ship_state           ; ship timers
+:       jsr ship_timers
+        jsr level_step
+logic_done:
+        rts
+
+; The ship's explosion (then a respawn or GAME OVER), its invulnerability,
+; the timed bonuses.
+ship_timers:
+        lda ship_state
         beq invul
         dec ship_state
         bne timers
@@ -230,10 +244,7 @@ timers: ldx #autofire_t-autofire_t  ; the timed bonuses (consecutive words)
 :       ldx #shield_t-autofire_t
         jsr tick16
         ldx #freeze_t-autofire_t
-        jsr tick16
-        jsr level_step
-logic_done:
-        rts
+        jmp tick16
 
 ; The level: playing until every wave is in and every alien gone, then
 ; TELEPORT_T steps of teleport (no shots, bombs, objects), then the next.
@@ -245,6 +256,20 @@ level_step:
         dec clear_t
         jne ls_done
         stz phase
+; The teleport is over: a sub-game whose icon was caught (lot 8), then the
+; shop, then the next level (each one comes back here when it ends).
+teleported:
+        lda subgame
+        beq tp_shop
+        cmp #1
+        jeq storm_start
+        stz subgame              ; Memory Station: the game waits
+        lda noshop               ; (tests: closed at once, nothing turned)
+        jne station_exit
+        lda #1
+        sta station
+        rts
+tp_shop:
         lda level                ; the 4th level of a pack, credits enough:
         and #3                   ; the shop, the next level once it closes
         cmp #3
@@ -476,6 +501,12 @@ d_marker:                        ; the first mark missing
 d_time: inc t_level
         sec
         rts
+
+; Leaving Memory Station (lot 8): on to the shop or the next level.
+station_exit:
+        stz station
+        stz m_round
+        jmp teleported
 
 ; Leaving the shop: the 6 marks -> rank + 1, the dark one -> rank - 1;
 ; then the next level.

@@ -12,6 +12,11 @@ explosions), flying list, shots against aliens (and drops), the ship
 against bombs then aliens, pickups, enemy fire, ship and bonus timers,
 level (end, teleport, next level).
 
+Sub-games (lot 8), after the level whose icon was caught: Meteor Storm
+(storm_step: the ship flies through falling rocks, fire held = faster) and
+Memory Station (station: the game waits, the screen is shop.s's overlay;
+its rules mem_deal / mem_turn here).
+
 Levels (lot 6): 100, in 25 packs of 4; level 3 of a pack has big aliens
 (lot 6, step 3), level 4 is a bonus level (even pack: aliens fly past and
 never fire, all 40 shot = a prize) or a kamikaze level (odd pack: aliens
@@ -104,6 +109,36 @@ RANK_MAX = 99
 # reach, dropping a bomb that drifts towards the ship every HURRY_FIRE steps.
 HURRY_T, HURRY_Y, HURRY_FIRE = 1800, 10, 12
 BIG_X0, BIG_CELLS, BIG_Y0, BIG_H = -2, 10, -8, 16
+# Lot 8, Meteor Storm: rocks are aliens (slots 0..M_ROCKS-1) in state ROCK,
+# drawn with the rock table in cur_alien. Fire held: m_speed + M_ACC, else
+# - M_DEC (slowing is faster), 0..M_SPEED_MAX; the field falls dy = M_DY0 +
+# m_speed // 8 rows a step (rocks, coins, and the stars on top of their own
+# speed, dy // 2). A rock or a coin every M_SPACING rows of field; the
+# distance M_DIST in rows. A rock hits: the ship explodes, no life lost, the
+# storm ends when the explosion does. Through: a prize by the time taken
+# (steps // 128, ~4 s: the average speed). First M_WAIT steps: METEOR STORM.
+ROCK = 8
+M_ROCKS = 12
+M_SPEED_MAX, M_ACC, M_DEC = 63, 1, 2
+M_DY0 = 2
+M_SPACING = 28
+M_DIST = 4096
+M_WAIT = 60
+M_TOP = 248                     # a rock starts at row -8
+M_COIN = 48                     # rand8 below: a coin instead of a rock
+M_COINS = ['c10', 'c10', 'c10', 'c50', 'c50', 'c100', 'c100', 'c200']
+M_TIME_MAX = 2047
+M_PRIZE = [max(1, 32 - 2 * b) for b in range(16)]  # thousands, by steps // 128
+# Memory Station: grids of cols x rows cards, row-major; every pair of a
+# kind drawn from MEM_KINDS, one pirate flag (the skull icon) that ends it.
+# A pair turned: its bonus (take); the grid cleared: MEM_PRIZE points and
+# the next grid. T gauge: seconds a grid (the screen's clock, not the logic).
+MEM_GRIDS = [(3, 3), (5, 3), (5, 5), (7, 5)]
+MEM_KINDS = ['c50', 'c100', 'c200', 's', 'b', 't', 'life', 'armour', 'w2', 'w3',
+             'e', 'x', 'lt', 'r', 'a', 'x2']
+MEM_CELLS = 35
+MEM_PRIZE = 25000
+MEM_NONE = 0xFF
 
 
 def level_kind(level):
@@ -197,7 +232,7 @@ def visible(y):
 
 def flying(state):
     """An alien that moves on its own (shot and collided as such)."""
-    return ENTER <= state <= HOME or state in (PASS, KAMI)
+    return ENTER <= state <= HOME or state in (PASS, KAMI, ROCK)
 
 
 class Game:
@@ -249,6 +284,12 @@ class Game:
         self.boss_hp = self.boss_x = self.boss_dir = self.boss_boom = self.boss_gap = self.boss_t = 0
         self.boss_mv = 0
         self.hurry = self.h_x = self.h_dir = self.h_t = 0
+        self.storm = self.station = 0
+        self.m_speed = self.m_dist = self.m_acc = self.m_time = self.m_wait = self.m_crash = 0
+        self.m_round = self.m_pairs = 0
+        self.m_first = MEM_NONE
+        self.m_card = [0] * MEM_CELLS
+        self.m_up = [0] * MEM_CELLS
         self.setup_level()
 
     def boss_setup(self):
@@ -315,7 +356,10 @@ class Game:
     def step(self, move_dir=0, fire=False, held=False):
         """move_dir: -1 left, 0, 1 right; fire: a new press; held: fire is
         held down (autofire)."""
-        if self.shop:                   # (the game waits for the shop)
+        if self.shop or self.station:   # (the game waits for the screen)
+            return
+        if self.storm:
+            self.storm_step(move_dir, held)
             return
         speed = self.s_level + 1
         if self.alive():
@@ -385,6 +429,10 @@ class Game:
                 self.pickups()
         if not self.freeze_t and self.lkind != BONUS:
             self.enemy_fire()
+        self.ship_timers()
+        self.level_step()
+
+    def ship_timers(self):
         if self.ship_state:
             self.ship_state -= 1
             if not self.ship_state:
@@ -405,7 +453,6 @@ class Game:
             self.shield_t -= 1
         if self.freeze_t:
             self.freeze_t -= 1
-        self.level_step()
 
     # --- levels -------------------------------------------------------------
     def level_step(self):
@@ -415,10 +462,7 @@ class Game:
             self.clear_t -= 1
             if not self.clear_t:
                 self.phase = 0
-                if self.level % 4 == 3 and self.credits >= SHOP_MIN:
-                    self.shop = 1               # the next level once it closes
-                    return
-                self.next_level()
+                self.teleported()
             return
         self.level_t = min(0xFFFF, self.level_t + 1)
         if not self.hurry and self.level_t >= HURRY_T and self.lkind in (NORMAL, BIG):
@@ -434,6 +478,20 @@ class Game:
         self.shot_y = [0] * MAX_SHOTS
         self.e_y = [0] * E_SHOTS
         self.obj_y = [0] * N_OBJ
+
+    def teleported(self):
+        """The teleport is over: a sub-game whose icon was caught, then the
+        shop after a pack's 4th level (credits enough), then the next level
+        (each one comes back here when it ends)."""
+        if self.subgame == 1:
+            self.storm_start()
+        elif self.subgame == 2:
+            self.subgame = 0
+            self.station = 1            # the screen deals (mem_deal)
+        elif self.level % 4 == 3 and self.credits >= SHOP_MIN:
+            self.shop = 1               # the next level once it closes
+        else:
+            self.next_level()
 
     def next_level(self):
         self.level += 1
@@ -490,6 +548,152 @@ class Game:
             self.rank = max(0, self.rank - 1)
         self.shop = 0
         self.next_level()
+
+    # --- Meteor Storm (lot 8) ----------------------------------------------
+    def storm_start(self):
+        self.subgame = 0
+        self.storm = 1
+        self.m_speed = self.m_acc = self.m_time = self.m_crash = 0
+        self.m_dist, self.m_wait = M_DIST, M_WAIT
+        for i in range(M_ROCKS):
+            self.a_big[i], self.a_hp[i] = 0, 1
+
+    def storm_end(self):
+        """Back to a teleport, then the shop or the next level."""
+        self.storm = 0
+        self.a_state = [DEAD] * NALIENS
+        self.obj_y = [0] * N_OBJ
+        self.phase, self.clear_t = 1, TELEPORT_T
+
+    def storm_step(self, move_dir, held):
+        alive = not self.ship_state
+        if alive:
+            speed = self.s_level + 1
+            if move_dir > 0:
+                self.ship_c = min(self.ship_c + speed, SHIP_MAX)
+            elif move_dir < 0:
+                self.ship_c = max(self.ship_c - speed, 0)
+        if alive and held:
+            self.m_speed = min(M_SPEED_MAX, self.m_speed + M_ACC)
+        else:
+            self.m_speed = max(0, self.m_speed - M_DEC)
+        dy = M_DY0 + self.m_speed // 8
+        for k in range(N_OBJ):
+            y = self.obj_y[k]
+            if y:
+                y += dy
+                self.obj_y[k] = y if y <= 192 - OBJ_H else 0
+        for i in range(NSTARS):
+            y = self.star_y[i] + star_speed(i) + dy // 2
+            if y >= 192:
+                y -= 192 - FIELD_TOP
+                self.star_col[i] = (self.star_col[i] + 17) % 40
+            self.star_y[i] = y
+        for i in reversed(range(NALIENS)):
+            s = self.a_state[i]
+            if s == ROCK:
+                y = (self.a_y[i] + dy) & 0xFF
+                self.a_y[i] = y
+                if 192 <= y < M_TOP:
+                    self.a_state[i] = DEAD
+            elif s == BOOM:
+                self.alien(i)
+        self.flying = [i for i in reversed(range(NALIENS)) if self.target(i) and self.shown(i)]
+        if self.m_wait:
+            self.m_wait -= 1
+        else:
+            self.m_acc += dy
+            if self.m_acc >= M_SPACING:
+                self.m_acc -= M_SPACING
+                self.storm_spawn()
+            self.m_time = min(M_TIME_MAX, self.m_time + 1)
+        if alive:
+            if not self.invul_t and not self.shield_t:
+                for i in self.flying:
+                    x0, x1, y0, y1 = self.box(i)
+                    if x1 >= self.ship_c + SHIP_HIT_X0 and x0 <= self.ship_c + SHIP_HIT_X1 \
+                            and y1 >= SHIP_HIT_Y0 and y0 <= SHIP_HIT_Y1:
+                        self.explode(i)
+                        self.ship_state, self.m_crash = DEATH_T, 1     # no life lost
+                        break
+            if not self.ship_state:
+                self.pickups()
+                if not self.m_wait:
+                    if self.m_dist <= dy:
+                        self.m_dist = 0
+                        self.add_score(1000 * M_PRIZE[self.m_time >> 7])
+                        self.storm_end()
+                        return
+                    self.m_dist -= dy
+        self.ship_timers()
+        if self.m_crash and not self.ship_state:
+            self.storm_end()
+
+    def storm_spawn(self):
+        if self.rand8() < M_COIN:
+            kind = K[M_COINS[self.rand8() & 7]]
+            for k in reversed(range(N_OBJ)):
+                if not self.obj_y[k]:
+                    self.obj_y[k], self.obj_kind[k] = FIELD_TOP, kind
+                    self.obj_k[k] = (self.rand8() & 15) + 2
+                    return
+            return
+        x = (self.rand8() & 127) + 3
+        for i in reversed(range(M_ROCKS)):
+            if not self.a_state[i]:
+                self.a_state[i], self.a_x[i], self.a_y[i] = ROCK, x, M_TOP
+                return
+
+    # --- Memory Station (lot 8) ---------------------------------------------
+    def mem_grid(self):
+        return MEM_GRIDS[min(self.m_round, len(MEM_GRIDS) - 1)]
+
+    def mem_deal(self):
+        """The grid of this round: a kind drawn for each pair, the flag,
+        shuffled (Fisher-Yates, j = rand8 mod (i + 1))."""
+        cols, rows = self.mem_grid()
+        n = cols * rows
+        cards = []
+        for _ in range(n // 2):
+            cards += [K[MEM_KINDS[self.rand8() & 15]]] * 2
+        cards.append(K['skull'])
+        for i in reversed(range(1, n)):
+            j = self.rand8() % (i + 1)
+            cards[i], cards[j] = cards[j], cards[i]
+        self.m_card = cards + [0] * (MEM_CELLS - n)
+        self.m_up = [0] * MEM_CELLS
+        self.m_pairs, self.m_first = n // 2, MEM_NONE
+
+    def mem_turn(self, cell):
+        """-> 'no' (face up already), 'flag' (the end), 'first', 'pair',
+        'cleared' (the next grid dealt) or 'miss' (both face down again)."""
+        if self.m_up[cell]:
+            return 'no'
+        self.m_up[cell] = 1
+        kind = self.m_card[cell]
+        if kind == K['skull']:
+            return 'flag'
+        first = self.m_first
+        if first == MEM_NONE:
+            self.m_first = cell
+            return 'first'
+        self.m_first = MEM_NONE
+        if self.m_card[first] != kind:
+            self.m_up[first] = self.m_up[cell] = 0
+            return 'miss'
+        self.take(KINDS[kind])
+        self.m_pairs -= 1
+        if self.m_pairs:
+            return 'pair'
+        self.add_score(MEM_PRIZE)
+        self.m_round = min(255, self.m_round + 1)
+        self.mem_deal()
+        return 'cleared'
+
+    def station_exit(self):
+        self.station = 0
+        self.m_round = 0
+        self.teleported()
 
     # --- bonuses ------------------------------------------------------------
     def add_score(self, points):
@@ -889,6 +1093,14 @@ class Game:
                 'shop': bytes([self.shop]),
                 'rank': bytes([self.rank]),
                 'subgame': bytes([self.subgame]),
+                'storm': bytes([self.storm]),
+                'station': bytes([self.station]),
+                'm_speed': bytes([self.m_speed]),
+                'm_dist': self.m_dist.to_bytes(2, 'little'),
+                'm_acc': bytes([self.m_acc]),
+                'm_time': self.m_time.to_bytes(2, 'little'),
+                'm_wait': bytes([self.m_wait]),
+                'm_crash': bytes([self.m_crash]),
                 'level': bytes([self.level]),
                 'loop': bytes([self.loop]),
                 'phase': bytes([self.phase]),

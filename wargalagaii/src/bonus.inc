@@ -105,3 +105,25 @@ item_name:
         .byte "EXTRA LIFE  "
         .byte "RANK MARKER "
         .byte "EXTRA TIME  "
+ROCK = 8
+M_ROCKS = 12
+M_SPEED_MAX = 63
+M_ACC = 1
+M_DEC = 2
+M_DY0 = 2
+M_SPACING = 28
+M_DIST = 4096
+M_WAIT = 60
+M_TOP = 248
+M_COIN = 48
+M_TIME_MAX = 2047
+MEM_NONE = 255
+m_coins:  .byte K_C10,K_C10,K_C10,K_C50,K_C50,K_C100,K_C100,K_C200
+m_prize_hi:  .byte $20,$00,$80,$60,$40,$20,$00,$80,$60,$40,$20,$00,$80,$60,$40,$20
+m_prize_top: .byte $03,$03,$02,$02,$02,$02,$02,$01,$01,$01,$01,$01,$00,$00,$00,$00
+.assert MEM_CELLS = 35, error, "MEM_CELLS: tools/model.py"
+MEM_ROUNDS = 4
+MEM_PRIZE = $025000
+mem_cols: .byte 3,5,5,7
+mem_rows: .byte 3,3,5,5
+mem_kinds: .byte K_C50,K_C100,K_C200,K_S,K_B,K_T,K_LIFE,K_ARMOUR,K_W2,K_W3,K_E,K_X,K_LT,K_R,K_A,K_X2

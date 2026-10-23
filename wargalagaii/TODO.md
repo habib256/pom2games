@@ -536,7 +536,58 @@ Plan d'origine :
 - [ ] Rangs : 6 marques de couleur ; les 6 réunies → rang supérieur à la
       sortie de la boutique ; marque sombre : rang inférieur.
 
-## Lot 8 — sous-jeux
+## Lot 8 — sous-jeux (fait, 2026-10-23)
+
+Réalisé :
+
+- [x] Entrée : l'icône attrapée (`subgame`) lance le sous-jeu **à la fin de
+      la téléportation** qui suit le niveau ; ensuite la boutique (si c'est
+      un 4e niveau et ≥ 50 crédits), puis le niveau suivant (`teleported`
+      dans `logic.s` et le modèle).
+- [x] **Meteor Storm** (`src/storm.s`, règles dans `storm_step` du modèle,
+      oracle au pas près) : dans le moteur du jeu, mêmes sprites, même
+      cadence. Les rochers sont des aliens (emplacements 0-11, état
+      `ST_ROCK`), dessinés comme des aliens qui volent, avec un dessin de
+      rocher (2 images, `WG2.AUX` après les gros aliens, copié dans
+      `cur_alien` par `pack_check`). Tir tenu = plus vite (+1 par pas, 0-63),
+      relâché = plus lent (−2 : on ralentit plus vite qu'on accélère) ; le
+      champ descend de 2 + vitesse / 8 lignes par pas (rochers, pièces, et
+      les étoiles en plus de leur propre vitesse). Un rocher ou une pièce
+      toutes les 28 lignes ; 4 096 lignes à parcourir ; « METEOR STORM »
+      pendant les 60 premiers pas. HUD propre : SPEED et DIST en 8 segments,
+      crédits. Choc : le vaisseau explose, **aucune vie perdue**, fin quand
+      l'explosion finit. Traversée : une prime selon le temps mis (par
+      tranches de 128 pas, ~4 s : 32 000 → 2 000 points), multiplicateur
+      compris. Puis téléportation (LEVEL n).
+      Code **résident en `$0800-$0FFF`** (zone `LOWM`, protégée par le
+      crt0) : copié de `WG2.AUX` (aux `$8000`) au démarrage, 601 octets.
+      Aucune image en retard à pleine vitesse (avec et sans carte).
+- [x] **Memory Station** (`src/memory.s`, dans l'overlay de la boutique) :
+      grilles 3×3, 5×3, 5×5 puis 7×5 ; des paires de bonus (pièces, S, B, T,
+      vie, armure, armes 2-3, lettres EXTRA, ×2) et **un crâne** (le
+      pavillon pirate) qui termine la station. Une paire : son bonus (`take`,
+      comme une icône attrapée) ; la grille finie : **+25 000** et la grille
+      suivante ; deux cartes différentes restent visibles ~1 s. Temps : jauge
+      T (10 s par niveau de T) par grille, horloge de l'écran (la logique du
+      jeu attend). Cartes = icônes du jeu (`?` face cachée). Flèches ou
+      I J K L, RETURN ou ESPACE, ESC sort ; manette : paddles 0/1, bouton 0.
+      Musique : PT3 ou duet, comme la boutique. Règles (`mem_deal`,
+      `mem_turn`) contre le modèle.
+- [x] Tests (`tests/test_subgames.py`, `make test`) : modèle (20 tempêtes,
+      donnes de toutes tailles) ; **oracle Meteor Storm** au pas près depuis
+      le niveau 4 (traversée à pleine vitesse ; choc sans perte de vie) ;
+      Memory Station au clavier (une erreur, 4 paires, grille finie +25 000,
+      crâne sur la grille 5×3), à la manette (une paire, ESC, puis la
+      boutique), temps écoulé. `test_screen` : écran de la tempête == redessin
+      complet (HUD, rochers, message). Message central passé à 12 caractères.
+- **Écarts à valider** :
+  - Pas de gemmes à part : la tempête sème des pièces (10 à 200).
+  - Le crâne termine la station dès qu'il est retourné (le pavillon de
+    Warblade) ; ESC permet aussi de sortir.
+  - Le temps de la station se compte **par grille** (pas pour toute la
+    station).
+
+Plan d'origine :
 
 - [ ] Meteor Storm : astéroïdes qui descendent, tir = accélérer (on
       ralentit plus vite qu'on accélère), jauge de vitesse et de distance,

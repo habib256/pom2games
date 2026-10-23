@@ -27,7 +27,10 @@
 .export level, loop, phase, clear_t, level_t, lkind, bonus_kills, w_kills
 .export dive_gap, max_divers, fire_gap, bomb_dy, kami_dy, start_level, cur_alien, pack_loaded
 .export mus_ticks, shop, rank, noshop, shop_can, shop_buy, shop_exit, shop_screen, sh_cur
-.import __SHOPM_LAST__
+.import __SHOPM_LAST__, __LOWM_LAST__
+.export storm, station, m_speed, m_dist, m_acc, m_time, m_wait, m_crash, storm_step, storm_spawn
+.export m_round, m_pairs, m_first, m_card, m_up, mem_screen, mem_loop, mem_deal, mem_turn
+.export mem_sec, mem_cx, mem_cy, station_exit
 .export a_big, a_hp, cur_big, e_dx, boss_hp, boss_x, boss_dir, boss_boom, boss_gap, boss_t, boss_mv, hurry, h_x, h_dir, h_t, spk_period, audio_slot, sound_on, snd_ev
 .export shots_erase, aliens_pass, form_draw, movers_draw, stars_draw, hud_draw
 .export alien_sta, alien_sta_done, alien_eor, alien_eor_done, alien_clr, alien_clr_done
@@ -98,6 +101,8 @@ EXTRA_ALL  = $1F
 ; Lot 6: levels (tools/model.py: level_kind, level_params).
 ST_PASS    = 6                  ; flies past and escapes (bonus levels)
 ST_KAMI    = 7                  ; dives at the ship (kamikaze levels)
+ST_ROCK    = 8                  ; a Meteor Storm rock (lot 8)
+MEM_CELLS  = 35                 ; Memory Station's largest grid (7 x 5)
 LK_NORMAL  = 0
 LK_BIG     = 1
 LK_BONUS   = 2
@@ -251,6 +256,23 @@ b_y:         .res 1             ; bomb arguments
 b_c:         .res 1
 b_dx:        .res 1
 nfly:        .res 1
+; Lot 8: the sub-games (tools/model.py).
+storm:       .res 1             ; Meteor Storm on (storm.s)
+station:     .res 1             ; Memory Station open: logic waits (memory.s)
+m_speed:     .res 1             ; storm: 0..M_SPEED_MAX
+m_dist:      .res 2             ; rows of field left
+m_acc:       .res 1             ; rows since the last rock or coin
+m_time:      .res 2             ; steps flown (the prize)
+m_wait:      .res 1             ; steps of METEOR STORM before the rocks
+m_crash:     .res 1             ; a rock hit: the end once the ship is out
+m_dy:        .res 1             ; this step's rows
+m_round:     .res 1             ; station: grids cleared
+m_pairs:     .res 1             ; pairs left
+m_first:     .res 1             ; card turned first, MEM_NONE
+m_miss:      .res 1             ; the first of a pair that missed
+m_n:         .res 1             ; cards on the grid
+m_card:      .res MEM_CELLS     ; kind of each card, row-major
+m_up:        .res MEM_CELLS     ; face up
 game_vars_end:
 over_wait:   .res 1             ; frames since GAME OVER
 space_held:  .res 1
@@ -343,7 +365,8 @@ playing:
         plx
         dex
         bne :-
-        lda shop                 ; the shop opened (lot 7)
+        lda shop                 ; the shop (lot 7) or Memory Station (lot 8)
+        ora station
         beq render_frame
         jsr shop_run
 render_frame:
@@ -377,8 +400,9 @@ done:   rts
 ; WG2.AUX -> aux memory at AUX_BASE (every small and big alien design x
 ; tint), 8 KB at a time through HGR page 2 (not shown yet). A failure: a
 ; message, back to ProDOS.
-AUX_ALL = SHOP_AUX + SHOP_LEN - AUX_BASE
+AUX_ALL = LOW_AUX + LOW_LEN - AUX_BASE
 .assert __AUXM_LAST__ <= SHOP_AUX, error, "the PT3 player runs into the shop"
+.assert SHOP_AUX + SHOP_LEN <= LOW_AUX, error, "the shop runs into the storm"
 
 .assert AUX_BASE + AUX_SIZE <= $6000, error, "the packs run into the PT3 player"
 aux_load:
@@ -460,7 +484,20 @@ al_close:
         lda aux_total+1
         cmp #>AUX_ALL
         bne aux_fail
-        rts
+        lda #<LOW_AUX            ; Meteor Storm's code -> $0800, for good
+        sta $3C                  ; (no interrupt yet: one AUXMOVE)
+        lda #>LOW_AUX
+        sta $3D
+        lda #<(LOW_AUX+LOW_LEN-1)
+        sta $3E
+        lda #>(LOW_AUX+LOW_LEN-1)
+        sta $3F
+        lda #<$0800
+        sta $42
+        lda #>$0800
+        sta $43
+        clc                      ; aux -> main
+        jmp $C311                ; AUXMOVE
 aux_fail:
         pla                      ; (out of _main)
         pla
@@ -472,7 +509,10 @@ aux_fail:
 pack_check:
         ldx level
         lda lv_combo,x
-        cmp pack_loaded
+        ldy storm                ; Meteor Storm: the rock (lot 8)
+        beq :+
+        lda #NCOMBOS
+:       cmp pack_loaded
         jeq pc_done
         sta pack_loaded
         tax
@@ -487,6 +527,8 @@ pack_check:
         ldx #>ALIEN_TABLE
         stx af_len+1
         jsr aux_fetch
+        lda storm                ; (the rock alone)
+        jne pc_done
         ldx level                ; and the pack's big alien
         lda lv_big,x
         tax
@@ -560,10 +602,13 @@ af_chunk:
 pc_done:
         rts
 
-; The shop: page 1 shown and cleared, the overlay aux -> page 2 ($4000),
-; the screen, then the rules on leaving (logic.s) and a fresh game screen.
-SHOP_AUX = $7000                 ; (WG2.AUX: packs, PT3 at $6000, shop)
-SHOP_LEN = __SHOPM_LAST__ - $4000
+; The shop or Memory Station: page 1 shown and cleared, the overlay aux ->
+; page 2 ($4000), the screen, then the rules on leaving (logic.s); Memory
+; Station may lead to the shop. Then a fresh game screen.
+SHOP_AUX = $7000                 ; (WG2.AUX: packs, PT3 at $6000, shop and
+SHOP_LEN = __SHOPM_LAST__ - $4000 ; station, storm at $8000)
+LOW_AUX  = $8000
+LOW_LEN  = __LOWM_LAST__ - $0800
 shop_run:
         lda #$20
         jsr clear_page
@@ -579,9 +624,21 @@ shop_run:
         lda #<SHOP_AUX
         ldy #>SHOP_AUX
         jsr aux_fetch
-        jsr shop_screen
+sr_screen:
+        lda station
+        beq :+
+        jsr mem_screen
+        jsr station_exit         ; (maybe the shop next)
+        bra :++
+:       jsr shop_screen
         jsr shop_exit
+:       lda shop
+        ora station
+        beq :+
         lda #$20
+        jsr clear_page
+        bra sr_screen
+:       lda #$20
         jsr clear_page
         lda #$40
         jsr clear_page
@@ -845,10 +902,12 @@ combo_lo:
 .repeat NCOMBOS, I
         .byte <(AUX_BASE + ALIEN_TABLE * I)
 .endrepeat
+        .byte <AUX_ROCK          ; NCOMBOS: the Meteor Storm rock
 combo_hi:
 .repeat NCOMBOS, I
         .byte >(AUX_BASE + ALIEN_TABLE * I)
 .endrepeat
+        .byte >AUX_ROCK
 big_aux_lo:
 .repeat NBIG, I
         .byte <(AUX_BIG + BIG_TABLE * I)
@@ -921,15 +980,23 @@ hud_template:
         .res 5, GLYPH_EMPTY
         .byte " T30$0000-----"
 .assert * - hud_template = 40, error, "HUD template: 40 characters"
-msg_over: .byte " GAME OVER "
+storm_template:                  ; Meteor Storm (lot 8)
+        .byte "000000 SPEED"
+        .res 8, GLYPH_EMPTY
+        .byte " DIST"
+        .res 8, GLYPH_EMPTY
+        .byte " $0000 "
+.assert * - storm_template = 40, error, "storm HUD template: 40 characters"
+msg_over: .byte " GAME OVER  "
 extra_letters: .byte "EXTRA"
 ; Lot 5 tables. A kill's drop: drop_table[rand & 63] (weights: model.py).
 .include "bonus.inc"
 ; Kamikaze prizes, BCD 2000 << wave (bytes 2 and 3; byte 1 is 0).
 kami_hi:  .byte $20, $40, $80, $60, $20
 kami_top: .byte $00, $00, $00, $01, $03
-; Alien states that fly on their own: enter, dive, home, pass, kamikaze.
-is_flying: .byte 0, 1, 1, 1, 0, 0, 1, 1
+; Alien states that fly on their own: enter, dive, home, pass, kamikaze,
+; rock.
+is_flying: .byte 0, 1, 1, 1, 0, 0, 1, 1, 1
 ; Weapons: volleys of (cell offset, dx) (single, double, triple).
 wpn_first: .byte 0, 1, 3
 wpn_count: .byte 1, 2, 3
@@ -980,3 +1047,4 @@ MB_FAST_WRITE = 1                ; ~55 cycles an AY write instead of ~110
 .include "mockingboard.asm"
 
 .include "shop.s"
+.include "storm.s"

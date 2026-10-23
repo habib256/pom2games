@@ -51,6 +51,7 @@ def tables():
     out['fly'] = {c: sprites.alien_shapes(c // 4, c % 4) + [boom[f][s] for s in range(7) for f in range(2)]
                   for c in range(len(sprites.SMALL) * len(sprites.TINTS))}
     out['shipboom'] = [sboom[f][s] for s in range(7) for f in range(2)]
+    out['rock'] = sprites.rock_shapes() + [boom[f][s] for s in range(7) for f in range(2)]
     out['big'] = {c: sprites.big_shapes(c // 4, c % 4) for c in range(len(sprites.BIG) * len(sprites.TINTS))}
     nb = (2 * len(sprites.BOSS[1][0]) + 6) // 7
     out['boss'] = sprites.shifted(sprites.tinted(sprites.BOSS[1], 3), sprites.BOSS[0], nb)[1][0]
@@ -86,14 +87,28 @@ def hud_text(st):
     return text
 
 
+def storm_hud(st):
+    """Meteor Storm's HUD: score, SPEED (1..8), DIST (rows left / 512,
+    rounded up), credits."""
+    score = st['score']
+    digits = f'{score[2]:02X}{score[1]:02X}{score[0]:02X}'
+    credits = f'{st["credits"][1]:02X}{st["credits"][0]:02X}'
+    bar = lambda n: [0x62] * n + [0x63] * (8 - n)
+    dist = st['m_dist'][0] | st['m_dist'][1] << 8
+    text = (list(f'{digits} SPEED'.encode()) + bar(st['m_speed'] // 8 + 1) + list(b' DIST')
+            + bar((dist + 511) // 512) + list(f' ${credits} '.encode()))
+    assert len(text) == 40
+    return text
+
+
 def level_text(st):
     """LEVEL n: the level teleported to, (level + 2) + 100 * loop."""
-    return f'LEVEL {st["level"] + 2 + 100 * st["loop"]}'.ljust(11).encode()
+    return f'LEVEL {st["level"] + 2 + 100 * st["loop"]}'.ljust(12).encode()
 
 
 def expected(st, T, glyphs):
     page = bytearray(8192)
-    fly = T['fly'][M.alien_combo(st['level'])]
+    fly = T['rock'] if st['storm'] else T['fly'][M.alien_combo(st['level'])]
     big = T['big'][M.big_combo(st['level'])]
 
     def drawn_big(i):
@@ -111,7 +126,7 @@ def expected(st, T, glyphs):
                 a = base + col + b
                 page[a] = v if mode == 'sta' else page[a] ^ v
 
-    for c, ch in enumerate(hud_text(st)):
+    for c, ch in enumerate(storm_hud(st) if st['storm'] else hud_text(st)):
         put([[v] for v in glyphs[ch]], c, 0, 'sta')
     for i in range(M.NALIENS):
         if st['a_state'][i] == M.FORM and shown(i):
@@ -120,9 +135,10 @@ def expected(st, T, glyphs):
                 put(big[(x - 2) % 7 * 2 + anim], cell_byte(x - 2), st['a_y'][i] - 8, 'sta')
             else:
                 put(fly[x % 7 * 2 + anim], cell_byte(x), st['a_y'][i], 'sta')
-    msg = b' GAME OVER ' if st['game_over'] else level_text(st) if st['phase'] else b''
+    msg = b' GAME OVER  ' if st['game_over'] else level_text(st) if st['phase'] else \
+        b'METEOR STORM' if st['storm'] and st['m_wait'] else b''
     for k, ch in enumerate(msg):
-        put([[v] for v in glyphs[ch]], (40 - 11) // 2 + k, 96, 'sta')
+        put([[v] for v in glyphs[ch]], (40 - 12) // 2 + k, 96, 'sta')
     want = None
     if not st['game_over']:
         if st['ship_state']:
@@ -176,10 +192,10 @@ FIELDS = {'ship_c': 1, 'shot_limit': 1, 'shot_y': M.MAX_SHOTS, 'shot_c': M.MAX_S
           'game_over': 1, 'score': 3, 'credits': 2, 'obj_y': M.N_OBJ, 'obj_k': M.N_OBJ,
           'obj_kind': M.N_OBJ, 's_level': 1, 't_level': 1, 'extra_bits': 1, 'shield_t': 2,
           'level': 1, 'loop': 1, 'phase': 1, 'a_big': M.NALIENS, 'boss_hp': 1, 'boss_x': 1,
-          'boss_boom': 1, 'hurry': 1, 'h_x': 1}
+          'boss_boom': 1, 'hurry': 1, 'h_x': 1, 'storm': 1, 'm_wait': 1, 'm_speed': 1, 'm_dist': 2}
 
 
-def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False):
+def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, cheats=()):
     """start: begin at that level with a cheating player (invulnerable,
     triple shot, 10 shots) who clears levels: teleports, LEVEL n, flypast
     and kamikaze aliens. hurry: the level has dragged (level_t near
@@ -193,6 +209,7 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False):
     if start is not None:
         steps = [L.until('main', 3000), L.poke('start_level', start), L.until('game_tick', 3000),
                  L.poke('weapon', 2), L.poke('shot_limit', 10), L.poke('noshop', 1)]
+        steps += [L.poke(n, v) for n, v in cheats]
         if hurry:
             steps += [L.poke('level_t', M.HURRY_T - 40), L.poke('level_t', M.HURRY_T - 40 >> 8, 1)]
     samples = 0
@@ -217,7 +234,7 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False):
                 samples += 1
             steps += ['key: ', 'wait:40', L.until('game_tick', 60)]
     r = a2test.run(disk, steps, iie=True, timeout=1800)
-    bad = saucer = 0
+    bad = saucer = stormy = 0
     states = set()
     for n in range(samples):
         page = r.mem(L['page'], 1, n)[0]
@@ -225,11 +242,12 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False):
         st = {name: block[L[name] - first:L[name] - first + size] for name, size in FIELDS.items()}
         for name in ('ship_c', 'shot_limit', 'lives', 'armour', 'ship_state', 'invul_t', 'game_over',
                      's_level', 't_level', 'extra_bits', 'level', 'loop', 'phase', 'boss_hp',
-                     'boss_x', 'boss_boom', 'hurry', 'h_x'):
+                     'boss_x', 'boss_boom', 'hurry', 'h_x', 'storm', 'm_wait', 'm_speed'):
             st[name] = st[name][0]
         st['step_count'] = r.mem(L['step_count'], 2, n)[0]
         states.update(st['a_state'])
         saucer += st['hurry']
+        stormy += st['storm']
         got = r.mem(0x2000 + page * 0x2000, 8192, n if page == 0 else n)
         want = expected(st, T, glyphs)
         diff = [a for a in range(8192) if got[a] != want[a] and a % 128 < 120]
@@ -246,6 +264,9 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False):
             else 'play, GAME OVER, restart')
     if hurry:
         what = f'level dragging: the saucer in {saucer} of them'
+    if cheats:
+        what = f'from level {start + 1}, then Meteor Storm in {stormy} of them'
+        assert stormy, 'no frame in the storm'
     print(f'PASS screen invariant: {samples} frames ({what}) == redraw from scratch')
     return states
 
@@ -258,10 +279,10 @@ def messages(disk, labels):
     steps = [L.until('game_tick', 3000)]
     for level, loop in cases:
         steps += [L.poke('phase', 0), 'wait:6', L.poke('level', level), L.poke('loop', loop),
-                  L.poke('clear_t', 200), L.poke('phase', 1), 'wait:6', L.peek('msg_text', 11)]
+                  L.poke('clear_t', 200), L.poke('phase', 1), 'wait:20', L.peek('msg_text', 12)]
     r = a2test.run(disk, steps, iie=True)
     for k, (level, loop) in enumerate(cases):
-        got = r.mem(L['msg_text'], 11, k)
+        got = r.mem(L['msg_text'], 12, k)
         want = level_text({'level': level, 'loop': loop})
         assert got == want, (level, loop, got, want)
     print(f'PASS LEVEL message: {", ".join(level_text(dict(level=l, loop=p)).decode().strip()[6:] for l, p in cases)}')
@@ -283,6 +304,7 @@ def main():
     check(a.disk, a.labels, 80, a.seed, every=9, start=2)      # big aliens (sway, dives, shots)
     check(a.disk, a.labels, 240, a.seed, every=11, start=24)   # the boss, its fall
     check(a.disk, a.labels, 60, a.seed, every=5, start=0, hurry=True)   # the saucer
+    check(a.disk, a.labels, 100, a.seed, every=9, start=3, cheats=[('subgame', 1)])   # Meteor Storm
 
 
 if __name__ == '__main__':

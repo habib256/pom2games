@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """WARGALAGA II tables from tools/model.py -> src/bonus.inc: object kinds
 and drop_table (lot 5), level kinds and per-level parameters at loop 0
-(lot 6; setup_level applies the loops), the shop's items (lot 7). The 6502
-and the model share them.
+(lot 6; setup_level applies the loops), the shop's items (lot 7), Meteor
+Storm's and Memory Station's constants (lot 8). The 6502 and the model share
+them.
 
     tools/bonus.py            write src/bonus.inc (if changed)
     tools/bonus.py --check    fail if src/bonus.inc is stale
@@ -44,6 +45,22 @@ def emit():
     out.append('item_name:')
     for name, _ in model.ITEMS:
         out.append(f'        .byte "{name.ljust(ITEM_NAME)}"')
+    # the sub-games (lot 8)
+    M = model
+    for name in ('ROCK', 'M_ROCKS', 'M_SPEED_MAX', 'M_ACC', 'M_DEC', 'M_DY0', 'M_SPACING', 'M_DIST',
+                 'M_WAIT', 'M_TOP', 'M_COIN', 'M_TIME_MAX', 'MEM_NONE'):
+        out.append(f'{name} = {getattr(M, name)}')
+    out.append('m_coins:  .byte ' + ','.join(f'K_{k.upper()}' for k in M.M_COINS))
+    bcd = [M.bcd(1000 * k, 3) for k in M.M_PRIZE]     # (byte 0 is 0)
+    out.append('m_prize_hi:  .byte ' + ','.join(f'${b[1]:02X}' for b in bcd))
+    out.append('m_prize_top: .byte ' + ','.join(f'${b[2]:02X}' for b in bcd))
+    assert M.MEM_CELLS == max(c * r for c, r in M.MEM_GRIDS)   # (game.s: MEM_CELLS)
+    out.append(f'.assert MEM_CELLS = {M.MEM_CELLS}, error, "MEM_CELLS: tools/model.py"')
+    out.append(f'MEM_ROUNDS = {len(M.MEM_GRIDS)}')
+    out.append(f'MEM_PRIZE = ${M.MEM_PRIZE:06}')
+    out.append('mem_cols: .byte ' + ','.join(str(c) for c, r in M.MEM_GRIDS))
+    out.append('mem_rows: .byte ' + ','.join(str(r) for c, r in M.MEM_GRIDS))
+    out.append('mem_kinds: .byte ' + ','.join(f'K_{k.upper()}' for k in M.MEM_KINDS))
     return '\n'.join(out) + '\n'
 
 

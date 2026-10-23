@@ -1,4 +1,5 @@
-; WARGALAGA II -- the shop screen (lot 7). Included by game.s.
+; WARGALAGA II -- the shop screen (lot 7), and Memory Station (lot 8,
+; memory.s) in the same overlay. Included by game.s.
 ; An overlay: linked to run at $4000 (segment SHOP, memory SHOPM, file
 ; build/game.bin.shop), kept in aux memory at SHOP_AUX (end of WG2.AUX) and
 ; copied over HGR page 2 by shop_run while page 1 shows the shop. Slow
@@ -453,6 +454,8 @@ sh_static:
         .byte 23, 4, "ARROWS RETURN  /  STICK BUTTON", 0
         .byte $FF
 .assert SH_LINE0+NITEM+1 < 17, error, "the items run into the gauges"
+
+.include "memory.s"
 
 ; The speaker's two-voice player, page aligned (its counted loop must not
 ; cross a page).

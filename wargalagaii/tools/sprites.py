@@ -309,6 +309,30 @@ BIG = [
     ]),
 ]
 
+# The Meteor Storm rock (lot 8): a small alien's size and table, tumbling
+# (two frames), in tint ROCK_TINT; WG2.AUX after the big aliens, copied to
+# cur_alien for the storm.
+ROCK = ([
+    '.WWWX..',
+    'WWXWWX.',
+    'WWWWWXX',
+    'XWWWXWX',
+    'WWXWWWX',
+    'XWWWWX.',
+    '.XXXX..',
+    '.......',
+], [
+    '.XWWW..',
+    'XWWWXW.',
+    'WWXWWWX',
+    'WWWWWXX',
+    'XWWXWWX',
+    'XXWWWX.',
+    '.XXXX..',
+    '.......',
+])
+ROCK_TINT = 3
+
 # Clipped to the shift's start byte (a shot is one byte wide, so at shift 3
 # only its left dot shows): half the cost of a two-byte sprite.
 ONE_BYTE = {'shot', 'bomb'}
@@ -383,6 +407,12 @@ def combo_table(combo):
     return bytes(b for entry in alien_shapes(combo // 4, combo % 4) for row in entry for b in row)
 
 
+def rock_shapes():
+    """The 14 entries (shift*2 + frame) of the rock."""
+    frames = [shifted(tinted(f, ROCK_TINT), TINTS[ROCK_TINT][0])[1] for f in ROCK]
+    return [frames[f][s] for s in range(7) for f in range(2)]
+
+
 def big_shapes(design, tint):
     """The 14 entries (shift*2 + frame) of a big alien (10 cells, 4 bytes)."""
     _, a, b = BIG[design]
@@ -395,9 +425,10 @@ def big_table(combo):
 
 
 def aux_image():
-    """WG2.AUX: the 24 small tables, then the 8 big ones."""
+    """WG2.AUX: the 24 small tables, the 8 big ones, then the rock."""
     return b''.join(combo_table(c) for c in range(len(SMALL) * len(TINTS))) + \
-        b''.join(big_table(c) for c in range(len(BIG) * len(TINTS)))
+        b''.join(big_table(c) for c in range(len(BIG) * len(TINTS))) + \
+        bytes(b for entry in rock_shapes() for row in entry for b in row)
 
 
 def tinted(drawing, tint):
@@ -481,6 +512,7 @@ def emit():
     entry = BIG_TABLE // 14
     out.append('big_lo: .lobytes ' + ','.join(f'cur_big+{entry * e}' for e in range(14)))
     out.append('big_hi: .hibytes ' + ','.join(f'cur_big+{entry * e}' for e in range(14)))
+    out.append(f'AUX_ROCK = AUX_BIG + {BIG_TABLE * len(BIG) * len(TINTS)}')
     out.append(f'AUX_SIZE = {len(aux_image())}')
     table(out, 'boom', list(BOOM[1:]), BOOM[0])
     # the boss leaps 7 cells at a time from a multiple of 7: shift 0 only
@@ -527,6 +559,7 @@ def png(path, scale=4):
     sheets += [(p, d) for p, d in SPRITES.values()]
     sheets += [(BOOM[0], BOOM[1]), (BOOM[0], BOOM[2]), (SHIPBOOM[0], SHIPBOOM[1]), (SHIPBOOM[0], SHIPBOOM[2])]
     sheets += [(BOSS[0], tinted(BOSS[1], 3))]
+    sheets += [(TINTS[ROCK_TINT][0], tinted(f, ROCK_TINT)) for f in ROCK]
     per_row, cw, ch = 8, 18, 26          # cells per slot
     rows = (len(sheets) + per_row - 1) // per_row
     w, h = per_row * cw * 2 * scale, rows * ch * scale
@@ -564,6 +597,7 @@ def main():
         assert len(a) == len(b) == 8 and all(len(r) == 7 for r in a + b)
     for _, a, b in BIG:
         assert len(a) == len(b) == 16 and all(len(r) == 10 for r in a + b)
+    assert all(len(f) == 8 and all(len(r) == 7 for r in f) for f in ROCK)
     if '--png' in sys.argv:
         png(sys.argv[sys.argv.index('--png') + 1])
         return

@@ -114,7 +114,7 @@ ship_drawn: .res 2              ; cell drawn on each page
 ship_img: .res 2                ; image drawn: 0 ship, 1-2 explosion, $FF none
 ship_want: .res 1
 msg_drawn: .res 2               ; message id each page shows
-msg_text: .res 11               ; MSG_LEN
+msg_text: .res 12               ; MSG_LEN
 mn:       .res 2                ; LEVEL n: the number
 mn_t:     .res 2
 mn_k:     .res 1
@@ -479,29 +479,38 @@ sd_go:  ldx #SHIP_Y
 .assert SHIPBOOM_W = SHIP_W && SHIPBOOM_H = SHIP_H, error, "the ship explosion uses the ship routines"
 
 ; A message in the middle of the field: 1 GAME OVER, 2 LEVEL n (the level
-; being teleported to), 0 none. Rewritten on a page when it differs from
-; what that page shows (none: spaces). msg_drawn = what each page shows.
+; being teleported to), 3 METEOR STORM (its first steps), 0 none. Rewritten
+; on a page when it differs from what that page shows (none: spaces).
+; msg_drawn = what each page shows.
 msg_draw:
         lda #1
         ldx game_over
-        bne :+
+        bne md_id
         lda #2
         ldx phase
-        bne :+
-        lda #0
-:       ldy page
+        bne md_id
+        lda storm                ; 3 while m_wait counts, in a storm
+        beq md_id
+        lda m_wait
+        beq md_id
+        lda #3
+md_id:  ldy page
         cmp msg_drawn,y
         jeq md_none
         sta msg_drawn,y
         tay
         ldx #MSG_LEN-1           ; the text in msg_text
-:       lda #' '
+md_char:
+        lda #' '
         cpy #1
         bne :+
         lda msg_over,x
+:       cpy #3
+        bne :+
+        lda msg_storm,x
 :       sta msg_text,x
         dex
-        bpl :--
+        bpl md_char
         cpy #2
         jne md_put
         ldx #MSG_LEN-1           ; LEVEL n: (level + 2) + 100 * loop
@@ -592,9 +601,11 @@ md_none:
 ; A mod 10 (A < 256). Z set if 0.
 p10_lo: .lobytes 10000, 1000, 100, 10
 p10_hi: .hibytes 10000, 1000, 100, 10
-msg_level: .byte "LEVEL      "
+msg_level: .byte "LEVEL       "
+msg_storm: .byte "METEOR STORM"
 MSG_ROW = 96
-MSG_LEN = 11                     ; LEVEL nnnnn (GAME OVER: centred in it)
+MSG_LEN = 12                     ; LEVEL nnnnn, METEOR STORM (GAME OVER: as
+                                 ; it was in 11)
 MSG_COL = (40 - MSG_LEN) / 2
 
 ; ---------------------------------------------------------------------------
@@ -648,6 +659,26 @@ hd_next:
         rts
 
 hud_keys:
+        jsr hk_game
+        lda storm                ; Meteor Storm's HUD (lot 8): speed, distance
+        beq :+
+        lda #$FF                 ; (lives are never $FF)
+        sta hud_now+3
+        lda m_speed              ; speed: 1..8 segments
+        lsr
+        lsr
+        lsr
+        inc a
+        sta hud_now+4
+        lda m_dist               ; distance left: (m_dist + 511) / 512
+        clc
+        adc #<511
+        lda m_dist+1
+        adc #>511
+        lsr
+        sta hud_now+5
+:       rts
+hk_game:
         lda score
         sta hud_now
         lda score+1
@@ -682,7 +713,18 @@ HUD_TIME = 28
 HUD_CREDITS = 31
 HUD_EXTRA = 35
 BAR_LEN = 5
+STORM_SPEED = 12                 ; Meteor Storm's HUD (storm_template)
+STORM_DIST = 25
+STORM_CREDITS = 35
+STORM_BAR = 8
 hud_fill:
+        ldx #39                  ; the fixed characters
+        lda storm
+        jne hf_storm
+:       lda hud_template,x
+        sta hud_buf,x
+        dex
+        bpl :-
         ldx #HUD_SCORE
         lda score+2
         jsr hud_bcd
@@ -719,6 +761,7 @@ hud_fill:
         cpx #5
         bne :--
         ldx #HUD_CREDITS
+hf_credits:
         lda credits+1
         jsr hud_bcd
         lda credits
@@ -739,9 +782,34 @@ hud_bcd:
         sta hud_buf,x
         inx
         rts
-; A = full segments (0..BAR_LEN) -> BAR_LEN characters at hud_buf,X.
+; Meteor Storm: score, speed, distance left, credits.
+hf_storm:
+:       lda storm_template,x
+        sta hud_buf,x
+        dex
+        bpl :-
+        ldx #HUD_SCORE
+        lda score+2
+        jsr hud_bcd
+        lda score+1
+        jsr hud_bcd
+        lda score
+        jsr hud_bcd
+        ldx #STORM_SPEED
+        lda hud_now+4
+        ldy #STORM_BAR
+        jsr hud_barn
+        ldx #STORM_DIST
+        lda hud_now+5
+        ldy #STORM_BAR
+        jsr hud_barn
+        ldx #STORM_CREDITS
+        bra hf_credits
+; A = full segments (0..BAR_LEN) -> BAR_LEN characters at hud_buf,X;
+; hud_barn: Y characters.
 hud_bar:
         ldy #BAR_LEN
+hud_barn:
         sta tmp
 :       lda #GLYPH_FULL
         dec tmp
