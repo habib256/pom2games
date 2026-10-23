@@ -406,7 +406,8 @@ Réalisé (modèle `tools/model.py` = oracle bit-exact, tables
     autofire) 4 à 10 % d'images en retard sans carte, 6 à 22 % avec ; pics
     à 36 000 cycles de rendu (plongeurs en EOR). La vitesse du jeu reste
     exacte (logique par paires de rafraîchissements), seule la fluidité
-    baisse. Seuils de `test-long` : 12 % / 25 %.
+    baisse. Seuils de `test-long` : 15 % / 28 % (la scène est chaotique :
+    46 à 76 images en retard sur ~570 au niveau 97 selon le départ).
   - Boss en sauts de 7 cases (pas de déplacement fluide) ; étoiles 16 au
     lieu de 24, 7 plongeurs au plus, balancement tous les 3 pas.
 
@@ -426,6 +427,61 @@ Plan d'origine :
 - [ ] Hurry-up : vaisseau qui passe si le niveau traîne.
 - **Accepté si** : un pilote automatique (`tools/autopilot.py`, modèle)
   finit les niveaux 1, 25 et 100 ; bench du pire niveau dans le budget.
+
+## Chasse aux bugs 5 (2026-10-23, après le lot 6 et le PT3)
+
+Relecture indépendante (sous-agent) + vérifications ; chaque bug a son test,
+vérifié en échec avant le correctif.
+
+- [x] **Haut-parleur ~13 % trop grave sur //e** (introduit par le PT3) :
+      `timing_scan` atomique (`php/sei/plp`, +9 cycles) portait le tour de
+      la boucle d'attente à 72 cycles, `SPK_TURN` restait à 63 et le //c
+      (`spk_pad`) n'était plus pareil. `SPK_TURN = 72`, `spk_pad` +9 ; test
+      de hauteur dans `test_audio.py` (demi-périodes = n × `SPK_TURN`).
+- [x] **Manche faussé par la musique** (//e et //c avec carte) : un tick PT3
+      au milieu du comptage du paddle arrêtait X mais pas le timer, lecture
+      trop basse (à droite lu « gauche » ~1 image sur 15). La lecture est
+      abandonnée si `mus_ticks` a bougé (pas de `sei` : sur //c il
+      bloquerait la bascule). Test `joystick` avec la carte (droite,
+      centre : valeurs constantes).
+- [x] **Changement de paquet** : un seul `AUXMOVE` de 1 232 octets sous
+      `sei`, ~50 000 cycles sans IRQ ni `timing_scan` : un tick de musique
+      et des fronts VBL perdus à chaque paquet. `aux_fetch` copie 64 octets
+      à la fois (`sei` par bloc, scan entre deux). Scène « level changes,
+      Mockingboard » de `vbl_edges` (échoue avec des blocs de 255).
+- [x] **Manche mort sans horloge vidéo** (délais : //c dont l'IRQ s'arrête,
+      pas de firmware souris) : lu avant le WAIT (`joy_read_delay`, 17
+      cycles par compte comme les autres boucles). Test `joystick_delay`.
+- Vérifié sans défaut : IRQ et état mémoire (RAMRD/RAMWRT/ALTZP/80STORE),
+  trampolines, ZP (crt0 sauve les 256 octets), taille de `WG2.AUX`, module
+  PT3 (en-tête, motifs, samples, boucle), états partagés du son, soucoupe
+  (ordre EOR/STA, y compris au-dessus des gros aliens), boss.
+
+## Chasse aux bugs 6 (2026-10-23)
+
+Seconde relecture indépendante (bornes, branches rares, modèle = 6502) ;
+oracle long en boucles 1, 5, 250 et 255 (boss du 100) : identique.
+
+- [x] **Les cadeaux du boss perdus** (règle du modèle aussi) : vie et pièce
+      de 200 tombent de la ligne 32, la fin du niveau venait 40 pas après
+      le boss et les effaçait à mi-chemin. Des objets qui tombent
+      retiennent maintenant la fin. Test du modèle (vaisseau dessous : la
+      vie prise), échoue sur l'ancien modèle.
+- [x] **Gel (FREEZE) sur un niveau à gros aliens** : la boucle gelée ne
+      listait pas les gros aliens posés, les tirs les traversaient (le
+      modèle les touchait). Oracle « frozen big aliens » (gel au pas 140
+      du niveau 3), échoue sans le correctif.
+- [x] Gros alien qui se pose : absent de la liste des cibles ce pas-là
+      (`home`), le modèle le comptait. Corrigé (`fly_add`).
+- [x] « LEVEL n » juste jusqu'au bout : n sur 16 bits, 5 chiffres
+      (message de 11 caractères, GAME OVER centré dedans) ; avant, les
+      centaines valaient boucle mod 10 (faux après le niveau 1 000). Test
+      `messages` (2 … 25 601).
+- [x] La boucle sature à 255 (255 + 1 donnait 0 : le jeu redevenait
+      facile) ; oracle « loop 255 » dans `make test-long`.
+- [x] Le score s'arrête à 999 999 (il repassait à 0) ; test `score_cap`.
+- [x] Plus de niveaux qui avancent derrière GAME OVER (bonus / kamikaze se
+      vidaient seuls et chargeaient le paquet suivant).
 
 ## Lot 7 — boutique et rangs
 

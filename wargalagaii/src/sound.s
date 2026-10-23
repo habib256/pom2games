@@ -34,7 +34,8 @@ sfx_rank:    .res 1             ; its rank (0 = most important)
 spk_period:  .res 1             ; speaker half-period for this frame, 0 = off
 ay_shadow:   .res 32            ; both chips' registers as last written
 mus_irq_n:   .res 1             ; ProDOS interrupt number, 0 = none
-mus_ticks:   .res 1             ; music ticks played (tests)
+mus_ticks:   .res 1             ; music interrupts served (timing.s's paddle
+                                 ; reading, tests)
 .data
 sound_on:    .byte 1
 
@@ -238,9 +239,9 @@ irq_ifr:
 irq_ack:
         lda $C404                ; T1 low: acknowledges
         jsr timing_scan          ; (a long handler: see the header)
+        inc mus_ticks
         lda sound_on
         beq mi_done
-        inc mus_ticks
         lda mb_chip              ; the main code may be about to write chip 2
         pha
         jsr tr_tick

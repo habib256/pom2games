@@ -11,6 +11,7 @@ memory), effects on chip 2, silence on S and on exit; the game keeps its
 cadence with the card.
 """
 import argparse
+import collections
 from pathlib import Path
 import re
 import sys
@@ -79,8 +80,19 @@ def speaker(disk, L):
     assert not after, f'{len(after)} toggles while muted'
     assert all(lo <= pc < hi or lo2 <= pc < hi2 for pc, *_ in shot), \
         sorted({hex(pc) for pc, *_ in shot})
+    # pitch: a half-period of n turns is n * SPK_TURN cycles (+ a constant)
+    # (bug hunt 5: an atomic timing_scan made turns 72 cycles, 63 assumed:
+    # every effect ~13 % flat, and //e and //c no longer alike; bug hunt 6
+    # made the common scan cheap again: 63)
+    gaps = collections.Counter(b[3] - a[3] for a, b in zip(shot, shot[1:]))
+    common = sorted(d for d, n in gaps.items() if n >= 5)
+    turns = sorted({sound.spk_turns(f) for f, _, _ in sound.SFX[-1][1]})
+    steps = [b - a for a, b in zip(common, common[1:])]
+    assert all(abs(s - sound.SPK_TURN * round(s / sound.SPK_TURN)) <= 2 for s in steps) and \
+        abs(common[0] - turns[0] * sound.SPK_TURN) <= 12, (common, turns, sound.SPK_TURN)
     print(f'PASS speaker: no toggle without an effect, {len(shot)} for a shot, all in the '
-          'wait loops (never delaying a frame), none when muted (S)')
+          f'wait loops (never delaying a frame), none when muted (S); turns of {sound.SPK_TURN} cycles '
+          f'(half-periods {common[:4]}...)')
 
 
 def mockingboard(disk, L):
@@ -138,6 +150,20 @@ def tempo(disk, L):
         print(f'PASS tempo, {name}: {per_second:.2f} PT3 ticks a second')
 
 
+def joystick(disk, L):
+    """The paddle is counted while the music interrupt can fire: a tick in
+    the middle of the count stopped X but not the paddle timer, and the
+    stick read low (bug hunt 5: a stick held right read as left about one
+    frame in 15). Held right with the card: every reading the same."""
+    jx = L['joy_x']
+    for pos, name in ((1, 'right'), (0, 'centre')):
+        r = a2test.run(disk, [L.until('game_tick', 3000), 'key:\t', f'joy:{pos},0', 'wait:60',
+                              f'storewatch:{jx:04X}:{jx:04X}', 'wait:1200'], iie=True, mockingboard=True)
+        values = [v for pc, a, v, c in stores(r.out)]
+        assert len(values) > 300 and max(values) - min(values) <= 2, (name, collections.Counter(values))
+        print(f'PASS joystick {name} with the music: {len(values)} readings, {min(values)}..{max(values)}')
+
+
 def cadence(disk, L):
     names = ('frame_count', 'step_count', 'late_count')
     peeks = [L.peek(n, 2) for n in names]
@@ -162,6 +188,7 @@ def main():
     mockingboard(a.disk, L)
     unmute(a.disk, L)
     tempo(a.disk, L)
+    joystick(a.disk, L)
     cadence(a.disk, L)
 
 

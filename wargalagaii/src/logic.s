@@ -136,10 +136,15 @@ frozen: lda a_state,x
         bne :+
         jsr alien
         bra fz_next
+:       cmp #ST_FORM             ; seated big ones are shot through the
+        bne :+                   ; list, frozen too (bug hunt 6: shots went
+        lda a_big,x              ; through them, the model hit them)
+        beq fz_next
+        bra fz_add
 :       tay
         lda is_flying,y
         beq fz_next
-        jsr fly_add
+fz_add: jsr fly_add
 fz_next:
         dex
         bpl frozen
@@ -230,6 +235,8 @@ logic_done:
 ; The level: playing until every wave is in and every alien gone, then
 ; TELEPORT_T steps of teleport (no shots, bombs, objects), then the next.
 level_step:
+        lda game_over            ; (levels went on behind GAME OVER)
+        jne ls_done
         lda phase
         beq ls_play
         dec clear_t
@@ -240,7 +247,10 @@ level_step:
         cmp #LEVELS
         bne :+
         stz level
-        inc loop
+        lda loop                 ; saturates (255 + 1 was loop 0: easy again)
+        inc a
+        beq :+
+        sta loop
 :       jmp setup_level
 ls_play:
         inc level_t              ; (saturates at $FFFF)
@@ -272,6 +282,11 @@ ls_clear:
         lda boss_hp              ; (the boss, down and burnt out)
         ora boss_boom
         bne ls_done
+        ldx #N_OBJ-1             ; objects still falling hold the end (the
+:       lda obj_y,x              ; boss's life and coin were wiped half-way
+        bne ls_done              ; down, bug hunt 6)
+        dex
+        bpl :-
         ldx #NALIENS-1
 :       lda a_state,x
         bne ls_done
@@ -888,7 +903,12 @@ ap_add: sed
         lda score+2
         adc pts_top
         sta score+2
-        cld
+        bcc :+                   ; past 999 999: stays there (it wrapped)
+        lda #$99
+        sta score
+        sta score+1
+        sta score+2
+:       cld
         dex
         bne ap_add
         plx
@@ -1675,5 +1695,7 @@ hy_add: clc
         bne :+
         lda #ST_FORM
         sta a_state,x
+        lda a_big,x              ; a big one seated this step is still a
+        jne fly_add              ; target (bug hunt 6)
         rts
 :       jmp fly_add

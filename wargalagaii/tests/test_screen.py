@@ -88,7 +88,7 @@ def hud_text(st):
 
 def level_text(st):
     """LEVEL n: the level teleported to, (level + 2) + 100 * loop."""
-    return f'LEVEL {st["level"] + 2 + 100 * st["loop"]}'.ljust(9).encode()
+    return f'LEVEL {st["level"] + 2 + 100 * st["loop"]}'.ljust(11).encode()
 
 
 def expected(st, T, glyphs):
@@ -120,9 +120,9 @@ def expected(st, T, glyphs):
                 put(big[(x - 2) % 7 * 2 + anim], cell_byte(x - 2), st['a_y'][i] - 8, 'sta')
             else:
                 put(fly[x % 7 * 2 + anim], cell_byte(x), st['a_y'][i], 'sta')
-    msg = b'GAME OVER' if st['game_over'] else level_text(st) if st['phase'] else b''
+    msg = b' GAME OVER ' if st['game_over'] else level_text(st) if st['phase'] else b''
     for k, ch in enumerate(msg):
-        put([[v] for v in glyphs[ch]], (40 - 9) // 2 + k, 96, 'sta')
+        put([[v] for v in glyphs[ch]], (40 - 11) // 2 + k, 96, 'sta')
     want = None
     if not st['game_over']:
         if st['ship_state']:
@@ -250,6 +250,23 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False):
     return states
 
 
+def messages(disk, labels):
+    """LEVEL n for every size of n (bug hunt 6: the hundreds were loop mod
+    10, wrong past level 1 000), up to the last loop (it saturates at 255)."""
+    L = a2test.labels(labels, strip=True)
+    cases = [(0, 0), (8, 0), (97, 0), (98, 0), (0, 9), (98, 9), (50, 120), (99, 255)]
+    steps = [L.until('game_tick', 3000)]
+    for level, loop in cases:
+        steps += [L.poke('phase', 0), 'wait:6', L.poke('level', level), L.poke('loop', loop),
+                  L.poke('clear_t', 200), L.poke('phase', 1), 'wait:6', L.peek('msg_text', 11)]
+    r = a2test.run(disk, steps, iie=True)
+    for k, (level, loop) in enumerate(cases):
+        got = r.mem(L['msg_text'], 11, k)
+        want = level_text({'level': level, 'loop': loop})
+        assert got == want, (level, loop, got, want)
+    print(f'PASS LEVEL message: {", ".join(level_text(dict(level=l, loop=p)).decode().strip()[6:] for l, p in cases)}')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--disk', type=Path, default=ROOT / 'dist/WARGALAGAII.po')
@@ -259,6 +276,7 @@ def main():
     a = ap.parse_args()
     if not a2test.have_a2shot('screen invariant'):
         return
+    messages(a.disk, a.labels)
     check(a.disk, a.labels, a.frames, a.seed)
     assert M.PASS in check(a.disk, a.labels, 120, a.seed, every=9, start=3), 'flypast drawn'
     assert M.KAMI in check(a.disk, a.labels, 80, a.seed, every=9, start=7), 'kamikaze drawn'
