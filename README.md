@@ -33,22 +33,26 @@ boots straight into its program.
 
 That's it: there is nothing to type, the game starts by itself.
 
+**Even quicker**: every game below has a **▶ in browser** link that boots its
+disk straight from `dist/` in [POM2 for the web](https://habib256.github.io/pom2/wasm/),
+on the right machine — nothing to download or install.
+
 ## The games
 
-| | Game | Machine | Disk |
-|---|---|---|---|
-| 🏍️ | [DIRTBIKE](#dirtbike) — side-view motocross | Apple II+ 48 KB | [release 1.0](https://github.com/habib256/pom2games/releases/tag/dirtbike-1.0) |
-| 🏔️ | [NEOWILDERNESS XL](#neowilderness-xl) — wilderness survival in 16 colours | //e enhanced or //c, 128 KB | [`NEOWILDERNESSXL.po`](https://github.com/habib256/pom2games/raw/main/dist/NEOWILDERNESSXL.po) |
-| 🌈 | [CHROMABREAK](#chromabreak) — 16-colour brick-breaker | //e enhanced or //c, 128 KB | [release 1.0](https://github.com/habib256/pom2games/releases/tag/chromabreak-1.0) |
-| 🧱 | [ARKABREAKOUT](#arkabreakout) — brick-breaker | Apple II+ 48 KB | [`ARKABREAKOUT.dsk`](https://github.com/habib256/pom2games/raw/main/dist/ARKABREAKOUT.dsk) |
-| 💡 | [LIGHT3DBALL](#light3dball) — ball in a 3D corridor | Apple II+ 48 KB | [`LIGHT3DBALL.dsk`](https://github.com/habib256/pom2games/raw/main/dist/LIGHT3DBALL.dsk) |
-| 🐉 | [MAZE3D](#maze3d) — dungeon crawler | Apple II+ 48 KB | [`MAZE3D.dsk`](https://github.com/habib256/pom2games/raw/main/dist/MAZE3D.dsk) |
-| 📦 | [MICRO-SOKOBAN](#micro-sokoban) — 454 puzzles | Apple II+ 48 KB | [release 1.2](https://github.com/habib256/pom2games/releases/tag/1.2) |
-| ♟️ | [CHESS](#chess) — play the computer | Apple II+ 48 KB | [`CHESS.dsk`](https://github.com/habib256/pom2games/raw/main/dist/CHESS.dsk) |
-| 🎯 | [PINBALL](#pinball) — Pinball Construction Set | Apple II+ 48 KB or //c | [`PINBALL.dsk`](https://github.com/habib256/pom2games/raw/main/dist/PINBALL.dsk) |
-| 🎵 | [MCS](#mcs) — music editor | Apple II+ 48 KB | build it: `make -C mcs` |
-| 🐢 | [LOGO](#logo) — turtle graphics | //e (80 col.) or II+ (40 col.) | [`LOGO.dsk`](https://github.com/habib256/pom2games/raw/main/dist/LOGO.dsk) |
-| 🐍 | [SNAKE](#snake) — the classic | Apple II+ 48 KB | [`SNAKE.dsk`](https://github.com/habib256/pom2games/raw/main/dist/SNAKE.dsk) |
+| | Game | Machine | Disk | Play |
+|---|---|---|---|---|
+| 🏍️ | [DIRTBIKE](#dirtbike) — side-view motocross | Apple II+ 48 KB | [release 1.0](https://github.com/habib256/pom2games/releases/tag/dirtbike-1.0) | [▶ in browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/DIRTBIKE.dsk) |
+| 🏔️ | [NEOWILDERNESS XL](#neowilderness-xl) — wilderness survival in 16 colours | //e enhanced or //c, 128 KB | [`NEOWILDERNESSXL.po`](https://github.com/habib256/pom2games/raw/main/dist/NEOWILDERNESSXL.po) | [▶ in browser](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/NEOWILDERNESSXL.po) |
+| 🌈 | [CHROMABREAK](#chromabreak) — 16-colour brick-breaker | //e enhanced or //c, 128 KB | [release 1.0](https://github.com/habib256/pom2games/releases/tag/chromabreak-1.0) | [▶ in browser](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/CHROMABREAK.po) |
+| 🧱 | [ARKABREAKOUT](#arkabreakout) — brick-breaker | Apple II+ 48 KB | [`ARKABREAKOUT.dsk`](https://github.com/habib256/pom2games/raw/main/dist/ARKABREAKOUT.dsk) | [▶ in browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/ARKABREAKOUT.dsk) |
+| 💡 | [LIGHT3DBALL](#light3dball) — ball in a 3D corridor | Apple II+ 48 KB | [`LIGHT3DBALL.dsk`](https://github.com/habib256/pom2games/raw/main/dist/LIGHT3DBALL.dsk) | [▶ in browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/LIGHT3DBALL.dsk) |
+| 🐉 | [MAZE3D](#maze3d) — dungeon crawler | Apple II+ 48 KB | [`MAZE3D.dsk`](https://github.com/habib256/pom2games/raw/main/dist/MAZE3D.dsk) | [▶ in browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/MAZE3D.dsk) |
+| 📦 | [MICRO-SOKOBAN](#micro-sokoban) — 454 puzzles | Apple II+ 48 KB | [release 1.2](https://github.com/habib256/pom2games/releases/tag/1.2) | [▶ in browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/MICRO-SOKOBAN.dsk) |
+| ♟️ | [CHESS](#chess) — play the computer | Apple II+ 48 KB | [`CHESS.dsk`](https://github.com/habib256/pom2games/raw/main/dist/CHESS.dsk) | [▶ in browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/CHESS.dsk) |
+| 🎯 | [PINBALL](#pinball) — Pinball Construction Set | Apple II+ 48 KB or //c | [`PINBALL.dsk`](https://github.com/habib256/pom2games/raw/main/dist/PINBALL.dsk) | [▶ in browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/PINBALL.dsk) |
+| 🎵 | [MCS](#mcs) — music editor | Apple II+ 48 KB | build it: `make -C mcs` | — |
+| 🐢 | [LOGO](#logo) — turtle graphics | //e (80 col.) or II+ (40 col.) | [`LOGO.dsk`](https://github.com/habib256/pom2games/raw/main/dist/LOGO.dsk) | [▶ in browser](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/LOGO.dsk) |
+| 🐍 | [SNAKE](#snake) — the classic | Apple II+ 48 KB | [`SNAKE.dsk`](https://github.com/habib256/pom2games/raw/main/dist/SNAKE.dsk) | [▶ in browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/SNAKE.dsk) |
 
 ---
 
@@ -68,6 +72,7 @@ Best times and scores stay on the disk.
 - **Machine**: Apple II+ 48 KB, DOS 3.3
 - **Controls**: joystick (analog lean, button 0 throttle, button 1 brake) or
   keyboard (←/→ lean, A/Z throttle, Space brake)
+- **Play**: [▶ in your browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/DIRTBIKE.dsk) (POM2, nothing to install)
 - **Download**: [DIRTBIKE 1.0](https://github.com/habib256/pom2games/releases/tag/dirtbike-1.0)
   · [`dist/DIRTBIKE.dsk`](https://github.com/habib256/pom2games/raw/main/dist/DIRTBIKE.dsk)
   · [more](dirtbike/README.md)
@@ -96,6 +101,7 @@ water, treat your wounds… and make it out alive.
   **800 KB 3.5" volume** (SmartPort drive or floppy emulator)
 - **Controls**: arrow keys and RETURN to browse the pages and the action
   grid, or type commands as in the original (`WALK`, `LOOK`, `EAT`, `TOPO`…)
+- **Play**: [▶ in your browser](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/NEOWILDERNESSXL.po) (POM2, nothing to install)
 - **Download**: [`dist/NEOWILDERNESSXL.po`](https://github.com/habib256/pom2games/raw/main/dist/NEOWILDERNESSXL.po)
   · [more](neowilderness/README.md) (in French)
 
@@ -119,6 +125,7 @@ music on the one-bit speaker. Fireworks wait after sector 60.
 
 - **Machine**: Apple //e enhanced or //c, 128 KB, ProDOS 8 (140 KB disk)
 - **Controls**: AppleMouse II, keyboard, joystick or paddles
+- **Play**: [▶ in your browser](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/CHROMABREAK.po) (POM2, nothing to install)
 - **Download**: [ChromaBreak 1.0](https://github.com/habib256/pom2games/releases/tag/chromabreak-1.0)
   · [`dist/CHROMABREAK.po`](https://github.com/habib256/pom2games/raw/main/dist/CHROMABREAK.po)
   · [more](chromabreak/README.md)
@@ -136,6 +143,7 @@ high scores saved on the disk. 🧱
 
 - **Machine**: Apple II+ 48 KB, DOS 3.3
 - **Controls**: joystick, paddles, AppleMouse II card or keyboard
+- **Play**: [▶ in your browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/ARKABREAKOUT.dsk) (POM2, nothing to install)
 - **Download**: [`dist/ARKABREAKOUT.dsk`](https://github.com/habib256/pom2games/raw/main/dist/ARKABREAKOUT.dsk)
   · [more](arkabreakout/README.md)
 
@@ -151,6 +159,7 @@ on the far wall. Five long levels in double-buffered HGR.
 
 - **Machine**: Apple II+ 48 KB, DOS 3.3
 - **Controls**: AppleMouse, or keyboard (IJKL / arrows, RETURN to serve)
+- **Play**: [▶ in your browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/LIGHT3DBALL.dsk) (POM2, nothing to install)
 - **Download**: [`dist/LIGHT3DBALL.dsk`](https://github.com/habib256/pom2games/raw/main/dist/LIGHT3DBALL.dsk)
   · [more](light3dball/README.md) (in French)
 
@@ -171,6 +180,7 @@ can replay the very same dungeon.
 
 - **Machine**: Apple II+ 48 KB, DOS 3.3
 - **Controls**: joystick or keyboard (IJKL to move, M map, P potion, H help)
+- **Play**: [▶ in your browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/MAZE3D.dsk) (POM2, nothing to install)
 - **Download**: [`dist/MAZE3D.dsk`](https://github.com/habib256/pom2games/raw/main/dist/MAZE3D.dsk)
   · [more](maze3d/README.md)
 
@@ -187,6 +197,7 @@ undo/redo, resume anywhere, a Hall of Fame and a two-voice jazz tune.
 
 - **Machine**: Apple II+ 48 KB, DOS 3.3
 - **Controls**: joystick or keyboard (IJKL, WASD or arrows)
+- **Play**: [▶ in your browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/MICRO-SOKOBAN.dsk) (POM2, nothing to install)
 - **Download**: [MICRO-SOKOBAN 1.2](https://github.com/habib256/pom2games/releases/tag/1.2)
   · [`dist/MICRO-SOKOBAN.dsk`](https://github.com/habib256/pom2games/raw/main/dist/MICRO-SOKOBAN.dsk)
   · [more](micro-sokoban/README.md)
@@ -204,6 +215,7 @@ promotion, draws by rule, a move list and undo. Pieces from cc65-Chess.
 
 - **Machine**: Apple II+ 48 KB, DOS 3.3
 - **Controls**: keyboard (IJKL or arrows, Space to pick and drop, U undo)
+- **Play**: [▶ in your browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/CHESS.dsk) (POM2, nothing to install)
 - **Download**: [`dist/CHESS.dsk`](https://github.com/habib256/pom2games/raw/main/dist/CHESS.dsk)
   · [more](chess/README.md)
 
@@ -220,6 +232,7 @@ with AppleMouse support.
 
 - **Machine**: Apple II+ 48 KB, or //c with its built-in mouse
 - **Controls**: mouse, or joystick / paddles
+- **Play**: [▶ in your browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/PINBALL.dsk) (POM2, nothing to install)
 - **Download**: [`dist/PINBALL.dsk`](https://github.com/habib256/pom2games/raw/main/dist/PINBALL.dsk)
   · [more](pinball/README.md) (in French)
 
@@ -256,6 +269,7 @@ full-screen editor, built-in help and demos. 80 columns on a //e.
 
 - **Machine**: Apple //e (80 columns) or II+ (40 columns), DOS 3.3
 - **Controls**: type `REPEAT 36 [FD 60 RT 170]`, then `DEMO`
+- **Play**: [▶ in your browser](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/LOGO.dsk) (POM2, nothing to install)
 - **Download**: [`dist/LOGO.dsk`](https://github.com/habib256/pom2games/raw/main/dist/LOGO.dsk)
   · [more](logo/README.md)
 
@@ -274,6 +288,7 @@ watch it speed up. A whole game in one 8.5 KB C program (cc65).
 
 - **Machine**: Apple II+ 48 KB, DOS 3.3
 - **Controls**: IJKL or arrows, P to pause
+- **Play**: [▶ in your browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/SNAKE.dsk) (POM2, nothing to install)
 - **Download**: [`dist/SNAKE.dsk`](https://github.com/habib256/pom2games/raw/main/dist/SNAKE.dsk)
   · [more](snake/README.md)
 
