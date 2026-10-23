@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """WARGALAGA II tables from tools/model.py -> src/bonus.inc: object kinds
 and drop_table (lot 5), level kinds and per-level parameters at loop 0
-(lot 6; setup_level applies the loops). The 6502 and the model share them.
+(lot 6; setup_level applies the loops), the shop's items (lot 7). The 6502
+and the model share them.
 
     tools/bonus.py            write src/bonus.inc (if changed)
     tools/bonus.py --check    fail if src/bonus.inc is stale
@@ -12,6 +13,7 @@ import sys
 import model
 
 OUT = Path(__file__).resolve().parents[1] / 'src/bonus.inc'
+ITEM_NAME = 12                  # shop names, padded
 
 
 def emit():
@@ -31,6 +33,17 @@ def emit():
         out.append(f'{name}:')
         for i in range(0, len(values), 20):
             out.append('        .byte ' + ','.join(str(v) for v in values[i:i + 20]))
+    # the shop (lot 7): prices in BCD, names for the shop screen
+    out.append(f'NITEM = {len(model.ITEMS)}')
+    out.append(f'SHOP_MIN = ${model.SHOP_MIN:04}')
+    out.append(f'AUTO_T = {model.duration(model.T_MAX)}')
+    out.append(f'RANK_MAX = {model.RANK_MAX}')
+    out.append('item_lo: .byte ' + ','.join(f'${p % 100:02}' for _, p in model.ITEMS))
+    out.append('item_hi: .byte ' + ','.join(f'${p // 100:02}' for _, p in model.ITEMS))
+    out.append(f'ITEM_NAME = {ITEM_NAME}')
+    out.append('item_name:')
+    for name, _ in model.ITEMS:
+        out.append(f'        .byte "{name.ljust(ITEM_NAME)}"')
     return '\n'.join(out) + '\n'
 
 

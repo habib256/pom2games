@@ -87,3 +87,21 @@ lv_kami:
         .byte 4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4
         .byte 4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5
         .byte 5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,6,6,6,6
+NITEM = 10
+SHOP_MIN = $0050
+AUTO_T = 2700
+RANK_MAX = 99
+item_lo: .byte $50,$75,$00,$50,$00,$00,$00,$00,$50,$00
+item_hi: .byte $00,$00,$01,$01,$02,$04,$06,$08,$12,$15
+ITEM_NAME = 12
+item_name:
+        .byte "EXTRA SPEED "
+        .byte "EXTRA BULLET"
+        .byte "DOUBLE SHOT "
+        .byte "LESS SPEED  "
+        .byte "TRIPLE SHOT "
+        .byte "AUTO FIRE   "
+        .byte "SHIP ARMOUR "
+        .byte "EXTRA LIFE  "
+        .byte "RANK MARKER "
+        .byte "EXTRA TIME  "

@@ -45,7 +45,7 @@ def autopilots():
 
 def worst(disk, L, start, why, frames, mockingboard=False):
     steps = [L.until('main', 3000), L.poke('start_level', start), L.until('game_tick', 3000),
-             L.poke('weapon', 2), L.poke('shot_limit', 10), 'wait:300']
+             L.poke('weapon', 2), L.poke('shot_limit', 10), L.poke('noshop', 1), 'wait:300']
     steps += [L.peek('late_count', 2), L.peek('frame_count', 2)]
     for k in range(frames // 20):
         steps += [L.poke('invul_t', 60), L.poke('fire_held', 0x80), L.poke('autofire_t', 255),

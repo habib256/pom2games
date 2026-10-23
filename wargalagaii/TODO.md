@@ -483,7 +483,49 @@ oracle long en boucles 1, 5, 250 et 255 (boss du 100) : identique.
 - [x] Plus de niveaux qui avancent derrière GAME OVER (bonus / kamikaze se
       vidaient seuls et chargeaient le paquet suivant).
 
-## Lot 7 — boutique et rangs
+## Lot 7 — boutique et rangs (fait, 2026-10-23)
+
+Réalisé :
+
+- [x] Règles dans le modèle (`ITEMS`, `buy`, `shop_exit`) et dans
+      `logic.s` (`shop_room`, `shop_can`, `shop_buy`, `shop_exit`), tables
+      par `tools/bonus.py` (prix BCD, noms). La boutique s'ouvre à la fin de
+      la téléportation qui suit le 4e niveau de chaque paquet (4, 8 … 100)
+      si l'on a ≥ 50 crédits ; la logique attend (`shop`), le niveau
+      suivant vient à la sortie. Crochet de test `noshop` (fermée aussitôt,
+      rien d'acheté) pour les scènes qui traversent une fin de paquet.
+- [x] Écran (`src/shop.s`) : overlay lié pour `$4000` (zone `SHOPM`,
+      `build/game.bin.shop`, 1,4 Ko avec le duet), rangé en fin de
+      `WG2.AUX` (aux `$7000`) et copié sur la page 2 quand la boutique
+      s'ouvre (page 1 affichée) : **pas d'accès disque en jeu**. Crédits,
+      rang, 10 objets avec prix et « MAX » à la limite, jauges, marques
+      (icônes du jeu), curseur ; ← ↑ / → ↓ déplacent, RETURN ou ESPACE
+      achète (carillon ; refus : petit son), ESC ou LEAVE sort ; manette
+      (mode TAB) : paddle 1 haut / bas, bouton 0.
+- [x] Musique : Mockingboard, le PT3 continue ; **haut-parleur : le duet**
+      (`dev/lib/apple2/duet.asm`, aligné sur une page dans l'overlay) joue
+      la mélodie et la basse du jeu par tranches de 4 (~33 ms), une touche
+      coupe la tranche (le point du lot 4 « musique haut-parleur hors jeu »
+      est fait pour la boutique ; le titre au lot 9).
+- [x] Rangs : 6 marques → rang + 1 à la sortie (marques remises à 0) ;
+      marque sombre → rang − 1 ; RANK MARKER donne la première marque qui
+      manque. Rang 0-99.
+- [x] Tests (`tests/test_shop.py`, `make test`) : achats au clavier avec
+      la carte (dont un refus), marque achetée → rang + 1 par LEAVE, marque
+      sombre → rang − 1 par ESC, achats à la manette, musique haut-parleur
+      (voix qui basculent, un événement toutes les 0,233 s, curseur qui
+      répond), pas de boutique sous 50 crédits ; chaque état final ==
+      modèle.
+- **Écarts à valider** :
+  - 10 objets au lieu de ~12 : pas d'armes nouvelles (le jeu en a trois :
+    simple, double, triple ; Quad, Plasma, lasers… demanderaient d'autres
+    tirs) ; EXTRA TIME, RANK MARKER, LESS SPEED gardés.
+  - AUTO FIRE achète le tir automatique pour la durée maximale de la
+    jauge T (90 s), pas pour toujours.
+  - Le rang n'a pas encore d'effet en jeu : affiché en boutique, à garder
+    dans les records (lot 9).
+
+Plan d'origine :
 
 - [ ] Boutique après chaque paquet si ≥ 50 crédits : ~12 objets
       (vitesse, tir supplémentaire, double/triple, tir automatique, armure,

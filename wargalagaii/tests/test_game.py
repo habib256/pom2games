@@ -186,7 +186,7 @@ def vbl_edges(disk, L):
         start = [L.until('game_tick', 3000)]
         if steps == 'levels':            # level 4 -> 5: a new pack
             start = [L.until('main', 3000), L.poke('start_level', 3), L.until('game_tick', 3000),
-                     L.poke('weapon', 2), L.poke('shot_limit', 10)]
+                     L.poke('weapon', 2), L.poke('shot_limit', 10), L.poke('noshop', 1)]
             steps = [f'storewatch:{vc:04X}:{vc:04X}'] + cheat * 120 + [L.peek('level')]
         r = a2test.run(disk, start + steps, iie=True, timeout=900, mockingboard=name.endswith('board'))
         if name.endswith('board'):
@@ -293,7 +293,7 @@ def level_oracle(disk, L, start, count=3000, every=5, seed=5, cheats=(), later=N
     names = [n for n in game.state() if n != 'prng']
     first = min(L[n] for n in names)
     span = max(L[n] + len(v) for n, v in game.state().items() if n != 'prng') - first
-    cheats0 = [('weapon', 2), ('shot_limit', 10), ('s_level', 5), *cheats]
+    cheats0 = [('weapon', 2), ('shot_limit', 10), ('s_level', 5), ('noshop', 1), *cheats]
     steps = [L.until('main', 3000), L.poke('start_level', start), L.until('game_tick', 3000)]
     plan, seen = [], []
     move = 0
@@ -322,6 +322,8 @@ def level_oracle(disk, L, start, count=3000, every=5, seed=5, cheats=(), later=N
                 out.append(L.poke('invul_t', 60))
                 plan[k] = (move, pokes + [('invul_t', 60)])
             sim.step(move, True, True)
+            if sim.shop:                 # noshop: closed at once
+                sim.shop_exit()
             k += 1
         else:
             out.append(st)
@@ -332,6 +334,8 @@ def level_oracle(disk, L, start, count=3000, every=5, seed=5, cheats=(), later=N
         for n, v in pokes:
             setattr(game, n, v)
         game.step(move, True, True)
+        if game.shop:
+            game.shop_exit()
         states.update(game.a_state)
         hurried += game.hurry
         if not seen or seen[-1] != (game.level, game.loop):
