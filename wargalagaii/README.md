@@ -183,7 +183,7 @@ au mieux un très court échantillon hors jeu (un mot au titre).
 | ← → (ou J / L) | X | déplacer le vaisseau |
 | Pomme ouverte, ESPACE | bouton 0 | tirer (tir automatique si acheté) |
 | Pomme fermée | bouton 1 | missiles, si on en a |
-| ↑ ↓ ← → RETURN | Y, bouton 0 | boutique, Memory Station |
+| ↑ ↓ ← → RETURN (ou ESPACE), ESC | Y, bouton 0 | boutique (← ↑ monter, → ↓ descendre, ESC : sortir), Memory Station |
 | ESC | | pause / menu |
 | S | | son coupé / remis |
 | TAB | | clavier ↔ manette (provisoire, en attendant le menu du lot 9) |
@@ -217,7 +217,8 @@ n'écrit pas les pages aux).
 | `$6000-$BDFF` | code, données, BSS (~23,5 Ko) |
 | `$BE00-$BEFF` | pile C ; `$BF00` page globale ProDOS |
 | aux `$2000-$5B7F` | `WG2.AUX` : dessins × teintes des paquets (15 232 octets, copie par `AUXMOVE` `$C311` entre deux niveaux) |
-| aux `$6000-$6C55` | lecteur PT3 et morceau (fin de `WG2.AUX`) ; trampolines en aux `$1FE0` |
+| aux `$6000-$6C55` | lecteur PT3 et morceau ; trampolines en aux `$1FE0` |
+| aux `$7000-…` | overlay de la boutique (fin de `WG2.AUX`), copié en `$4000` à l'ouverture |
 
 ## Disquette
 

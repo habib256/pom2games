@@ -26,7 +26,8 @@
 .export extra_bits, marks, mark_dark, subgame
 .export level, loop, phase, clear_t, level_t, lkind, bonus_kills, w_kills
 .export dive_gap, max_divers, fire_gap, bomb_dy, kami_dy, start_level, cur_alien, pack_loaded
-.export mus_ticks
+.export mus_ticks, shop, rank, noshop, shop_can, shop_buy, shop_exit, shop_screen, sh_cur
+.import __SHOPM_LAST__
 .export a_big, a_hp, cur_big, e_dx, boss_hp, boss_x, boss_dir, boss_boom, boss_gap, boss_t, boss_mv, hurry, h_x, h_dir, h_t, spk_period, audio_slot, sound_on, snd_ev
 .export shots_erase, aliens_pass, form_draw, movers_draw, stars_draw, hud_draw
 .export alien_sta, alien_sta_done, alien_eor, alien_eor_done, alien_clr, alien_clr_done
@@ -209,6 +210,8 @@ auto_cnt:    .res 1
 extra_bits:  .res 1             ; letters E X T R A collected (bits 0-4)
 marks:       .res 1             ; rank marks (lot 7)
 mark_dark:   .res 1
+shop:        .res 1             ; the shop is open (lot 7): logic waits
+rank:        .res 1
 subgame:     .res 1             ; sub-game icon caught: 1 meteor, 2 memory (lot 8)
 pts_lo:      .res 1             ; add_points scratch
 pts_hi:      .res 1
@@ -262,6 +265,7 @@ af_len:      .res 2
 af_n:        .res 1
 fire_held:   .res 1             ; input: fire held down (autofire)
 nohit:       .res 1             ; tests: shots hit nothing (the bench)
+noshop:      .res 1             ; tests: the shop closes at once
 .data
 start_level: .byte 0            ; tests and the pilot: the first level
 .bss
@@ -339,6 +343,9 @@ playing:
         plx
         dex
         bne :-
+        lda shop                 ; the shop opened (lot 7)
+        beq render_frame
+        jsr shop_run
 render_frame:
         jsr pack_check
         jsr render
@@ -370,7 +377,9 @@ done:   rts
 ; WG2.AUX -> aux memory at AUX_BASE (every small and big alien design x
 ; tint), 8 KB at a time through HGR page 2 (not shown yet). A failure: a
 ; message, back to ProDOS.
-AUX_ALL = __AUXM_LAST__ - AUX_BASE
+AUX_ALL = SHOP_AUX + SHOP_LEN - AUX_BASE
+.assert __AUXM_LAST__ <= SHOP_AUX, error, "the PT3 player runs into the shop"
+
 .assert AUX_BASE + AUX_SIZE <= $6000, error, "the packs run into the PT3 player"
 aux_load:
         jsr $BF00
@@ -550,6 +559,35 @@ af_chunk:
         bra af_chunk
 pc_done:
         rts
+
+; The shop: page 1 shown and cleared, the overlay aux -> page 2 ($4000),
+; the screen, then the rules on leaving (logic.s) and a fresh game screen.
+SHOP_AUX = $7000                 ; (WG2.AUX: packs, PT3 at $6000, shop)
+SHOP_LEN = __SHOPM_LAST__ - $4000
+shop_run:
+        lda #$20
+        jsr clear_page
+        bit $C054
+        lda #<$4000
+        sta af_dst
+        lda #>$4000
+        sta af_dst+1
+        lda #<SHOP_LEN
+        sta af_len
+        lda #>SHOP_LEN
+        sta af_len+1
+        lda #<SHOP_AUX
+        ldy #>SHOP_AUX
+        jsr aux_fetch
+        jsr shop_screen
+        jsr shop_exit
+        lda #$20
+        jsr clear_page
+        lda #$40
+        jsr clear_page
+        jsr render_init
+        lda page
+        jmp select_page
 
 ; Clean screens and records, fresh state.
 new_game:
@@ -940,3 +978,5 @@ col_of:
 .include "random.asm"
 MB_FAST_WRITE = 1                ; ~55 cycles an AY write instead of ~110
 .include "mockingboard.asm"
+
+.include "shop.s"

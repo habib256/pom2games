@@ -192,7 +192,7 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False):
     steps = [L.until('game_tick', 3000)]
     if start is not None:
         steps = [L.until('main', 3000), L.poke('start_level', start), L.until('game_tick', 3000),
-                 L.poke('weapon', 2), L.poke('shot_limit', 10)]
+                 L.poke('weapon', 2), L.poke('shot_limit', 10), L.poke('noshop', 1)]
         if hurry:
             steps += [L.poke('level_t', M.HURRY_T - 40), L.poke('level_t', M.HURRY_T - 40 >> 8, 1)]
     samples = 0

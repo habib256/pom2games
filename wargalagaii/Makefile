@@ -37,7 +37,7 @@ src/sound.inc: tools/sound.py
 src/bonus.inc: tools/bonus.py tools/model.py tools/paths.py
 	cd tools && $(PYTHON) bonus.py
 
-$(BUILD)/game.o: src/game.s src/logic.s src/render.s src/sound.s src/sprites.inc src/paths.inc src/sound.inc src/bonus.inc $(A2_ASM_DEPS)
+$(BUILD)/game.o: src/game.s src/logic.s src/render.s src/sound.s src/shop.s $(APPLE2)/duet.asm src/sprites.inc src/paths.inc src/sound.inc src/bonus.inc $(A2_ASM_DEPS)
 $(BUILD)/%.o: src/%.s
 	@mkdir -p $(@D)
 	$(CA65) $(ASFLAGS) -o $@ $<
@@ -72,12 +72,14 @@ $(BUILD)/WG2.SYSTEM: src/boot.s src/boot.cfg
 	$(CA65) -o $(BUILD)/boot.o src/boot.s
 	$(LD65) -C src/boot.cfg -o $@ $(BUILD)/boot.o
 
-# WG2.AUX: the packs at aux $2000, zeros up to $6000, the PT3 player and song.
+# WG2.AUX: the packs at aux $2000, the PT3 player and song at $6000, the
+# shop overlay at $7000 (each padded to the next).
 $(BUILD)/WG2.AUX: tools/sprites.py $(BUILD)/game.bin
 	@mkdir -p $(@D)
 	$(PYTHON) tools/sprites.py --aux $@.packs
-	$(PYTHON) -c "import sys; p = open(sys.argv[1], 'rb').read(); m = open(sys.argv[2], 'rb').read(); \
-		open(sys.argv[3], 'wb').write(p.ljust(0x4000, b'\0') + m)" $@.packs $(BUILD)/game.bin.mus $@
+	$(PYTHON) -c "import sys; r = lambda f: open(f, 'rb').read(); p, m, s = map(r, sys.argv[1:4]); \
+		open(sys.argv[4], 'wb').write(p.ljust(0x4000, b'\0') + m.ljust(0x1000, b'\0') + s)" \
+		$@.packs $(BUILD)/game.bin.mus $(BUILD)/game.bin.shop $@
 $(DISK): $(BUILD)/WG2.SYSTEM $(BUILD)/WG2.SYS $(BUILD)/WG2.AUX $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py
 	@rm -rf $(BUILD)/stage
 	@mkdir -p $(BUILD)/stage $(DIST)
@@ -100,6 +102,7 @@ test: all
 	$(PYTHON) tests/test_game.py --disk $(DISK) --labels $(BUILD)/game.lbl
 	$(PYTHON) tests/test_screen.py --disk $(DISK) --labels $(BUILD)/game.lbl
 	$(PYTHON) tests/test_audio.py --disk $(DISK) --labels $(BUILD)/game.lbl
+	$(PYTHON) tests/test_shop.py --disk $(DISK) --labels $(BUILD)/game.lbl
 test-long: test
 	$(PYTHON) tests/test_long.py --disk $(DISK) --labels $(BUILD)/game.lbl
 

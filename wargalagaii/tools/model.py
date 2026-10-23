@@ -89,6 +89,16 @@ BOSS_STEP = 8
 BOSS_BOOM_T = 40
 POINTS_BOSS, POINTS_BOSS_HIT = 5000, 10
 ROSETTE = (-2, -1, 0, 1, 2)
+# Lot 7: the shop, after the 4th level of each pack (levels 4, 8 ... 100)
+# when the player has SHOP_MIN credits: (name, price) from the Warblade
+# 1.2c list, the items this game has. The game's logic is frozen while it is
+# open; leaving it applies the ranks: the 6 marks -> rank + 1 (marks
+# cleared), the dark mark -> rank - 1.
+SHOP_MIN = 50
+ITEMS = [('EXTRA SPEED', 50), ('EXTRA BULLET', 75), ('DOUBLE SHOT', 100), ('LESS SPEED', 150),
+         ('TRIPLE SHOT', 200), ('AUTO FIRE', 400), ('SHIP ARMOUR', 600), ('EXTRA LIFE', 800),
+         ('RANK MARKER', 1250), ('EXTRA TIME', 1500)]
+RANK_MAX = 99
 # Hurry-up: a normal or big level still on after HURRY_T steps (60 s) gets
 # a saucer at HURRY_Y crossing the top, 2 cells a step, bouncing, out of
 # reach, dropping a bomb that drifts towards the ship every HURRY_FIRE steps.
@@ -232,6 +242,7 @@ class Game:
         self.autofire_t = self.mult_t = self.shield_t = self.freeze_t = 0
         self.mult, self.auto_cnt, self.extra_bits = 1, 0, 0
         self.marks, self.mark_dark, self.subgame = 0, 0, 0
+        self.shop, self.rank = 0, 0
         self.level, self.loop, self.phase, self.clear_t, self.level_t = start_level, 0, 0, 0, 0
         self.bonus_kills, self.w_kills = 0, [0] * ROWS
         self.e_dx = [0] * E_SHOTS
@@ -304,6 +315,8 @@ class Game:
     def step(self, move_dir=0, fire=False, held=False):
         """move_dir: -1 left, 0, 1 right; fire: a new press; held: fire is
         held down (autofire)."""
+        if self.shop:                   # (the game waits for the shop)
+            return
         speed = self.s_level + 1
         if self.alive():
             if move_dir > 0:
@@ -402,11 +415,10 @@ class Game:
             self.clear_t -= 1
             if not self.clear_t:
                 self.phase = 0
-                self.level += 1
-                if self.level == LEVELS:
-                    self.level = 0
-                    self.loop = min(255, self.loop + 1)   # (wrapped to 0: easy again)
-                self.setup_level()
+                if self.level % 4 == 3 and self.credits >= SHOP_MIN:
+                    self.shop = 1               # the next level once it closes
+                    return
+                self.next_level()
             return
         self.level_t = min(0xFFFF, self.level_t + 1)
         if not self.hurry and self.level_t >= HURRY_T and self.lkind in (NORMAL, BIG):
@@ -422,6 +434,62 @@ class Game:
         self.shot_y = [0] * MAX_SHOTS
         self.e_y = [0] * E_SHOTS
         self.obj_y = [0] * N_OBJ
+
+    def next_level(self):
+        self.level += 1
+        if self.level == LEVELS:
+            self.level = 0
+            self.loop = min(255, self.loop + 1)   # (wrapped to 0: easy again)
+        self.setup_level()
+
+    # --- shop (lot 7) -------------------------------------------------------
+    def can_buy(self, item):
+        name, price = ITEMS[item]
+        if self.credits < price:
+            return False
+        return {'EXTRA SPEED': self.s_level < S_MAX, 'EXTRA BULLET': self.shot_limit < B_MAX,
+                'DOUBLE SHOT': self.weapon < 1, 'LESS SPEED': self.s_level > 1,
+                'TRIPLE SHOT': self.weapon < 2, 'AUTO FIRE': self.autofire_t < duration(T_MAX),
+                'SHIP ARMOUR': self.armour < 2, 'EXTRA LIFE': self.lives < 4,
+                'RANK MARKER': self.marks != 63, 'EXTRA TIME': self.t_level < T_MAX}[name]
+
+    def buy(self, item):
+        """-> bought (enough credits, not at the item's limit)."""
+        if not self.can_buy(item):
+            return False
+        name, price = ITEMS[item]
+        self.credits -= price
+        if name == 'EXTRA SPEED':
+            self.s_level += 1
+        elif name == 'EXTRA BULLET':
+            self.shot_limit += 1
+        elif name == 'DOUBLE SHOT':
+            self.weapon = 1
+        elif name == 'LESS SPEED':
+            self.s_level -= 1
+        elif name == 'TRIPLE SHOT':
+            self.weapon = 2
+        elif name == 'AUTO FIRE':
+            self.autofire_t = duration(T_MAX)
+        elif name == 'SHIP ARMOUR':
+            self.armour += 1
+        elif name == 'EXTRA LIFE':
+            self.lives += 1
+        elif name == 'RANK MARKER':                  # the first one missing
+            self.marks |= (self.marks + 1) & ~self.marks
+        else:
+            self.t_level += 1
+        return True
+
+    def shop_exit(self):
+        if self.marks == 63:
+            self.marks = 0
+            self.rank = min(RANK_MAX, self.rank + 1)
+        if self.mark_dark:
+            self.mark_dark = 0
+            self.rank = max(0, self.rank - 1)
+        self.shop = 0
+        self.next_level()
 
     # --- bonuses ------------------------------------------------------------
     def add_score(self, points):
@@ -818,6 +886,8 @@ class Game:
                 'extra_bits': bytes([self.extra_bits]),
                 'marks': bytes([self.marks]),
                 'mark_dark': bytes([self.mark_dark]),
+                'shop': bytes([self.shop]),
+                'rank': bytes([self.rank]),
                 'subgame': bytes([self.subgame]),
                 'level': bytes([self.level]),
                 'loop': bytes([self.loop]),

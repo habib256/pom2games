@@ -7,7 +7,10 @@
 ; pickups, enemy fire, ship and bonus timers. Included by game.s.
 
 logic_step:
-        inc step_count
+        lda shop                 ; the game waits for the shop (lot 7)
+        beq :+
+        rts
+:       inc step_count
         bne :+
         inc step_count+1
 :       lda ship_state           ; exploding or game over: no move, no shot
@@ -242,6 +245,21 @@ level_step:
         dec clear_t
         jne ls_done
         stz phase
+        lda level                ; the 4th level of a pack, credits enough:
+        and #3                   ; the shop, the next level once it closes
+        cmp #3
+        bne next_level
+        lda credits
+        cmp #<SHOP_MIN
+        lda credits+1
+        sbc #>SHOP_MIN
+        bcc next_level
+        lda noshop               ; (tests: closed at once, nothing bought)
+        jne shop_exit
+        lda #1
+        sta shop
+        rts
+next_level:
         inc level
         lda level
         cmp #LEVELS
@@ -322,6 +340,162 @@ ls_clear:
         bpl :-
 ls_done:
         rts
+
+; ---------------------------------------------------------------------------
+; The shop (lot 7; its screen: shop.s). Items and prices: tools/bonus.py
+; (model.ITEMS).
+; X = item: C = 1 if it can be bought (credits enough, not at its limit).
+; Keeps X.
+shop_can:
+        lda credits
+        cmp item_lo,x
+        lda credits+1
+        sbc item_hi,x
+        bcc sc_done
+        ; fall through
+; X = item: C = 1 if it is not at its limit. Keeps X.
+shop_room:
+        txa
+        asl
+        tay
+        lda sc_test+1,y
+        pha
+        lda sc_test,y
+        pha
+sc_done:
+        rts                      ; (to the test: C = 1 if it can be bought)
+sc_test:
+        .word c_speed-1, c_bullet-1, c_double-1, c_less-1, c_triple-1
+        .word c_auto-1, c_armour-1, c_life-1, c_marker-1, c_time-1
+c_speed:
+        lda #S_MAX-1
+        cmp s_level
+        rts
+c_bullet:
+        lda #B_MAX-1
+        cmp shot_limit
+        rts
+c_double:
+        lda #0
+        cmp weapon
+        rts
+c_less: lda s_level
+        cmp #2
+        rts
+c_triple:
+        lda #1
+        cmp weapon
+        rts
+c_auto: lda #<(AUTO_T-1)
+        cmp autofire_t
+        lda #>(AUTO_T-1)
+        sbc autofire_t+1
+        rts
+c_armour:
+        lda #1
+        cmp armour
+        rts
+c_life: lda #3
+        cmp lives
+        rts
+c_marker:
+        lda marks
+        eor #63
+        cmp #1
+        rts
+c_time: lda #T_MAX-1
+        cmp t_level
+        rts
+
+; X = item: bought if it can be (C = 1), the price taken. Keeps X.
+shop_buy:
+        jsr shop_can
+        bcc sb_done
+        sed
+        lda credits
+        sbc item_lo,x            ; (C = 1)
+        sta credits
+        lda credits+1
+        sbc item_hi,x
+        sta credits+1
+        cld
+        txa
+        asl
+        tay
+        lda sb_do+1,y
+        pha
+        lda sb_do,y
+        pha
+sb_done:
+        rts
+sb_do:  .word d_speed-1, d_bullet-1, d_double-1, d_less-1, d_triple-1
+        .word d_auto-1, d_armour-1, d_life-1, d_marker-1, d_time-1
+d_speed:
+        inc s_level
+        sec
+        rts
+d_bullet:
+        inc shot_limit
+        sec
+        rts
+d_double:
+        lda #1
+        bra :+
+d_triple:
+        lda #2
+:       sta weapon
+        sec
+        rts
+d_less: dec s_level
+        sec
+        rts
+d_auto: lda #<AUTO_T
+        sta autofire_t
+        lda #>AUTO_T
+        sta autofire_t+1
+        sec
+        rts
+d_armour:
+        inc armour
+        sec
+        rts
+d_life: inc lives
+        sec
+        rts
+d_marker:                        ; the first mark missing
+        lda marks
+        eor #$FF
+        sta tmp
+        lda marks
+        inc a
+        and tmp
+        ora marks
+        sta marks
+        sec
+        rts
+d_time: inc t_level
+        sec
+        rts
+
+; Leaving the shop: the 6 marks -> rank + 1, the dark one -> rank - 1;
+; then the next level.
+shop_exit:
+        lda marks
+        cmp #63
+        bne :+
+        stz marks
+        lda rank
+        cmp #RANK_MAX
+        bcs :+
+        inc rank
+:       lda mark_dark
+        beq :+
+        stz mark_dark
+        lda rank
+        beq :+
+        dec rank
+:       stz shop
+        jmp next_level
 
 ; The level's kind and parameters: loop-0 tables (tools/bonus.py), made
 ; harder once a loop (saturating; five loops reach every bound).
