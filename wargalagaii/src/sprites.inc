@@ -170,134 +170,481 @@ shot_s6:
         .byte $60
         .byte $60
         .byte $60
+UFO_W = 3              ; bytes per row
+UFO_H = 8
+UFO_CELLS = 7
+ufo_lo: .lobytes ufo_s0,ufo_s1,ufo_s2,ufo_s3,ufo_s4,ufo_s5,ufo_s6
+ufo_hi: .hibytes ufo_s0,ufo_s1,ufo_s2,ufo_s3,ufo_s4,ufo_s5,ufo_s6
+ufo_s0:
+        .byte $70,$07,$00
+        .byte $5C,$1B,$00
+        .byte $7F,$7F,$00
+        .byte $11,$22,$00
+        .byte $7C,$1F,$00
+        .byte $10,$02,$00
+        .byte $04,$08,$00
+        .byte $00,$00,$00
+ufo_s1:
+        .byte $40,$1F,$00
+        .byte $70,$6E,$00
+        .byte $7C,$7F,$03
+        .byte $44,$08,$01
+        .byte $70,$7F,$00
+        .byte $40,$08,$00
+        .byte $10,$20,$00
+        .byte $00,$00,$00
+ufo_s2:
+        .byte $00,$7E,$00
+        .byte $40,$3B,$03
+        .byte $70,$7F,$0F
+        .byte $10,$22,$04
+        .byte $40,$7F,$03
+        .byte $00,$22,$00
+        .byte $40,$00,$01
+        .byte $00,$00,$00
+ufo_s3:
+        .byte $00,$78,$03
+        .byte $00,$6E,$0D
+        .byte $40,$7F,$3F
+        .byte $40,$08,$11
+        .byte $00,$7E,$0F
+        .byte $00,$08,$01
+        .byte $00,$02,$04
+        .byte $00,$00,$00
+ufo_s4:
+        .byte $60,$0F,$00
+        .byte $38,$37,$00
+        .byte $7E,$7F,$01
+        .byte $22,$44,$00
+        .byte $78,$3F,$00
+        .byte $20,$04,$00
+        .byte $08,$10,$00
+        .byte $00,$00,$00
+ufo_s5:
+        .byte $00,$3F,$00
+        .byte $60,$5D,$01
+        .byte $78,$7F,$07
+        .byte $08,$11,$02
+        .byte $60,$7F,$01
+        .byte $00,$11,$00
+        .byte $20,$40,$00
+        .byte $00,$00,$00
+ufo_s6:
+        .byte $00,$7C,$01
+        .byte $00,$77,$06
+        .byte $60,$7F,$1F
+        .byte $20,$44,$08
+        .byte $00,$7F,$07
+        .byte $00,$44,$00
+        .byte $00,$01,$02
+        .byte $00,$00,$00
+bomb_pat: .byte $81,$84,$90,$C0,$82,$88,$A0
+BOMB_W = 1              ; bytes per row
+BOMB_H = 4
+BOMB_CELLS = 1
+bomb_lo: .lobytes bomb_s0,bomb_s1,bomb_s2,bomb_s3,bomb_s4,bomb_s5,bomb_s6
+bomb_hi: .hibytes bomb_s0,bomb_s1,bomb_s2,bomb_s3,bomb_s4,bomb_s5,bomb_s6
+bomb_s0:
+        .byte $81
+        .byte $81
+        .byte $81
+        .byte $81
+bomb_s1:
+        .byte $84
+        .byte $84
+        .byte $84
+        .byte $84
+bomb_s2:
+        .byte $90
+        .byte $90
+        .byte $90
+        .byte $90
+bomb_s3:
+        .byte $C0
+        .byte $C0
+        .byte $C0
+        .byte $C0
+bomb_s4:
+        .byte $82
+        .byte $82
+        .byte $82
+        .byte $82
+bomb_s5:
+        .byte $88
+        .byte $88
+        .byte $88
+        .byte $88
+bomb_s6:
+        .byte $A0
+        .byte $A0
+        .byte $A0
+        .byte $A0
 ALIEN_W = 3              ; bytes per row
 ALIEN_H = 8
 ALIEN_CELLS = 7
-alien_lo: .lobytes alien_s0f0,alien_s0f1,alien_s1f0,alien_s1f1,alien_s2f0,alien_s2f1,alien_s3f0,alien_s3f1,alien_s4f0,alien_s4f1,alien_s5f0,alien_s5f1,alien_s6f0,alien_s6f1
-alien_hi: .hibytes alien_s0f0,alien_s0f1,alien_s1f0,alien_s1f1,alien_s2f0,alien_s2f1,alien_s3f0,alien_s3f1,alien_s4f0,alien_s4f1,alien_s5f0,alien_s5f1,alien_s6f0,alien_s6f1
-alien_s0f0:
-        .byte $04,$08,$00
-        .byte $10,$02,$00
-        .byte $74,$0F,$00
-        .byte $75,$2E,$00
-        .byte $71,$27,$00
-        .byte $51,$23,$00
-        .byte $50,$03,$00
-        .byte $40,$01,$00
-alien_s0f1:
-        .byte $04,$08,$00
-        .byte $10,$02,$00
-        .byte $74,$0F,$00
-        .byte $74,$0E,$00
-        .byte $70,$07,$00
-        .byte $54,$0B,$00
-        .byte $51,$23,$00
-        .byte $40,$01,$00
-alien_s1f0:
-        .byte $10,$20,$00
-        .byte $40,$08,$00
-        .byte $50,$3F,$00
-        .byte $54,$3B,$01
-        .byte $44,$1F,$01
-        .byte $44,$0E,$01
-        .byte $40,$0E,$00
-        .byte $00,$06,$00
-alien_s1f1:
-        .byte $10,$20,$00
-        .byte $40,$08,$00
-        .byte $50,$3F,$00
-        .byte $50,$3B,$00
-        .byte $40,$1F,$00
-        .byte $50,$2E,$00
-        .byte $44,$0E,$01
-        .byte $00,$06,$00
-alien_s2f0:
-        .byte $40,$00,$01
-        .byte $00,$22,$00
-        .byte $40,$7E,$01
-        .byte $50,$6E,$05
-        .byte $10,$7E,$04
-        .byte $10,$3A,$04
-        .byte $00,$3A,$00
-        .byte $00,$18,$00
-alien_s2f1:
-        .byte $40,$00,$01
-        .byte $00,$22,$00
-        .byte $40,$7E,$01
-        .byte $40,$6E,$01
-        .byte $00,$7E,$00
-        .byte $40,$3A,$01
-        .byte $10,$3A,$04
-        .byte $00,$18,$00
-alien_s3f0:
-        .byte $00,$02,$04
-        .byte $00,$08,$01
-        .byte $00,$7A,$07
-        .byte $40,$3A,$17
-        .byte $40,$78,$13
-        .byte $40,$68,$11
-        .byte $00,$68,$01
-        .byte $00,$60,$00
-alien_s3f1:
-        .byte $00,$02,$04
-        .byte $00,$08,$01
-        .byte $00,$7A,$07
-        .byte $00,$3A,$07
-        .byte $00,$78,$03
-        .byte $00,$6A,$05
-        .byte $40,$68,$11
-        .byte $00,$60,$00
-alien_s4f0:
-        .byte $08,$10,$00
-        .byte $20,$04,$00
-        .byte $68,$1F,$00
-        .byte $6A,$5D,$00
-        .byte $62,$4F,$00
-        .byte $22,$47,$00
-        .byte $20,$07,$00
-        .byte $00,$03,$00
-alien_s4f1:
-        .byte $08,$10,$00
-        .byte $20,$04,$00
-        .byte $68,$1F,$00
-        .byte $68,$1D,$00
-        .byte $60,$0F,$00
-        .byte $28,$17,$00
-        .byte $22,$47,$00
-        .byte $00,$03,$00
-alien_s5f0:
-        .byte $20,$40,$00
-        .byte $00,$11,$00
-        .byte $20,$7F,$00
-        .byte $28,$77,$02
-        .byte $08,$3F,$02
-        .byte $08,$1D,$02
-        .byte $00,$1D,$00
-        .byte $00,$0C,$00
-alien_s5f1:
-        .byte $20,$40,$00
-        .byte $00,$11,$00
-        .byte $20,$7F,$00
-        .byte $20,$77,$00
-        .byte $00,$3F,$00
-        .byte $20,$5D,$00
-        .byte $08,$1D,$02
-        .byte $00,$0C,$00
-alien_s6f0:
-        .byte $00,$01,$02
-        .byte $00,$44,$00
-        .byte $00,$7D,$03
-        .byte $20,$5D,$0B
-        .byte $20,$7C,$09
-        .byte $20,$74,$08
-        .byte $00,$74,$00
-        .byte $00,$30,$00
-alien_s6f1:
-        .byte $00,$01,$02
-        .byte $00,$44,$00
-        .byte $00,$7D,$03
-        .byte $00,$5D,$03
-        .byte $00,$7C,$01
-        .byte $00,$75,$02
-        .byte $20,$74,$08
-        .byte $00,$30,$00
+ALIEN_TABLE = 336          ; bytes: 7 shifts x 2 frames x rows x width
+NCOMBOS = 24
+AUX_BASE = $2000              ; aux memory: WG2.AUX
+BIG_W = 4
+BIG_TABLE = 896
+NBIG = 8
+AUX_BIG = AUX_BASE + 8064
+big_lo: .lobytes cur_big+0,cur_big+64,cur_big+128,cur_big+192,cur_big+256,cur_big+320,cur_big+384,cur_big+448,cur_big+512,cur_big+576,cur_big+640,cur_big+704,cur_big+768,cur_big+832
+big_hi: .hibytes cur_big+0,cur_big+64,cur_big+128,cur_big+192,cur_big+256,cur_big+320,cur_big+384,cur_big+448,cur_big+512,cur_big+576,cur_big+640,cur_big+704,cur_big+768,cur_big+832
+AUX_SIZE = 15232
+BOOM_W = 3              ; bytes per row
+BOOM_H = 8
+BOOM_CELLS = 7
+boom_lo: .lobytes boom_s0f0,boom_s0f1,boom_s1f0,boom_s1f1,boom_s2f0,boom_s2f1,boom_s3f0,boom_s3f1,boom_s4f0,boom_s4f1,boom_s5f0,boom_s5f1,boom_s6f0,boom_s6f1
+boom_hi: .hibytes boom_s0f0,boom_s0f1,boom_s1f0,boom_s1f1,boom_s2f0,boom_s2f1,boom_s3f0,boom_s3f1,boom_s4f0,boom_s4f1,boom_s5f0,boom_s5f1,boom_s6f0,boom_s6f1
+boom_s0f0:
+        .byte $C0,$81,$80
+        .byte $C8,$91,$80
+        .byte $E0,$85,$80
+        .byte $BF,$FE,$80
+        .byte $E0,$85,$80
+        .byte $C8,$91,$80
+        .byte $C0,$81,$80
+        .byte $80,$80,$80
+boom_s0f1:
+        .byte $C2,$C1,$80
+        .byte $88,$90,$80
+        .byte $A0,$84,$80
+        .byte $8F,$F8,$80
+        .byte $A0,$84,$80
+        .byte $88,$90,$80
+        .byte $C2,$C1,$80
+        .byte $80,$80,$80
+boom_s1f0:
+        .byte $80,$86,$80
+        .byte $A0,$C6,$80
+        .byte $80,$97,$80
+        .byte $FC,$F9,$83
+        .byte $80,$97,$80
+        .byte $A0,$C6,$80
+        .byte $80,$86,$80
+        .byte $80,$80,$80
+boom_s1f1:
+        .byte $88,$86,$82
+        .byte $A0,$C0,$80
+        .byte $80,$91,$80
+        .byte $BC,$E0,$83
+        .byte $80,$91,$80
+        .byte $A0,$C0,$80
+        .byte $88,$86,$82
+        .byte $80,$80,$80
+boom_s2f0:
+        .byte $80,$98,$80
+        .byte $80,$99,$82
+        .byte $80,$DC,$80
+        .byte $F0,$E7,$8F
+        .byte $80,$DC,$80
+        .byte $80,$99,$82
+        .byte $80,$98,$80
+        .byte $80,$80,$80
+boom_s2f1:
+        .byte $A0,$98,$88
+        .byte $80,$81,$82
+        .byte $80,$C4,$80
+        .byte $F0,$81,$8F
+        .byte $80,$C4,$80
+        .byte $80,$81,$82
+        .byte $A0,$98,$88
+        .byte $80,$80,$80
+boom_s3f0:
+        .byte $80,$E0,$80
+        .byte $80,$E4,$88
+        .byte $80,$F0,$82
+        .byte $C0,$9F,$BF
+        .byte $80,$F0,$82
+        .byte $80,$E4,$88
+        .byte $80,$E0,$80
+        .byte $80,$80,$80
+boom_s3f1:
+        .byte $80,$E1,$A0
+        .byte $80,$84,$88
+        .byte $80,$90,$82
+        .byte $C0,$87,$BC
+        .byte $80,$90,$82
+        .byte $80,$84,$88
+        .byte $80,$E1,$A0
+        .byte $80,$80,$80
+boom_s4f0:
+        .byte $80,$83,$80
+        .byte $90,$A3,$80
+        .byte $C0,$8B,$80
+        .byte $FE,$FC,$81
+        .byte $C0,$8B,$80
+        .byte $90,$A3,$80
+        .byte $80,$83,$80
+        .byte $80,$80,$80
+boom_s4f1:
+        .byte $84,$83,$81
+        .byte $90,$A0,$80
+        .byte $C0,$88,$80
+        .byte $9E,$F0,$81
+        .byte $C0,$88,$80
+        .byte $90,$A0,$80
+        .byte $84,$83,$81
+        .byte $80,$80,$80
+boom_s5f0:
+        .byte $80,$8C,$80
+        .byte $C0,$8C,$81
+        .byte $80,$AE,$80
+        .byte $F8,$F3,$87
+        .byte $80,$AE,$80
+        .byte $C0,$8C,$81
+        .byte $80,$8C,$80
+        .byte $80,$80,$80
+boom_s5f1:
+        .byte $90,$8C,$84
+        .byte $C0,$80,$81
+        .byte $80,$A2,$80
+        .byte $F8,$C0,$87
+        .byte $80,$A2,$80
+        .byte $C0,$80,$81
+        .byte $90,$8C,$84
+        .byte $80,$80,$80
+boom_s6f0:
+        .byte $80,$B0,$80
+        .byte $80,$B2,$84
+        .byte $80,$B8,$81
+        .byte $E0,$CF,$9F
+        .byte $80,$B8,$81
+        .byte $80,$B2,$84
+        .byte $80,$B0,$80
+        .byte $80,$80,$80
+boom_s6f1:
+        .byte $C0,$B0,$90
+        .byte $80,$82,$84
+        .byte $80,$88,$81
+        .byte $E0,$83,$9E
+        .byte $80,$88,$81
+        .byte $80,$82,$84
+        .byte $C0,$B0,$90
+        .byte $80,$80,$80
+BOSS_W = 5
+BOSS_H = 24
+BOSS_CELLS = 16
+boss_s0:
+        .byte $80,$E0,$BF,$80,$80
+        .byte $80,$DE,$EA,$87,$80
+        .byte $C0,$F5,$BF,$9D,$80
+        .byte $B0,$9D,$CF,$F5,$80
+        .byte $AC,$C7,$AF,$D6,$83
+        .byte $EB,$C1,$AF,$D8,$8E
+        .byte $BB,$E0,$BF,$E0,$8E
+        .byte $EB,$FF,$FA,$DF,$8E
+        .byte $AC,$F5,$BA,$D5,$83
+        .byte $F0,$DF,$EF,$FF,$80
+        .byte $88,$D6,$AF,$87,$82
+        .byte $A2,$F6,$BA,$C7,$88
+        .byte $82,$F7,$B0,$97,$88
+        .byte $88,$F7,$B0,$97,$82
+        .byte $A0,$D7,$AF,$D7,$80
+        .byte $80,$DF,$EA,$97,$80
+        .byte $80,$FE,$FA,$87,$80
+        .byte $80,$D8,$EF,$81,$80
+        .byte $80,$C4,$AF,$84,$80
+        .byte $80,$C1,$A0,$90,$80
+        .byte $A0,$C0,$A0,$C0,$80
+        .byte $88,$C0,$A0,$80,$82
+        .byte $82,$C0,$A0,$80,$88
+        .byte $80,$C0,$A0,$80,$80
+SHIPBOOM_W = 3              ; bytes per row
+SHIPBOOM_H = 10
+SHIPBOOM_CELLS = 7
+shipboom_lo: .lobytes shipboom_s0f0,shipboom_s0f1,shipboom_s1f0,shipboom_s1f1,shipboom_s2f0,shipboom_s2f1,shipboom_s3f0,shipboom_s3f1,shipboom_s4f0,shipboom_s4f1,shipboom_s5f0,shipboom_s5f1,shipboom_s6f0,shipboom_s6f1
+shipboom_hi: .hibytes shipboom_s0f0,shipboom_s0f1,shipboom_s1f0,shipboom_s1f1,shipboom_s2f0,shipboom_s2f1,shipboom_s3f0,shipboom_s3f1,shipboom_s4f0,shipboom_s4f1,shipboom_s5f0,shipboom_s5f1,shipboom_s6f0,shipboom_s6f1
+shipboom_s0f0:
+        .byte $80,$80,$80
+        .byte $80,$81,$80
+        .byte $C8,$91,$80
+        .byte $F0,$87,$80
+        .byte $BE,$DE,$80
+        .byte $F0,$87,$80
+        .byte $C8,$91,$80
+        .byte $80,$81,$80
+        .byte $80,$80,$80
+        .byte $80,$80,$80
+shipboom_s0f1:
+        .byte $82,$C1,$80
+        .byte $88,$90,$80
+        .byte $A0,$84,$80
+        .byte $82,$C0,$80
+        .byte $83,$E0,$80
+        .byte $82,$C0,$80
+        .byte $A0,$84,$80
+        .byte $88,$90,$80
+        .byte $82,$C1,$80
+        .byte $80,$80,$80
+shipboom_s1f0:
+        .byte $80,$80,$80
+        .byte $80,$84,$80
+        .byte $A0,$C6,$80
+        .byte $C0,$9F,$80
+        .byte $F8,$F9,$82
+        .byte $C0,$9F,$80
+        .byte $A0,$C6,$80
+        .byte $80,$84,$80
+        .byte $80,$80,$80
+        .byte $80,$80,$80
+shipboom_s1f1:
+        .byte $88,$84,$82
+        .byte $A0,$C0,$80
+        .byte $80,$91,$80
+        .byte $88,$80,$82
+        .byte $8C,$80,$83
+        .byte $88,$80,$82
+        .byte $80,$91,$80
+        .byte $A0,$C0,$80
+        .byte $88,$84,$82
+        .byte $80,$80,$80
+shipboom_s2f0:
+        .byte $80,$80,$80
+        .byte $80,$90,$80
+        .byte $80,$99,$82
+        .byte $80,$FE,$80
+        .byte $E0,$E7,$8B
+        .byte $80,$FE,$80
+        .byte $80,$99,$82
+        .byte $80,$90,$80
+        .byte $80,$80,$80
+        .byte $80,$80,$80
+shipboom_s2f1:
+        .byte $A0,$90,$88
+        .byte $80,$81,$82
+        .byte $80,$C4,$80
+        .byte $A0,$80,$88
+        .byte $B0,$80,$8C
+        .byte $A0,$80,$88
+        .byte $80,$C4,$80
+        .byte $80,$81,$82
+        .byte $A0,$90,$88
+        .byte $80,$80,$80
+shipboom_s3f0:
+        .byte $80,$80,$80
+        .byte $80,$C0,$80
+        .byte $80,$E4,$88
+        .byte $80,$F8,$83
+        .byte $80,$9F,$AF
+        .byte $80,$F8,$83
+        .byte $80,$E4,$88
+        .byte $80,$C0,$80
+        .byte $80,$80,$80
+        .byte $80,$80,$80
+shipboom_s3f1:
+        .byte $80,$C1,$A0
+        .byte $80,$84,$88
+        .byte $80,$90,$82
+        .byte $80,$81,$A0
+        .byte $C0,$81,$B0
+        .byte $80,$81,$A0
+        .byte $80,$90,$82
+        .byte $80,$84,$88
+        .byte $80,$C1,$A0
+        .byte $80,$80,$80
+shipboom_s4f0:
+        .byte $80,$80,$80
+        .byte $80,$82,$80
+        .byte $90,$A3,$80
+        .byte $E0,$8F,$80
+        .byte $FC,$BC,$81
+        .byte $E0,$8F,$80
+        .byte $90,$A3,$80
+        .byte $80,$82,$80
+        .byte $80,$80,$80
+        .byte $80,$80,$80
+shipboom_s4f1:
+        .byte $84,$82,$81
+        .byte $90,$A0,$80
+        .byte $C0,$88,$80
+        .byte $84,$80,$81
+        .byte $86,$C0,$81
+        .byte $84,$80,$81
+        .byte $C0,$88,$80
+        .byte $90,$A0,$80
+        .byte $84,$82,$81
+        .byte $80,$80,$80
+shipboom_s5f0:
+        .byte $80,$80,$80
+        .byte $80,$88,$80
+        .byte $C0,$8C,$81
+        .byte $80,$BF,$80
+        .byte $F0,$F3,$85
+        .byte $80,$BF,$80
+        .byte $C0,$8C,$81
+        .byte $80,$88,$80
+        .byte $80,$80,$80
+        .byte $80,$80,$80
+shipboom_s5f1:
+        .byte $90,$88,$84
+        .byte $C0,$80,$81
+        .byte $80,$A2,$80
+        .byte $90,$80,$84
+        .byte $98,$80,$86
+        .byte $90,$80,$84
+        .byte $80,$A2,$80
+        .byte $C0,$80,$81
+        .byte $90,$88,$84
+        .byte $80,$80,$80
+shipboom_s6f0:
+        .byte $80,$80,$80
+        .byte $80,$A0,$80
+        .byte $80,$B2,$84
+        .byte $80,$FC,$81
+        .byte $C0,$CF,$97
+        .byte $80,$FC,$81
+        .byte $80,$B2,$84
+        .byte $80,$A0,$80
+        .byte $80,$80,$80
+        .byte $80,$80,$80
+shipboom_s6f1:
+        .byte $C0,$A0,$90
+        .byte $80,$82,$84
+        .byte $80,$88,$81
+        .byte $C0,$80,$90
+        .byte $E0,$80,$98
+        .byte $C0,$80,$90
+        .byte $80,$88,$81
+        .byte $80,$82,$84
+        .byte $C0,$A0,$90
+        .byte $80,$80,$80
+; objects: 16 bytes each (2 a row), in model.KINDS order
+NKINDS = 32
+icons:
+        .byte $0C,$00,$3E,$55,$03,$55,$1E,$55,$30,$55,$1F,$55,$0C,$55,$00,$00   ; $ green
+        .byte $0C,$00,$3E,$D5,$03,$D5,$1E,$D5,$30,$D5,$1F,$D5,$0C,$D5,$00,$00   ; $ orange
+        .byte $0C,$00,$3E,$AA,$03,$AA,$1E,$AA,$30,$AA,$1F,$AA,$0C,$AA,$00,$00   ; $ blue
+        .byte $0C,$00,$3E,$2A,$03,$2A,$1E,$2A,$30,$2A,$1F,$2A,$0C,$2A,$00,$00   ; $ violet
+        .byte $1E,$00,$33,$AA,$03,$AA,$1E,$AA,$30,$AA,$33,$AA,$1E,$AA,$00,$00   ; S blue
+        .byte $1F,$00,$3F,$AA,$33,$AA,$1F,$AA,$33,$AA,$3F,$AA,$1F,$AA,$00,$00   ; B blue
+        .byte $3F,$00,$3F,$AA,$0C,$AA,$0C,$AA,$0C,$AA,$0C,$AA,$0C,$AA,$00,$00   ; T blue
+        .byte $0C,$00,$0E,$2A,$0F,$2A,$0C,$2A,$0C,$2A,$0C,$2A,$3F,$2A,$00,$00   ; 1 violet
+        .byte $1E,$00,$3F,$2A,$33,$2A,$38,$2A,$0E,$2A,$3F,$2A,$3F,$2A,$00,$00   ; 2 violet
+        .byte $1E,$00,$3F,$2A,$30,$2A,$3E,$2A,$30,$2A,$3F,$2A,$1E,$2A,$00,$00   ; 3 violet
+        .byte $3F,$00,$3F,$D5,$03,$D5,$1F,$D5,$1F,$D5,$03,$D5,$03,$D5,$00,$00   ; F orange
+        .byte $1E,$00,$3F,$AA,$33,$AA,$3F,$AA,$3F,$AA,$33,$AA,$33,$AA,$00,$00   ; A blue
+        .byte $0C,$00,$0C,$55,$3F,$55,$3F,$55,$0C,$55,$0C,$55,$00,$55,$00,$00   ; + green
+        .byte $1E,$00,$1E,$7F,$3F,$7F,$1E,$7F,$3F,$7F,$1E,$7F,$1E,$7F,$00,$00   ; # white
+        .byte $3F,$00,$3F,$7F,$03,$7F,$1F,$7F,$03,$7F,$3F,$7F,$3F,$7F,$00,$00   ; E white
+        .byte $33,$00,$33,$7F,$1E,$7F,$0C,$7F,$1E,$7F,$33,$7F,$33,$7F,$00,$00   ; X white
+        .byte $3F,$00,$3F,$7F,$0C,$7F,$0C,$7F,$0C,$7F,$0C,$7F,$0C,$7F,$00,$00   ; T white
+        .byte $1F,$00,$3F,$7F,$33,$7F,$3F,$7F,$1F,$7F,$3B,$7F,$33,$7F,$00,$00   ; R white
+        .byte $1E,$00,$3F,$7F,$33,$7F,$3F,$7F,$3F,$7F,$33,$7F,$33,$7F,$00,$00   ; A white
+        .byte $08,$00,$2A,$D5,$1C,$D5,$3E,$D5,$1C,$D5,$2A,$D5,$08,$D5,$00,$00   ; * orange
+        .byte $37,$00,$37,$D5,$18,$D5,$0C,$D5,$06,$D5,$3B,$D5,$3B,$D5,$00,$00   ; % orange
+        .byte $1E,$00,$33,$AA,$33,$AA,$3B,$AA,$3B,$AA,$03,$AA,$3E,$AA,$00,$00   ; @ blue
+        .byte $00,$00,$00,$55,$3E,$55,$00,$55,$3E,$55,$00,$55,$00,$55,$00,$00   ; = green
+        .byte $0C,$00,$0E,$D5,$0F,$D5,$0C,$D5,$0C,$D5,$0C,$D5,$3F,$D5,$00,$00   ; 1 orange
+        .byte $1E,$00,$3F,$D5,$33,$D5,$38,$D5,$0E,$D5,$3F,$D5,$3F,$D5,$00,$00   ; 2 orange
+        .byte $1E,$00,$3F,$D5,$30,$D5,$3E,$D5,$30,$D5,$3F,$D5,$1E,$D5,$00,$00   ; 3 orange
+        .byte $38,$00,$3C,$55,$36,$55,$33,$55,$3F,$55,$30,$55,$30,$55,$00,$00   ; 4 green
+        .byte $3F,$00,$3F,$AA,$03,$AA,$1F,$AA,$30,$AA,$3F,$AA,$1E,$AA,$00,$00   ; 5 blue
+        .byte $1E,$00,$3F,$2A,$03,$2A,$1F,$2A,$33,$2A,$3F,$2A,$1E,$2A,$00,$00   ; 6 violet
+        .byte $1E,$00,$33,$7F,$33,$7F,$33,$7F,$33,$7F,$33,$7F,$1E,$7F,$00,$00   ; 0 white
+        .byte $33,$00,$3F,$55,$33,$55,$33,$55,$33,$55,$33,$55,$33,$55,$00,$00   ; M green
+        .byte $1E,$00,$3F,$AA,$33,$AA,$18,$AA,$0C,$AA,$00,$AA,$0C,$AA,$00,$00   ; ? blue
+BOOM_ENTRY = 14
+fly_lo: .lobytes cur_alien+0,cur_alien+24,cur_alien+48,cur_alien+72,cur_alien+96,cur_alien+120,cur_alien+144,cur_alien+168,cur_alien+192,cur_alien+216,cur_alien+240,cur_alien+264,cur_alien+288,cur_alien+312,boom_s0f0,boom_s0f1,boom_s1f0,boom_s1f1,boom_s2f0,boom_s2f1,boom_s3f0,boom_s3f1,boom_s4f0,boom_s4f1,boom_s5f0,boom_s5f1,boom_s6f0,boom_s6f1
+fly_hi: .hibytes cur_alien+0,cur_alien+24,cur_alien+48,cur_alien+72,cur_alien+96,cur_alien+120,cur_alien+144,cur_alien+168,cur_alien+192,cur_alien+216,cur_alien+240,cur_alien+264,cur_alien+288,cur_alien+312,boom_s0f0,boom_s0f1,boom_s1f0,boom_s1f1,boom_s2f0,boom_s2f1,boom_s3f0,boom_s3f1,boom_s4f0,boom_s4f1,boom_s5f0,boom_s5f1,boom_s6f0,boom_s6f1

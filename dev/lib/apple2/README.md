@@ -256,6 +256,14 @@ It depends neither on the file manager nor on a music player.
 | `mb_tick` | A=1 if an expiry is observed and acknowledged; otherwise A=0. Never blocks. |
 | `mb_stop` | Silences the six voices, disables polling, restores the saved ACR and T1 IRQ enable bit. |
 
+Option `MB_FAST_WRITE = 1` (define it before the include; default 0, byte-identical
+to the code without the option): `mb_write` stores to absolute `$Cn00`/`$Cn01`
+(`$Cn80`/`$Cn81`) operands that `mb_init` patches for the slot, instead of
+rebuilding `mb_ptr` and storing through it: about 55 cycles a write instead of
+about 110, same contract. WARGALAGA II uses it (music and effects every
+frame); `dev/tests/test_rgb_mockingboard.py` runs its Mockingboard checks on
+both variants.
+
 `mb_init` selects the first chip. Operations before initialisation or
 after a detection that found no card are harmless. A register outside 0..15 is
 ignored. Return values are tested in A (`CMP #0`), without assuming the
@@ -299,11 +307,28 @@ RGB/VIA/AY bus and traces the accesses: RGB pulse order,
 II+/IIe/IIc paths, slots, no card, 4c wake-up, two AYs, six volumes,
 IRQ mask and timer state. Tests on physical cards are still to be done.
 
-## PT3 extension: feasibility and proposed scope
+## PT3 decoder: `pt3/` (WARGALAGA II, 2026-10-23)
+
+[`pt3/pt3.s`](pt3/pt3.s) is Vince Weaver's pt3_lib 0.5 decoder, used under
+its 0BSD option ([`pt3/pt3_lib-NOTICE.txt`](pt3/pt3_lib-NOTICE.txt): upstream
+revision, what changed). `pt3_lib_core.s` and `pt3_lib_init.s` are unchanged;
+`pt3_zp.inc` puts its 32 zero-page bytes at `PT3_ZP` (outside ProDOS's
+`$FA-$FF`); `pt3.s` keeps decoding only: `pt3_init_song`, then `pt3_tick`
+fills `AY_REGISTERS..+13` for one AY (R13 `$FF` = unchanged) and loops.
+No IRQ installation, slot patching or AY writes: the program owns those
+(the policy below). The 1.77 MHz conversion is off unless
+`PT3_FREQ_CONVERSION = 1`. Include it from a module of its own (its labels
+are many). Size: ~1.7 KB code, 448 bytes of tables, ~570 bytes of init.
+Measured in WARGALAGA II: 1 450-2 400 cycles a tick (mean 1 570) for a
+two-voice song. That game links it with its song for aux `$6000` and calls
+it through bank-switching trampolines from its timer 1 handler
+(`wargalagaii/src/music.s`, `sound.s`).
+
+## PT3 extension: feasibility and proposed scope (2026-10-22 notes)
 
 PT3 music support can be added as an optional module, at no cost
 to games that do not link it. The hardware is already covered by
-`mockingboard.asm`, but **the repository does not contain a PT3 decoder yet**.
+`mockingboard.asm`; the decoder is now `pt3/` (above).
 The preferred base, after examining A2FileCmd, is its **corrected ca65 port
 of the GROUiK / French Touch player** (`src/plugins/ppt3/`), a translation of
 S.V. Bulba's ZX player with Ivan Roshin's table generators,

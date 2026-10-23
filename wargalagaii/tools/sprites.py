@@ -27,6 +27,8 @@ import sys
 import zlib
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT.parent / 'dev/tools'))
+import fonts
 OUT = ROOT / 'src/sprites.inc'
 
 # name: (palette bit, drawing)
@@ -51,7 +53,68 @@ SPRITES = {
         'W',
         'W',
     ]),
+    'ufo': (0, [                # the hurry-up saucer
+        '..WWW..',
+        '.WLWLW.',
+        'WWWWWWW',
+        'L.L.L.L',
+        '.WWWWW.',
+        '..L.L..',
+        '.L...L.',
+        '.......',
+    ]),
+    'bomb': (1, [               # one byte wide, blue (left dot, palette 1)
+        'L',
+        'L',
+        'L',
+        'L',
+    ]),
 }
+
+# Explosions, two frames each: an alien's (7 x 8, drawn like a flying
+# alien) and the ship's (7 x 10, drawn like the ship).
+BOOM = (1, [
+    '...W...',
+    '.R.W.R.',
+    '..RWR..',
+    'WWW.WWW',
+    '..RWR..',
+    '.R.W.R.',
+    '...W...',
+    '.......',
+], [
+    'R..W..R',
+    '.R...R.',
+    '..R.R..',
+    'WW...WW',
+    '..R.R..',
+    '.R...R.',
+    'R..W..R',
+    '.......',
+])
+SHIPBOOM = (1, [
+    '.......',
+    '...R...',
+    '.R.W.R.',
+    '..WWW..',
+    'RWW.WWR',
+    '..WWW..',
+    '.R.W.R.',
+    '...R...',
+    '.......',
+    '.......',
+], [
+    'R..R..R',
+    '.R...R.',
+    '..R.R..',
+    'R.....R',
+    'W.....W',
+    'R.....R',
+    '..R.R..',
+    '.R...R.',
+    'R..R..R',
+    '.......',
+])
 
 # Small aliens: 7 cells x 10 rows, two frames. Pack n of 4 levels uses
 # design n mod 6 in tint n div 6.
@@ -248,12 +311,93 @@ BIG = [
 
 # Clipped to the shift's start byte (a shot is one byte wide, so at shift 3
 # only its left dot shows): half the cost of a two-byte sprite.
-ONE_BYTE = {'shot'}
+ONE_BYTE = {'shot', 'bomb'}
 
 TINTS = ((0, 'L'), (0, 'R'), (1, 'L'), (1, 'R'))   # violet, green, blue, orange
 
+# The boss (levels 25, 50, 75, 100): 16 cells x 24 rows, orange.
+BOSS = (1, [
+    '......WWWW......',
+    '....WWXXXXWW....',
+    '...WXXWWWWXXW...',
+    '..WXXW.WW.WXXW..',
+    '.WXXW.XWWX.WXXW.',
+    'WXXW..XWWX..WXXW',
+    'WXW...WWWW...WXW',
+    'WXXWWWWXXWWWWXXW',
+    '.WXXXXWXXWXXXXW.',
+    '..WWWWXWWXWWWW..',
+    '.X..WXXWWXXW..X.',
+    'X.X.WXWXXWXW.X.X',
+    'X..XWXW..WXWX..X',
+    '.X.XWXW..WXWX.X.',
+    '..XXWXXWWXXWXX..',
+    '...XWWXXXXWWX...',
+    '....WWWXXWWW....',
+    '.....WXWWXW.....',
+    '....X.XWWX.X....',
+    '...X..X..X..X...',
+    '..X...X..X...X..',
+    '.X....X..X....X.',
+    'X.....X..X.....X',
+    '......X..X......',
+])
+
+# Falling objects (lot 5): two bytes on an even byte column (an object never
+# moves sideways, so no shifts): a glyph of the font in the left byte, a bar
+# of its category's colour in the right one. Order = model.KINDS.
+# Right-byte colours (odd byte column): violet $2A, green $55, blue $AA,
+# orange $D5, white $7F.
+BAR = {'violet': 0x2A, 'green': 0x55, 'blue': 0xAA, 'orange': 0xD5, 'white': 0x7F}
+ICONS = [('$', 'green'), ('$', 'orange'), ('$', 'blue'), ('$', 'violet'),      # coins
+         ('S', 'blue'), ('B', 'blue'), ('T', 'blue'),                          # gauges
+         ('1', 'violet'), ('2', 'violet'), ('3', 'violet'), ('F', 'orange'),   # weapons
+         ('A', 'blue'), ('+', 'green'), ('#', 'white'),                        # armour, life, skull
+         ('E', 'white'), ('X', 'white'), ('T', 'white'), ('R', 'white'), ('A', 'white'),
+         ('*', 'orange'), ('%', 'orange'), ('@', 'blue'), ('=', 'green'),      # x2 x5 shield freeze
+         ('1', 'orange'), ('2', 'orange'), ('3', 'orange'), ('4', 'green'),    # rank marks
+         ('5', 'blue'), ('6', 'violet'), ('0', 'white'),
+         ('M', 'green'), ('?', 'blue')]                                        # sub-games
+
+
+def icon(char, colour):
+    rows = []
+    for r, g in enumerate(fonts.glyph(char)):
+        rows.append([g, BAR[colour] if 1 <= r <= 6 else 0])
+    return rows
+
+
 # The game links one small design and tint for now (lot 6: packs in aux RAM).
 GAME_SMALL = (0, 0)
+
+
+def alien_shapes(design, tint):
+    """The 14 entries (shift*2 + frame) of a small alien, rows of bytes."""
+    _, a, b = SMALL[design]
+    frames = [shifted(tinted(f, tint), TINTS[tint][0])[1] for f in (a, b)]
+    return [frames[f][s] for s in range(7) for f in range(2)]
+
+
+def combo_table(combo):
+    """Bytes of design combo // 4, tint combo % 4, entry after entry."""
+    return bytes(b for entry in alien_shapes(combo // 4, combo % 4) for row in entry for b in row)
+
+
+def big_shapes(design, tint):
+    """The 14 entries (shift*2 + frame) of a big alien (10 cells, 4 bytes)."""
+    _, a, b = BIG[design]
+    frames = [shifted(tinted(f, tint), TINTS[tint][0])[1] for f in (a, b)]
+    return [frames[f][s] for s in range(7) for f in range(2)]
+
+
+def big_table(combo):
+    return bytes(b for entry in big_shapes(combo // 4, combo % 4) for row in entry for b in row)
+
+
+def aux_image():
+    """WG2.AUX: the 24 small tables, then the 8 big ones."""
+    return b''.join(combo_table(c) for c in range(len(SMALL) * len(TINTS))) + \
+        b''.join(big_table(c) for c in range(len(BIG) * len(TINTS)))
 
 
 def tinted(drawing, tint):
@@ -322,9 +466,48 @@ def emit():
         out.append('        .byte ' + ','.join(str(c % 7 * 2) for c in range(i, i + 14)))
     for name, (palette, drawing) in SPRITES.items():
         table(out, name, [drawing], palette)
-    design, tint = GAME_SMALL
-    _, a, b = SMALL[design]
-    table(out, 'alien', [tinted(a, tint), tinted(b, tint)], TINTS[tint][0])
+    # Small aliens: every design x tint in WG2.AUX (aux memory); the game
+    # copies the current pack's table to cur_alien (lot 6).
+    out.append(f'ALIEN_W = {ALIEN_BYTES}              ; bytes per row')
+    out.append(f'ALIEN_H = {len(SMALL[0][1])}')
+    out.append(f'ALIEN_CELLS = {len(SMALL[0][1][0])}')
+    out.append(f'ALIEN_TABLE = {ALIEN_TABLE}          ; bytes: 7 shifts x 2 frames x rows x width')
+    out.append(f'NCOMBOS = {len(SMALL) * len(TINTS)}')
+    out.append('AUX_BASE = $2000              ; aux memory: WG2.AUX')
+    out.append(f'BIG_W = {BIG_BYTES}')
+    out.append(f'BIG_TABLE = {BIG_TABLE}')
+    out.append(f'NBIG = {len(BIG) * len(TINTS)}')
+    out.append(f'AUX_BIG = AUX_BASE + {ALIEN_TABLE * len(SMALL) * len(TINTS)}')
+    entry = BIG_TABLE // 14
+    out.append('big_lo: .lobytes ' + ','.join(f'cur_big+{entry * e}' for e in range(14)))
+    out.append('big_hi: .hibytes ' + ','.join(f'cur_big+{entry * e}' for e in range(14)))
+    out.append(f'AUX_SIZE = {len(aux_image())}')
+    table(out, 'boom', list(BOOM[1:]), BOOM[0])
+    # the boss leaps 7 cells at a time from a multiple of 7: shift 0 only
+    nb = (2 * len(BOSS[1][0]) + 6) // 7
+    rows = shifted(tinted(BOSS[1], 3), BOSS[0], nb)[1][0]
+    out.append(f'BOSS_W = {nb}')
+    out.append(f'BOSS_H = {len(BOSS[1])}')
+    out.append(f'BOSS_CELLS = {len(BOSS[1][0])}')
+    out.append('boss_s0:')
+    for row in rows:
+        out.append('        .byte ' + ','.join(f'${b:02X}' for b in row))
+    table(out, 'shipboom', list(SHIPBOOM[1:]), SHIPBOOM[0])
+    # Flying things share one pointer table: alien entries, then explosion
+    # entries (render.s keeps the entry it drew, to EOR it away).
+    out.append('; objects: 16 bytes each (2 a row), in model.KINDS order')
+    out.append(f'NKINDS = {len(ICONS)}')
+    out.append('icons:')
+    for char, colour in ICONS:
+        rows = icon(char, colour)
+        out.append('        .byte ' + ','.join(f'${b:02X}' for row in rows for b in row)
+                   + f'   ; {char} {colour}')
+    out.append('BOOM_ENTRY = 14')
+    entry = ALIEN_TABLE // 14
+    out.append('fly_lo: .lobytes ' + ','.join([f'cur_alien+{entry * e}' for e in range(14)]
+                                               + [f'boom_s{s}f{f}' for s in range(7) for f in range(2)]))
+    out.append('fly_hi: .hibytes ' + ','.join([f'cur_alien+{entry * e}' for e in range(14)]
+                                               + [f'boom_s{s}f{f}' for s in range(7) for f in range(2)]))
     return '\n'.join(out) + '\n'
 
 
@@ -342,7 +525,9 @@ def png(path, scale=4):
         for t in range(4):
             sheets += [(TINTS[t][0], tinted(a, t)), (TINTS[t][0], tinted(b, t))]
     sheets += [(p, d) for p, d in SPRITES.values()]
-    per_row, cw, ch = 8, 12, 18          # cells per slot
+    sheets += [(BOOM[0], BOOM[1]), (BOOM[0], BOOM[2]), (SHIPBOOM[0], SHIPBOOM[1]), (SHIPBOOM[0], SHIPBOOM[2])]
+    sheets += [(BOSS[0], tinted(BOSS[1], 3))]
+    per_row, cw, ch = 8, 18, 26          # cells per slot
     rows = (len(sheets) + per_row - 1) // per_row
     w, h = per_row * cw * 2 * scale, rows * ch * scale
     pix = [[(0, 0, 0)] * w for _ in range(h)]
@@ -364,7 +549,17 @@ def png(path, scale=4):
                            + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b''))
 
 
+ALIEN_BYTES = 3
+ALIEN_TABLE = 14 * 8 * ALIEN_BYTES
+BIG_BYTES = 4
+BIG_TABLE = 14 * 16 * BIG_BYTES
+
+
 def main():
+    assert len(combo_table(0)) == ALIEN_TABLE and len(big_table(0)) == BIG_TABLE
+    if '--aux' in sys.argv:
+        Path(sys.argv[sys.argv.index('--aux') + 1]).write_bytes(aux_image())
+        return
     for _, a, b in SMALL:
         assert len(a) == len(b) == 8 and all(len(r) == 7 for r in a + b)
     for _, a, b in BIG:

@@ -61,6 +61,17 @@ names:  lda volume+1,y
         iny
         dex
         bne names
+        lda pathname             ; the prefix: "/VOLUME" (the game opens its
+        pha                      ; data files by name: WG2.AUX)
+        tya
+        inc a
+        sta pathname
+        jsr $BF00
+        .byte $C6                ; SET_PREFIX
+        .word prefix
+        pla
+        sta pathname
+        bcs error
         ldx #0
 suffix: lda filename,x
         sta pathname+2,y
@@ -85,14 +96,20 @@ suffix: lda filename,x
         plp
         bcs error
         jmp $2000
-error:  ldx #0
-print:  lda message,x
+error:  ldx #0                   ; message, a key, back to ProDOS (the
+print:  lda message,x            ; loader used to hang here)
         beq halt
         ora #$80
         jsr $FDED
         inx
         bne print
-halt:   jmp halt
+halt:   bit $C000
+        bpl halt
+        bit $C010
+        jsr $BF00
+        .byte $65                ; QUIT (parameters here: READ may have
+        .word quit_here          ; overwritten $2000)
+quit_here: .byte 4, 0, 0, 0, 0, 0, 0
 online: .byte 2
 online_unit: .byte 0
         .word volume
@@ -102,10 +119,12 @@ reference: .byte 0
 read:   .byte 4
 read_reference: .byte 0
         .word $2000, $9F00, 0
+prefix: .byte 1
+        .word pathname
 close:  .byte 1
 close_reference: .byte 0
 filename: .byte "/WG2.SYS"
-message: .byte "WG2.SYS ERROR", 0
+message: .byte "WG2.SYS ERROR: PRESS A KEY", $0D, 0
 volume: .res 16
 pathname: .res 28
 .assert *-start <= $FF, error, "Boot loader must fit in one page"

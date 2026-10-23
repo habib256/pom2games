@@ -16,8 +16,17 @@
 ; mb_write/timer/tick/stop before initialisation are safe no-ops (A=0).
 ; Non-reentrant; initialise mb_chip before writes. mb_init defaults it to 0.
 ; mb_ptr (2 ZP bytes) and mb_probe_old (1) can be individually aliased.
+; Option MB_FAST_WRITE = 1 (before the include): mb_write stores to absolute
+; $Cn00/$Cn01 ($Cn80/$Cn81) operands that mb_init patches for the slot,
+; instead of re-deriving mb_ptr and storing through it: ~55 cycles a write
+; instead of ~110 (WARGALAGA II: music + effects every frame). Same entry,
+; same registers clobbered; mb_write then leaves mb_ptr alone. Default 0:
+; the code is byte-identical to before the option.
 .ifndef _MOCKINGBOARD_ASM_LOADED_
 _MOCKINGBOARD_ASM_LOADED_ = 1
+.ifndef MB_FAST_WRITE
+MB_FAST_WRITE = 0
+.endif
 .zeropage
 .ifndef mb_ptr
 mb_ptr: .res 2
@@ -98,6 +107,9 @@ mb_init:
         lda #$80
         sta mb_ptr
         jsr mb_reset_ay
+.if MB_FAST_WRITE
+        jsr mb_fast_patch
+.endif
         plp
         lda mb_slot
         ldx #0
@@ -125,6 +137,60 @@ mb_via1:
         ora #$C0
         sta mb_ptr+1
         rts
+.if MB_FAST_WRITE
+; Fast writer: X = register, A = value. Operands' high byte = $Cn (mb_init).
+MB_FAST_SITES .set 0
+.macro MB_FAST_STA reg, port
+        .ident(.sprintf("mb_fast%d", MB_FAST_SITES)) = *
+MB_FAST_SITES .set MB_FAST_SITES + 1
+        reg $C400 + port
+.endmacro
+mb_write:
+        cpx #16
+        bcs mb_noop
+        ldy mb_slot
+        beq mb_noop
+        php
+        sei
+        pha
+        lda mb_chip              ; bit 0: the chip, as the slow writer
+        lsr
+        pla
+        bcs mb_fast_second
+        MB_FAST_STA stx, $01     ; register address
+        ldy #7
+        MB_FAST_STA sty, $00     ; latch address
+        ldy #4
+        MB_FAST_STA sty, $00
+        MB_FAST_STA sta, $01     ; register value
+        ldy #6
+        MB_FAST_STA sty, $00     ; write data
+        ldy #4
+        MB_FAST_STA sty, $00
+        plp
+        rts
+mb_fast_second:
+        MB_FAST_STA stx, $81
+        ldy #7
+        MB_FAST_STA sty, $80
+        ldy #4
+        MB_FAST_STA sty, $80
+        MB_FAST_STA sta, $81
+        ldy #6
+        MB_FAST_STA sty, $80
+        ldy #4
+        MB_FAST_STA sty, $80
+        plp
+        rts
+; After every site: the slot's $Cn into each operand's high byte.
+mb_fast_patch:
+        lda mb_slot
+        ora #$C0
+.repeat MB_FAST_SITES, I
+        sta .ident(.sprintf("mb_fast%d", I)) + 2
+.endrepeat
+        rts
+.else
 mb_write:
         cpx #16
         bcs mb_noop
@@ -157,6 +223,7 @@ mb_write:
         sta (mb_ptr),y
         plp
         rts
+.endif
 mb_noop:
         lda #0
         ldx #0

@@ -128,12 +128,14 @@ def have_a2shot(what=None):
 
 
 def run(disk, steps, emulator=None, iie=False, wp=False, timeout=120, check=True,
-        pad_until=False, cwd=None, pal=False):
+        pad_until=False, cwd=None, pal=False, mockingboard=False):
     """Boot `disk` and play `steps`. emulator defaults to a2run (a2shot when
     iie). pad_until inserts `wait:1` before every until: (a2shot needs a
-    frame between a key and the next breakpoint). pal: 50 Hz video (a2shot)."""
+    frame between a key and the next breakpoint). pal: 50 Hz video, mockingboard:
+    a card in slot 4 (a2shot)."""
     emulator = Path(emulator or (A2SHOT if iie else A2RUN))
-    args = [str(emulator)] + (['--iie'] if iie else []) + (['--pal'] if pal else []) + ['--disk', str(disk)]
+    args = [str(emulator)] + (['--iie'] if iie else []) + (['--pal'] if pal else []) \
+        + (['--mockingboard'] if mockingboard else []) + ['--disk', str(disk)]
     if wp:
         args.append('--wp')
     steps = [str(s) for s in steps]

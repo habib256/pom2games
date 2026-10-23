@@ -127,79 +127,290 @@ de la lib n'est plus utilisé (il réécrit les deux octets et ne gère pas
     (copie du paquet en `$1000`, lot 6) pour un `LDA abs,X`.
   - Promouvoir les routines en `[lib]` `dev/lib/hgr/` une fois stables.
 
-## Lot 3 — collisions, tirs ennemis, vies, score, HUD
+## Lot 3 — collisions, tirs ennemis, vies, score, HUD (fait, 2026-10-23)
 
-- [ ] Collisions par boîtes en coordonnées logiques (pas de lecture de
-      l'écran) : tir/alien, tir ennemi/vaisseau, alien/vaisseau ; grille
-      grossière par colonne pour ne tester que les aliens proches.
-- [ ] Vies (3, max 4), réapparition, invulnérabilité courte.
-- [ ] Armure (max 2) : absorbe un tir ennemi puis bouclier quelques
-      secondes. **Une collision avec un alien tue directement**, armure ou
-      pas (décision du 2026-10-22).
-- [ ] Score BCD (mode décimal du 65C02, comme CHROMABREAK) ; crédits.
-- [ ] HUD : `hgr_hud8` (`dev/lib/hgrc` : `hgr_hud8_asm.s`, `hgr_hud8_putu.s`,
-      historique par page, 7 850 cycles pour 5 chiffres) **un chiffre au plus
-      par image** ; jauges S/B/T en barres d'octets. Texte : `hgr_text8`
-      (`dev/lib/hgr/hgr_text8.asm`, `HGR_TEXT8_HGR_ORDER=1`) et
-      `dev/lib/font/bbfont.inc` ; texte ×1 blanc seulement (règle de `lib/hgr`).
-- [ ] Conversion décimale hors BCD (boutique, records) : `gfx_u16_digits`
-      (`dev/lib/gfx`, 65C02) ou le noyau décimal unique du lot 3 des libs
-      **s'il est fusionné** (en attente).
-- **Accepté si** : `test_logic.py` couvre les collisions ; une partie
-  jouée par script perd ses 3 vies au bon pas.
+- [x] Collisions en coordonnées logiques, sans lire l'écran. Tir contre
+      aliens posés : `shot_frow` (ligne du tir → la seule rangée qu'il peut
+      toucher) puis `col_of` (cellule → colonne), un test ; puis la liste
+      des aliens en vol (`fly_list`, construite pendant la boucle des aliens,
+      dans l'ordre du modèle). Bombe et alien contre le vaisseau : boîte
+      réduite (cellules 1-5, lignes 2-9 du vaisseau). Premier touché
+      seulement, ordre fixé par le modèle.
+- [x] Bombes ennemies : 6 au plus, une tentative toutes les 12 pas par un
+      alien au hasard (posé ou en plongée, visible, au-dessus de la ligne 150),
+      4 lignes par pas, bleues, tracées en EOR comme les tirs.
+- [x] Aliens touchés : état `ST_BOOM` 8 pas (explosion en 2 images, tracée
+      comme un alien en vol), puis morts ; 50 points posés, 100 en vol.
+- [x] Vaisseau : 3 vies ; touché → explosion (24 pas visibles), réapparition
+      au centre au pas 45, 60 pas d'invulnérabilité (le vaisseau clignote).
+      Armure (0 au départ, max 2 au lot 5/7) : absorbe une bombe et donne
+      60 pas d'invulnérabilité ; une collision avec un alien tue quand même.
+      Plus de vies : `GAME OVER` au milieu du champ ; après 2 s, ESPACE ou
+      Pomme ouverte relancent une partie.
+- [x] Score BCD 6 chiffres (`SED`), crédits BCD 4 chiffres (0 jusqu'au
+      lot 5).
+- [x] HUD (lignes 0-7) : score, vies, armure, jauges S et B en barres de
+      segments, T, crédits. **Écart au plan** : pas de `hgr_hud8` ni de
+      `hgr_text8` ; un caractère = une colonne d'octets de 8 lignes tracée
+      par la même macro que les sprites (`glyph_sta`, ~230 cycles), police
+      `bbfont` $20-$5F suivie de 4 glyphes du jeu. Le HUD n'est recalculé
+      que si son état (8 octets) a changé depuis le dernier tracé de la
+      page, et seuls les caractères qui diffèrent sont réécrits.
+- [ ] Conversion décimale hors BCD : pas encore utile (boutique, records).
+- **Acceptation** (`make test`, ~10 s) : oracle 2 000 pas avec collisions,
+  3 vies perdues aux pas 455, 923 et 1602 identiques au modèle puis
+  `GAME OVER` ; second oracle avec armure (1 500 pas) ; sans joueur :
+  `GAME OVER`, 0 vie dans le HUD des deux pages, ESPACE relance ; banc
+  (10 tirs qui traversent grâce au drapeau de test `nohit`, bombes) :
+  0 image en retard sur 300.
+- **À surveiller** : phase d'entrée, ~37 images en retard sur ~1 600 en
+  NTSC (1 en PAL ; chiffre corrigé par la chasse aux bugs, ~45 sur //c), vitesse exacte ; logique ~3 200-4 600 cycles. Gain du
+  lot : un alien posé qui change d'octet de départ ne fait plus effacer
+  que la colonne qu'il quitte.
 
-## Lot 4 — son : Mockingboard ou haut-parleur
+## Chasse aux bugs (2026-10-23, après le lot 3)
 
-- [ ] Détection au démarrage, **avant d'installer l'horloge VBL du //c**
-      (firmware souris) : `mb_detect`
-      (`dev/lib/apple2/mockingboard.asm`) ; //e : slots 7..1 sauf 3 ;
-      //c : réveil de la Mockingboard 4c à `$C403`. Résultat dans une
-      variable `audio_backend` (0 = haut-parleur, n = slot).
-- [ ] `[lib]` `mockingboard.asm` : `mb_write` en `STA $Cn00/$Cn01` absolus
-      patchés par `mb_init` (−35 % estimé par l'audit, **non fait**).
-- [ ] `[lib]` `dev/lib/apple2/pt3.asm` : lecteur PT3 (aucun dans `dev/lib`).
-      Base : `pt3_lib` de Vince Weaver (0BSD) ou le port GROUiK d'A2FileCmd
-      (voir `dev/lib/apple2/README.md`, « Extension PT3 ») ; ZP allouée par
-      ld65, morceau aligné sur 256 octets, table de fréquences AY convertie
-      pour 1,023 MHz ; ne pas réécrire R13 quand le décodeur rend `$FF`.
-- [ ] Back-end AY : un gestionnaire ProDOS unique sert le T1 de la VIA à
-      50 Hz (recharge ~20 454 cycles) → tick PT3 + bruitages AY (une voix
-      réservée aux bruitages). Pas de ZP cc65 ni de pile C dans
-      l'interruption. Mesurer le pire tick (10-15 % du CPU annoncé en amont,
-      soit ~3 000-4 300 cycles par image de jeu) : il doit tenir dans les
-      6 000 réservés.
-- [ ] Back-end haut-parleur (décision du 2026-10-22 : en jeu, bruitages
-      seulement ; musique seulement hors jeu) : bruitages non bloquants joués **dans
-      l'attente du VBL** (boucle comptée qui bascule `$C030` tant que
-      l'échéance n'est pas atteinte ; sans temps libre, l'effet est sauté,
-      jamais l'image retardée). `[lib]` candidat :
-      `dev/lib/apple2/sfx_wait.asm`. `tone` (`dev/lib/apple2/sound.asm`) reste
-      pour les écrans fixes seulement (il bloque).
-- [ ] Musique haut-parleur hors jeu : `dev/lib/apple2/duet.asm` **si
-      disponible** (lot 3 des libs ; sinon `chromabreak/src/duet.inc`), boucle
-      en page 3 sans franchir de page, IRQ masquées pendant une note.
-- [ ] Silence AY avant chaque accès disque (le pilote Disk II de ProDOS
-      masque les IRQ : la musique s'arrête pendant un chargement).
-- [ ] Tests : `tests/test_audio.py --mockingboard` (a2shot `--iie
-      --mockingboard`, carte en slot 4 avec IRQ VIA) : détection, registres
-      AY écrits, ticks à 50 Hz ; `tests/test_audio.py` sans carte : bascules
-      du haut-parleur (`Result.spk`) ; **test de cadence** : 1 000 images avec
-      et sans carte, même nombre de pas logiques et même état final (le son
-      ne change pas la vitesse) ; `dev/tests/test_rgb_mockingboard.py` reste
-      vert après la modification de `mb_write`.
+- [x] **Invariant d'écran** (`tests/test_screen.py`, dans `make test`) : la
+      page que le 6502 vient de dessiner est comparée octet par octet à un
+      dessin complet de l'état en Python (HUD, formation, GAME OVER,
+      vaisseau, vols en EOR, tirs, bombes, étoiles). 5 graines × 210 images
+      (jeu, bombes, explosions, fin de partie, relance) : identiques. Une
+      mutation (bombes ôtées de la référence) est bien détectée.
+- [x] **Écritures sauvages** (`storewatch` a2shot sur une partie avec fin et
+      relance) : rien en page zéro hors jeu, `$0200-$0FFF`, `$1300-$1FFF`,
+      RODATA, `$8F24-$BEFF`, page ProDOS `$BF00` ; dans le code, seules les
+      72 opérandes de `select_page`.
+- [x] **Fuzz logique** : 3 graines × 6 000 pas (armure 0, 1, 2) identiques
+      au modèle.
+- [x] **//c enfin exécutée** (`make test-iic`, optionnel : `tests/iic_probe.cpp`
+      sur les sources POM2, comme le `test-mouse` de CHROMABREAK) : ROM
+      //c 16 Ko et 32 Ko, NTSC et PAL, avec et sans manette (`$C070`
+      acquitte aussi le VBL du //c) : horloge par IRQ, vitesse exacte,
+      formation posée sans retard, ESC rend la main et l'IRQ. Pendant
+      l'entrée : ~43 images en retard sur //c contre ~21 sur //e (coût des
+      interruptions).
+- [x] **Corrigé** : chaque nouvelle partie rejouait la même suite au hasard
+      (graine fixe) ; la relance sème maintenant avec le compteur d'images.
+      La première partie garde `SEED` (tests) ; le titre du lot 9 sèmera
+      avec l'instant de la touche.
+- Défauts de banc corrigés en route (pas du jeu) : `until:X` deux fois de
+  suite n'avance pas ; une relance (effacement des deux pages, ~10
+  rafraîchissements) dépassait une limite de 10 images.
+- **Seconde passe** :
+  - **Corrigé — fronts VBL manqués sur //e** : `timing_scan` doit passer au
+    moins une fois par blanc (~4 550 cycles). `aliens_pass` (40 aliens
+    quand plusieurs rangées changent) et les effacements de colonne du
+    lot 3 tournaient jusqu'à ~6 200 cycles sans scruter : environ un
+    rafraîchissement perdu pour 3 000, donc un jeu un peu plus lent et des
+    images en retard **non comptées**. Scrutation ajoutée tous les
+    8 aliens, après chaque colonne effacée, entre tirs et bombes, dans le
+    message. Test permanent `vbl_edges` (chaque front compté ≤ 1,5
+    rafraîchissement après le précédent, entrée et banc de 10 tirs).
+    Conséquence : l'entrée NTSC montre maintenant ses vrais retards,
+    **~37 images sur ~1 600** (21 avant : les fronts manqués en cachaient).
+  - La page en cours de dessin n'est jamais affichée : 300 échantillons
+    dans le rendu sur //e (a2shot) et sur //c / //e (sonde).
+  - Ctrl-RESET avec l'IRQ VBL active sur //c : retour au lanceur ProDOS,
+    horloge rendue (`iic32-reset`, `iie-reset` dans `make test-iic`).
+  - Endurance : ~10 000 images de jeu au hasard (fin, relance, tous les
+    aliens morts), invariant d'écran vérifié toutes les 25 images.
+  - Manette en pleine phase d'entrée : répond en moins de 10
+    rafraîchissements (la lecture coupée par l'échéance garde la valeur
+    d'avant, sans gêne mesurable).
+- **Troisième passe** (relecture indépendante de l'assembleur + chemins
+  jamais exécutés) :
+  - **Corrigé — effacements qui débordaient** : `render_init` et
+    `game_init` effaçaient des pages entières (1 024 octets pour 773) et
+    remettaient à zéro, derrière leurs variables, l'horloge (après une
+    relance, la //e passait en délais ; la //c gardait son IRQ sans
+    gestionnaire valide), `ram_unit` (`/RAM` jamais reformaté à la
+    sortie) et la page zéro sauvée par le crt0 (restaurée à zéro en
+    quittant). `zero_block` efface exactement N octets ; test : horloge,
+    `/RAM` et page zéro intactes après une relance. Le test de sortie
+    « /RAM reconstruit » passait à tort : il ne regardait que la liste
+    des unités.
+  - **Corrigé — repli sans horloge à 57 % de vitesse** : deux `WAIT(80)`
+    en plus du dessin ; maintenant un `WAIT(60)` (88-101 %).
+  - **Corrigé — lecture manette sans borne sur //c** : sans manette et
+    sans interruption, `joy_read_irq` tournait pour toujours ; borne à
+    255 comptes (17 cycles le compte, seuils recalés : 45 / 124 sur 165).
+  - **Corrigé — amorce** : `WG2.SYS` introuvable bouclait pour toujours ;
+    message, une touche, QUIT (paramètres dans la page relogée).
+  - Testés désormais : 64 Ko (MACHID), volume sans `WG2.SYS`, interruption
+    //c qui cesse (avec et sans manette), repli sans horloge.
+  - **Ouvert, risque faible** : sur //c, `LDA $C070` (manette) acquitte
+    aussi le VBL ; une interruption arrivant pendant cet accès peut être
+    perdue (une image en retard) ou, en théorie, laisser ProDOS face à une
+    IRQ non réclamée. Non observé en 3 200 rafraîchissements ; à vérifier
+    sur machine (comme pour CHROMABREAK).
+- **Quatrième passe** (après le lot 5 ; relecture indépendante de
+  l'assembleur + tests) :
+  - **Corrigé — les bonus ne tombaient presque jamais** : la sorte venait
+    de l'octet faible d'un second tirage, qui n'est que le premier décalé
+    d'un bit ; après le test « < 40 », seules les pièces et S sortaient
+    (modèle et 6502 identiques : l'oracle ne pouvait pas le voir ; l'oracle
+    `bonus_effects` pose les objets lui-même). La sorte vient maintenant de
+    l'octet fort (uniforme à 3 %). Test : ≥ 15 sortes lâchées en 30 parties
+    du modèle (5 avant).
+  - **Corrigé — avec la Mockingboard, le haut-parleur jouait aussi** chaque
+    bruitage. Test : aucune bascule de `$C030` avec la carte.
+  - **Corrigé** : `objects_erase` sans `timing_scan` (6 objets + 6 bombes
+    pouvaient dépasser un blanc) ; le son du tir partait sans tir (places
+    toutes prises) ; le crâne « fin des bonus » épargnait bouclier et gel ;
+    ×2 ramassé sous ×5 faisait redescendre à ×2 (on garde le plus fort).
+  - **Garde ajoutée** : un objet lâché sous la ligne 184 serait dessiné
+    dans la page zéro (vérifié en le forçant) ; les règles ne peuvent pas le
+    produire (un tir ne touche rien sous la ligne 179) ; test permanent
+    `model_invariants` (tout ce que la logique donne au dessin reste
+    traçable, jauges dans leurs bornes).
+  - Ctrl-RESET et ESC en pleine musique (IRQ T1 active sur //e) : retour au
+    lanceur ProDOS, qui répond.
+  - **Non testé** : //c avec Mockingboard 4c (deux gestionnaires d'IRQ,
+    souris + VIA) : a2shot n'a pas de //c, la sonde n'a pas de carte.
+- **Reste, hors lot 3** : quand les 40 aliens sont morts, rien ne se
+  passe (niveaux suivants : lot 6). Les tampons de fichier ProDOS (lot 6)
+  devront éviter `$1000-$12FF` (tables de lignes).
 
-## Lot 5 — bonus et jauges
+## Lot 4 — son : Mockingboard ou haut-parleur (fait, 2026-10-23)
 
-- [ ] Objets qui tombent (≤ 6 à la fois) : pièces 10/50/100/200, S, B, T,
-      armes (simple, double, triple), tir automatique, armure, vie, crâne,
-      lettres E-X-T-R-A, ×2/×5, bouclier, gel, icônes des sous-jeux,
-      marques de rang.
-- [ ] Jauges S (vitesse du vaisseau), B (tirs à l'écran), T (durée des
-      bonus temporaires) avec leur maximum ; au maximum, l'icône donne des
-      points.
-- **Accepté si** : `test_logic.py` couvre chaque effet.
+`src/sound.s`, données `src/sound.inc` (`tools/sound.py`). `logic.s` ne fait
+que lever des bits d'événement (`snd_ev` : tir, alien abattu, vaisseau
+touché, armure, fin de partie), hors de l'état comparé au modèle.
 
-## Lot 6 — 100 niveaux, paquets, boss
+- [x] Détection au démarrage (`mb_detect`), **avant** l'horloge //c ;
+      `audio_slot` (0 = haut-parleur).
+- [x] `[lib]` `mockingboard.asm` : option **`MB_FAST_WRITE = 1`** (opérandes
+      absolues patchées par `mb_init`, ~55 cycles l'écriture au lieu de
+      ~110) ; défaut 0 identique octet pour octet à l'ancien code ;
+      `dev/tests/test_rgb_mockingboard.py` passe sur les deux variantes.
+- [x] ~~Écart au plan — pas de PT3~~ : **PT3 fait au lot 6** (voir plus
+      bas). Le format maison à deux voix du lot 4 a été retiré ; le morceau
+      original en la mineur (`tools/sound.py`) est devenu un module PT3.
+- [x] Musique sur **l'IRQ du timer 1 de la VIA à 60 Hz** (gestionnaire
+      ProDOS `ALLOC_INTERRUPT`, `mus_irq`, page zéro propre `mptr`, `mb_chip`
+      gardé) : les notes partent à l'heure quel que soit le nombre d'images
+      par seconde, et au même tempo en PAL. Première version (avancée une
+      fois par image) : chaque attaque tombait sur une frontière d'image et
+      le rythme boitait avec la cadence — **entendu par l'utilisateur**
+      (2026-10-23) ; test `tempo` (60 tics par seconde de processeur en
+      entrée, formation posée et PAL). Puce 1 : musique (A mélodie, B basse,
+      volume qui décroît) ; puce 2 : bruitages (voix A, son ou bruit), écrits
+      par `sound_frame`. Registres écrits seulement s'ils changent.
+- [x] Haut-parleur : bruitages seulement (pas de musique en jeu), joués
+      **dans les boucles d'attente** de `timing.s` (//e : jusqu'au front VBL ;
+      //c : jusqu'à la bascule par l'IRQ), un `STA $C030` toutes les
+      `spk_period` tours de 63 cycles (les deux boucles ont la même durée :
+      `spk_pad` sur //c). Jamais d'image retardée : sans temps libre, l'effet
+      se tait. Bornes des attentes ramenées à 8 192 tours (~0,5 s) : le tour
+      plus long avait porté le repli //c à ~4 s.
+- [x] Priorités : mort > fin de partie > armure > alien abattu > tir ; un
+      effet de même rang repart du début. **S** coupe / remet le son.
+- [ ] Musique haut-parleur hors jeu (`duet.asm`) : pas d'écran hors jeu
+      avant le lot 9 (titre, boutique).
+- [ ] Silence AY avant un accès disque : pas d'accès disque en jeu avant le
+      lot 6.
+- **Acceptation** (`make test`, `tests/test_audio.py`) : haut-parleur — rien
+  sans effet, un tir = des bascules, toutes dans les boucles d'attente,
+  rien quand S coupe ; Mockingboard (a2shot `--mockingboard`, registres AY
+  décodés des écritures VIA) — slot 4 trouvé, musique sur la puce 1
+  (première note, mélodie qui avance), tir sur la puce 2, silence sur S et
+  ESC, retour de la musique sur S ; cadence avec la carte : 1 000 images en
+  2 000 rafraîchissements, aucune en retard. `make test-iic` : effets sur
+  //c et //e, depuis les boucles d'attente seulement.
+- **À surveiller** : entrée NTSC ~41-46 images en retard sur ~1 600 avec la
+  carte (son ~1 100 cycles par image). Lot 6 : musique PT3, voir plus bas.
+
+## Lot 5 — bonus et jauges (fait, 2026-10-23)
+
+Logique : `tools/model.py` (sortes, poids, effets) → `tools/bonus.py` →
+`src/bonus.inc` (constantes `K_*`, `drop_table`) ; 6502 : `drop`,
+`pickups`, `take` (table de sauts) dans `src/logic.s`.
+
+- [x] 32 sortes d'objets (≤ 6 à la fois, 2 lignes par pas) : pièces
+      10/50/100/200 (crédits BCD, plafond 9999), S, B, T, armes simple
+      (malus) / double / triple (tirs obliques ±1 cellule par pas), tir
+      automatique (une salve tous les 4 pas, tir **tenu** : Pomme ouverte ou
+      ESPACE gardé), armure, vie, crâne (au hasard : arme simple, S−1, B−1
+      ou fin des bonus temporisés), lettres E-X-T-R-A (les 5 : une vie),
+      ×2 / ×5 (sur le score), bouclier, gel (les aliens s'arrêtent et ne
+      tirent plus ; les explosions continuent), 6 marques de rang + marque
+      sombre (gardées pour le lot 7), icônes des 2 sous-jeux (gardées pour
+      le lot 8).
+- [x] Un alien abattu lâche un objet une fois sur ~6 (`DROP_RATE` 40/256),
+      sorte tirée dans une table de 64 (poids dans `model.py`).
+- [x] Jauges : S = vitesse (1..5 → 2..6 cellules par pas), B = tirs à
+      l'écran (5..10), T = durée des bonus (30..90 s, 300 pas par cran) ; au
+      maximum (et armure 2, 4 vies), l'icône rapporte 500 points (× le
+      multiplicateur).
+- [x] Objets dessinés sans prédécalage : ils tombent droit sur une colonne de
+      14 points (2 octets) ; icône = une lettre de `bbfont` + une barre de la
+      couleur de la catégorie (`tools/sprites.py`, 16 octets), EOR.
+- [x] HUD : jauges S et B en 5 segments, T en secondes, crédits, lettres
+      EXTRA ramassées (« - » sinon).
+- **Acceptation** (`make test`) : nouvel oracle `bonus_effects` — chaque
+  sorte tombe sur le vaisseau (posée à la fois dans le 6502 et le modèle),
+  jauges poussées au maximum, EXTRA deux fois, crânes, armes, tir automatique,
+  ×5, gel : 964 pas identiques au modèle, 32 sortes prises (77 ramassages) ;
+  oracle au hasard avec tir tenu ; invariant d'écran avec objets (69
+  échantillons sur 480).
+- **À surveiller** : entrée NTSC ~44 images en retard sur ~1 600.
+
+## Lot 6 — 100 niveaux, paquets, boss (fait, 2026-10-23)
+
+Réalisé (modèle `tools/model.py` = oracle bit-exact, tables
+`tools/bonus.py` → `src/bonus.inc`) :
+
+- [x] Niveaux : sortes NORMAL / GROS / BONUS / KAMIKAZE / BOSS, paramètres
+      par tables (`lv_*`) + saturation par boucle, téléportation de 60 pas
+      avec « LEVEL n », boucle en miroir après le 100 ; `ESCAPE_Y = 224`.
+- [x] `WG2.AUX` : 24 petites + 8 grosses tables d'aliens à aux `$2000`,
+      chargées par blocs de 8 Ko (bitmap `$BF60-$BF63` libéré le temps du
+      READ), `pack_check` copie le paquet courant en `$1000-$1FFF`.
+- [x] Gros aliens (rang 0, cases paires, 2 PV, marque de rang) ; boss 16×24
+      qui saute de 7 cases tous les 8 pas, cœur cases 4-11, rosace et bombe
+      visée.
+- [x] Hurry-up : un niveau normal ou gros qui dure plus de 1 800 pas (60 s)
+      fait sortir une soucoupe en haut (y 10), 2 cases par pas, qui rebondit,
+      hors d'atteinte, et lâche une bombe visée tous les 12 pas ; elle part
+      à la fin du niveau. Testée : oracle bit-exact (niveau poussé à
+      `level_t` = 1 740), invariant d'écran.
+- [x] **PT3** (demandé en cours de lot) : lecteur de Vince Weaver
+      (pt3_lib 0.5, 0BSD) en `[lib]` **`dev/lib/apple2/pt3/`** (sources
+      inchangées + `pt3_zp.inc` relogeable + `pt3.s` : décodage seul, sans
+      IRQ ni écriture carte). Morceau : `tools/pt3.py` écrit
+      `build/song.pt3` depuis la mélodie et la basse de `tools/sound.py`
+      (table 1, notes une octave plus haut : la Mockingboard à 1 MHz joue
+      une octave et ~40 cents plus bas). Lecteur + morceau **en mémoire aux
+      à `$6000`** (zone `AUXM` de `game.cfg`, `build/game.bin.mus` collé à
+      `WG2.AUX` après les paquets) : la mémoire principale garde sa place
+      pour les lots 7-9. L'IRQ du timer 1 y entre par des **trampolines à
+      `$1FE0`** (mêmes octets en principal et en aux, RAMRD/RAMWRT) ; ZP du
+      lecteur `$D0-$EF` (hors `$FA-$FF` de ProDOS). Puce 1 : registres
+      écrits s'ils changent (R13 `$FF` = inchangé) ; puce 2 : bruitages.
+      Le lecteur GROUiK d'A2FileCmd (signalé par l'utilisateur) a été
+      écarté : 4,8 Ko + 613 octets, et son adaptation place moteur et
+      morceau en aux `$2000/$4000` (nos paquets).
+- [x] Tick ~1 450-2 400 cycles (moyenne 1 570) : l'IRQ fait un
+      `timing_scan` à l'entrée et à la sortie, rendu **atomique** (`sei`)
+      pour ne compter aucun front deux fois.
+- [x] `make test-long` : pilote automatique (niveaux 1, 25, 100 finis avec
+      3 vies) et pires niveaux (97, boss 25, boss 100) avec et sans carte.
+- **Écarts à valider** :
+  - **Musique à 25 Hz** (`MUS_HZ` de `tools/sound.py`, le `SPEED` du
+    morceau suit) au lieu des 50 Hz usuels du PT3 : moitié moins de CPU.
+    Images en retard, joueur normal, 600 images : niveau 97 — sans carte
+    96, PT3 50 Hz 206, 25 Hz 140 ; niveau 100 — 56 / 182 / 113 ; niveau 1
+    (vagues d'entrée) — 78 / 114 / 104. Un module PT3 du commerce (50 Hz)
+    jouerait à mi-tempo : remettre `MUS_HZ = 50` pour en jouer un.
+  - Pire niveau **hors budget** : bench « tricheur » (10 tirs triples,
+    autofire) 4 à 10 % d'images en retard sans carte, 6 à 22 % avec ; pics
+    à 36 000 cycles de rendu (plongeurs en EOR). La vitesse du jeu reste
+    exacte (logique par paires de rafraîchissements), seule la fluidité
+    baisse. Seuils de `test-long` : 12 % / 25 %.
+  - Boss en sauts de 7 cases (pas de déplacement fluide) ; étoiles 16 au
+    lieu de 24, 7 plongeurs au plus, balancement tous les 3 pas.
+
+Plan d'origine :
 
 - [ ] `[jeu]` `tools/levels.py` → 25 paquets de 4 niveaux (vagues,
       trajectoires, cadence de tir, dessin d'alien du paquet), 4e niveau

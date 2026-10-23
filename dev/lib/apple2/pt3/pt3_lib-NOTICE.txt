@@ -1,0 +1,9 @@
+PT3_LIB, Vortex Tracker II .pt3 player for the Apple II, version 0.5,
+Vince "Deater" Weaver <vince@deater.net>, http://www.deater.net/weave/vmwprod/pt3_lib/
+Dual licensed 0BSD / GPL-2.0-only (pt3_lib-LICENSE.txt): used here under 0BSD.
+Upstream: https://github.com/deater/dos33fsprogs, music/pt3_lib,
+revision d321fbc57df4d012ba881e2815b669d5d32f31d2 (2026-10-18).
+pt3_lib_core.s and pt3_lib_init.s are copied unchanged. pt3_zp.inc replaces
+upstream zp.inc (same layout, base PT3_ZP instead of $60) and pt3.s replaces
+the IRQ handler (decode only: no Mockingboard writes, no IRQ installation,
+no slot patching, no //c ROM work-around).

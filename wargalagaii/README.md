@@ -1,8 +1,11 @@
 # WARGALAGA II
 
-**En cours : lots 1 et 2 faits (2026-10-23)** — démarrage ProDOS, horloge
+**En cours : lots 1 à 5 faits (2026-10-23)** — démarrage ProDOS, horloge
 VBL, étoiles, vaisseau et tirs, 40 aliens qui entrent en vagues, se posent
-en formation qui respire et plongent, à 30 i/s. Plan et état :
+en formation qui respire, plongent et bombardent ; collisions, explosions,
+vies, armure, score et HUD, GAME OVER, à 30 i/s ; son (musique et
+bruitages sur Mockingboard, bruitages au haut-parleur, S coupe) ; 32 bonus qui tombent, jauges S/B/T,
+armes double et triple, tir automatique, ×2/×5, bouclier, gel. Plan et état :
 [`TODO.md`](TODO.md) ; référence du jeu modèle :
 [`docs/warblade-reference.md`](docs/warblade-reference.md). Le jeu n'est pas
 encore dans les listes `all` / `test` du `Makefile` racine (lot 9).
@@ -10,7 +13,7 @@ encore dans les listes `all` / `test` du `Makefile` racine (lot 9).
     make            # ../dist/WARGALAGAII.po
     make run        # POM2, //e enhanced
     make run-iic    # POM2, //c
-    make test       # ~8 s : volume, cadence NTSC/PAL, oracle, banc, commandes, sorties
+    make test       # ~10 s : volume, cadence NTSC/PAL, oracles, banc, fin de partie, commandes, sorties
     python3 tools/profile.py [--shots 10]   # cycles par image et par routine
 
 Shoot'em up fixe dans l'esprit de **Warblade** (Edgar M. Vigdal, PC/Mac 2003),
@@ -156,10 +159,12 @@ ROM souris du slot 4, donc détecter **avant** d'installer l'horloge VBL du
 //c ; que ce VBL reste utilisable avec une 4c est **à vérifier sur
 machine**).
 
-- Avec carte : musique PT3 et bruitages AY, servis par l'interruption du
-  timer T1 de la VIA (50 Hz). Le lecteur PT3 n'existe pas encore dans
-  `dev/lib` (base envisagée : lecteur de Vince Weaver 0BSD, ou le port
-  GROUiK/French Touch d'A2FileCmd, voir `dev/lib/apple2/README.md`).
+- Avec carte (`src/sound.s`) : musique **PT3** sur la première puce AY —
+  module écrit par `tools/pt3.py` (morceau original de `tools/sound.py`),
+  joué par le lecteur de Vince Weaver (`dev/lib/apple2/pt3/`, 0BSD) ; lecteur
+  et morceau en **mémoire aux à `$6000`**, appelés par l'interruption du
+  timer 1 de la VIA à 25 Hz (`MUS_HZ`, tempo indépendant des images et du
+  PAL) via des trampolines à `$1FE0` ; bruitages sur la seconde puce.
 - Sans carte : haut-parleur. **En jeu, bruitages seulement**, non
   bloquants, joués **dans l'attente du VBL** avant la bascule (le temps
   libre de l'image, jamais plus) ; **musique seulement hors jeu** (titre,
@@ -200,16 +205,19 @@ n'écrit pas les pages aux).
 
 | Zone | Usage |
 |---|---|
-| `$0050-$00FF` | page zéro du jeu et de cc65 (`ZP` du cfg) ; le gestionnaire IRQ n'utilise ni la ZP cc65 ni sa pile |
+| `$0050-$00CF` | page zéro du jeu et de cc65 (`ZP` du cfg) ; le gestionnaire IRQ n'utilise ni la ZP cc65 ni sa pile |
+| `$00D0-$00EF` | page zéro du lecteur PT3 (gardée entre deux ticks) |
 | `$0200-$03FF` | libre ; page 3 : lecteur haut-parleur prévu (boucle à cycles comptés, sans franchir de page) |
 | `$0400-$07FF` | page texte 1, jamais affichée en jeu : tables (en évitant les trous `$x78-$x7F`, `$xF8-$xFF`) |
 | `$0800-$0FFF` | libre sous ProDOS : tampon de fichier, trajectoires du niveau |
 | `$1000-$12FF` | tables de lignes `hgr_lo`, `hgr_hi`, `hgr_hi2` alignées sur une page (segment `ROWS`) |
-| `$1300-$1FFF` | `LOWBSS` : sprites prédécalés du paquet courant (lot 6) |
+| `$1300-$1FDF` | tampon ProDOS (`IOBUF`, démarrage), `LOWBSS` : sprites prédécalés du paquet courant |
+| `$1FE0-$1FFF` | trampolines vers la mémoire aux (mêmes octets en aux) |
 | `$2000-$3FFF`, `$4000-$5FFF` | pages HGR 1 et 2 |
 | `$6000-$BDFF` | code, données, BSS (~23,5 Ko) |
 | `$BE00-$BEFF` | pile C ; `$BF00` page globale ProDOS |
-| aux `$0200-$BFFF` | réserve : dessins × teintes (~17 Ko), PT3, écrans, niveaux (copie par `AUXMOVE` `$C311` entre deux niveaux) |
+| aux `$2000-$5B7F` | `WG2.AUX` : dessins × teintes des paquets (15 232 octets, copie par `AUXMOVE` `$C311` entre deux niveaux) |
+| aux `$6000-$6C55` | lecteur PT3 et morceau (fin de `WG2.AUX`) ; trampolines en aux `$1FE0` |
 
 ## Disquette
 

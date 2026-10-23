@@ -56,6 +56,10 @@ def quantise(start, points):
 ENTRY_START = (40, -20)
 ENTRY = fly(ENTRY_START, 75, [(26, 4, 0), (36, 4, -330), (10, 4, 0)])
 
+# Bonus levels (lot 6): the same way in, then out through the bottom (the
+# alien never seats: it escapes when it leaves the screen).
+FLYPAST = fly(ENTRY_START, 75, [(26, 4, 0), (36, 4, -330), (44, 4, 0)])
+
 DIVE_START = (0, 0)
 DIVES = [
     # loop dive: turn outwards and down, drift back to the middle
@@ -76,6 +80,10 @@ def data():
     return start, entry, dives
 
 
+def flypast():
+    return quantise(ENTRY_START, FLYPAST) + [END]
+
+
 def decode(byte):
     dx, dy = byte >> 4, byte & 15
     return dx - 16 if dx > 7 else dx, dy - 16 if dy > 7 else dy
@@ -89,7 +97,7 @@ def emit():
            f'NDIVES = {len(dives)}',
            'dive_lo: .lobytes ' + ','.join(f'dive{k}' for k in range(len(dives))),
            'dive_hi: .hibytes ' + ','.join(f'dive{k}' for k in range(len(dives)))]
-    for name, steps in [('entry', entry)] + [(f'dive{k}', d) for k, d in enumerate(dives)]:
+    for name, steps in [('entry', entry), ('flypast', flypast())] + [(f'dive{k}', d) for k, d in enumerate(dives)]:
         out.append(f'{name}:')
         for i in range(0, len(steps), 16):
             out.append('        .byte ' + ','.join(f'${b:02X}' for b in steps[i:i + 16]))

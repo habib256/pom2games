@@ -7,6 +7,9 @@ import subprocess
 import tempfile
 
 DEV = Path(__file__).resolve().parents[1]
+# Extra ca65 options: the mockingboard tests run once per mb_write variant
+# (default, then -D MB_FAST_WRITE=1).
+DEFINES = []
 
 
 def build(work, name, source):
@@ -17,7 +20,7 @@ def build(work, name, source):
  RAM: start=$6000,size=$3600,type=rw,file=%O; }
 SEGMENTS { ZEROPAGE: load=ZP,type=zp; CODE: load=RAM,type=ro; BSS: load=RAM,type=bss; }
 ''')
-    subprocess.run(['ca65','-I',str(DEV/'lib/apple2'),'-o',str(obj),str(src)],check=True)
+    subprocess.run(['ca65',*DEFINES,'-I',str(DEV/'lib/apple2'),'-o',str(obj),str(src)],check=True)
     subprocess.run(['ld65','-C',str(cfg),'-o',str(binary),str(obj)],check=True)
     return binary
 
@@ -236,6 +239,10 @@ if __name__=='__main__':
                         '-I',str(DEV/'tools/a2run'),str(DEV/'tests/hardware_bus.c'),
                         str(DEV/'tools/a2run/cpu6502.c'),'-o',str(probe)],check=True)
         rgb(work,probe)
-        mockingboard(work,probe)
-        mockingboard_reinit(work,probe)
-        mockingboard_session_transitions(work,probe)
+        for defines in ([], ['-D','MB_FAST_WRITE=1']):
+            DEFINES[:] = defines
+            if defines:
+                print('Mockingboard, MB_FAST_WRITE=1:')
+            mockingboard(work,probe)
+            mockingboard_reinit(work,probe)
+            mockingboard_session_transitions(work,probe)
