@@ -1,70 +1,83 @@
-# WARGALAGA II — Apple //e enhanced / //c 128 KB, ProDOS, HGR (en préparation)
+# WARGALAGA II — Apple //e enhanced / //c 128 KB, ProDOS 8, HGR double buffer.
 #
-#   make            -> pour l'instant : rappelle l'état, ne construit rien
-#   (prévu) make            -> ../dist/WARGALAGAII.po
-#   (prévu) make run        -> POM2, //e enhanced (horloge : VBL $C019)
-#   (prévu) make run-iic    -> POM2, //c (horloge : VBL du firmware souris)
-#   (prévu) make test       -> palier rapide (1-2 min, à chaque modification) :
-#                              logique 6502 == modèle Python, son avec et
-#                              sans Mockingboard, cadence, démarrage
-#   (prévu) make test-long  -> palier long : vagues complètes, partie entière
+#   make            -> ../dist/WARGALAGAII.po
+#   make run        -> POM2, //e enhanced (clock: VBL $C019)
+#   make run-iic    -> POM2, //c (clock: VBL interrupt of the mouse firmware)
+#   make test       -> fast tier: volume, boot, cadence, ship and shots
+#   make test-long  -> long tier (nothing yet)
 #
-# Pas encore dans les listes all / TESTED du Makefile racine (TODO.md, lot 9).
-# Modèle complet : ../chromabreak/Makefile (ProDOS, crt0_prodos, archive des
-# libs, volume 280 blocs).
+# Game in 65C02 assembly (src/game.s + src/timing.s), linked behind cc65's
+# ProDOS crt0 with the ProDOS (/RAM claim) and mouse (//c clock) libraries.
+# Not yet in the root Makefile lists (TODO.md, lot 9).
 
 DEV ?= ../dev
 APPLE2_PRESET := iie
 APPLE2_RUN_FLAGS :=
 include $(DEV)/cc65/apple2.mk
-# include $(HGRC)/hgrc.mk
-# include $(APPLE2C)/apple2c.mk
-# PRODOS := $(DEV)/lib/prodos
-# MOUSE  := $(DEV)/lib/mouse        # //c : horloge VBL seulement, pas d'entrée
-# include $(PRODOS)/prodos.mk
-# include $(MOUSE)/mouse.mk
+include $(APPLE2C)/apple2c.mk
+PRODOS := $(DEV)/lib/prodos
+MOUSE  := $(DEV)/lib/mouse
+include $(PRODOS)/prodos.mk
+include $(MOUSE)/mouse.mk
 
 DISK := $(DIST)/WARGALAGAII.po
+ASFLAGS := --cpu 65c02 -g -I src -I $(HGR) -I $(APPLE2) -I $(MATH)
+OBJS := $(BUILD)/crt0_prodos.o $(BUILD)/game.o $(BUILD)/timing.o
+LIB_OBJS := $(BUILD)/mli.o $(BUILD)/video.o $(BUILD)/mouse.o $(BUILD)/apple2frame.o
 
-all:
-	@echo "WARGALAGA II : pas encore de code (voir TODO.md). Rien a construire."
+all: $(DISK)
 
-# --- Prévu (lots 1 à 9) ------------------------------------------------------
-# CFLAGS := -t none --cpu 65c02 -Ors -I src $(HGRC_INCS) $(APPLE2C_INCS) \
-#           $(PRODOS_INCS) $(MOUSE_INCS)
-# LIB_SRCS := $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) $(APPLE2C_CADENCE_SRCS) \
-#             $(PRODOS_SRCS) $(MOUSE_SRCS) <noyaux hgrc : mode, hud8, texte>
-# Sources asm : .setcpu "65C02", libs dev/lib/apple2 (mockingboard.asm,
-# sound.asm) et dev/lib/hgr incluses A LA FIN du source (.ifref).
-#
-# src/sprites.inc: tools/sprites.py          # 7 prédécalages, fond noir
-# src/paths.inc:   tools/paths.py            # trajectoires en tables
-# $(BUILD)/WG2.AUX: tools/levels.py          # réserve mémoire aux
-# $(BUILD)/game.bin: ... -C $(DEV)/cc65/apple2_dhgr_prodos_c.cfg
-#                                            # (pages HGR = $2000-$5FFF main)
-# $(BUILD)/WG2.SYS: src/startup.s            # reloge game.bin à $6000
-# $(BUILD)/WG2.SYSTEM: src/boot.s src/boot.cfg   # refuse un 6502 NMOS
-#
-# $(DISK): $(BUILD)/WG2.SYSTEM $(BUILD)/WG2.SYS $(BUILD)/WG2.AUX $(BUILD)/HIGHSCORES
-# 	@mkdir -p $(BUILD)/stage $(DIST)
-# 	cp $(DEV)/tools/prodos/PRODOS $(BUILD)/stage/PRODOS#FF0000
-# 	cp $(BUILD)/WG2.SYSTEM $(BUILD)/stage/WG2.SYSTEM#FF2000
-# 	cp $(BUILD)/WG2.SYS $(BUILD)/stage/WG2.SYS#FF2000
-# 	...
-# 	$(PYTHON) $(DEV)/tools/prodos/build_volume.py $(BUILD)/stage $@ \
-# 		--volume WARGALAGAII --boot $(DEV)/tools/prodos/boot.bin --blocks 280
-#
-# run-iic: all
-# 	$(POM2) --preset iic --slot 4=iicmouse $(DISK)
-# Deux paliers (convention de ../dev/cc65/apple2.mk) : `test` reste rapide,
-# c'est le réflexe make -C wargalagaii test ; ce qui dépasse une minute ou
-# deux va dans `test-long`.
-# test: all
-# 	$(PYTHON) tests/test_logic.py          # 6502 == tools/model.py
-# 	$(PYTHON) tests/test_audio.py          # haut-parleur
-# 	$(PYTHON) tests/test_audio.py --mockingboard   # a2shot --iie --mockingboard
-# 	$(PYTHON) tests/test_cadence.py        # même vitesse avec et sans carte
-# test-long: all
-# 	$(PYTHON) tests/test_waves.py --all    # toutes les vagues, pilote automatique
+src/sprites.inc: tools/sprites.py
+	$(PYTHON) tools/sprites.py
+src/paths.inc: tools/paths.py
+	$(PYTHON) tools/paths.py
 
-.PHONY: all
+$(BUILD)/game.o: src/game.s src/logic.s src/render.s src/sprites.inc src/paths.inc $(A2_ASM_DEPS)
+$(BUILD)/%.o: src/%.s
+	@mkdir -p $(@D)
+	$(CA65) $(ASFLAGS) -o $@ $<
+$(BUILD)/crt0_prodos.o: $(DEV)/cc65/crt0_prodos.s
+	@mkdir -p $(@D)
+	$(CA65) -g -o $@ $<
+$(BUILD)/mli.o $(BUILD)/video.o: $(BUILD)/%.o: $(PRODOS)/%.s
+	@mkdir -p $(@D)
+	$(CA65) -g -o $@ $<
+$(BUILD)/mouse.o: $(MOUSE)/mouse.s
+	@mkdir -p $(@D)
+	$(CA65) -g -o $@ $<
+$(BUILD)/apple2frame.o: $(APPLE2C)/apple2frame.s
+	@mkdir -p $(@D)
+	$(CA65) -g -o $@ $<
+
+$(BUILD)/game.bin: $(OBJS) $(LIB_OBJS) src/game.cfg
+	$(LD65) -C src/game.cfg -m $(BUILD)/game.map -Ln $(BUILD)/game.lbl -o $@ \
+		$(OBJS) $(LIB_OBJS) none.lib
+$(BUILD)/WG2.SYS: $(BUILD)/game.bin src/startup.s src/startup.cfg
+	$(CA65) --bin-include-dir $(BUILD) -o $(BUILD)/startup.o src/startup.s
+	$(LD65) -C src/startup.cfg -o $@ $(BUILD)/startup.o
+$(BUILD)/WG2.SYSTEM: src/boot.s src/boot.cfg
+	@mkdir -p $(@D)
+	$(CA65) -o $(BUILD)/boot.o src/boot.s
+	$(LD65) -C src/boot.cfg -o $@ $(BUILD)/boot.o
+
+$(DISK): $(BUILD)/WG2.SYSTEM $(BUILD)/WG2.SYS $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py
+	@rm -rf $(BUILD)/stage
+	@mkdir -p $(BUILD)/stage $(DIST)
+	cp $(DEV)/tools/prodos/PRODOS $(BUILD)/stage/PRODOS#FF0000
+	cp $(BUILD)/WG2.SYSTEM $(BUILD)/stage/WG2.SYSTEM#FF2000
+	cp $(BUILD)/WG2.SYS $(BUILD)/stage/WG2.SYS#FF2000
+	$(PYTHON) $(DEV)/tools/prodos/build_volume.py $(BUILD)/stage $@ \
+		--volume WARGALAGAII --boot $(DEV)/tools/prodos/boot.bin --blocks 280
+
+run-iic: all
+	$(POM2) --preset iic --slot 4=iicmouse $(DISK)
+
+# Two tiers (convention of ../dev/cc65/apple2.mk): `test` stays fast.
+test: all
+	$(PYTHON) tools/sprites.py --check
+	$(PYTHON) tools/paths.py --check
+	$(PYTHON) tests/test_game.py --disk $(DISK) --labels $(BUILD)/game.lbl
+test-long:
+	@echo "wargalagaii: no long tests yet"
+
+.PHONY: run-iic test test-long

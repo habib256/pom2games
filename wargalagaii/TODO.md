@@ -24,93 +24,108 @@ propre au jeu, dans `wargalagaii/src` ou `tools`.
       (TMS9918, sprites matériels), utile seulement pour les plongées.
 - [x] `Makefile` squelette (inclut `apple2.mk`, ne construit rien).
 
-## Lot 1 — V0.1 : démarrage, horloge, vaisseau, tir
+## Lot 1 — V0.1 : démarrage, horloge, vaisseau, tir (fait, 2026-10-23)
 
-- [ ] `[jeu]` `src/boot.s` + `src/boot.cfg` : `WG2.SYSTEM`, refus d'un
-      processeur NMOS avec message (copie de `chromabreak/src/boot.s`, test
-      `INC A`), chargement et relogement de `WG2.SYS` à `$6000`
-      (`chromabreak/src/startup.s`).
-- [ ] Lien : `dev/cc65/crt0_prodos.s` + `dev/cc65/apple2_dhgr_prodos_c.cfg`
-      (les pages principales `$2000-$5FFF` sont les deux pages HGR), libs
-      `$(PRODOS)/mli.s`, `$(PRODOS)/video.s`. `--cpu 65c02`, `.setcpu "65C02"`.
-- [ ] `/RAM` : `prodos_video_claim(PD_VIDEO_DISCARD_RAM)` avant toute
-      écriture en aux, libération à la sortie ; `game_shutdown()` remet le
-      texte, rend l'interruption VBL du //c et coupe la Mockingboard
-      (`mb_stop`).
-- [ ] HGR : `hgr_init` / `hgr_init_clear` (`hgrc`, `hgr_mode_asm.s`,
-      `hgr_mode_clear_asm.s`), tables de lignes en RAM
-      (`dev/lib/hgr/hgr_scanline_ram.asm` en `$0200`), page de dessin par
-      opérandes patchés (`dev/lib/hgr/hgr_pages.inc` / `hgr_pages.asm`,
-      `HGR_HI_SITE`), bascule `$C054/$C055` après le VBL.
-- [ ] Horloge (`[jeu]` d'abord, `[lib]` ensuite) : //e = front VBL de
-      `$C019` (`dev/lib/apple2c/apple2frame.s`, `a2_frame_init/wait`) ;
-      //c = interruption VBL du firmware souris intégré (mode 9, source de
-      temps seulement : la souris n'est jamais lue comme entrée) + gestionnaire
-      ProDOS `ALLOC_INTERRUPT` (`dev/lib/mouse/mouse.s` :
-      `_mouse_timing_mode`, `_mouse_serve_irq`),
-      compteur `a2_cadence_tick` (`dev/lib/apple2c/apple2cadence.s`, période 2).
-      Repli borné si le VBL disparaît. **Factoriser** `chromabreak/src/timing.s`
-      en `[lib]` `dev/lib/apple2c/apple2vbl.s` (VBL //e + //c + manette lue
-      dans l'attente) : deux clients, la règle du dépôt est remplie.
-- [ ] Pas de jeu fixe : la logique avance d'un pas par paire de
-      rafraîchissements comptés par l'horloge, pas par image dessinée ; une
-      image en retard rattrape au plus un pas. (Écueil ARKABREAKOUT : une
-      attente fixe `WAIT` ajoutée au rendu fait changer la vitesse du jeu à
-      chaque optimisation.)
-- [ ] Champ d'étoiles : ~24 étoiles sur 3 vitesses, 1 octet chacune,
-      effacée puis reposée par page (historique par page).
-- [ ] Vaisseau 14×10 prédécalé (7 phases, pas de 2 points), gauche/droite
-      au clavier : `$C000` + `BIT $C010` pour acquitter, et `$C010` bit 7
-      (touche tenue) pour continuer à bouger ; Pomme ouverte / fermée
-      `$C061/$C062` lues en continu.
-- [ ] Tir simple, 5 tirs à l'écran au plus (jauge B de départ).
-- **Accepté si** : démarre sur //e enhanced et //c dans POM2, refuse une
-  //e NMOS ; 30 i/s tenus (aucune échéance VBL manquée sur 1 000 images,
-  NTSC et PAL) ; ESC → ProDOS `QUIT` propre, `/RAM` reformaté ; Ctrl-RESET
-  suit la même sortie.
+Jeu en assembleur 65C02 (`src/game.s`, `src/timing.s`) derrière le crt0
+ProDOS de cc65 ; `src/game.cfg` = `apple2_dhgr_prodos_c.cfg` + segment
+`SYSBSS` en `$0200-$03CF` (tables `hgr_lo/hi`).
 
-## Lot 2 — V0.2 : sprites, formation, plongées
+- [x] `src/boot.s` / `boot.cfg` : `WG2.SYSTEM`, refus d'un 6502 NMOS (test
+      `INC A`), charge `WG2.SYS` ; `src/startup.s` le reloge à `$6000`.
+- [x] Lien `crt0_prodos.s` + `none.lib`, libs `mli.s`, `video.s`, `mouse.s`,
+      `apple2frame.s`.
+- [x] `/RAM` réclamé (`PD_VIDEO_DISCARD_RAM`) puis reformaté à la sortie ;
+      128 Ko vérifiés par MACHID (`$BF98`), sinon message.
+- [x] HGR double tampon : `hgr_scanline_ram.asm` (`$0200`), pages par
+      opérandes patchés (`hgr_pages.inc/.asm`), bascule `$C054/$C055`.
+- [x] Horloge `src/timing.s` (dérivée de `chromabreak/src/timing.s`) : //e =
+      fronts de `$C019` comptés par `timing_scan` (appelé entre les phases du
+      dessin), //c = interruption VBL du firmware souris (mode 9, ProDOS
+      `ALLOC_INTERRUPT`), sinon délais `a2_frame_wait`. Attente bornée, repli.
+      Manette (paddle 0) lue dans l'attente, jusqu'à l'échéance.
+- [x] Pas fixe : un pas logique par paire de rafraîchissements comptés entre
+      deux bascules (`timing_refreshes`), reste reporté, au plus 2 pas par image.
+- [x] 24 étoiles sur 3 vitesses, 1 point chacune ; effacées seulement si leur
+      octet n'a pas changé, posées seulement sur un octet noir.
+- [x] Vaisseau 7 cellules × 10 lignes, 7 prédécalages (`tools/sprites.py`),
+      redessiné sur une page seulement s'il a bougé depuis cette page.
+- [x] Clavier : ← → / J L (la direction tient tant qu'une touche est
+      enfoncée, `$C010` bit 7, donc ESPACE ne l'arrête pas), ESPACE et Pomme
+      ouverte / bouton 0 tirent (front). **TAB** bascule clavier / manette en
+      attendant le menu du lot 9.
+- [x] Tir simple, 5 au plus (jauge B de départ), listes d'effacement par page.
+- [x] `tools/model.py` (oracle de la logique, commencé dès ce lot) et
+      `tests/test_game.py` (`make test`, ~3 s).
+- **Acceptation** (`make test`) : volume ; 1 000 images en 2 000
+  rafraîchissements, aucune en retard, NTSC et PAL ; 300 pas identiques au
+  modèle ; flèches, ESPACE, Pomme ouverte, manette ; ESC et Ctrl-RESET →
+  texte, `/RAM` reconstruit, lanceur ProDOS ; II+ (NMOS) → message. Rendu
+  mesuré : ~8 400 cycles avec vaisseau mobile, 5 tirs, 24 étoiles (budget
+  28 060).
+- [ ] **Reste** : //c non testé (a2shot n'a pas de //c : `make run-iic`
+      dans POM2 ou une vraie machine) ; factoriser `src/timing.s` et
+      `chromabreak/src/timing.s` en `[lib]` `dev/lib/apple2c/apple2vbl.s`
+      (bascule de page en paramètre : DHGR et HGR), CHROMABREAK à garder
+      identique.
 
-- [ ] `[jeu]` `tools/sprites.py` : dessins en ASCII par cellules de
-      2 points → 4 teintes précalculées (violet / vert, bit 7 à 0 ; bleu /
-      orange, bit 7 à 1 : point gauche ou droit de chaque cellule ; blanc =
-      les deux) → 7 prédécalages HGR (groupe de 14 points), largeur 2 → 3
-      octets, sans masque (fond noir). Au départ 6 petits aliens, 2 gros,
-      1 boss, le vaisseau, tirs, bonus ; paquet `n` = dessin `n mod 6`,
-      teinte `n div 6`. Tables : 420 octets par petit dessin et teinte
-      (7 phases × 3 octets × 10 lignes × 2 images), ~17 Ko au total en aux.
-      Plus de dessins plus tard. Base :
-      `dev/tools/assets/pack_hgr_sprites.py` (l'étendre plutôt que copier :
-      `[lib]`).
-- [ ] `[jeu]` `src/sprites.s` : dessin `ORA` sur fond noir, effacement par
-      `STZ`/`STA #0` du rectangle de l'image d'avant, boucles déroulées par
-      hauteur, liste d'effacement **par page**. Pas de `hgr_sprengine`
-      (`dev/lib/hgrc`) : 8 emplacements au plus et sauvegarde du fond
-      inutile ici ; son bench « quatre sprites 21×16 tous mobiles » fait
-      39 217 cycles. Pas de `hgr_tile_restore` dans l'aire de jeu (fond
-      noir) : il ne sert que si le HUD a un décor.
-      Promouvoir en `[lib]` `dev/lib/hgr/hgr_sprite_black.asm` une fois
-      stable (voisin de `hgr_xor.asm`, qui ne fait que 2 octets × 8 lignes).
-- [ ] Mesurer un alien 14×10 : objectif ≤ 650 cycles dessin, ≤ 400
-      effacement, toutes phases. Si plus : sprites compilés (comparaison
-      déjà faite dans `make test-techniques`).
-- [ ] Formation de 10 puis 40 aliens (5 rangées × 8) ; « respiration » par
-      pas de 2 points, une rangée par image.
-- [ ] `[jeu]` `tools/paths.py` : trajectoires d'entrée et de plongée en
-      tables (Δx, Δy signés par pas, ou positions 8.8 virgule fixe), tirées
-      de courbes (sinus, boucles, spirales) calculées en Python ; aucune
-      trigonométrie à l'exécution. Symétrie gauche/droite par signe de Δx
-      (boucle des 100 niveaux en miroir). Plongées du TMS Galaga de POM1
-      (droite, zigzag, diagonale, boucle) comme premier jeu de tables.
-- [ ] Hasard : `dev/lib/math/random.asm` ; multiplications éventuelles :
-      `dev/lib/math/mul.asm` (`MUL_TABLES` alignée sur une page).
-- [ ] `[jeu]` `tools/model.py` : modèle Python de la logique (formation,
-      plongées, tirs, collisions, hasard), **oracle au bit près** comme
-      `dirtbike/tools/physics.py` ; `tests/test_logic.py` rejoue un script
-      d'entrées de 2 000 pas et compare l'état 6502 (`a2test` :
-      `Labels.peek`) à chaque pas témoin.
-- **Accepté si** : 40 aliens en formation + 6 plongeurs + 10 tirs à 30 i/s
-  sur la pire phase ; test oracle vert.
+## Lot 2 — V0.2 : sprites, formation, plongées (fait, 2026-10-23)
+
+Code : `src/logic.s` (logique), `src/render.s` (dessin), `src/game.s`
+(boucle, entrées, tables). Tables de lignes alignées en `$1000-$12FF`
+(segment `ROWS`) : `hgr_hi+R,X` par ligne R du sprite, et `select_page`
+ne réécrit que l'octet fort de chaque opérande (`HI_LDA`) ; `hgr_pages`
+de la lib n'est plus utilisé (il réécrit les deux octets et ne gère pas
+`+R`).
+
+- [x] `tools/sprites.py` : dessins par cellules de 2 points, `X` = point de
+      la teinte (violet, vert, bleu, orange), 7 prédécalages, entrée
+      `2*décalage+image`. **6 petits aliens en 7×8 cellules** (8 lignes et
+      non 10 : 20 % de moins par alien), 2 gros en 10×16, 2 images chacun ;
+      `--png F` donne la planche de tous les dessins et teintes. Écrit à
+      part de `dev/tools/assets/pack_hgr_sprites.py` (cellules et teintes
+      propres au jeu) ; à rapprocher si un second jeu en a besoin.
+      **Boss pas encore dessiné** (lot 6). Le jeu ne lie qu'un dessin et
+      une teinte (`GAME_SMALL`) : la réserve en mémoire aux est au lot 6.
+- [x] Dessin (`src/render.s`) : routines déroulées par macro
+      (`SPRITE_ROWS`). Mesures (`make test`) : alien posé **STA 470**
+      cycles, **EOR 593**, effacement **322** (objectifs 650 / 400 tenus).
+      Changement de méthode en cours de lot : effacer en zéros ce qui vole
+      abîmait la formation (redessin sur les deux pages : 47 000 cycles par
+      image) ; **ce qui vole (plongeurs, aliens en entrée, tirs) est tracé
+      et effacé en EOR**, dans l'ordre exactement inverse du tracé, ce qui
+      rend l'écran tel quel sans rien redessiner. Formation posée en STA,
+      vaisseau en STA. Tirs : un octet, motif identique sur 6 lignes.
+- [x] Formation 5 × 8, respiration d'une cellule ; **une rangée tous les
+      2 pas** (une par pas = 16 aliens redessinés par image, chaque
+      changement étant tracé sur les deux pages). Une rangée inchangée
+      depuis le dernier tracé de la page est sautée en quelques tests.
+- [x] `tools/paths.py` : tortue (cap, vitesse, virage) échantillonnée à
+      chaque pas, quantifiée en octets Δx (cellules) / Δy (lignes) signés
+      4 bits, `$80` = fin ; 1 entrée (boucle) en miroir à droite, 4 plongées
+      (demi-tour puis : dérive, zigzag, diagonale, boucle), en miroir sur la
+      moitié droite de la formation.
+- [x] Vagues : 5 vagues de 4 paires (une rangée chacune, du centre vers
+      les bords), puis retour à la place ; plongée toutes les 20 pas si
+      moins de 6 aliens volent ; sortie par le bas → retour par le haut.
+      Hasard : `dev/lib/math/random.asm`.
+- [x] `tools/model.py` : oracle au bit près ; `tests/test_game.py`
+      compare **2 000 pas** à chaque pas (état complet + hasard).
+- **Acceptation** (`make test`, ~8 s) : banc formation + plongeurs +
+  **10 tirs** tirés sans arrêt : **0 image en retard sur 300** ; formation
+  posée : 0 retard sur 1 000 images NTSC et PAL ; oracle vert. Profil
+  (`tools/profile.py`) : rendu moyen 17 300 / pire 23 200 cycles sans tirs,
+  22 000 / 28 000 avec 10 tirs ; logique ~3 000-3 600.
+- **Reste / à surveiller** :
+  - Phase d'entrée : jusqu'à ~16 aliens volent ; en NTSC 3 images en
+    retard (sur ~1 600) quand une vague arrive pendant que la précédente
+    se pose, la vitesse du jeu restant exacte (prévu par le README). PAL :
+    aucune.
+  - Le pire cas avec 10 tirs (28 000 + logique 3 400) dépasse les 28 060
+    qui gardent 6 000 cycles pour la musique sous IRQ (lot 4). Pistes :
+    sauter les colonnes d'octets vides selon le décalage, étoiles moins
+    chères (~2 300 cycles, ~1 500 prévus), données d'alien à adresse fixe
+    (copie du paquet en `$1000`, lot 6) pour un `LDA abs,X`.
+  - Promouvoir les routines en `[lib]` `dev/lib/hgr/` une fois stables.
 
 ## Lot 3 — collisions, tirs ennemis, vies, score, HUD
 
