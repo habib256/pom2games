@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Profile WARGALAGA II frames on a2shot: render and logic, by routine.
 
-    tools/profile.py [--wait N] [--frames N] [--shots N]
+    tools/profile.py [--wait N] [--frames N] [--shots N] [--level L]
 
 Boots dist/WARGALAGAII.po on an enhanced //e, plays N refreshes (default
 1200: formation seated, divers out), then measures --frames frames: cycles
@@ -27,19 +27,26 @@ def main():
     ap.add_argument('--wait', type=int, default=1200)
     ap.add_argument('--frames', type=int, default=30)
     ap.add_argument('--shots', type=int, default=0)
+    ap.add_argument('--level', type=int, default=0, help='start level (1-100), cheating player')
     ap.add_argument('--disk', type=Path, default=ROOT / 'dist/WARGALAGAII.po')
     ap.add_argument('--labels', type=Path, default=ROOT / 'wargalagaii/build/game.lbl')
     a = ap.parse_args()
     L = a2test.labels(a.labels, strip=True)
     steps = [L.until('game_tick', 3000)]
+    if a.level:
+        steps = [L.until('main', 3000), L.poke('start_level', a.level - 1), L.until('game_tick', 3000),
+                 L.poke('weapon', 2), L.poke('shot_limit', 10), L.poke('fire_held', 0x80),
+                 L.poke('autofire_t', 255)]
     if a.shots:
-        steps.append(L.poke('shot_limit', a.shots))
+        steps += [L.poke('shot_limit', a.shots), L.poke('nohit', 1), L.poke('armour', 99)]
     # Firing: poke fire_req at each logic step through the waiting time.
     fire = [L.until('logic_step', 10), L.poke('fire_req', 0x80), L.until('logic_done', 10)] if a.shots else []
     for _ in range(a.wait // 2):
         steps += fire or ['wait:2']
     steps += [L.peek('late_count', 2), L.peek('frame_count', 2)]
-    for _ in range(a.frames):
+    for k in range(a.frames):
+        if a.level and k % 20 == 0:
+            steps.append(L.poke('invul_t', 60))
         steps += fire + [L.until('render', 10), f'pcprof:{L["render_done"]:04X}:5',
                          L.until('logic_step', 10), f'pcprof:{L["logic_done"]:04X}:5']
     steps += [L.peek('late_count', 2), L.peek('frame_count', 2)]

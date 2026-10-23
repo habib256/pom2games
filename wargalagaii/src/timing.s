@@ -9,9 +9,11 @@
 ; Derived from chromabreak/src/timing.s (DHGR); candidate for dev/lib/apple2c.
 ; The IRQ handler uses neither cc65's zero page nor its stack.
 .setcpu "65C02"
-.import _a2_frame_init, _a2_frame_wait
+.import _a2_frame_init, _a2_frame_wait, _a2_frame_set_delay
+.import spk_period
 .import _mouse_init, _mouse_close, _mouse_timing_mode, _mouse_serve_irq, _mouse_slot
 .export timing_init, timing_close, timing_present, timing_scan
+JOY_CENTRE = 83
 .export timing_mode, timing_refreshes, vbl_count, late_count, joy_x, joy_mode
 
 .bss
@@ -26,8 +28,9 @@ ready: .res 1                   ; //c: bit 7 = a page waits for the IRQ
 wanted: .res 1                  ; page to show: 0 = page 1, 1 = page 2
 joy_mode: .res 1                ; nonzero: read paddle 0 while waiting
 from: .res 1
+spk_cnt: .res 1                 ; turns to the next speaker toggle
 .data
-joy_x: .byte 94                 ; paddle 0 count (0..~188), centre until read
+joy_x: .byte JOY_CENTRE         ; paddle 0 count (0..~165), centre until read
 allocate: .byte 2,0
         .word vbl_irq
 release: .byte 1,0
@@ -38,6 +41,10 @@ release: .byte 1,0
 timing_init:
         stz ready
         jsr _a2_frame_init
+        pha
+        lda #DELAY               ; fallback: one WAIT a frame (see present_delay)
+        jsr _a2_frame_set_delay
+        pla
         cmp #1
         bne irq
         sta timing_mode
@@ -87,19 +94,25 @@ closed: stz timing_mode
         jmp _mouse_close
 
 ; Count //e VBL edges. Call at most ~4 000 cycles apart while drawing (the
-; blank lasts ~4 550): no edge is then missed. ~25 cycles; A clobbered.
+; blank lasts ~4 550): no edge is then missed. ~32 cycles; A clobbered.
+; Atomic: the music interrupt (sound.s, a PT3 tick of up to ~3 000 cycles)
+; scans too, on entry and on exit; interrupted between its read and its
+; store, a scan here would count an edge twice.
 timing_scan:
         lda timing_mode
         cmp #1
         bne scanned
+        php
+        sei
         lda $C019
         and #$80
         cmp beam
-        beq scanned
+        beq :+
         sta beam
         cmp #$80
-        beq scanned              ; blank -> picture: nothing
+        beq :+                   ; blank -> picture: nothing
         inc vbl_count
+:       plp
 scanned:
         rts
 
@@ -142,9 +155,12 @@ shown:  sec
         sta last_flip
         rts
 
-; No video clock: two WAIT delays stand for two refreshes.
+; No video clock: one WAIT, after a frame's drawing and logic (~24 000
+; cycles), stands for the rest of two refreshes (34 060). WAIT(60) is ~9 800
+; cycles: the game keeps ~its speed (two WAIT(80), ~34 000 on top of the
+; drawing, made it run at ~57 %, bug hunt 2026-10-23).
+DELAY = 60
 present_delay:
-        jsr _a2_frame_wait
         jsr _a2_frame_wait
         ldx wanted
         lda $C054,x
@@ -166,12 +182,22 @@ present_irq:
 :       lda #$80
         sta ready
         jsr joy_read_irq
+        lda spk_period
+        sta spk_cnt
         ldx #0
-        ldy #0
+        ldy #>WAIT_TURNS
 wait_irq:
-        bit ready
+        bit ready                ; 6
         bpl irq_shown
-        dex
+        jsr spk_pad              ; 37: the //e turn's length
+        lda spk_period           ; 15 (silent: 7)
+        beq wi_count
+        dec spk_cnt
+        bne wi_count
+        sta spk_cnt
+        sta $C030
+wi_count:
+        dex                      ; 5
         bne wait_irq
         dey
         bne wait_irq
@@ -181,30 +207,52 @@ irq_shown:
         lda flip_count
         bra shown
 
+spk_pad:                         ; 12 + 25 cycles
+        bit $00
+.repeat 11
+        nop
+.endrepeat
+        rts
+
 late:   inc late_count
         bne :+
         inc late_count+1
 :       rts
 
-; Wait for the next //e VBL edge. C = 1 (and delays from now on) if none
-; comes within ~2.5 s.
+; Wait for the next //e VBL edge, toggling the speaker every spk_period
+; turns (sound.s's effects: they only sound in this spare time, never
+; delaying a frame). A turn is SPK_TURN cycles (sound.inc), as in the //c
+; loop below. C = 1 (and delays from now on) if no edge comes within
+; WAIT_TURNS turns (~0.5 s; a refresh is ~270 turns).
+WAIT_TURNS = 8192               ; (a multiple of 256: X counts the low byte)
 next_edge:
         lda vbl_count
         sta from
+        lda spk_period
+        sta spk_cnt
         ldx #0
-        ldy #0
-:       jsr timing_scan
-        lda vbl_count
+        ldy #>WAIT_TURNS
+ne_turn:
+        jsr timing_scan          ; 33
+        lda vbl_count            ; 10
         cmp from
-        bne :+
-        dex
-        bne :-
+        bne ne_edge
+        lda spk_period           ; 15 (silent: 7)
+        beq ne_count
+        dec spk_cnt
+        bne ne_count
+        sta spk_cnt
+        sta $C030                ; a store: one toggle, seen by storewatch
+ne_count:
+        dex                      ; 5
+        bne ne_turn
         dey
-        bne :-
+        bne ne_turn
         stz timing_mode
         sec
         rts
-:       clc
+ne_edge:
+        clc
         rts
 
 ; ProDOS interrupt handler: C = 0 if it was the mouse firmware's VBL.
@@ -232,10 +280,12 @@ not_ours:
         sec
         rts
 
-; Paddle 0 in the time left before the flip: 15 cycles a count, ~188 for a
+; Paddle 0 in the time left before the flip: 17 cycles a count, ~165 for a
 ; full turn. Stops at the deadline (the blank on the //e, the flip on the
-; //c); an unfinished read keeps the previous value, so the frame rate never
-; depends on the stick.
+; //c) or after 255 counts (no stick: the timer never ends; without that
+; bound a //c whose interrupt stopped spun here forever, bug hunt
+; 2026-10-23); an unfinished read keeps the previous value, so the frame
+; rate never depends on the stick.
 joy_read_vbl:
         lda joy_mode
         beq joy_done
@@ -251,6 +301,7 @@ joy_read_vbl:
 :       bit $C019
         bpl joy_done
         inx
+        beq joy_done
         lda $C064
         bmi :-
         stx joy_x
@@ -264,6 +315,7 @@ joy_read_irq:
 :       bit ready
         bpl joy_done
         inx
+        beq joy_done
         lda $C064
         bmi :-
         stx joy_x

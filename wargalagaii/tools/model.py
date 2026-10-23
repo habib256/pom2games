@@ -5,8 +5,19 @@ Bit-exact oracle, as dirtbike/tools/physics.py: tests/test_game.py pokes the
 same inputs into the 6502 at each logic step and compares the whole state.
 Constants mirror the top of src/game.s; path bytes come from tools/paths.py.
 
-One step, in this order: ship, shots, new shot, stars, entry waves,
-formation sway (one row every other step), dive launcher, aliens.
+One step, in this order: ship, shots, new shots (weapon, autofire), bombs,
+falling objects, stars, entry waves, formation sway (one row every other
+step), dive launcher, aliens (all frozen by the freeze bonus but for
+explosions), flying list, shots against aliens (and drops), the ship
+against bombs then aliens, pickups, enemy fire, ship and bonus timers,
+level (end, teleport, next level).
+
+Levels (lot 6): 100, in 25 packs of 4; level 3 of a pack has big aliens
+(lot 6, step 3), level 4 is a bonus level (even pack: aliens fly past and
+never fire, all 40 shot = a prize) or a kamikaze level (odd pack: aliens
+dive at the ship, a wave shot down = a prize); levels 25/50/75/100 are boss
+levels (step 4). Each pack is harder; after level 100 the game loops,
+mirrored and harder still. Between two levels: TELEPORT_T steps.
 """
 import paths
 
@@ -17,23 +28,135 @@ SHIP_SPEED = 2
 MAX_SHOTS = 10                  # slots; shot_limit (jauge B) uses 5 at start
 SHOT_LIMIT = 5
 SHOT_DY = 8
-SHOT_Y0 = SHIP_Y - 6
-NSTARS = 24
+SHOT_H = 6
+SHOT_Y0 = SHIP_Y - SHOT_H
+NSTARS = 16                     # (24 until lot 6: ~1 100 cycles a frame back)
 
 ROWS, COLS = 5, 8
 NALIENS = ROWS * COLS
 ALIEN_MAX = 140 - 7
+ALIEN_CELLS, ALIEN_H = 7, 8
 FORM_X0, FORM_DX = 11, 14       # cells
 FORM_Y0, FORM_DY = 20, 14       # rows
 SWAY_MAX = 12
-DEAD, ENTER, DIVE, HOME, FORM = range(5)
+SWAY_EVERY = 3                  # steps per row move (2 until lot 6: frame budget)
+DEAD, ENTER, DIVE, HOME, FORM, BOOM = range(6)
 HOME_DX, HOME_DY = 2, 4
 ENTRY_FIRST, WAVE_GAP, LAUNCH_GAP = 20, 60, 6
 DIVE_GAP, MAX_DIVERS = 20, 6
 OFF_TOP = 240                   # row 240 = -16: above the screen
+ESCAPE_Y = 224                  # rows 192..223: gone out through the bottom (an
+                                # alien starting above, 236.., never is there)
 SEED = 0xAD3C
+BOOM_T = 8                      # steps an alien explosion lasts
+
+E_SHOTS = 6                     # enemy bombs
+BOMB_DY, BOMB_H = 4, 4
+FIRE_GAP = 12                   # steps between two bomb attempts
+FIRE_MAX_Y = 150                # an alien lower than this does not fire
+
+LIVES = 3
+DEATH_T = 45                    # steps from a hit to the respawn
+RESPAWN_INVUL = 60
+SHIELD_T = 60                   # after armour took a bomb
+SHIP_HIT_X0, SHIP_HIT_X1 = 1, 5     # cells of the ship that can be hit
+SHIP_HIT_Y0, SHIP_HIT_Y1 = SHIP_Y + 2, SHIP_Y + 9
+POINTS_SEATED, POINTS_FLYING = 50, 100
+
+# Lot 6: levels.
+PASS, KAMI = 6, 7               # alien states: flies past (bonus), dives at the ship
+NORMAL, BIG, BONUS, KAMIKAZE, BOSS = range(5)   # level kinds
+LEVELS = 100
+TELEPORT_T = 60                 # steps between two levels
+BONUS_PRIZE = 10000             # all 40 shot on a bonus level
+KAMI_PRIZE = 2000               # a kamikaze wave shot down: 2000, 4000, 8000...
+BOSS_LEVELS = (24, 49, 74, 99)  # level indexes (levels 25, 50, 75, 100)
+# Big aliens (level 3 of a pack): the even slots of formation row 0, two
+# hits, 200 points, a rank mark of the pack's colour. Anchored on the slot
+# like a small one: their box is cells x-2..x+7, rows y-8..y+7 (drawn only
+# from row 16 down, not over the HUD).
+BIG_HP, POINTS_BIG = 2, 200
+# The boss (levels 25, 50, 75, 100): 16 cells x 24 rows at BOSS_Y, leaping
+# 7 cells (two bytes: always the same pre-shift, redrawn only when it moved)
+# every BOSS_STEP steps, bouncing; only its core (cells 4..11) takes hits, its
+# wings swallow shots; a rosette of 5 bombs every boss_gap steps, an aimed
+# bomb half-way; shot down: 5000 points, its escorts explode, a life and a
+# 200 coin drop.
+BOSS_CELLS, BOSS_H, BOSS_Y = 16, 24, 24
+BOSS_CORE0, BOSS_CORE1 = 4, 11
+BOSS_MAX_X = 119                # a multiple of 7: 140 - 16, rounded down
+BOSS_STEP = 8
+BOSS_BOOM_T = 40
+POINTS_BOSS, POINTS_BOSS_HIT = 5000, 10
+ROSETTE = (-2, -1, 0, 1, 2)
+# Hurry-up: a normal or big level still on after HURRY_T steps (60 s) gets
+# a saucer at HURRY_Y crossing the top, 2 cells a step, bouncing, out of
+# reach, dropping a bomb that drifts towards the ship every HURRY_FIRE steps.
+HURRY_T, HURRY_Y, HURRY_FIRE = 1800, 10, 12
+BIG_X0, BIG_CELLS, BIG_Y0, BIG_H = -2, 10, -8, 16
+
+
+def level_kind(level):
+    if level in BOSS_LEVELS:
+        return BOSS
+    sub = level % 4
+    if sub < 2:
+        return NORMAL
+    if sub == 2:
+        return BIG
+    return BONUS if level // 4 % 2 == 0 else KAMIKAZE
+
+
+def alien_combo(level):
+    """Small alien design x tint of the level's pack: WG2.AUX table index
+    design * 4 + tint (design pack mod 6, tint (pack div 6) mod 4)."""
+    pack = level // 4
+    return pack % 6 * 4 + pack // 6 % 4
+
+
+def big_combo(level):
+    """Big alien design x tint of the level's pack (WG2.AUX big table)."""
+    pack = level // 4
+    return pack % 2 * 4 + pack // 6 % 4
+
+
+def level_params(level, loop):
+    """(dive gap, max divers, fire gap, bomb dy, kamikaze dy): each pack is
+    harder, each loop more so."""
+    pack = level // 4
+    return (max(8, DIVE_GAP - pack // 2 - 4 * loop),
+            min(7, MAX_DIVERS + pack // 6 + 2 * loop),   # (more: past the frame budget)
+            max(5, FIRE_GAP - pack // 3 - 3 * loop),
+            min(7, BOMB_DY + pack // 12 + loop),
+            min(7, 3 + pack // 8 + loop))
+
+# Lot 5: falling objects, gauges, timed bonuses.
+N_OBJ, OBJ_DY, OBJ_H = 6, 2, 8
+DROP_RATE = 40                  # rand8 < 40: a kill drops something (~16 %)
+S_MAX, B_MIN, B_MAX, T_MIN, T_MAX = 5, 5, 10, 3, 9
+GAUGE_POINTS = 500              # a gauge icon at its maximum
+AUTO_GAP = 4                    # autofire: a volley every 4 steps, fire held
+KINDS = ['c10', 'c50', 'c100', 'c200', 's', 'b', 't', 'w1', 'w2', 'w3', 'auto', 'armour',
+         'life', 'skull', 'e', 'x', 'lt', 'r', 'a', 'x2', 'x5', 'shield', 'freeze',
+         'mark0', 'mark1', 'mark2', 'mark3', 'mark4', 'mark5', 'markdark', 'meteor', 'memory']
+K = {name: i for i, name in enumerate(KINDS)}
+COINS = {'c10': 10, 'c50': 50, 'c100': 100, 'c200': 200}
+WEIGHTS = {'c10': 10, 'c50': 5, 'c100': 2, 'c200': 1, 's': 3, 'b': 3, 't': 3, 'w1': 2, 'w2': 3,
+           'w3': 2, 'auto': 2, 'armour': 2, 'life': 1, 'skull': 3, 'e': 1, 'x': 1, 'lt': 1,
+           'r': 1, 'a': 1, 'x2': 2, 'x5': 1, 'shield': 2, 'freeze': 3, 'mark0': 1, 'mark1': 1,
+           'mark2': 1, 'mark3': 1, 'mark4': 1, 'mark5': 1, 'markdark': 1, 'meteor': 1, 'memory': 1}
+DROP_TABLE = [K[n] for n in KINDS for _ in range(WEIGHTS[n])]
+assert len(DROP_TABLE) == 64
+WEAPONS = [[(3, 0)], [(1, 0), (5, 0)], [(3, 0), (1, -1), (5, 1)]]   # (cell, dx) per shot
+EXTRA = ['e', 'x', 'lt', 'r', 'a']
+
+
+def duration(t_level):
+    """Steps a timed bonus lasts: T seconds at 30 steps a second."""
+    return 300 * t_level
 
 _, ENTRY, DIVES = paths.data()
+FLYPAST = paths.flypast()
 ENTRY_X0, ENTRY_Y0 = paths.data()[0]
 
 
@@ -49,8 +172,26 @@ def clamp(v, lo, hi):
     return lo if v < lo else hi if v > hi else v
 
 
+def bcd(value, nbytes):
+    """value -> little-endian packed BCD."""
+    out = []
+    for _ in range(nbytes):
+        out.append(value % 10 | value // 10 % 10 << 4)
+        value //= 100
+    return bytes(out)
+
+
+def visible(y):
+    return FIELD_TOP <= y < 192
+
+
+def flying(state):
+    """An alien that moves on its own (shot and collided as such)."""
+    return ENTER <= state <= HOME or state in (PASS, KAMI)
+
+
 class Game:
-    def __init__(self):
+    def __init__(self, start_level=0):
         self.ship_c = SHIP_MAX // 2
         self.shot_limit = SHOT_LIMIT
         self.shot_y = [0] * MAX_SHOTS
@@ -66,9 +207,57 @@ class Game:
         self.a_state = [DEAD] * NALIENS
         self.a_x = [0] * NALIENS
         self.a_y = [0] * NALIENS
+        self.a_timer = [0] * NALIENS
         self.a_path = [0] * NALIENS       # index into a_route
         self.a_route = [ENTRY] * NALIENS
         self.a_mirror = [0] * NALIENS
+        self.a_big = [0] * NALIENS
+        self.a_hp = [0] * NALIENS
+        self.flying = []                  # visible flying aliens, descending
+        self.e_y = [0] * E_SHOTS
+        self.e_c = [0] * E_SHOTS
+        self.fire_t = FIRE_GAP
+        self.lives = LIVES
+        self.armour = 0
+        self.ship_state = 0               # >0: exploding, steps to respawn
+        self.invul_t = 0
+        self.game_over = 0
+        self.score = 0
+        self.credits = 0
+        self.shot_dx = [0] * MAX_SHOTS
+        self.obj_y = [0] * N_OBJ
+        self.obj_k = [0] * N_OBJ          # column: cells 7k..7k+6
+        self.obj_kind = [0] * N_OBJ
+        self.s_level, self.t_level, self.weapon = 1, T_MIN, 0
+        self.autofire_t = self.mult_t = self.shield_t = self.freeze_t = 0
+        self.mult, self.auto_cnt, self.extra_bits = 1, 0, 0
+        self.marks, self.mark_dark, self.subgame = 0, 0, 0
+        self.level, self.loop, self.phase, self.clear_t, self.level_t = start_level, 0, 0, 0, 0
+        self.bonus_kills, self.w_kills = 0, [0] * ROWS
+        self.e_dx = [0] * E_SHOTS
+        self.boss_hp = self.boss_x = self.boss_dir = self.boss_boom = self.boss_gap = self.boss_t = 0
+        self.boss_mv = 0
+        self.hurry = self.h_x = self.h_dir = self.h_t = 0
+        self.setup_level()
+
+    def boss_setup(self):
+        n = self.level // 25 + 4 * self.loop
+        self.boss_hp = min(250, 30 + 10 * n)
+        self.boss_x, self.boss_dir, self.boss_boom, self.boss_mv = 56, 1, 0, BOSS_STEP
+        self.boss_gap = max(16, 40 - 5 * n)
+        self.boss_t = self.boss_gap
+
+    def setup_level(self):
+        self.lkind = level_kind(self.level)
+        (self.dive_gap, self.max_divers, self.fire_gap, self.bomb_dy,
+         self.kami_dy) = level_params(self.level, self.loop)
+        self.entry_w = 3 if self.lkind == BOSS else 0
+        self.entry_k, self.entry_t = 0, ENTRY_FIRST
+        self.dive_t, self.fire_t, self.level_t = self.dive_gap, self.fire_gap, 0
+        self.bonus_kills, self.w_kills = 0, [0] * ROWS
+        if self.lkind == BOSS:
+            self.boss_setup()
+        self.hurry = 0
 
     def rand8(self):
         """dev/lib/math/random.asm: LSR hi, ROR lo, EOR #$B4 into hi on carry."""
@@ -80,6 +269,10 @@ class Game:
         self.prng = hi << 8 | lo
         return lo
 
+    def rand_alien(self):
+        i = self.rand8() & 63
+        return i - NALIENS if i >= NALIENS else i
+
     def slot_x(self, i):
         return FORM_X0 + self.row_off[i // COLS] + FORM_DX * (i % COLS)
 
@@ -87,35 +280,392 @@ class Game:
     def slot_y(i):
         return FORM_Y0 + FORM_DY * (i // COLS)
 
-    def step(self, move_dir=0, fire=False):
-        """move_dir: -1 left, 0, 1 right."""
-        if move_dir > 0:
-            self.ship_c = min(self.ship_c + SHIP_SPEED, SHIP_MAX)
-        elif move_dir < 0:
-            self.ship_c = max(self.ship_c - SHIP_SPEED, 0)
+    def box(self, i):
+        """(first cell, last cell, top row, bottom row) of alien i."""
+        x, y = self.a_x[i], self.a_y[i]
+        if self.a_big[i]:
+            return x + BIG_X0, x + BIG_X0 + BIG_CELLS - 1, y + BIG_Y0, y + BIG_Y0 + BIG_H - 1
+        return x, x + ALIEN_CELLS - 1, y, y + ALIEN_H - 1
+
+    def shown(self, i):
+        """On screen (big: its top row not in the HUD)."""
+        y = self.a_y[i]
+        return (16 if self.a_big[i] else FIELD_TOP) <= y < 192
+
+    def target(self, i):
+        """Shot and collided with through the list: flying, or a seated big
+        one (the grid only knows small seats)."""
+        s = self.a_state[i]
+        return flying(s) or (s == FORM and self.a_big[i])
+
+    def alive(self):
+        return not self.ship_state and not self.game_over
+
+    def step(self, move_dir=0, fire=False, held=False):
+        """move_dir: -1 left, 0, 1 right; fire: a new press; held: fire is
+        held down (autofire)."""
+        speed = self.s_level + 1
+        if self.alive():
+            if move_dir > 0:
+                self.ship_c = min(self.ship_c + speed, SHIP_MAX)
+            elif move_dir < 0:
+                self.ship_c = max(self.ship_c - speed, 0)
         for x in range(MAX_SHOTS):
             y = self.shot_y[x]
             if y:
                 y -= SHOT_DY
-                self.shot_y[x] = y if y >= FIELD_TOP else 0
-        if fire:
-            for x in reversed(range(self.shot_limit)):
-                if not self.shot_y[x]:
-                    self.shot_y[x] = SHOT_Y0
-                    self.shot_c[x] = self.ship_c + 3
+                c = (self.shot_c[x] + self.shot_dx[x]) & 0xFF
+                self.shot_c[x] = c
+                self.shot_y[x] = y if y >= FIELD_TOP and c <= 139 else 0
+        volley = self.autofire_t and held and not self.auto_cnt
+        self.auto_cnt = (self.auto_cnt + 1) % AUTO_GAP
+        if (fire or volley) and self.alive() and not self.phase:
+            for cell, dx in WEAPONS[self.weapon]:
+                for x in reversed(range(self.shot_limit)):
+                    if not self.shot_y[x]:
+                        self.shot_y[x] = SHOT_Y0
+                        self.shot_c[x] = self.ship_c + cell
+                        self.shot_dx[x] = dx & 0xFF
+                        break
+                else:
                     break
+        for k in range(E_SHOTS):
+            y = self.e_y[k]
+            if y:
+                y += self.bomb_dy
+                c = (self.e_c[k] + self.e_dx[k]) & 0xFF
+                self.e_c[k] = c
+                self.e_y[k] = y if y <= 192 - BOMB_H and c <= 139 else 0
+        for k in range(N_OBJ):
+            y = self.obj_y[k]
+            if y:
+                y += OBJ_DY
+                self.obj_y[k] = y if y <= 192 - OBJ_H else 0
         for i in range(NSTARS):
             y = self.star_y[i] + star_speed(i)
             if y >= 192:
                 y -= 192 - FIELD_TOP
                 self.star_col[i] = (self.star_col[i] + 17) % 40
             self.star_y[i] = y
-        self.launch()
-        self.sway()
-        self.dive()
-        for i in range(NALIENS):
-            self.alien(i)
+        if self.freeze_t:               # frozen: only explosions go on
+            for i in range(NALIENS):
+                if self.a_state[i] == BOOM:
+                    self.alien(i)
+        else:
+            self.launch()
+            self.sway()
+            self.dive()
+            for i in range(NALIENS):
+                self.alien(i)
+            self.boss_move()
+            self.hurry_move()
+        if self.boss_boom:
+            self.boss_boom -= 1
+        self.flying = [i for i in reversed(range(NALIENS)) if self.target(i) and self.shown(i)]
+        for x in reversed(range(MAX_SHOTS)):
+            if self.shot_y[x]:
+                self.shoot(x)
+        if self.alive() and not self.phase:
+            if not self.invul_t and not self.shield_t:
+                self.ship_hits()
+            if self.alive():
+                self.pickups()
+        if not self.freeze_t and self.lkind != BONUS:
+            self.enemy_fire()
+        if self.ship_state:
+            self.ship_state -= 1
+            if not self.ship_state:
+                if self.lives:
+                    self.ship_c = SHIP_MAX // 2
+                    self.invul_t = RESPAWN_INVUL
+                else:
+                    self.game_over = 1
+        elif self.invul_t:
+            self.invul_t -= 1
+        if self.autofire_t:
+            self.autofire_t -= 1
+        if self.mult_t:
+            self.mult_t -= 1
+            if not self.mult_t:
+                self.mult = 1
+        if self.shield_t:
+            self.shield_t -= 1
+        if self.freeze_t:
+            self.freeze_t -= 1
+        self.level_step()
 
+    # --- levels -------------------------------------------------------------
+    def level_step(self):
+        if self.phase:                  # teleporting
+            self.clear_t -= 1
+            if not self.clear_t:
+                self.phase = 0
+                self.level += 1
+                if self.level == LEVELS:
+                    self.level = 0
+                    self.loop = (self.loop + 1) & 0xFF
+                self.setup_level()
+            return
+        self.level_t = min(0xFFFF, self.level_t + 1)
+        if not self.hurry and self.level_t >= HURRY_T and self.lkind in (NORMAL, BIG):
+            self.hurry, self.h_x, self.h_dir, self.h_t = 1, 0, 1, HURRY_FIRE
+        if self.entry_w != ROWS or any(self.a_state) or self.boss_hp or self.boss_boom:
+            return
+        if self.lkind == BONUS and self.bonus_kills == NALIENS:
+            self.add_score(BONUS_PRIZE)
+        self.phase, self.clear_t = 1, TELEPORT_T
+        self.hurry = 0
+        self.shot_y = [0] * MAX_SHOTS
+        self.e_y = [0] * E_SHOTS
+        self.obj_y = [0] * N_OBJ
+
+    # --- bonuses ------------------------------------------------------------
+    def add_score(self, points):
+        self.score += points * self.mult
+
+    def drop(self, i):
+        if self.rand8() >= DROP_RATE:
+            return
+        self.rand8()                    # the kind: the high byte (the low one
+        kind = DROP_TABLE[self.prng >> 8 & 63]   # is the first draw >> 1)
+        if self.a_y[i] > 192 - OBJ_H:   # rows past 191: no (a guard: shots hit
+            # nothing below row 179 today; the renderer has no rows past 191)
+            return
+        for k in reversed(range(N_OBJ)):
+            if not self.obj_y[k]:
+                self.obj_y[k] = self.a_y[i]
+                self.obj_k[k] = (self.a_x[i] + 3) // 7
+                self.obj_kind[k] = kind
+                return
+
+    def drop_mark(self, i):
+        """A big alien leaves the pack's rank mark (no draw: always)."""
+        if self.a_y[i] > 192 - OBJ_H:
+            return
+        for k in reversed(range(N_OBJ)):
+            if not self.obj_y[k]:
+                self.obj_y[k] = self.a_y[i]
+                self.obj_k[k] = (self.a_x[i] + 3) // 7
+                self.obj_kind[k] = K['mark0'] + self.level // 4 % 6
+                return
+
+    def pickups(self):
+        for k in reversed(range(N_OBJ)):
+            y = self.obj_y[k]
+            c = 7 * self.obj_k[k]
+            if y and c + 6 >= self.ship_c + SHIP_HIT_X0 and c <= self.ship_c + SHIP_HIT_X1 \
+                    and y + OBJ_H - 1 >= SHIP_HIT_Y0 and y <= SHIP_HIT_Y1:
+                self.obj_y[k] = 0
+                self.take(KINDS[self.obj_kind[k]])
+
+    def take(self, kind):
+        if kind in COINS:
+            self.credits = min(9999, self.credits + COINS[kind])
+        elif kind == 's':
+            if self.s_level < S_MAX:
+                self.s_level += 1
+            else:
+                self.add_score(GAUGE_POINTS)
+        elif kind == 'b':
+            if self.shot_limit < B_MAX:
+                self.shot_limit += 1
+            else:
+                self.add_score(GAUGE_POINTS)
+        elif kind == 't':
+            if self.t_level < T_MAX:
+                self.t_level += 1
+            else:
+                self.add_score(GAUGE_POINTS)
+        elif kind in ('w1', 'w2', 'w3'):
+            self.weapon = int(kind[1]) - 1
+        elif kind == 'auto':
+            self.autofire_t = duration(self.t_level)
+        elif kind == 'armour':
+            if self.armour < 2:
+                self.armour += 1
+            else:
+                self.add_score(GAUGE_POINTS)
+        elif kind == 'life':
+            if self.lives < 4:
+                self.lives += 1
+            else:
+                self.add_score(GAUGE_POINTS)
+        elif kind == 'skull':
+            r = self.rand8() & 3
+            if r == 0:
+                self.weapon = 0
+            elif r == 1:
+                self.s_level = max(1, self.s_level - 1)
+            elif r == 2:
+                self.shot_limit = max(B_MIN, self.shot_limit - 1)
+            else:                       # every timed bonus ends
+                self.autofire_t = self.mult_t = self.shield_t = self.freeze_t = 0
+                self.mult = 1
+        elif kind in EXTRA:
+            self.extra_bits |= 1 << EXTRA.index(kind)
+            if self.extra_bits == 31:
+                self.extra_bits = 0
+                if self.lives < 4:
+                    self.lives += 1
+                else:
+                    self.add_score(GAUGE_POINTS)
+        elif kind in ('x2', 'x5'):          # the larger multiplier, time anew
+            self.mult = max(self.mult, int(kind[1]))
+            self.mult_t = duration(self.t_level)
+        elif kind == 'shield':
+            self.shield_t = duration(self.t_level)
+        elif kind == 'freeze':
+            self.freeze_t = duration(self.t_level)
+        elif kind.startswith('mark') and kind != 'markdark':
+            self.marks |= 1 << int(kind[4])          # ranks: lot 7
+        elif kind == 'markdark':
+            self.mark_dark = 1
+        else:                                        # sub-games: lot 8
+            self.subgame = 1 if kind == 'meteor' else 2
+
+    # --- collisions ---------------------------------------------------------
+    def explode(self, i):
+        self.a_state[i] = BOOM
+        self.a_timer[i] = BOOM_T
+
+    def shoot(self, x):
+        c, y = self.shot_c[x], self.shot_y[x]
+        if self.boss_hp and self.boss_x <= c <= self.boss_x + BOSS_CELLS - 1 \
+                and y <= BOSS_Y + BOSS_H - 1 and y + SHOT_H - 1 >= BOSS_Y:
+            self.shot_y[x] = 0          # the wings swallow it, the core bleeds
+            if self.boss_x + BOSS_CORE0 <= c <= self.boss_x + BOSS_CORE1:
+                self.boss_hp -= 1
+                self.add_score(POINTS_BOSS_HIT)
+                if not self.boss_hp:
+                    self.boss_down()
+            return
+        # seated: the one band a shot can touch, then the column
+        r = shot_row(y)
+        if r is not None:
+            dx = c - (FORM_X0 + self.row_off[r])
+            if 0 <= dx < COLS * FORM_DX and dx % FORM_DX < ALIEN_CELLS:
+                i = r * COLS + dx // FORM_DX
+                if self.a_state[i] == FORM and not self.a_big[i]:
+                    self.shot_y[x] = 0
+                    self.explode(i)
+                    self.add_score(POINTS_SEATED)
+                    self.drop(i)
+                    return
+        for i in self.flying:
+            x0, x1, y0, y1 = self.box(i)
+            if self.target(i) and x0 <= c <= x1 and y <= y1 and y + SHOT_H - 1 >= y0:
+                self.shot_y[x] = 0
+                if self.a_big[i]:
+                    self.a_hp[i] -= 1
+                    if self.a_hp[i]:            # dented
+                        return
+                    self.explode(i)
+                    self.add_score(POINTS_BIG)
+                    self.drop_mark(i)
+                    return
+                self.explode(i)
+                self.add_score(POINTS_FLYING)
+                if self.lkind == BONUS:
+                    self.bonus_kills += 1
+                elif self.lkind == KAMIKAZE:
+                    w = i // COLS
+                    self.w_kills[w] += 1
+                    if self.w_kills[w] == COLS:
+                        self.add_score(KAMI_PRIZE << w)
+                self.drop(i)
+                return
+
+    def ship_hits(self):
+        for k in reversed(range(E_SHOTS)):
+            y = self.e_y[k]
+            if y and self.ship_c + SHIP_HIT_X0 <= self.e_c[k] <= self.ship_c + SHIP_HIT_X1 \
+                    and y <= SHIP_HIT_Y1 and y + BOMB_H - 1 >= SHIP_HIT_Y0:
+                self.e_y[k] = 0
+                if self.armour:
+                    self.armour -= 1
+                    self.invul_t = SHIELD_T
+                else:
+                    self.kill()
+                return
+        for i in self.flying:
+            x0, x1, y0, y1 = self.box(i)
+            if self.target(i) and x1 >= self.ship_c + SHIP_HIT_X0 and x0 <= self.ship_c + SHIP_HIT_X1 \
+                    and y1 >= SHIP_HIT_Y0 and y0 <= SHIP_HIT_Y1:
+                self.explode(i)
+                self.kill()
+                return
+
+    # --- the boss -----------------------------------------------------------
+    def boss_move(self):
+        if not self.boss_hp:
+            return
+        self.boss_mv -= 1
+        if not self.boss_mv:
+            self.boss_mv = BOSS_STEP
+            x = self.boss_x + 7 * self.boss_dir
+            if x < 0 or x > BOSS_MAX_X:
+                self.boss_dir = -self.boss_dir
+                x = self.boss_x + 7 * self.boss_dir
+            self.boss_x = x
+        self.boss_t -= 1
+        mid = self.boss_x + BOSS_CELLS // 2
+        if not self.boss_t:
+            self.boss_t = self.boss_gap
+            for dx in ROSETTE:
+                self.bomb(BOSS_Y + BOSS_H, mid, dx)
+        elif self.boss_t == self.boss_gap // 2:
+            self.bomb(BOSS_Y + BOSS_H, mid, (mid < self.ship_c + 3) - (mid > self.ship_c + 3))
+
+    def hurry_move(self):
+        if not self.hurry:
+            return
+        x = self.h_x + 2 * self.h_dir
+        if x < 0 or x > ALIEN_MAX:
+            self.h_dir = -self.h_dir
+            x = self.h_x + 2 * self.h_dir
+        self.h_x = x
+        self.h_t -= 1
+        if not self.h_t:
+            self.h_t = HURRY_FIRE
+            mid = self.h_x + 3
+            self.bomb(HURRY_Y + ALIEN_H, mid, (mid < self.ship_c + 3) - (mid > self.ship_c + 3))
+
+    def bomb(self, y, c, dx):
+        for k in reversed(range(E_SHOTS)):
+            if not self.e_y[k]:
+                self.e_y[k], self.e_c[k], self.e_dx[k] = y, c, dx & 0xFF
+                return
+
+    def boss_down(self):
+        self.add_score(POINTS_BOSS)
+        self.boss_boom = BOSS_BOOM_T
+        for i in range(NALIENS):
+            if self.a_state[i] not in (DEAD, BOOM):
+                self.explode(i)
+        for kind, k in (('life', 0), ('c200', 1)):
+            self.obj_y[k] = BOSS_Y + 8
+            self.obj_k[k] = (self.boss_x + 8) // 7 - k
+            self.obj_kind[k] = K[kind]
+
+    def kill(self):
+        self.ship_state = DEATH_T
+        self.lives -= 1
+
+    def enemy_fire(self):
+        self.fire_t -= 1
+        if self.fire_t:
+            return
+        self.fire_t = self.fire_gap
+        i = self.rand_alien()
+        for _ in range(NALIENS):
+            if self.a_state[i] in (FORM, DIVE) and self.shown(i) and self.a_y[i] < FIRE_MAX_Y:
+                break
+            i = i + 1 if i < NALIENS - 1 else 0
+        else:
+            return
+        self.bomb(self.a_y[i] + ALIEN_H, self.a_x[i] + 3, 0)
+
+    # --- formation ----------------------------------------------------------
     def launch(self):
         if self.entry_w == ROWS:
             return
@@ -123,10 +673,19 @@ class Game:
         if self.entry_t:
             return
         w, k = self.entry_w, self.entry_k
-        for i, x, mirror in ((w * COLS + 3 - k, ENTRY_X0, 0), (w * COLS + 4 + k, ALIEN_MAX - ENTRY_X0, 1)):
-            self.a_state[i] = ENTER
-            self.a_x[i], self.a_y[i] = x, ENTRY_Y0
-            self.a_route[i], self.a_path[i], self.a_mirror[i] = ENTRY, 0, mirror
+        flip = self.loop & 1            # after level 100: mirrored
+        state = {BONUS: PASS, KAMIKAZE: KAMI}.get(self.lkind, ENTER)
+        route = FLYPAST if state == PASS else ENTRY
+        for i, mirror in ((w * COLS + 3 - k, 0), (w * COLS + 4 + k, 1)):
+            big = self.lkind == BIG and w == 0
+            if big and i % 2:           # a big level's row 0: even slots only
+                continue
+            self.a_big[i], self.a_hp[i] = int(big), BIG_HP if big else 1
+            mirror ^= flip
+            self.a_state[i] = state
+            self.a_x[i] = ALIEN_MAX - ENTRY_X0 if mirror else ENTRY_X0
+            self.a_y[i] = ENTRY_Y0
+            self.a_route[i], self.a_path[i], self.a_mirror[i] = route, 0, mirror
         self.entry_k += 1
         if self.entry_k == 4:
             self.entry_k = 0
@@ -136,7 +695,7 @@ class Game:
             self.entry_t = LAUNCH_GAP
 
     def sway(self):
-        self.sway_t ^= 1
+        self.sway_t = (self.sway_t + 1) % SWAY_EVERY     # one row every 3 steps
         if self.sway_t:
             return
         r = self.sway_row
@@ -153,17 +712,15 @@ class Game:
                 self.form_dir = -self.form_dir
 
     def dive(self):
-        if self.entry_w != ROWS:
+        if self.entry_w != ROWS or self.lkind in (BONUS, KAMIKAZE):
             return
         self.dive_t -= 1
         if self.dive_t:
             return
-        self.dive_t = DIVE_GAP
-        if sum(ENTER <= s <= HOME for s in self.a_state) >= MAX_DIVERS:
+        self.dive_t = self.dive_gap
+        if sum(ENTER <= s <= HOME for s in self.a_state) >= self.max_divers:
             return
-        i = self.rand8() & 63
-        if i >= NALIENS:
-            i -= NALIENS
+        i = self.rand_alien()
         for _ in range(NALIENS):
             if self.a_state[i] == FORM:
                 break
@@ -173,32 +730,48 @@ class Game:
         route = DIVES[self.rand8() & 3]
         self.a_state[i] = DIVE
         self.a_route[i], self.a_path[i] = route, 0
-        self.a_mirror[i] = int(i % COLS >= COLS // 2)
+        self.a_mirror[i] = int(i % COLS >= COLS // 2) ^ (self.loop & 1)
 
     def alien(self, i):
         s = self.a_state[i]
-        if s in (ENTER, DIVE):
+        if s == KAMI:                   # straight down at its speed, sideways
+            x = self.a_x[i]             # one cell a step towards the ship
+            x += (x < self.ship_c) - (x > self.ship_c)
+            self.a_x[i] = x
+            y = (self.a_y[i] + self.kami_dy) & 0xFF
+            self.a_y[i] = y
+            if 192 <= y < ESCAPE_Y:     # escaped
+                self.a_state[i] = DEAD
+            return
+        if s in (ENTER, DIVE, PASS):
             b = self.a_route[i][self.a_path[i]]
             if b == paths.END:
-                self.a_state[i] = HOME
+                self.a_state[i] = DEAD if s == PASS else HOME
                 return
             self.a_path[i] += 1
             dx, dy = paths.decode(b)
             if self.a_mirror[i]:
                 dx = -dx
-            self.a_x[i] = clamp(self.a_x[i] + dx, 0, ALIEN_MAX)
+            lo, hi = (-BIG_X0, 139 - (BIG_X0 + BIG_CELLS - 1)) if self.a_big[i] else (0, ALIEN_MAX)
+            self.a_x[i] = clamp(self.a_x[i] + dx, lo, hi)
             y = (self.a_y[i] + dy) & 0xFF
             self.a_y[i] = y
             if s == DIVE and 192 <= y < OFF_TOP:
                 self.a_state[i] = HOME
                 self.a_y[i] = OFF_TOP
                 self.a_x[i] = self.slot_x(i)
+            elif s == PASS and 192 <= y < ESCAPE_Y:
+                self.a_state[i] = DEAD     # flew past: escaped
         elif s == HOME:
             tx, ty = self.slot_x(i), self.slot_y(i)
             self.a_x[i] += clamp(tx - self.a_x[i], -HOME_DX, HOME_DX)
             self.a_y[i] = (self.a_y[i] + clamp(signed((ty - self.a_y[i]) & 0xFF), -HOME_DY, HOME_DY)) & 0xFF
             if self.a_x[i] == tx and self.a_y[i] == ty:
                 self.a_state[i] = FORM
+        elif s == BOOM:
+            self.a_timer[i] -= 1
+            if not self.a_timer[i]:
+                self.a_state[i] = DEAD
 
     def state(self):
         """The bytes test_game.py peeks, by label."""
@@ -210,6 +783,84 @@ class Game:
                 'a_state': bytes(self.a_state),
                 'a_x': bytes(self.a_x),
                 'a_y': bytes(self.a_y),
+                'a_timer': bytes(self.a_timer),
+                'a_big': bytes(self.a_big),
+                'a_hp': bytes(self.a_hp),
                 'row_off': bytes(self.row_off),
                 'row_anim': bytes(self.row_anim),
+                'e_y': bytes(self.e_y),
+                'e_c': bytes(self.e_c),
+                'lives': bytes([self.lives]),
+                'armour': bytes([self.armour]),
+                'ship_state': bytes([self.ship_state]),
+                'invul_t': bytes([self.invul_t]),
+                'game_over': bytes([self.game_over]),
+                'score': bcd(self.score % 1000000, 3),
+                'credits': bcd(self.credits, 2),
+                'shot_limit': bytes([self.shot_limit]),
+                'shot_dx': bytes(self.shot_dx),
+                'obj_y': bytes(self.obj_y),
+                'obj_k': bytes(self.obj_k),
+                'obj_kind': bytes(self.obj_kind),
+                's_level': bytes([self.s_level]),
+                't_level': bytes([self.t_level]),
+                'weapon': bytes([self.weapon]),
+                'autofire_t': self.autofire_t.to_bytes(2, 'little'),
+                'mult_t': self.mult_t.to_bytes(2, 'little'),
+                'shield_t': self.shield_t.to_bytes(2, 'little'),
+                'freeze_t': self.freeze_t.to_bytes(2, 'little'),
+                'mult': bytes([self.mult]),
+                'auto_cnt': bytes([self.auto_cnt]),
+                'extra_bits': bytes([self.extra_bits]),
+                'marks': bytes([self.marks]),
+                'mark_dark': bytes([self.mark_dark]),
+                'subgame': bytes([self.subgame]),
+                'level': bytes([self.level]),
+                'loop': bytes([self.loop]),
+                'phase': bytes([self.phase]),
+                'clear_t': bytes([self.clear_t]),
+                'level_t': self.level_t.to_bytes(2, 'little'),
+                'lkind': bytes([self.lkind]),
+                'bonus_kills': bytes([self.bonus_kills]),
+                'w_kills': bytes(self.w_kills),
+                'dive_gap': bytes([self.dive_gap]),
+                'max_divers': bytes([self.max_divers]),
+                'fire_gap': bytes([self.fire_gap]),
+                'bomb_dy': bytes([self.bomb_dy]),
+                'kami_dy': bytes([self.kami_dy]),
+                'e_dx': bytes(self.e_dx),
+                'boss_hp': bytes([self.boss_hp]),
+                'boss_x': bytes([self.boss_x]),
+                'boss_dir': bytes([self.boss_dir & 0xFF]),
+                'boss_boom': bytes([self.boss_boom]),
+                'boss_gap': bytes([self.boss_gap]),
+                'boss_t': bytes([self.boss_t]),
+                'boss_mv': bytes([self.boss_mv]),
+                'hurry': bytes([self.hurry]),
+                'h_x': bytes([self.h_x]),
+                'h_dir': bytes([self.h_dir & 0xFF]),
+                'h_t': bytes([self.h_t]),
                 'prng': bytes([self.prng & 0xFF, self.prng >> 8])}
+
+
+def shot_row(y):
+    """The formation row a shot whose top is y can touch: its rows y..y+5
+    meet the alien rows top..top+7 (one band at most: 6 + 8 - 1 < 14)."""
+    for r in range(ROWS):
+        top = FORM_Y0 + FORM_DY * r
+        if y <= top + ALIEN_H - 1 and y + SHOT_H - 1 >= top:
+            return r
+    return None
+
+
+if __name__ == '__main__':
+    g = Game()
+    deaths = []
+    for k in range(6000):
+        lives = g.lives
+        g.step()
+        if g.lives != lives:
+            deaths.append(k + 1)
+        if g.game_over:
+            break
+    print('deaths at steps', deaths, 'game over at', k + 1, 'score', g.score)

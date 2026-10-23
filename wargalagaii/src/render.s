@@ -3,11 +3,15 @@
 ; Each page keeps what was drawn on it (two frames ago): aliens (pd_*),
 ; shots (sd_*), the ship, the stars. Drawing order, then erasing order, the
 ; exact reverse, so that each erase finds the page as its drawing left it:
-;   draw:  seated aliens (STA), ship (STA), flying aliens (EOR), shots
-;          (EOR), stars (only on a black byte)
-;   erase: stars (only if the byte is still the star), shots (EOR), flying
-;          aliens (EOR, all of them, every frame), ship (zeros, if it
-;          moved), seated aliens that moved or left (zeros)
+;   draw:  seated aliens (STA), message (STA), ship (STA), flying aliens
+;          and explosions (EOR), shots and bombs (EOR), stars (only on a
+;          black byte)
+;   erase: stars (only if the byte is still the star), shots and bombs
+;          (EOR), flying aliens (EOR, all of them, every frame), ship
+;          (zeros, if it moved or changed), seated aliens that moved or
+;          left (zeros)
+; The HUD (rows 0-7) is apart: a character is rewritten on a page when it
+; differs from what that page shows.
 ; Flying things are drawn with EOR, so erasing them restores what was under
 ; them (a seated alien, the ship) without redrawing it: only the formation
 ; rows that swayed are rewritten, one row every other step.
@@ -87,6 +91,7 @@ HI_SITES .set HI_SITES + 1
 pat:      .res 1
 
 .bss
+render_vars:                    ; zeroed by render_init
 pd_x:     .res NALIENS*2        ; alien drawn at, per page
 pd_y:     .res NALIENS*2        ; 0 = not drawn
 pd_f:     .res NALIENS*2        ; table entry drawn, + $80 if drawn seated
@@ -95,9 +100,27 @@ md_n:     .res 2
 sd_y:     .res MAX_SHOTS*2      ; shot drawn at (top row, 0 = none), per page
 sd_col:   .res MAX_SHOTS*2
 sd_pat:   .res MAX_SHOTS*2
+bd_y:     .res E_SHOTS*2        ; bomb drawn at, per page
+bd_col:   .res E_SHOTS*2
+bd_pat:   .res E_SHOTS*2
+od_y:     .res N_OBJ*2          ; object drawn at, per page
+od_k:     .res N_OBJ*2
+od_kind:  .res N_OBJ*2
 star_lo:  .res NSTARS*2         ; screen byte written per page, hi 0 = none
 star_hi:  .res NSTARS*2
-ship_drawn: .res 2              ; cell drawn on each page, $FF = none
+boss_drawn: .res 2              ; boss cell drawn on each page, $FF none
+ufo_drawn: .res 2               ; saucer cell drawn on each page, $FF none
+ship_drawn: .res 2              ; cell drawn on each page
+ship_img: .res 2                ; image drawn: 0 ship, 1-2 explosion, $FF none
+ship_want: .res 1
+msg_drawn: .res 2               ; message id each page shows
+msg_text: .res 9
+mu_tens:  .res 1
+mu_units: .res 1
+hud_seen: .res 80               ; HUD characters each page shows
+hud_key:  .res 2*HUD_KEYS       ; the state each page's HUD shows
+hud_buf:  .res 40
+hud_now:  .res HUD_KEYS
 form_list: .res NALIENS
 nform:    .res 1
 move_list: .res NALIENS
@@ -106,14 +129,39 @@ cur_f:    .res 1                ; table entry wanted for the alien in hand
 pr_off:   .res ROWS*2           ; row sway offset / frame each page was drawn with
 pr_anim:  .res ROWS*2
 row_dirty: .res ROWS
+render_vars_end:
 
 .code
 render_init:
+        lda #<render_vars        ; every record: nothing drawn
+        sta dst
+        lda #>render_vars
+        sta dst+1
+        ldx #>(render_vars_end-render_vars)
+        ldy #<(render_vars_end-render_vars)
+        jsr zero_block
         lda #$FF
-        sta ship_drawn
-        sta ship_drawn+1
+        sta ship_img
+        sta ship_img+1
+        sta boss_drawn
+        sta boss_drawn+1
+        sta ufo_drawn
+        sta ufo_drawn+1
         ldx #ROWS*2-1
 :       sta pr_off,x
+        dex
+        bpl :-
+        ldx #80-1
+:       sta hud_seen,x
+        dex
+        bpl :-
+        ldx #2*HUD_KEYS-1
+:       sta hud_key,x
+        dex
+        bpl :-
+        ldx #40-1
+:       lda hud_template,x
+        sta hud_buf,x
         dex
         bpl :-
         rts
@@ -122,15 +170,28 @@ render:
         jsr stars_erase
         jsr timing_scan
         jsr shots_erase
+        jsr timing_scan
+        jsr bombs_erase
+        jsr objects_erase
         jsr movers_erase
+        jsr boss_erase
+        jsr ufo_erase
+        jsr ship_choose
         jsr ship_erase
         jsr aliens_pass
         jsr form_draw
+        jsr msg_draw
         jsr ship_draw
         jsr movers_draw
+        jsr boss_draw
+        jsr ufo_draw
         jsr shots_draw
         jsr timing_scan
+        jsr bombs_draw
+        jsr objects_draw
+        jsr timing_scan
         jsr stars_draw
+        jsr hud_draw
 render_done:
         rts
 
@@ -190,39 +251,498 @@ sh_next:
         bpl sh_draw
         rts
 
+; Bombs: as shots, falling.
+bombs_erase:
+        lda page
+        beq :+
+        lda #E_SHOTS
+:       sta tmp                  ; first slot of this page
+        clc
+        adc #E_SHOTS-1
+        tax
+be_bomb:
+        lda bd_y,x
+        beq be_next
+        stz bd_y,x
+        phx
+        ldy bd_col,x
+        sty col
+        ldy bd_pat,x
+        sty pat
+        tax
+        jsr bomb_eor
+        plx
+be_next:
+        cpx tmp
+        beq :+
+        dex
+        bra be_bomb
+:       rts
+
+; Falling objects: a 2-byte icon on an even byte column, EOR both ways.
+objects_erase:
+        lda page
+        beq :+
+        lda #N_OBJ
+:       sta tmp                  ; first slot of this page
+        clc
+        adc #N_OBJ-1
+        tax
+oe_obj: lda od_y,x
+        beq oe_next
+        stz od_y,x
+        phx
+        pha
+        lda od_kind,x
+        jsr icon_src
+        lda od_k,x
+        asl
+        sta col
+        plx                      ; (the row)
+        jsr obj_eor
+        jsr timing_scan          ; (6 objects + 6 bombs: longer than a blank)
+        plx
+oe_next:
+        cpx tmp
+        beq :+
+        dex
+        bra oe_obj
+:       rts
+
+objects_draw:
+        ldx #N_OBJ-1
+ob_draw:
+        lda obj_y,x
+        beq ob_next
+        phx
+        txa
+        ldy page
+        beq :+
+        clc
+        adc #N_OBJ
+:       tay
+        lda obj_y,x
+        sta od_y,y
+        lda obj_k,x
+        sta od_k,y
+        asl
+        sta col
+        lda obj_kind,x
+        sta od_kind,y
+        jsr icon_src
+        lda obj_y,x
+        tax
+        jsr obj_eor
+        plx
+        jsr timing_scan
+ob_next:
+        dex
+        bpl ob_draw
+        rts
+
+; src = icons + 16 * A. Keeps X, Y.
+icon_src:
+        stz src+1
+        asl
+        asl
+        asl
+        asl
+        rol src+1
+        clc
+        adc #<icons
+        sta src
+        lda src+1
+        adc #>icons
+        sta src+1
+        rts
+
+bombs_draw:
+        ldx #E_SHOTS-1
+bo_draw:
+        lda e_y,x
+        beq bo_next
+        phx
+        ldy e_c,x
+        lda cell_byte,y
+        sta col
+        lda cell_shift,y
+        tay
+        lda bomb_pat,y
+        sta pat
+        txa
+        ldy page
+        beq :+
+        clc
+        adc #E_SHOTS
+:       tay
+        lda col
+        sta bd_col,y
+        lda pat
+        sta bd_pat,y
+        lda e_y,x
+        sta bd_y,y
+        tax
+        jsr bomb_eor
+        plx
+bo_next:
+        dex
+        bpl bo_draw
+        rts
+
 ; ---------------------------------------------------------------------------
-; Ship: redrawn on a page when it moved since that page.
+; Ship: 0 = the ship (blinking while nothing hurts it), 1-2 = its
+; explosion frames for the first 24 steps of ship_state, $FF = nothing.
+; Redrawn on a page when its cell or image changed since that page.
+ship_choose:
+        lda game_over
+        bne sc_none
+        lda ship_state
+        beq sc_alive
+        cmp #DEATH_T-24+1
+        bcc sc_none
+        lsr
+        lsr
+        and #1
+        inc a
+        bra sc_set
+sc_alive:
+        lda invul_t              ; blinks while nothing hurts it
+        ora shield_t
+        and #4
+        bne sc_none
+        lda #0
+        bra sc_set
+sc_none:
+        lda #$FF
+sc_set: sta ship_want
+        rts
+
 ship_erase:
         ldy page
+        lda ship_img,y
+        cmp #$FF
+        beq :+
+        cmp ship_want
+        bne se_go
         lda ship_c
         cmp ship_drawn,y
         beq :+
-        ldx ship_drawn,y
-        cpx #$FF
-        beq :+
+se_go:  ldx ship_drawn,y
         lda cell_byte,x
         sta col
+        lda #$FF
+        sta ship_img,y
         ldx #SHIP_Y
         jsr ship_clr
 :       rts
 
 ship_draw:
         ldy page
-        lda ship_c
-        cmp ship_drawn,y
+        lda ship_want
+        cmp #$FF
         beq :+
+        lda ship_img,y           ; still there: erase kept it
+        cmp #$FF
+        bne :+
+        lda ship_want
+        sta ship_img,y
+        lda ship_c
         sta ship_drawn,y
         tax
         lda cell_byte,x
         sta col
         ldy cell_shift,x
+        lda ship_want
+        bne sd_boom
         lda ship_lo,y
         sta src
         lda ship_hi,y
         sta src+1
-        ldx #SHIP_Y
+        bra sd_go
+sd_boom:
+        dec a                    ; frame
+        sta tmp
+        tya
+        asl
+        ora tmp
+        tay
+        lda shipboom_lo,y
+        sta src
+        lda shipboom_hi,y
+        sta src+1
+sd_go:  ldx #SHIP_Y
         jmp ship_sta
 :       rts
+.assert SHIPBOOM_W = SHIP_W && SHIPBOOM_H = SHIP_H, error, "the ship explosion uses the ship routines"
+
+; A message in the middle of the field: 1 GAME OVER, 2 LEVEL n (the level
+; being teleported to), 0 none. Rewritten on a page when it differs from
+; what that page shows (none: spaces). msg_drawn = what each page shows.
+msg_draw:
+        lda #1
+        ldx game_over
+        bne :+
+        lda #2
+        ldx phase
+        bne :+
+        lda #0
+:       ldy page
+        cmp msg_drawn,y
+        jeq md_none
+        sta msg_drawn,y
+        tay
+        ldx #MSG_LEN-1           ; the text in msg_text
+:       lda #' '
+        cpy #1
+        bne :+
+        lda msg_over,x
+:       sta msg_text,x
+        dex
+        bpl :--
+        cpy #2
+        bne md_put
+        ldx #MSG_LEN-1           ; LEVEL nnn: (level + 2) + 100 * loop
+:       lda msg_level,x
+        sta msg_text,x
+        dex
+        bpl :-
+        lda level
+        clc
+        adc #2
+        ldx loop                 ; hundreds: loop, + 1 past 99
+        cmp #100
+        bcc :+
+        sbc #100
+        inx
+:       ldy #'0'-1               ; tens, units
+:       iny
+        sec
+        sbc #10
+        bcs :-
+        adc #10+'0'
+        sta mu_units
+        sty mu_tens
+        txa
+        jsr mod10
+        ldx #6                   ; the digits from column 6, no leading 0
+        tay
+        beq :+
+        ora #'0'
+        sta msg_text,x
+        inx
+        bra md_tens
+:       lda mu_tens
+        cmp #'0'
+        beq md_units
+md_tens:
+        lda mu_tens
+        sta msg_text,x
+        inx
+md_units:
+        lda mu_units
+        sta msg_text,x
+md_put: ldx #0
+:       phx
+        lda msg_text,x
+        pha
+        txa
+        clc
+        adc #MSG_COL
+        sta col
+        pla
+        ldx #MSG_ROW
+        jsr glyph
+        jsr timing_scan
+        plx
+        inx
+        cpx #MSG_LEN
+        bne :-
+md_none:
+        rts
+; A mod 10 (A < 256). Z set if 0.
+mod10:  sec
+:       sbc #10
+        bcs :-
+        adc #10
+        rts
+msg_level: .byte "LEVEL    "
+MSG_ROW = 96
+MSG_LEN = 9
+MSG_COL = (40 - MSG_LEN) / 2
+
+; ---------------------------------------------------------------------------
+; HUD. hud_key gathers what it shows; when it differs from what this page
+; shows, hud_buf is filled from the state and every character that differs
+; from this page's is rewritten.
+hud_draw:
+        jsr hud_keys
+        ldx page
+        beq :+
+        ldx #HUD_KEYS
+:       ldy #0
+        lda #0
+        sta tmp2                 ; differs?
+hk_cmp: lda hud_now,y
+        cmp hud_key,x
+        beq :+
+        sta hud_key,x
+        lda #1
+        sta tmp2
+:       inx
+        iny
+        cpy #HUD_KEYS
+        bne hk_cmp
+        lda tmp2
+        bne :+
+        rts
+:       jsr hud_fill
+        ldx #39
+        ldy #39
+        lda page
+        beq hd_char
+        ldy #79
+hd_char:
+        lda hud_buf,x
+        cmp hud_seen,y
+        beq hd_next
+        sta hud_seen,y
+        phx
+        phy
+        stx col
+        ldx #0
+        jsr glyph
+        jsr timing_scan
+        ply
+        plx
+hd_next:
+        dey
+        dex
+        bpl hd_char
+        rts
+
+hud_keys:
+        lda score
+        sta hud_now
+        lda score+1
+        sta hud_now+1
+        lda score+2
+        sta hud_now+2
+        lda lives
+        sta hud_now+3
+        lda armour
+        sta hud_now+4
+        lda shot_limit
+        sta hud_now+5
+        lda credits
+        sta hud_now+6
+        lda credits+1
+        sta hud_now+7
+        lda s_level
+        sta hud_now+8
+        lda t_level
+        sta hud_now+9
+        lda extra_bits
+        sta hud_now+10
+        rts
+
+; The changing characters of hud_buf (the rest is hud_template).
+HUD_SCORE = 0
+HUD_LIVES = 8
+HUD_ARMOUR = 11
+HUD_SBAR = 14
+HUD_BBAR = 21
+HUD_TIME = 28
+HUD_CREDITS = 31
+HUD_EXTRA = 35
+BAR_LEN = 5
+hud_fill:
+        ldx #HUD_SCORE
+        lda score+2
+        jsr hud_bcd
+        lda score+1
+        jsr hud_bcd
+        lda score
+        jsr hud_bcd
+        lda lives
+        ora #'0'
+        sta hud_buf+HUD_LIVES
+        lda armour
+        ora #'0'
+        sta hud_buf+HUD_ARMOUR
+        ldx #HUD_SBAR            ; S: speed level 1..5
+        lda s_level
+        jsr hud_bar
+        ldx #HUD_BBAR            ; B: shots on screen beyond 5 (0..5)
+        lda shot_limit
+        sec
+        sbc #B_MIN
+        jsr hud_bar
+        lda t_level              ; T: tens of seconds
+        ora #'0'
+        sta hud_buf+HUD_TIME
+        ldx #0                   ; E X T R A: the letter, or '-'
+        lda extra_bits
+        sta tmp2
+:       lda #'-'
+        lsr tmp2
+        bcc :+
+        lda extra_letters,x
+:       sta hud_buf+HUD_EXTRA,x
+        inx
+        cpx #5
+        bne :--
+        ldx #HUD_CREDITS
+        lda credits+1
+        jsr hud_bcd
+        lda credits
+        ; fall through
+; A = two BCD digits -> hud_buf,X and X+1; X += 2.
+hud_bcd:
+        pha
+        lsr
+        lsr
+        lsr
+        lsr
+        ora #'0'
+        sta hud_buf,x
+        inx
+        pla
+        and #$0F
+        ora #'0'
+        sta hud_buf,x
+        inx
+        rts
+; A = full segments (0..BAR_LEN) -> BAR_LEN characters at hud_buf,X.
+hud_bar:
+        ldy #BAR_LEN
+        sta tmp
+:       lda #GLYPH_FULL
+        dec tmp
+        bpl :+
+        lda #GLYPH_EMPTY
+:       sta hud_buf,x
+        inx
+        dey
+        bne :--
+        rts
+
+; A = character, X = top row, col: its 8 rows (STA). Clobbers A, X, Y, src.
+glyph:  sec
+        sbc #$20
+        stz src+1
+        asl
+        rol src+1
+        asl
+        rol src+1
+        asl
+        rol src+1
+        clc
+        adc #<bbfont
+        sta src
+        lda src+1
+        adc #>bbfont
+        sta src+1
+        jmp glyph_sta
 
 ; ---------------------------------------------------------------------------
 ; Flying aliens drawn on this page last time: EOR them away.
@@ -237,28 +757,95 @@ movers_erase:
 me_alien:
         phx
         ldy md_list,x
-        lda pd_x,y
+        lda pd_f,y               ; the drawing it had (big: bit 6)
+        bit #$40
+        bne :+
+        sta cur_f                ; small: inline
         tax
+        lda fly_lo,x
+        sta src
+        lda fly_hi,x
+        sta src+1
+        ldx pd_x,y
         lda cell_byte,x
         sta col
-        ldx pd_f,y
-        lda alien_lo,x
-        sta src
-        lda alien_hi,x
-        sta src+1
+        bra :++
+:       jsr pose_src
+        lda pd_x,y
+        jsr pose_col
+:
         lda pd_y,y
         tax
         lda #0
         sta pd_f,y
         sta pd_y,y
         txa
-        jsr alien_eor_clip
+        jsr any_eor_clip
         jsr timing_scan
         plx
         inx
         dec cnt
         bne me_alien
 me_done:
+        rts
+
+; A = anchor row, src/col/cur_f set: EOR the alien (big: 16 rows from
+; 8 above), clipped at the bottom edge.
+any_eor_clip:
+        bit cur_f
+        bvc alien_eor_clip
+        sec
+        sbc #8                   ; big: its top
+        cmp #192-BIG_H+1
+        bcs :+
+        tax
+        jmp big_eor
+:       sta r_row
+        eor #$FF                 ; 192 - top rows, at most 16
+        sec
+        adc #192
+        cmp #BIG_H
+        bcc :+
+        lda #BIG_H
+:       sta r_h
+        lda col
+        sta r_col
+        lda #BIG_W
+        sta r_w
+        jmp eor_rect
+
+; A = cur_f-like entry (bit 6: big): src, cur_f. Keeps X, Y.
+pose_src:
+        sta cur_f
+        phy
+        and #$3F
+        tay
+        bit cur_f
+        bvs :+
+        lda fly_lo,y
+        sta src
+        lda fly_hi,y
+        sta src+1
+        ply
+        rts
+:       lda big_lo,y
+        sta src
+        lda big_hi,y
+        sta src+1
+        ply
+        rts
+
+; A = anchor cell, cur_f set: col (big: from 2 cells left). Keeps X, Y.
+pose_col:
+        bit cur_f
+        bvc :+
+        dec a
+        dec a
+:       phx
+        tax
+        lda cell_byte,x
+        sta col
+        plx
         rts
 
 ; A = top row, src/col set: EOR the alien, clipped at the bottom edge.
@@ -329,16 +916,21 @@ ae_slot:
         tay                      ; Y = slot of this alien on this page
 ae_full:
         lda a_state,x
-        beq ae_gone
+        jeq ae_gone
         sta tmp2
+        lda a_big,x              ; on screen as drawn? (small: inline)
+        bne :+
         lda a_y,x
         cmp #FIELD_TOP
-        bcc ae_gone
+        jcc ae_gone
         cmp #192
-        bcs ae_gone
-        lda tmp2
+        jcs ae_gone
+        bra :++
+:       jsr drawn_x
+        jcc ae_gone
+:       lda tmp2
         cmp #ST_FORM
-        bne ae_mover
+        jne ae_mover
         jsr want_f               ; seated
         sta cur_f
         lda pd_y,y
@@ -350,18 +942,59 @@ ae_full:
         bne ae_span              ; swayed along its row
         lda pd_f,y
         cmp cur_f
-        beq ae_next              ; unchanged
+        jeq ae_next              ; unchanged
         bra ae_queue             ; new frame only: STA covers the old one
-ae_span:                         ; same byte span: STA covers the old one
-        phy
-        tay
+ae_span:                         ; swayed one cell: STA covers the old
+        phy                      ; drawing but for a column it left
+        bit cur_f                ; (A = old anchor cell)
+        bvc :+
+        dec a                    ; big: its box starts 2 cells left
+        dec a
+:       tay
         lda cell_byte,y
+        sta col                  ; old start byte
         ldy a_x,x
-        cmp cell_byte,y
-        bne :+
+        bit cur_f
+        bvc :+
+        dey
+        dey
+:       sec
+        sbc cell_byte,y          ; old - new
+        beq sp_same
+        cmp #$FF
+        beq sp_right
+        cmp #1
+        bne sp_far
+        lda col                  ; moved left: the old last byte
+        clc
+        adc #ALIEN_W-1
+        bit cur_f
+        bvc :+
+        inc a                    ; (big: one byte wider)
+:       sta col
+sp_right:
+        ply
+        phx
+        phy
+        lda pd_y,y
+        bit cur_f
+        bvs :+
+        tax
+        jsr column_clr
+        bra :++
+:       sec
+        sbc #8
+        tax
+        jsr column_clr16
+:       jsr timing_scan          ; a whole row may slide: keep counting VBL
+        ply
+        plx
+        bra ae_queue
+sp_far: ply
+        bra ae_erase
+sp_same:
         ply
         bra ae_queue
-:       ply
 ae_erase:
         jsr erase_seat
 ae_queue:
@@ -389,24 +1022,57 @@ ae_gone:
         jsr erase_seat
 ae_next:
         dex
-        bmi :+
-        jmp ae_alien
+        bmi :++
+        txa                      ; every 8 aliens: the pass alone can last
+        and #7                   ; longer than a vertical blank
+        bne :+
+        jsr timing_scan
+:       jmp ae_alien
 :       rts
+
+; X = alien: C = 1 if it is on screen as it is drawn (big: from row 16;
+; an explosion is drawn small). Keeps X, Y.
+drawn_x:
+        lda a_y,x
+        cmp #192
+        bcs :++
+        pha
+        lda a_big,x
+        beq :+
+        lda a_state,x
+        cmp #ST_BOOM
+        beq :+
+        pla
+        cmp #16
+        rts
+:       pla
+        cmp #FIELD_TOP
+        rts
+:       clc
+        rts
 
 ; Zero the seated drawing of slot Y (X = alien). Keeps X, Y.
 erase_seat:
         phx
         phy
+        lda pd_f,y
+        sta cur_f
         lda pd_x,y
-        tax
-        lda cell_byte,x
-        sta col
+        jsr pose_col
         ldx pd_y,y
         lda #0
         sta pd_y,y
         sta pd_f,y
+        bit cur_f
+        bvs :+
         jsr alien_clr
-        jsr timing_scan
+        bra :++
+:       txa                      ; big: 16 rows from 8 above
+        sec
+        sbc #8
+        tax
+        jsr big_clr
+:       jsr timing_scan
         ply
         plx
         rts
@@ -416,35 +1082,66 @@ erase_seat:
 want_f: phy
         lda a_state,x
         cmp #ST_FORM
-        beq :+
+        beq wf_seat
+        cmp #ST_BOOM
+        beq wf_boom
         lda step_count           ; flying: flaps every 4 steps
         lsr
         lsr
         and #1
-        bra :++
-:       ldy alien_row,x          ; seated: the row's frame
+        bra wf_add
+wf_boom:
+        lda a_timer,x            ; explosion: frame by its timer
+        lsr
+        lsr
+        and #1
+        ora #BOOM_ENTRY
+        bra wf_add
+wf_seat:
+        ldy alien_row,x          ; seated: the row's frame
         lda row_anim,y
         ora #$80
-:       ldy a_x,x
-        ora cell_shift2,y
+wf_add: ldy a_big,x              ; drawn big: not as an explosion
+        bne wf_big
+wf_small:
+        ldy a_x,x
+        clc
+        adc cell_shift2,y
+        ply
+        rts
+wf_big: ldy a_state,x
+        cpy #ST_BOOM
+        beq wf_small
+        ldy a_x,x                ; big: the shift of its box (2 cells left)
+        dey
+        dey
+        clc
+        adc cell_shift2,y
+        ora #$40
         ply
         rts
 
 ; Alien X about to be drawn: work out its table entry and byte column,
 ; record them as drawn in its slot. -> Y = slot. Keeps X.
 alien_pose:
+        jsr want_f
+        bit #$40
+        bne ap_big
+        sta cur_f                ; small: inline
+        and #$3F
+        tay
+        lda fly_lo,y
+        sta src
+        lda fly_hi,y
+        sta src+1
         ldy a_x,x
         lda cell_byte,y
         sta col
-        jsr want_f
-        sta cur_f
-        and #$7F
-        tay
-        lda alien_lo,y
-        sta src
-        lda alien_hi,y
-        sta src+1
-        txa
+        bra ap_rec
+ap_big: jsr pose_src
+        lda a_x,x
+        jsr pose_col
+ap_rec: txa
         clc
         adc pg40
         tay
@@ -467,9 +1164,16 @@ fd_alien:
         tax
         jsr alien_pose
         lda a_y,x
+        bit cur_f
+        bvs :+
         tax
         jsr alien_sta
-        jsr timing_scan
+        bra :++
+:       sec                      ; big: 16 rows from 8 above
+        sbc #8
+        tax
+        jsr big_sta
+:       jsr timing_scan
         lda nform
         bne fd_alien
 fd_done:
@@ -497,11 +1201,111 @@ md_alien:
         lda tmp
         sta md_list,y
         lda a_y,x
-        jsr alien_eor_clip
+        jsr any_eor_clip
         jsr timing_scan
         lda nmove
         bne md_alien
 md_done:
+        rts
+
+; ---------------------------------------------------------------------------
+; The boss: EOR both ways, like flying aliens, but only when it changed
+; since this page drew it (it leaps every BOSS_STEP steps; it blinks while
+; it explodes). In two halves of 12 rows with a VBL scan between.
+boss_want:                       ; A = cell to show, $FF none
+        lda boss_hp
+        bne :+
+        lda boss_boom
+        and #4
+        beq :++
+:       lda boss_x
+        rts
+:       lda #$FF
+        rts
+
+boss_erase:
+        jsr boss_want
+        ldy page
+        cmp boss_drawn,y
+        beq :+                   ; as drawn: kept
+        ldx boss_drawn,y
+        cpx #$FF
+        beq :+
+        lda #$FF
+        sta boss_drawn,y
+        txa
+        jmp boss_eor
+:       rts
+
+boss_draw:
+        jsr boss_want
+        cmp #$FF
+        beq :+
+        ldy page
+        ldx boss_drawn,y
+        cpx #$FF
+        bne :+                   ; still there
+        sta boss_drawn,y
+        jmp boss_eor
+:       rts
+
+; A = boss cell (a multiple of 7): EOR its 24 rows. Clobbers A, X, Y.
+boss_eor:
+        tax
+        lda cell_byte,x
+        sta r_col
+        lda #<boss_s0
+        sta src
+        lda #>boss_s0
+        sta src+1
+        lda #BOSS_W
+        sta r_w
+        lda #BOSS_Y
+        sta r_row
+        lda #BOSS_H/2
+        sta r_h
+        jsr eor_rect             ; (leaves src on the next row)
+        jsr timing_scan
+        lda #BOSS_Y+BOSS_H/2
+        sta r_row
+        lda #BOSS_H/2
+        sta r_h
+        jsr eor_rect
+        jmp timing_scan
+
+; The hurry-up saucer: it moves every step, so EOR off and on each frame.
+ufo_erase:
+        ldy page
+        lda ufo_drawn,y
+        cmp #$FF
+        beq uf_done
+        tax
+        lda #$FF
+        sta ufo_drawn,y
+        bra ufo_eor
+ufo_draw:
+        lda hurry
+        beq uf_done
+        ldy page
+        ldx h_x
+        txa
+        sta ufo_drawn,y
+ufo_eor:                         ; X = cell
+        lda cell_byte,x
+        sta r_col
+        ldy cell_shift,x
+        lda ufo_lo,y
+        sta src
+        lda ufo_hi,y
+        sta src+1
+        lda #UFO_W
+        sta r_w
+        lda #HURRY_Y
+        sta r_row
+        lda #UFO_H
+        sta r_h
+        jmp eor_rect
+uf_done:
         rts
 
 ; ---------------------------------------------------------------------------
@@ -526,6 +1330,93 @@ ship_clr:
         rts
 shot_eor:
         COLUMN_ROWS SHOT_H
+        rts
+big_sta:                         ; big aliens: X = top row (anchor - 8)
+        SPRITE_ROWS BIG_W, BIG_H, 0
+        rts
+big_eor:
+        SPRITE_ROWS BIG_W, BIG_H, 3
+        rts
+big_clr:
+        SPRITE_ROWS BIG_W, BIG_H, 2
+        rts
+column_clr16:                    ; one byte column of a big alien: zeros
+        clc
+.repeat BIG_H, R
+        lda hgr_lo+R,x
+        adc col
+        sta dst
+        HI_LDA R, x
+        sta dst+1
+        lda #0
+        sta (dst)
+.endrepeat
+        rts
+bomb_eor:
+        COLUMN_ROWS BOMB_H
+        rts
+obj_eor:
+        SPRITE_ROWS 2, OBJ_H, 3
+        rts
+column_clr:                      ; one byte column of an alien: zeros
+        clc
+.repeat ALIEN_H, R
+        lda hgr_lo+R,x
+        adc col
+        sta dst
+        HI_LDA R, x
+        sta dst+1
+        lda #0
+        sta (dst)
+.endrepeat
+        rts
+glyph_sta:
+        SPRITE_ROWS 1, 8, 0
+        rts
+
+; Generic: STA / zeros, r_h rows of r_w bytes (from src) at (r_row, byte
+; r_col): big aliens. Clobbers A, X, Y, r_h, src.
+rect_sta:
+        ldx r_row
+rs_row: lda hgr_lo,x
+        clc
+        adc r_col
+        sta dst
+        HI_LDA 0, x
+        sta dst+1
+        ldy r_w
+        dey
+:       lda (src),y
+        sta (dst),y
+        dey
+        bpl :-
+        lda src
+        clc
+        adc r_w
+        sta src
+        bcc :+
+        inc src+1
+:       inx
+        dec r_h
+        bne rs_row
+        rts
+rect_clr:
+        ldx r_row
+rc_row: lda hgr_lo,x
+        clc
+        adc r_col
+        sta dst
+        HI_LDA 0, x
+        sta dst+1
+        ldy r_w
+        dey
+        lda #0
+:       sta (dst),y
+        dey
+        bpl :-
+        inx
+        dec r_h
+        bne rc_row
         rts
 
 ; Generic, for clipped sprites: EOR r_h rows of r_w bytes from src at

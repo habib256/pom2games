@@ -1,0 +1,39 @@
+; pt3_zp.inc -- the PT3 player's 32 zero-page bytes at PT3_ZP..PT3_ZP+$1F
+; (upstream zp.inc at $60). Define PT3_ZP before including pt3.s; outside
+; $FA-$FF (ProDOS saves and restores those around interrupt handlers).
+
+ORNAMENT_L	= PT3_ZP+$00
+ORNAMENT_H	= PT3_ZP+$01
+SAMPLE_L	= PT3_ZP+$02
+SAMPLE_H	= PT3_ZP+$03
+
+LOOP		= PT3_ZP+$04
+MB_ADDR_L	= PT3_ZP+$05
+MB_ADDR_H	= PT3_ZP+$06
+MB_VALUE	= PT3_ZP+$07
+DONE_PLAYING	= PT3_ZP+$08
+DONE_SONG	= PT3_ZP+$09
+PT3_TEMP	= PT3_ZP+$0A
+APPLEII_MODEL	= PT3_ZP+$0B
+
+AY_REGISTERS	= PT3_ZP+$10
+A_FINE_TONE	= PT3_ZP+$10
+A_COARSE_TONE	= PT3_ZP+$11
+B_FINE_TONE	= PT3_ZP+$12
+B_COARSE_TONE	= PT3_ZP+$13
+C_FINE_TONE	= PT3_ZP+$14
+C_COARSE_TONE	= PT3_ZP+$15
+NOISE		= PT3_ZP+$16
+ENABLE		= PT3_ZP+$17
+PT3_MIXER_VAL	= PT3_ZP+$17
+A_VOLUME	= PT3_ZP+$18
+B_VOLUME	= PT3_ZP+$19
+C_VOLUME	= PT3_ZP+$1A
+ENVELOPE_FINE	= PT3_ZP+$1B
+ENVELOPE_COARSE	= PT3_ZP+$1C
+ENVELOPE_SHAPE	= PT3_ZP+$1D
+
+PATTERN_L	= PT3_ZP+$1E
+PATTERN_H	= PT3_ZP+$1F
+
+.assert PT3_ZP+$1F < $FA, error, "PT3_ZP: $FA-$FF belong to ProDOS's interrupt entry"
