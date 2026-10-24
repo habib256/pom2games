@@ -5,15 +5,16 @@
 #   POM2_CORE_LIB     the archive for this host
 #   POM2_CORE_CFLAGS  POM2_CORE_LIBS
 #
-# Both archives are pom2_core built at POM2 commit 28700c39 (github.com/
-# habib256/pom2, "Display paints the RAM the beam fetched: the video write
-# log"), debug symbols stripped (strip -S). sdk/include/pom2/core.hpp is that
-# commit's header (identical from 6f8f436 to POM2 main of 2026-10-22).
+# Both archives are pom2_core built at POM2 commit 0849ee51 (github.com/
+# habib256/pom2, "Merge branch 'core-facade-requests'": setCpuState, the
+# Apple Mouse, CoreConfig::machine and the //c — LETTRE_POM2_BESOINS.md),
+# debug symbols stripped (strip -S). sdk/include/pom2/core.hpp is that
+# commit's header; roms/ gained the two //c dumps and the two mouse ROMs.
 #   darwin-arm64  built on the author's Mac (cmake --build --target pom2_core,
 #                 cmake --install --component pom2_core_sdk)
 #   linux-x86_64  built on ubuntu-24.04 (glibc 2.39) by
-#                 .github/workflows/pom2-core-linux.yml, run 39837617633
-#                 (github.com/habib256/pom2games/actions/runs/39837617633)
+#                 .github/workflows/pom2-core-linux.yml, run 40105356133
+#                 (github.com/habib256/pom2games/actions/runs/40105356133)
 # The compiled core is GPL-3.0, like POM2.
 #
 # The core's own link needs, on macOS, the CoreAudio frameworks (miniaudio);

@@ -10,6 +10,14 @@
 //   load:FILE@ADDR  write a whole binary file from ADDR (hex) on, by bus
 //                   writes like poke (the //e's current bank switches apply)
 //   joy:X,Y         joystick axes in [-1,1]      btn:N,0|1  game-port button
+//   mouse:X,Y,B     host mouse at X,Y in the firmware's clamp window, button B:
+//                   one closed-loop correction per frame until the card
+//                   reports it (limit 120 frames); prints the frames taken
+//   mousemove:DX,DY,B  relative motion (each axis within +-127) and button
+//   regs:A:X:Y      set the registers (hex) for the next go: or call:
+//   go:ADDR         jump: the PC becomes ADDR, the stack stays as it is
+//   call:ADDR:N     JSR ADDR from the current PC and run until it returns
+//                   (limit N frames); prints the cycles spent and registers
 //   insert:FILE     swap the drive 1 disk (a private copy, like --disk)
 //
 // An 800 KB ProDOS image (819 200 bytes, or .2mg) boots from a 3.5" SmartPort
@@ -44,7 +52,14 @@
 //
 // --iie boots an enhanced Apple //e (65C02, 80-column card with aux memory)
 // instead of the ][+.
-// --mockingboard attaches a slot-4 card, including its VIA timer IRQs.
+// --iic boots an Apple //c (32 KB ROM apple2c-32Kv0.rom, its built-in mouse
+// on port 4), --iic16 the 16 KB ROM apple2c-16K.rom; their disk drive is the
+// Disk II in slot 6 (or a 3.5" SmartPort in slot 5).
+// --mouse attaches an AppleMouse card in slot 4 (Apple's firmware on both
+// chips, mouse_341-0270-c.bin and mouse_341-0269.bin), --mouse=applewin the
+// same slot EPROM on AppleWin's model of the MCU. The //c needs neither.
+// --mockingboard attaches a slot-4 card, including its VIA timer IRQs (on a
+// //c, the Mockingboard 4c).
 // --pal selects PAL beam timing; script frame units follow that timing.
 // --stdin accepts additional steps, one per line, after the argument script.
 // Each stdin step ends its flushed reply with "a2shot:done"; EOF ends the run.
@@ -150,6 +165,8 @@ int main(int argc, char** argv)
                      + "/roms";
     std::string disk;
     bool iie = false;
+    int iic = 0;                                // 16 or 32: the //c ROM size
+    std::string mouse;                          // "", "mame" or "applewin"
     bool mockingboard = false;
     bool pal = false;
     bool stdinScript = false;
@@ -159,13 +176,18 @@ int main(int argc, char** argv)
         if (a == "--roms" && i + 1 < argc) roms = argv[++i];
         else if (a == "--disk" && i + 1 < argc) disk = argv[++i];
         else if (a == "--iie") iie = true;
+        else if (a == "--iic") iic = 32;
+        else if (a == "--iic16") iic = 16;
+        else if (a == "--mouse") mouse = "mame";
+        else if (a == "--mouse=applewin") mouse = "applewin";
         else if (a == "--pal") pal = true;
         else if (a == "--mockingboard") mockingboard = true;
         else if (a == "--stdin") stdinScript = true;
         else script.push_back(a);
     }
     if (disk.empty()) {
-        std::fprintf(stderr, "usage: a2shot [--iie] [--pal] [--mockingboard] [--roms DIR] --disk X.dsk step...\n");
+        std::fprintf(stderr, "usage: a2shot [--iie|--iic|--iic16] [--pal] [--mockingboard] [--mouse[=applewin]]\n"
+                             "              [--roms DIR] --disk X.dsk step...\n");
         return 2;
     }
 
@@ -200,16 +222,21 @@ int main(int argc, char** argv)
 
     pom2::CoreConfig config;
     if (pal) { config.timing=pom2::VideoTiming::PAL; kCyclesPerFrame=20280; }
-    if (iie) {
-        config.cpu = pom2::CpuModel::CMOS65C02;
-        config.iieMemory = true;
-    }
+    if (iic) config.machine = pom2::Machine::AppleIIc;
+    else if (iie) config.machine = pom2::Machine::AppleIIeEnhanced;
+    else config.machine = pom2::Machine::AppleIIPlus;
     pom2::Core core(config);
     if (mockingboard && !core.attachMockingboard(4)) {
         std::fprintf(stderr, "Mockingboard: %s\n", core.lastError().c_str());
         return 1;
     }
-    if (iie && !core.loadCharacterRom(roms + "/apple2e_char.rom")) {
+    if (!mouse.empty() && (iic || !core.attachMouse(4, mouse == "applewin"
+                                                          ? pom2::MouseModel::AppleMouseAppleWin
+                                                          : pom2::MouseModel::AppleMouse, roms))) {
+        std::fprintf(stderr, "mouse: %s\n", iic ? "the //c has its own" : core.lastError().c_str());
+        return 1;
+    }
+    if ((iie || iic) && !core.loadCharacterRom(roms + "/apple2e_char.rom")) {
         std::fprintf(stderr, "char ROM: %s\n", core.lastError().c_str());
         return 1;
     }
@@ -221,7 +248,9 @@ int main(int argc, char** argv)
         const size_t dot = copy.find_last_of('.');
         return size == 819200 || (dot != std::string::npos && copy.substr(dot) == ".2mg");
     }();
-    if (!core.loadRom(roms + (iie ? "/apple2e.rom" : "/apple2p.rom")) ||
+    const std::string rom = iic == 32 ? "/apple2c-32Kv0.rom" : iic ? "/apple2c-16K.rom"
+                          : iie ? "/apple2e.rom" : "/apple2p.rom";
+    if (!core.loadRom(roms + rom, iic == 32) ||
         (threeAndHalf
              ? !core.attachSmartPort(5) || !core.insertSmartPortDisk(0, copy) || !core.bootSlot(5)
              : !core.attachDiskII(roms + "/disk2.rom", roms + "/diskii_p6.rom") ||
@@ -500,6 +529,64 @@ int main(int argc, char** argv)
             const size_t c2 = arg.find(',');
             core.setPaddleButton(std::atoi(arg.substr(0, c2).c_str()),
                                  std::atoi(arg.substr(c2 + 1).c_str()) != 0);
+        } else if (op == "mouse") {
+            int x = 0, y = 0, b = 0, frames = 0;
+            if (std::sscanf(arg.c_str(), "%d,%d,%d", &x, &y, &b) != 3) return 2;
+            while (!core.setMouse(x, y, b != 0)) {
+                if (++frames > 120) {
+                    std::fprintf(stderr, "mouse: %d,%d not reached\n", x, y);
+                    return 3;
+                }
+                runCycles(kCyclesPerFrame);
+            }
+            std::printf("mouse %d,%d,%d frames=%d\n", x, y, b, frames);
+        } else if (op == "mousemove") {
+            int dx = 0, dy = 0, b = 0;
+            if (std::sscanf(arg.c_str(), "%d,%d,%d", &dx, &dy, &b) != 3 ||
+                dx < -127 || dx > 127 || dy < -127 || dy > 127) return 2;
+            core.moveMouse(dx, dy, b != 0);
+        } else if (op == "regs") {
+            unsigned a = 0, x = 0, y = 0;
+            if (std::sscanf(arg.c_str(), "%x:%x:%x", &a, &x, &y) != 3 || a > 255 || x > 255 || y > 255)
+                return 2;
+            auto st = core.cpuState();
+            st.accumulator = std::uint8_t(a); st.x = std::uint8_t(x); st.y = std::uint8_t(y);
+            core.setCpuState(st);
+        } else if (op == "go") {
+            char* end = nullptr;
+            const auto target = std::strtoul(arg.c_str(), &end, 16);
+            if (arg.empty() || *end || target > 65535) return 2;
+            auto st = core.cpuState();
+            st.programCounter = std::uint16_t(target);
+            core.setCpuState(st);
+        } else if (op == "call") {
+            // A JSR from where the machine is: the routine returns to the
+            // current PC with the stack as it was, and the run stops there.
+            unsigned target = 0, frames = 0;
+            if (std::sscanf(arg.c_str(), "%x:%u", &target, &frames) != 2 || target > 65535 || !frames)
+                return 2;
+            auto st = core.cpuState();
+            const std::uint16_t back = st.programCounter;
+            const std::uint8_t s0 = st.stackPointer;
+            // Page 1 by bus writes: on a //e with ALTZP set they land in the
+            // auxiliary stack, the one the 6502 uses.
+            core.write(0x100 | s0, std::uint8_t((back - 1) >> 8));
+            core.write(0x100 | std::uint8_t(s0 - 1), std::uint8_t(back - 1));
+            st.stackPointer = std::uint8_t(s0 - 2);
+            st.programCounter = std::uint16_t(target);
+            core.setCpuState(st);
+            const auto start = st.cycles, end = start + std::uint64_t(frames) * kCyclesPerFrame;
+            const auto returned = [&]() {
+                const auto now = core.cpuState();
+                return now.programCounter == back && now.stackPointer == s0;
+            };
+            while (!returned() && core.cpuState().cycles < end) profileStep();
+            const auto now = core.cpuState();
+            std::printf("call %04X cycles=%llu elapsed=%llu A=%02X X=%02X Y=%02X P=%02X\n", target,
+                        static_cast<unsigned long long>(now.cycles),
+                        static_cast<unsigned long long>(now.cycles - start),
+                        now.accumulator, now.x, now.y, now.status);
+            if (!returned()) return 3;
         } else if (op == "reset") {
             core.softReset();
         } else if (op == "pc") {
