@@ -24,6 +24,7 @@ include $(DEV)/cc65/apple2.mk
 PRODOS := $(DEV)/lib/prodos
 
 DISK := $(DIST)/NEOWILDERNESSXL.po
+WOZ :=                          # 800K 3.5": no 5.25" WOZ
 # Records of NEOWILD.DAT and the packs: lz (default since lot 7 step 5: 23
 # blocks fewer than auto and a shorter choice -> first view, measured), auto
 # (LZ where the 200/46 cycles-per-byte model says it shortens the boot) or
