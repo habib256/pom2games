@@ -3,6 +3,9 @@
 cc65/6502 driver for the AppleMouse firmware in slots 1 to 7. `mouse_init()` detects
 the card, initialises polled mode 1, clamps X to 0–139 and Y to 0–191,
 and positions the mouse at the centre. It returns the slot, or zero if there is none.
+The card's INITMOUSE firmware selects TEXT and LORES (`$C051`, `$C056`): call
+`mouse_init()` before entering graphics, or select the graphics mode again
+afterwards (LIGHT3DBALL and PINBALL showed a text screen on a II+ with a mouse).
 
 `mouse_poll()` provides `mouse_x`, `mouse_y` and `mouse_buttons` (bit 7: main
 button pressed). The game computes the rising edge to tell a click
