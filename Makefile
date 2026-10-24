@@ -30,7 +30,7 @@ IIE_PRODOS_GAMES := chromabreak wargalagaii
 DIRS := $(II_PLUS_GAMES) $(IIE_PRODOS_GAMES) logo dev/examples/hello dev/examples/hgr dev/examples/dhgr dev/examples/perspective
 # Programs whose own `make test` / `make test-long` belong to the root tiers.
 TESTED := pinball chromabreak arkabreakout chess micro-sokoban light3dball wilderness logo mcs dirtbike \
-          wargalagaii
+          wargalagaii snake
 
 all:
 	@for d in $(DIRS); do $(MAKE) -C $$d || exit 1; done

@@ -183,6 +183,10 @@ uses this for its level packs (`BLOAD`), `MICROSAVE` and `MICROHOF`.
 or text and hexadecimal digits appended to it after it has run.
 With `DOS_CMD_WORKBSS = 1`, this buffer and its index live in the program's
 `WORKBSS` segment rather than `BSS`, to free up room next to the code.
+With `DOS_LOWBSS = 1`, the buffer and the page-zero copy (`DOS_ZP_LEN`
+bytes, 256 by default) go to `LOWBSS` (`$1000-$1FFF` in
+`dev/cc65/apple2_hgr_c.cfg`): SNAKE sets it (`HGRC_AFLAGS += -D DOS_LOWBSS=1`)
+because its `$6000` area is full. Default 0: `BSS`, binaries unchanged.
 
 ## Example
 
