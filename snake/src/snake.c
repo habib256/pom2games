@@ -38,6 +38,9 @@
  * Gameplay extra: every BONUS_EVERY apples a time-limited bonus gem appears for
  * BONUS_TTL ticks — grab it before it fades for BONUS_POINTS extra points (no
  * growth, so it is pure risk/reward).
+ * Levels: LEVELS levels of LEVEL_APPLES apples; from level 2 on, blue walls
+ * (wall_segs) inside the field, a fresh snake per level, level + 1 cells of
+ * growth per apple; the last apple of the last level is YOU WIN.
  * ---------------------------------------------------------------------------
  */
 #include "hgr.h"
@@ -57,6 +60,27 @@
 #define BONUS_EVERY  4u         /* drop a bonus every Nth apple                  */
 #define BONUS_TTL    36u        /* bonus lifetime in ticks before it fades       */
 #define BONUS_POINTS 20u        /* score for grabbing a bonus (4x a normal apple)*/
+
+/* --- Levels: LEVEL_APPLES apples each, a new wall layout, a reset snake --- */
+#define LEVELS        5u        /* the last one done: YOU WIN                    */
+#define LEVEL_APPLES  10u
+#define LEVEL_SPEEDUP 300u      /* each level starts this many spins faster      */
+/* Wall segments: column, row, length, 1 = downwards (0 = rightwards). Every
+ * layout leaves row 12 free from column 10 to 27 (the snake restarts at
+ * columns 15-17 heading right) and keeps clear of the top and bottom walls. */
+static const unsigned char wall_segs[] = {
+    /* level 2: two bars */
+    8, 7, 19, 0,   8, 17, 19, 0,
+    /* level 3: four posts */
+    9, 4, 7, 1,    9, 14, 8, 1,   25, 4, 7, 1,   25, 14, 8, 1,
+    /* level 4: a box with a door on each side */
+    6, 6, 9, 0,    20, 6, 9, 0,   6, 18, 9, 0,   20, 18, 9, 0,
+    6, 7, 4, 1,    6, 14, 4, 1,   28, 7, 4, 1,   28, 14, 4, 1,
+    /* level 5: long bars and a split pillar */
+    4, 5, 27, 0,   4, 20, 27, 0,  17, 7, 3, 1,   17, 15, 4, 1,
+};
+/* Byte offset of each level's segments in wall_segs (level 1 has none). */
+static const unsigned char wall_first[LEVELS + 1u] = { 0u, 0u, 8u, 24u, 56u, 72u };
 
 /* --- Speeds: throttle spins at the start, per title choice 1 / 2 / 3 --- */
 #define SPINS_FLOOR  365u       /* fastest pace, reached after enough apples     */
@@ -96,7 +120,11 @@ static unsigned char dir;          /* current heading   */
 static unsigned char turns[2];     /* at most two turns, applied one per tick */
 static unsigned char turn_count;
 static unsigned char alive;        /* 1 = playing, 0 = dead */
-static unsigned char won;          /* 1 = every playable cell is occupied */
+static unsigned char won;          /* 1 = the last level is done */
+static unsigned char level;        /* 0 = level 1 .. LEVELS - 1 */
+static unsigned char level_apples; /* apples eaten on this level */
+static unsigned char level_up;     /* set by tick(): this level is done */
+static unsigned char grow_left;    /* cells still to grow (level + 1 per apple) */
 static unsigned char paused;       /* P or ESC stops movement until resumed */
 static unsigned char foodx, foody; /* food cell */
 static unsigned int  score;        /* total points (5/apple + 20/bonus) */
@@ -260,12 +288,41 @@ static unsigned char place_bonus(void)
     return 0u;
 }
 
-/* Reset to a fresh game (3-segment snake heading right, mid-field). */
-static void new_game(void)
+/* A wall cell: a 6x6 block tinted blue (the snake is white, the apple
+ * orange, the bonus green). */
+static void draw_wall(unsigned char cx, unsigned char cy)
+{
+    hgr_cell(cx, cy, 1u);
+    hgr_colorize((unsigned)cx * CELL, cy * (unsigned char)CELL, BLOCK, BLOCK, HGR_BLUE);
+}
+
+/* The current level's walls: marked in occupied[][] (draw = 0), so collisions
+ * and the apple / bonus placement avoid them, or drawn (draw = 1). */
+static void walls(unsigned char draw)
+{
+    const unsigned char *w = wall_segs + wall_first[level];
+    const unsigned char *end = wall_segs + wall_first[level + 1u];
+    unsigned char x, y, n;
+    for (; w != end; w += 4) {
+        x = w[0];
+        y = w[1];
+        for (n = w[2]; n; --n) {
+            if (draw) draw_wall(x, y);
+            else occupied[y][x] = 1u;
+            if (w[3]) ++y; else ++x;
+        }
+    }
+}
+
+/* Start the current level: its walls, a 3-segment snake heading right
+ * mid-field, a new apple, the level's starting pace. */
+static void start_level(void)
 {
     unsigned char i, x, y;
+    unsigned int faster = (unsigned int)level * LEVEL_SPEEDUP;
     for (y = 0u; y < ROWS; ++y)
         for (x = 0u; x < COLS; ++x) occupied[y][x] = 0u;
+    walls(0u);
     slen = 3u;
     tail = 0u;
     head = slen - 1u;            /* ring: index 0 = tail .. slen-1 = head */
@@ -277,19 +334,29 @@ static void new_game(void)
     }
     dir = DIR_RIGHT;
     turn_count = 0u;
+    grow_left = 0u;
+    level_apples = 0u;
+    level_up = 0u;
+    tick_spins = speed_spins >= SPINS_FLOOR + faster ? speed_spins - faster : SPINS_FLOOR;
+    bonus_active = 0;          /* no bonus until the cadence drops one */
+    bonus_new = 0;
+    bonus_gone = 0;
+    place_food();
+}
+
+/* Reset to a fresh game at level 1. */
+static void new_game(void)
+{
     alive = 1;
     won = 0u;
     paused = 0u;
     score = 0;
     score_shown = 0;           /* redraw() draws score 0; the loop redraws only on change */
-    tick_spins = speed_spins;  /* reset to the chosen starting speed */
     new_record = 0u;
     apples = 0;
     title_hue = 0;             /* HGR Snake starts violet, shifts colour per apple */
-    bonus_active = 0;          /* no bonus until the cadence drops one */
-    bonus_new = 0;
-    bonus_gone = 0;
-    place_food();
+    level = 0u;
+    start_level();
 }
 
 /* Queue a turn relative to the last queued heading. This accepts two quick
@@ -337,7 +404,7 @@ static void read_stick(void)
 /* Advance one logical tick: move the head, resolve collisions / food. */
 static void tick(void)
 {
-    unsigned char nx, ny, grow;
+    unsigned char nx, ny, grow, ate;
 
     if (turn_count) {
         dir = turns[0];
@@ -364,7 +431,9 @@ static void tick(void)
         alive = 0;
         return;
     }
-    grow = (nx == foodx && ny == foody) ? 1u : 0u;
+    ate = (nx == foodx && ny == foody) ? 1u : 0u;
+    if (ate) grow_left += level + 1u;  /* level 1: one cell an apple .. level 5: five */
+    grow = grow_left ? 1u : 0u;
     /* The tail is safe only when it vacates its cell this tick. */
     if (body_hits(nx, ny, (unsigned char)!grow)) { alive = 0; return; }
 
@@ -385,13 +454,14 @@ static void tick(void)
     sy[head] = ny;
     if (grow) {
         ++slen;                                   /* grew: keep the tail */
+        --grow_left;
     } else {
         occupied[sy[tail]][sx[tail]] = 0u;
         if (++tail == MAXLEN) tail = 0u;          /* moved: drop the old tail */
     }
     occupied[ny][nx] = 1u;
 
-    if (grow) {
+    if (ate) {
         score += 5u;                  /* each apple is worth 5 points */
         ++apples;
         /* Each apple speeds the snake up: shorten the throttle. Low floor + a
@@ -401,8 +471,9 @@ static void tick(void)
         if (tick_spins >= SPINS_FLOOR + SPINS_STEP) tick_spins -= SPINS_STEP;
         else tick_spins = SPINS_FLOOR;
         SFX(0x18u, 0x20u);            /* short high blip */
-        if (slen == MAXLEN) {
-            won = 1u;                 /* no empty cell remains for a new apple */
+        if (++level_apples == LEVEL_APPLES) {
+            if (level + 1u == LEVELS) won = 1u;   /* the last level is done */
+            else level_up = 1u;
             return;
         }
         place_food();
@@ -455,6 +526,7 @@ static void redraw(void)
     unsigned int idx = tail, k;
     hgr_clear(0);
     draw_border();
+    walls(1u);
     draw_food(foodx, foody);
     if (bonus_active) draw_bonus(bonusx, bonusy);
     for (k = 0; k < slen; ++k) {        /* walk the ring tail -> head */
@@ -473,6 +545,25 @@ static void draw_pause(void)
     hgr_puts_color(86, 64, "PAUSED", HGR_GREEN);
     hgr_puts_color(14, 88, "P/ESC CONTINUE", HGR_BLUE);
     hgr_puts_color(95, 112, "Q DOS", HGR_ORANGE);
+}
+
+/* The level card ("LEVEL 2" ... over the field, a two-note jingle, ~2 s),
+ * then the next level from a fresh snake; the score stays. */
+static char level_text[] = "LEVEL 1";
+
+static void hold(unsigned char n);
+
+static void next_level(void)
+{
+    ++level;
+    level_text[6] = (char)('1' + level);
+    hgr_fill_rect(64u, 48u, 0u, 40u, 0x00u);
+    hgr_puts_color(77, 80, level_text, HGR_BLUE);
+    a2_tone(0x30u, 0x30u);
+    a2_tone(0x40u, 0x20u);
+    hold(6u);
+    start_level();
+    redraw();
 }
 
 /* Plain CPU-spin throttle for a playable tick rate (the Apple II has no
@@ -521,6 +612,13 @@ static void keep_record(void)
     hiscore = score;
     new_record = 1u;
     if (!a2_disk_protected()) hiscore_cmd("BSAVE");
+}
+
+/* n slow throttles (~0.4 s each at 3565 spins), no keyboard. */
+static void hold(unsigned char n)
+{
+    tick_spins = 3565u;
+    while (n--) throttle(0u);
 }
 
 void main(void)
@@ -586,6 +684,7 @@ void main(void)
              * it vacates — the only cell that changes besides the new head. */
             unsigned char otx = sx[tail], oty = sy[tail];
             unsigned int olen = slen;
+            unsigned char oapples = apples;
             read_input();
             if (paused) continue;
             read_stick();
@@ -594,10 +693,9 @@ void main(void)
                 /* INCREMENTAL redraw — walls/border were drawn once in redraw();
                  * here we only touch the snake, the food, and the score. */
                 if (bonus_gone) { erase_cell(bonusx, bonusy); bonus_gone = 0u; }
-                if (slen == olen) {
-                    erase_cell(otx, oty);          /* snake moved: clear old tail */
-                } else {
-                    if (!won) draw_food(foodx, foody); /* grew: show the new food */
+                if (slen == olen) erase_cell(otx, oty);   /* moved: clear the old tail */
+                if (apples != oapples) {
+                    if (!won && !level_up) draw_food(foodx, foody); /* the new apple */
                     title_hue = (unsigned char)((title_hue + 1u) & 3u);
                     draw_title();                  /* apple eaten: shift HGR Snake colour */
                 }
@@ -610,6 +708,10 @@ void main(void)
                     draw_score();
                     score_shown = score;
                 }
+                if (level_up) {
+                    next_level();
+                    continue;
+                }
             }
             throttle(1u);
         } else {
@@ -617,7 +719,6 @@ void main(void)
              * The full-width band of grid rows 8..13 (y=64..111) is wiped first
              * so the banner is not OR'd over the snake / apple (cell-aligned, so
              * no half-erased block stays glued to the letters). */
-            unsigned int hold;
             hgr_fill_rect(64u, 48u, 0u, 40u, 0x00u);
             if (won) {
                 hgr_puts_color(68, 72, "YOU WIN", HGR_GREEN);
@@ -631,14 +732,10 @@ void main(void)
             }
             keep_record();
             if (new_record) hgr_puts_color(50, 96, "NEW RECORD", HGR_VIOLET);
-            tick_spins = 3565u;             /* pin the throttle to its slow cadence */
-            /* One throttle at 3565 spins lasts ~0.33 s (measured: a tick every
-             * 18-20 frames). Upstream held 40 + up to 50 of them — ~13 s deaf,
-             * ~30 s in all, not the ~4 s its comment promised. */
-            for (hold = 0; hold < 12u; ++hold) {
-                throttle(0u);               /* phase 1: ~4 s mandatory hold */
-            }
-            for (hold = 0; hold < 15u; ++hold) {  /* phase 2: ~5 s key window */
+            /* Upstream held 40 + up to 50 throttles — ~13 s deaf, ~30 s in
+             * all, not the ~4 s its comment promised. */
+            hold(12u);                      /* phase 1: ~4 s mandatory hold */
+            for (t = 0; t < 15u; ++t) {     /* phase 2: ~5 s key window */
                 if (apple2_readkey() != 0) break;   /* phase 2: key restarts */
                 throttle(0u);
             }

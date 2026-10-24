@@ -21,7 +21,8 @@ Measured state today (2026-10-24):
   faster on an accelerator card.
 - **Random**: 16-bit Galois LFSR, seed mixed from the title poll count and the
   start key; an automatic start replays the same sequence.
-- **Memory**: `$6000-$8DFF` has 212 bytes left; `LOWBSS` ends at `$19B3`.
+- **Memory**: the program ends at `$8FFE`, 1,281 bytes below the 256-byte C
+  stack (`$9500-$95FF`, peak 37 bytes); `LOWBSS` ends at `$19B7`.
 
 ## Later
 
@@ -30,18 +31,18 @@ Measured state today (2026-10-24):
   gives `a2_frame_init()` / `a2_frame_wait()` — VBL on a //e, a bounded ROM
   `WAIT` fallback on a II+. The keyboard poll inside `throttle()` would then
   move to a per-frame loop, and the tone / stick compensation (`spent`) would
-  go.
-
-## Ideas
-
-- **Levels with obstacles**: every N apples, draw interior walls. The
-  `occupied[][]` grid already drives `body_hits()`, `place_food()` and
-  `place_bonus()`, so marking wall cells in it gives collisions and safe
-  spawning for free; `redraw()` must draw them and the win condition
-  (`slen == MAXLEN`) must subtract the wall cells.
+  go. Left out on purpose (2026-10-24): a II+ has no VBL (the fallback is
+  CPU-timed too), and calibrating the spins against the //e VBL would slow
+  the game by a fifth on a 50 Hz PAL //e.
 
 ## Done
 
+- [x] **Levels with obstacles** (2026-10-24): five levels of ten apples; walls
+  as segments (`wall_segs`) marked in `occupied[][]`, so collisions and the
+  apple / bonus placement avoid them for free; a `LEVEL n` card and jingle,
+  a fresh 3-cell snake, each level 300 spins faster, `level + 1` cells per
+  apple, YOU WIN after level 5. Room made by a 256-byte C stack: the shared
+  `apple2_hgr_c.cfg` now ends `RAM` where `__STACKSIZE__` puts the stack.
 - [x] **Sound** (2026-10-24): blip per apple, chirp for the bonus gem, chime
   when taken, thud at GAME OVER, arpeggio for YOU WIN (`a2_tone`); the tone
   time is taken off the next throttle.

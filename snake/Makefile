@@ -42,8 +42,11 @@ $(BUILD)/%.o: %.s $(A2_ASM_DEPS)
 	@mkdir -p $(BUILD)
 	$(CA65) $(AFLAGS) -o $@ $<
 
+# The C stack peaks at 37 bytes (a2run stackwatch over a whole game): 256
+# are reserved instead of 2 KB, and the program area grows to $94FF.
 $(BIN): $(OBJS) $(HGRC_LIB) $(A2_HGR_C_CFG) Makefile
-	$(CL65) -t none -g -C $(A2_HGR_C_CFG) -m $(BUILD)/snake.map -Ln $(BUILD)/snake.lbl -o $@ $(OBJS) $(HGRC_LIB)
+	$(CL65) -t none -g -C $(A2_HGR_C_CFG) -Wl -D,__STACKSIZE__=0x0100 \
+	    -m $(BUILD)/snake.map -Ln $(BUILD)/snake.lbl -o $@ $(OBJS) $(HGRC_LIB)
 	@echo "binary: $$(wc -c < $@) bytes at $(LOAD)"
 
 # HISCORE: the record, two bytes (0 on a new disk). The game BLOADs it at

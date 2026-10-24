@@ -4,14 +4,14 @@ The classic Snake, written in **C with cc65** for a **48 KB Apple II+** on the
 native 280×192 hi-res (HGR) screen. It is the Apple II port of POM1's
 `sketchs/gen2/game_snake_telemetry` sketch (GEN2Snake, VERHILLE Arnaud), and
 the reference C program of the shared [`../dev/lib`](../dev/README.md)
-libraries: a whole game in one 10,011-byte `BRUN` file.
+libraries: a whole game in one 10,734-byte `BRUN` file.
 
 | | |
 |---|---|
 | Machine | Apple II+ 48 KB or any later model, DOS 3.3 |
 | Disk | [`../dist/SNAKE.dsk`](../dist/) — boots straight into the game |
 | Source | [`src/snake.c`](src/snake.c), one file |
-| Binary | `SNAKE`, 10,011 bytes, `BRUN` at `$6000`; `HISCORE`, the record (2 bytes) |
+| Binary | `SNAKE`, 10,734 bytes, `BRUN` at `$6000`; `HISCORE`, the record (2 bytes) |
 | Libraries | [`../dev/lib/hgrc`](../dev/lib/hgrc/README.md) (HGR runtime), [`../dev/lib/apple2c`](../dev/lib/apple2c/README.md) (keyboard, speaker, joystick, DOS commands and exit) |
 
 ## How to play
@@ -19,6 +19,14 @@ libraries: a whole game in one 10,011-byte `BRUN` file.
 The snake lives on a grid of **33 × 20 cells** (8×8 pixels each, drawn as
 6×6 blocks). The **top and bottom walls kill**; the **left and right edges are
 open**, so the snake wraps from one side to the other.
+
+**Five levels of ten apples.** Level 1 is the open field; levels 2 to 5 add
+blue walls inside it (two bars, four posts, a box with four doors, long bars
+and a split pillar), which kill like the outer ones. Each new level shows a
+`LEVEL n` card with a jingle and restarts a 3-cell snake mid-field — the
+score stays — a little faster than the previous one, and every apple grows
+the snake by the level's number of cells (one on level 1, five on level 5).
+The tenth apple of level 5 wins the game.
 
 | Key | Action |
 |---|---|
@@ -37,8 +45,8 @@ the same codes with `Ctrl-K` / `Ctrl-J`).
 - **Bonus gem** (solid green block): appears **every 4th apple** for **36 ticks**,
   worth **20 points**, no growth — pure risk/reward.
 - **Speed**: about 2.4 cells per second at the slow start (`1`, or any key),
-  faster with `2` and `3`; each apple shortens the delay until it reaches the
-  same top speed (after 16 apples from the slow start). The delay is a CPU spin
+  faster with `2` and `3`; each apple shortens the delay, each level starts
+  300 spins faster than the one before, down to the same top speed. The delay is a CPU spin
   calibrated for a 1 MHz 6502, so an accelerator card makes the game faster.
 - **Turns**: two quick turns can be queued and are applied on two successive
   moves; a direct reversal is refused.
@@ -46,7 +54,8 @@ the same codes with `Ctrl-K` / `Ctrl-J`).
   leaves the paddle timers running). Only a *change* of its direction steers,
   so a stick left off-centre does not fight the keyboard.
 - **Sound**: a blip per apple, a chirp when the bonus gem appears, a chime
-  when it is taken, a falling thud at GAME OVER and an arpeggio for YOU WIN.
+  when it is taken, a jingle for each new level, a falling thud at GAME OVER
+  and an arpeggio for YOU WIN.
   The time a tone or a stick read takes is taken off the next delay, so the
   pace does not change.
 - **Record**: shown on the title screen, `NEW RECORD` on the GAME OVER card
@@ -54,7 +63,7 @@ the same codes with `Ctrl-K` / `Ctrl-J`).
   disk it is only kept until the machine is switched off.
 - **HUD**: the score sits top-right in white; the `HGR Snake` label top-left
   cycles violet → green → orange → blue with every apple.
-- **YOU WIN** when all 660 cells are filled.
+- **YOU WIN** after the tenth apple of level 5.
 - The title screen starts the game on its own after ~4 s. After GAME OVER the
   banner holds for ~4 s, then any key restarts during a ~5 s window, after which
   a new game starts anyway.
@@ -92,8 +101,9 @@ missing).
 [`tests/test_snake.py`](tests/test_snake.py) plays the shipped disk in
 `../dev/tools/a2run` and checks the speeds, the wrap, the turn queue, the
 walls, apples and bonus with their sounds, the joystick (plugged in or not),
-pause and quit, and the record saved, read back, or only kept in memory on a
-write-protected disk. The build adds `-g` so `build/snake.lbl` names the C
+pause and quit, the levels (the card, the wall layouts, the growth, the pace,
+apples never on a wall, the win), and the record saved, read back, or only
+kept in memory on a write-protected disk. The build adds `-g` so `build/snake.lbl` names the C
 statics the test peeks (the binary is the same). [`../dev/tools/dos33.py`](../dev/tools/dos33.py)
 writes it from the DOS 3.3 master tracks in `../dev/tools/dos33_system.bin`.
 
@@ -155,11 +165,11 @@ From [`../dev/cc65/apple2_hgr_c.cfg`](../dev/cc65/apple2_hgr_c.cfg) and
 |---|---|
 | `$0050-$009F` | C zero page: 80 bytes (the cfg allows `$50-$FF`; `$00-$4F` stays the Monitor's) |
 | `$0800-$0FFF` | `HELLO` (Applesoft), never touched |
-| `$1000-$19B3` | `LOWBSS`, 2,484 bytes: the snake ring buffers `sx[660]` / `sy[660]`, the `occupied[24][35]` grid and the game state (not zeroed at start — `new_game()` initialises them), then the DOS command buffer and its page-zero copy (`DOS_LOWBSS=1`) |
+| `$1000-$19B7` | `LOWBSS`, 2,488 bytes: the snake ring buffers `sx[660]` / `sy[660]`, the `occupied[24][35]` grid and the game state (not zeroed at start — `new_game()` initialises them), then the DOS command buffer and its page-zero copy (`DOS_LOWBSS=1`) |
 | `$2000-$3FFF` | HGR page 1 (page 2 at `$4000-$5FFF` is reserved by the cfg, unused here) |
-| `$6000-$871A` | the `BRUN` file: `STARTUP` 163 + `ONCE` 12 + `CODE` 8,619 + `RODATA` 1,174 + `DATA` 43 bytes |
-| `$871B-$8D2B` | `BSS` 1,293 bytes, then `ZPSAVE` 260 bytes (the zero page and RESET vector saved by `crt0_apple2.s`); 212 bytes free before `$8E00` |
-| `$8E00-$95FF` | C argument stack, 2 KB, growing down from `$9600` |
+| `$6000-$89ED` | the `BRUN` file: `STARTUP` 163 + `ONCE` 12 + `CODE` 9,256 + `RODATA` 1,252 + `DATA` 51 bytes |
+| `$89EE-$8FFE` | `BSS` 1,293 bytes, then `ZPSAVE` 260 bytes (the zero page and RESET vector saved by `crt0_apple2.s`); 1,281 bytes free before `$9500` |
+| `$9500-$95FF` | C argument stack, 256 bytes (`-D __STACKSIZE__=0x0100`; the peak over a whole game is 37), growing down from `$9600` |
 | `$9600-$BFFF` | DOS 3.3 |
 
 Startup is [`../dev/cc65/crt0_apple2.s`](../dev/cc65/crt0_apple2.s), linked
