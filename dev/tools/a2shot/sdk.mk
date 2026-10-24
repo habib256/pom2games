@@ -5,18 +5,17 @@
 #   POM2_CORE_LIB     the archive for this host
 #   POM2_CORE_CFLAGS  POM2_CORE_LIBS
 #
-# PROVISIONAL (2026-10-24): darwin-arm64 is pom2_core built from POM2's
-# working tree on top of 788b301e, not yet committed ("pom2_core: the bus,
-# the display, the RGB card, a Disk II anywhere": setBusWatch, displayState,
-# attachRgbCard, attachDiskII slot, setDiskWriteProtected, Machine::AppleIIe
-# — LETTRE_POM2_CHROMABREAK.md), debug symbols stripped (strip -S);
-# sdk/include/pom2/core.hpp is that tree's header. linux-x86_64 is still the
-# 0849ee51 archive: to rebuild both from the POM2 commit once it is pushed.
+# Both archives are pom2_core built at POM2 commit 6f7f06a7 (github.com/
+# habib256/pom2, "Merge branch 'core-chromabreak'": setBusWatch,
+# displayState, attachRgbCard, attachDiskII in any slot, setDiskWriteProtected,
+# Machine::AppleIIe — LETTRE_POM2_CHROMABREAK.md), debug symbols stripped
+# (strip -S). sdk/include/pom2/core.hpp is that commit's header; roms/ gained
+# apple2e_unenh.rom.
 #   darwin-arm64  built on the author's Mac (cmake --build --target pom2_core,
 #                 cmake --install --component pom2_core_sdk)
 #   linux-x86_64  built on ubuntu-24.04 (glibc 2.39) by
-#                 .github/workflows/pom2-core-linux.yml, run 40105356133
-#                 (github.com/habib256/pom2games/actions/runs/40105356133)
+#                 .github/workflows/pom2-core-linux.yml, run 40118676458
+#                 (github.com/habib256/pom2games/actions/runs/40118676458)
 # The compiled core is GPL-3.0, like POM2.
 #
 # The core's own link needs, on macOS, the CoreAudio frameworks (miniaudio);

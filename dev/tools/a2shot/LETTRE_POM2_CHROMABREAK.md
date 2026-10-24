@@ -1,5 +1,7 @@
 # Demandes pour POM2 : la façade `pom2_core` pour la sonde de CHROMABREAK
 
+> **Livrée** (POM2 6f7f06a7, intégrée le 2026-10-24).
+
 Bonjour,
 
 Merci pour la livraison 0849ee51 (`setCpuState`, `attachMouse`/`moveMouse`/
