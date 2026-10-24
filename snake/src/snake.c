@@ -17,7 +17,8 @@
  *   Build : make            -> ../dist/SNAKE.dsk
  *   Run   : make run        (POM2, Apple ][+ profile)
  *
- * Controls: I J K L or the arrow keys (left/right on a II+, all four on a //e).
+ * Controls: I J K L, the arrow keys (left/right on a II+, all four on a //e)
+ * or a joystick. 1 2 3 on the title pick the starting speed.
  *
  * --- Cell -> pixel mapping -------------------------------------------------
  * The 280x192 HIRES screen is divided into 8x8-pixel CELLS: 35 columns
@@ -40,6 +41,8 @@
  * ---------------------------------------------------------------------------
  */
 #include "hgr.h"
+#include "apple2game.h"
+#include "apple2dos.h"
 
 /* --- Playfield geometry (cells) --- */
 #define CELL      8u            /* pixels per cell side                          */
@@ -54,6 +57,18 @@
 #define BONUS_EVERY  4u         /* drop a bonus every Nth apple                  */
 #define BONUS_TTL    36u        /* bonus lifetime in ticks before it fades       */
 #define BONUS_POINTS 20u        /* score for grabbing a bonus (4x a normal apple)*/
+
+/* --- Speeds: throttle spins at the start, per title choice 1 / 2 / 3 --- */
+#define SPINS_FLOOR  365u       /* fastest pace, reached after enough apples     */
+#define SPINS_STEP   200u       /* each apple shortens the throttle this much    */
+static const unsigned int start_spins[3] = { 3565u, 2565u, 1565u };
+
+/* --- Time spent outside throttle(), in throttle spins --- */
+/* One throttle spin with its keyboard poll is ~91 cycles (3565 spins = a tick
+ * every 18-20 frames at 1 MHz). Tones and the stick read keep the CPU, so
+ * their spins are taken off the next throttle: the pace stays the same. */
+#define TONE_SPINS(f, p) ((unsigned int)((unsigned long)(f) * (12u + 5u * (p)) / 91u))
+#define STICK_SPINS      66u    /* a2_read_stick: 256 turns of ~23 cycles       */
 
 /* --- Direction codes --- */
 #define DIR_UP    1
@@ -106,6 +121,13 @@ static unsigned char title_hue;    /* index into title_hues, advanced per apple 
 /* Throttle iterations; lower = faster, shrinks per apple. Gameplay now polls
  * the keyboard during this delay, which adds some cost per iteration. */
 static unsigned int  tick_spins = 3565u;
+static unsigned int  speed_spins = 3565u; /* the start pace chosen on the title */
+static unsigned int  spent;        /* spins used this tick by tones and the stick */
+static unsigned char stick;        /* 1 = a joystick answers on the game port */
+static unsigned char stick_last;   /* its last direction: only a change steers */
+/* The record, BLOADed from HISCORE at start and BSAVEd after a better game. */
+static unsigned int  hiscore;
+static unsigned char new_record;   /* 1 = the game just over beat the record */
 
 /* 16-bit LFSR PRNG (Galois), seeded from key-press timing at startup. */
 static unsigned int rng_state = 0xACE1u;
@@ -116,6 +138,18 @@ static unsigned int prng(void)
     rng_state >>= 1;
     if (lsb) rng_state ^= 0xB400u;     /* taps 16,14,13,11 */
     return rng_state;
+}
+
+/* A short speaker tone that also counts against the next throttle. */
+#define SFX(f, p) do { a2_tone((f), (p)); spent += TONE_SPINS((f), (p)); } while (0)
+
+/* Nothing plugged in leaves both paddle timers running after a read (the
+ * same test as MICRO-SOKOBAN's); a real stick has let both run out. */
+static void detect_stick(void)
+{
+    a2_read_stick();
+    stick = !((*(volatile unsigned char *)0xC064 | *(volatile unsigned char *)0xC065) & 0x80u);
+    stick_last = A2_JOY_NONE;
 }
 
 /* Fill / erase the 6x6 block of grid cell (cx, cy) in ONE asm call. hgr_cell
@@ -248,7 +282,8 @@ static void new_game(void)
     paused = 0u;
     score = 0;
     score_shown = 0;           /* redraw() draws score 0; the loop redraws only on change */
-    tick_spins = 3565u;        /* reset to the starting speed */
+    tick_spins = speed_spins;  /* reset to the chosen starting speed */
+    new_record = 0u;
     apples = 0;
     title_hue = 0;             /* HGR Snake starts violet, shifts colour per apple */
     bonus_active = 0;          /* no bonus until the cadence drops one */
@@ -282,6 +317,21 @@ static void read_input(void)
     else if (k == 'K' || k == KC_DOWN)  set_dir(DIR_DOWN);
     else if (k == 'J' || k == KC_LEFT)  set_dir(DIR_LEFT);
     else if (k == 'L' || k == KC_RIGHT) set_dir(DIR_RIGHT);
+}
+
+/* The joystick, once per tick (a read takes ~6 ms). A2_JOY_* are DIR_* codes.
+ * Only a change of direction steers, so a stick left off-centre does not
+ * keep turning the snake while the keyboard plays. */
+static void read_stick(void)
+{
+    unsigned char d;
+    if (!stick) return;
+    d = a2_read_stick();
+    spent += STICK_SPINS;
+    if (d != stick_last) {
+        stick_last = d;
+        if (d != A2_JOY_NONE) set_dir(d);
+    }
 }
 
 /* Advance one logical tick: move the head, resolve collisions / food. */
@@ -323,6 +373,8 @@ static void tick(void)
     if (bonus_active && nx == bonusx && ny == bonusy) {
         score += BONUS_POINTS;
         bonus_active = 0u;
+        SFX(0x20u, 0x18u);            /* rising two-note chime */
+        SFX(0x30u, 0x0Cu);
     }
 
     /* O(1) ring move: append the new head one slot past `head`; drop the old
@@ -346,7 +398,9 @@ static void tick(void)
          * gentle step so the speed keeps climbing for many apples instead of
          * capping early (3565 -> ~365 over ~16 apples) — the end game gets
          * genuinely fast. The floor stays > 0 so the throttle never vanishes. */
-        if (tick_spins > 400u) tick_spins -= 200u;
+        if (tick_spins >= SPINS_FLOOR + SPINS_STEP) tick_spins -= SPINS_STEP;
+        else tick_spins = SPINS_FLOOR;
+        SFX(0x18u, 0x20u);            /* short high blip */
         if (slen == MAXLEN) {
             won = 1u;                 /* no empty cell remains for a new apple */
             return;
@@ -358,6 +412,7 @@ static void tick(void)
             bonus_active = 1u;
             bonus_ttl    = BONUS_TTL;
             bonus_new    = 1u;
+            SFX(0x10u, 0x10u);        /* a chirp: the gem is out */
         }
     }
 
@@ -427,6 +482,8 @@ static void throttle(unsigned char playing)
     unsigned int n;
     unsigned char poll_count = 0u;
     unsigned int lim = tick_spins;   /* local bound avoids a global reload on each spin */
+    lim = lim > spent ? lim - spent : 1u;
+    spent = 0u;
     if (!playing) {
         for (n = 0; n < lim; ++n) { /* title and game-over timing */ }
     } else {
@@ -442,6 +499,30 @@ static void throttle(unsigned char playing)
     }
 }
 
+/* "BLOAD HISCORE,A$xxxx" / "BSAVE HISCORE,A$xxxx,L$0002" at &hiscore. The
+ * disk ships HISCORE (2 bytes, 0): DOS would stop the game on a missing file. */
+static void hiscore_cmd(const char *verb)
+{
+    unsigned int at = (unsigned int)&hiscore;
+    a2_dos_new();
+    a2_dos_add(verb);
+    a2_dos_add(" HISCORE,A$");
+    a2_dos_hex((unsigned char)(at >> 8));
+    a2_dos_hex((unsigned char)at);
+    if (verb[1] == 'S') a2_dos_add(",L$0002");
+    a2_dos_run();
+}
+
+/* A better score becomes the record, saved unless the disk is write-protected
+ * (it stays the record until the machine is switched off). */
+static void keep_record(void)
+{
+    if (score <= hiscore) return;
+    hiscore = score;
+    new_record = 1u;
+    if (!a2_disk_protected()) hiscore_cmd("BSAVE");
+}
+
 void main(void)
 {
     unsigned int t;
@@ -449,7 +530,9 @@ void main(void)
 
     /* ---- Title page: the name + the controls. Any key starts; with no key
      * the title times out after ~4 s and the game starts on its own. Every
-     * line in a different artifact colour (violet / green / orange / blue). */
+     * line in a different artifact colour (violet / green / orange / blue).
+     * The record is read first, while the disk still spins from BRUN. */
+    hiscore_cmd("BLOAD");
     hgr_init();
     hgr_clear(0);
     hgr_puts_color(68,  12, "APPLE II",      HGR_GREEN);   /* line 1, centred */
@@ -457,7 +540,10 @@ void main(void)
     hgr_puts_color(10,  72, "MOVE  I J K L", HGR_BLUE);
     hgr_puts_color(10,  96, "  OR ARROWS",   HGR_BLUE);
     hgr_puts_color(40, 120, "P/ESC PAUSE", HGR_ORANGE);
-    hgr_puts_color(38, 150, "PRESS ANY KEY", HGR_GREEN);
+    hgr_puts_color(23, 146, "SPEED 1 2 3 ?", HGR_GREEN);
+    hgr_puts_color(32, 172, "RECORD", HGR_VIOLET);
+    hgr_putu_field(150u, 172u, hiscore, 5u);
+    detect_stick();
 
     /* Short poll delay (~22 ms, ~45 polls/s so a quick tap is never missed),
      * 180 polls = ~4 s. new_game() resets tick_spins to the game speed. */
@@ -467,6 +553,8 @@ void main(void)
         if (start_key) break;           /* any key starts */
         throttle(0u);
     }
+    /* 1 2 3 pick the starting pace; any other key (or none) keeps the slowest. */
+    if (start_key >= '1' && start_key <= '3') speed_spins = start_spins[start_key - '1'];
 
     /* Key timing varies between launches; automatic starts retain a stable
      * sequence. SNAKE_FIXED_SEED makes playtests reproducible. */
@@ -500,6 +588,7 @@ void main(void)
             unsigned int olen = slen;
             read_input();
             if (paused) continue;
+            read_stick();
             tick();
             if (alive) {
                 /* INCREMENTAL redraw — walls/border were drawn once in redraw();
@@ -530,8 +619,18 @@ void main(void)
              * no half-erased block stays glued to the letters). */
             unsigned int hold;
             hgr_fill_rect(64u, 48u, 0u, 40u, 0x00u);
-            if (won) hgr_puts_color(68, 80, "YOU WIN", HGR_GREEN);
-            else     hgr_puts_color(40, 80, "GAME OVER", HGR_ORANGE);
+            if (won) {
+                hgr_puts_color(68, 72, "YOU WIN", HGR_GREEN);
+                a2_tone(0x40u, 0x30u);          /* rising arpeggio */
+                a2_tone(0x50u, 0x24u);
+                a2_tone(0x60u, 0x18u);
+            } else {
+                hgr_puts_color(40, 72, "GAME OVER", HGR_ORANGE);
+                a2_tone(0x30u, 0xC0u);          /* falling thud */
+                a2_tone(0x18u, 0xFFu);
+            }
+            keep_record();
+            if (new_record) hgr_puts_color(50, 96, "NEW RECORD", HGR_VIOLET);
             tick_spins = 3565u;             /* pin the throttle to its slow cadence */
             /* One throttle at 3565 spins lasts ~0.33 s (measured: a tick every
              * 18-20 frames). Upstream held 40 + up to 50 of them — ~13 s deaf,
@@ -543,6 +642,7 @@ void main(void)
                 if (apple2_readkey() != 0) break;   /* phase 2: key restarts */
                 throttle(0u);
             }
+            detect_stick();
             new_game();
             redraw();
         }

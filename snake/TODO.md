@@ -9,61 +9,28 @@ already exist in `../dev/lib` rather than writing new ones: the C mirrors of
 [`apple2game.h`](../dev/lib/apple2c/apple2game.h) and
 [`apple2dos.h`](../dev/lib/apple2c/apple2dos.h) in `../dev/lib/apple2c`.
 
-Measured state today:
+Measured state today (2026-10-24):
 
 - **Keyboard**: read once per tick and every 64 spins of the throttle; two
-  turns can be queued, a reversal is refused.
-- **Speed**: active-wait `throttle()` of `tick_spins` iterations, 3,565 at the
-  start (~0.33 s per cell, a tick every 18-20 frames), −200 per apple down to
-  365 after 16 apples. Calibrated for 1 MHz: faster on an accelerator card.
+  turns can be queued, a reversal is refused. **Joystick** once per tick when
+  one answers on the game port; only a change of its direction steers.
+- **Speed**: active-wait `throttle()`; at the slow start (title `1` or any
+  key) 3,565 spins, a tick every 24.6 frames (~0.41 s; the same as before the
+  sound and stick, whose time is taken off the next throttle); `2` and `3`
+  start at 2,565 and 1,565; −200 per apple down to 365. Calibrated for 1 MHz:
+  faster on an accelerator card.
 - **Random**: 16-bit Galois LFSR, seed mixed from the title poll count and the
   start key; an automatic start replays the same sequence.
-- **Missing**: sound, joystick, speed menu, high score, obstacles — none of
-  these exist in `snake.c`.
-- The Makefile emits `build/snake.map` but no ld65 label file (`-Ln`), which
-  the test harness `../dev/tools/a2test.py` needs for `peek` by name.
-
-## Next up
-
-- [ ] **Sound** on apple, bonus pickup, bonus spawn, death and win, with
-  `a2_tone(flips, period)` (`apple2game.h`). Link `APPLE2C_GAME_SRCS`
-  (`apple2game_asm.s`, assembled with `APPLE2C_AFLAGS`), for instance by
-  adding it to `HGRC_EXTRA_SRCS` so the archive carries it. The CPU is busy
-  during a tone, so keep the blips short (`a2_tone(0x30, 0x28)` lasts ~10 ms)
-  or shorten the following `throttle()` by the same amount. Cost: 1 byte of BSS.
-- [ ] **Joystick** steering with `a2_read_stick()` (`apple2game.h`, same object
-  as above). It returns `A2_JOY_UP/DOWN/LEFT/RIGHT` = 1..4, the very values of
-  `DIR_UP..DIR_RIGHT`, so the result feeds `set_dir()` directly. One read costs
-  ~6 ms: call it once per tick (not inside the 64-spin keyboard poll) and
-  recalibrate `tick_spins`, or accept the slower tick. Reuse MICRO-SOKOBAN's
-  way of ignoring the game port when no stick is plugged in.
-- [ ] **Starting speed** chosen on the title screen (for example `1` `2` `3`
-  for three `tick_spins` presets; any other key keeps the default). `new_game()`
-  currently resets `tick_spins` to 3,565, so the choice must live in its own
-  variable that `new_game()` reads.
+- **Memory**: `$6000-$8DFF` has 212 bytes left; `LOWBSS` ends at `$19B3`.
 
 ## Later
 
-- [ ] **High score** kept across games and saved on the disk. Use
-  `apple2dos.h`: `a2_dos_cmd("BLOAD HISCORE,A$...")` at start, a `BSAVE`
-  built with `a2_dos_new/add/hex/run` after a record, guarded by
-  `a2_disk_protected()`. Link `APPLE2C_DOS_SRCS` (`apple2dos_asm.s`, 256 + 41
-  bytes of BSS). DOS stops the program on a missing file, so the Makefile must
-  put an initial `HISCORE` on the disk (`$(DOS33) --bin HISCORE=...`). The two
-  HUD rows are full (label at x 8-170, score field at x 184-272), so show the
-  record on the title screen or the GAME OVER card rather than in the HUD.
-  `dos33.py` reads files back from an image, which lets a test check the save.
-- [ ] **Headless regression test** (`make test-snake`, wired into the root
-  `make test` like `test-arkabreakout`): a `FIXED_SEED` build, scripted keys
-  through `../dev/tools/a2test.py` on a2run / a2shot, `peek` of `score`,
-  `slen` and `alive` through ld65 labels. Needs `-Ln build/snake.lbl` on the
-  link line. Cover: a turn queue of two, the wrap at both edges, a wall death,
-  the bonus cadence (every 4th apple, 36 ticks), pause and `Q` to DOS.
 - [ ] **Pace independent of the CPU clock**, if accelerated machines matter:
   [`apple2frame.h`](../dev/lib/apple2c/apple2frame.h) (`APPLE2C_FRAME_SRCS`)
   gives `a2_frame_init()` / `a2_frame_wait()` — VBL on a //e, a bounded ROM
   `WAIT` fallback on a II+. The keyboard poll inside `throttle()` would then
-  move to a per-frame loop.
+  move to a per-frame loop, and the tone / stick compensation (`spent`) would
+  go.
 
 ## Ideas
 
@@ -75,6 +42,22 @@ Measured state today:
 
 ## Done
 
+- [x] **Sound** (2026-10-24): blip per apple, chirp for the bonus gem, chime
+  when taken, thud at GAME OVER, arpeggio for YOU WIN (`a2_tone`); the tone
+  time is taken off the next throttle.
+- [x] **Joystick** (2026-10-24): `a2_read_stick()` once per tick, detected on
+  the title and after each game (open paddle timers = nothing plugged in, as
+  in MICRO-SOKOBAN); a direction change steers, a held or drifting stick does
+  not fight the keyboard.
+- [x] **Starting speed** (2026-10-24): `1` `2` `3` on the title (3,565 / 2,565
+  / 1,565 spins), kept in `speed_spins` for every new game.
+- [x] **High score** (2026-10-24): `HISCORE` (2 bytes) `BLOAD`ed before the
+  title, shown there and as `NEW RECORD` on the GAME OVER card, `BSAVE`d unless
+  the disk is write-protected. The DOS buffers live in `LOWBSS` (new switch
+  `DOS_LOWBSS` of `dev/lib/apple2/dos.asm`): `$6000-$8DFF` was 86 bytes short.
+- [x] **Headless regression test** (2026-10-24): `make test` (in the root
+  `make test` too), `tests/test_snake.py` on the shipped disk in a2run, labels
+  from `-g -Ln build/snake.lbl`.
 - [x] **Direction queue**: the keyboard is also read during `throttle()`;
   up to two turns wait and are applied one per tick, reversals refused.
 - [x] **Random seed** mixed from the title poll count and the start key;

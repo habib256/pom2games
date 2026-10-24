@@ -4,15 +4,15 @@ The classic Snake, written in **C with cc65** for a **48 KB Apple II+** on the
 native 280×192 hi-res (HGR) screen. It is the Apple II port of POM1's
 `sketchs/gen2/game_snake_telemetry` sketch (GEN2Snake, VERHILLE Arnaud), and
 the reference C program of the shared [`../dev/lib`](../dev/README.md)
-libraries: a whole game in one 8,573-byte `BRUN` file.
+libraries: a whole game in one 10,011-byte `BRUN` file.
 
 | | |
 |---|---|
 | Machine | Apple II+ 48 KB or any later model, DOS 3.3 |
 | Disk | [`../dist/SNAKE.dsk`](../dist/) — boots straight into the game |
 | Source | [`src/snake.c`](src/snake.c), one file |
-| Binary | `SNAKE`, 8,573 bytes, `BRUN` at `$6000` |
-| Libraries | [`../dev/lib/hgrc`](../dev/lib/hgrc/README.md) (HGR runtime), [`../dev/lib/apple2c`](../dev/lib/apple2c/README.md) (keyboard, DOS exit) |
+| Binary | `SNAKE`, 10,011 bytes, `BRUN` at `$6000`; `HISCORE`, the record (2 bytes) |
+| Libraries | [`../dev/lib/hgrc`](../dev/lib/hgrc/README.md) (HGR runtime), [`../dev/lib/apple2c`](../dev/lib/apple2c/README.md) (keyboard, speaker, joystick, DOS commands and exit) |
 
 ## How to play
 
@@ -22,10 +22,11 @@ open**, so the snake wraps from one side to the other.
 
 | Key | Action |
 |---|---|
-| `I` `J` `K` `L`, arrow keys | steer up / left / down / right |
+| `I` `J` `K` `L`, arrow keys, joystick | steer up / left / down / right |
+| `1` `2` `3` (title) | starting speed: slow, medium, fast |
 | `P` or `ESC` | pause / resume |
 | `Q` (while paused) | back to the DOS `]` prompt |
-| any key | start from the title; restart after GAME OVER |
+| any other key | start from the title at the slow speed; restart after GAME OVER |
 
 Keys are folded to upper case, so `i j k l` work too. A II+ keyboard only has
 left and right arrows; up and down arrows exist from the //e on (a II+ sends
@@ -35,11 +36,22 @@ the same codes with `Ctrl-K` / `Ctrl-J`).
   the snake grows by one cell and **speeds up**.
 - **Bonus gem** (solid green block): appears **every 4th apple** for **36 ticks**,
   worth **20 points**, no growth — pure risk/reward.
-- **Speed**: about three cells per second at the start; each apple shortens the
-  delay until it stops shrinking after 16 apples. The delay is a CPU spin
+- **Speed**: about 2.4 cells per second at the slow start (`1`, or any key),
+  faster with `2` and `3`; each apple shortens the delay until it reaches the
+  same top speed (after 16 apples from the slow start). The delay is a CPU spin
   calibrated for a 1 MHz 6502, so an accelerator card makes the game faster.
 - **Turns**: two quick turns can be queued and are applied on two successive
   moves; a direct reversal is refused.
+- **Joystick**: detected on the title and after each game (nothing plugged in
+  leaves the paddle timers running). Only a *change* of its direction steers,
+  so a stick left off-centre does not fight the keyboard.
+- **Sound**: a blip per apple, a chirp when the bonus gem appears, a chime
+  when it is taken, a falling thud at GAME OVER and an arpeggio for YOU WIN.
+  The time a tone or a stick read takes is taken off the next delay, so the
+  pace does not change.
+- **Record**: shown on the title screen, `NEW RECORD` on the GAME OVER card
+  when beaten, and saved on the disk (file `HISCORE`). On a write-protected
+  disk it is only kept until the machine is switched off.
 - **HUD**: the score sits top-right in white; the `HGR Snake` label top-left
   cycles violet → green → orange → blue with every apple.
 - **YOU WIN** when all 660 cells are filled.
@@ -54,6 +66,7 @@ the same codes with `Ctrl-K` / `Ctrl-J`).
 
     make            # -> ../dist/SNAKE.dsk  (bootable 140 KB DOS 3.3 image)
     make run        # boot it in POM2 (Apple ][+ preset)
+    make test       # the scenarios of tests/test_snake.py in a2run (~30 s)
     make clean      # remove build/ (the disk stays)
     make distclean  # remove build/ and the disk
 
@@ -71,8 +84,17 @@ python3. Everything else — DOS 3.3 system tracks included — is in `../dev`.
 alone does not trigger a rebuild. (A seed of 0 is replaced by `0xACE1`: an LFSR
 must not start at zero.)
 
-The disk holds two files: `HELLO` (`10 PRINT CHR$(4);"BRUN SNAKE"`, from
-[`src/hello.bas`](src/hello.bas)) and `SNAKE`. [`../dev/tools/dos33.py`](../dev/tools/dos33.py)
+The disk holds three files: `HELLO` (`10 PRINT CHR$(4);"BRUN SNAKE"`, from
+[`src/hello.bas`](src/hello.bas)), `SNAKE` and `HISCORE` (two zero bytes on a
+new disk: the game `BLOAD`s it at start, and DOS would stop it if it were
+missing).
+
+[`tests/test_snake.py`](tests/test_snake.py) plays the shipped disk in
+`../dev/tools/a2run` and checks the speeds, the wrap, the turn queue, the
+walls, apples and bonus with their sounds, the joystick (plugged in or not),
+pause and quit, and the record saved, read back, or only kept in memory on a
+write-protected disk. The build adds `-g` so `build/snake.lbl` names the C
+statics the test peeks (the binary is the same). [`../dev/tools/dos33.py`](../dev/tools/dos33.py)
 writes it from the DOS 3.3 master tracks in `../dev/tools/dos33_system.bin`.
 
 ## Under the hood
@@ -95,6 +117,8 @@ calls thirteen functions of it:
 | `hgr_puts_color`, `hgr_clear_pixrect` | the `HGR Snake` label and every title / pause / game-over line, in one of the four NTSC artifact colours |
 | `apple2_readkey`, `apple2_getkey` | keyboard without / with waiting, upper-cased, arrows as control codes |
 | `a2_home`, `a2_dos` | `Q` from the pause: clear the text screen, restore the zero page, `JMP $03D0` |
+| `a2_tone`, `a2_read_stick` | the sound effects; the joystick, once per tick |
+| `a2_dos_new/add/hex/run`, `a2_disk_protected` | `BLOAD` / `BSAVE HISCORE` at the address of the record |
 
 Text is the **Beautiful Boot 8×8 font** (ASCII `$20-$7F`, see
 [`../dev/lib/font`](../dev/lib/font/README.md)) pixel-doubled to 16×16 cells on
@@ -107,14 +131,14 @@ only about half the pixels, so a hollow outline would dissolve into dots.
 
 `make` compiles every hgrc, gfx and apple2c source into one `ar65` archive,
 `build/hgrc/hgrc.lib` (~240 KB), and `ld65` extracts only the members Snake
-references — `build/snake.map` lists them. 22 members come out of the archive:
+references — `build/snake.map` lists them. 31 members come out of the archive:
 
 | Family | Members |
 |---|---|
 | Core asm kernels | `hgr_init`, `hgr_mode_asm`, `hgr_clear_asm`, `hgr_rows_asm`, `hgr_byte_rect_asm`, `hgr_pixrect_asm` + `hgr_pixrect_params`, `hgr_cell_asm`, `hgr_colorize_asm`, `hgr_carrier_params`, `hgr_text16_asm` + `hgr_text_params`, `hgr_utoa_asm` |
 | Rectangles / cells (C wrappers) | `hgr_rect`, `hgr_pixrect`, `hgr_cell`, `hgr_colorize`, `hgr_carrier` |
 | Text ×2 and numbers | `hgr_font`, `hgr_text`, `hgr_num_field` |
-| apple2c | `apple2io_asm` (keyboard, `a2_home`, `a2_dos`) |
+| apple2c | `apple2io_asm` (keyboard, `a2_home`, `a2_dos`), `apple2game_asm` (speaker, joystick), `apple2dos_asm` (DOS commands) |
 
 Left on the shelf: single pixels (`hgr_pixel`), 8×8 text, bitmap / pre-shifted
 sprites and the sprite engine, lines and circles (`gfx`), LORES and DHGR. The
@@ -131,10 +155,10 @@ From [`../dev/cc65/apple2_hgr_c.cfg`](../dev/cc65/apple2_hgr_c.cfg) and
 |---|---|
 | `$0050-$009F` | C zero page: 80 bytes (the cfg allows `$50-$FF`; `$00-$4F` stays the Monitor's) |
 | `$0800-$0FFF` | `HELLO` (Applesoft), never touched |
-| `$1000-$1889` | `LOWBSS`, 2,186 bytes: the snake ring buffers `sx[660]` / `sy[660]`, the `occupied[24][35]` grid and the game state (not zeroed at start — `new_game()` initialises them) |
+| `$1000-$19B3` | `LOWBSS`, 2,484 bytes: the snake ring buffers `sx[660]` / `sy[660]`, the `occupied[24][35]` grid and the game state (not zeroed at start — `new_game()` initialises them), then the DOS command buffer and its page-zero copy (`DOS_LOWBSS=1`) |
 | `$2000-$3FFF` | HGR page 1 (page 2 at `$4000-$5FFF` is reserved by the cfg, unused here) |
-| `$6000-$817C` | the `BRUN` file: `STARTUP` 163 + `ONCE` 12 + `CODE` 7,456 + `RODATA` 901 + `DATA` 41 bytes |
-| `$817D-$877F` | `BSS` 1,279 bytes, then `ZPSAVE` 260 bytes (the zero page and RESET vector saved by `crt0_apple2.s`) |
+| `$6000-$871A` | the `BRUN` file: `STARTUP` 163 + `ONCE` 12 + `CODE` 8,619 + `RODATA` 1,174 + `DATA` 43 bytes |
+| `$871B-$8D2B` | `BSS` 1,293 bytes, then `ZPSAVE` 260 bytes (the zero page and RESET vector saved by `crt0_apple2.s`); 212 bytes free before `$8E00` |
 | `$8E00-$95FF` | C argument stack, 2 KB, growing down from `$9600` |
 | `$9600-$BFFF` | DOS 3.3 |
 
@@ -151,7 +175,8 @@ clean DOS prompt.
   V-blank to wait for on a II+, so the pace is a plain CPU spin.
 - Apple II keyboard with arrow keys; the per-frame video-mode re-assert (a POM1
   renderer workaround) is removed.
-- Title screen says `APPLE II`; pause and exit to DOS are additions.
+- Title screen says `APPLE II`; pause, exit to DOS, sound, joystick, the
+  speed choice and the saved record are additions.
 
 ## The reference C consumer of dev/lib
 
@@ -165,7 +190,7 @@ bytes) as the library gained its asm kernels and archive linking. The
 include $(DEV)/cc65/apple2.mk        # tools, paths, run/clean/distclean, $(DOS33)
 include $(APPLE2C)/apple2c.mk        # APPLE2C_SRCS (keyboard, text, DOS exit)
 include $(HGRC)/hgrc.mk              # HGRC_ALL_SRCS, the archive's family lists
-HGRC_EXTRA_SRCS := $(APPLE2C_SRCS)   # apple2c rides in the same archive
+HGRC_EXTRA_SRCS := $(APPLE2C_SRCS) $(APPLE2C_GAME_SRCS) $(APPLE2C_DOS_SRCS)  # apple2c rides in the same archive
 OBJS := $(BUILD)/crt0_apple2.o $(BUILD)/snake.o     # crt0 FIRST
 all: $(DISK)
 ...
