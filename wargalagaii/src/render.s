@@ -171,9 +171,9 @@ render_init:
 
 render:
         jsr stars_erase
-        jsr timing_scan
+        jsr _a2_vbl_scan
         jsr shots_erase
-        jsr timing_scan
+        jsr _a2_vbl_scan
         jsr bombs_erase
         jsr objects_erase
         jsr movers_erase
@@ -189,10 +189,10 @@ render:
         jsr boss_draw
         jsr ufo_draw
         jsr shots_draw
-        jsr timing_scan
+        jsr _a2_vbl_scan
         jsr bombs_draw
         jsr objects_draw
-        jsr timing_scan
+        jsr _a2_vbl_scan
         jsr stars_draw
         jsr hud_draw
 render_done:
@@ -303,7 +303,7 @@ oe_obj: lda od_y,x
         sta col
         plx                      ; (the row)
         jsr obj_eor
-        jsr timing_scan          ; (6 objects + 6 bombs: longer than a blank)
+        jsr _a2_vbl_scan          ; (6 objects + 6 bombs: longer than a blank)
         plx
 oe_next:
         cpx tmp
@@ -337,26 +337,21 @@ ob_draw:
         tax
         jsr obj_eor
         plx
-        jsr timing_scan
+        jsr _a2_vbl_scan
 ob_next:
         dex
         bpl ob_draw
         rts
 
-; src = icons + 16 * A. Keeps X, Y.
+; src = icon A (2 * OBJ_H bytes). Keeps X, Y.
 icon_src:
-        stz src+1
-        asl
-        asl
-        asl
-        asl
-        rol src+1
-        clc
-        adc #<icons
+        phy
+        tay
+        lda icon_lo,y
         sta src
-        lda src+1
-        adc #>icons
+        lda icon_hi,y
         sta src+1
+        ply
         rts
 
 bombs_draw:
@@ -479,7 +474,9 @@ sd_go:  ldx #SHIP_Y
 .assert SHIPBOOM_W = SHIP_W && SHIPBOOM_H = SHIP_H, error, "the ship explosion uses the ship routines"
 
 ; A message in the middle of the field: 1 GAME OVER, 2 LEVEL n (the level
-; being teleported to), 3 METEOR STORM (its first steps), 0 none. Rewritten
+; being teleported to), 3 METEOR STORM (its first steps), 5 + pick_msg
+; (what a pickup did, PICK_T steps: bonus.inc pick_*), 4 DEMO (the
+; attract mode, when there is no other), 0 none. Rewritten
 ; on a page when it differs from what that page shows (none: spaces).
 ; msg_drawn = what each page shows.
 msg_draw:
@@ -490,14 +487,27 @@ msg_draw:
         ldx phase
         bne md_id
         lda storm                ; 3 while m_wait counts, in a storm
-        beq md_id
+        beq md_demo
         lda m_wait
-        beq md_id
+        beq md_demo
         lda #3
+        bra md_id
+md_demo:
+        lda pick_t               ; 5 + pick_msg: what a pickup did
+        beq :+
+        lda pick_msg
+        clc
+        adc #5
+        bra md_id
+:       lda demo                 ; 4 DEMO (the attract mode), else 0
+        beq md_id
+        lda #4
 md_id:  ldy page
         cmp msg_drawn,y
         jeq md_none
         sta msg_drawn,y
+        cmp #5
+        jcs md_pick
         tay
         ldx #MSG_LEN-1           ; the text in msg_text
 md_char:
@@ -508,6 +518,9 @@ md_char:
 :       cpy #3
         bne :+
         lda msg_storm,x
+:       cpy #4
+        bne :+
+        lda msg_demo,x
 :       sta msg_text,x
         dex
         bpl md_char
@@ -580,6 +593,19 @@ md_next:
         lda mn
         ora #'0'
         sta msg_text,x
+        bra md_put
+md_pick:
+        sbc #5                   ; (carry set) the pickup's text, in LOWM
+        tax
+        lda pick_lo,x
+        sta src
+        lda pick_hi,x
+        sta src+1
+        ldy #MSG_LEN-1
+:       lda (src),y
+        sta msg_text,y
+        dey
+        bpl :-
 md_put: ldx #0
 :       phx
         lda msg_text,x
@@ -591,7 +617,7 @@ md_put: ldx #0
         pla
         ldx #MSG_ROW
         jsr glyph
-        jsr timing_scan
+        jsr _a2_vbl_scan
         plx
         inx
         cpx #MSG_LEN
@@ -603,6 +629,7 @@ p10_lo: .lobytes 10000, 1000, 100, 10
 p10_hi: .hibytes 10000, 1000, 100, 10
 msg_level: .byte "LEVEL       "
 msg_storm: .byte "METEOR STORM"
+msg_demo:  .byte "    DEMO    "
 MSG_ROW = 96
 MSG_LEN = 12                     ; LEVEL nnnnn, METEOR STORM (GAME OVER: as
                                  ; it was in 11)
@@ -649,7 +676,7 @@ hd_char:
         stx col
         ldx #0
         jsr glyph
-        jsr timing_scan
+        jsr _a2_vbl_scan
         ply
         plx
 hd_next:
@@ -876,7 +903,7 @@ me_alien:
         sta pd_y,y
         txa
         jsr any_eor_clip
-        jsr timing_scan
+        jsr _a2_vbl_scan
         plx
         inx
         dec cnt
@@ -1081,7 +1108,7 @@ sp_right:
         sbc #8
         tax
         jsr column_clr16
-:       jsr timing_scan          ; a whole row may slide: keep counting VBL
+:       jsr _a2_vbl_scan          ; a whole row may slide: keep counting VBL
         ply
         plx
         bra ae_queue
@@ -1121,7 +1148,7 @@ ae_next:
         txa                      ; every 8 aliens: the pass alone can last
         and #7                   ; longer than a vertical blank
         bne :+
-        jsr timing_scan
+        jsr _a2_vbl_scan
 :       jmp ae_alien
 :       rts
 
@@ -1167,7 +1194,7 @@ erase_seat:
         sbc #8
         tax
         jsr big_clr
-:       jsr timing_scan
+:       jsr _a2_vbl_scan
         ply
         plx
         rts
@@ -1268,7 +1295,7 @@ fd_alien:
         sbc #8
         tax
         jsr big_sta
-:       jsr timing_scan
+:       jsr _a2_vbl_scan
         lda nform
         bne fd_alien
 fd_done:
@@ -1297,7 +1324,7 @@ md_alien:
         sta md_list,y
         lda a_y,x
         jsr any_eor_clip
-        jsr timing_scan
+        jsr _a2_vbl_scan
         lda nmove
         bne md_alien
 md_done:
@@ -1360,13 +1387,13 @@ boss_eor:
         lda #BOSS_H/2
         sta r_h
         jsr eor_rect             ; (leaves src on the next row)
-        jsr timing_scan
+        jsr _a2_vbl_scan
         lda #BOSS_Y+BOSS_H/2
         sta r_row
         lda #BOSS_H/2
         sta r_h
         jsr eor_rect
-        jmp timing_scan
+        jmp _a2_vbl_scan
 
 ; The hurry-up saucer: it moves every step, so EOR off and on each frame.
 ufo_erase:

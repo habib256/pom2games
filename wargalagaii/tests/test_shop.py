@@ -16,7 +16,10 @@ GAME = ROOT / 'wargalagaii'
 sys.path.insert(0, str(ROOT / 'dev/tools'))
 sys.path.insert(0, str(GAME / 'tools'))
 import a2test
+from boot import boot
+from hgr_tables import hgr_offset
 import model
+import sprites
 
 M = model
 FIELDS = {'credits': 2, 's_level': 1, 'shot_limit': 1, 'weapon': 1, 'autofire_t': 2, 'armour': 1,
@@ -45,7 +48,7 @@ def to_bcd(v):
 def scene(disk, L, name, credits, inputs, pokes=(), mockingboard=False, joystick=False):
     """inputs: a2shot keys ('\\r', '\\>', '\\<', '\\e') or ('joy', y) /
     ('btn',): played one by one. The model replays them on the cursor."""
-    steps = [L.until('main', 3000), L.poke('start_level', 3), L.until('game_tick', 3000)]
+    steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', 3), L.until('game_tick', 3000)]
     c = to_bcd(credits)
     steps += [L.poke('credits', c & 255), L.poke('credits', c >> 8, 1)]
     steps += [L.poke(n, v) for n, v in pokes]
@@ -98,7 +101,7 @@ def speaker_music(disk, L):
     (2 sixteenths, ~0.24 s), and the keys still answer."""
     import re
     sl = L['sh_sl']
-    steps = [L.until('main', 3000), L.poke('start_level', 3), L.until('game_tick', 3000),
+    steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', 3), L.until('game_tick', 3000),
              L.poke('credits', 0), L.poke('credits', 0x10, 1)]
     for _ in range(40):
         steps += [L.poke('invul_t', 60), 'wait:40']
@@ -117,7 +120,7 @@ def speaker_music(disk, L):
 
 def no_shop(disk, L):
     """Under 50 credits: no shop, the next level at once."""
-    steps = [L.until('main', 3000), L.poke('start_level', 3), L.until('game_tick', 3000),
+    steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', 3), L.until('game_tick', 3000),
              L.poke('credits', 0x49), L.poke('credits', 0, 1)]
     for _ in range(40):
         steps += [L.poke('invul_t', 60), 'wait:40']
@@ -125,6 +128,24 @@ def no_shop(disk, L):
     r = a2test.run(disk, steps, iie=True, timeout=900)
     assert r.mem(L['level'], 1)[0] == 4 and r.mem(L['shop'], 1)[0] == 0, (r.mem(L['level'], 1), r.mem(L['shop'], 1))
     print('PASS no shop under 50 credits: level 5 next')
+
+
+def marks_screen(disk, L):
+    """The marks row: each medal == its icon, on an even byte column (an odd
+    one swapped the colours: orange showed blue), empty slots black."""
+    marks = 0b101011
+    r = a2test.run(disk, [*boot(L), 'wait:60', L.poke('marks', marks), L.poke('mark_dark', 1),
+                          L.poke('shop', 1), L.until('sh_loop', 300), 'peek:2000:8192'], iie=True)
+    page = r.mem(0x2000, 8192)
+    for slot in range(7):
+        kind = M.K['mark0'] + slot if slot == 6 or marks >> slot & 1 else None
+        if slot == 6:
+            kind = M.K['markdark']
+        want = sprites.icon_bytes(kind) if kind is not None else [[0, 0]] * sprites.ICON_H
+        col = 10 + 4 * slot
+        got = [list(page[hgr_offset(21 * 8 + y) + col:hgr_offset(21 * 8 + y) + col + 2]) for y in range(sprites.ICON_H)]
+        assert got == want, (slot, got, want)
+    print('PASS shop marks: medals 1 2 4 6 and the dark one, each its icon on an even column')
 
 
 def main():
@@ -149,6 +170,7 @@ def main():
           joystick=True)
     speaker_music(a.disk, L)
     no_shop(a.disk, L)
+    marks_screen(a.disk, L)
 
 
 if __name__ == '__main__':

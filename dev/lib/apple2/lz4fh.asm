@@ -7,8 +7,14 @@
 ; checks. Invalid magic/token rings Monitor bell and jumps to Monitor.
 ; Clobbers A,X,Y, read/write/match pointer pairs, token/length scratch.
 ; Self-modifies CODE; not reentrant. Scratch may alias caller's ZP.
+; LZ4FH_HERE=1: the code goes in the caller's current segment (an overlay)
+; instead of CODE.
 .ifndef _LZ4FH_LOADED_
 _LZ4FH_LOADED_ = 1
+.ifndef LZ4FH_HERE
+LZ4FH_HERE = 0
+.endif
+.pushseg
 .zeropage
 .ifndef lz4fh_src
 lz4fh_src: .res 2
@@ -21,7 +27,10 @@ lz4fh_match: .res 2
 lz4fh_token: .res 1
 lz4fh_length: .res 1
 .endif
+.popseg
+.if !LZ4FH_HERE
 .segment "CODE"
+.endif
 .scope LZ4FH
 lz4fh_magic = $66
 tok_empty = 253

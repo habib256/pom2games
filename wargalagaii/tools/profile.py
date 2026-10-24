@@ -32,9 +32,9 @@ def main():
     ap.add_argument('--labels', type=Path, default=ROOT / 'wargalagaii/build/game.lbl')
     a = ap.parse_args()
     L = a2test.labels(a.labels, strip=True)
-    steps = [L.until('game_tick', 3000)]
+    steps = [L.until('main', 3000), L.poke('front_skip', 1), L.until('game_tick', 3000)]
     if a.level:
-        steps = [L.until('main', 3000), L.poke('start_level', a.level - 1), L.until('game_tick', 3000),
+        steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', a.level - 1), L.until('game_tick', 3000),
                  L.poke('weapon', 2), L.poke('shot_limit', 10), L.poke('fire_held', 0x80),
                  L.poke('autofire_t', 255)]
     if a.shots:

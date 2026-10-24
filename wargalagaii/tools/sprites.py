@@ -367,28 +367,121 @@ BOSS = (1, [
     '......X..X......',
 ])
 
-# Falling objects (lot 5): two bytes on an even byte column (an object never
-# moves sideways, so no shifts): a glyph of the font in the left byte, a bar
-# of its category's colour in the right one. Order = model.KINDS.
-# Right-byte colours (odd byte column): violet $2A, green $55, blue $AA,
-# orange $D5, white $7F.
-BAR = {'violet': 0x2A, 'green': 0x55, 'blue': 0xAA, 'orange': 0xD5, 'white': 0x7F}
-ICONS = [('$', 'green'), ('$', 'orange'), ('$', 'blue'), ('$', 'violet'),      # coins
-         ('S', 'blue'), ('B', 'blue'), ('T', 'blue'),                          # gauges
-         ('1', 'violet'), ('2', 'violet'), ('3', 'violet'), ('F', 'orange'),   # weapons
-         ('A', 'blue'), ('+', 'green'), ('#', 'white'),                        # armour, life, skull
-         ('E', 'white'), ('X', 'white'), ('T', 'white'), ('R', 'white'), ('A', 'white'),
-         ('*', 'orange'), ('%', 'orange'), ('@', 'blue'), ('=', 'green'),      # x2 x5 shield freeze
-         ('1', 'orange'), ('2', 'orange'), ('3', 'orange'), ('4', 'green'),    # rank marks
-         ('5', 'blue'), ('6', 'violet'), ('0', 'white'),
-         ('M', 'green'), ('?', 'blue')]                                        # sub-games
+# Falling objects (lot 5; redrawn for legibility 2026-10-23): 7 cells x
+# ICON_H rows on an even byte column (an object never moves sideways, so no
+# shifts), drawn in cells (two dots: white strokes stay white, no colour
+# fringes). A family = a shape, its colour says which one:
+#   coins          a disc with a $ cut out (green 10, orange 50, blue 100,
+#                  violet 200)
+#   gauges         a blue pill: S B T (the HUD's letters)
+#   weapons        a violet pill: one, two, three shots; autofire: dashes
+#   multipliers    an orange pill: 2, 5
+#   EXTRA letters  a white pill: E X T R A (the HUD's row)
+#   shield         a green bubble around the ship; armour: a blue shield
+#   life           a heart; skull: a skull; freeze: a snowflake
+#   rank marks     a medal (ribbon, disc of the mark's colour, its number);
+#                  the dark mark: an empty white medal
+#   sub-games      Meteor Storm: the rock; Memory Station: a green ? card
+# X = the icon's colour (one palette per icon: a byte never mixes groups).
+# Order = model.KINDS.
+ICON_H = 13
+COLOURS = {'violet': (0, 'L'), 'green': (0, 'R'), 'blue': (1, 'L'), 'orange': (1, 'R')}
+FONT5 = {               # 5 cells x 7 rows, strokes one cell (2 dots) wide
+    'S': ['.WWWW', 'W....', 'W....', '.WWW.', '....W', '....W', 'WWWW.'],
+    'B': ['WWWW.', 'W...W', 'W...W', 'WWWW.', 'W...W', 'W...W', 'WWWW.'],
+    'T': ['WWWWW', '..W..', '..W..', '..W..', '..W..', '..W..', '..W..'],
+    'E': ['WWWWW', 'W....', 'W....', 'WWWW.', 'W....', 'W....', 'WWWWW'],
+    'X': ['W...W', 'W...W', '.W.W.', '..W..', '.W.W.', 'W...W', 'W...W'],
+    'R': ['WWWW.', 'W...W', 'W...W', 'WWWW.', 'W.W..', 'W..W.', 'W...W'],
+    'A': ['.WWW.', 'W...W', 'W...W', 'WWWWW', 'W...W', 'W...W', 'W...W'],
+    '2': ['.WWW.', 'W...W', '....W', '..WW.', '.W...', 'W....', 'WWWWW'],
+    '5': ['WWWWW', 'W....', 'WWWW.', '....W', '....W', 'W...W', '.WWW.'],
+    'w1': ['..W..'] * 7,
+    'w2': ['.W.W.'] * 7,
+    'w3': ['..W..', '..W..', 'W.W.W', 'W.W.W', 'W.W.W', 'W.W.W', 'W.W.W'],
+    'auto': ['.W.W.', '.W.W.', '.....', '.W.W.', '.W.W.', '.....', '.W.W.'],
+}
+DIGIT3 = {              # 3 cells x 5 rows, cut out of a medal
+    '1': ['.W.', 'WW.', '.W.', '.W.', 'WWW'], '2': ['WWW', '..W', 'WWW', 'W..', 'WWW'],
+    '3': ['WWW', '..W', '.WW', '..W', 'WWW'], '4': ['W.W', 'W.W', 'WWW', '..W', '..W'],
+    '5': ['WWW', 'W..', 'WWW', '..W', 'WWW'], '6': ['WWW', 'W..', 'WWW', 'W.W', 'WWW'],
+}
+DOLLAR = ['.W.', 'WWW', 'W..', 'WWW', '..W', 'WWW', '.W.']
 
 
-def icon(char, colour):
-    rows = []
-    for r, g in enumerate(fonts.glyph(char)):
-        rows.append([g, BAR[colour] if 1 <= r <= 6 else 0])
-    return rows
+def pill(glyph, cap='X'):
+    """Caps of colour (or white) above and below a 5 x 7 glyph."""
+    top = ['.' + cap * 5 + '.', cap * 7, '.......']
+    return top + ['.' + r + '.' for r in FONT5[glyph]] + top[::-1]
+
+
+def disc(cut, rows0=0):
+    """A disc 7 x 13 of colour, cut (rows of W = black) in its middle."""
+    shape = ['..XXX..', '.XXXXX.', 'XXXXXXX'] + ['XXXXXXX'] * 7 + ['XXXXXXX', '.XXXXX.', '..XXX..']
+    out = [list(r) for r in shape]
+    y0 = rows0 or (13 - len(cut)) // 2
+    for y, r in enumerate(cut):
+        for x, c in enumerate(r):
+            if c == 'W':
+                out[y0 + y][(7 - len(r)) // 2 + x] = '.'
+    return [''.join(r) for r in out]
+
+
+def medal(digit):
+    """Ribbon, then a disc of colour with the number cut out."""
+    body = ['..XXX..', '.XXXXX.', 'XXXXXXX', 'XXXXXXX', 'XXXXXXX', 'XXXXXXX', 'XXXXXXX',
+            '.XXXXX.', '..XXX..']
+    out = [list(r) for r in body]
+    for y, r in enumerate(DIGIT3[digit]):
+        for x, c in enumerate(r):
+            if c == 'W':
+                out[2 + y][2 + x] = '.'
+    return ['.W...W.', '..W.W..', '...W...', '.......'] + [''.join(r) for r in out]
+
+
+def centred(rows):
+    pad = ICON_H - len(rows)
+    return ['.......'] * (pad // 2) + list(rows) + ['.......'] * (pad - pad // 2)
+
+
+ICON_SHAPES = [
+    ('green', disc(DOLLAR)), ('orange', disc(DOLLAR)), ('blue', disc(DOLLAR)), ('violet', disc(DOLLAR)),
+    ('blue', pill('S')), ('blue', pill('B')), ('blue', pill('T')),
+    ('violet', pill('w1')), ('violet', pill('w2')), ('violet', pill('w3')), ('violet', pill('auto')),
+    ('blue', centred(['XXXXXXX', 'XXX.XXX', 'XXX.XXX', 'X.....X', 'XXX.XXX', 'XXX.XXX',      # armour
+                      '.XX.XX.', '.XXXXX.', '..XXX..', '...X...'])),
+    ('orange', centred(['.XX.XX.', 'XXXXXXX', 'XXXXXXX', 'XXXXXXX', 'XXXXXXX', '.XXXXX.',  # life
+                        '..XXX..', '...X...'])),
+    ('white', centred(['.WWWWW.', 'WWWWWWW', 'W..W..W', 'W..W..W', 'WWWWWWW', '.WW.WW.',  # skull
+                       '.WWWWW.', '.W.W.W.'])),
+    ('white', pill('E', 'W')), ('white', pill('X', 'W')), ('white', pill('T', 'W')),
+    ('white', pill('R', 'W')), ('white', pill('A', 'W')),
+    ('orange', pill('2')), ('orange', pill('5')),
+    ('green', ['..XXX..', '.X...X.', 'X.....X', 'X..W..X', 'X..W..X', 'X.WWW.X', 'X.WWW.X',  # shield
+               'X.W.W.X', 'X.....X', '.X...X.', '..XXX..', '.......', '.......']),
+    ('white', centred(['...W...', 'W..W..W', '.W.W.W.', '..WWW..', 'WWWWWWW', '..WWW..',  # freeze
+                       '.W.W.W.', 'W..W..W', '...W...'])),
+    ('orange', medal('1')), ('orange', medal('2')), ('orange', medal('3')),
+    ('green', medal('4')), ('blue', medal('5')), ('violet', medal('6')),
+    ('white', ['.W...W.', '..W.W..', '...W...', '.......', '..WWW..', '.W...W.', 'W.....W',  # dark
+               'W.....W', 'W.....W', 'W.....W', 'W.....W', '.W...W.', '..WWW..']),
+    ('orange', centred(ROCK[0][:7])),                                                      # meteor
+    ('green', ['XXXXXXX', 'XXXXXXX', 'XX...XX', 'XXXXX.X', 'XXXXX.X', 'XXX..XX', 'XXX.XXX',  # memory
+               'XXXXXXX', 'XXX.XXX', 'XXXXXXX', 'XXXXXXX', '.......', '.......']),
+]
+
+
+def icon_bytes(k):
+    """Icon k (model.KINDS order): ICON_H rows of 2 bytes."""
+    colour, rows = ICON_SHAPES[k]
+    palette, side = COLOURS.get(colour, (0, 'L'))      # (white: either palette)
+    assert len(rows) == ICON_H and all(len(r) == 7 for r in rows), k
+    out = []
+    for r in rows:
+        line = dots(r.replace('X', side))
+        out.append([palette << 7 | sum(line[7 * b + i] << i for i in range(7)) if any(line[7 * b:7 * b + 7])
+                    else 0 for b in range(2)])
+    return out
 
 
 # The game links one small design and tint for now (lot 6: packs in aux RAM).
@@ -527,13 +620,15 @@ def emit():
     table(out, 'shipboom', list(SHIPBOOM[1:]), SHIPBOOM[0])
     # Flying things share one pointer table: alien entries, then explosion
     # entries (render.s keeps the entry it drew, to EOR it away).
-    out.append('; objects: 16 bytes each (2 a row), in model.KINDS order')
-    out.append(f'NKINDS = {len(ICONS)}')
+    out.append(f'; objects: {2 * ICON_H} bytes each (2 a row), in model.KINDS order')
+    out.append(f'NKINDS = {len(ICON_SHAPES)}')
+    out.append(f'ICON_H = {ICON_H}')
     out.append('icons:')
-    for char, colour in ICONS:
-        rows = icon(char, colour)
-        out.append('        .byte ' + ','.join(f'${b:02X}' for row in rows for b in row)
-                   + f'   ; {char} {colour}')
+    for k in range(len(ICON_SHAPES)):
+        out.append('        .byte ' + ','.join(f'${b:02X}' for row in icon_bytes(k) for b in row)
+                   + f'   ; {ICON_SHAPES[k][0]}')
+    out.append('icon_lo: .lobytes ' + ','.join(f'icons+{2 * ICON_H * k}' for k in range(len(ICON_SHAPES))))
+    out.append('icon_hi: .hibytes ' + ','.join(f'icons+{2 * ICON_H * k}' for k in range(len(ICON_SHAPES))))
     out.append('BOOM_ENTRY = 14')
     entry = ALIEN_TABLE // 14
     out.append('fly_lo: .lobytes ' + ','.join([f'cur_alien+{entry * e}' for e in range(14)]

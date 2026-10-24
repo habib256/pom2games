@@ -1,0 +1,209 @@
+#!/usr/bin/env python3
+"""WARGALAGA II lot 9: the title screen, the attract mode, the records.
+
+    title       page 1 = tools/title.py's picture over the menu; J switches
+                keyboard / joystick, H the help, another key the menu
+    idle        menu, then the high scores, then the demo
+    demo        the attract mode's game == tools/model.py fed src/demo.inc,
+                from level 1 to its end (then the title); a key or a button
+                stops it at once, and the demo's score is no record
+    record      a game's score enters the table (tools/records.py's rules):
+                initials typed, HIGHSCORES written then read back; with the
+                stick (letters picked up / down, the button), on a
+                write-protected disk (an error, the table kept in memory)
+
+    tests/test_front.py --disk ../dist/WARGALAGAII.po --labels build/game.lbl
+"""
+import argparse
+import os
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[2]
+GAME = ROOT / 'wargalagaii'
+sys.path.insert(0, str(ROOT / 'dev/tools'))
+sys.path.insert(0, str(GAME / 'tools'))
+import a2test
+from hgr_tables import hgr_offset
+import demo
+import model as M
+import records as R
+import test_screen
+
+PANEL_TOP = 88                       # front.s
+MENU, SCORES, HELP, ENTRY = range(4)
+GLYPHS = test_screen.font()
+# Until the menu waits (fr_loop): the first HIGHSCORES read takes ~60 frames,
+# more or less a disk turn depending on where the code before it sits.
+START = lambda L: [L.until('main', 3000), L.until('front_main', 3000), L.until('fr_loop', 300), 'wait:2']
+
+
+def text_at(page, line, col, text):
+    """True when page 1 shows text at (line, column), glyphs as glyph_sta."""
+    return all(page[hgr_offset(8 * line + r) + col + k] == GLYPHS[ord(ch)][r]
+               for k, ch in enumerate(text) for r in range(8))
+
+
+def records_model():
+    t = R.DEFAULTS
+    assert [s for _, s, _ in t] == sorted((s for _, s, _ in t), reverse=True)
+    assert R.rank(t, 50001) == 0 and R.rank(t, 50000) == 1, 'an equal score goes below'
+    assert R.rank(t, 2000) is None and R.rank(t, 2001) == 7
+    new = R.insert(t, 'XYZ', 19999, 7)
+    assert new[4] == ('XYZ', 19999, 7) and new[5] == t[4] and len(new) == R.REC_N
+    assert R.decode(R.encode(new, 1)) == (new, 1)
+    assert R.level_reached(6, 0) == 7 and R.level_reached(99, 2) == 255 and R.level_reached(54, 2) == 255
+    assert R.level_reached(53, 2) == 254
+    print('PASS records rules: order, ties below, insert, file round trip, level reached')
+
+
+def title(disk, L):
+    hgr = (GAME / 'build/title.hgr').read_bytes()
+    steps = START(L) + [L.peek('fr_panel'), 'peek:2000:8192', 'peek:C01A', 'peek:C01C', 'peek:C01D',
+                        'key:J', 'wait:20', L.peek('joy_mode'), 'peek:2000:8192',
+                        'key:H', 'wait:20', L.peek('fr_panel'), 'peek:2000:8192',
+                        'key:Q', 'wait:20', L.peek('fr_panel'), 'key:J', 'wait:20', L.peek('joy_mode')]
+    r = a2test.run(disk, steps, iie=True)
+    page = r.mem(0x2000, 8192, 0)
+    assert r.mem(L['fr_panel'], 1, 0)[0] == MENU
+    assert not r.mem(0xC01A, 1)[0] & 0x80 and not r.mem(0xC01C, 1)[0] & 0x80 and r.mem(0xC01D, 1)[0] & 0x80, \
+        'HGR page 1 shown'
+    for y in range(PANEL_TOP):
+        a = hgr_offset(y)
+        assert page[a:a + 40] == hgr[a:a + 40], f'title row {y}'
+    assert text_at(page, 12, 6, 'RETURN OR FIRE TO PLAY') and text_at(page, 14, 22, 'KEYBOARD')
+    assert text_at(page, 15, 22, 'ON ') and text_at(page, 20, 9, 'WAR   50000  L 10')
+    assert r.mem(L['joy_mode'], 1, 0)[0] == 1 and text_at(r.mem(0x2000, 8192, 1), 14, 22, 'JOYSTICK')
+    assert r.mem(L['fr_panel'], 1, 1)[0] == HELP and text_at(r.mem(0x2000, 8192, 2), 11, 2, '<- -> OR J L')
+    assert r.mem(L['fr_panel'], 1, 2)[0] == MENU and r.mem(L['joy_mode'], 1, 1)[0] == 0
+    print('PASS title: the picture (LZ4FH) on page 1, the menu, J joystick / keyboard, H help, a key: menu')
+
+
+def idle(disk, L):
+    """Nobody: menu (~10 s), scores (~8 s), the demo."""
+    r = a2test.run(disk, START(L) + ['wait:700', L.peek('fr_panel'), 'peek:2000:8192',
+                                     L.until('demo_init', 900), L.peek('demo')], iie=True)
+    page = r.mem(0x2000, 8192)
+    assert r.mem(L['fr_panel'], 1)[0] == SCORES and text_at(page, 11, 14, 'HIGH SCORES')
+    for k, (name, score, level) in enumerate(R.DEFAULTS):
+        assert text_at(page, 13 + k, 6, f'{k + 1}. {name}  {score:6d}  L{level:3d}'), (k, name)
+    print('PASS idle title: menu, then the high scores (defaults), then the demo')
+
+
+def state_names(L):
+    names = [n for n in M.Game().state() if n != 'prng']
+    first = min(L[n] for n in names)
+    span = max(L[n] + len(v) for n, v in M.Game().state().items() if n != 'prng') - first
+    return names, first, span
+
+
+def demo_oracle(disk, L):
+    """The whole demo == the model: the script's moves, fire held, then the
+    steps past its end (no input) until the title."""
+    names, first, span = state_names(L)
+    r = a2test.run(disk, [L.until('main', 3000), L.until('demo_init', 4000), L.peek('step_count', 2),
+                          L.until('front_main', 4500), L.peek('step_count', 2),
+                          f'peek:{first:04X}:{span}', L.peek('prng_lo', 2), L.peek('demo_end'),
+                          'wait:60', L.peek('fr_panel')], iie=True, timeout=600)
+    n = int.from_bytes(r.mem(L['step_count'], 2, 1), 'little') - int.from_bytes(r.mem(L['step_count'], 2, 0), 'little')
+    script = demo.decode(bytes(int(v[1:], 16) for line in (GAME / 'src/demo.inc').read_text().splitlines()
+                               if line.strip().startswith('.byte') for v in line.split()[1].split(',')))
+    assert len(script) == demo.DEMO_STEPS and r.mem(L['demo_end'], 1)[0] == 1
+    assert demo.DEMO_STEPS < n <= demo.DEMO_STEPS + 2, n
+    game = M.Game(0)
+    for k in range(n):
+        if k < len(script):
+            demo.play(game, script[k])
+        else:
+            game.step(0, False, False)
+    got, state = r.mem(first, span), game.state()
+    for name in names:
+        have = got[L[name] - first:L[name] - first + len(state[name])]
+        assert have == state[name], f'{name}: 6502 {have.hex()} model {state[name].hex()}'
+    assert r.mem(L['prng_lo'], 2) == state['prng']
+    assert r.mem(L['fr_panel'], 1)[0] == MENU, 'the demo is no record'
+    assert game.level >= 2 and not game.game_over, (game.level, 'the demo shows levels 1 to 4')
+    print(f'PASS demo: {n} steps == model (level {game.level + 1}, score {game.score}, '
+          f'{game.lives} lives), then the title')
+
+
+def demo_stop(disk, L):
+    for how in (['key:A'], ['btn:0,1', 'wait:4', 'btn:0,0']):
+        r = a2test.run(disk, [L.until('main', 3000), L.until('demo_init', 4000), 'wait:300', *how,
+                              L.until('front_main', 30), 'wait:60', L.peek('fr_panel'), L.peek('score', 3)],
+                       iie=True)
+        assert r.mem(L['fr_panel'], 1)[0] == MENU and r.mem(L['score'], 3) != b'\0\0\0'
+    print('PASS demo stopped by a key, by the button: the title, no record')
+
+
+def play_and_quit(L, score, level, loop='rn_loop'):
+    """From the menu: play, poke the score and level, ESC: the title, until
+    its loop (the initials': rn_loop; the menu's: fr_loop). (Not a fixed
+    wait: reading HIGHSCORES again takes ~60 frames.)"""
+    return ['key:\\r', L.until('game_tick', 600), 'wait:30', L.poke('score', score & 255),
+            L.poke('score', score >> 8 & 255, 1), L.poke('score', score >> 16, 2), L.poke('level', level),
+            'key:\\e', L.until('front_main', 300), L.until(loop, 300)]
+
+
+def record_keyboard(disk, L):
+    want = R.encode(R.insert(R.DEFAULTS, 'XYZ', 19999, 7))
+    steps = START(L) + play_and_quit(L, 0x019999, 6) + [L.peek('fr_panel'), 'peek:2000:8192']
+    steps += ['key:X', 'wait:6', 'key:Q', 'wait:6', 'key:\\<', 'wait:6', 'key:Y', 'wait:6', 'key:Z',
+              'wait:200', L.peek('fr_panel'),
+              L.peek('rec_buf', R.REC_SIZE), L.peek('rec_err'), 'peek:2000:8192']
+    # read back: the table in memory spoilt, then a game (score 0) and ESC
+    steps += [L.poke('rec_state', 0), L.poke('rec_buf', 0), L.poke('rec_buf', ord('Q'), 3)]
+    steps += play_and_quit(L, 0, 0, 'fr_loop') + [L.peek('fr_panel'), L.peek('rec_buf', R.REC_SIZE)]
+    r = a2test.run(disk, steps, iie=True, timeout=300)
+    assert r.mem(L['fr_panel'], 1, 0)[0] == ENTRY
+    page = r.mem(0x2000, 8192, 0)
+    assert text_at(page, 12, 14, 'NEW RECORD!') and text_at(page, 14, 14, ' 19999  L  7'), 'entry panel'
+    assert r.mem(L['fr_panel'], 1, 1)[0] == SCORES and text_at(r.mem(0x2000, 8192, 1), 17, 6, '5. XYZ   19999  L  7')
+    assert r.mem(L['rec_buf'], R.REC_SIZE, 0) == want and r.mem(L['rec_err'], 1)[0] == 0
+    assert r.mem(L['fr_panel'], 1, 2)[0] == MENU, 'score 0: no record'
+    assert r.mem(L['rec_buf'], R.REC_SIZE, 1) == want, 'HIGHSCORES read back'
+    print('PASS record, keyboard: 19999 at level 7 -> 5th, X Q <- Y Z typed (XYZ), HIGHSCORES written and read back')
+
+
+def record_stick(disk, L):
+    """Joystick chosen on the title; a write-protected disk: the controls
+    and the record can't be saved (error $2B), the table stays in memory."""
+    want = R.encode(R.insert(R.DEFAULTS, 'BZA', 123456, 100), 1)
+    down = ['joy:0,1', 'wait:4', 'joy:0,0', 'wait:4']
+    up = ['joy:0,-1', 'wait:4', 'joy:0,0', 'wait:4']
+    btn = ['btn:0,1', 'wait:4', 'btn:0,0', 'wait:4']
+    steps = START(L) + ['key:J', 'wait:20'] + play_and_quit(L, 0x123456, 99)
+    steps += [L.peek('rec_err'), L.peek('fr_panel')] + down + btn + up + btn + btn
+    steps += ['wait:200', L.peek('fr_panel'), L.peek('rec_buf', R.REC_SIZE), L.peek('rec_err')]
+    os.environ['POM2_MEDIA_WRITE_DEFAULT'] = 'protected'   # (a2shot has no --wp)
+    try:
+        r = a2test.run(disk, steps, iie=True, timeout=300)
+    finally:
+        del os.environ['POM2_MEDIA_WRITE_DEFAULT']
+    assert r.mem(L['rec_err'], 1, 0)[0] == 0x2B, 'the controls: write-protected'
+    assert r.mem(L['fr_panel'], 1, 0)[0] == ENTRY and r.mem(L['fr_panel'], 1, 1)[0] == SCORES
+    assert r.mem(L['rec_buf'], R.REC_SIZE) == want, r.mem(L['rec_buf'], R.REC_SIZE)
+    assert r.mem(L['rec_err'], 1, 1)[0] == 0x2B
+    print('PASS record, stick: B Z A picked, 1st at level 100; write-protected disk: error $2B, '
+          'table kept in memory')
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--disk', type=Path, default=ROOT / 'dist/WARGALAGAII.po')
+    ap.add_argument('--labels', type=Path, default=GAME / 'build/game.lbl')
+    a = ap.parse_args()
+    records_model()
+    if not a2test.have_a2shot('title screen'):
+        return
+    L = a2test.labels(a.labels, strip=True)
+    title(a.disk, L)
+    idle(a.disk, L)
+    demo_stop(a.disk, L)
+    record_keyboard(a.disk, L)
+    record_stick(a.disk, L)
+    demo_oracle(a.disk, L)
+
+
+if __name__ == '__main__':
+    main()

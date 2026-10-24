@@ -20,26 +20,15 @@ import random
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT.parent / 'dev/tools/audio'))
+from notes import CPU, DUET_SLICE, DUET_TURN, half_period, hz, midi  # noqa: E402,F401
 OUT = ROOT / 'src/sound.inc'
 AY_CLOCK = 1_023_000            # Mockingboard AY: the Apple II clock
-CPU = 1_020_484
 MUS_HZ = 25                     # PT3 ticks a second (timer 1; tools/pt3.py's
                                 # SPEED follows): half the usual 50, half the
                                 # cost (~1 600 cycles a tick, lot 6 measures)
 SPK_TURN = 63                   # cycles of one wait-loop turn (timing.s; the
                                 # test checks it: bug hunts 5 and 6)
-
-NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-
-
-def midi(name):
-    pitch, octave = name[:-1], int(name[-1])
-    return 12 * (octave + 1) + NAMES.index(pitch)
-
-
-def hz(m):
-    return 440 * 2 ** ((m - 69) / 12)
-
 
 def ay_period(f):
     return max(1, min(4095, round(AY_CLOCK / (16 * f))))
@@ -47,7 +36,7 @@ def ay_period(f):
 
 def spk_turns(f):
     """Speaker half-period in wait-loop turns (1..255), 0 = silent."""
-    return 0 if not f else max(1, min(255, round(CPU / (2 * f * SPK_TURN))))
+    return 0 if not f else max(1, min(255, half_period(f, SPK_TURN)))
 
 
 # Sound effects: (frequency Hz or 0, noise 0/1, AY volume 0-15) per frame.
@@ -58,6 +47,9 @@ SFX = [
     ('over', [(hz(midi(n)), 0, 13) for n in ('E4', 'E4', 'E4', 'C4', 'C4', 'C4', 'A3', 'A3', 'A3', 'A3',
                                              'A3', 'A3')] + [(0, 0, 0)]),
     ('armour', [(400 + 150 * k, 0, 13) for k in range(7)]),
+    ('bonus', [(hz(midi(n)), 0, 12) for n in ('C5', 'C5', 'E5', 'E5', 'G5', 'G5', 'C6', 'C6', 'C6')]),
+    ('malus', [(hz(midi(n)), 0, 12) for n in ('E4', 'E4', 'D#4', 'D#4', 'D4', 'D4', 'C#4', 'C#4',
+                                               'C#4', 'C#4')]),
     ('kill', [(rng.randint(250, 1100), 1, 14 - 2 * k) for k in range(7)]),
     ('shot', [(2200 - 250 * k, 0, 11 - k) for k in range(6)]),
 ]
@@ -70,8 +62,6 @@ BASS = [('A2', 4), ('A2', 4), ('E2', 4), ('E2', 4), ('F2', 4), ('F2', 4), ('G2',
         ('A2', 4), ('A2', 4), ('E2', 4), ('E2', 4), ('F2', 4), ('G2', 4), ('E2', 4), ('E2', 4)]
 
 
-DUET_TURN = 33                  # cycles (duet.asm DUET_CYCLES)
-DUET_SLICE = 255 * DUET_TURN + 34
 DUET_STEP = 2                   # sixteenths an event
 DUET_TICK = 4                   # slices the shop plays at a time (~1/30 s)
 
@@ -81,7 +71,7 @@ def duet_events(notes):
     out = []
     for name, sixteenths in notes:
         assert sixteenths % DUET_STEP == 0
-        count = round(CPU / (2 * hz(midi(name)) * DUET_TURN)) if name else 0
+        count = half_period(hz(midi(name)), DUET_TURN) if name else 0
         assert count < 256, name
         out += [count] * (sixteenths // DUET_STEP)
     return out

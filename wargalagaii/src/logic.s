@@ -12,6 +12,9 @@ logic_step:
         ora station              ; Memory Station (lot 8)
         beq :+
         rts
+:       lda demo                 ; the attract mode: its script's input
+        beq :+
+        jsr demo_input
 :       inc step_count
         bne :+
         inc step_count+1
@@ -233,7 +236,10 @@ over:   lda #1
 invul:  lda invul_t
         beq timers
         dec invul_t
-timers: ldx #autofire_t-autofire_t  ; the timed bonuses (consecutive words)
+timers: lda pick_t                ; the pickup's name
+        beq :+
+        dec pick_t
+:       ldx #autofire_t-autofire_t  ; the timed bonuses (consecutive words)
         jsr tick16
         ldx #mult_t-autofire_t
         jsr tick16
@@ -1170,7 +1176,7 @@ pickups:
         ldx #N_OBJ-1
 pk_obj: lda obj_y,x
         beq pk_next
-        cmp #SHIP_HIT_Y0-OBJ_H+1 ; rows y..y+7 meet the ship's
+        cmp #SHIP_HIT_Y0-OBJ_H+1 ; rows y..y+OBJ_H-1 meet the ship's
         bcc pk_next
         cmp #SHIP_HIT_Y1+1
         bcs pk_next
@@ -1190,13 +1196,27 @@ pk_obj: lda obj_y,x
         phx
         jsr take
         plx
+        lda #PICK_T              ; named, and heard: a malus has its sound
+        sta pick_t
+        ldy #EV_BONUS
+        lda pick_msg
+        cmp #PM_LESS_SPEED
+        bcs :+
+        cmp #K_W1
+        beq :+
+        cmp #K_MARKDARK
+        bne :++
+:       ldy #EV_MALUS
+:       tya
+        tsb snd_ev
 pk_next:
         dex
         bpl pk_obj
         rts
 
-; The effect of object kind A.
-take:   asl
+; The effect of object kind A; pick_msg = what it did.
+take:   sta pick_msg
+        asl
         tax
         jmp (take_tab,x)
 take_tab:
@@ -1247,6 +1267,8 @@ tk_t:   lda t_level
         inc t_level
         rts
 gauge_full:                      ; a gauge (or armour, lives) at its maximum
+        lda #PM_POINTS
+        sta pick_msg
         lda #$05                 ; BCD 500
         sta pts_hi
         lda #$00
@@ -1295,6 +1317,10 @@ tk_life:
 tk_skull:                        ; a malus, by chance
         jsr rand8
         and #3
+        tax
+        lda skull_msg,x
+        sta pick_msg
+        txa
         beq tk_w1
         cmp #2
         bcc sk_speed
@@ -1318,6 +1344,7 @@ sk_shots:
         bcc :+
         dec shot_limit
 :       rts
+skull_msg: .byte K_W1, PM_LESS_SPEED, PM_LESS_BULLET, PM_LOST
 tk_e:   lda #1
         bra letter
 tk_x:   lda #2
@@ -1332,6 +1359,8 @@ letter: tsb extra_bits
         cmp #EXTRA_ALL
         bne :+
         stz extra_bits           ; E X T R A: a life
+        lda #K_LIFE
+        sta pick_msg
         bra tk_life
 :       rts
 tk_mark:                         ; rank marks 0..5 (lot 7): kind - K_MARK0

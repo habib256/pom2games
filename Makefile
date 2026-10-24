@@ -25,10 +25,11 @@
 PYTHON ?= python3
 
 II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake pinball light3dball mcs wilderness dirtbike
-IIE_PRODOS_GAMES := chromabreak
+IIE_PRODOS_GAMES := chromabreak wargalagaii
 DIRS := $(II_PLUS_GAMES) $(IIE_PRODOS_GAMES) logo dev/examples/hello dev/examples/hgr dev/examples/dhgr dev/examples/perspective
 # Programs whose own `make test` / `make test-long` belong to the root tiers.
-TESTED := pinball chromabreak arkabreakout chess micro-sokoban light3dball wilderness logo mcs dirtbike
+TESTED := pinball chromabreak arkabreakout chess micro-sokoban light3dball wilderness logo mcs dirtbike \
+          wargalagaii
 
 all:
 	@for d in $(DIRS); do $(MAKE) -C $$d || exit 1; done
@@ -164,7 +165,7 @@ profile-ii-plus:
 	@for d in $(II_PLUS_GAMES); do $(MAKE) -C $$d || exit 1; done
 
 profile-iie-prodos:
-	$(MAKE) -C chromabreak
+	@for d in $(IIE_PRODOS_GAMES); do $(MAKE) -C $$d || exit 1; done
 
 .PHONY: profile-ii-plus profile-iie-prodos
 

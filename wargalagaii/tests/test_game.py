@@ -17,7 +17,9 @@ GAME = ROOT / 'wargalagaii'
 sys.path.insert(0, str(ROOT / 'dev/tools'))
 sys.path.insert(0, str(GAME / 'tools'))
 import a2test
+from boot import boot
 import model
+import sound
 
 SYS_NAMES = ('WG2.SYSTEM', 'WG2.SYS')
 
@@ -97,14 +99,15 @@ def volume(disk, build):
     assert image.header()['name'] == 'WARGALAGAII'
     assert image.header()['blocks'] == 280 and len(image.d) == 143360
     entries = {e[1:1 + (e[0] & 15)].decode(): e for e in image.entries(2)}
-    assert set(entries) == {'PRODOS', *SYS_NAMES, 'WG2.AUX'}, sorted(entries)
-    assert all(entries[n][0x10] == 0xFF for n in entries if n != 'WG2.AUX')
+    assert set(entries) == {'PRODOS', *SYS_NAMES, 'WG2.AUX', 'HIGHSCORES'}, sorted(entries)
+    assert all(entries[n][0x10] == (0x06 if n in ('WG2.AUX', 'HIGHSCORES') else 0xFF) for n in entries)
     assert image.read(entries['WG2.AUX']) == (build / 'WG2.AUX').read_bytes()
+    assert image.read(entries['HIGHSCORES']) == (build / 'HIGHSCORES').read_bytes()
     assert image.read(entries['PRODOS']) == (ROOT / 'dev/tools/prodos/PRODOS').read_bytes()
     for name in SYS_NAMES:
         assert image.read(entries[name]) == (build / name).read_bytes(), name
     assert image.d[:1024] == (ROOT / 'dev/tools/prodos/boot.bin').read_bytes()
-    print('PASS bootable ProDOS volume /WARGALAGAII, WG2.SYSTEM + WG2.SYS + WG2.AUX round trip')
+    print('PASS bootable ProDOS volume /WARGALAGAII, WG2.SYSTEM + WG2.SYS + WG2.AUX + HIGHSCORES round trip')
 
 
 def text(result, occurrence=0):
@@ -122,7 +125,8 @@ def cadence(disk, L, pal):
     formation is seated (from refresh 1200)."""
     names = ('frame_count', 'step_count', 'late_count')
     peeks = [L.peek(n, 2) for n in names]
-    r = a2test.run(disk, [L.until('game_tick', 3000), *peeks, 'wait:1200', *peeks,
+    # (9 lives: nobody plays, and GAME OVER would go to the title, lot 9)
+    r = a2test.run(disk, [*boot(L), L.poke('lives', 9), *peeks, 'wait:1200', *peeks,
                           'wait:2000', *peeks], iie=True, pal=pal)
     at = [[word(r.mem(L[n], 2, k)) for n in names] for k in range(3)]
     frames, steps, late = (at[2][i] - at[0][i] for i in range(3))
@@ -138,7 +142,7 @@ def bench(disk, L, frames=300):
     """TODO.md lot 2 scene: 40 seated aliens, divers, 10 shots fired
     continuously (passing through: nohit), bombs falling: no late frame."""
     fire = [L.until('logic_step', 10), L.poke('fire_req', 0x80), L.until('logic_done', 10)]
-    steps = [L.until('game_tick', 3000), L.poke('shot_limit', 10), L.poke('nohit', 1),
+    steps = [*boot(L), L.poke('shot_limit', 10), L.poke('nohit', 1),
              L.poke('armour', 99), L.poke('invul_t', 250), 'wait:500', L.poke('invul_t', 250),
              'wait:500', L.poke('invul_t', 250), 'wait:200']
     steps += [L.peek('late_count', 2), L.peek('frame_count', 2)]
@@ -158,7 +162,7 @@ def bench(disk, L, frames=300):
     # One small alien: draw (STA, seated), EOR (flying, both ways), erase.
     costs = []
     for name in ('alien_sta', 'alien_eor', 'alien_clr'):
-        r = a2test.run(disk, [L.until('game_tick', 3000), 'wait:1200',
+        r = a2test.run(disk, [*boot(L), 'wait:1200',
                               L.until(name, 60), L.until(name + '_done', 1)], iie=True)
         costs.append(r.cycles[-1] - r.cycles[-2])
     print(f'PASS 14x8 alien: STA {costs[0]}, EOR {costs[1]}, zeros {costs[2]} cycles')
@@ -175,7 +179,7 @@ def vbl_edges(disk, L):
     through level changes with the card (bug hunt 5: the new pack's tables
     came from aux in one AUXMOVE under SEI, ~50 000 cycles without a scan
     or the music; now 64 bytes at a time)."""
-    vc = L['vbl_count']
+    vc = L['_a2_vbl_count']
     fire = [L.until('logic_step', 10), L.poke('fire_req', 0x80), L.until('logic_done', 10)]
     scenes = (('entry waves', ['wait:1', f'storewatch:{vc:04X}:{vc:04X}', 'wait:1500']),
               ('bench', [L.poke('shot_limit', 10), L.poke('nohit', 1), L.poke('armour', 99),
@@ -183,9 +187,9 @@ def vbl_edges(disk, L):
               ('level changes, Mockingboard', 'levels'))
     cheat = [L.poke('invul_t', 60), L.poke('fire_held', 0x80), L.poke('autofire_t', 255), 'wait:40']
     for name, steps in scenes:
-        start = [L.until('game_tick', 3000)]
+        start = [*boot(L)]
         if steps == 'levels':            # level 4 -> 5: a new pack
-            start = [L.until('main', 3000), L.poke('start_level', 3), L.until('game_tick', 3000),
+            start = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', 3), L.until('game_tick', 3000),
                      L.poke('weapon', 2), L.poke('shot_limit', 10), L.poke('noshop', 1)]
             steps = [f'storewatch:{vc:04X}:{vc:04X}'] + cheat * 120 + [L.peek('level')]
         r = a2test.run(disk, start + steps, iie=True, timeout=900, mockingboard=name.endswith('board'))
@@ -208,7 +212,7 @@ def oracle(disk, L, count=2000, every=1, seed=1983, armour=0):
     names = [n for n in game.state() if n != 'prng']
     first = min(L[n] for n in names)
     span = max(L[n] + len(v) for n, v in game.state().items() if n != 'prng') - first
-    steps, inputs, checked = [L.until('game_tick', 3000), L.until('logic_step', 10),
+    steps, inputs, checked = [*boot(L), L.until('logic_step', 10),
                               L.poke('armour', armour)], [], []
     move = 0
     for k in range(count):
@@ -219,7 +223,7 @@ def oracle(disk, L, count=2000, every=1, seed=1983, armour=0):
         inputs.append((move, fire, held))
         steps += [L.until('logic_step', 10), L.poke('move_dir', move & 0xFF),
                   L.poke('fire_req', 0x80 if fire else 0), L.poke('fire_held', 0x80 if held else 0),
-                  L.until('logic_done', 10)]
+                  L.poke('over_wait', 0), L.until('logic_done', 10)]   # (GAME OVER stays: no title)
         if k % every == every - 1 or k == count - 1:
             steps += [f'peek:{first:04X}:{span}', L.peek('prng_lo', 2)]
             checked.append(k)
@@ -250,17 +254,19 @@ def oracle(disk, L, count=2000, every=1, seed=1983, armour=0):
 
 def game_over(disk, L):
     """Nobody plays: the model's game ends at a known step; the 6502 shows
-    GAME OVER and 0 lives in the HUD of both pages, then SPACE starts anew."""
+    GAME OVER and 0 lives in the HUD of both pages, goes to the title after
+    OVER_END frames (lot 9), where SPACE starts anew."""
     g = model.Game()
     while not g.game_over:
         g.step()
-    r = a2test.run(disk, [L.until('game_tick', 3000), 'wait:2400',
+    r = a2test.run(disk, [*boot(L), 'wait:2400',
                           L.peek('game_over'), L.peek('lives'), L.peek('msg_drawn', 2),
-                          L.peek('hud_seen', 80), 'key: ', 'wait:30',
+                          L.peek('hud_seen', 80), L.peek('over_wait'), 'key: ', 'wait:30',
                           L.peek('game_over'), L.peek('lives'), L.peek('score', 3),
                           L.peek('msg_drawn', 2)], iie=True)
     assert r.mem(L['game_over'], 1, 0) == b'\x01' and r.mem(L['lives'], 1, 0) == b'\x00'
     assert r.mem(L['msg_drawn'], 2, 0) == b'\x01\x01', 'GAME OVER on both pages'
+    assert r.mem(L['over_wait'], 1)[0] == 240, 'the title after OVER_END frames'
     hud = r.mem(L['hud_seen'], 80)
     for page in (hud[:40], hud[40:]):
         assert page[:6] == b'000000' and page[8:9] == b'0', page
@@ -269,17 +275,17 @@ def game_over(disk, L):
     # render_init/game_init once cleared whole pages past their variables:
     # the clock (//e fell back to delays after a restart), /RAM's unit and
     # crt0's saved zero page (bug hunt 2026-10-23).
-    r = a2test.run(disk, [L.until('game_tick', 3000), L.peek('ram_unit'), L.peek('zp_save', 256),
-                          'peek:0:256', 'wait:2400', 'key: ', 'wait:60', L.peek('timing_mode'),
+    r = a2test.run(disk, [*boot(L), L.peek('ram_unit'), L.peek('zp_save', 256),
+                          'peek:0:256', 'wait:2400', 'key: ', 'wait:60', L.peek('_a2_vbl_mode'),
                           L.peek('ram_unit'), L.peek('zp_save', 256)], iie=True)
     saved, live = r.mem(L['zp_save'], 256, 0), r.mem(0, 256)
     keep = range(0x20, 0x3A)        # text window, hooks ($3A-$4F: MLI and AUXMOVE scratch)
     assert [saved[a] for a in keep] == [live[a] for a in keep] and sum(map(bool, saved)) > 20, \
         'crt0 zero page kept'
     assert r.mem(L['ram_unit'], 1, 0)[0] & 0xF0 == 0xB0, '/RAM unit kept for the release'
-    assert r.mem(L['timing_mode'], 1)[0] == 1 and r.mem(L['ram_unit'], 1, 1) == r.mem(L['ram_unit'], 1, 0)
+    assert r.mem(L['_a2_vbl_mode'], 1)[0] == 1 and r.mem(L['ram_unit'], 1, 1) == r.mem(L['ram_unit'], 1, 0)
     assert r.mem(L['zp_save'], 256, 1) == saved, 'restart keeps crt0 state'
-    print('PASS no player: 3 lives lost, GAME OVER and 0 lives on both pages, SPACE: new game '
+    print('PASS no player: 3 lives lost, GAME OVER and 0 lives on both pages, the title, SPACE: new game '
           '(clock, /RAM unit and saved zero page intact)')
 
 
@@ -294,7 +300,7 @@ def level_oracle(disk, L, start, count=3000, every=5, seed=5, cheats=(), later=N
     first = min(L[n] for n in names)
     span = max(L[n] + len(v) for n, v in game.state().items() if n != 'prng') - first
     cheats0 = [('weapon', 2), ('shot_limit', 10), ('s_level', 5), ('noshop', 1), *cheats]
-    steps = [L.until('main', 3000), L.poke('start_level', start), L.until('game_tick', 3000)]
+    steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', start), L.until('game_tick', 3000)]
     plan, seen = [], []
     move = 0
     for k in range(count):
@@ -365,16 +371,17 @@ def bonus_effects(disk, L):
     state is compared at every step; every kind must have been taken."""
     names = list(model.KINDS)
     seq = names + ['s'] * 5 + ['b'] * 6 + ['t'] * 7 + ['armour'] * 3 + ['life'] * 2 \
-        + ['e', 'x', 'lt', 'r', 'a'] * 2 + ['skull'] * 6 + ['w3', 'auto', 'w2', 'x5', 'freeze', 'w1']
+        + ['e', 'x', 'lt', 'r', 'a'] * 2 + ['a'] + ['skull'] * 7 + ['w3', 'auto', 'w2', 'x5', 'freeze', 'w1']
     game = model.Game()
-    taken = {}
+    taken, named = {}, set()
     take = game.take
-    game.take = lambda kind: (taken.__setitem__(kind, taken.get(kind, 0) + 1), take(kind))
+    game.take = lambda kind: (taken.__setitem__(kind, taken.get(kind, 0) + 1), take(kind),
+                              named.add(game.pick_msg))
     state = game.state()
     names_cmp = [n for n in state if n != 'prng']
     first = min(L[n] for n in names_cmp)
     span = max(L[n] + len(v) for n, v in state.items() if n != 'prng') - first
-    steps, plan, gap = [L.until('game_tick', 3000)], [], 12
+    steps, plan, gap = [*boot(L)], [], 12
     for k in range(len(seq) * gap + 40):
         pokes = []
         if k % gap == 0 and k // gap < len(seq):
@@ -407,15 +414,34 @@ def bonus_effects(disk, L):
             assert have == want, f'step {k + 1} {name}: 6502 {have.hex()} model {want.hex()}'
     missing = [n for n in names if n not in taken]
     assert not missing, ('kinds never taken', missing)
+    unnamed = set(range(len(model.PICK_TEXT))) - named - {model.K['skull']}   # (a skull: its malus)
+    assert not unnamed, ('pickup texts never shown', [model.PICK_TEXT[m] for m in unnamed])
     assert peak[:3] == [model.S_MAX, model.B_MAX, model.T_MAX] and peak[3] == 5, peak
     print(f'PASS bonus effects: all {len(names)} kinds taken ({sum(taken.values())} pickups), gauges '
-          f'to their maximum, EXTRA twice, skulls, weapons and autofire; {len(plan)} steps == model '
+          f'to their maximum, EXTRA twice, skulls, weapons and autofire, every pickup named; {len(plan)} steps == model '
           f'(score {game.score}, credits {game.credits}, marks {game.marks:06b})')
 
 
+def pickup_feedback(disk, L):
+    """A pickup is named mid-field for PICK_T steps and heard: the bonus
+    sound, or the malus one (the dark mark); then the message goes."""
+    sfx = [n for n, _ in sound.SFX]
+    for kind, sfx_name in (('shield', 'bonus'), ('markdark', 'malus')):
+        r = a2test.run(disk, [*boot(L), L.until('logic_step', 10),
+                              L.poke('obj_y', model.SHIP_Y - 10), L.poke('obj_k', (model.SHIP_MAX // 2 + 3) // 7),
+                              L.poke('obj_kind', model.K[kind]), L.poke('invul_t', 200), 'wait:8',
+                              L.peek('msg_text', 12), L.peek('sfx_rank'), L.peek('pick_t'),
+                              f'wait:{2 * model.PICK_T + 8}', L.peek('msg_text', 12)], iie=True)
+        text = model.PICK_TEXT[model.K[kind]].center(12).encode()
+        assert r.mem(L['msg_text'], 12, 0) == text, r.mem(L['msg_text'], 12, 0)
+        assert r.mem(L['sfx_rank'], 1)[0] == sfx.index(sfx_name), (kind, r.mem(L['sfx_rank'], 1))
+        assert r.mem(L['msg_text'], 12, 1) == b' ' * 12, r.mem(L['msg_text'], 12, 1)
+    print('PASS pickup feedback: SHIELD shown with the bonus sound, DARK MARK with the malus one, '
+          f'gone after {model.PICK_T} steps')
+
+
 def play(disk, L):
-    tick = L.until('game_tick', 3000)
-    r = a2test.run(disk, [tick, L.peek('ship_c'), 'key:\\>', 'key:\\>', 'wait:4', L.peek('ship_c'),
+    r = a2test.run(disk, [*boot(L), L.peek('ship_c'), 'key:\\>', 'key:\\>', 'wait:4', L.peek('ship_c'),
                           'key:\\<', 'wait:4', L.peek('ship_c'),
                           'key: ', 'wait:2', L.peek('shot_y', model.MAX_SHOTS),
                           'btn:0,1', 'wait:4', 'btn:0,0', 'wait:2', L.peek('shot_y', model.MAX_SHOTS),
@@ -435,7 +461,7 @@ def play(disk, L):
 
 def score_cap(disk, L):
     """The score stops at 999 999 (bug hunt 6: it wrapped to 0)."""
-    steps = [L.until('game_tick', 3000), L.poke('score', 0x90), L.poke('score', 0x99, 1),
+    steps = [*boot(L), L.poke('score', 0x90), L.poke('score', 0x99, 1),
              L.poke('score', 0x99, 2), L.poke('shot_limit', 10), L.poke('weapon', 2)]
     for _ in range(60):
         steps += [L.poke('invul_t', 60), 'press: ', 'wait:20']
@@ -451,7 +477,7 @@ def score_cap(disk, L):
 def joystick_delay(disk, L):
     """Without a video clock (delays: a //c whose interrupt stopped, no
     mouse firmware) the stick is read too (bug hunt 5: it stayed centred)."""
-    r = a2test.run(disk, [L.until('game_tick', 3000), L.poke('timing_mode', 0), 'key:\t',
+    r = a2test.run(disk, [*boot(L), L.poke('_a2_vbl_mode', 0), 'key:\t',
                           'joy:1,0', 'wait:60', L.peek('joy_x'), 'joy:-1,0', 'wait:60', L.peek('joy_x')],
                    iie=True)
     right, left = r.mem(L['joy_x'], 1, 0)[0], r.mem(L['joy_x'], 1, 1)[0]
@@ -460,21 +486,24 @@ def joystick_delay(disk, L):
 
 
 def exits(disk, L):
+    """ESC in a game: the title, ESC there: ProDOS (lot 9); Ctrl-RESET."""
     for how in ('key:\\e', 'reset'):
-        r = a2test.run(disk, [L.until('game_tick', 3000), 'wait:30', how, 'wait:300',
+        quit = [how, L.until('front_main', 300), 'wait:120', how] if how != 'reset' else [how]
+        r = a2test.run(disk, [*boot(L), 'wait:30', *quit, 'wait:300',
                               'peek:C01A', 'peek:BF31:16', 'peek:400:1024'], iie=True)
         assert r.mem(0xC01A, 1)[0] & 0x80, 'text mode'
         devices = r.mem(0xBF31, 16)
         units = devices[1:2 + devices[0]]
         assert any(u & 0xF0 == 0xB0 for u in units), ('/RAM back in the device list', units.hex())
         assert 'BITSY' in text(r), 'ProDOS launcher'
-        print(f'PASS {"ESC" if how.startswith("key") else "Ctrl-RESET"} -> text, /RAM rebuilt, ProDOS QUIT launcher')
+        print(f'PASS {"ESC, title, ESC" if how.startswith("key") else "Ctrl-RESET"} -> text, /RAM rebuilt, '
+              'ProDOS QUIT launcher')
 
 
 def small_machine(disk, L):
     """MACHID says 64 KB (poked at _main): message, a key, ProDOS launcher;
     /RAM ($BF) untouched."""
-    r = a2test.run(disk, [L.until('main', 3000), 'poke:BF98:A2', 'wait:30', 'peek:400:1024',
+    r = a2test.run(disk, [L.until('main', 3000), L.poke('front_skip', 1), 'poke:BF98:A2', 'wait:30', 'peek:400:1024',
                           'key: ', 'wait:300', 'peek:400:1024', 'peek:BF31:4'], iie=True)
     assert 'NEEDS 128K' in text(r, 0), text(r, 0)
     assert 'BITSY' in text(r, 1), 'a key returns to ProDOS'
@@ -525,6 +554,7 @@ def main():
     L = a2test.labels(a.labels, strip=True)
     cadence(a.disk, L, pal=False)
     cadence(a.disk, L, pal=True)
+    pickup_feedback(a.disk, L)
     game, deaths = oracle(a.disk, L)
     assert len(deaths) == 3 and game.game_over, 'the scripted game loses its 3 lives'
     game, _ = oracle(a.disk, L, count=1500, seed=7, armour=2)

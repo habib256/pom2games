@@ -21,6 +21,7 @@ GAME = ROOT / 'wargalagaii'
 sys.path.insert(0, str(ROOT / 'dev/tools'))
 sys.path.insert(0, str(GAME / 'tools'))
 import a2test
+from boot import boot
 import pt3
 import sound
 
@@ -63,7 +64,7 @@ def fire(L, n):
 def speaker(disk, L):
     lo, hi = L['next_edge'], L['ne_edge']          # //e wait loop
     lo2, hi2 = L['wait_irq'], L['wi_count']        # //c wait loop
-    r = a2test.run(disk, [L.until('game_tick', 3000), 'storewatch:C030:C030', 'wait:200',
+    r = a2test.run(disk, [*boot(L), 'storewatch:C030:C030', 'wait:200',
                           L.peek('step_count', 2)] + fire(L, 1) + ['wait:30', L.peek('step_count', 2),
                           'key:S', 'wait:4'] + fire(L, 1) + ['wait:30', L.peek('sound_on')],
                    iie=True, timeout=300)
@@ -98,7 +99,7 @@ def speaker(disk, L):
 def mockingboard(disk, L):
     a4 = pt3.note_table()[pt3.pt3_note(sound.MELODY[0][0])]
     shot = sound.ay_period(sound.SFX[-1][1][0][0])
-    steps = [L.until('game_tick', 3000), L.peek('audio_slot'), 'storewatch:C030:C4FF', 'wait:120']
+    steps = [*boot(L), L.peek('audio_slot'), 'storewatch:C030:C4FF', 'wait:120']
     steps += fire(L, 1) + ['wait:20', 'key:S', 'wait:30', L.peek('sound_on'), 'key:\\e', 'wait:200']
     r = a2test.run(disk, steps, iie=True, mockingboard=True, timeout=300)
     assert r.mem(L['audio_slot'], 1)[0] == 4, 'Mockingboard found in slot 4'
@@ -127,7 +128,7 @@ def mockingboard(disk, L):
 
 def unmute(disk, L):
     """S twice with the card: the music comes back (its registers rewritten)."""
-    r = a2test.run(disk, [L.until('game_tick', 3000), 'wait:60', 'key:S', 'wait:30',
+    r = a2test.run(disk, [*boot(L), 'wait:60', 'key:S', 'wait:30',
                           'storewatch:C400:C4FF', 'key:S', 'wait:60'], iie=True, mockingboard=True)
     vols = [v for c, chip, reg, v in ay_writes(r.out) if chip == 0 and reg in (8, 9)]
     assert vols and max(vols) > 0, vols
@@ -141,7 +142,7 @@ def tempo(disk, L):
     heard it, 2026-10-23.) A tick = one store into mus_ticks."""
     ml = L['mus_ticks']
     for name, pal, start in (('entry waves', False, 200), ('seated', False, 1300), ('PAL', True, 1100)):
-        r = a2test.run(disk, [L.until('game_tick', 3000), f'wait:{start}', f'storewatch:{ml:04X}:{ml:04X}',
+        r = a2test.run(disk, [*boot(L), f'wait:{start}', f'storewatch:{ml:04X}:{ml:04X}',
                               'wait:600'], iie=True, mockingboard=True, pal=pal)
         stamps = [c for pc, a, v, c in stores(r.out)]
         seconds = (stamps[-1] - stamps[0]) / 1020484
@@ -157,7 +158,7 @@ def joystick(disk, L):
     frame in 15). Held right with the card: every reading the same."""
     jx = L['joy_x']
     for pos, name in ((1, 'right'), (0, 'centre')):
-        r = a2test.run(disk, [L.until('game_tick', 3000), 'key:\t', f'joy:{pos},0', 'wait:60',
+        r = a2test.run(disk, [*boot(L), 'key:\t', f'joy:{pos},0', 'wait:60',
                               f'storewatch:{jx:04X}:{jx:04X}', 'wait:1200'], iie=True, mockingboard=True)
         values = [v for pc, a, v, c in stores(r.out)]
         assert len(values) > 300 and max(values) - min(values) <= 2, (name, collections.Counter(values))
@@ -167,8 +168,8 @@ def joystick(disk, L):
 def cadence(disk, L):
     names = ('frame_count', 'step_count', 'late_count')
     peeks = [L.peek(n, 2) for n in names]
-    r = a2test.run(disk, [L.until('game_tick', 3000), 'wait:1200', *peeks, 'wait:2000', *peeks],
-                   iie=True, mockingboard=True)
+    r = a2test.run(disk, [*boot(L), L.poke('lives', 9), 'wait:1200', *peeks, 'wait:2000', *peeks],
+                   iie=True, mockingboard=True)   # (9 lives: GAME OVER would go to the title)
     w = lambda n, k: int.from_bytes(r.mem(L[n], 2, k), 'little')
     frames, steps, late = (w(n, 1) - w(n, 0) for n in names)
     assert late == 0 and abs(frames - 1000) <= 1 and abs(steps - 1000) <= 1, (frames, steps, late)

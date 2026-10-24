@@ -22,6 +22,7 @@ sys.path.insert(0, str(ROOT / 'dev/tools'))
 sys.path.insert(0, str(GAME / 'tools'))
 sys.path.insert(0, str(GAME / 'tests'))
 import a2test
+from boot import boot
 import model
 import test_game
 
@@ -37,7 +38,7 @@ def storm_oracle(disk, L, seed, crash, count=1300, every=3):
     first = min(L[n] for n in names)
     span = max(L[n] + len(v) for n, v in M.Game(3).state().items() if n != 'prng') - first
     cheats = [('weapon', 2), ('shot_limit', 10), ('s_level', 5), ('noshop', 1), ('subgame', 1)]
-    steps = [L.until('main', 3000), L.poke('start_level', 3), L.until('game_tick', 3000)]
+    steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', 3), L.until('game_tick', 3000)]
     sim = M.Game(3)
     plan = []
     move, held = 0, 1
@@ -132,7 +133,7 @@ def model_of(st, start):
 def station_open(L, credits, pokes=(), joystick=False):
     """Steps: level 4 with the station's icon caught, until its screen."""
     c = int(str(credits), 16)
-    steps = [L.until('main', 3000), L.poke('start_level', 3), L.until('game_tick', 3000),
+    steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', 3), L.until('game_tick', 3000),
              L.poke('subgame', 2), L.poke('credits', c & 255), L.poke('credits', c >> 8, 1)]
     steps += [L.poke(n, v) for n, v in pokes]
     if joystick:
