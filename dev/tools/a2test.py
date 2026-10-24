@@ -70,18 +70,30 @@ class Result:
     def __init__(self, out):
         self.out = out
         self.rows = []            # (address, bytes) per dump line, in order
-        for addr, values in re.findall(r'^([0-9A-Fa-f]{4}): ((?:[0-9A-Fa-f]{2} ?)+)$', out, re.M):
-            self.rows.append((int(addr, 16), bytes.fromhex(values)))
-        # consecutive lines form one dump
-        self.dumps = []
-        for addr, data in self.rows:
-            if self.dumps and self.dumps[-1][0] + len(self.dumps[-1][1]) == addr:
-                self.dumps[-1][1] += data
+        self.dumps = []           # consecutive lines form one dump
+        # "ADDR: XX XX ..." lines picked without a regex (a multiline one cost
+        # ~1 s per 64 page dumps); the other lines alone go to the regexes.
+        other = []
+        dump, end = None, -1
+        for line in out.split('\n'):
+            if len(line) > 7 and line[4] == ':' and line[5] == ' ' and line[:4].isalnum():
+                try:
+                    addr, data = int(line[:4], 16), bytes.fromhex(line[6:])
+                except ValueError:
+                    other.append(line)
+                    continue
+                self.rows.append((addr, data))
+                if addr != end:
+                    dump = bytearray()
+                    self.dumps.append(dump)
+                dump += data
+                end = addr + len(data)
             else:
-                self.dumps.append([addr, bytearray(data)])
-        self.dumps = [bytes(d) for _, d in self.dumps]
-        self.cycles = [int(c) for c in re.findall(r'cycles=(\d+)', out)]
-        self.spk = [int(c) for c in re.findall(r'^spk (\d+)$', out, re.M)]
+                other.append(line)
+        self.dumps = [bytes(d) for d in self.dumps]
+        other = '\n'.join(other)
+        self.cycles = [int(c) for c in re.findall(r'cycles=(\d+)', other)]
+        self.spk = [int(c) for c in re.findall(r'^spk (\d+)$', other, re.M)]
 
     @property
     def data(self):
@@ -130,12 +142,13 @@ def have_a2shot(what=None):
 def run(disk, steps, emulator=None, iie=False, wp=False, timeout=120, check=True,
         pad_until=False, cwd=None, pal=False, mockingboard=False):
     """Boot `disk` and play `steps`. emulator defaults to a2run (a2shot when
-    iie). pad_until inserts `wait:1` before every until: (a2shot needs a
+    iie). disk=None (a2run): no boot card, the machine waits at the Applesoft
+    prompt after 8 frames; start test code with bin_steps(). pad_until inserts `wait:1` before every until: (a2shot needs a
     frame between a key and the next breakpoint). pal: 50 Hz video, mockingboard:
     a card in slot 4 (a2shot)."""
     emulator = Path(emulator or (A2SHOT if iie else A2RUN))
     args = [str(emulator)] + (['--iie'] if iie else []) + (['--pal'] if pal else []) \
-        + (['--mockingboard'] if mockingboard else []) + ['--disk', str(disk)]
+        + (['--mockingboard'] if mockingboard else []) + (['--disk', str(disk)] if disk else [])
     if wp:
         args.append('--wp')
     steps = [str(s) for s in steps]
@@ -232,6 +245,12 @@ def hgr_visible(page):
 def page_dump(block):
     """Join the [2345]xxx: lines of a 16 KB `peek:2000:16384` into bytes."""
     return bytes.fromhex(' '.join(re.findall(r'(?m)^[2345][0-9A-Fa-f]{3}: ([0-9A-Fa-f ]+)$', block)))
+
+
+def bin_steps(binary, load=0x6000, start=None):
+    """a2run steps that put `binary` in RAM at `load` and jump to `start`
+    (default: `load`), the diskless stand-in for build_disk() + BRUN."""
+    return [f'load:{binary}@{load:04X}', f'go:{load if start is None else start:04X}']
 
 
 def build_disk(work, name, binary, load=0x6000, extra=()):

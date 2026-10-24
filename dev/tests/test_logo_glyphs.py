@@ -71,25 +71,25 @@ emote_plot_background: rts
     subprocess.run(['ld65','-C',str(cfg),'-Ln',str(work/'fixture.lbl'),'-o',str(binary),*objects],check=True)
     L=a2test.labels(work/'fixture.lbl')
     data=binary.read_bytes();font=data[L['bbfont']-0x6000:L['bbfont']-0x6000+2048]
-    return a2test.build_disk(work,'TEXT',binary),L,font
+    return binary,L,font
 
 
 def check(work):
-    disk,L,font=build(work)
+    binary,L,font=build(work)
     cases=[(char,x,80,15) for char in range(128) for x in range(98,105)]
     cases += [(65,x,96,pen) for pen in range(16) for x in range(98,105)]
     cases += [(char,x,y,4) for char in (0,32,65,127,193) for x,y in ((0,0),(255,184),(255,188),(255,191),(255,192),(255,250),(255,255))]
     for start in range(0,len(cases),64):
-        check_batch(disk,L,font,cases[start:start+64])
+        check_batch(binary,L,font,cases[start:start+64])
     print(f'LOGO adapter: {len(cases)} exact glyph rasters, 128 characters, seven phases, all pens, clipping and preserved origins OK.')
 
 
-def check_batch(disk,L,font,cases):
-    steps=[L.until('ready')]
+def check_batch(binary,L,font,cases):
+    steps=a2test.bin_steps(binary)+[L.until('ready')]
     for params in cases:
         steps += [L.poke('params',v,i) for i,v in enumerate(params)]
         steps += ['press: ',L.until('glyph_done'),'peek:2000:16384',L.peek('pix_x',3),L.until('ready')]
-    result=a2test.run(disk,steps)
+    result=a2test.run(None,steps)
     data=result.data
     offset=0
     for char,x,y,pen in cases:

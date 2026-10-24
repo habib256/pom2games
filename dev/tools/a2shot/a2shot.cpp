@@ -7,6 +7,8 @@
 //   shot:FILE.png   render the screen to a PNG (560x384 for HGR and DHGR)
 //   peek:ADDR[:LEN] hex-dump guest memory (bus reads, may have side effects)
 //   poke:ADDR:BYTE  write one guest RAM byte (hex address and value)
+//   load:FILE@ADDR  write a whole binary file from ADDR (hex) on, by bus
+//                   writes like poke (the //e's current bank switches apply)
 //   joy:X,Y         joystick axes in [-1,1]      btn:N,0|1  game-port button
 //   insert:FILE     swap the drive 1 disk (a private copy, like --disk)
 //
@@ -59,6 +61,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -476,6 +479,19 @@ int main(int argc, char** argv)
             const unsigned value = std::strtoul(arg.substr(c2 + 1).c_str(), nullptr, 16);
             if (addr > 0xFFFF || value > 0xFF) return 2;
             core.write(static_cast<std::uint16_t>(addr), static_cast<std::uint8_t>(value));
+        } else if (op == "load") {
+            const size_t at = arg.rfind('@');
+            if (at == std::string::npos) return 2;
+            const unsigned addr = std::strtoul(arg.substr(at + 1).c_str(), nullptr, 16);
+            std::ifstream in(arg.substr(0, at), std::ios::binary);
+            const std::vector<char> bytes((std::istreambuf_iterator<char>(in)),
+                                          std::istreambuf_iterator<char>());
+            if (!in.is_open() || bytes.empty() || addr + bytes.size() > 0xC000) {
+                std::fprintf(stderr, "load failed: %s\n", arg.c_str());
+                return 2;
+            }
+            for (size_t k = 0; k < bytes.size(); k++)
+                core.write(static_cast<std::uint16_t>(addr + k), static_cast<std::uint8_t>(bytes[k]));
         } else if (op == "joy") {
             const size_t c2 = arg.find(',');
             core.setJoystickAxes(std::strtof(arg.substr(0, c2).c_str(), nullptr),

@@ -67,8 +67,8 @@ mod7:
         obj=work/'xor.o';binary=work/'xor.bin';lbl=work/'xor.lbl'
         subprocess.run(['ca65','-I',str(ROOT/'dev/lib/hgr'),'-I',str(ROOT/'dev/lib/apple2'),'-o',str(obj),str(src)],check=True)
         subprocess.run(['ld65','-C',str(ROOT/'dev/cc65/apple2_hgr.cfg'),'-Ln',str(lbl),'-o',str(binary),str(obj)],check=True)
-        disk=a2test.build_disk(work,'XOR',binary);L=a2test.labels(lbl)
-        r=a2test.run(disk,[L.until('drawn'),'peek:2000:16384',L.until('restored'),'peek:2000:16384'])
+        fixture=binary;L=a2test.labels(lbl)
+        r=a2test.run(None, a2test.bin_steps(fixture) + [L.until('drawn'),'peek:2000:16384',L.until('restored'),'peek:2000:16384'])
         assert r.mem(0x2000,16384,0)==expected,'native XOR raster/phase/page mismatch'
         assert r.mem(0x2000,16384,1)==bytes([0xAA])*16384,'erase touched colour phase, padding or other pixels'
     print('HGR XOR: native rectangles/glyphs, seven shifts, both pages and exact background restoration passed.')

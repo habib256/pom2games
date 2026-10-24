@@ -115,12 +115,12 @@ SEGMENTS {
     subprocess.run(['ca65', '-g', '-I', str(ROOT/'dev/lib/apple2'), '-I',
                     str(ROOT/'dev/lib/hgr'), '-o', str(obj), str(src)], check=True)
     subprocess.run(['ld65', '-C', str(cfg), '-Ln', str(lbl), '-o', str(binary), str(obj)], check=True)
-    disk = a2test.build_disk(work, 'WIRE', binary)
+    fixture = binary
     labels = a2test.labels(lbl)
     steps = []
     for name in stops:
         steps += [labels.until(name), 'peek:2000:16384']
-    result = a2test.run(disk, steps)
+    result = a2test.run(None, a2test.bin_steps(fixture) + steps)
     for index, wanted in enumerate(expected):
         actual = result.dumps[index]
         assert actual == wanted, ('wireframe pixel mismatch', page, cases[index//2],

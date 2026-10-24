@@ -97,7 +97,7 @@ res:    .res 2
                     '-o', str(work / 'p.o'), str(work / 'p.s')], check=True)
     subprocess.run(['ld65', '-C', str(ROOT / 'dev/cc65/apple2_hgr.cfg'), '-Ln', str(work / 'p.lbl'),
                     '-o', str(work / 'p.bin'), str(work / 'p.o')], check=True)
-    return a2test.labels(work / 'p.lbl'), a2test.build_disk(work, 'PAGES', work / 'p.bin')
+    return a2test.labels(work / 'p.lbl'), work / 'p.bin'
 
 
 def main():
@@ -108,8 +108,8 @@ def main():
                 want[page * 8192 + a2test.hgr_offset(y) + x // 7] |= 1 << (x % 7)
     for div7 in (False, True):
         with tempfile.TemporaryDirectory(prefix='hgr-pages-') as tmp:
-            L, disk = build(Path(tmp), div7)
-            r = a2test.run(disk, ['wait:200', L.until('done', 4000), L.peek('res', 2), 'peek:2000:16384'])
+            L, fixture = build(Path(tmp), div7)
+            r = a2test.run(None, a2test.bin_steps(fixture) + [L.until('done', 4000), L.peek('res', 2), 'peek:2000:16384'])
             label = 'div7 tables' if div7 else 'division loop'
             assert r.mem(L['res'], 2) == bytes([0x20 + (a2test.hgr_offset(100) >> 8), 0x40 + (a2test.hgr_offset(100) >> 8)]), f'{label}: own site {r.mem(L["res"], 2).hex()}'
             got = r.mem(0x2000, 16384)

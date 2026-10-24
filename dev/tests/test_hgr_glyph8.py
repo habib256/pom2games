@@ -70,7 +70,7 @@ hgr_hi:
     binary=work/'fixture.bin'
     subprocess.run(['ca65','-g','-I',str(ROOT/'dev/lib/hgr'),'-o',str(work/'fixture.o'),str(source)],check=True)
     subprocess.run(['ld65','-C',str(cfg),'-Ln',str(work/'fixture.lbl'),'-o',str(binary),str(work/'fixture.o')],check=True)
-    return a2test.build_disk(work,'GLYPH',binary),a2test.labels(work/'fixture.lbl')
+    return binary,a2test.labels(work/'fixture.lbl')
 
 
 def reference(page,params,colored):
@@ -101,7 +101,7 @@ def reference(page,params,colored):
 
 
 def check(work,page,colored):
-    disk,L=build(work,page,colored)
+    fixture,L=build(work,page,colored)
     positions=[(n,80) for n in range(98,105)]+[(0,0),(252,184),(255,188),(256,191),(273,80),(279,191),(280,80),(511,80),(65535,80),(10,192),(10,250),(10,255)]
     cases=[(x&255,x>>8,y,0,mode,color) for x,y in positions for mode in (1,2) for color in (4,15)]
     cases += [(0,0,y,col,0,15) for col in (0,39,40,255) for y in (0,184,188,191,192,250,255)]
@@ -110,7 +110,7 @@ def check(work,page,colored):
     for params in cases:
         steps += [L.poke('params',v,i) for i,v in enumerate(params)]
         steps += ['press: ',L.until('done'),'peek:2000:16384',L.until('ready')]
-    result=a2test.run(disk,steps)
+    result=a2test.run(None, a2test.bin_steps(fixture) + steps)
     assert len(result.dumps)==len(cases)
     for params,actual in zip(cases,result.dumps):
         assert actual==reference(page,params,colored),(page,colored,params)

@@ -1839,7 +1839,7 @@ tms9918_pad12:
 ;                    small in-place updates that follow a full screen
 ;                    (combat_update_hp) land on the visible page.
 ; Everything the game writes goes through hgr_hi (clear_span,
-; calc_pix_addr, vline, x2_put, hgr_text8, hgr_sprite16), so switching the
+; calc_pix_addr, vline, x2_put, hgr_text8, hgr_sprite_packed), so switching the
 ; draw page is one pass over that table -- see set_draw_page.
 ; The three routines and draw_page are dev/lib/hgr/hgr_flip.asm (included at
 ; the end of this file); front_page above is its hgr_front_page.
