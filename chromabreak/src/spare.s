@@ -28,8 +28,11 @@
 ; calls (-225 CODE, -35 BSS): no RAM to absorb it (54 bytes left), so the
 ; addresses moved (render.s code -225, tables +89, variables +54, timing.s
 ; -225; sound.s's assert too), checked with make test on every profile.
+; 2026-10-24, issue #3 (stick on a PAL //e): timing.s reads the stick in
+; full unless the presentation blank is next, and on the //c with interrupts
+; masked: +22 CODE after render.s, absorbed (RODATA -22).
 CODE_SPARE   = 38
-RODATA_SPARE = 23
+RODATA_SPARE = 1
 BSS_SPARE    = 12
 
 .code

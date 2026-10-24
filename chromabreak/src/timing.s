@@ -68,32 +68,57 @@ _timing_present:
         bne :+
         lda #2
 :       sta wanted
-        lda #$80                 ; bit 7: joy_read stops when the IRQ clears it
+        lda #$80                 ; the flip IRQ clears it
         sta ready
-        lda #<ready
-        ldx #>ready
+        ; The stick in full with interrupts masked: the mouse's VBL IRQ comes
+        ; every refresh, and the cycles of its handler went uncounted, so a
+        ; read it fell into came out short (the paddle jumped). Masked, the
+        ; flip waits at most the read (~2 900 cycles), still in the blank.
+        php
+        sei
+        lda #<joy_always
+        ldx #>joy_always
         jsr joy_read
+        plp
         ldx #0
         ldy #0
 wait_irq:
         lda ready
-        beq presented
+        beq irq_presented
         dex
         bne wait_irq
         dey
         bne wait_irq
         ; Bounded fallback if an IRQ source disappears.
         jsr _timing_close
+        bra polling
+irq_presented:
+        jmp presented
 polling:
         jsr _a2_vbl_scan
         lda _a2_vbl_mode
         cmp #1
         bne fallback
-        jsr edges                ; already late: no paddle read
+        ; The stick is read in full (at most ~2 900 cycles, shorter than a
+        ; blank, so the scan below still sees the edge it may cross) when a
+        ; blank still lies ahead of the presentation one, or during a blank:
+        ; a read stopped at "the next blank" while one was already under way
+        ; never ran, and on PAL (a blank is 38% of a refresh) the stick then
+        ; went unread for whole seconds. Only in the visible part of the
+        ; refresh before the presentation does the read stop at its blank.
+        jsr edges
         cmp #2
-        bcs :+
+        bcs :+                   ; already late: no paddle read
+        tay                      ; refreshes since the flip: 0 or 1
+        lda #<joy_always
+        ldx #>joy_always
+        bit $C019
+        bpl full_read            ; in a blank
+        cpy #0
+        beq full_read            ; a whole refresh still ahead
         lda #<$C019              ; stop at vertical blank (bit 7 clear)
         ldx #>$C019
+full_read:
         jsr joy_read
 :
         ; A long level build may end near the trailing edge of VBL.

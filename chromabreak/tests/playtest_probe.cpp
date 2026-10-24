@@ -1121,6 +1121,30 @@ int main(int argc,char** argv) {
         fps=10.0*clock/(mem.getCycleCounter()-stamp);
         std::cout<<"Joystick play: "<<shortest<<".."<<longest<<" cycles, "<<fps<<" fps\n";
         require(fps>=(pal?24.0:29.0) && longest-shortest<uint64_t(pal?8000:5000),"joystick read keeps the frame rate");
+        // In play, the stick swept every frame: each presentation must carry
+        // the position read during the frame before it (joy_x = 8 + count,
+        // one count per 23 cycles = 23/11 paddle units).
+        {
+            setup();write("enemy_hold",0);
+            int value=0,step=6,late=0,worstRun=0,run=0,frames=0;
+            mem.setPaddle(0,0);ticks(2);
+            for(int n=0;n<240;++n) {
+                value+=step;if(value>=252 || value<=0)step=-step;
+                mem.setPaddle(0,uint8_t(value));
+                ticks(1);++frames;
+                // the read during this frame saw `value` (set before it)
+                int expected=8+value*11/23;
+                if(std::abs(int(read("joy_x"))-expected)>1) {++late;worstRun=std::max(worstRun,++run);}
+                else run=0;
+                if(!read("round_live"))write("round_live",1);
+                if(!read("ball_live")){write("ball_live",1);write("ball_y",CB_TILE_TOP+8);}
+            }
+            std::cout<<"Stick sweep: "<<frames-late<<"/"<<frames<<" frames with a fresh read, longest stale run "<<worstRun<<"\n";
+            // Issue #3 (PAL //e): a read stopped at a blank already under way
+            // left the stick unread for 77 frames in a row.
+            require(late<=8 && worstRun<=1,"the stick is read for nearly every frame");
+            write("enemy_hold",1);
+        }
         write("mode",previousMode);write("pad_x",60);write("pad_y",CB_PAD_Y);ticks(1);
         std::cout<<"PASS joystick/paddles: J, both axes absolute, button, full-scale read within the frame rate\n";
     }
