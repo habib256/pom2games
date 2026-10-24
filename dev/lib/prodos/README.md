@@ -34,4 +34,51 @@ Full example: [`chromabreak`](../../../chromabreak/README.md).
 The `CHROMA.SYSTEM` loader loads `CHROMA.SYS`, which relocates the program to `$6000`
 by copying from the end, including when source and destination overlap.
 
+## The .SYSTEM shim (`sysboot.s`)
+
+ProDOS starts the first `.SYSTEM` file; `sysboot.s` loads the game's SYS
+file at `$2000` and jumps there. It first checks the CPU with 6502
+instructions only (an NMOS //e gets a message, a key, back to ProDOS), then
+from `$0800`: ONLINE on the boot unit, SET_PREFIX to the volume (the game
+opens its files by name), OPEN / READ / CLOSE of `/VOLUME/FILE`. Any error:
+a message, a key, QUIT. The game's `src/boot.s`:
+
+```asm
+.define SYSBOOT_FILE  "WG2.SYS"
+.define SYSBOOT_TITLE "WARGALAGA II"
+.include "sysboot.s"
+```
+
+```make
+$(BUILD)/WG2.SYSTEM: src/boot.s $(PRODOS_SYSBOOT_DEPS)
+	$(CA65) -I $(PRODOS) -o $(BUILD)/boot.o src/boot.s
+	$(LD65) -C $(PRODOS_SYSBOOT_CFG) -o $@ $(BUILD)/boot.o
+```
+
+A SYS image in one piece at `$2000` (a startup that relocates the game)
+links with `$(PRODOS_SYS_CFG)` (`dev/cc65/prodos_sys.cfg`). Users:
+CHROMABREAK, WARGALAGA II.
+
+## Whole files (`file.asm`, `file.s`)
+
+`file.asm`, included at the end of an assembly program (`.ifref`: only what
+is called is assembled, 65C02), wraps OPEN / READ / WRITE / CLOSE on one
+set of parameter lists. Set `pf_name` (Pascal string, relative to the
+prefix or a full path), `pf_iobuf` (1 KB, page aligned, free in the
+bitmap), `pf_buf`, `pf_len`; the calls return C = 1 and A = the MLI error
+(also in `pf_err`), `pf_got` = bytes moved.
+
+| Routine | Effect |
+|---|---|
+| `prodos_open`, `prodos_read`, `prodos_write`, `prodos_close` | one MLI call each (`$4C` = end of file from READ) |
+| `prodos_read_free` | READ with the destination pages freed in the system bitmap meanwhile (pages a crt0 claimed: HGR/DHGR page 2), the bitmap then put back |
+| `prodos_load`, `prodos_load_free` | OPEN, READ, CLOSE (always); the READ's error first |
+| `prodos_save` | OPEN, or CREATE a BIN file (access `$C3`, seedling) then OPEN; WRITE; CLOSE; the first error |
+
+C programs link `$(PRODOS_FILE_SRCS)` (`file.s`): `prodos_file_name`,
+`prodos_file_iobuf`, `prodos_file_buffer`, `prodos_file_length`,
+`prodos_file_actual`, `prodos_load()`, `prodos_load_free()`,
+`prodos_save()` (prodos.h). Users: WARGALAGA II (`HIGHSCORES`, from its
+title overlay), CHROMABREAK (`HIGHSCORES`, the `ENDING` overlay).
+
 Reference: [ProDOS technical reference, system programs](https://prodos8.com/docs/techref/writing-a-prodos-system-program/).

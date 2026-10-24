@@ -36,6 +36,11 @@ init:
     sei
     jsr mouse_context_restore_workspace
     plp
+    ; AppleMouse INITMOUSE selects TEXT and LORES: restore BOOT2's HGR page 1.
+    bit $C050
+    bit $C052
+    bit $C054
+    bit $C057
     lda $FBC0
     bne init_done
     lda _mouse_slot

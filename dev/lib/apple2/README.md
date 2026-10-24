@@ -59,7 +59,8 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   and MICRO-SOKOBAN.
 - **`lz4fh.asm`** — `lz4fh_unpack`: fhpack/LZ4FH decompression into an aligned
   8 KB area (notably the HGR pages). Inputs `lz4fh_src/dst`, configurable
-  scratch; code in RAM, stream validated at build time. A format error
+  scratch; code in RAM (`LZ4FH_HERE=1`: in the caller's current segment,
+  an overlay, instead of `CODE`), stream validated at build time. A format error
   drops into the Monitor, as in the upstream decoder. Provenance and
   Apache-2.0 licence kept in `lz4fh-NOTICE.txt` / `lz4fh-LICENSE.txt`.
 - **`dos.asm`** — `dos_cmd_*`, `disk_protected`: DOS 3.3 commands (BLOAD,

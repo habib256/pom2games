@@ -70,8 +70,11 @@ int main(int argc, char** argv) {
         require(cpu.getProgramCounter() == pc, "timeout at PC=" + std::to_string(cpu.getProgramCounter()));
     };
     const long refresh = pal ? 20280 : 17030;
+    until(at("_main"), 80000000);
+    mem.memWrite(at("front_skip"), 1);   // no title (lot 9): the game at once
     until(at("game_tick"), 80000000);
-    require(read("timing_mode") == unsigned(iic ? 2 : 1), "clock: mouse VBL IRQ on //c, $C019 on //e");
+    mem.memWrite(at("lives"), 50);       // nobody plays: GAME OVER would go to the title
+    require(read("_a2_vbl_mode") == unsigned(iic ? 2 : 1), "clock: mouse VBL IRQ on //c, $C019 on //e");
     if (joy) mem.memWrite(at("joy_mode"), 1);
     // Early, while the ship lives: a shot's effect on the speaker: toggles (STA $C030) only from the wait
     // loops (the //c one too), none before the shot.
@@ -102,7 +105,7 @@ int main(int argc, char** argv) {
     require(std::labs(steps - 1600) <= 2, "game speed: " + std::to_string(steps) + " steps in 3200 refreshes");
     require(l2 == l1, "late frames with the formation seated: " + std::to_string(l2 - l1));
     require(std::labs(long(f2 - f1) - 1000) <= 2, "30 Hz seated: " + std::to_string(f2 - f1) + " frames in 2000");
-    require(read("timing_mode") == unsigned(iic ? 2 : 1), "the clock is still running");
+    require(read("_a2_vbl_mode") == unsigned(iic ? 2 : 1), "the clock is still running");
     // The page being drawn is never the one shown (the flip, by the
     // interrupt on the //c, happens between two frames only).
     for (int k = 0; k < 300; ++k) {
@@ -113,38 +116,42 @@ int main(int argc, char** argv) {
         until(at("game_tick"), 4000000);
     }
     if (irqstop) {
-        // The handler stops showing pages: its STZ ready (between vbl_irq
+        // The handler stops showing pages: its STZ ready (between flip_irq
         // and claimed) becomes NOPs, as if the interrupt had stopped.
         bool patched = false;
-        for (unsigned pc = at("vbl_irq"); pc < at("claimed"); ++pc)
+        for (unsigned pc = at("flip_irq"); pc < at("claimed"); ++pc)
             if (mem.memRead(uint16_t(pc)) == 0x9C && mem.memRead(uint16_t(pc + 1)) == (at("ready") & 255)
                 && mem.memRead(uint16_t(pc + 2)) == (at("ready") >> 8)) {
                 for (int k = 0; k < 3; ++k) mem.memWrite(uint16_t(pc + k), 0xEA);
                 patched = true;
             }
-        require(patched, "STZ ready found in vbl_irq");
-        unsigned fa = word("frame_count"), sa = word("step_count"), va = read("vbl_count");
+        require(patched, "STZ ready found in flip_irq");
+        unsigned fa = word("frame_count"), sa = word("step_count"), va = read("_a2_vbl_count");
         run(600 * refresh);
-        unsigned fb = word("frame_count"), sb = word("step_count"), vb = read("vbl_count");
-        std::cout << "  interrupt stopped: clock mode " << read("timing_mode") << ", vbl_count +" << ((vb - va) & 255)
+        unsigned fb = word("frame_count"), sb = word("step_count"), vb = read("_a2_vbl_count");
+        std::cout << "  interrupt stopped: clock mode " << read("_a2_vbl_mode") << ", vbl_count +" << ((vb - va) & 255)
                   << ", frames +" << (fb - fa) << ", steps +" << (sb - sa) << ", PC " << std::hex
                   << cpu.getProgramCounter() << std::dec << '\n';
-        require(read("timing_mode") == 0, "fallback to delays once the interrupt stopped");
+        require(read("_a2_vbl_mode") == 0, "fallback to delays once the interrupt stopped");
         require(fb - fa > 200 && sb - sa > 200, "the game goes on: " + std::to_string(fb - fa) + " frames, "
                 + std::to_string(sb - sa) + " steps in 600 refreshes");
     }
-    // ESC (or Ctrl-RESET): back to ProDOS, interrupt released, text screen.
+    // ESC, the title, ESC (or Ctrl-RESET): back to ProDOS, interrupt released,
+    // text screen.
     if (reset) {
         mem.resetSoftSwitchesWarm();
         mem.slotBus().reset();
         cpu.softReset();
     } else {
         mem.queueKey(0x1B);
+        until(at("front_main"), 40000000);
+        run(200 * refresh);              // (HIGHSCORES read, the menu)
+        mem.queueKey(0x1B);
     }
     run(400 * refresh);
     require(cpu.getProgramCounter() < 0x6000 || cpu.getProgramCounter() >= 0xC000, "left the game");
-    require(read("timing_mode") == 0, "clock closed at exit");
-    require(mem.memRead(at("timing_mode")) == 0, "clock closed at exit");
+    require(read("_a2_vbl_mode") == 0, "clock closed at exit");
+    require(mem.memRead(at("_a2_vbl_mode")) == 0, "clock closed at exit");
     require(mem.memRead(0xC01A) & 0x80, "text mode after leaving");
     std::string screen;
     for (int row = 0; row < 24; ++row)

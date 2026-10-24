@@ -3,58 +3,15 @@
 
 An event is 3 bytes: melody count (0 = silence), bass count, slices. A count
 is a half period in turns of the player's loop (33 cycles); a slice is 255
-turns, about 8.3 ms. A zero third byte ends the tune.
-
-Counts are whole numbers, so the tunes use just intonation: the scale of C
-whose periods are whole (C4 = 60 turns, a fifth of a semitone under concert
-pitch), plus the nearest counts for the sharps of D, E and A major. A note
-whose count would fall between two turns (F5, D6, C7...) is not available:
-the melodies are written around them."""
-from math import log2
+turns, about 8.3 ms. A zero third byte ends the tune. Counts, just
+intonation and encoding: dev/tools/audio/notes.py (DUET_COUNTS, C4 = 60
+turns; F5, D6, C7... are not available: the melodies are written around
+them)."""
 from pathlib import Path
-CLOCK = 1023000
-TURN, TURNS, LOOK = 33, 255, 34
-SLICE = TURNS * TURN + LOOK
+import sys
 
-COUNTS = {
-    'C2': 240, 'F2': 180, 'G2': 160, 'A2': 144, 'B2': 128,
-    'C3': 120, 'D3': 108, 'E3': 96, 'F3': 90, 'F#3': 86, 'G3': 80, 'A3': 72,
-    'C4': 60, 'D4': 54, 'E4': 48, 'F#4': 43, 'F4': 45, 'G4': 40, 'G#4': 38, 'A4': 36, 'B4': 32,
-    'C5': 30, 'C#5': 29, 'D5': 27, 'E5': 24, 'G5': 20, 'G#5': 19, 'A5': 18, 'B5': 16,
-    'C6': 15, 'E6': 12, 'G6': 10, 'A6': 9,
-}
-SEMITONES = {'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11}
-
-def cents_from_equal(note):
-    """How far the count is from equal temperament, with C4 = 60 turns."""
-    semis = SEMITONES[note[0]] + note.count('#') + 12 * (int(note[-1]) - 4)
-    return 1200 * log2(60 / COUNTS[note]) - 100 * semis
-
-# Pure thirds and sixths are up to 16 cents under the tempered ones, the low D
-# of the scale (10/9) 18; a rounded sharp adds a few more. C#5 is the worst:
-# 12 cents under a pure third above A, where 28 turns would be 49 over.
-for name in COUNTS:
-    assert abs(cents_from_equal(name)) < (42 if name == 'C#5' else 24), (name, cents_from_equal(name))
-
-def encode(tune, tempo):
-    """tune: (melody, bass, beats); '-' is a silence. Two equal melody notes
-    in a row are parted by a short silence taken from the first."""
-    out, at, done = [], 0.0, 0
-    for i, (melody, bass, beats) in enumerate(tune):
-        at += beats * 60.0 / tempo * CLOCK / SLICE
-        slices = round(at) - done
-        done += slices
-        assert 0 < slices < 256, (melody, beats)
-        if melody == '-':
-            out += [0, 1, slices]
-            continue
-        again = i + 1 < len(tune) and tune[i + 1][0] == melody
-        if again:
-            slices -= 2
-        out += [COUNTS[melody], COUNTS[bass], slices]
-        if again:
-            out += [0, 1, 2]
-    return out + [0, 0, 0]
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools/audio'))
+from notes import byte_block as block, duet_encode as encode  # noqa: E402
 
 _ = '-'
 # Title theme (about 5 s): the I-vi-IV-V progression in rising arpeggios over
@@ -121,9 +78,6 @@ FANFARE = [('G4', 'G2', .5), ('G4', 'G2', .5), ('G4', 'G2', .5), ('C5', 'C3', 2)
            ('C5', 'C3', 2), (_, _, .5),
            ('C5', 'C3', .25), ('E5', 'C3', .25), ('G5', 'C3', .25), ('C6', 'C3', .25), ('E6', 'C3', .25),
            ('G6', 'C3', .25), ('C6', 'C2', 3)]
-
-def block(label, data):
-    return [label + ':'] + ['.byte ' + ','.join(map(str, data[i:i + 18])) for i in range(0, len(data), 18)]
 
 root = Path(__file__).resolve().parents[1] / 'src'
 # Title theme and jingles live in the AUX bank after the font (startup.s

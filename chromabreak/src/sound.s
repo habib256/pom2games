@@ -3,7 +3,7 @@ SOUND_SPARE = 27
 ; Apple II one-bit speaker. Bounded bursts leave the mouse ROM IRQ enabled.
 ; No ROM WAIT or zero-page workspace. Each burst ends at its original polarity.
 .export _sound_event, _sound_tick, _sound_stop
-.import _timing_scan
+.import _a2_vbl_scan
 .bss
 _sound_active: .res 1
 .export _sound_active
@@ -53,7 +53,7 @@ pitched:
         bne pulse
         ldy #4                   ; two cycles for the long falling loss cue
 pulse:
-        jsr _timing_scan          ; low tones can span a whole vertical blank
+        jsr _a2_vbl_scan          ; low tones can span a whole vertical blank
         bit $C030
         ldx pitch
 half_period:
@@ -146,4 +146,4 @@ tune_start:
 ; The modules after this one are sensitive to their addresses (spare.s):
 ; the player left for page 3, these bytes keep them where they were.
         .res SOUND_SPARE
-.assert * = $9F5D, lderror, "timing.s moved: adjust SOUND_SPARE (see spare.s)"
+.assert * = $9E7C, lderror, "timing.s moved: adjust SOUND_SPARE (see spare.s)"

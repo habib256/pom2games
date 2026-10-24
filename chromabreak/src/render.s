@@ -5,7 +5,7 @@
 .macpack longbranch
 .include "apple2.inc"
 .importzp ptr1, ptr3, ptr4, tmp1, tmp2, tmp3, tmp4, aux_read
-.import _dhgr_base, _timing_scan
+.import _dhgr_base, _a2_vbl_scan
 .export _fast_draw, _fast_restore, _fast_reset, _fast_fill
 .export _render_x, _render_y, _render_w, _render_h, _render_color, _render_style
 .bss
@@ -357,7 +357,7 @@ _fast_restore:
         lda valid,x
         bne :+
         rts
-:       jsr _timing_scan
+:       jsr _a2_vbl_scan
         php
         lda #0
         sta valid,x
@@ -440,7 +440,7 @@ restore_done:
         rts
 _fast_draw:
         pha
-        jsr _timing_scan
+        jsr _a2_vbl_scan
         pla
         php
         jsr setup
@@ -514,7 +514,7 @@ prepare:
         sta old_h,x
         jmp sprite_prepare
 draw_row:
-        jsr _timing_scan
+        jsr _a2_vbl_scan
         ; Style 2: the top and bottom tips occupy only the central pixel.
         lda #255
         sta tip_left
@@ -1229,7 +1229,7 @@ bg_rectangle:
         jeq black_rectangle
         jsr bg_setup
 bg_rect_row:
-        jsr _timing_scan
+        jsr _a2_vbl_scan
         jsr bg_tile_row
         jsr scanline
 bg_rect_byte:
@@ -1290,7 +1290,7 @@ black_rectangle:
         dec
         sta black_last
 black_row:
-        jsr _timing_scan
+        jsr _a2_vbl_scan
         jsr scanline
         lda bx
         ora #1
@@ -1732,7 +1732,7 @@ pad_blit:
         lda #5
         sta rows
 pad_row:
-        jsr _timing_scan
+        jsr _a2_vbl_scan
         lda ptr4
         ldx ptr4+1
         ldy row
@@ -1803,7 +1803,7 @@ pad_clear:
         lda #5
         sta rows
         ; Five short rows: one blank scan covers the whole strip.
-        jsr _timing_scan
+        jsr _a2_vbl_scan
 pad_clear_row:
         jsr sprite_scanline
         lda #$80

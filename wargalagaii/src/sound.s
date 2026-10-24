@@ -18,7 +18,7 @@
 ; enters aux memory by tr_tick, then writes the registers that changed
 ; (shadows: chip 1 belongs to the handler, chip 2 to sound_frame); it keeps
 ; mb_chip. A tick takes ~1 500-3 000 cycles: the handler scans the //e VBL
-; on entry and on exit (timing_scan, atomic) so no blank goes unseen.
+; on entry and on exit (_a2_vbl_scan, atomic) so no blank goes unseen.
 ; S mutes / unmutes (the song pauses).
 
 MUS_PERIOD = 1020484 / MUS_HZ - 2   ; T1 latch (free run: latch + 2 cycles)
@@ -238,7 +238,7 @@ irq_ifr:
 :
 irq_ack:
         lda $C404                ; T1 low: acknowledges
-        jsr timing_scan          ; (a long handler: see the header)
+        jsr _a2_vbl_scan          ; (a long handler: see the header)
         inc mus_ticks
         lda sound_on
         beq mi_done
@@ -263,7 +263,7 @@ mi_reg: lda AY_REGISTERS,x       ; inline ay_put: most are unchanged
         jsr mb_write
 :       pla
         sta mb_chip
-        jsr timing_scan
+        jsr _a2_vbl_scan
 mi_done:
         clc
         rts

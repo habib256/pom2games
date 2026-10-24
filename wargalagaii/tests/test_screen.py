@@ -14,7 +14,7 @@ redraw of the state gives:
     flying aliens, explosions, shots, bombs   EOR, clipped at row 191
     stars                 star i (23 down to 0) only on a black byte
 
-The test plays a random game (arrows, SPACE, a GAME OVER and a restart),
+The test plays a random game (arrows, SPACE, a GAME OVER, the title and a restart),
 stops at render_done on sampled frames and compares the 8 KB page.
 
     tests/test_screen.py [--frames N] [--seed S]
@@ -30,6 +30,7 @@ GAME = ROOT / 'wargalagaii'
 sys.path.insert(0, str(ROOT / 'dev/tools'))
 sys.path.insert(0, str(GAME / 'tools'))
 import a2test
+from boot import boot
 from hgr_tables import hgr_offset
 import fonts
 import model
@@ -136,7 +137,9 @@ def expected(st, T, glyphs):
             else:
                 put(fly[x % 7 * 2 + anim], cell_byte(x), st['a_y'][i], 'sta')
     msg = b' GAME OVER  ' if st['game_over'] else level_text(st) if st['phase'] else \
-        b'METEOR STORM' if st['storm'] and st['m_wait'] else b''
+        b'METEOR STORM' if st['storm'] and st['m_wait'] else \
+        M.PICK_TEXT[st['pick_msg']].center(12).encode() if st['pick_t'] else \
+        b'    DEMO    ' if st['demo'] else b''
     for k, ch in enumerate(msg):
         put([[v] for v in glyphs[ch]], (40 - 12) // 2 + k, 96, 'sta')
     want = None
@@ -174,7 +177,7 @@ def expected(st, T, glyphs):
         if st['e_y'][k]:
             c = st['e_c'][k]
             put(T['bomb'][c % 7], cell_byte(c), st['e_y'][k], 'eor')
-    icons = [sprites.icon(c, colour) for c, colour in sprites.ICONS]
+    icons = [sprites.icon_bytes(k) for k in range(len(sprites.ICON_SHAPES))]
     for k in range(M.N_OBJ):
         if st['obj_y'][k]:
             put(icons[st['obj_kind'][k]], 2 * st['obj_k'][k], st['obj_y'][k], 'eor')
@@ -185,6 +188,7 @@ def expected(st, T, glyphs):
     return page
 
 
+M_OVER_WAIT = 60                 # game.s OVER_WAIT: fire counts from then
 FIELDS = {'ship_c': 1, 'shot_limit': 1, 'shot_y': M.MAX_SHOTS, 'shot_c': M.MAX_SHOTS,
           'star_y': M.NSTARS, 'star_col': M.NSTARS, 'a_state': M.NALIENS, 'a_x': M.NALIENS,
           'a_y': M.NALIENS, 'a_timer': M.NALIENS, 'row_anim': M.ROWS, 'e_y': M.E_SHOTS,
@@ -192,31 +196,35 @@ FIELDS = {'ship_c': 1, 'shot_limit': 1, 'shot_y': M.MAX_SHOTS, 'shot_c': M.MAX_S
           'game_over': 1, 'score': 3, 'credits': 2, 'obj_y': M.N_OBJ, 'obj_k': M.N_OBJ,
           'obj_kind': M.N_OBJ, 's_level': 1, 't_level': 1, 'extra_bits': 1, 'shield_t': 2,
           'level': 1, 'loop': 1, 'phase': 1, 'a_big': M.NALIENS, 'boss_hp': 1, 'boss_x': 1,
-          'boss_boom': 1, 'hurry': 1, 'h_x': 1, 'storm': 1, 'm_wait': 1, 'm_speed': 1, 'm_dist': 2}
+          'boss_boom': 1, 'hurry': 1, 'h_x': 1, 'storm': 1, 'm_wait': 1, 'm_speed': 1, 'm_dist': 2,
+          'demo': 1, 'pick_msg': 1, 'pick_t': 1}
 
 
-def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, cheats=()):
+def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, cheats=(), demo=False):
     """start: begin at that level with a cheating player (invulnerable,
     triple shot, 10 shots) who clears levels: teleports, LEVEL n, flypast
     and kamikaze aliens. hurry: the level has dragged (level_t near
-    HURRY_T): the saucer comes out."""
+    HURRY_T): the saucer comes out. demo: the attract mode (lot 9), from
+    the title left alone, no key (a key would stop it)."""
     L = a2test.labels(labels, strip=True)
     T, glyphs = tables(), font()
     rng = random.Random(seed)
     first = min(L[n] for n in FIELDS)
     span = max(L[n] + k for n, k in FIELDS.items()) - first
-    steps = [L.until('game_tick', 3000)]
+    steps = [*boot(L)]
     if start is not None:
-        steps = [L.until('main', 3000), L.poke('start_level', start), L.until('game_tick', 3000),
+        steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', start), L.until('game_tick', 3000),
                  L.poke('weapon', 2), L.poke('shot_limit', 10), L.poke('noshop', 1)]
         steps += [L.poke(n, v) for n, v in cheats]
         if hurry:
             steps += [L.poke('level_t', M.HURRY_T - 40), L.poke('level_t', M.HURRY_T - 40 >> 8, 1)]
+    if demo:
+        steps = [L.until('main', 3000), L.until('demo_init', 3000), L.until('game_tick', 60)]
     samples = 0
     for k in range(frames * every):
         if start is not None and k % 20 == 0:
             steps += [L.poke('invul_t', 60), L.poke('fire_held', 0x80), L.poke('autofire_t', 255)]
-        if k % 5 == 0:
+        if k % 5 == 0 and not demo:
             steps.append('press:' + rng.choice(['\\<', '\\>', ' ', ' ', ' ', 'J', 'L']))
         if k % every == every - 1:
             steps += [L.until('render_done', 60), L.peek('page'), L.peek('step_count', 2),
@@ -225,14 +233,18 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, ch
         else:
             steps.append(L.until('render', 60))
         steps.append(L.until('game_tick', 60))   # (until X twice: no progress)
-        if k == frames * every // 2 and start is None:   # let the game end, then restart
-            steps += ['wait:3000']
+        if k == frames * every // 2 and start is None and not demo:   # let the game end, then restart
+            # (one life left; over_wait held back: GAME OVER stays instead of
+            # going to the title, lot 9)
+            steps += [L.poke('lives', 1), L.poke('armour', 0)]
+            steps += ['wait:100', L.poke('over_wait', 0)] * 30
             for _ in range(10):
                 steps += [L.until('render_done', 60), L.peek('page'), L.peek('step_count', 2),
                           f'peek:{first:04X}:{span}', 'peek:2000:8192', 'peek:4000:8192',
                           L.until('game_tick', 60)]
                 samples += 1
-            steps += ['key: ', 'wait:40', L.until('game_tick', 60)]
+            steps += [L.poke('over_wait', M_OVER_WAIT), 'key: ', L.until('front_main', 300), 'wait:60',
+                      'key: ', 'wait:40', L.until('game_tick', 60)]
     r = a2test.run(disk, steps, iie=True, timeout=1800)
     bad = saucer = stormy = 0
     states = set()
@@ -242,7 +254,8 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, ch
         st = {name: block[L[name] - first:L[name] - first + size] for name, size in FIELDS.items()}
         for name in ('ship_c', 'shot_limit', 'lives', 'armour', 'ship_state', 'invul_t', 'game_over',
                      's_level', 't_level', 'extra_bits', 'level', 'loop', 'phase', 'boss_hp',
-                     'boss_x', 'boss_boom', 'hurry', 'h_x', 'storm', 'm_wait', 'm_speed'):
+                     'boss_x', 'boss_boom', 'hurry', 'h_x', 'storm', 'm_wait', 'm_speed', 'demo',
+                     'pick_msg', 'pick_t'):
             st[name] = st[name][0]
         st['step_count'] = r.mem(L['step_count'], 2, n)[0]
         states.update(st['a_state'])
@@ -261,9 +274,11 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, ch
     assert not bad, f'{bad} frames differ from a redraw from scratch'
     assert saucer or not hurry, 'the hurry-up saucer never came out'
     what = (f'from level {start + 1}, cheating: teleports, flypast, kamikaze' if start is not None
-            else 'play, GAME OVER, restart')
+            else 'play, GAME OVER, title, restart')
     if hurry:
         what = f'level dragging: the saucer in {saucer} of them'
+    if demo:
+        what = 'the demo, DEMO shown'
     if cheats:
         what = f'from level {start + 1}, then Meteor Storm in {stormy} of them'
         assert stormy, 'no frame in the storm'
@@ -276,7 +291,7 @@ def messages(disk, labels):
     10, wrong past level 1 000), up to the last loop (it saturates at 255)."""
     L = a2test.labels(labels, strip=True)
     cases = [(0, 0), (8, 0), (97, 0), (98, 0), (0, 9), (98, 9), (50, 120), (99, 255)]
-    steps = [L.until('game_tick', 3000)]
+    steps = [*boot(L)]
     for level, loop in cases:
         steps += [L.poke('phase', 0), 'wait:6', L.poke('level', level), L.poke('loop', loop),
                   L.poke('clear_t', 200), L.poke('phase', 1), 'wait:20', L.peek('msg_text', 12)]
@@ -305,6 +320,7 @@ def main():
     check(a.disk, a.labels, 240, a.seed, every=11, start=24)   # the boss, its fall
     check(a.disk, a.labels, 60, a.seed, every=5, start=0, hurry=True)   # the saucer
     check(a.disk, a.labels, 100, a.seed, every=9, start=3, cheats=[('subgame', 1)])   # Meteor Storm
+    check(a.disk, a.labels, 60, a.seed, every=9, demo=True)   # the attract mode
 
 
 if __name__ == '__main__':

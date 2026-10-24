@@ -12,7 +12,7 @@ include $(PRODOS)/prodos.mk
 include $(MOUSE)/mouse.mk
 DISK := $(DIST)/CHROMABREAK.po
 SRCS := src/game.c src/records.c src/spare.s src/render.s src/physics.s src/collision.s src/number.s src/sound.s src/timing.s src/finetext.s src/enemies.s src/tables.s src/finale_music.s
-LIB_SRCS := $(HGRC_65C02_NUM_SRCS) $(sort $(HGRC_DHGR_SRCS) $(HGRC_DHGR_SMALL_TEXT_SRCS)) $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) $(PRODOS_SRCS) $(MOUSE_SRCS)
+LIB_SRCS := $(HGRC_65C02_NUM_SRCS) $(sort $(HGRC_DHGR_SRCS) $(HGRC_DHGR_SMALL_TEXT_SRCS)) $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) $(APPLE2C_VBL_SRCS) $(APPLE2C_VBL_PAL_SRCS) $(PRODOS_SRCS) $(PRODOS_FILE_SRCS) $(MOUSE_SRCS)
 OBJS := $(BUILD)/crt0_prodos.o $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o)))
 OBJS := $(OBJS:.s=.o)
 LIB_OBJS := $(addprefix $(BUILD)/,$(notdir $(LIB_SRCS:.c=.o)))
@@ -69,13 +69,13 @@ $(GAME_LIB): $(LIB_OBJS) Makefile $(HGRC)/hgrc.mk
 	$(AR65) a $@ $(LIB_OBJS)
 $(BUILD)/game.bin: $(OBJS) $(GAME_LIB) Makefile $(DEV)/cc65/apple2_dhgr_prodos_c.cfg
 	$(CL65) -t none -C $(DEV)/cc65/apple2_dhgr_prodos_c.cfg -m $(BUILD)/game.map -Ln $(BUILD)/game.lbl -o $@ $(OBJS) $(GAME_LIB)
-$(BUILD)/CHROMA.SYS: $(BUILD)/game.bin $(BUILD)/tables.bin $(BUILD)/levels.bin src/levels.inc src/fine_font.inc src/music_aux.inc src/music_offsets.inc src/duet.inc $(APPLE2)/duet.asm src/startup.s src/startup.cfg
+$(BUILD)/CHROMA.SYS: $(BUILD)/game.bin $(BUILD)/tables.bin $(BUILD)/levels.bin src/levels.inc src/fine_font.inc src/music_aux.inc src/music_offsets.inc src/duet.inc $(APPLE2)/duet.asm src/startup.s $(PRODOS_SYS_CFG)
 	$(CA65) --bin-include-dir $(BUILD) --bin-include-dir src -I src -I $(APPLE2) -o $(BUILD)/startup.o src/startup.s
-	$(LD65) -C src/startup.cfg -o $@ $(BUILD)/startup.o
-$(BUILD)/CHROMA.SYSTEM: src/boot.s src/boot.cfg
+	$(LD65) -C $(PRODOS_SYS_CFG) -o $@ $(BUILD)/startup.o
+$(BUILD)/CHROMA.SYSTEM: src/boot.s $(PRODOS_SYSBOOT_DEPS)
 	@mkdir -p $(@D)
-	$(CA65) -o $(BUILD)/boot.o src/boot.s
-	$(LD65) -C src/boot.cfg -o $@ $(BUILD)/boot.o
+	$(CA65) -I $(PRODOS) -o $(BUILD)/boot.o src/boot.s
+	$(LD65) -C $(PRODOS_SYSBOOT_CFG) -o $@ $(BUILD)/boot.o
 $(BUILD)/HIGHSCORES: tools/seed_records.py
 	@mkdir -p $(@D)
 	$(PYTHON) $< $@

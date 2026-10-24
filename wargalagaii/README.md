@@ -1,21 +1,29 @@
 # WARGALAGA II
 
-**En cours : lots 1 à 8 faits (2026-10-23)** — démarrage ProDOS, horloge
+<table><tr>
+<td><img src="screenshots/title.png" width="380" alt="WARGALAGA II : l'écran titre et son menu"></td>
+<td><img src="screenshots/demo.png" width="380" alt="Le mode démo : une vague entre, le vaisseau tire"></td>
+</tr></table>
+
+**Lots 1 à 9 faits (2026-10-23)**, reste la validation sur vraies machines —
+démarrage ProDOS, horloge
 VBL, étoiles, vaisseau et tirs, 40 aliens qui entrent en vagues, se posent
 en formation qui respire, plongent et bombardent ; collisions, explosions,
 vies, armure, score et HUD, GAME OVER, à 30 i/s ; son (musique PT3 et
 bruitages sur Mockingboard, bruitages au haut-parleur, S coupe) ; 32 bonus
-qui tombent, jauges S/B/T, armes double et triple, tir automatique, ×2/×5,
+qui tombent (une forme par famille, [aperçu](screenshots/bonus.png) ; au ramassage, son nom
+au milieu du terrain et un son, bonus ou malus), jauges S/B/T, armes double et triple, tir automatique, ×2/×5,
 bouclier, gel ; 100 niveaux en paquets, boss, soucoupe ; boutique et rangs ;
-sous-jeux Meteor Storm et Memory Station. Plan et état :
+sous-jeux Meteor Storm et Memory Station ; écran titre (image LZ4FH,
+menu, aide), **mode démo** qui rejoue une partie de l'autopilote, records
+`HIGHSCORES` avec initiales, choix clavier / manette retenu. Plan et état :
 [`TODO.md`](TODO.md) ; référence du jeu modèle :
-[`docs/warblade-reference.md`](docs/warblade-reference.md). Le jeu n'est pas
-encore dans les listes `all` / `test` du `Makefile` racine (lot 9).
+[`docs/warblade-reference.md`](docs/warblade-reference.md).
 
     make            # ../dist/WARGALAGAII.po
     make run        # POM2, //e enhanced
     make run-iic    # POM2, //c
-    make test       # ~10 s : volume, cadence NTSC/PAL, oracles, banc, fin de partie, commandes, sorties
+    make test       # ~5 min : volume, cadence NTSC/PAL, oracles, banc, écrans, son, boutique, sous-jeux, titre, démo, records
     python3 tools/profile.py [--shots 10]   # cycles par image et par routine
 
 Shoot'em up fixe dans l'esprit de **Warblade** (Edgar M. Vigdal, PC/Mac 2003),
@@ -47,7 +55,7 @@ démarrage et la cadence.
 - **65C02 exigé** (`STZ`, `BRA`, `PHX/PLX`, `(zp)`, `TRB/TSB`, mode décimal
   fiable pour le score BCD) : //e *enhanced* ou //c. Une //e non améliorée
   (NMOS) reçoit un message au démarrage et rend la main, comme
-  `chromabreak/src/boot.s` (test `INC A` = `NOP` sur NMOS). IIgs : non visé
+  CHROMABREAK (`dev/lib/prodos/sysboot.s`, test `INC A` = `NOP` sur NMOS). IIgs : non visé
   (polarité VBL différente, `apple2frame` l'exclut) ; s'il démarre, tant
   mieux, sans test.
 - **128 Ko** : la mémoire auxiliaire sert de réserve (dessins d'aliens et
@@ -144,7 +152,7 @@ L'horloge vient du VBL : scrutation de `RDVBLBAR` (`$C019`, bit 7 à 0
 pendant le VBL) sur //e (`apple2frame`). Le //c n'a pas de VBL lisible de
 la même façon (`$C019` y est un drapeau d'interruption verrouillé) : on
 prend l'**interruption VBL du firmware souris intégré** (mode 9,
-`chromabreak/src/timing.s`, `dev/lib/mouse`). C'est une source de temps,
+`dev/lib/apple2c/apple2vbl.s`, commun avec CHROMABREAK, et `dev/lib/mouse`). C'est une source de temps,
 pas une entrée : la souris n'est jamais lue. Alternative écartée :
 programmer l'IOU soi-même (`$C05B`, acquittement par `$C070`) ; la ROM
 du //c sert déjà ces interruptions par le firmware souris, et le chemin
@@ -188,9 +196,17 @@ au mieux un très court échantillon hors jeu (un mot au titre).
 | ↑ ↓ ← → RETURN (ou ESPACE), ESC | Y, bouton 0 | boutique (← ↑ monter, → ↓ descendre, ESC : sortir) |
 | ↑ ↓ ← → (ou I K J L), RETURN (ou ESPACE), ESC | X, Y, bouton 0 | Memory Station (retourner une carte, ESC : sortir) |
 | Pomme ouverte, ESPACE tenus | bouton 0 tenu | Meteor Storm : accélérer (relâcher : ralentir) |
-| ESC | | pause / menu |
-| S | | son coupé / remis |
-| TAB | | clavier ↔ manette (provisoire, en attendant le menu du lot 9) |
+| ESC | | en jeu : retour au titre (record possible) ; au titre : quitter vers ProDOS |
+| S | | son coupé / remis (en jeu et au titre) |
+| TAB | | en jeu : clavier ↔ manette |
+| RETURN, ESPACE | bouton 0 | titre : jouer |
+| J (ou TAB), H | | titre : clavier ↔ manette (retenu dans `HIGHSCORES`), aide |
+| lettres, chiffres, `.`, ← ou DELETE, RETURN | Y, bouton 0 | initiales d'un record (3 caractères) |
+
+Titre : le menu reste ~10 s, puis les records ~8 s, puis le **mode démo**
+(une partie du niveau 1 au début du 4, ~1 min, « DEMO » au milieu) ; une
+touche ou un bouton revient au titre. GAME OVER : le titre après le tir ou
+~8 s, avec la saisie des initiales si le score entre dans les 8 records.
 
 Pas de souris : elle n'apporte rien à ce jeu (choix du 2026-10-22).
 
@@ -213,25 +229,27 @@ n'écrit pas les pages aux).
 | `$00D0-$00EF` | page zéro du lecteur PT3 (gardée entre deux ticks) |
 | `$0200-$03FF` | libre ; page 3 : lecteur haut-parleur prévu (boucle à cycles comptés, sans franchir de page) |
 | `$0400-$07FF` | page texte 1, jamais affichée en jeu : tables (en évitant les trous `$x78-$x7F`, `$xF8-$xFF`) |
-| `$0800-$0FFF` | code de Meteor Storm (`storm.s`, zone `LOWM`), copié de `WG2.AUX` au démarrage ; le crt0 protège cette zone |
+| `$0800-$0FFF` | code de Meteor Storm (`storm.s`) et lecteur du mode démo avec son script (`demo.s`, `demo.inc`), textes des ramassages (`bonus.inc`, segment `PICK`), zone `LOWM`, copiés de `WG2.AUX` au démarrage ; le crt0 protège cette zone |
 | `$1000-$12FF` | tables de lignes `hgr_lo`, `hgr_hi`, `hgr_hi2` alignées sur une page (segment `ROWS`) |
-| `$1300-$1FDF` | tampon ProDOS (`IOBUF`, démarrage), `LOWBSS` : sprites prédécalés du paquet courant |
+| `$1300-$1FDF` | tampon ProDOS (`IOBUF` : démarrage, `HIGHSCORES`), `LOWBSS` : sprites prédécalés du paquet courant, la table des records (`rec_buf`) |
 | `$1FE0-$1FFF` | trampolines vers la mémoire aux (mêmes octets en aux) |
 | `$2000-$3FFF`, `$4000-$5FFF` | pages HGR 1 et 2 |
 | `$6000-$BDFF` | code, données, BSS (~23,5 Ko) |
 | `$BE00-$BEFF` | pile C ; `$BF00` page globale ProDOS |
 | aux `$2000-$5B7F` | `WG2.AUX` : dessins × teintes des paquets (15 232 octets, copie par `AUXMOVE` `$C311` entre deux niveaux) |
 | aux `$6000-$6C55` | lecteur PT3 et morceau ; trampolines en aux `$1FE0` |
-| aux `$7000-$7FFF` | overlay de la boutique et de Memory Station, copié en `$4000` à l'ouverture |
-| aux `$8000-…` | code de Meteor Storm (fin de `WG2.AUX`), copié en `$0800` au démarrage |
+| aux `$7000-$8FFF` | overlay : boutique et Memory Station (copiés en `$4000` à l'ouverture, jusqu'au lecteur `duet`), puis l'écran titre avec son image LZ4FH (792 octets) et le décodeur (overlay entier copié à chaque titre) |
+| aux `$9000-…` | code de Meteor Storm, du mode démo et textes des ramassages (fin de `WG2.AUX`), copié en `$0800` au démarrage |
 
 ## Disquette
 
 `dist/WARGALAGAII.po`, volume `/WARGALAGAII` (11 caractères, nom ProDOS
 valide). `WARGALAGA.SYSTEM` ferait 16 caractères, un de trop : l'amorce
 s'appelle `WG2.SYSTEM`, le programme `WG2.SYS` (même schéma que
-`CHROMA.SYSTEM` / `CHROMA.SYS`), plus `HIGHSCORES`, les données aux
-(`WG2.AUX`) et les overlays (boutique, sous-jeux).
+`CHROMA.SYSTEM` / `CHROMA.SYS`), plus `HIGHSCORES` (64 octets, format dans
+`tools/records.py` : 8 records, la manette choisie ; recréé s'il manque, une
+disquette protégée donne seulement un message) et les données aux
+(`WG2.AUX` : paquets, PT3, overlay, tempête et démo).
 
 Auteur : VERHILLE Arnaud. Licence : [GPL-3.0](../LICENSE). Warblade est une
 œuvre d'Edgar M. Vigdal (EMV Software) ; rien n'en est repris.

@@ -11,7 +11,7 @@
 .macpack longbranch
 
 .import _prodos_video_claim, _prodos_video_release
-.import timing_init, timing_close, timing_present, timing_scan
+.import timing_init, timing_close, timing_present, _a2_vbl_scan
 .import timing_refreshes, joy_x, joy_mode
 .import __TRAMP_LOAD__, __TRAMP_RUN__, __TRAMP_SIZE__, __AUXM_LAST__
 .export _main, _game_shutdown
@@ -23,7 +23,7 @@
 .export sound_frame, sound_done
 .export msg_drawn, hud_seen, page, credits, fire_held, shot_dx, obj_y, obj_k, obj_kind
 .export s_level, t_level, weapon, autofire_t, mult_t, shield_t, freeze_t, mult, auto_cnt
-.export extra_bits, marks, mark_dark, subgame
+.export extra_bits, marks, mark_dark, subgame, pick_msg, pick_t
 .export level, loop, phase, clear_t, level_t, lkind, bonus_kills, w_kills
 .export dive_gap, max_divers, fire_gap, bomb_dy, kami_dy, start_level, cur_alien, pack_loaded
 .export mus_ticks, shop, rank, noshop, shop_can, shop_buy, shop_exit, shop_screen, sh_cur
@@ -31,6 +31,9 @@
 .export storm, station, m_speed, m_dist, m_acc, m_time, m_wait, m_crash, storm_step, storm_spawn
 .export m_round, m_pairs, m_first, m_card, m_up, mem_screen, mem_loop, mem_deal, mem_turn
 .export mem_sec, mem_cx, mem_cy, station_exit
+.export front_skip, front_run, front_main, fr_panel, fr_pos, fr_name, rec_buf, rec_state, rec_save, rec_err
+.export demo, demo_input, demo_end, demo_script, over_wait
+.import __DUET_LOAD__, __DUET_SIZE__
 .export a_big, a_hp, cur_big, e_dx, boss_hp, boss_x, boss_dir, boss_boom, boss_gap, boss_t, boss_mv, hurry, h_x, h_dir, h_t, spk_period, audio_slot, sound_on, snd_ev
 .export shots_erase, aliens_pass, form_draw, movers_draw, stars_draw, hud_draw
 .export alien_sta, alien_sta_done, alien_eor, alien_eor_done, alien_clr, alien_clr_done
@@ -84,12 +87,13 @@ SHIP_HIT_X0 = 1                 ; cells of the ship that can be hit
 SHIP_HIT_X1 = 5
 SHIP_HIT_Y0 = SHIP_Y + 2
 SHIP_HIT_Y1 = SHIP_Y + 9
-OVER_WAIT  = 60                 ; frames of GAME OVER before fire restarts
+OVER_WAIT  = 60                 ; frames of GAME OVER before fire counts
+OVER_END   = 240                ; frames of GAME OVER: the title (lot 9)
 HUD_KEYS   = 11                 ; bytes of state the HUD shows
 ; Lot 5: falling objects, gauges, timed bonuses (tools/model.py).
 N_OBJ      = 6
 OBJ_DY     = 2
-OBJ_H      = 8
+OBJ_H      = 13                 ; = ICON_H (tools/sprites.py)
 DROP_RATE  = 40                 ; rand8 below: a kill drops something
 S_MAX      = 5
 B_MIN      = 5
@@ -215,6 +219,8 @@ auto_cnt:    .res 1
 extra_bits:  .res 1             ; letters E X T R A collected (bits 0-4)
 marks:       .res 1             ; rank marks (lot 7)
 mark_dark:   .res 1
+pick_msg:    .res 1             ; what the last pickup did (model.PICK_TEXT)
+pick_t:      .res 1             ; >0: named mid-field (render.s msg_draw)
 shop:        .res 1             ; the shop is open (lot 7): logic waits
 rank:        .res 1
 subgame:     .res 1             ; sub-game icon caught: 1 meteor, 2 memory (lot 8)
@@ -276,6 +282,7 @@ m_up:        .res MEM_CELLS     ; face up
 game_vars_end:
 over_wait:   .res 1             ; frames since GAME OVER
 space_held:  .res 1
+demo:        .res 1             ; the attract mode plays (demo.s, lot 9)
 .data
 pack_loaded: .byte $FF          ; WG2.AUX table in cur_alien ($FF: none)
 .bss
@@ -290,15 +297,17 @@ nohit:       .res 1             ; tests: shots hit nothing (the bench)
 noshop:      .res 1             ; tests: the shop closes at once
 .data
 start_level: .byte 0            ; tests and the pilot: the first level
+front_skip:  .byte 0            ; tests: no title, the game at once (SEED)
 .bss
 
 .rodata
 .include "sprites.inc"           ; first: the sprite routines need the sizes
+.assert ICON_H = OBJ_H, error, "OBJ_H: the icons' height (tools/sprites.py)"
 .include "paths.inc"
 .include "sound.inc"
 
 .segment "IOBUF"
-iobuf:       .res 1024          ; ProDOS file buffer (boot only)
+iobuf:       .res 1024          ; ProDOS file buffer (WG2.AUX, HIGHSCORES)
 .segment "LOWBSS"
 cur_alien:   .res ALIEN_TABLE   ; the current pack's small alien (from aux)
 cur_big:     .res BIG_TABLE     ; and its big one
@@ -339,24 +348,41 @@ claimed:
         jsr select_page
         lda #1
         sta steps
+        lda front_skip
+        bne game_tick
+        lda #0                   ; the title first
+        jsr front_run
+        jcs done
 
 game_tick:
-        jsr read_input
-        lda quit
-        bne done
-        lda game_over            ; GAME OVER: after a while, fire restarts
-        beq playing
+        lda demo                 ; the demo: a key or a button stops it
+        beq :+
+        jsr demo_poll
+        bra :++
+:       jsr read_input
+:       lda quit                 ; ESC: the title
+        jne to_front
+        lda game_over            ; GAME OVER: after a while, fire (or more
+        beq playing              ; time) goes to the title; the demo's at once
+        lda demo
+        bne to_front
         lda over_wait
-        cmp #OVER_WAIT
-        bcs over_ready
+        cmp #OVER_END
+        bcs to_front
         inc over_wait
+        cmp #OVER_WAIT
+        bcs :+
         stz fire_req
-        bra playing
-over_ready:
-        lda fire_req
+:       lda fire_req
         beq playing
-        jsr new_game
         stz fire_req
+to_front:
+        stz quit
+        lda demo                 ; a game (not the demo) ended: a record?
+        eor #1
+        jsr front_run
+        bcs done
+        jmp game_tick
 playing:
         ldx steps
         beq render_frame
@@ -394,7 +420,7 @@ sound_done:
         lda page
         eor #1
         jsr select_page
-        bra game_tick
+        jmp game_tick
 done:   rts
 
 ; WG2.AUX -> aux memory at AUX_BASE (every small and big alien design x
@@ -402,7 +428,7 @@ done:   rts
 ; message, back to ProDOS.
 AUX_ALL = LOW_AUX + LOW_LEN - AUX_BASE
 .assert __AUXM_LAST__ <= SHOP_AUX, error, "the PT3 player runs into the shop"
-.assert SHOP_AUX + SHOP_LEN <= LOW_AUX, error, "the shop runs into the storm"
+.assert SHOP_AUX + OVL_LEN <= LOW_AUX, error, "the overlay runs into the storm"
 
 .assert AUX_BASE + AUX_SIZE <= $6000, error, "the packs run into the PT3 player"
 aux_load:
@@ -597,33 +623,24 @@ af_chunk:
         clc                      ; aux -> main
         jsr $C311                ; AUXMOVE
         plp
-        jsr timing_scan
+        jsr _a2_vbl_scan
         bra af_chunk
 pc_done:
         rts
 
 ; The shop or Memory Station: page 1 shown and cleared, the overlay aux ->
-; page 2 ($4000), the screen, then the rules on leaving (logic.s); Memory
-; Station may lead to the shop. Then a fresh game screen.
-SHOP_AUX = $7000                 ; (WG2.AUX: packs, PT3 at $6000, shop and
-SHOP_LEN = __SHOPM_LAST__ - $4000 ; station, storm at $8000)
-LOW_AUX  = $8000
+; page 2 ($4000; up to its speaker player: not the title's part), the
+; screen, then the rules on leaving (logic.s); Memory Station may lead to
+; the shop. Then a fresh game screen.
+SHOP_AUX = $7000                 ; (WG2.AUX: packs, PT3 at $6000, the
+SHOP_LEN = __DUET_LOAD__ + __DUET_SIZE__ - $4000 ; overlay, storm and demo
+OVL_LEN  = __SHOPM_LAST__ - $4000 ; at $9000)
+LOW_AUX  = $9000
 LOW_LEN  = __LOWM_LAST__ - $0800
 shop_run:
-        lda #$20
-        jsr clear_page
-        bit $C054
-        lda #<$4000
-        sta af_dst
-        lda #>$4000
-        sta af_dst+1
-        lda #<SHOP_LEN
-        sta af_len
-        lda #>SHOP_LEN
-        sta af_len+1
-        lda #<SHOP_AUX
-        ldy #>SHOP_AUX
-        jsr aux_fetch
+        ldx #<SHOP_LEN
+        ldy #>SHOP_LEN
+        jsr ovl_load
 sr_screen:
         lda station
         beq :+
@@ -645,6 +662,51 @@ sr_screen:
         jsr render_init
         lda page
         jmp select_page
+
+; Page 1 cleared and shown, X (lo) Y (hi) bytes of the overlay aux -> $4000.
+ovl_load:
+        stx af_len
+        sty af_len+1
+        lda #$20
+        jsr clear_page
+        bit $C054
+        lda #<$4000
+        sta af_dst
+        lda #>$4000
+        sta af_dst+1
+        lda #<SHOP_AUX
+        ldy #>SHOP_AUX
+        jmp aux_fetch
+
+; The title screen (front.s, in the overlay); A = 1: a game just ended (a
+; record?). Then a new game, or the demo: level 1, SEED, its script (demo.s),
+; the shop and the station closed at once. C = 1: ESC, back to ProDOS.
+front_run:
+        pha
+        ldx #<OVL_LEN
+        ldy #>OVL_LEN
+        jsr ovl_load
+        pla
+        jsr front_main
+        cmp #$FF
+        beq fr_exit
+        sta demo
+        sta noshop
+        jsr new_game
+        lda demo
+        beq :+
+        lda #<SEED
+        sta prng_lo
+        lda #>SEED
+        sta prng_hi
+        jsr demo_init
+:       lda #1                   ; page 1 shown, page 2 drawn first
+        jsr select_page
+        clc
+        rts
+fr_exit:
+        sec
+        rts
 
 ; Clean screens and records, fresh state.
 new_game:
@@ -806,7 +868,7 @@ game_init:
 ; Input, once per frame. Keyboard: a new key sets the direction or asks for
 ; a shot; the direction holds while any key is down ($C010 bit 7), so a
 ; shot fired with SPACE does not stop the ship. Open apple / button 0 fires
-; on press. TAB switches keyboard / joystick (choice menu: lot 9).
+; on press. TAB switches keyboard / joystick (as J on the title).
 read_input:
         lda $C000
         bpl no_key
@@ -1048,3 +1110,4 @@ MB_FAST_WRITE = 1                ; ~55 cycles an AY write instead of ~110
 
 .include "shop.s"
 .include "storm.s"
+.include "demo.s"

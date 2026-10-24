@@ -86,6 +86,10 @@ int main(int argc, char** argv) {
     host();
     until("EDIT.pcs_MAIN", 60000000);
     require(read("mouse._mouse_slot") == 4, "mouse detected in slot 4");
+    {
+        const auto video = mem.getDisplayState();  // INITMOUSE selects TEXT and LORES
+        require(!video.textMode && video.hiRes && !video.mixedMode && !video.page2, "editor in full-screen HGR page 1");
+    }
     run(200000);
     // GETBUTNS originally preserves X/Y. WORLD's held-slider loop keeps
     // its WSET index in Y across this call; firmware must not replace it.

@@ -37,4 +37,18 @@ unsigned char prodos_call(void);
 unsigned char __fastcall__ prodos_video_claim(unsigned char policy);
 /* Rebuild the RAM disk emptied by video after video use. 0 = failure. */
 unsigned char prodos_video_release(void);
+
+/* Whole files (file.s, PRODOS_FILE_SRCS; file.asm in assembly). Set the
+ * fields, then call; the result is zero or the MLI error code.
+ * name: Pascal string (relative to the prefix, or a full path); iobuf: 1 KB
+ * OPEN buffer, page aligned, free in the system bitmap; actual: bytes moved.
+ * load: OPEN, READ length bytes at buffer, CLOSE (the READ's error first).
+ * load_free: the same, the destination pages freed in the system bitmap
+ * during the READ (pages a crt0 claimed, video pages).
+ * save: OPEN, or CREATE a BIN file (access $C3) then OPEN; WRITE; CLOSE. */
+extern void *prodos_file_name, *prodos_file_iobuf, *prodos_file_buffer;
+extern unsigned prodos_file_length, prodos_file_actual;
+unsigned char prodos_load(void);
+unsigned char prodos_load_free(void);
+unsigned char prodos_save(void);
 #endif

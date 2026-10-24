@@ -435,12 +435,13 @@ void render(void)
 void main(void)
 {
     unsigned char i;
+    /* Before hgr_init: the AppleMouse INITMOUSE firmware selects TEXT and LORES. */
+    mouse_enabled=mouse_init();
     hgr_init();
     hgr_build_tables(); /* Native wireframe renderer reads the shared X tables. */
     /* Leaves _hgr_rowhi on page 2 for good: select_page relies on it. */
     for (i=1; i<=2; ++i) { hgr_set_draw_page(i); hgr_clear(0); }
     a2_frame_init(); a2_frame_set_delay(1);
-    mouse_enabled=mouse_init();
     old_shape[0][0]=old_shape[0][1]=old_shape[1][0]=old_shape[1][1]=0;
     draw_page=2; reset();
     while (!quit) { input(); physics(); render(); }

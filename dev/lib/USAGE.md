@@ -17,7 +17,8 @@ par elle, ni que toutes les familles d'une archive sont liées dans le binaire.
 | SNAKE | `hgrc` : rendu HGR, cellules, texte, nombres ; `apple2c` : entrées ; police partagée |
 | PINBALL | `mouse` : pilote AppleMouse et contexte résident ; rendu et simulation historiques de Bill Budge conservés |
 | LIGHT3DBALL | `hgrc`, `apple2c`, `mouse` ; `perspective` : couloir natif ; `hgr` : fil de fer et spans ; `apple2` : son ; `font` |
-| CHROMABREAK | `hgrc` : DHGR et petit texte ; `apple2c` : entrées et cadence ; `prodos` : fichiers ; `mouse` ; police dérivée de `font` |
+| CHROMABREAK | `hgrc` : DHGR et petit texte ; `apple2c` : entrées, cadence et horloge VBL (`apple2vbl`) ; `prodos` : chargeur `.SYSTEM`, fichiers entiers (`file.s`) ; `mouse` ; police dérivée de `font` |
+| WARGALAGA II | `apple2` : duo, LZ4FH, Mockingboard, PT3 ; `apple2c` : cadence et horloge VBL (`apple2vbl`, `A2_VBL_SCAN_SEI=1`) ; `prodos` : chargeur `.SYSTEM`, `/RAM`, fichiers entiers (`file.asm`) ; `mouse` ; `math` : hasard ; `font` |
 | LOGO | `apple2` : clavier, texte, HGR et sortie ; `hgr` : pixels, lignes, glyphes natifs, tables, effacement et composition des sprites ; `font` |
 | DEMO | démos C : `hgrc`, `gfx` et `apple2c` selon les routines appelées ; démos assembleur : `apple2`, `hgr` et `font` |
 | HELLO | parcours assembleur : `apple2` ; parcours C : `apple2c` |

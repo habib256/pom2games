@@ -2,7 +2,7 @@
 """WARGALAGA II tables from tools/model.py -> src/bonus.inc: object kinds
 and drop_table (lot 5), level kinds and per-level parameters at loop 0
 (lot 6; setup_level applies the loops), the shop's items (lot 7), Meteor
-Storm's and Memory Station's constants (lot 8). The 6502 and the model share
+Storm's and Memory Station's constants (lot 8), the pickup texts. The 6502 and the model share
 them.
 
     tools/bonus.py            write src/bonus.inc (if changed)
@@ -15,6 +15,7 @@ import model
 
 OUT = Path(__file__).resolve().parents[1] / 'src/bonus.inc'
 ITEM_NAME = 12                  # shop names, padded
+PICK_LEN = 12                   # render.s MSG_LEN
 
 
 def emit():
@@ -61,6 +62,17 @@ def emit():
     out.append('mem_cols: .byte ' + ','.join(str(c) for c, r in M.MEM_GRIDS))
     out.append('mem_rows: .byte ' + ','.join(str(r) for c, r in M.MEM_GRIDS))
     out.append('mem_kinds: .byte ' + ','.join(f'K_{k.upper()}' for k in M.MEM_KINDS))
+    # what a pickup did (render.s msg_draw), in LOWM: texts padded centred
+    out.append(f'PICK_T = {M.PICK_T}')
+    out += [f'{n} = {getattr(M, n)}' for n in ('PM_POINTS', 'PM_LESS_SPEED', 'PM_LESS_BULLET', 'PM_LOST')]
+    out.append(f'NPICK = {len(M.PICK_TEXT)}')
+    out.append('.pushseg')
+    out.append('.segment "PICK"')
+    out.append('pick_lo: .lobytes ' + ','.join(f'pick_{k}' for k in range(len(M.PICK_TEXT))))
+    out.append('pick_hi: .hibytes ' + ','.join(f'pick_{k}' for k in range(len(M.PICK_TEXT))))
+    for k, text in enumerate(M.PICK_TEXT):
+        out.append(f'pick_{k}: .byte "{text.center(PICK_LEN)}"')
+    out.append('.popseg')
     return '\n'.join(out) + '\n'
 
 

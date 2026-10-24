@@ -63,10 +63,21 @@ ProDOS de cc65 ; `src/game.cfg` = `apple2_dhgr_prodos_c.cfg` + segment
   mesuré : ~8 400 cycles avec vaisseau mobile, 5 tirs, 24 étoiles (budget
   28 060).
 - [ ] **Reste** : //c non testé (a2shot n'a pas de //c : `make run-iic`
-      dans POM2 ou une vraie machine) ; factoriser `src/timing.s` et
-      `chromabreak/src/timing.s` en `[lib]` `dev/lib/apple2c/apple2vbl.s`
-      (bascule de page en paramètre : DHGR et HGR), CHROMABREAK à garder
-      identique.
+      dans POM2 ou une vraie machine).
+- [x] `[lib]` `dev/lib/apple2c/apple2vbl.s` (2026-10-24) : l'horloge
+      commune à `src/timing.s` et `chromabreak/src/timing.s` (choix du
+      mode, interruption VBL de la souris //c, comptage des fronts //e,
+      `A2_VBL_SCAN_SEI=1` ici) ; la bascule de page passe par un crochet,
+      la présentation et la manette restent dans chaque jeu. Avec elle :
+      `dev/lib/prodos/sysboot.s` (WG2.SYSTEM, octet pour octet) et
+      `dev/lib/prodos/file.asm` (HIGHSCORES, dans l'overlay ; WG2.AUX garde
+      son chargement résident : plus de place en mémoire principale).
+      Coût : +46 octets de mémoire principale (horloge générique), d'où
+      RODATA/DATA/BSS décalés de 46 octets ; `make test-iic` : //c
+      identique (109 images en retard sur ~1 600 à l'entrée), //e 91 au
+      lieu de 89 (manette 97 au lieu de 92), PAL 0. Pur effet
+      d'alignement des tables : 46 octets de bourrage de plus (décalage 92)
+      redonnent 89/92. Pas de bourrage gardé (≈120 octets libres).
 
 ## Lot 2 — V0.2 : sprites, formation, plongées (fait, 2026-10-23)
 
@@ -597,30 +608,142 @@ Plan d'origine :
       à chaque réussite (+25 000), pavillon pirate = fin. Écran fixe HGR,
       curseur au clavier ou à la manette.
 
-## Lot 9 — titre, démo, records, intégration
+## Lot 9 — titre, démo, records, intégration (fait, 2026-10-23)
 
-- [ ] Titre HGR (image LZ4FH), démo en attract mode rejouant un script
-      d'entrées (comme DIRTBIKE), aide.
-- [ ] `HIGHSCORES` ProDOS (`records.c` de CHROMABREAK comme modèle : MLI
-      `OPEN/READ/WRITE`, disquette protégée signalée), initiales.
-- [ ] Choix du périphérique : clavier ou manette (port //e, DB-9 //c),
-      retenu dans `HIGHSCORES`. Pas de souris.
-- [ ] Construction : `dist/WARGALAGAII.po` (`dev/tools/prodos/build_volume.py
-      --volume WARGALAGAII --blocks 280`, 140 Ko suffisent), `make run`
-      (`APPLE2_PRESET := iie`, sans carte souris), `make run-iic`
-      (`--preset iic --slot 4=iicmouse` : le firmware souris intégré donne
-      l'horloge VBL).
-- [ ] Racine : ajouter `wargalagaii` à `IIE_PRODOS_GAMES` (donc `all`,
-      `profile-iie-prodos`), une cible `test-wargalagaii` dans `test`, la
-      ligne du tableau du README racine ; `make check` (disque identique
-      après reconstruction) puis `dist/` commité.
-- [ ] Bench : scènes « formation pleine + 6 plongeurs + 10 tirs », « boss »,
-      « Meteor Storm » mesurées dans le jeu (profil `dev/tools/a2profile.py`)
-      et comparées à 28 060 / 34 560 cycles (NTSC / PAL, réserve de 6 000
-      comprise, `dev/bench/budgets.json`) ; entrée `bench-check` si une
-      partie passe en lib.
+Réalisé :
+
+- [x] **Écran titre** (`src/front.s`, dans l'overlay de la boutique : segment
+      `FRONT` après `DUET`, overlay porté à 8 Ko, aux `$7000-$8FFF` ; la
+      boutique ne copie que sa part). Image `tools/title.py` (WARGALAGA en
+      lettres de la police ×2 cellules × 3 lignes, II, les petits aliens,
+      étoiles) → `fhpack -c -9 -h` → **792 octets**, décodée en page 1 par
+      `lz4fh.asm` assemblé dans l'overlay (`[lib]` : option `LZ4FH_HERE=1`,
+      défaut identique). Sous l'image, un panneau (lignes 11-23) : menu
+      (jouer, J clavier / manette, S son, H aide, ESC quitter, meilleur
+      score), records, aide. Musique : PT3 ou `duet` (`sh_tick` de la
+      boutique).
+- [x] **Mode démo** (`src/demo.s`, résident en `$0A59` après Meteor Storm) :
+      une vraie partie (niveau 1, `SEED`), `logic_step` prend chaque pas
+      dans `src/demo.inc` (`tools/demo.py` : les déplacements de
+      l'autopilote sur le modèle, tir pressé et tenu, plages d'un octet,
+      ~320 octets pour 1 800 pas : niveaux 1 à 3, début du 4) ; boutique et
+      station fermées (`noshop`) ; « DEMO » au centre (message 4) ; une
+      touche, un bouton, la fin du script ou GAME OVER : le titre. Cycle au
+      repos : menu ~10 s, records ~8 s, démo.
+- [x] **Records** `HIGHSCORES` (`tools/records.py` : format, règles, fichier
+      neuf ; 8 entrées : initiales, score BCD, niveau atteint ; la manette) :
+      lu une fois (défauts s'il manque ou est invalide), écrit après un
+      record ou un changement de manette (créé s'il manque) ; disquette
+      protégée : « SCORES NOT SAVED », la table reste en mémoire. Initiales
+      au clavier (lettres, chiffres, `.`, ← / DELETE, RETURN) ou à la
+      manette (Y choisit, bouton valide) ; 30 s sans rien : ce qui est tapé.
+- [x] **Choix du périphérique** au titre (J ou TAB), retenu dans
+      `HIGHSCORES` ; TAB reste en jeu.
+- [x] Flux : démarrage → titre ; ESC en jeu → titre (record possible),
+      ESC au titre → ProDOS ; GAME OVER → titre après le tir (passé
+      `OVER_WAIT`) ou `OVER_END` = 240 images.
+- [x] Construction : `HIGHSCORES` sur le volume, `fhpack` (`dev/cc65/fhpack.mk`),
+      `make test` y compris `tools/demo.py --check`. Racine : `wargalagaii`
+      dans `IIE_PRODOS_GAMES` (`all`, `profile-iie-prodos` qui parcourt la
+      liste) et dans `TESTED` (`test-wargalagaii`), ligne et section du
+      README racine, captures `screenshots/`.
+- [x] Tests : `tests/test_front.py` (règles des records ; titre = image +
+      menu, J, H ; cycle au repos ; **démo entière == modèle** au pas près,
+      1 801 pas ; démo arrêtée par une touche, par le bouton, sans record ;
+      record au clavier, fichier écrit puis relu ; record à la manette sur
+      disquette protégée, erreur `$2B` via `POM2_MEDIA_WRITE_DEFAULT`) ;
+      `test_screen` : écran de la démo == redessin complet. Les autres tests
+      démarrent par `tests/boot.py` (`front_skip` posé en `_main` : la partie
+      tout de suite, `SEED`) ; ceux qui laissent la partie finir tiennent
+      `over_wait` à 0 ou donnent 9 vies.
+- [x] Banc (`tools/profile.py`, //e NTSC) : formation + plongeurs + 10 tirs :
+      rendu moyen 21 145 (pire 27 672) + logique 3 759 (pire 4 493) ; boss
+      (niveau 25) : rendu 18 417 (pire 26 348) + logique 4 522 (pire 5 617),
+      contre 28 060 ; aucune image en retard sur ces scènes, ni en Meteor
+      Storm (lot 8). Rien n'est passé en lib : pas d'entrée `bench-check`.
+      Entrée des vagues (déjà au-delà du budget) : 88 images en retard sur
+      1 600, contre 78 avant le lot ; le seul placement du code (octets de
+      remplissage devant `_main`) fait varier ce nombre de 80 à 90 : bruit
+      d'alignement, pas le coût des nouveaux tests.
+- [x] Relecture indépendante (sous-agent, code seul) : rien qui plante,
+      bloque, écrase ou désynchronise la démo ; six défauts corrigés :
+      DELETE effacé en majuscule (`$7F` → `$5F`, n'effaçait rien), bouton
+      encore tenu après la dernière initiale à la manette = « jouer »
+      (`fr_btn` relu après la saisie), délai des initiales compté depuis la
+      dernière saisie, ESPACE tenu à GAME OVER sautait le titre (touches
+      verrouillées jusqu'à leur relâche), le message « NOT SAVED » abrégé
+      par une touche (haut-parleur), un `HIGHSCORES` court gardait des
+      octets périmés (défauts si moins de 64 octets lus).
+- **Écarts à valider** :
+  - Titre en HGR (pas de DHGR, décision 1) et texte du menu en anglais,
+    comme le jeu.
+  - La démo n'a pas d'entrées scriptées à la main : c'est l'autopilote
+    (tir continu, aucune vie perdue sur la minute).
+  - ESC en jeu ramène au titre (pas de pause) ; un record peut s'y faire.
+  - `HIGHSCORES` est lu une fois, réécrit après un record, ou en quittant
+    le titre si la manette a changé (pas à chaque appui sur J).
+
+Reste :
+
 - [ ] Validation sur vraies machines (//e enhanced + Mockingboard, //c),
       selon `dev/lib/HARDWARE.md`.
+
+## Lisibilité des bonus (2026-10-23)
+
+Demande : « l'affichage des bonus doit être fortement amélioré en pensant à
+la lisibilité ». Avant : une lettre de la police (traits d'un point, franges
+de couleur) et un carré de couleur, 2 × 8 ; deux T, deux A, des chiffres
+pour les armes comme pour les marques.
+
+- [x] Icônes redessinées dans `tools/sprites.py` (`ICON_SHAPES`), **7 cellules
+      × 13 lignes** (`ICON_H` = `OBJ_H`, 8 avant), tracées en cellules de 2
+      points : traits blancs sans franges. Une forme par famille, la couleur
+      dit laquelle : pièces = disque à `$` découpé (vert 10, orange 50, bleu
+      100, violet 200) ; jauges = pilule bleue S B T ; armes = pilule violette
+      (1, 2, 3 tirs ; tir auto : tirets) ; multiplicateurs = pilule orange
+      2, 5 ; EXTRA = pilule blanche ; bouclier = bulle verte autour du
+      vaisseau ; armure = écu bleu ; vie = cœur orange ; crâne ; gel = flocon ;
+      marques = médaille (ruban, disque de la couleur, numéro découpé),
+      marque sombre = médaille vide ; sous-jeux = le rocher, la carte verte `?`.
+- [x] `icon_src` par table (`icon_lo/hi`) ; la boîte de ramassage suit
+      `OBJ_H` (modèle et 6502) ; script de la démo régénéré ; aide du titre.
+- [x] Bug trouvé en passant (lot 7) : les marques de la boutique étaient
+      posées toutes les 3 colonnes, une sur deux sur une colonne impaire, où
+      les couleurs s'échangent (orange affiché bleu) : pas de 4 (test
+      `marks_screen` de `tests/test_shop.py`).
+- Coût : 5 lignes de plus par objet, à l'effacement et au tracé ; environ
+  520 cycles par objet visible et par image, compte fait sur le code (pas
+  mesuré), soit ~3 100 au pire avec 6 objets à l'écran. Aucune image en
+  retard au banc, cadence inchangée (90 images en retard à l'entrée des
+  vagues, dans le bruit 80-90 mesuré au lot 9).
+- Aperçu : `screenshots/bonus.png` (les 32, dans l'ordre de `model.KINDS`).
+
+## Effets des bonus et malus perçus (2026-10-23)
+
+Demande : « implémente les actions de tous les bonus et malus ». Les 32
+effets existaient déjà depuis le lot 5 (modèle et 6502, oracle
+`bonus_effects`) mais un ramassage était muet et invisible : rien ne disait
+ce qu'on avait pris, ni quel malus le crâne avait tiré.
+
+- [x] **Nom au ramassage** : le message du milieu du terrain (ligne 96)
+      affiche ce que le ramassage a fait pendant `PICK_T` = 45 pas (1,5 s) :
+      « +50 CREDITS », « TRIPLE SHOT », « SCORE X5 », « RANK MARK 3 »… ; une
+      jauge, l'armure ou les vies déjà au maximum : « BONUS POINTS » ; le
+      crâne dit son malus (« SINGLE SHOT », « LESS SPEED », « LESS BULLET »,
+      « BONUS LOST ») ; la cinquième lettre : « EXTRA LIFE ». Priorité :
+      GAME OVER, LEVEL n, METEOR STORM, puis le ramassage, puis DEMO.
+- [x] État de logique `pick_msg` / `pick_t` (modèle = oracle, `take` pose
+      `pick_msg`, `pickups` arme `pick_t`) ; 36 textes de `model.PICK_TEXT`
+      générés par `tools/bonus.py` dans le segment `PICK` de LOWM ($0BCE,
+      504 octets : la mémoire principale n'en a plus que ~380).
+- [x] **Deux bruitages** : `bonus` (arpège montant do-mi-sol-do) et `malus`
+      (chromatique descendante) pour arme simple, marque sombre et crâne ;
+      priorité entre l'armure et l'explosion.
+- **Acceptation** : `bonus_effects` étendu (988 pas == modèle, les 36 textes
+      vus) ; `pickup_feedback` (SHIELD + son bonus, DARK MARK + son malus, le
+      message s'efface) ; l'invariant d'écran connaît le message.
+- Coût : un changement de message réécrit 12 caractères sur chaque page (au
+  ramassage et 1,5 s plus tard), pas chaque image.
 
 ## À vérifier sur machine
 

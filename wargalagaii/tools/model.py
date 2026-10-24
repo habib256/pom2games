@@ -176,7 +176,7 @@ def level_params(level, loop):
             min(7, 3 + pack // 8 + loop))
 
 # Lot 5: falling objects, gauges, timed bonuses.
-N_OBJ, OBJ_DY, OBJ_H = 6, 2, 8
+N_OBJ, OBJ_DY, OBJ_H = 6, 2, 13          # (icons 8 rows high until 2026-10-23)
 DROP_RATE = 40                  # rand8 < 40: a kill drops something (~16 %)
 S_MAX, B_MIN, B_MAX, T_MIN, T_MAX = 5, 5, 10, 3, 9
 GAUGE_POINTS = 500              # a gauge icon at its maximum
@@ -194,6 +194,24 @@ DROP_TABLE = [K[n] for n in KINDS for _ in range(WEIGHTS[n])]
 assert len(DROP_TABLE) == 64
 WEAPONS = [[(3, 0)], [(1, 0), (5, 0)], [(3, 0), (1, -1), (5, 1)]]   # (cell, dx) per shot
 EXTRA = ['e', 'x', 'lt', 'r', 'a']
+# What a pickup did, named mid-field for PICK_T steps (and a sound): one
+# text per kind (pick_msg = the kind), then what replaces it: a gauge, the
+# armour or the lives already full (points instead), the skull's malus.
+PICK_T = 45                     # 1.5 s
+PICK_TEXT = ['+10 CREDITS', '+50 CREDITS', '+100 CREDITS', '+200 CREDITS', 'EXTRA SPEED',
+             'EXTRA BULLET', 'EXTRA TIME', 'SINGLE SHOT', 'DOUBLE SHOT', 'TRIPLE SHOT', 'AUTO FIRE',
+             'SHIP ARMOUR', 'EXTRA LIFE', 'SKULL', 'LETTER E', 'LETTER X', 'LETTER T', 'LETTER R',
+             'LETTER A', 'SCORE X2', 'SCORE X5', 'SHIELD', 'FREEZE', 'RANK MARK 1', 'RANK MARK 2',
+             'RANK MARK 3', 'RANK MARK 4', 'RANK MARK 5', 'RANK MARK 6', 'DARK MARK',
+             'METEOR STORM', 'MEMORY GAME',
+             'BONUS POINTS', 'LESS SPEED', 'LESS BULLET', 'BONUS LOST']
+PM_POINTS, PM_LESS_SPEED, PM_LESS_BULLET, PM_LOST = range(32, 36)
+assert len(PICK_TEXT) == PM_LOST + 1 and max(map(len, PICK_TEXT)) <= 12
+
+
+def pick_bad(msg):
+    """A malus: its own sound."""
+    return msg >= PM_LESS_SPEED or msg in (K['w1'], K['markdark'])
 
 
 def duration(t_level):
@@ -277,6 +295,7 @@ class Game:
         self.autofire_t = self.mult_t = self.shield_t = self.freeze_t = 0
         self.mult, self.auto_cnt, self.extra_bits = 1, 0, 0
         self.marks, self.mark_dark, self.subgame = 0, 0, 0
+        self.pick_msg = self.pick_t = 0
         self.shop, self.rank = 0, 0
         self.level, self.loop, self.phase, self.clear_t, self.level_t = start_level, 0, 0, 0, 0
         self.bonus_kills, self.w_kills = 0, [0] * ROWS
@@ -453,6 +472,8 @@ class Game:
             self.shield_t -= 1
         if self.freeze_t:
             self.freeze_t -= 1
+        if self.pick_t:
+            self.pick_t -= 1
 
     # --- levels -------------------------------------------------------------
     def level_step(self):
@@ -733,25 +754,31 @@ class Game:
                     and y + OBJ_H - 1 >= SHIP_HIT_Y0 and y <= SHIP_HIT_Y1:
                 self.obj_y[k] = 0
                 self.take(KINDS[self.obj_kind[k]])
+                self.pick_t = PICK_T
+
+    def gauge_full(self):
+        self.add_score(GAUGE_POINTS)
+        self.pick_msg = PM_POINTS
 
     def take(self, kind):
+        self.pick_msg = K[kind]
         if kind in COINS:
             self.credits = min(9999, self.credits + COINS[kind])
         elif kind == 's':
             if self.s_level < S_MAX:
                 self.s_level += 1
             else:
-                self.add_score(GAUGE_POINTS)
+                self.gauge_full()
         elif kind == 'b':
             if self.shot_limit < B_MAX:
                 self.shot_limit += 1
             else:
-                self.add_score(GAUGE_POINTS)
+                self.gauge_full()
         elif kind == 't':
             if self.t_level < T_MAX:
                 self.t_level += 1
             else:
-                self.add_score(GAUGE_POINTS)
+                self.gauge_full()
         elif kind in ('w1', 'w2', 'w3'):
             self.weapon = int(kind[1]) - 1
         elif kind == 'auto':
@@ -760,14 +787,15 @@ class Game:
             if self.armour < 2:
                 self.armour += 1
             else:
-                self.add_score(GAUGE_POINTS)
+                self.gauge_full()
         elif kind == 'life':
             if self.lives < 4:
                 self.lives += 1
             else:
-                self.add_score(GAUGE_POINTS)
+                self.gauge_full()
         elif kind == 'skull':
             r = self.rand8() & 3
+            self.pick_msg = (K['w1'], PM_LESS_SPEED, PM_LESS_BULLET, PM_LOST)[r]
             if r == 0:
                 self.weapon = 0
             elif r == 1:
@@ -781,10 +809,11 @@ class Game:
             self.extra_bits |= 1 << EXTRA.index(kind)
             if self.extra_bits == 31:
                 self.extra_bits = 0
+                self.pick_msg = K['life']
                 if self.lives < 4:
                     self.lives += 1
                 else:
-                    self.add_score(GAUGE_POINTS)
+                    self.gauge_full()
         elif kind in ('x2', 'x5'):          # the larger multiplier, time anew
             self.mult = max(self.mult, int(kind[1]))
             self.mult_t = duration(self.t_level)
@@ -1090,6 +1119,8 @@ class Game:
                 'extra_bits': bytes([self.extra_bits]),
                 'marks': bytes([self.marks]),
                 'mark_dark': bytes([self.mark_dark]),
+                'pick_msg': bytes([self.pick_msg]),
+                'pick_t': bytes([self.pick_t]),
                 'shop': bytes([self.shop]),
                 'rank': bytes([self.rank]),
                 'subgame': bytes([self.subgame]),

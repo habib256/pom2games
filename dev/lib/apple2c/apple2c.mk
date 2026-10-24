@@ -20,6 +20,10 @@ APPLE2C_INCS := -I $(APPLE2C)
 # Independent opt-ins: application-owned IRQ clock, or model-detected VBL/delay.
 APPLE2C_CADENCE_SRCS := $(APPLE2C)/apple2cadence.s
 APPLE2C_FRAME_SRCS := $(APPLE2C)/apple2frame.s
+# ProDOS video clock (//e VBL polling, //c mouse VBL IRQ): with the frame
+# and mouse objects; the 50/60 Hz measure is apart.
+APPLE2C_VBL_SRCS := $(APPLE2C)/apple2vbl.s
+APPLE2C_VBL_PAL_SRCS := $(APPLE2C)/apple2vbl_pal.s
 APPLE2C_GAME_SRCS := $(APPLE2C)/apple2game_asm.s
 APPLE2C_DOS_SRCS  := $(APPLE2C)/apple2dos_asm.s
 APPLE2C_AFLAGS    := -I $(APPLE2C)/../apple2

@@ -127,3 +127,50 @@ MEM_PRIZE = $025000
 mem_cols: .byte 3,5,5,7
 mem_rows: .byte 3,3,5,5
 mem_kinds: .byte K_C50,K_C100,K_C200,K_S,K_B,K_T,K_LIFE,K_ARMOUR,K_W2,K_W3,K_E,K_X,K_LT,K_R,K_A,K_X2
+PICK_T = 45
+PM_POINTS = 32
+PM_LESS_SPEED = 33
+PM_LESS_BULLET = 34
+PM_LOST = 35
+NPICK = 36
+.pushseg
+.segment "PICK"
+pick_lo: .lobytes pick_0,pick_1,pick_2,pick_3,pick_4,pick_5,pick_6,pick_7,pick_8,pick_9,pick_10,pick_11,pick_12,pick_13,pick_14,pick_15,pick_16,pick_17,pick_18,pick_19,pick_20,pick_21,pick_22,pick_23,pick_24,pick_25,pick_26,pick_27,pick_28,pick_29,pick_30,pick_31,pick_32,pick_33,pick_34,pick_35
+pick_hi: .hibytes pick_0,pick_1,pick_2,pick_3,pick_4,pick_5,pick_6,pick_7,pick_8,pick_9,pick_10,pick_11,pick_12,pick_13,pick_14,pick_15,pick_16,pick_17,pick_18,pick_19,pick_20,pick_21,pick_22,pick_23,pick_24,pick_25,pick_26,pick_27,pick_28,pick_29,pick_30,pick_31,pick_32,pick_33,pick_34,pick_35
+pick_0: .byte "+10 CREDITS "
+pick_1: .byte "+50 CREDITS "
+pick_2: .byte "+100 CREDITS"
+pick_3: .byte "+200 CREDITS"
+pick_4: .byte "EXTRA SPEED "
+pick_5: .byte "EXTRA BULLET"
+pick_6: .byte " EXTRA TIME "
+pick_7: .byte "SINGLE SHOT "
+pick_8: .byte "DOUBLE SHOT "
+pick_9: .byte "TRIPLE SHOT "
+pick_10: .byte " AUTO FIRE  "
+pick_11: .byte "SHIP ARMOUR "
+pick_12: .byte " EXTRA LIFE "
+pick_13: .byte "   SKULL    "
+pick_14: .byte "  LETTER E  "
+pick_15: .byte "  LETTER X  "
+pick_16: .byte "  LETTER T  "
+pick_17: .byte "  LETTER R  "
+pick_18: .byte "  LETTER A  "
+pick_19: .byte "  SCORE X2  "
+pick_20: .byte "  SCORE X5  "
+pick_21: .byte "   SHIELD   "
+pick_22: .byte "   FREEZE   "
+pick_23: .byte "RANK MARK 1 "
+pick_24: .byte "RANK MARK 2 "
+pick_25: .byte "RANK MARK 3 "
+pick_26: .byte "RANK MARK 4 "
+pick_27: .byte "RANK MARK 5 "
+pick_28: .byte "RANK MARK 6 "
+pick_29: .byte " DARK MARK  "
+pick_30: .byte "METEOR STORM"
+pick_31: .byte "MEMORY GAME "
+pick_32: .byte "BONUS POINTS"
+pick_33: .byte " LESS SPEED "
+pick_34: .byte "LESS BULLET "
+pick_35: .byte " BONUS LOST "
+.popseg

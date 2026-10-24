@@ -14,8 +14,9 @@ mode. Output goes through COUT (`$FDED`) on the text page, input reads the keybo
 | `apple2io_asm.s` | the routines that call the ROM or read the keyboard |
 | `apple2io_str.s` | `a2_puts`, `a2_print_hexword` |
 | `apple2frame.h` + `apple2frame.s` | optional frame pacing: IIe VBL, bounded fallback delay |
+| `apple2vbl.h` + `apple2vbl.s` (+ `apple2vbl_pal.s`) | ProDOS video clock: IIe VBL polling or IIc mouse VBL interrupt (CHROMABREAK, WARGALAGA II) |
 | `apple2c.h` | umbrella header |
-| `apple2c.mk` | Makefile fragment: `APPLE2C_SRCS`, `APPLE2C_INCS`, `APPLE2C_GAME_SRCS`, `APPLE2C_DOS_SRCS`, `APPLE2C_FRAME_SRCS`, `APPLE2C_AFLAGS` |
+| `apple2c.mk` | Makefile fragment: `APPLE2C_SRCS`, `APPLE2C_INCS`, `APPLE2C_GAME_SRCS`, `APPLE2C_DOS_SRCS`, `APPLE2C_FRAME_SRCS`, `APPLE2C_VBL_SRCS`, `APPLE2C_VBL_PAL_SRCS`, `APPLE2C_AFLAGS` |
 | `apple2game.h` + `apple2game_asm.s` | speaker, joystick, buttons (optional) |
 | `apple2dos.h` + `apple2dos_asm.s` | DOS 3.3 commands: BLOAD, BSAVE… (optional) |
 
@@ -152,3 +153,28 @@ Without an IRQ card, the [minimal HGR example](../../examples/minimal/README.md)
 spreads its workload over two VBL intervals on IIe. Each step must stay
 shorter than one refresh. On the models that fall back to WAIT, pacing remains
 dependent on rendering cost and CPU speed.
+
+## ProDOS video clock (//e and //c)
+
+`apple2vbl.s` (`APPLE2C_VBL_SRCS`, with `APPLE2C_FRAME_SRCS` and
+[`../mouse/`](../mouse/)) gives ProDOS games one refresh counter on both
+machines, from C or assembly:
+
+| Call / variable | Effect |
+|---|---|
+| `a2_vbl_init()` | `a2_frame_init`, then `A2_VBL_POLL` (1) on a //e with a VBL signal, else `A2_VBL_NONE` (0) |
+| `a2_vbl_irq_init()` | after `mouse_init`: installs the mouse firmware's VBL interrupt (mode 9) with ProDOS `ALLOC_INTERRUPT`, `A2_VBL_IRQ` (2); 0 without a mouse or if refused; enables interrupts |
+| `a2_vbl_close()` | mouse back to mode 1, `DEALLOC_INTERRUPT`, mode 0 |
+| `a2_vbl_scan()` | //e: counts an edge picture → blank; call at most ~4,000 cycles apart while drawing (33 cycles with the JSR when nothing changed) |
+| `a2_vbl_mode`, `a2_vbl_count`, `a2_vbl_beam` | mode, refreshes seen (both modes, modulo 256), last `$C019` bit 7 |
+| `a2_vbl_hook` | called by the //c handler after the count (the page flip): A/X/Y free, no zero page, no C stack; none while 0 (BSS, cleared by the crt0) |
+| `a2_vbl_measure()`, `a2_vbl_pal` | `apple2vbl_pal.s` (`APPLE2C_VBL_PAL_SRCS`): 1 on a 50 Hz machine (one or two frames, bounded; 0 without a clock) |
+
+Typical start: `a2_vbl_init() || (mouse_init(), a2_vbl_irq_init())`. The
+presentation stays in the game (when to flip, the stick read in the spare
+time, the speaker): see `chromabreak/src/timing.s` (DHGR, flip in the hook
+every other refresh) and `wargalagaii/src/timing.s` (HGR, refresh pairs,
+late frames). Option `-D A2_VBL_SCAN_SEI=1`: an edge is read again under
+SEI before it is counted, for programs whose own interrupt handlers call
+`a2_vbl_scan` too (WARGALAGA II's music); +9 cycles only when the beam
+changes. Default 0 (CHROMABREAK).

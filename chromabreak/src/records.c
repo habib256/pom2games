@@ -15,19 +15,18 @@ static unsigned char raw[38], pathname[65], volume[16];
 /* The file name in pathname, while the overlay's replaces it. */
 static unsigned char *overlay_name;
 #pragma bss-name(pop)
-static struct { unsigned char count; void *path; void *buffer; unsigned char reference; } opened;
-static struct { unsigned char count, reference; void *buffer; unsigned requested, actual; } transfer;
-static struct { unsigned char count, reference; } closed;
 static struct { unsigned char count; void *path; } prefix;
 static struct { unsigned char count, unit; void *buffer; } online;
-static struct { unsigned char count; void *path; unsigned char access, type; unsigned aux; unsigned char storage; unsigned date, time; } created;
 unsigned char records_error, records_progress;
-static unsigned char call(unsigned char command, void *params)
+static unsigned char failed(unsigned char error)
 {
-    unsigned char error;
-    prodos_command=command; prodos_params=params; error=prodos_call();
     if(error) records_error=error;
     return error;
+}
+static unsigned char call(unsigned char command, void *params)
+{
+    prodos_command=command; prodos_params=params;
+    return failed(prodos_call());
 }
 static unsigned checksum(void)
 {
@@ -59,36 +58,20 @@ static unsigned char path(void)
     pathname[0]=len+10u;
     return 1;
 }
-static unsigned char open_file(void)
+/* The whole-file calls (dev/lib/prodos/file.s) on pathname. */
+static void file(void *buffer, unsigned length)
 {
-    opened.count=3; opened.path=pathname; opened.buffer=file_buffer; opened.reference=0;
-    return call(PD_OPEN,&opened);
-}
-static unsigned char close_file(void)
-{
-    closed.count=1; closed.reference=opened.reference;
-    return call(PD_CLOSE,&closed);
-}
-/* Read or write transfer.requested bytes at transfer.buffer. */
-static unsigned char transfer_file(unsigned char command)
-{
-    transfer.count=4; transfer.reference=opened.reference; transfer.actual=0;
-    return call(command,&transfer);
-}
-static unsigned char move_file(unsigned char command)
-{
-    transfer.buffer=raw; transfer.requested=sizeof(raw);
-    return transfer_file(command);
+    prodos_file_name=pathname; prodos_file_iobuf=file_buffer;
+    prodos_file_buffer=buffer; prodos_file_length=length;
 }
 void records_load(void)
 {
-    static unsigned char i,j,error;
+    static unsigned char i,j;
     static unsigned sum;
     defaults(); pathname[0]=0;
     if(!path()) { pathname[0]=0; return; }
-    if(open_file()) return;
-    error=move_file(PD_READ); close_file();
-    if(error || transfer.actual!=sizeof(raw)) return;
+    file(raw,sizeof(raw));
+    if(failed(prodos_load()) || prodos_file_actual!=sizeof(raw)) return;
     if(memcmp(raw,"CBR1",4) || !raw[4] || raw[4]>2u || raw[5]>=CB_LEVELS) return;
     sum=checksum(); if(raw[36]!=(unsigned char)sum || raw[37]!=(unsigned char)(sum>>8)) return;
     memcpy(records,raw+6,sizeof(records));
@@ -120,40 +103,26 @@ unsigned char records_submit(unsigned score, const char *initials, unsigned char
 /* Write the records and records_progress; 0 = not saved. */
 unsigned char records_save(void)
 {
-    static unsigned char error, close_error;
     static unsigned sum;
     records_error=0;
     if(!pathname[0]) return 0;
     memcpy(raw,"CBR1",4); raw[4]=2; raw[5]=records_progress;
     memcpy(raw+6,records,sizeof(records));
     sum=checksum(); raw[36]=sum; raw[37]=sum>>8;
-    error=open_file();
-    if(error==0x46u) {
-        created.count=7; created.path=pathname; created.access=0xC3;
-        created.type=6; created.aux=0; created.storage=1; created.date=created.time=0;
-        if(call(PD_CREATE,&created)) return 0;
-        error=open_file();
-    }
-    if(error) return 0;
-    error=move_file(PD_WRITE); close_error=close_file();
-    return !error && !close_error && transfer.actual==sizeof(raw);
+    file(raw,sizeof(raw));
+    return !failed(prodos_save()) && prodos_file_actual==sizeof(raw);
 }
 /* Load the ENDING overlay, kept next to HIGHSCORES, at dest; 0 = failure. */
 unsigned char records_load_overlay(void *dest, unsigned size)
 {
-    static unsigned char error, len, bitmap[4];
+    static unsigned char error, len;
     if(!pathname[0]) return 0;
     len=pathname[0];
     overlay_name=pathname+len-9; memcpy(overlay_name,"ENDING",6); pathname[0]=len-4u;
-    error=open_file();
-    if(!error) {
-        /* ProDOS refuses buffers in pages marked used: free page 2 of the
-         * DHGR memory ($4000-$5FFF) in the system bitmap for the read. */
-        memcpy(bitmap,(void *)0xBF60,4); memset((void *)0xBF60,0,4);
-        transfer.buffer=dest; transfer.requested=size;
-        error=transfer_file(PD_READ); close_file();
-        memcpy((void *)0xBF60,bitmap,4);
-    }
+    /* ProDOS refuses buffers in pages marked used (page 2 of the DHGR
+     * memory): load_free frees them in the system bitmap for the read. */
+    file(dest,size);
+    error=failed(prodos_load_free());
     memcpy(overlay_name,"HIGHSCORES",10); pathname[0]=len;
-    return !error && transfer.actual;
+    return !error && prodos_file_actual;
 }

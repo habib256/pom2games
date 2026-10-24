@@ -242,7 +242,8 @@ sh_mark:
         ldy #2
         jmp sh_putc
 
-; Icon A (0: blank) in mark slot X (columns 10, 13 ... 28). Keeps X.
+; Icon A (0: blank) in mark slot X (columns 10, 14 ... 34: even, or the
+; colours swap, violet <-> blue and green <-> orange). Keeps X.
 sh_icon_x:
         phx
         tay
@@ -254,9 +255,8 @@ sh_icon_x:
         bra :++
 :       jsr icon_src
 :       txa
-        sta tmp
         asl
-        adc tmp
+        asl
         adc #10
         sta r_col
         lda #2
@@ -456,6 +456,7 @@ sh_static:
 .assert SH_LINE0+NITEM+1 < 17, error, "the items run into the gauges"
 
 .include "memory.s"
+.include "front.s"
 
 ; The speaker's two-voice player, page aligned (its counted loop must not
 ; cross a page).

@@ -326,7 +326,7 @@ paddle_contact:
 ; Retain every collision substep, dynamic speed changes and actor swap-back.
 .export _advance_balls
 .importzp _speed
-.import _timing_scan
+.import _a2_vbl_scan
 .zeropage
 motion_actor: .res 1
 motion_step: .res 1
@@ -363,7 +363,7 @@ _advance_balls:
         lda motion_step
         and #3
         bne :+
-        jsr _timing_scan
+        jsr _a2_vbl_scan
 :       inc motion_step
         bra @step
 @swap_back:

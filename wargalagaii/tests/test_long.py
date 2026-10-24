@@ -21,6 +21,7 @@ GAME = ROOT / 'wargalagaii'
 sys.path.insert(0, str(ROOT / 'dev/tools'))
 sys.path.insert(0, str(GAME / 'tools'))
 import a2test
+from boot import boot
 import autopilot
 import test_game
 
@@ -44,7 +45,7 @@ def autopilots():
 
 
 def worst(disk, L, start, why, frames, mockingboard=False):
-    steps = [L.until('main', 3000), L.poke('start_level', start), L.until('game_tick', 3000),
+    steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', start), L.until('game_tick', 3000),
              L.poke('weapon', 2), L.poke('shot_limit', 10), L.poke('noshop', 1), 'wait:300']
     steps += [L.peek('late_count', 2), L.peek('frame_count', 2)]
     for k in range(frames // 20):

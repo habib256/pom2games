@@ -6,23 +6,24 @@
 ; A page is shown once per two refreshes (30 Hz NTSC / 25 Hz PAL). The game
 ; counts refreshes between flips (timing_refreshes) and advances its logic by
 ; refresh pairs, so the speed never depends on the drawing time.
-; Derived from chromabreak/src/timing.s (DHGR); candidate for dev/lib/apple2c.
-; The IRQ handler uses neither cc65's zero page nor its stack.
+; The clock is dev/lib/apple2c/apple2vbl.s (_a2_vbl_mode: 0 delay, 1 //e
+; VBL polling, 2 //c VBL IRQ; _a2_vbl_count, refreshes seen), assembled with
+; A2_VBL_SCAN_SEI=1: the music interrupt scans too (see _a2_vbl_scan below).
+; The IRQ hook (flip_irq) uses neither cc65's zero page nor its stack.
 .setcpu "65C02"
-.import _a2_frame_init, _a2_frame_wait, _a2_frame_set_delay
+.import _a2_frame_wait, _a2_frame_set_delay
 .import spk_period, mus_ticks
-.import _mouse_init, _mouse_close, _mouse_timing_mode, _mouse_serve_irq, _mouse_slot
-.export timing_init, timing_close, timing_present, timing_scan
+.import _mouse_init, _mouse_close
+.import _a2_vbl_init, _a2_vbl_irq_init, _a2_vbl_close, _a2_vbl_scan
+.import _a2_vbl_mode, _a2_vbl_count, _a2_vbl_beam, _a2_vbl_hook
+.export timing_init, timing_close, timing_present
 JOY_CENTRE = 83
-.export timing_mode, timing_refreshes, vbl_count, late_count, joy_x, joy_mode
+.export timing_refreshes, late_count, joy_x, joy_mode
 
 .bss
-timing_mode: .res 1             ; 0 delay, 1 //e VBL polling, 2 //c VBL IRQ
-vbl_count: .res 1               ; refreshes seen
-flip_count: .res 1              ; vbl_count at the last flip
+flip_count: .res 1              ; _a2_vbl_count at the last flip
 last_flip: .res 1               ; flip_count of the flip before
 timing_refreshes: .res 1        ; refreshes between the last two flips
-beam: .res 1                    ; last $C019 bit 7 (//e)
 late_count: .res 2              ; frames presented after their deadline
 ready: .res 1                   ; //c: bit 7 = a page waits for the IRQ
 wanted: .res 1                  ; page to show: 0 = page 1, 1 = page 2
@@ -32,109 +33,55 @@ spk_cnt: .res 1                 ; turns to the next speaker toggle
 joy_irq: .res 1                 ; mus_ticks when the paddle count started
 .data
 joy_x: .byte JOY_CENTRE         ; paddle 0 count (0..~165), centre until read
-allocate: .byte 2,0
-        .word vbl_irq
-release: .byte 1,0
 
 .code
 ; Select the clock. //e: VBL polling. Otherwise a mouse firmware (the //c's
 ; built-in one) gives the VBL interrupt; without one, delays.
 timing_init:
         stz ready
-        jsr _a2_frame_init
+        lda #<flip_irq
+        sta _a2_vbl_hook
+        lda #>flip_irq
+        sta _a2_vbl_hook+1
+        jsr _a2_vbl_init
         pha
         lda #DELAY               ; fallback: one WAIT a frame (see present_delay)
         jsr _a2_frame_set_delay
         pla
-        cmp #1
-        bne irq
-        sta timing_mode
-        lda $C019
-        and #$80
-        sta beam
-        bra synced
-irq:    stz timing_mode
+        bne synced
         jsr _mouse_init
-        lda _mouse_slot
-        beq synced
-        php
-        sei
-        jsr $BF00
-        .byte $40                ; ALLOC_INTERRUPT
-        .word allocate
-        bcs failed
-        lda allocate+1
-        sta release+1
-        lda #2
-        sta timing_mode
-        lda #9                   ; mouse firmware: VBL interrupts
-        jsr _mouse_timing_mode
-        plp
-        cli
-        bra synced
-failed: plp
-synced: lda vbl_count
+        jsr _a2_vbl_irq_init
+synced: lda _a2_vbl_count
         sta flip_count
         sta last_flip
         rts
 
 timing_close:
-        lda timing_mode
-        cmp #2
-        bne closed
-        php
-        sei
-        lda #1
-        jsr _mouse_timing_mode
-        jsr $BF00
-        .byte $41                ; DEALLOC_INTERRUPT
-        .word release
-        plp
-closed: stz timing_mode
+        jsr _a2_vbl_close
         stz ready
         jmp _mouse_close
 
-; Count //e VBL edges. Call at most ~4 000 cycles apart while drawing (the
-; blank lasts ~4 550): no edge is then missed. ~25 cycles; A clobbered.
-; The music interrupt (sound.s, a PT3 tick of up to ~3 000 cycles) scans
-; too, on entry and on exit: an edge seen here is read again under SEI, or
-; an interrupt between the read and the store would count it twice. (SEI
-; on every scan cost 9 cycles a call: ~2 % more late frames, and longer
+; _a2_vbl_scan counts the //e VBL edges. Call it at most ~4 000 cycles
+; apart while drawing (the blank lasts ~4 550): no edge is then missed;
+; 33 cycles with the JSR when nothing changed. The music interrupt (sound.s,
+; a PT3 tick of up to ~3 000 cycles) scans too, on entry and on exit: an
+; edge seen there is read again under SEI (A2_VBL_SCAN_SEI), or an
+; interrupt between the read and the store would count it twice. (SEI on
+; every scan cost 9 cycles a call: ~2 % more late frames, and longer
 ; speaker turns; bug hunt 6.)
-timing_scan:
-        lda timing_mode
-        cmp #1
-        bne scanned
-        lda $C019
-        and #$80
-        cmp beam
-        beq scanned              ; (the common case: nothing written)
-        php
-        sei
-        lda $C019
-        and #$80
-        cmp beam
-        beq :+                   ; the interrupt took it
-        sta beam
-        cmp #$80
-        beq :+                   ; blank -> picture: nothing
-        inc vbl_count
-:       plp
-scanned:
-        rts
 
 ; Show the page just drawn (A = 0: page 1, 1: page 2) at the first blank at
 ; least two refreshes after the previous flip; a late frame goes out at the
 ; next blank (late_count). Sets timing_refreshes. Clobbers A, X, Y.
 timing_present:
         sta wanted
-        lda timing_mode
+        lda _a2_vbl_mode
         cmp #2
         beq present_irq
         cmp #1
         bne present_delay
-        jsr timing_scan
-        lda vbl_count
+        jsr _a2_vbl_scan
+        lda _a2_vbl_count
         sec
         sbc flip_count
         cmp #2
@@ -153,7 +100,7 @@ last_refresh:
         bcs present_delay
 show:   ldx wanted
         lda $C054,x
-        lda vbl_count
+        lda _a2_vbl_count
         sta flip_count
 shown:  sec
         sbc last_flip
@@ -172,16 +119,16 @@ present_delay:
         jsr _a2_frame_wait
         ldx wanted
         lda $C054,x
-        lda vbl_count
+        lda _a2_vbl_count
         clc
         adc #2
-        sta vbl_count
+        sta _a2_vbl_count
         sta flip_count
         bra shown
 
 ; //c: the interrupt shows the page; read the stick until it has.
 present_irq:
-        lda vbl_count
+        lda _a2_vbl_count
         sec
         sbc flip_count
         cmp #2
@@ -215,7 +162,7 @@ irq_shown:
         lda flip_count
         bra shown
 
-spk_pad:                         ; 12 + 25 cycles (timing_scan's 33, less
+spk_pad:                         ; 12 + 25 cycles (_a2_vbl_scan's 33, less
         bit $00                  ; bit ready's 6, plus the 10 after it)
 .repeat 11
         nop
@@ -234,15 +181,15 @@ late:   inc late_count
 ; WAIT_TURNS turns (~0.5 s; a refresh is ~270 turns).
 WAIT_TURNS = 8192               ; (a multiple of 256: X counts the low byte)
 next_edge:
-        lda vbl_count
+        lda _a2_vbl_count
         sta from
         lda spk_period
         sta spk_cnt
         ldx #0
         ldy #>WAIT_TURNS
 ne_turn:
-        jsr timing_scan          ; 33 (no edge)
-        lda vbl_count            ; 10
+        jsr _a2_vbl_scan          ; 33 (no edge)
+        lda _a2_vbl_count            ; 10
         cmp from
         bne ne_edge
         lda spk_period           ; 15 (silent: 7)
@@ -256,36 +203,29 @@ ne_count:
         bne ne_turn
         dey
         bne ne_turn
-        stz timing_mode
+        stz _a2_vbl_mode
         sec
         rts
 ne_edge:
         clc
         rts
 
-; ProDOS interrupt handler: C = 0 if it was the mouse firmware's VBL.
-vbl_irq:
-        cld
-        jsr _mouse_serve_irq
-        bcs not_ours
-        inc vbl_count
+; IRQ hook (//c, after the count): show the page waiting, two refreshes
+; or more after the previous flip.
+flip_irq:
         bit ready
         bpl claimed
-        lda vbl_count
+        lda _a2_vbl_count
         sec
         sbc flip_count
         cmp #2
         bcc claimed
         ldx wanted
         lda $C054,x
-        lda vbl_count
+        lda _a2_vbl_count
         sta flip_count
         stz ready
 claimed:
-        clc
-        rts
-not_ours:
-        sec
         rts
 
 ; Paddle 0 in the time left before the flip: 17 cycles a count, ~165 for a
@@ -298,8 +238,8 @@ joy_read_vbl:
         lda joy_mode
         beq joy_done
         ldx #0                   ; still in the blank of the first refresh:
-:       jsr timing_scan          ; wait for the picture (bounded)
-        bit beam
+:       jsr _a2_vbl_scan          ; wait for the picture (bounded)
+        bit _a2_vbl_beam
         bmi :+
         dex
         bne :-

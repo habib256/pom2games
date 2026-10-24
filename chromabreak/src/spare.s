@@ -20,16 +20,24 @@
 ; DATA (+1) are absorbed the same way (RODATA -5, BSS -1).
 ; a2_puts/a2_print_hexword in asm (apple2io_str.s, -50 library CODE bytes
 ; with the cc65 helpers they no longer need): RODATA +50.
+; 2026-10-24, shared libraries: the video clock (dev/lib/apple2c/apple2vbl.s,
+; apple2vbl_pal.s; timing.s keeps the presentation and the stick), +57 CODE,
+; absorbed (RODATA -57), but finetext.s and the modules
+; after timing.s moved by -245; then whole-file load/save
+; (dev/lib/prodos/file.s, +314 library CODE) instead of records.c's own
+; calls (-225 CODE, -35 BSS): no RAM to absorb it (54 bytes left), so the
+; addresses moved (render.s code -225, tables +89, variables +54, timing.s
+; -225; sound.s's assert too), checked with test-mouse on every profile.
 CODE_SPARE   = 38
-RODATA_SPARE = 80
+RODATA_SPARE = 23
 BSS_SPARE    = 12
 
 .code
         .res CODE_SPARE
-.assert * = $8A05, lderror, "render.s code moved: adjust CODE_SPARE (see spare.s)"
+.assert * = $8924, lderror, "render.s code moved: adjust CODE_SPARE (see spare.s)"
 .rodata
         .res RODATA_SPARE
-.assert * = $B3ED, lderror, "render.s tables moved: adjust RODATA_SPARE (see spare.s)"
+.assert * = $B446, lderror, "render.s tables moved: adjust RODATA_SPARE (see spare.s)"
 .bss
         .res BSS_SPARE
-.assert * = $BB7E, lderror, "the assembly modules' variables moved (see spare.s)"
+.assert * = $BBB4, lderror, "the assembly modules' variables moved (see spare.s)"

@@ -42,6 +42,7 @@ on the right machine — nothing to download or install.
 | | Game | Machine | Disk | Play |
 |---|---|---|---|---|
 | 🏍️ | [DIRTBIKE](#dirtbike) — side-view motocross | Apple II+ 48 KB | [release 1.0](https://github.com/habib256/pom2games/releases/tag/dirtbike-1.0) | [▶ in browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/DIRTBIKE.dsk) |
+| 👾 | [WARGALAGA II](#wargalaga-ii) — Warblade-style shoot'em up | //e enhanced or //c, 128 KB | [`WARGALAGAII.po`](https://github.com/habib256/pom2games/raw/main/dist/WARGALAGAII.po) | [▶ in browser](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/WARGALAGAII.po) |
 | 🏔️ | [NEOWILDERNESS XL](#neowilderness-xl) — wilderness survival in 16 colours | //e enhanced or //c, 128 KB | [`NEOWILDERNESSXL.po`](https://github.com/habib256/pom2games/raw/main/dist/NEOWILDERNESSXL.po) | [▶ in browser](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/NEOWILDERNESSXL.po) |
 | 🌈 | [CHROMABREAK](#chromabreak) — 16-colour brick-breaker | //e enhanced or //c, 128 KB | [release 1.0](https://github.com/habib256/pom2games/releases/tag/chromabreak-1.0) | [▶ in browser](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/CHROMABREAK.po) |
 | 🧱 | [ARKABREAKOUT](#arkabreakout) — brick-breaker | Apple II+ 48 KB | [`ARKABREAKOUT.dsk`](https://github.com/habib256/pom2games/raw/main/dist/ARKABREAKOUT.dsk) | [▶ in browser](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/ARKABREAKOUT.dsk) |
@@ -76,6 +77,27 @@ Best times and scores stay on the disk.
 - **Download**: [DIRTBIKE 1.0](https://github.com/habib256/pom2games/releases/tag/dirtbike-1.0)
   · [`dist/DIRTBIKE.dsk`](https://github.com/habib256/pom2games/raw/main/dist/DIRTBIKE.dsk)
   · [more](dirtbike/README.md)
+
+### WARGALAGA II
+
+<table><tr>
+<td><img src="wargalagaii/screenshots/title.png" width="380" alt="WARGALAGA II title screen"></td>
+<td><img src="wargalagaii/screenshots/demo.png" width="380" alt="The attract mode: a wave enters, the ship fires"></td>
+</tr></table>
+
+A fixed shooter in the spirit of **Warblade** 👾, at 30 frames per second in
+HGR: 40 aliens enter in waves, settle in a breathing formation, then dive and
+bomb; 32 falling bonuses (speed, bullets, time, double and triple shot,
+shield, freeze…), 100 levels with big aliens, flypast, kamikaze waves and a
+boss every 25, a shop every 4 levels, two sub-games (Meteor Storm, Memory
+Station), PT3 music on a Mockingboard or effects on the speaker. Left alone,
+the title runs a one-minute demo; the 8 best scores are saved on the disk.
+
+- **Machine**: Apple //e enhanced or //c, 128 KB, ProDOS 8 (140 KB disk), Mockingboard optional
+- **Controls**: keyboard or joystick
+- **Play**: [▶ in your browser](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/WARGALAGAII.po) (POM2, nothing to install)
+- **Download**: [`dist/WARGALAGAII.po`](https://github.com/habib256/pom2games/raw/main/dist/WARGALAGAII.po)
+  · [more](wargalagaii/README.md)
 
 ### NEOWILDERNESS XL
 
@@ -336,8 +358,8 @@ its own `README.md` (controls, differences from the original) and a `TODO.md`.
 
 Every program has a fast tier (`make -C <game> test`, a minute or two, the
 reflex of the development loop) and a long tier (`test-long`). A new game
-follows the same convention (`dev/cc65/apple2.mk`, the `wargalagaii/Makefile`
-skeleton) and joins `TESTED` in the root Makefile.
+follows the same convention (`dev/cc65/apple2.mk`; `wargalagaii/Makefile` is
+an example) and joins `TESTED` in the root Makefile.
 
 **Requirements**: cc65 (`brew install cc65` or `apt install cc65`) and
 python3; C/C++ compilers and zlib for `make test` (`dev/tools/a2run`, fhpack
