@@ -90,19 +90,18 @@ $(DISK): $(BUILD)/CHROMA.SYS $(BUILD)/CHROMA.SYSTEM $(BUILD)/HIGHSCORES $(DEV)/t
 	$(PYTHON) $(DEV)/tools/prodos/build_volume.py $(BUILD)/stage $@ --volume CHROMABREAK --boot $(DEV)/tools/prodos/boot.bin --blocks 280
 run-iic: all
 	$(POM2) --preset iic --slot 4=iicmouse $(DISK)
-test: all
+# Two tiers (convention of ../dev/cc65/apple2.mk). tests/playtest_probe.cpp
+# runs on the POM2 core facade: real mouse firmware on //e and //c, PAL
+# (test), the ProDOS records (test-long).
+PLAYTEST := --probe $(BUILD)/playtest_probe --roms $(DEV)/tools/a2shot/roms --disk $(DISK) --labels $(BUILD)/game.lbl
+test: all $(if $(A2SHOT_HOST),$(BUILD)/playtest_probe)
 	$(PYTHON) tests/test_game.py --disk $(DISK) --labels $(BUILD)/game.lbl
+ifneq ($(A2SHOT_HOST),)
+	$(PYTHON) tests/test_mouse.py $(PLAYTEST)
+endif
 
-# Long tier (convention of ../dev/cc65/apple2.mk): nothing slow yet.
-test-long:
-	@echo "chromabreak: no long tests"
-.PHONY: test-long
-.PHONY: run-iic test
-
-# Optional real-firmware integration. Normal build/test has no sibling dependency.
-POM2_SRC ?= ../../pom2
-test-mouse: all
-	$(PYTHON) tests/test_mouse.py --pom2-src $(POM2_SRC) --disk $(DISK) --labels $(BUILD)/game.lbl --build $(BUILD)
-test-records: all
-	$(PYTHON) tests/test_mouse.py --pom2-src $(POM2_SRC) --disk $(DISK) --labels $(BUILD)/game.lbl --build $(BUILD) --records-only
-.PHONY: test-mouse test-records
+test-long: all $(if $(A2SHOT_HOST),$(BUILD)/playtest_probe)
+ifneq ($(A2SHOT_HOST),)
+	$(PYTHON) tests/test_mouse.py $(PLAYTEST) --records-only
+endif
+.PHONY: run-iic test test-long

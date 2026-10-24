@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Optional integration against a built POM2 core, both real-ROM mouse models."""
+"""CHROMABREAK on the POM2 core facade (tests/playtest_probe.cpp, built as
+build/playtest_probe): both real-ROM mouse models, the //c, PAL, and the
+ProDOS records (--records-only)."""
 import argparse
 import importlib.util
 from pathlib import Path
@@ -10,20 +12,12 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[2]
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('--pom2-src',type=Path,required=True)
+    ap.add_argument('--probe',type=Path,required=True)
+    ap.add_argument('--roms',type=Path,required=True)
     ap.add_argument('--disk',type=Path,required=True)
     ap.add_argument('--labels',type=Path,required=True)
-    ap.add_argument('--build',type=Path,required=True)
     ap.add_argument('--records-only',action='store_true')
-    a=ap.parse_args(); src=a.pom2_src.resolve();a.build.mkdir(parents=True,exist_ok=True)
-    library=src/'build/libpom2_core_test.a'
-    if not library.exists(): raise SystemExit(f'Build POM2 core test library first: {library}')
-    libs=['-framework','CoreAudio','-framework','AudioToolbox','-framework','AudioUnit'] if sys.platform=='darwin' else ['-pthread']
-    libs+=subprocess.check_output(['pkg-config','--libs','slirp'],text=True).split()+['-lz']
-    exe=(a.build/'playtest').resolve()
-    subprocess.run(['c++','-std=c++17','-O2','-I',str(src/'src'),'-I',str(src/'include'),
-                    '-I',str(src/'build/generated'),str(Path(__file__).with_name('playtest.cpp')),
-                    str(library),*libs,'-o',str(exe)],check=True)
+    a=ap.parse_args(); exe=a.probe.resolve(); roms=a.roms.resolve()
     with tempfile.TemporaryDirectory(prefix='chromabreak-mouse-') as tmp:
         disk=Path(tmp)/'GAME.po'
         if a.records_only:
@@ -34,7 +28,7 @@ def main():
                 entries={e[1:1+(e[0]&15)].decode():e for e in image.entries(2)}
                 return image,entries
             def execute(variant,action):
-                subprocess.run([str(exe),str(src/'roms'),str(disk),str(a.labels.resolve()),variant,action],check=True)
+                subprocess.run([str(exe),str(roms),str(disk),str(a.labels.resolve()),variant,action],check=True)
             shutil.copyfile(a.disk,disk);execute('applewin','records-numbers')
             execute('applewin','records-collisions')
             execute('applewin','records-finetext')
@@ -83,7 +77,7 @@ def main():
         for variant in ('applewin','mame','iic16','iic32','mame-pal','iic32-pal'):
             for entry in ('click','space-reset'):
                 shutil.copyfile(a.disk,disk)
-                cmd=[str(exe),str(src/'roms'),str(disk),str(a.labels.resolve()),variant]
+                cmd=[str(exe),str(roms),str(disk),str(a.labels.resolve()),variant]
                 if entry!='click': cmd.append(entry)
                 print(f'AppleMouse {variant}, {entry}',flush=True)
                 result=subprocess.run(cmd)

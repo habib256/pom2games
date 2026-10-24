@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Real AppleMouse firmware on the Apple II+ (both card models) and the
-native //c mouse (16 and 32 KB ROMs), by tests/mouse_probe.cpp on the POM2
-core facade (build/mouse_probe)."""
+"""Real AppleMouse firmware on the Apple II+ (both card models, the Disk II
+in slot 6 or 5) and the native //c mouse (16 and 32 KB ROMs), by
+tests/mouse_probe.cpp on the POM2 core facade (build/mouse_probe)."""
 import argparse
 from pathlib import Path
 import shutil
@@ -15,7 +15,7 @@ ap.add_argument('--roms', type=Path, required=True)
 args = ap.parse_args()
 failed = []
 with tempfile.TemporaryDirectory(prefix='pinball-mouse-') as tmp:
-    for variant in ('applewin', 'mame', 'iic16', 'iic32'):
+    for variant in ('applewin', 'applewin5', 'mame', 'iic16', 'iic32'):
         disk = Path(tmp) / 'PINBALL.dsk'
         shutil.copyfile(GAME.parent / 'dist/PINBALL.dsk', disk)
         result = subprocess.run([str(args.probe.resolve()), str(args.roms.resolve()), str(disk),

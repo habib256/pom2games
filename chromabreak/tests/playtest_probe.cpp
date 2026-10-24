@@ -1,15 +1,7 @@
-// VERHILLE Arnaud — GPL-3.0. Full POM2 integration, real AppleMouse firmware.
-#include "M6502.h"
+// VERHILLE Arnaud — GPL-3.0. Full POM2 integration, real AppleMouse firmware,
+// on the POM2 core facade (../dev/tools/a2shot/probe.hpp), built by make.
+#include "probe.hpp"
 #include "../src/layout.h"
-#include "Memory.h"
-#include "MouseCard.h"
-#include "MouseCardAppleWin.h"
-#include "IIcMouse.h"
-#include "IWMDevice.h"
-#include "LeChatMauveCard.h"
-#include "SuperSerialCard.h"
-#include "DiskIICard.h"
-#include "MemoryWatchSink.h"
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -24,7 +16,76 @@
 #include <cmath>
 #include <complex>
 
-static void require(bool ok,const std::string& why) { if(!ok) throw std::runtime_error(why); }
+using probe::require;
+
+namespace pom2 {
+// What the probe watches on the bus (the facade's setBusWatch, dispatched).
+struct MemoryWatchSink {
+    virtual ~MemoryWatchSink()=default;
+    virtual void noteAccess(uint16_t addr,uint8_t value,bool write)=0;
+};
+}
+// The probe was written against POM2's Memory and M6502: these keep their
+// names on the facade, so the tests read as before.
+struct DisplayFlags {bool textMode,hiRes,mixedMode,page2;};
+struct Mem {
+    pom2::Core& core;
+    pom2::MemoryWatchSink* sink=nullptr;
+    std::vector<bool> reads=std::vector<bool>(65536),writes=std::vector<bool>(65536);
+    bool inWatch=false;uint64_t watchCycle=0;
+    uint8_t memRead(unsigned a) {return core.read(uint16_t(a));}
+    void memWrite(unsigned a,uint8_t v) {core.write(uint16_t(a),v);}
+    void queueKey(uint8_t k) {core.queueKey(k);}
+    // Inside a watch: the cycle the access landed on, as Memory reported.
+    uint64_t getCycleCounter() const {return inWatch?watchCycle:core.cpuState().cycles;}
+    void setPaddle(int n,uint8_t v) {core.setPaddle(n,v);}
+    void setPaddleButton(int n,bool down) {core.setPaddleButton(n,down);}
+    uint64_t getSpeakerToggleCount() const {return core.speakerToggleCount();}
+    DisplayFlags getDisplayState() const {
+        auto d=core.displayState();return {d.text,d.hiRes,d.mixed,d.page2};
+    }
+    void setWatchSink(pom2::MemoryWatchSink* s) {
+        sink=s;
+        if(!s) {core.setBusWatch({});return;}
+        core.setBusWatch([this](uint16_t a,uint8_t v,bool w,uint64_t cycle) {
+            if(!sink || !(w?writes[a]:reads[a]))return;
+            inWatch=true;watchCycle=cycle;sink->noteAccess(a,v,w);inWatch=false;
+        });
+    }
+    void rearm() {
+        core.clearWatchedAddresses();
+        for(int kind=0;kind<2;++kind) {
+            auto& set=kind?writes:reads;
+            for(unsigned a=0;a<65536;) {
+                if(!set[a]) {++a;continue;}
+                unsigned b=a;while(b+1<65536 && set[b+1])++b;
+                core.watchAddresses(uint16_t(a),uint16_t(b),!kind,kind);a=b+1;
+            }
+        }
+    }
+    // Watches add up on the core: arming is direct, disarming re-arms the rest.
+    void setReadWatch(unsigned a,bool on) {reads[a]=on;if(on)core.watchAddresses(uint16_t(a),uint16_t(a),true,false);else rearm();}
+    void setWriteWatch(unsigned a,bool on) {writes[a]=on;if(on)core.watchAddresses(uint16_t(a),uint16_t(a),false,true);else rearm();}
+    void clearReadWatches() {std::fill(reads.begin(),reads.end(),false);rearm();}
+    void clearWriteWatches() {std::fill(writes.begin(),writes.end(),false);rearm();}
+};
+struct Cpu {
+    pom2::Core& core;
+    long last=0;
+    void step() {auto c=core.cpuState().cycles;core.step();last=long(core.cpuState().cycles-c);}
+    long getCurrentInstructionCycles() const {return last;}
+    unsigned getProgramCounter() const {return core.cpuState().programCounter;}
+    uint8_t getStackPointer() const {return core.cpuState().stackPointer;}
+    uint8_t getAccumulator() const {return core.cpuState().accumulator;}
+    uint8_t getXRegister() const {return core.cpuState().x;}
+    uint8_t getStatusRegister() const {return core.cpuState().status;}
+    template<class F> void set(F f) {auto st=core.cpuState();f(st);core.setCpuState(st);}
+    void setProgramCounter(unsigned pc) {set([&](pom2::CpuState& st){st.programCounter=uint16_t(pc);});}
+    void setAccumulator(uint8_t v) {set([&](pom2::CpuState& st){st.accumulator=v;});}
+    void setXRegister(uint8_t v) {set([&](pom2::CpuState& st){st.x=v;});}
+    void setStatusRegister(uint8_t v) {set([&](pom2::CpuState& st){st.status=v;});}
+    void softReset() {core.softReset();}
+};
 int main(int argc,char** argv) {
  try {
     require(argc>=4 && argc<=6,"usage: playtest ROM_DIR DISK.po game.lbl");
@@ -39,50 +100,28 @@ int main(int argc,char** argv) {
     bool iic=variant=="iic16" || variant=="iic32";
     // Original (unenhanced) //e: NMOS 6502 and its own monitor ROM.
     bool nmos=variant=="iie-nmos";
-    pom2::IWMDevice iwm;
-    Memory mem; M6502 cpu(&mem);
-    if(iic) {mem.setIWM(&iwm);mem.setIWMAuthoritative(true);}
-    mem.clearRam(); mem.resetSoftSwitches(); mem.setIIEMode(true); mem.setCpu(&cpu);
-    mem.setVideoStandard(pal ? VideoStandard::PAL : VideoStandard::NTSC);
-    auto rom=roms+(variant=="iic16" ? "/apple2c-16K.rom" : variant=="iic32" ? "/apple2c-32Kv0.rom" : nmos ? "/apple2e_unenh.rom" : "/apple2e.rom");
-    require(mem.loadAppleIIRom(rom.c_str(),iic)>0,"main ROM");
+    // The //c's two on-board 6551 ACIAs come with Machine::AppleIIc: its ROM
+    // IRQ handler polls their status first (with nothing there it read the
+    // floating bus, and a video byte with bit 7 set looked like a serial
+    // interrupt that swallowed the VBL).
     bool hle=variant=="applewin";
     bool alternate=argc==6 && std::string(argv[5])=="space-reset";
     std::string recordTest=argc==6 ? argv[5] : "";
-    MouseCard* mouse=nullptr; MouseCardAppleWin* applewin=nullptr; IIcMouse* native=nullptr;
-    if (iic) {
-        // The //c's two on-board 6551 ACIAs (POM2's //c profile: "ssc" in
-        // slots 1 and 2). Its ROM IRQ handler polls their status first; with
-        // nothing there it reads the floating bus, and a video byte with
-        // bit 7 set looked like a serial interrupt that swallowed the VBL.
-        for(int port : {1,2}) mem.slotBus().plug(port,std::make_unique<SuperSerialCard>(port));
-        auto card=std::make_unique<IIcMouse>(4);
-        native=card.get();mem.slotBus().plug(4,std::move(card));
-    } else if (hle) {
-        auto card=std::make_unique<MouseCardAppleWin>(4);
-        require(card->loadRom(roms+"/mouse_341-0270-c.bin"),"mouse ROM");
-        applewin=card.get(); mem.slotBus().plug(4,std::move(card));
-    } else {
-        auto card=std::make_unique<MouseCard>(4);
-        require(card->loadRoms(roms+"/mouse_341-0270-c.bin",roms+"/mouse_341-0269.bin"),"mouse ROMs");
-        mouse=card.get(); mem.slotBus().plug(4,std::move(card));
-    }
-    auto disk=std::make_unique<DiskIICard>(6);
-    auto *drive=disk.get();
-    disk->setCpu(&cpu);
-    disk->setIwmHost(iic);
-    if(iic)disk->setIWM(&iwm);
-    require(disk->loadBootRom(roms+"/disk2.rom"),"Disk II ROM");
-    // The host wrapper supplies a private image; production image never written.
-    require(disk->insertDisk(argv[2]),"insert disk");
-    mem.slotBus().plug(6,std::move(disk));
+    pom2::Core core=probe::boot(roms,argv[2],iic ? variant : nmos ? "iie-unenh" : "iie",
+                                iic ? "" : hle ? "applewin" : "mame",pal);
     // An RGB card that shows mixed DHGR: the game selects it blindly.
-    auto chatMauveCard=std::make_unique<LeChatMauveCard>(7,iic ? LeChatMauveCard::Variant::IIcAdapter : LeChatMauveCard::Variant::Feline);
-    auto* chatMauve=chatMauveCard.get();mem.slotBus().plug(7,std::move(chatMauveCard));
-    cpu.setCpuMode(nmos ? M6502::CpuMode::NMOS : M6502::CpuMode::CMOS); cpu.hardReset(); mem.slotBus().reset();
+    require(core.attachRgbCard(7,iic ? pom2::RgbCardModel::LeChatMauveIIcAdapter
+                                     : pom2::RgbCardModel::LeChatMauveFeline),"RGB card: "+core.lastError());
+    Mem mem{core};Cpu cpu{core};
+    // The host pointer moves by relative steps from where the card last
+    // took it (hostX/hostY wrap as bytes, as POM2's setHostMouse took them).
+    uint8_t lastX=0,lastY=0;
+    auto hostMouse=[&](uint8_t x,uint8_t y,bool down) {
+        core.moveMouse(int8_t(uint8_t(x-lastX)),int8_t(uint8_t(y-lastY)),down);lastX=x;lastY=y;
+    };
     auto read=[&](const char* s) { return mem.memRead(at(s)); };
     auto write=[&](const char* s,uint8_t v) { mem.memWrite(at(s),v); };
-    auto run=[&](long cycles) { long c=0; while(c<cycles) {cpu.step();c+=cpu.getCurrentInstructionCycles();} };
+    auto run=[&](long cycles) { probe::run(core,cycles); };
     const bool profile=std::getenv("CHROMA_PROFILE")!=nullptr;
     bool profileActive=false;
     std::map<unsigned,std::string> profileNames;
@@ -134,7 +173,7 @@ int main(int argc,char** argv) {
     // The title theme plays on arrival: count speaker clicks during boot.
     struct Speaker : pom2::MemoryWatchSink {
         unsigned clicks=0;
-        Memory* memory=nullptr;
+        Mem* memory=nullptr;
         std::vector<uint64_t> stamps;   // cycle of each click, for the tune tests
         void noteAccess(uint16_t addr,uint8_t,bool) override {
             if(addr!=0xC030)return;
@@ -161,11 +200,11 @@ int main(int argc,char** argv) {
         std::cout<<"C stack: deepest use "<<(0xBF00-a)<<" of "<<(0xBF00-stackBottom)<<" bytes\n";
         require(a>=stackBottom+64,"C stack keeps a 64-byte margin");
     };
-    require(chatMauve->dhgrMode()==LeChatMauveCard::DhgrMode::Mixed,"Chat Mauve mixed DHGR selected");
+    require(core.rgbDhgrMode()==pom2::RgbDhgrMode::Mixed,"Chat Mauve mixed DHGR selected");
     // Fixtures stay deterministic: no enemy arrives unless a test asks.
     write("enemy_hold",1);
     if(recordTest.rfind("records-",0)==0) {
-        drive->driveImage(0).setWriteBackEnabled(recordTest!="records-error");
+        if(recordTest=="records-error")require(core.setDiskWriteProtected(0,true),"write-protect the disk");
         auto word=[&](uint16_t p) {return unsigned(mem.memRead(p))+256*mem.memRead(p+1);};
         auto press=[&](char key) {mem.queueKey(key);until(tick,80000000);until(tick,80000000);};
         if(recordTest=="records-collisions") {
@@ -391,7 +430,7 @@ int main(int argc,char** argv) {
                 mem.memWrite(0xC002,0);return data;
             };
             auto click=[&](bool down) {
-                if(native)native->setHostMouse(0,0,down);else if(mouse)mouse->setHostMouse(0,0,down);else applewin->setHostMouse(0,0,down);
+                hostMouse(0,0,down);
             };
             // Colour bytes (bit 7 set, some pixel lit) in the eight bytes of a row.
             auto coloured=[&](const std::vector<uint8_t>& page,int y,int byte) {
@@ -508,12 +547,12 @@ int main(int argc,char** argv) {
             require(read("a2_vbl_mode")==unsigned(iic?2:1),"VBL restored after record I/O");
         }
         for(int i=0;i<5;++i)require(word(at("records")+i*6)==expected[i],"sorted top five records");
-        require(drive->flushPendingWrites(),"flush actual ProDOS disk writes");
+        require(core.flushDisk(0),"flush actual ProDOS disk writes");
         stackCheck();
         std::cout<<"PASS three initials, ranked top five and actual ProDOS writes\n";return 0;
     }
     uint8_t hostX=0,hostY=0; bool pressed=false;
-    auto host=[&]() { if(native) native->setHostMouse(hostX,hostY,pressed); else if(mouse) mouse->setHostMouse(hostX,hostY,pressed); else applewin->setHostMouse(hostX,hostY,pressed); };
+    auto host=[&]() { hostMouse(hostX,hostY,pressed); };
     host(); run(80000);
     auto startSound=mem.getSpeakerToggleCount();
     if (alternate) mem.queueKey(32); else { pressed=true; host(); }
@@ -1194,9 +1233,9 @@ int main(int argc,char** argv) {
     // Level transitions from either displayed page must never write to it:
     // the SECTOR CLEAR banner is presented, then the board built behind it.
     struct VideoWrites : pom2::MemoryWatchSink {
-        Memory& mem;unsigned visibleWrites=0,badFlips=0,flips=0;bool page2;
+        Mem& mem;unsigned visibleWrites=0,badFlips=0,flips=0;bool page2;
         uint64_t period;
-        VideoWrites(Memory& m,bool pal):mem(m),page2(m.getDisplayState().page2),period(65*(pal?312:262)){}
+        VideoWrites(Mem& m,bool pal):mem(m),page2(m.getDisplayState().page2),period(65*(pal?312:262)){}
         void noteAccess(uint16_t addr,uint8_t,bool write) override {
             if(!write && (addr==0xC054 || addr==0xC055)) {
                 auto current=mem.getDisplayState().page2;
@@ -1412,7 +1451,7 @@ int main(int argc,char** argv) {
     require(!read("mouse_slot"),"mouse disabled on exit");
     require(!read("a2_vbl_mode"),"VBL handler deallocated on exit/reset");
     require((mem.memRead(0xC01A)&0x80)!=0,"text restored on exit");
-    require(chatMauve->dhgrMode()==LeChatMauveCard::DhgrMode::COL140,"RGB card back to 140 colour on exit");
+    require(core.rgbDhgrMode()==pom2::RgbDhgrMode::Color140,"RGB card back to 140 colour on exit");
     // Check /RAM before QUIT starts the dispatcher. $0300 is ProDOS's RAM
     // transfer trampoline: use a distinct caller/landmark at $0800.
     mem.memWrite(0xBF5C,mem.memRead(0xBF5C)&0x3F);

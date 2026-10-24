@@ -10,17 +10,17 @@
 using probe::require;
 int main(int argc, char** argv) {
  try {
-    require(argc == 5, "usage: mouse_probe ROM_DIR DISK.dsk BUILD_DIR applewin|mame|iic16|iic32");
+    require(argc == 5, "usage: mouse_probe ROM_DIR DISK.dsk BUILD_DIR applewin|applewin5|mame|iic16|iic32");
     std::string roms = argv[1], build = argv[3], variant = argv[4];
     std::map<std::string, unsigned> labels;
     for (const char* module : {"EDIT", "RUN", "WIRE", "DISK", "mouse"})
         probe::labels(labels, build + "/" + module + ".lbl", module);
     auto at = [&](const std::string& name) { return uint16_t(labels.at(name)); };
     bool iic = variant == "iic16" || variant == "iic32";
-    // The facade's Disk II is in slot 6 (the slot-5 variant needs POM2's
-    // own build: attachDiskII takes no slot).
-    const int diskSlot = 6;
-    pom2::Core core = probe::boot(roms, argv[2], iic ? variant : "iip", iic ? "" : variant);
+    // applewin5: the AppleWin card with the Disk II in slot 5.
+    const int diskSlot = variant == "applewin5" ? 5 : 6;
+    pom2::Core core = probe::boot(roms, argv[2], iic ? variant : "iip",
+                                  iic ? "" : variant == "applewin5" ? "applewin" : variant, false, diskSlot);
     auto run = [&](long budget) { probe::run(core, budget); };
     auto until = [&](const std::string& name, long budget = 20000000) {
         probe::until(core, at(name), budget, name);
@@ -32,9 +32,9 @@ int main(int argc, char** argv) {
     host();
     until("EDIT.pcs_MAIN", 60000000);
     require(read("mouse._mouse_slot") == 4, "mouse detected in slot 4");
-    if (iic) {  // INITMOUSE selects TEXT and LORES (a ][+ has no status switches to read)
-        require(!(core.read(0xC01A) & 0x80) && (core.read(0xC01D) & 0x80) && !(core.read(0xC01B) & 0x80) &&
-                !(core.read(0xC01C) & 0x80), "editor in full-screen HGR page 1");
+    {
+        const auto video = core.displayState();  // INITMOUSE selects TEXT and LORES
+        require(!video.text && video.hiRes && !video.mixed && !video.page2, "editor in full-screen HGR page 1");
     }
     run(200000);
     // GETBUTNS originally preserves X/Y. WORLD's held-slider loop keeps

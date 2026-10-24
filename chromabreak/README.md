@@ -238,7 +238,7 @@ provides the tool variables (all overridable, e.g. `make POM2=... DIST=...`) and
 4=mouseaw` (POM2's `mouse` card works as well); `run-iic` uses `--preset iic --slot
 4=iicmouse`.
 
-Targets: `all` (default), `run`, `run-iic`, `test`, `test-mouse`, `test-records`, `clean`,
+Targets: `all` (default), `run`, `run-iic`, `test`, `test-long`, `clean`,
 `distclean`.
 
 The build generates several sources from Python tools, and rebuilds them when their
@@ -259,9 +259,8 @@ The ProDOS volume (`CHROMABREAK`, 280 blocks) is assembled by
 
 ## Tests
 
-    make -C chromabreak test
-    make -C chromabreak test-mouse   POM2_SRC=/path/to/pom2
-    make -C chromabreak test-records POM2_SRC=/path/to/pom2
+    make -C chromabreak test         # image, //e run, real mouse firmware (~3 min)
+    make -C chromabreak test-long    # ProDOS records, help, music (~1 min)
 
 **`tests/test_game.py`** (`make test`) needs nothing beyond the build. It checks the link
 map (the unused DHGR drawing, transfer and text modules of the library are excluded, the
@@ -275,9 +274,8 @@ three difficulty settings, every one of the 60 sector transitions through the re
 collision and level-loading code, the victory and replay, and the return to ProDOS text
 by Escape/`Q` and by RESET. `--image-only` stops after the image checks.
 
-**`tests/test_mouse.py`** (`make test-mouse`, optional) needs a built POM2 source tree
-(`build/libpom2_core_test.a`) and its Apple ROMs; it compiles `tests/playtest.cpp` against
-the POM2 core and runs the real firmware. It covers twelve profiles, two entries (click,
+**`tests/test_mouse.py`** (`make test`) runs `tests/playtest_probe.cpp`, built on the POM2
+core facade vendored with a2shot (`dev/tools/a2shot/probe.hpp`), with the real firmware. It covers twelve profiles, two entries (click,
 and Space then RESET) on six machines: the `applewin` and `mame` AppleMouse cards on the
 //e, the native //c mouse with the 16 KB and 32 KB ROMs (and the two built-in serial
 ports, whose ACIA status the //c ROM reads on every interrupt), and the PAL timings of
@@ -292,7 +290,7 @@ mode, bit 7 of every byte of both pages and banks, back to 140 colour on exit), 
 mode (15 s measured in emulated time, 50 Hz detection, silence, exit by key or lost ball)
 and the transitions from both pages: no write to the displayed page.
 
-**`make test-records`** runs the same harness with `--records-only`: the ProDOS writes and
+**`make test-long`** runs the same harness with `--records-only`: the ProDOS writes and
 the reload of the five entries, their sorting, initials and modes, a missing or corrupt
 file, the write-protected disk, the format 1 to 2 conversion; the help page on the four
 machines (capsules, tiles and enemies drawn, return to the title by a key then by a click

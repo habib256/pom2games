@@ -184,8 +184,8 @@ Test programs too large for a script link the same core in C++:
 `tests/NAME_probe.cpp` with `tools/a2shot/probe.hpp` (boot of a ][+, //e or
 //c with or without a mouse, labels, runs counted in cycles, the store an
 instruction is about to make), built by `make $(BUILD)/NAME_probe`
-(`cc65/apple2.mk`). PINBALL, ARKABREAKOUT (mouse) and WARGALAGA II (//c
-clock) run theirs in `make test`.
+(`cc65/apple2.mk`). PINBALL, ARKABREAKOUT, CHROMABREAK (mouse) and
+WARGALAGA II (//c clock) run theirs in `make test`.
 
 a2shot boots a **copy** of the disk: POM2 writes modified images back, and
 a test must not alter the disk it is checking.

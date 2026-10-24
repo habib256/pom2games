@@ -5,11 +5,13 @@
 //
 //   pom2::Core core = probe::boot(roms, disk, "iic32", "", /*pal=*/false);
 //
-// Machines: "iip" (][+), "iie" (enhanced //e), "iic16" / "iic32" (//c, 16 or
+// Machines: "iip" (][+), "iie" (enhanced //e), "iie-unenh" (the original
+// //e: NMOS 6502, apple2e_unenh.rom), "iic16" / "iic32" (//c, 16 or
 // 32 KB ROM, the built-in mouse on port 4). Mouse (][+ and //e): "" none,
 // "mame" (AppleMouse, Apple's firmware on both chips) or "applewin" (the
 // same slot EPROM on AppleWin's model of the MCU), in slot 4. The disk boots
-// from the Disk II in slot 6 (DOS 3.3 .dsk or ProDOS .po, 140 KB).
+// from the Disk II, in slot 6 unless `diskSlot` says otherwise (DOS 3.3 .dsk
+// or ProDOS .po, 140 KB; the //c's drive is slot 6).
 #ifndef A2SHOT_PROBE_HPP
 #define A2SHOT_PROBE_HPP
 
@@ -41,18 +43,21 @@ inline void labels(std::map<std::string, unsigned>& out, const std::string& file
 inline bool isIIc(const std::string& machine) { return machine == "iic16" || machine == "iic32"; }
 
 inline pom2::Core boot(const std::string& roms, const std::string& disk, const std::string& machine,
-                       const std::string& mouse = "", bool pal = false)
+                       const std::string& mouse = "", bool pal = false, int diskSlot = 6)
 {
     pom2::CoreConfig config;
     config.timing = pal ? pom2::VideoTiming::PAL : pom2::VideoTiming::NTSC;
     const bool iic = isIIc(machine);
     config.machine = iic ? pom2::Machine::AppleIIc
                    : machine == "iie" ? pom2::Machine::AppleIIeEnhanced
+                   : machine == "iie-unenh" ? pom2::Machine::AppleIIe
                    : pom2::Machine::AppleIIPlus;
-    require(iic || machine == "iie" || machine == "iip", "unknown machine " + machine);
+    require(iic || machine == "iie" || machine == "iie-unenh" || machine == "iip",
+            "unknown machine " + machine);
     pom2::Core core(config);
     const std::string rom = machine == "iic32" ? "/apple2c-32Kv0.rom" : machine == "iic16"
-                          ? "/apple2c-16K.rom" : machine == "iie" ? "/apple2e.rom" : "/apple2p.rom";
+                          ? "/apple2c-16K.rom" : machine == "iie" ? "/apple2e.rom"
+                          : machine == "iie-unenh" ? "/apple2e_unenh.rom" : "/apple2p.rom";
     require(core.loadRom(roms + rom, machine == "iic32"), "main ROM: " + core.lastError());
     if (!mouse.empty()) {
         require(!iic, "the //c has its mouse built in");
@@ -60,7 +65,7 @@ inline pom2::Core boot(const std::string& roms, const std::string& disk, const s
                                                         : pom2::MouseModel::AppleMouse, roms),
                 "mouse: " + core.lastError());
     }
-    require(core.attachDiskII(roms + "/disk2.rom", roms + "/diskii_p6.rom") &&
+    require(core.attachDiskII(roms + "/disk2.rom", roms + "/diskii_p6.rom", diskSlot) &&
             core.insertDisk(0, disk) && core.bootDisk(), "boot: " + core.lastError());
     core.setJoystickAxes(0, 0);
     return core;
