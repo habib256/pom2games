@@ -73,6 +73,22 @@ DOS33_DEPS := src/hello.bas $(DEV)/tools/dos33.py $(SYSTEM)
 DOS33PATCH = $(PYTHON) $(DEV)/tools/dos33patch.py
 DOS33PATCH_DEPS := $(DEV)/tools/dos33patch.py $(DEV)/tools/dos33.py
 
+# WOZ twin of a 140K disk in dist/, in dist/woz/ (dev/tools/dsk2woz.py): the MiSTer
+# Apple-II core's own .dsk/.po conversion has no sync bytes, and RWTS reads
+# made by the program fail there; it also writes saves back to a WOZ only.
+# `all` builds it; a program clears WOZ after the include to go without (an
+# 800K disk, a disk outside dist/).
+WOZ ?= $(if $(filter $(DIST)/%.dsk $(DIST)/%.po,$(DISK)),$(DIST)/woz/$(notdir $(basename $(DISK))).woz)
+DSK2WOZ_DEPS := $(DEV)/tools/dsk2woz.py
+$(DIST)/woz/%.woz: $(DIST)/%.dsk $(DSK2WOZ_DEPS)
+	@mkdir -p $(DIST)/woz
+	$(PYTHON) $(DEV)/tools/dsk2woz.py $< $@
+$(DIST)/woz/%.woz: $(DIST)/%.po $(DSK2WOZ_DEPS)
+	@mkdir -p $(DIST)/woz
+	$(PYTHON) $(DEV)/tools/dsk2woz.py $< $@
+.SECONDEXPANSION:
+all: $$(WOZ)
+
 .DEFAULT_GOAL := all
 
 run: all
@@ -82,7 +98,7 @@ clean:
 	rm -rf $(BUILD)
 
 distclean: clean
-	rm -f $(DISK)
+	rm -f $(DISK) $(WOZ)
 
 $(A2RUN): $(wildcard $(DEV)/tools/a2run/*.[ch] $(DEV)/tools/a2run/Makefile)
 	$(MAKE) -C $(DEV)/tools/a2run

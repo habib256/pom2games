@@ -1,6 +1,7 @@
 # pom2games — build every disk
 #
-#   make            -> dist/*.dsk et dist/*.po (every disk lands in this one folder)
+#   make            -> dist/*.dsk et dist/*.po (every disk lands in this one folder),
+#                      plus dist/woz/: a .woz twin of each 140K one for the MiSTer core
 #   make test       -> build, then the FAST tier: each program's `make test`
 #                      plus the quick dev/ checks (libraries, tools, bench-check)
 #   make test-long  -> the LONG tier: each program's `make test-long` (full
