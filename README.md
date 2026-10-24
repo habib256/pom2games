@@ -309,8 +309,8 @@ full-screen editor, built-in help and demos. 80 columns on a //e.
 </tr></table>
 
 The classic 🐍: eat apples, grab the bonus gems, don't hit the walls — and
-watch it speed up. With sound, three starting speeds and a record saved on
-the disk. A whole game in one 10 KB C program (cc65).
+watch it speed up. Five levels with walls, sound, three starting speeds and
+a record saved on the disk. A whole game in one 10.5 KB C program (cc65).
 
 - **Machine**: Apple II+ 48 KB, DOS 3.3
 - **Controls**: IJKL, arrows or joystick; 1 2 3 on the title for the speed; P to pause

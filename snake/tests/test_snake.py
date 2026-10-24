@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """SNAKE on the shipped disk in a2run (Apple II+): speeds, wrap, turn queue,
-walls, apples and bonus with their sounds, joystick, pause and quit, and the
-record saved on the disk (or kept in memory on a write-protected one).
+walls, apples and bonus with their sounds, joystick, pause and quit, the
+levels (walls, growth, pace, the win) and the record saved on the disk (or
+kept in memory on a write-protected one).
 
 Each scenario boots the disk, picks a speed on the title, then moves the
 apple off the snake's path with a poke so the random sequence does not
@@ -17,7 +18,7 @@ sys.path.insert(0, str(ROOT / 'dev/tools'))
 import a2test  # noqa: E402
 import dos33  # noqa: E402
 
-COLS, MAXLEN = 35, 660
+COLS, ROWS, MAXLEN = 35, 24, 660
 SPEEDS = {'1': 3565, '2': 2565, '3': 1565}
 
 
@@ -170,6 +171,60 @@ def record(disk, L, work):
           'write-protected disk: kept in memory, game goes on')
 
 
+def level_end(L, level, food=(18, 12)):
+    """Start, then make the next apple (right in front) the last of `level`
+    (0 = level 1): its tick ends the level."""
+    return start(L, food=food) + [L.poke('level', level), L.poke('level_apples', 9)]
+
+
+def levels(disk, L):
+    # the 10th apple of level 1: the LEVEL 2 card and jingle, a fresh snake
+    # among two bars, a faster start, the score kept
+    steps = level_end(L, 0) + ticks(L, 1) + ['spk', L.until('next_level', 100), L.until('redraw', 600),
+                                            'wait:1', 'spk', L.peek('level'), L.peek('occupied', COLS * ROWS),
+                                            L.peek('tick_spins', 2), L.poke('foodx', 1), L.poke('foody', 21)] + \
+        snap(L) + ['press:I', L.until('keep_record', 600), L.peek('head', 2), L.peek('sy', MAXLEN)]
+    r = run(disk, steps)
+    grid = r.mem(L['occupied'], COLS * ROWS)
+    cells = {(i % COLS, i // COLS) for i, v in enumerate(grid) if v}
+    bars = {(x, y) for y in (7, 17) for x in range(8, 27)}
+    snake = {(15, 12), (16, 12), (17, 12)}
+    s = Snaps(r, L, 1)
+    assert r.mem(L['level'], 1) == b'\1' and cells == bars | snake, sorted(cells - bars - snake)
+    assert s(0)['slen'] == 3 and s(0)['head'] == (17, 12) and s(0)['score'] == 5, s(0)
+    assert int.from_bytes(r.mem(L['tick_spins'], 2), 'little') == 3565 - 300
+    assert r.spk[-2] >= 0x30 + 0x40, f'level jingle: {r.spk[-2]} toggles'
+    head = int.from_bytes(r.mem(L['head'], 2, 1), 'little')
+    assert r.mem(L['sy'], MAXLEN, 1)[head] == 8, 'killed by the bar on row 7'
+    print(f'PASS level 2: card and jingle ({r.spk[-2]} toggles), 38 wall cells, a fresh 3-cell snake, '
+          '3265 spins, score kept; the bar kills')
+
+    # level 2 apples grow the snake by two cells
+    steps = level_end(L, 0) + ticks(L, 1) + [L.until('redraw', 600), 'wait:1', L.poke('foodx', 18),
+                                            L.poke('foody', 12)] + ticks(L, 2) + snap(L) + ticks(L, 1) + snap(L)
+    s = Snaps(run(disk, steps), L, 2)
+    assert (s(0)['slen'], s(1)['slen']) == (4, 5), (s(0), s(1))
+    print('PASS level 2: an apple grows the snake by two cells, one per move')
+
+    # level 5: 100 apples placed in a row land on free cells only
+    place = L['place_food']
+    steps = level_end(L, 3) + ticks(L, 1) + [L.until('redraw', 600), 'wait:1'] + ticks(L, 1) + \
+        [L.peek('level'), L.peek('occupied', COLS * ROWS)] + [f'call:{place:04X}:5', L.peek('foodx', 2)] * 100
+    r = run(disk, steps)
+    grid = r.mem(L['occupied'], COLS * ROWS)
+    assert r.mem(L['level'], 1) == b'\4' and sum(grid) == 61 + 3, sum(grid)
+    foods = [r.mem(L['foodx'], 2, i) for i in range(100)]
+    assert all(not grid[y * COLS + x] and 1 <= x <= 33 and 3 <= y <= 22 for x, y in foods), foods
+    print(f'PASS level 5: 61 wall cells; 100 apples in a row, {len(set(foods))} distinct cells, none on a wall '
+          'or the snake')
+
+    # the last apple of level 5: YOU WIN
+    r = run(disk, level_end(L, 4) + ticks(L, 1) + ['spk', L.until('keep_record', 300), 'wait:30',
+                                                   L.peek('won'), 'spk'])
+    assert r.mem(L['won'], 1) == b'\1' and r.spk[-1] >= 0x40 + 0x50 + 0x60, r.spk
+    print(f'PASS level 5 done: YOU WIN and its arpeggio ({r.spk[-1]} toggles)')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--disk', type=Path, default=ROOT / 'dist/SNAKE.dsk')
@@ -184,6 +239,7 @@ def main():
     apples(a.disk, L)
     joystick(a.disk, L)
     pause_quit(a.disk, L)
+    levels(a.disk, L)
     with tempfile.TemporaryDirectory(prefix='snake-') as tmp:
         record(a.disk, L, Path(tmp))
 
