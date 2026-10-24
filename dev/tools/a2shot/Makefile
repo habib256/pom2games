@@ -18,7 +18,12 @@ endif
 a2shot: a2shot.cpp
 	$(CXX) $(POM2_CORE_CFLAGS) -O2 $< $(POM2_CORE_LIBS) -o $@
 
+# A test probe on the same core: make probe SRC=x_probe.cpp OUT=build/x_probe
+# (../cc65/apple2.mk's $(BUILD)/%_probe rule). probe.hpp holds what they share.
+probe:
+	$(CXX) $(POM2_CORE_CFLAGS) -I . -O2 $(SRC) $(POM2_CORE_LIBS) -o $(OUT)
+
 clean:
 	rm -f a2shot
 
-.PHONY: clean
+.PHONY: clean probe

@@ -106,4 +106,10 @@ $(A2RUN): $(wildcard $(DEV)/tools/a2run/*.[ch] $(DEV)/tools/a2run/Makefile)
 $(A2SHOT): $(DEV)/tools/a2shot/a2shot.cpp $(DEV)/tools/a2shot/Makefile $(DEV)/tools/a2shot/sdk.mk
 	$(MAKE) -C $(DEV)/tools/a2shot
 
+# C++ test probes on the POM2 core facade (tests/NAME_probe.cpp, with
+# dev/tools/a2shot/probe.hpp), linked by a2shot's Makefile against its SDK.
+$(BUILD)/%_probe: tests/%_probe.cpp $(DEV)/tools/a2shot/probe.hpp $(DEV)/tools/a2shot/sdk.mk
+	@mkdir -p $(BUILD)
+	$(MAKE) -C $(DEV)/tools/a2shot probe SRC=$(abspath $<) OUT=$(abspath $@)
+
 .PHONY: all run clean distclean

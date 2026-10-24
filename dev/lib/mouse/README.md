@@ -81,5 +81,6 @@ hardware mailboxes. The PCS addresses, the choice of paddles, the
 coordinate conversion and the drag anchoring stay in Pinball.
 
 `python3 dev/tests/test_mouse_context.py` tests the module without a DOS client.
-`make -C pinball test-mouse` validates the integration with the `mouse` and
-`mouseaw` cards, slots 4/5 and the native 16/32 KB //c ROMs.
+`make -C pinball test` validates the integration with the `mouse` and
+`mouseaw` cards in slot 4 and the native 16/32 KB //c ROMs (as do
+ARKABREAKOUT's and WARGALAGA II's `make test`).

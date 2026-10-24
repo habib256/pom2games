@@ -115,13 +115,13 @@ that it was not saved.
 ## Build and test
 
 Requirements: cc65 (`ca65`, `ld65`), Python 3; tests additionally need a C compiler
-and zlib. The optional mouse integration uses a built sibling POM2 core.
+and zlib. The mouse test links the POM2 core vendored in `dev/tools/a2shot`.
 
 ```sh
 make -C arkabreakout                # ../dist/ARKABREAKOUT.dsk
 make -C arkabreakout run            # POM2, II+ with an AppleMouse II in slot 4
-make -C arkabreakout test           # native HGR, gameplay, DOS records, 60-sector pilot
-make -C arkabreakout test-mouse     # real AppleMouse II firmware on II+ and native //c ROMs
+make -C arkabreakout test           # native HGR, gameplay, DOS records, real mouse firmware
+make -C arkabreakout test-long      # 60-sector pilot
 make -C arkabreakout assets         # title, sprites, board packs, music
 ```
 
@@ -150,10 +150,11 @@ pages are compared against the original background.
 `test_records.py` performs actual DOS saves, inserts and sorts six scores,
 checks initials and progression after reboot, and verifies write protection.
 `test_campaign.py` steers the paddle through all 60 boards in Relax mode without
-changing balls, bricks, score, lives or progress. `test-mouse` runs both the
+changing balls, bricks, score, lives or progress. `test_mouse.py`
+(`tests/mouse_probe.cpp` on the POM2 core facade) runs both the
 AppleWin-compatible card and the fully emulated 68705 card with their real ROMs,
 plus the native //c mouse with the 16 and 32 KB system ROMs;
-it checks detection, X/Y, edge-triggered launch, laser, mouse menu clicks, held-click suppression and clean DOS exit with both `Q` and RESET. It also checks the display mode after every CPU
+it checks detection, X/Y, edge-triggered launch, laser, mouse menu clicks, held-click suppression and clean DOS exit with both `Q` and RESET. On the //c it also checks the display mode after every CPU
 instruction through menu transitions, pack loads, victory, DOS saving,
 records, help and the return to the title.
 All disk-writing tests use private copies.

@@ -179,11 +179,10 @@ de la bille.
 Le démarrage et le passage au jeu ont également été vérifiés avec `a2shot`,
 sur le cœur de POM2.
 
-`make -C pinball test-mouse` valide les deux cartes `mouseaw` et `mouse` sur
+`make -C pinball test` valide aussi les deux cartes `mouseaw` et `mouse` sur
 Apple II+ 6502 avec leurs ROM réelles, ainsi que la souris native du //c
-avec ses ROM de 16 et 32 Ko, son processeur 65C02 et son contrôleur IWM.
-Ce test optionnel utilise la bibliothèque
-`libpom2_core_test.a` d'un POM2 construit, avec `POM2_SRC=chemin/vers/pom2`.
+avec ses ROM de 16 et 32 Ko et son processeur 65C02 (`tests/test_mouse.py`,
+`tests/mouse_probe.cpp` sur la façade du cœur POM2 de `dev/tools/a2shot`).
 Il injecte les mouvements et clics dans la carte, vérifie le curseur HGR,
 le déplacement d'une bille, PLAY/Échap, les changements de modules,
 SAVE/LOAD et le retour de la souris après les effacements des buffers DOS.
@@ -191,11 +190,11 @@ Il vérifie également un déplacement rapide de la bille de la palette vers
 la table et la conservation de X/Y lors de la lecture du bouton.
 Il reprend la bille par son centre, vérifie qu'elle reste immobile à la prise,
 puis que son déplacement conserve le point de prise.
-Un profil II+ supplémentaire démarre depuis le slot 5 et vérifie SAVE/LOAD
-sur ce même contrôleur.
+Le profil II+ qui démarrait depuis un Disk II en slot 5 (SAVE/LOAD sur ce
+contrôleur) attend que la façade accepte un autre slot que le 6.
 Les tests souris vérifient la pile après SAVE/LOAD et après trois erreurs
 `FILE NOT FOUND`, puis rechargent la table sauvegardée.
-Le test ordinaire `make test` conserve sa validation sans carte souris.
+`tests/test_pinball.py` garde sa validation sans carte souris (a2run).
 
 La factorisation conserve **octet pour octet** le binaire résident souris et
 l’image de disquette construite avant extraction : aucun surcoût mémoire ni

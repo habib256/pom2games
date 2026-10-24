@@ -1,106 +1,77 @@
 // Real slot firmware on II+ and native //c ROMs, DOS 3.3. GPL-3.0.
-#include "M6502.h"
-#include "Memory.h"
-#include "MouseCard.h"
-#include "MouseCardAppleWin.h"
-#include "DiskIICard.h"
-#include "IIcMouse.h"
-#include "IWMDevice.h"
-#include "SuperSerialCard.h"
-#include <fstream>
+// On the POM2 core facade (../dev/tools/a2shot/probe.hpp), built by make.
+#include "probe.hpp"
 #include <iostream>
 #include <map>
-#include <memory>
-#include <stdexcept>
 #include <string>
 static void check(bool b,const char* s) {if(!b)throw std::runtime_error(s);}
 int main(int argc,char** argv) {
  try {
     check(argc==5||argc==6,"usage: mouse ROM_DIR DISK LABELS applewin|mame|iic16|iic32 [reset]");
-    std::map<std::string,unsigned> labels;std::ifstream f(argv[3]);std::string m,a,n;
-    while(f>>m>>a>>n)labels[n]=std::stoul(a,nullptr,16);
+    std::map<std::string,unsigned> labels;probe::labels(labels,argv[3]);
     auto at=[&](const char* s){return uint16_t(labels.at(std::string(".")+s));};
     std::string variant=argv[4];bool iic=variant=="iic16"||variant=="iic32";
-    pom2::IWMDevice iwm;
-    Memory mem;M6502 cpu(&mem);
-    if(iic){mem.setIWM(&iwm);mem.setIWMAuthoritative(true);}
-    mem.clearRam();mem.resetSoftSwitches();mem.setIIEMode(iic);mem.setCpu(&cpu);
     std::string roms=argv[1];
-    auto rom=roms+(variant=="iic16"?"/apple2c-16K.rom":variant=="iic32"?"/apple2c-32Kv0.rom":"/apple2p.rom");
-    check(mem.loadAppleIIRom(rom.c_str(),iic)>0,"main ROM");
-    MouseCard* real=nullptr;MouseCardAppleWin* aw=nullptr;IIcMouse* native=nullptr;
-    if(iic){
-      for(int port:{1,2})mem.slotBus().plug(port,std::make_unique<SuperSerialCard>(port));
-      auto card=std::make_unique<IIcMouse>(4);native=card.get();mem.slotBus().plug(4,std::move(card));
-    } else if(variant=="mame") {
-      auto card=std::make_unique<MouseCard>(4);real=card.get();
-      check(real->loadRoms(roms+"/mouse_341-0270-c.bin",roms+"/mouse_341-0269.bin"),"mouse ROMs");
-      mem.slotBus().plug(4,std::move(card));
-    } else {
-      auto card=std::make_unique<MouseCardAppleWin>(4);aw=card.get();
-      check(aw->loadRom(roms+"/mouse_341-0270-c.bin"),"mouse ROM");mem.slotBus().plug(4,std::move(card));
-    }
-    auto disk=std::make_unique<DiskIICard>(6);disk->setCpu(&cpu);
-    disk->setIwmHost(iic);if(iic)disk->setIWM(&iwm);
-    check(disk->loadBootRom(roms+"/disk2.rom"),"Disk II ROM");check(disk->insertDisk(argv[2]),"disk");mem.slotBus().plug(6,std::move(disk));
-    cpu.setCpuMode(iic?M6502::CpuMode::CMOS:M6502::CpuMode::NMOS);cpu.hardReset();mem.slotBus().reset();
-    auto read=[&](const char* s){return mem.memRead(at(s));};
-    auto write=[&](const char* s,uint8_t v){mem.memWrite(at(s),v);};
+    pom2::Core core=probe::boot(roms,argv[2],iic?variant:"iip",iic?"":variant);
+    auto read=[&](const char* s){return core.read(at(s));};
+    auto write=[&](const char* s,uint8_t v){core.write(at(s),v);};
     bool keepHgr=false;
+    // The video mode is read back from the //c's status switches (TEXT,
+    // MIXED, HIRES); a ][+ has none, and the facade no display state.
     auto step=[&](){
-      cpu.step();
-      if(keepHgr){auto d=mem.getDisplayState();check(!d.textMode&&d.hiRes&&!d.mixedMode,"full-screen HGR on every instruction during play/menu/loading");}
+      core.step();
+      if(keepHgr&&iic)check(!(core.read(0xC01A)&0x80)&&(core.read(0xC01D)&0x80)&&!(core.read(0xC01B)&0x80),"full-screen HGR on every instruction during play/menu/loading");
     };
-    auto until=[&](const char* s,long budget=10000000){long c=0;do{step();c+=cpu.getCurrentInstructionCycles();}while(cpu.getProgramCounter()!=at(s)&&c<budget);check(cpu.getProgramCounter()==at(s),s);};
-    auto cycles=[&](long count){long c=0;while(c<count){step();c+=cpu.getCurrentInstructionCycles();}};
+    auto until=[&](const char* s,long budget=10000000){auto end=probe::cycles(core)+budget;do step();while(probe::pc(core)!=at(s)&&probe::cycles(core)<end);check(probe::pc(core)==at(s),s);};
+    auto cycles=[&](long count){auto end=probe::cycles(core)+count;while(probe::cycles(core)<end)step();};
     until("menu_loop",50000000);check(read("_mouse_slot")==4,"mouse detected");check(read("mode")==2,"mouse selected");
-    if(iic)check(!(cpu.getStatusRegister()&4),"native mouse IRQ enabled");
+    if(iic)check(!(core.cpuState().status&4),"native mouse IRQ enabled");
     keepHgr=true;
     float x=0,y=0;bool button=false;
-    uint8_t nativeX=0,nativeY=0;
+    // The host pointer moves by relative steps (within +-127, as moveMouse
+    // asks), from where the card last took it.
+    int hostX=0,hostY=0;
     auto host=[&](){
-      if(native){
-        // Inject IOU edges during the frame, after the atomic firmware poll.
-        // Queuing an entire host jump at loop entry would deliver its edges
-        // while IRQs are masked for the zero-page workspace transaction.
-        auto nx=uint8_t(int(x)),ny=uint8_t(int(y));
-        if(nx!=nativeX||ny!=nativeY)cycles(10000);
-        nativeX=nx;nativeY=ny;native->setHostMouse(nx,ny,button);
-      }else if(real)real->setHostMouse(x,y,button);else aw->setHostMouse(x,y,button);
+      const int dx=int(x)-hostX,dy=int(y)-hostY;
+      // //c: inject IOU edges during the frame, after the atomic firmware
+      // poll. Queuing an entire host jump at loop entry would deliver its
+      // edges while IRQs are masked for the zero-page workspace transaction.
+      if(iic&&(dx||dy))cycles(10000);
+      hostX+=dx;hostY+=dy;core.moveMouse(dx,dy,button);
     };
     host();cycles(100000);button=true;host();until("loop");check(read("state")==1&&read("ball_live"),"click starts launched game");
-    button=false;host();mem.queueKey('P');cycles(200000);write("ball_live",0);write("enemy_hold",1);mem.queueKey('P');until("loop");
+    button=false;host();core.queueKey('P');cycles(200000);write("ball_live",0);write("enemy_hold",1);core.queueKey('P');until("loop");
     for(int i=0;i<20;i++){x+=10;host();until("loop");}check(read("pad_x")>180,"mouse X moves right");
     for(int i=0;i<50;i++){x+=20;host();until("loop");}check(read("pad_x")==251-read("pad_width"),"full right stays clamped without wrapping");
     for(int i=0;i<50;i++){x-=30;host();until("loop");}check(read("pad_x")==2,"full left");
     for(int i=0;i<30;i++){y-=10;host();until("loop");}check(read("pad_y")>=100&&read("pad_y")<=128,"mouse Y raises paddle");
     for(int i=0;i<30;i++){y+=20;host();until("loop");}check(read("pad_y")==175,"mouse Y lowers paddle");
     button=true;host();until("loop");check(read("ball_live"),"mouse click launches");
-    mem.queueKey('P');cycles(200000);write("effect",5);mem.queueKey('P');until("loop");
-    button=false;host();until("loop");until("loop");until("loop");button=true;host();until("loop");until("loop");check(read("shot_live")&&mem.memRead(at("shot_live")+1),"mouse fires two lasers");
-    auto start=mem.getCycleCounter();for(int i=0;i<60;i++)until("loop");
-    double hz=60.0*1020484.0/(mem.getCycleCounter()-start);check(hz>=26,"mouse cadence");
+    core.queueKey('P');cycles(200000);write("effect",5);core.queueKey('P');until("loop");
+    button=false;host();until("loop");until("loop");until("loop");button=true;host();until("loop");until("loop");check(read("shot_live")&&core.read(at("shot_live")+1),"mouse fires two lasers");
+    auto start=probe::cycles(core);for(int i=0;i<60;i++)until("loop");
+    double hz=60.0*1020484.0/(probe::cycles(core)-start);check(hz>=26,"mouse cadence");
     // Worst simulation fixture: three balls inside the grid at Expert speed.
-    mem.queueKey('P');cycles(200000);
-    for(unsigned i=0;i<96;i++)mem.memWrite(at("bricks")+i,i==95 ? 1 : 0);
+    core.queueKey('P');cycles(200000);
+    for(unsigned i=0;i<96;i++)core.write(at("bricks")+i,i==95 ? 1 : 0);
     write("remaining",1);write("enemy_hold",1);write("effect",4);write("speed",7);
     write("ball_x",100);write("ball_y",100);write("ball_live",1);write("ball_dirx",0);write("ball_diry",1);
     write("ball_speed",104);write("ball_yspeed",208);
     for(int i=0;i<20;i++){y-=20;host();until("loop");}
     for(unsigned i=0;i<2;i++) {
       const uint8_t b[]={uint8_t(120+i*20),100,1,uint8_t(i),1,104,0,208,0};
-      for(unsigned j=0;j<9;j++)mem.memWrite(at("extra_balls")+i*9+j,b[j]);
+      for(unsigned j=0;j<9;j++)core.write(at("extra_balls")+i*9+j,b[j]);
     }
-    mem.queueKey('P');until("loop");
-    start=mem.getCycleCounter();for(int i=0;i<10;i++){x+=5;host();until("loop");}
-    double worst=10.0*1020484.0/(mem.getCycleCounter()-start);
+    core.queueKey('P');until("loop");
+    start=probe::cycles(core);for(int i=0;i<10;i++){x+=5;host();until("loop");}
+    double worst=10.0*1020484.0/(probe::cycles(core)-start);
     std::cout<<"Expert multiball measured: "<<worst<<" updates/s\n";
     check(worst>=30,"Expert multiball + real mouse cadence");
     std::cout<<"PASS Expert multiball + "<<argv[4]<<" firmware: "<<worst<<" updates/s\n";
-    button=false;host();mem.queueKey(27);until("menu_input");
+    button=false;host();core.queueKey(27);until("menu_input");
     // Cross a pack boundary while browsing, then reload the live pack on resume.
     write("furthest",10);
-    for(int i=0;i<10;i++){mem.queueKey('D');cycles(100000);until("menu_input");}
+    for(int i=0;i<10;i++){core.queueKey('D');cycles(100000);until("menu_input");}
     check(read("menu_sector")==10,"preview another disk pack in HGR");
     auto menuY=[&](int target){
       for(int i=0;i<400&&read("_mouse_y")!=target;i++){
@@ -119,22 +90,22 @@ int main(int argc,char** argv) {
     // stay in HGR. The flag is checked after every CPU instruction.
     write("paused",0);write("level",59);write("remaining",0);write("ball_live",0);
     write("effect",0);write("enemy_hold",1);
-    for(int i=0;i<18;i++)mem.memWrite(at("extra_balls")+i,0);
-    for(int i=0;i<6;i++)mem.memWrite(at("score")+i,'0');
+    for(int i=0;i<18;i++)core.write(at("extra_balls")+i,0);
+    for(int i=0;i<6;i++)core.write(at("score")+i,'0');
     until("menu_loop",100000000);check(read("state")==3,"victory remains in HGR");
     check(read("save_status")==1,"records saved in HGR");
     for(char key : {'H','?'}){
-      mem.queueKey(key);until("wait_key");mem.queueKey(' ');until("menu_loop");
+      core.queueKey(key);until("wait_key");core.queueKey(' ');until("menu_loop");
     }
-    mem.queueKey(27);until("title_menu_key");
-    auto menuSound=read("sound_muted");mem.queueKey('S');cycles(100000);until("title_menu_key");
+    core.queueKey(27);until("title_menu_key");
+    auto menuSound=read("sound_muted");core.queueKey('S');cycles(100000);until("title_menu_key");
     check(read("sound_muted")==(menuSound^1),"title options sound toggle");
-    mem.queueKey(27);until("menu_loop");check(read("state")==0,"ESC returns from options to title");
+    core.queueKey(27);until("menu_loop");check(read("state")==0,"ESC returns from options to title");
     std::cout<<"PASS continuous HGR: menu, pack loads, resume, victory/save, records, help and title\n";
     keepHgr=false; // Explicit DOS exit is allowed to restore TEXT.
-    if(argc==6)cpu.softReset();
-    else {mem.queueKey(27);cycles(300000);mem.queueKey('Q');}
-    cycles(10000000);check(!read("_mouse_slot"),"close mouse on DOS exit");check(mem.memRead(0x3f2)==0xbf&&mem.memRead(0x3f3)==0x9d,"DOS reset restored");
+    if(argc==6)core.softReset();
+    else {core.queueKey(27);cycles(300000);core.queueKey('Q');}
+    cycles(10000000);check(!read("_mouse_slot"),"close mouse on DOS exit");check(core.read(0x3f2)==0xbf&&core.read(0x3f3)==0x9d,"DOS reset restored");
     std::cout<<"PASS "<<(iic?"//c ":"II+ ")<<argv[4]<<": real mouse firmware, X/Y, click/laser, DOS exit, "<<hz<<" updates/s, "<<(argc==6?"RESET":"Q")<<" cleanup\n";
     return 0;
  } catch(const std::exception& e){std::cerr<<"FAIL: "<<e.what()<<"\n";return 1;}

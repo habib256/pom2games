@@ -62,8 +62,10 @@ ProDOS de cc65 ; `src/game.cfg` = `apple2_dhgr_prodos_c.cfg` + segment
   texte, `/RAM` reconstruit, lanceur ProDOS ; II+ (NMOS) → message. Rendu
   mesuré : ~8 400 cycles avec vaisseau mobile, 5 tirs, 24 étoiles (budget
   28 060).
-- [ ] **Reste** : //c non testé (a2shot n'a pas de //c : `make run-iic`
-      dans POM2 ou une vraie machine).
+- [x] **//c dans la batterie** (2026-10-24) : la façade POM2 a reçu le //c
+      (`Machine::AppleIIc`, livraison 0849ee51) ; `tests/iic_probe.cpp` y
+      est porté (`dev/tools/a2shot/probe.hpp`) et ses 13 variantes tournent
+      dans `make test` (~18 s), CI comprise. Reste la vraie machine.
 - [x] `[lib]` `dev/lib/apple2c/apple2vbl.s` (2026-10-24) : l'horloge
       commune à `src/timing.s` et `chromabreak/src/timing.s` (choix du
       mode, interruption VBL de la souris //c, comptage des fronts //e,

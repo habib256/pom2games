@@ -26,18 +26,17 @@ $(BUILD)/mouse.bin: src/mouse.s src/mouse.cfg $(MOUSE_SRCS) $(MOUSE_CONTEXT_SRCS
 $(DISK): $(BINS) $(BUILD)/boot.bin $(BUILD)/mouse.bin tools/build_disk.py $(wildcard assets/*.bin) $(DEV)/tools/dos33.py $(DEV)/tools/hgr_tables.py $(SYSTEM)
 	$(PYTHON) tools/build_disk.py --build $(BUILD) --master $(SYSTEM) --out $@
 .PRECIOUS: $(BUILD)/%.s
-test: all $(A2RUN)
+test: all $(A2RUN) $(if $(A2SHOT_HOST),$(BUILD)/mouse_probe)
 	$(PYTHON) tests/test_pinball.py
+ifneq ($(A2SHOT_HOST),)
+	$(PYTHON) tests/test_mouse.py --probe $(BUILD)/mouse_probe --roms $(DEV)/tools/a2shot/roms
+endif
 
 # Long tier (convention of ../dev/cc65/apple2.mk): nothing slow yet.
 test-long:
 	@echo "pinball: no long tests"
 .PHONY: test-long
 .PHONY: test
-POM2_SRC ?= ../../pom2
-test-mouse: all
-	$(PYTHON) tests/test_mouse.py --pom2-src $(POM2_SRC)
-.PHONY: test-mouse
 
 run-iic: all
 	$(POM2) --preset iic --slot 4=iicmouse $(DISK)
