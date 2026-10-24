@@ -41,6 +41,9 @@
 ; the module needs no zero page. The buffer holds DOS_CMD_MAX - 1 characters
 ; (define DOS_CMD_MAX before the include to change it; 1..256, default 40).
 ; DOS_CMD_WORKBSS = 1 places that buffer and its index in WORKBSS instead.
+; DOS_LOWBSS = 1 places the buffer and the page-zero copy (DOS_ZP_LEN bytes)
+; in LOWBSS ($1000-$1FFF of dev/cc65/apple2_hgr_c.cfg): for a C program whose
+; $6000 area is full (SNAKE). Default 0: BSS, as before.
 ;
 ; Interrupts: RWTS must run with IRQs masked (a disk byte arrives every 32
 ; cycles). DOS_SEI = 1 wraps each dos_cmd_run in PHP / SEI ... PLP: for
@@ -70,6 +73,9 @@ DOS_CMD_MAX = 40
 .ifndef DOS_CMD_WORKBSS
 DOS_CMD_WORKBSS = 0
 .endif
+.ifndef DOS_LOWBSS
+DOS_LOWBSS = 0
+.endif
 .ifndef DOS_SEI
 DOS_SEI = 0
 .endif
@@ -93,7 +99,9 @@ DOS_HOOKS = $03EA               ; DOS: reconnect its I/O hooks to CSW / KSW
 DOS_IOB_SLOT = $B7E9            ; DOS's IOB (48 KB DOS 3.3): slot * 16
 
 .if .referenced(dos_cmd_new) .or .referenced(dos_cmd_add) .or .referenced(dos_cmd_hex) .or .referenced(dos_cmd_run)
-.if DOS_CMD_WORKBSS
+.if DOS_LOWBSS
+.segment "LOWBSS"
+.elseif DOS_CMD_WORKBSS
 .segment "WORKBSS"
 .else
 .segment "BSS"
@@ -101,7 +109,11 @@ DOS_IOB_SLOT = $B7E9            ; DOS's IOB (48 KB DOS 3.3): slot * 16
 dos_cmd_buf:    .res DOS_CMD_MAX
 dos_cmd_ix:     .res 1
 dos_cmd_overflow: .res 1
+.if DOS_LOWBSS
+.segment "LOWBSS"
+.else
 .segment "BSS"
+.endif
 dos_zp_prog:    .res DOS_ZP_LEN ; the program's page zero during a command
 
 .segment "CODE"
