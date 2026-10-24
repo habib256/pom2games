@@ -35,8 +35,10 @@ at boot if something is still plugged in. The joystick's position at boot
 is taken as its centre; the **paddles** (2026-10-24, asked by players) lean
 from the middle of paddle 0's travel (`PDL_MID`, 40 counts: a dial has no
 rest position), with the same levels, and in the menus a dial moves the
-marker one step each time it turns 16 counts past the last step (paddle 1
-up / down, paddle 0 left / right), so a dial left aside does not scroll. **Analog lean**:
+marker one step each time it turns 16 counts past the last step, or past
+where it was when the menu opened (`stick_calib`: a calibration on the dials'
+current position), paddle 1 up / down, paddle 0 left / right: a dial left
+aside, even at its end, neither scrolls nor gives a step on entry. **Analog lean**:
 `stick_lean` (`src/input.inc`, mirrored in `tests/test_input.py`) gives 0
 within 6 steps of `read_stick_fast` from the centre (dead zone), then
 1 + (|d| − 6) / 4, at most 8, with the sign of d: level 8 from 34 steps on
