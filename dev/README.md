@@ -199,8 +199,9 @@ itself (`arkabreakout/tests/pilot.c` plays the campaign with the joystick).
 
 The portable equivalent of a2shot (Linux and macOS, C99 + zlib, without the POM2
 core): an NMOS 6502 (validated by Klaus Dormann's functional test
-suite), 48 KB, keyboard, speaker, joystick and a nibble-level Disk II,
-for reading **and writing**. Same ROMs (`a2shot/roms`), same
+suite), 48 KB, keyboard, speaker, joystick, the floating bus on
+`$C050-$C05F` reads (MAME's scanner address, NTSC: vapor locks work) and a
+nibble-level Disk II, for reading **and writing**. Same ROMs (`a2shot/roms`), same
 script syntax, plus a few steps for tests:
 
     cd tools/a2run && make
