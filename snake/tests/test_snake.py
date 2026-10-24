@@ -225,6 +225,40 @@ def levels(disk, L):
     print(f'PASS level 5 done: YOU WIN and its arpeggio ({r.spk[-1]} toggles)')
 
 
+def periods(r, n):
+    c = r.cycles[-n:]
+    return [b - a for a, b in zip(c, c[1:])]
+
+
+def pace(disk, L):
+    # the vapor lock (a2run has the floating bus, as POM2): ticks of whole
+    # frames, 25 at the slow start, 3 at the top speed; a marker gone: back
+    # to the spin throttle, the game goes on
+    fast = [L.poke('tick_spins', 365 & 255), L.poke('tick_spins', 365 >> 8, 1)]
+    r = run(disk, start(L) + [L.peek('vapor'), L.peek('pal')] + ticks(L, 4) + fast + ticks(L, 4))
+    assert r.mem(L['vapor'], 1) == b'\1' and r.mem(L['pal'], 1) == b'\0'
+    slow, top = periods(r, 8)[1:3], periods(r, 3)      # (a lock is exact to one 13-cycle poll)
+    assert all(abs(g - 25 * 17030) <= 30 for g in slow) and all(abs(g - 3 * 17030) <= 30 for g in top), \
+        (slow, top)
+    wipe = [f'poke:{0x3FD0 + i:04X}:00' for i in range(24)]
+    r = run(disk, start(L) + ticks(L, 1) + wipe + ticks(L, 5) + [L.peek('vapor'), L.peek('alive')])
+    spin = periods(r, 3)
+    assert r.mem(L['vapor'], 1) == b'\0' and r.mem(L['alive'], 1) == b'\1'
+    assert all(abs(g - 418200) < 2000 for g in spin), spin
+    print('PASS pace: vapor lock, a tick every 25 frames (3 at top speed), exact; '
+          f'marker gone: spin throttle ({spin[0]} cycles a tick)')
+    if not a2test.have_a2shot('SNAKE pace on POM2 (PAL, //e)'):
+        return
+    for name, kw, frames, frame in (('PAL II+', dict(pal=True), 21, 20280), ('//e', dict(iie=True), 25, 17030)):
+        r = run(disk, start(L) + [L.peek('vapor'), L.peek('pal')] + ticks(L, 4),
+                emulator=a2test.A2SHOT, pad_until=True, **kw)
+        got = periods(r, 3)
+        assert r.mem(L['vapor'], 1) == b'\1' and r.mem(L['pal'], 1) == bytes([name.startswith('PAL')])
+        assert all(abs(g - frames * frame) <= 30 for g in got), (name, got)
+        print(f'PASS pace on POM2 {name}: vapor lock, {frames} frames of {frame} cycles a tick '
+              f'({frames * frame / 1020484:.3f} s)')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--disk', type=Path, default=ROOT / 'dist/SNAKE.dsk')
@@ -240,6 +274,7 @@ def main():
     joystick(a.disk, L)
     pause_quit(a.disk, L)
     levels(a.disk, L)
+    pace(a.disk, L)
     with tempfile.TemporaryDirectory(prefix='snake-') as tmp:
         record(a.disk, L, Path(tmp))
 
