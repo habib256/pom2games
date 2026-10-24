@@ -190,8 +190,8 @@ Il vérifie également un déplacement rapide de la bille de la palette vers
 la table et la conservation de X/Y lors de la lecture du bouton.
 Il reprend la bille par son centre, vérifie qu'elle reste immobile à la prise,
 puis que son déplacement conserve le point de prise.
-Le profil II+ qui démarrait depuis un Disk II en slot 5 (SAVE/LOAD sur ce
-contrôleur) attend que la façade accepte un autre slot que le 6.
+Un profil II+ supplémentaire démarre depuis le slot 5 et vérifie SAVE/LOAD
+sur ce même contrôleur.
 Les tests souris vérifient la pile après SAVE/LOAD et après trois erreurs
 `FILE NOT FOUND`, puis rechargent la table sauvegardée.
 `tests/test_pinball.py` garde sa validation sans carte souris (a2run).

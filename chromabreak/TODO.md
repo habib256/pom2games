@@ -20,7 +20,7 @@ been validated in emulation only (POM2 with the real //e and //c ROMs, a2shot).
    the screenshots from the tag.
 3. **Play a full campaign with an autopilot, without state injection.** The sixty
    transitions of `tests/test_game.py` poke `remaining=1` and clear `_bricks`, and
-   `tests/playtest.cpp` sets `enemy_hold=1` and injects each collision case: nothing yet
+   `tests/playtest_probe.cpp` sets `enemy_hold=1` and injects each collision case: nothing yet
    plays the game end to end. The demo pilot already exists (`src/game.c`, `demo_input`:
    follows the ball with a varying aim, relaunches, fires the laser); driving it from
    a2shot or the POM2 harness over all sixty sectors would exercise, in real play, the
@@ -49,7 +49,7 @@ been validated in emulation only (POM2 with the real //e and //c ROMs, a2shot).
 - Frozen addresses (`src/spare.s`): 58 bytes of code, 49 of constant data and 13 of
   variables separate the C files from the assembly modules, and `src/sound.s` keeps 27.
   When a spare runs out or a `dev` library changes size, the module addresses move:
-  record the new ones in the asserts, run `test-mouse` on every profile and compare the
+  record the new ones in the asserts, run `make test` on every profile and compare the
   worst frame (`CHROMA_PROFILE`).
 
 ## Ideas
@@ -58,7 +58,7 @@ Not committed; noted because the code already suggests them.
 
 - Let the autopilot campaign (Next up, 3) also report the real maximum score of the
   sixty sectors: the README states 235 750 points from the tiles, enemies excluded.
-- Move some of the `test-records` checks that need no mouse firmware (music events,
+- Move some of the records checks (`make test-long`) that need no mouse firmware (music events,
   Beautiful Boot glyphs, score conversions, 6502 message) to the a2shot path of
   `tests/test_game.py`, so `make test` covers them without a POM2 source tree.
 

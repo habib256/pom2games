@@ -16,11 +16,9 @@ int main(int argc,char** argv) {
     auto read=[&](const char* s){return core.read(at(s));};
     auto write=[&](const char* s,uint8_t v){core.write(at(s),v);};
     bool keepHgr=false;
-    // The video mode is read back from the //c's status switches (TEXT,
-    // MIXED, HIRES); a ][+ has none, and the facade no display state.
     auto step=[&](){
       core.step();
-      if(keepHgr&&iic)check(!(core.read(0xC01A)&0x80)&&(core.read(0xC01D)&0x80)&&!(core.read(0xC01B)&0x80),"full-screen HGR on every instruction during play/menu/loading");
+      if(keepHgr){auto d=core.displayState();check(!d.text&&d.hiRes&&!d.mixed,"full-screen HGR on every instruction during play/menu/loading");}
     };
     auto until=[&](const char* s,long budget=10000000){auto end=probe::cycles(core)+budget;do step();while(probe::pc(core)!=at(s)&&probe::cycles(core)<end);check(probe::pc(core)==at(s),s);};
     auto cycles=[&](long count){auto end=probe::cycles(core)+count;while(probe::cycles(core)<end)step();};

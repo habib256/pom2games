@@ -9,7 +9,7 @@
 ; by as much: the asserts hold again, nothing after this module has moved and
 ; the frame rate needs no new measurement. With no spare left, or when a
 ; library changes size, the addresses do move: put the new ones here, then
-; run test-mouse on every profile and compare the worst frame (CHROMA_PROFILE).
+; run make test on every profile and compare the worst frame (CHROMA_PROFILE).
 ; The BSS spare is what the two C files gave back: a new variable there takes
 ; its bytes from it; beyond it the assembly modules' variables move, and the
 ; assert says so.
@@ -27,7 +27,7 @@
 ; (dev/lib/prodos/file.s, +314 library CODE) instead of records.c's own
 ; calls (-225 CODE, -35 BSS): no RAM to absorb it (54 bytes left), so the
 ; addresses moved (render.s code -225, tables +89, variables +54, timing.s
-; -225; sound.s's assert too), checked with test-mouse on every profile.
+; -225; sound.s's assert too), checked with make test on every profile.
 CODE_SPARE   = 38
 RODATA_SPARE = 23
 BSS_SPARE    = 12

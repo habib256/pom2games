@@ -154,7 +154,7 @@ changing balls, bricks, score, lives or progress. `test_mouse.py`
 (`tests/mouse_probe.cpp` on the POM2 core facade) runs both the
 AppleWin-compatible card and the fully emulated 68705 card with their real ROMs,
 plus the native //c mouse with the 16 and 32 KB system ROMs;
-it checks detection, X/Y, edge-triggered launch, laser, mouse menu clicks, held-click suppression and clean DOS exit with both `Q` and RESET. On the //c it also checks the display mode after every CPU
+it checks detection, X/Y, edge-triggered launch, laser, mouse menu clicks, held-click suppression and clean DOS exit with both `Q` and RESET. It also checks the display mode after every CPU
 instruction through menu transitions, pack loads, victory, DOS saving,
 records, help and the return to the title.
 All disk-writing tests use private copies.
