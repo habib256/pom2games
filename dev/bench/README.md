@@ -118,8 +118,12 @@ emulated CPU cycles.
 `baseline.json` records compiler, flags, CPU, model, beam period and SHA256
 of the runners, cores and ROM. `--check` rejects a cycle increase above 5 %
 (minimum 16), a size increase above 3 % (minimum 16 bytes) or any ZP
-increase. The gate checks core/ROM/model; host binaries may vary between
-systems. The absolute budgets remain checked independently.
+increase. The gate checks the CPU, model and beam period; host binaries
+may vary between systems. A new emulator core or ROM (a POM2 SDK delivery,
+a change to a2run's CPU) is reported, not rejected: the metrics are still
+held to the baseline, so a core that counts differently shows up as a
+regression, and `--update` records the new hashes. The absolute budgets
+remain checked independently.
 The historical references, `pre_incremental_references` and `pre_native_references` are kept. The caps of the independent primitives are not reset.
 
 After reviewing an intentional change:

@@ -31,8 +31,10 @@ been validated in emulation only (POM2 with the real //e and //c ROMs, a2shot).
    its built-in mouse (`dev/lib/mouse`, VBL mode 9 and the ProDOS interrupt handler).
    On the same machines:
    - joystick and Apple paddles (`J`): axis range and centring with real controllers,
-     since `src/timing.s` counts the `$C070` timers in the VBL wait with a 23-cycle
-     loop, one count for two of the paddle's;
+     since `src/timing.s` counts the `$C070` timers with a 23-cycle loop, one count for
+     two of the paddle's. Issue #3 (a real //e, probably PAL: the paddle jerky, then
+     unplayable) is fixed in emulation (the stick read on every frame, see Done);
+     waiting for the reporter's confirmation on their machine, the issue stays open;
    - the rendering of capsules, enemies and Beautiful Boot text on a real colour
      monitor (`src/finetext.s`: each HGR dot becomes two DHGR dots so strokes stay
      white), and the Chat Mauve mode on a real Féline or //c RGB adapter (bit 7 of every
@@ -41,6 +43,14 @@ been validated in emulation only (POM2 with the real //e and //c ROMs, a2shot).
      time division), on //e and //c.
 
 ## Later
+
+- **Mockingboard sound** (asked in issue #3: "with a little music for Mocking behind it
+  will be fine"). The sound effects first (bounces, bricks, steel, capsules, laser,
+  enemies, lost life), then the music if there is room: today both play on the
+  speaker (`src/sound.s`, `src/duet.inc`). `dev/lib/apple2/mockingboard.asm` and its
+  PT3 player exist; to measure first: the RAM left (`src/spare.s`), the frame budget
+  with the AY register writes, the detection of the card on //e (slot 4, after the
+  mouse) and on the //c (Mockingboard 4c), and keeping the speaker without a card.
 
 - An original //e with a 65C02 but without the enhanced ROM passes the `CHROMA.SYSTEM`
   CPU test (`src/boot.s`) but has never been tried; decide whether to detect the ROM or
@@ -65,6 +75,12 @@ Not committed; noted because the code already suggests them.
 ## Done
 
 ### 1.1 (in preparation)
+
+- [x] Issue #3: the stick is read on every frame. It was read "until the next blank"
+      even inside one, so on a PAL //e it went unread for up to 77 frames in a row; on
+      the //c the mouse's VBL interrupt made reads short. Full read unless the
+      presentation blank is next, interrupts masked on the //c; the playtest sweeps the
+      stick in play: 240/240 fresh reads on all twelve profiles (was 78/240 PAL //e).
 
 - [x] A paddle rising diagonally under a bottom-row tile, or widened by ENLARGE between a
       tile and a wall, stays under the tiles and inside the field (it used to leave the
