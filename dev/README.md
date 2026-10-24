@@ -228,7 +228,7 @@ Applesoft and a2run stops at its prompt after 8 frames (a DOS boot takes
     a2test.run(None, a2test.bin_steps(binary) + [L.until('done')])
 
 a2shot has `load:` but not yet `go:`/`call:`: the POM2 facade cannot set
-the registers (request: `a2shot/LETTRE_POM2_REGISTRES.md`).
+the registers (request: `a2shot/LETTRE_POM2_BESOINS.md`).
 
 The disk given to `--disk` is never modified; `--wp` presents it
 write-protected (save tests). DOS 3.3 takes about
