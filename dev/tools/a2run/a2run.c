@@ -46,7 +46,7 @@
  * (apple2p.rom, disk2.rom) or --roms DIR.
  *
  * Emulated: 6502 (NMOS), 48 KB RAM, keyboard latch, speaker, video soft
- * switches, game port (2 paddles by cycle count, 3 buttons), Disk II in slot
+ * switches (their reads return the floating bus, for vapor locks), game port (2 paddles by cycle count, 3 buttons), Disk II in slot
  * 6 at nibble level (reads and writes; 6-and-2, DOS 3.3 sector order). Not
  * emulated: language card, cassette, other cards, precise disk timing (a
  * nibble is ready on every read).
@@ -291,6 +291,28 @@ static uint8_t disk_io(int reg, int write, uint8_t val)
 /* ============================================================================ */
 /* bus                                                                          */
 /* ============================================================================ */
+/* The floating bus: what the video scanner fetches at this cycle, read back
+ * by soft switches that drive no data ($C050-$C05F here). MAME's
+ * apple2video scanner_address (as POM2 has it), NTSC: 65-cycle lines, 262
+ * lines, active video from h 25 and v 0. A vapor lock polls it for a marker
+ * byte on the screen to find the beam. at = the cycle of the bus read. */
+static uint8_t floating_bus(uint64_t at)
+{
+    unsigned cyc = (unsigned)(at % CYCLES_PER_FRAME);
+    int v = (int)(cyc / 65), h = (int)(cyc % 65);
+    int hs = h - (h > 0);
+    int vs = 256 + v - (v >= 256 ? 262 : 0);
+    int v3 = (vs >> 6) & 1, v4 = (vs >> 7) & 1;
+    int hires = v_hires && !v_text && !(v_mixed && v4 && ((vs >> 5) & 1));
+    int sum = (0x0D + ((hs >> 3) & 7) + ((v4 << 3) | (v3 << 2) | (v4 << 1) | v3)) & 0x0F;
+    unsigned addr = (hs & 7) | (sum << 3) | (((vs >> 3) & 7) << 7);
+    if (hires)
+        addr |= ((vs & 7) << 10) | (v_page2 ? 0x4000 : 0x2000);
+    else
+        addr |= (v_page2 ? 0x0800 : 0x0400) | (h < 25 ? 0x1000 : 0);
+    return ram[addr];
+}
+
 static uint8_t io(uint16_t a, int write, uint8_t val)
 {
     int lo = a & 0xFF;
@@ -302,20 +324,23 @@ static uint8_t io(uint16_t a, int write, uint8_t val)
         return 0;
     }
     switch (lo) {
-    case 0x50: v_text = 0; return 0;
-    case 0x51: v_text = 1; return 0;
-    case 0x52: v_mixed = 0; return 0;
-    case 0x53: v_mixed = 1; return 0;
-    case 0x54: v_page2 = 0; return 0;
-    case 0x55: v_page2 = 1; return 0;
-    case 0x56: v_hires = 0; return 0;
-    case 0x57: v_hires = 1; return 0;
+    case 0x50: v_text = 0; break;
+    case 0x51: v_text = 1; break;
+    case 0x52: v_mixed = 0; break;
+    case 0x53: v_mixed = 1; break;
+    case 0x54: v_page2 = 0; break;
+    case 0x55: v_page2 = 1; break;
+    case 0x56: v_hires = 0; break;
+    case 0x57: v_hires = 1; break;
     case 0x61: case 0x62: case 0x63: return button[lo - 0x61] ? 0x80 : 0x00;
     case 0x64: case 0x65:
         return paddle_open[lo - 0x64] ||
                (cpu.cycles - ptrig_at) < (uint64_t)paddle[lo - 0x64] * 11 ? 0x80 : 0x00;
     case 0x66: case 0x67: return 0;
     }
+    /* video switches and annunciators: the read sees the floating bus (an
+     * absolute LDA/CMP/BIT reads on its 4th cycle) */
+    if (lo >= 0x50 && lo < 0x60) return write ? 0 : floating_bus(cpu.cycles + 3);
     if (lo >= 0x70 && lo < 0x80) { ptrig_at = cpu.cycles; return 0; }
     if (lo >= 0xE0 && lo < 0xF0) return disk_io(lo & 0x0F, write, val);
     return 0;

@@ -75,6 +75,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_lib_options.py
 	$(PYTHON) dev/tests/test_hgr_pages.py
 	$(PYTHON) dev/tests/test_joy_fast.py
+	$(PYTHON) dev/tests/test_vapor.py
 	$(PYTHON) dev/tests/test_exit_modes.py
 	$(PYTHON) dev/tests/test_hgr_host.py
 	$(PYTHON) dev/tests/test_hgr_x2.py

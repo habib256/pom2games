@@ -11,32 +11,29 @@ already exist in `../dev/lib` rather than writing new ones: the C mirrors of
 
 Measured state today (2026-10-24):
 
-- **Keyboard**: read once per tick and every 64 spins of the throttle; two
+- **Keyboard**: read once per frame (vapor lock) or every 64 spins; two
   turns can be queued, a reversal is refused. **Joystick** once per tick when
   one answers on the game port; only a change of its direction steers.
-- **Speed**: active-wait `throttle()`; at the slow start (title `1` or any
-  key) 3,565 spins, a tick every 24.6 frames (~0.41 s; the same as before the
-  sound and stick, whose time is taken off the next throttle); `2` and `3`
-  start at 2,565 and 1,565; −200 per apple down to 365. Calibrated for 1 MHz:
-  faster on an accelerator card.
+- **Speed**: `tick_spins` sets the pace: 3,565 at the slow start (title `1`
+  or any key), 2,565 and 1,565 for `2` and `3`, −200 per apple, −300 per
+  level, down to 365. With the vapor lock a tick is `(spins + 101) / 146`
+  frames (25 to 3; 5/6 of that on 50 Hz), exact; without a floating bus the
+  spin throttle (a tick of 3,565 spins = 24.6 frames at 1 MHz, tones and
+  stick taken off it).
 - **Random**: 16-bit Galois LFSR, seed mixed from the title poll count and the
   start key; an automatic start replays the same sequence.
-- **Memory**: the program ends at `$8FFE`, 1,281 bytes below the 256-byte C
+- **Memory**: the program ends at `$9146`, 953 bytes below the 256-byte C
   stack (`$9500-$95FF`, peak 37 bytes); `LOWBSS` ends at `$19B7`.
-
-## Later
-
-- [ ] **Pace independent of the CPU clock**, if accelerated machines matter:
-  [`apple2frame.h`](../dev/lib/apple2c/apple2frame.h) (`APPLE2C_FRAME_SRCS`)
-  gives `a2_frame_init()` / `a2_frame_wait()` — VBL on a //e, a bounded ROM
-  `WAIT` fallback on a II+. The keyboard poll inside `throttle()` would then
-  move to a per-frame loop, and the tone / stick compensation (`spent`) would
-  go. Left out on purpose (2026-10-24): a II+ has no VBL (the fallback is
-  CPU-timed too), and calibrating the spins against the //e VBL would slow
-  the game by a fifth on a 50 Hz PAL //e.
 
 ## Done
 
+- [x] **Pace independent of the CPU clock** (2026-10-24): a vapor lock
+  (`dev/lib/apple2/vapor.asm`, `apple2vapor.h`): the floating bus shows the
+  beam reaching a marker at the start of HGR line 191, once a frame, on a II,
+  II+ or //e. A frame measured at start tells 50 Hz from 60 (and none: //c,
+  IIgs keep the spin). Ticks of whole frames; the keyboard is read once a
+  frame. (The //e VBL alone, through `apple2frame.h`, would have left the II+
+  CPU-timed.)
 - [x] **Levels with obstacles** (2026-10-24): five levels of ten apples; walls
   as segments (`wall_segs`) marked in `occupied[][]`, so collisions and the
   apple / bonus placement avoid them for free; a `LEVEL n` card and jingle,

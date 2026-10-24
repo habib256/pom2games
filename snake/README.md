@@ -4,14 +4,14 @@ The classic Snake, written in **C with cc65** for a **48 KB Apple II+** on the
 native 280×192 hi-res (HGR) screen. It is the Apple II port of POM1's
 `sketchs/gen2/game_snake_telemetry` sketch (GEN2Snake, VERHILLE Arnaud), and
 the reference C program of the shared [`../dev/lib`](../dev/README.md)
-libraries: a whole game in one 10,734-byte `BRUN` file.
+libraries: a whole game in one 11,058-byte `BRUN` file.
 
 | | |
 |---|---|
 | Machine | Apple II+ 48 KB or any later model, DOS 3.3 |
 | Disk | [`../dist/SNAKE.dsk`](../dist/) — boots straight into the game |
 | Source | [`src/snake.c`](src/snake.c), one file |
-| Binary | `SNAKE`, 10,734 bytes, `BRUN` at `$6000`; `HISCORE`, the record (2 bytes) |
+| Binary | `SNAKE`, 11,058 bytes, `BRUN` at `$6000`; `HISCORE`, the record (2 bytes) |
 | Libraries | [`../dev/lib/hgrc`](../dev/lib/hgrc/README.md) (HGR runtime), [`../dev/lib/apple2c`](../dev/lib/apple2c/README.md) (keyboard, speaker, joystick, DOS commands and exit) |
 
 ## How to play
@@ -46,8 +46,13 @@ the same codes with `Ctrl-K` / `Ctrl-J`).
   worth **20 points**, no growth — pure risk/reward.
 - **Speed**: about 2.4 cells per second at the slow start (`1`, or any key),
   faster with `2` and `3`; each apple shortens the delay, each level starts
-  300 spins faster than the one before, down to the same top speed. The delay is a CPU spin
-  calibrated for a 1 MHz 6502, so an accelerator card makes the game faster.
+  300 spins faster than the one before, down to the same top speed.
+- **Pace**: locked to the video frames by a **vapor lock** on the floating bus
+  (II, II+, //e): a tick lasts 25 frames at the slow start, 3 at the top
+  speed, whatever the CPU clock, so an accelerator card no longer speeds the
+  game up. A PAL (50 Hz) machine is recognised by the length of its frame
+  and gets 5/6 as many frames, the same time in seconds. Without a floating
+  bus (//c, IIgs) the game keeps a CPU spin calibrated for 1 MHz.
 - **Turns**: two quick turns can be queued and are applied on two successive
   moves; a direct reversal is refused.
 - **Joystick**: detected on the title and after each game (nothing plugged in
@@ -128,6 +133,7 @@ calls thirteen functions of it:
 | `apple2_readkey`, `apple2_getkey` | keyboard without / with waiting, upper-cased, arrows as control codes |
 | `a2_home`, `a2_dos` | `Q` from the pause: clear the text screen, restore the zero page, `JMP $03D0` |
 | `a2_tone`, `a2_read_stick` | the sound effects; the joystick, once per tick |
+| `a2_vapor_mark`, `a2_vapor_count`, `a2_vapor_sync` | the pace: the marker in line 191 after each clear, a frame measured at start (none: spin; 50 Hz: PAL), one lock a frame |
 | `a2_dos_new/add/hex/run`, `a2_disk_protected` | `BLOAD` / `BSAVE HISCORE` at the address of the record |
 
 Text is the **Beautiful Boot 8×8 font** (ASCII `$20-$7F`, see
@@ -148,7 +154,7 @@ references — `build/snake.map` lists them. 31 members come out of the archive:
 | Core asm kernels | `hgr_init`, `hgr_mode_asm`, `hgr_clear_asm`, `hgr_rows_asm`, `hgr_byte_rect_asm`, `hgr_pixrect_asm` + `hgr_pixrect_params`, `hgr_cell_asm`, `hgr_colorize_asm`, `hgr_carrier_params`, `hgr_text16_asm` + `hgr_text_params`, `hgr_utoa_asm` |
 | Rectangles / cells (C wrappers) | `hgr_rect`, `hgr_pixrect`, `hgr_cell`, `hgr_colorize`, `hgr_carrier` |
 | Text ×2 and numbers | `hgr_font`, `hgr_text`, `hgr_num_field` |
-| apple2c | `apple2io_asm` (keyboard, `a2_home`, `a2_dos`), `apple2game_asm` (speaker, joystick), `apple2dos_asm` (DOS commands) |
+| apple2c | `apple2io_asm` (keyboard, `a2_home`, `a2_dos`), `apple2game_asm` (speaker, joystick), `apple2dos_asm` (DOS commands), `apple2vapor_asm` (vapor lock) |
 
 Left on the shelf: single pixels (`hgr_pixel`), 8×8 text, bitmap / pre-shifted
 sprites and the sprite engine, lines and circles (`gfx`), LORES and DHGR. The
@@ -166,9 +172,9 @@ From [`../dev/cc65/apple2_hgr_c.cfg`](../dev/cc65/apple2_hgr_c.cfg) and
 | `$0050-$009F` | C zero page: 80 bytes (the cfg allows `$50-$FF`; `$00-$4F` stays the Monitor's) |
 | `$0800-$0FFF` | `HELLO` (Applesoft), never touched |
 | `$1000-$19B7` | `LOWBSS`, 2,488 bytes: the snake ring buffers `sx[660]` / `sy[660]`, the `occupied[24][35]` grid and the game state (not zeroed at start — `new_game()` initialises them), then the DOS command buffer and its page-zero copy (`DOS_LOWBSS=1`) |
-| `$2000-$3FFF` | HGR page 1 (page 2 at `$4000-$5FFF` is reserved by the cfg, unused here) |
-| `$6000-$89ED` | the `BRUN` file: `STARTUP` 163 + `ONCE` 12 + `CODE` 9,256 + `RODATA` 1,252 + `DATA` 51 bytes |
-| `$89EE-$8FFE` | `BSS` 1,293 bytes, then `ZPSAVE` 260 bytes (the zero page and RESET vector saved by `crt0_apple2.s`); 1,281 bytes free before `$9500` |
+| `$2000-$3FFF` | HGR page 1 (page 2 at `$4000-$5FFF` is reserved by the cfg, unused here); `$3FD0-$3FE7`, the start of line 191, holds the vapor-lock marker (`$80`, black) |
+| `$6000-$8B31` | the `BRUN` file: `STARTUP` 163 + `ONCE` 12 + `CODE` 9,580 + `RODATA` 1,252 + `DATA` 51 bytes |
+| `$8B32-$9146` | `BSS` 1,297 bytes, then `ZPSAVE` 260 bytes (the zero page and RESET vector saved by `crt0_apple2.s`); 953 bytes free before `$9500` |
 | `$9500-$95FF` | C argument stack, 256 bytes (`-D __STACKSIZE__=0x0100`; the peak over a whole game is 37), growing down from `$9600` |
 | `$9600-$BFFF` | DOS 3.3 |
 
@@ -181,8 +187,9 @@ clean DOS prompt.
 
 - The POM1 telemetry side channel (`$C440-$C443`) is gone: on an Apple II that
   is slot 4's I/O space, where a Mockingboard lives.
-- The GEN2 card's `$C250` switches become the Apple II's `$C050`; there is no
-  V-blank to wait for on a II+, so the pace is a plain CPU spin.
+- The GEN2 card's `$C250` switches become the Apple II's `$C050`; a II+ has
+  no V-blank flag, so the pace comes from a vapor lock (the floating bus
+  shows the beam reaching a marker in line 191), or a CPU spin without one.
 - Apple II keyboard with arrow keys; the per-frame video-mode re-assert (a POM1
   renderer workaround) is removed.
 - Title screen says `APPLE II`; pause, exit to DOS, sound, joystick, the

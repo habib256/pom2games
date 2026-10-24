@@ -46,6 +46,7 @@
 #include "hgr.h"
 #include "apple2game.h"
 #include "apple2dos.h"
+#include "apple2vapor.h"
 
 /* --- Playfield geometry (cells) --- */
 #define CELL      8u            /* pixels per cell side                          */
@@ -151,6 +152,11 @@ static unsigned char title_hue;    /* index into title_hues, advanced per apple 
 static unsigned int  tick_spins = 3565u;
 static unsigned int  speed_spins = 3565u; /* the start pace chosen on the title */
 static unsigned int  spent;        /* spins used this tick by tones and the stick */
+/* Vapor lock (II, II+, //e: the floating bus): ticks then last a whole number
+ * of video frames, whatever the CPU speed; else the spin throttle. */
+static unsigned char vapor;        /* 1 = frames paced by the vapor lock */
+static unsigned char pal;          /* 1 = 50 Hz frames (a PAL machine) */
+static unsigned int  frame_polls;  /* a2_vapor_count() at start, 0 = no lock */
 static unsigned char stick;        /* 1 = a joystick answers on the game port */
 static unsigned char stick_last;   /* its last direction: only a change steers */
 /* The record, BLOADed from HISCORE at start and BSAVEd after a better game. */
@@ -525,6 +531,7 @@ static void redraw(void)
 {
     unsigned int idx = tail, k;
     hgr_clear(0);
+    a2_vapor_mark();                    /* line 191's marker for the vapor lock */
     draw_border();
     walls(1u);
     draw_food(foodx, foody);
@@ -566,13 +573,36 @@ static void next_level(void)
     redraw();
 }
 
-/* Plain CPU-spin throttle for a playable tick rate (the Apple II has no
- * V-blank to pace against, and the blocky snake doesn't need it). */
+/* The wait between two ticks: whole video frames through the vapor lock
+ * (a II+ has no V-blank flag, but its floating bus shows the beam), or, with
+ * no floating bus or out of play, a CPU spin calibrated for 1 MHz. */
+/* A tick of the same length in video frames: measured on a II+, a tick of
+ * N spins lasts 116.4 N + 3240 cycles, so (N + 101) / 146 frames: 25 at
+ * 3565, 3 at 365. On 50 Hz frames, 5/6 of that many. */
+static unsigned char tick_frames(void)
+{
+    unsigned char f = (unsigned char)((tick_spins + 101u) / 146u);
+    return pal ? (unsigned char)((f * 5u + 3u) / 6u) : f;
+}
+
 static void throttle(unsigned char playing)
 {
     unsigned int n;
     unsigned char poll_count = 0u;
     unsigned int lim = tick_spins;   /* local bound avoids a global reload on each spin */
+    if (vapor && playing) {
+        /* Frames: tones, the stick read and the tick's own work all end
+         * before the next lock, so nothing to compensate. A lock that fails
+         * (no marker any more) falls back to spinning for good. */
+        unsigned char f;
+        spent = 0u;
+        for (f = tick_frames(); f; --f) {
+            if (a2_vapor_sync()) { vapor = 0u; break; }
+            read_input();
+            if (paused) return;
+        }
+        if (vapor) return;
+    }
     lim = lim > spent ? lim - spent : 1u;
     spent = 0u;
     if (!playing) {
@@ -633,6 +663,12 @@ void main(void)
     hiscore_cmd("BLOAD");
     hgr_init();
     hgr_clear(0);
+    /* The vapor lock: a frame measured in polls, ~1000 at 60 Hz, ~1190 at
+     * 50 Hz on a 1 MHz machine (an accelerator gives more: taken as 60 Hz). */
+    a2_vapor_mark();
+    frame_polls = a2_vapor_count();
+    vapor = frame_polls != 0u;
+    pal = frame_polls > A2_VAPOR_NTSC_COUNT * 11u / 10u && frame_polls < A2_VAPOR_NTSC_COUNT * 13u / 10u;
     hgr_puts_color(68,  12, "APPLE II",      HGR_GREEN);   /* line 1, centred */
     hgr_puts_color(42,  40, "\"SNAKE HGR\"", HGR_VIOLET);  /* line 2: game name */
     hgr_puts_color(10,  72, "MOVE  I J K L", HGR_BLUE);

@@ -26,6 +26,8 @@ APPLE2C_VBL_SRCS := $(APPLE2C)/apple2vbl.s
 APPLE2C_VBL_PAL_SRCS := $(APPLE2C)/apple2vbl_pal.s
 APPLE2C_GAME_SRCS := $(APPLE2C)/apple2game_asm.s
 APPLE2C_DOS_SRCS  := $(APPLE2C)/apple2dos_asm.s
+# Vapor lock (frame sync on the floating bus, II / II+ / //e): see apple2vapor.h.
+APPLE2C_VAPOR_SRCS := $(APPLE2C)/apple2vapor_asm.s
 APPLE2C_AFLAGS    := -I $(APPLE2C)/../apple2
 
 # Public umbrella headers are transitive dependencies of C consumers.
