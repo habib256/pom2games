@@ -134,6 +134,7 @@ to_menu:
         JSR     music_stop
         LDA     #0
         STA     demo
+        JSR     stick_calib
         JSR     menu                    ; A = the chosen track, C = 1: ESC
         BCC     race_sel
         JMP     attract
@@ -177,6 +178,7 @@ leave_race:
         LDA     state
         CMP     #ST_RECORD
         BNE     @nr
+        JSR     stick_calib
         JSR     hof_entry
 @nr:    PLA
         CMP     #KC_ESC

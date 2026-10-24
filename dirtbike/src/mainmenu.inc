@@ -43,6 +43,7 @@ esc_menu:
 
 .segment "MENUOVL"
 mm_enter:
+        JSR     stick_calib             ; paddles: from where they are
         LDA     state                   ; a race on (not finished): it can
         CMP     #ST_FINISH              ; go on, item 0
         LDA     #0

@@ -17,8 +17,9 @@
     stick no longer leans), kept in DIRTHOF; the next boot starts with it;
   * paddles: paddle 0's dial leans from the middle of its travel (PDL_MID,
     not its position at boot), same levels; in the menus one step each
-    time a dial turns STICK_ON past the last step: a dial left aside does
-    not scroll; kept in DIRTHOF too.
+    time a dial turns STICK_ON past the last step or past where it was
+    when the menu opened (stick_calib): a dial left aside, even at its end,
+    does not scroll; kept in DIRTHOF too.
 """
 from pathlib import Path
 import sys
@@ -173,18 +174,20 @@ def main():
               f'saved ({pref}), next boot: device {r2.dumps[0][0]}: ' + ('ok' if ok else 'DIFF'))
         bad += not ok
 
-        # the menus with paddles: a step per turn; a dial left aside stays put
+        # the menus with paddles: entered with a dial at its end (calibrated
+        # there: no step), then a step per turn; a dial left aside stays put
         r = a2test.run(saved, ['joy:0,0', 'wait:1000', 'key: ', 'wait:60', 'key:\r', L.until('new_race', 900),
-                               'wait:100', 'key:\x1b', L.until('mm_key', 300), 'wait:10', L.peek('mm_sel', 1),
-                               'joy:0,0.4', 'wait:6', L.until('mm_key', 60), L.peek('mm_sel', 1),
+                               'wait:100', 'joy:0,-1', 'wait:6', 'key:\x1b', L.until('mm_key', 300), 'wait:30',
+                               L.until('mm_key', 60), L.peek('mm_sel', 1),
+                               'joy:0,-0.5', 'wait:6', L.until('mm_key', 60), L.peek('mm_sel', 1),
                                'wait:90', L.until('mm_key', 60), L.peek('mm_sel', 1),
-                               'joy:0,0.8', 'wait:6', L.until('mm_key', 60), L.peek('mm_sel', 1),
+                               'joy:0,0', 'wait:6', L.until('mm_key', 60), L.peek('mm_sel', 1),
                                'wait:90', L.until('mm_key', 60), L.peek('mm_sel', 1),
-                               'joy:0,0.4', 'wait:6', L.until('mm_key', 60), L.peek('mm_sel', 1)])
+                               'joy:0,-0.5', 'wait:6', L.until('mm_key', 60), L.peek('mm_sel', 1)])
         sel = [d[0] for d in r.dumps]
         ok = sel == [0, 1, 1, 2, 2, 1]
-        print(f'paddles in the menus: items {sel} (turn, left aside, turn on, left aside, back): '
-              + ('ok' if ok else 'DIFF'))
+        print(f'paddles in the menus: items {sel} (opened with a dial at its end, turn, left aside, turn on, '
+              f'left aside, back): ' + ('ok' if ok else 'DIFF'))
         bad += not ok
     if bad:
         sys.exit('input: failures')

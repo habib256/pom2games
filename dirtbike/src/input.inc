@@ -6,6 +6,7 @@
 ;   read_input   once per frame. C = 1 and A = key when a key was typed
 ;                (upper case), for the main loop's own keys.
 ;   stick_menu, stick_button   the stick in the menus
+;   stick_calib  a menu opens: paddles count their steps from where they are
 ;
 ; The keyboard always drives. The stick drives too when it is the device
 ; chosen in the main menu (inp_dev, kept in DIRTHOF: hof.inc's inp_pref);
@@ -17,8 +18,8 @@
 ; wins, physics.inc). Paddles: the same from paddle 0's dial, centred on
 ; the middle of its travel (PDL_MID: a dial has no rest position), and its
 ; button / paddle 1's; in the menus a dial counts a step each time it has
-; turned STICK_ON from where the last step left it, so one left aside
-; does not scroll. Button 0 is the trigger of most Apple sticks and the
+; turned STICK_ON from where the last step left it, or from where it was
+; when the menu opened (stick_calib), so one left aside does not scroll. Button 0 is the trigger of most Apple sticks and the
 ; Open Apple key of the //e: the gas, held most of the race; Y is not read
 ; in a race. Keyboard: A / up arrow = full throttle, Z / down arrow = half,
 ; for GAS_HOLD frames, then it fades one level a frame (the bike never runs
@@ -80,11 +81,17 @@ INP_PADDLES = 2
         LDY     joy_ry
         CMP     #INP_PADDLES
         BNE     :+
-        LDX     #PDL_MID
-        LDY     #PDL_MID
+        LDX     joy_x                   ; the menus: from where they are
+        LDY     joy_y
+        STX     joy_mx
+        STY     joy_my
+        LDX     #PDL_MID                ; the lean: from mid-travel
+        STX     joy_lx
+        BNE     :++                     ; (always)
 :       STX     joy_mx
         STX     joy_lx
         STY     joy_my
+:
         EOR     #INP_KEYS               ; 0 for the keyboard alone
         STA     joy_ok
 .endmacro
@@ -312,14 +319,8 @@ stick_menu:
         LDA     #0                      ; back in the middle: armed
         STA     mrep
 @rts:   RTS
-@push:  LDA     joy_ok                  ; paddles (joy_ok 3): the next step
-        CMP     #INP_PADDLES ^ INP_KEYS ; from here
-        BNE     @rep
-        LDA     joy_x
-        STA     joy_mx
-        LDA     joy_y
-        STA     joy_my
-@rep:   LDA     mrep
+@push:  JSR     pdl_centre              ; paddles: the next step from here
+        LDA     mrep
         BEQ     @first
         DEC     mrep
         BNE     @none
@@ -332,4 +333,22 @@ stick_menu:
         TXA
         RTS
 @none:  LDA     #0
+        RTS
+
+; stick_calib -- a menu opens: with the paddles, the menu's centre is where
+; the dials are now (a dial left at an end would give a step at once).
+; Clobbers A, X, Y. pdl_centre -- the same from the last reading, keeps X, Y.
+stick_calib:
+        LDA     joy_ok
+        BEQ     pdl_rts                 ; (the keyboard: no port read)
+        JSR     read_stick_fast
+pdl_centre:
+        LDA     joy_ok
+        CMP     #INP_PADDLES ^ INP_KEYS ; (joy_ok 3)
+        BNE     pdl_rts
+        LDA     joy_x
+        STA     joy_mx
+        LDA     joy_y
+        STA     joy_my
+pdl_rts:
         RTS
