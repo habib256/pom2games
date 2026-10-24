@@ -3,6 +3,7 @@
 #include "dhgr.h"
 #include "apple2io.h"
 #include "apple2frame.h"
+#include "apple2vbl.h"
 #include "mouse.h"
 #include "prodos.h"
 #include "sound.h"
@@ -83,14 +84,11 @@ unsigned next_life_score;
 void timing_init(void);
 void timing_close(void);
 void timing_present(void);
-void timing_scan(void);
 /* Level bank: one board and its name copied from AUX (render.s). */
 void __fastcall__ level_fetch(unsigned char level);
 extern unsigned char level_packed[48];
 extern char level_name[11];
 unsigned char refresh;
-extern unsigned char timing_mode, timing_ticks, video_pal;
-void timing_measure(void);
 /* Attract mode: after 15 s idle on the title, an autopilot plays a board
  * without sound or records; any key, click, lost life or 60 s ends it. */
 unsigned char demo;
@@ -181,10 +179,10 @@ static void hud_changed(void) { hud_dirty=1; }
 const char *__fastcall__ fast_number(unsigned value);
 static void number(unsigned value, char *s, unsigned char digits)
 {
-    timing_scan();
+    a2_vbl_scan();
     memcpy(s,fast_number(value)+5u-digits,digits);
     s[digits]=0;
-    timing_scan();
+    a2_vbl_scan();
 }
 void hud_number(void);
 void __fastcall__ score_add_bcd(unsigned bcd);
@@ -199,7 +197,7 @@ void hud(unsigned char budget)
     static const char *message;
     if (hud_dirty) {
         changed=0;
-        timing_scan();
+        a2_vbl_scan();
         /* Prepare text on this frame; draw it on the following frame.
          * Keep score conversion and a banked glyph out of the same tick.
          * Pages rescan only when a cell really changed (a paddle rebound
@@ -303,7 +301,7 @@ void restore_actors(void);
 void render(void)
 {
     static unsigned char i;
-    timing_scan();
+    a2_vbl_scan();
     page_id=dhgr_get_draw_page()-1u;
     restore_actors();
     /* Keep score conversion out of the frame that erases a brick. */
@@ -474,7 +472,7 @@ static void title(void)
     /* The theme plays on arrival, not after a demo; a key cuts it short. */
     if (!title_quiet && !sound_muted) play_title();
     title_quiet=0;
-    demo_idle=0; demo_last=timing_ticks;
+    demo_idle=0; demo_last=a2_vbl_count;
 }
 /* A score as text: its tens on five digits, then the final zero. */
 static char points_text[7];
@@ -608,7 +606,7 @@ void effects_tick(void);
 void __fastcall__ damage(unsigned char i)
 {
     unsigned char life_bonus;
-    timing_scan();
+    a2_vbl_scan();
     if (bricks[i]==255u) { sound_event(SND_STEEL); return; }
     --bricks[i];
     mark_dirty(i);
@@ -621,10 +619,10 @@ void __fastcall__ damage(unsigned char i)
         }
         life_bonus=award(multiplier);
     } else life_bonus=award(1);
-    timing_scan();
+    a2_vbl_scan();
     update_best(); hud_changed(); sound_event(bricks[i] ? SND_HIT : SND_BREAK);
     if (life_bonus) sound_event(SND_BONUS);
-    timing_scan();
+    a2_vbl_scan();
     if (!bricks[i]) {
         --remaining; ++hits;
         if (++ramp_hits>=ramp_period) {
@@ -814,9 +812,9 @@ static void demo_stop(void)
 /* Title idle time in video refreshes: VBL waits on IIe, VBL IRQs on IIc. */
 static unsigned char demo_due(void)
 {
-    if (timing_mode==2u) { demo_idle+=(unsigned char)(timing_ticks-demo_last); demo_last=timing_ticks; }
+    if (a2_vbl_mode==2u) { demo_idle+=(unsigned char)(a2_vbl_count-demo_last); demo_last=a2_vbl_count; }
     else ++demo_idle;
-    return demo_idle>=(video_pal ? 750u : 900u);
+    return demo_idle>=(a2_vbl_pal ? 750u : 900u);
 }
 static void menu(void)
 {
@@ -887,9 +885,9 @@ void game_tick(void)
     button=held && !mouse_old;
     mouse_old=held;
     /* 60 s of game ticks, 30 or 25 per second. */
-    if (demo && (button || ++demo_time>=(video_pal ? 1500u : 1800u))) { demo_stop(); return; }
+    if (demo && (button || ++demo_time>=(a2_vbl_pal ? 1500u : 1800u))) { demo_stop(); return; }
     if (state==0u && (key || button || mouse_x!=demo_mx || mouse_y!=demo_my)) {
-        demo_mx=mouse_x; demo_my=mouse_y; demo_idle=0; demo_last=timing_ticks;
+        demo_mx=mouse_x; demo_my=mouse_y; demo_idle=0; demo_last=a2_vbl_count;
     }
     if (state!=1u) {
         if(key=='H') { save_status=0; record_table(); return; }
@@ -952,7 +950,7 @@ int main(void)
     }
     video_mixed(1);
     dhgr_draw_page(1); fast_reset(); dhgr_draw_page(2); fast_reset();
-    mouse_init(); timing_init(); timing_measure(); a2_frame_set_delay(40);
+    mouse_init(); timing_init(); a2_vbl_measure(); a2_frame_set_delay(40);
     mode=mouse_slot!=0; title();
     while (!quitting) game_tick();
     return 0;

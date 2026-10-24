@@ -7,8 +7,10 @@ use the Apple II's native video. Every game in the repository shares them.
     dev/
       lib/apple2/      asm : hardware, text, keyboard, HGR, DOS exit,
                        sound, joystick, DOS commands
-      lib/apple2c/     C   : text, keyboard, sound, joystick, DOS
-      lib/prodos/      ProDOS 8 MLI and cleanup after DHGR
+      lib/apple2c/     C   : text, keyboard, sound, joystick, DOS; frame
+                       pacing, ProDOS video clock (//e VBL, //c mouse IRQ)
+      lib/prodos/      ProDOS 8 MLI and cleanup after DHGR; .SYSTEM shim
+                       (sysboot.s); whole-file load/save (file.asm, file.s)
       lib/mouse/       AppleMouse II: polling, firmware IRQ and VBL,
                        optional ZP/mailbox context for legacy clients
       lib/audio/       optional PWM player, 8 kHz speaker samples
@@ -40,7 +42,9 @@ use the Apple II's native video. Every game in the repository shares them.
       tools/build_dhgr_font.py  binary image of the relocated small DHGR font
                        (lib/hgrc, DHGR_SMALL_FONT_EXTERNAL)
       tools/assets/    PNG/PPM -> HGR/DHGR bank converter, masks, previews
-      tools/audio/     PCM WAV -> PWM clips; 6502 player generator
+      tools/audio/     PCM WAV -> PWM clips; 6502 player generator;
+                       notes.py: note names -> tone/duet counts, duet.asm
+                       tunes in just intonation (the games' music tools)
       tools/perspective.py  configurable fixed-camera tables
       tools/dos33_system.bin  DOS 3.3 system tracks (0-2) from the Apple master disk
       tools/a2shot/    headless, scripted runs with PNG captures

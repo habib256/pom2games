@@ -146,7 +146,7 @@ int main(int argc,char** argv) {
     until(tick,50000000);
     mem.clearReadWatches();mem.setWatchSink(nullptr);
     require(speaker.clicks>2000,"title theme plays at start ("+std::to_string(speaker.clicks)+" clicks)");
-    require(read("timing_mode")==unsigned(iic?2:1),"VBL IRQ clock on IIe and IIc");
+    require(read("a2_vbl_mode")==unsigned(iic?2:1),"VBL IRQ clock on IIe and IIc");
     require(read("mouse_slot")==4,"AppleMouse not detected in slot 4");
     require(read("mouse_x")==70 && read("mouse_y")==CB_PAD_Y,"initial mouse position/clamps");
     std::cout<<"PASS ProDOS boot + AppleMouse firmware slot 4\n";
@@ -373,7 +373,7 @@ int main(int argc,char** argv) {
             const auto title=pageOne();
             press('?');
             require(read("state")==0 && pageOne()==title,"help without its file gives the title back");
-            require(read("timing_mode")==unsigned(iic?2:1),"VBL clock survives the failed load");
+            require(read("a2_vbl_mode")==unsigned(iic?2:1),"VBL clock survives the failed load");
             press(13);
             require(read("state")==1 && read("ball_live"),"a game starts after the failed help");
             std::cout<<"PASS help without the ENDING file: title kept\n";return 0;
@@ -429,7 +429,7 @@ int main(int argc,char** argv) {
                     mem.queueKey(27);until(tick,80000000);until(tick,80000000);
                 }
                 require(read("state")==0 && pageOne()==title,"help returns to the title unchanged");
-                require(read("timing_mode")==unsigned(iic?2:1),"VBL clock survives the overlay load");
+                require(read("a2_vbl_mode")==unsigned(iic?2:1),"VBL clock survives the overlay load");
             }
             press(13);
             require(read("state")==1 && read("ball_live"),"a game starts after help");
@@ -505,7 +505,7 @@ int main(int argc,char** argv) {
                 std::cout<<"PASS write-protected disk: error shown, record retained in RAM\n";return 0;
             }
             require(read("state")==5 && read("save_status")==1,"ProDOS record save and table: state="+std::to_string(read("state"))+" status="+std::to_string(read("save_status"))+" MLI="+std::to_string(read("records_error")));
-            require(read("timing_mode")==unsigned(iic?2:1),"VBL restored after record I/O");
+            require(read("a2_vbl_mode")==unsigned(iic?2:1),"VBL restored after record I/O");
         }
         for(int i=0;i<5;++i)require(word(at("records")+i*6)==expected[i],"sorted top five records");
         require(drive->flushPendingWrites(),"flush actual ProDOS disk writes");
@@ -564,7 +564,7 @@ int main(int argc,char** argv) {
     profileActive=false;
     require(moves>=20,"cadence test must move the mouse paddle");
     require(longest-shortest<uint64_t(pal ? 8000 : 5000),"irregular frame intervals during active play");
-    require(read("timing_mode")==unsigned(iic?2:1),"VBL pacing remains active");
+    require(read("a2_vbl_mode")==unsigned(iic?2:1),"VBL pacing remains active");
     auto clock=pal ? 1015600.0 : 1023000.0;
     auto fps=60.0*clock/(mem.getCycleCounter()-stamp);
     require(fps>=(pal?24.0:29.0),"below expected VBL cadence in active mouse play");
@@ -1322,7 +1322,7 @@ int main(int argc,char** argv) {
     // Attract mode: 15 s idle on the title start an autopilot demo, silent,
     // without records; a key or a lost life returns to the title.
     {
-        require(read("video_pal")==unsigned(pal),"50 Hz detection");
+        require(read("a2_vbl_pal")==unsigned(pal),"50 Hz detection");
         auto bestScore=mem.memRead(at("best_score"))+256*mem.memRead(at("best_score")+1);
         write("paused",0);write("state",0);write("demo",0);
         // Mouse motion restarts the wait: let the emulated mouse settle first.
@@ -1410,7 +1410,7 @@ int main(int argc,char** argv) {
     }
     until(at("prodos_quit"),20000000);
     require(!read("mouse_slot"),"mouse disabled on exit");
-    require(!read("timing_mode"),"VBL handler deallocated on exit/reset");
+    require(!read("a2_vbl_mode"),"VBL handler deallocated on exit/reset");
     require((mem.memRead(0xC01A)&0x80)!=0,"text restored on exit");
     require(chatMauve->dhgrMode()==LeChatMauveCard::DhgrMode::COL140,"RGB card back to 140 colour on exit");
     // Check /RAM before QUIT starts the dispatcher. $0300 is ProDOS's RAM

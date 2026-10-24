@@ -15,10 +15,10 @@ the title is up. The jingles stay in the program (music.inc).
 import sys
 from pathlib import Path
 
-CLOCK = 1020484
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools/audio'))
+from notes import hz, midi, parse, tone_flips, tone_x  # noqa: E402
+
 TICK = (26 + 27 * 79 + 5 * 79 * 79) // 2    # WAIT with A = 79, cycles
-FLIP = 12                                   # tone: 12 + 5 X cycles a flip
-NAMES = {'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11}
 
 # title: A minor, an eighth = 8 ticks (~225 bpm a quarter)
 TITLE = """
@@ -38,19 +38,16 @@ def note(name):
     """'G#5' -> (X, flips a tick); 'R' -> (0, 0)."""
     if name == 'R':
         return 0, 0
-    semi = NAMES[name[0]] + (1 if '#' in name else 0) + 12 * (int(name[-1]) + 1)
-    freq = 440 * 2 ** ((semi - 69) / 12)
-    x = round((CLOCK / (2 * freq) - FLIP) / 5)
-    assert 11 <= x <= 255, name
-    return x, round(TICK / (FLIP + 5 * x))
+    x = tone_x(hz(midi(name)))
+    assert x >= 11, name
+    return x, tone_flips(x, TICK)
 
 
 def tune(text, eighth):
     out = bytearray()
-    for tok in text.split():
-        name, n = tok.split(':')
+    for name, n in parse(text):
         x, flips = note(name)
-        out += bytes([int(n) * eighth, x, flips])
+        out += bytes([n * eighth, x, flips])
     return out + b'\0'
 
 
