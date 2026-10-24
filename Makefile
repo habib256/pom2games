@@ -37,7 +37,7 @@ all:
 
 # Quick dev/ checks: shared libraries, examples, tools, performance budgets.
 DEV_CHECKS := test-hgr test-frame test-hgr-example test-assets bench-check \
-              test-techniques test-tools test-minimal
+              test-techniques test-tools test-minimal test-woz
 
 # The dev/ checks run on the portable headless II+ (a fresh checkout has to
 # build it first; the program Makefiles already list it, see apple2.mk).
@@ -160,7 +160,12 @@ bench-dhgr:
 bench-check:
 	$(PYTHON) dev/bench/run.py --check
 
-.PHONY: test-assets bench bench-dhgr bench-check
+# Every 140K disk in dist/ has its MiSTer WOZ twin, byte for byte up to date
+# (make skips a twin newer than its disk even when it was built from another).
+test-woz:
+	$(PYTHON) dev/tools/dsk2woz.py --check dist
+
+.PHONY: test-assets bench bench-dhgr bench-check test-woz
 
 profile-ii-plus:
 	@for d in $(II_PLUS_GAMES); do $(MAKE) -C $$d || exit 1; done

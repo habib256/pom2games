@@ -54,12 +54,12 @@ def main():
                         '-o', str(work / 'j.bin'), str(work / 'j.o')], check=True)
         L = a2test.labels(work / 'j.lbl')
         assert L['joy_x'] < 0x100, 'joy_x alias not kept in zero page'
-        disk = a2test.build_disk(work, 'JOY', work / 'j.bin')
+        fixture = work / 'j.bin'
         axes = [(-1, -1), (0, 0), (1, 1), (-1, 1), (0.5, -0.5), (9, 1), (-1, 9), (9, 9)]
-        steps = ['wait:200', L.until('loop', 4000)]
+        steps = [L.until('loop', 4000)]
         for x, y in axes:
             steps += [f'joy:{x},{y}', 'wait:5', L.peek('res', 6)]
-        r = a2test.run(disk, steps)
+        r = a2test.run(None, a2test.bin_steps(fixture) + steps)
         rows = [r.mem(L['res'], 6, i) for i in range(len(axes))]
     for (x, y), row in zip(axes, rows):
         if x > 1 or y > 1:

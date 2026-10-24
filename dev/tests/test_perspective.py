@@ -2,6 +2,7 @@
 """Fixed-camera projection: full host grid and real cc65/6502 boundary cases."""
 import argparse
 import ctypes
+import functools
 from fractions import Fraction
 from pathlib import Path
 import tempfile
@@ -20,12 +21,18 @@ class Point(ctypes.Structure):
     _fields_ = [('x',ctypes.c_uint),('y',ctypes.c_ubyte)]
 
 
-def expected(x, y, rows=192, focal=78, center=140, horizon=31, bottom=191):
-    # Independent rational camera model and documented Q8 quantization.
+@functools.lru_cache(maxsize=None)
+def expected_row(y, rows, focal, center, horizon, bottom):
+    # Independent rational camera model and documented Q8 quantization; the
+    # ratio depends on the row only (computed once per row, not per pixel).
     ratio = Fraction(focal) / (Fraction(focal) + rows-1-y)
     quantized = max(1, int(256 * ratio))
-    return (x * quantized // 256 + center * (256-quantized) // 256,
-            horizon + int((bottom-horizon)*ratio))
+    return quantized, center * (256-quantized) // 256, horizon + int((bottom-horizon)*ratio)
+
+
+def expected(x, y, rows=192, focal=78, center=140, horizon=31, bottom=191):
+    quantized, offset, py = expected_row(y, rows, focal, center, horizon, bottom)
+    return x * quantized // 256 + offset, py
 
 
 def host_check(work, tool):
@@ -115,9 +122,11 @@ int main(void) {
         objects.append(obj)
     binary,labels=work/'perspective.bin',work/'perspective.lbl'
     run(['cl65','-t','none','-C',DEV/'cc65/apple2_hgr_c.cfg','-Ln',labels,'-o',binary,*objects])
-    disk=a2test.build_disk(work,'PROJECT',binary); labels=a2test.labels(labels)
-    result=a2test.run(disk,[labels.until('_done',3000),labels.peek('_checks',12),
-                            labels.peek('_points',192*8*3)],iie=iie)
+    labels=a2test.labels(labels)
+    # a2shot (--iie) cannot jump to loaded code yet: it still boots a disk.
+    disk,start=(a2test.build_disk(work,'PROJECT',binary),[]) if iie else (None,a2test.bin_steps(binary))
+    result=a2test.run(disk,start+[labels.until('_done',3000),labels.peek('_checks',12),
+                                  labels.peek('_points',192*8*3)],iie=iie)
     assert result.mem(labels['_checks'],12)==bytes([1]*12), result.out
     data=result.mem(labels['_points'],192*8*3)
     wanted=bytearray()

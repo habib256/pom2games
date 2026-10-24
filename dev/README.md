@@ -163,6 +163,7 @@ wall clock, hence deterministic) and runs a script:
 | `shot:F.png`      | captures the screen at 560×384 (HGR and DHGR)      |
 | `peek:ADR[:LEN]`  | dumps memory (bus read)                            |
 | `poke:ADR:OCTET` | writes one byte to memory (hexadecimal values) |
+| `load:F@ADR`      | writes a whole binary file from ADR on (bus writes, below $C000) |
 | `watch:ADR[:MEM:LEN]` | prints the registers each time PC reaches ADR, and optionally LEN bytes at MEM (hexadecimal addresses, decimal length, 4096 at most, not past $FFFF) |
 | `unwatch`         | disables all `watch:` traces                       |
 | `joy:X,Y`, `btn:N,0\|1` | joystick                                     |
@@ -214,6 +215,20 @@ script syntax, plus a few steps for tests:
 | `spk`             | number of speaker toggles since the last `spk`     |
 | `spklog:F.txt`    | from then on, writes the cycle of each toggle, one per line (pitch, tempo) |
 | `dsk:F.dsk`       | writes the disk as the program left it (saves)     |
+| `load:F@ADR`      | copies a whole binary file into RAM at ADR (hex)   |
+| `regs:A:X:Y`      | sets the registers (hex) for the next `go:` or `call:` |
+| `go:ADR`          | jumps: PC = ADR, the stack is left as it is        |
+| `call:ADR:N`      | JSR ADR from the current PC, runs until it returns (N frames at most) and prints `cycles=` (counter), `elapsed=` (cycles of the call) and the registers |
+
+Without `--disk` there is no card in slot 6: the ROM falls into
+Applesoft and a2run stops at its prompt after 8 frames (a DOS boot takes
+~1,100). Library tests load their code there instead of building a disk:
+
+    ./a2run load:fixture.bin@6000 go:6000 until:6123:100 peek:2000:16
+    a2test.run(None, a2test.bin_steps(binary) + [L.until('done')])
+
+a2shot has `load:` but not yet `go:`/`call:`: the POM2 facade cannot set
+the registers (request: `a2shot/LETTRE_POM2_REGISTRES.md`).
 
 The disk given to `--disk` is never modified; `--wp` presents it
 write-protected (save tests). DOS 3.3 takes about

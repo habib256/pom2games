@@ -72,8 +72,7 @@ SEGMENTS { CODE: load=RAM, type=ro; BSS: load=RAM, type=bss; }
         subprocess.run(['ca65','-g','-I',str(ROOT/'dev/lib/mouse'),'-o',str(obj),str(src)],check=True)
         subprocess.run(['ld65','-C',str(cfg),'-Ln',str(lbl),'-o',str(binary),str(obj)],check=True)
         labels=a2test.labels(lbl)
-        disk=a2test.build_disk(work,'CONTEXT',binary)
-        result=a2test.run(disk,[labels.until('finished'),'peek:0000:256','peek:0478:904'])
+        result=a2test.run(None,a2test.bin_steps(binary)+[labels.until('finished'),'peek:0000:256','peek:0478:904'])
         assert result.dumps[0] == bytes(x^0x55 for x in range(256)), 'caller ZP not restored'
         assert all(result.dumps[1][row*128:row*128+8] == bytes([0xAA])*8 for row in range(8)), 'firmware mailbox changes not retained'
         assert not any('dos_holes' in name for name in labels), 'DOS storage linked without opting in'

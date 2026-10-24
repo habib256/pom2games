@@ -3,6 +3,7 @@
 as a WOZ 2 file with real 10-bit sync bytes.
 
     python3 dsk2woz.py IMAGE OUT.woz
+    python3 dsk2woz.py --check DIST     (every 140K disk's twin, up to date)
 
 Why: the MiSTer Apple-II core (2026-10 releases) turns a .dsk / .po into WOZ
 itself (Main_MiSTer support/a2/iigs_fmt.cpp), but its tracks are the NIB bytes
@@ -133,7 +134,7 @@ def check_track(bits, image, track, order):
             sys.exit(f"dsk2woz: track {track} sector {phys} does not read back")
 
 
-def build(image, order, volume):
+def build(image, order, volume, verify=True):
     info = bytearray(60)
     info[0] = 2                                 # INFO version
     info[1] = 1                                 # 5.25"
@@ -151,7 +152,8 @@ def build(image, order, volume):
     for t in range(TRACKS):
         bits = track_bits(image, t, order, volume)
         assert len(bits) <= BLOCKS_PER_TRACK * 4096
-        check_track(bits, image, t, order)
+        if verify:
+            check_track(bits, image, t, order)
         raw = bytearray(BLOCKS_PER_TRACK * 512)
         for i, b in enumerate(bits):
             if b:
@@ -165,10 +167,9 @@ def build(image, order, volume):
     return b"WOZ2\xff\n\r\n" + struct.pack("<I", zlib.crc32(body)) + body
 
 
-def main(argv):
-    if len(argv) != 2:
-        sys.exit("usage: dsk2woz.py IMAGE.dsk|.do|.po OUT.woz")
-    src, dst = Path(argv[0]), Path(argv[1])
+def woz_of(src, verify=True):
+    """The WOZ bytes of a 140K image file (order from its extension); verify
+    reads every track back first (slow: a bit-level framer in Python)."""
     image = src.read_bytes()
     if len(image) != IMAGE_SIZE:
         sys.exit(f"dsk2woz: {src}: not a 140K 5.25\" image")
@@ -177,7 +178,35 @@ def main(argv):
     vtoc = 17 * SECTORS * SECTOR
     if order is DOS_ORDER and image[vtoc + 1] == 17 and image[vtoc + 3] == 3 and image[vtoc + 6]:
         volume = image[vtoc + 6]
-    dst.write_bytes(build(image, order, volume))
+    return build(image, order, volume, verify)
+
+
+def check_dist(dist):
+    """Every 140K disk in DIST has an up-to-date twin in DIST/woz, and every
+    twin still has its disk."""
+    disks = {d.stem: d for d in sorted(dist.iterdir())
+             if d.suffix.lower() in (".dsk", ".po") and d.stat().st_size == IMAGE_SIZE}
+    errors = []
+    for name, disk in disks.items():
+        woz = dist / "woz" / f"{name}.woz"
+        if not woz.exists():
+            errors.append(f"{woz}: missing")
+        elif woz.read_bytes() != woz_of(disk, verify=False):
+            errors.append(f"{woz}: stale, does not match {disk.name}")
+    for woz in sorted((dist / "woz").glob("*.woz")):
+        if woz.stem not in disks:
+            errors.append(f"{woz}: no 140K disk {woz.stem} in {dist}")
+    if errors:
+        sys.exit("\n".join(["dsk2woz --check:"] + errors))
+    print(f"dsk2woz: {len(disks)} WOZ twins in {dist / 'woz'} match their disks")
+
+
+def main(argv):
+    if len(argv) == 2 and argv[0] == "--check":
+        return check_dist(Path(argv[1]))
+    if len(argv) != 2:
+        sys.exit("usage: dsk2woz.py IMAGE.dsk|.do|.po OUT.woz | --check DIST")
+    Path(argv[1]).write_bytes(woz_of(Path(argv[0])))
 
 
 if __name__ == "__main__":

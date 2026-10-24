@@ -24,8 +24,18 @@
  *   stackwatch:SP:TOP:SIZE  profile cc65 software stack (all fields hex)
  *   stack           print observed peak/reservation/overflow and stop profiling
  *   dsk:FILE.dsk    write the disk as it is now (DOS order), to check saves
+ *   load:FILE@ADDR  copy a whole binary file into RAM at ADDR (hex)
+ *   regs:A:X:Y      set the registers (hex) for the next go: or call:
+ *   go:ADDR         jump: the PC becomes ADDR, the stack stays as it is
+ *   call:ADDR:N     JSR ADDR from the current PC and run until it returns
+ *                   (limit N frames); prints the cycles spent and registers
  *
  *   a2run --disk GAME.dsk wait:900 key:" " wait:60 shot:title.png
+ *   a2run load:fixture.bin@6000 go:6000 until:6123:100 peek:2000:16
+ *
+ * Without --disk the slot 6 card is out and the machine boots to the
+ * Applesoft prompt (8 frames, against ~1100 for a DOS boot): test code is
+ * then loaded with load: and started with go: or call:.
  *
  * As a library (cc -DA2RUN_LIB a2run.c cpu6502.c + a2run.h): a2run_main()
  * boots and plays a script, then the caller drives cpu / ram / kbd_latch
@@ -51,12 +61,14 @@
 #include <string.h>
 
 #define CYCLES_PER_FRAME 17030
+#define KEYIN 0xFD1B             /* Monitor ROM keyboard wait loop */
 #define TRACKS 35
 #define TRACK_LEN 6392          /* nibbles per track: a full 16-sector layout */
 
 uint8_t ram[0xC000];            /* shared with programs built on a2run.h */
 static uint8_t rom[0x3000];     /* $D000-$FFFF */
 static uint8_t slot6[256];      /* $C600 boot PROM */
+static int have_disk;           /* 0: no card in slot 6 (--disk not given) */
 Cpu cpu;
 
 /* --- keyboard ------------------------------------------------------------- */
@@ -315,7 +327,7 @@ static uint8_t bus_read(void *ctx, uint16_t a)
     if (a < 0xC000) return ram[a];
     if (a >= 0xD000) return rom[a - 0xD000];
     if (a < 0xC100) return io(a, 0, 0);
-    if (a >= 0xC600 && a < 0xC700) return slot6[a & 0xFF];
+    if (a >= 0xC600 && a < 0xC700 && have_disk) return slot6[a & 0xFF];
     return 0;
 }
 
@@ -468,6 +480,28 @@ static int shot(const char *path)
     return write_png(path, img, 2 * W, 2 * H);
 }
 
+/* "ADDR: XX XX ..." lines of 16 bytes, formatted by hand: a 16 KB page dump
+ * through printf took most of a test's run. */
+static void print_dump(unsigned a, unsigned n)
+{
+    static const char hex[] = "0123456789ABCDEF";
+    char line[6 + 16 * 3 + 1];
+    if (!n) putchar('\n');
+    for (unsigned k = 0; k < n; k += 16) {
+        unsigned at = (a + k) & 0xFFFF, m = n - k < 16 ? n - k : 16;
+        char *q = line;
+        *q++ = hex[at >> 12]; *q++ = hex[(at >> 8) & 15];
+        *q++ = hex[(at >> 4) & 15]; *q++ = hex[at & 15]; *q++ = ':';
+        for (unsigned j = 0; j < m; j++) {
+            unsigned x = a + k + j;
+            uint8_t v = x < 0xC000 ? ram[x] : bus_read(NULL, (uint16_t)x);
+            *q++ = ' '; *q++ = hex[v >> 4]; *q++ = hex[v & 15];
+        }
+        *q++ = '\n';
+        fwrite(line, 1, (size_t)(q - line), stdout);
+    }
+}
+
 /* ============================================================================ */
 /* script                                                                       */
 /* ============================================================================ */
@@ -519,8 +553,8 @@ int a2run_main(int argc, char **argv)
         else if (!strcmp(argv[i], "--roms") && i + 1 < argc) snprintf(roms, sizeof roms, "%s", argv[++i]);
         else break;
     }
-    if (!disk) {
-        fprintf(stderr, "usage: a2run [--roms DIR] [--wp] --disk X.dsk step...\n");
+    if (i < argc && argv[i][0] == '-') {
+        fprintf(stderr, "usage: a2run [--roms DIR] [--wp] [--disk X.dsk] step...\n");
         return 2;
     }
     char path[1200];
@@ -530,12 +564,20 @@ int a2run_main(int argc, char **argv)
     if (!load_file(path, slot6, 256, 0)) { fprintf(stderr, "a2run: %s\n", path); return 1; }
     for (int k = 0; k < 256; k++) dec62[k] = -1;
     for (int k = 0; k < 64; k++) dec62[enc62[k]] = k;
-    if (!load_disk(disk)) return 1;
+    have_disk = disk != NULL;
+    if (have_disk && !load_disk(disk)) return 1;
 
     for (int k = 0; k < 0xC000; k++) ram[k] = (k & 2) ? 0xFF : 0x00;   /* power-on pattern */
     cpu.read = bus_read;
     cpu.write = bus_write;
     cpu_reset(&cpu);
+    if (!have_disk) {
+        /* No boot card: the Autostart ROM falls into Applesoft, whose prompt
+         * waits in KEYIN. Stop there, a known quiet state for load:/go:. */
+        uint64_t end = cpu.cycles + 120ull * CYCLES_PER_FRAME;
+        while (cpu.pc != KEYIN && cpu.cycles < end) cpu_step(&cpu);
+        if (cpu.pc != KEYIN) { fprintf(stderr, "a2run: no prompt without a disk\n"); return 1; }
+    }
 
     for (; i < argc; i++) {
         const char *s = argv[i];
@@ -586,11 +628,7 @@ int a2run_main(int argc, char **argv)
             unsigned a = (unsigned)strtoul(s + 5, NULL, 16), n = 1;
             const char *c = strchr(s + 5, ':');
             if (c) n = (unsigned)strtoul(c + 1, NULL, 0);
-            for (unsigned k = 0; k < n; k++) {
-                if (k % 16 == 0) printf("%s%04X:", k ? "\n" : "", a + k);
-                printf(" %02X", (a + k) < 0xC000 ? ram[a + k] : bus_read(NULL, (uint16_t)(a + k)));
-            }
-            printf("\n");
+            print_dump(a, n);
         } else if (!strncmp(s, "poke:", 5)) {
             char *e;
             unsigned a = (unsigned)strtoul(s + 5, &e, 16);
@@ -618,7 +656,46 @@ int a2run_main(int argc, char **argv)
             if (spk_log) fclose(spk_log);
             spk_log = fopen(s + 7, "w");
             if (!spk_log) { fprintf(stderr, "a2run: cannot write %s\n", s + 7); return 1; }
+        } else if (!strncmp(s, "load:", 5)) {
+            const char *at = strrchr(s + 5, '@');
+            if (!at) return 2;
+            char file[1024];
+            snprintf(file, sizeof file, "%.*s", (int)(at - s - 5), s + 5);
+            unsigned a = (unsigned)strtoul(at + 1, NULL, 16);
+            FILE *f = fopen(file, "rb");
+            if (!f) { fprintf(stderr, "a2run: cannot read %s\n", file); return 1; }
+            size_t n = a < 0xC000 ? fread(ram + a, 1, 0xC000 - a, f) : 0;
+            int past = fgetc(f) != EOF;
+            fclose(f);
+            if (!n || past) { fprintf(stderr, "a2run: %s does not fit at %04X\n", file, a); return 2; }
+        } else if (!strncmp(s, "regs:", 5)) {
+            unsigned a, x, y;
+            if (sscanf(s + 5, "%x:%x:%x", &a, &x, &y) != 3) return 2;
+            cpu.a = (uint8_t)a; cpu.x = (uint8_t)x; cpu.y = (uint8_t)y;
+        } else if (!strncmp(s, "go:", 3)) {
+            cpu.pc = (uint16_t)strtoul(s + 3, NULL, 16);
+        } else if (!strncmp(s, "call:", 5)) {
+            /* A JSR from where the machine is: the routine returns to the
+             * current PC with the stack as it was, and the run stops there. */
+            unsigned target = 0, frames = 0;
+            if (sscanf(s + 5, "%x:%u", &target, &frames) != 2 || target > 65535 || !frames) return 2;
+            uint16_t back = cpu.pc;
+            uint8_t s0 = cpu.s;
+            ram[0x100 | cpu.s--] = (uint8_t)((back - 1) >> 8);
+            ram[0x100 | cpu.s--] = (uint8_t)(back - 1);
+            cpu.pc = (uint16_t)target;
+            uint64_t start = cpu.cycles, end = start + (uint64_t)frames * CYCLES_PER_FRAME;
+            while ((cpu.pc != back || cpu.s != s0) && cpu.cycles < end) {
+                feed_keyboard();
+                stack_sample();
+                cpu_step(&cpu);
+            }
+            printf("call %04X cycles=%llu elapsed=%llu A=%02X X=%02X Y=%02X P=%02X\n", target,
+                   (unsigned long long)cpu.cycles, (unsigned long long)(cpu.cycles - start),
+                   cpu.a, cpu.x, cpu.y, cpu.p);
+            if (cpu.pc != back || cpu.s != s0) return 3;
         } else if (!strncmp(s, "dsk:", 4)) {
+            if (!have_disk) return 2;
             if (!save_disk(s + 4)) { fprintf(stderr, "a2run: cannot write %s\n", s + 4); return 1; }
         } else {
             fprintf(stderr, "a2run: unknown step '%s'\n", s);

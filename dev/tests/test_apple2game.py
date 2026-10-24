@@ -48,16 +48,15 @@ int main(void) {
     binary = work/'game.bin'
     subprocess.run(['cl65','-t','none','-C',str(DEV/'cc65/apple2_hgr_c.cfg'),
                     '-o',str(binary),*map(str,objects)],check=True)
-    disk = a2test.build_disk(work,'GAMEAPI',binary)
     cases = [(0,0,0),(-1,0,3),(1,0,4),(0,-1,1),(0,1,2),(-1,-1,1),(1,1,2)]
     tones = [(3,2),(7,40),(2,0),(256,1)]
-    steps = ['wait:1100','peek:1000:1']
+    steps = a2test.bin_steps(binary) + ['wait:10','peek:1000:1']
     for index,(x,y,direction) in enumerate(cases):
         steps += [f'joy:{x},{y}', *[f'btn:{b},{int(index%3==b)}' for b in range(3)],
                   'key: ','wait:2','peek:1000:8']
     for index,_ in enumerate(tones):
         steps += [f'spklog:{work / (str(index)+".spk")}', 'key: ','wait:5','peek:1000:1']
-    result = a2test.run(disk,steps)
+    result = a2test.run(None,steps)
     assert result.dumps[0] == b'\0'
     for index,(x,y,direction) in enumerate(cases):
         values = result.dumps[index+1]

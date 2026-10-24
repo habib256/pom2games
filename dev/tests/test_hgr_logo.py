@@ -109,7 +109,7 @@ SEGMENTS {ZEROPAGE: load=ZP,type=zp; CODE: load=MAIN,type=ro; BSS: load=MAIN,typ
     binary = work/'fixture.bin'
     subprocess.run(['ld65','-C',str(cfg),'-Ln',str(work/'fixture.lbl'),'-o',str(binary),
                     *map(str,objects)], check=True)
-    return a2test.build_disk(work,'FIXTURE',binary), a2test.labels(work/'fixture.lbl')
+    return binary, a2test.labels(work/'fixture.lbl')
 
 
 def check(work, adapter):
@@ -123,14 +123,14 @@ def check(work, adapter):
     cases += [(0,(255,96,279,100),mode,color) for mode in (0,1) for color in range(16)]
     points = [(0,0),(255,191),(256,0),(279,191),(280,0),(511,0),(65535,95),(1,192),(1,255)]
     cases += [(1,(x,y,x,y),mode,4) for x,y in points for mode in (0,1)]
-    disk, labels = build(work, adapter)
+    fixture, labels = build(work, adapter)
     steps = [labels.until('ready')]
     for kind, (x,y,xe,ye), mode, color in cases:
         params = [x&255,x>>8,y,xe&255,xe>>8,ye,x&255,x>>8,y,color,mode]
         steps += [labels.poke('params',value,i) for i,value in enumerate(params)]
         steps += [labels.poke('kind',kind),'press: ',labels.until('done'),
                   'peek:2000:16384',labels.until('ready')]
-    result = a2test.run(disk,steps)
+    result = a2test.run(None, a2test.bin_steps(fixture) + steps)
     for i,(kind,ends,mode,color) in enumerate(cases):
         expected = bytearray([165])*8192
         reference(expected,ends,mode,color,adapter)

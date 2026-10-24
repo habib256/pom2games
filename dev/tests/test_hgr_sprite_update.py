@@ -71,11 +71,11 @@ done:   jmp ready
     subprocess.run(['ca65','-g','-I',str(ROOT/'dev/lib/hgr'),'-o',str(work/'fixture.o'),str(source)],check=True)
     binary=work/'fixture.bin'
     subprocess.run(['ld65','-C',str(cfg),'-Ln',str(work/'fixture.lbl'),'-o',str(binary),str(work/'fixture.o')],check=True)
-    return a2test.build_disk(work,'SPRITE',binary),a2test.labels(work/'fixture.lbl')
+    return binary,a2test.labels(work/'fixture.lbl')
 
 
 def check(work,page):
-    disk,L=build(work,page)
+    fixture,L=build(work,page)
     rng=random.Random(1977)
     geometries=[(12,60,6,32),(12,60,6,32),(13,60,5,32),(13,61,5,31),
                 (0,0,1,1),(34,160,6,32),(39,191,1,1),(0,0,1,0)]
@@ -96,7 +96,7 @@ def check(work,page):
                 frame[addr] |= bits
                 if bits and color: frame[addr]=(frame[addr]&127)|palette
         expected.append(frame)
-    result=a2test.run(disk,steps)
+    result=a2test.run(None, a2test.bin_steps(fixture) + steps)
     assert len(result.dumps)==len(expected)
     for index,(actual,wanted) in enumerate(zip(result.dumps,expected)):
         assert actual==wanted, (page,index,geometries[index])
@@ -110,7 +110,7 @@ def check(work,page):
     steps += ['press: ',L.until('done'),L.until('ready')]
     steps += [L.poke('mask',v,i) for i,v in enumerate(last)]
     steps += ['press: ',L.until('ds_seed_visible'),'peek:2000:16384',L.until('done'),'peek:2000:16384']
-    transition=a2test.run(disk,steps).data
+    transition=a2test.run(None, a2test.bin_steps(fixture) + steps).data
     both=bytearray([165])*16384
     a=(page-1)*8192+a2test.hgr_offset(60)+12
     b=(page-1)*8192+a2test.hgr_offset(91)+17

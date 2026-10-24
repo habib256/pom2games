@@ -61,8 +61,8 @@ SEGMENTS { ZEROPAGE: load=ZP, type=zp; CODE: load=RAM, type=ro; RODATA: load=RAM
         subprocess.run(['ld65', '-C', str(cfg), '-Ln', str(work / 't.lbl'), '-o', str(work / 't.bin'),
                         *objs], check=True)
         L = a2test.labels(work / 't.lbl')
-        disk = a2test.build_disk(work, 'NOSLOT', work / 't.bin')
-        r = a2test.run(disk, ['wait:200', L.until('finished', 4000), L.peek('res', 6)])
+        fixture = work / 't.bin'
+        r = a2test.run(None, a2test.bin_steps(fixture) + [L.until('finished', 4000), L.peek('res', 6)])
         res = r.mem(L['res'], 6)
     assert res[5] == 1, f'never reached the end: {list(res)}'
     assert res[2] == 0, f'mouse_init found a mouse in slot {res[2]}'

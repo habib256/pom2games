@@ -209,19 +209,19 @@ out_rand: .res 256
     subprocess.run(['ca65', *inc, '-o', str(work / 'm.o'), str(work / 'm.s')], check=True)
     subprocess.run(['ld65', '-C', str(ROOT / 'dev/cc65/apple2_hgr.cfg'), '-Ln', str(work / 'm.lbl'),
                     '-o', str(work / 'm.bin'), str(work / 'm.o')], check=True)
-    return a2test.labels(work / 'm.lbl'), a2test.build_disk(work, 'MATH', work / 'm.bin')
+    return a2test.labels(work / 'm.lbl'), work / 'm.bin'
 
 
 def check(defines, table, label):
     with tempfile.TemporaryDirectory(prefix='math-') as tmp:
         work = Path(tmp)
-        L, disk = build(work, defines, table)
+        L, binary = build(work, defines, table)
         names = list(table)
-        steps = [L.until('done', 20000)]
+        steps = a2test.bin_steps(binary) + [L.until('done', 20000)]
         for n in names:
             steps.append(L.peek(f'out_{n}', len(table[n][1]) * len(table[n][3])))
         steps.append(L.peek('out_rand', 256))
-        r = a2test.run(disk, steps)
+        r = a2test.run(None, steps)
         for n in names + ['rand']:
             if n == 'rand':
                 want = bytes(lfsr(0x3C, 0xAD, 256))
