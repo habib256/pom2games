@@ -54,6 +54,7 @@ moto ~8 600.
   appelé 7 fois par tick.
 - Moto : marques d'effacement calculées pendant le tracé.
 - Cadence régulière : VBL sur //e ; sur II+, synchronisation par le bus
-  flottant (« vapor lock ») à étudier.
+  flottant : `dev/lib/apple2/vapor.asm` existe depuis le 2026-10-24 (SNAKE,
+  marqueur sur la ligne HGR 191, testé sur a2run et POM2 NTSC/PAL/IIe).
 - Mémoire : ~3,9 Ko libres en `$6000-$95FF`, ~480 octets en `$1000-$1FFF`,
   page zéro presque pleine (2 octets).

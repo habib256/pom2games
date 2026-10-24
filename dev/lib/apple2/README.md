@@ -41,6 +41,9 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   per pass, self-modified counts), assembled under `.org DUET_BASE` in its
   own page: `DUET_PLAY` (A = melody, X = bass, Y = slices),
   `DUET_KEYS`, `DUET_SLICE`. ARKABREAKOUT ($1300) and CHROMABREAK ($0310).
+- **`vapor.asm`** — `vapor_mark`, `vapor_sync`, `vapor_count`: the vapor
+  lock, a frame sync through the floating bus on a II, II+ or //e (SNAKE).
+  See [Vapor lock](#vapor-lock-frame-sync-on-a-ii--ii).
 - **`joy.asm`** — `read_stick`, `stick_dir`: joystick (two paddles);
   `read_stick_fast` (DIRTBIKE) returns as soon as both timers have
   run out (0.1-2.8 ms instead of 6 ms), on its own scale (~0..80, centre
@@ -103,6 +106,9 @@ another module). A C object that aliases a routine to an import
 | `tone` | `sound.asm` | A = toggles (0 → 256), X = half-period (0 → 256); 12 + 5·X cycles per toggle, pitch 1.02 MHz / (2·(12 + 5·X)): ~2.4 kHz at `$28`, ~526 Hz at `$C0`, ~397 Hz at `$FF` | — | A, X, Y | — |
 | `read_stick` | `joy.asm` | — | `joy_x`, `joy_y` = 0 (left / up) … ~60 (centre) … ~120; ~6 ms; an open axis (timer never finishes) is centred at 60; C = 1 if both are (nothing plugged in) | A, X, Y | — |
 | `read_stick_fast` | `joy.asm` | — | `joy_x`, `joy_y` = counts of 35 cycles (33-34 once the other axis has finished), ~40 at centre; stops as soon as both timers have finished; C = 1 after 255 passes (nothing plugged in) | A, X, Y | — |
+| `vapor_mark` | `vapor.asm` | — | `VAPOR_BYTE` ($80) in the first 24 bytes of HGR line 191 (page `VAPOR_PAGE`, 1) | A, X | — |
+| `vapor_sync` | `vapor.asm` | marker on the shown page, HGR on | C = 0: the beam is on line 191 (VBL next); C = 1 after 65536 polls (~0.8 s): no floating bus or no marker | A, X, Y | — |
+| `vapor_count` | `vapor.asm` | same | A = low, X = high: one frame in 13-cycle polls (~1303 NTSC, ~1553 PAL at 1 MHz); C = 1, 0 on failure | A, X, Y | — |
 | `stick_dir` | `joy.asm` | `joy_x`, `joy_y` | A = `JOY_NONE` (0, Z = 1) / `JOY_UP` / `JOY_DOWN` / `JOY_LEFT` / `JOY_RIGHT`; dead zone `JOY_LO`–`JOY_HI` (30–90, define before the include to change it); vertical wins | A | — |
 | `dos_cmd_new` | `dos.asm` | — | command buffer emptied | A | — |
 | `dos_cmd_add` | `dos.asm` | A = lo, Y = hi (ASCIIZ) | string appended | A, X, Y | — |
@@ -220,6 +226,35 @@ msg:    .byte "HELLO!", $0D, 0
 Full example: [`../../examples/hello`](../../examples/hello).
 
 Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).
+
+## Vapor lock: frame sync on a II / II+
+
+The II and II+ have no VBL flag, and the //e's `$C019` is not on a //c or a
+IIgs the same way. But a soft switch that drives no data (`$C050-$C05F`)
+reads back the **floating bus**: the byte the video scanner fetched on that
+cycle. `vapor.asm` puts a marker in HGR line 191 and polls `TXTCLR` until the
+beam reads it: one lock a frame, on the last line shown, within one 13-cycle
+poll (2026-10-24, from SNAKE; `dev/tests/test_vapor.py`).
+
+- **Where the marker goes.** The scanner also fetches memory in blanking
+  (MAME's `scanner_address`): the horizontal blanking of lines 255 and 261
+  (in VBL; 311 on PAL) reads bytes 16-39 of line 191, that of line 63 its
+  bytes 24-39. So only bytes 0-23 carry the marker, and two reads 9 cycles
+  apart must both see it: on line 191 they always do, in those blankings the
+  second falls past it, and a lone `$80` elsewhere cannot fake a lock. Mark
+  the shown page again after each clear; draw nothing in `$3FD0-$3FE7`.
+- **The poll is 13 cycles at most**: a 17-cycle one (a first counting loop)
+  missed one frame in eight, its first hit too late for the second read.
+- **PAL and accelerators.** `vapor_count` measures a frame in polls: ~1303 on
+  a 1 MHz NTSC machine, ~1553 on PAL (20280-cycle frames, ratio 1.19), several
+  times more with an accelerator card. A program can tell 50 Hz from 60 (a
+  ratio of 1.1-1.3) and keep the same pace in seconds.
+- **No floating bus** (//c, IIgs) or no marker: `vapor_sync` gives up after
+  65536 polls, long enough for an accelerated frame; test once at start and
+  keep another pace (SNAKE falls back to its spin loop).
+- **Checked on** a2run (which now emulates the floating bus, NTSC) and POM2
+  (II+ NTSC and PAL, enhanced //e): a lock every 17030 / 20280 cycles, at the
+  same point of the frame within 6 cycles.
 
 ## RGB Le Chat Mauve / Video-7
 
