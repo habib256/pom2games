@@ -30,6 +30,9 @@ boots straight into its program.
    ones.
 3. **Or on real hardware**: write the image to a floppy, or load it on a floppy
    emulator (Disk II / SmartPort) and power on.
+   **MiSTer** (Apple-II core): take the `.woz` twin in [`dist/woz/`](dist/woz/),
+   not the `.dsk`/`.po` — the core's own conversion breaks the games that read
+   the disk after starting, and it saves back to WOZ images only.
 
 That's it: there is nothing to type, the game starts by itself.
 
