@@ -5,7 +5,7 @@
 ;                MENU_AT, picture) and runs main_menu; a disk error: the
 ;                track menu
 ;   main_menu    BACK TO THE RACE (a race not finished: race_resume) /
-;                TITLE PAGE / HELP / INPUT (joystick, if one was found, or
+;                TITLE PAGE / HELP / INPUT (joystick or paddles, if found, or
 ;                keyboard alone; the keys always drive; kept in DIRTHOF
 ;                when the menu ends) / HALL OF FAME / QUIT TO BASIC (the disk
 ;                boots again, HELLO sees QUIT_MARK and ends: DOS 3.3 is
@@ -187,16 +187,17 @@ mm_hof: LDA     #0                      ; tracks 1-15, then 16-30
         JSR     mm_wait
         JMP     main_menu
 
-mm_input:                               ; the other device, if found
-        LDA     inp_dev
-        EOR     #1
-        .assert INP_KEYS = 1 .and INP_STICK = 0, error, "mm_input: two devices"
-        BNE     @set                    ; the keyboard: always
+mm_input:                               ; the next device (stick, paddles,
+        LDX     inp_dev                 ; keyboard); the game port's two
+        LDA     mm_next,X               ; only when something answered
+        CMP     #INP_KEYS
+        BEQ     @set
         LDX     joy_found
         BNE     @set
         LDA     #INP_KEYS
-@set:   JSR     inp_set
+@set:   inp_set
         JMP     mm_show
+mm_next: .byte INP_PADDLES, INP_STICK, INP_KEYS ; after STICK, KEYS, PADDLES
 
 ; mm_keep -- the device chosen into DIRTHOF, when it changed (write
 ; protected: kept for this game only)
@@ -235,9 +236,10 @@ mm_esc_lo: .byte <mm_escr, <mm_esct
 mm_esc_hi: .byte >mm_escr, >mm_esct
 mm_escr:   .byte "ESC: BACK TO THE RACE", 0
 mm_esct:   .byte "ESC: THE TITLE PAGE", 0
-mm_dev_lo: .byte <mm_stick, <mm_keys       ; INP_STICK, INP_KEYS
-mm_dev_hi: .byte >mm_stick, >mm_keys
+mm_dev_lo: .byte <mm_stick, <mm_keys, <mm_pdl ; INP_STICK, INP_KEYS, INP_PADDLES
+mm_dev_hi: .byte >mm_stick, >mm_keys, >mm_pdl
 mm_keys:   .byte "KEYBOARD", 0
 mm_stick:  .byte "JOYSTICK", 0
+mm_pdl:    .byte "PADDLES ", 0          ; (8 wide: covers the others)
 
 .segment "CODE"

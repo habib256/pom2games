@@ -13,8 +13,12 @@
   * no stick plugged (both paddle timers open, the buttons floating
     "pressed"): no stick found, the keyboard device, nothing taken from the
     buttons (no throttle, no brake, the title stays), the keys drive;
-  * INPUT in the main menu: the keyboard alone (the stick no longer leans),
-    kept in DIRTHOF; the next boot starts with it.
+  * INPUT in the main menu: joystick -> paddles -> keyboard alone (the
+    stick no longer leans), kept in DIRTHOF; the next boot starts with it;
+  * paddles: paddle 0's dial leans from the middle of its travel (PDL_MID,
+    not its position at boot), same levels; in the menus one step each
+    time a dial turns STICK_ON past the last step: a dial left aside does
+    not scroll; kept in DIRTHOF too.
 """
 from pathlib import Path
 import sys
@@ -29,8 +33,8 @@ import dos33  # noqa: E402
 import physics  # noqa: E402
 
 DISK = GAME.parent / 'dist/DIRTBIKE.dsk'
-JOY_DEAD, JOY_STEP = 6, 2                    # = src/input.inc
-INP_STICK, INP_KEYS = 0, 1
+JOY_DEAD, JOY_STEP, PDL_MID = 6, 2, 40       # = src/input.inc
+INP_STICK, INP_KEYS, INP_PADDLES = 0, 1, 2
 RACE = ['wait:1000', 'key: ', 'wait:60', 'key:\r']
 
 
@@ -124,7 +128,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix='dirtbike-inp-') as tmp:
         saved = Path(tmp) / 'inp.dsk'
         r = a2test.run(DISK, RACE + [L.until('new_race', 900), 'wait:20', L.peek('inp_dev', 1),
-                                     'key:\x1b', L.until('mm_key', 300), 'key:3', 'wait:10', L.peek('inp_dev', 1),
+                                     'key:\x1b', L.until('mm_key', 300), 'key:3', 'wait:10', 'key:3', 'wait:10',
+                                     L.peek('inp_dev', 1),
                                      'key:\x1b', L.until('main_loop', 900), L.poke('count_t', 60), 'joy:1,0',
                                      'btn:0,1', 'wait:6'] + look() + ['btn:0,0', 'wait:100', f'dsk:{saved}'])
         hof = dos33.read_file(saved.read_bytes(), 'DIRTHOF')
@@ -133,8 +138,53 @@ def main():
         inp = r.mem(IN, 3, 0)
         ok = (r.dumps[0][0] == INP_STICK and r.dumps[1][0] == INP_KEYS and inp == bytes(3)
               and pref == INP_KEYS and r2.dumps[0][0] == INP_KEYS)
-        print(f'INPUT: stick -> keyboard alone (stick right + button: lean {s8(inp[2])}, throttle {inp[0]}), '
+        print(f'INPUT: stick -> paddles -> keyboard alone (stick right + button: lean {s8(inp[2])}, '
+              f'throttle {inp[0]}), saved ({pref}), next boot: device {r2.dumps[0][0]}: ' + ('ok' if ok else 'DIFF'))
+        bad += not ok
+
+    # paddles: chosen in the main menu, the dial leans from mid-travel
+    # (the paddle sat at an end at boot: that is not the centre)
+    xs = [k / 10 for k in range(11)] + [-k / 10 for k in range(1, 11)]
+    with tempfile.TemporaryDirectory(prefix='dirtbike-pdl-') as tmp:
+        saved = Path(tmp) / 'pdl.dsk'
+        steps = ['joy:-1,1'] + RACE + [L.until('new_race', 900), 'wait:20', 'key:\x1b', L.until('mm_key', 300),
+                                      'key:3', 'wait:10', L.peek('inp_dev', 1), f'peek:{JOY:04X}:6',
+                                      'key:\x1b', L.until('main_loop', 900)]
+        for x in xs:
+            steps += [L.poke('count_t', 60), f'joy:{x},0', 'wait:6', L.until('main_loop', 60),
+                      f'peek:{JOY:04X}:6', f'peek:{IN:04X}:3']
+        steps += [f'dsk:{saved}']
+        r = a2test.run(DISK, steps)
+        dev, j0 = r.dumps[0][0], r.dumps[1]
+        ok = dev == INP_PADDLES and j0[0] == 3 and j0[5] == PDL_MID    # (the menus' centre follows the dial)
+        seen = []
+        for i, x in enumerate(xs):
+            j, inp = r.dumps[2 + 2 * i], r.dumps[3 + 2 * i]
+            want, have = stick_lean(j[1] - PDL_MID), s8(inp[2])
+            seen.append(have)
+            ok &= want == have
+        m = physics.LEAN_MAX
+        ok &= seen[0] == 0 and seen[10] == m and seen[-1] == -m and set(seen) >= {-m, 0, m}
+        hof = dos33.read_file(saved.read_bytes(), 'DIRTHOF')
+        pref = hof[L['inp_pref'] - L['hof_img']]
+        r2 = a2test.run(saved, ['wait:600', L.until('attract', 3000), L.peek('inp_dev', 1)])
+        ok &= pref == INP_PADDLES and r2.dumps[0][0] == INP_PADDLES
+        print(f'paddles: device {dev}, lean centre {j0[5]} (mid-travel), lean over the dial {seen}, '
               f'saved ({pref}), next boot: device {r2.dumps[0][0]}: ' + ('ok' if ok else 'DIFF'))
+        bad += not ok
+
+        # the menus with paddles: a step per turn; a dial left aside stays put
+        r = a2test.run(saved, ['joy:0,0', 'wait:1000', 'key: ', 'wait:60', 'key:\r', L.until('new_race', 900),
+                               'wait:100', 'key:\x1b', L.until('mm_key', 300), 'wait:10', L.peek('mm_sel', 1),
+                               'joy:0,0.4', 'wait:6', L.until('mm_key', 60), L.peek('mm_sel', 1),
+                               'wait:90', L.until('mm_key', 60), L.peek('mm_sel', 1),
+                               'joy:0,0.8', 'wait:6', L.until('mm_key', 60), L.peek('mm_sel', 1),
+                               'wait:90', L.until('mm_key', 60), L.peek('mm_sel', 1),
+                               'joy:0,0.4', 'wait:6', L.until('mm_key', 60), L.peek('mm_sel', 1)])
+        sel = [d[0] for d in r.dumps]
+        ok = sel == [0, 1, 1, 2, 2, 1]
+        print(f'paddles in the menus: items {sel} (turn, left aside, turn on, left aside, back): '
+              + ('ok' if ok else 'DIFF'))
         bad += not ok
     if bad:
         sys.exit('input: failures')

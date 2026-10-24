@@ -1,8 +1,8 @@
 ; ============================================================================
 ; input.inc -- joystick and keyboard -> in_throttle / in_brake / in_lean
 ; ============================================================================
-;   input_init   detects the joystick (its rest position: the centre); inp_boot
-;                then sets the device DIRTHOF names
+;   input_init   detects the joystick or paddles (the stick's rest position:
+;                its centre); inp_boot then sets the device DIRTHOF names
 ;   read_input   once per frame. C = 1 and A = key when a key was typed
 ;                (upper case), for the main loop's own keys.
 ;   stick_menu, stick_button   the stick in the menus
@@ -14,7 +14,11 @@
 ; button inputs float (they can read "pressed" on a II+).
 ; Joystick: X = lean, analog (stick_lean: the further, the more, a dead zone
 ; in the middle); button 0 = full throttle, button 1 = brake (the brake
-; wins, physics.inc). Button 0 is the trigger of most Apple sticks and the
+; wins, physics.inc). Paddles: the same from paddle 0's dial, centred on
+; the middle of its travel (PDL_MID: a dial has no rest position), and its
+; button / paddle 1's; in the menus a dial counts a step each time it has
+; turned STICK_ON from where the last step left it, so one left aside
+; does not scroll. Button 0 is the trigger of most Apple sticks and the
 ; Open Apple key of the //e: the gas, held most of the race; Y is not read
 ; in a race. Keyboard: A / up arrow = full throttle, Z / down arrow = half,
 ; for GAS_HOLD frames, then it fades one level a frame (the bike never runs
@@ -35,6 +39,8 @@ JOY_STEP = 2                    ; centre ~40): lean 1 past it, one more every
                                 ; make the levels fine near the middle
 STICK_ON  = 16                  ; stick_menu: a push, and back inside
 STICK_OFF = 8                   ; this: armed again
+PDL_MID   = 40                  ; read_stick_fast at mid-travel (128 * 11
+                                ; cycles / 35 a turn)
 
 .segment "ZEROPAGE"
 joy_ok:      .res 1
@@ -42,6 +48,7 @@ joy_x:       .res 1
 joy_y:       .res 1
 joy_mx:      .res 1             ; centre, measured at start
 joy_my:      .res 1
+joy_lx:      .res 1             ; the lean's centre (joy_mx, or PDL_MID)
 joy_cnt:     .res 1
 kb_throttle: .res 1
 kb_lean:     .res 1
@@ -55,10 +62,32 @@ mrep:        .res 1             ; stick_menu: looks before a held push repeats
 gas_tm:      .res 1
 bheld:       .res 1             ; bit 7: a button held, not pressed yet
 .segment "SYSBSS"
-inp_dev:     .res 1             ; INP_STICK / INP_KEYS
-joy_found:   .res 1             ; a stick answered at start
+inp_dev:     .res 1             ; INP_STICK / INP_KEYS / INP_PADDLES
+joy_found:   .res 1             ; a stick (or paddles) answered at start
+joy_rx:      .res 1             ; the stick at rest, measured at start
+joy_ry:      .res 1
 INP_STICK = 0                   ; (DIRTHOF's 0, a new disk: the stick if found)
 INP_KEYS  = 1
+INP_PADDLES = 2
+
+; inp_set -- A = the input device (INP_STICK / INP_KEYS / INP_PADDLES);
+; the game port is read only for the stick or the paddles. The centres:
+; the stick's rest, or mid-travel for the paddles. A macro: only inp_boot
+; (INIT) and the main menu (MENUOVL) set it, so MAIN carries no copy.
+.macro inp_set
+        STA     inp_dev
+        LDX     joy_rx
+        LDY     joy_ry
+        CMP     #INP_PADDLES
+        BNE     :+
+        LDX     #PDL_MID
+        LDY     #PDL_MID
+:       STX     joy_mx
+        STX     joy_lx
+        STY     joy_my
+        EOR     #INP_KEYS               ; 0 for the keyboard alone
+        STA     joy_ok
+.endmacro
 
 .segment "INIT"                 ; boot only: overwritten by the pool
 input_init:
@@ -75,30 +104,25 @@ input_init:
         EOR     #1
         STA     joy_found
         LDA     joy_x
-        STA     joy_mx
+        STA     joy_rx
         LDA     joy_y
-        STA     joy_my
+        STA     joy_ry
         RTS
 
-; inp_boot -- the device of DIRTHOF (after hof_load): the stick if it is
-; there, else the keyboard
+; inp_boot -- the device of DIRTHOF (after hof_load): the stick or the
+; paddles if they are there, else the keyboard
 inp_boot:
         LDA     inp_pref
-        .assert INP_STICK = 0, error, "inp_boot: INP_STICK = 0"
-        BNE     @k
+        CMP     #INP_KEYS
+        BEQ     @set
+        CMP     #INP_PADDLES+1
+        BCS     @k                      ; (not a device: the keyboard)
         LDX     joy_found
         BNE     @set
 @k:     LDA     #INP_KEYS
-@set:   JMP     inp_set
-.segment "CODE"
-
-; inp_set -- A = the input device (INP_STICK / INP_KEYS)
-inp_set:
-        STA     inp_dev
-        EOR     #INP_KEYS               ; the stick only when chosen
-        STA     joy_ok
+@set:   inp_set
         RTS
-.assert INP_KEYS = 1, error, "inp_set: joy_ok = 1 for INP_STICK"
+.segment "CODE"
 
 read_input:
         LDA     #0
@@ -182,7 +206,7 @@ read_input:
         BNE     @btn
         SEC
         LDA     joy_x
-        SBC     joy_mx
+        SBC     joy_lx
         JSR     stick_lean
         STA     in_lean
 @btn:   LDA     BUTN1                   ; button 1: brake
@@ -288,7 +312,14 @@ stick_menu:
         LDA     #0                      ; back in the middle: armed
         STA     mrep
 @rts:   RTS
-@push:  LDA     mrep
+@push:  LDA     joy_ok                  ; paddles (joy_ok 3): the next step
+        CMP     #INP_PADDLES ^ INP_KEYS ; from here
+        BNE     @rep
+        LDA     joy_x
+        STA     joy_mx
+        LDA     joy_y
+        STA     joy_my
+@rep:   LDA     mrep
         BEQ     @first
         DEC     mrep
         BNE     @none
