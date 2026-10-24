@@ -13,7 +13,7 @@
 ; (render.inc), show it. Race time counts ticks (30 per second), so it does
 ; not depend on how long a frame takes to draw.
 ;
-; Controls (input.inc): joystick X = lean (analog), button 0 = throttle,
+; Controls (input.inc): joystick X or paddle 0 = lean (analog), button 0 = throttle,
 ; button 1 = brake. Keyboard: A/Z or up/down = throttle level, left/right
 ; or J/L = lean, SPACE = brake, R = restart, ESC = menu.
 ; ============================================================================

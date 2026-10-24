@@ -15,22 +15,28 @@ the ground, you crash. Best times and scores are kept on the disk.
 
 ## Controls
 
-| Joystick | Keyboard | Effect |
+| Joystick (paddles) | Keyboard | Effect |
 |---|---|---|
-| X left / right (analog) | ← → or J / L | lean back / forward |
-| button 0 | A / ↑ full throttle, Z / ↓ half throttle | throttle; on the keyboard, once released, it drops back to zero in ~1 s and the bike slows down |
-| button 1 | SPACE | brake (it cuts the throttle) |
+| X left / right, analog (paddle 0's dial) | ← → or J / L | lean back / forward |
+| button 0 (paddle 0's) | A / ↑ full throttle, Z / ↓ half throttle | throttle; on the keyboard, once released, it drops back to zero in ~1 s and the bike slows down |
+| button 1 (paddle 1's) | SPACE | brake (it cuts the throttle) |
 | | H | help page (title, menu) |
 | | R | restart the track |
 | | S | sound off / on |
 | | ESC | in a race: the main menu, ESC again: the race resumes (from the track menu: the title page) |
 | | Ctrl-RESET | the title page |
 
-The keyboard always steers. The joystick steers too when it is the device
-chosen in the main menu (option 3, JOYSTICK or KEYBOARD): a fresh disk picks
-it if it answers at boot; the choice is written to `DIRTHOF` when leaving the
-menu (`inp_pref`, 0: the joystick) and restored at boot if it is still
-plugged in. Its position at boot is taken as the centre. **Analog lean**:
+The keyboard always steers. The joystick (or a pair of paddles) steers too
+when it is the device chosen in the main menu (option 3: JOYSTICK, PADDLES,
+KEYBOARD in turn): a fresh disk picks the joystick if the game port answers
+at boot; the choice is written to `DIRTHOF` when leaving the menu
+(`inp_pref`, 0: the joystick, 1: the keyboard, 2: the paddles) and restored
+at boot if something is still plugged in. The joystick's position at boot
+is taken as its centre; the **paddles** (2026-10-24, asked by players) lean
+from the middle of paddle 0's travel (`PDL_MID`, 40 counts: a dial has no
+rest position), with the same levels, and in the menus a dial moves the
+marker one step each time it turns 16 counts past the last step (paddle 1
+up / down, paddle 0 left / right), so a dial left aside does not scroll. **Analog lean**:
 `stick_lean` (`src/input.inc`, mirrored in `tests/test_input.py`) gives 0
 within 6 steps of `read_stick_fast` from the centre (dead zone), then
 1 + (|d| − 6) / 4, at most 8, with the sign of d: level 8 from 34 steps on
@@ -339,7 +345,7 @@ also pass through there). `$B700-$BFFF`: RWTS. The game's zero page
 | `tools/music.py` | the tunes: `src/music.inc` (jingles) and `build/tune.bin` (title) |
 | `tools/titlefile.py` | the `TITLE` file: tune, pages, main menu (`$9C00`), image |
 | `tools/pages.py` | help and congratulations pages: `src/pages.inc` and `build/pages.bin` (in `TITLE`) |
-| `tests/test_input.py` | joystick (analog lean, buttons, menus, no joystick) and device choice, in a2run |
+| `tests/test_input.py` | joystick and paddles (analog lean, buttons, menus, no joystick) and device choice, in a2run |
 | `tools/sprites.py` | generates `src/sprites.inc`: wheel (4 spoke positions × 7 shifts), head |
 | `tools/autopilot.py` | simple autopilot (tuned for the old speed; the physics test now replays the solutions) |
 | `tools/profile.py` | a2shot profile: cycles per frame and per routine (`dev/tools/a2profile.py`) |
