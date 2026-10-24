@@ -167,11 +167,25 @@ wall clock, hence deterministic) and runs a script:
 | `watch:ADR[:MEM:LEN]` | prints the registers each time PC reaches ADR, and optionally LEN bytes at MEM (hexadecimal addresses, decimal length, 4096 at most, not past $FFFF) |
 | `unwatch`         | disables all `watch:` traces                       |
 | `joy:X,Y`, `btn:N,0\|1` | joystick                                     |
+| `mouse:X,Y,B`     | moves the mouse to X,Y in the firmware's clamp window, button B (one correction per frame until the card reports it, 120 frames at most) |
+| `mousemove:DX,DY,B` | relative motion (±127 per axis) and button       |
+| `regs:A:X:Y`, `go:ADR`, `call:ADR:N` | as in a2run (below); the soft switches are left as they are |
 | `reset`           | presses RESET                                      |
 | `pc`              | prints the PC                                      |
 
 `--iie` boots an Apple //e enhanced (65C02, 80-column card and auxiliary
 memory) instead of the ][+: this is what allows testing LOGO in 80 columns.
+`--iic` boots an Apple //c (32 KB ROM; `--iic16`: the 16 KB one) with its
+built-in mouse. `--mouse` puts an AppleMouse card in slot 4 of a ][+ or //e
+(Apple's firmware on both chips; `--mouse=applewin`: AppleWin's model of the
+MCU), `--mockingboard` a Mockingboard (on the //c, the Mockingboard 4c).
+
+Test programs too large for a script link the same core in C++:
+`tests/NAME_probe.cpp` with `tools/a2shot/probe.hpp` (boot of a ][+, //e or
+//c with or without a mouse, labels, runs counted in cycles, the store an
+instruction is about to make), built by `make $(BUILD)/NAME_probe`
+(`cc65/apple2.mk`). PINBALL, ARKABREAKOUT (mouse) and WARGALAGA II (//c
+clock) run theirs in `make test`.
 
 a2shot boots a **copy** of the disk: POM2 writes modified images back, and
 a test must not alter the disk it is checking.
@@ -186,7 +200,7 @@ or an emulator stop raises an exception.
 a2shot is self-contained: `sdk/` holds the POM2 core SDK (`core.hpp` and
 `lib/darwin-arm64/` and `lib/linux-x86_64/libpom2_core.a`, without debug
 symbols; provenance in `sdk.mk`) and `roms/` the Apple ][+,
-Apple //e (+ character ROM) and Disk II ROMs, copied from POM2 (`--roms DIR` to use others). Only
+Apple //e (+ character ROM), //c (16 and 32 KB), AppleMouse and Disk II ROMs, copied from POM2 (`--roms DIR` to use others). Only
 libslirp (`brew install libslirp`, `apt install libslirp-dev`) and zlib come
 from the system.
 DOS 3.3 takes about 900 frames to launch an 8-12 KB game.
@@ -227,9 +241,6 @@ Applesoft and a2run stops at its prompt after 8 frames (a DOS boot takes
 
     ./a2run load:fixture.bin@6000 go:6000 until:6123:100 peek:2000:16
     a2test.run(None, a2test.bin_steps(binary) + [L.until('done')])
-
-a2shot has `load:` but not yet `go:`/`call:`: the POM2 facade cannot set
-the registers (request: `a2shot/LETTRE_POM2_BESOINS.md`).
 
 The disk given to `--disk` is never modified; `--wp` presents it
 write-protected (save tests). DOS 3.3 takes about

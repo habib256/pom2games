@@ -66,7 +66,7 @@ src/title.inc: tools/generate_title.py $(DEV)/tools/fonts.py $(FONT)/bbfont_glyp
 test-campaign: all $(BUILD)/pilot
 	$(PYTHON) tests/test_campaign.py $(BUILD)/pilot --disk $(DISK) --labels $(BUILD)/game.lbl
 
-test: all $(A2RUN)
+test: all $(A2RUN) $(if $(A2SHOT_HOST),$(BUILD)/mouse_probe)
 	$(PYTHON) $(DEV)/tests/test_hgr_xor.py
 	$(PYTHON) tests/test_bricks.py --disk $(DISK) --labels $(BUILD)/game.lbl
 	$(PYTHON) tests/test_title_menu.py --disk $(DISK) --labels $(BUILD)/game.lbl
@@ -74,13 +74,10 @@ test: all $(A2RUN)
 	$(PYTHON) tests/test_bonus_visuals.py --disk $(DISK) --labels $(BUILD)/game.lbl
 	$(PYTHON) tests/test_game.py --disk $(DISK) --labels $(BUILD)/game.lbl
 	$(PYTHON) tests/test_records.py --disk $(DISK) --labels $(BUILD)/game.lbl
+ifneq ($(A2SHOT_HOST),)
+	$(PYTHON) tests/test_mouse.py --probe $(BUILD)/mouse_probe --roms $(DEV)/tools/a2shot/roms --disk $(DISK) --labels $(BUILD)/game.lbl
+endif
 
 test-long: test-campaign
 
 .PHONY: assets test test-long test-campaign
-
-# Optional integration with real AppleMouse firmware on II+ and native //c ROMs.
-POM2_SRC ?= ../../pom2
-test-mouse: all
-	$(PYTHON) tests/test_mouse.py --pom2-src $(POM2_SRC)
-.PHONY: test-mouse

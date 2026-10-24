@@ -1,26 +1,36 @@
 #!/usr/bin/env python3
-"""Optional Apple II+ and native //c mouse integration against the POM2 core."""
+"""Real AppleMouse firmware on the II+ (both card models) and the native //c
+mouse (16 and 32 KB ROMs), by tests/mouse_probe.cpp on the POM2 core facade
+(build/mouse_probe); each variant leaves once by Q and once by RESET."""
 import argparse
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 import tempfile
-ROOT=Path(__file__).resolve().parents[2]
+
+
 def main():
-    ap=argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('--pom2-src',type=Path,default=ROOT.parent/'pom2')
-    a=ap.parse_args();src=a.pom2_src.resolve()
-    library=src/'build/libpom2_core_test.a'
-    if not library.exists():raise SystemExit(f'Build POM2 core test library first: {library}')
-    libs=['-framework','CoreAudio','-framework','AudioToolbox','-framework','AudioUnit'] if sys.platform=='darwin' else ['-pthread']
-    libs+=subprocess.check_output(['pkg-config','--libs','slirp'],text=True).split()+['-lz']
-    exe=ROOT/'arkabreakout/build/mouse-test'
-    subprocess.run(['c++','-std=c++17','-O2','-I',str(src/'src'),'-I',str(src/'include'),'-I',str(src/'build/generated'),str(Path(__file__).with_name('mouse.cpp')),str(library),*libs,'-o',str(exe)],check=True)
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--probe', type=Path, required=True)
+    ap.add_argument('--roms', type=Path, required=True)
+    ap.add_argument('--disk', type=Path, required=True)
+    ap.add_argument('--labels', type=Path, required=True)
+    a = ap.parse_args()
+    failed = []
     with tempfile.TemporaryDirectory(prefix='arka-mouse-') as tmp:
-        disk=Path(tmp)/'GAME.dsk'
-        for variant in ('applewin','mame','iic16','iic32'):
-            for action in ([],['reset']):
-                shutil.copyfile(ROOT/'dist/ARKABREAKOUT.dsk',disk)
-                subprocess.run([str(exe),str(src/'roms'),str(disk),str(ROOT/'arkabreakout/build/game.lbl'),variant,*action],check=True)
-if __name__=='__main__':main()
+        disk = Path(tmp) / 'GAME.dsk'
+        for variant in ('applewin', 'mame', 'iic16', 'iic32'):
+            for action in ([], ['reset']):
+                shutil.copyfile(a.disk, disk)
+                result = subprocess.run([str(a.probe.resolve()), str(a.roms.resolve()), str(disk),
+                                         str(a.labels.resolve()), variant, *action],
+                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                print(*[l for l in result.stdout.splitlines() if l.startswith(('PASS', 'FAIL'))], sep='\n')
+                if result.returncode:
+                    failed.append('/'.join([variant, *action]))
+    if failed:
+        raise SystemExit('FAIL ' + ', '.join(failed))
+
+
+if __name__ == '__main__':
+    main()

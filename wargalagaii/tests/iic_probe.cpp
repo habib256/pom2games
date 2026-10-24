@@ -1,30 +1,20 @@
 // VERHILLE Arnaud — GPL-3.0. WARGALAGA II on POM2's //c (and //e): the clock.
-// Built by tests/test_iic.py against a POM2 source tree (optional, like
-// chromabreak/tests/playtest.cpp): a2shot has no //c.
+// Built by tests/test_iic.py on the POM2 core facade (../dev/tools/a2shot).
 //   iic_probe ROM_DIR DISK.po game.lbl VARIANT     (iic16, iic32, iie, -pal)
-#include "M6502.h"
-#include "Memory.h"
-#include "IIcMouse.h"
-#include "IWMDevice.h"
-#include "SuperSerialCard.h"
-#include "DiskIICard.h"
-#include "MemoryWatchSink.h"
-#include <fstream>
+#include "probe.hpp"
 #include <iostream>
 #include <map>
-#include <memory>
-#include <stdexcept>
 #include <string>
+#include <vector>
 
-static void require(bool ok, const std::string& why) { if (!ok) throw std::runtime_error(why); }
+using probe::require;
 
 int main(int argc, char** argv) {
  try {
     require(argc == 5, "usage: iic_probe ROM_DIR DISK.po game.lbl VARIANT");
     std::string roms = argv[1], variant = argv[4];
     std::map<std::string, unsigned> labels;
-    std::ifstream f(argv[3]); std::string mark, address, name;
-    while (f >> mark >> address >> name) labels[name] = std::stoul(address, nullptr, 16);
+    probe::labels(labels, argv[3]);
     auto at = [&](const char* s) { return uint16_t(labels.at(std::string(".") + s)); };
     bool pal = variant.find("-pal") != std::string::npos;
     if (pal) variant.erase(variant.find("-pal"), 4);
@@ -40,58 +30,35 @@ int main(int argc, char** argv) {
     bool irqstop = variant.find("-irqstop") != std::string::npos;
     if (irqstop) variant.erase(variant.find("-irqstop"), 8);
     bool iic = variant == "iic16" || variant == "iic32";
-    pom2::IWMDevice iwm;
-    Memory mem; M6502 cpu(&mem);
-    if (iic) { mem.setIWM(&iwm); mem.setIWMAuthoritative(true); }
-    mem.clearRam(); mem.resetSoftSwitches(); mem.setIIEMode(true); mem.setCpu(&cpu);
-    mem.setVideoStandard(pal ? VideoStandard::PAL : VideoStandard::NTSC);
-    auto rom = roms + (variant == "iic16" ? "/apple2c-16K.rom" : variant == "iic32" ? "/apple2c-32Kv0.rom" : "/apple2e.rom");
-    require(mem.loadAppleIIRom(rom.c_str(), iic) > 0, "main ROM");
-    if (iic) {
-        // The //c's two ACIAs (see chromabreak/tests/playtest.cpp) and its
-        // built-in mouse, whose firmware gives the VBL interrupt.
-        for (int port : {1, 2}) mem.slotBus().plug(port, std::make_unique<SuperSerialCard>(port));
-        mem.slotBus().plug(4, std::make_unique<IIcMouse>(4));
-    }
-    auto disk = std::make_unique<DiskIICard>(6);
-    disk->setCpu(&cpu);
-    disk->setIwmHost(iic);
-    if (iic) disk->setIWM(&iwm);
-    require(disk->loadBootRom(roms + "/disk2.rom"), "Disk II ROM");
-    require(disk->insertDisk(argv[2]), "insert disk");
-    mem.slotBus().plug(6, std::move(disk));
-    cpu.setCpuMode(M6502::CpuMode::CMOS); cpu.hardReset(); mem.slotBus().reset();
-    auto read = [&](const char* s, int k = 0) { return unsigned(mem.memRead(uint16_t(at(s) + k))); };
+    pom2::Core core = probe::boot(roms, argv[2], iic ? variant : "iie", "", pal);
+    auto read = [&](const char* s, int k = 0) { return unsigned(core.read(uint16_t(at(s) + k))); };
     auto word = [&](const char* s) { return read(s) | read(s, 1) << 8; };
-    auto run = [&](long cycles) { long c = 0; while (c < cycles) { cpu.step(); c += cpu.getCurrentInstructionCycles(); } };
-    auto until = [&](uint16_t pc, long budget) {
-        long c = 0;
-        do { cpu.step(); c += cpu.getCurrentInstructionCycles(); } while (cpu.getProgramCounter() != pc && c < budget);
-        require(cpu.getProgramCounter() == pc, "timeout at PC=" + std::to_string(cpu.getProgramCounter()));
-    };
+    auto run = [&](long cycles) { probe::run(core, cycles); };
+    auto until = [&](uint16_t pc, long budget) { probe::until(core, pc, budget, "at " + std::to_string(pc)); };
     const long refresh = pal ? 20280 : 17030;
     until(at("_main"), 80000000);
-    mem.memWrite(at("front_skip"), 1);   // no title (lot 9): the game at once
+    core.write(at("front_skip"), 1);   // no title (lot 9): the game at once
     until(at("game_tick"), 80000000);
-    mem.memWrite(at("lives"), 50);       // nobody plays: GAME OVER would go to the title
+    core.write(at("lives"), 50);       // nobody plays: GAME OVER would go to the title
     require(read("_a2_vbl_mode") == unsigned(iic ? 2 : 1), "clock: mouse VBL IRQ on //c, $C019 on //e");
-    if (joy) mem.memWrite(at("joy_mode"), 1);
+    if (joy) core.write(at("joy_mode"), 1);
     // Early, while the ship lives: a shot's effect on the speaker: toggles (STA $C030) only from the wait
     // loops (the //c one too), none before the shot.
-    struct Speaker : pom2::MemoryWatchSink {
-        std::vector<uint16_t> pcs; M6502* cpu = nullptr;
-        void noteAccess(uint16_t addr, uint8_t, bool write) override {
-            if (addr == 0xC030 && write) pcs.push_back(cpu->getProgramCounter());
+    // (The facade has no bus watch: each instruction's store is decoded.)
+    struct { std::vector<unsigned> pcs; } speaker;
+    const auto watched = [&](long cycles, unsigned stop) {
+        const auto end = probe::cycles(core) + cycles;
+        while (probe::cycles(core) < end && probe::pc(core) != stop) {
+            if (probe::storeTarget(core) == 0xC030) speaker.pcs.push_back(probe::pc(core));
+            core.step();
         }
-    } speaker;
-    speaker.cpu = &cpu;
-    mem.setWatchSink(&speaker); mem.setWriteWatch(0xC030, true);
-    run(60 * refresh);
+    };
+    watched(60 * refresh, 0x10000);
     require(speaker.pcs.empty(), "speaker toggles without an effect");
-    until(at("logic_step"), 4000000);
-    mem.memWrite(at("fire_req"), 0x80);
-    run(30 * refresh);
-    mem.setWriteWatch(0xC030, false); mem.setWatchSink(nullptr);
+    watched(4000000, at("logic_step"));
+    require(probe::pc(core) == at("logic_step"), "timeout at logic_step");
+    core.write(at("fire_req"), 0x80);
+    watched(30 * refresh, 0x10000);
     require(speaker.pcs.size() > 20, "shot effect: " + std::to_string(speaker.pcs.size()) + " toggles");
     for (auto pc : speaker.pcs)
         require((pc >= at("next_edge") && pc < at("ne_edge")) || (pc >= at("wait_irq") && pc < at("wi_count") + 4),
@@ -112,7 +79,7 @@ int main(int argc, char** argv) {
         static const char* points[] = {"shots_erase", "aliens_pass", "form_draw", "movers_draw",
                                        "stars_draw", "hud_draw", "render_done"};
         until(at(points[k % 7]), 4000000);
-        require((mem.memRead(0xC01C) >> 7) != read("page"), "the page being drawn is on screen");
+        require((core.read(0xC01C) >> 7) != read("page"), "the page being drawn is on screen");
         until(at("game_tick"), 4000000);
     }
     if (irqstop) {
@@ -120,9 +87,9 @@ int main(int argc, char** argv) {
         // and claimed) becomes NOPs, as if the interrupt had stopped.
         bool patched = false;
         for (unsigned pc = at("flip_irq"); pc < at("claimed"); ++pc)
-            if (mem.memRead(uint16_t(pc)) == 0x9C && mem.memRead(uint16_t(pc + 1)) == (at("ready") & 255)
-                && mem.memRead(uint16_t(pc + 2)) == (at("ready") >> 8)) {
-                for (int k = 0; k < 3; ++k) mem.memWrite(uint16_t(pc + k), 0xEA);
+            if (core.read(uint16_t(pc)) == 0x9C && core.read(uint16_t(pc + 1)) == (at("ready") & 255)
+                && core.read(uint16_t(pc + 2)) == (at("ready") >> 8)) {
+                for (int k = 0; k < 3; ++k) core.write(uint16_t(pc + k), 0xEA);
                 patched = true;
             }
         require(patched, "STZ ready found in flip_irq");
@@ -131,7 +98,7 @@ int main(int argc, char** argv) {
         unsigned fb = word("frame_count"), sb = word("step_count"), vb = read("_a2_vbl_count");
         std::cout << "  interrupt stopped: clock mode " << read("_a2_vbl_mode") << ", vbl_count +" << ((vb - va) & 255)
                   << ", frames +" << (fb - fa) << ", steps +" << (sb - sa) << ", PC " << std::hex
-                  << cpu.getProgramCounter() << std::dec << '\n';
+                  << probe::pc(core) << std::dec << '\n';
         require(read("_a2_vbl_mode") == 0, "fallback to delays once the interrupt stopped");
         require(fb - fa > 200 && sb - sa > 200, "the game goes on: " + std::to_string(fb - fa) + " frames, "
                 + std::to_string(sb - sa) + " steps in 600 refreshes");
@@ -139,24 +106,22 @@ int main(int argc, char** argv) {
     // ESC, the title, ESC (or Ctrl-RESET): back to ProDOS, interrupt released,
     // text screen.
     if (reset) {
-        mem.resetSoftSwitchesWarm();
-        mem.slotBus().reset();
-        cpu.softReset();
+        core.softReset();
     } else {
-        mem.queueKey(0x1B);
+        core.queueKey(0x1B);
         until(at("front_main"), 40000000);
         run(200 * refresh);              // (HIGHSCORES read, the menu)
-        mem.queueKey(0x1B);
+        core.queueKey(0x1B);
     }
     run(400 * refresh);
-    require(cpu.getProgramCounter() < 0x6000 || cpu.getProgramCounter() >= 0xC000, "left the game");
+    require(probe::pc(core) < 0x6000 || probe::pc(core) >= 0xC000, "left the game");
     require(read("_a2_vbl_mode") == 0, "clock closed at exit");
-    require(mem.memRead(at("_a2_vbl_mode")) == 0, "clock closed at exit");
-    require(mem.memRead(0xC01A) & 0x80, "text mode after leaving");
+    require(core.read(at("_a2_vbl_mode")) == 0, "clock closed at exit");
+    require(core.read(0xC01A) & 0x80, "text mode after leaving");
     std::string screen;
     for (int row = 0; row < 24; ++row)
         for (int c = 0; c < 40; ++c)
-            screen += char(mem.memRead(uint16_t(0x400 + (row & 7) * 128 + (row >> 3) * 40 + c)) & 0x7F);
+            screen += char(core.read(uint16_t(0x400 + (row & 7) * 128 + (row >> 3) * 40 + c)) & 0x7F);
     require(screen.find("BITSY") != std::string::npos, "ProDOS launcher on screen");
     std::cout << "PASS " << variant << (pal ? " PAL" : "") << (joy ? " joystick" : "") << (irqstop ? " interrupt stopped" : "") << ": clock mode " << (iic ? 2 : 1)
               << ", " << steps << " steps in 3200 refreshes (" << (l1 - l0)

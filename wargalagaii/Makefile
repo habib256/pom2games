@@ -113,7 +113,7 @@ run-iic: all
 	$(POM2) --preset iic --slot 4=iicmouse $(DISK)
 
 # Two tiers (convention of ../dev/cc65/apple2.mk): `test` stays fast.
-test: all
+test: all $(if $(A2SHOT_HOST),$(BUILD)/iic_probe)
 	$(PYTHON) tools/sprites.py --check
 	$(PYTHON) tools/paths.py --check
 	$(PYTHON) tools/sound.py --check
@@ -125,12 +125,11 @@ test: all
 	$(PYTHON) tests/test_shop.py --disk $(DISK) --labels $(BUILD)/game.lbl
 	$(PYTHON) tests/test_subgames.py --disk $(DISK) --labels $(BUILD)/game.lbl
 	$(PYTHON) tests/test_front.py --disk $(DISK) --labels $(BUILD)/game.lbl
+ifneq ($(A2SHOT_HOST),)
+	$(PYTHON) tests/test_iic.py --probe $(BUILD)/iic_probe --roms $(DEV)/tools/a2shot/roms --disk $(DISK) --labels $(BUILD)/game.lbl
+endif
 test-long: test
 	$(PYTHON) tests/test_long.py --disk $(DISK) --labels $(BUILD)/game.lbl
 
-# Optional: the //c clock on a POM2 source tree (a2shot has no //c).
-POM2_SRC ?= ../../pom2
-test-iic: all
-	$(PYTHON) tests/test_iic.py --pom2-src $(POM2_SRC) --disk $(DISK) --labels $(BUILD)/game.lbl --build $(BUILD)
 
-.PHONY: run-iic test test-long test-iic
+.PHONY: run-iic test test-long

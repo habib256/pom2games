@@ -1,5 +1,7 @@
 # Demandes pour POM2 : ce qui manque à la façade `pom2_core` pour les tests de pom2games
 
+> **Livrée** (POM2 0849ee51, intégrée le 2026-10-24). Suite : `LETTRE_POM2_CHROMABREAK.md`.
+
 Bonjour,
 
 Je travaille sur **pom2games** (`~/src/pom2games`). Tous nos tests passent
