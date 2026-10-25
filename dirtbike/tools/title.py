@@ -26,7 +26,7 @@ TITLE_PROMPT = 66               # = src/title.inc: under the subtitle
 PROMPT_X = (84, 190)            # its columns (13..25 x 7 px), kept black
 CREDIT = 'APPLE II PORT: VERHILLE ARNAUD'
 CREDIT_Y = 183                  # white on a black band under the ground
-VERSION = 'V1.0'                # bottom left, just above the ground
+VERSION = 'V1.1'                # bottom left, just above the ground
 
 
 class Canvas:
