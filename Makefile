@@ -192,6 +192,7 @@ test-tools:
 	$(PYTHON) dev/tests/test_stack_profile.py
 	$(PYTHON) dev/tests/test_build_config.py
 	$(PYTHON) dev/tests/test_prodos_video.py
+	$(PYTHON) dev/tests/test_prodos_file.py
 	$(PYTHON) dev/tests/test_apple2game.py
 	$(PYTHON) dev/tests/test_mouse_context.py
 	$(PYTHON) dev/tests/test_mouse_noslot.py

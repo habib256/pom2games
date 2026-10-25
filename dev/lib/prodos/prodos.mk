@@ -3,6 +3,7 @@ PRODOS_SRCS := $(PRODOS)/mli.s $(PRODOS)/video.s
 PRODOS_INCS := -I $(PRODOS)
 # Whole-file load / save for C (prodos.h); assembly includes file.asm.
 PRODOS_FILE_SRCS := $(PRODOS)/file.s
+PRODOS_FILE_DEPS := $(PRODOS)/file.asm
 
 # The .SYSTEM shim: src/boot.s defines SYSBOOT_FILE / SYSBOOT_TITLE and
 # includes sysboot.s (see its header). A SYS image in one piece at $2000
