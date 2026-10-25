@@ -140,8 +140,8 @@ def finish(b):
     assert lap + PAD <= TRACK_LEN, (lap, 'track too long')
     h = b.h
     loop = []
-    for x in range(lap):
-        y = sum(h[(x + d) % lap] for d in range(-2, 3)) / 5
+    for x in range(lap):     # fsum: Python 3.12 changed sum(), and so the ties
+        y = math.fsum(h[(x + d) % lap] for d in range(-2, 3)) / 5
         loop.append(min(MAX_ROW, max(MIN_ROW, int(round(y)))))
     t = Track(loop + loop[:PAD] + [BASE] * (TRACK_LEN - lap - PAD))
     t.lap_len = lap

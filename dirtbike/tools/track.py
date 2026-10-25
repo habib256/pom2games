@@ -32,7 +32,7 @@ def _smooth(h, radius):
     n = len(h)
     for x in range(n):
         lo, hi = max(0, x - radius), min(n, x + radius + 1)
-        out.append(sum(h[lo:hi]) / (hi - lo))
+        out.append(math.fsum(h[lo:hi]) / (hi - lo))
     return out
 
 

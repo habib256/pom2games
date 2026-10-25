@@ -36,9 +36,11 @@ src/pages.inc $(BUILD)/pages.bin: tools/pages.py
 src/sprites.inc: tools/sprites.py
 	$(PYTHON) tools/sprites.py $@
 
-$(TRACKS) $(BUILD)/tracks/menu_data.inc &: tools/packtrack.py tools/tracks.py tools/track.py \
+# One run writes the 30 files and menu_data.inc (no "&:": macOS ships make 3.81)
+$(BUILD)/tracks/menu_data.inc: tools/packtrack.py tools/tracks.py tools/track.py \
 		tools/trackcheck.py tests/solutions.txt $(FHPACK)
 	$(PYTHON) tools/packtrack.py $(FHPACK) $(BUILD)/tracks
+$(TRACKS): $(BUILD)/tracks/menu_data.inc ;
 
 $(BUILD)/title.hgr: tools/title.py
 	@mkdir -p $(BUILD)
