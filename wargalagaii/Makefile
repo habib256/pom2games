@@ -74,7 +74,7 @@ $(BUILD)/apple2vbl.o: $(APPLE2C)/apple2vbl.s
 # The PT3 player (dev/lib/apple2/pt3) and the song, linked for aux $6000.
 $(BUILD)/song.pt3: tools/pt3.py tools/sound.py
 	@mkdir -p $(@D)
-	cd tools && $(PYTHON) pt3.py ../$@
+	cd tools && $(PYTHON) pt3.py $(abspath $@)
 $(BUILD)/music.o: src/music.s $(BUILD)/song.pt3 $(wildcard $(PT3)/*.s $(PT3)/*.inc)
 	$(CA65) -g -I $(APPLE2) --bin-include-dir $(BUILD) -o $@ $<
 

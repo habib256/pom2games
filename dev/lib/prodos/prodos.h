@@ -17,6 +17,7 @@
 #define PD_WRITE 0xCBu
 #define PD_CLOSE 0xCCu
 #define PD_FLUSH 0xCDu
+#define PD_SET_EOF 0xD0u
 #define PD_QUIT 0x65u
 /* Parameter lists start with a count byte; pointers/words are little endian.
  * Non-reentrant. Returns zero on success, otherwise the MLI error code. */
@@ -41,11 +42,17 @@ unsigned char prodos_video_release(void);
 /* Whole files (file.s, PRODOS_FILE_SRCS; file.asm in assembly). Set the
  * fields, then call; the result is zero or the MLI error code.
  * name: Pascal string (relative to the prefix, or a full path); iobuf: 1 KB
- * OPEN buffer, page aligned, free in the system bitmap; actual: bytes moved.
- * load: OPEN, READ length bytes at buffer, CLOSE (the READ's error first).
+ * OPEN buffer, page aligned, free in the system bitmap; actual: bytes moved,
+ * reset before OPEN and each transfer (zero if OPEN or range validation fails).
+ * load: OPEN, READ length bytes at buffer, CLOSE (READ error, else CLOSE).
  * load_free: the same, the destination pages freed in the system bitmap
- * during the READ (pages a crt0 claimed, video pages).
- * save: OPEN, or CREATE a BIN file (access $C3) then OPEN; WRITE; CLOSE. */
+ * during the READ (pages a crt0 claimed, video pages). A nonempty range must
+ * fit below $C000 without 16-bit wrap, else $56 with no READ or bitmap change.
+ * Zero length uses ordinary READ without changing the bitmap.
+ * save: OPEN, or CREATE a BIN file (access $C3) then OPEN; WRITE; SET_EOF to
+ * bytes written; CLOSE. Replaces the whole file, even with length zero.
+ * First error wins; CLOSE is always attempted after successful OPEN.
+ * Saves are not atomic: failure can leave partial data. */
 extern void *prodos_file_name, *prodos_file_iobuf, *prodos_file_buffer;
 extern unsigned prodos_file_length, prodos_file_actual;
 unsigned char prodos_load(void);

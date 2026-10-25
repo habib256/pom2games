@@ -747,6 +747,22 @@ ce qu'on avait pris, ni quel malus le crâne avait tiré.
 - Coût : un changement de message réécrit 12 caractères sur chaque page (au
   ramassage et 1,5 s plus tard), pas chaque image.
 
+## Chasse aux bugs 7 — chargement auxiliaire et build (2026-10-25)
+
+- [x] `aux_load` vérifie désormais la taille cumulée **avant** chaque
+      `AUXMOVE`. Un `WG2.AUX` trop long était rejeté seulement après avoir
+      écrit au-delà de sa zone auxiliaire. Reproduction : 64 octets ajoutés
+      écrasaient la sentinelle placée juste après le fichier attendu.
+      `tests/test_game.py` couvre le fichier vide, tronqué, trop long d'un
+      octet ou d'un bloc de 8 Ko : sentinelles et bitmap conservés, message
+      d'erreur et retour au lanceur ProDOS.
+- [x] La génération de `song.pt3` accepte un `BUILD` absolu : le changement
+      de dossier vers `tools/` préfixait auparavant sa destination par
+      `../`, ce qui cassait les compilations isolées dans `/tmp`.
+- Validation : build isolé, `make test` et `tests/test_long.py` (boucle 255,
+      niveaux les plus chargés avec et sans Mockingboard). Les images de
+      `dist/` restent intactes.
+
 ## À vérifier sur machine
 
 - [ ] //c + Mockingboard 4c : la détection réveille la carte à `$C403` et

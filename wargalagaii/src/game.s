@@ -464,6 +464,25 @@ al_chunk:
 :       lda aux_read+6           ; got: main $4000.. -> aux ($42/$43 goes on)
         ora aux_read+7
         beq al_end
+        ; Reject an oversized file BEFORE AUXMOVE can write past its
+        ; reserved auxiliary range. aux_total is bounded by every chunk.
+        lda aux_total
+        clc
+        adc aux_read+6
+        tax
+        lda aux_total+1
+        adc aux_read+7
+        bcs al_too_long
+        cmp #>AUX_ALL
+        bcc al_copy
+        bne al_too_long
+        cpx #<AUX_ALL
+        bcc al_copy
+        beq al_copy
+al_too_long:
+        sec
+        bra al_close
+al_copy:
         lda #<$4000
         sta $3C
         lda #>$4000
@@ -495,7 +514,7 @@ al_chunk:
         sta aux_total+1
         lda aux_read+7           ; a full 8 KB: maybe more
         cmp #$20
-        beq al_chunk
+        jeq al_chunk
 al_end: clc
 al_close:
         php

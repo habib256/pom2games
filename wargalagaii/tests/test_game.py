@@ -536,6 +536,44 @@ def missing_sys(build, keep=('WG2.SYSTEM',), message='WG2.SYS ERROR'):
           f'"{message}", a key back to ProDOS')
 
 
+def malformed_aux(build, L):
+    """Reject wrong-sized auxiliary images before copying beyond AUX_ALL."""
+    import shutil
+    import subprocess
+    import tempfile
+    original = (build / 'WG2.AUX').read_bytes()
+    end = 0x2000 + len(original)
+    guard = bytes([0x5A]) * 64
+    cases = [('empty', b''), ('short', original[:-1]),
+             ('one extra byte', original + b'\xA5'),
+             ('extra chunk', original + bytes([0xA5]) * 8192)]
+    with tempfile.TemporaryDirectory(prefix='wargalagaii-aux-') as tmp:
+        stage = Path(tmp) / 'stage'
+        stage.mkdir()
+        shutil.copy(ROOT / 'dev/tools/prodos/PRODOS', stage / 'PRODOS#FF0000')
+        for name in SYS_NAMES:
+            shutil.copy(build / name, stage / f'{name}#FF2000')
+        disk = Path(tmp) / 'BADAUX.po'
+        for name, payload in cases:
+            (stage / 'WG2.AUX#060000').write_bytes(payload)
+            subprocess.run([sys.executable, str(ROOT / 'dev/tools/prodos/build_volume.py'),
+                            str(stage), str(disk), '--volume', 'WARGALAGAII', '--boot',
+                            str(ROOT / 'dev/tools/prodos/boot.bin'), '--blocks', '280'],
+                           check=True, capture_output=True)
+            steps = [L.until('aux_load'), 'peek:BF58:24', 'poke:C005:0']
+            steps += [f'poke:{end + i:04X}:{v:02X}' for i, v in enumerate(guard)]
+            steps += ['poke:C004:0', L.until('aux_fail'), 'peek:BF58:24',
+                      'poke:C003:0', f'peek:{end:04X}:{len(guard)}', 'poke:C002:0',
+                      'wait:30', 'peek:400:1024', 'key: ', 'wait:300', 'peek:400:1024']
+            result = a2test.run(disk, steps, iie=True)
+            assert result.mem(end, len(guard)) == guard, (name, 'auxiliary range overrun')
+            assert result.mem(0xBF58, 24, 0) == result.mem(0xBF58, 24, 1), (name, 'bitmap')
+            assert 'WG2.AUX: LOAD ERROR' in text(result, 0), name
+            assert 'BITSY' in text(result, 1), (name, 'return to ProDOS')
+    print('PASS malformed WG2.AUX: empty, short and oversized images rejected; '
+          'auxiliary guard and bitmap preserved, return to ProDOS')
+
+
 def nmos(disk):
     r = a2test.run(disk, ['wait:1500', 'peek:400:1024'], emulator=a2test.A2SHOT)
     assert 'NEEDS A 65C02' in text(r), text(r)
@@ -590,6 +628,7 @@ def main():
     small_machine(a.disk, L)
     missing_sys(a.labels.parent)
     missing_sys(a.labels.parent, ('WG2.SYSTEM', 'WG2.SYS'), 'WG2.AUX: LOAD ERROR')
+    malformed_aux(a.labels.parent, L)
     nmos(a.disk)
 
 

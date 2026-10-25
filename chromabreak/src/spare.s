@@ -31,16 +31,20 @@
 ; 2026-10-24, issue #3 (stick on a PAL //e): timing.s reads the stick in
 ; full unless the presentation blank is next, and on the //c with interrupts
 ; masked: +22 CODE after render.s, absorbed (RODATA -22).
+; 2026-10-25, ProDOS file bounds/error cleanup and SET_EOF: +53 library
+; CODE bytes. RODATA/BSS spares consumed (-1/-12); assembly code stays at
+; its addresses, tables move +52 and variables +40. Recheck every profile
+; because indexed table reads may cross different pages (14 RAM bytes free).
 CODE_SPARE   = 38
-RODATA_SPARE = 1
-BSS_SPARE    = 12
+RODATA_SPARE = 0
+BSS_SPARE    = 0
 
 .code
         .res CODE_SPARE
 .assert * = $8924, lderror, "render.s code moved: adjust CODE_SPARE (see spare.s)"
 .rodata
         .res RODATA_SPARE
-.assert * = $B446, lderror, "render.s tables moved: adjust RODATA_SPARE (see spare.s)"
+.assert * = $B47A, lderror, "render.s tables moved: adjust RODATA_SPARE (see spare.s)"
 .bss
         .res BSS_SPARE
-.assert * = $BBB4, lderror, "the assembly modules' variables moved (see spare.s)"
+.assert * = $BBDC, lderror, "the assembly modules' variables moved (see spare.s)"

@@ -38,6 +38,7 @@ $(BUILD)/tables.o: src/tables.inc
 src/fine_font.inc: tools/generate_fine_font.py $(DEV)/tools/fonts.py $(DEV)/lib/font/bbfont_glyphs.inc
 	$(PYTHON) tools/generate_fine_font.py
 $(BUILD)/dhgr_small_asm.o: $(HGRC_ASM_DEPS)
+$(BUILD)/file.o: $(PRODOS_FILE_DEPS)
 $(BUILD)/levels.bin src/levels.inc: src/levels.txt tools/pack_levels.py
 	$(PYTHON) tools/pack_levels.py $(BUILD)/levels.bin
 src/layout.inc src/collision_tables.h: src/layout.h tools/generate_layout.py

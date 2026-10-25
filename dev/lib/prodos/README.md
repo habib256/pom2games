@@ -62,23 +62,55 @@ CHROMABREAK, WARGALAGA II.
 ## Whole files (`file.asm`, `file.s`)
 
 `file.asm`, included at the end of an assembly program (`.ifref`: only what
-is called is assembled, 65C02), wraps OPEN / READ / WRITE / CLOSE on one
+is called is assembled, 65C02), wraps OPEN / READ / WRITE / SET_EOF / CLOSE on one
 set of parameter lists. Set `pf_name` (Pascal string, relative to the
 prefix or a full path), `pf_iobuf` (1 KB, page aligned, free in the
 bitmap), `pf_buf`, `pf_len`; the calls return C = 1 and A = the MLI error
-(also in `pf_err`), `pf_got` = bytes moved.
+(also in `pf_err`), or C = 0 and A = `pf_err` = 0 on success. Y is
+preserved. `pf_got` records bytes moved; it resets before OPEN and every
+transfer, so a failed OPEN or a rejected range reports zero rather than
+the previous operation's count. A failed transfer can report partial data.
 
 | Routine | Effect |
 |---|---|
 | `prodos_open`, `prodos_read`, `prodos_write`, `prodos_close` | one MLI call each (`$4C` = end of file from READ) |
-| `prodos_read_free` | READ with the destination pages freed in the system bitmap meanwhile (pages a crt0 claimed: HGR/DHGR page 2), the bitmap then put back |
-| `prodos_load`, `prodos_load_free` | OPEN, READ, CLOSE (always); the READ's error first |
-| `prodos_save` | OPEN, or CREATE a BIN file (access `$C3`, seedling) then OPEN; WRITE; CLOSE; the first error |
+| `prodos_read_free` | READ with the destination pages freed in the system bitmap meanwhile (pages a crt0 claimed: HGR/DHGR page 2), the bitmap then put back even after a READ error |
+| `prodos_load`, `prodos_load_free` | OPEN, READ, CLOSE after successful OPEN; READ error, otherwise CLOSE error |
+| `prodos_save` | OPEN, or CREATE a BIN file (access `$C3`, seedling) then OPEN; WRITE; SET_EOF to bytes written; CLOSE; the first error |
+
+For a nonempty `read_free`, the entire range must fit below `$C000` without
+16-bit wrap. An invalid range returns `$56` (bad buffer address), with no
+READ or bitmap change. An exclusive end of `$C000` is valid; zero length
+uses ordinary READ without changing the bitmap. Buffers must still avoid
+the program, its scratch and ProDOS's own state. The helper only manages
+allocation bits; it does not make overlapping memory safe.
+
+A save replaces the complete file: a shorter write truncates the old tail,
+and length zero produces an empty file. SET_EOF runs only after a successful
+WRITE. CLOSE is attempted after every successful OPEN, including when
+WRITE or SET_EOF fails. Saves are not atomic: a failure may leave partial
+data in the file.
 
 C programs link `$(PRODOS_FILE_SRCS)` (`file.s`): `prodos_file_name`,
 `prodos_file_iobuf`, `prodos_file_buffer`, `prodos_file_length`,
 `prodos_file_actual`, `prodos_load()`, `prodos_load_free()`,
 `prodos_save()` (prodos.h). Users: WARGALAGA II (`HIGHSCORES`, from its
 title overlay), CHROMABREAK (`HIGHSCORES`, the `ENDING` overlay).
+Make the C object's prerequisites include `$(PRODOS_FILE_DEPS)` so changes
+to the included assembly rebuild `file.s` too.
+
+All three C entrypoints cost 367 loaded bytes (formerly 314), including
+the parameters and bitmap scratch; no zero-page bytes are allocated or
+modified by the helpers. In isolation, assembly load/load_free/save cost
+97/244/171 bytes (formerly 85/215/130). `test_prodos_file.py`, part of
+`make test-tools`, executes the ASM and C binaries on a 65C02 with injected
+MLI results: error priority, actual counts, bitmap guards, Y/ZP and each
+independent `.ifref` route. A real ProDOS volume checks truncation to a
+shorter/empty file, missing-file creation, GET_EOF and loaded contents.
+
+Measured with the same injected MLI, successful load (256 B), load_free
+(8192 B) and save (38 B) take 1232/3564/1611 cycles versus 1218/3536/1227
+before these checks. These include the test stub, including the added
+SET_EOF call; they exclude disk latency and are not real I/O timings.
 
 Reference: [ProDOS technical reference, system programs](https://prodos8.com/docs/techref/writing-a-prodos-system-program/).
