@@ -18,9 +18,10 @@ Memory Station (station: the game waits, the screen is shop.s's overlay;
 its rules mem_deal / mem_turn here).
 
 Levels (lot 6): 100, in 25 packs of 4; level 3 of a pack has big aliens
-(lot 6, step 3), level 4 is a bonus level (even pack: aliens fly past and
-never fire, all 40 shot = a prize) or a kamikaze level (odd pack: aliens
-dive at the ship, a wave shot down = a prize); levels 25/50/75/100 are boss
+(lot 6, step 3), level 4 is a kamikaze level (even pack: aliens
+dive at the ship) or a bonus level (odd pack: aliens fly past and
+never fire, all 40 shot = a prize). A complete kamikaze wave pays a prize.
+Levels 25/50/75/100 are boss
 levels (step 4). Each pack is harder; after level 100 the game loops,
 mirrored and harder still. Between two levels: TELEPORT_T steps.
 """
@@ -76,6 +77,7 @@ TELEPORT_T = 60                 # steps between two levels
 BONUS_PRIZE = 10000             # all 40 shot on a bonus level
 KAMI_PRIZE = 2000               # a kamikaze wave shot down: 2000, 4000, 8000...
 BOSS_LEVELS = (24, 49, 74, 99)  # level indexes (levels 25, 50, 75, 100)
+DEMO_NEXT = {1: 2, 4: 7, 8: 24}  # attract mode: ordinary, big, kami, bonus, boss
 # Big aliens (level 3 of a pack): the even slots of formation row 0, two
 # hits, 200 points, a rank mark of the pack's colour. Anchored on the slot
 # like a small one: their box is cells x-2..x+7, rows y-8..y+7 (drawn only
@@ -149,7 +151,7 @@ def level_kind(level):
         return NORMAL
     if sub == 2:
         return BIG
-    return BONUS if level // 4 % 2 == 0 else KAMIKAZE
+    return KAMIKAZE if level // 4 % 2 == 0 else BONUS
 
 
 def alien_combo(level):
@@ -165,14 +167,33 @@ def big_combo(level):
     return pack % 2 * 4 + pack // 6 % 4
 
 
+def entry_params(level):
+    """Rows, pair gap, wave gap. WGII tuning, not Warblade's original data.
+
+    Special stages keep all their waves (and perfect/wave prizes). Bosses
+    still start at row 3. Normal stages grow into the 40-slot formation.
+    """
+    if level_kind(level) in (BONUS, KAMIKAZE, BOSS):
+        return ROWS, LAUNCH_GAP, WAVE_GAP
+    rows = min(ROWS, 2 + level % 4 + level // 4)
+    return rows, 10 if level < 12 else LAUNCH_GAP, 90 if level < 12 else WAVE_GAP
+
+
 def level_params(level, loop):
     """(dive gap, max divers, fire gap, bomb dy, kamikaze dy): each pack is
     harder, each loop more so."""
     pack = level // 4
-    return (max(8, DIVE_GAP - pack // 2 - 4 * loop),
-            min(7, MAX_DIVERS + pack // 6 + 2 * loop),   # (more: past the frame budget)
-            max(5, FIRE_GAP - pack // 3 - 3 * loop),
-            min(7, BOMB_DY + pack // 12 + loop),
+    # Teach aiming, then dodging, then crowd control. Beyond the opening,
+    # retain the original late-game pressure and the seven-diver budget.
+    opening_dive = (60, 52, 44, 44, 40, 36, 32, 32, 30, 28, 26, 26, 24, 22, 20, 20)
+    opening_fire = (60, 52, 44, 44, 40, 36, 32, 32, 28, 26, 24, 24, 22, 20, 18, 18)
+    dive = opening_dive[level] if level < 16 else DIVE_GAP - pack // 2
+    fire = opening_fire[level] if level < 16 else max(FIRE_GAP - pack // 3, 18 - (level - 16) // 2)
+    loop = min(loop, 20)         # every parameter has reached its bound
+    return (max(8, dive - 4 * loop),
+            min(7, min(MAX_DIVERS + pack // 6, 1 + (level + 1) // 3) + 2 * loop),
+            max(5, fire - 3 * loop),
+            min(7, (2 if level < 2 else 3 if level < 8 else BOMB_DY + pack // 12) + loop),
             min(7, 3 + pack // 8 + loop))
 
 # Lot 5: falling objects, gauges, timed bonuses.
@@ -219,6 +240,7 @@ def duration(t_level):
     return 300 * t_level
 
 _, ENTRY, DIVES = paths.data()
+ENTRIES = paths.entries()
 FLYPAST = paths.flypast()
 ENTRY_X0, ENTRY_Y0 = paths.data()[0]
 
@@ -256,6 +278,7 @@ def flying(state):
 class Game:
     def __init__(self, start_level=0):
         self.ship_c = SHIP_MAX // 2
+        self.demo = False
         self.shot_limit = SHOT_LIMIT
         self.shot_y = [0] * MAX_SHOTS
         self.shot_c = [0] * MAX_SHOTS
@@ -516,6 +539,8 @@ class Game:
 
     def next_level(self):
         self.level += 1
+        if self.demo:
+            self.level = DEMO_NEXT.get(self.level, self.level)
         if self.level == LEVELS:
             self.level = 0
             self.loop = min(255, self.loop + 1)   # (wrapped to 0: easy again)
@@ -721,10 +746,13 @@ class Game:
         self.score = min(999999, self.score + points * self.mult)   # (wrapped to 0)
 
     def drop(self, i):
-        if self.rand8() >= DROP_RATE:
-            return
-        self.rand8()                    # the kind: the high byte (the low one
-        kind = DROP_TABLE[self.prng >> 8 & 63]   # is the first draw >> 1)
+        if self.level < 4 and i % COLS == 3:
+            kind = K['c50']            # first pack's predictable carriers
+        else:
+            if self.rand8() >= DROP_RATE:
+                return
+            self.rand8()                # kind: high byte (low = first draw >> 1)
+            kind = DROP_TABLE[self.prng >> 8 & 63]
         if self.a_y[i] > 192 - OBJ_H:   # rows past 191: no (a guard: shots hit
             # nothing below row 179 today; the renderer has no rows past 191)
             return
@@ -980,7 +1008,7 @@ class Game:
         w, k = self.entry_w, self.entry_k
         flip = self.loop & 1            # after level 100: mirrored
         state = {BONUS: PASS, KAMIKAZE: KAMI}.get(self.lkind, ENTER)
-        route = FLYPAST if state == PASS else ENTRY
+        route = FLYPAST if state == PASS else ENTRIES[paths.entry_index(self.level, w)]
         for i, mirror in ((w * COLS + 3 - k, 0), (w * COLS + 4 + k, 1)):
             big = self.lkind == BIG and w == 0
             if big and i % 2:           # a big level's row 0: even slots only
@@ -995,9 +1023,11 @@ class Game:
         if self.entry_k == 4:
             self.entry_k = 0
             self.entry_w += 1
-            self.entry_t = WAVE_GAP
+            if self.entry_w == entry_params(self.level)[0]:
+                self.entry_w = ROWS   # shared "all waves in" sentinel
+            self.entry_t = entry_params(self.level)[2]
         else:
-            self.entry_t = LAUNCH_GAP
+            self.entry_t = entry_params(self.level)[1]
 
     def sway(self):
         self.sway_t = (self.sway_t + 1) % SWAY_EVERY     # one row every 3 steps

@@ -1,13 +1,27 @@
 # WARGALAGA II
 
+**Progression revue (2026-10-27)** : niveau 1 à 16 ennemis et un plongeur
+maximum, montée progressive des effectifs et des tirs ; kamikaze au niveau 4,
+bonus au niveau 8, comme dans Warblade.
+Quatre courbes d'entrée, pièces d'or prévisibles dans le premier paquet,
+démo des niveaux 1, 3, 4, 8 et 25 (dont le bonus et le boss).
+[Recherche, comparaison et réglages](docs/warblade-difficulty.md).
+
 <table><tr>
 <td><img src="screenshots/title.png" width="380" alt="WARGALAGA II : l'écran titre et son menu"></td>
 <td><img src="screenshots/demo.png" width="380" alt="Le mode démo : une vague entre, le vaisseau tire"></td>
 </tr></table>
 
+La démo présente aussi le niveau bonus et un boss :
+
+<table><tr>
+<td><img src="screenshots/demo-bonus.png" width="380" alt="La démo au niveau bonus 8 : ennemis de passage sans tirs ennemis"></td>
+<td><img src="screenshots/demo-boss.png" width="380" alt="La démo face au boss du niveau 25"></td>
+</tr></table>
+
 **Lots 1 à 9 faits (2026-10-23)**, reste la validation sur vraies machines —
 démarrage ProDOS, horloge
-VBL, étoiles, vaisseau et tirs, 40 aliens qui entrent en vagues, se posent
+VBL, étoiles, vaisseau et tirs, jusqu'à 40 aliens qui entrent en vagues, se posent
 en formation qui respire, plongent et bombardent ; collisions, explosions,
 vies, armure, score et HUD, GAME OVER, à 30 i/s ; son (musique PT3 et
 bruitages sur Mockingboard, bruitages au haut-parleur, S coupe) ; 32 bonus
@@ -204,7 +218,8 @@ au mieux un très court échantillon hors jeu (un mot au titre).
 | lettres, chiffres, `.`, ← ou DELETE, RETURN | Y, bouton 0 | initiales d'un record (3 caractères) |
 
 Titre : le menu reste ~10 s, puis les records ~8 s, puis le **mode démo**
-(une partie du niveau 1 au début du 4, ~1 min, « DEMO » au milieu) ; une
+(niveaux 1, 3, 4, 8 puis 25 : petits, gros, kamikaze, bonus et boss,
+~100 s en NTSC, ~120 s en PAL, « DEMO » au milieu) ; une
 touche ou un bouton revient au titre. GAME OVER : le titre après le tir ou
 ~8 s, avec la saisie des initiales si le score entre dans les 8 records.
 
@@ -229,7 +244,7 @@ n'écrit pas les pages aux).
 | `$00D0-$00EF` | page zéro du lecteur PT3 (gardée entre deux ticks) |
 | `$0200-$03FF` | libre ; page 3 : lecteur haut-parleur prévu (boucle à cycles comptés, sans franchir de page) |
 | `$0400-$07FF` | page texte 1, jamais affichée en jeu : tables (en évitant les trous `$x78-$x7F`, `$xF8-$xFF`) |
-| `$0800-$0FFF` | code de Meteor Storm (`storm.s`) et lecteur du mode démo avec son script (`demo.s`, `demo.inc`), textes des ramassages (`bonus.inc`, segment `PICK`), zone `LOWM`, copiés de `WG2.AUX` au démarrage ; le crt0 protège cette zone |
+| `$0800-$0FFF` | code de Meteor Storm (`storm.s`), lecteur et script du mode démo (`demo.s`, `demo.inc`), textes des ramassages (`PICK`), trois trajectoires de plongée (`FLIGHT`), zone `LOWM`, copiés de `WG2.AUX` au démarrage ; le crt0 protège cette zone |
 | `$1000-$12FF` | tables de lignes `hgr_lo`, `hgr_hi`, `hgr_hi2` alignées sur une page (segment `ROWS`) |
 | `$1300-$1FDF` | tampon ProDOS (`IOBUF` : démarrage, `HIGHSCORES`), `LOWBSS` : sprites prédécalés du paquet courant, la table des records (`rec_buf`) |
 | `$1FE0-$1FFF` | trampolines vers la mémoire aux (mêmes octets en aux) |

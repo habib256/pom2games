@@ -36,7 +36,7 @@ src/sound.inc: tools/sound.py
 	$(PYTHON) tools/sound.py
 src/bonus.inc: tools/bonus.py tools/model.py tools/paths.py
 	cd tools && $(PYTHON) bonus.py
-src/demo.inc: tools/demo.py tools/autopilot.py tools/model.py
+src/demo.inc: tools/demo.py tools/autopilot.py tools/model.py tools/paths.py
 	$(PYTHON) tools/demo.py
 
 # The title picture (LZ4FH) and the new disk's HIGHSCORES, in the overlay.
@@ -114,6 +114,7 @@ run-iic: all
 
 # Two tiers (convention of ../dev/cc65/apple2.mk): `test` stays fast.
 test: all $(if $(A2SHOT_HOST),$(BUILD)/iic_probe)
+	$(PYTHON) tests/test_difficulty.py
 	$(PYTHON) tools/sprites.py --check
 	$(PYTHON) tools/paths.py --check
 	$(PYTHON) tools/sound.py --check

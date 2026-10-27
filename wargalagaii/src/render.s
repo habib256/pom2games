@@ -552,7 +552,11 @@ md_mul: lsr mn_k                 ; n += loop << bit, for each bit of 100
         lda mn_k
         bne md_mul
         lda level
-        sec                      ; (+ 1 with the carry: + 2)
+        inc a
+        ldx demo
+        beq :+
+        jsr demo_next             ; show the actual showcase destination
+:       clc                      ; index -> displayed level number
         adc #1
         clc
         adc mn

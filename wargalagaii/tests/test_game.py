@@ -142,7 +142,16 @@ def bench(disk, L, frames=300):
     """TODO.md lot 2 scene: 40 seated aliens, divers, 10 shots fired
     continuously (passing through: nohit), bombs falling: no late frame."""
     fire = [L.until('logic_step', 10), L.poke('fire_req', 0x80), L.until('logic_done', 10)]
-    steps = [*boot(L), L.poke('shot_limit', 10), L.poke('nohit', 1),
+    # Keep the original 40-alien / six-diver load, independent of the
+    # gentler opening and later-level tuning.
+    steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', 16),
+             L.until('game_tick', 3000),
+             *[L.poke(n, v) for n, v in (('dive_gap', 20), ('dive_t', 20),
+                                        ('max_divers', 6), ('fire_gap', 12),
+                                        ('fire_t', 12), ('bomb_dy', 4))],
+             *[L.poke(n, v, k) for k in range(4) for n, v in
+               (('entry_lo', L['entry'] & 255), ('entry_hi', L['entry'] >> 8))],
+             L.poke('shot_limit', 10), L.poke('nohit', 1),
              L.poke('armour', 99), L.poke('invul_t', 250), 'wait:500', L.poke('invul_t', 250),
              'wait:500', L.poke('invul_t', 250), 'wait:200']
     steps += [L.peek('late_count', 2), L.peek('frame_count', 2)]
@@ -162,7 +171,9 @@ def bench(disk, L, frames=300):
     # One small alien: draw (STA, seated), EOR (flying, both ways), erase.
     costs = []
     for name in ('alien_sta', 'alien_eor', 'alien_clr'):
-        r = a2test.run(disk, [*boot(L), 'wait:1200',
+        r = a2test.run(disk, [L.until('main', 3000), L.poke('front_skip', 1),
+                              L.poke('start_level', 16), L.until('game_tick', 3000),
+                              *[s for _ in range(6) for s in (L.poke('invul_t', 250), 'wait:200')],
                               L.until(name, 60), L.until(name + '_done', 1)], iie=True)
         costs.append(r.cycles[-1] - r.cycles[-2])
     print(f'PASS 14x8 alien: STA {costs[0]}, EOR {costs[1]}, zeros {costs[2]} cycles')
@@ -257,9 +268,13 @@ def game_over(disk, L):
     GAME OVER and 0 lives in the HUD of both pages, goes to the title after
     OVER_END frames (lot 9), where SPACE starts anew."""
     g = model.Game()
+    elapsed = 0
     while not g.game_over:
         g.step()
-    r = a2test.run(disk, [*boot(L), 'wait:2400',
+        elapsed += 1
+    # Wait for the actual end of this difficulty curve, then the title.
+    wait_end = f'wait:{2 * elapsed + 600}'
+    r = a2test.run(disk, [*boot(L), wait_end,
                           L.peek('game_over'), L.peek('lives'), L.peek('msg_drawn', 2),
                           L.peek('hud_seen', 80), L.peek('over_wait'), 'key: ', 'wait:30',
                           L.peek('game_over'), L.peek('lives'), L.peek('score', 3),
@@ -276,7 +291,7 @@ def game_over(disk, L):
     # the clock (//e fell back to delays after a restart), /RAM's unit and
     # crt0's saved zero page (bug hunt 2026-10-23).
     r = a2test.run(disk, [*boot(L), L.peek('ram_unit'), L.peek('zp_save', 256),
-                          'peek:0:256', 'wait:2400', 'key: ', 'wait:60', L.peek('_a2_vbl_mode'),
+                          'peek:0:256', wait_end, 'key: ', 'wait:60', L.peek('_a2_vbl_mode'),
                           L.peek('ram_unit'), L.peek('zp_save', 256)], iie=True)
     saved, live = r.mem(L['zp_save'], 256, 0), r.mem(0, 256)
     keep = range(0x20, 0x3A)        # text window, hooks ($3A-$4F: MLI and AUXMOVE scratch)
@@ -594,15 +609,15 @@ def main():
     cadence(a.disk, L, pal=True)
     pickup_feedback(a.disk, L)
     game, deaths = oracle(a.disk, L)
-    assert len(deaths) == 3 and game.game_over, 'the scripted game loses its 3 lives'
+    assert len(deaths) == 3 and game.game_over, 'the scripted random game loses its three lives'
     game, _ = oracle(a.disk, L, count=1500, seed=7, armour=2)
     assert game.armour < 2, 'armour took a bomb'
-    for start, why, count in ((0, 'normal', 3000), (2, 'big aliens', 3000), (3, 'bonus', 3000),
-                              (7, 'kamikaze', 3000), (24, 'boss', 3000), (99, 'boss of level 100, loop', 4500)):
+    for start, why, count in ((0, 'normal', 3000), (2, 'big aliens', 3000), (7, 'bonus', 3000),
+                              (3, 'kamikaze', 3000), (24, 'boss', 3000), (99, 'boss of level 100, loop', 4500)):
         game, seen = level_oracle(a.disk, L, start, count, every=10)
         assert len(seen) >= 2, (why, seen)
         # (bug hunt 2026-10-23: kamikaze aliens died on their first step)
-        need = {3: model.PASS, 7: model.KAMI}.get(start)
+        need = {7: model.PASS, 3: model.KAMI}.get(start)
         assert need is None or need in game.states_seen, (why, sorted(game.states_seen))
         assert start != 2 or game.marks & 1, 'a big alien shot: its rank mark taken'
         assert start not in (24, 99) or len(seen) >= 2, 'the boss shot down'

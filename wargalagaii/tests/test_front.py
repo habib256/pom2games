@@ -101,35 +101,47 @@ def demo_oracle(disk, L):
     """The whole demo == the model: the script's moves, fire held, then the
     steps past its end (no input) until the title."""
     names, first, span = state_names(L)
+    checkpoints = []
+    for refreshes in (400, 1000, 1200, 1000, 1400):
+        checkpoints += [f'wait:{refreshes}', L.peek('level'), L.peek('lkind'), L.peek('a_state', M.NALIENS)]
     r = a2test.run(disk, [L.until('main', 3000), L.until('demo_init', 4000), L.peek('step_count', 2),
-                          L.until('front_main', 4500), L.peek('step_count', 2),
+                          *checkpoints,
+                          L.until('front_main', 7000), L.peek('step_count', 2),
                           f'peek:{first:04X}:{span}', L.peek('prng_lo', 2), L.peek('demo_end'),
-                          'wait:60', L.peek('fr_panel')], iie=True, timeout=600)
+                          'wait:60', L.peek('fr_panel'), 'key: ', 'wait:40',
+                          L.peek('level'), L.peek('demo')], iie=True, timeout=600)
+    assert [r.mem(L['level'], 1, k)[0] for k in range(5)] == [0, 2, 3, 7, 24]
+    assert [r.mem(L['lkind'], 1, k)[0] for k in range(5)] == [M.NORMAL, M.BIG, M.KAMIKAZE, M.BONUS, M.BOSS]
+    assert M.PASS in r.mem(L['a_state'], M.NALIENS, 3), 'the bonus stage actually displays passing aliens'
+    assert r.mem(L['level'], 1, 5) == b'\0' and r.mem(L['demo'], 1) == b'\0', 'a real game starts at level 1'
     n = int.from_bytes(r.mem(L['step_count'], 2, 1), 'little') - int.from_bytes(r.mem(L['step_count'], 2, 0), 'little')
-    script = demo.decode(bytes(int(v[1:], 16) for line in (GAME / 'src/demo.inc').read_text().splitlines()
+    script = demo.decode(bytes(int(v[1:], 16) for line in (GAME / 'src/demo.inc').read_text().split('demo_script:')[1].splitlines()
                                if line.strip().startswith('.byte') for v in line.split()[1].split(',')))
     assert len(script) == demo.DEMO_STEPS and r.mem(L['demo_end'], 1)[0] == 1
     assert demo.DEMO_STEPS < n <= demo.DEMO_STEPS + 2, n
     game = M.Game(0)
+    kinds = set()
     for k in range(n):
         if k < len(script):
             demo.play(game, script[k])
         else:
             game.step(0, False, False)
+        kinds.add(game.lkind)
     got, state = r.mem(first, span), game.state()
     for name in names:
         have = got[L[name] - first:L[name] - first + len(state[name])]
         assert have == state[name], f'{name}: 6502 {have.hex()} model {state[name].hex()}'
     assert r.mem(L['prng_lo'], 2) == state['prng']
     assert r.mem(L['fr_panel'], 1)[0] == MENU, 'the demo is no record'
-    assert game.level >= 2 and not game.game_over, (game.level, 'the demo shows levels 1 to 4')
+    assert kinds == {M.NORMAL, M.BIG, M.KAMIKAZE, M.BONUS, M.BOSS} and not game.game_over, kinds
     print(f'PASS demo: {n} steps == model (level {game.level + 1}, score {game.score}, '
           f'{game.lives} lives), then the title')
 
 
 def demo_stop(disk, L):
-    for how in (['key:A'], ['btn:0,1', 'wait:4', 'btn:0,0']):
-        r = a2test.run(disk, [L.until('main', 3000), L.until('demo_init', 4000), 'wait:300', *how,
+    for refreshes, how in ((300, ['key:A']), (300, ['btn:0,1', 'wait:4', 'btn:0,0']),
+                           (3600, ['key:A']), (3600, ['btn:0,1', 'wait:4', 'btn:0,0'])):
+        r = a2test.run(disk, [L.until('main', 3000), L.until('demo_init', 4000), f'wait:{refreshes}', *how,
                               L.until('front_main', 30), 'wait:60', L.peek('fr_panel'), L.peek('score', 3)],
                        iie=True)
         assert r.mem(L['fr_panel'], 1)[0] == MENU and r.mem(L['score'], 3) != b'\0\0\0'

@@ -30,7 +30,7 @@ M = model
 
 
 def storm_oracle(disk, L, seed, crash, count=1300, every=3):
-    """From level 4 (a bonus level), invulnerable until the storm starts;
+    """From level 4 (a kamikaze level), invulnerable until the storm starts;
     crash: no invulnerability in the storm (a rock ends it), else the
     invulnerability holds and the ship gets through."""
     rng = random.Random(seed)

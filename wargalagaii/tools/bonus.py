@@ -31,6 +31,7 @@ def emit():
               ('lv_big', [model.big_combo(lv) for lv in range(model.LEVELS)])]
     for k, name in enumerate(('lv_dive', 'lv_divers', 'lv_fire', 'lv_bomb', 'lv_kami')):
         tables.append((name, [model.level_params(lv, 0)[k] for lv in range(model.LEVELS)]))
+    tables.append(('lv_rows', [model.entry_params(lv)[0] for lv in range(12)]))
     for name, values in tables:
         out.append(f'{name}:')
         for i in range(0, len(values), 20):

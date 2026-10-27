@@ -104,7 +104,10 @@ def storm_hud(st):
 
 def level_text(st):
     """LEVEL n: the level teleported to, (level + 2) + 100 * loop."""
-    return f'LEVEL {st["level"] + 2 + 100 * st["loop"]}'.ljust(12).encode()
+    next_level = st['level'] + 1
+    if st.get('demo'):
+        next_level = M.DEMO_NEXT.get(next_level, next_level)
+    return f'LEVEL {next_level + 1 + 100 * st["loop"]}'.ljust(12).encode()
 
 
 def expected(st, T, glyphs):
@@ -234,9 +237,10 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, ch
             steps.append(L.until('render', 60))
         steps.append(L.until('game_tick', 60))   # (until X twice: no progress)
         if k == frames * every // 2 and start is None and not demo:   # let the game end, then restart
-            # (one life left; over_wait held back: GAME OVER stays instead of
-            # going to the title, lot 9)
-            steps += [L.poke('lives', 1), L.poke('armour', 0)]
+            # Force the final explosion: the gentler opening must not make
+            # rendering coverage depend on a random enemy hitting the ship.
+            # over_wait holds GAME OVER on screen instead of returning.
+            steps += [L.poke('lives', 0), L.poke('ship_state', M.DEATH_T), L.poke('armour', 0)]
             steps += ['wait:100', L.poke('over_wait', 0)] * 30
             for _ in range(10):
                 steps += [L.until('render_done', 60), L.peek('page'), L.peek('step_count', 2),
@@ -314,13 +318,13 @@ def main():
         return
     messages(a.disk, a.labels)
     check(a.disk, a.labels, a.frames, a.seed)
-    assert M.PASS in check(a.disk, a.labels, 120, a.seed, every=9, start=3), 'flypast drawn'
-    assert M.KAMI in check(a.disk, a.labels, 80, a.seed, every=9, start=7), 'kamikaze drawn'
+    assert M.PASS in check(a.disk, a.labels, 120, a.seed, every=9, start=7), 'flypast drawn'
+    assert M.KAMI in check(a.disk, a.labels, 80, a.seed, every=9, start=3), 'kamikaze drawn'
     check(a.disk, a.labels, 80, a.seed, every=9, start=2)      # big aliens (sway, dives, shots)
     check(a.disk, a.labels, 240, a.seed, every=11, start=24)   # the boss, its fall
     check(a.disk, a.labels, 60, a.seed, every=5, start=0, hurry=True)   # the saucer
     check(a.disk, a.labels, 100, a.seed, every=9, start=3, cheats=[('subgame', 1)])   # Meteor Storm
-    check(a.disk, a.labels, 60, a.seed, every=9, demo=True)   # the attract mode
+    check(a.disk, a.labels, 120, a.seed, every=23, demo=True)  # every showcase stage and its transitions
 
 
 if __name__ == '__main__':

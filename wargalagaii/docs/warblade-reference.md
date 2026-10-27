@@ -1,5 +1,10 @@
 # Warblade : référence vérifiée
 
+Complément du 2026-10-27 : [progression et difficulté](warblade-difficulty.md),
+avec audit du code et distinction entre règles documentées et adaptation.
+Correction appliquée : le premier niveau spécial est **kamikaze (4)**,
+le suivant **bonus (8)**, conformément à la FAQ et au guide des niveaux.
+
 *[← WARGALAGA II](../README.md)*
 
 Ce que WARGALAGA II reprend de Warblade (règles seulement). Chaque point

@@ -291,8 +291,12 @@ tp_shop:
         sta shop
         rts
 next_level:
-        inc level
         lda level
+        inc a
+        ldx demo
+        beq :+
+        jsr demo_next
+:       sta level
         cmp #LEVELS
         bne :+
         stz level
@@ -535,7 +539,7 @@ shop_exit:
         jmp next_level
 
 ; The level's kind and parameters: loop-0 tables (tools/bonus.py), made
-; harder once a loop (saturating; five loops reach every bound).
+; harder once a loop (saturating; twenty loops reach every bound).
 setup_level:
         ldx level
         lda lv_kind,x
@@ -551,9 +555,9 @@ setup_level:
         lda lv_kami,x
         sta kami_dy
         lda loop
-        cmp #5
+        cmp #20
         bcc :+
-        lda #5
+        lda #20
 :       tax
         beq sl_set
 sl_loop:
@@ -1128,7 +1132,17 @@ ap_add: sed
 ; A kill by alien Y may drop an object (DROP_RATE / 256), of a kind drawn
 ; from drop_table, in the last free slot, on the 14-dot column under the
 ; alien's middle. Keeps X, Y.
-drop:   jsr rand8
+drop:   lda level                ; first pack: predictable gold carriers
+        cmp #4
+        bcs dr_random
+        tya
+        and #COLS-1
+        cmp #3                   ; central-left alien of each wave
+        bne dr_random
+        lda #K_C50               ; must still shoot it and catch the coin
+        bra dr_guard
+dr_random:
+        jsr rand8
         cmp #DROP_RATE
         bcs dr_done
         jsr rand8                ; the kind from the high byte: the low one
@@ -1138,6 +1152,7 @@ drop:   jsr rand8
         tay
         lda drop_table,y
         ply
+dr_guard:
         pha                      ; guard: an object from an alien below
         lda a_y,y                ; row 184 would be drawn past row 191 (into
         cmp #192-OBJ_H+1         ; the zero page); shots hit nothing so low
@@ -1542,12 +1557,32 @@ launch:
         inc entry_k
         lda entry_k
         cmp #4
-        bne :+
+        bne launch_pair_gap
         stz entry_k
         inc entry_w
+        ldx level
+        cpx #12
+        bcs launch_wave_gap
+        lda entry_w
+        cmp lv_rows,x
+        bne launch_wave_gap
+        lda #ROWS                ; fewer opening rows, same done sentinel
+        sta entry_w
+launch_wave_gap:
         lda #WAVE_GAP
-        bra :++
-:       lda #LAUNCH_GAP
+        ldy #90
+        bra launch_gap
+launch_pair_gap:
+        lda #LAUNCH_GAP
+        ldy #10
+launch_gap:
+        ldx level
+        cpx #12
+        bcs :+
+        ldx lkind
+        cpx #LK_BONUS            ; special stages keep their original rhythm
+        bcs :+
+        tya
 :       sta entry_t
 launched:
         rts
@@ -1586,9 +1621,17 @@ en_flip:
 :       sta a_x,x
         lda #ENTRY_Y0
         sta a_y,x
-        lda #<entry
+        lda level
+        and #7
+        tay
+        lda stage_routes,y
+        clc
+        adc entry_w
+        and #3
+        tay
+        lda entry_lo,y
         sta a_plo,x
-        lda #>entry
+        lda entry_hi,y
         sta a_phi,x
         lda lkind
         cmp #LK_BONUS

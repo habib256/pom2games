@@ -1,7 +1,8 @@
 ; WARGALAGA II -- the attract mode's player (lot 9). Resident at $0800
 ; after Meteor Storm (segment DEMO, memory LOWM). Included by game.s.
 ;
-; The demo is a game from level 1 and SEED; logic_step takes each step's
+; The demo starts at level 1 and SEED, then showcases big/kami/bonus/boss
+; stages through demo_next; logic_step takes each step's
 ; input from src/demo.inc (tools/demo.py: the autopilot's moves on
 ; tools/model.py, always firing) instead of the keyboard. A key or a button,
 ; the end of the script or GAME OVER: back to the title (quit).
@@ -10,6 +11,16 @@
 demo_ptr: .res 2
 
 .segment "DEMO"
+demo_next:
+        ldx #DEMO_JUMPS-1
+:       cmp demo_from,x
+        beq :+
+        dex
+        bpl :-
+        rts
+:       lda demo_to,x
+        rts
+
 demo_init:
         lda #<demo_script
         sta demo_ptr

@@ -56,6 +56,28 @@ def quantise(start, points):
 ENTRY_START = (40, -20)
 ENTRY = fly(ENTRY_START, 75, [(26, 4, 0), (36, 4, -330), (10, 4, 0)])
 
+# Authored WGII entry scripts: a readable arc, a wide sweep, the original
+# loop, and an S bend. Same start; all end above the ship before homing.
+# These are original curves inspired by Warblade's scripted squadrons.
+ENTRIES = [
+    [(40 + 100 * t, -20 + 95 * t + 18 * math.sin(math.pi * t))
+     for t in (k / 56 for k in range(1, 57))],
+    fly(ENTRY_START, 30, [(22, 3, 0), (28, 3, 150), (12, 3, 0)]),
+    ENTRY,
+    [(40 + 100 * t + 20 * math.sin(2 * math.pi * t),
+      -20 + 95 * t + 40 * math.sin(math.pi * t))
+     for t in (k / 64 for k in range(1, 65))],
+]
+STAGE_ROUTES = (0, 1, 2, 0, 1, 3, 2, 3)
+
+
+def entries():
+    return [quantise(ENTRY_START, points) + [END] for points in ENTRIES]
+
+
+def entry_index(level, wave):
+    return (STAGE_ROUTES[level % 8] + wave) % 4
+
 # Bonus levels (lot 6): the same way in, then out through the bottom (the
 # alien never seats: it escapes when it leaves the screen).
 FLYPAST = fly(ENTRY_START, 75, [(26, 4, 0), (36, 4, -330), (44, 4, 0)])
@@ -95,9 +117,22 @@ def emit():
            f'ENTRY_X0 = {start[0]}',
            f'ENTRY_Y0 = {start[1]}',
            f'NDIVES = {len(dives)}',
+           'entry_lo: .lobytes ' + ','.join(f'entry{k}' for k in range(4)),
+           'entry_hi: .hibytes ' + ','.join(f'entry{k}' for k in range(4)),
+           'stage_routes: .byte ' + ','.join(map(str, STAGE_ROUTES)),
+           '.pushseg', '.segment "FLIGHT"',
            'dive_lo: .lobytes ' + ','.join(f'dive{k}' for k in range(len(dives))),
            'dive_hi: .hibytes ' + ','.join(f'dive{k}' for k in range(len(dives)))]
-    for name, steps in [('entry', entry), ('flypast', flypast())] + [(f'dive{k}', d) for k, d in enumerate(dives)]:
+    for k, steps in enumerate(dives):
+        if k == len(dives) - 1:
+            out.append('.popseg')    # last dive in main: room for the long demo
+        name = f'dive{k}'
+        out.append(f'{name}:')
+        for i in range(0, len(steps), 16):
+            out.append('        .byte ' + ','.join(f'${b:02X}' for b in steps[i:i + 16]))
+    for name, steps in [('flypast', flypast())] + [(f'entry{k}', d) for k, d in enumerate(entries())]:
+        if name == 'entry2':
+            out.append('entry:')    # legacy default pointer for cleared state
         out.append(f'{name}:')
         for i in range(0, len(steps), 16):
             out.append('        .byte ' + ','.join(f'${b:02X}' for b in steps[i:i + 16]))
@@ -106,6 +141,9 @@ def emit():
 
 def main():
     _, entry, dives = data()
+    for points in ENTRIES:
+        assert all(0 <= x <= 266 and -20 <= y < 160 for x, y in points)
+        assert len(points) < 256
     for d in dives:                        # a dive must leave the screen
         assert sum(decode(b)[1] for b in d[:-1]) >= 192 - 20, 'dive too short'
         rise = min(0, min(sum(decode(b)[1] for b in d[:k]) for k in range(len(d))))
