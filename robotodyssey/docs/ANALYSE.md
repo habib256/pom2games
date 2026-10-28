@@ -192,6 +192,7 @@ les trois robots partent précâblés (Sparky avec la puce WALLHUGGER).
 **Seul l'objet tenu passe au niveau suivant** : un robot non tenu est
 perdu. Pour en emporter plusieurs, on les emboîte (un robot posé dans
 l'intérieur du robot tenu). La clé `$FA` du niveau 1 sert jusqu'au niveau 5.
+Feuille de route pour le joueur : [SOLUTION.md](SOLUTION.md).
 
 | Niv. | Énigmes | Sortie |
 |---|---|---|
