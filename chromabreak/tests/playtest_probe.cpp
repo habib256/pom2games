@@ -503,6 +503,89 @@ int main(int argc,char** argv) {
             require(jingleClicks.size()==10,"ten sector endings heard");
             std::cout<<"PASS victory record entry\n";return 0;
         }
+        if(recordTest=="records-campaign") {
+            // The sixty sectors in real play: a pilot moves the host mouse and
+            // clicks, nothing in the game's state is written (enemies on).
+            write("enemy_hold",0);
+            uint8_t hx=0,hy=0;
+            auto mouse=[&](int dx,int dy,bool down) {
+                dx=std::clamp(dx,-120,120);hx=uint8_t(hx+dx);hy=uint8_t(hy+dy);hostMouse(hx,hy,down);
+            };
+            auto score=[&]() {return unsigned(read("score"))+256*mem.memRead(at("score")+1);};
+            mouse(0,120,true);until(tick,20000000);mouse(0,0,false);until(tick,20000000);
+            require(read("state")==1 && read("mode")==1,"a click starts a mouse game");
+            unsigned lifeGains=0,deaths=0,maxMultiplier=1,lastLevel=0,lastRemaining=read("remaining");
+            uint64_t worst=0,frameCount=0,stall=0,late=0;
+            const uint64_t refresh=pal ? 20280 : 17030;
+            std::map<std::string,unsigned> lateWhy;
+            const auto finale=at("finale");bool sawFinale=false;
+            std::string worstWhere;
+            int aim=0; signed char lastDy=0;
+            auto t0=mem.getCycleCounter();
+            while(read("state")==1) {
+                // The lowest falling ball among the three.
+                int bx=-1,by=-1;
+                auto consider=[&](unsigned x,unsigned y,bool live,signed char vdy) {
+                    if(live && (bx<0 || (vdy>0 && int(y)>by)))  {bx=int(x);by=int(y);}
+                };
+                signed char ddy=int8_t(read("dy"));
+                consider(read("ball_x"),read("ball_y"),read("ball_live"),ddy);
+                for(int e=0;e<2;++e)consider(mem.memRead(at("extra_ball")+9*e),mem.memRead(at("extra_ball")+9*e+1),
+                    mem.memRead(at("extra_ball")+9*e+2),int8_t(mem.memRead(at("extra_ball")+9*e+4)));
+                // A new aim at each rebound, wider while no tile falls.
+                if(ddy<0 && lastDy>0) {
+                    int spread=stall>1500 ? 12 : 6;
+                    aim=int((frameCount*7+stall)%unsigned(2*spread+1))-spread;
+                }
+                lastDy=ddy;
+                int target=bx<0 ? 70 : bx+1+aim;
+                int dx=target-int(read("mouse_x"));
+                // Click every other frame: launches, releases a caught ball, fires.
+                mouse(dx,8,frameCount&1);
+                auto before=mem.getCycleCounter();
+                auto lives=read("lives");
+                // until(tick), watching for the finale on the way.
+                long spent=0;
+                do {cpu.step();spent+=cpu.getCurrentInstructionCycles();sawFinale|=cpu.getProgramCounter()==finale;}
+                while(cpu.getProgramCounter()!=tick && spent<80000000);
+                require(cpu.getProgramCounter()==tick,"campaign frame timeout");
+                auto dt=mem.getCycleCounter()-before;
+                ++frameCount;
+                if(read("state")!=1)break;
+                if(read("level")==lastLevel) {
+                    if(dt>worst) {worst=dt;worstWhere="sector "+std::to_string(lastLevel+1)+", capsule "
+                        +std::to_string(read("capsule"))+", effect "+std::to_string(read("effect"));}
+                    if(dt>refresh*5/2) {
+                        ++late;
+                        std::string why=read("lives")!=lives ? "life" : !read("round_live") ? "new round" : read("capsule") ? "capsule" : "play";
+                        ++lateWhy[why];
+                    }
+                }
+                if(read("lives")>lives)++lifeGains;
+                if(read("lives")<lives)++deaths;
+                maxMultiplier=std::max<unsigned>(maxMultiplier,read("multiplier"));
+                if(read("level")!=lastLevel) {
+                    std::cout<<"sector "<<lastLevel+1<<" cleared: frame "<<frameCount<<" score "<<score()*10
+                             <<" lives "<<unsigned(read("lives"))<<"\n"<<std::flush;
+                    require(read("records_progress")==read("level"),"each sector reached is saved");
+                    lastLevel=read("level");stall=0;lastRemaining=read("remaining");
+                } else if(read("remaining")!=lastRemaining) {lastRemaining=read("remaining");stall=0;}
+                else require(++stall<20000,"sector "+std::to_string(lastLevel+1)+": no tile for 20000 frames");
+            }
+            auto seconds=double(mem.getCycleCounter()-t0)/(pal?1015600.0:1023000.0);
+            std::cout<<"Campaign: "<<frameCount<<" frames, "<<seconds/60<<" min of play, score "<<score()*10
+                     <<", deaths "<<deaths<<", extra lives "<<lifeGains<<", best multiplier x"<<maxMultiplier
+                     <<", worst frame "<<worst<<" cycles ("<<worstWhere<<"), late frames "<<late<<" (";
+            for(auto& w:lateWhy)std::cout<<w.first<<" "<<w.second<<" ";
+            std::cout<<")\n";
+            require(lifeGains>0 && maxMultiplier==8,"extra lives and the x8 combo reached in play");
+            require(sawFinale,"the finale runs from the ENDING overlay");
+            // 2026-10-28: 0.9 % late on //e, 1.6 % on //c (mostly while a capsule falls).
+            require(late*100<frameCount*3,"under 3 % of the frames late in a campaign");
+            require(read("level")==CB_LEVELS && read("state")==4,"the pilot clears all sixty sectors (state "+std::to_string(read("state"))+", sector "+std::to_string(lastLevel+1)+")");
+            stackCheck();
+            std::cout<<"PASS sixty sectors played by the mouse pilot\n";return 0;
+        }
         const unsigned expected[]={3200,1800,1500,1240,900};
         if(recordTest=="records-v1") {
             // A format 1 file held points: the same records in tens, sector kept.

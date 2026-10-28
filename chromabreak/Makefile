@@ -93,7 +93,7 @@ run-iic: all
 	$(POM2) --preset iic --slot 4=iicmouse $(DISK)
 # Two tiers (convention of ../dev/cc65/apple2.mk). tests/playtest_probe.cpp
 # runs on the POM2 core facade: real mouse firmware on //e and //c, PAL
-# (test), the ProDOS records (test-long).
+# (test), the ProDOS records and a full campaign by a mouse pilot (test-long).
 PLAYTEST := --probe $(BUILD)/playtest_probe --roms $(DEV)/tools/a2shot/roms --disk $(DISK) --labels $(BUILD)/game.lbl
 test: all $(if $(A2SHOT_HOST),$(BUILD)/playtest_probe)
 	$(PYTHON) tests/test_game.py --disk $(DISK) --labels $(BUILD)/game.lbl
@@ -104,5 +104,6 @@ endif
 test-long: all $(if $(A2SHOT_HOST),$(BUILD)/playtest_probe)
 ifneq ($(A2SHOT_HOST),)
 	$(PYTHON) tests/test_mouse.py $(PLAYTEST) --records-only
+	$(PYTHON) tests/test_mouse.py $(PLAYTEST) --campaign
 endif
 .PHONY: run-iic test test-long

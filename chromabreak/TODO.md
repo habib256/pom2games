@@ -1,33 +1,11 @@
 # ChromaBreak — TODO
 
-Version 1.1 is in preparation; 1.0 is the last published release. Everything so far has
-been validated in emulation only (POM2 with the real //e and //c ROMs, a2shot).
+Version 1.1 is the last published release (2026-10-25). Everything so far has been
+validated in emulation only (POM2 with the real //e and //c ROMs, a2shot).
 
 ## Next up
 
-1. **Redo the three POM2 screenshots.** `screenshots/title.png` still shows "V1.0" while
-   the title now prints `V1.1  BY ARNAUD VERHILLE` (`src/game.c`, `credit[]`), and
-   `game.png` / `game-sector-2.png` show a five-digit score (00310) while the HUD has
-   printed six digits since the score cap moved to 650 000 (`src/game.c`,
-   `number(value,points_text,5); points_text[5]='0'`). Same method as before: POM2,
-   `--preset iie --slot 4=mouseaw`, colour monitor rendering, captured during the demo
-   mode (1231 × 908). The 1.0 release notes point at the `chromabreak-1.0` tag's copies,
-   so they are not affected.
-2. **Publish 1.1.** Write `docs/releases/chromabreak-1.1.md` on the model of
-   `chromabreak-1.0.md` (the 1.1 fixes are listed in the README's "Releases" section),
-   tag `chromabreak-1.1` with the disk attached, then update the "Version 1.1 in
-   preparation" line at the top of `README.md`. Depends on item 1, since the notes embed
-   the screenshots from the tag.
-3. **Play a full campaign with an autopilot, without state injection.** The sixty
-   transitions of `tests/test_game.py` poke `remaining=1` and clear `_bricks`, and
-   `tests/playtest_probe.cpp` sets `enemy_hold=1` and injects each collision case: nothing yet
-   plays the game end to end. The demo pilot already exists (`src/game.c`, `demo_input`:
-   follows the ball with a varying aim, relaunches, fires the laser); driving it from
-   a2shot or the POM2 harness over all sixty sectors would exercise, in real play, the
-   extra life every 5 000 points, the ×8 combo, the progress save on every "SECTOR nn
-   CLEAR", the ENDING overlay load and the 650 000 cap path, with the real frame budget
-   (enemies, capsules and shards all active).
-4. **Validate on real hardware.** Enhanced //e with an AppleMouse II card, and a //c with
+1. **Validate on real hardware.** Enhanced //e with an AppleMouse II card, and a //c with
    its built-in mouse (`dev/lib/mouse`, VBL mode 9 and the ProDOS interrupt handler).
    On the same machines:
    - joystick and Apple paddles (`J`): axis range and centring with real controllers,
@@ -43,6 +21,12 @@ been validated in emulation only (POM2 with the real //e and //c ROMs, a2shot).
      time division), on //e and //c.
 
 ## Later
+
+- **Late frames while a capsule falls.** The campaign (`make test-long`) counts frames
+  that take more than two refreshes: 0.9 % on the //e (worst 4 refreshes), 1.6 % on the
+  //c (worst 6, since the flip waits for an even refresh), about two thirds of them with a
+  capsule on screen (its fall and redraw are the first suspects). Profile them with
+  `CHROMA_PROFILE` before deciding; the test fails above 3 %.
 
 - **Mockingboard sound** (asked in issue #3: "with a little music for Mocking behind it
   will be fine"). The sound effects first (bounces, bricks, steel, capsules, laser,
@@ -66,15 +50,25 @@ been validated in emulation only (POM2 with the real //e and //c ROMs, a2shot).
 
 Not committed; noted because the code already suggests them.
 
-- Let the autopilot campaign (Next up, 3) also report the real maximum score of the
-  sixty sectors: the README states 235 750 points from the tiles, enemies excluded.
+- Let the campaign also report the real maximum score of the sixty sectors: the README
+  states 235 750 points from the tiles, enemies excluded; the pilot ends near 150 000
+  (it does not play for the score).
 - Move some of the records checks (`make test-long`) that need no mouse firmware (music events,
   Beautiful Boot glyphs, score conversions, 6502 message) to the a2shot path of
   `tests/test_game.py`, so `make test` covers them without a POM2 source tree.
 
 ## Done
 
-### 1.1 (in preparation)
+### After 1.1
+
+- [x] The sixty sectors played end to end by a pilot that only moves and clicks the host
+      mouse (`records-campaign` in `tests/playtest_probe.cpp`, `make test-long`, //e and
+      //c, ~2.5 min each): enemies on, no state written. Checked on the way: every sector
+      saved as reached, extra lives, the ×8 combo, the ENDING overlay's finale, then the
+      record entry; frame lengths counted (see Later). About 3 h 20 of play, ~150 000
+      points, one to four lives lost.
+
+### 1.1 (2026-10-25)
 
 - [x] Issue #3: the stick is read on every frame. It was read "until the next blank"
       even inside one, so on a PAL //e it went unread for up to 77 frames in a row; on
