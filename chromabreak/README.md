@@ -260,7 +260,7 @@ The ProDOS volume (`CHROMABREAK`, 280 blocks) is assembled by
 ## Tests
 
     make -C chromabreak test         # image, //e run, real mouse firmware (~3 min)
-    make -C chromabreak test-long    # ProDOS records, help, music (~1 min)
+    make -C chromabreak test-long    # records, help, music, full campaign (~6 min)
 
 **`tests/test_game.py`** (`make test`) needs nothing beyond the build. It checks the link
 map (the unused DHGR drawing, transfer and text modules of the library are excluded, the
@@ -299,10 +299,14 @@ that starts no game, VBL clock intact) and `?` with the `ENDING` file missing; t
 share of the speaker level, and last its slices; muted, a tune is silent and as long);
 328 640 collisions against the round-ball model, the 65 536 score conversions, every
 Beautiful Boot glyph at both alignments in both banks and pages, the 6502 message, and
-the C stack margin.
+the C stack margin. Then `--campaign` plays the sixty sectors on the //e and the //c
+(~2.5 min each): a pilot only moves and clicks the host mouse, enemies on, no state
+written; each sector must be saved as reached, extra lives and the ×8 combo must come,
+the finale must run from `ENDING`, and under 3 % of the frames may take more than two
+refreshes.
 
-The collision scenarios inject the initial state of each case; they are not a complete
-campaign played end to end without intervention. The images under test are temporary
+The collision scenarios inject the initial state of each case; the campaign is the one
+test played end to end without intervention. The images under test are temporary
 copies.
 
 ## Under the hood

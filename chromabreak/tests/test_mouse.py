@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """CHROMABREAK on the POM2 core facade (tests/playtest_probe.cpp, built as
 build/playtest_probe): both real-ROM mouse models, the //c, PAL, and the
-ProDOS records (--records-only)."""
+ProDOS records (--records-only), the sixty sectors played by a mouse
+pilot (--campaign, ~2.5 min a machine)."""
 import argparse
 import importlib.util
 from pathlib import Path
@@ -17,9 +18,15 @@ def main():
     ap.add_argument('--disk',type=Path,required=True)
     ap.add_argument('--labels',type=Path,required=True)
     ap.add_argument('--records-only',action='store_true')
+    ap.add_argument('--campaign',action='store_true')
     a=ap.parse_args(); exe=a.probe.resolve(); roms=a.roms.resolve()
     with tempfile.TemporaryDirectory(prefix='chromabreak-mouse-') as tmp:
         disk=Path(tmp)/'GAME.po'
+        if a.campaign:
+            for variant in ('mame','iic32'):
+                shutil.copyfile(a.disk,disk);print(f'Campaign {variant}',flush=True)
+                subprocess.run([str(exe),str(roms),str(disk),str(a.labels.resolve()),variant,'records-campaign'],check=True)
+            return
         if a.records_only:
             spec=importlib.util.spec_from_file_location('prodos_read',ROOT/'dev/tools/prodos/read_volume.py')
             reader=importlib.util.module_from_spec(spec);spec.loader.exec_module(reader)
