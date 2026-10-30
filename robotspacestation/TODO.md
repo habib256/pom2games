@@ -18,7 +18,7 @@
       (`make test-long`) ; titre en deux colonnes, touche 0 pour la dixième
       (11-14 : au titre). Missions 15 LE COMPTEUR (fronts du capteur O),
       16 LA SPIRALE (quatre caps), 17 LE CONVOI (pince dans les virages), 18 DEUX
-      CLES (réutiliser la puce de LA CAISSE)
+      CLES (réutiliser la puce de LA CAISSE), 19 LA PASSE (pince, radio, fente)
       sur une seconde page du titre (PAGE ; RECORDS suit la page).
       `best` a 28 places (deux pages de titre).
 - [ ] Des puces fournies par la station (une bibliothèque de départ).

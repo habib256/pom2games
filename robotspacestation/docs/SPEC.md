@@ -178,7 +178,8 @@ sur un chargeur.
 | 15 | LE COMPTEUR | compter les ouvertures du puits (fronts du capteur O, par le retard des portes) ; tourner à la 2e |
 | 16 | LA SPIRALE | quatre caps (trois bascules) : un choc devant, tourner à droite, jusqu'au centre |
 | 17 | LE CONVOI | la pince tient la cellule pendant deux virages, la lâche en bas |
-| 18 | LES DEUX CLES | la puce de LA CAISSE : caisse sur une plaque, drone sur l'autre, le technicien passe |
+| 18 | DEUX CLES | la puce de LA CAISSE : caisse sur une plaque, drone sur l'autre, le technicien passe |
+| 19 | LA PASSE | A pousse la cellule dans la fente des tunnels (trop basse pour un drone), la lâche et appelle ; B l'emporte |
 
 Les tests (`tests/test_model.py`) prouvent qu'une solution existe pour
 chacune, qu'une planche vide ne gagne rien, que le pilier exige une
