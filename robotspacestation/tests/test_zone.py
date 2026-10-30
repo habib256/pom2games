@@ -345,13 +345,16 @@ def records_page(disk, L):
                  bytes((4, 3)))
 
 
-def old_save(disk, L):
-    """An RSS2 save (before the records): read, migrated to RSS3, no best."""
+def old_save(disk, L, magic='RSS2'):
+    """An RSS2 save (before the records) or RSS1 (before drone B): read,
+    migrated to RSS3, no record, drone B's board empty."""
     steps = [BOOT, 'wait:60', idle(L), L.peek('_persist', SAVE_SIZE)]
     r = run(disk, steps)
     data = r.mem(L['_persist'], SAVE_SIZE)
-    return check('RSS2 save: reached 5, migrated, no record', data[:5] + data[SAVE_SIZE - BEST_SLOTS:],
-                 b'RSS3\x05' + bytes(BEST_SLOTS))
+    drone2 = data[SAVE_SIZE - BEST_SLOTS - 120:SAVE_SIZE - BEST_SLOTS]
+    return check(f'{magic} save: reached 5, migrated, no record, no board B',
+                 data[:5] + data[SAVE_SIZE - BEST_SLOTS:] + drone2,
+                 b'RSS3\x05' + bytes(BEST_SLOTS) + bytes(48) + bytes([0xFF] * 72))
 
 
 def missing_rooms(disk, L):
@@ -385,6 +388,9 @@ def main():
                                          'records'), L)
     rss2 = b'RSS2' + save_bytes(EMPTY, reached=5)[4:SAVE_SIZE - BEST_SLOTS]
     fails += old_save(disk_with_save(rss2, 'rss2'), L)
+    # RSS1: before drone B too (its layout, 120 bytes, and the records)
+    rss1 = b'RSS1' + save_bytes(EMPTY, reached=5)[4:SAVE_SIZE - BEST_SLOTS - 120]
+    fails += old_save(disk_with_save(rss1, 'rss1'), L, 'RSS1')
     fails += missing_rooms(disk_with_save(None, 'norooms', rooms=False), L)
     print(f'shots in {SHOTS}')
     sys.exit(1 if fails else 0)
