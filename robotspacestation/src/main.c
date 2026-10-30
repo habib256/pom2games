@@ -414,7 +414,7 @@ static void walk(void)
 
 int main(void)
 {
-    static unsigned char busy, cursor_kept, m;
+    static unsigned char busy, cursor_kept, m, fast;
     if (prodos_video_claim(PD_VIDEO_DISCARD_RAM) != PD_VIDEO_OK) {
         a2_puts("PAS DE MEMOIRE AUXILIAIRE.\r");
         apple2_getkey();
@@ -440,10 +440,10 @@ int main(void)
     for (;;) {
         ui_poll();
         if (key == 0x11u) return 0;            /* Ctrl-Q: back to ProDOS */
-        if (running && ++frames >= (screen == S_LAB ? LAB_TICK : DRONE_TICK)) frames = 0u;
+        if (running && ++frames >= (screen == S_LAB ? LAB_TICK : fast ? 1u : DRONE_TICK)) frames = 0u;
         if (running && !frames) step();         /* draws only what changed */
         busy = pressed || walking || key == KC_ESC
-            || key == 'M' || key == 'S' || key == 'H' || key == 'P' || key == 'G' || key == 'O' || (key >= '0' && key <= '9');
+            || key == 'M' || key == 'S' || key == 'V' || key == 'H' || key == 'P' || key == 'G' || key == 'O' || (key >= '0' && key <= '9');
         if (!busy) {
             if (screen == S_ZONE || screen == S_DRONE) actor_show();
             show();
@@ -460,9 +460,13 @@ int main(void)
             if (key || pressed) { enter_title(); pressed = 0u; }   /* (SPACE: once) */
         }
         else if (key == KC_ESC) { if (screen == S_ZONE) walking = W_NONE; else board_drop(); }
+        else if (key == 'V' && screen != S_LAB) {     /* the drones twice as often */
+            fast ^= 1u;
+            message(toggle_text(2u + fast));
+        }
         else if (key == 'S') {
             sound_on ^= 1u;
-            message(sound_on ? "SON ACTIF" : "SON COUPE");
+            message(toggle_text(sound_on));
         }
         else if (key == 'H' && screen == S_TITLE) enter_help();
         else if (key == 'H' && screen != S_LAB) message(mission_hint);

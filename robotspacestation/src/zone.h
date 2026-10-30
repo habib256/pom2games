@@ -46,5 +46,7 @@ extern char mission_hint[];       /* this mission's hint (key H) */
  * the drone's invitation. */
 const char *zone_won_text(void);
 const char *zone_enter_text(void);
+/* S and V's messages: 0-1 the sound off / on, 2-3 the speed normal / fast. */
+const char *__fastcall__ toggle_text(unsigned char n);
 
 #endif

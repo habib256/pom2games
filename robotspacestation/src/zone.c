@@ -546,3 +546,7 @@ const char *zone_enter_text(void)
     put_gates(7u, persist.best[mission]);
     return gate_text;
 }
+
+static const char *const toggles[] = {"SON COUPE", "SON ACTIF", "VITESSE NORMALE", "VITESSE RAPIDE"};
+
+const char *__fastcall__ toggle_text(unsigned char n) { return toggles[n]; }

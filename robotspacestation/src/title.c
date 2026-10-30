@@ -94,7 +94,7 @@ static const char *const help_lines[] = {
     "LABO : PUCES F1 A F8",
     "M MARCHE  P PAS  S SON",
     "H INDICE  ESC LACHE",
-    "CTRL-Q QUITTE",
+    "V VITE  CTRL-Q QUITTE",
 };
 
 void help_draw(void)

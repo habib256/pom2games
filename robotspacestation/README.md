@@ -48,4 +48,4 @@ make test-long  # the whole campaign: every mission's solution in C == the model
 
 Mouse or keyboard: arrows move the pointer, SPACE/RETURN clicks, ESC drops
 what you hold, M run/pause, P one step, 1-9 and 0 pick a mission, H a hint
-for the mission (on the title: the help page, also the AIDE button), S sound on/off, Ctrl-Q quits.
+for the mission (on the title: the help page, also the AIDE button), V fast, S sound on/off, Ctrl-Q quits.

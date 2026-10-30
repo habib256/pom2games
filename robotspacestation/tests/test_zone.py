@@ -262,6 +262,10 @@ def module_two(disk, L):
         + ['wait:120', idle(L), L.peek('_screen'), L.peek('_mission'), f'shot:{SHOTS}/m10.png']
     steps += ['key:8', 'wait:120', idle(L), L.peek('_mission'), 'key:H', 'wait:30', idle(L),
               L.peek('_mission_hint', 32), f'shot:{SHOTS}/m8.png']
+    # V: the drone's turns twice as often (LE ZIGZAG, an empty board, running)
+    steps += ['key:M', 'wait:30', L.peek('_tick_count', 2), 'wait:120', L.peek('_tick_count', 2), 'key:V',
+              'wait:30', L.peek('_tick_count', 2), 'wait:120', L.peek('_tick_count', 2), 'key:V', 'key:M',
+              'wait:30', idle(L)]
     steps += ['key:0', 'wait:120', idle(L), L.peek('_mission'), f'shot:{SHOTS}/m10_key.png', 'key:9', 'wait:120', idle(L),
               L.peek('_mission'), f'shot:{SHOTS}/m9.png']
     steps += click(125, 167) + ['wait:120', idle(L)] + click(72 + 30, 92 + 4 * 9 + 2) \
@@ -269,6 +273,10 @@ def module_two(disk, L):
     r = run(disk, steps)
     fails = check('title: the 10th mission clicked', r.mem(L['_screen'], 1) + r.mem(L['_mission'], 1, 0),
                   b'\x01\x09')
+    turns = [int.from_bytes(r.mem(L['_tick_count'], 2, n), 'little') for n in range(4)]
+    normal, fast = turns[1] - turns[0], turns[3] - turns[2]
+    # (//e ~1.5x; the //c's normal pace is already near what a turn costs)
+    fails += check(f'V: {normal} then {fast} turns in 120 frames', bytes((fast > normal * 11 // 10 > 0,)), b'\x01')
     fails += check('keys 8, 0, 9', bytes(r.mem(L['_mission'], 1, n)[0] for n in (1, 2, 3)),
                    b'\x07\x09\x08')
     fails += check('H: the hint read from RSS.ROOMS', r.mem(L['_mission_hint'], 32).rstrip(b'\0'),
