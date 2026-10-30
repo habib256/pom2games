@@ -13,17 +13,30 @@
 
 ## Contenu
 
-- [ ] Un deuxième module de missions (les salles sont sur le disque : seule
-      la liste des noms et buts reste en mémoire, environ 20 octets par
-      mission).
+- [x] Missions 8-14 (2026-10-30) : LE ZIGZAG, LE COLIS, LE GARDIEN, LA RONDE,
+      LE SAS, LA CAISSE, LE TANDEM, prouvées par le modèle et jouées en C
+      (`make test-long`) ; titre en deux colonnes, touche 0 pour la dixième
+      (11-14 : au titre). Le titre est plein (2 × 7) : au-delà, une page de
+      plus.
 - [ ] Des puces fournies par la station (une bibliothèque de départ).
-- [ ] Son : contact, pince, radio, mission réussie.
+- [x] Son (2026-10-30) : contact, pince (prise, lâcher), radio, puce gravée,
+      mission réussie ; S coupe.
 
 ## Interface
 
-- [ ] Deux fils partis de bornes voisines peuvent partager leur segment
-      vertical : choisir le milieu parmi les colonnes libres.
-- [ ] Une pièce en main ne suit pas le pointeur (seul le message le dit).
+- [x] Deux fils partis de bornes voisines partageaient leur segment
+      vertical : la colonne libre la plus proche du milieu (2026-10-30).
+- [x] Une pièce en main se voit sur le pointeur (un bloc sous la flèche).
+- [x] Un indice par mission (touche H), sur le disque après la salle.
+- [x] Une page d'aide (AIDE ou H au titre) : bornes, pièces, touches.
+- [x] Records : le moins de portes par mission (sauvegarde RSS3, RSS1/2
+      migrées), rappelé à l'entrée de la mission, page RECORDS au titre.
+- [x] V : vitesse rapide (×1,5 sur //e, ×1,2 sur //c : le tour y coûte déjà
+      presque tout le temps).
+- [x] `make test-long` : 12 cartes aléatoires (boucles comprises) tour par
+      tour == `Sim` du modèle ; 10 drones aléatoires dans des salles aléatoires
+      == `Zone` ; la campagne entière, chaque mission jouée en C avec
+      la solution du modèle (carte dans `RSS.SAVE`), //e et //c.
 
 ## Mémoire (au 2026-10-30)
 

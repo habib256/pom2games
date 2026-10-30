@@ -39,6 +39,7 @@ static unsigned char out_drawn[6], in_drawn[6];
 static unsigned char stub_drawn[PARTS * 4u];      /* output pin colors */
 static unsigned char x0, y0, x1, y1;  /* points from src_point/sink_point */
 static unsigned char gx0[LAYOUT_IDS], gy0[LAYOUT_IDS], gx1[LAYOUT_IDS], gy1[LAYOUT_IDS];
+static unsigned char gm[LAYOUT_IDS];   /* the column of each drawn wire's vertical */
 #pragma bss-name (pop)
 static char label[3];
 
@@ -107,13 +108,13 @@ static void header(void)
     dhgr_puts_small(label, 120, 1);
 }
 
-/* A wire runs horizontally from its source, vertically at the middle, then
+/* A wire runs horizontally from its source, vertically at column m, then
  * horizontally into its sink: three rectangles, erased exactly in black. */
+static unsigned char m;
 static void wire_rects(unsigned char a, unsigned char ay, unsigned char b, unsigned char by,
                        unsigned char color)
 {
-    static unsigned char m, lo, hi;
-    m = (unsigned char)(((unsigned)a + b) >> 1);
+    static unsigned char lo, hi;
     if (a < m) { lo = a; hi = m; } else { lo = m; hi = a; }
     dhgr_fill_rect(lo, ay, hi - lo + 1u, 1, color);
     if (ay < by) { lo = ay; hi = by; } else { lo = by; hi = ay; }
@@ -132,9 +133,34 @@ static unsigned char __fastcall__ wire_ends(unsigned char sink)
     return src_point(s);
 }
 
+/* The vertical's column: the middle, or the nearest one (2 pixels apart,
+ * between the ends) that no other drawn wire's vertical uses on these
+ * rows: wires from neighbouring pins no longer share their vertical. */
+static unsigned char __fastcall__ mid_free(unsigned char sink)
+{
+    static unsigned char lo, hi, ylo, yhi, j, k, c, ok;
+    if (x0 < x1) { lo = x0; hi = x1; } else { lo = x1; hi = x0; }
+    if (y0 < y1) { ylo = y0; yhi = y1; } else { ylo = y1; yhi = y0; }
+    m = (unsigned char)(((unsigned)lo + hi) >> 1);
+    for (k = 0u; k < 24u; ++k) {
+        c = k & 1u ? m - (k + 1u) : m + k;      /* m, m+2, m-2, m+4... */
+        if (c <= lo || c >= hi) continue;
+        ok = 1u;
+        for (j = 0u; j < LAYOUT_IDS; ++j)
+            if (j != sink && drawn[j] != NONE && gm[j] == c
+                && !(gy0[j] > yhi && gy1[j] > yhi) && !(gy0[j] < ylo && gy1[j] < ylo)) {
+                ok = 0u;
+                break;
+            }
+        if (ok) return c;
+    }
+    return m;
+}
+
 static void __fastcall__ erase_wire(unsigned char sink)
 {
     if (drawn[sink] == NONE) return;
+    m = gm[sink];
     wire_rects(gx0[sink], gy0[sink], gx1[sink], gy1[sink], DHGR_BLACK);
     drawn[sink] = NONE;
 }
@@ -143,6 +169,9 @@ static void __fastcall__ draw_wire(unsigned char sink)
 {
     static unsigned char v;
     if (!wire_ends(sink)) { drawn[sink] = NONE; return; }
+    /* in place (a color, the same ends): its column; else a free one */
+    m = drawn[sink] != NONE ? gm[sink] : mid_free(sink);
+    gm[sink] = m;
     v = source_value(wires[sink]);
     drawn[sink] = v;
     gx0[sink] = x0; gy0[sink] = y0; gx1[sink] = x1; gy1[sink] = y1;
@@ -438,6 +467,7 @@ static void click_palette(unsigned char x)
         board_compile();
         board_palette();
         board_update();
+        sfx(SFX_BURN);
         message(board_saved() ? "PUCE GRAVEE" : "GRAVEE (PAS SAUVEE)");
         return;
     }

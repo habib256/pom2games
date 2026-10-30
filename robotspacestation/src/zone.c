@@ -41,14 +41,16 @@ unsigned char thrust[DRONES][6];
 unsigned char obj_n, obj_kind[OBJECTS], obj_x[OBJECTS], obj_y[OBJECTS];
 unsigned char door_open[2];
 
-#pragma bss-name (push, "LOWBSS")
+#pragma bss-name (push, "LOWBSS")                 /* (MLI READ: only below $2000) */
 static unsigned char tiles[ROOM_COLS * ROOM_ROWS];   /* this mission's, unpacked */
+char mission_hint[HINT_LEN];          /* RSS.ROOMS, after the room (key H) */
 #pragma bss-name (pop)
 static unsigned char div7[ROOM_W];
 static unsigned char drawn_x[DRONES] = {NONE, NONE}, drawn_y[DRONES], drawn_thrust[DRONES][6];
 static unsigned char drawn_obj[DRONES] = {NONE, NONE}, drawn_ox[DRONES], drawn_oy[DRONES];
 static unsigned char bx, by, bw, bh;      /* the box side_blocked() looks at */
 static unsigned char di;                  /* the drone moving, NONE: the technician */
+static unsigned char bumped[DRONES], sending[DRONES];   /* last turn's (sounds) */
 
 void zone_init(void)
 {
@@ -90,6 +92,10 @@ static unsigned char __fastcall__ read_room(unsigned char m)
     error = mli(0xCEu, p_mark);                             /* SET_MARK */
     if (!error) error = mli(PD_READ, p_read);
     if (!error && *(unsigned *)(p_read + 6) != 180u + ROOM_STARTS) error = 1u;
+    *(unsigned char **)(p_read + 2) = (unsigned char *)mission_hint;   /* then the hint */
+    *(unsigned *)(p_read + 4) = HINT_LEN;
+    if (!error) error = mli(PD_READ, p_read);
+    mission_hint[HINT_LEN - 1u] = 0;
     mli(PD_CLOSE, p_close);
     return !error;
 }
@@ -123,6 +129,8 @@ unsigned char __fastcall__ zone_load(unsigned char m)
     }
     holding[0] = holding[1] = NONE;
     memset(thrust, 0, sizeof thrust);
+    memset(bumped, 0, sizeof bumped);
+    memset(sending, 0, sizeof sending);
     door_open[0] = door_open[1] = 0u;
     return 1u;
 }
@@ -249,7 +257,7 @@ static void move(signed char dx, signed char dy)
 
 unsigned char zone_tick(void)
 {
-    static unsigned char d, k, i, ox, oy, oh, redraw, heard[DRONES], *t;
+    static unsigned char d, k, i, ox, oy, oh, redraw, heard[DRONES], *t, bumps;
     if (zone_doors() && screen == S_ZONE) zone_draw_doors();
     heard[0] = drone_n == 2u ? thrust[1][RADIO] : 0u;
     heard[1] = thrust[0][RADIO];
@@ -258,11 +266,16 @@ unsigned char zone_tick(void)
         if (d != cur_drone) board_swap_run();
         di = d;
         drone_box();
-        for (k = 0u; k < 4u; ++k) values[k] = side_blocked(k);
+        bumps = 0u;
+        for (k = 0u; k < 4u; ++k) bumps |= (values[k] = side_blocked(k)) << k;
+        if (bumps & ~bumped[d]) sfx(SFX_CONTACT);   /* a new contact */
+        bumped[d] = bumps;
         values[4] = holding[d] != NONE;
         values[RADIO] = heard[d];
         board_tick();
         for (k = 0u; k < 6u; ++k) thrust[d][k] = sink_value(k);
+        if (thrust[d][RADIO] && !sending[d]) sfx(SFX_RADIO);
+        sending[d] = thrust[d][RADIO];
         if (d != cur_drone) board_swap_run();
     }
     redraw = 0u;
@@ -281,6 +294,7 @@ unsigned char zone_tick(void)
                     break;
                 }
         }
+        if (holding[d] != oh) sfx(holding[d] == NONE ? SFX_DROP : SFX_GRAB);
         if (t[W] > t[E] && free_side(E)) move(1, 0);
         else if (t[W] < t[E] && free_side(W)) move(-1, 0);
         if (t[N] > t[S] && free_side(S)) move(0, 1);
@@ -422,12 +436,14 @@ void zone_draw_doors(void)
 void zone_draw(void)
 {
     static unsigned char tx, ty;
-    static char title[2];
+    static char title[3];
     zone_doors();                   /* the caller cleared the screen */
-    title[0] = '1' + mission; title[1] = 0;
+    title[0] = mission < 9u ? '1' + mission : '1';  /* 1..9, 10 */
+    title[1] = mission < 9u ? 0 : '0' + mission - 9u;
+    title[2] = 0;
     dhgr_puts_small("MISSION", 0, 1);
     dhgr_puts_small(title, 40, 1);
-    dhgr_puts_small(mission_names[mission], 50, 1);
+    dhgr_puts_small(mission_names[mission], 54, 1);
     ui_latch();
     for (ty = 0u; ty < ROOM_ROWS; ++ty) {
         ui_latch();
@@ -497,3 +513,42 @@ void __fastcall__ tech_beside_drone(unsigned char d)
     if (tech_free(act_x, act_y) && !tech_touches_drone()) return;
     act_y = dy - ACT_H - 1u;
 }
+
+/* -- records (RSS3: persist.best) ------------------------------------------ */
+
+static char gate_text[28];
+
+static void __fastcall__ put_gates(unsigned char at, unsigned char n)
+{
+    gate_text[at] = n >= 10u ? '0' + n / 10u : ' ';
+    gate_text[at + 1u] = '0' + n % 10u;
+}
+
+const char *zone_won_text(void)
+{
+    static unsigned char gates, *best;
+    gates = fl_count;                       /* both drones' boards */
+    if (drone_n == 2u) { board_swap(); gates += fl_count; board_swap(); }
+    best = &persist.best[mission];
+    strcpy(gate_text, "REUSSIE EN    PORTES");
+    put_gates(11u, gates);
+    if (gates == 1u) gate_text[19] = ' ';   /* PORTE */
+    if (!*best || gates < *best) {
+        *best = gates;
+        strcpy(gate_text + 20, " RECORD");
+    }
+    return gate_text;
+}
+
+const char *zone_enter_text(void)
+{
+    if (!persist.best[mission]) return "TOUCHER LE DRONE  H : INDICE";   /* 28 at most */
+    strcpy(gate_text, "RECORD    PORTES H : INDICE");
+    put_gates(7u, persist.best[mission]);
+    if (persist.best[mission] == 1u) gate_text[15] = ' ';
+    return gate_text;
+}
+
+static const char *const toggles[] = {"SON COUPE", "SON ACTIF", "VITESSE NORMALE", "VITESSE RAPIDE"};
+
+const char *__fastcall__ toggle_text(unsigned char n) { return toggles[n]; }

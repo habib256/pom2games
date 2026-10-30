@@ -6,7 +6,9 @@
 #include "zone.h"
 #include "title.h"
 
-#define LIST_Y 92u              /* mission m on row LIST_Y + 9 * m */
+#define LIST_Y 92u              /* mission m on row LIST_Y + 9 * (m % LIST_N), */
+#define LIST_N 7u               /* column 72 * (m / LIST_N): two columns */
+#define LIST_DX 72u
 
 static void stars(void)
 {
@@ -41,7 +43,7 @@ static void station(void)
 
 void title_draw(void)
 {
-    static unsigned char m, y;
+    static unsigned char m, x, y;
     static char num[2];
     stars();
     ui_latch();
@@ -52,20 +54,68 @@ void title_draw(void)
     dhgr_puts_small("MISSIONS", 0, LIST_Y - 10u);
     num[1] = 0;
     for (m = 0u; m < mission_count(); ++m) {
-        y = LIST_Y + m * 9u;
-        dhgr_fill_rect(0, y, 5, 5, m < persist.reached ? DHGR_GREEN
+        y = LIST_Y + (m % LIST_N) * 9u;
+        x = m < LIST_N ? 0u : LIST_DX;
+        /* green: won, orange: the next, gray: locked */
+        dhgr_fill_rect(x, y, 5, 5, m < persist.reached ? DHGR_GREEN
                        : m == persist.reached ? DHGR_ORANGE : DHGR_GRAY1);
-        num[0] = '1' + m;
-        dhgr_puts_small(num, 9, y);
-        if (m <= persist.reached) dhgr_puts_small(mission_name_of(m), 18, y);
-        if (m < persist.reached) dhgr_puts_small("OK", 128, y);
+        num[0] = m < 9u ? '1' + m : '0';            /* its key (10: 0; */
+        if (m < 10u) dhgr_puts_small(num, x + 8u, y);   /* none after) */
+        if (m <= persist.reached) dhgr_puts_small(mission_name_of(m), x + 15u, y);
     }
 }
 
-unsigned char __fastcall__ title_mission_at(unsigned char y)
+unsigned char __fastcall__ title_mission_at(unsigned char x, unsigned char y)
 {
     static unsigned char m;
     if (y < LIST_Y - 2u) return NONE;
     m = (unsigned char)(y - LIST_Y + 2u) / 9u;
+    if (m >= LIST_N) return NONE;
+    if (x >= LIST_DX) m += LIST_N;
     return m < mission_count() && m <= persist.reached ? m : NONE;
+}
+
+/* The help page (AIDE on the title, or H): what a board's terminals are,
+ * the parts, the keys. 27 characters a line at most (5 pixels each). */
+static const char *const help_lines[] = {
+    "AIDE",
+    "",
+    "LE TECHNICIEN ENTRE DANS",
+    "UN DRONE EN LE TOUCHANT.",
+    "A GAUCHE DE SA PLANCHE :",
+    " N E S O  CONTACT AU BORD",
+    " T  LA PINCE TIENT",
+    " R  RECU PAR RADIO",
+    "A DROITE :",
+    " N E S O  PROPULSEURS",
+    "    N POUSSE VERS LE SUD",
+    " P  PINCE  E  EMISSION",
+    "ET OU OX NO  BA : BASCULE",
+    "LABO : PUCES F1 A F8",
+    "M MARCHE  P PAS  S SON",
+    "H INDICE  ESC LACHE",
+    "V VITE  CTRL-Q QUITTE",
+};
+
+void __fastcall__ help_draw(unsigned char page)
+{
+    static unsigned char i, y, n;
+    static char num[3];
+    if (page) {
+        dhgr_puts_small("RECORDS : LE MOINS DE PORTES", 0, 4);
+        for (i = 0u; i < mission_count(); ++i) {
+            y = 18u + i * 9u;
+            n = persist.best[i];
+            dhgr_puts_small(i < persist.reached ? mission_name_of(i) : (const char *)"-", 4, y);
+            if (!n) continue;
+            num[0] = n >= 10u ? '0' + n / 10u : ' ';
+            num[1] = '0' + n % 10u;
+            num[2] = 0;
+            dhgr_puts_small(num, 84, y);
+            dhgr_puts_small(n == 1u ? (const char *)"PORTE" : (const char *)"PORTES", 98, y);
+        }
+        return;
+    }
+    for (i = 0u; i < sizeof help_lines / sizeof help_lines[0]; ++i)
+        dhgr_puts_small(help_lines[i], i ? 4u : 60u, 4u + i * 9u);
 }

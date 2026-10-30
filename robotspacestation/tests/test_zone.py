@@ -20,7 +20,7 @@ sys.path.insert(0, str(HERE / 'tests'))
 sys.path.insert(0, str(HERE / 'tools'))
 from test_lab import POKE, SYNC, BOOT, title, MACHINE, SHOTS, PALETTE, cell, check, click, idle, pin_in, pin_out, run
 import a2test
-from model import (AND, FLIP, NOT, OR, MISSIONS, Board, Chip, Zone, compile_board, layout_bytes,
+from model import (AND, BEST_SLOTS, FLIP, HINTS, NOT, OR, MISSIONS, SAVE_SIZE, Board, Chip, Zone, compile_board, layout_bytes,
                    room_start, save_bytes)
 
 ROOM_Y = 10
@@ -100,7 +100,7 @@ def mission_one(disk, L):
         t += 1
     fails += check(f'on the charger (turn {t})', (r.mem(L['_drone_x'], 1, 1) + r.mem(L['_drone_y'], 1, 1)), bytes((z.x, z.y)))
     fails += check('won and saved', r.mem(L['_won'], 2), b'\x01\x01')
-    fails += check('mission 1 recorded', r.mem(L['_persist'], 5), b'RSS2\x01')
+    fails += check('mission 1 recorded', r.mem(L['_persist'], 5), b'RSS3\x01')
     fails += check('SUITE: mission 2', bytes(r.mem(L['_mission'], 1, n)[0] for n in range(2)),
                    bytes((0, 1)))
     return fails
@@ -141,8 +141,9 @@ def mission_four(disk, L):
               f'shot:{SHOTS}/m4_inside.png']
     steps += ['key:M', 'wait:2400', idle(L, 3000), L.peek('_drone_x'), L.peek('_drone_y'), L.peek('_obj_x', 1),
               L.peek('_obj_y', 1), L.peek('_holding'), L.peek('_won', 2),
-              L.peek('_persist', 5)]
+              L.peek('_persist', SAVE_SIZE), L.peek('_sfx_count'), L.peek('_sound_on')]
     steps += zone_button(2) + ['wait:150', f'shot:{SHOTS}/m4_won.png']
+    steps += ['key:S', 'wait:30', idle(L), L.peek('_sound_on')]
     r = run(disk, steps)
 
     b = fetch_board()
@@ -159,7 +160,13 @@ def mission_four(disk, L):
                    bytes(z.objects[0][1:]))
     fails += check('cell let go', r.mem(L['_holding'], 1), b'\xff')
     fails += check('won and saved', r.mem(L['_won'], 2), b'\x01\x01')
-    fails += check('mission 4 recorded', r.mem(L['_persist'], 5), b'RSS2\x04')
+    fails += check('mission 4 recorded', r.mem(L['_persist'], 5), b'RSS3\x04')
+    best = r.mem(L['_persist'], SAVE_SIZE)[SAVE_SIZE - BEST_SLOTS:]
+    fails += check('its record: 4 gates', best[:5], bytes((0, 0, 0, 4, 0)))
+    # sounds: at least the claw's grab and drop, the contacts, the win
+    sounds = r.mem(L['_sfx_count'], 1)[0]
+    fails += check(f'sounds played ({sounds})', bytes((sounds >= 4, r.mem(L['_sound_on'], 1, 0)[0])), b'\x01\x01')
+    fails += check('S: sound off', r.mem(L['_sound_on'], 1, 1), b'\x00')
     return fails
 
 
@@ -201,7 +208,7 @@ def doors(disk, L):
     fails += check('6: drone parked, door open', (r.mem(L['_drone_x'], 1, 1) + r.mem(L['_drone_y'], 1, 1)) + r.mem(L['_door_open'], 1, 2),
                    bytes((60, 16, 1)))
     fails += check('6: he reached the charger', r.mem(L['_won'], 2, 2), b'\x01\x01')
-    fails += check('all six recorded', r.mem(L['_persist'], 5), b'RSS2\x06')
+    fails += check('all six recorded', r.mem(L['_persist'], 5), b'RSS3\x06')
     return fails
 
 
@@ -242,8 +249,109 @@ def relay(disk, L):
     fails += check(f'relay done (turn {t})', r.mem(L['_drone_x'], 2) + r.mem(L['_drone_y'], 2),
                    bytes((z.drones[0].x, z.drones[1].x, z.drones[0].y, z.drones[1].y)))
     fails += check('won and saved', r.mem(L['_won'], 2), b'\x01\x01')
-    fails += check('seven missions', r.mem(L['_persist'], 5), b'RSS2\x07')
+    fails += check('seven missions', r.mem(L['_persist'], 5), b'RSS3\x07')
     return fails
+
+
+def module_two(disk, L):
+    """Missions 8-12 (2026-10-30): the title lists them in two columns; a
+    click on the 10th (LE GARDIEN, second column) plays it; key 8 plays LE
+    ZIGZAG; key 0 the 10th again; MENU, then the 12th (LE SAS). The model
+    proves them (tests/test_model.py)."""
+    steps = [BOOT, 'wait:60', f'shot:{SHOTS}/title10.png'] + click(72 + 30, 92 + 2 * 9 + 2) \
+        + ['wait:120', idle(L), L.peek('_screen'), L.peek('_mission'), f'shot:{SHOTS}/m10.png']
+    steps += ['key:8', 'wait:120', idle(L), L.peek('_mission'), 'key:H', 'wait:30', idle(L),
+              L.peek('_mission_hint', 32), f'shot:{SHOTS}/m8.png']
+    # V: the drone's turns twice as often (LE ZIGZAG, an empty board, running)
+    steps += ['key:M', 'wait:30', L.peek('_tick_count', 2), 'wait:120', L.peek('_tick_count', 2), 'key:V',
+              'wait:30', L.peek('_tick_count', 2), 'wait:120', L.peek('_tick_count', 2), 'key:V', 'key:M',
+              'wait:30', idle(L)]
+    steps += ['key:0', 'wait:120', idle(L), L.peek('_mission'), f'shot:{SHOTS}/m10_key.png', 'key:9', 'wait:120', idle(L),
+              L.peek('_mission'), f'shot:{SHOTS}/m9.png']
+    steps += click(125, 167) + ['wait:120', idle(L)] + click(72 + 30, 92 + 4 * 9 + 2) \
+        + ['wait:120', idle(L), L.peek('_mission'), f'shot:{SHOTS}/m12.png']   # MENU, LE SAS
+    r = run(disk, steps)
+    fails = check('title: the 10th mission clicked', r.mem(L['_screen'], 1) + r.mem(L['_mission'], 1, 0),
+                  b'\x01\x09')
+    turns = [int.from_bytes(r.mem(L['_tick_count'], 2, n), 'little') for n in range(4)]
+    normal, fast = turns[1] - turns[0], turns[3] - turns[2]
+    # (//e ~1.5x; the //c's normal pace is already near what a turn costs)
+    fails += check(f'V: {normal} then {fast} turns in 120 frames', bytes((fast > normal * 11 // 10 > 0,)), b'\x01')
+    fails += check('keys 8, 0, 9', bytes(r.mem(L['_mission'], 1, n)[0] for n in (1, 2, 3)),
+                   b'\x07\x09\x08')
+    fails += check('H: the hint read from RSS.ROOMS', r.mem(L['_mission_hint'], 32).rstrip(b'\0'),
+                   HINTS[7].encode())
+    return fails + check('MENU, the 12th', r.mem(L['_mission'], 1, 4), b'\x0b')
+
+
+def crate(disk, L):
+    """LA CAISSE (13): tests/test_model.py solution(12) wired inside: the
+    claw takes the crate east, lets it go on the plate, whose door it holds
+    open; the drone goes south through it == the model (objects on plates,
+    the claw, a horizontal door, in C)."""
+    from test_model import solution
+    AND_, FLIP_ = PALETTE[AND], PALETTE[FLIP]
+    steps = [BOOT, 'wait:60'] + click(72 + 30, 92 + 5 * 9 + 2) + ['wait:120', idle(L), L.peek('_mission')]
+    steps += enter_drone(L, 12)
+    for kind, c in ((FLIP_, (0, 0)), (FLIP_, (1, 0)), (AND_, (2, 0)), (PALETTE[NOT], (3, 0)),
+                    (PALETTE[NOT], (0, 1)), (AND_, (1, 1))):
+        steps += click(kind, 156) + inside(cell(*c))
+    steps += inside(src(0), pin_in(0, 0, 9), src(1), pin_in(2, 0, 9), pin_out(0, 0), pin_in(2, 0, 16),
+                    pin_out(2, 0), pin_in(1, 0, 9), pin_out(0, 0), pin_in(3, 0, 12), pin_out(3, 0), sink(2),
+                    pin_out(1, 0), pin_in(0, 1, 12), pin_out(0, 1), pin_in(1, 1, 9),
+                    pin_out(0, 0), pin_in(1, 1, 16), pin_out(1, 1), sink(4), pin_out(1, 1), sink(3),
+                    pin_out(1, 0), sink(0))
+    steps += [idle(L), L.peek('_parts', 48), L.peek('_wires', 72), f'shot:{SHOTS}/m13_inside.png']
+    steps += ['key:M', 'wait:1200', idle(L, 3000), L.peek('_drone_x'), L.peek('_drone_y'),
+              L.peek('_obj_x', 1), L.peek('_obj_y', 1), L.peek('_door_open', 1), L.peek('_won', 1),
+              f'shot:{SHOTS}/m13_won.png']
+    r = run(disk, steps)
+    b = solution(12)
+    z = Zone(12, compile_board(b, EMPTY))
+    t = 0
+    while not z.won() and t < 2000:
+        z.tick()
+        t += 1
+    fails = check('LA CAISSE: mission 13', r.mem(L['_mission'], 1), b'\x0c')
+    fails += check('crate board wired', r.mem(L['_parts'], 48) + r.mem(L['_wires'], 72), layout_bytes(b))
+    fails += check(f'drone through the door (turn {t})', r.mem(L['_drone_x'], 1) + r.mem(L['_drone_y'], 1),
+                   bytes((z.x, z.y)))
+    fails += check('crate on the plate, door open', r.mem(L['_obj_x'], 1) + r.mem(L['_obj_y'], 1)
+                   + r.mem(L['_door_open'], 1), bytes(z.objects[0][1:]) + b'\x01')
+    return fails + check('won', r.mem(L['_won'], 1), b'\x01')
+
+
+def help_page(disk, L):
+    """AIDE on the title (or H): the help page; a click or a key: the title."""
+    steps = [BOOT, 'wait:60'] + click(60, 167) + ['wait:60', idle(L), L.peek('_screen'),
+                                                 f'shot:{SHOTS}/help.png']
+    steps += click(70, 80) + ['wait:60', idle(L), L.peek('_screen')]
+    steps += ['key:H', 'wait:60', idle(L), L.peek('_screen'), 'key:M', 'wait:60', idle(L), L.peek('_screen')]
+    # SPACE (a click) on AIDE, then SPACE again: the title, not AIDE again
+    steps += [L.poke('_px', 60), L.poke('_py', 167), 'key: ', 'wait:60', idle(L), L.peek('_screen'),
+              'key: ', 'wait:60', idle(L), L.peek('_screen')]
+    r = run(disk, steps)
+    return check('help: AIDE, a click, H, a key, SPACE twice', bytes(r.mem(L['_screen'], 1, n)[0] for n in range(6)),
+                 bytes((4, 3, 4, 3, 4, 3)))
+
+
+def records_page(disk, L):
+    """RECORDS on the title: the missions won with their fewest gates."""
+    steps = [BOOT, 'wait:60'] + click(90, 167) + ['wait:60', idle(L), L.peek('_screen'),
+                                                 f'shot:{SHOTS}/records.png'] + click(70, 80) \
+        + ['wait:60', idle(L), L.peek('_screen')]
+    r = run(disk, steps)
+    return check('RECORDS: the page, a click: the title', bytes(r.mem(L['_screen'], 1, n)[0] for n in range(2)),
+                 bytes((4, 3)))
+
+
+def old_save(disk, L):
+    """An RSS2 save (before the records): read, migrated to RSS3, no best."""
+    steps = [BOOT, 'wait:60', idle(L), L.peek('_persist', SAVE_SIZE)]
+    r = run(disk, steps)
+    data = r.mem(L['_persist'], SAVE_SIZE)
+    return check('RSS2 save: reached 5, migrated, no record', data[:5] + data[SAVE_SIZE - BEST_SLOTS:],
+                 b'RSS3\x05' + bytes(BEST_SLOTS))
 
 
 def missing_rooms(disk, L):
@@ -270,6 +378,13 @@ def main():
     fails += mission_four(disk_with_save(save_bytes(EMPTY, reached=3), 'reached3'), L)
     fails += doors(disk_with_save(save_bytes(EMPTY, reached=4), 'reached4'), L)
     fails += relay(disk_with_save(save_bytes(EMPTY, reached=6), 'reached6'), L)
+    fails += module_two(disk_with_save(save_bytes(EMPTY, reached=11), 'reached11'), L)
+    fails += crate(disk_with_save(save_bytes(EMPTY, reached=12), 'reached12'), L)
+    fails += help_page(args.disk, L)
+    fails += records_page(disk_with_save(save_bytes(EMPTY, reached=9, best=(1, 2, 3, 4, 1, 1, 6, 3, 9)),
+                                         'records'), L)
+    rss2 = b'RSS2' + save_bytes(EMPTY, reached=5)[4:SAVE_SIZE - BEST_SLOTS]
+    fails += old_save(disk_with_save(rss2, 'rss2'), L)
     fails += missing_rooms(disk_with_save(None, 'norooms', rooms=False), L)
     print(f'shots in {SHOTS}')
     sys.exit(1 if fails else 0)

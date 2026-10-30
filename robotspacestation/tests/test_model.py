@@ -206,7 +206,58 @@ def solution(mission):
         wire(b, out(f), 0)
     elif mission == 6:
         return relay()
-    else:                               # fetch the cell, bring it back
+    elif mission == 13:
+        return tandem()
+    elif mission == 7:                  # south always, east / west by turns
+        n = b.place(NOT, 0, 0)
+        f = b.place(FLIP, 1, 0)
+        k = b.place(NOT, 2, 0)
+        wire(b, out(n), 0)
+        wire(b, 1, inp(f, 0))           # east bump: go west
+        wire(b, 3, inp(f, 1))           # west bump: go east
+        wire(b, out(f), 1)
+        wire(b, out(f), inp(k, 0))
+        wire(b, out(k), 3)
+    elif mission in (9, 11):            # LE GARDIEN: the pillar's latch parks it;
+        return solution(2 if mission == 9 else 0)   # LE SAS: east, as in 1
+    elif mission == 12:                 # LA CAISSE: north to the crate, take it east,
+        l1 = b.place(FLIP, 0, 0)        # let it go on the plate, south through the door
+        l2 = b.place(FLIP, 1, 0)
+        a = b.place(AND, 2, 0)
+        n1 = b.place(NOT, 3, 0)
+        n2 = b.place(NOT, 0, 1)
+        g = b.place(AND, 1, 1)
+        wire(b, 0, inp(l1, 0))          # the north bump: L1
+        wire(b, 1, inp(a, 0))           # the east bump once L1: L2
+        wire(b, out(l1), inp(a, 1))
+        wire(b, out(a), inp(l2, 0))
+        wire(b, out(l1), inp(n1, 0))
+        wire(b, out(n1), 2)             # not L1: north
+        wire(b, out(l2), inp(n2, 0))
+        wire(b, out(n2), inp(g, 0))
+        wire(b, out(l1), inp(g, 1))
+        wire(b, out(g), SINK_GRAB)      # L1, not L2: hold it, east
+        wire(b, out(g), 3)
+        wire(b, out(l2), 0)             # L2: south
+    elif mission == 10:                 # LA RONDE: east, then south, then west
+        l1 = b.place(FLIP, 0, 0)
+        l2 = b.place(FLIP, 1, 0)
+        n1 = b.place(NOT, 2, 0)
+        a = b.place(AND, 3, 0)
+        n2 = b.place(NOT, 0, 1)
+        a2 = b.place(AND, 1, 1)
+        wire(b, 1, inp(l1, 0))          # the east bump: L1
+        wire(b, 2, inp(a, 0))           # the south bump once L1: L2
+        wire(b, out(l1), inp(a, 1))
+        wire(b, out(a), inp(l2, 0))
+        wire(b, out(l1), inp(n1, 0))
+        wire(b, out(n1), 3)             # not L1: east
+        wire(b, out(l2), inp(n2, 0))
+        wire(b, out(n2), inp(a2, 0))
+        wire(b, out(l1), inp(a2, 1))
+        wire(b, out(a2), 0)             # L1, not L2: south
+        wire(b, out(l2), 1)             # L2: west
+    else:                               # fetch the cell, bring it back (3, 8)
         f = b.place(FLIP, 1, 0)
         k = b.place(NOT, 2, 0)
         j = b.place(NOT, 2, 1)
@@ -223,7 +274,8 @@ def solution(mission):
 
 
 # Where the technician stands in each mission's solution (None: inside).
-TECH = {4: (8 * 7 + 1, 7 * 8 + 2)}      # on LA PORTE's plate (columns 8-9)
+TECH = {4: (8 * 7 + 1, 7 * 8 + 2),      # on LA PORTE's plate (columns 8-9)
+        8: (6 * 7 + 4, 10 * 8 + 4)}     # on LE COLIS's plate (columns 6-7)
 
 
 def relay():
@@ -244,6 +296,29 @@ def relay():
     k = b.place(NOT, 0, 0)
     wire(b, out(k), 2)                  # push north
     wire(b, 0, SINK_RADIO)              # against the top wall: call
+    return a, b
+
+
+def tandem(radio=True):
+    """LE TANDEM: A goes east onto the plate beyond the grate and calls
+    there; B waits for the call (a latch), then fetches the cell through the
+    door A holds open (LA CELLULE's board, its east thrust gated)."""
+    a = Board()
+    n = a.place(NOT, 0, 0)
+    wire(a, out(n), 3)                  # east
+    wire(a, 1, SINK_RADIO)              # against the east wall, on the plate: call
+    b = solution(3)
+    r = b.place(FLIP, 0, 1)
+    g = b.place(AND, 0, 2)
+    k = [i for i, p in enumerate(b.parts) if p and p[0] == NOT][0]
+    b.disconnect(3)
+    wire(b, SRC_RADIO, inp(r, 0))       # the call, latched
+    wire(b, out(k), inp(g, 0))
+    wire(b, out(r), inp(g, 1))
+    wire(b, out(g), 3)                  # east only once called
+    if not radio:
+        b.disconnect(inp(g, 1))
+        wire(b, out(k), inp(g, 1))      # (AND with itself: no wait)
     return a, b
 
 
@@ -317,6 +392,77 @@ class Missions(unittest.TestCase):
         z.tech = (16 * 7 + 4, 6 * 8 + 4)        # walked through, on the charger
         self.assertTrue(z.won())
         self.assertFalse(play(5, Board(), 100, tech=(3 * 7, 9 * 8))[1].door_open[0])
+
+    def test_zigzag_needs_the_turns(self):
+        b = Board()                     # south and east only: stuck on the left
+        n = b.place(NOT, 0, 0)
+        wire(b, out(n), 0)
+        wire(b, out(n), 3)
+        self.assertIsNone(play(7, b, 1500)[0])
+
+    def test_the_delivery_waits_for_the_technician(self):
+        t, z = play(8, solution(8), 1500, tech=(3 * 7, 12 * 8))
+        self.assertIsNone(t)
+        self.assertEqual(z.door_open[0], 0)
+
+    def test_the_guard_parks_on_the_plate(self):
+        z = Zone(9, compile_board(solution(9), EMPTY))
+        z.tech = (3 * 7, 11 * 8)
+        for _ in range(400):
+            z.tick()
+        self.assertEqual((z.x, z.y, z.door_open[0]), (53, 124, 1))
+        self.assertFalse(z.won())
+        z.tech = (16 * 7 + 2, 2 * 8 + 4)        # through the door, on the charger
+        self.assertTrue(z.won())
+        z = Zone(9, compile_board(solution(1), EMPTY))   # no latch: never parked
+        z.tech = (3 * 7, 11 * 8)
+        for _ in range(400):
+            z.tick()
+        self.assertEqual(z.door_open[0], 0)
+
+    def test_the_round_needs_two_latches(self):
+        b = Board()                     # after the east bump, south and west at once
+        f = b.place(FLIP, 0, 0)
+        n = b.place(NOT, 1, 0)
+        wire(b, 1, inp(f, 0))
+        wire(b, out(f), inp(n, 0))
+        wire(b, out(n), 3)
+        wire(b, out(f), 0)
+        wire(b, out(f), 1)
+        t, z = play(10, b, 1500)
+        self.assertIsNone(t)            # into the trap's opening
+        self.assertIsNone(play(10, solution(1), 1500)[0])
+
+    def test_the_airlock(self):
+        z = Zone(11, compile_board(solution(11), EMPTY))
+        z.tech = (2 * 7 + 4, 8 * 8 + 4)         # he holds the upper door
+        for _ in range(300):
+            z.tick()
+        self.assertEqual((z.x, z.y, z.door_open), (123, 16, [1, 1]))
+        z.tech = (15 * 7 + 4, 14 * 8 + 4)       # through the lower door
+        self.assertTrue(z.won())
+        z = Zone(11, compile_board(solution(11), EMPTY))
+        z.tech = (3 * 7, 13 * 8)                # nobody on the plate
+        for _ in range(300):
+            z.tick()
+        self.assertEqual((z.x, z.door_open), (46, [0, 0]))
+
+    def test_the_crate_holds_the_door(self):
+        t, z = play(12, solution(12), 2000)
+        self.assertIsNotNone(t)
+        self.assertEqual(z.objects[0][1:], [123, 34])  # on the plate
+        b = solution(12)
+        b.disconnect(SINK_GRAB)                         # without the claw
+        t, z = play(12, b, 2000)
+        self.assertIsNone(t)
+        self.assertEqual(z.objects[0][1:], [56, 32])
+
+    def test_the_tandem_waits_for_the_call(self):
+        t, z = play(13, tandem(), 3000)
+        self.assertIsNotNone(t)
+        t, z = play(13, tandem(radio=False), 3000)
+        self.assertIsNone(t)
+        self.assertEqual(z.objects[0][1:], [105, 64])  # B came back empty
 
     def test_an_empty_board_wins_nothing(self):
         for m in range(len(MISSIONS)):

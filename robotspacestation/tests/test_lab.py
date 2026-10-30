@@ -176,7 +176,9 @@ def main():
     steps += button('grave') + click(chip_x(2), 156) + ['wait:60', idle(L, 3000),
                                                        L.peek('_persist', SAVE_SIZE),
                                                        L.peek('_saved_ok')]
-    steps += button('efface') + button('efface') + clicks((chip_x(2), 156), cell(1, 1)) \
+    # (wait: right after the burn's tone and save, a2shot's mouse loop can
+    # miss its target while the program finishes; not a game state)
+    steps += ['wait:60'] + button('efface') + button('efface') + clicks((chip_x(2), 156), cell(1, 1)) \
         + clicks(term(0, 0), pin_in(1, 1, 5), term(1, 0), pin_in(1, 1, 10),
                  pin_out(1, 1, 5), term(0, 1), pin_out(1, 1, 10), term(1, 1))
     # E1 and E2 are still 1: S1 = 0, S2 = 1; then E2 = 0: S1 = 1, S2 = 0.

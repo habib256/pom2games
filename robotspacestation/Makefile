@@ -4,7 +4,9 @@
 #   make run        -> POM2, //e enhanced with an AppleMouse in slot 4
 #   make run-iic    -> POM2, //c (built-in mouse)
 #   make test       -> reference model, then the lab and the missions on //e and //c (a2shot)
-#   make test-long  -> nothing yet (the missions all fit in the fast tier)
+#   make test-long  -> the whole campaign, each mission's solution in C == the model, and random
+#                      boards' turns == the model's Sim, random drones in the rooms ==
+#                      its Zone (//e, //c)
 #
 # C (cc65) on the shared DHGR, gfx, ProDOS and mouse libraries; the logic
 # simulation follows tools/model.py bit for bit (docs/SPEC.md).
@@ -24,7 +26,9 @@ SRCS := src/main.c src/ui.c src/board_ui.c src/zone.c src/sim.c src/title.c src/
 LIB_SRCS := $(sort $(HGRC_DHGR_SRCS) $(HGRC_DHGR_SMALL_TEXT_SRCS)) $(HGRC_DHGR_COLOR_BACKEND) \
             $(GFX)/gfx_line.c $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) \
             $(PRODOS_SRCS) $(PRODOS_FILE_SRCS) $(MOUSE_SRCS)
-OBJS := $(BUILD)/crt0_prodos.o $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o)))
+# (the speaker's tone right after crt0: its timed loops must not cross a
+# page, wherever the game's code grows; dev/lib/apple2/sound.asm asserts it)
+OBJS := $(BUILD)/crt0_prodos.o $(BUILD)/apple2game_asm.o $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o)))
 OBJS := $(OBJS:.s=.o)
 LIB_OBJS := $(addprefix $(BUILD)/,$(notdir $(LIB_SRCS:.c=.o)))
 LIB_OBJS := $(LIB_OBJS:.s=.o)
@@ -83,5 +87,11 @@ test: all
 	$(PYTHON) tests/test_zone.py --disk $(DISK) --labels $(BUILD)/game.lbl --iic
 
 test-long: all
+	$(PYTHON) tests/test_campaign.py --disk $(DISK) --labels $(BUILD)/game.lbl
+	$(PYTHON) tests/test_campaign.py --iic --disk $(DISK) --labels $(BUILD)/game.lbl
+	$(PYTHON) tests/test_fuzz.py --disk $(DISK) --labels $(BUILD)/game.lbl
+	$(PYTHON) tests/test_fuzz.py --iic --disk $(DISK) --labels $(BUILD)/game.lbl
+	$(PYTHON) tests/test_zone_fuzz.py --disk $(DISK) --labels $(BUILD)/game.lbl
+	$(PYTHON) tests/test_zone_fuzz.py --iic --disk $(DISK) --labels $(BUILD)/game.lbl
 
 .PHONY: run-iic test test-long

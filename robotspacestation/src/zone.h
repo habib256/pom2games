@@ -40,4 +40,13 @@ unsigned char tech_step(unsigned char x, unsigned char y);
 unsigned char tech_touches_drone(void);
 void __fastcall__ tech_beside_drone(unsigned char d);
 
+extern char mission_hint[];       /* this mission's hint (key H) */
+/* The win: the drones' gates, a record (persist.best) if fewer, the text
+ * "REUSSIE EN n PORTES [RECORD]". On entering: "RECORD n PORTES..." or
+ * the drone's invitation. */
+const char *zone_won_text(void);
+const char *zone_enter_text(void);
+/* S and V's messages: 0-1 the sound off / on, 2-3 the speed normal / fast. */
+const char *__fastcall__ toggle_text(unsigned char n);
+
 #endif

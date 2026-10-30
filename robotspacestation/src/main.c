@@ -20,7 +20,8 @@
 static const char *const lab_buttons[] = {"MARCHE", "PAS", "GRAVE", "EFFACE", "ESSAI"};
 static const char *const zone_buttons[] = {"MARCHE", "PAS", "REPLACER", "LABO", "MENU"};
 static const char *const won_buttons[] = {"MARCHE", "PAS", "SUITE", "LABO", "MENU"};
-static const char *const title_buttons[] = {"JOUER", "LABO"};
+static const char *const title_buttons[] = {"JOUER", "LABO", "AIDE", "RECORDS"};
+static const char *const help_buttons[] = {"RETOUR"};
 static const char *const drone_buttons[] = {"MARCHE", "PAS", "SORTIR"};
 
 unsigned char claimed;
@@ -66,7 +67,7 @@ static void persist_defaults(void)
 {
     static unsigned char c;
     memset(&persist, 0, sizeof persist);
-    memcpy(persist.magic, "RSS2", 4);
+    memcpy(persist.magic, "RSS3", 4);
     memset(persist.out, NONE, sizeof persist.out);
     for (c = 0u; c < CHIPS; ++c) memset(persist.layout[c] + PARTS * 3u, NONE, LAYOUT_IDS);
     memset(persist.lab + PARTS * 3u, NONE, LAYOUT_IDS);
@@ -87,13 +88,19 @@ static void game_load(void)
     file_setup();
     if (prodos_load() || persist.reached > MISSIONS_MAX) {
         persist_defaults();
-    } else if (prodos_file_actual == sizeof persist - LAYOUT_SIZE
+    } else if (prodos_file_actual == sizeof persist - BEST_SLOTS - LAYOUT_SIZE
                && !memcmp(persist.magic, "RSS1", 4)) {
         /* A save from before drone B: everything but its board. */
-        memcpy(persist.magic, "RSS2", 4);
+        memcpy(persist.magic, "RSS3", 4);
         memset(persist.drone2, 0, PARTS * 3u);
         memset(persist.drone2 + PARTS * 3u, NONE, LAYOUT_IDS);
-    } else if (prodos_file_actual != sizeof persist || memcmp(persist.magic, "RSS2", 4)) {
+        memset(persist.best, 0, BEST_SLOTS);
+    } else if (prodos_file_actual == sizeof persist - BEST_SLOTS
+               && !memcmp(persist.magic, "RSS2", 4)) {
+        /* A save from before the records: no best yet. */
+        memcpy(persist.magic, "RSS3", 4);
+        memset(persist.best, 0, BEST_SLOTS);
+    } else if (prodos_file_actual != sizeof persist || memcmp(persist.magic, "RSS3", 4)) {
         persist_defaults();
     }
 }
@@ -165,8 +172,18 @@ static void enter_title(void)
     running = 0u;
     screen_clear();
     title_draw();
-    buttons_set(title_buttons, 2);
+    buttons_set(title_buttons, 4);
     message("CLIQUER UNE MISSION OU JOUER");
+}
+
+/* Page 0 the help, 1 the records (both on S_HELP). */
+static void __fastcall__ enter_help(unsigned char page)
+{
+    screen = S_HELP;
+    screen_clear();
+    help_draw(page);
+    buttons_set(help_buttons, 1);
+    message("UN CLIC : LE TITRE");
 }
 
 static void enter_zone(void)
@@ -175,7 +192,7 @@ static void enter_zone(void)
     screen_clear();
     zone_draw();
     buttons_set(won ? won_buttons : zone_buttons, 5);
-    message(won ? "MISSION REUSSIE !" : "TOUCHER LE DRONE POUR ENTRER");
+    message(won ? (const char *)"MISSION REUSSIE !" : zone_enter_text());
     actor_show();
 }
 
@@ -252,13 +269,16 @@ static void leave_drone(void)
 /* After a turn or a step of the technician: the mission's goal reached? */
 static void check_won(void)
 {
+    static const char *text;
     if (won || !zone_won()) return;
     won = 1u;
     running = 0u;
+    sfx(SFX_WIN);
     if (persist.reached <= mission) persist.reached = mission + 1u;
+    text = zone_won_text();                 /* (the best gates, before the save) */
     begin_draw();
     if (screen == S_ZONE) buttons_set(won_buttons, 4); else buttons_draw();
-    message(game_save() ? "MISSION REUSSIE !" : "REUSSIE (PAS SAUVEE)");
+    message(game_save() ? text : (const char *)"REUSSIE (PAS SAUVEE)");
 }
 
 static void step(void)
@@ -284,8 +304,10 @@ static void step(void)
 
 static void click_button(unsigned char b)
 {
+    if (screen == S_HELP) { enter_title(); return; }
     if (b == 0xFFu) return;
     if (mode == M_CLEAR && !(screen == S_LAB && b == 3u)) mode = M_EDIT;
+    if (screen == S_TITLE && b >= 2u) { enter_help(b - 2u); return; }
     if (screen != S_TITLE) {
         if (b == 0u) { running ^= 1u; buttons_draw(); return; }
         if (b == 1u) { running = 0u; buttons_draw(); step(); return; }
@@ -330,9 +352,10 @@ static void click_button(unsigned char b)
 
 static void click(unsigned char x, unsigned char y)
 {
+    if (screen == S_HELP) { enter_title(); return; }
     if (y >= BTN_Y - 1u && y < BTN_Y + 8u) { click_button(button_at(x)); return; }
     if (screen == S_TITLE) {
-        x = title_mission_at(y);
+        x = title_mission_at(x, y);
         if (x != NONE) play(x);
         return;
     }
@@ -392,7 +415,7 @@ static void walk(void)
 
 int main(void)
 {
-    static unsigned char busy, cursor_kept;
+    static unsigned char busy, cursor_kept, m, fast;
     if (prodos_video_claim(PD_VIDEO_DISCARD_RAM) != PD_VIDEO_OK) {
         a2_puts("PAS DE MEMOIRE AUXILIAIRE.\r");
         apple2_getkey();
@@ -418,10 +441,10 @@ int main(void)
     for (;;) {
         ui_poll();
         if (key == 0x11u) return 0;            /* Ctrl-Q: back to ProDOS */
-        if (running && ++frames >= (screen == S_LAB ? LAB_TICK : DRONE_TICK)) frames = 0u;
+        if (running && ++frames >= (screen == S_LAB ? LAB_TICK : fast ? 1u : DRONE_TICK)) frames = 0u;
         if (running && !frames) step();         /* draws only what changed */
         busy = pressed || walking || key == KC_ESC
-            || key == 'M' || key == 'P' || key == 'G' || key == 'O' || (key >= '1' && key <= '9');
+            || key == 'M' || key == 'S' || key == 'V' || key == 'H' || key == 'P' || key == 'G' || key == 'O' || (key >= '0' && key <= '9');
         if (!busy) {
             if (screen == S_ZONE || screen == S_DRONE) actor_show();
             show();
@@ -434,14 +457,28 @@ int main(void)
             && ((unsigned char)(px - act_x + 8u) > 20u || (unsigned char)(py - act_y + 10u) > 30u);
         if (!cursor_kept) hide();
         actor_hide();
-        if (key == KC_ESC) { if (screen == S_ZONE) walking = W_NONE; else board_drop(); }
+        if (screen == S_HELP) {             /* a key or a click: the title */
+            if (key || pressed) { enter_title(); pressed = 0u; }   /* (SPACE: once) */
+        }
+        else if (key == KC_ESC) { if (screen == S_ZONE) walking = W_NONE; else board_drop(); }
+        else if (key == 'V' && screen != S_LAB) {     /* the drones twice as often */
+            fast ^= 1u;
+            message(toggle_text(2u + fast));
+        }
+        else if (key == 'S') {
+            sound_on ^= 1u;
+            message(toggle_text(sound_on));
+        }
+        else if (key == 'H' && screen == S_TITLE) enter_help(0);
+        else if (key == 'H' && screen != S_LAB) message(mission_hint);
         else if (key == 'M') click_button(0);
         else if (key == 'P') click_button(1);
         else if (key == 'G' && screen == S_LAB) click_button(2);
         else if (key == 'O' && screen == S_LAB) { mode = M_OPEN; message("OUVRIR : CLIQUER P1-P8"); }
-        else if (screen == S_ZONE && key >= '1' && key < '1' + MISSIONS_MAX) {
-            /* Replay a mission, or play the next one not yet won. */
-            if (key - '1' <= persist.reached) go_mission(key - '1');
+        else if (screen == S_ZONE && key >= '0' && key <= '9') {
+            /* Replay a mission, or play the next one not yet won (0: the 10th). */
+            m = key == '0' ? 9u : key - '1';
+            if (m < MISSIONS_MAX && m <= persist.reached) go_mission(m);
         }
         if (pressed) click(px, py);
         if (walking) walk();
