@@ -162,18 +162,6 @@ irq_shown:
         lda flip_count
         bra shown
 
-spk_pad:                         ; 12 + 25 cycles (_a2_vbl_scan's 33, less
-        bit $00                  ; bit ready's 6, plus the 10 after it)
-.repeat 11
-        nop
-.endrepeat
-        rts
-
-late:   inc late_count
-        bne :+
-        inc late_count+1
-:       rts
-
 ; Wait for the next //e VBL edge, toggling the speaker every spk_period
 ; turns (sound.s's effects: they only sound in this spare time, never
 ; delaying a frame). A turn is SPK_TURN cycles (sound.inc), as in the //c
@@ -209,6 +197,22 @@ ne_count:
 ne_edge:
         clc
         rts
+; (a branch across a page costs a cycle: every turn 2 cycles long, every
+; effect flat; 2026-10-30, code grown under these loops)
+.assert >wait_irq = >(wi_count + 3), error, "the //c wait loop crosses a page"
+.assert >ne_turn = >(ne_count + 3), error, "the //e wait loop crosses a page"
+
+spk_pad:                         ; 12 + 25 cycles (_a2_vbl_scan's 33, less
+        bit $00                  ; bit ready's 6, plus the 10 after it)
+.repeat 11
+        nop
+.endrepeat
+        rts
+
+late:   inc late_count
+        bne :+
+        inc late_count+1
+:       rts
 
 ; IRQ hook (//c, after the count): show the page waiting, two refreshes
 ; or more after the previous flip.

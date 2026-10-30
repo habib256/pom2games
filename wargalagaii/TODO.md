@@ -836,6 +836,48 @@ Renseigne toi » (option 2 : refonte complète). Source : wiki Warblade
   sous la jauge ; pas de bonus Random ; 3 tailles × 2 images de rochers,
   orange, au lieu de 49 dessins.
 
+## Modes et tirs blancs (2026-10-30)
+
+Demande : « Les balles des ennemis et mes balles doivent etre blanches sinon
+on va les confondre avec les etoiles colorés !!! Le jeu est trop dur. Il
+démarre en mode easy pour commencer, les modes plus durs se méritent ».
+
+- [x] Tirs et bombes : deux points voisins sur les 7 décalages (blancs ;
+      au décalage 3 le tir n'avait plus qu'un point coloré, la bombe était
+      un point bleu).
+- [x] Modes (`model.MODES`, `mode` dans game.s) : NORMAL = le jeu d'avant ;
+      HARD, ACE = un, deux crans de boucle en plus ; EASY = plongées et
+      bombes 1,5 fois plus espacées, deux plongeurs de moins (1 au moins),
+      bombes et kamikazes une rangée plus lents (2 au moins). La démo joue
+      NORMAL (son script).
+- [x] Titre : ligne M MODE ; un nouveau joueur n'a qu'EASY ; une partie qui
+      a battu le boss du niveau 25 (niveau 26 atteint) dans le mode le plus
+      dur ouvert ouvre le suivant (« NOW OPEN: »). `HIGHSCORES` octet 2 :
+      bit 0 commandes, bits 1-2 modes ouverts, bits 3-4 mode choisi.
+- Écarts à valider : une seule table de records pour tous les modes (Warblade
+  en a une par mode) ; le mode n'est pas affiché en jeu ; les disques déjà
+  joués repartent en EASY seul.
+
+## Bonus, manette, vagues (2026-10-30, suite)
+
+Demandes : « Améliore les sprites des bonus », « Il faut une dead zone pour
+le centre du joystick », « Pourquoi il y a des moments beaucoup trop longs
+sans ennemis ».
+
+- [x] Bonus : silhouettes pleines, signe découpé en noir. Jauges = tuile
+      bleue lettre blanche (la lettre découpée se confondait avec la pièce
+      bleue), lettres EXTRA = tuile blanche, ×2/×5 = gemme orange, armes =
+      canon violet sous ses tirs blancs ; pièces, médailles, etc. inchangées.
+- [x] Manette : centre = repos lu par PREAD (×5/8) au début de la partie et
+      au TAB, borné 50..115, zone morte ±40 (`joy_calib`, en LOW2 : la RAM
+      principale était pleine). Test `stick_off_centre`.
+- [x] Vagues : entre deux vagues, terrain vide → la suivante dans
+      ENTRY_FIRST pas (le trou montait à 90 pas, 3 s, avant le niveau 12).
+      Restent : la téléportation (60 pas) et l'attente des bonus qui tombent.
+- [x] Boucles d'attente du haut-parleur : elles avaient glissé à cheval sur
+      une page (2 cycles de plus par tour : sons plus graves) ; réordonnées,
+      `.assert` au lien.
+
 ## À vérifier sur machine
 
 - [ ] //c + Mockingboard 4c : la détection réveille la carte à `$C403` et

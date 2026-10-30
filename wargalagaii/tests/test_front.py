@@ -181,7 +181,8 @@ def record_keyboard(disk, L):
 def record_stick(disk, L):
     """Joystick chosen on the title; a write-protected disk: the controls
     and the record can't be saved (error $2B), the table stays in memory."""
-    want = R.encode(R.insert(R.DEFAULTS, 'BZA', 123456, 100), 1)
+    # (level 100 reached in EASY: NORMAL opens, byte 2 bit 1)
+    want = R.encode(R.insert(R.DEFAULTS, 'BZA', 123456, 100), 1 | 2)
     down = ['joy:0,1', 'wait:4', 'joy:0,0', 'wait:4']
     up = ['joy:0,-1', 'wait:4', 'joy:0,0', 'wait:4']
     btn = ['btn:0,1', 'wait:4', 'btn:0,0', 'wait:4']
@@ -199,6 +200,29 @@ def record_stick(disk, L):
     assert r.mem(L['rec_err'], 1, 1)[0] == 0x2B
     print('PASS record, stick: B Z A picked, 1st at level 100; write-protected disk: error $2B, '
           'table kept in memory')
+
+
+def modes(disk, L):
+    """2026-10-30: a new player has EASY only (M keeps it); a game that
+    beat the boss of level 25 opens NORMAL (named on the menu, saved in
+    HIGHSCORES byte 2); M then cycles EASY / NORMAL; the mode is the
+    game's (model.MODES)."""
+    page = lambda r, k: r.mem(0x2000, 8192, k)
+    steps = START(L) + [L.peek('mode'), 'peek:2000:8192', 'key:M', 'wait:20', L.peek('mode')]
+    steps += play_and_quit(L, 0, 25, loop='fr_loop') + ['wait:10', L.peek('mode'), L.peek('rec_buf', 3),
+                                                         'peek:2000:8192']
+    steps += ['key:M', 'wait:20', L.peek('mode'), L.peek('rec_buf', 3), 'peek:2000:8192',
+              'key:\\r', L.until('game_tick', 600), 'wait:30', L.peek('mode'), L.peek('dive_gap')]
+    r = a2test.run(disk, steps, iie=True, timeout=300)
+    assert r.mem(L['mode'], 1, 0)[0] == M.EASY and text_at(page(r, 0), 16, 22, 'EASY  ')
+    assert text_at(page(r, 0), 16, 9, 'M  MODE') and r.mem(L['mode'], 1, 1)[0] == M.EASY, 'EASY only'
+    assert r.mem(L['mode'], 1, 2)[0] == M.EASY and r.mem(L['rec_buf'], 3, 0)[2] == 0b00010
+    assert text_at(page(r, 1), 19, 15, 'NOW OPEN:') and text_at(page(r, 1), 19, 25, 'NORMAL')
+    assert r.mem(L['mode'], 1, 3)[0] == M.NORMAL and r.mem(L['rec_buf'], 3, 1)[2] == 0b01010
+    assert text_at(page(r, 2), 16, 22, 'NORMAL')
+    assert r.mem(L['mode'], 1, 4)[0] == M.NORMAL and r.mem(L['dive_gap'], 1, 0)[0] == M.level_params(0, 0)[0]
+    print('PASS modes: EASY at first, level 26 reached opens NORMAL (NOW OPEN, saved), M chooses it, '
+          'the game plays it')
 
 
 def bonuses(disk, L):
@@ -250,6 +274,7 @@ def main():
     record_keyboard(a.disk, L)
     record_stick(a.disk, L)
     bonuses(a.disk, L)
+    modes(a.disk, L)
     hi_at_start(a.disk, L)
     demo_oracle(a.disk, L)
 

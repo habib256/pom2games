@@ -545,6 +545,17 @@ shop_exit:
 
 ; The level's kind and parameters: loop-0 tables (tools/bonus.py), made
 ; harder once a loop (saturating; twenty loops reach every bound).
+; EASY: dive_gap+X += half of it (255 at most).
+sl_half:
+        lda dive_gap,x
+        lsr
+        clc
+        adc dive_gap,x
+        bcc :+
+        lda #255
+:       sta dive_gap,x
+        rts
+
 setup_level:
         stz af_dst+1             ; its record, aux lv_recs + LV_REC * level
         lda #0                   ; (af_dst+1: the high byte of the product)
@@ -595,12 +606,21 @@ setup_level:
 :       sta row_base,x
         dex
         bpl :---
-        lda loop
-        cmp #20
+        lda loop                 ; the loop's steps (20 at most), + 1 HARD,
+        cmp #20                  ; + 2 ACE (model.level_params; the demo
+        bcc :+                   ; plays NORMAL)
+        lda #20
+:       ldy demo
+        bne :+
+        ldy mode
+        bmi :+
+        clc
+        adc mode
+        cmp #21
         bcc :+
         lda #20
 :       tax
-        beq sl_set
+        beq sl_easy
 sl_loop:
         lda dive_gap             ; max(8, dive_gap - 4)
         sec
@@ -633,6 +653,30 @@ sl_loop:
         inc kami_dy
 :       dex
         bne sl_loop
+sl_easy:
+        lda demo                 ; EASY: dives and bombs half as far apart
+        bne sl_set               ; again, two divers fewer (1 at least),
+        lda mode                 ; bombs and kamikazes a row slower (2 at
+        bpl sl_set               ; least)
+        ldx #fire_gap-dive_gap
+        jsr sl_half
+        ldx #0
+        jsr sl_half
+        lda max_divers
+        sec
+        sbc #2
+        beq :+
+        bpl :++
+:       lda #1
+:       sta max_divers
+        lda bomb_dy
+        cmp #3
+        bcc :+
+        dec bomb_dy
+:       lda kami_dy
+        cmp #3
+        bcc sl_set
+        dec kami_dy
 sl_set: lda #0                   ; boss levels: only waves 3 and 4 (escorts)
         ldx lkind
         cpx #LK_BOSS
@@ -1574,8 +1618,23 @@ launch:
         lda entry_w
         cmp #ROWS
         beq launched
+        lda entry_k              ; between waves, nobody left on the field:
+        bne lw_count             ; the next wave soon (2026-10-30: up to 3 s
+        lda entry_t              ; of empty sky)
+        cmp #ENTRY_FIRST+1
+        bcc lw_count
+        ldx #NALIENS-1
+lw_scan:
+        lda a_state,x
+        bne lw_count
+        dex
+        bpl lw_scan
+        lda #ENTRY_FIRST
+        sta entry_t
+lw_count:
         dec entry_t
         bne launched
+        lda entry_w
         asl
         asl
         asl

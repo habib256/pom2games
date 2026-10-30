@@ -64,11 +64,11 @@ SPRITES = {
         '.L...L.',
         '.......',
     ]),
-    'bomb': (1, [               # one byte wide, blue (left dot, palette 1)
-        'L',
-        'L',
-        'L',
-        'L',
+    'bomb': (0, [               # one byte wide, white (2026-10-30: coloured
+        'W',                    # dots were taken for stars)
+        'W',
+        'W',
+        'W',
     ]),
 }
 
@@ -435,16 +435,17 @@ BOSS_HALF = [
 BOSS = (1, [r + r[::-1] for r in BOSS_HALF])
 BOSS_TINT = 3                   # orange, claws blue
 
-# Falling objects (lot 5; redrawn for legibility 2026-10-23): 7 cells x
+# Falling objects (lot 5; redrawn for legibility 2026-10-23, silhouettes 10-30): 7 cells x
 # ICON_H rows on an even byte column (an object never moves sideways, so no
 # shifts), drawn in cells (two dots: white strokes stay white, no colour
 # fringes). A family = a shape, its colour says which one:
 #   coins          a disc with a $ cut out (green 10, orange 50, blue 100,
 #                  violet 200)
-#   gauges         a blue pill: S B T (the HUD's letters)
-#   weapons        a violet pill: one, two, three shots; autofire: dashes
-#   multipliers    an orange pill: 2, 5
-#   EXTRA letters  a white pill: E X T R A (the HUD's row)
+#   gauges         a blue tile, S B T in white (the HUD's letters)
+#   weapons        a violet cannon under one, two, three white shots;
+#                  autofire: a stream
+#   multipliers    an orange gem, 2 or 5 cut out
+#   EXTRA letters  a white tile, E X T R A cut out (the HUD's row)
 #   shield         a green bubble around the ship; armour: a blue shield
 #   life           a heart; skull: a skull; freeze: a snowflake
 #   rank marks     a medal (ribbon, disc of the mark's colour, its number);
@@ -496,10 +497,38 @@ def tab(top):
     return [''.join(r) for r in out]
 
 
+def cut5(glyph, shape, colour='X', ink='.'):
+    """A 7 x 13 silhouette (X) with a 5 x 7 glyph cut out (black) in its
+    rows 3-9, one cell of colour around it (or written in ink)."""
+    out = [list(r.replace('X', colour)) for r in shape]
+    for y, r in enumerate(FONT5[glyph]):
+        for x, c in enumerate(r):
+            if c == 'W':
+                out[3 + y][1 + x] = ink
+    return [''.join(r) for r in out]
+
+
+# Silhouettes (2026-10-30: were a white glyph between two bars, little colour
+# and one shape for four families): one per family, the glyph cut out.
+TILE = ['.XXXXX.'] + ['XXXXXXX'] * 11 + ['.XXXXX.']                 # gauges, letters
+CANNON = ['...X...', '..XXX..', '..XXX..', '.XXXXX.', 'XXXXXXX', 'XXXXXXX', 'XX...XX']  # weapons,
+SHOTS = {                                                           # under their white shots
+    'w1': ['...W...', '...W...', '.......', '...W...', '...W...', '.......'],
+    'w2': ['.W...W.', '.W...W.', '.......', '.W...W.', '.W...W.', '.......'],
+    'w3': ['W..W..W', 'W..W..W', '.......', '.W.W.W.', '.W.W.W.', '.......'],
+    'auto': ['..W.W..', '.......', '..W.W..', '.......', '..W.W..', '.......'],
+}
+GEM = ['...X...', '..XXX..', '.XXXXX.'] + ['XXXXXXX'] * 7 + ['.XXXXX.', '..XXX..', '...X...']  # multipliers
+
+
 def pill(glyph, cap='X'):
-    """Caps of colour (or white) above and below a 5 x 7 glyph."""
-    top = ['.' + cap * 5 + '.', cap * 7, '.......']
-    return top + ['.' + r + '.' for r in FONT5[glyph]] + top[::-1]
+    """Lot 5's family marks, now a silhouette: a tile (gauges; white for the
+    EXTRA letters), a gem (multipliers); weapons: a cannon and its shots."""
+    if glyph in SHOTS:
+        return SHOTS[glyph] + CANNON
+    if glyph in ('S', 'B', 'T') and cap == 'X':     # (white on blue: no blue coin)
+        return cut5(glyph, TILE, cap, 'W')
+    return cut5(glyph, GEM if glyph in ('2', '5') else TILE, cap)
 
 
 def disc(cut, rows0=0):
@@ -677,6 +706,8 @@ def shifted(drawing, palette, nbytes=None):
     phases = []
     for s in range(7):
         start = 2 * s % 7               # first dot inside the start byte
+        if nbytes == 1:                 # (one byte: a dot left rather than cut,
+            start = min(start, 7 - 2 * width)   # shots and bombs stay white)
         rows = []
         for r in drawing:
             line = [0] * start + dots(r)

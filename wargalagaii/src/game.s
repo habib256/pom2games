@@ -34,7 +34,7 @@
 .export m_held, m_rel, m_end, storm_prize, storm_pct, st_draw, g_col, b_n
 .export m_round, m_pairs, m_first, m_card, m_up, mem_screen, mem_loop, mem_deal, mem_turn
 .export mem_sec, mem_cx, mem_cy, station_exit
-.export front_skip, front_run, front_main, fr_panel, fr_pos, fr_name, rec_buf, rec_state, rec_save, rec_err
+.export mode, front_skip, front_run, front_main, fr_panel, fr_pos, fr_name, rec_buf, rec_state, rec_save, rec_err
 .export demo, demo_input, demo_end, demo_script, over_wait
 .import __DUET_LOAD__, __DUET_SIZE__
 .export a_big, a_hp, cur_big, e_dx, boss_hp, boss_x, boss_dir, boss_boom, boss_gap, boss_t, boss_mv, hurry, h_x, h_dir, h_t, spk_period, audio_slot, sound_on, snd_ev
@@ -320,6 +320,8 @@ noshop:      .res 1             ; tests: the shop closes at once
 .data
 start_level: .byte 0            ; tests and the pilot: the first level
 front_skip:  .byte 0            ; tests: no title, the game at once (SEED)
+mode:        .byte 0            ; model.MODES: $FF EASY, 0 NORMAL, 1 HARD, 2 ACE
+                                ; (front.s: from HIGHSCORES; tests: NORMAL)
 .bss
 
 .rodata
@@ -831,6 +833,7 @@ new_game:
         lda #$40
         jsr clear_page
         jsr game_init
+        jsr joy_calib
         lda #$FF
         sta pack_loaded
         lda frame_count          ; a new seed: the time the player took
@@ -1017,6 +1020,7 @@ read_input:
         lda joy_mode
         eor #1
         sta joy_mode
+        jsr joy_calib
         bra buttons
 left:   lda #$FF
         bra :+
@@ -1044,12 +1048,12 @@ buttons:
         sta fire_held
         lda joy_mode
         beq keyboard
-        lda #$FF                 ; stick: left / centre / right thirds
-        ldx joy_x                ; of the 0..165 count (timing.s)
-        cpx #45
+        lda #$FF                 ; stick: left / dead zone / right
+        ldx joy_x                ; (0..165 count, timing.s)
+        cpx joy_lo
         bcc :+
         lda #1
-        cpx #124
+        cpx joy_hi
         bcs :+
         lda #0
 :       sta move_dir
@@ -1058,6 +1062,40 @@ keyboard:
         lda dir_key
         sta move_dir
         rts
+
+; The stick's centre is where it rests at the start of a game (or TAB): a
+; ROM read (11 cycles a count, x 5/8 = the 17 of timing.s), kept 50..115,
+; then JOY_DEAD each side moves nothing (2026-10-30: a stick off centre
+; drifted with fixed thirds). In LOW2 (main RAM is full).
+JOY_DEAD = 40
+.pushseg
+.segment "STORM2"
+joy_calib:
+        ldx #0
+        jsr $FB1E                ; PREAD: Y = 0..255
+        tya
+        lsr
+        lsr
+        lsr
+        sta joy_lo
+        tya
+        lsr
+        adc joy_lo
+        cmp #50
+        bcs :+
+        lda #50
+:       cmp #116
+        bcc :+
+        lda #115
+:       sec
+        sbc #JOY_DEAD
+        sta joy_lo
+        adc #2*JOY_DEAD-1        ; (carry set)
+        sta joy_hi
+        rts
+joy_lo: .byte 83-JOY_DEAD
+joy_hi: .byte 83+JOY_DEAD
+.popseg
 
 .include "logic.s"
 .include "render.s"
