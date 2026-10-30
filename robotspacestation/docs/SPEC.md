@@ -48,7 +48,8 @@ démarrage dans la mémoire auxiliaire (`$6000-$A000`, `src/text.s`).
   bas) ; puces 1-8, dans la rangée du bas, étiquetée TOOLBOX. Sur la
   planche, AND, OR, XOR et NOT ont leur symbole de schéma (D, bouclier,
   bouclier à double dos, triangle à rond ; src/symbol.s) ; MEM et les
-  puces restent des boîtes étiquetées.
+  puces restent des boîtes étiquetées. L'aide (ELECTRONICS 3/6 et 4/6)
+  montre chaque symbole à côté de sa table de vérité.
 - **Alimentation** : la borne source 7 (POWER) vaut toujours 1 (dans le
   labo et les drones) ; elle est la dernière ligne de la colonne de gauche,
   « + », orange. Les valeurs la mettent à 1 dès la compilation. Gravée dans
