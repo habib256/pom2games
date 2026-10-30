@@ -56,7 +56,8 @@ def scene(disk, L, name, credits, inputs, pokes=(), mockingboard=False, joystick
         steps += ['key:\t', 'wait:4']
     for _ in range(40):
         steps += [L.poke('invul_t', 60), 'wait:40']
-    steps += [L.until('sh_loop', 3000), 'wait:4'] + [L.peek(n, k) for n, k in FIELDS.items()]
+    # (peeks at a main-memory PC: during the music's interrupt, RAMRD reads aux)
+    steps += [L.until('sh_loop', 3000)] + [L.peek(n, k) for n, k in FIELDS.items()]
     for inp in inputs:
         if isinstance(inp, tuple) and inp[0] == 'joy':
             steps += [f'joy:0,{inp[1]}', 'wait:3', 'joy:0,0', 'wait:12']
@@ -64,7 +65,7 @@ def scene(disk, L, name, credits, inputs, pokes=(), mockingboard=False, joystick
             steps += ['btn:0,1', 'wait:3', 'btn:0,0', 'wait:4']
         else:
             steps += [f'key:{inp}', 'wait:4']
-    steps += ['wait:30'] + [L.peek(n, k) for n, k in FIELDS.items()]
+    steps += ['wait:30', L.until('game_tick', 60)] + [L.peek(n, k) for n, k in FIELDS.items()]
     r = a2test.run(disk, steps, iie=True, mockingboard=mockingboard, timeout=900)
     opened, after = read(r, L, 0), read(r, L, 1)
     assert opened['shop'] == 1 and opened['level'] == 3, opened

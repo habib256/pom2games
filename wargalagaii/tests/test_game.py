@@ -18,10 +18,19 @@ sys.path.insert(0, str(ROOT / 'dev/tools'))
 sys.path.insert(0, str(GAME / 'tools'))
 import a2test
 from boot import boot
+import hud as hud_py
 import model
 import sound
 
 SYS_NAMES = ('WG2.SYSTEM', 'WG2.SYS')
+# The level record's fields (tools/bonus.py -> src/bonus.inc)
+LV = {k: int(v) for k, v in re.findall(r'^(LV_\w+) = (\d+)$', (GAME / 'src/bonus.inc').read_text(), re.M)}
+HUD_N = len(hud_py.layout()[0])
+
+
+def skip_bonuses(L):
+    """After a game, the title's GAME BONUSES panel (lot 10): a key, the menu."""
+    return [L.until('fb_wait', 600), 'wait:30', 'key: ', L.until('fr_loop', 300)]   # (keys up first)
 
 
 def model_invariants(games=30, steps=3000):
@@ -47,9 +56,9 @@ def model_invariants(games=30, steps=3000):
             where = f'game {seed} step {k + 1}'
             assert 0 <= g.ship_c <= M.SHIP_MAX, where
             for y, c in zip(g.shot_y, g.shot_c):
-                assert not y or (M.FIELD_TOP <= y <= 192 - M.SHOT_H and c <= 139), (where, y, c)
+                assert not y or (M.FIELD_TOP <= y <= 192 - M.SHOT_H and c < M.FIELD_CELLS), (where, y, c)
             assert all(not y or M.FIELD_TOP <= y <= 192 - M.BOMB_H for y in g.e_y), (where, g.e_y)
-            assert all(c <= 139 for y, c in zip(g.e_y, g.e_c) if y), (where, g.e_c)
+            assert all(c < M.FIELD_CELLS for y, c in zip(g.e_y, g.e_c) if y), (where, g.e_c)
             for y, kk, kind in zip(g.obj_y, g.obj_k, g.obj_kind):
                 assert not y or (M.FIELD_TOP <= y <= 192 - M.OBJ_H and kk <= 19
                                  and kind < len(M.KINDS)), (where, y, kk, kind)
@@ -152,6 +161,9 @@ def bench(disk, L, frames=300):
              *[L.poke(n, v, k) for k in range(4) for n, v in
                (('entry_lo', L['entry'] & 255), ('entry_hi', L['entry'] >> 8))],
              L.poke('shot_limit', 10), L.poke('nohit', 1),
+             # (lot 10b: the full grid, not level 17's shape)
+             *[L.poke('lv_rec', 0xFF, LV['LV_MASK'] + r) for r in range(model.ROWS)],
+             L.poke('lv_rec', model.ROWS, LV['LV_ROWS']),
              L.poke('armour', 99), L.poke('invul_t', 250), 'wait:500', L.poke('invul_t', 250),
              'wait:500', L.poke('invul_t', 250), 'wait:200']
     steps += [L.peek('late_count', 2), L.peek('frame_count', 2)]
@@ -276,22 +288,23 @@ def game_over(disk, L):
     wait_end = f'wait:{2 * elapsed + 600}'
     r = a2test.run(disk, [*boot(L), wait_end,
                           L.peek('game_over'), L.peek('lives'), L.peek('msg_drawn', 2),
-                          L.peek('hud_seen', 80), L.peek('over_wait'), 'key: ', 'wait:30',
+                          L.peek('hud_seen', 2 * HUD_N), L.peek('over_wait'), *skip_bonuses(L), 'key: ', 'wait:30',
                           L.peek('game_over'), L.peek('lives'), L.peek('score', 3),
                           L.peek('msg_drawn', 2)], iie=True)
     assert r.mem(L['game_over'], 1, 0) == b'\x01' and r.mem(L['lives'], 1, 0) == b'\x00'
     assert r.mem(L['msg_drawn'], 2, 0) == b'\x01\x01', 'GAME OVER on both pages'
     assert r.mem(L['over_wait'], 1)[0] == 240, 'the title after OVER_END frames'
-    hud = r.mem(L['hud_seen'], 80)
-    for page in (hud[:40], hud[40:]):
-        assert page[:6] == b'000000' and page[8:9] == b'0', page
+    hud = r.mem(L['hud_seen'], 2 * HUD_N)
+    lives = hud_py.layout()[2]['lives']           # (lot 10: ships in the left wall)
+    for page in (hud[:HUD_N], hud[HUD_N:]):
+        assert page[:6] == b'000000' and page[lives:lives + 4] == b'    ', page
     assert r.mem(L['game_over'], 1, 1) == b'\x00' and r.mem(L['lives'], 1, 1) == b'\x03'
     assert r.mem(L['score'], 3, 0) == b'\0\0\0' and r.mem(L['msg_drawn'], 2, 1) == b'\0\0'
     # render_init/game_init once cleared whole pages past their variables:
     # the clock (//e fell back to delays after a restart), /RAM's unit and
     # crt0's saved zero page (bug hunt 2026-10-23).
     r = a2test.run(disk, [*boot(L), L.peek('ram_unit'), L.peek('zp_save', 256),
-                          'peek:0:256', wait_end, 'key: ', 'wait:60', L.peek('_a2_vbl_mode'),
+                          'peek:0:256', wait_end, *skip_bonuses(L), 'key: ', 'wait:60', L.peek('_a2_vbl_mode'),
                           L.peek('ram_unit'), L.peek('zp_save', 256)], iie=True)
     saved, live = r.mem(L['zp_save'], 256, 0), r.mem(0, 256)
     keep = range(0x20, 0x3A)        # text window, hooks ($3A-$4F: MLI and AUXMOVE scratch)
@@ -503,7 +516,7 @@ def joystick_delay(disk, L):
 def exits(disk, L):
     """ESC in a game: the title, ESC there: ProDOS (lot 9); Ctrl-RESET."""
     for how in ('key:\\e', 'reset'):
-        quit = [how, L.until('front_main', 300), 'wait:120', how] if how != 'reset' else [how]
+        quit = [how, L.until('front_main', 300), *skip_bonuses(L), 'wait:30', how] if how != 'reset' else [how]
         r = a2test.run(disk, [*boot(L), 'wait:30', *quit, 'wait:300',
                               'peek:C01A', 'peek:BF31:16', 'peek:400:1024'], iie=True)
         assert r.mem(0xC01A, 1)[0] & 0x80, 'text mode'
@@ -608,18 +621,19 @@ def main():
     cadence(a.disk, L, pal=False)
     cadence(a.disk, L, pal=True)
     pickup_feedback(a.disk, L)
-    game, deaths = oracle(a.disk, L)
+    game, deaths = oracle(a.disk, L, seed=42)   # (lot 10, narrower field: 1983 lost one life)
     assert len(deaths) == 3 and game.game_over, 'the scripted random game loses its three lives'
     game, _ = oracle(a.disk, L, count=1500, seed=7, armour=2)
     assert game.armour < 2, 'armour took a bomb'
     for start, why, count in ((0, 'normal', 3000), (2, 'big aliens', 3000), (7, 'bonus', 3000),
-                              (3, 'kamikaze', 3000), (24, 'boss', 3000), (99, 'boss of level 100, loop', 4500)):
-        game, seen = level_oracle(a.disk, L, start, count, every=10)
+                              (3, 'kamikaze', 3000), (24, 'boss', 4500), (99, 'boss of level 100, loop', 6000)):
+        # (lot 10: seed 6 shoots a big alien and takes its mark; 9 beats the stronger boss)
+        game, seen = level_oracle(a.disk, L, start, count, every=10, seed={2: 6, 99: 9}.get(start, 5))
         assert len(seen) >= 2, (why, seen)
         # (bug hunt 2026-10-23: kamikaze aliens died on their first step)
         need = {7: model.PASS, 3: model.KAMI}.get(start)
         assert need is None or need in game.states_seen, (why, sorted(game.states_seen))
-        assert start != 2 or game.marks & 1, 'a big alien shot: its rank mark taken'
+        assert start != 2 or game.marks, 'a big alien shot: its rank mark taken'
         assert start not in (24, 99) or len(seen) >= 2, 'the boss shot down'
         print(f'PASS level oracle from level {start + 1} ({why}): levels {[l + 1 + 100 * p for l, p in seen]} '
               f'== model (score {game.score})')

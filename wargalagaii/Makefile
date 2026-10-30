@@ -36,6 +36,8 @@ src/sound.inc: tools/sound.py
 	$(PYTHON) tools/sound.py
 src/bonus.inc: tools/bonus.py tools/model.py tools/paths.py
 	cd tools && $(PYTHON) bonus.py
+src/hud.inc: tools/hud.py tools/model.py
+	$(PYTHON) tools/hud.py
 src/demo.inc: tools/demo.py tools/autopilot.py tools/model.py tools/paths.py
 	$(PYTHON) tools/demo.py
 
@@ -50,7 +52,7 @@ $(BUILD)/HIGHSCORES: tools/records.py
 	@mkdir -p $(@D)
 	$(PYTHON) tools/records.py $@
 
-$(BUILD)/game.o: src/game.s src/logic.s src/render.s src/sound.s src/shop.s src/memory.s src/storm.s src/front.s src/demo.s $(APPLE2)/duet.asm $(APPLE2)/lz4fh.asm $(PRODOS)/file.asm src/sprites.inc src/paths.inc src/sound.inc src/bonus.inc src/demo.inc $(BUILD)/title.lz4 $(BUILD)/HIGHSCORES $(A2_ASM_DEPS)
+$(BUILD)/game.o: src/game.s src/logic.s src/render.s src/sound.s src/shop.s src/memory.s src/storm.s src/front.s src/demo.s $(APPLE2)/duet.asm $(APPLE2)/lz4fh.asm $(PRODOS)/file.asm src/sprites.inc src/paths.inc src/sound.inc src/bonus.inc src/hud.inc src/demo.inc $(BUILD)/title.lz4 $(BUILD)/HIGHSCORES $(A2_ASM_DEPS)
 $(BUILD)/%.o: src/%.s
 	@mkdir -p $(@D)
 	$(CA65) $(ASFLAGS) --bin-include-dir $(BUILD) -o $@ $<
@@ -91,13 +93,19 @@ $(BUILD)/WG2.SYSTEM: src/boot.s $(PRODOS_SYSBOOT_DEPS)
 
 # WG2.AUX: the packs at aux $2000, the PT3 player and song at $6000, the
 # overlay (shop, Memory Station, title) at $7000, Meteor Storm's code and
-# the demo's player (for $0800) at $9000 (each padded to the next).
-$(BUILD)/WG2.AUX: tools/sprites.py $(BUILD)/game.bin
+# the demo's player (for $0800) at $9000, the resident data for $1C40 at
+# $9800, the level records at $9C00, the walls' textures at $A200, the
+# boss's shifts at $AA00 (each padded to the next).
+$(BUILD)/WG2.AUX: tools/sprites.py tools/walls.py $(BUILD)/game.bin
 	@mkdir -p $(@D)
 	$(PYTHON) tools/sprites.py --aux $@.packs
+	$(PYTHON) tools/walls.py --aux $@.walls
+	$(PYTHON) tools/sprites.py --boss $@.boss
 	$(PYTHON) -c "import sys; r = lambda f: open(f, 'rb').read(); p, m, s = map(r, sys.argv[1:4]); \
-		l = r(sys.argv[4]); open(sys.argv[5], 'wb').write(p.ljust(0x4000, b'\0') + m.ljust(0x1000, b'\0') \
-		+ s.ljust(0x2000, b'\0') + l)" $@.packs $(BUILD)/game.bin.mus $(BUILD)/game.bin.shop $(BUILD)/game.bin.low $@
+		l, h, v, w = map(r, sys.argv[4:8]); open(sys.argv[9], 'wb').write(p.ljust(0x4000, b'\0') \
+		+ m.ljust(0x1000, b'\0') + s.ljust(0x2000, b'\0') + l.ljust(0x800, b'\0') + h.ljust(0x400, b'\0') \
+		+ v.ljust(0x600, b'\0') + w + r(sys.argv[8]))" $@.packs $(BUILD)/game.bin.mus $(BUILD)/game.bin.shop \
+		$(BUILD)/game.bin.low $(BUILD)/game.bin.hi $(BUILD)/game.bin.lv $@.walls $@.boss $@
 $(DISK): $(BUILD)/WG2.SYSTEM $(BUILD)/WG2.SYS $(BUILD)/WG2.AUX $(BUILD)/HIGHSCORES $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py
 	@rm -rf $(BUILD)/stage
 	@mkdir -p $(BUILD)/stage $(DIST)
@@ -116,6 +124,7 @@ run-iic: all
 test: all $(if $(A2SHOT_HOST),$(BUILD)/iic_probe)
 	$(PYTHON) tests/test_difficulty.py
 	$(PYTHON) tools/sprites.py --check
+	$(PYTHON) tools/hud.py --check
 	$(PYTHON) tools/paths.py --check
 	$(PYTHON) tools/sound.py --check
 	cd tools && $(PYTHON) bonus.py --check

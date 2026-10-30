@@ -21,6 +21,7 @@ FR_MENU    = 0                   ; panels
 FR_SCORES  = 1
 FR_HELP    = 2
 FR_ENTRY   = 3
+FR_BONUS   = 4                   ; lot 10: GAME BONUSES (after a game)
 REC_N      = 8                   ; tools/records.py
 REC_ENTRY  = 7
 REC_SIZE   = 64
@@ -66,6 +67,7 @@ front_main:
         lda #FR_MENU
         ldx fr_why
         beq :+
+        jsr fr_bonuses           ; (the score is final after it)
         jsr rec_new
         lda #FR_MENU
         bcc :+
@@ -177,6 +179,146 @@ fi_btn: bit $C010                ; every key up: no more lock
         beq :+
         lda #KEY_RETURN
 :       rts
+
+; GAME BONUSES (lot 10, as Warblade's end of game): the credits left x 100,
+; the rank x 10 000, the perfect bonus levels x 5 000, their sum added to
+; the score (999 999 at most); until a key or FR_BONUS's time.
+FB_AMOUNT = 30                   ; column of the amounts
+fr_bonuses:
+        lda #FR_BONUS
+        jsr fr_show
+        stz fb_sum
+        stz fb_sum+1
+        stz fb_sum+2
+        lda #13*8                ; cash: credits (BCD) x 100
+        sta sh_row
+        stz sh_lead
+        ldy #17
+        lda credits+1
+        jsr sh_bcd
+        lda credits
+        jsr sh_bcd_last
+        stz fb_val
+        lda credits
+        sta fb_val+1
+        lda credits+1
+        sta fb_val+2
+        jsr fb_line
+        lda #14*8                ; rank x 10 000
+        sta sh_row
+        lda rank
+        ldy #19
+        jsr sh_dec2
+        lda rank
+        jsr fb_bcd
+        stz fb_val
+        stz fb_val+1
+        sta fb_val+2
+        jsr fb_line
+        lda #15*8                ; perfects x 5 000 (99 at most)
+        sta sh_row
+        lda perfects
+        cmp #100
+        bcc :+
+        lda #99
+:       sta fr_k
+        ldy #19
+        jsr sh_dec2
+        stz fb_val
+        stz fb_val+1
+        stz fb_val+2
+        ldx fr_k
+        sed
+:       dex
+        bmi :+
+        clc
+        lda fb_val+1
+        adc #$50
+        sta fb_val+1
+        lda fb_val+2
+        adc #0
+        sta fb_val+2
+        bra :-
+:       cld
+        jsr fb_line
+        lda #17*8                ; their sum
+        sta sh_row
+        ldx #2
+:       lda fb_sum,x
+        sta fb_val,x
+        dex
+        bpl :-
+        jsr fb_show
+        ldx #2                   ; score += sum
+:       lda score,x
+        sta fb_sum,x
+        dex
+        bpl :-
+        jsr fb_add
+        ldx #2
+:       lda fb_sum,x
+        sta score,x
+        sta fb_val,x
+        dex
+        bpl :-
+        lda #19*8
+        sta sh_row
+        jsr fb_show
+fb_wait:
+        jsr sh_tick              ; ~1/30 s
+        jsr sound_frame
+        jsr fr_input
+        bne :++
+        lda fr_t
+        bne :+
+        dec fr_t+1
+:       dec fr_t
+        lda fr_t
+        ora fr_t+1
+        bne fb_wait
+:       rts
+; fb_val at column FB_AMOUNT (six digits), then fb_sum += fb_val.
+fb_line:
+        jsr fb_show
+        ; fall through
+; fb_sum += fb_val (BCD), 999 999 at most.
+fb_add: sed
+        clc
+        ldx #0
+:       lda fb_sum,x
+        adc fb_val,x
+        sta fb_sum,x
+        inx
+        txa                      ; (keeps the carry)
+        eor #3
+        bne :-
+        cld
+        bcc :+
+        lda #$99
+        sta fb_sum
+        sta fb_sum+1
+        sta fb_sum+2
+:       rts
+fb_show:
+        stz sh_lead
+        ldy #FB_AMOUNT
+        lda fb_val+2
+        jsr sh_bcd
+        lda fb_val+1
+        jsr sh_bcd
+        lda fb_val
+        jmp sh_bcd_last
+; A = 0..99 -> BCD.
+fb_bcd: tax
+        lda #0
+        sed
+:       dex
+        bmi :+
+        clc
+        adc #1
+        bra :-
+:       cld
+        rts
 
 ; Panel A: cleared, its texts, its idle time.
 fr_show:
@@ -633,11 +775,11 @@ fr_off:
         .byte 3 + REC_ENTRY * K
 .endrepeat
 fr_hund:  .byte 0, 100, 200
-fr_txt_lo: .lobytes fr_menu_txt, fr_scores_txt, fr_help_txt, fr_entry_txt
-fr_txt_hi: .hibytes fr_menu_txt, fr_scores_txt, fr_help_txt, fr_entry_txt
+fr_txt_lo: .lobytes fr_menu_txt, fr_scores_txt, fr_help_txt, fr_entry_txt, fr_bonus_txt
+fr_txt_hi: .hibytes fr_menu_txt, fr_scores_txt, fr_help_txt, fr_entry_txt, fr_bonus_txt
 FR_ENTRY_T = 900
-fr_time_lo: .lobytes 300, 240, 900, FR_ENTRY_T    ; idle ticks (~1/30 s)
-fr_time_hi: .hibytes 300, 240, 900, FR_ENTRY_T
+fr_time_lo: .lobytes 300, 240, 900, FR_ENTRY_T, 240    ; idle ticks (~1/30 s)
+fr_time_hi: .hibytes 300, 240, 900, FR_ENTRY_T, 240
 fr_kbd_txt: .byte "KEYBOARD"
 fr_joy_txt: .byte "JOYSTICK"
 fr_on_txt:  .byte "ON "
@@ -674,6 +816,17 @@ fr_entry_txt:
         .byte 20, 4, "LETTERS, <- ERASES, RETURN", 0
         .byte 21, 4, "STICK UP / DOWN, BUTTON", 0
         .byte $FF
+fr_bonus_txt:
+        .byte 11, 14, "GAME BONUSES", 0
+        .byte 13, 4, "CASH LEFT", 0
+        .byte 13, 22, "X 100", 0
+        .byte 14, 4, "RANK", 0
+        .byte 14, 22, "X 10000", 0
+        .byte 15, 4, "PERFECTS", 0
+        .byte 15, 22, "X 5000", 0
+        .byte 17, 4, "BONUS POINTS", 0
+        .byte 19, 4, "SCORE", 0
+        .byte $FF
 fr_err_txt:
         .byte 23, 2, "  SCORES NOT SAVED: DISK LOCKED?  ", 0
         .byte $FF
@@ -695,6 +848,8 @@ fr_k:     .res 1
 fr_lv:    .res 1
 fr_pos:   .res 1
 fr_name:  .res 3
+fb_val:   .res 3                ; GAME BONUSES: an amount (BCD, low first)
+fb_sum:   .res 3                ; their sum
 rec_state: .res 1               ; HIGHSCORES read (or the defaults)
 rec_dirty: .res 1               ; rec_buf differs from the file
 rec_err:  .res 1                ; the last write's error (tests)

@@ -37,12 +37,17 @@ def fly(start, heading, segments):
     return out
 
 
+# Lot 10: the curves were drawn for the 280 dots of the whole screen; the
+# field between the walls is 224 dots wide (model.FIELD_CELLS): x shrinks.
+SX = 224 / 280
+
+
 def quantise(start, points):
     """Dots -> step bytes; start is in dots too."""
-    qx, qy = round(start[0] / 2), round(start[1])
+    qx, qy = round(start[0] * SX / 2), round(start[1])
     steps = []
     for x, y in points:
-        nx, ny = round(x / 2), round(y)
+        nx, ny = round(x * SX / 2), round(y)
         dx, dy = nx - qx, ny - qy
         assert -7 <= dx <= 7 and -7 <= dy <= 7, (dx, dy)
         steps.append((dx & 15) << 4 | (dy & 15))
@@ -98,7 +103,7 @@ DIVES = [
 def data():
     entry = quantise(ENTRY_START, ENTRY) + [END]
     dives = [quantise(DIVE_START, d) + [END] for d in DIVES]
-    start = (round(ENTRY_START[0] / 2), round(ENTRY_START[1]) & 0xFF)
+    start = (round(ENTRY_START[0] * SX / 2), round(ENTRY_START[1]) & 0xFF)
     return start, entry, dives
 
 

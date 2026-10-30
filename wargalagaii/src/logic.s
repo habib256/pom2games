@@ -52,7 +52,7 @@ shots:  lda shot_y,x
         clc
         adc shot_dx,x
         sta shot_c,x
-        cmp #140
+        cmp #FIELD_CELLS
         bcs shot_free
         lda shot_y,x
         sec
@@ -94,7 +94,7 @@ bomb_fall:
         clc
         adc e_dx,x
         sta e_c,x
-        cmp #140
+        cmp #FIELD_CELLS
         bcs bomb_free
         lda e_y,x
         clc
@@ -130,9 +130,9 @@ stars:  ldx #NSTARS-1            ; three speeds; a star leaving the bottom
         pha
         lda star_col,x
         adc #17-1                ; carry is set
-        cmp #40
+        cmp #STAR_COLS
         bcc :+
-        sbc #40
+        sbc #STAR_COLS
 :       sta star_col,x
         pla
 :       sta star_y,x
@@ -356,6 +356,9 @@ ls_clear:
         sta pts_top
         lda #0
         jsr add_points3
+        inc perfects             ; (lot 10: paid again at the end, front.s)
+        bne :+
+        dec perfects             ; (255 at most)
 :       lda #1
         sta phase
         stz hurry
@@ -541,19 +544,55 @@ shop_exit:
 ; The level's kind and parameters: loop-0 tables (tools/bonus.py), made
 ; harder once a loop (saturating; twenty loops reach every bound).
 setup_level:
-        ldx level
-        lda lv_kind,x
+        stz af_dst+1             ; its record, aux lv_recs + LV_REC * level
+        lda #0                   ; (af_dst+1: the high byte of the product)
+        ldx #LV_REC
+:       clc
+        adc level
+        bcc :+
+        inc af_dst+1
+:       dex
+        bne :--
+        clc
+        adc #<lv_recs
+        pha
+        lda af_dst+1
+        adc #>lv_recs
+        tay
+        lda #<lv_rec
+        sta af_dst
+        lda #>lv_rec
+        sta af_dst+1
+        lda #LV_REC
+        sta af_len
+        stz af_len+1
+        pla
+        jsr aux_fetch
+        lda a:lv_rec+LV_KIND
         sta lkind
-        lda lv_dive,x
+        lda a:lv_rec+LV_DIVE
         sta dive_gap
-        lda lv_divers,x
+        lda a:lv_rec+LV_DIVERS
         sta max_divers
-        lda lv_fire,x
+        lda a:lv_rec+LV_FIRE
         sta fire_gap
-        lda lv_bomb,x
+        lda a:lv_rec+LV_BOMB
         sta bomb_dy
-        lda lv_kami,x
+        lda a:lv_rec+LV_KAMI
         sta kami_dy
+        ldx #ROWS-1              ; lot 10b: each row's stagger and species
+:       lda a:lv_rec+LV_STAGGER
+        and col_bit,x
+        beq :+
+        lda #ROW_SHIFT
+:       sta row_sh,x
+        lda a:lv_rec+LV_DESIGN
+        and col_bit,x
+        beq :+
+        lda #DESIGN2             ; the second species' table entries
+:       sta row_base,x
+        dex
+        bpl :---
         lda loop
         cmp #20
         bcc :+
@@ -649,6 +688,10 @@ boss_setup:
         adc tmp
         asl
         adc #30
+        cmp #125                 ; x 2 (lot 10c: a slower boss), 250 at most
+        bcc :+
+        lda #125
+:       asl
         sta boss_hp
         lda tmp                  ; 5 n
         asl
@@ -664,7 +707,7 @@ boss_setup:
 :       lda #16
 :       sta boss_gap
         sta boss_t
-        lda #56                  ; (a multiple of 7)
+        lda #BOSS_X0
         sta boss_x
         lda #1
         sta boss_dir
@@ -673,7 +716,7 @@ boss_setup:
         sta boss_mv
         rts
 
-; A leap of 7 cells every BOSS_STEP steps, bouncing at the edges; a
+; A cell every BOSS_STEP steps (lot 10c), bouncing at the walls; a
 ; rosette every boss_gap steps, an aimed bomb half-way.
 boss_move:
         lda boss_hp
@@ -683,7 +726,9 @@ boss_move:
         lda #BOSS_STEP
         sta boss_mv
         jsr bm_leap
-        cmp #BOSS_MAX_X+1        ; (also negative)
+        tay                      ; 1 <= x <= BOSS_MAX_X?
+        dey
+        cpy #BOSS_MAX_X
         bcc :+
         lda boss_dir
         eor #$FE                 ; 1 <-> $FF
@@ -764,17 +809,11 @@ hm_next:                         ; A = h_x + 2 * h_dir
 hm_done:
         rts
 
-; A = boss_x + 7 * boss_dir.
+; A = boss_x + boss_dir (lot 10c: a cell at a time).
 bm_leap:
-        lda boss_dir
-        bmi :+
         lda boss_x
         clc
-        adc #7
-        rts
-:       lda boss_x
-        sec
-        sbc #7
+        adc boss_dir
         rts
 
 ; Shot down: 5000 points, its escorts explode, a life and a 200 coin.
@@ -804,7 +843,7 @@ boss_down:
         sta obj_kind+1
         lda boss_x
         clc
-        adc #8
+        adc #BOSS_CELLS/2
         tay
         lda div7,y
         sta obj_k
@@ -869,7 +908,7 @@ vl_done:
 ; flying list. A hit frees the shot, explodes the alien, scores.
 shoot:  lda boss_hp                ; the boss first
         beq sh_grid
-        lda shot_c,x             ; boss_x <= c <= boss_x + 15
+        lda shot_c,x             ; boss_x <= c <= boss_x + BOSS_CELLS - 1
         cmp boss_x
         bcc sh_grid
         lda boss_x
@@ -877,12 +916,12 @@ shoot:  lda boss_hp                ; the boss first
         adc #BOSS_CELLS-1
         cmp shot_c,x
         bcc sh_grid
-        lda shot_y,x             ; rows y..y+5 meet BOSS_Y..BOSS_Y+23
+        lda shot_y,x             ; rows y..y+5 meet BOSS_Y..BOSS_Y+BOSS_H-1
         cmp #BOSS_Y+BOSS_H
         bcs sh_grid
         cmp #BOSS_Y-SHOT_H+1
         bcc sh_grid
-        stz shot_y,x             ; the wings swallow it, the core bleeds
+        stz shot_y,x             ; the claws swallow it, the core bleeds
         lda shot_c,x
         sec
         sbc boss_x
@@ -912,6 +951,9 @@ sh_grid:
         bcc sh_fly
         sec
         sbc row_off,y
+        bcc sh_fly
+        sec
+        sbc row_sh,y
         bcc sh_fly
         cmp #COLS*FORM_DX
         bcs sh_fly
@@ -1560,11 +1602,8 @@ launch:
         bne launch_pair_gap
         stz entry_k
         inc entry_w
-        ldx level
-        cpx #12
-        bcs launch_wave_gap
         lda entry_w
-        cmp lv_rows,x
+        cmp a:lv_rec+LV_ROWS
         bne launch_wave_gap
         lda #ROWS                ; fewer opening rows, same done sentinel
         sta entry_w
@@ -1589,7 +1628,18 @@ launched:
 ; X = alien, Y = mirror flag (the right one of the pair), flipped after
 ; level 100. The way in and the state depend on the level kind: a bonus
 ; level's aliens fly past, a kamikaze level's dive at the ship.
-enter:  lda lkind                 ; a big level's row 0: big aliens on the
+enter:  phy                      ; lot 10b: not in the shape (this row's mask)
+        txa
+        and #COLS-1
+        tay
+        lda col_bit,y
+        ldy entry_w
+        and a:lv_rec+LV_MASK,y
+        ply
+        cmp #0
+        bne :+
+        rts
+:       lda lkind                ; a big level's row 0: big aliens on the
         cmp #LK_BIG              ; even slots, none on the odd ones
         bne en_small
         lda entry_w
@@ -1769,6 +1819,8 @@ found:  lda #ST_DIVE
 slot_x: phy
         ldy alien_row,x
         lda row_off,y
+        clc
+        adc row_sh,y             ; (lot 10b: a staggered row)
         sta tmp
         txa
         and #COLS-1
@@ -1856,14 +1908,14 @@ a_path: lda a_plo,x              ; flying a path
 :       cmp #ALIEN_MAX+1
         bcc xok
         lda #ALIEN_MAX
-xok:    ldy a_big,x              ; big: cells 2..132 (its box: x-2..x+7)
+xok:    ldy a_big,x              ; big: cells 2..BIG_HI (its box: x-2..x+7)
         beq :++
         cmp #2
         bcs :+
         lda #2
-:       cmp #132+1
+:       cmp #BIG_HI+1
         bcc :+
-        lda #132
+        lda #BIG_HI
 :       sta a_x,x
         lda tmp2                 ; dy: low nibble, signed
         and #$0F

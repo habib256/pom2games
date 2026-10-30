@@ -28,21 +28,27 @@ mirrored and harder still. Between two levels: TELEPORT_T steps.
 import paths
 
 FIELD_TOP = 8
+# Lot 10: walls of FIELD_COL bytes on each side (Warblade's frame); the
+# field is the FIELD_CELLS cells between them, cell 0 at byte FIELD_COL.
+# 4 bytes = 14 cells: the shifts and colours of a cell stay the same.
+FIELD_COL = 4
+FIELD_CELLS = 140 - 2 * (7 * FIELD_COL // 2)
 SHIP_Y = 180
-SHIP_MAX = 140 - 7
+SHIP_MAX = FIELD_CELLS - 7
 SHIP_SPEED = 2
 MAX_SHOTS = 10                  # slots; shot_limit (jauge B) uses 5 at start
 SHOT_LIMIT = 5
 SHOT_DY = 8
 SHOT_H = 6
 SHOT_Y0 = SHIP_Y - SHOT_H
+STAR_COLS = 2 * FIELD_CELLS // 7  # byte columns of the field
 NSTARS = 16                     # (24 until lot 6: ~1 100 cycles a frame back)
 
 ROWS, COLS = 5, 8
 NALIENS = ROWS * COLS
-ALIEN_MAX = 140 - 7
+ALIEN_MAX = FIELD_CELLS - 7
 ALIEN_CELLS, ALIEN_H = 7, 8
-FORM_X0, FORM_DX = 11, 14       # cells
+FORM_X0, FORM_DX = 5, 12        # cells (11, 14 before the walls)
 FORM_Y0, FORM_DY = 20, 14       # rows
 SWAY_MAX = 12
 SWAY_EVERY = 3                  # steps per row move (2 until lot 6: frame budget)
@@ -83,16 +89,17 @@ DEMO_NEXT = {1: 2, 4: 7, 8: 24}  # attract mode: ordinary, big, kami, bonus, bos
 # like a small one: their box is cells x-2..x+7, rows y-8..y+7 (drawn only
 # from row 16 down, not over the HUD).
 BIG_HP, POINTS_BIG = 2, 200
-# The boss (levels 25, 50, 75, 100): 16 cells x 24 rows at BOSS_Y, leaping
-# 7 cells (two bytes: always the same pre-shift, redrawn only when it moved)
-# every BOSS_STEP steps, bouncing; only its core (cells 4..11) takes hits, its
-# wings swallow shots; a rosette of 5 bombs every boss_gap steps, an aimed
-# bomb half-way; shot down: 5000 points, its escorts explode, a life and a
-# 200 coin drop.
-BOSS_CELLS, BOSS_H, BOSS_Y = 16, 24, 24
-BOSS_CORE0, BOSS_CORE1 = 4, 11
-BOSS_MAX_X = 119                # a multiple of 7: 140 - 16, rounded down
+# The boss (levels 25, 50, 75, 100; lot 10c: bigger, smooth): 24 cells x
+# 28 rows at BOSS_Y, a cell every BOSS_STEP steps, bouncing between the
+# walls; only its core (cells 9..14) takes hits, its claws swallow shots; a
+# rosette of 5 bombs every boss_gap steps, an aimed bomb half-way; shot
+# down: 5000 points, its escorts explode, a life and a 200 coin drop.
+BOSS_CELLS, BOSS_H, BOSS_Y = 24, 28, 24
+BOSS_CORE0, BOSS_CORE1 = 9, 14
+BOSS_MIN_X = 1                  # (its STA margin, a cell each side, and
+BOSS_MAX_X = 80                 # its 9 bytes: never on a wall)
 BOSS_STEP = 8
+BOSS_X0 = BOSS_MAX_X // 2
 BOSS_BOOM_T = 40
 POINTS_BOSS, POINTS_BOSS_HIT = 5000, 10
 ROSETTE = (-2, -1, 0, 1, 2)
@@ -167,6 +174,33 @@ def big_combo(level):
     return pack % 2 * 4 + pack // 6 % 4
 
 
+# Lot 10: Warblade's formations are shapes, not a full grid, and mix two
+# species. A shape: ROWS rows of (columns, staggered); a staggered row sits
+# half a pitch (ROW_SHIFT cells) to the right (no alien in its column 7:
+# the sway would take it past ALIEN_MAX). Original shapes, after the
+# blocks, bricks, arrows and gaps of Warblade's squadrons.
+ROW_SHIFT = FORM_DX // 2
+SHAPES = {
+    'block':   [('XXXXXXXX', 0)] * 5,
+    'brick':   [('XXXXXXXX', 0), ('XXXXXXX.', 1), ('XXXXXXXX', 0), ('XXXXXXX.', 1), ('XXXXXXXX', 0)],
+    'pyramid': [('..XXX...', 1), ('..XXXX..', 0), ('.XXXXX..', 1), ('.XXXXXX.', 0), ('XXXXXXX.', 1)],
+    'gap':     [('XXX..XXX', 0), ('XXXXXXXX', 0), ('XXX..XXX', 0), ('XXXXXXXX', 0), ('XXX..XXX', 0)],
+    'diamond': [('..XXX...', 1), ('.XXXXXX.', 0), ('XXXXXXX.', 1), ('.XXXXXX.', 0), ('..XXX...', 1)],
+    'columns': [('XX.XX.XX', 0)] * 5,
+    'vee':     [('XXXXXXX.', 1), ('.XXXXXX.', 0), ('.XXXXX..', 1), ('..XXXX..', 0), ('..XXX...', 1)],
+    'wings':   [('XXX..XXX', 0), ('XX....XX', 0), ('XXX..XXX', 0), ('XX....XX', 0), ('XXX..XXX', 0)],
+    'checker': [('X.X.X.X.', 0), ('X.X.X.X.', 1), ('.X.X.X.X', 0), ('X.X.X.X.', 1), ('X.X.X.X.', 0)],
+}
+SHAPE_ORDER = ['block', 'brick', 'pyramid', 'gap', 'diamond', 'columns', 'vee', 'wings', 'checker']
+# Rows drawn as the second species (bit r = row r), by formation level.
+DESIGN_ROWS = [0b00001, 0b11000, 0b00110, 0b10101]
+FULL = 0xFF
+
+
+def mask(cells):
+    return sum(1 << c for c, ch in enumerate(cells) if ch == 'X')
+
+
 def entry_params(level):
     """Rows, pair gap, wave gap. WGII tuning, not Warblade's original data.
 
@@ -175,8 +209,38 @@ def entry_params(level):
     """
     if level_kind(level) in (BONUS, KAMIKAZE, BOSS):
         return ROWS, LAUNCH_GAP, WAVE_GAP
+    return level_form(level)[0], 10 if level < 12 else LAUNCH_GAP, 90 if level < 12 else WAVE_GAP
+
+
+def level_form(level):
+    """(rows, masks, staggered rows, second-species rows): the waves fill
+    rows 0..rows-1, a wave launching only its row's columns. A normal or big
+    level takes the next shape (a big level's row 0: big aliens on the even
+    columns) and the rows that bring it near the opening's count (8 a row);
+    the special levels keep the full grid, the boss its two rows of escorts."""
+    kind = level_kind(level)
+    if kind == BOSS:
+        return ROWS, [FULL] * ROWS, 0, 0       # (one species: cur_big, iobuf hold the boss)
+    if kind in (BONUS, KAMIKAZE):
+        return ROWS, [FULL] * ROWS, 0, 0b01010
+    k = 3 * (level // 4) + level % 4         # the normal and big levels, in turn
+    shape = SHAPES[SHAPE_ORDER[k % len(SHAPE_ORDER)]]
+    masks = [mask(cells) for cells, _ in shape]
+    stagger = sum(st << r for r, (_, st) in enumerate(shape))
+    design = DESIGN_ROWS[k % len(DESIGN_ROWS)]
+    if kind == BIG:
+        masks[0], stagger, design = 0x55, stagger & ~1, design & ~1
+    want = 8 * min(ROWS, 2 + level % 4 + level // 4) - (4 if kind == BIG else 0)
     rows = min(ROWS, 2 + level % 4 + level // 4)
-    return rows, 10 if level < 12 else LAUNCH_GAP, 90 if level < 12 else WAVE_GAP
+    while rows < ROWS and sum(bin(m).count('1') for m in masks[:rows]) < want - 4:
+        rows += 1
+    return rows, masks, stagger, design
+
+
+def alien_combo2(level):
+    """The pack's second species: design + 2, the other palette (tint + 2)."""
+    c = alien_combo(level)
+    return (c // 4 + 2) % 6 * 4 + (c % 4 + 2) % 4
 
 
 def level_params(level, loop):
@@ -283,7 +347,7 @@ class Game:
         self.shot_y = [0] * MAX_SHOTS
         self.shot_c = [0] * MAX_SHOTS
         self.star_y = [FIELD_TOP + (i * 97 + 13) % (192 - FIELD_TOP) for i in range(NSTARS)]
-        self.star_col = [(i * 23 + 5) % 40 for i in range(NSTARS)]
+        self.star_col = [(i * 23 + 5) % STAR_COLS for i in range(NSTARS)]
         self.prng = SEED
         self.entry_w, self.entry_k, self.entry_t = 0, 0, ENTRY_FIRST
         self.form_off, self.form_dir, self.sway_row, self.sway_t = 0, 1, 0, 0
@@ -320,6 +384,7 @@ class Game:
         self.marks, self.mark_dark, self.subgame = 0, 0, 0
         self.pick_msg = self.pick_t = 0
         self.shop, self.rank = 0, 0
+        self.perfects = 0                 # bonus levels all shot (front.s pays them)
         self.level, self.loop, self.phase, self.clear_t, self.level_t = start_level, 0, 0, 0, 0
         self.bonus_kills, self.w_kills = 0, [0] * ROWS
         self.e_dx = [0] * E_SHOTS
@@ -336,8 +401,8 @@ class Game:
 
     def boss_setup(self):
         n = self.level // 25 + 4 * self.loop
-        self.boss_hp = min(250, 30 + 10 * n)
-        self.boss_x, self.boss_dir, self.boss_boom, self.boss_mv = 56, 1, 0, BOSS_STEP
+        self.boss_hp = min(250, 60 + 20 * n)   # (lot 10c: x2, it moves a cell at a time)
+        self.boss_x, self.boss_dir, self.boss_boom, self.boss_mv = BOSS_X0, 1, 0, BOSS_STEP
         self.boss_gap = max(16, 40 - 5 * n)
         self.boss_t = self.boss_gap
 
@@ -345,6 +410,8 @@ class Game:
         self.lkind = level_kind(self.level)
         (self.dive_gap, self.max_divers, self.fire_gap, self.bomb_dy,
          self.kami_dy) = level_params(self.level, self.loop)
+        _, self.f_mask, stagger, self.f_design = level_form(self.level)
+        self.row_sh = [ROW_SHIFT * (stagger >> r & 1) for r in range(ROWS)]
         self.entry_w = 3 if self.lkind == BOSS else 0
         self.entry_k, self.entry_t = 0, ENTRY_FIRST
         self.dive_t, self.fire_t, self.level_t = self.dive_gap, self.fire_gap, 0
@@ -368,7 +435,7 @@ class Game:
         return i - NALIENS if i >= NALIENS else i
 
     def slot_x(self, i):
-        return FORM_X0 + self.row_off[i // COLS] + FORM_DX * (i % COLS)
+        return FORM_X0 + self.row_off[i // COLS] + self.row_sh[i // COLS] + FORM_DX * (i % COLS)
 
     @staticmethod
     def slot_y(i):
@@ -415,7 +482,7 @@ class Game:
                 y -= SHOT_DY
                 c = (self.shot_c[x] + self.shot_dx[x]) & 0xFF
                 self.shot_c[x] = c
-                self.shot_y[x] = y if y >= FIELD_TOP and c <= 139 else 0
+                self.shot_y[x] = y if y >= FIELD_TOP and c < FIELD_CELLS else 0
         volley = self.autofire_t and held and not self.auto_cnt
         self.auto_cnt = (self.auto_cnt + 1) % AUTO_GAP
         if (fire or volley) and self.alive() and not self.phase:
@@ -434,7 +501,7 @@ class Game:
                 y += self.bomb_dy
                 c = (self.e_c[k] + self.e_dx[k]) & 0xFF
                 self.e_c[k] = c
-                self.e_y[k] = y if y <= 192 - BOMB_H and c <= 139 else 0
+                self.e_y[k] = y if y <= 192 - BOMB_H and c < FIELD_CELLS else 0
         for k in range(N_OBJ):
             y = self.obj_y[k]
             if y:
@@ -444,7 +511,7 @@ class Game:
             y = self.star_y[i] + star_speed(i)
             if y >= 192:
                 y -= 192 - FIELD_TOP
-                self.star_col[i] = (self.star_col[i] + 17) % 40
+                self.star_col[i] = (self.star_col[i] + 17) % STAR_COLS
             self.star_y[i] = y
         if self.freeze_t:               # frozen: only explosions go on
             for i in range(NALIENS):
@@ -517,6 +584,7 @@ class Game:
             return
         if self.lkind == BONUS and self.bonus_kills == NALIENS:
             self.add_score(BONUS_PRIZE)
+            self.perfects = min(255, self.perfects + 1)   # (lot 10: GAME BONUSES)
         self.phase, self.clear_t = 1, TELEPORT_T
         self.hurry = 0
         self.shot_y = [0] * MAX_SHOTS
@@ -633,7 +701,7 @@ class Game:
             y = self.star_y[i] + star_speed(i) + dy // 2
             if y >= 192:
                 y -= 192 - FIELD_TOP
-                self.star_col[i] = (self.star_col[i] + 17) % 40
+                self.star_col[i] = (self.star_col[i] + 17) % STAR_COLS
             self.star_y[i] = y
         for i in reversed(range(NALIENS)):
             s = self.a_state[i]
@@ -681,10 +749,12 @@ class Game:
             for k in reversed(range(N_OBJ)):
                 if not self.obj_y[k]:
                     self.obj_y[k], self.obj_kind[k] = FIELD_TOP, kind
-                    self.obj_k[k] = (self.rand8() & 15) + 2
+                    self.obj_k[k] = self.rand8() & 15
                     return
             return
-        x = (self.rand8() & 127) + 3
+        x = self.rand8() & 127
+        if x > ALIEN_MAX:
+            x -= 64
         for i in reversed(range(M_ROCKS)):
             if not self.a_state[i]:
                 self.a_state[i], self.a_x[i], self.a_y[i] = ROCK, x, M_TOP
@@ -875,7 +945,7 @@ class Game:
         # seated: the one band a shot can touch, then the column
         r = shot_row(y)
         if r is not None:
-            dx = c - (FORM_X0 + self.row_off[r])
+            dx = c - (FORM_X0 + self.row_off[r] + self.row_sh[r])
             if 0 <= dx < COLS * FORM_DX and dx % FORM_DX < ALIEN_CELLS:
                 i = r * COLS + dx // FORM_DX
                 if self.a_state[i] == FORM and not self.a_big[i]:
@@ -935,10 +1005,10 @@ class Game:
         self.boss_mv -= 1
         if not self.boss_mv:
             self.boss_mv = BOSS_STEP
-            x = self.boss_x + 7 * self.boss_dir
-            if x < 0 or x > BOSS_MAX_X:
+            x = self.boss_x + self.boss_dir
+            if x < BOSS_MIN_X or x > BOSS_MAX_X:
                 self.boss_dir = -self.boss_dir
-                x = self.boss_x + 7 * self.boss_dir
+                x = self.boss_x + self.boss_dir
             self.boss_x = x
         self.boss_t -= 1
         mid = self.boss_x + BOSS_CELLS // 2
@@ -977,7 +1047,7 @@ class Game:
                 self.explode(i)
         for kind, k in (('life', 0), ('c200', 1)):
             self.obj_y[k] = BOSS_Y + 8
-            self.obj_k[k] = (self.boss_x + 8) // 7 - k
+            self.obj_k[k] = (self.boss_x + BOSS_CELLS // 2) // 7 - k
             self.obj_kind[k] = K[kind]
 
     def kill(self):
@@ -1010,6 +1080,8 @@ class Game:
         state = {BONUS: PASS, KAMIKAZE: KAMI}.get(self.lkind, ENTER)
         route = FLYPAST if state == PASS else ENTRIES[paths.entry_index(self.level, w)]
         for i, mirror in ((w * COLS + 3 - k, 0), (w * COLS + 4 + k, 1)):
+            if not self.f_mask[w] >> (i % COLS) & 1:     # (lot 10) not in the shape
+                continue
             big = self.lkind == BIG and w == 0
             if big and i % 2:           # a big level's row 0: even slots only
                 continue
@@ -1087,7 +1159,7 @@ class Game:
             dx, dy = paths.decode(b)
             if self.a_mirror[i]:
                 dx = -dx
-            lo, hi = (-BIG_X0, 139 - (BIG_X0 + BIG_CELLS - 1)) if self.a_big[i] else (0, ALIEN_MAX)
+            lo, hi = (-BIG_X0, FIELD_CELLS - 1 - (BIG_X0 + BIG_CELLS - 1)) if self.a_big[i] else (0, ALIEN_MAX)
             self.a_x[i] = clamp(self.a_x[i] + dx, lo, hi)
             y = (self.a_y[i] + dy) & 0xFF
             self.a_y[i] = y
@@ -1122,6 +1194,8 @@ class Game:
                 'a_big': bytes(self.a_big),
                 'a_hp': bytes(self.a_hp),
                 'row_off': bytes(self.row_off),
+                'row_sh': bytes(self.row_sh),
+                'perfects': bytes([self.perfects]),
                 'row_anim': bytes(self.row_anim),
                 'e_y': bytes(self.e_y),
                 'e_c': bytes(self.e_c),

@@ -7,7 +7,8 @@ render.s only rewrites what changed on a page since that page was last drawn
 character cache...). Whatever the history, the result must be what a full
 redraw of the state gives:
 
-    HUD (rows 0-7)        glyphs, STA
+    walls (lot 10)        the quarter's texture, STA
+    HUD (row 0, walls)    glyphs, STA (tools/hud.py)
     seated aliens         STA, table entry shift*2 + row frame
     GAME OVER             glyphs, STA
     ship / its explosion  STA
@@ -33,8 +34,10 @@ import a2test
 from boot import boot
 from hgr_tables import hgr_offset
 import fonts
+import hud
 import model
 import sprites
+import walls
 
 M = model
 
@@ -54,14 +57,13 @@ def tables():
     out['shipboom'] = [sboom[f][s] for s in range(7) for f in range(2)]
     out['rock'] = sprites.rock_shapes() + [boom[f][s] for s in range(7) for f in range(2)]
     out['big'] = {c: sprites.big_shapes(c // 4, c % 4) for c in range(len(sprites.BIG) * len(sprites.TINTS))}
-    nb = (2 * len(sprites.BOSS[1][0]) + 6) // 7
-    out['boss'] = sprites.shifted(sprites.tinted(sprites.BOSS[1], 3), sprites.BOSS[0], nb)[1][0]
+    out['boss'] = sprites.boss_shapes()[1]             # (lot 10c: 7 shifts)
     return out
 
 
 def font():
     """Glyph rows for codes $20-$63: bbfont, then the game's four."""
-    glyphs = {c: list(fonts.glyph(c)) for c in range(0x20, 0x60)}
+    glyphs = {c: list(fonts.glyph(c)) for c in range(0x20, 0x60)}   # (then $60-$66)
     text = (GAME / 'src/game.s').read_text()
     block = text[text.index('GLYPH_EMPTY = $63'):text.index('.assert * = bbfont')]
     for k, line in enumerate(re.findall(r'\.byte ([$0-9A-F,]+)', block)):
@@ -70,36 +72,18 @@ def font():
 
 
 def cell_byte(c):
-    return 2 * (c // 7) + (2 * (c % 7) >= 7)
+    return M.FIELD_COL + 2 * (c // 7) + (2 * (c % 7) >= 7)
 
 
-def hud_text(st):
-    score = st['score']
-    digits = f'{score[2]:02X}{score[1]:02X}{score[0]:02X}'
-    full, empty = 0x62, 0x63
-    bar = lambda n: [full] * n + [empty] * (5 - n)
-    credits = f'{st["credits"][1]:02X}{st["credits"][0]:02X}'
-    extra = [ord(c) if st['extra_bits'] >> k & 1 else ord('-') for k, c in enumerate('EXTRA')]
-    text = (list(digits.encode()) + [0x20, 0x60, ord('0') + st['lives'], 0x20, 0x61,
-            ord('0') + st['armour'], 0x20, ord('S')] + bar(st['s_level']) + [0x20, ord('B')]
-            + bar(st['shot_limit'] - M.B_MIN) + [0x20, ord('T'), ord('0') + st['t_level'], ord('0'),
-            ord('$')] + list(credits.encode()) + extra)
-    assert len(text) == 40
-    return text
-
-
-def storm_hud(st):
-    """Meteor Storm's HUD: score, SPEED (1..8), DIST (rows left / 512,
-    rounded up), credits."""
-    score = st['score']
-    digits = f'{score[2]:02X}{score[1]:02X}{score[0]:02X}'
-    credits = f'{st["credits"][1]:02X}{st["credits"][0]:02X}'
-    bar = lambda n: [0x62] * n + [0x63] * (8 - n)
-    dist = st['m_dist'][0] | st['m_dist'][1] << 8
-    text = (list(f'{digits} SPEED'.encode()) + bar(st['m_speed'] // 8 + 1) + list(b' DIST')
-            + bar((dist + 511) // 512) + list(f' ${credits} '.encode()))
-    assert len(text) == 40
-    return text
+def hud_state(st):
+    """The FIELDS block -> the integers tools/hud.py text() reads."""
+    word = lambda b: b[0] | b[1] << 8
+    out = {name: st[name] for name in ('lives', 'armour', 's_level', 'shot_limit', 't_level', 'extra_bits',
+                                        'storm', 'm_speed')}
+    out.update(score=st['score'], credits=st['credits'], hi_score=st['hi_score'], m_dist=st['m_dist'],
+               mult=st['mult'][0], rank=st['rank'][0], marks=st['marks'][0],
+               **{t: word(st[t]) for t in ('mult_t', 'autofire_t', 'shield_t', 'freeze_t')})
+    return out
 
 
 def level_text(st):
@@ -113,6 +97,12 @@ def level_text(st):
 def expected(st, T, glyphs):
     page = bytearray(8192)
     fly = T['rock'] if st['storm'] else T['fly'][M.alien_combo(st['level'])]
+    fly2 = T['fly'][M.alien_combo2(st['level'])]
+    design = 0 if st['storm'] else M.level_form(st['level'])[3]
+
+    def table(i):
+        """Lot 10b: a row of the second species (its explosion is the same)."""
+        return fly2 if design >> (i // M.COLS) & 1 else fly
     big = T['big'][M.big_combo(st['level'])]
 
     def drawn_big(i):
@@ -130,15 +120,24 @@ def expected(st, T, glyphs):
                 a = base + col + b
                 page[a] = v if mode == 'sta' else page[a] ^ v
 
-    for c, ch in enumerate(storm_hud(st) if st['storm'] else hud_text(st)):
-        put([[v] for v in glyphs[ch]], c, 0, 'sta')
+    tile = walls.tile(st['level'] // 25)          # lot 10: the walls, the HUD on them
+    for y in range(M.FIELD_TOP, 192):
+        row = tile[(y - M.FIELD_TOP) % walls.WALL_H]
+        put([row[:4]], 0, y, 'sta')
+        put([row[4:]], 40 - M.FIELD_COL, y, 'sta')
+    places = hud.layout()[0]
+    for (col, row), ch in zip(places, hud.text(hud_state(st))):
+        put([[v] for v in glyphs[ch]], col, row, 'sta')
     for i in range(M.NALIENS):
         if st['a_state'][i] == M.FORM and shown(i):
             x, anim = st['a_x'][i], st['row_anim'][i // M.COLS]
             if drawn_big(i):
                 put(big[(x - 2) % 7 * 2 + anim], cell_byte(x - 2), st['a_y'][i] - 8, 'sta')
             else:
-                put(fly[x % 7 * 2 + anim], cell_byte(x), st['a_y'][i], 'sta')
+                put(table(i)[x % 7 * 2 + anim], cell_byte(x), st['a_y'][i], 'sta')
+    if st['boss_hp'] or st['boss_boom'] & 8:       # (STA, a cell of margin each side)
+        x = st['boss_x'] - 1
+        put(T['boss'][x % 7], cell_byte(x), M.BOSS_Y, 'sta')
     msg = b' GAME OVER  ' if st['game_over'] else level_text(st) if st['phase'] else \
         b'METEOR STORM' if st['storm'] and st['m_wait'] else \
         M.PICK_TEXT[st['pick_msg']].center(12).encode() if st['pick_t'] else \
@@ -164,11 +163,7 @@ def expected(st, T, glyphs):
             if drawn_big(i):
                 put(big[(x - 2) % 7 * 2 + f], cell_byte(x - 2), y - 8, 'eor')
             else:
-                put(fly[x % 7 * 2 + f], cell_byte(x), y, 'eor')
-    if st['boss_hp'] or st['boss_boom'] & 4:
-        x = st['boss_x']
-        assert x % 7 == 0
-        put(T['boss'], cell_byte(x), M.BOSS_Y, 'eor')
+                put(table(i)[x % 7 * 2 + f], cell_byte(x), y, 'eor')
     if st['hurry']:
         x = st['h_x']
         put(T['ufo'][x % 7], cell_byte(x), M.HURRY_Y, 'eor')
@@ -183,9 +178,9 @@ def expected(st, T, glyphs):
     icons = [sprites.icon_bytes(k) for k in range(len(sprites.ICON_SHAPES))]
     for k in range(M.N_OBJ):
         if st['obj_y'][k]:
-            put(icons[st['obj_kind'][k]], 2 * st['obj_k'][k], st['obj_y'][k], 'eor')
+            put(icons[st['obj_kind'][k]], M.FIELD_COL + 2 * st['obj_k'][k], st['obj_y'][k], 'eor')
     for i in reversed(range(M.NSTARS)):
-        a = hgr_offset(st['star_y'][i]) + st['star_col'][i]
+        a = hgr_offset(st['star_y'][i]) + M.FIELD_COL + st['star_col'][i]
         if not page[a]:
             page[a] = 1 << (i * 3 % 7) | (i % 2) << 7
     return page
@@ -200,7 +195,8 @@ FIELDS = {'ship_c': 1, 'shot_limit': 1, 'shot_y': M.MAX_SHOTS, 'shot_c': M.MAX_S
           'obj_kind': M.N_OBJ, 's_level': 1, 't_level': 1, 'extra_bits': 1, 'shield_t': 2,
           'level': 1, 'loop': 1, 'phase': 1, 'a_big': M.NALIENS, 'boss_hp': 1, 'boss_x': 1,
           'boss_boom': 1, 'hurry': 1, 'h_x': 1, 'storm': 1, 'm_wait': 1, 'm_speed': 1, 'm_dist': 2,
-          'demo': 1, 'pick_msg': 1, 'pick_t': 1}
+          'demo': 1, 'pick_msg': 1, 'pick_t': 1, 'mult': 1, 'mult_t': 2, 'autofire_t': 2, 'freeze_t': 2,
+          'rank': 1, 'marks': 1, 'hi_score': 3}
 
 
 def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, cheats=(), demo=False):
@@ -240,14 +236,17 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, ch
             # Force the final explosion: the gentler opening must not make
             # rendering coverage depend on a random enemy hitting the ship.
             # over_wait holds GAME OVER on screen instead of returning.
-            steps += [L.poke('lives', 0), L.poke('ship_state', M.DEATH_T), L.poke('armour', 0)]
+            steps += [L.poke('lives', 0), L.poke('ship_state', M.DEATH_T), L.poke('armour', 0),
+                      # no GAME BONUSES (lot 10): they could make a record, its initials
+                      L.poke('credits', 0), L.poke('credits', 0, 1), L.poke('rank', 0), L.poke('perfects', 0)]
             steps += ['wait:100', L.poke('over_wait', 0)] * 30
             for _ in range(10):
                 steps += [L.until('render_done', 60), L.peek('page'), L.peek('step_count', 2),
                           f'peek:{first:04X}:{span}', 'peek:2000:8192', 'peek:4000:8192',
                           L.until('game_tick', 60)]
                 samples += 1
-            steps += [L.poke('over_wait', M_OVER_WAIT), 'key: ', L.until('front_main', 300), 'wait:60',
+            steps += [L.poke('over_wait', M_OVER_WAIT), 'key: ', L.until('front_main', 300),
+                      L.until('fb_wait', 600), 'wait:30', 'key: ', L.until('fr_loop', 300),   # GAME BONUSES
                       'key: ', 'wait:40', L.until('game_tick', 60)]
     r = a2test.run(disk, steps, iie=True, timeout=1800)
     bad = saucer = stormy = 0
@@ -271,6 +270,10 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, ch
         if diff:
             bad += 1
             rows = sorted({next(y for y in range(192) if 0 <= a - hgr_offset(y) < 40) for a in diff})
+            if bad == 1 and __import__('os').environ.get('WG2_DIFF'):
+                for a in diff[:40]:
+                    y = next(y for y in range(192) if 0 <= a - hgr_offset(y) < 40)
+                    print(f'  row {y} col {a - hgr_offset(y)}: got {got[a]:02X} want {want[a]:02X}')
             print(f'FRAME {n}: page {page + 1}, {len(diff)} bytes differ, rows {rows[:12]}'
                   f'{"..." if len(rows) > 12 else ""}; game_over {st["game_over"]}')
             if bad >= 5:
@@ -324,7 +327,7 @@ def main():
     check(a.disk, a.labels, 240, a.seed, every=11, start=24)   # the boss, its fall
     check(a.disk, a.labels, 60, a.seed, every=5, start=0, hurry=True)   # the saucer
     check(a.disk, a.labels, 100, a.seed, every=9, start=3, cheats=[('subgame', 1)])   # Meteor Storm
-    check(a.disk, a.labels, 120, a.seed, every=23, demo=True)  # every showcase stage and its transitions
+    check(a.disk, a.labels, 120, a.seed, every=19, demo=True)  # every showcase stage (~2 400 frames: 2 550 steps)
 
 
 if __name__ == '__main__':

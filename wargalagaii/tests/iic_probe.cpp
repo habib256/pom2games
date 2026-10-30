@@ -110,7 +110,9 @@ int main(int argc, char** argv) {
     } else {
         core.queueKey(0x1B);
         until(at("front_main"), 40000000);
-        run(200 * refresh);              // (HIGHSCORES read, the menu)
+        run(200 * refresh);              // (HIGHSCORES read, GAME BONUSES)
+        core.queueKey(' ');              // (lot 10: a key ends that panel)
+        run(100 * refresh);              // (the menu)
         core.queueKey(0x1B);
     }
     run(400 * refresh);

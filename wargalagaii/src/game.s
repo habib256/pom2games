@@ -27,7 +27,8 @@
 .export level, loop, phase, clear_t, level_t, lkind, bonus_kills, w_kills
 .export dive_gap, max_divers, fire_gap, bomb_dy, kami_dy, start_level, cur_alien, pack_loaded
 .export mus_ticks, shop, rank, noshop, shop_can, shop_buy, shop_exit, shop_screen, sh_cur
-.import __SHOPM_LAST__, __LOWM_LAST__
+.import __SHOPM_LAST__, __LOWM_LAST__, __LOWHI_START__, __LOWHI_LAST__
+.import __LOWBSS_RUN__, __LOWBSS_SIZE__, __AUXLV_START__, __AUXLV_LAST__
 .export storm, station, m_speed, m_dist, m_acc, m_time, m_wait, m_crash, storm_step, storm_spawn
 .export m_round, m_pairs, m_first, m_card, m_up, mem_screen, mem_loop, mem_deal, mem_turn
 .export mem_sec, mem_cx, mem_cy, station_exit
@@ -39,8 +40,11 @@
 .export alien_sta, alien_sta_done, alien_eor, alien_eor_done, alien_clr, alien_clr_done
 
 FIELD_TOP  = 8                  ; rows 0-7: HUD (lot 3)
+FIELD_COL  = 4                  ; lot 10: walls of 4 bytes (14 cells) each side,
+FIELD_CELLS = 140 - 2 * 14      ; the field between them, cell 0 at FIELD_COL
+STAR_COLS  = 2 * FIELD_CELLS / 7 ; its byte columns
 SHIP_Y     = 180                ; ship top row
-SHIP_MAX   = 140 - 7            ; last cell of the 7-cell ship
+SHIP_MAX   = FIELD_CELLS - 7    ; last cell of the 7-cell ship
 SHIP_SPEED = 2                  ; cells (4 dots) per step: jauge S at start
 MAX_SHOTS  = 10                 ; shot slots; shot_limit = jauge B
 SHOT_LIMIT = 5                  ; jauge B at start
@@ -51,9 +55,11 @@ NSTARS     = 16                 ; (24 until lot 6: ~1 100 cycles a frame back)
 ROWS       = 5                  ; formation: 5 rows of 8
 COLS       = 8
 NALIENS    = ROWS * COLS
-ALIEN_MAX  = 140 - 7
-FORM_X0    = 11                 ; cell of column 0 at sway 0
-FORM_DX    = 14
+ALIEN_MAX  = FIELD_CELLS - 7
+FORM_X0    = 5                  ; cell of column 0 at sway 0
+FORM_DX    = 12
+ROW_SHIFT  = FORM_DX / 2        ; a staggered row (lot 10b)
+DESIGN2    = 28                 ; the second species' first table entry
 FORM_Y0    = 20
 FORM_DY    = 14
 SWAY_MAX   = 12
@@ -89,7 +95,8 @@ SHIP_HIT_Y0 = SHIP_Y + 2
 SHIP_HIT_Y1 = SHIP_Y + 9
 OVER_WAIT  = 60                 ; frames of GAME OVER before fire counts
 OVER_END   = 240                ; frames of GAME OVER: the title (lot 9)
-HUD_KEYS   = 11                 ; bytes of state the HUD shows
+HUD_KEYS   = 21                 ; bytes of state the HUD shows (render.s hud_keys)
+HUD_N      = 128                ; HUD characters (tools/hud.py)
 ; Lot 5: falling objects, gauges, timed bonuses (tools/model.py).
 N_OBJ      = 6
 OBJ_DY     = 2
@@ -119,11 +126,14 @@ LEVELS     = 100
 BIG_HP     = 2
 BIG_CELLS  = 10                 ; box: cells x-2..x+7, rows y-8..y+7
 BIG_H      = 16
-BOSS_Y     = 24                 ; the boss: 16 cells x 24 rows, core 4..11
-BOSS_CORE0 = 4
-BOSS_CORE1 = 11
-BOSS_MAX_X = 119                ; a multiple of 7 (leaps of 7 cells)
+BIG_HI     = FIELD_CELLS - 1 - 7  ; last cell of a big alien (box x-2..x+7)
+BOSS_Y     = 24                 ; the boss (lot 10c): 24 cells x 28 rows,
+BOSS_CORE0 = 9                  ; core 9..14, a cell every BOSS_STEP steps
+BOSS_CORE1 = 14
+BOSS_MAX_X = 80                  ; (cells 1..80: its STA margin, 9 bytes)
+BOSS_X0    = BOSS_MAX_X / 2
 BOSS_STEP  = 8
+BOSS_AUX   = $AA00               ; its 7 shifts in WG2.AUX (tools/sprites.py)
 BOSS_BOOM_T = 40
 TELEPORT_T = 60
 SEED       = $AD3C
@@ -215,6 +225,10 @@ mult_t:      .res 2
 shield_t:    .res 2
 freeze_t:    .res 2
 mult:        .res 1             ; score multiplier
+lv_rec:      .res 14            ; the level's record (aux lv_recs, LV_REC)
+row_sh:      .res ROWS          ; lot 10b: each row's stagger (cells)
+row_base:    .res ROWS          ; and first table entry (0 or DESIGN2)
+hi_score:    .res 3             ; HI (BCD): the best record, then the score
 auto_cnt:    .res 1
 extra_bits:  .res 1             ; letters E X T R A collected (bits 0-4)
 marks:       .res 1             ; rank marks (lot 7)
@@ -223,6 +237,7 @@ pick_msg:    .res 1             ; what the last pickup did (model.PICK_TEXT)
 pick_t:      .res 1             ; >0: named mid-field (render.s msg_draw)
 shop:        .res 1             ; the shop is open (lot 7): logic waits
 rank:        .res 1
+perfects:    .res 1             ; bonus levels all shot (lot 10: GAME BONUSES)
 subgame:     .res 1             ; sub-game icon caught: 1 meteor, 2 memory (lot 8)
 pts_lo:      .res 1             ; add_points scratch
 pts_hi:      .res 1
@@ -307,7 +322,10 @@ front_skip:  .byte 0            ; tests: no title, the game at once (SEED)
 .include "sound.inc"
 
 .segment "IOBUF"
-iobuf:       .res 1024          ; ProDOS file buffer (WG2.AUX, HIGHSCORES)
+iobuf:       .res 1024          ; ProDOS file buffer (WG2.AUX, HIGHSCORES);
+                                ; in a game (lot 10): the walls' tile, then
+cur_alien2 = iobuf + WALL_TILE   ; the pack's second species (pack_check)
+.assert WALL_TILE + ALIEN_TABLE <= 1024, error, "iobuf: the walls' tile and the second species"
 .segment "LOWBSS"
 cur_alien:   .res ALIEN_TABLE   ; the current pack's small alien (from aux)
 cur_big:     .res BIG_TABLE     ; and its big one
@@ -426,7 +444,12 @@ done:   rts
 ; WG2.AUX -> aux memory at AUX_BASE (every small and big alien design x
 ; tint), 8 KB at a time through HGR page 2 (not shown yet). A failure: a
 ; message, back to ProDOS.
-AUX_ALL = LOW_AUX + LOW_LEN - AUX_BASE
+AUX_ALL = BOSS_AUX + 7 * BOSS_SHIFT - AUX_BASE
+.assert WALL_AUX + 4 * WALL_TILE <= BOSS_AUX, error, "the walls run into the boss"
+.assert LV_LEN <= $0600, error, "the level records run into the walls"
+.assert HI_LEN <= $0400, error, "the resident data runs into the level records"
+.assert LOW_LEN <= $0800, error, "the storm runs into the resident data"
+.assert __LOWBSS_RUN__ + __LOWBSS_SIZE__ <= __LOWHI_START__, error, "LOWBSS runs into LOWHI"
 .assert __AUXM_LAST__ <= SHOP_AUX, error, "the PT3 player runs into the shop"
 .assert SHOP_AUX + OVL_LEN <= LOW_AUX, error, "the overlay runs into the storm"
 
@@ -542,7 +565,21 @@ al_close:
         lda #>$0800
         sta $43
         clc                      ; aux -> main
-        jmp $C311                ; AUXMOVE
+        jsr $C311                ; AUXMOVE
+        lda #<HI_AUX             ; the resident data -> $1C40, for good
+        sta $3C
+        lda #>HI_AUX
+        sta $3D
+        lda #<(HI_AUX+HI_LEN-1)
+        sta $3E
+        lda #>(HI_AUX+HI_LEN-1)
+        sta $3F
+        lda #<__LOWHI_START__
+        sta $42
+        lda #>__LOWHI_START__
+        sta $43
+        clc
+        jmp $C311
 aux_fail:
         pla                      ; (out of _main)
         pla
@@ -557,10 +594,23 @@ pack_check:
         ldy storm                ; Meteor Storm: the rock (lot 8)
         beq :+
         lda #NCOMBOS
+:       ldy lkind                ; a boss level: + $40, so that the next
+        cpy #LK_BOSS             ; level (the same pack) loads again what
+        bne :+                   ; the boss's shifts overwrite (lot 10c)
+        ora #$40
 :       cmp pack_loaded
-        jeq pc_done
-        sta pack_loaded
+        jeq boss_check
+        tay
+        eor pack_loaded          ; only the boss's mark changed: cur_alien is
+        cmp #$40                 ; still good (the boss used iobuf, cur_big)
+        sty pack_loaded
+        stz boss_loaded
+        php
+        tya
+        and #$3F
         tax
+        plp
+        beq pc_second
         lda combo_lo,x
         ldy combo_hi,x
         ldx #<cur_alien
@@ -572,8 +622,26 @@ pack_check:
         ldx #>ALIEN_TABLE
         stx af_len+1
         jsr aux_fetch
+pc_second:
         lda storm                ; (the rock alone)
         jne pc_done
+        lda pack_loaded          ; (a boss level: its escorts alone)
+        cmp #$40
+        jcs boss_check
+        tax                      ; lot 10b: the pack's second species
+        lda combo2_of,x
+        tax
+        lda combo_lo,x
+        ldy combo_hi,x
+        ldx #<cur_alien2
+        stx af_dst
+        ldx #>cur_alien2
+        stx af_dst+1
+        ldx #<ALIEN_TABLE
+        stx af_len
+        ldx #>ALIEN_TABLE
+        stx af_len+1
+        jsr aux_fetch
         ldx level                ; and the pack's big alien
         lda lv_big,x
         tax
@@ -656,6 +724,13 @@ SHOP_LEN = __DUET_LOAD__ + __DUET_SIZE__ - $4000 ; overlay, storm and demo
 OVL_LEN  = __SHOPM_LAST__ - $4000 ; at $9000)
 LOW_AUX  = $9000
 LOW_LEN  = __LOWM_LAST__ - $0800
+HI_AUX   = $9800
+HI_LEN   = __LOWHI_LAST__ - __LOWHI_START__
+LV_AUX   = __AUXLV_START__
+LV_LEN   = __AUXLV_LAST__ - __AUXLV_START__
+WALL_AUX = $A200                 ; the walls' textures (tools/walls.py)
+WALL_TILE = 512                  ; WALL_H rows of 8 bytes, one a quarter
+WALL_H   = 64
 shop_run:
         ldx #<SHOP_LEN
         ldy #>SHOP_LEN
@@ -707,6 +782,13 @@ front_run:
         jsr ovl_load
         pla
         jsr front_main
+        pha
+        ldx #2                   ; HI: the best record (entry 0's score)
+:       lda rec_buf+6,x
+        sta hi_score,x
+        dex
+        bpl :-
+        pla
         cmp #$FF
         beq fr_exit
         sta demo
@@ -978,6 +1060,46 @@ aux_read:  .byte 4, 0
         .word $4000, $2000, 0
 aux_close: .byte 1, 0
 aux_name:  .byte 7, "WG2.AUX"
+; The boss's 7 shifts (lot 10c): aux BOSS_AUX -> iobuf (0-3) and cur_big
+; (4-6), on a boss level, once (pack_check and render_init forget them:
+; their loads and the walls' tile overwrite them).
+boss_check:
+        lda lkind
+        cmp #LK_BOSS
+        bne bc_done
+        lda boss_loaded
+        bne bc_done
+        inc boss_loaded
+        lda #<iobuf
+        sta af_dst
+        lda #>iobuf
+        sta af_dst+1
+        lda #<(4 * BOSS_SHIFT)
+        sta af_len
+        lda #>(4 * BOSS_SHIFT)
+        sta af_len+1
+        lda #<BOSS_AUX
+        ldy #>BOSS_AUX
+        jsr aux_fetch
+        lda #<cur_big
+        sta af_dst
+        lda #>cur_big
+        sta af_dst+1
+        lda #<(3 * BOSS_SHIFT)
+        sta af_len
+        lda #>(3 * BOSS_SHIFT)
+        sta af_len+1
+        lda #<(BOSS_AUX + 4 * BOSS_SHIFT)
+        ldy #>(BOSS_AUX + 4 * BOSS_SHIFT)
+        jmp aux_fetch
+bc_done:
+        rts
+
+; The second species of a pack (model.alien_combo2): design + 2, tint + 2.
+combo2_of:
+.repeat NCOMBOS, I
+        .byte (I / 4 + 2) .mod 6 * 4 + (I .mod 4 + 2) .mod 4
+.endrepeat
 ; WG2.AUX tables: aux address of each design x tint.
 combo_lo:
 .repeat NCOMBOS, I
@@ -1005,7 +1127,7 @@ star_y0:
 .endrepeat
 star_col0:
 .repeat NSTARS, I
-        .byte (I * 23 + 5) .mod 40
+        .byte (I * 23 + 5) .mod STAR_COLS
 .endrepeat
 star_val:
 .repeat NSTARS, I
@@ -1046,21 +1168,19 @@ GLYPH_SHIP  = $60
 GLYPH_SHIELD = $61
 GLYPH_FULL  = $62
 GLYPH_EMPTY = $63
+GLYPH_BAR2  = $64               ; the walls' bars (lot 10): two half segments,
+GLYPH_BAR1  = $65               ; the left one, none (tools/hud.py)
+GLYPH_BAR0  = $66
         .byte $08,$08,$1C,$3E,$7F,$5D,$14,$00   ; ship (lives)
         .byte $1C,$22,$41,$49,$41,$22,$1C,$00   ; shield (armour)
         .byte $00,$3E,$3E,$3E,$3E,$3E,$00,$00   ; bar segment, full
         .byte $00,$3E,$22,$22,$22,$3E,$00,$00   ; bar segment, empty
-.assert * = bbfont + ($64 - $20) * 8, error, "HUD glyphs follow bbfont"
-; HUD, row 0-7: score, lives, armour, S and B gauges, T, credits.
-; HUD: score, lives, armour, gauges S and B (5 segments), T (seconds),
-; credits, the letters E X T R A caught ("-" missing).
-hud_template:
-        .byte "000000 ", GLYPH_SHIP, "3 ", GLYPH_SHIELD, "0 S"
-        .res 5, GLYPH_EMPTY
-        .byte " B"
-        .res 5, GLYPH_EMPTY
-        .byte " T30$0000-----"
-.assert * - hud_template = 40, error, "HUD template: 40 characters"
+        .byte $00,$77,$77,$77,$77,$77,$00,$00   ; two half segments
+        .byte $00,$07,$07,$07,$07,$77,$00,$00   ; the left one (dot pairs:
+        .byte $00,$00,$00,$00,$00,$77,$00,$00   ; none           white)
+.assert * = bbfont + ($67 - $20) * 8, error, "HUD glyphs follow bbfont"
+; HUD (lot 10: row 0 and the walls): tools/hud.py.
+.include "hud.inc"
 storm_template:                  ; Meteor Storm (lot 8)
         .byte "000000 SPEED"
         .res 8, GLYPH_EMPTY
@@ -1072,6 +1192,8 @@ msg_over: .byte " GAME OVER  "
 extra_letters: .byte "EXTRA"
 ; Lot 5 tables. A kill's drop: drop_table[rand & 63] (weights: model.py).
 .include "bonus.inc"
+.assert LV_REC = 14, error, "lv_rec: 14 bytes a level record"
+col_bit: .byte 1, 2, 4, 8, 16, 32, 64, 128
 ; Kamikaze prizes, BCD 2000 << wave (bytes 2 and 3; byte 1 is 0).
 kami_hi:  .byte $20, $40, $80, $60, $20
 kami_top: .byte $00, $00, $00, $01, $03

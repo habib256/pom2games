@@ -11,14 +11,14 @@ def main():
     assert [M.level_kind(i) for i in range(8)] == [
         M.NORMAL, M.NORMAL, M.BIG, M.KAMIKAZE,
         M.NORMAL, M.NORMAL, M.BIG, M.BONUS]
-    expected = [16, 24, 28, 40, 24, 32, 36, 40]
+    expected = [16, 23, 26, 40, 20, 25, 28, 40]     # (lot 10: shaped formations)
     for level in range(100):
         g = M.Game(level)
         for _ in range(1000):
             g.launch()           # isolate spawning: no kills, no movement
         count = sum(s != M.DEAD for s in g.a_state)
-        rows = M.entry_params(level)[0]
-        want = 16 if g.lkind == M.BOSS else rows * 8 - (4 if g.lkind == M.BIG else 0)
+        rows, masks = M.level_form(level)[:2]
+        want = 16 if g.lkind == M.BOSS else sum(bin(m).count('1') for m in masks[:rows])
         assert count == want, (level + 1, count, want)
         if level < 8:
             assert count == expected[level], (level + 1, count)

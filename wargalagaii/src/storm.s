@@ -14,6 +14,10 @@
 .segment "STORM"
 ; The storm begins (level_step, at the end of a teleport).
 storm_start:
+        ldx #ROWS-1              ; rocks: the rock table only (lot 10b)
+:       stz row_base,x
+        dex
+        bpl :-
         stz subgame
         lda #1
         sta storm
@@ -108,9 +112,9 @@ ss_star:
         pha
         lda star_col,x
         adc #17-1                ; carry is set
-        cmp #40
+        cmp #STAR_COLS
         bcc :+
-        sbc #40
+        sbc #STAR_COLS
 :       sta star_col,x
         pla
 :       sta star_y,x
@@ -275,18 +279,17 @@ storm_spawn:
         lda #FIELD_TOP
         sta obj_y,x
         jsr rand8
-        and #15
-        clc
-        adc #2
+        and #15                  ; the 16 icon columns of the field
         sta obj_k,x
 sp_done:
         rts
 sp_rock:
         jsr rand8
         and #127
-        clc
-        adc #3
-        ldx #M_ROCKS
+        cmp #ALIEN_MAX+1
+        bcc :+
+        sbc #64                  ; (carry set)
+:       ldx #M_ROCKS
 :       dex
         bmi sp_done
         ldy a_state,x
