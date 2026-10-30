@@ -34,7 +34,7 @@ FIELD_TOP = 8
 FIELD_COL = 4
 FIELD_CELLS = 140 - 2 * (7 * FIELD_COL // 2)
 SHIP_Y = 180
-SHIP_MAX = FIELD_CELLS - 7
+SHIP_MAX = FIELD_CELLS - 8      # 3 bytes from cell 104 end on byte 35 (105: the wall)
 SHIP_SPEED = 2
 MAX_SHOTS = 10                  # slots; shot_limit (jauge B) uses 5 at start
 SHOT_LIMIT = 5
@@ -46,7 +46,7 @@ NSTARS = 16                     # (24 until lot 6: ~1 100 cycles a frame back)
 
 ROWS, COLS = 5, 8
 NALIENS = ROWS * COLS
-ALIEN_MAX = FIELD_CELLS - 7
+ALIEN_MAX = FIELD_CELLS - 8
 ALIEN_CELLS, ALIEN_H = 7, 8
 FORM_X0, FORM_DX = 5, 12        # cells (11, 14 before the walls)
 FORM_Y0, FORM_DY = 20, 14       # rows
@@ -1159,7 +1159,7 @@ class Game:
             dx, dy = paths.decode(b)
             if self.a_mirror[i]:
                 dx = -dx
-            lo, hi = (-BIG_X0, FIELD_CELLS - 1 - (BIG_X0 + BIG_CELLS - 1)) if self.a_big[i] else (0, ALIEN_MAX)
+            lo, hi = (-BIG_X0, FIELD_CELLS - 9) if self.a_big[i] else (0, ALIEN_MAX)   # (4 bytes from x-2)
             self.a_x[i] = clamp(self.a_x[i] + dx, lo, hi)
             y = (self.a_y[i] + dy) & 0xFF
             self.a_y[i] = y
