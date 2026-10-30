@@ -293,6 +293,25 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, ch
     return states
 
 
+def right_edge(disk, labels):
+    """Bug hunt 2026-10-30: at cell 105 the ship's third byte was the right
+    wall's first; leaving, it cut a notch in it. Both pages' walls stay the
+    texture after the ship went to SHIP_MAX and back."""
+    L = a2test.labels(labels, strip=True)
+    steps = [*boot(L), 'wait:100', L.poke('ship_c', M.SHIP_MAX), 'wait:60', L.poke('ship_c', 40),
+             'wait:60', L.until('render_done', 60), 'peek:2000:8192', 'peek:4000:8192']
+    r = a2test.run(disk, steps, iie=True)
+    tile = walls.tile(0)
+    for base in (0x2000, 0x4000):
+        page = r.mem(base, 8192)
+        for y in range(160, 192):
+            if y // 8 in [r for c, r, _ in hud.WALL if c == hud.RIGHT]:   # (a HUD row there)
+                continue
+            want = bytes(tile[(y - M.FIELD_TOP) % walls.WALL_H][4:])
+            assert page[hgr_offset(y) + 36:hgr_offset(y) + 40] == want, (hex(base), y)
+    print('PASS the right wall intact after the ship at the edge (SHIP_MAX)')
+
+
 def messages(disk, labels):
     """LEVEL n for every size of n (bug hunt 6: the hundreds were loop mod
     10, wrong past level 1 000), up to the last loop (it saturates at 255)."""
@@ -319,6 +338,7 @@ def main():
     a = ap.parse_args()
     if not a2test.have_a2shot('screen invariant'):
         return
+    right_edge(a.disk, a.labels)
     messages(a.disk, a.labels)
     check(a.disk, a.labels, a.frames, a.seed)
     assert M.PASS in check(a.disk, a.labels, 120, a.seed, every=9, start=7), 'flypast drawn'

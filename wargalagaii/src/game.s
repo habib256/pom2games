@@ -44,7 +44,8 @@ FIELD_COL  = 4                  ; lot 10: walls of 4 bytes (14 cells) each side,
 FIELD_CELLS = 140 - 2 * 14      ; the field between them, cell 0 at FIELD_COL
 STAR_COLS  = 2 * FIELD_CELLS / 7 ; its byte columns
 SHIP_Y     = 180                ; ship top row
-SHIP_MAX   = FIELD_CELLS - 7    ; last cell of the 7-cell ship
+SHIP_MAX   = FIELD_CELLS - 8    ; last cell of the ship: its 3rd byte stays
+                                ; on byte 35 (at 105 it took the wall's 36)
 SHIP_SPEED = 2                  ; cells (4 dots) per step: jauge S at start
 MAX_SHOTS  = 10                 ; shot slots; shot_limit = jauge B
 SHOT_LIMIT = 5                  ; jauge B at start
@@ -55,7 +56,7 @@ NSTARS     = 16                 ; (24 until lot 6: ~1 100 cycles a frame back)
 ROWS       = 5                  ; formation: 5 rows of 8
 COLS       = 8
 NALIENS    = ROWS * COLS
-ALIEN_MAX  = FIELD_CELLS - 7
+ALIEN_MAX  = FIELD_CELLS - 8    ; (3 bytes too: off the right wall)
 FORM_X0    = 5                  ; cell of column 0 at sway 0
 FORM_DX    = 12
 ROW_SHIFT  = FORM_DX / 2        ; a staggered row (lot 10b)
@@ -126,7 +127,7 @@ LEVELS     = 100
 BIG_HP     = 2
 BIG_CELLS  = 10                 ; box: cells x-2..x+7, rows y-8..y+7
 BIG_H      = 16
-BIG_HI     = FIELD_CELLS - 1 - 7  ; last cell of a big alien (box x-2..x+7)
+BIG_HI     = FIELD_CELLS - 9    ; last cell of a big alien (box x-2.., 4 bytes)
 BOSS_Y     = 24                 ; the boss (lot 10c): 24 cells x 28 rows,
 BOSS_CORE0 = 9                  ; core 9..14, a cell every BOSS_STEP steps
 BOSS_CORE1 = 14
@@ -228,7 +229,6 @@ mult:        .res 1             ; score multiplier
 lv_rec:      .res 14            ; the level's record (aux lv_recs, LV_REC)
 row_sh:      .res ROWS          ; lot 10b: each row's stagger (cells)
 row_base:    .res ROWS          ; and first table entry (0 or DESIGN2)
-hi_score:    .res 3             ; HI (BCD): the best record, then the score
 auto_cnt:    .res 1
 extra_bits:  .res 1             ; letters E X T R A collected (bits 0-4)
 marks:       .res 1             ; rank marks (lot 7)
@@ -295,6 +295,8 @@ m_n:         .res 1             ; cards on the grid
 m_card:      .res MEM_CELLS     ; kind of each card, row-major
 m_up:        .res MEM_CELLS     ; face up
 game_vars_end:
+hi_score:    .res 3             ; HI (BCD): the best record, then the score
+                                ; (not in game_vars: game_init would clear it)
 over_wait:   .res 1             ; frames since GAME OVER
 space_held:  .res 1
 demo:        .res 1             ; the attract mode plays (demo.s, lot 9)

@@ -226,6 +226,15 @@ def bonuses(disk, L):
     print('PASS GAME BONUSES: 123 credits, rank 7, 2 perfects: +92 300, score 93 300 -> a record')
 
 
+def hi_at_start(disk, L):
+    """Bug hunt 2026-10-30: HI started every game at 000000 (hi_score was in
+    game_vars, cleared by new_game): it is the best record (WAR 50000)."""
+    r = a2test.run(disk, START(L) + ['key:\\r', L.until('game_tick', 600), 'wait:10', L.peek('hi_score', 3)],
+                   iie=True)
+    assert r.mem(L['hi_score'], 3) == bytes((0x00, 0x00, 0x05)), r.mem(L['hi_score'], 3).hex()
+    print('PASS HI at the start of a game: the best record (50000)')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--disk', type=Path, default=ROOT / 'dist/WARGALAGAII.po')
@@ -241,6 +250,7 @@ def main():
     record_keyboard(a.disk, L)
     record_stick(a.disk, L)
     bonuses(a.disk, L)
+    hi_at_start(a.disk, L)
     demo_oracle(a.disk, L)
 
 
