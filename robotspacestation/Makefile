@@ -4,7 +4,7 @@
 #   make run        -> POM2, //e enhanced with an AppleMouse in slot 4
 #   make run-iic    -> POM2, //c (built-in mouse)
 #   make test       -> reference model, then the lab and the missions on //e and //c (a2shot)
-#   make test-long  -> nothing yet (the missions all fit in the fast tier)
+#   make test-long  -> the whole campaign, each mission's solution in C == the model (//e, //c)
 #
 # C (cc65) on the shared DHGR, gfx, ProDOS and mouse libraries; the logic
 # simulation follows tools/model.py bit for bit (docs/SPEC.md).
@@ -85,5 +85,7 @@ test: all
 	$(PYTHON) tests/test_zone.py --disk $(DISK) --labels $(BUILD)/game.lbl --iic
 
 test-long: all
+	$(PYTHON) tests/test_campaign.py --disk $(DISK) --labels $(BUILD)/game.lbl
+	$(PYTHON) tests/test_campaign.py --iic --disk $(DISK) --labels $(BUILD)/game.lbl
 
 .PHONY: run-iic test test-long

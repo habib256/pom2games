@@ -42,6 +42,7 @@ make            # ../dist/ROBOTSTATION.po
 make run        # POM2, //e enhanced, AppleMouse in slot 4
 make run-iic    # POM2, //c
 make test       # model, then lab and missions on //e and //c with a2shot (~1 min)
+make test-long  # the whole campaign: every mission's solution in C == the model (~1 min)
 ```
 
 Mouse or keyboard: arrows move the pointer, SPACE/RETURN clicks, ESC drops
