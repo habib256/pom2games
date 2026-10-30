@@ -438,8 +438,8 @@ void zone_draw(void)
     static unsigned char tx, ty;
     static char title[3];
     zone_doors();                   /* the caller cleared the screen */
-    title[0] = mission < 9u ? '1' + mission : '1';  /* 1..9, 10 */
-    title[1] = mission < 9u ? 0 : '0' + mission - 9u;
+    title[0] = mission < 9u ? '1' + mission : '0' + (mission + 1u) / 10u;   /* 1..9, 10.. */
+    title[1] = mission < 9u ? 0 : '0' + (mission + 1u) % 10u;
     title[2] = 0;
     dhgr_puts_small("MISSION", 0, 1);
     dhgr_puts_small(title, 40, 1);
@@ -520,6 +520,7 @@ static char gate_text[28];
 
 static void __fastcall__ put_gates(unsigned char at, unsigned char n)
 {
+    if (n > 99u) n = 99u;                   /* (two drones: up to 128) */
     gate_text[at] = n >= 10u ? '0' + n / 10u : ' ';
     gate_text[at + 1u] = '0' + n % 10u;
 }
@@ -533,8 +534,8 @@ const char *zone_won_text(void)
     strcpy(gate_text, "REUSSIE EN    PORTES");
     put_gates(11u, gates);
     if (gates == 1u) gate_text[19] = ' ';   /* PORTE */
-    if (!*best || gates < *best) {
-        *best = gates;
+    if (!*best || gates + 1u < *best) {     /* best = gates + 1 (0: never won) */
+        *best = gates + 1u;
         strcpy(gate_text + 20, " RECORD");
     }
     return gate_text;
@@ -544,8 +545,8 @@ const char *zone_enter_text(void)
 {
     if (!persist.best[mission]) return "TOUCHER LE DRONE  H : INDICE";   /* 28 at most */
     strcpy(gate_text, "RECORD    PORTES H : INDICE");
-    put_gates(7u, persist.best[mission]);
-    if (persist.best[mission] == 1u) gate_text[15] = ' ';
+    put_gates(7u, persist.best[mission] - 1u);
+    if (persist.best[mission] == 2u) gate_text[15] = ' ';
     return gate_text;
 }
 

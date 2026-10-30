@@ -162,7 +162,7 @@ def mission_four(disk, L):
     fails += check('won and saved', r.mem(L['_won'], 2), b'\x01\x01')
     fails += check('mission 4 recorded', r.mem(L['_persist'], 5), b'RSS3\x04')
     best = r.mem(L['_persist'], SAVE_SIZE)[SAVE_SIZE - BEST_SLOTS:]
-    fails += check('its record: 4 gates', best[:5], bytes((0, 0, 0, 4, 0)))
+    fails += check('its record: 4 gates (+ 1)', best[:5], bytes((0, 0, 0, 5, 0)))
     # sounds: at least the claw's grab and drop, the contacts, the win
     sounds = r.mem(L['_sfx_count'], 1)[0]
     fails += check(f'sounds played ({sounds})', bytes((sounds >= 4, r.mem(L['_sound_on'], 1, 0)[0])), b'\x01\x01')
@@ -381,7 +381,7 @@ def main():
     fails += module_two(disk_with_save(save_bytes(EMPTY, reached=11), 'reached11'), L)
     fails += crate(disk_with_save(save_bytes(EMPTY, reached=12), 'reached12'), L)
     fails += help_page(args.disk, L)
-    fails += records_page(disk_with_save(save_bytes(EMPTY, reached=9, best=(1, 2, 3, 4, 1, 1, 6, 3, 9)),
+    fails += records_page(disk_with_save(save_bytes(EMPTY, reached=9, best=(2, 3, 4, 5, 2, 2, 7, 4, 10)),
                                          'records'), L)
     rss2 = b'RSS2' + save_bytes(EMPTY, reached=5)[4:SAVE_SIZE - BEST_SLOTS]
     fails += old_save(disk_with_save(rss2, 'rss2'), L)

@@ -246,8 +246,9 @@ def solution(mission):
         wire(b, out(f), 1)
         wire(b, out(f), inp(k, 0))
         wire(b, out(k), 3)
-    elif mission in (9, 11):            # LE GARDIEN: the pillar's latch parks it;
-        return solution(2 if mission == 9 else 0)   # LE SAS: east, as in 1
+    elif mission in (9, 11, 17):        # LE GARDIEN: the pillar's latch parks it;
+        return solution({9: 2, 11: 0, 17: 12}[mission])   # LE SAS: east, as in 1;
+                                        # LES DEUX CLES: LA CAISSE's board
     elif mission == 12:                 # LA CAISSE: north to the crate, take it east,
         l1 = b.place(FLIP, 0, 0)        # let it go on the plate, south through the door
         l2 = b.place(FLIP, 1, 0)
@@ -574,6 +575,22 @@ class Missions(unittest.TestCase):
         self.assertIsNone(t)
         self.assertEqual(z.objects[0][1:], [21, 16])   # left where it was
         self.assertIsNone(play(16, solution(3), 1500)[0])
+
+    def test_two_keys(self):
+        z = Zone(17, compile_board(solution(17), EMPTY))
+        z.tech = (3 * 7, 11 * 8)
+        for _ in range(500):
+            z.tick()
+        self.assertEqual((z.x, z.y, z.objects[0][1:], z.door_open), (123, 124, [123, 34], [1, 1]))
+        z.tech = (13 * 7 + 2, 15 * 8 + 3)       # through both doors, on the charger
+        self.assertTrue(z.won())
+        b = solution(17)
+        b.disconnect(SINK_GRAB)                 # no crate on the first plate
+        z = Zone(17, compile_board(b, EMPTY))
+        z.tech = (3 * 7, 11 * 8)
+        for _ in range(500):
+            z.tick()
+        self.assertEqual(z.door_open, [0, 1])
 
     def test_an_empty_board_wins_nothing(self):
         for m in range(len(MISSIONS)):

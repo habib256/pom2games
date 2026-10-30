@@ -561,7 +561,7 @@ MISSIONS = (
         '#..................#',
         '#..................#',
         '####################')),
-    ('LE DEMENAGEMENT', GOAL_CELL, (
+    ('LE CONVOI', GOAL_CELL, (
         '####################',
         '#..................#',
         '#..C...............#',
@@ -579,6 +579,25 @@ MISSIONS = (
         '#.........#....#XXX#',
         '#.........#....#XXX#',
         '#.........#....#XXX#',
+        '####################')),
+    ('DEUX CLES', GOAL_TECH, (
+        '####################',
+        '#...............=..#',
+        '#...............=..#',
+        '#...............=..#',
+        '#.......B.......=._#',
+        '#...............=._#',
+        '#...............=..#',
+        '#...............=..#',
+        '#...............=..#',
+        '#.......D.......=..#',
+        '#...............=..#',
+        '#..T............=..#',
+        '#######|#########..#',
+        '#.......#.......#..#',
+        '#.......!.......#..#',
+        '#.......!....XX.#,,#',
+        '#.......#....XX.#,,#',
         '####################')),
 )
 
@@ -602,9 +621,13 @@ HINTS = (
     'LA 2E OUVERTURE A L OUEST',
     'UN CHOC DEVANT : A DROITE',
     'TENIR PENDANT LES 2 VIRAGES',
+    'LA CAISSE PUIS LE PARKING',
 )
 HINT_LEN = 32
 assert len(HINTS) == len(MISSIONS) and all(len(h) <= 28 for h in HINTS)   # (the message line)
+# The title's columns (src/title.c): a name from x 15 or 87, 5 pixels a
+# character, before the next column (72) or the screen's edge (140).
+assert all(len(name) <= (11 if m % 14 < 7 else 10) for m, (name, _, _) in enumerate(MISSIONS))
 
 
 def room_tiles(room):
@@ -780,7 +803,8 @@ class Zone:
 
 # -- the save file RSS.SAVE (src/sim.h Persist) ----------------------------
 
-BEST_SLOTS = 28                 # RSS3: the fewest gates each mission was won with (0: never), two title pages
+BEST_SLOTS = 28                 # RSS3: the fewest gates each mission was won with + 1 (0: never), two pages
+assert len(MISSIONS) <= 28, 'BEST_SLOTS: one record a mission'
 SAVE_SIZE = 4 + 1 + CHIPS * (1 + 3 * CHIP_GATES + 4 + LAYOUT_IDS + 3 * PARTS) + 3 * (LAYOUT_IDS + 3 * PARTS) \
     + BEST_SLOTS
 
@@ -801,6 +825,6 @@ def save_bytes(chips, reached=0, lab=None, drone=None, drone2=None, best=()):
                     for c in chips)
     for b in (lab, drone, drone2):
         out += layout_bytes(b) if b else bytes(48) + bytes([NONE] * 72)
-    out += bytes(best).ljust(BEST_SLOTS, b'\0')
+    out += bytes(best).ljust(BEST_SLOTS, b'\0')   # (gates + 1, 0: never won)
     assert len(out) == SAVE_SIZE
     return bytes(out)
