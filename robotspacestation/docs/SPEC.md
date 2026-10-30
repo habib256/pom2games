@@ -177,6 +177,7 @@ sur un chargeur.
 | 14 | LE TANDEM | A se gare sur la plaque et appelle ; B attend l'appel pour chercher la cellule |
 | 15 | LE COMPTEUR | compter les ouvertures du puits (fronts du capteur O, par le retard des portes) ; tourner à la 2e |
 | 16 | LA SPIRALE | quatre caps (trois bascules) : un choc devant, tourner à droite, jusqu'au centre |
+| 17 | LE DEMENAGEMENT | la pince tient la cellule pendant deux virages, la lâche en bas |
 
 Les tests (`tests/test_model.py`) prouvent qu'une solution existe pour
 chacune, qu'une planche vide ne gagne rien, que le pilier exige une
@@ -239,7 +240,7 @@ les objets, le drone et le technicien au départ.
 | Écran | Boutons |
 |---|---|
 | Labo | MARCHE/PAUSE, PAS, GRAVE, EFFACE, ESSAI |
-| Titre | JOUER (la prochaine mission), LABO, AIDE (bornes, pièces, touches ; ou H), RECORDS (le moins de portes par mission), PAGE (missions 15 et suivantes) ; clic sur une mission ouverte |
+| Titre | JOUER (la prochaine mission), LABO, AIDE (bornes, pièces, touches ; ou H), RECORDS (le moins de portes par mission, la page du titre), PAGE (missions 15 et suivantes) ; clic sur une mission ouverte |
 | Zone | MARCHE/PAUSE, PAS, REPLACER (salle au départ) ou SUITE (mission gagnée), LABO, MENU |
 | Drone | MARCHE/PAUSE, PAS, SORTIR |
 

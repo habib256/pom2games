@@ -212,6 +212,30 @@ def solution(mission):
         return counter()
     elif mission == 15:
         return spiral()
+    elif mission == 16:                 # LE DEMENAGEMENT: north to the cell, take it,
+        l1 = b.place(FLIP, 0, 0)        # east, south, let it go at the bottom
+        l2 = b.place(FLIP, 1, 0)
+        a = b.place(AND, 2, 0)
+        n1 = b.place(NOT, 3, 0)
+        n2 = b.place(NOT, 0, 1)
+        g = b.place(AND, 1, 1)
+        ns = b.place(NOT, 2, 1)
+        h = b.place(AND, 3, 1)
+        wire(b, 0, inp(l1, 0))          # the cell above: L1
+        wire(b, 1, inp(a, 0))           # the east wall once L1: L2
+        wire(b, out(l1), inp(a, 1))
+        wire(b, out(a), inp(l2, 0))
+        wire(b, out(l1), inp(n1, 0))
+        wire(b, out(n1), 2)             # not L1: north
+        wire(b, out(l2), inp(n2, 0))
+        wire(b, out(n2), inp(g, 0))
+        wire(b, out(l1), inp(g, 1))
+        wire(b, out(g), 3)              # L1, not L2: east
+        wire(b, out(l2), 0)             # L2: south
+        wire(b, 2, inp(ns, 0))
+        wire(b, out(ns), inp(h, 0))
+        wire(b, out(l1), inp(h, 1))
+        wire(b, out(h), SINK_GRAB)      # held from L1 to the bottom
     elif mission == 7:                  # south always, east / west by turns
         n = b.place(NOT, 0, 0)
         f = b.place(FLIP, 1, 0)
@@ -542,6 +566,14 @@ class Missions(unittest.TestCase):
         t, z = play(15, spiral(), 1500)
         self.assertIsNotNone(t)
         self.assertIsNone(play(15, solution(10), 1500)[0])     # LA RONDE's three legs
+
+    def test_the_move_holds_through_the_turns(self):
+        b = solution(16)
+        b.disconnect(SINK_GRAB)
+        t, z = play(16, b, 1500)
+        self.assertIsNone(t)
+        self.assertEqual(z.objects[0][1:], [21, 16])   # left where it was
+        self.assertIsNone(play(16, solution(3), 1500)[0])
 
     def test_an_empty_board_wins_nothing(self):
         for m in range(len(MISSIONS)):
