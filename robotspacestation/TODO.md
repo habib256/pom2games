@@ -33,7 +33,8 @@
       migrées), rappelé à l'entrée de la mission, page RECORDS au titre.
 - [x] V : vitesse rapide (×1,5 sur //e, ×1,2 sur //c : le tour y coûte déjà
       presque tout le temps).
-- [x] `make test-long` : la campagne entière, chaque mission jouée en C avec
+- [x] `make test-long` : 12 cartes aléatoires (boucles comprises) tour par
+      tour == `Sim` du modèle ; la campagne entière, chaque mission jouée en C avec
       la solution du modèle (carte dans `RSS.SAVE`), //e et //c.
 
 ## Mémoire (au 2026-10-30)
