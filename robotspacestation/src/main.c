@@ -175,7 +175,7 @@ static void enter_zone(void)
     screen_clear();
     zone_draw();
     buttons_set(won ? won_buttons : zone_buttons, 5);
-    message(won ? "MISSION REUSSIE !" : "TOUCHER LE DRONE POUR ENTRER");
+    message(won ? "MISSION REUSSIE !" : "TOUCHER LE DRONE - H : INDICE");
     actor_show();
 }
 
@@ -422,7 +422,7 @@ int main(void)
         if (running && ++frames >= (screen == S_LAB ? LAB_TICK : DRONE_TICK)) frames = 0u;
         if (running && !frames) step();         /* draws only what changed */
         busy = pressed || walking || key == KC_ESC
-            || key == 'M' || key == 'S' || key == 'P' || key == 'G' || key == 'O' || (key >= '0' && key <= '9');
+            || key == 'M' || key == 'S' || key == 'H' || key == 'P' || key == 'G' || key == 'O' || (key >= '0' && key <= '9');
         if (!busy) {
             if (screen == S_ZONE || screen == S_DRONE) actor_show();
             show();
@@ -440,6 +440,7 @@ int main(void)
             sound_on ^= 1u;
             message(sound_on ? "SON ACTIF" : "SON COUPE");
         }
+        else if (key == 'H' && screen != S_TITLE && screen != S_LAB) message(mission_hint);
         else if (key == 'M') click_button(0);
         else if (key == 'P') click_button(1);
         else if (key == 'G' && screen == S_LAB) click_button(2);

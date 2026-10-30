@@ -487,6 +487,25 @@ MISSIONS = (
         '####################')),
 )
 
+# One hint a mission (key H in the room), 30 characters at most, on the
+# disk after the room (RSS.ROOMS): no memory for them.
+HINTS = (
+    'UN NON SUR LE PROPULSEUR O',
+    'LE CAPTEUR E SUR PROPULSEUR N',
+    'UNE BASCULE RETIENT LE CHOC',
+    'LACHER LA CELLULE AU MUR O',
+    'LE TECHNICIEN SUR LA PLAQUE',
+    'GARER LE DRONE SUR LA PLAQUE',
+    'B APPELLE A PAR RADIO',
+    'SUD TOUJOURS - BASCULE E O',
+    'PUCE DE LA 4 - PLAQUE TENUE',
+    'LA BASCULE DU PILIER SUFFIT',
+    '2 BASCULES : E PUIS S PUIS O',
+    'TENIR LA PLAQUE PUIS PASSER',
+)
+HINT_LEN = 32
+assert len(HINTS) == len(MISSIONS) and all(len(h) <= 30 for h in HINTS)
+
 
 def room_tiles(room):
     """One byte per tile, row by row: FLOOR, WALL, GRATE or CHARGER."""

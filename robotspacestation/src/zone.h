@@ -40,4 +40,6 @@ unsigned char tech_step(unsigned char x, unsigned char y);
 unsigned char tech_touches_drone(void);
 void __fastcall__ tech_beside_drone(unsigned char d);
 
+extern char mission_hint[];       /* this mission's hint (key H) */
+
 #endif

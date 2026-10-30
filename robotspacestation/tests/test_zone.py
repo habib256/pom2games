@@ -20,7 +20,7 @@ sys.path.insert(0, str(HERE / 'tests'))
 sys.path.insert(0, str(HERE / 'tools'))
 from test_lab import POKE, SYNC, BOOT, title, MACHINE, SHOTS, PALETTE, cell, check, click, idle, pin_in, pin_out, run
 import a2test
-from model import (AND, FLIP, NOT, OR, MISSIONS, Board, Chip, Zone, compile_board, layout_bytes,
+from model import (AND, FLIP, HINTS, NOT, OR, MISSIONS, Board, Chip, Zone, compile_board, layout_bytes,
                    room_start, save_bytes)
 
 ROOM_Y = 10
@@ -258,7 +258,8 @@ def module_two(disk, L):
     proves them (tests/test_model.py)."""
     steps = [BOOT, 'wait:60', f'shot:{SHOTS}/title10.png'] + click(72 + 30, 92 + 2 * 9 + 2) \
         + ['wait:120', idle(L), L.peek('_screen'), L.peek('_mission'), f'shot:{SHOTS}/m10.png']
-    steps += ['key:8', 'wait:120', idle(L), L.peek('_mission'), f'shot:{SHOTS}/m8.png']
+    steps += ['key:8', 'wait:120', idle(L), L.peek('_mission'), 'key:H', 'wait:30', idle(L),
+              L.peek('_mission_hint', 32), f'shot:{SHOTS}/m8.png']
     steps += ['key:0', 'wait:120', idle(L), L.peek('_mission'), f'shot:{SHOTS}/m10_key.png', 'key:9', 'wait:120', idle(L),
               L.peek('_mission'), f'shot:{SHOTS}/m9.png']
     steps += click(125, 167) + ['wait:120', idle(L)] + click(72 + 30, 92 + 4 * 9 + 2) \
@@ -268,6 +269,8 @@ def module_two(disk, L):
                   b'\x01\x09')
     fails += check('keys 8, 0, 9', bytes(r.mem(L['_mission'], 1, n)[0] for n in (1, 2, 3)),
                    b'\x07\x09\x08')
+    fails += check('H: the hint read from RSS.ROOMS', r.mem(L['_mission_hint'], 32).rstrip(b'\0'),
+                   HINTS[7].encode())
     return fails + check('MENU, the 12th', r.mem(L['_mission'], 1, 4), b'\x0b')
 
 

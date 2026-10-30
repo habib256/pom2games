@@ -238,7 +238,8 @@ les objets, le drone et le technicien au départ.
 
 Clavier : flèches = pointeur, ESPACE ou RETURN = clic, ESC = lâcher,
 M = marche/pause, P = un pas, G = graver, O = ouvrir une puce au labo,
-1-7 = choisir une mission dans la zone,
+1-9 et 0 = choisir une mission dans la zone (10 : touche 0), H = l'indice
+de la mission (sur le disque, après la salle), S = son coupé ou actif,
 Ctrl-Q = retour à ProDOS.
 
 ## La sauvegarde

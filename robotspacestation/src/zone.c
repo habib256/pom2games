@@ -41,8 +41,9 @@ unsigned char thrust[DRONES][6];
 unsigned char obj_n, obj_kind[OBJECTS], obj_x[OBJECTS], obj_y[OBJECTS];
 unsigned char door_open[2];
 
-#pragma bss-name (push, "LOWBSS")
+#pragma bss-name (push, "LOWBSS")                 /* (MLI READ: only below $2000) */
 static unsigned char tiles[ROOM_COLS * ROOM_ROWS];   /* this mission's, unpacked */
+char mission_hint[HINT_LEN];          /* RSS.ROOMS, after the room (key H) */
 #pragma bss-name (pop)
 static unsigned char div7[ROOM_W];
 static unsigned char drawn_x[DRONES] = {NONE, NONE}, drawn_y[DRONES], drawn_thrust[DRONES][6];
@@ -90,6 +91,10 @@ static unsigned char __fastcall__ read_room(unsigned char m)
     error = mli(0xCEu, p_mark);                             /* SET_MARK */
     if (!error) error = mli(PD_READ, p_read);
     if (!error && *(unsigned *)(p_read + 6) != 180u + ROOM_STARTS) error = 1u;
+    *(unsigned char **)(p_read + 2) = (unsigned char *)mission_hint;   /* then the hint */
+    *(unsigned *)(p_read + 4) = HINT_LEN;
+    if (!error) error = mli(PD_READ, p_read);
+    mission_hint[HINT_LEN - 1u] = 0;
     mli(PD_CLOSE, p_close);
     return !error;
 }

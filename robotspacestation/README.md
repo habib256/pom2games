@@ -45,5 +45,5 @@ make test       # model, then lab and missions on //e and //c with a2shot (~1 mi
 ```
 
 Mouse or keyboard: arrows move the pointer, SPACE/RETURN clicks, ESC drops
-what you hold, M run/pause, P one step, 1-9 and 0 pick a mission, S sound
-on/off, Ctrl-Q quits.
+what you hold, M run/pause, P one step, 1-9 and 0 pick a mission, H a hint
+for the mission, S sound on/off, Ctrl-Q quits.
