@@ -4,6 +4,8 @@
 #define SIM_H
 
 #define NONE 0xFFu
+#define POWER 7u                /* source 7: the board's power, always 1 */
+#define CHIP_POWER 0xFEu        /* the same inside a burned chip */
 #define PARTS 16u
 #define BOARD_GATES 64u
 #define CHIP_GATES 32u

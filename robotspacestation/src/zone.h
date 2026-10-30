@@ -22,7 +22,7 @@ extern unsigned char door_open[2];                /* groups '_'/'|' and ','/'!' 
 
 void zone_init(void);
 unsigned char mission_count(void);
-const char *__fastcall__ mission_name_of(unsigned char m);
+unsigned char __fastcall__ mission_goal(unsigned char m);   /* 0 drone, 1 cell, 2 technician */
 /* Room (read from RSS.ROOMS), drones, objects, technician; 0: disk error. */
 unsigned char __fastcall__ zone_load(unsigned char m);
 /* One turn of every drone (tools/model.py Zone.tick); drone B's board is
@@ -34,19 +34,19 @@ unsigned char zone_doors(void);
 void zone_draw_doors(void);
 void zone_draw(void);
 void __fastcall__ drone_draw(unsigned char d);
+/* src/sprites.c: drone d in profile at its place (its box first cleared). */
+void __fastcall__ drone_paint(unsigned char d);
 /* Technician (act_x, act_y on screen): one pixel towards x,y; 0 if not moved. */
 unsigned char tech_step(unsigned char x, unsigned char y);
 /* The drone he touches + 1, or 0. */
 unsigned char tech_touches_drone(void);
+/* Out of drone d (its board loaded): beside it, behind its way first. */
 void __fastcall__ tech_beside_drone(unsigned char d);
 
-extern char mission_hint[];       /* this mission's hint (key H) */
 /* The win: the drones' gates, a record (persist.best) if fewer, the text
- * "REUSSIE EN n PORTES [RECORD]". On entering: "RECORD n PORTES..." or
- * the drone's invitation. */
+ * "DONE WITH n GATES - RECORD!". */
 const char *zone_won_text(void);
-const char *zone_enter_text(void);
-/* S and V's messages: 0-1 the sound off / on, 2-3 the speed normal / fast. */
-const char *__fastcall__ toggle_text(unsigned char n);
+/* The text id for screen point x, y in the room (0: nothing). */
+unsigned char zone_hover(unsigned char x, unsigned char y);
 
 #endif

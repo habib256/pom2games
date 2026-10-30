@@ -1,4 +1,5 @@
 /* Robot Space Station — pointer, input, messages, buttons, technician. */
+#include <string.h>
 #include "dhgr.h"
 #include "apple2io.h"
 #include "mouse.h"
@@ -23,11 +24,13 @@ static unsigned char act_bg[4u * ACT_H];
  * bits for a pointer starting p mono pixels into its first byte (7 bits a
  * byte, the leftmost in bit 0), built once by pointer_init(). */
 static const unsigned char arrow_w[6] = {1, 2, 3, 4, 2, 1};
+#pragma bss-name (push, "LOW8BSS")      /* ($0800-$0FFF: not zeroed) */
 static unsigned char arrow_bits[7][6][4];
-/* With a part in hand (board_ui.c held_kind / held_part): the arrow and a
- * block of 2 x 3 pixels at its lower right, the part it carries. */
+/* With a part or a wire in hand (board_ui.c held_kind / held_part /
+ * held_src): the arrow and a block of 2 x 3 pixels at its lower right. */
 static unsigned char carry_bits[7][6][4];
-extern unsigned char held_kind, held_part;
+#pragma bss-name (pop)
+extern unsigned char held_kind, held_part, held_src;
 /* src/pointer.s */
 extern unsigned char ptr_bx, ptr_y, ptr_h;
 extern const unsigned char *ptr_bits;
@@ -37,6 +40,8 @@ void pointer_restore(void);
 static void pointer_init(void)
 {
     static unsigned char p, r, j, b, n;
+    memset(arrow_bits, 0, sizeof arrow_bits);
+    memset(carry_bits, 0, sizeof carry_bits);
     for (p = 0u; p < 7u; ++p)
         for (r = 0u; r < 6u; ++r)
             for (j = 0u; j < 5u; ++j) {
@@ -58,7 +63,7 @@ static void cursor_show(void)
     ptr_bx = (unsigned char)(mono / 7u);
     ptr_y = py;
     ptr_h = py > 186u ? 192u - py : 6u;
-    ptr_bits = (held_kind || held_part != 0xFFu ? carry_bits : arrow_bits)
+    ptr_bits = (held_kind || (held_part & held_src) != 0xFFu ? carry_bits : arrow_bits)
                [(unsigned char)(mono - ptr_bx * 7u)][0];
     pointer_draw();
     shown = 1u;
@@ -161,18 +166,48 @@ void __fastcall__ message(const char *s)
 {
     dhgr_fill_rect(0, MSG_Y - 1u, 140, 7, DHGR_BLACK);
     dhgr_puts_small(s, 0, MSG_Y);
+    hover_sync = 1u;
+}
+
+void __fastcall__ msg(unsigned char id)
+{
+    text_open(id);
+    text_line();
+    message(text_buf);
+}
+
+unsigned char page_x, page_y;
+
+void __fastcall__ text_page(unsigned char id)
+{
+    static unsigned char more;
+    text_open(id);
+    do {
+        more = text_line();
+        dhgr_puts_small(text_buf, page_x, page_y);
+        page_y += 9u;
+    } while (more);
+}
+
+void __fastcall__ text_at(unsigned char id, unsigned char x, unsigned char y)
+{
+    text_open(id);
+    text_line();
+    dhgr_puts_small(text_buf, x, y);
 }
 
 /* -- buttons -------------------------------------------------------------- */
 
 static const char *const *btn_label;
+const unsigned char *btn_tip;
 static unsigned char btn_n, btn_x[6], btn_w[6];
 
-void __fastcall__ buttons_set(const char *const *labels, unsigned char n)
+void __fastcall__ buttons_set(const char *const *labels, const unsigned char *tips, unsigned char n)
 {
     static unsigned char i, x;
     static const char *s;
     btn_label = labels;
+    btn_tip = tips;
     btn_n = n;
     for (i = 0u, x = 0u; i < n; ++i) {
         btn_x[i] = x;
@@ -211,11 +246,7 @@ void actor_show(void)
     act_bx = (unsigned char)(((unsigned)x << 2) / 7u);
     act_by = y;
     dhgr_read_block(act_bx, y, 4, ACT_H, act_bg, 4);
-    dhgr_fill_rect(x + 1u, y, 3, 2, DHGR_WHITE);          /* helmet */
-    dhgr_fill_rect(x + 1u, y + 2u, 3, 1, DHGR_AQUA);      /* visor */
-    dhgr_fill_rect(x, y + 3u, 5, 4, DHGR_ORANGE);         /* suit */
-    dhgr_fill_rect(x + 1u, y + 7u, 1, 2, DHGR_GRAY2);     /* legs */
-    dhgr_fill_rect(x + 3u, y + 7u, 1, 2, DHGR_GRAY2);
+    tech_paint(x, y);                                     /* src/sprites.c */
     act_on = 1u;
 }
 

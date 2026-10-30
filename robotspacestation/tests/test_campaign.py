@@ -36,7 +36,13 @@ def title_click(m):
     second page by itself."""
     if m >= 14:
         return title_click(m - 14)
-    return click(20, 92 + 9 * m + 2) if m < 7 else click(72 + 30, 92 + 9 * (m - 7) + 2)
+    return (click(20, 92 + 9 * m + 2) if m < 7 else click(72 + 30, 92 + 9 * (m - 7) + 2)) \
+        + ['wait:60'] + brief_play()
+
+
+def brief_play():
+    """PLAY on a mission's briefing (src/main.c enter_brief)."""
+    return click(8, 167)
 
 
 def tech_at(L, place):

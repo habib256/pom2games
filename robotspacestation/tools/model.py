@@ -10,9 +10,15 @@ Layout ids (what the player wires):
   sinks   0-7 board sinks,   8 + part*4 + k input k of part `part`
 Flat ids (what the simulation reads):
   0-7 board sources, 8 + g output of flat gate g, NONE constant 0
+
+Source 7 is the board's POWER, always 1 (the '+' terminal, in the lab and
+in the drones). Inside a chip it is CHIP_POWER: the board's own POWER once
+the chip is placed.
 """
 
 NONE = 0xFF
+POWER = 7                                   # the board source always at 1
+CHIP_POWER = 0xFE                           # the same, chip-local
 PARTS = 16
 BOARD_GATES = 64
 CHIP_GATES = 32
@@ -148,8 +154,8 @@ def compile_board(board, chips):
             continue
         for kind, a, b in chips[p[0] - CHIP0].gates:
             def inner(s):
-                if s == NONE:
-                    return NONE
+                if s == NONE or s == CHIP_POWER:
+                    return POWER if s == CHIP_POWER else NONE
                 return ins[s] if s < 4 else TERMINALS + base[i] + s - 4
             gates.append((kind, inner(a), inner(b)))
     sinks = [resolve(board.wires[k]) for k in range(TERMINALS)]
@@ -163,18 +169,20 @@ def burn(board, chips):
         return None
 
     def local(s):
+        if s == POWER:
+            return CHIP_POWER
         if s == NONE or 4 <= s < TERMINALS:
-            return NONE                     # lab sources 4-7 are always 0
+            return NONE                     # lab sources 4-6 are always 0
         return s if s < 4 else 4 + s - TERMINALS
 
     gates = [(k, local(a), local(b)) for k, a, b in flat.gates]
     outputs = []
     for k in range(4):
         s = flat.sinks[k]
-        if s == NONE or 4 <= s < TERMINALS:
+        if s == NONE or 4 <= s < POWER:
             outputs.append(NONE)
-        elif s < 4:                         # E -> S directly: one BUF delay
-            gates.append((BUF, s, NONE))
+        elif s < 4 or s == POWER:           # E (or +) -> S directly: one BUF delay
+            gates.append((BUF, local(s), NONE))
             outputs.append(len(gates) - 1)
         else:
             outputs.append(s - TERMINALS)
@@ -189,6 +197,7 @@ class Sim:
     def __init__(self, flat):
         self.flat = flat
         self.values = [0] * (TERMINALS + BOARD_GATES)
+        self.values[POWER] = 1
 
     def value(self, s):
         return 0 if s == NONE else self.values[s]
@@ -196,6 +205,7 @@ class Sim:
     def tick(self, sources):
         v = self.values
         v[:TERMINALS] = [x & 1 for x in sources]
+        v[POWER] = 1
         new = [gate(k, self.value(a), self.value(b), v[TERMINALS + g])
                for g, (k, a, b) in enumerate(self.flat.gates)]
         v[TERMINALS:TERMINALS + len(new)] = new
@@ -257,7 +267,7 @@ OBJECT_KINDS = {'C': CELL, 'B': CRATE}
 # doors '!' and plates ',' are a second, independent group.
 GOAL_DRONE, GOAL_CELL, GOAL_TECH = 0, 1, 2
 MISSIONS = (
-    ('TOUT DROIT', GOAL_DRONE, (
+    ('STRAIGHT', GOAL_DRONE, (
         '####################',
         '#..................#',
         '#..................#',
@@ -276,7 +286,7 @@ MISSIONS = (
         '#..................#',
         '#..................#',
         '####################')),
-    ('LE VIRAGE', GOAL_DRONE, (
+    ('THE TURN', GOAL_DRONE, (
         '####################',
         '#..................#',
         '#.D................#',
@@ -295,7 +305,7 @@ MISSIONS = (
         '#...............XXX#',
         '#...............XXX#',
         '####################')),
-    ('LE PILIER', GOAL_DRONE, (
+    ('THE PILLAR', GOAL_DRONE, (
         '####################',
         '#.........#........#',
         '#.D.......#........#',
@@ -314,7 +324,7 @@ MISSIONS = (
         '#......XXX.........#',
         '#......XXX.........#',
         '####################')),
-    ('LA CELLULE', GOAL_CELL, (
+    ('THE CELL', GOAL_CELL, (
         '####################',
         '#.........=........#',
         '#.........=........#',
@@ -333,7 +343,7 @@ MISSIONS = (
         '#.........=........#',
         '#.........=........#',
         '####################')),
-    ('LA PORTE', GOAL_DRONE, (
+    ('THE DOOR', GOAL_DRONE, (
         '####################',
         '#.........#........#',
         '#.........#........#',
@@ -352,7 +362,7 @@ MISSIONS = (
         '#.........#........#',
         '#.........#........#',
         '####################')),
-    ('LE PARKING', GOAL_TECH, (
+    ('PARKING', GOAL_TECH, (
         '####################',
         '#.........#........#',
         '#.D.....__#........#',
@@ -371,7 +381,7 @@ MISSIONS = (
         '#.........#........#',
         '#.........#........#',
         '####################')),
-    ('LE RELAIS', GOAL_DRONE, (
+    ('THE RELAY', GOAL_DRONE, (
         '####################',
         '#........#.,,......#',
         '#....D.__#.,,......#',
@@ -390,7 +400,7 @@ MISSIONS = (
         '#........!.E.....XX#',
         '#........!.......XX#',
         '####################')),
-    ('LE ZIGZAG', GOAL_DRONE, (
+    ('ZIGZAG', GOAL_DRONE, (
         '####################',
         '#.D..T.............#',
         '#..................#',
@@ -409,7 +419,7 @@ MISSIONS = (
         '#XXX...............#',
         '#XXX...............#',
         '####################')),
-    ('LE COLIS', GOAL_CELL, (
+    ('THE PARCEL', GOAL_CELL, (
         '####################',
         '#.........#........#',
         '#.........#........#',
@@ -428,7 +438,7 @@ MISSIONS = (
         '#.........#........#',
         '#.........#........#',
         '####################')),
-    ('LE GARDIEN', GOAL_TECH, (
+    ('THE GUARD', GOAL_TECH, (
         '####################',
         '#.D......#....#....#',
         '#........#....|.XX.#',
@@ -447,7 +457,7 @@ MISSIONS = (
         '#......__=.........#',
         '#......__=.........#',
         '####################')),
-    ('LA RONDE', GOAL_DRONE, (
+    ('THE ROUND', GOAL_DRONE, (
         '####################',
         '#.D..T.............#',
         '#..................#',
@@ -466,7 +476,7 @@ MISSIONS = (
         '#XXX...............#',
         '#XXX...............#',
         '####################')),
-    ('LE SAS', GOAL_TECH, (
+    ('AIRLOCK', GOAL_TECH, (
         '####################',
         '#.......#..........#',
         '#.D.....|........,,#',
@@ -485,7 +495,7 @@ MISSIONS = (
         '#.......#......XX..#',
         '#.......#..........#',
         '####################')),
-    ('LA CAISSE', GOAL_DRONE, (
+    ('THE CRATE', GOAL_DRONE, (
         '####################',
         '#...............=..#',
         '#...............=..#',
@@ -504,7 +514,7 @@ MISSIONS = (
         '#................XX#',
         '#................XX#',
         '####################')),
-    ('LE TANDEM', GOAL_CELL, (
+    ('TANDEM', GOAL_CELL, (
         '####################',
         '#...............=..#',
         '#.D.............=,,#',
@@ -523,7 +533,7 @@ MISSIONS = (
         '#.........#........#',
         '#.........#........#',
         '####################')),
-    ('LE COMPTEUR', GOAL_DRONE, (
+    ('THE COUNTER', GOAL_DRONE, (
         '####################',
         '#..................#',
         '#..T.......D.......#',
@@ -542,7 +552,7 @@ MISSIONS = (
         '###########..#.....#',
         '#.........#..#.....#',
         '####################')),
-    ('LA SPIRALE', GOAL_DRONE, (
+    ('THE SPIRAL', GOAL_DRONE, (
         '####################',
         '#TD................#',
         '#..................#',
@@ -561,7 +571,7 @@ MISSIONS = (
         '#..................#',
         '#..................#',
         '####################')),
-    ('LE CONVOI', GOAL_CELL, (
+    ('THE CONVOY', GOAL_CELL, (
         '####################',
         '#..................#',
         '#..C...............#',
@@ -580,7 +590,7 @@ MISSIONS = (
         '#.........#....#XXX#',
         '#.........#....#XXX#',
         '####################')),
-    ('DEUX CLES', GOAL_TECH, (
+    ('TWO KEYS', GOAL_TECH, (
         '####################',
         '#...............=..#',
         '#...............=..#',
@@ -599,7 +609,7 @@ MISSIONS = (
         '#.......!....XX.#,,#',
         '#.......#....XX.#,,#',
         '####################')),
-    ('LA PASSE', GOAL_CELL, (
+    ('THE HANDOFF', GOAL_CELL, (
         '####################',
         '#.........+........#',
         '#.........+........#',
@@ -618,7 +628,7 @@ MISSIONS = (
         '#.........+........#',
         '#.........+........#',
         '####################')),
-    ('LES ETAGES', GOAL_DRONE, (
+    ('THE FLOORS', GOAL_DRONE, (
         '####################',
         '#.T.....D..........#',
         '#..................#',
@@ -639,32 +649,6 @@ MISSIONS = (
         '####################')),
 )
 
-# One hint a mission (key H in the room), 28 characters at most, on the
-# disk after the room (RSS.ROOMS): no memory for them.
-HINTS = (
-    'UN NON SUR LE PROPULSEUR O',
-    'CAPTEUR E SUR PROPULSEUR N',
-    'UNE BASCULE RETIENT LE CHOC',
-    'LACHER LA CELLULE AU MUR O',
-    'LE TECHNICIEN SUR LA PLAQUE',
-    'GARER LE DRONE SUR LA PLAQUE',
-    'B APPELLE A PAR RADIO',
-    'SUD TOUJOURS - BASCULE E O',
-    'PUCE DE LA 4 - PLAQUE TENUE',
-    'LA BASCULE DU PILIER SUFFIT',
-    '2 BASCULES : E PUIS S PUIS O',
-    'TENIR LA PLAQUE PUIS PASSER',
-    'LA PINCE POSE LA CAISSE',
-    'A SE GARE ET APPELLE B',
-    'LA 2E OUVERTURE A L OUEST',
-    'UN CHOC DEVANT : A DROITE',
-    'TENIR PENDANT LES 2 VIRAGES',
-    'LA CAISSE PUIS LE PARKING',
-    'A POSE B PREND - PAR RADIO',
-    'OX REBOUCLEE : CHAQUE ETAGE',
-)
-HINT_LEN = 32
-assert len(HINTS) == len(MISSIONS) and all(len(h) <= 28 for h in HINTS)   # (the message line)
 # The title's columns (src/title.c): a name from x 15 or 87, 5 pixels a
 # character, before the next column (72) or the screen's edge (140).
 assert all(len(name) <= (11 if m % 14 < 7 else 10) for m, (name, _, _) in enumerate(MISSIONS))

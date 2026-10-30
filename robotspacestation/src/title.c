@@ -70,7 +70,7 @@ void title_draw(void)
     big_text("STATION", 36, 17);
     station();
     ui_latch();
-    dhgr_puts_small(title_page ? "MISSIONS 15-" : "MISSIONS", 0, LIST_Y - 10u);
+    text_at(title_page ? T_H_MISSIONS2 : T_H_MISSIONS, 0, LIST_Y - 10u);
     num[1] = 0;
     for (m = title_page * PAGE_N, k = 0u; m < mission_count() && k < PAGE_N; ++m, ++k) {
         y = LIST_Y + (k % LIST_N) * 9u;
@@ -80,11 +80,12 @@ void title_draw(void)
                        : m == persist.reached ? DHGR_ORANGE : DHGR_GRAY1);
         num[0] = m < 9u ? '1' + m : '0';            /* its key (10: 0; */
         if (m < 10u) dhgr_puts_small(num, x + 8u, y);   /* none after) */
-        if (m <= persist.reached) dhgr_puts_small(mission_name_of(m), x + 15u, y);
+        if (m <= persist.reached) text_at(T_NAME + m, x + 15u, y);
     }
 }
 
-unsigned char __fastcall__ title_mission_at(unsigned char x, unsigned char y)
+/* The mission on row y, column x (also locked ones), or NONE. */
+unsigned char __fastcall__ title_row_at(unsigned char x, unsigned char y)
 {
     static unsigned char m;
     if (y < LIST_Y - 2u) return NONE;
@@ -92,19 +93,12 @@ unsigned char __fastcall__ title_mission_at(unsigned char x, unsigned char y)
     if (m >= LIST_N) return NONE;
     if (x >= LIST_DX) m += LIST_N;
     m += title_page * PAGE_N;
-    return m < mission_count() && m <= persist.reached ? m : NONE;
+    return m < mission_count() ? m : NONE;
 }
 
-/* Help page 2's rules (help.c draws them), 24 characters from x 16. */
-const char *const legend_text[LEGEND_N] = {
-    "MUR",
-    "GRILLE : DRONES SEULS",
-    "TUNNEL : TECHNICIEN SEUL",
-    "PORTE : OUVERTE TANT QUE",
-    "SA PLAQUE EST PRESSEE",
-    "2E PORTE ET SA PLAQUE",
-    "CHARGEUR : LE BUT",
-    "CELLULE : AU CHARGEUR",
-    "CAISSE : SUR UNE PLAQUE",
-    "DRONES A ET B",
-};
+unsigned char __fastcall__ title_mission_at(unsigned char x, unsigned char y)
+{
+    x = title_row_at(x, y);
+    return x <= persist.reached ? x : NONE;
+}
+

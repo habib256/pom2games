@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 """From the missions of tools/model.py (one source for both):
 
-- src/room.h: the count, names and goals (resident: the title lists them);
+- src/room.h: the count and goals (names, briefings and hints are in the
+  text bank: tools/gen_text.py);
 - RSS.ROOMS (path argument): one 256-byte record per mission, read from
   the disk when the mission starts (src/zone.c zone_load):
     0-18   drone A x, y, drone B x, y (255 255: none), technician x, y,
            objects count, then kind, x, y for 4 objects
     19-198 the tiles, 4 bits each, 2 per byte, the first in the low bits
-    199-230 the hint (key H), zero-padded
 """
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from model import HINT_LEN, HINTS, MISSIONS, OBJECTS, room_objects, room_start, room_tiles
+from model import MISSIONS, OBJECTS, room_objects, room_start, room_tiles
 
 RECORD = 256
 STARTS = 7 + 3 * OBJECTS
 
 
-def record(room, hint):
+def record(room):
     objs = room_objects(room)
     b = room_start('E', room) if any('E' in r for r in room) else (255, 255)
     starts = list(room_start('D', room)) + list(b) + list(room_start('T', room)) + [len(objs)]
@@ -28,7 +28,7 @@ def record(room, hint):
     starts += [0] * (STARTS - len(starts))
     tiles = room_tiles(room)
     packed = [tiles[i] | tiles[i + 1] << 4 for i in range(0, len(tiles), 2)]
-    data = bytes(starts + packed) + hint.encode().ljust(HINT_LEN, b'\0')
+    data = bytes(starts + packed)
     assert len(data) <= RECORD
     return data.ljust(RECORD, b'\0')
 
@@ -44,12 +44,9 @@ header = '\n'.join([
     f'#define MISSIONS {len(MISSIONS)}u',
     f'#define ROOM_RECORD {RECORD}u          /* RSS.ROOMS: one record per mission */',
     f'#define ROOM_STARTS {STARTS}u',
-    f'#define HINT_LEN {HINT_LEN}u',
-    'static const char *const mission_names[] = {'
-    + ', '.join(f'"{name}"' for name, _, _ in MISSIONS) + '};',
     'static const unsigned char mission_goals[] = {'
     + ', '.join(str(goal) for _, goal, _ in MISSIONS) + '};',
 ]) + '\n'
 write_if_changed(Path(__file__).resolve().parents[1] / 'src/room.h', header.encode())
 if len(sys.argv) > 1:
-    write_if_changed(sys.argv[1], b''.join(record(room, hint) for (_, _, room), hint in zip(MISSIONS, HINTS)))
+    write_if_changed(sys.argv[1], b''.join(record(room) for _, _, room in MISSIONS))

@@ -30,6 +30,20 @@
 
 ## Interface
 
+- [x] Refonte de l'ergonomie (2026-10-30, soir) : tout en anglais, un
+      briefing par mission (but, nouveauté, deux indices), la ligne du bas
+      décrit ce que montre le pointeur ou dit quoi faire ensuite, moteurs
+      nommés par la direction du drone, textes en mémoire auxiliaire
+      (`tools/gen_text.py`, `RSS.TEXT1/2`). Puis : la borne + (alimentation,
+      toujours 1), la boîte à outils étiquetée, un cours d'électronique en
+      six pages (tables de vérité), GATES sur le briefing.
+      Puis : sortie derrière le drone (sa planche jouée 4 tours d'avance),
+      on n'entre qu'en cliquant le drone, sprites de profil (drone et
+      technicien), redessin des seules bandes découvertes (vitesse
+      d'avant à 5-8 % près).
+- [ ] Essai par un joueur qui découvre le jeu : les briefings et indices
+      suffisent-ils ? (surtout missions 7, 15, 16, 20)
+
 - [x] Deux fils partis de bornes voisines partageaient leur segment
       vertical : la colonne libre la plus proche du milieu (2026-10-30).
 - [x] Une pièce en main se voit sur le pointeur (un bloc sous la flèche).
@@ -45,7 +59,13 @@
       == `Zone` ; la campagne entière, chaque mission jouée en C avec
       la solution du modèle (carte dans `RSS.SAVE`), //e et //c.
 
-## Mémoire (au 2026-10-30, soir)
+## Mémoire (au 2026-10-30, après la refonte)
+
+Pile C ramenée à 128 octets (`$BE80`) ; `$0800-$0FFF` : page zéro sauvée
+et planche du drone B ; principale ~470 octets libres,
+HI ~50, basse ~7 ; textes en auxiliaire (`$6000-$A000`, place jusqu'à
+`$BFFF`). Avant :
+
 
 Le titre écrit ses deux lignes avec la petite police agrandie (plus de
 `dhgr_puts` ni de police 8 × 8 : ~1,3 Ko rendus) ; l'aide et les records sont
