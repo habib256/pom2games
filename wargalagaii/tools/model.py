@@ -262,9 +262,30 @@ def alien_combo2(level):
     return (c // 4 + 2) % 6 * 4 + (c % 4 + 2) % 4
 
 
-def level_params(level, loop):
+# Modes (2026-10-30, Warblade's Normal / Hard / Ace, and an easy start): a
+# byte, NORMAL 0; HARD and ACE are one and two loops' steps harder; EASY
+# spaces dives and bombs half as much again, two divers fewer, bombs and
+# kamikazes a row slower (2 at least). A new player has EASY only; beating
+# the boss of level 25 in the hardest mode open opens the next
+# (front.s, HIGHSCORES). The demo plays NORMAL.
+EASY, NORMAL, HARD, ACE = 255, 0, 1, 2
+MODES = (EASY, NORMAL, HARD, ACE)       # in the order they open
+
+
+def level_params(level, loop, mode=NORMAL):
     """(dive gap, max divers, fire gap, bomb dy, kamikaze dy): each pack is
-    harder, each loop more so."""
+    harder, each loop more so; the mode on top."""
+    if mode in (HARD, ACE):
+        loop = min(loop, 20) + mode
+    dive, divers, fire, bomb, kami = loop_params(level, loop)
+    if mode == EASY:
+        dive, fire = min(255, dive + (dive >> 1)), min(255, fire + (fire >> 1))
+        divers = max(1, divers - 2)
+        bomb, kami = bomb - (bomb > 2), kami - (kami > 2)
+    return dive, divers, fire, bomb, kami
+
+
+def loop_params(level, loop):
     pack = level // 4
     # Teach aiming, then dodging, then crowd control. Beyond the opening,
     # retain the original late-game pressure and the seven-diver budget.
@@ -366,7 +387,8 @@ def flying(state):
 
 
 class Game:
-    def __init__(self, start_level=0):
+    def __init__(self, start_level=0, mode=NORMAL):
+        self.mode = mode
         self.ship_c = SHIP_MAX // 2
         self.demo = False
         self.shot_limit = SHOT_LIMIT
@@ -436,7 +458,7 @@ class Game:
     def setup_level(self):
         self.lkind = level_kind(self.level)
         (self.dive_gap, self.max_divers, self.fire_gap, self.bomb_dy,
-         self.kami_dy) = level_params(self.level, self.loop)
+         self.kami_dy) = level_params(self.level, self.loop, NORMAL if self.demo else self.mode)
         _, self.f_mask, stagger, self.f_design = level_form(self.level)
         self.row_sh = [ROW_SHIFT * (stagger >> r & 1) for r in range(ROWS)]
         self.entry_w = 3 if self.lkind == BOSS else 0
@@ -1156,6 +1178,10 @@ class Game:
     def launch(self):
         if self.entry_w == ROWS:
             return
+        # between waves with nobody left on the field: the next one soon
+        # (2026-10-30: up to 3 s of empty sky after a wave shot down)
+        if not self.entry_k and self.entry_t > ENTRY_FIRST and not any(self.a_state):
+            self.entry_t = ENTRY_FIRST
         self.entry_t -= 1
         if self.entry_t:
             return

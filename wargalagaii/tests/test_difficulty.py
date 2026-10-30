@@ -47,6 +47,15 @@ def main():
             assert previous[4] <= current[4] <= 7
             previous = current
         assert previous == (8, 7, 5, 7, 7), (level, previous)
+    # the modes (2026-10-30): EASY easier than NORMAL everywhere, HARD and
+    # ACE harder, each its loop's step
+    for level in range(M.LEVELS):
+        easy, normal, hard, ace = (M.level_params(level, 0, m) for m in M.MODES)
+        for a, b in ((easy, normal), (normal, hard), (hard, ace)):
+            assert a[0] >= b[0] and a[1] <= b[1] and a[2] >= b[2] and a[3] <= b[3] and a[4] <= b[4], (level, a, b)
+        assert easy[0] >= normal[0] * 3 // 2 and easy[2] >= normal[2] * 3 // 2, level
+        assert hard == M.level_params(level, 1) and ace == M.level_params(level, 2)
+    assert M.level_params(0, 0, M.EASY) == (90, 1, 90, 2, 2)
     assert M.level_params(0, 0) == (60, 1, 60, 2, 3)
     assert M.level_params(1, 0) == (52, 1, 52, 2, 3)
     # The first squadron is mirrored on each new loop, without changing

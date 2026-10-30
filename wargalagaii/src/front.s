@@ -7,8 +7,14 @@
 ; Page 1: the title picture (tools/title.py, LZ4FH-packed) on rows
 ; 0..PANEL_TOP-1, a panel below: menu, high scores or help, in turn while
 ; nobody plays (menu, scores, then the demo). Keys: RETURN, SPACE or button
-; 0 plays; J (or TAB) keyboard / joystick; S sound; H help; ESC quits to
-; ProDOS (elsewhere than the menu: back to the menu).
+; 0 plays; J (or TAB) keyboard / joystick; M the mode (those open); S
+; sound; H help; ESC quits to ProDOS (elsewhere than the menu: back to the
+; menu).
+;
+; Modes (2026-10-30, model.MODES): EASY at first; a game that beat the boss
+; of level 25 in the hardest mode open opens the next (NORMAL, HARD, ACE).
+; HIGHSCORES byte 2 (FR_SET): bit 0 the joystick, bits 1-2 the modes open
+; after EASY (0-3), bits 3-4 the one chosen (0 EASY .. 3 ACE).
 ;
 ; HIGHSCORES: tools/records.py has the layout and the rules (8 entries,
 ; initials, BCD score, level reached; the controls). Read once, written
@@ -26,6 +32,7 @@ REC_N      = 8                   ; tools/records.py
 REC_ENTRY  = 7
 REC_SIZE   = 64
 REC_VERSION = 1
+FR_SET     = 2                   ; settings byte: controls, modes
 FR_TABLE_LINE = 13
 FR_NAME_COL = 26                 ; initials on the entry panel
 KEY_RETURN = $0D
@@ -67,6 +74,7 @@ front_main:
         lda #FR_MENU
         ldx fr_why
         beq :+
+        jsr fr_unlock
         jsr fr_bonuses           ; (the score is final after it)
         jsr rec_new
         lda #FR_MENU
@@ -116,6 +124,8 @@ fr_key: ldx fr_panel
         beq fr_joy
         cmp #'S'
         beq fr_sound
+        cmp #'M'
+        jeq fr_mode
         cmp #'H'
         beq fr_help
         cmp #'?'
@@ -338,7 +348,7 @@ fr_show:
         lda fr_panel
         beq fr_menu_vars
         cmp #FR_SCORES
-        beq fr_table
+        jeq fr_table
         rts
 
 ; The menu's settings and the best score.
@@ -369,7 +379,44 @@ fr_menu_vars:
         ldx #3
         ldy #22
         jsr sh_chars
-        lda #20*8
+        lda #16*8                ; the mode chosen
+        sta sh_row
+        jsr fr_modes
+        asl
+        adc fr_tmp               ; (x 6: carry clear)
+        asl
+        adc #<fr_mode_txt
+        sta ptr
+        lda #>fr_mode_txt
+        adc #0
+        sta ptr+1
+        ldx #6
+        ldy #22
+        jsr sh_chars
+        lda fr_new               ; one just opened: its name
+        beq :+
+        lda #19*8
+        sta sh_row
+        lda #<fr_open_txt
+        sta ptr
+        lda #>fr_open_txt
+        sta ptr+1
+        ldx #9
+        ldy #15
+        jsr sh_chars
+        lda fr_new
+        asl
+        adc fr_new
+        asl
+        adc #<fr_mode_txt
+        sta ptr
+        lda #>fr_mode_txt
+        adc #0
+        sta ptr+1
+        ldx #6
+        ldy #25
+        jsr sh_chars
+:       lda #20*8
         sta sh_row
         ldx #0
         jmp fr_entry
@@ -675,6 +722,75 @@ rn_first:
         sta fr_name,x
 :       rts
 
+fr_mode:                         ; the next mode open (after the last: EASY)
+        jsr fr_modes             ; A = chosen, X = open
+        cpx fr_tmp
+        beq :+
+        inc fr_tmp
+        bra :++
+:       stz fr_tmp
+:       lda rec_buf+FR_SET
+        and #%11100111
+        sta rec_buf+FR_SET
+        lda fr_tmp
+        asl
+        asl
+        asl
+        ora rec_buf+FR_SET
+        sta rec_buf+FR_SET
+        inc rec_dirty
+        jsr fr_set_mode
+        jmp fr_menu
+
+; The game that ended beat the boss of level 25 (level 26 reached) in the
+; hardest mode open: the next one opens (named on the menu).
+fr_unlock:
+        lda loop
+        bne :+
+        lda level
+        cmp #25
+        bcc fu_done
+:       jsr fr_modes
+        cpx #3
+        bcs fu_done
+        cpx fr_tmp
+        bne fu_done
+        lda rec_buf+FR_SET
+        clc
+        adc #2                   ; one more open
+        sta rec_buf+FR_SET
+        inc rec_dirty
+        inx
+        stx fr_new
+fu_done:
+        rts
+
+; -> A = fr_tmp = the mode chosen (0 EASY .. 3 ACE, at most those open),
+; X = the modes open after EASY.
+fr_modes:
+        lda rec_buf+FR_SET
+        lsr
+        and #3
+        tax
+        lda rec_buf+FR_SET
+        lsr
+        lsr
+        lsr
+        and #3
+        sta fr_tmp
+        cpx fr_tmp
+        bcs :+
+        stx fr_tmp
+:       lda fr_tmp
+        rts
+
+; mode (game.s) from the setting: EASY $FF, NORMAL 0, HARD 1, ACE 2.
+fr_set_mode:
+        jsr fr_modes
+        dec a
+        sta mode
+        rts
+
 ; ---------------------------------------------------------------------------
 ; HIGHSCORES -> rec_buf, once (the defaults if it can't be read).
 rec_load:
@@ -695,9 +811,10 @@ rec_load:
         lda rec_buf+1
         cmp #REC_VERSION
         bne rl_default
-        lda rec_buf+2
+rl_set: lda rec_buf+FR_SET     ; the controls, the mode
         and #1
         sta joy_mode
+        jmp fr_set_mode
 rl_done:
         rts
 rl_default:
@@ -706,15 +823,17 @@ rl_default:
         sta rec_buf,x
         dex
         bpl :-
-        rts
+        bra rl_set
 
 ; Written if it changed (a record, the controls). A failure: a message on
 ; the panel's last line for ~2 s.
 rec_sync:
-        lda joy_mode
-        cmp rec_buf+2
+        lda rec_buf+FR_SET       ; (the modes: fr_mode, fr_unlock)
+        and #$FE
+        ora joy_mode
+        cmp rec_buf+FR_SET
         beq :+
-        sta rec_buf+2
+        sta rec_buf+FR_SET
         inc rec_dirty
 :       lda rec_dirty
         beq rs_done
@@ -784,12 +903,17 @@ fr_kbd_txt: .byte "KEYBOARD"
 fr_joy_txt: .byte "JOYSTICK"
 fr_on_txt:  .byte "ON "
 fr_off_txt: .byte "OFF"
+fr_mode_txt: .byte "EASY  NORMALHARD  ACE   "
+fr_open_txt: .byte "NOW OPEN:"
+fr_new:   .byte 0                ; a mode just opened (1-3; the overlay is
+fr_tmp:   .byte 0                ; copied afresh at each title: 0)
 fr_menu_txt:
         .byte 12, 6, "RETURN OR FIRE TO PLAY", 0
         .byte 14, 9, "J  CONTROLS", 0
         .byte 15, 9, "S  SOUND", 0
-        .byte 16, 9, "H  HELP", 0
-        .byte 17, 9, "ESC  QUIT", 0
+        .byte 16, 9, "M  MODE", 0
+        .byte 17, 9, "H  HELP", 0
+        .byte 18, 9, "ESC  QUIT", 0
         .byte 20, 4, "TOP", 0
         .byte 23, 6, "VERHILLE ARNAUD 2026  GPL-3", 0
         .byte $FF
@@ -806,6 +930,7 @@ fr_help_txt:
         .byte 17, 2, " ROCK, ? CARD: A SUB-GAME NEXT", 0
         .byte 18, 2, "A SHOP EVERY 4 LEVELS, A BOSS", 0
         .byte 19, 2, "EVERY 25. 100 LEVELS, THEN AGAIN.", 0
+        .byte 20, 2, "BEAT LEVEL 25: A HARDER MODE (M)", 0
         .byte 21, 2, "S SOUND, ESC TITLE", 0
         .byte 23, 2, "WARGALAGA II IS NOT WARBLADE.", 0
         .byte $FF

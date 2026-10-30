@@ -4,7 +4,9 @@
 HIGHSCORES (ProDOS BIN, REC_SIZE bytes), as src/front.s reads and writes it:
   0     'W' (a file of this game)
   1     REC_VERSION
-  2     controls: 0 keyboard, 1 joystick
+  2     settings: bit 0 the controls (0 keyboard, 1 joystick); bits 1-2
+        the modes open after EASY (2026-10-30: 0-3), bits 3-4 the one
+        chosen (0 EASY, 1 NORMAL, 2 HARD, 3 ACE)
   3..   REC_N entries of 7 bytes, best first: initials (3 ASCII), score
         (3 BCD bytes, low first), level reached (1..255)
   rest  zeros

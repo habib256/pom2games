@@ -317,18 +317,19 @@ def game_over(disk, L):
           '(clock, /RAM unit and saved zero page intact)')
 
 
-def level_oracle(disk, L, start, count=3000, every=5, seed=5, cheats=(), later=None):
+def level_oracle(disk, L, start, count=3000, every=5, seed=5, cheats=(), later=None, mode=model.NORMAL):
     """Lot 6: from level `start` (poked before game_init), a strong cheating
     player (kept invulnerable, triple shot, 10 shots, autofire) goes through
     level ends, teleports and the next levels; state == model at every
     `every` steps. Returns the model and the levels it saw."""
     rng = random.Random(seed)
-    game = model.Game(start)
+    game = model.Game(start, mode)
     names = [n for n in game.state() if n != 'prng']
     first = min(L[n] for n in names)
     span = max(L[n] + len(v) for n, v in game.state().items() if n != 'prng') - first
     cheats0 = [('weapon', 2), ('shot_limit', 10), ('s_level', 5), ('noshop', 1), *cheats]
-    steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', start), L.until('game_tick', 3000)]
+    steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', start), L.poke('mode', mode),
+             L.until('game_tick', 3000)]
     plan, seen = [], []
     move = 0
     for k in range(count):
@@ -345,7 +346,7 @@ def level_oracle(disk, L, start, count=3000, every=5, seed=5, cheats=(), later=N
         if k % every == every - 1 or k == count - 1:
             steps += [f'peek:{first:04X}:{span}', L.peek('prng_lo', 2)]
     # invulnerability: decided by the model's state before each step
-    sim = model.Game(start)
+    sim = model.Game(start, mode)
     out, k = [], 0
     for st in steps:
         if st.startswith('invul:'):
@@ -490,6 +491,20 @@ def play(disk, L):
     print('PASS arrows move, SPACE and open apple fire, TAB -> joystick moves and stops')
 
 
+def stick_off_centre(disk, L):
+    """A stick resting off centre (0.6: ~132 counts, past the old fixed
+    third at 124) is the centre: the ship stays; full right and left still
+    move it (2026-10-30, the dead zone around the rest point)."""
+    r = a2test.run(disk, ['joy:0.6,0', *boot(L), 'wait:20', L.peek('ship_c'), 'key:\t', 'wait:60',
+                          L.peek('ship_c'), L.peek('joy_x'), 'joy:1,0', 'wait:20', L.peek('ship_c'),
+                          'joy:-1,0', 'wait:40', L.peek('ship_c')], iie=True)
+    ship = [r.mem(L['ship_c'], 1, k)[0] for k in range(4)]
+    x = r.mem(L['joy_x'], 1, 0)[0]
+    assert x > 124 and ship[1] == ship[0], ('rest off centre holds', x, ship)
+    assert ship[2] > ship[1] + 5 and ship[3] < ship[2] - 5, ('full throws move', ship)
+    print(f'PASS stick resting off centre ({x} counts) holds the ship, full throws move it')
+
+
 def score_cap(disk, L):
     """The score stops at 999 999 (bug hunt 6: it wrapped to 0)."""
     steps = [*boot(L), L.poke('score', 0x90), L.poke('score', 0x99, 1),
@@ -624,7 +639,7 @@ def main():
     cadence(a.disk, L, pal=False)
     cadence(a.disk, L, pal=True)
     pickup_feedback(a.disk, L)
-    game, deaths = oracle(a.disk, L, seed=42)   # (lot 10, narrower field: 1983 lost one life)
+    game, deaths = oracle(a.disk, L, seed=3)    # (10-30, waves sooner on an empty field: 42 lost two)
     assert len(deaths) == 3 and game.game_over, 'the scripted random game loses its three lives'
     game, _ = oracle(a.disk, L, count=1500, seed=7, armour=2)
     assert game.armour < 2, 'armour took a bomb'
@@ -649,12 +664,21 @@ def main():
     assert game.hurried > 100 and len(seen) >= 2 and not game.hurry, (game.hurried, seen)
     print(f'PASS level oracle, hurry-up: the saucer out {game.hurried} steps, levels '
           f'{[l + 1 for l, p in seen]} == model')
+    # 2026-10-30, the modes: EASY's spaced dives and bombs, HARD and ACE's
+    # extra steps, the same in the 6502 as in the model
+    for mode, start, name in ((model.EASY, 0, 'EASY'), (model.EASY, 3, 'EASY, kamikaze'),
+                              (model.HARD, 4, 'HARD'), (model.ACE, 96, 'ACE')):
+        game, seen = level_oracle(a.disk, L, start, 2000, every=10, mode=mode)
+        assert len(seen) >= 2, (name, seen)
+        print(f'PASS level oracle, {name}: levels {[l + 1 for l, p in seen]} == model '
+              f'(dive gap {game.dive_gap}, fire gap {game.fire_gap}, divers {game.max_divers})')
     bonus_effects(a.disk, L)
     bench(a.disk, L)
     vbl_edges(a.disk, L)
     game_over(a.disk, L)
     play(a.disk, L)
     joystick_delay(a.disk, L)
+    stick_off_centre(a.disk, L)
     score_cap(a.disk, L)
     exits(a.disk, L)
     small_machine(a.disk, L)

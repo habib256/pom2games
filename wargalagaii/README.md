@@ -36,14 +36,17 @@ VBL, étoiles, vaisseau et tirs, jusqu'à 40 aliens qui entrent en vagues, se po
 en formation qui respire, plongent et bombardent ; collisions, explosions,
 vies, armure, score et HUD, GAME OVER, à 30 i/s ; son (musique PT3 et
 bruitages sur Mockingboard, bruitages au haut-parleur, S coupe) ; 32 bonus
-qui tombent (une forme par famille, [aperçu](screenshots/bonus.png) ; au ramassage, son nom
+qui tombent (une silhouette pleine par famille, signe découpé : tuiles, gemmes,
+canon et ses tirs, [aperçu](screenshots/bonus.png) ; au ramassage, son nom
 au milieu du terrain et un son, bonus ou malus), jauges S/B/T, armes double et triple, tir automatique, ×2/×5,
 bouclier, gel ; 100 niveaux en paquets, boss, soucoupe ; boutique et rangs ;
 sous-jeux Meteor Storm (à la Warblade : l'icône termine le niveau, jauge de vitesse
 à côté du vaisseau, barre de distance, rochers de trois tailles, prime au pourcentage,
 [aperçu](screenshots/storm.png)) et Memory Station ; écran titre (image LZ4FH,
 menu, aide), **mode démo** qui rejoue une partie de l'autopilote, records
-`HIGHSCORES` avec initiales, choix clavier / manette retenu. Plan et état :
+`HIGHSCORES` avec initiales, choix clavier / manette retenu ; **modes EASY, NORMAL, HARD, ACE** :
+on commence en EASY, battre le boss du niveau 25 dans le mode le plus dur ouvert ouvre le suivant
+(retenus dans `HIGHSCORES`) ; tirs et bombes blancs (les étoiles sont colorées). Plan et état :
 [`TODO.md`](TODO.md) ; référence du jeu modèle :
 [`docs/warblade-reference.md`](docs/warblade-reference.md).
 
@@ -225,9 +228,11 @@ au mieux un très court échantillon hors jeu (un mot au titre).
 | Pomme ouverte, ESPACE tenus | bouton 0 tenu | Meteor Storm : accélérer (relâcher : ralentir) |
 | ESC | | en jeu : retour au titre (record possible) ; au titre : quitter vers ProDOS |
 | S | | son coupé / remis (en jeu et au titre) |
-| TAB | | en jeu : clavier ↔ manette |
+| TAB | | en jeu : clavier ↔ manette (le centre est la position de repos du
+manche au début de la partie ou au TAB, zone morte autour) |
 | RETURN, ESPACE | bouton 0 | titre : jouer |
 | J (ou TAB), H | | titre : clavier ↔ manette (retenu dans `HIGHSCORES`), aide |
+| M | | titre : le mode suivant parmi ceux ouverts (EASY, NORMAL, HARD, ACE) |
 | lettres, chiffres, `.`, ← ou DELETE, RETURN | Y, bouton 0 | initiales d'un record (3 caractères) |
 
 Titre : le menu reste ~10 s, puis les records ~8 s, puis le **mode démo**
