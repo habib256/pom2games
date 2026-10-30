@@ -37,6 +37,7 @@ assembly and C; DIRTBIKE and ChromaBreak are tested on a real //e.
 |---|---|---|---|
 | 🏍️ | [**DIRTBIKE**](dirtbike/README.md) — side-view motocross, 30 tracks, flips and wheelies | II+ 48 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/DIRTBIKE.dsk) |
 | 👾 | [**WARGALAGA II**](wargalagaii/README.md) — Warblade-style shooter, 100 levels, bosses, Mockingboard | //e or //c 128 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/WARGALAGAII.po) |
+| 🤖 | [**ROBOT SPACE STATION**](robotspacestation/README.md) — program maintenance drones from the inside: logic gates, chips you burn, seven missions | //e or //c 128 KB, mouse | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/ROBOTSTATION.po) |
 | 🏔️ | [**NEOWILDERNESS XL**](neowilderness/README.md) — *Wilderness* (1985) reborn in 16-colour 3D | //e or //c 128 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/NEOWILDERNESSXL.po) |
 | 🌈 | [**CHROMABREAK**](chromabreak/README.md) — 60 sectors in double hi-res at 30 fps | //e or //c 128 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/CHROMABREAK.po) |
 | 🧱 | [**ARKABREAKOUT**](arkabreakout/README.md) — ChromaBreak squeezed into 48 KB HGR | II+ 48 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/ARKABREAKOUT.dsk) |
@@ -54,6 +55,7 @@ assembly and C; DIRTBIKE and ChromaBreak are tested on a real //e.
 <td><img src="neowilderness/screenshots/sierra-nevada.png" width="200" alt="NEOWILDERNESS XL"></td>
 <td><img src="maze3d/screenshots/game.png" width="200" alt="MAZE3D"></td>
 <td><img src="pinball/screenshots/editor.png" width="200" alt="PINBALL"></td>
+<td><img src="robotspacestation/screenshots/drone.png" width="200" alt="ROBOT SPACE STATION"></td>
 </tr></table>
 
 ## 💾 On a real Apple II or another emulator

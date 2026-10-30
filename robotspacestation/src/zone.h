@@ -23,7 +23,8 @@ extern unsigned char door_open[2];                /* groups '_'/'|' and ','/'!' 
 void zone_init(void);
 unsigned char mission_count(void);
 const char *__fastcall__ mission_name_of(unsigned char m);
-void __fastcall__ zone_load(unsigned char m);    /* room, drones, objects, technician */
+/* Room (read from RSS.ROOMS), drones, objects, technician; 0: disk error. */
+unsigned char __fastcall__ zone_load(unsigned char m);
 /* One turn of every drone (tools/model.py Zone.tick); drone B's board is
  * swapped in for its turn. Bit d set: drone d must be redrawn. */
 unsigned char zone_tick(void);

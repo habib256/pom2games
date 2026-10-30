@@ -3,7 +3,8 @@
 #   make            -> ../dist/ROBOTSTATION.po
 #   make run        -> POM2, //e enhanced with an AppleMouse in slot 4
 #   make run-iic    -> POM2, //c (built-in mouse)
-#   make test       -> reference model, then the lab and the test zone on //e and //c (a2shot)
+#   make test       -> reference model, then the lab and the missions on //e and //c (a2shot)
+#   make test-long  -> nothing yet (the missions all fit in the fast tier)
 #
 # C (cc65) on the shared DHGR, gfx, ProDOS and mouse libraries; the logic
 # simulation follows tools/model.py bit for bit (docs/SPEC.md).
@@ -34,8 +35,10 @@ vpath %.s src $(GFX) $(DEV)/cc65 $(HGRC) $(APPLE2C) $(PRODOS) $(MOUSE)
 
 all: $(DISK)
 
-src/room.h: tools/gen_room.py tools/model.py
-	$(PYTHON) tools/gen_room.py
+# The missions: names and goals in src/room.h, the rooms in RSS.ROOMS.
+src/room.h $(BUILD)/RSS.ROOMS: tools/gen_room.py tools/model.py
+	@mkdir -p $(BUILD)
+	$(PYTHON) tools/gen_room.py $(BUILD)/RSS.ROOMS
 $(BUILD)/zone.o: src/room.h
 
 $(BUILD)/%.o: %.c $(wildcard src/*.h) $(HGRC_HEADERS) $(wildcard $(PRODOS)/*.h $(MOUSE)/*.h)
@@ -48,8 +51,8 @@ $(BUILD)/file.o: $(PRODOS_FILE_DEPS)
 $(GAME_LIB): $(LIB_OBJS) Makefile
 	$(PYTHON) -c 'from pathlib import Path; Path("$@").unlink(missing_ok=True)'
 	$(AR65) a $@ $(LIB_OBJS)
-# zone.c lives in HI, the unused DHGR page 2 (src/game.cfg).
-$(BUILD)/zone.o: CFLAGS += --code-name HICODE --rodata-name HIDATA
+# zone.c and title.c live in HI, the unused DHGR page 2 (src/game.cfg).
+$(BUILD)/zone.o $(BUILD)/title.o: CFLAGS += --code-name HICODE --rodata-name HIDATA
 $(BUILD)/game.bin: $(OBJS) $(GAME_LIB) src/game.cfg
 	$(CL65) -t none -C src/game.cfg -m $(BUILD)/game.map -Ln $(BUILD)/game.lbl -o $@ $(OBJS) $(GAME_LIB)
 $(BUILD)/RSS.SYS: $(BUILD)/game.bin src/startup.s $(PRODOS_SYS_CFG)
@@ -59,12 +62,13 @@ $(BUILD)/RSS.SYSTEM: src/boot.s $(PRODOS_SYSBOOT_DEPS)
 	@mkdir -p $(@D)
 	$(CA65) -I $(PRODOS) -o $(BUILD)/boot.o src/boot.s
 	$(LD65) -C $(PRODOS_SYSBOOT_CFG) -o $@ $(BUILD)/boot.o
-$(DISK): $(BUILD)/RSS.SYS $(BUILD)/RSS.SYSTEM $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py
+$(DISK): $(BUILD)/RSS.SYS $(BUILD)/RSS.SYSTEM $(BUILD)/RSS.ROOMS $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py
 	@rm -rf $(BUILD)/stage
 	@mkdir -p $(BUILD)/stage $(DIST)
 	cp $(DEV)/tools/prodos/PRODOS $(BUILD)/stage/PRODOS#FF0000
 	cp $(BUILD)/RSS.SYSTEM $(BUILD)/stage/RSS.SYSTEM#FF2000
 	cp $(BUILD)/RSS.SYS $(BUILD)/stage/RSS.SYS#FF2000
+	cp $(BUILD)/RSS.ROOMS $(BUILD)/stage/RSS.ROOMS#060000
 	$(PYTHON) $(DEV)/tools/prodos/build_volume.py $(BUILD)/stage $@ \
 		--volume ROBOT.STATION --boot $(DEV)/tools/prodos/boot.bin --blocks 280
 
@@ -78,4 +82,6 @@ test: all
 	$(PYTHON) tests/test_lab.py --disk $(DISK) --labels $(BUILD)/game.lbl --iic
 	$(PYTHON) tests/test_zone.py --disk $(DISK) --labels $(BUILD)/game.lbl --iic
 
-.PHONY: run-iic test
+test-long: all
+
+.PHONY: run-iic test test-long

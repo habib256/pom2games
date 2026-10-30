@@ -5,6 +5,15 @@ ProDOS, double hi-res, mouse). Stranded on an abandoned space station, a
 technician programs maintenance drones with logic gates and chips of their
 own making, walking into the drones to wire them.
 
+<p align="center">
+<img src="screenshots/title.png" width="280" alt="Title screen: the station among the stars, the missions">
+<img src="screenshots/drone.png" width="280" alt="Inside drone A: a flip-flop, a NOT and an OR wired to the radio and the thrusters">
+</p>
+<p align="center">
+<img src="screenshots/lab.png" width="280" alt="The chip lab: a burned half adder reused as chip P3">
+<img src="screenshots/cell.png" width="280" alt="Mission 4: the energy cell brought back to the charger">
+</p>
+
 Status: a title screen, the **chip lab**, the **test zone** and a first
 module of seven **missions**, saved on the disk.
 
@@ -20,6 +29,9 @@ module of seven **missions**, saved on the disk.
   with two drones talking by radio. Burned chips,
   boards and progress are saved in `RSS.SAVE`.
 
+The missions' rooms are read from the disk (`RSS.ROOMS`) when a mission
+starts: adding missions costs disk space, not memory.
+
 Rules and screens: [docs/SPEC.md](docs/SPEC.md) (French). The Python model
 `tools/model.py` is the reference: the 6502 code matches it byte for byte.
 
@@ -27,7 +39,7 @@ Rules and screens: [docs/SPEC.md](docs/SPEC.md) (French). The Python model
 make            # ../dist/ROBOTSTATION.po
 make run        # POM2, //e enhanced, AppleMouse in slot 4
 make run-iic    # POM2, //c
-make test       # model, then lab and missions on //e and //c with a2shot (~15 s)
+make test       # model, then lab and missions on //e and //c with a2shot (~1 min)
 ```
 
 Mouse or keyboard: arrows move the pointer, SPACE/RETURN clicks, ESC drops
