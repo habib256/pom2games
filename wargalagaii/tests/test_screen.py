@@ -7,7 +7,8 @@ render.s only rewrites what changed on a page since that page was last drawn
 character cache...). Whatever the history, the result must be what a full
 redraw of the state gives:
 
-    HUD (rows 0-7)        glyphs, STA
+    walls (lot 10)        the quarter's texture, STA
+    HUD (row 0, walls)    glyphs, STA (tools/hud.py)
     seated aliens         STA, table entry shift*2 + row frame
     GAME OVER             glyphs, STA
     ship / its explosion  STA
@@ -33,8 +34,10 @@ import a2test
 from boot import boot
 from hgr_tables import hgr_offset
 import fonts
+import hud
 import model
 import sprites
+import walls
 
 M = model
 
@@ -61,7 +64,7 @@ def tables():
 
 def font():
     """Glyph rows for codes $20-$63: bbfont, then the game's four."""
-    glyphs = {c: list(fonts.glyph(c)) for c in range(0x20, 0x60)}
+    glyphs = {c: list(fonts.glyph(c)) for c in range(0x20, 0x60)}   # (then $60-$66)
     text = (GAME / 'src/game.s').read_text()
     block = text[text.index('GLYPH_EMPTY = $63'):text.index('.assert * = bbfont')]
     for k, line in enumerate(re.findall(r'\.byte ([$0-9A-F,]+)', block)):
@@ -73,33 +76,15 @@ def cell_byte(c):
     return M.FIELD_COL + 2 * (c // 7) + (2 * (c % 7) >= 7)
 
 
-def hud_text(st):
-    score = st['score']
-    digits = f'{score[2]:02X}{score[1]:02X}{score[0]:02X}'
-    full, empty = 0x62, 0x63
-    bar = lambda n: [full] * n + [empty] * (5 - n)
-    credits = f'{st["credits"][1]:02X}{st["credits"][0]:02X}'
-    extra = [ord(c) if st['extra_bits'] >> k & 1 else ord('-') for k, c in enumerate('EXTRA')]
-    text = (list(digits.encode()) + [0x20, 0x60, ord('0') + st['lives'], 0x20, 0x61,
-            ord('0') + st['armour'], 0x20, ord('S')] + bar(st['s_level']) + [0x20, ord('B')]
-            + bar(st['shot_limit'] - M.B_MIN) + [0x20, ord('T'), ord('0') + st['t_level'], ord('0'),
-            ord('$')] + list(credits.encode()) + extra)
-    assert len(text) == 40
-    return text
-
-
-def storm_hud(st):
-    """Meteor Storm's HUD: score, SPEED (1..8), DIST (rows left / 512,
-    rounded up), credits."""
-    score = st['score']
-    digits = f'{score[2]:02X}{score[1]:02X}{score[0]:02X}'
-    credits = f'{st["credits"][1]:02X}{st["credits"][0]:02X}'
-    bar = lambda n: [0x62] * n + [0x63] * (8 - n)
-    dist = st['m_dist'][0] | st['m_dist'][1] << 8
-    text = (list(f'{digits} SPEED'.encode()) + bar(st['m_speed'] // 8 + 1) + list(b' DIST')
-            + bar((dist + 511) // 512) + list(f' ${credits} '.encode()))
-    assert len(text) == 40
-    return text
+def hud_state(st):
+    """The FIELDS block -> the integers tools/hud.py text() reads."""
+    word = lambda b: b[0] | b[1] << 8
+    out = {name: st[name] for name in ('lives', 'armour', 's_level', 'shot_limit', 't_level', 'extra_bits',
+                                        'storm', 'm_speed')}
+    out.update(score=st['score'], credits=st['credits'], hi_score=st['hi_score'], m_dist=st['m_dist'],
+               mult=st['mult'][0], rank=st['rank'][0], marks=st['marks'][0],
+               **{t: word(st[t]) for t in ('mult_t', 'autofire_t', 'shield_t', 'freeze_t')})
+    return out
 
 
 def level_text(st):
@@ -130,8 +115,14 @@ def expected(st, T, glyphs):
                 a = base + col + b
                 page[a] = v if mode == 'sta' else page[a] ^ v
 
-    for c, ch in enumerate(storm_hud(st) if st['storm'] else hud_text(st)):
-        put([[v] for v in glyphs[ch]], c, 0, 'sta')
+    tile = walls.tile(st['level'] // 25)          # lot 10: the walls, the HUD on them
+    for y in range(M.FIELD_TOP, 192):
+        row = tile[(y - M.FIELD_TOP) % walls.WALL_H]
+        put([row[:4]], 0, y, 'sta')
+        put([row[4:]], 40 - M.FIELD_COL, y, 'sta')
+    places = hud.layout()[0]
+    for (col, row), ch in zip(places, hud.text(hud_state(st))):
+        put([[v] for v in glyphs[ch]], col, row, 'sta')
     for i in range(M.NALIENS):
         if st['a_state'][i] == M.FORM and shown(i):
             x, anim = st['a_x'][i], st['row_anim'][i // M.COLS]
@@ -200,7 +191,8 @@ FIELDS = {'ship_c': 1, 'shot_limit': 1, 'shot_y': M.MAX_SHOTS, 'shot_c': M.MAX_S
           'obj_kind': M.N_OBJ, 's_level': 1, 't_level': 1, 'extra_bits': 1, 'shield_t': 2,
           'level': 1, 'loop': 1, 'phase': 1, 'a_big': M.NALIENS, 'boss_hp': 1, 'boss_x': 1,
           'boss_boom': 1, 'hurry': 1, 'h_x': 1, 'storm': 1, 'm_wait': 1, 'm_speed': 1, 'm_dist': 2,
-          'demo': 1, 'pick_msg': 1, 'pick_t': 1}
+          'demo': 1, 'pick_msg': 1, 'pick_t': 1, 'mult': 1, 'mult_t': 2, 'autofire_t': 2, 'freeze_t': 2,
+          'rank': 1, 'marks': 1, 'hi_score': 3}
 
 
 def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, cheats=(), demo=False):
@@ -271,6 +263,10 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, ch
         if diff:
             bad += 1
             rows = sorted({next(y for y in range(192) if 0 <= a - hgr_offset(y) < 40) for a in diff})
+            if bad == 1 and __import__('os').environ.get('WG2_DIFF'):
+                for a in diff[:40]:
+                    y = next(y for y in range(192) if 0 <= a - hgr_offset(y) < 40)
+                    print(f'  row {y} col {a - hgr_offset(y)}: got {got[a]:02X} want {want[a]:02X}')
             print(f'FRAME {n}: page {page + 1}, {len(diff)} bytes differ, rows {rows[:12]}'
                   f'{"..." if len(rows) > 12 else ""}; game_over {st["game_over"]}')
             if bad >= 5:

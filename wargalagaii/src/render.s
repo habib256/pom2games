@@ -120,9 +120,11 @@ mn_t:     .res 2
 mn_k:     .res 1
 mn_d:     .res 1
 mn_lead:  .res 1
-hud_seen: .res 80               ; HUD characters each page shows
+hud_seen: .res 2*HUD_N          ; HUD characters each page shows
 hud_key:  .res 2*HUD_KEYS       ; the state each page's HUD shows
-hud_buf:  .res 40
+hud_buf:  .res HUD_N
+wall_drawn: .res 2              ; the quarter whose walls each page shows
+wall_tile: .res 1               ; the quarter whose tile iobuf holds
 hud_now:  .res HUD_KEYS
 form_list: .res NALIENS
 nform:    .res 1
@@ -154,22 +156,160 @@ render_init:
 :       sta pr_off,x
         dex
         bpl :-
-        ldx #80-1
-:       sta hud_seen,x
-        dex
-        bpl :-
-        ldx #2*HUD_KEYS-1
-:       sta hud_key,x
-        dex
-        bpl :-
-        ldx #40-1
+        sta wall_drawn
+        sta wall_drawn+1
+        sta wall_tile
+        ldx #HUD_N-1
 :       lda hud_template,x
         sta hud_buf,x
         dex
         bpl :-
+        ; the walls and the whole HUD on both pages now, not in the first
+        ; frames: their ~200 000 cycles would cost the game steps (lot 10)
+        jsr hud_forget
+        lda page
+        pha
+        lda #0
+        jsr select_page
+        jsr wall_check
+        jsr hud_draw
+        lda #1
+        jsr select_page
+        jsr wall_check
+        jsr hud_draw
+        pla
+        jmp select_page
+
+; Both pages' HUD unknown: every character rewritten (walls redrawn).
+.assert 2 * HUD_N = 256, error, "hud_forget: hud_seen is one page"
+hud_forget:
+        lda #$FF
+        ldx #0
+:       sta hud_seen,x
+        inx
+        bne :-
+        ldx #2*HUD_KEYS-1
+:       sta hud_key,x
+        dex
+        bpl :-
+        rts
+
+; ---------------------------------------------------------------------------
+; Walls (lot 10): the quarter's texture (levels 1-25, 26-50...: aux
+; WALL_AUX + WALL_TILE * quarter, tools/walls.py), bytes 0-3 and 36-39 of
+; rows FIELD_TOP-191 of this page, when this page shows another quarter
+; (render_init, the boss beaten); then this page's HUD in the walls again.
+; One page a frame (~40 000 cycles, the tile's fetch ~25 000 more): the
+; tile stays in iobuf for the other page (no file is open during a game).
+wall_check:
+        lda level
+        ldx #0
+:       cmp #25
+        bcc :+
+        sbc #25                  ; (carry set)
+        inx
+        bra :-
+:       ldy page
+        txa
+        cmp wall_drawn,y
+        bne :+
+        rts
+:       sta wall_drawn,y
+        cmp wall_tile
+        beq wc_draw
+        sta wall_tile
+        sta tmp                  ; WALL_TILE * quarter = $300 * quarter
+        lda #<iobuf
+        sta af_dst
+        lda #>iobuf
+        sta af_dst+1
+        lda #<WALL_TILE
+        sta af_len
+        lda #>WALL_TILE
+        sta af_len+1
+        lda tmp
+        asl
+        adc tmp                  ; (carry clear: quarter < 4)
+        adc #>WALL_AUX
+        tay
+        lda #<WALL_AUX
+        jsr aux_fetch
+wc_draw:
+        lda #>hgr_hi
+        ldy page
+        beq :+
+        lda #>hgr_hi2
+:       jsr wall_page
+        ldx #40                  ; this page's characters in the walls: unknown
+        lda page
+        beq :+
+        ldx #HUD_N+40
+:       ldy #HUD_N-40
+        lda #$FF
+:       sta hud_seen,x
+        inx
+        dey
+        bne :-
+        ldx #HUD_KEYS-1          ; and its keys (a refill)
+        ldy page
+        beq :+
+        ldx #2*HUD_KEYS-1
+:       sta hud_key,x
+        rts
+; A = the page's row table (high byte of hgr_hi or hgr_hi2).
+wall_page:
+        sta wp_hi+2
+        lda #<iobuf
+        sta src
+        lda #>iobuf
+        sta src+1
+        ldx #FIELD_TOP
+        lda #WALL_H
+        sta cnt
+wp_row: lda hgr_lo,x
+        sta dst
+wp_hi:  lda hgr_hi,x             ; (the operand's high byte: the page)
+        sta dst+1
+        ldy #3                   ; left wall: src 0-3 -> bytes 0-3
+:       lda (src),y
+        sta (dst),y
+        dey
+        bpl :-
+        lda dst                  ; right wall: src 4-7 -> bytes 36-39
+        clc
+        adc #36-4
+        sta dst
+        ldy #7
+:       lda (src),y
+        sta (dst),y
+        dey
+        cpy #4
+        bcs :-
+        lda src                  ; the next tile row (wrapping)
+        clc
+        adc #8
+        sta src
+        bcc :+
+        inc src+1
+:       dec cnt
+        bne :+
+        lda #<iobuf
+        sta src
+        lda #>iobuf
+        sta src+1
+        lda #WALL_H
+        sta cnt
+:       txa
+        and #7
+        bne :+
+        jsr _a2_vbl_scan          ; (~8 rows a scan)
+:       inx
+        cpx #192
+        bne wp_row
         rts
 
 render:
+        jsr wall_check
         jsr stars_erase
         jsr _a2_vbl_scan
         jsr shots_erase
@@ -642,9 +782,10 @@ MSG_LEN = 12                     ; LEVEL nnnnn, METEOR STORM (GAME OVER: as
 MSG_COL = (40 - MSG_LEN) / 2
 
 ; ---------------------------------------------------------------------------
-; HUD. hud_key gathers what it shows; when it differs from what this page
-; shows, hud_buf is filled from the state and every character that differs
-; from this page's is rewritten.
+; HUD (lot 10: row 0 and the walls, tools/hud.py). hud_key gathers what
+; it shows; when it differs from what this page shows, hud_buf is filled
+; from the state and every character that differs from this page's is
+; rewritten at its place (hud_col, hud_row).
 hud_draw:
         jsr hud_keys
         ldx page
@@ -667,11 +808,11 @@ hk_cmp: lda hud_now,y
         bne :+
         rts
 :       jsr hud_fill
-        ldx #39
-        ldy #39
+        ldx #HUD_N-1
+        ldy #HUD_N-1
         lda page
         beq hd_char
-        ldy #79
+        ldy #2*HUD_N-1
 hd_char:
         lda hud_buf,x
         cmp hud_seen,y
@@ -679,8 +820,12 @@ hd_char:
         sta hud_seen,y
         phx
         phy
-        stx col
-        ldx #0
+        pha
+        lda hud_col,x
+        sta col
+        lda hud_row,x
+        tax
+        pla
         jsr glyph
         jsr _a2_vbl_scan
         ply
@@ -691,27 +836,13 @@ hd_next:
         bpl hd_char
         rts
 
+; hud_now: score 0-2, lives 3, armour 4, shot_limit 5, credits 6-7, S 8,
+; T 9, EXTRA 10, multiplier 11, the four timers' half segments 12-15
+; (multiplier, autofire, shield, freeze), rank 16, marks 17; Meteor Storm
+; 18 (0: none), its speed segments 19, its distance 20. A score above HI
+; is the new HI.
+HK_TIMERS = 12
 hud_keys:
-        jsr hk_game
-        lda storm                ; Meteor Storm's HUD (lot 8): speed, distance
-        beq :+
-        lda #$FF                 ; (lives are never $FF)
-        sta hud_now+3
-        lda m_speed              ; speed: 1..8 segments
-        lsr
-        lsr
-        lsr
-        inc a
-        sta hud_now+4
-        lda m_dist               ; distance left: (m_dist + 511) / 512
-        clc
-        adc #<511
-        lda m_dist+1
-        adc #>511
-        lsr
-        sta hud_now+5
-:       rts
-hk_game:
         lda score
         sta hud_now
         lda score+1
@@ -734,66 +865,177 @@ hk_game:
         sta hud_now+9
         lda extra_bits
         sta hud_now+10
-        rts
+        lda mult
+        sta hud_now+11
+        ldy #HK_TIMERS
+:       ldx hk_timer-HK_TIMERS,y ; half segments: one per 256 steps started,
+        lda autofire_t+1,x       ; 8 at most
+        sta tmp
+        lda autofire_t,x
+        beq :+
+        inc tmp
+:       lda tmp
+        cmp #9
+        bcc :+
+        lda #8
+:       sta hud_now,y
+        iny
+        cpy #HK_TIMERS+4
+        bne :---
+        lda rank
+        sta hud_now+16
+        lda marks
+        sta hud_now+17
+        lda storm
+        sta hud_now+18
+        beq hk_hi
+        lda m_speed              ; Meteor Storm (lot 8): speed 1..8 segments
+        lsr
+        lsr
+        lsr
+        inc a
+        sta hud_now+19
+        lda m_dist               ; distance left: (m_dist + 511) / 512
+        clc
+        adc #<511
+        lda m_dist+1
+        adc #>511
+        lsr
+        sta hud_now+20
+hk_hi:  lda score                ; HI = the score, once it is above
+        cmp hi_score
+        lda score+1
+        sbc hi_score+1
+        lda score+2
+        sbc hi_score+2
+        bcc :+
+        ldx #2
+hk_copy:
+        lda score,x
+        sta hi_score,x
+        dex
+        bpl hk_copy
+:       rts
+; the timers from autofire_t: multiplier, autofire, shield, freeze
+hk_timer: .byte mult_t-autofire_t, 0, shield_t-autofire_t, freeze_t-autofire_t
 
-; The changing characters of hud_buf (the rest is hud_template).
-HUD_SCORE = 0
-HUD_LIVES = 8
-HUD_ARMOUR = 11
-HUD_SBAR = 14
-HUD_BBAR = 21
-HUD_TIME = 28
-HUD_CREDITS = 31
-HUD_EXTRA = 35
-BAR_LEN = 5
-STORM_SPEED = 12                 ; Meteor Storm's HUD (storm_template)
+STORM_SPEED = 12                 ; Meteor Storm's row 0 (storm_template)
 STORM_DIST = 25
 STORM_CREDITS = 35
 STORM_BAR = 8
 hud_fill:
-        ldx #39                  ; the fixed characters
-        lda storm
-        jne hf_storm
+        jsr _a2_vbl_scan          ; (~4 000 cycles to fill: scans on the way)
+        ldx #HUD_N-1             ; the fixed characters
 :       lda hud_template,x
         sta hud_buf,x
         dex
         bpl :-
-        ldx #HUD_SCORE
+        jsr _a2_vbl_scan
+        lda storm
+        beq :+
+        jsr hf_storm
+        bra hf_side
+:       ldx #HUD_SCORE
+        jsr hud_score
+        ldx #HUD_HI
+        lda hi_score+2
+        jsr hud_bcd
+        lda hi_score+1
+        jsr hud_bcd
+        lda hi_score
+        jsr hud_bcd
+        ldx #HUD_CREDITS
+        jsr hf_credits
+hf_side:
+        ldx #HUD_LIVES           ; lives: ships (4 at most)
+        lda lives
+        ldy #GLYPH_SHIP
+        jsr hud_icons
+        ldx #HUD_ARMOUR
+        lda armour
+        ldy #GLYPH_SHIELD
+        jsr hud_icons
+        ldx #HUD_SBAR            ; S: speed level 1..5
+        lda s_level
+        ldy #3
+        jsr hud_halves
+        ldx #HUD_BBAR            ; B: shots on screen beyond 5 (0..5)
+        lda shot_limit
+        sec
+        sbc #B_MIN
+        ldy #3
+        jsr hud_halves
+        lda t_level              ; T: tens of seconds
+        ora #'0'
+        sta a:hud_buf+HUD_TIME
+        ldx #0                   ; E X T R A: the letter, or '-'
+        lda extra_bits
+        sta tmp2
+hf_extra:
+        lda #'-'
+        lsr tmp2
+        bcc :+
+        lda extra_letters,x
+:       ldy hud_extra_i,x
+        sta hud_buf,y
+        inx
+        cpx #5
+        bne hf_extra
+        jsr _a2_vbl_scan
+        lda mult                 ; x1, x2, x5
+        ora #'0'
+        sta a:hud_buf+HUD_MULT
+        ldx #HUD_MBAR            ; the timers (hud_now: their half segments)
+        lda hud_now+HK_TIMERS
+        ldy #4
+        jsr hud_halves
+        ldx #HUD_ABAR
+        lda hud_now+HK_TIMERS+1
+        ldy #4
+        jsr hud_halves
+        ldx #HUD_SHBAR
+        lda hud_now+HK_TIMERS+2
+        ldy #4
+        jsr hud_halves
+        ldx #HUD_FBAR
+        lda hud_now+HK_TIMERS+3
+        ldy #4
+        jsr hud_halves
+        lda rank                 ; rank 0..99: two digits
+        ldx #'0'
+:       cmp #10
+        bcc :+
+        sbc #10                  ; (carry set)
+        inx
+        bra :-
+:       ora #'0'
+        sta a:hud_buf+HUD_RANK+1
+        stx a:hud_buf+HUD_RANK
+        ldx #0                   ; the marks: 1..6, or '-'
+        lda marks
+        sta tmp2
+hf_mark:
+        lda #'-'
+        lsr tmp2
+        bcc :+
+        txa
+        clc
+        adc #'1'
+:       ldy hud_mark_i,x
+        sta hud_buf,y
+        inx
+        cpx #6
+        bne hf_mark
+        rts
+
+; Score (BCD, 3 bytes) -> hud_buf,X..X+5.
+hud_score:
         lda score+2
         jsr hud_bcd
         lda score+1
         jsr hud_bcd
         lda score
-        jsr hud_bcd
-        lda lives
-        ora #'0'
-        sta hud_buf+HUD_LIVES
-        lda armour
-        ora #'0'
-        sta hud_buf+HUD_ARMOUR
-        ldx #HUD_SBAR            ; S: speed level 1..5
-        lda s_level
-        jsr hud_bar
-        ldx #HUD_BBAR            ; B: shots on screen beyond 5 (0..5)
-        lda shot_limit
-        sec
-        sbc #B_MIN
-        jsr hud_bar
-        lda t_level              ; T: tens of seconds
-        ora #'0'
-        sta hud_buf+HUD_TIME
-        ldx #0                   ; E X T R A: the letter, or '-'
-        lda extra_bits
-        sta tmp2
-:       lda #'-'
-        lsr tmp2
-        bcc :+
-        lda extra_letters,x
-:       sta hud_buf+HUD_EXTRA,x
-        inx
-        cpx #5
-        bne :--
-        ldx #HUD_CREDITS
+        jmp hud_bcd
 hf_credits:
         lda credits+1
         jsr hud_bcd
@@ -815,33 +1057,60 @@ hud_bcd:
         sta hud_buf,x
         inx
         rts
-; Meteor Storm: score, speed, distance left, credits.
+; A icons Y (4 at most) from hud_buf,X (the template has the spaces).
+hud_icons:
+        cmp #5
+        bcc :+
+        lda #4
+:       sta tmp
+        tya
+:       dec tmp
+        bmi :+
+        sta hud_buf,x
+        inx
+        bra :-
+:       rts
+; A half segments -> Y characters at hud_buf,X (two halves, one, none).
+hud_halves:
+        sta tmp
+hh_char:
+        lda tmp
+        cmp #2
+        bcc :+
+        sbc #2                   ; (carry set)
+        sta tmp
+        lda #GLYPH_BAR2
+        bra hh_put
+:       lsr                      ; 1: C = 1; 0: C = 0
+        stz tmp
+        lda #GLYPH_BAR0
+        bcc hh_put
+        lda #GLYPH_BAR1
+hh_put: sta hud_buf,x
+        inx
+        dey
+        bne hh_char
+        rts
+; Meteor Storm's row 0: score, speed, distance left, credits.
 hf_storm:
+        ldx #39
 :       lda storm_template,x
         sta hud_buf,x
         dex
         bpl :-
         ldx #HUD_SCORE
-        lda score+2
-        jsr hud_bcd
-        lda score+1
-        jsr hud_bcd
-        lda score
-        jsr hud_bcd
+        jsr hud_score
         ldx #STORM_SPEED
-        lda hud_now+4
+        lda hud_now+19
         ldy #STORM_BAR
         jsr hud_barn
         ldx #STORM_DIST
-        lda hud_now+5
+        lda hud_now+20
         ldy #STORM_BAR
         jsr hud_barn
         ldx #STORM_CREDITS
         bra hf_credits
-; A = full segments (0..BAR_LEN) -> BAR_LEN characters at hud_buf,X;
-; hud_barn: Y characters.
-hud_bar:
-        ldy #BAR_LEN
+; A = full segments -> Y characters at hud_buf,X.
 hud_barn:
         sta tmp
 :       lda #GLYPH_FULL

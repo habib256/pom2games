@@ -18,10 +18,12 @@ sys.path.insert(0, str(ROOT / 'dev/tools'))
 sys.path.insert(0, str(GAME / 'tools'))
 import a2test
 from boot import boot
+import hud as hud_py
 import model
 import sound
 
 SYS_NAMES = ('WG2.SYSTEM', 'WG2.SYS')
+HUD_N = len(hud_py.layout()[0])
 
 
 def model_invariants(games=30, steps=3000):
@@ -276,15 +278,16 @@ def game_over(disk, L):
     wait_end = f'wait:{2 * elapsed + 600}'
     r = a2test.run(disk, [*boot(L), wait_end,
                           L.peek('game_over'), L.peek('lives'), L.peek('msg_drawn', 2),
-                          L.peek('hud_seen', 80), L.peek('over_wait'), 'key: ', 'wait:30',
+                          L.peek('hud_seen', 2 * HUD_N), L.peek('over_wait'), 'key: ', 'wait:30',
                           L.peek('game_over'), L.peek('lives'), L.peek('score', 3),
                           L.peek('msg_drawn', 2)], iie=True)
     assert r.mem(L['game_over'], 1, 0) == b'\x01' and r.mem(L['lives'], 1, 0) == b'\x00'
     assert r.mem(L['msg_drawn'], 2, 0) == b'\x01\x01', 'GAME OVER on both pages'
     assert r.mem(L['over_wait'], 1)[0] == 240, 'the title after OVER_END frames'
-    hud = r.mem(L['hud_seen'], 80)
-    for page in (hud[:40], hud[40:]):
-        assert page[:6] == b'000000' and page[8:9] == b'0', page
+    hud = r.mem(L['hud_seen'], 2 * HUD_N)
+    lives = hud_py.layout()[2]['lives']           # (lot 10: ships in the left wall)
+    for page in (hud[:HUD_N], hud[HUD_N:]):
+        assert page[:6] == b'000000' and page[lives:lives + 4] == b'    ', page
     assert r.mem(L['game_over'], 1, 1) == b'\x00' and r.mem(L['lives'], 1, 1) == b'\x03'
     assert r.mem(L['score'], 3, 0) == b'\0\0\0' and r.mem(L['msg_drawn'], 2, 1) == b'\0\0'
     # render_init/game_init once cleared whole pages past their variables:

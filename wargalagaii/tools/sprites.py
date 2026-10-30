@@ -675,6 +675,12 @@ def png(path, scale=4):
                     for yy in range(scale):
                         for xx in range(scale):
                             pix[oy + y * scale + yy][ox + (2 * c + half) * scale + xx] = rgb
+    write_png(path, pix)
+
+
+def write_png(path, pix):
+    """pix: rows of (r, g, b), all the same length."""
+    w, h = len(pix[0]), len(pix)
     raw = b''.join(b'\0' + bytes(v for p in line for v in p) for line in pix)
     chunk = lambda t, d: struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d))
     Path(path).write_bytes(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))

@@ -93,7 +93,8 @@ SHIP_HIT_Y0 = SHIP_Y + 2
 SHIP_HIT_Y1 = SHIP_Y + 9
 OVER_WAIT  = 60                 ; frames of GAME OVER before fire counts
 OVER_END   = 240                ; frames of GAME OVER: the title (lot 9)
-HUD_KEYS   = 11                 ; bytes of state the HUD shows
+HUD_KEYS   = 21                 ; bytes of state the HUD shows (render.s hud_keys)
+HUD_N      = 128                ; HUD characters (tools/hud.py)
 ; Lot 5: falling objects, gauges, timed bonuses (tools/model.py).
 N_OBJ      = 6
 OBJ_DY     = 2
@@ -221,6 +222,7 @@ shield_t:    .res 2
 freeze_t:    .res 2
 mult:        .res 1             ; score multiplier
 lv_rec:      .res 6             ; the level's record (aux lv_recs, LV_REC)
+hi_score:    .res 3             ; HI (BCD): the best record, then the score
 auto_cnt:    .res 1
 extra_bits:  .res 1             ; letters E X T R A collected (bits 0-4)
 marks:       .res 1             ; rank marks (lot 7)
@@ -432,7 +434,8 @@ done:   rts
 ; WG2.AUX -> aux memory at AUX_BASE (every small and big alien design x
 ; tint), 8 KB at a time through HGR page 2 (not shown yet). A failure: a
 ; message, back to ProDOS.
-AUX_ALL = LV_AUX + LV_LEN - AUX_BASE
+AUX_ALL = WALL_AUX + 4 * WALL_TILE - AUX_BASE
+.assert LV_LEN <= $0400, error, "the level records run into the walls"
 .assert HI_LEN <= $0400, error, "the resident data runs into the level records"
 .assert LOW_LEN <= $0800, error, "the storm runs into the resident data"
 .assert __LOWBSS_RUN__ + __LOWBSS_SIZE__ <= __LOWHI_START__, error, "LOWBSS runs into LOWHI"
@@ -683,6 +686,9 @@ HI_AUX   = $9800
 HI_LEN   = __LOWHI_LAST__ - __LOWHI_START__
 LV_AUX   = __AUXLV_START__
 LV_LEN   = __AUXLV_LAST__ - __AUXLV_START__
+WALL_AUX = $A000                 ; the walls' textures (tools/walls.py)
+WALL_TILE = 768                  ; WALL_H rows of 8 bytes, one a quarter
+WALL_H   = 96
 shop_run:
         ldx #<SHOP_LEN
         ldy #>SHOP_LEN
@@ -734,6 +740,13 @@ front_run:
         jsr ovl_load
         pla
         jsr front_main
+        pha
+        ldx #2                   ; HI: the best record (entry 0's score)
+:       lda rec_buf+6,x
+        sta hi_score,x
+        dex
+        bpl :-
+        pla
         cmp #$FF
         beq fr_exit
         sta demo
@@ -1073,21 +1086,19 @@ GLYPH_SHIP  = $60
 GLYPH_SHIELD = $61
 GLYPH_FULL  = $62
 GLYPH_EMPTY = $63
+GLYPH_BAR2  = $64               ; the walls' bars (lot 10): two half segments,
+GLYPH_BAR1  = $65               ; the left one, none (tools/hud.py)
+GLYPH_BAR0  = $66
         .byte $08,$08,$1C,$3E,$7F,$5D,$14,$00   ; ship (lives)
         .byte $1C,$22,$41,$49,$41,$22,$1C,$00   ; shield (armour)
         .byte $00,$3E,$3E,$3E,$3E,$3E,$00,$00   ; bar segment, full
         .byte $00,$3E,$22,$22,$22,$3E,$00,$00   ; bar segment, empty
-.assert * = bbfont + ($64 - $20) * 8, error, "HUD glyphs follow bbfont"
-; HUD, row 0-7: score, lives, armour, S and B gauges, T, credits.
-; HUD: score, lives, armour, gauges S and B (5 segments), T (seconds),
-; credits, the letters E X T R A caught ("-" missing).
-hud_template:
-        .byte "000000 ", GLYPH_SHIP, "3 ", GLYPH_SHIELD, "0 S"
-        .res 5, GLYPH_EMPTY
-        .byte " B"
-        .res 5, GLYPH_EMPTY
-        .byte " T30$0000-----"
-.assert * - hud_template = 40, error, "HUD template: 40 characters"
+        .byte $00,$77,$77,$77,$77,$77,$00,$00   ; two half segments
+        .byte $00,$07,$07,$07,$07,$77,$00,$00   ; the left one (dot pairs:
+        .byte $00,$00,$00,$00,$00,$77,$00,$00   ; none           white)
+.assert * = bbfont + ($67 - $20) * 8, error, "HUD glyphs follow bbfont"
+; HUD (lot 10: row 0 and the walls): tools/hud.py.
+.include "hud.inc"
 storm_template:                  ; Meteor Storm (lot 8)
         .byte "000000 SPEED"
         .res 8, GLYPH_EMPTY
