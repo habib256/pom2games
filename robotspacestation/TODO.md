@@ -13,10 +13,11 @@
 
 ## Contenu
 
-- [x] Missions 8-13 (2026-10-30) : LE ZIGZAG, LE COLIS, LE GARDIEN, LA RONDE,
-      LE SAS, LA CAISSE (jouée aussi de bout en bout), prouvées par le modèle ; titre en deux colonnes, touche 0 pour
-      la dixième (11 et 12 : au titre). 14 missions au plus (2 × 7) : au-delà,
-      une page de titre de plus.
+- [x] Missions 8-14 (2026-10-30) : LE ZIGZAG, LE COLIS, LE GARDIEN, LA RONDE,
+      LE SAS, LA CAISSE, LE TANDEM, prouvées par le modèle et jouées en C
+      (`make test-long`) ; titre en deux colonnes, touche 0 pour la dixième
+      (11-14 : au titre). Le titre est plein (2 × 7) : au-delà, une page de
+      plus.
 - [ ] Des puces fournies par la station (une bibliothèque de départ).
 - [x] Son (2026-10-30) : contact, pince (prise, lâcher), radio, puce gravée,
       mission réussie ; S coupe.
