@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from model import (AND, OR, XOR, NOT, FLIP, BUF, CHIP0, NONE, Board, Chip,
                    Sim, burn, compile_board, chip_bytes, flat_bytes,
                    layout_bytes, Zone, MISSIONS, SINK_GRAB, GOAL_TECH,
-                   SRC_RADIO, SINK_RADIO, OR, DRONE_W)
+                   SRC_HOLD, SRC_RADIO, SINK_RADIO, OR, DRONE_W)
 
 EMPTY = [Chip() for _ in range(8)]
 
@@ -212,6 +212,8 @@ def solution(mission):
         return counter()
     elif mission == 15:
         return spiral()
+    elif mission == 18:
+        return handover()
     elif mission == 16:                 # LE DEMENAGEMENT: north to the cell, take it,
         l1 = b.place(FLIP, 0, 0)        # east, south, let it go at the bottom
         l2 = b.place(FLIP, 1, 0)
@@ -411,6 +413,55 @@ def spiral():
     return b
 
 
+def handover(called=True):
+    """LA PASSE: A goes west to the cell, holds it west into the slit of
+    the tunnels' line (too low for a drone), lets go and calls there (a
+    west bump while holding); B waits for the call, goes east to the cell,
+    holds it west to the charger. called False: B leaves at once."""
+    a = Board()
+    l1 = a.place(FLIP, 0, 0)
+    l2 = a.place(FLIP, 1, 0)
+    h = a.place(AND, 2, 0)
+    n2 = a.place(NOT, 3, 0)
+    g = a.place(AND, 0, 1)
+    wire(a, 3, inp(l1, 0))              # the west bump: the cell
+    wire(a, 3, inp(h, 0))               # the west bump while holding: the line
+    wire(a, SRC_HOLD, inp(h, 1))
+    wire(a, out(h), inp(l2, 0))
+    wire(a, out(l2), inp(n2, 0))
+    wire(a, out(l1), inp(g, 0))
+    wire(a, out(n2), inp(g, 1))
+    wire(a, out(g), SINK_GRAB)          # held from L1 to L2
+    wire(a, out(n2), 1)                 # west until L2
+    wire(a, out(l2), SINK_RADIO)        # then the call
+    b = Board()
+    r = b.place(FLIP, 0, 0)
+    g = b.place(FLIP, 1, 0)
+    t = b.place(AND, 2, 0)
+    ng = b.place(NOT, 3, 0)
+    e = b.place(AND, 0, 1)
+    nw = b.place(NOT, 1, 1)
+    h = b.place(AND, 2, 1)
+    if called:
+        wire(b, SRC_RADIO, inp(r, 0))   # the call, latched
+    else:
+        k = b.place(NOT, 4, 4)
+        wire(b, out(k), inp(r, 0))
+    wire(b, 1, inp(t, 0))               # the east bump once called: the cell
+    wire(b, out(r), inp(t, 1))
+    wire(b, out(t), inp(g, 0))
+    wire(b, out(g), inp(ng, 0))
+    wire(b, out(r), inp(e, 0))
+    wire(b, out(ng), inp(e, 1))
+    wire(b, out(e), 3)                  # east
+    wire(b, out(g), 1)                  # then west
+    wire(b, 3, inp(nw, 0))
+    wire(b, out(nw), inp(h, 0))
+    wire(b, out(g), inp(h, 1))
+    wire(b, out(h), SINK_GRAB)          # held to the west wall
+    return a, b
+
+
 def play(mission, board, ticks=600, tech=None, board2=None):
     if isinstance(board, tuple):
         board, board2 = board
@@ -591,6 +642,12 @@ class Missions(unittest.TestCase):
         for _ in range(500):
             z.tick()
         self.assertEqual(z.door_open, [0, 1])
+
+    def test_the_handover_waits_for_the_call(self):
+        self.assertIsNotNone(play(18, handover(), 1500)[0])
+        t, z = play(18, handover(called=False), 1500)
+        self.assertIsNone(t)
+        self.assertEqual(z.objects[0][1:], [70, 64])   # left in the slit
 
     def test_an_empty_board_wins_nothing(self):
         for m in range(len(MISSIONS)):
