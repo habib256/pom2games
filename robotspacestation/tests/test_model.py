@@ -214,6 +214,24 @@ def solution(mission):
         return spiral()
     elif mission == 18:
         return handover()
+    elif mission == 19:                 # LES ETAGES: south always; each landing
+        n = b.place(NOT, 0, 0)          # (S's rising edge) toggles q, an OX
+        d1 = b.place(AND, 1, 0)         # looped on itself: east, west, east...
+        nd = b.place(NOT, 2, 0)
+        p = b.place(AND, 3, 0)
+        q = b.place(XOR, 4, 0)
+        nq = b.place(NOT, 0, 1)
+        wire(b, out(n), 0)              # south always
+        wire(b, 2, inp(d1, 0))          # S, a turn late
+        wire(b, 2, inp(d1, 1))
+        wire(b, out(d1), inp(nd, 0))    # not S, two turns late
+        wire(b, out(d1), inp(p, 0))     # a landing: one turn
+        wire(b, out(nd), inp(p, 1))
+        wire(b, out(p), inp(q, 0))      # q ^= the landing
+        wire(b, out(q), inp(q, 1))
+        wire(b, out(q), inp(nq, 0))
+        wire(b, out(q), 3)              # east
+        wire(b, out(nq), 1)             # west
     elif mission == 16:                 # LE DEMENAGEMENT: north to the cell, take it,
         l1 = b.place(FLIP, 0, 0)        # east, south, let it go at the bottom
         l2 = b.place(FLIP, 1, 0)
@@ -648,6 +666,12 @@ class Missions(unittest.TestCase):
         t, z = play(18, handover(called=False), 1500)
         self.assertIsNone(t)
         self.assertEqual(z.objects[0][1:], [70, 64])   # left in the slit
+
+    def test_the_toggle_beats_the_bumps(self):
+        t, z = play(19, solution(7), 1500)        # LE ZIGZAG's bump flip-flop
+        self.assertIsNone(t)
+        self.assertTrue(z.y == 60 and z.x >= 112, (z.x, z.y))   # in the east pit
+        self.assertIsNone(play(19, solution(0), 1500)[0])
 
     def test_an_empty_board_wins_nothing(self):
         for m in range(len(MISSIONS)):
