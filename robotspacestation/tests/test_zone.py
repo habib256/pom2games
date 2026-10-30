@@ -141,8 +141,9 @@ def mission_four(disk, L):
               f'shot:{SHOTS}/m4_inside.png']
     steps += ['key:M', 'wait:2400', idle(L, 3000), L.peek('_drone_x'), L.peek('_drone_y'), L.peek('_obj_x', 1),
               L.peek('_obj_y', 1), L.peek('_holding'), L.peek('_won', 2),
-              L.peek('_persist', 5)]
+              L.peek('_persist', 5), L.peek('_sfx_count'), L.peek('_sound_on')]
     steps += zone_button(2) + ['wait:150', f'shot:{SHOTS}/m4_won.png']
+    steps += ['key:S', 'wait:30', idle(L), L.peek('_sound_on')]
     r = run(disk, steps)
 
     b = fetch_board()
@@ -160,6 +161,10 @@ def mission_four(disk, L):
     fails += check('cell let go', r.mem(L['_holding'], 1), b'\xff')
     fails += check('won and saved', r.mem(L['_won'], 2), b'\x01\x01')
     fails += check('mission 4 recorded', r.mem(L['_persist'], 5), b'RSS2\x04')
+    # sounds: at least the claw's grab and drop, the contacts, the win
+    sounds = r.mem(L['_sfx_count'], 1)[0]
+    fails += check(f'sounds played ({sounds})', bytes((sounds >= 4, r.mem(L['_sound_on'], 1, 0)[0])), b'\x01\x01')
+    fails += check('S: sound off', r.mem(L['_sound_on'], 1, 1), b'\x00')
     return fails
 
 

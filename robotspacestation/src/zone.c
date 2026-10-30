@@ -249,7 +249,8 @@ static void move(signed char dx, signed char dy)
 
 unsigned char zone_tick(void)
 {
-    static unsigned char d, k, i, ox, oy, oh, redraw, heard[DRONES], *t;
+    static unsigned char d, k, i, ox, oy, oh, redraw, heard[DRONES], *t, bumps;
+    static unsigned char bumped[DRONES], sending[DRONES];
     if (zone_doors() && screen == S_ZONE) zone_draw_doors();
     heard[0] = drone_n == 2u ? thrust[1][RADIO] : 0u;
     heard[1] = thrust[0][RADIO];
@@ -258,11 +259,16 @@ unsigned char zone_tick(void)
         if (d != cur_drone) board_swap_run();
         di = d;
         drone_box();
-        for (k = 0u; k < 4u; ++k) values[k] = side_blocked(k);
+        bumps = 0u;
+        for (k = 0u; k < 4u; ++k) bumps |= (values[k] = side_blocked(k)) << k;
+        if (bumps & ~bumped[d]) sfx(SFX_CONTACT);   /* a new contact */
+        bumped[d] = bumps;
         values[4] = holding[d] != NONE;
         values[RADIO] = heard[d];
         board_tick();
         for (k = 0u; k < 6u; ++k) thrust[d][k] = sink_value(k);
+        if (thrust[d][RADIO] && !sending[d]) sfx(SFX_RADIO);
+        sending[d] = thrust[d][RADIO];
         if (d != cur_drone) board_swap_run();
     }
     redraw = 0u;
@@ -281,6 +287,7 @@ unsigned char zone_tick(void)
                     break;
                 }
         }
+        if (holding[d] != oh) sfx(holding[d] == NONE ? SFX_DROP : SFX_GRAB);
         if (t[W] > t[E] && free_side(E)) move(1, 0);
         else if (t[W] < t[E] && free_side(W)) move(-1, 0);
         if (t[N] > t[S] && free_side(S)) move(0, 1);

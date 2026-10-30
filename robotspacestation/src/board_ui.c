@@ -438,6 +438,7 @@ static void click_palette(unsigned char x)
         board_compile();
         board_palette();
         board_update();
+        sfx(SFX_BURN);
         message(board_saved() ? "PUCE GRAVEE" : "GRAVEE (PAS SAUVEE)");
         return;
     }

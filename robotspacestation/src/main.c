@@ -255,6 +255,7 @@ static void check_won(void)
     if (won || !zone_won()) return;
     won = 1u;
     running = 0u;
+    sfx(SFX_WIN);
     if (persist.reached <= mission) persist.reached = mission + 1u;
     begin_draw();
     if (screen == S_ZONE) buttons_set(won_buttons, 4); else buttons_draw();
@@ -421,7 +422,7 @@ int main(void)
         if (running && ++frames >= (screen == S_LAB ? LAB_TICK : DRONE_TICK)) frames = 0u;
         if (running && !frames) step();         /* draws only what changed */
         busy = pressed || walking || key == KC_ESC
-            || key == 'M' || key == 'P' || key == 'G' || key == 'O' || (key >= '1' && key <= '9');
+            || key == 'M' || key == 'S' || key == 'P' || key == 'G' || key == 'O' || (key >= '1' && key <= '9');
         if (!busy) {
             if (screen == S_ZONE || screen == S_DRONE) actor_show();
             show();
@@ -435,6 +436,10 @@ int main(void)
         if (!cursor_kept) hide();
         actor_hide();
         if (key == KC_ESC) { if (screen == S_ZONE) walking = W_NONE; else board_drop(); }
+        else if (key == 'S') {
+            sound_on ^= 1u;
+            message(sound_on ? "SON ACTIF" : "SON COUPE");
+        }
         else if (key == 'M') click_button(0);
         else if (key == 'P') click_button(1);
         else if (key == 'G' && screen == S_LAB) click_button(2);

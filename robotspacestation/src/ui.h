@@ -45,4 +45,14 @@ void begin_draw(void);
 /* The same, only for what overlaps the screen box x0..x1, y0..y1. */
 void begin_draw_box(unsigned char x0, unsigned char y0, unsigned char x1, unsigned char y1);
 
+/* Sound effects on the speaker (S toggles them; sfx_count: tests). */
+#define SFX_CONTACT 0u                 /* a sensor touches */
+#define SFX_GRAB 1u                    /* the claw takes */
+#define SFX_DROP 2u                    /* and lets go */
+#define SFX_RADIO 3u                   /* a drone starts sending */
+#define SFX_BURN 4u                    /* a chip burned */
+#define SFX_WIN 5u                     /* mission accomplished (three notes) */
+extern unsigned char sound_on, sfx_count;
+void __fastcall__ sfx(unsigned char n);
+
 #endif

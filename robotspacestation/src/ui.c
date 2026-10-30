@@ -3,6 +3,7 @@
 #include "apple2io.h"
 #include "mouse.h"
 #include "ui.h"
+#include "apple2game.h"
 
 unsigned char screen, running;
 unsigned char cur_drone;
@@ -229,4 +230,23 @@ void actor_hide(void)
     if (!act_on) return;
     dhgr_write_block(act_bx, act_by, 4, ACT_H, act_bg, 4);
     act_on = 0u;
+}
+
+/* -- sound ------------------------------------------------------------------ */
+
+unsigned char sound_on = 1u, sfx_count;
+/* a2_tone(flips, period): a few milliseconds each (the drone runs on); the
+ * win's three notes go up, after the last one the next. */
+static const unsigned char sfx_flips[] = { 0x08u, 0x18u, 0x0Cu, 0x20u, 0x40u, 0x40u };
+static const unsigned char sfx_period[] = { 0xE0u, 0x30u, 0x60u, 0x1Cu, 0x48u, 0x60u };
+
+void __fastcall__ sfx(unsigned char n)
+{
+    ++sfx_count;
+    if (!sound_on) return;
+    a2_tone(sfx_flips[n], sfx_period[n]);
+    if (n == SFX_WIN) {
+        a2_tone(0x50u, 0x4Cu);
+        a2_tone(0x80u, 0x3Cu);
+    }
 }
