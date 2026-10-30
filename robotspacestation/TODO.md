@@ -33,7 +33,8 @@
       vertical : la colonne libre la plus proche du milieu (2026-10-30).
 - [x] Une pièce en main se voit sur le pointeur (un bloc sous la flèche).
 - [x] Un indice par mission (touche H), sur le disque après la salle.
-- [x] Une page d'aide (AIDE ou H au titre) : bornes, pièces, touches.
+- [x] Une page d'aide (AIDE ou H au titre) : bornes, pièces, touches ; puis
+      la légende des salles (grille, tunnel, portes et plaques, chargeur...).
 - [x] Records : le moins de portes par mission (sauvegarde RSS3, RSS1/2
       migrées), rappelé à l'entrée de la mission, page RECORDS au titre.
 - [x] V : vitesse rapide (×1,5 sur //e, ×1,2 sur //c : le tour y coûte déjà

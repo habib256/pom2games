@@ -94,3 +94,17 @@ unsigned char __fastcall__ title_mission_at(unsigned char x, unsigned char y)
     m += title_page * PAGE_N;
     return m < mission_count() && m <= persist.reached ? m : NONE;
 }
+
+/* Help page 2's rules (help.c draws them), 24 characters from x 16. */
+const char *const legend_text[LEGEND_N] = {
+    "MUR",
+    "GRILLE : DRONES SEULS",
+    "TUNNEL : TECHNICIEN SEUL",
+    "PORTE : OUVERTE TANT QUE",
+    "SA PLAQUE EST PRESSEE",
+    "2E PORTE ET SA PLAQUE",
+    "CHARGEUR : LE BUT",
+    "CELLULE : AU CHARGEUR",
+    "CAISSE : SUR UNE PLAQUE",
+    "DRONES A ET B",
+};

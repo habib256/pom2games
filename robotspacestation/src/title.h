@@ -11,4 +11,7 @@ extern unsigned char title_page;        /* 0: missions 1-14, 1: 15-28 */
  * records: each mission won and its fewest gates (persist.best). */
 void __fastcall__ help_draw(unsigned char page);
 
+#define LEGEND_N 10u
+extern const char *const legend_text[LEGEND_N];   /* help page 2 (HI) */
+
 #endif

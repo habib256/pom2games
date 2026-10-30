@@ -176,14 +176,21 @@ static void enter_title(void)
     message("CLIQUER UNE MISSION OU JOUER");
 }
 
-/* Page 0 the help, 1 the records (both on S_HELP). */
+/* Page 0 the help, then 2 the rooms' legend; 1 the records (S_HELP). */
+static unsigned char help_page;
 static void __fastcall__ enter_help(unsigned char page)
 {
     screen = S_HELP;
+    help_page = page;
     screen_clear();
     help_draw(page);
     buttons_set(help_buttons, 1);
-    message("UN CLIC : LE TITRE");
+    message(page ? "UN CLIC : LE TITRE" : "UN CLIC : LES SALLES");
+}
+/* A click or a key on a help page: the legend after the help, else the title. */
+static void help_next(void)
+{
+    if (help_page) enter_title(); else enter_help(2u);
 }
 
 static void enter_zone(void)
@@ -304,7 +311,7 @@ static void step(void)
 
 static void click_button(unsigned char b)
 {
-    if (screen == S_HELP) { enter_title(); return; }
+    if (screen == S_HELP) { help_next(); return; }
     if (b == 0xFFu) return;
     if (mode == M_CLEAR && !(screen == S_LAB && b == 3u)) mode = M_EDIT;
     if (screen == S_TITLE && b == 4u) { title_page ^= 1u; enter_title(); return; }
@@ -353,7 +360,7 @@ static void click_button(unsigned char b)
 
 static void click(unsigned char x, unsigned char y)
 {
-    if (screen == S_HELP) { enter_title(); return; }
+    if (screen == S_HELP) { help_next(); return; }
     if (y >= BTN_Y - 1u && y < BTN_Y + 8u) { click_button(button_at(x)); return; }
     if (screen == S_TITLE) {
         x = title_mission_at(x, y);
@@ -458,8 +465,8 @@ int main(void)
             && ((unsigned char)(px - act_x + 8u) > 20u || (unsigned char)(py - act_y + 10u) > 30u);
         if (!cursor_kept) hide();
         actor_hide();
-        if (screen == S_HELP) {             /* a key or a click: the title */
-            if (key || pressed) { enter_title(); pressed = 0u; }   /* (SPACE: once) */
+        if (screen == S_HELP) {             /* a key or a click: on */
+            if (key || pressed) { help_next(); pressed = 0u; }   /* (SPACE: once) */
         }
         else if (key == KC_ESC) { if (screen == S_ZONE) walking = W_NONE; else board_drop(); }
         else if (key == 'V' && screen != S_LAB) {     /* the drones twice as often */
