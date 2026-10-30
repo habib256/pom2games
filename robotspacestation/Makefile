@@ -5,7 +5,8 @@
 #   make run-iic    -> POM2, //c (built-in mouse)
 #   make test       -> reference model, then the lab and the missions on //e and //c (a2shot)
 #   make test-long  -> the whole campaign, each mission's solution in C == the model, and random
-#                      boards' turns == the model's Sim (//e, //c)
+#                      boards' turns == the model's Sim, random drones in the rooms ==
+#                      its Zone (//e, //c)
 #
 # C (cc65) on the shared DHGR, gfx, ProDOS and mouse libraries; the logic
 # simulation follows tools/model.py bit for bit (docs/SPEC.md).
@@ -90,5 +91,7 @@ test-long: all
 	$(PYTHON) tests/test_campaign.py --iic --disk $(DISK) --labels $(BUILD)/game.lbl
 	$(PYTHON) tests/test_fuzz.py --disk $(DISK) --labels $(BUILD)/game.lbl
 	$(PYTHON) tests/test_fuzz.py --iic --disk $(DISK) --labels $(BUILD)/game.lbl
+	$(PYTHON) tests/test_zone_fuzz.py --disk $(DISK) --labels $(BUILD)/game.lbl
+	$(PYTHON) tests/test_zone_fuzz.py --iic --disk $(DISK) --labels $(BUILD)/game.lbl
 
 .PHONY: run-iic test test-long
