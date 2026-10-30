@@ -22,7 +22,7 @@ include $(PRODOS)/prodos.mk
 include $(MOUSE)/mouse.mk
 
 DISK := $(DIST)/ROBOTSTATION.po
-SRCS := src/main.c src/ui.c src/board_ui.c src/zone.c src/sim.c src/title.c src/pointer.s src/swap.s
+SRCS := src/main.c src/ui.c src/board_ui.c src/zone.c src/sim.c src/title.c src/help.c src/pointer.s src/swap.s
 LIB_SRCS := $(sort $(HGRC_DHGR_SRCS) $(HGRC_DHGR_SMALL_TEXT_SRCS)) $(HGRC_DHGR_COLOR_BACKEND) \
             $(GFX)/gfx_line.c $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) \
             $(PRODOS_SRCS) $(PRODOS_FILE_SRCS) $(MOUSE_SRCS)

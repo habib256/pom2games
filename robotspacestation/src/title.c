@@ -41,14 +41,29 @@ static void station(void)
     dhgr_fill_rect(66, 54, 8, 10, DHGR_GRAY1);               /* the dock */
 }
 
+/* The title's words in the compact font, each dot a 2 x 2 block (10
+ * pixels a character): not dhgr_puts, whose 8 x 8 font and code (~1.3 KB
+ * of main memory) served only these two lines. */
+static void __fastcall__ big_text(const char *s, unsigned char x, unsigned char y)
+{
+    static const unsigned char *g;
+    static unsigned char r, c, bits;
+    for (; *s; ++s, x += 10u) {
+        g = dhgr_small_font + (unsigned)(*s - 32) * DHGR_SMALL_FONT_STRIDE;
+        for (r = 0u; r < DHGR_SMALL_HEIGHT; ++r)
+            for (c = 0u, bits = g[r]; bits; ++c, bits >>= 1)
+                if (bits & 1u) dhgr_fill_rect(x + 2u * c, y + 2u * r, 2, 2, DHGR_WHITE);
+    }
+}
+
 void title_draw(void)
 {
     static unsigned char m, x, y;
     static char num[2];
     stars();
     ui_latch();
-    dhgr_puts("ROBOT SPACE", 26, 4);
-    dhgr_puts("STATION", 42, 16);
+    big_text("ROBOT SPACE", 16, 4);
+    big_text("STATION", 36, 17);
     station();
     ui_latch();
     dhgr_puts_small("MISSIONS", 0, LIST_Y - 10u);
@@ -73,49 +88,4 @@ unsigned char __fastcall__ title_mission_at(unsigned char x, unsigned char y)
     if (m >= LIST_N) return NONE;
     if (x >= LIST_DX) m += LIST_N;
     return m < mission_count() && m <= persist.reached ? m : NONE;
-}
-
-/* The help page (AIDE on the title, or H): what a board's terminals are,
- * the parts, the keys. 27 characters a line at most (5 pixels each). */
-static const char *const help_lines[] = {
-    "AIDE",
-    "",
-    "LE TECHNICIEN ENTRE DANS",
-    "UN DRONE EN LE TOUCHANT.",
-    "A GAUCHE DE SA PLANCHE :",
-    " N E S O  CONTACT AU BORD",
-    " T  LA PINCE TIENT",
-    " R  RECU PAR RADIO",
-    "A DROITE :",
-    " N E S O  PROPULSEURS",
-    "    N POUSSE VERS LE SUD",
-    " P  PINCE  E  EMISSION",
-    "ET OU OX NO  BA : BASCULE",
-    "LABO : PUCES F1 A F8",
-    "M MARCHE  P PAS  S SON",
-    "H INDICE  ESC LACHE",
-    "V VITE  CTRL-Q QUITTE",
-};
-
-void __fastcall__ help_draw(unsigned char page)
-{
-    static unsigned char i, y, n;
-    static char num[3];
-    if (page) {
-        dhgr_puts_small("RECORDS : LE MOINS DE PORTES", 0, 4);
-        for (i = 0u; i < mission_count(); ++i) {
-            y = 18u + i * 9u;
-            n = persist.best[i];
-            dhgr_puts_small(i < persist.reached ? mission_name_of(i) : (const char *)"-", 4, y);
-            if (!n) continue;
-            num[0] = n >= 10u ? '0' + n / 10u : ' ';
-            num[1] = '0' + n % 10u;
-            num[2] = 0;
-            dhgr_puts_small(num, 84, y);
-            dhgr_puts_small(n == 1u ? (const char *)"PORTE" : (const char *)"PORTES", 98, y);
-        }
-        return;
-    }
-    for (i = 0u; i < sizeof help_lines / sizeof help_lines[0]; ++i)
-        dhgr_puts_small(help_lines[i], i ? 4u : 60u, 4u + i * 9u);
 }

@@ -38,7 +38,9 @@
       == `Zone` ; la campagne entière, chaque mission jouée en C avec
       la solution du modèle (carte dans `RSS.SAVE`), //e et //c.
 
-## Mémoire (au 2026-10-30)
+## Mémoire (au 2026-10-30, soir)
 
-Principale jusqu'à `$B8AE` (1,3 Ko libres sous `$BE00`), page 2 HI jusqu'à
-`$596E` (1,6 Ko), basse jusqu'à `$1F74` (140 octets).
+Le titre écrit ses deux lignes avec la petite police agrandie (plus de
+`dhgr_puts` ni de police 8 × 8 : ~1,3 Ko rendus) ; l'aide et les records sont
+en mémoire principale (`src/help.c`). Libres : principale ~620 octets sous
+`$BE00`, HI ~640 octets, basse ~20 octets.
