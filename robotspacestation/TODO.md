@@ -22,6 +22,8 @@
       sur une seconde page du titre (PAGE ; RECORDS suit la page).
       `best` a 28 places (deux pages de titre).
 - [ ] Des puces fournies par la station (une bibliothèque de départ).
+      Pas fait le 2026-10-30 : des puces toutes faites donneraient la moitié
+      des solutions ; à décider (par exemple une seule, la bascule de choc).
 - [x] Son (2026-10-30) : contact, pince (prise, lâcher), radio, puce gravée,
       mission réussie ; S coupe.
 
