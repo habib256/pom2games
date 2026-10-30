@@ -274,6 +274,43 @@ def module_two(disk, L):
     return fails + check('MENU, the 12th', r.mem(L['_mission'], 1, 4), b'\x0b')
 
 
+def crate(disk, L):
+    """LA CAISSE (13): tests/test_model.py solution(12) wired inside: the
+    claw takes the crate east, lets it go on the plate, whose door it holds
+    open; the drone goes south through it == the model (objects on plates,
+    the claw, a horizontal door, in C)."""
+    from test_model import solution
+    AND_, FLIP_ = PALETTE[AND], PALETTE[FLIP]
+    steps = [BOOT, 'wait:60'] + click(72 + 30, 92 + 5 * 9 + 2) + ['wait:120', idle(L), L.peek('_mission')]
+    steps += enter_drone(L, 12)
+    for kind, c in ((FLIP_, (0, 0)), (FLIP_, (1, 0)), (AND_, (2, 0)), (PALETTE[NOT], (3, 0)),
+                    (PALETTE[NOT], (0, 1)), (AND_, (1, 1))):
+        steps += click(kind, 156) + inside(cell(*c))
+    steps += inside(src(0), pin_in(0, 0, 9), src(1), pin_in(2, 0, 9), pin_out(0, 0), pin_in(2, 0, 16),
+                    pin_out(2, 0), pin_in(1, 0, 9), pin_out(0, 0), pin_in(3, 0, 12), pin_out(3, 0), sink(2),
+                    pin_out(1, 0), pin_in(0, 1, 12), pin_out(0, 1), pin_in(1, 1, 9),
+                    pin_out(0, 0), pin_in(1, 1, 16), pin_out(1, 1), sink(4), pin_out(1, 1), sink(3),
+                    pin_out(1, 0), sink(0))
+    steps += [idle(L), L.peek('_parts', 48), L.peek('_wires', 72), f'shot:{SHOTS}/m13_inside.png']
+    steps += ['key:M', 'wait:1200', idle(L, 3000), L.peek('_drone_x'), L.peek('_drone_y'),
+              L.peek('_obj_x', 1), L.peek('_obj_y', 1), L.peek('_door_open', 1), L.peek('_won', 1),
+              f'shot:{SHOTS}/m13_won.png']
+    r = run(disk, steps)
+    b = solution(12)
+    z = Zone(12, compile_board(b, EMPTY))
+    t = 0
+    while not z.won() and t < 2000:
+        z.tick()
+        t += 1
+    fails = check('LA CAISSE: mission 13', r.mem(L['_mission'], 1), b'\x0c')
+    fails += check('crate board wired', r.mem(L['_parts'], 48) + r.mem(L['_wires'], 72), layout_bytes(b))
+    fails += check(f'drone through the door (turn {t})', r.mem(L['_drone_x'], 1) + r.mem(L['_drone_y'], 1),
+                   bytes((z.x, z.y)))
+    fails += check('crate on the plate, door open', r.mem(L['_obj_x'], 1) + r.mem(L['_obj_y'], 1)
+                   + r.mem(L['_door_open'], 1), bytes(z.objects[0][1:]) + b'\x01')
+    return fails + check('won', r.mem(L['_won'], 1), b'\x01')
+
+
 def missing_rooms(disk, L):
     """Without RSS.ROOMS, JOUER comes back to the title with a message."""
     r = run(disk, [BOOT] + title(0) + ['wait:60', idle(L, 3000), L.peek('_screen')])
@@ -299,6 +336,7 @@ def main():
     fails += doors(disk_with_save(save_bytes(EMPTY, reached=4), 'reached4'), L)
     fails += relay(disk_with_save(save_bytes(EMPTY, reached=6), 'reached6'), L)
     fails += module_two(disk_with_save(save_bytes(EMPTY, reached=11), 'reached11'), L)
+    fails += crate(disk_with_save(save_bytes(EMPTY, reached=12), 'reached12'), L)
     fails += missing_rooms(disk_with_save(None, 'norooms', rooms=False), L)
     print(f'shots in {SHOTS}')
     sys.exit(1 if fails else 0)

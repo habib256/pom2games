@@ -218,6 +218,25 @@ def solution(mission):
         wire(b, out(k), 3)
     elif mission in (9, 11):            # LE GARDIEN: the pillar's latch parks it;
         return solution(2 if mission == 9 else 0)   # LE SAS: east, as in 1
+    elif mission == 12:                 # LA CAISSE: north to the crate, take it east,
+        l1 = b.place(FLIP, 0, 0)        # let it go on the plate, south through the door
+        l2 = b.place(FLIP, 1, 0)
+        a = b.place(AND, 2, 0)
+        n1 = b.place(NOT, 3, 0)
+        n2 = b.place(NOT, 0, 1)
+        g = b.place(AND, 1, 1)
+        wire(b, 0, inp(l1, 0))          # the north bump: L1
+        wire(b, 1, inp(a, 0))           # the east bump once L1: L2
+        wire(b, out(l1), inp(a, 1))
+        wire(b, out(a), inp(l2, 0))
+        wire(b, out(l1), inp(n1, 0))
+        wire(b, out(n1), 2)             # not L1: north
+        wire(b, out(l2), inp(n2, 0))
+        wire(b, out(n2), inp(g, 0))
+        wire(b, out(l1), inp(g, 1))
+        wire(b, out(g), SINK_GRAB)      # L1, not L2: hold it, east
+        wire(b, out(g), 3)
+        wire(b, out(l2), 0)             # L2: south
     elif mission == 10:                 # LA RONDE: east, then south, then west
         l1 = b.place(FLIP, 0, 0)
         l2 = b.place(FLIP, 1, 0)
@@ -402,6 +421,16 @@ class Missions(unittest.TestCase):
         for _ in range(300):
             z.tick()
         self.assertEqual((z.x, z.door_open), (46, [0, 0]))
+
+    def test_the_crate_holds_the_door(self):
+        t, z = play(12, solution(12), 2000)
+        self.assertIsNotNone(t)
+        self.assertEqual(z.objects[0][1:], [123, 34])  # on the plate
+        b = solution(12)
+        b.disconnect(SINK_GRAB)                         # without the claw
+        t, z = play(12, b, 2000)
+        self.assertIsNone(t)
+        self.assertEqual(z.objects[0][1:], [56, 32])
 
     def test_an_empty_board_wins_nothing(self):
         for m in range(len(MISSIONS)):

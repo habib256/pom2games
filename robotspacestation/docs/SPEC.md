@@ -173,6 +173,7 @@ sur un chargeur.
 | 10 | LE GARDIEN | le drone, par-dessus la grille, se gare sur la plaque (bascule du pilier) |
 | 11 | LA RONDE | est, puis sud, puis ouest : deux bascules (sud-ouest d'un coup : le piège) |
 | 12 | LE SAS | le technicien tient la porte du drone, qui se gare sur la plaque de l'autre porte |
+| 13 | LA CAISSE | la pince porte la caisse jusqu'à la plaque ; elle y tient la porte ouverte |
 
 Les tests (`tests/test_model.py`) prouvent qu'une solution existe pour
 chacune, qu'une planche vide ne gagne rien, que le pilier exige une
@@ -181,8 +182,9 @@ le technicien, qu'un drone dans l'embrasure la bloque ouverte et que le
 parking ouvre le passage, que le relais exige la radio (A parti trop tôt,
 la porte se referme sous B), que deux drones se bloquent l'un l'autre, que
 le zigzag exige l'alternance, que le colis attend le technicien, que le
-gardien sans bascule ne se gare jamais, que la ronde exige deux bascules et
-que le sas attend le technicien sur sa plaque.
+gardien sans bascule ne se gare jamais, que la ronde exige deux bascules,
+que le sas attend le technicien sur sa plaque et que la caisse, sans pince,
+reste où elle est (le jeu la joue aussi de bout en bout : `tests/test_zone.py`).
 
 Le labo et le drone ont chacun leur planche : passer de l'un à l'autre
 recompile la planche (valeurs remises à 0). Choisir une mission
