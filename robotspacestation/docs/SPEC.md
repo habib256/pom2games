@@ -176,6 +176,7 @@ sur un chargeur.
 | 13 | LA CAISSE | la pince porte la caisse jusqu'à la plaque ; elle y tient la porte ouverte |
 | 14 | LE TANDEM | A se gare sur la plaque et appelle ; B attend l'appel pour chercher la cellule |
 | 15 | LE COMPTEUR | compter les ouvertures du puits (fronts du capteur O, par le retard des portes) ; tourner à la 2e |
+| 16 | LA SPIRALE | quatre caps (trois bascules) : un choc devant, tourner à droite, jusqu'au centre |
 
 Les tests (`tests/test_model.py`) prouvent qu'une solution existe pour
 chacune, qu'une planche vide ne gagne rien, que le pilier exige une

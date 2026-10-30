@@ -15,7 +15,7 @@ own making, walking into the drones to wire them.
 </p>
 
 Status: a title screen, the **chip lab**, the **test zone** and a first
-fifteen **missions**, saved on the disk.
+sixteen **missions**, saved on the disk.
 
 - **Lab**: place AND/OR/XOR/NOT/flip-flop parts and burned chips on a 5 × 5
   grid, wire them (orange = 1, blue = 0), toggle the inputs, run or step the
@@ -23,14 +23,14 @@ fifteen **missions**, saved on the disk.
 - **Test zone**: walk the technician into the drone, wire its bumpers,
   thrusters and claw (and your chips) from the inside, run it, watch it fly,
   get out.
-- **Missions**: fifteen rooms, from "fly straight to the charger" to "fetch the
+- **Missions**: sixteen rooms, from "fly straight to the charger" to "fetch the
   energy cell behind the grate", then doors and pressure plates where the
   technician and the drone open the way for each other, two drones talking
   by radio, a zigzag down a shaft, a delivery through a held door, a
   drone parking beyond a grate for the technician, a round with a trap,
   an airlock of two doors, a crate carried onto a plate, a tandem
-  where one drone calls the other and a shaft whose openings must be
-  counted. Burned chips,
+  where one drone calls the other, a shaft whose openings must be
+  counted and a spiral of four headings. Burned chips,
   boards and progress are saved in `RSS.SAVE`.
 
 The missions' rooms are read from the disk (`RSS.ROOMS`) when a mission
