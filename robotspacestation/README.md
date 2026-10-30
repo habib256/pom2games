@@ -13,9 +13,13 @@ own making, walking into the drones to wire them.
 <img src="screenshots/lab.png" width="280" alt="The chip lab: a burned half adder reused as chip P3">
 <img src="screenshots/cell.png" width="280" alt="Mission 4: the energy cell brought back to the charger">
 </p>
+<p align="center">
+<img src="screenshots/spiral.png" width="280" alt="Mission 16: the drone runs a spiral, turning right at each bump">
+<img src="screenshots/help.png" width="280" alt="The help page: the board's terminals, the parts, the keys">
+</p>
 
 Status: a title screen, the **chip lab**, the **test zone** and a first
-sixteen **missions**, saved on the disk.
+eighteen **missions**, saved on the disk.
 
 - **Lab**: place AND/OR/XOR/NOT/flip-flop parts and burned chips on a 5 × 5
   grid, wire them (orange = 1, blue = 0), toggle the inputs, run or step the
@@ -23,14 +27,15 @@ sixteen **missions**, saved on the disk.
 - **Test zone**: walk the technician into the drone, wire its bumpers,
   thrusters and claw (and your chips) from the inside, run it, watch it fly,
   get out.
-- **Missions**: sixteen rooms, from "fly straight to the charger" to "fetch the
+- **Missions**: eighteen rooms, from "fly straight to the charger" to "fetch the
   energy cell behind the grate", then doors and pressure plates where the
   technician and the drone open the way for each other, two drones talking
   by radio, a zigzag down a shaft, a delivery through a held door, a
   drone parking beyond a grate for the technician, a round with a trap,
   an airlock of two doors, a crate carried onto a plate, a tandem
   where one drone calls the other, a shaft whose openings must be
-  counted and a spiral of four headings. Burned chips,
+  counted, a spiral of four headings, a cell carried round two corners
+  and two keys for the technician. Burned chips,
   boards and progress are saved in `RSS.SAVE`.
 
 The missions' rooms are read from the disk (`RSS.ROOMS`) when a mission

@@ -16,10 +16,14 @@
 - [x] Missions 8-14 (2026-10-30) : LE ZIGZAG, LE COLIS, LE GARDIEN, LA RONDE,
       LE SAS, LA CAISSE, LE TANDEM, prouvées par le modèle et jouées en C
       (`make test-long`) ; titre en deux colonnes, touche 0 pour la dixième
-      (11-14 : au titre). Missions 15 LE COMPTEUR (fronts du capteur O) et
-      16 LA SPIRALE (quatre caps) sur une seconde page du titre (PAGE).
+      (11-14 : au titre). Missions 15 LE COMPTEUR (fronts du capteur O),
+      16 LA SPIRALE (quatre caps), 17 LE CONVOI (pince dans les virages), 18 DEUX
+      CLES (réutiliser la puce de LA CAISSE)
+      sur une seconde page du titre (PAGE ; RECORDS suit la page).
       `best` a 28 places (deux pages de titre).
 - [ ] Des puces fournies par la station (une bibliothèque de départ).
+      Pas fait le 2026-10-30 : des puces toutes faites donneraient la moitié
+      des solutions ; à décider (par exemple une seule, la bascule de choc).
 - [x] Son (2026-10-30) : contact, pince (prise, lâcher), radio, puce gravée,
       mission réussie ; S coupe.
 

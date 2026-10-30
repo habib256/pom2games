@@ -33,11 +33,12 @@ void __fastcall__ help_draw(unsigned char page)
     static char num[3];
     if (page) {
         dhgr_puts_small("RECORDS : LE MOINS DE PORTES", 0, 4);
-        for (i = 0u; i < mission_count(); ++i) {
-            y = 18u + i * 9u;
-            n = persist.best[i];
+        for (i = title_page * 14u; i < mission_count() && i < title_page * 14u + 14u; ++i) {
+            y = 18u + (i - title_page * 14u) * 9u;    /* the title's page */
+            n = persist.best[i];            /* gates + 1, 0: never won */
             dhgr_puts_small(i < persist.reached ? mission_name_of(i) : (const char *)"-", 4, y);
-            if (!n) continue;
+            if (!n--) continue;
+            if (n > 99u) n = 99u;
             num[0] = n >= 10u ? '0' + n / 10u : ' ';
             num[1] = '0' + n % 10u;
             num[2] = 0;

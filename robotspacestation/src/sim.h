@@ -43,7 +43,7 @@ typedef struct {
     unsigned char out[CHIPS][4];
     unsigned char layout[CHIPS][LAYOUT_SIZE];
     unsigned char lab[LAYOUT_SIZE], drone[LAYOUT_SIZE], drone2[LAYOUT_SIZE];
-    unsigned char best[BEST_SLOTS];             /* fewest gates a mission was won with */
+    unsigned char best[BEST_SLOTS];             /* fewest gates a mission was won with, + 1 (0: never) */
 } Persist;
 extern Persist persist;
 #define chip_count persist.count

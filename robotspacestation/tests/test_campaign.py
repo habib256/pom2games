@@ -24,7 +24,8 @@ from test_zone import ROOM_Y, disk_with_save
 
 # The technician's second place in the goal-technician missions: the
 # charger, once the drones have opened his way (tests/test_model.py).
-TECH_GOAL = {5: (16 * 7 + 4, 6 * 8 + 4), 9: (16 * 7 + 2, 2 * 8 + 4), 11: (15 * 7 + 4, 14 * 8 + 4)}
+TECH_GOAL = {5: (16 * 7 + 4, 6 * 8 + 4), 9: (16 * 7 + 2, 2 * 8 + 4), 11: (15 * 7 + 4, 14 * 8 + 4),
+             17: (13 * 7 + 2, 15 * 8 + 3)}
 TECH_FIRST = {**TECH, 11: (2 * 7 + 4, 8 * 8 + 4)}     # LE SAS: he holds the upper door
 OPEN_TICKS = 400                                    # the drones settle, the door opens
 
@@ -82,7 +83,7 @@ def mission(m, L):
                    bytes(d.x for d in z.drones) + bytes(d.y for d in z.drones))
     gates = sum(len(compile_board(x, EMPTY).gates) for x in (a, b) if x)
     best = r.mem(L['_persist'], SAVE_SIZE)[SAVE_SIZE - BEST_SLOTS + m]
-    fails += check(f'{m + 1} {name}: record {gates} gates', bytes((best,)), bytes((gates,)))
+    fails += check(f'{m + 1} {name}: record {gates} gates', bytes((best,)), bytes((gates + 1,)))
     k = len(z.objects)
     if k:
         fails += check(f'{m + 1} {name}: objects == model',
