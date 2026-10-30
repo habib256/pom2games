@@ -525,11 +525,11 @@ MISSIONS = (
         '####################')),
 )
 
-# One hint a mission (key H in the room), 30 characters at most, on the
+# One hint a mission (key H in the room), 28 characters at most, on the
 # disk after the room (RSS.ROOMS): no memory for them.
 HINTS = (
     'UN NON SUR LE PROPULSEUR O',
-    'LE CAPTEUR E SUR PROPULSEUR N',
+    'CAPTEUR E SUR PROPULSEUR N',
     'UNE BASCULE RETIENT LE CHOC',
     'LACHER LA CELLULE AU MUR O',
     'LE TECHNICIEN SUR LA PLAQUE',
@@ -544,7 +544,7 @@ HINTS = (
     'A SE GARE ET APPELLE B',
 )
 HINT_LEN = 32
-assert len(HINTS) == len(MISSIONS) and all(len(h) <= 30 for h in HINTS)
+assert len(HINTS) == len(MISSIONS) and all(len(h) <= 28 for h in HINTS)   # (the message line)
 
 
 def room_tiles(room):

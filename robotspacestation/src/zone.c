@@ -50,6 +50,7 @@ static unsigned char drawn_x[DRONES] = {NONE, NONE}, drawn_y[DRONES], drawn_thru
 static unsigned char drawn_obj[DRONES] = {NONE, NONE}, drawn_ox[DRONES], drawn_oy[DRONES];
 static unsigned char bx, by, bw, bh;      /* the box side_blocked() looks at */
 static unsigned char di;                  /* the drone moving, NONE: the technician */
+static unsigned char bumped[DRONES], sending[DRONES];   /* last turn's (sounds) */
 
 void zone_init(void)
 {
@@ -128,6 +129,8 @@ unsigned char __fastcall__ zone_load(unsigned char m)
     }
     holding[0] = holding[1] = NONE;
     memset(thrust, 0, sizeof thrust);
+    memset(bumped, 0, sizeof bumped);
+    memset(sending, 0, sizeof sending);
     door_open[0] = door_open[1] = 0u;
     return 1u;
 }
@@ -255,7 +258,6 @@ static void move(signed char dx, signed char dy)
 unsigned char zone_tick(void)
 {
     static unsigned char d, k, i, ox, oy, oh, redraw, heard[DRONES], *t, bumps;
-    static unsigned char bumped[DRONES], sending[DRONES];
     if (zone_doors() && screen == S_ZONE) zone_draw_doors();
     heard[0] = drone_n == 2u ? thrust[1][RADIO] : 0u;
     heard[1] = thrust[0][RADIO];
@@ -539,7 +541,7 @@ const char *zone_won_text(void)
 
 const char *zone_enter_text(void)
 {
-    if (!persist.best[mission]) return "TOUCHER LE DRONE - H : INDICE";
+    if (!persist.best[mission]) return "TOUCHER LE DRONE  H : INDICE";   /* 28 at most */
     strcpy(gate_text, "RECORD    PORTES H : INDICE");
     put_gates(7u, persist.best[mission]);
     return gate_text;

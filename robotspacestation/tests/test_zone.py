@@ -319,9 +319,12 @@ def help_page(disk, L):
                                                  f'shot:{SHOTS}/help.png']
     steps += click(70, 80) + ['wait:60', idle(L), L.peek('_screen')]
     steps += ['key:H', 'wait:60', idle(L), L.peek('_screen'), 'key:M', 'wait:60', idle(L), L.peek('_screen')]
+    # SPACE (a click) on AIDE, then SPACE again: the title, not AIDE again
+    steps += [L.poke('_px', 60), L.poke('_py', 167), 'key: ', 'wait:60', idle(L), L.peek('_screen'),
+              'key: ', 'wait:60', idle(L), L.peek('_screen')]
     r = run(disk, steps)
-    return check('help: AIDE, a click, H, a key', bytes(r.mem(L['_screen'], 1, n)[0] for n in range(4)),
-                 bytes((4, 3, 4, 3)))
+    return check('help: AIDE, a click, H, a key, SPACE twice', bytes(r.mem(L['_screen'], 1, n)[0] for n in range(6)),
+                 bytes((4, 3, 4, 3, 4, 3)))
 
 
 def old_save(disk, L):

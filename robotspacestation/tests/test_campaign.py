@@ -71,6 +71,8 @@ def mission(m, L):
     name = MISSIONS[m][0]
     fails = check(f'{m + 1} {name}: loaded', r.mem(L['_mission'], 1), bytes((m,)))
     fails += check(f'{m + 1} {name}: won (model turn {t})', r.mem(L['_won'], 1), b'\x01')
+    if m in TECH_GOAL:          # the drones opened his door before he went
+        fails += check(f'{m + 1} {name}: his door open', bytes((any(r.mem(L['_door_open'], 2)),)), b'\x01')
     n = len(z.drones)
     fails += check(f'{m + 1} {name}: drones == model',
                    r.mem(L['_drone_x'], 2)[:n] + r.mem(L['_drone_y'], 2)[:n],

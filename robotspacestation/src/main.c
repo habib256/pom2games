@@ -456,7 +456,9 @@ int main(void)
             && ((unsigned char)(px - act_x + 8u) > 20u || (unsigned char)(py - act_y + 10u) > 30u);
         if (!cursor_kept) hide();
         actor_hide();
-        if (screen == S_HELP) { if (key) enter_title(); }  /* any key: the title */
+        if (screen == S_HELP) {             /* a key or a click: the title */
+            if (key || pressed) { enter_title(); pressed = 0u; }   /* (SPACE: once) */
+        }
         else if (key == KC_ESC) { if (screen == S_ZONE) walking = W_NONE; else board_drop(); }
         else if (key == 'S') {
             sound_on ^= 1u;
