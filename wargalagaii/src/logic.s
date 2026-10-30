@@ -359,7 +359,9 @@ ls_clear:
         inc perfects             ; (lot 10: paid again at the end, front.s)
         bne :+
         dec perfects             ; (255 at most)
-:       lda #1
+:
+ls_over:                         ; (also the Meteor Storm icon, storm.s)
+        lda #1
         sta phase
         stz hurry
         lda #TELEPORT_T
@@ -1280,7 +1282,7 @@ take_tab:
         .addr tk_c10, tk_c50, tk_c100, tk_c200, tk_s, tk_b, tk_t, tk_w1, tk_w2, tk_w3
         .addr tk_auto, tk_armour, tk_life, tk_skull, tk_e, tk_x, tk_lt, tk_r, tk_a
         .addr tk_x2, tk_x5, tk_shield, tk_freeze, tk_mark, tk_mark, tk_mark, tk_mark
-        .addr tk_mark, tk_mark, tk_dark, tk_meteor, tk_memory
+        .addr tk_mark, tk_mark, tk_dark, tk_meteor, tk_memory, tk_p1k, tk_p5k, tk_p10k
 .assert (* - take_tab) / 2 = NKIND, error, "one effect per kind"
 tk_c10: lda #$10
         ldy #$00
@@ -1434,11 +1436,7 @@ tk_dark:
         lda #1
         sta mark_dark
         rts
-tk_meteor:                       ; sub-games (lot 8)
-        lda #1
-        sta subgame
-        rts
-tk_memory:
+tk_memory:                       ; sub-games (lot 8; the storm: storm.s)
         lda #2
         sta subgame
         rts

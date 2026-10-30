@@ -795,6 +795,47 @@ texturés, HUD sur les côtés, formations mixtes. Maquettes validées avant cod
   déplacement coûte ~5 600 cycles) ; la démo dure 2 550 pas ; la mémoire
   principale est pleine (~10 octets), LOWM à 16 octets près.
 
+## Lot 11 — le Meteor Storm de Warblade (2026-10-30)
+
+Demande : « On arrivait facilement à un meteor storm dans le warblade
+d'origine », puis « c'est pas ça le mode meteor storm dans warblade.
+Renseigne toi » (option 2 : refonte complète). Source : wiki Warblade
+(pages Meteor Storm, Bonuses), consignée dans `docs/warblade-reference.md`.
+
+- [x] **Entrée** : l'icône (poids 4/64, mémoire 3/64, pièce de 10 : 5/64 ;
+      avant 1, 1 et 10 : une icône tous les ~16 niveaux) **termine le niveau
+      sur-le-champ** (`tk_meteor` → `ls_over`), sauf sur un niveau de boss
+      (la tempête attend sa fin).
+- [x] **Tempête** (`storm.s`, modèle `storm_step`, oracle au pas près) :
+      rochers de trois tailles (petit : `cur_alien2`, rangée 1 ; moyen ;
+      gros : `cur_big`), chacun un peu plus rapide que le champ (2, 1, 0) ;
+      le champ accélère aux tiers de la distance (+1, +2) et avec la jauge
+      (+3/16 de la vitesse au-delà des 8 barres rouges) ; 4 608 rangées.
+- [x] **Jauge** à droite du vaisseau : 26 barres (8 rouges, 18 vertes), STA
+      comme le vaisseau ; **barre de distance** verticale dans l'octet 35 du
+      terrain (rochers, objets et vaisseau restent à gauche).
+- [x] **Objets** : argent 50/100/200, pastilles 1 000/5 000/10 000 points
+      (trois nouvelles sortes, `p1k p5k p10k`).
+- [x] **Pourcentage** = pas tir tenu / pas volés, arrondi ; 101 % tant que le
+      tir n'a jamais été lâché. Prime (× multiplicateur) : MEGA (101 %)
+      500 000 + 5 000 crédits ; XTREME (100 %) 250 000 + 5 000 ; SUPER
+      (95-99 %) 100 000 + 1 000 ; EXTRA 50 000 ; son nom 60 pas. Choc :
+      500 points par 256 rangées volées, aucune vie perdue.
+- [x] Mémoire : textes des ramassages en aux (`pick_fetch`), trajectoires
+      et routines en `$0200-$03CF` (`LOW2`), rochers en aux `$B100`. Reste :
+      LOWM 12 octets, LOW2 94, code principal ~150.
+- [x] Fluidité : HUD — quand seul le score diffère pour la page, seule la
+      ligne 0 est comparée (~1 900 cycles par tir au but) et un balayage du
+      VBL tous les 32 caractères (le banc ratait un front). Tempête à
+      pleine vitesse : 8 retards sur ~600 images (2 au départ : le cadre de
+      la barre). `test-long` mesure chaque scène sur trois départs (une
+      seule : 93 à 157 retards avec la carte, avant comme après ce lot).
+- Écarts à valider : pas de gemmes ni de Gem Drop ; billet de 250 → pièce
+  de 200 ; primes en points divisées (score à 6 chiffres) ; EXTRA couvre
+  0-94 % (le wiki ne dit rien de 76-94) ; pourcentage affiché en haut, pas
+  sous la jauge ; pas de bonus Random ; 3 tailles × 2 images de rochers,
+  orange, au lieu de 49 dessins.
+
 ## À vérifier sur machine
 
 - [ ] //c + Mockingboard 4c : la détection réveille la carte à `$C403` et

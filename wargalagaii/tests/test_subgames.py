@@ -255,6 +255,32 @@ def one_pair_then_esc(g):
     return cells[:2], 'esc'
 
 
+def storm_prizes(disk, L):
+    """Lot 11: storm_prize (6502) on each tier == the model: points with
+    the multiplier, credits, the name, M_END steps."""
+    cases = [(500, 0, 1), (499, 1, 1), (480, 1, 3), (100, 1, 1), (2, 1, 5)]
+    steps = [*boot(L)]
+    for held, rel, mult in cases:
+        steps += [L.until('game_tick', 10)]
+        steps += [L.poke('m_time', 500 & 255), L.poke('m_time', 500 >> 8, 1), L.poke('m_held', held & 255),
+                  L.poke('m_held', held >> 8, 1), L.poke('m_rel', rel), L.poke('mult', mult),
+                  L.poke('score', 0), L.poke('score', 0, 1), L.poke('score', 0, 2), L.poke('credits', 0),
+                  L.poke('credits', 0, 1), f'call:{L["storm_prize"]:04X}:5',
+                  L.peek('score', 3), L.peek('credits', 2), L.peek('pick_msg'), L.peek('m_end')]
+    r = a2test.run(disk, steps, iie=True)
+    names = []
+    for k, (held, rel, mult) in enumerate(cases):
+        g = M.Game(0)
+        g.m_time, g.m_held, g.m_rel, g.mult = 500, held, rel, mult
+        g.storm_prize()
+        want = (M.bcd(g.score, 3), M.bcd(g.credits, 2), g.pick_msg, g.m_end)
+        got = (r.mem(L['score'], 3, k), r.mem(L['credits'], 2, k), r.mem(L['pick_msg'], 1, k)[0],
+               r.mem(L['m_end'], 1, k)[0])
+        assert got == want, (held, rel, mult, got, want)
+        names.append(M.PICK_TEXT[g.pick_msg])
+    print(f'PASS Meteor Storm prizes == model: {", ".join(names)}')
+
+
 def stations(disk, L):
     g, res = station_scene(disk, L, 'keys', 0, clear_then_skull)
     print(f'PASS Memory Station, keys: {res.count("pair") + res.count("cleared")} pairs, a miss, grid 3x3 '
@@ -281,14 +307,34 @@ def model_checks():
         rng = random.Random(seed)
         for k in range(3000):
             g.step(rng.choice((-1, 0, 1)), False, rng.random() < 0.8)
-            assert all(not s or (s in (M.ROCK, M.BOOM) and i < M.M_ROCKS and 3 <= g.a_x[i] <= 130)
+            # lot 11: everything left of byte 35 (the distance bar), small
+            # rocks in their slots, big ones not
+            assert all(not s or (s in (M.ROCK, M.BOOM) and i < M.M_ROCKS and 2 <= g.a_x[i] <= 95
+                                 and not (g.a_big[i] and i >= M.M_SMALL0))
                        for i, s in enumerate(g.a_state)), k
             for y, kk in zip(g.obj_y, g.obj_k):
-                assert not y or (M.FIELD_TOP <= y <= 192 - M.OBJ_H and kk <= 19), (k, y, kk)
+                assert not y or (M.FIELD_TOP <= y <= 192 - M.OBJ_H and kk <= 14), (k, y, kk)
+            assert g.ship_c <= M.M_SHIP_MAX
             assert g.lives == M.LIVES and not g.game_over
             if not g.storm:
                 break
         assert not g.storm and g.phase == 1
+    # lot 11: the prize by the speed percentage, the multiplier on its points
+    for held, rel, mult, name, points, credits in (
+            (500, 0, 1, 'MEGA BONUS', 500000, 5000), (499, 1, 1, 'XTREME BONUS', 250000, 5000),
+            (480, 1, 1, 'SUPER BONUS', 100000, 1000), (472, 1, 2, 'EXTRA BONUS', 100000, 0)):
+        g = M.Game(0)
+        g.storm_start()
+        g.m_time, g.m_held, g.m_rel, g.mult = 500, held, rel, mult
+        g.storm_prize()
+        assert (M.PICK_TEXT[g.pick_msg], g.score, g.credits, g.m_end) == (name, points, credits, M.M_END), \
+            (name, g.storm_pct(), g.score, g.credits)
+    g = M.Game(0)                       # the icon ends a level at once, not the boss's
+    g.take('meteor')
+    assert g.subgame == 1 and g.phase == 1 and not any(g.a_state) and g.entry_w == M.ROWS
+    g = M.Game(24)
+    g.take('meteor')
+    assert g.subgame == 1 and not g.phase
     for rnd in range(6):
         g = M.Game(0)
         g.m_round = rnd
@@ -299,7 +345,8 @@ def model_checks():
         assert cards.count(M.K['skull']) == 1 and all(cards.count(k) % 2 == 0 for k in set(cards)
                                                        if k != M.K['skull'])
         assert not any(g.m_card[n:]) and g.m_pairs == n // 2
-    print('PASS model: 20 storms (rocks and coins drawable, no life lost, each ends), decks of 3x3 .. 7x5')
+    print('PASS model: 20 storms (rocks of 3 sizes and objects left of the bar, no life lost, each ends), '
+          'the prizes by percentage, the icon ends the level (not the boss\'s), decks of 3x3 .. 7x5')
 
 
 def main():
@@ -313,6 +360,7 @@ def main():
     L = a2test.labels(a.labels, strip=True)
     storm_oracle(a.disk, L, 1, crash=False, count=1500)
     storm_oracle(a.disk, L, 2, crash=True, count=800)
+    storm_prizes(a.disk, L)
     stations(a.disk, L)
 
 

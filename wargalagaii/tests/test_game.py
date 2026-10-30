@@ -398,8 +398,10 @@ def bonus_effects(disk, L):
     EXTRA completed twice; fire pressed and held (weapons, autofire). The
     state is compared at every step; every kind must have been taken."""
     names = list(model.KINDS)
-    seq = names + ['s'] * 5 + ['b'] * 6 + ['t'] * 7 + ['armour'] * 3 + ['life'] * 2 \
-        + ['e', 'x', 'lt', 'r', 'a'] * 2 + ['a'] + ['skull'] * 7 + ['w3', 'auto', 'w2', 'x5', 'freeze', 'w1']
+    # (lot 11: the Meteor Storm icon ends the level at once: last)
+    seq = [n for n in names if n != 'meteor'] + ['s'] * 5 + ['b'] * 6 + ['t'] * 7 + ['armour'] * 3 \
+        + ['life'] * 2 + ['e', 'x', 'lt', 'r', 'a'] * 2 + ['a'] + ['skull'] * 7 \
+        + ['w3', 'auto', 'w2', 'x5', 'freeze', 'w1', 'meteor']
     game = model.Game()
     taken, named = {}, set()
     take = game.take
@@ -443,6 +445,7 @@ def bonus_effects(disk, L):
     missing = [n for n in names if n not in taken]
     assert not missing, ('kinds never taken', missing)
     unnamed = set(range(len(model.PICK_TEXT))) - named - {model.K['skull']}   # (a skull: its malus)
+    unnamed -= set(range(model.PM_MEGA, len(model.PICK_TEXT)))     # (the storm's prizes: test_subgames)
     assert not unnamed, ('pickup texts never shown', [model.PICK_TEXT[m] for m in unnamed])
     assert peak[:3] == [model.S_MAX, model.B_MAX, model.T_MAX] and peak[3] == 5, peak
     print(f'PASS bonus effects: all {len(names)} kinds taken ({sum(taken.values())} pickups), gauges '

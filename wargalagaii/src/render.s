@@ -123,6 +123,7 @@ mn_lead:  .res 1
 hud_seen: .res 2*HUD_N          ; HUD characters each page shows
 hud_key:  .res 2*HUD_KEYS       ; the state each page's HUD shows
 hud_buf:  .res HUD_N
+hud_last: .res 1                ; the last HUD character to compare
 wall_drawn: .res 2              ; the quarter whose walls each page shows
 wall_tile: .res 1               ; the quarter whose tile iobuf holds
 boss_loaded: .res 1             ; the boss's shifts in iobuf / cur_big
@@ -137,6 +138,9 @@ cur_f:    .res 1                ; table entry wanted for the alien in hand
 pr_off:   .res ROWS*2           ; row sway offset / frame each page was drawn with
 pr_anim:  .res ROWS*2
 row_dirty: .res ROWS
+g_col:    .res 2                ; Meteor Storm (storm.s): the gauge's column,
+g_n:      .res 2                ; its lit bars, the distance bar's filled
+b_n:      .res 2                ; rows + 1, each page (0: none)
 render_vars_end:
 
 .code
@@ -324,12 +328,12 @@ render:
         jsr boss_erase
         jsr ufo_erase
         jsr ship_choose
-        jsr ship_erase
+        jsr st_erase             ; ship_erase, the storm's gauge (storm.s)
         jsr aliens_pass
         jsr form_draw
         jsr boss_draw            ; (STA: before the flying things)
         jsr msg_draw
-        jsr ship_draw
+        jsr st_draw              ; ship_draw, the storm's gauge and bar
         jsr movers_draw
         jsr ufo_draw
         jsr shots_draw
@@ -745,17 +749,8 @@ md_next:
         sta msg_text,x
         bra md_put
 md_pick:
-        sbc #5                   ; (carry set) the pickup's text, in LOWM
-        tax
-        lda pick_lo,x
-        sta src
-        lda pick_hi,x
-        sta src+1
-        ldy #MSG_LEN-1
-:       lda (src),y
-        sta msg_text,y
-        dey
-        bpl :-
+        sbc #5                   ; (carry set) the pickup's text, from aux
+        jsr pick_fetch           ; memory (storm.s)
 md_put: ldx #0
 :       phx
         lda msg_text,x
@@ -802,11 +797,19 @@ hud_draw:
         tax
 hk_cmp: lda hud_now,y
         cmp hud_key,x
-        bne hk_new
+        bne hk_diff
         dex
         dey
         bpl hk_cmp
         rts
+hk_diff:
+        pha                      ; only the score (keys 0-2) differs from
+        lda #HUD_N-1             ; what this page shows: only row 0 can
+        cpy #3                   ; (lot 11: ~1 900 cycles a kill)
+        bcs :+
+        lda #39
+:       sta hud_last
+        pla
 hk_new: sta hud_key,x            ; this key and the ones below it
         dex
         dey
@@ -814,11 +817,13 @@ hk_new: sta hud_key,x            ; this key and the ones below it
         lda hud_now,y
         bra hk_new
 :       jsr hud_fill
-        ldx #HUD_N-1
-        ldy #HUD_N-1
-        lda page
-        beq hd_char
-        ldy #2*HUD_N-1
+        ldx hud_last
+        txa
+        ldy page
+        beq :+
+        clc
+        adc #HUD_N
+:       tay
 hd_char:
         lda hud_buf,x
         cmp hud_seen,y
@@ -837,7 +842,11 @@ hd_char:
         ply
         plx
 hd_next:
-        dey
+        txa                      ; 128 compares are ~3 200 cycles: a scan
+        and #31                  ; every 32 (lot 11: the bench missed an
+        bne :+                   ; edge, the HUD's loop across the blank)
+        jsr _a2_vbl_scan
+:       dey
         dex
         bpl hd_char
         rts
@@ -895,19 +904,7 @@ hud_keys:
         lda storm
         sta hud_now+18
         beq hk_hi
-        lda m_speed              ; Meteor Storm (lot 8): speed 1..8 segments
-        lsr
-        lsr
-        lsr
-        inc a
-        sta hud_now+19
-        lda m_dist               ; distance left: (m_dist + 511) / 512
-        clc
-        adc #<511
-        lda m_dist+1
-        adc #>511
-        lsr
-        sta hud_now+20
+        jsr storm_keys           ; Meteor Storm: its percentage (storm.s)
 hk_hi:  lda score                ; HI = the score, once it is above
         cmp hi_score
         lda score+1
@@ -925,10 +922,6 @@ hk_copy:
 ; the timers from autofire_t: multiplier, autofire, shield, freeze
 hk_timer: .byte mult_t-autofire_t, 0, shield_t-autofire_t, freeze_t-autofire_t
 
-STORM_SPEED = 12                 ; Meteor Storm's row 0 (storm_template)
-STORM_DIST = 25
-STORM_CREDITS = 35
-STORM_BAR = 8
 ; Only the score changed since the last fill (most of them: kills): its
 ; digits and HI, not the ~4 000 cycles of the whole fill.
 hud_fill:
@@ -1122,37 +1115,6 @@ hh_put: sta hud_buf,x
         inx
         dey
         bne hh_char
-        rts
-; Meteor Storm's row 0: score, speed, distance left, credits.
-hf_storm:
-        ldx #39
-:       lda storm_template,x
-        sta hud_buf,x
-        dex
-        bpl :-
-        ldx #HUD_SCORE
-        jsr hud_score
-        ldx #STORM_SPEED
-        lda hud_now+19
-        ldy #STORM_BAR
-        jsr hud_barn
-        ldx #STORM_DIST
-        lda hud_now+20
-        ldy #STORM_BAR
-        jsr hud_barn
-        ldx #STORM_CREDITS
-        bra hf_credits
-; A = full segments -> Y characters at hud_buf,X.
-hud_barn:
-        sta tmp
-:       lda #GLYPH_FULL
-        dec tmp
-        bpl :+
-        lda #GLYPH_EMPTY
-:       sta hud_buf,x
-        inx
-        dey
-        bne :--
         rts
 
 ; A = character, X = top row, col: its 8 rows (STA). Clobbers A, X, Y, src.

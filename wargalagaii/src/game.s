@@ -29,7 +29,9 @@
 .export mus_ticks, shop, rank, noshop, shop_can, shop_buy, shop_exit, shop_screen, sh_cur
 .import __SHOPM_LAST__, __LOWM_LAST__, __LOWHI_START__, __LOWHI_LAST__
 .import __LOWBSS_RUN__, __LOWBSS_SIZE__, __AUXLV_START__, __AUXLV_LAST__
+.import __LOW2_START__, __LOW2_LAST__, __AUXPK_LAST__
 .export storm, station, m_speed, m_dist, m_acc, m_time, m_wait, m_crash, storm_step, storm_spawn
+.export m_held, m_rel, m_end, storm_prize, storm_pct, st_draw, g_col, b_n
 .export m_round, m_pairs, m_first, m_card, m_up, mem_screen, mem_loop, mem_deal, mem_turn
 .export mem_sec, mem_cx, mem_cy, station_exit
 .export front_skip, front_run, front_main, fr_panel, fr_pos, fr_name, rec_buf, rec_state, rec_save, rec_err
@@ -286,6 +288,9 @@ m_acc:       .res 1             ; rows since the last rock or coin
 m_time:      .res 2             ; steps flown (the prize)
 m_wait:      .res 1             ; steps of METEOR STORM before the rocks
 m_crash:     .res 1             ; a rock hit: the end once the ship is out
+m_held:      .res 2             ; steps flown with fire held (lot 11)
+m_rel:       .res 1             ; fire let go once (no 101 %)
+m_end:       .res 1             ; steps of the prize's name before the end
 m_dy:        .res 1             ; this step's rows
 m_round:     .res 1             ; station: grids cleared
 m_pairs:     .res 1             ; pairs left
@@ -446,7 +451,14 @@ done:   rts
 ; WG2.AUX -> aux memory at AUX_BASE (every small and big alien design x
 ; tint), 8 KB at a time through HGR page 2 (not shown yet). A failure: a
 ; message, back to ProDOS.
-AUX_ALL = BOSS_AUX + 7 * BOSS_SHIFT - AUX_BASE
+STORM_AUX = $B100               ; lot 11: the small and big rocks,
+LOW2_AUX = $B900                ; (the pickup texts at $B600: game.cfg AUXPK)
+LOW2_LEN = __LOW2_LAST__ - __LOW2_START__
+AUX_ALL = LOW2_AUX + $200 - AUX_BASE
+.assert BOSS_AUX + 7 * BOSS_SHIFT <= STORM_AUX, error, "the boss runs into the rocks"
+.assert STORM_AUX + ALIEN_TABLE + BIG_TABLE <= PICK_AUX, error, "the rocks run into the texts"
+.assert __AUXPK_LAST__ <= LOW2_AUX, error, "the texts run into LOW2"
+.assert LOW2_LEN <= $200, error, "LOW2: WG2.AUX keeps $200 for it"
 .assert WALL_AUX + 4 * WALL_TILE <= BOSS_AUX, error, "the walls run into the boss"
 .assert LV_LEN <= $0600, error, "the level records run into the walls"
 .assert HI_LEN <= $0400, error, "the resident data runs into the level records"
@@ -568,6 +580,7 @@ al_close:
         sta $43
         clc                      ; aux -> main
         jsr $C311                ; AUXMOVE
+        jsr low_boot             ; and $0200's (lot 11)
         lda #<HI_AUX             ; the resident data -> $1C40, for good
         sta $3C
         lda #>HI_AUX
@@ -625,8 +638,8 @@ pack_check:
         stx af_len+1
         jsr aux_fetch
 pc_second:
-        lda storm                ; (the rock alone)
-        jne pc_done
+        lda storm                ; (the rocks: storm.s)
+        jne storm_fetch
         lda pack_loaded          ; (a boss level: its escorts alone)
         cmp #$40
         jcs boss_check
@@ -1183,13 +1196,6 @@ GLYPH_BAR0  = $66
 .assert * = bbfont + ($67 - $20) * 8, error, "HUD glyphs follow bbfont"
 ; HUD (lot 10: row 0 and the walls): tools/hud.py.
 .include "hud.inc"
-storm_template:                  ; Meteor Storm (lot 8)
-        .byte "000000 SPEED"
-        .res 8, GLYPH_EMPTY
-        .byte " DIST"
-        .res 8, GLYPH_EMPTY
-        .byte " $0000 "
-.assert * - storm_template = 40, error, "storm HUD template: 40 characters"
 msg_over: .byte " GAME OVER  "
 extra_letters: .byte "EXTRA"
 ; Lot 5 tables. A kill's drop: drop_table[rand & 63] (weights: model.py).

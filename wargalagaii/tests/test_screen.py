@@ -56,6 +56,8 @@ def tables():
                   for c in range(len(sprites.SMALL) * len(sprites.TINTS))}
     out['shipboom'] = [sboom[f][s] for s in range(7) for f in range(2)]
     out['rock'] = sprites.rock_shapes() + [boom[f][s] for s in range(7) for f in range(2)]
+    out['small_rock'] = sprites.small_rock_shapes() + [boom[f][s] for s in range(7) for f in range(2)]
+    out['big_rock'] = sprites.big_rock_shapes()        # (lot 11)
     out['big'] = {c: sprites.big_shapes(c // 4, c % 4) for c in range(len(sprites.BIG) * len(sprites.TINTS))}
     out['boss'] = sprites.boss_shapes()[1]             # (lot 10c: 7 shifts)
     return out
@@ -81,6 +83,7 @@ def hud_state(st):
     out = {name: st[name] for name in ('lives', 'armour', 's_level', 'shot_limit', 't_level', 'extra_bits',
                                         'storm', 'm_speed')}
     out.update(score=st['score'], credits=st['credits'], hi_score=st['hi_score'], m_dist=st['m_dist'],
+               m_time=st['m_time'], m_held=st['m_held'], m_rel=st['m_rel'][0],
                mult=st['mult'][0], rank=st['rank'][0], marks=st['marks'][0],
                **{t: word(st[t]) for t in ('mult_t', 'autofire_t', 'shield_t', 'freeze_t')})
     return out
@@ -97,13 +100,13 @@ def level_text(st):
 def expected(st, T, glyphs):
     page = bytearray(8192)
     fly = T['rock'] if st['storm'] else T['fly'][M.alien_combo(st['level'])]
-    fly2 = T['fly'][M.alien_combo2(st['level'])]
-    design = 0 if st['storm'] else M.level_form(st['level'])[3]
+    fly2 = T['small_rock'] if st['storm'] else T['fly'][M.alien_combo2(st['level'])]
+    design = 2 if st['storm'] else M.level_form(st['level'])[3]     # (lot 11: row 1, small rocks)
 
     def table(i):
         """Lot 10b: a row of the second species (its explosion is the same)."""
         return fly2 if design >> (i // M.COLS) & 1 else fly
-    big = T['big'][M.big_combo(st['level'])]
+    big = T['big_rock'] if st['storm'] else T['big'][M.big_combo(st['level'])]
 
     def drawn_big(i):
         return st['a_big'][i] and st['a_state'][i] != M.BOOM
@@ -155,6 +158,17 @@ def expected(st, T, glyphs):
         x = st['ship_c']
         rows = T['ship'][x % 7] if want == 0 else T['shipboom'][x % 7 * 2 + want - 1]
         put(rows, cell_byte(x), M.SHIP_Y, 'sta')
+    if st['storm']:                                # lot 11: the gauge (STA), the bar
+        if not st['ship_state']:
+            col = cell_byte(st['ship_c']) + 3
+            lit = st['m_speed'] >> 1
+            for k in range(26):
+                v = (0x08, 0x04)[col & 1] if k >= lit else \
+                    (0x2A, 0x55, 0xAA, 0xD5)[(col & 1) | (2 if k < 8 else 0)]
+                put([[v]], col, 190 - 2 * k, 'sta')
+        flown = (M.M_DIST - (st['m_dist'][0] | st['m_dist'][1] << 8)) >> 5
+        for k in range(144):
+            put([[0xD5 if k < flown else 0x88]], 35, 32 + 143 - k, 'sta')
     for i in range(M.NALIENS):
         s, y = st['a_state'][i], st['a_y'][i]
         if (M.flying(s) or s == M.BOOM) and shown(i):
@@ -195,6 +209,7 @@ FIELDS = {'ship_c': 1, 'shot_limit': 1, 'shot_y': M.MAX_SHOTS, 'shot_c': M.MAX_S
           'obj_kind': M.N_OBJ, 's_level': 1, 't_level': 1, 'extra_bits': 1, 'shield_t': 2,
           'level': 1, 'loop': 1, 'phase': 1, 'a_big': M.NALIENS, 'boss_hp': 1, 'boss_x': 1,
           'boss_boom': 1, 'hurry': 1, 'h_x': 1, 'storm': 1, 'm_wait': 1, 'm_speed': 1, 'm_dist': 2,
+          'm_time': 2, 'm_held': 2, 'm_rel': 1,
           'demo': 1, 'pick_msg': 1, 'pick_t': 1, 'mult': 1, 'mult_t': 2, 'autofire_t': 2, 'freeze_t': 2,
           'rank': 1, 'marks': 1, 'hi_score': 3}
 
@@ -346,7 +361,8 @@ def main():
     check(a.disk, a.labels, 80, a.seed, every=9, start=2)      # big aliens (sway, dives, shots)
     check(a.disk, a.labels, 240, a.seed, every=11, start=24)   # the boss, its fall
     check(a.disk, a.labels, 60, a.seed, every=5, start=0, hurry=True)   # the saucer
-    check(a.disk, a.labels, 100, a.seed, every=9, start=3, cheats=[('subgame', 1)])   # Meteor Storm
+    # Meteor Storm, all of it (lot 11: gauge, distance bar, prize, both wiped after)
+    check(a.disk, a.labels, 330, a.seed, every=11, start=3, cheats=[('subgame', 1)])
     check(a.disk, a.labels, 120, a.seed, every=19, demo=True)  # every showcase stage (~2 400 frames: 2 550 steps)
 
 

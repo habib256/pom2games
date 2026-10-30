@@ -20,6 +20,8 @@ Sources :
   sur [warblade.fandom.com/wiki/Gameplay_Basics](https://warblade.fandom.com/wiki/Gameplay_Basics)
   et [Gameplay_Advanced](https://warblade.fandom.com/wiki/Gameplay_Advanced) ;
   [Bonuses](https://warblade.fandom.com/wiki/Bonuses)
+- [MS] [warblade.fandom.com/wiki/Meteor_Storm](https://warblade.fandom.com/wiki/Meteor_Storm) ;
+  [B] tableau des bonus de la page Bonuses (lus le 2026-10-30, API MediaWiki)
 - [R] Amiga Report 3.03, test de *Deluxe Galaga 2.5*
   ([copie](https://bigbookofamigahardware.com/amigareport/www.amigareport.com/ar303/review3.html))
 - [A] [Aminet, DGalaga26C.readme](https://morphos.aminet.net/game/shoot/DGalaga26C.readme)
@@ -123,6 +125,9 @@ l'ordre de l'arc-en-ciel débloque le Super Autofire [F, Advanced].
 | Memory Station : paires, chronométré | **confirmé, précisé** | temps = jauge T ; grille qui grandit à chaque réussite, prime +25 000 à chaque fois ; les paires donnent des bonus (S, B, vie, lettres, marques, crédits) ; le pavillon pirate termine le sous-jeu [M][F][R] |
 | — | ajout | Troisième sous-jeu, *Gem Drop* (100 gemmes ramassées) [W] |
 | On y entre par une icône lâchée par un alien | **confirmé** | seule façon d'y entrer [F §3.2] |
+| Meteor Storm : l'entrée (relu le 2026-10-30) | **précisé** | l'icône Meteorstorm est un bonus *de base* (listé à l'écran d'accueil), aussi tiré par le bonus Random ; l'attraper **termine le niveau en cours** et lance la tempête, le niveau suivant vient après [MS][B] |
+| Meteor Storm : déroulement (relu le 2026-10-30) | **précisé** | pas de tir : le bouton est l'accélérateur ; jauge **à côté du vaisseau** (8 barres rouges de mise en route, puis 18 vertes) et pourcentage dessous ; barre de distance **verticale à droite** ; rochers de tailles variées (49 dessins), tombant au hasard, **de plus en plus vite vers la fin** ; à ramasser : gemmes (×5 vers le Gem Drop), argent 50/100/250, points 1 000/5 000/10 000 ; choc = quelques points et retour au jeu, sans perte de vie [MS][M] |
+| Meteor Storm : prime d'arrivée | **précisé** | selon le pourcentage de vitesse : 0-75 % 1 000 000 ; 95-99 % 1 000 000 + 1 000 crédits ; 100 % 5 000 000 + 5 000 ; bouton tenu tout du long 10 000 000 + 25 000 ; multipliée par ×2/×5 actifs ; secrets : 3 crânes verts → un ×2/×5 tombe au début, ivre → prime doublée [MS] |
 
 ## Son
 
