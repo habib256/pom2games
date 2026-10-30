@@ -442,6 +442,7 @@ int main(void)
     dhgr_show_page(1);
     zone_init();
     game_load();
+    title_page = persist.reached >= 14u;   /* the next mission's page */
     load_layout(persist.lab);
     board_owner = S_LAB;
     enter_title();

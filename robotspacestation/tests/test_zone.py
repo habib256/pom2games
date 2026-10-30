@@ -337,6 +337,12 @@ def help_page(disk, L):
                  bytes((4, 4, 3, 4, 4, 3, 4, 4, 3)))
 
 
+def next_page(disk, L):
+    """14 missions won: the title opens on the second page (the next one)."""
+    r = run(disk, [BOOT, 'wait:60', idle(L), L.peek('_title_page')])
+    return check('14 won: the title on page 2', r.mem(L['_title_page'], 1), b'\x01')
+
+
 def records_page(disk, L):
     """RECORDS on the title: the missions won with their fewest gates."""
     steps = [BOOT, 'wait:60'] + click(90, 167) + ['wait:60', idle(L), L.peek('_screen'),
@@ -388,6 +394,7 @@ def main():
     fails += help_page(args.disk, L)
     fails += records_page(disk_with_save(save_bytes(EMPTY, reached=9, best=(2, 3, 4, 5, 2, 2, 7, 4, 10)),
                                          'records'), L)
+    fails += next_page(disk_with_save(save_bytes(EMPTY, reached=14), 'reached14'), L)
     rss2 = b'RSS2' + save_bytes(EMPTY, reached=5)[4:SAVE_SIZE - BEST_SLOTS]
     fails += old_save(disk_with_save(rss2, 'rss2'), L)
     # RSS1: before drone B too (its layout, 120 bytes, and the records)

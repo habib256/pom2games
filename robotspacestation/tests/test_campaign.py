@@ -31,10 +31,11 @@ OPEN_TICKS = 400                                    # the drones settle, the doo
 
 
 def title_click(m):
-    """Mission m on the title: two columns of seven a page, PAGE (x 120)
-    for the second one (src/title.c)."""
+    """Mission m on the title: two columns of seven a page (src/title.c).
+    The saves here have reached = m: from 14 on, the title opens on the
+    second page by itself."""
     if m >= 14:
-        return click(120, 167) + ['wait:120'] + title_click(m - 14)
+        return title_click(m - 14)
     return click(20, 92 + 9 * m + 2) if m < 7 else click(72 + 30, 92 + 9 * (m - 7) + 2)
 
 
