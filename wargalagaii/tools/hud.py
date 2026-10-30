@@ -7,7 +7,7 @@ Warblade's panels. render.s fills hud_buf from the state (hud_fill), then
 rewrites on a page only the characters that differ from what it shows.
 
     row 0     score, HI and the best score, $ and the credits
-              (Meteor Storm: score, SPEED, DIST, credits: storm_template)
+              (Meteor Storm: score, SPEED %, credits: storm.s storm_template)
     left      lives (ships), armour (shields), the gauges S and B (bars of
               half segments), T (seconds), the letters E X T R A
     right     the score multiplier and the timed bonuses as draining bars
@@ -129,18 +129,26 @@ def side(out, f, st):
         out[f[f'mark{k}']] = ord('1') + k if st['marks'] >> k & 1 else ord('-')
 
 
+def storm_pct(st):
+    """model.Game.storm_pct from the state."""
+    time = st['m_time'][0] | st['m_time'][1] << 8
+    held = st['m_held'][0] | st['m_held'][1] << 8
+    if not time:
+        return 0
+    if not st['m_rel']:
+        return 101
+    return (100 * held + (time >> 1)) // time
+
+
 def storm_top(st):
-    """Meteor Storm's row 0 (game.s storm_template): score, SPEED (1..8),
-    DIST (rows left / 512, rounded up), credits."""
+    """Meteor Storm's row 0 (storm.s storm_template, lot 11): score, SPEED
+    and the percentage (no leading zero), credits."""
     score = st['score']
     digits_ = f'{score[2]:02X}{score[1]:02X}{score[0]:02X}'
     credits = f'{st["credits"][1]:02X}{st["credits"][0]:02X}'
-    seg = lambda n: [GLYPH_FULL] * n + [GLYPH_EMPTY] * (8 - n)
-    dist = st['m_dist'][0] | st['m_dist'][1] << 8
-    row = (list(f'{digits_} SPEED'.encode()) + seg(st['m_speed'] // 8 + 1) + list(b' DIST')
-           + seg((dist + 511) // 512) + list(f' ${credits} '.encode()))
+    row = f'{digits_}      SPEED {storm_pct(st):3d}%          ${credits}   '
     assert len(row) == 40
-    return row
+    return list(row.encode())
 
 
 def emit():

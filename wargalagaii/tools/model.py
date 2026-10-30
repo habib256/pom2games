@@ -13,7 +13,8 @@ against bombs then aliens, pickups, enemy fire, ship and bonus timers,
 level (end, teleport, next level).
 
 Sub-games (lot 8), after the level whose icon was caught: Meteor Storm
-(storm_step: the ship flies through falling rocks, fire held = faster) and
+(storm_step: the ship flies through falling rocks, fire held = faster;
+lot 11, Warblade: its icon ends the level at once, but a boss's) and
 Memory Station (station: the game waits, the screen is shop.s's overlay;
 its rules mem_deal / mem_turn here).
 
@@ -118,26 +119,44 @@ RANK_MAX = 99
 # reach, dropping a bomb that drifts towards the ship every HURRY_FIRE steps.
 HURRY_T, HURRY_Y, HURRY_FIRE = 1800, 10, 12
 BIG_X0, BIG_CELLS, BIG_Y0, BIG_H = -2, 10, -8, 16
-# Lot 8, Meteor Storm: rocks are aliens (slots 0..M_ROCKS-1) in state ROCK,
-# drawn with the rock table in cur_alien. Fire held: m_speed + M_ACC, else
-# - M_DEC (slowing is faster), 0..M_SPEED_MAX; the field falls dy = M_DY0 +
-# m_speed // 8 rows a step (rocks, coins, and the stars on top of their own
-# speed, dy // 2). A rock or a coin every M_SPACING rows of field; the
-# distance M_DIST in rows. A rock hits: the ship explodes, no life lost, the
-# storm ends when the explosion does. Through: a prize by the time taken
-# (steps // 128, ~4 s: the average speed). First M_WAIT steps: METEOR STORM.
+# Meteor Storm (lot 8, Warblade's rules lot 11): rocks are aliens (slots
+# 0..M_ROCKS-1) in state ROCK: slots 0-7 (formation row 0) a medium rock
+# (cur_alien) or a big one (a_big: cur_big), slots 8-15 (row 1) a small one
+# (cur_alien2), each falling a_hp rows a step faster than the field (small
+# 2, medium 1, big 0). Fire held: m_speed + M_ACC, else - M_DEC (slowing is
+# faster), 0..M_SPEED_MAX; the gauge beside the ship shows m_speed // 2 bars
+# (26: 8 red to warm up, then 18 green). The field falls dy rows a step:
+# M_DY0, + 1 past a third of the distance, + 2 past two thirds (the storm
+# speeds up towards its end), + 3 * (m_speed - 16) // 16 once warmed up
+# (rocks, objects, and the stars on top of their own speed, dy // 2). A rock
+# or an object every M_SPACING rows of field; M_DIST rows to fly (the bar
+# right of the field). Speed percentage: steps with fire held / steps flown,
+# rounded (101 % while fire was never let go). A rock hits: the ship
+# explodes, no life lost, 500 points per 256 rows flown, the storm ends with
+# the explosion. Through: the prize by the percentage (M_TIERS), the
+# multiplier applied to its points, then M_END steps with its name.
 ROCK = 8
-M_ROCKS = 12
-M_SPEED_MAX, M_ACC, M_DEC = 63, 1, 2
+M_ROCKS = 16
+M_SMALL0 = 8                    # first small rock slot (formation row 1)
+M_SPEED_MAX, M_ACC, M_DEC = 52, 1, 2
+M_WARM = 16                     # m_speed of the 8 red bars
 M_DY0 = 2
 M_SPACING = 28
-M_DIST = 4096
+M_DIST = 4608                   # 3 * $600: thirds on the high byte
 M_WAIT = 60
+M_END = 60
 M_TOP = 248                     # a rock starts at row -8
-M_COIN = 48                     # rand8 below: a coin instead of a rock
-M_COINS = ['c10', 'c10', 'c10', 'c50', 'c50', 'c100', 'c100', 'c200']
-M_TIME_MAX = 2047
-M_PRIZE = [max(1, 32 - 2 * b) for b in range(16)]  # thousands, by steps // 128
+M_PICK = 40                     # rand8 below: an object instead of a rock
+M_PICKS = ['c50', 'c50', 'c100', 'c200', 'p1k', 'p1k', 'p5k', 'p10k']
+M_BIG, M_MEDIUM = 64, 160       # rand8 below: big, else below: medium, else small
+M_XMAX = 93                     # rock cell: 2 + (rand & 127, - 64 above M_XMAX)
+M_SHIP_MAX = 97                 # the ship's last cell: gauge byte <= 34, bar 35
+M_TIME_MAX = 4095
+M_CRASH_PTS = 500               # per 256 rows flown
+# (name, lowest percentage, points, credits): MEGA = fire never let go.
+M_TIERS = [('XTREME BONUS', 100, 250000, 5000), ('SUPER BONUS', 95, 100000, 1000),
+           ('EXTRA BONUS', 0, 50000, 0)]
+M_MEGA = ('MEGA BONUS', 101, 500000, 5000)
 # Memory Station: grids of cols x rows cards, row-major; every pair of a
 # kind drawn from MEM_KINDS, one pirate flag (the skull icon) that ends it.
 # A pair turned: its bonus (take); the grid cleared: MEM_PRIZE points and
@@ -268,13 +287,18 @@ GAUGE_POINTS = 500              # a gauge icon at its maximum
 AUTO_GAP = 4                    # autofire: a volley every 4 steps, fire held
 KINDS = ['c10', 'c50', 'c100', 'c200', 's', 'b', 't', 'w1', 'w2', 'w3', 'auto', 'armour',
          'life', 'skull', 'e', 'x', 'lt', 'r', 'a', 'x2', 'x5', 'shield', 'freeze',
-         'mark0', 'mark1', 'mark2', 'mark3', 'mark4', 'mark5', 'markdark', 'meteor', 'memory']
+         'mark0', 'mark1', 'mark2', 'mark3', 'mark4', 'mark5', 'markdark', 'meteor', 'memory',
+         'p1k', 'p5k', 'p10k']
 K = {name: i for i, name in enumerate(KINDS)}
 COINS = {'c10': 10, 'c50': 50, 'c100': 100, 'c200': 200}
-WEIGHTS = {'c10': 10, 'c50': 5, 'c100': 2, 'c200': 1, 's': 3, 'b': 3, 't': 3, 'w1': 2, 'w2': 3,
+POINT_TABS = {'p1k': 1000, 'p5k': 5000, 'p10k': 10000}     # Meteor Storm only (lot 11)
+WEIGHTS = {'c10': 5, 'c50': 5, 'c100': 2, 'c200': 1, 's': 3, 'b': 3, 't': 3, 'w1': 2, 'w2': 3,
            'w3': 2, 'auto': 2, 'armour': 2, 'life': 1, 'skull': 3, 'e': 1, 'x': 1, 'lt': 1,
            'r': 1, 'a': 1, 'x2': 2, 'x5': 1, 'shield': 2, 'freeze': 3, 'mark0': 1, 'mark1': 1,
-           'mark2': 1, 'mark3': 1, 'mark4': 1, 'mark5': 1, 'markdark': 1, 'meteor': 1, 'memory': 1}
+           'mark2': 1, 'mark3': 1, 'mark4': 1, 'mark5': 1, 'markdark': 1, 'meteor': 4, 'memory': 3,
+           'p1k': 0, 'p5k': 0, 'p10k': 0}
+# Sub-games: meteor 4, memory 3 (were 1 and 1, c10 10: one storm icon
+# every ~16 levels; now ~one sub-game icon every 2 levels, as in Warblade).
 DROP_TABLE = [K[n] for n in KINDS for _ in range(WEIGHTS[n])]
 assert len(DROP_TABLE) == 64
 WEAPONS = [[(3, 0)], [(1, 0), (5, 0)], [(3, 0), (1, -1), (5, 1)]]   # (cell, dx) per shot
@@ -288,10 +312,12 @@ PICK_TEXT = ['+10 CREDITS', '+50 CREDITS', '+100 CREDITS', '+200 CREDITS', 'EXTR
              'SHIP ARMOUR', 'EXTRA LIFE', 'SKULL', 'LETTER E', 'LETTER X', 'LETTER T', 'LETTER R',
              'LETTER A', 'SCORE X2', 'SCORE X5', 'SHIELD', 'FREEZE', 'RANK MARK 1', 'RANK MARK 2',
              'RANK MARK 3', 'RANK MARK 4', 'RANK MARK 5', 'RANK MARK 6', 'DARK MARK',
-             'METEOR STORM', 'MEMORY GAME',
-             'BONUS POINTS', 'LESS SPEED', 'LESS BULLET', 'BONUS LOST']
-PM_POINTS, PM_LESS_SPEED, PM_LESS_BULLET, PM_LOST = range(32, 36)
-assert len(PICK_TEXT) == PM_LOST + 1 and max(map(len, PICK_TEXT)) <= 12
+             'METEOR STORM', 'MEMORY GAME', '+1000 POINTS', '+5000 POINTS', '+10000 PTS',
+             'BONUS POINTS', 'LESS SPEED', 'LESS BULLET', 'BONUS LOST',
+             M_MEGA[0], *(t[0] for t in M_TIERS)]
+PM_POINTS, PM_LESS_SPEED, PM_LESS_BULLET, PM_LOST = range(len(KINDS), len(KINDS) + 4)
+PM_MEGA = PM_LOST + 1           # then the M_TIERS (lot 11)
+assert len(PICK_TEXT) == PM_MEGA + 1 + len(M_TIERS) and max(map(len, PICK_TEXT)) <= 12
 
 
 def pick_bad(msg):
@@ -393,6 +419,7 @@ class Game:
         self.hurry = self.h_x = self.h_dir = self.h_t = 0
         self.storm = self.station = 0
         self.m_speed = self.m_dist = self.m_acc = self.m_time = self.m_wait = self.m_crash = 0
+        self.m_held = self.m_rel = self.m_end = 0
         self.m_round = self.m_pairs = 0
         self.m_first = MEM_NONE
         self.m_card = [0] * MEM_CELLS
@@ -585,6 +612,10 @@ class Game:
         if self.lkind == BONUS and self.bonus_kills == NALIENS:
             self.add_score(BONUS_PRIZE)
             self.perfects = min(255, self.perfects + 1)   # (lot 10: GAME BONUSES)
+        self.level_over()
+
+    def level_over(self):
+        """The teleport: shots, bombs, objects and the saucer gone."""
         self.phase, self.clear_t = 1, TELEPORT_T
         self.hurry = 0
         self.shot_y = [0] * MAX_SHOTS
@@ -663,35 +694,52 @@ class Game:
         self.shop = 0
         self.next_level()
 
-    # --- Meteor Storm (lot 8) ----------------------------------------------
+    # --- Meteor Storm (lot 8; Warblade's rules lot 11) ---------------------
     def storm_start(self):
         self.subgame = 0
         self.storm = 1
-        self.m_speed = self.m_acc = self.m_time = self.m_crash = 0
+        self.m_speed = self.m_acc = self.m_time = self.m_held = self.m_crash = self.m_end = 0
+        self.m_rel = 0
         self.m_dist, self.m_wait = M_DIST, M_WAIT
+        self.ship_c = min(self.ship_c, M_SHIP_MAX)
         for i in range(M_ROCKS):
-            self.a_big[i], self.a_hp[i] = 0, 1
+            self.a_big[i] = 0
 
     def storm_end(self):
         """Back to a teleport, then the shop or the next level."""
         self.storm = 0
         self.a_state = [DEAD] * NALIENS
+        self.a_big = [0] * NALIENS
         self.obj_y = [0] * N_OBJ
         self.phase, self.clear_t = 1, TELEPORT_T
+
+    def storm_pct(self):
+        """The speed percentage (0..100, 101: fire never let go)."""
+        if not self.m_time:
+            return 0
+        if not self.m_rel:
+            return 101
+        return (100 * self.m_held + (self.m_time >> 1)) // self.m_time
+
+    def storm_dy(self):
+        dy = M_DY0 + (self.m_dist < 2 * M_DIST // 3) + (self.m_dist < M_DIST // 3)
+        if self.m_speed > M_WARM:
+            dy += 3 * (self.m_speed - M_WARM) >> 4
+        return dy
 
     def storm_step(self, move_dir, held):
         alive = not self.ship_state
         if alive:
             speed = self.s_level + 1
             if move_dir > 0:
-                self.ship_c = min(self.ship_c + speed, SHIP_MAX)
+                self.ship_c = min(self.ship_c + speed, M_SHIP_MAX)
             elif move_dir < 0:
                 self.ship_c = max(self.ship_c - speed, 0)
         if alive and held:
             self.m_speed = min(M_SPEED_MAX, self.m_speed + M_ACC)
         else:
             self.m_speed = max(0, self.m_speed - M_DEC)
-        dy = M_DY0 + self.m_speed // 8
+        dy = self.storm_dy()
         for k in range(N_OBJ):
             y = self.obj_y[k]
             if y:
@@ -706,58 +754,86 @@ class Game:
         for i in reversed(range(NALIENS)):
             s = self.a_state[i]
             if s == ROCK:
-                y = (self.a_y[i] + dy) & 0xFF
+                y = (self.a_y[i] + dy + self.a_hp[i]) & 0xFF
                 self.a_y[i] = y
                 if 192 <= y < M_TOP:
                     self.a_state[i] = DEAD
             elif s == BOOM:
                 self.alien(i)
         self.flying = [i for i in reversed(range(NALIENS)) if self.target(i) and self.shown(i)]
-        if self.m_wait:
+        if self.m_end:                  # through: the prize named, then the end
+            self.m_end -= 1
+            if not self.m_end:
+                self.storm_end()
+                return
+        elif self.m_wait:
             self.m_wait -= 1
         else:
             self.m_acc += dy
             if self.m_acc >= M_SPACING:
                 self.m_acc -= M_SPACING
                 self.storm_spawn()
-            self.m_time = min(M_TIME_MAX, self.m_time + 1)
-        if alive:
+            if self.m_time < M_TIME_MAX:
+                self.m_time += 1
+                if alive and held:
+                    self.m_held += 1
+            if not (alive and held):
+                self.m_rel = 1
+        if alive and not self.m_end:
             if not self.invul_t and not self.shield_t:
                 for i in self.flying:
                     x0, x1, y0, y1 = self.box(i)
+                    if i >= M_SMALL0 and self.a_state[i] == ROCK:     # the small rock's drawing
+                        x0, x1, y0, y1 = x0 + 1, x1 - 1, y0 + 1, y1 - 1
                     if x1 >= self.ship_c + SHIP_HIT_X0 and x0 <= self.ship_c + SHIP_HIT_X1 \
                             and y1 >= SHIP_HIT_Y0 and y0 <= SHIP_HIT_Y1:
                         self.explode(i)
                         self.ship_state, self.m_crash = DEATH_T, 1     # no life lost
+                        for _ in range((M_DIST - self.m_dist) >> 8):
+                            self.add_score(M_CRASH_PTS)
                         break
             if not self.ship_state:
                 self.pickups()
                 if not self.m_wait:
                     if self.m_dist <= dy:
                         self.m_dist = 0
-                        self.add_score(1000 * M_PRIZE[self.m_time >> 7])
-                        self.storm_end()
-                        return
-                    self.m_dist -= dy
+                        self.storm_prize()
+                    else:
+                        self.m_dist -= dy
         self.ship_timers()
         if self.m_crash and not self.ship_state:
             self.storm_end()
 
+    def storm_prize(self):
+        pct = self.storm_pct()
+        k = 0 if pct == 101 else 1 + next(j for j, t in enumerate(M_TIERS) if pct >= t[1])
+        _, _, points, credits = (M_MEGA, *M_TIERS)[k]
+        self.add_score(points)
+        self.credits = min(9999, self.credits + credits)
+        self.pick_msg, self.pick_t = PM_MEGA + k, M_END
+        self.m_end = M_END
+
     def storm_spawn(self):
-        if self.rand8() < M_COIN:
-            kind = K[M_COINS[self.rand8() & 7]]
+        if self.rand8() < M_PICK:
+            kind = K[M_PICKS[self.rand8() & 7]]
             for k in reversed(range(N_OBJ)):
                 if not self.obj_y[k]:
                     self.obj_y[k], self.obj_kind[k] = FIELD_TOP, kind
-                    self.obj_k[k] = self.rand8() & 15
+                    c = self.rand8() & 15
+                    self.obj_k[k] = 7 if c == 15 else c      # (byte 35: the bar)
                     return
             return
+        size = self.rand8()
         x = self.rand8() & 127
-        if x > ALIEN_MAX:
+        if x > M_XMAX:
             x -= 64
-        for i in reversed(range(M_ROCKS)):
+        x += 2
+        first, last = (M_SMALL0, M_ROCKS) if size >= M_MEDIUM else (0, M_SMALL0)
+        for i in reversed(range(first, last)):
             if not self.a_state[i]:
                 self.a_state[i], self.a_x[i], self.a_y[i] = ROCK, x, M_TOP
+                self.a_big[i] = int(size < M_BIG)
+                self.a_hp[i] = 2 if size >= M_MEDIUM else int(size >= M_BIG)
                 return
 
     # --- Memory Station (lot 8) ---------------------------------------------
@@ -862,6 +938,8 @@ class Game:
         self.pick_msg = K[kind]
         if kind in COINS:
             self.credits = min(9999, self.credits + COINS[kind])
+        elif kind in POINT_TABS:
+            self.add_score(POINT_TABS[kind])
         elif kind == 's':
             if self.s_level < S_MAX:
                 self.s_level += 1
@@ -923,8 +1001,14 @@ class Game:
             self.marks |= 1 << int(kind[4])          # ranks: lot 7
         elif kind == 'markdark':
             self.mark_dark = 1
-        else:                                        # sub-games: lot 8
-            self.subgame = 1 if kind == 'meteor' else 2
+        elif kind == 'meteor':                       # sub-games: lot 8
+            self.subgame = 1
+            if self.lkind != BOSS:                   # lot 11: the level ends now
+                self.a_state = [DEAD] * NALIENS
+                self.entry_w = ROWS
+                self.level_over()
+        else:
+            self.subgame = 2
 
     # --- collisions ---------------------------------------------------------
     def explode(self, i):
@@ -1234,6 +1318,9 @@ class Game:
                 'm_dist': self.m_dist.to_bytes(2, 'little'),
                 'm_acc': bytes([self.m_acc]),
                 'm_time': self.m_time.to_bytes(2, 'little'),
+                'm_held': self.m_held.to_bytes(2, 'little'),
+                'm_rel': bytes([self.m_rel]),
+                'm_end': bytes([self.m_end]),
                 'm_wait': bytes([self.m_wait]),
                 'm_crash': bytes([self.m_crash]),
                 'level': bytes([self.level]),

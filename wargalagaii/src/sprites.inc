@@ -591,7 +591,7 @@ shipboom_s6f1:
         .byte $C0,$A0,$90
         .byte $80,$80,$80
 ; objects: 26 bytes each (2 a row), in model.KINDS order
-NKINDS = 32
+NKINDS = 35
 ICON_H = 13
 .pushseg
 .segment "HIDATA"                ; resident at $1C40 (game.cfg)
@@ -628,9 +628,12 @@ icons:
         .byte $0C,$18,$30,$06,$40,$01,$00,$00,$70,$07,$0C,$18,$03,$60,$03,$60,$03,$60,$03,$60,$03,$60,$0C,$18,$70,$07   ; white
         .byte $00,$00,$00,$00,$00,$00,$FC,$85,$EF,$97,$FF,$D7,$FE,$DD,$EF,$DF,$FE,$97,$A8,$85,$00,$00,$00,$00,$00,$00   ; orange
         .byte $2A,$55,$2A,$55,$0A,$50,$2A,$45,$2A,$45,$2A,$50,$2A,$54,$2A,$55,$2A,$54,$2A,$55,$2A,$55,$00,$00,$00,$00   ; green
+        .byte $2A,$55,$2A,$54,$0A,$54,$2A,$54,$2A,$54,$0A,$50,$2A,$55,$0A,$51,$0A,$54,$0A,$55,$0A,$54,$0A,$51,$2A,$55   ; green
+        .byte $AA,$D5,$8A,$D0,$8A,$D5,$8A,$D0,$AA,$D1,$8A,$D0,$AA,$D5,$8A,$D1,$8A,$D4,$8A,$D5,$8A,$D4,$8A,$D1,$AA,$D5   ; orange
+        .byte $7F,$7F,$33,$60,$33,$66,$33,$66,$33,$66,$33,$60,$7F,$7F,$4F,$79,$0F,$7E,$4F,$7F,$0F,$7E,$4F,$79,$7F,$7F   ; white
 .popseg
-icon_lo: .lobytes icons+0,icons+26,icons+52,icons+78,icons+104,icons+130,icons+156,icons+182,icons+208,icons+234,icons+260,icons+286,icons+312,icons+338,icons+364,icons+390,icons+416,icons+442,icons+468,icons+494,icons+520,icons+546,icons+572,icons+598,icons+624,icons+650,icons+676,icons+702,icons+728,icons+754,icons+780,icons+806
-icon_hi: .hibytes icons+0,icons+26,icons+52,icons+78,icons+104,icons+130,icons+156,icons+182,icons+208,icons+234,icons+260,icons+286,icons+312,icons+338,icons+364,icons+390,icons+416,icons+442,icons+468,icons+494,icons+520,icons+546,icons+572,icons+598,icons+624,icons+650,icons+676,icons+702,icons+728,icons+754,icons+780,icons+806
+icon_lo: .lobytes icons+0,icons+26,icons+52,icons+78,icons+104,icons+130,icons+156,icons+182,icons+208,icons+234,icons+260,icons+286,icons+312,icons+338,icons+364,icons+390,icons+416,icons+442,icons+468,icons+494,icons+520,icons+546,icons+572,icons+598,icons+624,icons+650,icons+676,icons+702,icons+728,icons+754,icons+780,icons+806,icons+832,icons+858,icons+884
+icon_hi: .hibytes icons+0,icons+26,icons+52,icons+78,icons+104,icons+130,icons+156,icons+182,icons+208,icons+234,icons+260,icons+286,icons+312,icons+338,icons+364,icons+390,icons+416,icons+442,icons+468,icons+494,icons+520,icons+546,icons+572,icons+598,icons+624,icons+650,icons+676,icons+702,icons+728,icons+754,icons+780,icons+806,icons+832,icons+858,icons+884
 BOOM_ENTRY = 14
 fly_lo: .lobytes cur_alien+0,cur_alien+24,cur_alien+48,cur_alien+72,cur_alien+96,cur_alien+120,cur_alien+144,cur_alien+168,cur_alien+192,cur_alien+216,cur_alien+240,cur_alien+264,cur_alien+288,cur_alien+312,boom_s0f0,boom_s0f1,boom_s1f0,boom_s1f1,boom_s2f0,boom_s2f1,boom_s3f0,boom_s3f1,boom_s4f0,boom_s4f1,boom_s5f0,boom_s5f1,boom_s6f0,boom_s6f1,cur_alien2+0,cur_alien2+24,cur_alien2+48,cur_alien2+72,cur_alien2+96,cur_alien2+120,cur_alien2+144,cur_alien2+168,cur_alien2+192,cur_alien2+216,cur_alien2+240,cur_alien2+264,cur_alien2+288,cur_alien2+312
 fly_hi: .hibytes cur_alien+0,cur_alien+24,cur_alien+48,cur_alien+72,cur_alien+96,cur_alien+120,cur_alien+144,cur_alien+168,cur_alien+192,cur_alien+216,cur_alien+240,cur_alien+264,cur_alien+288,cur_alien+312,boom_s0f0,boom_s0f1,boom_s1f0,boom_s1f1,boom_s2f0,boom_s2f1,boom_s3f0,boom_s3f1,boom_s4f0,boom_s4f1,boom_s5f0,boom_s5f1,boom_s6f0,boom_s6f1,cur_alien2+0,cur_alien2+24,cur_alien2+48,cur_alien2+72,cur_alien2+96,cur_alien2+120,cur_alien2+144,cur_alien2+168,cur_alien2+192,cur_alien2+216,cur_alien2+240,cur_alien2+264,cur_alien2+288,cur_alien2+312

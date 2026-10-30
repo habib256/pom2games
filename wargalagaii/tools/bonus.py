@@ -63,13 +63,22 @@ def emit():
     out.append('.popseg')
     # the sub-games (lot 8)
     M = model
-    for name in ('ROCK', 'M_ROCKS', 'M_SPEED_MAX', 'M_ACC', 'M_DEC', 'M_DY0', 'M_SPACING', 'M_DIST',
-                 'M_WAIT', 'M_TOP', 'M_COIN', 'M_TIME_MAX', 'MEM_NONE'):
+    for name in ('ROCK', 'M_ROCKS', 'M_SMALL0', 'M_SPEED_MAX', 'M_ACC', 'M_DEC', 'M_WARM', 'M_DY0',
+                 'M_SPACING', 'M_DIST', 'M_WAIT', 'M_END', 'M_TOP', 'M_PICK', 'M_BIG', 'M_MEDIUM', 'M_XMAX',
+                 'M_SHIP_MAX', 'M_TIME_MAX', 'MEM_NONE'):
         out.append(f'{name} = {getattr(M, name)}')
-    out.append('m_coins:  .byte ' + ','.join(f'K_{k.upper()}' for k in M.M_COINS))
-    bcd = [M.bcd(1000 * k, 3) for k in M.M_PRIZE]     # (byte 0 is 0)
-    out.append('m_prize_hi:  .byte ' + ','.join(f'${b[1]:02X}' for b in bcd))
-    out.append('m_prize_top: .byte ' + ','.join(f'${b[2]:02X}' for b in bcd))
+    out.append(f'M_CRASH_PTS_BCD = ${M.M_CRASH_PTS:04}')
+    # lot 11: the storm's objects and prizes, resident with its code
+    tiers = [M.M_MEGA, *M.M_TIERS]
+    assert all(t[2] % 10000 == 0 for t in tiers)
+    out += ['.pushseg', '.segment "STORM2"']
+    out.append('m_picks:  .byte ' + ','.join(f'K_{k.upper()}' for k in M.M_PICKS))
+    out.append('m_tier_pct: .byte ' + ','.join(str(t[1]) for t in M.M_TIERS))
+    out.append('m_tier_top: .byte ' + ','.join(f'${M.bcd(t[2], 3)[2]:02X}' for t in tiers))
+    out.append('m_tier_hi:  .byte ' + ','.join(f'${M.bcd(t[2], 3)[1]:02X}' for t in tiers))
+    out.append('m_tier_clo: .byte ' + ','.join(f'${M.bcd(t[3], 2)[0]:02X}' for t in tiers))
+    out.append('m_tier_chi: .byte ' + ','.join(f'${M.bcd(t[3], 2)[1]:02X}' for t in tiers))
+    out.append('.popseg')
     assert M.MEM_CELLS == max(c * r for c, r in M.MEM_GRIDS)   # (game.s: MEM_CELLS)
     out.append(f'.assert MEM_CELLS = {M.MEM_CELLS}, error, "MEM_CELLS: tools/model.py"')
     out.append(f'MEM_ROUNDS = {len(M.MEM_GRIDS)}')
@@ -77,14 +86,14 @@ def emit():
     out.append('mem_cols: .byte ' + ','.join(str(c) for c, r in M.MEM_GRIDS))
     out.append('mem_rows: .byte ' + ','.join(str(r) for c, r in M.MEM_GRIDS))
     out.append('mem_kinds: .byte ' + ','.join(f'K_{k.upper()}' for k in M.MEM_KINDS))
-    # what a pickup did (render.s msg_draw), in LOWM: texts padded centred
+    # what a pickup did (render.s msg_draw), in aux memory (lot 11): texts padded centred
     out.append(f'PICK_T = {M.PICK_T}')
-    out += [f'{n} = {getattr(M, n)}' for n in ('PM_POINTS', 'PM_LESS_SPEED', 'PM_LESS_BULLET', 'PM_LOST')]
+    out += [f'{n} = {getattr(M, n)}' for n in ('PM_POINTS', 'PM_LESS_SPEED', 'PM_LESS_BULLET', 'PM_LOST',
+                                                 'PM_MEGA')]
     out.append(f'NPICK = {len(M.PICK_TEXT)}')
     out.append('.pushseg')
     out.append('.segment "PICK"')
-    out.append('pick_lo: .lobytes ' + ','.join(f'pick_{k}' for k in range(len(M.PICK_TEXT))))
-    out.append('pick_hi: .hibytes ' + ','.join(f'pick_{k}' for k in range(len(M.PICK_TEXT))))
+    out.append('PICK_AUX:      ; (aux memory: render.s fetches a text, pick_fetch)')
     for k, text in enumerate(M.PICK_TEXT):
         out.append(f'pick_{k}: .byte "{text.center(PICK_LEN)}"')
     out.append('.popseg')

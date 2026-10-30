@@ -26,9 +26,12 @@ import autopilot
 import test_game
 
 # The scene is chaotic: shifting its start by 2-10 refreshes gives 46 to
-# 76 late frames out of ~570 on level 97 (bug hunt 6). Bounds with room:
+# 76 late frames out of ~570 on level 97 (bug hunt 6); with the card 93 to
+# 157 out of ~540 (2026-10-30, the same before and after lot 11). So each
+# scene is played from OFFSETS starts and the late frames summed. Bounds:
 LATE_MAX = 0.15            # without a card (measured up to 13 %)
-LATE_MAX_MB = 0.28         # with the card, PT3 music (measured up to 22 %)
+LATE_MAX_MB = 0.28         # with the card, PT3 music (one start: up to 30 %, summed ~23 %)
+OFFSETS = (300, 304, 308)  # refreshes before the measure
 WORST = ((96, 'level 97: 7 divers, fastest bombs'), (24, 'boss of level 25'),
          (99, 'boss of level 100'))
 
@@ -45,19 +48,22 @@ def autopilots():
 
 
 def worst(disk, L, start, why, frames, mockingboard=False):
-    steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', start), L.until('game_tick', 3000),
-             L.poke('weapon', 2), L.poke('shot_limit', 10), L.poke('noshop', 1), 'wait:300']
-    steps += [L.peek('late_count', 2), L.peek('frame_count', 2)]
-    for k in range(frames // 20):
-        steps += [L.poke('invul_t', 60), L.poke('fire_held', 0x80), L.poke('autofire_t', 255),
-                  'press:' + ' <> '[k % 4].replace('<', '\\<').replace('>', '\\>'), 'wait:40']
-    steps += [L.peek('late_count', 2), L.peek('frame_count', 2)]
-    r = a2test.run(disk, steps, iie=True, mockingboard=mockingboard, timeout=1200)
-    late = word(r.mem(L['late_count'], 2, 1)) - word(r.mem(L['late_count'], 2, 0))
-    count = word(r.mem(L['frame_count'], 2, 1)) - word(r.mem(L['frame_count'], 2, 0))
+    late = count = 0
+    for offset in OFFSETS:
+        steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', start),
+                 L.until('game_tick', 3000), L.poke('weapon', 2), L.poke('shot_limit', 10), L.poke('noshop', 1),
+                 f'wait:{offset}']
+        steps += [L.peek('late_count', 2), L.peek('frame_count', 2)]
+        for k in range(frames // 20):
+            steps += [L.poke('invul_t', 60), L.poke('fire_held', 0x80), L.poke('autofire_t', 255),
+                      'press:' + ' <> '[k % 4].replace('<', '\\<').replace('>', '\\>'), 'wait:40']
+        steps += [L.peek('late_count', 2), L.peek('frame_count', 2)]
+        r = a2test.run(disk, steps, iie=True, mockingboard=mockingboard, timeout=1200)
+        late += word(r.mem(L['late_count'], 2, 1)) - word(r.mem(L['late_count'], 2, 0))
+        count += word(r.mem(L['frame_count'], 2, 1)) - word(r.mem(L['frame_count'], 2, 0))
     why += ', Mockingboard' if mockingboard else ''
     assert late <= (LATE_MAX_MB if mockingboard else LATE_MAX) * count, f'{why}: {late} late frames out of {count}'
-    print(f'PASS worst level, {why}: {late} late frames out of {count}')
+    print(f'PASS worst level, {why}: {late} late frames out of {count} ({len(OFFSETS)} starts)')
 
 
 def main():

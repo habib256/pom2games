@@ -39,7 +39,9 @@ bruitages sur Mockingboard, bruitages au haut-parleur, S coupe) ; 32 bonus
 qui tombent (une forme par famille, [aperçu](screenshots/bonus.png) ; au ramassage, son nom
 au milieu du terrain et un son, bonus ou malus), jauges S/B/T, armes double et triple, tir automatique, ×2/×5,
 bouclier, gel ; 100 niveaux en paquets, boss, soucoupe ; boutique et rangs ;
-sous-jeux Meteor Storm et Memory Station ; écran titre (image LZ4FH,
+sous-jeux Meteor Storm (à la Warblade : l'icône termine le niveau, jauge de vitesse
+à côté du vaisseau, barre de distance, rochers de trois tailles, prime au pourcentage,
+[aperçu](screenshots/storm.png)) et Memory Station ; écran titre (image LZ4FH,
 menu, aide), **mode démo** qui rejoue une partie de l'autopilote, records
 `HIGHSCORES` avec initiales, choix clavier / manette retenu. Plan et état :
 [`TODO.md`](TODO.md) ; référence du jeu modèle :
@@ -253,9 +255,9 @@ n'écrit pas les pages aux).
 |---|---|
 | `$0050-$00CF` | page zéro du jeu et de cc65 (`ZP` du cfg) ; le gestionnaire IRQ n'utilise ni la ZP cc65 ni sa pile |
 | `$00D0-$00EF` | page zéro du lecteur PT3 (gardée entre deux ticks) |
-| `$0200-$03FF` | libre ; page 3 : lecteur haut-parleur prévu (boucle à cycles comptés, sans franchir de page) |
+| `$0200-$03CF` | zone `LOW2` (lot 11) : trois trajectoires de plongée (`FLIGHT`), données et routines de Meteor Storm (`STORM2`), copiées de `WG2.AUX` au démarrage (`low_boot`) ; `$03D0-$03FF` : vecteurs ProDOS |
 | `$0400-$07FF` | page texte 1, jamais affichée en jeu : tables (en évitant les trous `$x78-$x7F`, `$xF8-$xFF`) |
-| `$0800-$0FFF` | code de Meteor Storm (`storm.s`), lecteur et script du mode démo (`demo.s`, `demo.inc`), textes des ramassages (`PICK`), trois trajectoires de plongée (`FLIGHT`), zone `LOWM`, copiés de `WG2.AUX` au démarrage ; le crt0 protège cette zone |
+| `$0800-$0FFF` | code de Meteor Storm (`storm.s`), lecteur et script du mode démo (`demo.s`, `demo.inc`), zone `LOWM`, copiés de `WG2.AUX` au démarrage ; le crt0 protège cette zone |
 | `$1000-$12FF` | tables de lignes `hgr_lo`, `hgr_hi`, `hgr_hi2` alignées sur une page (segment `ROWS`) |
 | `$1300-$1FDF` | tampon ProDOS (`IOBUF` : démarrage, `HIGHSCORES`), `LOWBSS` : sprites prédécalés du paquet courant, la table des records (`rec_buf`) |
 | `$1FE0-$1FFF` | trampolines vers la mémoire aux (mêmes octets en aux) |
@@ -265,7 +267,8 @@ n'écrit pas les pages aux).
 | aux `$2000-$5B7F` | `WG2.AUX` : dessins × teintes des paquets (15 232 octets, copie par `AUXMOVE` `$C311` entre deux niveaux) |
 | aux `$6000-$6C55` | lecteur PT3 et morceau ; trampolines en aux `$1FE0` |
 | aux `$7000-$8FFF` | overlay : boutique et Memory Station (copiés en `$4000` à l'ouverture, jusqu'au lecteur `duet`), puis l'écran titre avec son image LZ4FH (792 octets) et le décodeur (overlay entier copié à chaque titre) |
-| aux `$9000-…` | code de Meteor Storm, du mode démo et textes des ramassages (fin de `WG2.AUX`), copié en `$0800` au démarrage |
+| aux `$9000-…` | code de Meteor Storm et du mode démo, copié en `$0800` au démarrage ; puis données résidentes (`$9800`), fiches de niveau (`$9C00`), murs (`$A200`), boss (`$AA00`) |
+| aux `$B100-$BAFF` | lot 11 : petit et gros rochers (copiés dans `cur_alien2` / `cur_big` pendant la tempête), textes des ramassages en `$B600` (`pick_fetch` copie celui qu'on affiche), la zone `LOW2` en `$B900` |
 
 ## Disquette
 

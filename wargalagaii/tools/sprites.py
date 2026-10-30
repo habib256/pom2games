@@ -333,6 +333,63 @@ ROCK = ([
     '.......',
 ])
 ROCK_TINT = 3
+# Lot 11, Warblade's rocks of every size: a small one in the same box
+# (cur_alien2: its drawing inside cells 1-5, rows 1-6, the hit box) and a
+# big one in a big alien's (cur_big, two-tone), WG2.AUX after the boss.
+SMALL_ROCK = ([
+    '.......',
+    '..WWX..',
+    '.WWXWW.',
+    '.XWWWX.',
+    '.WWXWW.',
+    '..XWX..',
+    '.......',
+    '.......',
+], [
+    '.......',
+    '..XWW..',
+    '.WWWXW.',
+    '.WXWWW.',
+    '.XWWWX.',
+    '..WWX..',
+    '.......',
+    '.......',
+])
+BIG_ROCK = ([
+    '...WWWX...',
+    '..WWXWWWX.',
+    '.WWWWWXWWX',
+    'WWXWWWWWWX',
+    'WWWWYYWWXX',
+    'XWWWYYWWWX',
+    'WWWWWWWXWX',
+    'WXWWWWWWWX',
+    'WWWWWXWWYX',
+    'XWWYWWWWWX',
+    'WWWYYWWXWX',
+    '.WWWWWWWXX',
+    '.XWWXWWWX.',
+    '..XWWWWX..',
+    '...XXXX...',
+    '..........',
+], [
+    '...XWWW...',
+    '.XWWWXWW..',
+    'XWWXWWWWW.',
+    'XWWWWWWXWW',
+    'XXWWYYWWWW',
+    'XWWWYYWWWX',
+    'XWXWWWWWWW',
+    'XWWWWWWWXW',
+    'XYWWXWWWWW',
+    'XWWWWWYWWX',
+    'XWXWWYYWWW',
+    'XXWWWWWWW.',
+    '.XWWWXWWX.',
+    '..XWWWWX..',
+    '...XXXX...',
+    '..........',
+])
 
 # Clipped to the shift's start byte (a shot is one byte wide, so at shift 3
 # only its left dot shows): half the cost of a two-byte sprite.
@@ -418,6 +475,25 @@ DIGIT3 = {              # 3 cells x 5 rows, cut out of a medal
     '5': ['WWW', 'W..', 'WWW', '..W', 'WWW'], '6': ['WWW', 'W..', 'WWW', 'W.W', 'WWW'],
 }
 DOLLAR = ['.W.', 'WWW', 'W..', 'WWW', '..W', 'WWW', '.W.']
+DIGIT3['0'] = ['WWW', 'W.W', 'W.W', 'W.W', 'WWW']
+DIGIT3['K'] = ['W.W', 'WW.', 'W..', 'WW.', 'W.W']
+
+
+def tab(top):
+    """Lot 11, Meteor Storm's point tabs: a square tablet of colour, the
+    thousands (3 x 5 digits, '1' narrow beside another) cut out above a K."""
+    out = [list('XXXXXXX') for _ in range(13)]
+    glyphs = [['W'] * 5 if ch == '1' and len(top) > 1 else DIGIT3[ch] for ch in top]
+    for line, cut in ((1, glyphs), (7, [DIGIT3['K']])):
+        width = sum(len(g[0]) for g in cut) + len(cut) - 1
+        x = (7 - width) // 2
+        for g in cut:
+            for y, r in enumerate(g):
+                for dx, c in enumerate(r):
+                    if c == 'W':
+                        out[line + y][x + dx] = '.'
+            x += len(g[0]) + 1
+    return [''.join(r) for r in out]
 
 
 def pill(glyph, cap='X'):
@@ -479,6 +555,7 @@ ICON_SHAPES = [
     ('orange', centred(ROCK[0][:7])),                                                      # meteor
     ('green', ['XXXXXXX', 'XXXXXXX', 'XX...XX', 'XXXXX.X', 'XXXXX.X', 'XXX..XX', 'XXX.XXX',  # memory
                'XXXXXXX', 'XXX.XXX', 'XXXXXXX', 'XXXXXXX', '.......', '.......']),
+    ('green', tab('1')), ('orange', tab('5')), ('white', [r.replace('X', 'W') for r in tab('10')]),  # tabs
 ]
 
 
@@ -515,6 +592,22 @@ def rock_shapes():
     """The 14 entries (shift*2 + frame) of the rock."""
     frames = [shifted(tinted(f, ROCK_TINT), TINTS[ROCK_TINT][0])[1] for f in ROCK]
     return [frames[f][s] for s in range(7) for f in range(2)]
+
+
+def small_rock_shapes():
+    frames = [shifted(tinted(f, ROCK_TINT), TINTS[ROCK_TINT][0])[1] for f in SMALL_ROCK]
+    return [frames[f][s] for s in range(7) for f in range(2)]
+
+
+def big_rock_shapes():
+    frames = [shifted(tinted(f, ROCK_TINT), TINTS[ROCK_TINT][0])[1] for f in BIG_ROCK]
+    return [frames[f][s] for s in range(7) for f in range(2)]
+
+
+def storm_image():
+    """WG2.AUX after the boss (lot 11): the small rock's table, the big one's."""
+    return bytes(b for shapes in (small_rock_shapes(), big_rock_shapes())
+                 for entry in shapes for row in entry for b in row)
 
 
 def big_shapes(design, tint):
@@ -741,11 +834,16 @@ def main():
     if '--boss' in sys.argv:
         Path(sys.argv[sys.argv.index('--boss') + 1]).write_bytes(boss_image())
         return
+    if '--storm' in sys.argv:
+        Path(sys.argv[sys.argv.index('--storm') + 1]).write_bytes(storm_image())
+        return
     for _, a, b in SMALL:
         assert len(a) == len(b) == 8 and all(len(r) == 7 for r in a + b)
     for _, a, b in BIG:
         assert len(a) == len(b) == 16 and all(len(r) == 10 for r in a + b)
-    assert all(len(f) == 8 and all(len(r) == 7 for r in f) for f in ROCK)
+    assert all(len(f) == 8 and all(len(r) == 7 for r in f) for f in ROCK + SMALL_ROCK)
+    assert all(len(f) == 16 and all(len(r) == 10 for r in f) for f in BIG_ROCK)
+    assert len(storm_image()) == ALIEN_TABLE + BIG_TABLE
     if '--png' in sys.argv:
         png(sys.argv[sys.argv.index('--png') + 1])
         return
