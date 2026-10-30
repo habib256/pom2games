@@ -171,6 +171,8 @@ sur un chargeur.
 | 8 | LE ZIGZAG | poussée sud permanente, une bascule inverse est / ouest à chaque choc |
 | 9 | LE COLIS | le technicien tient la porte, le drone rapporte la cellule (puce de la 4) |
 | 10 | LE GARDIEN | le drone, par-dessus la grille, se gare sur la plaque (bascule du pilier) |
+| 11 | LA RONDE | est, puis sud, puis ouest : deux bascules (sud-ouest d'un coup : le piège) |
+| 12 | LE SAS | le technicien tient la porte du drone, qui se gare sur la plaque de l'autre porte |
 
 Les tests (`tests/test_model.py`) prouvent qu'une solution existe pour
 chacune, qu'une planche vide ne gagne rien, que le pilier exige une
@@ -178,12 +180,13 @@ bascule, qu'une cellule jamais lâchée ne compte pas, que la porte attend
 le technicien, qu'un drone dans l'embrasure la bloque ouverte et que le
 parking ouvre le passage, que le relais exige la radio (A parti trop tôt,
 la porte se referme sous B), que deux drones se bloquent l'un l'autre, que
-le zigzag exige l'alternance, que le colis attend le technicien et que le
-gardien sans bascule ne se gare jamais.
+le zigzag exige l'alternance, que le colis attend le technicien, que le
+gardien sans bascule ne se gare jamais, que la ronde exige deux bascules et
+que le sas attend le technicien sur sa plaque.
 
 Le labo et le drone ont chacun leur planche : passer de l'un à l'autre
 recompile la planche (valeurs remises à 0). Choisir une mission
-(touches 1-9 et 0 pour la dixième, ou l'écran titre en deux colonnes, jusqu'à la première non réussie) ou REPLACER remet la salle,
+(touches 1-9 et 0 pour la dixième, ou l'écran titre en deux colonnes de 7, jusqu'à la première non réussie) ou REPLACER remet la salle,
 les objets, le drone et le technicien au départ.
 
 ### Le drone

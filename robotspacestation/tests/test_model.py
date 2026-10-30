@@ -216,8 +216,26 @@ def solution(mission):
         wire(b, out(f), 1)
         wire(b, out(f), inp(k, 0))
         wire(b, out(k), 3)
-    elif mission == 9:                  # LE GARDIEN: the pillar's latch parks it
-        return solution(2)
+    elif mission in (9, 11):            # LE GARDIEN: the pillar's latch parks it;
+        return solution(2 if mission == 9 else 0)   # LE SAS: east, as in 1
+    elif mission == 10:                 # LA RONDE: east, then south, then west
+        l1 = b.place(FLIP, 0, 0)
+        l2 = b.place(FLIP, 1, 0)
+        n1 = b.place(NOT, 2, 0)
+        a = b.place(AND, 3, 0)
+        n2 = b.place(NOT, 0, 1)
+        a2 = b.place(AND, 1, 1)
+        wire(b, 1, inp(l1, 0))          # the east bump: L1
+        wire(b, 2, inp(a, 0))           # the south bump once L1: L2
+        wire(b, out(l1), inp(a, 1))
+        wire(b, out(a), inp(l2, 0))
+        wire(b, out(l1), inp(n1, 0))
+        wire(b, out(n1), 3)             # not L1: east
+        wire(b, out(l2), inp(n2, 0))
+        wire(b, out(n2), inp(a2, 0))
+        wire(b, out(l1), inp(a2, 1))
+        wire(b, out(a2), 0)             # L1, not L2: south
+        wire(b, out(l2), 1)             # L2: west
     else:                               # fetch the cell, bring it back (3, 8)
         f = b.place(FLIP, 1, 0)
         k = b.place(NOT, 2, 0)
@@ -357,6 +375,33 @@ class Missions(unittest.TestCase):
         for _ in range(400):
             z.tick()
         self.assertEqual(z.door_open[0], 0)
+
+    def test_the_round_needs_two_latches(self):
+        b = Board()                     # after the east bump, south and west at once
+        f = b.place(FLIP, 0, 0)
+        n = b.place(NOT, 1, 0)
+        wire(b, 1, inp(f, 0))
+        wire(b, out(f), inp(n, 0))
+        wire(b, out(n), 3)
+        wire(b, out(f), 0)
+        wire(b, out(f), 1)
+        t, z = play(10, b, 1500)
+        self.assertIsNone(t)            # into the trap's opening
+        self.assertIsNone(play(10, solution(1), 1500)[0])
+
+    def test_the_airlock(self):
+        z = Zone(11, compile_board(solution(11), EMPTY))
+        z.tech = (2 * 7 + 4, 8 * 8 + 4)         # he holds the upper door
+        for _ in range(300):
+            z.tick()
+        self.assertEqual((z.x, z.y, z.door_open), (123, 16, [1, 1]))
+        z.tech = (15 * 7 + 4, 14 * 8 + 4)       # through the lower door
+        self.assertTrue(z.won())
+        z = Zone(11, compile_board(solution(11), EMPTY))
+        z.tech = (3 * 7, 13 * 8)                # nobody on the plate
+        for _ in range(300):
+            z.tick()
+        self.assertEqual((z.x, z.door_open), (46, [0, 0]))
 
     def test_an_empty_board_wins_nothing(self):
         for m in range(len(MISSIONS)):
