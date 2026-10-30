@@ -91,13 +91,16 @@ $(BUILD)/WG2.SYSTEM: src/boot.s $(PRODOS_SYSBOOT_DEPS)
 
 # WG2.AUX: the packs at aux $2000, the PT3 player and song at $6000, the
 # overlay (shop, Memory Station, title) at $7000, Meteor Storm's code and
-# the demo's player (for $0800) at $9000 (each padded to the next).
+# the demo's player (for $0800) at $9000, the resident data for $1C40 at
+# $9800, the level records at $9C00 (each padded to the next).
 $(BUILD)/WG2.AUX: tools/sprites.py $(BUILD)/game.bin
 	@mkdir -p $(@D)
 	$(PYTHON) tools/sprites.py --aux $@.packs
 	$(PYTHON) -c "import sys; r = lambda f: open(f, 'rb').read(); p, m, s = map(r, sys.argv[1:4]); \
-		l = r(sys.argv[4]); open(sys.argv[5], 'wb').write(p.ljust(0x4000, b'\0') + m.ljust(0x1000, b'\0') \
-		+ s.ljust(0x2000, b'\0') + l)" $@.packs $(BUILD)/game.bin.mus $(BUILD)/game.bin.shop $(BUILD)/game.bin.low $@
+		l, h, v = r(sys.argv[4]), r(sys.argv[5]), r(sys.argv[6]); open(sys.argv[7], 'wb').write(p.ljust(0x4000, b'\0') \
+		+ m.ljust(0x1000, b'\0') + s.ljust(0x2000, b'\0') + l.ljust(0x800, b'\0') + h.ljust(0x400, b'\0') + v)" \
+		$@.packs $(BUILD)/game.bin.mus $(BUILD)/game.bin.shop $(BUILD)/game.bin.low $(BUILD)/game.bin.hi \
+		$(BUILD)/game.bin.lv $@
 $(DISK): $(BUILD)/WG2.SYSTEM $(BUILD)/WG2.SYS $(BUILD)/WG2.AUX $(BUILD)/HIGHSCORES $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py
 	@rm -rf $(BUILD)/stage
 	@mkdir -p $(BUILD)/stage $(DIST)

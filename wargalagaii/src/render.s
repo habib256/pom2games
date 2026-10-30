@@ -300,6 +300,7 @@ oe_obj: lda od_y,x
         jsr icon_src
         lda od_k,x
         asl
+        adc #FIELD_COL
         sta col
         plx                      ; (the row)
         jsr obj_eor
@@ -329,6 +330,7 @@ ob_draw:
         lda obj_k,x
         sta od_k,y
         asl
+        adc #FIELD_COL           ; (carry clear: k < 128)
         sta col
         lda obj_kind,x
         sta od_kind,y
@@ -1612,6 +1614,7 @@ sd_star:
         lda hgr_lo,y
         clc
         adc star_col,x
+        adc #FIELD_COL           ; (no carry: hgr_lo + 39 < 256)
         sta dst
         HI_LDA 0, y
         sta dst+1

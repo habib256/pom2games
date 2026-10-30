@@ -28,21 +28,27 @@ mirrored and harder still. Between two levels: TELEPORT_T steps.
 import paths
 
 FIELD_TOP = 8
+# Lot 10: walls of FIELD_COL bytes on each side (Warblade's frame); the
+# field is the FIELD_CELLS cells between them, cell 0 at byte FIELD_COL.
+# 4 bytes = 14 cells: the shifts and colours of a cell stay the same.
+FIELD_COL = 4
+FIELD_CELLS = 140 - 2 * (7 * FIELD_COL // 2)
 SHIP_Y = 180
-SHIP_MAX = 140 - 7
+SHIP_MAX = FIELD_CELLS - 7
 SHIP_SPEED = 2
 MAX_SHOTS = 10                  # slots; shot_limit (jauge B) uses 5 at start
 SHOT_LIMIT = 5
 SHOT_DY = 8
 SHOT_H = 6
 SHOT_Y0 = SHIP_Y - SHOT_H
+STAR_COLS = 2 * FIELD_CELLS // 7  # byte columns of the field
 NSTARS = 16                     # (24 until lot 6: ~1 100 cycles a frame back)
 
 ROWS, COLS = 5, 8
 NALIENS = ROWS * COLS
-ALIEN_MAX = 140 - 7
+ALIEN_MAX = FIELD_CELLS - 7
 ALIEN_CELLS, ALIEN_H = 7, 8
-FORM_X0, FORM_DX = 11, 14       # cells
+FORM_X0, FORM_DX = 5, 12        # cells (11, 14 before the walls)
 FORM_Y0, FORM_DY = 20, 14       # rows
 SWAY_MAX = 12
 SWAY_EVERY = 3                  # steps per row move (2 until lot 6: frame budget)
@@ -91,7 +97,7 @@ BIG_HP, POINTS_BIG = 2, 200
 # 200 coin drop.
 BOSS_CELLS, BOSS_H, BOSS_Y = 16, 24, 24
 BOSS_CORE0, BOSS_CORE1 = 4, 11
-BOSS_MAX_X = 119                # a multiple of 7: 140 - 16, rounded down
+BOSS_MAX_X = 91                 # a multiple of 7: FIELD_CELLS - 16, rounded down
 BOSS_STEP = 8
 BOSS_BOOM_T = 40
 POINTS_BOSS, POINTS_BOSS_HIT = 5000, 10
@@ -283,7 +289,7 @@ class Game:
         self.shot_y = [0] * MAX_SHOTS
         self.shot_c = [0] * MAX_SHOTS
         self.star_y = [FIELD_TOP + (i * 97 + 13) % (192 - FIELD_TOP) for i in range(NSTARS)]
-        self.star_col = [(i * 23 + 5) % 40 for i in range(NSTARS)]
+        self.star_col = [(i * 23 + 5) % STAR_COLS for i in range(NSTARS)]
         self.prng = SEED
         self.entry_w, self.entry_k, self.entry_t = 0, 0, ENTRY_FIRST
         self.form_off, self.form_dir, self.sway_row, self.sway_t = 0, 1, 0, 0
@@ -415,7 +421,7 @@ class Game:
                 y -= SHOT_DY
                 c = (self.shot_c[x] + self.shot_dx[x]) & 0xFF
                 self.shot_c[x] = c
-                self.shot_y[x] = y if y >= FIELD_TOP and c <= 139 else 0
+                self.shot_y[x] = y if y >= FIELD_TOP and c < FIELD_CELLS else 0
         volley = self.autofire_t and held and not self.auto_cnt
         self.auto_cnt = (self.auto_cnt + 1) % AUTO_GAP
         if (fire or volley) and self.alive() and not self.phase:
@@ -434,7 +440,7 @@ class Game:
                 y += self.bomb_dy
                 c = (self.e_c[k] + self.e_dx[k]) & 0xFF
                 self.e_c[k] = c
-                self.e_y[k] = y if y <= 192 - BOMB_H and c <= 139 else 0
+                self.e_y[k] = y if y <= 192 - BOMB_H and c < FIELD_CELLS else 0
         for k in range(N_OBJ):
             y = self.obj_y[k]
             if y:
@@ -444,7 +450,7 @@ class Game:
             y = self.star_y[i] + star_speed(i)
             if y >= 192:
                 y -= 192 - FIELD_TOP
-                self.star_col[i] = (self.star_col[i] + 17) % 40
+                self.star_col[i] = (self.star_col[i] + 17) % STAR_COLS
             self.star_y[i] = y
         if self.freeze_t:               # frozen: only explosions go on
             for i in range(NALIENS):
@@ -633,7 +639,7 @@ class Game:
             y = self.star_y[i] + star_speed(i) + dy // 2
             if y >= 192:
                 y -= 192 - FIELD_TOP
-                self.star_col[i] = (self.star_col[i] + 17) % 40
+                self.star_col[i] = (self.star_col[i] + 17) % STAR_COLS
             self.star_y[i] = y
         for i in reversed(range(NALIENS)):
             s = self.a_state[i]
@@ -681,10 +687,12 @@ class Game:
             for k in reversed(range(N_OBJ)):
                 if not self.obj_y[k]:
                     self.obj_y[k], self.obj_kind[k] = FIELD_TOP, kind
-                    self.obj_k[k] = (self.rand8() & 15) + 2
+                    self.obj_k[k] = self.rand8() & 15
                     return
             return
-        x = (self.rand8() & 127) + 3
+        x = self.rand8() & 127
+        if x > ALIEN_MAX:
+            x -= 64
         for i in reversed(range(M_ROCKS)):
             if not self.a_state[i]:
                 self.a_state[i], self.a_x[i], self.a_y[i] = ROCK, x, M_TOP
@@ -1087,7 +1095,7 @@ class Game:
             dx, dy = paths.decode(b)
             if self.a_mirror[i]:
                 dx = -dx
-            lo, hi = (-BIG_X0, 139 - (BIG_X0 + BIG_CELLS - 1)) if self.a_big[i] else (0, ALIEN_MAX)
+            lo, hi = (-BIG_X0, FIELD_CELLS - 1 - (BIG_X0 + BIG_CELLS - 1)) if self.a_big[i] else (0, ALIEN_MAX)
             self.a_x[i] = clamp(self.a_x[i] + dx, lo, hi)
             y = (self.a_y[i] + dy) & 0xFF
             self.a_y[i] = y

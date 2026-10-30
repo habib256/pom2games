@@ -27,7 +27,8 @@
 .export level, loop, phase, clear_t, level_t, lkind, bonus_kills, w_kills
 .export dive_gap, max_divers, fire_gap, bomb_dy, kami_dy, start_level, cur_alien, pack_loaded
 .export mus_ticks, shop, rank, noshop, shop_can, shop_buy, shop_exit, shop_screen, sh_cur
-.import __SHOPM_LAST__, __LOWM_LAST__
+.import __SHOPM_LAST__, __LOWM_LAST__, __LOWHI_START__, __LOWHI_LAST__
+.import __LOWBSS_RUN__, __LOWBSS_SIZE__, __AUXLV_START__, __AUXLV_LAST__
 .export storm, station, m_speed, m_dist, m_acc, m_time, m_wait, m_crash, storm_step, storm_spawn
 .export m_round, m_pairs, m_first, m_card, m_up, mem_screen, mem_loop, mem_deal, mem_turn
 .export mem_sec, mem_cx, mem_cy, station_exit
@@ -39,8 +40,11 @@
 .export alien_sta, alien_sta_done, alien_eor, alien_eor_done, alien_clr, alien_clr_done
 
 FIELD_TOP  = 8                  ; rows 0-7: HUD (lot 3)
+FIELD_COL  = 4                  ; lot 10: walls of 4 bytes (14 cells) each side,
+FIELD_CELLS = 140 - 2 * 14      ; the field between them, cell 0 at FIELD_COL
+STAR_COLS  = 2 * FIELD_CELLS / 7 ; its byte columns
 SHIP_Y     = 180                ; ship top row
-SHIP_MAX   = 140 - 7            ; last cell of the 7-cell ship
+SHIP_MAX   = FIELD_CELLS - 7    ; last cell of the 7-cell ship
 SHIP_SPEED = 2                  ; cells (4 dots) per step: jauge S at start
 MAX_SHOTS  = 10                 ; shot slots; shot_limit = jauge B
 SHOT_LIMIT = 5                  ; jauge B at start
@@ -51,9 +55,9 @@ NSTARS     = 16                 ; (24 until lot 6: ~1 100 cycles a frame back)
 ROWS       = 5                  ; formation: 5 rows of 8
 COLS       = 8
 NALIENS    = ROWS * COLS
-ALIEN_MAX  = 140 - 7
-FORM_X0    = 11                 ; cell of column 0 at sway 0
-FORM_DX    = 14
+ALIEN_MAX  = FIELD_CELLS - 7
+FORM_X0    = 5                  ; cell of column 0 at sway 0
+FORM_DX    = 12
 FORM_Y0    = 20
 FORM_DY    = 14
 SWAY_MAX   = 12
@@ -119,10 +123,11 @@ LEVELS     = 100
 BIG_HP     = 2
 BIG_CELLS  = 10                 ; box: cells x-2..x+7, rows y-8..y+7
 BIG_H      = 16
+BIG_HI     = FIELD_CELLS - 1 - 7  ; last cell of a big alien (box x-2..x+7)
 BOSS_Y     = 24                 ; the boss: 16 cells x 24 rows, core 4..11
 BOSS_CORE0 = 4
 BOSS_CORE1 = 11
-BOSS_MAX_X = 119                ; a multiple of 7 (leaps of 7 cells)
+BOSS_MAX_X = 91                 ; a multiple of 7 (leaps of 7 cells)
 BOSS_STEP  = 8
 BOSS_BOOM_T = 40
 TELEPORT_T = 60
@@ -215,6 +220,7 @@ mult_t:      .res 2
 shield_t:    .res 2
 freeze_t:    .res 2
 mult:        .res 1             ; score multiplier
+lv_rec:      .res 6             ; the level's record (aux lv_recs, LV_REC)
 auto_cnt:    .res 1
 extra_bits:  .res 1             ; letters E X T R A collected (bits 0-4)
 marks:       .res 1             ; rank marks (lot 7)
@@ -426,7 +432,10 @@ done:   rts
 ; WG2.AUX -> aux memory at AUX_BASE (every small and big alien design x
 ; tint), 8 KB at a time through HGR page 2 (not shown yet). A failure: a
 ; message, back to ProDOS.
-AUX_ALL = LOW_AUX + LOW_LEN - AUX_BASE
+AUX_ALL = LV_AUX + LV_LEN - AUX_BASE
+.assert HI_LEN <= $0400, error, "the resident data runs into the level records"
+.assert LOW_LEN <= $0800, error, "the storm runs into the resident data"
+.assert __LOWBSS_RUN__ + __LOWBSS_SIZE__ <= __LOWHI_START__, error, "LOWBSS runs into LOWHI"
 .assert __AUXM_LAST__ <= SHOP_AUX, error, "the PT3 player runs into the shop"
 .assert SHOP_AUX + OVL_LEN <= LOW_AUX, error, "the overlay runs into the storm"
 
@@ -542,7 +551,21 @@ al_close:
         lda #>$0800
         sta $43
         clc                      ; aux -> main
-        jmp $C311                ; AUXMOVE
+        jsr $C311                ; AUXMOVE
+        lda #<HI_AUX             ; the resident data -> $1C40, for good
+        sta $3C
+        lda #>HI_AUX
+        sta $3D
+        lda #<(HI_AUX+HI_LEN-1)
+        sta $3E
+        lda #>(HI_AUX+HI_LEN-1)
+        sta $3F
+        lda #<__LOWHI_START__
+        sta $42
+        lda #>__LOWHI_START__
+        sta $43
+        clc
+        jmp $C311
 aux_fail:
         pla                      ; (out of _main)
         pla
@@ -656,6 +679,10 @@ SHOP_LEN = __DUET_LOAD__ + __DUET_SIZE__ - $4000 ; overlay, storm and demo
 OVL_LEN  = __SHOPM_LAST__ - $4000 ; at $9000)
 LOW_AUX  = $9000
 LOW_LEN  = __LOWM_LAST__ - $0800
+HI_AUX   = $9800
+HI_LEN   = __LOWHI_LAST__ - __LOWHI_START__
+LV_AUX   = __AUXLV_START__
+LV_LEN   = __AUXLV_LAST__ - __AUXLV_START__
 shop_run:
         ldx #<SHOP_LEN
         ldy #>SHOP_LEN
@@ -1005,7 +1032,7 @@ star_y0:
 .endrepeat
 star_col0:
 .repeat NSTARS, I
-        .byte (I * 23 + 5) .mod 40
+        .byte (I * 23 + 5) .mod STAR_COLS
 .endrepeat
 star_val:
 .repeat NSTARS, I
@@ -1072,6 +1099,7 @@ msg_over: .byte " GAME OVER  "
 extra_letters: .byte "EXTRA"
 ; Lot 5 tables. A kill's drop: drop_table[rand & 63] (weights: model.py).
 .include "bonus.inc"
+.assert LV_REC = 6, error, "lv_rec and setup_level: 6 bytes a level record"
 ; Kamikaze prizes, BCD 2000 << wave (bytes 2 and 3; byte 1 is 0).
 kami_hi:  .byte $20, $40, $80, $60, $20
 kami_top: .byte $00, $00, $00, $01, $03

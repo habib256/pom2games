@@ -52,7 +52,7 @@ shots:  lda shot_y,x
         clc
         adc shot_dx,x
         sta shot_c,x
-        cmp #140
+        cmp #FIELD_CELLS
         bcs shot_free
         lda shot_y,x
         sec
@@ -94,7 +94,7 @@ bomb_fall:
         clc
         adc e_dx,x
         sta e_c,x
-        cmp #140
+        cmp #FIELD_CELLS
         bcs bomb_free
         lda e_y,x
         clc
@@ -130,9 +130,9 @@ stars:  ldx #NSTARS-1            ; three speeds; a star leaving the bottom
         pha
         lda star_col,x
         adc #17-1                ; carry is set
-        cmp #40
+        cmp #STAR_COLS
         bcc :+
-        sbc #40
+        sbc #STAR_COLS
 :       sta star_col,x
         pla
 :       sta star_y,x
@@ -541,18 +541,41 @@ shop_exit:
 ; The level's kind and parameters: loop-0 tables (tools/bonus.py), made
 ; harder once a loop (saturating; twenty loops reach every bound).
 setup_level:
-        ldx level
-        lda lv_kind,x
+        lda level                ; its record, aux lv_recs + LV_REC * level
+        stz af_dst+1             ; (af_dst+1: the high byte of the product)
+        .repeat 6 - 1            ; (LV_REC = 6: level + 5 * level)
+        clc
+        adc level
+        bcc :+
+        inc af_dst+1
+:
+        .endrepeat
+        clc
+        adc #<lv_recs
+        pha
+        lda af_dst+1
+        adc #>lv_recs
+        tay
+        lda #<lv_rec
+        sta af_dst
+        lda #>lv_rec
+        sta af_dst+1
+        lda #LV_REC
+        sta af_len
+        stz af_len+1
+        pla
+        jsr aux_fetch
+        lda a:lv_rec+LV_KIND
         sta lkind
-        lda lv_dive,x
+        lda a:lv_rec+LV_DIVE
         sta dive_gap
-        lda lv_divers,x
+        lda a:lv_rec+LV_DIVERS
         sta max_divers
-        lda lv_fire,x
+        lda a:lv_rec+LV_FIRE
         sta fire_gap
-        lda lv_bomb,x
+        lda a:lv_rec+LV_BOMB
         sta bomb_dy
-        lda lv_kami,x
+        lda a:lv_rec+LV_KAMI
         sta kami_dy
         lda loop
         cmp #20
@@ -1856,14 +1879,14 @@ a_path: lda a_plo,x              ; flying a path
 :       cmp #ALIEN_MAX+1
         bcc xok
         lda #ALIEN_MAX
-xok:    ldy a_big,x              ; big: cells 2..132 (its box: x-2..x+7)
+xok:    ldy a_big,x              ; big: cells 2..BIG_HI (its box: x-2..x+7)
         beq :++
         cmp #2
         bcs :+
         lda #2
-:       cmp #132+1
+:       cmp #BIG_HI+1
         bcc :+
-        lda #132
+        lda #BIG_HI
 :       sta a_x,x
         lda tmp2                 ; dy: low nibble, signed
         and #$0F

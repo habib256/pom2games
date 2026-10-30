@@ -70,7 +70,7 @@ def font():
 
 
 def cell_byte(c):
-    return 2 * (c // 7) + (2 * (c % 7) >= 7)
+    return M.FIELD_COL + 2 * (c // 7) + (2 * (c % 7) >= 7)
 
 
 def hud_text(st):
@@ -183,9 +183,9 @@ def expected(st, T, glyphs):
     icons = [sprites.icon_bytes(k) for k in range(len(sprites.ICON_SHAPES))]
     for k in range(M.N_OBJ):
         if st['obj_y'][k]:
-            put(icons[st['obj_kind'][k]], 2 * st['obj_k'][k], st['obj_y'][k], 'eor')
+            put(icons[st['obj_kind'][k]], M.FIELD_COL + 2 * st['obj_k'][k], st['obj_y'][k], 'eor')
     for i in reversed(range(M.NSTARS)):
-        a = hgr_offset(st['star_y'][i]) + st['star_col'][i]
+        a = hgr_offset(st['star_y'][i]) + M.FIELD_COL + st['star_col'][i]
         if not page[a]:
             page[a] = 1 << (i * 3 % 7) | (i % 2) << 7
     return page

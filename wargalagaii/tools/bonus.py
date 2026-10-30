@@ -26,16 +26,23 @@ def emit():
         out.append('        .byte ' + ','.join(str(k) for k in model.DROP_TABLE[i:i + 16]))
     out.append('; levels: kind (0 normal, 1 big, 2 bonus, 3 kamikaze, 4 boss), then the')
     out.append('; loop-0 parameters: dive gap, max divers, fire gap, bomb dy, kamikaze dy')
-    tables = [('lv_kind', [model.level_kind(lv) for lv in range(model.LEVELS)]),
-              ('lv_combo', [model.alien_combo(lv) for lv in range(model.LEVELS)]),
-              ('lv_big', [model.big_combo(lv) for lv in range(model.LEVELS)])]
-    for k, name in enumerate(('lv_dive', 'lv_divers', 'lv_fire', 'lv_bomb', 'lv_kami')):
-        tables.append((name, [model.level_params(lv, 0)[k] for lv in range(model.LEVELS)]))
-    tables.append(('lv_rows', [model.entry_params(lv)[0] for lv in range(12)]))
+    tables = [('lv_combo', [model.alien_combo(lv) for lv in range(model.LEVELS)]),
+              ('lv_big', [model.big_combo(lv) for lv in range(model.LEVELS)]),
+              ('lv_rows', [model.entry_params(lv)[0] for lv in range(12)])]
     for name, values in tables:
         out.append(f'{name}:')
         for i in range(0, len(values), 20):
             out.append('        .byte ' + ','.join(str(v) for v in values[i:i + 20]))
+    # Lot 10: the rest of a level's record lives in aux memory (game.cfg
+    # AUXLV, WG2.AUX at $9C00); setup_level copies the level's LV_REC bytes.
+    fields = ('kind', 'dive', 'divers', 'fire', 'bomb', 'kami')
+    out += [f'LV_{name.upper()} = {k}' for k, name in enumerate(fields)]
+    out.append(f'LV_REC = {len(fields)}')
+    out += ['.pushseg', '.segment "LEVELS"', 'lv_recs:']
+    for lv in range(model.LEVELS):
+        rec = [model.level_kind(lv)] + list(model.level_params(lv, 0))
+        out.append('        .byte ' + ','.join(map(str, rec)) + f'   ; level {lv + 1}')
+    out.append('.popseg')
     # the shop (lot 7): prices in BCD, names for the shop screen
     out.append(f'NITEM = {len(model.ITEMS)}')
     out.append(f'SHOP_MIN = ${model.SHOP_MIN:04}')
@@ -44,9 +51,10 @@ def emit():
     out.append('item_lo: .byte ' + ','.join(f'${p % 100:02}' for _, p in model.ITEMS))
     out.append('item_hi: .byte ' + ','.join(f'${p // 100:02}' for _, p in model.ITEMS))
     out.append(f'ITEM_NAME = {ITEM_NAME}')
-    out.append('item_name:')
+    out += ['.pushseg', '.segment "SHOP"            ; the shop overlay only', 'item_name:']
     for name, _ in model.ITEMS:
         out.append(f'        .byte "{name.ljust(ITEM_NAME)}"')
+    out.append('.popseg')
     # the sub-games (lot 8)
     M = model
     for name in ('ROCK', 'M_ROCKS', 'M_SPEED_MAX', 'M_ACC', 'M_DEC', 'M_DY0', 'M_SPACING', 'M_DIST',
