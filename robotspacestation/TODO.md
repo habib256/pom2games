@@ -18,7 +18,7 @@
       (`make test-long`) ; titre en deux colonnes, touche 0 pour la dixième
       (11-14 : au titre). Missions 15 LE COMPTEUR (fronts du capteur O) et
       16 LA SPIRALE (quatre caps) sur une seconde page du titre (PAGE).
-      `best` a 16 places : au-delà, l'agrandir (RSS3 n'est pas encore publié).
+      `best` a 28 places (deux pages de titre).
 - [ ] Des puces fournies par la station (une bibliothèque de départ).
 - [x] Son (2026-10-30) : contact, pince (prise, lâcher), radio, puce gravée,
       mission réussie ; S coupe.

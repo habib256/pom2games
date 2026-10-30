@@ -760,7 +760,7 @@ class Zone:
 
 # -- the save file RSS.SAVE (src/sim.h Persist) ----------------------------
 
-BEST_SLOTS = 16                 # RSS3: the fewest gates each mission was won with (0: never)
+BEST_SLOTS = 28                 # RSS3: the fewest gates each mission was won with (0: never), two title pages
 SAVE_SIZE = 4 + 1 + CHIPS * (1 + 3 * CHIP_GATES + 4 + LAYOUT_IDS + 3 * PARTS) + 3 * (LAYOUT_IDS + 3 * PARTS) \
     + BEST_SLOTS
 
