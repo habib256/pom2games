@@ -208,6 +208,8 @@ def solution(mission):
         return relay()
     elif mission == 13:
         return tandem()
+    elif mission == 14:
+        return counter()
     elif mission == 7:                  # south always, east / west by turns
         n = b.place(NOT, 0, 0)
         f = b.place(FLIP, 1, 0)
@@ -320,6 +322,36 @@ def tandem(radio=True):
         b.disconnect(inp(g, 1))
         wire(b, out(k), inp(g, 1))      # (AND with itself: no wait)
     return a, b
+
+
+def counter(first=False):
+    """LE COMPTEUR: south down the shaft along its west wall; W two turns
+    late and NOT W a turn late make a falling edge (an opening); the
+    second one turns the drone west (first: the first one, the trap)."""
+    b = Board()
+    d1 = b.place(AND, 0, 0)
+    d2 = b.place(AND, 1, 0)
+    nw = b.place(NOT, 2, 0)
+    f = b.place(AND, 3, 0)
+    l1 = b.place(FLIP, 0, 1)
+    g = b.place(AND, 1, 1)
+    l2 = b.place(FLIP, 2, 1)
+    n0 = b.place(NOT, 3, 1)
+    wire(b, 3, inp(d1, 0))              # W, a turn late
+    wire(b, 3, inp(d1, 1))
+    wire(b, out(d1), inp(d2, 0))        # two turns late
+    wire(b, out(d1), inp(d2, 1))
+    wire(b, 3, inp(nw, 0))              # not W, a turn late
+    wire(b, out(d2), inp(f, 0))         # an opening begins
+    wire(b, out(nw), inp(f, 1))
+    wire(b, out(f), inp(l1, 0))         # the first
+    wire(b, out(f), inp(g, 0))
+    wire(b, out(l1), inp(g, 1))
+    wire(b, out(f) if first else out(g), inp(l2, 0))   # the second
+    wire(b, out(l2), 1)                 # then west
+    wire(b, out(l2), inp(n0, 0))
+    wire(b, out(n0), 0)                 # until then south
+    return b
 
 
 def play(mission, board, ticks=600, tech=None, board2=None):
@@ -463,6 +495,16 @@ class Missions(unittest.TestCase):
         t, z = play(13, tandem(radio=False), 3000)
         self.assertIsNone(t)
         self.assertEqual(z.objects[0][1:], [105, 64])  # B came back empty
+
+    def test_the_counter_skips_the_first_opening(self):
+        t, z = play(14, counter(first=True), 1500)
+        self.assertIsNone(t)
+        self.assertEqual((z.x, z.y), (63, 59))   # in the trap
+        b = Board()                             # south and west at once
+        n = b.place(NOT, 0, 0)
+        wire(b, out(n), 0)
+        wire(b, out(n), 1)
+        self.assertIsNone(play(14, b, 1500)[0])
 
     def test_an_empty_board_wins_nothing(self):
         for m in range(len(MISSIONS)):

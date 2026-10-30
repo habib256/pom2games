@@ -56,9 +56,13 @@ static void __fastcall__ big_text(const char *s, unsigned char x, unsigned char 
     }
 }
 
+/* Fourteen missions a page (PAGE on the title turns them). */
+#define PAGE_N (2u * LIST_N)
+unsigned char title_page;
+
 void title_draw(void)
 {
-    static unsigned char m, x, y;
+    static unsigned char m, k, x, y;
     static char num[2];
     stars();
     ui_latch();
@@ -66,11 +70,11 @@ void title_draw(void)
     big_text("STATION", 36, 17);
     station();
     ui_latch();
-    dhgr_puts_small("MISSIONS", 0, LIST_Y - 10u);
+    dhgr_puts_small(title_page ? "MISSIONS 15-" : "MISSIONS", 0, LIST_Y - 10u);
     num[1] = 0;
-    for (m = 0u; m < mission_count(); ++m) {
-        y = LIST_Y + (m % LIST_N) * 9u;
-        x = m < LIST_N ? 0u : LIST_DX;
+    for (m = title_page * PAGE_N, k = 0u; m < mission_count() && k < PAGE_N; ++m, ++k) {
+        y = LIST_Y + (k % LIST_N) * 9u;
+        x = k < LIST_N ? 0u : LIST_DX;
         /* green: won, orange: the next, gray: locked */
         dhgr_fill_rect(x, y, 5, 5, m < persist.reached ? DHGR_GREEN
                        : m == persist.reached ? DHGR_ORANGE : DHGR_GRAY1);
@@ -87,5 +91,6 @@ unsigned char __fastcall__ title_mission_at(unsigned char x, unsigned char y)
     m = (unsigned char)(y - LIST_Y + 2u) / 9u;
     if (m >= LIST_N) return NONE;
     if (x >= LIST_DX) m += LIST_N;
+    m += title_page * PAGE_N;
     return m < mission_count() && m <= persist.reached ? m : NONE;
 }
