@@ -1,0 +1,81 @@
+# ROBOT SPACE STATION — Apple //e enhanced / //c 128 KB, ProDOS 8, DHGR, mouse.
+#
+#   make            -> ../dist/ROBOTSTATION.po
+#   make run        -> POM2, //e enhanced with an AppleMouse in slot 4
+#   make run-iic    -> POM2, //c (built-in mouse)
+#   make test       -> reference model, then the lab and the test zone on //e and //c (a2shot)
+#
+# C (cc65) on the shared DHGR, gfx, ProDOS and mouse libraries; the logic
+# simulation follows tools/model.py bit for bit (docs/SPEC.md).
+DEV ?= ../dev
+APPLE2_PRESET := iie
+APPLE2_RUN_FLAGS := --slot 4=mouse
+include $(DEV)/cc65/apple2.mk
+include $(HGRC)/hgrc.mk
+include $(APPLE2C)/apple2c.mk
+PRODOS := $(DEV)/lib/prodos
+MOUSE := $(DEV)/lib/mouse
+include $(PRODOS)/prodos.mk
+include $(MOUSE)/mouse.mk
+
+DISK := $(DIST)/ROBOTSTATION.po
+SRCS := src/main.c src/ui.c src/board_ui.c src/zone.c src/sim.c src/title.c src/pointer.s src/swap.s
+LIB_SRCS := $(sort $(HGRC_DHGR_SRCS) $(HGRC_DHGR_SMALL_TEXT_SRCS)) $(HGRC_DHGR_COLOR_BACKEND) \
+            $(GFX)/gfx_line.c $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) \
+            $(PRODOS_SRCS) $(PRODOS_FILE_SRCS) $(MOUSE_SRCS)
+OBJS := $(BUILD)/crt0_prodos.o $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o)))
+OBJS := $(OBJS:.s=.o)
+LIB_OBJS := $(addprefix $(BUILD)/,$(notdir $(LIB_SRCS:.c=.o)))
+LIB_OBJS := $(LIB_OBJS:.s=.o)
+GAME_LIB := $(BUILD)/platform.lib
+CFLAGS := -t none --cpu 65c02 -Ors -I src $(HGRC_INCS) $(APPLE2C_INCS) $(PRODOS_INCS) $(MOUSE_INCS)
+vpath %.c src $(HGRC) $(APPLE2C) $(GFX)
+vpath %.s src $(GFX) $(DEV)/cc65 $(HGRC) $(APPLE2C) $(PRODOS) $(MOUSE)
+
+all: $(DISK)
+
+src/room.h: tools/gen_room.py tools/model.py
+	$(PYTHON) tools/gen_room.py
+$(BUILD)/zone.o: src/room.h
+
+$(BUILD)/%.o: %.c $(wildcard src/*.h) $(HGRC_HEADERS) $(wildcard $(PRODOS)/*.h $(MOUSE)/*.h)
+	@mkdir -p $(@D)
+	$(CL65) $(CFLAGS) -c -o $@ $<
+$(BUILD)/%.o: %.s $(HGRC_ASM_DEPS)
+	@mkdir -p $(@D)
+	$(CA65) -t none -I $(HGRC) -I $(APPLE2) -I $(PRODOS) -o $@ $<
+$(BUILD)/file.o: $(PRODOS_FILE_DEPS)
+$(GAME_LIB): $(LIB_OBJS) Makefile
+	$(PYTHON) -c 'from pathlib import Path; Path("$@").unlink(missing_ok=True)'
+	$(AR65) a $@ $(LIB_OBJS)
+# zone.c lives in HI, the unused DHGR page 2 (src/game.cfg).
+$(BUILD)/zone.o: CFLAGS += --code-name HICODE --rodata-name HIDATA
+$(BUILD)/game.bin: $(OBJS) $(GAME_LIB) src/game.cfg
+	$(CL65) -t none -C src/game.cfg -m $(BUILD)/game.map -Ln $(BUILD)/game.lbl -o $@ $(OBJS) $(GAME_LIB)
+$(BUILD)/RSS.SYS: $(BUILD)/game.bin src/startup.s $(PRODOS_SYS_CFG)
+	$(CA65) --bin-include-dir $(BUILD) -o $(BUILD)/startup.o src/startup.s
+	$(LD65) -C $(PRODOS_SYS_CFG) -o $@ $(BUILD)/startup.o
+$(BUILD)/RSS.SYSTEM: src/boot.s $(PRODOS_SYSBOOT_DEPS)
+	@mkdir -p $(@D)
+	$(CA65) -I $(PRODOS) -o $(BUILD)/boot.o src/boot.s
+	$(LD65) -C $(PRODOS_SYSBOOT_CFG) -o $@ $(BUILD)/boot.o
+$(DISK): $(BUILD)/RSS.SYS $(BUILD)/RSS.SYSTEM $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py
+	@rm -rf $(BUILD)/stage
+	@mkdir -p $(BUILD)/stage $(DIST)
+	cp $(DEV)/tools/prodos/PRODOS $(BUILD)/stage/PRODOS#FF0000
+	cp $(BUILD)/RSS.SYSTEM $(BUILD)/stage/RSS.SYSTEM#FF2000
+	cp $(BUILD)/RSS.SYS $(BUILD)/stage/RSS.SYS#FF2000
+	$(PYTHON) $(DEV)/tools/prodos/build_volume.py $(BUILD)/stage $@ \
+		--volume ROBOT.STATION --boot $(DEV)/tools/prodos/boot.bin --blocks 280
+
+run-iic: all
+	$(POM2) --preset iic --slot 4=iicmouse $(DISK)
+
+test: all
+	$(PYTHON) tests/test_model.py
+	$(PYTHON) tests/test_lab.py --disk $(DISK) --labels $(BUILD)/game.lbl
+	$(PYTHON) tests/test_zone.py --disk $(DISK) --labels $(BUILD)/game.lbl
+	$(PYTHON) tests/test_lab.py --disk $(DISK) --labels $(BUILD)/game.lbl --iic
+	$(PYTHON) tests/test_zone.py --disk $(DISK) --labels $(BUILD)/game.lbl --iic
+
+.PHONY: run-iic test
