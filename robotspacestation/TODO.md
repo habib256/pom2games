@@ -16,8 +16,9 @@
 - [x] Missions 8-14 (2026-10-30) : LE ZIGZAG, LE COLIS, LE GARDIEN, LA RONDE,
       LE SAS, LA CAISSE, LE TANDEM, prouvées par le modèle et jouées en C
       (`make test-long`) ; titre en deux colonnes, touche 0 pour la dixième
-      (11-14 : au titre). Le titre est plein (2 × 7) : au-delà, une page de
-      plus.
+      (11-14 : au titre). Missions 15 LE COMPTEUR (fronts du capteur O) et
+      16 LA SPIRALE (quatre caps) sur une seconde page du titre (PAGE).
+      `best` a 28 places (deux pages de titre).
 - [ ] Des puces fournies par la station (une bibliothèque de départ).
 - [x] Son (2026-10-30) : contact, pince (prise, lâcher), radio, puce gravée,
       mission réussie ; S coupe.
@@ -38,7 +39,9 @@
       == `Zone` ; la campagne entière, chaque mission jouée en C avec
       la solution du modèle (carte dans `RSS.SAVE`), //e et //c.
 
-## Mémoire (au 2026-10-30)
+## Mémoire (au 2026-10-30, soir)
 
-Principale jusqu'à `$B8AE` (1,3 Ko libres sous `$BE00`), page 2 HI jusqu'à
-`$596E` (1,6 Ko), basse jusqu'à `$1F74` (140 octets).
+Le titre écrit ses deux lignes avec la petite police agrandie (plus de
+`dhgr_puts` ni de police 8 × 8 : ~1,3 Ko rendus) ; l'aide et les records sont
+en mémoire principale (`src/help.c`). Libres : principale ~620 octets sous
+`$BE00`, HI ~640 octets, basse ~20 octets.

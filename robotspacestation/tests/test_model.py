@@ -208,6 +208,10 @@ def solution(mission):
         return relay()
     elif mission == 13:
         return tandem()
+    elif mission == 14:
+        return counter()
+    elif mission == 15:
+        return spiral()
     elif mission == 7:                  # south always, east / west by turns
         n = b.place(NOT, 0, 0)
         f = b.place(FLIP, 1, 0)
@@ -322,6 +326,66 @@ def tandem(radio=True):
     return a, b
 
 
+def counter(first=False):
+    """LE COMPTEUR: south down the shaft along its west wall; W two turns
+    late and NOT W a turn late make a falling edge (an opening); the
+    second one turns the drone west (first: the first one, the trap)."""
+    b = Board()
+    d1 = b.place(AND, 0, 0)
+    d2 = b.place(AND, 1, 0)
+    nw = b.place(NOT, 2, 0)
+    f = b.place(AND, 3, 0)
+    l1 = b.place(FLIP, 0, 1)
+    g = b.place(AND, 1, 1)
+    l2 = b.place(FLIP, 2, 1)
+    n0 = b.place(NOT, 3, 1)
+    wire(b, 3, inp(d1, 0))              # W, a turn late
+    wire(b, 3, inp(d1, 1))
+    wire(b, out(d1), inp(d2, 0))        # two turns late
+    wire(b, out(d1), inp(d2, 1))
+    wire(b, 3, inp(nw, 0))              # not W, a turn late
+    wire(b, out(d2), inp(f, 0))         # an opening begins
+    wire(b, out(nw), inp(f, 1))
+    wire(b, out(f), inp(l1, 0))         # the first
+    wire(b, out(f), inp(g, 0))
+    wire(b, out(l1), inp(g, 1))
+    wire(b, out(f) if first else out(g), inp(l2, 0))   # the second
+    wire(b, out(l2), 1)                 # then west
+    wire(b, out(l2), inp(n0, 0))
+    wire(b, out(n0), 0)                 # until then south
+    return b
+
+
+def spiral():
+    """LA SPIRALE: heading east (no latch), south (A), west (B), north (C);
+    a bump ahead turns right (the next latch set, the last one reset)."""
+    b = Board()
+    A = b.place(FLIP, 0, 0)
+    B = b.place(FLIP, 1, 0)
+    C = b.place(FLIP, 2, 0)
+    o1 = b.place(OR, 3, 0)
+    o2 = b.place(OR, 4, 0)
+    e = b.place(NOT, 0, 1)
+    turns = [b.place(AND, k, 1) for k in range(1, 5)]
+    wire(b, out(A), inp(o1, 0))
+    wire(b, out(B), inp(o1, 1))
+    wire(b, out(o1), inp(o2, 0))
+    wire(b, out(C), inp(o2, 1))
+    wire(b, out(o2), inp(e, 0))         # east: none of them
+    for t, bump, state, sets, resets in ((turns[0], 1, e, A, None), (turns[1], 2, A, B, A),
+                                         (turns[2], 3, B, C, B), (turns[3], 0, C, None, C)):
+        wire(b, bump, inp(t, 0))        # a bump ahead, in that heading
+        wire(b, out(state), inp(t, 1))
+        if sets is not None:
+            wire(b, out(t), inp(sets, 0))
+    wire(b, out(B), inp(A, 1))          # each heading resets the previous one
+    wire(b, out(C), inp(B, 1))
+    wire(b, out(turns[3]), inp(C, 1))   # north's bump: east again
+    for state, sink in ((e, 3), (A, 0), (B, 1), (C, 2)):
+        wire(b, out(state), sink)       # the thruster opposite the heading
+    return b
+
+
 def play(mission, board, ticks=600, tech=None, board2=None):
     if isinstance(board, tuple):
         board, board2 = board
@@ -340,7 +404,7 @@ class Missions(unittest.TestCase):
         for m in range(len(MISSIONS)):
             if MISSIONS[m][1] == GOAL_TECH:
                 continue
-            t, z = play(m, solution(m))
+            t, z = play(m, solution(m), 1500)
             self.assertIsNotNone(t, (MISSIONS[m][0], z.x, z.y, z.objects))
 
     def test_the_door_waits_for_the_technician(self):
@@ -463,6 +527,21 @@ class Missions(unittest.TestCase):
         t, z = play(13, tandem(radio=False), 3000)
         self.assertIsNone(t)
         self.assertEqual(z.objects[0][1:], [105, 64])  # B came back empty
+
+    def test_the_counter_skips_the_first_opening(self):
+        t, z = play(14, counter(first=True), 1500)
+        self.assertIsNone(t)
+        self.assertEqual((z.x, z.y), (63, 59))   # in the trap
+        b = Board()                             # south and west at once
+        n = b.place(NOT, 0, 0)
+        wire(b, out(n), 0)
+        wire(b, out(n), 1)
+        self.assertIsNone(play(14, b, 1500)[0])
+
+    def test_the_spiral_needs_four_headings(self):
+        t, z = play(15, spiral(), 1500)
+        self.assertIsNotNone(t)
+        self.assertIsNone(play(15, solution(10), 1500)[0])     # LA RONDE's three legs
 
     def test_an_empty_board_wins_nothing(self):
         for m in range(len(MISSIONS)):

@@ -523,6 +523,44 @@ MISSIONS = (
         '#.........#........#',
         '#.........#........#',
         '####################')),
+    ('LE COMPTEUR', GOAL_DRONE, (
+        '####################',
+        '#..................#',
+        '#..T.......D.......#',
+        '#..................#',
+        '###########..#######',
+        '#.........#..#.....#',
+        '#.......###..#.....#',
+        '#.......#....#.....#',
+        '#.......#....#.....#',
+        '#.......#....#.....#',
+        '#.......###..#.....#',
+        '###########..#.....#',
+        '#XXX.........#.....#',
+        '#XXX.........#.....#',
+        '#XXX.........#.....#',
+        '###########..#.....#',
+        '#.........#..#.....#',
+        '####################')),
+    ('LA SPIRALE', GOAL_DRONE, (
+        '####################',
+        '#TD................#',
+        '#..................#',
+        '#################..#',
+        '#...............#..#',
+        '#...............#..#',
+        '#..###########..#..#',
+        '#..#......XXX#..#..#',
+        '#..#......XXX#..#..#',
+        '#..#......XXX#..#..#',
+        '#..#.........#..#..#',
+        '#..#..########..#..#',
+        '#..#............#..#',
+        '#..#............#..#',
+        '#..##############..#',
+        '#..................#',
+        '#..................#',
+        '####################')),
 )
 
 # One hint a mission (key H in the room), 28 characters at most, on the
@@ -542,6 +580,8 @@ HINTS = (
     'TENIR LA PLAQUE PUIS PASSER',
     'LA PINCE POSE LA CAISSE',
     'A SE GARE ET APPELLE B',
+    'LA 2E OUVERTURE A L OUEST',
+    'UN CHOC DEVANT : A DROITE',
 )
 HINT_LEN = 32
 assert len(HINTS) == len(MISSIONS) and all(len(h) <= 28 for h in HINTS)   # (the message line)
@@ -720,7 +760,7 @@ class Zone:
 
 # -- the save file RSS.SAVE (src/sim.h Persist) ----------------------------
 
-BEST_SLOTS = 16                 # RSS3: the fewest gates each mission was won with (0: never)
+BEST_SLOTS = 28                 # RSS3: the fewest gates each mission was won with (0: never), two title pages
 SAVE_SIZE = 4 + 1 + CHIPS * (1 + 3 * CHIP_GATES + 4 + LAYOUT_IDS + 3 * PARTS) + 3 * (LAYOUT_IDS + 3 * PARTS) \
     + BEST_SLOTS
 

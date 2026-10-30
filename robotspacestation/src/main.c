@@ -20,7 +20,7 @@
 static const char *const lab_buttons[] = {"MARCHE", "PAS", "GRAVE", "EFFACE", "ESSAI"};
 static const char *const zone_buttons[] = {"MARCHE", "PAS", "REPLACER", "LABO", "MENU"};
 static const char *const won_buttons[] = {"MARCHE", "PAS", "SUITE", "LABO", "MENU"};
-static const char *const title_buttons[] = {"JOUER", "LABO", "AIDE", "RECORDS"};
+static const char *const title_buttons[] = {"JOUER", "LABO", "AIDE", "RECORDS", "PAGE"};
 static const char *const help_buttons[] = {"RETOUR"};
 static const char *const drone_buttons[] = {"MARCHE", "PAS", "SORTIR"};
 
@@ -172,7 +172,7 @@ static void enter_title(void)
     running = 0u;
     screen_clear();
     title_draw();
-    buttons_set(title_buttons, 4);
+    buttons_set(title_buttons, 5);
     message("CLIQUER UNE MISSION OU JOUER");
 }
 
@@ -307,6 +307,7 @@ static void click_button(unsigned char b)
     if (screen == S_HELP) { enter_title(); return; }
     if (b == 0xFFu) return;
     if (mode == M_CLEAR && !(screen == S_LAB && b == 3u)) mode = M_EDIT;
+    if (screen == S_TITLE && b == 4u) { title_page ^= 1u; enter_title(); return; }
     if (screen == S_TITLE && b >= 2u) { enter_help(b - 2u); return; }
     if (screen != S_TITLE) {
         if (b == 0u) { running ^= 1u; buttons_draw(); return; }

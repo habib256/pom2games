@@ -5,6 +5,7 @@
 void title_draw(void);
 /* The mission on screen row y if it may be played (won or next), or NONE. */
 unsigned char __fastcall__ title_mission_at(unsigned char x, unsigned char y);
+extern unsigned char title_page;        /* 0: missions 1-14, 1: 15-28 */
 
 /* Page 0, the help: the terminals, the parts, the keys. Page 1, the
  * records: each mission won and its fewest gates (persist.best). */
