@@ -5,6 +5,11 @@
 #include "zone.h"
 #include "title.h"
 #include "ui.h"
+#include "board_ui.h"
+
+/* Electronics 3/6 (AND, OR) and 4/6 (XOR, NOT): each gate's symbol
+ * beside its truth table, at x 100 and these rows. */
+static const unsigned char symbol_y[4] = { 78, 132, 51, 96 };
 
 /* Page 2, the rooms: a sample of each tile (zone.c's colours), its rule. */
 /* x, y, width, height, colour */
@@ -42,6 +47,13 @@ void __fastcall__ help_draw(unsigned char page)
     if (page < TEXT_PAGES) {
         page_x = 0u; page_y = 4u;
         text_page(T_HELP + page);
+        if (page == 3u || page == 4u) {
+            sym_x = 100u;
+            for (i = page * 2u - 6u; i < page * 2u - 4u; ++i) {
+                sym_y = symbol_y[i];
+                draw_symbol(i);
+            }
+        }
         return;
     }
     text_at(T_H_RECORDS, 0, 4);

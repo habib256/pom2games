@@ -30,4 +30,10 @@ void board_clear_all(void);
 /* main.c: write RSS.SAVE (1 = written). */
 unsigned char board_saved(void);
 
+/* src/symbol.s: gate g's schematic symbol (AND OR XOR NOT: kind - 1),
+ * 16 x 13 with its leads (inputs rows 3, 10, NOT 6; output row 6), at
+ * sym_x, sym_y. */
+extern unsigned char sym_x, sym_y;
+void __fastcall__ draw_symbol(unsigned char g);
+
 #endif

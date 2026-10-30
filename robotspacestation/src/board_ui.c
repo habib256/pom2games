@@ -210,10 +210,6 @@ static void __fastcall__ gate_label(unsigned char g)
     label[3] = 0;
 }
 
-/* src/symbol.s: the gates' schematic symbols (AND OR XOR NOT, kind - 1). */
-extern unsigned char sym_x, sym_y;
-void __fastcall__ draw_symbol(unsigned char g);
-
 static void __fastcall__ draw_part(unsigned char i)
 {
     static unsigned char *p, kind, cx, cy, top, h, k, n;
