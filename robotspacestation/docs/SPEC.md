@@ -174,6 +174,7 @@ sur un chargeur.
 | 11 | LA RONDE | est, puis sud, puis ouest : deux bascules (sud-ouest d'un coup : le piège) |
 | 12 | LE SAS | le technicien tient la porte du drone, qui se gare sur la plaque de l'autre porte |
 | 13 | LA CAISSE | la pince porte la caisse jusqu'à la plaque ; elle y tient la porte ouverte |
+| 14 | LE TANDEM | A se gare sur la plaque et appelle ; B attend l'appel pour chercher la cellule |
 
 Les tests (`tests/test_model.py`) prouvent qu'une solution existe pour
 chacune, qu'une planche vide ne gagne rien, que le pilier exige une
@@ -183,8 +184,10 @@ parking ouvre le passage, que le relais exige la radio (A parti trop tôt,
 la porte se referme sous B), que deux drones se bloquent l'un l'autre, que
 le zigzag exige l'alternance, que le colis attend le technicien, que le
 gardien sans bascule ne se gare jamais, que la ronde exige deux bascules,
-que le sas attend le technicien sur sa plaque et que la caisse, sans pince,
-reste où elle est (le jeu la joue aussi de bout en bout : `tests/test_zone.py`).
+que le sas attend le technicien sur sa plaque, que la caisse, sans pince,
+reste où elle est et que B, parti sans attendre l'appel, revient les mains
+vides. `make test-long` joue toute la campagne en C, chaque mission avec sa
+solution, à l'identique du modèle (le jeu la joue aussi de bout en bout : `tests/test_zone.py`).
 
 Le labo et le drone ont chacun leur planche : passer de l'un à l'autre
 recompile la planche (valeurs remises à 0). Choisir une mission

@@ -206,6 +206,8 @@ def solution(mission):
         wire(b, out(f), 0)
     elif mission == 6:
         return relay()
+    elif mission == 13:
+        return tandem()
     elif mission == 7:                  # south always, east / west by turns
         n = b.place(NOT, 0, 0)
         f = b.place(FLIP, 1, 0)
@@ -294,6 +296,29 @@ def relay():
     k = b.place(NOT, 0, 0)
     wire(b, out(k), 2)                  # push north
     wire(b, 0, SINK_RADIO)              # against the top wall: call
+    return a, b
+
+
+def tandem(radio=True):
+    """LE TANDEM: A goes east onto the plate beyond the grate and calls
+    there; B waits for the call (a latch), then fetches the cell through the
+    door A holds open (LA CELLULE's board, its east thrust gated)."""
+    a = Board()
+    n = a.place(NOT, 0, 0)
+    wire(a, out(n), 3)                  # east
+    wire(a, 1, SINK_RADIO)              # against the east wall, on the plate: call
+    b = solution(3)
+    r = b.place(FLIP, 0, 1)
+    g = b.place(AND, 0, 2)
+    k = [i for i, p in enumerate(b.parts) if p and p[0] == NOT][0]
+    b.disconnect(3)
+    wire(b, SRC_RADIO, inp(r, 0))       # the call, latched
+    wire(b, out(k), inp(g, 0))
+    wire(b, out(r), inp(g, 1))
+    wire(b, out(g), 3)                  # east only once called
+    if not radio:
+        b.disconnect(inp(g, 1))
+        wire(b, out(k), inp(g, 1))      # (AND with itself: no wait)
     return a, b
 
 
@@ -431,6 +456,13 @@ class Missions(unittest.TestCase):
         t, z = play(12, b, 2000)
         self.assertIsNone(t)
         self.assertEqual(z.objects[0][1:], [56, 32])
+
+    def test_the_tandem_waits_for_the_call(self):
+        t, z = play(13, tandem(), 3000)
+        self.assertIsNotNone(t)
+        t, z = play(13, tandem(radio=False), 3000)
+        self.assertIsNone(t)
+        self.assertEqual(z.objects[0][1:], [105, 64])  # B came back empty
 
     def test_an_empty_board_wins_nothing(self):
         for m in range(len(MISSIONS)):

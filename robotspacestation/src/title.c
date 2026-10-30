@@ -59,8 +59,8 @@ void title_draw(void)
         /* green: won, orange: the next, gray: locked */
         dhgr_fill_rect(x, y, 5, 5, m < persist.reached ? DHGR_GREEN
                        : m == persist.reached ? DHGR_ORANGE : DHGR_GRAY1);
-        num[0] = m < 9u ? '1' + m : '0';            /* its key (10: 0) */
-        dhgr_puts_small(num, x + 8u, y);
+        num[0] = m < 9u ? '1' + m : '0';            /* its key (10: 0; */
+        if (m < 10u) dhgr_puts_small(num, x + 8u, y);   /* none after) */
         if (m <= persist.reached) dhgr_puts_small(mission_name_of(m), x + 15u, y);
     }
 }
