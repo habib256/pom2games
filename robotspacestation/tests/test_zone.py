@@ -20,7 +20,7 @@ sys.path.insert(0, str(HERE / 'tests'))
 sys.path.insert(0, str(HERE / 'tools'))
 from test_lab import POKE, SYNC, BOOT, title, MACHINE, SHOTS, PALETTE, cell, check, click, idle, pin_in, pin_out, run
 import a2test
-from model import (AND, FLIP, HINTS, NOT, OR, MISSIONS, Board, Chip, Zone, compile_board, layout_bytes,
+from model import (AND, BEST_SLOTS, FLIP, HINTS, NOT, OR, MISSIONS, SAVE_SIZE, Board, Chip, Zone, compile_board, layout_bytes,
                    room_start, save_bytes)
 
 ROOM_Y = 10
@@ -100,7 +100,7 @@ def mission_one(disk, L):
         t += 1
     fails += check(f'on the charger (turn {t})', (r.mem(L['_drone_x'], 1, 1) + r.mem(L['_drone_y'], 1, 1)), bytes((z.x, z.y)))
     fails += check('won and saved', r.mem(L['_won'], 2), b'\x01\x01')
-    fails += check('mission 1 recorded', r.mem(L['_persist'], 5), b'RSS2\x01')
+    fails += check('mission 1 recorded', r.mem(L['_persist'], 5), b'RSS3\x01')
     fails += check('SUITE: mission 2', bytes(r.mem(L['_mission'], 1, n)[0] for n in range(2)),
                    bytes((0, 1)))
     return fails
@@ -141,7 +141,7 @@ def mission_four(disk, L):
               f'shot:{SHOTS}/m4_inside.png']
     steps += ['key:M', 'wait:2400', idle(L, 3000), L.peek('_drone_x'), L.peek('_drone_y'), L.peek('_obj_x', 1),
               L.peek('_obj_y', 1), L.peek('_holding'), L.peek('_won', 2),
-              L.peek('_persist', 5), L.peek('_sfx_count'), L.peek('_sound_on')]
+              L.peek('_persist', SAVE_SIZE), L.peek('_sfx_count'), L.peek('_sound_on')]
     steps += zone_button(2) + ['wait:150', f'shot:{SHOTS}/m4_won.png']
     steps += ['key:S', 'wait:30', idle(L), L.peek('_sound_on')]
     r = run(disk, steps)
@@ -160,7 +160,9 @@ def mission_four(disk, L):
                    bytes(z.objects[0][1:]))
     fails += check('cell let go', r.mem(L['_holding'], 1), b'\xff')
     fails += check('won and saved', r.mem(L['_won'], 2), b'\x01\x01')
-    fails += check('mission 4 recorded', r.mem(L['_persist'], 5), b'RSS2\x04')
+    fails += check('mission 4 recorded', r.mem(L['_persist'], 5), b'RSS3\x04')
+    best = r.mem(L['_persist'], SAVE_SIZE)[SAVE_SIZE - BEST_SLOTS:]
+    fails += check('its record: 4 gates', best[:5], bytes((0, 0, 0, 4, 0)))
     # sounds: at least the claw's grab and drop, the contacts, the win
     sounds = r.mem(L['_sfx_count'], 1)[0]
     fails += check(f'sounds played ({sounds})', bytes((sounds >= 4, r.mem(L['_sound_on'], 1, 0)[0])), b'\x01\x01')
@@ -206,7 +208,7 @@ def doors(disk, L):
     fails += check('6: drone parked, door open', (r.mem(L['_drone_x'], 1, 1) + r.mem(L['_drone_y'], 1, 1)) + r.mem(L['_door_open'], 1, 2),
                    bytes((60, 16, 1)))
     fails += check('6: he reached the charger', r.mem(L['_won'], 2, 2), b'\x01\x01')
-    fails += check('all six recorded', r.mem(L['_persist'], 5), b'RSS2\x06')
+    fails += check('all six recorded', r.mem(L['_persist'], 5), b'RSS3\x06')
     return fails
 
 
@@ -247,7 +249,7 @@ def relay(disk, L):
     fails += check(f'relay done (turn {t})', r.mem(L['_drone_x'], 2) + r.mem(L['_drone_y'], 2),
                    bytes((z.drones[0].x, z.drones[1].x, z.drones[0].y, z.drones[1].y)))
     fails += check('won and saved', r.mem(L['_won'], 2), b'\x01\x01')
-    fails += check('seven missions', r.mem(L['_persist'], 5), b'RSS2\x07')
+    fails += check('seven missions', r.mem(L['_persist'], 5), b'RSS3\x07')
     return fails
 
 
@@ -322,6 +324,15 @@ def help_page(disk, L):
                  bytes((4, 3, 4, 3)))
 
 
+def old_save(disk, L):
+    """An RSS2 save (before the records): read, migrated to RSS3, no best."""
+    steps = [BOOT, 'wait:60', idle(L), L.peek('_persist', SAVE_SIZE)]
+    r = run(disk, steps)
+    data = r.mem(L['_persist'], SAVE_SIZE)
+    return check('RSS2 save: reached 5, migrated, no record', data[:5] + data[SAVE_SIZE - BEST_SLOTS:],
+                 b'RSS3\x05' + bytes(BEST_SLOTS))
+
+
 def missing_rooms(disk, L):
     """Without RSS.ROOMS, JOUER comes back to the title with a message."""
     r = run(disk, [BOOT] + title(0) + ['wait:60', idle(L, 3000), L.peek('_screen')])
@@ -349,6 +360,8 @@ def main():
     fails += module_two(disk_with_save(save_bytes(EMPTY, reached=11), 'reached11'), L)
     fails += crate(disk_with_save(save_bytes(EMPTY, reached=12), 'reached12'), L)
     fails += help_page(args.disk, L)
+    rss2 = b'RSS2' + save_bytes(EMPTY, reached=5)[4:SAVE_SIZE - BEST_SLOTS]
+    fails += old_save(disk_with_save(rss2, 'rss2'), L)
     fails += missing_rooms(disk_with_save(None, 'norooms', rooms=False), L)
     print(f'shots in {SHOTS}')
     sys.exit(1 if fails else 0)

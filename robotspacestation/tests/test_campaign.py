@@ -17,7 +17,7 @@ sys.path.insert(0, str(HERE / 'tools'))
 sys.path.insert(0, str(HERE.parent / 'dev/tools'))
 sys.path.insert(0, str(HERE / 'tests'))
 import a2test
-from model import GOAL_TECH, MISSIONS, Zone, compile_board, save_bytes
+from model import BEST_SLOTS, MISSIONS, SAVE_SIZE, Zone, compile_board, save_bytes
 from test_lab import BOOT, MACHINE, POKE, SYNC, check, click, idle, run
 from test_model import EMPTY, TECH, solution
 from test_zone import ROOM_Y, disk_with_save
@@ -65,7 +65,8 @@ def mission(m, L):
     if m in TECH_GOAL:
         steps += [f'wait:{OPEN_TICKS * 10}', L.peek('_door_open', 2)] + tech_at(L, TECH_GOAL[m])
     steps += [f'wait:{t * 10 + 600}', idle(L, 3000), L.peek('_won'),
-              L.peek('_drone_x', 2), L.peek('_drone_y', 2), L.peek('_obj_x', 4), L.peek('_obj_y', 4)]
+              L.peek('_drone_x', 2), L.peek('_drone_y', 2), L.peek('_obj_x', 4), L.peek('_obj_y', 4),
+              L.peek('_persist', SAVE_SIZE)]
     r = run(disk, steps)
     name = MISSIONS[m][0]
     fails = check(f'{m + 1} {name}: loaded', r.mem(L['_mission'], 1), bytes((m,)))
@@ -74,6 +75,9 @@ def mission(m, L):
     fails += check(f'{m + 1} {name}: drones == model',
                    r.mem(L['_drone_x'], 2)[:n] + r.mem(L['_drone_y'], 2)[:n],
                    bytes(d.x for d in z.drones) + bytes(d.y for d in z.drones))
+    gates = sum(len(compile_board(x, EMPTY).gates) for x in (a, b) if x)
+    best = r.mem(L['_persist'], SAVE_SIZE)[SAVE_SIZE - BEST_SLOTS + m]
+    fails += check(f'{m + 1} {name}: record {gates} gates', bytes((best,)), bytes((gates,)))
     k = len(z.objects)
     if k:
         fails += check(f'{m + 1} {name}: objects == model',

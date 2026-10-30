@@ -511,3 +511,36 @@ void __fastcall__ tech_beside_drone(unsigned char d)
     if (tech_free(act_x, act_y) && !tech_touches_drone()) return;
     act_y = dy - ACT_H - 1u;
 }
+
+/* -- records (RSS3: persist.best) ------------------------------------------ */
+
+static char gate_text[28];
+
+static void __fastcall__ put_gates(unsigned char at, unsigned char n)
+{
+    gate_text[at] = n >= 10u ? '0' + n / 10u : ' ';
+    gate_text[at + 1u] = '0' + n % 10u;
+}
+
+const char *zone_won_text(void)
+{
+    static unsigned char gates, *best;
+    gates = fl_count;                       /* both drones' boards */
+    if (drone_n == 2u) { board_swap(); gates += fl_count; board_swap(); }
+    best = &persist.best[mission];
+    strcpy(gate_text, "REUSSIE EN    PORTES");
+    put_gates(11u, gates);
+    if (!*best || gates < *best) {
+        *best = gates;
+        strcpy(gate_text + 20, " RECORD");
+    }
+    return gate_text;
+}
+
+const char *zone_enter_text(void)
+{
+    if (!persist.best[mission]) return "TOUCHER LE DRONE - H : INDICE";
+    strcpy(gate_text, "RECORD    PORTES H : INDICE");
+    put_gates(7u, persist.best[mission]);
+    return gate_text;
+}

@@ -720,10 +720,12 @@ class Zone:
 
 # -- the save file RSS.SAVE (src/sim.h Persist) ----------------------------
 
-SAVE_SIZE = 4 + 1 + CHIPS * (1 + 3 * CHIP_GATES + 4 + LAYOUT_IDS + 3 * PARTS) + 3 * (LAYOUT_IDS + 3 * PARTS)
+BEST_SLOTS = 16                 # RSS3: the fewest gates each mission was won with (0: never)
+SAVE_SIZE = 4 + 1 + CHIPS * (1 + 3 * CHIP_GATES + 4 + LAYOUT_IDS + 3 * PARTS) + 3 * (LAYOUT_IDS + 3 * PARTS) \
+    + BEST_SLOTS
 
 
-def save_bytes(chips, reached=0, lab=None, drone=None, drone2=None):
+def save_bytes(chips, reached=0, lab=None, drone=None, drone2=None, best=()):
     """The image of Persist: chips[] as burned (empty Chip() = free slot)."""
     def planar(field):
         out = bytearray()
@@ -731,7 +733,7 @@ def save_bytes(chips, reached=0, lab=None, drone=None, drone2=None):
             rows = [g[field] for g in c.gates] + [0] * (CHIP_GATES - len(c.gates))
             out += bytes(rows)
         return bytes(out)
-    out = bytearray(b'RSS2') + bytes([reached])
+    out = bytearray(b'RSS3') + bytes([reached])
     out += bytes(len(c.gates) for c in chips)
     out += planar(0) + planar(1) + planar(2)
     out += b''.join(bytes(c.outputs) for c in chips)
@@ -739,5 +741,6 @@ def save_bytes(chips, reached=0, lab=None, drone=None, drone2=None):
                     for c in chips)
     for b in (lab, drone, drone2):
         out += layout_bytes(b) if b else bytes(48) + bytes([NONE] * 72)
+    out += bytes(best).ljust(BEST_SLOTS, b'\0')
     assert len(out) == SAVE_SIZE
     return bytes(out)

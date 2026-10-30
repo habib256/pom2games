@@ -34,14 +34,16 @@ extern unsigned char values[TERMINALS + BOARD_GATES];
 /* What the save file RSS.SAVE holds, in low memory (LOWBSS): burned chips
  * (chip_bytes, planar), their editable layouts, the lab and drone boards
  * and the missions reached. tools/model.py save_bytes() has the same image. */
+#define BEST_SLOTS 16u                  /* tools/model.py BEST_SLOTS */
 typedef struct {
-    char magic[4];                              /* "RSS2" ("RSS1": no drone2) */
+    char magic[4];                              /* "RSS3" ("RSS2": no best, "RSS1": no drone2) */
     unsigned char reached;                      /* missions won so far */
     unsigned char count[CHIPS];
     unsigned char kind[CHIPS][CHIP_GATES], a[CHIPS][CHIP_GATES], b[CHIPS][CHIP_GATES];
     unsigned char out[CHIPS][4];
     unsigned char layout[CHIPS][LAYOUT_SIZE];
     unsigned char lab[LAYOUT_SIZE], drone[LAYOUT_SIZE], drone2[LAYOUT_SIZE];
+    unsigned char best[BEST_SLOTS];             /* fewest gates a mission was won with */
 } Persist;
 extern Persist persist;
 #define chip_count persist.count

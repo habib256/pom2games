@@ -67,7 +67,7 @@ static void persist_defaults(void)
 {
     static unsigned char c;
     memset(&persist, 0, sizeof persist);
-    memcpy(persist.magic, "RSS2", 4);
+    memcpy(persist.magic, "RSS3", 4);
     memset(persist.out, NONE, sizeof persist.out);
     for (c = 0u; c < CHIPS; ++c) memset(persist.layout[c] + PARTS * 3u, NONE, LAYOUT_IDS);
     memset(persist.lab + PARTS * 3u, NONE, LAYOUT_IDS);
@@ -88,13 +88,19 @@ static void game_load(void)
     file_setup();
     if (prodos_load() || persist.reached > MISSIONS_MAX) {
         persist_defaults();
-    } else if (prodos_file_actual == sizeof persist - LAYOUT_SIZE
+    } else if (prodos_file_actual == sizeof persist - BEST_SLOTS - LAYOUT_SIZE
                && !memcmp(persist.magic, "RSS1", 4)) {
         /* A save from before drone B: everything but its board. */
-        memcpy(persist.magic, "RSS2", 4);
+        memcpy(persist.magic, "RSS3", 4);
         memset(persist.drone2, 0, PARTS * 3u);
         memset(persist.drone2 + PARTS * 3u, NONE, LAYOUT_IDS);
-    } else if (prodos_file_actual != sizeof persist || memcmp(persist.magic, "RSS2", 4)) {
+        memset(persist.best, 0, BEST_SLOTS);
+    } else if (prodos_file_actual == sizeof persist - BEST_SLOTS
+               && !memcmp(persist.magic, "RSS2", 4)) {
+        /* A save from before the records: no best yet. */
+        memcpy(persist.magic, "RSS3", 4);
+        memset(persist.best, 0, BEST_SLOTS);
+    } else if (prodos_file_actual != sizeof persist || memcmp(persist.magic, "RSS3", 4)) {
         persist_defaults();
     }
 }
@@ -185,7 +191,7 @@ static void enter_zone(void)
     screen_clear();
     zone_draw();
     buttons_set(won ? won_buttons : zone_buttons, 5);
-    message(won ? "MISSION REUSSIE !" : "TOUCHER LE DRONE - H : INDICE");
+    message(won ? (const char *)"MISSION REUSSIE !" : zone_enter_text());
     actor_show();
 }
 
@@ -262,14 +268,16 @@ static void leave_drone(void)
 /* After a turn or a step of the technician: the mission's goal reached? */
 static void check_won(void)
 {
+    static const char *text;
     if (won || !zone_won()) return;
     won = 1u;
     running = 0u;
     sfx(SFX_WIN);
     if (persist.reached <= mission) persist.reached = mission + 1u;
+    text = zone_won_text();                 /* (the best gates, before the save) */
     begin_draw();
     if (screen == S_ZONE) buttons_set(won_buttons, 4); else buttons_draw();
-    message(game_save() ? "MISSION REUSSIE !" : "REUSSIE (PAS SAUVEE)");
+    message(game_save() ? text : (const char *)"REUSSIE (PAS SAUVEE)");
 }
 
 static void step(void)

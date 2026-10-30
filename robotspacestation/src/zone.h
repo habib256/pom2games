@@ -41,5 +41,10 @@ unsigned char tech_touches_drone(void);
 void __fastcall__ tech_beside_drone(unsigned char d);
 
 extern char mission_hint[];       /* this mission's hint (key H) */
+/* The win: the drones' gates, a record (persist.best) if fewer, the text
+ * "REUSSIE EN n PORTES [RECORD]". On entering: "RECORD n PORTES..." or
+ * the drone's invitation. */
+const char *zone_won_text(void);
+const char *zone_enter_text(void);
 
 #endif
