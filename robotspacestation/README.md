@@ -13,6 +13,10 @@ own making, walking into the drones to wire them.
 <img src="screenshots/lab.png" width="280" alt="The chip lab: a burned half adder reused as chip P3">
 <img src="screenshots/cell.png" width="280" alt="Mission 4: the energy cell brought back to the charger">
 </p>
+<p align="center">
+<img src="screenshots/spiral.png" width="280" alt="Mission 16: the drone runs a spiral, turning right at each bump">
+<img src="screenshots/help.png" width="280" alt="The help page: the board's terminals, the parts, the keys">
+</p>
 
 Status: a title screen, the **chip lab**, the **test zone** and a first
 seventeen **missions**, saved on the disk.
