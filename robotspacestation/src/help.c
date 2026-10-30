@@ -27,8 +27,39 @@ static const char *const help_lines[] = {
     "V VITE  CTRL-Q QUITTE",
 };
 
+/* Page 2, the rooms: a sample of each tile (zone.c's colours), its rule
+ * (title.c legend_text: HI). */
+/* x, y, width, height, colour */
+static const unsigned char swatch[][5] = {
+    {4, 15, 7, 8, DHGR_GRAY1},                                  /* wall */
+    {4, 29, 7, 1, DHGR_DARKBLUE}, {4, 33, 7, 1, DHGR_DARKBLUE},  /* grate */
+    {4, 41, 7, 8, DHGR_GRAY1}, {6, 41, 3, 8, DHGR_BLACK},        /* tunnel */
+    {4, 54, 7, 8, DHGR_ORANGE}, {5, 69, 5, 4, DHGR_BROWN},       /* door, plate */
+    {4, 80, 7, 8, DHGR_VIOLET}, {12, 82, 3, 4, DHGR_MAGENTA},    /* the second */
+    {4, 93, 7, 8, DHGR_DARKGREEN}, {7, 95, 1, 4, DHGR_GREEN},    /* charger */
+    {4, 106, 7, 8, DHGR_YELLOW}, {5, 109, 5, 2, DHGR_ORANGE},    /* cell */
+    {4, 119, 7, 8, DHGR_BROWN},                                  /* crate */
+    {4, 131, 10, 12, DHGR_LIGHTBLUE}, {5, 132, 8, 10, DHGR_BLACK},   /* drones */
+    {86, 131, 10, 12, DHGR_AQUA}, {87, 132, 8, 10, DHGR_BLACK},
+};
+
+static void legend_draw(void)
+{
+    static unsigned char i;
+    static const unsigned char *r;
+    dhgr_puts_small("LES SALLES", 45, 4);
+    for (i = 0u; i < LEGEND_N; ++i)
+        dhgr_puts_small(legend_text[i], 16, 17u + i * 13u);
+    for (i = 0u; i < sizeof swatch / sizeof swatch[0]; ++i) {
+        r = swatch[i];
+        dhgr_fill_rect(r[0], r[1], r[2], r[3], r[4]);
+    }
+}
+
 void __fastcall__ help_draw(unsigned char page)
 {
+    if (page == 2u) { legend_draw(); return; }
+    {
     static unsigned char i, y, n;
     static char num[3];
     if (page) {
@@ -49,4 +80,5 @@ void __fastcall__ help_draw(unsigned char page)
     }
     for (i = 0u; i < sizeof help_lines / sizeof help_lines[0]; ++i)
         dhgr_puts_small(help_lines[i], i ? 4u : 60u, 4u + i * 9u);
+}
 }

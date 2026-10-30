@@ -322,17 +322,19 @@ def crate(disk, L):
 
 
 def help_page(disk, L):
-    """AIDE on the title (or H): the help page; a click or a key: the title."""
+    """AIDE on the title (or H): the help page, a click or a key: the rooms'
+    legend, again: the title. SPACE counts once (it is also a click)."""
     steps = [BOOT, 'wait:60'] + click(60, 167) + ['wait:60', idle(L), L.peek('_screen'),
                                                  f'shot:{SHOTS}/help.png']
+    steps += click(70, 80) + ['wait:60', idle(L), L.peek('_screen'), f'shot:{SHOTS}/legend.png']
     steps += click(70, 80) + ['wait:60', idle(L), L.peek('_screen')]
-    steps += ['key:H', 'wait:60', idle(L), L.peek('_screen'), 'key:M', 'wait:60', idle(L), L.peek('_screen')]
-    # SPACE (a click) on AIDE, then SPACE again: the title, not AIDE again
+    steps += ['key:H', 'wait:60', idle(L), L.peek('_screen'), 'key:M', 'wait:60', idle(L), L.peek('_screen'),
+              'key:M', 'wait:60', idle(L), L.peek('_screen')]
     steps += [L.poke('_px', 60), L.poke('_py', 167), 'key: ', 'wait:60', idle(L), L.peek('_screen'),
-              'key: ', 'wait:60', idle(L), L.peek('_screen')]
+              'key: ', 'wait:60', idle(L), L.peek('_screen'), 'key: ', 'wait:60', idle(L), L.peek('_screen')]
     r = run(disk, steps)
-    return check('help: AIDE, a click, H, a key, SPACE twice', bytes(r.mem(L['_screen'], 1, n)[0] for n in range(6)),
-                 bytes((4, 3, 4, 3, 4, 3)))
+    return check('help: AIDE, legend, title by click, key, SPACE', bytes(r.mem(L['_screen'], 1, n)[0] for n in range(9)),
+                 bytes((4, 4, 3, 4, 4, 3, 4, 4, 3)))
 
 
 def records_page(disk, L):
