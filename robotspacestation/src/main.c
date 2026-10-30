@@ -13,7 +13,7 @@
 #include "zone.h"
 #include "title.h"
 
-#define MISSIONS_MAX 7u         /* src/room.h MISSIONS */
+#define MISSIONS_MAX mission_count()     /* src/room.h, in zone.c */
 #define LAB_TICK 8u             /* frames per turn: slow enough to watch */
 #define DRONE_TICK 2u            /* loop turns per drone turn: ~16 turns per second */
 
@@ -31,7 +31,7 @@ static unsigned char lab_running, drone_running, frames;
 static unsigned char board_owner;       /* S_LAB or S_DRONE: whose board is loaded */
 unsigned char won, saved_ok;            /* this mission won; last save written */
 #pragma bss-name (push, "IOBUF")
-static unsigned char iobuf[1024];
+unsigned char iobuf[1024];                  /* also zone.c (RSS.ROOMS) */
 #pragma bss-name (pop)
 static const char save_name[] = "\x08RSS.SAVE";
 
@@ -179,16 +179,18 @@ static void enter_zone(void)
     actor_show();
 }
 
-/* Mission m from its start: room, objects, drone state reset. */
-static void __fastcall__ start_mission(unsigned char m)
+/* Mission m from its start: room (from the disk), objects, drone state
+ * reset; 0 if the room could not be read. */
+static unsigned char __fastcall__ start_mission(unsigned char m)
 {
-    zone_load(m);
+    if (!zone_load(m)) return 0u;
     board_compile();
     board_swap();
     board_compile();
     board_swap();
     won = 0u;
     running = 0u;
+    return 1u;
 }
 
 static void __fastcall__ enter_drone(unsigned char d)
@@ -209,12 +211,21 @@ static void __fastcall__ enter_drone(unsigned char d)
     actor_show();
 }
 
-/* Mission m in the test zone, with the drone's board. */
+/* Mission m in the test zone (the drones' boards already loaded). */
+static void __fastcall__ go_mission(unsigned char m)
+{
+    if (start_mission(m)) {
+        enter_zone();
+        return;
+    }
+    enter_title();
+    message("DISQUE : SALLE ILLISIBLE");
+}
+
 static void __fastcall__ play(unsigned char m)
 {
     use_board(S_DRONE);
-    start_mission(m);
-    enter_zone();
+    go_mission(m);
 }
 
 /* The first mission not won yet (the last one once all are). */
@@ -303,8 +314,7 @@ static void click_button(unsigned char b)
         if (b == 2u && won && mission + 1u >= MISSIONS_MAX) {
             message("LA STATION EST REPAREE !");
         } else if (b == 2u) {
-            start_mission(won ? mission + 1u : mission);
-            enter_zone();
+            go_mission(won ? mission + 1u : mission);
         } else if (b == 3u) {
             go_lab();
         } else {
@@ -431,10 +441,7 @@ int main(void)
         else if (key == 'O' && screen == S_LAB) { mode = M_OPEN; message("OUVRIR : CLIQUER P1-P8"); }
         else if (screen == S_ZONE && key >= '1' && key < '1' + MISSIONS_MAX) {
             /* Replay a mission, or play the next one not yet won. */
-            if (key - '1' <= persist.reached) {
-                start_mission(key - '1');
-                enter_zone();
-            }
+            if (key - '1' <= persist.reached) go_mission(key - '1');
         }
         if (pressed) click(px, py);
         if (walking) walk();

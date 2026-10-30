@@ -8,6 +8,7 @@
 #include "ui.h"
 #include "zone.h"
 #include "room.h"
+#include "prodos.h"
 
 #define ROOM_COLS 20u
 #define ROOM_ROWS 18u
@@ -40,7 +41,9 @@ unsigned char thrust[DRONES][6];
 unsigned char obj_n, obj_kind[OBJECTS], obj_x[OBJECTS], obj_y[OBJECTS];
 unsigned char door_open[2];
 
+#pragma bss-name (push, "LOWBSS")
 static unsigned char tiles[ROOM_COLS * ROOM_ROWS];   /* this mission's, unpacked */
+#pragma bss-name (pop)
 static unsigned char div7[ROOM_W];
 static unsigned char drawn_x[DRONES] = {NONE, NONE}, drawn_y[DRONES], drawn_thrust[DRONES][6];
 static unsigned char drawn_obj[DRONES] = {NONE, NONE}, drawn_ox[DRONES], drawn_oy[DRONES];
@@ -56,20 +59,60 @@ void zone_init(void)
     }
 }
 
+/* -- RSS.ROOMS (tools/gen_room.py): mission m's record at m * 256 ---------- */
+
+extern unsigned char iobuf[1024];                /* main.c, the ProDOS buffer */
+static const char rooms_name[] = "\x09RSS.ROOMS";
+static unsigned char p_open[6] = {3};            /* path, buffer, ref */
+static unsigned char p_mark[5] = {2};            /* ref, mark (3 bytes) */
+static unsigned char p_read[8] = {4};            /* ref, buffer, request, done */
+static unsigned char p_close[2] = {1};           /* ref */
+
+static unsigned char __fastcall__ mli(unsigned char command, void *params)
+{
+    prodos_command = command;
+    prodos_params = params;
+    return prodos_call();
+}
+
+/* The record's 199 bytes land at the end of tiles[]: the starts, then the
+ * packed tiles, unpacked in place below them. 1 = read. */
+static unsigned char __fastcall__ read_room(unsigned char m)
+{
+    static unsigned char error;
+    *(const char **)(p_open + 1) = rooms_name;
+    *(unsigned char **)(p_open + 3) = iobuf;
+    if (mli(PD_OPEN, p_open)) return 0u;
+    p_mark[1] = p_read[1] = p_close[1] = p_open[5];
+    p_mark[2] = 0u; p_mark[3] = m; p_mark[4] = 0u;          /* m * 256 */
+    *(unsigned char **)(p_read + 2) = tiles + sizeof tiles - 180u - ROOM_STARTS;
+    *(unsigned *)(p_read + 4) = 180u + ROOM_STARTS;
+    error = mli(0xCEu, p_mark);                             /* SET_MARK */
+    if (!error) error = mli(PD_READ, p_read);
+    if (!error && *(unsigned *)(p_read + 6) != 180u + ROOM_STARTS) error = 1u;
+    mli(PD_CLOSE, p_close);
+    return !error;
+}
+
 unsigned char mission_count(void) { return MISSIONS; }
 const char *__fastcall__ mission_name_of(unsigned char m) { return mission_names[m]; }
 
-void __fastcall__ zone_load(unsigned char m)
+unsigned char __fastcall__ zone_load(unsigned char m)
 {
+    static unsigned char starts[ROOM_STARTS];
     static const unsigned char *s;
     static unsigned char i, *t, b;
+    if (!read_room(m)) return 0u;
     mission = m;
-    for (i = 0u, s = mission_tiles[m], t = tiles; i < 180u; ++i, ++s) {
+    memcpy(starts, tiles + sizeof tiles - 180u - ROOM_STARTS, ROOM_STARTS);
+    /* Byte i of the packed tiles (at 180 + i) gives tiles 2i and 2i + 1:
+     * always written below what is still to be read. */
+    for (i = 0u, s = tiles + 180u, t = tiles; i < 180u; ++i, ++s) {
         b = *s;
         *t++ = b & 15u;
         *t++ = b >> 4;
     }
-    s = mission_starts[m];
+    s = starts;
     drone_x[0] = s[0]; drone_y[0] = s[1];
     drone_x[1] = s[2]; drone_y[1] = s[3];
     drone_n = s[2] == NONE ? 1u : 2u;
@@ -81,6 +124,7 @@ void __fastcall__ zone_load(unsigned char m)
     holding[0] = holding[1] = NONE;
     memset(thrust, 0, sizeof thrust);
     door_open[0] = door_open[1] = 0u;
+    return 1u;
 }
 
 /* Outside the room counts as wall (x-1 and y-1 wrap to 255). */

@@ -52,12 +52,16 @@ def enter_drone(L, mission):
     return click(x + 5, y + ROOM_Y + 6) + ['wait:150', idle(L), L.peek('_screen')]
 
 
-def disk_with_save(data, name):
-    """The game's volume plus an RSS.SAVE file."""
+def disk_with_save(data, name, rooms=True):
+    """The game's volume plus an RSS.SAVE file (data None: none); rooms
+    False drops RSS.ROOMS."""
     stage = HERE / 'build' / f'stage_{name}'
     shutil.rmtree(stage, ignore_errors=True)
     shutil.copytree(HERE / 'build/stage', stage)
-    (stage / 'RSS.SAVE#060000').write_bytes(data)
+    if data is not None:
+        (stage / 'RSS.SAVE#060000').write_bytes(data)
+    if not rooms:
+        (stage / 'RSS.ROOMS#060000').unlink()
     out = HERE / 'build' / f'{name}.po'
     dev = HERE.parent / 'dev/tools/prodos'
     subprocess.run([sys.executable, str(dev / 'build_volume.py'), str(stage), str(out),
@@ -242,6 +246,12 @@ def relay(disk, L):
     return fails
 
 
+def missing_rooms(disk, L):
+    """Without RSS.ROOMS, JOUER comes back to the title with a message."""
+    r = run(disk, [BOOT] + title(0) + ['wait:60', idle(L, 3000), L.peek('_screen')])
+    return check('no RSS.ROOMS: back to the title', r.mem(L['_screen'], 1), b'\x03')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--disk', required=True)
@@ -260,6 +270,7 @@ def main():
     fails += mission_four(disk_with_save(save_bytes(EMPTY, reached=3), 'reached3'), L)
     fails += doors(disk_with_save(save_bytes(EMPTY, reached=4), 'reached4'), L)
     fails += relay(disk_with_save(save_bytes(EMPTY, reached=6), 'reached6'), L)
+    fails += missing_rooms(disk_with_save(None, 'norooms', rooms=False), L)
     print(f'shots in {SHOTS}')
     sys.exit(1 if fails else 0)
 
