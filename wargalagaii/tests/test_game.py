@@ -28,6 +28,11 @@ LV = {k: int(v) for k, v in re.findall(r'^(LV_\w+) = (\d+)$', (GAME / 'src/bonus
 HUD_N = len(hud_py.layout()[0])
 
 
+def skip_bonuses(L):
+    """After a game, the title's GAME BONUSES panel (lot 10): a key, the menu."""
+    return [L.until('fb_wait', 600), 'wait:30', 'key: ', L.until('fr_loop', 300)]   # (keys up first)
+
+
 def model_invariants(games=30, steps=3000):
     """What logic hands the drawing stays drawable (render.s has rows 0..191,
     columns 0..39), and gauges stay in range, over random games of the model
@@ -283,7 +288,7 @@ def game_over(disk, L):
     wait_end = f'wait:{2 * elapsed + 600}'
     r = a2test.run(disk, [*boot(L), wait_end,
                           L.peek('game_over'), L.peek('lives'), L.peek('msg_drawn', 2),
-                          L.peek('hud_seen', 2 * HUD_N), L.peek('over_wait'), 'key: ', 'wait:30',
+                          L.peek('hud_seen', 2 * HUD_N), L.peek('over_wait'), *skip_bonuses(L), 'key: ', 'wait:30',
                           L.peek('game_over'), L.peek('lives'), L.peek('score', 3),
                           L.peek('msg_drawn', 2)], iie=True)
     assert r.mem(L['game_over'], 1, 0) == b'\x01' and r.mem(L['lives'], 1, 0) == b'\x00'
@@ -299,7 +304,7 @@ def game_over(disk, L):
     # the clock (//e fell back to delays after a restart), /RAM's unit and
     # crt0's saved zero page (bug hunt 2026-10-23).
     r = a2test.run(disk, [*boot(L), L.peek('ram_unit'), L.peek('zp_save', 256),
-                          'peek:0:256', wait_end, 'key: ', 'wait:60', L.peek('_a2_vbl_mode'),
+                          'peek:0:256', wait_end, *skip_bonuses(L), 'key: ', 'wait:60', L.peek('_a2_vbl_mode'),
                           L.peek('ram_unit'), L.peek('zp_save', 256)], iie=True)
     saved, live = r.mem(L['zp_save'], 256, 0), r.mem(0, 256)
     keep = range(0x20, 0x3A)        # text window, hooks ($3A-$4F: MLI and AUXMOVE scratch)
@@ -511,7 +516,7 @@ def joystick_delay(disk, L):
 def exits(disk, L):
     """ESC in a game: the title, ESC there: ProDOS (lot 9); Ctrl-RESET."""
     for how in ('key:\\e', 'reset'):
-        quit = [how, L.until('front_main', 300), 'wait:120', how] if how != 'reset' else [how]
+        quit = [how, L.until('front_main', 300), *skip_bonuses(L), 'wait:30', how] if how != 'reset' else [how]
         r = a2test.run(disk, [*boot(L), 'wait:30', *quit, 'wait:300',
                               'peek:C01A', 'peek:BF31:16', 'peek:400:1024'], iie=True)
         assert r.mem(0xC01A, 1)[0] & 0x80, 'text mode'
@@ -621,9 +626,9 @@ def main():
     game, _ = oracle(a.disk, L, count=1500, seed=7, armour=2)
     assert game.armour < 2, 'armour took a bomb'
     for start, why, count in ((0, 'normal', 3000), (2, 'big aliens', 3000), (7, 'bonus', 3000),
-                              (3, 'kamikaze', 3000), (24, 'boss', 3000), (99, 'boss of level 100, loop', 4500)):
-        # (lot 10b: shaped formations; seed 6 shoots a big alien and takes its mark)
-        game, seen = level_oracle(a.disk, L, start, count, every=10, seed=6 if start == 2 else 5)
+                              (3, 'kamikaze', 3000), (24, 'boss', 4500), (99, 'boss of level 100, loop', 6000)):
+        # (lot 10: seed 6 shoots a big alien and takes its mark; 9 beats the stronger boss)
+        game, seen = level_oracle(a.disk, L, start, count, every=10, seed={2: 6, 99: 9}.get(start, 5))
         assert len(seen) >= 2, (why, seen)
         # (bug hunt 2026-10-23: kamikaze aliens died on their first step)
         need = {7: model.PASS, 3: model.KAMI}.get(start)

@@ -89,16 +89,17 @@ DEMO_NEXT = {1: 2, 4: 7, 8: 24}  # attract mode: ordinary, big, kami, bonus, bos
 # like a small one: their box is cells x-2..x+7, rows y-8..y+7 (drawn only
 # from row 16 down, not over the HUD).
 BIG_HP, POINTS_BIG = 2, 200
-# The boss (levels 25, 50, 75, 100): 16 cells x 24 rows at BOSS_Y, leaping
-# 7 cells (two bytes: always the same pre-shift, redrawn only when it moved)
-# every BOSS_STEP steps, bouncing; only its core (cells 4..11) takes hits, its
-# wings swallow shots; a rosette of 5 bombs every boss_gap steps, an aimed
-# bomb half-way; shot down: 5000 points, its escorts explode, a life and a
-# 200 coin drop.
-BOSS_CELLS, BOSS_H, BOSS_Y = 16, 24, 24
-BOSS_CORE0, BOSS_CORE1 = 4, 11
-BOSS_MAX_X = 91                 # a multiple of 7: FIELD_CELLS - 16, rounded down
+# The boss (levels 25, 50, 75, 100; lot 10c: bigger, smooth): 24 cells x
+# 28 rows at BOSS_Y, a cell every BOSS_STEP steps, bouncing between the
+# walls; only its core (cells 9..14) takes hits, its claws swallow shots; a
+# rosette of 5 bombs every boss_gap steps, an aimed bomb half-way; shot
+# down: 5000 points, its escorts explode, a life and a 200 coin drop.
+BOSS_CELLS, BOSS_H, BOSS_Y = 24, 28, 24
+BOSS_CORE0, BOSS_CORE1 = 9, 14
+BOSS_MIN_X = 1                  # (its STA margin, a cell each side, and
+BOSS_MAX_X = 80                 # its 9 bytes: never on a wall)
 BOSS_STEP = 8
+BOSS_X0 = BOSS_MAX_X // 2
 BOSS_BOOM_T = 40
 POINTS_BOSS, POINTS_BOSS_HIT = 5000, 10
 ROSETTE = (-2, -1, 0, 1, 2)
@@ -219,7 +220,7 @@ def level_form(level):
     the special levels keep the full grid, the boss its two rows of escorts."""
     kind = level_kind(level)
     if kind == BOSS:
-        return ROWS, [FULL] * ROWS, 0, 0b10000
+        return ROWS, [FULL] * ROWS, 0, 0       # (one species: cur_big, iobuf hold the boss)
     if kind in (BONUS, KAMIKAZE):
         return ROWS, [FULL] * ROWS, 0, 0b01010
     k = 3 * (level // 4) + level % 4         # the normal and big levels, in turn
@@ -383,6 +384,7 @@ class Game:
         self.marks, self.mark_dark, self.subgame = 0, 0, 0
         self.pick_msg = self.pick_t = 0
         self.shop, self.rank = 0, 0
+        self.perfects = 0                 # bonus levels all shot (front.s pays them)
         self.level, self.loop, self.phase, self.clear_t, self.level_t = start_level, 0, 0, 0, 0
         self.bonus_kills, self.w_kills = 0, [0] * ROWS
         self.e_dx = [0] * E_SHOTS
@@ -399,8 +401,8 @@ class Game:
 
     def boss_setup(self):
         n = self.level // 25 + 4 * self.loop
-        self.boss_hp = min(250, 30 + 10 * n)
-        self.boss_x, self.boss_dir, self.boss_boom, self.boss_mv = 56, 1, 0, BOSS_STEP
+        self.boss_hp = min(250, 60 + 20 * n)   # (lot 10c: x2, it moves a cell at a time)
+        self.boss_x, self.boss_dir, self.boss_boom, self.boss_mv = BOSS_X0, 1, 0, BOSS_STEP
         self.boss_gap = max(16, 40 - 5 * n)
         self.boss_t = self.boss_gap
 
@@ -582,6 +584,7 @@ class Game:
             return
         if self.lkind == BONUS and self.bonus_kills == NALIENS:
             self.add_score(BONUS_PRIZE)
+            self.perfects = min(255, self.perfects + 1)   # (lot 10: GAME BONUSES)
         self.phase, self.clear_t = 1, TELEPORT_T
         self.hurry = 0
         self.shot_y = [0] * MAX_SHOTS
@@ -1002,10 +1005,10 @@ class Game:
         self.boss_mv -= 1
         if not self.boss_mv:
             self.boss_mv = BOSS_STEP
-            x = self.boss_x + 7 * self.boss_dir
-            if x < 0 or x > BOSS_MAX_X:
+            x = self.boss_x + self.boss_dir
+            if x < BOSS_MIN_X or x > BOSS_MAX_X:
                 self.boss_dir = -self.boss_dir
-                x = self.boss_x + 7 * self.boss_dir
+                x = self.boss_x + self.boss_dir
             self.boss_x = x
         self.boss_t -= 1
         mid = self.boss_x + BOSS_CELLS // 2
@@ -1044,7 +1047,7 @@ class Game:
                 self.explode(i)
         for kind, k in (('life', 0), ('c200', 1)):
             self.obj_y[k] = BOSS_Y + 8
-            self.obj_k[k] = (self.boss_x + 8) // 7 - k
+            self.obj_k[k] = (self.boss_x + BOSS_CELLS // 2) // 7 - k
             self.obj_kind[k] = K[kind]
 
     def kill(self):
@@ -1192,6 +1195,7 @@ class Game:
                 'a_hp': bytes(self.a_hp),
                 'row_off': bytes(self.row_off),
                 'row_sh': bytes(self.row_sh),
+                'perfects': bytes([self.perfects]),
                 'row_anim': bytes(self.row_anim),
                 'e_y': bytes(self.e_y),
                 'e_c': bytes(self.e_c),

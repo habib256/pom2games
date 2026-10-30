@@ -57,8 +57,7 @@ def tables():
     out['shipboom'] = [sboom[f][s] for s in range(7) for f in range(2)]
     out['rock'] = sprites.rock_shapes() + [boom[f][s] for s in range(7) for f in range(2)]
     out['big'] = {c: sprites.big_shapes(c // 4, c % 4) for c in range(len(sprites.BIG) * len(sprites.TINTS))}
-    nb = (2 * len(sprites.BOSS[1][0]) + 6) // 7
-    out['boss'] = sprites.shifted(sprites.tinted(sprites.BOSS[1], 3), sprites.BOSS[0], nb)[1][0]
+    out['boss'] = sprites.boss_shapes()[1]             # (lot 10c: 7 shifts)
     return out
 
 
@@ -136,6 +135,9 @@ def expected(st, T, glyphs):
                 put(big[(x - 2) % 7 * 2 + anim], cell_byte(x - 2), st['a_y'][i] - 8, 'sta')
             else:
                 put(table(i)[x % 7 * 2 + anim], cell_byte(x), st['a_y'][i], 'sta')
+    if st['boss_hp'] or st['boss_boom'] & 8:       # (STA, a cell of margin each side)
+        x = st['boss_x'] - 1
+        put(T['boss'][x % 7], cell_byte(x), M.BOSS_Y, 'sta')
     msg = b' GAME OVER  ' if st['game_over'] else level_text(st) if st['phase'] else \
         b'METEOR STORM' if st['storm'] and st['m_wait'] else \
         M.PICK_TEXT[st['pick_msg']].center(12).encode() if st['pick_t'] else \
@@ -162,10 +164,6 @@ def expected(st, T, glyphs):
                 put(big[(x - 2) % 7 * 2 + f], cell_byte(x - 2), y - 8, 'eor')
             else:
                 put(table(i)[x % 7 * 2 + f], cell_byte(x), y, 'eor')
-    if st['boss_hp'] or st['boss_boom'] & 4:
-        x = st['boss_x']
-        assert x % 7 == 0
-        put(T['boss'], cell_byte(x), M.BOSS_Y, 'eor')
     if st['hurry']:
         x = st['h_x']
         put(T['ufo'][x % 7], cell_byte(x), M.HURRY_Y, 'eor')
@@ -238,14 +236,17 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, ch
             # Force the final explosion: the gentler opening must not make
             # rendering coverage depend on a random enemy hitting the ship.
             # over_wait holds GAME OVER on screen instead of returning.
-            steps += [L.poke('lives', 0), L.poke('ship_state', M.DEATH_T), L.poke('armour', 0)]
+            steps += [L.poke('lives', 0), L.poke('ship_state', M.DEATH_T), L.poke('armour', 0),
+                      # no GAME BONUSES (lot 10): they could make a record, its initials
+                      L.poke('credits', 0), L.poke('credits', 0, 1), L.poke('rank', 0), L.poke('perfects', 0)]
             steps += ['wait:100', L.poke('over_wait', 0)] * 30
             for _ in range(10):
                 steps += [L.until('render_done', 60), L.peek('page'), L.peek('step_count', 2),
                           f'peek:{first:04X}:{span}', 'peek:2000:8192', 'peek:4000:8192',
                           L.until('game_tick', 60)]
                 samples += 1
-            steps += [L.poke('over_wait', M_OVER_WAIT), 'key: ', L.until('front_main', 300), 'wait:60',
+            steps += [L.poke('over_wait', M_OVER_WAIT), 'key: ', L.until('front_main', 300),
+                      L.until('fb_wait', 600), 'wait:30', 'key: ', L.until('fr_loop', 300),   # GAME BONUSES
                       'key: ', 'wait:40', L.until('game_tick', 60)]
     r = a2test.run(disk, steps, iie=True, timeout=1800)
     bad = saucer = stormy = 0
@@ -326,7 +327,7 @@ def main():
     check(a.disk, a.labels, 240, a.seed, every=11, start=24)   # the boss, its fall
     check(a.disk, a.labels, 60, a.seed, every=5, start=0, hurry=True)   # the saucer
     check(a.disk, a.labels, 100, a.seed, every=9, start=3, cheats=[('subgame', 1)])   # Meteor Storm
-    check(a.disk, a.labels, 120, a.seed, every=23, demo=True)  # every showcase stage and its transitions
+    check(a.disk, a.labels, 120, a.seed, every=19, demo=True)  # every showcase stage (~2 400 frames: 2 550 steps)
 
 
 if __name__ == '__main__':

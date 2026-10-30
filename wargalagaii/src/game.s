@@ -127,11 +127,13 @@ BIG_HP     = 2
 BIG_CELLS  = 10                 ; box: cells x-2..x+7, rows y-8..y+7
 BIG_H      = 16
 BIG_HI     = FIELD_CELLS - 1 - 7  ; last cell of a big alien (box x-2..x+7)
-BOSS_Y     = 24                 ; the boss: 16 cells x 24 rows, core 4..11
-BOSS_CORE0 = 4
-BOSS_CORE1 = 11
-BOSS_MAX_X = 91                 ; a multiple of 7 (leaps of 7 cells)
+BOSS_Y     = 24                 ; the boss (lot 10c): 24 cells x 28 rows,
+BOSS_CORE0 = 9                  ; core 9..14, a cell every BOSS_STEP steps
+BOSS_CORE1 = 14
+BOSS_MAX_X = 80                  ; (cells 1..80: its STA margin, 9 bytes)
+BOSS_X0    = BOSS_MAX_X / 2
 BOSS_STEP  = 8
+BOSS_AUX   = $AA00               ; its 7 shifts in WG2.AUX (tools/sprites.py)
 BOSS_BOOM_T = 40
 TELEPORT_T = 60
 SEED       = $AD3C
@@ -235,6 +237,7 @@ pick_msg:    .res 1             ; what the last pickup did (model.PICK_TEXT)
 pick_t:      .res 1             ; >0: named mid-field (render.s msg_draw)
 shop:        .res 1             ; the shop is open (lot 7): logic waits
 rank:        .res 1
+perfects:    .res 1             ; bonus levels all shot (lot 10: GAME BONUSES)
 subgame:     .res 1             ; sub-game icon caught: 1 meteor, 2 memory (lot 8)
 pts_lo:      .res 1             ; add_points scratch
 pts_hi:      .res 1
@@ -441,7 +444,8 @@ done:   rts
 ; WG2.AUX -> aux memory at AUX_BASE (every small and big alien design x
 ; tint), 8 KB at a time through HGR page 2 (not shown yet). A failure: a
 ; message, back to ProDOS.
-AUX_ALL = WALL_AUX + 4 * WALL_TILE - AUX_BASE
+AUX_ALL = BOSS_AUX + 7 * BOSS_SHIFT - AUX_BASE
+.assert WALL_AUX + 4 * WALL_TILE <= BOSS_AUX, error, "the walls run into the boss"
 .assert LV_LEN <= $0600, error, "the level records run into the walls"
 .assert HI_LEN <= $0400, error, "the resident data runs into the level records"
 .assert LOW_LEN <= $0800, error, "the storm runs into the resident data"
@@ -590,10 +594,23 @@ pack_check:
         ldy storm                ; Meteor Storm: the rock (lot 8)
         beq :+
         lda #NCOMBOS
+:       ldy lkind                ; a boss level: + $40, so that the next
+        cpy #LK_BOSS             ; level (the same pack) loads again what
+        bne :+                   ; the boss's shifts overwrite (lot 10c)
+        ora #$40
 :       cmp pack_loaded
-        jeq pc_done
-        sta pack_loaded
+        jeq boss_check
+        tay
+        eor pack_loaded          ; only the boss's mark changed: cur_alien is
+        cmp #$40                 ; still good (the boss used iobuf, cur_big)
+        sty pack_loaded
+        stz boss_loaded
+        php
+        tya
+        and #$3F
         tax
+        plp
+        beq pc_second
         lda combo_lo,x
         ldy combo_hi,x
         ldx #<cur_alien
@@ -605,9 +622,13 @@ pack_check:
         ldx #>ALIEN_TABLE
         stx af_len+1
         jsr aux_fetch
+pc_second:
         lda storm                ; (the rock alone)
         jne pc_done
-        ldx pack_loaded          ; lot 10b: the pack's second species
+        lda pack_loaded          ; (a boss level: its escorts alone)
+        cmp #$40
+        jcs boss_check
+        tax                      ; lot 10b: the pack's second species
         lda combo2_of,x
         tax
         lda combo_lo,x
@@ -1039,6 +1060,41 @@ aux_read:  .byte 4, 0
         .word $4000, $2000, 0
 aux_close: .byte 1, 0
 aux_name:  .byte 7, "WG2.AUX"
+; The boss's 7 shifts (lot 10c): aux BOSS_AUX -> iobuf (0-3) and cur_big
+; (4-6), on a boss level, once (pack_check and render_init forget them:
+; their loads and the walls' tile overwrite them).
+boss_check:
+        lda lkind
+        cmp #LK_BOSS
+        bne bc_done
+        lda boss_loaded
+        bne bc_done
+        inc boss_loaded
+        lda #<iobuf
+        sta af_dst
+        lda #>iobuf
+        sta af_dst+1
+        lda #<(4 * BOSS_SHIFT)
+        sta af_len
+        lda #>(4 * BOSS_SHIFT)
+        sta af_len+1
+        lda #<BOSS_AUX
+        ldy #>BOSS_AUX
+        jsr aux_fetch
+        lda #<cur_big
+        sta af_dst
+        lda #>cur_big
+        sta af_dst+1
+        lda #<(3 * BOSS_SHIFT)
+        sta af_len
+        lda #>(3 * BOSS_SHIFT)
+        sta af_len+1
+        lda #<(BOSS_AUX + 4 * BOSS_SHIFT)
+        ldy #>(BOSS_AUX + 4 * BOSS_SHIFT)
+        jmp aux_fetch
+bc_done:
+        rts
+
 ; The second species of a pack (model.alien_combo2): design + 2, tint + 2.
 combo2_of:
 .repeat NCOMBOS, I

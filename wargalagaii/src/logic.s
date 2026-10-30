@@ -356,6 +356,9 @@ ls_clear:
         sta pts_top
         lda #0
         jsr add_points3
+        inc perfects             ; (lot 10: paid again at the end, front.s)
+        bne :+
+        dec perfects             ; (255 at most)
 :       lda #1
         sta phase
         stz hurry
@@ -685,6 +688,10 @@ boss_setup:
         adc tmp
         asl
         adc #30
+        cmp #125                 ; x 2 (lot 10c: a slower boss), 250 at most
+        bcc :+
+        lda #125
+:       asl
         sta boss_hp
         lda tmp                  ; 5 n
         asl
@@ -700,7 +707,7 @@ boss_setup:
 :       lda #16
 :       sta boss_gap
         sta boss_t
-        lda #56                  ; (a multiple of 7)
+        lda #BOSS_X0
         sta boss_x
         lda #1
         sta boss_dir
@@ -709,7 +716,7 @@ boss_setup:
         sta boss_mv
         rts
 
-; A leap of 7 cells every BOSS_STEP steps, bouncing at the edges; a
+; A cell every BOSS_STEP steps (lot 10c), bouncing at the walls; a
 ; rosette every boss_gap steps, an aimed bomb half-way.
 boss_move:
         lda boss_hp
@@ -719,7 +726,9 @@ boss_move:
         lda #BOSS_STEP
         sta boss_mv
         jsr bm_leap
-        cmp #BOSS_MAX_X+1        ; (also negative)
+        tay                      ; 1 <= x <= BOSS_MAX_X?
+        dey
+        cpy #BOSS_MAX_X
         bcc :+
         lda boss_dir
         eor #$FE                 ; 1 <-> $FF
@@ -800,17 +809,11 @@ hm_next:                         ; A = h_x + 2 * h_dir
 hm_done:
         rts
 
-; A = boss_x + 7 * boss_dir.
+; A = boss_x + boss_dir (lot 10c: a cell at a time).
 bm_leap:
-        lda boss_dir
-        bmi :+
         lda boss_x
         clc
-        adc #7
-        rts
-:       lda boss_x
-        sec
-        sbc #7
+        adc boss_dir
         rts
 
 ; Shot down: 5000 points, its escorts explode, a life and a 200 coin.
@@ -840,7 +843,7 @@ boss_down:
         sta obj_kind+1
         lda boss_x
         clc
-        adc #8
+        adc #BOSS_CELLS/2
         tay
         lda div7,y
         sta obj_k
@@ -905,7 +908,7 @@ vl_done:
 ; flying list. A hit frees the shot, explodes the alien, scores.
 shoot:  lda boss_hp                ; the boss first
         beq sh_grid
-        lda shot_c,x             ; boss_x <= c <= boss_x + 15
+        lda shot_c,x             ; boss_x <= c <= boss_x + BOSS_CELLS - 1
         cmp boss_x
         bcc sh_grid
         lda boss_x
@@ -913,12 +916,12 @@ shoot:  lda boss_hp                ; the boss first
         adc #BOSS_CELLS-1
         cmp shot_c,x
         bcc sh_grid
-        lda shot_y,x             ; rows y..y+5 meet BOSS_Y..BOSS_Y+23
+        lda shot_y,x             ; rows y..y+5 meet BOSS_Y..BOSS_Y+BOSS_H-1
         cmp #BOSS_Y+BOSS_H
         bcs sh_grid
         cmp #BOSS_Y-SHOT_H+1
         bcc sh_grid
-        stz shot_y,x             ; the wings swallow it, the core bleeds
+        stz shot_y,x             ; the claws swallow it, the core bleeds
         lda shot_c,x
         sec
         sbc boss_x

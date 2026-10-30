@@ -21,7 +21,7 @@ import autopilot
 import model as M
 
 OUT = Path(__file__).resolve().parents[1] / 'src/demo.inc'
-DEMO_STEPS = 3000                    # ordinary, big, kamikaze, bonus, then boss
+DEMO_STEPS = 2550                    # ordinary, big, kamikaze, bonus, then boss (~18 s)
 CODES = {0: 0, 1: 1, -1: 2}
 
 

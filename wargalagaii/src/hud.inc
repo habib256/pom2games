@@ -14,6 +14,7 @@ HUD_ABAR = 92
 HUD_SHBAR = 100
 HUD_FBAR = 108
 HUD_RANK = 117
+hud_cover: .byte 0,0,3,3,0,3,3,1,2,3,1,3,3,1,0,2,2,0,2,2,0,0,0,0
 hud_extra_i: .byte 61,65,69,73,77
 hud_mark_i:  .byte 121,122,123,125,126,127
 hud_col:

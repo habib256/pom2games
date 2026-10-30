@@ -763,6 +763,38 @@ ce qu'on avait pris, ni quel malus le crâne avait tiré.
       niveaux les plus chargés avec et sans Mockingboard). Les images de
       `dist/` restent intactes.
 
+## Lot 10 — l'allure de Warblade (2026-10-30)
+
+Demande : « Améliore wargalaga » (boss, fluidité, minuteries des bonus, rang
+en jeu), puis « wargalaga doit ressembler beaucoup plus à warblade ».
+Références : captures du site officiel archivé (warblade.as/bilder) — murs
+texturés, HUD sur les côtés, formations mixtes. Maquettes validées avant code.
+
+- [x] **10a cadre** : terrain de 112 cellules entre deux murs de 4 octets
+      (`model.FIELD_COL`, la table `cell_byte` décale tout le rendu sans
+      cycle) ; murs `tools/walls.py` (tuile de 64 rangées par quart, en aux
+      à $A200, via `iobuf`, une page par image au changement de quart, sans
+      toucher aux rangées du HUD : `hud_cover`). HUD de 128 caractères à
+      leur place (`tools/hud.py`, copie Python pour les tests) ; HI = meilleur
+      record puis le score. Mémoire : `icons` à $1C40 (LOWHI), noms de la
+      boutique dans l'overlay, fiches de niveau en aux (14 octets).
+- [x] **10b formations** : 9 formes (`model.SHAPES`), masques par rangée,
+      quinconce d'un demi-pas, deuxième espèce (`alien_combo2`, entrées 28-41,
+      `cur_alien2` dans `iobuf`), aliens bicolores (`sprites.two_tone`).
+- [x] **10c boss** : 24 × 28 cellules bicolore, 7 décalages en aux ($AA00)
+      copiés au niveau du boss dans `iobuf` et `cur_big` ; dessiné en STA avec
+      une marge d'une cellule (une copie, pas d'effacement) ; une cellule tous
+      les 8 pas entre les cellules 1 et 80 ; points de vie doublés.
+- [x] **Rang** : écran GAME BONUSES (overlay du titre) : crédits × 100,
+      rang × 10 000, `perfects` × 5 000, ajoutés avant les records.
+- [x] **10d fluidité** : HUD — comparaison des clés sans écriture, et seul
+      le score réécrit quand lui seul change (le remplissage complet coûte
+      ~4 000 cycles). `test-long` : niveau 97 70 retards / 564 (77 avant),
+      boss 25 : 21 / 589, boss 100 : 46 / 576.
+- Écarts : le boss avance lentement (une cellule tous les 8 pas : chaque
+  déplacement coûte ~5 600 cycles) ; la démo dure 2 550 pas ; la mémoire
+  principale est pleine (~10 octets), LOWM à 16 octets près.
+
 ## À vérifier sur machine
 
 - [ ] //c + Mockingboard 4c : la détection réveille la carte à `$C403` et

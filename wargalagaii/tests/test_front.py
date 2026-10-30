@@ -154,7 +154,8 @@ def play_and_quit(L, score, level, loop='rn_loop'):
     wait: reading HIGHSCORES again takes ~60 frames.)"""
     return ['key:\\r', L.until('game_tick', 600), 'wait:30', L.poke('score', score & 255),
             L.poke('score', score >> 8 & 255, 1), L.poke('score', score >> 16, 2), L.poke('level', level),
-            'key:\\e', L.until('front_main', 300), L.until(loop, 300)]
+            'key:\\e', L.until('front_main', 300), L.until('fb_wait', 300), 'key: ',   # GAME BONUSES
+            L.until(loop, 300)]
 
 
 def record_keyboard(disk, L):
@@ -200,6 +201,31 @@ def record_stick(disk, L):
           'table kept in memory')
 
 
+def bonuses(disk, L):
+    """Lot 10, GAME BONUSES (Warblade's end of game): credits x 100, rank x
+    10 000, perfect bonus levels x 5 000, added to the score before the
+    records: 1 000 + 12 300 + 70 000 + 10 000 = 93 300, a record (1st)."""
+    steps = START(L) + ['key:\\r', L.until('game_tick', 600), 'wait:30', L.poke('score', 0x00),
+                        L.poke('score', 0x10, 1), L.poke('score', 0, 2), L.poke('credits', 0x23),
+                        L.poke('credits', 0x01, 1), L.poke('rank', 7), L.poke('perfects', 2),
+                        'key:\\e', L.until('front_main', 300), L.until('fb_wait', 600), 'wait:10',
+                        L.peek('fr_panel'), 'peek:2000:8192', L.peek('score', 3), 'key: ',
+                        L.until('rn_loop', 300), L.peek('fr_panel')]
+    r = a2test.run(disk, steps, iie=True, timeout=300)
+    page = r.mem(0x2000, 8192)
+    assert r.mem(L['fr_panel'], 1, 0)[0] == 4 and text_at(page, 11, 14, 'GAME BONUSES')
+    def line(label, count, times, amount):     # front.s: columns 4, 17-20, 22, 30-35
+        return f'{label:<13}{count:>4} {times:<7} {amount:>6}'
+    for row, text in ((13, line('CASH LEFT', '123', 'X 100', '12300')),
+                      (14, line('RANK', '7', 'X 10000', '70000')),
+                      (15, line('PERFECTS', '2', 'X 5000', '10000')),
+                      (17, line('BONUS POINTS', '', '', '92300')), (19, line('SCORE', '', '', '93300'))):
+        assert text_at(page, row, 4, text), (row, text)
+    assert r.mem(L['score'], 3) == bytes([0x00, 0x33, 0x09]), r.mem(L['score'], 3).hex()
+    assert r.mem(L['fr_panel'], 1, 1)[0] == ENTRY, 'a record with the bonuses'
+    print('PASS GAME BONUSES: 123 credits, rank 7, 2 perfects: +92 300, score 93 300 -> a record')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--disk', type=Path, default=ROOT / 'dist/WARGALAGAII.po')
@@ -214,6 +240,7 @@ def main():
     demo_stop(a.disk, L)
     record_keyboard(a.disk, L)
     record_stick(a.disk, L)
+    bonuses(a.disk, L)
     demo_oracle(a.disk, L)
 
 

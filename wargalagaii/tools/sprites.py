@@ -341,32 +341,42 @@ ONE_BYTE = {'shot', 'bomb'}
 TINTS = ((0, 'L'), (0, 'R'), (1, 'L'), (1, 'R'))   # violet, green, blue, orange
 
 # The boss (levels 25, 50, 75, 100): 16 cells x 24 rows, orange.
-BOSS = (1, [
-    '......WWWW......',
-    '....WWXXXXWW....',
-    '...WXXWWWWXXW...',
-    '..WXXW.WW.WXXW..',
-    '.WXXW.XWWX.WXXW.',
-    'WXXW..XWWX..WXXW',
-    'WXW...WWWW...WXW',
-    'WXXWWWWXXWWWWXXW',
-    '.WXXXXWXXWXXXXW.',
-    '..WWWWXWWXWWWW..',
-    '.X..WXXWWXXW..X.',
-    'X.X.WXWXXWXW.X.X',
-    'X..XWXW..WXWX..X',
-    '.X.XWXW..WXWX.X.',
-    '..XXWXXWWXXWXX..',
-    '...XWWXXXXWWX...',
-    '....WWWXXWWW....',
-    '.....WXWWXW.....',
-    '....X.XWWX.X....',
-    '...X..X..X..X...',
-    '..X...X..X...X..',
-    '.X....X..X....X.',
-    'X.....X..X.....X',
-    '......X..X......',
-])
+# The boss (lot 10c: bigger, two-tone, moving a cell at a time): 24 cells x
+# 28 rows, the left half mirrored; an original mothership after Warblade's
+# big bosses: a dome over a white core (cells 9-14, the only part shots
+# hurt), claws (Y: the palette's other colour), engines and stingers.
+BOSS_HALF = [
+    '..........WW',
+    '........WWXX',
+    '.......WXXWW',
+    '......WXXW.W',
+    'Y.....WXW.XW',
+    'YY...WXXW.XW',
+    'YYY..WXW..WW',
+    '.YYYWXXWWWWX',
+    '..YYWXXXXXWX',
+    '...YWWWWWWXW',
+    '..YYYYWXXXXW',
+    '.YY..YWXWWXX',
+    'YY...YWXW.XW',
+    'Y....YWXW.XW',
+    '.....YWXXWWX',
+    '....YYYWXXXW',
+    '...YY..YWWXX',
+    '..YY....YWXW',
+    '.YY.....YWXX',
+    'YY......YXWW',
+    'Y......YXX.W',
+    '......YX...W',
+    '.....YX....W',
+    '....YX.....W',
+    '...YX....YWX',
+    '..YX.....YXX',
+    '..X......YXW',
+    '.........Y.X',
+]
+BOSS = (1, [r + r[::-1] for r in BOSS_HALF])
+BOSS_TINT = 3                   # orange, claws blue
 
 # Falling objects (lot 5; redrawn for legibility 2026-10-23): 7 cells x
 # ICON_H rows on an even byte column (an object never moves sideways, so no
@@ -514,6 +524,23 @@ def big_shapes(design, tint):
     return [frames[f][s] for s in range(7) for f in range(2)]
 
 
+def boss_shapes():
+    """-> (bytes a row, the 7 shifts' rows of bytes) of the boss with an
+    empty cell on each side: drawn with STA at cell x - 1, it wipes where
+    it was a cell away (render.s boss_draw)."""
+    drawing = ['.' + r + '.' for r in BOSS[1]]
+    nb = max((2 * s % 7 + 2 * len(drawing[0]) + 6) // 7 for s in range(7))
+    shapes = shifted(tinted(drawing, BOSS_TINT), BOSS[0], nb)[1]
+    # (a byte without a dot: 0, not the palette bit alone, which its STA
+    # would leave behind as a non-black byte: no star there)
+    return nb, [[[b if b & 0x7F else 0 for b in row] for row in shape] for shape in shapes]
+
+
+def boss_image():
+    """WG2.AUX at BOSS_AUX: shift after shift, rows top to bottom."""
+    return bytes(b for shape in boss_shapes()[1] for row in shape for b in row)
+
+
 def big_table(combo):
     return bytes(b for entry in big_shapes(combo // 4, combo % 4) for row in entry for b in row)
 
@@ -620,15 +647,19 @@ def emit():
     out.append(f'AUX_ROCK = AUX_BIG + {BIG_TABLE * len(BIG) * len(TINTS)}')
     out.append(f'AUX_SIZE = {len(aux_image())}')
     table(out, 'boom', list(BOOM[1:]), BOOM[0])
-    # the boss leaps 7 cells at a time from a multiple of 7: shift 0 only
-    nb = (2 * len(BOSS[1][0]) + 6) // 7
-    rows = shifted(tinted(BOSS[1], 3), BOSS[0], nb)[1][0]
+    # The boss (lot 10c): its 7 shifts in WG2.AUX (boss_image); on a boss
+    # level boss_check copies shifts 0-3 to iobuf, 4-6 to cur_big (free
+    # there: no walls to draw, no big alien, one species).
+    nb, _ = boss_shapes()
+    size = nb * len(BOSS[1])
     out.append(f'BOSS_W = {nb}')
     out.append(f'BOSS_H = {len(BOSS[1])}')
     out.append(f'BOSS_CELLS = {len(BOSS[1][0])}')
-    out.append('boss_s0:')
-    for row in rows:
-        out.append('        .byte ' + ','.join(f'${b:02X}' for b in row))
+    out.append(f'BOSS_SHIFT = {size}             ; bytes a shift')
+    places = [f'iobuf+{size * k}' for k in range(4)] + [f'cur_big+{size * k}' for k in range(3)]
+    out.append('boss_lo: .lobytes ' + ','.join(places))
+    out.append('boss_hi: .hibytes ' + ','.join(places))
+    out.append(f'.assert 4 * BOSS_SHIFT <= 1024 && 3 * BOSS_SHIFT <= BIG_TABLE, error, "the boss\'s shifts"')
     table(out, 'shipboom', list(SHIPBOOM[1:]), SHIPBOOM[0])
     # Flying things share one pointer table: alien entries, then explosion
     # entries (render.s keeps the entry it drew, to EOR it away).
@@ -666,9 +697,9 @@ def png(path, scale=4):
             sheets += [(TINTS[t][0], tinted(two_tone(a), t)), (TINTS[t][0], tinted(two_tone(b), t))]
     sheets += [(p, d) for p, d in SPRITES.values()]
     sheets += [(BOOM[0], BOOM[1]), (BOOM[0], BOOM[2]), (SHIPBOOM[0], SHIPBOOM[1]), (SHIPBOOM[0], SHIPBOOM[2])]
-    sheets += [(BOSS[0], tinted(BOSS[1], 3))]
+    sheets += [(BOSS[0], tinted(BOSS[1], BOSS_TINT))]
     sheets += [(TINTS[ROCK_TINT][0], tinted(f, ROCK_TINT)) for f in ROCK]
-    per_row, cw, ch = 8, 18, 26          # cells per slot
+    per_row, cw, ch = 8, 26, 30          # cells per slot (the boss: 24 x 28)
     rows = (len(sheets) + per_row - 1) // per_row
     w, h = per_row * cw * 2 * scale, rows * ch * scale
     pix = [[(0, 0, 0)] * w for _ in range(h)]
@@ -706,6 +737,9 @@ def main():
     assert len(combo_table(0)) == ALIEN_TABLE and len(big_table(0)) == BIG_TABLE
     if '--aux' in sys.argv:
         Path(sys.argv[sys.argv.index('--aux') + 1]).write_bytes(aux_image())
+        return
+    if '--boss' in sys.argv:
+        Path(sys.argv[sys.argv.index('--boss') + 1]).write_bytes(boss_image())
         return
     for _, a, b in SMALL:
         assert len(a) == len(b) == 8 and all(len(r) == 7 for r in a + b)

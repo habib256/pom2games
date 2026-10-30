@@ -424,34 +424,13 @@ boom_s6f1:
         .byte $80,$82,$84
         .byte $C0,$B0,$90
         .byte $80,$80,$80
-BOSS_W = 5
-BOSS_H = 24
-BOSS_CELLS = 16
-boss_s0:
-        .byte $80,$E0,$BF,$80,$80
-        .byte $80,$DE,$EA,$87,$80
-        .byte $C0,$F5,$BF,$9D,$80
-        .byte $B0,$9D,$CF,$F5,$80
-        .byte $AC,$C7,$AF,$D6,$83
-        .byte $EB,$C1,$AF,$D8,$8E
-        .byte $BB,$E0,$BF,$E0,$8E
-        .byte $EB,$FF,$FA,$DF,$8E
-        .byte $AC,$F5,$BA,$D5,$83
-        .byte $F0,$DF,$EF,$FF,$80
-        .byte $88,$D6,$AF,$87,$82
-        .byte $A2,$F6,$BA,$C7,$88
-        .byte $82,$F7,$B0,$97,$88
-        .byte $88,$F7,$B0,$97,$82
-        .byte $A0,$D7,$AF,$D7,$80
-        .byte $80,$DF,$EA,$97,$80
-        .byte $80,$FE,$FA,$87,$80
-        .byte $80,$D8,$EF,$81,$80
-        .byte $80,$C4,$AF,$84,$80
-        .byte $80,$C1,$A0,$90,$80
-        .byte $A0,$C0,$A0,$C0,$80
-        .byte $88,$C0,$A0,$80,$82
-        .byte $82,$C0,$A0,$80,$88
-        .byte $80,$C0,$A0,$80,$80
+BOSS_W = 9
+BOSS_H = 28
+BOSS_CELLS = 24
+BOSS_SHIFT = 252             ; bytes a shift
+boss_lo: .lobytes iobuf+0,iobuf+252,iobuf+504,iobuf+756,cur_big+0,cur_big+252,cur_big+504
+boss_hi: .hibytes iobuf+0,iobuf+252,iobuf+504,iobuf+756,cur_big+0,cur_big+252,cur_big+504
+.assert 4 * BOSS_SHIFT <= 1024 && 3 * BOSS_SHIFT <= BIG_TABLE, error, "the boss's shifts"
 SHIPBOOM_W = 3              ; bytes per row
 SHIPBOOM_H = 10
 SHIPBOOM_CELLS = 7

@@ -1,23 +1,34 @@
 # WARGALAGA II
 
+**Lot 10, l'allure de Warblade (2026-10-30)** : le terrain est encadré de
+deux murs texturés (roche bleue, chair orange, cristal violet, mousse verte :
+un par quart de partie), le HUD loge dans les murs (vies, armure, jauges S
+et B, T, lettres EXTRA à gauche ; multiplicateur et minuteries x2/x5, tir
+auto, bouclier, gel en barres qui se vident, rang et marques à droite ;
+score, HI et crédits en haut). Les formations ont des formes (bloc, briques,
+pyramide, losange, V, ailes, damier…) avec des rangées en quinconce et deux
+espèces d'aliens bicolores ; le boss, deux fois plus grand, glisse d'une
+cellule à la fois ; en fin de partie, l'écran **GAME BONUSES** paie les
+crédits restants, le rang et les niveaux bonus parfaits. Inspiré des
+captures du site officiel de Warblade, sans en reprendre ni dessins ni
+niveaux.
+
+<table><tr>
+<td><img src="screenshots/title.png" width="380" alt="WARGALAGA II : l'écran titre et son menu"></td>
+<td><img src="screenshots/demo.png" width="380" alt="Niveau 6 : un losange de deux espèces entre les murs de roche"></td>
+</tr></table>
+
+<table><tr>
+<td><img src="screenshots/big.png" width="380" alt="Niveau 3 : les gros aliens au-dessus d'une pyramide en quinconce"></td>
+<td><img src="screenshots/demo-boss.png" width="380" alt="Le boss du niveau 25 et son escorte"></td>
+</tr></table>
+
 **Progression revue (2026-10-27)** : niveau 1 à 16 ennemis et un plongeur
 maximum, montée progressive des effectifs et des tirs ; kamikaze au niveau 4,
 bonus au niveau 8, comme dans Warblade.
 Quatre courbes d'entrée, pièces d'or prévisibles dans le premier paquet,
 démo des niveaux 1, 3, 4, 8 et 25 (dont le bonus et le boss).
 [Recherche, comparaison et réglages](docs/warblade-difficulty.md).
-
-<table><tr>
-<td><img src="screenshots/title.png" width="380" alt="WARGALAGA II : l'écran titre et son menu"></td>
-<td><img src="screenshots/demo.png" width="380" alt="Le mode démo : une vague entre, le vaisseau tire"></td>
-</tr></table>
-
-La démo présente aussi le niveau bonus et un boss :
-
-<table><tr>
-<td><img src="screenshots/demo-bonus.png" width="380" alt="La démo au niveau bonus 8 : ennemis de passage sans tirs ennemis"></td>
-<td><img src="screenshots/demo-boss.png" width="380" alt="La démo face au boss du niveau 25"></td>
-</tr></table>
 
 **Lots 1 à 9 faits (2026-10-23)**, reste la validation sur vraies machines —
 démarrage ProDOS, horloge

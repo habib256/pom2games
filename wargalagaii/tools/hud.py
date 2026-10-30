@@ -150,6 +150,12 @@ def emit():
     for name in ('score', 'hi', 'credits', 'lives', 'armour', 'sbar', 'bbar', 'time', 'mult', 'mbar',
                  'abar', 'shbar', 'fbar', 'rank'):
         out.append(f'HUD_{name.upper()} = {fields[name]}')
+    # the wall rows a HUD row covers (bit 0 left, bit 1 right): wall_page
+    # leaves them alone, so the HUD on them needn't be drawn again
+    cover = [0] * 24
+    for col, r, _ in WALL:
+        cover[r] |= 1 if col == LEFT else 2
+    out.append('hud_cover: .byte ' + ','.join(map(str, cover)))
     out.append('hud_extra_i: .byte ' + ','.join(str(fields[f'extra{k}']) for k in range(5)))
     out.append('hud_mark_i:  .byte ' + ','.join(str(fields[f'mark{k}']) for k in range(6)))
     for name, values in (('hud_col', [c for c, _ in places]), ('hud_row', [r for _, r in places]),

@@ -125,7 +125,10 @@ hud_key:  .res 2*HUD_KEYS       ; the state each page's HUD shows
 hud_buf:  .res HUD_N
 wall_drawn: .res 2              ; the quarter whose walls each page shows
 wall_tile: .res 1               ; the quarter whose tile iobuf holds
+boss_loaded: .res 1             ; the boss's shifts in iobuf / cur_big
+bp_clr:   .res 1                ; boss_put: bit 7 zeros
 hud_now:  .res HUD_KEYS
+hud_filled: .res HUD_KEYS       ; the state hud_buf was last filled from
 form_list: .res NALIENS
 nform:    .res 1
 move_list: .res NALIENS
@@ -192,14 +195,18 @@ hud_forget:
 :       sta hud_key,x
         dex
         bpl :-
+        ldx #HUD_KEYS-1          ; (and a whole fill first)
+:       sta hud_filled,x
+        dex
+        bpl :-
         rts
 
 ; ---------------------------------------------------------------------------
 ; Walls (lot 10): the quarter's texture (levels 1-25, 26-50...: aux
 ; WALL_AUX + WALL_TILE * quarter, tools/walls.py), bytes 0-3 and 36-39 of
 ; rows FIELD_TOP-191 of this page, when this page shows another quarter
-; (render_init, the boss beaten); then this page's HUD in the walls again.
-; One page a frame (~40 000 cycles, the tile's fetch ~17 000 more): the
+; (render_init, the boss beaten), but not the rows of the HUD (hud_cover).
+; One page a frame (~35 000 cycles, the tile's fetch ~10 000 more): the
 ; tile stays in iobuf for the other page (no file is open during a game).
 wall_check:
         lda level
@@ -238,23 +245,7 @@ wc_draw:
         ldy page
         beq :+
         lda #>hgr_hi2
-:       jsr wall_page
-        ldx #40                  ; this page's characters in the walls: unknown
-        lda page
-        beq :+
-        ldx #HUD_N+40
-:       ldy #HUD_N-40
-        lda #$FF
-:       sta hud_seen,x
-        inx
-        dey
-        bne :-
-        ldx #HUD_KEYS-1          ; and its keys (a refill)
-        ldy page
-        beq :+
-        ldx #2*HUD_KEYS-1
-:       sta hud_key,x
-        rts
+:       jmp wall_page
 ; A = the page's row table (high byte of hgr_hi or hgr_hi2).
 wall_page:
         sta wp_hi+2
@@ -269,11 +260,24 @@ wp_row: lda hgr_lo,x
         sta dst
 wp_hi:  lda hgr_hi,x             ; (the operand's high byte: the page)
         sta dst+1
+        txa                      ; a HUD row there? (hud_cover: left 1,
+        lsr                      ; right 2) then leave it: no HUD to redraw
+        lsr
+        lsr
+        tay
+        lda hud_cover,y
+        sta tmp
+        lsr
+        bcs wp_right
         ldy #3                   ; left wall: src 0-3 -> bytes 0-3
 :       lda (src),y
         sta (dst),y
         dey
         bpl :-
+wp_right:
+        lda tmp
+        and #2
+        bne wp_next
         lda dst                  ; right wall: src 4-7 -> bytes 36-39
         clc
         adc #36-4
@@ -284,6 +288,7 @@ wp_hi:  lda hgr_hi,x             ; (the operand's high byte: the page)
         dey
         cpy #4
         bcs :-
+wp_next:
         lda src                  ; the next tile row (wrapping)
         clc
         adc #8
@@ -322,10 +327,10 @@ render:
         jsr ship_erase
         jsr aliens_pass
         jsr form_draw
+        jsr boss_draw            ; (STA: before the flying things)
         jsr msg_draw
         jsr ship_draw
         jsr movers_draw
-        jsr boss_draw
         jsr ufo_draw
         jsr shots_draw
         jsr _a2_vbl_scan
@@ -790,22 +795,24 @@ hud_draw:
         ldx page
         beq :+
         ldx #HUD_KEYS
-:       ldy #0
-        lda #0
-        sta tmp2                 ; differs?
+:       ldy #HUD_KEYS-1          ; (most frames: all equal, no store)
+        txa
+        clc
+        adc #HUD_KEYS-1
+        tax
 hk_cmp: lda hud_now,y
         cmp hud_key,x
-        beq :+
-        sta hud_key,x
-        lda #1
-        sta tmp2
-:       inx
-        iny
-        cpy #HUD_KEYS
-        bne hk_cmp
-        lda tmp2
-        bne :+
+        bne hk_new
+        dex
+        dey
+        bpl hk_cmp
         rts
+hk_new: sta hud_key,x            ; this key and the ones below it
+        dex
+        dey
+        bmi :+
+        lda hud_now,y
+        bra hk_new
 :       jsr hud_fill
         ldx #HUD_N-1
         ldy #HUD_N-1
@@ -922,7 +929,41 @@ STORM_SPEED = 12                 ; Meteor Storm's row 0 (storm_template)
 STORM_DIST = 25
 STORM_CREDITS = 35
 STORM_BAR = 8
+; Only the score changed since the last fill (most of them: kills): its
+; digits and HI, not the ~4 000 cycles of the whole fill.
 hud_fill:
+        ldx #HUD_KEYS-1
+:       lda hud_now,x
+        cmp hud_filled,x
+        bne hf_full
+        dex
+        cpx #3
+        bcs :-
+        lda storm
+        bne hf_full
+        ldx #2
+:       lda hud_now,x
+        sta hud_filled,x
+        dex
+        bpl :-
+        ; fall through
+; Score and HI on row 0.
+hf_score_hi:
+        ldx #HUD_SCORE
+        jsr hud_score
+        ldx #HUD_HI
+        lda hi_score+2
+        jsr hud_bcd
+        lda hi_score+1
+        jsr hud_bcd
+        lda hi_score
+        jmp hud_bcd
+hf_full:
+        ldx #HUD_KEYS-1
+:       lda hud_now,x
+        sta hud_filled,x
+        dex
+        bpl :-
         jsr _a2_vbl_scan          ; (~4 000 cycles to fill: scans on the way)
         ldx #HUD_N-1             ; the fixed characters
 :       lda hud_template,x
@@ -934,15 +975,7 @@ hud_fill:
         beq :+
         jsr hf_storm
         bra hf_side
-:       ldx #HUD_SCORE
-        jsr hud_score
-        ldx #HUD_HI
-        lda hi_score+2
-        jsr hud_bcd
-        lda hi_score+1
-        jsr hud_bcd
-        lda hi_score
-        jsr hud_bcd
+:       jsr hf_score_hi
         ldx #HUD_CREDITS
         jsr hf_credits
 hf_side:
@@ -1614,63 +1647,79 @@ md_done:
 boss_want:                       ; A = cell to show, $FF none
         lda boss_hp
         bne :+
-        lda boss_boom
-        and #4
+        lda boss_boom            ; (blinking every 8 steps: lot 10c, its
+        and #8                   ; redraws are ~5 000 cycles)
         beq :++
 :       lda boss_x
         rts
 :       lda #$FF
         rts
 
-boss_erase:
-        jsr boss_want
-        ldy page
-        cmp boss_drawn,y
-        beq :+                   ; as drawn: kept
-        ldx boss_drawn,y
-        cpx #$FF
-        beq :+
-        lda #$FF
-        sta boss_drawn,y
-        txa
-        jmp boss_eor
-:       rts
-
-boss_draw:
+boss_erase:                      ; gone from this page: zeros
         jsr boss_want
         cmp #$FF
-        beq :+
+        bne be_done
         ldy page
-        ldx boss_drawn,y
-        cpx #$FF
-        bne :+                   ; still there
+        lda boss_drawn,y
+        cmp #$FF
+        beq be_done
+        pha
+        lda #$FF
         sta boss_drawn,y
-        jmp boss_eor
-:       rts
+        pla
+        sec
+        bra boss_put
+be_done:
+        rts
 
-; A = boss cell (a multiple of 7): EOR its 24 rows. Clobbers A, X, Y.
-boss_eor:
+boss_draw:                       ; (before the flying things: they EOR on it)
+        jsr boss_want
+        cmp #$FF
+        beq be_done
+        ldy page
+        cmp boss_drawn,y
+        beq be_done
+        sta boss_drawn,y
+        clc
+        ; fall through
+; A = boss cell; C = 1: zeros, 0: its picture (lot 10c: STA with an empty
+; cell each side, at cell x - 1: a cell's move wipes where it was, and a
+; page sees it move a cell at most). BOSS_H/4 rows between VBL scans.
+boss_put:
+        ror bp_clr
         tax
+        dex
         lda cell_byte,x
         sta r_col
-        lda #<boss_s0
+        ldy cell_shift,x
+        lda boss_lo,y
         sta src
-        lda #>boss_s0
+        lda boss_hi,y
         sta src+1
         lda #BOSS_W
         sta r_w
         lda #BOSS_Y
         sta r_row
-        lda #BOSS_H/2
+        lda #4
+        sta cnt
+bp_band:
+        lda #BOSS_H/4
         sta r_h
-        jsr eor_rect             ; (leaves src on the next row)
-        jsr _a2_vbl_scan
-        lda #BOSS_Y+BOSS_H/2
+        bit bp_clr
+        bmi :+
+        jsr rect_sta             ; (leaves src on the next row)
+        bra :++
+:       jsr rect_clr
+:       jsr _a2_vbl_scan
+        lda r_row
+        clc
+        adc #BOSS_H/4
         sta r_row
-        lda #BOSS_H/2
-        sta r_h
-        jsr eor_rect
-        jmp _a2_vbl_scan
+        dec cnt
+        bne bp_band
+        rts
+.assert BOSS_H .mod 4 = 0, error, "boss_put: four bands"
+.assert BOSS_STEP >= 1, error, "boss_put: a cell at most between two frames of a page"
 
 ; The hurry-up saucer: it moves every step, so EOR off and on each frame.
 ufo_erase:
