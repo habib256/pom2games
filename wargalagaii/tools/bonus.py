@@ -27,20 +27,26 @@ def emit():
     out.append('; levels: kind (0 normal, 1 big, 2 bonus, 3 kamikaze, 4 boss), then the')
     out.append('; loop-0 parameters: dive gap, max divers, fire gap, bomb dy, kamikaze dy')
     tables = [('lv_combo', [model.alien_combo(lv) for lv in range(model.LEVELS)]),
-              ('lv_big', [model.big_combo(lv) for lv in range(model.LEVELS)]),
-              ('lv_rows', [model.entry_params(lv)[0] for lv in range(12)])]
+              ('lv_big', [model.big_combo(lv) for lv in range(model.LEVELS)])]
     for name, values in tables:
         out.append(f'{name}:')
         for i in range(0, len(values), 20):
             out.append('        .byte ' + ','.join(str(v) for v in values[i:i + 20]))
     # Lot 10: the rest of a level's record lives in aux memory (game.cfg
     # AUXLV, WG2.AUX at $9C00); setup_level copies the level's LV_REC bytes.
-    fields = ('kind', 'dive', 'divers', 'fire', 'bomb', 'kami')
-    out += [f'LV_{name.upper()} = {k}' for k, name in enumerate(fields)]
-    out.append(f'LV_REC = {len(fields)}')
+    # Lot 10b: then its formation (model.level_form): rows, the 5 rows'
+    # masks, the staggered rows and the second species' rows (bits).
+    fields = ('kind', 'dive', 'divers', 'fire', 'bomb', 'kami', 'rows', 'mask', 'stagger', 'design')
+    offset = 0
+    for name in fields:
+        out.append(f'LV_{name.upper()} = {offset}')
+        offset += model.ROWS if name == 'mask' else 1
+    out.append(f'LV_REC = {offset}')
     out += ['.pushseg', '.segment "LEVELS"', 'lv_recs:']
     for lv in range(model.LEVELS):
-        rec = [model.level_kind(lv)] + list(model.level_params(lv, 0))
+        rows, masks, stagger, design = model.level_form(lv)
+        rec = [model.level_kind(lv)] + list(model.level_params(lv, 0)) + [rows, *masks, stagger, design]
+        assert len(rec) == offset
         out.append('        .byte ' + ','.join(map(str, rec)) + f'   ; level {lv + 1}')
     out.append('.popseg')
     # the shop (lot 7): prices in BCD, names for the shop screen

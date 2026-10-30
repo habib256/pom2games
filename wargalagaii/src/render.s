@@ -199,7 +199,7 @@ hud_forget:
 ; WALL_AUX + WALL_TILE * quarter, tools/walls.py), bytes 0-3 and 36-39 of
 ; rows FIELD_TOP-191 of this page, when this page shows another quarter
 ; (render_init, the boss beaten); then this page's HUD in the walls again.
-; One page a frame (~40 000 cycles, the tile's fetch ~25 000 more): the
+; One page a frame (~40 000 cycles, the tile's fetch ~17 000 more): the
 ; tile stays in iobuf for the other page (no file is open during a game).
 wall_check:
         lda level
@@ -218,7 +218,7 @@ wall_check:
         cmp wall_tile
         beq wc_draw
         sta wall_tile
-        sta tmp                  ; WALL_TILE * quarter = $300 * quarter
+        sta tmp                  ; WALL_TILE * quarter = $200 * quarter
         lda #<iobuf
         sta af_dst
         lda #>iobuf
@@ -228,8 +228,7 @@ wall_check:
         lda #>WALL_TILE
         sta af_len+1
         lda tmp
-        asl
-        adc tmp                  ; (carry clear: quarter < 4)
+        asl                      ; (carry clear: quarter < 4)
         adc #>WALL_AUX
         tay
         lda #<WALL_AUX
@@ -1486,6 +1485,8 @@ want_f: phy
         lsr
         lsr
         and #1
+        ldy alien_row,x          ; (lot 10b: the row's species)
+        ora row_base,y
         bra wf_add
 wf_boom:
         lda a_timer,x            ; explosion: frame by its timer
@@ -1495,8 +1496,9 @@ wf_boom:
         ora #BOOM_ENTRY
         bra wf_add
 wf_seat:
-        ldy alien_row,x          ; seated: the row's frame
+        ldy alien_row,x          ; seated: the row's frame (and species)
         lda row_anim,y
+        ora row_base,y
         ora #$80
 wf_add: ldy a_big,x              ; drawn big: not as an explosion
         bne wf_big

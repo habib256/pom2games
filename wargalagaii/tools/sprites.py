@@ -492,7 +492,7 @@ GAME_SMALL = (0, 0)
 def alien_shapes(design, tint):
     """The 14 entries (shift*2 + frame) of a small alien, rows of bytes."""
     _, a, b = SMALL[design]
-    frames = [shifted(tinted(f, tint), TINTS[tint][0])[1] for f in (a, b)]
+    frames = [shifted(tinted(two_tone(f), tint), TINTS[tint][0])[1] for f in (a, b)]
     return [frames[f][s] for s in range(7) for f in range(2)]
 
 
@@ -510,7 +510,7 @@ def rock_shapes():
 def big_shapes(design, tint):
     """The 14 entries (shift*2 + frame) of a big alien (10 cells, 4 bytes)."""
     _, a, b = BIG[design]
-    frames = [shifted(tinted(f, tint), TINTS[tint][0])[1] for f in (a, b)]
+    frames = [shifted(tinted(two_tone(f), tint), TINTS[tint][0])[1] for f in (a, b)]
     return [frames[f][s] for s in range(7) for f in range(2)]
 
 
@@ -526,8 +526,19 @@ def aux_image():
 
 
 def tinted(drawing, tint):
+    """X -> the tint's dot; Y (two_tone) -> the palette's other dot."""
     side = TINTS[tint][1]
-    return [r.replace('X', side) for r in drawing]
+    other = {'L': 'R', 'R': 'L'}[side]
+    return [r.replace('X', side).replace('Y', other) for r in drawing]
+
+
+def two_tone(drawing):
+    """Lot 10b, Warblade's two-coloured aliens: the X of the two outer
+    columns on each side (wings, claws) become Y, the palette's other
+    colour (violet body, green wings; blue and orange)."""
+    w = len(drawing[0])
+    wings = {0, 1, w - 2, w - 1}
+    return [''.join('Y' if ch == 'X' and c in wings else ch for c, ch in enumerate(r)) for r in drawing]
 
 
 def dots(row):
@@ -635,10 +646,11 @@ def emit():
     out.append('icon_hi: .hibytes ' + ','.join(f'icons+{2 * ICON_H * k}' for k in range(len(ICON_SHAPES))))
     out.append('BOOM_ENTRY = 14')
     entry = ALIEN_TABLE // 14
-    out.append('fly_lo: .lobytes ' + ','.join([f'cur_alien+{entry * e}' for e in range(14)]
-                                               + [f'boom_s{s}f{f}' for s in range(7) for f in range(2)]))
-    out.append('fly_hi: .hibytes ' + ','.join([f'cur_alien+{entry * e}' for e in range(14)]
-                                               + [f'boom_s{s}f{f}' for s in range(7) for f in range(2)]))
+    # (lot 10b: then the second species' entries, from DESIGN2 = 28)
+    fly = ([f'cur_alien+{entry * e}' for e in range(14)] + [f'boom_s{s}f{f}' for s in range(7) for f in range(2)]
+           + [f'cur_alien2+{entry * e}' for e in range(14)])
+    out.append('fly_lo: .lobytes ' + ','.join(fly))
+    out.append('fly_hi: .hibytes ' + ','.join(fly))
     return '\n'.join(out) + '\n'
 
 
@@ -649,12 +661,9 @@ RGB = {('L', 0): (0xC0, 0x40, 0xFF), ('R', 0): (0x40, 0xE0, 0x40),
 
 def png(path, scale=4):
     sheets = []                         # (palette, drawing)
-    for _, a, b in SMALL:
+    for _, a, b in SMALL + BIG:
         for t in range(4):
-            sheets += [(TINTS[t][0], tinted(a, t)), (TINTS[t][0], tinted(b, t))]
-    for _, a, b in BIG:
-        for t in range(4):
-            sheets += [(TINTS[t][0], tinted(a, t)), (TINTS[t][0], tinted(b, t))]
+            sheets += [(TINTS[t][0], tinted(two_tone(a), t)), (TINTS[t][0], tinted(two_tone(b), t))]
     sheets += [(p, d) for p, d in SPRITES.values()]
     sheets += [(BOOM[0], BOOM[1]), (BOOM[0], BOOM[2]), (SHIPBOOM[0], SHIPBOOM[1]), (SHIPBOOM[0], SHIPBOOM[2])]
     sheets += [(BOSS[0], tinted(BOSS[1], 3))]

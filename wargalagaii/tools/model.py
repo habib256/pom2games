@@ -173,6 +173,33 @@ def big_combo(level):
     return pack % 2 * 4 + pack // 6 % 4
 
 
+# Lot 10: Warblade's formations are shapes, not a full grid, and mix two
+# species. A shape: ROWS rows of (columns, staggered); a staggered row sits
+# half a pitch (ROW_SHIFT cells) to the right (no alien in its column 7:
+# the sway would take it past ALIEN_MAX). Original shapes, after the
+# blocks, bricks, arrows and gaps of Warblade's squadrons.
+ROW_SHIFT = FORM_DX // 2
+SHAPES = {
+    'block':   [('XXXXXXXX', 0)] * 5,
+    'brick':   [('XXXXXXXX', 0), ('XXXXXXX.', 1), ('XXXXXXXX', 0), ('XXXXXXX.', 1), ('XXXXXXXX', 0)],
+    'pyramid': [('..XXX...', 1), ('..XXXX..', 0), ('.XXXXX..', 1), ('.XXXXXX.', 0), ('XXXXXXX.', 1)],
+    'gap':     [('XXX..XXX', 0), ('XXXXXXXX', 0), ('XXX..XXX', 0), ('XXXXXXXX', 0), ('XXX..XXX', 0)],
+    'diamond': [('..XXX...', 1), ('.XXXXXX.', 0), ('XXXXXXX.', 1), ('.XXXXXX.', 0), ('..XXX...', 1)],
+    'columns': [('XX.XX.XX', 0)] * 5,
+    'vee':     [('XXXXXXX.', 1), ('.XXXXXX.', 0), ('.XXXXX..', 1), ('..XXXX..', 0), ('..XXX...', 1)],
+    'wings':   [('XXX..XXX', 0), ('XX....XX', 0), ('XXX..XXX', 0), ('XX....XX', 0), ('XXX..XXX', 0)],
+    'checker': [('X.X.X.X.', 0), ('X.X.X.X.', 1), ('.X.X.X.X', 0), ('X.X.X.X.', 1), ('X.X.X.X.', 0)],
+}
+SHAPE_ORDER = ['block', 'brick', 'pyramid', 'gap', 'diamond', 'columns', 'vee', 'wings', 'checker']
+# Rows drawn as the second species (bit r = row r), by formation level.
+DESIGN_ROWS = [0b00001, 0b11000, 0b00110, 0b10101]
+FULL = 0xFF
+
+
+def mask(cells):
+    return sum(1 << c for c, ch in enumerate(cells) if ch == 'X')
+
+
 def entry_params(level):
     """Rows, pair gap, wave gap. WGII tuning, not Warblade's original data.
 
@@ -181,8 +208,38 @@ def entry_params(level):
     """
     if level_kind(level) in (BONUS, KAMIKAZE, BOSS):
         return ROWS, LAUNCH_GAP, WAVE_GAP
+    return level_form(level)[0], 10 if level < 12 else LAUNCH_GAP, 90 if level < 12 else WAVE_GAP
+
+
+def level_form(level):
+    """(rows, masks, staggered rows, second-species rows): the waves fill
+    rows 0..rows-1, a wave launching only its row's columns. A normal or big
+    level takes the next shape (a big level's row 0: big aliens on the even
+    columns) and the rows that bring it near the opening's count (8 a row);
+    the special levels keep the full grid, the boss its two rows of escorts."""
+    kind = level_kind(level)
+    if kind == BOSS:
+        return ROWS, [FULL] * ROWS, 0, 0b10000
+    if kind in (BONUS, KAMIKAZE):
+        return ROWS, [FULL] * ROWS, 0, 0b01010
+    k = 3 * (level // 4) + level % 4         # the normal and big levels, in turn
+    shape = SHAPES[SHAPE_ORDER[k % len(SHAPE_ORDER)]]
+    masks = [mask(cells) for cells, _ in shape]
+    stagger = sum(st << r for r, (_, st) in enumerate(shape))
+    design = DESIGN_ROWS[k % len(DESIGN_ROWS)]
+    if kind == BIG:
+        masks[0], stagger, design = 0x55, stagger & ~1, design & ~1
+    want = 8 * min(ROWS, 2 + level % 4 + level // 4) - (4 if kind == BIG else 0)
     rows = min(ROWS, 2 + level % 4 + level // 4)
-    return rows, 10 if level < 12 else LAUNCH_GAP, 90 if level < 12 else WAVE_GAP
+    while rows < ROWS and sum(bin(m).count('1') for m in masks[:rows]) < want - 4:
+        rows += 1
+    return rows, masks, stagger, design
+
+
+def alien_combo2(level):
+    """The pack's second species: design + 2, the other palette (tint + 2)."""
+    c = alien_combo(level)
+    return (c // 4 + 2) % 6 * 4 + (c % 4 + 2) % 4
 
 
 def level_params(level, loop):
@@ -351,6 +408,8 @@ class Game:
         self.lkind = level_kind(self.level)
         (self.dive_gap, self.max_divers, self.fire_gap, self.bomb_dy,
          self.kami_dy) = level_params(self.level, self.loop)
+        _, self.f_mask, stagger, self.f_design = level_form(self.level)
+        self.row_sh = [ROW_SHIFT * (stagger >> r & 1) for r in range(ROWS)]
         self.entry_w = 3 if self.lkind == BOSS else 0
         self.entry_k, self.entry_t = 0, ENTRY_FIRST
         self.dive_t, self.fire_t, self.level_t = self.dive_gap, self.fire_gap, 0
@@ -374,7 +433,7 @@ class Game:
         return i - NALIENS if i >= NALIENS else i
 
     def slot_x(self, i):
-        return FORM_X0 + self.row_off[i // COLS] + FORM_DX * (i % COLS)
+        return FORM_X0 + self.row_off[i // COLS] + self.row_sh[i // COLS] + FORM_DX * (i % COLS)
 
     @staticmethod
     def slot_y(i):
@@ -883,7 +942,7 @@ class Game:
         # seated: the one band a shot can touch, then the column
         r = shot_row(y)
         if r is not None:
-            dx = c - (FORM_X0 + self.row_off[r])
+            dx = c - (FORM_X0 + self.row_off[r] + self.row_sh[r])
             if 0 <= dx < COLS * FORM_DX and dx % FORM_DX < ALIEN_CELLS:
                 i = r * COLS + dx // FORM_DX
                 if self.a_state[i] == FORM and not self.a_big[i]:
@@ -1018,6 +1077,8 @@ class Game:
         state = {BONUS: PASS, KAMIKAZE: KAMI}.get(self.lkind, ENTER)
         route = FLYPAST if state == PASS else ENTRIES[paths.entry_index(self.level, w)]
         for i, mirror in ((w * COLS + 3 - k, 0), (w * COLS + 4 + k, 1)):
+            if not self.f_mask[w] >> (i % COLS) & 1:     # (lot 10) not in the shape
+                continue
             big = self.lkind == BIG and w == 0
             if big and i % 2:           # a big level's row 0: even slots only
                 continue
@@ -1130,6 +1191,7 @@ class Game:
                 'a_big': bytes(self.a_big),
                 'a_hp': bytes(self.a_hp),
                 'row_off': bytes(self.row_off),
+                'row_sh': bytes(self.row_sh),
                 'row_anim': bytes(self.row_anim),
                 'e_y': bytes(self.e_y),
                 'e_c': bytes(self.e_c),

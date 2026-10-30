@@ -98,6 +98,12 @@ def level_text(st):
 def expected(st, T, glyphs):
     page = bytearray(8192)
     fly = T['rock'] if st['storm'] else T['fly'][M.alien_combo(st['level'])]
+    fly2 = T['fly'][M.alien_combo2(st['level'])]
+    design = 0 if st['storm'] else M.level_form(st['level'])[3]
+
+    def table(i):
+        """Lot 10b: a row of the second species (its explosion is the same)."""
+        return fly2 if design >> (i // M.COLS) & 1 else fly
     big = T['big'][M.big_combo(st['level'])]
 
     def drawn_big(i):
@@ -129,7 +135,7 @@ def expected(st, T, glyphs):
             if drawn_big(i):
                 put(big[(x - 2) % 7 * 2 + anim], cell_byte(x - 2), st['a_y'][i] - 8, 'sta')
             else:
-                put(fly[x % 7 * 2 + anim], cell_byte(x), st['a_y'][i], 'sta')
+                put(table(i)[x % 7 * 2 + anim], cell_byte(x), st['a_y'][i], 'sta')
     msg = b' GAME OVER  ' if st['game_over'] else level_text(st) if st['phase'] else \
         b'METEOR STORM' if st['storm'] and st['m_wait'] else \
         M.PICK_TEXT[st['pick_msg']].center(12).encode() if st['pick_t'] else \
@@ -155,7 +161,7 @@ def expected(st, T, glyphs):
             if drawn_big(i):
                 put(big[(x - 2) % 7 * 2 + f], cell_byte(x - 2), y - 8, 'eor')
             else:
-                put(fly[x % 7 * 2 + f], cell_byte(x), y, 'eor')
+                put(table(i)[x % 7 * 2 + f], cell_byte(x), y, 'eor')
     if st['boss_hp'] or st['boss_boom'] & 4:
         x = st['boss_x']
         assert x % 7 == 0

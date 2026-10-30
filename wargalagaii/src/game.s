@@ -58,6 +58,8 @@ NALIENS    = ROWS * COLS
 ALIEN_MAX  = FIELD_CELLS - 7
 FORM_X0    = 5                  ; cell of column 0 at sway 0
 FORM_DX    = 12
+ROW_SHIFT  = FORM_DX / 2        ; a staggered row (lot 10b)
+DESIGN2    = 28                 ; the second species' first table entry
 FORM_Y0    = 20
 FORM_DY    = 14
 SWAY_MAX   = 12
@@ -221,7 +223,9 @@ mult_t:      .res 2
 shield_t:    .res 2
 freeze_t:    .res 2
 mult:        .res 1             ; score multiplier
-lv_rec:      .res 6             ; the level's record (aux lv_recs, LV_REC)
+lv_rec:      .res 14            ; the level's record (aux lv_recs, LV_REC)
+row_sh:      .res ROWS          ; lot 10b: each row's stagger (cells)
+row_base:    .res ROWS          ; and first table entry (0 or DESIGN2)
 hi_score:    .res 3             ; HI (BCD): the best record, then the score
 auto_cnt:    .res 1
 extra_bits:  .res 1             ; letters E X T R A collected (bits 0-4)
@@ -315,7 +319,10 @@ front_skip:  .byte 0            ; tests: no title, the game at once (SEED)
 .include "sound.inc"
 
 .segment "IOBUF"
-iobuf:       .res 1024          ; ProDOS file buffer (WG2.AUX, HIGHSCORES)
+iobuf:       .res 1024          ; ProDOS file buffer (WG2.AUX, HIGHSCORES);
+                                ; in a game (lot 10): the walls' tile, then
+cur_alien2 = iobuf + WALL_TILE   ; the pack's second species (pack_check)
+.assert WALL_TILE + ALIEN_TABLE <= 1024, error, "iobuf: the walls' tile and the second species"
 .segment "LOWBSS"
 cur_alien:   .res ALIEN_TABLE   ; the current pack's small alien (from aux)
 cur_big:     .res BIG_TABLE     ; and its big one
@@ -435,7 +442,7 @@ done:   rts
 ; tint), 8 KB at a time through HGR page 2 (not shown yet). A failure: a
 ; message, back to ProDOS.
 AUX_ALL = WALL_AUX + 4 * WALL_TILE - AUX_BASE
-.assert LV_LEN <= $0400, error, "the level records run into the walls"
+.assert LV_LEN <= $0600, error, "the level records run into the walls"
 .assert HI_LEN <= $0400, error, "the resident data runs into the level records"
 .assert LOW_LEN <= $0800, error, "the storm runs into the resident data"
 .assert __LOWBSS_RUN__ + __LOWBSS_SIZE__ <= __LOWHI_START__, error, "LOWBSS runs into LOWHI"
@@ -600,6 +607,20 @@ pack_check:
         jsr aux_fetch
         lda storm                ; (the rock alone)
         jne pc_done
+        ldx pack_loaded          ; lot 10b: the pack's second species
+        lda combo2_of,x
+        tax
+        lda combo_lo,x
+        ldy combo_hi,x
+        ldx #<cur_alien2
+        stx af_dst
+        ldx #>cur_alien2
+        stx af_dst+1
+        ldx #<ALIEN_TABLE
+        stx af_len
+        ldx #>ALIEN_TABLE
+        stx af_len+1
+        jsr aux_fetch
         ldx level                ; and the pack's big alien
         lda lv_big,x
         tax
@@ -686,9 +707,9 @@ HI_AUX   = $9800
 HI_LEN   = __LOWHI_LAST__ - __LOWHI_START__
 LV_AUX   = __AUXLV_START__
 LV_LEN   = __AUXLV_LAST__ - __AUXLV_START__
-WALL_AUX = $A000                 ; the walls' textures (tools/walls.py)
-WALL_TILE = 768                  ; WALL_H rows of 8 bytes, one a quarter
-WALL_H   = 96
+WALL_AUX = $A200                 ; the walls' textures (tools/walls.py)
+WALL_TILE = 512                  ; WALL_H rows of 8 bytes, one a quarter
+WALL_H   = 64
 shop_run:
         ldx #<SHOP_LEN
         ldy #>SHOP_LEN
@@ -1018,6 +1039,11 @@ aux_read:  .byte 4, 0
         .word $4000, $2000, 0
 aux_close: .byte 1, 0
 aux_name:  .byte 7, "WG2.AUX"
+; The second species of a pack (model.alien_combo2): design + 2, tint + 2.
+combo2_of:
+.repeat NCOMBOS, I
+        .byte (I / 4 + 2) .mod 6 * 4 + (I .mod 4 + 2) .mod 4
+.endrepeat
 ; WG2.AUX tables: aux address of each design x tint.
 combo_lo:
 .repeat NCOMBOS, I
@@ -1110,7 +1136,8 @@ msg_over: .byte " GAME OVER  "
 extra_letters: .byte "EXTRA"
 ; Lot 5 tables. A kill's drop: drop_table[rand & 63] (weights: model.py).
 .include "bonus.inc"
-.assert LV_REC = 6, error, "lv_rec and setup_level: 6 bytes a level record"
+.assert LV_REC = 14, error, "lv_rec: 14 bytes a level record"
+col_bit: .byte 1, 2, 4, 8, 16, 32, 64, 128
 ; Kamikaze prizes, BCD 2000 << wave (bytes 2 and 3; byte 1 is 0).
 kami_hi:  .byte $20, $40, $80, $60, $20
 kami_top: .byte $00, $00, $00, $01, $03

@@ -85,7 +85,7 @@ def build():
     for j in range(9):                       # 2-byte aligned: one palette each
         design, tint = j % len(sprites.SMALL), j % 4
         frame = sprites.SMALL[design][1 + j % 2]
-        for r, row in enumerate(sprites.tinted(frame, tint)):
+        for r, row in enumerate(sprites.tinted(sprites.two_tone(frame), tint)):
             for c, kind in enumerate(row):
                 if kind != '.':
                     page.cell(74 + r, 7 + 14 * j + c, kind, sprites.TINTS[tint][0])

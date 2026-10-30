@@ -14,6 +14,10 @@
 .segment "STORM"
 ; The storm begins (level_step, at the end of a teleport).
 storm_start:
+        ldx #ROWS-1              ; rocks: the rock table only (lot 10b)
+:       stz row_base,x
+        dex
+        bpl :-
         stz subgame
         lda #1
         sta storm

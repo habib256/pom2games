@@ -541,15 +541,15 @@ shop_exit:
 ; The level's kind and parameters: loop-0 tables (tools/bonus.py), made
 ; harder once a loop (saturating; twenty loops reach every bound).
 setup_level:
-        lda level                ; its record, aux lv_recs + LV_REC * level
-        stz af_dst+1             ; (af_dst+1: the high byte of the product)
-        .repeat 6 - 1            ; (LV_REC = 6: level + 5 * level)
-        clc
+        stz af_dst+1             ; its record, aux lv_recs + LV_REC * level
+        lda #0                   ; (af_dst+1: the high byte of the product)
+        ldx #LV_REC
+:       clc
         adc level
         bcc :+
         inc af_dst+1
-:
-        .endrepeat
+:       dex
+        bne :--
         clc
         adc #<lv_recs
         pha
@@ -577,6 +577,19 @@ setup_level:
         sta bomb_dy
         lda a:lv_rec+LV_KAMI
         sta kami_dy
+        ldx #ROWS-1              ; lot 10b: each row's stagger and species
+:       lda a:lv_rec+LV_STAGGER
+        and col_bit,x
+        beq :+
+        lda #ROW_SHIFT
+:       sta row_sh,x
+        lda a:lv_rec+LV_DESIGN
+        and col_bit,x
+        beq :+
+        lda #DESIGN2             ; the second species' table entries
+:       sta row_base,x
+        dex
+        bpl :---
         lda loop
         cmp #20
         bcc :+
@@ -935,6 +948,9 @@ sh_grid:
         bcc sh_fly
         sec
         sbc row_off,y
+        bcc sh_fly
+        sec
+        sbc row_sh,y
         bcc sh_fly
         cmp #COLS*FORM_DX
         bcs sh_fly
@@ -1583,11 +1599,8 @@ launch:
         bne launch_pair_gap
         stz entry_k
         inc entry_w
-        ldx level
-        cpx #12
-        bcs launch_wave_gap
         lda entry_w
-        cmp lv_rows,x
+        cmp a:lv_rec+LV_ROWS
         bne launch_wave_gap
         lda #ROWS                ; fewer opening rows, same done sentinel
         sta entry_w
@@ -1612,7 +1625,18 @@ launched:
 ; X = alien, Y = mirror flag (the right one of the pair), flipped after
 ; level 100. The way in and the state depend on the level kind: a bonus
 ; level's aliens fly past, a kamikaze level's dive at the ship.
-enter:  lda lkind                 ; a big level's row 0: big aliens on the
+enter:  phy                      ; lot 10b: not in the shape (this row's mask)
+        txa
+        and #COLS-1
+        tay
+        lda col_bit,y
+        ldy entry_w
+        and a:lv_rec+LV_MASK,y
+        ply
+        cmp #0
+        bne :+
+        rts
+:       lda lkind                ; a big level's row 0: big aliens on the
         cmp #LK_BIG              ; even slots, none on the odd ones
         bne en_small
         lda entry_w
@@ -1792,6 +1816,8 @@ found:  lda #ST_DIVE
 slot_x: phy
         ldy alien_row,x
         lda row_off,y
+        clc
+        adc row_sh,y             ; (lot 10b: a staggered row)
         sta tmp
         txa
         and #COLS-1

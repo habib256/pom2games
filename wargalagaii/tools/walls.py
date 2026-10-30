@@ -20,7 +20,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import sprites
 
-WALL_H = 96                     # rows in a tile (rows 8-191 = 184: 96 + 88)
+WALL_H = 64                     # rows in a tile (rows 8-191: 184 = 64 + 64 + 56)
 WALL_CELLS = 14                 # 4 bytes
 WALL_TILE = WALL_H * 8
 # (palette, dot side, noise seed, cell scale x, rows scale y): rock is

@@ -23,6 +23,8 @@ import model
 import sound
 
 SYS_NAMES = ('WG2.SYSTEM', 'WG2.SYS')
+# The level record's fields (tools/bonus.py -> src/bonus.inc)
+LV = {k: int(v) for k, v in re.findall(r'^(LV_\w+) = (\d+)$', (GAME / 'src/bonus.inc').read_text(), re.M)}
 HUD_N = len(hud_py.layout()[0])
 
 
@@ -154,6 +156,9 @@ def bench(disk, L, frames=300):
              *[L.poke(n, v, k) for k in range(4) for n, v in
                (('entry_lo', L['entry'] & 255), ('entry_hi', L['entry'] >> 8))],
              L.poke('shot_limit', 10), L.poke('nohit', 1),
+             # (lot 10b: the full grid, not level 17's shape)
+             *[L.poke('lv_rec', 0xFF, LV['LV_MASK'] + r) for r in range(model.ROWS)],
+             L.poke('lv_rec', model.ROWS, LV['LV_ROWS']),
              L.poke('armour', 99), L.poke('invul_t', 250), 'wait:500', L.poke('invul_t', 250),
              'wait:500', L.poke('invul_t', 250), 'wait:200']
     steps += [L.peek('late_count', 2), L.peek('frame_count', 2)]
@@ -617,12 +622,13 @@ def main():
     assert game.armour < 2, 'armour took a bomb'
     for start, why, count in ((0, 'normal', 3000), (2, 'big aliens', 3000), (7, 'bonus', 3000),
                               (3, 'kamikaze', 3000), (24, 'boss', 3000), (99, 'boss of level 100, loop', 4500)):
-        game, seen = level_oracle(a.disk, L, start, count, every=10)
+        # (lot 10b: shaped formations; seed 6 shoots a big alien and takes its mark)
+        game, seen = level_oracle(a.disk, L, start, count, every=10, seed=6 if start == 2 else 5)
         assert len(seen) >= 2, (why, seen)
         # (bug hunt 2026-10-23: kamikaze aliens died on their first step)
         need = {7: model.PASS, 3: model.KAMI}.get(start)
         assert need is None or need in game.states_seen, (why, sorted(game.states_seen))
-        assert start != 2 or game.marks, 'a big alien shot: its rank mark taken'   # (lot 10: level 7's)
+        assert start != 2 or game.marks, 'a big alien shot: its rank mark taken'
         assert start not in (24, 99) or len(seen) >= 2, 'the boss shot down'
         print(f'PASS level oracle from level {start + 1} ({why}): levels {[l + 1 + 100 * p for l, p in seen]} '
               f'== model (score {game.score})')
