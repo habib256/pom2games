@@ -237,7 +237,7 @@ les objets, le drone et le technicien au départ.
 | Écran | Boutons |
 |---|---|
 | Labo | MARCHE/PAUSE, PAS, GRAVE, EFFACE, ESSAI |
-| Titre | JOUER (la prochaine mission), LABO, AIDE (bornes, pièces, touches ; ou H) ; clic sur une mission ouverte |
+| Titre | JOUER (la prochaine mission), LABO, AIDE (bornes, pièces, touches ; ou H), RECORDS (le moins de portes par mission) ; clic sur une mission ouverte |
 | Zone | MARCHE/PAUSE, PAS, REPLACER (salle au départ) ou SUITE (mission gagnée), LABO, MENU |
 | Drone | MARCHE/PAUSE, PAS, SORTIR |
 

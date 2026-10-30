@@ -532,6 +532,7 @@ const char *zone_won_text(void)
     best = &persist.best[mission];
     strcpy(gate_text, "REUSSIE EN    PORTES");
     put_gates(11u, gates);
+    if (gates == 1u) gate_text[19] = ' ';   /* PORTE */
     if (!*best || gates < *best) {
         *best = gates;
         strcpy(gate_text + 20, " RECORD");
@@ -544,6 +545,7 @@ const char *zone_enter_text(void)
     if (!persist.best[mission]) return "TOUCHER LE DRONE  H : INDICE";   /* 28 at most */
     strcpy(gate_text, "RECORD    PORTES H : INDICE");
     put_gates(7u, persist.best[mission]);
+    if (persist.best[mission] == 1u) gate_text[15] = ' ';
     return gate_text;
 }
 

@@ -20,7 +20,7 @@
 static const char *const lab_buttons[] = {"MARCHE", "PAS", "GRAVE", "EFFACE", "ESSAI"};
 static const char *const zone_buttons[] = {"MARCHE", "PAS", "REPLACER", "LABO", "MENU"};
 static const char *const won_buttons[] = {"MARCHE", "PAS", "SUITE", "LABO", "MENU"};
-static const char *const title_buttons[] = {"JOUER", "LABO", "AIDE"};
+static const char *const title_buttons[] = {"JOUER", "LABO", "AIDE", "RECORDS"};
 static const char *const help_buttons[] = {"RETOUR"};
 static const char *const drone_buttons[] = {"MARCHE", "PAS", "SORTIR"};
 
@@ -172,15 +172,16 @@ static void enter_title(void)
     running = 0u;
     screen_clear();
     title_draw();
-    buttons_set(title_buttons, 3);
+    buttons_set(title_buttons, 4);
     message("CLIQUER UNE MISSION OU JOUER");
 }
 
-static void enter_help(void)
+/* Page 0 the help, 1 the records (both on S_HELP). */
+static void __fastcall__ enter_help(unsigned char page)
 {
     screen = S_HELP;
     screen_clear();
-    help_draw();
+    help_draw(page);
     buttons_set(help_buttons, 1);
     message("UN CLIC : LE TITRE");
 }
@@ -306,7 +307,7 @@ static void click_button(unsigned char b)
     if (screen == S_HELP) { enter_title(); return; }
     if (b == 0xFFu) return;
     if (mode == M_CLEAR && !(screen == S_LAB && b == 3u)) mode = M_EDIT;
-    if (screen == S_TITLE && b == 2u) { enter_help(); return; }
+    if (screen == S_TITLE && b >= 2u) { enter_help(b - 2u); return; }
     if (screen != S_TITLE) {
         if (b == 0u) { running ^= 1u; buttons_draw(); return; }
         if (b == 1u) { running = 0u; buttons_draw(); step(); return; }
@@ -468,7 +469,7 @@ int main(void)
             sound_on ^= 1u;
             message(toggle_text(sound_on));
         }
-        else if (key == 'H' && screen == S_TITLE) enter_help();
+        else if (key == 'H' && screen == S_TITLE) enter_help(0);
         else if (key == 'H' && screen != S_LAB) message(mission_hint);
         else if (key == 'M') click_button(0);
         else if (key == 'P') click_button(1);

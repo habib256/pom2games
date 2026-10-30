@@ -335,6 +335,16 @@ def help_page(disk, L):
                  bytes((4, 3, 4, 3, 4, 3)))
 
 
+def records_page(disk, L):
+    """RECORDS on the title: the missions won with their fewest gates."""
+    steps = [BOOT, 'wait:60'] + click(90, 167) + ['wait:60', idle(L), L.peek('_screen'),
+                                                 f'shot:{SHOTS}/records.png'] + click(70, 80) \
+        + ['wait:60', idle(L), L.peek('_screen')]
+    r = run(disk, steps)
+    return check('RECORDS: the page, a click: the title', bytes(r.mem(L['_screen'], 1, n)[0] for n in range(2)),
+                 bytes((4, 3)))
+
+
 def old_save(disk, L):
     """An RSS2 save (before the records): read, migrated to RSS3, no best."""
     steps = [BOOT, 'wait:60', idle(L), L.peek('_persist', SAVE_SIZE)]
@@ -371,6 +381,8 @@ def main():
     fails += module_two(disk_with_save(save_bytes(EMPTY, reached=11), 'reached11'), L)
     fails += crate(disk_with_save(save_bytes(EMPTY, reached=12), 'reached12'), L)
     fails += help_page(args.disk, L)
+    fails += records_page(disk_with_save(save_bytes(EMPTY, reached=9, best=(1, 2, 3, 4, 1, 1, 6, 3, 9)),
+                                         'records'), L)
     rss2 = b'RSS2' + save_bytes(EMPTY, reached=5)[4:SAVE_SIZE - BEST_SLOTS]
     fails += old_save(disk_with_save(rss2, 'rss2'), L)
     fails += missing_rooms(disk_with_save(None, 'norooms', rooms=False), L)

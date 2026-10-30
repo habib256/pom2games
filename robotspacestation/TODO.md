@@ -30,7 +30,7 @@
 - [x] Un indice par mission (touche H), sur le disque après la salle.
 - [x] Une page d'aide (AIDE ou H au titre) : bornes, pièces, touches.
 - [x] Records : le moins de portes par mission (sauvegarde RSS3, RSS1/2
-      migrées), rappelé à l'entrée de la mission.
+      migrées), rappelé à l'entrée de la mission, page RECORDS au titre.
 - [x] V : vitesse rapide (×1,5 sur //e, ×1,2 sur //c : le tour y coûte déjà
       presque tout le temps).
 - [x] `make test-long` : la campagne entière, chaque mission jouée en C avec
