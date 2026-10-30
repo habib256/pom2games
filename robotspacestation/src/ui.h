@@ -9,6 +9,7 @@
 #define S_ZONE 1u
 #define S_DRONE 2u
 #define S_TITLE 3u
+#define S_HELP 4u                      /* the title's help page */
 
 #define BOARD_TOP 10u
 #define BTN_Y 165u

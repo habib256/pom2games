@@ -6,4 +6,7 @@ void title_draw(void);
 /* The mission on screen row y if it may be played (won or next), or NONE. */
 unsigned char __fastcall__ title_mission_at(unsigned char x, unsigned char y);
 
+/* The help page: the terminals, the parts, the keys. */
+void help_draw(void);
+
 #endif

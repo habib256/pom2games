@@ -28,6 +28,7 @@
       vertical : la colonne libre la plus proche du milieu (2026-10-30).
 - [x] Une pièce en main se voit sur le pointeur (un bloc sous la flèche).
 - [x] Un indice par mission (touche H), sur le disque après la salle.
+- [x] Une page d'aide (AIDE ou H au titre) : bornes, pièces, touches.
 - [x] `make test-long` : la campagne entière, chaque mission jouée en C avec
       la solution du modèle (carte dans `RSS.SAVE`), //e et //c.
 

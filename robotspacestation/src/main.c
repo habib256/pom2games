@@ -20,7 +20,8 @@
 static const char *const lab_buttons[] = {"MARCHE", "PAS", "GRAVE", "EFFACE", "ESSAI"};
 static const char *const zone_buttons[] = {"MARCHE", "PAS", "REPLACER", "LABO", "MENU"};
 static const char *const won_buttons[] = {"MARCHE", "PAS", "SUITE", "LABO", "MENU"};
-static const char *const title_buttons[] = {"JOUER", "LABO"};
+static const char *const title_buttons[] = {"JOUER", "LABO", "AIDE"};
+static const char *const help_buttons[] = {"RETOUR"};
 static const char *const drone_buttons[] = {"MARCHE", "PAS", "SORTIR"};
 
 unsigned char claimed;
@@ -165,8 +166,17 @@ static void enter_title(void)
     running = 0u;
     screen_clear();
     title_draw();
-    buttons_set(title_buttons, 2);
+    buttons_set(title_buttons, 3);
     message("CLIQUER UNE MISSION OU JOUER");
+}
+
+static void enter_help(void)
+{
+    screen = S_HELP;
+    screen_clear();
+    help_draw();
+    buttons_set(help_buttons, 1);
+    message("UN CLIC : LE TITRE");
 }
 
 static void enter_zone(void)
@@ -285,8 +295,10 @@ static void step(void)
 
 static void click_button(unsigned char b)
 {
+    if (screen == S_HELP) { enter_title(); return; }
     if (b == 0xFFu) return;
     if (mode == M_CLEAR && !(screen == S_LAB && b == 3u)) mode = M_EDIT;
+    if (screen == S_TITLE && b == 2u) { enter_help(); return; }
     if (screen != S_TITLE) {
         if (b == 0u) { running ^= 1u; buttons_draw(); return; }
         if (b == 1u) { running = 0u; buttons_draw(); step(); return; }
@@ -331,6 +343,7 @@ static void click_button(unsigned char b)
 
 static void click(unsigned char x, unsigned char y)
 {
+    if (screen == S_HELP) { enter_title(); return; }
     if (y >= BTN_Y - 1u && y < BTN_Y + 8u) { click_button(button_at(x)); return; }
     if (screen == S_TITLE) {
         x = title_mission_at(x, y);
@@ -435,12 +448,14 @@ int main(void)
             && ((unsigned char)(px - act_x + 8u) > 20u || (unsigned char)(py - act_y + 10u) > 30u);
         if (!cursor_kept) hide();
         actor_hide();
-        if (key == KC_ESC) { if (screen == S_ZONE) walking = W_NONE; else board_drop(); }
+        if (screen == S_HELP) { if (key) enter_title(); }  /* any key: the title */
+        else if (key == KC_ESC) { if (screen == S_ZONE) walking = W_NONE; else board_drop(); }
         else if (key == 'S') {
             sound_on ^= 1u;
             message(sound_on ? "SON ACTIF" : "SON COUPE");
         }
-        else if (key == 'H' && screen != S_TITLE && screen != S_LAB) message(mission_hint);
+        else if (key == 'H' && screen == S_TITLE) enter_help();
+        else if (key == 'H' && screen != S_LAB) message(mission_hint);
         else if (key == 'M') click_button(0);
         else if (key == 'P') click_button(1);
         else if (key == 'G' && screen == S_LAB) click_button(2);

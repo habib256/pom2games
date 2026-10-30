@@ -311,6 +311,17 @@ def crate(disk, L):
     return fails + check('won', r.mem(L['_won'], 1), b'\x01')
 
 
+def help_page(disk, L):
+    """AIDE on the title (or H): the help page; a click or a key: the title."""
+    steps = [BOOT, 'wait:60'] + click(60, 167) + ['wait:60', idle(L), L.peek('_screen'),
+                                                 f'shot:{SHOTS}/help.png']
+    steps += click(70, 80) + ['wait:60', idle(L), L.peek('_screen')]
+    steps += ['key:H', 'wait:60', idle(L), L.peek('_screen'), 'key:M', 'wait:60', idle(L), L.peek('_screen')]
+    r = run(disk, steps)
+    return check('help: AIDE, a click, H, a key', bytes(r.mem(L['_screen'], 1, n)[0] for n in range(4)),
+                 bytes((4, 3, 4, 3)))
+
+
 def missing_rooms(disk, L):
     """Without RSS.ROOMS, JOUER comes back to the title with a message."""
     r = run(disk, [BOOT] + title(0) + ['wait:60', idle(L, 3000), L.peek('_screen')])
@@ -337,6 +348,7 @@ def main():
     fails += relay(disk_with_save(save_bytes(EMPTY, reached=6), 'reached6'), L)
     fails += module_two(disk_with_save(save_bytes(EMPTY, reached=11), 'reached11'), L)
     fails += crate(disk_with_save(save_bytes(EMPTY, reached=12), 'reached12'), L)
+    fails += help_page(args.disk, L)
     fails += missing_rooms(disk_with_save(None, 'norooms', rooms=False), L)
     print(f'shots in {SHOTS}')
     sys.exit(1 if fails else 0)

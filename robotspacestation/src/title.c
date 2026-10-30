@@ -74,3 +74,32 @@ unsigned char __fastcall__ title_mission_at(unsigned char x, unsigned char y)
     if (x >= LIST_DX) m += LIST_N;
     return m < mission_count() && m <= persist.reached ? m : NONE;
 }
+
+/* The help page (AIDE on the title, or H): what a board's terminals are,
+ * the parts, the keys. 27 characters a line at most (5 pixels each). */
+static const char *const help_lines[] = {
+    "AIDE",
+    "",
+    "LE TECHNICIEN ENTRE DANS",
+    "UN DRONE EN LE TOUCHANT.",
+    "A GAUCHE DE SA PLANCHE :",
+    " N E S O  CONTACT AU BORD",
+    " T  LA PINCE TIENT",
+    " R  RECU PAR RADIO",
+    "A DROITE :",
+    " N E S O  PROPULSEURS",
+    "    N POUSSE VERS LE SUD",
+    " P  PINCE  E  EMISSION",
+    "ET OU OX NO  BA : BASCULE",
+    "LABO : PUCES F1 A F8",
+    "M MARCHE  P PAS  S SON",
+    "H INDICE  ESC LACHE",
+    "CTRL-Q QUITTE",
+};
+
+void help_draw(void)
+{
+    static unsigned char i;
+    for (i = 0u; i < sizeof help_lines / sizeof help_lines[0]; ++i)
+        dhgr_puts_small(help_lines[i], i ? 4u : 60u, 4u + i * 9u);
+}
