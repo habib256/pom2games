@@ -43,7 +43,6 @@ unsigned char door_open[2];
 
 #pragma bss-name (push, "LOWBSS")                 /* (MLI READ: only below $2000) */
 static unsigned char tiles[ROOM_COLS * ROOM_ROWS];   /* this mission's, unpacked */
-char mission_hint[HINT_LEN];          /* RSS.ROOMS, after the room (key H) */
 #pragma bss-name (pop)
 static unsigned char div7[ROOM_W];
 static unsigned char drawn_x[DRONES] = {NONE, NONE}, drawn_y[DRONES], drawn_thrust[DRONES][6];
@@ -92,16 +91,12 @@ static unsigned char __fastcall__ read_room(unsigned char m)
     error = mli(0xCEu, p_mark);                             /* SET_MARK */
     if (!error) error = mli(PD_READ, p_read);
     if (!error && *(unsigned *)(p_read + 6) != 180u + ROOM_STARTS) error = 1u;
-    *(unsigned char **)(p_read + 2) = (unsigned char *)mission_hint;   /* then the hint */
-    *(unsigned *)(p_read + 4) = HINT_LEN;
-    if (!error) error = mli(PD_READ, p_read);
-    mission_hint[HINT_LEN - 1u] = 0;
     mli(PD_CLOSE, p_close);
     return !error;
 }
 
 unsigned char mission_count(void) { return MISSIONS; }
-const char *__fastcall__ mission_name_of(unsigned char m) { return mission_names[m]; }
+unsigned char __fastcall__ mission_goal(unsigned char m) { return mission_goals[m]; }
 
 unsigned char __fastcall__ zone_load(unsigned char m)
 {
@@ -356,12 +351,43 @@ static void __fastcall__ draw_tile(unsigned char tx, unsigned char ty)
 }
 
 /* Put the room's background back under a box (room pixels). */
+/* The tiles redrawn since drone_draw() began: tile columns ex0..ex1,
+ * rows ey0..ey1 (ex0 > ex1: none). */
+static unsigned char ex0, ey0, ex1, ey1;
 static void erase_box(unsigned char x, unsigned char y, unsigned char w, unsigned char h)
 {
-    static unsigned char tx, ty, tx1, ty1;
-    tx1 = div7[x + w - 1u]; ty1 = (y + h - 1u) >> 3;
+    static unsigned char tx, ty, tx0, tx1, ty1;
+    tx0 = div7[x]; tx1 = div7[x + w - 1u]; ty1 = (y + h - 1u) >> 3;
+    if (tx0 < ex0) ex0 = tx0;
+    if (tx1 > ex1 || ex1 == NONE) ex1 = tx1;
+    if (y >> 3 < ey0) ey0 = y >> 3;
+    if (ty1 > ey1 || ey1 == NONE) ey1 = ty1;
     for (ty = y >> 3; ty <= ty1; ++ty)
-        for (tx = div7[x]; tx <= tx1; ++tx) draw_tile(tx, ty);
+        for (tx = tx0; tx <= tx1; ++tx) draw_tile(tx, ty);
+}
+
+/* Does the box x, y, w, h touch the redrawn tiles? */
+static unsigned char __fastcall__ touched(unsigned char x, unsigned char y, unsigned char w,
+                                          unsigned char h)
+{
+    return ex1 != NONE && div7[x + w - 1u] >= ex0 && div7[x] <= ex1
+        && (unsigned char)((y + h - 1u) >> 3) >= ey0 && (y >> 3) <= ey1;
+}
+
+/* Where drone d was and no longer is: only the strips it uncovered (a
+ * turn moves it one pixel), else its whole old box. */
+static void __fastcall__ uncover(unsigned char d)
+{
+    static unsigned char ox, oy, nx, ny;
+    ox = drawn_x[d]; oy = drawn_y[d]; nx = drone_x[d]; ny = drone_y[d];
+    if ((unsigned char)(nx - ox + 2u) > 4u || (unsigned char)(ny - oy + 2u) > 4u) {
+        erase_box(ox, oy, DRONE_W, DRONE_H);
+        return;
+    }
+    if (nx > ox) erase_box(ox, oy, nx - ox, DRONE_H);
+    else if (nx < ox) erase_box(nx + DRONE_W, oy, ox - nx, DRONE_H);
+    if (ny > oy) erase_box(ox, oy, DRONE_W, ny - oy);
+    else if (ny < oy) erase_box(ox, ny + DRONE_H, DRONE_W, oy - ny);
 }
 
 static void __fastcall__ draw_object(unsigned char i)
@@ -378,17 +404,9 @@ static void __fastcall__ draw_object(unsigned char i)
 
 static void __fastcall__ draw_hull(unsigned char d)
 {
-    static unsigned char x, y, *t;
-    x = drone_x[d]; y = drone_y[d] + ROOM_Y; t = thrust[d];
-    dhgr_fill_rect(x, y, DRONE_W, DRONE_H, d ? DHGR_AQUA : DHGR_LIGHTBLUE);
-    dhgr_fill_rect(x + 1u, y + 1u, DRONE_W - 2u, DRONE_H - 2u, DHGR_BLACK);
-    dhgr_fill_rect(x + 3u, y + 4u, 4, 4, t[CLAW] ? DHGR_WHITE : d ? DHGR_GREEN : DHGR_VIOLET);
-    if (t[RADIO]) dhgr_fill_rect(x + 4u, y + 2u, 2, 1, DHGR_YELLOW);   /* transmitting */
-    /* A lit thruster: an orange bar on its side, inside the hull. */
-    if (t[N]) dhgr_fill_rect(x + 2u, y + 1u, 6, 1, DHGR_ORANGE);
-    if (t[S]) dhgr_fill_rect(x + 2u, y + DRONE_H - 2u, 6, 1, DHGR_ORANGE);
-    if (t[W]) dhgr_fill_rect(x + 1u, y + 2u, 1, 8, DHGR_ORANGE);
-    if (t[E]) dhgr_fill_rect(x + DRONE_W - 2u, y + 2u, 1, 8, DHGR_ORANGE);
+    static unsigned char *t;
+    t = thrust[d];
+    drone_paint(d);                         /* src/sprites.c */
     drawn_x[d] = drone_x[d]; drawn_y[d] = drone_y[d];
     memcpy(drawn_thrust[d], t, 6);
     drawn_obj[d] = holding[d];
@@ -412,13 +430,18 @@ void __fastcall__ drone_draw(unsigned char mask)
     } else {
         begin_draw();
     }
+    ex0 = ey0 = NONE; ex1 = ey1 = NONE;
     for (d = 0u; d < drone_n; ++d) {
         if (!(mask & (1u << d))) continue;
-        if (drawn_x[d] != NONE) erase_box(drawn_x[d], drawn_y[d], DRONE_W, DRONE_H);
+        if (drawn_x[d] != NONE) uncover(d);
         if (drawn_obj[d] != NONE) erase_box(drawn_ox[d], drawn_oy[d], OBJ_W, OBJ_H);
     }
-    for (i = 0u; i < obj_n; ++i) draw_object(i);
-    for (d = 0u; d < drone_n; ++d) draw_hull(d);
+    /* again what the redrawn tiles may have cut, and what moved */
+    for (i = 0u; i < obj_n; ++i)
+        if (i == holding[0] || i == holding[1] || touched(obj_x[i], obj_y[i], OBJ_W, OBJ_H))
+            draw_object(i);
+    for (d = 0u; d < drone_n; ++d)
+        if (mask & (1u << d) || touched(drone_x[d], drone_y[d], DRONE_W, DRONE_H)) draw_hull(d);
 }
 
 /* Doors and plates after door_open changed. */
@@ -443,7 +466,7 @@ void zone_draw(void)
     title[2] = 0;
     dhgr_puts_small("MISSION", 0, 1);
     dhgr_puts_small(title, 40, 1);
-    dhgr_puts_small(mission_names[mission], 54, 1);
+    text_at(T_NAME + mission, 54, 1);
     ui_latch();
     for (ty = 0u; ty < ROOM_ROWS; ++ty) {
         ui_latch();
@@ -500,23 +523,81 @@ unsigned char tech_touches_drone(void)
     return 0u;
 }
 
-/* Out of drone d: the first free spot east, west, south or north of it. */
+/* Where drone d's board (the loaded one) is about to send it: four turns
+ * ahead (its sensors as they are), then put back. The technician steps
+ * out behind it first, then to a side, in its way last. */
+#pragma bss-name (push, "LOW8BSS")
+static unsigned char kept_values[TERMINALS + BOARD_GATES];
+#pragma bss-name (pop)
+static unsigned char exit_order[4], order_n;
+static void __fastcall__ add_side(unsigned char side)
+{
+    static unsigned char k;
+    for (k = 0u; k < order_n; ++k)
+        if (exit_order[k] == side) return;
+    exit_order[order_n++] = side;
+}
+
+static void plan_exit(void)
+{
+    static const unsigned char sides[4] = {E, W, S, N};
+    static unsigned char k, ahead, way_x, way_y;
+    memcpy(kept_values, values, sizeof values);
+    for (k = 0u; k < 4u; ++k) board_tick();
+    /* thruster W (3) pushes east, N (0) south */
+    way_x = sink_value(W) > sink_value(E) ? E : sink_value(W) < sink_value(E) ? W : NONE;
+    way_y = sink_value(N) > sink_value(S) ? S : sink_value(N) < sink_value(S) ? N : NONE;
+    memcpy(values, kept_values, sizeof values);
+    order_n = 0u;
+    if (way_x != NONE) add_side(way_x ^ 2u);                 /* behind it */
+    if (way_y != NONE) add_side(way_y ^ 2u);
+    for (ahead = 0u; ahead < 2u; ++ahead)
+        for (k = 0u; k < 4u; ++k)
+            if (ahead || (sides[k] != way_x && sides[k] != way_y)) add_side(sides[k]);
+}
+
+/* Out of drone d: the first free spot beside it, its sides tried in
+ * plan_exit()'s order, centred on it. */
 void __fastcall__ tech_beside_drone(unsigned char d)
 {
-    static unsigned char dx, dy;
+    static unsigned char dx, dy, k, side;
+    plan_exit();
     dx = drone_x[d]; dy = drone_y[d] + ROOM_Y;
-    act_x = dx + DRONE_W + 1u; act_y = dy;
-    if (tech_free(act_x, act_y) && !tech_touches_drone()) return;
-    act_x = dx - ACT_W - 1u;
-    if (dx > ACT_W && tech_free(act_x, act_y) && !tech_touches_drone()) return;
-    act_x = dx; act_y = dy + DRONE_H + 1u;
-    if (tech_free(act_x, act_y) && !tech_touches_drone()) return;
-    act_y = dy - ACT_H - 1u;
+    for (k = 0u; k < 4u; ++k) {
+        side = exit_order[k];
+        act_x = side == E ? dx + DRONE_W + 1u : side == W ? dx - ACT_W - 1u : dx + 2u;
+        act_y = side == S ? dy + DRONE_H + 1u : side == N ? dy - ACT_H - 1u : dy + 1u;
+        if (side == W && dx <= ACT_W) continue;
+        if (side == N && dy <= ROOM_Y + ACT_H) continue;
+        if (tech_free(act_x, act_y) && !tech_touches_drone()) return;
+    }
+}
+
+/* -- what the pointer is on ----------------------------------------------- */
+
+/* The text for screen point x, y in the room (0: nothing to say). */
+unsigned char zone_hover(unsigned char x, unsigned char y)
+{
+    static unsigned char d, i, t;
+    static const unsigned char tile_text[] = {
+        0u, 0u, T_R_GRATE, T_R_CHARGER, T_R_DOOR, T_R_PLATE, T_R_DOOR2, T_R_PLATE2, T_R_TUNNEL
+    };
+    if ((unsigned char)(y - ROOM_Y) >= ROOM_H || x >= ROOM_W) return 0u;
+    if ((unsigned char)(x - act_x) < ACT_W && (unsigned char)(y - act_y) < ACT_H) return T_R_TECH;
+    y -= ROOM_Y;
+    for (d = 0u; d < drone_n; ++d)
+        if ((unsigned char)(x - drone_x[d]) < DRONE_W && (unsigned char)(y - drone_y[d]) < DRONE_H)
+            return T_R_DRONE_A + d;
+    for (i = 0u; i < obj_n; ++i)
+        if ((unsigned char)(x - obj_x[i]) < OBJ_W && (unsigned char)(y - obj_y[i]) < OBJ_H)
+            return obj_kind[i] == O_CELL ? T_R_CELL : T_R_CRATE;
+    t = tile_raw(x, y);
+    return t < sizeof tile_text ? tile_text[t] : 0u;
 }
 
 /* -- records (RSS3: persist.best) ------------------------------------------ */
 
-static char gate_text[28];
+static char gate_text[29];
 
 static void __fastcall__ put_gates(unsigned char at, unsigned char n)
 {
@@ -531,25 +612,12 @@ const char *zone_won_text(void)
     gates = fl_count;                       /* both drones' boards */
     if (drone_n == 2u) { board_swap(); gates += fl_count; board_swap(); }
     best = &persist.best[mission];
-    strcpy(gate_text, "REUSSIE EN    PORTES");
-    put_gates(11u, gates);
-    if (gates == 1u) gate_text[19] = ' ';   /* PORTE */
+    strcpy(gate_text, "DONE WITH    GATES");
+    put_gates(10u, gates);
+    if (gates == 1u) gate_text[17] = ' ';   /* GATE */
     if (!*best || gates + 1u < *best) {     /* best = gates + 1 (0: never won) */
         *best = gates + 1u;
-        strcpy(gate_text + 20, " RECORD");
+        strcpy(gate_text + 18, " - RECORD!");
     }
     return gate_text;
 }
-
-const char *zone_enter_text(void)
-{
-    if (!persist.best[mission]) return "TOUCHER LE DRONE  H : INDICE";   /* 28 at most */
-    strcpy(gate_text, "RECORD    PORTES H : INDICE");
-    put_gates(7u, persist.best[mission] - 1u);
-    if (persist.best[mission] == 2u) gate_text[15] = ' ';
-    return gate_text;
-}
-
-static const char *const toggles[] = {"SON COUPE", "SON ACTIF", "VITESSE NORMALE", "VITESSE RAPIDE"};
-
-const char *__fastcall__ toggle_text(unsigned char n) { return toggles[n]; }

@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from model import (AND, OR, XOR, NOT, FLIP, BUF, CHIP0, NONE, Board, Chip,
+from model import (AND, OR, XOR, NOT, FLIP, BUF, CHIP0, NONE, POWER, CHIP_POWER, Board, Chip,
                    Sim, burn, compile_board, chip_bytes, flat_bytes,
                    layout_bytes, Zone, MISSIONS, SINK_GRAB, GOAL_TECH,
                    SRC_HOLD, SRC_RADIO, SINK_RADIO, OR, DRONE_W)
@@ -491,6 +491,41 @@ def play(mission, board, ticks=600, tech=None, board2=None):
         if z.won():
             return t + 1, z
     return None, z
+
+
+class Power(unittest.TestCase):
+    def test_power_is_one_from_the_start(self):
+        b = Board()
+        b.connect(POWER, 3)
+        sim = Sim(compile_board(b, EMPTY))
+        self.assertEqual(sim.sinks()[3], 1)          # before any turn
+        sim.tick([0] * 8)
+        self.assertEqual(sim.sinks()[3], 1)
+
+    def test_power_in_a_chip_is_the_boards(self):
+        lab = Board()
+        g = lab.place(AND, 0, 0)
+        lab.connect(POWER, inp(g, 0))
+        lab.connect(0, inp(g, 1))
+        lab.connect(out(g), 0)
+        lab.connect(POWER, 1)                        # + straight to S2: a BUF
+        chip = burn(lab, EMPTY)
+        self.assertEqual(chip.gates, [(AND, CHIP_POWER, 0), (BUF, CHIP_POWER, NONE)])
+        chips = list(EMPTY)
+        chips[0] = chip
+        b = Board()
+        c = b.place(CHIP0, 0, 0)
+        b.connect(2, inp(c, 0))
+        b.connect(out(c, 0), 0)
+        b.connect(out(c, 1), 1)
+        self.assertEqual(run(b, [0, 0, 1, 0, 0, 0, 0, 0], 1, chips)[:2], [1, 1])
+        self.assertEqual(run(b, [0, 0, 0, 0, 0, 0, 0, 0], 1, chips)[:2], [0, 1])
+
+    def test_one_wire_wins_the_first_mission(self):
+        b = Board()
+        b.connect(POWER, 3)                          # + to thruster W: MOTOR E
+        t, z = play(0, b)
+        self.assertIsNotNone(t)
 
 
 class Missions(unittest.TestCase):

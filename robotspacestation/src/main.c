@@ -17,24 +17,41 @@
 #define LAB_TICK 8u             /* frames per turn: slow enough to watch */
 #define DRONE_TICK 2u            /* loop turns per drone turn: ~16 turns per second */
 
-static const char *const lab_buttons[] = {"MARCHE", "PAS", "GRAVE", "EFFACE", "ESSAI"};
-static const char *const zone_buttons[] = {"MARCHE", "PAS", "REPLACER", "LABO", "MENU"};
-static const char *const won_buttons[] = {"MARCHE", "PAS", "SUITE", "LABO", "MENU"};
-static const char *const title_buttons[] = {"JOUER", "LABO", "AIDE", "RECORDS", "PAGE"};
-static const char *const help_buttons[] = {"RETOUR"};
-static const char *const drone_buttons[] = {"MARCHE", "PAS", "SORTIR"};
+/* Buttons (ui.c: button 0 reads RUN or PAUSE), and the text each one
+ * shows on the message line while the pointer is over it. */
+static const char b_run[] = "RUN", b_step[] = "STEP", b_menu[] = "MENU", b_play[] = "PLAY",
+    b_lab[] = "LAB", b_goal[] = "GOAL";
+static const char *const lab_buttons[] = {b_run, b_step, "BURN", "CLEAR", "TEST"};
+static const unsigned char lab_tips[] = {T_B_RUN, T_B_STEP, T_B_BURN, T_B_CLEAR, T_B_TRY};
+static const char *const zone_buttons[] = {b_run, b_step, "RESET", b_goal, b_menu};
+static const unsigned char zone_tips[] = {T_B_RUN, T_B_STEP, T_B_RESET, T_B_GOAL, T_B_MENU};
+static const char *const won_buttons[] = {b_run, b_step, "NEXT", b_goal, b_menu};
+static const unsigned char won_tips[] = {T_B_RUN, T_B_STEP, T_B_NEXT, T_B_GOAL, T_B_MENU};
+static const char *const title_buttons[] = {b_play, b_lab, "HELP", "RECORDS", "PAGE"};
+static const unsigned char title_tips[] = {T_B_PLAY, T_B_LAB, T_B_HELP, T_B_RECORDS, T_B_PAGE};
+static const char *const help_buttons[] = {"NEXT", "BACK", "DONE"};
+static const unsigned char help_tips[] = {T_B_BACK, T_B_PREV, T_B_DONE};
+static const char *const drone_buttons[] = {b_run, b_step, "EXIT"};
+static const unsigned char drone_tips[] = {T_B_RUN, T_B_STEP, T_B_LEAVE};
+static const char *const brief_buttons[] = {b_play, "HINT", "GATES", b_lab, b_menu};
+static const unsigned char brief_tips[] = {T_B_GO, T_B_HINT, T_B_GATES, T_B_LAB, T_B_MENU};
 
 unsigned char claimed;
 unsigned tick_count;
 unsigned char walking, walk_x, walk_y;   /* technician target (screen) */
+static unsigned char walk_drone;        /* the drone clicked + 1: he gets in when he touches it */
 unsigned char pending_x, pending_y;      /* inside: click done on arrival */
 static unsigned char lab_running, drone_running, frames;
 static unsigned char board_owner;       /* S_LAB or S_DRONE: whose board is loaded */
 unsigned char won, saved_ok;            /* this mission won; last save written */
+static unsigned char loaded;            /* a mission is in the zone (mission) */
+static unsigned char brief_m, brief_back, hints;   /* the briefing: its mission, */
+                                        /* the screen it came from, hints shown */
 #pragma bss-name (push, "IOBUF")
 unsigned char iobuf[1024];                  /* also zone.c (RSS.ROOMS) */
 #pragma bss-name (pop)
 static const char save_name[] = "\x08RSS.SAVE";
+static const char text_name[] = "\x09RSS.TEXT1";
 
 #define W_NONE 0u
 #define W_WALK 1u               /* zone: just walk */
@@ -73,6 +90,25 @@ static void persist_defaults(void)
     memset(persist.lab + PARTS * 3u, NONE, LAYOUT_IDS);
     memset(persist.drone + PARTS * 3u, NONE, LAYOUT_IDS);
     memset(persist.drone2 + PARTS * 3u, NONE, LAYOUT_IDS);
+}
+
+/* The text bank, read at $2000 (DHGR not started yet), then into aux
+ * $6000 and $8000. 1 = done. */
+static unsigned char text_load(void)
+{
+    static char name[10];
+    static unsigned char k;
+    memcpy(name, text_name, sizeof name);
+    prodos_file_name = name;
+    prodos_file_iobuf = iobuf;
+    prodos_file_buffer = (void *)0x2000;
+    prodos_file_length = 0x2000u;
+    for (k = 0u; k < 2u; ++k) {
+        name[9] = '1' + k;
+        if (prodos_load_free()) return 0u;
+        text_store(k ? TEXT_PAGES2 | 0x8000u : TEXT_PAGES1 | 0x6000u);
+    }
+    return 1u;
 }
 
 static void file_setup(void)
@@ -139,8 +175,8 @@ static void enter_lab(void)
     screen_clear();
     board_draw();
     board_palette();
-    buttons_set(lab_buttons, 5);
-    message(mouse_slot ? "SOURIS ACTIVE" : "FLECHES + ESPACE");
+    buttons_set(lab_buttons, lab_tips, 5);
+    hover_force = 1u;
 }
 
 /* Load the lab's or the drone's board, keeping the other in its record. */
@@ -172,34 +208,88 @@ static void enter_title(void)
     running = 0u;
     screen_clear();
     title_draw();
-    buttons_set(title_buttons, 5);
-    message("CLIQUER UNE MISSION OU JOUER");
+    buttons_set(title_buttons, title_tips, 5);
+    hover_force = 1u;
 }
 
-/* Page 0 the help, then 2 the rooms' legend; 1 the records (S_HELP). */
-static unsigned char help_page;
+/* The help's pages (title.h), then the records (S_HELP); help_back: the
+ * screen to go back to (S_TITLE, S_BRIEF or S_LAB). */
+static unsigned char help_page, help_back;
 static void __fastcall__ enter_help(unsigned char page)
 {
     screen = S_HELP;
+    running = 0u;
     help_page = page;
     screen_clear();
     help_draw(page);
-    buttons_set(help_buttons, 1);
-    message(page ? "UN CLIC : LE TITRE" : "UN CLIC : LES SALLES");
+    buttons_set(help_buttons, help_tips, page == RECORDS_PAGE ? 1u : 3u);
+    hover_force = 1u;
 }
-/* A click or a key on a help page: the legend after the help, else the title. */
+static void enter_brief_again(void);
+static void enter_lab(void);
+static void help_done(void)
+{
+    if (help_back == S_BRIEF) enter_brief_again();
+    else if (help_back == S_LAB) enter_lab();
+    else enter_title();
+}
+/* A click or a key on a help page: the next one, after the last DONE. */
 static void help_next(void)
 {
-    if (help_page) enter_title(); else enter_help(2u);
+    if (help_page + 1u < HELP_PAGES) enter_help(help_page + 1u); else help_done();
 }
+static void __fastcall__ open_help(unsigned char page)
+{
+    help_back = screen;
+    enter_help(page);
+}
+
+/* The hints shown so far, under the briefing. */
+static void draw_hints(void)
+{
+    static unsigned char k;
+    if (!hints) return;
+    begin_draw();
+    text_at(T_H_HINTS, 0, 118);
+    dhgr_fill_rect(0, 125, 28, 1, DHGR_ORANGE);
+    page_x = 0u; page_y = 129u;
+    for (k = 0u; k < hints; ++k) text_page((k ? T_HINT2 : T_HINT1) + brief_m);
+}
+
+/* Mission m's briefing: its goal, what is new, then the hints asked for.
+ * back: S_ZONE or S_DRONE to go back there (the mission running), or
+ * NONE: PLAY starts mission m. */
+static void __fastcall__ enter_brief(unsigned char m, unsigned char back)
+{
+    static char num[3];
+    if (m != brief_m) hints = 0u;
+    brief_m = m;
+    brief_back = back;
+    screen = S_BRIEF;
+    running = 0u;
+    screen_clear();
+    num[0] = m < 9u ? '1' + m : '0' + (m + 1u) / 10u;
+    num[1] = m < 9u ? 0 : '0' + (m + 1u) % 10u;
+    num[2] = 0;
+    dhgr_puts_small("MISSION", 0, 1);
+    dhgr_puts_small(num, 40, 1);
+    text_at(T_NAME + m, 54, 1);
+    dhgr_fill_rect(0, 8, 140, 1, DHGR_AQUA);
+    page_x = 0u; page_y = 13u;
+    text_page(T_BRIEF + m);
+    draw_hints();
+    buttons_set(brief_buttons, brief_tips, 5);
+    hover_force = 1u;
+}
+static void enter_brief_again(void) { enter_brief(brief_m, brief_back); }
 
 static void enter_zone(void)
 {
     screen = S_ZONE;
     screen_clear();
     zone_draw();
-    buttons_set(won ? won_buttons : zone_buttons, 5);
-    message(won ? (const char *)"MISSION REUSSIE !" : zone_enter_text());
+    if (won) buttons_set(won_buttons, won_tips, 5); else buttons_set(zone_buttons, zone_tips, 5);
+    hover_force = 1u;
     actor_show();
 }
 
@@ -214,6 +304,7 @@ static unsigned char __fastcall__ start_mission(unsigned char m)
     board_swap();
     won = 0u;
     running = 0u;
+    loaded = 1u;
     return 1u;
 }
 
@@ -228,8 +319,8 @@ static void __fastcall__ enter_drone(unsigned char d)
     screen_clear();
     board_draw();
     board_palette();
-    buttons_set(drone_buttons, 3);
-    message("DANS LE DRONE");
+    buttons_set(drone_buttons, drone_tips, 3);
+    hover_force = 1u;
     act_x = DOOR_X + 5u;
     act_y = DOOR_Y - ACT_H - 1u;
     actor_show();
@@ -243,7 +334,7 @@ static void __fastcall__ go_mission(unsigned char m)
         return;
     }
     enter_title();
-    message("DISQUE : SALLE ILLISIBLE");
+    msg(T_NO_ROOM);
 }
 
 static void __fastcall__ play(unsigned char m)
@@ -252,10 +343,32 @@ static void __fastcall__ play(unsigned char m)
     go_mission(m);
 }
 
-/* The first mission not won yet (the last one once all are). */
+/* The first mission not won yet (the last one once all are): its briefing. */
 static void play_next(void)
 {
-    play(persist.reached < MISSIONS_MAX ? persist.reached : MISSIONS_MAX - 1u);
+    enter_brief(persist.reached < MISSIONS_MAX ? persist.reached : MISSIONS_MAX - 1u, NONE);
+}
+
+/* PLAY on the briefing: back where it was called from, or the mission. */
+static void brief_play(void)
+{
+    if (brief_back == NONE) { play(brief_m); return; }
+    if (brief_back == S_DRONE) { enter_drone(cur_drone); return; }
+    enter_zone();
+}
+
+/* GOAL (or H) in the room or a drone: the briefing, then back. */
+static void show_brief(void)
+{
+    enter_brief(mission, screen);
+}
+
+/* The lab's TEST: back to the mission played, else the next one. */
+static void lab_test(void)
+{
+    if (!loaded) { play_next(); return; }
+    use_board(S_DRONE);
+    enter_zone();
 }
 
 static void go_lab(void)
@@ -284,8 +397,8 @@ static void check_won(void)
     if (persist.reached <= mission) persist.reached = mission + 1u;
     text = zone_won_text();                 /* (the best gates, before the save) */
     begin_draw();
-    if (screen == S_ZONE) buttons_set(won_buttons, 4); else buttons_draw();
-    message(game_save() ? text : (const char *)"REUSSIE (PAS SAUVEE)");
+    if (screen == S_ZONE) buttons_set(won_buttons, won_tips, 5); else buttons_draw();
+    if (game_save()) message(text); else msg(T_WON_NS);
 }
 
 static void step(void)
@@ -300,53 +413,65 @@ static void step(void)
     }
     d = zone_tick();
     if (d && screen == S_ZONE) drone_draw(d);
-    if (screen == S_DRONE) {
-        board_refresh();
-    } else {
-        d = tech_touches_drone();
-        if (d) enter_drone(d - 1u);                 /* a drone took him in */
-    }
+    if (screen == S_DRONE) board_refresh();   /* (a drone passes over him) */
     check_won();
 }
 
 static void click_button(unsigned char b)
 {
-    if (screen == S_HELP) { help_next(); return; }
-    if (b == 0xFFu) return;
-    if (mode == M_CLEAR && !(screen == S_LAB && b == 3u)) mode = M_EDIT;
-    if (screen == S_TITLE && b == 4u) { title_page ^= 1u; enter_title(); return; }
-    if (screen == S_TITLE && b >= 2u) { enter_help(b - 2u); return; }
-    if (screen != S_TITLE) {
-        if (b == 0u) { running ^= 1u; buttons_draw(); return; }
-        if (b == 1u) { running = 0u; buttons_draw(); step(); return; }
-    }
-    if (screen == S_TITLE) {
-        if (b == 0u) play_next(); else go_lab();
+    if (screen == S_HELP) {
+        if (b == 1u) { if (help_page) enter_help(help_page - 1u); }
+        else if (b == 2u || help_page == RECORDS_PAGE) help_done();
+        else help_next();
         return;
     }
+    if (b == 0xFFu) return;
+    if (mode == M_CLEAR && !(screen == S_LAB && b == 3u)) mode = M_EDIT;
+    switch (screen) {
+    case S_TITLE:
+        if (b == 0u) play_next();
+        else if (b == 1u) go_lab();
+        else if (b == 4u) { title_page ^= 1u; enter_title(); }
+        else open_help(b == 2u ? 0u : RECORDS_PAGE);
+        return;
+    case S_BRIEF:
+        if (b == 0u) brief_play();
+        else if (b == 1u) {
+            if (hints < 2u) ++hints;
+            draw_hints();
+        }
+        else if (b == 2u) open_help(GATES_PAGE);
+        else if (b == 3u) go_lab();
+        else enter_title();
+        return;
+    }
+    if (b == 0u) { running ^= 1u; buttons_draw(); return; }
+    if (b == 1u) { running = 0u; buttons_draw(); step(); return; }
     if (screen == S_LAB) {
         if (b == 2u) {
             mode = M_BURN;
-            message("GRAVER DANS : CLIQUER P1-P8");
+            msg(T_BURN_ASK);
         } else if (b == 3u) {
             if (mode != M_CLEAR) {
                 mode = M_CLEAR;
-                message("EFFACER TOUT ? RECLIQUER");
+                msg(T_CLEAR_ASK);
             } else {
                 mode = M_EDIT;
                 board_clear_all();
-                message("PLANCHE EFFACEE");
+                msg(T_CLEARED);
             }
         } else {
-            play_next();
+            lab_test();
         }
     } else if (screen == S_ZONE) {
         if (b == 2u && won && mission + 1u >= MISSIONS_MAX) {
-            message("LA STATION EST REPAREE !");
+            msg(T_ALL_DONE);
+        } else if (b == 2u && won) {
+            enter_brief(mission + 1u, NONE);
         } else if (b == 2u) {
-            go_mission(won ? mission + 1u : mission);
+            go_mission(mission);
         } else if (b == 3u) {
-            go_lab();
+            show_brief();
         } else {
             enter_title();
         }
@@ -354,19 +479,20 @@ static void click_button(unsigned char b)
         walking = W_EXIT;
         walk_x = DOOR_X + 5u;
         walk_y = DOOR_Y - ACT_H - 1u;
-        message("VERS LA PORTE");
+        msg(T_TO_DOOR);
     }
 }
 
 static void click(unsigned char x, unsigned char y)
 {
-    if (screen == S_HELP) { help_next(); return; }
+    if (screen == S_HELP && (y < BTN_Y - 1u || y >= BTN_Y + 8u)) { help_next(); return; }
     if (y >= BTN_Y - 1u && y < BTN_Y + 8u) { click_button(button_at(x)); return; }
     if (screen == S_TITLE) {
         x = title_mission_at(x, y);
-        if (x != NONE) play(x);
+        if (x != NONE) enter_brief(x, NONE);
         return;
     }
+    if (screen == S_BRIEF) return;
     if (screen == S_LAB) { board_click(x, y); return; }
     if (screen == S_DRONE) {
         if (y >= PAL_Y) { board_click(x, y); return; }
@@ -380,17 +506,18 @@ static void click(unsigned char x, unsigned char y)
     }
     if (y >= ROOM_Y && y < ROOM_Y + ROOM_H) {
         walking = W_WALK;
+        walk_drone = zone_hover(x, y) - (T_R_DRONE_A - 1u);   /* 1 A, 2 B, else not a drone */
         walk_x = x > 2u ? x - 2u : 0u;
         walk_y = y > 4u ? y - 4u : 0u;
     }
 }
 
-/* Inside the drone nothing blocks him: straight to the target, 3 pixels
+/* Inside the drone nothing blocks him: straight to the target, 6 pixels
  * per frame on each axis. */
 static unsigned char __fastcall__ toward(unsigned char a, unsigned char b)
 {
-    if (a + 3u < b) return a + 3u;
-    if (a > b + 3u) return a - 3u;
+    if (a + 6u < b) return a + 6u;
+    if (a > b + 6u) return a - 6u;
     return b;
 }
 
@@ -408,14 +535,14 @@ static void walk(void)
         again = tech_step(walk_x, walk_y) && tech_step(walk_x, walk_y)
             && tech_step(walk_x, walk_y);
         if (!again) walking = W_NONE;
-        again = tech_touches_drone();
-        if (again) { actor_hide(); enter_drone(again - 1u); return; }
+        again = tech_touches_drone();       /* in only by a click on it */
+        if (again && again == walk_drone) { actor_hide(); enter_drone(again - 1u); return; }
         if (zone_doors()) zone_draw_doors();     /* he may stand on a plate */
         check_won();
         return;
     }
     if (inside_step()) return;
-    actor_hide();
+    begin_draw();                       /* (the pointer was kept while he walked) */
     if (walking == W_EXIT) { leave_drone(); return; }
     walking = W_NONE;
     board_click(pending_x, pending_y);
@@ -423,16 +550,21 @@ static void walk(void)
 
 int main(void)
 {
-    static unsigned char busy, cursor_kept, m, fast;
+    static unsigned char busy, cursor_kept, m, fast, line;
     if (prodos_video_claim(PD_VIDEO_DISCARD_RAM) != PD_VIDEO_OK) {
-        a2_puts("PAS DE MEMOIRE AUXILIAIRE.\r");
+        a2_puts("NO AUXILIARY MEMORY.\r");
         apple2_getkey();
         return 1;
     }
     claimed = 1u;
+    if (!text_load()) {
+        a2_puts("CANNOT READ RSS.TEXT1/2.\r");
+        apple2_getkey();
+        return 1;
+    }
     mouse_init();
     if (!dhgr_init()) {
-        a2_puts("IIE ENHANCED 128K OU IIC REQUIS.\r");
+        a2_puts("NEEDS A IIE ENHANCED 128K OR A IIC.\r");
         apple2_getkey();
         return 1;
     }
@@ -452,7 +584,8 @@ int main(void)
         if (key == 0x11u) return 0;            /* Ctrl-Q: back to ProDOS */
         if (running && ++frames >= (screen == S_LAB ? LAB_TICK : fast ? 1u : DRONE_TICK)) frames = 0u;
         if (running && !frames) step();         /* draws only what changed */
-        busy = pressed || walking || key == KC_ESC
+        line = hover_poll();
+        busy = line || pressed || walking || key == KC_ESC
             || key == 'M' || key == 'S' || key == 'V' || key == 'H' || key == 'P' || key == 'G' || key == 'O' || (key >= '0' && key <= '9');
         if (!busy) {
             if (screen == S_ZONE || screen == S_DRONE) actor_show();
@@ -461,29 +594,33 @@ int main(void)
             continue;
         }
         /* A walk alone moves only the technician: keep the pointer unless
-         * it is near him (its pixels are inverted, his are saved). */
+         * it is near him, even after this frame's step of up to 6 pixels
+         * (its pixels are inverted, his are saved). */
         cursor_kept = walking && !pressed && !key
-            && ((unsigned char)(px - act_x + 8u) > 20u || (unsigned char)(py - act_y + 10u) > 30u);
+            && ((unsigned char)(px - act_x + 14u) > 32u || (unsigned char)(py - act_y + 16u) > 42u);
         if (!cursor_kept) hide();
         actor_hide();
-        if (screen == S_HELP) {             /* a key or a click: on */
-            if (key || pressed) { help_next(); pressed = 0u; }   /* (SPACE: once) */
+        if (screen == S_HELP && key) {      /* a key: on (ESC: done) */
+            if (key == KC_ESC) help_done(); else help_next();
+            pressed = 0u;                   /* (SPACE: once) */
         }
         else if (key == KC_ESC) { if (screen == S_ZONE) walking = W_NONE; else board_drop(); }
         else if (key == 'V' && screen != S_LAB) {     /* the drones twice as often */
             fast ^= 1u;
-            message(toggle_text(2u + fast));
+            msg(fast ? T_SPEED_F : T_SPEED_N);
         }
         else if (key == 'S') {
             sound_on ^= 1u;
-            message(toggle_text(sound_on));
+            msg(sound_on ? T_SOUND_ON : T_SOUND_OFF);
         }
-        else if (key == 'H' && screen == S_TITLE) enter_help(0);
-        else if (key == 'H' && screen != S_LAB) message(mission_hint);
-        else if (key == 'M') click_button(0);
-        else if (key == 'P') click_button(1);
+        else if (key == 'H' && screen == S_TITLE) open_help(0);
+        else if (key == 'H' && screen == S_LAB) open_help(LAB_PAGE);
+        else if (key == 'H' && (screen == S_ZONE || screen == S_DRONE)) show_brief();
+        else if (key == 'H' && screen == S_BRIEF) click_button(1);
+        else if (key == 'M' && screen != S_TITLE && screen != S_BRIEF) click_button(0);
+        else if (key == 'P' && screen != S_TITLE && screen != S_BRIEF) click_button(1);
         else if (key == 'G' && screen == S_LAB) click_button(2);
-        else if (key == 'O' && screen == S_LAB) { mode = M_OPEN; message("OUVRIR : CLIQUER P1-P8"); }
+        else if (key == 'O' && screen == S_LAB) { mode = M_OPEN; msg(T_OPEN_ASK); }
         else if (screen == S_ZONE && key >= '0' && key <= '9') {
             /* Replay a mission, or play the next one not yet won (0: the 10th). */
             m = key == '0' ? 9u : key - '1';
@@ -491,6 +628,7 @@ int main(void)
         }
         if (pressed) click(px, py);
         if (walking) walk();
+        if (line && !hover_sync) hover_draw();
         if (screen == S_ZONE || screen == S_DRONE) actor_show();
         show();
         a2_frame_wait();

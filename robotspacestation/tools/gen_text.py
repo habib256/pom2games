@@ -1,0 +1,603 @@
+#!/usr/bin/env python3
+"""Every text the game shows, in one place:
+
+- src/text.h: an id per text (T_...), and the bases of the per-mission
+  families (T_BRIEF + m, ...);
+- RSS.TEXT1 and RSS.TEXT2 (in the directory argument): the bank, cut in
+  two files of 8 KB at most, loaded at boot into auxiliary memory at
+  $6000 and $8000 (src/text.s): a little-endian table of the texts' aux
+  addresses, then the texts, upper case, NUL-terminated, lines split by
+  '\\n'.
+
+The small font has 5-pixel characters: the message line and a page line
+from x 0 hold 28. Motors are named by where they send the drone (MOTOR E:
+the drone goes east), sensors by the side that touches.
+"""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from model import MISSIONS
+
+AUX = 0x6000
+PART = 0x2000                   # each file read at $2000-$3FFF before DHGR starts
+MAX_BANK = 2 * PART             # RSS.TEXT1 at aux $6000, RSS.TEXT2 at $8000
+MSG = 28
+PAGE = 28
+
+# -- one line, the message line (28 characters) ------------------------------
+MESSAGES = [
+    # what to do next, when the pointer is over nothing (src/hover.c)
+    ('G_TITLE', 'CLICK A MISSION, OR PLAY'),
+    ('G_BRIEF', 'PLAY: GO TO THE ROOM'),
+    ('G_ENTER', 'CLICK THE DRONE TO GET IN'),
+    ('G_TRY', 'RUN (M) TO TRY IT'),
+    ('G_RUN', 'STUCK? PAUSE, THEN RESET'),
+    ('G_WON', 'DONE! NEXT: THE NEXT MISSION'),
+    ('G_EMPTY', 'TAKE A PART FROM THE TOOLBOX'),
+    ('G_PLACE', 'CLICK A FREE CELL, ESC: DROP'),
+    ('G_WIRE', 'WIRE: NOW CLICK AN INPUT'),
+    ('G_WIRING', 'WIRE: AN OUTPUT, THEN INPUT'),
+    ('G_DONE', 'EXIT, THEN RUN (OR RUN HERE)'),
+    ('G_LAB', 'BURN: MAKE IT A CHIP'),
+    ('G_HELP', 'CLICK: NEXT PAGE'),
+    # what the pointer is over: the drone's terminals, rows N E S W H/C R
+    ('SENS_N', 'SENSOR N: 1 = BUMP NORTH'),
+    ('SENS_E', 'SENSOR E: 1 = BUMP EAST'),
+    ('SENS_S', 'SENSOR S: 1 = BUMP SOUTH'),
+    ('SENS_W', 'SENSOR W: 1 = BUMP WEST'),
+    ('SENS_H', 'H: 1 = THE CLAW HOLDS'),
+    ('SENS_R', 'R: 1 = OTHER DRONE CALLS'),
+    ('POWER', 'POWER +: ALWAYS 1 (ORANGE)'),
+    ('MOT_N', 'MOTOR N: GO NORTH'),
+    ('MOT_E', 'MOTOR E: GO EAST'),
+    ('MOT_S', 'MOTOR S: GO SOUTH'),
+    ('MOT_W', 'MOTOR W: GO WEST'),
+    ('MOT_C', 'C: 1 = CLAW GRABS'),
+    ('MOT_R', 'R: 1 = CALL BY RADIO'),
+    ('LAB_IN', 'CHIP INPUT: CLICK = 0 OR 1'),
+    ('LAB_PIN', 'CHIP INPUT: WIRE FROM HERE'),
+    ('LAB_OUT', 'CHIP OUTPUT'),
+    # parts (on the board or in the palette), their pins
+    ('PART_AND', 'AND: 1 IF A AND B ARE 1'),
+    ('PART_OR', 'OR: 1 IF A OR B IS 1'),
+    ('PART_XOR', 'XOR: 1 IF A AND B DIFFER'),
+    ('PART_NOT', 'NOT: 1 IF A IS 0'),
+    ('PART_MEM', 'MEM: REMEMBERS 0 OR 1'),
+    ('PART_CHIP', 'CHIP: A CIRCUIT YOU BURNED'),
+    ('CHIP_EMPTY', 'EMPTY CHIP: BURN IN THE LAB'),
+    ('PIN_IN', 'INPUT: END A WIRE HERE'),
+    ('PIN_OUT', 'OUTPUT: CLICK TO START WIRE'),
+    ('PIN_SET', 'SET: 1 TURNS THE MEM ON'),
+    ('PIN_RESET', 'RESET: 1 TURNS THE MEM OFF'),
+    # buttons
+    ('B_RUN', 'RUN / PAUSE (KEY M)'),
+    ('B_STEP', 'STEP: ONE TURN (KEY P)'),
+    ('B_BURN', 'BURN INTO CHIP 1-8 (KEY G)'),
+    ('B_CLEAR', 'CLEAR THE BOARD'),
+    ('B_TRY', 'BACK TO THE MISSION'),
+    ('B_RESET', 'RESET THE ROOM'),
+    ('B_NEXT', 'ON TO THE NEXT MISSION'),
+    ('B_GOAL', 'GOAL AND HINTS (KEY H)'),
+    ('B_MENU', 'THE MISSION LIST'),
+    ('B_LEAVE', 'BACK TO THE ROOM'),
+    ('B_PLAY', 'PLAY THE NEXT MISSION'),
+    ('B_LAB', 'THE LAB: MAKE CHIPS'),
+    ('B_HELP', 'HOW TO PLAY (KEY H)'),
+    ('B_RECORDS', 'RECORDS: FEWEST GATES'),
+    ('B_PAGE', 'THE OTHER MISSIONS'),
+    ('B_GO', 'GO TO THE ROOM'),
+    ('B_HINT', 'A HINT (TWO AT MOST)'),
+    ('B_BACK', 'NEXT PAGE'),
+    ('B_PREV', 'PREVIOUS PAGE'),
+    ('B_DONE', 'CLOSE THE HELP'),
+    ('B_GATES', 'HOW THE ELECTRONICS WORKS'),
+    # the room
+    ('R_DRONE_A', 'DRONE A: CLICK TO GET IN'),
+    ('R_DRONE_B', 'DRONE B: CLICK TO GET IN'),
+    ('R_TECH', 'THE TECHNICIAN: YOU'),
+    ('R_CELL', 'ENERGY CELL'),
+    ('R_CRATE', 'CRATE: WEIGHS ON A PLATE'),
+    ('R_CHARGER', 'CHARGER: THE GOAL'),
+    ('R_GRATE', 'GRATE: ONLY DRONES PASS'),
+    ('R_TUNNEL', 'TUNNEL: ONLY YOU PASS'),
+    ('R_DOOR', 'DOOR: OPENED BY BROWN PLATE'),
+    ('R_PLATE', 'PLATE: OPENS THE ORANGE DOOR'),
+    ('R_DOOR2', 'DOOR: OPENED BY PINK PLATE'),
+    ('R_PLATE2', 'PLATE: OPENS THE VIOLET DOOR'),
+    # the title: what a mission asks (src/room.h mission_goals)
+    ('GOAL_DRONE', 'GOAL: DRONE ON THE CHARGER'),
+    ('GOAL_CELL', 'GOAL: CELL ON THE CHARGER'),
+    ('GOAL_TECH', 'GOAL: YOU ON THE CHARGER'),
+    ('LOCKED', 'LOCKED: WIN THE ONE BEFORE'),
+    # what an action did
+    ('WIRE_OFF', 'WIRE REMOVED'),
+    ('FULL', '16 PARTS AT MOST'),
+    ('TOO_MANY', 'TOO MANY GATES (64 AT MOST)'),
+    ('IN_HAND', 'IN HAND: A CELL, OR PALETTE'),
+    ('OCCUPIED', 'CELL TAKEN'),
+    ('THROWN', 'PART THROWN AWAY'),
+    ('CHIP_MAX', 'TOO MANY GATES (32 AT MOST)'),
+    ('BURNED', 'CHIP BURNED'),
+    ('BURNED_NS', 'BURNED (NOT SAVED)'),
+    ('OPENED', 'CHIP OPENED'),
+    ('EMPTY_HANDS', 'HANDS EMPTY'),
+    ('BURN_ASK', 'BURN INTO: CLICK CHIP 1-8'),
+    ('OPEN_ASK', 'OPEN: CLICK CHIP 1-8'),
+    ('CLEAR_ASK', 'CLEAR ALL? CLICK AGAIN'),
+    ('CLEARED', 'BOARD CLEARED'),
+    ('TO_DOOR', 'TO THE DOOR'),
+    ('WON_NS', 'DONE (NOT SAVED)'),
+    ('ALL_DONE', 'THE STATION IS REPAIRED!'),
+    ('NO_ROOM', 'DISK: ROOM UNREADABLE'),
+    ('SOUND_OFF', 'SOUND OFF'),
+    ('SOUND_ON', 'SOUND ON'),
+    ('SPEED_N', 'NORMAL SPEED'),
+    ('SPEED_F', 'FAST SPEED'),
+    # headers
+    ('H_LAB', 'CHIP LAB'),
+    ('H_DRONE_A', 'IN DRONE A'),
+    ('H_DRONE_B', 'IN DRONE B'),
+    ('H_SENSORS', 'SENSORS'),
+    ('H_MOTORS', 'MOTORS'),
+    ('H_INPUTS', 'INPUTS'),
+    ('H_OUTPUTS', 'OUTPUTS'),
+    ('H_MISSIONS', 'MISSIONS'),
+    ('H_MISSIONS2', 'MISSIONS 15-'),
+    ('H_RECORDS', 'RECORDS: FEWEST GATES'),
+    ('H_ROOMS', 'THE ROOMS'),
+    ('H_HINTS', 'HINTS'),
+    ('H_TOOLBOX', 'TOOLBOX'),
+]
+
+# -- pages: lines of 28 characters at most, drawn from x 0 -------------------
+HELP = [
+    # 0: how to play
+    """HELP: HOW TO PLAY
+
+A TECHNICIAN PROGRAMS DRONES
+WITH WIRES AND LOGIC GATES.
+CLICK IN THE ROOM: HE WALKS
+THERE. TOUCHING A DRONE, HE
+GETS INSIDE IT AND SEES ITS
+BOARD: SENSORS ON THE LEFT,
+MOTORS ON THE RIGHT, THE
+TOOLBOX OF PARTS BELOW.
+WIRE THEM, EXIT, PRESS RUN:
+THE DRONE OBEYS ITS WIRES.
+
+THE BOTTOM LINE TELLS WHAT
+THE POINTER IS OVER.
+NEXT: HOW THE ELECTRONICS
+WORKS.""",
+    # 1-6: electronics
+    """ELECTRONICS 1/6: SIGNALS
+
+EVERY WIRE CARRIES A SIGNAL:
+1 (ORANGE) OR 0 (BLUE).
+LEFT OF THE BOARD, THE
+SENSORS GIVE SIGNALS: E IS 1
+WHILE THE DRONE TOUCHES
+SOMETHING ON ITS EAST SIDE.
++ IS THE POWER: ALWAYS 1.
+RIGHT OF THE BOARD, THE
+MOTORS TAKE SIGNALS: MOTOR E
+AT 1 PUSHES THE DRONE EAST.
+AN INPUT WITH NO WIRE IS 0.
+SIMPLEST DRONE: A WIRE FROM
++ TO MOTOR E. IT GOES EAST,
+ALWAYS.""",
+    """ELECTRONICS 2/6: TOOLBOX
+
+INSIDE A DRONE (OR IN THE
+LAB) THE TOOLBOX IS THE ROW
+OF BOXES AT THE BOTTOM:
+AND OR XOR NOT MEM, THEN
+YOUR CHIPS 1-8.
+1 CLICK A PART IN THE BOX
+2 CLICK A FREE CELL: PLACED.
+3 A WIRE: CLICK AN OUTPUT (A
+  SENSOR, +, OR THE RIGHT
+  SIDE OF A PART), THEN AN
+  INPUT (A MOTOR, OR LEFT
+  SIDE OF A PART).
+CLICK A PART TO MOVE IT, ON
+THE TOOLBOX TO THROW IT. AN
+INPUT CLICKED: WIRE CUT.""",
+    """ELECTRONICS 3/6: AND, OR
+
+A GATE READS ITS INPUTS A
+(TOP) AND B (BOTTOM), WRITES
+ITS OUTPUT ON THE RIGHT.
+AND: 1 ONLY IF A AND B ARE 1
+   A B > OUT
+   0 0    0   'ONLY IF BOTH'
+   0 1    0
+   1 0    0
+   1 1    1
+OR: 1 IF A OR B (OR BOTH)
+   A B > OUT
+   0 0    0   'IF EITHER'
+   0 1    1
+   1 0    1
+   1 1    1""",
+    """ELECTRONICS 4/6: XOR, NOT
+
+XOR: 1 IF A AND B DIFFER
+   A B > OUT
+   0 0    0   'ONE, NOT 2'
+   0 1    1
+   1 0    1
+   1 1    0
+NOT: THE OPPOSITE OF A
+   A > OUT
+   0    1     'UNLESS'
+   1    0
+EXAMPLE: SENSOR E TO NOT,
+NOT TO MOTOR E: NO WALL, 1,
+THE DRONE GOES EAST; AT THE
+WALL, 0: IT STOPS.""",
+    """ELECTRONICS 5/6: MEM, TIME
+
+MEM IS A MEMORY.
+SET (TOP) AT 1: IT BECOMES 1
+RESET (BOTTOM) AT 1: IT
+BECOMES 0. BOTH AT 0: IT
+KEEPS ITS VALUE (SET WINS
+IF BOTH ARE 1).
+IT REMEMBERS A BUMP AFTER
+THE WALL IS GONE: SENSOR E
+TO SET, MEM TO MOTOR S: ONE
+BUMP EAST, THEN SOUTH FOR
+GOOD.
+TIME: EACH PART ANSWERS ONE
+TURN AFTER ITS INPUTS. STEP
+(KEY P) RUNS ONE TURN: WATCH
+THE COLOURS CHANGE.""",
+    """ELECTRONICS 6/6: RECIPES
+
+ALWAYS GO EAST:
+  + TO MOTOR E
+TURN AT A WALL:
+  SENSOR E TO MOTOR S
+BOUNCE BACK:
+  SENSOR E TO MOTOR W
+STOP AT A WALL:
+  SENSOR E TO NOT,
+  NOT TO MOTOR E
+CARRY: C AT 1 GRABS WHAT THE
+  DRONE TOUCHES, AT 0 DROPS.
+CALL: R ON THE RIGHT SENDS,
+  R ON THE LEFT HEARS THE
+  OTHER DRONE.""",
+    # 7: the lab
+    """THE LAB AND CHIPS
+
+THE LAB BUILDS YOUR OWN
+PARTS. ITS INPUTS 1-4 ON THE
+LEFT: CLICK A BOX TO SET IT
+TO 0 OR 1 AND TRY. ITS
+OUTPUTS 1-4 ON THE RIGHT.
+STEP OR RUN: WATCH THEM.
+BURN: THE BOARD BECOMES CHIP
+1-8 IN THE TOOLBOX. IN A
+DRONE A CHIP IS ONE PART
+WITH 4 INPUTS (LEFT) AND 4
+OUTPUTS (RIGHT).
+KEY O: OPEN A CHIP AGAIN.
+TEST: BACK TO THE MISSION.""",
+    # 8: keys
+    """KEYS
+
+MOUSE, OR ARROWS + SPACE.
+M   RUN / PAUSE
+P   ONE STEP
+H   GOAL AND HINTS (IN A
+    MISSION), HELP (TITLE,
+    LAB)
+ESC DROP WHAT YOU HOLD
+S   SOUND ON / OFF
+V   FAST
+1-9, 0  PLAY A MISSION
+G   BURN, O OPEN (THE LAB)
+CTRL-Q  QUIT""",
+]
+# 3: the rooms, beside the samples drawn by src/help.c (from x 16, y 17,
+# 13 pixels apart: 24 characters)
+LEGEND = [
+    'WALL',
+    'GRATE: DRONES ONLY',
+    'TUNNEL: TECHNICIAN ONLY',
+    'DOOR: OPEN WHILE SOMEONE',
+    'OR SOMETHING IS ON PLATE',
+    'SECOND DOOR AND PLATE',
+    'CHARGER: THE GOAL',
+    'CELL: TO THE CHARGER',
+    'CRATE: WEIGHS ON PLATES',
+    'DRONES A, B',
+]
+
+# -- each mission: the briefing (11 lines), then two hints (2 lines each) ----
+BRIEFS = [
+    ("""DRONE A MUST REACH THE
+CHARGER (GREEN TILES). IT
+ONLY MOVES IF YOU WIRE IT.
+1 CLICK THE DRONE: THE
+  TECHNICIAN GETS INSIDE.
+2 CLICK +, THE POWER (LEFT,
+  AT THE BOTTOM: ALWAYS 1),
+  THEN MOTOR E (RIGHT): A
+  WIRE. MOTOR E GOES EAST.
+3 EXIT, THEN RUN.
+GATES: SEE GATES BELOW.""",
+     'A WIRE CARRIES THE 1 OF +\nTO THE MOTOR.',
+     'ONE WIRE: + TO MOTOR E.\nNOTHING ELSE.'),
+    ("""GOAL: THE DRONE ON THE
+CHARGER, BOTTOM RIGHT.
+NEW: THE SENSORS, ON THE
+LEFT OF THE BOARD. SENSOR E
+IS 1 WHILE THE DRONE TOUCHES
+A WALL ON ITS EAST SIDE.
+WIRE A SENSOR TO A MOTOR:
+THE DRONE REACTS TO WALLS.""",
+     'EAST UNTIL THE WALL, THEN\nSOUTH ALONG THE WALL.',
+     '+ TO MOTOR E;\nSENSOR E TO MOTOR S.'),
+    ("""GOAL: THE DRONE ON THE
+CHARGER, BELOW THE PILLAR.
+TRAP: PAST THE PILLAR,
+SENSOR E FALLS BACK TO 0 AND
+THE DRONE GOES EAST AGAIN.
+NEW: THE MEMORY (MEM).
+A 1 ON SET (TOP) TURNS IT ON
+AND IT STAYS ON. A 1 ON
+RESET (BOTTOM) TURNS IT OFF.
+IT REMEMBERS THE BUMP.""",
+     'THE BUMP SETS THE MEM; THE\nMEM PICKS EAST OR SOUTH.',
+     'SENSOR E TO MEM SET; MEM TO\nMOTOR S, MEM-NOT-MOTOR E.'),
+    ("""GOAL: PUT THE ENERGY CELL
+(YELLOW) ON THE CHARGER.
+THE TECHNICIAN CAN'T CROSS
+THE GRATE; THE DRONE CAN.
+NEW: THE CLAW. C AT 1: THE
+DRONE GRABS WHAT IT TOUCHES
+AND CARRIES IT. C AT 0: IT
+LETS GO.
+SENSOR H IS 1 WHILE IT
+HOLDS SOMETHING.""",
+     'GO EAST, GRAB, COME BACK,\nLET GO AT THE WEST WALL.',
+     'MEM SET: SENSOR E. MOTOR W:\nMEM. C: MEM, NOT SENSOR W.'),
+    ("""GOAL: THE DRONE ON THE
+CHARGER, BEHIND THE DOOR.
+NEW: DOORS AND PLATES.
+THE ORANGE DOOR IS OPEN
+WHILE SOMETHING WEIGHS ON
+THE BROWN PLATE: A DRONE,
+AN OBJECT OR THE TECHNICIAN.
+THE TECHNICIAN CAN STAY ON
+THE PLATE WHILE THE DRONE
+RUNS.""",
+     "MISSION 1'S WIRING IS ALL\nTHE DRONE NEEDS.",
+     'EXIT, CLICK THE PLATE TO\nWALK THERE, THEN RUN.'),
+    ("""GOAL: THE TECHNICIAN ON THE
+CHARGER, BEHIND THE DOOR.
+THIS TIME THE DRONE HOLDS
+THE PLATE: IT STOPS THERE,
+THE DOOR OPENS, AND THE
+TECHNICIAN GOES THROUGH.
+THE DRONE'S CENTRE MUST BE
+ON THE PLATE.""",
+     'THE WALL STOPS THE DRONE\nRIGHT ON THE PLATE.',
+     '+ TO MOTOR E, RUN, THEN\nCLICK THE CHARGER.'),
+    ("""GOAL: DRONE A ON THE
+CHARGER, BOTTOM RIGHT.
+TWO DRONES, TWO BOARDS.
+A, PARKED ON ITS PLATE,
+OPENS B'S DOOR; B, ON ITS
+OWN PLATE, OPENS A'S.
+NEW: THE RADIO. R ON THE
+RIGHT: CALL. SENSOR R ON THE
+LEFT: THE OTHER ONE CALLS.
+THE TUNNEL (+) IS THE
+TECHNICIAN'S WAY TO B.""",
+     'B CALLS ONCE AT THE TOP.\nA WAITS FOR THE CALL TO GO.',
+     'B: + TO MOTOR N, SENSOR N\nTO R. A: R TO MEM SET...'),
+    ("""GOAL: DOWN TO THE CHARGER,
+BOTTOM LEFT.
+THE GAPS ARE NOW ON THE
+RIGHT, NOW ON THE LEFT.
+THE DRONE MUST ALWAYS GO
+DOWN, AND TURN AROUND AT
+EACH SIDE BUMP.
+A MEM CAN REMEMBER WHICH
+WAY TO GO.""",
+     'MOTOR S ALWAYS ON; A MEM\nPICKS EAST OR WEST.',
+     'SENSOR E-SET, SENSOR W-RESET\nMEM-MOTOR W, NOT MEM-MOTOR E'),
+    ("""GOAL: THE CELL ON THE
+CHARGER, AS IN MISSION 4.
+A DOOR REPLACES THE GRATE:
+THE TECHNICIAN HOLDS ITS
+PLATE.
+NEW: CHIPS. IN THE LAB, REDO
+MISSION 4'S CIRCUIT AND BURN
+IT INTO CHIP 1-8. A CHIP
+THEN GOES ON A BOARD LIKE
+ANY PART.""",
+     'CHIP: SENSORS TO ITS INPUTS\nITS OUTPUTS TO THE MOTORS.',
+     'STAND ON THE PLATE BEFORE\nYOU PRESS RUN.'),
+    ("""GOAL: THE TECHNICIAN ON THE
+CHARGER, TOP RIGHT.
+ITS DOOR OPENS WITH THE
+PLATE AT THE BOTTOM, BEHIND
+THE GRATE: ONLY THE DRONE
+GETS THERE. IT MUST PARK ON
+IT AND STAY.""",
+     'AS AT THE PILLAR: EAST,\nTHEN SOUTH FOR GOOD.',
+     "MISSION 3'S WIRING IS\nENOUGH."),
+    ("""GOAL: THE DRONE ON THE
+CHARGER, BOTTOM LEFT.
+THE WAY: EAST TO THE WALL,
+THEN SOUTH, THEN WEST. ONE
+MEM PER TURN.
+TRAP: SOUTH AND WEST AT
+ONCE, AND THE DRONE GETS
+STUCK IN THE MIDDLE.""",
+     'MEM 1: BUMP E. MEM 2: BUMP\nS, ONCE MEM 1 IS ON.',
+     'EAST: NOT 1. SOUTH: 1 AND\nNOT 2. WEST: 2.'),
+    ("""GOAL: THE TECHNICIAN ON THE
+CHARGER, BOTTOM RIGHT.
+TWO DOORS: THE ORANGE ONE
+OPENS WITH THE BROWN PLATE,
+THE VIOLET ONE WITH THE
+PINK PLATE.
+THE TECHNICIAN HOLDS ONE
+FOR THE DRONE; THE DRONE
+HOLDS THE OTHER FOR HIM.""",
+     'THE DRONE GOES EAST, ONTO\nTHE PINK PLATE.',
+     'STAND ON THE BROWN PLATE,\nRUN, THEN GO TO THE DOOR.'),
+    ("""GOAL: THE DRONE ON THE
+CHARGER, BELOW THE DOOR.
+ITS PLATE IS FAR EAST,
+BEHIND THE GRATE. A CRATE
+LEFT ON IT KEEPS IT DOWN.
+THE DRONE TAKES THE CRATE
+(NORTH), CARRIES IT EAST,
+DROPS IT ON THE PLATE, THEN
+GOES DOWN.""",
+     'TWO MEMS: CRATE TOUCHED,\nTHEN THE EAST WALL.',
+     'NORTH: NOT 1. CLAW AND EAST:\n1 AND NOT 2. SOUTH: 2.'),
+    ("""GOAL: THE CELL ON THE
+CHARGER, ON THE LEFT.
+B FETCHES IT, BUT ITS DOOR
+OPENS WITH THE PLATE AT THE
+TOP, WHERE ONLY A GETS
+(GRATE).
+A PARKS ON THE PLATE AND
+CALLS BY RADIO. B WAITS FOR
+THE CALL BEFORE IT LEAVES.""",
+     'A: EAST, THEN CALL WHILE\nAGAINST THE WALL.',
+     "B: MISSION 4'S CIRCUIT, BUT\nONLY AFTER THE CALL."),
+    ("""GOAL: THE DRONE ON THE
+CHARGER, WEST OF THE SHAFT.
+THE DRONE GOES DOWN THE
+SHAFT. THE WEST WALL OPENS
+TWICE: THE FIRST GAP IS A
+DEAD END, THE SECOND LEADS
+TO THE CHARGER.
+COUNT THEM. A PART ANSWERS
+ONE TURN LATE: IT SHOWS THE
+STATE BEFORE.""",
+     'A GAP: SENSOR W WENT FROM 1\nTO 0 THIS TURN.',
+     'MEM 1: THE FIRST GAP. MEM 2:\nTHE SECOND, THEN GO WEST.'),
+    ("""GOAL: THE DRONE IN THE
+MIDDLE OF THE SPIRAL.
+THE RULE: GO AHEAD, AND AT
+EACH BUMP IN FRONT, TURN
+RIGHT: EAST, SOUTH, WEST,
+NORTH, EAST...
+FOUR WAYS TO GO: THE DRONE
+MUST REMEMBER THE RIGHT ONE.""",
+     'THREE MEMS, OR TWO BITS:\nONE PER TURN.',
+     'EAST, THEN A BUMP E: SOUTH;\nA BUMP S: WEST...'),
+    ("""GOAL: THE CELL ON THE
+CHARGER, BOTTOM RIGHT.
+THE DRONE TAKES THE CELL TO
+THE NORTH, CARRIES IT EAST,
+THEN SOUTH, WITHOUT LETTING
+GO IN THE TURNS.
+IT LETS GO AT THE BOTTOM, ON
+THE CHARGER.""",
+     'LIKE THE CRATE, BUT THE\nCLAW HOLDS TO THE BOTTOM.',
+     'CLAW: MEM 1 AND NOT\nSENSOR S.'),
+    ("""GOAL: THE TECHNICIAN ON THE
+CHARGER, AT THE BOTTOM.
+TWO DOORS ON HIS WAY, TWO
+PLATES BEYOND THE GRATE: THE
+CRATE HOLDS ONE, THE DRONE
+THE OTHER.
+THE CRATE'S CIRCUIT (MISSION
+13) WORKS AGAIN: AS A CHIP,
+FROM THE LAB.""",
+     'THE CRATE ON THE PLATE,\nTHEN THE DRONE SOUTH.',
+     'RUN, WAIT, THEN CLICK THE\nCHARGER.'),
+    ("""GOAL: THE CELL ON THE
+CHARGER, ON THE LEFT.
+THE TUNNEL WALL (+) HAS A
+SLOT: THE CELL GOES
+THROUGH, A DRONE DOESN'T.
+A PUSHES THE CELL INTO THE
+SLOT, LETS GO AND CALLS B BY
+RADIO. B TAKES IT FROM THE
+OTHER SIDE AND BRINGS IT.""",
+     'A PUSHES WEST, LETS GO AT\nTHE BUMP, CALLS. B WAITS R.',
+     "B: R-MEM SET, THEN MISSION\n4'S CIRCUIT, BUT WESTWARD."),
+    ("""GOAL: THE DRONE ON THE
+CHARGER, AT THE BOTTOM.
+THE DRONE FALLS FROM FLOOR
+TO FLOOR. AT EACH LANDING IT
+TURNS AROUND (EAST, WEST,
+EAST...) TO THE NEXT HOLE.
+AN XOR WHOSE OUTPUT GOES
+BACK TO ONE OF ITS INPUTS
+FLIPS WHEN THE OTHER IS 1.""",
+     'A LANDING: SENSOR S IS 1\nNOW, IT WAS 0 BEFORE.',
+     'LOOPED XOR TO MOTOR E, ITS\nNOT TO W. + TO MOTOR S.'),
+]
+
+
+def check(text, width, lines, what):
+    rows = text.split('\n')
+    assert len(rows) <= lines, f'{what}: {len(rows)} lines > {lines}'
+    for r in rows:
+        assert len(r) <= width, f'{what}: {len(r)} > {width}: {r!r}'
+        assert all(32 <= ord(c) < 96 for c in r), f'{what}: not in the font: {r!r}'
+
+
+def bank():
+    names, texts = [], []
+    for name, t in MESSAGES:
+        check(t, MSG, 1, name)
+        names.append(name)
+        texts.append(t)
+    for i, t in enumerate(HELP):
+        check(t, PAGE, 18, f'help {i}')
+        names.append(f'HELP{i}' if i else 'HELP')
+        texts.append(t)
+    for i, t in enumerate(LEGEND):
+        check(t, 24, 1, f'legend {i}')
+        names.append(f'LEGEND{i}' if i else 'LEGEND')
+        texts.append(t)
+    assert len(BRIEFS) == len(MISSIONS)
+    for fam, k, width, lines in (('NAME', None, 11, 1), ('BRIEF', 0, PAGE, 11),
+                                 ('HINT1', 1, PAGE, 2), ('HINT2', 2, PAGE, 2)):
+        for m, b in enumerate(BRIEFS):
+            t = MISSIONS[m][0] if k is None else b[k]
+            check(t, width, lines, f'{fam} {m + 1}')
+            names.append(f'{fam}{m}' if m else fam)
+            texts.append(t)
+    assert len(texts) <= 256, 'one byte a text id'
+    table = 2 * len(texts)
+    body, addr = b'', []
+    for t in texts:
+        addr.append(AUX + table + len(body))
+        body += t.encode() + b'\0'
+    data = b''.join(a.to_bytes(2, 'little') for a in addr) + body
+    assert len(data) <= MAX_BANK, f'RSS.TEXT {len(data)} > {MAX_BANK}'
+    return names, data
+
+
+def write_if_changed(path, data):
+    path = Path(path)
+    if not path.exists() or path.read_bytes() != data:
+        path.write_bytes(data)
+
+
+names, data = bank()
+parts = [data[:PART], data[PART:]]
+header = ['/* Generated by tools/gen_text.py: do not edit. */',
+          f'#define TEXT_PAGES1 {(len(parts[0]) + 255) // 256}u        /* RSS.TEXT1 -> aux $6000 */',
+          f'#define TEXT_PAGES2 {(len(parts[1]) + 255) // 256}u        /* RSS.TEXT2 -> aux $8000 */']
+header += [f'#define T_{n} {i}u' for i, n in enumerate(names)]
+write_if_changed(Path(__file__).resolve().parents[1] / 'src/text.h', ('\n'.join(header) + '\n').encode())
+if len(sys.argv) > 1:                   # the directory of RSS.TEXT1 and RSS.TEXT2
+    for k, part in enumerate(parts):
+        write_if_changed(Path(sys.argv[1]) / f'RSS.TEXT{k + 1}', part)

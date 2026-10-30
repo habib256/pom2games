@@ -21,6 +21,49 @@ genre (capteurs, propulseurs, portes, bascules, fils) sont communs.
 Le modèle de référence est `tools/model.py` : le code 6502 doit lui être
 identique au bit près (tests a2shot).
 
+## L'interface (refonte du 2026-10-30)
+
+Tout ce que le jeu affiche est **en anglais** ; tous les textes sont dans
+`tools/gen_text.py` (une seule source), compilés en `RSS.TEXT1/2` et lus au
+démarrage dans la mémoire auxiliaire (`$6000-$A000`, `src/text.s`).
+
+- **Briefing** : choisir une mission (titre, PLAY, NEXT) ouvre sa page :
+  le but, ce qui est nouveau, pour la première les étapes une à une.
+  HINT révèle un premier indice, puis un second, plus précis. PLAY va dans
+  la salle. Dans la salle ou dans un drone, GOAL (ou H) y revient, et PLAY
+  ramène là où l'on était, sans remettre la salle au départ.
+- **La ligne du bas explique** (`src/hover.c`) : ce que montre le pointeur
+  (capteur, moteur, pièce, broche, bouton, case de la salle, drone, objet,
+  mission du titre) ; sur rien, ce qu'il faut faire ensuite (entrer dans le
+  drone, prendre une pièce, finir le fil, sortir et lancer...). Un message
+  du jeu (gravure, erreur, victoire) reste jusqu'à ce que le pointeur passe
+  sur autre chose.
+- **Moteurs** : à droite de la planche du drone, les propulseurs sont
+  présentés par l'endroit où ils envoient le drone, dans l'ordre N E S W
+  des capteurs : MOTOR E est le propulseur O (puits 3), qui pousse vers
+  l'est. Les règles et les puits ne changent pas. Bornes de gauche :
+  N E S W, H (la pince tient), R (radio reçue) ; de droite : N E S W,
+  C (pince), R (radio émise).
+- Pièces : AND, OR, XOR, NOT, MEM (la bascule : SET en haut, RESET en
+  bas) ; puces 1-8, dans la rangée du bas, étiquetée TOOLBOX. Sur la
+  planche, AND, OR, XOR et NOT ont leur symbole de schéma (D, bouclier,
+  bouclier à double dos, triangle à rond ; src/symbol.s) ; MEM et les
+  puces restent des boîtes étiquetées.
+- **Alimentation** : la borne source 7 (POWER) vaut toujours 1 (dans le
+  labo et les drones) ; elle est la dernière ligne de la colonne de gauche,
+  « + », orange. Les valeurs la mettent à 1 dès la compilation. Gravée dans
+  une puce, elle devient la source locale `CHIP_POWER` ($FE), qui redevient
+  la POWER de la planche où la puce est posée ; + relié directement à une
+  sortie de la puce passe par un TAMPON, comme une entrée. Avant, le seul 1
+  constant était un NOT sans entrée (encore valable).
+- **Aide** : dix pages (comment jouer, l'électronique en six : signaux,
+  la boîte à outils, AND/OR, XOR/NOT avec leurs tables de vérité, MEM et le
+  retard d'un tour, recettes ; le labo et les puces ; les touches ; les
+  salles), NEXT / BACK / DONE (ou ESC). Ouverte par HELP au titre, GATES sur
+  un briefing (retour au briefing), H au labo (la page du labo).
+- Un fil en main se voit aussi sur le pointeur ; dans le drone, le
+  technicien marche deux fois plus vite (6 pixels par image).
+
 ## La simulation
 
 ### Planche
@@ -227,30 +270,43 @@ les objets, le drone et le technicien au départ.
 
 ### Le technicien
 
-- Dans la salle : un clic l'envoie vers ce point (1,5 pixel par image, il
-  s'arrête contre les murs). **Toucher le drone, c'est y entrer** ; un drone
-  qui roule sur le technicien l'embarque aussi.
-- À l'intérieur : la planche du drone (capteurs à gauche, propulseurs à
-  droite), la palette et une porte jaune sous la grille. Un clic sur la
-  planche envoie d'abord le technicien à cet endroit (3 pixels par image),
-  et l'action (poser, tirer un fil, prendre) se fait quand il y arrive. Les
-  clics sur la palette et les boutons sont immédiats. SORTIR : il va à la
-  porte et ressort à côté du drone (est, ouest, sud ou nord, la première
-  place libre).
+- Dans la salle : un clic l'envoie vers ce point (3 pixels par image, il
+  s'arrête contre les murs). **Il entre dans un drone quand il le touche
+  après un clic sur ce drone** ; sinon il passe devant ou derrière, et un
+  drone qui roule sur lui passe aussi sans l'embarquer.
+- À l'intérieur : la planche du drone (capteurs à gauche, moteurs à
+  droite), la boîte à outils et une porte jaune sous la grille. Un clic sur
+  la planche envoie d'abord le technicien à cet endroit (6 pixels par
+  image), et l'action (poser, tirer un fil, prendre) se fait quand il y
+  arrive. Les clics sur la boîte à outils et les boutons sont immédiats.
+  EXIT : il va à la porte et ressort **derrière le drone**, hors de son
+  chemin : la planche est jouée quatre tours d'avance (capteurs tels
+  quels, puis tout est remis) pour savoir où il va ; il sort à l'opposé,
+  sinon sur un côté, en dernier devant lui (première place libre, centrée
+  sur le drone).
+- Sprites (`src/sprites.c`) : drone et technicien vus de profil, tournés
+  du côté où ils sont allés en dernier (tables de rectangles, retournées
+  vers l'ouest). Le drone : antenne (jaune quand la radio émet), dôme et
+  visière, corps, bras et pince (blanche quand elle prend), réacteurs
+  (orange quand un moteur tourne), échappement derrière quand il va de
+  côté. Le technicien : casque, visière, sac, gant ; ses jambes
+  alternent quand il marche. Un pas ne redessine que les bandes de sol
+  découvertes, et seuls les objets et drones qu'elles touchent.
 
 ### Boutons
 
 | Écran | Boutons |
 |---|---|
-| Labo | MARCHE/PAUSE, PAS, GRAVE, EFFACE, ESSAI |
-| Titre | JOUER (la prochaine mission), LABO, AIDE (bornes, pièces, touches ; ou H ; puis la légende des salles), RECORDS (le moins de portes par mission, la page du titre), PAGE (missions 15 et suivantes) ; clic sur une mission ouverte |
-| Zone | MARCHE/PAUSE, PAS, REPLACER (salle au départ) ou SUITE (mission gagnée), LABO, MENU |
-| Drone | MARCHE/PAUSE, PAS, SORTIR |
+| Labo | RUN/PAUSE, STEP, BURN, CLEAR, TEST (retour à la mission jouée, sinon le briefing de la prochaine) |
+| Titre | PLAY (le briefing de la prochaine mission), LAB, HELP (comment jouer, pièces et touches, la légende des salles ; ou H), RECORDS (le moins de portes par mission, la page du titre), PAGE (missions 15 et suivantes) ; clic sur une mission ouverte : son briefing |
+| Briefing | PLAY, HINT (deux au plus), LAB, MENU |
+| Zone | RUN/PAUSE, STEP, RESET (salle au départ) ou NEXT (mission gagnée : le briefing de la suivante), GOAL (le briefing), MENU |
+| Drone | RUN/PAUSE, STEP, EXIT |
 
 Clavier : flèches = pointeur, ESPACE ou RETURN = clic, ESC = lâcher,
 M = marche/pause, P = un pas, G = graver, O = ouvrir une puce au labo,
-1-9 et 0 = choisir une mission dans la zone (10 : touche 0), H = l'indice
-de la mission (sur le disque, après la salle), S = son coupé ou actif,
+1-9 et 0 = choisir une mission dans la zone (10 : touche 0), H = le
+briefing de la mission (puis, sur le briefing, un indice), S = son coupé ou actif,
 V = vitesse rapide (un tour par passage de boucle au lieu de deux),
 Ctrl-Q = retour à ProDOS.
 
@@ -268,10 +324,15 @@ démarrage (fichier absent ou invalide : tout à zéro). Le disque ne doit pas
 ## Mémoire
 
 Le jeu ne dessine qu'en page 1 du DHGR : la page 2 de la mémoire principale
-(`$4000-$5FFF`) reçoit le code et les données de `zone.c`
-(segments `HICODE`/`HIDATA`, `src/game.cfg`), recopiés par `startup.s`. Le
-reste du programme va de `$6000` à environ `$A400` ; `$1000-$1FFF` porte le
-tampon ProDOS, la sauvegarde et les tableaux de dessin de la planche.
+(`$4000-$5FFF`) reçoit le code et les données de `zone.c`, `title.c` et
+`help.c` (segments `HICODE`/`HIDATA`, `src/game.cfg`), recopiés par
+`startup.s`. Le reste du programme va de `$6000` à `$BE80` (pile C de 128
+octets ensuite) ; `$0800-$0C3F` (marqué occupé par crt0) porte la sauvegarde
+de la page zéro, la planche du drone B (`src/swap.s`) et les formes du
+pointeur ; `$0C40-$0FFF` (L8) le code de `src/sprites.c`, recopié par
+`startup.s` ; `$1000-$1FFF` porte le tampon ProDOS, la sauvegarde et
+les tableaux de dessin de la planche. Les textes (~10 Ko) sont en mémoire
+auxiliaire à partir de `$6000`, lus une ligne à la fois (`text_line`).
 
 La planche du drone B attend à côté (`src/swap.s`) : `board_swap()`
 l'échange avec la planche chargée quand le technicien change de drone,

@@ -18,7 +18,7 @@ sys.path.insert(0, str(HERE / 'tools'))
 sys.path.insert(0, str(HERE.parent / 'dev/tools'))
 sys.path.insert(0, str(HERE / 'tests'))
 import a2test
-from model import (AND, CHIP0, FLIP, NOT, OR, XOR, Board, Chip, Sim, burn, compile_board, part_inputs,
+from model import (AND, CHIP0, FLIP, NOT, OR, POWER, XOR, Board, Chip, Sim, burn, compile_board, part_inputs,
                    part_outputs, save_bytes)
 from test_lab import BOOT, MACHINE, POKE, SYNC, check, click, idle, run, title
 from test_zone import disk_with_save
@@ -34,7 +34,7 @@ def random_board(rng, chips=(), most=16):
     for n, (c, r) in enumerate(cells):
         b.place(CHIP0 + chips[n] if n < len(chips) else rng.choice(KINDS), c, r)
     parts = [i for i, p in enumerate(b.parts) if p]
-    sources = list(range(4)) + [8 + i * 4 + o for i in parts for o in range(part_outputs(b.parts[i][0]))]
+    sources = list(range(4)) + [POWER] + [8 + i * 4 + o for i in parts for o in range(part_outputs(b.parts[i][0]))]
     for i in parts:
         for k in range(part_inputs(b.parts[i][0])):
             if rng.random() < 0.9:

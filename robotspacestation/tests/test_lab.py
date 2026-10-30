@@ -14,15 +14,15 @@ import a2test
 from model import (AND, OR, XOR, NOT, FLIP, CHIP0, SAVE_SIZE, Board, Chip, Sim, burn,
                    compile_board, flat_bytes, layout_bytes, save_bytes)
 
-BOOT = 'wait:1200'
+BOOT = 'wait:1600'                     # (and RSS.TEXT1/2 read)
 SHOTS = HERE / 'build/shots'
 
 # Screen points (src/board_ui.c).
-PALETTE = {AND: 6, OR: 18, XOR: 30, NOT: 42, FLIP: 54}
+PALETTE = {AND: 8, OR: 24, XOR: 40, NOT: 56, FLIP: 72}
 
 
 def chip_x(c):
-    return 64 + 10 * c
+    return 83 + 7 * c
 
 
 def cell(col, row):
@@ -31,23 +31,25 @@ def cell(col, row):
 
 def pin_in(col, row, dy):
     x, y = cell(col, row)
-    return x + 3, y + dy
+    return x + 2, y + dy
 
 
 def pin_out(col, row, dy=12):
     x, y = cell(col, row)
-    return x + 18, y + dy
+    return x + 19, y + dy
 
 
 def term(k, out):
-    return (128 if out else 11), 14 + 21 * k + 5
+    """The lab's terminals: input k (its pin), output k."""
+    return (128 if out else 11), 17 + 18 * k + 5
 
 
 def toggle(k):
-    return 4, 14 + 21 * k + 5
+    return 4, 17 + 18 * k + 5
 
 
-BUTTONS = {'marche': 10, 'pas': 38, 'grave': 60, 'efface': 90, 'essai': 120}
+# RUN STEP BURN CLEAR TEST (src/main.c lab_buttons)
+BUTTONS = {'marche': 6, 'pas': 26, 'grave': 50, 'efface': 75, 'essai': 100}
 
 
 # Where the test left the mouse. a2shot's mouse: step is a closed loop (one
@@ -79,9 +81,11 @@ def click(x, y):
 
 
 def title(button):
-    """From the title screen (just booted): JOUER (0) or LABO (1)."""
+    """From the title screen (just booted): PLAY (0), then PLAY on the
+    next mission's briefing, or LAB (1)."""
     POS[0] = None
-    return click((12, 38)[button], 167) + ['wait:120']
+    steps = click((8, 30)[button], 167) + ['wait:120']
+    return steps + click(8, 167) + ['wait:120'] if button == 0 else steps
 
 
 def clicks(*points):

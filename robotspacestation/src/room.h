@@ -2,6 +2,4 @@
 #define MISSIONS 20u
 #define ROOM_RECORD 256u          /* RSS.ROOMS: one record per mission */
 #define ROOM_STARTS 19u
-#define HINT_LEN 32u
-static const char *const mission_names[] = {"TOUT DROIT", "LE VIRAGE", "LE PILIER", "LA CELLULE", "LA PORTE", "LE PARKING", "LE RELAIS", "LE ZIGZAG", "LE COLIS", "LE GARDIEN", "LA RONDE", "LE SAS", "LA CAISSE", "LE TANDEM", "LE COMPTEUR", "LA SPIRALE", "LE CONVOI", "DEUX CLES", "LA PASSE", "LES ETAGES"};
 static const unsigned char mission_goals[] = {0, 0, 0, 1, 0, 2, 0, 0, 1, 2, 0, 2, 0, 1, 0, 0, 1, 2, 1, 0};

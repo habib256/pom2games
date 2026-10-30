@@ -14,8 +14,9 @@ BOARD_BYTES = LAYOUT_BYTES + RUN_BYTES
 .assert _fl_count - _parts = LAYOUT_BYTES, lderror, "sim.c layout arrays not contiguous"
 .assert _values + 72 - _parts = BOARD_BYTES, lderror, "sim.c board arrays not contiguous"
 
+.segment "LOW8BSS"                      ; ($0800-$0FFF: not zeroed, filled
+other:  .res BOARD_BYTES                ; by use_board() before any turn)
 .segment "BSS"
-other:  .res BOARD_BYTES
 count:  .res 1
 
 .segment "CODE"
