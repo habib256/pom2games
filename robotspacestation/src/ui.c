@@ -24,6 +24,10 @@ static unsigned char act_bg[4u * ACT_H];
  * byte, the leftmost in bit 0), built once by pointer_init(). */
 static const unsigned char arrow_w[6] = {1, 2, 3, 4, 2, 1};
 static unsigned char arrow_bits[7][6][4];
+/* With a part in hand (board_ui.c held_kind / held_part): the arrow and a
+ * block of 2 x 3 pixels at its lower right, the part it carries. */
+static unsigned char carry_bits[7][6][4];
+extern unsigned char held_kind, held_part;
 /* src/pointer.s */
 extern unsigned char ptr_bx, ptr_y, ptr_h;
 extern const unsigned char *ptr_bits;
@@ -35,12 +39,14 @@ static void pointer_init(void)
     static unsigned char p, r, j, b, n;
     for (p = 0u; p < 7u; ++p)
         for (r = 0u; r < 6u; ++r)
-            for (j = 0u; j < 4u; ++j) {
-                /* Pixel j is lit if j < width, or the tail pixel 2 of row 5. */
-                if (!(j < arrow_w[r] || (r == 5u && j == 2u))) continue;
-                for (b = 0u; b < 4u; ++b) {
-                    n = p + (j << 2) + b;          /* mono pixel in the window */
-                    arrow_bits[p][r][n / 7u] |= 1u << (n % 7u);
+            for (j = 0u; j < 5u; ++j) {
+                /* Pixel j is lit if j < width, or the tail pixel 2 of row 5;
+                 * the carried block: pixels 3-4 of rows 3-5. */
+                b = j < arrow_w[r] || (r == 5u && j == 2u);
+                if (!b && !(r >= 3u && j >= 3u)) continue;
+                for (n = p + (j << 2); n < p + (j << 2) + 4u; ++n) {
+                    if (b) arrow_bits[p][r][n / 7u] |= 1u << (n % 7u);
+                    carry_bits[p][r][n / 7u] |= 1u << (n % 7u);
                 }
             }
 }
@@ -52,7 +58,8 @@ static void cursor_show(void)
     ptr_bx = (unsigned char)(mono / 7u);
     ptr_y = py;
     ptr_h = py > 186u ? 192u - py : 6u;
-    ptr_bits = arrow_bits[(unsigned char)(mono - ptr_bx * 7u)][0];
+    ptr_bits = (held_kind || held_part != 0xFFu ? carry_bits : arrow_bits)
+               [(unsigned char)(mono - ptr_bx * 7u)][0];
     pointer_draw();
     shown = 1u;
 }
