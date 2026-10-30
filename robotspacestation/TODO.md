@@ -13,17 +13,18 @@
 
 ## Contenu
 
-- [ ] Un deuxième module de missions (les salles sont sur le disque : seule
-      la liste des noms et buts reste en mémoire, environ 20 octets par
-      mission).
+- [x] Missions 8-10 (2026-10-30) : LE ZIGZAG, LE COLIS, LE GARDIEN, prouvées
+      par le modèle ; titre en deux colonnes, touche 0 pour la dixième. Un
+      titre de 14 missions au plus (2 × 7) : au-delà, une page de plus.
 - [ ] Des puces fournies par la station (une bibliothèque de départ).
-- [ ] Son : contact, pince, radio, mission réussie.
+- [x] Son (2026-10-30) : contact, pince (prise, lâcher), radio, puce gravée,
+      mission réussie ; S coupe.
 
 ## Interface
 
-- [ ] Deux fils partis de bornes voisines peuvent partager leur segment
-      vertical : choisir le milieu parmi les colonnes libres.
-- [ ] Une pièce en main ne suit pas le pointeur (seul le message le dit).
+- [x] Deux fils partis de bornes voisines partageaient leur segment
+      vertical : la colonne libre la plus proche du milieu (2026-10-30).
+- [x] Une pièce en main se voit sur le pointeur (un bloc sous la flèche).
 
 ## Mémoire (au 2026-10-30)
 

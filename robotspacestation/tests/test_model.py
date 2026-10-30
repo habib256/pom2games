@@ -206,7 +206,19 @@ def solution(mission):
         wire(b, out(f), 0)
     elif mission == 6:
         return relay()
-    else:                               # fetch the cell, bring it back
+    elif mission == 7:                  # south always, east / west by turns
+        n = b.place(NOT, 0, 0)
+        f = b.place(FLIP, 1, 0)
+        k = b.place(NOT, 2, 0)
+        wire(b, out(n), 0)
+        wire(b, 1, inp(f, 0))           # east bump: go west
+        wire(b, 3, inp(f, 1))           # west bump: go east
+        wire(b, out(f), 1)
+        wire(b, out(f), inp(k, 0))
+        wire(b, out(k), 3)
+    elif mission == 9:                  # LE GARDIEN: the pillar's latch parks it
+        return solution(2)
+    else:                               # fetch the cell, bring it back (3, 8)
         f = b.place(FLIP, 1, 0)
         k = b.place(NOT, 2, 0)
         j = b.place(NOT, 2, 1)
@@ -223,7 +235,8 @@ def solution(mission):
 
 
 # Where the technician stands in each mission's solution (None: inside).
-TECH = {4: (8 * 7 + 1, 7 * 8 + 2)}      # on LA PORTE's plate (columns 8-9)
+TECH = {4: (8 * 7 + 1, 7 * 8 + 2),      # on LA PORTE's plate (columns 8-9)
+        8: (6 * 7 + 4, 10 * 8 + 4)}     # on LE COLIS's plate (columns 6-7)
 
 
 def relay():
@@ -317,6 +330,33 @@ class Missions(unittest.TestCase):
         z.tech = (16 * 7 + 4, 6 * 8 + 4)        # walked through, on the charger
         self.assertTrue(z.won())
         self.assertFalse(play(5, Board(), 100, tech=(3 * 7, 9 * 8))[1].door_open[0])
+
+    def test_zigzag_needs_the_turns(self):
+        b = Board()                     # south and east only: stuck on the left
+        n = b.place(NOT, 0, 0)
+        wire(b, out(n), 0)
+        wire(b, out(n), 3)
+        self.assertIsNone(play(7, b, 1500)[0])
+
+    def test_the_delivery_waits_for_the_technician(self):
+        t, z = play(8, solution(8), 1500, tech=(3 * 7, 12 * 8))
+        self.assertIsNone(t)
+        self.assertEqual(z.door_open[0], 0)
+
+    def test_the_guard_parks_on_the_plate(self):
+        z = Zone(9, compile_board(solution(9), EMPTY))
+        z.tech = (3 * 7, 11 * 8)
+        for _ in range(400):
+            z.tick()
+        self.assertEqual((z.x, z.y, z.door_open[0]), (53, 124, 1))
+        self.assertFalse(z.won())
+        z.tech = (16 * 7 + 2, 2 * 8 + 4)        # through the door, on the charger
+        self.assertTrue(z.won())
+        z = Zone(9, compile_board(solution(1), EMPTY))   # no latch: never parked
+        z.tech = (3 * 7, 11 * 8)
+        for _ in range(400):
+            z.tick()
+        self.assertEqual(z.door_open[0], 0)
 
     def test_an_empty_board_wins_nothing(self):
         for m in range(len(MISSIONS)):

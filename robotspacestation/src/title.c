@@ -6,7 +6,9 @@
 #include "zone.h"
 #include "title.h"
 
-#define LIST_Y 92u              /* mission m on row LIST_Y + 9 * m */
+#define LIST_Y 92u              /* mission m on row LIST_Y + 9 * (m % LIST_N), */
+#define LIST_N 7u               /* column 72 * (m / LIST_N): two columns */
+#define LIST_DX 72u
 
 static void stars(void)
 {
@@ -41,7 +43,7 @@ static void station(void)
 
 void title_draw(void)
 {
-    static unsigned char m, y;
+    static unsigned char m, x, y;
     static char num[2];
     stars();
     ui_latch();
@@ -52,20 +54,23 @@ void title_draw(void)
     dhgr_puts_small("MISSIONS", 0, LIST_Y - 10u);
     num[1] = 0;
     for (m = 0u; m < mission_count(); ++m) {
-        y = LIST_Y + m * 9u;
-        dhgr_fill_rect(0, y, 5, 5, m < persist.reached ? DHGR_GREEN
+        y = LIST_Y + (m % LIST_N) * 9u;
+        x = m < LIST_N ? 0u : LIST_DX;
+        /* green: won, orange: the next, gray: locked */
+        dhgr_fill_rect(x, y, 5, 5, m < persist.reached ? DHGR_GREEN
                        : m == persist.reached ? DHGR_ORANGE : DHGR_GRAY1);
-        num[0] = '1' + m;
-        dhgr_puts_small(num, 9, y);
-        if (m <= persist.reached) dhgr_puts_small(mission_name_of(m), 18, y);
-        if (m < persist.reached) dhgr_puts_small("OK", 128, y);
+        num[0] = m < 9u ? '1' + m : '0';            /* its key (10: 0) */
+        dhgr_puts_small(num, x + 8u, y);
+        if (m <= persist.reached) dhgr_puts_small(mission_name_of(m), x + 15u, y);
     }
 }
 
-unsigned char __fastcall__ title_mission_at(unsigned char y)
+unsigned char __fastcall__ title_mission_at(unsigned char x, unsigned char y)
 {
     static unsigned char m;
     if (y < LIST_Y - 2u) return NONE;
     m = (unsigned char)(y - LIST_Y + 2u) / 9u;
+    if (m >= LIST_N) return NONE;
+    if (x >= LIST_DX) m += LIST_N;
     return m < mission_count() && m <= persist.reached ? m : NONE;
 }

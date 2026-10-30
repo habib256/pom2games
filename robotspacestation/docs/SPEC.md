@@ -168,17 +168,22 @@ sur un chargeur.
 | 5 | LA PORTE | le technicien tient la plaque pendant que le drone passe |
 | 6 | LE PARKING | le drone se gare sur la plaque pour que le technicien passe |
 | 7 | LE RELAIS | A tient la plaque jusqu'à ce que B, garé sur la sienne, l'appelle par radio |
+| 8 | LE ZIGZAG | poussée sud permanente, une bascule inverse est / ouest à chaque choc |
+| 9 | LE COLIS | le technicien tient la porte, le drone rapporte la cellule (puce de la 4) |
+| 10 | LE GARDIEN | le drone, par-dessus la grille, se gare sur la plaque (bascule du pilier) |
 
 Les tests (`tests/test_model.py`) prouvent qu'une solution existe pour
 chacune, qu'une planche vide ne gagne rien, que le pilier exige une
 bascule, qu'une cellule jamais lâchée ne compte pas, que la porte attend
 le technicien, qu'un drone dans l'embrasure la bloque ouverte et que le
 parking ouvre le passage, que le relais exige la radio (A parti trop tôt,
-la porte se referme sous B) et que deux drones se bloquent l'un l'autre.
+la porte se referme sous B), que deux drones se bloquent l'un l'autre, que
+le zigzag exige l'alternance, que le colis attend le technicien et que le
+gardien sans bascule ne se gare jamais.
 
 Le labo et le drone ont chacun leur planche : passer de l'un à l'autre
 recompile la planche (valeurs remises à 0). Choisir une mission
-(touches 1-7 ou l'écran titre, jusqu'à la première non réussie) ou REPLACER remet la salle,
+(touches 1-9 et 0 pour la dixième, ou l'écran titre en deux colonnes, jusqu'à la première non réussie) ou REPLACER remet la salle,
 les objets, le drone et le technicien au départ.
 
 ### Le drone

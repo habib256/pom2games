@@ -251,6 +251,22 @@ def relay(disk, L):
     return fails
 
 
+def module_two(disk, L):
+    """Missions 8-10 (2026-10-30): the title lists ten in two columns; a
+    click on the 10th (LE GARDIEN, second column) plays it; key 8 plays LE
+    ZIGZAG; key 0 the 10th again. The model proves them (tests/test_model.py)."""
+    steps = [BOOT, 'wait:60', f'shot:{SHOTS}/title10.png'] + click(72 + 30, 92 + 2 * 9 + 2) \
+        + ['wait:120', idle(L), L.peek('_screen'), L.peek('_mission'), f'shot:{SHOTS}/m10.png']
+    steps += ['key:8', 'wait:120', idle(L), L.peek('_mission'), f'shot:{SHOTS}/m8.png']
+    steps += ['key:0', 'wait:120', idle(L), L.peek('_mission'), f'shot:{SHOTS}/m10_key.png', 'key:9', 'wait:120', idle(L),
+              L.peek('_mission'), f'shot:{SHOTS}/m9.png']
+    r = run(disk, steps)
+    fails = check('title: the 10th mission clicked', r.mem(L['_screen'], 1) + r.mem(L['_mission'], 1, 0),
+                  b'\x01\x09')
+    return fails + check('keys 8, 0, 9', bytes(r.mem(L['_mission'], 1, n)[0] for n in (1, 2, 3)),
+                         b'\x07\x09\x08')
+
+
 def missing_rooms(disk, L):
     """Without RSS.ROOMS, JOUER comes back to the title with a message."""
     r = run(disk, [BOOT] + title(0) + ['wait:60', idle(L, 3000), L.peek('_screen')])
@@ -275,6 +291,7 @@ def main():
     fails += mission_four(disk_with_save(save_bytes(EMPTY, reached=3), 'reached3'), L)
     fails += doors(disk_with_save(save_bytes(EMPTY, reached=4), 'reached4'), L)
     fails += relay(disk_with_save(save_bytes(EMPTY, reached=6), 'reached6'), L)
+    fails += module_two(disk_with_save(save_bytes(EMPTY, reached=9), 'reached9'), L)
     fails += missing_rooms(disk_with_save(None, 'norooms', rooms=False), L)
     print(f'shots in {SHOTS}')
     sys.exit(1 if fails else 0)

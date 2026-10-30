@@ -333,7 +333,7 @@ static void click(unsigned char x, unsigned char y)
 {
     if (y >= BTN_Y - 1u && y < BTN_Y + 8u) { click_button(button_at(x)); return; }
     if (screen == S_TITLE) {
-        x = title_mission_at(y);
+        x = title_mission_at(x, y);
         if (x != NONE) play(x);
         return;
     }
@@ -393,7 +393,7 @@ static void walk(void)
 
 int main(void)
 {
-    static unsigned char busy, cursor_kept;
+    static unsigned char busy, cursor_kept, m;
     if (prodos_video_claim(PD_VIDEO_DISCARD_RAM) != PD_VIDEO_OK) {
         a2_puts("PAS DE MEMOIRE AUXILIAIRE.\r");
         apple2_getkey();
@@ -422,7 +422,7 @@ int main(void)
         if (running && ++frames >= (screen == S_LAB ? LAB_TICK : DRONE_TICK)) frames = 0u;
         if (running && !frames) step();         /* draws only what changed */
         busy = pressed || walking || key == KC_ESC
-            || key == 'M' || key == 'S' || key == 'P' || key == 'G' || key == 'O' || (key >= '1' && key <= '9');
+            || key == 'M' || key == 'S' || key == 'P' || key == 'G' || key == 'O' || (key >= '0' && key <= '9');
         if (!busy) {
             if (screen == S_ZONE || screen == S_DRONE) actor_show();
             show();
@@ -444,9 +444,10 @@ int main(void)
         else if (key == 'P') click_button(1);
         else if (key == 'G' && screen == S_LAB) click_button(2);
         else if (key == 'O' && screen == S_LAB) { mode = M_OPEN; message("OUVRIR : CLIQUER P1-P8"); }
-        else if (screen == S_ZONE && key >= '1' && key < '1' + MISSIONS_MAX) {
-            /* Replay a mission, or play the next one not yet won. */
-            if (key - '1' <= persist.reached) go_mission(key - '1');
+        else if (screen == S_ZONE && key >= '0' && key <= '9') {
+            /* Replay a mission, or play the next one not yet won (0: the 10th). */
+            m = key == '0' ? 9u : key - '1';
+            if (m < MISSIONS_MAX && m <= persist.reached) go_mission(m);
         }
         if (pressed) click(px, py);
         if (walking) walk();

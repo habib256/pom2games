@@ -429,12 +429,14 @@ void zone_draw_doors(void)
 void zone_draw(void)
 {
     static unsigned char tx, ty;
-    static char title[2];
+    static char title[3];
     zone_doors();                   /* the caller cleared the screen */
-    title[0] = '1' + mission; title[1] = 0;
+    title[0] = mission < 9u ? '1' + mission : '1';  /* 1..9, 10 */
+    title[1] = mission < 9u ? 0 : '0' + mission - 9u;
+    title[2] = 0;
     dhgr_puts_small("MISSION", 0, 1);
     dhgr_puts_small(title, 40, 1);
-    dhgr_puts_small(mission_names[mission], 50, 1);
+    dhgr_puts_small(mission_names[mission], 54, 1);
     ui_latch();
     for (ty = 0u; ty < ROOM_ROWS; ++ty) {
         ui_latch();
