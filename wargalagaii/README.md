@@ -35,7 +35,7 @@ démarrage ProDOS, horloge
 VBL, étoiles, vaisseau et tirs, jusqu'à 40 aliens qui entrent en vagues, se posent
 en formation qui respire, plongent et bombardent ; collisions, explosions,
 vies, armure, score et HUD, GAME OVER, à 30 i/s ; son (musique PT3 et
-bruitages sur Mockingboard, bruitages au haut-parleur, S coupe) ; 32 bonus
+bruitages sur Mockingboard, bruitages au haut-parleur, S coupe la musique) ; 32 bonus
 qui tombent (une silhouette pleine par famille, signe découpé : tuiles, gemmes,
 canon et ses tirs, [aperçu](screenshots/bonus.png) ; au ramassage, son nom
 au milieu du terrain et un son, bonus ou malus), jauges S/B/T, armes double et triple, tir automatique, ×2/×5,
@@ -202,9 +202,12 @@ machine**).
 - Avec carte (`src/sound.s`) : musique **PT3** sur la première puce AY —
   module écrit par `tools/pt3.py` (morceau original de `tools/sound.py`),
   joué par le lecteur de Vince Weaver (`dev/lib/apple2/pt3/`, 0BSD) ; lecteur
-  et morceau en **mémoire aux à `$6000`**, appelés par l'interruption du
+  et morceau en **mémoire aux à `$2000`**, appelés par l'interruption du
   timer 1 de la VIA à 25 Hz (`MUS_HZ`, tempo indépendant des images et du
   PAL) via des trampolines à `$1FE0` ; bruitages sur la seconde puce.
+  Pendant la lecture ou l'écriture de `HIGHSCORES`, ProDOS masque les
+  interruptions (~0,8 s, moteur compris) : la puce de musique se tait avant
+  (`mus_hush`), plutôt qu'une note tenue.
 - Sans carte : haut-parleur. **En jeu, bruitages seulement**, non
   bloquants, joués **dans l'attente du VBL** avant la bascule (le temps
   libre de l'image, jamais plus) ; **musique seulement hors jeu** (titre,
@@ -227,7 +230,7 @@ au mieux un très court échantillon hors jeu (un mot au titre).
 | ↑ ↓ ← → (ou I K J L), RETURN (ou ESPACE), ESC | X, Y, bouton 0 | Memory Station (retourner une carte, ESC : sortir) |
 | Pomme ouverte, ESPACE tenus | bouton 0 tenu | Meteor Storm : accélérer (relâcher : ralentir) |
 | ESC | | en jeu : retour au titre (record possible) ; au titre : quitter vers ProDOS |
-| S | | son coupé / remis (en jeu et au titre) |
+| S | | musique coupée / remise (en jeu et au titre) ; les bruitages restent |
 | TAB | | en jeu : clavier ↔ manette (le centre est la position de repos du
 manche au début de la partie ou au TAB, zone morte autour) |
 | RETURN, ESPACE | bouton 0 | titre : jouer |
@@ -250,30 +253,36 @@ l'attente du VBL (temps de lecture des paddles jusqu'à ~3 ms, compté comme
 dans `chromabreak/src/timing.s`). Manette : port jeu du //e, prise DB-9 du
 //c.
 
-## Mémoire (prévue)
+## Mémoire
 
-Configuration de liens : `dev/cc65/apple2_dhgr_prodos_c.cfg` convient telle
-quelle (les pages `$2000-$5FFF` principales sont les deux pages HGR ; on
-n'écrit pas les pages aux).
+Carte après la réorganisation du 2026-10-30 (`src/game.cfg`, `build/game.map`) :
+la RAM principale `$6000-$BDE4` garde **~1,9 Ko libres** (13 octets avant).
 
 | Zone | Usage |
 |---|---|
-| `$0050-$00CF` | page zéro du jeu et de cc65 (`ZP` du cfg) ; le gestionnaire IRQ n'utilise ni la ZP cc65 ni sa pile |
-| `$00D0-$00EF` | page zéro du lecteur PT3 (gardée entre deux ticks) |
-| `$0200-$03CF` | zone `LOW2` (lot 11) : trois trajectoires de plongée (`FLIGHT`), données et routines de Meteor Storm (`STORM2`), copiées de `WG2.AUX` au démarrage (`low_boot`) ; `$03D0-$03FF` : vecteurs ProDOS |
-| `$0400-$07FF` | page texte 1, jamais affichée en jeu : tables (en évitant les trous `$x78-$x7F`, `$xF8-$xFF`) |
-| `$0800-$0FFF` | code de Meteor Storm (`storm.s`), lecteur et script du mode démo (`demo.s`, `demo.inc`), zone `LOWM`, copiés de `WG2.AUX` au démarrage ; le crt0 protège cette zone |
-| `$1000-$12FF` | tables de lignes `hgr_lo`, `hgr_hi`, `hgr_hi2` alignées sur une page (segment `ROWS`) |
-| `$1300-$1FDF` | tampon ProDOS (`IOBUF` : démarrage, `HIGHSCORES`), `LOWBSS` : sprites prédécalés du paquet courant, la table des records (`rec_buf`) |
-| `$1FE0-$1FFF` | trampolines vers la mémoire aux (mêmes octets en aux) |
-| `$2000-$3FFF`, `$4000-$5FFF` | pages HGR 1 et 2 |
-| `$6000-$BDFF` | code, données, BSS (~23,5 Ko) |
-| `$BE00-$BEFF` | pile C ; `$BF00` page globale ProDOS |
-| aux `$2000-$5B7F` | `WG2.AUX` : dessins × teintes des paquets (15 232 octets, copie par `AUXMOVE` `$C311` entre deux niveaux) |
-| aux `$6000-$6C55` | lecteur PT3 et morceau ; trampolines en aux `$1FE0` |
-| aux `$7000-$8FFF` | overlay : boutique et Memory Station (copiés en `$4000` à l'ouverture, jusqu'au lecteur `duet`), puis l'écran titre avec son image LZ4FH (792 octets) et le décodeur (overlay entier copié à chaque titre) |
-| aux `$9000-…` | code de Meteor Storm et du mode démo, copié en `$0800` au démarrage ; puis données résidentes (`$9800`), fiches de niveau (`$9C00`), murs (`$A200`), boss (`$AA00`) |
-| aux `$B100-$BAFF` | lot 11 : petit et gros rochers (copiés dans `cur_alien2` / `cur_big` pendant la tempête), textes des ramassages en `$B600` (`pick_fetch` copie celui qu'on affiche), la zone `LOW2` en `$B900` |
+| `$0050-$00CF` | page zéro du jeu et de cc65 ; depuis le 10-30 aussi les variables les plus lues (entrées, `aux_fetch`, bruitages, 24 octets de l'état : niveau, vies, vaisseau…) : un octet et un cycle de moins à chaque accès. Libres : `$BB-$CF` |
+| `$00D0-$00EF` | page zéro du lecteur PT3 (gardée entre deux ticks) ; `$F0-$FF` libres |
+| `$0200-$03CF` | zone `LOW2` : trajectoires de plongée (`FLIGHT`), Meteor Storm (`STORM2`), calibrage de la manette, copiés de `WG2.AUX` au démarrage ; `$03D0-$03FF` : vecteurs ProDOS |
+| `$0400-$07FF` | page texte 1, jamais affichée en jeu : les fiches de dessin de `render.s` (`TXT0-7`, 8 fenêtres de 120 octets entre les trous des cartes `$x78-$x7F`, `$xF8-$xFF`) ; `fail` efface l'écran texte avant d'écrire |
+| `$0800-$0FFF` | Meteor Storm (`storm.s`), lecteur et script de la démo (`LOWM`), copiés de `WG2.AUX` |
+| `$1000-$12FF` | tables de lignes `hgr_lo`, `hgr_hi`, `hgr_hi2` (segment `ROWS`) |
+| `$1300-$16FF` | tampon ProDOS (`IOBUF` : démarrage, `HIGHSCORES`) |
+| `$1700-$1C0F` | `LOWBSS` : sprites prédécalés du paquet courant, records ; **au démarrage** le code qui ne sert qu'une fois (`BOOT` : vérifications, chargement de `WG2.AUX`, trampolines, tables de lignes, messages d'erreur), que `WG2.SYS` y copie |
+| `$1C40-$1FDF` | données résidentes (`HIDATA` : icônes…) ; `$1FE0-$1FFF` trampolines vers l'aux |
+| `$2000-$3FFF`, `$4000-$5FFF` | pages HGR 1 et 2 (la 2 : tampon de lecture de `WG2.AUX`, puis overlays boutique / titre) |
+| `$6000-$6280` | `timing.s` en premier : ses boucles d'attente ne changent pas d'adresse (une page franchie = un cycle de plus par tour ; `.assert`) |
+| `$6281-$BDE4` | code, données, BSS du jeu |
+| `$BDE5-$BEFF` | sauvegarde de la page zéro par le crt0 (dans la page de la pile C : pas de code C) ; `$BF00` page globale ProDOS |
+| aux `$2000-$2C55` | lecteur PT3 et morceau (face à la page HGR 1 : jamais d'adresse de code principal, un `until` de test ne s'arrête pas dans l'interruption) ; trampolines en aux `$1FE0` |
+| aux `$3000-…` | dessins × teintes des paquets (copie par `AUXMOVE` entre deux niveaux) |
+| aux `$7000-$8FFF` | overlay : boutique, Memory Station, écran titre (copié en `$4000`) |
+| aux `$9000-$BAFF` | Meteor Storm et démo (`$9000`), données résidentes (`$9800`), fiches de niveau (`$9C00`), murs (`$A200`), boss (`$AA00`), rochers (`$B100`), textes des ramassages (`$B600`), `LOW2` (`$B900`) |
+
+Réserves encore libres (données seulement, par `AUXMOVE`) : aux `$0200-$1FDF`
+(~7,5 Ko), aux `$BB00-$BFFF` (1,25 Ko), la carte langage aux (16 Ko, `/RAM`
+étant réclamé ; il faudrait `ALTZP`, donc couper les interruptions pendant
+l'accès), et les fins de zones de `WG2.AUX` (~1 Ko après le lecteur PT3,
+~1,9 Ko après l'overlay).
 
 ## Disquette
 

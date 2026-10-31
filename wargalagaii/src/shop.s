@@ -93,7 +93,7 @@ sh_leave:
 sh_tick:
         lda audio_slot
         bne :+
-        lda sound_on
+        lda music_on
         bne sh_duet
 :       lda #110
         jmp $FCA8

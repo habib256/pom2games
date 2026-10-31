@@ -284,11 +284,12 @@ ALIEN_H = 8
 ALIEN_CELLS = 7
 ALIEN_TABLE = 336          ; bytes: 7 shifts x 2 frames x rows x width
 NCOMBOS = 24
-AUX_BASE = $2000              ; aux memory: WG2.AUX
+AUX_BASE = $2000              ; aux memory: WG2.AUX (the PT3 player first)
+AUX_PACKS = $3000             ; the alien packs (2026-10-30: were at $2000)
 BIG_W = 4
 BIG_TABLE = 896
 NBIG = 8
-AUX_BIG = AUX_BASE + 8064
+AUX_BIG = AUX_PACKS + 8064
 big_lo: .lobytes cur_big+0,cur_big+64,cur_big+128,cur_big+192,cur_big+256,cur_big+320,cur_big+384,cur_big+448,cur_big+512,cur_big+576,cur_big+640,cur_big+704,cur_big+768,cur_big+832
 big_hi: .hibytes cur_big+0,cur_big+64,cur_big+128,cur_big+192,cur_big+256,cur_big+320,cur_big+384,cur_big+448,cur_big+512,cur_big+576,cur_big+640,cur_big+704,cur_big+768,cur_big+832
 AUX_ROCK = AUX_BIG + 7168

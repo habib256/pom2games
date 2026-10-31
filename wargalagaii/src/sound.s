@@ -19,7 +19,7 @@
 ; (shadows: chip 1 belongs to the handler, chip 2 to sound_frame); it keeps
 ; mb_chip. A tick takes ~1 500-3 000 cycles: the handler scans the //e VBL
 ; on entry and on exit (_a2_vbl_scan, atomic) so no blank goes unseen.
-; S mutes / unmutes (the song pauses).
+; S turns the music off / on (the song pauses), never the effects.
 
 MUS_PERIOD = 1020484 / MUS_HZ - 2   ; T1 latch (free run: latch + 2 cycles)
 
@@ -28,16 +28,13 @@ MUS_PERIOD = 1020484 / MUS_HZ - 2   ; T1 latch (free run: latch + 2 cycles)
 
 .bss
 audio_slot:  .res 1             ; Mockingboard slot, 0 = speaker
-snd_ev:      .res 1             ; event bits raised by logic.s
-sfx_ptr:     .res 2             ; current effect step, hi 0 = none
-sfx_rank:    .res 1             ; its rank (0 = most important)
 spk_period:  .res 1             ; speaker half-period for this frame, 0 = off
 ay_shadow:   .res 32            ; both chips' registers as last written
 mus_irq_n:   .res 1             ; ProDOS interrupt number, 0 = none
 mus_ticks:   .res 1             ; music interrupts served (timing.s's paddle
                                  ; reading, tests)
 .data
-sound_on:    .byte 1
+music_on:    .byte 1
 
 .code
 ; Before the //c clock: waking a Mockingboard 4c may hide the slot 4 mouse.
@@ -114,20 +111,36 @@ ay_put: phx
 :       plx
         rts
 
-; S: sound off (silence now) / on (registers rewritten as they come).
+; S: the music off (its chip silent now) / on (registers rewritten as they
+; come); the effects play either way (2026-10-30: S muted everything).
 sound_toggle:
+        lda music_on
+        eor #1
+        sta music_on
+        beq mus_hush
+        rts
+
+; The music's chip silent, its shadows forgotten: the next tick writes every
+; register again. Also before a disk access (front.s): ProDOS's Disk II
+; driver masks interrupts the whole time, a note held ~1 s otherwise.
+mus_hush:
+        lda audio_slot
+        beq :++
         php
         sei                      ; (the music handler writes too)
-        lda sound_on
-        eor #1
-        sta sound_on
-        bne :+
-        stz spk_period
-        stz sfx_ptr+1
-        jsr mb_silence
-        jsr ay_forget
-:       plp
-        rts
+        lda mb_chip
+        pha
+        stz mb_chip
+        jsr mb_quiet_chip
+        pla
+        sta mb_chip
+        lda #$FF                 ; chip 1's shadows (ay_shadow+0..15)
+        ldx #15
+:       sta ay_shadow,x
+        dex
+        bpl :-
+        plp
+:       rts
 
 sound_shutdown:
         stz spk_period
@@ -146,11 +159,7 @@ sound_shutdown:
 
 ; Once a frame, after the flip.
 sound_frame:
-        lda sound_on
-        bne :+
-        stz snd_ev
-        rts
-:       lda snd_ev               ; the most important new event
+        lda snd_ev               ; the most important new event
         stz snd_ev
         beq sf_step
         ldx #0
@@ -240,7 +249,7 @@ irq_ack:
         lda $C404                ; T1 low: acknowledges
         jsr _a2_vbl_scan          ; (a long handler: see the header)
         inc mus_ticks
-        lda sound_on
+        lda music_on
         beq mi_done
         lda mb_chip              ; the main code may be about to write chip 2
         pha
@@ -291,6 +300,8 @@ tr_main:
         rts
 .code
 
+.pushseg
+.segment "BOOT"
 ; After aux_load: the trampolines to $1FE0, main and aux.
 tramp_install:
         ldx #<(__TRAMP_SIZE__-1)
@@ -310,3 +321,4 @@ tramp_install:
         sta $3F
         sec                      ; main -> aux
         jmp $C311                ; AUXMOVE
+.popseg

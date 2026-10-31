@@ -17,6 +17,7 @@ GAME = ROOT / 'wargalagaii'
 sys.path.insert(0, str(ROOT / 'dev/tools'))
 sys.path.insert(0, str(GAME / 'tools'))
 import a2test
+from block import Block
 from boot import boot
 import hud as hud_py
 import model
@@ -233,8 +234,7 @@ def oracle(disk, L, count=2000, every=1, seed=1983, armour=0):
     game = model.Game()
     game.armour = armour
     names = [n for n in game.state() if n != 'prng']
-    first = min(L[n] for n in names)
-    span = max(L[n] + len(v) for n, v in game.state().items() if n != 'prng') - first
+    blk = Block(L, {n: len(v) for n, v in game.state().items() if n != 'prng'})
     steps, inputs, checked = [*boot(L), L.until('logic_step', 10),
                               L.poke('armour', armour)], [], []
     move = 0
@@ -248,7 +248,7 @@ def oracle(disk, L, count=2000, every=1, seed=1983, armour=0):
                   L.poke('fire_req', 0x80 if fire else 0), L.poke('fire_held', 0x80 if held else 0),
                   L.poke('over_wait', 0), L.until('logic_done', 10)]   # (GAME OVER stays: no title)
         if k % every == every - 1 or k == count - 1:
-            steps += [f'peek:{first:04X}:{span}', L.peek('prng_lo', 2)]
+            steps += [*blk.peeks(), L.peek('prng_lo', 2)]
             checked.append(k)
     r = a2test.run(disk, steps, iie=True, timeout=900)
     seen = 0
@@ -260,11 +260,11 @@ def oracle(disk, L, count=2000, every=1, seed=1983, armour=0):
             deaths.append(k + 1)
         if k not in checked:
             continue
-        got = r.mem(first, span, seen)
+        got = blk.read(r, seen)
         state = game.state()
         for name in names:
             want = state[name]
-            have = got[L[name] - first:L[name] - first + len(want)]
+            have = got[name]
             assert have == want, f'step {k + 1} {name}: 6502 {have.hex()} model {want.hex()}'
         assert r.mem(L['prng_lo'], 2, seen) == state['prng'], f'step {k + 1} prng'
         seen += 1
@@ -325,8 +325,7 @@ def level_oracle(disk, L, start, count=3000, every=5, seed=5, cheats=(), later=N
     rng = random.Random(seed)
     game = model.Game(start, mode)
     names = [n for n in game.state() if n != 'prng']
-    first = min(L[n] for n in names)
-    span = max(L[n] + len(v) for n, v in game.state().items() if n != 'prng') - first
+    blk = Block(L, {n: len(v) for n, v in game.state().items() if n != 'prng'})
     cheats0 = [('weapon', 2), ('shot_limit', 10), ('s_level', 5), ('noshop', 1), *cheats]
     steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', start), L.poke('mode', mode),
              L.until('game_tick', 3000)]
@@ -344,7 +343,7 @@ def level_oracle(disk, L, start, count=3000, every=5, seed=5, cheats=(), later=N
         steps.append(f'invul:{k}')       # placeholder, filled below
         steps += [L.until('logic_done', 10)]
         if k % every == every - 1 or k == count - 1:
-            steps += [f'peek:{first:04X}:{span}', L.peek('prng_lo', 2)]
+            steps += [*blk.peeks(), L.peek('prng_lo', 2)]
     # invulnerability: decided by the model's state before each step
     sim = model.Game(start, mode)
     out, k = [], 0
@@ -380,12 +379,12 @@ def level_oracle(disk, L, start, count=3000, every=5, seed=5, cheats=(), later=N
         if not seen or seen[-1] != (game.level, game.loop):
             seen.append((game.level, game.loop))
         if k % every == every - 1 or k == count - 1:
-            got = r.mem(first, span, seen_k)
+            got = blk.read(r, seen_k)
             for name, want in game.state().items():
                 if name == 'prng':
                     assert r.mem(L['prng_lo'], 2, seen_k) == want, f'level {start}: step {k + 1} prng'
                     continue
-                have = got[L[name] - first:L[name] - first + len(want)]
+                have = got[name]
                 assert have == want, f'level {start}: step {k + 1} {name}: 6502 {have.hex()} model {want.hex()}'
             seen_k += 1
     game.states_seen = states
@@ -410,8 +409,7 @@ def bonus_effects(disk, L):
                               named.add(game.pick_msg))
     state = game.state()
     names_cmp = [n for n in state if n != 'prng']
-    first = min(L[n] for n in names_cmp)
-    span = max(L[n] + len(v) for n, v in state.items() if n != 'prng') - first
+    blk = Block(L, {n: len(v) for n, v in state.items() if n != 'prng'})
     steps, plan, gap = [*boot(L)], [], 12
     for k in range(len(seq) * gap + 40):
         pokes = []
@@ -424,7 +422,7 @@ def bonus_effects(disk, L):
         steps += [L.until('logic_step', 10), L.poke('move_dir', 0), L.poke('fire_req', 0x80 if fire else 0),
                   L.poke('fire_held', 0x80 if held else 0)]
         steps += [L.poke(name, value) for name, value in pokes]
-        steps += [L.until('logic_done', 10), f'peek:{first:04X}:{span}', L.peek('prng_lo', 2)]
+        steps += [L.until('logic_done', 10), *blk.peeks(), L.peek('prng_lo', 2)]
     r = a2test.run(disk, steps, iie=True, timeout=900)
     peak = [0, 0, 0, 0]
     for k, (pokes, fire, held) in enumerate(plan):
@@ -436,12 +434,12 @@ def bonus_effects(disk, L):
         game.step(0, fire, held)
         peak = [max(a, b) for a, b in zip(peak, (game.s_level, game.shot_limit, game.t_level,
                                                  game.score > 0 and game.mult))]
-        got = r.mem(first, span, k)
+        got = blk.read(r, k)
         for name, want in game.state().items():
             if name == 'prng':
                 assert r.mem(L['prng_lo'], 2, k) == want, f'step {k + 1} prng'
                 continue
-            have = got[L[name] - first:L[name] - first + len(want)]
+            have = got[name]
             assert have == want, f'step {k + 1} {name}: 6502 {have.hex()} model {want.hex()}'
     missing = [n for n in names if n not in taken]
     assert not missing, ('kinds never taken', missing)

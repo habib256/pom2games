@@ -66,11 +66,12 @@ def speaker(disk, L):
     lo2, hi2 = L['wait_irq'], L['wi_count']        # //c wait loop
     r = a2test.run(disk, [*boot(L), 'storewatch:C030:C030', 'wait:200',
                           L.peek('step_count', 2)] + fire(L, 1) + ['wait:30', L.peek('step_count', 2),
-                          'key:S', 'wait:4'] + fire(L, 1) + ['wait:30', L.peek('sound_on')],
+                          'key:S', 'wait:4'] + fire(L, 1) + ['wait:30', L.peek('music_on')],
                    iie=True, timeout=300)
     toggles = [s for s in stores(r.out) if s[1] == 0xC030]
-    assert r.mem(L['sound_on'], 1)[0] == 0
-    # before the first shot: nothing; then the shot effect; muted: nothing
+    assert r.mem(L['music_on'], 1)[0] == 0
+    # before the first shot: nothing; then the shot effect; the music off
+    # (S, 2026-10-30): the effects still play
     first_fire = int(re.search(r'until [0-9A-F]+ cycles=(\d+) PC=' + f'{L["logic_step"]:04X}', r.out)[1])
     mute = int(re.findall(r'until [0-9A-F]+ cycles=(\d+) PC=' + f'{L["logic_step"]:04X}', r.out)[1])
     before = [t for t in toggles if t[3] < first_fire]
@@ -78,7 +79,7 @@ def speaker(disk, L):
     after = [t for t in toggles if t[3] >= mute]
     assert not before, f'{len(before)} toggles without an effect'
     assert len(shot) > 20, f'shot effect: {len(shot)} toggles'
-    assert not after, f'{len(after)} toggles while muted'
+    assert len(after) > 20, f'shot effect with the music off: {len(after)} toggles'
     assert all(lo <= pc < hi or lo2 <= pc < hi2 for pc, *_ in shot), \
         sorted({hex(pc) for pc, *_ in shot})
     # pitch: a half-period of n turns is n * SPK_TURN cycles (+ a constant)
@@ -92,7 +93,7 @@ def speaker(disk, L):
     assert all(abs(s - sound.SPK_TURN * round(s / sound.SPK_TURN)) <= 2 for s in steps) and \
         abs(common[0] - turns[0] * sound.SPK_TURN) <= 12, (common, turns, sound.SPK_TURN)
     print(f'PASS speaker: no toggle without an effect, {len(shot)} for a shot, all in the '
-          f'wait loops (never delaying a frame), none when muted (S); turns of {sound.SPK_TURN} cycles '
+          f'wait loops (never delaying a frame), still there with the music off (S); turns of {sound.SPK_TURN} cycles '
           f'(half-periods {common[:4]}...)')
 
 
@@ -100,7 +101,8 @@ def mockingboard(disk, L):
     a4 = pt3.note_table()[pt3.pt3_note(sound.MELODY[0][0])]
     shot = sound.ay_period(sound.SFX[-1][1][0][0])
     steps = [*boot(L), L.peek('audio_slot'), 'storewatch:C030:C4FF', 'wait:120']
-    steps += fire(L, 1) + ['wait:20', 'key:S', 'wait:30', L.peek('sound_on'), 'key:\\e', 'wait:200']
+    steps += fire(L, 1) + ['wait:20', 'key:S', 'wait:30'] + fire(L, 1) + ['wait:20', L.peek('music_on'),
+                                                                     'key:\\e', 'wait:200']
     r = a2test.run(disk, steps, iie=True, mockingboard=True, timeout=300)
     assert r.mem(L['audio_slot'], 1)[0] == 4, 'Mockingboard found in slot 4'
     w = ay_writes(r.out)
@@ -114,16 +116,22 @@ def mockingboard(disk, L):
     assert (2, bass & 255) in music and (3, bass >> 8) in music, 'the bass on voice B'
     effect = [(reg, v) for c, chip, reg, v in w if chip == 1 and c >= fire_at]
     assert (0, shot & 255) in effect and (8, 11) in effect, effect[:10]
-    # muted (S), then ESC: the last volume written on every voice is 0
+    # S: the music's chip silent from then on, the next shot still heard on chip 2
+    assert r.mem(L['music_on'], 1)[0] == 0
+    fire2 = int(re.findall(r'until [0-9A-F]+ cycles=(\d+) PC=' + f'{L["logic_step"]:04X}', r.out)[1])
+    late = [(chip, reg, v) for c, chip, reg, v in w if c >= fire2]
+    assert all(v == 0 for chip, reg, v in late if chip == 0), [x for x in late if x[0] == 0][:10]
+    assert (1, 0, shot & 255) in late and (1, 8, 11) in late, late[:10]
+    # music off (S), then ESC: the last volume written is 0 (music's 3 voices, effects' voice A)
     last = {}
     for c, chip, reg, v in w:
         if reg in (8, 9, 10):
             last[chip, reg] = v
-    assert all(v == 0 for v in last.values()) and len(last) == 6, last
+    assert all(v == 0 for v in last.values()) and {(0, 8), (0, 9), (0, 10), (1, 8)} <= set(last), last
     # with a card, the speaker stays quiet (effects played twice before)
     assert not [s for s in stores(r.out) if s[1] == 0xC030], 'speaker toggles with a Mockingboard'
     print(f'PASS Mockingboard slot 4: PT3 music on chip 1 (A4 period {a4}, bass, {len(notes)} notes in 2 s), '
-          f'shot effect on chip 2 (period {shot}), silence on S and ESC')
+          f'shot effect on chip 2 (period {shot}), S: the music silent, the effects still on')
 
 
 def unmute(disk, L):
@@ -177,6 +185,35 @@ def cadence(disk, L):
           'none late')
 
 
+def steadiness(disk, L):
+    """2026-10-30 (« vérifie la stabilité de la lecture de la musique »): in
+    play every tick lands within 3 000 cycles of its period (a death, GAME
+    OVER, the title, the demo on the way); at power on, the HIGHSCORES read
+    masks interrupts ~0.8 s (ProDOS's Disk II driver): the music's chip is
+    silent by then (mus_hush), no note held."""
+    ml, period = L['mus_ticks'], 1020484 / sound.MUS_HZ
+    r = a2test.run(disk, [*boot(L), f'storewatch:{ml:04X}:{ml:04X}', 'wait:4000'],
+                   iie=True, mockingboard=True, timeout=600)
+    st = [c for pc, a, v, c in stores(r.out)]
+    worst = max(abs(b - a - period) for a, b in zip(st, st[1:]))
+    assert len(st) > 1500 and worst < 3000, (len(st), worst)
+    ack = L['irq_ack']                 # (one storewatch at a time: the ticks by their PC)
+    r = a2test.run(disk, [f'watch:{ack:04X}', 'storewatch:C400:C4FF', L.until('fr_loop', 3000)],
+                   iie=True, mockingboard=True, timeout=600)
+    w = ay_writes(r.out)
+    st = [int(c) for c in re.findall(rf'^watch {ack:04X} .*cycles=(\d+)', r.out, re.M)]
+    gaps = [(a, b) for a, b in zip(st, st[1:]) if b - a > 4 * period]
+    assert gaps, 'the HIGHSCORES read held the interrupts back'
+    for a, b in gaps:
+        vol = {}
+        for c, chip, reg, v in w:
+            if chip == 0 and reg in (8, 9, 10) and c < b:
+                vol[reg] = v
+        assert vol and all(v == 0 for v in vol.values()), (a, b, vol)
+    print(f'PASS music steady: in play every tick within {worst:.0f} cycles of {period:.0f}; '
+          f'{len(gaps)} disk pause(s) at the title, the music silent through them')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--disk', type=Path, default=ROOT / 'dist/WARGALAGAII.po')
@@ -188,6 +225,7 @@ def main():
     speaker(a.disk, L)
     mockingboard(a.disk, L)
     unmute(a.disk, L)
+    steadiness(a.disk, L)
     tempo(a.disk, L)
     joystick(a.disk, L)
     cadence(a.disk, L)
