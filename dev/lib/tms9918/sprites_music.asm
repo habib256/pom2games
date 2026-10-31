@@ -1,0 +1,82 @@
+; ported from POM1 dev/lib/tms9918 @ e399808 (sprites_music.asm)
+; Port: .export lines dropped; each pattern is .ifref-guarded (only the
+; patterns the source above references assemble), RODATA segment.
+; ============================================================================
+; sprites_music.asm  --  6 sprites (16x16, TMS9918 sprite mode)
+; derived: dev/lib/gen2/sprites/sprites_music_hgr.asm -- after editing this master rerun:
+;   python3 tools/build_hgr_sprites.py --only music
+; ----------------------------------------------------------------------------
+; SCROLL-O-SPRITES "Music" by Quale, May 2013, CC-BY-3.0.
+; Lifted from pic/undefined - Imgur.png by tools/extract_scroll_sprites.py.
+;
+; Layout: each 16x16 sprite occupies 32 bytes -- the first 16 bytes are
+; the left half (column 0..7), the next 16 the right half (column 8..15).
+; Native TMS9918 16x16 sprite layout: stream the 32 bytes into a
+; sprite-pattern slot starting at the ACTIVE MODE'S sprite-pattern table
+; + slot*32 (asm Mode-1 init_vdp_g1: R6=$07 -> $3800; C lib SCREEN1/SCREEN2
+; tables: R6=$03 -> $1800 — on those layouts $3800 is the NAME table!).
+; ============================================================================
+.ifndef _SPRITES_MUSIC_ASM_LOADED_
+_SPRITES_MUSIC_ASM_LOADED_ = 1
+
+.pushseg
+.rodata
+
+
+
+; slot 01/6 of "Music" row -- lute
+.ifref music_lute_pat
+music_lute_pat:
+        .byte $00, $00, $00, $00, $00, $00, $1F, $3F
+        .byte $7F, $73, $50, $69, $77, $3B, $1F, $00
+        .byte $00, $10, $2E, $1E, $38, $70, $E0, $C0
+        .byte $80, $40, $C0, $C0, $C0, $80, $00, $00
+.endif
+
+; slot 02/6 of "Music" row -- harp
+.ifref music_harp_pat
+music_harp_pat:
+        .byte $00, $3E, $3F, $01, $12, $12, $12, $12
+        .byte $12, $12, $12, $12, $12, $13, $3F, $00
+        .byte $00, $00, $00, $80, $C0, $78, $84, $A4
+        .byte $AC, $B8, $B8, $F0, $F0, $E0, $E0, $00
+.endif
+
+; slot 03/6 of "Music" row -- pipes  (was: panpipe)
+.ifref music_pipes_pat
+music_pipes_pat:
+        .byte $00, $00, $0D, $0F, $00, $0D, $0D, $0D
+        .byte $0D, $0D, $0D, $0C, $0C, $0C, $00, $00
+        .byte $00, $00, $50, $F8, $00, $50, $40, $40
+        .byte $00, $00, $00, $00, $00, $00, $00, $00
+.endif
+
+; slot 04/6 of "Music" row -- bell  (was: horn)
+.ifref music_bell_pat
+music_bell_pat:
+        .byte $00, $00, $00, $00, $00, $03, $1F, $23
+        .byte $21, $24, $26, $10, $08, $07, $00, $00
+        .byte $00, $06, $0E, $04, $E0, $F0, $F0, $F0
+        .byte $E0, $E0, $40, $40, $40, $80, $00, $00
+.endif
+
+; slot 05/6 of "Music" row -- xylophone  (was: flute)
+.ifref music_xylophone_pat
+music_xylophone_pat:
+        .byte $00, $40, $20, $10, $08, $66, $66, $60
+        .byte $6D, $6D, $6D, $6C, $61, $0C, $60, $00
+        .byte $00, $02, $04, $08, $10, $66, $66, $06
+        .byte $B6, $B0, $86, $30, $80, $00, $00, $00
+.endif
+
+; slot 06/6 of "Music" row -- drum  (was: singer)
+.ifref music_drum_pat
+music_drum_pat:
+        .byte $00, $10, $08, $07, $0B, $1D, $1F, $0F
+        .byte $17, $18, $1F, $1F, $0F, $07, $00, $00
+        .byte $00, $08, $10, $E0, $D0, $B8, $F8, $F0
+        .byte $E8, $18, $F8, $F8, $F0, $E0, $00, $00
+.endif
+
+.popseg
+.endif  ; _SPRITES_MUSIC_ASM_LOADED_

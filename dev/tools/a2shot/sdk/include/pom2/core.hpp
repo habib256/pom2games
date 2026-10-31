@@ -9,6 +9,7 @@
 #ifndef POM2_CORE_HPP
 #define POM2_CORE_HPP
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <cstddef>
@@ -66,13 +67,19 @@ enum class RgbDhgrMode : std::uint8_t {
 /// AppleIIeEnhanced = 65C02, //e memory; AppleIIc = 65C02, //e memory, the
 /// //c's built-in mouse on port 4 (its firmware is in the system ROM, so
 /// moveMouse()/setMouse() drive it with no attachMouse()), and a 32 KiB ROM
-/// loaded as a //c dump (bank 0 at reset). The ROM itself is still loadRom().
+/// loaded as a //c dump (bank 0 at reset). AppleIIcPlus is the //c+: the same,
+/// its mouse firmware at $C700, plus the MIG, the IWM and the two 3.5" drives
+/// its ROM drives — reached through the SmartPort calls below — and a Disk II
+/// in slot 6 from the start. It runs at 1 MHz: the CGGA accelerator is the
+/// application's, not the facade's. The ROM itself is still loadRom().
+/// New machines are added at the end.
 enum class Machine : std::uint8_t {
     Custom,
     AppleIIPlus,
     AppleIIe,
     AppleIIeEnhanced,
     AppleIIc,
+    AppleIIcPlus,
 };
 
 /// Construction-time machine choices. Slot cards remain opt-in: the public
@@ -123,6 +130,20 @@ struct FramebufferView {
     int height = 0;
 };
 
+/// The E-Z Color card's TMS9918A, read the way a debugger reads it: nothing
+/// here touches the chip (the status keeps F / 5S / C, the read-ahead and the
+/// address latch are left alone).
+struct EzColorState {
+    std::array<std::uint8_t, 8> registers{};   ///< R0-R7 as last written
+    std::uint8_t  status = 0;                   ///< F, 5S, C and the fifth-sprite number
+    std::uint16_t address = 0;                  ///< the auto-incrementing VRAM pointer
+    bool          irqAsserted = false;          ///< /INT, i.e. the slot IRQ: R1 IE and F
+    bool          siliconStrict = true;         ///< the access window is enforced
+    /// Port accesses the chip dropped because they came inside a closed
+    /// access window — since attachEzColor() or resetEzColorDropCount().
+    std::uint64_t droppedAccesses = 0;
+};
+
 /// Host-visible cassette transport state. Program tapes remain armed after
 /// PLAY until the guest first polls $C060, matching the physical interface.
 struct CassetteState {
@@ -160,8 +181,14 @@ public:
     std::string lastError() const;
 
     /// Install the core's Disk II controller, with its two drives, in `slot`
-    /// (1-7, 6 by convention). The P5 boot ROM is required; the P6
-    /// logic-state-sequencer ROM is optional but recommended. A second call
+    /// (1-7, 6 by convention). The P5 boot ROM is optional: left empty, the
+    /// controller boots with POM2's own PROM (DOS 3.3 and ProDOS disks); a
+    /// //c or //c+ does not use it at all ($C600 is the system ROM). The P6
+    /// logic-state-sequencer ROM is optional: without it .dsk/.po/.nib media
+    /// run the legacy nibble gate and a WOZ goes through POM2's own sequencer
+    /// (the same nibbles and, for RWTS writes, the same flux as Apple's). The
+    /// //c+'s built-in controller starts with none: attachDiskII({},
+    /// "roms/diskii_p6.rom") gives it Apple's. A second call
     /// replaces the controller, moving it if `slot` differs; a //c's disk
     /// port is wired to slot 6, so another slot is refused there.
     bool attachDiskII(std::string_view bootRom,
@@ -184,7 +211,8 @@ public:
     /// The protection the guest sees, whatever its cause.
     bool diskWriteProtected(int drive = 0) const;
     /// Cold boot directly at the controller's boot PROM ($Cn00). Returns
-    /// false unless the controller, its boot ROM and a disk in drive 0 are
+    /// false unless the controller, its boot ROM (on a //c or //c+, whose
+    /// $C600 is the system ROM, not needed) and a disk in drive 0 are
     /// present — the PROM boots drive 1 only — and false, after the cold
     /// boot, when the machine maps its own firmware over that page.
     bool bootDisk();
@@ -195,6 +223,9 @@ public:
     /// Liron dump is read — identifying as a ProDOS block device ($Cn07=$01).
     /// It has no mechanical timing: a block costs exactly the CPU cycles of
     /// the driver's 512-byte copy loop, so runs are cycle-reproducible.
+    /// On Machine::AppleIIcPlus there is nothing to attach (false): its two
+    /// built-in 3.5" drives answer the calls below, unit 0 the internal one
+    /// and unit 1 the external one, and bootSlot(5) boots them.
     bool attachSmartPort(int slot = 5);
     /// Mount raw ProDOS-order 400/800 KiB, supported 2IMG or GCR WOZ/MOOF on
     /// unit 0 or 1. Captures are block-write-protected; MFM/1.44 MB is disabled.
@@ -214,7 +245,9 @@ public:
     /// signature ($Cn01=$20, $Cn03=$00, $Cn05=$03), with RAM untouched; and
     /// false, after the cold boot, when the machine maps its own firmware
     /// over that page out of reset (slot 3 on a //e, slots other than 5 on a
-    /// //c). The Disk II's slot is bootDisk().
+    /// //c). The Disk II's slot is bootDisk(). On a //c+, slot 5 is a cold
+    /// boot through the ROM's own scan — internal drive first, the external
+    /// one when the internal bay is empty — and needs a 3.5" disk in either.
     bool bootSlot(int slot);
 
     /// Load a program tape (.aci/.wav/.mp3/.ogg/.flac). Playback is controlled
@@ -239,7 +272,9 @@ public:
     /// convention). SoundII adds the SSI263 speech synthesizer. On a
     /// Machine::AppleIIc it is the Mockingboard 4c on the internal connector
     /// (`slot` is ignored): dormant until the guest writes into $C400-$C4FF,
-    /// then answering that page — over the mouse firmware — until a reset.
+    /// then answering that page — over the mouse firmware — until a power
+    /// cycle. On AppleIIcPlus it is the 4c+, the same way, over the ROM's
+    /// memory-expansion firmware.
     bool attachMockingboard(int slot = 4,
                             MockingboardModel model = MockingboardModel::AC);
     bool mockingboardAttached() const;
@@ -263,6 +298,30 @@ public:
     bool attachRgbCard(int slot = 7,
                        RgbCardModel model = RgbCardModel::LeChatMauveFeline);
     bool rgbCardAttached() const;
+    /// Install the E-Z Color Graphics Interface (Steve Ciarcia, BYTE, August
+    /// 1982) in an empty slot: a TMS9918A with 16 KB of VRAM and its own video
+    /// output, no ROM — only $C0n0 (data) and $C0n1 (register / status) answer,
+    /// every other $C0nX reads $FF. The VDP's /INT is the slot IRQ (R1 bit 5
+    /// and the frame flag; a $C0n1 read drops it). Any slotted machine, a ][+
+    /// as well as a //e; a //c refuses. `siliconStrict` enforces the VDP's
+    /// access window as the chip does (POM1's model, openMSX's slot tables:
+    /// the gap needed depends on the mode and the beam) and makes R1 bit 7
+    /// select 4 KB / 16 KB addressing; it is what the application runs.
+    bool attachEzColor(int slot = 4, bool siliconStrict = true);
+    bool ezColorAttached() const;
+    /// The chip's registers and counters, read without side effects; all
+    /// zero (strict true) when no card is attached.
+    EzColorState ezColorState() const;
+    /// Copy up to `len` bytes of VRAM from `from` (wrapping at 16 KB) into
+    /// `out`; returns how many were copied (0 with no card).
+    std::size_t ezColorVram(std::uint8_t* out, std::size_t len, std::uint16_t from = 0) const;
+    void resetEzColorDropCount();
+    /// The card's own monitor: 288 × 216, the 256 × 192 picture inside its
+    /// R7 border (at x 16, y 12), 0xAABBGGRR like renderFrame() and with the
+    /// same lifetime rule. The VDP paints it line by line as its beam passes,
+    /// so mid-frame the lines below the beam still show the previous frame.
+    /// An empty view with no card.
+    FramebufferView renderEzColorFrame();
     /// The card's double hi-res mode now; Color140 (its power-on and reset
     /// mode) when no card is attached.
     RgbDhgrMode rgbDhgrMode() const;

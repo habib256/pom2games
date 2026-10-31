@@ -49,6 +49,10 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   `mb_irq_stop`, shadowed AY writes `mb_put` / `mb_forget`, `mb_hush` before
   disk I/O; see [Mockingboard music service](#mockingboard-music-service-mb_irqasm).
   WARGALAGA II (extracted from it, byte-identical).
+- **`ezcolor.inc`** / **`ezcolor.asm`** — the E-Z Color Graphics Interface
+  (TMS9918A card): `ez_detect`, VDP access helpers patched to the slot,
+  fills/copies, VBL macros; see [E-Z Color (TMS9918A) card](#e-z-color-tms9918a-card).
+  The drivers above it: [`../tms9918/`](../tms9918/README.md).
 - **`aysong.asm`** — the AYS song player (`ays_init`, `ays_tick`, `ays_stop`,
   `ays_mute`, `ays_pos`, `ays_set_pos`), 3 or 6 voices, bit-exact with
   `dev/tools/audio/aysong.py`; format in [AYSONG_FORMAT.md](AYSONG_FORMAT.md);
@@ -509,6 +513,116 @@ on the first tick (both chips written), then at most ~3,400, mean ~1,900.
 PT3 modules convert to AYS with `dev/tools/audio/pt3import.py` (what maps,
 what is reported lost: its docstring; `dev/tests/test_pt3_import.py` checks
 `pt3play.py`, its Python PT3 player, against `pt3/` under a2run).
+
+## E-Z Color (TMS9918A) card
+
+Steve Ciarcia's E-Z Color Graphics Interface (BYTE, August 1982): a TMS9918A
+with 16 KB of VRAM and its own video output, in any slot n. `$C0n0` is the
+VDP data port (VRAM read/write, auto-increment), `$C0n1` the register port
+(status read; address and register writes, two bytes each); the other
+`$C0nX` read `$FF`; `/INT` drives the slot IRQ; there is no slot ROM. Not
+validated on real hardware ([HARDWARE.md](../HARDWARE.md)); emulated by
+POM2 (2026-10-31, `src/EzColorCard.cpp`, not yet in the vendored SDK, see
+[the letter](../../tools/a2shot/LETTRE_POM2_EZCOLOR.md)) and by
+`a2run --ezcolor=N`.
+
+`.include "ezcolor.inc"` at the top (equates, macros, the 4 + 2 bytes of
+storage), `.include "ezcolor.asm"` **last** — after
+[`../tms9918/`](../tms9918/README.md)'s files, which call its helpers: every
+routine is `.ifref`-guarded, and the site list `ez_detect` patches is closed
+at the end of that file.
+
+| Entry | Contract |
+|---|---|
+| `ez_detect` | Out: A = slot 1..7, Z = 0; or A = 0, Z = 1. Sets `ez_slot`, `ez_slotx` (slot×16), patches every helper. A/X/Y clobbered, IRQ mask preserved (SEI inside) |
+| `ez_data_w` | A → data port (`STA $C0n0`), then the pad: 22 cycles store to store when chained. A/X/Y and flags preserved |
+| `ez_data_r` | data port → A (N/Z as LDA), same pad; X/Y preserved |
+| `ez_ctrl_w` | A → register port, same pad; A/X/Y and flags preserved |
+| `ez_status` / `ez_status_bit` | status → A (N = F) / `BIT` it (N = F, V = 5S, A kept); the read clears F, 5S, C and the byte flip-flop. No pad |
+| `ez_set_reg` | A = value, X = register 0..7; A clobbered |
+| `ez_vram_addr_w` / `ez_vram_addr_r` | A = address low, X = high (masked to `$3F`); the read form prefetches. A clobbered |
+| `ez_fill` / `ez_fill_blank` | A = byte, `ez_count` (ZP, 16-bit ≤ `$8000`) bytes at the write address: 27 / 9 cycles a byte. A kept, X/Y clobbered |
+| `ez_copy` / `ez_copy_blank` | `ez_count` bytes from `(ez_ptr)`: 32 / 14 cycles a byte; `ez_ptr+1` advances by count/256 |
+| `ez_read` | `ez_count` bytes from the read address to `(ez_ptr)`, padded |
+| `ez_pad18` | `JSR` = 18 cycles, registers and flags preserved (POM1's `tms9918_pad18`) |
+| `EZ_WRT_DATA_REG` / `EZ_WRT_DATA_VAL v` | POM1's `WRT_DATA_REG` / `WRT_DATA_VAL`: `JSR ez_data_w` (3 bytes against 6, same 22 cycles) |
+| `EZ_WAIT_VBLANK` / `EZ_WAIT_VBLANK_SAFE` / `EZ_WAIT_5S` | Frame flag (unbounded / ~65,536 polls then gives up) and fifth-sprite polls; A kept (the SAFE form keeps A/X/Y). Unnamed labels only: `@cheap` locals survive |
+| `EZ_DATA` = `$C080`, `EZ_CTRL` = `$C081` | `LDA EZ_DATA,X` / `LDA EZ_CTRL,X` with X = `ez_slotx` (4 cycles). **Loads only** |
+
+**Two access styles.** The helpers' absolute operands (`STA $C0F0` in the
+source) are rewritten by `ez_detect` to the slot's `$C0n0` / `$C0n1`, so a
+store is a plain absolute `STA` (MB_FAST_WRITE's idea); calling them costs
+the pad that the silicon contract demands anyway. Indexed access keeps X =
+`ez_slotx` and is for **loads only**: the NMOS 6502's `STA abs,X` (and
+`STA (zp),Y`) reads its target one cycle before writing it. On `$C0n0` that
+dummy read is a VRAM read: the address advances and the byte lands one
+further. On `$C0n1` it is a status read: it resets the control flip-flop (a
+two-byte command then decodes wrong) and clears F. a2run models the dummy
+read, so a test catches an indexed store. (Patching a site needs a symbol;
+ca65 ends `@cheap` local scopes at any symbol assignment, so the patched
+sites live only inside `ezcolor.asm` and programs reach them through the
+helpers.)
+
+**Silicon-strict contract** (POM1, validated on a Replica-1's TMS9918A):
+at least 18 cycles between back-to-back VRAM accesses (data port, or a read
+address setup, which prefetches) while the display is on and the beam is in
+the 192 active lines: a 22-cycle store-to-store gap. The register port's
+writes do not touch VRAM. With the display blanked (R1 bit 6 = 0) or in
+vertical blanking, the chip serves the CPU every ~2 µs: `ez_fill_blank` /
+`ez_copy_blank` (9 / 14 cycles a byte). `a2run` counts the accesses closer
+than 16 cycles in the active display and prints `vdp_fast_writes=N`
+(programs keep it 0). `a2shot --ezcolor=N` runs POM2's own card (SDK
+ba7f04da, silicon-strict window from openMSX's slot tables: 8 cycles apart
+never lose a byte in Graphics I/II) and prints `vdp_dropped=N`; the
+`vregs` step shows the counter.
+
+**Detection.** Slots 7, 5, 4, 2, 1, 6, then 3 with `EZ_DETECT_SKIP3 = 0`
+(`EZ_DETECT_ORDER`: your own zero-terminated list). `EZ_DETECT_BOOT_SLOT`
+names a byte whose bits 4-6 hold a slot never probed: `$B7E9` (DOS 3.3's
+IOB, slot×16) or `$BF30` (ProDOS `DEVNUM`, DSSS0000). Per candidate the
+helpers are patched to it, then: status read; read address `$3FFC`, four
+reads saved; write address `$3FFC`, `$A5 $5A $3C $C3`; read address, four
+reads compared; on a match the saved bytes are written back (VRAM as
+before). Every access is 18+ cycles after the previous one. An empty slot
+answers the floating bus and a latching card its last value, so four
+different bytes reject both. Per card:
+
+- **Disk II**: `$C0n0`/`$C0n1` are phase 0 off/on. The probe toggles phase
+  0 and always ends on a `$C0n0` access (a failed compare reads it, a found
+  card is written there), so phase 0 is left off. The stepper only moves
+  while the drive is enabled; skip the boot slot (`EZ_DETECT_BOOT_SLOT`) and
+  do not probe within a second of a disk access, while the controller still
+  holds the motor on.
+- **AppleMouse II** (6821 at `$C0n0-$C0n3`), **Videx-type 80-column cards**
+  (CRTC at `$C0n0/$C0n1`, which is why slot 3 is skipped by default),
+  clocks or other cards with writable registers there: the probe writes
+  them. Detect first, then initialise those cards, or leave their slot out
+  of `EZ_DETECT_ORDER`.
+- **Mockingboard** (registers in `$Cn00`), ROM-only cards, empty slots:
+  `$C0nX` ignored, safe.
+- **//c**: no slots; do not call `ez_detect` (`$FBC0` = 0).
+
+**IRQ.** With R1 bit 5 the frame flag pulls the slot IRQ until the status is
+read. A handler that reads it (it must, to drop `/INT`) also resets the
+control flip-flop: keep IRQs masked and poll (`EZ_WAIT_VBLANK_SAFE`), or set
+`EZ_PAIR_SEI = 1` so the library's control pairs are atomic (and wrap your
+own). On DOS 3.3 a II+ handler goes in `$03FE` (A saved at `$45`).
+
+```asm
+.include "apple2.inc"
+.include "tms9918.inc"          ; ezcolor.inc + POM1's macros, driver ZP
+        JSR     ez_detect
+        BEQ     no_card
+        JSR     init_vdp_g1     ; dev/lib/tms9918/tms9918m1.asm
+        WAIT_VBLANK
+        ; ...
+.include "tms9918m1.asm"
+.include "tms9918_pad.asm"
+.include "ezcolor.asm"          ; last
+```
+
+Size: `ez_detect` with the primitives it needs and `ez_patch`: 213 B; every
+helper referenced: ~500 B. Tests: `dev/tests/test_ezcolor.py` (`make test-hgr`).
 
 ## PT3 decoder: `pt3/` (WARGALAGA II, 2026-10-23)
 

@@ -29,6 +29,29 @@
  *   go:ADDR         jump: the PC becomes ADDR, the stack stays as it is
  *   call:ADDR:N     JSR ADDR from the current PC and run until it returns
  *                   (limit N frames); prints the cycles spent and registers
+ *   vpeek:ADDR[:LEN] (--ezcolor) hex-dump VRAM, lines "VADDR: XX ..."
+ *   vregs           (--ezcolor) "vregs R0..R7 status=SS addr=AAAA fast=N"
+ *
+ * --ezcolor[=N] puts an E-Z Color Graphics Interface in slot N (default 4):
+ * a TMS9918A with 16 KB of VRAM. $C0n0 = data port (VRAM read/write with
+ * auto-increment and the chip's read-ahead buffer: setting a read address
+ * prefetches, a read returns the buffer and prefetches the next byte, a
+ * write also loads the buffer), $C0n1 = register port (status read clears
+ * F/5S/C and the byte flip-flop; two-byte address/register writes, the
+ * first byte landing in the address low bits at once, a register write
+ * also loading the address high bits, as openMSX/POM1), other $C0nX read
+ * $FF. F rises at the start of vertical blanking (line 192 of 262, the
+ * card's own NTSC frame of 17062 cycles from power-on, as POM2's card); with R1 bit 5 set it pulls
+ * the 6502 IRQ (taken through $FFFE when I = 0). 5S and C stay 0 (no sprite
+ * scan). RESET resets the VDP (registers, status, flip-flop; VRAM kept).
+ * The IRQ goes to the Autostart ROM's $FA40 (then JMP ($03FE)): the
+ * vendored apple2p.rom has $FF59 at $FFFE, see machine_step().
+ * The NMOS dummy read of an indexed store (STA abs,X / abs,Y / (zp),Y) on
+ * the card's ports is modelled: it reads the port before the write, as the
+ * real 6502 does. Silicon-strict check: a VRAM access (data port, or a read
+ * address setup) less than 16 cycles after the previous one while the
+ * display is on and the beam is in lines 0-191 counts as a fast access;
+ * the total is printed at the end as "vdp_fast_writes=N" (must stay 0).
  *
  *   a2run --disk GAME.dsk wait:900 key:" " wait:60 shot:title.png
  *   a2run load:fixture.bin@6000 go:6000 until:6123:100 peek:2000:16
@@ -70,6 +93,94 @@ static uint8_t rom[0x3000];     /* $D000-$FFFF */
 static uint8_t slot6[256];      /* $C600 boot PROM */
 static int have_disk;           /* 0: no card in slot 6 (--disk not given) */
 Cpu cpu;
+
+/* --- E-Z Color (TMS9918A), --ezcolor[=N] ------------------------------------- */
+/* The card has its own crystal: an NTSC frame of 17062 CPU cycles (59.94 Hz,
+ * 262 lines of 17062/262 cycles, 192 active), not the Apple's 17030, as in
+ * POM2's E-Z Color card (ba7f04da), so frame-flag waits keep the same phase
+ * in both emulators. vdp_lines(t) = beam lines since power-on. */
+#define VDP_FRAME_CYCLES 17062u
+#define VDP_LINES 262u
+static uint64_t vdp_lines(uint64_t t) { return t * VDP_LINES / VDP_FRAME_CYCLES; }
+static int ez_slot;                     /* 0: no card */
+static uint8_t vram[16384], vreg[8], vstatus, vbuf, vfirst;
+static int vsecond;
+static uint16_t vaddr;
+static uint64_t vdp_vbl_seen, vdp_last_access;
+static int vdp_has_last;
+static unsigned long vdp_fast;
+static uint16_t inst_pc;                /* PC of the instruction being run */
+static uint64_t inst_cycles;            /* cpu.cycles at its start */
+static unsigned bus_n;                  /* bus accesses so far in it */
+
+static void vdp_reset(void)
+{
+    memset(vreg, 0, sizeof vreg);
+    vstatus = 0; vsecond = 0; vaddr = 0; vbuf = 0;
+    vdp_has_last = 0;
+}
+
+/* F rises when the beam enters line 192 (once per frame). */
+static void vdp_sync(uint64_t t)
+{
+    uint64_t l = vdp_lines(t);
+    uint64_t n = l < 192 ? 0 : (l - 192) / VDP_LINES + 1;
+    if (n > vdp_vbl_seen) { vdp_vbl_seen = n; vstatus |= 0x80; }
+}
+
+static void vdp_vram_access(uint64_t t)
+{
+    unsigned line = (unsigned)(vdp_lines(t) % VDP_LINES);
+    if ((vreg[1] & 0x40) && line < 192 && vdp_has_last && t - vdp_last_access < 16)
+        vdp_fast++;
+    vdp_last_access = t;
+    vdp_has_last = 1;
+}
+
+static uint8_t ez_io(int reg, int write, uint8_t val)
+{
+    uint64_t t = inst_cycles + (bus_n ? bus_n - 1 : 0);
+    vdp_sync(t);
+    if (reg == 0) {
+        vsecond = 0;
+        vdp_vram_access(t);
+        if (write) {
+            vbuf = val;
+            vram[vaddr] = val;
+        } else {
+            val = vbuf;
+            vbuf = vram[vaddr];
+        }
+        vaddr = (vaddr + 1) & 0x3FFF;
+        return write ? 0 : val;
+    }
+    if (reg != 1) return write ? 0 : 0xFF;
+    if (!write) {
+        uint8_t r = vstatus;
+        vsecond = 0;
+        vstatus &= 0x1F;
+        return r;
+    }
+    if (!vsecond) {
+        vfirst = val;
+        vaddr = (vaddr & 0x3F00) | val;
+        vsecond = 1;
+    } else {
+        vsecond = 0;
+        if (val & 0x80) {
+            vreg[val & 7] = vfirst;
+            vaddr = (uint16_t)(((val & 0x3F) << 8) | (vaddr & 0xFF));
+        } else {
+            vaddr = (uint16_t)(((val & 0x3F) << 8) | vfirst);
+            if (!(val & 0x40)) {            /* read address: prefetch */
+                vdp_vram_access(t);
+                vbuf = vram[vaddr];
+                vaddr = (vaddr + 1) & 0x3FFF;
+            }
+        }
+    }
+    return 0;
+}
 
 /* --- keyboard ------------------------------------------------------------- */
 uint8_t kbd_latch;
@@ -342,6 +453,7 @@ static uint8_t io(uint16_t a, int write, uint8_t val)
      * absolute LDA/CMP/BIT reads on its 4th cycle) */
     if (lo >= 0x50 && lo < 0x60) return write ? 0 : floating_bus(cpu.cycles + 3);
     if (lo >= 0x70 && lo < 0x80) { ptrig_at = cpu.cycles; return 0; }
+    if (ez_slot && (lo >> 4) == 8 + ez_slot) return ez_io(lo & 0x0F, write, val);
     if (lo >= 0xE0 && lo < 0xF0) return disk_io(lo & 0x0F, write, val);
     return 0;
 }
@@ -349,6 +461,7 @@ static uint8_t io(uint16_t a, int write, uint8_t val)
 static uint8_t bus_read(void *ctx, uint16_t a)
 {
     (void)ctx;
+    bus_n++;
     if (a < 0xC000) return ram[a];
     if (a >= 0xD000) return rom[a - 0xD000];
     if (a < 0xC100) return io(a, 0, 0);
@@ -356,9 +469,34 @@ static uint8_t bus_read(void *ctx, uint16_t a)
     return 0;
 }
 
+static uint8_t peek_code(uint16_t a)
+{
+    return a < 0xC000 ? ram[a] : a >= 0xD000 ? rom[a - 0xD000] : 0;
+}
+
+/* The NMOS 6502's indexed store reads (base high, low + index) one cycle
+ * before writing; on the card's ports that read has side effects. */
+static void ez_dummy_read(uint16_t a)
+{
+    uint8_t op = peek_code(inst_pc);
+    unsigned base, idx;
+    if (op == 0x9D || op == 0x99) {
+        base = peek_code(inst_pc + 1) | (peek_code(inst_pc + 2) << 8);
+        idx = op == 0x9D ? cpu.x : cpu.y;
+    } else if (op == 0x91) {
+        uint8_t zp = peek_code(inst_pc + 1);
+        base = ram[zp] | (ram[(uint8_t)(zp + 1)] << 8);
+        idx = cpu.y;
+    } else return;
+    uint16_t d = (uint16_t)((base & 0xFF00) | ((base + idx) & 0xFF));
+    if (d == a) { bus_n++; io(a, 0, 0); }
+}
+
 static void bus_write(void *ctx, uint16_t a, uint8_t v)
 {
     (void)ctx;
+    bus_n++;
+    if (ez_slot && (a & 0xFFF0) == 0xC080 + 16 * ez_slot) ez_dummy_read(a);
     if (a < 0xC000) {
         ram[a] = v;
         if (stack_active && a >= stack_low && a < stack_min) stack_min = a;
@@ -377,13 +515,37 @@ static void feed_keyboard(void)
     kbd_last = cpu.cycles;
 }
 
+/* One instruction, after the card's IRQ (R1 IE and F) when I = 0. */
+static void machine_step(void)
+{
+    if (ez_slot && (vreg[1] & 0x20)) {
+        vdp_sync(cpu.cycles);
+        if ((vstatus & 0x80) && !(cpu.p & FI)) {
+            ram[0x100 | cpu.s--] = (uint8_t)(cpu.pc >> 8);
+            ram[0x100 | cpu.s--] = (uint8_t)cpu.pc;
+            ram[0x100 | cpu.s--] = (uint8_t)((cpu.p & ~FB) | FU);
+            cpu.p |= FI;
+            cpu.pc = (uint16_t)(rom[0xFFFE - 0xD000] | (rom[0xFFFF - 0xD000] << 8));
+            /* The vendored apple2p.rom holds $FF59 (the old Monitor's RESET)
+             * at $FFFE; the Autostart ROM's IRQ entry is $FA40 (STA $45,
+             * PLA, PHA, ASL x3, BMI BREAK, JMP ($03FE)), which is there. */
+            if (cpu.pc == 0xFF59 && rom[0xFA40 - 0xD000] == 0x85) cpu.pc = 0xFA40;
+            cpu.cycles += 7;
+        }
+    }
+    inst_pc = cpu.pc;
+    inst_cycles = cpu.cycles;
+    bus_n = 0;
+    cpu_step(&cpu);
+}
+
 static void run_cycles(uint64_t n)
 {
     uint64_t end = cpu.cycles + n;
     while (cpu.cycles < end) {
         feed_keyboard();
         stack_sample();
-        cpu_step(&cpu);
+        machine_step();
     }
 }
 
@@ -576,10 +738,15 @@ int a2run_main(int argc, char **argv)
         if (!strcmp(argv[i], "--disk") && i + 1 < argc) disk = argv[++i];
         else if (!strcmp(argv[i], "--wp")) write_protect = 1;
         else if (!strcmp(argv[i], "--roms") && i + 1 < argc) snprintf(roms, sizeof roms, "%s", argv[++i]);
+        else if (!strcmp(argv[i], "--ezcolor")) ez_slot = 4;
+        else if (!strncmp(argv[i], "--ezcolor=", 10)) {
+            ez_slot = atoi(argv[i] + 10);
+            if (ez_slot < 1 || ez_slot > 7) { fprintf(stderr, "a2run: --ezcolor=1..7\n"); return 2; }
+        }
         else break;
     }
     if (i < argc && argv[i][0] == '-') {
-        fprintf(stderr, "usage: a2run [--roms DIR] [--wp] [--disk X.dsk] step...\n");
+        fprintf(stderr, "usage: a2run [--roms DIR] [--wp] [--ezcolor[=N]] [--disk X.dsk] step...\n");
         return 2;
     }
     char path[1200];
@@ -590,6 +757,8 @@ int a2run_main(int argc, char **argv)
     for (int k = 0; k < 256; k++) dec62[k] = -1;
     for (int k = 0; k < 64; k++) dec62[enc62[k]] = k;
     have_disk = disk != NULL;
+    if (have_disk && ez_slot == 6) { fprintf(stderr, "a2run: --ezcolor=6 needs slot 6 free (no --disk)\n"); return 2; }
+    vdp_reset();
     if (have_disk && !load_disk(disk)) return 1;
 
     for (int k = 0; k < 0xC000; k++) ram[k] = (k & 2) ? 0xFF : 0x00;   /* power-on pattern */
@@ -615,7 +784,7 @@ int a2run_main(int argc, char **argv)
             while (cpu.pc != target && cpu.cycles < end) {
                 feed_keyboard();
                 stack_sample();
-                cpu_step(&cpu);
+                machine_step();
             }
             printf("until %04X cycles=%llu PC=%04X\n", target, (unsigned long long)cpu.cycles, cpu.pc);
             if (cpu.pc != target) return 3;
@@ -672,6 +841,31 @@ int a2run_main(int argc, char **argv)
             if (n >= 0 && n < 3) button[n] = (uint8_t)v;
         } else if (!strcmp(s, "reset")) {
             cpu_reset(&cpu);
+            vdp_reset();
+        } else if (!strncmp(s, "vpeek:", 6)) {
+            if (!ez_slot) return 2;
+            unsigned a = (unsigned)strtoul(s + 6, NULL, 16) & 0x3FFF, n = 1;
+            const char *c = strchr(s + 6, ':');
+            if (c) n = (unsigned)strtoul(c + 1, NULL, 0);
+            static const char hex[] = "0123456789ABCDEF";
+            for (unsigned k = 0; k < n; k += 16) {
+                char line[8 + 16 * 3 + 1], *q = line;
+                unsigned at = (a + k) & 0x3FFF, m = n - k < 16 ? n - k : 16;
+                *q++ = 'V'; *q++ = hex[at >> 12]; *q++ = hex[(at >> 8) & 15];
+                *q++ = hex[(at >> 4) & 15]; *q++ = hex[at & 15]; *q++ = ':';
+                for (unsigned j = 0; j < m; j++) {
+                    uint8_t v = vram[(a + k + j) & 0x3FFF];
+                    *q++ = ' '; *q++ = hex[v >> 4]; *q++ = hex[v & 15];
+                }
+                *q++ = '\n';
+                fwrite(line, 1, (size_t)(q - line), stdout);
+            }
+        } else if (!strcmp(s, "vregs")) {
+            if (!ez_slot) return 2;
+            vdp_sync(cpu.cycles);
+            printf("vregs %02X %02X %02X %02X %02X %02X %02X %02X status=%02X addr=%04X fast=%lu\n",
+                   vreg[0], vreg[1], vreg[2], vreg[3], vreg[4], vreg[5], vreg[6], vreg[7],
+                   vstatus, vaddr, vdp_fast);
         } else if (!strcmp(s, "pc")) {
             printf("PC=%04X A=%02X X=%02X Y=%02X S=%02X P=%02X\n", cpu.pc, cpu.a, cpu.x, cpu.y, cpu.s, cpu.p);
         } else if (!strcmp(s, "spk")) {
@@ -713,7 +907,7 @@ int a2run_main(int argc, char **argv)
             while ((cpu.pc != back || cpu.s != s0) && cpu.cycles < end) {
                 feed_keyboard();
                 stack_sample();
-                cpu_step(&cpu);
+                machine_step();
             }
             printf("call %04X cycles=%llu elapsed=%llu A=%02X X=%02X Y=%02X P=%02X\n", target,
                    (unsigned long long)cpu.cycles, (unsigned long long)(cpu.cycles - start),
@@ -729,6 +923,7 @@ int a2run_main(int argc, char **argv)
         fflush(stdout);
     }
     if (spk_log) fclose(spk_log);
+    if (ez_slot) printf("vdp_fast_writes=%lu\n", vdp_fast);
     return 0;
 }
 

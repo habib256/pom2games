@@ -19,12 +19,30 @@
 //   call:ADDR:N     JSR ADDR from the current PC and run until it returns
 //                   (limit N frames); prints the cycles spent and registers
 //   insert:FILE     swap the drive 1 disk (a private copy, like --disk)
+//   text            print the 40x24 text page as "|....|" rows (a2run's step)
+//
+// --ezcolor[=N] installs the E-Z Color Graphics Interface (TMS9918A, 16 KB
+// VRAM, no ROM: $C0n0 data, $C0n1 registers / status) in slot N (default 4)
+// of the ][+ or //e, with the VDP's silicon-strict access window (accesses
+// too close together are dropped, as on the chip; R1 bit 7 selects 16 KB).
+// --ezcolor-lax turns the window off (implies --ezcolor if no slot given).
+// Its steps (a2run's formats, so a2test.Result parses both):
+//   vpeek:ADDR[:LEN] hex-dump VRAM (wrapping at 16 KB), lines "VADDR: XX ..."
+//   vregs           "vregs R0..R7 status=SS addr=AAAA irq=I dropped=N strict=S"
+//                   (read without side effects: F stays set)
+//   vdrop:reset     zero the dropped-access counter
+//   vshot:FILE.png  the card's monitor, 288x216 (picture at 16,12 inside the
+//                   R7 border) scaled x2; vshot:FILE.png:pic crops the
+//                   256x192 picture. The VDP paints line by line: take it at
+//                   a fixed point of the frame (after the guest's VBL wait)
+// and the run ends with "vdp_dropped=N" (accesses the VDP dropped; must be 0).
 //
 // An 800 KB ProDOS image (819 200 bytes, or .2mg) boots from a 3.5" SmartPort
 // controller in slot 5 (POM2's block-level card, no mechanical timing);
 // anything else from the Disk II in slot 6.
 //   reset           press RESET (warm: the 6502 RESET line)
 //   pc              print the program counter
+//   cpu             print "cpu PC=.. A=.. X=.. Y=.. S=.. P=.." (the registers)
 //   until:ADDR:N    run until PC reaches ADDR, with a limit of N video frames
 //   until:A,B:N     stop at either address (prompts with several entry points)
 //   tracepc:ADDR:COUNT:N  record COUNT PC visits, limit N video frames
@@ -69,6 +87,13 @@
 // The run is deterministic: no threads, no wall-clock pacing.
 #include <pom2/core.hpp>
 
+// The E-Z Color API (attachEzColor...) appeared in POM2 ba7f04da. sdk.mk sets
+// POM2_SDK_HAS_EZCOLOR=1 with the vendored header; a build against an older
+// header (or without sdk.mk) still compiles, and --ezcolor then refuses.
+#ifndef POM2_SDK_HAS_EZCOLOR
+#define POM2_SDK_HAS_EZCOLOR 0
+#endif
+
 #include <unistd.h>
 #include <zlib.h>
 
@@ -102,17 +127,21 @@ void chunk(std::vector<unsigned char>& png, const char* type,
     put32(png, crc32(0L, body.data(), static_cast<uInt>(body.size())));
 }
 
-bool writePng(const std::string& path, const pom2::FramebufferView& fb)
+bool writePng(const std::string& path, const pom2::FramebufferView& fb,
+              int x0 = 0, int y0 = 0, int cw = 0, int ch = 0, int forceScaleX = 0)
 {
     // HGR supplies 280 samples, DHGR/80-column modes supply 560. Give both
     // the same display aspect: double HGR columns as well as all scanlines.
-    const int scaleX = fb.width == 280 ? 2 : 1;
-    const int w = fb.width * scaleX, h = fb.height * 2;
+    // x0/y0/cw/ch crop (vshot's :pic), forceScaleX overrides the column scale.
+    if (!cw) cw = fb.width;
+    if (!ch) ch = fb.height;
+    const int scaleX = forceScaleX ? forceScaleX : cw == 280 ? 2 : 1;
+    const int w = cw * scaleX, h = ch * 2;
     std::vector<unsigned char> raw;
     raw.reserve(static_cast<size_t>(h) * (w * 3 + 1));
     for (int y = 0; y < h; ++y) {
         raw.push_back(0);                               // filter: none
-        const std::uint32_t* row = fb.pixels + (y / 2) * fb.width;
+        const std::uint32_t* row = fb.pixels + (y0 + y / 2) * fb.width + x0;
         for (int x = 0; x < w; ++x) {
             const std::uint32_t pixel = row[x / scaleX];
             raw.push_back(pixel & 0xFF);
@@ -173,6 +202,8 @@ int main(int argc, char** argv)
     bool mockingboard = false;
     bool pal = false;
     bool stdinScript = false;
+    int ezSlot = 0;                             // --ezcolor[=N]
+    bool ezStrict = true;                       // --ezcolor-lax: false
     std::vector<std::string> script;
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -187,11 +218,17 @@ int main(int argc, char** argv)
         else if (a == "--pal") pal = true;
         else if (a == "--mockingboard") mockingboard = true;
         else if (a == "--stdin") stdinScript = true;
+        else if (a == "--ezcolor") ezSlot = 4;
+        else if (a.rfind("--ezcolor=", 0) == 0) {
+            ezSlot = std::atoi(a.c_str() + 10);
+            if (ezSlot < 1 || ezSlot > 7) { std::fprintf(stderr, "a2shot: --ezcolor=1..7\n"); return 2; }
+        }
+        else if (a == "--ezcolor-lax") ezStrict = false;
         else script.push_back(a);
     }
     if (disk.empty()) {
         std::fprintf(stderr, "usage: a2shot [--iie|--iic|--iic16] [--pal] [--mockingboard] [--mouse[=applewin]] [--mouse-slot=N]\n"
-                             "              [--roms DIR] --disk X.dsk step...\n");
+                             "              [--ezcolor[=N]] [--ezcolor-lax] [--roms DIR] --disk X.dsk step...\n");
         return 2;
     }
 
@@ -240,6 +277,18 @@ int main(int argc, char** argv)
         std::fprintf(stderr, "mouse: %s\n", iic ? "the //c has its own" : core.lastError().c_str());
         return 1;
     }
+    if (!ezStrict && !ezSlot) ezSlot = 4;
+#if POM2_SDK_HAS_EZCOLOR
+    if (ezSlot && !core.attachEzColor(ezSlot, ezStrict)) {
+        std::fprintf(stderr, "E-Z Color: %s\n", core.lastError().c_str());
+        return 1;
+    }
+#else
+    if (ezSlot) {
+        std::fprintf(stderr, "E-Z Color: this POM2 core SDK predates the card (needs ba7f04da)\n");
+        return 1;
+    }
+#endif
     if ((iie || iic) && !core.loadCharacterRom(roms + "/apple2e_char.rom")) {
         std::fprintf(stderr, "char ROM: %s\n", core.lastError().c_str());
         return 1;
@@ -595,6 +644,60 @@ int main(int argc, char** argv)
             core.softReset();
         } else if (op == "pc") {
             std::printf("PC=%04X\n", core.cpuState().programCounter);
+        } else if (op == "cpu") {
+            const auto st = core.cpuState();
+            std::printf("cpu PC=%04X A=%02X X=%02X Y=%02X S=%02X P=%02X\n", st.programCounter,
+                        st.accumulator, st.x, st.y, st.stackPointer, st.status);
+        } else if (op == "text") {
+            // Bus reads of the text page (RAM, no side effects), as a2run.
+            const bool page2 = core.displayState().page2;
+            for (int r = 0; r < 24; ++r) {
+                const unsigned base = (page2 ? 0x800u : 0x400u) + (r & 7) * 0x80u + (r >> 3) * 40u;
+                char line[41];
+                for (int c = 0; c < 40; ++c) {
+                    int ch = core.read(static_cast<std::uint16_t>(base + c)) & 0x7F;
+                    if (ch < 0x20) ch += 0x40;          // inverse / flash upper case
+                    line[c] = static_cast<char>(ch);
+                }
+                line[40] = 0;
+                std::printf("|%s|\n", line);
+            }
+#if POM2_SDK_HAS_EZCOLOR
+        } else if (op == "vpeek") {
+            if (!ezSlot) return 2;
+            const size_t c2 = arg.find(':');
+            const unsigned addr = std::strtoul(arg.substr(0, c2).c_str(), nullptr, 16) & 0x3FFF;
+            const unsigned len = c2 == std::string::npos ? 1 : std::strtoul(arg.substr(c2 + 1).c_str(), nullptr, 0);
+            std::vector<std::uint8_t> v(len);
+            if (len && core.ezColorVram(v.data(), len, static_cast<std::uint16_t>(addr)) != len) return 1;
+            for (unsigned k = 0; k < len; k += 16) {
+                std::printf("V%04X:", (addr + k) & 0x3FFF);
+                for (unsigned j = k; j < len && j < k + 16; ++j) std::printf(" %02X", v[j]);
+                std::printf("\n");
+            }
+        } else if (op == "vregs") {
+            if (!ezSlot) return 2;
+            const auto e = core.ezColorState();
+            std::printf("vregs %02X %02X %02X %02X %02X %02X %02X %02X status=%02X addr=%04X irq=%d dropped=%llu strict=%d\n",
+                        e.registers[0], e.registers[1], e.registers[2], e.registers[3],
+                        e.registers[4], e.registers[5], e.registers[6], e.registers[7],
+                        e.status, e.address, int(e.irqAsserted),
+                        static_cast<unsigned long long>(e.droppedAccesses), int(e.siliconStrict));
+        } else if (op == "vdrop") {
+            if (!ezSlot || arg != "reset") return 2;
+            core.resetEzColorDropCount();
+        } else if (op == "vshot") {
+            if (!ezSlot) return 2;
+            std::string file = arg;
+            const bool pic = file.size() > 4 && file.compare(file.size() - 4, 4, ":pic") == 0;
+            if (pic) file.resize(file.size() - 4);
+            const auto fb = core.renderEzColorFrame();
+            if (!fb.pixels || (pic ? !writePng(file, fb, 16, 12, 256, 192, 2) : !writePng(file, fb, 0, 0, 0, 0, 2))) {
+                std::fprintf(stderr, "cannot write %s\n", file.c_str());
+                return 1;
+            }
+            std::printf("vshot %s %dx%d\n", file.c_str(), pic ? 256 : fb.width, pic ? 192 : fb.height);
+#endif
         } else {
             std::fprintf(stderr, "unknown step: %s\n", step.c_str());
             return 2;
@@ -606,5 +709,10 @@ int main(int argc, char** argv)
             std::fflush(stdout);
         }
     }
+#if POM2_SDK_HAS_EZCOLOR
+    if (ezSlot)
+        std::printf("vdp_dropped=%llu\n",
+                    static_cast<unsigned long long>(core.ezColorState().droppedAccesses));
+#endif
     return 0;
 }

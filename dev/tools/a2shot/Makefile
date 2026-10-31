@@ -7,6 +7,9 @@
 # stripped; provenance in sdk.mk) and roms/ the Apple ][+, //e and Disk II
 # ROMs a run boots from, both copied from POM2. Only libslirp (brew install
 # libslirp / apt install libslirp-dev) and zlib come from the system.
+# The SDK is POM2 ba7f04da: it has the E-Z Color card (a2shot --ezcolor[=N],
+# vpeek / vregs / vdrop / vshot); sdk.mk sets POM2_SDK_HAS_EZCOLOR=1, without
+# which a2shot.cpp still compiles (against an older header) minus the card.
 
 A2SHOT_DIR := .
 include sdk.mk

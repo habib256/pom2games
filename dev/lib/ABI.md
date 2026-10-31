@@ -250,6 +250,10 @@ Options of this kind (measurements: hgrc bench, or the commit that introduced th
 | `AYSONG_VOICES` | `apple2/aysong.asm` | 6: both chips: 3 more voices of 19 B and 32 B more of registers in BSS, the second chip's mixer and write loop (+78 B code) | — (dev/tests/test_aysong.py) |
 | `AYSONG_FAST_PERIODS` | `apple2/aysong.asm` | A 96-note period table instead of 12 notes + octave shifts with a per-voice cache: +112 B code/table, −3 B BSS a voice, ~230 cycles less on a row of three new notes (~25 a tick on average) | — (dev/tests/test_aysong.py) |
 | `AYSONG_CPU65C02` | `apple2/aysong.asm` | `stz` forms: −4 B (assemble for the 65C02) | — (dev/tests/test_mb_irq.py) |
+| `EZ_ZP` | `apple2/ezcolor.inc` | `ez_slot`/`ez_slotx` in zero page instead of BSS (2 B ZP): −1 cycle and −1 B for each `LDX ez_slotx` | — (dev/tests/test_ezcolor.py) |
+| `EZ_PAIR_SEI` | `apple2/ezcolor.asm` | `ez_set_reg`/`ez_vram_addr_*` mask IRQs around their two control bytes (for an IRQ handler that reads the VDP status, which resets the byte flip-flop): +4 B and +7 cycles each | — |
+| `EZ_DETECT_SKIP3` / `EZ_DETECT_ORDER` / `EZ_DETECT_BOOT_SLOT` | `apple2/ezcolor.asm` | Probe slot 3 last (0; default 1 = skipped) / your own zero-terminated slot list / skip the slot in bits 4-6 of that byte (`$B7E9` DOS 3.3, `$BF30` ProDOS); placement, not speed | — (dev/tests/test_ezcolor.py) |
+| `TMS9918_M1_ZP` / `TMS9918_M2_ZP` / `TMS9918_CONSOLE_ZP` | `tms9918/tms9918.inc` | Reserve the drivers' zero page at the top of the source (6 / 17 / 3 B; M1 default on) so code above the drivers uses zero-page addressing; off: the driver reserves it later (absolute operands before, ca65 warnings) | — (dev/tests/test_ezcolor.py) |
 
 The modules' other definitions (ZP addresses, `DOS_ZP_*`, `RWTS_*`,
 `HGR_SPR_MAX`, `HG_HOOK_*`/`HP_OR_PLOT` hooks, `WF_*_TABLE` tables…)

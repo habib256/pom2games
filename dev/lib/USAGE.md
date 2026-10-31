@@ -14,6 +14,7 @@ par elle, ni que toutes les familles d'une archive sont liées dans le binaire.
 | CHESS | `apple2` : HGR, clavier, joystick (`stick_key`), son, délai, texte ; `hgr` : tables, glyphes natifs et bitmaps des pièces ; `font` |
 | MAZE3D | `apple2` : HGR, joystick, son, DOS (`dos_cmd_line`), sortie et LZ4FH ; `hgr` : pages, texte, sprites compactés, lignes, spans et effacement de lignes |
 | DIRTBIKE | `apple2` : HGR, clavier, manette rapide, son, musique par ticks (`tune.asm`), initiales (`ini_key`), LZ4FH, RWTS ; `hgr` : tables, texte (`hgr_puts8_at`), lignes, pages par patch ; `math` : produits, sommes, raccourcis de direction ; `physics` : points de Verlet, contraintes, sol en carte de hauteurs (`verlet*.asm`) ; `mouse` ; `font` |
+| ROGUE | `apple2` : carte E-Z Color (`ezcolor.asm` : `ez_detect`, emplacement de démarrage et 3 évités ; accès VDP du jeu propres, opérandes patchés), son (`tone`), musique par ticks (`tune.asm`), DOS (`dos_cmd_line` : le lanceur enchaîne `ROGUE.TMS` / `ROGUE.DHGR`), sortie ; outils `dev/tools/audio/tune.py`, `dev/tools/tms9918.py` (rendu VRAM des tests) ; le pilote Mode 1 de POM1 est recopié dans `rogue/src/video_tms.asm`, pas lié depuis `dev/lib/tms9918` |
 | SNAKE | `hgrc` : rendu HGR, cellules, texte, nombres ; `apple2c` : entrées ; police partagée |
 | PINBALL | `mouse` : pilote AppleMouse et contexte résident ; rendu et simulation historiques de Bill Budge conservés |
 | LIGHT3DBALL | `hgrc`, `apple2c`, `mouse` ; `perspective` : couloir natif ; `hgr` : fil de fer et spans ; `apple2` : son ; `font` |
