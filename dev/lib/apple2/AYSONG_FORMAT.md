@@ -131,3 +131,13 @@ tick reads `row`. `ays_pos` returns the next row to be read.
 - On the Apple II, `ays_pos` / `ays_set_pos` follow and move the cursor,
   `ays_mute` solos or mutes voices; the song bytes can be rebuilt in RAM and
   `ays_set_pos` called again (under SEI, or with the tick stopped).
+- Vortex Tracker II modules: `dev/tools/audio/pt3import.py IN.pt3 -o OUT.AYS`
+  (or `aysong.py --import-pt3 IN.pt3`). Samples become tick-macro
+  instruments (one per sample × channel volume × envelope / noise use, up to
+  15), ornaments of the form 0, x, y the `A` effect, the speed the gcd of
+  the line durations, patterns cut to a common row count; what cannot map
+  (portamento, vibrato, envelope slides, sample pitch offsets, other
+  ornaments, mid-note volume changes) is listed with counts in `--report`.
+  Pitch: `--clock apple` (what `pt3/` plays on the Mockingboard) or
+  `native` (the composer's 1.77 / 2 MHz); `--rate 25 --to-50hz` retimes a
+  25 Hz song (WARGALAGA II's) for a 50 Hz player.

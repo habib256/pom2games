@@ -28,6 +28,10 @@ PYTHON ?= python3
 II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake pinball light3dball wilderness dirtbike
 IIE_PRODOS_GAMES := chromabreak wargalagaii robotspacestation mbtracker
 DIRS := $(II_PLUS_GAMES) $(IIE_PRODOS_GAMES) logo dev/examples/hello dev/examples/hgr dev/examples/dhgr dev/examples/perspective
+# DHGR compositor action demo: its disk stays in its build/ (not dist/).
+DIRS += dev/examples/dhgr_action
+# Verlet lunar lander, the lib/physics demo: its disk stays in its build/.
+DIRS += dev/examples/lander
 # Programs whose own `make test` / `make test-long` belong to the root tiers.
 TESTED := pinball chromabreak arkabreakout chess micro-sokoban light3dball wilderness logo mbtracker dirtbike \
           wargalagaii snake robotspacestation
@@ -38,6 +42,8 @@ all:
 # Quick dev/ checks: shared libraries, examples, tools, performance budgets.
 DEV_CHECKS := test-hgr test-frame test-hgr-example test-assets bench-check \
               test-techniques test-tools test-minimal test-woz
+DEV_CHECKS += test-dhgr-action
+DEV_CHECKS += test-lander-example
 
 # The dev/ checks run on the portable headless II+ (a fresh checkout has to
 # build it first; the program Makefiles already list it, see apple2.mk).
@@ -83,6 +89,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_bcd.py
 	$(PYTHON) dev/tests/test_aysong.py
 	$(PYTHON) dev/tests/test_mb_irq.py
+	$(PYTHON) dev/tests/test_pt3_import.py
 	$(PYTHON) dev/tests/test_savehdr.py
 	$(PYTHON) dev/tests/test_vapor.py
 	$(PYTHON) dev/tests/test_exit_modes.py
@@ -223,6 +230,18 @@ test-hardware:
 test-minimal:
 	$(PYTHON) dev/tests/test_minimal_examples.py
 .PHONY: test-minimal
+
+# DHGR ACTION (dev/examples/dhgr_action): the compositor on two pages,
+# //e and //c (a2shot; skipped where it does not run).
+test-dhgr-action:
+	$(MAKE) -C dev/examples/dhgr_action test
+.PHONY: test-dhgr-action
+
+# LANDER (dev/examples/lander): its 6502 physics == tools/lander.py, and the
+# disk in a2run (a landing, a crash).
+test-lander-example:
+	$(MAKE) -C dev/examples/lander test
+.PHONY: test-lander-example
 
 # Compiler-derived shared-library usage and transitive build dependencies.
 audit-libs:

@@ -48,7 +48,7 @@ assembly and C; DIRTBIKE and ChromaBreak are tested on a real //e.
 | 🎯 | [**PINBALL**](pinball/README.md) — Bill Budge's Pinball Construction Set, with mouse | II+ 48 KB or //c | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/PINBALL.dsk) |
 | 🐢 | [**LOGO**](logo/README.md) — turtle graphics in 16 tints, 80 columns on a //e | //e or II+ | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/LOGO.dsk) |
 | 🐍 | [**SNAKE**](snake/README.md) — the classic, five levels, in 10.5 KB of C | II+ 48 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/SNAKE.dsk) |
-| 🎵 | [**MB TRACKER**](mbtracker/README.md) — a Mockingboard tracker: write the AYS songs the games play | //e or //c 128 KB, Mockingboard | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/MBTRACKER.po) |
+| 🎵 | [**MB TRACKER**](mbtracker/README.md) — a Mockingboard tracker: write the AYS songs the games play, 3 or 6 voices, keyboard and mouse, PT3 import | //e or //c 128 KB, Mockingboard | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/MBTRACKER.po) |
 
 <table><tr>
 <td><img src="wargalagaii/screenshots/demo.png" width="200" alt="WARGALAGA II"></td>

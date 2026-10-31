@@ -8,11 +8,10 @@
  *
  * Patterns live unpacked in aux memory from $0800 (3 bytes a cell, a voice
  * = 64 rows = 192 bytes, a pattern = voices x 192: 64 patterns of 3 voices
- * or 32 of 6 up to $97FF); the one being edited is `grid` in main RAM. */
+ * or 32 of 6 up to $97FF); the one being edited is `grid` in main RAM.
+ * The decoder is in the overlay OVL2 (src/mbt.cfg). */
 #include <string.h>
 #include "mbt.h"
-
-#define AUX_PATTERNS 0x0800u
 
 unsigned char s_voices, s_rows, s_speed, s_rate, s_nord, s_loop, s_nins, s_npat;
 unsigned char s_order[256];
@@ -23,7 +22,6 @@ unsigned song_len;
 
 #pragma bss-name (push, "LOWBSS")
 unsigned char grid[2 * MAXVOICES * TRACK];
-#define scratch (grid + MAXVOICES * TRACK)
 #pragma bss-name (pop)
 #pragma bss-name (push, "SONGBUF")
 unsigned char song_buf[SONGBUF_SIZE];
@@ -104,6 +102,18 @@ unsigned char pat_new(unsigned char copy)
     return p;
 }
 
+/* Pattern p out of the song: the next ones one down (their aux copies),
+ * the order list renumbered by the caller. */
+void __fastcall__ pat_delete(unsigned char p)
+{
+    pat_flush();
+    for (--s_npat; p < s_npat; ++p) {
+        aux_xfer(scratch, p + 1, 0);
+        aux_xfer(scratch, p, 1);
+    }
+    song_len = 0;
+}
+
 void ins_default(unsigned char i)
 {
     Instrument *n = &s_ins[i];
@@ -118,9 +128,9 @@ void ins_default(unsigned char i)
     }
 }
 
-void song_new(void)
+void __fastcall__ song_new(unsigned char voices)
 {
-    s_voices = 3;
+    s_voices = voices;
     s_rows = 64;
     s_speed = 6;
     s_rate = 50;
@@ -351,6 +361,9 @@ unsigned audition_encode(unsigned char *b, unsigned char ins, unsigned char note
 }
 
 /* ---------------------------------------------------------------- decoder */
+/* (in the overlay OVL2 with the file screens: only file_load calls it) */
+#pragma code-name (push, "OVL2")
+#pragma rodata-name (push, "OVL2")
 static const unsigned char *in;
 static unsigned in_len;
 static unsigned char bad;
@@ -537,3 +550,5 @@ unsigned char song_decode(unsigned len)
     aux_xfer(grid, cur_pat, 0);
     return 0;
 }
+#pragma rodata-name (pop)
+#pragma code-name (pop)
