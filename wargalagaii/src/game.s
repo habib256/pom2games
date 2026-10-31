@@ -1128,7 +1128,10 @@ JOY_DEAD = 40
 .segment "STORM2"
 joy_calib:
         ldx #0
+        php                      ; (a music tick inside PREAD adds ~140)
+        sei
         jsr $FB1E                ; PREAD: Y = 0..255
+        plp
         tya
         lsr
         lsr

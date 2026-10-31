@@ -947,6 +947,10 @@ RAM principale libre : 13 octets → 1 945 (`$B657-$BDE4`).
 - IRQ : le gestionnaire ne touche ni la ZP cc65 ni sa pile, ni les
   commutateurs graphiques ; le firmware souris du //c envoie 60 IRQ/s
   (horloge VBL) ; la Mockingboard 4c se détecte avant de l'installer.
+- `PREAD` ($FB1E) compte en boucle de 11 cycles : une IRQ au milieu
+  (tick musique Mockingboard ~1 570 cycles) ajoute ~140 à la lecture. Le
+  masquer (`php / sei … plp`) : la boutique dérivait vers le bas
+  (2026-10-31, `sh_pread`, test « stick centred with the music »).
 - `$C05E/$C05F` règlent la souris sur //c si IOUDIS n'est pas mis
   (CHROMABREAK) : ne pas toucher AN3 en HGR.
 - POM2 relit la mémoire en fin d'image (« beam racing ») : une bascule de

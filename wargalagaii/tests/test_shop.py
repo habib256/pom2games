@@ -119,6 +119,20 @@ def speaker_music(disk, L):
           '(two sixteenths), the cursor still moves')
 
 
+def stick_still(disk, L):
+    """The stick centred in the shop, the card's music playing: the cursor
+    stays (a music tick inside PREAD once stepped it down now and then)."""
+    steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', 3),
+             L.until('game_tick', 3000), L.poke('credits', 0), L.poke('credits', 5, 1), 'key:\t', 'wait:4']
+    for _ in range(40):
+        steps += [L.poke('invul_t', 60), 'wait:40']
+    steps += [L.until('sh_loop', 3000), 'joy:0,0', 'wait:600', L.until('sh_loop', 60), L.peek('sh_cur')]
+    r = a2test.run(disk, steps, iie=True, mockingboard=True, timeout=900)
+    cur = r.mem(L['sh_cur'], 1)[0]
+    assert cur == 0, cur
+    print('PASS shop, stick centred with the music: the cursor stays for 10 s')
+
+
 def no_shop(disk, L):
     """Under 50 credits: no shop, the next level at once."""
     steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', 3), L.until('game_tick', 3000),
@@ -169,6 +183,7 @@ def main():
     # the stick: down twice, button (double shot), up, button (bullet), ESC
     scene(a.disk, L, 'stick', 500, [('joy', 1), ('joy', 1), ('btn',), ('joy', -1), ('btn',), '\\e'],
           joystick=True)
+    stick_still(a.disk, L)
     speaker_music(a.disk, L)
     no_shop(a.disk, L)
     marks_screen(a.disk, L)

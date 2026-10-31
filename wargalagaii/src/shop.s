@@ -413,7 +413,7 @@ sh_stick:
 :       stz sh_held
 sh_none2:
         ldx #1                   ; paddle 1: up / down, repeating
-        jsr $FB1E                ; PREAD: Y = 0..255
+        jsr sh_pread
         lda #1
         cpy #48
         bcc :+
@@ -430,6 +430,16 @@ sh_none:
         bra sh_none
 :       ldx #SH_REPEAT
         stx sh_rep
+        rts
+
+; PREAD with the interrupts held: the Mockingboard's music tick (~1 570
+; cycles, 25 Hz) inside the ROM's 11-cycle count loop added ~140 to the
+; reading, so a centred stick stepped down now and then (2026-10-31).
+sh_pread:
+        php
+        sei
+        jsr $FB1E                ; PREAD: Y = 0..255
+        plp
         rts
 
 sh_keys:  .byte $0B, $08, $0A, $15, $0D, ' ', $1B
