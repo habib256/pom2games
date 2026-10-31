@@ -23,10 +23,11 @@ include $(MOUSE)/mouse.mk
 
 DISK := $(DIST)/ROBOTSTATION.po
 SRCS := src/main.c src/ui.c src/board_ui.c src/zone.c src/sim.c src/title.c src/help.c src/hover.c src/sprites.c src/symbol.s \
-        src/pointer.s src/swap.s src/text.s src/overlay.s
-LIB_SRCS := $(sort $(HGRC_DHGR_SRCS) $(HGRC_DHGR_SMALL_TEXT_SRCS)) $(HGRC_DHGR_COLOR_BACKEND) \
+        src/pointer.s src/swap.s src/text.s src/overlay.s src/sprites_asm.s
+LIB_SRCS := $(sort $(HGRC_DHGR_SRCS) $(HGRC_DHGR_SMALL_TEXT_SRCS) $(HGRC_DHGR_SPR_SRCS)) $(HGRC_DHGR_COLOR_BACKEND) \
             $(GFX)/gfx_line.c $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) \
-            $(PRODOS_SRCS) $(PRODOS_FILE_SRCS) $(MOUSE_SRCS)
+            $(APPLE2C_AUX_SRCS) $(APPLE2C_AUXFETCH_SRCS) \
+            $(PRODOS_SRCS) $(PRODOS_FILE_AUX_AT_SRCS) $(MOUSE_SRCS)
 # (the speaker's tone right after crt0: its timed loops must not cross a
 # page, wherever the game's code grows; dev/lib/apple2/sound.asm asserts it)
 OBJS := $(BUILD)/crt0_prodos.o $(BUILD)/apple2game_asm.o $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o)))
@@ -34,7 +35,7 @@ OBJS := $(OBJS:.s=.o)
 LIB_OBJS := $(addprefix $(BUILD)/,$(notdir $(LIB_SRCS:.c=.o)))
 LIB_OBJS := $(LIB_OBJS:.s=.o)
 GAME_LIB := $(BUILD)/platform.lib
-CFLAGS := -t none --cpu 65c02 -Ors -I src $(HGRC_INCS) $(APPLE2C_INCS) $(PRODOS_INCS) $(MOUSE_INCS)
+CFLAGS := -t none --cpu 65c02 -Ors -D DHGR_SPR_MAX=7 -I src $(HGRC_INCS) $(APPLE2C_INCS) $(PRODOS_INCS) $(MOUSE_INCS)
 vpath %.c src $(HGRC) $(APPLE2C) $(GFX)
 vpath %.s src $(GFX) $(DEV)/cc65 $(HGRC) $(APPLE2C) $(PRODOS) $(MOUSE)
 
@@ -55,8 +56,22 @@ $(BUILD)/%.o: %.c $(wildcard src/*.h) $(HGRC_HEADERS) $(wildcard $(PRODOS)/*.h $
 	$(CL65) $(CFLAGS) -c -o $@ $<
 $(BUILD)/%.o: %.s $(HGRC_ASM_DEPS)
 	@mkdir -p $(@D)
-	$(CA65) -t none -I $(HGRC) -I $(APPLE2) -I $(PRODOS) -o $@ $<
-$(BUILD)/file.o: $(PRODOS_FILE_DEPS)
+	$(CA65) -t none $(SPR_AFLAGS) -I $(HGRC) -I $(APPLE2) -I $(PRODOS) -o $@ $<
+# The DHGR compositor (dev/lib/hgrc dhgr_spr_*: the room, its sprites and
+# the pointer's rows in the room; src/pointer.s draws the rows outside it):
+# 7 slots, rectangles only, the overlay inside the area only (no save-under
+# member). In the PLAY overlay but the calls and the overlay (resident:
+# PLAY is full). Its objects are rebuilt when these options change.
+SPR_DEFS := -D DHGR_SPR_MAX=7 -D DHGR_SPR_RECTS_ONLY=1 -D DHGR_SPR_OVERLAY_INSIDE=1
+SPR_PLAY_OBJS := $(addprefix $(BUILD)/,dhgr_spr_update.o dhgr_spr_asm.o dhgr_cv_asm.o \
+    dhgr_cv_bitmap.o dhgr_spr_cells.o)
+SPR_RES_OBJS := $(addprefix $(BUILD)/,dhgr_spr_api.o dhgr_spr_overlay.o dhgr_spr_cursor.o)
+$(SPR_PLAY_OBJS): SPR_AFLAGS := $(SPR_DEFS) -D DHGR_SPR_CODE_SEGMENT=1
+$(SPR_RES_OBJS): SPR_AFLAGS := $(SPR_DEFS)
+$(SPR_PLAY_OBJS) $(SPR_RES_OBJS): Makefile
+$(BUILD)/file_aux_at.o: $(PRODOS_FILE_AUX_AT_DEPS)
+$(BUILD)/apple2aux.o $(BUILD)/apple2auxfetch.o: $(APPLE2C_AUX_DEPS)
+$(BUILD)/main.o: $(APPLE2C)/apple2aux.h
 $(GAME_LIB): $(LIB_OBJS) Makefile
 	$(PYTHON) -c 'from pathlib import Path; Path("$@").unlink(missing_ok=True)'
 	$(AR65) a $@ $(LIB_OBJS)
@@ -68,28 +83,14 @@ $(BUILD)/hover.o: CFLAGS += --code-name L8CODE --rodata-name L8DATA
 $(BUILD)/game.bin.ovl: $(BUILD)/game.bin
 $(BUILD)/game.bin: $(OBJS) $(GAME_LIB) src/game.cfg
 	$(CL65) -t none -C src/game.cfg -m $(BUILD)/game.map -Ln $(BUILD)/game.lbl -o $@ $(OBJS) $(GAME_LIB)
-$(BUILD)/RSS.SYS: $(BUILD)/game.bin src/startup.s $(PRODOS_SYS_CFG)
-	$(CA65) --bin-include-dir $(BUILD) -o $(BUILD)/startup.o src/startup.s
+$(BUILD)/RSS.SYS: $(BUILD)/game.bin src/startup.s $(PRODOS_SYS_CFG) $(PRODOS_SYSRELOC_DEPS)
+	$(CA65) --bin-include-dir $(BUILD) -I $(PRODOS) -o $(BUILD)/startup.o src/startup.s
 	$(LD65) -C $(PRODOS_SYS_CFG) -o $@ $(BUILD)/startup.o
-$(BUILD)/RSS.SYSTEM: src/boot.s $(PRODOS_SYSBOOT_DEPS)
-	@mkdir -p $(@D)
-	$(CA65) -I $(PRODOS) -o $(BUILD)/boot.o src/boot.s
-	$(LD65) -C $(PRODOS_SYSBOOT_CFG) -o $@ $(BUILD)/boot.o
-$(DISK): $(BUILD)/RSS.SYS $(BUILD)/game.bin.ovl $(BUILD)/RSS.SYSTEM $(BUILD)/RSS.ROOMS $(BUILD)/RSS.TEXT1 $(BUILD)/RSS.TEXT2 $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py
-	@rm -rf $(BUILD)/stage
-	@mkdir -p $(BUILD)/stage $(DIST)
-	cp $(DEV)/tools/prodos/PRODOS $(BUILD)/stage/PRODOS#FF0000
-	cp $(BUILD)/RSS.SYSTEM $(BUILD)/stage/RSS.SYSTEM#FF2000
-	cp $(BUILD)/RSS.SYS $(BUILD)/stage/RSS.SYS#FF2000
-	cp $(BUILD)/RSS.ROOMS $(BUILD)/stage/RSS.ROOMS#060000
-	cp $(BUILD)/RSS.TEXT1 $(BUILD)/stage/RSS.TEXT1#060000
-	cp $(BUILD)/RSS.TEXT2 $(BUILD)/stage/RSS.TEXT2#060000
-	cp $(BUILD)/game.bin.ovl $(BUILD)/stage/RSS.OVL#060000
-	$(PYTHON) $(DEV)/tools/prodos/build_volume.py $(BUILD)/stage $@ \
-		--volume ROBOT.STATION --boot $(DEV)/tools/prodos/boot.bin --blocks 280
-
-run-iic: all
-	$(POM2) --preset iic --slot 4=iicmouse $(DISK)
+$(DISK): $(BUILD)/RSS.SYS $(BUILD)/game.bin.ovl $(BUILD)/RSS.SYSTEM $(BUILD)/RSS.ROOMS $(BUILD)/RSS.TEXT1 $(BUILD)/RSS.TEXT2 $(PRODOS_VOLUME_DEPS)
+	$(call prodos_volume,$@,ROBOT.STATION,$(BUILD)/RSS.SYSTEM=RSS.SYSTEM#FF2000 \
+		$(BUILD)/RSS.SYS=RSS.SYS#FF2000 $(BUILD)/RSS.ROOMS=RSS.ROOMS#060000 \
+		$(BUILD)/RSS.TEXT1=RSS.TEXT1#060000 $(BUILD)/RSS.TEXT2=RSS.TEXT2#060000 \
+		$(BUILD)/game.bin.ovl=RSS.OVL#060000)
 
 test: all
 	$(PYTHON) tests/test_model.py
@@ -106,4 +107,4 @@ test-long: all
 	$(PYTHON) tests/test_zone_fuzz.py --disk $(DISK) --labels $(BUILD)/game.lbl
 	$(PYTHON) tests/test_zone_fuzz.py --iic --disk $(DISK) --labels $(BUILD)/game.lbl
 
-.PHONY: run-iic test test-long
+.PHONY: test test-long

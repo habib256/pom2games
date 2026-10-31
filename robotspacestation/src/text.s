@@ -1,48 +1,19 @@
 ; Robot Space Station — the text bank (tools/gen_text.py) in auxiliary
 ; memory from $6000: a table of the texts' aux addresses, then the texts,
 ; NUL-terminated, lines split by $0A. Read a byte at a time through the
-; DHGR library's aux_read (zero page: RAMRD cannot switch out the code).
+; DHGR library's aux_read (zero page: RAMRD cannot switch out the code);
+; main.c stores it there at boot with aux_store (dev/lib/apple2c/apple2aux.h).
 .setcpu "65C02"
 .importzp ptr1, ptr2, aux_read
-.export _text_store, _text_open, _text_line, _text_buf, _store_src
+.export _text_open, _text_line, _text_buf
 
 TEXT_AUX = $6000
-RAMWRTOFF = $C004
-RAMWRTON = $C005
 
 .segment "LOWBSS"
 _text_buf: .res 32                      ; the line text_line() copied
 .segment "BSS"
 text_ptr: .res 2
-.segment "DATA"
-_store_src: .byte $20                   ; text_store's source page
-
 .segment "CODE"
-; text_store(pages, aux_page): A pages from main store_src (page, $20 at
-; first) to aux (X = page). At boot: $2000-$5FFF are free then.
-_text_store:
-        stx ptr2+1
-        tax
-        php
-        sei
-        stz ptr1
-        stz ptr2
-        lda _store_src
-        sta ptr1+1
-        ldy #0
-        sta RAMWRTON
-@copy:  lda (ptr1),y
-        sta (ptr2),y
-        iny
-        bne @copy
-        inc ptr1+1
-        inc ptr2+1
-        dex
-        bne @copy
-        sta RAMWRTOFF
-        plp
-        rts
-
 ; text_open(id): the next text_line() reads text id.
 _text_open:
         asl

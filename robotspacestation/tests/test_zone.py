@@ -10,10 +10,14 @@ clicks go through the game's test hook (src/ui.c test_click).
    fetch-the-cell board from the inside, run it: the drone grabs the cell,
    brings it back and lets it go on the charger, tick for tick like the
    model.
-3. The overlays: the window holds the right code on each screen."""
+3. The overlays: the window holds the right code on each screen.
+4. Write-once (dev/lib/hgrc dhgr_spr_*): missions 4 and 7 running with
+   their solutions, the technician walking and the pointer moving in the
+   room: during each compositor update every byte of page 1 is stored at
+   most once (aux stores with IRQs masked), and nothing else stores into
+   the room's rows."""
 import argparse
-import shutil
-import subprocess
+import re
 import sys
 from pathlib import Path
 
@@ -63,22 +67,15 @@ def enter_drone(L, mission):
     return click(x + 5, y + ROOM_Y + 6) + ['wait:150', idle(L), L.peek('_screen')]
 
 
+GAME_PO = HERE.parent / 'dist/ROBOTSTATION.po'     # main(): --disk
+
+
 def disk_with_save(data, name, rooms=True):
     """The game's volume plus an RSS.SAVE file (data None: none); rooms
     False drops RSS.ROOMS."""
-    stage = HERE / 'build' / f'stage_{name}'
-    shutil.rmtree(stage, ignore_errors=True)
-    shutil.copytree(HERE / 'build/stage', stage)
-    if data is not None:
-        (stage / 'RSS.SAVE#060000').write_bytes(data)
-    if not rooms:
-        (stage / 'RSS.ROOMS#060000').unlink()
     out = HERE / 'build' / f'{name}.po'
-    dev = HERE.parent / 'dev/tools/prodos'
-    subprocess.run([sys.executable, str(dev / 'build_volume.py'), str(stage), str(out),
-                    '--volume', 'ROBOT.STATION', '--boot', str(dev / 'boot.bin'),
-                    '--blocks', '280'], check=True, capture_output=True)
-    return out
+    return a2test.prodos_variant(GAME_PO, out, replace={} if data is None else {'RSS.SAVE#060000': data},
+                                 drop=() if rooms else ('RSS.ROOMS',))
 
 
 def mission_one(disk, L):
@@ -392,9 +389,14 @@ def old_save(disk, L, magic='RSS2'):
 def overlays(disk, L):
     """The overlay window $4000-$5FFF (src/overlay.s) holds exactly what
     RSS.OVL has: FRONT on the title, PLAY in a mission, FRONT again on its
-    briefing (GOAL), PLAY again back in the room, FRONT on the title."""
+    briefing (GOAL), PLAY again back in the room, FRONT on the title. (The
+    DHGR compositor's code in PLAY, DHGRSPRCODE, patches its own operands:
+    left out.)"""
     ovl = (HERE / 'build/game.bin.ovl').read_bytes()
     play, front = ovl[:0x2000].rstrip(b'\0'), ovl[0x2000:]
+    s0 = L['__DHGRSPRCODE_RUN__'] - 0x4000
+    s1 = s0 + L['__DHGRSPRCODE_SIZE__']
+    mask = lambda b: b[:s0] + bytes(len(b[s0:s1])) + b[s1:] if b is not front else b
     seen = lambda: [idle(L, 3000), L.peek('_overlay_cur'), f'peek:4000:{len(play)}']
     steps = [BOOT] + seen() + title(0) + seen() + zone_button(3) + ['wait:60'] + seen() \
         + brief_play() + seen() + zone_button(4) + ['wait:60'] + seen()
@@ -402,9 +404,62 @@ def overlays(disk, L):
     fails = 0
     for n, (name, want) in enumerate((('title', front), ('mission', play), ('briefing', front),
                                       ('room again', play), ('title again', front))):
-        got = bytes([r.mem(L['_overlay_cur'], 1, n)[0]]) + r.mem(0x4000, len(play), n)[:len(want)]
-        fails += check(f'overlay on the {name}', got, bytes([1 if want is play else 2]) + want)
+        got = r.mem(0x4000, len(play), n)[:len(want)]
+        if want is play:
+            got, want = mask(got), mask(want)
+        got = bytes([r.mem(L['_overlay_cur'], 1, n)[0]]) + got
+        fails += check(f'overlay on the {name}', got, bytes([1 if want is not front else 2]) + want)
     return fails
+
+
+STORE = re.compile(r'^store ([0-9A-F]{4}) ([0-9A-F]{4}) \S+ A=\w+ X=\w+ Y=\w+ S=\w+ P=([0-9A-F]{2}) '
+                   r'LC=\d\d\d\d(\d)')
+
+
+def write_once(L, updates=120):
+    from test_campaign import title_click
+    from test_model import solution
+    code0 = L['__DHGRSPRCODE_RUN__']
+    code1 = code0 + L['__DHGRSPRCODE_SIZE__']
+    room = {a2test.hgr_offset(y) + 0x2000 + b for y in range(ROOM_Y, ROOM_Y + 144) for b in range(40)}
+    fails = 0
+    for m, walk in ((3, (70, 120)), (6, (40, 60))):
+        b = solution(m)
+        a, b2 = b if isinstance(b, tuple) else (b, None)
+        disk = disk_with_save(save_bytes(EMPTY, reached=m, drone=a, drone2=b2), f'once{m}')
+        steps = [BOOT] + title_click(m) + ['wait:200', idle(L), 'key:M', 'wait:10'] + click(*walk)[:-1] \
+            + ['storewatch:2000:3FFF', 'tracepc:%04X:%d:3000' % (L['_dhgr_spr_update'], updates),
+               'unstorewatch']
+        raw = subprocess_run(disk, steps)
+        groups, stores, outside, twice, unmasked = raw.split('\ntracepc '), 0, 0, 0, 0
+        for g in groups[1:]:
+            seen = set()
+            for line in g.split('\n'):
+                mm = STORE.match(line)
+                if not mm:
+                    continue
+                pc, ea, p, aux = int(mm[1], 16), int(mm[2], 16), int(mm[3], 16), mm[4] == '1'
+                if not code0 <= pc < code1:
+                    outside += ea in room
+                    continue
+                stores += 1
+                twice += (aux, ea) in seen
+                seen.add((aux, ea))
+                unmasked += aux and not p & 4
+        fails += check(f'mission {m + 1}: {len(groups) - 1} updates, {stores} stores, each byte once, '
+                       'aux stores masked, the room drawn by nothing else',
+                       bytes((len(groups) - 1 == updates, stores > 1000, twice, unmasked, outside)),
+                       bytes((1, 1, 0, 0, 0)))
+    return fails
+
+
+def subprocess_run(disk, steps):
+    import subprocess
+    out = subprocess.run([str(a2test.A2SHOT)] + MACHINE + ['--disk', str(disk)] + a2test.escape(steps),
+                         capture_output=True, text=True, timeout=600)
+    if out.returncode:
+        raise RuntimeError(out.stdout[-2000:] + out.stderr)
+    return out.stdout
 
 
 def missing_rooms(disk, L):
@@ -421,6 +476,8 @@ def main():
     args = ap.parse_args()
     if args.iic:
         MACHINE[:] = ['--iic']
+    global GAME_PO
+    GAME_PO = Path(args.disk)
     L = a2test.labels(args.labels)
     SYNC[:] = [idle(L, 3000)]
     # The missions click through the game's test hook (ui.c test_click): the
@@ -444,6 +501,7 @@ def main():
     fails += old_save(disk_with_save(rss1, 'rss1'), L, 'RSS1')
     fails += missing_rooms(disk_with_save(None, 'norooms', rooms=False), L)
     fails += overlays(args.disk, L)
+    fails += write_once(L)
     print(f'shots in {SHOTS}')
     sys.exit(1 if fails else 0)
 

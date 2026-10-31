@@ -5,6 +5,7 @@
 #include "apple2c.h"
 #include "apple2io.h"
 #include "apple2frame.h"
+#include "apple2aux.h"
 #include "prodos.h"
 #include "mouse.h"
 #include "sim.h"
@@ -103,8 +104,8 @@ static void persist_defaults(void)
 #pragma rodata-name (pop)
 #pragma code-name (pop)
 
-/* The text bank, read at $2000 (DHGR not started yet), then into aux
- * $6000 and $8000; the overlays (RSS.OVL: PLAY padded to 8K, then FRONT)
+/* The text bank, read at $2000 (DHGR not started yet) into aux $6000 and
+ * $8000 (prodos_load_aux); the overlays (RSS.OVL: PLAY padded to 8K, then FRONT)
  * read at $2000-$5FFF, then into aux $4000 and $A000. 1 = done. */
 static unsigned char text_load(void)
 {
@@ -117,15 +118,14 @@ static unsigned char text_load(void)
     prodos_file_length = 0x2000u;
     for (k = 0u; k < 2u; ++k) {
         name[9] = '1' + k;
-        if (prodos_load_free()) return 0u;
-        text_store(k ? TEXT_PAGES2 | 0x8000u : TEXT_PAGES1 | 0x6000u);
+        if (prodos_load_aux(k ? (void *)0x8000 : (void *)0x6000, 0x2000u)) return 0u;
     }
     memcpy(name, ovl_name, sizeof ovl_name);
     prodos_file_length = 0x4000u;
     if (prodos_load_free()) return 0u;
-    text_store(32u | 0x4000u);
-    store_src = 0x40u;
-    text_store(32u | 0xA000u);
+    aux_store(32u, 0x40u);
+    aux_store_src = 0x40u;
+    aux_store(32u, 0xA0u);
     return 1u;
 }
 
@@ -326,9 +326,9 @@ static void enter_zone(void)
     overlay_use(OV_PLAY);
     screen_clear();
     zone_draw();
+    ui_room();
     if (won) buttons_set(won_buttons, won_tips, 5); else buttons_set(zone_buttons, zone_tips, 5);
     hover_force = 1u;
-    actor_show();
 }
 
 /* Mission m from its start: room (from the disk), objects, drone state
@@ -443,7 +443,6 @@ static void check_won(void)
 
 static void step(void)
 {
-    static unsigned char d;
     ++tick_count;
     if (screen == S_LAB) {
         memcpy(values, lab_inputs, 4);
@@ -451,8 +450,8 @@ static void step(void)
         board_refresh();
         return;
     }
-    d = zone_tick();
-    if (d && screen == S_ZONE) drone_draw(d);
+    zone_tick();
+    if (screen == S_ZONE) zone_frame();     /* what changed, each byte once */
     if (screen == S_DRONE) board_refresh();   /* (a drone passes over him) */
     check_won();
 }
@@ -576,8 +575,9 @@ static void walk(void)
             && tech_step(walk_x, walk_y);
         if (!again) walking = W_NONE;
         again = tech_touches_drone();       /* in only by a click on it */
-        if (again && again == walk_drone) { actor_hide(); enter_drone(again - 1u); return; }
+        if (again && again == walk_drone) { enter_drone(again - 1u); return; }
         if (zone_doors()) zone_draw_doors();     /* he may stand on a plate */
+        zone_frame();
         check_won();
         return;
     }
@@ -630,18 +630,21 @@ int main(void)
         busy = line || pressed || walking || key == KC_ESC
             || key == 'M' || key == 'S' || key == 'V' || key == 'H' || key == 'P' || key == 'G' || key == 'O' || (key >= '0' && key <= '9');
         if (!busy) {
-            if (screen == S_ZONE || screen == S_DRONE) actor_show();
+            actor_show();
             show();
             a2_frame_wait();
             continue;
         }
         /* A walk alone moves only the technician: keep the pointer unless
          * it is near him, even after this frame's step of up to 6 pixels
-         * (its pixels are inverted, his are saved). */
-        cursor_kept = walking && !pressed && !key
-            && ((unsigned char)(px - act_x + 14u) > 32u || (unsigned char)(py - act_y + 16u) > 42u);
+         * (the pointer and he both save what they cover: neither may be
+         * drawn over the other). In the room the compositor draws both.
+         * He is hidden after his step, just before he is drawn again. */
+        cursor_kept = walking && !pressed && !key;
+        if (cursor_kept && screen == S_DRONE)
+            cursor_kept = (unsigned char)(px - act_x + 14u) > 32u || (unsigned char)(py - act_y + 16u) > 42u;
         if (!cursor_kept) hide();
-        actor_hide();
+        if (!walking || pressed || key) actor_hide();
         if (screen == S_HELP && key) {      /* a key: on (ESC: done) */
             if (key == KC_ESC) help_done(); else help_next();
             pressed = 0u;                   /* (SPACE: once) */
@@ -670,8 +673,9 @@ int main(void)
         }
         if (pressed) click(px, py);
         if (walking) walk();
+        actor_hide();
         if (line && !hover_sync) hover_draw();
-        if (screen == S_ZONE || screen == S_DRONE) actor_show();
+        actor_show();
         show();
         a2_frame_wait();
     }

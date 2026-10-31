@@ -4,6 +4,7 @@
 #include "apple2io.h"
 #include "mouse.h"
 #include "ui.h"
+#include "zone.h"
 #include "apple2game.h"
 
 unsigned char screen, running;
@@ -15,12 +16,17 @@ unsigned char test_click, test_x, test_y;
 unsigned char act_x, act_y;
 
 static unsigned char shown, mouse_lx, mouse_ly, button_old, act_on, act_bx, act_by;
+/* In the room (ui_room): the pointer's rows in the room are the
+ * compositor's overlay, composed with the sprites in one pass; its rows
+ * above or below the room (if any) are drawn by src/pointer.s. */
+static unsigned char ov_mode, ptr_h_shown;
 static unsigned char latched, latch_x, latch_y;
 static unsigned char vbl_gate, vbl_armed, vbl_seen;   /* //e: one mouse read a frame */
 static unsigned char act_bg[4u * ACT_H];
 
 /* The pointer: a white arrow ORed into the 4 bytes x 6 rows under it,
- * saved first and written back by hide(). arrow_bits[p][r] holds row r's
+ * saved first and written back by hide() (src/pointer.s), or in the room
+ * the compositor's overlay (dhgr.h dhgr_spr_overlay). arrow_bits[p][r] holds row r's
  * bits for a pointer starting p mono pixels into its first byte (7 bits a
  * byte, the leftmost in bit 0), built once by pointer_init(). */
 static const unsigned char arrow_w[6] = {1, 2, 3, 4, 2, 1};
@@ -56,27 +62,58 @@ static void pointer_init(void)
             }
 }
 
+/* At px, py (shown). In the room: the rows inside it in one pass with
+ * the room's update, the others (ptr_y, ptr_h: none, above or below)
+ * restored and drawn again by src/pointer.s. */
 static void cursor_show(void)
 {
     static unsigned mono;
+    static unsigned char h, y1, in0, in1;
+    static const unsigned char *bits;
+    if (ov_mode && shown && ptr_h_shown) pointer_restore();    /* (where it was) */
     mono = (unsigned)px << 2;
     ptr_bx = (unsigned char)(mono / 7u);
+    h = py > 186u ? 192u - py : 6u;
+    bits = (held_kind || (held_part & held_src) != 0xFFu ? carry_bits : arrow_bits)
+           [(unsigned char)(mono - ptr_bx * 7u)][0];
     ptr_y = py;
-    ptr_h = py > 186u ? 192u - py : 6u;
-    ptr_bits = (held_kind || (held_part & held_src) != 0xFFu ? carry_bits : arrow_bits)
-               [(unsigned char)(mono - ptr_bx * 7u)][0];
-    pointer_draw();
+    ptr_h = h;
+    ptr_bits = bits;
+    if (ov_mode) {
+        y1 = py + h;
+        in0 = py < ROOM_Y ? ROOM_Y : py;
+        in1 = y1 > ROOM_Y + ROOM_H ? ROOM_Y + ROOM_H : y1;
+        if (in0 < in1) {
+            dhgr_spr_overlay(ptr_bx, in0, 4u, in1 - in0, bits + (unsigned char)((in0 - py) << 2), 0);
+            ptr_h = in0 - py;                   /* the rows above the room */
+            if (!ptr_h && y1 > in1) {           /* or below it */
+                ptr_y = in1;
+                ptr_h = y1 - in1;
+                ptr_bits = bits + (unsigned char)((in1 - py) << 2);
+            }
+        } else {
+            dhgr_spr_overlay(0u, 0u, 0u, 0u, bits, 0);
+        }
+        dhgr_spr_update();
+    }
+    ptr_h_shown = ptr_h;
+    if (ptr_h) pointer_draw();
     shown = 1u;
 }
 
-static void cursor_hide(void)
+/* In the room only the rows out of it go (the title or the buttons may be
+ * drawn there): the room changes under the overlay. */
+void hide(void)
 {
-    pointer_restore();
+    if (shown && ptr_h_shown) pointer_restore();
     shown = 0u;
 }
-
-void hide(void) { if (shown) cursor_hide(); }
 void show(void) { if (!shown) cursor_show(); }
+
+void ui_room(void)
+{
+    ov_mode = 1u;
+}
 
 /* A press between two polls of the main loop would be lost: the drawings
  * that take several frames call this every few steps. Not more often: two
@@ -106,6 +143,7 @@ void ui_latch(void)
 void screen_clear(void)
 {
     static unsigned char y;
+    shown = ov_mode = 0u;                   /* (the pointer goes with the screen) */
     for (y = 0u; y < 192u; y += 24u) {
         ui_latch();
         dhgr_clear_rows(y, 24, DHGR_BLACK);
@@ -156,9 +194,9 @@ void ui_poll(void)
     }
     moved = nx != px || ny != py;
     if (moved) {
-        hide();
+        if (!ov_mode) hide();               /* (the overlay moves in one pass) */
         px = nx; py = ny;
-        show();
+        cursor_show();
     }
 }
 
@@ -238,10 +276,11 @@ unsigned char __fastcall__ button_at(unsigned char x)
 
 /* -- technician -------------------------------------------------------------- */
 
+/* On the board screen only (in the room he is a compositor sprite). */
 void actor_show(void)
 {
     static unsigned char x, y;
-    if (act_on) return;
+    if (act_on || screen != S_DRONE) return;
     x = act_x; y = act_y;
     act_bx = (unsigned char)(((unsigned)x << 2) / 7u);
     act_by = y;
@@ -254,13 +293,6 @@ void begin_draw(void)
 {
     hide();
     actor_hide();
-}
-
-void begin_draw_box(unsigned char x0, unsigned char y0, unsigned char x1, unsigned char y1)
-{
-    /* The pointer is 4 x 6, the technician ACT_W x ACT_H. */
-    if (px <= x1 && px + 4u > x0 && py <= y1 && py + 6u > y0) hide();
-    if (act_x <= x1 && act_x + ACT_W > x0 && act_y <= y1 && act_y + ACT_H > y0) actor_hide();
 }
 
 void actor_hide(void)

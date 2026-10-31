@@ -1,7 +1,11 @@
 /* Robot Space Station — pointer, input, messages, buttons and the
- * technician's sprite. Draw only with the pointer hidden (hide/show): it is
- * drawn by inverting pixels. The sprite saves what it covers; hide it too
- * before drawing under it. */
+ * technician's sprite on the board screen. Draw only with the pointer
+ * hidden (hide/show): it is ORed into the screen over a saved copy of what
+ * it covers (src/pointer.s). In the room (ui_room) it is the compositor's
+ * overlay instead (dev/lib/hgrc dhgr_spr_overlay): the room changes under
+ * it without hiding it, hide() only matters while it reaches out of the
+ * room. The board screen's technician saves what he covers too; hide him
+ * before drawing under him. */
 #ifndef UI_H
 #define UI_H
 
@@ -29,14 +33,14 @@ void ui_latch(void);
 void screen_clear(void);
 void hide(void);
 void show(void);
+/* The room is on screen (zone_draw): the pointer becomes its overlay until
+ * the next screen_clear(). */
+void ui_room(void);
 void __fastcall__ message(const char *s);
 
 /* The text bank (tools/gen_text.py, src/text.s): ids T_... in text.h. */
 #include "text.h"
 extern char text_buf[32];
-/* At boot, before dhgr_init: pages (low byte) from main $2000 to aux (high byte). */
-void __fastcall__ text_store(unsigned pages_page);
-extern unsigned char store_src;         /* its source page ($20) */
 
 /* src/overlay.s: one group of screens' code in $4000-$5FFF at a time,
  * copied from aux (src/game.cfg). Call it when a screen of the group opens. */
@@ -68,7 +72,9 @@ extern unsigned char hover_force, hover_sync;
 unsigned char hover_poll(void);
 void hover_draw(void);
 
-/* The technician: 5 x 9 color pixels with the background saved. */
+/* The technician: 5 x 9 color pixels. On the board screen (S_DRONE)
+ * actor_show/actor_hide draw him with the background saved; in the room
+ * he is a compositor sprite (src/sprites.c) and they do nothing. */
 #define ACT_W 5u
 #define ACT_H 9u
 extern unsigned char act_x, act_y;
@@ -78,8 +84,6 @@ void __fastcall__ tech_paint(unsigned char x, unsigned char y);
 void actor_hide(void);
 /* Before drawing: pointer and technician off (the loop puts them back). */
 void begin_draw(void);
-/* The same, only for what overlaps the screen box x0..x1, y0..y1. */
-void begin_draw_box(unsigned char x0, unsigned char y0, unsigned char x1, unsigned char y1);
 
 /* Sound effects on the speaker (S toggles them; sfx_count: tests). */
 #define SFX_CONTACT 0u                 /* a sensor touches */

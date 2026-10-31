@@ -42,57 +42,33 @@ unsigned char obj_n, obj_kind[OBJECTS], obj_x[OBJECTS], obj_y[OBJECTS];
 unsigned char door_open[2];
 
 #pragma bss-name (push, "LOWBSS")                 /* (MLI READ: only below $2000) */
-static unsigned char tiles[ROOM_COLS * ROOM_ROWS];   /* this mission's, unpacked */
+unsigned char tiles[ROOM_COLS * ROOM_ROWS];   /* this mission's, unpacked (sprites.c: the map) */
 #pragma bss-name (pop)
-static unsigned char div7[ROOM_W];
-static unsigned char drawn_x[DRONES] = {NONE, NONE}, drawn_y[DRONES], drawn_thrust[DRONES][6];
-static unsigned char drawn_obj[DRONES] = {NONE, NONE}, drawn_ox[DRONES], drawn_oy[DRONES];
+extern const unsigned char dhgr_cellbyte[140];   /* dev/lib/hgrc: x -> (4x)/7 */
+#define div7(x) (dhgr_cellbyte[x] >> 2)             /* x / 7 */
 static unsigned char bx, by, bw, bh;      /* the box side_blocked() looks at */
 static unsigned char di;                  /* the drone moving, NONE: the technician */
 static unsigned char bumped[DRONES], sending[DRONES];   /* last turn's (sounds) */
 
 void zone_init(void)
 {
-    static unsigned char x, q, r;
-    for (x = 0u, q = 0u, r = 0u; x < ROOM_W; ++x) {
-        div7[x] = q;
-        if (++r == 7u) { r = 0u; ++q; }
-    }
 }
 
 /* -- RSS.ROOMS (tools/gen_room.py): mission m's record at m * 256 ---------- */
 
 extern unsigned char iobuf[1024];                /* main.c, the ProDOS buffer */
 static const char rooms_name[] = "\x09RSS.ROOMS";
-static unsigned char p_open[6] = {3};            /* path, buffer, ref */
-static unsigned char p_mark[5] = {2};            /* ref, mark (3 bytes) */
-static unsigned char p_read[8] = {4};            /* ref, buffer, request, done */
-static unsigned char p_close[2] = {1};           /* ref */
-
-static unsigned char __fastcall__ mli(unsigned char command, void *params)
-{
-    prodos_command = command;
-    prodos_params = params;
-    return prodos_call();
-}
 
 /* The record's 199 bytes land at the end of tiles[]: the starts, then the
  * packed tiles, unpacked in place below them. 1 = read. */
 static unsigned char __fastcall__ read_room(unsigned char m)
 {
-    static unsigned char error;
-    *(const char **)(p_open + 1) = rooms_name;
-    *(unsigned char **)(p_open + 3) = iobuf;
-    if (mli(PD_OPEN, p_open)) return 0u;
-    p_mark[1] = p_read[1] = p_close[1] = p_open[5];
-    p_mark[2] = 0u; p_mark[3] = m; p_mark[4] = 0u;          /* m * 256 */
-    *(unsigned char **)(p_read + 2) = tiles + sizeof tiles - 180u - ROOM_STARTS;
-    *(unsigned *)(p_read + 4) = 180u + ROOM_STARTS;
-    error = mli(0xCEu, p_mark);                             /* SET_MARK */
-    if (!error) error = mli(PD_READ, p_read);
-    if (!error && *(unsigned *)(p_read + 6) != 180u + ROOM_STARTS) error = 1u;
-    mli(PD_CLOSE, p_close);
-    return !error;
+    prodos_file_name = (void *)rooms_name;
+    prodos_file_iobuf = iobuf;
+    prodos_file_buffer = tiles + sizeof tiles - 180u - ROOM_STARTS;
+    prodos_file_length = 180u + ROOM_STARTS;
+    prodos_file_mark = (unsigned)m << 8;                    /* m * 256 */
+    return !prodos_load_at() && prodos_file_actual == 180u + ROOM_STARTS;
 }
 
 
@@ -132,7 +108,7 @@ unsigned char __fastcall__ zone_load(unsigned char m)
 static unsigned char __fastcall__ tile_raw(unsigned char x, unsigned char y)
 {
     if (x >= ROOM_W || y >= ROOM_H) return T_WALL;
-    return tiles[(unsigned)(y >> 3) * ROOM_COLS + div7[x]];
+    return tiles[(unsigned)(y >> 3) * ROOM_COLS + div7(x)];
 }
 
 /* What blocks the mover di: a closed door is a wall, an open one floor;
@@ -159,9 +135,9 @@ static void box_opens(void)
     t = tile_raw(bx + (bw >> 1), by + (bh >> 1));
     if (t == T_PLATE) opens[0] = 1u;
     if (t == T_PLATE2) opens[1] = 1u;
-    tx1 = div7[bx + bw - 1u]; ty1 = (by + bh - 1u) >> 3;
+    tx1 = div7(bx + bw - 1u); ty1 = (by + bh - 1u) >> 3;
     for (ty = by >> 3; ty <= ty1; ++ty)
-        for (tx = div7[bx]; tx <= tx1; ++tx) {
+        for (tx = div7(bx); tx <= tx1; ++tx) {
             t = tiles[(unsigned)ty * ROOM_COLS + tx];
             if (t == T_DOOR) opens[0] = 1u;
             if (t == T_DOOR2) opens[1] = 1u;
@@ -248,9 +224,9 @@ static void move(signed char dx, signed char dy)
     if (h != NONE) { obj_x[h] += dx; obj_y[h] += dy; }
 }
 
-unsigned char zone_tick(void)
+void zone_tick(void)
 {
-    static unsigned char d, k, i, ox, oy, oh, redraw, heard[DRONES], *t, bumps;
+    static unsigned char d, k, i, oh, heard[DRONES], *t, bumps;
     if (zone_doors() && screen == S_ZONE) zone_draw_doors();
     heard[0] = drone_n == 2u ? thrust[1][RADIO] : 0u;
     heard[1] = thrust[0][RADIO];
@@ -271,11 +247,10 @@ unsigned char zone_tick(void)
         sending[d] = thrust[d][RADIO];
         if (d != cur_drone) board_swap_run();
     }
-    redraw = 0u;
     for (d = 0u; d < drone_n; ++d) {
         di = d;
         t = thrust[d];
-        ox = drone_x[d]; oy = drone_y[d]; oh = holding[d];
+        oh = holding[d];
         if (!t[CLAW]) {
             holding[d] = NONE;
         } else if (holding[d] == NONE) {
@@ -292,11 +267,8 @@ unsigned char zone_tick(void)
         else if (t[W] < t[E] && free_side(W)) move(-1, 0);
         if (t[N] > t[S] && free_side(S)) move(0, 1);
         else if (t[N] < t[S] && free_side(N)) move(0, -1);
-        if (ox != drone_x[d] || oy != drone_y[d] || oh != holding[d]
-            || memcmp(t, drawn_thrust[d], 6)) redraw |= 1u << d;
     }
     di = NONE;
-    return redraw;
 }
 
 unsigned char zone_won(void)
@@ -316,164 +288,46 @@ unsigned char zone_won(void)
     return tile_raw(drone_x[0] + (DRONE_W >> 1), drone_y[0] + (DRONE_H >> 1)) == T_CHARGER;
 }
 
-/* -- drawing --------------------------------------------------------------- */
+/* -- drawing: src/sprites.c's shapes through the compositor --------------- */
 
-static void __fastcall__ draw_tile(unsigned char tx, unsigned char ty)
-{
-    static unsigned char x, y, t, open;
-    x = tx * 7u; y = ROOM_Y + (ty << 3);
-    t = tiles[(unsigned)ty * ROOM_COLS + tx];
-    if (t == T_WALL || t == T_TUNNEL) {
-        dhgr_fill_rect(x, y, 7, 8, DHGR_GRAY1);
-        dhgr_fill_rect(x, y + 7u, 7, 1, DHGR_DARKBLUE);
-        if (t == T_TUNNEL) dhgr_fill_rect(x + 2u, y, 3, 8, DHGR_BLACK);   /* a crawlway */
-    } else if (t == T_DOOR || t == T_DOOR2) {
-        /* Closed: shutters (orange, or violet for the second group). */
-        open = door_open[t == T_DOOR2];
-        dhgr_fill_rect(x, y, 7, 8, open ? DHGR_BLACK : t == T_DOOR ? DHGR_ORANGE : DHGR_VIOLET);
-        dhgr_fill_rect(x, y, 1, 8, DHGR_BROWN);
-        dhgr_fill_rect(x + 6u, y, 1, 8, DHGR_BROWN);
-    } else {
-        dhgr_fill_rect(x, y, 7, 8, t == T_CHARGER ? DHGR_DARKGREEN : DHGR_BLACK);
-        if (t == T_PLATE || t == T_PLATE2) {
-            open = door_open[t == T_PLATE2];
-            dhgr_fill_rect(x + 1u, y + 2u, 5, 4, open ? DHGR_YELLOW
-                           : t == T_PLATE ? DHGR_BROWN : DHGR_MAGENTA);
-        } else if (t == T_GRATE) {
-            dhgr_fill_rect(x, y + 1u, 7, 1, DHGR_DARKBLUE);
-            dhgr_fill_rect(x, y + 5u, 7, 1, DHGR_DARKBLUE);
-        } else if (t == T_CHARGER) {
-            dhgr_fill_rect(x + 3u, y + 2u, 1, 4, DHGR_GREEN);
-        }
-    }
-}
-
-/* Put the room's background back under a box (room pixels). */
-/* The tiles redrawn since drone_draw() began: tile columns ex0..ex1,
- * rows ey0..ey1 (ex0 > ex1: none). */
-static unsigned char ex0, ey0, ex1, ey1;
-static void erase_box(unsigned char x, unsigned char y, unsigned char w, unsigned char h)
-{
-    static unsigned char tx, ty, tx0, tx1, ty1;
-    tx0 = div7[x]; tx1 = div7[x + w - 1u]; ty1 = (y + h - 1u) >> 3;
-    if (tx0 < ex0) ex0 = tx0;
-    if (tx1 > ex1 || ex1 == NONE) ex1 = tx1;
-    if (y >> 3 < ey0) ey0 = y >> 3;
-    if (ty1 > ey1 || ey1 == NONE) ey1 = ty1;
-    for (ty = y >> 3; ty <= ty1; ++ty)
-        for (tx = tx0; tx <= tx1; ++tx) draw_tile(tx, ty);
-}
-
-/* Does the box x, y, w, h touch the redrawn tiles? */
-static unsigned char __fastcall__ touched(unsigned char x, unsigned char y, unsigned char w,
-                                          unsigned char h)
-{
-    return ex1 != NONE && div7[x + w - 1u] >= ex0 && div7[x] <= ex1
-        && (unsigned char)((y + h - 1u) >> 3) >= ey0 && (y >> 3) <= ey1;
-}
-
-/* Where drone d was and no longer is: only the strips it uncovered (a
- * turn moves it one pixel), else its whole old box. */
-static void __fastcall__ uncover(unsigned char d)
-{
-    static unsigned char ox, oy, nx, ny;
-    ox = drawn_x[d]; oy = drawn_y[d]; nx = drone_x[d]; ny = drone_y[d];
-    if ((unsigned char)(nx - ox + 2u) > 4u || (unsigned char)(ny - oy + 2u) > 4u) {
-        erase_box(ox, oy, DRONE_W, DRONE_H);
-        return;
-    }
-    if (nx > ox) erase_box(ox, oy, nx - ox, DRONE_H);
-    else if (nx < ox) erase_box(nx + DRONE_W, oy, ox - nx, DRONE_H);
-    if (ny > oy) erase_box(ox, oy, DRONE_W, ny - oy);
-    else if (ny < oy) erase_box(ox, ny + DRONE_H, DRONE_W, oy - ny);
-}
-
-static void __fastcall__ draw_object(unsigned char i)
-{
-    static unsigned char x, y;
-    x = obj_x[i]; y = obj_y[i] + ROOM_Y;
-    if (obj_kind[i] == O_CELL) {
-        dhgr_fill_rect(x, y, OBJ_W, OBJ_H, DHGR_YELLOW);
-        dhgr_fill_rect(x + 1u, y + 3u, 5, 2, DHGR_ORANGE);
-    } else {
-        dhgr_fill_rect(x, y, OBJ_W, OBJ_H, DHGR_BROWN);
-    }
-}
-
-static void __fastcall__ draw_hull(unsigned char d)
-{
-    static unsigned char *t;
-    t = thrust[d];
-    drone_paint(d);                         /* src/sprites.c */
-    drawn_x[d] = drone_x[d]; drawn_y[d] = drone_y[d];
-    memcpy(drawn_thrust[d], t, 6);
-    drawn_obj[d] = holding[d];
-    if (holding[d] != NONE) {
-        drawn_ox[d] = obj_x[holding[d]]; drawn_oy[d] = obj_y[holding[d]];
-    }
-}
-
-/* Drones in mask moved: erase their old boxes (and held objects), then
- * draw the objects and every drone again (an erased tile may cut a
- * neighbour). */
-void __fastcall__ drone_draw(unsigned char mask)
-{
-    static unsigned char d, i, x, y;
-    if (drone_n == 1u && !obj_n && drawn_x[0] != NONE) {
-        /* Old and new boxes, with a tile of margin for erase_box(). */
-        x = drawn_x[0] < drone_x[0] ? drawn_x[0] : drone_x[0];
-        y = drawn_y[0] < drone_y[0] ? drawn_y[0] : drone_y[0];
-        begin_draw_box(x > 7u ? x - 7u : 0u, y + ROOM_Y > 8u ? y + ROOM_Y - 8u : 0u,
-                       x + DRONE_W + 8u, y + ROOM_Y + DRONE_H + 9u);
-    } else {
-        begin_draw();
-    }
-    ex0 = ey0 = NONE; ex1 = ey1 = NONE;
-    for (d = 0u; d < drone_n; ++d) {
-        if (!(mask & (1u << d))) continue;
-        if (drawn_x[d] != NONE) uncover(d);
-        if (drawn_obj[d] != NONE) erase_box(drawn_ox[d], drawn_oy[d], OBJ_W, OBJ_H);
-    }
-    /* again what the redrawn tiles may have cut, and what moved */
-    for (i = 0u; i < obj_n; ++i)
-        if (i == holding[0] || i == holding[1] || touched(obj_x[i], obj_y[i], OBJ_W, OBJ_H))
-            draw_object(i);
-    for (d = 0u; d < drone_n; ++d)
-        if (mask & (1u << d) || touched(drone_x[d], drone_y[d], DRONE_W, DRONE_H)) draw_hull(d);
-}
-
-/* Doors and plates after door_open changed. */
+/* Doors and plates after door_open changed: their tiles swapped, their
+ * cells redrawn (with whatever stands on them), an update every 16 cells
+ * so that the damage list never fills up. */
 void zone_draw_doors(void)
 {
-    static unsigned char tx, ty, t;
-    begin_draw();
-    for (ty = 0u; ty < ROOM_ROWS; ++ty)
+    static unsigned char tx, ty, t, n;
+    sprites_doors();
+    for (ty = 0u, n = 0u; ty < ROOM_ROWS; ++ty)
         for (tx = 0u; tx < ROOM_COLS; ++tx) {
             t = tiles[(unsigned)ty * ROOM_COLS + tx];
-            if (t >= T_DOOR && t <= T_PLATE2) draw_tile(tx, ty);
+            if (t >= T_DOOR && t <= T_PLATE2) {
+                dhgr_spr_invalidate(tx * 7u, ROOM_Y + (ty << 3), 7u, 8u);
+                if (++n == 16u) { dhgr_spr_update(); n = 0u; }
+            }
         }
 }
 
+/* The title, then the room one row of tiles at a time (a click is
+ * latched between them) with everything on it. The caller cleared the
+ * screen. */
 void zone_draw(void)
 {
-    static unsigned char tx, ty;
+    static unsigned char ty;
     static char title[3];
-    zone_doors();                   /* the caller cleared the screen */
+    zone_doors();
     title[0] = mission < 9u ? '1' + mission : '0' + (mission + 1u) / 10u;   /* 1..9, 10.. */
     title[1] = mission < 9u ? 0 : '0' + (mission + 1u) % 10u;
     title[2] = 0;
     dhgr_puts_small("MISSION", 0, 1);
     dhgr_puts_small(title, 40, 1);
     text_at(T_NAME + mission, 54, 1);
-    ui_latch();
+    sprites_room();
+    zone_sprites();
     for (ty = 0u; ty < ROOM_ROWS; ++ty) {
         ui_latch();
-        for (tx = 0u; tx < ROOM_COLS; ++tx)
-            if (tiles[(unsigned)ty * ROOM_COLS + tx]) draw_tile(tx, ty);
+        dhgr_spr_invalidate(0u, ROOM_Y + (ty << 3), ROOM_W, 8u);
+        dhgr_spr_update();
     }
-    drawn_x[0] = drawn_x[1] = NONE;
-    drawn_obj[0] = drawn_obj[1] = NONE;
-    drone_draw(3u);
 }
 
 /* -- the technician in the room -------------------------------------------- */

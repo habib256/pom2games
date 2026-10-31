@@ -213,6 +213,7 @@ Consumers that compile the sources directly can choose:
 | `HGRC_DHGR_CORE_SRCS` | The three previous families |
 | `HGRC_DHGR_TRANSFER_SRCS` | Blocks and sprites, with shared addressing |
 | `HGRC_DHGR_SMALL_TEXT_SRCS` | Small font and fast strings |
+| `HGRC_DHGR_SPR_SRCS` | Flicker-free sprite compositor and save-under cursor (opt-in, not in `HGRC_ALL_SRCS`) |
 
 `HGRC_DHGR_SRCS` keeps the historical set of primitives, transfers and
 8×8 text. `dhgr_internal.h` centralises the private parameters and prototypes of the
@@ -256,6 +257,128 @@ The C CRT also restores these soft switches on return and on Ctrl-RESET.
 An HGR initialisation does not automatically change the HGR **drawing** page:
 use `hgr_set_draw_page(1)` if you also want to reset that choice.
 
+### Flicker-free sprites (compositor)
+
+`dhgr_spr_*` (in [`dhgr.h`](dhgr.h)) composes sprites over a background
+without erasing anything on screen: each update rebuilds the changed area
+in a borrowed buffer, then writes **each changed screen byte once, with its
+final value**. Nothing is drawn twice, nothing blinks, on one page (no
+double buffering needed). The family is opt-in: add `HGRC_DHGR_SPR_SRCS` to
+`HGRC_EXTRA_SRCS` (or to the program's own library sources), next to the
+DHGR state and tables (`HGRC_DHGR_SRCS`). Programs that do not ask for it
+keep the same archive and binary.
+
+**Group alignment.** Seven colour pixels are 28 dots, exactly four bytes
+(aux, main, aux, main) at bank offsets 2g and 2g+1, group g = x/7; a
+pixel's four dots are its colour's nibble `DHGR_NIB(c)` = `((c>>1)|(c<<3))&15`
+at every position. The compositor therefore works in whole groups: a chunky
+**canvas** (one byte per colour pixel, the nibble) of a few groups by a few
+rows is packed with a fixed shuffle, `b0 = n0|(n1&7)<<4`,
+`b1 = n1>>3|n2<<1|(n3&3)<<5`, `b2 = n3>>2|n4<<2|(n5&1)<<6`,
+`b3 = n5>>1|n6<<3`, computed with one 16-byte table `n<<4` and a carry
+(~77 cycles a group). A piece holds at most 255 canvas bytes, so one index
+register addresses it: rectangles are filled by an unrolled
+`sta canvas+k,y` sequence (5 cycles a byte, strips of 8 columns) whose
+operands are patched with the canvas address at the first update after
+`dhgr_spr_init` (or after an overlay window reloaded the code). A RECTS
+shape lying wholly inside the piece is painted without any clipping, one
+inside horizontally with its rows clipped only; its rectangles must lie
+inside its `w`×`h`.
+
+**Update.** `dhgr_spr_set` / `dhgr_spr_palette` / `dhgr_spr_invalidate` /
+`dhgr_spr_overlay` only record. `dhgr_spr_update` collects the damage as
+group/row rectangles (each changed slot's old and new boxes, the
+invalidations, the overlay's old and new boxes) clipped to the **area**
+(`dhgr_spr_area`, widened to whole groups: the compositor never writes
+outside it), merges overlapping ones into their bounding box until none
+overlap, and cuts each into canvas pieces. For each piece: background, then
+every slot crossing it back to front (slot 0 first), the overlay's bits, and
+the write. The write masks IRQs only around each group's two auxiliary
+stores (about 30 cycles); RAMWRT is main again before each `plp`.
+
+| Call | Use |
+|---|---|
+| `dhgr_spr_init(canvas, bytes, groups)` | Borrow `bytes` of main RAM (outside $2000-$5FFF, at most 255 used) only inside `dhgr_spr_update`; pieces of at most `groups` (1..20) groups, a piece of n groups `min(bytes, 255) / (7*n)` rows. Forgets slots, damage, overlay; area = screen, background = black. 0 unless `min(bytes, 255) >= 7*groups` |
+| `dhgr_spr_area(x0, y0, x1, y1)` | Inclusive colour-pixel box owned by the compositor, widened to groups. Set it before invalidating |
+| `dhgr_spr_solid(c)` | One-colour background |
+| `dhgr_spr_tiles(ox, oy, cell_h, map, map_w, set)` | Tile map: cell (col, row) at `ox+7*col`, `oy+cell_h*row` shows `*set[map[row*map_w+col]]` (any shape kind; NULL draws nothing). Swap a `set` entry (an open door) and invalidate its cells |
+| `dhgr_spr_cells(ox, oy, cell_h, paint)` | C callback `paint(col, row)` covering its whole 7×`cell_h` cell with `dhgr_cv_rect` (screen coordinates, clipped to the piece) |
+| `dhgr_spr_set(id, shape, x, y, flags)` | Slot `id < DHGR_SPR_MAX`; NULL shape or `DHGR_SPR_HIDDEN` hides, `DHGR_SPR_MIRROR` mirrors. Unchanged arguments do nothing |
+| `dhgr_spr_palette(id, four)` | Colours 16..19 of the slot's RECTS shapes (body, lights...) |
+| `dhgr_spr_invalidate(x, y, w, h)` | Redraw a box whose background changed |
+| `dhgr_spr_overlay(bx, y, w, h, bits, under)` | Byte-domain OR layer above everything (a pointer): recomposed in the area, saved/restored outside it (`under`: 2 × the largest w×h used, w×h ≤ 127). With `DHGR_SPR_OVERLAY_INSIDE` only its part in the area is drawn |
+| `dhgr_cursor(bx, y, w, h, bits, under)` | The same save-under cursor without the compositor, drawn at once |
+
+Shapes (`dhgr_shape_t {kind, w, h, n, data}`, immutable while used):
+`DHGR_SHAPE_RECTS` (n × {x, y, w, h, colour} inside the shape's w×h,
+colours 16..19 from the slot palette: compact, mirrored by
+`x' = w - x - rw`), `DHGR_SHAPE_CHUNKY`
+(w×h colours, `DHGR_CLEAR` transparent, mirrorable) and `DHGR_SHAPE_TILE`
+(w×h `DHGR_NIB` nibbles, opaque, copied straight, not mirrored).
+
+**Once-per-byte rule.** Every byte of a piece is stored once; pieces of the
+merged rectangles are disjoint; the save-under cursor runs one pass over
+old ∪ new outside the area (each byte read once — the saved copy where the
+old cursor was, else the screen — saved if the new cursor covers it, then
+written once). `dev/tests/test_dhgr_spr.py` checks it with a2shot
+`storewatch` on every update: the stored (bank, address) set equals the
+model's damage, each stored once with its final value; aux stores run with
+IRQs masked, main ones not.
+
+**Canvas borrowing.** The canvas is touched only inside `dhgr_spr_update`
+(and `dhgr_cv_rect` in a paint callback): 255 bytes are enough (2 groups ×
+18 rows, 4 groups × 9 rows), so the start of an idle ProDOS I/O buffer
+does. Smaller canvases work (more pieces, a little slower); the test also
+runs a 70-byte one.
+
+**Costs** (`dev/bench`, //e, call included; a 10×12 RECTS drone of
+Robot Space Station moved one pixel in a room of 7×8 RECTS tiles):
+
+| Case | Cycles | First version |
+|---|---:|---:|
+| `dhgr_spr_move` (tile map, 2 groups × 12 rows rewritten) | 15,910 | 20,241 |
+| `dhgr_spr_move_wide` (same, 3 groups) | 20,689 | 26,184 |
+| `dhgr_spr_move_cells` (C `paint` callback) | 18,852 | 22,843 |
+| `dhgr_spr_move_solid` (one-colour background) | 10,910 | 14,341 |
+| `dhgr_spr_move_chunky` (6×5 CHUNKY ship over TILE tiles) | 10,021 | 10,461 |
+| `dhgr_spr_overlay_move` (4×6-byte pointer moved, room recomposed under it) | 13,117 | 20,412 |
+| `dhgr_cursor_move` (4×6-byte save-under cursor, one byte and one row) | 9,000 | 9,019 |
+
+Robot Space Station erased and redrew the same drone in 35,000-45,000
+cycles before it moved to the compositor (2026-10-31: a drone turn went
+from 5.0 / 8.0 / 11.4 to 4.1 / 4.2 / 6.3 frames on the //e in missions
+1 / 4 / 7). Time of `dhgr_spr_move`: about 4,500 cycles pack + write (24
+groups), 6,500 painting (21 rectangles, 290 bytes stored), the rest tiles
+walk and bookkeeping. `dhgr_spr_overlay_move` no longer runs the
+save-under pass while the pointer stays inside the area. Code (6502):
+calls 349 B, init + update 870 B, write 307 B (with the 16-byte table and
+the 51-byte patch list), canvas painters 594 B: 2,120 B (2,473 B in the
+first version); optional members, linked when used: bitmap shapes 356 B,
+cells/tiles + `dhgr_cv_rect` 397 B, overlay 419 B (`dhgr_spr_overlay.s`:
+the overlay's damage and OR hooks, called through `JMP`s that
+`dhgr_spr_overlay` installs), save-under cursor 750 B (`dhgr_spr_cursor.s`,
+also the overlay's part outside the area). BSS: 270 B with
+`DHGR_SPR_MAX=8` (246 B with 7), plus 63 + 4 + 13 + 14 + 16 + 4 B in the
+members. No new zero page: cc65's `ptr1`-`ptr4`/`tmp1`-`tmp4` and the
+`aux_read` stub.
+
+| Option (`HGRC_DEFINES` / `-D`) | Effect |
+|---|---|
+| `DHGR_SPR_MAX` | Slots 1..8 (default 8); BSS −24 B per slot removed. Same value for the program's C and the library |
+| `DHGR_SPR_PACK_TABLES` | Accepted, no effect: the single 16-byte table is now the default (faster than the nine tables of the first version) |
+| `DHGR_SPR_CODE_SEGMENT` | All code and tables in segment `DHGRSPRCODE` (place it in an overlay window; BSS stays resident). The code is self-modifying and re-patched on every call, so a reloaded overlay is fine |
+| `DHGR_SPR_RECTS_ONLY` | No bitmap shapes: `dhgr_cv_bitmap.s` is not linked (−356 B) |
+| `DHGR_SPR_OVERLAY_INSIDE` | The overlay is drawn only inside the area (no save-under part, `under` unused): `dhgr_spr_cursor.s` is not linked (−764 B). Robot Space Station draws the pointer's rows outside the room with its own save-under code |
+
+Planned, not implemented: `DHGR_SPR_VBL` (start each update after the
+beam leaves the area) and `DHGR_SPR_DOUBLE` (page flipping: each page's
+damage history re-applied on the other page, like `hgr_spr_present`).
+Contract: fastcall cc65 ABI, non-reentrant, never from an IRQ; main
+RAM/ZP on entry and exit; draws on the draw page, display unchanged.
+The screen outside the area may change only while the overlay is hidden;
+change a cursor's w×h only while it is hidden. Background changes inside
+the area need `dhgr_spr_invalidate`.
+
 ### gfx backends
 
 Link **a single** backend, in addition to the `gfx` algorithms needed:
@@ -278,6 +401,10 @@ accesses with endpoint masking.
 - [Measurements and budgets](../../bench/README.md): CPU cycles, code, ROM, RAM and ZP.
 - `make test-hgr`: 21 primitive checks, four `gfx` text scenes,
   24 sprite-engine scenes and sixteen minimal link edits.
+- `python3 dev/tests/test_dhgr_spr.py` (in `make test-dhgr`): the
+  compositor on //e and //c, five canvas/option builds (one with
+  `DHGR_SPR_OVERLAY_INSIDE`), 61 scripted updates each against the model
+  plus the storewatch write-once check, and a VIA IRQ run.
 - `make test-dhgr`: 21 historical checks + 48 additional checks,
   two pages/banks, two backends, sprites, blocks, text, transitions and II+ rejection.
   The POM2 IIe core in `a2shot` is required (macOS arm64 or Linux x86_64).
