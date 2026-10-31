@@ -13,6 +13,12 @@
 ;   vl_shift_point  point VL_SHIFT_POINT and its old position += vl_turn *
 ;                   axis >> 8 (a move, no speed: DIRTBIKE's rider leaning).
 ;                   ~600 cycles.
+;   vl_thrust_axis  (VL_THRUST = n) the push vector vl_tx/vl_ty = axis *
+;                   vl_turn >> (8 + n); vl_dx/vl_dy = the axis. ~470 c (n = 4)
+;   vl_thrust_perp  the same along the perpendicular (-dy, dx) of the axis
+;                   (vl_dx/vl_dy = it): with a link of rest length L, the push
+;                   is L * vl_turn / 2^(8 + n) px; vl_push / vl_push_all
+;                   (verlet.asm) add it to the points (a speed change).
 ; vl_turn is signed (-128..127). Segments: .define VL_ROT_SEG "SEG" puts
 ; vl_shift_point and vl_axis there, .define VL_MULTURN_SEG "SEG" vl_mul_turn
 ; (DIRTBIKE: text-page runs copied at boot); default CODE.
@@ -57,6 +63,60 @@ vl_turn_pair:
         JSR     vl_add_yv
         LDX     #VL_AXIS_A
         JMP     vl_sub_yv
+.endif
+
+.if .referenced(vl_thrust_axis) .or .referenced(vl_thrust_perp)
+.ifndef VL_THRUST
+.error "vl_thrust_*: define VL_THRUST (the extra shift, 0..7)"
+.endif
+.assert VL_THRUST >= 0 .and VL_THRUST <= 7, error, "VL_THRUST is 0..7"
+; tx, ty = (-dy, dx) * turn >> (8 + VL_THRUST)
+vl_thrust_perp:
+        JSR     vl_axis
+        SEC                             ; (dx, dy) := (-dy, dx)
+        LDA     #0
+        SBC     vl_dy
+        STA     vl_tx
+        LDA     #0
+        SBC     vl_dy+1
+        STA     vl_tx+1
+        LDA     vl_dx
+        STA     vl_dy
+        LDA     vl_dx+1
+        STA     vl_dy+1
+        LDA     vl_tx
+        STA     vl_dx
+        LDA     vl_tx+1
+        STA     vl_dx+1
+        JMP     vl_thrust_vec
+; tx, ty = (dx, dy) * turn >> (8 + VL_THRUST)
+vl_thrust_axis:
+        JSR     vl_axis
+vl_thrust_vec:
+        LDA     vl_dx
+        LDX     vl_dx+1
+        JSR     vl_mul_turn
+        JSR     vl_thrust_shr
+        STA     vl_tx
+        STX     vl_tx+1
+        LDA     vl_dy
+        LDX     vl_dy+1
+        JSR     vl_mul_turn
+        JSR     vl_thrust_shr
+        STA     vl_ty
+        STX     vl_ty+1
+        RTS
+; A/X = vl_val >> VL_THRUST (arithmetic)
+vl_thrust_shr:
+        LDA     vl_val+1
+.repeat VL_THRUST
+        CMP     #$80
+        ROR     A
+        ROR     vl_val
+.endrepeat
+        TAX
+        LDA     vl_val
+        RTS
 .endif
 
 .if .match({VL_ROT_SEG}, "")
