@@ -45,6 +45,20 @@
 ;               from ht_cbit, never from the font data.
 ;   hgr_puts8   NUL-terminated string at ht_src_lo/hi, may span pages.
 ;               Preserves X and the source pointer; clobbers A, Y.
+;   hgr_puts8_at  inline arguments, one 7-byte call site per string:
+;                 JSR hgr_puts8_at / .byte col, scanline / .addr string
+;               (macro PUTS8_AT string, col, scanline). Sets ht_col, ht_sl
+;               and ht_src_lo/hi, returns after the 4 data bytes through
+;               hgr_puts8. Clobbers A, X, Y. 40 B, ~75 cycles per string
+;               on top of hgr_puts8 (against 13 B per site for LDA/STA col,
+;               LDA/STA sl, pointer, JSR). HGR_TEXT8_AT_PAGE = <label>:
+;               copy that program byte into ht_page first (+4 B, +6
+;               cycles), for double-buffered programs that keep their own
+;               page variable.
+;               .ifref: assembled only when referenced. The core above is
+;               usually included early (callers use its ZP and macro), so
+;               include hgr_text8.asm a second time after the last caller:
+;               that second include assembles hgr_puts8_at alone (CODE).
 ;
 ; Caller provides hgr_lo / hgr_hi (include hgr_scanline.inc). The module
 ; allocates its own ZP (~12 B) and pulls rev7.inc (shared, guarded).
@@ -224,4 +238,55 @@ hgr_puts8:
 .include "rev7.inc"
 .endif
 
+; PUTS8_AT string, col, scanline: one hgr_puts8_at call site (7 bytes).
+.macro PUTS8_AT str, col, sl
+        JSR hgr_puts8_at
+        .byte col, sl
+        .addr str
+.endmacro
+
 .endif  ; _HGR_TEXT8_LOADED_
+
+; ----------------------------------------------------------------------------
+; hgr_puts8_at: inline-argument hgr_puts8 (see API above). Outside the load
+; guard: a later include of this file assembles it once it is referenced.
+; ----------------------------------------------------------------------------
+.ifndef _HGR_PUTS8_AT_LOADED_
+.ifref hgr_puts8_at
+_HGR_PUTS8_AT_LOADED_ = 1
+.ifdef HGR_TEXT8_NO_PUTS
+.error "hgr_puts8_at needs hgr_puts8 (HGR_TEXT8_NO_PUTS is defined)"
+.endif
+.code
+hgr_puts8_at:
+        PLA                     ; return address = last byte of the JSR
+        STA ht_src_lo
+        CLC
+        ADC #4                  ; push it back + 4: RTS lands after the data
+        TAY
+        PLA
+        STA ht_src_hi
+        ADC #0
+        PHA
+        TYA
+        PHA
+        LDY #1
+        LDA (ht_src_lo),Y       ; .byte col
+        STA ht_col
+        INY
+        LDA (ht_src_lo),Y       ; .byte scanline
+        STA ht_sl
+        INY
+        LDA (ht_src_lo),Y       ; .addr string
+        TAX
+        INY
+        LDA (ht_src_lo),Y
+        STA ht_src_hi
+        STX ht_src_lo
+.ifdef HGR_TEXT8_AT_PAGE
+        LDA HGR_TEXT8_AT_PAGE
+        STA ht_page
+.endif
+        JMP hgr_puts8
+.endif
+.endif

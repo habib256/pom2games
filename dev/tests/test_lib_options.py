@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Library options are values, not mere definitions: RWTS_SEI, RWTS_KEEP_ZP,
-DOS_SEI, DOS_CMD_HEX_IFREF (lib/apple2), MUL_ACC and MUL_INIT_BOOT (lib/math) assemble the same
+DOS_SEI, DOS_CMD_HEX_IFREF, STICK_KEY_FAST,
+STICK_KEY_REPEAT (lib/apple2), MUL_ACC and MUL_INIT_BOOT (lib/math) assemble the same
 bytes when set to 0 as when left out, and differ when set to 1. Then
 DOS_SEI = 1 in a2run: a real CATALOG through dos_cmd_run with IRQs enabled
 returns C = 0 and the caller's I flag (clear) put back. And hgr_plot.asm
@@ -39,6 +40,11 @@ MATH = '''MUL_TABLES = $0800
         LDA     mul_acc0
 .include "mul.asm"
 '''
+STICK = '''.include "apple2.inc"
+.code
+        JSR     stick_key
+.include "joy.asm"
+'''
 MATH_NOACC = MATH.replace('        JSR     mul_acc_add\n        LDA     mul_acc0\n', '')
 
 
@@ -60,7 +66,8 @@ def options(work):
     for name, base, source in (('RWTS_SEI', RWTS, RWTS), ('RWTS_KEEP_ZP', RWTS, RWTS),
                                ('DOS_SEI', DOS, DOS), ('DOS_CMD_HEX_IFREF', DOS, DOS),
                                ('MUL_INIT_BOOT', MATH_NOACC, MATH_NOACC),
-                               ('MUL_ACC', MATH_NOACC, MATH)):
+                               ('MUL_ACC', MATH_NOACC, MATH),
+                               ('STICK_KEY_FAST', STICK, STICK), ('STICK_KEY_REPEAT', STICK, STICK)):
         plain = listing(work, base)
         zero = listing(work, f'{name} = 0\n' + base)
         one = listing(work, f'{name} = 1\n' + source)
@@ -70,7 +77,8 @@ def options(work):
         if name == 'MUL_ACC':
             assert listing(work, f'{name} = 0\n' + source).startswith('error'), \
                 'MUL_ACC = 0 still allocates mul_acc0..2'
-    print('Options RWTS_SEI, RWTS_KEEP_ZP, DOS_SEI, DOS_CMD_HEX_IFREF, MUL_INIT_BOOT, MUL_ACC: '
+    print('Options RWTS_SEI, RWTS_KEEP_ZP, DOS_SEI, DOS_CMD_HEX_IFREF, MUL_INIT_BOOT, MUL_ACC, '
+          'STICK_KEY_FAST, STICK_KEY_REPEAT: '
           '= 0 assembles as undefined, = 1 takes effect.')
 
 

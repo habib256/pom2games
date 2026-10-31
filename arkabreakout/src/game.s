@@ -157,6 +157,7 @@ reset_end:
         jmp main
 HGR_TEXT8_FILTER = hud_filter
 HGR_TEXT8_HGR_ORDER = 1           ; bbfont is HGR bit order: no rev7_tab
+HGR_TEXT8_AT_PAGE = page          ; hgr_puts8_at draws on the page being built
 .include "hgr_text8.asm"
 HGR_XOR_DIV7 = div7
 HGR_XOR_MOD7 = mod7
@@ -407,12 +408,7 @@ loop:
         jmp loop
 
 .macro text label, column, line
-        lda #column
-        sta scratch
-        lda #<label
-        ldx #>label
-        ldy #line
-        jsr set_string
+        PUTS8_AT label, column, line    ; hgr_text8.asm, page -> ht_page
 .endmacro
 
 ; Calibration is optional and retained across replay; invalid ranges fall back.
@@ -540,15 +536,6 @@ clear_pages:
 show_graphics:
         jsr hgr_init
         rts
-set_string:              ; A/X string pointer; Y scanline; scratch byte column
-        sta ht_src_lo
-        stx ht_src_hi
-        sty ht_sl
-        lda scratch
-        sta ht_col
-        lda page
-        sta ht_page
-        jmp hgr_puts8
 
 
 title:
@@ -1972,10 +1959,10 @@ hud_end:
 .include "interface.inc"
 .include "records.inc"
 .include "music.inc"
+.include "sound.asm"              ; here, not after joy.asm: tone loops must not cross a page (ld65 asserts)
 .include "hgr.asm"
 .include "kbd.asm"
 .include "joy.asm"
-.include "sound.asm"
 APPLE2_EXIT_HOOK = mouse_shutdown
 EXIT_USE_NATIVE_VIDEO = 1        ; hgr.asm's native_video, above
 .include "exit.asm"
@@ -1985,6 +1972,7 @@ DOS_SEI = 1                       ; the //c mouse runs with IRQs on (interface.i
 DOS_CMD_HEX_IFREF = 1            ; no dos_cmd_hex: it is not called
 .include "dos.asm"
 .include "mouse_context.asm"
+.include "hgr_text8.asm"          ; again: hgr_puts8_at, after its callers
 
 .rodata
 best_text: .asciiz "BEST SCORE  "

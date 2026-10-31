@@ -26,7 +26,7 @@ walls, crates and other graphic elements keep their colours.
 | `hgr_div7_ram.asm` | `hgr_div7` / `hgr_mod7` (x/7, x mod 7, x = 0..255) in BSS, built by `hgr_div7_init` (28 B): 512 B less in the file | arkabreakout |
 | `hgr_clear.asm` | `clear_hgr`: clears `$2000-$3FFF` (`HGR_CLEAR_LOOP`, no ZP) | logo |
 | `hgr_flip.asm` | `hgr_draw_hidden` / `hgr_show_draw` / `hgr_set_draw_page`: double buffering by rewriting `hgr_hi` in place (`hgr_scanline.inc` in a writable segment) | maze3d, micro-sokoban |
-| `hgr_text8.asm` | `hgr_putc8` / `hgr_puts8`: byte-aligned 8x8 text, colours. `HGR_TEXT8_HGR_ORDER` (font in HGR order: no more `ht_rev` or `rev7_tab`, −256 B), `HGR_TEXT8_NO_PUTS` | arkabreakout, dirtbike, maze3d |
+| `hgr_text8.asm` | `hgr_putc8` / `hgr_puts8`: byte-aligned 8x8 text, colours. `HGR_TEXT8_HGR_ORDER` (font in HGR order: no more `ht_rev` or `rev7_tab`, −256 B), `HGR_TEXT8_NO_PUTS`; `hgr_puts8_at` (inline col/scanline/string, `.ifref`, `HGR_TEXT8_AT_PAGE`) | arkabreakout, dirtbike, maze3d |
 | `hgr_sprite16.asm` | `hgr_spr16_x1/_x2/_x4`: TMS 16x16 sprites converted at run time | legacy TMS path |
 | `hgr_sprite_packed.asm` | `hgr_sprite_packed`: pre-packed HGR rows, vertical repeat and masked edge | maze3d |
 | `hgr_sprite_color.inc` | colour attributes shared by both blitters | sprite engines |
@@ -49,6 +49,19 @@ and sprites at the right edge preserve the off-display bytes.
 `hgr_puts8` walks the string up to the NUL, even beyond 256 characters.
 It preserves the source pointer and X; the cursor keeps advancing past the
 bottom of the screen, without writing outside the framebuffer.
+
+`hgr_puts8_at` places and prints a string from inline arguments:
+`JSR hgr_puts8_at / .byte col, scanline / .addr string` (macro
+`PUTS8_AT string, col, scanline`), 7 bytes per site against 13 for the
+usual loads + JSR; the routine is 40 B (+4 with `HGR_TEXT8_AT_PAGE =
+<label>`, which copies the program's page byte into `ht_page` first),
+~75 cycles per string, clobbers A, X, Y. It is `.ifref`: the core is
+included early (its ZP and the macro), so include `hgr_text8.asm` a second
+time after the last caller to assemble it. ARKABREAKOUT: 51 sites,
+−315 B. DIRTBIKE: 15 literal sites (resident CODE, the text-page
+routines, the main menu overlay), −95 B, −37 B of resident RAM with the
+routine; its `puts_at` (A/Y, column `ht_col`, row X) stays for the
+variable strings (tables, `hrow`).
 
 The Beautiful Boot font (8x8) no longer lives here: `.include "bbfont.inc"` from
 [`../font`](../font/README.md), which trims the master table to the wanted

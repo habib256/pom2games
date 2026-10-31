@@ -4,11 +4,9 @@
 MUSIC_BANK = $1400
 .code
 music_load:
-        jsr dos_cmd_new
         lda #<music_load_command
         ldy #>music_load_command
-        jsr dos_cmd_add
-        jmp dos_cmd_run
+        jmp dos_cmd_line
 music_title:
         lda #$80
         sta DUET_KEYS
