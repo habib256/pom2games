@@ -37,73 +37,97 @@ cœur sur la même disquette.
 
 ## La version DHGR (Apple //e 128 Ko, //c)
 
-<img src="screenshots/dhgr_game.png" width="432" alt="ROGUE.DHGR : salle, aventurier, trolls, rations, HUD en double haute résolution">
-<img src="screenshots/dhgr_inventory.png" width="432" alt="ROGUE.DHGR : le sac, une icône par objet">
+<img src="screenshots/dhgr_x2_game.png" width="432" alt="ROGUE.DHGR : l'aventurier au centre de la fenêtre, un troll, une tunique, une dague, des éboulis, la porte, en grandes cases de couleur">
+<img src="screenshots/dhgr_x2_boss.png" width="432" alt="ROGUE.DHGR : le démon de la profondeur 13, quatre cases, face à l'aventurier">
+<img src="screenshots/dhgr_x2_hit.png" width="432" alt="ROGUE.DHGR : un fantôme touché (orange), la porte, l'escalier sous un autre fantôme">
+<img src="screenshots/dhgr_x2_title.png" width="432" alt="ROGUE.DHGR : le titre et sa grande bannière ROGUE">
 
 `ROGUE.DHGR` est le même jeu (même cœur, mêmes touches, mêmes sons) affiché
 sur l'écran de l'Apple en **double haute résolution couleur** (140 × 192
 pixels de 16 couleurs) au lieu du moniteur de la carte. Il démarre seul sur un
 //e 128 Ko ou un //c sans la carte (`BRUN ROGUE.DHGR` marche aussi).
 
-Ce qui change par rapport à l'écran TMS9918 :
+Le donjon y est vu **à la manière de ROGUE X2**, la variante « ×2 en
+couleur » du Rogue HGR de [POM1](https://github.com/habib256/pom1)
+(`sketchs/gen2/game_rogue_x2`) : au lieu de la carte entière en petit (la
+première version DHGR montrait l'image TMS divisée par deux en largeur :
+[`screenshots/dhgr_old_halved.png`](screenshots/dhgr_old_halved.png), jugée
+bien moins belle que la TMS9918), une **fenêtre de grandes cases** :
 
-- **résolution** : l'image TMS (256 × 192) est **divisée par deux en
-  largeur** : un pixel couleur DHGR = deux pixels TMS, une ligne = une ligne.
-  L'écran du jeu fait 128 × 192 pixels au centre (6 pixels noirs de chaque
-  côté) ; un caractère fait 4 × 8, une tuile de la carte 8 × 16, un sprite
-  8 × 16. La disposition est **exactement** celle de la version TMS (carte
-  16 × 10 tuiles, HUD sur les 4 lignes du bas, sac, aide, titre) ;
-- **tuiles et sprites** : convertis par `tools/tiles_dhgr.py` (deux pixels TMS
-  → un : le mur et la porte gardent un pixel si les deux sont allumés, ce qui
-  garde le joint des briques ; les autres tuiles et les sprites si l'un des
-  deux l'est, ce qui garde les traits fins) ; **police 3 × 7** dessinée à la
-  main (les lettres TMS réduites étaient illisibles), 32 colonnes ;
-- **couleurs** : chaque couleur TMS9918 a son équivalent DHGR (table
-  ci-dessous) ; le flash du coup reçu est **orange** (le rouge moyen TMS) ;
-- **pas de sprites matériels** : le dos de l'écran (`video_dhgr.asm`) garde
-  une copie de l'écran TMS virtuel et ne redessine, quand le jeu attend une
-  touche, que les groupes de 7 pixels qui ont changé, composés directement
-  en octets de l'écran (tuiles par tables précalculées, puis sprites ;
-  chaque octet de l'écran écrit une fois, sa valeur finale : pas de
-  scintillement) ; pas de limite de 4 sprites par ligne ;
-- **vitesse** : un tour ordinaire prend environ 0,04 s (médiane, jeu + son +
-  dessin, 0,06 s torche allumée ; l'image paraît avant le son, et 9 tours
-  sur 10 l'affichent en moins de 0,1 s), un écran entier (nouvel étage,
-  sac, aide) 0,33 s (détail, avant / après, dans
-  [docs/PORT.md](docs/PORT.md) §3.1).
+- **9 × 5 cases de 14 × 32 pixels** (126 × 160, lignes 0 à 159), une case =
+  deux groupes de 7 pixels DHGR exactement (4 octets chacun) : chaque case
+  s'écrit octet par octet, sans décalage. Une tuile ou un sprite TMS 16 × 16
+  perd 2 colonnes (vides pour les sprites ; les bords pour les tuiles ; deux
+  colonnes intérieures pour le mur, dont les briques restent espacées de 7)
+  et double ses lignes : la même forme que sur la carte, deux fois plus
+  grande ;
+- **centrée sur l'aventurier**, qui reste dans la case du milieu (4, 2) :
+  chaque pas fait défiler la fenêtre d'une case, elle peut déborder de la
+  carte (cases noires) ; une action sans déplacement (coup, repos, vol de la
+  dague, sac) la laisse en place. ROGUE X2 a 8 × 5 cases, le héros en
+  (3, 2), une demi-case à gauche du centre ; 9 colonnes le mettent
+  vraiment au milieu, avec 4 cases de chaque côté (le rayon de la torche
+  éteinte est 3) ;
+- **une couleur par entité**, celle de la table de ROGUE X2 transposée en
+  DHGR pour les monstres et les tuiles ; les objets gardent leur couleur
+  TMS9918, celle de leurs icônes dans le sac et le HUD (ROGUE X2 n'avait
+  que les 4 teintes du HGR) ;
+- un **coup reçu** colore le sprite en orange (le blanc pour ce qui est déjà
+  orange : DEATH) le temps d'un tour, comme le rouge de la TMS9918 ;
+- le **HUD** (lignes de texte 20 à 23), le **titre**, la **mission**, le
+  **sac**, l'**aide**, la **mort**, la **victoire** restent l'image TMS
+  divisée par deux (caractères 4 × 8, police 3 × 7 dessinée à la main) :
+  32 colonnes de texte y tiennent ; le « ROGUE » du titre devient une
+  grande bannière (lettres TMS ×2 en largeur, ×4 en hauteur, jaune → orange
+  → rouge).
 
-| TMS9918 | DHGR | Qui |
-|---|---|---|
-| 2, 3 verts | 12 vert | troll |
-| 4 bleu foncé | 6 bleu moyen | — |
-| 5 bleu clair | 7 bleu clair | l'aventurier |
-| 6 rouge foncé | 1 magenta (rouge profond) | tunique |
-| 7 cyan | 14 aigue-marine | squelette, parchemin |
-| 8 rouge moyen | 9 orange | coup reçu, démon |
-| 9 rouge clair | 11 rose | torche |
-| 10, 11 jaunes | 13 jaune | escaliers, porte, fosse, DEATH, amulette, ration |
-| 12 vert foncé | 4 vert foncé | — |
-| 13 magenta | 3 violet | potion |
-| 14 gris | 5 gris | murs, fantôme, dague |
-| 15 blanc | 15 blanc | texte, zombie, épée |
+| Qui | Couleur DHGR | | Qui | Couleur DHGR |
+|---|---|---|---|---|
+| l'aventurier | bleu clair | | mur | gris |
+| zombie (UNDEAD), troll | vert | | escalier | vert |
+| fantôme | violet | | porte | orange |
+| squelette | blanc | | fosse | violet |
+| DEATH, le démon (2 × 2 cases) | orange | | éboulis (arche) | jaune |
+| épée blanche, tunique magenta, amulette jaune, potion violette, parchemin aigue-marine, ration jaune, dague grise, torche rose | (TMS) | | sol, inconnu | noir |
 
-Une variante **monochrome 560 points** (l'image TMS à l'identique, deux
-points par pixel, très nette) a été essayée
-([`screenshots/dhgr_mock_mono.png`](screenshots/dhgr_mock_mono.png), face à
-[`dhgr_mock.png`](screenshots/dhgr_mock.png) et à l'original
-[`dhgr_mock_tms.png`](screenshots/dhgr_mock_tms.png)) : elle perd toutes les
-couleurs (monstres, flash rouge) et frange sur un moniteur couleur. La
-version couleur, lisible, est la seule livrée.
+**Double tampon.** Le jeu dessine chaque tour sur la **page DHGR cachée**
+(seulement les cases dont le contenu a changé par rapport à ce que cette page
+montre, puis ses lignes de HUD), puis la montre au **début du balayage
+vertical** suivant (//e : `$C019` ; le //c n'a pas ce registre : la page
+change aussitôt, une image peut se déchirer) : on ne voit jamais une image en
+cours de dessin. Pendant que le jeu attend la touche suivante, l'autre page
+rattrape la première (une touche l'interrompt : le tour passe avant) ; les
+pages pleines (sac, aide…) sont dessinées sur la page montrée, octet par
+octet à leur valeur finale.
 
-Mémoire : DOS 3.3 gardé, page DHGR 1 (`$2000-$3FFF`, banques principale et
-auxiliaire), le reste en mémoire principale (détail dans
-[docs/PORT.md](docs/PORT.md)). Tests : `tests/test_dhgr.py` (a2shot //e et
-//c, ~4 s, dans `make test`) compare chaque écran, octet par octet, à l'image
-que l'outil calcule depuis l'écran TMS virtuel (aussi sur trois écrans
-virtuels au hasard), et vérifie avec `storewatch` que chaque octet est écrit
-une seule fois, et que l'écran virtuel aux 89 points de contrôle est celui
-d'avant les optimisations du 2026-10-31 (`tests/dhgr_screens.txt`) ;
-`tools/profile_dhgr.py` dit où passent les cycles d'un tour.
+**Mémoire.** Les deux pages DHGR prennent `$2000-$5FFF` (principale et
+auxiliaire) : DOS 3.3 charge `ROGUE.DHGR` à `$3C00`, puis le jeu le
+**libère** : le moteur d'affichage part dans la RAM de la carte langage
+(`$D000-$F13D`, la ROM du moniteur recopiée en `$F800-$FFFF`), `$9600-$BFFF`
+sert de BSS. Pour **sortir** (ESC au titre, ESC puis Y en jeu, Ctrl-RESET),
+le jeu pose une marque et **redémarre la disquette** : son `HELLO` voit la
+marque, dit « ROGUE: BYE! » et s'arrête au prompt BASIC, DOS 3.3 revenu
+(la façon de DIRTBIKE). Détail dans [docs/PORT.md](docs/PORT.md) §3 et §6.
+
+**Vitesse** (//e, `tests/test_dhgr.py`, mêmes donjons à chaque version) :
+d'une touche à la nouvelle image affichée, un **pas** (la fenêtre défile)
+prend 75 000 cycles en médiane (0,07 s), 92 000 pour 9 pas sur 10, au plus
+109 000 ; une action sans pas (un coup) 5 000 en médiane (un mur : rien ne
+change), 43 000 pour 9 sur 10 (un monstre : son flash, les monstres qui
+bougent, le HUD) ; une page pleine (sac, aide) ~0,3 s comme avant. Le son et
+le rattrapage de l'autre page viennent après l'image.
+
+Tests : `tests/test_dhgr.py` (a2shot //e et //c, ~10 s, dans `make test`)
+compare la page montrée, octet par octet et dans les deux banques, à l'image
+que `tools/x2_dhgr.py` calcule depuis l'écran TMS virtuel (aussi la page
+cachée à chaque attente de touche, et sur dix écrans virtuels au hasard dont
+sept vues de jeu, la fenêtre au-delà de chaque bord), vérifie avec
+`storewatch` que chaque octet de chaque page est écrit une seule fois par
+mise à jour, que l'écran virtuel aux 89 points de contrôle est celui d'avant
+(`tests/dhgr_screens.txt` : le cœur n'a pas changé), et sur `dist/ROGUE.dsk`
+que ESC et Ctrl-RESET ramènent au BASIC ; `tools/profile_dhgr.py` dit où
+passent les cycles d'un tour, `tools/shots_dhgr.py` refait les images
+ci-dessus (chacune vérifiée contre le modèle).
 
 ## Touches
 
@@ -115,8 +139,8 @@ d'avant les optimisations du 2026-10-31 (`tests/dhgr_screens.txt`) ;
 | `.` | se reposer un tour |
 | `H` ou `?` | aide (sur l'écran de la carte) |
 | `S` | son oui / non (aussi affiché sur l'écran Apple) |
-| `ESC` | au titre : retour au DOS ; en jeu : « QUIT TO DOS? Y OR N » |
-| Ctrl-RESET | retour au DOS |
+| `ESC` | au titre : retour au DOS ; en jeu : « QUIT TO DOS? Y OR N » (`ROGUE.DHGR` : la disquette redémarre et s'arrête au BASIC, « ROGUE: BYE! ») |
+| Ctrl-RESET | retour au DOS (`ROGUE.DHGR` : de même) |
 
 Au titre, `B` (code caché de POM1) mène droit à la salle du démon.
 
@@ -158,7 +182,9 @@ matériel réel.
 
 ## Crédits
 
-- Jeu : VERHILLE Arnaud (POM1, 2026), GPL-3.0.
+- Jeu : VERHILLE Arnaud (POM1, 2026), GPL-3.0. La vue DHGR reprend le
+  dessin de ROGUE X2 (POM1, `sketchs/gen2/game_rogue_x2`, même auteur) :
+  fenêtre centrée sur le héros, grandes cases, une couleur par entité.
 - Tuiles et sprites : **SCROLL-O-SPRITES de Quale** (mai 2013, CC-BY-3.0),
   découpés par les outils de POM1 (`tileset_rogue.inc`, `sprite_pats.inc`).
 - Démon de la profondeur 13 : Hexany Ives, *Monster Menagerie*

@@ -24,8 +24,15 @@ import a2profile  # noqa: E402
 import a2test  # noqa: E402
 import test_dhgr  # noqa: E402
 
-GROUPS = [                          # (this back-end and the per-pixel one before it)
+GROUPS = [                          # (this back-end and the ones before it)
     ('vid_put', ('vid_put', 'dg_cmp', 'dg_sta', 'dg_vp_')),
+    ('x2 frame (camera, keys)', ('x2_frame',)),
+    ('x2 page compare', ('x2_idle', 'x2_current', 'x2_draw_page')),
+    ('x2 compose (sprites)', ('x2_zero', 'x2_sprite', 'x2_overlay')),
+    ('x2 cell setup', ('x2_cell', 'x2_lines')),
+    ('x2 write', ('x2_w',)),
+    ('flip (VBL wait)', ('x2_flip',)),
+    ('page switch', ('dg_use_page',)),
     ('vid_addr', ('vid_addr',)),
     ('name diff', ('dg_name_diff',)),
     ('sprite diff + boxes', ('dg_sat_diff', 'dg_mark_')),
@@ -79,13 +86,14 @@ def main():
             self.armed = True        # play(): the key was read, the turn runs next
         return r
     a2test.Session.step = step
+    test_dhgr.MEASURE = False        # one until per turn: the profiled one
     stats = test_dhgr.test_iie(None)
     total = sum(t for t, _ in turns)
     prof = {}
     for _, p in turns:
         for pc, c in p.items():
             prof[pc] = prof.get(pc, 0) + c
-    per = a2profile.by_label(prof, labels)
+    per = a2profile.by_label(prof, labels, rom=0xF800)
     n = len(turns)
     vp = prof.get(labels['vid_put'], 0) // 3
     ts = sorted(t for t, _ in turns)
@@ -94,7 +102,7 @@ def main():
           f'full redraw {stats["full"]}, flash {stats["flash"]}; failures {test_dhgr.FAIL}')
     quiet = []                       # each turn without its sound / its throw delays
     for t, p in turns:
-        g = a2profile.grouped(a2profile.by_label(p, labels), GROUPS + [('core', ('',))])
+        g = a2profile.grouped(a2profile.by_label(p, labels, rom=0xF800), GROUPS + [('core', ('',))])
         quiet.append((t - g.get('sound', 0), t - g.get('sound', 0) - g.get('throw delay', 0)))
         if args.list:
             print(f'turn {len(quiet) - 1:3d}: {t:7d} cycles, sound {g.get("sound", 0):6d}, '
@@ -113,10 +121,10 @@ def main():
     order = sorted(turns, key=lambda tp: -tp[0])
     for t, p in order[:3] + [order[n // 2], order[n * 3 // 4]]:
         print(f'\nturn of {t} cycles:')
-        a2profile.report(a2profile.grouped(a2profile.by_label(p, labels),
+        a2profile.report(a2profile.grouped(a2profile.by_label(p, labels, rom=0xF800),
                                            GROUPS + [('core', ('',))]), t, brackets=True)
         if args.detail:
-            a2profile.report(a2profile.by_label(p, labels), t, top=args.detail)
+            a2profile.report(a2profile.by_label(p, labels, rom=0xF800), t, top=args.detail)
 
 
 if __name__ == '__main__':

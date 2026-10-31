@@ -5,8 +5,10 @@
 
 The DHGR back-end (src/video_dhgr.asm) emulates the core's virtual TMS9918
 screen (docs/VIDEO_API.md): 32x24 characters of 8x8 pixels + 16x16 sprites,
-256x192 pixels. It draws it on the //e double hi-res colour screen (140x192
-colour pixels) halved horizontally: one DHGR colour pixel = two TMS pixels,
+256x192 pixels. Its text engine draws the full pages (title, bag, help...)
+and the HUD rows of the game view (the map itself: tools/x2_dhgr.py, the X2
+way) on the //e double hi-res colour screen (140x192 colour pixels) halved
+horizontally: one DHGR colour pixel = two TMS pixels,
 one line = one line. The TMS picture is 128 colour pixels wide there, from
 x = 6 (6 black pixels each side); a character is 4 x 8, a sprite 8 x 16.
 

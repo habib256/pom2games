@@ -5,11 +5,14 @@ E-Z Color, détection dans tout emplacement (sauf 3 et le lecteur), message
 clair sans carte, sons et airs au haut-parleur, cœur séparé de l'affichage
 (docs/VIDEO_API.md), lanceur TMS / DHGR / erreur, tests a2run --ezcolor.
 
-- **Version DHGR** (`ROGUE.DHGR`, //e 128 Ko ou //c sans la carte) : autre
-  builder, sur `docs/VIDEO_API.md` ; aujourd'hui un bouche-trou
-  (`src/dhgr_stub.s`). Une fois là : un test //e qui joue quelques tours.
-- **Rogue X2** : la suite de POM1 (plus grande carte, défilement), si elle
-  est faite côté POM1.
+- **Version DHGR** (fait, 2026-10-31 ; vue de jeu à la ROGUE X2 le
+  2026-11-01 : fenêtre 9 × 5 de grandes cases centrée sur le héros, double
+  tampon). Restent : le parchemin ne montre que la fenêtre (comme ROGUE X2 ;
+  la carte entière en petit, le temps de la touche, serait plus utile) ; le
+  //c change de page sans attendre le balayage (une image peut se
+  déchirer : l'interruption VBL de sa souris le permettrait) ; le sol
+  éclairé est noir comme sur la TMS (une trame discrète montrerait la
+  lumière de la torche) ; le HUD n'a pas les couleurs par ligne de ROGUE X2.
 - **Mockingboard** : sons et musique sur le AY (`mb_irq.asm`, `aysong.asm`)
   quand une carte est présente, le haut-parleur sinon.
 - **Partie sauvée** : écrire l'état (page zéro du jeu + LOWBSS, ~600 o) dans

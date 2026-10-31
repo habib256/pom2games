@@ -8,13 +8,15 @@ Le disque `dist/ROGUE.dsk` porte **deux binaires du même jeu** :
 |---------------|-------------------------------------------|--------------------------------|--------------|
 | `ROGUE`       | lanceur (toute machine)                   | page texte Apple               | builder TMS  |
 | `ROGUE.TMS`   | Apple II+ 48 Ko et plus + carte E-Z Color | `src/video_tms.asm` (TMS9918A) | builder TMS  |
-| `ROGUE.DHGR`  | Apple //e 128 Ko ou //c, sans la carte    | `src/video_dhgr.*` (DHGR)      | builder DHGR |
+| `ROGUE.DHGR`  | Apple //e 128 Ko ou //c, sans la carte    | `src/video_dhgr.*`, `src/video_x2.*` (DHGR) | builder DHGR |
 
 Les deux binaires assemblent **le même cœur** (`src/core/`) : donjon, champ de
 vision, monstres, objets, sac, combat, logique du HUD, sons, clavier. Le cœur ne
 touche jamais le matériel vidéo : il parle à un **écran TMS9918 virtuel** à
 travers les sept routines ci-dessous. Le back-end TMS les envoie à la vraie
-puce ; le back-end DHGR les émule (grille de caractères + liste de sprites).
+puce ; le back-end DHGR les émule (grille de caractères + liste de sprites) et
+dessine la carte à sa façon (ROGUE X2 : une fenêtre de grandes cases centrée
+sur le héros, [PORT.md](PORT.md) §3).
 
 ## 1. Le modèle : une « VRAM virtuelle » d'écriture seule
 
@@ -99,7 +101,7 @@ deux `vid_put` consécutifs sont espacés d'au moins 4 + 6 + 6 + 6 = 22 cycles
 | Label | Fourni par | Rôle |
 |---|---|---|
 | `start` | cœur | entrée du jeu proprement dit (après la détection) ; `JMP start` = recommencer une partie |
-| `plat_quit` | binaire | ESC + Y en jeu, ESC au titre : éteindre (`vid_off`), rendre le DOS (`apple2_exit`) |
+| `plat_quit` | binaire | ESC + Y en jeu, ESC au titre : éteindre (`vid_off`), rendre le DOS (`apple2_exit` ; `ROGUE.DHGR`, qui s'est passé du DOS : marque + redémarrage de la disquette, PORT.md §6) |
 | `plat_sound_status` | binaire | A = `snd_on` (0/1) : le binaire l'affiche où il veut (TMS : ligne 22 de la page texte Apple ; DHGR : `RTS`) |
 
 Le cœur inclut lui-même `sound.asm`, `tune.asm` (son de l'Apple II), mais pas
@@ -195,7 +197,8 @@ Tout monstre touché ce tour-ci est posé en couleur 8 (rouge).
     src/rogue_tms.s, .cfg     binaire ROGUE.TMS ($4000)
     src/launcher.s, .cfg      binaire ROGUE ($6000) : choix TMS / DHGR / erreur
     src/dhgr_stub.s           ROGUE.DHGR bouche-trou (tant que rogue_dhgr.s manque)
-    src/video_dhgr.*          back-end DHGR            (builder DHGR)
+    src/video_dhgr.*          back-end DHGR : pages, moteur texte (builder DHGR)
+    src/video_x2.*            back-end DHGR : la vue de jeu à la ROGUE X2
     src/rogue_dhgr.s          binaire ROGUE.DHGR       (builder DHGR)
 
 Gabarit d'un binaire (voir `src/rogue_tms.s`, include path `-I src` +
@@ -223,11 +226,12 @@ Le boot du binaire initialise `snd_on` (1 = son) et `sfx_req` (0) avant
 `rogue/Makefile` construit `ROGUE`, `ROGUE.TMS` et `ROGUE.DHGR` sur le même
 disque. Règle à compléter par le builder DHGR :
 
-    $(BUILD)/rogue_dhgr.bin: src/rogue_dhgr.s src/video_dhgr.* $(CORE) src/rogue_dhgr.cfg
+    $(BUILD)/rogue_dhgr.bin: src/rogue_dhgr.s src/video_dhgr.* src/video_x2.* $(CORE) src/rogue_dhgr.cfg
 
 Tant que `src/rogue_dhgr.s` n'existe pas, le Makefile met à la place un
 binaire bouche-trou (`src/dhgr_stub.s`) qui affiche « VERSION DHGR PAS ENCORE
 CONSTRUITE » et rend le DOS : le lanceur et ses tests marchent sans attendre.
-Adresse de chargement : libre (déclarée dans `DHGR_LOAD` du Makefile) ; le
-lanceur fait `BRUN ROGUE.DHGR` (DOS 3.3, //e 128 Ko : la mémoire auxiliaire est
-à la disposition de ROGUE.DHGR, DOS ne s'en sert pas).
+Adresse de chargement : libre (déclarée dans `DHGR_LOAD` du Makefile :
+`$3C00` = le début de `src/rogue_dhgr.cfg`) ; le lanceur fait `BRUN
+ROGUE.DHGR` (DOS 3.3, //e 128 Ko : la mémoire auxiliaire est à la disposition
+de ROGUE.DHGR, DOS ne s'en sert pas ; ROGUE.DHGR se passe ensuite du DOS).
