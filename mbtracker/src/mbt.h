@@ -80,6 +80,9 @@ void pat_select(unsigned char p);              /* store the grid, fetch p */
 void pat_flush(void);                          /* the grid back to aux */
 unsigned char pat_new(unsigned char copy);     /* a new pattern (copy of the grid) */
 void __fastcall__ pat_delete(unsigned char p); /* the pattern out, the next ones down */
+/* OVL1: voices 4-6 not empty; the song 3 <-> 6 voices (main.c's ^W) */
+unsigned char song_hi_used(void);
+void song_voices(void);
 unsigned song_encode(void);                    /* -> song_buf, length or 0 (too big) */
 unsigned char song_decode(unsigned len);       /* song_buf -> the song; 0 = ok */
 unsigned audition_encode(unsigned char *buf, unsigned char ins, unsigned char note);

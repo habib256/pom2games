@@ -360,6 +360,54 @@ unsigned audition_encode(unsigned char *b, unsigned char ins, unsigned char note
     return pos;
 }
 
+/* ---------------------------------------------------------------- 3 <-> 6 voices */
+/* (in the overlay OVL1 with the instrument editor: main.c's ^W) */
+#pragma code-name (push, "OVL1")
+/* 1 if voices 4-6 of a pattern hold a note, an instrument or an effect
+ * (the grid flushed first) */
+unsigned char song_hi_used(void)
+{
+    unsigned char p;
+    unsigned i;
+    for (p = 0; p < s_npat; ++p) {
+        aux_xfer(scratch, p, 0);
+        for (i = 3 * TRACK; i < 6 * TRACK; i += CELL)
+            if (scratch[i] != NOTE_EMPTY || scratch[i + 1])
+                return 1;
+    }
+    return 0;
+}
+
+/* The song to the other count of voices, the aux store repacked (a voice's
+ * track stays where it is in its pattern): 3 -> 6 from the last pattern
+ * down (a pattern moves up), voices 4-6 empty; 6 -> 3 from the first up,
+ * voices 4-6 dropped. The caller flushed the grid and checked the 32
+ * patterns of 6 voices; the grid fetched again. */
+void song_voices(void)
+{
+    unsigned char p, nv = s_voices ^ 5;     /* 3 <-> 6 */
+    if (nv == 6)
+        for (p = s_npat; p--;) {
+            empty(scratch);
+            aux_xfer(scratch, p, 0);
+            s_voices = 6;
+            aux_xfer(scratch, p, 1);
+            s_voices = 3;
+        }
+    else
+        for (p = 0; p < s_npat; ++p) {
+            aux_xfer(scratch, p, 0);
+            s_voices = 3;
+            aux_xfer(scratch, p, 1);
+            s_voices = 6;
+        }
+    s_voices = nv;
+    song_len = 0;
+    grid_dirty = 0;
+    aux_xfer(grid, cur_pat, 0);
+}
+#pragma code-name (pop)
+
 /* ---------------------------------------------------------------- decoder */
 /* (in the overlay OVL2 with the file screens: only file_load calls it) */
 #pragma code-name (push, "OVL2")

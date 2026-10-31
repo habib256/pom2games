@@ -30,7 +30,9 @@ the order list (I inserts a new pattern, C clones it, a click picks an
 entry, D deletes a pattern and its entries); LOAD and two clicks on
 DEMO.AYS load it; HELP shows both help pages. Every grid is compared with
 the same song built in Python. 6 voices (//e and //c with the card): ^N
-then Y, notes on both chips, played = the Player with max_voices 6. The
+then Y, notes on both chips, played = the Player with max_voices 6. ^W
+(//e with the card): DEMO.AYS to 6 voices and back = Song.with_voices,
+played, saved; 33 patterns refused. The
 //c with a 4c: the 4c answers $C400-$C4FF over the mouse firmware once
 woken (POM2, as the real card): no mouse there, the keyboard does it all;
 the //c without a card: its own mouse clicks a cell and the bar."""
@@ -273,6 +275,15 @@ def check_grid(s, song, what, p=0):
                              f'{got[bad - bad % 3:bad - bad % 3 + 3].hex()} != {want[bad - bad % 3:bad - bad % 3 + 3].hex()}')
 
 
+def check_rows(s, song, what, p=0):
+    """check_grid for a song of fewer than 64 rows: each voice's first rows."""
+    got = s.peek('grid', song.voices * 192)
+    want = grid_bytes(song, p)
+    n = song.rows * 3
+    for v in range(song.voices):
+        assert got[v * 192:v * 192 + n] == want[v * n:(v + 1) * n], f'{what}: voice {v + 1}'
+
+
 def tick_cost(s, n=150):
     """mbt_tick (the interrupt's tick: mbt_asm.s + aysong.asm, 6 voices,
     MB_FAST_WRITE) called n times from the main loop on a fresh snd_play of
@@ -494,6 +505,77 @@ def run_iie(work):
               f'{n} AY writes of 150 ticks = the Python Player')
 
 
+def run_convert(work):
+    """//e with the card: ^W converts DEMO.AYS to 6 voices, a note typed in
+    voice 5, played = the Player on with_voices(6) + that note, saved and
+    read back = aysong.encode of it; ^W back to 3 asks (N keeps, Y drops
+    voice 5), the bytes = with_voices(3); a 33-pattern song refused."""
+    nonce = secrets.token_bytes(32)
+    big = Song([Pattern([[Cell(p % 96, 1) if v == 0 else Cell(), Cell(), Cell(), Cell()] for v in range(3)])
+                for p in range(33)], [default_ins()], list(range(33)), rows=4)
+    disk = work / 'conv.po'
+    a2test.prodos_variant(DISK, disk, replace={'NONCE#060000': nonce, 'BIG.AYS#060000': aysong.encode(big)})
+    other = work / 'other2.po'
+    a2test.prodos_variant(DISK, other, drop=('DEMO.AYS',), volume='OTHER')
+    demo = aysong.demo()
+    t0 = time.time()
+    with Session(disk, ['--iie', '--mockingboard']) as s:
+        s.idle(1500)
+        o = s.b('octave')
+        s.keys(ctrl('L') + '/DEMO.AYS' + RET, 600)
+        s.keys('=' * (4 - o) if o < 4 else '-' * (o - 4))
+        assert s.b('s_voices') == 3 and 'LOADED DEMO.AYS' in s.screen()[22]
+        s.keys(ctrl('Z') + ctrl('W'))                   # (^Z: an undo kind to forget)
+        scr = s.screen()
+        assert s.b('s_voices') == 6 and s.b('u_kind') == 0, 'converted, the undo forgotten'
+        assert scr[2].startswith('RW V1 ') and 'V6' in scr[2] and 'UNDO CLEARED' in scr[22], (scr[2], scr[22])
+        song = demo.with_voices(6)
+        p0 = song.order[0]
+        check_rows(s, song, '^W 3 -> 6', p0)
+        s.keys(RIGHT * 20 + 'Q')                        # voice 5, row 0: C-5
+        song.patterns[p0].tracks[4][0] = Cell(60, 1)
+        check_rows(s, song, '6 voices, a note in voice 5', p0)
+        data = aysong.encode(song)
+        n = play_check(s, data, 60, '^W 6 voices')
+        assert s.peek('song_buf', len(data)) == data, 'the 6-voice AYS = aysong.encode(with_voices(6) + the note)'
+        s.keys(ctrl('S') + DEL * 8 + 'conv' + RET)
+        assert 'SAVED CONV.AYS' in s.screen()[22]
+        s.step('insert:' + str(other))
+        saved = a2test.prodos_files(find_copy(nonce, t0).read_bytes())['CONV.AYS'][2]
+        assert saved == data, 'CONV.AYS = aysong.encode of the expected song'
+        s.step('insert:' + str(disk))
+        print(f'PASS //e ^W 3 -> 6: DEMO.AYS converted (grid = with_voices(6), V1-V6, undo cleared), a note '
+              f'in voice 5, {n} AY writes of 60 ticks = the Player; CONV.AYS saved ({len(saved)} B) = aysong.encode')
+
+        s.keys(ctrl('W'))
+        assert 'DROP THEM' in s.screen()[22]
+        s.keys('N')
+        assert s.b('s_voices') == 6, 'N: kept'
+        s.keys(ctrl('W') + 'Y')
+        scr = s.screen()
+        assert s.b('s_voices') == 3 and 'VOICE 3' in scr[2] and 'V4' not in scr[2] and 'DROPPED' in scr[22], scr[2]
+        back = song.with_voices(3)
+        assert back == demo
+        check_rows(s, back, '^W 6 -> 3', p0)
+        data3 = aysong.encode(back)
+        play_check(s, data3, 30, '^W 6 -> 3')
+        assert s.peek('song_buf', len(data3)) == data3, 'the 3-voice AYS = aysong.encode(with_voices(3))'
+        s.keys(ctrl('W'))                               # 6 again, no question: voice 5 is empty
+        assert s.b('s_voices') == 6
+        check_rows(s, demo.with_voices(6), 'voice 5 dropped', p0)
+        s.keys(ctrl('W'))
+        assert s.b('s_voices') == 3, 'voices 4-6 empty: no question'
+        print('PASS //e ^W 6 -> 3: asked (N keeps 6), Y drops voices 4-6: grid and AYS = with_voices(3) '
+              '(the shipped DEMO.AYS bytes); back to 6, voice 5 empty; to 3 without a question')
+
+        s.keys(ctrl('L') + 'Y/BIG.AYS' + RET, 600)
+        assert s.b('s_npat') == 33 and s.b('s_voices') == 3, 'BIG.AYS loaded'
+        s.keys(ctrl('W'))
+        msg = s.screen()[22]
+        assert s.b('s_voices') == 3 and '32 PATTERNS AT MOST, THIS SONG HAS 33' in msg, msg
+        print('PASS //e ^W on a 33-pattern 3-voice song: refused ("' + msg.strip() + '")')
+
+
 def run_iic(work):
     with Session(DISK, ['--iic', '--mockingboard']) as s:
         s.idle(1500)
@@ -577,6 +659,7 @@ def main():
         run_iie(work)
         run_mouse(work)
         run_six(work)
+        run_convert(work)
         run_iic(work)
         run_iic_mouse(work)
         run_nocard(work)

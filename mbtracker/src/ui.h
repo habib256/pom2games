@@ -54,6 +54,7 @@ void __fastcall__ ensure_ins(unsigned char i);
 signed char __fastcall__ hexval(unsigned char k);
 void help_page(unsigned char page, unsigned char x, unsigned char y);
 void after_load(void);
+void layout(void);
 /* the segment of a key bar (" A B  C D  E": segments 0 1 2) at column x,
  * $FF on a gap */
 unsigned char __fastcall__ seg_at(const char *bar, unsigned char x);
@@ -62,5 +63,6 @@ unsigned char __fastcall__ seg_at(const char *bar, unsigned char x);
 void ins_editor(void);              /* OVL1 (insed.c) */
 void load(void);                    /* OVL2 (fileui.c) */
 void save(void);
+void voices(void);                  /* OVL1 (voices.c) */
 
 #endif

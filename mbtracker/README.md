@@ -26,7 +26,9 @@ demi-ton ou d'une octave, annuler / refaire) ; l'insertion, le clonage et
 la suppression de motifs dans la liste d'ordre ; les **6 voix** (les deux
 puces : choix à `^N`, grille de 6 colonnes) ; l'**import PT3** (Vortex
 Tracker II) dans `dev/tools/audio/pt3import.py`, et sur la disquette
-`WG.AYS`, la musique de WARGALAGA II importée.
+`WG.AYS`, la musique de WARGALAGA II importée. `^W` **convertit** le
+morceau ouvert de 3 à 6 voix ou retour (`Song.with_voices` et
+`aysong.py --voices` en Python).
 
 ## Écrans et touches
 
@@ -62,6 +64,7 @@ ligne = 51 colonnes, puis la liste d'ordre et les instruments).
 | `^E` | éditeur d'instrument |
 | `^T` `^A` | nom du morceau, auteur |
 | `^L` `^S` `^N` `^Q` | charger, sauver, nouveau (3 ou 6 voix : `Y` = 6), quitter vers ProDOS |
+| `^W` | convertir le morceau : 3 → 6 voix (motifs, ordre, instruments, textes gardés ; voix 4-6 vides ; refusé au-delà de 32 motifs), 6 → 3 (si les voix 4-6 contiennent quelque chose, confirmation : `Y` les abandonne) ; la grille change de disposition, l'annulation `^Z` est oubliée |
 
 ### Souris
 
@@ -186,8 +189,13 @@ refaire), `^X` ; la barre (`PLAY` = le modèle Python, `STOP`, `ORD`,
 grille = le même morceau construit en Python. 6 voix (//e et //c avec
 carte) : `^N`, des notes sur les deux puces, la lecture = le `Player`
 (`max_voices` 6), le coût du tic ; `WG.AYS` chargé et joué comme le
-modèle. //c avec 4c : pas de souris, tout au clavier ; //c sans carte :
-sa souris (un clic, une note, `HELP`, `ORD`). 15 contrôles, ~15 s.
+modèle. `^W` (//e avec carte) : `DEMO.AYS` passé à 6 voix (grille =
+`with_voices(6)`), une note en voix 5, la lecture = le `Player`,
+`CONV.AYS` sauvé = `aysong.encode` ; retour à 3 (`N` garde, `Y` abandonne
+la voix 5 : octets = `with_voices(3)`, donc `DEMO.AYS`) ; un morceau de
+33 motifs (écrit sur une copie privée du disque) refusé avec le message.
+//c avec 4c : pas de souris, tout au clavier ; //c sans carte :
+sa souris (un clic, une note, `HELP`, `ORD`). 18 contrôles, ~15 s.
 
 ## Carte mémoire
 
@@ -195,9 +203,9 @@ sa souris (un clic, une note, `HELP`, `ORD`). 15 contrôles, ~15 s.
 |---|---|
 | main `$0800-$0EE2` | sauvegarde de la page zéro (crt0), tables de l'encodeur, morceau d'écoute |
 | main `$1000-$1F41` | tampon OPEN, bloc de catalogue, préfixe, motif courant (`grid`) + motif de travail (aussi les noms de l'écran de chargement) (pages libres du bitmap ProDOS : les lectures MLI y sont permises) |
-| main `$2000-$7A8F` | saut d'entrée, RODATA (≥ 512 o : le FORMAT de `/RAM` écrase `$2000-$21FF` à la sortie), crt0, code résident (18 Ko), données |
-| main `$7A90-$7CEF` | libre (608 o) |
-| main `$7CF0-$8DFF` | les recouvrements (4 368 o) : OVL1 l'éditeur d'instrument (3 495 o), OVL2 les écrans de fichiers + `files.c` + le décodeur AYS (4 358 o) |
+| main `$2000-$7AA7` | saut d'entrée, RODATA (≥ 512 o : le FORMAT de `/RAM` écrase `$2000-$21FF` à la sortie), crt0, code résident (18 Ko), données |
+| main `$7AA8-$7CEF` | libre (584 o) |
+| main `$7CF0-$8DFF` | les recouvrements (4 368 o) : OVL1 l'éditeur d'instrument et `^W` (4 173 o), OVL2 les écrans de fichiers + `files.c` + le décodeur AYS (4 358 o) |
 | main `$8E00-$BDFF` | le morceau AYS (12 Ko), lu par le lecteur ; au démarrage, le transit de `MBT.HELP` et de `MBT.OVL` |
 | main `$BE00-$BEFF` | pile C |
 | aux `$0400-$07FF` | colonnes paires du texte 80 colonnes |
@@ -209,7 +217,7 @@ sa souris (un clic, une note, `HELP`, `ORD`). 15 contrôles, ~15 s.
 | aux LC banque 1 `$D000-$F21F` | les images des deux recouvrements (`lc_put` / `lc_get` : ALTZP, par 128 octets sous SEI) |
 
 Code : `main.c` 10,5 Ko résident (grille, panneaux, souris, blocs, aide),
-`insed.c` 3,4 Ko (OVL1), `fileui.c` + `files.c` 2,2 Ko et le décodeur de
+`insed.c` 3,4 Ko et `voices.c` + la conversion de `song.c` 0,7 Ko (OVL1), `fileui.c` + `files.c` 2,2 Ko et le décodeur de
 `song.c` 2,1 Ko (OVL2), `song.c` 2,9 Ko résident (modèle, encodeur),
 `mbt_asm.s` 2,7 Ko (Mockingboard, `mb_irq`, `aysong` à 6 voix, texte,
 pointeur, copies aux et LC), `dev/lib/mouse` 0,3 Ko.
