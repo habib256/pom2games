@@ -17,13 +17,18 @@
 #define PD_WRITE 0xCBu
 #define PD_CLOSE 0xCCu
 #define PD_FLUSH 0xCDu
+#define PD_SET_MARK 0xCEu
+#define PD_GET_MARK 0xCFu
 #define PD_SET_EOF 0xD0u
+#define PD_GET_EOF 0xD1u
 #define PD_QUIT 0x65u
 /* Parameter lists start with a count byte; pointers/words are little endian.
  * Non-reentrant. Returns zero on success, otherwise the MLI error code. */
 extern unsigned char prodos_command;
 extern void *prodos_params;
 unsigned char prodos_call(void);
+/* The same in one call (mli_cmd.s, in PRODOS_SRCS): command, then params. */
+unsigned char __fastcall__ prodos_mli(unsigned char command, void *params);
 #define PD_VIDEO_PRESERVE_RAM 0u
 #define PD_VIDEO_DISCARD_RAM  1u
 #define PD_VIDEO_OK          0u
@@ -58,4 +63,20 @@ extern unsigned prodos_file_length, prodos_file_actual;
 unsigned char prodos_load(void);
 unsigned char prodos_load_free(void);
 unsigned char prodos_save(void);
+/* file_aux.s (PRODOS_FILE_AUX_SRCS instead of file.s, with apple2c's
+ * APPLE2C_AUX_SRCS): OPEN prodos_file_name, READ prodos_file_length bytes
+ * at a time into the page-aligned main window prodos_file_buffer (its pages
+ * freed in the system bitmap meanwhile), each chunk stored to aux memory
+ * from aux_dst (page aligned) on; CLOSE. A file longer than max bytes
+ * stops with $56 before that chunk is stored. Whole pages are stored.
+ * prodos_file_actual = bytes moved to aux; 0 or the first MLI error. */
+unsigned char __fastcall__ prodos_load_aux(void *aux_dst, unsigned max);
+/* file_at.s / file_aux_at.s (PRODOS_FILE_AT_SRCS / PRODOS_FILE_AUX_AT_SRCS,
+ * instead of file.s / file_aux.s): a record at an offset. OPEN
+ * prodos_file_name, SET_MARK to prodos_file_mark (24 bits; the 4th byte
+ * is ignored), READ prodos_file_length bytes at prodos_file_buffer, CLOSE.
+ * SET_MARK's error ($4D: past the end), else READ's, else CLOSE's; a short
+ * READ is no error (compare prodos_file_actual). */
+extern unsigned long prodos_file_mark;
+unsigned char prodos_load_at(void);
 #endif

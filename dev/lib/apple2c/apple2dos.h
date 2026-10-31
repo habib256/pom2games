@@ -30,4 +30,10 @@ void a2_dos_hex(unsigned char b);        /* append b as two hex digits        */
 void a2_dos_run(void);                   /* run; retain buffer for reuse/add  */
 unsigned char a2_disk_protected(void);   /* 1 if DOS's last disk is protected */
 
+/* apple2dosbin.s (APPLE2C_DOSBIN_SRCS, with apple2dos_asm.s):
+ * "BLOAD name,A$addr" / "BSAVE name,A$addr,L$len" (39 characters a command:
+ * names up to 19 for BSAVE, 26 for BLOAD). */
+void __fastcall__ a2_dos_bload(const char *name, void *addr);
+void __fastcall__ a2_dos_bsave(const char *name, void *addr, unsigned len);
+
 #endif /* APPLE2DOS_H */

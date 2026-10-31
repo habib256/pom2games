@@ -43,17 +43,17 @@ def main():
     print(f'PASS {len(levels)} distinct boards, names, resistance values and routes around steel')
     spec=importlib.util.spec_from_file_location('prodos_read',ROOT/'dev/tools/prodos/read_volume.py')
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-    image=module.Image(a.disk.read_bytes())
+    image=module.Image(a.disk.read_bytes())  # header(), free_blocks(), the boot blocks
     assert image.header()['name']=='CHROMABREAK'
     assert image.header()['blocks']==280 and len(image.d)==143360
-    entries={e[1:1+(e[0]&15)].decode():e for e in image.entries(2)}
-    assert set(entries)=={'PRODOS','CHROMA.SYSTEM','CHROMA.SYS','HIGHSCORES','ENDING'}
-    assert all(entries[name][0x10]==0xFF for name in ('PRODOS','CHROMA.SYSTEM','CHROMA.SYS'))
-    assert entries['HIGHSCORES'][0x10]==6
-    assert image.read(entries['HIGHSCORES'])==(a.labels.parent/'HIGHSCORES').read_bytes()
-    assert image.read(entries['PRODOS'])==(ROOT/'dev/tools/prodos/PRODOS').read_bytes()
+    files=a2test.prodos_files(a.disk)
+    assert set(files)=={'PRODOS','CHROMA.SYSTEM','CHROMA.SYS','HIGHSCORES','ENDING'}
+    assert all(files[name][0]==0xFF for name in ('PRODOS','CHROMA.SYSTEM','CHROMA.SYS'))
+    assert files['HIGHSCORES'][0]==6
+    assert files['HIGHSCORES'][2]==(a.labels.parent/'HIGHSCORES').read_bytes()
+    assert files['PRODOS'][2]==(ROOT/'dev/tools/prodos/PRODOS').read_bytes()
     for name in ('CHROMA.SYSTEM', 'CHROMA.SYS'):
-        assert image.read(entries[name])==(a.labels.parent/name).read_bytes()
+        assert files[name][2]==(a.labels.parent/name).read_bytes()
     assert image.d[:1024]==(ROOT/'dev/tools/prodos/boot.bin').read_bytes()
     assert image.free_blocks()>150
     print('PASS bootable ProDOS 2.4.3 volume, SYS loader and payload round trip')

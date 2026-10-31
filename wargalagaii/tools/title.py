@@ -99,8 +99,7 @@ def build():
 
 
 def png(page, path, scale=3):
-    import struct
-    import zlib
+    import apple2img
     rgb = {(0, 0): (0xC0, 0x40, 0xFF), (0, 1): (0x40, 0xE0, 0x40),
            (1, 0): (0x40, 0x90, 0xFF), (1, 1): (0xFF, 0x80, 0x20)}
     lines = []
@@ -117,11 +116,7 @@ def png(page, path, scale=3):
                 p = rgb[(page.pal[y][lit[0] // 7] or 0, lit[0] & 1)]
             line += [p] * scale
         lines += [line] * scale
-    raw = b''.join(b'\0' + bytes(v for p in line for v in p) for line in lines)
-    chunk = lambda t, d: struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d))
-    Path(path).write_bytes(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 280 * scale, 192 * scale,
-                                                                            8, 2, 0, 0, 0))
-                           + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b''))
+    apple2img.png_write(path, lines)
 
 
 def main():

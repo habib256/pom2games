@@ -5,6 +5,13 @@
 
     build_volume.py STAGE SORTIE.po --volume CHROMABREAK --boot boot.bin
                     --blocks 280
+    build_volume.py SORTIE.po --volume CHROMABREAK --boot boot.bin
+                    --file build/CHROMA.SYS=CHROMA.SYS#FF2000 --file ...
+
+--file SRC=NOM#TTAAAA (repetable) remplace le dossier : chaque fichier hote
+SRC entre sous le nom de droite, comme s'il etait copie dans STAGE sous ce
+nom -- meme ordre (alphabetique des noms, casse ignoree), meme date fixe,
+donc la meme image octet pour octet qu'avec le dossier.
 
 Pourquoi en Python : pom2games (comme A2 File Cmd, d'ou vient cet outil) doit se construire avec cc65 et rien
 d'autre. Un outil C++ tiers pour ecrire les structures ProDOS obligerait
@@ -245,11 +252,45 @@ class Volume:
                     blk[b >> 3] |= 0x80 >> (b & 7)
 
 
+class ListedFile:
+    """Un fichier hote donne par --file SRC=NOM#TTAAAA, vu comme une entree
+    du dossier STAGE nommee NOM#TTAAAA (ce que write_dir en lit)."""
+
+    def __init__(self, spec):
+        src, eq, name = spec.rpartition('=')
+        if not eq or not src or not name:
+            raise argparse.ArgumentTypeError(f'--file {spec!r} : SRC=NOM#TTAAAA attendu')
+        self.src, self.name = Path(src), name
+
+    def is_dir(self):
+        return False
+
+    def read_bytes(self):
+        return self.src.read_bytes()
+
+
+class ListedStage:
+    """La racine faite des --file, a la place d'un dossier STAGE."""
+
+    def __init__(self, files):
+        self.files = list(files)
+
+    def iterdir(self):
+        return iter(self.files)
+
+    def __str__(self):
+        return '--file'
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('stage', type=Path, help='le dossier a mettre sur le volume')
-    ap.add_argument('out', type=Path, help="l'image .po a ecrire")
+    ap.add_argument('paths', type=Path, nargs='+', metavar='[STAGE] OUT',
+                    help="le dossier a mettre sur le volume (sauf avec --file), "
+                         "puis l'image .po a ecrire")
+    ap.add_argument('--file', type=ListedFile, action='append', default=[],
+                    metavar='SRC=NOM#TTAAAA',
+                    help='un fichier hote et son nom ProDOS (repetable), au lieu de STAGE')
     ap.add_argument('--volume', required=True, help='nom du volume, sans la barre')
     ap.add_argument('--boot', type=Path, help="l'amorce ProDOS (2 blocs)")
     ap.add_argument('--blocks', type=int, default=280, help='taille du volume (280 = 5,25 pouces)')
@@ -257,12 +298,20 @@ def main():
     ap.add_argument('--date', type=prodos_date, default=prodos_date('2026-09-07T12:00'),
                     help='date portee par les entrees (fixe : construction reproductible)')
     args = ap.parse_args()
+    if args.file:
+        if len(args.paths) != 1:
+            ap.error('avec --file, seulement l\'image a ecrire (pas de STAGE)')
+        stage, args.out = ListedStage(args.file), args.paths[0]
+    elif len(args.paths) == 2:
+        stage, args.out = args.paths
+    else:
+        ap.error('STAGE et OUT attendus (ou OUT et des --file)')
 
     boot = args.boot.read_bytes() if args.boot else b''
     if args.boot and len(boot) < 2 * BLOCK:
         boot = boot + bytes(2 * BLOCK - len(boot))
     vol = Volume(args.volume, args.blocks, boot[:2 * BLOCK], args.date, args.a2fc_layout)
-    count = vol.build(args.stage)
+    count = vol.build(stage)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_bytes(bytes(vol.image))
     free = args.blocks - vol.next_free

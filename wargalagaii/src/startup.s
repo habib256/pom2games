@@ -2,61 +2,13 @@
 ; BOOTM, where LOWBSS will be), moves the game image to $6000 (backwards:
 ; source and destination overlap) and starts it.
 .setcpu "65C02"
+SYSRELOC_DOWN_FAST = 1    ; tail + whole pages: ~0.7 s faster boot
+.include "sysreloc.inc"   ; dev/lib/prodos
 .segment "CODE"
-        cld
-        sta $C002
-        sta $C004
-        sta $C000
-        ldx #$FF
-        txs
-        lda #<boot                ; first: the game image covers it next
-        sta $06
-        lda #>boot
-        sta $07
-        lda #<$1700
-        sta $08
-        lda #>$1700
-        sta $09
-        ldx #>bsize + 1          ; whole pages (the rest: bytes past it)
-        ldy #0
-:       lda ($06),y
-        sta ($08),y
-        iny
-        bne :-
-        inc $07
-        inc $09
-        dex
-        bne :-
-        lda #<(payload+size-1)
-        sta $06
-        lda #>(payload+size-1)
-        sta $07
-        lda #<($6000+size-1)
-        sta $08
-        lda #>($6000+size-1)
-        sta $09
-        lda #<size
-        sta $0A
-        lda #>size
-        sta $0B
-        ldy #0
-copy:   lda ($06),y
-        sta ($08),y
-        lda $06
-        bne :+
-        dec $07
-:       dec $06
-        lda $08
-        bne :+
-        dec $09
-:       dec $08
-        lda $0A
-        bne :+
-        dec $0B
-:       dec $0A
-        lda $0A
-        ora $0B
-        bne copy
+        sysreloc_prologue
+        ; first: the game image covers it next. Whole pages (the rest: bytes past it)
+        sysreloc_copy_pages boot, $1700, >bsize + 1
+        sysreloc_copy_down payload, $6000, size
         jmp $6000
 payload: .incbin "game.bin"
 size=*-payload

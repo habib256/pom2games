@@ -18,4 +18,26 @@ _prodos_save:
         jsr prodos_save
         ldx #0
         rts
+.ifdef PRODOS_FILE_AUX
+; file_aux.s: prodos_load_aux(aux_dst, max), on apple2c's aux_store.
+.import popax, aux_store
+.export _prodos_load_aux
+_prodos_load_aux:
+        sta pa_max
+        stx pa_max+1
+        jsr popax
+        sta pa_dst
+        stx pa_dst+1
+        jsr prodos_load_aux
+        ldx #0
+        rts
+.endif
+.ifdef PRODOS_FILE_AT
+; file_at.s / file_aux_at.s: prodos_load_at() and prodos_file_mark.
+.export _prodos_load_at, _prodos_file_mark := pf_mark
+_prodos_load_at:
+        jsr prodos_load_at
+        ldx #0
+        rts
+.endif
 .include "file.asm"

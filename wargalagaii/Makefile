@@ -52,7 +52,7 @@ $(BUILD)/HIGHSCORES: tools/records.py
 	@mkdir -p $(@D)
 	$(PYTHON) tools/records.py $@
 
-$(BUILD)/game.o: src/game.s src/logic.s src/render.s src/sound.s src/shop.s src/memory.s src/storm.s src/front.s src/demo.s $(APPLE2)/duet.asm $(APPLE2)/lz4fh.asm $(PRODOS)/file.asm src/sprites.inc src/paths.inc src/sound.inc src/bonus.inc src/hud.inc src/demo.inc $(BUILD)/title.lz4 $(BUILD)/HIGHSCORES $(A2_ASM_DEPS)
+$(BUILD)/game.o: src/game.s src/logic.s src/render.s src/sound.s src/shop.s src/memory.s src/storm.s src/front.s src/demo.s $(APPLE2)/duet.asm $(APPLE2)/mb_irq.asm $(APPLE2)/lz4fh.asm $(PRODOS)/file.asm src/sprites.inc src/paths.inc src/sound.inc src/bonus.inc src/hud.inc src/demo.inc $(BUILD)/title.lz4 $(BUILD)/HIGHSCORES $(A2_ASM_DEPS)
 $(BUILD)/%.o: src/%.s
 	@mkdir -p $(@D)
 	$(CA65) $(ASFLAGS) --bin-include-dir $(BUILD) -o $@ $<
@@ -83,13 +83,9 @@ $(BUILD)/music.o: src/music.s $(BUILD)/song.pt3 $(wildcard $(PT3)/*.s $(PT3)/*.i
 $(BUILD)/game.bin: $(OBJS) $(LIB_OBJS) src/game.cfg
 	$(LD65) -C src/game.cfg -m $(BUILD)/game.map -Ln $(BUILD)/game.lbl -o $@ \
 		$(OBJS) $(LIB_OBJS) none.lib
-$(BUILD)/WG2.SYS: $(BUILD)/game.bin src/startup.s $(PRODOS_SYS_CFG)
-	$(CA65) --bin-include-dir $(BUILD) -o $(BUILD)/startup.o src/startup.s
+$(BUILD)/WG2.SYS: $(BUILD)/game.bin src/startup.s $(PRODOS_SYS_CFG) $(PRODOS_SYSRELOC_DEPS)
+	$(CA65) --bin-include-dir $(BUILD) -I $(PRODOS) -o $(BUILD)/startup.o src/startup.s
 	$(LD65) -C $(PRODOS_SYS_CFG) -o $@ $(BUILD)/startup.o
-$(BUILD)/WG2.SYSTEM: src/boot.s $(PRODOS_SYSBOOT_DEPS)
-	@mkdir -p $(@D)
-	$(CA65) -I $(PRODOS) -o $(BUILD)/boot.o src/boot.s
-	$(LD65) -C $(PRODOS_SYSBOOT_CFG) -o $@ $(BUILD)/boot.o
 
 # WG2.AUX: the PT3 player and song at aux $2000, the packs at $3000, the
 # overlay (shop, Memory Station, title) at $7000, Meteor Storm's code and
@@ -112,19 +108,10 @@ $(BUILD)/WG2.AUX: tools/sprites.py tools/walls.py $(BUILD)/game.bin
 		+ z.ljust(0x200, b'\0'))" $@.packs $(BUILD)/game.bin.mus $(BUILD)/game.bin.shop \
 		$(BUILD)/game.bin.low $(BUILD)/game.bin.hi $(BUILD)/game.bin.lv $@.walls $@.boss $@.storm \
 		$(BUILD)/game.bin.pick $(BUILD)/game.bin.low2 $@
-$(DISK): $(BUILD)/WG2.SYSTEM $(BUILD)/WG2.SYS $(BUILD)/WG2.AUX $(BUILD)/HIGHSCORES $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py
-	@rm -rf $(BUILD)/stage
-	@mkdir -p $(BUILD)/stage $(DIST)
-	cp $(DEV)/tools/prodos/PRODOS $(BUILD)/stage/PRODOS#FF0000
-	cp $(BUILD)/WG2.SYSTEM $(BUILD)/stage/WG2.SYSTEM#FF2000
-	cp $(BUILD)/WG2.SYS $(BUILD)/stage/WG2.SYS#FF2000
-	cp $(BUILD)/WG2.AUX $(BUILD)/stage/WG2.AUX#060000
-	cp $(BUILD)/HIGHSCORES $(BUILD)/stage/HIGHSCORES#060000
-	$(PYTHON) $(DEV)/tools/prodos/build_volume.py $(BUILD)/stage $@ \
-		--volume WARGALAGAII --boot $(DEV)/tools/prodos/boot.bin --blocks 280
-
-run-iic: all
-	$(POM2) --preset iic --slot 4=iicmouse $(DISK)
+$(DISK): $(BUILD)/WG2.SYSTEM $(BUILD)/WG2.SYS $(BUILD)/WG2.AUX $(BUILD)/HIGHSCORES $(PRODOS_VOLUME_DEPS)
+	$(call prodos_volume,$@,WARGALAGAII,$(BUILD)/WG2.SYSTEM=WG2.SYSTEM#FF2000 \
+		$(BUILD)/WG2.SYS=WG2.SYS#FF2000 $(BUILD)/WG2.AUX=WG2.AUX#060000 \
+		$(BUILD)/HIGHSCORES=HIGHSCORES#060000)
 
 # Two tiers (convention of ../dev/cc65/apple2.mk): `test` stays fast.
 test: all $(if $(A2SHOT_HOST),$(BUILD)/iic_probe)
@@ -148,4 +135,4 @@ test-long: test
 	$(PYTHON) tests/test_long.py --disk $(DISK) --labels $(BUILD)/game.lbl
 
 
-.PHONY: run-iic test test-long
+.PHONY: test test-long

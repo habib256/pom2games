@@ -7,7 +7,6 @@ replacement with shorter/empty files and missing-file creation on disk.
 """
 from pathlib import Path
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -88,6 +87,15 @@ mli:    sty saved_y
         beq transfer
         cmp #$D0
         beq eof
+        cmp #$CE
+        beq stub_mark
+        bra result
+stub_mark:                      ; SET_MARK: its list (count, ref, 24-bit mark)
+        ldy #4
+:       jsr param_get
+        sta mark_seen,y
+        dey
+        bpl :-
         bra result
 opened: inc opens
         ldy #5
@@ -148,6 +156,7 @@ leave_actual: .res 1
 actual: .res 2
 actual_seen: .res 2
 eof_seen: .res 5
+mark_seen: .res 5
 bitmap_seen: .res 26
 saved_y: .res 1
 command: .res 1
@@ -159,7 +168,8 @@ def compile_asm(work, name, source, extra=(), config=CFG):
     src = work / (name + '.s')
     src.write_text(source)
     obj = src.with_suffix('.o')
-    subprocess.run(['ca65', '--cpu', '65c02', '-g', '-I', str(PD), '-o', str(obj), str(src)], check=True)
+    subprocess.run(['ca65', '--cpu', '65c02', '-g', '-I', str(PD), '-I', str(DEV / 'lib/apple2'),
+                    '-o', str(obj), str(src)], check=True)
     cfg = work / 'test.cfg'
     cfg.write_text(config)
     binary, lbl = src.with_suffix('.bin'), src.with_suffix('.lbl')
@@ -172,7 +182,7 @@ def asm_fixture(work, include='file.asm', name='asm', entrypoints=None):
     if entrypoints is None:
         entrypoints = ('prodos_open', 'prodos_close', 'prodos_read',
                        'prodos_read_free', 'prodos_write', 'prodos_load',
-                       'prodos_load_free', 'prodos_save')
+                       'prodos_load_free', 'prodos_save', 'prodos_load_at')
     refs = '.code\n' + ''.join(f' jsr {fn}\n' for fn in entrypoints)
     return compile_asm(work, name, refs + f'.include "{include}"\n' + STUB)
 
@@ -183,16 +193,19 @@ def c_fixture(work):
 unsigned char c_load(void) { return prodos_load(); }
 unsigned char c_free(void) { return prodos_load_free(); }
 unsigned char c_save(void) { return prodos_save(); }
+unsigned char c_at(void) { return prodos_load_at(); }
+void c_mark(void) { prodos_file_mark = 0x123456ul; }
 ''')
     cobj, pobj = work / 'calls.o', work / 'file.o'
     subprocess.run(['cl65', '-t', 'none', '--cpu', '65c02', '-Oirs', '-I', str(PD),
                     '-c', '-o', str(cobj), str(src)], check=True)
-    subprocess.run(['ca65', '-g', '-o', str(pobj), str(PD / 'file.s')], check=True)
+    # file_at.s: file.s plus prodos_load_at (PRODOS_FILE_AT_SRCS).
+    subprocess.run(['ca65', '-g', '-I', str(PD), '-o', str(pobj), str(PD / 'file_at.s')], check=True)
     return compile_asm(work, 'c', STUB, (cobj, pobj))
 
 
 def invoke(binary, labels, fn, buf=0x2000, length=0x100, errors=(), actual=0x100,
-           stale=0xBEEF, leave=False, reopen=0):
+           stale=0xBEEF, leave=False, reopen=0, mark=None):
     L = labels
     steps = [f'load:{binary}@6000', f'call:{L["setup"]:04X}:2']
     def byte(name, value, offset=0):
@@ -212,11 +225,15 @@ def invoke(binary, labels, fn, buf=0x2000, length=0x100, errors=(), actual=0x100
     word('actual', actual)
     byte('leave_actual', int(leave))
     byte('reopen_error', reopen)
+    if mark is not None:
+        for i in range(3):
+            byte('pf_mark', mark >> 8 * i & 255, i)
     for command, error in errors:
         byte('errors', error, command)
     steps += ['regs:77:88:9A', f'call:{L[fn]:04X}:3', L.peek('pf_err'),
               L.peek('pf_got', 2), L.peek('log_count'), L.peek('log', 16),
-              L.peek('refs', 16), L.peek('eof_seen', 5), L.peek('actual_seen', 2),
+              L.peek('refs', 16), L.peek('eof_seen', 5), L.peek('mark_seen', 5),
+              L.peek('actual_seen', 2),
               L.peek('bitmap_seen', 26), 'peek:BF57:26', 'peek:0000:256']
     disk = binary.parent / 'stub.dsk'
     if not disk.exists():
@@ -234,7 +251,7 @@ def invoke(binary, labels, fn, buf=0x2000, length=0x100, errors=(), actual=0x100
     count = r.mem(L['log_count'], 1)[0]
     return dict(error=err, actual=int.from_bytes(r.mem(L['pf_got'], 2), 'little'),
                 log=r.mem(L['log'], 16)[:count], refs=r.mem(L['refs'], 16)[:count],
-                eof=r.mem(L['eof_seen'], 5), bitmap=r.mem(L['bitmap_seen'], 26),
+                eof=r.mem(L['eof_seen'], 5), mark=r.mem(L['mark_seen'], 5), bitmap=r.mem(L['bitmap_seen'], 26),
                 initial_actual=r.mem(L['actual_seen'], 2), cycles=elapsed, original=bitmap)
 
 
@@ -242,9 +259,9 @@ def injected(work):
     asm, L = asm_fixture(work)
     c, C = c_fixture(work)
     count = 0
-    for binary, labels, load, free, save in (
-            (asm, L, 'prodos_load', 'prodos_load_free', 'prodos_save'),
-            (c, C, '_c_load', '_c_free', '_c_save')):
+    for binary, labels, load, free, save, at in (
+            (asm, L, 'prodos_load', 'prodos_load_free', 'prodos_save', 'prodos_load_at'),
+            (c, C, '_c_load', '_c_free', '_c_save', '_c_at')):
         # Independent failure at each stage, including simultaneous failures.
         cases = [({}, 0, bytes([0xC8, 0xCA, 0xCC]), 0x100),
                  ({'errors': [(0xC8, 0x46)]}, 0x46, b'\xC8', 0),
@@ -280,10 +297,27 @@ def injected(work):
                 if command in (0xCB, 0xCC, 0xD0):
                     assert ref == 7, r
             count += 1
+        # prodos_load_at: OPEN, SET_MARK (24 bits, the file's ref), READ,
+        # CLOSE; SET_MARK's error ($4D past the end) skips the READ.
+        atcases = [({}, 0, b'\xC8\xCE\xCA\xCC', 0x100),
+                   ({'errors': [(0xC8, 0x46)]}, 0x46, b'\xC8', 0),
+                   ({'errors': [(0xCE, 0x4D)]}, 0x4D, b'\xC8\xCE\xCC', 0),
+                   ({'errors': [(0xCE, 0x4D), (0xCC, 0x2E)]}, 0x4D, b'\xC8\xCE\xCC', 0),
+                   ({'errors': [(0xCA, 0x4C)], 'actual': 0}, 0x4C, b'\xC8\xCE\xCA\xCC', 0),
+                   ({'errors': [(0xCA, 0x27)], 'actual': 9}, 0x27, b'\xC8\xCE\xCA\xCC', 9),
+                   ({'errors': [(0xCC, 0x2E)], 'actual': 0x99}, 0x2E, b'\xC8\xCE\xCA\xCC', 0x99)]
+        for options, error, log, actual in atcases:
+            r = invoke(binary, labels, at, mark=0xABCDEF, **options)
+            assert (r['error'], r['log'], r['actual']) == (error, log, actual), (at, options, r)
+            assert all(ref == 7 for ref in r['refs'][1:]), r
+            if 0xCE in log:
+                assert r['mark'] == b'\x02\x07\xEF\xCD\xAB', (at, r['mark'].hex())
+            count += 1
         r = invoke(binary, labels, free, buf=0xBFFF, length=2,
                    errors=[(0xCC, 0x2E)])
         assert (r['error'], r['actual'], r['log']) == (0x56, 0, b'\xC8\xCC'), r
         count += 1
+    assert C['_prodos_file_mark'] == C['pf_mark'], 'C prodos_file_mark is the SET_MARK field'
     for fn, command in (('prodos_read', 0xCA), ('prodos_write', 0xCB)):
         r = invoke(asm, L, fn, errors=[(command, 0x27)], leave=True)
         assert (r['error'], r['actual'], r['initial_actual']) == (0x27, 0, b'\0\0'), r
@@ -314,7 +348,8 @@ def injected(work):
             count += 1
     # Assemble every independent .ifref route, including save-only/load-only.
     for fn in ('prodos_open', 'prodos_close', 'prodos_read', 'prodos_read_free',
-               'prodos_write', 'prodos_load', 'prodos_load_free', 'prodos_save'):
+               'prodos_write', 'prodos_load', 'prodos_load_free', 'prodos_save',
+               'prodos_load_at'):
         binary, labels = asm_fixture(work, name=fn, entrypoints=(fn,))
         r = invoke(binary, labels, fn)
         assert r['error'] == 0, (fn, r)
@@ -322,7 +357,7 @@ def injected(work):
             assert r['actual'] == 0
         count += 1
     print(f'ProDOS files: {count} ASM/C injected scenarios, first error/CLOSE, '
-          'actual reset, refs/SET_EOF, bitmap boundaries/restoration, Y/ZP and .ifref OK.')
+          'actual reset, refs/SET_EOF/SET_MARK, bitmap boundaries/restoration, Y/ZP and .ifref OK.')
     return asm, L
 
 
@@ -426,7 +461,38 @@ start:  bit $C000
 check{index}:
         nop
 '''
-    source += '''done: jmp done
+    # prodos_load_at on MARKS (768 B): 64 bytes at $000201, then past the end ($301).
+    for index, (mark, length) in enumerate(((0x201, 0x40), (0x301, 0x10))):
+        source += f'''
+        lda #<marks
+        sta pf_name
+        lda #>marks
+        sta pf_name+1
+        lda #0
+        sta pf_buf
+        lda #$52
+        sta pf_buf+1
+        lda #<{length}
+        sta pf_len
+        lda #>{length}
+        sta pf_len+1
+        lda #<{mark}
+        sta pf_mark
+        lda #>{mark}
+        sta pf_mark+1
+        stz pf_mark+2
+        jsr prodos_load_at
+        sta at_results+{index*3}
+        lda pf_got
+        sta at_results+{index*3+1}
+        lda pf_got+1
+        sta at_results+{index*3+2}
+'''
+    source += '''at_check:
+        nop
+done: jmp done
+marks: .byte 5, "MARKS"
+at_results: .res 6,0
 get_eof: .byte 2
 eof_ref: .byte 0
 eof_pos: .byte 0,0,0
@@ -441,22 +507,19 @@ results: .res 39,0
     boot, _ = compile_asm(work, 'boot', '.define SYSBOOT_FILE "TEST.SYS"\n'
                           '.define SYSBOOT_TITLE "PRODOS FILE TEST"\n.include "sysboot.s"\n',
                           config=(DEV / 'cc65/prodos_sysboot.cfg').read_text())
-    stage = work / 'stage'
-    stage.mkdir()
-    shutil.copyfile(DEV / 'tools/prodos/PRODOS', stage / 'PRODOS#FF0000')
-    shutil.copyfile(binary, stage / 'TEST.SYS#FF2000')
-    shutil.copyfile(boot, stage / 'TEST.SYSTEM#FF2000')
-    (stage / 'SHORT').write_bytes(b'X' * 2048)
-    (stage / 'ZERO').write_bytes(b'Y' * 1024)
-    disk = work / 'native.po'
-    subprocess.run([sys.executable, str(DEV / 'tools/prodos/build_volume.py'),
-                    str(stage), str(disk), '--volume', 'FILETEST', '--blocks', '280',
-                    '--boot', str(DEV / 'tools/prodos/boot.bin')], check=True,
-                   capture_output=True, text=True)
+    disk = a2test.prodos_volume(work / 'native.po', {
+        'PRODOS#FF0000': (DEV / 'tools/prodos/PRODOS').read_bytes(),
+        'TEST.SYS#FF2000': binary.read_bytes(), 'TEST.SYSTEM#FF2000': boot.read_bytes(),
+        'SHORT': b'X' * 2048, 'ZERO': b'Y' * 1024, 'MARKS': aux_data(0x300)}, 'FILETEST')
     steps = ['wait:1100', 'key: ']
     for index, _ in enumerate(scenarios):
         steps += [L.until(f'check{index}', 3000), L.peek('results', 13, index*13), 'peek:5000:1024']
+    steps += [L.until('at_check', 3000), L.peek('at_results', 6), 'peek:5200:64']
     r = a2test.run(disk, steps, iie=True)
+    at = r.mem(L['at_results'], 6)
+    assert at == bytes([0, 0x40, 0, 0x4D, 0, 0]), ('prodos_load_at', at.hex())
+    assert r.mem(0x5200, 64, len(scenarios)) == aux_data(0x300)[0x201:0x241], 'prodos_load_at contents'
+
     for index, (name, length) in enumerate(scenarios):
         status = 0 if length else 0x4C
         expected = (b'\0' + length.to_bytes(2, 'little') + b'\0\0' +
@@ -466,7 +529,156 @@ results: .res 39,0
         assert r.dumps[index*2+1] == (bytes(i & 255 for i in range(length)) +
                                         b'\xEE' * (1024-length)), (name, 'file contents/EOF')
     print('ProDOS files on disk: shorter 2048 -> 17 B, empty 1024 -> 0 B, '
-          'missing -> 513 B; independent GET_EOF and reload contents OK.')
+          'missing -> 513 B; independent GET_EOF and reload contents; '
+          'load_at 64 B at $000201, $4D past the end OK.')
+
+
+def aux_data(length):
+    return bytes((i * 7 + i // 256 + 3) & 255 for i in range(length))
+
+
+def native_aux(work):
+    """prodos_load_aux on a real ProDOS volume: chunks through a main window
+    into aux, read back with auxmem.asm's aux_fetch_pages (aux_fetch_chunked
+    and AUXMOVE too), with a length limit, an exact multiple of the window,
+    a missing and an empty file."""
+    # name, file length (None: missing), window, max, error, bytes moved
+    scenarios = (('AUXF', 0x2345, 0x800, 0x2345, 0, 0x2345),
+                 ('AUXF', 0x2345, 0x800, 0x2000, 0x56, 0x2000),
+                 ('EXACT', 0x1000, 0x800, 0x3000, 0, 0x1000),
+                 ('NOPE', None, 0x800, 0x3000, 0x46, 0),
+                 ('EMPTY', 0, 0x800, 0x3000, 0, 0))
+    source = '''.setcpu "65C02"
+.include "auxmem.asm"           ; first: the AUXMOVE macro (routines: at the end)
+.code
+start:  bit $C000
+        bpl start
+        bit $C010
+        cld
+        lda #$FF
+        ldx #3
+:       sta $BF5C,x             ; protect code $2000-$3FFF
+        dex
+        bpl :-
+        lda #$00
+        sta pf_iobuf
+        lda #$10
+        sta pf_iobuf+1
+'''
+    for index, (name, _, window, limit, _, _) in enumerate(scenarios):
+        source += f'''
+        jsr fill_aux
+        lda #<name{index}
+        sta pf_name
+        lda #>name{index}
+        sta pf_name+1
+        stz pf_buf
+        lda #$40
+        sta pf_buf+1
+        lda #<{window}
+        sta pf_len
+        lda #>{window}
+        sta pf_len+1
+        lda #$5A                ; ignored: page aligned
+        sta pa_dst
+        lda #$60
+        sta pa_dst+1
+        lda #<{limit}
+        sta pa_max
+        lda #>{limit}
+        sta pa_max+1
+        jsr prodos_load_aux
+        sta results+{index*4}
+        lda pf_got
+        sta results+{index*4+1}
+        lda pf_got+1
+        sta results+{index*4+2}
+        lda pf_err
+        sta results+{index*4+3}
+        lda #48                 ; aux $6000-$8FFF -> main $5000-$7FFF
+        ldx #$60
+        ldy #$50
+        jsr aux_fetch_pages
+check{index}:
+        nop
+'''
+        if index == 0:
+            source += '''
+        lda #<$8000             ; aux $6001, $123 bytes -> main $8000
+        sta auxmem_fdst
+        lda #>$8000
+        sta auxmem_fdst+1
+        lda #<$123
+        sta auxmem_flen
+        lda #>$123
+        sta auxmem_flen+1
+        lda #<$6001
+        ldy #>$6001
+        jsr aux_fetch_chunked
+        AUXMOVE $6100, $61FF, $8200, AUX_TO_MAIN
+extra:  nop
+'''
+    source += '''done: jmp done
+; aux $6000-$8FFF = $EE (RAMWRT aux, interrupts masked)
+fill_aux:
+        php
+        sei
+        lda #$60
+        sta $07
+        stz $06
+        ldy #0
+        lda #$EE
+        sta $C005
+:       sta ($06),y
+        iny
+        bne :-
+        inc $07
+        ldx $07
+        cpx #$90
+        bne :-
+        sta $C004
+        plp
+        rts
+results: .res 20,0
+'''
+    source += ''.join(f'name{i}: .byte {len(name)}, "{name}"\n'
+                      for i, (name, *_) in enumerate(scenarios))
+    source += '.include "file.asm"\n.include "auxmem.asm"\n'
+    binary, L = compile_asm(work, 'native_aux', source,
+                            config='MEMORY { ZP: start=$50,size=$40,type=rw; '
+                                   'RAM:start=$2000,size=$2000,type=rw,file=%O; }\n'
+                                   'SEGMENTS { ZEROPAGE: load=ZP,type=zp; CODE:load=RAM,type=ro; '
+                                   'BSS: load=RAM,type=bss,optional=yes; }\n')
+    boot, _ = compile_asm(work, 'boot_aux', '.define SYSBOOT_FILE "TEST.SYS"\n'
+                          '.define SYSBOOT_TITLE "PRODOS AUX TEST"\n.include "sysboot.s"\n',
+                          config=(DEV / 'cc65/prodos_sysboot.cfg').read_text())
+    disk = a2test.prodos_volume(work / 'native_aux.po', {
+        'PRODOS#FF0000': (DEV / 'tools/prodos/PRODOS').read_bytes(),
+        'TEST.SYS#FF2000': binary.read_bytes(), 'TEST.SYSTEM#FF2000': boot.read_bytes(),
+        **{name: aux_data(length) for name, length, *_ in scenarios if length is not None}},
+        'AUXTEST')
+    steps = ['wait:1100', 'key: ']
+    for index, _ in enumerate(scenarios):
+        steps += [L.until(f'check{index}', 3000), L.peek('results', 4, index * 4),
+                  'peek:5000:12288']
+        if index == 0:
+            steps += [L.until('extra', 3000), 'peek:8000:768']
+    r = a2test.run(disk, steps, iie=True)
+    blank = b'\xEE' * 0x3000
+    for index, (name, length, window, limit, error, moved) in enumerate(scenarios):
+        res = r.mem(L['results'] + index * 4, 4)
+        assert res == bytes([error, moved & 255, moved >> 8, error]), (name, hex(limit), res.hex())
+        aux = r.mem(0x5000, 0x3000, index)
+        assert aux[:moved] == aux_data(moved), (name, 'aux contents')
+        tail = (moved + 255) & ~255
+        assert aux[tail:] == blank[tail:], (name, 'aux past the stored pages', hex(tail))
+        if index == 0:
+            extra = r.mem(0x8000, 768)
+            assert extra[:0x123] == aux_data(0x124)[1:], 'aux_fetch_chunked'
+            assert extra[0x200:0x300] == aux_data(0x200)[0x100:], 'AUXMOVE'
+    print(f'ProDOS files into aux: {len(scenarios)} loads (chunks through a main window, '
+          'limit -> $56 before the store, exact multiple, missing, empty) read back by '
+          'aux_fetch_pages; aux_fetch_chunked and AUXMOVE OK.')
 
 
 if __name__ == '__main__':
@@ -475,3 +687,4 @@ if __name__ == '__main__':
             dependencies(Path(tmp))
             injected(Path(tmp))
             native(Path(tmp))
+            native_aux(Path(tmp))

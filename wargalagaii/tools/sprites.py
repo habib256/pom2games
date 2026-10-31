@@ -22,12 +22,11 @@ the table for shift s and frame f is entry 2*s+f.
     tools/sprites.py --png F    preview sheet of every drawing and tint
 """
 from pathlib import Path
-import struct
 import sys
-import zlib
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT.parent / 'dev/tools'))
+import apple2img
 import fonts
 OUT = ROOT / 'src/sprites.inc'
 FIELD_COL = 4                   # model.FIELD_COL: the left wall's bytes
@@ -700,22 +699,12 @@ def dots(row):
 
 def shifted(drawing, palette, nbytes=None):
     """-> (byte width, [7 lists of rows of bytes])."""
-    width = len(drawing[0])
-    assert all(len(r) == width for r in drawing)
-    nbytes = nbytes or max((2 * s % 7 + 2 * width + 6) // 7 for s in range(7))
-    phases = []
-    for s in range(7):
-        start = 2 * s % 7               # first dot inside the start byte
-        if nbytes == 1:                 # (one byte: a dot left rather than cut,
-            start = min(start, 7 - 2 * width)   # shots and bombs stay white)
-        rows = []
-        for r in drawing:
-            line = [0] * start + dots(r)
-            line = (line + [0] * (7 * nbytes))[:7 * nbytes]
-            rows.append([palette << 7 | sum(line[7 * b + i] << i for i in range(7))
-                         for b in range(nbytes)])
-        phases.append(rows)
-    return nbytes, phases
+    assert all(len(r) == len(drawing[0]) for r in drawing)
+    # Shift s starts at dot 2*s % 7; one byte: a dot left rather than cut
+    # (fit), shots and bombs stay white.
+    ph = apple2img.preshift7([dots(r) for r in drawing], 2 * len(drawing[0]), nbytes, palette,
+                             step=2, fit=nbytes == 1)
+    return len(ph[0][0]), ph
 
 
 def table(out, name, frames, palette):
@@ -844,12 +833,8 @@ def png(path, scale=4):
 
 
 def write_png(path, pix):
-    """pix: rows of (r, g, b), all the same length."""
-    w, h = len(pix[0]), len(pix)
-    raw = b''.join(b'\0' + bytes(v for p in line for v in p) for line in pix)
-    chunk = lambda t, d: struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d))
-    Path(path).write_bytes(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
-                           + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b''))
+    """pix: rows of (r, g, b), all the same length (walls.py too)."""
+    apple2img.png_write(path, pix)
 
 
 ALIEN_BYTES = 3

@@ -9,6 +9,8 @@
 ; that page was last drawn (two frames ago).
 .setcpu "65C02"
 .macpack longbranch
+AUXMEM_FETCH_SCAN = 1            ; aux_fetch: a VBL scan between two chunks
+.include "auxmem.asm"            ; dev/lib/apple2: AUXMOVE (aux_fetch: below)
 
 .import _prodos_video_claim, _prodos_video_release
 .import timing_init, timing_close, timing_present, _a2_vbl_scan
@@ -173,7 +175,6 @@ button:      .res 1             ; open apple / button 0, previous state
 over_wait:   .res 1             ; frames since GAME OVER
 space_held:  .res 1
 demo:        .res 1             ; the attract mode plays (demo.s, lot 9)
-aux_total:   .res 2
 af_src:      .res 2             ; aux_fetch
 af_dst:      .res 2
 af_len:      .res 2
@@ -333,7 +334,6 @@ hi_score:    .res 3             ; HI (BCD): the best record, then the score
 .data
 pack_loaded: .byte $FF          ; WG2.AUX table in cur_alien ($FF: none)
 .bss
-aux_bitmap:  .res 4
 nohit:       .res 1             ; tests: shots hit nothing (the bench)
 noshop:      .res 1             ; tests: the shop closes at once
 .data
@@ -509,137 +509,50 @@ AUX_ALL = LOW2_AUX + $200 - AUX_BASE
 
 .assert AUX_PACKS + AUX_SIZE <= SHOP_AUX, error, "the packs run into the shop"
 aux_load:
-        jsr $BF00
-        .byte $C8                ; OPEN
-        .word aux_open
-        jcs aux_fail
-        lda aux_open+5
-        sta aux_read+1
-        sta aux_close+1
-        stz aux_total
-        stz aux_total+1
-al_chunk:
-        ldx #3                   ; READ writes only where the system bitmap
-:       lda $BF60,x              ; says free: $4000-$5FFF for the read
-        sta aux_bitmap,x         ; (crt0 marks it used; as CHROMABREAK)
-        stz $BF60,x
-        dex
-        bpl :-
-        jsr $BF00
-        .byte $CA                ; READ
-        .word aux_read
-        tay                      ; (the error code; $4C = end of file)
-        ldx #3
-:       lda aux_bitmap,x
-        sta $BF60,x
-        dex
-        bpl :-
-        bcc :+
-        cpy #$4C
-        bne al_close             ; an error (C = 1)
-        bra al_end
-:       lda aux_read+6           ; got: main $4000.. -> aux ($42/$43 goes on)
-        ora aux_read+7
-        beq al_end
-        ; Reject an oversized file BEFORE AUXMOVE can write past its
-        ; reserved auxiliary range. aux_total is bounded by every chunk.
-        lda aux_total
-        clc
-        adc aux_read+6
-        tax
-        lda aux_total+1
-        adc aux_read+7
-        bcs al_too_long
-        cmp #>AUX_ALL
-        bcc al_copy
-        bne al_too_long
-        cpx #<AUX_ALL
-        bcc al_copy
-        beq al_copy
-al_too_long:
-        sec
-        bra al_close
-al_copy:
-        lda #<$4000
-        sta $3C
-        lda #>$4000
-        sta $3D
-        lda aux_read+6
-        sec
-        sbc #1
-        sta $3E
-        lda aux_read+7
-        sbc #0
-        clc
-        adc #>$4000
-        sta $3F
-        lda aux_total            ; to AUX_BASE + what came before
-        clc
-        adc #<AUX_BASE
-        sta $42
-        lda aux_total+1
-        adc #>AUX_BASE
-        sta $43
-        sec                      ; main -> aux
-        jsr $C311                ; AUXMOVE
-        lda aux_total
-        clc
-        adc aux_read+6
-        sta aux_total
-        lda aux_total+1
-        adc aux_read+7
-        sta aux_total+1
-        lda aux_read+7           ; a full 8 KB: maybe more
-        cmp #$20
-        jeq al_chunk
-al_end: clc
-al_close:
-        php
-        jsr $BF00
-        .byte $CC                ; CLOSE
-        .word aux_close
-        plp
+.scope wgaux                     ; file.asm a second time (the records' copy
+auxmem_src = $3C                 ; is in the SHOPM overlay: front.s); aux_store
+auxmem_dst = $42                 ; on AUXMOVE's scratch (free at boot)
+        lda #<aux_name
+        sta pf_name
+        lda #>aux_name
+        sta pf_name+1
+        lda #<iobuf
+        sta pf_iobuf
+        lda #>iobuf
+        sta pf_iobuf+1
+        stz pf_buf               ; 8 KB at a time through $4000-$5FFF (READ
+        lda #$40                 ; writes only where the system bitmap says
+        sta pf_buf+1             ; free: prodos_read_free frees it meanwhile;
+        stz pf_len               ; crt0 marks it used, as CHROMABREAK)
+        lda #$20
+        sta pf_len+1
+        lda #>AUX_BASE
+        sta pa_dst+1
+        lda #<AUX_ALL            ; an oversized file is rejected BEFORE it
+        sta pa_max               ; runs past its reserved auxiliary range
+        lda #>AUX_ALL
+        sta pa_max+1
+        jsr prodos_load_aux
         bcs aux_fail
-        lda aux_total            ; the whole file? (the packs, padding, then
+        lda pf_got               ; the whole file? (the packs, padding, then
         cmp #<AUX_ALL            ; the PT3 player and song at aux $6000)
         bne aux_fail
-        lda aux_total+1
+        lda pf_got+1
         cmp #>AUX_ALL
         bne aux_fail
-        lda #<LOW_AUX            ; Meteor Storm's code -> $0800, for good
-        sta $3C                  ; (no interrupt yet: one AUXMOVE)
-        lda #>LOW_AUX
-        sta $3D
-        lda #<(LOW_AUX+LOW_LEN-1)
-        sta $3E
-        lda #>(LOW_AUX+LOW_LEN-1)
-        sta $3F
-        lda #<$0800
-        sta $42
-        lda #>$0800
-        sta $43
-        clc                      ; aux -> main
-        jsr $C311                ; AUXMOVE
+        ; Meteor Storm's code -> $0800, for good (no interrupt yet: one AUXMOVE)
+        AUXMOVE LOW_AUX, LOW_AUX+LOW_LEN-1, $0800, AUX_TO_MAIN
         jsr low_boot             ; and $0200's (lot 11)
-        lda #<HI_AUX             ; the resident data -> $1C40, for good
-        sta $3C
-        lda #>HI_AUX
-        sta $3D
-        lda #<(HI_AUX+HI_LEN-1)
-        sta $3E
-        lda #>(HI_AUX+HI_LEN-1)
-        sta $3F
-        lda #<__LOWHI_START__
-        sta $42
-        lda #>__LOWHI_START__
-        sta $43
-        clc
-        jmp $C311
+        ; the resident data -> $1C40, for good
+        AUXMOVE HI_AUX, HI_AUX+HI_LEN-1, __LOWHI_START__, AUX_TO_MAIN, jmp
 aux_fail:
         pla                      ; (out of _main)
         pla
         ldx #msg_aux-messages
         jmp fail
+.include "file.asm"              ; prodos_load_aux and what it needs
+.include "auxmem.asm"            ; aux_store
+.endscope
 .popseg
 
 ; The level's pack table aux -> cur_alien, when it changed (between two
@@ -717,59 +630,16 @@ pc_second:
 ; interrupt), a VBL scan between two. (One AUXMOVE of the 1 232 bytes
 ; under SEI held the interrupts and the scans off for ~50 000 cycles: a
 ; music tick and //e VBL edges lost at every pack change, bug hunt 5.)
-AF_CHUNK = 64                    ; ~2 300 cycles each
-aux_fetch:
-        sta af_src
-        sty af_src+1
-af_chunk:
-        lda af_len+1
-        bne :+
-        lda af_len
-        beq pc_done
-        cmp #AF_CHUNK
-        bcc :++
-:       lda #AF_CHUNK
-:       sta af_n
-        lda af_src               ; A1 = src, A2 = src + n - 1, A4 = dst
-        sta $3C
-        clc
-        adc af_n
-        sta af_src
-        lda af_src+1
-        sta $3D
-        adc #0
-        sta af_src+1
-        lda af_src
-        sec
-        sbc #1
-        sta $3E
-        lda af_src+1
-        sbc #0
-        sta $3F
-        lda af_dst
-        sta $42
-        clc
-        adc af_n
-        sta af_dst
-        lda af_dst+1
-        sta $43
-        adc #0
-        sta af_dst+1
-        lda af_len
-        sec
-        sbc af_n
-        sta af_len
-        bcs :+
-        dec af_len+1
-:       php
-        sei
-        clc                      ; aux -> main
-        jsr $C311                ; AUXMOVE
-        plp
-        jsr _a2_vbl_scan
-        bra af_chunk
-pc_done:
-        rts
+; (dev/lib/apple2/auxmem.asm's aux_fetch_chunked: AUXMEM_FETCH_CHUNK = 64
+; bytes, ~2 300 cycles each, AUXMEM_FETCH_SCAN at the top of this file.)
+auxmem_fsrc = af_src
+auxmem_fdst = af_dst
+auxmem_flen = af_len
+auxmem_fn   = af_n
+aux_fetch   = aux_fetch_chunked
+af_here:
+.include "auxmem.asm"            ; aux_fetch_chunked, here: pack_check falls into it
+.assert aux_fetch = af_here, error, "pack_check falls through into aux_fetch"
 
 ; The shop or Memory Station: page 1 shown and cleared, the overlay aux ->
 ; page 2 ($4000; up to its speaker player: not the title's part), the
@@ -1166,12 +1036,6 @@ messages:
 msg_128k: .byte "WARGALAGA II NEEDS 128K.", $0D, 0
 msg_ram:  .byte "INVALID PRODOS STATE (/RAM).", $0D, 0
 msg_aux:  .byte "WG2.AUX: LOAD ERROR.", $0D, 0
-aux_open:  .byte 3
-        .word aux_name, iobuf
-        .byte 0
-aux_read:  .byte 4, 0
-        .word $4000, $2000, 0
-aux_close: .byte 1, 0
 aux_name:  .byte 7, "WG2.AUX"
 .popseg
 .rodata
