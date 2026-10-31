@@ -32,6 +32,11 @@ DIRS := $(II_PLUS_GAMES) $(IIE_PRODOS_GAMES) logo dev/examples/hello dev/example
 DIRS += dev/examples/dhgr_action
 # Verlet lunar lander, the lib/physics demo: its disk stays in its build/.
 DIRS += dev/examples/lander
+# Verlet skate half-pipe, the segment-ground demo: its disk stays in its build/.
+DIRS += dev/examples/halfpipe
+# Verlet rope toy (pins, fixed-gain links, ground) and catapult (circle
+# contacts), lib/physics demos: their disks stay in their build/.
+DIRS += dev/examples/rope dev/examples/catapult
 # Programs whose own `make test` / `make test-long` belong to the root tiers.
 TESTED := pinball chromabreak arkabreakout chess micro-sokoban light3dball wilderness logo mbtracker dirtbike \
           wargalagaii snake robotspacestation
@@ -44,6 +49,8 @@ DEV_CHECKS := test-hgr test-frame test-hgr-example test-assets bench-check \
               test-techniques test-tools test-minimal test-woz
 DEV_CHECKS += test-dhgr-action
 DEV_CHECKS += test-lander-example
+DEV_CHECKS += test-halfpipe-example
+DEV_CHECKS += test-rope-example test-catapult-example test-verlet-contact
 
 # The dev/ checks run on the portable headless II+ (a fresh checkout has to
 # build it first; the program Makefiles already list it, see apple2.mk).
@@ -242,6 +249,30 @@ test-dhgr-action:
 test-lander-example:
 	$(MAKE) -C dev/examples/lander test
 .PHONY: test-lander-example
+
+# ROPE (dev/examples/rope): its 6502 physics == tools/rope.py, and the disk in
+# a2run (swing, floor, cut, reset, frame rates).
+test-rope-example:
+	$(MAKE) -C dev/examples/rope test
+.PHONY: test-rope-example
+
+# CATAPULT (dev/examples/catapult): its 6502 physics == tools/catapult.py
+# (circle contacts, sleep), and the disk in a2run (a shot, a round).
+test-catapult-example:
+	$(MAKE) -C dev/examples/catapult test
+.PHONY: test-catapult-example
+
+# lib/physics circle contacts (verlet_circ.asm) == dev/tools/verlet/contact.py.
+test-verlet-contact:
+	$(PYTHON) dev/tests/test_verlet_contact.py
+.PHONY: test-verlet-contact
+
+# HALFPIPE (dev/examples/halfpipe): its 6502 physics == tools/halfpipe.py, and
+# the disk in a2run (pumping above a lip, a crash, R); lib/physics segments.
+test-halfpipe-example:
+	$(PYTHON) dev/tests/test_verlet_seg.py
+	$(MAKE) -C dev/examples/halfpipe test
+.PHONY: test-halfpipe-example
 
 # Compiler-derived shared-library usage and transitive build dependencies.
 audit-libs:

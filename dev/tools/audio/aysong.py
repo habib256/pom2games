@@ -9,6 +9,7 @@ and the bit-exact reference player of dev/lib/apple2/aysong.asm.
     python3 aysong.py tune.ays.txt -o TUNE.AYS      # binary
     python3 aysong.py tune.ays.txt --asm tune.inc   # ca65 .byte rows
     python3 aysong.py --demo --asm demo.inc         # the demo song
+    python3 aysong.py SONG.AYS --voices 6 -o S6.AYS # 3 <-> 6 voices (Song.with_voices)
 
 The asm player and Player() compute the same registers tick for tick
 (dev/tests/test_aysong.py compares them). The format is documented in
@@ -108,6 +109,7 @@ PLAYER (per tick, what Player.tick() and ays_tick do)
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import sys
 from dataclasses import asdict, dataclass, field
@@ -182,6 +184,21 @@ class Song:
     loop: int | None = 0        # order index after the end, None = stop
     name: str = ''
     author: str = ''
+
+    def with_voices(self, n):
+        """A copy with n voices (3 or 6), as MB TRACKER's ^W converts:
+        3 -> 6 keeps the patterns and order, voices 4-6 empty (32 patterns
+        at most: the tracker's aux store, ValueError past that); 6 -> 3
+        drops voices 4-6. Instruments, texts, speed, loop unchanged."""
+        if n not in (3, 6):
+            raise ValueError('voices: 3 or 6')
+        if n == 6 and len(self.patterns) > 32:
+            raise ValueError(f'6 voices: 32 patterns at most, this song has {len(self.patterns)}')
+        song = copy.deepcopy(self)
+        for p in song.patterns:
+            p.tracks = p.tracks[:n] + [[Cell() for _ in range(song.rows)] for _ in range(n - len(p.tracks))]
+        song.voices = n
+        return song
 
 
 # ---------------------------------------------------------------- encoding
@@ -754,6 +771,8 @@ def _main_pt3(a):
     same outputs as a song."""
     import pt3import
     song, report = pt3import.convert(Path(a.import_pt3).read_bytes(), validate=False)
+    if a.voices:
+        song = song.with_voices(a.voices)
     data = encode(song)
     assert encode(decode(data)) == data
     if a.out:
@@ -775,7 +794,7 @@ def _main_pt3(a):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('song', nargs='?', help='a text song (.txt) or JSON (.json); --demo for the demo')
+    ap.add_argument('song', nargs='?', help='a text song (.txt), JSON (.json) or AYS (.ays); --demo for the demo')
     ap.add_argument('--demo', action='store_true')
     ap.add_argument('-o', '--out', help='binary AYS file')
     ap.add_argument('--asm', help='ca65 include: LABEL then .byte rows')
@@ -783,14 +802,21 @@ def main(argv=None):
     ap.add_argument('--json', help='write the song as JSON')
     ap.add_argument('--frames', type=int, default=0, help='print N ticks of registers')
     ap.add_argument('--import-pt3', metavar='FILE', help='a Vortex Tracker II module (pt3import.py)')
+    ap.add_argument('--voices', type=int, choices=(3, 6),
+                    help='convert to 3 or 6 voices (Song.with_voices: 6 -> 3 drops voices 4-6)')
     a = ap.parse_args(argv)
     if a.import_pt3:
         return _main_pt3(a)
     if a.demo:
         song = demo()
     else:
-        text = Path(a.song).read_text()
-        song = from_json(text) if a.song.endswith('.json') else load_text(text)
+        if a.song.lower().endswith('.ays'):
+            song = decode(Path(a.song).read_bytes())
+        else:
+            text = Path(a.song).read_text()
+            song = from_json(text) if a.song.endswith('.json') else load_text(text)
+    if a.voices:
+        song = song.with_voices(a.voices)
     data = encode(song)
     assert encode(decode(data)) == data
     if a.out:

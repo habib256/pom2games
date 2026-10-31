@@ -85,6 +85,15 @@ use the Apple II's native video. Every game in the repository shares them.
                        pages at VBL (ProDOS, //e 128 KB or //c); disk in build/
       examples/lander/ Verlet lunar lander, the lib/physics demo (asm, II+,
                        model-first: tools/lander.py); disk in build/
+      examples/halfpipe/ Verlet skate half-pipe on a segment ground (walls,
+                       curves: lib/physics verlet_seg.asm; asm, II+,
+                       model-first: tools/halfpipe.py); disk in build/
+      examples/rope/   Verlet rope toy: a moving pin, fixed-gain links, a
+                       heavy weight, a floor (asm, II+, model-first:
+                       tools/rope.py); disk in build/
+      examples/catapult/ Angry Birds-like demo of the circle contacts
+                       (lib/physics verlet_circ.asm: pairs, boxes, sleep;
+                       asm, II+, model-first: tools/catapult.py); disk in build/
 
 ## Getting started
 

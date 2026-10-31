@@ -150,7 +150,7 @@ static void ovl_use(unsigned char n)
 }
 
 /* ---------------------------------------------------------------- the grid */
-static void layout(void)
+void layout(void)
 {
     if (s_voices == 6) {
         gx = 3;
@@ -1408,6 +1408,10 @@ static void key(unsigned char k)
             cur_file[0] = 0;
             after_load();
         }
+        return;
+    case CTRL('W'):
+        ovl_use(1);
+        voices();
         return;
     case CTRL('Q'):
         if (ask("QUIT TO PRODOS? (Y/N)"))

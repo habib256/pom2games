@@ -18,7 +18,7 @@ PAGES = [[
     "- =         OCTAVE DOWN / UP               { }     ROWS OF THE PATTERNS",
     "< >         INSTRUMENT FOR NEW NOTES       ^T ^A   SONG NAME / AUTHOR",
     "0-F         INSTRUMENT, PARAMETER          ^E      INSTRUMENT EDITOR",
-    "O A U D F S N E  EFFECT: OFF ARPEGGIO      ^N      NEW SONG",
+    "O A U D F S N E  EFFECT: OFF ARPEGGIO      ^W      SONG TO 3 <-> 6 VOICES",
     "  SLIDE UP/DOWN FADE SWELL NOISE ENVELOPE  ^L ^S   LOAD / SAVE AN .AYS FILE",
     "^O ^Y       INSERT / DELETE A ROW          ^Q      QUIT TO PRODOS",
     "TAB         ORDER LIST                     ^N      NEW SONG: 3 OR 6 VOICES",

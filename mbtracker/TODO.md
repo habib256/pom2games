@@ -55,12 +55,20 @@ tests (encodeur et `Player` au registre près).
   registre), `pt3import.py` (rapport de ce qui se perd), `aysong.py
   --import-pt3`, `--to-50hz` ; `WG.AYS` sur la disquette.
 
+## Lot M5 — conversion 3 ↔ 6 voix (fait, 2026-10-31)
+
+- [x] `^W` : 3 → 6 (voix 4-6 vides, refusé au-delà de 32 motifs), 6 → 3
+  (confirmation si les voix 4-6 servent) ; le magasin aux de motifs
+  retassé (vers le haut en partant du dernier, vers le bas du premier),
+  dans OVL1 (`voices.c`, `song_voices`) ; `^Z` oublié.
+- [x] `aysong.py` : `Song.with_voices(n)`, `--voices N` (et un `.AYS` en
+  entrée) ; tests `test_aysong.py` et `test_mbt.py`.
+
 ## Ensuite
 
 - [ ] Souris sur //c **avec** 4c : lire le matériel souris de l'IOU
   (`$C015`/`$C017`, `$C066`/`$C067`, bouton) sans le firmware masqué.
 - [ ] Molette absente : défilement de la liste d'ordre par ses bords.
-- [ ] Changer le nombre de voix d'un morceau existant (3 → 6).
 - [ ] AYS : décalage de hauteur par tic dans les instruments, volume de
   canal (récupérerait la plupart des pertes de l'import PT3).
 - [ ] Pas d'avance réglable après saisie ; transposition d'une piste entière.

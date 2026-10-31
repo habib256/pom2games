@@ -25,7 +25,7 @@ MOUSE := $(DEV)/lib/mouse
 MOUSE_SRCS := $(MOUSE)/mouse.s              # (not mouse.mk: its run-iic is ours)
 MOUSE_INCS := -I $(MOUSE)
 OBJS := $(BUILD)/entry.o $(BUILD)/crt0_prodos.o $(BUILD)/main.o $(BUILD)/song.o $(BUILD)/files.o \
-        $(BUILD)/insed.o $(BUILD)/fileui.o $(BUILD)/mbt_asm.o
+        $(BUILD)/insed.o $(BUILD)/fileui.o $(BUILD)/voices.o $(BUILD)/mbt_asm.o
 LIB_SRCS := $(PRODOS_SRCS) $(PRODOS_FILE_SRCS) $(MOUSE_SRCS)
 LIB_OBJS := $(addprefix $(BUILD)/,$(notdir $(LIB_SRCS:.s=.o)))
 CFLAGS := -t none --cpu 65c02 -Ors --static-locals -I src $(PRODOS_INCS) $(MOUSE_INCS)

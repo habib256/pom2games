@@ -401,6 +401,30 @@ def main():
         assert size <= 2048, size
         print(f'PASS encode/decode/JSON round trips, the --asm emitter; a 3-voice 8-pattern 64-row song with a note '
               f'every 2 rows: {size} B (budget 2048)')
+        # Song.with_voices (MB TRACKER's ^W): 3 -> 6 -> 3 round trip, the drop
+        six = song.with_voices(6)
+        assert song.voices == 3 and six.voices == 6 and six.order == song.order
+        assert all(p.tracks[:3] == q.tracks and p.tracks[3:] == [[Cell()] * song.rows] * 3
+                   for p, q in zip(six.patterns, song.patterns)), 'voices 4-6 empty, 1-3 kept'
+        assert six.instruments == song.instruments and (six.name, six.author) == (song.name, song.author)
+        assert aysong.decode(aysong.encode(six)) == six and six.with_voices(3) == song
+        assert aysong.encode(six.with_voices(3)) == demo and song.with_voices(3) == song
+        six.patterns[1].tracks[4][0] = Cell(60, 2, 3, 0x12)
+        assert six.with_voices(3) == song, '6 -> 3 drops voices 4-6'
+        assert six.with_voices(3).with_voices(6).patterns[1].tracks[4][0] == Cell()
+        try:
+            Song([Pattern([[Cell()] * 4 for _ in range(3)]) for _ in range(33)], [Instrument()],
+                 [0], rows=4).with_voices(6)
+            raise AssertionError('33 patterns: 6 voices refused')
+        except ValueError:
+            pass
+        out6 = work / 'D6.AYS'
+        aysong.main([str(work / 'DEMO.AYS'), '--voices', '6', '-o', str(out6)])
+        assert out6.read_bytes() == aysong.encode(song.with_voices(6))
+        aysong.main([str(out6), '--voices', '3', '-o', str(work / 'D3.AYS')])
+        assert (work / 'D3.AYS').read_bytes() == demo
+        print('PASS Song.with_voices: 3 -> 6 (voices 4-6 empty, the rest kept, encode/decode round trip), '
+              '6 -> 3 (voices 4-6 dropped), 33 patterns refused at 6; aysong.py SONG.AYS --voices 6 / 3')
         names = option_values(work)
         print('PASS options are values: ' + ', '.join(names) + ' at their default = undefined, byte for byte')
         sizes = code_size(work)
