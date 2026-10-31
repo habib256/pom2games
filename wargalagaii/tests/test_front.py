@@ -24,6 +24,7 @@ GAME = ROOT / 'wargalagaii'
 sys.path.insert(0, str(ROOT / 'dev/tools'))
 sys.path.insert(0, str(GAME / 'tools'))
 import a2test
+from block import Block
 from hgr_tables import hgr_offset
 import demo
 import model as M
@@ -92,22 +93,20 @@ def idle(disk, L):
 
 def state_names(L):
     names = [n for n in M.Game().state() if n != 'prng']
-    first = min(L[n] for n in names)
-    span = max(L[n] + len(v) for n, v in M.Game().state().items() if n != 'prng') - first
-    return names, first, span
+    return names, Block(L, {n: len(v) for n, v in M.Game().state().items() if n != 'prng'})
 
 
 def demo_oracle(disk, L):
     """The whole demo == the model: the script's moves, fire held, then the
     steps past its end (no input) until the title."""
-    names, first, span = state_names(L)
+    names, blk = state_names(L)
     checkpoints = []
     for refreshes in (400, 1000, 1200, 1000, 1400):
         checkpoints += [f'wait:{refreshes}', L.peek('level'), L.peek('lkind'), L.peek('a_state', M.NALIENS)]
     r = a2test.run(disk, [L.until('main', 3000), L.until('demo_init', 4000), L.peek('step_count', 2),
                           *checkpoints,
                           L.until('front_main', 7000), L.peek('step_count', 2),
-                          f'peek:{first:04X}:{span}', L.peek('prng_lo', 2), L.peek('demo_end'),
+                          *blk.peeks(), L.peek('prng_lo', 2), L.peek('demo_end'),
                           'wait:60', L.peek('fr_panel'), 'key: ', 'wait:40',
                           L.peek('level'), L.peek('demo')], iie=True, timeout=600)
     assert [r.mem(L['level'], 1, k)[0] for k in range(5)] == [0, 2, 3, 7, 24]
@@ -127,9 +126,9 @@ def demo_oracle(disk, L):
         else:
             game.step(0, False, False)
         kinds.add(game.lkind)
-    got, state = r.mem(first, span), game.state()
+    got, state = blk.read(r), game.state()
     for name in names:
-        have = got[L[name] - first:L[name] - first + len(state[name])]
+        have = got[name]
         assert have == state[name], f'{name}: 6502 {have.hex()} model {state[name].hex()}'
     assert r.mem(L['prng_lo'], 2) == state['prng']
     assert r.mem(L['fr_panel'], 1)[0] == MENU, 'the demo is no record'

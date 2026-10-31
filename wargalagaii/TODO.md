@@ -878,6 +878,43 @@ sans ennemis ».
       une page (2 cycles de plus par tour : sons plus graves) ; réordonnées,
       `.assert` au lien.
 
+## Mémoire réorganisée, musique (2026-10-30, suite)
+
+Demandes : « Réorganise le programme pour optimiser l'utilisation de la
+mémoire et exploiter toutes les réserves de mémoire accessibles », puis
+« vérifie la stabilité de la lecture de la musique. La touche S désactive la
+musique mais laisse les bruitages ».
+
+RAM principale libre : 13 octets → 1 945 (`$B657-$BDE4`).
+
+- [x] Page texte 1 (`$0400-$07FF`, jamais affichée en jeu) : les fiches de
+      dessin de `render.s` dans 8 fenêtres de 120 octets entre les trous des
+      cartes (`TXT0-7`), remises à zéro par `render_init` ; `fail` fait HOME
+      avant d'écrire (−~750 octets de BSS).
+- [x] Page `$BE00` (pile C, inutilisée : pas de C) : la sauvegarde de page
+      zéro du crt0 (−256).
+- [x] Page zéro `$83-$BA` : 25 octets de variables chaudes hors état et 24
+      octets d'état (niveau, vies, vaisseau, boutique…) : un octet et un
+      cycle de moins par accès (−346 de code). Les tests lisent l'état par
+      zone (`tests/block.py`).
+- [x] Code de démarrage (`BOOT` : vérifications, chargement de `WG2.AUX`,
+      trampolines, tables de lignes, messages) exécuté depuis `$1700`, où
+      `LOWBSS` sera ensuite ; `WG2.SYS` l'y copie (−~540).
+- [x] `timing.s` lié en premier : ses boucles d'attente ne bougent plus (le
+      code ajouté les avait mises à cheval sur une page : sons faux).
+- [x] Lecteur PT3 en aux `$2000` (paquets en `$3000`) : face à la page HGR 1,
+      jamais d'adresse de code principal ; un `until` de test tombait dans
+      l'interruption musicale et lisait l'aux.
+- Réserves restantes : ZP `$BB-$CF`, `$F0-$FF` ; `TXT6` (~77) et `TXT7`
+  (120) ; aux `$0200-$1FDF`, `$BB00-$BFFF`, carte langage aux, fins de zones
+  de `WG2.AUX` (voir README, Mémoire).
+- [x] Musique mesurée tick par tick : en jeu ±0,7 ms ; au titre, la lecture
+      de `HIGHSCORES` masque les interruptions ~0,8 s (pilote Disk II) : la
+      note restait tenue → `mus_hush` coupe la puce avant chaque accès
+      disque. Test `steadiness`.
+- [x] S : musique seule (puce 1, duo du titre et de la boutique) ; les
+      bruitages restent. Menu « S  MUSIC ».
+
 ## À vérifier sur machine
 
 - [ ] //c + Mockingboard 4c : la détection réveille la carte à `$C403` et

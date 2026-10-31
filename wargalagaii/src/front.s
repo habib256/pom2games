@@ -370,7 +370,7 @@ fr_menu_vars:
         sta sh_row
         lda #<fr_on_txt
         ldy #>fr_on_txt
-        ldx sound_on
+        ldx music_on
         bne :+
         lda #<fr_off_txt
         ldy #>fr_off_txt
@@ -798,6 +798,7 @@ rec_load:
         bne rl_done
         inc rec_state
         jsr rec_file
+        jsr mus_hush             ; (no interrupt while the disk turns)
         jsr prodos_load
         bcs rl_default
         lda pf_got               ; all of it (a short file: the defaults)
@@ -860,6 +861,7 @@ rs_done:
 ; rec_err (0: none).
 rec_save:
         jsr rec_file
+        jsr mus_hush
         jsr prodos_save
         sta rec_err
         rts
@@ -910,7 +912,7 @@ fr_tmp:   .byte 0                ; copied afresh at each title: 0)
 fr_menu_txt:
         .byte 12, 6, "RETURN OR FIRE TO PLAY", 0
         .byte 14, 9, "J  CONTROLS", 0
-        .byte 15, 9, "S  SOUND", 0
+        .byte 15, 9, "S  MUSIC", 0
         .byte 16, 9, "M  MODE", 0
         .byte 17, 9, "H  HELP", 0
         .byte 18, 9, "ESC  QUIT", 0
@@ -931,7 +933,7 @@ fr_help_txt:
         .byte 18, 2, "A SHOP EVERY 4 LEVELS, A BOSS", 0
         .byte 19, 2, "EVERY 25. 100 LEVELS, THEN AGAIN.", 0
         .byte 20, 2, "BEAT LEVEL 25: A HARDER MODE (M)", 0
-        .byte 21, 2, "S SOUND, ESC TITLE", 0
+        .byte 21, 2, "S MUSIC, ESC TITLE", 0
         .byte 23, 2, "WARGALAGA II IS NOT WARBLADE.", 0
         .byte $FF
 fr_entry_txt:

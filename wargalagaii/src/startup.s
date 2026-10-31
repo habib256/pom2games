@@ -1,4 +1,5 @@
-; WG2.SYS: ProDOS SYS entry $2000. Moves the game image to $6000 (backwards:
+; WG2.SYS: ProDOS SYS entry $2000. Copies the boot code to $1700 (game.cfg
+; BOOTM, where LOWBSS will be), moves the game image to $6000 (backwards:
 ; source and destination overlap) and starts it.
 .setcpu "65C02"
 .segment "CODE"
@@ -8,6 +9,24 @@
         sta $C000
         ldx #$FF
         txs
+        lda #<boot                ; first: the game image covers it next
+        sta $06
+        lda #>boot
+        sta $07
+        lda #<$1700
+        sta $08
+        lda #>$1700
+        sta $09
+        ldx #>bsize + 1          ; whole pages (the rest: bytes past it)
+        ldy #0
+:       lda ($06),y
+        sta ($08),y
+        iny
+        bne :-
+        inc $07
+        inc $09
+        dex
+        bne :-
         lda #<(payload+size-1)
         sta $06
         lda #>(payload+size-1)
@@ -41,4 +60,7 @@ copy:   lda ($06),y
         jmp $6000
 payload: .incbin "game.bin"
 size=*-payload
+boot:   .incbin "game.bin.boot"
+bsize=*-boot
+.assert bsize <= $0510, error, "boot code past LOWBSS"
 .assert size <= $5E00, error, "game image overlaps the C stack"

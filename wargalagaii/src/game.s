@@ -29,7 +29,7 @@
 .export mus_ticks, shop, rank, noshop, shop_can, shop_buy, shop_exit, shop_screen, sh_cur
 .import __SHOPM_LAST__, __LOWM_LAST__, __LOWHI_START__, __LOWHI_LAST__
 .import __LOWBSS_RUN__, __LOWBSS_SIZE__, __AUXLV_START__, __AUXLV_LAST__
-.import __LOW2_START__, __LOW2_LAST__, __AUXPK_LAST__
+.import __LOW2_START__, __LOW2_LAST__, __AUXPK_LAST__, __BOOTM_START__, __BOOTM_LAST__
 .export storm, station, m_speed, m_dist, m_acc, m_time, m_wait, m_crash, storm_step, storm_spawn
 .export m_held, m_rel, m_end, storm_prize, storm_pct, st_draw, g_col, b_n
 .export m_round, m_pairs, m_first, m_card, m_up, mem_screen, mem_loop, mem_deal, mem_turn
@@ -37,7 +37,7 @@
 .export mode, front_skip, front_run, front_main, fr_panel, fr_pos, fr_name, rec_buf, rec_state, rec_save, rec_err
 .export demo, demo_input, demo_end, demo_script, over_wait
 .import __DUET_LOAD__, __DUET_SIZE__
-.export a_big, a_hp, cur_big, e_dx, boss_hp, boss_x, boss_dir, boss_boom, boss_gap, boss_t, boss_mv, hurry, h_x, h_dir, h_t, spk_period, audio_slot, sound_on, snd_ev
+.export a_big, a_hp, cur_big, e_dx, boss_hp, boss_x, boss_dir, boss_boom, boss_gap, boss_t, boss_mv, hurry, h_x, h_dir, h_t, spk_period, audio_slot, music_on, snd_ev
 .export shots_erase, aliens_pass, form_draw, movers_draw, stars_draw, hud_draw
 .export alien_sta, alien_sta_done, alien_eor, alien_eor_done, alien_clr, alien_clr_done
 
@@ -163,6 +163,62 @@ r_w:    .res 1
 r_h:    .res 1
 prng_lo: .res 1                 ; dev/lib/math/random.asm state
 prng_hi: .res 1
+; (2026-10-30) the busiest variables outside the game state, here: a byte
+; and a cycle less at each use; declared before any code that uses them.
+zp_hot:                         ; zeroed by _main (crt0 zeroes the BSS only)
+dir_key:     .res 1             ; last direction key: 0, 1 right, $FF left
+move_dir:    .res 1
+fire_req:    .res 1
+button:      .res 1             ; open apple / button 0, previous state
+over_wait:   .res 1             ; frames since GAME OVER
+space_held:  .res 1
+demo:        .res 1             ; the attract mode plays (demo.s, lot 9)
+aux_total:   .res 2
+af_src:      .res 2             ; aux_fetch
+af_dst:      .res 2
+af_len:      .res 2
+af_n:        .res 1
+fire_held:   .res 1             ; input: fire held down (autofire)
+snd_ev:      .res 1             ; event bits raised by logic.s
+sfx_ptr:     .res 2             ; current effect step, hi 0 = none
+sfx_rank:    .res 1             ; its rank (0 = most important)
+zp_render:                      ; render.s's, zeroed by render_init too
+mn:       .res 2                ; LEVEL n: the number
+mn_t:     .res 2
+mn_k:     .res 1
+mn_d:     .res 1
+mn_lead:  .res 1
+nform:    .res 1
+nmove:    .res 1
+cur_f:    .res 1                ; table entry wanted for the alien in hand
+hud_last: .res 1                ; the last HUD character to compare
+zp_hot_end:
+zp_state:                       ; game state, zeroed by game_init too
+ship_c:      .res 1
+shot_limit:  .res 1
+lives:       .res 1
+armour:      .res 1
+ship_state:  .res 1             ; >0: exploding, steps to the respawn
+invul_t:     .res 1             ; >0: nothing hurts the ship
+game_over:   .res 1
+s_level:     .res 1             ; jauge S: speed = s_level + 1 cells
+t_level:     .res 1             ; jauge T: timed bonuses last 10 * t s
+weapon:      .res 1             ; 0 single, 1 double, 2 triple
+mult:        .res 1             ; score multiplier
+marks:       .res 1             ; rank marks (lot 7)
+mark_dark:   .res 1
+pick_msg:    .res 1             ; what the last pickup did (model.PICK_TEXT)
+shop:        .res 1             ; the shop is open (lot 7): logic waits
+rank:        .res 1
+subgame:     .res 1             ; sub-game icon caught: 1 meteor, 2 memory (lot 8)
+level:       .res 1             ; 0..99
+loop:        .res 1             ; times past level 100
+phase:       .res 1             ; 0 playing, 1 teleporting to the next level
+lkind:       .res 1             ; LK_*
+boss_x:      .res 1
+storm:       .res 1             ; Meteor Storm on (storm.s)
+station:     .res 1             ; Memory Station open: logic waits (memory.s)
+zp_state_end:
 
 .segment "ROWS"                 ; page aligned (src/game.cfg)
 hgr_lo:  .res 256
@@ -175,14 +231,8 @@ step_count:  .res 2
 pairs:       .res 1             ; refreshes not yet turned into a step (0/1)
 steps:       .res 1
 quit:        .res 1
-dir_key:     .res 1             ; last direction key: 0, 1 right, $FF left
-move_dir:    .res 1
-fire_req:    .res 1
-button:      .res 1             ; open apple / button 0, previous state
 ; The game state from here to game_vars_end: zeroed by game_init.
 game_vars:
-ship_c:      .res 1
-shot_limit:  .res 1
 shot_y:      .res MAX_SHOTS     ; top row, 0 = free
 shot_c:      .res MAX_SHOTS
 star_y:      .res NSTARS
@@ -208,11 +258,6 @@ a_timer:     .res NALIENS       ; explosion steps left
 e_y:         .res E_SHOTS       ; bombs: top row, 0 = free
 e_c:         .res E_SHOTS       ; cell
 fire_t:      .res 1
-lives:       .res 1
-armour:      .res 1
-ship_state:  .res 1             ; >0: exploding, steps to the respawn
-invul_t:     .res 1             ; >0: nothing hurts the ship
-game_over:   .res 1
 score:       .res 3             ; BCD, low byte first
 credits:     .res 2             ; BCD, 4 digits (coins)
 fly_list:    .res NALIENS       ; visible flying aliens (this step)
@@ -220,27 +265,17 @@ shot_dx:     .res MAX_SHOTS     ; cells a step (triple weapon: -1 / +1)
 obj_y:       .res N_OBJ         ; falling objects: top row, 0 = free
 obj_k:       .res N_OBJ         ; column: cells 7k..7k+6, bytes 2k..2k+1
 obj_kind:    .res N_OBJ
-s_level:     .res 1             ; jauge S: speed = s_level + 1 cells
-t_level:     .res 1             ; jauge T: timed bonuses last 10 * t s
-weapon:      .res 1             ; 0 single, 1 double, 2 triple
 autofire_t:  .res 2             ; timed bonuses, steps left
 mult_t:      .res 2
 shield_t:    .res 2
 freeze_t:    .res 2
-mult:        .res 1             ; score multiplier
 lv_rec:      .res 14            ; the level's record (aux lv_recs, LV_REC)
 row_sh:      .res ROWS          ; lot 10b: each row's stagger (cells)
 row_base:    .res ROWS          ; and first table entry (0 or DESIGN2)
 auto_cnt:    .res 1
 extra_bits:  .res 1             ; letters E X T R A collected (bits 0-4)
-marks:       .res 1             ; rank marks (lot 7)
-mark_dark:   .res 1
-pick_msg:    .res 1             ; what the last pickup did (model.PICK_TEXT)
 pick_t:      .res 1             ; >0: named mid-field (render.s msg_draw)
-shop:        .res 1             ; the shop is open (lot 7): logic waits
-rank:        .res 1
 perfects:    .res 1             ; bonus levels all shot (lot 10: GAME BONUSES)
-subgame:     .res 1             ; sub-game icon caught: 1 meteor, 2 memory (lot 8)
 pts_lo:      .res 1             ; add_points scratch
 pts_hi:      .res 1
 pts_top:     .res 1
@@ -248,12 +283,8 @@ fl_x0:       .res NALIENS       ; fly_list boxes: cells, rows
 fl_x1:       .res NALIENS
 fl_y0:       .res NALIENS
 fl_y1:       .res NALIENS
-level:       .res 1             ; 0..99
-loop:        .res 1             ; times past level 100
-phase:       .res 1             ; 0 playing, 1 teleporting to the next level
 clear_t:     .res 1
 level_t:     .res 2             ; steps into the level (hurry-up, lot 6)
-lkind:       .res 1             ; LK_*
 bonus_kills: .res 1
 w_kills:     .res ROWS          ; kamikaze: kills per wave
 dive_gap:    .res 1             ; this level's parameters (setup_level)
@@ -265,7 +296,6 @@ a_big:       .res NALIENS       ; big alien (level 3 of a pack)
 a_hp:        .res NALIENS       ; hits left
 e_dx:        .res E_SHOTS       ; bombs: cells a step sideways (the boss)
 boss_hp:     .res 1             ; 0: no boss
-boss_x:      .res 1
 boss_dir:    .res 1             ; 1 or $FF
 boss_boom:   .res 1             ; steps of its explosion left
 boss_gap:    .res 1
@@ -280,8 +310,6 @@ b_c:         .res 1
 b_dx:        .res 1
 nfly:        .res 1
 ; Lot 8: the sub-games (tools/model.py).
-storm:       .res 1             ; Meteor Storm on (storm.s)
-station:     .res 1             ; Memory Station open: logic waits (memory.s)
 m_speed:     .res 1             ; storm: 0..M_SPEED_MAX
 m_dist:      .res 2             ; rows of field left
 m_acc:       .res 1             ; rows since the last rock or coin
@@ -302,19 +330,10 @@ m_up:        .res MEM_CELLS     ; face up
 game_vars_end:
 hi_score:    .res 3             ; HI (BCD): the best record, then the score
                                 ; (not in game_vars: game_init would clear it)
-over_wait:   .res 1             ; frames since GAME OVER
-space_held:  .res 1
-demo:        .res 1             ; the attract mode plays (demo.s, lot 9)
 .data
 pack_loaded: .byte $FF          ; WG2.AUX table in cur_alien ($FF: none)
 .bss
 aux_bitmap:  .res 4
-aux_total:   .res 2
-af_src:      .res 2             ; aux_fetch
-af_dst:      .res 2
-af_len:      .res 2
-af_n:        .res 1
-fire_held:   .res 1             ; input: fire held down (autofire)
 nohit:       .res 1             ; tests: shots hit nothing (the bench)
 noshop:      .res 1             ; tests: the shop closes at once
 .data
@@ -340,7 +359,18 @@ cur_alien:   .res ALIEN_TABLE   ; the current pack's small alien (from aux)
 cur_big:     .res BIG_TABLE     ; and its big one
 
 .code
-_main:
+.pushseg
+.segment "BOOT"
+; Run once, from LOWBSS (game.cfg BOOTM: WG2.SYS copies it there; the
+; alien tables and the records come later; 2026-10-30, main RAM).
+boot:   tsx                      ; (fail returns from _main: its stack)
+        inx
+        inx
+        stx boot_sp
+        ldx #zp_hot_end-zp_hot-1
+:       stz zp_hot,x
+        dex
+        bpl :-
         lda $BF98                ; MACHID: bits 5-4 = 11 for 128 KB
         and #$30
         cmp #$30
@@ -356,7 +386,12 @@ big:    lda #1                   ; PD_VIDEO_DISCARD_RAM: aux memory is ours
 claimed:
         jsr aux_load             ; before HGR page 2 is cleared: its buffer
         jsr tramp_install
-        jsr rows_init
+        jmp rows_init
+boot_sp: .byte 0
+.popseg
+
+_main:
+        jsr boot
         lda #$20
         jsr clear_page
         lda #$40
@@ -450,6 +485,8 @@ sound_done:
         jmp game_tick
 done:   rts
 
+.pushseg
+.segment "BOOT"
 ; WG2.AUX -> aux memory at AUX_BASE (every small and big alien design x
 ; tint), 8 KB at a time through HGR page 2 (not shown yet). A failure: a
 ; message, back to ProDOS.
@@ -466,10 +503,11 @@ AUX_ALL = LOW2_AUX + $200 - AUX_BASE
 .assert HI_LEN <= $0400, error, "the resident data runs into the level records"
 .assert LOW_LEN <= $0800, error, "the storm runs into the resident data"
 .assert __LOWBSS_RUN__ + __LOWBSS_SIZE__ <= __LOWHI_START__, error, "LOWBSS runs into LOWHI"
-.assert __AUXM_LAST__ <= SHOP_AUX, error, "the PT3 player runs into the shop"
+.assert __BOOTM_START__ = __LOWBSS_RUN__ && __BOOTM_LAST__ <= __LOWBSS_RUN__ + __LOWBSS_SIZE__, error, "the boot code is not where LOWBSS is"
+.assert __AUXM_LAST__ <= AUX_PACKS, error, "the PT3 player runs into the packs"
 .assert SHOP_AUX + OVL_LEN <= LOW_AUX, error, "the overlay runs into the storm"
 
-.assert AUX_BASE + AUX_SIZE <= $6000, error, "the packs run into the PT3 player"
+.assert AUX_PACKS + AUX_SIZE <= SHOP_AUX, error, "the packs run into the shop"
 aux_load:
         jsr $BF00
         .byte $C8                ; OPEN
@@ -602,6 +640,7 @@ aux_fail:
         pla
         ldx #msg_aux-messages
         jmp fail
+.popseg
 
 ; The level's pack table aux -> cur_alien, when it changed (between two
 ; levels: no alien of the old pack is drawn any more).
@@ -843,17 +882,27 @@ new_game:
         sta prng_hi
         jmp render_init
 
-; Text message (X = offset in messages), a key, then back to ProDOS.
-fail:   lda messages,x
+.pushseg
+.segment "BOOT"
+; Text message (X = offset in messages), a key, then back to ProDOS. The
+; text page holds render.s's records: cleared first.
+fail:   phx
+        jsr $FC58                ; HOME
+        plx
+fail_ch:
+        lda messages,x
         beq :+
         ora #$80
         jsr $FDED
         inx
-        bne fail
+        bne fail_ch
 :       bit $C000
         bpl :-
         bit $C010
+        ldx boot_sp              ; back to crt0, whatever called
+        txs
         rts
+.popseg
 
 ; From the crt0 cleanup (ESC, Ctrl-RESET): clock off, text, /RAM rebuilt.
 _game_shutdown:
@@ -904,6 +953,8 @@ zb_byte:
 zb_done:
         rts
 
+.pushseg
+.segment "BOOT"
 ; Row address tables: lo = (y/8 mod 2)*$80 + (y/64)*$28, hi = $20 +
 ; (y mod 8)*4 + (y/8 mod 8)/2; page 2 = hi + $20.
 rows_init:
@@ -944,8 +995,13 @@ rows_init:
         bne :-
         rts
 thirds: .byte $00, $28, $50
+.popseg
 
 game_init:
+        ldx #zp_state_end-zp_state-1
+:       stz zp_state,x           ; (its busiest bytes: zero page)
+        dex
+        bpl :-
         lda #<game_vars          ; zero the game state
         sta dst
         lda #>game_vars
@@ -1101,7 +1157,8 @@ joy_hi: .byte 83+JOY_DEAD
 .include "render.s"
 .include "sound.s"
 
-.rodata
+.pushseg
+.segment "BOOT"
 messages:
 msg_128k: .byte "WARGALAGA II NEEDS 128K.", $0D, 0
 msg_ram:  .byte "INVALID PRODOS STATE (/RAM).", $0D, 0
@@ -1113,6 +1170,8 @@ aux_read:  .byte 4, 0
         .word $4000, $2000, 0
 aux_close: .byte 1, 0
 aux_name:  .byte 7, "WG2.AUX"
+.popseg
+.rodata
 ; The boss's 7 shifts (lot 10c): aux BOSS_AUX -> iobuf (0-3) and cur_big
 ; (4-6), on a boss level, once (pack_check and render_init forget them:
 ; their loads and the walls' tile overwrite them).
@@ -1156,12 +1215,12 @@ combo2_of:
 ; WG2.AUX tables: aux address of each design x tint.
 combo_lo:
 .repeat NCOMBOS, I
-        .byte <(AUX_BASE + ALIEN_TABLE * I)
+        .byte <(AUX_PACKS + ALIEN_TABLE * I)
 .endrepeat
         .byte <AUX_ROCK          ; NCOMBOS: the Meteor Storm rock
 combo_hi:
 .repeat NCOMBOS, I
-        .byte >(AUX_BASE + ALIEN_TABLE * I)
+        .byte >(AUX_PACKS + ALIEN_TABLE * I)
 .endrepeat
         .byte >AUX_ROCK
 big_aux_lo:

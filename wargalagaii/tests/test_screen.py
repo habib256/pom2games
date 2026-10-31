@@ -32,6 +32,7 @@ sys.path.insert(0, str(ROOT / 'dev/tools'))
 sys.path.insert(0, str(GAME / 'tools'))
 import a2test
 from boot import boot
+from block import Block
 from hgr_tables import hgr_offset
 import fonts
 import hud
@@ -223,8 +224,7 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, ch
     L = a2test.labels(labels, strip=True)
     T, glyphs = tables(), font()
     rng = random.Random(seed)
-    first = min(L[n] for n in FIELDS)
-    span = max(L[n] + k for n, k in FIELDS.items()) - first
+    blk = Block(L, FIELDS)
     steps = [*boot(L)]
     if start is not None:
         steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', start), L.until('game_tick', 3000),
@@ -242,7 +242,7 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, ch
             steps.append('press:' + rng.choice(['\\<', '\\>', ' ', ' ', ' ', 'J', 'L']))
         if k % every == every - 1:
             steps += [L.until('render_done', 60), L.peek('page'), L.peek('step_count', 2),
-                      f'peek:{first:04X}:{span}', 'peek:2000:8192', 'peek:4000:8192']
+                      *blk.peeks(), 'peek:2000:8192', 'peek:4000:8192']
             samples += 1
         else:
             steps.append(L.until('render', 60))
@@ -257,7 +257,7 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, ch
             steps += ['wait:100', L.poke('over_wait', 0)] * 30
             for _ in range(10):
                 steps += [L.until('render_done', 60), L.peek('page'), L.peek('step_count', 2),
-                          f'peek:{first:04X}:{span}', 'peek:2000:8192', 'peek:4000:8192',
+                          *blk.peeks(), 'peek:2000:8192', 'peek:4000:8192',
                           L.until('game_tick', 60)]
                 samples += 1
             steps += [L.poke('over_wait', M_OVER_WAIT), 'key: ', L.until('front_main', 300),
@@ -268,8 +268,7 @@ def check(disk, labels, frames=120, seed=1, every=7, start=None, hurry=False, ch
     states = set()
     for n in range(samples):
         page = r.mem(L['page'], 1, n)[0]
-        block = r.mem(first, span, n)
-        st = {name: block[L[name] - first:L[name] - first + size] for name, size in FIELDS.items()}
+        st = blk.read(r, n)
         for name in ('ship_c', 'shot_limit', 'lives', 'armour', 'ship_state', 'invul_t', 'game_over',
                      's_level', 't_level', 'extra_bits', 'level', 'loop', 'phase', 'boss_hp',
                      'boss_x', 'boss_boom', 'hurry', 'h_x', 'storm', 'm_wait', 'm_speed', 'demo',

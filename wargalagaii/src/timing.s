@@ -34,7 +34,9 @@ joy_irq: .res 1                 ; mus_ticks when the paddle count started
 .data
 joy_x: .byte JOY_CENTRE         ; paddle 0 count (0..~165), centre until read
 
-.code
+; Linked first after crt0 (game.cfg TIMING): the wait loops below stay where
+; they are whatever the game's code grows to (a page crossed costs a cycle).
+.segment "TIMING"
 ; Select the clock. //e: VBL polling. Otherwise a mouse firmware (the //c's
 ; built-in one) gives the VBL interrupt; without one, delays.
 timing_init:

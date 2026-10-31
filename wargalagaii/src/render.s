@@ -90,57 +90,58 @@ HI_SITES .set HI_SITES + 1
 .zeropage
 pat:      .res 1
 
-.bss
-render_vars:                    ; zeroed by render_init
+; The records, in text page 1's windows (game.cfg TXT0-7: never shown in
+; play; 2026-10-30, main RAM was full): txt_clear zeroes them all. Only the
+; HUD's two big tables stay in main RAM.
+.segment "TXT0"
 pd_x:     .res NALIENS*2        ; alien drawn at, per page
-pd_y:     .res NALIENS*2        ; 0 = not drawn
-pd_f:     .res NALIENS*2        ; table entry drawn, + $80 if drawn seated
-md_list:  .res NALIENS*2        ; slots drawn flying, per page
-md_n:     .res 2
 sd_y:     .res MAX_SHOTS*2      ; shot drawn at (top row, 0 = none), per page
 sd_col:   .res MAX_SHOTS*2
+.segment "TXT1"
+pd_y:     .res NALIENS*2        ; 0 = not drawn
 sd_pat:   .res MAX_SHOTS*2
-bd_y:     .res E_SHOTS*2        ; bomb drawn at, per page
-bd_col:   .res E_SHOTS*2
-bd_pat:   .res E_SHOTS*2
-od_y:     .res N_OBJ*2          ; object drawn at, per page
-od_k:     .res N_OBJ*2
-od_kind:  .res N_OBJ*2
-star_lo:  .res NSTARS*2         ; screen byte written per page, hi 0 = none
-star_hi:  .res NSTARS*2
 boss_drawn: .res 2              ; boss cell drawn on each page, $FF none
 ufo_drawn: .res 2               ; saucer cell drawn on each page, $FF none
 ship_drawn: .res 2              ; cell drawn on each page
 ship_img: .res 2                ; image drawn: 0 ship, 1-2 explosion, $FF none
 ship_want: .res 1
 msg_drawn: .res 2               ; message id each page shows
-msg_text: .res 12               ; MSG_LEN
-mn:       .res 2                ; LEVEL n: the number
-mn_t:     .res 2
-mn_k:     .res 1
-mn_d:     .res 1
-mn_lead:  .res 1
-hud_seen: .res 2*HUD_N          ; HUD characters each page shows
-hud_key:  .res 2*HUD_KEYS       ; the state each page's HUD shows
-hud_buf:  .res HUD_N
-hud_last: .res 1                ; the last HUD character to compare
+.segment "TXT2"
+pd_f:     .res NALIENS*2        ; table entry drawn, + $80 if drawn seated
+star_lo:  .res NSTARS*2         ; screen byte written per page, hi 0 = none
 wall_drawn: .res 2              ; the quarter whose walls each page shows
+.segment "TXT3"
+md_list:  .res NALIENS*2        ; slots drawn flying, per page
+md_n:     .res 2
+star_hi:  .res NSTARS*2
 wall_tile: .res 1               ; the quarter whose tile iobuf holds
 boss_loaded: .res 1             ; the boss's shifts in iobuf / cur_big
 bp_clr:   .res 1                ; boss_put: bit 7 zeros
+.segment "TXT4"
+hud_key:  .res 2*HUD_KEYS       ; the state each page's HUD shows
 hud_now:  .res HUD_KEYS
 hud_filled: .res HUD_KEYS       ; the state hud_buf was last filled from
+bd_y:     .res E_SHOTS*2        ; bomb drawn at, per page
+bd_col:   .res E_SHOTS*2
+msg_text: .res 12               ; MSG_LEN
+.segment "TXT5"
 form_list: .res NALIENS
-nform:    .res 1
 move_list: .res NALIENS
-nmove:    .res 1
-cur_f:    .res 1                ; table entry wanted for the alien in hand
+bd_pat:   .res E_SHOTS*2
+od_y:     .res N_OBJ*2          ; object drawn at, per page
+od_k:     .res N_OBJ*2
+.segment "TXT6"
+od_kind:  .res N_OBJ*2
 pr_off:   .res ROWS*2           ; row sway offset / frame each page was drawn with
 pr_anim:  .res ROWS*2
 row_dirty: .res ROWS
 g_col:    .res 2                ; Meteor Storm (storm.s): the gauge's column,
 g_n:      .res 2                ; its lit bars, the distance bar's filled
 b_n:      .res 2                ; rows + 1, each page (0: none)
+.bss
+render_vars:                    ; zeroed by render_init
+hud_seen: .res 2*HUD_N          ; HUD characters each page shows
+hud_buf:  .res HUD_N
 render_vars_end:
 
 .code
@@ -152,6 +153,22 @@ render_init:
         ldx #>(render_vars_end-render_vars)
         ldy #<(render_vars_end-render_vars)
         jsr zero_block
+        ldx #$78-1               ; the text page's windows (not its holes)
+        lda #0
+:       sta $0400,x
+        sta $0480,x
+        sta $0500,x
+        sta $0580,x
+        sta $0600,x
+        sta $0680,x
+        sta $0700,x
+        sta $0780,x
+        dex
+        bpl :-
+        ldx #zp_hot_end-zp_render-1
+:       stz zp_render,x
+        dex
+        bpl :-
         lda #$FF
         sta ship_img
         sta ship_img+1
