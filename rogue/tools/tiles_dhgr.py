@@ -12,15 +12,28 @@ x = 6 (6 black pixels each side); a character is 4 x 8, a sprite 8 x 16.
 
 Inputs (never modified): src/gfx/tileset_rogue.inc (characters 0..127 and
 their colour groups), src/gfx/sprite_pats.inc + src/gfx/sprites_boss.asm
-(sprites, names 0..68). Output: one .inc of ca65 data (byte-stable):
+(sprites, names 0..68). Output: one .inc of ca65 data (byte-stable) for the
+back-end's byte composition. A line of the screen is 80 "stream" bytes of 7
+dots (stream byte 2o = aux offset o, 2o + 1 = main offset o), a colour pixel
+x = dots 4x..4x+3; character c of a row = 16 dots from dot 24 + 16 c, so
+character 7q + p starts at bit (24 + 16 p) mod 7 of stream byte 16 q +
+(24 + 16 p) div 7 (7 phases):
 
-  dg_cpx        32 x 128 bytes: pixel k of row l of character ch at
-                128 (4 l + k) + ch, as its DHGR nibble (the ink of the
-                character's colour group, or 0: the paper is black for every
-                group of this tileset): one load a pixel, no masking
-  dg_lit        128 bytes: 1 if the character has a lit pixel
-  dg_sprites    18 x 16 bytes: one row of a sprite, 8 pixels, bit 7 = left
+  dg_ri         8 x 128: row l of character ch as a piece index, 16 * its
+                ink (0..3, the inks of the lit characters) + its 4 pixels
+  dg_san        256: the name if it is a character with a lit pixel, else $FF
+  dg_cp<p><i>   22 tables of 64: piece i (3 or 4 bytes) of a character row
+                of phase p, by piece index: ready to OR / store
+  dg_sm<r><i>   22 tables of 16: the dots of a 4-pixel sprite half (bit 3 =
+                left) from bit r of a byte: piece i of its 3 or 4 bytes
+  dg_cpat       16 x 16: stream byte k painted with pixel value N, at 16 N +
+                (k AND 3) (+ 4, 8, 12: the same, for the next bytes)
+  dg_sph/spl    18 x 16 each: the left / right 4 pixels of a sprite row
   dg_palette    16 bytes: TMS colour -> DHGR nibble (sprite colours)
+
+compose() is that algorithm in Python; the generation checks it against
+render() (the per-pixel model the tests compare the screen with) on the mock
+screen.
 
 Halving 8 pixels into 4: each output pixel is a pair of TMS pixels. Rules,
 chosen by looking at the previews: the wall and the door keep a pixel only if both are
@@ -41,7 +54,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT.parent / 'dev/tools'))
-from apple2img import PALETTE, png_write, dhgr_from_colors, dhgr_to_rgb  # noqa: E402
+from apple2img import PALETTE, png_write, dhgr_from_colors, dhgr_to_rgb, hgr_offset  # noqa: E402
 from fonts import asm_bytes, write_if_changed  # noqa: E402
 
 GRID_X = 6          # first colour pixel of the 128-pixel TMS picture
@@ -395,25 +408,141 @@ def write_previews(out, inputs, data):
 
 # ------------------------------------------------------------------ output
 
+CHAR_X0 = 4 * GRID_X        # stream bit of character 0's first dot (24)
+
+
+def char_phase(p):
+    """Character 7q + p: (first stream byte relative to 16 q, bit in it, pieces)."""
+    start = CHAR_X0 + 16 * p
+    return start // 7, start % 7, (start % 7 + 22) // 7
+
+
+def pieces(r, nib4, rev=False):
+    """A 4-pixel row (bit k = pixel k lit, or bit 3 - k with rev) whose pixels
+    have the 4-bit value nib4 (0..15, low bit = first dot), at bit r of a
+    stream byte: its ceil((r + 16) / 7) bytes."""
+    def lit(m, k):
+        return m >> (3 - k if rev else k) & 1
+    def table(m):
+        out = [0] * ((r + 22) // 7)
+        for k in range(4):
+            if lit(m, k):
+                for j in range(4):
+                    if nib4 >> j & 1:
+                        s = r + 4 * k + j
+                        out[s // 7] |= 1 << (s % 7)
+        return out
+    return [table(m) for m in range(16)]
+
+
+def char_colours(data):
+    """The inks of the characters with a lit pixel, in order (<= 4)."""
+    dg_chars, dg_colours, _, _ = data
+    cols = []
+    for ch in range(128):
+        if any(dg_chars[8 * ch:8 * ch + 8]) and dg_colours[ch >> 3] not in cols:
+            cols.append(dg_colours[ch >> 3])
+    if len(cols) > 4:
+        raise ValueError(f'{len(cols)} character inks: the piece tables hold 4')
+    return cols
+
+
+def byte_tables(data):
+    """The byte-composition tables of the back-end (see inc_text)."""
+    dg_chars, dg_colours, dg_sprites, dg_palette = data
+    cols = char_colours(data)
+    lit = [any(dg_chars[8 * c:8 * c + 8]) for c in range(128)]
+    ri = []
+    for y in range(8):
+        for c in range(128):
+            m = sum(1 << k for k in range(4) if dg_chars[8 * c + y] >> (3 - k) & 1)
+            ri.append(cols.index(dg_colours[c >> 3]) * 16 + m if lit[c] else 0)
+    san = [c if c < 128 and lit[c] else 0xFF for c in range(256)]
+    cp = {}
+    for p in range(7):
+        k0, r, n = char_phase(p)
+        per_col = [pieces(r, cols[ci] if ci < len(cols) else 0) for ci in range(4)]
+        for i in range(n):
+            cp[p, i] = [per_col[ci][m][i] for ci in range(4) for m in range(16)]
+    sm = {}
+    for r in range(7):
+        t = pieces(r, 15, rev=True)
+        for i in range((r + 22) // 7):
+            sm[r, i] = [t[m][i] for m in range(16)]
+    # colour of stream byte k (k & 3 = a) for a pixel value N: dot b of the
+    # byte is dot (7 k + b) mod 4 = (3 a + b) mod 4 of the pixel
+    cpat = [sum((nv >> ((3 * (m & 3) + b) % 4) & 1) << b for b in range(7))
+            for nv in range(16) for m in range(16)]
+    sph = [b >> 4 for b in dg_sprites]
+    spl = [b & 15 for b in dg_sprites]
+    return dict(ri=ri, san=san, cp=cp, sm=sm, cpat=cpat, sph=sph, spl=spl)
+
+
+def compose(names, sat, data, tabs=None):
+    """The back-end's algorithm in Python: 192 lines of 80 stream bytes
+    (stream byte 2 o = aux offset o, 2 o + 1 = main offset o)."""
+    t = tabs or byte_tables(data)
+    pal = data[3]
+    lines = []
+    sprs = list(reversed(sprite_list(sat)))
+    for y in range(192):
+        buf = [0] * 84
+        for c in range(32):
+            q, p = divmod(c, 7)
+            k0, r, n = char_phase(p)
+            k0 += 16 * q
+            ch = t['san'][names[32 * (y >> 3) + c]]
+            idx = 0 if ch == 0xFF else t['ri'][128 * (y & 7) + ch]
+            for i in range(n):
+                v = t['cp'][p, i][idx]
+                buf[k0 + i] = buf[k0 + i] | v if i == 0 and r else v
+        for y0, x0, name, col in sprs:
+            if col & 15 == 0 or name >= 72 or y0 >= 192 or not y0 <= y < y0 + 16:
+                continue
+            nv = pal[col & 15]
+            s0 = 4 * (GRID_X + (x0 >> 1))
+            k, r = divmod(s0, 7)
+            row = 16 * (name >> 2) + y - y0
+            for hm, rr, kk in ((t['sph'][row], r, k), (t['spl'][row], (r + 16) % 7, k + (r + 16) // 7)):
+                for i in range((rr + 22) // 7):
+                    b = kk + i
+                    buf[b] ^= (buf[b] ^ t['cpat'][16 * nv + (b & 3)]) & t['sm'][rr, i][hm]
+        lines.append(buf[:80])
+    return lines
+
+
 def inc_text(data):
     dg_chars, dg_colours, dg_sprites, dg_palette = data
+    t = byte_tables(data)
     lines = ['; video_dhgr_data.inc -- GENERATED by tools/tiles_dhgr.py. DO NOT EDIT.',
              '; Tiles: Quale\'s SCROLL-O-SPRITES (CC-BY-3.0), boss: Hexany\'s Monster',
              '; Menagerie (CC0), halved for DHGR (see the tool\'s docstring).',
              '', '.segment "RODATA"', '',
-             '; dg_cpx + 128 * (4 l + k) + ch = pixel k (0 = left) of row l of',
-             '; character ch: its ink\'s DHGR nibble when lit, else 0 (black paper)',
-             'dg_cpx:']
-    for y in range(8):
-        for k in range(4):
-            lines.append(asm_bytes([dg_colours[c >> 3] if dg_chars[8 * c + y] >> (3 - k) & 1
-                                    else 0 for c in range(128)], per_line=16).rstrip('\n'))
-    lines += ['', '; 1 if the character has a lit pixel (0: drawn as black)', 'dg_lit:']
-    lines.append(asm_bytes([int(any(dg_chars[8 * c:8 * c + 8])) for c in range(128)],
-                           per_line=16).rstrip('\n'))
-    lines += ['', '; 18 sprites (TMS name / 4) x 16 rows, 8 pixels a row (bit 7 = left)',
-              'dg_sprites:']
-    lines.append(asm_bytes(dg_sprites, per_line=16).rstrip('\n'))
+             '; dg_ri + 128 l + ch = row l of character ch as a piece index:',
+             '; 16 * (its ink, 0..3) + its 4 pixels (bit k = pixel k, 0 = left)',
+             'dg_ri:']
+    lines.append(asm_bytes(t['ri'], per_line=16).rstrip('\n'))
+    lines += ['', '; dg_san + name = the name if it is a character with a lit pixel,',
+              '; else $FF (drawn black)', 'dg_san:']
+    lines.append(asm_bytes(t['san'], per_line=16).rstrip('\n'))
+    lines += ['', '; dg_cp<p><i> + index: piece i (stream byte k0 + i) of a character',
+              '; row of phase p (character 7 q + p, first dot at stream bit 24 + 16 p)']
+    for (p, i), v in sorted(t['cp'].items()):
+        lines.append(f'dg_cp{p}{i}:')
+        lines.append(asm_bytes(v, per_line=16).rstrip('\n'))
+    lines += ['', '; dg_sm<r><i> + m: piece i of the dots of a 4-pixel sprite half m',
+              '; (bit 3 = left) whose first dot is bit r of the first byte']
+    for (r, i), v in sorted(t['sm'].items()):
+        lines.append(f'dg_sm{r}{i}:')
+        lines.append(asm_bytes(v, per_line=16).rstrip('\n'))
+    lines += ['', '; dg_cpat + 16 N + m: stream byte k (k & 3 = m & 3) painted with',
+              '; the pixel value N', 'dg_cpat:']
+    lines.append(asm_bytes(t['cpat'], per_line=16).rstrip('\n'))
+    lines += ['', '; 18 sprites (TMS name / 4) x 16 rows: left 4 pixels (dg_sph) and',
+              '; right 4 pixels (dg_spl), bit 3 = left', 'dg_sph:']
+    lines.append(asm_bytes(t['sph'], per_line=16).rstrip('\n'))
+    lines.append('dg_spl:')
+    lines.append(asm_bytes(t['spl'], per_line=16).rstrip('\n'))
     lines += ['', '; TMS9918 colour -> DHGR nibble (sprite colours)', 'dg_palette:']
     lines.append(asm_bytes(dg_palette, per_line=16).rstrip('\n'))
     return '\n'.join(lines) + '\n'
@@ -430,6 +559,12 @@ def main(argv=None):
     ap.add_argument('--png', type=Path)
     args = ap.parse_args(argv)
     inputs, data = load_data()
+    names, sat = mock_screen()
+    main_, aux = dhgr_from_colors(render(names, sat, data))
+    for y, line in enumerate(compose(names, sat, data)):
+        base = hgr_offset(y)
+        if line[0::2] != list(aux[base:base + 40]) or line[1::2] != list(main_[base:base + 40]):
+            raise SystemExit(f'compose() differs from render() at line {y}')
     write_if_changed(args.out, inc_text(data))
     if args.png:
         write_previews(args.png, inputs, data)

@@ -68,8 +68,10 @@ en route (`init_vdp_g1`, uploads, `R1 = $C2`) est `vid_init`. Contrat complet :
 couloir en L, portes, escaliers, fosses), champ de vision par shadowcasting
 (Bergström), IA des cinq monstres et du boss 2×2, objets, sac de 26 places,
 bonus à durée, lancer de dague, XP et niveaux, HUD, écrans de mort et de
-victoire, aide, carte révélée. `dungeon.asm`, `shadowcast.asm`, `prng16.asm`,
-`multiply.asm`, le tileset et les sprites sont des copies inchangées.
+victoire, aide, carte révélée. `dungeon.asm`, `prng16.asm`, le tileset et les
+sprites sont des copies inchangées ; `shadowcast.asm` donne le même champ de
+vision que celui de POM1 par d'autres calculs (rangs de pentes en tables, §3.1),
+et `multiply.asm` (son `umul4`) n'est plus utile, ni copié.
 
 **Changé** : titre (« APPLE II E-Z COLOR ROGUELIKE », « MOVE IJKL OR
 ARROWS », ligne « [S] SOUND [ESC] QUIT ») ; flèches → IJKL (←/→ sur tout
@@ -89,37 +91,162 @@ stable). Il **émule** l'écran TMS9918 virtuel de [VIDEO_API.md](VIDEO_API.md) 
   de large (alignées sur les groupes DHGR) ont été écartées : 32 colonnes de
   texte ne tiennent pas dans 16 × 7 pixels, les icônes du sac et du HUD sont
   posées au pixel TMS près, et 16 → 7 colonnes déforme tuiles et police. Avec
-  8 pixels par tuile, tout tombe exactement, au prix d'un empaquetage (un
-  caractère chevauche deux groupes de 7 pixels).
+  8 pixels par tuile, tout tombe exactement, au prix de décalages (un
+  caractère chevauche deux groupes de 7 pixels : 7 phases, voir plus bas).
 - **`vid_addr` / `vid_put`** : la VRAM virtuelle est une vraie copie aux
-  mêmes adresses (`$1800-$1B7F`) ; `vid_put` écrit l'octet (opérandes
-  auto-modifiés), et s'il change, marque la ligne de texte (noms) ou la liste
-  de sprites. ~40 cycles pour un octet inchangé (render_map en écrit 640 par
-  tour). `vid_wait_frame` = `RTS` : le cœur l'appelle avant de tout
-  reconstruire, dessiner là montrerait des images à moitié faites.
+  mêmes adresses (`$1800-$1B7F`) ; `vid_put` compare l'octet à celui du
+  curseur (opérande auto-modifié) : **27 cycles** s'il est inchangé
+  (`PHP` / `CMP` / `INC` / `PLP`) ; s'il change, il l'écrit ; un nom est
+  aussitôt comparé à `dg_shown` (ce que l'écran montre, vu par `dg_san` :
+  tous les caractères vides se valent) : différent, il marque son ou ses
+  deux groupes de 7 pixels et sa ligne (~130 cycles), pareil, rien
+  (~95) ; un octet de la table des sprites marque la table. `vid_wait_frame` = `RTS` :
+  le cœur l'appelle avant de tout reconstruire, dessiner là montrerait des
+  images à moitié faites.
 - **`vid_idle`** (avant chaque attente de touche, à chaque image d'une dague
-  lancée) : (1) les noms de chaque ligne marquée sont comparés à `dg_shown`
-  (ce que l'écran montre) : chaque nom différent marque le ou les deux
-  groupes de 7 pixels dessous, dans un bitmap de 20 bits par ligne (un
-  `vid_clear` suivi de la même carte ne coûte rien : c'est ce que fait chaque
-  image du lancer) ; (2) la liste de sprites est comparée à celle dessinée :
-  chaque entrée changée marque ses deux boîtes ; (3) chaque suite de groupes
-  sales de chaque ligne est refaite ligne d'écran par ligne d'écran dans un
-  tampon d'un octet par pixel : caractères (4 chargements par caractère, une
-  table par (ligne, pixel) donne directement le quartet DHGR), sprites de la
-  bande (le dernier d'abord : l'entrée 0 devant, comme la puce),
-  empaquetage en place (7 quartets → 4 octets, 9 tables de 16 o, ~60 cycles
-  par groupe), écriture : octets auxiliaires sous `SEI` (RAMWRT aux,
-  ~400 cycles par ligne entière), puis principaux. Une suite sans caractère
-  allumé ni sprite est écrite noire directement. Chaque octet de la suite est
-  écrit une fois, à sa valeur finale : pas de scintillement, une seule page.
-- **Coûts** (//e, mesurés par `tests/test_dhgr.py`) : écran entier ~935 000
-  cycles (0,9 s), un sprite recoloré (flash) ~27 000 cycles, un tour
-  ordinaire 0,15 à 0,5 s de la touche à l'attente suivante, dont 60 à 80 %
-  de dessin (le reste : champ de vision, monstres, `render_map`).
-- **Pistes** si plus de vitesse était voulue : écriture avec opérandes absolus
-  patchés (~10 % de l'écriture), suites voisines fusionnées (moins de mise en
-  route), groupes noirs sautés à l'empaquetage.
+  lancée) : (1) les noms de chaque ligne qu'un `vid_clear` a marquée sont
+  comparés à `dg_shown` (boucle aux opérandes patchés, ~21 cycles par nom) :
+  chaque nom différent marque le ou les deux groupes de 7 pixels dessous
+  (un octet par groupe, 20 par ligne) ; un `vid_clear` suivi de la même
+  carte ne marque rien, une tuile de sol (caractères vides) qui s'éteint
+  non plus ; (2) la liste de sprites est comparée à celle
+  dessinée : chaque entrée changée marque ses deux boîtes (2 groupes × 2
+  ou 3 lignes) ; (3) chaque ligne de texte marquée : la liste de ses
+  sprites, puis chaque suite de groupes sales est **composée octet par
+  octet** dans un tampon de 8 lignes de 80 octets « de flux » (l'octet 2o
+  = auxiliaire o, 2o + 1 = principal o ; 3 lignes par page, aucun accès
+  indexé ne franchit de page) et écrite.
+- **Composition par octets** (`tools/tiles_dhgr.py` calcule les tables, et
+  `compose()`, le même algorithme en Python, vérifié contre le modèle pixel
+  à la génération) : une ligne d'un caractère = 4 pixels × 4 points = 16
+  points à partir du point 24 + 16 c, donc 7 phases (c mod 7) : 3 ou 4
+  octets, le premier ajouté (`ORA`) au dernier du caractère précédent, les
+  autres posés (`STA`). Par ligne : nom → indice (encre 0..3 × 16 + les 4
+  pixels, `dg_ri`), puis une table de 64 octets par octet produit
+  (`dg_cp<p><i>`) : **41 cycles par caractère et par ligne**, 10 pour un
+  caractère noir. Code déroulé sur les 8 lignes, une routine par phase,
+  les caractères enchaînés de gauche à droite. Sprites, entrée la plus
+  haute d'abord : deux moitiés de 4 pixels, chacune 3 ou 4 octets à partir
+  du bit r de l'octet k (`dg_sm<r><i>`, 16 octets), peintes par
+  `b = b EOR ((b EOR encre) AND points)` (`dg_cpat` : l'encre selon k mod 4),
+  ~25 cycles par octet. Plus d'empaquetage : les octets sont déjà ceux de
+  l'écran. Écriture : 8 instructions `STA abs,Y` (une par ligne, adresses
+  patchées par bande), deux colonnes par passe, ~10 cycles par octet ;
+  octets auxiliaires sous `SEI` (RAMWRT aux), puis principaux. Chaque octet
+  de la suite est écrit une fois, à sa valeur finale (vérifié par le test
+  avec `storewatch`) : pas de scintillement, une seule page.
+- **Coûts** (//e, `tests/test_dhgr.py`, partie à graine fixe : mêmes
+  donjons pour chaque version ; détail par routine : `tools/profile_dhgr.py`) :
+
+  | | avant (pixel par pixel) | octets | + lots du 2026-10-31 (§3.1) |
+  |---|---|---|---|
+  | écran entier | 893 580 cycles (0,87 s) | 336 818 (0,33 s) | 337 327 |
+  | un sprite recoloré (flash) | 32 733 | 14 825 | 14 778 |
+  | tour, médiane | 144 104 | 108 688 (0,11 s) | 40 829 (0,04 s) |
+  | tour, 90 % | 358 096 | 227 326 | 138 644 |
+  | tour, moyenne | 181 107 | 112 639 | 74 648 |
+  | tour le plus lent | 816 869 | 424 776 | 405 686 |
+
+### 3.1 Budget d'un tour (2026-10-31)
+
+Cinq lots, sans rien changer au jeu (donjons, hasard, champ de vision,
+combats, objets) : seulement l'ordre, les caches et les attentes du
+rendu. Vérifié par `tests/test_dhgr.py` (`tests/dhgr_screens.txt` : le
+sha1 de l'écran virtuel, noms + sprites, aux 89 points de contrôle dont un
+après chaque heurt / repos et chaque fermeture du sac ou de l'aide, relevé
+sur la version d'avant) et, hors dépôt, par l'écran virtuel + l'état du jeu
+(carte, visibilité, monstres, objets, sac, PV, hasard) après chaque tour,
+identiques à la version d'avant : //e graines `0x1983` et `0x5A3C`
+(137 tours chacune), TMS (a2run) 260 touches × 2 graines, et les 56 images
+de vol de 40 lancers de dague.
+
+1. **L'image avant le son** : `main_loop` appelle `vid_idle` avant
+   `sfx_flush` (le DHGR dessine là ; sur la carte l'image est déjà
+   complète, le son ne fait toujours qu'allonger les écarts entre accès).
+   Le tour dure autant, mais le coup se voit tout de suite, le son suit
+   (avant : jusqu'à 215 000 cycles de son avant l'image).
+2. **render_map incrémental** : `map_shadow` (160 octets, un par case : la
+   base de ses 4 noms, `RM_DARK` = 4 zéros, `RM_STALE` = inconnu) ; seules
+   les cases dont le code change sont écrites (`rm_write` : 2 `vid_addr`,
+   4 `vid_put`). Une rangée dont les octets de visibilité et de carte sont
+   ceux de son dernier dessin (`rm_vis`, `rm_map`) est sautée. Tout
+   effacement passe par `clear_screen` (= `rm_invalidate` + `vid_clear`) :
+   titre, mission, sac, aide, mort, victoire, nouvel étage, parchemin ; la
+   carte suivante est alors réécrite en entier. `redraw_game` sans modale
+   depuis (dague, objet utilisé) n'efface plus que les noms du HUD que
+   `update_hud` ne réécrit pas (ligne 22 col. 0-23, ligne 23 col. 0-1).
+   `vid_put` : 468 → 73 appels par tour.
+3. **Lancer de dague** : seule la première image repeint le jeu (elle
+   efface DIRECTION?) ; les suivantes ne refont que la table des sprites
+   (rien d'autre ne bouge en vol), la dernière les sprites + le HUD (l'XP
+   d'un monstre tué). Mêmes noms à chaque image (vérifié image par image).
+   Les attentes du cœur (`delay_throw_frame`, ~82 000 cycles par image)
+   sont gardées : le vol dure presque autant, il était surtout fait
+   d'attente ; une image coûte maintenant ~15 000 cycles de dessin.
+4. **Champ de vision** (résultats identiques) : les pentes de
+   `shadowcast.asm` ne sont plus des fractions multipliées (`umul4`, ~70
+   cycles le produit) mais des **rangs** : toute pente est un n / d avec
+   n ≤ 15, 1 ≤ d ≤ 15 (fov_r ≤ 7), son rang = combien des 240 fractions
+   sont plus petites ; comparer deux pentes = comparer deux octets, pentes
+   gauche / droite de chaque case en tables (`sc_lrank`, `sc_rrank`,
+   calculées par l'assembleur). La bizarrerie de POM1 est gardée : après un
+   appel récursif, le parent prend la pente droite de la dernière case
+   balayée par l'enfant (`cast_li`). Transformation d'octant en tables
+   (source col / profondeur et signe), `mark_visible_at_cur` et
+   `is_opaque_at_cur` par tables. `multiply.asm` n'est plus inclus.
+   Le cœur d'un tour moyen : 35 600 → 13 400 cycles.
+5. **HUD** : `update_hud` = 4 appels (une ligne chacun) ; `finish_turn`
+   (`hud_paint`) ne repeint que les lignes dont les valeurs ont changé
+   (`hud_last`) tant que `hud_ok` dit que les lignes 20-23 montrent sa
+   dernière peinture (`clear_screen`, `draw_text`, `clear_msg_rows`,
+   `clear_msg_row23`, `update_hud` le remettent à 0).
+
+Et dans le back-end : `dg_shown` en `dg_san` (une tuile de sol qui
+s'allume ou s'éteint ne redessine rien), `vid_put` qui marque lui-même
+les groupes (plus de balayage des lignes touchées, ~670 cycles par ligne).
+
+Mesures (`tools/profile_dhgr.py`, cycles de la touche lue à l'attente de
+la suivante ; « sans le son » = l'image est là, le son suit) :
+
+| //e, graine 0x1983 | médiane | 90 % | moyenne | max |
+|---|---|---|---|---|
+| avant | 108 688 | 227 326 | 112 639 | 424 776 |
+| 1. image avant le son | 109 423 | 228 024 | 113 293 | 424 978 |
+| 2. render_map incrémental | 83 720 | 211 585 | 101 395 | 427 997 |
+| 3. dague | 83 769 | 212 094 | 101 559 | 428 481 |
+| 4a. pentes en tables (`umul4` → `sc_mul`) | 57 520 | 177 262 | 87 932 | 426 458 |
+| 5. HUD | 49 479 | 169 261 | 83 129 | 426 507 |
+| back-end : vides égaux, marquage direct | 47 149 | 146 403 | 78 094 | 433 056 |
+| 4b. rangs, tables de case, cache de rangée | **40 829** | **138 644** | **74 648** | **405 686** |
+| sans le son : avant → après | 106 453 → 38 149 | 179 099 → 103 094 | 91 067 → 53 076 | 317 545 → 317 675 |
+
+| //e, graine 0x5A3C (torche souvent allumée) | médiane | 90 % | moyenne | max |
+|---|---|---|---|---|
+| avant | 152 154 | 237 678 | 143 071 | 999 281 |
+| après | **61 896** | **147 321** | **83 624** | **602 913** |
+| sans le son : avant → après | 149 677 → 56 570 | 201 358 → 97 882 | 128 117 → 68 668 | 966 290 → 559 401 |
+
+Autres graines (après, avec / sans le son) : médianes 54 600 / 50 300,
+57 000 / 54 000, 58 600 / 55 400, 56 800 / 54 000 ; 90 % sans le son
+94 000 à 105 000. Le 90 % avec le son est fait des tours qui en jouent un
+(heurt 61 000, coup 72 000, objet 107 000, escalier 215 000 cycles) et des
+écrans entiers (sac, aide : ~240 000 à l'ouverture, ~300 000 à la
+fermeture) : ni l'un ni l'autre n'a changé.
+
+Un tour moyen (graine 0x1983) : son 21 600, cœur 13 400 (était 35 600),
+`vid_put` 5 100 (14 700), dessin ~33 000 (~40 000 : écriture 9 500,
+caractères 8 300, sprites 6 200, le reste comparaisons et suites). Le
+déplacement médian : cœur ~18 700 (champ de vision ~12 000), dessin
+~20 000. TMS (a2run, 260 touches, son et deux attentes de trame compris) :
+médiane 63 060 → 40 510 (graine 0x1983) et 102 366 → 51 176 (0x5A3C),
+90 % 102 393 → 98 952 et 119 435 → 89 456, moyenne 66 242 → 49 665 et
+83 029 → 48 863.
+
+- **Ce qui reste** : les sons (durées inchangées), les écrans entiers
+  (~0,33 s : tout l'écran recomposé), les attentes du lancer, et sur la
+  carte les deux `vid_wait_frame` d'un déplacement (render_map,
+  place_all_sprites : jusqu'à une trame chacune). Mémoire : ROGUE.DHGR
+  finit à `$9017` (1,5 Ko libres sous `$9600`), ROGUE.TMS fait 14 367 octets.
 
 ## 4. Démarrage, détection, messages
 
@@ -178,29 +305,29 @@ l'écart entre deux accès VDP, jamais ne le raccourcit. Données générées pa
 
 | Zone | Contenu |
 |---|---|
-| `$0050-$00BD` | page zéro du jeu (110 o : cœur, `vdp_*`, FOV, `tune_ptr`, `txt_*`, `tms_src`, `ez_ptr/count`) |
+| `$0050-$00BB` | page zéro du jeu (108 o : cœur, `vdp_*`, FOV, `tune_ptr`, `txt_*`, `tms_src`, `ez_ptr/count`) |
 | `$0400-$07FF` | page texte Apple : l'avis |
 | `$0800-$0FFF` | HELLO (gardé par le DOS) |
-| `$1000-$12D3` | `LOWBSS` : carte, visibilité, monstres, objets, sac (468 o) + copie de la page zéro du DOS (256 o) |
+| `$1000-$13F7` | `LOWBSS` : carte, visibilité, monstres, objets, sac (468 o), ombre de la carte de render_map (`map_shadow`, `rm_*` : 280 o) et du HUD (12 o) + copie de la page zéro du DOS (256 o) |
 | `$2000-$3FFF` | libre (pas de HGR : l'Apple reste en texte) |
-| `$4000-$767A` | le fichier : `STARTUP` (entrée = 1er octet), `CODE` 11 899 o, `RODATA` 1 812 o (tileset 2 Ko compris dans CODE, sprites, textes, sons), `VDPFIX` 60 o, `BSS` 19 o |
-| `$767B-$95FF` | libre (7,9 Ko) |
+| `$4000-$7831` | le fichier : `STARTUP` (entrée = 1er octet), `CODE` 12 210 o, `RODATA` 1 940 o (tileset 2 Ko compris dans CODE, sprites, textes, sons, rangs de pentes 128 o), `VDPFIX` 60 o, `BSS` 19 o |
+| `$7832-$95FF` | libre (7,6 Ko) |
 | `$9600-$BFFF` | DOS 3.3 |
 
-`$4000` = l'adresse de la cartouche Apple-1. Fichier : 13 922 octets
-(56 secteurs). Le DOS reste : ESC y retourne, et la place suffit.
+`$4000` = l'adresse de la cartouche Apple-1. Fichier : 14 367 octets
+(57 secteurs). Le DOS reste : ESC y retourne, et la place suffit.
 
 ### ROGUE.DHGR (Apple //e 128 Ko ou //c, DOS 3.3 gardé)
 
 | Zone | Contenu |
 |---|---|
-| `$0050-$00CA` | page zéro (123 o : cœur 99 o + back-end DHGR 24 o) |
+| `$0050-$00DA` | page zéro (139 o : cœur 95 o + back-end DHGR 44 o) |
 | `$0800-$0FFF` | HELLO (gardé par le DOS) |
-| `$1000-$12D3` | `LOWBSS` : comme ROGUE.TMS (carte, visibilité, monstres, objets, sac, page zéro du DOS) |
-| `$1800-$1E3C` | `DHGRBSS` : l'écran TMS virtuel **à ses propres adresses** (`$1800-$1AFF` noms, `$1B00-$1B7F` sprites, 1 Ko avec la marge), la liste de sprites dessinée (128 o), les bits sales (96 o), la ligne de travail (160 o), les caractères et sprites de la bande |
+| `$1000-$13F7` | `LOWBSS` : comme ROGUE.TMS (carte, visibilité, monstres, objets, sac, ombres de render_map et du HUD, page zéro du DOS) |
+| `$1800-$1F84` | `DHGRBSS` : l'écran TMS virtuel **à ses propres adresses** (`$1800-$1AFF` noms, `$1B00-$1B7F` sprites, 1 Ko avec la marge), le tampon de composition (`$1C00-$1EFF` : 8 lignes de 80 octets, 3 par page), la liste de sprites dessinée (128 o) |
 | `$2000-$3FFF` | page DHGR 1, banque principale (et `$2000-$3FFF` de la banque auxiliaire) |
-| `$4000-$8082` | le fichier (15 736 o, 63 secteurs) : `STARTUP`, `CODE` 10 302 o (dont le back-end, 1,4 Ko), `RODATA` 5 313 o (dont 5 Ko au back-end : caractères en tables « un pixel par octet » 4 Ko, sprites 288 o, tables d’empaquetage et de géométrie), `BSS` 779 o (dont `dg_shown`, les noms à l'écran, 768 o) |
-| `$8083-$95FF` | libre (5,5 Ko) |
+| `$4000-$8A7C` | le fichier (19 069 o) : `STARTUP`, `CODE` 13 608 o (dont le back-end, ~4,3 Ko : une routine déroulée par phase de caractère et de sprite), `RODATA` 5 340 o (dont ~4,9 Ko au back-end : indices des lignes de caractères 1 Ko, tables de morceaux 1,7 Ko, sprites 576 o, encres, géométrie), `BSS` 1 435 o (`dg_shown`, les noms à l'écran, 768 o ; les groupes sales, 480 o ; noms de la bande, lignes marquées) |
+| `$9018-$95FF` | libre (1,5 Ko) ; `BSS` en `$8A7D-$9017` |
 | `$9600-$BFFF` | DOS 3.3 |
 
 La mémoire auxiliaire ne sert qu'à la page DHGR : tout le reste tient en
