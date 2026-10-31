@@ -11,6 +11,8 @@ import subprocess
 import sys
 import tempfile
 ROOT=Path(__file__).resolve().parents[2]
+sys.path.insert(0,str(ROOT/'dev/tools'))
+import a2test
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--probe',type=Path,required=True)
@@ -30,7 +32,7 @@ def main():
         if a.records_only:
             spec=importlib.util.spec_from_file_location('prodos_read',ROOT/'dev/tools/prodos/read_volume.py')
             reader=importlib.util.module_from_spec(spec);spec.loader.exec_module(reader)
-            def inspect():
+            def inspect():                  # raw entries: key blocks, the bitmap
                 image=reader.Image(disk.read_bytes())
                 entries={e[1:1+(e[0]&15)].decode():e for e in image.entries(2)}
                 return image,entries
@@ -46,7 +48,7 @@ def main():
                 execute(variant,'records-music')
                 execute(variant,'records-victory')
                 execute(variant,'records-save')
-                image,entries=inspect(); data=image.read(entries['HIGHSCORES'])
+                data=a2test.prodos_files(disk)['HIGHSCORES'][2]
                 assert len(data)==38 and data[:5]==b'CBR1\x02' and data[5]==59,'sector 60 reached is saved'
                 assert sum(data[:36])==int.from_bytes(data[36:38],'little')
                 assert [int.from_bytes(data[6+i*6:8+i*6],'little') for i in range(5)]==[3200,1800,1500,1240,900]

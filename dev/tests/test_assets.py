@@ -9,11 +9,68 @@ import random
 import subprocess
 spec=importlib.util.spec_from_file_location('assets',Path(__file__).resolve().parents[1]/'tools/assets/convert.py')
 a=importlib.util.module_from_spec(spec);spec.loader.exec_module(a)
+img=a._img   # dev/tools/apple2img.py, loaded by convert.py
+
+
+def image_helpers(work):
+    """apple2img: PNG round trips, HGR/DHGR known bytes, preshift7 by hand."""
+    rgba=[[(x*40,y*60,x^y,255-x) for x in range(5)] for y in range(3)]
+    for mode,rows in (('rgba',rgba),('rgb',rgba),('gray',[[x*50 for x in range(5)]]*3),
+                      ('pal',[[x%3 for x in range(5)]]*3)):
+        pal=[(1,2,3),(200,100,0),(9,9,250)]
+        img.png_write(work/'rt.png',rows,mode=mode,palette=pal)
+        w,h,back=img.png_read(work/'rt.png')
+        want={'rgba':lambda p:p,'rgb':lambda p:p[:3]+(255,),'gray':lambda v:(v,v,v,255),
+              'pal':lambda i:pal[i]+(255,)}[mode]
+        assert (w,h)==(5,3) and back==[[want(p) for p in r] for r in rows],mode
+    img.png_write(work/'big.png',[b'\x01\x02\x03\x04\x05\x06'],scale=(2,3))
+    assert img.png_read(work/'big.png')==(4,3,[[(1,2,3,255)]*2+[(4,5,6,255)]*2]*3)
+    flat=[p for r in rgba for p in r]
+    a.png_write(work/'legacy.png',5,3,flat)
+    img.png_write(work/'new.png',rgba,mode='rgba',level=-1)
+    assert (work/'legacy.png').read_bytes()==(work/'new.png').read_bytes()
+    # HGR: one byte at column 0 of line 0 -> its 7 dots.
+    V,G,B,O,W,K=(255,68,253),(20,245,60),(20,207,253),(255,106,60),(255,255,255),(0,0,0)
+    for byte,dots in ((0x01,[V,K]),(0x81,[B,K]),(0x02,[K,G]),(0x82,[K,O]),(0x03,[W,W,K]),
+                      (0x05,[V,V,V,K]),(0x85,[B,B,B,K]),(0x0A,[K,G,G,G,K])):
+        page=bytearray(8192);page[0]=byte
+        line=img.hgr_to_rgb(page)[0]
+        assert line[:len(dots)]==dots and line[len(dots):]==[K]*(280-len(dots)),hex(byte)
+    page=bytearray(8192);page[img.hgr_offset(77)+3]=0x85
+    assert img.hgr_to_rgb(page,mono=True)[77][21:28]==[W,K,W,K,K,K,K]
+    mono=[[(x*y+x)%3==0 for x in range(280)] for y in range(192)]
+    page=img.hgr_from_mono(mono)
+    assert [[p==W for p in r] for r in img.hgr_to_rgb(page,mono=True)]==mono
+    assert all(page[img.hgr_offset(y)+c]<0x80 for y in range(192) for c in range(40))
+    assert img.hgr_from_mono([[1]],hibits=1)[0:41]==bytes([0x81])+bytes([0x80]*39)+bytes(1)
+    hib=[[c%2 for c in range(40)]]
+    assert img.hgr_from_mono([[0]*280],hibits=hib)[0:4]==bytes([0,0x80,0,0x80])
+    # DHGR: LORES colour 1 (magenta) = dots 0001 rotated -> aux bit 3; 15 -> 4 dots.
+    main,aux=img.dhgr_from_colors([[1,15]])
+    assert aux[0]==0x08|0x70 and main[0]==0x01 and not any(aux[1:]) and not any(main[1:])
+    colours=[[(x+y)%16 for x in range(140)] for y in range(192)]
+    main,aux=img.dhgr_from_colors(colours)
+    assert img.dhgr_to_rgb(main,aux)==[[img.PALETTE[c] for c in r] for r in colours]
+    assert a.framebuffer(140,1,colours[0],'dhgr')==b''.join(img.dhgr_from_colors(colours[:1]))
+    # preshift7: dots 0 and 2 (0b101), 3 wide. Phase 6 -> dots 6, 8: $40, $02.
+    ph=img.preshift7([0b101],3)
+    assert len(ph)==7 and ph[0]==[[0x05,0x00]] and ph[1]==[[0x0A,0x00]] and ph[6]==[[0x40,0x02]]
+    assert img.preshift7([[1,0,1]],3)==ph
+    ph,mk=img.preshift7([0b101],3,palette=1,mask=True)
+    assert ph[6]==[[0xC0,0x82]] and mk[6]==[[0xBF,0xFD]] and mk[0]==[[0xFA,0xFF]]
+    # step=2 (2-dot cells): phases shift 0,2,4,6,1,3,5; fit keeps one byte uncut.
+    ph=img.preshift7([0b11],2,step=2)
+    assert [p[0] for p in ph]==[[3,0],[12,0],[48,0],[64,1],[6,0],[24,0],[96,0]]
+    assert [p[0][0] for p in img.preshift7([0b101],3,nbytes=1,fit=True)]==[5,10,20,40,80,80,80]
+    assert img.preshift7([0xFF],7,nbytes=2)[1]==[[0x7E,0x01]]   # width masks the row
+    assert img.asm_bytes([1,255],per_line=8)=='        .byte $01,$FF\n'
+
+
 
 
 def main():
     with tempfile.TemporaryDirectory(prefix='apple2-assets-') as d:
-        work=Path(d);pixels=[a.PALETTE[c]+(255,) for c in range(16)]
+        work=Path(d);image_helpers(work);pixels=[a.PALETTE[c]+(255,) for c in range(16)]
         pixels[-1]=pixels[-1][:3]+(0,)
         a.png_write(work/'input.png',8,2,pixels)
         assert a.load(work/'input.png')==(8,2,pixels)
@@ -79,6 +136,6 @@ def main():
         try: a.convert(work/'input.png',work/'invalid','dhgr','frame','screen',compressor)
         except ValueError: pass
         else: raise AssertionError('DHGR compression accepted by 8-KB-only decoder')
-    print('Assets: PNG/PPM, 5 PNG filters, HGR/DHGR frames, 7 phases and transparent masks passed.')
+    print('Assets: apple2img helpers, PNG/PPM, 5 PNG filters, HGR/DHGR frames, 7 phases and transparent masks passed.')
 
 if __name__=='__main__':main()

@@ -13,6 +13,9 @@ import math
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+import apple2img  # noqa: E402
+
 WHEEL = 13
 WHEEL_FRAMES = 4
 HEAD = 5
@@ -43,15 +46,9 @@ def head():
 
 
 def shifted(pixels, size, nbytes):
-    rows = []
-    for s in range(7):
-        for y in range(size):
-            bits = 0
-            for x in range(size):
-                if (x, y) in pixels:
-                    bits |= 1 << (x + s)
-            rows.append([(bits >> (7 * b)) & 0x7F for b in range(nbytes)])
-    return rows
+    """The 7 shifts of an HGR byte, one after the other: rows of nbytes."""
+    rows = [[(x, y) in pixels for x in range(size)] for y in range(size)]
+    return [r for ph in apple2img.preshift7(rows, size, nbytes) for r in ph]
 
 
 def emit(name, rows):

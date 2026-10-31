@@ -46,6 +46,7 @@
 #include "hgr.h"
 #include "apple2game.h"
 #include "apple2dos.h"
+#include "apple2rand.h"
 #include "apple2vapor.h"
 
 /* --- Playfield geometry (cells) --- */
@@ -163,16 +164,8 @@ static unsigned char stick_last;   /* its last direction: only a change steers *
 static unsigned int  hiscore;
 static unsigned char new_record;   /* 1 = the game just over beat the record */
 
-/* 16-bit LFSR PRNG (Galois), seeded from key-press timing at startup. */
-static unsigned int rng_state = 0xACE1u;
-
-static unsigned int prng(void)
-{
-    unsigned int lsb = rng_state & 1u;
-    rng_state >>= 1;
-    if (lsb) rng_state ^= 0xB400u;     /* taps 16,14,13,11 */
-    return rng_state;
-}
+/* 16-bit LFSR PRNG (Galois, taps $B400: a2_rand16, dev/lib/math/random.asm),
+ * a2_rand_state seeded from key-press timing at startup. */
 
 /* A short speaker tone that also counts against the next throttle. */
 #define SFX(f, p) do { a2_tone((f), (p)); spent += TONE_SPINS((f), (p)); } while (0)
@@ -181,8 +174,7 @@ static unsigned int prng(void)
  * same test as MICRO-SOKOBAN's); a real stick has let both run out. */
 static void detect_stick(void)
 {
-    a2_read_stick();
-    stick = !((*(volatile unsigned char *)0xC064 | *(volatile unsigned char *)0xC065) & 0x80u);
+    stick = a2_stick_present();
     stick_last = A2_JOY_NONE;
 }
 
@@ -254,8 +246,8 @@ static unsigned char body_hits(unsigned char cx, unsigned char cy, unsigned char
 static void place_food(void)
 {
     unsigned int n;
-    foodx = (unsigned char)(1u + prng() % (COLS - 2u));
-    foody = (unsigned char)((TOP_WALL + 1u) + prng() % (ROWS - TOP_WALL - 2u));
+    foodx = (unsigned char)(1u + a2_rand16() % (COLS - 2u));
+    foody = (unsigned char)((TOP_WALL + 1u) + a2_rand16() % (ROWS - TOP_WALL - 2u));
     /* Scan from a random starting cell. This always terminates, even when
      * the board is almost full or the PRNG never picks its last empty cell. */
     for (n = 0u; n < MAXLEN; ++n) {
@@ -281,8 +273,8 @@ static void place_food(void)
 static unsigned char place_bonus(void)
 {
     unsigned int n;
-    bonusx = (unsigned char)(1u + prng() % (COLS - 2u));
-    bonusy = (unsigned char)((TOP_WALL + 1u) + prng() % (ROWS - TOP_WALL - 2u));
+    bonusx = (unsigned char)(1u + a2_rand16() % (COLS - 2u));
+    bonusy = (unsigned char)((TOP_WALL + 1u) + a2_rand16() % (ROWS - TOP_WALL - 2u));
     for (n = 0u; n < MAXLEN; ++n) {
         if (!body_hits(bonusx, bonusy, 0u) &&
             !(bonusx == foodx && bonusy == foody)) return 1u;
@@ -573,6 +565,22 @@ static void next_level(void)
     redraw();
 }
 
+/* "BLOAD HISCORE,A$xxxx" / "BSAVE HISCORE,A$xxxx,L$0002" at &hiscore. The
+ * disk ships HISCORE (2 bytes, 0): DOS would stop the game on a missing file. */
+static const char hiscore_name[] = "HISCORE";
+
+/* A better score becomes the record, saved unless the disk is write-protected
+ * (it stays the record until the machine is switched off). Defined before
+ * throttle(): its spin loop must not straddle a page (a taken branch across
+ * one costs a cycle a spin, +0.8 % on the tick; tests/test_snake.py pace). */
+static void keep_record(void)
+{
+    if (score <= hiscore) return;
+    hiscore = score;
+    new_record = 1u;
+    if (!a2_disk_protected()) a2_dos_bsave(hiscore_name, &hiscore, 2u);
+}
+
 /* The wait between two ticks: whole video frames through the vapor lock
  * (a II+ has no V-blank flag, but its floating bus shows the beam), or, with
  * no floating bus or out of play, a CPU spin calibrated for 1 MHz. */
@@ -620,30 +628,6 @@ static void throttle(unsigned char playing)
     }
 }
 
-/* "BLOAD HISCORE,A$xxxx" / "BSAVE HISCORE,A$xxxx,L$0002" at &hiscore. The
- * disk ships HISCORE (2 bytes, 0): DOS would stop the game on a missing file. */
-static void hiscore_cmd(const char *verb)
-{
-    unsigned int at = (unsigned int)&hiscore;
-    a2_dos_new();
-    a2_dos_add(verb);
-    a2_dos_add(" HISCORE,A$");
-    a2_dos_hex((unsigned char)(at >> 8));
-    a2_dos_hex((unsigned char)at);
-    if (verb[1] == 'S') a2_dos_add(",L$0002");
-    a2_dos_run();
-}
-
-/* A better score becomes the record, saved unless the disk is write-protected
- * (it stays the record until the machine is switched off). */
-static void keep_record(void)
-{
-    if (score <= hiscore) return;
-    hiscore = score;
-    new_record = 1u;
-    if (!a2_disk_protected()) hiscore_cmd("BSAVE");
-}
-
 /* n slow throttles (~0.4 s each at 3565 spins), no keyboard. */
 static void hold(unsigned char n)
 {
@@ -660,7 +644,7 @@ void main(void)
      * the title times out after ~4 s and the game starts on its own. Every
      * line in a different artifact colour (violet / green / orange / blue).
      * The record is read first, while the disk still spins from BRUN. */
-    hiscore_cmd("BLOAD");
+    a2_dos_bload(hiscore_name, &hiscore);
     hgr_init();
     hgr_clear(0);
     /* The vapor lock: a frame measured in polls, ~1000 at 60 Hz, ~1190 at
@@ -693,11 +677,11 @@ void main(void)
     /* Key timing varies between launches; automatic starts retain a stable
      * sequence. SNAKE_FIXED_SEED makes playtests reproducible. */
 #ifdef SNAKE_FIXED_SEED
-    rng_state = SNAKE_FIXED_SEED;
+    a2_rand_state = SNAKE_FIXED_SEED;
 #else
-    if (start_key) rng_state ^= (unsigned int)(t + 1u) * 257u + start_key;
+    if (start_key) a2_rand_state ^= (unsigned int)(t + 1u) * 257u + start_key;
 #endif
-    if (rng_state == 0u) rng_state = 0xACE1u; /* an LFSR must not start at zero */
+    if (a2_rand_state == 0u) a2_rand_state = 0xACE1u; /* an LFSR must not start at zero */
 
     new_game();
     redraw();

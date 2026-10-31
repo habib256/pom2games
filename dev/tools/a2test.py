@@ -5,7 +5,9 @@ Every game and library test drives a2run (portable) or a2shot (POM2 core)
 with the same script language and reads back the same `ADDR: bytes` dumps.
 This module holds what they all re-implemented: the ld65 label file, the
 peek/poke/until step builders, the emulator call, the dump decoder, the HGR
-row layout and the one-file DOS 3.3 test disk.
+row layout, the one-file DOS 3.3 test disk and in-process ProDOS volumes
+(prodos_files / prodos_volume / prodos_variant, byte-identical to the
+stage directory + build_volume.py subprocess they replace).
 
     import sys; sys.path.insert(0, str(ROOT / 'dev/tools'))
     import a2test
@@ -13,6 +15,8 @@ row layout and the one-file DOS 3.3 test disk.
     r = a2test.run(disk, ['wait:1100', L.peek('score', 5), 'key: '])
     r.dumps[0]            # bytes of the first peek
     r.mem(0x2000, 8192)   # any dumped range, by address
+    a2test.prodos_files(disk)['HIGHSCORES']      # (type, aux, bytes)
+    a2test.prodos_variant(disk, tmp / 'save.po', replace={'RSS.SAVE#060000': data})
 """
 from pathlib import Path
 import re
@@ -265,3 +269,130 @@ def build_disk(work, name, binary, load=0x6000, extra=()):
         args += ['--bin', spec]
     subprocess.run(args, check=True, capture_output=True, text=True)
     return disk
+
+
+# ---------------------------------------------------------------- ProDOS volumes
+# In-process stand-ins for the stage directory + build_volume.py subprocess
+# that the ProDOS game tests rebuilt by hand: same allocator, same entries,
+# same fixed date, so the images are byte-identical to the subprocess ones.
+PRODOS_TOOLS = DEV / 'tools/prodos'
+PRODOS_DATE = '2026-09-07T12:00'      # build_volume.py --date default
+
+
+def _prodos_module(name):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(f'_a2test_{name}', PRODOS_TOOLS / f'{name}.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _prodos_image(disk):
+    reader = _prodos_module('read_volume')
+    data = disk if isinstance(disk, (bytes, bytearray)) else Path(disk).read_bytes()
+    return reader.Image(bytes(data))
+
+
+def prodos_files(disk):
+    """{name: (type, aux, bytes)} of the root directory of a ProDOS image
+    (path or bytes), in catalogue order. A subdirectory maps to
+    (0x0F, 0, None)."""
+    image = _prodos_image(disk)
+    out = {}
+    for e in image.entries(2):
+        name = e[1:1 + (e[0] & 15)].decode('ascii')
+        if e[0] >> 4 == 0xD:
+            out[name] = (0x0F, 0, None)
+        else:
+            out[name] = (e[0x10], int.from_bytes(e[0x1F:0x21], 'little'), image.read(e))
+    return out
+
+
+def _prodos_write(out, items, volume, blocks, boot, date):
+    """Flat root directory, `items` [(name, type, aux, bytes)] in this order,
+    written with build_volume.Volume exactly as its write_dir does."""
+    bv = _prodos_module('build_volume')
+
+    class Flat(bv.Volume):
+        def write_dir(self, entries, dir_blocks, header_entry):
+            for i, b in enumerate(dir_blocks):
+                blk = self.block(b)
+                blk[0:2] = (dir_blocks[i - 1] if i else 0).to_bytes(2, 'little')
+                blk[2:4] = (dir_blocks[i + 1] if i + 1 < len(dir_blocks) else 0).to_bytes(2, 'little')
+            self.block(dir_blocks[0])[4:4 + bv.ENTRY_LEN] = header_entry
+            slots = [(b, k) for i, b in enumerate(dir_blocks)
+                     for k in range(bv.ENTRIES_PER_BLOCK) if i or k]
+            if len(entries) > len(slots):
+                raise ValueError(f'{len(entries)} files for {len(slots)} root entries')
+            for (blk_no, k), (name, ftype, aux, data) in zip(slots, entries):
+                storage, key, used = self.write_file(data)
+                e = self.entry(storage, name, ftype, key, used, len(data), aux, dir_blocks[0])
+                self.block(blk_no)[4 + k * bv.ENTRY_LEN:4 + (k + 1) * bv.ENTRY_LEN] = e
+            return len(entries)
+
+    names = [i[0] for i in items]
+    if len(set(names)) != len(names):
+        raise ValueError(f'duplicate ProDOS names in {names}')
+    boot = bytes(boot)[:1024].ljust(1024, b'\0') if boot else b''
+    vol = Flat(volume, blocks, boot, bv.prodos_date(date))
+    vol.build(items)
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    Path(out).write_bytes(bytes(vol.image))
+    return Path(out)
+
+
+def _prodos_item(host, value, known=None):
+    """('NAME#TTAAAA' or 'NAME', bytes or (type, aux, bytes)) -> (name, type, aux, bytes).
+    A bare NAME keeps the type/aux of `known` (an existing file) if any."""
+    bv = _prodos_module('build_volume')
+    if isinstance(value, tuple):
+        ftype, aux, data = value
+        return host.upper(), ftype, aux, bytes(data)
+    name, ftype, aux = bv.prodos_name(host)
+    if '#' not in host and known is not None:
+        ftype, aux = known[0], known[1]
+    return name, ftype, aux, bytes(value)
+
+
+def prodos_volume(out, files, volume, blocks=280, boot=True, date=PRODOS_DATE):
+    """Build a ProDOS image in-process, as build_volume.py does from a stage
+    directory holding `files` {host name: bytes} (host names as in a stage:
+    'NAME#TTAAAA', or NAME.SYS/.BIN/... ; a value may also be (type, aux,
+    bytes)). Entries follow build_volume's order (host names, case folded),
+    so the image is byte-identical to the subprocess build. boot: True =
+    dev/tools/prodos/boot.bin, False = none, or the boot bytes."""
+    if boot is True:
+        boot = (PRODOS_TOOLS / 'boot.bin').read_bytes()
+    items = [_prodos_item(host, files[host]) for host in sorted(files, key=str.upper)]
+    return _prodos_write(out, items, volume, blocks, boot, date)
+
+
+def prodos_variant(disk, out, replace=None, drop=(), volume=None, blocks=None, date=PRODOS_DATE):
+    """Rebuild a flat ProDOS image with some files replaced, added or dropped.
+
+    replace {host name: bytes or (type, aux, bytes)}: 'RSS.SAVE#060000'
+    sets the type/aux, a bare existing 'NAME' keeps them. drop: names to
+    remove. volume / blocks default to the source's; the boot blocks are
+    the source's. Kept files stay in catalogue order; a new file goes to
+    its alphabetical place if the source catalogue is alphabetical (what a
+    build_volume.py stage gives, hence a byte-identical image), else last."""
+    src = prodos_files(disk)
+    if any(v[2] is None for k, v in src.items() if k not in drop):
+        raise ValueError('prodos_variant: subdirectories are not supported')
+    image = _prodos_image(disk)
+    header = image.header()
+    items = [(name, t, a, d) for name, (t, a, d) in src.items() if name not in drop]
+    alphabetical = [i[0] for i in items] == sorted(i[0] for i in items)
+    for host, value in (replace or {}).items():
+        bare = host.upper() if isinstance(value, tuple) else \
+            _prodos_module('build_volume').prodos_name(host)[0]
+        item = _prodos_item(host, value, src.get(bare))
+        at = next((k for k, i in enumerate(items) if i[0] == item[0]), None)
+        if at is not None:
+            items[at] = item
+        elif alphabetical:
+            items.insert(sum(1 for i in items if i[0] < item[0]), item)
+        else:
+            items.append(item)
+    return _prodos_write(out, items, volume or header['name'], blocks or header['blocks'],
+                         image.d[:1024], date)

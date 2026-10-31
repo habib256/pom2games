@@ -37,10 +37,22 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   `APPLE2_EXIT_HOOK` (defined before the include) names a routine called
   after the restore, before returning to DOS (also on Ctrl-RESET).
 - **`sound.asm`** — `tone`: square-wave beep on the speaker.
+- **`auxmem.asm`** — 128 KB //e / //c (65C02): `aux_store`,
+  `aux_fetch_pages`, `aux_fetch_chunked` and the `AUXMOVE` macro; see
+  [Auxiliary memory](#auxiliary-memory-auxmemasm).
 - **`duet.asm`** — two voices on the speaker (time sharing, 33 cycles
   per pass, self-modified counts), assembled under `.org DUET_BASE` in its
   own page: `DUET_PLAY` (A = melody, X = bass, Y = slices),
   `DUET_KEYS`, `DUET_SLICE`. ARKABREAKOUT ($1300) and CHROMABREAK ($0310).
+- **`mb_irq.asm`** — Mockingboard music on the VIA's timer 1 interrupt
+  (ProDOS `ALLOC_INTERRUPT` or an own `$03FE`/`$FFFE` vector): `mb_irq_start`,
+  `mb_irq_stop`, shadowed AY writes `mb_put` / `mb_forget`, `mb_hush` before
+  disk I/O; see [Mockingboard music service](#mockingboard-music-service-mb_irqasm).
+  WARGALAGA II (extracted from it, byte-identical).
+- **`aysong.asm`** — the AYS song player (`ays_init`, `ays_tick`, `ays_stop`,
+  `ays_mute`, `ays_pos`, `ays_set_pos`), 3 or 6 voices, bit-exact with
+  `dev/tools/audio/aysong.py`; format in [AYSONG_FORMAT.md](AYSONG_FORMAT.md);
+  see [AYS song player](#ays-song-player-aysongasm).
 - **`vapor.asm`** — `vapor_mark`, `vapor_sync`, `vapor_count`: the vapor
   lock, a frame sync through the floating bus on a II, II+ or //e (SNAKE).
   See [Vapor lock](#vapor-lock-frame-sync-on-a-ii--ii).
@@ -48,7 +60,9 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   `read_stick_fast` (DIRTBIKE) returns as soon as both timers have
   run out (0.1-2.8 ms instead of 6 ms), on its own scale (~0..80, centre
   ~40): calibrate on the rest position. `joy_x`/`joy_y`/`joy_cnt` may
-  be zero-page aliases.
+  be zero-page aliases. `stick_key` turns the stick and its buttons into
+  one-shot key events (CHESS); `joy_buttons` gives held and newly pressed
+  buttons.
 - **`rwts.asm`** — `rwts_read`, `rwts_write`, `rwts_cmd`, `rwts_read_tslist`,
   `rwts_find_file`: DOS 3.3 sectors directly through RWTS (without reading the
   catalog at run time: `dev/tools/dos33patch.py` writes the T/S lists
@@ -59,7 +73,36 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   with no zero page of its own. The IOB address is requested from `$03E3` on the first
   call and then kept: `$03E3` reads it from the file manager's memory,
   which a game may later reclaim (DIRTBIKE). Used by DIRTBIKE
-  and MICRO-SOKOBAN.
+  and MICRO-SOKOBAN. `rwts_sectors` (A = 1 read / 2 write, X = count)
+  reads or writes a save file's data sectors listed in the program's
+  `RWTS_SEC_T` / `RWTS_SEC_S` tables (`dos33patch.py --sectors`), pages from
+  `rwts_page` up (45 B); `rwts_write_tslist` writes a file in place through
+  its T/S list, bounded by `rwts_count` (66 B). DIRTBIKE's `hof_read` /
+  `hof_save` / `hof_sector` stay its own: 57 B against 16 + 45 with
+  `rwts_sectors` (+4 B of resident RAM it does not have).
+- **`initials.asm`** — `ini_key`: high-score initials entry, one key at a
+  time (letters, ←/→ and DELETE, ↑/↓ cycle the letter, RETURN/ESC end:
+  C = 1); `INI_LEN` (3), `INI_CHARS`/`INI_CHARS_N` (default A-Z without a
+  table), `INI_DELETE`. The stick comes in through `stick_key` and a
+  `STICK_KEYS` table of KC_* codes. 117 B. DIRTBIKE (hof.inc: its
+  38-letter ring `hof_chars`, `ini_buf`/`ini_pos` = `last_ini`/`hpos`, its
+  stick path through `stick_menu`; −15 B). Candidates: MICRO-SOKOBAN
+  (score_hof.inc), ARKABREAKOUT (records.inc).
+- **`tune.asm`** — `tune_start`/`tune_stop`/`tune_tick`/`tune_play`: one
+  voice, one ~1/60 s tick per call (a `tone` slice, the note's last tick
+  silent, rests through WAIT), events `.byte ticks, half_period, toggles`,
+  0 = end; loops or plays once. `TUNE_MUTE` (a byte, 0 = notes silent,
+  tempo kept), `TUNE_REST_WAIT` (79). 2 B ZP `tune_ptr`, 3 B BSS, 116 B.
+  From DIRTBIKE's title.inc, which uses it (`TUNE_MUTE = snd_on`, byte for
+  byte the same code). `dev/tools/audio/tune.py` encodes the events from
+  note text; DIRTBIKE's `tools/music.py` keeps its songs.
+- **`savehdr.asm`** — `magic_check` / `magic_put`: a save file's leading
+  magic (A/Y = the data, X = the magic's last byte in the program's
+  `MAGIC_TABLE`, `MAGIC_LEN` = 4) compared after a load (C = 0 equal) or
+  written before a save; 24 + 19 B, a 9-byte site instead of 28 / 20.
+  No user: MAZE3D tried it and went back (its score check runs from
+  resident CODE before the overlay holding the other sites is loaded:
+  +38 B of scarce main RAM).
 - **`lz4fh.asm`** — `lz4fh_unpack`: fhpack/LZ4FH decompression into an aligned
   8 KB area (notably the HGR pages). Inputs `lz4fh_src/dst`, configurable
   scratch; code in RAM (`LZ4FH_HERE=1`: in the caller's current segment,
@@ -110,10 +153,13 @@ another module). A C object that aliases a routine to an import
 | `vapor_sync` | `vapor.asm` | marker on the shown page, HGR on | C = 0: the beam is on line 191 (VBL next); C = 1 after 65536 polls (~0.8 s): no floating bus or no marker | A, X, Y | — |
 | `vapor_count` | `vapor.asm` | same | A = low, X = high: one frame in 13-cycle polls (~1303 NTSC, ~1553 PAL at 1 MHz); C = 1, 0 on failure | A, X, Y | — |
 | `stick_dir` | `joy.asm` | `joy_x`, `joy_y` | A = `JOY_NONE` (0, Z = 1) / `JOY_UP` / `JOY_DOWN` / `JOY_LEFT` / `JOY_RIGHT`; dead zone `JOY_LO`–`JOY_HI` (30–90, define before the include to change it); vertical wins | A | — |
+| `stick_key` | `joy.asm` | `STICK_KEYS` (optional 6-byte table: UP, DOWN, LEFT, RIGHT, B0, B1) | one-shot events: X = 1..4 (`stick_dir`), 5 = button 0, 6 = button 1, each on its own edge (a press; a change to a non-centre direction, so releasing a button under a held direction fires nothing); button 0 > button 1 > direction, the loser fires on the next call; A = `STICK_KEYS[X-1]` (A = X without a table), or A = 0 / Z = 1 when nothing new; no stick (C = 1 from the reader): no button read. State `stick_key_last` (1 B, zero it at start) + `stick_key_btn` (2 B, no init needed), BSS or caller's ZP. 50 B with the table + `read_stick` + `stick_dir`; `STICK_KEY_FAST` (`read_stick_fast`), `STICK_KEY_REPEAT = n` (held direction every n calls, +20 B, +1 B BSS): chess | A, X, Y | — |
+| `joy_buttons` | `joy.asm` | — | A = buttons held (bit 0 = 0, bit 1 = 1, Z from A), X = newly pressed; state `joy_btn_last` (1 B); 25 B; reads the buttons even without a stick | A, X, Y | — |
 | `dos_cmd_new` | `dos.asm` | — | command buffer emptied | A | — |
 | `dos_cmd_add` | `dos.asm` | A = lo, Y = hi (ASCIIZ) | string appended | A, X, Y | — |
 | `dos_cmd_hex` | `dos.asm` | A = byte | two hexadecimal digits appended | A, X | — |
 | `dos_cmd_run` | `dos.asm` | buffer | DOS runs the command, with DOS's zero page put back meanwhile | all | — |
+| `dos_cmd_line` | `dos.asm` | A = lo, Y = hi (ASCIIZ) | `dos_cmd_new` + `dos_cmd_add` + `dos_cmd_run` (8 B, `.ifref`; a 7-byte site instead of 13): arkabreakout, maze3d | all | — |
 | `disk_protected` | `dos.asm` | — | C = 1 if the disk of DOS's last access is write-protected (slot × 16 read from DOS's IOB, `$B7E9`) | A, X | — |
 
 ## apple2.inc — public symbols
@@ -347,6 +393,115 @@ RGB/VIA/AY bus and traces the accesses: RGB pulse order,
 II+/IIe/IIc paths, slots, no card, 4c wake-up, two AYs, six volumes,
 IRQ mask and timer state. Tests on physical cards are still to be done.
 
+## Mockingboard music service (`mb_irq.asm`)
+
+[`mb_irq.asm`](mb_irq.asm) (2026-10-31, extracted from WARGALAGA II's
+`src/sound.s`, which stays byte-identical) calls the program's tick routine
+on the interrupt of the first VIA's timer 1, free running at `MB_IRQ_HZ`:
+the music keeps its tempo whatever the frame rate. It needs
+`mockingboard.asm` (anywhere in the program). `.ifref` routines, included
+after the callers; several includes are fine (each assembles what was
+referenced before it: WG includes it four times so every routine stays
+where it was). 65C02 or NMOS: the CPU the source is assembled for picks
+the instructions. A music program's ProDOS / DOS choice is an option.
+
+| Entry | Contract |
+|---|---|
+| `mb_irq_start` | Card required (`mb_detect` ≠ 0), after `mb_forget`. Patches the handler for `mb_irq_slot`, hooks the interrupt (ProDOS `ALLOC_INTERRUPT`, or the vector at `MB_IRQ_VECTOR`, the old one kept for the chain), T1 free running at `MB_IRQ_PERIOD`, its IRQ enabled, `CLI`. `mb_irq_n` ≠ 0 = installed (ProDOS: the interrupt number; 0: the MLI refused, timer left off). `mb_irq_rts` is its final `RTS`. |
+| `mb_irq_stop` | Both chips silent, T1 and its interrupt off (`mb_stop`), the interrupt released (`DEALLOC_INTERRUPT` / the old vector back). Harmless if never started. |
+| `mb_put` | X = register 0..15, A = value, `mb_chip` = chip: written only if `mb_shadow` differs. Keeps X. |
+| `mb_forget` | Every shadow `$FF`: the next `mb_put` of each register writes. |
+| `mb_hush` | If `mb_irq_slot` ≠ 0, under SEI: chip 1's three volumes to 0 and its shadows forgotten (both chips with `MB_IRQ_HUSH_BOTH`). Before disk I/O: ProDOS's Disk II driver masks interrupts ~1 s, a note would hang. |
+| `mb_irq_handler` | The interrupt routine: `CLD`; not timer 1 → not ours (ProDOS `SEC`/`RTS`, vector: on to the old vector); else T1 acknowledged, [`jsr _a2_vbl_scan`], `inc mb_irq_ticks`, [nothing more if the `MB_IRQ_GATE` byte is 0], `mb_chip` saved, the tick, `mb_chip` restored, [`_a2_vbl_scan`]. |
+
+Tick modes: by default `mb_chip = 0`, then `jsr MB_IRQ_TICK`, which writes
+what it wants (`mb_put`, either chip). With `MB_IRQ_FRAME = addr` the
+handler calls the tick, then flushes the 14-byte frame at `addr` to chip 1
+through the shadows inline (R13 whenever it is not `$FF`: PT3's frame in
+WG). The handler owns the chip(s) its tick writes; the main program writes
+only the other one (`mb_write` masks interrupts, `mb_chip` is restored).
+
+Options (before the first include): `MB_IRQ_PRODOS` (1 default; 0 = own
+vector), `MB_IRQ_VECTOR` (`$03FE` default: the ROM's handler saved A at
+`$45`, the handler keeps X/Y and returns with `LDA $45`/`RTI`; or `$FFFE`
+with the language card's RAM banked in: raw entry, A/X/Y saved; the program
+enables LC writes around `mb_irq_start`/`mb_irq_stop`), `MB_IRQ_HZ` (50) /
+`MB_IRQ_PERIOD` (latch, default `1020484 / MB_IRQ_HZ - 2`), `MB_IRQ_TICK`
+(required), `MB_IRQ_FRAME`, `MB_IRQ_GATE`, `MB_IRQ_SCAN`,
+`MB_IRQ_HUSH_BOTH`, `MB_IRQ_SPLIT` (the handler only where the program
+references `mb_irq_handler`). Storage, aliased if defined first: `mb_shadow`
+(32 B: chip 1 at 0..15, chip 2 at 16..31), `mb_irq_n`, `mb_irq_ticks` (not
+cleared: BSS), `mb_irq_old` (vector mode), `mb_irq_ptr` (2 ZP: `mb_ptr` if
+mockingboard.asm came first), `mb_irq_slot` (default `mb_slot`). Code, hook
+mode: 169 B (ProDOS, 65C02) to 203 B (vector, NMOS); handler overhead ~60
+cycles + the tick.
+
+```asm
+MB_IRQ_PRODOS = 0               ; a DOS 3.3 program: the $03FE vector
+MB_IRQ_TICK = ays_tick          ; the song player below
+        jsr mb_detect
+        cmp #0
+        beq no_card
+        jsr mb_forget
+        lda #<song
+        ldy #>song
+        jsr ays_init
+        jsr mb_irq_start        ; 50 ticks a second from here
+        ...
+        jsr mb_hush             ; before a disk access
+        ...
+        jsr mb_irq_stop         ; before quitting
+.include "mb_irq.asm"           ; first: aysong.asm then writes through mb_shadow
+.include "aysong.asm"
+.include "mockingboard.asm"
+```
+
+`dev/tests/test_mb_irq.py` (a2shot, Mockingboard in slot 4): 60 ticks at
+50 Hz, the AY writes decoded from the VIA stores, registers kept across the
+interrupts, the stop, the vector given back, `mb_hush`; `$03FE` on the //e
+(NMOS and 65C02 builds) and the //c (Mockingboard 4c), `$FFFE` on the //e
+and the II+ (a2shot's II+ ROM sends IRQs to the monitor, `$FF59`, so the
+`$03FE` path is not testable there); then the AYS demo played by `ays_tick`
+under the interrupt, its AY bus writes equal to the Python model's. The
+ProDOS mode is WARGALAGA II's (`make -C wargalagaii test`).
+
+## AYS song player (`aysong.asm`)
+
+[`aysong.asm`](aysong.asm) plays an AYS song ([AYSONG_FORMAT.md](AYSONG_FORMAT.md));
+`dev/tools/audio/aysong.py` encodes songs (text, JSON or dataclasses; `--asm`
+for `.byte` tables) and its `Player.tick()` gives the same registers tick
+for tick. NMOS 6502 (`AYSONG_CPU65C02 = 1`: a few 65C02 forms). `.ifref`,
+include after the callers, after `mb_irq.asm` if the program has it.
+
+| Entry | Contract |
+|---|---|
+| `ays_init` | A/Y = song (low/high). Registers reset (0, R7 = `$3F`, R13 = `$FF`), every voice off with instrument 1, mute 0, order 0 row 0. Call with the tick stopped or under SEI. |
+| `ays_tick` | One tick: the row when due, effects, instrument macros, the frame in `ays_regs` (chip 1 at 0..13, chip 2 at 16..29), then the registers that differ from `ays_out` through `AYSONG_WRITE` (R13 when not `$FF`). |
+| `ays_stop` | Every voice off, no more rows (the next ticks write silence). |
+| `ays_mute` | A = mask, bit v = voice v silent (volume 0; it keeps playing). |
+| `ays_pos` | A = order index, X = the next row to be read. |
+| `ays_set_pos` | A = order index, X = row (masks interrupts itself): voices off until their next note, the rows before skipped (instrument prefixes kept); the next tick reads the row. Also a restart after `ays_stop`. |
+
+All clobber A/X/Y; D = 0; one song at a time. Options: `AYSONG_VOICES`
+(3 default: one chip; 6: both chips; a 6-voice song under a
+3-voice player plays its first chip), `AYSONG_CPU65C02`,
+`AYSONG_FAST_PERIODS` (a 96-note period table, 192 B, instead of the 12-note
+table and shifts with a per-voice cache: ~25 cycles less a tick on average,
+~230 at note starts), `AYSONG_WRITE` (a macro: X = register, A = value,
+Y = chip; keep X; default `sty mb_chip`/`jsr mb_write`). Zero page: 5 bytes
+at `ays_zp` (define it first to place them). BSS: `ays_regs` and `ays_out`
+16 B a chip (`ays_out` = `mb_shadow` when `mb_irq.asm` came first, so
+`mb_hush` / `mb_forget` make the player write again), 22 B of song state,
+19 B a voice (16 with the fast periods).
+
+Measured (`dev/tests/test_aysong.py`, a2run, `mb_write` to a card with
+`MB_FAST_WRITE`): code + tables 1,091 B (3 voices; 1,169 B for 6; 65C02 −4
+B; fast periods +112 B). Cycles a tick, 3 voices (demo): mean ~1,320,
+~950 without writes, ~90 a register written; the worst row ticks (a new
+pattern, three notes, ten writes) ~3,600 (fast periods: ~3,370); 6 voices:
+mean ~1,190, worst ~5,300. The first tick after `ays_init` / `mb_hush`
+writes all 13 registers (~1,200 cycles of writes).
+
 ## PT3 decoder: `pt3/` (WARGALAGA II, 2026-10-23)
 
 [`pt3/pt3.s`](pt3/pt3.s) is Vince Weaver's pt3_lib 0.5 decoder, used under
@@ -424,3 +579,66 @@ exit and interrupts during DHGR rendering. The current
 `test_game_cadence.py` test validates a simple AY service during play, without
 demonstrating the CPU budget of a PT3 decoder. Start with a standalone
 II+/IIe example before choosing a game and adding the //c path.
+
+## Auxiliary memory (`auxmem.asm`)
+
+128 KB //e / //c, 65C02. Include it after the callers (`.ifref`), in the
+segment the code goes in; it can be included again (another segment, or
+first at the top of the source for the `AUXMOVE` macro): each routine is
+assembled once, where it is first both referenced and not yet defined.
+Entry: main RAMRD/RAMWRT, main zero page and stack (ALTZP off), 80STORE
+off; exit the same, the I flag restored. Not for an IRQ handler.
+
+| Routine | Input | Effect | Cost |
+|---|---|---|---|
+| `aux_store` | A = pages (0 = 256), X = first aux page, Y = first main page | main → aux, RAMWRT aux, interrupts masked for the whole copy | 35 B; ~14 cycles a byte; ZP `auxmem_src`/`auxmem_dst` (2+2, define them first to alias) |
+| `aux_fetch_pages` | A = pages, X = first aux page, Y = first main page | aux → main; RAMRD aux hides the code in main RAM, so the page loop runs from a 16-byte stub copied to the zero page at each call (`auxmem_zcopy`); interrupts masked one page at a time (~3,600 cycles) | 36 B + 16 B template; 16 ZP bytes (`AUXMEM_ZP = addr` to place/alias them) |
+| `aux_fetch_chunked` | A/Y = aux source (low/high); `auxmem_fdst`, `auxmem_flen` | aux → main any length through the ROM's AUXMOVE (`$C311`), `AUXMEM_FETCH_CHUNK` bytes (64) at a time under SEI; `AUXMEM_FETCH_SCAN = 1`: `jsr _a2_vbl_scan` between chunks | 109 B (112 with the scan); ~36 cycles a byte; consumes `auxmem_fdst`/`auxmem_flen`, scratch `auxmem_fsrc` (2) and `auxmem_fn` (1), BSS unless defined first |
+| `AUXMOVE first, last, dest, dir [, jmp]` | constants or labels; `dir` = `AUX_TO_MAIN` / `MAIN_TO_AUX` | macro: the ROM's AUXMOVE of first..last (inclusive) to dest; `jmp` = tail call | 28 B (`$3C-$3F`, `$42/$43`); the ROM leaves I alone |
+
+C: `apple2aux.h` (dev/lib/apple2c): `aux_store(pages, aux_page)` (a macro
+over `aux_store_packed(pages | aux_page << 8)`: one argument in A/X, no C
+stack) from the main page `aux_store_src` (`$20` at first), in
+`$(APPLE2C_AUX_SRCS)` (`apple2aux.s`, on cc65's `ptr1`/`ptr2`), and
+`aux_fetch_pages(pages, aux_page, main_page)` in `$(APPLE2C_AUXFETCH_SRCS)`
+(`apple2auxfetch.s`; its C entry costs 9 B, assembly callers `jsr
+aux_fetch_pages` directly). Make both objects depend on
+`$(APPLE2C_AUX_DEPS)`. ProDOS files go straight into aux with
+`prodos_load_aux` (dev/lib/prodos, on `aux_store`).
+
+Users: ROBOT SPACE STATION (`aux_store` for the text bank and the overlays at
+boot, `aux_fetch_pages` for its overlay switches: `src/overlay.s`, 11 B),
+WARGALAGA II (`AUXMOVE` ×3, `aux_fetch_chunked` with `AUXMEM_FETCH_SCAN = 1`
+as its `aux_fetch`, included in place so that `pack_check` falls into it:
+byte-identical; `aux_store` under `prodos_load_aux` at boot).
+`dev/tests/test_prodos_file.py` (`make test-tools`) runs `aux_store` (via
+`prodos_load_aux`), `aux_fetch_pages`, `aux_fetch_chunked` and `AUXMOVE`
+on an enhanced //e.
+
+### Pattern: an aux trampoline at the same address in both banks
+
+Code that must run with RAMRD/RAMWRT aux for a while (a player whose song
+and code live in aux, called from an IRQ) can be entered through a short
+trampoline copied to the **same address in main and aux** (WARGALAGA II,
+`src/sound.s`: `tramp_install` puts its `TRAMP` segment at `$1FE0` of both
+banks, AUXMOVE main → aux after a main copy):
+
+```asm
+tr_tick:
+        sta $C005                ; RAMWRT aux
+        sta $C003                ; RAMRD aux: the next fetch comes from the
+        jsr pt3_tick             ; aux copy, the same bytes, so it goes on
+        sta $C002                ; RAMRD main (the next fetch: main again,
+        sta $C004                ; the same bytes)
+        rts
+```
+
+Switching RAMRD swaps the bytes under the PC; since both copies are equal,
+execution continues seamlessly. Rules: interrupts masked (or the caller is
+the IRQ handler) while the banks are switched; zero page and stack stay
+main (no ALTZP), so the aux code can use them; the called code and its data
+live in aux at their run addresses; the trampoline's bytes must be
+identical in both banks (install it again after anything overwrites
+either copy). This is a pattern to
+copy, not a library routine: its address, the entries and the ZP are the
+program's.

@@ -138,8 +138,8 @@ def main():
         bad += not ok
     # the title tune plays once; the demo starts when it ends
     T = sum(music.tune(music.TITLE, 8)[0::3])
-    r = a2test.run(DISK, ['wait:600', L.until('tick_wait', 3000), f'wait:{T - 60}', L.peek('mus_ptr', 2),
-                          'wait:120', L.peek('mus_ptr', 2)])
+    r = a2test.run(DISK, ['wait:600', L.until('tick_wait', 3000), f'wait:{T - 60}', L.peek('tune_ptr', 2),
+                          'wait:120', L.peek('tune_ptr', 2)])
     ok = r.dumps[0][1] != 0 and r.dumps[1][1] == 0
     print(f'title tune ({T} ticks), then the demo: ' + ('ok' if ok else f'DIFF {[d.hex() for d in r.dumps]}'))
     bad += not ok

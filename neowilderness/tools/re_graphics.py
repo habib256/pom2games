@@ -4,10 +4,12 @@
 SURV3D $1CBF/$1CDF chooses the sectors; $1D8A-$1E2E decodes each column.
 No original bitmap data is embedded in this script or checked into source.
 """
-import argparse, hashlib, json, struct, sys, zlib
+import argparse, hashlib, json, sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'dev/tools'))
 from smalldos import Disk  # noqa: E402
+from apple2img import png_write  # noqa: E402
 
 HERE=Path(__file__).resolve().parents[1]
 # Sierra Nevada animal set, SURV3D $1CF5; wreck selected by $0D84=$87.
@@ -73,11 +75,7 @@ Other codes paint magenta/green/white. The end pointer is exclusive.
 
 
 def png(path,width,height,rgba):
-    def chunk(kind,payload):
-        return struct.pack('>I',len(payload))+kind+payload+struct.pack('>I',zlib.crc32(kind+payload)&0xffffffff)
-    rows=b''.join(b'\0'+rgba[y*width*4:(y+1)*width*4] for y in range(height))
-    Path(path).write_bytes(b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',width,height,8,6,0,0,0))
-                          +chunk(b'IDAT',zlib.compress(rows,9))+chunk(b'IEND',b''))
+    png_write(path,[bytes(rgba[y*width*4:(y+1)*width*4]) for y in range(height)],mode='rgba')
 
 
 def main():

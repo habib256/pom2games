@@ -75,7 +75,7 @@ preferences_save:
         STA PREFS+6
         LDA #<prefs_command
         LDY #>prefs_command
-        JMP checkpoint_command
+        JMP dos_cmd_line
 @done:  RTS
 
 profile_load:
@@ -88,7 +88,7 @@ profile_load:
         STA load_command+14
         LDA #<load_command
         LDY #>load_command
-        JSR checkpoint_command
+        JSR dos_cmd_line
         LDA SAVE_MAGIC
         CMP #'M'
         BNE @invalid
@@ -212,7 +212,7 @@ resume_game:
 prepare_text:
         LDA #<str_text_load
         LDY #>str_text_load
-        JMP checkpoint_command
+        JMP dos_cmd_line
 
 manual_save:
         LDA active_game
@@ -265,16 +265,7 @@ checkpoint_write:
         STA save_command+14
         LDA #<save_command
         LDY #>save_command
-checkpoint_command:
-        PHA
-        TYA
-        PHA
-        JSR dos_cmd_new
-        PLA
-        TAY
-        PLA
-        JSR dos_cmd_add
-        JMP dos_cmd_run
+        JMP dos_cmd_line        ; dos.asm: new + add + run
 
 checkpoint_sum:
         LDX #0

@@ -30,7 +30,7 @@ original sont accessibles depuis [logic/ENGINE.md](logic/ENGINE.md).
 ### Format physique
 
 Pistes standard 16 secteurs, prologues `D5 AA 96` / `D5 AA AD`, codage 6&2 :
-`tools/flux2dsk.py` décode les 560 secteurs des deux faces (WOZ comme A2R).
+`dev/tools/re6502/flux2dsk.py` décode les 560 secteurs des deux faces (WOZ comme A2R).
 La face programme a des marques supplémentaires (`D5 EE ED` piste 1,
 `D5 BA FF` piste 17) : protection anti-copie. Un `.dsk` reconstruit ne démarre
 pas (le jeu tombe dans le moniteur), le `.woz` démarre dans POM2.
@@ -218,7 +218,7 @@ Le jeu tourne dans `a2shot` (cœur POM2) depuis le `.woz`, avec une étape
 ```sh
 ../dev/tools/a2shot/a2shot --disk build/SIERRA.woz wait:5400 key:"1\r" \
   wait:3000 insert:build/JOURNEY.dsk key:"\r" wait:3000 key:"\r" wait:600 \
-  key:"\r" wait:1800 shot:vue.png peek:0000:0xC000 | python3 -I tools/peek2bin.py > ram.bin
+  key:"\r" wait:1800 shot:vue.png peek:0000:0xC000 | python3 -I ../dev/tools/re6502/peek2bin.py > ram.bin
 ```
 
 `tools/applesoft.py` liste un programme Applesoft tiré d'un dump.

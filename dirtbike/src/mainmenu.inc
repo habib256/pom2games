@@ -67,12 +67,9 @@ main_menu:
         JSR     puts_at
         LDA     mm_lo
         BNE     mm_show
-        LDA     #<mm_back
-        LDY     #>mm_back
-        LDX     #12
-        STX     ht_col
-        LDX     #MM_ROW * 8
-        JSR     puts_at
+        JSR     hgr_puts8_at
+        .byte   12, MM_ROW * 8
+        .addr   mm_back
 mm_show:
         LDX     #MM_N - 1               ; the marker on the chosen item
 @mk:    TXA

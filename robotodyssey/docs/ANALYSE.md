@@ -27,7 +27,7 @@ des blocs, segments dans `build/files/<face>/BBB_AAAA.bin`).
 ### Format physique
 
 35 pistes standard 16 secteurs, prologues `D5 AA 96` / `D5 AA AD`, codage
-6&2, volume 254 : `tools/flux2dsk.py` (repris de Wilderness) décode les
+6&2, volume 254 : `dev/tools/re6502/flux2dsk.py` (repris de Wilderness) décode les
 560 secteurs de chaque face.
 
 **Protection discrète** : à chaque affichage du menu, `$6205` cherche entre
@@ -369,7 +369,7 @@ coupe ou rétablit les murs **pour le joueur seul** (vérifié en a2shot).
 A=../dev/tools/a2shot/a2shot
 $A --disk original/A_ROBOTROPOLIS.woz wait:2500 key:"\r" wait:900 key:"\r" \
    wait:6500 shot:salle.png peek:0000:0xC000 peek:D000:0x3000 \
-   | python3 -I tools/peek2bin.py > ram.bin
+   | python3 -I ../dev/tools/re6502/peek2bin.py > ram.bin
 ```
 
 Ne jamais faire `peek:0000:0x10000` : la lecture de `$C0xx` actionne les

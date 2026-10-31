@@ -26,16 +26,24 @@ unsigned char __fastcall__ mission_goal(unsigned char m);   /* 0 drone, 1 cell, 
 /* Room (read from RSS.ROOMS), drones, objects, technician; 0: disk error. */
 unsigned char __fastcall__ zone_load(unsigned char m);
 /* One turn of every drone (tools/model.py Zone.tick); drone B's board is
- * swapped in for its turn. Bit d set: drone d must be redrawn. */
-unsigned char zone_tick(void);
+ * swapped in for its turn. The room shows it after zone_frame(). */
+void zone_tick(void);
 unsigned char zone_won(void);
 /* Doors from what presses the plates; 1 if they changed (then redraw). */
 unsigned char zone_doors(void);
 void zone_draw_doors(void);
+/* The room from scratch (the screen cleared): compositor, tiles, sprites. */
 void zone_draw(void);
-void __fastcall__ drone_draw(unsigned char d);
-/* src/sprites.c: drone d in profile at its place (its box first cleared). */
-void __fastcall__ drone_paint(unsigned char d);
+/* src/sprites.c, the compositor (dev/lib/hgrc dhgr_spr_*) in the room:
+ * sprites_room() starts it on the tile map (iobuf as canvas), sprites_doors()
+ * picks the door and plate tiles after door_open, zone_sprites() puts the
+ * objects (slots 0-3), the drones (4-5) and the technician (6) where they
+ * are; zone_frame() = zone_sprites() and an update (each changed byte
+ * written once). PLAY overlay only. */
+void sprites_room(void);
+void sprites_doors(void);
+void zone_sprites(void);
+void zone_frame(void);
 /* Technician (act_x, act_y on screen): one pixel towards x,y; 0 if not moved. */
 unsigned char tech_step(unsigned char x, unsigned char y);
 /* The drone he touches + 1, or 0. */

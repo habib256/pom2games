@@ -86,6 +86,10 @@ done:   JMP     done
 
 .include "physics.inc"
 .include "tricks.inc"
+.include "verlet_hmap.asm"
+.include "verlet_con.asm"
+.include "verlet_rot.asm"
+.include "verlet.asm"
 .include "mul.asm"
 
 STATE_LEN = laps + 1 - pt_xf

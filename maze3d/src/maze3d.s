@@ -787,11 +787,9 @@ score_finish:
         STA SCORE_BASE+7
         JSR disk_protected
         BCS @done
-        JSR dos_cmd_new
         LDA #<str_score_save
         LDY #>str_score_save
-        JSR dos_cmd_add
-        JSR dos_cmd_run
+        JSR dos_cmd_line
 @done:  RTS
 
 score_initial:
@@ -2161,11 +2159,9 @@ show_title:
         JSR vdp_display_off
         ; Read the original A2FC HGR artwork into the hidden page. The
         ; picture occupies disk sectors, not scarce permanent 48K RAM.
-        JSR dos_cmd_new
         LDA #<str_title_load
         LDY #>str_title_load
-        JSR dos_cmd_add
-        JSR dos_cmd_run
+        JSR dos_cmd_line
         LDA #0
         STA in_src
         STA in_dst
@@ -2179,11 +2175,9 @@ show_title:
 @destination:
         STA in_dst+1
         JSR unpack_title
-        JSR dos_cmd_new
         LDA #<str_state_load
         LDY #>str_state_load
-        JSR dos_cmd_add
-        JSR dos_cmd_run
+        JSR dos_cmd_line
         JSR profiles_init
         JSR profile_load
         ; A compact footer leaves the illustration and title unobstructed.

@@ -26,12 +26,30 @@
 ;   prodos_close       CLOSE
 ;   prodos_load        OPEN, READ, CLOSE (after OPEN): READ error, else CLOSE
 ;   prodos_load_free   the same with prodos_read_free
+;   prodos_load_at     OPEN, SET_MARK to pf_mark (24 bits: a record at an
+;                      offset), READ pf_len bytes at pf_buf, CLOSE (after
+;                      OPEN): SET_MARK error ($4D past the end), else READ
+;                      error, else CLOSE's. A short READ is no error: check
+;                      pf_got.
 ;   prodos_save        OPEN (or CREATE: BIN, access $C3, then OPEN), WRITE,
 ;                      SET_EOF to bytes written, CLOSE: the first error.
 ;                      Replaces the whole file, including an empty file;
 ;                      not atomic (a failed save can leave partial data).
+;   prodos_load_aux    OPEN, then READ (read_free) pf_len bytes at a time
+;                      into the main staging window pf_buf (page aligned),
+;                      each chunk stored with aux_store (dev/lib/apple2/
+;                      auxmem.asm: include it after this file) into aux
+;                      memory from pa_dst (page aligned: its low byte is
+;                      ignored) on, until a short chunk or the end of file;
+;                      CLOSE. pa_max = the file's largest accepted length:
+;                      a longer file stops with $56 (bad buffer) before its
+;                      chunk is stored. Whole pages are stored, so aux
+;                      bytes up to the page boundary after the file's end
+;                      take the staging window's contents. pf_got = total
+;                      bytes moved to aux; the first error, then CLOSE's.
+;                      Interrupts masked during each store (aux_store).
 
-.if .referenced(prodos_load) .or .referenced(prodos_load_free)
+.if .referenced(prodos_load) .or .referenced(prodos_load_free) .or .referenced(prodos_load_aux) .or .referenced(prodos_load_at)
 PF_LOAD = 1
 .else
 PF_LOAD = 0
@@ -95,6 +113,19 @@ prodos_save:
 .endif
 
 .if PF_LOAD
+.ifref prodos_load_at
+prodos_load_at:
+        jsr prodos_open
+        bcs pf_load_done
+        lda pf_rw_ref
+        sta pf_mark_ref
+        jsr $BF00
+        .byte $CE                ; SET_MARK
+        .word pf_mark_list
+        bcs pf_finish_close      ; A = its error code
+        jsr prodos_read          ; A = 0 or READ's error
+        bra pf_finish_close
+.endif
 .ifref prodos_load_free
 prodos_load_free:
         jsr prodos_open
@@ -121,6 +152,71 @@ pf_finish_close:
         lda pf_err               ; otherwise report CLOSE, including errors
         cmp #1                   ; A = pf_err, C = (pf_err != 0)
 pf_load_done:
+        rts
+.endif
+
+.ifref prodos_load_aux
+prodos_load_aux:
+        phy
+        stz pa_total
+        stz pa_total+1
+        lda pa_dst+1
+        sta pa_page
+        jsr prodos_open
+        bcs @end
+@chunk: jsr prodos_read_free
+        bcc @got
+        cmp #$4C                 ; end of file: done
+        bne @close
+        lda #0
+        bra @close
+@got:   lda pf_got
+        ora pf_got+1
+        beq @close               ; (A = 0)
+        lda pa_total             ; the new total, checked against pa_max
+        clc
+        adc pf_got
+        tax
+        lda pa_total+1
+        adc pf_got+1
+        bcs @long
+        cmp pa_max+1
+        bcc @fits
+        bne @long
+        cpx pa_max
+        bcc @fits
+        beq @fits
+@long:  lda #$56                 ; bad buffer: aux range too short
+        bra @close
+@fits:  stx pa_total
+        sta pa_total+1
+        lda pf_got               ; pages = (got + 255) / 256
+        cmp #1
+        lda pf_got+1
+        adc #0
+        ldx pa_page
+        pha
+        clc
+        adc pa_page
+        sta pa_page
+        pla
+        ldy pf_buf+1
+        jsr aux_store            ; A pages, main Y -> aux X
+        lda pf_got               ; a full chunk: maybe more
+        cmp pf_len
+        bne @short
+        lda pf_got+1
+        cmp pf_len+1
+        beq @chunk
+@short: lda #0
+@close: tax
+        lda pa_total
+        sta pf_got
+        lda pa_total+1
+        sta pf_got+1
+        txa
+        jsr pf_finish_close
+@end:   ply
         rts
 .endif
 
@@ -232,6 +328,18 @@ pf_eof: .byte 2
 pf_eof_ref: .byte 0
 pf_eof_pos: .word 0
         .byte 0                  ; 24-bit EOF, saves have a 16-bit length
+.endif
+.ifref prodos_load_at
+pf_mark_list: .byte 2
+pf_mark_ref: .byte 0
+pf_mark:    .byte 0, 0, 0
+        .byte 0                  ; (pad: C stores an unsigned long there)
+.endif
+.ifref prodos_load_aux
+pa_dst:     .word 0
+pa_max:     .word 0
+pa_total:   .word 0
+pa_page:    .byte 0
 .endif
 .ifref prodos_read_free
 pf_bitmap:  .res 24

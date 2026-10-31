@@ -70,27 +70,16 @@ $(GAME_LIB): $(LIB_OBJS) Makefile $(HGRC)/hgrc.mk
 	$(AR65) a $@ $(LIB_OBJS)
 $(BUILD)/game.bin: $(OBJS) $(GAME_LIB) Makefile $(DEV)/cc65/apple2_dhgr_prodos_c.cfg
 	$(CL65) -t none -C $(DEV)/cc65/apple2_dhgr_prodos_c.cfg -m $(BUILD)/game.map -Ln $(BUILD)/game.lbl -o $@ $(OBJS) $(GAME_LIB)
-$(BUILD)/CHROMA.SYS: $(BUILD)/game.bin $(BUILD)/tables.bin $(BUILD)/levels.bin src/levels.inc src/fine_font.inc src/music_aux.inc src/music_offsets.inc src/duet.inc $(APPLE2)/duet.asm src/startup.s $(PRODOS_SYS_CFG)
-	$(CA65) --bin-include-dir $(BUILD) --bin-include-dir src -I src -I $(APPLE2) -o $(BUILD)/startup.o src/startup.s
+$(BUILD)/CHROMA.SYS: $(BUILD)/game.bin $(BUILD)/tables.bin $(BUILD)/levels.bin src/levels.inc src/fine_font.inc src/music_aux.inc src/music_offsets.inc src/duet.inc $(APPLE2)/duet.asm src/startup.s $(PRODOS_SYS_CFG) $(PRODOS_SYSRELOC_DEPS)
+	$(CA65) --bin-include-dir $(BUILD) --bin-include-dir src -I src -I $(APPLE2) -I $(PRODOS) -o $(BUILD)/startup.o src/startup.s
 	$(LD65) -C $(PRODOS_SYS_CFG) -o $@ $(BUILD)/startup.o
-$(BUILD)/CHROMA.SYSTEM: src/boot.s $(PRODOS_SYSBOOT_DEPS)
-	@mkdir -p $(@D)
-	$(CA65) -I $(PRODOS) -o $(BUILD)/boot.o src/boot.s
-	$(LD65) -C $(PRODOS_SYSBOOT_CFG) -o $@ $(BUILD)/boot.o
 $(BUILD)/HIGHSCORES: tools/seed_records.py
 	@mkdir -p $(@D)
 	$(PYTHON) $< $@
-$(DISK): $(BUILD)/CHROMA.SYS $(BUILD)/CHROMA.SYSTEM $(BUILD)/HIGHSCORES $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py
-	@mkdir -p $(BUILD)/stage $(DIST)
-	cp $(DEV)/tools/prodos/PRODOS $(BUILD)/stage/PRODOS#FF0000
-	$(PYTHON) -c 'from pathlib import Path; p=Path("$(BUILD)/stage/STARTUP.SYSTEM#FF2000"); p.unlink(missing_ok=True); p=Path("$(BUILD)/STARTUP.SYSTEM"); p.unlink(missing_ok=True)'
-	cp $(BUILD)/CHROMA.SYSTEM $(BUILD)/stage/CHROMA.SYSTEM#FF2000
-	cp $(BUILD)/CHROMA.SYS $(BUILD)/stage/CHROMA.SYS#FF2000
-	cp $(BUILD)/HIGHSCORES $(BUILD)/stage/HIGHSCORES#060000
-	cp $(BUILD)/game.bin.ovl $(BUILD)/stage/ENDING#064000
-	$(PYTHON) $(DEV)/tools/prodos/build_volume.py $(BUILD)/stage $@ --volume CHROMABREAK --boot $(DEV)/tools/prodos/boot.bin --blocks 280
-run-iic: all
-	$(POM2) --preset iic --slot 4=iicmouse $(DISK)
+$(DISK): $(BUILD)/CHROMA.SYS $(BUILD)/CHROMA.SYSTEM $(BUILD)/HIGHSCORES $(PRODOS_VOLUME_DEPS)
+	$(call prodos_volume,$@,CHROMABREAK,$(BUILD)/CHROMA.SYSTEM=CHROMA.SYSTEM#FF2000 \
+		$(BUILD)/CHROMA.SYS=CHROMA.SYS#FF2000 $(BUILD)/HIGHSCORES=HIGHSCORES#060000 \
+		$(BUILD)/game.bin.ovl=ENDING#064000)
 # Two tiers (convention of ../dev/cc65/apple2.mk). tests/playtest_probe.cpp
 # runs on the POM2 core facade: real mouse firmware on //e and //c, PAL
 # (test), the ProDOS records and a full campaign by a mouse pilot (test-long).
@@ -106,4 +95,4 @@ ifneq ($(A2SHOT_HOST),)
 	$(PYTHON) tests/test_mouse.py $(PLAYTEST) --records-only
 	$(PYTHON) tests/test_mouse.py $(PLAYTEST) --campaign
 endif
-.PHONY: run-iic test test-long
+.PHONY: test test-long

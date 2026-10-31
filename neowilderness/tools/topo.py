@@ -11,7 +11,10 @@ Woods: from $6250, one list of (x0, x1) spans per row, each ended by $FF.
 
 Usage: topo.py TOPO.B OUT.png
 """
-import struct, sys, zlib
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+from apple2img import png_write  # noqa: E402
 
 W, H = 224, 168
 
@@ -63,10 +66,7 @@ def heightmap(t):
 
 
 def png(path, w, h, rgb):
-    raw = b''.join(b'\0' + bytes(rgb[y * w * 3:(y + 1) * w * 3]) for y in range(h))
-    ch = lambda k, d: struct.pack('>I', len(d)) + k + d + struct.pack('>I', zlib.crc32(k + d))
-    open(path, 'wb').write(b'\x89PNG\r\n\x1a\n' + ch(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
-                           + ch(b'IDAT', zlib.compress(raw)) + ch(b'IEND', b''))
+    png_write(path, [bytes(rgb[y * w * 3:(y + 1) * w * 3]) for y in range(h)], level=-1)
 
 
 def main():

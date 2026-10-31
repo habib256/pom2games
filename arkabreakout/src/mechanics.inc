@@ -85,11 +85,9 @@ fetch_level:
         clc
         adc #'1'
         sta pack_command+12
-        jsr dos_cmd_new
         lda #<pack_command
         ldy #>pack_command
-        jsr dos_cmd_add
-        jsr dos_cmd_run
+        jsr dos_cmd_line
         lda pack_number
         sta current_pack
 @address:

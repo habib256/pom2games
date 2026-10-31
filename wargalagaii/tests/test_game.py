@@ -105,17 +105,17 @@ def volume(disk, build):
     spec = importlib.util.spec_from_file_location('prodos_read', ROOT / 'dev/tools/prodos/read_volume.py')
     reader = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(reader)
-    image = reader.Image(disk.read_bytes())
+    image = reader.Image(disk.read_bytes())       # header() and the boot blocks
     assert image.header()['name'] == 'WARGALAGAII'
     assert image.header()['blocks'] == 280 and len(image.d) == 143360
-    entries = {e[1:1 + (e[0] & 15)].decode(): e for e in image.entries(2)}
-    assert set(entries) == {'PRODOS', *SYS_NAMES, 'WG2.AUX', 'HIGHSCORES'}, sorted(entries)
-    assert all(entries[n][0x10] == (0x06 if n in ('WG2.AUX', 'HIGHSCORES') else 0xFF) for n in entries)
-    assert image.read(entries['WG2.AUX']) == (build / 'WG2.AUX').read_bytes()
-    assert image.read(entries['HIGHSCORES']) == (build / 'HIGHSCORES').read_bytes()
-    assert image.read(entries['PRODOS']) == (ROOT / 'dev/tools/prodos/PRODOS').read_bytes()
+    files = a2test.prodos_files(disk)
+    assert set(files) == {'PRODOS', *SYS_NAMES, 'WG2.AUX', 'HIGHSCORES'}, sorted(files)
+    assert all(files[n][0] == (0x06 if n in ('WG2.AUX', 'HIGHSCORES') else 0xFF) for n in files)
+    assert files['WG2.AUX'][2] == (build / 'WG2.AUX').read_bytes()
+    assert files['HIGHSCORES'][2] == (build / 'HIGHSCORES').read_bytes()
+    assert files['PRODOS'][2] == (ROOT / 'dev/tools/prodos/PRODOS').read_bytes()
     for name in SYS_NAMES:
-        assert image.read(entries[name]) == (build / name).read_bytes(), name
+        assert files[name][2] == (build / name).read_bytes(), name
     assert image.d[:1024] == (ROOT / 'dev/tools/prodos/boot.bin').read_bytes()
     print('PASS bootable ProDOS volume /WARGALAGAII, WG2.SYSTEM + WG2.SYS + WG2.AUX + HIGHSCORES round trip')
 
@@ -559,20 +559,11 @@ def missing_sys(build, keep=('WG2.SYSTEM',), message='WG2.SYS ERROR'):
     """A volume with WG2.SYSTEM but no WG2.SYS: the loader's message, then a
     key back to ProDOS (it used to hang, bug hunt 2026-10-23). With
     keep=(WG2.SYSTEM, WG2.SYS): no WG2.AUX, the game's message."""
-    import shutil
-    import subprocess
     import tempfile
     with tempfile.TemporaryDirectory(prefix='wargalagaii-') as tmp:
-        stage = Path(tmp) / 'stage'
-        stage.mkdir()
-        shutil.copy(ROOT / 'dev/tools/prodos/PRODOS', stage / 'PRODOS#FF0000')
-        for name in keep:
-            shutil.copy(build / name, stage / f'{name}#FF2000')
-        disk = Path(tmp) / 'NOSYS.po'
-        subprocess.run([sys.executable, str(ROOT / 'dev/tools/prodos/build_volume.py'), str(stage),
-                        str(disk), '--volume', 'WARGALAGAII', '--boot',
-                        str(ROOT / 'dev/tools/prodos/boot.bin'), '--blocks', '280'],
-                       check=True, capture_output=True)
+        disk = a2test.prodos_volume(Path(tmp) / 'NOSYS.po', {
+            'PRODOS#FF0000': (ROOT / 'dev/tools/prodos/PRODOS').read_bytes(),
+            **{f'{n}#FF2000': (build / n).read_bytes() for n in keep}}, 'WARGALAGAII')
         r = a2test.run(disk, ['wait:1500', 'peek:400:1024', 'key: ', 'wait:300', 'peek:400:1024'],
                        iie=True)
     assert message in text(r, 0) and 'BITSY' in text(r, 1), text(r, 0)
@@ -582,8 +573,6 @@ def missing_sys(build, keep=('WG2.SYSTEM',), message='WG2.SYS ERROR'):
 
 def malformed_aux(build, L):
     """Reject wrong-sized auxiliary images before copying beyond AUX_ALL."""
-    import shutil
-    import subprocess
     import tempfile
     original = (build / 'WG2.AUX').read_bytes()
     end = 0x2000 + len(original)
@@ -592,18 +581,11 @@ def malformed_aux(build, L):
              ('one extra byte', original + b'\xA5'),
              ('extra chunk', original + bytes([0xA5]) * 8192)]
     with tempfile.TemporaryDirectory(prefix='wargalagaii-aux-') as tmp:
-        stage = Path(tmp) / 'stage'
-        stage.mkdir()
-        shutil.copy(ROOT / 'dev/tools/prodos/PRODOS', stage / 'PRODOS#FF0000')
-        for name in SYS_NAMES:
-            shutil.copy(build / name, stage / f'{name}#FF2000')
-        disk = Path(tmp) / 'BADAUX.po'
         for name, payload in cases:
-            (stage / 'WG2.AUX#060000').write_bytes(payload)
-            subprocess.run([sys.executable, str(ROOT / 'dev/tools/prodos/build_volume.py'),
-                            str(stage), str(disk), '--volume', 'WARGALAGAII', '--boot',
-                            str(ROOT / 'dev/tools/prodos/boot.bin'), '--blocks', '280'],
-                           check=True, capture_output=True)
+            disk = a2test.prodos_volume(Path(tmp) / 'BADAUX.po', {
+                'PRODOS#FF0000': (ROOT / 'dev/tools/prodos/PRODOS').read_bytes(),
+                **{f'{n}#FF2000': (build / n).read_bytes() for n in SYS_NAMES},
+                'WG2.AUX#060000': payload}, 'WARGALAGAII')
             steps = [L.until('aux_load'), 'peek:BF58:24', 'poke:C005:0']
             steps += [f'poke:{end + i:04X}:{v:02X}' for i, v in enumerate(guard)]
             steps += ['poke:C004:0', L.until('aux_fail'), 'peek:BF58:24',

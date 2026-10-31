@@ -25,10 +25,7 @@ from test_survival_flows import choose_source, stock
 from test_forage import seed_for
 import test_joystick_journey as journey
 # Read SAVE ranges from this snapshot, rather than the current build.
-from read_volume import Image
-volume = Image(common.DISK.read_bytes())
-entry = next((e for e in volume.entries(2) if e[1:1 + (e[0] & 15)] == b'NEOWILD.SAV'))
-save_module = volume.read(entry)
+save_module = common.a2test.prodos_files(common.DISK)['NEOWILD.SAV'][2]
 at = L['sv_ranges'] - 38400
 journey.RANGES = []
 while (address := int.from_bytes(save_module[at:at + 2], 'little')):

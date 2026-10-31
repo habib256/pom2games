@@ -101,8 +101,7 @@ move_row:   .res 1
 hist_n:     .res 1
 flipped:    .res 1      ; 1 = Black at the bottom (mode 3, you play Black)
 sound_on:   .res 1      ; S toggles the speaker
-joy_last:   .res 1      ; last stick direction (no auto-repeat)
-btn_last:   .res 1      ; bit 0 / bit 1 = buttons held at the last poll
+stick_key_last: .res 1  ; joy.asm stick_key: last stick event (no auto-repeat)
 ; --- HGR renderer scratch ---
 frank:      .res 1      ; rank 0..7 (0 = white home)
 ffile:      .res 1      ; file 0..7
@@ -155,8 +154,7 @@ main:
         STA sound_on            ; speaker on (S toggles it)
         LDA #0
         STA flipped
-        STA joy_last
-        STA btn_last
+        STA stick_key_last
         JSR hgr_init_clear      ; HGR + PAGE1 + blank the framebuffer
         JSR draw_board
         JSR draw_coords
@@ -195,7 +193,7 @@ human_turn:
         LDA blink_lo
         AND #$0F
         BNE @nojoy
-        JSR joy_poll            ; stick / buttons as key codes, 0 = nothing
+        JSR stick_key           ; stick / buttons as key codes, 0 = nothing
         BNE @got
 @nojoy: INC blink_lo
         BNE @wait
@@ -591,55 +589,11 @@ cur_right_v:
         BNE cur_left
         BEQ cur_right
 
-; joy_poll: the game port as key codes. Stick deflections move the cursor
-; once per deflection (centre it to move again), button 0 = SPACE (select /
-; confirm), button 1 = ESC (cancel). A = key or 0. Clobbers A, X, Y.
-joy_poll:
-        JSR read_stick
-        BCS @none               ; no stick: centred values, nothing pressed
-        LDA BUTN0
-        BMI @b0_down
-        LDA btn_last
-        AND #$FE
-        STA btn_last
-        JMP @b1
-@b0_down:
-        LDA btn_last
-        AND #$01
-        BNE @b1
-        LDA btn_last
-        ORA #$01
-        STA btn_last
-        LDA #' '
-        RTS
-@b1:    LDA BUTN1
-        BMI @b1_down
-        LDA btn_last
-        AND #$FD
-        STA btn_last
-        JMP @axes
-@b1_down:
-        LDA btn_last
-        AND #$02
-        BNE @axes
-        LDA btn_last
-        ORA #$02
-        STA btn_last
-        LDA #$1B
-        RTS
-@axes:  JSR stick_dir
-        BEQ @centre
-        CMP joy_last
-        BEQ @none               ; still deflected the same way
-        STA joy_last
-        TAX
-        LDA joy_keys-1,X        ; JOY_UP..JOY_RIGHT = 1..4
-        RTS
-@centre:
-        STA joy_last
-@none:  LDA #0
-        RTS
-joy_keys: .byte 'I', 'K', 'J', 'L'
+; The game port as key codes (joy.asm stick_key): a deflection moves the
+; cursor once (centre it to move again), button 0 = SPACE (select /
+; confirm), button 1 = ESC (cancel).
+STICK_KEYS = stick_keys
+stick_keys: .byte 'I', 'K', 'J', 'L', ' ', $1B
 
 ; --- speaker: move / capture click, CHECK! blips, result tune ---------------
 snd_move:
@@ -1424,6 +1378,6 @@ modestr_hi: .byte >m_hvh, >m_wai, >m_bai, >m_ava
 .include "hgr_scanline.inc"                ; hgr_lo / hgr_hi base tables
 .include "hgr.asm"                         ; hgr_init_clear
 .include "kbd.asm"                         ; wait_key / poll_key
-.include "joy.asm"                         ; read_stick / stick_dir
+.include "joy.asm"                         ; stick_key (read_stick / stick_dir)
 .include "sound.asm"                       ; tone
 .include "delay.asm"                       ; delay_ms_a

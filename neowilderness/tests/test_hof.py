@@ -24,7 +24,7 @@ with a bad header and a volume without NEOWILD.HOF.
   test_hof.py                    run the IIe tests
   test_hof.py --demo-po OUT.po   ProDOS demo disk for hof.mk
 """
-import argparse, glob, math, os, secrets, subprocess, sys, tempfile, time
+import argparse, glob, math, os, secrets, sys, tempfile, time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parents[1]
@@ -117,26 +117,21 @@ def scene(cases):
     return data
 
 
-def stage_volume(stage, cases, hof=b'', nonce=b''):
-    stage = Path(stage)
-    (stage / 'PRODOS#FF0000').write_bytes((PRODOS / 'PRODOS').read_bytes())
-    (stage / 'NEOHOF.SYSTEM#FF2000').write_bytes((BUILD / 'NEOHOF.SYSTEM').read_bytes())
-    (stage / 'HOFTEST#064000').write_bytes((BUILD / 'hof_test.bin').read_bytes())
-    (stage / f'SCENE#06{CASES:04X}').write_bytes(scene(cases))
-    (stage / 'NEOWILD.END#069600').write_bytes((BUILD / 'NEOWILD.END').read_bytes())
+def volume_files(cases, hof=b'', nonce=b''):
+    files = {'PRODOS#FF0000': (PRODOS / 'PRODOS').read_bytes(),
+             'NEOHOF.SYSTEM#FF2000': (BUILD / 'NEOHOF.SYSTEM').read_bytes(),
+             'HOFTEST#064000': (BUILD / 'hof_test.bin').read_bytes(),
+             f'SCENE#06{CASES:04X}': scene(cases),
+             'NEOWILD.END#069600': (BUILD / 'NEOWILD.END').read_bytes()}
     if hof is not None:
-        (stage / 'NEOWILD.HOF#060000').write_bytes(hof or R.empty_file())
+        files['NEOWILD.HOF#060000'] = hof or R.empty_file()
     if nonce:
-        (stage / 'NONCE#060000').write_bytes(nonce)
+        files['NONCE#060000'] = nonce
+    return files
 
 
 def build_po(out, cases, hof=b'', nonce=b'', volume='NEOHOF'):
-    with tempfile.TemporaryDirectory(prefix='hof-stage-') as stage:
-        stage_volume(stage, cases, hof, nonce)
-        subprocess.run(['python3', str(PRODOS / 'build_volume.py'), stage, str(out),
-                        '--volume', volume, '--boot', str(PRODOS / 'boot.bin'), '--blocks', '280'],
-                       check=True, capture_output=True)
-    return Path(out)
+    return a2test.prodos_volume(out, volume_files(cases, hof, nonce), volume)
 
 
 def screen(mem):

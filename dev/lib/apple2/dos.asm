@@ -10,6 +10,9 @@
 ;   dos_cmd_hex  -- append A as two hex digits (for ",A$6000", ",L$024E").
 ;   dos_cmd_run  -- have DOS run the command; returns when DOS is done.
 ;                   Retains the buffer/length for reuse or later appends.
+;   dos_cmd_line -- new + add + run of the ASCIIZ command at A (lo) / Y (hi):
+;                   one 7-byte call site (LDA/LDY/JSR) instead of 13; 8 bytes,
+;                   falls into dos_cmd_run (.ifref).
 ;   disk_protected -- C = 1 if the disk DOS last used is write protected.
 ;   All clobber A, X, Y. add/hex/run: C=1 on buffer overflow, C=0 on
 ;   success. Overflow stays sticky until new; run refuses partial commands.
@@ -98,7 +101,7 @@ DOS_ZP_LEN = 256
 DOS_HOOKS = $03EA               ; DOS: reconnect its I/O hooks to CSW / KSW
 DOS_IOB_SLOT = $B7E9            ; DOS's IOB (48 KB DOS 3.3): slot * 16
 
-.if .referenced(dos_cmd_new) .or .referenced(dos_cmd_add) .or .referenced(dos_cmd_hex) .or .referenced(dos_cmd_run)
+.if .referenced(dos_cmd_new) .or .referenced(dos_cmd_add) .or .referenced(dos_cmd_hex) .or .referenced(dos_cmd_run) .or .referenced(dos_cmd_line)
 .if DOS_LOWBSS
 .segment "LOWBSS"
 .elseif DOS_CMD_WORKBSS
@@ -190,6 +193,14 @@ dos_cmd_hex:
 .endif
 .endif
 
+.ifref dos_cmd_line
+; A/Y = ASCIIZ command: new (keeps Y), add, then on into dos_cmd_run.
+dos_cmd_line:
+        PHA
+        JSR     dos_cmd_new
+        PLA
+        JSR     dos_cmd_add     ; C = 1 on overflow: dos_cmd_run refuses it
+.endif
 dos_cmd_run:
         LDA     dos_cmd_overflow
         BEQ     @valid

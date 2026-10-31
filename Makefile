@@ -25,11 +25,11 @@
 
 PYTHON ?= python3
 
-II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake pinball light3dball mcs wilderness dirtbike
-IIE_PRODOS_GAMES := chromabreak wargalagaii robotspacestation
+II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake pinball light3dball wilderness dirtbike
+IIE_PRODOS_GAMES := chromabreak wargalagaii robotspacestation mbtracker
 DIRS := $(II_PLUS_GAMES) $(IIE_PRODOS_GAMES) logo dev/examples/hello dev/examples/hgr dev/examples/dhgr dev/examples/perspective
 # Programs whose own `make test` / `make test-long` belong to the root tiers.
-TESTED := pinball chromabreak arkabreakout chess micro-sokoban light3dball wilderness logo mcs dirtbike \
+TESTED := pinball chromabreak arkabreakout chess micro-sokoban light3dball wilderness logo mbtracker dirtbike \
           wargalagaii snake robotspacestation
 
 all:
@@ -71,10 +71,19 @@ test-hgr:
 	$(PYTHON) dev/tests/test_asm_boundaries.py
 	$(PYTHON) dev/tests/test_dos_reuse.py
 	$(PYTHON) dev/tests/test_math.py
+	$(PYTHON) dev/tests/test_verlet.py
 	$(PYTHON) dev/tests/test_rwts.py
 	$(PYTHON) dev/tests/test_lib_options.py
 	$(PYTHON) dev/tests/test_hgr_pages.py
 	$(PYTHON) dev/tests/test_joy_fast.py
+	$(PYTHON) dev/tests/test_stick_key.py
+	$(PYTHON) dev/tests/test_initials.py
+	$(PYTHON) dev/tests/test_rwts_sectors.py
+	$(PYTHON) dev/tests/test_tune.py
+	$(PYTHON) dev/tests/test_bcd.py
+	$(PYTHON) dev/tests/test_aysong.py
+	$(PYTHON) dev/tests/test_mb_irq.py
+	$(PYTHON) dev/tests/test_savehdr.py
 	$(PYTHON) dev/tests/test_vapor.py
 	$(PYTHON) dev/tests/test_exit_modes.py
 	$(PYTHON) dev/tests/test_hgr_host.py
@@ -118,6 +127,7 @@ test-dhgr:
 	$(PYTHON) dev/tests/test_dhgr_extended.py
 	$(PYTHON) dev/tests/test_dhgr_spans.py
 	$(PYTHON) dev/tests/test_dhgr_clear_rows.py
+	$(PYTHON) dev/tests/test_dhgr_spr.py
 	$(PYTHON) dev/tests/test_gfx_dhgr_lines.py
 	$(PYTHON) dev/tests/test_minimal_examples.py --dhgr
 	$(PYTHON) dev/tests/test_stack_profile.py --iie
@@ -193,6 +203,7 @@ test-tools:
 	$(PYTHON) dev/tests/test_build_config.py
 	$(PYTHON) dev/tests/test_prodos_video.py
 	$(PYTHON) dev/tests/test_prodos_file.py
+	$(PYTHON) dev/tests/test_prodos_sysreloc.py
 	$(PYTHON) dev/tests/test_apple2game.py
 	$(PYTHON) dev/tests/test_mouse_context.py
 	$(PYTHON) dev/tests/test_mouse_noslot.py

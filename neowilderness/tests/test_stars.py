@@ -13,7 +13,7 @@ module (src/stars.s) and to stars_draw.s by PC.
   test_stars.py                    run the IIe tests
   test_stars.py --demo-po OUT.po   ProDOS demo disk for stars.mk
 """
-import argparse, subprocess, sys, tempfile
+import argparse, sys, tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parents[1]
@@ -94,16 +94,11 @@ def scene(cases):
 
 
 def build_po(out, cases, volume='NEOSTARS'):
-    with tempfile.TemporaryDirectory(prefix='stars-stage-') as stage:
-        stage = Path(stage)
-        (stage / 'PRODOS#FF0000').write_bytes((PRODOS / 'PRODOS').read_bytes())
-        (stage / 'NEOSTARS.SYSTEM#FF2000').write_bytes((BUILD / 'NEOSTARS.SYSTEM').read_bytes())
-        (stage / 'STARTEST#064000').write_bytes((BUILD / 'stars_test.bin').read_bytes())
-        (stage / f'SCENE#06{CASES:04X}').write_bytes(scene(cases))
-        subprocess.run(['python3', str(PRODOS / 'build_volume.py'), str(stage), str(out),
-                        '--volume', volume, '--boot', str(PRODOS / 'boot.bin'), '--blocks', '280'],
-                       check=True, capture_output=True)
-    return Path(out)
+    return a2test.prodos_volume(out, {
+        'PRODOS#FF0000': (PRODOS / 'PRODOS').read_bytes(),
+        'NEOSTARS.SYSTEM#FF2000': (BUILD / 'NEOSTARS.SYSTEM').read_bytes(),
+        'STARTEST#064000': (BUILD / 'stars_test.bin').read_bytes(),
+        f'SCENE#06{CASES:04X}': scene(cases)}, volume)
 
 
 def ranges(L):

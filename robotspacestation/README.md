@@ -58,6 +58,16 @@ the room and drones (PLAY) and of the title, help and briefings (FRONT) is
 kept there too (`RSS.OVL`) and copied into the unused DHGR page 2 when a
 screen of the other group opens (`src/overlay.s`, 0.11 s).
 
+The room is drawn by the flicker-free DHGR compositor (`dev/lib/hgrc`
+`dhgr_spr_*`): tiles, objects, drones, the technician and the pointer's
+rows in the room are composed off screen (in the idle ProDOS buffer) and
+every changed screen byte is written once with its final value — nothing
+is erased first. Its core runs in the PLAY overlay; memory left (2026-10-31,
+`build/game.map`): resident 448 bytes, PLAY 162, L8 262 (docs/SPEC.md).
+A drone turn costs 4.1 / 4.2 / 6.3 frames on the //e in missions 1 / 4 / 7
+(5.0 / 8.0 / 11.4 before), 3.0 / 3.3 / 5.2 on the //c
+(`tests/speed.py`).
+
 Rules and screens: [docs/SPEC.md](docs/SPEC.md) (French). The Python model
 `tools/model.py` is the reference: the 6502 code matches it byte for byte.
 
@@ -66,6 +76,7 @@ make            # ../dist/ROBOTSTATION.po
 make run        # POM2, //e enhanced, AppleMouse in slot 4
 make run-iic    # POM2, //c
 make test       # model, then lab and missions on //e and //c with a2shot (~1 min)
+                # (with the compositor's write-once check over 120 updates)
 make test-long  # the whole campaign: every mission's solution in C == the model (~1 min)
 ```
 

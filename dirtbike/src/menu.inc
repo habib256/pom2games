@@ -33,18 +33,12 @@ menu:
         LDA     #0
         STA     sel
 @open:  JSR     page1_text
-        LDA     #<msg_title
-        LDY     #>msg_title
-        LDX     #16
-        STX     ht_col
-        LDX     #8
-        JSR     puts_at
-        LDA     #<msg_help
-        LDY     #>msg_help
-        LDX     #2
-        STX     ht_col
-        LDX     #MENU_HELP
-        JSR     puts_at
+        JSR     hgr_puts8_at
+        .byte   16, 8
+        .addr   msg_title
+        JSR     hgr_puts8_at
+        .byte   2, MENU_HELP
+        .addr   msg_help
         LDA     #0                      ; the list
         STA     msel
 @list:  JSR     draw_entry

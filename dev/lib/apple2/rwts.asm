@@ -13,6 +13,21 @@
 ;                    No upper bound: the file must fit below rwts_tsl (and
 ;                    RWTS) when it is loaded above them -- check its size
 ;                    when the disk is built.
+;   rwts_write_tslist  the mirror of rwts_read_tslist, bounded: in
+;                    rwts_track / rwts_sector = the file's T/S list (read
+;                    into page rwts_tsl), rwts_count = pages to write (1..122)
+;                    from rwts_page up. Stops at the list's end or after
+;                    rwts_count pages. Out: rwts_count = pages NOT written
+;                    (0: all; more: the file is shorter), rwts_page = next.
+;                    66 B; no code shared with rwts_read_tslist, which so
+;                    stays byte for byte in the programs that use it.
+;   rwts_sectors     A = command (1 read, 2 write), X = count (1..255):
+;                    sector k = RWTS_SEC_T[k] / RWTS_SEC_S[k] <-> page
+;                    rwts_page + k (the caller's two tables, labels defined
+;                    before the include: dev/tools/dos33patch.py --sectors
+;                    fills them with a save file's data sectors when the
+;                    disk is built). Out: rwts_page = the next page. 45 B,
+;                    1 B BSS (rwts_op) + rwts_ix / rwts_count.
 ;   rwts_find_file   A/Y = name (lo/hi; ASCII, ends with 0 or ','): look it
 ;                    up in the catalog, read into page rwts_page. Out:
 ;                    rwts_track / rwts_sector = its T/S list.
@@ -40,7 +55,7 @@
 ;
 ; Variables (BSS, each skipped if defined before the include, e.g. as an
 ; alias of the program's own): rwts_track, rwts_sector, rwts_page,
-; rwts_tsl, rwts_count, rwts_try, rwts_ix, rwts_t.
+; rwts_tsl, rwts_count, rwts_try, rwts_ix, rwts_t, rwts_op.
 ; .ifref: include after the callers. From DIRTBIKE's loader and
 ; MICRO-SOKOBAN's fast_disk.inc.
 ; ============================================================================
@@ -74,22 +89,29 @@ rwts_sector: .res 1
 .ifndef rwts_page
 rwts_page:   .res 1
 .endif
-.if .referenced(rwts_read) .or .referenced(rwts_write) .or .referenced(rwts_cmd) .or .referenced(rwts_read_tslist) .or .referenced(rwts_find_file)
+.if .referenced(rwts_read) .or .referenced(rwts_write) .or .referenced(rwts_cmd) .or .referenced(rwts_read_tslist) .or .referenced(rwts_find_file) .or .referenced(rwts_write_tslist) .or .referenced(rwts_sectors)
 .ifndef rwts_try
 rwts_try:    .res 1
 .endif
 .endif
-.if .referenced(rwts_read_tslist) .or .referenced(rwts_find_file)
+.if .referenced(rwts_read_tslist) .or .referenced(rwts_find_file) .or .referenced(rwts_write_tslist) .or .referenced(rwts_sectors)
 .ifndef rwts_ix
 rwts_ix:     .res 1
 .endif
 .endif
-.ifref rwts_read_tslist
+.if .referenced(rwts_read_tslist) .or .referenced(rwts_write_tslist)
 .ifndef rwts_tsl
 rwts_tsl:    .res 1
 .endif
+.endif
+.if .referenced(rwts_read_tslist) .or .referenced(rwts_write_tslist) .or .referenced(rwts_sectors)
 .ifndef rwts_count
 rwts_count:  .res 1
+.endif
+.endif
+.ifref rwts_sectors
+.ifndef rwts_op
+rwts_op:     .res 1
 .endif
 .endif
 .ifref rwts_find_file
@@ -102,7 +124,7 @@ rwts_t:      .res 1
 rwts_zp_buf: .res DOS_ZP_LEN
 .endif
 .endif
-.if .referenced(rwts_read) .or .referenced(rwts_write) .or .referenced(rwts_cmd) .or .referenced(rwts_read_tslist) .or .referenced(rwts_find_file)
+.if .referenced(rwts_read) .or .referenced(rwts_write) .or .referenced(rwts_cmd) .or .referenced(rwts_read_tslist) .or .referenced(rwts_find_file) .or .referenced(rwts_write_tslist) .or .referenced(rwts_sectors)
 .segment "DATA"
 rwts_iob:    .word 0                    ; DOS's IOB, once known (0: not yet)
 .endif
@@ -219,7 +241,61 @@ rwts_read_tslist:
 @rts:   RTS
 .endif
 
-.if .referenced(rwts_read) .or .referenced(rwts_write) .or .referenced(rwts_cmd)
+.ifref rwts_write_tslist
+rwts_write_tslist:
+        LDA     rwts_page
+        PHA
+        LDA     rwts_tsl
+        STA     rwts_page
+        STA     @lt+2
+        STA     @ls+2
+        JSR     rwts_read
+        PLA
+        STA     rwts_page
+        BCS     @rts
+        LDX     #12                     ; pairs from byte 12
+@next:  STX     rwts_ix
+@lt:    LDA     $FF00,X                 ; patched: the list's page
+        BEQ     @done                   ; track 0: end of the list
+        STA     rwts_track
+@ls:    LDA     $FF01,X
+        STA     rwts_sector
+        JSR     rwts_write
+        BCS     @rts
+        INC     rwts_page
+        DEC     rwts_count
+        BEQ     @done
+        LDX     rwts_ix
+        INX
+        INX
+        BNE     @next                   ; 122 pairs: the whole sector
+@done:  CLC
+@rts:   RTS
+.endif
+
+.ifref rwts_sectors
+rwts_sectors:
+        STA     rwts_op
+        STX     rwts_count
+        LDX     #0
+@next:  STX     rwts_ix
+        LDA     RWTS_SEC_T,X
+        STA     rwts_track
+        LDA     RWTS_SEC_S,X
+        STA     rwts_sector
+        LDA     rwts_op
+        JSR     rwts_cmd
+        BCS     @rts
+        INC     rwts_page
+        LDX     rwts_ix
+        INX
+        CPX     rwts_count
+        BNE     @next
+        CLC
+@rts:   RTS
+.endif
+
+.if .referenced(rwts_read) .or .referenced(rwts_write) .or .referenced(rwts_cmd) .or .referenced(rwts_write_tslist) .or .referenced(rwts_sectors)
 rwts_write:
         LDA     #2
         .byte   $2C                     ; BIT abs: skips the LDA #1

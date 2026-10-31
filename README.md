@@ -48,7 +48,7 @@ assembly and C; DIRTBIKE and ChromaBreak are tested on a real //e.
 | 🎯 | [**PINBALL**](pinball/README.md) — Bill Budge's Pinball Construction Set, with mouse | II+ 48 KB or //c | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/PINBALL.dsk) |
 | 🐢 | [**LOGO**](logo/README.md) — turtle graphics in 16 tints, 80 columns on a //e | //e or II+ | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/LOGO.dsk) |
 | 🐍 | [**SNAKE**](snake/README.md) — the classic, five levels, in 10.5 KB of C | II+ 48 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/SNAKE.dsk) |
-| 🎵 | [**MCS**](mcs/README.md) — a *Music Construction Set*-style editor | II+ 48 KB | `make -C mcs` |
+| 🎵 | [**MB TRACKER**](mbtracker/README.md) — a Mockingboard tracker: write the AYS songs the games play | //e or //c 128 KB, Mockingboard | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/MBTRACKER.po) |
 
 <table><tr>
 <td><img src="wargalagaii/screenshots/demo.png" width="200" alt="WARGALAGA II"></td>
@@ -85,7 +85,7 @@ and `make test-all` on every push.
 Code: GPL-3.0 ([LICENSE](LICENSE)), VERHILLE Arnaud. Pinball Construction Set:
 Bill Budge (1982, his MIT-licensed sources in [`pinball/upstream/`](pinball/upstream/)).
 *Wilderness*: Electric Transit (1985). Inspirations: *Dirt Bike* (Brad Quick),
-*Music Construction Set* (Will Harvey), *The Light Corridor*. Microban levels:
+*The Light Corridor*. Microban levels:
 David W. Skinner. Chess pieces: cc65-Chess (Stefan Wessels, Oliver Schmidt,
 Frank Gebhart). Sprites: SCROLL-O-SPRITES by Quale (CC-BY-3.0). Font:
 Beautiful Boot, Michael Pohoreski.

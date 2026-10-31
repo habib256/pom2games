@@ -291,8 +291,21 @@ les objets, le drone et le technicien au départ.
   visière, corps, bras et pince (blanche quand elle prend), réacteurs
   (orange quand un moteur tourne), échappement derrière quand il va de
   côté. Le technicien : casque, visière, sac, gant ; ses jambes
-  alternent quand il marche. Un pas ne redessine que les bandes de sol
-  découvertes, et seuls les objets et drones qu'elles touchent.
+  alternent quand il marche.
+- Dessin de la salle (depuis le 2026-10-31) : le compositeur DHGR sans
+  scintillement (`dev/lib/hgrc` `dhgr_spr_*`). Les tuiles sont des formes
+  de rectangles (`src/sprites.c`) sur la carte `tiles[]` ; objets (cases
+  0-3), drones (4-5, couleurs 16-19 = leur palette, tournés par miroir) et
+  technicien (6) sont ses sprites (`src/sprites_asm.s`). Après chaque tour
+  (ou pas du technicien), une mise à jour recompose dans un tampon (les 255
+  premiers octets du tampon ProDOS, libre à ce moment) les groupes de 7
+  pixels qui ont changé, et écrit chaque octet de l'écran **une seule fois,
+  avec sa valeur finale** : rien n'est effacé puis redessiné. Un changement
+  de portes échange les tuiles porte/plaque et redessine leurs cases avec
+  ce qui est dessus (un drone garé sur une plaque reste entier). Le
+  pointeur, dans la salle, est la couche « overlay » du compositeur (ses
+  lignes hors de la salle restent à `src/pointer.s`). `tests/test_zone.py`
+  le vérifie (a2shot `storewatch` sur 120 mises à jour de deux missions).
 
 ### Boutons
 
@@ -328,19 +341,22 @@ Le jeu ne dessine qu'en page 1 du DHGR. Carte (au 2026-10-31) :
 
 | Zone | Contenu | Libre |
 |---|---|---|
-| principale `$6000-$BE7F` | programme résident (`startup.s` l'y recopie), pile C de 128 octets ensuite | ~1,7 Ko |
-| principale `$4000-$5FFF` (page 2) | **fenêtre des overlays** : PLAY ou FRONT | PLAY ~490 o, FRONT ~5,6 Ko |
+| principale `$6000-$BE7F` | programme résident (`startup.s` l'y recopie), dont les appels et l'overlay du compositeur ; pile C de 128 octets ensuite | 448 o |
+| principale `$4000-$5FFF` (page 2) | **fenêtre des overlays** : PLAY (avec le code du compositeur, `DHGRSPRCODE`) ou FRONT | PLAY 162 o, FRONT ~5,6 Ko |
 | principale `$0C40-$0FFF` (L8) | résident : `hover.c`, symboles des portes (`symbol.s`) | ~260 o |
 | principale `$0800-$0C3F` | page zéro sauvée, planche du drone B (`swap.s`), formes du pointeur | — |
-| principale `$1000-$1FFF` | tampon ProDOS, sauvegarde, tableaux de la planche | — |
+| principale `$1000-$1FFF` | tampon ProDOS (aussi le canevas du compositeur pendant ses mises à jour), sauvegarde, tableaux de la planche | — |
 | auxiliaire `$4000-$5FFF` | image de PLAY | — |
 | auxiliaire `$6000-$905D` | textes (`RSS.TEXT1/2`, lus une ligne à la fois) | jusqu'à `$9FFF` |
 | auxiliaire `$A000-$BFFF` | image de FRONT | — |
 | auxiliaire `$0800-$1FFF`, carte langage auxiliaire | libres (`/RAM` est déconnecté) | 6 Ko + 16 Ko |
 
 **Overlays** (`src/overlay.s`, `src/game.cfg`) : la fenêtre `$4000-$5FFF`
-porte le code d'un seul groupe d'écrans à la fois. PLAY = `zone.c` et
-`sprites.c` (la salle, l'intérieur des drones) ; FRONT = `title.c`, `help.c`,
+porte le code d'un seul groupe d'écrans à la fois. PLAY = `zone.c`,
+`sprites.c`, `sprites_asm.s` et le cœur du compositeur DHGR (`DHGRSPRCODE` :
+mise à jour, peintres, écriture, tuiles ; ce code se modifie lui-même mais
+se recale à chaque appel, une recopie ne le gêne pas) (la salle,
+l'intérieur des drones) ; FRONT = `title.c`, `help.c`,
 le briefing et la lecture de la sauvegarde (`main.c`, `#pragma code-name`).
 `RSS.OVL` (PLAY complété à 8 Ko, puis FRONT) est lu au démarrage et rangé en
 auxiliaire ; `overlay_use(n)` recopie le groupe demandé s'il n'est pas déjà
@@ -365,7 +381,12 @@ autour de son tour (un tour à deux drones coûte environ 2,6 images).
 ## La souris
 
 Le pointeur (`src/pointer.s`) sauve les 4 octets × 6 lignes sous lui et y
-ajoute la flèche par OU ; il se redessine en une fraction d'image. Pendant
+ajoute la flèche par OU ; il se redessine en une fraction d'image. Dans la
+salle, ses lignes qui y sont passent par le compositeur (overlay, compilé
+avec `DHGR_SPR_OVERLAY_INSIDE`) : composées avec les sprites en une passe,
+elles ne se cachent plus pendant les dessins de la salle ; `pointer.s` ne
+dessine que ses lignes au-dessus ou au-dessous (`hide()` ne cache que
+celles-là). Pendant
 les longs dessins, `ui_latch()` relit la souris pour ne pas perdre un clic,
 au plus une fois par trame sur le //e : deux lectures de la carte coup sur
 coup lui font perdre une partie du mouvement. Sur le //c, la souris

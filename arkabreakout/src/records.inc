@@ -9,11 +9,9 @@ save_status: .res 1             ; 0 none, 1 saved, 2 write protected
 record_initials: .res 4
 .code
 records_load:
-        jsr dos_cmd_new
         lda #<records_load_command
         ldy #>records_load_command
-        jsr dos_cmd_add
-        jsr dos_cmd_run
+        jsr dos_cmd_line
         lda record_data
         cmp #'A'
         bne @empty
@@ -164,11 +162,9 @@ records_submit:
 records_save:
         jsr disk_protected
         bcs @protected
-        jsr dos_cmd_new
         lda #<records_save_command
         ldy #>records_save_command
-        jsr dos_cmd_add
-        jsr dos_cmd_run
+        jsr dos_cmd_line
         lda #1
         sta save_status
         rts

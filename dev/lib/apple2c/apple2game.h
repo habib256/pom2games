@@ -24,6 +24,11 @@ void a2_tone(unsigned char flips, unsigned char period);
 unsigned char a2_read_stick(void);
 extern unsigned char a2_joy_x, a2_joy_y;
 
+/* apple2stick.s (APPLE2C_STICK_SRCS, with this object): a2_read_stick(),
+ * then 1 if both paddle timers ran out (a two-axis stick answers), 0 if
+ * either still runs (nothing plugged in, or an axis missing). */
+unsigned char a2_stick_present(void);
+
 /* Nonzero (0x80) while game-port button n (0, 1 or 2) is held. */
 unsigned char a2_button(unsigned char n);
 

@@ -1,94 +1,20 @@
 ; ProDOS SYS entry $2000. Relocate backwards: source/destination may overlap.
 .setcpu "65C02"
+SYSRELOC_DOWN_FAST = 1    ; tail + whole pages: ~0.7 s faster boot
+.include "sysreloc.inc"   ; dev/lib/prodos
 .include "levels.inc"
 .include "duet.inc"
 .segment "CODE"
-        cld
-        sta $C002
-        sta $C004
-        sta $C000
-        ldx #$FF
-        txs
+        sysreloc_prologue
         ; The two-voice player goes to page 3 (duet.inc).
-        ldx #duet_size
-duet_copy:
-        lda duet_image-1,x
-        sta DUET_BASE-1,x
-        dex
-        bne duet_copy
+        sysreloc_copy_bytes duet_image, DUET_BASE, duet_size
         ; Keep the 2 KiB DHGR table image below graphics, freeing game memory.
         ; Copy it before relocating the overlapping SYS payload.
-        lda #<font_payload
-        sta $06
-        lda #>font_payload
-        sta $07
-        stz $08
-        lda #$08
-        sta $09
-        ldx #8
-        ldy #0
-font_copy:
-        lda ($06),y
-        sta ($08),y
-        iny
-        bne font_copy
-        inc $07
-        inc $09
-        dex
-        bne font_copy
-        ; The level bank and font go to AUX $0A00 before the payload moves.
-        lda #<levels_payload
-        sta $06
-        lda #>levels_payload
-        sta $07
-        lda #<LEVELS_AUX
-        sta $08
-        lda #>LEVELS_AUX
-        sta $09
-        ldx #>(AUX_BANK_SIZE+255)
-        ldy #0
-        sei
-        sta $C005
-levels_copy:
-        lda ($06),y
-        sta ($08),y
-        iny
-        bne levels_copy
-        inc $07
-        inc $09
-        dex
-        bne levels_copy
-        sta $C004
-        lda #<(payload+size-1)
-        sta $06
-        lda #>(payload+size-1)
-        sta $07
-        lda #<($6000+size-1)
-        sta $08
-        lda #>($6000+size-1)
-        sta $09
-        lda #<size
-        sta $0A
-        lda #>size
-        sta $0B
-        ldy #0
-copy:   lda ($06),y
-        sta ($08),y
-        lda $06
-        bne :+
-        dec $07
-:       dec $06
-        lda $08
-        bne :+
-        dec $09
-:       dec $08
-        lda $0A
-        bne :+
-        dec $0B
-:       dec $0A
-        lda $0A
-        ora $0B
-        bne copy
+        sysreloc_copy_pages font_payload, $0800, 8
+        ; The level bank and font go to AUX $0A00 before the payload moves
+        ; (I stays set up to the game).
+        sysreloc_copy_pages_aux levels_payload, LEVELS_AUX, >(AUX_BANK_SIZE+255)
+        sysreloc_copy_down payload, $6000, size
         jmp $6000
 payload: .incbin "game.bin"
 size=*-payload

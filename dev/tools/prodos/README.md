@@ -13,6 +13,13 @@ type and the auxiliary address. The suffix is stripped on the volume.
 `CHROMA.SYSTEM` is the SYS-type (`$FF`) loader launched automatically by
 ProDOS; it then loads the game `CHROMA.SYS`.
 
+Without a stage folder, name each file: `build_volume.py dist/GAME.po
+--volume GAME --boot boot.bin --file PRODOS=PRODOS#FF0000 --file
+build/GAME.SYS=GAME.SYS#FF2000 ...` (`--file SRC=NAME#TTAAAA`, repeatable).
+The image is the one a stage holding those names gives (entries in the same
+alphabetical order, same fixed date). In a Makefile:
+`$(call prodos_volume,...)` from `dev/lib/prodos/prodos.mk`.
+
 `PRODOS` is ProDOS 8 **2.4.3**, redistributed as an Apple system, and
 `boot.bin` holds its two boot blocks. Both files come from the local ProDOS
 resources used by A2 File Cmd; the system is identical to the one on the

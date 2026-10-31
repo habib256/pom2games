@@ -20,8 +20,19 @@
 ; mb_chip. A tick takes ~1 500-3 000 cycles: the handler scans the //e VBL
 ; on entry and on exit (_a2_vbl_scan, atomic) so no blank goes unseen.
 ; S turns the music off / on (the song pauses), never the effects.
+; The interrupt service is dev/lib/apple2/mb_irq.asm (extracted from here,
+; 2026-10-31), included four times so each routine stays where it was.
 
 MUS_PERIOD = 1020484 / MUS_HZ - 2   ; T1 latch (free run: latch + 2 cycles)
+MB_IRQ_PERIOD = MUS_PERIOD
+MB_IRQ_TICK = tr_tick            ; one PT3 tick in aux memory...
+MB_IRQ_FRAME = AY_REGISTERS      ; ...then its frame out to chip 1
+MB_IRQ_GATE = music_on           ; S: the song pauses
+MB_IRQ_SCAN = 1
+MB_IRQ_SPLIT = 1                 ; the handler after sound_frame
+mb_irq_slot = audio_slot
+mb_irq_ticks = mus_ticks
+mb_irq_ptr = ptr
 
 .importzp AY_REGISTERS
 .import pt3_init_song, pt3_tick
@@ -29,8 +40,8 @@ MUS_PERIOD = 1020484 / MUS_HZ - 2   ; T1 latch (free run: latch + 2 cycles)
 .bss
 audio_slot:  .res 1             ; Mockingboard slot, 0 = speaker
 spk_period:  .res 1             ; speaker half-period for this frame, 0 = off
-ay_shadow:   .res 32            ; both chips' registers as last written
-mus_irq_n:   .res 1             ; ProDOS interrupt number, 0 = none
+mb_shadow:   .res 32            ; both chips' registers as last written
+mb_irq_n:    .res 1             ; ProDOS interrupt number, 0 = none
 mus_ticks:   .res 1             ; music interrupts served (timing.s's paddle
                                  ; reading, tests)
 .data
@@ -44,8 +55,8 @@ sound_init:
         stz sfx_ptr+1
         stz spk_period
         lda audio_slot
-        beq si_done
-        jsr ay_forget
+        beq mb_irq_rts
+        jsr mb_forget
         php                      ; the song: tables built in aux memory
         sei
         jsr tr_init
@@ -54,62 +65,13 @@ sound_init:
         sta mb_chip
         ldx #7
         lda #$3E
-        jsr ay_put
+        jsr mb_put
         ldx #6                   ; noise period
         lda #12
-        jsr ay_put
-        lda audio_slot           ; patch the handler's VIA addresses
-        ora #$C0
-        sta irq_ifr+2
-        sta irq_ack+2
-        sta ptr+1
-        stz ptr
-        php
-        sei
-        jsr $BF00
-        .byte $40                ; ALLOC_INTERRUPT
-        .word mus_alloc
-        bcs si_noirq
-        lda mus_alloc+1
-        sta mus_irq_n
-        lda #<MUS_PERIOD         ; T1 free running at MUS_HZ...
-        ldx #>MUS_PERIOD
-        jsr mb_timer_start
-        ldy #$0E                 ; ...and its interrupt on (IER: set bit 6)
-        lda #$C0
-        sta (ptr),y
-        plp
-        cli
-        rts
-si_noirq:
-        plp
-si_done:
-        rts
-
-; Shadows unknown: the next write of every register goes out.
-ay_forget:
-        lda #$FF
-        ldx #31
-:       sta ay_shadow,x
-        dex
-        bpl :-
-        rts
-
-; X = register, A = value, mb_chip = chip: write if it changed. Keeps X.
-ay_put: phx
-        pha
-        txa
-        ldy mb_chip
-        beq :+
-        ora #16
-:       tay
-        pla
-        cmp ay_shadow,y
-        beq :+
-        sta ay_shadow,y
-        jsr mb_write
-:       plx
-        rts
+        jsr mb_put
+sound_irq := mb_irq_start        ; falls into it (mb_irq.asm: the ProDOS
+                                 ; interrupt, T1 at MUS_HZ), then mb_forget
+.include "mb_irq.asm"            ; and mb_put (shadowed AY write, keeps X)
 
 ; S: the music off (its chip silent now) / on (registers rewritten as they
 ; come); the effects play either way (2026-10-30: S muted everything).
@@ -117,45 +79,19 @@ sound_toggle:
         lda music_on
         eor #1
         sta music_on
-        beq mus_hush
+        beq mb_hush
         rts
 
-; The music's chip silent, its shadows forgotten: the next tick writes every
-; register again. Also before a disk access (front.s): ProDOS's Disk II
-; driver masks interrupts the whole time, a note held ~1 s otherwise.
-mus_hush:
-        lda audio_slot
-        beq :++
-        php
-        sei                      ; (the music handler writes too)
-        lda mb_chip
-        pha
-        stz mb_chip
-        jsr mb_quiet_chip
-        pla
-        sta mb_chip
-        lda #$FF                 ; chip 1's shadows (ay_shadow+0..15)
-        ldx #15
-:       sta ay_shadow,x
-        dex
-        bpl :-
-        plp
-:       rts
+; mb_hush: the music's chip silent, its shadows forgotten: the next tick
+; writes every register again. Also before a disk access (front.s): ProDOS's
+; Disk II driver masks interrupts the whole time, a note held ~1 s otherwise.
+.include "mb_irq.asm"
+mus_hush := mb_hush
 
 sound_shutdown:
-        stz spk_period
-        php
-        sei
-        jsr mb_stop              ; silence, timer 1 and its interrupt off
-        lda mus_irq_n
-        beq :+
-        sta mus_dealloc+1
-        stz mus_irq_n
-        jsr $BF00
-        .byte $41                ; DEALLOC_INTERRUPT
-        .word mus_dealloc
-:       plp
-        rts
+        stz spk_period           ; falls into mb_irq_stop: silence, timer 1
+mus_stop := mb_irq_stop          ; and its interrupt off, DEALLOC_INTERRUPT
+.include "mb_irq.asm"
 
 ; Once a frame, after the flip.
 sound_frame:
@@ -207,19 +143,19 @@ sf_step:
         ldy #0
         lda (ptr),y
         ldx #0
-        jsr ay_put
+        jsr mb_put
         ldy #1
         lda (ptr),y
         ldx #1
-        jsr ay_put
+        jsr mb_put
         ldy #2
         lda (ptr),y
         ldx #7
-        jsr ay_put
+        jsr mb_put
         ldy #3
         lda (ptr),y
         ldx #8
-        jsr ay_put
+        jsr mb_put
         bra sf_music
 sf_none:
         stz spk_period
@@ -229,56 +165,17 @@ sf_none:
         sta mb_chip
         lda #0
         ldx #8
-        jsr ay_put
+        jsr mb_put
 sf_music:
 sf_done:
         rts
 
-; ProDOS interrupt handler: C = 0 if timer 1 of the Mockingboard's VIA
-; fired. One PT3 tick (aux memory), the changed registers of chip 1 written.
-mus_irq:
-        cld
-irq_ifr:
-        lda $C40D                ; IFR (slot patched by sound_init)
-        and #$40
-        bne :+
-        sec                      ; not ours
-        rts
-:
-irq_ack:
-        lda $C404                ; T1 low: acknowledges
-        jsr _a2_vbl_scan          ; (a long handler: see the header)
-        inc mus_ticks
-        lda music_on
-        beq mi_done
-        lda mb_chip              ; the main code may be about to write chip 2
-        pha
-        jsr tr_tick
-        stz mb_chip              ; (chip 1's shadows: ay_shadow+0..15)
-        ldx #12
-mi_reg: lda AY_REGISTERS,x       ; inline ay_put: most are unchanged
-        cmp ay_shadow,x
-        beq :+
-        sta ay_shadow,x
-        phx
-        jsr mb_write
-        plx
-:       dex
-        bpl mi_reg
-        lda AY_REGISTERS+13      ; envelope shape: $FF = unchanged (a write
-        cmp #$FF                 ; restarts the envelope, shadow or not)
-        beq :+
-        ldx #13
-        jsr mb_write
-:       pla
-        sta mb_chip
-        jsr _a2_vbl_scan
-mi_done:
-        clc
-        rts
-mus_alloc:   .byte 2, 0
-        .word mus_irq
-mus_dealloc: .byte 1, 0
+; ProDOS interrupt handler (mb_irq.asm): C = 0 if timer 1 of the
+; Mockingboard's VIA fired. One PT3 tick (aux memory), the changed registers
+; of chip 1 written.
+mus_irq := mb_irq_handler
+.include "mb_irq.asm"
+irq_ack := mb_irq_ack            ; (tests: the ticks by their PC)
 
 ; Trampolines into aux memory (copied to $1FE0 of both banks by
 ; tramp_install): reads and writes switch to aux, the next fetch comes

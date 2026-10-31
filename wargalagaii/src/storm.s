@@ -869,20 +869,7 @@ pick_fetch:
 ; Boot (game.s, after this code's copy): LOW2's code and data, WG2.AUX at
 ; LOW2_AUX -> $0200, for good (no interrupt yet: one AUXMOVE).
 low_boot:
-        lda #<LOW2_AUX
-        sta $3C
-        lda #>LOW2_AUX
-        sta $3D
-        lda #<(LOW2_AUX+LOW2_LEN-1)
-        sta $3E
-        lda #>(LOW2_AUX+LOW2_LEN-1)
-        sta $3F
-        lda #<__LOW2_START__
-        sta $42
-        lda #>__LOW2_START__
-        sta $43
-        clc                      ; aux -> main
-        jmp $C311
+        AUXMOVE LOW2_AUX, LOW2_AUX+LOW2_LEN-1, __LOW2_START__, AUX_TO_MAIN, jmp
 
 storm_template:                  ; Meteor Storm's row 0 (lot 11)
         .byte "000000      SPEED   0%          $0000   "

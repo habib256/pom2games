@@ -14,5 +14,6 @@
 #include "apple2frame.h" /* needs APPLE2C_FRAME_SRCS at link time */
 #include "apple2game.h"  /* needs apple2game_asm.s at link time */
 #include "apple2dos.h"   /* needs apple2dos_asm.s at link time  */
+#include "apple2rand.h"  /* needs apple2rand.s at link time     */
 
 #endif /* APPLE2C_H */

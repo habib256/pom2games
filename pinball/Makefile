@@ -37,7 +37,3 @@ test-long:
 	@echo "pinball: no long tests"
 .PHONY: test-long
 .PHONY: test
-
-run-iic: all
-	$(POM2) --preset iic --slot 4=iicmouse $(DISK)
-.PHONY: run-iic

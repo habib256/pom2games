@@ -6,17 +6,31 @@ use the Apple II's native video. Every game in the repository shares them.
 
     dev/
       lib/apple2/      asm : hardware, text, keyboard, HGR, DOS exit,
-                       sound, joystick, DOS commands
+                       sound, joystick, DOS commands; 128 KB aux memory
+                       moves (auxmem.asm); game building blocks: stick
+                       as key events (joy.asm stick_key), initials entry
+                       (initials.asm), tick music (tune.asm), save-file
+                       magic (savehdr.asm), save sectors (rwts_sectors);
+                       Mockingboard: music on the VIA timer IRQ (mb_irq.asm,
+                       ProDOS or own vector), AYS song player (aysong.asm,
+                       format in AYSONG_FORMAT.md)
       lib/apple2c/     C   : text, keyboard, sound, joystick, DOS; frame
-                       pacing, ProDOS video clock (//e VBL, //c mouse IRQ)
+                       pacing, ProDOS video clock (//e VBL, //c mouse IRQ);
+                       aux memory pages (apple2aux.h)
       lib/prodos/      ProDOS 8 MLI and cleanup after DHGR; .SYSTEM shim
-                       (sysboot.s); whole-file load/save (file.asm, file.s)
+                       (sysboot.s); SYS relocator macros (sysreloc.inc);
+                       whole-file load/save, file into aux memory
+                       (file.asm, file.s, file_aux.s)
       lib/mouse/       AppleMouse II: polling, firmware IRQ and VBL,
                        optional ZP/mailbox context for legacy clients
       lib/audio/       optional PWM player, 8 kHz speaker samples
       lib/perspective/ HGR plane over 280 pixels and native two-axis corridor
       lib/math/        asm : exact products (quarter squares), square root,
-                       division, LFSR for fixed-point physics
+                       division, LFSR for fixed-point physics; packed
+                       BCD scores (bcd.asm)
+      lib/physics/     asm : integer Verlet points, sqrt-free constraints,
+                       height-map ground (DIRTBIKE's), bit-exact with
+                       tools/verlet/ (the Python model, emit, test harness)
       tools/prodos/    ProDOS disk image (.po) builder/reader
       lib/font/        Beautiful Boot 8x8 font: one master table, sliced
                        on demand (asm, C, Python tools)
@@ -33,18 +47,25 @@ use the Apple II's native video. Every game in the repository shares them.
                        read them through RWTS once DOS is released ($(DOS33PATCH))
       tools/hgr_tables.py  HGR layout, divide/modulo 7 and runtime offsets
       tools/fonts.py   the Beautiful Boot font on the Python side (derived tables)
+      tools/apple2img.py  image library for game tools: png_write/png_read,
+                       hgr_from_mono/hgr_to_rgb, dhgr_from_colors/dhgr_to_rgb,
+                       preshift7 (7 HGR phases, palette bit, masks, 2-dot cells)
       tools/a2test.py  test harness: ld65 labels, a2run/a2shot launch,
-                       memory dump decoding, test disk
+                       memory dump decoding, test disk, ProDOS volumes
       tools/a2profile.py  a2shot `pcprof` response: cycles per address, per
                        routine (ld65 labels), per region, per group; table
       tools/re6502/    6502 reverse engineering: 6502/65C02 opcodes, code
-                       tracer, da65 info, physical sectors; cli.py (physics/)
+                       tracer, da65 info, physical sectors; cli.py (physics/);
+                       flux2dsk.py (WOZ2/A2R2 -> DOS-order .dsk), peek2bin.py
+                       (a2shot peek dumps -> flat RAM image)
       tools/build_dhgr_font.py  binary image of the relocated small DHGR font
                        (lib/hgrc, DHGR_SMALL_FONT_EXTERNAL)
       tools/assets/    PNG/PPM -> HGR/DHGR bank converter, masks, previews
       tools/audio/     PCM WAV -> PWM clips; 6502 player generator;
                        notes.py: note names -> tone/duet counts, duet.asm
-                       tunes in just intonation (the games' music tools)
+                       tunes in just intonation (the games' music tools);
+                       aysong.py: AYS songs (encode/decode, text/JSON
+                       import, --asm), the bit-exact model of aysong.asm
       tools/perspective.py  configurable fixed-camera tables
       tools/dos33_system.bin  DOS 3.3 system tracks (0-2) from the Apple master disk
       tools/a2shot/    headless, scripted runs with PNG captures
@@ -140,6 +161,14 @@ escaped for it), and returns a `Result` with `.dumps` (one `bytes` per `peek:`),
 `.data`, `.mem(adresse, n)`, `.cycles` (one per `until:`), `.spk`,
 `.text_screens()`; `hgr_offset(y)`, `hgr_visible(page)`, `page_dump()` and
 `build_disk()` round it out.
+ProDOS images, in-process (no stage directory, no subprocess):
+`prodos_files(disque)` gives `{nom: (type, aux, octets)}` in catalogue order;
+`prodos_volume(sortie, {'NOM#TTAAAA': octets}, volume, blocks=280)` builds a
+fresh bootable volume and `prodos_variant(disque, sortie, replace={'RSS.SAVE#060000':
+data}, drop=('RSS.ROOMS',), volume=None, blocks=None)` rebuilds a copy with
+files replaced, added or dropped. Same allocator and fixed date as
+`tools/prodos/build_volume.py`: the images are byte-identical to the
+subprocess builds they replace.
 `tools/dos33.py` also reads an image back: `catalog()`, `read_file()`,
 `replace_file()` (game saves). The MICRO-SOKOBAN,
 ARKABREAKOUT, CHROMABREAK, Maze3D, `tests/` and `bench/` scripts use it.

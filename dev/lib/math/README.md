@@ -60,6 +60,8 @@ LOWBSS, or the unused HGR page.
 | `dec.asm` | `byte_to_dec` | `A` (0..255) → `X` hundreds, `Y` tens, `A` units (0..9); no memory | 30-110 c |
 | | `byte_div10` | `Y = A / 10` (0..25), `A = A mod 10`, X kept | 15-110 c |
 | | `u16_to_dec` | `dec_lo/hi` → ASCII at `(dec_ptr)`, no leading zeros, NUL; `Y` = digit count. Zero page `dec_lo`, `dec_hi`, `dec_ptr`, `dec_t`, `dec_d` allocated unless defined beforehand (hgrc: `hgr_utoa`, `gfx_utoa`) | 250-900 c |
+| `bcd.asm` | `bcd_add_sat` | `(bcd_ptr) += A/Y`, X bytes of packed BCD (low byte first); overflow → 99..99 and C = 1; D set during the add (IRQ handlers: CLD). 32 B; `bcd_ptr` (2 B ZP) unless defined beforehand | ~15 c/byte |
+| | `bcd_put` | the X-byte BCD at A/Y as 2X ASCII digits, top first, each sent to the program's `BCD_PUT_OUT` (keeps X: `hgr_putc8`, `COUT`); `BCD_PUT_LEAD = c`: leading zeros → c, or left out with 0 (units always shown, +27 B). 33 B. From DIRTBIKE (tricks.inc, hof.inc), which is its natural user | |
 | `random.asm` | `rand8` | 16-bit Galois LFSR (taps `$B400`) on `prng_lo/hi`; non-zero seed | ~20 c |
 
 ### The tricks

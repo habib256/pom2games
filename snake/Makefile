@@ -26,8 +26,10 @@ endif
 
 # crt0_apple2 FIRST: it provides __STARTUP__ / _exit instead of none.lib's crt0.
 # Speaker + joystick (apple2game), DOS commands for the record (apple2dos),
-# the vapor lock for the pace (apple2vapor).
-HGRC_EXTRA_SRCS := $(APPLE2C_SRCS) $(APPLE2C_GAME_SRCS) $(APPLE2C_DOS_SRCS) $(APPLE2C_VAPOR_SRCS)
+# the vapor lock for the pace (apple2vapor); the LFSR (apple2rand), the
+# stick check (apple2stick) and BLOAD / BSAVE (apple2dosbin).
+HGRC_EXTRA_SRCS := $(APPLE2C_SRCS) $(APPLE2C_GAME_SRCS) $(APPLE2C_DOS_SRCS) $(APPLE2C_VAPOR_SRCS) \
+                   $(APPLE2C_RAND_SRCS) $(APPLE2C_STICK_SRCS) $(APPLE2C_DOSBIN_SRCS)
 OBJS := $(BUILD)/crt0_apple2.o $(BUILD)/snake.o
 
 vpath %.c src $(HGRC) $(GFX) $(APPLE2C)

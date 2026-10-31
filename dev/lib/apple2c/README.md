@@ -15,8 +15,9 @@ mode. Output goes through COUT (`$FDED`) on the text page, input reads the keybo
 | `apple2io_str.s` | `a2_puts`, `a2_print_hexword` |
 | `apple2frame.h` + `apple2frame.s` | optional frame pacing: IIe VBL, bounded fallback delay |
 | `apple2vbl.h` + `apple2vbl.s` (+ `apple2vbl_pal.s`) | ProDOS video clock: IIe VBL polling or IIc mouse VBL interrupt (CHROMABREAK, WARGALAGA II) |
+| `apple2aux.h` + `apple2aux.s` / `apple2auxfetch.s` | 128 KB aux memory, whole pages: `aux_store(pages, aux_page)` from `aux_store_src`, `aux_fetch_pages(pages, aux_page, main_page)`, on `dev/lib/apple2/auxmem.asm` (see its README) (ROBOT SPACE STATION) |
 | `apple2c.h` | umbrella header |
-| `apple2c.mk` | Makefile fragment: `APPLE2C_SRCS`, `APPLE2C_INCS`, `APPLE2C_GAME_SRCS`, `APPLE2C_DOS_SRCS`, `APPLE2C_VAPOR_SRCS`, `APPLE2C_FRAME_SRCS`, `APPLE2C_VBL_SRCS`, `APPLE2C_VBL_PAL_SRCS`, `APPLE2C_AFLAGS` |
+| `apple2c.mk` | Makefile fragment: `APPLE2C_SRCS`, `APPLE2C_INCS`, `APPLE2C_GAME_SRCS`, `APPLE2C_DOS_SRCS`, `APPLE2C_VAPOR_SRCS`, `APPLE2C_FRAME_SRCS`, `APPLE2C_VBL_SRCS`, `APPLE2C_VBL_PAL_SRCS`, `APPLE2C_AUX_SRCS`, `APPLE2C_AUXFETCH_SRCS`, `APPLE2C_AUX_DEPS`, `APPLE2C_AFLAGS` |
 | `apple2game.h` + `apple2game_asm.s` | speaker, joystick, buttons (optional) |
 | `apple2vapor.h` + `apple2vapor_asm.s` | vapor lock: frame sync through the floating bus on a II / II+ / //e (optional) |
 | `apple2dos.h` + `apple2dos_asm.s` | DOS 3.3 commands: BLOAD, BSAVE… (optional) |
@@ -61,6 +62,17 @@ three buttons and the number of speaker toggles (zero means 256).
 startup (exported as `apple2_zp_buf`, as in `exit.asm`). A
 DOS error stops the program at the prompt: put the files on the
 disk and test `a2_disk_protected()` before writing.
+
+More opt-in objects (2026-10-31), each its own `.s` so a program that does
+not call it links the same bytes:
+
+| Object (`apple2c.mk`) | Function | Cost |
+|---|---|---|
+| `apple2rand.s` (`APPLE2C_RAND_SRCS`, deps `APPLE2C_RAND_DEPS`), `apple2rand.h` | `a2_rand16()`: one step of `../math/random.asm`'s Galois LFSR (taps `$B400`), the new state; `a2_rand_state` (`$ACE1` at load) to seed, never 0 | 27 B code, 2 B DATA |
+| `apple2stick.s` (`APPLE2C_STICK_SRCS`, with `APPLE2C_GAME_SRCS`) | `a2_stick_present()`: `a2_read_stick()`, then 1 if both paddle timers ran out (a two-axis stick), 0 if either still runs | 17 B |
+| `apple2dosbin.s` (`APPLE2C_DOSBIN_SRCS`, with `APPLE2C_DOS_SRCS`) | `a2_dos_bload(name, addr)`, `a2_dos_bsave(name, addr, len)`: `BLOAD NAME,A$hhhh` / `BSAVE NAME,A$hhhh,L$hhhh` | 95 B code, 22 RODATA, 5 BSS |
+
+User: SNAKE (all three; its FIXED_SEED sequence is unchanged).
 
 Macros: `puts_apple2(s)`, `println_apple2(s)`, `getchar_apple2()`, plus the
 codes `KC_LEFT` `KC_RIGHT` `KC_UP` `KC_DOWN` `KC_RET` `KC_ESC`.

@@ -170,6 +170,61 @@ for name in ('hgr_diagonal_cold','hgr_hud_cold','hgr_scene_cold'):
     SCENES[name+'_x7folded']=dict(SCENES[name],variant=('HGRC_X7_FOLDED',('hgr_columns.s',)))
 
 
+# DHGR sprite compositor (opt-in HGRC_DHGR_SPR_SRCS, linked before hgrc.lib):
+# a Robot Space Station room (tile map of RECTS tiles, rows 10..153) and its
+# 10x12 drone; the measured call moves it one pixel (set + update).
+SPR_SRCS=('dhgr_spr_api.s','dhgr_spr_update.s','dhgr_spr_asm.s','dhgr_cv_asm.s',
+          'dhgr_spr_overlay.s','dhgr_spr_cursor.s','dhgr_spr_cells.s','dhgr_cv_bitmap.s')
+SPR_DECL='''
+static unsigned char canvas[1024], map[360], i;
+static const unsigned char floor_r[]={0,0,7,8,0, 3,3,1,2,4};
+static const unsigned char wall_r[]={0,0,7,8,5, 0,7,7,1,2};
+static const unsigned char drone_r[]={3,0,1,2,17, 2,2,6,4,16, 5,3,3,2,2, 6,3,2,1,15,
+    1,6,8,4,10, 2,7,5,1,16, 7,8,3,1,18, 2,10,2,2,19, 6,10,2,2,19};
+static const dhgr_shape_t floor_s={DHGR_SHAPE_RECTS,7,8,2,floor_r};
+static const dhgr_shape_t wall_s={DHGR_SHAPE_RECTS,7,8,2,wall_r};
+static const dhgr_shape_t drone_s={DHGR_SHAPE_RECTS,10,12,9,drone_r};
+static const dhgr_shape_t *const set[2]={&floor_s,&wall_s};
+static const unsigned char pal[4]={7,13,15,9};
+static unsigned char tile_c[56], ship_c[30];
+static const dhgr_shape_t tile_s={DHGR_SHAPE_TILE,7,8,0,tile_c};
+static const dhgr_shape_t ship_s={DHGR_SHAPE_CHUNKY,6,5,0,ship_c};
+static const dhgr_shape_t *const tset[2]={&tile_s,&wall_s};
+static const unsigned char arrow[24]={1,0,0,0,3,0,0,0,7,0,0,0,15,0,0,0,3,0,0,0,1,0,0,0};
+static unsigned char under[48];
+static void paint(unsigned char col, unsigned char row) {
+    static unsigned char x, y;
+    x = col * 7u; y = 10u + (row << 3);
+    if (map[row * 20u + col]) { dhgr_cv_rect(x, y, 7, 8, 5); dhgr_cv_rect(x, y + 7u, 7, 1, 2); }
+    else { dhgr_cv_rect(x, y, 7, 8, 0); dhgr_cv_rect(x + 3u, y + 3u, 1, 2, 4); }
+}
+'''
+SPR_ROOM='''
+for(i=0;i<20;++i){map[i]=map[340+i]=1;} for(i=0;i<18;++i){map[i*20]=map[i*20+19]=1;}
+if(!dhgr_spr_init(canvas,sizeof canvas,4)) return 2;
+dhgr_spr_area(0,10,139,153);
+'''
+for name,x,background in (('dhgr_spr_move',30,'tiles'),('dhgr_spr_move_wide',33,'tiles'),
+                          ('dhgr_spr_move_cells',30,'cells'),('dhgr_spr_move_solid',30,'solid')):
+    bg={'tiles':'dhgr_spr_tiles(0,10,8,map,20,set);','cells':'dhgr_spr_cells(0,10,8,paint);',
+        'solid':''}[background]
+    SCENES[name]=dict(iie=True,dhgr=True,spr=(),declarations=SPR_DECL,
+        setup=SPR_ROOM+bg+'dhgr_spr_invalidate(0,10,140,144); dhgr_spr_palette(0,pal);'
+              'dhgr_spr_set(0,&drone_s,%du,40u,0); dhgr_spr_update();'%x,
+        call='dhgr_spr_set(0,&drone_s,%du,40u,0); dhgr_spr_update();'%(x+1))
+SCENES['dhgr_spr_move_tables']=dict(SCENES['dhgr_spr_move'],spr=('DHGR_SPR_PACK_TABLES',))
+SCENES['dhgr_spr_move_chunky']=dict(SCENES['dhgr_spr_move'],
+    setup='for(i=0;i<56;++i) tile_c[i]=DHGR_NIB(i%13u); for(i=0;i<30;++i) ship_c[i]=i%3u?9u:DHGR_CLEAR;'+
+          SPR_ROOM+'dhgr_spr_tiles(0,10,8,map,20,tset); dhgr_spr_invalidate(0,10,140,144);'
+          'dhgr_spr_set(0,&ship_s,30u,40u,0); dhgr_spr_update();',
+    call='dhgr_spr_set(0,&ship_s,31u,40u,DHGR_SPR_MIRROR); dhgr_spr_update();')
+SCENES['dhgr_cursor_move']=dict(iie=True,dhgr=True,spr=(),declarations=SPR_DECL,
+    setup='dhgr_cursor(20,60,4,6,arrow,under);', call='dhgr_cursor(21,61,4,6,arrow,under);')
+SCENES['dhgr_spr_overlay_move']=dict(SCENES['dhgr_spr_move'],
+    setup=SCENES['dhgr_spr_move']['setup']+'dhgr_spr_overlay(20,60,4,6,arrow,under); dhgr_spr_update();',
+    call='dhgr_spr_overlay(21,61,4,6,arrow,under); dhgr_spr_update();')
+
+
 def segment_sizes(mapfile):
     section=mapfile.read_text().split('Segment list:')[1].split('Exports list')[0]
     sizes={m[1]:int(m[2],16) for m in re.finditer(r'^([A-Z][A-Z0-9_]*)\s+[0-9A-F]+\s+[0-9A-F]+\s+([0-9A-F]+)',section,re.M)}
@@ -221,7 +276,7 @@ def presentation_source(variant):
 
 def measure(work,name,call,dhgr=False,setup='',sprites=False,warmup=True,
             declarations='',sprite_width=None,sprite_height=4,sprite_stride=2,presentation=None,iie=False,cadence=False,
-            pal=False,damage=False,variant=None):
+            pal=False,damage=False,variant=None,spr=None):
     source=work/(name+'.c'); obj=source.with_suffix('.o'); binary=source.with_suffix('.bin')
     source.write_text('#include "hgr.h"\n#include "gfx.h"\n#include "dhgr.h"\n#include "apple2io.h"\n'
       'void hgr_build_tables(void); void bench_begin(void); void bench_end(void); void bench_present(void);\n'+
@@ -252,6 +307,12 @@ def measure(work,name,call,dhgr=False,setup='',sprites=False,warmup=True,
             variant_obj=work/(name+'_'+Path(member).stem+'.o')
             run(['ca65','-t','none','-D',define+'=1','-I',DEV/'lib/hgrc','-o',variant_obj,DEV/'lib/hgrc'/member])
             extra.append(variant_obj)
+    if spr is not None:
+        for member in SPR_SRCS:
+            spr_obj=work/(name+'_'+Path(member).stem+'.o')
+            run(['ca65','-t','none',*('-D'+d+'=1' for d in spr),'-I',DEV/'lib/hgrc','-I',DEV/'lib/apple2',
+                 '-o',spr_obj,DEV/'lib/hgrc'/member])
+            extra.append(spr_obj)
     if cadence:
         frame_obj=work/(name+'_frame.o')
         run(['ca65','-t','none','-o',frame_obj,DEV/'lib/apple2c/apple2frame.s'])
@@ -306,6 +367,7 @@ def main():
     ap=argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--dhgr',action='store_true'); ap.add_argument('--check',action='store_true')
     ap.add_argument('--update',action='store_true'); ap.add_argument('--out',type=Path)
+    ap.add_argument('--only',help='measure only the cases whose names start with one of these (comma-separated)')
     args=ap.parse_args()
     if args.check and args.update:ap.error('choose --check or --update')
     run(['make','-s','-C',DEV/'tools/a2run'])
@@ -314,8 +376,9 @@ def main():
         markers=work/'markers.s'
         markers.write_text('.export _bench_begin, _bench_end\n.segment "CODE"\n_bench_begin: rts\n_bench_end: rts\n')
         run(['ca65','-t','none','-o',work/'markers.o',markers])
-        results={name:measure(work,name,call,dhgr) for name,(call,dhgr) in CASES.items() if args.dhgr or not dhgr}
-        results.update({name:measure(work,name,**options) for name,options in SCENES.items() if args.dhgr or not options.get('iie',False)})
+        wanted=lambda name:not args.only or name.startswith(tuple(args.only.split(',')))
+        results={name:measure(work,name,call,dhgr) for name,(call,dhgr) in CASES.items() if (args.dhgr or not dhgr) and wanted(name)}
+        results.update({name:measure(work,name,**options) for name,options in SCENES.items() if (args.dhgr or not options.get('iie',False)) and wanted(name)})
     import subprocess
     version_result=subprocess.run(['cl65','--version'],capture_output=True,text=True,check=True)
     version=(version_result.stdout+version_result.stderr).strip()
@@ -324,8 +387,8 @@ def main():
     report=dict(schema=2,case_environments=case_environments,stack_sampling='coherent cc65 call/return/jump/(sp),Y boundaries; observed workload, not a static bound',compiler=version,flags='-Oirs',results=results,
                 environments={mode:environment(mode.startswith('iie'),mode=='iie_pal') for mode in sorted(set(case_environments.values()))})
     stress=[m['cycles'] for n,m in results.items() if n.startswith(('hgr_scene_phase','hgr_scene_large'))]
-    report['scene_max_cycles']=max(stress)
-    report['hud_changed_max_cycles']=max(m['cycles'] for n,m in results.items() if n.startswith('hgr_hud_changed_phase'))
+    report['scene_max_cycles']=max(stress,default=0)
+    report['hud_changed_max_cycles']=max((m['cycles'] for n,m in results.items() if n.startswith('hgr_hud_changed_phase')),default=0)
     report['absolute_budgets']={}
     absolute_failures=[]
     for name,policy in json.loads(BUDGETS.read_text()).items():
