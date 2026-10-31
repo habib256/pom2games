@@ -291,7 +291,11 @@ group/row rectangles (each changed slot's old and new boxes, the
 invalidations, the overlay's old and new boxes) clipped to the **area**
 (`dhgr_spr_area`, widened to whole groups: the compositor never writes
 outside it), merges overlapping ones into their bounding box until none
-overlap, and cuts each into canvas pieces. For each piece: background, then
+overlap (each entry absorbs every entry it overlaps, scanning them again
+after each absorption; an earlier entry absorbs it instead and takes its
+place: O(n²) compares, where the first version restarted from the first
+entry after each merge, O(n³): 11,000 cycles a frame in the action demo),
+and cuts each into canvas pieces. For each piece: background, then
 every slot crossing it back to front (slot 0 first), the overlay's bits, and
 the write. The write masks IRQs only around each group's two auxiliary
 stores (about 30 cycles); RAMWRT is main again before each `plp`.
@@ -308,6 +312,7 @@ stores (about 30 cycles); RAMWRT is main again before each `plp`.
 | `dhgr_spr_invalidate(x, y, w, h)` | Redraw a box whose background changed |
 | `dhgr_spr_overlay(bx, y, w, h, bits, under)` | Byte-domain OR layer above everything (a pointer): recomposed in the area, saved/restored outside it (`under`: 2 × the largest w×h used, w×h ≤ 127). With `DHGR_SPR_OVERLAY_INSIDE` only its part in the area is drawn |
 | `dhgr_cursor(bx, y, w, h, bits, under)` | The same save-under cursor without the compositor, drawn at once |
+| `dhgr_spr_present()` | `DHGR_SPR_DOUBLE`: at the next VBL edge, show the draw page and draw on the other one (below) |
 
 Shapes (`dhgr_shape_t {kind, w, h, n, data}`, immutable while used):
 `DHGR_SHAPE_RECTS` (n × {x, y, w, h, colour} inside the shape's w×h,
@@ -336,13 +341,15 @@ Robot Space Station moved one pixel in a room of 7×8 RECTS tiles):
 
 | Case | Cycles | First version |
 |---|---:|---:|
-| `dhgr_spr_move` (tile map, 2 groups × 12 rows rewritten) | 15,910 | 20,241 |
-| `dhgr_spr_move_wide` (same, 3 groups) | 20,689 | 26,184 |
-| `dhgr_spr_move_cells` (C `paint` callback) | 18,852 | 22,843 |
-| `dhgr_spr_move_solid` (one-colour background) | 10,910 | 14,341 |
-| `dhgr_spr_move_chunky` (6×5 CHUNKY ship over TILE tiles) | 10,021 | 10,461 |
-| `dhgr_spr_overlay_move` (4×6-byte pointer moved, room recomposed under it) | 13,117 | 20,412 |
-| `dhgr_cursor_move` (4×6-byte save-under cursor, one byte and one row) | 9,000 | 9,019 |
+| `dhgr_spr_move` (tile map, 2 groups × 12 rows rewritten) | 15,939 | 20,241 |
+| `dhgr_spr_move_wide` (same, 3 groups) | 20,667 | 26,184 |
+| `dhgr_spr_move_cells` (C `paint` callback) | 18,776 | 22,843 |
+| `dhgr_spr_move_solid` (one-colour background) | 11,025 | 14,341 |
+| `dhgr_spr_move_chunky` (6×5 CHUNKY ship over TILE tiles) | 9,380 | 10,461 |
+| `dhgr_spr_overlay_move` (4×6-byte pointer moved, room recomposed under it) | 13,196 | 20,412 |
+| `dhgr_cursor_move` (4×6-byte save-under cursor, one byte and one row) | 9,003 | 9,019 |
+| `dhgr_spr_double_move` (`DHGR_SPR_DOUBLE`, one pixel a frame: this move and the previous one rewritten) | 16,697 | — |
+| `dhgr_spr_vbl_move` (`DHGR_SPR_VBL`, started at a VBL edge: composed, then written after the next edge) | 21,871 | — |
 
 Robot Space Station erased and redrew the same drone in 35,000-45,000
 cycles before it moved to the compositor (2026-10-31: a drone turn went
@@ -350,14 +357,24 @@ from 5.0 / 8.0 / 11.4 to 4.1 / 4.2 / 6.3 frames on the //e in missions
 1 / 4 / 7). Time of `dhgr_spr_move`: about 4,500 cycles pack + write (24
 groups), 6,500 painting (21 rectangles, 290 bytes stored), the rest tiles
 walk and bookkeeping. `dhgr_spr_overlay_move` no longer runs the
-save-under pass while the pointer stays inside the area. Code (6502):
-calls 349 B, init + update 870 B, write 307 B (with the 16-byte table and
-the 51-byte patch list), canvas painters 594 B: 2,120 B (2,473 B in the
-first version); optional members, linked when used: bitmap shapes 356 B,
-cells/tiles + `dhgr_cv_rect` 397 B, overlay 419 B (`dhgr_spr_overlay.s`:
-the overlay's damage and OR hooks, called through `JMP`s that
-`dhgr_spr_overlay` installs), save-under cursor 750 B (`dhgr_spr_cursor.s`,
-also the overlay's part outside the area). BSS: 270 B with
+save-under pass while the pointer stays inside the area.
+
+Code (6502), the core every program links: calls 252 B (`dhgr_spr_set`,
+`dhgr_spr_invalidate`, `dhgr_spr_solid`), init + update 872 B, write 304 B
+(with the 16-byte table and the 51-byte patch list), canvas painters 532 B:
+1,960 B (2,120 B before the 2026-10-31 size pass, 2,473 B in the first
+version; the 1.8 KB target is not reached). Members linked when called:
+`dhgr_spr_palette` 53 B, `dhgr_spr_area` 44 B, bitmap shapes 392 B
+(`dhgr_cv_bitmap.s`: its row loops no longer recompute the canvas row,
+`dhgr_spr_move_chunky` −6 %), cells/tiles + `dhgr_cv_rect` 395 B, overlay
+419 B (`dhgr_spr_overlay.s`: the overlay's damage and OR hooks, called
+through `JMP`s that `dhgr_spr_overlay` installs), save-under cursor 750 B
+(`dhgr_spr_cursor.s`, also the overlay's part outside the area),
+`dhgr_spr_present` 111 B (`dhgr_spr_present.s`). The size pass: one
+clipping loop for both axes in piece coordinates and one rectangle loop for
+the unclipped and clipped paths (its row offsets patched once per shape),
+the area clip as a loop over the four fields, one initialisation loop,
+palette and area in members of their own. BSS: 270 B with
 `DHGR_SPR_MAX=8` (246 B with 7), plus 63 + 4 + 13 + 14 + 16 + 4 B in the
 members. No new zero page: cc65's `ptr1`-`ptr4`/`tmp1`-`tmp4` and the
 `aux_read` stub.
@@ -367,14 +384,59 @@ members. No new zero page: cc65's `ptr1`-`ptr4`/`tmp1`-`tmp4` and the
 | `DHGR_SPR_MAX` | Slots 1..8 (default 8); BSS −24 B per slot removed. Same value for the program's C and the library |
 | `DHGR_SPR_PACK_TABLES` | Accepted, no effect: the single 16-byte table is now the default (faster than the nine tables of the first version) |
 | `DHGR_SPR_CODE_SEGMENT` | All code and tables in segment `DHGRSPRCODE` (place it in an overlay window; BSS stays resident). The code is self-modifying and re-patched on every call, so a reloaded overlay is fine |
-| `DHGR_SPR_RECTS_ONLY` | No bitmap shapes: `dhgr_cv_bitmap.s` is not linked (−356 B) |
+| `DHGR_SPR_RECTS_ONLY` | No bitmap shapes: `dhgr_cv_bitmap.s` is not linked (−392 B) |
 | `DHGR_SPR_OVERLAY_INSIDE` | The overlay is drawn only inside the area (no save-under part, `under` unused): `dhgr_spr_cursor.s` is not linked (−764 B). Robot Space Station draws the pointer's rows outside the room with its own save-under code |
+| `DHGR_SPR_DOUBLE` | Two pages (below): +198 B code and +106 B BSS in the update (+86 B in `dhgr_spr_cursor.s` when the overlay leaves the area), `dhgr_spr_present` 111 B, apple2vbl linked. Not with `DHGR_SPR_VBL` |
+| `DHGR_SPR_VBL` | One page, the write timed after a VBL edge (below): +260 B code in the update, apple2vbl linked |
 
-Planned, not implemented: `DHGR_SPR_VBL` (start each update after the
-beam leaves the area) and `DHGR_SPR_DOUBLE` (page flipping: each page's
-damage history re-applied on the other page, like `hgr_spr_present`).
+**Two pages (`DHGR_SPR_DOUBLE`).** For games that can give up page 2
+(Robot Space Station cannot: its overlays live there). Every update draws
+on the draw page, which is hidden, then `dhgr_spr_present()` shows it at
+the next VBL edge and draws on the other page: nothing is ever stored into
+the shown page. The hidden page last received the frame before the shown
+one, so an update writes what changed since **that page** was drawn: its
+own damage (merged first) joins the damage the other page received
+meanwhile (a list kept for the page that has not had it, 22 rectangles,
+widened when full), and is kept in turn for the other page. Updates
+without a present in between keep adding to that list. The slots' boxes
+stay single: the old box of a moving sprite is in the previous frame's
+damage. Start with the shown page and the draw page different
+(`dhgr_draw_page(2)` after `dhgr_init`) and invalidate the area: both pages
+converge after two updates. The overlay's part outside the area is saved
+per page: page 1 in `under`, page 2 from `under + 254` (`under`: 254 + 2 ×
+the largest w×h). `dhgr_cursor` stays a one-page call. `dhgr_spr_present`
+waits for the edge with dev/lib/apple2c/apple2vbl (link `APPLE2C_VBL_SRCS`,
+`APPLE2C_FRAME_SRCS` and the mouse): mode 1 (//e) polls `$C019` (the
+picture, then the blank: a fresh edge, the flip ~20 cycles after it), mode
+2 (a mouse's VBL interrupt: //c, //e with an AppleMouse) waits for the
+handler to count a refresh (interrupts enabled), mode 0 calls
+`a2_frame_wait` (bounded VBL poll or delay); each wait is bounded (~45,000
+cycles) and flips anyway. The edge it waited for is counted in
+`a2_vbl_count`. The [action demo](../../examples/dhgr_action/README.md)'s
+frame (five 6×6 enemies and a ship over a tile arena): 63,000-67,000
+cycles of work on the //e, a frame every 4 refreshes (15 frames/s).
+
+**VBL-timed write (`DHGR_SPR_VBL`).** For one-page games: when an update's
+damage is a single piece that the write can finish ahead of the beam, the
+piece is composed first, then the update waits for the next VBL edge and
+writes it: each row is stored before the beam starts it (no tear). The
+condition, k rows from row y: `LAT + k × (95 + 165 × groups) ≤ 4,550 + 65
+× (y + k − 1)` (LAT 100 cycles on the //e, 1,200 on the //c; the 95/165
+figures include page crossings): 15 rows of a 2-group sprite at row 20, 12
+at row 0. Several pieces, too many rows, the overlay crossing the piece or
+no clock: the plain order, no wait. The clock is apple2vbl (`a2_vbl_mode`
+1: `$C019` polled by the update itself; 2: the mouse VBL interrupt's count;
+0: the plain order). The wait costs up to a refresh: a game that updates
+once a frame loses nothing, one that updates several times a frame should
+not use it. `test_dhgr_spr.py` checks with `storewatch`'s cycle stamps that
+every store of a waiting update comes before the beam reaches its row
+(rows 19-191 on the //e, least lead 1,310 cycles). Robot Space Station's
+PLAY window has 227 B free after the size pass (162 before): the 260 B of
+the option do not fit there.
+
 Contract: fastcall cc65 ABI, non-reentrant, never from an IRQ; main
-RAM/ZP on entry and exit; draws on the draw page, display unchanged.
+RAM/ZP on entry and exit; draws on the draw page, display unchanged (but
+`dhgr_spr_present`).
 The screen outside the area may change only while the overlay is hidden;
 change a cursor's w×h only while it is hidden. Background changes inside
 the area need `dhgr_spr_invalidate`.
@@ -402,9 +464,15 @@ accesses with endpoint masking.
 - `make test-hgr`: 21 primitive checks, four `gfx` text scenes,
   24 sprite-engine scenes and sixteen minimal link edits.
 - `python3 dev/tests/test_dhgr_spr.py` (in `make test-dhgr`): the
-  compositor on //e and //c, five canvas/option builds (one with
-  `DHGR_SPR_OVERLAY_INSIDE`), 61 scripted updates each against the model
-  plus the storewatch write-once check, and a VIA IRQ run.
+  compositor on //e and //c, seven canvas/option builds (one with
+  `DHGR_SPR_OVERLAY_INSIDE`; `double`: `DHGR_SPR_DOUBLE`, both pages
+  against a two-page model, the shown page equal to the whole frame
+  composed afresh after each present, no store into it; `vbl`:
+  `DHGR_SPR_VBL`), 61 or 62 scripted updates each against the model plus
+  the storewatch write-once check, a VIA IRQ run, and the VBL timing run
+  (each store of a waiting update before the beam reaches its row).
+- `python3 dev/tests/test_dhgr_action.py` (`make test-dhgr-action`): the
+  [action demo](../../examples/dhgr_action/README.md) on //e and //c.
 - `make test-dhgr`: 21 historical checks + 48 additional checks,
   two pages/banks, two backends, sprites, blocks, text, transitions and II+ rejection.
   The POM2 IIe core in `a2shot` is required (macOS arm64 or Linux x86_64).

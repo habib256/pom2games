@@ -16,6 +16,15 @@ RAMWRTON = $C005
 .import _dhgr_spr_ag0, _dhgr_spr_ag1, _dhgr_spr_ay0, _dhgr_spr_ay1
 .import _dhgr_base, dhgr_rowlo, dhgr_rowhi
 .importzp ptr1, ptr2, ptr3, ptr4, tmp1, tmp2, tmp3, tmp4, aux_read
+DOUBLE .set 0
+.if .defined(DHGR_SPR_DOUBLE)
+.if DHGR_SPR_DOUBLE
+DOUBLE .set 1
+.endif
+.endif
+.if DOUBLE
+.import cur_bank
+.endif
 
 .bss
 cur_eg0:  .res 1                ; excluded box (eg0 > eg1: none)
@@ -26,7 +35,11 @@ obx = cur_obx                   ; on screen: bx, y, w, h (dhgr_spr_update.s,
 oy = cur_obx + 1                ; cleared by dhgr_spr_init; ow = 0: nothing)
 ow = cur_obx + 2
 oh = cur_obx + 3
+.if DOUBLE
+osave = cur_obx + 4             ; (contiguous: swapped with cur_bank)
+.else
 osave:  .res 2                  ; the half holding its saved bytes
+.endif
 nsave:  .res 2
 ub0:    .res 1                  ; union: bytes ub0..ub1-1, rows row..uy1-1
 ub1:    .res 1
@@ -34,6 +47,10 @@ row:    .res 1
 uy1:    .res 1
 flags:  .res 1                  ; bit 7: row in old, bit 6: row in new
 xrow:   .res 1                  ; bit 7: row excluded
+.if DOUBLE
+bank:   .res 1                  ; 0 or 6: this page's cur_bank entry
+usave:  .res 2                  ; cur_under during page 2's pass
+.endif
 
 .if .defined(DHGR_SPR_CODE_SEGMENT)
 .if DHGR_SPR_CODE_SEGMENT
@@ -45,9 +62,56 @@ xrow:   .res 1                  ; bit 7: row excluded
 .code
 .endif
 
+.if DOUBLE
+; DHGR_SPR_DOUBLE: each page has its own cursor on screen (obx..oh, osave
+; in cur_bank: 6 bytes a page) and its own saved bytes: page 1 from
+; `under`, page 2 from under + 254 (under: 254 + 2 x the largest w x h).
+dhgr_spr_pass:
+        lda cur_under
+        sta usave
+        lda cur_under+1
+        sta usave+1
+        ldx #0
+        bit _dhgr_base
+        bvc :+                  ; page 1 ($20)
+        ldx #6
+        lda cur_under
+        clc
+        adc #254
+        sta cur_under
+        bcc :+
+        inc cur_under+1
+:       stx bank
+        jsr swap
+        jsr pass
+        ldx bank
+        jsr swap
+        lda usave
+        sta cur_under
+        lda usave+1
+        sta cur_under+1
+        rts
+; Exchange the live cursor (cur_obx, osave) with cur_bank + X.
+swap:   ldy #0
+:       lda cur_bank,x
+        pha
+        lda cur_obx,y
+        sta cur_bank,x
+        pla
+        sta cur_obx,y
+        inx
+        iny
+        cpy #6
+        bne :-
+        rts
+.endif
 ; dhgr_spr_update's pass: the compositor's area excluded. Nothing to do
 ; when the old box (if any) and the new one (if any) lie inside the area.
+.if DOUBLE
+pass:
+.else
 dhgr_spr_pass:
+.endif
         ldx #3
 :       lda _dhgr_spr_ag0,x
         sta cur_eg0,x

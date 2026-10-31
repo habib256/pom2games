@@ -4,7 +4,7 @@
 ; dhgr_cv_paint with the shape's data in ptr2; not linked when the library
 ; is built with DHGR_SPR_RECTS_ONLY=1. A/X/Y, ptr1, ptr2, tmp1 destroyed.
 .export dhgr_cv_bitmap
-.import _dhgr_cv_x0, _dhgr_cv_y0, _dhgr_cv_x1, _dhgr_cv_y1, _dhgr_cv_sx, _dhgr_cv_sy
+.import _dhgr_cv_x0, _dhgr_cv_y0, _dhgr_cv_x1, _dhgr_cv_y1, _dhgr_cv_sx, _dhgr_cv_sy, _dhgr_cv_w
 .import _dhgr_cv_flags, _dhgr_cv_buf, cv_rowoff
 .import cv_sw, cv_sh, cv_count
 .importzp ptr1, ptr2, tmp1
@@ -116,7 +116,7 @@ dhgr_cv_bitmap:
         lda #>@t8
         adc #0
         sta @tgo+2
-@trow:  jsr dest
+        jsr dest
 @tw:    ldy #0
 @tgo:   jmp @t8
 @t8:
@@ -127,8 +127,21 @@ dhgr_cv_bitmap:
 .endrepeat
         tya
         bne @t8
-        jsr next_row
-        bne @trow
+        dec count
+        beq @none
+        lda ptr2                ; next rows: source + sw, canvas + w
+        clc
+        adc sw
+        sta ptr2
+        bcc :+
+        inc ptr2+1
+        clc
+:       lda ptr1
+        adc _dhgr_cv_w
+        sta ptr1
+        bcc @tw
+        inc ptr1+1
+        bcs @tw                 ; (C = 1)
 @none:  rts
 @chunky:
         lda _dhgr_cv_flags      ; mirror: from sw - 1 - column, backwards
@@ -143,12 +156,12 @@ dhgr_cv_bitmap:
 :       sta @step
         lda cnt
         sta @cnt+1
-@crow:  jsr dest
+        jsr dest
         lda ptr1
         sta @dst+1
         lda ptr1+1
         sta @dst+2
-        ldy tmp1
+@crow:  ldy tmp1
         ldx #0
 @px:    lda (ptr2),y
         bmi @clear
@@ -162,9 +175,22 @@ dhgr_cv_bitmap:
         inx
 @cnt:   cpx #0
         bne @px
-        jsr next_row
-        bne @crow
-        rts
+        dec count
+        beq @end
+        lda ptr2                ; next rows: source + sw, canvas + w
+        clc
+        adc sw
+        sta ptr2
+        bcc :+
+        inc ptr2+1
+        clc
+:       lda @dst+1
+        adc _dhgr_cv_w
+        sta @dst+1
+        bcc @crow
+        inc @dst+2
+        bcs @crow               ; (C = 1)
+@end:   rts
 
 ; ptr1 = the canvas at row ridx, column cs.
 dest:   ldy ridx
@@ -181,14 +207,3 @@ dest:   ldy ridx
         sta ptr1+1
         rts
 
-; Next source row (ptr2 += sw) and canvas row; Z = 1 after the last one.
-next_row:
-        lda ptr2
-        clc
-        adc sw
-        sta ptr2
-        bcc :+
-        inc ptr2+1
-:       inc ridx
-        dec count
-        rts

@@ -131,7 +131,10 @@ typedef struct {
  * min(bytes, 255) >= 7*groups. Forgets every slot, the damage and the
  * overlay (hide it first); area = full screen; background = black. Opt-in family
  * HGRC_DHGR_SPR_SRCS; options DHGR_SPR_MAX,
- * DHGR_SPR_CODE_SEGMENT, DHGR_SPR_RECTS_ONLY (README). */
+ * DHGR_SPR_CODE_SEGMENT, DHGR_SPR_RECTS_ONLY, DHGR_SPR_OVERLAY_INSIDE,
+ * DHGR_SPR_DOUBLE (two pages, dhgr_spr_present), DHGR_SPR_VBL (one page:
+ * a single small piece written right after a VBL edge, ahead of the beam;
+ * needs dev/lib/apple2c/apple2vbl) (README). */
 unsigned char dhgr_spr_init(unsigned char *canvas, unsigned bytes, unsigned char groups);
 /* Inclusive colour-pixel box the compositor owns, widened to whole groups;
  * nothing is drawn outside it. */
@@ -177,6 +180,14 @@ void dhgr_cursor(unsigned char bx, unsigned char y, unsigned char w, unsigned ch
                  const unsigned char *bits, unsigned char *under);
 /* Composite: each dirty screen byte written once with its final value. */
 void dhgr_spr_update(void);
+/* Library built with DHGR_SPR_DOUBLE=1 (two pages): each update draws on
+ * the draw (hidden) page what changed since that page was last drawn (its
+ * own damage history); dhgr_spr_present() then waits for the next VBL edge
+ * (dev/lib/apple2c/apple2vbl: //e $C019, //c mouse VBL interrupt, else
+ * a2_frame_wait), shows the draw page and draws on the other one. Start
+ * with the shown page and the draw page different, invalidate the area.
+ * The overlay's saved bytes: page 1 from under, page 2 from under + 254. */
+void dhgr_spr_present(void);
 /* For paint callbacks (and chunky painters): fill a colour-pixel rectangle
  * of the current piece's canvas, clipped to it. */
 void dhgr_cv_rect(unsigned char x, unsigned char y, unsigned char w, unsigned char h,

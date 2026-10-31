@@ -15,7 +15,8 @@
 .export _dhgr_cv_buf, _dhgr_cv_x0, _dhgr_cv_y0, _dhgr_cv_w, _dhgr_cv_h
 .export _dhgr_cv_x1, _dhgr_cv_y1, _dhgr_cv_shape, _dhgr_cv_sx, _dhgr_cv_sy
 .export _dhgr_cv_flags, _dhgr_cv_pal
-.export cv_rx, cv_ry, cv_rw, cv_rh, cv_nib, cv_rowoff
+.export cv_rx, cv_ry, cv_nib, cv_rowoff
+.exportzp cv_rw, cv_rh
 .export cv_sw, cv_sh, cv_count
 .if .defined(DHGR_SPR_RECTS_ONLY)
 .if !DHGR_SPR_RECTS_ONLY
@@ -27,9 +28,11 @@
 .importzp ptr1, ptr2, ptr3, ptr4, tmp1
 
 ROWS = 36                       ; 255 / 7
-fw = ptr3                       ; f_run: columns left, first byte, rows
-col = ptr3+1
-rows = ptr4
+fw = ptr3                       ; f_run: columns left, rows (the clip's
+rows = ptr3+1                   ; lengths, X = 0 / 1), first byte
+col = ptr4
+cv_rw = fw                      ; dhgr_cv_fill's width and height
+cv_rh = rows
 
 .bss
 _dhgr_cv_buf:   .res 2          ; the canvas
@@ -47,11 +50,10 @@ _dhgr_cv_pal:   .res 2          ; four colours for 16..19
 cv_rowoff: .res ROWS            ; r * w
 cv_rx:  .res 1                  ; dhgr_cv_fill input rectangle
 cv_ry:  .res 1
-cv_rw:  .res 1
-cv_rh:  .res 1
 cv_nib: .res 1                  ; nibble 0..15
 mirror: .res 1                  ; bit 7: mirrored
-xin:    .res 1                  ; bit 7: the shape is inside horizontally
+inside: .res 1                  ; bit 7: the shape is inside the piece, bit 6: horizontally
+fst:    .res 2                  ; clipped start in the piece: column, row
 cbase:  .res 1                  ; unclipped shape: its column, row in the piece
 rbase:  .res 1
 cv_sw:
@@ -99,55 +101,49 @@ _dhgr_cv_solid:
 
 fill_none:
         rts
-; cv_rx/ry/rw/rh in colour pixels, cv_nib: fill, clipped to the piece.
+; cv_rx/ry/rw/rh in colour pixels (rw/rh: zero page), cv_nib: fill,
+; clipped to the piece.
 dhgr_cv_fill:
         lda cv_nib
         sta f_nib+1
-        lda cv_rx
-fill_a: tax                     ; X = left, A = right (exclusive)
-        clc
-        adc cv_rw
-        bcs @xcap
-        cmp _dhgr_cv_x1
-        bcc @xe
-@xcap:  lda _dhgr_cv_x1
-@xe:    cpx _dhgr_cv_x0
-        bcs @xs
-        ldx _dhgr_cv_x0
-@xs:    stx tmp1
+fill_a: ldx #0                  ; columns (X = 0), then rows (X = 1), in
+clip_ax:                        ; the piece: offset r - p0, size P = w / h
+        lda cv_rx,x
         sec
-        sbc tmp1
+        sbc _dhgr_cv_x0,x
+        bcc @before
+        sta fst,x               ; the offset; room = P - offset
+        lda _dhgr_cv_w,x
+        sbc fst,x
         beq fill_none
         bcc fill_none
-        sta fw
-        txa
-        sbc _dhgr_cv_x0         ; (C = 1) the column in the piece
-        sta col
-fill_y: ldx cv_ry               ; rows, the same way (fw, col set)
-        txa
-        clc
-        adc cv_rh
-        bcs @ycap
-        cmp _dhgr_cv_y1
-        bcc @ye
-@ycap:  lda _dhgr_cv_y1
-@ye:    cpx _dhgr_cv_y0
-        bcs @ys
-        ldx _dhgr_cv_y0
-@ys:    stx tmp1
-        sec
-        sbc tmp1
+        cmp fw,x
+        bcs @next               ; length n fits
+        bcc @len
+@before:                        ; A = -(p0 - r): n - (p0 - r) from the start
+        adc fw,x                ; (C = 0)
         beq fill_none
         bcc fill_none
-        sta rows
-        txa
-        sbc _dhgr_cv_y0         ; (C = 1)
-        tax
-        lda col
+        cmp _dhgr_cv_w,x
+        bcc :+
+        lda _dhgr_cv_w,x
+:       sta fw,x
+        lda #0
+        sta fst,x
+        beq @next
+@len:   sta fw,x
+@next:  inx
+        cpx #2
+        bne clip_ax
+        ldx fst+1
+        lda fst
         clc
         adc cv_rowoff,x
         sta col
-        ; fall through
+        jmp f_run
+; Rows only (fw, fst = the columns in the piece already).
+fill_y: ldx #1
+        bne clip_ax
 
 ; Fill rows x fw bytes from canvas offset col with the nibble in f_nib+1.
 f_run:  lda fw                  ; this strip: min(fw, 8) columns
@@ -232,7 +228,9 @@ _dhgr_cv_paint:
 .else
         jmp dhgr_cv_bitmap
 .endif
-; RECTS: count x {x, y, w, h, colour}.
+r_done: rts
+; RECTS: count x {x, y, w, h, colour}. A shape wholly inside the piece
+; is painted without clipping; inside horizontally, its rows are clipped.
 rects:  lda count
         beq r_done
         lda _dhgr_cv_flags
@@ -244,35 +242,41 @@ rects:  lda count
         lda _dhgr_cv_pal+1
         sta ptr1+1
         lda #0
-        sta xin
-        lda _dhgr_cv_sx         ; the shape inside the piece: no clipping
+        sta inside
+        lda _dhgr_cv_sx         ; the shape inside the piece?
         sec
         sbc _dhgr_cv_x0
-        bcc r_slow
+        bcc r_loop
         sta cbase
         clc
         adc sw
-        bcs r_slow
+        bcs r_loop
         cmp _dhgr_cv_w
         beq :+
-        bcs r_slow
-:       lda #$80                ; inside horizontally
-        sta xin
+        bcs r_loop
+:       lda #$40                ; inside horizontally
+        sta inside
         lda _dhgr_cv_sy
         sec
         sbc _dhgr_cv_y0
-        bcc r_slow
+        bcc r_loop
         sta rbase
         clc
         adc sh
-        bcs r_slow
+        bcs r_loop
         cmp _dhgr_cv_h
-        beq r_fast
-        bcc r_fast
-r_slow: jmp slow
-r_done: rts
-
-r_fast: ldy #4
+        beq :+
+        bcs r_loop
+:       lda #$C0                ; inside
+        sta inside
+        lda #<cv_rowoff         ; the rows' offsets from the shape's top
+        clc
+        adc rbase
+        sta r_row+1
+        lda #>cv_rowoff
+        adc #0
+        sta r_row+2
+r_loop: ldy #4
         lda (ptr2),y            ; colour
         cmp #16
         bcc :+
@@ -286,16 +290,14 @@ r_fast: ldy #4
 :       sta f_nib+1
         ldy #3
         lda (ptr2),y            ; h
-        beq @next
+        beq r_next
         sta rows
         dey
         lda (ptr2),y            ; w
-        beq @next
+        beq r_next
         sta fw
         dey
         lda (ptr2),y            ; y
-        clc
-        adc rbase
         tax
         dey
         lda (ptr2),y            ; x
@@ -306,74 +308,42 @@ r_fast: ldy #4
         adc sw
         sec
         sbc fw
-:       clc
+:       bit inside
+        bpl r_clip
+        clc                     ; inside: no clipping
         adc cbase
-        adc cv_rowoff,x
+r_row:  adc cv_rowoff,x         ; (patched: cv_rowoff + rbase)
         sta col
         jsr f_run
-@next:  lda ptr2
+r_next: lda ptr2
         clc
         adc #5
         sta ptr2
         bcc :+
         inc ptr2+1
 :       dec count
-        bne r_fast
+        bne r_loop
         rts
-
-slow:   ldy #4
-        lda (ptr2),y            ; colour
-        cmp #16
-        bcc :+
-        and #3
-        tay
-        lda (ptr1),y
-:       jsr cv_nibble
-        sta f_nib+1
-        ldy #3
-        lda (ptr2),y
-        sta cv_rh
-        dey
-        lda (ptr2),y
-        sta cv_rw
-        dey
-        lda (ptr2),y            ; y
+r_clip: tay                     ; x
+        txa
         clc
         adc _dhgr_cv_sy
-        bcs @skip               ; past row 255
+        bcs r_next              ; past row 255
         sta cv_ry
-        dey
-        lda (ptr2),y            ; x
-        bit mirror
-        bpl @x
-        eor #$FF                ; mirrored: sw - x - w
-        sec
-        adc sw
-        sec
-        sbc cv_rw
-@x:     bit xin
-        bpl @clipx
+        tya
+        bit inside
+        bvc @clipx
         clc                     ; inside horizontally: rows clipped only
         adc cbase
-        sta col
-        lda cv_rw
-        beq @skip
-        sta fw
+        sta fst
         jsr fill_y
-        jmp @skip
+        jmp r_next
 @clipx: clc
         adc _dhgr_cv_sx
-        bcs @skip               ; past column 255
+        bcs r_next              ; past column 255
+        sta cv_rx
         jsr fill_a
-@skip:  lda ptr2
-        clc
-        adc #5
-        sta ptr2
-        bcc :+
-        inc ptr2+1
-:       dec count
-        bne slow
-        rts
+        jmp r_next
 
 .if .defined(DHGR_SPR_CODE_SEGMENT)
 .if !DHGR_SPR_CODE_SEGMENT

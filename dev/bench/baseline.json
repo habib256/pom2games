@@ -1277,13 +1277,13 @@
       "hardware_stack_available_bytes": 255
     },
     "dhgr_spr_move_chunky": {
-      "code_bytes": 5566,
+      "code_bytes": 5537,
       "init_code_bytes": 12,
       "rodata_bytes": 954,
       "ram_bytes": 2215,
       "zp_bytes": 35,
-      "binary_bytes": 6558,
-      "cycles": 10021,
+      "binary_bytes": 6529,
+      "cycles": 9380,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 5,
       "c_stack_reserved_bytes": 2048,
@@ -1314,6 +1314,34 @@
       "cycles": 13117,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 6,
+      "c_stack_reserved_bytes": 2048,
+      "hardware_stack_peak_bytes": 12,
+      "hardware_stack_available_bytes": 255
+    },
+    "dhgr_spr_double_move": {
+      "code_bytes": 5611,
+      "init_code_bytes": 12,
+      "rodata_bytes": 954,
+      "ram_bytes": 2322,
+      "zp_bytes": 35,
+      "binary_bytes": 6603,
+      "cycles": 16697,
+      "row_kernel_bytes": 0,
+      "c_stack_peak_bytes": 5,
+      "c_stack_reserved_bytes": 2048,
+      "hardware_stack_peak_bytes": 12,
+      "hardware_stack_available_bytes": 255
+    },
+    "dhgr_spr_vbl_move": {
+      "code_bytes": 6078,
+      "init_code_bytes": 12,
+      "rodata_bytes": 964,
+      "ram_bytes": 2232,
+      "zp_bytes": 35,
+      "binary_bytes": 7086,
+      "cycles": 21871,
+      "row_kernel_bytes": 0,
+      "c_stack_peak_bytes": 5,
       "c_stack_reserved_bytes": 2048,
       "hardware_stack_peak_bytes": 12,
       "hardware_stack_available_bytes": 255
@@ -1513,7 +1541,7 @@
       "artifacts": [
         {
           "name": "a2shot",
-          "sha256": "e653fd257eda401f78ccaf627f6dc0f7889780a40b028298680298fcd9813b62"
+          "sha256": "bb69de7eead30c235c015cc989a12527f37d5f37342e403a742dfa6f3962dcce"
         },
         {
           "name": "apple2e.rom",
@@ -1656,7 +1684,9 @@
     "dhgr_spr_move_tables": "iie",
     "dhgr_spr_move_chunky": "iie",
     "dhgr_cursor_move": "iie",
-    "dhgr_spr_overlay_move": "iie"
+    "dhgr_spr_overlay_move": "iie",
+    "dhgr_spr_double_move": "iie",
+    "dhgr_spr_vbl_move": "iie"
   },
   "pre_incremental_references": {
     "hgr_scene_cold": {

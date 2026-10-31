@@ -83,7 +83,9 @@ resident memory.
 
 ## Left
 
-- `DHGR_SPR_VBL` / `DHGR_SPR_DOUBLE` (library, planned): VBL-paced
-  updates on the //c, page flipping.
+- `DHGR_SPR_VBL` / `DHGR_SPR_DOUBLE` exist in the library since the same
+  evening (see ABI.md); the game cannot take VBL yet (+260 B against
+  227 B free in PLAY) and cannot double-buffer (page 2 is its overlay
+  window).
 - The board screen's technician still hides and shows (no background
   source for the compositor there).

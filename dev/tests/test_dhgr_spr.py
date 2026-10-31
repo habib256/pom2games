@@ -20,7 +20,7 @@ import a2test
 
 HGRC = DEV / 'lib/hgrc'
 A2SHOT = DEV / 'tools/a2shot/a2shot'
-SOURCES = ('dhgr_spr_api.s', 'dhgr_spr_update.s', 'dhgr_spr_asm.s', 'dhgr_cv_asm.s', 'dhgr_spr_overlay.s', 'dhgr_spr_cursor.s', 'dhgr_spr_cells.s', 'dhgr_cv_bitmap.s')
+SOURCES = ('dhgr_spr_api.s', 'dhgr_spr_palette.s', 'dhgr_spr_area.s', 'dhgr_spr_update.s', 'dhgr_spr_asm.s', 'dhgr_cv_asm.s', 'dhgr_spr_overlay.s', 'dhgr_spr_cursor.s', 'dhgr_spr_cells.s', 'dhgr_cv_bitmap.s')
 MAX = 8
 DMAX = 2 * MAX + 6
 NONE = 0xFF
@@ -77,10 +77,15 @@ def initial_tiles():
 
 
 class Model:
-    def __init__(self, inside=False):
+    def __init__(self, inside=False, double=False):
         self.inside = inside    # DHGR_SPR_OVERLAY_INSIDE: no save-under part
-        self.main = bytearray(b'\x55' * 8192)      # dhgr_clear(5), holes too
-        self.aux = bytearray(b'\x2a' * 8192)
+        self.double = double    # DHGR_SPR_DOUBLE: two pages, damage history
+        # dhgr_clear(5) on page 1, dhgr_clear(10) on page 2, holes too
+        self.pages = {1: [bytearray(b'\x55' * 8192), bytearray(b'\x2a' * 8192)],
+                      2: [bytearray(b'\x2a' * 8192), bytearray(b'\x55' * 8192)]}
+        self.draw = 2 if double else 1
+        self.pend, self.pend_page, self.mvp = [], None, set()
+        self.curs = {1: (None, {}), 2: (None, {})}   # double: each page's cursor
         self.slots = [dict(shape=None, x=0, y=0, flags=0, dirty=False, box=None, drawn=None,
                            pal=[0, 0, 0, 0]) for _ in range(MAX)]
         self.area = (0, 19, 0, 191)
@@ -95,6 +100,14 @@ class Model:
         self.ov_drawn = None    # (g0, g1, y0, y1)
         self.cur = None         # cursor on screen (bx, y, w, h), its saved bytes
         self.saved = {}
+
+    @property
+    def main(self):
+        return self.pages[self.draw][0]
+
+    @property
+    def aux(self):
+        return self.pages[self.draw][1]
 
     # -- damage, as dhgr_spr.c does it -----------------------------------
     def clip(self, r):
@@ -158,6 +171,11 @@ class Model:
                     s['drawn'] = r
                     self.add(r)
         moved = self.ov_dirty
+        if self.double:                 # page_moved: each page owes the pass
+            if self.ov_dirty:
+                self.mvp |= {1, 2}
+            moved = self.draw in self.mvp
+            self.mvp.discard(self.draw)
         if self.ov_dirty:
             self.ov_dirty = False
             if self.ov_drawn:
@@ -167,22 +185,24 @@ class Model:
                 bx, y, w, h = self.ov
                 self.ov_drawn = (bx >> 2, (bx + w - 1) >> 2, y, y + h - 1)
                 self.add(self.ov_drawn)
+        if self.double:                 # history: the other page's pending list
+            merge(self.dmg)
+            n0 = len(self.dmg)
+            if self.pend_page == self.draw:
+                for r in self.pend:
+                    self.add(r)
+                self.pend = []
+            for r in self.dmg[:n0]:
+                if len(self.pend) == DMAX:
+                    o = self.pend[0]
+                    self.pend[0] = (min(o[0], r[0]), max(o[1], r[1]), min(o[2], r[2]), max(o[3], r[3]))
+                else:
+                    self.pend.append(r)
+            self.pend_page = 3 - self.draw
         d = self.dmg
-        merged = True
-        while merged:
-            merged = False
-            for i in range(len(d)):
-                for j in range(i + 1, len(d)):
-                    a, b = d[i], d[j]
-                    if a[0] <= b[1] and b[0] <= a[1] and a[2] <= b[3] and b[2] <= a[3]:
-                        d[i] = (min(a[0], b[0]), max(a[1], b[1]), min(a[2], b[2]), max(a[3], b[3]))
-                        d[j] = d[-1]
-                        d.pop()
-                        merged = True
-                        break
-                if merged:
-                    break
+        merge(d)
         stores = {}
+        page = 0x2000 * self.draw
         for g0, g1, y0, y1 in d:
             for y in range(y0, y1 + 1):
                 row = self.row_bytes(y, g0, g1)
@@ -191,15 +211,30 @@ class Model:
                     b = row[g]
                     for k, bank in enumerate(('aux', 'main', 'aux', 'main')):
                         addr = base + 2 * g + k // 2
-                        key = (bank, 0x2000 + addr)
+                        key = (bank, page + addr)
                         assert key not in stores, 'model damage overlaps'
                         stores[key] = b[k]
                         getattr(self, bank)[addr] = b[k]
         self.dmg = []
         if moved and not self.inside:
             a = self.area
+            if self.double:
+                self.cur, self.saved = self.curs[self.draw]
             self.cursor(self.ov, stores, lambda b, y: a[2] <= y <= a[3] and a[0] <= b // 4 <= a[1])
+            if self.double:
+                self.curs[self.draw] = (self.cur, self.saved)
         return stores
+
+    def frame_check(self, label):
+        """The draw page's area equals the whole frame composed afresh."""
+        g0, g1, y0, y1 = self.area
+        for y in range(y0, y1 + 1):
+            row = self.row_bytes(y, g0, g1)
+            base = a2test.hgr_offset(y)
+            for g in range(g0, g1 + 1):
+                for k, bank in enumerate(('aux', 'main', 'aux', 'main')):
+                    got = getattr(self, bank)[base + 2 * g + k // 2]
+                    assert got == row[g][k], (label, 'page has not converged', y, g, k)
 
     def cursor(self, new, stores, excluded=lambda b, y: False):
         """dhgr_cursor_core: one pass over old U new outside the excluded box."""
@@ -214,7 +249,7 @@ class Model:
                 continue
             bank = 'aux' if b % 2 == 0 else 'main'
             addr = a2test.hgr_offset(r) + b // 2
-            key = (bank, 0x2000 + addr)
+            key = (bank, 0x2000 * self.draw + addr)
             inside = lambda box: box and box[0] <= b < box[0] + box[2] and box[1] <= r < box[1] + box[3]
             base = self.saved[(b, r)] if inside(old) else getattr(self, bank)[addr] & 0x7F
             out = base
@@ -271,6 +306,26 @@ class Model:
         return out
 
 
+def merge(d):
+    """dhgr_spr_update's merge: entry i absorbs every entry j it overlaps
+    (scanning again after each); an earlier j absorbs i and becomes i."""
+    i = 0
+    while i < len(d):
+        j = 0
+        while j < len(d):
+            a, b = d[i], d[j]
+            if j != i and a[0] <= b[1] and b[0] <= a[1] and a[2] <= b[3] and b[2] <= a[3]:
+                box = (min(a[0], b[0]), max(a[1], b[1]), min(a[2], b[2]), max(a[3], b[3]))
+                keep, drop = (i, j) if j > i else (j, i)
+                d[keep] = box
+                d[drop] = d[-1]
+                d.pop()
+                i, j = keep, 0
+                continue
+            j += 1
+        i += 1
+
+
 def paint(px, shape, sx, sy, flags, pal, y):
     """Row y of shape number `shape` at sx, sy into px {x: nibble}."""
     kind, sw, sh, data = SHAPES[shape]
@@ -301,8 +356,8 @@ def paint(px, shape, sx, sy, flags, pal, y):
 class Script:
     """Op bytes for the fixture, played on the model at the same time."""
 
-    def __init__(self, inside=False):
-        self.ops, self.model, self.updates = [], Model(inside), []
+    def __init__(self, inside=False, double=False):
+        self.ops, self.model, self.updates = [], Model(inside, double), []
 
     def set(self, i, shape, x, y, flags=0):
         self.ops += [1, i, NONE if shape is None else shape, x, y, flags]
@@ -342,7 +397,9 @@ class Script:
             w = 0
         stores = {}
         self.model.cursor((bx, y, w, h) if w else None, stores)
-        self.updates.append((label, stores, bytes(self.model.main), bytes(self.model.aux)))
+        m = self.model
+        self.updates.append((label, stores, bytes(m.pages[1][0]), bytes(m.pages[1][1]),
+                             bytes(m.pages[2][0]), bytes(m.pages[2][1]), 1))
 
     def tiles(self, ox, oy, ch):
         self.ops += [10, ox, oy, ch]
@@ -358,12 +415,18 @@ class Script:
 
     def update(self, label):
         self.ops.append(5)
-        stores = self.model.update()
-        self.updates.append((label, stores, bytes(self.model.main[:8192]), bytes(self.model.aux[:8192])))
+        m = self.model
+        drawn = m.draw
+        stores = m.update()
+        if m.double:                    # dhgr_spr_present: show it, draw on the other
+            m.frame_check(label)
+            m.draw = 3 - drawn
+        self.updates.append((label, stores, bytes(m.pages[1][0]), bytes(m.pages[1][1]),
+                             bytes(m.pages[2][0]), bytes(m.pages[2][1]), drawn))
 
 
-def scenario(inside=False):
-    s = Script(inside)
+def scenario(inside=False, double=False):
+    s = Script(inside, double)
     s.solid(2)
     s.invalidate(0, 0, 140, 192)
     s.update('full solid')
@@ -473,6 +536,18 @@ def scenario(inside=False):
     s.update('overlay bottom-left corner')
     s.overlay(0, 0, 0, 0)
     s.update('overlay hidden')
+    if double:                  # (dhgr_cursor draws on one page: left out)
+        s.overlay(60, 2, 4, 6)
+        s.update('overlay above the area')
+        s.overlay(61, 3, 4, 6)
+        s.update('overlay above the area, moved')
+        s.update('nothing changed: page 1 catches up')
+        s.update('nothing changed at all')
+        s.overlay(61, 3, 0, 0)
+        s.update('overlay hidden again')
+        s.update('overlay hidden on both pages')
+        s.ops.append(0)
+        return s
     s.cursor(76, 4, 4, 6, 'cursor alone')
     s.cursor(77, 5, 3, 6, 'cursor alone at the right edge')
     s.cursor(79, 186, 1, 6, 'cursor alone, bottom-right byte')
@@ -480,6 +555,37 @@ def scenario(inside=False):
     s.cursor(0, 0, 0, 0, 'cursor alone hidden')
     s.ops.append(0)
     return s
+
+
+def scenario_vbl():
+    """DHGR_SPR_VBL timing: a 2-group drone 1 px moves (12 and 13 rows) at
+    rows 20, 100 and 180: each such update waits for a VBL edge, then writes
+    every row before the beam starts it."""
+    s = Script()
+    s.solid(2)
+    s.invalidate(0, 0, 140, 192)
+    s.update('full solid')
+    s.palette(0, (7, 13, 15, 9))
+    for y in (20, 100, 180):
+        s.set(0, 0, 42, y)
+        s.update(f'vbl: drone appears at row {y}' if y == 20 else f'drone to row {y} (two boxes)')
+        s.set(0, 0, 43, y)
+        s.update(f'vbl: 1 px right, row {y}')
+        s.set(0, 0, 43, y - 1)
+        s.update(f'vbl: 1 px up, row {y - 1} (13 rows)')
+    s.set(0, 0, 50, 60)
+    s.set(1, 1, 60, 70)
+    s.update('two rectangles: plain order')
+    s.ops.append(0)
+    return s
+
+
+def a2test_frame(machine):
+    return 17030                # NTSC frame (a2shot without --pal)
+
+
+ROW_OF = {a2test.hgr_offset(y) + b: y for y in range(192) for b in range(40)}
+BLANK, LINE = 4550, 65
 
 
 def write_inc(work, script, canvas, groups):
@@ -574,7 +680,8 @@ def link(work, name, variant, markers='markers.o'):
     """Fixture + compositor (variant defines) + work/hgrc.lib -> a disk."""
     defines = [f'-D{d}=1' for d in variant]
     objects = []
-    for source in SOURCES:
+    clock = 'DHGR_SPR_DOUBLE' in variant or 'DHGR_SPR_VBL' in variant
+    for source in SOURCES + (('dhgr_spr_present.s',) if 'DHGR_SPR_DOUBLE' in variant else ()):
         src = HGRC / source
         if source.endswith('.s') and defines:
             src = work / f'{name}_{source}'
@@ -584,9 +691,17 @@ def link(work, name, variant, markers='markers.o'):
                                   '-I', HGRC, '--asm-include-dir', HGRC,
                                   '--asm-include-dir', DEV / 'lib/apple2'])
         objects.append(obj)
+    if clock:                   # the VBL clock: apple2vbl (+ its mouse and frame imports)
+        for src in (DEV / 'lib/apple2c/apple2vbl.s', DEV / 'lib/apple2c/apple2frame.s',
+                    DEV / 'lib/mouse/mouse.s'):
+            obj = work / f'{name}_{src.stem}.o'
+            compile_source(src, obj, ['-t', 'none'])
+            objects.append(obj)
     fixture = work / f'{name}_fixture.o'
     compile_source(DEV / 'tests/dhgr_spr_fixture.c', fixture,
-                   ['-t', 'none', '-Oirs', '-I', work, '-I', HGRC, '-I', DEV / 'lib/apple2c'])
+                   ['-t', 'none', '-Oirs', '-I', work, '-I', HGRC, '-I', DEV / 'lib/apple2c',
+                    *(['-DFIXTURE_DOUBLE'] if 'DHGR_SPR_DOUBLE' in variant else ()),
+                    *(['-DFIXTURE_VBL'] if 'DHGR_SPR_VBL' in variant else ())])
     cfg = work / 'test.cfg'
     text = (DEV / 'cc65/apple2_hgr_c.cfg').read_text()
     text = text.replace('__STACKSIZE__:  type = weak, value = $0800', '__STACKSIZE__:  type = weak, value = $0200')
@@ -605,15 +720,20 @@ def link(work, name, variant, markers='markers.o'):
     return a2test.build_disk(work, name.upper()[:8], binary), a2test.labels(work / f'{name}.lbl')
 
 
-def check(work, name, script, machine, variant=(), irq=False):
+def check(work, name, script, machine, variant=(), irq=False, timing=None):
+    """timing: a list receiving (label, edges seen, smallest beam lead) per
+    update: the VBL watch is on and each store after an edge is checked."""
     disk, labels = link(work, name, variant, 'via.o' if irq else 'markers.o')
-    steps = []
+    double = 'DHGR_SPR_DOUBLE' in variant
+    page2 = ['peek:4000:8192', 'poke:C003:0', 'peek:4000:8192', 'poke:C002:0']
+    steps = ['watch:%04X' % labels['vbl_seen']] if timing is not None else []
     for _ in script.updates:
         steps += [labels.until('_begin'), 'storewatch:2000:5FFF', labels.until('_end'),
                   'unstorewatch', 'peek:%04X:2' % labels['sp'], 'peek:2000:8192', 'poke:C003:0', 'peek:2000:8192',
-                  'poke:C002:0', 'press: ']
+                  'poke:C002:0', *(page2 if double else ()), 'press: ']
     # Before the last key (the program then exits): page 2, both banks.
-    steps[-1:-1] = ['peek:4000:8192', 'poke:C003:0', 'peek:4000:8192', 'poke:C002:0']
+    if not double:
+        steps[-1:-1] = page2
     if irq:
         steps[-1:-1] = [labels.peek('irq_ticks', 4)]
     out = run([A2SHOT, machine, *(['--mockingboard'] if irq else []), '--disk', disk, *steps],
@@ -624,10 +744,21 @@ def check(work, name, script, machine, variant=(), irq=False):
     total_stores = 0
     ticks = [int(c) for c in re.findall(r'(?m)^until \S+ cycles=(\d+)', out)]
     cycles = {label: ticks[2 * i + 1] - ticks[2 * i] for i, (label, *_) in enumerate(script.updates)}
-    for index, (label, expected, main, aux) in enumerate(script.updates):
+    per = 4 if double else 3      # (contiguous peeks join: aux 1 + main 2)
+    for index, (label, expected, main, aux, main2, aux2, drawn) in enumerate(script.updates):
         seen = {}
         previous = None
+        edge = None
+        edges = 0
+        lead = None
         for line in segments[2 * index].split('\n'):
+            if timing is not None and line.startswith('watch '):
+                # The edge lies between this poll's read and the one before
+                # (11 cycles a poll): count from the earliest it can be.
+                edge = int(line.rsplit('cycles=', 1)[1]) - 15
+                edges += 1
+                timing.append(('phase', edge % a2test_frame(machine)))
+                continue
             m = STORE.match(line)
             if not m:
                 continue
@@ -638,30 +769,41 @@ def check(work, name, script, machine, variant=(), irq=False):
                 continue
             previous = m.group(1, 2, 3, 4, 5)
             addr = int(m[2], 16)
+            if edge is not None:
+                # The store's write cycle (its last) before the beam starts its row.
+                at = int(line.rsplit('cycles=', 1)[1]) + 5
+                row = ROW_OF[(addr - 0x2000) & 0x1FFF]
+                spare = edge + BLANK + LINE * row - at
+                assert spare > 0, (label, 'store behind the beam', row, hex(addr), spare)
+                lead = spare if lead is None else min(lead, spare)
             bank = 'aux' if m[11] == '1' else 'main'
             assert m[9] == '0' and m[10] == '0', (label, 'ALTZP/RAMRD on', line)
             key = (bank, addr)
             assert key not in seen, (label, 'stored twice', bank, hex(addr))
-            assert addr < 0x4000, (label, 'page 2 store', line)
+            assert 0x2000 * drawn <= addr < 0x2000 * (drawn + 1), (label, 'store outside the draw page', line)
             seen[key] = int(m[3], 16)
             irq_masked = bool(int(m[6], 16) & 4)
             assert irq_masked == (bank == 'aux'), (label, 'IRQ mask around the stores', line)
         total_stores += len(seen)
+        if timing is not None:
+            timing.append((label, edges, lead))
         missing = set(expected) - set(seen)
         extra = set(seen) - set(expected)
         assert not missing and not extra, (label, 'stores differ from the model damage',
                                            sorted(missing)[:4], sorted(extra)[:4], len(missing), len(extra))
         wrong = [k for k in expected if seen[k] != expected[k]]
         assert not wrong, (label, 'stored value is not the final one', wrong[:4])
-        sp, got_main, got_aux = result.dumps[3 * index:3 * index + 3]
-        got_aux = got_aux[:8192]
+        sp, got_main, joined, *more = result.dumps[per * index:per * index + per]
+        got_aux = joined[:8192]
         assert sp == result.dumps[0], (label, 'C stack pointer moved', sp.hex(), result.dumps[0].hex())
-        if got_main != main or got_aux != aux:
-            for bank, got, want in (('main', got_main, main), ('aux', got_aux, aux)):
+        compare = [('main', got_main, main, 0x2000), ('aux', got_aux, aux, 0x2000)]
+        if double:
+            compare += [('main', joined[8192:], main2, 0x4000), ('aux', more[0][:8192], aux2, 0x4000)]
+        for bank, got, want, at in compare:
+            if got != want:
                 diff = [i for i in range(8192) if got[i] != want[i]]
-                if diff:
-                    raise AssertionError((label, bank, 'screen != model', len(diff),
-                                          [(hex(0x2000 + i), got[i], want[i]) for i in diff[:6]]))
+                raise AssertionError((label, bank, 'screen != model', len(diff),
+                                      [(hex(at + i), got[i], want[i]) for i in diff[:6]]))
     # dhgr_clear(10) on page 2: main $2A, aux $55 everywhere (holes too).
     dumps = result.dumps
     if irq:
@@ -671,7 +813,8 @@ def check(work, name, script, machine, variant=(), irq=False):
         assert ticks > 1000, ('IRQs not serviced', ticks)
         dumps = dumps[:-1]
     # (page 2 main continues the last aux dump: contiguous addresses)
-    assert dumps[-2][8192:] == b'\x2a' * 8192 and dumps[-1] == b'\x55' * 8192, 'page 2 changed'
+    if not double:
+        assert dumps[-2][8192:] == b'\x2a' * 8192 and dumps[-1] == b'\x55' * 8192, 'page 2 changed'
     return total_stores, cycles
 
 
@@ -679,6 +822,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--iic', action='store_true', help='the //c only')
     ap.add_argument('--quick', action='store_true', help='one configuration')
+    ap.add_argument('--only', help='configurations to run (comma-separated names)')
     ap.add_argument('--keep', help='work directory to keep')
     ap.add_argument('--cycles', action='store_true', help='print each update\'s cycles')
     args = ap.parse_args()
@@ -686,9 +830,13 @@ def main():
     configs = [('base', 1024, 4, ()), ('small', 70, 2, ()),
                ('wide', 1024, 20, ('DHGR_SPR_PACK_TABLES',)),
                ('segment', 512, 3, ('DHGR_SPR_PACK_TABLES', 'DHGR_SPR_CODE_SEGMENT')),
-               ('inside', 255, 4, ('DHGR_SPR_OVERLAY_INSIDE',))]
+               ('inside', 255, 4, ('DHGR_SPR_OVERLAY_INSIDE',)),
+               ('double', 255, 4, ('DHGR_SPR_DOUBLE',)),
+               ('vbl', 255, 4, ('DHGR_SPR_VBL',))]
     if args.quick:
         configs = configs[:1]
+    if args.only:
+        configs = [c for c in configs if c[0] in args.only.split(',')]
     with tempfile.TemporaryDirectory(prefix='dhgr-spr-') as directory:
         work = Path(args.keep) if args.keep else Path(directory)
         work.mkdir(exist_ok=True)
@@ -698,7 +846,7 @@ def main():
         (work / 'via.s').write_text(VIA_IRQ)
         compile_source(work / 'via.s', work / 'via.o', ['-t', 'none'])
         for name, canvas, groups, variant in configs:
-            script = scenario('DHGR_SPR_OVERLAY_INSIDE' in variant)
+            script = scenario('DHGR_SPR_OVERLAY_INSIDE' in variant, 'DHGR_SPR_DOUBLE' in variant)
             write_inc(work, script, canvas, groups)
             for machine in machines:
                 stores, cycles = check(work, name, script, machine, variant)
@@ -708,6 +856,32 @@ def main():
                 if args.cycles:
                     for label, c in cycles.items():
                         print(f'  {c:8} {label}')
+            if name == 'vbl':
+                script = scenario_vbl()
+                write_inc(work, script, canvas, groups)
+                for machine in machines:
+                    timing = []
+                    check(work, 'vblt', script, machine, variant, timing=timing)
+                    phases = [t[1] for t in timing if t[0] == 'phase']
+                    timing = [t for t in timing if t[0] != 'phase']
+                    # $C019 falls at the start of row 192 every frame: the
+                    # same phase each time (the beam model used above).
+                    assert not phases or max(phases) - min(phases) <= 15, ('edge phase', phases)
+                    waited = [t for t in timing if t[0].startswith('vbl:')]
+                    if machine == '--iie':
+                        assert all(t[1] == 1 for t in waited), ('no VBL wait', timing)
+                        assert all(t[1] == 0 for t in timing if not t[0].startswith('vbl:')), \
+                            ('waited for a VBL edge in the plain order', timing)
+                        print(f'DHGR compositor vbl timing iie: {len(waited)} updates wait for the '
+                              'VBL edge, every store before the beam reaches its row (least lead '
+                              f'{min(t[2] for t in waited)} cycles, edge at frame cycle '
+                              f'{min(phases)}); the others do not wait.')
+                        if args.cycles:
+                            for label, edges, lead in timing:
+                                print(f'  {edges} edge, lead {lead}: {label}')
+                    else:
+                        print(f'DHGR compositor vbl timing iic (no VBL clock without ProDOS: the '
+                              f'plain order): {len(timing)} updates == model, write-once.')
             if name == 'base' and '--iie' in machines:
                 check(work, name, script, '--iie', variant, irq=True)
                 print(f'DHGR compositor {name} iie + VIA IRQs every 2,046 cycles: '

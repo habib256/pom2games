@@ -11,7 +11,7 @@
 .export _dhgr_spr_update, _dhgr_spr_add, _dhgr_spr_init
 .export _dhgr_spr_shlo, _dhgr_spr_shhi, _dhgr_spr_x, _dhgr_spr_y
 .export _dhgr_spr_x1, _dhgr_spr_y1, _dhgr_spr_flags, _dhgr_spr_dirty
-.export _dhgr_spr_pal, _dhgr_spr_dn
+.export _dhgr_spr_pal, _dhgr_spr_dn, dhgr_spr_slots
 .export _dhgr_spr_rg0, _dhgr_spr_rg1, _dhgr_spr_ry0, _dhgr_spr_ry1
 .export _dhgr_spr_ag0, _dhgr_spr_ag1, _dhgr_spr_ay0, _dhgr_spr_ay1
 .export _dhgr_spr_solid_c, _dhgr_spr_bg, _dhgr_spr_bg_jmp
@@ -27,11 +27,33 @@ _dhgr_cursor_w = cur_nw
 .import _dhgr_spr_blit, _dhgr_spr_goff, _dhgr_spr_gend, dhgr_cv_patch
 .import incsp4
 .importzp sp, tmp1
+DOUBLE .set 0
+.if .defined(DHGR_SPR_DOUBLE)
+.if DHGR_SPR_DOUBLE
+DOUBLE .set 1
+.endif
+.endif
+.if DOUBLE
+.import _dhgr_base
+.export cur_bank
+.endif
+VBL .set 0
+.if .defined(DHGR_SPR_VBL)
+.if DHGR_SPR_VBL
+VBL .set 1
+.endif
+.endif
+.if VBL
+.import _a2_vbl_mode, _a2_vbl_count, _a2_vbl_beam
+.importzp tmp2, tmp3, tmp4
+.export vbl_edge, vbl_seen
+.endif
 
 .ifndef DHGR_SPR_MAX
 DHGR_SPR_MAX = 8
 .endif
 MAX = DHGR_SPR_MAX
+dhgr_spr_slots = MAX            ; (dhgr_spr_palette.s)
 DMAX = 2 * MAX + 6
 NONE = $FF
 
@@ -52,7 +74,11 @@ cur_nw:   .res 1
 cur_nh:   .res 1
 cur_bits: .res 2
 cur_under: .res 2
+.if DOUBLE
+cur_obx:  .res 6                ; the cursor on screen + osave (dhgr_spr_cursor.s)
+.else
 cur_obx:  .res 4                ; the cursor on screen (dhgr_spr_cursor.s)
+.endif
 _dhgr_spr_bg:    .res 1         ; background: 0 solid, else cells or tiles
 _dhgr_spr_solid_c: .res 1
 _dhgr_spr_ov_on: .res 1         ; bit 7: the overlay has a box in the area
@@ -60,8 +86,15 @@ _dhgr_spr_ag0:   .res 1         ; area, inclusive (0, 19, 0, 191), in
 _dhgr_spr_ag1:   .res 1         ; this order (dhgr_spr_cursor.s's pass)
 _dhgr_spr_ay0:   .res 1
 _dhgr_spr_ay1:   .res 1
+capw:   .res 1                  ; (cap's width; 0: none yet)
+.if DOUBLE
+p_n:    .res 1                  ; the other page's pending damage: count,
+p_page: .res 1                  ; its page ($20/$40; 0: none),
+mvp:    .res 1                  ; bit 0/1: page 1/2 owes the overlay pass
+cur_bank: .res 12               ; each page's cursor (dhgr_spr_cursor.s)
+.endif
 zero_hi:
-none_lo:                        ; set to NONE by dhgr_spr_init
+none_lo:                        ; set to NONE by dhgr_spr_init (right after)
 _dhgr_spr_y1:    .res MAX       ; NONE: nothing to draw
 _dhgr_spr_o_g0:  .res MAX       ; box on screen (groups, rows); NONE: none
 _dhgr_spr_w_g0:  .res 1         ; overlay box on screen; NONE: none
@@ -95,7 +128,13 @@ pn:     .res 1
 py:     .res 1
 pr:     .res 1
 cap:    .res 1                  ; rows per piece at capw = 7 * pn
-capw:   .res 1                  ; (0: none yet)
+.if DOUBLE
+p_g0:   .res DMAX               ; damage the other page has not received
+p_g1:   .res DMAX
+p_y0:   .res DMAX
+p_y1:   .res DMAX
+n0:     .res 1
+.endif
 
 g0 = _dhgr_spr_rg0
 g1 = _dhgr_spr_rg1
@@ -137,24 +176,20 @@ _dhgr_spr_init:
 :       cmp tmp1
         bcc @bad
         sta cbytes
-        lda #0
-        sta capw
         ldy #2
         lda (sp),y
         sta _dhgr_cv_buf
         iny
         lda (sp),y
         sta _dhgr_cv_buf+1
+        ldx #none_hi - zero_lo  ; zero_lo..: 0, then none_lo..: NONE
+@clr:   lda #NONE
+        cpx #zero_hi - zero_lo + 1
+        bcs :+
         lda #0
-        ldx #zero_hi - zero_lo
 :       sta zero_lo-1,x
         dex
-        bne :-
-        lda #NONE
-        ldx #none_hi - none_lo
-:       sta none_lo-1,x
-        dex
-        bne :-
+        bne @clr
         lda #19
         sta _dhgr_spr_ag1
         lda #191
@@ -165,26 +200,22 @@ _dhgr_spr_init:
         ldx #0
         jmp incsp4
 
-; Clip g0..g1, y0..y1 to the area: C = 1 if something is left. A destroyed.
-clip:   lda g0
-        cmp _dhgr_spr_ag0
-        bcs :+
-        lda _dhgr_spr_ag0
-        sta g0
-:       lda _dhgr_spr_ag1
-        cmp g1
-        bcs :+
-        sta g1
-:       lda y0
-        cmp _dhgr_spr_ay0
-        bcs :+
-        lda _dhgr_spr_ay0
-        sta y0
-:       lda _dhgr_spr_ay1
-        cmp y1
-        bcs :+
-        sta y1
-:       lda g1
+; Clip g0..g1, y0..y1 to the area: C = 1 if something is left. A/Y
+; destroyed. Fields 0 and 2 (g0, y0) take the larger, 1 and 3 the smaller.
+clip:   ldy #3
+@f:     lda g0,y
+        cmp _dhgr_spr_ag0,y     ; C = r >= a
+        tya
+        and #1
+        bne @min
+        bcs @n                  ; g0/y0: r >= a: kept
+        bcc @set
+@min:   bcc @n                  ; g1/y1: r < a: kept
+@set:   lda _dhgr_spr_ag0,y
+        sta g0,y
+@n:     dey
+        bpl @f
+        lda g1
         cmp g0
         bcc @no
         lda y1
@@ -199,8 +230,18 @@ _dhgr_spr_add:
 add_clipped:
         ldy _dhgr_spr_dn
         cpy #DMAX
-        bcc @append
-        ldy #0
+        bcs add_full
+        inc _dhgr_spr_dn
+store:  lda g0                  ; d[Y] = g0..y1
+        sta d_g0,y
+        lda g1
+        sta d_g1,y
+        lda y0
+        sta d_y0,y
+        lda y1
+        sta d_y1,y
+        rts
+add_full:                       ; full: entry 0 absorbs it
         lda d_g0
         cmp g0
         bcs :+
@@ -216,20 +257,11 @@ add_clipped:
         sta y0
 :       lda y1
         cmp d_y1
-        bcs @store
+        bcs :+
         lda d_y1
         sta y1
-        bcc @store              ; (C = 0)
-@append:
-        inc _dhgr_spr_dn
-@store: lda g0
-        sta d_g0,y
-        lda g1
-        sta d_g1,y
-        lda y0
-        sta d_y0,y
-        lda y1
-        sta d_y1,y
+:       ldy #0
+        beq store
 add_done:
         rts
 
@@ -288,60 +320,19 @@ _dhgr_spr_update:
         cpx #MAX
         bne @slot
         lda _dhgr_spr_v_dirty
+.if DOUBLE
+        jsr page_moved
+.else
         sta moved
-        beq merge
+.endif
+        beq :+
         jsr _dhgr_spr_ovd_jmp   ; (dhgr_spr_cursor.s)
-
-; Merge overlapping rectangles until none overlap (restart after each).
-merge:  ldx #0
-@i:     cpx _dhgr_spr_dn
-        bcs pieces
-        txa
-        tay
-@j:     iny
-        cpy _dhgr_spr_dn
-        bcs @inext
-        lda d_g1,y              ; overlap: g0[i] <= g1[j] && g0[j] <= g1[i]
-        cmp d_g0,x              ;       && y0[i] <= y1[j] && y0[j] <= y1[i]
-        bcc @j
-        lda d_g1,x
-        cmp d_g0,y
-        bcc @j
-        lda d_y1,y
-        cmp d_y0,x
-        bcc @j
-        lda d_y1,x
-        cmp d_y0,y
-        bcc @j
-        lda d_g0,y              ; i = bounding box of i and j
-        cmp d_g0,x
-        bcs :+
-        sta d_g0,x
-:       lda d_g1,y
-        cmp d_g1,x
-        bcc :+
-        sta d_g1,x
-:       lda d_y0,y
-        cmp d_y0,x
-        bcs :+
-        sta d_y0,x
-:       lda d_y1,y
-        cmp d_y1,x
-        bcc :+
-        sta d_y1,x
-:       dec _dhgr_spr_dn        ; j = the last one
-        ldx _dhgr_spr_dn
-        lda d_g0,x
-        sta d_g0,y
-        lda d_g1,x
-        sta d_g1,y
-        lda d_y0,x
-        sta d_y0,y
-        lda d_y1,x
-        sta d_y1,y
-        jmp merge
-@inext: inx
-        bne @i
+:
+.if DOUBLE
+        jsr merge               ; (this update's own damage, kept merged)
+        jsr history
+.endif
+        jsr merge
 
 ; Cut each rectangle into pieces: columns of at most gmax groups, then
 ; bands of at most cbytes / (7 * groups) rows.
@@ -421,6 +412,164 @@ pieces_done:
         jmp _dhgr_spr_cur_jmp   ; (dhgr_spr_cursor.s)
 @end:   rts
 
+.if DOUBLE
+; DHGR_SPR_DOUBLE: the update draws on the hidden (draw) page. The damage
+; this page has not received yet (built while the other page was drawn)
+; joins this update's; this update's own damage is kept for the other page.
+; A list belongs to one page (p_page): updates without a present in
+; between append to it. X destroyed.
+history:
+        ldx _dhgr_spr_dn
+        stx n0
+        lda _dhgr_base
+        cmp p_page
+        bne @keep               ; the list is the other page's: append
+        ldx #0
+@apply: cpx p_n
+        bcs @own
+        lda p_g0,x
+        sta g0
+        lda p_g1,x
+        sta g1
+        lda p_y0,x
+        sta y0
+        lda p_y1,x
+        sta y1
+        jsr _dhgr_spr_add       ; (X kept)
+        inx
+        bne @apply
+@own:   lda #0
+        sta p_n
+@keep:  ldx #0
+@copy:  cpx n0
+        bcs @done
+        ldy p_n
+        cpy #DMAX
+        bcc @new
+        lda d_g0,x              ; full: widen entry 0
+        cmp p_g0
+        bcs :+
+        sta p_g0
+:       lda d_g1,x
+        cmp p_g1
+        bcc :+
+        sta p_g1
+:       lda d_y0,x
+        cmp p_y0
+        bcs :+
+        sta p_y0
+:       lda d_y1,x
+        cmp p_y1
+        bcc @next
+        sta p_y1
+        bcs @next
+@new:   inc p_n
+        lda d_g0,x
+        sta p_g0,y
+        lda d_g1,x
+        sta p_g1,y
+        lda d_y0,x
+        sta p_y0,y
+        lda d_y1,x
+        sta p_y1,y
+@next:  inx
+        bne @copy
+@done:  lda _dhgr_base
+        eor #$60                ; the other page
+        sta p_page
+        rts
+
+; A = v_dirty (the overlay changed: both pages owe the outside pass).
+; moved = this page's due pass, cleared; returns A = v_dirty (Z set).
+page_moved:
+        tax
+        beq :+
+        lda #3
+        ora mvp
+        sta mvp
+:       lda _dhgr_base          ; $20 -> 1, $40 -> 2
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        tay
+        and mvp
+        sta moved
+        tya
+        eor #$FF
+        and mvp
+        sta mvp
+        txa
+        rts
+.endif
+
+; Merge overlapping rectangles until none overlap. Entry i absorbs every
+; entry j it overlaps (scanning them all again after each absorption);
+; one before it (j < i) absorbs i instead and becomes i. The entries
+; before i stay disjoint: O(n^2) compares plus n per merge.
+merge:  ldx #0
+        beq m_i
+m_next: inx
+m_i:    cpx _dhgr_spr_dn
+        bcc :+
+        rts
+:       stx k
+        ldy #0
+        beq m_j
+m_skip: iny
+m_j:    cpy _dhgr_spr_dn
+        bcs m_next
+        cpy k
+        beq m_skip
+        lda d_g1,y              ; overlap: g0[i] <= g1[j] && g0[j] <= g1[i]
+        cmp d_g0,x              ;       && y0[i] <= y1[j] && y0[j] <= y1[i]
+        bcc m_skip
+        lda d_g1,x
+        cmp d_g0,y
+        bcc m_skip
+        lda d_y1,y
+        cmp d_y0,x
+        bcc m_skip
+        lda d_y1,x
+        cmp d_y0,y
+        bcc m_skip
+        cpy k
+        bcs :+                  ; j > i: i absorbs j
+        sty k                   ; j < i: j absorbs i and becomes i
+        txa
+        ldx k
+        tay
+:       lda d_g0,y              ; d[X] = bounding box of d[X] and d[Y]
+        cmp d_g0,x
+        bcs :+
+        sta d_g0,x
+:       lda d_g1,y
+        cmp d_g1,x
+        bcc :+
+        sta d_g1,x
+:       lda d_y0,y
+        cmp d_y0,x
+        bcs :+
+        sta d_y0,x
+:       lda d_y1,y
+        cmp d_y1,x
+        bcc :+
+        sta d_y1,x
+:       dec _dhgr_spr_dn        ; d[Y] = the last one
+        ldx _dhgr_spr_dn
+        lda d_g0,x
+        sta d_g0,y
+        lda d_g1,x
+        sta d_g1,y
+        lda d_y0,x
+        sta d_y0,y
+        lda d_y1,x
+        sta d_y1,y
+        ldx k
+        ldy #0
+        jmp m_j
+
 ; One piece pg/pn/py/pr: background, slots, write.
 piece:  lda pg
         asl a
@@ -492,4 +641,160 @@ slots:  ldx #0
 @next:  inx
         cpx #MAX
         bne @slot
+.if VBL
+        jsr vbl_wait
+.endif
         jmp _dhgr_spr_blit
+.if VBL
+; DHGR_SPR_VBL: when this piece is the whole damage and its write (rows
+; top to bottom, ROWC + GRPC * groups cycles a row) ends each row before
+; the beam starts it, counted from a VBL edge (the blank: 70 rows of 65
+; cycles, then row y at 4,550 + 65 y), wait for the next edge: the
+; composed piece is then written ahead of the beam (no tear). Otherwise
+; (several pieces, too many rows, the overlay crossing it, no clock) the
+; plain order: no wait. The clock: dev/lib/apple2c/apple2vbl (a2_vbl_mode
+; 1: //e $C019 polled here; 2: //c mouse VBL interrupt, its count
+; awaited, a later start; 0: none). Condition, k rows from row y:
+;   LAT + k * (ROWC + GRPC * groups) <= 4,550 + 65 * (y + k - 1)
+ROWC = 95                       ; row set-up and end (dhgr_spr_asm.s)
+GRPC = 165                      ; pack + write of a group, page crossings included
+OVROW = 60                      ; ov_row's early exit (the overlay elsewhere)
+LAT_POLL = 100                  ; //e: poll granularity + the blit's start
+LAT_IRQ = 1200                  ; //c: interrupt dispatch (ProDOS, firmware)
+vbl_no: rts
+vbl_wait:
+        lda _a2_vbl_mode
+        beq vbl_no
+        ldx _dhgr_spr_dn
+        dex
+        bne vbl_no              ; several rectangles
+        lda d_g1
+        sec
+        sbc d_g0
+        clc
+        adc #1
+        cmp pn
+        bne vbl_no              ; several pieces
+        lda d_y1
+        sec
+        sbc d_y0
+        clc
+        adc #1
+        cmp pr
+        bne vbl_no
+        ldx #<(65 - ROWC)       ; 65 - a row's cost: tmp1/tmp2 (negative)
+        lda #>(65 - ROWC)
+        bit _dhgr_spr_ov_on
+        bpl @rowc
+        lda w_y1                ; the overlay crossing the piece: no
+        cmp py
+        bcc @apart
+        lda w_y0
+        cmp _dhgr_cv_y1
+        bcs @apart
+        lda w_g1
+        cmp pg
+        bcc @apart
+        lda pg
+        clc
+        adc pn
+        sta tmp1
+        lda _dhgr_spr_w_g0
+        cmp tmp1
+        bcc vbl_no
+@apart: ldx #<(65 - ROWC - OVROW)
+        lda #>(65 - ROWC - OVROW)
+@rowc:  stx tmp1
+        sta tmp2
+        ldy pn                  ; - GRPC * groups
+@grp:   lda tmp1
+        sec
+        sbc #<GRPC
+        sta tmp1
+        lda tmp2
+        sbc #>GRPC
+        sta tmp2
+        dey
+        bne @grp
+        lda py                  ; budget = 65 * y + 4,550 - 65 - LAT: Y/tmp3
+        sta tmp3
+        lda #0
+        ldy #6
+:       asl tmp3
+        rol a
+        dey
+        bne :-
+        tay                     ; Y/tmp3 = 64 y
+        lda tmp3
+        clc
+        adc py
+        sta tmp3
+        bcc :+
+        iny
+:       ldx #<(4550 - 65 - LAT_POLL)
+        lda #>(4550 - 65 - LAT_POLL)
+        sta tmp4
+        lda _a2_vbl_mode
+        lsr a
+        bcs :+                  ; (mode 1: //e)
+        ldx #<(4550 - 65 - LAT_IRQ)
+        lda #>(4550 - 65 - LAT_IRQ)
+        sta tmp4
+:       txa
+        clc
+        adc tmp3
+        sta tmp3
+        tya
+        adc tmp4
+        tay
+        ldx pr                  ; each row: budget += 65 - its cost
+@row:   lda tmp3
+        clc
+        adc tmp1
+        sta tmp3
+        tya
+        adc tmp2
+        tay
+        bcc @out                ; (a negative addend: C = 0 is a borrow)
+        dex
+        bne @row
+        beq vbl_edge
+@out:   rts
+; Wait for the next VBL edge (bounded: ~45,000 cycles, then no wait).
+vbl_edge:
+        lda _a2_vbl_mode
+        lsr a
+        bcs @poll
+        lda _a2_vbl_count       ; //c: the handler counts the next refresh
+        ldx #0
+        ldy #16
+:       cmp _a2_vbl_count
+        bne @done
+        dex
+        bne :-
+        dey
+        bne :-
+@done:  rts
+@poll:  ldx #0
+        ldy #16
+@pic:   bit $C019               ; the picture (bit 7 set) ...
+        bmi @blank
+        dex
+        bne @pic
+        dey
+        bne @pic
+        rts
+@blank: bit $C019               ; ... then the blank
+        bpl vbl_seen
+        dex
+        bne @blank
+        dey
+        bne @blank
+        rts
+vbl_seen:                       ; (test_dhgr_spr.py watches it)
+        lda #0                  ; counted like a2_vbl_scan
+        sta _a2_vbl_beam
+        inc _a2_vbl_count
+        rts
+.endif
+

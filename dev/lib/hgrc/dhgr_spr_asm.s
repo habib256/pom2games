@@ -114,8 +114,7 @@ s_a1:   sta $FFFF,y             ; aux odd
         iny
         sty tmp4
         cpy _dhgr_spr_gend
-        beq b_rowend
-        jmp b_group
+        bne b_group
 b_rowend:
         inc spr_row
         dec left
