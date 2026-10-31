@@ -41,6 +41,7 @@ uses, without calling these primitives or changing their banks.
 | `dhgr_clear` | Both banks, holes included; IRQs masked for the whole operation (~189,000 cycles) |
 | `dhgr_clear_rows` | Visible lines; main banks and IRQ mask restored between lines; kernel <1,300 cycles per line |
 | Saved sprites | Restore before changing the background or redefining a shape; keep one background per page |
+| DHGR compositor (`dhgr_spr_*`, `dhgr_cursor`) | Opt-in `HGRC_DHGR_SPR_SRCS`; each changed byte of the area written once with its final value; IRQs masked only around each group's two aux stores (~30 cycles); borrowed canvas used only inside the update; invalidate background changes in the area; overlay hidden while the screen outside the area changes |
 | Frame pacing | IIe VBL or delay added to drawing; bounded fallback if the signal is stuck; IRQ mask preserved |
 | Optional PWM audio | Nominal 1 MHz CPU, encoded clip terminated by `$92`; blocking playback, IRQs masked then mask restored; borrows cc65 ptr1/ptr3/ptr4 low/tmp3; AUDIOCODE segment aligned to $100 in RAM (after STARTUP in the C cfgs) |
 | Perspective | X 0..279, depth in the borrowed tables; output outside HGR rejected; no video/bank state changed, outside IRQ |
@@ -74,6 +75,7 @@ policies; `make test-hgr` checks bounds, lines, tables and sprite pools;
 | DHGR mono / colour | X 0..559 bits / X 0..139 colour pixels; Y 0..191; colours masked to 0..15 |
 | DHGR blocks | X in interleaved bytes 0..79; stride >= width; valid buffer of stride×height bytes, even if part of it is clipped |
 | DHGR sprite | Colour X; seven data/mask banks of stride×height each; mask 1 keeps the background |
+| DHGR compositor | Slots/area/cells in colour pixels (groups of 7 = 4 bytes at x/7); overlay/cursor in interleaved bytes 0..79, w×h ≤ 127, `under` 2×w×h bytes; shapes and maps borrowed and immutable while used, RECTS rectangles inside the shape's w×h; canvas ≥ 7×groups bytes outside $2000-$5FFF (at most 255 used) |
 | Saved HGR sprite | Dimensions stride×height in bytes; per-sprite/per-page capacity supplied at init, 96 for the legacy API |
 
 Strings are NUL-terminated; sources are borrowed, and the library does not copy
@@ -205,11 +207,33 @@ Options of this kind (measurements: hgrc bench, or the commit that introduced th
 | `HGR_TEXT8_NO_PUTS` | `hgr_text8.asm` | No `hgr_puts8` (less code) | maze3d |
 | `HG_STORE_ONLY` / `HG_STORE_UNCLIPPED` | `hgr_glyph8.asm` | Without the unaligned entry points / without STORE checks (shorter and faster; the caller guarantees `hg_col<40`, `hg_y<=184`) | chess / chess, micro-sokoban |
 | `HGR_SPR_DAMAGE` | hgrc sprite engine | +4×`HGR_SPR_MAX`+11 B BSS: closure of the intersection rectangles instead of the simple prefix/suffix | none (bench `hgr_isolated_damage`) |
+| `DHGR_SPR_PACK_TABLES` | hgrc DHGR compositor `dhgr_spr_asm.s` | Accepted, no effect since 2026-10-31: one 16-byte table is the default packing (faster than the former nine tables) | none (bench `dhgr_spr_move_tables` = `dhgr_spr_move`) |
+| `DHGR_SPR_CODE_SEGMENT` | hgrc DHGR compositor | Code and tables in segment `DHGRSPRCODE` (an overlay window) instead of CODE/RODATA; BSS stays resident | robotspacestation (update, write, painters, tiles in the PLAY overlay) |
+| `DHGR_SPR_RECTS_ONLY` | hgrc DHGR compositor `dhgr_cv_asm.s` | No CHUNKY/TILE shapes: `dhgr_cv_bitmap.s` not linked, −356 B | robotspacestation |
+| `DHGR_SPR_OVERLAY_INSIDE` | hgrc DHGR compositor `dhgr_spr_overlay.s` | The overlay is drawn only inside the area, `under` unused: the save-under `dhgr_spr_cursor.s` is not linked, −764 B | robotspacestation (its `pointer.s` draws the pointer's rows outside the room) |
+| `DHGR_SPR_MAX` (placement) | hgrc DHGR compositor | Slots 1..8 (default 8), 24 B BSS each; compile the program's C and the library alike. Planned, not implemented: `DHGR_SPR_VBL`, `DHGR_SPR_DOUBLE` (per-page damage re-applied on the other page) | — |
 | `MUL_ACC` | `math.inc`/`mul.asm` | `mul_acc0..2` accumulator: +3 B of ZP | dirtbike |
+| `VL_INTEGRATE_LEFTWALL` | lib/physics `verlet.asm` | `vl_integrate` stops points left of a wall (x = ox = wall): +32 B, +~15 cycles per point | dirtbike |
+| `VL_CEILING_CLAMP` | lib/physics `verlet.inc` | The ceiling of `VL_CEILING` / `vl_ceiling` (y = old y = it) | dirtbike |
+| `VL_CON_VARIANTS` | lib/physics `verlet_con.asm` | Rest length and gain per variant row (`vl_cur·V + vl_con_row`): +11 B code, +N B table, V× the constraint tables, 2 B BSS | dirtbike |
+| `VL_CON_HEAVY_POINT` / `_SHIFT` | lib/physics `verlet_con.asm` | Links ending on that point move it less (c − c>>n toward 0) than their other end: `vl_heavy` + tests, ~+250 cycles per heavy link | dirtbike |
+| `VL_CON_MINLEN_POINT` / `VL_CON_MINLEN` | lib/physics `verlet_con.asm` | Links ending on that point shorter than the minimum set `vl_squashed`: +25 B, 1 B BSS | dirtbike |
+| `VL_PAIR_DAMP` | lib/physics `verlet.asm` | Assembles `vl_pair_damp` (the relative speed of two points fades by 1/2ⁿ) | dirtbike |
+| `VL_ROT_SEG` / `VL_MULTURN_SEG` (`.define`) | lib/physics `verlet_rot.asm` | `vl_shift_point`+`vl_axis` / `vl_mul_turn` in that segment instead of CODE | dirtbike (`TXTC4` / `TXTC7`) |
 | `MUL_INIT_BOOT` / `MOUSE_INIT_BOOT` | `mul.asm` / `mouse.s` | Initialisation code in the `INIT` segment, reusable after startup | dirtbike / dirtbike |
+| `STICK_KEY_FAST` | `joy.asm` | `stick_key` samples with `read_stick_fast` (0.1-2.8 ms instead of 6 ms; its count scale: retune `JOY_LO`/`JOY_HI`) | none (dev/tests/test_stick_key.py) |
 | `DOS_CMD_HEX_IFREF` | `dos.asm` | `dos_cmd_hex` assembled only if referenced: −48 B | arkabreakout, maze3d |
 | `EXIT_USE_NATIVE_VIDEO` | `exit.asm` | Reuses `native_video` from `hgr.asm`: −21 B | arkabreakout, maze3d, micro-sokoban |
 | `SOUND_GATE` | `sound.asm` | Sound muted by one byte: −7 B and −10 cycles per note against an envelope in the program | maze3d |
+| `SYSRELOC_DOWN_FAST` | `prodos/sysreloc.inc` | Downward copy as the `len&$FF` tail then whole pages (`dey`/`lda (),y`/`sta (),y`/`cpy #0`): 18 cycles per byte instead of 53, 40 B inline instead of 60, still in descending address order (overlap-safe); lengths below `$8000` | chromabreak, robotspacestation, wargalagaii (boot ~0.7 s faster) |
+| `AUXMEM_FETCH_CHUNK` / `AUXMEM_FETCH_SCAN` | `apple2/auxmem.asm` | `aux_fetch_chunked`: chunk size (default 64 B, ~2,300 cycles masked each; bigger = fewer ~60-cycle AUXMOVE setups, longer masked windows) / `jsr _a2_vbl_scan` between chunks (+3 B, ~30 cycles a chunk) | wargalagaii (`SCAN`) |
+| `MB_IRQ_PRODOS` / `MB_IRQ_VECTOR` | `apple2/mb_irq.asm` | The interrupt through ProDOS `ALLOC_INTERRUPT` (1, default) or an own vector: `$03FE` behind the ROM's handler (A at `$45`; DOS 3.3, bare programs) or `$FFFE` with the language card's RAM in (raw entry, A/X/Y saved): +16 B (65C02) to +22 B (NMOS) | wargalagaii (ProDOS) |
+| `MB_IRQ_SCAN` | `apple2/mb_irq.asm` | `jsr _a2_vbl_scan` on the handler's entry and exit (a long tick hides no //e VBL edge): +6 B, ~60 cycles a tick | wargalagaii |
+| `MB_IRQ_FRAME` / `MB_IRQ_GATE` | `apple2/mb_irq.asm` | The tick's 14-byte frame flushed to chip 1 inline by the handler (~16 cycles a register unchanged, R13 when not `$FF`) instead of the tick writing through `mb_put` / a byte that pauses the tick (+5 B) | wargalagaii (PT3 frame, `music_on`) |
+| `MB_IRQ_HUSH_BOTH` / `MB_IRQ_SPLIT` | `apple2/mb_irq.asm` | `mb_hush` silences both chips (6-voice songs) / the handler assembled only where the program references `mb_irq_handler` (placement) | — / wargalagaii |
+| `AYSONG_VOICES` | `apple2/aysong.asm` | 6: both chips: 3 more voices of 19 B and 32 B more of registers in BSS, the second chip's mixer and write loop (+78 B code) | — (dev/tests/test_aysong.py) |
+| `AYSONG_FAST_PERIODS` | `apple2/aysong.asm` | A 96-note period table instead of 12 notes + octave shifts with a per-voice cache: +112 B code/table, −3 B BSS a voice, ~230 cycles less on a row of three new notes (~25 a tick on average) | — (dev/tests/test_aysong.py) |
+| `AYSONG_CPU65C02` | `apple2/aysong.asm` | `stz` forms: −4 B (assemble for the 65C02) | — (dev/tests/test_mb_irq.py) |
 
 The modules' other definitions (ZP addresses, `DOS_ZP_*`, `RWTS_*`,
 `HGR_SPR_MAX`, `HG_HOOK_*`/`HP_OR_PLOT` hooks, `WF_*_TABLE` tables…)
