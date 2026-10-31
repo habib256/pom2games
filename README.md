@@ -43,6 +43,7 @@ assembly and C; DIRTBIKE and ChromaBreak are tested on a real //e.
 | 🧱 | [**ARKABREAKOUT**](arkabreakout/README.md) — ChromaBreak squeezed into 48 KB HGR | II+ 48 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/ARKABREAKOUT.dsk) |
 | 💡 | [**LIGHT3DBALL**](light3dball/README.md) — keep the ball alive down a 3D corridor | II+ 48 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/LIGHT3DBALL.dsk) |
 | 🐉 | [**MAZE3D**](maze3d/README.md) — wire-frame dungeon crawler, a dragon at the bottom | II+ 48 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/MAZE3D.dsk) |
+| 🗡️ | [**ROGUE**](rogue/README.md) — roguelike from POM1: 13 floors, a demon, sounds; on the E-Z Color (TMS9918A) card in any slot, or in double hi-res | II+ 48 KB + E-Z Color, or //e //c 128 KB | [disk](dist/ROGUE.dsk) |
 | 📦 | [**MICRO-SOKOBAN**](micro-sokoban/README.md) — 454 Microban puzzles and a tutorial | II+ 48 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/MICRO-SOKOBAN.dsk) |
 | ♟️ | [**CHESS**](chess/README.md) — play the computer, a friend, or watch | II+ 48 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/CHESS.dsk) |
 | 🎯 | [**PINBALL**](pinball/README.md) — Bill Budge's Pinball Construction Set, with mouse | II+ 48 KB or //c | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/PINBALL.dsk) |
@@ -56,6 +57,7 @@ assembly and C; DIRTBIKE and ChromaBreak are tested on a real //e.
 <td><img src="maze3d/screenshots/game.png" width="200" alt="MAZE3D"></td>
 <td><img src="pinball/screenshots/editor.png" width="200" alt="PINBALL"></td>
 <td><img src="robotspacestation/screenshots/drone.png" width="200" alt="ROBOT SPACE STATION"></td>
+<td><img src="rogue/screenshots/dungeon.png" width="200" alt="ROGUE on the E-Z Color card"></td>
 </tr></table>
 
 ## 💾 On a real Apple II or another emulator
@@ -87,7 +89,9 @@ Bill Budge (1982, his MIT-licensed sources in [`pinball/upstream/`](pinball/upst
 *Wilderness*: Electric Transit (1985). Inspirations: *Dirt Bike* (Brad Quick),
 *The Light Corridor*. Microban levels:
 David W. Skinner. Chess pieces: cc65-Chess (Stefan Wessels, Oliver Schmidt,
-Frank Gebhart). Sprites: SCROLL-O-SPRITES by Quale (CC-BY-3.0). Font:
+Frank Gebhart). Sprites: SCROLL-O-SPRITES by Quale (CC-BY-3.0; also ROGUE's
+tiles and sprites), ROGUE's demon: Hexany Ives' Monster Menagerie (CC0).
+E-Z Color Graphics Interface: Steve Ciarcia (BYTE, August 1982). Font:
 Beautiful Boot, Michael Pohoreski.
 
 The Apple II ROMs (`dev/tools/a2shot/roms/`) and DOS 3.3 system tracks

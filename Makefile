@@ -25,7 +25,7 @@
 
 PYTHON ?= python3
 
-II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake pinball light3dball wilderness dirtbike
+II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake pinball light3dball wilderness dirtbike rogue
 IIE_PRODOS_GAMES := chromabreak wargalagaii robotspacestation mbtracker
 DIRS := $(II_PLUS_GAMES) $(IIE_PRODOS_GAMES) logo dev/examples/hello dev/examples/hgr dev/examples/dhgr dev/examples/perspective
 # DHGR compositor action demo: its disk stays in its build/ (not dist/).
@@ -39,7 +39,7 @@ DIRS += dev/examples/halfpipe
 DIRS += dev/examples/rope dev/examples/catapult
 # Programs whose own `make test` / `make test-long` belong to the root tiers.
 TESTED := pinball chromabreak arkabreakout chess micro-sokoban light3dball wilderness logo mbtracker dirtbike \
-          wargalagaii snake robotspacestation
+          wargalagaii snake robotspacestation rogue
 
 all:
 	@for d in $(DIRS); do $(MAKE) -C $$d || exit 1; done
@@ -96,6 +96,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_bcd.py
 	$(PYTHON) dev/tests/test_aysong.py
 	$(PYTHON) dev/tests/test_mb_irq.py
+	$(PYTHON) dev/tests/test_ezcolor.py
 	$(PYTHON) dev/tests/test_pt3_import.py
 	$(PYTHON) dev/tests/test_savehdr.py
 	$(PYTHON) dev/tests/test_vapor.py
