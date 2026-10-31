@@ -1,0 +1,109 @@
+; ported from POM1 dev/lib/tms9918 @ e399808 (sprites_unliving.asm)
+; Port: .export lines dropped; each pattern is .ifref-guarded (only the
+; patterns the source above references assemble), RODATA segment.
+; ============================================================================
+; sprites_unliving.asm  --  8 sprites (16x16, TMS9918 sprite mode)
+; derived: dev/lib/gen2/sprites/sprites_unliving_hgr.asm -- after editing this master rerun:
+;   python3 tools/build_hgr_sprites.py --only unliving
+; ----------------------------------------------------------------------------
+; SCROLL-O-SPRITES "The Unliving" by Quale, May 2013, CC-BY-3.0.
+; Lifted from pic/undefined - Imgur.png by tools/extract_scroll_sprites.py.
+;
+; Layout: each 16x16 sprite occupies 32 bytes -- the first 16 bytes are
+; the left half (column 0..7), the next 16 the right half (column 8..15).
+; Native TMS9918 16x16 sprite layout: stream the 32 bytes into a
+; sprite-pattern slot starting at the ACTIVE MODE'S sprite-pattern table
+; + slot*32 (asm Mode-1 init_vdp_g1: R6=$07 -> $3800; C lib SCREEN1/SCREEN2
+; tables: R6=$03 -> $1800 — on those layouts $3800 is the NAME table!).
+; ============================================================================
+.ifndef _SPRITES_UNLIVING_ASM_LOADED_
+_SPRITES_UNLIVING_ASM_LOADED_ = 1
+
+.pushseg
+.rodata
+
+
+
+; slot 01/8 of "The Unliving" row -- zombie  (was: undead)
+; canonical "weakest undead" sprite for roguelike consumers; the literal
+; Quale label was "skull" but the rogue project treats it as the generic
+; first-tier undead).
+.ifref undead_zombie_pat
+undead_zombie_pat:
+        .byte $00, $00, $17, $0F, $09, $09, $0F, $2E
+        .byte $0C, $04, $38, $57, $47, $07, $06, $02
+        .byte $00, $02, $E0, $F0, $F0, $D0, $F0, $B0
+        .byte $30, $22, $18, $D4, $E4, $E0, $60, $50
+.endif
+
+; slot 02/8 of "The Unliving" row -- hand  (was: skull_small)
+.ifref undead_hand_pat
+undead_hand_pat:
+        .byte $00, $00, $00, $00, $00, $00, $00, $00
+        .byte $00, $00, $00, $1B, $27, $04, $08, $08
+        .byte $00, $00, $00, $00, $18, $18, $10, $00
+        .byte $78, $70, $F0, $F8, $FC, $CC, $84, $80
+.endif
+
+; slot 03/8 of "The Unliving" row -- crossbones (renamed SKELETON:
+; roguelike consumers use these crossed bones as the second-tier
+; undead "skeleton" — visually a warrior reduced to bones).
+
+.ifref undead_skeleton_pat
+undead_skeleton_pat:
+        .byte $00, $00, $07, $0F, $0F, $09, $09, $0E
+        .byte $03, $03, $18, $27, $31, $33, $04, $04
+        .byte $00, $00, $E0, $F0, $F0, $90, $90, $70
+        .byte $C0, $40, $18, $E4, $8C, $CC, $20, $20
+.endif
+
+; slot 04/8 of "The Unliving" row -- diehard  (was: crossbones_big)
+.ifref undead_diehard_pat
+undead_diehard_pat:
+        .byte $00, $03, $07, $37, $77, $40, $69, $2E
+        .byte $03, $3B, $78, $07, $31, $33, $04, $04
+        .byte $00, $C0, $E0, $EC, $EE, $02, $96, $74
+        .byte $C0, $5C, $1E, $E0, $8C, $CC, $20, $20
+.endif
+
+; slot 05/8 of "The Unliving" row -- reaper  (was: death)
+; consumers use this wrapped/bandaged figure as the strongest tier
+; "death" undead).
+
+.ifref undead_reaper_pat
+undead_reaper_pat:
+        .byte $00, $63, $77, $4F, $48, $51, $51, $56
+        .byte $53, $53, $78, $3F, $5F, $47, $47, $4C
+        .byte $00, $F0, $E0, $F0, $10, $88, $88, $68
+        .byte $C8, $48, $10, $F8, $FC, $E4, $F0, $D8
+.endif
+
+; slot 06/8 of "The Unliving" row -- ghost
+.ifref undead_ghost_pat
+undead_ghost_pat:
+        .byte $00, $07, $0F, $1D, $1B, $5F, $7D, $7C
+        .byte $3C, $1E, $1F, $1F, $0F, $03, $00, $00
+        .byte $00, $E0, $F0, $F8, $B8, $DA, $7E, $3E
+        .byte $3C, $B8, $F8, $F8, $FA, $FC, $00, $00
+.endif
+
+; slot 07/8 of "The Unliving" row -- skull  (was: wraith)
+.ifref undead_skull_pat
+undead_skull_pat:
+        .byte $00, $20, $70, $27, $0F, $1C, $18, $1C
+        .byte $1C, $1A, $18, $0F, $07, $00, $10, $00
+        .byte $00, $00, $00, $F0, $F8, $1C, $0C, $CC
+        .byte $CC, $1C, $F8, $F0, $84, $00, $00, $00
+.endif
+
+; slot 08/8 of "The Unliving" row -- stalker  (was: shroud)
+.ifref undead_stalker_pat
+undead_stalker_pat:
+        .byte $00, $03, $07, $0F, $08, $10, $14, $10
+        .byte $10, $00, $30, $57, $4F, $0F, $07, $0C
+        .byte $00, $F0, $E0, $F0, $10, $08, $28, $08
+        .byte $08, $00, $18, $D4, $E4, $E0, $F0, $D8
+.endif
+
+.popseg
+.endif  ; _SPRITES_UNLIVING_ASM_LOADED_

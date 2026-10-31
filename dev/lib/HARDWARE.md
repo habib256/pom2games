@@ -46,6 +46,18 @@ lorsqu'ils sont connus ; ne pas déduire ces caractéristiques d'un simple succ�
 | IIe, configuration RAM/vidéo à consigner | À tester | À tester | À tester | À tester | À tester |
 | IIc, version ROM à consigner | À tester | À tester | À tester | À tester | À tester |
 
+| Carte | Détection (`ez_detect`) | Accès 22 cycles affichage actif | Écritures indexées interdites | IRQ trame | Autres cartes sondées sans dommage |
+|---|---|---|---|---|---|
+| E-Z Color (TMS9918A), slot à consigner | Non validé sur machine physique | Non validé (contrat POM1 Replica-1 repris) | Non validé (lecture fantôme NMOS, modèle a2run) | Non validé | Non validé (Disk II hors boot, souris, 80 colonnes) |
+
+| E-Z Color sur POM2 (émulation, SDK ba7f04da, mode silicon-strict) | Validé en émulation : ][+ emplacements 1, 2, 4, 5, 7, aucun | Validé en émulation : 0 accès perdu (bibliothèque, ROGUE) ; rafale 4 cycles perdue | Non couvert | Non couvert par a2shot | Non validé |
+
+La carte E-Z Color n'est validée qu'en émulation : `a2run --ezcolor=N`
+(`dev/tests/test_ezcolor.py`) et, depuis le 2026-10-31, la carte de POM2
+(`a2shot --ezcolor=N`, SDK vendorisé ba7f04da : fenêtre d'accès des tables
+openMSX, R1 bit 7 = 16 Ko ; variantes POM2 de `test_ezcolor.py`,
+`rogue/tests/test_rogue_pom2.py`). Toujours pas de machine physique.
+
 Pour chaque essai, noter image/SHA256, compilateur, configuration, résultat,
 anomalies et moyen d'observation. Un résultat s'applique à cette combinaison ;
 il ne couvre pas automatiquement les clones, autres ROM ou accélérateurs.

@@ -1,0 +1,163 @@
+; ported from POM1 dev/lib/tms9918 @ e399808 (sprites_magick.asm)
+; Port: .export lines dropped; each pattern is .ifref-guarded (only the
+; patterns the source above references assemble), RODATA segment.
+; ============================================================================
+; sprites_magick.asm  --  15 sprites (16x16, TMS9918 sprite mode)
+; derived: dev/lib/gen2/sprites/sprites_magick_hgr.asm -- after editing this master rerun:
+;   python3 tools/build_hgr_sprites.py --only magick
+; ----------------------------------------------------------------------------
+; SCROLL-O-SPRITES "Magick" by Quale, May 2013, CC-BY-3.0.
+; Lifted from pic/undefined - Imgur.png by tools/extract_scroll_sprites.py.
+;
+; Layout: each 16x16 sprite occupies 32 bytes -- the first 16 bytes are
+; the left half (column 0..7), the next 16 the right half (column 8..15).
+; Native TMS9918 16x16 sprite layout: stream the 32 bytes into a
+; sprite-pattern slot starting at the ACTIVE MODE'S sprite-pattern table
+; + slot*32 (asm Mode-1 init_vdp_g1: R6=$07 -> $3800; C lib SCREEN1/SCREEN2
+; tables: R6=$03 -> $1800 — on those layouts $3800 is the NAME table!).
+; ============================================================================
+.ifndef _SPRITES_MAGICK_ASM_LOADED_
+_SPRITES_MAGICK_ASM_LOADED_ = 1
+
+.pushseg
+.rodata
+
+
+
+; slot 01/15 of "Magick" row -- staff  (was: wand)
+.ifref magic_staff_pat
+magic_staff_pat:
+        .byte $00, $00, $01, $00, $00, $04, $01, $01
+        .byte $03, $07, $0E, $1C, $38, $70, $60, $00
+        .byte $00, $08, $00, $78, $FC, $C4, $B4, $AC
+        .byte $B8, $02, $00, $20, $00, $00, $00, $00
+.endif
+
+; slot 02/15 of "Magick" row -- wand  (was: wand_orb)
+.ifref magic_wand_pat
+magic_wand_pat:
+        .byte $00, $00, $01, $00, $00, $04, $00, $02
+        .byte $02, $07, $0E, $1C, $38, $70, $60, $00
+        .byte $00, $10, $00, $78, $EA, $C8, $88, $F0
+        .byte $04, $80, $20, $00, $00, $00, $00, $00
+.endif
+
+; slot 03/15 of "Magick" row -- rod  (was: wand_skull)
+.ifref magic_rod_pat
+magic_rod_pat:
+        .byte $00, $00, $00, $01, $01, $01, $00, $01
+        .byte $03, $07, $0E, $1C, $38, $70, $60, $00
+        .byte $00, $00, $F8, $FC, $98, $98, $F4, $3C
+        .byte $A8, $00, $00, $00, $00, $00, $00, $00
+.endif
+
+; slot 04/15 of "Magick" row -- orb
+.ifref magic_orb_pat
+magic_orb_pat:
+        .byte $00, $00, $07, $08, $17, $2F, $2F, $2F
+        .byte $27, $20, $22, $10, $08, $07, $00, $00
+        .byte $00, $00, $E0, $10, $88, $C4, $C4, $C4
+        .byte $A4, $74, $24, $88, $10, $E0, $00, $00
+.endif
+
+; slot 05/15 of "Magick" row -- ankh
+.ifref magic_ankh_pat
+magic_ankh_pat:
+        .byte $00, $03, $07, $04, $06, $07, $03, $3F
+        .byte $3F, $03, $3B, $03, $03, $00, $03, $00
+        .byte $00, $C0, $E0, $20, $60, $E0, $C0, $FC
+        .byte $FC, $C0, $DC, $C0, $C0, $00, $C0, $00
+.endif
+
+; slot 06/15 of "Magick" row -- skull  (was: effigy)
+.ifref magic_skull_pat
+magic_skull_pat:
+        .byte $00, $00, $00, $0F, $17, $3F, $3F, $0C
+        .byte $0C, $0C, $33, $33, $1F, $1D, $00, $00
+        .byte $00, $00, $00, $60, $F0, $F8, $E8, $70
+        .byte $38, $38, $F0, $C0, $00, $00, $00, $00
+.endif
+
+; slot 07/15 of "Magick" row -- letter  (was: scroll)
+.ifref magic_letter_pat
+magic_letter_pat:
+        .byte $00, $07, $09, $0B, $08, $0F, $08, $0F
+        .byte $0C, $0F, $08, $0F, $6C, $4F, $3F, $00
+        .byte $00, $FC, $FE, $FE, $00, $F8, $08, $F8
+        .byte $18, $F8, $08, $F8, $18, $F8, $F0, $00
+.endif
+
+; slot 08/15 of "Magick" row -- scroll  (was: scroll_open)
+.ifref magic_scroll_pat
+magic_scroll_pat:
+        .byte $00, $2F, $77, $17, $20, $00, $10, $1F
+        .byte $10, $1F, $00, $2F, $77, $17, $20, $00
+        .byte $00, $F4, $FA, $FA, $00, $00, $10, $F0
+        .byte $10, $F0, $00, $F4, $FA, $FA, $00, $00
+.endif
+
+; slot 09/15 of "Magick" row -- book  (was: runestone)
+.ifref magic_book_pat
+magic_book_pat:
+        .byte $00, $00, $00, $03, $0F, $1C, $18, $19
+        .byte $1F, $1F, $1F, $1C, $17, $17, $0F, $00
+        .byte $00, $30, $F0, $F0, $30, $30, $70, $F4
+        .byte $F4, $C4, $04, $04, $F4, $F4, $FC, $00
+.endif
+
+; slot 10/15 of "Magick" row -- altar  (was: book)
+.ifref magic_altar_pat
+magic_altar_pat:
+        .byte $00, $7F, $40, $5F, $5F, $5F, $5F, $5F
+        .byte $7F, $00, $7F, $00, $26, $3F, $7F, $00
+        .byte $00, $FE, $02, $FE, $FE, $FE, $FE, $FE
+        .byte $FE, $00, $FE, $00, $64, $FC, $FE, $00
+.endif
+
+; slot 11/15 of "Magick" row -- cauldron  (was: mirror)
+.ifref magic_cauldron_pat
+magic_cauldron_pat:
+        .byte $00, $07, $18, $20, $46, $40, $41, $20
+        .byte $58, $47, $60, $78, $7F, $3F, $4F, $01
+        .byte $00, $E0, $18, $04, $42, $12, $82, $04
+        .byte $1A, $E2, $06, $1E, $FE, $FC, $F2, $80
+.endif
+
+; slot 12/15 of "Magick" row -- emanation  (was: vortex)
+.ifref magic_emanation_pat
+magic_emanation_pat:
+        .byte $00, $40, $20, $03, $04, $08, $11, $52
+        .byte $12, $11, $10, $08, $07, $20, $41, $00
+        .byte $00, $82, $04, $E0, $10, $08, $E0, $10
+        .byte $4A, $88, $08, $10, $E0, $04, $02, $00
+.endif
+
+; slot 13/15 of "Magick" row -- totem  (was: portal)
+.ifref magic_totem_pat
+magic_totem_pat:
+        .byte $00, $00, $10, $7F, $10, $14, $12, $10
+        .byte $11, $12, $14, $10, $3F, $10, $10, $00
+        .byte $00, $08, $08, $FC, $08, $28, $48, $88
+        .byte $08, $48, $28, $08, $FE, $08, $00, $00
+.endif
+
+; slot 14/15 of "Magick" row -- divine  (was: hand)
+.ifref magic_divine_pat
+magic_divine_pat:
+        .byte $00, $40, $21, $05, $05, $05, $05, $65
+        .byte $07, $26, $16, $0E, $07, $23, $40, $00
+        .byte $00, $02, $44, $40, $40, $50, $50, $56
+        .byte $F0, $30, $B0, $30, $F0, $E4, $02, $00
+.endif
+
+; slot 15/15 of "Magick" row -- arcane  (was: sun)
+.ifref magic_arcane_pat
+magic_arcane_pat:
+        .byte $00, $03, $0C, $10, $21, $21, $41, $40
+        .byte $40, $46, $26, $20, $10, $0C, $03, $00
+        .byte $00, $C0, $70, $88, $04, $04, $06, $8A
+        .byte $72, $02, $04, $04, $08, $30, $C0, $00
+.endif
+
+.popseg
+.endif  ; _SPRITES_MAGICK_ASM_LOADED_
