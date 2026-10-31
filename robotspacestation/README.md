@@ -53,7 +53,10 @@ twenty **missions**, saved on the disk. Everything on screen is in English.
 The missions' rooms are read from the disk (`RSS.ROOMS`) when a mission
 starts, and every text (`tools/gen_text.py`: briefings, hints, help,
 descriptions) is loaded at boot from `RSS.TEXT1/2` into auxiliary memory:
-adding missions or words costs disk space, not main memory.
+adding missions or words costs disk space, not main memory. The code of
+the room and drones (PLAY) and of the title, help and briefings (FRONT) is
+kept there too (`RSS.OVL`) and copied into the unused DHGR page 2 when a
+screen of the other group opens (`src/overlay.s`, 0.11 s).
 
 Rules and screens: [docs/SPEC.md](docs/SPEC.md) (French). The Python model
 `tools/model.py` is the reference: the 6502 code matches it byte for byte.

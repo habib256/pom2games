@@ -324,16 +324,38 @@ démarrage (fichier absent ou invalide : tout à zéro). Le disque ne doit pas
 
 ## Mémoire
 
-Le jeu ne dessine qu'en page 1 du DHGR : la page 2 de la mémoire principale
-(`$4000-$5FFF`) reçoit le code et les données de `zone.c`, `title.c` et
-`help.c` (segments `HICODE`/`HIDATA`, `src/game.cfg`), recopiés par
-`startup.s`. Le reste du programme va de `$6000` à `$BE80` (pile C de 128
-octets ensuite) ; `$0800-$0C3F` (marqué occupé par crt0) porte la sauvegarde
-de la page zéro, la planche du drone B (`src/swap.s`) et les formes du
-pointeur ; `$0C40-$0FFF` (L8) le code de `src/sprites.c`, recopié par
-`startup.s` ; `$1000-$1FFF` porte le tampon ProDOS, la sauvegarde et
-les tableaux de dessin de la planche. Les textes (~10 Ko) sont en mémoire
-auxiliaire à partir de `$6000`, lus une ligne à la fois (`text_line`).
+Le jeu ne dessine qu'en page 1 du DHGR. Carte (au 2026-10-31) :
+
+| Zone | Contenu | Libre |
+|---|---|---|
+| principale `$6000-$BE7F` | programme résident (`startup.s` l'y recopie), pile C de 128 octets ensuite | ~1,7 Ko |
+| principale `$4000-$5FFF` (page 2) | **fenêtre des overlays** : PLAY ou FRONT | PLAY ~490 o, FRONT ~5,6 Ko |
+| principale `$0C40-$0FFF` (L8) | résident : `hover.c`, symboles des portes (`symbol.s`) | ~260 o |
+| principale `$0800-$0C3F` | page zéro sauvée, planche du drone B (`swap.s`), formes du pointeur | — |
+| principale `$1000-$1FFF` | tampon ProDOS, sauvegarde, tableaux de la planche | — |
+| auxiliaire `$4000-$5FFF` | image de PLAY | — |
+| auxiliaire `$6000-$905D` | textes (`RSS.TEXT1/2`, lus une ligne à la fois) | jusqu'à `$9FFF` |
+| auxiliaire `$A000-$BFFF` | image de FRONT | — |
+| auxiliaire `$0800-$1FFF`, carte langage auxiliaire | libres (`/RAM` est déconnecté) | 6 Ko + 16 Ko |
+
+**Overlays** (`src/overlay.s`, `src/game.cfg`) : la fenêtre `$4000-$5FFF`
+porte le code d'un seul groupe d'écrans à la fois. PLAY = `zone.c` et
+`sprites.c` (la salle, l'intérieur des drones) ; FRONT = `title.c`, `help.c`,
+le briefing et la lecture de la sauvegarde (`main.c`, `#pragma code-name`).
+`RSS.OVL` (PLAY complété à 8 Ko, puis FRONT) est lu au démarrage et rangé en
+auxiliaire ; `overlay_use(n)` recopie le groupe demandé s'il n'est pas déjà
+là, une page à la fois par une boucle en page zéro (que RAMRD ne touche
+pas) : PLAY en 0,11 s. Les fonctions résidentes qui ouvrent un écran
+l'appellent (`enter_title`, `enter_help`, `enter_brief`, `start_mission`,
+`enter_zone`, `enter_drone`). Règles :
+
+- l'état des overlays est en BSS/DATA résidents : seuls le code et les
+  tables constantes sont remplacés ;
+- un code d'overlay ne provoque jamais un changement d'overlay (même par un
+  appel) avant de continuer : il reviendrait dans l'autre groupe. Les
+  fonctions qui changent d'écran restent donc résidentes ;
+- `mission_count()` et `mission_goal()` sont résidentes (`hover.c`) : tous
+  les écrans s'en servent.
 
 La planche du drone B attend à côté (`src/swap.s`) : `board_swap()`
 l'échange avec la planche chargée quand le technicien change de drone,

@@ -27,14 +27,18 @@ static const char *const zone_buttons[] = {b_run, b_step, "RESET", b_goal, b_men
 static const unsigned char zone_tips[] = {T_B_RUN, T_B_STEP, T_B_RESET, T_B_GOAL, T_B_MENU};
 static const char *const won_buttons[] = {b_run, b_step, "NEXT", b_goal, b_menu};
 static const unsigned char won_tips[] = {T_B_RUN, T_B_STEP, T_B_NEXT, T_B_GOAL, T_B_MENU};
+static const char *const drone_buttons[] = {b_run, b_step, "EXIT"};
+static const unsigned char drone_tips[] = {T_B_RUN, T_B_STEP, T_B_LEAVE};
+/* The title's, help's and briefing's in the FRONT overlay (src/overlay.s):
+ * buttons_set() keeps pointers to them, used while that screen is up. */
+#pragma rodata-name (push, "FRONTDATA")
 static const char *const title_buttons[] = {b_play, b_lab, "HELP", "RECORDS", "PAGE"};
 static const unsigned char title_tips[] = {T_B_PLAY, T_B_LAB, T_B_HELP, T_B_RECORDS, T_B_PAGE};
 static const char *const help_buttons[] = {"NEXT", "BACK", "DONE"};
 static const unsigned char help_tips[] = {T_B_BACK, T_B_PREV, T_B_DONE};
-static const char *const drone_buttons[] = {b_run, b_step, "EXIT"};
-static const unsigned char drone_tips[] = {T_B_RUN, T_B_STEP, T_B_LEAVE};
 static const char *const brief_buttons[] = {b_play, "HINT", "GATES", b_lab, b_menu};
 static const unsigned char brief_tips[] = {T_B_GO, T_B_HINT, T_B_GATES, T_B_LAB, T_B_MENU};
+#pragma rodata-name (pop)
 
 unsigned char claimed;
 unsigned tick_count;
@@ -52,6 +56,7 @@ unsigned char iobuf[1024];                  /* also zone.c (RSS.ROOMS) */
 #pragma bss-name (pop)
 static const char save_name[] = "\x08RSS.SAVE";
 static const char text_name[] = "\x09RSS.TEXT1";
+static const char ovl_name[] = "\x07RSS.OVL";
 
 #define W_NONE 0u
 #define W_WALK 1u               /* zone: just walk */
@@ -80,6 +85,10 @@ static void __fastcall__ load_layout(const unsigned char *buf)
 
 /* -- the save file ------------------------------------------------------- */
 
+/* Boot only, in the FRONT overlay (main() loads it first): the defaults
+ * and game_load(). */
+#pragma code-name (push, "FRONTCODE")
+#pragma rodata-name (push, "FRONTDATA")
 static void persist_defaults(void)
 {
     static unsigned char c;
@@ -91,9 +100,12 @@ static void persist_defaults(void)
     memset(persist.drone + PARTS * 3u, NONE, LAYOUT_IDS);
     memset(persist.drone2 + PARTS * 3u, NONE, LAYOUT_IDS);
 }
+#pragma rodata-name (pop)
+#pragma code-name (pop)
 
 /* The text bank, read at $2000 (DHGR not started yet), then into aux
- * $6000 and $8000. 1 = done. */
+ * $6000 and $8000; the overlays (RSS.OVL: PLAY padded to 8K, then FRONT)
+ * read at $2000-$5FFF, then into aux $4000 and $A000. 1 = done. */
 static unsigned char text_load(void)
 {
     static char name[10];
@@ -108,6 +120,12 @@ static unsigned char text_load(void)
         if (prodos_load_free()) return 0u;
         text_store(k ? TEXT_PAGES2 | 0x8000u : TEXT_PAGES1 | 0x6000u);
     }
+    memcpy(name, ovl_name, sizeof ovl_name);
+    prodos_file_length = 0x4000u;
+    if (prodos_load_free()) return 0u;
+    text_store(32u | 0x4000u);
+    store_src = 0x40u;
+    text_store(32u | 0xA000u);
     return 1u;
 }
 
@@ -119,6 +137,8 @@ static void file_setup(void)
     prodos_file_length = sizeof persist;
 }
 
+#pragma code-name (push, "FRONTCODE")
+#pragma rodata-name (push, "FRONTDATA")
 static void game_load(void)
 {
     file_setup();
@@ -140,6 +160,8 @@ static void game_load(void)
         persist_defaults();
     }
 }
+#pragma rodata-name (pop)
+#pragma code-name (pop)
 
 /* Both drones' boards into their records (A or B may be the loaded one). */
 static void store_drones(void)
@@ -206,6 +228,7 @@ static void enter_title(void)
 {
     screen = S_TITLE;
     running = 0u;
+    overlay_use(OV_FRONT);
     screen_clear();
     title_draw();
     buttons_set(title_buttons, title_tips, 5);
@@ -220,6 +243,7 @@ static void __fastcall__ enter_help(unsigned char page)
     screen = S_HELP;
     running = 0u;
     help_page = page;
+    overlay_use(OV_FRONT);
     screen_clear();
     help_draw(page);
     buttons_set(help_buttons, help_tips, page == RECORDS_PAGE ? 1u : 3u);
@@ -244,6 +268,9 @@ static void __fastcall__ open_help(unsigned char page)
     enter_help(page);
 }
 
+/* The briefing's drawing in the FRONT overlay: enter_brief() loads it. */
+#pragma code-name (push, "FRONTCODE")
+#pragma rodata-name (push, "FRONTDATA")
 /* The hints shown so far, under the briefing. */
 static void draw_hints(void)
 {
@@ -256,17 +283,11 @@ static void draw_hints(void)
     for (k = 0u; k < hints; ++k) text_page((k ? T_HINT2 : T_HINT1) + brief_m);
 }
 
-/* Mission m's briefing: its goal, what is new, then the hints asked for.
- * back: S_ZONE or S_DRONE to go back there (the mission running), or
- * NONE: PLAY starts mission m. */
-static void __fastcall__ enter_brief(unsigned char m, unsigned char back)
+static void brief_draw(void)
 {
     static char num[3];
-    if (m != brief_m) hints = 0u;
-    brief_m = m;
-    brief_back = back;
-    screen = S_BRIEF;
-    running = 0u;
+    static unsigned char m;
+    m = brief_m;
     screen_clear();
     num[0] = m < 9u ? '1' + m : '0' + (m + 1u) / 10u;
     num[1] = m < 9u ? 0 : '0' + (m + 1u) % 10u;
@@ -281,11 +302,28 @@ static void __fastcall__ enter_brief(unsigned char m, unsigned char back)
     buttons_set(brief_buttons, brief_tips, 5);
     hover_force = 1u;
 }
+#pragma rodata-name (pop)
+#pragma code-name (pop)
+
+/* Mission m's briefing: its goal, what is new, then the hints asked for.
+ * back: S_ZONE or S_DRONE to go back there (the mission running), or
+ * NONE: PLAY starts mission m. */
+static void __fastcall__ enter_brief(unsigned char m, unsigned char back)
+{
+    if (m != brief_m) hints = 0u;
+    brief_m = m;
+    brief_back = back;
+    screen = S_BRIEF;
+    running = 0u;
+    overlay_use(OV_FRONT);
+    brief_draw();
+}
 static void enter_brief_again(void) { enter_brief(brief_m, brief_back); }
 
 static void enter_zone(void)
 {
     screen = S_ZONE;
+    overlay_use(OV_PLAY);
     screen_clear();
     zone_draw();
     if (won) buttons_set(won_buttons, won_tips, 5); else buttons_set(zone_buttons, zone_tips, 5);
@@ -297,6 +335,7 @@ static void enter_zone(void)
  * reset; 0 if the room could not be read. */
 static unsigned char __fastcall__ start_mission(unsigned char m)
 {
+    overlay_use(OV_PLAY);
     if (!zone_load(m)) return 0u;
     board_compile();
     board_swap();
@@ -315,6 +354,7 @@ static void __fastcall__ enter_drone(unsigned char d)
         cur_drone = d;
     }
     screen = S_DRONE;
+    overlay_use(OV_PLAY);
     empty_hands();
     screen_clear();
     board_draw();
@@ -558,7 +598,7 @@ int main(void)
     }
     claimed = 1u;
     if (!text_load()) {
-        a2_puts("CANNOT READ RSS.TEXT1/2.\r");
+        a2_puts("CANNOT READ RSS.TEXT1/2 OR RSS.OVL.\r");
         apple2_getkey();
         return 1;
     }
@@ -572,7 +612,9 @@ int main(void)
     a2_frame_set_delay(40u);
     dhgr_draw_page(1);
     dhgr_show_page(1);
+    overlay_use(OV_PLAY);
     zone_init();
+    overlay_use(OV_FRONT);
     game_load();
     title_page = persist.reached >= 14u;   /* the next mission's page */
     load_layout(persist.lab);

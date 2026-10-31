@@ -2,4 +2,6 @@
 #define MISSIONS 20u
 #define ROOM_RECORD 256u          /* RSS.ROOMS: one record per mission */
 #define ROOM_STARTS 19u
+#ifdef ROOM_GOALS                 /* (hover.c: resident, the overlays call it) */
 static const unsigned char mission_goals[] = {0, 0, 0, 1, 0, 2, 0, 0, 1, 2, 0, 2, 0, 1, 0, 0, 1, 2, 1, 0};
+#endif

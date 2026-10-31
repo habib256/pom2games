@@ -95,8 +95,6 @@ static unsigned char __fastcall__ read_room(unsigned char m)
     return !error;
 }
 
-unsigned char mission_count(void) { return MISSIONS; }
-unsigned char __fastcall__ mission_goal(unsigned char m) { return mission_goals[m]; }
 
 unsigned char __fastcall__ zone_load(unsigned char m)
 {
@@ -304,7 +302,7 @@ unsigned char zone_tick(void)
 unsigned char zone_won(void)
 {
     static unsigned char i, goal;
-    goal = mission_goals[mission];
+    goal = mission_goal(mission);
     if (goal == GOAL_CELL) {
         for (i = 0u; i < obj_n; ++i)
             if (obj_kind[i] == O_CELL && i != holding[0] && i != holding[1]

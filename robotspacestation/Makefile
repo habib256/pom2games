@@ -23,7 +23,7 @@ include $(MOUSE)/mouse.mk
 
 DISK := $(DIST)/ROBOTSTATION.po
 SRCS := src/main.c src/ui.c src/board_ui.c src/zone.c src/sim.c src/title.c src/help.c src/hover.c src/sprites.c src/symbol.s \
-        src/pointer.s src/swap.s src/text.s
+        src/pointer.s src/swap.s src/text.s src/overlay.s
 LIB_SRCS := $(sort $(HGRC_DHGR_SRCS) $(HGRC_DHGR_SMALL_TEXT_SRCS)) $(HGRC_DHGR_COLOR_BACKEND) \
             $(GFX)/gfx_line.c $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) \
             $(PRODOS_SRCS) $(PRODOS_FILE_SRCS) $(MOUSE_SRCS)
@@ -60,10 +60,12 @@ $(BUILD)/file.o: $(PRODOS_FILE_DEPS)
 $(GAME_LIB): $(LIB_OBJS) Makefile
 	$(PYTHON) -c 'from pathlib import Path; Path("$@").unlink(missing_ok=True)'
 	$(AR65) a $@ $(LIB_OBJS)
-# zone.c and title.c live in HI, the unused DHGR page 2, sprites.c in L8
-# at $0C40 (src/game.cfg).
-$(BUILD)/zone.o $(BUILD)/title.o: CFLAGS += --code-name HICODE --rodata-name HIDATA
-$(BUILD)/sprites.o: CFLAGS += --code-name L8CODE --rodata-name L8DATA
+# The overlays in $4000-$5FFF (src/game.cfg, src/overlay.s): PLAY and
+# FRONT; hover.c resident in L8 at $0C40.
+$(BUILD)/zone.o $(BUILD)/sprites.o: CFLAGS += --code-name PLAYCODE --rodata-name PLAYDATA
+$(BUILD)/title.o $(BUILD)/help.o: CFLAGS += --code-name FRONTCODE --rodata-name FRONTDATA
+$(BUILD)/hover.o: CFLAGS += --code-name L8CODE --rodata-name L8DATA
+$(BUILD)/game.bin.ovl: $(BUILD)/game.bin
 $(BUILD)/game.bin: $(OBJS) $(GAME_LIB) src/game.cfg
 	$(CL65) -t none -C src/game.cfg -m $(BUILD)/game.map -Ln $(BUILD)/game.lbl -o $@ $(OBJS) $(GAME_LIB)
 $(BUILD)/RSS.SYS: $(BUILD)/game.bin src/startup.s $(PRODOS_SYS_CFG)
@@ -73,7 +75,7 @@ $(BUILD)/RSS.SYSTEM: src/boot.s $(PRODOS_SYSBOOT_DEPS)
 	@mkdir -p $(@D)
 	$(CA65) -I $(PRODOS) -o $(BUILD)/boot.o src/boot.s
 	$(LD65) -C $(PRODOS_SYSBOOT_CFG) -o $@ $(BUILD)/boot.o
-$(DISK): $(BUILD)/RSS.SYS $(BUILD)/RSS.SYSTEM $(BUILD)/RSS.ROOMS $(BUILD)/RSS.TEXT1 $(BUILD)/RSS.TEXT2 $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py
+$(DISK): $(BUILD)/RSS.SYS $(BUILD)/game.bin.ovl $(BUILD)/RSS.SYSTEM $(BUILD)/RSS.ROOMS $(BUILD)/RSS.TEXT1 $(BUILD)/RSS.TEXT2 $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py
 	@rm -rf $(BUILD)/stage
 	@mkdir -p $(BUILD)/stage $(DIST)
 	cp $(DEV)/tools/prodos/PRODOS $(BUILD)/stage/PRODOS#FF0000
@@ -82,6 +84,7 @@ $(DISK): $(BUILD)/RSS.SYS $(BUILD)/RSS.SYSTEM $(BUILD)/RSS.ROOMS $(BUILD)/RSS.TE
 	cp $(BUILD)/RSS.ROOMS $(BUILD)/stage/RSS.ROOMS#060000
 	cp $(BUILD)/RSS.TEXT1 $(BUILD)/stage/RSS.TEXT1#060000
 	cp $(BUILD)/RSS.TEXT2 $(BUILD)/stage/RSS.TEXT2#060000
+	cp $(BUILD)/game.bin.ovl $(BUILD)/stage/RSS.OVL#060000
 	$(PYTHON) $(DEV)/tools/prodos/build_volume.py $(BUILD)/stage $@ \
 		--volume ROBOT.STATION --boot $(DEV)/tools/prodos/boot.bin --blocks 280
 

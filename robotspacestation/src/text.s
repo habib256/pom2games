@@ -4,7 +4,7 @@
 ; DHGR library's aux_read (zero page: RAMRD cannot switch out the code).
 .setcpu "65C02"
 .importzp ptr1, ptr2, aux_read
-.export _text_store, _text_open, _text_line, _text_buf
+.export _text_store, _text_open, _text_line, _text_buf, _store_src
 
 TEXT_AUX = $6000
 RAMWRTOFF = $C004
@@ -14,10 +14,12 @@ RAMWRTON = $C005
 _text_buf: .res 32                      ; the line text_line() copied
 .segment "BSS"
 text_ptr: .res 2
+.segment "DATA"
+_store_src: .byte $20                   ; text_store's source page
 
 .segment "CODE"
-; text_store(pages, aux_page): A pages from main $2000 to aux (X = page).
-; Before dhgr_init: the boot's DHGR page 1 is free then.
+; text_store(pages, aux_page): A pages from main store_src (page, $20 at
+; first) to aux (X = page). At boot: $2000-$5FFF are free then.
 _text_store:
         stx ptr2+1
         tax
@@ -25,7 +27,7 @@ _text_store:
         sei
         stz ptr1
         stz ptr2
-        lda #$20
+        lda _store_src
         sta ptr1+1
         ldy #0
         sta RAMWRTON

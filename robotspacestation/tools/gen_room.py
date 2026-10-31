@@ -44,8 +44,10 @@ header = '\n'.join([
     f'#define MISSIONS {len(MISSIONS)}u',
     f'#define ROOM_RECORD {RECORD}u          /* RSS.ROOMS: one record per mission */',
     f'#define ROOM_STARTS {STARTS}u',
+    '#ifdef ROOM_GOALS                 /* (hover.c: resident, the overlays call it) */',
     'static const unsigned char mission_goals[] = {'
     + ', '.join(str(goal) for _, goal, _ in MISSIONS) + '};',
+    '#endif',
 ]) + '\n'
 write_if_changed(Path(__file__).resolve().parents[1] / 'src/room.h', header.encode())
 if len(sys.argv) > 1:

@@ -7,10 +7,16 @@
 #include "board_ui.h"
 #include "zone.h"
 #include "title.h"
+#define ROOM_GOALS
+#include "room.h"
 
 extern unsigned char won;              /* main.c */
 unsigned char hover_force, hover_sync;
 static unsigned char hover_last = NONE;
+
+/* Resident (L8), for every screen: the missions and their goals. */
+unsigned char mission_count(void) { return MISSIONS; }
+unsigned char __fastcall__ mission_goal(unsigned char m) { return mission_goals[m]; }
 
 /* Some wire reaches a motor, the claw or the radio. */
 static unsigned char sinks_wired(void)
