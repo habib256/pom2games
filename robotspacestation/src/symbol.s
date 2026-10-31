@@ -16,7 +16,7 @@ symbols:
         .dbyt $27C0, $1230, $1208, $F904, $0902, $0902, $0901   ; XOR
         .dbyt $0800, $0C00, $0B00, $08C0, $0830, $080A, $F80D   ; NOT
 
-.segment "HICODE"
+.segment "L8CODE"
 _sym_x: .byte 0                         ; top left corner
 _sym_y: .byte 0
 idx:    .byte 0                         ; the row's offset in symbols

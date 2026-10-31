@@ -9,7 +9,8 @@ clicks go through the game's test hook (src/ui.c test_click).
 2. Mission 4 from a save file made by the model (missions 1-3 won): wire the
    fetch-the-cell board from the inside, run it: the drone grabs the cell,
    brings it back and lets it go on the charger, tick for tick like the
-   model."""
+   model.
+3. The overlays: the window holds the right code on each screen."""
 import argparse
 import shutil
 import subprocess
@@ -388,6 +389,24 @@ def old_save(disk, L, magic='RSS2'):
                  b'RSS3\x05' + bytes(BEST_SLOTS) + bytes(48) + bytes([0xFF] * 72))
 
 
+def overlays(disk, L):
+    """The overlay window $4000-$5FFF (src/overlay.s) holds exactly what
+    RSS.OVL has: FRONT on the title, PLAY in a mission, FRONT again on its
+    briefing (GOAL), PLAY again back in the room, FRONT on the title."""
+    ovl = (HERE / 'build/game.bin.ovl').read_bytes()
+    play, front = ovl[:0x2000].rstrip(b'\0'), ovl[0x2000:]
+    seen = lambda: [idle(L, 3000), L.peek('_overlay_cur'), f'peek:4000:{len(play)}']
+    steps = [BOOT] + seen() + title(0) + seen() + zone_button(3) + ['wait:60'] + seen() \
+        + brief_play() + seen() + zone_button(4) + ['wait:60'] + seen()
+    r = run(disk, steps)
+    fails = 0
+    for n, (name, want) in enumerate((('title', front), ('mission', play), ('briefing', front),
+                                      ('room again', play), ('title again', front))):
+        got = bytes([r.mem(L['_overlay_cur'], 1, n)[0]]) + r.mem(0x4000, len(play), n)[:len(want)]
+        fails += check(f'overlay on the {name}', got, bytes([1 if want is play else 2]) + want)
+    return fails
+
+
 def missing_rooms(disk, L):
     """Without RSS.ROOMS, PLAY comes back to the title with a message."""
     r = run(disk, [BOOT] + title(0) + ['wait:60', idle(L, 3000), L.peek('_screen')])
@@ -424,6 +443,7 @@ def main():
     rss1 = b'RSS1' + save_bytes(EMPTY, reached=5)[4:SAVE_SIZE - BEST_SLOTS - 120]
     fails += old_save(disk_with_save(rss1, 'rss1'), L, 'RSS1')
     fails += missing_rooms(disk_with_save(None, 'norooms', rooms=False), L)
+    fails += overlays(args.disk, L)
     print(f'shots in {SHOTS}')
     sys.exit(1 if fails else 0)
 

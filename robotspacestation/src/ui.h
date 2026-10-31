@@ -36,6 +36,13 @@ void __fastcall__ message(const char *s);
 extern char text_buf[32];
 /* At boot, before dhgr_init: pages (low byte) from main $2000 to aux (high byte). */
 void __fastcall__ text_store(unsigned pages_page);
+extern unsigned char store_src;         /* its source page ($20) */
+
+/* src/overlay.s: one group of screens' code in $4000-$5FFF at a time,
+ * copied from aux (src/game.cfg). Call it when a screen of the group opens. */
+#define OV_PLAY 1u                      /* zone.c, sprites.c: room and drones */
+#define OV_FRONT 2u                     /* title.c, help.c */
+void __fastcall__ overlay_use(unsigned char n);
 void __fastcall__ text_open(unsigned char id);
 unsigned char text_line(void);          /* into text_buf; 1: another line follows */
 void __fastcall__ msg(unsigned char id);              /* on the message line */

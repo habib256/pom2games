@@ -1,7 +1,7 @@
-; ProDOS SYS entry $2000: move the C program to $6000, then its HI part
-; to $4000, each from the end (sources and destinations overlap, always
-; with the destination above), then its L8 part down to $0C40 (no
-; overlap), then start it.
+; ProDOS SYS entry $2000: move the C program to $6000 from the end (source
+; and destination overlap, the destination above), then its L8 part down
+; to $0C40 (no overlap), then start it. The overlays come from RSS.OVL
+; (src/main.c, src/overlay.s).
 .setcpu "65C02"
 .segment "CODE"
         cld
@@ -21,19 +21,6 @@
         lda #<size
         sta $0A
         lda #>size
-        sta $0B
-        jsr copy
-        lda #<(hi+hi_size-1)
-        sta $06
-        lda #>(hi+hi_size-1)
-        sta $07
-        lda #<($4000+hi_size-1)
-        sta $08
-        lda #>($4000+hi_size-1)
-        sta $09
-        lda #<hi_size
-        sta $0A
-        lda #>hi_size
         sta $0B
         jsr copy
         lda #<(low+low_size-1)
@@ -70,14 +57,11 @@ copy:   ldy #0
         ora $0B
         bne @loop
         rts
-; L8 and HI first: game.bin's copy to $6000, then HI's to $4000, leave
-; them in place; L8 goes below, to $0C40 (free since RSS.SYSTEM ran).
+; L8 first: game.bin's copy to $6000 leaves it in place; L8 goes below,
+; to $0C40 (free since RSS.SYSTEM ran).
 low:    .incbin "game.bin.low"
 low_size = *-low
-hi:     .incbin "game.bin.hi"
-hi_size = *-hi
 payload: .incbin "game.bin"
 size = *-payload
-.assert hi_size <= $2000, error, "HI fills $4000-$5FFF"
 .assert low_size <= $03C0, error, "L8 fills $0C40-$0FFF"
 .assert size <= $5E80, error, "the program reaches the C stack ($BE80)"

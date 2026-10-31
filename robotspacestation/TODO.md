@@ -59,15 +59,20 @@
       == `Zone` ; la campagne entière, chaque mission jouée en C avec
       la solution du modèle (carte dans `RSS.SAVE`), //e et //c.
 
-## Mémoire (au 2026-10-30, après la refonte)
+## Mémoire (au 2026-10-31 : overlays)
 
-Pile C ramenée à 128 octets (`$BE80`) ; `$0800-$0FFF` : page zéro sauvée
-et planche du drone B ; principale ~470 octets libres,
-HI ~50, basse ~7 ; textes en auxiliaire (`$6000-$A000`, place jusqu'à
-`$BFFF`). Avant :
+Fait : la page 2 (`$4000-$5FFF`) est une fenêtre d'overlays (PLAY = salle
+et drones, FRONT = titre, aide, briefing, lecture de la sauvegarde), rangés
+en auxiliaire (`RSS.OVL`) et recopiés en 0,11 s au changement d'écran
+(docs/SPEC.md, « Mémoire »). Libres : principale ~1,7 Ko (contre ~100 o),
+PLAY ~490 o, FRONT ~5,6 Ko, L8 ~260 o ; `sprbuf.s` (inutilisé) supprimé.
 
-
-Le titre écrit ses deux lignes avec la petite police agrandie (plus de
-`dhgr_puts` ni de police 8 × 8 : ~1,3 Ko rendus) ; l'aide et les records sont
-en mémoire principale (`src/help.c`). Libres : principale ~620 octets sous
-`$BE00`, HI ~640 octets, basse ~20 octets.
+Réserves encore inemployées, si un jour il en faut plus :
+- [ ] auxiliaire `$0800-$1FFF` (6 Ko) et `$905E-$9FFF` (~4 Ko) : un troisième
+      overlay (le labo : gravure, ouverture de puce, effacement) ou des
+      données ;
+- [ ] carte langage auxiliaire (16 Ko + 4 Ko) : seulement comme réserve de
+      données (il faut ALTZP, donc une copie, pas d'exécution) ;
+- [ ] la sauvegarde (`persist`, 2,1 Ko en `$1400`) en auxiliaire libérerait
+      la mémoire basse pour du code résident, mais la compilation des
+      planches lit les puces à chaque fois : à mesurer.
