@@ -13,7 +13,13 @@ use the Apple II's native video. Every game in the repository shares them.
                        magic (savehdr.asm), save sectors (rwts_sectors);
                        Mockingboard: music on the VIA timer IRQ (mb_irq.asm,
                        ProDOS or own vector), AYS song player (aysong.asm,
-                       format in AYSONG_FORMAT.md)
+                       format in AYSONG_FORMAT.md); E-Z Color TMS9918A card:
+                       detection and patched-operand access (ezcolor.asm)
+      lib/tms9918/     asm : POM1's TMS9918 drivers ported to the E-Z Color
+                       card (Graphics I/II, Text, console, 5S trigger,
+                       Quale's SCROLL-O-SPRITES banks, CC-BY-3.0); rendered
+                       by tools/tms9918.py, run with a2run --ezcolor=N
+                       and on POM2's card (a2shot --ezcolor=N)
       lib/apple2c/     C   : text, keyboard, sound, joystick, DOS; frame
                        pacing, ProDOS video clock (//e VBL, //c mouse IRQ);
                        aux memory pages (apple2aux.h)
@@ -220,6 +226,12 @@ wall clock, hence deterministic) and runs a script:
 | `regs:A:X:Y`, `go:ADR`, `call:ADR:N` | as in a2run (below); the soft switches are left as they are |
 | `reset`           | presses RESET                                      |
 | `pc`              | prints the PC                                      |
+| `cpu`             | prints `cpu PC=.. A=.. X=.. Y=.. S=.. P=..`         |
+| `text`            | prints the 40×24 text page, as a2run (`Result.text_screens()`) |
+| `vpeek:ADR[:LEN]` | (`--ezcolor`) dumps VRAM, lines `VADDR: XX ...` (a2run's format) |
+| `vregs`           | (`--ezcolor`) `vregs R0..R7 status=SS addr=AAAA irq=I dropped=N strict=S`, read without side effects |
+| `vdrop:reset`     | (`--ezcolor`) zeroes the dropped-access counter    |
+| `vshot:F.png[:pic]` | (`--ezcolor`) the card's monitor, 288×216 ×2 (`:pic`: the 256×192 picture); the VDP paints line by line, so take it after a wait |
 
 `--iie` boots an Apple //e enhanced (65C02, 80-column card and auxiliary
 memory) instead of the ][+: this is what allows testing LOGO in 80 columns.
@@ -227,6 +239,13 @@ memory) instead of the ][+: this is what allows testing LOGO in 80 columns.
 built-in mouse. `--mouse` puts an AppleMouse card in slot 4 of a ][+ or //e
 (Apple's firmware on both chips; `--mouse=applewin`: AppleWin's model of the
 MCU), `--mockingboard` a Mockingboard (on the //c, the Mockingboard 4c).
+`--ezcolor[=N]` puts POM2's E-Z Color card (TMS9918A, 16 KB VRAM) in slot N
+(default 4) of a ][+ or //e, in silicon-strict mode: an access the VDP cannot
+serve yet is dropped and counted, R1 bit 7 selects 16 KB addressing (set
+it); the run ends with `vdp_dropped=N` (`Result.vdp_dropped`, must be 0).
+`--ezcolor-lax` turns the window off. The VDP's frame is its own: 17,062
+cycles (a2run's model uses the same). `a2test.run(disk, steps,
+emulator=a2test.A2SHOT, ezcolor=N)`.
 
 Test programs too large for a script link the same core in C++:
 `tests/NAME_probe.cpp` with `tools/a2shot/probe.hpp` (boot of a ][+, //e or

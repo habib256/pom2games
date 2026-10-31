@@ -95,6 +95,47 @@ class Result:
             else:
                 other.append(line)
         self.dumps = [bytes(d) for d in self.dumps]
+        # E-Z Color (a2run --ezcolor): "VADDR: XX ..." VRAM dumps (the last
+        # one wins per byte), "vregs ..." lines and the fast-access total.
+        self.vram = bytearray(0x4000)
+        self.vram_seen = bytearray(0x4000)
+        self.vregs = None           # [R0..R7] of the last vregs step
+        self.vstatus = None
+        self.vdp_fast = None        # vdp_fast_writes=N printed at the end
+        # a2shot --ezcolor (POM2's TMS9918, silicon-strict): accesses the
+        # chip dropped (vdp_dropped=N at the end; dropped= in each vregs
+        # line, the last one in vregs_dropped) and /INT (virq).
+        self.vdp_dropped = None
+        self.vregs_dropped = None
+        self.virq = None
+        rest = []
+        for line in other:
+            if len(line) > 7 and line[0] == 'V' and line[5] == ':':
+                try:
+                    addr, data = int(line[1:5], 16), bytes.fromhex(line[7:])
+                except ValueError:
+                    rest.append(line)
+                    continue
+                for k, v in enumerate(data):
+                    self.vram[(addr + k) & 0x3FFF] = v
+                    self.vram_seen[(addr + k) & 0x3FFF] = 1
+            elif line.startswith('vregs '):
+                f = line.split()
+                self.vregs = [int(x, 16) for x in f[1:9]]
+                self.vstatus = int(f[9].split('=')[1], 16)
+                kv = dict(x.split('=', 1) for x in f[10:] if '=' in x)
+                if 'dropped' in kv:
+                    self.vregs_dropped = int(kv['dropped'])
+                if 'irq' in kv:
+                    self.virq = int(kv['irq'])
+                rest.append(line)
+            elif line.startswith('vdp_fast_writes='):
+                self.vdp_fast = int(line.split('=')[1])
+            elif line.startswith('vdp_dropped='):
+                self.vdp_dropped = int(line.split('=')[1])
+            else:
+                rest.append(line)
+        other = rest
         other = '\n'.join(other)
         self.cycles = [int(c) for c in re.findall(r'cycles=(\d+)', other)]
         self.spk = [int(c) for c in re.findall(r'^spk (\d+)$', other, re.M)]
@@ -127,6 +168,13 @@ class Result:
             break
         raise AssertionError(f'missing dump at {address:04X}')
 
+    def vmem(self, address, length):
+        """`length` VRAM bytes from a vpeek dump (all must have been dumped)."""
+        sl = [(address + k) & 0x3FFF for k in range(length)]
+        if not all(self.vram_seen[a] for a in sl):
+            raise AssertionError(f'missing VRAM dump at {address:04X}')
+        return bytes(self.vram[a] for a in sl)
+
     def text_screens(self):
         """The 40x24 screens printed by a2run's `text` step."""
         return re.findall(r'(?:^\|.{40}\|\n){24}', self.out, re.M)
@@ -144,15 +192,22 @@ def have_a2shot(what=None):
 
 
 def run(disk, steps, emulator=None, iie=False, wp=False, timeout=120, check=True,
-        pad_until=False, cwd=None, pal=False, mockingboard=False):
+        pad_until=False, cwd=None, pal=False, mockingboard=False, ezcolor=None,
+        ezcolor_lax=False):
     """Boot `disk` and play `steps`. emulator defaults to a2run (a2shot when
     iie). disk=None (a2run): no boot card, the machine waits at the Applesoft
     prompt after 8 frames; start test code with bin_steps(). pad_until inserts `wait:1` before every until: (a2shot needs a
     frame between a key and the next breakpoint). pal: 50 Hz video, mockingboard:
-    a card in slot 4 (a2shot)."""
+    a card in slot 4 (a2shot), ezcolor: slot of an E-Z Color TMS9918A card
+    (a2run --ezcolor=N; read back with vpeek:/vregs, see vdp_shot). With
+    emulator=A2SHOT the card is POM2's (silicon-strict access window: count
+    in Result.vdp_dropped; vshot:FILE.png renders its monitor); ezcolor_lax
+    (a2shot only) turns that window off."""
     emulator = Path(emulator or (A2SHOT if iie else A2RUN))
     args = [str(emulator)] + (['--iie'] if iie else []) + (['--pal'] if pal else []) \
-        + (['--mockingboard'] if mockingboard else []) + (['--disk', str(disk)] if disk else [])
+        + (['--mockingboard'] if mockingboard else []) \
+        + ([f'--ezcolor={ezcolor}'] if ezcolor else []) + (['--ezcolor-lax'] if ezcolor_lax else []) \
+        + (['--disk', str(disk)] if disk else [])
     if wp:
         args.append('--wp')
     steps = [str(s) for s in steps]
@@ -173,11 +228,12 @@ class Session:
     execution. iie=True boots an enhanced //e (128 KB, ProDOS volumes). Use as a context manager; failed steps and timeouts raise.
     """
 
-    def __init__(self, disk, cwd=None, timeout=120, iie=False):
+    def __init__(self, disk, cwd=None, timeout=120, iie=False, ezcolor=None):
         self.timeout = timeout
         self.stderr = tempfile.TemporaryFile(mode='w+t')
         try:
             self.process = subprocess.Popen([str(A2SHOT)] + (['--iie'] if iie else [])
+                                            + ([f'--ezcolor={ezcolor}'] if ezcolor else [])
                                             + ['--disk', str(disk), '--stdin'],
                                             cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                             stderr=self.stderr, text=True, bufsize=1)
@@ -239,6 +295,22 @@ class Session:
             self.process.stdin.close()
         self.process.stdout.close()
         self.stderr.close()
+
+
+VDP_SHOT_STEPS = ['vpeek:0:16384', 'vregs']     # what vdp_shot() needs
+
+
+def vdp_shot(result, path, scale=2, border=False):
+    """Render the E-Z Color picture of a run that ended its steps with
+    VDP_SHOT_STEPS (whole VRAM + registers) to a PNG (dev/tools/tms9918.py).
+    Returns the RGB rows."""
+    import tms9918
+    if result.vregs is None or not all(result.vram_seen):
+        raise AssertionError('vdp_shot needs vpeek:0:16384 and vregs')
+    rows = tms9918.render(result.vram, result.vregs, border)
+    import apple2img
+    apple2img.png_write(Path(path), rows, scale=scale)
+    return rows
 
 
 def hgr_visible(page):
