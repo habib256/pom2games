@@ -6,7 +6,7 @@
     python3 -I tools/world.py --level 1..5 ...   (static: disk segments)
 
 --ram IMAGE   64 KB RAM dump taken in game (a2shot peek:0000:0x10000 piped
-              through tools/peek2bin.py).  Everything is decoded from it.
+              through dev/tools/re6502/peek2bin.py).  Everything is decoded from it.
 --level N     no emulator: level 1 = world block $090 ($6000-$81FF) + the
               robots/circuit block $075 ($8200-$8ED4); levels 2-5 overlay
               their rooms+text block ($6E40-$81FF).  The object table of
@@ -24,11 +24,11 @@ circuit = PC circuit layout, $8200 robot tables, $8DC9 robot records.
 import argparse
 import glob
 import os
-import struct
 import sys
-import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, '..', '..', 'dev', 'tools'))
+from apple2img import png_write  # noqa: E402
 ROOT = os.path.dirname(HERE)
 FILES = os.path.join(ROOT, 'build', 'files', 'A_ROBOTROPOLIS')
 
@@ -276,13 +276,7 @@ PALETTE = {0: (0, 0, 0), 1: (200, 60, 230), 2: (60, 200, 60), 3: (255, 255, 255)
 
 
 def write_png(path, w, h, rgb):
-    raw = b''.join(b'\0' + bytes(rgb[y * w * 3:(y + 1) * w * 3]) for y in range(h))
-
-    def chunk(t, d):
-        return struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xFFFFFFFF)
-    with open(path, 'wb') as f:
-        f.write(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
-                + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b''))
+    png_write(path, [bytes(rgb[y * w * 3:(y + 1) * w * 3]) for y in range(h)])
 
 
 def render_room(mem, room, scale=1):

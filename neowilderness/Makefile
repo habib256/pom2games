@@ -154,7 +154,7 @@ $(BUILD)/NEOWILD.HOF: tools/genhof.py tools/score_ref.py
 	$(PYTHON) -I tools/genhof.py $@
 
 $(BUILD)/JOURNEY.dsk: original/extras/Wilderness\ -\ Journey.a2r
-	$(PYTHON) -I tools/flux2dsk.py "$<" $@
+	$(PYTHON) -I $(DEV)/tools/re6502/flux2dsk.py "$<" $@
 
 $(DISKXL): $(BIN) $(BUILD)/NEOWILD.HOF $(BUILD)/dhgr_tables.inc $(MAPBIN) $(REGION_MAPS) $(BUILD)/regions/regions.json $(SPRITE_BINS) $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py tools/build_disk.py tools/pack_boot.py tools/geo_atlas.py Makefile
 	@mkdir -p $(DIST)
@@ -403,8 +403,8 @@ original/extras/.done:
 # build/files/      SMALLDOS files of the program side
 extract: originals
 	mkdir -p build
-	python3 -I tools/flux2dsk.py $(PROGRAM_WOZ) build/SIERRA.dsk
-	python3 -I tools/flux2dsk.py "$(JOURNEY_A2R)" build/JOURNEY.dsk
+	python3 -I $(DEV)/tools/re6502/flux2dsk.py $(PROGRAM_WOZ) build/SIERRA.dsk
+	python3 -I $(DEV)/tools/re6502/flux2dsk.py "$(JOURNEY_A2R)" build/JOURNEY.dsk
 	cp $(PROGRAM_WOZ) build/SIERRA.woz
 	python3 -I tools/smalldos.py build/SIERRA.dsk --extract build/files
 	python3 -I tools/smalldos.py $(DEMO_DSK) --extract build/demo
@@ -412,7 +412,7 @@ extract: originals
 # Boot the original to the main menu and dump the menu program.
 run-original: extract
 	$(A2SHOT) --disk build/SIERRA.woz wait:5400 shot:build/menu.png peek:0000:0xC000 2>/dev/null \
-	  | python3 -I tools/peek2bin.py > build/menu.bin
+	  | python3 -I $(DEV)/tools/re6502/peek2bin.py > build/menu.bin
 	python3 -I -c 'import sys; sys.path.insert(0, "tools"); import applesoft as A; \
 	  m = open("build/menu.bin", "rb").read(); e = m[0x69] | m[0x6A] << 8; \
 	  print("\n".join(A.listing(m[0x800:e])))' > build/MENU.bas
@@ -422,7 +422,7 @@ run-original: extract
 dump-game: extract
 	$(A2SHOT) --disk build/SIERRA.woz wait:5400 key:"1\r" wait:3000 insert:build/JOURNEY.dsk \
 	  key:"\r" wait:3000 key:"\r" wait:600 key:"\r" wait:1800 shot:build/game.png \
-	  peek:0000:0xC000 2>/dev/null | python3 -I tools/peek2bin.py > build/game.bin
+	  peek:0000:0xC000 2>/dev/null | python3 -I $(DEV)/tools/re6502/peek2bin.py > build/game.bin
 
 # Decoded supplied map and the first view from the crash site (heading 128).
 topo: extract
@@ -440,7 +440,7 @@ topo: extract
 #                         (a2shot), build/re_regions/ and build/regions/fauna.json
 
 $(BUILD)/SIERRA.dsk: $(PROGRAM_WOZ)
-	$(PYTHON) -I tools/flux2dsk.py $< $@
+	$(PYTHON) -I $(DEV)/tools/re6502/flux2dsk.py $< $@
 
 $(BUILD)/regions/regions.json: tools/regions.py tools/smalldos.py $(BUILD)/SIERRA.dsk
 	$(PYTHON) -I tools/regions.py

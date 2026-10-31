@@ -27,13 +27,12 @@ animals.json (rows of colour numbers, -1 transparent, plus the cost table).
 """
 import json
 import math
-import struct
 import sys
-import zlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE / 'tools'))
+sys.path.insert(0, str(HERE.parent / 'dev/tools'))
 from re_graphics import decode  # noqa: E402
 import dhgr_palette as P  # noqa: E402
 from dhgr_palette import (BLACK, MAGENTA, DARK_BLUE, PURPLE, DARK_GREEN, GREY1,  # noqa: E402
@@ -41,6 +40,7 @@ from dhgr_palette import (BLACK, MAGENTA, DARK_BLUE, PURPLE, DARK_GREEN, GREY1, 
                           GREEN, YELLOW, AQUA, WHITE)
 from genicons import FONT  # noqa: E402
 from pack_boot import compress  # noqa: E402
+from apple2img import png_write  # noqa: E402
 
 SRC = HERE / 'build/original_graphics'
 OUT = HERE / 'build/recolour'
@@ -293,16 +293,7 @@ def text(img, s, x, y, k=2, c=WHITE):
 
 
 def write_png(path, rows):
-    width, height = len(rows[0]), len(rows)
-
-    def chunk(kind, data):
-        return (struct.pack('>I', len(data)) + kind + data
-                + struct.pack('>I', zlib.crc32(kind + data) & 0xFFFFFFFF))
-    raw = b''.join(b'\0' + bytes(r) for r in rows)
-    path.write_bytes(b'\x89PNG\r\n\x1a\n'
-                     + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 3, 0, 0, 0))
-                     + chunk(b'PLTE', b''.join(bytes(rgb) for rgb in P.RGB))
-                     + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b''))
+    png_write(path, rows, mode='pal', palette=P.RGB)
 
 
 def views(grid):

@@ -21,11 +21,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parents[1]
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT / 'dev/tools'))
-sys.path.insert(0, str(ROOT / 'dev/tools/prodos'))
 sys.path.insert(0, str(HERE / 'tests'))
 import a2test  # noqa: E402
 import score as R  # noqa: E402
-from read_volume import Image  # noqa: E402
 
 DISK = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'dist/NEOWILDERNESSXL.po'   # six scenarios in the hall
 LABELS = Path(sys.argv[2]) if len(sys.argv) > 2 else HERE / 'build/wild.lbl'
@@ -91,7 +89,7 @@ def main():
         print('SKIP: a2shot (IIe POM2 core) is required')
         return
     L = a2test.labels(LABELS)
-    names = {e[1:1 + (e[0] & 15)].decode() for e in Image(DISK.read_bytes()).entries(2)}
+    names = set(a2test.prodos_files(DISK))
     if 'hof_key_wait' not in L or not {'NEOWILD.END', 'NEOWILD.HOF'} <= names:
         print('SKIP: the game has no hall of fame yet (docs/HOF.md, integration)')
         return

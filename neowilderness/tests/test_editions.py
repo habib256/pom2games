@@ -29,17 +29,9 @@ import tempfile
 from pathlib import Path
 from common import HERE, L, DISK, DISK140, a2test, text_screen
 
-sys.path.insert(0, str(HERE.parent / 'dev/tools/prodos'))
-from read_volume import Image   # noqa: E402
-
 LIMIT = 40000
 XL_DISK = (0, 4, 9, 16, 18, 19, 20, 26, 31)    # build_disk.py EDITIONS + ALWAYS_DISK (16: STATUS, XL)
 SMALL_DISK = (0, 9, 18, 19, 20, 31)    # (0: TOPOGEN, 9: CRAFT, 18: the campfire, 31: FORAGE)
-
-
-def files(disk):
-    img = Image(disk.read_bytes())
-    return img, {bytes(e[1:1 + (e[0] & 15)]).decode('ascii'): e for e in img.entries(2) if e[0] & 15}
 
 
 def screen(s):
@@ -49,8 +41,8 @@ def screen(s):
 def volume_checks():
     small, big = DISK140.read_bytes(), DISK.read_bytes()
     assert len(small) == 280 * 512 and len(big) == 1600 * 512, (len(small), len(big))
-    _, f140 = files(DISK140)
-    _, fxl = files(DISK)
+    f140 = a2test.prodos_files(DISK140)
+    fxl = a2test.prodos_files(DISK)
     for names in (f140, fxl):
         assert {'PRODOS', 'NEOWILD.SYSTEM', 'NEOWILD.DAT', 'NEOWILD.END', 'NEOWILD.HOF',
                 'NEOWILD.SAV'} <= set(names), sorted(names)
@@ -65,8 +57,7 @@ def volume_checks():
             on_disk = layout['trunk_modules'][str(index)]['bank'] == 'disk'
             assert on_disk == (index in disk_modules), (name, index)
     for disk, disk_modules in ((DISK, XL_DISK), (DISK140, SMALL_DISK)):
-        img, names = files(disk)
-        data = img.read(names['NEOWILD.DAT'])
+        data = a2test.prodos_files(disk)['NEOWILD.DAT'][2]
         # The trunk's directory (RESIDENT record at $B600, memory.s module_dir).
         memory = {}
         import test_pack_boot
@@ -76,12 +67,12 @@ def volume_checks():
         directory = bytes(memory[0, L['module_dir'] + i] for i in range(build_disk.DIR_ENTRIES * 7))
         banks = {i: struct.unpack_from('<BHHH', directory, i * 7)[0] for i in (4, 16, 18, 19, 20, 26, 31)}
         assert all((b == build_disk.BANK_DISK) == (i in disk_modules) for i, b in banks.items()), banks
-    size = lambda e: int.from_bytes(e[0x15:0x18], 'little')
+    size = lambda f: len(f[2])          # (type, aux, bytes): the directory EOF
     # Different resident/disk and LZ layouts can change the trunk gap.
     assert size(f140['NEOWILD.DAT']) < size(fxl['NEOWILD.DAT']), 'Sierra-only DAT is smaller'
     for name in ('layout.json', 'layout-140.json'):
         layout = json.loads((HERE / 'build' / name).read_text())
-        _, entries = files(DISK if name == 'layout.json' else DISK140)
+        entries = a2test.prodos_files(DISK if name == 'layout.json' else DISK140)
         assert size(entries['NEOWILD.DAT']) == layout['dat_file']['bytes']
     print(f'  volumes: 140 KB ({size(f140["NEOWILD.DAT"])} bytes of NEOWILD.DAT) and 800 KB '
           f'({size(fxl["NEOWILD.DAT"])}), the five saved games on both; NEOWILD.BLK '

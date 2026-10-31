@@ -12,12 +12,15 @@ See docs/logic/graphics.md for the formats and the engine routines mirrored here
   python3 -I tools/re_graphics.py --verify RAM.bin  redraw the room held in a
         64 KB RAM dump (a2shot peek) and compare with its displayed HGR page
 """
-import argparse, hashlib, json, struct, sys, zlib
+import argparse, hashlib, json, sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE / 'tools'))
+sys.path.insert(0, str(HERE.parent / 'dev/tools'))
 from loadcalls import calls  # noqa: E402
+import apple2img  # noqa: E402
+from apple2img import WHITE, BLACK  # noqa: E402
 
 SIDES = {'A': 'A_ROBOTROPOLIS', 'B': 'B_LABS', 'C': 'C_TUTORIAL'}
 
@@ -91,59 +94,18 @@ def page_bytes(mem, page):
     return mem[0x2000 * page:0x2000 * page + 0x2000]
 
 
-# Simple NTSC model: lit pixel next to a lit pixel = white; lone lit pixel =
-# colour from its column parity and the byte's bit 7.
-COL = {(0, 0): (255, 68, 253), (1, 0): (20, 245, 60),     # violet, green
-       (0, 1): (20, 207, 253), (1, 1): (255, 106, 60)}    # blue, orange
-WHITE, BLACK = (255, 255, 255), (0, 0, 0)
+# NTSC artefact model: dev/tools/apple2img.hgr_to_rgb.
 
 
 def hgr_rgb(mem, page=1, base=None):
     """Render an HGR page to 280x192 RGB rows (one tuple per pixel)."""
     base = 0x2000 * page if base is None else base
-    rows = []
-    for line in range(192):
-        a = base + line_addr(line, 1) - 0x2000
-        bits, hb = [], []
-        for c in range(40):
-            v = mem[a + c]
-            for i in range(7):
-                bits.append(v >> i & 1)
-                hb.append(v >> 7)
-        row = []
-        for x in range(280):
-            if not bits[x]:
-                # off pixel between two lit ones takes their colour (artefact fill)
-                if 0 < x < 279 and bits[x - 1] and bits[x + 1]:
-                    row.append(COL[((x + 1) & 1, hb[x - 1])])
-                else:
-                    row.append(BLACK)
-            elif (x > 0 and bits[x - 1]) or (x < 279 and bits[x + 1]):
-                row.append(WHITE)
-            else:
-                row.append(COL[(x & 1, hb[x])])
-        rows.append(row)
-    return rows
+    return apple2img.hgr_to_rgb(mem[base:base + 0x2000])
 
 
 def png(path, rows, scale=(1, 1), alpha=False):
     """Write rows of RGB(A) tuples to PNG, scaled by integer (sx, sy)."""
-    sx, sy = scale
-    w, h = len(rows[0]) * sx, len(rows) * sy
-    ch = 4 if alpha else 3
-    raw = bytearray()
-    for r in rows:
-        line = bytearray(b'\0')
-        for p in r:
-            line += bytes(p[:ch]) * sx
-        raw += bytes(line) * sy
-
-    def chunk(kind, payload):
-        return struct.pack('>I', len(payload)) + kind + payload + struct.pack(
-            '>I', zlib.crc32(kind + payload) & 0xffffffff)
-    Path(path).write_bytes(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack(
-        '>IIBBBBB', w, h, 8, 6 if alpha else 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw, 9))
-        + chunk(b'IEND', b''))
+    apple2img.png_write(path, rows, scale, 'rgba' if alpha else 'rgb')
 
 
 def sheet(cells, cols, gap=1, bg=(40, 40, 40)):

@@ -13,6 +13,12 @@ python3 dev/tools/assets/convert.py image.png --mode dhgr --kind sprite --out bu
 python3 dev/tools/assets/convert.py image.ppm --mode hgr --kind frame --out build/screen
 ```
 
+The PNG reader/writer, the HGR/DHGR framebuffer encoders and decoders and
+the seven-phase pre-shifter are a library, `dev/tools/apple2img.py`
+(`png_write`, `png_read`, `hgr_from_mono`, `hgr_to_rgb`, `dhgr_from_colors`,
+`dhgr_to_rgb`, `preshift7`, `asm_bytes`), re-exported by `convert.py`; game
+tools import it with `sys.path.insert(0, '<root>/dev/tools')`.
+
 ## Outputs
 
 | File | Contents |

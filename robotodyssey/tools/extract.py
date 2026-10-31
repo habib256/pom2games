@@ -126,7 +126,7 @@ def main():
     build.mkdir(parents=True, exist_ok=True)
     for key, side in SIDES.items():
         dsk = build / f'{side}.dsk'
-        subprocess.run([sys.executable, '-I', str(HERE / 'flux2dsk.py'), str(orig / f'{side}.woz'), str(dsk)],
+        subprocess.run([sys.executable, '-I', str(HERE.parents[1] / 'dev/tools/re6502/flux2dsk.py'), str(orig / f'{side}.woz'), str(dsk)],
                        check=True)
         po = prodos_order(dsk.read_bytes())
         (build / f'{side}.po').write_bytes(po)

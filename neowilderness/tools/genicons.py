@@ -11,10 +11,11 @@ All artwork, lettering and background use the imported DHGR palette.
 
 import json
 from pathlib import Path
-import struct
-import zlib
+import sys
 
 from dhgr_palette import BLACK, RGB, WHITE
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+from apple2img import png_write  # noqa: E402
 
 
 TOOLS = (
@@ -376,19 +377,7 @@ def decode_art():
 
 def write_png(path, rows):
     """Encode an opaque indexed PNG using only the sixteen DHGR colours."""
-    width, height = len(rows[0]), len(rows)
-
-    def chunk(kind, data):
-        return (struct.pack('>I', len(data)) + kind + data
-                + struct.pack('>I', zlib.crc32(kind + data) & 0xFFFFFFFF))
-
-    raw = b''.join(b'\0' + bytes(row) for row in rows)
-    path.write_bytes(
-        b'\x89PNG\r\n\x1a\n'
-        + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 3, 0, 0, 0))
-        + chunk(b'PLTE', b''.join(bytes(rgb) for rgb in RGB))
-        + chunk(b'IDAT', zlib.compress(raw, 9))
-        + chunk(b'IEND', b''))
+    png_write(path, rows, mode='pal', palette=RGB)
 
 
 def scale(rows):

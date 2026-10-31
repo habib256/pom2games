@@ -2,9 +2,11 @@
 """flux2dsk.py: decode a WOZ2 or A2R2 image to a DOS-order .dsk.
 
 Only standard 16-sector 6&2 tracks (D5 AA 96 / D5 AA AD) are decoded.
-Every capture of a track is tried; sectors whose checksum fails are skipped.
+Every capture of a track is tried; sectors whose checksum fails are skipped
+(a data field cut short by the end of a capture as well).
 
-Usage: flux2dsk.py IMAGE.{woz,a2r} OUT.dsk
+Usage: python3 -I dev/tools/re6502/flux2dsk.py IMAGE.{woz,a2r} OUT.dsk
+From the Wilderness / Robot Odyssey analyses (one shared copy since 2026-10-31).
 """
 import sys
 

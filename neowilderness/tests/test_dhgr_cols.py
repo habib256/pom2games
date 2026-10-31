@@ -12,7 +12,7 @@ elapsed = arrival at checkpoint k+1 - resumption after checkpoint k
   test_dhgr_cols.py [--map build/dhgr/map.bin]      run the IIe tests
   test_dhgr_cols.py --demo-po OUT.po --map MAP     ProDOS demo disk for dhgr.mk
 """
-import argparse, bisect, random, subprocess, sys, tempfile
+import argparse, bisect, random, sys, tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parents[1]
@@ -139,17 +139,12 @@ BENCH_LOAD = 0x7400
 def build_po(out, binary, files, volume='NEODHGR', work=None):
     """Bootable ProDOS 5.25" image: PRODOS, NEODHGR.SYSTEM (src/bench_boot.s)
     and the bench DHGRTEST at $7400, plus {name: (bytes, load address)}."""
-    with tempfile.TemporaryDirectory(prefix='dhgr-stage-') as stage:
-        stage = Path(stage)
-        (stage / 'PRODOS#FF0000').write_bytes((PRODOS / 'PRODOS').read_bytes())
-        (stage / 'NEODHGR.SYSTEM#FF2000').write_bytes((BUILD / 'NEODHGR.SYSTEM').read_bytes())
-        (stage / f'DHGRTEST#06{BENCH_LOAD:04X}').write_bytes(Path(binary).read_bytes())
-        for name, (data, addr) in files.items():
-            (stage / f'{name}#06{addr:04X}').write_bytes(data)
-        subprocess.run(['python3', str(PRODOS / 'build_volume.py'), str(stage), str(out),
-                        '--volume', volume, '--boot', str(PRODOS / 'boot.bin'), '--blocks', '280'],
-                       check=True, capture_output=True)
-    return Path(out)
+    stage = {'PRODOS#FF0000': (PRODOS / 'PRODOS').read_bytes(),
+             'NEODHGR.SYSTEM#FF2000': (BUILD / 'NEODHGR.SYSTEM').read_bytes(),
+             f'DHGRTEST#06{BENCH_LOAD:04X}': Path(binary).read_bytes()}
+    for name, (data, addr) in files.items():
+        stage[f'{name}#06{addr:04X}'] = data
+    return a2test.prodos_volume(out, stage, volume)
 
 
 def build_disk(work, binary, script, load):
