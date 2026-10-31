@@ -4,7 +4,8 @@
 ; ============================================================================
 ; The Apple-1 game was silent. Events of a turn queue one sound (SFX id: the
 ; highest id of the turn wins, ids are ordered by importance); main_loop
-; plays it (sfx_flush) once the turn's picture is on the card, before it
+; plays it (sfx_flush) once the turn's picture is shown (vid_idle first: the
+; DHGR back-end draws there; the card already shows it), before it
 ; waits for the next key. SFX_NOW plays at once (scroll map, dagger throw).
 ; A sound is a busy loop on $C030 between two VDP accesses: it only makes
 ; that gap longer, never shorter, so the 18-cycle VDP contract holds.

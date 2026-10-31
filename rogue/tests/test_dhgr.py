@@ -7,7 +7,8 @@ Runs build/rogue_dhgr.bin from a one-file DOS 3.3 disk (HELLO = BRUN
 ROGUE.DHGR; the launcher's choice is test_rogue.py's business) in a2shot:
 
   //e (live session, 128 KB enhanced //e):
-    - boot, title, briefing, first dungeon; soft switches: graphics, full
+    - boot, title, briefing (then the PRNG pinned: the same dungeons for
+      every build), first dungeon; soft switches: graphics, full
       screen, page 1, HIRES, 80COL, 80STORE off (DHGR shown);
     - the oracle at every checkpoint: both banks of page 1 equal the picture
       tools/tiles_dhgr.py renders from the back-end's own copy of the
@@ -19,14 +20,23 @@ ROGUE.DHGR; the launcher's choice is test_rogue.py's business) in a2shot:
       HUD text on rows 20-23 of the model and on screen;
     - the red flash: the player's colour set to 8 and back, vid_idle after
       each: the page is different, then byte-identical to before;
+    - write-once (a2shot storewatch) over the full redraw, one move and
+      three random screens (random names 0..255, random sprites, poked into
+      the virtual screen): each byte of page 1 stored at most once a
+      vid_idle, with its final value, aux stores with IRQs masked;
     - ESC + Y: back to the DOS on the 40-column text page;
     - cycles: vid_idle after every row dirtied (full redraw), a sprite
       recoloured, and key -> next key wait of each move (printed).
   //c (one-shot script): boot, a few moves, the oracle.
 
 --shots DIR: PNGs of checkpoints (dhgr_*.png, the model's colours, x4/x2).
+Golden: tests/dhgr_screens.txt = the sha1 of the virtual screen (names +
+sprite table) at each //e checkpoint (with one after every bump / rest and
+every modal closed), from the build before the 2026-10-31 turn-speed lots;
+every build must match it (--golden rewrites it after an intended change).
 """
 import argparse
+import hashlib
 import random
 import re
 import sys
@@ -42,6 +52,7 @@ import apple2img  # noqa: E402
 import tiles_dhgr  # noqa: E402
 
 BIN = GAME / 'build/rogue_dhgr.bin'
+SEED = 0x1983                     # PRNG state after the briefing
 LBL = GAME / 'build/rogue_dhgr.lbl'
 LOAD = 0x4000
 TILE_EMPTY, TILE_STAIRS_DOWN = 0, 3
@@ -49,6 +60,8 @@ MON_COUNT, MON_SIZE, MON_TYPE, MON_COL, MON_ROW = 16, 8, 0, 2, 3
 
 _, DATA = tiles_dhgr.load_data()
 FAIL = []
+GOLDEN = GAME / 'tests/dhgr_screens.txt'   # sha1 of each checkpoint's virtual screen
+SCREENS = []                               # (tag, sha1 of names + sprite table)
 
 
 def check(cond, what):
@@ -95,6 +108,7 @@ def oracle(out, tag, shots=None):
     ok = check(sw[0] < 0x80 and sw[2] < 0x80 and sw[3] < 0x80 and sw[4] < 0x80
                and sw[5] >= 0x80 and sw[7] >= 0x80,
                f'{tag}: switches 80STORE/TEXT/MIXED/PAGE2/HIRES/80COL = {sw.hex()}')
+    SCREENS.append((tag, hashlib.sha1(names + sat).hexdigest()))
     emain, eaux, px = model_pages(names, sat)
     for bank, got, exp in (('main', main, emain), ('aux', aux, eaux)):
         if got != exp:
@@ -114,6 +128,35 @@ def oracle(out, tag, shots=None):
 def text_rows(names, first=20, last=23):
     return [bytes(c if 32 <= c < 127 else 32 for c in names[32 * r:32 * r + 32]).decode()
             for r in range(first, last + 1)]
+
+
+STORE = re.compile(r'^store ([0-9A-F]{4}) ([0-9A-F]{4}) \S+ A=([0-9A-F]{2}) X=[0-9A-F]{2} '
+                   r'Y=[0-9A-F]{2} S=[0-9A-F]{2} P=([0-9A-F]{2}) LC=\d\d\d(\d)(\d)')
+
+
+def write_once(out, main, aux, tag):
+    """storewatch lines of one update: every (bank, address) of page 1 once,
+    with the value the page ends with, RAMRD off; aux stores with IRQs
+    masked (the core keeps them masked anyway)."""
+    seen = {}
+    for line in out.splitlines():
+        m = STORE.match(line)
+        if not m:
+            continue
+        addr, value = int(m[2], 16), int(m[3], 16)
+        bank = 'aux' if m[6] == '1' else 'main'
+        key = (bank, addr)
+        if not check(key not in seen, f'{tag}: {bank} ${addr:04X} stored twice'):
+            return seen
+        seen[key] = value
+        final = (aux if bank == 'aux' else main)[addr - 0x2000]
+        if not check(value == final, f'{tag}: {bank} ${addr:04X} stored ${value:02X}, '
+                     f'ends ${final:02X}'):
+            return seen
+        if not check(m[5] == '0' and (bank == 'main' or int(m[4], 16) & 4),
+                     f'{tag}: IRQ mask / RAMRD around the store: {line}'):
+            return seen
+    return seen
 
 
 def cycles_of(out, verb='until'):
@@ -146,11 +189,16 @@ def test_iie(shots):
                 stats['checks'] += 1
                 return oracle(out, tag, shots)
 
-            def play(key, tag):
+            def play(key, tag, watch=False):
                 s.step(f'press:{key}')
                 r1 = s.step(f'until:{got_key:04X}:300')
                 c0 = cycles_of(r1.out)
+                if watch:
+                    s.step('storewatch:2000:3FFF')
                 r2 = s.step(f'until:{wk:04X}:900')
+                if watch:
+                    s.step('unstorewatch')
+                    stats['watched'] = r2.out
                 ok = check(f'PC={wk:04X}' in r2.out, f'{tag}: back at the key wait after {key!r}')
                 if ok and c0:
                     stats['turns'].append(cycles_of(r2.out) - c0)
@@ -164,7 +212,13 @@ def test_iie(shots):
             check(any('ROGUE' in t for t in text_rows(names, 0, 23)), 'title text in the names')
             s.step('key: ')
             s.step('wait:200')
-            s.step('key: ')
+            # the briefing's key; then the PRNG pinned (its state depends on
+            # the time the title and briefing took): every build plays the
+            # same dungeons, the timing lines compare
+            s.step('press: ')
+            s.step(f'until:{L["key_xlate"]:04X}:300')
+            s.step(L.poke('prng_lo', SEED & 255))
+            s.step(L.poke('prng_hi', SEED >> 8))
             wait_turn('first dungeon')
             ok, names, sat, main, aux = checkpoint('dungeon1')
             hud = text_rows(names)
@@ -175,8 +229,14 @@ def test_iie(shots):
             r = s.step(f'call:{L["dg_dirty_all"]:04X}:5')
             r = s.step(f'call:{L["vid_idle"]:04X}:200')
             stats['full'] = elapsed(r.out)
+            s.step(f'call:{L["dg_dirty_all"]:04X}:5')
+            s.step('storewatch:2000:3FFF')
+            stores = s.step(f'call:{L["vid_idle"]:04X}:400').out
+            s.step('unstorewatch')
             ok, names, sat, before_m, before_a = checkpoint('redrawn')
             check(before_m == main and before_a == aux, 'full redraw = same picture')
+            check(len(write_once(stores, before_m, before_a, 'full redraw')) == 2 * 7680,
+                  'full redraw: every screen byte of the picture stored once')
             colour = sat[3]
             s.step(f'poke:1B03:08')
             s.step(f'poke:{L["dg_satd"]:04X}:01')
@@ -232,24 +292,53 @@ def test_iie(shots):
                           f'{tag}: modal title in {title!r}')
                     if not play(act[1] if len(act) > 1 else ' ', tag):
                         break
+                    checkpoint(f'{tag}_closed')     # the game view back
                 elif act[0] == 'T':
                     if not play('T', tag) or not play(act[1], tag):
                         break
                 else:
+                    watch = i >= 5 and not stats.get('watched_ok') and len(act) == 1
                     for k in act:
-                        if not play(k, tag):
+                        where = peek('player_col', 2)
+                        if not play(k, tag, watch=watch):
                             break
+                        if peek('player_col', 2) == where:
+                            checkpoint(f'{tag}_bump')   # a wall or a monster
+                    if watch:           # the first move from 5 on that draws
+                        ok, names, sat, wm, wa = checkpoint(f'{tag}_watched')
+                        n = len(write_once(stats.pop('watched', ''), wm, wa, f'{tag} (write-once)'))
+                        stats['watched_ok'] = n > 0
                 stats['moves'] += 1
                 sat = peek('dg_drawn', 4) if 'dg_drawn' in L else b''
                 if sat and sat[3] == 8:
                     seen_hurt = True
                 if i % 10 == 9 or act == 'STAIRS':
                     checkpoint(tag)
+            check(stats.get('watched_ok'), 'write-once: no move redrew anything')
             depth1 = peek('depth')[0]
             check(depth1 > depth0, f'stairs: depth {depth0} -> {depth1}')
             ok, names, *_ = checkpoint('end')
             hud = text_rows(names)
             check('DEPTH' in hud[0], f'HUD at the end: {hud}')
+            # random virtual screens: every character, sprites anywhere
+            for k in range(3):
+                vram = [rng.randrange(256) for _ in range(768)]
+                for e in range(32):
+                    y = rng.choice((rng.randrange(192), rng.randrange(176, 256)))
+                    vram += [0xD1 if y == 0xD0 else y, rng.randrange(253),
+                             4 * rng.randrange(20), rng.randrange(16)]
+                if k:
+                    vram[768 + 4 * rng.randrange(8, 32)] = 0xD0
+                for a, v in enumerate(vram):
+                    s.step(f'poke:{0x1800 + a:04X}:{v:02X}')
+                for row in range(24):
+                    s.step(f'poke:{L["dg_touch"] + row:04X}:01')
+                s.step(f'poke:{L["dg_satd"]:04X}:01')
+                s.step('storewatch:2000:3FFF')
+                stores = s.step(f'call:{L["vid_idle"]:04X}:400').out
+                s.step('unstorewatch')
+                ok, names, sat, rm, ra = checkpoint(f'random{k}')
+                write_once(stores, rm, ra, f'random{k}')
             stats['seen_hurt'] = seen_hurt
             # ESC, Y: DHGR off, 40-column text, the DOS prompt
             s.step('key:\x1b')
@@ -311,9 +400,33 @@ def test_iic(shots):
         return 1
 
 
+def golden(write):
+    """The //e game's checkpoints against GOLDEN: rendering changes (the
+    core's render_map / HUD caching, the back-end) must not change what the
+    virtual screen holds at any checkpoint (the game is the same: same
+    SEED, same keys)."""
+    lines = [f'{tag} {h}' for tag, h in SCREENS]
+    if write:
+        GOLDEN.write_text('\n'.join(lines) + '\n')
+        print(f'{GOLDEN.name}: {len(lines)} screens written')
+        return
+    if not GOLDEN.exists():
+        return
+    want = GOLDEN.read_text().split()
+    want = list(zip(want[::2], want[1::2]))
+    got = [tuple(l.split()) for l in lines]
+    bad = [w[0] for w, g in zip(want, got) if w != g]
+    check(len(want) == len(got) and not bad,
+          f'{GOLDEN.name}: {len(got)} screens, {len(want)} expected, different: {bad[:5]}')
+    if not bad and len(want) == len(got):
+        print(f'{GOLDEN.name}: the {len(got)} checkpoint screens unchanged')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--shots')
+    ap.add_argument('--golden', action='store_true',
+                    help=f'write {GOLDEN.name} (the screens every later build must show)')
     args = ap.parse_args()
     if not BIN.exists():
         raise SystemExit('build first: make')
@@ -326,6 +439,7 @@ def main():
           f'turn (key -> key wait) median {sorted(turns)[len(turns) // 2] if turns else 0} '
           f'max {max(turns) if turns else 0} cycles over {len(turns)} turns')
     print('slowest turns (cycles, move, key):', sorted(st['slow'], reverse=True)[:4])
+    golden(args.golden)
     test_iic(args.shots)
     if FAIL:
         print(f'{len(FAIL)} failure(s)')

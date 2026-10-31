@@ -72,12 +72,15 @@ jeu côté TMS ; le back-end DHGR fait ce qu'il veut tant qu'il rend la main.
 
 Règles :
 
-- `vid_put` est l'appel chaud (rendu de la carte : 640 appels par tour ; SAT :
-  ≤ 128) : il doit être rapide et **tout** préserver (le cœur boucle sur X/Y
-  autour, et teste parfois des flags posés avant l'appel).
+- `vid_put` est l'appel chaud (SAT : ≤ 128 par tour ; la carte : depuis le
+  2026-10-31 le cœur garde une ombre de la carte et n'écrit que les cases
+  qui changent, sauf après un `vid_clear` : 640 noms) : il doit être rapide
+  et **tout** préserver (le cœur boucle sur X/Y autour, et teste parfois des
+  flags posés avant l'appel).
 - Une écriture ne doit pas être visible « à moitié » trop longtemps : le cœur
   appelle `vid_wait_frame` avant les grosses reconstructions, et `vid_idle`
-  avant chaque attente de touche (fin de tour, modales, titre, mort). Un
+  avant chaque attente de touche (fin de tour, modales, titre, mort) et, en
+  fin de tour, avant de jouer le son du tour (l'image d'abord). Un
   back-end DHGR peut donc marquer les cellules sales dans `vid_put` et ne
   redessiner (fond puis sprites) que dans `vid_idle` / `vid_wait_frame`.
 - Pas d'autre appel : le cœur ne connaît ni registres VDP, ni pages DHGR, ni
@@ -181,7 +184,8 @@ Tout monstre touché ce tour-ci est posé en couleur 8 (rouge).
     src/core/tiles.inc        CHAR_* (ids de caractères des tuiles)
     src/core/sfx.inc          sons : file d'événements, clavier (key_xlate)
     src/core/music.inc        généré par tools/music.py
-    src/core/dungeon.asm, shadowcast.asm, prng16.asm, multiply.asm  (POM1)
+    src/core/dungeon.asm, shadowcast.asm, prng16.asm  (POM1 ; shadowcast :
+                              mêmes résultats, pentes en rangs)
     src/gfx/tileset_rogue.inc, sprite_pats.inc, sprites_boss.asm    (données)
     src/video_tms.asm         back-end TMS9918 (vid_*, pilote Mode 1 de POM1)
     src/ezvdp.inc             accès VDP relogeables (table VDPFIX, vdp_patch)

@@ -6,32 +6,37 @@
 ;
 ;   - the virtual VRAM ($1800-$1AFF names, $1B00-$1B7F sprite table) is a real
 ;     copy at the SAME addresses in main RAM (segment DHGRBSS at $1800):
-;     vid_addr just points vid_put's two operands there;
-;   - vid_put stores the byte; when it changes a name it flags the text
-;     row, when it lands in the sprite table it flags it. An unchanged byte
-;     costs ~40 cycles (render_map rewrites 640 names a turn);
+;     vid_addr just points vid_put's operands there;
+;   - vid_put compares the byte with the copy: unchanged, 27 cycles;
+;     changed, it is stored, and a name is compared with what the screen
+;     shows (below), a sprite table byte flags the table;
 ;   - vid_idle (the core calls it before every key wait and each frame of a
-;     thrown dagger) composes and writes what changed: each flagged row's
-;     names are compared with a copy of what the screen shows (dg_shown),
-;     each different one marks the one or two 7-pixel groups under it in
-;     the row's dirty bitmap (a clear + the same picture again costs
-;     nothing); the sprite list is compared with the one on screen (each moved / recoloured / new / gone
-;     sprite dirties its old and new boxes), then every run of dirty groups
-;     of every text row is rebuilt line by line: characters, then sprites
-;     (the last entry first: entry 0 on top, as on the chip), packed into
-;     DHGR bytes and written (aux bytes with IRQs masked, then main ones). A
-;     run with no lit character and no sprite is written black directly.
-;     Every byte of a run is written once with its final value: no flicker,
-;     one page.
+;     thrown dagger) composes and writes what changed: the names vid_put
+;     changed were compared at once, and each row vid_clear flagged has its
+;     names compared now, with a copy of what the screen shows (dg_shown,
+;     through dg_san: a blank character is any blank one, e.g. a lit
+;     floor tile going dark redraws nothing); each different one marks the
+;     one or two 7-pixel groups under it (one byte a group, 20 a row; a
+;     clear + the same picture again costs nothing); the sprite list is compared with the one on screen (each
+;     moved / recoloured / new / gone sprite dirties its old and new
+;     boxes); then each run of dirty groups of each row is composed for its
+;     8 lines straight into screen bytes (dg_lb, "stream" order: byte 2o =
+;     aux o, 2o+1 = main o): characters from per-phase tables, sprites over
+;     them (the last entry first: entry 0 on top, as on the chip), and
+;     written (aux bytes with IRQs masked, then main ones). Every byte of a
+;     run is written once with its final value: no flicker, one page.
 ;
 ; Geometry: the TMS picture halved horizontally. 1 DHGR colour pixel = 2 TMS
 ; pixels, 1 line = 1 line: the 256x192 picture is 128x192 colour pixels at
 ; x = 6..133 (6 black pixels left and right). A character = 4 x 8, a sprite =
 ; 8 x 16 at (6 + X/2, Y). Seven colour pixels = one group of 4 bytes (aux 2g,
-; main 2g, aux 2g+1, main 2g+1 of the line), 20 groups a line.
-; Data (tools/tiles_dhgr.py -> video_dhgr_data.inc): characters as one
-; table per (row, pixel) giving each pixel's DHGR nibble, sprites as 8-pixel
-; rows, TMS -> DHGR palette.
+; main 2g, aux 2g+1, main 2g+1 of the line), 20 groups a line. Pixel x =
+; dots 4x..4x+3 of the line's 80 x 7 dots: character c = 16 dots from dot
+; 24 + 16c, i.e. bit (24 + 16 p) mod 7 of a byte for c = 7q + p (7 phases).
+; Data (tools/tiles_dhgr.py -> video_dhgr_data.inc, see its docstring): each
+; character row as an index (ink, 4 pixels), the bytes of every phase by
+; index, the dots of a 4-pixel sprite half from every bit, inks by byte,
+; sprite rows as two halves, TMS -> DHGR palette.
 ;
 ; Machine: //e with 128 KB (extended 80-column card) or //c; DHGR page 1
 ; ($2000-$3FFF main + aux). Every routine returns with RAMRD/RAMWRT main and
@@ -43,47 +48,63 @@ DG_VRAM    = $1800              ; = the virtual addresses (DHGRBSS starts here)
 DG_SAT     = $1B00
 DG_RAMWRT_AUX  = $C005
 DG_RAMWRT_MAIN = $C004
+DG_LW      = 80                 ; stream bytes of a line
+; line l of dg_lb is at dg_lb + l / 3 * 256 + l .mod 3 * DG_LW: 3 lines a
+; page (no page crossed by an indexed access)
 
 .segment "ZEROPAGE"
-dg_ptr:   .res 2                ; screen line (both banks)
-dg_np:    .res 2                ; name row of the strip
-dg_sp:    .res 2                ; sprite row pointer
-dg_bits:  .res 1
-dg_ink:   .res 1
+dg_ptr:   .res 2                ; dg_black's page pointer
+dg_np:    .res 2                ; names of the row
+dg_dp:    .res 2                ; dirty groups of the row
+dg_bp:    .res 2                ; sprite: its first byte in a dg_lb line
+dg_sh:    .res 2                ; sprite: its left halves (dg_sph)
+dg_sl:    .res 2                ; its right halves (dg_spl)
+dg_cz:    .res 6                ; its ink in stream bytes k .. k + 5
 dg_row:   .res 1                ; text row being rebuilt, 0..23
-dg_y:     .res 1                ; its screen line
-dg_ln:    .res 1                ; line in the row, 0..7
-dg_c0:    .res 1                ; first character column of the run
-dg_c1:    .res 1                ; last + 1
+dg_y:     .res 1                ; its first screen line
 dg_g0:    .res 1                ; first group of the run (0..19)
 dg_g1:    .res 1                ; last group
 dg_g:     .res 1                ; run scan
-dg_x4e:   .res 1                ; 4 * dg_c1
-dg_bt:    .res 1                ; dg_bit's scratch
-dg_si:    .res 1                ; dg_line_sprites' index
+dg_c0:    .res 1                ; first character column of the run
+dg_c1:    .res 1                ; last + 1
+dg_cn:    .res 1                ; characters left to compose
+dg_bmin:  .res 1                ; 4 * dg_g0: first stream byte of the run
+dg_bmax:  .res 1                ; 4 * dg_g1 + 4
+dg_si:    .res 1                ; sprite loop
+dg_st:    .res 1                ; sprite row
+dg_ln:    .res 1                ; line in the text row
+dg_lc:    .res 1                ; sprite lines left
 dg_t:     .res 1
 dg_u:     .res 1
-dg_sa:    .res 1                ; vid_put's A / X
+dg_pgrow: .res 1                ; 8 * (cursor page - $18): dg_touch index
+dg_sa:    .res 1                ; vid_put's A / X / Y
 dg_sx:    .res 1
+dg_sy:    .res 1
+dg_vr:    .res 1                ; vid_put: the name's text row
+dg_shp:   .res 2                ; vid_put: its dg_shown byte, its dirty groups
 
 .segment "DHGRBSS"              ; $1800, rogue_dhgr.cfg
 dg_vram:  .res 1024             ; names $1800-$1AFF, sprites $1B00-$1B7F,
                                 ; then room for a cursor run past the end
+dg_lb:    .res 768              ; $1C00: the 8 lines of a text row, 80 stream
+                                ; bytes each (2o = aux offset o, 2o+1 = main
+                                ; o) see DG_LW, + a sprite's overrun
 dg_drawn: .res 128              ; sprite table as last drawn (4 B / entry)
-dg_dm:    .res 96               ; dirty groups: row r, groups 8b..8b+7 at 4r+b
-dg_chs4:  .res 128              ; the run's characters, column c at 4c
-dg_sl:    .res 32               ; the run's sprites (dg_drawn offsets)
-dg_touch: .res 24               ; rows whose names vid_put changed
-dg_sn:    .res 1
-dg_buf:   .res 160              ; one line, 1 byte (DHGR nibble) a pixel,
-                                ; packed in place; 140 + a sprite's overrun
+dg_rsn:   .res 1
 dg_nold:  .res 1                ; bytes of dg_drawn in use (4 x entries)
 dg_nnew:  .res 1
 dg_satd:  .res 1                ; the sprite table was written
 dg_on:    .res 1                ; DHGR shown
 
 .segment "BSS"
-dg_shown: .res 768              ; the names the screen shows
+dg_shown: .res 768              ; the names the screen shows, as dg_san
+                                ; (every blank character = $FF)
+dg_dg:    .res 480              ; dirty groups: row r, group g at 20 r + g
+dg_touch: .res 40               ; rows whose names vid_put changed (24..31:
+                                ; the sprite page, 32..: a run past it)
+dg_rd:    .res 24               ; rows with dirty groups
+dg_rsl:   .res 32               ; the row's sprites (dg_drawn offsets)
+dg_chs:   .res 80               ; the run's names (dg_san), column 7q+p at 16q+p
 
 .segment "CODE"
 
@@ -97,6 +118,9 @@ vid_init:
         STA     dg_vram+$100,X
         STA     dg_vram+$200,X
         STA     dg_vram+$300,X
+        STA     dg_lb,X         ; the line buffer (its bytes 0..2 stay 0)
+        STA     dg_lb+$100,X
+        STA     dg_lb+$200,X
         INX
         BNE     @clr
         LDA     #$D0
@@ -149,29 +173,37 @@ vid_clear:
 
 ; dg_dirty_all -- every group of every row rebuilt at the next vid_idle.
 dg_dirty_all:
-        LDX     #95
-@d:     LDA     #$FF
-        STA     dg_dm,X
+        LDA     #1
+        LDX     #0
+@d:     STA     dg_dg,X
+        STA     dg_dg+480-256,X
+        INX
+        BNE     @d
+        LDX     #23
+@r:     STA     dg_rd,X
         DEX
-        BPL     @d
+        BPL     @r
         RTS
 
 dg_clean_all:
-        LDX     #95
+        LDX     #0
+@c:     LDA     #$FF            ; the screen is black: blank characters
+        STA     dg_shown,X
+        STA     dg_shown+$100,X
+        STA     dg_shown+$200,X
         LDA     #0
-@c:     STA     dg_dm,X
-        DEX
-        BPL     @c
-        LDX     #23
+        STA     dg_dg,X
+        STA     dg_dg+480-256,X
+        INX
+        BNE     @c
+        LDX     #39
 @t:     STA     dg_touch,X
         DEX
         BPL     @t
-        LDX     #0
-@s:     STA     dg_shown,X      ; the screen is black: names 0
-        STA     dg_shown+$100,X
-        STA     dg_shown+$200,X
-        INX
-        BNE     @s
+        LDX     #23
+@u:     STA     dg_rd,X
+        DEX
+        BPL     @u
         RTS
 
 ; vid_sprites_off -- SAT[0].Y = $D0.
@@ -194,7 +226,6 @@ vid_wait_frame:
 ; ----------------------------------------------------------------------------
 vid_addr:
         STA     dg_cmp+1
-        STA     dg_sta+1
         TXA
         AND     #$3F
         CMP     #>DG_VRAM
@@ -203,54 +234,102 @@ vid_addr:
         BCC     @in
 @out:   LDA     #$80            ; $1B80: written, never shown
         STA     dg_cmp+1
-        STA     dg_sta+1
         LDA     #>DG_SAT
 @in:    STA     dg_cmp+2
         STA     dg_sta+2
+        ASL
+        ASL
+        ASL
+        SEC
+        SBC     #8 * >DG_VRAM
+        STA     dg_pgrow
         RTS
 
 ; ----------------------------------------------------------------------------
-; vid_put -- A at the cursor, cursor + 1. Keeps A, X, Y and P.
+; vid_put -- A at the cursor, cursor + 1. Keeps A, X, Y and P. An unchanged
+; byte: 27 cycles; a changed name is stored and compared with what the
+; screen shows (dg_shown, through dg_san): different, its one or two groups
+; are dirtied and its row flagged for vid_idle (~130 cycles), the same (a
+; blank one for another), nothing more (~95); a changed sprite table byte
+; (rows 24..31) flags the table (dg_sat_diff).
 ; ----------------------------------------------------------------------------
 vid_put:
         PHP
 dg_cmp: CMP     DG_VRAM         ; operand = cursor (vid_addr)
-        BEQ     dg_vp_next
-dg_sta: STA     DG_VRAM
-        STA     dg_sa
+        BNE     dg_vp_ch
+        INC     dg_cmp+1
+        BEQ     dg_vp_hi
+        PLP
+        RTS
+dg_vp_ch:
         STX     dg_sx
-        LDA     dg_sta+2
-        CMP     #>DG_SAT
-        BCS     dg_vp_sat
-        SBC     #>DG_VRAM - 1   ; C = 0: A - $18 = page of the names 0..2
-        ASL
-        ASL
-        ASL
-        STA     dg_t
-        LDA     dg_sta+1
-        LSR
-        LSR
-        LSR
-        LSR
-        LSR
-        ORA     dg_t            ; text row
+        LDX     dg_cmp+1
+        STX     dg_sta+1
+dg_sta: STA     DG_VRAM         ; high byte: vid_addr / dg_vp_hi
+        STA     dg_sa
+        LDA     dg_lsr5,X
+        ORA     dg_pgrow
+        CMP     #24
+        BCS     dg_vp_sat       ; the sprite page (or past it)
+        ; a name: against what the screen shows (dg_shown, as dg_san)
+        STA     dg_vr           ; its text row
+        STY     dg_sy
+        TXA                     ; dg_shown + (cursor - $1800)
+        CLC
+        ADC     #<dg_shown
+        STA     dg_shp
+        LDA     dg_cmp+2
+        ADC     #>dg_shown - >DG_VRAM
+        STA     dg_shp+1
+        LDX     dg_sa
+        LDA     dg_san,X
+        LDY     #0
+        CMP     (dg_shp),Y
+        BEQ     dg_vp_same      ; looks the same: nothing to draw
+        STA     (dg_shp),Y
+        LDX     dg_vr           ; its one or two groups dirty
+        LDA     dg_dlo,X
+        STA     dg_shp
+        LDA     dg_dhi,X
+        STA     dg_shp+1
+        LDA     #1
+        STA     dg_rd,X
+        LDA     dg_cmp+1
+        AND     #31
         TAX
         LDA     #1
-        STA     dg_touch,X      ; dg_flush compares it with the screen
-        JMP     dg_vp_back
-dg_vp_sat:
-        LDA     #1
-        STA     dg_satd
-dg_vp_back:
+        LDY     dg_cg0,X
+        STA     (dg_shp),Y
+        LDY     dg_cg1,X
+        STA     (dg_shp),Y
+dg_vp_same:
+        LDY     dg_sy
         LDA     dg_sa
         LDX     dg_sx
-dg_vp_next:
         INC     dg_cmp+1
-        INC     dg_sta+1
-        BNE     dg_vp_done
+        BEQ     dg_vp_hi
+        PLP
+        RTS
+dg_vp_sat:
+        TAX
+        LDA     #1
+        STA     dg_touch,X      ; dg_flush diffs the sprite table
+        LDA     dg_sa
+        LDX     dg_sx
+        INC     dg_cmp+1
+        BEQ     dg_vp_hi
+        PLP
+        RTS
+dg_vp_hi:
         INC     dg_cmp+2
         INC     dg_sta+2
-dg_vp_done:
+        STA     dg_sa
+        LDA     dg_pgrow
+        CMP     #32
+        BCS     :+              ; past the sprite page: dg_touch 32..39
+        ADC     #8
+        STA     dg_pgrow
+:       LDA     dg_sa
         PLP
         RTS
 
@@ -269,148 +348,116 @@ vid_idle:
         TAX
         RTS
 
-; dg_flush -- the sprite diff, then each run of dirty groups of each row.
+; dg_flush -- the sprite diff, the name diff, then each row with dirty groups.
 dg_flush:
         LDA     dg_on
         BEQ     @rts
-        LDA     dg_satd
+        LDX     #7              ; the sprite page written?
+        LDA     #0
+:       ORA     dg_touch+24,X
+        DEX
+        BPL     :-
+        ORA     dg_satd
         BEQ     :+
+        LDA     #0
+        LDX     #7
+@sc:    STA     dg_touch+24,X
+        DEX
+        BPL     @sc
         JSR     dg_sat_diff
 :       JSR     dg_name_diff
-        LDA     #0
-        STA     dg_row
-@r:     LDA     dg_row
-        ASL
-        ASL
-        TAX
-        LDA     dg_dm,X
-        ORA     dg_dm+1,X
-        ORA     dg_dm+2,X
-        BEQ     @next
-        LDA     #0
-        STA     dg_g
-@scan:  JSR     dg_bit          ; C = dirty(dg_g); X = byte, Y = bit
-        BCS     @run
-        INC     dg_g
-        TYA
-        BNE     @more
-        LDA     dg_dm,X         ; at a byte's first bit: a clean byte
-        BNE     @more           ; is skipped whole
-        LDA     dg_g
-        CLC
-        ADC     #7
-        STA     dg_g
-@more:  LDA     dg_g
-        CMP     #20
-        BCC     @scan
-        LDA     dg_row          ; row done: clean
-        ASL
-        ASL
-        TAX
-        LDA     #0
-        STA     dg_dm,X
-        STA     dg_dm+1,X
-        STA     dg_dm+2,X
-@next:  INC     dg_row
-        LDA     dg_row
-        CMP     #24
-        BNE     @r
-@rts:   RTS
-@run:   LDA     dg_g
-        STA     dg_g0
-@ext:   INC     dg_g
-        LDA     dg_g
-        CMP     #20
-        BCS     @end
-        JSR     dg_bit
-        BCS     @ext
-@end:   LDX     dg_g
-        DEX
-        STX     dg_g1
-        JSR     dg_strip
-        JMP     @more
-
-; dg_name_diff -- each touched row: names that differ from dg_shown (what
-; the screen shows) dirty their groups and are copied there.
-dg_name_diff:
         LDX     #0
-@r:     LDA     dg_touch,X
+@r:     LDA     dg_rd,X
         BEQ     @next
         LDA     #0
-        STA     dg_touch,X
+        STA     dg_rd,X
         STX     dg_row
-        TXA
-        ASL
-        ASL
-        STA     dg_bt           ; 4 * row
-        TXA                     ; dg_np = names, dg_sp = shown, + 32 * row
-        LSR
-        LSR
-        LSR
-        PHA
-        CLC
-        ADC     #>DG_VRAM
-        STA     dg_np+1
-        PLA
-        CLC
-        ADC     #>dg_shown
-        STA     dg_sp+1
-        TXA
-        ASL
-        ASL
-        ASL
-        ASL
-        ASL
-        STA     dg_np
-        CLC
-        ADC     #<dg_shown
-        STA     dg_sp
-        BCC     :+
-        INC     dg_sp+1
-:       LDY     #31
-@c:     LDA     (dg_np),Y
-        CMP     (dg_sp),Y
-        BEQ     @same
-        STA     (dg_sp),Y
-        LDA     dg_cgb0,Y       ; first group of column Y: byte, bit
-        ORA     dg_bt
-        TAX
-        LDA     dg_dm,X
-        ORA     dg_cgm0,Y
-        STA     dg_dm,X
-        LDA     dg_cgb1,Y       ; last group
-        ORA     dg_bt
-        TAX
-        LDA     dg_dm,X
-        ORA     dg_cgm1,Y
-        STA     dg_dm,X
-@same:  DEY
-        BPL     @c
+        JSR     dg_do_row
         LDX     dg_row
 @next:  INX
         CPX     #24
         BNE     @r
+@rts:   RTS
+
+; dg_dirty_row -- dg_dp = the dirty groups of row X, the row flagged. Keeps X, Y.
+dg_dirty_row:
+        LDA     dg_dlo,X
+        STA     dg_dp
+        LDA     dg_dhi,X
+        STA     dg_dp+1
+        LDA     #1
+        STA     dg_rd,X
         RTS
 
-; dg_bit -- C = dirty bit of group dg_g of row dg_row. Keeps nothing.
-dg_bit:
-        LDA     dg_g
-        LSR
-        LSR
-        LSR
-        STA     dg_bt
-        LDA     dg_row
-        ASL
-        ASL
-        ORA     dg_bt
-        TAX
-        LDA     dg_g
-        AND     #7
-        TAY
-        LDA     dg_dm,X
-        AND     dg_bitm,Y
-        CMP     #1              ; C = (bit set)
+; dg_name_diff -- each touched row: names that differ from dg_shown (what
+; the screen shows) dirty their groups and are copied there (the row's three
+; tables are patched into the loop: 15 cycles an unchanged name).
+dg_name_diff:
+        LDX     #0
+@r:     LDA     dg_touch,X
+        BNE     @row
+@next:  INX
+        CPX     #24
+        BNE     @r
         RTS
+@row:   LDA     #0
+        STA     dg_touch,X
+        STA     dg_u            ; nothing changed yet
+        STX     dg_row
+        LDA     dg_dlo,X
+        STA     @d0+1
+        STA     @d1+1
+        LDA     dg_dhi,X
+        STA     @d0+2
+        STA     @d1+2
+        TXA                     ; names, shown + 32 * row
+        LSR
+        LSR
+        LSR
+        TAY
+        CLC
+        ADC     #>DG_VRAM
+        STA     @nm+2
+        TYA
+        ADC     #>dg_shown      ; C = 0
+        STA     @s0+2
+        STA     @s1+2
+        TXA
+        ASL
+        ASL
+        ASL
+        ASL
+        ASL
+        STA     @nm+1
+        CLC
+        ADC     #<dg_shown
+        STA     @s0+1
+        STA     @s1+1
+        BCC     :+
+        INC     @s0+2
+        INC     @s1+2
+:       LDY     #31
+@c:
+@nm:    LDX     DG_VRAM,Y
+        LDA     dg_san,X        ; blank characters are all the same black
+@s0:    CMP     dg_shown,Y
+        BNE     @ch
+@same:  DEY
+        BPL     @c
+        LDX     dg_row
+        LDA     dg_u
+        BEQ     @next
+        STA     dg_rd,X
+        BNE     @next           ; always
+@ch:
+@s1:    STA     dg_shown,Y
+        LDA     #1
+        STA     dg_u
+        LDX     dg_cg0,Y        ; first and last group under column Y
+@d0:    STA     dg_dg,X
+        LDX     dg_cg1,Y
+@d1:    STA     dg_dg,X
+        BNE     @same           ; always
 
 ; ----------------------------------------------------------------------------
 ; dg_sat_diff -- the new sprite list against the drawn one: each entry that
@@ -475,18 +522,13 @@ dg_mark_old:
         LDA     dg_drawn,X
         LDY     dg_drawn+1,X
         ; fall through
-; dg_mark_box -- A = Y, Y = X of a 16x16 sprite: dirty its box (3 groups x
-; 2 or 3 text rows). Keeps X.
+; dg_mark_box -- A = Y, Y = X of a 16x16 sprite: dirty its box (2 or 3
+; groups x 2 or 3 text rows). Keeps X.
 dg_mark_box:
         CMP     #192
         BCS     @off            ; below the picture (or "negative")
         STX     dg_u
         STA     dg_t            ; top line
-        LSR
-        LSR
-        LSR
-        STA     dg_row          ; first text row (dg_flush sets it again)
-        LDA     dg_t
         CLC
         ADC     #15
         CMP     #192
@@ -495,50 +537,41 @@ dg_mark_box:
 :       LSR
         LSR
         LSR
-        STA     dg_t            ; last text row
+        STA     dg_c1           ; last text row
         TYA
         LSR
-        CLC
-        ADC     #DG_X0
-        TAY                     ; left pixel
-        LDA     dg_div7,Y
+        TAY
+        LDA     dg_hg0,Y        ; groups of its left and right pixels
         STA     dg_g0
-        LDA     dg_div7+7,Y     ; group of the right pixel
-        CMP     #20
-        BCC     :+
-        LDA     #19
-:       STA     dg_g1
-@row:   LDA     dg_g0
-        STA     dg_g
-@grp:   JSR     dg_bit          ; X = byte, Y = bit
-        LDA     dg_dm,X
-        ORA     dg_bitm,Y
-        STA     dg_dm,X
-        INC     dg_g
-        LDA     dg_g1
-        CMP     dg_g
-        BCS     @grp
-        LDA     dg_row
-        CMP     dg_t
-        INC     dg_row
+        LDA     dg_hg1,Y
+        STA     dg_g1
+        LDA     dg_t
+        LSR
+        LSR
+        LSR
+        TAX                     ; first text row
+@row:   JSR     dg_dirty_row
+        LDY     dg_g0
+@grp:   STA     (dg_dp),Y       ; A = 1
+        INY
+        CPY     dg_g1
+        BCC     @grp
+        BEQ     @grp
+        INX
+        CPX     dg_c1
         BCC     @row
+        BEQ     @row
         LDX     dg_u
 @off:   RTS
 
 ; ----------------------------------------------------------------------------
-; dg_strip -- rebuild groups dg_g0..dg_g1 of text row dg_row, 8 lines.
+; dg_do_row -- rebuild every run of dirty groups of text row X (= dg_row).
 ; ----------------------------------------------------------------------------
-dg_strip:
-        LDY     dg_g0
-        LDA     dg_gc0,Y
-        STA     dg_c0
-        LDY     dg_g1
-        LDA     dg_gc1,Y
-        STA     dg_c1
-        ASL
-        ASL
-        STA     dg_x4e
-        LDX     dg_row
+dg_do_row:
+        LDA     dg_dlo,X
+        STA     dg_dp
+        LDA     dg_dhi,X
+        STA     dg_dp+1
         TXA                     ; names: $1800 + 32 * row
         LSR
         LSR
@@ -550,83 +583,38 @@ dg_strip:
         ASL
         ASL
         ASL
+        STA     dg_y
         ASL
         ASL
         STA     dg_np
-        LDA     dg_rlo,X
-        STA     dg_ptr
-        LDA     dg_rhi,X
-        STA     dg_ptr+1
-        TXA
-        ASL
-        ASL
-        ASL
-        STA     dg_y
-        ; the run's characters at dg_chs4 + 4c (128..255: blank); lit ones?
-        LDA     #0
-        STA     dg_u
-        LDY     dg_c0
-@ch:    LDA     (dg_np),Y
-        BPL     :+
-        LDA     #0
-:       TAX
-        LDA     dg_lit,X
-        ORA     dg_u
-        STA     dg_u
-        TYA
-        ASL
-        ASL
-        STA     dg_t
-        TXA
-        LDX     dg_t
-        STA     dg_chs4,X
+        JSR     dg_row_sprites
+        LDY     #0
+@scan:  LDA     (dg_dp),Y
+        BNE     @run
         INY
-        CPY     dg_c1
-        BNE     @ch
-        JSR     dg_strip_sprites ; A = how many sprites cross the row
-        ORA     dg_u
-        BNE     @full
-        ; black run: zeros packed are zeros, written 8 times
-        LDY     dg_g0
-        LDX     dg_mul7,Y
-        LDY     dg_g1
-        LDA     dg_mul7+1,Y
-        STA     dg_t
-        LDA     #0
-:       STA     dg_buf,X
-        INX
-        CPX     dg_t
-        BNE     :-
-        LDA     #8
-        STA     dg_ln
-@blk:   JSR     dg_line_write
-        LDA     dg_ptr+1
-        CLC
-        ADC     #4
-        STA     dg_ptr+1
-        DEC     dg_ln
-        BNE     @blk
+        CPY     #20
+        BNE     @scan
         RTS
-@full:  LDA     #0
-        STA     dg_ln
-@line:  JSR     dg_line_chars
-        JSR     dg_line_sprites
-        JSR     dg_line_pack
-        JSR     dg_line_write
-        INC     dg_y
-        LDA     dg_ptr+1        ; next line: +$400
-        CLC
-        ADC     #4
-        STA     dg_ptr+1
-        INC     dg_ln
-        LDA     dg_ln
-        CMP     #8
-        BNE     @line
+@run:   STY     dg_g0
+@ext:   LDA     #0              ; clean as we go
+        STA     (dg_dp),Y
+        INY
+        CPY     #20
+        BEQ     @end
+        LDA     (dg_dp),Y
+        BNE     @ext
+@end:   STY     dg_g
+        DEY
+        STY     dg_g1
+        JSR     dg_strip
+        LDY     dg_g
+        CPY     #20
+        BNE     @scan
         RTS
 
-; dg_strip_sprites -- dg_sl = the drawn sprites crossing lines dg_y..dg_y+7
-; that have something to draw, the last entry first; A = dg_sn = their count.
-dg_strip_sprites:
+; dg_row_sprites -- dg_rsl = the drawn sprites crossing lines dg_y..dg_y+7
+; that have something to draw, the last entry first; dg_rsn = their count.
+dg_row_sprites:
         LDY     #0
         LDX     dg_nold
 @s:     TXA
@@ -638,14 +626,12 @@ dg_strip_sprites:
         LDA     dg_drawn,X
         CMP     #192
         BCS     @s
-        CLC
-        ADC     #15             ; bottom line >= dg_y ?
+        ADC     #15             ; C = 0: bottom line >= dg_y ?
         CMP     dg_y
         BCC     @s
         LDA     dg_y
-        CLC
-        ADC     #7
-        CMP     dg_drawn,X      ; top line <= dg_y + 7 ?
+        ADC     #6              ; C = 1: top line <= dg_y + 7 ?
+        CMP     dg_drawn,X
         BCC     @s
         LDA     dg_drawn+3,X
         AND     #15
@@ -654,213 +640,337 @@ dg_strip_sprites:
         CMP     #72
         BCS     @s              ; no such pattern
         TXA
-        STA     dg_sl,Y
-        TAX
+        STA     dg_rsl,Y
         INY
         BNE     @s              ; always
-@end:   STY     dg_sn
+@end:   STY     dg_rsn
+        RTS
+
+; ----------------------------------------------------------------------------
+; dg_strip -- rebuild groups dg_g0..dg_g1 of text row dg_row, 8 lines: the
+; characters into dg_lb (stream bytes), the sprites over them, then the
+; screen bytes of the run (aux, then main).
+; ----------------------------------------------------------------------------
+dg_strip:
+        LDY     dg_g0
+        LDA     dg_gc0,Y
+        STA     dg_c0
         TYA
-        RTS
-
-; dg_line_chars -- black margins, then characters dg_c0..dg_c1-1 of the row
-; at line dg_ln into dg_buf (one DHGR nibble a pixel), 4 loads a character
-; from the line's 4 pixel tables (operands patched here).
-dg_line_chars:
-        LDA     #0
-        LDX     #5
-@m0:    STA     dg_buf,X
-        DEX
-        BPL     @m0
-        LDX     #13
-@m1:    STA     dg_buf+134,X
-        DEX
-        BPL     @m1
-        LDA     dg_ln           ; dg_cpx + 512 * line + 128 * pixel
-        ASL
-        ADC     #>dg_cpx        ; C = 0
-        TAX
-        LDA     #<dg_cpx
-        STA     dg_k0+1
-        STX     dg_k0+2
-        CLC
-        ADC     #$80
-        BCC     :+
-        INX
-:       STA     dg_k1+1
-        STX     dg_k1+2
-        CLC
-        ADC     #$80
-        BCC     :+
-        INX
-:       STA     dg_k2+1
-        STX     dg_k2+2
-        CLC
-        ADC     #$80
-        BCC     :+
-        INX
-:       STA     dg_k3+1
-        STX     dg_k3+2
-        LDA     dg_c0
         ASL
         ASL
-        TAX
-dg_lc:  LDY     dg_chs4,X
-dg_k0:  LDA     dg_cpx,Y
-        STA     dg_buf+DG_X0,X
-dg_k1:  LDA     dg_cpx,Y
-        STA     dg_buf+DG_X0+1,X
-dg_k2:  LDA     dg_cpx,Y
-        STA     dg_buf+DG_X0+2,X
-dg_k3:  LDA     dg_cpx,Y
-        STA     dg_buf+DG_X0+3,X
-        INX
-        INX
-        INX
-        INX
-        CPX     dg_x4e
-        BNE     dg_lc
-        RTS
-
-; dg_line_sprites -- the strip's sprites (dg_sl) crossing line dg_y, the last
-; entry first (entry 0 ends on top).
-dg_line_sprites:
-        LDA     dg_sn
-        BEQ     @done
-        LDA     #0
-        STA     dg_si           ; index in dg_sl
-@s:     LDY     dg_si
-        CPY     dg_sn
-        BCS     @done
-        INC     dg_si
-        LDX     dg_sl,Y
-        LDA     dg_y
+        STA     dg_bmin
+        LDY     dg_g1
+        TYA
+        ASL
+        ASL
+        ADC     #4              ; C = 0
+        STA     dg_bmax
+        LDA     dg_gc1,Y
+        STA     dg_c1
         SEC
-        SBC     dg_drawn,X
-        CMP     #16
-        BCS     @s
-        STA     dg_t            ; row in the sprite
+        SBC     dg_c0
+        STA     dg_cn
+        ; the run's names, 0..127 with a lit pixel or $FF, at 16 q + p
+        LDY     dg_c0
+@cp:    LDA     (dg_np),Y
+        TAX
+        LDA     dg_san,X
+        LDX     dg_c16,Y
+        STA     dg_chs,X
+        INY
+        CPY     dg_c1
+        BNE     @cp
+        ; the black margins: byte 3 (character 0 ORs its first dots
+        ; there), bytes 77..79 (sprites may draw there)
+        LDA     #0
+        LDX     dg_c0
+        BNE     :+
+        .repeat 8, l
+        STA     dg_lb+(l / 3 * 256 + l .mod 3 * DG_LW)+3
+        .endrepeat
+:       LDX     dg_g1
+        CPX     #19
+        BNE     :+
+        .repeat 8, l
+        STA     dg_lb+(l / 3 * 256 + l .mod 3 * DG_LW)+77
+        STA     dg_lb+(l / 3 * 256 + l .mod 3 * DG_LW)+78
+        STA     dg_lb+(l / 3 * 256 + l .mod 3 * DG_LW)+79
+        .endrepeat
+:       LDX     dg_c0
+        LDA     dg_c7,X
+        TAY
+        LDA     dg_phlo,Y
+        STA     @ph+1
+        LDA     dg_phhi,Y
+        STA     @ph+2
+        LDA     dg_c16,X
+        SEC
+        SBC     dg_c7,X
+        TAY                     ; 16 q
+@ph:    JSR     dg_ph0
+        JSR     dg_strip_sprites
+        ; fall through
+
+; dg_write -- stream bytes 4 g0 .. 4 g1 + 3 of the 8 lines to the screen:
+; the even ones to the aux bank (IRQs masked), the odd ones to main; two
+; screen columns of 8 lines a pass (~81 cycles a column).
+dg_write:
+        LDX     dg_row
+        LDA     dg_rlo,X
+        .repeat 8, l
+        STA     .ident(.sprintf("dg_w%d", l))+1
+        .endrepeat
+        ORA     #1              ; (even)
+        .repeat 8, l
+        STA     .ident(.sprintf("dg_v%d", l))+1
+        .endrepeat
+        LDA     dg_rhi,X
+        CLC
+        .repeat 8, l
+        STA     .ident(.sprintf("dg_w%d", l))+2
+        STA     .ident(.sprintf("dg_v%d", l))+2
+        .if l < 7
+        ADC     #4
+        .endif
+        .endrepeat
+        LDA     dg_g0
+        ASL
+        STA     dg_t            ; first screen offset
+        LDA     dg_g1
+        ASL
+        ADC     #2              ; C = 0
+        STA     dg_u            ; last + 1
+        LDX     dg_bmin
+        LDY     dg_t
+        PHP
+        SEI
+        STA     DG_RAMWRT_AUX
+        JSR     dg_wc
+        STA     DG_RAMWRT_MAIN
+        PLP
+        LDX     dg_bmin
+        INX
+        LDY     dg_t
+dg_wc:  .repeat 8, l
+        LDA     dg_lb+(l / 3 * 256 + l .mod 3 * DG_LW),X
+.ident(.sprintf("dg_w%d", l)):
+        STA     $2000,Y
+        .endrepeat
+        .repeat 8, l
+        LDA     dg_lb+(l / 3 * 256 + l .mod 3 * DG_LW)+2,X
+.ident(.sprintf("dg_v%d", l)):
+        STA     $2001,Y
+        .endrepeat
+        INX
+        INX
+        INX
+        INX
+        INY
+        INY
+        CPY     dg_u
+        BNE     dg_wc
+        RTS
+
+; ----------------------------------------------------------------------------
+; Characters: dg_ph<p> composes characters 7q+p, 7q+p+1 ... (dg_cn of them,
+; Y = 16 q) into the 8 lines of dg_lb, left to right: a character row is 16
+; stream bits from bit 24 + 16 p (relative to 16 q): 3 or 4 bytes, the first
+; ORed onto the previous character's last one (unless byte-aligned), the
+; others stored. One table load a byte (dg_cp<p><i>, by ink and pixels).
+; dg_bl<p>: the same for a black character.
+; ----------------------------------------------------------------------------
+.macro DG_PHASE p
+        .local k0, rr, n
+        k0 = (4 * DG_X0 + 16 * p) / 7
+        rr = (4 * DG_X0 + 16 * p) .mod 7
+        n = (rr + 22) / 7
+.ident(.sprintf("dg_bl%d", p)):
+        LDA     #0
+        .repeat 8, l
+        .if rr = 0
+        STA     dg_lb+(l / 3 * 256 + l .mod 3 * DG_LW)+k0,Y
+        .endif
+        .repeat n - 1, i
+        STA     dg_lb+(l / 3 * 256 + l .mod 3 * DG_LW)+k0+i+1,Y
+        .endrepeat
+        .endrepeat
+        JMP     .ident(.sprintf("dg_nx%d", p))
+.ident(.sprintf("dg_ph%d", p)):
+        LDX     dg_chs+p,Y
+        BMI     .ident(.sprintf("dg_bl%d", p))
+        .repeat 8, l
+        LDA     dg_ri+128*l,X
+        TAX
+        LDA     .ident(.sprintf("dg_cp%d0", p)),X
+        .if rr <> 0
+        ORA     dg_lb+(l / 3 * 256 + l .mod 3 * DG_LW)+k0,Y
+        .endif
+        STA     dg_lb+(l / 3 * 256 + l .mod 3 * DG_LW)+k0,Y
+        .repeat n - 1, i
+        LDA     .ident(.sprintf("dg_cp%d%d", p, i + 1)),X
+        STA     dg_lb+(l / 3 * 256 + l .mod 3 * DG_LW)+k0+i+1,Y
+        .endrepeat
+        .if l < 7
+        LDX     dg_chs+p,Y
+        .endif
+        .endrepeat
+.ident(.sprintf("dg_nx%d", p)):
+        DEC     dg_cn
+        .if p < 6
+        BNE     .ident(.sprintf("dg_ph%d", p + 1))
+        RTS
+        .else
+        BEQ     :+
+        TYA
+        CLC
+        ADC     #16
+        TAY
+        JMP     dg_ph0
+:       RTS
+        .endif
+.endmacro
+
+        .repeat 7, p
+        DG_PHASE p
+        .endrepeat
+
+; ----------------------------------------------------------------------------
+; Sprites: dg_strip_sprites draws the row's sprites that reach the run, over
+; the characters, the last entry first (entry 0 ends on top). A sprite row
+; is two 4-pixel halves, each 16 stream bits from bit r of byte k (left) and
+; r + 16: dg_spr<r> paints one line, byte by byte:
+;   b = b XOR ((b XOR ink) AND dots)
+; ----------------------------------------------------------------------------
+dg_strip_sprites:
+        LDA     dg_rsn
+        BNE     :+
+        RTS
+:       LDA     #0
+        STA     dg_si
+@s:     LDY     dg_si
+        CPY     dg_rsn
+        BCC     :+
+        RTS
+:       INC     dg_si
+        LDX     dg_rsl,Y
+        LDA     dg_drawn+1,X    ; X / 2
+        LSR
+        TAY
+        LDA     dg_hk,Y         ; its first stream byte
+        CMP     dg_bmax
+        BCS     @s              ; right of the run
+        ADC     #6              ; C = 0
+        CMP     dg_bmin
+        BCC     @s              ; ends left of it (k + 5 < 4 g0)
+        BEQ     @s
+        LDA     dg_hk,Y
+        STA     dg_t
+        LDA     dg_hr,Y         ; the bit: which painter
+        TAY
+        LDA     dg_srlo,Y
+        STA     @spr+1
+        LDA     dg_srhi,Y
+        STA     @spr+2
+        ; ink of bytes k .. k + 5: dg_cpat + 16 N + (k AND 3) + j
         LDA     dg_drawn+3,X
         AND     #15
         TAY
         LDA     dg_palette,Y
-        STA     dg_ink
-        LDA     dg_drawn+2,X    ; name: 4 per sprite, 16 rows each
-        LDY     #0
-        STY     dg_sp+1
         ASL
-        ROL     dg_sp+1
         ASL
-        ROL     dg_sp+1
-        ADC     #<dg_sprites    ; C = 0
-        STA     dg_sp
-        LDA     dg_sp+1
-        ADC     #>dg_sprites
-        STA     dg_sp+1
-        LDY     dg_t
-        LDA     (dg_sp),Y
-        BEQ     @s
-        STA     dg_bits
-        LDA     dg_drawn+1,X    ; X
-        LSR
-        CLC
-        ADC     #DG_X0
-        TAY
-@px:    ASL     dg_bits
-        BCC     :+
-        LDA     dg_ink
-        STA     dg_buf,Y
-:       INY
-        LDA     dg_bits
-        BNE     @px
-        BEQ     @s              ; always
-@done:  RTS
-
-; dg_line_pack -- groups dg_g0..dg_g1 of dg_buf packed in place: the 7
-; nibbles of group g (bytes 7g..7g+6) -> its 4 screen bytes at 7g..7g+3
-; (aux 2g, main 2g, aux 2g+1, main 2g+1). ~60 cycles a group.
-dg_line_pack:
-        LDY     dg_g1
-        LDA     dg_mul7+1,Y
-        STA     dg_u            ; end
-        LDY     dg_g0
-        LDA     dg_mul7,Y
-        TAY
-@g:     LDX     dg_buf+1,Y      ; n1
-        LDA     dg_p4,X
-        ORA     dg_buf,Y        ; n0
-        STA     dg_buf,Y
-        LDA     dg_r3,X
-        LDX     dg_buf+2,Y      ; n2
-        ORA     dg_s1,X
-        LDX     dg_buf+3,Y      ; n3
-        ORA     dg_l5,X
-        STA     dg_buf+1,Y
-        LDA     dg_r2,X
-        LDX     dg_buf+4,Y      ; n4
-        ORA     dg_s2,X
-        LDX     dg_buf+5,Y      ; n5
-        ORA     dg_l6,X
-        STA     dg_buf+2,Y
-        LDA     dg_r1,X
-        LDX     dg_buf+6,Y      ; n6
-        ORA     dg_s3,X
-        STA     dg_buf+3,Y
-        TYA
-        CLC
-        ADC     #7
-        TAY
-        CPY     dg_u
-        BNE     @g
-        RTS
-
-; dg_line_write -- the packed groups to screen line dg_ptr: aux bytes with
-; IRQs masked (RAMWRT aux), then main bytes.
-dg_line_write:
-        LDY     dg_g1
-        TYA
         ASL
-        ADC     #2              ; C = 0
-        STA     dg_t            ; end offset 2 (g1 + 1)
-        LDY     dg_g0
-        LDA     dg_mul7,Y
+        ASL
         STA     dg_u
-        TAX
-        TYA
-        ASL
-        STA     dg_bits
+        LDA     dg_t
+        AND     #3
+        ORA     dg_u
         TAY
-        PHP
-        SEI
-        STA     DG_RAMWRT_AUX
-@a:     LDA     dg_buf,X
-        STA     (dg_ptr),Y
-        INY
-        LDA     dg_buf+2,X
-        STA     (dg_ptr),Y
-        INY
-        TXA
+        .repeat 6, j
+        LDA     dg_cpat+j,Y
+        STA     dg_cz+j
+        .endrepeat
+        ; its rows: dg_sph + 4 * name, dg_spl = dg_sph + 288
+        LDA     #0
+        STA     dg_u
+        LDA     dg_drawn+2,X
+        ASL
+        ROL     dg_u
+        ASL
+        ROL     dg_u
+        ADC     #<dg_sph        ; C = 0
+        STA     dg_sh
+        LDA     dg_u
+        ADC     #>dg_sph
+        STA     dg_sh+1
+        LDA     dg_sh
         CLC
-        ADC     #7
-        TAX
-        CPY     dg_t
-        BNE     @a
-        STA     DG_RAMWRT_MAIN
-        PLP
-        LDX     dg_u
-        LDY     dg_bits
-@m:     LDA     dg_buf+1,X
-        STA     (dg_ptr),Y
-        INY
-        LDA     dg_buf+3,X
-        STA     (dg_ptr),Y
-        INY
-        TXA
+        ADC     #<288
+        STA     dg_sl
+        LDA     dg_sh+1
+        ADC     #>288
+        STA     dg_sl+1
+        ; its lines in the row: from line dg_ln, row dg_st of the sprite
+        LDA     dg_drawn,X
+        SEC
+        SBC     dg_y
+        BCC     @above
+        STA     dg_ln           ; starts in the row
+        LDA     #0
+        BEQ     @st
+@above: EOR     #$FF            ; started above: row dg_y - Y
+        ADC     #1              ; C = 0
+        LDY     #0
+        STY     dg_ln
+@st:    STA     dg_st
+        EOR     #$FF
+        SEC
+        ADC     #16
+        STA     dg_lc           ; 16 - row: lines left in the sprite
+@ln:    LDY     dg_ln
+        LDA     dg_llo,Y
         CLC
-        ADC     #7
+        ADC     dg_t
+        STA     dg_bp
+        LDA     dg_lhi,Y
+        ADC     #0
+        STA     dg_bp+1
+@spr:   JSR     dg_spr0
+        INC     dg_st
+        DEC     dg_lc
+        BEQ     @nx
+        INC     dg_ln
+        LDA     dg_ln
+        CMP     #8
+        BNE     @ln
+@nx:    JMP     @s
+
+.macro DG_SPR_HALF tab, nbytes, first, ptr
+        .local skip
+        LDY     dg_st
+        LDA     (ptr),Y
+        BEQ     skip
         TAX
-        CPY     dg_t
-        BNE     @m
+        .repeat nbytes, i
+        LDY     #first + i
+        LDA     (dg_bp),Y
+        EOR     dg_cz+first+i
+        AND     .ident(.sprintf("dg_sm%d%d", tab, i)),X
+        EOR     (dg_bp),Y
+        STA     (dg_bp),Y
+        .endrepeat
+skip:
+.endmacro
+
+.macro DG_SPR r
+.ident(.sprintf("dg_spr%d", r)):
+        DG_SPR_HALF r, (r + 22) / 7, 0, dg_sh
+        DG_SPR_HALF (r + 16) .mod 7, ((r + 16) .mod 7 + 22) / 7, (r + 16) / 7, dg_sl
         RTS
+.endmacro
+
+        .repeat 7, r
+        DG_SPR r
+        .endrepeat
 
 ; dg_black -- both banks of page 1 = 0 (IRQs masked during the aux half).
 dg_black:
@@ -889,51 +999,22 @@ dg_zero_page1:
 ; ----------------------------------------------------------------------------
 .segment "RODATA"
 
-; packing: one 16-entry table per shifted piece of a nibble
-dg_p4:  .repeat 16, n
-        .byte   (n & 7) << 4
+dg_lsr5: .repeat 256, b         ; text row of a byte in a names page
+        .byte   b >> 5
         .endrepeat
-dg_r3:  .repeat 16, n
-        .byte   n >> 3
+; dirty groups of row r: dg_dg + 20 r
+dg_dlo: .repeat 24, r
+        .byte   <(dg_dg + 20 * r)
         .endrepeat
-dg_s1:  .repeat 16, n
-        .byte   n << 1
+dg_dhi: .repeat 24, r
+        .byte   >(dg_dg + 20 * r)
         .endrepeat
-dg_l5:  .repeat 16, n
-        .byte   (n & 3) << 5
+; first and last group under character column c (pixels 6+4c .. 9+4c)
+dg_cg0: .repeat 32, c
+        .byte   (DG_X0 + 4 * c) / 7
         .endrepeat
-dg_r2:  .repeat 16, n
-        .byte   n >> 2
-        .endrepeat
-dg_s2:  .repeat 16, n
-        .byte   n << 2
-        .endrepeat
-dg_l6:  .repeat 16, n
-        .byte   (n & 1) << 6
-        .endrepeat
-dg_r1:  .repeat 16, n
-        .byte   n >> 1
-        .endrepeat
-dg_s3:  .repeat 16, n
-        .byte   n << 3
-        .endrepeat
-; dg_ex + 4 p + k = $FF if pixel k (0 = left) of the 4-pixel row p is lit
-dg_bitm: .repeat 8, b
-        .byte   1 << b
-        .endrepeat
-; first and last group of a character column c (pixels 6+4c .. 9+4c): the
-; byte of the row's dirty bitmap and the bit
-dg_cgb0: .repeat 32, c
-        .byte   ((DG_X0 + 4 * c) / 7) >> 3
-        .endrepeat
-dg_cgm0: .repeat 32, c
-        .byte   1 << (((DG_X0 + 4 * c) / 7) & 7)
-        .endrepeat
-dg_cgb1: .repeat 32, c
-        .byte   ((DG_X0 + 3 + 4 * c) / 7) >> 3
-        .endrepeat
-dg_cgm1: .repeat 32, c
-        .byte   1 << (((DG_X0 + 3 + 4 * c) / 7) & 7)
+dg_cg1: .repeat 32, c
+        .byte   (DG_X0 + 3 + 4 * c) / 7
         .endrepeat
 ; character columns covering group g: first, last + 1
 dg_gc0: .repeat 20, g
@@ -942,11 +1023,45 @@ dg_gc0: .repeat 20, g
 dg_gc1: .repeat 20, g
         .byte   ((7 * g) / 4 + 1) - ((7 * g) / 4 + 1 - 32) * ((7 * g) / 4 + 1 > 32)
         .endrepeat
-dg_mul7: .repeat 21, g
-        .byte   7 * g
+; character column c: 16 (c / 7) + c mod 7 (its dg_chs slot), c mod 7
+dg_c16: .repeat 32, c
+        .byte   16 * (c / 7) + c .mod 7
         .endrepeat
-dg_div7: .repeat 148, px
-        .byte   px / 7
+dg_c7:  .repeat 32, c
+        .byte   c .mod 7
+        .endrepeat
+dg_phlo: .repeat 7, p
+        .byte   <.ident(.sprintf("dg_ph%d", p))
+        .endrepeat
+dg_phhi: .repeat 7, p
+        .byte   >.ident(.sprintf("dg_ph%d", p))
+        .endrepeat
+dg_srlo: .repeat 7, r
+        .byte   <.ident(.sprintf("dg_spr%d", r))
+        .endrepeat
+dg_srhi: .repeat 7, r
+        .byte   >.ident(.sprintf("dg_spr%d", r))
+        .endrepeat
+; a sprite at TMS X = 2h: its first stream byte, the bit in it; the groups
+; of its left and right pixels (19 at most)
+dg_hk:  .repeat 128, h
+        .byte   (4 * (DG_X0 + h)) / 7
+        .endrepeat
+dg_hr:  .repeat 128, h
+        .byte   (4 * (DG_X0 + h)) .mod 7
+        .endrepeat
+dg_hg0: .repeat 128, h
+        .byte   (DG_X0 + h) / 7
+        .endrepeat
+dg_hg1: .repeat 128, h
+        .byte   (DG_X0 + h + 7) / 7 - ((DG_X0 + h + 7) / 7 - 19) * ((DG_X0 + h + 7) / 7 > 19)
+        .endrepeat
+; line l of dg_lb
+dg_llo: .repeat 8, l
+        .byte   .lobyte(dg_lb + l / 3 * 256 + l .mod 3 * DG_LW)
+        .endrepeat
+dg_lhi: .repeat 8, l
+        .byte   .hibyte(dg_lb + l / 3 * 256 + l .mod 3 * DG_LW)
         .endrepeat
 ; screen address of line 0 of text row r
 dg_rlo: .repeat 24, r

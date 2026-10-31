@@ -62,11 +62,15 @@ Ce qui change par rapport à l'écran TMS9918 :
   ci-dessous) ; le flash du coup reçu est **orange** (le rouge moyen TMS) ;
 - **pas de sprites matériels** : le dos de l'écran (`video_dhgr.asm`) garde
   une copie de l'écran TMS virtuel et ne redessine, quand le jeu attend une
-  touche, que les groupes de 7 pixels qui ont changé (tuiles puis sprites,
+  touche, que les groupes de 7 pixels qui ont changé, composés directement
+  en octets de l'écran (tuiles par tables précalculées, puis sprites ;
   chaque octet de l'écran écrit une fois, sa valeur finale : pas de
   scintillement) ; pas de limite de 4 sprites par ligne ;
-- **vitesse** : un tour ordinaire prend 0,15 à 0,5 s (jeu + dessin), un
-  écran entier (nouvel étage, sac, aide) environ 0,9 s.
+- **vitesse** : un tour ordinaire prend environ 0,04 s (médiane, jeu + son +
+  dessin, 0,06 s torche allumée ; l'image paraît avant le son, et 9 tours
+  sur 10 l'affichent en moins de 0,1 s), un écran entier (nouvel étage,
+  sac, aide) 0,33 s (détail, avant / après, dans
+  [docs/PORT.md](docs/PORT.md) §3.1).
 
 | TMS9918 | DHGR | Qui |
 |---|---|---|
@@ -94,8 +98,12 @@ version couleur, lisible, est la seule livrée.
 Mémoire : DOS 3.3 gardé, page DHGR 1 (`$2000-$3FFF`, banques principale et
 auxiliaire), le reste en mémoire principale (détail dans
 [docs/PORT.md](docs/PORT.md)). Tests : `tests/test_dhgr.py` (a2shot //e et
-//c, ~3 s, dans `make test`) compare chaque écran, octet par octet, à l'image
-que l'outil calcule depuis l'écran TMS virtuel.
+//c, ~4 s, dans `make test`) compare chaque écran, octet par octet, à l'image
+que l'outil calcule depuis l'écran TMS virtuel (aussi sur trois écrans
+virtuels au hasard), et vérifie avec `storewatch` que chaque octet est écrit
+une seule fois, et que l'écran virtuel aux 89 points de contrôle est celui
+d'avant les optimisations du 2026-10-31 (`tests/dhgr_screens.txt`) ;
+`tools/profile_dhgr.py` dit où passent les cycles d'un tour.
 
 ## Touches
 

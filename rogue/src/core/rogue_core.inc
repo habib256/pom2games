@@ -412,10 +412,9 @@ TILE_REVEAL_BIT  = $08          ; OR into nibble for revealed pit
 ; dungeon" pacing — half a small room at any time. TORCH_RADIUS = 7
 ; doubles that during the torch buff.
 ;
-; All slope numerators/denominators stay within {0..15} (max 2*7+1),
-; so the cross-products fit in a single byte (max 15*15 = 225 < 256)
-; and we use a tiny 4-bit×4-bit multiply (mul_4bit) instead of a full
-; 8x8 → 16-bit routine.
+; All slope numerators/denominators stay within {0..15} (max 2*7+1).
+; APPLE II: POM1 compared them by 4-bit cross-products (umul4); each slope
+; is now its rank among the n/d fractions (shadowcast.asm), same results.
 FOV_RADIUS      = 3
 VIS_VISIBLE     = $01
 VIS_BUFFER_SIZE = 20            ; (LOGICAL_COLS * LOGICAL_ROWS + 7) / 8
@@ -606,6 +605,10 @@ vis_pak_hi:     .res 1
 ; the active nibble gets rebuilt. pak_byte holds render_map's current
 ; packed map byte while two cells are emitted from it.
 tmp_packed:     .res 2
+rm_row:         .res 1          ; APPLE II: render_map's row, rm_write's
+rm_x:           .res 1          ;   cell, code and name address low byte
+rm_code:        .res 1
+rm_lo:          .res 1
 pak_byte:       .res 2          ; [0] = current packed byte; [1] = nibble
                                 ; cache for emit_tl_cell / emit_bl_cell
 
@@ -639,8 +642,7 @@ throw_step:     .res 1          ; remaining flight cells (0..THROW_RANGE).
 ; animation, mark_visible_at_cur, and is_opaque_at_cur — sees them as
 ; ZP at assembly time and gets the short-form addressing. The lib's
 ; second .ifndef guard (`cur_x`) skips its own .res for them.
-; The 4-bit×4-bit slope multiplies route through `umul4` (lib/m6502/
-; multiply.asm), which owns its own mul_tmp / mul_res0.
+; The slope comparisons are rank lookups (sc_lrank / sc_rrank, shadowcast.asm).
 cur_x:          .res 1
 cur_y:          .res 1
 
@@ -694,6 +696,14 @@ vis_buffer:     .res 20
 monsters:       .res MON_COUNT * MON_SIZE       ; 128 B
 items:          .res ITEM_COUNT * ITEM_SIZE     ;  32 B
 inventory:      .res INV_COUNT * INV_SIZE       ; 208 B
+; APPLE II: render_map's map shadow (what each cell's 4 names show) and
+; its all-dark rows.
+map_shadow:     .res LOGICAL_COLS * LOGICAL_ROWS ; 160 B
+rm_ok:          .res VIS_BUFFER_SIZE ; [2 r] = 1: row r drawn from rm_vis / rm_map
+rm_vis:         .res VIS_BUFFER_SIZE ; vis_buffer as last drawn
+rm_map:         .res (LOGICAL_COLS * LOGICAL_ROWS) / 2 ; map_buffer as last drawn
+hud_ok:         .res 1          ; APPLE II: hud_paint's HUD rows state
+hud_last:       .res 11         ;   and the values they show
 
 
 ; =============================================
@@ -722,7 +732,7 @@ start:
         JSR draw_title          ; ROGUE banner + controls reminder
         JSR wait_kb_choice      ; bind IJKL keys + seed prng from key timing
 
-        JSR vid_clear    ; second title page = mission briefing
+        JSR clear_screen    ; second title page = mission briefing
         JSR draw_briefing       ; lore + mechanics primer
         BIT     KBDSTRB                 ; drain the start-key strobe
         JSR wait_key_stir       ; APPLE II: explicit ack, its delay stirs the PRNG
@@ -765,7 +775,7 @@ start:
         JMP main_loop
 @std_first_level:
 
-        JSR vid_clear    ; wipe title before the game view appears
+        JSR clear_screen    ; wipe title before the game view appears
         JSR gen_dungeon         ; procedural rooms + corridors + stairs;
                                 ; sets player_col/row to first room centre.
         JSR clear_vis_buffer    ; fresh dungeon -> nothing remembered yet
@@ -788,7 +798,8 @@ main_loop:
         ; next place_all_sprites overwrites them, so the flash is
         ; visible during wait_key.
         JSR clear_hurt_flags
-        JSR sfx_flush           ; APPLE II: the turn's sound, after its picture
+        JSR vid_idle            ; APPLE II: the picture first (DHGR draws here),
+        JSR sfx_flush           ; then the turn's sound
         JSR wait_key            ; A = raw key (high bit still set)
         ; APPLE II: S = sound on/off, ESC = quit to DOS (asks first).
         CMP     #('S' | $80)
@@ -1082,7 +1093,7 @@ new_level:
         JSR spawn_boss
         SFX     SND_BOSS        ; APPLE II
 @repaint:
-        JSR vid_clear
+        JSR clear_screen
         JSR clear_vis_buffer    ; new level -> forget the previous map
         JSR compute_fov         ; light the spawn neighbourhood
         JSR render_map
@@ -3765,218 +3776,235 @@ apply_step:
 ; into the name table at VRAM $1800. Each logical tile becomes a 2x2
 ; block of 4 chars (base+0=TL, base+1=TR, base+2=BL, base+3=BR), with
 ; `base` looked up in tile_char_base[] keyed by the cell's dense
-; TILE_* id. Auto-increment streams data row-by-row: one logical row
-; produces 32 TL/TR chars (name-table row N) followed by 32 BL/BR
-; chars (row N+1).
+; TILE_* id; a cell out of the FOV (its vis_buffer bit clear) or a
+; hidden pit shows 4 zeros (blank black).
 ;
-; FOV gate: each cell consults vis_buffer's bit-packed flag before
-; emitting. A dark cell writes 4 zeros (blank black) — so un-lit
-; corridors stay black even after gen_dungeon paints them in the
-; map_buffer. The two vis-row bytes load once per logical row into the
-; vis_pak_lo / vis_pak_hi shift register; LSR vis_pak_hi / ROR
-; vis_pak_lo extracts the next column's bit straight into the carry
-; flag, in column-iteration order. We re-load before the BL pass since
-; the TL pass drains the register.
-;
-; Inner loop iterates Y = 0..7 (8 packed map bytes per logical row),
-; processing 2 cells per iteration: low nibble first (col 2Y), then
-; high nibble (col 2Y+1). Row counter lives in tmp_packed (not X) so
-; emit_tl_cell / emit_bl_cell can use X freely as the tile-id index
-; into tile_char_base.
+; APPLE II: incremental. POM1 streamed all 640 names every call; the
+; core now keeps map_shadow, one byte a cell = what its 4 names show
+; (the base char, RM_DARK for the 4 zeros, RM_STALE = unknown), and
+; writes only the cells whose code changed (vid_addr at row 2r, the TL /
+; TR pair, vid_addr at row 2r+1, the BL / BR pair). A row whose vis bytes
+; and map bytes are the ones it was last drawn from (rm_vis, rm_map; only
+; the vis bytes when they are 0) is skipped whole. Same names at the end as the full stream: anything else that
+; writes rows 0..19 goes through clear_screen, which marks every cell
+; stale (rm_invalidate) and the next render_map rewrites all 160.
 ; ----------------------------------------------------------------------------
+RM_DARK  = $FF                  ; map_shadow: the 4 names are 0
+RM_STALE = $FE                  ; unknown: rewritten by the next render
+
 render_map:
-        ; Sync to VBlank before the full map rebuild burst.
+        ; Sync to VBlank before the map update (TMS: no tearing).
         WAIT_VBLANK_SAFE
-        LDA     #$00
+        LDA     #$00            ; POM1's cursor variables, as it left them
         STA     vdp_lo
         LDA     #$18
         STA     vdp_hi
-        JSR     vdp_set_write   ; addr = $1800 (name table top)
-
-        ; vdp_src walks 8 packed bytes per logical row.
-        LDA     #<map_buffer
-        STA     vdp_src_lo
-        LDA     #>map_buffer
-        STA     vdp_src_hi
-
-        ; map_ptr walks the bit-packed vis_buffer (2 bytes per row).
-        LDA     #<vis_buffer
-        STA     map_ptr
-        LDA     #>vis_buffer
-        STA     map_ptr+1
-
-        LDA     #LOGICAL_ROWS
-        STA     tmp_packed      ; row counter — frees X for emit helpers
-@row_lp:
-        ; Load the row's two visibility bytes into the shift register.
-        LDY     #0
-        LDA     (map_ptr),Y
-        STA     vis_pak_lo
-        INY
-        LDA     (map_ptr),Y
-        STA     vis_pak_hi
-
-        ; --- TL / TR pass: 16 cols = 8 packed map bytes ---
-        LDY     #0
-@tl_byte_lp:
-        LDA     (vdp_src_lo),Y
-        STA     pak_byte
-        ; --- low nibble (col 2Y) ---
-        LSR     vis_pak_hi
-        ROR     vis_pak_lo
-        BCC     @tl_lo_dark
-        LDA     pak_byte
-        AND     #$0F
-        JSR     emit_tl_cell
-        JMP     @tl_hi
-@tl_lo_dark:
-        LDA     #0
-        WRT_DATA_REG
-        WRT_DATA_REG
-@tl_hi: ; --- high nibble (col 2Y+1) ---
-        LSR     vis_pak_hi
-        ROR     vis_pak_lo
-        BCC     @tl_hi_dark
-        LDA     pak_byte
+        LDX     #0              ; X = cell 0..159 (kept by rm_write)
+        STX     rm_row
+@row:   TXA
         LSR
         LSR
         LSR
+        TAY                     ; Y = 2 * row: the row's vis bytes
+        LDA     rm_ok,Y         ; drawn since the last rm_invalidate?
+        BEQ     @scan
+        LDA     vis_buffer,Y    ; same lit cells as drawn?
+        CMP     rm_vis,Y
+        BNE     @scan
+        LDA     vis_buffer+1,Y
+        CMP     rm_vis+1,Y
+        BNE     @scan
+        ORA     vis_buffer,Y
+        BEQ     @skip           ; all dark, drawn dark
+        TXA                     ; same map bytes as drawn?
         LSR
-        JSR     emit_tl_cell
-        JMP     @tl_byte_next
-@tl_hi_dark:
-        LDA     #0
-        WRT_DATA_REG
-        WRT_DATA_REG
-@tl_byte_next:
-        INY
-        CPY     #(LOGICAL_COLS / 2)
-        BNE     @tl_byte_lp
-
-        ; Reload the row's vis bytes — the TL pass drained the register.
-        LDY     #0
-        LDA     (map_ptr),Y
-        STA     vis_pak_lo
-        INY
-        LDA     (map_ptr),Y
-        STA     vis_pak_hi
-
-        ; --- BL / BR pass: same iteration, base+2/base+3 chars. ---
-        LDY     #0
-@bl_byte_lp:
-        LDA     (vdp_src_lo),Y
-        STA     pak_byte
-        LSR     vis_pak_hi
-        ROR     vis_pak_lo
-        BCC     @bl_lo_dark
-        LDA     pak_byte
-        AND     #$0F
-        JSR     emit_bl_cell
-        JMP     @bl_hi
-@bl_lo_dark:
-        LDA     #0
-        WRT_DATA_REG
-        WRT_DATA_REG
-@bl_hi: LSR     vis_pak_hi
-        ROR     vis_pak_lo
-        BCC     @bl_hi_dark
-        LDA     pak_byte
-        LSR
-        LSR
-        LSR
-        LSR
-        JSR     emit_bl_cell
-        JMP     @bl_byte_next
-@bl_hi_dark:
-        LDA     #0
-        WRT_DATA_REG
-        WRT_DATA_REG
-@bl_byte_next:
-        INY
-        CPY     #(LOGICAL_COLS / 2)
-        BNE     @bl_byte_lp
-        JMP     @row_advance
-
-
-@row_advance:
-        ; Advance source pointer 8 bytes (packed map row) and vis ptr 2.
+        TAY
+        .repeat 8, k
+        LDA     map_buffer+k,Y
+        CMP     rm_map+k,Y
+        BNE     @scan
+        .endrepeat
+@skip:  TXA                     ; nothing changed in the row: next one
         CLC
-        LDA     vdp_src_lo
-        ADC     #(LOGICAL_COLS / 2)
-        STA     vdp_src_lo
-        BCC     @noinc_src
-        INC     vdp_src_hi
-@noinc_src:
-        CLC
-        LDA     map_ptr
-        ADC     #2
-        STA     map_ptr
-        BCC     @noinc_vis
-        INC     map_ptr+1
-@noinc_vis:
-        DEC     tmp_packed              ; row counter
-        BEQ     @done
-        JMP     @row_lp                 ; long-jump trampoline — render_map
-                                        ; grew past the BNE range when the
-                                        ; pit reveal/hide branches landed.
-@done:
-        RTS
-
-
-; ----------------------------------------------------------------------------
-; emit_tl_cell / emit_bl_cell: render one cell's 2 chars (TL+TR or
-; BL+BR) given the 4-bit cell nibble in A. Bits 0..2 = dense TILE_*
-; id, bit 3 = pit-reveal flag (only meaningful for TILE_TRAP_PIT).
-; A hidden pit (TILE_TRAP_PIT without reveal) renders as blank — same
-; as out-of-FOV cells. Clobbers A, X. Caller's X is dead inside
-; render_map (row counter lives in tmp_packed); pak_byte+1 holds the
-; cached nibble across the reveal-bit test.
-; ----------------------------------------------------------------------------
-emit_tl_cell:
-        STA     pak_byte+1              ; cache full nibble
-        AND     #7
-        TAX                             ; X = tile id 0..7
-        LDA     pak_byte+1
-        AND     #TILE_REVEAL_BIT
-        BNE     @show                   ; revealed pit → render normally
-        CPX     #TILE_TRAP_PIT
-        BEQ     @dark                   ; hidden pit → blank
-@show:
-        LDA     tile_char_base,X
-        WRT_DATA_REG                    ; TL = base+0
-        CLC
-        ADC     #1
-        WRT_DATA_REG                    ; TR = base+1
-        RTS
-@dark:
-        LDA     #0
-        WRT_DATA_REG
-        WRT_DATA_REG
-        RTS
-
-emit_bl_cell:
-        STA     pak_byte+1
-        AND     #7
+        ADC     #LOGICAL_COLS
         TAX
-        LDA     pak_byte+1
-        AND     #TILE_REVEAL_BIT
-        BNE     @show
-        CPX     #TILE_TRAP_PIT
+        JMP     @row_next
+@scan:  TXA
+        LSR
+        LSR
+        LSR
+        TAY
+@vis8:  LDA     vis_buffer,Y    ; 8 cells' lit bits, bit 0 = the left one
+        STA     vis_pak_lo
+@pair:  TXA
+        LSR
+        TAY
+        LDA     map_buffer,Y
+        STA     pak_byte
+        AND     #$0F            ; even column: low nibble
+        LSR     vis_pak_lo      ; C = lit
+        BCC     @dk0
+        TAY
+        LDA     rm_nib_code,Y
+        CMP     map_shadow,X
+        BEQ     @odd
+        JSR     rm_write
+        JMP     @odd
+@dk0:   LDA     #RM_DARK
+        CMP     map_shadow,X
+        BEQ     @odd
+        JSR     rm_write
+@odd:   INX
+        LDA     pak_byte        ; odd column: high nibble
+        LSR
+        LSR
+        LSR
+        LSR
+        LSR     vis_pak_lo
+        BCC     @dk1
+        TAY
+        LDA     rm_nib_code,Y
+        CMP     map_shadow,X
+        BEQ     @nx
+        JSR     rm_write
+        JMP     @nx
+@dk1:   LDA     #RM_DARK
+        CMP     map_shadow,X
+        BEQ     @nx
+        JSR     rm_write
+@nx:    INX
+        TXA
+        AND     #7
+        BNE     @pair
+        TXA
+        AND     #LOGICAL_COLS - 1
+        BEQ     @row_done       ; 16 cells: the row is done
+        TXA                     ; second vis byte of the row
+        LSR
+        LSR
+        LSR
+        TAY
+        JMP     @vis8
+@row_done:                      ; the row as drawn: its vis and map bytes
+        TXA
+        SEC
+        SBC     #LOGICAL_COLS
+        LSR
+        LSR
+        LSR
+        TAY
+        LDA     vis_buffer,Y
+        STA     rm_vis,Y
+        LDA     vis_buffer+1,Y
+        STA     rm_vis+1,Y
+        LDA     #1
+        STA     rm_ok,Y
+        TXA
+        SEC
+        SBC     #LOGICAL_COLS
+        LSR
+        TAY
+        .repeat 8, k
+        LDA     map_buffer+k,Y
+        STA     rm_map+k,Y
+        .endrepeat
+@row_next:
+        INC     rm_row
+        CPX     #LOGICAL_COLS * LOGICAL_ROWS
+        BEQ     @done
+        JMP     @row
+@done:  RTS
+
+; rm_write -- cell X's names = code A (RM_DARK: 4 zeros, else base .. base+3),
+; map_shadow[X] = A. Keeps X.
+rm_write:
+        STA     map_shadow,X
+        STA     rm_code
+        STX     rm_x
+        TXA                     ; name offset = 64 * row + 2 * col
+        AND     #$0F
+        ASL
+        STA     rm_lo
+        TXA
+        AND     #$30            ; (row & 3) << 4
+        ASL
+        ASL
+        ORA     rm_lo
+        STA     rm_lo           ; low byte (bit 5 clear: + 32 = next row)
+        TXA
+        LSR
+        LSR
+        LSR
+        LSR
+        LSR
+        LSR                     ; row >> 2
+        ORA     #$18
+        TAX                     ; high byte (vid_addr keeps X)
+        LDA     rm_lo
+        JSR     vid_addr
+        LDY     rm_code
+        CPY     #RM_DARK
         BEQ     @dark
-@show:
-        LDA     tile_char_base,X
-        CLC
-        ADC     #2
-        WRT_DATA_REG                    ; BL = base+2
+        TYA
+        JSR     vid_put         ; TL = base + 0 (vid_put keeps A, P)
         CLC
         ADC     #1
-        WRT_DATA_REG                    ; BR = base+3
+        JSR     vid_put         ; TR = base + 1
+        LDA     rm_lo
+        ORA     #$20
+        JSR     vid_addr        ; the row below
+        TYA
+        CLC
+        ADC     #2
+        JSR     vid_put         ; BL = base + 2
+        CLC
+        ADC     #1
+        JSR     vid_put         ; BR = base + 3
+        LDX     rm_x
         RTS
-@dark:
+@dark:  LDA     #0
+        JSR     vid_put
+        JSR     vid_put
+        LDA     rm_lo
+        ORA     #$20
+        JSR     vid_addr
         LDA     #0
-        WRT_DATA_REG
-        WRT_DATA_REG
+        JSR     vid_put
+        JSR     vid_put
+        LDX     rm_x
         RTS
+
+; rm_invalidate -- every cell stale: the next render_map writes all 160.
+rm_invalidate:
+        LDA     #RM_STALE
+        LDX     #LOGICAL_COLS * LOGICAL_ROWS - 1
+@s:     STA     map_shadow,X
+        DEX
+        CPX     #$FF
+        BNE     @s
+        LDA     #0
+        LDX     #VIS_BUFFER_SIZE - 1
+@d:     STA     rm_ok,X
+        DEX
+        BPL     @d
+        RTS
+
+; clear_screen -- vid_clear for the core: the map shadow goes stale with it
+; (title, briefing, modals, death... write rows 0..19 after it).
+clear_screen:
+        LDA     #0
+        STA     hud_ok
+        JSR     rm_invalidate
+        JMP     vid_clear
+
+; rm_nib_code: what a LIT cell's nibble shows (tile_char_base of its dense
+; id; a hidden pit, TILE_TRAP_PIT without TILE_REVEAL_BIT, is dark).
+rm_nib_code:
+        .byte CHAR_EMPTY, CHAR_WALL, CHAR_DOOR, CHAR_STAIRS_DOWN
+        .byte CHAR_STAIRS_UP, RM_DARK, CHAR_EMPTY, CHAR_EMPTY
+        .byte CHAR_EMPTY, CHAR_WALL, CHAR_DOOR, CHAR_STAIRS_DOWN
+        .byte CHAR_STAIRS_UP, CHAR_TRAP_PIT, CHAR_EMPTY, CHAR_EMPTY
+.assert TILE_TRAP_PIT = 5 && TILE_REVEAL_BIT = 8, error, "rm_nib_code layout"
 
 
 ; ----------------------------------------------------------------------------
@@ -4131,23 +4159,22 @@ vis_test_a:
 ; idx = cur_y * 16 + cur_x → byte = cur_y * 2 + (cur_x >> 3), bit = cur_x & 7.
 ; ----------------------------------------------------------------------------
 mark_visible_at_cur:
-        LDA     cur_x
-        AND     #7
-        TAY
-        LDA     vis_bitmask,Y           ; mask = 1 << (cur_x & 7)
+        ; APPLE II: two lookups by cur_x (0..15) instead of the shifts
+        LDY     cur_x
+        LDA     mv_bit,Y                ; mask = 1 << (cur_x & 7)
         STA     vismask
-        LDA     cur_x
-        LSR
-        LSR
-        LSR                             ; cur_x >> 3 (0 or 1)
-        CLC
-        ADC     cur_y
-        ADC     cur_y                   ; cur_y * 2 + (cur_x >> 3)
+        LDA     cur_y
+        ASL                             ; cur_y * 2
+        ORA     mv_half,Y               ; + (cur_x >> 3)
         TAY
         LDA     vis_buffer,Y
         ORA     vismask
         STA     vis_buffer,Y
         RTS
+
+mv_bit:         .byte $01, $02, $04, $08, $10, $20, $40, $80
+                .byte $01, $02, $04, $08, $10, $20, $40, $80
+mv_half:        .byte 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1
 
 
 ; ----------------------------------------------------------------------------
@@ -4163,6 +4190,7 @@ mark_visible_at_cur:
 ; cur in the same step), and the room beyond stays dark until the
 ; player walks through. Doors stay PASSABLE for movement (handled in
 ; check_collision); FOV-opaque is purely a sight-line concept.
+; APPLE II: map_get_a inlined, the tile test is a lookup by nibble.
 ; ----------------------------------------------------------------------------
 is_opaque_at_cur:
         LDA     cur_y
@@ -4170,19 +4198,28 @@ is_opaque_at_cur:
         ASL     A
         ASL     A
         ASL     A
-        CLC
-        ADC     cur_x                   ; A = linear cell index
-        JSR     map_get_a               ; A = nibble; preserves X
-        AND     #7                      ; strip reveal bit, A = dense tile id
-        CMP     #TILE_WALL
-        BEQ     @opaque
-        CMP     #TILE_DOOR
-        BEQ     @opaque
-        LDA     #0
+        ORA     cur_x                   ; A = linear cell index (cur_x < 16)
+        LSR                             ; byte index, C = odd column
+        TAY
+        LDA     map_buffer,Y
+        BCS     @hi
+        AND     #$0F
+        TAY
+        LDA     opaque_nib,Y
         RTS
-@opaque:
-        LDA     #1
+@hi:    LSR
+        LSR
+        LSR
+        LSR
+        TAY
+        LDA     opaque_nib,Y
         RTS
+
+; opaque_nib: 1 for a wall or a door nibble (with or without the reveal bit)
+opaque_nib:
+        .repeat 16, n
+        .byte   ((n & 7) = TILE_WALL) | ((n & 7) = TILE_DOOR)
+        .endrepeat
 
 
 ; APPLE II: upload_sprite_pats moved to video_tms.asm (TMS back-end).
@@ -4764,6 +4801,8 @@ reveal_pit_at_target:
 ;   their matching ASCII char IDs in the pattern table.
 ; ----------------------------------------------------------------------------
 draw_text:
+        LDY     #0              ; APPLE II: the HUD rows may change (hud_ok)
+        STY     hud_ok
         JSR     vid_addr        ; APPLE II: A = low, X = high (kept)
                                 ; raw gap is LDY+LDA(zp,Y)+CMP+BEQ+STA = 15c)
         LDY     #0
@@ -4789,6 +4828,17 @@ draw_text:
 ; last two HUD text rows.
 ; ----------------------------------------------------------------------------
 update_hud:
+        ; APPLE II: the four rows as four calls (POM1 fell through them);
+        ; finish_turn repaints only the rows whose values changed when the
+        ; HUD rows are known to hold its last paint (hud_ok).
+        LDA     #0
+        STA     hud_ok
+        JSR     hud_row20
+        JSR     update_hud_equip
+        JSR     update_hud_hp
+        JMP     update_hud_timers
+
+hud_row20:
         LDA     #$80                    ; row 20 col 0 = $1A80
         LDX     #$5A                    ; $1A | $40 -> write
         JSR     vid_addr                ; APPLE II: back-end call
@@ -4808,8 +4858,7 @@ update_hud:
 @sp_lp: WRT_DATA_REG
         DEX
         BNE     @sp_lp
-        ; Fall through into update_hud_equip — paints row 21 with the
-        ; computed ATK/DEF and dagger ammo count.
+        RTS
 
 ; ----------------------------------------------------------------------------
 ; update_hud_equip: paint row 21 with combat stats + dagger ammo.
@@ -4847,9 +4896,7 @@ update_hud_equip:
         DEX
         BNE     @sp_lp
         LDA     dagger_qty
-        JSR     print_byte_2digits
-        ; Fall through into update_hud_hp — paints row 22 with right-
-        ; anchored HP before row 23's timers + XP.
+        JMP     print_byte_2digits
 
 ; ----------------------------------------------------------------------------
 ; update_hud_hp: paint HP on row 22 cols 24..31.
@@ -4872,10 +4919,7 @@ update_hud_hp:
         LDA     #'/'
         WRT_DATA_REG
         LDA     hp_max                  ; XP-bumpable cap, not literal
-        JSR     print_byte_2digits
-        ; Fall through into update_hud_timers — paints row 23 with
-        ; the four buff countdowns (weapon / armor / ring / torch),
-        ; flush against the left edge, plus XP on the right.
+        JMP     print_byte_2digits
 
 ; ----------------------------------------------------------------------------
 ; update_hud_timers: paint the digit countdowns next to each active
@@ -5077,14 +5121,90 @@ finish_turn:
         ; earlier free-action handler), then update_hud repaints rows
         ; 20-23 — including HP/XP and the buff timer digits, which would
         ; otherwise be zapped if clear_msg_rows ran second.
-        JSR     clear_msg_rows
-        JSR     update_hud
+        JSR     hud_paint
         LDA     hp
         BNE     @alive
         JMP     death_screen            ; tail-call (never returns)
 @alive:
         RTS
 
+
+; ----------------------------------------------------------------------------
+; hud_paint (APPLE II): finish_turn's clear_msg_rows + update_hud, written
+; only where it changes something. hud_ok = 1: rows 20..23 hold the paint of
+; the values in hud_last (nothing else wrote there since: clear_screen,
+; draw_text, clear_msg_rows / row23, update_hud and redraw_game clear it);
+; then only the rows whose values differ are repainted (row 22 / 23's blank
+; columns are spaces already). Same names as POM1's full repaint.
+; ----------------------------------------------------------------------------
+hud_paint:
+        LDA     hud_ok
+        BNE     @rows
+        JSR     clear_msg_rows
+        JSR     update_hud
+        JMP     @keep
+@rows:  LDA     depth
+        CMP     hud_last+0
+        BEQ     :+
+        JSR     hud_row20
+:       LDA     player_dmg
+        CMP     hud_last+1
+        BNE     @r21
+        LDA     player_def
+        CMP     hud_last+2
+        BNE     @r21
+        LDA     dagger_qty
+        CMP     hud_last+3
+        BEQ     :+
+@r21:   JSR     update_hud_equip
+:       LDA     hp
+        CMP     hud_last+4
+        BNE     @r22
+        LDA     hp_max
+        CMP     hud_last+5
+        BEQ     :+
+@r22:   JSR     update_hud_hp
+:       LDA     weapon_timer
+        CMP     hud_last+6
+        BNE     @r23
+        LDA     armor_timer
+        CMP     hud_last+7
+        BNE     @r23
+        LDA     ring_timer
+        CMP     hud_last+8
+        BNE     @r23
+        LDA     torch_timer
+        CMP     hud_last+9
+        BNE     @r23
+        LDA     player_xp
+        CMP     hud_last+10
+        BEQ     @keep
+@r23:   JSR     update_hud_timers
+@keep:  LDA     depth
+        STA     hud_last+0
+        LDA     player_dmg
+        STA     hud_last+1
+        LDA     player_def
+        STA     hud_last+2
+        LDA     dagger_qty
+        STA     hud_last+3
+        LDA     hp
+        STA     hud_last+4
+        LDA     hp_max
+        STA     hud_last+5
+        LDA     weapon_timer
+        STA     hud_last+6
+        LDA     armor_timer
+        STA     hud_last+7
+        LDA     ring_timer
+        STA     hud_last+8
+        LDA     torch_timer
+        STA     hud_last+9
+        LDA     player_xp
+        STA     hud_last+10
+        LDA     #1
+        STA     hud_ok
+        RTS
 
 ; ----------------------------------------------------------------------------
 ; clear_msg_rows: blank rows 22 and 23 (64 chars total) by writing
@@ -5095,6 +5215,8 @@ finish_turn:
 ; clear "stale prompt residue" before the new turn's HUD repaints.
 ; ----------------------------------------------------------------------------
 clear_msg_rows:
+        LDA     #0
+        STA     hud_ok
         LDA     #$C0
         LDX     #$5A                    ; $1A | $40
         JSR     vid_addr                ; APPLE II: back-end call
@@ -5111,6 +5233,8 @@ clear_msg_rows:
 ; clear_msg_rows but starts at $1AE0 (row 23 col 0) and emits 32 spaces.
 ; ----------------------------------------------------------------------------
 clear_msg_row23:
+        LDA     #0
+        STA     hud_ok
         LDA     #$E0
         LDX     #$5A                    ; $1A | $40
         JSR     vid_addr                ; APPLE II: back-end call
@@ -5136,7 +5260,7 @@ clear_msg_row23:
 ; ----------------------------------------------------------------------------
 death_screen:
         JSR     vid_sprites_off; hide hero + monsters under the splash
-        JSR     vid_clear
+        JSR     clear_screen
         ; "GAME OVER" (9 chars) — row 3 col 11 → $186B
         LDA     #<msg_game_over
         STA     vdp_src_lo
@@ -5201,7 +5325,7 @@ death_screen:
 ;   row 16:           PRESS ANY KEY
 ; ----------------------------------------------------------------------------
 win_screen:
-        JSR     vid_clear
+        JSR     clear_screen
         ; "CONGRATULATIONS" (15 chars) — row 3 col 8 → $1868
         LDA     #<msg_congrats
         STA     vdp_src_lo
@@ -5401,8 +5525,32 @@ msg_snd_off:    .byte "SOUND OFF", $FF
 ; hasn't changed (no movement happened during the modal).
 ; ----------------------------------------------------------------------------
 redraw_game:
-        JSR     vid_clear
-        JSR     render_map
+        ; APPLE II: when the map shadow is valid (no modal since the last
+        ; render_map: a thrown dagger's first frame, a used item), rows
+        ; 0..19 already show the map: render_map writes what changed, and
+        ; of the HUD rows only the names update_hud does not rewrite are
+        ; cleared (row 22 cols 0..23, row 23 cols 0..1). Same names as
+        ; vid_clear + the full map + update_hud.
+        LDA     map_shadow
+        CMP     #RM_STALE
+        BEQ     @full
+        LDA     #$C0                    ; row 22 col 0 = $1AC0
+        LDX     #$1A
+        JSR     vid_addr
+        LDA     #0
+        LDX     #24
+@clr:   JSR     vid_put
+        DEX
+        BNE     @clr
+        LDA     #$E0                    ; row 23 col 0
+        LDX     #$1A
+        JSR     vid_addr
+        LDA     #0
+        JSR     vid_put
+        JSR     vid_put
+        JMP     @map
+@full:  JSR     clear_screen
+@map:   JSR     render_map
         JSR     place_all_sprites
         JSR     update_hud
         RTS
@@ -5496,7 +5644,7 @@ show_inventory:
         CPX     #(INV_COUNT * INV_SIZE)
         BCC     @spr_lp
         WRT_DATA_VAL $D0                ; chain terminator
-        JSR     vid_clear
+        JSR     clear_screen
         ; Header "INVENTORY" centred on row 1.
         LDA     #1
         STA     vdp_row
@@ -6019,7 +6167,7 @@ dispatch_use_slot:
         DEX
         STA     vis_buffer,X
         BNE     @map_lp
-        JSR     vid_clear
+        JSR     clear_screen
         JSR     render_map
         JSR     place_all_sprites
         JSR     update_hud
@@ -6219,7 +6367,18 @@ handle_throw:
         JSR     monster_at_target       ; X = pool offset on hit
         BCC     @hit_mon
         ; Empty cell — render this frame and step again.
+        ; APPLE II: only the first frame repaints the game (it wipes the
+        ; DIRECTION? prompt); nothing but the dagger moves in flight (the
+        ; map, the FOV and the HUD stay as they are), so the next frames
+        ; only rebuild the SAT. Same names as POM1's redraw_game a frame.
+        LDA     throw_step
+        CMP     #THROW_RANGE
+        BNE     @fl_spr
         JSR     redraw_game             ; rebuilds SAT with throw_active=1
+        JMP     @fl_shown
+@fl_spr:
+        JSR     place_all_sprites       ; the dagger one cell further
+@fl_shown:
         JSR     delay_throw_frame
         DEC     throw_step
         BNE     @flight_lp
@@ -6252,6 +6411,16 @@ handle_throw:
         ; so the projectile disappears from the SAT, charge a turn.
         LDA     #0
         STA     throw_active
+        ; APPLE II: a frame was drawn (throw_step moved): the map is on
+        ; screen already, the SAT and the HUD (a kill's XP) are what change.
+        LDA     throw_step
+        CMP     #THROW_RANGE
+        BEQ     @van_full
+        JSR     place_all_sprites
+        JSR     update_hud
+        LDA     #1
+        RTS
+@van_full:
         JSR     redraw_game
         LDA     #1
         RTS
@@ -6274,7 +6443,7 @@ show_help:
         ; Sync to VBlank before the help-screen rebuild burst.
         WAIT_VBLANK_SAFE
         JSR     vid_sprites_off
-        JSR     vid_clear
+        JSR     clear_screen
         ; Walk help_table — same 4-byte tuple loop as draw_title (tmp
         ; survives draw_text). Each tuple = (str_lo, str_hi, vram_lo,
         ; vram_hi_with_write_bit).
@@ -6558,12 +6727,9 @@ title_apple_keys:                                    ; APPLE II
 .include "core/dungeon.asm"
 
 
-; ============================================================================
-; multiply -- umul8 (8x8 -> 16-bit) + umul4 (4x4 -> 8-bit) shared library.
-; The lib reserves its own mul_tmp / mul_res0 ZP slots via .ifndef guard.
-; umul4 is consumed by shadowcast.asm below for slope cross-multiplications.
-; ============================================================================
-.include "core/multiply.asm"
+; APPLE II: multiply.asm (umul4) is no longer included: the shadowcaster
+; compares slope ranks from tables (sc_lrank / sc_rrank), fov_r <= 7.
+.assert FOV_RADIUS <= 7 && TORCH_RADIUS <= 7, error, "shadowcast tables: fov_r <= 7"
 
 
 ; ============================================================================
@@ -6572,7 +6738,6 @@ title_apple_keys:                                    ; APPLE II
 ;   - player_col, player_row, fov_r       (ZP — declared above)
 ;   - SHADOW_COLS, SHADOW_ROWS            (constants — declared above)
 ;   - mark_visible_at_cur, is_opaque_at_cur (subroutines — defined above)
-;   - umul4                               (from multiply.asm above)
 ; The lib's .ifndef guard allocates cur_x/cur_y/oct_*/cast_* in our
 ; .zeropage segment.
 ; ============================================================================
