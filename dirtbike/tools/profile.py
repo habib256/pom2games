@@ -17,7 +17,7 @@ import a2profile  # noqa: E402
 
 
 GROUPS = [
-    ('physics', ('mul', 'constrain', 'ground_contact', 'quarter_abs', 'integrate', 'add_', 'sub_',
+    ('physics', ('vl_', 'mul', 'constrain', 'ground_contact', 'quarter_abs', 'integrate', 'add_', 'sub_',
                  'delta_ab', 'clamp_v', 'phys_', 'do_lean', 'neg_prod', 'tptr', 'spin_damp', 'sd_shift',
                  'heavy', 'con_pass', 'vt_less')),
     ('ground', ('rg_', 'render_ground', 'write_rows', 'wr_', 'fill', 'hgr_hi_site0', 'hgr_hi_site1', 'hgr_hi_site2',

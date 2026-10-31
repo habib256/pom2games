@@ -131,7 +131,7 @@ start:
 .segment "CODE"
 
 to_menu:
-        JSR     music_stop
+        JSR     tune_stop
         LDA     #0
         STA     demo
         JSR     stick_calib
@@ -139,21 +139,15 @@ to_menu:
         BCC     race_sel
         JMP     attract
 race_sel:                               ; load track sel, race
-        LDA     #<msg_load
-        LDY     #>msg_load
-        LDX     #2
-        STX     ht_col
-        LDX     #MENU_INFO
-        JSR     puts_at
+        JSR     hgr_puts8_at
+        .byte   2, MENU_INFO
+        .addr   msg_load
         LDA     sel
         JSR     load_track
         BCC     new_race
-        LDA     #<msg_derr
-        LDY     #>msg_derr
-        LDX     #2
-        STX     ht_col
-        LDX     #MENU_INFO
-        JSR     puts_at
+        JSR     hgr_puts8_at
+        .byte   2, MENU_INFO
+        .addr   msg_derr
         BIT     KBDSTRB
 @key:   LDA     KBD
         BPL     @key
@@ -189,7 +183,7 @@ leave_race:
         BCC     @on
         LDA     #<jingle_rec            ; all 30: the congratulations
         LDY     #>jingle_rec
-        JSR     play_tune
+        JSR     tune_play
         LDX     #1
         JSR     show_page
         JMP     to_menu
@@ -600,7 +594,7 @@ finished:
 @player:
         LDA     #<jingle
         LDY     #>jingle
-        JSR     play_tune
+        JSR     tune_play
         LDA     #0
         STA     hof_new
         JSR     @points
@@ -631,7 +625,7 @@ finished:
         STA     state
         LDA     #<jingle_rec            ; a record: the tail
         LDY     #>jingle_rec
-        JMP     play_tune
+        JMP     tune_play
 @rts:   RTS
 @points:                                ; score > best points ? (BCD, high first)
         LDA     sel
@@ -866,6 +860,10 @@ msg_record: .byte "RECORD !", 0
 .include "hgr.asm"
 .include "kbd.asm"
 .include "joy.asm"                      ; read_stick_fast (joy_* in zero page)
+.include "verlet_hmap.asm"               ; lib/physics (physics.inc: verlet.inc)
+.include "verlet_con.asm"
+.include "verlet_rot.asm"
+.include "verlet.asm"
 .include "mul.asm"
 HGR_LINE_DIV7 = div7
 HGR_LINE_MOD7 = mod7
@@ -873,6 +871,9 @@ HGR_LINE_MOD7 = mod7
 .include "hgr_pages.asm"                ; after the last HGR_HI_SITE
 HGR_TEXT8_HGR_ORDER = 1
 .include "hgr_text8.asm"
+TUNE_MUTE = snd_on                      ; S: notes become rests, same tempo
+.include "tune.asm"                     ; title tune, jingles (title.inc)
+.include "initials.asm"                 ; ini_key (hof.inc)
 
 .segment "RODATA"
 .define HGR_SCANLINE_SEGMENT "SYSBSS"    ; hgr_lo / hgr_hi at $0200 (dirtbike.cfg)

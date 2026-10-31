@@ -11,15 +11,13 @@ least 2 pixels wide: a lone HGR pixel shows a colour fringe. The Makefile
 packs it with fhpack (file TITLE on the disk).
 """
 import math
-import struct
 import sys
-import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'dev/tools'))
 import fonts  # noqa: E402
-from a2test import hgr_offset  # noqa: E402
+import apple2img  # noqa: E402
 
 W, H = 280, 192
 TITLE_PROMPT = 66               # = src/title.inc: under the subtitle
@@ -172,24 +170,11 @@ def picture():
 
 
 def hgr(c):
-    page = bytearray(8192)
-    for y in range(H):
-        for col in range(40):
-            b = 0
-            for k in range(7):
-                if c.px[y][col * 7 + k]:
-                    b |= 1 << k
-            page[hgr_offset(y) + col] = b
-    return bytes(page)
+    return bytes(apple2img.hgr_from_mono(c.px))
 
 
 def png(c, path):
-    raw = b''.join(b'\x00' + bytes(255 * v for v in row) for row in c.px)
-
-    def chunk(kind, body):
-        return struct.pack('>I', len(body)) + kind + body + struct.pack('>I', zlib.crc32(kind + body))
-    Path(path).write_bytes(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', W, H, 8, 0, 0, 0, 0)) +
-                           chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b''))
+    apple2img.png_write(path, [[255 * v for v in row] for row in c.px], mode='gray', level=-1)
 
 
 def main():

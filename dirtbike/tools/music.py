@@ -3,10 +3,9 @@
 
     python3 tools/music.py src/music.inc build/tune.bin
 
-A note is 3 bytes for music_tick (src/title.inc): ticks of ~1/60 s, the half
-period X of dev/lib/apple2/sound.asm's tone (0: a rest) and the flips that
-fill one tick at that pitch; ticks = 0 ends the tune. The last tick of a
-note is silent, so repeated notes stay apart.
+The events are dev/lib/apple2/tune.asm's (encoder: dev/tools/audio/tune.py):
+ticks of ~1/60 s, the half period X of sound.asm's tone (0: a rest) and the
+flips that fill one tick at that pitch; 0 ends the tune.
 
 The title tune goes at the start of the TITLE file (TUNE_LEN bytes, before
 the picture's LZ4FH stream): it costs no RAM, it plays from LOADBUF while
@@ -16,9 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools/audio'))
-from notes import hz, midi, parse, tone_flips, tone_x  # noqa: E402
-
-TICK = (26 + 27 * 79 + 5 * 79 * 79) // 2    # WAIT with A = 79, cycles
+from tune import asm, tune  # noqa: E402,F401  (tune: tests/test_attract.py)
 
 # title: A minor, an eighth = 8 ticks (~225 bpm a quarter)
 TITLE = """
@@ -32,28 +29,6 @@ F5:1 A5:1 C6:1 F6:1 E6:1 C6:1 A5:1 C6:1  B5:1 G#5:1 E5:1 G#5:1 A5:4 R:4
 # the finish line, then a new record's tail (an eighth = 6 ticks)
 JINGLE = "C5:1 E5:1 G5:1 C6:2 G5:1 C6:4"
 RECORD = "R:2 E6:1 C6:1 E6:1 G6:1 E6:1 G6:1 C7:6"
-
-
-def note(name):
-    """'G#5' -> (X, flips a tick); 'R' -> (0, 0)."""
-    if name == 'R':
-        return 0, 0
-    x = tone_x(hz(midi(name)))
-    assert x >= 11, name
-    return x, tone_flips(x, TICK)
-
-
-def tune(text, eighth):
-    out = bytearray()
-    for name, n in parse(text):
-        x, flips = note(name)
-        out += bytes([n * eighth, x, flips])
-    return out + b'\0'
-
-
-def asm(label, data):
-    rows = [', '.join(f'${b:02X}' for b in data[i:i + 3]) for i in range(0, len(data) - 1, 3)]
-    return f'{label}:\n' + ''.join(f'        .byte {r}\n' for r in rows) + '        .byte 0\n'
 
 
 def main():

@@ -192,7 +192,7 @@ def run(t, script):
     cfg.write_text(text.replace('load = TXT6,   type = bss', 'load = MAIN,   type = bss')
                    .replace('"build/menu.bin"', f'"{work / "menu.bin"}"'))      # not the game's
     subprocess.run(['python3', str(GAME / 'tools/physconst.py'), str(work / 'physconst.inc')], check=True)
-    subprocess.run(['ca65', '-g', '-I', str(work), '-I', str(GAME / 'src'), '-I', str(GAME.parent / 'dev/lib/math'), '--bin-include-dir', str(work),
+    subprocess.run(['ca65', '-g', '-I', str(work), '-I', str(GAME / 'src'), '-I', str(GAME.parent / 'dev/lib/math'), '-I', str(GAME.parent / 'dev/lib/physics'), '--bin-include-dir', str(work),
                     '-o', str(work / 'p.o'), str(HERE / 'phystest.s')], check=True, cwd=work)
     subprocess.run(['ld65', '-C', str(cfg), '-Ln', str(work / 'p.lbl'), '-o', str(work / 'p.bin'),
                     str(work / 'p.o')], check=True)

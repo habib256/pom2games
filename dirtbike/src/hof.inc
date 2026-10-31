@@ -18,6 +18,10 @@
 
 HOFBUF   = TSLBUF - $100
 HOF_CHARS_N = 38                ; A-Z, 0-9, space, -
+INI_CHARS   = hof_chars         ; initials.asm's ini_key edits last_ini
+INI_CHARS_N = HOF_CHARS_N       ; at hpos with this ring of letters
+ini_buf     = last_ini
+ini_pos     = hpos
 
 .segment "LOWBSS"
 hof_img:                        ; = the file after its DOS header
@@ -138,12 +142,9 @@ hof_sector:
 ; ---------------------------------------------------------------------------
 hof_entry:
         JSR     page1_text
-        LDA     #<msg_newrec
-        LDY     #>msg_newrec
-        LDX     #14
-        STX     ht_col
-        LDX     #32
-        JSR     puts_at
+        JSR     hgr_puts8_at
+        .byte   14, 32
+        .addr   msg_newrec
         LDA     #8                      ; "NN NAME"
         STA     ht_col
         LDA     #48
@@ -153,12 +154,9 @@ hof_entry:
         LDA     hof_new                 ; "TEMPS  M:SS.T" / "POINTS NNNNNN"
         LSR     A
         BCC     @nt
-        LDA     #<msg_rtime
-        LDY     #>msg_rtime
-        LDX     #12
-        STX     ht_col
-        LDX     #62
-        JSR     puts_at
+        JSR     hgr_puts8_at
+        .byte   12, 62
+        .addr   msg_rtime
         LDA     #20
         STA     ht_col
         LDX     sel
@@ -172,34 +170,22 @@ hof_entry:
 @nt:    LDA     hof_new
         AND     #2
         BEQ     @np
-        LDA     #<msg_rpts
-        LDY     #>msg_rpts
-        LDX     #12
-        STX     ht_col
-        LDX     #72
-        JSR     puts_at
+        JSR     hgr_puts8_at
+        .byte   12, 72
+        .addr   msg_rpts
         LDA     #20
         STA     ht_col
         LDA     sel
         JSR     put_points
-@np:    LDA     #<msg_ini
-        LDY     #>msg_ini
-        LDX     #8
-        STX     ht_col
-        LDX     #88
-        JSR     puts_at
-        LDA     #<msg_inihelp
-        LDY     #>msg_inihelp
-        LDX     #1
-        STX     ht_col
-        LDX     #144
-        JSR     puts_at
-        LDA     #<msg_inihelp2
-        LDY     #>msg_inihelp2
-        LDX     #1
-        STX     ht_col
-        LDX     #156
-        JSR     puts_at
+@np:    JSR     hgr_puts8_at
+        .byte   8, 88
+        .addr   msg_ini
+        JSR     hgr_puts8_at
+        .byte   1, 144
+        .addr   msg_inihelp
+        JSR     hgr_puts8_at
+        .byte   1, 156
+        .addr   msg_inihelp2
         LDA     #0
         STA     hpos
         STA     hrow
@@ -212,64 +198,18 @@ hof_entry:
         JSR     stick_menu
         BEQ     @wait
         CMP     #KC_RET
-        BNE     @arrow
+        BNE     @ini
         LDA     hpos                    ; button: next letter, then done
         CMP     #2
-        BCC     @nxt
-        JMP     @done
-@nxt:   INC     hpos
-        JMP     @show
+        BCS     @done
+        INC     hpos
+        BCC     @show                   ; (always)
 @key:   BIT     KBDSTRB
         AND     #$7F
-        JSR     kbd_upcase
-        CMP     #KC_RET
-        BEQ     @done
-@arrow: CMP     #KC_LEFT
-        BEQ     @left
-        CMP     #$7F                    ; DELETE (//e)
-        BEQ     @left
-        CMP     #KC_RIGHT
-        BEQ     @right
-        CMP     #KC_UP
-        BEQ     @up
-        CMP     #KC_DOWN
-        BEQ     @down
-        JSR     ini_index               ; a letter, a digit, space or -
-        BCC     @char
-        JMP     @wait
-@char:
-        LDA     hof_chars,X
-        JSR     ini_put
-        LDA     hpos
-        CMP     #2
-        BCS     @sh
-        INC     hpos
-@sh:    JMP     @show
-@left:  LDA     hpos
-        BEQ     @rep
-        DEC     hpos
-        JMP     @rep
-@right: LDA     hpos
-        CMP     #2
-        BCS     @rep
-        INC     hpos
-        BNE     @rep
-@up:    LDA     #1
-        BNE     @turn
-@down:  LDA     #HOF_CHARS_N-1
-@turn:  STA     msel                    ; letter += A, mod HOF_CHARS_N
-        JSR     ini_get
-        JSR     ini_index
-        TXA
-        CLC
-        ADC     msel
-        CMP     #HOF_CHARS_N
-        BCC     @t1
-        SBC     #HOF_CHARS_N
-@t1:    TAX
-        LDA     hof_chars,X
-        JSR     ini_put
-@rep:   JMP     @show
+@ini:   JSR     ini_key                 ; initials.asm: a letter of hof_chars
+        BCC     @show                   ; (lowercase too), arrows, DELETE
+        CMP     #KC_RET                 ; ESC: ignored
+        BNE     @wait
 @done:  LDA     sel                     ; the records' initials
         STA     msel
         ASL     A
@@ -293,20 +233,14 @@ hof_entry:
         INX
         CPX     #3
         BNE     @cp
-        LDA     #<msg_saving
-        LDY     #>msg_saving
-        LDX     #8
-        STX     ht_col
-        LDX     #120
-        JSR     puts_at
+        JSR     hgr_puts8_at
+        .byte   8, 120
+        .addr   msg_saving
         JSR     hof_save
         BCC     @ok
-        LDA     #<msg_nosave            ; write protected: say so, go on
-        LDY     #>msg_nosave
-        LDX     #4
-        STX     ht_col
-        LDX     #120
-        JSR     puts_at
+        JSR     hgr_puts8_at            ; write protected: say so, go on
+        .byte   4, 120
+        .addr   msg_nosave
         LDX     #120                    ; ~2 s
 @pause: LDA     #79
         JSR     WAIT
@@ -346,27 +280,6 @@ ini_draw:
         BNE     @m
         RTS
 
-ini_get:
-        LDX     hpos
-        LDA     last_ini,X
-        RTS
-ini_put:
-        LDX     hpos
-        STA     last_ini,X
-        RTS
-
-; ini_index -- A = a character: X = its place in hof_chars, C = 1 if absent
-ini_index:
-        LDX     #HOF_CHARS_N-1
-@f:     CMP     hof_chars,X
-        BEQ     @y
-        DEX
-        BPL     @f
-        SEC
-        RTS
-@y:     CLC
-        RTS
-
 ; ---------------------------------------------------------------------------
 ; hof_page -- A = first track (0 / 15): 15 lines of
 ; "NN NAME           M:SS.T ABC 012345 ABC" (best time, best points)
@@ -374,18 +287,12 @@ ini_index:
 hof_page:
         STA     msel
         JSR     page1_text
-        LDA     #<msg_hof
-        LDY     #>msg_hof
-        LDX     #14
-        STX     ht_col
-        LDX     #6
-        JSR     puts_at
-        LDA     #<msg_hofcols
-        LDY     #>msg_hofcols
-        LDX     #18
-        STX     ht_col
-        LDX     #20
-        JSR     puts_at
+        JSR     hgr_puts8_at
+        .byte   14, 6
+        .addr   msg_hof
+        JSR     hgr_puts8_at
+        .byte   18, 20
+        .addr   msg_hofcols
         LDA     #34
         STA     hrow
 @line:  LDA     #0

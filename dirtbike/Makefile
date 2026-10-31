@@ -25,7 +25,7 @@ all: $(DISK)
 src/physconst.inc: tools/physconst.py tools/physics.py
 	$(PYTHON) tools/physconst.py $@
 
-src/music.inc $(BUILD)/tune.bin: tools/music.py
+src/music.inc $(BUILD)/tune.bin: tools/music.py $(DEV)/tools/audio/tune.py $(DEV)/tools/audio/notes.py
 	@mkdir -p $(BUILD)
 	$(PYTHON) tools/music.py src/music.inc $(BUILD)/tune.bin
 
@@ -33,7 +33,7 @@ src/pages.inc $(BUILD)/pages.bin: tools/pages.py
 	@mkdir -p $(BUILD)
 	$(PYTHON) tools/pages.py src/pages.inc $(BUILD)/pages.bin
 
-src/sprites.inc: tools/sprites.py
+src/sprites.inc: tools/sprites.py $(DEV)/tools/apple2img.py
 	$(PYTHON) tools/sprites.py $@
 
 # One run writes the 30 files and menu_data.inc (no "&:": macOS ships make 3.81)
@@ -42,7 +42,7 @@ $(BUILD)/tracks/menu_data.inc: tools/packtrack.py tools/tracks.py tools/track.py
 	$(PYTHON) tools/packtrack.py $(FHPACK) $(BUILD)/tracks
 $(TRACKS): $(BUILD)/tracks/menu_data.inc ;
 
-$(BUILD)/title.hgr: tools/title.py
+$(BUILD)/title.hgr: tools/title.py $(DEV)/tools/apple2img.py
 	@mkdir -p $(BUILD)
 	$(PYTHON) tools/title.py $@
 
@@ -78,6 +78,7 @@ test: all $(A2RUN)
 	$(PYTHON) tests/test_input.py
 	$(PYTHON) tests/test_tracks.py
 	$(PYTHON) tests/test_attract.py
+	$(PYTHON) tests/test_hof.py
 
 # Long tier (convention of ../dev/cc65/apple2.mk): nothing slow yet.
 test-long:

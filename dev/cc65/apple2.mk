@@ -56,11 +56,12 @@ APPLE2C := $(DEV)/lib/apple2c
 AUDIO   := $(DEV)/lib/audio
 PERSPECTIVE := $(DEV)/lib/perspective
 MATH    := $(DEV)/lib/math
+PHYSICS := $(DEV)/lib/physics
 
 # Assembly programs: include path and the library files a rebuild depends on.
-A2_INCS     := -I src -I $(APPLE2) -I $(HGR) -I $(FONT) -I $(MATH)
+A2_INCS     := -I src -I $(APPLE2) -I $(HGR) -I $(FONT) -I $(MATH) -I $(PHYSICS)
 A2_ASM_DEPS := $(wildcard $(APPLE2)/*.inc $(APPLE2)/*.asm $(HGR)/*.inc $(HGR)/*.asm $(FONT)/*.inc \
-               $(MATH)/*.inc $(MATH)/*.asm)
+               $(MATH)/*.inc $(MATH)/*.asm $(PHYSICS)/*.inc $(PHYSICS)/*.asm)
 A2_HGR_CFG   := $(DEV)/cc65/apple2_hgr.cfg
 A2_HGR_C_CFG := $(DEV)/cc65/apple2_hgr_c.cfg
 A2_CRT0      := $(DEV)/cc65/crt0_apple2.s

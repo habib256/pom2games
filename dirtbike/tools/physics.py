@@ -36,8 +36,19 @@ model bit for bit (tests/test_physics.py compares RAM after N ticks).
 Constraints use no square root: for points a, b at rest length L,
   f = (|b-a|^2 - L^2) / (2 L^2)  ~  (|b-a| - L) / L
 moves a by +f/2 (b-a) and b by -f/2 (b-a) (scaled by the stiffness).
+
+The generic part (points, constraints, height-map ground) is the shared
+package dev/tools/verlet, whose 6502 side is dev/lib/physics; this file
+keeps the bike: its tuning, the order of a tick, traction and brake (the
+ground's tangent hook), the crash tests.
 """
 import math
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+from verlet import Points, Constraint, HeightMap, constrain, clamp, s16  # noqa: E402,F401
+from verlet.fixed import l2q as _l2q, k8 as _k8  # noqa: E402,F401
 
 # --- tuning -----------------------------------------------------------------
 GRAVITY = 0x0030            # 8.8 px / tick^2 (down)
@@ -111,50 +122,33 @@ def rider_len(lean, wheel):
 LAPS = 3                    # a race: laps of a looping track (tracks.Track)
 WRAP_MARGIN = 128           # this far past the line, the bike moves back a lap (> CAM_LEAD)
 SLOPE_MAX = 15              # ground slope index: h[x+2] - h[x-2], clamped
+PROBE = 2                   # (the slope's half base, px)
 LEFT_WALL = 16 << 8         # no point goes left of world pixel 16
 FAR = 0x2000                # ground more than 32 rows below: no contact test
 CEILING = 0x0800            # no point above row 8
 
-
-def _l2q(length):
-    """Rest length squared, in quarter pixels squared (|q| = delta >> 6)."""
-    return int(round((length * 4) ** 2))
-
-
-def _k8(length, stiff):
-    """f = ((diff >> 3) * k8) >> 8 ~ diff * 256 / (2 L2q), half per point."""
-    return int(round(2048 / (2 * _l2q(length)) * 256 * stiff / 2))
-
-
+NLEAN = 2 * LEAN_MAX + 1
+LEANS = range(-LEAN_MAX, LEAN_MAX + 1)
+# the rider is the heavy end (b) of his links, and they raise the squash alarm
+LINKS = [
+    Constraint(0, 1, WHEELBASE, 1.0),
+    Constraint(0, 2, RIDER_LEN, SUSP_K, heavy=RIDER_HEAVY, minlen=RIDER_LEN * RIDER_MIN,
+               variants=[rider_len(lean, 0) for lean in LEANS]),
+    Constraint(1, 2, RIDER_LEN, SUSP_K, heavy=RIDER_HEAVY, minlen=RIDER_LEN * RIDER_MIN,
+               variants=[rider_len(lean, 1) for lean in LEANS]),
+]
 CON_TAB = [(a, b, _l2q(L), _k8(L, k)) for a, b, L, k in CONSTRAINTS]
 # rider links per lean level (index lean + LEAN_MAX): rest length^2, k8
-RIDER_TAB = [[(_l2q(rider_len(l, w)), _k8(rider_len(l, w), SUSP_K))
-              for l in range(-LEAN_MAX, LEAN_MAX + 1)] for w in (0, 1)]
-L2Q_MIN = _l2q(RIDER_LEN * RIDER_MIN)       # rider links: squashed below
+RIDER_TAB = [LINKS[1 + w].rows for w in (0, 1)]
+L2Q_MIN = LINKS[1].minlen                   # rider links: squashed below
+# per lean level: (a, b, l2q, k8, heavy, minlen) of the three links
+_CONS = {lean: [(c.a, c.b) + c.rows[lean + LEAN_MAX if len(c.rows) > 1 else 0] + (c.heavy, c.minlen)
+                for c in LINKS] for lean in LEANS}
+
+NORM_X, NORM_Y = HeightMap((), SLOPE_MAX, PROBE).nx, HeightMap((), SLOPE_MAX, PROBE).ny     # index s + SLOPE_MAX; 64 = 1.0
 
 
-def _normals():
-    nx, ny = [], []
-    for s in range(-SLOPE_MAX, SLOPE_MAX + 1):
-        ln = math.hypot(s, 4)
-        nx.append(int(round(64 * s / ln)))
-        ny.append(int(round(-64 * 4 / ln)))
-    return nx, ny
-
-
-NORM_X, NORM_Y = _normals()     # index s + SLOPE_MAX; 64 = 1.0
-
-
-def clamp(v, lo, hi):
-    return lo if v < lo else hi if v > hi else v
-
-
-def s16(v):
-    v &= 0xFFFF
-    return v - 0x10000 if v & 0x8000 else v
-
-
-class Bike:
+class Bike(Points):
     def __init__(self, track, x0=48):
         self.h = track
         self.lap_len = getattr(track, 'lap_len', 0)     # 0: the track does not loop
@@ -171,12 +165,20 @@ class Bike:
         self.squashed = False
         self.fwd = 0                # forward lean level last tick (FWD_K)
 
+    def __getattr__(self, name):
+        # the ground of self.h (also for a copy made without __init__,
+        # tools/solver.py clone)
+        if name == 'hm':
+            self.hm = HeightMap(self.h, SLOPE_MAX, PROBE, WHEEL_R, FAR, BOUNCE)
+            return self.hm
+        raise AttributeError(name)
+
     # --- one tick ---------------------------------------------------------
     def tick(self, throttle=0, brake=False, lean=0):
         air = not (self.ground[0] or self.ground[1])    # (last tick's contact)
         one = self.ground[0] != self.ground[1]          # on one wheel
         for i in range(3):
-            self._integrate(i)
+            self.integrate(i, GRAVITY, VMAX_X, VMAX_Y, LEFT_WALL)
         # in the air the throttle lifts the nose (the rear wheel's torque
         # turns the frame the other way; on the ground the traction already
         # does) and the rider turns the bike (lean); on the ground only his
@@ -196,47 +198,63 @@ class Bike:
                     self.spin[i] = min(0, s + AIR_SPIN_BRAKE)
                     turn -= 1
         if air or one:
-            self._spin_damp()
+            self.pair_damp(0, 1, SPIN_DAMP)
         if air:
             turn += (AIR_TURN[lean] if lean >= 0 else -AIR_TURN[-lean]) - throttle // GYRO_DIV
         if turn:
-            self._lean(turn)
+            self.turn_pair(0, 1, turn)
         f = max(lean, 0)                    # forward of the middle: the rider
         k = FWD_K[f] - FWD_K[self.fwd]      # moves along the axis (FWD_K)
         self.fwd = f
         if k:
-            self._shift(k)
-        cons = self._cons(lean)
+            self.shift_point(2, 0, 1, k)
+        cons = _CONS[lean]
+        self.squashed = False
         for _ in range(CONSTRAINT_PASSES):
             for c in cons:
-                self._constrain(*c)
-        self.hold = [None, None]            # _ground: a braked wheel stopped
+                constrain(self, *c)         # (the alarm counts after the ground)
+        self.hold = [None, None]            # _tangent: a braked wheel stopped
         for i in range(2):
             self._ground(i, throttle if i == 0 else 0, brake)
-        self.squashed = False
         for c in cons:                      # the frame again, after the ground
-            self._constrain(*c)
+            if constrain(self, *c):
+                self.squashed = True        # the rider on a wheel: a crash
         for i in range(2):                  # a stopped, braked wheel holds
             if self.hold[i] is not None:
                 self.x[i] = self.ox[i] = self.hold[i]
-        self._ceiling()
+        self.ceiling(CEILING)
         self.crashed = (self.crashed or self._rider_hit() or self.squashed or self._head_hit()
                         or self._flipped())
         self._wrap()
 
     @staticmethod
     def _cons(lean):
-        """The three constraints, the rider shifted by the lean."""
-        r, f = RIDER_TAB[0][lean + LEAN_MAX], RIDER_TAB[1][lean + LEAN_MAX]
-        return (CON_TAB[0], (0, 2) + r, (1, 2) + f)
+        """The three constraints (a, b, l2q, k8), the rider shifted by the lean."""
+        return [c[:4] for c in _CONS[lean]]
+
+    # (the steps of a tick by their old names)
+    def _integrate(self, i):
+        self.integrate(i, GRAVITY, VMAX_X, VMAX_Y, LEFT_WALL)
 
     def _spin_damp(self):
         """In the air nothing turns the bike but the rider: the relative speed
         of the wheels (its spin) fades by 1 / 2^SPIN_DAMP a tick."""
-        for p, o in ((self.x, self.ox), (self.y, self.oy)):
-            d = s16((p[1] - o[1]) - (p[0] - o[0])) >> SPIN_DAMP
-            o[1] += d
-            o[0] -= d
+        self.pair_damp(0, 1, SPIN_DAMP)
+
+    def _lean(self, lean):
+        self.turn_pair(0, 1, lean)
+
+    def _shift(self, k):
+        """The rider moves k / 256 of the wheel axis forward, with his old
+        position: a move, no speed."""
+        self.shift_point(2, 0, 1, k)
+
+    def _constrain(self, a, b, l2q, k8):
+        if constrain(self, a, b, l2q, k8, RIDER_HEAVY if b == 2 else 0, L2Q_MIN if b == 2 else None):
+            self.squashed = True
+
+    def _ceiling(self):
+        self.ceiling(CEILING)
 
     def _flipped(self):
         """A wheel on the ground and the front wheel behind the rear one: the
@@ -247,100 +265,25 @@ class Bike:
         """A looping track repeats its first pixels after lap_len (padding): past
         lap_len + WRAP_MARGIN the three points move back by lap_len together,
         so nothing changes for the physics, and a lap is counted."""
-        lap = self.lap_len
-        if lap and (self.x[0] >> 8) >= lap + WRAP_MARGIN:
-            for i in range(3):
-                self.x[i] -= lap << 8
-                self.ox[i] -= lap << 8
+        if self.wrap(self.lap_len, WRAP_MARGIN):
             self.laps += 1
 
-    def _integrate(self, i):
-        vx = clamp(s16(self.x[i] - self.ox[i]), -VMAX_X, VMAX_X)
-        vy = clamp(s16(self.y[i] - self.oy[i]) + GRAVITY, -VMAX_Y, VMAX_Y)
-        self.ox[i] = self.x[i]
-        self.oy[i] = self.y[i]
-        self.x[i] += vx
-        self.y[i] += vy
-        if self.x[i] < LEFT_WALL:
-            self.x[i] = self.ox[i] = LEFT_WALL
-
-    def _lean(self, lean):
-        dx = s16(self.x[1] - self.x[0])
-        dy = s16(self.y[1] - self.y[0])
-        px = (-dy * lean) >> 8      # perpendicular, turned clockwise on screen
-        py = (dx * lean) >> 8
-        self.x[1] += px
-        self.y[1] += py
-        self.x[0] -= px
-        self.y[0] -= py
-
-    def _shift(self, k):
-        """The rider moves k / 256 of the wheel axis forward, with his old
-        position: a move, no speed."""
-        dx = s16(self.x[1] - self.x[0])
-        dy = s16(self.y[1] - self.y[0])
-        mx = (dx * k) >> 8
-        my = (dy * k) >> 8
-        self.x[2] += mx
-        self.ox[2] += mx
-        self.y[2] += my
-        self.oy[2] += my
-
-    def _constrain(self, a, b, l2q, k8):
-        dx = s16(self.x[b] - self.x[a])
-        dy = s16(self.y[b] - self.y[a])
-        qx = min(abs(dx >> 6), 180)
-        qy = min(abs(dy >> 6), 180)
-        q2 = qx * qx + qy * qy
-        if b == 2 and q2 < L2Q_MIN:
-            self.squashed = True        # the rider on a wheel: a crash
-        diff = q2 - l2q
-        d8 = clamp(diff >> 3, -4095, 4095)
-        f = clamp((d8 * k8) >> 8, -127, 127)
-        cx = (dx * f) >> 8
-        cy = (dy * f) >> 8
-        if b == 2:                      # the rider is heavier than a wheel
-            # (c >> RIDER_HEAVY rounded toward 0: rounded down, the bike crept
-            # backwards)
-            hx = (cx + (cx < 0) * ((1 << RIDER_HEAVY) - 1)) >> RIDER_HEAVY
-            hy = (cy + (cy < 0) * ((1 << RIDER_HEAVY) - 1)) >> RIDER_HEAVY
-            self.x[a] += cx + hx
-            self.y[a] += cy + hy
-            self.x[b] -= cx - hx
-            self.y[b] -= cy - hy
-            return
-        self.x[a] += cx
-        self.y[a] += cy
-        self.x[b] -= cx
-        self.y[b] -= cy
-
     def _slope(self, px):
-        return clamp(self.h[px + 2] - self.h[px - 2], -SLOPE_MAX, SLOPE_MAX)
+        return self.hm.slope(px)
 
     def _ground(self, i, throttle, brake):
-        px = self.x[i] >> 8
-        s = self._slope(px)
-        nx = NORM_X[s + SLOPE_MAX]
-        ny = NORM_Y[s + SLOPE_MAX]
-        # height of the centre above the ground line, along the normal
+        """Wheel i on the ground (verlet.HeightMap): pushed out, bounce, then
+        _tangent; the spokes turn and the spin is kept for the air."""
         self.ground[i] = 0
-        diff = (self.h[px] << 8) - self.y[i]
-        if diff >= FAR:
-            return
-        dist = (max(diff, -FAR) * -ny) >> 6
-        if dist >= WHEEL_R:
+        vt = self.hm.contact(self, i, self._tangent, throttle, brake)
+        if vt is None:
             return
         self.ground[i] = 1
-        pen = WHEEL_R - dist
-        self.x[i] += (pen * nx) >> 6
-        self.y[i] += (pen * ny) >> 6
-        vx = s16(self.x[i] - self.ox[i])
-        vy = s16(self.y[i] - self.oy[i])
-        tx, ty = -ny, nx            # tangent: forward along the ground
-        vn = (vx * nx + vy * ny) >> 6
-        vt = (vx * tx + vy * ty) >> 6
-        if vn < 0:
-            vn = (-vn * BOUNCE) >> 8
+        self.wheel_ang[i] = (self.wheel_ang[i] + (vt >> 5)) & 0xFF
+        self.spin[i] = vt
+
+    def _tangent(self, i, vt, throttle, brake):
+        """The ground's tangent hook: traction, brake, engine brake, rolling loss."""
         if brake:                   # the brake wins: no traction (gas held from the
             throttle = 0            # keyboard or button 0 drowned it), engine brake
         if throttle and vt < VT_MAX:
@@ -356,18 +299,7 @@ class Bike:
         if i == 0 and not throttle:
             vt -= vt >> ENGINE_BRAKE
         vt -= vt >> ROLL_LOSS
-        vx = (vn * nx + vt * tx) >> 6
-        vy = (vn * ny + vt * ty) >> 6
-        self.ox[i] = self.x[i] - vx
-        self.oy[i] = self.y[i] - vy
-        self.wheel_ang[i] = (self.wheel_ang[i] + (vt >> 5)) & 0xFF
-        self.spin[i] = vt
-
-    def _ceiling(self):
-        for i in range(3):
-            if self.y[i] < CEILING:
-                self.y[i] = CEILING
-                self.oy[i] = CEILING
+        return vt
 
     def _head_hit(self):
         """The head (drawn at rider + 3 (dy/8, -dx/8), the wheel axis turned

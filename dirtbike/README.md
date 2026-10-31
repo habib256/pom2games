@@ -159,7 +159,8 @@ blocks the game for as long as it lasts). Silent in the demo; S mutes it.
 
 The tunes are written as notes in `tools/music.py` (3 bytes per note:
 duration in 1/60 s ticks, half-period, and the number of alternations that
-fill one tick). `music_tick` (`src/title.inc`) plays a one-tick slice in place
+fill one tick; the encoder is `dev/tools/audio/tune.py`). `tune_tick`
+(`dev/lib/apple2/tune.asm`, called by `src/title.inc`) plays a one-tick slice in place
 of the `tick_wait` delay: the title page blinks and responds to keys during
 the music. The title tune sits at the head of the `TITLE` file, before the
 text pages and the LZ4FH image, and plays from the load buffer: it costs no
@@ -257,6 +258,17 @@ for bit: `tests/test_physics.py` checks it, points included, on a 545-tick
 script (crash and tumbles included) and on the full 3 laps of tracks 1, 19
 (a flip, wheelies) and 30 taken from `tests/solutions.txt`.
 
+The generic part of the physics is shared (2026-10-31): the Python package
+`dev/tools/verlet` (points, constraints, height-map ground, `emit` for
+`physconst.inc`) under `tools/physics.py`, and the library
+`dev/lib/physics` (`verlet.inc` in `src/physics.inc`, the routines at the
+end of `src/dirtbike.s`) under the 6502 code. `src/physics.inc` keeps the
+bike: its switches (rest lengths per lean, heavy rider, squash alarm,
+left wall, ceiling, wrap, text-page segments), the order of a tick, the
+ground hooks (traction, brake, spokes) and the crash tests. Built on the
+library, the game is byte for byte the source reordered by hand (generic
+routines moved to the end, same sizes); `dev/lib/physics/README.md`.
+
 **Tracks** (`tools/tracks.py`). Tracks 1 to 3 are written by hand; the
 others are drawn from a vocabulary of elements (bumps, hills, ramps, gaps,
 tables, steps, drops, whoops, stairs) whose size and severity grow with the
@@ -317,7 +329,7 @@ at boot); the screen holes (`$x78-$x7F`, `$xF8-$xFF`, where RWTS and cards
 keep their state) are left alone. `$0800-$0FFF`: multiplication tables (where
 the HELLO program used to sit). `$1000-$1FFF`: line writers, renderer and
 pattern tables, demo inputs, hall of fame. `$6000-$91FF`: the game (code,
-data, BSS; ~25 bytes free). `$9200-$95FF`: the startup code (segment `INIT`:
+data, BSS; ~50 bytes free). `$9200-$95FF`: the startup code (segment `INIT`:
 init, renderer, HGR line and multiplication tables, joystick detection,
 reading the hall of fame) and the images of the text-page routines, the end
 of the file, run once then overwritten by the track's pattern pool (`pool`)
@@ -344,14 +356,17 @@ also pass through there). `$B700-$BFFF`: RWTS. The game's zero page
 | `tools/tricks.py` | points model (jumps, flips), replayed by the physics test |
 | `tools/title.py` | the title image (`OUT.hgr [aperçu.png]`) |
 | `tools/hof.py` | the empty `DIRTHOF` file |
-| `tools/music.py` | the tunes: `src/music.inc` (jingles) and `build/tune.bin` (title) |
+| `tools/music.py` | the tunes (notes, encoded by `dev/tools/audio/tune.py`): `src/music.inc` (jingles) and `build/tune.bin` (title) |
 | `tools/titlefile.py` | the `TITLE` file: tune, pages, main menu (`$9C00`), image |
 | `tools/pages.py` | help and congratulations pages: `src/pages.inc` and `build/pages.bin` (in `TITLE`) |
 | `tests/test_input.py` | joystick and paddles (analog lean, buttons, menus, no joystick) and device choice, in a2run |
+| `tests/test_hof.py` | hall of fame: initials (keys and stick), `DIRTHOF`'s two sectors after the save, the table after a reboot |
 | `tools/sprites.py` | generates `src/sprites.inc`: wheel (4 spoke positions × 7 shifts), head |
 | `tools/autopilot.py` | simple autopilot (tuned for the old speed; the physics test now replays the solutions) |
 | `tools/profile.py` | a2shot profile: cycles per frame and per routine (`dev/tools/a2profile.py`) |
 
-The `dev/lib` libraries used are `apple2` (HGR, keyboard, joystick, LZ4FH,
-RWTS), `hgr` (tables, 8×8 text, lines, pages), `math` and `font`; `fhpack`
+The `dev/lib` libraries used are `apple2` (HGR, keyboard, joystick, sound,
+tick music `tune.asm`, initials `initials.asm`, LZ4FH, RWTS), `hgr` (tables,
+8×8 text with `hgr_puts8_at`, lines, pages), `math`, `physics` (Verlet),
+`mouse` and `font`; `fhpack`
 compresses the tracks and the title.
