@@ -452,7 +452,7 @@ mi_stick:
 :       stz sh_held
 mi_axes:
         ldx #0                   ; paddle 0: left / right
-        jsr $FB1E                ; PREAD: Y = 0..255
+        jsr sh_pread             ; (shop.s: interrupts held)
         lda #5
         cpy #48
         bcc mi_move
@@ -462,7 +462,7 @@ mi_axes:
 :       lda $C065                ; (paddle 1's timer out: PREAD retriggers)
         bmi :-
         ldx #1                   ; paddle 1: up / down
-        jsr $FB1E
+        jsr sh_pread
         lda #1
         cpy #48
         bcc mi_move
