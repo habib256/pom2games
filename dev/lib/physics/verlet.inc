@@ -27,6 +27,15 @@
 ;   table), VL_CON_MIN_ONLY (bit 7 of vl_con_b: the link only pushes),
 ;   VL_THRUST = n (vl_thrust_axis / _perp, vl_push, vl_push_all), VL_Y_HIGH
 ;   (y 16.8: vl_yu, vl_oyu; VL_GROUND_BASE = the row added to the heights).
+;   VL_GROUND_SEGMENTS = n (verlet_seg.asm: a ground of n line segments,
+;   walls and loops; VL_SEG_DEPTH; vl_sg_* tables from dev/tools/verlet/
+;   segments.py; BSS vl_sgi), VL_GROUND_KIND = table (vl_ground_any: per
+;   point, 0 = the height map, else the segments).
+;   VL_CIRC = n (verlet_circ.asm: points 0..n-1 are circles, vl_rad; with
+;   VL_CIRC_Q, VL_CIRC_BOUNCE, VL_CIRC_VMIN, VL_CIRC_HEAVY (vl_cheavy),
+;   VL_CIRC_FRICTION, VL_CIRC_SLEEP (vl_still), VL_NBOX): +10 B zero page
+;   (+4 without a ground: vl_vy, vl_vt), opens the 20-byte tier; BSS vl_rad,
+;   vl_chits.
 ;
 ; Zero page (each slot skipped if the program defined the name first, the
 ; math.inc pattern: alias it onto the program's own scratch):
@@ -62,6 +71,12 @@ _VERLET_INC_LOADED_ = 1
 .assert VL_NPOINTS >= 1 .and VL_NPOINTS <= 51, error, "verlet.inc: VL_NPOINTS is 1..51 (5 N < 256)"
 
 ; the tiers
+.ifdef VL_CIRC                  ; the contacts work in the 20-byte tier
+.assert VL_CIRC >= 1 .and VL_CIRC <= VL_NPOINTS, error, "verlet.inc: VL_CIRC is 1..VL_NPOINTS"
+.ifndef VL_ROTATE
+VL_ROTATE = 1
+.endif
+.endif
 .if .defined(VL_NCON) .or .defined(VL_GROUND) .or .defined(VL_ROTATE) .or .defined(VL_THRUST)
 _VL_TIER2 = 1
 .else
@@ -160,6 +175,51 @@ vl_tx:    .res 2                ; the push vector (vl_thrust_axis / _perp)
 vl_ty:    .res 2
 .endif
 .endif
+; VL_GROUND_SEGMENTS = n: the segment ground (verlet_seg.asm). No zero page
+; of its own: its scan works in the ground tier's height-map scratch (vl_hxl,
+; vl_hxh, vl_hgt, vl_hm2, vl_hp2, vl_tptr). BSS vl_sgi (below).
+.ifdef VL_GROUND_SEGMENTS
+.if .not _VL_TIER3
+.error "verlet.inc: VL_GROUND_SEGMENTS needs VL_GROUND (the points that touch the ground)"
+.endif
+.assert VL_GROUND_SEGMENTS >= 1 .and VL_GROUND_SEGMENTS <= 128, error, "verlet.inc: VL_GROUND_SEGMENTS is 1..128"
+.endif
+; VL_CIRC = n: the circle contacts (verlet_circ.asm)
+.ifdef VL_CIRC
+.ifndef vl_qy
+vl_qy:    .res 1                ; |dy| in Q units
+.endif
+.ifndef vl_crad
+vl_crad:  .res 1                ; the radii sum R
+.endif
+.ifndef vl_cnx
+vl_cnx:   .res 1                ; |n| (64 = 1.0)
+.endif
+.ifndef vl_cny
+vl_cny:   .res 1
+.endif
+.ifndef vl_csnx
+vl_csnx:  .res 1                ; n, signed
+.endif
+.ifndef vl_csny
+vl_csny:  .res 1
+.endif
+.ifndef vl_csgn
+vl_csgn:  .res 1                ; bit 7: dx < 0, bit 6: dy < 0 (boxes: 1, 0 outside)
+.endif
+.ifndef vl_cflag
+vl_cflag: .res 1                ; bit 7/6: a/b pinned, 5/4: a/b heavy
+.endif
+.ifndef vl_cj
+vl_cj:    .res 2                ; a share (push, impulse)
+.endif
+.ifndef vl_vy
+vl_vy:    .res 2                ; (the ground's, else here: the boxes)
+.endif
+.ifndef vl_vt
+vl_vt:    .res 2
+.endif
+.endif
 
 .segment "BSS"
 .ifndef vl_xf
@@ -212,9 +272,32 @@ vl_pin:   .res VL_NPOINTS        ; non-zero: the point is pinned
 vl_gnd:   .res VL_GROUND
 .endif
 .endif
+.ifdef VL_GROUND_SEGMENTS
+.ifndef vl_sgi
+vl_sgi:   .res VL_GROUND             ; segment of the contact, $FF none (vl_seg_ground)
+.endif
+.endif
 .if _VL_TIER2
 .ifndef vl_turn
 vl_turn:  .res 1
+.endif
+.endif
+.ifdef VL_CIRC
+.ifndef vl_rad
+vl_rad:   .res VL_CIRC          ; radius (Q units), 0 = not a circle; set by the program
+.endif
+.ifdef VL_CIRC_HEAVY
+.ifndef vl_cheavy
+vl_cheavy: .res VL_CIRC         ; non-zero: a heavy point (set by the program)
+.endif
+.endif
+.ifndef vl_chits
+vl_chits: .res 1                ; contacts counted by vl_contact_all / _box
+.endif
+.ifdef VL_CIRC_SLEEP
+.ifndef vl_still
+vl_still: .res VL_CIRC          ; slow ticks in a row (vl_circ_sleep)
+.endif
 .endif
 .endif
 .ifdef VL_CON_VARIANTS
