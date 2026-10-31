@@ -24,7 +24,7 @@ APPLE2_RUN_FLAGS ?= --slot 4=ezcolor
 TMS_LOAD  := 0x4000
 # ROGUE.DHGR: the DHGR builder's src/rogue_dhgr.s when it exists (cfg
 # src/rogue_dhgr.cfg, load address DHGR_LOAD), a stand-in until then.
-DHGR_LOAD ?= 0x4000
+DHGR_LOAD ?= 0x3C00
 DHGR_MAIN := src/rogue_dhgr.s
 DHGR_CFG  := $(if $(wildcard src/rogue_dhgr.cfg),src/rogue_dhgr.cfg,src/launcher.cfg)
 
@@ -50,7 +50,7 @@ $(BUILD)/launcher.bin: $(BUILD)/launcher.o src/launcher.cfg
 	$(LD65) -C src/launcher.cfg -m $(BUILD)/launcher.map -Ln $(BUILD)/launcher.lbl -o $@ $<
 	@echo "ROGUE (launcher): $$(wc -c < $@) bytes at 0x6000"
 
-$(BUILD)/rogue_dhgr.o: $(DHGR_MAIN) $(wildcard src/video_dhgr.*) $(CORE) $(GFX) $(A2_ASM_DEPS)
+$(BUILD)/rogue_dhgr.o: $(DHGR_MAIN) $(wildcard src/video_dhgr.* src/video_x2.*) $(CORE) $(GFX) $(A2_ASM_DEPS)
 	@mkdir -p $(BUILD)
 	$(CA65) -g -t none $(A2_INCS) -l $(BUILD)/rogue_dhgr.lst -o $@ $<
 
@@ -59,10 +59,16 @@ $(BUILD)/rogue_dhgr.o: $(DHGR_MAIN) $(wildcard src/video_dhgr.*) $(CORE) $(GFX) 
 src/video_dhgr_data.inc: tools/tiles_dhgr.py $(GFX) $(DEV)/tools/apple2img.py
 	$(PYTHON) tools/tiles_dhgr.py $@
 
-$(BUILD)/rogue_dhgr.o: src/video_dhgr_data.inc
+# the game view, X2 way (tools/x2_dhgr.py: art, palette, banner; its previews
+# with `make dhgr-previews` too)
+src/video_x2_data.inc: tools/x2_dhgr.py tools/tiles_dhgr.py $(GFX) $(DEV)/tools/apple2img.py
+	$(PYTHON) tools/x2_dhgr.py $@
+
+$(BUILD)/rogue_dhgr.o: src/video_dhgr_data.inc src/video_x2_data.inc
 
 dhgr-previews:
 	$(PYTHON) tools/tiles_dhgr.py src/video_dhgr_data.inc --png screenshots
+	$(PYTHON) tools/x2_dhgr.py src/video_x2_data.inc --png screenshots
 
 $(BUILD)/rogue_dhgr.bin: $(BUILD)/rogue_dhgr.o $(DHGR_CFG)
 	$(LD65) -C $(DHGR_CFG) -m $(BUILD)/rogue_dhgr.map -Ln $(BUILD)/rogue_dhgr.lbl -o $@ $<
