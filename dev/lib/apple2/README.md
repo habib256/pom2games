@@ -502,6 +502,14 @@ pattern, three notes, ten writes) ~3,600 (fast periods: ~3,370); 6 voices:
 mean ~1,190, worst ~5,300. The first tick after `ays_init` / `mb_hush`
 writes all 13 registers (~1,200 cycles of writes).
 
+MB TRACKER builds it with `AYSONG_VOICES = 6`, `AYSONG_CPU65C02 = 1` and
+`mb_irq.asm`'s `MB_IRQ_HUSH_BOTH = 1`: its interrupt tick measured in the
+tracker (`mbtracker/tests/test_mbt.py`, a 6-voice song) costs 5,309 cycles
+on the first tick (both chips written), then at most ~3,400, mean ~1,900.
+PT3 modules convert to AYS with `dev/tools/audio/pt3import.py` (what maps,
+what is reported lost: its docstring; `dev/tests/test_pt3_import.py` checks
+`pt3play.py`, its Python PT3 player, against `pt3/` under a2run).
+
 ## PT3 decoder: `pt3/` (WARGALAGA II, 2026-10-23)
 
 [`pt3/pt3.s`](pt3/pt3.s) is Vince Weaver's pt3_lib 0.5 decoder, used under

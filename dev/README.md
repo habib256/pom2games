@@ -66,6 +66,10 @@ use the Apple II's native video. Every game in the repository shares them.
                        tunes in just intonation (the games' music tools);
                        aysong.py: AYS songs (encode/decode, text/JSON
                        import, --asm), the bit-exact model of aysong.asm
+                       pt3play.py: a Vortex Tracker II (.pt3) player, the
+                       registers of lib/apple2/pt3 tick for tick;
+                       pt3import.py: PT3 -> AYS (aysong.py --import-pt3),
+                       with a report of what does not map
       tools/perspective.py  configurable fixed-camera tables
       tools/dos33_system.bin  DOS 3.3 system tracks (0-2) from the Apple master disk
       tools/a2shot/    headless, scripted runs with PNG captures
@@ -77,6 +81,10 @@ use the Apple II's native video. Every game in the repository shares them.
       examples/hgr/    animated HGR starter: sprites, counter, keyboard, pacing
       examples/dhgr/   DHGR 560×192 / 16 colours, Apple IIe 128 KB or IIc
       examples/perspective/ HGR grid + audio effect; disk in build/
+      examples/dhgr_action/ DHGR action demo on the sprite compositor, two
+                       pages at VBL (ProDOS, //e 128 KB or //c); disk in build/
+      examples/lander/ Verlet lunar lander, the lib/physics demo (asm, II+,
+                       model-first: tools/lander.py); disk in build/
 
 ## Getting started
 
@@ -89,7 +97,9 @@ calling conventions, banks and interrupts.
 
 Copy `examples/hello` to start a text program, or
 [`examples/hgr`](examples/hgr/README.md) for an animation with sprites,
-a counter, keyboard and double buffering. To put the new folder next to
+a counter, keyboard and double buffering
+([`examples/dhgr_action`](examples/dhgr_action/README.md) for a DHGR
+action game on the compositor). To put the new folder next to
 `micro-sokoban/`, set `DEV ?= ../dev` and `DIST ?= ../dist` in its `Makefile`
 so the disk joins the others in `dist/`.
 

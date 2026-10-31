@@ -243,3 +243,19 @@ même branche : `dhgr_text` 239 492 → 44 259 cycles (+146 octets),
 `dhgr_block` 10 966 → 6 839 (+255), `dhgr_sprite` 5 158 → 2 314 (+458).
 Autres gains de la branche, sans dépassement : `hgr_tile_background`
 9 546 → 6 782 cycles (+76 octets).
+
+## 2026-10-31 : compositeur DHGR, deux pages, VBL, passe de taille
+
+Nouveaux cas : `dhgr_spr_double_move` 16 697 cycles (`DHGR_SPR_DOUBLE`, le
+drone d'un pixel par image en régime établi : ce déplacement et le
+précédent réécrits sur la page cachée) et `dhgr_spr_vbl_move` 21 871
+(`DHGR_SPR_VBL`, mesuré depuis un front de VBL : composé, puis écrit après
+le front suivant ; un balayage d'attente compris). Recalé :
+`dhgr_spr_move_chunky` 10 021 → 9 380 (les boucles de lignes de
+`dhgr_cv_bitmap.s` n'appellent plus `dest`/`next_row`). Les autres cas du
+compositeur restent dans ±2 % de leur référence (`dhgr_spr_move` 15 939,
+`_wide` 20 667, `_cells` 18 776, `_solid` 11 025, `dhgr_spr_overlay_move`
+13 196, `dhgr_cursor_move` 9 003) avec un cœur de 1 960 octets au lieu de
+2 120 (palette et zone dans leurs propres membres, une boucle de découpe
+pour les deux axes, une boucle de rectangles pour les deux chemins, fusion
+des dégâts en O(n²)).

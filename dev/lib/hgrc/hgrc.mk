@@ -69,9 +69,12 @@ HGRC_DHGR_MONO_BACKEND := $(GFX)/gfx_backend_dhgr_mono.c
 # NOT in HGRC_ALL_SRCS, so programs that do not ask for it keep the same
 # archive members. Add it to HGRC_EXTRA_SRCS (or to a program's own library
 # sources) with HGRC_DHGR_SRCS; members are extracted when referenced
-# (cells/tiles backgrounds, bitmap shapes, overlay, save-under cursor are separate).
-HGRC_DHGR_SPR_SRCS := $(addprefix $(HGRC)/,dhgr_spr_api.s dhgr_spr_update.s dhgr_spr_asm.s \
-    dhgr_cv_asm.s dhgr_cv_bitmap.s dhgr_spr_cells.s dhgr_spr_overlay.s dhgr_spr_cursor.s)
+# (palette, area, cells/tiles backgrounds, bitmap shapes, overlay, save-under
+# cursor are separate). dhgr_spr_present.s (DHGR_SPR_DOUBLE) and the
+# DHGR_SPR_VBL update import dev/lib/apple2c/apple2vbl (APPLE2C_VBL_SRCS).
+HGRC_DHGR_SPR_SRCS := $(addprefix $(HGRC)/,dhgr_spr_api.s dhgr_spr_palette.s dhgr_spr_area.s dhgr_spr_update.s dhgr_spr_asm.s \
+    dhgr_cv_asm.s dhgr_cv_bitmap.s dhgr_spr_cells.s dhgr_spr_overlay.s dhgr_spr_cursor.s \
+    dhgr_spr_present.s)
 
 # Optional DHGR members are extracted only when referenced. gfx backends remain explicit.
 HGRC_ALL_SRCS := $(sort $(HGRC_ALL_SRCS) $(HGRC_DHGR_SRCS) $(HGRC_DHGR_SMALL_TEXT_SRCS) $(HGRC_65C02_NUM_SRCS))

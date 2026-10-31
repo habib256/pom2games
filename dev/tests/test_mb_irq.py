@@ -13,7 +13,8 @@ vector at $03FE (//e with the NMOS and the 65C02 builds, //c: the ROM's
 handler saves A at $45) and at $FFFE (//e and II+ NMOS, language card
 RAM banked in: raw entry; a2shot's II+ ROM sends IRQs to the monitor). The ProDOS mode (ALLOC_INTERRUPT) is WARGALAGA II's, checked
 by its test_audio.py on a byte-identical build. Then mb_hush: chip 1's
-volumes to 0 and its shadows forgotten (the next tick writes R7 again)."""
+volumes to 0 and its shadows forgotten (the next tick writes R7 again).
+MB_IRQ_HUSH_BOTH = 1 (MB TRACKER, 6 voices): mb_hush silences both chips."""
 import re
 import subprocess
 import sys
@@ -31,6 +32,7 @@ MB_IRQ_VECTOR = {vector}
 MB_IRQ_HZ = 50
 MB_IRQ_TICK = tick
 MB_FAST_WRITE = {fast}
+MB_IRQ_HUSH_BOTH = {both}
 .code
 start:  lda #0                   ; (BSS: not cleared by BRUN)
         ldx #9
@@ -154,9 +156,10 @@ song:   .byte {song}
 '''
 
 
-def build(work, name, cpu, vector, fast, text=None):
+def build(work, name, cpu, vector, fast, text=None, both=0):
     src = work / (name + '.s')
-    src.write_text(text or SRC.format(cpu='.setcpu "65C02"' if cpu else '', vector=vector, fast=fast, ticks=TICKS))
+    src.write_text(text or SRC.format(cpu='.setcpu "65C02"' if cpu else '', vector=vector, fast=fast, ticks=TICKS,
+                                      both=both))
     obj, binary, lbl = (src.with_suffix(e) for e in ('.o', '.bin', '.lbl'))
     subprocess.run(['ca65', '-g', '-I', str(ROOT / 'dev/lib/apple2'), '-o', str(obj), str(src)], check=True)
     subprocess.run(['ld65', '-C', str(ROOT / 'dev/cc65/apple2_hgr.cfg'), '-Ln', str(lbl),
@@ -192,8 +195,8 @@ def ay_writes(out, slot=4):
     return writes
 
 
-def run(work, name, cpu, vector, machine, fast=1):
-    binary, L = build(work, name, cpu, vector, fast)
+def run(work, name, cpu, vector, machine, fast=1, both=0):
+    binary, L = build(work, name, cpu, vector, fast, both=both)
     disk = a2test.build_disk(work, name.upper(), binary)
     flags = {'iie': ['--iie'], 'iic': ['--iic'], 'ii+': []}[machine]
     out = subprocess.run([str(a2test.A2SHOT), *flags, '--mockingboard', '--disk', str(disk),
@@ -217,7 +220,7 @@ def run(work, name, cpu, vector, machine, fast=1):
     assert w[:len(expected)] == expected, f'{name}: AY writes {w[:8]}...'
     rest = w[len(expected):]
     stop = [(c, k, 0) for c in (0, 1) for k in (8, 9, 10)]
-    hush = [(0, k, 0) for k in (8, 9, 10)] + [(0, 7, 0x3E)]
+    hush = [(c, k, 0) for c in ((0, 1) if both else (0,)) for k in (8, 9, 10)] + [(0, 7, 0x3E)]
     assert rest == stop + hush, f'{name}: after the ticks {rest}'
     cyc = [int(c) for c in re.findall(r'^until [0-9A-F]+ cycles=(\d+)', out, re.M)]
     period = 1020484 // 50 - 2 + 2                 # T1 free run: latch + 2
@@ -263,6 +266,9 @@ def main():
             print(f'PASS mb_irq {machine}, vector {vector}, {"65C02" if cpu else "NMOS"}'
                   f'{", MB_FAST_WRITE" if fast else ""}: {TICKS} ticks at 50 Hz ({per:.0f} cycles a tick), R0 = 1..{TICKS} and R7 = $3E once '
                   f'(shadow), registers kept, stop: silence, no more ticks, the vector back; mb_hush forgets chip 1')
+        run(work, 'both', 1, '$03FE', 'iie', 1, both=1)
+        print('PASS mb_irq MB_IRQ_HUSH_BOTH = 1 (MB TRACKER): mb_hush silences both chips and forgets their '
+              'shadows (the next mb_put of R7 writes)')
         for fast in (0, 1):
             n = song_run(work, fast)
             print(f'PASS aysong under mb_irq (//e, 65C02 builds{", fast periods" if fast else ""}): the demo\'s '

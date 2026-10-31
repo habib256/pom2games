@@ -173,7 +173,7 @@ for name in ('hgr_diagonal_cold','hgr_hud_cold','hgr_scene_cold'):
 # DHGR sprite compositor (opt-in HGRC_DHGR_SPR_SRCS, linked before hgrc.lib):
 # a Robot Space Station room (tile map of RECTS tiles, rows 10..153) and its
 # 10x12 drone; the measured call moves it one pixel (set + update).
-SPR_SRCS=('dhgr_spr_api.s','dhgr_spr_update.s','dhgr_spr_asm.s','dhgr_cv_asm.s',
+SPR_SRCS=('dhgr_spr_api.s','dhgr_spr_palette.s','dhgr_spr_area.s','dhgr_spr_update.s','dhgr_spr_asm.s','dhgr_cv_asm.s',
           'dhgr_spr_overlay.s','dhgr_spr_cursor.s','dhgr_spr_cells.s','dhgr_cv_bitmap.s')
 SPR_DECL='''
 static unsigned char canvas[1024], map[360], i;
@@ -218,6 +218,20 @@ SCENES['dhgr_spr_move_chunky']=dict(SCENES['dhgr_spr_move'],
           SPR_ROOM+'dhgr_spr_tiles(0,10,8,map,20,tset); dhgr_spr_invalidate(0,10,140,144);'
           'dhgr_spr_set(0,&ship_s,30u,40u,0); dhgr_spr_update();',
     call='dhgr_spr_set(0,&ship_s,31u,40u,DHGR_SPR_MIRROR); dhgr_spr_update();')
+# DHGR_SPR_DOUBLE: the same drone moving one pixel a frame on two pages,
+# steady state (the update rewrites this move and the previous one).
+SCENES['dhgr_spr_double_move']=dict(SCENES['dhgr_spr_move'],spr=('DHGR_SPR_DOUBLE',),
+    setup='dhgr_draw_page(2);'+SPR_ROOM+'dhgr_spr_tiles(0,10,8,map,20,set);'
+          'dhgr_spr_invalidate(0,10,140,144); dhgr_spr_palette(0,pal);'
+          'dhgr_spr_set(0,&drone_s,30u,40u,0); dhgr_spr_update(); dhgr_flip();'
+          'dhgr_spr_set(0,&drone_s,31u,40u,0); dhgr_spr_update(); dhgr_flip();',
+    call='dhgr_spr_set(0,&drone_s,32u,40u,0); dhgr_spr_update();')
+# DHGR_SPR_VBL with the //e VBL clock (apple2vbl): the same move, started
+# right after a VBL edge (a2_frame_wait), composed, then written after the
+# next edge: about one refresh, the wait included (17,030 cycles a refresh).
+SCENES['dhgr_spr_vbl_move']=dict(SCENES['dhgr_spr_move'],spr=('DHGR_SPR_VBL',),clock=True,
+    declarations=SPR_DECL+'unsigned char a2_vbl_init(void); unsigned char a2_frame_wait(void);\n',
+    setup='a2_vbl_init();'+SCENES['dhgr_spr_move']['setup']+'a2_frame_wait();')
 SCENES['dhgr_cursor_move']=dict(iie=True,dhgr=True,spr=(),declarations=SPR_DECL,
     setup='dhgr_cursor(20,60,4,6,arrow,under);', call='dhgr_cursor(21,61,4,6,arrow,under);')
 SCENES['dhgr_spr_overlay_move']=dict(SCENES['dhgr_spr_move'],
@@ -276,7 +290,7 @@ def presentation_source(variant):
 
 def measure(work,name,call,dhgr=False,setup='',sprites=False,warmup=True,
             declarations='',sprite_width=None,sprite_height=4,sprite_stride=2,presentation=None,iie=False,cadence=False,
-            pal=False,damage=False,variant=None,spr=None):
+            pal=False,damage=False,variant=None,spr=None,clock=False):
     source=work/(name+'.c'); obj=source.with_suffix('.o'); binary=source.with_suffix('.bin')
     source.write_text('#include "hgr.h"\n#include "gfx.h"\n#include "dhgr.h"\n#include "apple2io.h"\n'
       'void hgr_build_tables(void); void bench_begin(void); void bench_end(void); void bench_present(void);\n'+
@@ -313,6 +327,11 @@ def measure(work,name,call,dhgr=False,setup='',sprites=False,warmup=True,
             run(['ca65','-t','none',*('-D'+d+'=1' for d in spr),'-I',DEV/'lib/hgrc','-I',DEV/'lib/apple2',
                  '-o',spr_obj,DEV/'lib/hgrc'/member])
             extra.append(spr_obj)
+    if clock:
+        for src in (DEV/'lib/apple2c/apple2vbl.s',DEV/'lib/apple2c/apple2frame.s',DEV/'lib/mouse/mouse.s'):
+            clock_obj=work/(name+'_'+src.stem+'.o')
+            run(['ca65','-t','none','-o',clock_obj,src])
+            extra.append(clock_obj)
     if cadence:
         frame_obj=work/(name+'_frame.o')
         run(['ca65','-t','none','-o',frame_obj,DEV/'lib/apple2c/apple2frame.s'])

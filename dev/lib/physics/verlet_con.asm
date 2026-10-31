@@ -26,6 +26,15 @@
 ; VL_CON_MINLEN_POINT / VL_CON_MINLEN: a link whose b is that point with
 ; q2 < VL_CON_MINLEN (l2q units) sets vl_squashed = 1 (DIRTBIKE: the rider
 ; squashed on a wheel; the program clears it).
+;
+; VL_CON_FIXED_K = s (0..8): every link's gain is 2^s: f = clamp((q2 - l2)
+; / 2^(11 - s), +-127) rounded toward zero (no d8: a dead band the same both
+; ways, no creep of a body flying free), shifts instead of the product, no
+; vl_con_k8 table: ~-170 cycles a link. VL_CON_MIN_ONLY: a link whose vl_con_b has bit 7 set only pushes
+; (no correction when q2 >= l2: a minimum distance). VL_PIN: a pinned end
+; (vl_pin) does not move, the other end takes the whole correction 2 c;
+; both pinned, nothing moves (+~25 c a link without pins, the heavy point
+; does not apply to a link with a pinned end).
 ; ============================================================================
 
 .ifndef _VERLET_CON_ASM_LOADED_
@@ -58,6 +67,9 @@ vl_constrain:
         LDA     vl_con_a,X
         STA     vl_ca
         LDA     vl_con_b,X
+.ifdef VL_CON_MIN_ONLY
+        AND     #$7F
+.endif
         STA     vl_cb
 .ifdef VL_CON_VARIANTS
         LDA     vl_con_nl,X             ; cidx = cur * VL_CON_VARIANTS + row
@@ -116,6 +128,59 @@ vl_constrain:
         LDA     vl_w2
         SBC     #0
         STA     vl_w2
+.ifdef VL_CON_MIN_ONLY
+        BMI     @mo                     ; a minimum only and q2 >= l2: no move
+        LDY     vl_cur
+        LDA     vl_con_b,Y
+        BPL     @mo
+        RTS
+@mo:
+.endif
+.ifdef VL_CON_FIXED_K
+        .assert VL_CON_FIXED_K >= 0 .and VL_CON_FIXED_K <= 8, error, "VL_CON_FIXED_K is 0..8 (gain 2^s)"
+_VL_FKN = 11 - VL_CON_FIXED_K           ; f = clamp(w / 2^n, +-127), toward 0
+        LDA     vl_w2
+        BPL     @fk
+        CLC
+        LDA     vl_w0
+        ADC     #<((1 << _VL_FKN) - 1)
+        STA     vl_w0
+        LDA     vl_w1
+        ADC     #>((1 << _VL_FKN) - 1)
+        STA     vl_w1
+        LDA     vl_w2
+        ADC     #0
+        STA     vl_w2
+@fk:
+.if _VL_FKN < 8
+.repeat 8 - _VL_FKN                     ; w << (8 - n): f = w2:w1
+        ASL     vl_w0
+        ROL     vl_w1
+        ROL     vl_w2
+.endrepeat
+        LDA     vl_w2
+.else
+        LDA     vl_w2                   ; w2:w1 >> (n - 8)
+.repeat _VL_FKN - 8
+        CMP     #$80
+        ROR     A
+        ROR     vl_w1
+.endrepeat
+.endif
+        BMI     @fneg                   ; A = high byte, vl_w1 = low
+        BNE     @fmax
+        LDA     vl_w1
+        BPL     @fok
+@fmax:  LDA     #$7F
+        BNE     @fok
+@fneg:  CMP     #$FF
+        BNE     @fmin
+        LDA     vl_w1
+        CMP     #$81
+        BCS     @fok
+@fmin:  LDA     #$81
+@fok:   STA     vl_fcoef
+.else
         LDY     #3                      ; >> 3, arithmetic
 @sh:    LDA     vl_w2
         CMP     #$80
@@ -167,6 +232,43 @@ vl_constrain:
         BCS     @fok
 @fmin:  LDA     #$81
 @fok:   STA     vl_fcoef
+.endif                                  ; (VL_CON_FIXED_K)
+.ifdef VL_PIN
+        LDX     vl_ca                   ; qx = a pinned (bit 7), b pinned (6)
+        LDA     vl_pin,X
+        BEQ     @pa
+        LDA     #$80
+@pa:    LDX     vl_cb
+        LDY     vl_pin,X
+        BEQ     @pb
+        ORA     #$40
+@pb:    STA     vl_qx
+        TAY
+        BEQ     @free                   ; no pin: the plain link
+        CMP     #$C0
+        BNE     @one
+        RTS                             ; both pinned: no move
+@one:   LDA     vl_dx                   ; the free end takes 2 cx, 2 cy
+        LDX     vl_dx+1
+        JSR     vl_cmul2
+        BIT     vl_qx
+        BMI     @bx
+        LDX     vl_ca
+        JSR     vl_add_xv
+        JMP     @y2
+@bx:    LDX     vl_cb
+        JSR     vl_sub_xv
+@y2:    LDA     vl_dy
+        LDX     vl_dy+1
+        JSR     vl_cmul2
+        BIT     vl_qx
+        BMI     @by
+        LDX     vl_ca
+        JMP     vl_add_yv
+@by:    LDX     vl_cb
+        JMP     vl_sub_yv
+@free:
+.endif
         LDA     vl_dx                   ; cx = (dx * f) >> 8
         STA     mul_x
         LDA     vl_dx+1
@@ -231,6 +333,23 @@ vl_constrain:
         JSR     vl_add_yv
         LDX     vl_cb
         JMP     vl_sub_yv
+.endif
+
+.ifref vl_cmul2
+; val = 2 ((A/X signed * vl_fcoef) >> 8)
+vl_cmul2:
+        STA     mul_x
+        STX     mul_x+1
+        LDA     vl_fcoef
+        STA     mul_y
+        JSR     mul_s16s8
+        LDA     mul_p1
+        ASL     A
+        STA     vl_val
+        LDA     mul_p2
+        ROL     A
+        STA     vl_val+1
+        RTS
 .endif
 
 .ifref vl_heavy

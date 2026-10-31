@@ -250,7 +250,11 @@ mb_put:
 .if .referenced(mb_hush) .and (.not .defined(mb_hush))
 mb_hush:
         lda mb_irq_slot
+.if MB_IRQ_HUSH_BOTH
+        beq :+                   ; (one unnamed label to the RTS here)
+.else
         beq :++
+.endif
         php
         sei                      ; (the music handler writes too)
 .if MB_IRQ_HUSH_BOTH

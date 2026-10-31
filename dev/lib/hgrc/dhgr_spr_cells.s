@@ -6,7 +6,8 @@
 ; cc65 scratch; the loop keeps its state in BSS. Non-reentrant, no IRQ.
 .export _dhgr_spr_cells, _dhgr_spr_tiles, _dhgr_cv_rect
 .import _dhgr_cellbyte, pusha, popa, popax, incsp4
-.import cv_rx, cv_ry, cv_rw, cv_rh, cv_nib, cv_nibble, dhgr_cv_fill
+.import cv_rx, cv_ry, cv_nib, cv_nibble, dhgr_cv_fill
+.importzp cv_rw, cv_rh
 .importzp sp
 .import _dhgr_spr_bg, _dhgr_spr_bg_jmp, _dhgr_spr_pal, pg, pn, py
 .import _dhgr_cv_y1, _dhgr_cv_shape, _dhgr_cv_sx, _dhgr_cv_sy, _dhgr_cv_flags

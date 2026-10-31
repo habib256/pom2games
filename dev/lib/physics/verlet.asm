@@ -27,8 +27,15 @@
 ;                    common speed. ~330 cycles.
 ;   vl_damp          vl_vt -= vl_vt >> (8 - Y), Y = 1..7 (floor): friction
 ;                    in a ground hook. Keeps X. ~70 cycles.
+;   vl_push_all      (VL_THRUST) every point but the pinned ones += the push
+;                    vector vl_tx/vl_ty (verlet_rot.asm vl_thrust_*). ~75 c/pt
+;   vl_push          point X += vl_tx/vl_ty (a speed change). Keeps X. ~70 c
 ;   vl_rest          VL_REST as a routine (every point at rest)
 ;   vl_ceiling       VL_CEILING as a routine (VL_CEILING_CLAMP)
+;
+; VL_PIN: vl_integrate leaves a pinned point (vl_pin,X non-zero) alone (+9 c).
+; VL_Y_HIGH: y is 24 bits (vl_yu): vl_add_yv / vl_sub_yv sign-extend vl_val
+; (they clobber Y), vl_integrate and vl_pair_damp keep the third byte.
 ; ============================================================================
 
 .ifndef _VERLET_ASM_LOADED_
@@ -103,8 +110,48 @@ vl_integrate_all:
         RTS
 .endif
 
+.ifref vl_push_all
+.ifndef VL_THRUST
+.error "vl_push_all: define VL_THRUST (the push vector)"
+.endif
+vl_push_all:
+        LDX     #VL_NPOINTS-1
+@p:
+.ifdef VL_PIN
+        LDA     vl_pin,X
+        BNE     @n
+.endif
+        JSR     vl_push
+@n:     DEX
+        BPL     @p
+        RTS
+.endif
+
+.ifref vl_push
+.ifndef VL_THRUST
+.error "vl_push: define VL_THRUST (the push vector)"
+.endif
+vl_push:
+        LDA     vl_tx
+        STA     vl_val
+        LDA     vl_tx+1
+        STA     vl_val+1
+        JSR     vl_add_xv
+        LDA     vl_ty
+        STA     vl_val
+        LDA     vl_ty+1
+        STA     vl_val+1
+        JMP     vl_add_yv
+.endif
+
 .ifref vl_integrate
 vl_integrate:
+.ifdef VL_PIN
+        LDA     vl_pin,X                ; pinned: no move
+        BEQ     @free
+        RTS
+@free:
+.endif
         SEC
         LDA     vl_xf,X
         SBC     vl_oxf,X
@@ -142,6 +189,10 @@ vl_integrate:
         STA     vl_oyf,X
         LDA     vl_yh,X
         STA     vl_oyh,X
+.ifdef VL_Y_HIGH
+        LDA     vl_yu,X
+        STA     vl_oyu,X
+.endif
         JSR     vl_add_yv
         LDA     vl_vx
         STA     vl_val
@@ -216,6 +267,13 @@ vl_sub_xv:
 
 .ifref vl_add_yv
 vl_add_yv:
+.ifdef VL_Y_HIGH
+        LDY     #0
+        LDA     vl_val+1
+        BPL     @p
+        DEY
+@p:
+.endif
         CLC
         LDA     vl_yf,X
         ADC     vl_val
@@ -223,11 +281,23 @@ vl_add_yv:
         LDA     vl_yh,X
         ADC     vl_val+1
         STA     vl_yh,X
+.ifdef VL_Y_HIGH
+        TYA
+        ADC     vl_yu,X
+        STA     vl_yu,X
+.endif
         RTS
 .endif
 
 .ifref vl_sub_yv
 vl_sub_yv:
+.ifdef VL_Y_HIGH
+        LDY     #0
+        LDA     vl_val+1
+        BPL     @p
+        DEY
+@p:     STY     vl_w2
+.endif
         SEC
         LDA     vl_yf,X
         SBC     vl_val
@@ -235,6 +305,11 @@ vl_sub_yv:
         LDA     vl_yh,X
         SBC     vl_val+1
         STA     vl_yh,X
+.ifdef VL_Y_HIGH
+        LDA     vl_yu,X
+        SBC     vl_w2
+        STA     vl_yu,X
+.endif
         RTS
 .endif
 
@@ -338,6 +413,11 @@ vl_pair_damp:
         LDA     vl_oyh+VL_PAIR_B
         ADC     vl_val+1
         STA     vl_oyh+VL_PAIR_B
+.ifdef VL_Y_HIGH
+        LDA     vl_oyu+VL_PAIR_B
+        ADC     vl_w2
+        STA     vl_oyu+VL_PAIR_B
+.endif
         SEC
         LDA     vl_oyf+VL_PAIR_A
         SBC     vl_val
@@ -345,6 +425,11 @@ vl_pair_damp:
         LDA     vl_oyh+VL_PAIR_A
         SBC     vl_val+1
         STA     vl_oyh+VL_PAIR_A
+.ifdef VL_Y_HIGH
+        LDA     vl_oyu+VL_PAIR_A
+        SBC     vl_w2
+        STA     vl_oyu+VL_PAIR_A
+.endif
         RTS
 .endif
 

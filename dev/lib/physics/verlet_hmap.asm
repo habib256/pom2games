@@ -19,6 +19,9 @@
 ;                  speed). Ground further than VL_FAR below: no test.
 ;                  ~250 cycles without contact, 1000-2500 with (the mul_dir
 ;                  short cuts make a flat ground cheaper).
+;                  VL_Y_HIGH: y is 24 bits, the ground row is the height +
+;                  VL_GROUND_BASE (default 0; a 16-bit row): the ground lies
+;                  within rows BASE..BASE+255 of a world taller than 256 rows.
 ;
 ; Hooks (macros, empty unless the program defines them before this include):
 ;   VL_GROUND_ENTER    after vl_gnd,X = 0 (A = 0, X = the point)
@@ -63,6 +66,13 @@ _VERLET_HMAP_ASM_LOADED_ = 1
 .assert VL_BOUNCE >= 0 .and VL_BOUNCE < 128, error, "vl_ground: VL_BOUNCE is 0..127 (/256)"
 .assert VL_SLOPE_MAX >= 0 .and VL_SLOPE_MAX < 128, error, "vl_ground: VL_SLOPE_MAX < 128"
 .assert VL_PROBE >= 1 .and VL_PROBE < 128, error, "vl_ground: VL_PROBE is 1..127"
+.ifdef VL_GROUND_BASE
+.ifndef VL_Y_HIGH
+.error "vl_ground: VL_GROUND_BASE needs VL_Y_HIGH (y 16.8)"
+.endif
+.else
+VL_GROUND_BASE = 0
+.endif
 vl_ground:
         STX     vl_cur
         LDA     #0
@@ -115,6 +125,40 @@ vl_ground:
         STA     vl_nx
         LDA     vl_norm_y,Y
         STA     vl_ny
+.ifdef VL_Y_HIGH
+        CLC                             ; w = ((h + base) << 8) - y, 24 bits
+        LDA     vl_hgt
+        ADC     #<VL_GROUND_BASE
+        STA     vl_w1
+        LDA     #>VL_GROUND_BASE
+        ADC     #0
+        STA     vl_w2
+        SEC
+        LDA     #0
+        SBC     vl_yf,X
+        STA     vl_w0
+        LDA     vl_w1
+        SBC     vl_yh,X
+        STA     vl_w1
+        LDA     vl_w2
+        SBC     vl_yu,X
+        STA     vl_w2
+        BMI     @wneg
+        BNE     @far
+        LDA     vl_w1
+        CMP     #>VL_FAR
+        BCC     @wok
+@far:   RTS                             ; ground far below: no contact
+@wneg:  CMP     #$FF
+        BNE     @wmin
+        LDA     vl_w1
+        CMP     #>(-VL_FAR)
+        BCS     @wok
+@wmin:  LDA     #>(-VL_FAR)
+        STA     vl_w1
+        LDA     #0
+        STA     vl_w0
+.else
         SEC                             ; w = (h << 8) - y, 24 bits
         LDA     #0
         SBC     vl_yf,X
@@ -137,6 +181,7 @@ vl_ground:
         STA     vl_w1
         LDA     #0
         STA     vl_w0
+.endif
 @wok:   SEC                             ; dist = (w * -ny) >> 6
         LDA     #0
         SBC     vl_ny
@@ -300,6 +345,13 @@ vl_ground:
         JSR     mul_acc_add
         JSR     mul_acc_shr6
         LDX     vl_cur                     ; old y = y - vy
+.ifdef VL_Y_HIGH
+        LDY     #0
+        LDA     mul_p2
+        BPL     @yp
+        DEY
+@yp:    STY     vl_w2
+.endif
         SEC
         LDA     vl_yf,X
         SBC     mul_p1
@@ -307,6 +359,11 @@ vl_ground:
         LDA     vl_yh,X
         SBC     mul_p2
         STA     vl_oyh,X
+.ifdef VL_Y_HIGH
+        LDA     vl_yu,X
+        SBC     vl_w2
+        STA     vl_oyu,X
+.endif
         VL_GROUND_AFTER
         RTS
 .endif

@@ -17,6 +17,9 @@ A point is the centre of a disc of radius r (8.8). For point i:
 
 The slope is a byte difference (s8) like on the 6502: keep |h[x + probe] -
 h[x - probe]| < 128. The tangent points forward along the ground, (-ny, nx).
+
+base (VL_GROUND_BASE, with VL_Y_HIGH): the ground row is h[x] + base, for
+worlds taller than 256 rows (y 16.8): w = ((h[px] + base) << 8) - y.
 """
 import math
 
@@ -50,8 +53,9 @@ def rebuild(vn, vt, nx, ny):
 
 
 class HeightMap:
-    def __init__(self, h, slope_max=15, probe=2, radius=0x0600, far=0x2000, bounce=64):
+    def __init__(self, h, slope_max=15, probe=2, radius=0x0600, far=0x2000, bounce=64, base=0):
         self.h = h
+        self.base = base
         self.slope_max, self.probe = slope_max, probe
         self.radius, self.far, self.bounce = radius, far, bounce
         self.nx, self.ny = normals(slope_max, 2 * probe)
@@ -71,7 +75,7 @@ class HeightMap:
         px = x >> 8
         s = self.slope(px) + self.slope_max
         nx, ny = self.nx[s], self.ny[s]
-        w = (self.h[px] << 8) - y
+        w = ((self.h[px] + self.base) << 8) - y
         far = self.far
         if w >= far:
             return None

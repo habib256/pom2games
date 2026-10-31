@@ -4,12 +4,16 @@
  * save (dev/lib/prodos file.s). MLI buffers in $1000-$1FFF (pages crt0
  * leaves free in the system bitmap); the song is read into song_buf with
  * prodos_load_free (its pages are marked used). The caller stops the
- * music first (the Disk II driver masks interrupts ~1 s). */
+ * music first (the Disk II driver masks interrupts ~1 s). Overlay OVL2 with
+ * fileui.c (its initialised parameter blocks come back with it). */
 #include <string.h>
 #include "prodos.h"
 #include "mbt.h"
 
-char file_names[MAXFILES][16];
+#pragma code-name (push, "OVL2")
+#pragma rodata-name (push, "OVL2")
+#pragma data-name (push, "OVL2")
+
 unsigned char file_count;
 char cur_file[16];
 
@@ -89,6 +93,7 @@ unsigned char file_load(const char *name)
     song_len = 0;
     if (err)
         return err;
+
     if (prodos_file_actual >= SONGBUF_SIZE)
         return 0xFD;
     if (song_decode(prodos_file_actual))

@@ -22,7 +22,11 @@
 ;   VL_WRAP_MARGIN    for vl_wrap (lap length in the word vl_lap_len)
 ; Switches (undefined = off): VL_INTEGRATE_LEFTWALL, VL_CEILING_CLAMP,
 ;   VL_CON_VARIANTS, VL_CON_HEAVY_POINT/_SHIFT, VL_CON_MINLEN_POINT/VL_CON_MINLEN,
-;   VL_PAIR_DAMP, .define VL_ROT_SEG / VL_MULTURN_SEG "segment".
+;   VL_PAIR_DAMP, .define VL_ROT_SEG / VL_MULTURN_SEG "segment";
+;   VL_PIN (pinned points: vl_pin), VL_CON_FIXED_K = s (gain 2^s, no k8
+;   table), VL_CON_MIN_ONLY (bit 7 of vl_con_b: the link only pushes),
+;   VL_THRUST = n (vl_thrust_axis / _perp, vl_push, vl_push_all), VL_Y_HIGH
+;   (y 16.8: vl_yu, vl_oyu; VL_GROUND_BASE = the row added to the heights).
 ;
 ; Zero page (each slot skipped if the program defined the name first, the
 ; math.inc pattern: alias it onto the program's own scratch):
@@ -31,10 +35,13 @@
 ;                     vl_ca, vl_cb, vl_cur, vl_qx, vl_fcoef, vl_pen (2), vl_vn (2)
 ;   +13 = 33 B        with VL_GROUND: vl_vy (2), vl_vt (2), vl_nx, vl_ny,
 ;                     vl_tptr (2), vl_hxl, vl_hxh, vl_hgt, vl_hm2, vl_hp2
+;   +4                with VL_THRUST: vl_tx (2), vl_ty (2) (the push vector)
 ; BSS (same rule): the points as a structure of arrays, VL_NPOINTS bytes
 ; each: vl_xf vl_xl vl_xh (x 16.8, 24 bits) vl_yf vl_yh (y 8.8) and the old
 ; positions vl_oxf vl_oxl vl_oxh vl_oyf vl_oyh, declared in that order (the
 ; offset vl_oxf - vl_xf moves a point's old position with the same X);
+; with VL_Y_HIGH, vl_yu after vl_yh and vl_oyu after vl_oyh (y 16.8, 24 bits);
+; vl_pin (VL_PIN: VL_NPOINTS bytes, non-zero = pinned, set by the program);
 ; vl_gnd (VL_GROUND bytes, 1 = in contact this tick); vl_turn (signed
 ; multiplier of vl_turn_pair / vl_shift_point); vl_con_row, vl_cidx
 ; (VL_CON_VARIANTS); vl_squashed (VL_CON_MINLEN_POINT). DATA: vl_lap_len
@@ -55,7 +62,7 @@ _VERLET_INC_LOADED_ = 1
 .assert VL_NPOINTS >= 1 .and VL_NPOINTS <= 51, error, "verlet.inc: VL_NPOINTS is 1..51 (5 N < 256)"
 
 ; the tiers
-.if .defined(VL_NCON) .or .defined(VL_GROUND) .or .defined(VL_ROTATE)
+.if .defined(VL_NCON) .or .defined(VL_GROUND) .or .defined(VL_ROTATE) .or .defined(VL_THRUST)
 _VL_TIER2 = 1
 .else
 _VL_TIER2 = 0
@@ -145,6 +152,14 @@ vl_hm2:   .res 1                ; and VL_PROBE pixels to each side
 vl_hp2:   .res 1
 .endif
 .endif
+.ifdef VL_THRUST
+.ifndef vl_tx
+vl_tx:    .res 2                ; the push vector (vl_thrust_axis / _perp)
+.endif
+.ifndef vl_ty
+vl_ty:    .res 2
+.endif
+.endif
 
 .segment "BSS"
 .ifndef vl_xf
@@ -162,6 +177,11 @@ vl_yf:    .res VL_NPOINTS
 .ifndef vl_yh
 vl_yh:    .res VL_NPOINTS
 .endif
+.ifdef VL_Y_HIGH
+.ifndef vl_yu
+vl_yu:    .res VL_NPOINTS        ; y bits 16..23 (y 16.8)
+.endif
+.endif
 .ifndef vl_oxf
 vl_oxf:   .res VL_NPOINTS
 .endif
@@ -176,6 +196,16 @@ vl_oyf:   .res VL_NPOINTS
 .endif
 .ifndef vl_oyh
 vl_oyh:   .res VL_NPOINTS
+.endif
+.ifdef VL_Y_HIGH
+.ifndef vl_oyu
+vl_oyu:   .res VL_NPOINTS
+.endif
+.endif
+.ifdef VL_PIN
+.ifndef vl_pin
+vl_pin:   .res VL_NPOINTS        ; non-zero: the point is pinned
+.endif
 .endif
 .if _VL_TIER3
 .ifndef vl_gnd
@@ -240,11 +270,31 @@ vl_lap_len: .word 0
 
 ; ----------------------------------------------------------------------------
 ; VL_CEILING -- inline: no point above row >VL_CEILING_CLAMP (y = old y =
-; the ceiling: no speed upwards). Rows as unsigned bytes. X ends at $FF.
-; ~16 cycles a point.
+; the ceiling: no speed upwards). Rows as unsigned bytes (with VL_Y_HIGH: y
+; signed 24 bits, the ceiling < 256 rows). X ends at $FF. ~16 cycles a point.
 ; ----------------------------------------------------------------------------
 .macro VL_CEILING
         .assert <VL_CEILING_CLAMP = 0, error, "VL_CEILING_CLAMP: whole rows"
+.ifdef VL_Y_HIGH
+        .assert VL_CEILING_CLAMP < $10000, error, "VL_CEILING_CLAMP: < 256 rows"
+        LDX     #VL_NPOINTS-1
+:       LDA     vl_yu,X
+        BMI     :+                      ; above row 0
+        BNE     :++                     ; row 256 or below
+        LDA     vl_yh,X
+        CMP     #>VL_CEILING_CLAMP
+        BCS     :++
+:       LDA     #>VL_CEILING_CLAMP
+        STA     vl_yh,X
+        STA     vl_oyh,X
+        LDA     #0
+        STA     vl_yf,X
+        STA     vl_oyf,X
+        STA     vl_yu,X
+        STA     vl_oyu,X
+:       DEX
+        BPL     :---
+.else
         LDX     #VL_NPOINTS-1
 :       LDA     vl_yh,X
         CMP     #>VL_CEILING_CLAMP
@@ -257,6 +307,7 @@ vl_lap_len: .word 0
         STA     vl_oyf,X
 :       DEX
         BPL     :--
+.endif
 .endmacro
 
 ; ----------------------------------------------------------------------------
@@ -275,6 +326,10 @@ vl_lap_len: .word 0
         STA     vl_oyf,X
         LDA     vl_yh,X
         STA     vl_oyh,X
+.ifdef VL_Y_HIGH
+        LDA     vl_yu,X
+        STA     vl_oyu,X
+.endif
         DEX
         BPL     :-
 .endmacro

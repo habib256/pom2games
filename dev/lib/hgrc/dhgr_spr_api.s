@@ -1,15 +1,15 @@
 ; VERHILLE Arnaud — GPL-3.0. DHGR compositor calls (dhgr.h): slots,
-; palette, invalidation, area, solid background. They only record;
-; dhgr_spr_update draws (dhgr_spr_init is in dhgr_spr_update.s).
+; invalidation, solid background (the palette and the area: their own
+; members, dhgr_spr_palette.s).
+; They only record; dhgr_spr_update draws (dhgr_spr_init is in
+; dhgr_spr_update.s).
 ; cc65 C calling convention; A/X/Y, ptr1, tmp1-tmp3 destroyed; non-reentrant.
-.export _dhgr_spr_set, _dhgr_spr_palette, _dhgr_spr_invalidate
-.export _dhgr_spr_area, _dhgr_spr_solid
+.export _dhgr_spr_set, _dhgr_spr_invalidate, _dhgr_spr_solid, dhgr_spr_group
 .import _dhgr_spr_shlo, _dhgr_spr_shhi, _dhgr_spr_x, _dhgr_spr_y
-.import _dhgr_spr_x1, _dhgr_spr_y1, _dhgr_spr_flags, _dhgr_spr_dirty, _dhgr_spr_pal
+.import _dhgr_spr_x1, _dhgr_spr_y1, _dhgr_spr_flags, _dhgr_spr_dirty
 .import _dhgr_spr_rg0, _dhgr_spr_rg1, _dhgr_spr_ry0, _dhgr_spr_ry1, _dhgr_spr_add
-.import _dhgr_spr_ag0, _dhgr_spr_ag1, _dhgr_spr_ay0, _dhgr_spr_ay1
 .import _dhgr_spr_solid_c, _dhgr_spr_bg, _dhgr_cellbyte
-.import incsp3, incsp5, popa
+.import incsp3, incsp5
 .importzp sp, ptr1, tmp1, tmp2, tmp3
 
 .ifndef DHGR_SPR_MAX
@@ -117,37 +117,6 @@ endc:   sty @lim+1
 @ok:    sbc #0                  ; (C = 0: - 1)
         rts
 
-; void dhgr_spr_palette(id, four): four in A/X, id on the C stack.
-_dhgr_spr_palette:
-        sta ptr1
-        stx ptr1+1
-        jsr popa
-        cmp #MAX
-        bcs @done
-        tax
-        asl a
-        asl a
-        tay
-        sta tmp1                ; ptr1 -= 4 * id: Y = 4 * id + k for both
-        lda ptr1
-        sec
-        sbc tmp1
-        sta ptr1
-        bcs :+
-        dec ptr1+1
-:       lda #3
-        sta tmp1
-@c:     lda (ptr1),y
-        cmp _dhgr_spr_pal,y
-        beq :+
-        sta _dhgr_spr_pal,y
-        lda #1
-        sta _dhgr_spr_dirty,x
-:       iny
-        dec tmp1
-        bpl @c
-@done:  rts
-
 ; void dhgr_spr_invalidate(x, y, w, h): C stack w 0, y 1, x 2; h in A.
 _dhgr_spr_invalidate:
         sta tmp3                ; h
@@ -180,27 +149,7 @@ _dhgr_spr_invalidate:
         jsr _dhgr_spr_add
 @done:  jmp incsp3
 
-; void dhgr_spr_area(x0, y0, x1, y1): C stack x1 0, y0 1, x0 2; y1 in A.
-_dhgr_spr_area:
-        cmp #192
-        bcc :+
-        lda #191
-:       sta _dhgr_spr_ay1
-        ldy #1
-        lda (sp),y
-        sta _dhgr_spr_ay0
-        iny
-        lda (sp),y
-        jsr group_a
-        sta _dhgr_spr_ag0
-        ldy #0
-        lda (sp),y
-        cmp #140
-        bcc :+
-        lda #139
-:       jsr group_a
-        sta _dhgr_spr_ag1
-        jmp incsp3
+dhgr_spr_group:                 ; (dhgr_spr_area.s)
 group_a:
         tax
 group:  lda _dhgr_cellbyte,x    ; colour pixel X -> group (x / 7)

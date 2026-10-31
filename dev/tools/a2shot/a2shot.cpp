@@ -58,6 +58,8 @@
 // --mouse attaches an AppleMouse card in slot 4 (Apple's firmware on both
 // chips, mouse_341-0270-c.bin and mouse_341-0269.bin), --mouse=applewin the
 // same slot EPROM on AppleWin's model of the MCU. The //c needs neither.
+// --mouse-slot=N puts that AppleMouse card in slot N instead (1..7: a //e
+// with both a mouse and a Mockingboard, which keeps slot 4).
 // --mockingboard attaches a slot-4 card, including its VIA timer IRQs (on a
 // //c, the Mockingboard 4c).
 // --pal selects PAL beam timing; script frame units follow that timing.
@@ -167,6 +169,7 @@ int main(int argc, char** argv)
     bool iie = false;
     int iic = 0;                                // 16 or 32: the //c ROM size
     std::string mouse;                          // "", "mame" or "applewin"
+    int mouseSlot = 4;                          // --mouse-slot=N
     bool mockingboard = false;
     bool pal = false;
     bool stdinScript = false;
@@ -180,13 +183,14 @@ int main(int argc, char** argv)
         else if (a == "--iic16") iic = 16;
         else if (a == "--mouse") mouse = "mame";
         else if (a == "--mouse=applewin") mouse = "applewin";
+        else if (a.rfind("--mouse-slot=", 0) == 0) mouseSlot = std::atoi(a.c_str() + 13);
         else if (a == "--pal") pal = true;
         else if (a == "--mockingboard") mockingboard = true;
         else if (a == "--stdin") stdinScript = true;
         else script.push_back(a);
     }
     if (disk.empty()) {
-        std::fprintf(stderr, "usage: a2shot [--iie|--iic|--iic16] [--pal] [--mockingboard] [--mouse[=applewin]]\n"
+        std::fprintf(stderr, "usage: a2shot [--iie|--iic|--iic16] [--pal] [--mockingboard] [--mouse[=applewin]] [--mouse-slot=N]\n"
                              "              [--roms DIR] --disk X.dsk step...\n");
         return 2;
     }
@@ -230,7 +234,7 @@ int main(int argc, char** argv)
         std::fprintf(stderr, "Mockingboard: %s\n", core.lastError().c_str());
         return 1;
     }
-    if (!mouse.empty() && (iic || !core.attachMouse(4, mouse == "applewin"
+    if (!mouse.empty() && (iic || !core.attachMouse(mouseSlot, mouse == "applewin"
                                                           ? pom2::MouseModel::AppleMouseAppleWin
                                                           : pom2::MouseModel::AppleMouse, roms))) {
         std::fprintf(stderr, "mouse: %s\n", iic ? "the //c has its own" : core.lastError().c_str());

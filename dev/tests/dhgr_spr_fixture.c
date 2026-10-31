@@ -1,15 +1,25 @@
 /* DHGR compositor fixture (test_dhgr_spr.py): plays the generated op list in
  * dhgr_spr_ops.inc; every update sits between begin() and end() and waits
- * for a key, so the host can watch its screen stores and dump both banks. */
+ * for a key, so the host can watch its screen stores and dump both banks.
+ * FIXTURE_DOUBLE (DHGR_SPR_DOUBLE): draws on page 2 first, each update is
+ * followed by dhgr_spr_present() inside the window (a2_vbl_init first).
+ * FIXTURE_VBL (DHGR_SPR_VBL): a2_vbl_init first. */
 #include "dhgr.h"
 #include "apple2io.h"
+#if defined(FIXTURE_DOUBLE) || defined(FIXTURE_VBL)
+#include "apple2vbl.h"
+#endif
 #include "dhgr_spr_ops.inc"     /* CANVAS_BYTES, CANVAS_GROUPS, shapes, ops, tiles */
 
 void begin(void);
 void end(void);
 void irq_on(void);
 static unsigned char canvas[CANVAS_BYTES];
+#ifdef FIXTURE_DOUBLE
+static unsigned char under[254 + 2 * 127];   /* page 2 from under + 254 */
+#else
 static unsigned char under[2 * 127];
+#endif
 static unsigned char cell_x, cell_y, cell_h;
 
 /* A cell: its colour, and a detail colour inside if the high nibble is set. */
@@ -36,6 +46,12 @@ int main(void)
     if (dhgr_spr_init(canvas, 0u, 1u) || dhgr_spr_init(canvas, 70u, 21u)) return 2;
     if (!dhgr_spr_init(canvas, CANVAS_BYTES, CANVAS_GROUPS)) return 3;
     if (dhgr_spr_set(DHGR_SPR_MAX, shapes, 0u, 0u, 0u)) return 4;
+#if defined(FIXTURE_DOUBLE) || defined(FIXTURE_VBL)
+    a2_vbl_init();
+#endif
+#ifdef FIXTURE_DOUBLE
+    dhgr_draw_page(2);
+#endif
     irq_on();
     for (;;) {
         switch (*p++) {
@@ -51,6 +67,9 @@ int main(void)
         case 5:
             begin();
             dhgr_spr_update();
+#ifdef FIXTURE_DOUBLE
+            dhgr_spr_present();
+#endif
             end();
             apple2_getkey();
             break;
