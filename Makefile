@@ -37,9 +37,12 @@ DIRS += dev/examples/halfpipe
 # Verlet rope toy (pins, fixed-gain links, ground) and catapult (circle
 # contacts), lib/physics demos: their disks stay in their build/.
 DIRS += dev/examples/rope dev/examples/catapult
+# CUTROPE, a "Cut the Rope"-like on lib/physics ropes (its disk in dist/).
+DIRS += cutrope
 # Programs whose own `make test` / `make test-long` belong to the root tiers.
 TESTED := pinball chromabreak arkabreakout chess micro-sokoban light3dball wilderness logo mbtracker dirtbike \
           wargalagaii snake robotspacestation rogue
+TESTED += cutrope
 
 all:
 	@for d in $(DIRS); do $(MAKE) -C $$d || exit 1; done
