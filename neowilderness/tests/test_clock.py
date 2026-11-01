@@ -39,14 +39,14 @@ def main():
                 (18 + 59/60, '18:59', '6:59P'),
                 (23.99999999, '0:00', '12:00A'),
                 (0, '0:00', '12:00A')):
-            for offset, value in enumerate(encode(hour)):
-                s.step(L.poke('s_hour', value, offset))
+            for step in L.poke('s_hour', encode(hour)):
+                s.step(step)
             displays(s, header, status)
         # Journey day of the right panel: day of year - 125, + 365 across
         # New Year (the crash of May 6 is day 1); 16-bit from September 12.
         for date, expected in ((0.34442, 1), (299.5 / 365, 175), (364.5 / 365, 240), (0, 241)):
-            for offset, value in enumerate(encode(date)):
-                s.step(L.poke('s_date', value, offset))
+            for step in L.poke('s_date', encode(date)):
+                s.step(step)
             s.step(L.poke('ui_dirty', 1))
             command(s, 'VIEW')
             actual = panels(s.step('peek:2000:8192').data)[2]

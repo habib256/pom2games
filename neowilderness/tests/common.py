@@ -367,7 +367,7 @@ POSTITS = {
 
 def raw_cell(mem, row, col):
     """The screen code of a cell of the 80-column page (a merged dump)."""
-    o = (row % 8) * 128 + (row // 8) * 40
+    o = a2test.text_offset(row)
     return mem[1024 + o + col // 2] if col % 2 == 0 else mem[o + col // 2]
 
 
@@ -457,11 +457,7 @@ def text_screen(mem):
     ($40-$5F) reads as the characters of MOUSETEXT."""
     lines = []
     wide = text80(mem)
-    for r in range(24):
-        o = (r % 8) * 128 + (r // 8) * 40
-        cells = mem[o:o + 40]
-        if wide:
-            cells = bytes(b for pair in zip(mem[1024 + o:1024 + o + 40], cells) for b in pair)
+    for cells in a2test.text_rows(mem, cols=80 if wide else 40):
         # Inverse uppercase letters occupy $00..$1F on the Apple II.
         lines.append(''.join(MOUSETEXT[c] if wide and c in MOUSETEXT
                              else chr((c & 0x7F) + 0x40 if c & 0x7F < 0x20 else c & 0x7F)
@@ -515,7 +511,7 @@ def text_changes(before, after, rows=range(24)):
     """Changed text cells between two text dumps (both pages when merged)."""
     pages = (0, 1024) if len(before) == len(after) == 2049 else (0,)
     return sum(before[p + o + c] != after[p + o + c] for p in pages for row in rows
-               for o in [(row % 8) * 128 + (row // 8) * 40] for c in range(40))
+               for o in [a2test.text_offset(row)] for c in range(40))
 
 
 MAP_CUE = re.compile(r' (\d+ MIN )?\d+,\d+ HEAD \d+ DEG MAG (N |NE|E |SE|S |SW|W |NW)( P\+[CHR])? ')

@@ -62,8 +62,8 @@ def f(s, name):
 
 
 def poke(s, name, value, k=0):
-    for i, v in enumerate(value if isinstance(value, (bytes, list)) else [value]):
-        s.step(L.poke(name, v, k + i))
+    for step in L.poke(name, value if isinstance(value, (bytes, list)) else [value], k):
+        s.step(step)
 
 
 def lehmer(seed):
@@ -164,13 +164,13 @@ def thermal():
         code += [0x20, L[t] & 255, L[t] >> 8]
     code += [0x4C, L['idle'] & 255, L['idle'] >> 8]
     load = [0x20, L['thermal'] & 255, L['thermal'] >> 8, 0x4C, L['idle'] & 255, L['idle'] >> 8]
-    steps = [idle] + [f'poke:{L["idle"] + i:04X}:{v:02X}' for i, v in enumerate(load)]
+    steps = [idle] + a2test.pokes(L["idle"], load)
     steps += [L.poke(n, v, i) for n, x in (('s_metabolic', 1.65), ('s_step', 0)) for i, v in enumerate(encode(x))]
-    steps += [f'until:{L["idle"] + 3:04X}:6000', idle] + [f'poke:{L["idle"] + i:04X}:{v:02X}' for i, v in enumerate(code)]
+    steps += [f'until:{L["idle"] + 3:04X}:6000', idle] + a2test.pokes(L["idle"], code)
     steps += [L.poke('fire_near', 1)]
     for c in rom:
         for n, x in (('s_insul', c['index']), ('s_metabolic', 1.65), ('s_body', 98.6), ('s_step', 60)):
-            steps += [L.poke(n, v, i) for i, v in enumerate(encode(x))]
+            steps += L.poke(n, encode(x))
         steps += [L.poke('felt_temp', c['air'] & 255), L.poke('felt_temp', (c['air'] >> 8) & 255, 1), L.poke('wet_mode', 0),
                   L.poke('shelter_inside', 0), done, L.peek('s_therm_rate', 5), L.peek('s_body', 5), idle]
     r = a2test.run(DISK, steps, emulator=a2test.A2SHOT, timeout=900)
@@ -317,13 +317,13 @@ def giardia():
         level = 10                                        # the cell at 1,000 ft above the base
         s.step(f'poke:{0x7000 + 64 + y * 112 + x:04X}:{level:02X}')
         code = [0x20, L['thermal'] & 255, L['thermal'] >> 8, 0x4C, L['idle'] & 255, L['idle'] >> 8]
-        for i, v in enumerate(code):
-            s.step(f'poke:{L["idle"] + i:04X}:{v:02X}')
+        for step in a2test.pokes(L["idle"], code):
+            s.step(step)
         s.step(f'until:{L["idle"] + 3:04X}:6000')
         s.step(idle)
         code = [0x20, L['water_hazard'] & 255, L['water_hazard'] >> 8, 0x4C, L['idle'] & 255, L['idle'] >> 8]
-        for i, v in enumerate(code):
-            s.step(f'poke:{L["idle"] + i:04X}:{v:02X}')
+        for step in a2test.pokes(L["idle"], code):
+            s.step(step)
         for feet in (2000, 10000):
             s.step(f'poke:700A:{feet // 100 - level:02X}')     # M_BASE = MAP + 10
             p = .2 / (feet / 100 / 10)

@@ -58,8 +58,8 @@ def main():
         for ident, (name, expected) in enumerate(texts, 1):
             code = bytes((0xA9, ident, 0x20, L['text_fetch'] & 255,
                           L['text_fetch'] >> 8, 0x4C, stub & 255, stub >> 8))
-            for i, value in enumerate(code):
-                s.step(f'poke:{stub+i:04X}:{value:02X}')
+            for step in a2test.pokes(stub, code):
+                s.step(step)
             s.step(done)
             actual = s.step(L.peek('tb_buf', len(expected))).data
             assert actual == expected, (ident, name, actual, expected)

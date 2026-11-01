@@ -22,6 +22,9 @@ DEV ?= ../dev
 APPLE2_PRESET := iie
 include $(DEV)/cc65/apple2.mk
 PRODOS := $(DEV)/lib/prodos
+# Analysis and build tools shared with Wilderness: one copy there, run here
+# through the tools/ and tests/ shims of the same names.
+WTOOLS := ../wilderness/tools
 
 DISK := $(DIST)/NEOWILDERNESSXL.po
 WOZ :=                          # 800K 3.5": no 5.25" WOZ
@@ -80,7 +83,7 @@ $(BUILD)/map.args: FORCE
 	@mkdir -p $(@D)
 	@echo "$(SEED) $(LEVEL)" | cmp -s - $@ || echo "$(SEED) $(LEVEL)" > $@
 
-$(MAPBIN): tools/mkmap.py tools/topo.py $(BUILD)/map.args
+$(MAPBIN): tools/mkmap.py $(WTOOLS)/topo.py $(BUILD)/map.args
 	@mkdir -p $(@D)
 	$(PYTHON) -I $< --seed $(SEED) --level $(LEVEL) $@ $(BUILD)/map.png
 
@@ -95,10 +98,10 @@ $(BUILD)/hud.inc: tools/genhud.py tools/dhgr_font.py
 $(BUILD)/summary_font.inc: tools/gen_summary_font.py tools/dhgr_font.py
 	$(PYTHON) -I $< $@
 
-$(BUILD)/sky_ephemeris.inc: tools/sky_ephemeris.py
+$(BUILD)/sky_ephemeris.inc: $(WTOOLS)/sky_ephemeris.py
 	$(PYTHON) -I $< $@
 
-$(BUILD)/forest_profiles.inc: tools/genforest.py
+$(BUILD)/forest_profiles.inc: $(WTOOLS)/genforest.py
 	$(PYTHON) -I $< $@
 
 # The Sierra tables are linked into WILDGAME; every region's tables (lot 7,
@@ -109,7 +112,7 @@ $(BUILD)/dhgr_tables.inc: tools/gendhgr.py tools/dhgr_palette.py
 
 # Night stars (lot 7 step 5, docs/STARS.md): catalogue and tables of the
 # hourly module wildsky.bin.
-$(BUILD)/stars_tables.inc: tools/genstars.py tools/stars_ref.py tools/stars_catalog.py tools/sky_ephemeris.py tools/dhgr_palette.py
+$(BUILD)/stars_tables.inc: tools/genstars.py tools/stars_ref.py tools/stars_catalog.py $(WTOOLS)/sky_ephemeris.py tools/dhgr_palette.py
 	@mkdir -p $(@D)
 	$(PYTHON) -I $< $@
 
@@ -139,7 +142,7 @@ SPRITE_NAMES := wreck cabin bear cougar rattlesnake grizzly_bc wolf_bc moose_bc 
 SPRITE_BINS := $(addprefix $(BUILD)/original_graphics/,$(addsuffix .bin,$(SPRITE_NAMES)))
 
 # GNU make 3.81 on macOS: one extraction, then timestamp its five outputs.
-$(BUILD)/original_graphics/.done: tools/re_graphics.py tools/smalldos.py $(BUILD)/JOURNEY.dsk
+$(BUILD)/original_graphics/.done: tools/re_graphics.py $(WTOOLS)/smalldos.py $(BUILD)/JOURNEY.dsk
 	$(PYTHON) tools/re_graphics.py
 	@touch $@
 
@@ -156,7 +159,7 @@ $(BUILD)/NEOWILD.HOF: tools/genhof.py tools/score_ref.py
 $(BUILD)/JOURNEY.dsk: original/extras/Wilderness\ -\ Journey.a2r
 	$(PYTHON) -I $(DEV)/tools/re6502/flux2dsk.py "$<" $@
 
-$(DISKXL): $(BIN) $(BUILD)/NEOWILD.HOF $(BUILD)/dhgr_tables.inc $(MAPBIN) $(REGION_MAPS) $(BUILD)/regions/regions.json $(SPRITE_BINS) $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py tools/build_disk.py tools/pack_boot.py tools/geo_atlas.py Makefile
+$(DISKXL): $(BIN) $(BUILD)/NEOWILD.HOF $(BUILD)/dhgr_tables.inc $(MAPBIN) $(REGION_MAPS) $(BUILD)/regions/regions.json $(SPRITE_BINS) $(DEV)/tools/prodos/PRODOS $(DEV)/tools/prodos/boot.bin $(DEV)/tools/prodos/build_volume.py tools/build_disk.py $(WTOOLS)/pack_boot.py tools/geo_atlas.py Makefile
 	@mkdir -p $(DIST)
 	$(PYTHON) -I tools/build_disk.py --out $(DISKXL) --build $(BUILD) --packing $(BOOT_PACKING) --edition xl --layout $(BUILD)/layout.json
 
@@ -413,7 +416,7 @@ extract: originals
 run-original: extract
 	$(A2SHOT) --disk build/SIERRA.woz wait:5400 shot:build/menu.png peek:0000:0xC000 2>/dev/null \
 	  | python3 -I $(DEV)/tools/re6502/peek2bin.py > build/menu.bin
-	python3 -I -c 'import sys; sys.path.insert(0, "tools"); import applesoft as A; \
+	python3 -I -c 'import sys; sys.path.insert(0, "$(DEV)/tools"); import applesoft as A; \
 	  m = open("build/menu.bin", "rb").read(); e = m[0x69] | m[0x6A] << 8; \
 	  print("\n".join(A.listing(m[0x800:e])))' > build/MENU.bas
 
@@ -442,10 +445,10 @@ topo: extract
 $(BUILD)/SIERRA.dsk: $(PROGRAM_WOZ)
 	$(PYTHON) -I $(DEV)/tools/re6502/flux2dsk.py $< $@
 
-$(BUILD)/regions/regions.json: tools/regions.py tools/smalldos.py $(BUILD)/SIERRA.dsk
+$(BUILD)/regions/regions.json: tools/regions.py $(WTOOLS)/smalldos.py $(BUILD)/SIERRA.dsk
 	$(PYTHON) -I tools/regions.py
 
-$(BUILD)/maps/r%.bin: tools/mkmap.py tools/regions.py tools/topo.py $(BUILD)/regions/regions.json
+$(BUILD)/maps/r%.bin: tools/mkmap.py tools/regions.py $(WTOOLS)/topo.py $(BUILD)/regions/regions.json
 	$(PYTHON) -I tools/mkmap.py --region $* $@ $(BUILD)/maps/r$*.png
 
 regions: $(BUILD)/regions/regions.json $(BUILD)/original_graphics/.done $(REGION_MAPS)

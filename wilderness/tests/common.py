@@ -60,10 +60,9 @@ def hgr_rows(page, start=0, stop=176):
 def text_screen(mem40x24):
     """24 lines of the text page from a $0400-$07FF dump."""
     lines = []
-    for r in range(24):
-        o = (r % 8) * 128 + (r // 8) * 40
+    for row in a2test.text_rows(mem40x24):
         # Inverse uppercase letters occupy $00..$1F on the Apple II.
-        chars=[c & 0x7F for c in mem40x24[o:o + 40]]
+        chars=[c & 0x7F for c in row]
         lines.append(bytes(c+0x40 if c<0x20 else c for c in chars).decode('latin1'))
     return lines
 

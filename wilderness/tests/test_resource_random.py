@@ -18,8 +18,8 @@ def main():
     steps = [idle]+call(['env_hour'])+[done, idle]
     steps += call(['stationary_resources'])+[done, idle]+call(['resource_scan'])
     for seed, env, verb in cases:
-        steps += [L.poke('weather_seed', b, i) for i, b in enumerate(seed.to_bytes(4, 'little'))]
-        steps += [L.poke('fauna_env', b, i) for i, b in enumerate(env)]
+        steps += L.poke('weather_seed', seed.to_bytes(4, 'little'))
+        steps += L.poke('fauna_env', env)
         steps += [L.poke('act', 2), L.poke('verb', verb), L.poke('resource_seen', 0),
                   done, L.peek('weather_seed', 4), idle]
     port = a2test.run(DISK, steps, emulator=a2test.A2SHOT, timeout=900)
@@ -30,8 +30,8 @@ def main():
                           bytes.fromhex('A2 05 A0 07 20 1F 5D 4C 00 08'), [('RNG', rng, 0x0321)])
         steps = ['until:0800:20000', 'poke:000A:00', 'poke:4B75:00', 'poke:603F:04']
         for seed, env, verb in cases:
-            steps += [f'poke:{0x03B9+i:04X}:{b:02X}' for i, b in enumerate(seed.to_bytes(4, 'little'))]
-            steps += [f'poke:{0x4ADA+i:04X}:{b:02X}' for i, b in enumerate(env)]
+            steps += a2test.pokes(0x03B9, seed.to_bytes(4, 'little'))
+            steps += a2test.pokes(0x4ADA, env)
             steps += [f'poke:0003:{verb:02X}', 'until:0807:1000', 'peek:03B9:4', 'until:0800:1000']
         native = a2test.run(disk, steps, emulator=a2test.A2SHOT, timeout=900)
         for i, case in enumerate(cases):

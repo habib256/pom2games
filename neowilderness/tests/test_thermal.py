@@ -6,7 +6,7 @@ from gendata import fp as encode, ITEMS
 
 
 def poke(name, value):
-    return [L.poke(name, b, i) for i, b in enumerate(encode(value))]
+    return L.poke(name, encode(value))
 
 
 def call(targets):
@@ -16,7 +16,7 @@ def call(targets):
         a = L[target]
         code += bytes((0x20, a & 255, a >> 8))
     code += bytes((0x4C, addr & 255, addr >> 8))
-    return [f'poke:{addr+i:04X}:{b:02X}' for i, b in enumerate(code)]
+    return a2test.pokes(addr, code)
 
 
 def scalar(air, index, metabolic):

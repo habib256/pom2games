@@ -21,11 +21,12 @@ stage directory + build_volume.py subprocess they replace).
 from pathlib import Path
 import re
 import subprocess
+import sys
 import queue
 import threading
 import tempfile
 import time
-from hgr_tables import hgr_offset
+from hgr_tables import hgr_offset, text_offset  # noqa: F401 (re-exported)
 
 ROOT = Path(__file__).resolve().parents[2]
 DEV = ROOT / 'dev'
@@ -34,6 +35,8 @@ A2SHOT = DEV / 'tools/a2shot/a2shot'
 CPU_HZ = 1_020_484          # Apple II average clock (65 x 14.318 MHz / 14 ... )
 
 _LABEL = re.compile(r'^al ([0-9A-Fa-f]+) \.(\w+)$', re.M)
+_LABEL_ANY = re.compile(r'^al ([0-9A-Fa-f]+) \.(\S+)$', re.M)
+_GAME = None
 
 
 class Labels(dict):
@@ -43,23 +46,67 @@ class Labels(dict):
         return f'peek:{self[name] + offset:04X}:{length}'
 
     def poke(self, name, value, offset=0):
-        return f'poke:{self[name] + offset:04X}:{value & 0xFF:02X}'
+        """One poke step for an int; a list of them (one per byte, from the
+        label on) for bytes or a sequence of ints. Values are masked to 8 bits."""
+        if isinstance(value, int):
+            return f'poke:{self[name] + offset:04X}:{value & 0xFF:02X}'
+        return pokes(self[name] + offset, [v & 0xFF for v in value])
 
     def until(self, name, limit=3000):
         return f'until:{self[name]:04X}:{limit}'
 
 
-def labels(path, strip=False, prefix=''):
-    """Read an ld65 label file. strip=True also registers C symbols without
-    their leading underscore; prefix keeps only names starting with it."""
+def label_pairs(path, any_name=False):
+    """[(name, address)] of an ld65 -Ln file in file order, duplicates kept.
+    Names are \\w+ (C and assembler symbols); any_name=True also keeps the
+    others (\\S+: cheap locals, macro and scope names)."""
+    rx = _LABEL_ANY if any_name else _LABEL
+    return [(name, int(addr, 16)) for addr, name in rx.findall(Path(path).read_text())]
+
+
+def labels(path, strip=False, prefix='', any_name=False):
+    """Read an ld65 label file (a duplicated name keeps its last address).
+    strip=True also registers C symbols without their leading underscore;
+    prefix keeps only names starting with it; any_name: see label_pairs."""
     out = Labels()
-    for addr, name in _LABEL.findall(Path(path).read_text()):
+    for name, addr in label_pairs(path, any_name):
         if not name.startswith(prefix):
             continue
-        out[name] = int(addr, 16)
+        out[name] = addr
         if strip and name.startswith('_'):
             out[name[1:]] = out[name]
     return out
+
+
+def pokes(addr, data):
+    """poke: steps writing the bytes `data` (bytes or ints) from `addr` on."""
+    return [f'poke:{addr + i:04X}:{b:02X}' for i, b in enumerate(data)]
+
+
+def game_dir(default, doc=None):
+    """The game folder a tool shared by several games works on (wilderness/
+    and neowilderness/ run one copy of their analysis probes): `--game DIR`
+    from the command line (taken out of sys.argv, so the tool's own argument
+    parsing is unchanged; remembered for the modules it imports), else
+    `default`, the tool's own game. doc: a script's __doc__, printed with the
+    option on -h/--help (leave None in an imported module)."""
+    global _GAME
+    if _GAME is None:
+        argv = sys.argv
+        for i in range(1, len(argv)):
+            if argv[i] == '--game' and i + 1 < len(argv):
+                _GAME = Path(argv[i + 1]).resolve()
+                del argv[i:i + 2]
+                break
+            if argv[i].startswith('--game='):
+                _GAME = Path(argv[i][7:]).resolve()
+                del argv[i]
+                break
+    if doc is not None and any(a in ('-h', '--help') for a in sys.argv[1:]):
+        print(doc.strip() + f'\n\n  --game DIR  the game folder (its build/, tools/, tests/);'
+              f' default {Path(default).resolve()}')
+        sys.exit(0)
+    return _GAME or Path(default).resolve()
 
 
 def escape(steps):
@@ -318,6 +365,31 @@ def hgr_visible(page):
     return b''.join(page[hgr_offset(y):hgr_offset(y) + 40] for y in range(192))
 
 
+def text_rows(mem, page=0x400, cols=40, base=None):
+    """The 24 rows of a text page from peeked memory, as bytes (screen codes).
+
+    mem: bytes holding the page from `base` on (default `page`: the data of a
+    `peek:0400:1024`), e.g. base=0 for a whole RAM image; or a Result, read
+    at `page`. cols=80: mem is a merged 80-column dump, the main page then the
+    auxiliary one 1024 bytes on; each row interleaves aux (even columns) and
+    main (odd columns)."""
+    if isinstance(mem, Result):
+        if cols != 40:
+            raise ValueError('text_rows: an 80-column Result needs a merged dump')
+        mem, base = mem.mem(page, 1024), page
+    at = page - (page if base is None else base)
+    rows = []
+    for row in range(24):
+        o = at + text_offset(row)
+        if cols == 40:
+            rows.append(bytes(mem[o:o + 40]))
+        elif cols == 80:
+            rows.append(bytes(b for pair in zip(mem[1024 + o:1024 + o + 40], mem[o:o + 40]) for b in pair))
+        else:
+            raise ValueError('text_rows: cols must be 40 or 80')
+    return rows
+
+
 def page_dump(block):
     """Join the [2345]xxx: lines of a 16 KB `peek:2000:16384` into bytes."""
     return bytes.fromhex(' '.join(re.findall(r'(?m)^[2345][0-9A-Fa-f]{3}: ([0-9A-Fa-f ]+)$', block)))
@@ -329,14 +401,32 @@ def bin_steps(binary, load=0x6000, start=None):
     return [f'load:{binary}@{load:04X}', f'go:{load if start is None else start:04X}']
 
 
-def build_disk(work, name, binary, load=0x6000, extra=()):
-    """A bootable DOS 3.3 disk that BRUNs `binary` as NAME (test programs)."""
+def build_disk(work, name, binary, load=0x6000, extra=(), bload=(), disk=None):
+    """A bootable DOS 3.3 disk whose HELLO BLOADs the `bload` files in order,
+    then BRUNs `binary` as NAME (test programs, probe disks).
+
+    binary and each bload entry (NAME, file, addr) are a path or bytes (bytes
+    are written to work/<name>.bin first). extra: more `NAME=path@addr` specs,
+    stored but not loaded. Disk order: bload files, NAME, extra. The HELLO is
+    work/hello.bas, numbered 10, 20...; disk: the image (default work/NAME.dsk)."""
     work = Path(work)
+
+    def stored(file_name, data):
+        if isinstance(data, (bytes, bytearray)):
+            path = work / f'{file_name.lower()}.bin'
+            path.write_bytes(data)
+            return path
+        return data
+
+    lines = [f'BLOAD {n}' for n, _, _ in bload] + [f'BRUN {name}']
     hello = work / 'hello.bas'
-    hello.write_text(f'10 PRINT CHR$(4);"BRUN {name}"\n')
-    disk = work / f'{name}.dsk'
+    hello.write_text(''.join(f'{10 * (i + 1)} PRINT CHR$(4);"{line}"\n' for i, line in enumerate(lines)))
+    disk = Path(disk) if disk else work / f'{name}.dsk'
     args = ['python3', str(DEV / 'tools/dos33.py'), '--master', str(DEV / 'tools/dos33_system.bin'),
-            '--out', str(disk), '--bas', f'HELLO={hello}', '--bin', f'{name}={binary}@0x{load:04X}']
+            '--out', str(disk), '--bas', f'HELLO={hello}']
+    for n, data, addr in bload:
+        args += ['--bin', f'{n}={stored(n, data)}@0x{addr:04X}']
+    args += ['--bin', f'{name}={stored(name, binary)}@0x{load:04X}']
     for spec in extra:
         args += ['--bin', spec]
     subprocess.run(args, check=True, capture_output=True, text=True)

@@ -13,6 +13,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+from fonts import write_if_changed  # noqa: E402
 from model import MISSIONS, OBJECTS, room_objects, room_start, room_tiles
 
 RECORD = 256
@@ -31,12 +33,6 @@ def record(room):
     data = bytes(starts + packed)
     assert len(data) <= RECORD
     return data.ljust(RECORD, b'\0')
-
-
-def write_if_changed(path, data):
-    path = Path(path)
-    if not path.exists() or path.read_bytes() != data:
-        path.write_bytes(data)
 
 
 header = '\n'.join([

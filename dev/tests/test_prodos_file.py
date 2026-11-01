@@ -217,8 +217,7 @@ def invoke(binary, labels, fn, buf=0x2000, length=0x100, errors=(), actual=0x100
         steps.append(f'poke:{addr:04X}:{(addr ^ 0xA5):02X}')
     # Deliberately nonuniform allocation bits and guards on both sides.
     bitmap = bytes((i * 37 + 0xA5) & 255 for i in range(26))
-    for i, value in enumerate(bitmap):
-        steps.append(f'poke:{0xBF57+i:04X}:{value:02X}')
+    steps += a2test.pokes(0xBF57, bitmap)
     word('pf_buf', buf)
     word('pf_len', length)
     word('pf_got', stale)

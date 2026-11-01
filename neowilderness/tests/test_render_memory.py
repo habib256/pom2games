@@ -11,8 +11,8 @@ def main():
     # Distinct patterns in the main and aux banks (aux written through PAGE2).
     original=[bytes((i*37+19)&255 for i in range(8192)), bytes((i*53+7)&255 for i in range(8192))]
     steps=[idle]+call(['clear_rows'])
-    steps += [f'poke:{0x2000+i:04X}:{v:02X}' for i,v in enumerate(original[0])]
-    steps += ['poke:C055:00']+[f'poke:{0x2000+i:04X}:{v:02X}' for i,v in enumerate(original[1])]+['poke:C054:00']
+    steps += a2test.pokes(0x2000, original[0])
+    steps += ['poke:C055:00']+a2test.pokes(0x2000, original[1])+['poke:C054:00']
     ranges=[(0,10),(30,40),(10,30),(0,40)]
     for first,last in ranges:
         steps += [L.poke('tmp',first),L.poke('tmp2',last),

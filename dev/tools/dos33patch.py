@@ -20,11 +20,11 @@ the entries must fill it exactly (a missing file or a longer save file
 would leave the game a wrong table).
 """
 import argparse
-import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import a2test  # noqa: E402
 import dos33  # noqa: E402
 
 
@@ -65,7 +65,7 @@ def main():
     a = p.parse_args()
     if any(len(t) < 3 for t in a.tslist):
         p.error('--tslist LABEL_T LABEL_S FILE...')
-    labels = {n: int(v, 16) for v, n in re.findall(r'^al ([0-9A-F]+) \.(\w+)$', a.labels.read_text(), re.M)}
+    labels = a2test.labels(a.labels)
     image = bytearray(a.disk.read_bytes())
     patch(image, a.program, labels, a.tslist, a.sectors)
     a.disk.write_bytes(bytes(image))

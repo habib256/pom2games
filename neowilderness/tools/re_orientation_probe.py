@@ -43,7 +43,7 @@ def mbf(b):
 def rows(blob):
     out = []
     for r in range(20, 24):
-        o = 0x400 + (r % 8) * 128 + (r // 8) * 40 - 0x650
+        o = 0x400 + a2test.text_offset(r) - 0x650
         out.append(bytes(c & 0x7F for c in blob[o:o + 40]).decode('latin1').rstrip())
     return ' | '.join(x for x in out if x)
 
@@ -133,11 +133,9 @@ def light_range():
     state[0x1800:0x1800 + len(module)] = module
     (out / 'state.bin').write_bytes(state)
     (out / 'driver.bin').write_bytes(bytes((0x20, 0x86, 0x58, 0x4c, 0, 8)))
-    (out / 'hello.bas').write_text('10 PRINT CHR$(4);"BLOAD STATE"\n20 PRINT CHR$(4);"BRUN DRIVER"\n')
     d = out / 'range.dsk'
-    subprocess.run([sys.executable, str(HERE.parent / 'dev/tools/dos33.py'), '--out', str(d), '--bas',
-                    f'HELLO={out / "hello.bas"}', '--bin', f'STATE={out / "state.bin"}@0x4000', '--bin',
-                    f'DRIVER={out / "driver.bin"}@0x0800'], check=True, capture_output=True)
+    a2test.build_disk(out, 'DRIVER', out / "driver.bin", 0x0800, disk=d,
+                      bload=[('STATE', out / "state.bin", 0x4000)])
     cases = [(phase, v) for phase in (0, 1) for v in (24, 60, 100, 138, 139, 140, 162, 163, 164, 200, 240)]
     steps = ['until:0800:20000']
     for phase, v in cases:
@@ -200,16 +198,11 @@ def look_module():
     (out / 'low.bin').write_bytes(low)
     (out / 'rnd.bin').write_bytes(rnd)
     (out / 'driver.bin').write_bytes(bytes((0x20, 0x00, 0x58, 0x4c, 0, 8)))
-    (out / 'hello.bas').write_text('10 PRINT CHR$(4);"BLOAD STATE"\n20 PRINT CHR$(4);"BLOAD LOW"\n'
-                                   '30 PRINT CHR$(4);"BLOAD RND"\n40 PRINT CHR$(4);"BRUN DRIVER"\n')
     d = out / 'look.dsk'
-    subprocess.run([sys.executable, str(HERE.parent / 'dev/tools/dos33.py'), '--out', str(d), '--bas',
-                    f'HELLO={out / "hello.bas"}', '--bin', f'STATE={out / "state.bin"}@0x4000',
-                    '--bin', f'LOW={out / "low.bin"}@0x0D2A', '--bin', f'RND={out / "rnd.bin"}@0x0321',
-                    '--bin', f'DRIVER={out / "driver.bin"}@0x0800'], check=True, capture_output=True)
+    a2test.build_disk(out, 'DRIVER', out / "driver.bin", 0x0800, disk=d,
+                      bload=[('STATE', out / "state.bin", 0x4000), ('LOW', out / "low.bin", 0x0D2A), ('RND', out / "rnd.bin", 0x0321)])
 
-    def poke(addr, data):
-        return [f'poke:{addr + i:04X}:{b:02X}' for i, b in enumerate(data)]
+    poke = a2test.pokes
 
     def common(noun, compass, watch, shadow, hour, heading=128):
         return (poke(5, [noun, 14]) + poke(0x0D5E, [0]) + poke(0x40CD, [compass, watch]) + poke(0x4B4A, [shadow])

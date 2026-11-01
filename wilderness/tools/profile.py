@@ -5,15 +5,15 @@ Boots the disk, types the command KEY (default V, the full view) and profiles
 what it draws with a2shot's pcprof step, from view_full (or the command) to
 the next command line; cycles are summed per label of build/wild.lbl.
 """
-import re, subprocess, sys
+import subprocess, sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE.parent / 'dev/tools'))
 import a2profile  # noqa: E402
 key = sys.argv[1] if len(sys.argv) > 1 else 'V'
-labs = sorted((int(a, 16), n) for a, n in
-              re.findall(r'^al ([0-9A-F]+) \.(\S+)$', (HERE / 'build/wild.lbl').read_text(), re.M)
+import a2test  # noqa: E402
+labs = sorted((a, n) for n, a in a2test.label_pairs(HERE / 'build/wild.lbl', any_name=True)
               if not n.startswith('__'))
 L = {n: a for a, n in labs}
 out = subprocess.run([str(HERE.parent / 'dev/tools/a2shot/a2shot'), '--disk', str(HERE.parent / 'wilderness/build/WILDERNESS.dsk'),

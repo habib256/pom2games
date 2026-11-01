@@ -33,8 +33,8 @@ def main():
         entry, routine = L['idle'], L['row_negative']
         code = bytes((0xA2, 0, 0x20, routine & 255, routine >> 8,
                       0x9D, 0, 0x95, 0xE8, 0xD0, 0xF7))
-        for i, value in enumerate(code):
-            s.step(f'poke:{entry+i:04X}:{value:02X}')
+        for step in a2test.pokes(entry, code):
+            s.step(step)
         s.step(f'until:{entry+len(code):04X}:100')
         rows = s.step('peek:9500:256').data
         assert rows == bytes(95+(3*q+15)//16 for q in range(256))
@@ -61,8 +61,8 @@ def main():
             else:
                 call = (0xA9, index, 0x20, L['overlay_load'] & 255, L['overlay_load'] >> 8)
             code = bytes(call + (0x4C, entry & 255, entry >> 8))
-            for i, b in enumerate(code):
-                s.step(f'poke:{entry+i:04X}:{b:02X}')
+            for step in a2test.pokes(entry, code):
+                s.step(step)
             s.step(L.poke('overlay_current', 0))
             s.step(L.poke('sim_loaded', 0))
             limit = window + (0x2000 if window != 0x5800 else 0x800)
@@ -85,8 +85,8 @@ def main():
             reply = s.step(f'until:{back:04X}:200')
             end = reply.cycles[-1]
             if bitmap is not None:
-                for i, b in enumerate(bitmap):
-                    s.step(f'poke:{0xBF6A + i:04X}:{b:02X}')
+                for step in a2test.pokes(0xBF6A, bitmap):
+                    s.step(step)
             # A DHGR page peek yields main + aux: TOPO is copied into main.
             assert s.step(f'peek:{window:04X}:{len(expected)}').data[:len(expected)] == expected, index
             after = s.step('peek:0000:256').data

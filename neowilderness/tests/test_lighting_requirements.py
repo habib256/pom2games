@@ -91,8 +91,8 @@ def lighting(disk):
         # At the deterministic start date, 7 AM is below 30 degrees, 10 above.
         preview(s, 39, SUN)
         refused(s, 39, 'INSUFFICIENT LIGHT')
-        for i, value in enumerate(encode(10)):
-            s.step(L.poke('s_hour', value, i))
+        for step in L.poke('s_hour', encode(10)):
+            s.step(step)
         preview(s, 39, SUN)  # No false READY from a stale/rounded sky cache.
         elapsed = fp(s.step(L.peek('s_elap', 5)).data)
         action(s, 4)

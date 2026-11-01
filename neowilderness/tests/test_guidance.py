@@ -205,8 +205,8 @@ def fatigue_advice():
             open_guide(s)
             for target, source in (('s_rest', rest), ('s_defr', deficit)):
                 value = s.step(L.peek(source, 5)).data if source else bytes(5)
-                for offset, number in enumerate(value):
-                    s.step(L.poke(target, number, offset))
+                for step in L.poke(target, value):
+                    s.step(step)
             before = state(s)
             event(s, 'down')
             event(s, 'down')

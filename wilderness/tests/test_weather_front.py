@@ -20,7 +20,7 @@ def wind_walk(original):
     idle = L.until('idle',20000); done = f'until:{L["idle"]+3:04X}:6000'
     steps = [idle]+call(['env_hour'])+[done,idle]+call(['weather_step'])
     for seed,wind,maximum in cases:
-        steps += [L.poke('weather_seed',b,i) for i,b in enumerate(seed.to_bytes(4,'little'))]
+        steps += L.poke('weather_seed', seed.to_bytes(4,'little'))
         steps += [L.poke('wind',wind),f'poke:700F:{maximum:02X}']
         steps += poke('s_step',0)+poke('weather_clock',0)+poke('weather_start',1000)
         steps += poke('weather_previous',-1000)
@@ -35,7 +35,7 @@ def wind_walk(original):
                           [('RNG',rng,0x0321),('RETURN',b'\x60',0x5898)])
         steps = ['until:0800:20000']
         for seed,wind,maximum in cases:
-            steps += [f'poke:{0x03B9+i:04X}:{b:02X}' for i,b in enumerate(seed.to_bytes(4,'little'))]
+            steps += a2test.pokes(0x03B9, seed.to_bytes(4,'little'))
             steps += [f'poke:4B9F:{wind:02X}',f'poke:60B9:{maximum:02X}',
                       'until:0803:1000','peek:4B9F:1','peek:03B9:4','until:0800:1000']
         native = a2test.run(disk,steps,emulator=a2test.A2SHOT,timeout=900)
@@ -53,7 +53,7 @@ def main():
     steps = [idle] + call(['env_hour']) + [done, idle] + call(['weather_random'])
     expected = []
     for seed in SEEDS:
-        steps += [L.poke('weather_seed', b, i) for i, b in enumerate(seed.to_bytes(4, 'little'))]
+        steps += L.poke('weather_seed', seed.to_bytes(4, 'little'))
         for _ in range(8):
             seed = seed * 8192 % 67099547
             expected.append(seed)
@@ -68,7 +68,7 @@ def main():
     for t, span, short, old_short in CASES:
         steps += poke('weather_clock', t) + poke('weather_start', 231) + poke('weather_previous', -150)
         steps += poke('weather_frequency', 3.5)
-        steps += [L.poke('weather_seed', b, i) for i, b in enumerate((1).to_bytes(4,'little'))]
+        steps += L.poke('weather_seed', (1).to_bytes(4,'little'))
         steps += [L.poke('weather_duration', span), L.poke('weather_duration', 0, 1),
                   L.poke('weather_previous_duration', 100), L.poke('weather_previous_duration', 0, 1),
                   L.poke('weather_short', short), L.poke('weather_previous_short', old_short),
@@ -96,7 +96,7 @@ def main():
                                (0x4B7F, bytes([short])), (0x4B7E, bytes([old_short])),
                                (0x4C43, encode(3.5)), (0x03B9, (1).to_bytes(4,'little')),
                                (0x4C0C, (40).to_bytes(2, 'little')), (0x4B9B, bytes([42]))):
-                steps += [f'poke:{addr+i:04X}:{b:02X}' for i, b in enumerate(data)]
+                steps += a2test.pokes(addr, data)
             steps += ['until:0806:1000', 'peek:4C1C:2', 'peek:4B91:1', 'peek:4B4C:2',
                       'peek:4B06:1', 'peek:4C9D:10', 'peek:4BFE:2', 'peek:4C00:2',
                       'peek:03B9:4', 'until:0800:1000']

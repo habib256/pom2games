@@ -32,8 +32,8 @@ def run(force, dark):
         if dark:
             # Set a deterministic test hour, then let native WAIT update sky,
             # weather, thermal state and night gating before the measurement.
-            for offset, value in enumerate((133, 48, 0, 0, 0)):  # 22:00
-                s.step(L.poke('s_hour', value, offset))
+            for step in L.poke('s_hour', (133, 48, 0, 0, 0)):  # 22:00
+                s.step(step)
             command(s, 'WAIT 1 MIN')
             assert s.step(L.peek('night')).data[0], 'Native night setup failed'
         else:

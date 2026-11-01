@@ -11,7 +11,9 @@ from pathlib import Path
 import subprocess
 import sys
 
-HERE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+import a2test  # noqa: E402
+HERE = a2test.game_dir(Path(__file__).resolve().parents[1], __doc__ if __name__ == '__main__' else None)  # --game DIR
 sys.path.insert(0, str(HERE.parent / 'dev/tools'))
 import a2test
 

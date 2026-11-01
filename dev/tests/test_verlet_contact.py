@@ -486,8 +486,8 @@ def cycles():
         lab, binary = harness.build(tmp, text)
         steps = a2test.bin_steps(binary, 0x6000, lab['init'])[:1] + [f'call:{lab["init"]:04X}:20']
         for name, op, state, a, b in probes:
-            steps += [lab.poke('vl_xf', v, k) for k, v in enumerate(state)]
-            steps += [lab.poke('vl_rad', v, k) for k, v in enumerate(r40)]
+            steps += lab.poke('vl_xf', state)
+            steps += lab.poke('vl_rad', r40)
             steps += [lab.poke('vl_pin', 0, k) for k in range(4)] + [lab.poke('vl_cheavy', 0, k) for k in range(4)]
             steps += [lab.poke('vl_ca', a), lab.poke('vl_cb', b), lab.poke('vl_chits', 0)]
             if op == 'pair':

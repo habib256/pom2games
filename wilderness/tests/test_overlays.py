@@ -32,10 +32,8 @@ def main():
     # DOS uses the eight screen-hole bytes in each 128-byte block as
     # scratch. Compare the 24 visible rows, including character attributes.
     before, after = r.mem(0x400, 1024), r.mem(0x400, 1024, 1)
-    check('BLOAD preserves all 24 visible text rows', all(
-        before[o:o + 40] == after[o:o + 40]
-        for row in range(24)
-        for o in [(row % 8) * 128 + (row // 8) * 40]))
+    check('BLOAD preserves all 24 visible text rows',
+          a2test.text_rows(before) == a2test.text_rows(after))
     # px was already dumped once in the initial short snapshot.
     check('BLOAD preserves every resident item and simulation field',
           r.mem(L['px'], size, 1) == r.mem(L['px'], size, 2))

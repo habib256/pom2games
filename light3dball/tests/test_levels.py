@@ -46,8 +46,7 @@ def word(value):
     return list((value & 65535).to_bytes(2, 'little'))
 
 
-def write(address, values):
-    return [f'poke:{address+i:04X}:{value:02X}' for i, value in enumerate(values)]
+write = a2test.pokes
 
 
 for index, level in enumerate(LEVELS):

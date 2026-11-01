@@ -7,7 +7,9 @@ filter and table accessor run unchanged. Private data/results stay in build/.
 import json, math, subprocess, sys
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+import a2test  # noqa: E402
+HERE = a2test.game_dir(Path(__file__).resolve().parents[1], __doc__)  # --game DIR
 sys.path.insert(0, str(HERE.parent / 'dev/tools'))
 sys.path.insert(0, str(HERE / 'tests'))
 sys.path.insert(0, str(HERE / 'tools'))
@@ -26,19 +28,14 @@ def main():
     (out / 'state.bin').write_bytes(state)
     (out / 'module.bin').write_bytes(module)
     (out / 'driver.bin').write_bytes(bytes.fromhex('A2 01 A0 02 20 2F 5A 4C 00 08'))
-    (out / 'hello.bas').write_text('10 PRINT CHR$(4);"BLOAD STATE"\n'
-        '20 PRINT CHR$(4);"BLOAD MODULE"\n30 PRINT CHR$(4);"BRUN DRIVER"\n')
     disk = out / 'probe.dsk'
-    subprocess.run([sys.executable, str(HERE.parent / 'dev/tools/dos33.py'),
-        '--out', str(disk), '--bas', f'HELLO={out / "hello.bas"}',
-        '--bin', f'STATE={out / "state.bin"}@0x4000',
-        '--bin', f'MODULE={out / "module.bin"}@0x5800',
-        '--bin', f'DRIVER={out / "driver.bin"}@0x0800'], check=True, capture_output=True)
+    a2test.build_disk(out, 'DRIVER', out / "driver.bin", 0x0800, disk=disk,
+                      bload=[('STATE', out / "state.bin", 0x4000), ('MODULE', out / "module.bin", 0x5800)])
     fixtures = cases()
     steps = ['until:0800:20000', 'poke:000A:00', 'poke:4B75:00']
     for species, env, _ in fixtures:
         steps += [f'poke:0801:{species+1:02X}', f'poke:0803:{species+2:02X}', 'poke:0900:00']
-        steps += [f'poke:{0x4ADA+i:04X}:{v:02X}' for i,v in enumerate(env)]
+        steps += a2test.pokes(0x4ADA, env)
         steps += ['until:0807:1000','peek:0900:1','until:0800:1000']
     result = a2test.run(disk, steps, emulator=a2test.A2SHOT, timeout=900)
     rows = []
@@ -55,11 +52,8 @@ def main():
     module[0x346:0x34E] = bytes.fromhex('A2 A0 A0 09 20 2B EB 60')
     (out / 'module.bin').write_bytes(module)
     (out / 'driver.bin').write_bytes(bytes.fromhex('20 A3 5A 4C 00 08'))
-    subprocess.run([sys.executable, str(HERE.parent / 'dev/tools/dos33.py'),
-        '--out', str(disk), '--bas', f'HELLO={out / "hello.bas"}',
-        '--bin', f'STATE={out / "state.bin"}@0x4000',
-        '--bin', f'MODULE={out / "module.bin"}@0x5800',
-        '--bin', f'DRIVER={out / "driver.bin"}@0x0800'], check=True, capture_output=True)
+    a2test.build_disk(out, 'DRIVER', out / "driver.bin", 0x0800, disk=disk,
+                      bload=[('STATE', out / "state.bin", 0x4000), ('MODULE', out / "module.bin", 0x5800)])
     steps = ['until:0800:20000']
     probabilities = []
     for species,rate in enumerate((80,40,100)):
@@ -68,7 +62,7 @@ def main():
                 probabilities.append(minutes*frequency*math.sqrt(level)*rate*1e-5)
                 steps += [f'poke:00FD:{species+1:02X}',f'poke:603F:{level:02X}',
                           f'poke:4BC6:{minutes:02X}','poke:4BC7:00']
-                steps += [f'poke:{0x4C4D+i:04X}:{v:02X}' for i,v in enumerate(encode(frequency))]
+                steps += a2test.pokes(0x4C4D, encode(frequency))
                 steps += ['until:0803:1000','peek:09A0:5','until:0800:1000']
     result = a2test.run(disk,steps,emulator=a2test.A2SHOT,timeout=900)
     assert len(result.dumps)==len(probabilities)

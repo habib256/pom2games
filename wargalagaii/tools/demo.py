@@ -19,6 +19,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import autopilot
 import model as M
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+from fonts import write_if_changed  # noqa: E402
 
 OUT = Path(__file__).resolve().parents[1] / 'src/demo.inc'
 DEMO_STEPS = 2550                    # ordinary, big, kamikaze, bonus, then boss (~18 s)
@@ -82,9 +84,7 @@ def main():
         if OUT.read_text() != text:
             sys.exit(f'{OUT} is stale: run tools/demo.py')
         return
-    if not OUT.exists() or OUT.read_text() != text:
-        OUT.write_text(text)
-    else:
+    if not write_if_changed(OUT, text):
         OUT.touch()                    # acknowledge unchanged dependencies
 
 

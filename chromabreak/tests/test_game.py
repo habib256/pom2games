@@ -62,6 +62,14 @@ def main():
     if not emulator.exists():
         print('SKIP IIe execution: requires a2shot (macOS arm64 or Linux x86_64: make -C dev/tools/a2shot)')
         return
+    # 64 KB machine (MACHID $BF98 poked to $A2 at CHROMA.SYSTEM's $2001, past ProDOS's $2000): refusal, key, ProDOS, /RAM kept.
+    r=a2test.run(a.disk,['until:2001:600','poke:BF98:A2','wait:60','peek:400:1024',
+                         'key: ','wait:300','peek:400:1024','peek:BF31:4'],iie=True)
+    t0,t1=(bytes(b&0x7F for b in r.mem(0x400,0x400,k)).decode('latin-1') for k in (0,1))
+    assert 'CHROMABREAK NEEDS A 65C02 CPU:' in t0 and '128K.' in t0,t0
+    assert 'BITSY' in t1,'a key returns to ProDOS'
+    assert 0xBF in r.mem(0xBF31,4)[1:],'/RAM still in the device list'
+    print('PASS 64 KB machine: "CHROMABREAK NEEDS A 65C02 CPU: ... 128K.", a key back to ProDOS, /RAM kept')
     labels=a2test.labels(a.labels,strip=True)
     peek,poke=labels.peek,labels.poke
     def values(out,name):

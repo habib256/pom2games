@@ -6,7 +6,9 @@ and stop before RND, so no combat/inventory transactions are stubbed as evidence
 """
 import json, math, subprocess, sys
 from pathlib import Path
-HERE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+import a2test  # noqa: E402
+HERE = a2test.game_dir(Path(__file__).resolve().parents[1], __doc__)  # --game DIR
 sys.path[:0] = [str(HERE.parent/'dev/tools'), str(HERE/'tools')]
 import a2test, smalldos
 from re_state_fp import fp
@@ -28,11 +30,9 @@ def main():
         module[stop-0x5800:stop-0x5800+3] = bytes.fromhex('4C 03 08')
         (out/'state.bin').write_bytes(state); (out/'module.bin').write_bytes(module)
         (out/'driver.bin').write_bytes(bytes((0x4C,entry&255,entry>>8,0x4C,0,8)))
-        (out/'hello.bas').write_text('10 PRINT CHR$(4);"BLOAD STATE"\n20 PRINT CHR$(4);"BLOAD MODULE"\n30 PRINT CHR$(4);"BRUN DRIVER"\n')
         probe=out/'probe.dsk'
-        subprocess.run([sys.executable,str(HERE.parent/'dev/tools/dos33.py'),'--out',str(probe),
-            '--bas',f'HELLO={out/"hello.bas"}','--bin',f'STATE={out/"state.bin"}@0x4000',
-            '--bin',f'MODULE={out/"module.bin"}@0x5800','--bin',f'DRIVER={out/"driver.bin"}@0x0800'],check=True,capture_output=True)
+        a2test.build_disk(out, 'DRIVER', out/"driver.bin", 0x0800, disk=probe,
+                          bload=[('STATE', out/"state.bin", 0x4000), ('MODULE', out/"module.bin", 0x5800)])
         if name=='posture':
             cases=[(species,16 if tree else (13 if command<22 else 15),0,tree,cover,command)
                    for species in (1,2,3) for command in (20,37)
@@ -71,9 +71,8 @@ def main():
     module[0x15E:0x161]=bytes.fromhex('4C 03 08') # $595E: after method stored in $04
     (out/'module.bin').write_bytes(module)
     (out/'driver.bin').write_bytes(bytes.fromhex('4C DE 58 4C 00 08'))
-    subprocess.run([sys.executable,str(HERE.parent/'dev/tools/dos33.py'),'--out',str(probe),
-        '--bas',f'HELLO={out/"hello.bas"}','--bin',f'STATE={out/"state.bin"}@0x4000',
-        '--bin',f'MODULE={out/"module.bin"}@0x5800','--bin',f'DRIVER={out/"driver.bin"}@0x0800'],check=True,capture_output=True)
+    a2test.build_disk(out, 'DRIVER', out/"driver.bin", 0x0800, disk=probe,
+                      bload=[('STATE', out/"state.bin", 0x4000), ('MODULE', out/"module.bin", 0x5800)])
     steps=['until:0800:20000']
     weapons=[(1,0),(0,1),(1,1)]
     for axe,knife in weapons:
@@ -94,9 +93,8 @@ def main():
     driver[:6]=bytes.fromhex('4C 82 5C 4C 00 08')
     driver[0x20:0x28]=bytes.fromhex('A9 40 A0 08 20 F9 EA 60') # FAC = supplied RND
     (out/'driver.bin').write_bytes(driver)
-    subprocess.run([sys.executable,str(HERE.parent/'dev/tools/dos33.py'),'--out',str(probe),
-        '--bas',f'HELLO={out/"hello.bas"}','--bin',f'STATE={out/"state.bin"}@0x4000',
-        '--bin',f'MODULE={out/"module.bin"}@0x5800','--bin',f'DRIVER={out/"driver.bin"}@0x0800'],check=True,capture_output=True)
+    a2test.build_disk(out, 'DRIVER', out/"driver.bin", 0x0800, disk=probe,
+                      bload=[('STATE', out/"state.bin", 0x4000), ('MODULE', out/"module.bin", 0x5800)])
     steps=['until:0800:20000','poke:0321:4C','poke:0322:20','poke:0323:08']
     severity_cases=[]
     for species in (1,2):
@@ -109,7 +107,7 @@ def main():
         mantissa,exponent=math.frexp(value)
         packed=bytes((exponent+128,))+((round(mantissa*2**32)&0x7FFFFFFF).to_bytes(4,'big'))
         steps += [f'poke:0015:{species:02X}']
-        steps += [f'poke:{0x840+i:04X}:{b:02X}' for i,b in enumerate(packed)]
+        steps += a2test.pokes(0x840, packed)
         steps += ['until:0803:2000','peek:4B90:1','until:0800:1000']
     r=a2test.run(probe,steps,emulator=a2test.A2SHOT,timeout=900)
     assert len(r.dumps)==len(severity_cases)
@@ -125,9 +123,8 @@ def main():
     (out/'state.bin').write_bytes(state)
     driver=bytes.fromhex('4C 56 4D 8D 00 09 8E 01 09 8C 02 09 4C 00 08')
     (out/'driver.bin').write_bytes(driver)
-    subprocess.run([sys.executable,str(HERE.parent/'dev/tools/dos33.py'),'--out',str(probe),
-        '--bas',f'HELLO={out/"hello.bas"}','--bin',f'STATE={out/"state.bin"}@0x4000',
-        '--bin',f'MODULE={out/"module.bin"}@0x5800','--bin',f'DRIVER={out/"driver.bin"}@0x0800'],check=True,capture_output=True)
+    a2test.build_disk(out, 'DRIVER', out/"driver.bin", 0x0800, disk=probe,
+                      bload=[('STATE', out/"state.bin", 0x4000), ('MODULE', out/"module.bin", 0x5800)])
     cases=[(phase,present,minutes) for phase in (0,1) for present in (0,1) for minutes in (1,5,60)]
     steps=['until:0800:20000','poke:03DB:4C','poke:03DC:03','poke:03DD:08']
     for phase,present,minutes in cases:

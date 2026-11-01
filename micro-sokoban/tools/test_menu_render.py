@@ -22,7 +22,7 @@ def main():
     start = labels['options_keys'] - 0x6000
     text = binary[start:binary.index(255, start)+1]
     relocated = 0x05FF                 # invisible text memory, across a page boundary
-    patch = [f'poke:{relocated+i:04X}:{byte:02X}' for i, byte in enumerate(text)]
+    patch = a2test.pokes(relocated, text)
     patch += [f'poke:{labels["options_table"]+5:04X}:FF',
               f'poke:{labels["options_table"]+6:04X}:05']
     def screen(pokes, gameplay=False):

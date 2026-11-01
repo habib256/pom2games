@@ -4,6 +4,9 @@ import argparse
 import json
 from pathlib import Path
 import re
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import a2test  # noqa: E402
 
 
 def report(directory):
@@ -13,8 +16,7 @@ def report(directory):
         section = text.split('Segment list:')[1].split('Exports list')[0]
         sizes = {m[1]: int(m[2],16) for m in re.finditer(
             r'^([A-Z][A-Z0-9_]*)\s+[0-9A-F]+\s+[0-9A-F]+\s+([0-9A-F]+)',section,re.M)}
-        symbols = {m[2]: int(m[1],16) for m in re.finditer(
-            r'^al ([0-9A-Fa-f]+) \.(\w+)$', (directory/(name+'.lbl')).read_text(),re.M)}
+        symbols = a2test.labels(directory/(name+'.lbl'))
         result[name] = dict(binary_bytes=(directory/(name+'.bin')).stat().st_size,
                             segments=sizes,
                             code_bytes=sum(sizes.get(k,0) for k in ('STARTUP','CODE','LOWCODE','INIT','ONCE')),

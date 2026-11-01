@@ -21,7 +21,7 @@ def main():
                           L.poke('animal_kind',old),L.poke('animal_x',20),L.poke('animal_y',30),
                           L.poke('animal_bearing',70),L.poke('animal_bearing',0,1),L.poke('animal_age',17),
                           L.poke('fauna_species',candidate),L.poke('fauna_rng',4),L.poke('fauna_alert',0)]
-                steps += [L.poke('weather_seed',b,i) for i,b in enumerate(seed.to_bytes(4,'little'))]
+                steps += L.poke('weather_seed', seed.to_bytes(4,'little'))
                 steps += [done,L.peek('animal_kind',6),L.peek('fauna_alert'),
                           L.peek('fauna_rng'),L.peek('weather_seed',4),idle]
     r=a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)

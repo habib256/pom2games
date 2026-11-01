@@ -164,8 +164,8 @@ class Harness:
             self.empty = self.start + len(code) - 1
         else:
             code, self.stop = row_harness(self.start)
-        for i, v in enumerate(code):
-            self.s.step(f'poke:{self.start + i:04X}:{v:02X}')
+        for step in a2test.pokes(self.start, code):
+            self.s.step(step)
         self.target = L['cell_native']
 
     def run(self, queries):

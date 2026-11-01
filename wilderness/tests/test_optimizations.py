@@ -16,7 +16,7 @@ def division():
     for first in range(1, 129, 16):
         cases = [(n, r) for n in range(first, first + 16) for r in range(n)]
         steps = [L.until('idle', 20000)]
-        steps += [f'poke:{entry+i:04X}:{b:02X}' for i, b in enumerate(code)]
+        steps += a2test.pokes(entry, code)
         for n, r in cases:
             steps += [f'poke:{entry+1:04X}:{r:02X}', L.poke('divisor', n),
                       L.poke('qlo', 0xA7), f'until:{entry+18:04X}:100',
@@ -37,9 +37,9 @@ def boot_copies():
     # Restore the transient loader after boot and enter its real copy loop.
     # Stop at check, then return to the fixture without parsing another token.
     steps = [L.until('idle', 20000)]
-    steps += [f'poke:{0x5800+i:04X}:{b:02X}' for i, b in enumerate(code)]
+    steps += a2test.pokes(0x5800, code)
     stub = bytes((0xA2, 0, 0xA0, 0, 0x4C, boot['copy'] & 255, boot['copy'] >> 8))
-    steps += [f'poke:{entry+i:04X}:{b:02X}' for i, b in enumerate(stub)]
+    steps += a2test.pokes(entry, stub)
     steps += [f'poke:{boot["check"]+i:04X}:{b:02X}' for i, b in
               enumerate((0x4C, entry & 255, entry >> 8))]
     cases = []
@@ -49,7 +49,7 @@ def boot_copies():
                 match = dest - distance
                 seed = bytes((i * 37 + 19) & 255 for i in range(min(distance, count)))
                 expected = bytes(seed[i % distance] for i in range(count))
-                steps += [f'poke:{match+i:04X}:{b:02X}' for i, b in enumerate(seed)]
+                steps += a2test.pokes(match, seed)
                 for name, value in (('match', match), ('dest', dest), ('remain', 0x203)):
                     steps += [boot.poke(name, value), boot.poke(name, value >> 8, 1)]
                 steps += [f'poke:{entry+1:04X}:{count:02X}',

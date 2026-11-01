@@ -87,7 +87,7 @@ def check(work):
 def check_batch(binary,L,font,cases):
     steps=a2test.bin_steps(binary)+[L.until('ready')]
     for params in cases:
-        steps += [L.poke('params',v,i) for i,v in enumerate(params)]
+        steps += L.poke('params', params)
         steps += ['press: ',L.until('glyph_done'),'peek:2000:16384',L.peek('pix_x',3),L.until('ready')]
     result=a2test.run(None,steps)
     data=result.data

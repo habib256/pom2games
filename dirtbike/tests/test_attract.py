@@ -218,6 +218,14 @@ def main():
     ok = r.dumps[0] != r.dumps[1] and text.startswith('DIRTBIKE: BYE!')
     print(f'ESC: the main menu, input {r.dumps[0][0]} -> {r.dumps[1][0]}, quit to BASIC: ' + ('ok' if ok else f'DIFF {text!r}'))
     bad += not ok
+    # QUIT reboots the boot drive's slot, read from $B7E9 (a2run boots slot 6 only:
+    # poked to $50 = slot 5, it must jump to $C500 with the "QU" mark, never $C600)
+    r = a2test.run(DISK, ['wait:1000', 'key: ', 'wait:60', 'key:\r', L.until('new_race', 900), 'wait:100',
+                          'key:\x1b', L.until('main_menu', 300), 'wait:20', 'poke:B7E9:50', 'press:5',
+                          'until:C500:1500', 'peek:8000:2'], timeout=300, check=False)
+    ok = 'PC=C500' in r.out and r.mem(0x8000, 2) == b'QU'
+    print('QUIT with $B7E9 = $50: "QU" at $8000, JMP $C500 (the boot slot, not a fixed $C600): ' + ('ok' if ok else 'DIFF'))
+    bad += not ok
 
     # ESC in a race, ESC in the main menu: the same race goes on (the track
     # read again over TITLE), after a countdown

@@ -21,7 +21,7 @@ def main():
     stop = start+len(code)
     code += bytes((0x4C,start&255,start>>8))
     steps = [L.until('idle',20000)]
-    steps += [f'poke:{start+i:04X}:{v:02X}' for i,v in enumerate(code)]
+    steps += a2test.pokes(start, code)
     for y in range(168):
         steps += [f'poke:{start+1:04X}:00',f'poke:{start+3:04X}:{y:02X}',
                   f'until:{stop:04X}:6000','peek:2000:224','peek:2100:224','peek:2200:224',

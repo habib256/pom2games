@@ -14,8 +14,7 @@ from gendata import fp as encode
 from re_surv_fp import fp
 
 
-def poke(addr, data):
-    return [f'poke:{addr+i:04X}:{v:02X}' for i, v in enumerate(data)]
+poke = a2test.pokes
 
 
 def main():
@@ -25,12 +24,9 @@ def main():
     state[0xD2A] = 0x60  # suppress messages only; do not enter the disk loader
     (out / 'state.bin').write_bytes(state)
     (out / 'driver.bin').write_bytes(bytes.fromhex('20 11 58 4C 00 08'))
-    (out / 'hello.bas').write_text('10 PRINT CHR$(4);"BLOAD STATE"\n20 PRINT CHR$(4);"BLOAD THERMAL"\n30 PRINT CHR$(4);"BRUN DRIVER"\n')
     disk = out / 'probe.dsk'
-    subprocess.run([sys.executable, str(HERE.parent / 'dev/tools/dos33.py'), '--out', str(disk),
-                    '--bas', f'HELLO={out / "hello.bas"}', '--bin', f'STATE={out / "state.bin"}@0x4000',
-                    '--bin', f'THERMAL={HERE / "build/re_surv/m0B2.bin"}@0x5800',
-                    '--bin', f'DRIVER={out / "driver.bin"}@0x0800'], check=True, capture_output=True)
+    a2test.build_disk(out, 'DRIVER', out / "driver.bin", 0x0800, disk=disk,
+                      bload=[('STATE', out / "state.bin", 0x4000), ('THERMAL', HERE / "build/re_surv/m0B2.bin", 0x5800)])
     steps = ['until:0800:20000']
     cases = []
     # Integration alone: the signed rate may move toward or away from normal.

@@ -62,7 +62,7 @@ def main():
                       L.peek('night'), L.peek('view_dark'), L.peek('sky_mood'),
                       L.peek('sun_alt8', 3), 'peek:2000:8192', L.peek('sky_bearing', 3),
                       L.until('idle', 20000)]
-            steps += [L.poke('idle', b, i) for i, b in enumerate(original)]
+            steps += L.poke('idle', original)
         return steps
 
     cases = [(label, x, y, h, animal, full_day, sky)

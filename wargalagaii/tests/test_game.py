@@ -544,15 +544,16 @@ def exits(disk, L):
               'ProDOS QUIT launcher')
 
 
-def small_machine(disk, L):
-    """MACHID says 64 KB (poked at _main): message, a key, ProDOS launcher;
-    /RAM ($BF) untouched."""
-    r = a2test.run(disk, [L.until('main', 3000), L.poke('front_skip', 1), 'poke:BF98:A2', 'wait:30', 'peek:400:1024',
+def small_machine(disk):
+    """MACHID says 64 KB (poked as WG2.SYSTEM starts, $2001: ProDOS's own
+    loader runs at $2000 first): WG2.SYSTEM's message, a key, the ProDOS
+    launcher; /RAM ($BF) untouched."""
+    r = a2test.run(disk, ['until:2001:600', 'poke:BF98:A2', 'wait:30', 'peek:400:1024',
                           'key: ', 'wait:300', 'peek:400:1024', 'peek:BF31:4'], iie=True)
-    assert 'NEEDS 128K' in text(r, 0), text(r, 0)
+    assert 'WARGALAGA II NEEDS A 65C02 CPU:' in text(r, 0) and '128K.' in text(r, 0), text(r, 0)
     assert 'BITSY' in text(r, 1), 'a key returns to ProDOS'
     assert 0xBF in r.mem(0xBF31, 4)[1:], '/RAM still in the device list'
-    print('PASS 64 KB machine: message, a key back to ProDOS, /RAM untouched')
+    print('PASS 64 KB machine: WG2.SYSTEM\'s message, a key back to ProDOS, /RAM untouched')
 
 
 def missing_sys(build, keep=('WG2.SYSTEM',), message='WG2.SYS ERROR'):
@@ -587,7 +588,7 @@ def malformed_aux(build, L):
                 **{f'{n}#FF2000': (build / n).read_bytes() for n in SYS_NAMES},
                 'WG2.AUX#060000': payload}, 'WARGALAGAII')
             steps = [L.until('aux_load'), 'peek:BF58:24', 'poke:C005:0']
-            steps += [f'poke:{end + i:04X}:{v:02X}' for i, v in enumerate(guard)]
+            steps += a2test.pokes(end, guard)
             steps += ['poke:C004:0', L.until('aux_fail'), 'peek:BF58:24',
                       'poke:C003:0', f'peek:{end:04X}:{len(guard)}', 'poke:C002:0',
                       'wait:30', 'peek:400:1024', 'key: ', 'wait:300', 'peek:400:1024']
@@ -661,7 +662,7 @@ def main():
     stick_off_centre(a.disk, L)
     score_cap(a.disk, L)
     exits(a.disk, L)
-    small_machine(a.disk, L)
+    small_machine(a.disk)
     missing_sys(a.labels.parent)
     missing_sys(a.labels.parent, ('WG2.SYSTEM', 'WG2.SYS'), 'WG2.AUX: LOAD ERROR')
     malformed_aux(a.labels.parent, L)

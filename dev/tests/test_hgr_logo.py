@@ -127,7 +127,7 @@ def check(work, adapter):
     steps = [labels.until('ready')]
     for kind, (x,y,xe,ye), mode, color in cases:
         params = [x&255,x>>8,y,xe&255,xe>>8,ye,x&255,x>>8,y,color,mode]
-        steps += [labels.poke('params',value,i) for i,value in enumerate(params)]
+        steps += labels.poke('params', params)
         steps += [labels.poke('kind',kind),'press: ',labels.until('done'),
                   'peek:2000:16384',labels.until('ready')]
     result = a2test.run(None, a2test.bin_steps(fixture) + steps)

@@ -55,7 +55,7 @@ def main():
     steps += ['key:K', lab.until('events', 10)] + [lab.until('main', 10), lab.until('events', 10)] * 8
     steps += [lab.until('main', 120)] + look(lab)                        # 1: the engine
     steps += ['key: ', lab.until('events', 10), lab.until('main', 120)]  # engine cut
-    steps += [lab.poke('vl_xf', v, k) for k, v in enumerate(land)]      # 4 rows above pad B
+    steps += lab.poke('vl_xf', land)      # 4 rows above pad B
     steps += ['wait:150', lab.until('main', 120)] + look(lab)            # 2: landed
     steps += ['key:R', 'wait:4', lab.until('main', 120)] + look(lab)     # 3: again
     steps += ['wait:600', lab.until('main', 120)] + look(lab)            # 4: free fall

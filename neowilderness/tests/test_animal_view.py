@@ -226,8 +226,8 @@ def sierra():
                          (-20, 'a little left: the bear right of it')):
             place(s, x, y, h)
             s.step(L.poke('fire_on', 1))
-            for i, v in enumerate((x & 255, x >> 8, y & 255, y >> 8, (h + d) % 560 & 255, (h + d) % 560 >> 8)):
-                s.step(L.poke('fire_pos', v, i))
+            for step in L.poke('fire_pos', (x & 255, x >> 8, y & 255, y >> 8, (h + d) % 560 & 255, (h + d) % 560 >> 8)):
+                s.step(step)
             typed(s, 'V')
             fire = (x >> 8, y >> 8, (h + d) % 560)
             bare, _ = compare(s, f'fire at {d:+}: {where}', MAP, 6, fire=fire)
@@ -356,8 +356,8 @@ def new_guinea():
         turns(s, '  the crocodile', m, 8, region=region, moves=TURNS[:2])
         for d in (0, 20, 10):
             s.step(L.poke('fire_on', 1))
-            for i, v in enumerate((x & 255, x >> 8, y & 255, y >> 8, (h + d) % 560 & 255, (h + d) % 560 >> 8)):
-                s.step(L.poke('fire_pos', v, i))
+            for step in L.poke('fire_pos', (x & 255, x >> 8, y & 255, y >> 8, (h + d) % 560 & 255, (h + d) % 560 >> 8)):
+                s.step(step)
             typed(s, 'V')
             fire = (x >> 8, y >> 8, (h + d) % 560)
             g = geometry(8, x, y, h, fire)

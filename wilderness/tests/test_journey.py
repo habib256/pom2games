@@ -57,10 +57,10 @@ def refill():
         # A transaction refused by weight must preserve both stocks and time.
         used=s.step(L.peek('load_used',2)).data
         limits=s.step(L.peek('load_limits',2)).data
-        for k,b in enumerate(used):s.step(L.poke('load_limits',b,k))
+        for step in L.poke('load_limits', used): s.step(step)
         before=snapshot(s);command(s,'REFILL CANTEEN')
         assert snapshot(s)==before and 'REFILL REFUSED' in screen(s)
-        for k,b in enumerate(limits):s.step(L.poke('load_limits',b,k))
+        for step in L.poke('load_limits', limits): s.step(step)
         command(s,'LOOK B');command(s,'WALK 57 MIN')
         before=snapshot(s);command(s,'FILL CANTEEN')
         assert snapshot(s)==before and 'NEARBY BANK' in screen(s)

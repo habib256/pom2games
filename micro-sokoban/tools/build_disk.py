@@ -4,10 +4,12 @@ import argparse
 import importlib.util
 from pathlib import Path
 import shlex
-import re
 import struct
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'dev/tools'))
+import a2test  # noqa: E402
 spec = importlib.util.spec_from_file_location('dos33', ROOT / 'dev/tools/dos33.py')
 dos = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(dos)
@@ -59,8 +61,7 @@ def main():
     binary('MICRODATA', args.build / 'micro_sokoban.lz', 0x1004)
     disk.sector_order = DIRECT_ORDER
     # Bind the small bootstrap's read-only map to this newly built image.
-    labels = {n: int(a, 16) for a, n in re.findall(
-        r'^al ([0-9A-F]+) \.(\w+)$', (args.build / 'unpack.lbl').read_text(), re.M)}
+    labels = a2test.labels(args.build / 'unpack.lbl')
     def sectors(name):
         track, sector, *_ = next(row for row in disk.catalog if row[3] == name)
         listing = disk.sector(track, sector)

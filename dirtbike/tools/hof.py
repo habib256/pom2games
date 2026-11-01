@@ -12,6 +12,9 @@ once, at its full size. (`make` rebuilding the disk empties it again.)
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+from fonts import write_if_changed  # noqa: E402
+
 NTRACKS = 30
 
 
@@ -29,8 +32,7 @@ def empty():
 def main():
     out = Path(sys.argv[1])
     data = empty()
-    if not out.exists() or out.read_bytes() != data:
-        out.write_bytes(data)
+    write_if_changed(out, data)
 
 
 if __name__ == '__main__':

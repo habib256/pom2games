@@ -44,11 +44,11 @@ def main():
     steps = [idle] + call(['env_day']) + [done,idle] + call(['at_goal']) + [done,idle]
     addr,target = L['idle'],L['fauna_eligible']
     code = bytes((0x20,target&255,target>>8,0x08,0x68,0x8D,0xFF,0x95,0x4C,addr&255,addr>>8))
-    steps += [f'poke:{addr+i:04X}:{b:02X}' for i,b in enumerate(code)]
+    steps += a2test.pokes(addr, code)
     fixtures = cases()
     for species,env,_ in fixtures:
         steps += [L.poke('fauna_species',species)]
-        steps += [L.poke('fauna_env',v,i) for i,v in enumerate(env)]
+        steps += L.poke('fauna_env', env)
         steps += [f'until:{addr+8:04X}:6000','peek:95FF:1',idle]
     r = a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=900)
     assert len(r.dumps)==len(fixtures)

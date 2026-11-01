@@ -2,7 +2,9 @@
 """Verify wet clothing and immersion on local original m0B2, never redistributed."""
 import json, math, subprocess, sys
 from pathlib import Path
-HERE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+import a2test  # noqa: E402
+HERE = a2test.game_dir(Path(__file__).resolve().parents[1], __doc__)  # --game DIR
 sys.path.insert(0, str(HERE.parent/'dev/tools'))
 sys.path.insert(0, str(HERE/'tools'))
 import a2test
@@ -19,12 +21,9 @@ def main():
     state[0xD2A]=0x60  # messages only
     (out/'state.bin').write_bytes(state)
     (out/'driver.bin').write_bytes(bytes.fromhex('20 11 58 4C 00 08'))
-    (out/'hello.bas').write_text('10 PRINT CHR$(4);"BLOAD STATE"\n20 PRINT CHR$(4);"BLOAD THERMAL"\n30 PRINT CHR$(4);"BRUN DRIVER"\n')
     disk=out/'probe.dsk'
-    subprocess.run([sys.executable,str(HERE.parent/'dev/tools/dos33.py'),'--out',str(disk),
-        '--bas',f'HELLO={out/"hello.bas"}','--bin',f'STATE={out/"state.bin"}@0x4000',
-        '--bin',f'THERMAL={HERE/"build/re_surv/m0B2.bin"}@0x5800',
-        '--bin',f'DRIVER={out/"driver.bin"}@0x0800'],check=True,capture_output=True)
+    a2test.build_disk(out, 'DRIVER', out/"driver.bin", 0x0800, disk=disk,
+                      bload=[('STATE', out/"state.bin", 0x4000), ('THERMAL', HERE/"build/re_surv/m0B2.bin", 0x5800)])
     cases=[]
     steps=['until:0800:20000']
     for wet in (0,1,2):

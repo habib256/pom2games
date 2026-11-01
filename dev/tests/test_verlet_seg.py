@@ -367,8 +367,8 @@ def cycles(g):
         lab, binary = harness.build(tmp, text)
         steps = a2test.bin_steps(binary, 0x6000, lab['mul_init'])[:1] + [f'call:{lab["mul_init"]:04X}:20']
         for name, st, sg in rows:
-            steps += [lab.poke('t_pt', 0)] + [lab.poke('vl_xf', v, k) for k, v in enumerate(st)]
-            steps += [lab.poke('vl_sgi', v, k) for k, v in enumerate(sg)] + [f'call:{lab["cyc"]:04X}:5']
+            steps += [lab.poke('t_pt', 0)] + lab.poke('vl_xf', st)
+            steps += lab.poke('vl_sgi', sg) + [f'call:{lab["cyc"]:04X}:5']
         r = a2test.run(None, steps)
         el = [int(v) for v in re.findall(r'elapsed=(\d+)', r.out)][1:]
     out = {}

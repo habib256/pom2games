@@ -11,6 +11,8 @@ right-aligned on 10 cells. src/levels.inc gives the layout; layout.h CB_LEVELS g
 from pathlib import Path
 import sys
 root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(root.parent / 'dev/tools'))
+from fonts import write_if_changed  # noqa: E402
 VALUES = {'.': 0, '1': 1, '2': 2, '3': 3, '#': 255}
 
 def load(path=root / 'src' / 'levels.txt'):
@@ -63,5 +65,4 @@ if __name__ == '__main__':
            'LEVELS_AUX = $0A00\nLEVEL_BYTES = 48\n'
            f'LEVEL_NAMES = LEVELS_AUX+{48 * len(levels)}\nLEVELS_SIZE = {len(data)}\n')
     p = root / 'src' / 'levels.inc'
-    if not p.exists() or p.read_text() != inc:
-        p.write_text(inc)
+    write_if_changed(p, inc)

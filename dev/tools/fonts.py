@@ -74,13 +74,18 @@ def asm_bytes(data, per_line=8, hexa=True):
                    for i in range(0, len(data), per_line))
 
 
-def write_if_changed(path, text):
-    """Write `text` to `path` only if it differs (keeps make from rebuilding)."""
+def write_if_changed(path, data):
+    """Write `data` (a str, or bytes for a binary file) to `path` only if it
+    differs (keeps make from rebuilding). True when it wrote."""
     path = Path(path)
-    if path.exists() and path.read_text() == text:
+    binary = isinstance(data, (bytes, bytearray))
+    if path.exists() and (path.read_bytes() if binary else path.read_text()) == data:
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text)
+    if binary:
+        path.write_bytes(data)
+    else:
+        path.write_text(data)
     return True
 
 

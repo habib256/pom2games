@@ -66,8 +66,8 @@ def region_shots(out):
                 for st in call(['env_hour', 'show_view']):
                     s.step(st)
                 s.step(f'until:{idle + 6:04X}:60000')
-                for i, b in enumerate(original):
-                    s.step(L.poke('idle', b, i))
+                for step in L.poke('idle', original):
+                    s.step(step)
                 s.step(L.until('idle', 60000))
                 return mood_name(s.step(L.peek('sky_mood')).data)
 
@@ -135,8 +135,8 @@ def star_shots(out):
                 for st in call(['env_hour', 'show_view']):
                     s.step(st)
                 s.step(f'until:{idle + 6:04X}:60000')
-                for i, b in enumerate(original):
-                    s.step(L.poke('idle', b, i))
+                for step in L.poke('idle', original):
+                    s.step(step)
                 s.step(L.until('idle', 60000))
                 s.step('wait:3')
                 s.step(f'shot:{out / f"game_stars_{name}.png"}')
@@ -190,8 +190,8 @@ def main():
             for st in call(['env_hour', 'show_view']):
                 s.step(st)
             s.step(f'until:{idle + 6:04X}:60000')
-            for i, b in enumerate(original):
-                s.step(L.poke('idle', b, i))
+            for step in L.poke('idle', original):
+                s.step(step)
             s.step(L.until('idle', 60000))
 
         shot('crash_day')

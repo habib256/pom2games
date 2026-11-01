@@ -245,7 +245,7 @@ def topo_delta(disk):
             writes = sum(pcs.get(L[label],0)//6 for label in ('topo_store','topo_clear_store'))
             changes = sum(before[o+c] != after[o+c]
                           for row in range(24)
-                          for o in [(row%8)*128+(row//8)*40]
+                          for o in [a2test.text_offset(row)]
                           for c in range(40))
             assert writes == changes, (key,writes,changes)
             if key in ('A','S') and before == after:

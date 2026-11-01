@@ -13,6 +13,9 @@ The file is written only when its text changed (make does not rebuild what
 depends on it for nothing). -> True if it was written.
 """
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from fonts import write_if_changed  # noqa: E402,F401 (emit.write_if_changed)
 
 
 def lo(values):
@@ -51,14 +54,6 @@ def inc_text(consts, tables, header=(), segment='RODATA', end_segment='CODE'):
         if end_segment:
             out.append(f'.segment "{end_segment}"')
     return '\n'.join(out) + '\n'
-
-
-def write_if_changed(path, text):
-    path = Path(path)
-    if path.exists() and path.read_text() == text:
-        return False
-    path.write_text(text)
-    return True
 
 
 def emit_inc(path, consts, tables, header=(), segment='RODATA', end_segment='CODE'):

@@ -20,8 +20,7 @@ def call(name):
     return absolute(0x20, L[name])
 
 
-def write(address, data):
-    return [f'poke:{address+i:04X}:{value:02X}' for i, value in enumerate(data)]
+write = a2test.pokes
 
 
 def fixture(body, clear=False):

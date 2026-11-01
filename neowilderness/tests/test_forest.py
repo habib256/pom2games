@@ -206,7 +206,7 @@ def main():
         # without also running an unrelated weather/thermal recomputation.
         addr,load,target=L['idle'],L['overlay_load'],L['fauna_environment']
         code=bytes((0xA9,3,0x20,load&255,load>>8,0x20,target&255,target>>8,0x4C,addr&255,addr>>8))
-        steps += [f'poke:{addr+i:04X}:{value:02X}' for i,value in enumerate(code)]
+        steps += a2test.pokes(addr, code)
         steps += [f'until:{addr+8:04X}:20000',L.peek('fauna_env',6)]
         with tempfile.TemporaryDirectory() as tmp:
             result=a2test.run(disk_with(tmp,case),steps,emulator=a2test.A2SHOT,timeout=900)

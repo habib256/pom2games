@@ -446,8 +446,8 @@ def diseases(original):
         steps+=byte_pokes(L['injury_prevented'],bytes([1])*8+bytes([prevent,1,1,1,prevent,1,1]))
         steps+=[L.poke('shelter_inside',shelter),L.poke('region_number',region)]
         steps+=poke('s_elap',30)+poke('s_step',minutes)
-        steps+=[L.poke('injury_since',b,i) for i,b in enumerate(encode(30-hours))]
-        steps+=[L.poke('weather_seed',b,i) for i,b in enumerate(seed.to_bytes(4,'little'))]
+        steps+=L.poke('injury_since', encode(30-hours))
+        steps+=L.poke('weather_seed', seed.to_bytes(4,'little'))
         steps+=[end,L.peek('injury_active',15),L.peek('weather_seed',4),idle]
     port=a2test.run(DISK,steps,emulator=a2test.A2SHOT,timeout=1800)
     level=port.mem(L['al_w'],2)[0];woods=port.mem(L['al_w'],2)[1]&1;water=port.mem(L['al_i'],1)[0]>>7
@@ -565,8 +565,8 @@ def forced_sleep(original):
             assert 'EXHAUSTED: INVOLUNTARY SLEEP.' in text,text
             assert s.step(L.peek('al_forced')).data==b'\1'
             before=fp(s.step(L.peek('s_elap',5)).data)
-            for i,b in enumerate(seed.to_bytes(4,'little')):
-                s.step(L.poke('weather_seed',b,i))
+            for step in L.poke('weather_seed', seed.to_bytes(4,'little')):
+                s.step(step)
             s.step(IDLE)
             minutes=int.from_bytes(s.step(L.peek('msgnum',2)).data,'little')
             elapsed=(fp(s.step(L.peek('s_elap',5)).data)-before)*60
@@ -744,8 +744,8 @@ def alerts_display():
     and 176 follow the native thresholds; shivering is announced once."""
     with a2test.Session(DISK,timeout=1800) as s:
         s.step(IDLE);s.step(L.poke('nature_frequency',0))
-        for i,b in enumerate(encode(-20)):
-            s.step(L.poke('s_last',b,5+i))          # last meal 27 h ago: hunger
+        for step in L.poke('s_last', encode(-20), 5):
+            s.step(step)          # last meal 27 h ago: hunger
         s.step('key:REST 30 MIN\r');s.step('wait:1');s.step(IDLE)
         rows=result_rows(text_screen(s.step('peek:0400:1024').data))
         assert rows[0].startswith('YOU RESTED 30 MINUTES'),rows

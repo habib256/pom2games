@@ -91,8 +91,8 @@ def warnings():
             # by the item commands. Fixture sets a concrete full pack volume.
             if 'CAPACITY' in warning:
                 limit = s.step(L.peek('load_limits', 2, 4)).data
-                for offset, value in enumerate(limit, 4):
-                    s.step(L.poke('load_used', value, offset))
+                for step in L.poke('load_used', limit, 4):
+                    s.step(step)
             before = open_quick(s)
             assert warning in rows(s)[21], rows(s)
             assert 'FIX:' in rows(s)[20], rows(s)

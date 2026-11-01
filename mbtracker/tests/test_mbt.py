@@ -175,13 +175,11 @@ class Session(a2test.Session):
         aux = a2test.Result(self.step('peek:0400:1024').out).mem(0x400, 1024)
         self.step('poke:C054:00')
         rows = []
-        for y in range(24):
-            b = (y % 8) * 128 + (y // 8) * 40
+        for cells in a2test.text_rows(main + aux, cols=80):
             s = ''
-            for i in range(40):
-                for c in (aux[b + i], main[b + i]):
-                    c &= 0x7F
-                    s += chr(c) if c >= 0x20 else chr(c + 0x40)
+            for c in cells:
+                c &= 0x7F
+                s += chr(c) if c >= 0x20 else chr(c + 0x40)
             rows.append(s)
         return rows
 
@@ -323,6 +321,24 @@ def six_voices(s, what):
     return data, n
 
 
+def mouse_clamp(s, what):
+    """The pointer reaches x = 159 (column 79, dev/lib/mouse's MOUSE_X_HIGH)
+    and stays there when pushed 90 mickeys further right."""
+    s.mouse_to(159, 96)                     # (raises unless the program reads 159)
+    s.idle()
+    s.step('wait:12')
+    s.idle()
+    assert s.b('mouse_x') == 159, s.b('mouse_x')
+    for _ in range(3):                      # 3 x 30 mickeys right, past the clamp
+        s.step('mousemove:30,0,0')
+        s.step('wait:6')
+    s.idle()
+    s.step('wait:12')
+    s.idle()
+    assert s.b('mouse_x') == 159, ('X clamp', s.b('mouse_x'))
+    print(f'PASS {what}: the pointer reaches x = 159 (column {s.b("ptr_x")}) and stays there pushed further')
+
+
 def run_mouse(work):
     """//e, the card in slot 4, an AppleMouse in slot 2."""
     demo = aysong.encode(aysong.demo())
@@ -437,6 +453,7 @@ def run_mouse(work):
         s.click(3, 2, 600)                             # the first name: chosen, loaded
         assert s.word('song_len') == len(demo) and s.peek('song_buf', len(demo)) == demo, 'DEMO.AYS loaded'
         print('PASS //e mouse: HELP (both pages), LOAD and a click on DEMO.AYS (loaded)')
+        mouse_clamp(s, '//e mouse (AppleMouse slot 2)')
 
 
 def find_copy(nonce, since):
@@ -630,6 +647,7 @@ def run_iic_mouse(work):
         s.click(MAIN_BAR.index('ORD'), KEYS_Y)
         assert s.b('focus') == 1
         print('PASS //c without a card, its own mouse: a click on a cell, a note typed there; HELP, ORD')
+        mouse_clamp(s, '//c own mouse')
 
 
 def run_nocard(work):
@@ -651,11 +669,25 @@ def run_nocard(work):
               'new pattern, inserted entry, pattern number, loop; ^Q Y: back to ProDOS\'s QUIT')
 
 
+def run_64k(work):
+    """A 64 KB machine (MACHID $BF98 poked to $A2 at MBT.SYSTEM's $2001, past
+    ProDOS's own $2000 entry): sysboot's refusal, a key, the ProDOS launcher,
+    /RAM kept."""
+    r = a2test.run(DISK, ['until:2001:600', 'poke:BF98:A2', 'wait:60', 'peek:400:1024',
+                          'key: ', 'wait:300', 'peek:400:1024', 'peek:BF31:4'], iie=True)
+    t0, t1 = (bytes(b & 0x7F for b in r.mem(0x400, 0x400, k)).decode('latin-1') for k in (0, 1))
+    assert 'MB TRACKER NEEDS A 65C02 CPU:' in t0 and '128K.' in t0, t0
+    assert 'BITSY' in t1, 'a key returns to ProDOS'
+    assert 0xBF in r.mem(0xBF31, 4)[1:], '/RAM still in the device list'
+    print('PASS 64 KB machine: "MB TRACKER NEEDS A 65C02 CPU: ... 128K.", a key back to ProDOS, /RAM kept')
+
+
 def main():
     if not a2test.have_a2shot('test_mbt (MB TRACKER)'):
         return
     with tempfile.TemporaryDirectory(prefix='mbt-') as tmp:
         work = Path(tmp)
+        run_64k(work)
         run_iie(work)
         run_mouse(work)
         run_six(work)

@@ -74,11 +74,7 @@ def rows(s):
 def raw(s):
     """24 rows of 80 screen codes (aux even, main odd columns)."""
     mem = s.step('peek:0400:1024').data
-    out = []
-    for r in range(24):
-        o = (r % 8) * 128 + (r // 8) * 40
-        out.append(bytes(b for pair in zip(mem[1024 + o:1024 + o + 40], mem[o:o + 40]) for b in pair))
-    return out
+    return a2test.text_rows(mem, cols=80)
 
 
 def altchar(s):

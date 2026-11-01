@@ -181,8 +181,7 @@ def main():
     c = picture()
     data = hgr(c)
     out = Path(sys.argv[1])
-    if not out.exists() or out.read_bytes() != data:
-        out.write_bytes(data)
+    fonts.write_if_changed(out, data)
     if len(sys.argv) > 2:
         png(c, sys.argv[2])
 

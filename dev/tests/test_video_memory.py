@@ -51,7 +51,7 @@ int main(void) {
     expected = bytearray([0xA5]*2048)
     for page, color in ((0,0x33),(1024,0xAA)):
         for y in range(24):
-            offset = (y%8)*128 + (y//8)*40
+            offset = test_hgr.a2test.text_offset(y)
             expected[page+offset:page+offset+40] = bytes([color])*40
     assert result.dumps[1] == expected, 'LORES clear overwrote firmware screen holes or missed visible cells'
     print('LORES clear: both pages filled, 64 firmware bytes per page preserved.')

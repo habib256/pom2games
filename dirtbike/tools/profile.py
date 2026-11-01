@@ -14,6 +14,7 @@ GAME = Path(__file__).resolve().parents[1]
 A2SHOT = GAME.parent / 'dev/tools/a2shot/a2shot'
 sys.path.insert(0, str(GAME.parent / 'dev/tools'))
 import a2profile  # noqa: E402
+import a2test  # noqa: E402
 
 
 GROUPS = [
@@ -36,7 +37,7 @@ def main():
     skip = int(sys.argv[3]) if len(sys.argv) > 3 else 0   # frames before profiling
     trk = int(sys.argv[4]) if len(sys.argv) > 4 else 1     # track from the menu
     menu = ([] if trk <= 15 else ['L']) + ['K'] * ((trk - 1) % 15)
-    labels = {n: int(a, 16) for a, n in re.findall(r'^al ([0-9A-F]+) \.(\w+)$', (GAME / 'build/dirtbike.lbl').read_text(), re.M)}
+    labels = a2test.labels(GAME / 'build/dirtbike.lbl')
     exit_addr = labels['reset']                     # never reached: profile the whole window
     fr = labels['frames']
     steps = ['wait:1300', 'key: ', 'wait:60'] + [s for k in menu for s in (f'key:{k}', 'wait:3')] + ['key:\r', 'wait:150'] + [s for k in keys for s in (f'key:{k}', 'wait:4')] + ([f'wait:{skip}'] if skip else []) + [f'peek:{fr:04X}:2', f'pcprof:{exit_addr:04X}:{frames}', f'peek:{fr:04X}:2']

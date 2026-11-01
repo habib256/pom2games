@@ -8,6 +8,9 @@ A visible colour cell starts one dot after the 4-dot pixel window used by
 the rectangle masks, so per-pixel colours are laid out with that shift.
 Preserve masks keep bit 7 (Chat Mauve colour bytes)."""
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+from fonts import write_if_changed  # noqa: E402
 rot = lambda c: ((c >> 1) | (c << 3)) & 15
 CELL_SHIFT = 1
 
@@ -48,8 +51,7 @@ body, tip = [11, 1, 1, 3], [None, 11, 1, None]
 out += rows('red_ball_ink', [ink(x, body) + ink(x, tip) for x in range(28)])
 path = Path(__file__).resolve().parents[1] / 'src' / 'sprite_tables.inc'
 text = '\n'.join(out) + '\n'
-if not path.exists() or path.read_text() != text:
-    path.write_text(text)
+write_if_changed(path, text)
 
 # Backgrounds, one per decade from level 11: tiles of 7 colour pixels (28
 # dots, 4 bytes: the colour phase repeats) by 8 lines, dark colours only.
@@ -87,5 +89,4 @@ bg += ['; Enemy spools: narrow core (pixels 1-2) then full bars (0-3).']
 bg += rows('spool_masks', [preserve((4 * m) % 7, [1, 2]) + preserve((4 * m) % 7, [0, 1, 2, 3]) for m in range(7)])
 path = Path(__file__).resolve().parents[1] / 'src' / 'bg_tiles.inc'
 text = '\n'.join(bg) + '\n'
-if not path.exists() or path.read_text() != text:
-    path.write_text(text)
+write_if_changed(path, text)

@@ -8,14 +8,15 @@ Original data and generated disks stay in ignored build/re_sites/.
 import json, subprocess, sys
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+import a2test  # noqa: E402
+HERE = a2test.game_dir(Path(__file__).resolve().parents[1], __doc__)  # --game DIR
 sys.path.insert(0, str(HERE.parent / 'dev/tools'))
 sys.path.insert(0, str(HERE / 'tools'))
 import a2test, smalldos
 
 
-def poke(address, data):
-    return [f'poke:{address+i:04X}:{b:02X}' for i, b in enumerate(data)]
+poke = a2test.pokes
 
 
 def disk(out, name, module, entry):
@@ -24,16 +25,9 @@ def disk(out, name, module, entry):
     (out / 'state.bin').write_bytes(state)
     (out / f'{name}.bin').write_bytes(module)
     (out / 'driver.bin').write_bytes(bytes((0x20, entry & 255, entry >> 8, 0x4C, 0, 8)))
-    (out / 'hello.bas').write_text('10 PRINT CHR$(4);"BLOAD STATE"\n'
-                                  '20 PRINT CHR$(4);"BLOAD MODULE"\n'
-                                  '30 PRINT CHR$(4);"BRUN DRIVER"\n')
     result = out / f'{name}.dsk'
-    subprocess.run([sys.executable, str(HERE.parent / 'dev/tools/dos33.py'),
-                    '--out', str(result), '--bas', f'HELLO={out / "hello.bas"}',
-                    '--bin', f'STATE={out / "state.bin"}@0x4000',
-                    '--bin', f'MODULE={out / (name+".bin")}@0x5800',
-                    '--bin', f'DRIVER={out / "driver.bin"}@0x0800'],
-                   check=True, capture_output=True)
+    a2test.build_disk(out, 'DRIVER', out / "driver.bin", 0x0800, disk=result,
+                      bload=[('STATE', out / "state.bin", 0x4000), ('MODULE', out / (name+".bin"), 0x5800)])
     return result
 
 

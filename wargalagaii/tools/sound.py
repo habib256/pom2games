@@ -21,6 +21,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT.parent / 'dev/tools/audio'))
+sys.path.insert(0, str(ROOT.parent / 'dev/tools'))
+from fonts import write_if_changed  # noqa: E402
 from notes import CPU, DUET_SLICE, DUET_TURN, half_period, hz, midi  # noqa: E402,F401
 OUT = ROOT / 'src/sound.inc'
 AY_CLOCK = 1_023_000            # Mockingboard AY: the Apple II clock
@@ -110,8 +112,7 @@ def main():
         if OUT.read_text() != text:
             sys.exit(f'{OUT} is stale: run tools/sound.py')
         return
-    if not OUT.exists() or OUT.read_text() != text:
-        OUT.write_text(text)
+    write_if_changed(OUT, text)
 
 
 if __name__ == '__main__':
