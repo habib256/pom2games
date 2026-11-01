@@ -2,14 +2,16 @@
 """ROGUE on a2run --ezcolor=N (E-Z Color card, TMS9918A) and a2shot --iie.
 
 Launcher decisions: card in slot 4 -> ROGUE.TMS; no card on a II+ -> the
-"cannot run" page and back to DOS; no card on a //e 128 KB (a2shot) ->
-ROGUE.DHGR. ROGUE.TMS: the Apple text notice, the VDP registers of the
-game's mode, the title and the first dungeon in VRAM (rendered to
-build/tests/*.png, --shots also to screenshots/), detection in slots 1, 2,
-5, 7, a scripted 200-key game (moves, bumps, bag, throw, help, sound key)
-with vdp_fast_writes == 0, a walk to the stairs (depth 2), the boss room
-(B at the title), the bump sound
-(heard with the sound on, silent after S), ESC at the title back to DOS.
+"cannot run" page and back to DOS; no card on a //e 128 KB or a //c
+(a2shot) -> ROGUE.DHGR; the aux RAM write test (aux_detect,
+lib/apple2/auxdetect.asm) failing -> the "cannot run" page. ROGUE.TMS:
+the Apple text notice, the VDP registers of the game's mode, the title
+and the first dungeon in VRAM (rendered to build/tests/*.png, --shots
+also to screenshots/), detection in slots 1, 2, 5, 7, a scripted 200-key
+game (moves, bumps, bag, throw, help, sound key) with vdp_fast_writes ==
+0, a walk to the stairs (depth 2), the boss room (B at the title), the
+bump sound (heard with the sound on, silent after S), ESC at the title
+back to DOS.
 """
 from collections import deque
 from pathlib import Path
@@ -142,6 +144,37 @@ def main():
                                                                       for b in r.dumps[-1]))
         check('NO E-Z COLOR CARD: DHGR' in row0 and 'until %04X' % LL['chain'] in r.out,
               'launcher, //e 128K without card: chains to ROGUE.DHGR')
+
+    # --- aux_detect (lib/apple2/auxdetect.asm) when the aux test fails -------
+    # a2run is a II+: aux_detect returns at the ROMID1 check, nothing written;
+    # aux_detect_probe (the write test alone) sees main RAM only, as a 64 KB
+    # //e with no card would: C = 0. Then the whole launcher with that
+    # check stepped over (its BNE offset, the byte before aux_detect_probe,
+    # poked to 0): the write test runs, fails, and the "cannot run" page
+    # comes up.
+    ad, probe = LL['aux_detect'], LL['aux_detect_probe']
+    r = a2test.run(None, [f'load:{GAME / "build/launcher.bin"}@6000', 'poke:2000:11', 'poke:0400:22',
+                          f'call:{ad:04X}:2', 'peek:2000', 'peek:0400', f'call:{probe:04X}:2'])
+    calls = re.findall(r'call ([0-9A-F]{4}) .* P=([0-9A-F]{2})', r.out)
+    check(len(calls) == 2 and not int(calls[0][1], 16) & 1 and r.dumps[0] == b'\x11'
+          and r.dumps[1] == b'\x22', 'aux_detect on a II+: C = 0, $2000/$0400 untouched')
+    check(len(calls) == 2 and not int(calls[1][1], 16) & 1,
+          'aux_detect_probe with no aux RAM: C = 0')
+    r = a2test.run(DISK, [f'until:{LL["entry"]:04X}:1500', f'poke:{probe - 1:04X}:00',
+                          f'until:{probe:04X}:300', 'wait:60', 'text'])
+    check(f'until {probe:04X}' in r.out and 'ROGUE CANNOT RUN ON THIS APPLE' in screen(r)[0],
+          'launcher, aux write test failing: "CANNOT RUN" page')
+
+    # --- no card on a //c: ROGUE.DHGR ------------------------------------------
+    if a2test.have_a2shot('//c no-card launcher test'):
+        p = a2test.subprocess.run([str(a2test.A2SHOT), '--iic', '--disk', str(DISK), 'wait:1',
+                                   'until:%04X:3000' % LL['chain'], 'peek:0400:40'],
+                                  capture_output=True, text=True, timeout=300)
+        r = a2test.Result(p.stdout)
+        row0 = ''.join(chr(c if c >= 0x20 else c + 0x40) for c in (b & 0x7F if b >= 0x80 else b
+                                                                      for b in (r.dumps[-1] if r.dumps else b'')))
+        check(p.returncode == 0 and 'NO E-Z COLOR CARD: DHGR' in row0,
+              'launcher, //c: chains to ROGUE.DHGR')
 
     # --- ESC at the title: back to DOS, card picture blanked --------------
     r = run(BOOT + ['key:\x1b', 'wait:60', 'text', 'vregs'])

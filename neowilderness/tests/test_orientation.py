@@ -10,7 +10,6 @@ the formulas of T$10/S$0C; LOOK SUN follows the Sun of sky_position, LOOK
 STARS the celestial pole of the hemisphere; USE MAP opens the map.
 """
 import math
-import sys
 from common import L, DISK, a2test, fp, text_screen
 
 UNITS = 560
@@ -95,12 +94,8 @@ def near(a, b, tol=1):
 
 
 def main():
-    failures = []
-
-    def check(name, ok):
-        print(f'  {name}: {"OK" if ok else "FAIL"}', flush=True)
-        if not ok:
-            failures.append(name)
+    C = a2test.Checker('ORIENTATION', flush=True)
+    check = C.check
 
     # 1. Day at the crash site (7 h, clear): the rule, the watch, the stick.
     script = ['LOOK N\r', 'USE WATCH\r', 'USE COMPASS\r', 'USE WATCH\r', 'USE ALTIMETER\r', 'LOOK AZ\r',
@@ -215,8 +210,7 @@ def main():
     check('PAN N, PAN SUN: msg 2 (T$15/S$0A), the view unchanged',
           all('NOT MAKING MUCH SENSE' in s[i]['text'] and s[i]['heading'] == s[12]['heading'] for i in (13, 14)))
     check('USE MAP: the map, in hand', 'CONTOURS' in s[15]['text'] and s[15]['place'][0] == 3)
-    print(f'{len(failures)} failures')
-    sys.exit(bool(failures))
+    C.done()
 
 
 if __name__ == '__main__':

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Capacity boundaries, atomic refusals, containers and remaining quantities."""
-import sys
 from common import L, DISK, a2test, text_screen
 from gendata import ITEMS, PLACE
 
@@ -35,12 +34,8 @@ def run(steps):
 
 
 def main():
-    failures = []
-
-    def check(name, ok):
-        print(f'  {name}: {"OK" if ok else "FAIL"}')
-        if not ok:
-            failures.append(name)
+    C = a2test.Checker('LOAD')
+    check = C.check
 
     # Derive usage independently from item weights/volumes and initial places.
     initial = [INITIAL_WEIGHT, 0, 0, 0]
@@ -160,8 +155,7 @@ def main():
     check('OBJECTS shows the carried weight, the walk\'s slowing and the three volumes left',
           rows[17][42:79].split()[-2:] == ['772/815', 'OZ'] and 'WALK TIME +28% FREE IN3 WEAR 1525' in rows[18]
           and 'PACK ' in rows[19] and 'HANDS ' in rows[19] and '4134' in rows[19] and '2542' in rows[19])
-    print(f'{len(failures)} failures')
-    sys.exit(bool(failures))
+    C.done()
 
 
 if __name__ == '__main__':

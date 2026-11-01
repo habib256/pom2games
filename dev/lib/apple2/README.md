@@ -57,6 +57,13 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
 - **`auxmem.asm`** — 128 KB //e / //c (65C02): `aux_store`,
   `aux_fetch_pages`, `aux_fetch_chunked` and the `AUXMOVE` macro; see
   [Auxiliary memory](#auxiliary-memory-auxmemasm).
+- **`auxdetect.asm`** — `aux_detect` (`.ifref`, NMOS, safe on a II /
+  II+): C = 1 when 128 KB of auxiliary RAM answers (//e extended 80-column
+  card, //c), a write test through 80STORE + HIRES + PAGE2 that a 1 KB card
+  and a 64 KB //e fail; `aux_detect_probe` = the test without the ROMID1
+  check; `AUX_DETECT_RESTORE = 1` puts the three bytes back. ROGUE's
+  launcher (byte-identical to its old `has_128k`). C counterpart:
+  `_dhgr_capabilities` in `../hgrc/dhgr_asm.s` (cc65, `ptr1`).
 - **`duet.asm`** — two voices on the speaker (time sharing, 33 cycles
   per pass, self-modified counts), assembled under `.org DUET_BASE` in its
   own page: `DUET_PLAY` (A = melody, X = bass, Y = slices),
@@ -183,6 +190,7 @@ another module). A C object that aliases a routine to an import
 | `dos_cmd_run` | `dos.asm` | buffer | DOS runs the command, with DOS's zero page put back meanwhile | all | — |
 | `dos_cmd_line` | `dos.asm` | A = lo, Y = hi (ASCIIZ) | `dos_cmd_new` + `dos_cmd_add` + `dos_cmd_run` (8 B, `.ifref`; a 7-byte site instead of 13): arkabreakout, maze3d | all | — |
 | `disk_protected` | `dos.asm` | — | C = 1 if the disk of DOS's last access is write-protected (slot × 16 read from DOS's IOB, `$B7E9`) | A, X | — |
+| `aux_detect` | `auxdetect.asm` | main RAM code/stack outside `$0400-$07FF` / `$2000-$3FFF` | C = 1: 128 KB aux RAM (`ROMID1` = `$06`, then `$A5` at aux `$2000` and `$5A` at aux `$0400` read back after `$00` at main `$2000`); II / II+: C = 0 after reading `$FBB3` only, no switch touched. Exit: 80STORE off, PAGE1, LORES; main `$2000` = 0 and the two aux bytes left written (`AUX_DETECT_RESTORE = 1`: put back, Y = 1/0, 95 B, 135 cycles). 64 B, 82 cycles found, 79/83 not, 17 on a II+. `aux_detect_probe`: without the ROMID1 check. C twin: `_dhgr_capabilities` (`../hgrc/dhgr_asm.s`). ROGUE's launcher | A, X (+ Y with RESTORE) | — |
 
 ## apple2.inc — public symbols
 
@@ -743,6 +751,7 @@ off; exit the same, the I flag restored. Not for an IRQ handler.
 | `aux_store` | A = pages (0 = 256), X = first aux page, Y = first main page | main → aux, RAMWRT aux, interrupts masked for the whole copy | 35 B; ~14 cycles a byte; ZP `auxmem_src`/`auxmem_dst` (2+2, define them first to alias) |
 | `aux_fetch_pages` | A = pages, X = first aux page, Y = first main page | aux → main; RAMRD aux hides the code in main RAM, so the page loop runs from a 16-byte stub copied to the zero page at each call (`auxmem_zcopy`); interrupts masked one page at a time (~3,600 cycles) | 36 B + 16 B template; 16 ZP bytes (`AUXMEM_ZP = addr` to place/alias them) |
 | `aux_fetch_chunked` | A/Y = aux source (low/high); `auxmem_fdst`, `auxmem_flen` | aux → main any length through the ROM's AUXMOVE (`$C311`), `AUXMEM_FETCH_CHUNK` bytes (64) at a time under SEI; `AUXMEM_FETCH_SCAN = 1`: `jsr _a2_vbl_scan` between chunks | 109 B (112 with the scan); ~36 cycles a byte; consumes `auxmem_fdst`/`auxmem_flen`, scratch `auxmem_fsrc` (2) and `auxmem_fn` (1), BSS unless defined first |
+| `aux_store_chunked` | A/Y = main source (low/high); `auxmem_fdst` (aux), `auxmem_flen` | main → aux, the same routine the other way (the direction patched in at each call; X clobbered); referencing it adds 8 B, `aux_fetch_chunked` alone stays byte-identical | 105 B for both in MB TRACKER (`auxmem_fsrc` = `ptr1`, `auxmem_fn` = `tmp1`: zero page; `AUXMEM_FETCH_CHUNK = 128`) |
 | `AUXMOVE first, last, dest, dir [, jmp]` | constants or labels; `dir` = `AUX_TO_MAIN` / `MAIN_TO_AUX` | macro: the ROM's AUXMOVE of first..last (inclusive) to dest; `jmp` = tail call | 28 B (`$3C-$3F`, `$42/$43`); the ROM leaves I alone |
 
 C: `apple2aux.h` (dev/lib/apple2c): `aux_store(pages, aux_page)` (a macro
@@ -759,7 +768,10 @@ Users: ROBOT SPACE STATION (`aux_store` for the text bank and the overlays at
 boot, `aux_fetch_pages` for its overlay switches: `src/overlay.s`, 11 B),
 WARGALAGA II (`AUXMOVE` ×3, `aux_fetch_chunked` with `AUXMEM_FETCH_SCAN = 1`
 as its `aux_fetch`, included in place so that `pack_check` falls into it:
-byte-identical; `aux_store` under `prodos_load_aux` at boot).
+byte-identical; `aux_store` under `prodos_load_aux` at boot), MB TRACKER
+(`aux_store_chunked` / `aux_fetch_chunked` with `AUXMEM_FETCH_CHUNK = 128`
+under its `aux_put` / `aux_get`, the four variables its own: `src/mbt_asm.s`,
+−17 B against its copy loop).
 `dev/tests/test_prodos_file.py` (`make test-tools`) runs `aux_store` (via
 `prodos_load_aux`), `aux_fetch_pages`, `aux_fetch_chunked` and `AUXMOVE`
 on an enhanced //e.

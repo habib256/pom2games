@@ -27,7 +27,7 @@ TITLE = ['key: ', 'wait:60']          # from the title page to the menu
 
 def menu_keys(k):
     keys = ([] if k <= 15 else ['L']) + ['K'] * ((k - 1) % 15)
-    return [s for c in keys for s in (f'key:{c}', 'wait:3')] + ['key:\r']
+    return a2test.keys(keys) + ['key:\r']
 
 
 def main():

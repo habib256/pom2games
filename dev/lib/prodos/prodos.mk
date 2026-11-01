@@ -13,6 +13,9 @@ PRODOS_FILE_AT_SRCS := $(PRODOS)/file_at.s
 PRODOS_FILE_AT_DEPS := $(PRODOS_FILE_DEPS) $(PRODOS)/file.s
 PRODOS_FILE_AUX_AT_SRCS := $(PRODOS)/file_aux_at.s
 PRODOS_FILE_AUX_AT_DEPS := $(PRODOS_FILE_AUX_DEPS) $(PRODOS)/file_aux.s
+# The prefix's directory listed, ProDOS names checked (C, prodos.h): compile
+# it with the program's segment names (an overlay: code, rodata and data).
+PRODOS_DIR_SRCS := $(PRODOS)/dir.c
 
 # The .SYSTEM shim: src/boot.s defines SYSBOOT_FILE / SYSBOOT_TITLE and
 # includes sysboot.s (see its header). A SYS image in one piece at $2000

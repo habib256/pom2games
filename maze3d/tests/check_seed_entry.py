@@ -14,7 +14,7 @@ DISK = ROOT / "dist/MAZE3D.dsk"
 
 def keys(text):
     # A redraw takes longer than a2shot's default three frames per key.
-    return [step for char in text for step in (f"key:{char}", "wait:20")]
+    return a2test.keys(text, 20)
 
 
 def run(steps):

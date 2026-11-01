@@ -9,8 +9,8 @@
 #   make test       -> a2shot with a Mockingboard on //e and //c, and without
 #
 # C (cc65) for the editor; src/mbt_asm.s wraps the asm libraries
-# (mockingboard.asm, mb_irq.asm, aysong.asm), the 80-column text and the
-# aux memory copies.
+# (mockingboard.asm, mb_irq.asm, aysong.asm, auxmem.asm: the aux memory
+# copies); the 80-column text and its pointer: dev/lib/apple2c apple2t80.
 DEV ?= ../dev
 APPLE2_PRESET := iie
 APPLE2_RUN_FLAGS := --slot 4=mockingboard
@@ -25,22 +25,32 @@ MOUSE := $(DEV)/lib/mouse
 MOUSE_SRCS := $(MOUSE)/mouse.s              # (not mouse.mk: its run-iic is ours)
 MOUSE_INCS := -I $(MOUSE)
 OBJS := $(BUILD)/entry.o $(BUILD)/crt0_prodos.o $(BUILD)/main.o $(BUILD)/song.o $(BUILD)/files.o \
-        $(BUILD)/insed.o $(BUILD)/fileui.o $(BUILD)/voices.o $(BUILD)/mbt_asm.o
-LIB_SRCS := $(PRODOS_SRCS) $(PRODOS_FILE_SRCS) $(MOUSE_SRCS)
+        $(BUILD)/insed.o $(BUILD)/fileui.o $(BUILD)/dir.o $(BUILD)/voices.o $(BUILD)/mbt_asm.o
+LIB_SRCS := $(PRODOS_SRCS) $(PRODOS_FILE_SRCS) $(MOUSE_SRCS) $(APPLE2C_T80_SRCS) $(APPLE2C_T80_PTR_SRCS) \
+            $(APPLE2C_VBL_GATE_SRCS)
 LIB_OBJS := $(addprefix $(BUILD)/,$(notdir $(LIB_SRCS:.s=.o)))
-CFLAGS := -t none --cpu 65c02 -Ors --static-locals -I src $(PRODOS_INCS) $(MOUSE_INCS)
-vpath %.c src
-vpath %.s src $(DEV)/cc65 $(PRODOS) $(MOUSE)
+CFLAGS := -t none --cpu 65c02 -Ors --static-locals -I src $(APPLE2C_INCS) $(PRODOS_INCS) $(MOUSE_INCS)
+vpath %.c src $(PRODOS)
+vpath %.s src $(DEV)/cc65 $(PRODOS) $(MOUSE) $(APPLE2C)
 
 all: $(DISK)
 
-$(BUILD)/%.o: %.c src/mbt.h src/ui.h $(PRODOS)/prodos.h $(MOUSE)/mouse.h
+$(BUILD)/%.o: %.c src/mbt.h src/ui.h $(APPLE2C)/apple2t80.h $(APPLE2C)/apple2vblgate.h $(PRODOS)/prodos.h $(MOUSE)/mouse.h
 	@mkdir -p $(@D)
 	$(CL65) $(CFLAGS) -c -o $@ $<
-$(BUILD)/mbt_asm.o: src/mbt_asm.s $(APPLE2)/mockingboard.asm $(APPLE2)/mb_irq.asm $(APPLE2)/aysong.asm
+# The catalog (dev/lib/prodos dir.c) in OVL2 with files.c, fileui.c; its
+# directory block with files.c's buffers ($1000-$1FFF).
+$(BUILD)/dir.o: $(PRODOS_DIR_SRCS) $(PRODOS)/prodos.h
+	@mkdir -p $(@D)
+	$(CL65) $(CFLAGS) --code-name OVL2 --rodata-name OVL2 --data-name OVL2 --bss-name LOWBSS -c -o $@ $<
+$(BUILD)/mbt_asm.o: src/mbt_asm.s $(APPLE2)/mockingboard.asm $(APPLE2)/mb_irq.asm $(APPLE2)/aysong.asm $(APPLE2)/auxmem.asm
 	@mkdir -p $(@D)
 	$(CA65) -t none -g -I $(APPLE2) -o $@ $<
 $(BUILD)/file.o: $(PRODOS_FILE_DEPS)
+# The text routines draw under the pointer (apple2t80_ptr.s).
+$(BUILD)/apple2t80.o: $(APPLE2C)/apple2t80.s
+	@mkdir -p $(@D)
+	$(CA65) -t none -g $(APPLE2C_T80_PTR_AFLAGS) -o $@ $<
 # The pointer's X spans 0-159: two mouse steps an 80-column text column.
 $(BUILD)/mouse.o: $(MOUSE)/mouse.s
 	@mkdir -p $(@D)

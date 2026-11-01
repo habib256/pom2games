@@ -30,7 +30,6 @@ Screenshots: build/animal_site.png, build/animal_look_back.png,
 build/animal_fire.png, build/animal_night.png.
 """
 import re
-import sys
 import tempfile
 
 from common import (HERE, L, DISK, a2test, dhgr, dhgr_view, dhgr_page, mood_name, state,
@@ -44,14 +43,11 @@ IDLE = L.until('idle', 20000)
 MAP = (HERE / 'build/map.bin').read_bytes()
 SX, SY = int.from_bytes(MAP[2:4], 'little'), int.from_bytes(MAP[4:6], 'little')
 HEAD = int.from_bytes(MAP[6:8], 'little')
-fails = []
+C = a2test.Checker('Animal always in view')
+check, fails = C.check, C.fails
 DEBUG = None                    # a directory: PNGs of the views that differ
 
 
-def check(name, ok, detail=''):
-    print(f'  {name}: {"OK" if ok else "FAIL"}' + (f' {detail}' if not ok and detail != '' else ''))
-    if not ok:
-        fails.append(name)
 
 
 def boot(s, keys=None):
@@ -65,9 +61,8 @@ def boot(s, keys=None):
 
 
 def typed(s, text):
-    s.step(f'key:{text}')
-    s.step('press:\\r')
-    s.step('wait:1')
+    for step in a2test.type_line(text):
+        s.step(step)
     s.step(IDLE)
 
 
@@ -442,8 +437,7 @@ def main():
     sierra()
     new_guinea()
     native()
-    print('Animal always in view: ' + ('OK' if not fails else 'FAILED: ' + '; '.join(fails)))
-    sys.exit(1 if fails else 0)
+    C.done()
 
 
 if __name__ == '__main__':

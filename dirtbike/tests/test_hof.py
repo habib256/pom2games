@@ -71,7 +71,7 @@ def main():
         # initials with the keys, drawn, then saved
         saved = Path(tmp) / 'saved.dsk'
         keys = [DOWN, RIGHT, UP, UP, RIGHT, '9', UP, UP, UP, LEFT, DELETE, 'z']
-        steps = race_to_record(L) + [s for k in keys for s in (f'key:{k}', 'wait:5')]
+        steps = race_to_record(L) + a2test.keys(keys, 5)
         steps += [L.peek('last_ini', 3), L.peek('hpos', 1), 'peek:2000:8192', 'key:\r',
                   L.until('new_race', 900), L.peek('hof_t', 2), L.peek('hof_s', 2), f'dsk:{saved}']
         r = a2test.run(DISK, steps)

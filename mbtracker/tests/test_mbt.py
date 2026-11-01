@@ -16,8 +16,9 @@ as the model plays them.
 //c: the same notes and play, on the bus.
 No card: "NO MOCKINGBOARD", editing still works, ^P only says so.
 
-The mouse (a2shot `mouse:` steps: the X clamp 0-159 = two pixels a column,
-8 a row; hops of 40 pixels at most, the button held 8 frames): on a //e
+The mouse (a2shot `mousemove:` steps toward what the program last read,
+Session.mouse_set: the X clamp 0-159 = two pixels a column, 8 a row; hops
+of HOP pixels at most, the button held 8 frames): on a //e
 with the card in slot 4 and an AppleMouse in slot 2, a click on a field
 moves the cursor there, a note typed lands in it; the instrument panel
 (a click selects, a second one opens the editor, where a click on a tick's
@@ -90,37 +91,41 @@ class Session(a2test.Session):
     mpos = (70, 96)                   # (dev/lib/mouse: the start position)
     sync = True                       # //e: read once a refresh (main.c event())
 
+    def mouse_set(self, x, y, b=0):
+        """The program reads (x, y): a2shot's relative `mousemove:` steps of
+        the difference to what it last read (mouse_x, mouse_y), 3 frames
+        each, until equal. (a2shot's absolute `mouse:` step corrects the card
+        once a frame from that same last read: when the //e's read, once a
+        refresh at the first poll in the blank, drifts across a2shot's frame
+        boundary, a frame without a read gets a second correction and the
+        loop chases a stale position: it depends on where the code lies.)"""
+        for _ in range(40):
+            px, py = self.peek('mouse_x', 2)
+            if (px, py) == (x, y):
+                self.step(f'mousemove:0,0,{b}')
+                return
+            dx, dy = max(-HOP, min(HOP, x - px)), max(-HOP, min(HOP, y - py))
+            if self.sync:                     # the motion just after a read
+                self.step(f'until:{L["mouse_read_done"]:04X}:30')
+            self.step(f'mousemove:{dx},{dy},{b}')
+            self.step('wait:3')
+        raise AssertionError(f'mouse: {x},{y} not reached: the program read {px},{py}, from {self.mpos}')
+
     def mouse_to(self, x, y, b=0):
-        """In hops of 40 pixels at most, 6 frames each. a2shot's mouse: step
-        corrects the card once a frame from what the program last read; the
-        //e reads it once a refresh: the run first stops just after a read,
-        so that the card has a whole frame to take each correction (else the
-        loop may chase a stale position and never settle)."""
+        """In hops of HOP pixels at most (mouse_set)."""
         if self.sync:
             self.idle()
-            self.step(f'until:{L["mouse_read_done"]:04X}:30')
-        cx, cy = self.mpos
-        while (cx, cy) != (x, y):
-            cx += max(-HOP, min(HOP, x - cx))
-            cy += max(-HOP, min(HOP, y - cy))
-            try:
-                self.step(f'mouse:{cx},{cy},{b}')
-            except RuntimeError as e:
-                raise AssertionError(f'{e}: the program read {self.peek("mouse_x", 2)[0]},'
-                                     f'{self.peek("mouse_x", 2)[1]}, from {self.mpos}') from None
-            self.step('wait:6')
+        self.mouse_set(x, y, b)
         self.mpos = (x, y)
 
     def click(self, col, row, frames=300):
         """Press and release on the text cell (col, row)."""
         x, y = col * 2 + 1, row * 8 + 4
         self.mouse_to(x, y)
-        for _ in range(2):
-            self.step(f'mouse:{x},{y},0')
-            self.step('wait:6')
-        out = self.step(f'mouse:{x},{y},1').out
+        self.step('wait:12')
+        out = self.step('mousemove:0,0,1').out
         out += self.step('wait:8').out
-        out += self.step(f'mouse:{x},{y},0').out
+        out += self.step('mousemove:0,0,0').out
         out += self.step('wait:6').out
         out += self.idle(frames).out         # (kbd_get comes first in event():
         out += self.step('wait:30').out      # the press may be handled after it)
@@ -130,17 +135,18 @@ class Session(a2test.Session):
         """Pressed on (c0, r0), held cell by cell to (c1, r1), released."""
         x, y = c0 * 2 + 1, r0 * 8 + 4
         self.mouse_to(x, y)
-        self.step(f'mouse:{x},{y},0')
         self.step('wait:6')
-        self.step(f'mouse:{x},{y},1')
+        self.step('mousemove:0,0,1')
         self.step('wait:8')
         while (c0, r0) != (c1, r1):
             c0 += (c1 > c0) - (c1 < c0)
             r0 += (r1 > r0) - (r1 < r0)
             x, y = c0 * 2 + 1, r0 * 8 + 4
-            self.step(f'mouse:{x},{y},1')
+            self.mouse_set(x, y, 1)
+            self.idle()                       # (K_DRAG handled, the grid drawn)
             self.step('wait:6')
-        self.step(f'mouse:{x},{y},0')
+            self.idle()
+        self.step('mousemove:0,0,0')
         self.step('wait:6')
         self.mpos = (x, y)
         self.idle()
@@ -253,7 +259,7 @@ def play_check(s, data, ticks, what, start=None):
 
 
 GRID_Y, KEYS_Y = 3, 23
-HOP = 24                        # pixels a mouse: hop (the card takes ~32 a frame)
+HOP = 24                        # pixels a mousemove: hop at most (the card takes ~32 a frame)
 MAIN_BAR = ' ^P PLAY  ^R LOOP  SPC STOP  PAT  TAB ORD  ^E INS  ^L LOAD  ^S SAVE  ? HELP'
 INS_BAR = ' RETURN LISTEN  ESC BACK  < PREV  > NEXT  ^T NAME  ^O ^Y TICK'
 
@@ -336,7 +342,7 @@ def mouse_clamp(s, what):
     s.step('wait:12')
     s.idle()
     assert s.b('mouse_x') == 159, ('X clamp', s.b('mouse_x'))
-    print(f'PASS {what}: the pointer reaches x = 159 (column {s.b("ptr_x")}) and stays there pushed further')
+    print(f'PASS {what}: the pointer reaches x = 159 (column {s.b("t80_ptr_x")}) and stays there pushed further')
 
 
 def run_mouse(work):

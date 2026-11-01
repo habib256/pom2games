@@ -12,7 +12,7 @@ DISK = ROOT / 'dist/MAZE3D.dsk'
 
 
 def keys(text):
-    return [s for c in text for s in ('key:' + c, 'wait:30')]
+    return a2test.keys(text, 30)
 
 
 def pause(prefix):

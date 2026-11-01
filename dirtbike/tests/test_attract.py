@@ -158,7 +158,7 @@ def main():
 
     # track 30 finished: the congratulations page
     unlock = [L.poke('rec_min', 0, i) for i in range(30)]
-    keys = [s for c in ['L'] + ['K'] * 14 for s in (f'key:{c}', 'wait:3')]
+    keys = a2test.keys('L' + 'K' * 14)
     r = a2test.run(DISK, ['wait:1000'] + unlock + ['key: ', 'wait:60'] + keys + ['key:\r', L.until('new_race', 900),
                           L.until('main_loop', 60), L.poke('finish_x', 40), L.poke('finish_x', 0, 1), L.poke('laps', 2),
                           'wait:220', L.peek('sel', 1), 'key: ', L.until('show_page', 600), 'wait:150', 'peek:2000:8192'])

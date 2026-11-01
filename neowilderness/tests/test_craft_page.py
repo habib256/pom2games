@@ -39,7 +39,8 @@ READY = L.until('keyboard_wait', 60000)
 DO_COMMAND = L.until('do_command', 60000)
 MAP = 0x7000
 RECIPES = ['HUT', 'IGLOO', 'TRENCH', 'CLUB', 'SPEAR', 'BOW', 'AXE', 'SPLINT', 'SUNGLASSES', 'SUNSCREEN']
-fails = []
+C = a2test.Checker('CRAFT page and the second set in the grid')
+check = C.check
 
 
 # NeoWildernessXL (docs/MENUS.md 9): the halves begin on row 2, under the
@@ -58,10 +59,6 @@ STATE = {OK: 'possible', NO: 'missing', DONE: 'done'}
 ALTCHAR = 0xC01E                         # RDALTCHAR: bit 7 on
 
 
-def check(name, ok, detail=''):
-    print(f'  {name}: {"OK" if ok else "FAIL"}' + (f' {detail}' if not ok and detail else ''))
-    if not ok:
-        fails.append(name)
 
 
 def rows(s):
@@ -666,10 +663,7 @@ def main():
     page_equals_keyboard(DISK, 'XL')
     grid(DISK, 'XL')
     hint()
-    if fails:
-        print(f'CRAFT page: {len(fails)} FAIL: {fails}')
-        sys.exit(1)
-    print('CRAFT page and the second set in the grid: OK')
+    C.done()
 
 
 if __name__ == '__main__':

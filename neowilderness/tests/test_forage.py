@@ -41,13 +41,10 @@ STUB = 0x9500                   # overlay_text (SCRATCH): free during these comm
 TABLE, COUNT, INDEX = STUB + 0x40, STUB + 0x3E, STUB + 0x3F
 FORAGE_RUN = 0x9600
 FG_CGND, FG_CPROV = 11, 22
-fails = []
+C = a2test.Checker('FORAGE')
+check, fails = C.check, C.fails
 
 
-def check(name, ok, detail=''):
-    print(f'  {name}: {"OK" if ok else "FAIL"}' + (f' {detail}' if not ok and detail else ''))
-    if not ok:
-        fails.append(name)
 
 
 def seed_for(quality, position=2):
@@ -1165,9 +1162,7 @@ def main():
         original_cases(results)
         game_script(results)
     clock_check()
-    if fails:
-        raise SystemExit(f'FORAGE: {len(fails)} failures: {fails}')
-    print('FORAGE: OK')
+    C.done()
 
 
 if __name__ == '__main__':

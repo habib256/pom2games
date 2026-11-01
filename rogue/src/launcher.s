@@ -7,7 +7,7 @@
 ;      lib/apple2/ezcolor.asm, boot drive and slot 3 skipped)
 ;        -> "E-Z COLOR CARD IN SLOT N", BRUN ROGUE.TMS (any Apple II);
 ;   2. else an Apple //e with 128 KB or a //c ($FBB3 = $06, auxiliary RAM
-;      found by writing it)
+;      found by writing it: lib/apple2/auxdetect.asm)
 ;        -> "NO E-Z COLOR CARD: DHGR VERSION", BRUN ROGUE.DHGR;
 ;   3. else (II, II+, 64 KB //e, no card): a text page says what ROGUE
 ;      needs; a key returns to DOS.
@@ -39,7 +39,7 @@ entry:
         LDY     #>cmd_tms
         JMP     chain
 @nocard:
-        JSR     has_128k        ; C = 1: //e 128 KB or //c
+        JSR     aux_detect      ; C = 1: //e 128 KB or //c
         BCC     @none
         LDA     #<page_dhgr
         LDY     #>page_dhgr
@@ -86,38 +86,11 @@ chain:
         PLA
         JMP     dos_cmd_line    ; BRUN: never returns
 
-; has_128k -- C = 1 on an Apple //e or //c with auxiliary RAM beyond the
-; text page (an extended 80-column card): with 80STORE + HIRES + PAGE2,
-; $2000 and $0400 are auxiliary; two different bytes must stay apart (a
-; 1 KB card would fold $2000 onto $0400) and away from main $2000.
-has_128k:
-        LDA     $FBB3
-        CMP     #$06
-        BNE     @no
-        STA     STORE80ON
-        BIT     HIRES
-        BIT     HISCR           ; aux $0400-$07FF and $2000-$3FFF
-        LDA     #$A5
-        STA     $2000
-        LDA     #$5A
-        STA     $0400
-        BIT     LOWSCR          ; main
-        LDA     #$00
-        STA     $2000
-        BIT     HISCR
-        LDA     $2000
-        LDX     $0400
-        BIT     LOWSCR
-        BIT     LORES
-        STA     STORE80OFF
-        CMP     #$A5
-        BNE     @no
-        CPX     #$5A
-        BNE     @no
-        SEC
-        RTS
-@no:    CLC
-        RTS
+; aux_detect (lib/apple2/auxdetect.asm) -- C = 1 on an Apple //e or //c
+; with auxiliary RAM beyond the text page (an extended 80-column card): a
+; write test through 80STORE + HIRES + PAGE2 that a 1 KB card fails. Included
+; here, after its caller, so the launcher keeps its layout (STARTUP).
+.include "auxdetect.asm"
 
 .include "txtpage.inc"
 

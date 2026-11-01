@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Capacity boundaries, atomic refusals, containers and remaining quantities."""
-import sys
 from common import L, DISK, a2test, text_screen
 from gendata import ITEMS, PLACE
 
@@ -35,12 +34,8 @@ def run(steps):
 
 
 def main():
-    failures = []
-
-    def check(name, ok):
-        print(f'  {name}: {"OK" if ok else "FAIL"}')
-        if not ok:
-            failures.append(name)
+    C = a2test.Checker('LOAD')
+    check = C.check
 
     # Derive usage independently from item weights/volumes and initial places.
     initial = [INITIAL_WEIGHT, 0, 0, 0]
@@ -161,8 +156,7 @@ def main():
     check('inventory displays all four remaining capacities in every group', all(
           tuple(' '.join(row.split()) for row in text_screen(page)[2:6]) == expected
           for page in r.dumps))
-    print(f'{len(failures)} failures')
-    sys.exit(bool(failures))
+    C.done()
 
 
 if __name__ == '__main__':

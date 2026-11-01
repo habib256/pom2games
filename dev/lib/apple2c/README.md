@@ -16,8 +16,10 @@ mode. Output goes through COUT (`$FDED`) on the text page, input reads the keybo
 | `apple2frame.h` + `apple2frame.s` | optional frame pacing: IIe VBL, bounded fallback delay |
 | `apple2vbl.h` + `apple2vbl.s` (+ `apple2vbl_pal.s`) | ProDOS video clock: IIe VBL polling or IIc mouse VBL interrupt (CHROMABREAK, WARGALAGA II) |
 | `apple2aux.h` + `apple2aux.s` / `apple2auxfetch.s` | 128 KB aux memory, whole pages: `aux_store(pages, aux_page)` from `aux_store_src`, `aux_fetch_pages(pages, aux_page, main_page)`, on `dev/lib/apple2/auxmem.asm` (see its README) (ROBOT SPACE STATION) |
+| `apple2t80.h` + `apple2t80.s` / `apple2t80_ptr.s` | 80-column text written directly (//e 80-column card / //c, 65C02; see below) and a pointer cell on it (MB TRACKER) |
+| `apple2vblgate.h` + `apple2vblgate.s` | at most one go a //e refresh, `a2_vbl_gate()` (the mouse read once a frame), 19 B, for programs without `apple2vbl.s` (MB TRACKER, ROBOT SPACE STATION) |
 | `apple2c.h` | umbrella header |
-| `apple2c.mk` | Makefile fragment: `APPLE2C_SRCS`, `APPLE2C_INCS`, `APPLE2C_GAME_SRCS`, `APPLE2C_DOS_SRCS`, `APPLE2C_VAPOR_SRCS`, `APPLE2C_FRAME_SRCS`, `APPLE2C_VBL_SRCS`, `APPLE2C_VBL_PAL_SRCS`, `APPLE2C_AUX_SRCS`, `APPLE2C_AUXFETCH_SRCS`, `APPLE2C_AUX_DEPS`, `APPLE2C_AFLAGS` |
+| `apple2c.mk` | Makefile fragment: `APPLE2C_SRCS`, `APPLE2C_INCS`, `APPLE2C_GAME_SRCS`, `APPLE2C_DOS_SRCS`, `APPLE2C_VAPOR_SRCS`, `APPLE2C_FRAME_SRCS`, `APPLE2C_VBL_SRCS`, `APPLE2C_VBL_PAL_SRCS`, `APPLE2C_AUX_SRCS`, `APPLE2C_AUXFETCH_SRCS`, `APPLE2C_AUX_DEPS`, `APPLE2C_VBL_GATE_SRCS`, `APPLE2C_T80_SRCS`, `APPLE2C_T80_PTR_SRCS`, `APPLE2C_T80_PTR_AFLAGS`, `APPLE2C_AFLAGS` |
 | `apple2game.h` + `apple2game_asm.s` | speaker, joystick, buttons (optional) |
 | `apple2vapor.h` + `apple2vapor_asm.s` | vapor lock: frame sync through the floating bus on a II / II+ / //e (optional) |
 | `apple2dos.h` + `apple2dos_asm.s` | DOS 3.3 commands: BLOAD, BSAVE… (optional) |
@@ -191,3 +193,42 @@ late frames). Option `-D A2_VBL_SCAN_SEI=1`: an edge is read again under
 SEI before it is counted, for programs whose own interrupt handlers call
 `a2_vbl_scan` too (WARGALAGA II's music); +9 cycles only when the beam
 changes. Default 0 (CHROMABREAK).
+
+### One go a //e refresh, without the clock (`apple2vblgate.s`)
+
+`a2_vbl_gate()` (`APPLE2C_VBL_GATE_SRCS`, `apple2vblgate.h`) returns nonzero
+on the first call in the vertical blank after a call in the picture, else
+0: the same picture → blank edge `a2_vbl_scan` counts, seen lazily (call it
+more often than the blank lasts, ~4,500 cycles, to miss none), without
+`apple2vbl.s`'s 172 bytes and `apple2frame.s`. `a2_vbl_armed = 0` makes the
+next go wait for a call in the picture (a read made without the gate).
+//e only (`$C019`; the caller checks the model). 18 B + 1 B of BSS, 35
+cycles with the JSR, no zero page. The AppleMouse read once a frame (two
+READMOUSE calls in a row lose part of the motion): MB TRACKER's `m_sample`
+(`if (vbl_gate && !a2_vbl_gate()) return;`), ROBOT SPACE STATION's
+`ui_latch` (its main loop's own read resets it).
+
+## 80-column text (`apple2t80.s`, `apple2t80_ptr.s`)
+
+`apple2t80.h`, `APPLE2C_T80_SRCS`: the 80-column text page written directly
+on a //e with an 80-column card or a //c (65C02): 80STORE on, even columns
+in aux `$0400-$07FF` (PAGE2 on while written), odd ones in main, ALTCHARSET
+on (inverse lower case, MouseText), text page 1. cc65's `ptr1`/`ptr2`/
+`tmp1`/`tmp2` and `popa` borrowed; no interrupt handler may toggle PAGE2.
+
+| Call / variable | Effect |
+|---|---|
+| `t80_init()` | 80STORE, 80COL, ALTCHARSET, TEXT, full screen, page 1; both halves cleared to spaces, not the screen holes (the slots', the mouse firmware's); `t80_mode` 0 |
+| `t80_x`, `t80_y`, `T80_AT(x, y)` | the cursor; nothing is written past column 79 |
+| `t80_mode` | `T80_NORMAL` (0), `T80_INVERSE` (1: `@`-`_` and lower case inverse), `T80_RAW` (2: the bytes are screen codes) |
+| `t80_putc(c)`, `t80_puts(s)`, `t80_fill(c, n)` | at the cursor, `t80_x` advanced |
+| `t80_scroll(down)`, `t80_sw` | columns 0 .. 2 `t80_sw` + 1 (39 at first: all 80) of the `t80_x` rows from `t80_y` one row up (0: the last row keeps its text, to be redrawn) or down (the first); `t80_y` left moved |
+| `t80_ptr_x`, `t80_ptr_y`, `t80_ptr_on`, `t80_ptr_show()`, `t80_ptr_hide()` | `apple2t80_ptr.s` (`APPLE2C_T80_PTR_SRCS`): the cell shown inverse (an inverse one normal, MouseText `+`); move it between hide and show |
+
+345 B code + 4 B (the row table in CODE: a program may reuse its RODATA at
+the exit); the pointer 115 B + 4 B, and `apple2t80.s` assembled with
+`$(APPLE2C_T80_PTR_AFLAGS)` (`-D T80_PTR=1`, +51 B) so that the text routines
+draw under it (what they write there is kept for `t80_ptr_hide`, shown
+flipped) and `t80_scroll` hides it meanwhile. MB TRACKER (its whole screen;
+the mouse read with 80STORE off stays in the program: the firmware's screen
+holes are in main).

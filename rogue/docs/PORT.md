@@ -366,7 +366,9 @@ médiane 63 060 → 40 510 (graine 0x1983) et 102 366 → 51 176 (0x5A3C),
    mise à jour par S) puis lance le jeu.
 4. Pas de carte, //e 128 Ko ou //c (`$FBB3 = $06`, mémoire auxiliaire vérifiée
    en l'écrivant : 80STORE + HIRES + PAGE2, `$2000` et `$0400` auxiliaires
-   doivent garder deux valeurs différentes) → « NO E-Z COLOR CARD: DHGR »,
+   doivent garder deux valeurs différentes : `aux_detect`,
+   `dev/lib/apple2/auxdetect.asm`, inclus à la place de l'ancien `has_128k`,
+   octet pour octet) → « NO E-Z COLOR CARD: DHGR »,
    `BRUN ROGUE.DHGR` (chargé en `$3C00`, par-dessus le lanceur ; il se passe
    ensuite du DOS, §6).
 5. Ni l'un ni l'autre → page « ROGUE CANNOT RUN ON THIS APPLE » : ce qu'il

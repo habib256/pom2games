@@ -16,18 +16,14 @@ the IIc's SETVID is played by a write to $C00E at the start menu.
   after the hall of fame (H at the start menu) and a new journey;
 - 140 KB: ALTCHARSET stays off, no MouseText code on its pages.
 """
-import sys
 
 from common import L, DISK, DISK140, a2test, text_screen
 
 LIMIT = 40000
-fails = []
+C = a2test.Checker('ALTCHARSET')
+check = C.check
 
 
-def check(name, ok, detail=''):
-    print(f'  {name}: {"OK" if ok else "FAIL"}' + (f' {detail}' if not ok and detail != '' else ''))
-    if not ok:
-        fails.append(name)
 
 
 def alt(s):
@@ -65,9 +61,8 @@ def start(s, choice='1', iic=True):
 
 
 def typed(s, text, answer=None):
-    s.step(f'key:{text}')
-    s.step('press:\\r')
-    s.step('wait:2')
+    for step in a2test.type_line(text, wait=2):
+        s.step(step)
     for _ in range(20):
         r = s.step(f'until:{L["idle"]:04X},{L["keyboard_wait"]:04X}:{LIMIT}')
         if r.out.rstrip().endswith(f'PC={L["idle"]:04X}'):
@@ -139,8 +134,7 @@ def neo140():
 def main():
     xl()
     neo140()
-    print('ALTCHARSET: ' + ('OK' if not fails else 'FAILED: ' + '; '.join(fails)))
-    sys.exit(1 if fails else 0)
+    C.done()
 
 
 if __name__ == '__main__':

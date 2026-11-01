@@ -20,7 +20,7 @@ DUMPS = ['peek:1000:77', 'peek:10a0:32', 'peek:0056:2'] + [L.peek(f) for f in FI
 
 
 def keys(text, delay=25):
-    return [step for c in text for step in ('key:' + c, f'wait:{delay}')]
+    return a2test.keys(text, delay)
 
 
 def run(disk, steps, emulator=a2test.A2RUN, wp=False):

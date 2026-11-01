@@ -79,4 +79,16 @@ unsigned char __fastcall__ prodos_load_aux(void *aux_dst, unsigned max);
  * READ is no error (compare prodos_file_actual). */
 extern unsigned long prodos_file_mark;
 unsigned char prodos_load_at(void);
+/* dir.c (PRODOS_DIR_SRCS): the active entries (seedling, sapling, tree;
+ * not subdirectories) of the prefix's directory whose names are longer
+ * than suffix and end with it ("": all), in directory order: up to max
+ * names, NUL-terminated, name_len (>= 16) bytes apart from names on.
+ * prodos_file_iobuf: the 1 KB OPEN buffer (as for file.s). The count in
+ * prodos_dir_count; 0 or the MLI error (the end of the directory is 0). */
+extern unsigned char prodos_dir_count;
+unsigned char __fastcall__ prodos_dir_list(char *names, unsigned char name_len,
+                                           unsigned char max, const char *suffix);
+/* A valid ProDOS file name: 1-15 characters, an upper-case letter, then
+ * upper-case letters, digits, dots. 1 = valid. */
+unsigned char __fastcall__ prodos_name_valid(const char *s);
 #endif

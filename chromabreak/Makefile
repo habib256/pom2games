@@ -47,7 +47,7 @@ $(BUILD)/game.o $(BUILD)/records.o: src/records.h src/sound.h
 $(BUILD)/sound.o: src/duet.inc $(APPLE2)/duet.asm
 $(BUILD)/sound.o: src/music_offsets.inc src/levels.inc src/fine_font.inc
 $(BUILD)/finale_music.o: src/music_fanfare.inc
-src/music_aux.inc src/music_offsets.inc src/music_fanfare.inc: tools/generate_music.py
+src/music_aux.inc src/music_offsets.inc src/music_fanfare.inc: tools/generate_music.py $(DEV)/tools/audio/breakout_tunes.py $(DEV)/tools/audio/notes.py
 	$(PYTHON) tools/generate_music.py
 $(BUILD)/tables.bin: src/payload.s src/payload.cfg src/tables.inc src/bg_tiles.inc $(HGRC)/dhgr_layout.inc
 	@mkdir -p $(@D)
