@@ -89,6 +89,8 @@ test-hgr:
 	$(PYTHON) dev/tests/test_lib_options.py
 	$(PYTHON) dev/tests/test_hgr_pages.py
 	$(PYTHON) dev/tests/test_joy_fast.py
+	$(PYTHON) dev/tests/test_joy_x.py
+	$(PYTHON) dev/tests/test_hgr_plot_hist.py
 	$(PYTHON) dev/tests/test_stick_key.py
 	$(PYTHON) dev/tests/test_initials.py
 	$(PYTHON) dev/tests/test_rwts_sectors.py

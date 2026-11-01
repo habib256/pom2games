@@ -11,7 +11,7 @@ python3 dev/examples/halfpipe/tools/halfpipe.py   # the pipe's segments, a pumpi
 
 The demo of the [`lib/physics`](../../lib/physics/README.md) **segment
 ground** (`verlet_seg.asm`): an Apple II+ 48 KB HGR program in assembly
-(dev/lib only), 6.8 KB. The pipe is 20 line segments — two decks, two
+(dev/lib only), 7.5 KB. The pipe is 20 line segments — two decks, two
 vertical lips, two quarter pipes of six segments, a flat bottom in two, the
 screen-edge walls — what a height map (one row per column) cannot hold.
 The rider is **three Verlet points** (two wheels and the body, a 6-8-10
@@ -72,10 +72,19 @@ air (up to 90), 100 per full turn (up to 900).
   one dot product: the body must be 3 px or more along the normal of the
   landing wheel's segment (`vl_sgi`), or the run ends.
 * **Drawing only what changes.** Two HGR pages; each frame draws the
-  hidden one: the rider of two frames ago is wiped (its box of bytes
-  cleared, then the pipe segments crossing the box drawn again with
-  `hgr_line8`), the new one drawn, the HUD digits rewritten only when they
-  changed (per page).
+  hidden one: the rider of two frames ago is given back — its lines and
+  wheels are drawn with
+  [`lib/hgr/hgr_plot_hist.asm`](../../lib/hgr/hgr_plot_hist.asm)
+  (`HGR_PLOT_HIST_FAST`), which records the bits they lit, so an EOR
+  restores the pipe under them and no segment is redrawn —, the new one
+  drawn (fast lines, each wheel a 3 × 3 cross sprite). The HUD (when a
+  number changed) and the message line keep, per page, the characters
+  they show: only those that differ are written (a private 8-row glyph
+  store, ~150 cycles a character instead of `hgr_putc8`'s ~470): "AIR!"
+  after "360!" is 3 characters, not 40.
+* **The stick.** `read_stick_x` (X alone, the Monitor's PREAD scale:
+  0..255, ~128 centred, 3.2 times the former `read_stick_fast` counts):
+  dead zone `JOY_DEAD` = 38 (was 12).
 
 ## Measures
 
@@ -86,10 +95,16 @@ a2run, Apple II+ at 1.02 MHz:
 | `phys_tick` in the air (3 integrations, pair damping, 3 passes of 3 links, 3 segment probes, ceiling, octant) | 12,936 |
 | … both wheels on a curve (2 contacts, pump) | 16,421 |
 | … both wheels on the bottom | 18,628 |
-| a whole frame while pumping (input, tick, events, box wipe and pipe repair, rider) | 26,793 (38 fps) |
+| a whole frame while pumping (input, tick, events, erase, rider; 1,500 frames) | 22,756 median, 55,184 worst (24,500 median, 77,000 worst before) |
 
 The game runs a tick a frame with no pacing: the constants were tuned at
-~38 fps.
+~38 fps (it now runs ~8 % faster). Left in a frame: the physics (~14,700,
+up to ~24,000 on the bottom), the stick (~1,450: the RC time of a centred
+X), ~3,300 for three lines, ~1,100 for the two wheels, ~1,100 to erase; the
+worst frames are landings that score: a chime of ~20,000 cycles
+(`tone`) and the message's changed characters.
+`tests/test_halfpipe_disk.py` asserts the median and worst (measured
++ 5 %).
 
 ## Turning it into a game
 
@@ -110,8 +125,8 @@ The game runs a tick a frame with no pacing: the constants were tuned at
 Files: `src/halfpipe.s` (the game: input, events, drawing, HUD),
 `src/phys.inc` / `src/physdefs.inc` (the physics), `src/pipeconst.inc`
 (generated), `tests/test_halfpipe_disk.py` (the disk: boot, HUD and help
-text, a minute of pump key presses that gets above a lip, the frame cost,
-the rider put upside down — a crash and its message —, R; the text on
-screen read back from the glyph bytes).
+text, a minute of pump key presses that gets above a lip, the rider put
+upside down — a crash and its message —, R; the text on screen read back
+from the glyph bytes; the cycles a frame costs, 1,500 frames of pumping).
 
 Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).

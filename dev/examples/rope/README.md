@@ -10,7 +10,7 @@ python3 dev/examples/rope/tools/rope.py   # the model, in a few lines of text
 ```
 
 A toy for the rope side of [`lib/physics`](../../lib/physics/README.md):
-an Apple II+ 48 KB HGR program in assembly (dev/lib only), 5.3 KB. A pin
+an Apple II+ 48 KB HGR program in assembly (dev/lib only), 5.9 KB. A pin
 runs along the top of the screen; from it hang seven rope points and a
 weight on eight links of 11 px. Move the pin and the rope swings; lower it
 (floor mode) and the rope lies down on a hilly floor and drags along it;
@@ -63,7 +63,14 @@ floor; put it back and it hangs again.
   lit (only the dark ones, with their addresses) in a history per page;
   each frame erases the hidden page's history with EOR — the floor under
   the rope comes back as it was, nothing is redrawn — then draws the rope,
-  the pin and the weight.
+  the pin and the weight. Its fast path (`HGR_PLOT_HIST_FAST`) steps a
+  column and a bit mask along each link (the same pixels as before) and
+  records a byte at a time; the weight is a preshifted 5 × 5 sprite
+  (`pl_sprite`), not five lines.
+* **The stick.** `read_stick_x` (X alone, the Monitor's PREAD scale:
+  0..255, ~128 centred, 3.2 times the former `read_stick_fast` counts):
+  the pin goes toward 128 + (x − rest) (was 128 + 3 (x − rest)), dead zone
+  `JOY_DEAD` = 13 (was 4).
 
 ## Measures
 
@@ -74,13 +81,17 @@ a2run, Apple II+ at 1.02 MHz:
 | `phys_tick` swinging (8 integrations, 2 passes of 8 links with a pin and a heavy end, the weight's ground probe, walls, ceiling) | 21,050-21,140 |
 | … on the floor (8 ground probes, 3-4 in contact) | 28,300-35,300 |
 | … on the floor, the pin dragging the rope | 26,800-31,500 |
-| a whole frame swinging (tick, input, erase, ~150 pixels plotted) | ~49,000 (20.7 fps) |
-| a whole frame on the floor | ~61,000 (16.8 fps) |
+| a whole frame swinging (tick, input, erase, ~100 pixels of lines, the weight) | 38,566 median, 39,364 worst (26.5 fps; 50,000 before the fast path) |
+| a whole frame on the floor | 47,750 median, 52,385 worst (21.4 fps; 58,000 before) |
 
-The toy runs a tick a frame with no pacing (the constants are tuned for
-that rate). Where the time goes: ~21,000 cycles of links (18 constraint
-calls at ~1,130 cycles with a pinned or heavy end), ~2,700 of integration,
-~110 cycles a plotted pixel and ~40 an erased one.
+The toy runs a tick a frame with no pacing (the constants were tuned at
+~20 fps: it now runs ~30 % faster). Where the time goes: ~21,000 cycles of
+links (18 constraint calls at ~1,130 cycles with a pinned or heavy end),
+~2,700 of integration, ~1,450 for the stick (the RC time of a centred
+X: `read_stick_x` returns when it runs out), ~10,000 to draw: ~90 cycles
+a pixel of a steep link, ~50-70 of a flat one, ~180 to set a line up,
+~38 an erased history entry. `tests/test_rope_disk.py` asserts the median
+and worst (measured + 5 %).
 
 ## Turning it into a game
 
@@ -91,13 +102,14 @@ calls at ~1,130 cycles with a pinned or heavy end), ~2,700 of integration,
 * Hanging cargo under the lander: the rope's pin is the lander's bottom
   point (move it with the lander, x = ox) — two pinned chains in one
   point set, the links of each listed in `vl_con_a` / `vl_con_b`.
-* Faster: one link pass and a stiffer gain (`FIXED_K`), or fewer points;
-  draw the rope as points rather than lines.
+* Faster: one link pass and a stiffer gain (`FIXED_K`), or fewer points
+  (the physics is two thirds of a frame now).
 
 Files: `src/rope.s` (the toy: input, drawing, text lines),
 `dev/lib/hgr/hgr_plot_hist.asm` (lines with an erase history), `src/phys.inc` / `src/physdefs.inc` (the
 physics), `src/ropeconst.inc` (generated), `tests/test_rope_disk.py` (the
-disk: boot, the pin moved, the floor, a cut, R, frames per second; the
-text on screen read back from the glyph bytes).
+disk: boot, the pin moved, the floor, a cut, R; the text on screen read
+back from the glyph bytes; the cycles a frame costs swinging and on the
+floor).
 
 Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).

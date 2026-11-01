@@ -2,11 +2,15 @@
 """LANDER on its disk in a2run: boot, the HUD, the engine key, a landing on
 pad B (the lander put 4 rows above it, at rest), R, then a free fall that
 crashes. Checks the state bytes and the text the screen shows (the glyph
-bytes of the HUD and of the message line on the page on display).
+bytes of the HUD and of the message line on the page on display), then
+the cycles a main loop turn costs coasting, with the engine, over the
+debris and on the two turns of a zone change (median and worst against
+LIMITS).
 
     python3 tests/test_lander_disk.py      (tests/test_lander.py runs it)
 """
 from pathlib import Path
+import statistics
 import sys
 
 HERE = Path(__file__).resolve().parent
@@ -25,6 +29,9 @@ LBL = LANDER / 'build/lander.lbl'
 
 STATE = ['lv_status', 'lv_fuel', 'lv_pad', 'zone', 'msg']
 ROWS = [(base, y) for base in (0x2000, 0x4000) for y in range(16)]
+# cycles a main loop turn, median and worst: the measured numbers + 5 %
+LIMITS = {'coasting': (21_200, 21_800), 'engine': (23_900, 25_100),
+          'debris': (8_300, 18_600), 'zone change': (73_400, 134_600)}
 
 
 def look(lab):
@@ -71,6 +78,57 @@ def main():
     assert s4['lv_status'] == 2 and s4['msg'] == 4 and t4[1].startswith('CRASHED!'), (s4, t4)
     print(f'lander disk: boot, HUD "{t0[0]}"; engine: fuel {s1["lv_fuel"]}; above pad B: '
           f'"{t2[1].split("  ")[0]}" (zone {s2["zone"]}, "{t2[0]}"); R; free fall: "{t4[1].split("  ")[0]}"')
+    return frame_cycles(lab)
+
+
+def frame_cycles(lab):
+    """A free fall from the start (400 turns: coasting through the four
+    zones, the crash, the debris) and 300 turns with K every 10 (the
+    engine). The two turns of a zone change (each page cleared and its
+    ground drawn) and the crash's turn (its growl) are kept apart."""
+    peeks = [('lv_status', 1), ('burn', 1), ('zone', 1), ('dirty', 2)]
+    by = {k: [] for k in LIMITS}
+    for turns in (frame_turns(lab, [], 400, peeks), frame_turns(lab, [], 300, peeks, 10, 'K')):
+        for i in range(2, len(turns)):                 # (the first turns draw the HUD, the message)
+            c, s = turns[i]
+            p = turns[i - 1][1]
+            if s['zone'] != p['zone'] or any(p['dirty']):
+                by['zone change'].append(c)
+            elif s['lv_status'][0] == L.CRASHED:
+                if p['lv_status'][0] == L.CRASHED:
+                    by['debris'].append(c)
+            elif s['lv_status'][0] == 0:
+                by['engine' if s['burn'][0] else 'coasting'].append(c)
+    return check_cycles('lander', by)
+
+
+def frame_turns(lab, pre, n, peeks, keyevery=0, key=''):
+    """n main loop turns after the steps pre: [(cycles, {name: bytes})], the
+    cycles from main to main (input, tick, events, a page drawn and shown),
+    the bytes peeked at the end of the turn."""
+    steps = [lab.until('main', 2000)] + pre + [lab.until('main', 600)]
+    for i in range(n):
+        if keyevery and i % keyevery == 0:
+            steps.append('press:' + key)
+        steps += [lab.until('input', 600), lab.until('main', 600)] + [lab.peek(name, ln) for name, ln in peeks]
+    r = a2test.run(str(DISK), steps)
+    cyc, rows, k = r.cycles[-(2 * n + 1)::2], r.rows[-n * len(peeks):], len(peeks)
+    return [(cyc[i + 1] - cyc[i], {name: rows[i * k + j][1] for j, (name, _) in enumerate(peeks)})
+            for i in range(n)]
+
+
+def check_cycles(name, by_state):
+    """Median and worst cycles a turn of each state against LIMITS (the
+    measured numbers + 5 %)."""
+    out = []
+    for state, cs in by_state.items():
+        med, worst = statistics.median(cs), max(cs)
+        lim_med, lim_worst = LIMITS[state]
+        assert med <= lim_med and worst <= lim_worst, \
+            f'{name} {state}: median {med:,.0f}, worst {worst:,} cycles (limits {lim_med:,} / {lim_worst:,})'
+        out.append(f'{state} {med:,.0f} / {worst:,} ({len(cs)} turns)')
+    print(f'{name} frame cycles, median / worst: ' + ', '.join(out))
+    return by_state
 
 
 if __name__ == '__main__':

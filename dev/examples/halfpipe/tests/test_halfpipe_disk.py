@@ -4,12 +4,13 @@ of pump key presses (the rider gets above a lip: the AIR counter), the
 frame cost, then the rider put upside down over the bottom (a crash: the
 message line), R (a new run, score 0). Checks the state bytes and the text
 the screen shows (the glyph bytes of the HUD and of the message line on
-the page on display).
+the page on display), then the cycles a main loop turn costs riding
+(median and worst against LIMITS).
 
     python3 tests/test_halfpipe_disk.py      (tests/test_halfpipe.py runs it)
 """
 from pathlib import Path
-import re
+import statistics
 import sys
 
 HERE = Path(__file__).resolve().parent
@@ -26,6 +27,8 @@ DISK = PIPE / 'build/HALFPIPE.dsk'
 LBL = PIPE / 'build/halfpipe.lbl'
 STATE = ['hp_status', 'hp_score', 'hp_score+1', 'hp_score+2', 'air_px', 'msg']
 ROWS = [(base, y) for base in (0x2000, 0x4000) for y in range(16)]
+# cycles a main loop turn, median and worst: the measured numbers + 5 %
+LIMITS = {'riding': (24_000, 58_000)}
 
 
 def look(lab):
@@ -84,17 +87,39 @@ def main():
     frame_cycles(lab)
 
 
-def frame_cycles(lab, n=120):
-    """Average cycles of a main loop turn (input, tick, events, a page
-    drawn), pumping: n turns after 300 of warm-up."""
-    steps = [lab.until('main', 2000)] + ['key:K', 'wait:20'] * 30 + [lab.until('main', 120)]
-    steps += [lab.until('render', 10), lab.until('main', 10)] * n
-    r = a2test.run(str(DISK), steps)
-    cyc = [int(v) for v in re.findall(r'cycles=(\d+)', r.out)]
-    per = (cyc[-1] - cyc[-1 - 2 * n]) / n
-    print(f'halfpipe frame: {per:,.0f} cycles a turn while pumping ({a2test.CPU_HZ / per:.1f} fps, a tick a frame)')
-    return per
+def frame_cycles(lab):
+    """1,500 turns pumping (K every 10 turns: up to the lips, jumps,
+    landings that score, with their chime and message): the turns riding."""
+    turns = frame_turns(lab, [], 1500, [('hp_status', 1)], 10, 'K')[2:]   # (the first turns draw it all)
+    return check_cycles('halfpipe', {'riding': [c for c, s in turns if s['hp_status'][0] == 0]})
 
+def frame_turns(lab, pre, n, peeks, keyevery=0, key=''):
+    """n main loop turns after the steps pre: [(cycles, {name: bytes})], the
+    cycles from main to main (input, tick, events, a page drawn and shown),
+    the bytes peeked at the end of the turn."""
+    steps = [lab.until('main', 2000)] + pre + [lab.until('main', 600)]
+    for i in range(n):
+        if keyevery and i % keyevery == 0:
+            steps.append('press:' + key)
+        steps += [lab.until('input', 600), lab.until('main', 600)] + [lab.peek(name, ln) for name, ln in peeks]
+    r = a2test.run(str(DISK), steps)
+    cyc, rows, k = r.cycles[-(2 * n + 1)::2], r.rows[-n * len(peeks):], len(peeks)
+    return [(cyc[i + 1] - cyc[i], {name: rows[i * k + j][1] for j, (name, _) in enumerate(peeks)})
+            for i in range(n)]
+
+
+def check_cycles(name, by_state):
+    """Median and worst cycles a turn of each state against LIMITS (the
+    measured numbers + 5 %)."""
+    out = []
+    for state, cs in by_state.items():
+        med, worst = statistics.median(cs), max(cs)
+        lim_med, lim_worst = LIMITS[state]
+        assert med <= lim_med and worst <= lim_worst, \
+            f'{name} {state}: median {med:,.0f}, worst {worst:,} cycles (limits {lim_med:,} / {lim_worst:,})'
+        out.append(f'{state} {med:,.0f} / {worst:,} ({len(cs)} turns)')
+    print(f'{name} frame cycles, median / worst: ' + ', '.join(out))
+    return by_state
 
 if __name__ == '__main__':
     main()

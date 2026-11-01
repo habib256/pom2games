@@ -9,10 +9,14 @@
 ;
 ; Screen: rows 0-7 the counters, 8-15 the message, 16-191 the view (the
 ; world is the screen). The hill, the boxes and the catapult's post are
-; drawn once on both pages; each frame draws the hidden page: what
-; hgr_plot_hist.asm lit two frames ago there goes out (the scenery under it
-; comes back as it was), the arm, the balls and the aim mark go in, then the
-; page is shown.
+; drawn once on both pages; each frame draws the hidden page and shows it.
+; The arm, the seven balls (a preshifted ring sprite) and the aim mark are
+; objects drawn with hgr_plot_hist.asm, which records the bits each one lit:
+; a page keeps them in a stack (last moved on top) with what each shows,
+; and a frame gives back (EOR) the stack from the lowest object that
+; changed up, then draws again those above it that did not change and
+; then those that did: the scenery under them comes back as it was, and
+; motionless balls cost nothing.
 ; Keys: J / <- and L / -> power, I and K the angle, space fires (and starts
 ; a new round when it is over), R a new round, ESC quits. A joystick (found
 ; at start): X the power, button 0 fires.
@@ -21,6 +25,8 @@
 .include "apple2.inc"
 MUL_TABLES = $1000                      ; LOWBSS: 2 KB, page aligned
 PL_HIST    = $1800                      ; hgr_plot_hist.asm's histories: 1.5 KB
+HGR_PLOT_HIST_FAST = 1                  ; lines stepped by byte, pl_sprite
+PL_SPRITE_YMIN = 16                     ; the view's first row
 SQRT_SEED  = $1E00                      ; isqrt16's seeds (256 B)
 MUL_ACC    = 1
 .include "math.inc"
@@ -35,6 +41,12 @@ MSG_HELP  = 0
 MSG_OVER  = 1
 MSG_ALL   = 2
 
+NOBJ      = VL_CIRC + 2                 ; the objects: balls 0..6, the arm,
+OBJ_ARM   = VL_CIRC                     ; the aim mark
+OBJ_AIM   = VL_CIRC + 1
+RING_H    = 2 * RADPX + 1               ; the ring sprite: 3 bytes x RING_H
+RING_SZ   = 3 * RING_H                  ; rows a shift
+
 .segment "ZEROPAGE"
 pidx:   .res 1                          ; page drawn this frame: 0 = 1, 1 = 2
 t0:     .res 1
@@ -42,6 +54,11 @@ t1:     .res 1
 gk:     .res 1
 cx:     .res 1                          ; a circle's centre
 cy:     .res 1
+sigp:   .res 2                          ; the page's signatures, order, marks
+ordp:   .res 2
+markp:  .res 2
+kslot:  .res 1
+dslot:  .res 1
 
 .segment "BSS"
 frames:   .res 2                        ; frames drawn (tests)
@@ -52,13 +69,19 @@ joy_ok:   .res 1
 joy_cx:   .res 1
 btn_was:  .res 1
 numbuf:   .res 4
+cur_sig:  .res 4 * NOBJ                 ; each object now (4 bytes)
+pg_sig:   .res 2 * 4 * NOBJ             ; per page: what each object shows
+pg_ord:   .res 2 * NOBJ                 ; per page: the stack, bottom first
+pg_mark:  .res 2 * NOBJ                 ; per page: history at each slot
+chg:      .res NOBJ                     ; the object changed on this page
+new_ord:  .res NOBJ
+ring_spr: .res 7 * RING_SZ              ; the ring, 7 shifts (ring_init)
 
 .segment "CODE"
         JMP     start
 .include "hgr_text8.asm"                ; (its zero page before the callers)
 .include "hgr_line.asm"
-HGR_PLOT_HIST_ALL = 1                   ; its four routines here, its ZP early
-.include "hgr_plot_hist.asm"            ; lib/hgr: lines with an erase history
+.include "hgr_plot_hist.asm"            ; lib/hgr: its zero page (routines at the end)
 .include "phys.inc"
 
 start:  APPLE2_PREAMBLE
@@ -67,6 +90,7 @@ start:  APPLE2_PREAMBLE
         JSR     sqrt_init
         JSR     hgr_div7_init
         JSR     hgr_pages_init
+        JSR     ring_init
         LDA     #0
         STA     ht_page
         STA     ht_cbit
@@ -85,6 +109,7 @@ start:  APPLE2_PREAMBLE
         STA     ht_wrap
         JSR     read_stick_fast         ; a joystick: both timers run out
         BCS     :+
+        JSR     read_stick_x            ; its X at rest (PREAD scale)
         LDA     joy_x
         STA     joy_cx
         INC     joy_ok
@@ -98,6 +123,21 @@ restart:
         STA     in_power
         STA     pl_n
         STA     pl_n+1
+        LDX     #2 * NOBJ - 1           ; both stacks: empty, marks 0, the
+:       STA     pg_mark,X               ; objects in order, nothing shown
+        DEX
+        BPL     :-
+        LDX     #NOBJ - 1
+:       TXA
+        STA     pg_ord,X
+        STA     pg_ord+NOBJ,X
+        DEX
+        BPL     :-
+        LDA     #$FF
+        LDX     #2 * 4 * NOBJ - 1
+:       STA     pg_sig,X
+        DEX
+        BPL     :-
         LDA     #2
         STA     in_stop
         LDA     #MSG_HELP
@@ -209,13 +249,24 @@ input:  JSR     poll_key
         JMP     restart
 @joy:   LDA     joy_ok
         BEQ     @rts
-        JSR     read_stick_fast         ; X deflected: power = (x - rest) / 2 + 8
-        SEC
-        LDA     joy_x
-        SBC     joy_cx
+        JSR     read_stick_x            ; X deflected: power = d / 8 + d / 32 + 8,
+        SEC                             ; d = x - rest (PREAD scale: 3.2 times
+        LDA     joy_x                   ; the former read_stick_fast counts,
+        SBC     joy_cx                  ; which gave d / 2 + 8)
         BVS     @btn
         CMP     #$80
         ROR     A
+        CMP     #$80
+        ROR     A
+        CMP     #$80
+        ROR     A
+        STA     t1                      ; d / 8
+        CMP     #$80
+        ROR     A
+        CMP     #$80
+        ROR     A
+        CLC
+        ADC     t1
         CLC
         ADC     #8
         BPL     :+
@@ -230,7 +281,7 @@ input:  JSR     poll_key
         BPL     :+
         EOR     #$FF
         ADC     #1                      ; (C = 0)
-:       CMP     #5
+:       CMP     #16                     ; (5 on the former scale)
         BCC     @btn
         LDA     t0
         STA     in_power
@@ -358,13 +409,196 @@ scenery:
         JMP     hgr_line8
 
 ; ---------------------------------------------------------------------------
-; render -- the hidden page: what was lit out, the arm and the balls in,
-; the counters and the message when they changed
+; render -- the hidden page: the objects that changed since it was shown
+; (and those above them in its stack) given back and drawn again, the
+; counters and the message when they changed
 ; ---------------------------------------------------------------------------
 render: LDA     pidx
         JSR     set_page
-        JSR     pl_erase
-        LDA     vl_xl+BASE              ; the arm
+        LDX     #VL_CIRC - 1            ; the objects now: balls (x, y),
+:       TXA                             ; the arm (both ends), the mark
+        ASL     A                       ; (the ball, the angle; or none)
+        ASL     A
+        TAY
+        LDA     vl_xl,X
+        STA     cur_sig,Y
+        LDA     vl_yh,X
+        STA     cur_sig+1,Y
+        LDA     #0
+        STA     cur_sig+2,Y
+        STA     cur_sig+3,Y
+        DEX
+        BPL     :-
+        LDA     vl_xl+BASE
+        STA     cur_sig+4*OBJ_ARM
+        LDA     vl_yh+BASE
+        STA     cur_sig+4*OBJ_ARM+1
+        LDA     vl_xl+TIP
+        STA     cur_sig+4*OBJ_ARM+2
+        LDA     vl_yh+TIP
+        STA     cur_sig+4*OBJ_ARM+3
+        LDX     #0
+        LDA     #$FF
+        LDY     cp_phase
+        BNE     :+
+        LDX     vl_xl+PROJ
+        LDY     vl_yh+PROJ
+        LDA     cp_stop
+:       STX     cur_sig+4*OBJ_AIM
+        STY     cur_sig+4*OBJ_AIM+1
+        STA     cur_sig+4*OBJ_AIM+2
+        LDA     #0
+        STA     cur_sig+4*OBJ_AIM+3
+        LDA     pidx                    ; this page's tables
+        BEQ     :+
+        LDA     #4 * NOBJ
+:       CLC
+        ADC     #<pg_sig
+        STA     sigp
+        LDA     #>pg_sig
+        ADC     #0
+        STA     sigp+1
+        LDX     pidx
+        LDA     ord_lo,X
+        STA     ordp
+        LDA     ord_hi,X
+        STA     ordp+1
+        LDA     mark_lo,X
+        STA     markp
+        LDA     mark_hi,X
+        STA     markp+1
+        LDX     #NOBJ - 1               ; changed since the page showed it?
+@co:    TXA
+        ASL     A
+        ASL     A
+        TAY
+        LDA     cur_sig,Y
+        CMP     (sigp),Y
+        BNE     @ch
+        INY
+        LDA     cur_sig,Y
+        CMP     (sigp),Y
+        BNE     @ch
+        INY
+        LDA     cur_sig,Y
+        CMP     (sigp),Y
+        BNE     @ch
+        INY
+        LDA     cur_sig,Y
+        CMP     (sigp),Y
+        BNE     @ch
+        LDA     #0
+        BEQ     :+
+@ch:    LDA     #1
+:       STA     chg,X
+        DEX
+        BPL     @co
+        LDY     #0                      ; the lowest slot that changed
+@fk:    LDA     (ordp),Y
+        TAX
+        LDA     chg,X
+        BNE     @found
+        INY
+        CPY     #NOBJ
+        BNE     @fk
+        JMP     @hud                    ; nothing moved
+@found: STY     kslot
+        LDA     (markp),Y               ; give back from there up
+        JSR     pl_erase_to
+        LDX     #0                      ; the slots from there: the still
+        LDY     kslot                   ; objects first, then those that moved
+@r1:    LDA     (ordp),Y
+        STY     t0
+        TAY
+        LDA     chg,Y
+        BNE     :+
+        TYA
+        STA     new_ord,X
+        INX
+:       LDY     t0
+        INY
+        CPY     #NOBJ
+        BNE     @r1
+        LDY     kslot
+@r2:    LDA     (ordp),Y
+        STY     t0
+        TAY
+        LDA     chg,Y
+        BEQ     :+
+        TYA
+        STA     new_ord,X
+        INX
+:       LDY     t0
+        INY
+        CPY     #NOBJ
+        BNE     @r2
+        LDX     #0
+        LDY     kslot
+:       LDA     new_ord,X
+        STA     (ordp),Y
+        INX
+        INY
+        CPY     #NOBJ
+        BNE     :-
+        LDY     kslot                   ; draw them, each from its mark
+@dr:    STY     dslot
+        LDX     pidx
+        LDA     pl_n,X
+        STA     (markp),Y
+        LDA     (ordp),Y
+        PHA
+        JSR     draw_obj
+        PLA                             ; the page shows it now
+        ASL     A
+        ASL     A
+        TAY
+        LDA     cur_sig,Y
+        STA     (sigp),Y
+        INY
+        LDA     cur_sig,Y
+        STA     (sigp),Y
+        INY
+        LDA     cur_sig,Y
+        STA     (sigp),Y
+        INY
+        LDA     cur_sig,Y
+        STA     (sigp),Y
+        LDY     dslot
+        INY
+        CPY     #NOBJ
+        BNE     @dr
+@hud:   JSR     draw_hud
+        LDX     pidx
+        LDA     msg
+        CMP     msg_pg,X
+        BEQ     :+
+        STA     msg_pg,X
+        JSR     draw_msg
+:       RTS
+
+; A = object: a ball (the ring, its box's top left clipped at x 0), the
+; arm, the aim mark (aiming only)
+draw_obj:
+        CMP     #OBJ_ARM
+        BEQ     @arm
+        BCS     @aim
+        TAX
+        LDA     vl_xl,X
+        SEC
+        SBC     #RADPX
+        BCS     :+
+        LDA     #0
+:       STA     pl_x
+        LDA     vl_yh,X
+        SEC
+        SBC     #RADPX
+        STA     pl_y                    ; (above row 0: rows skipped)
+        LDA     #<ring_desc
+        STA     pl_sp
+        LDA     #>ring_desc
+        STA     pl_sp+1
+        JMP     pl_sprite
+@arm:   LDA     vl_xl+BASE
         STA     pl_x0
         LDA     vl_yh+BASE
         STA     pl_y0
@@ -372,19 +606,9 @@ render: LDA     pidx
         STA     pl_x1
         LDA     vl_yh+TIP
         STA     pl_y1
-        JSR     pl_line
-        LDX     #VL_CIRC - 1            ; the balls (the projectile: in the
-@c:     STX     gk                      ; cup while it is aimed)
-        LDA     vl_xl,X
-        STA     cx
-        LDA     vl_yh,X
-        STA     cy
-        JSR     ring
-        LDX     gk
-        DEX
-        BPL     @c
-        LDA     cp_phase                ; aiming: the mark
-        BNE     @hud
+        JMP     pl_line
+@aim:   LDA     cp_phase
+        BNE     @rts
         LDX     cp_stop
         CLC
         LDA     vl_xl+PROJ
@@ -396,36 +620,55 @@ render: LDA     pidx
         STA     pl_y0
         ADC     aim_dy,X
         STA     pl_y1
-        JSR     pl_line
-@hud:   JSR     draw_hud
-        LDX     pidx
-        LDA     msg
-        CMP     msg_pg,X
-        BEQ     :+
-        STA     msg_pg,X
-        JSR     draw_msg
-:       RTS
+        JMP     pl_line
+@rts:   RTS
 
-; a ring of radius RADPX round cx, cy (clipped to the view)
-ring:   LDY     #NRING - 1
+; the ring sprite from ring_dx / ring_dy: point (dx, dy) lit at column
+; RADPX + dx + shift, row RADPX + dy, for the 7 shifts
+ring_init:
+        LDA     #0
+        LDX     #7 * RING_SZ - 1
+:       STA     ring_spr,X
+        DEX
+        BNE     :-
+        STA     ring_spr
+        LDY     #NRING - 1
 @p:     STY     t1
         CLC
-        LDA     cx
-        ADC     ring_dx,Y
-        STA     pl_x
+        LDA     ring_dy,Y
+        ADC     #RADPX
+        STA     t0
+        ASL     A
+        ADC     t0
+        STA     t0                      ; row * 3
+        CLC
+        LDA     ring_dx,Y
+        ADC     #RADPX
+        STA     cx                      ; the pixel at shift 0
+        LDA     #0
+        STA     cy                      ; the shift's rows
+@s:     LDX     cx
+        LDY     hgr_mod7,X
+        LDA     hgr_div7,X
+        CLC
+        ADC     t0
+        ADC     cy
+        TAX
+        LDA     pl_bits,Y
+        ORA     ring_spr,X
+        STA     ring_spr,X
+        INC     cx
         CLC
         LDA     cy
-        ADC     ring_dy,Y
-        CMP     #16
-        BCC     @n
-        CMP     #192
-        BCS     @n
-        STA     pl_y
-        JSR     pl_plot
-@n:     LDY     t1
+        ADC     #RING_SZ
+        STA     cy
+        CMP     #7 * RING_SZ
+        BNE     @s
+        LDY     t1
         DEY
         BPL     @p
         RTS
+.assert 7 * RING_SZ <= 256, error, "the ring sprite: more than 256 bytes"
 
 ; the counters that changed on this page: power, angle, shots, down
 draw_hud:
@@ -497,8 +740,17 @@ m_over:     .byte "ROUND OVER         SPACE:AGAIN          ", 0
 m_all:      .byte "ALL SIX DOWN!      SPACE:AGAIN          ", 0
 msg_lo:     .byte <m_help, <m_over, <m_all
 msg_hi:     .byte >m_help, >m_over, >m_all
+ord_lo:     .byte <pg_ord, <(pg_ord + NOBJ)     ; per page: its stack,
+ord_hi:     .byte >pg_ord, >(pg_ord + NOBJ)     ; its marks
+mark_lo:    .byte <pg_mark, <(pg_mark + NOBJ)
+mark_hi:    .byte >pg_mark, >(pg_mark + NOBJ)
+ring_desc:  .byte 3, RING_H             ; pl_sprite: 3 bytes x RING_H rows
+            .repeat 7, I
+            .addr ring_spr + I * RING_SZ
+            .endrepeat
 .segment "CODE"
 
+.include "hgr_plot_hist.asm"            ; the routines referenced above
 .include "hgr_pages.asm"                ; after the last HGR_HI_SITE
 .include "verlet_circ.asm"              ; lib/physics (physdefs.inc: verlet.inc)
 .include "verlet_hmap.asm"

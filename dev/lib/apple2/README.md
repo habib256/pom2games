@@ -91,6 +91,21 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   be zero-page aliases. `stick_key` turns the stick and its buttons into
   one-shot key events (CHESS); `joy_buttons` gives held and newly pressed
   buttons.
+  `read_stick_x` reads the X axis alone in the Monitor's PREAD loop (11
+  cycles a count): `joy_x` = 0..255, ~128 centred, the ROM's scale — 35/11
+  ≈ 3.2 times `read_stick_fast`'s counts, so a dead zone or a gain tuned
+  on `read_stick_fast` is multiplied by 3.2 (the dev/examples: `JOY_DEAD`
+  12 → 38 for lander and halfpipe, 4 → 13 for rope, whose pin now follows
+  128 + d instead of 128 + 3 d; catapult's power d / 2 + 8 → d / 8 + d / 32
+  + 8, its "moved" threshold 5 → 16). It costs what the X timer lasts
+  (~11 · count + 20 cycles, ~1,430 centred): it no longer waits for a Y
+  timer that runs longer than X's, and counts 3.2 times finer, but the RC
+  time itself stays — with a centred stick a frame costs what it did with
+  `read_stick_fast` (~1,450). C = 1 (255) when the timer still runs after
+  255 counts: no stick, or pushed past the full scale; detect the stick
+  with `read_stick_fast` (a 255 × 35-cycle window) at start, as the
+  examples do, then take the rest position with `read_stick_x`.
+  `python3 dev/tests/test_joy_x.py`.
 - **`rwts.asm`** — `rwts_read`, `rwts_write`, `rwts_cmd`, `rwts_read_tslist`,
   `rwts_find_file`: DOS 3.3 sectors directly through RWTS (without reading the
   catalog at run time: `dev/tools/dos33patch.py` writes the T/S lists
@@ -178,6 +193,7 @@ another module). A C object that aliases a routine to an import
 | `tone` | `sound.asm` | A = toggles (0 → 256), X = half-period (0 → 256); 12 + 5·X cycles per toggle, pitch 1.02 MHz / (2·(12 + 5·X)): ~2.4 kHz at `$28`, ~526 Hz at `$C0`, ~397 Hz at `$FF` | — | A, X, Y | — |
 | `read_stick` | `joy.asm` | — | `joy_x`, `joy_y` = 0 (left / up) … ~60 (centre) … ~120; ~6 ms; an open axis (timer never finishes) is centred at 60; C = 1 if both are (nothing plugged in) | A, X, Y | — |
 | `read_stick_fast` | `joy.asm` | — | `joy_x`, `joy_y` = counts of 35 cycles (33-34 once the other axis has finished), ~40 at centre; stops as soon as both timers have finished; C = 1 after 255 passes (nothing plugged in) | A, X, Y | — |
+| `read_stick_x` | `joy.asm` | — | `joy_x` alone = PREAD counts (11 cycles: 0..255, ~128 centred, ×35/11 ≈ 3.2 against `read_stick_fast`); returns when the X timer runs out (~11·count + 20 cycles); C = 1 and 255 after 255 counts (no stick, or past full scale); `joy_y` untouched; 19 B | A, X | — |
 | `vapor_mark` | `vapor.asm` | — | `VAPOR_BYTE` ($80) in the first 24 bytes of HGR line 191 (page `VAPOR_PAGE`, 1) | A, X | — |
 | `vapor_sync` | `vapor.asm` | marker on the shown page, HGR on | C = 0: the beam is on line 191 (VBL next); C = 1 after 65536 polls (~0.8 s): no floating bus or no marker | A, X, Y | — |
 | `vapor_count` | `vapor.asm` | same | A = low, X = high: one frame in 13-cycle polls (~1303 NTSC, ~1553 PAL at 1 MHz); C = 1, 0 on failure | A, X, Y | — |

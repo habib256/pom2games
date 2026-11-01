@@ -11,7 +11,7 @@ python3 dev/examples/lander/tools/lander.py   # the autopilot on the model
 
 The demo of [`lib/physics`](../../lib/physics/README.md) and the starting
 point for a new physics game: an Apple II+ 48 KB HGR program in assembly
-(dev/lib only), 6.8 KB. The lander is **three Verlet points** (two legs and
+(dev/lib only), 8.0 KB. The lander is **three Verlet points** (two legs and
 the top) held by three links; the engine pushes them along the body, the
 turn keys turn the legs' axis, and the ground is a height map with three
 flat pads. Land on a pad slowly, level, and both legs on it: `LANDED ON PAD
@@ -64,13 +64,24 @@ two engine ticks).
   the ticks with a leg down and starts again only after a tick with both
   legs up.
 * **Drawing only what changes.** Two HGR pages; each frame draws the
-  hidden one: the lander of two frames ago is wiped (its box of bytes
-  cleared, then the ground segments under the box drawn again with
-  `hgr_line8`), the new one drawn, the HUD digits rewritten
-  (`hgr_text8`). The camera is a zone: four overlapping static screens
-  (tops 0, 120, 240, 360); near an edge the next one is drawn on both pages
-  (158,000 cycles for the empty sky, 287,000 with the whole ground: a
-  short pause, the price of a static camera).
+  hidden one: the lander of two frames ago is given back — its lines and
+  debris are drawn with
+  [`lib/hgr/hgr_plot_hist.asm`](../../lib/hgr/hgr_plot_hist.asm)
+  (`HGR_PLOT_HIST_FAST`), which records the bits they lit, so an EOR
+  restores the ground under them and nothing is redrawn —, the new one
+  drawn (fast lines; each piece of debris a 3 × 3 cross sprite). The HUD
+  and the message line keep, per page, the 40 characters it shows: a frame
+  writes only those that differ (a private 8-row glyph store, ~150 cycles
+  a character instead of `hgr_putc8`'s ~470). The camera is a zone: four
+  overlapping static screens (tops 0, 120, 240, 360); near an edge the next
+  one is set, and each page, when it is next drawn, has its rows 16-191
+  cleared (~39,000 cycles: whole 256-byte pages, then the first of each
+  1 KB but its two HUD rows) and its ground drawn again: two frames of
+  65,000-128,000 cycles (the whole ground) instead of one of
+  166,000-295,000; the HUD and the message stay.
+* **The stick.** `read_stick_x` (X alone, the Monitor's PREAD scale:
+  0..255, ~128 centred, 3.2 times the former `read_stick_fast` counts):
+  dead zone `JOY_DEAD` = 38 (was 12).
 
 ## Measures
 
@@ -81,11 +92,17 @@ a2run, Apple II+ at 1.02 MHz:
 | `phys_tick` coasting (3 integrations, pair damping, 3 passes of 3 links, 3 ground probes, ceiling, rules) | 12,222 |
 | … with the engine (`vl_thrust_perp` + `vl_push_all`) | 13,307 |
 | … with the engine and a turn (`vl_turn_pair`) | 14,334 |
-| a whole frame coasting (tick, input, box wipe and ground repair, 3 lines, HUD) | ~23,800 (~43 fps) |
-| a whole frame with the engine (+ the flame) | ~26,000 (~39 fps) |
+| a whole frame coasting (tick, input, erase, 3 lines, HUD characters that changed) | 20,122 median, 20,715 worst (~50 fps; 23,700 before) |
+| a whole frame with the engine (+ the flame) | 22,656 median, 23,904 worst (25,800 before) |
+| a whole frame over the debris (three crosses) | 7,866 median, 17,687 worst (the message's first frames; 41,600 median, 52,000 worst before) |
+| each of the two frames of a zone change | 69,830 median, 128,199 worst (166,000-295,000 in one frame before) |
 
 The game runs a tick a frame with no pacing: the constants were tuned at
-~40 fps.
+~40 fps (it now runs ~15 % faster). Left in a coasting frame: the physics
+(12,200), the stick (~1,450: the RC time of a centred X), ~3,000 for the
+lines, ~800 to erase, ~1,800 for the HUD (the numbers converted, compared,
+1-3 characters written). `tests/test_lander_disk.py` asserts the median
+and worst of each (measured + 5 %).
 
 ## Turning it into a game
 
@@ -105,6 +122,7 @@ Files: `src/lander.s` (the game: input, events, camera, drawing, HUD),
 `src/phys.inc` / `src/physdefs.inc` (the physics), `src/landconst.inc`
 (generated), `tests/test_lander_disk.py` (the disk: boot, HUD, engine, a
 landing on pad B, R, a free fall that crashes; the text on screen read back
-from the glyph bytes).
+from the glyph bytes; the cycles a frame costs coasting, with the engine,
+over the debris and on a zone change).
 
 Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).

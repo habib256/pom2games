@@ -9,8 +9,9 @@
 ; Screen: rows 0-7 the keys, 8-15 the mode, 16-191 the view (the world is
 ; the screen: y 8.8 rows). The floor is drawn once on both pages; each
 ; frame draws the hidden page: what hgr_plot_hist.asm lit two frames ago
-; there goes out (the floor under it comes back as it was), the rope, the pin
-; and the weight go in, and the page is shown.
+; there goes out (the floor under it comes back as it was), the rope and the
+; pin (its fast lines) and the weight (a preshifted 5 x 5 sprite) go in, and
+; the page is shown.
 ; Keys: J / <- and L / -> move the pin (a press moves it MV_HOLD ticks: the
 ; II+ keyboard has no key-up, its repeat keeps it going), M swing / floor,
 ; space cuts the weight off or puts it back, R resets, ESC quits. A
@@ -20,6 +21,7 @@
 .include "apple2.inc"
 MUL_TABLES = $1000                      ; LOWBSS: 2 KB, page aligned
 PL_HIST    = $1800                      ; hgr_plot_hist.asm's histories: 1.5 KB
+HGR_PLOT_HIST_FAST = 1                  ; lines stepped by byte, pl_sprite
 MUL_ACC    = 1
 .include "math.inc"
 .include "ropeconst.inc"
@@ -30,7 +32,8 @@ HGR_LINE_MOD7 = hgr_mod7
 HGR_TEXT8_HGR_ORDER = 1
 
 MV_HOLD   = 6                           ; ticks a key moves the pin
-JOY_DEAD  = 4                           ; stick counts (read_stick_fast: ~0..80)
+JOY_DEAD  = 13                          ; read_stick_x counts (PREAD: 0..255;
+                                        ; 4 on the former read_stick_fast)
 
 .segment "ZEROPAGE"
 pidx:   .res 1                          ; page drawn this frame: 0 = 1, 1 = 2
@@ -49,8 +52,7 @@ btn_was:  .res 1
         JMP     start
 .include "hgr_text8.asm"                ; (its zero page before the callers)
 .include "hgr_line.asm"
-HGR_PLOT_HIST_ALL = 1                   ; its four routines here, its ZP early
-.include "hgr_plot_hist.asm"            ; lib/hgr: lines with an erase history
+.include "hgr_plot_hist.asm"            ; lib/hgr: its zero page (routines at the end)
 .include "phys.inc"
 
 start:  APPLE2_PREAMBLE
@@ -76,6 +78,7 @@ start:  APPLE2_PREAMBLE
         STA     ht_wrap
         JSR     read_stick_fast         ; a joystick: both timers run out
         BCS     :+
+        JSR     read_stick_x            ; its X at rest (PREAD scale)
         LDA     joy_x
         STA     joy_cx
         INC     joy_ok
@@ -181,11 +184,11 @@ input:  JSR     poll_key
         STA     in_mv
 @joy:   LDA     joy_ok
         BEQ     @rts
-        JSR     read_stick_fast         ; deflected: the pin goes toward
-        SEC                             ; 128 + 3 (x - the rest position)
-        LDA     joy_x
-        SBC     joy_cx
-        BVS     @btn
+        JSR     read_stick_x            ; deflected: the pin goes toward
+        SEC                             ; 128 + (x - the rest position)
+        LDA     joy_x                   ; (PREAD scale: 3.2 times the former
+        SBC     joy_cx                  ; read_stick_fast counts, which went
+        BVS     @btn                    ; x 3)
         STA     t0
         BPL     :+
         EOR     #$FF
@@ -193,10 +196,6 @@ input:  JSR     poll_key
 :       CMP     #JOY_DEAD + 1
         BCC     @btn
         LDA     t0
-        ASL     A
-        BVS     @btn
-        ADC     t0
-        BVS     @btn
         EOR     #$80                    ; + 128 (signed -> unsigned)
         CMP     #PIN_X0
         BCS     :+
@@ -304,26 +303,20 @@ render: LDA     pidx
         STA     pl_y1
         JSR     pl_line
         LDA     vl_xl+8                 ; the weight: a 5 x 5 square
-        SEC
+        SEC                             ; (its left edge clipped at x 0)
         SBC     #2
-        STA     pl_x0
-        CLC
-        ADC     #4
-        STA     pl_x1
+        BCS     :+
+        LDA     #0
+:       STA     pl_x
         LDA     vl_yh+8
         SEC
         SBC     #2
-        STA     gk
-        LDX     #5
-:       STX     t0
-        LDA     gk
-        STA     pl_y0
-        STA     pl_y1
-        JSR     pl_line                 ; (it keeps pl_x0, pl_x1)
-        INC     gk
-        LDX     t0
-        DEX
-        BNE     :-
+        STA     pl_y
+        LDA     #<weight_desc
+        STA     pl_sp
+        LDA     #>weight_desc
+        STA     pl_sp+1
+        JSR     pl_sprite
         LDA     rp_mode                 ; the status line, when it changed
         ASL     A
         ORA     rp_cut
@@ -351,8 +344,18 @@ m_floor:    .byte "FLOOR                ", 0
 m_flcut:    .byte "FLOOR - WEIGHT CUT   ", 0
 msg_lo:     .byte <m_swing, <m_swcut, <m_floor, <m_flcut
 msg_hi:     .byte >m_swing, >m_swcut, >m_floor, >m_flcut
+weight_desc: .byte 2, 5                 ; pl_sprite: 2 bytes x 5 rows
+            .repeat 7, I
+            .addr weight_spr + I * 10
+            .endrepeat
+weight_spr: .repeat 7, I                ; 5 pixels from bit I
+            .repeat 5
+            .byte ($1F << I) & $7F, ($1F << I) >> 7
+            .endrepeat
+            .endrepeat
 .segment "CODE"
 
+.include "hgr_plot_hist.asm"            ; the routines referenced above
 .include "hgr_pages.asm"                ; after the last HGR_HI_SITE
 .include "verlet_hmap.asm"              ; lib/physics (physdefs.inc: verlet.inc)
 .include "verlet_con.asm"

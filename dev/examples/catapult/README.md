@@ -11,7 +11,7 @@ python3 dev/examples/catapult/tools/catapult.py   # a sweep of shots on the mode
 
 The demo of the circle contacts of [`lib/physics`](../../lib/physics/README.md)
 (`verlet_circ.asm`), Angry Birds-like: an Apple II+ 48 KB HGR program in
-assembly (dev/lib only), 8.9 KB. A catapult on a hill: its arm is a 24-px
+assembly (dev/lib only), 9.7 KB. A catapult on a hill: its arm is a 24-px
 Verlet link pinned at its base; pull it back (the power), choose the
 launch angle, fire: the arm swings round its base and lets the ball go at
 the angle's stop with the tip's speed. Six balls wait on static boxes: one
@@ -27,7 +27,7 @@ A ball 8 px under its starting row is down. Three shots a round.
 | space | fire; when the round is over, a new round |
 | `R` | a new round |
 | `ESC` | back to DOS |
-| joystick (found at start) | X, once moved off its rest position, sets the power; button 0 fires |
+| joystick (found at start) | X, once moved off its rest position, sets the power (`read_stick_x`, PREAD scale: power = d / 8 + d / 32 + 8, moved = \|d\| ≥ 16; was d / 2 + 8 and 5 on `read_stick_fast`'s 3.2 times coarser counts); button 0 fires |
 
 Counters: `POWER`, `ANGLE`, `SHOTS` left, `DOWN` (of 6). A short line
 shows the launch direction while aiming; a click sounds each tick with a
@@ -71,12 +71,18 @@ contact.
   with one pass of equal masses a ball resting on an awake one keeps a
   speed of ~2g and would never sleep under it.
 * **Drawing only what changes.** The hill, the boxes and the post are
-  drawn once on both pages; the arm, the balls (20-point rings) and the
-  aim mark are plotted with
-  [`lib/hgr/hgr_plot_hist.asm`](../../lib/hgr/hgr_plot_hist.asm) (shared
-  with the rope: lines and points that remember the bits they lit) and erased by EOR two frames
-  later, the scenery under them intact. The counters and the message are
-  rewritten only when they change, per page.
+  drawn once on both pages; the arm, the seven balls and the aim mark are
+  drawn with [`lib/hgr/hgr_plot_hist.asm`](../../lib/hgr/hgr_plot_hist.asm)
+  (`HGR_PLOT_HIST_FAST`: lines and sprites that remember the bits they
+  lit), each ball a preshifted ring sprite (7 shifts × 11 rows × 3 bytes,
+  built at start from the 20 points of `ring_dx` / `ring_dy`). Each page
+  keeps its objects in a stack, last moved on top, with what it shows of
+  each (a ball's x, y; the arm's ends; the mark's ball and angle): a frame
+  gives back (`pl_erase_to`, EOR) the stack from the lowest object that
+  changed up, draws again the still ones above it, then the moved ones.
+  Balls asleep on their boxes cost nothing; aiming without input draws
+  nothing. The counters and the message are rewritten only when they
+  change, per page.
 
 ## Measures
 
@@ -88,13 +94,18 @@ a2run, Apple II+ at 1.02 MHz, over the four test rounds:
 | … swinging (the arm, 2 link passes, the cross product) | 3,310-3,530 |
 | … flying, no contact (1,402 ticks) | 4,730-16,530, mean 5,900, 90 % under 8,200 |
 | … flying with contacts (433 ticks) | 7,500-37,500, mean 19,900, 90 % under 31,200 |
-| a whole frame aiming (input, erase and plot ~180 pixels, counters) | ~37,500 (27.2 fps) |
-| a whole frame over the first 5 s of a shot | ~40,500 (25.2 fps) |
+| a whole frame aiming, nothing moving (input, the signatures compared) | 3,646 median, 3,653 worst (38,200 before the stack) |
+| a whole frame aiming, power or angle changed (the arm, the ball in its cup, the mark) | ~12,500 |
+| a whole frame while a shot flies (two shots) | 11,356 median, 40,431 worst (~39,000-61,000 before) |
 
 One contact costs ~2,300-3,600 cycles (`lib/physics`), a ball on a box
 ~2,600-3,800; the peaks (~37,000) come from the pyramid tumbling in its
 cup: three balls touching each other, the cup's floor and its posts, 6-8
-contacts in one tick. The drawing, not the physics, sets the frame rate.
+contacts in one tick. The physics now sets the frame rate (the drawing:
+~2,200 cycles a moving ball, ~1,000 the arm); the game runs a tick a frame
+with no pacing, so a shot plays ~3 times faster than at the former
+~25 fps. `tests/test_catapult_disk.py` asserts the median and worst
+(measured + 5 %).
 
 ## Turning it into a game
 
@@ -107,8 +118,6 @@ contacts in one tick. The drawing, not the physics, sets the frame rate.
 * Planks and towers of blocks: two circles and a link make a plank
   (`VL_CON_FIXED_K`), its ends contact like balls; box-to-box contacts are
   not in the library.
-* Faster frames: keep the sleeping balls out of the erase and redraw
-  (a history per object, redrawn only when it moved or a neighbour did).
 
 Files: `src/catapult.s` (the game: input, events, drawing, counters),
 `dev/lib/hgr/hgr_plot_hist.asm` (lines and points with an erase history),
@@ -116,6 +125,7 @@ Files: `src/catapult.s` (the game: input, events, drawing, counters),
 `src/physdefs.inc` (the physics), `src/catconst.inc` (generated),
 `tests/test_catapult_disk.py` (the disk: boot, the counters, power and
 angle keys, a shot that knocks down what the model's does, a round to its
-end, a new round, frames per second; the text read from the glyph bytes).
+end, a new round; the text read from the glyph bytes; the cycles a frame
+costs aiming and flying).
 
 Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).

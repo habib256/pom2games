@@ -3,12 +3,14 @@
 power and angle keys, a shot fired (the same as the model's: the targets
 down agree), the round played to its end (three shots, ROUND OVER), space
 for a new round. Checks the state bytes and the text the screen shows (the
-glyph bytes of the two text lines on the page on display) and counts the
-frames drawn while aiming and while a shot flies (frames per second).
+glyph bytes of the two text lines on the page on display), then the cycles
+a main loop turn costs while aiming and while a shot flies (median and
+worst against LIMITS).
 
     python3 tests/test_catapult_disk.py      (tests/test_catapult.py runs it)
 """
 from pathlib import Path
+import statistics
 import sys
 
 HERE = Path(__file__).resolve().parent
@@ -24,6 +26,8 @@ from hgr_tables import hgr_offset  # noqa: E402
 DISK = CAT / 'build/CATAPULT.dsk'
 LBL = CAT / 'build/catapult.lbl'
 STATE = ['cp_phase', 'cp_shots', 'cp_score', 'cp_power', 'cp_stop', 'frames']
+# cycles a main loop turn, median and worst: the measured numbers + 5 %
+LIMITS = {'aiming': (3_900, 3_900), 'flying': (12_000, 42_400)}
 
 
 def look(lab):
@@ -50,7 +54,7 @@ def main():
     steps = [lab.until('main', 2000), 'wait:30'] + look(lab)                    # 0: boot
     steps += ['wait:300'] + look(lab)                                          # 1: 5 s aiming
     steps += ['key:L', 'wait:4'] * 9 + ['key:K', 'wait:4', 'wait:20'] + look(lab)  # 2: power 9, angle 35
-    steps += ['key: ', 'wait:300'] + look(lab)                                 # 3: 5 s of the shot
+    steps += ['key: ', 'wait:60'] + look(lab)                                  # 3: 1 s of the shot
     steps += ['wait:900'] + look(lab)                                          # 4: the shot over
     steps += ['key: ', 'wait:1200', 'key: ', 'wait:1200'] + look(lab)         # 5: shots 2 and 3: over
     steps += ['key: ', 'wait:30'] + look(lab)                                  # 6: a new round
@@ -64,12 +68,51 @@ def main():
     assert s3b['cp_phase'] == C.AIM and s3b['cp_score'] == c.score and s3b['cp_shots'] == 2, (s3b, c.score)
     assert s4['cp_phase'] == C.OVER and s4['cp_shots'] == 0 and t4[1].startswith(('ROUND OVER', 'ALL SIX')), (s4, t4)
     assert s5['cp_phase'] == C.AIM and s5['cp_shots'] == 3 and s5['cp_score'] == 0, s5
-    fps_aim = ((s1['frames'] - s0['frames']) & 0xFF) / 5
-    fps_shot = ((s3['frames'] - s2['frames']) & 0xFF) / 5
     print(f'catapult disk: boot "{t0[0]}"; power 9, angle 35, fire: {s3b["cp_score"]} down (the model: '
-          f'{c.score}); round over: "{t4[1].split("  ")[0]}" {s4["cp_score"]} down; space: a new round; '
-          f'{fps_aim:.1f} fps aiming, {fps_shot:.1f} fps over the 5 s of a shot')
-    return fps_aim, fps_shot
+          f'{c.score}); round over: "{t4[1].split("  ")[0]}" {s4["cp_score"]} down; space: a new round')
+    return frame_cycles(lab)
+
+
+def frame_cycles(lab):
+    """Aiming at rest (200 turns: nothing moves, nothing is drawn but the
+    counters that change), then two shots flying (power 9 angle 35, power 15
+    angle 45: 600 turns each, the turns in FLY)."""
+    peeks = [('cp_phase', 1)]
+    aim = frame_turns(lab, ['wait:30'], 200, peeks)[2:]          # (the first turns draw it all)
+    fly = []
+    for keys in ('LLLLLLLLLK', 'LLLLLLLLLLLLLLLL'):
+        fly += frame_turns(lab, ['press:' + keys, 'wait:30', 'press: '], 600, peeks)
+    return check_cycles('catapult', {'aiming': [c for c, s in aim if s['cp_phase'][0] == C.AIM],
+                                     'flying': [c for c, s in fly if s['cp_phase'][0] == C.FLY]})
+
+
+def frame_turns(lab, pre, n, peeks, keyevery=0, key=''):
+    """n main loop turns after the steps pre: [(cycles, {name: bytes})], the
+    cycles from main to main (input, tick, events, a page drawn and shown),
+    the bytes peeked at the end of the turn."""
+    steps = [lab.until('main', 2000)] + pre + [lab.until('main', 600)]
+    for i in range(n):
+        if keyevery and i % keyevery == 0:
+            steps.append('press:' + key)
+        steps += [lab.until('input', 600), lab.until('main', 600)] + [lab.peek(name, ln) for name, ln in peeks]
+    r = a2test.run(str(DISK), steps)
+    cyc, rows, k = r.cycles[-(2 * n + 1)::2], r.rows[-n * len(peeks):], len(peeks)
+    return [(cyc[i + 1] - cyc[i], {name: rows[i * k + j][1] for j, (name, _) in enumerate(peeks)})
+            for i in range(n)]
+
+
+def check_cycles(name, by_state):
+    """Median and worst cycles a turn of each state against LIMITS (the
+    measured numbers + 5 %)."""
+    out = []
+    for state, cs in by_state.items():
+        med, worst = statistics.median(cs), max(cs)
+        lim_med, lim_worst = LIMITS[state]
+        assert med <= lim_med and worst <= lim_worst, \
+            f'{name} {state}: median {med:,.0f}, worst {worst:,} cycles (limits {lim_med:,} / {lim_worst:,})'
+        out.append(f'{state} {med:,.0f} / {worst:,} ({len(cs)} turns)')
+    print(f'{name} frame cycles, median / worst: ' + ', '.join(out))
+    return by_state
 
 
 if __name__ == '__main__':
