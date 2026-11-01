@@ -3,7 +3,6 @@
 ; equal dots. Two glyph bits (eight dots) at bit phase 0..6 always fit in two
 ; 7-bit bytes, so a glyph row is four table lookups ORed into 5-6 bytes.
 .include "apple2.inc"
-RAMWRTON = $C005
 .export _dhgr_puts
 .import _hgr_font, _dhgr_base, dhgr_rowlo, dhgr_rowhi, _dhgr_cellbyte, _dhgr_cellphase
 .import incsp3

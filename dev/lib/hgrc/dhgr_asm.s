@@ -8,8 +8,6 @@
 .import _dhgr_base, _dhgr_display
 .importzp ptr1
 .export aux_read
-RAMRDON = $C003
-RAMWRTON = $C005
 
 .segment "ZEROPAGE"
 aux_read: .res 9

@@ -1,6 +1,5 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 .include "apple2.inc"
-RAMWRTON = $C005
 .importzp ptr1, ptr2, ptr3, tmp1, tmp2, tmp3, tmp4, aux_read
 .import _dhgr_addr, _dhgr_aux, _dhgr_buffer, _dhgr_count, _dhgr_sprite_mask
 .export _dhgr_read_block_asm, _dhgr_write_block_asm, _dhgr_sprite_asm

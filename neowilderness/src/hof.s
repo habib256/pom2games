@@ -64,7 +64,6 @@ hof_saved = $5A50               ; 80 bytes: the scenario's entries before
 HOF_MLI   = mli_call
 HOF_IOBUF = io_buffer
 HOF_PATH  = geo_path
-HOF_LCROM = $C082
 HOF_BELL  = $FBDD               ; Monitor BELL1: speaker only, no COUT
 HOF_INPUT = 13                  ; module that holds module_restart
 
@@ -80,7 +79,7 @@ hof_main:
 .ifndef HOF_BENCH
         XL_IMM  XI_END, $0F, @x42     ; (XL, docs/MENUS.md 9: ALTCHARSET stays on)
 .endif
-        sta     $C00E           ; ALTCHAROFF
+        sta     ALTCHAROFF
         bit     DHIRES_OFF
         jsr     hm_clear
         jsr     hof_breakdown
@@ -176,7 +175,7 @@ hof_exit:
 ; ----------------------------------------------------------------------------
 ; hof_gather -- the result, from the resident state.
 hof_gather:
-        bit     HOF_LCROM       ; Applesoft ROM for the float routines
+        bit     LCROM       ; Applesoft ROM for the float routines
         lda     #1              ; outcome: 1 arrived, 2 died, 3 abandoned
         ldx     won
         bne     :+

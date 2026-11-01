@@ -18,7 +18,7 @@
 .include "apple2.inc"
 .include "ezcolor.inc"
 
-EZ_DETECT_BOOT_SLOT = $B7E9     ; DOS 3.3 IOB: slot * 16 of the boot drive
+EZ_DETECT_BOOT_SLOT = DOS_IOB_SLOT ; DOS 3.3 IOB: slot * 16 of the boot drive
 
 .segment "STARTUP"
 entry:

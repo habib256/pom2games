@@ -1,9 +1,16 @@
 ; VERHILLE Arnaud — GPL-3.0. AppleMouse II Tech Notes 1 and 5.
 ; Firmware X=$Cn,Y=$n0. IIe polling mode 1; IIc native IRQs count motion.
-; The pointer is clamped to X 0..139 and Y MOUSE_Y_LOW..MOUSE_Y_HIGH (0..191
-; unless the program defines them); it starts at X 70, Y MOUSE_Y_START.
+; The pointer is clamped to X 0..MOUSE_X_HIGH and Y MOUSE_Y_LOW..MOUSE_Y_HIGH
+; (0..139, 0..191 unless the program defines them); it starts at X
+; MOUSE_X_START, Y MOUSE_Y_START (70, 96). X stays 0..255 (one byte).
 ; ca65 -D MOUSE_INIT_BOOT puts mouse_init (detection, set-up) in segment
 ; INIT: boot code a buffer may overwrite after the call.
+.ifndef MOUSE_X_HIGH
+MOUSE_X_HIGH = 139
+.endif
+.ifndef MOUSE_X_START
+MOUSE_X_START = 70
+.endif
 .ifndef MOUSE_Y_LOW
 MOUSE_Y_LOW = 0
 .endif
@@ -66,7 +73,7 @@ check:  ldy offsets,x
         sta $0478
         sta $0578
         sta $05F8
-        lda #139
+        lda #MOUSE_X_HIGH
         sta $04F8
         lda #0
         ldx #$17
@@ -87,7 +94,7 @@ check:  ldy offsets,x
         ldx #$17
         jsr firmware
         ldx _mouse_slot
-        lda #70
+        lda #MOUSE_X_START
         sta $0478,x
         lda #MOUSE_Y_START
         sta $04F8,x

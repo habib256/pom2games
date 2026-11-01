@@ -53,7 +53,7 @@ de commandes DOS 3.3 reprise telle quelle). Lu par `tools/smalldos.py`.
 - **Fichiers contigus** : *n* secteurs à partir de (piste, secteur).
 - Type « A » : image Applesoft à partir de $0800 (zéro initial dans MENU),
   programme en $0801, sans en-tête DOS de longueur. Les pointeurs de ligne
-  sont des adresses mémoire absolues (`tools/applesoft.py` sait traiter le
+  sont des adresses mémoire absolues (`dev/tools/applesoft.py` sait traiter le
   zéro initial ou le programme sans lui).
 - Type « B » : secteurs bruts, sans en-tête DOS adresse/longueur ; adresse
   de chargement fournie par l'appelant, absente des entrées de catalogue.
@@ -221,7 +221,7 @@ Le jeu tourne dans `a2shot` (cœur POM2) depuis le `.woz`, avec une étape
   key:"\r" wait:1800 shot:vue.png peek:0000:0xC000 | python3 -I ../dev/tools/re6502/peek2bin.py > ram.bin
 ```
 
-`tools/applesoft.py` liste un programme Applesoft tiré d'un dump.
+`dev/tools/applesoft.py` liste un programme Applesoft tiré d'un dump.
 
 ## Carte topographique (TOPO)
 

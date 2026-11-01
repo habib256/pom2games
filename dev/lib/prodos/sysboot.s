@@ -10,6 +10,10 @@
 ; //e (NMOS 6502) gets a message and returns to ProDOS instead of crashing.
 ; Any error: a message, a key, back to ProDOS (QUIT).
 ;
+; Optional SYSBOOT_NEED_128K = 1 (before the include): a 65C02 machine with
+; less than 128 KB (MACHID $BF98 bits 5-4 not 11) gets the same message, key
+; and QUIT (+9 bytes, 6502 code). Undefined: the CPU check only.
+;
 ; The game's src/boot.s defines the names, then includes this file:
 ;
 ;     .define SYSBOOT_FILE  "WG2.SYS"         ; file loaded at $2000
@@ -23,6 +27,12 @@ SYSBOOT_LEN = .strlen(SYSBOOT_FILE)
         lda #0
         .byte $1A                ; 65C02: INC A. NMOS 6502: one-byte NOP.
         beq nmos
+.ifdef SYSBOOT_NEED_128K
+        lda $BF98                ; MACHID: bits 5-4 = 11 for 128 KB
+        and #$30
+        cmp #$30
+        bne nmos
+.endif
         ldx #0
 copy:   lda __LOADER_LOAD__,x
         sta $0800,x

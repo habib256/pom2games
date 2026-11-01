@@ -4,7 +4,6 @@
 ; Writes 40 bytes in each bank, preserves holes and display. IRQ I preserved.
 ; A/X/Y, ptr1,tmp1,tmp2 destroyed; non-reentrant; <1300 masked cycles/row.
 .include "apple2.inc"
-RAMWRTON = $C005
 .export _dhgr_clear_row_asm, _dhgr_clear_rows_asm
 .import _dhgr_addr, _dhgr_pattern, _dhgr_base, dhgr_rowlo, dhgr_rowhi
 .importzp ptr1, tmp1, tmp2, tmp3, tmp4

@@ -30,7 +30,6 @@ void __fastcall__ txt_scroll(unsigned char down);
 extern unsigned char ptr_x, ptr_y, ptr_on;
 void ptr_show(void);
 void ptr_hide(void);
-void mouse_wide(void);                         /* X clamp 0-159: a column = x / 2 */
 void mouse_read(void);                         /* mouse_poll with 80STORE off */
 
 /* ---- mbt_asm.s: keyboard, aux memory ---- */

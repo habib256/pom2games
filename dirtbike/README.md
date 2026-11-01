@@ -143,6 +143,10 @@ fame. Its code and texts are an overlay of the `TITLE` file: linked to run at
 anyway). "QUIT TO BASIC" leaves the marker "QU" at `$8000` and reboots the
 disk: HELLO sees it, clears it and stops ("DIRTBIKE: BYE!") instead of
 restarting the game; you are back in BASIC with DOS 3.3.
+The quit goes through the lib's `apple2_reboot` (`dev/lib/apple2/exit.asm`):
+it reboots the boot drive's slot, read from `$B7E9` (DOS 3.3's IOB) at QUIT,
+not a fixed `$C600` (`tests/test_attract.py`: `$B7E9` poked to `$50` -> `JMP
+$C500`).
 After a crash, the bike restarts from standstill, after "1, GO!", at the
 start of the last stretch of flat ground where it rode on both wheels
 (`note_safe`: a single ground height under the bike, give or take one wheel

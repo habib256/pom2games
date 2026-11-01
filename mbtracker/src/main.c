@@ -1509,10 +1509,8 @@ void main(void)
         if (!irq_on)
             slot = 0;
     }
-    if (mouse_init()) {
-        mouse_wide();
+    if (mouse_init())               /* X 0-159 (MOUSE_X_HIGH): a column = x / 2 */
         vbl_gate = *(unsigned char *)0xFBC0 == 0xE0;   /* enhanced //e */
-    }
     song_new(3);
     after_load();
     say(slot ? "CTRL-L: LOAD DEMO.AYS    ?: ALL THE KEYS" : "NO MOCKINGBOARD FOUND: EDITING AND FILES ONLY    ?: ALL THE KEYS");

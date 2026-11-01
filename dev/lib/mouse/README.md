@@ -32,6 +32,13 @@ Closing disables this mode before releasing the handler. Without a mouse
 (`mouse_slot` = 0, or before `mouse_init`), both return C = 1 immediately,
 without calling the firmware.
 
+The clamps and the start position are assembly options, like Y's
+`MOUSE_Y_LOW` / `MOUSE_Y_HIGH` / `MOUSE_Y_START` (ARKABREAKOUT, CHROMABREAK):
+`MOUSE_X_HIGH` (default 139) and `MOUSE_X_START` (default 70), X staying
+0..255. Undefined, every mouse program is byte-identical. MB TRACKER builds
+`mouse.o` with `-D MOUSE_X_HIGH=159` (two steps an 80-column text column),
+which replaced its own CLAMPMOUSE call (`_mouse_wide`, −59 bytes).
+
 `ca65 -D MOUSE_INIT_BOOT` puts `mouse_init` (detection and settings) in the
 `INIT` segment: startup code that a buffer can later overwrite
 (DIRTBIKE, where the driver otherwise stays resident). With the //c mouse, which

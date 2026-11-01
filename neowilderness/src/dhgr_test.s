@@ -393,9 +393,9 @@ quit:   sta     LOWSCR
         sta     TXTSET
         sta     COL80OFF
         jsr     _prodos_video_release
-        jsr     $FB2F           ; INIT: full text window
-        jsr     $FE93           ; SETVID
-        jsr     $FE89           ; SETKBD
+        jsr     INIT            ; full text window
+        jsr     SETVID
+        jsr     SETKBD
         jsr     $FC58           ; HOME
         cli
         jsr     $BF00

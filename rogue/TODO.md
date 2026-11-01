@@ -23,3 +23,7 @@ clair sans carte, sons et airs au haut-parleur, cœur séparé de l'affichage
   option (aujourd'hui IJKL et flèches, H = aide comme dans POM1).
 - `a2shot` n'a pas la carte : un test POM2 de bout en bout quand le SDK
   l'aura.
+- Sortie (fait, 2026-11-01) : ESC / Ctrl-RESET passent par `apple2_reboot` de
+  la bibliothèque, qui redémarre l'emplacement du lecteur de démarrage lu dans
+  `$B7E9` (plus de `$C600` fixe ; `tests/test_dhgr.py` : `$B7E9` = `$50` →
+  `JMP $C500`).

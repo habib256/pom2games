@@ -28,6 +28,11 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   and the `HGR_CLEAR_LOOP` macro (8 KB from page X with byte A, eight
   self-modified absolute STAs per pass, ~46,000 cycles, no zero page) shared
   by `hgr_init_clear`, `clear_hgr` (lib/hgr) and `hgr_clear` (C).
+  `HGR_CLEAR_LOOP 8` runs 8 groups of 8 pages instead of 4: both HGR pages
+  ($2000-$5FFF from X = $20) in one loop, ~92,000 cycles, 74 bytes (the
+  physics examples' `clear_pages`); without an argument the macro is
+  byte-identical to the 4-group loop. The macro is defined in `hgr.asm`, so
+  a routine that uses it goes after `.include "hgr.asm"`.
 - **`exit.asm`** — `apple2_zp_save`, `apple2_exit`, `apple2_return`;
   on IIe/c, turns off RAMRD/RAMWRT, 80STORE, 80 columns and DHGR before
   restoring the RESET vector and the zero page in main memory.
@@ -36,6 +41,18 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   kept: restore its width if the program changed it for 80 columns.
   `APPLE2_EXIT_HOOK` (defined before the include) names a routine called
   after the restore, before returning to DOS (also on Ctrl-RESET).
+  `apple2_reboot` (`.ifref`), for a program that took DOS's memory and
+  cannot return to it: native screen, the quit mark "QU" at
+  `EXIT_REBOOT_MARK` (the disk's HELLO checks it and ends at the prompt),
+  `JMP $Cn00` of the boot drive's slot (`DOS_IOB_SLOT`, 0 → 6), read when
+  it runs, or latched at start by `APPLE2_REBOOT_INIT` (apple2.inc) when DOS
+  is overwritten later. `EXIT_REBOOT_IIE` adds the //e/c switch reset (LC
+  ROM, RAMRD/RAMWRT main, 80COL and DHGR off) for a //e-only program;
+  `EXIT_REBOOT_ONLY = 1` assembles that routine alone, in the segment
+  current at the include (no ZP snapshot, no BSS). ROGUE.DHGR (latched,
+  IIE, mark `$0FFE`, included after `plat_quit`, which falls into it),
+  DIRTBIKE (read at quit: RWTS stays; mark `$8000`, in its menu overlay).
+  `APPLE2_SOFTEV target` (apple2.inc) points Ctrl-RESET at any routine.
 - **`sound.asm`** — `tone`: square-wave beep on the speaker.
 - **`auxmem.asm`** — 128 KB //e / //c (65C02): `aux_store`,
   `aux_fetch_pages`, `aux_fetch_chunked` and the `AUXMOVE` macro; see
@@ -150,6 +167,7 @@ another module). A C object that aliases a routine to an import
 | `apple2_zp_save` | `exit.asm` | — | copies $00-$FF (256 B of BSS, or `apple2_zp_buf` defined by the program before the include), RESET → `apple2_exit` | A, X | — |
 | `apple2_exit` | `exit.asm` | — | RESET vector and ZP restored (text window and cursor `$20-$29` kept), text screen, `JMP $03D0` | all | — |
 | `apple2_return` | `exit.asm` | — | same restore, then `RTS` to the BASIC `CALL` (program launched by `BLOAD` + `CALL`) | all | — |
+| `apple2_reboot` | `exit.asm` | `EXIT_REBOOT_MARK`, `EXIT_REBOOT_IIE`, `EXIT_REBOOT_ONLY`; slot latched by `APPLE2_REBOOT_INIT` or read from `DOS_IOB_SLOT` | `SEI`, (//e/c switches), "QU" at the mark, `LOWSCR` + `TXTSET`, `JMP $Cn00` (0 → slot 6); no stack or ZP needed (fit for SOFTEV); 10 B + 10 (mark) + 15 (IIE) + 18 (slot read) | A | — |
 | `tone` | `sound.asm` | A = toggles (0 → 256), X = half-period (0 → 256); 12 + 5·X cycles per toggle, pitch 1.02 MHz / (2·(12 + 5·X)): ~2.4 kHz at `$28`, ~526 Hz at `$C0`, ~397 Hz at `$FF` | — | A, X, Y | — |
 | `read_stick` | `joy.asm` | — | `joy_x`, `joy_y` = 0 (left / up) … ~60 (centre) … ~120; ~6 ms; an open axis (timer never finishes) is centred at 60; C = 1 if both are (nothing plugged in) | A, X, Y | — |
 | `read_stick_fast` | `joy.asm` | — | `joy_x`, `joy_y` = counts of 35 cycles (33-34 once the other axis has finished), ~40 at centre; stops as soon as both timers have finished; C = 1 after 255 passes (nothing plugged in) | A, X, Y | — |
@@ -183,6 +201,15 @@ another module). A C object that aliases a routine to an import
 | `CH` `CV` | `$24` `$25` | text cursor |
 | `DOSWARM` `SOFTEV` | `$03D0` `$03F2` | return to DOS / RESET vector |
 | `STORE80OFF/ON` `RAMRDOFF` `RAMWRTOFF` `COL80OFF/ON` `DHIRES_ON/OFF` | `$C000-$C00D`, `$C05E-$C05F` | IIe/IIc switches (DHGR, `native_video`) |
+| `RAMRDON` `RAMWRTON` `ALTZPOFF/ON` `ALTCHAROFF/ON` | `$C003` `$C005` `$C008-$C009` `$C00E-$C00F` | IIe/IIc switches (write): aux reads / writes, aux ZP + stack + LC, MouseText set |
+| `RD80STORE` `RDVBLBAR` | `$C018` `$C019` | IIe/IIc status (bit 7): 80STORE on; //e vertical blank when 0 (the //c: its VBL interrupt flag) |
+| `LCRAM2` `ROMIN` `LCROM` `LCBANK2` | `$C080-$C083` | language card, bank 2: read RAM / read ROM + write RAM / read ROM / read + write RAM (writes: two reads) |
+| `LCRAM1` `ROMIN1` `LCROM1` `LCBANK1` | `$C088-$C08B` | the same with bank 1 at `$D000` |
+| `ROMID1` `ROMID2` | `$FBB3` `$FBC0` | ROM id bytes: `$06` = //e or //c; then `$EA` //e, `$E0` enhanced, `$00` //c |
+| `INIT` `SETVID` `SETKBD` | `$FB2F` `$FE93` `$FE89` | Monitor: text screen + full window, PR#0, IN#0 |
+| `AUXMOVE_ROM` | `$C311` | //e/c firmware AUXMOVE (not `AUXMOVE`: `auxmem.asm`'s macro) |
+| `DOS_IOB_SLOT` | `$B7E9` | 48 KB DOS 3.3 IOB: slot × 16 of the last drive (the boot drive until a disk command) |
+| `APPLE2_SOFTEV target` / `APPLE2_REBOOT_INIT` | macros | Ctrl-RESET → target (11 B) / latch the boot slot into `apple2_reboot` (18 B) |
 | `KC_LEFT` `KC_RIGHT` `KC_UP` `KC_DOWN` `KC_RET` `KC_ESC` `KC_SPACE` | 7 bits | codes returned by `kbd.asm` |
 
 The key codes have the `KC_` prefix on purpose: games often have their

@@ -86,10 +86,9 @@ dzone:   .res 1                 ; sky zone of render_sky
 ; each other by their b2_ names (a stub would give the ROM back under the
 ; caller). Their callers run with the ROM selected, and they call nothing
 ; that switches the language card (no ROM, MLI, mem_fetch or dspan).
-LC_B2READ = $C080
 .macro B2_ENTRY name, b2name
 .ifdef B2_LC
-name:   bit     LC_B2READ
+name:   bit     LCRAM2
         jsr     b2name
         bit     $C082
         rts
@@ -146,8 +145,6 @@ drow_hi:
 .endrep
 .ifdef DROWS_LC
 .segment "CODE"
-LC_RAM2_RW = $C083              ; main language card RAM bank 2, read/write
-LC_ROM     = $C082
 .endif
 
 ; dspan -- rows Y..sp_end-1 of the current column, mood entry A.
@@ -164,8 +161,8 @@ dspan:  cpy     sp_end
         and     #15
         sta     dcb
 .ifdef DROWS_LC
-        bit     LC_RAM2_RW      ; the rows and their tables (twice: write)
-        bit     LC_RAM2_RW
+        bit     LCBANK2      ; the rows and their tables (twice: write)
+        bit     LCBANK2
 .endif
         ldx     sp_end
         lda     drow_lo,x
@@ -222,7 +219,7 @@ dspan_end:
         lda     #OP_LDAY
         sta     (dp),y
 .ifdef DROWS_LC
-        bit     LC_ROM          ; the stars' caller gives bank 2 back (stars_span)
+        bit     LCROM          ; the stars' caller gives bank 2 back (stars_span)
 .endif
 dspan_rts:
         rts

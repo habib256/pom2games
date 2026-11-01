@@ -1,6 +1,5 @@
 ; VERHILLE Arnaud — GPL-3.0. Bank-safe optional DHGR primitive.
 .include "apple2.inc"
-RAMWRTON = $C005
 .code
 .export _dhgr_span_asm, _dhgr_span_x, _dhgr_span_end
 .import _dhgr_base, _dhgr_pattern, dhgr_rowlo, dhgr_rowhi

@@ -21,7 +21,7 @@
 .include "core/rogue_core.inc"  ; the game
 .include "video_tms.asm"        ; its TMS9918A back-end
 
-EZ_DETECT_BOOT_SLOT = $B7E9     ; DOS 3.3 IOB: slot * 16 of the last access
+EZ_DETECT_BOOT_SLOT = DOS_IOB_SLOT ; DOS 3.3 IOB: slot * 16 of the last access
 .include "ezcolor.asm"          ; dev/lib/apple2: ez_detect (slot 3 skipped)
 
 .segment "LOWBSS"
