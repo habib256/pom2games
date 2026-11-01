@@ -35,6 +35,14 @@
 ; (vl_pin) does not move, the other end takes the whole correction 2 c;
 ; both pinned, nothing moves (+~25 c a link without pins, the heavy point
 ; does not apply to a link with a pinned end).
+;
+; Speed switches (exact: the same results bit for bit):
+; VL_CON_SKIP_ZERO: return as soon as f = 0 (every correction is then 0, on
+; the plain, heavy and pinned paths): +5 B, -480..-520 c a link at rest.
+; VL_CON_FAST: vl_delta_ab, vl_quarter_abs, the squares (vl_sq_lo / vl_sq_hi:
+; x^2 for x = 0..180, 362 B RODATA) and the add/sub helpers of a plain link
+; inline; vl_square reads the same table: -290 c a plain link (fixed gain),
+; ~-220 c a pinned or heavy one.
 ; ============================================================================
 
 .ifndef _VERLET_CON_ASM_LOADED_
@@ -45,6 +53,104 @@ _VERLET_CON_ASM_LOADED_ = 1
 .endif
 
 .segment "CODE"
+
+.ifdef VL_CON_FAST
+; A = min(|floor((hi:lo) / 64)|, 180) (vl_quarter_abs inline): with h = hi
+; signed, t = lo >> 6, floor(d / 64) = 4 h + t; |.| > 180 when h >= 45 or
+; h <= -46. vl_w0 = t. ~33 cycles (h >= 0), ~37 (h < 0).
+.macro _VL_QABS lo, hi
+        LDA     lo
+        ASL     A
+        ROL     A
+        ROL     A
+        AND     #3
+        STA     vl_w0
+        LDA     hi
+        BMI     :+
+        CMP     #45
+        BCS     :++
+        ASL     A                       ; (h < 64: C = 0)
+        ASL     A
+        ORA     vl_w0
+        BCC     :+++
+:       CMP     #<-45                   ; h < 0
+        BCC     :+
+        ASL     A                       ; (h >= -64: C = 1)
+        ASL     A
+        ORA     vl_w0                   ; 4 h + t (mod 256), then negated
+        EOR     #$FF
+        ADC     #0
+        BCC     :++                     ; (|4 h + t| >= 1: no carry)
+:       LDA     #180
+:
+.endmacro
+; point vl_ca x += c, point vl_cb x -= c, c = mul_p1:mul_p2 (signed 8.8)
+.macro _VL_CORR_X
+        LDY     #0
+        LDA     mul_p2
+        BPL     :+
+        DEY
+:       STY     vl_w2
+        LDX     vl_ca
+        CLC
+        LDA     vl_xf,X
+        ADC     mul_p1
+        STA     vl_xf,X
+        LDA     vl_xl,X
+        ADC     mul_p2
+        STA     vl_xl,X
+        LDA     vl_xh,X
+        ADC     vl_w2
+        STA     vl_xh,X
+        LDX     vl_cb
+        SEC
+        LDA     vl_xf,X
+        SBC     mul_p1
+        STA     vl_xf,X
+        LDA     vl_xl,X
+        SBC     mul_p2
+        STA     vl_xl,X
+        LDA     vl_xh,X
+        SBC     vl_w2
+        STA     vl_xh,X
+.endmacro
+; the same on y (16 bits; VL_Y_HIGH: 24)
+.macro _VL_CORR_Y
+.ifdef VL_Y_HIGH
+        LDY     #0
+        LDA     mul_p2
+        BPL     :+
+        DEY
+:       STY     vl_w2
+.endif
+        LDX     vl_ca
+        CLC
+        LDA     vl_yf,X
+        ADC     mul_p1
+        STA     vl_yf,X
+        LDA     vl_yh,X
+        ADC     mul_p2
+        STA     vl_yh,X
+.ifdef VL_Y_HIGH
+        LDA     vl_yu,X
+        ADC     vl_w2
+        STA     vl_yu,X
+.endif
+        LDX     vl_cb
+        SEC
+        LDA     vl_yf,X
+        SBC     mul_p1
+        STA     vl_yf,X
+        LDA     vl_yh,X
+        SBC     mul_p2
+        STA     vl_yh,X
+.ifdef VL_Y_HIGH
+        LDA     vl_yu,X
+        SBC     vl_w2
+        STA     vl_yu,X
+.endif
+.endmacro
+.endif
 
 .ifref vl_con_pass
 .ifndef VL_NCON
@@ -77,6 +183,43 @@ vl_constrain:
         ADC     vl_con_row
         STA     vl_cidx
 .endif
+.ifdef VL_CON_FAST
+        LDX     vl_cb                   ; vl_delta_ab, inline
+        LDY     vl_ca
+        SEC
+        LDA     vl_xf,X
+        SBC     vl_xf,Y
+        STA     vl_dx
+        LDA     vl_xl,X
+        SBC     vl_xl,Y
+        STA     vl_dx+1
+        SEC
+        LDA     vl_yf,X
+        SBC     vl_yf,Y
+        STA     vl_dy
+        LDA     vl_yh,X
+        SBC     vl_yh,Y
+        STA     vl_dy+1
+        _VL_QABS vl_dy, vl_dy+1         ; qy
+        STA     vl_qx
+        _VL_QABS vl_dx, vl_dx+1         ; qx
+        TAX
+        LDY     vl_qx
+        CLC                             ; w = qx^2 + qy^2 (the square table)
+        LDA     vl_sq_lo,X
+        ADC     vl_sq_lo,Y
+        STA     vl_w0
+        LDA     vl_sq_hi,X
+        ADC     vl_sq_hi,Y
+        STA     vl_w1
+        LDA     #0                      ; (<= 2 * 180^2 < 2^16: no carry)
+        STA     vl_w2
+.ifdef VL_CON_VARIANTS
+        LDX     vl_cidx                 ; w -= L^2 (24 bits) below
+.else
+        LDX     vl_cur
+.endif
+.else
         JSR     vl_delta_ab
         LDA     vl_dy
         LDX     vl_dy+1
@@ -104,6 +247,7 @@ vl_constrain:
         LDA     #0
         ADC     #0
         STA     vl_w2
+.endif                                  ; (VL_CON_FAST)
 .ifdef VL_CON_MINLEN_POINT
         LDA     vl_cb                   ; a link to that point: short?
         CMP     #VL_CON_MINLEN_POINT
@@ -170,9 +314,16 @@ _VL_FKN = 11 - VL_CON_FIXED_K           ; f = clamp(w / 2^n, +-127), toward 0
         BMI     @fneg                   ; A = high byte, vl_w1 = low
         BNE     @fmax
         LDA     vl_w1
+.ifdef VL_CON_SKIP_ZERO
+        BEQ     @fz
+.endif
         BPL     @fok
 @fmax:  LDA     #$7F
         BNE     @fok
+.ifdef VL_CON_SKIP_ZERO
+@fz:    STA     vl_fcoef                ; f = 0: every correction is 0
+        RTS
+.endif
 @fneg:  CMP     #$FF
         BNE     @fmin
         LDA     vl_w1
@@ -222,9 +373,16 @@ _VL_FKN = 11 - VL_CON_FIXED_K           ; f = clamp(w / 2^n, +-127), toward 0
         BMI     @fneg
         BNE     @fmax
         LDA     mul_p1
+.ifdef VL_CON_SKIP_ZERO
+        BEQ     @fz
+.endif
         BPL     @fok
 @fmax:  LDA     #$7F
         BNE     @fok
+.ifdef VL_CON_SKIP_ZERO
+@fz:    STA     vl_fcoef                ; f = 0: every correction is 0
+        RTS
+.endif
 @fneg:  CMP     #$FF
         BNE     @fmin
         LDA     mul_p1
@@ -269,6 +427,62 @@ _VL_FKN = 11 - VL_CON_FIXED_K           ; f = clamp(w / 2^n, +-127), toward 0
         JMP     vl_sub_yv
 @free:
 .endif
+.ifdef VL_CON_FAST
+        LDA     vl_dx                   ; cx = (dx * f) >> 8
+        STA     mul_x
+        LDA     vl_dx+1
+        STA     mul_x+1
+        LDA     vl_fcoef
+        STA     mul_y
+        JSR     mul_s16s8
+.ifdef VL_CON_HEAVY_POINT
+        LDA     vl_cb
+        CMP     #VL_CON_HEAVY_POINT
+        BNE     @fx
+        LDA     mul_p1                  ; the heavy b: the helpers
+        STA     vl_val
+        LDA     mul_p2
+        STA     vl_val+1
+        JSR     vl_heavy                ; b: c - c', a: c + c'
+        LDX     vl_ca
+        JSR     vl_add_xv
+        LDA     vl_vn
+        STA     vl_val
+        LDA     vl_vn+1
+        STA     vl_val+1
+        LDX     vl_cb
+        JSR     vl_sub_xv
+        JMP     @cy
+@fx:
+.endif
+        _VL_CORR_X                      ; a += c, b -= c (inline)
+@cy:    LDA     vl_dy                   ; cy = (dy * f) >> 8
+        STA     mul_x
+        LDA     vl_dy+1
+        STA     mul_x+1
+        JSR     mul_s16s8               ; (mul_y = f still)
+.ifdef VL_CON_HEAVY_POINT
+        LDA     vl_cb
+        CMP     #VL_CON_HEAVY_POINT
+        BNE     @fy
+        LDA     mul_p1
+        STA     vl_val
+        LDA     mul_p2
+        STA     vl_val+1
+        JSR     vl_heavy
+        LDX     vl_ca
+        JSR     vl_add_yv
+        LDA     vl_vn
+        STA     vl_val
+        LDA     vl_vn+1
+        STA     vl_val+1
+        LDX     vl_cb
+        JMP     vl_sub_yv
+@fy:
+.endif
+        _VL_CORR_Y
+        RTS
+.else
         LDA     vl_dx                   ; cx = (dx * f) >> 8
         STA     mul_x
         LDA     vl_dx+1
@@ -333,6 +547,7 @@ _VL_FKN = 11 - VL_CON_FIXED_K           ; f = clamp(w / 2^n, +-127), toward 0
         JSR     vl_add_yv
         LDX     vl_cb
         JMP     vl_sub_yv
+.endif                                  ; (VL_CON_FAST)
 .endif
 
 .ifref vl_cmul2
@@ -429,6 +644,12 @@ vl_quarter_abs:
 ; A = x (0..180) -> A/Y = x^2 (lo/hi) = 4 floor(x^2 / 4) + (x & 1), from the
 ; quarter-square table (lib/math): ~40 cycles instead of a product
 vl_square:
+.ifdef VL_CON_FAST
+        TAX                             ; the square table (VL_CON_FAST)
+        LDA     vl_sq_lo,X
+        LDY     vl_sq_hi,X
+        RTS
+.else
         TAX
         LDA     mul_sqr1_hi,X
         STA     vl_w2
@@ -443,6 +664,22 @@ vl_square:
         ORA     vl_w0
         LDY     vl_w2
         RTS
+.endif                                  ; (VL_CON_FAST)
+.endif
+
+.ifdef VL_CON_FAST
+.ifref vl_sq_lo
+.segment "RODATA"
+vl_sq_lo:                               ; x^2, x = 0..180 (VL_CON_FAST)
+.repeat 181, I
+        .byte   <(I * I)
+.endrepeat
+vl_sq_hi:
+.repeat 181, I
+        .byte   >(I * I)
+.endrepeat
+.segment "CODE"
+.endif
 .endif
 
 .ifdef VL_CON_VARIANTS

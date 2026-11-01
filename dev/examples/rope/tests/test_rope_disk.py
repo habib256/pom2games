@@ -25,7 +25,7 @@ DISK = ROPE / 'build/ROPE.dsk'
 LBL = ROPE / 'build/rope.lbl'
 STATE = ['rp_px', 'rp_py', 'rp_mode', 'rp_cut', 'frames']
 # cycles a main loop turn, median and worst: the measured numbers + 5 %
-LIMITS = {'swinging': (40_500, 41_400), 'floor': (50_200, 55_100)}
+LIMITS = {'swinging': (35_200, 36_400), 'floor': (41_900, 48_100)}
 
 
 def look(lab):

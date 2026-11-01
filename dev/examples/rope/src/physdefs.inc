@@ -23,6 +23,8 @@ VL_FAR          = FAR
 VL_BOUNCE       = BOUNCE
 VL_PIN          = 1
 VL_CON_FIXED_K  = FIXED_K
+VL_CON_SKIP_ZERO = 1            ; (speed, exact: f = 0 returns at once)
+VL_CON_FAST     = 1             ; (speed, exact: square table, inline links)
 VL_CON_HEAVY_POINT = 8
 VL_CON_HEAVY_SHIFT = HEAVY
 VL_CEILING_CLAMP = CEIL

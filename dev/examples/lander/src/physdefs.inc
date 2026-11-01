@@ -29,6 +29,8 @@ VL_BOUNCE       = BOUNCE
 VL_Y_HIGH       = 1
 VL_GROUND_BASE  = GROUND_BASE
 VL_CON_FIXED_K  = FIXED_K
+VL_CON_SKIP_ZERO = 1            ; (speed, exact: f = 0 returns at once)
+VL_CON_FAST     = 1             ; (speed, exact: square table, inline links)
 VL_THRUST       = THRUST_SHIFT
 VL_PAIR_DAMP    = SPIN_DAMP
 VL_INTEGRATE_LEFTWALL = LEFT_WALL

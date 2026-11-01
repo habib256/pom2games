@@ -45,7 +45,8 @@ floor; put it back and it hangs again.
   the rope end, by the whole correction), `VL_CON_FIXED_K` = 6 (links of
   gain 64, no product, no k8 table), `VL_CON_HEAVY_POINT` = 8 with shift 2
   (the weight moves 3/5 of what a rope point would), `VL_CEILING_CLAMP`,
-  `VL_GROUND` = 9 with the `VL_GROUND_TANGENT` hook (`vl_damp`: friction).
+  `VL_GROUND` = 9 with the `VL_GROUND_TANGENT` hook (`vl_damp`: friction);
+  the speed switches `VL_CON_SKIP_ZERO` (a link at rest returns at once) and `VL_CON_FAST` (square table, the link inline): exact, the same physics bit for bit.
   Two link passes a tick: the 88 px of rope stretch to ~91 at rest.
 * **Pins and ground together.** In floor mode every rope point is probed
   against the height map (`vl_ground`): the links pull the points lying on
@@ -78,15 +79,15 @@ a2run, Apple II+ at 1.02 MHz:
 
 | | Cycles |
 |---|---|
-| `phys_tick` swinging (8 integrations, 2 passes of 8 links with a pin and a heavy end, the weight's ground probe, walls, ceiling) | 21,050-21,140 |
-| … on the floor (8 ground probes, 3-4 in contact) | 28,300-35,300 |
-| … on the floor, the pin dragging the rope | 26,800-31,500 |
-| a whole frame swinging (tick, input, erase, ~100 pixels of lines, the weight) | 38,566 median, 39,364 worst (26.5 fps; 50,000 before the fast path) |
-| a whole frame on the floor | 47,750 median, 52,385 worst (21.4 fps; 58,000 before) |
+| `phys_tick` swinging (8 integrations, 2 passes of 8 links with a pin and a heavy end, the weight's ground probe, walls, ceiling) | 12,300-16,500, median 15,760 (20,500-21,200 before the speed switches) |
+| … on the floor (8 ground probes, 3-4 in contact; the pin dragging the rope or not) | 20,000-29,700, median 23,600 (29,800-35,800) |
+| a whole frame swinging (tick, input, erase, ~100 pixels of lines, the weight) | 33,454 median, 34,592 worst (30.5 fps; 38,566 before the speed switches, 50,000 before the fast path) |
+| a whole frame on the floor | 39,864 median, 45,728 worst (25.6 fps; 47,750; 58,000) |
 
 The toy runs a tick a frame with no pacing (the constants were tuned at
-~20 fps: it now runs ~30 % faster). Where the time goes: ~21,000 cycles of
-links (18 constraint calls at ~1,130 cycles with a pinned or heavy end),
+~20 fps: it now runs ~50 % faster). Where the time goes: ~12,500 cycles of
+links (18 constraint calls: ~690 cycles a plain link, ~740 the pinned one,
+~1,050 the heavy one, ~280 a link at rest),
 ~2,700 of integration, ~1,450 for the stick (the RC time of a centred
 X: `read_stick_x` returns when it runs out), ~10,000 to draw: ~90 cycles
 a pixel of a steep link, ~50-70 of a flat one, ~180 to set a line up,

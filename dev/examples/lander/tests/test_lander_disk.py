@@ -30,8 +30,8 @@ LBL = LANDER / 'build/lander.lbl'
 STATE = ['lv_status', 'lv_fuel', 'lv_pad', 'zone', 'msg']
 ROWS = [(base, y) for base in (0x2000, 0x4000) for y in range(16)]
 # cycles a main loop turn, median and worst: the measured numbers + 5 %
-LIMITS = {'coasting': (21_200, 21_800), 'engine': (23_900, 25_100),
-          'debris': (8_300, 18_600), 'zone change': (73_400, 134_600)}
+LIMITS = {'coasting': (14_000, 14_600), 'engine': (17_700, 21_200),
+          'debris': (8_300, 18_600), 'zone change': (66_300, 128_100)}
 
 
 def look(lab):

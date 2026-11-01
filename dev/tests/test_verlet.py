@@ -32,7 +32,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'dev/tools'))
 from verlet import Points, Constraint, HeightMap, constrain, tables, emit  # noqa: E402
 from verlet import harness  # noqa: E402
-from verlet.fixed import l2q, le  # noqa: E402
+from verlet.fixed import l2q, le, asr0  # noqa: E402
+from math import cos, sin  # noqa: E402
 
 N1 = 3
 G, VX, VY = 0x0030, 0x1200, 0x0800
@@ -155,6 +156,21 @@ SNAPS1 = [('vl_xf', 10 * N1), ('vl_gnd', N1 + 4), ('vl_dx', 4), ('vl_vt', 2), ('
 
 def s8(v):
     return v - 256 if v & 0x80 else v
+
+
+# the speed switches (exact: the same snapshots against the same model):
+# main() runs every configuration with each set of definitions
+EXTRA = ''
+SPEED = [('', 'speed switches off'), ('VL_CON_SKIP_ZERO = 1', 'VL_CON_SKIP_ZERO'),
+         ('VL_CON_FAST = 1', 'VL_CON_FAST'), ('VL_CON_SKIP_ZERO = 1\nVL_CON_FAST = 1', 'SKIP_ZERO + FAST')]
+
+
+def hrun(prelude, *args, **kw):
+    """harness.run with EXTRA defined before verlet.inc."""
+    if EXTRA:
+        assert prelude.count('.include "verlet.inc"') == 1
+        prelude = prelude.replace('.include "verlet.inc"', EXTRA + '\n.include "verlet.inc"')
+    return harness.run(prelude, *args, **kw)
 
 
 def model1(row):
@@ -312,7 +328,7 @@ def check1(rng):
         part = rows[at:at + chunk]
         script = [(1, list(r[0]) + [r[1], r[2], r[3], r[4], r[5], r[6] & 0xFF, r[6] >> 8, r[7], r[8]], 1)
                   for r in part]
-        got = harness.run(pre, EPILOGUE1, INPUTS1, SNAPS1, script, init='mul_init', snap_seg='LOWBSS')
+        got = hrun(pre, EPILOGUE1, INPUTS1, SNAPS1, script, init='mul_init', snap_seg='LOWBSS')
         for k, (r, have) in enumerate(zip(part, got)):
             want = model1(r)
             if want != have:
@@ -389,7 +405,7 @@ def rope0():
 def check2():
     rows = [(20, [ax], 1) for ax in (60, 60, 70, 90, 120, 120, 100, 60, 40, 40, 80, 140, 140, 100, 60)]
     with tempfile.TemporaryDirectory(prefix='verlet-rope-') as tmp:
-        got = harness.run(prelude2(), EPILOGUE2, ['t_ax'], [('vl_xf', 10 * N2)], rows, init='init',
+        got = hrun(prelude2(), EPILOGUE2, ['t_ax'], [('vl_xf', 10 * N2)], rows, init='init',
                           work=tmp)
         lbl = (Path(tmp) / 'h.lbl').read_text()
     zp = {line.split('.')[1] for line in lbl.splitlines() if line.split()[1] < '000100' and '.vl_' in line}
@@ -646,7 +662,7 @@ def check3(rng):
         part = rows[at:at + chunk]
         script = [(1, list(r[0]) + [int(v) for v in r[1]] + [r[2], r[3], r[4], r[5], r[6], r[7]]
                    + le(r[8][0], 2) + le(r[8][1], 2), 1) for r in part]
-        got = harness.run(pre, EPILOGUE3, INPUTS3, SNAPS3, script, init='mul_init', snap_seg='LOWBSS')
+        got = hrun(pre, EPILOGUE3, INPUTS3, SNAPS3, script, init='mul_init', snap_seg='LOWBSS')
         for k, (r, have) in enumerate(zip(part, got)):
             r = (r[0], [int(v) for v in r[1]], *r[2:])
             want = model3(r)
@@ -724,7 +740,7 @@ def check4():
     # t_ax, and the last point's pin (vl_pin+7): pinned in the middle of the run
     ax = [100, 100, 110, 130, 150, 150, 120, 90, 60, 60, 90, 140, 170, 170, 140, 100]
     rows = [(20, [a, int(5 <= k < 9)], 1) for k, a in enumerate(ax)]
-    got = harness.run(prelude4(), EPILOGUE4, ['t_ax', f'vl_pin+{N4 - 1}'], [('vl_xf', 10 * N4)], rows,
+    got = hrun(prelude4(), EPILOGUE4, ['t_ax', f'vl_pin+{N4 - 1}'], [('vl_xf', 10 * N4)], rows,
                       init='init')
     p = rope4()
     for k, (n, (a, pl), _) in enumerate(rows):
@@ -871,7 +887,7 @@ def check5():
     hm = HeightMap(HMAP5, SLOPE_MAX, PROBE, 0x0200, 0x1000, 32, base=BASE5)
     seg = harness.segments(script5(hm))
     rows = [(n, [thr & 0xFF, rot & 0xFF], k % 5 == 4 or k == len(seg) - 1) for k, (n, (thr, rot)) in enumerate(seg)]
-    got = harness.run(prelude5(), EPILOGUE5, ['t_thr', 't_rot'], [('vl_xf', 12 * N5), ('vl_gnd', 2)], rows,
+    got = hrun(prelude5(), EPILOGUE5, ['t_thr', 't_rot'], [('vl_xf', 12 * N5), ('vl_gnd', 2)], rows,
                       init='init', snap_seg='LOWBSS')
     p = lander5()
     lowest, touched, snap = 0, 0, 0
@@ -941,7 +957,9 @@ vl_con_k8: .res 6
              ('VL_CON_MIN_ONLY = 1', 'JSR vl_con_pass', False),
              ('VL_Y_HIGH = 1', 'JSR vl_integrate\nJSR vl_rest', False),
              ('VL_THRUST = 4', 'JSR vl_thrust_axis', True),
-             ('VL_THRUST = 4', 'JSR vl_thrust_perp\nJSR vl_push_all', True)]
+             ('VL_THRUST = 4', 'JSR vl_thrust_perp\nJSR vl_push_all', True),
+             ('VL_CON_SKIP_ZERO = 1', 'JSR vl_con_pass', False),
+             ('VL_CON_FAST = 1', 'JSR vl_con_pass', False)]
     with tempfile.TemporaryDirectory(prefix='verlet-sw-') as tmp:
         for defs, call, needed in cases:
             off = listing(tmp, base.format(defs='', calls=call))
@@ -959,15 +977,55 @@ vl_con_k8: .res 6
         assert not fk.startswith('error'), fk
     print('switches: left out, the plain code (vl_pair_damp, vl_ceiling, vl_shift_point, vl_thrust_*, '
           'vl_push_all stop the assembly without theirs); defined, LEFTWALL, CON_VARIANTS, CON_HEAVY, '
-          'CON_MINLEN, PIN, CON_FIXED_K (no k8 table), CON_MIN_ONLY, Y_HIGH change the code.')
+          'CON_MINLEN, PIN, CON_FIXED_K (no k8 table), CON_MIN_ONLY, Y_HIGH, CON_SKIP_ZERO, CON_FAST change '
+          'the code.')
+
+
+def f_of(p, a, b, l2, k8, fixed_k=None):
+    """The gain f of verlet.constraint.constrain (its formula, for the
+    VL_CON_SKIP_ZERO proof below)."""
+    dx, dy = p.delta(a, b)
+    qx, qy = min(abs(dx >> 6), 180), min(abs(dy >> 6), 180)
+    w = qx * qx + qy * qy - l2
+    f = max(-4095, min(4095, w >> 3)) * k8 >> 8 if fixed_k is None else asr0(w, 11 - fixed_k)
+    return max(-127, min(127, f))
+
+
+def check_skip_zero(rng):
+    """f = 0 moves nothing on the model, on the plain, heavy and pinned
+    paths (the 6502 then returns at once with VL_CON_SKIP_ZERO)."""
+    n = {}
+    for k in range(6000):
+        fk = rng.choice([None, 4, 6])
+        L = rng.choice([8, 10, 12, 20, 24])
+        c = Constraint(0, 1, L, 1.0, fixed_k=fk, heavy=rng.choice([0, 3]))
+        p = Points(2, pins=True)
+        r = L * 256 * rng.choice([1.0, rng.uniform(0.97, 1.03), rng.uniform(0.5, 1.5)])
+        t = rng.uniform(0, 6.283)
+        p.place(0, 0x8000, 0x8000)
+        p.place(1, 0x8000 + int(r * cos(t)), 0x8000 + int(r * sin(t)))
+        p.pin = [int(rng.random() < 0.3), int(rng.random() < 0.3)]
+        if f_of(p, 0, 1, c.l2q, c.k8, fk):
+            continue
+        before = p.soa_bytes()
+        c.apply(p)
+        assert p.soa_bytes() == before, (L, fk, c.heavy, p.pin)
+        key = 'pinned' if any(p.pin) else 'heavy' if c.heavy else 'plain'
+        n[key] = n.get(key, 0) + 1
+    print(f'VL_CON_SKIP_ZERO: f = 0 moves nothing on the model ({", ".join(f"{k} {v}" for k, v in n.items())})')
 
 
 def main():
-    check1(random.Random(7))
-    check2()
-    check3(random.Random(11))
-    check4()
-    check5()
+    global EXTRA
+    check_skip_zero(random.Random(5))
+    for EXTRA, name in SPEED:
+        print(f'-- {name}')
+        check1(random.Random(7))
+        check2()
+        check3(random.Random(11))
+        check4()
+        check5()
+    EXTRA = ''
     check_switches()
 
 

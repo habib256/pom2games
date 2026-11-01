@@ -26,6 +26,11 @@
 ;                  < VL_GROUND_SEGMENTS) is taken without the scan when the
 ;                  point is still on it (-VL_SEG_DEPTH <= d < VL_RADIUS) and
 ;                  m <= s <= smax - m: ~500-1,500 cycles less there.
+;                  VL_SEG_BUCKETS: the scan tries only the segments of the
+;                  point's pixel column (vl_sg_bko / vl_sg_bkl: the macro
+;                  VL_SEG_BUCKET_TABLES of segments.py tables(), expanded
+;                  here), in the same n-1 .. 0 order: the same result;
+;                  ~60 cycles + ~20 a candidate instead of ~30 a segment.
 ;   vl_ground_any  VL_GROUND_KIND = a table (VL_GROUND bytes, the program's):
 ;                  0 = vl_ground (height map) for point X, else vl_seg_ground.
 ;
@@ -44,9 +49,10 @@
 ; Hooks: VL_GROUND_ENTER / VL_GROUND_TANGENT / VL_GROUND_AFTER, as
 ; vl_ground (vl_nx / vl_ny = the segment's normal in the hooks).
 ; Zero page: none of its own (the ground tier's vl_hxl, vl_hxh, vl_hgt,
-; vl_hm2, vl_hp2, vl_tptr as scratch; vl_dx, vl_dy, vl_vn, vl_pen).
+; vl_hm2, vl_hp2, vl_tptr as scratch; vl_dx, vl_dy, vl_vn, vl_pen; with
+; VL_SEG_BUCKETS vl_w0, vl_w1).
 ; Hook code: unnamed labels (or names no @label here uses: @scan @next
-; @done @no @hit @xp @yp @rts @nob @miss @cs @c0 @scan0).
+; @done @no @hit @xp @yp @rts @nob @miss @cs @c0 @scan0 @bnone @bk).
 ; ============================================================================
 
 .ifndef _VERLET_SEG_ASM_LOADED_
@@ -89,6 +95,14 @@ vl_ground_any:
 .assert VL_SEG_DEPTH > 0 .and VL_SEG_DEPTH < $8000, error, "vl_seg_ground: VL_SEG_DEPTH is 8.8, 1..$7FFF"
 .assert VL_RADIUS > 0 .and VL_RADIUS < $8000, error, "vl_seg_ground: VL_RADIUS is 8.8, 1..$7FFF"
 .assert VL_BOUNCE >= 0 .and VL_BOUNCE < 128, error, "vl_seg_ground: VL_BOUNCE is 0..127 (/256)"
+.ifdef VL_SEG_BUCKETS
+.if .not .definedmacro(VL_SEG_BUCKET_TABLES)
+.error "VL_SEG_BUCKETS: no VL_SEG_BUCKET_TABLES (the program's segments.py tables())"
+.endif
+.segment "RODATA"
+        VL_SEG_BUCKET_TABLES            ; VL_SEG_BKT_SHIFT, _N, vl_sg_bko, vl_sg_bkl
+.segment "CODE"
+.endif
 _sg_pxl  = vl_hxl                       ; the point's pixel
 _sg_pxh  = vl_hxh
 _sg_py   = vl_hgt
@@ -250,10 +264,37 @@ vl_seg_ground:
         STA     vl_pen
         LDA     #>VL_RADIUS
         STA     vl_pen+1
+.ifdef VL_SEG_BUCKETS
+        .assert VL_SEG_BKT_SHIFT >= 1 .and VL_SEG_BKT_SHIFT <= 15, error, "VL_SEG_BUCKETS: VL_SEG_BKT_SHIFT 1..15 (segments.py)"
+        LDA     _sg_pxl                 ; column c = px >> VL_SEG_BKT_SHIFT
+        STA     vl_w0
+        LDA     _sg_pxh
+.repeat VL_SEG_BKT_SHIFT
+        LSR     A
+        ROR     vl_w0
+.endrepeat
+        TAX
+        BNE     @bnone                  ; beyond the last column: no box
+        LDY     vl_w0
+        CPY     #VL_SEG_BKT_N
+        BCS     @bnone
+        LDA     vl_sg_bko+1,Y           ; vl_w0 .. vl_w1: its list
+        STA     vl_w1
+        LDA     vl_sg_bko,Y
+        STA     vl_w0
+@next:  LDX     vl_w0                   ; the column's segments, n-1 .. 0
+        CPX     vl_w1
+        BCC     @bk
+@bnone: JMP     @done
+@bk:    LDY     vl_sg_bkl,X
+        INX
+        STX     vl_w0
+.else
         LDY     #VL_GROUND_SEGMENTS
 @next:  DEY                             ; segments n-1 .. 0
         BPL     @scan
         JMP     @done
+.endif
 @scan:  LDA     _sg_pxl                 ; px >= bx0
         CMP     vl_sg_bx0l,Y
         LDA     _sg_pxh

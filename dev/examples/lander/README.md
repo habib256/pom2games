@@ -52,7 +52,8 @@ two engine ticks).
   `VL_THRUST` = 4 (`vl_thrust_perp` + `vl_push_all`: the engine, a pure
   translation), `VL_PAIR_DAMP` = 2 (the spin fades by a quarter a tick: the
   lander turns while a key is held), `VL_INTEGRATE_LEFTWALL`,
-  `VL_CEILING_CLAMP`, the `VL_GROUND_TANGENT` hook (`vl_damp`: friction).
+  `VL_CEILING_CLAMP`, the `VL_GROUND_TANGENT` hook (`vl_damp`: friction);
+  the speed switches `VL_CON_SKIP_ZERO` (a link at rest returns at once) and `VL_CON_FAST` (square table, the link inline): exact, the same physics bit for bit.
   `VL_GROUND` = 3: the top is probed too.
 * **A rest shape on the grid.** The triangle is 6-8-10 (legs 12 px apart,
   top 8 px above): every delta is a multiple of a quarter pixel, the links
@@ -89,17 +90,17 @@ a2run, Apple II+ at 1.02 MHz:
 
 | | Cycles |
 |---|---|
-| `phys_tick` coasting (3 integrations, pair damping, 3 passes of 3 links, 3 ground probes, ceiling, rules) | 12,222 |
-| … with the engine (`vl_thrust_perp` + `vl_push_all`) | 13,307 |
-| … with the engine and a turn (`vl_turn_pair`) | 14,334 |
-| a whole frame coasting (tick, input, erase, 3 lines, HUD characters that changed) | 20,122 median, 20,715 worst (~50 fps; 23,700 before) |
-| a whole frame with the engine (+ the flame) | 22,656 median, 23,904 worst (25,800 before) |
-| a whole frame over the debris (three crosses) | 7,866 median, 17,687 worst (the message's first frames; 41,600 median, 52,000 worst before) |
-| each of the two frames of a zone change | 69,830 median, 128,199 worst (166,000-295,000 in one frame before) |
+| `phys_tick` coasting (3 integrations, pair damping, 3 passes of 3 links, 3 ground probes, ceiling, rules) | 5,429 median (12,222 before the speed switches: 81 % of the links are at rest) |
+| … with the engine (`vl_thrust_perp` + `vl_push_all`) | 7,632 median (13,500) |
+| … with the engine and a turn (`vl_turn_pair`) | not re-measured (14,334 before the speed switches) |
+| a whole frame coasting (tick, input, erase, 3 lines, HUD characters that changed) | 13,297 median, 13,883 worst (~77 fps; 20,122 before the speed switches, 23,700 before the fast drawing) |
+| a whole frame with the engine (+ the flame) | 16,814 median, 20,155 worst (22,656; 25,800) |
+| a whole frame over the debris (three crosses) | 7,858 median, 17,682 worst (the message's first frames; 41,600 median, 52,000 worst before the fast drawing) |
+| each of the two frames of a zone change | 63,066 median, 121,986 worst (69,830 / 128,199; 166,000-295,000 in one frame before the fast drawing) |
 
 The game runs a tick a frame with no pacing: the constants were tuned at
-~40 fps (it now runs ~15 % faster). Left in a coasting frame: the physics
-(12,200), the stick (~1,450: the RC time of a centred X), ~3,000 for the
+~40 fps (it now runs ~1.9 times as fast). Left in a coasting frame: the
+physics (5,400), the stick (~1,450: the RC time of a centred X), ~3,000 for the
 lines, ~800 to erase, ~1,800 for the HUD (the numbers converted, compared,
 1-3 characters written). `tests/test_lander_disk.py` asserts the median
 and worst of each (measured + 5 %).

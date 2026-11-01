@@ -28,7 +28,7 @@ LBL = PIPE / 'build/halfpipe.lbl'
 STATE = ['hp_status', 'hp_score', 'hp_score+1', 'hp_score+2', 'air_px', 'msg']
 ROWS = [(base, y) for base in (0x2000, 0x4000) for y in range(16)]
 # cycles a main loop turn, median and worst: the measured numbers + 5 %
-LIMITS = {'riding': (24_000, 58_000)}
+LIMITS = {'riding': (17_200, 50_900)}
 
 
 def look(lab):
@@ -72,7 +72,7 @@ def main():
     steps = [lab.until('main', 2000)] + [lab.until('render', 10), lab.until('main', 120)] * 3 + look(lab)  # 0
     steps += ['key:K', 'wait:20'] * 120 + [lab.until('render', 10), lab.until('main', 120)] + look(lab)  # 1
     steps += lab.poke('vl_xf', upside_down())               # inverted
-    steps += ['wait:120', lab.until('render', 10), lab.until('main', 120)] + look(lab)    # 2: crashed
+    steps += ['wait:70', lab.until('render', 10), lab.until('main', 120)] + look(lab)     # 2: crashed (< AGAIN_T ticks)
     steps += ['key:R', 'wait:6', lab.until('render', 10), lab.until('main', 120)] + look(lab)  # 3: again
     r = a2test.run(str(DISK), steps)
     (s0, t0), (s1, t1), (s2, t2), (s3, t3) = (seen(r, lab, k) for k in range(4))

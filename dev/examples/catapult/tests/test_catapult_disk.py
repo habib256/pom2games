@@ -27,7 +27,7 @@ DISK = CAT / 'build/CATAPULT.dsk'
 LBL = CAT / 'build/catapult.lbl'
 STATE = ['cp_phase', 'cp_shots', 'cp_score', 'cp_power', 'cp_stop', 'frames']
 # cycles a main loop turn, median and worst: the measured numbers + 5 %
-LIMITS = {'aiming': (3_900, 3_900), 'flying': (12_000, 42_400)}
+LIMITS = {'aiming': (3_900, 3_900), 'flying': (12_000, 42_300)}
 
 
 def look(lab):

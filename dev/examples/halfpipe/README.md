@@ -54,7 +54,9 @@ air (up to 90), 100 per full turn (up to 900).
   (a wheel still on its segment, 2 px from its ends, skips the scan),
   `VL_GROUND` = 3 (the body is probed too: it touching is a crash),
   `VL_CON_FIXED_K` = 6, `VL_PAIR_DAMP` = 3 (the spin fades in the air),
-  `VL_CEILING_CLAMP` (row 17, under the HUD).
+  `VL_CEILING_CLAMP` (row 17, under the HUD); the speed switches `VL_CON_SKIP_ZERO` (a link at rest returns at once) and `VL_CON_FAST` (square table, the link inline): exact, the same physics bit for bit; `VL_SEG_BUCKETS`
+  (the scan tries only the segments of the wheel's 8-px column: 1-6 of
+  the 20, the same result).
 * **Near-unit normals.** The quarters' segments run along the directions
   of integer normals whose length² is within 6 of 4096 ((63, 11), (58, 27),
   (50, 40) and their mirrors): a wheel rolling on a segment keeps its speed
@@ -92,14 +94,14 @@ a2run, Apple II+ at 1.02 MHz:
 
 | | Cycles |
 |---|---|
-| `phys_tick` in the air (3 integrations, pair damping, 3 passes of 3 links, 3 segment probes, ceiling, octant) | 12,936 |
-| … both wheels on a curve (2 contacts, pump) | 16,421 |
-| … both wheels on the bottom | 18,628 |
-| a whole frame while pumping (input, tick, events, erase, rider; 1,500 frames) | 22,756 median, 55,184 worst (24,500 median, 77,000 worst before) |
+| `phys_tick` in the air (3 integrations, pair damping, 3 passes of 3 links, 3 segment probes, ceiling, octant) | 5,799 (12,936 before the speed switches) |
+| … both wheels on a curve (2 contacts, pump) | 9,961 (16,421) |
+| … both wheels on the bottom | 12,038 (18,628) |
+| a whole frame while pumping (input, tick, events, erase, rider; 1,500 frames) | 16,297 median, 48,437 worst (22,756 / 55,184 before the speed switches; 24,500 / 77,000 before the fast drawing) |
 
 The game runs a tick a frame with no pacing: the constants were tuned at
-~38 fps (it now runs ~8 % faster). Left in a frame: the physics (~14,700,
-up to ~24,000 on the bottom), the stick (~1,450: the RC time of a centred
+~38 fps (it now runs ~65 % faster). Left in a frame: the physics (~8,200,
+up to ~18,300 on the bottom), the stick (~1,450: the RC time of a centred
 X), ~3,300 for three lines, ~1,100 for the two wheels, ~1,100 to erase; the
 worst frames are landings that score: a chime of ~20,000 cycles
 (`tone`) and the message's changed characters.

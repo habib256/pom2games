@@ -53,7 +53,8 @@ contact.
   release `vl_thrust_perp` + `vl_push` give the tip ARM·turn/512 px a tick
   across the arm, turn = 50 + 4·power. While it swings, the ball is the
   tip (same position and old position: the same speed); the arm crossing
-  the stop direction (a cross product's sign) lets it go.
+  the stop direction (a cross product's sign) lets it go. With
+  the speed switches `VL_CON_SKIP_ZERO` (a link at rest returns at once) and `VL_CON_FAST` (square table, the link inline): exact, the same physics bit for bit (`vl_square` of the contacts reads the same table).
 * **Circle contacts** (`VL_CIRC` = 7, Q = 5: radii in eighths of a pixel,
   5 px): `vl_contact_all` once a tick (21 pairs, ~52 cycles each apart),
   `vl_contact_box` (5 boxes) and `vl_ground` for each awake ball;
@@ -91,12 +92,12 @@ a2run, Apple II+ at 1.02 MHz, over the four test rounds:
 | | Cycles |
 |---|---|
 | `phys_tick` aiming | 480-1,190 |
-| … swinging (the arm, 2 link passes, the cross product) | 3,310-3,530 |
+| … swinging (the arm, 2 link passes, the cross product) | 1,830-3,050, mean 2,430 (3,310-3,530 before the speed switches) |
 | … flying, no contact (1,402 ticks) | 4,730-16,530, mean 5,900, 90 % under 8,200 |
-| … flying with contacts (433 ticks) | 7,500-37,500, mean 19,900, 90 % under 31,200 |
+| … flying with contacts (433 ticks) | 7,400-36,700, mean 19,540, 90 % under 30,500 (7,500-37,500, mean 19,900) |
 | a whole frame aiming, nothing moving (input, the signatures compared) | 3,646 median, 3,653 worst (38,200 before the stack) |
 | a whole frame aiming, power or angle changed (the arm, the ball in its cup, the mark) | ~12,500 |
-| a whole frame while a shot flies (two shots) | 11,356 median, 40,431 worst (~39,000-61,000 before) |
+| a whole frame while a shot flies (two shots) | 11,410 median, 40,252 worst (11,356 / 40,431 before the speed switches; ~39,000-61,000 before the stack) |
 
 One contact costs ~2,300-3,600 cycles (`lib/physics`), a ball on a box
 ~2,600-3,800; the peaks (~37,000) come from the pyramid tumbling in its
