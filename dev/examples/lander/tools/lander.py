@@ -35,8 +35,22 @@ A tick (Lander.tick(thr, rot)):
            bounces and slides on its own (no constraints); timer counts
   landed   nothing moves
 tilt = y(right leg) - y(left leg), 8.8.
+
+The rate: the game runs TICK_HZ ticks a second (vapor_pace: a tick every 2
+video frames); the feel was tuned at TUNED_HZ (the unpaced game before the
+speed lots). Every constant with a time in it is derived from its tuned
+value here (per_s2: accelerations x (TUNED/TICK)^2, per_s: speeds x
+TUNED/TICK, ticks: durations x TICK/TUNED), so the lander moves on the
+screen as it did. The engine's push is fitted on what vl_thrust_perp
+gives for the level legs (its shifts round), the turn (an impulse a tick
+that the pair damping fades: a steady spin of ROT_K / (1 - damping) a
+tick) needs ROT_K x TUNED/TICK = 4/3: a fraction (ROT_FRAC / 256 more,
+lv_rsub carries it). One fuel unit every 2 thrust ticks at 40 Hz is 2/3
+of a unit a tick at 30: lv_fsub += FUEL_ADD, a unit when it reaches
+FUEL_DIV.
 """
 from pathlib import Path
+import math
 import sys
 
 HERE = Path(__file__).resolve().parent
@@ -78,27 +92,61 @@ def terrain():
 
 HEIGHTS = terrain()
 
+# --- the rate -----------------------------------------------------------------------
+TUNED_HZ, TICK_HZ = 40, 30              # tuned unpaced at ~40 ticks/s; paced at 30
+TICK_FRAMES = 60 // TICK_HZ             # video frames a tick (vapor_pace)
+
+
+def per_s2(v):
+    """An acceleration (a tick^2) tuned at TUNED_HZ, for TICK_HZ."""
+    return int(v * TUNED_HZ * TUNED_HZ / (TICK_HZ * TICK_HZ) + (0.5 if v >= 0 else -0.5))
+
+
+def per_s(v):
+    """A speed (a tick) tuned at TUNED_HZ, for TICK_HZ."""
+    return int(v * TUNED_HZ / TICK_HZ + (0.5 if v >= 0 else -0.5))
+
+
+def ticks(n):
+    """A duration in ticks tuned at TUNED_HZ, for TICK_HZ."""
+    return int(n * TICK_HZ / TUNED_HZ + 0.5)
+
+
 # --- the lander -------------------------------------------------------------------
 LEG_HALF, TOP_UP = 6, 8                 # px: the 6-8-10 triangle
 FIXED_K = 6                             # link gain 2^6
 LINKS = [Constraint(0, 1, 2 * LEG_HALF, fixed_k=FIXED_K),
          Constraint(0, 2, 10, fixed_k=FIXED_K),
          Constraint(1, 2, 10, fixed_k=FIXED_K)]
-GRAVITY = 0x0004                        # 8.8 px / tick^2
-VMAX = 0x0300                           # 3 px a tick
+GRAVITY = per_s2(0x0004)                # 8.8 px / tick^2 (4 at 40 Hz: 7)
+VMAX = per_s(0x0300)                    # 3 px a tick at 40 Hz: 4
 THRUST_SHIFT = 4                        # VL_THRUST
-THRUST_K = -13                          # vl_turn for the engine: 12 px * -13 / 4096 = -0.04 px/tick^2
-ROT_K = 1                               # vl_turn of a turn key, a tick
 SPIN_DAMP = 2                           # vl_pair_damp: the spin fades by 1/4 a tick
+
+
+def thrust_of(k):
+    """8.8 push a tick of vl_thrust_perp with the legs level (12 px)."""
+    return ((2 * LEG_HALF * 256 * -k) >> 8) >> THRUST_SHIFT
+
+
+THRUST_TUNED = -13                      # at 40 Hz: 9 / 256 px a tick^2
+THRUST_K = -min(range(1, 128), key=lambda k: abs(thrust_of(-k) - per_s2(thrust_of(THRUST_TUNED))))
+ROT_TUNED = 1                           # vl_turn of a turn key a tick, at 40 Hz
+ROT_88 = per_s(ROT_TUNED * 256)         # x 4/3 (8.8): ROT_K + ROT_FRAC / 256
+ROT_K, ROT_FRAC = ROT_88 >> 8, ROT_88 & 0xFF
+FUEL_ADD, FUEL_DIV = (TUNED_HZ // math.gcd(TUNED_HZ, 2 * TICK_HZ),    # a unit / 2 ticks at 40 Hz:
+                      2 * TICK_HZ // math.gcd(TUNED_HZ, 2 * TICK_HZ))  # 2/3 a tick at 30
 RADIUS = 0x0180                         # legs: 1.5 px
 PROBE, SLOPE_MAX, FAR, BOUNCE = 2, 15, 0x1000, 40
 FRICTION = 2                            # on the ground vt -= vt >> 2 a tick
-FUEL = 250                              # units; one every 2 thrust ticks
-V_SAFE = 0x0060                         # 0.375 px a tick
+FUEL = 250                              # units; 20 a second of thrust
+V_SAFE = per_s(0x0060)                  # 0.375 px a tick at 40 Hz: 0.5
 TILT_MAX = 0x0280                       # 2.5 px over the 12 px of the legs (~12 degrees)
-SETTLE = 16                             # ticks on both legs before the verdict
-KICK = [(-0x00C0, -0x0100), (0x00C0, -0x00C0), (0x0020, -0x0180)]   # the explosion (8.8 px/tick)
-START = (60, 30, 0x0040, 0)             # top-left: x, y of the legs, vx, vy (8.8)
+SETTLE = ticks(16)                      # ticks on both legs before the verdict (0.4 s)
+KICK = [(per_s(x), per_s(y)) for x, y in [(-0x00C0, -0x0100), (0x00C0, -0x00C0), (0x0020, -0x0180)]]
+START = (60, 30, per_s(0x0040), 0)      # top-left: x, y of the legs, vx, vy (8.8)
+THR_HOLD = ticks(20)                    # (lander.s) ticks a key fires the engine: 0.5 s
+ROT_HOLD = ticks(8)                     # (lander.s) ticks a key turns: 0.2 s
 
 FLY, LANDED, CRASHED = 0, 1, 2
 
@@ -113,7 +161,7 @@ class Lander(Points):
             self.ox[i] -= vx
             self.oy[i] -= vy
         self.status = FLY
-        self.fuel, self.fsub = FUEL, 0
+        self.fuel, self.fsub, self.rsub = FUEL, 0, 0
         self.settle, self.contact, self.timer, self.pad = 0, 0, 0, 0
         self.gnd = [0, 0, 0]
         self.vy = 0
@@ -150,11 +198,15 @@ class Lander(Points):
         self._walls()
         self.pair_damp(0, 1, SPIN_DAMP)
         if rot:
-            self.turn_pair(0, 1, ROT_K if rot > 0 else -ROT_K)
+            self.rsub += ROT_FRAC               # ROT_K + the fraction's carry
+            k = ROT_K + (self.rsub >> 8)
+            self.rsub &= 0xFF
+            self.turn_pair(0, 1, k if rot > 0 else -k)
         if thr and self.fuel:
             self.push_all(self.thrust(0, 1, THRUST_K, THRUST_SHIFT, perp=True))
-            self.fsub ^= 1
-            if not self.fsub:
+            self.fsub += FUEL_ADD
+            if self.fsub >= FUEL_DIV:
+                self.fsub -= FUEL_DIV
                 self.fuel -= 1
         for _ in range(2):
             for c in LINKS:
@@ -198,9 +250,9 @@ class Lander(Points):
     def state_bytes(self):
         """The snapshot of tests/test_lander.py: the points (vl_xf..vl_oyu),
         then lv_status, lv_fuel, lv_fsub, lv_settle, lv_contact, lv_timer,
-        lv_pad, lv_gnd (3)."""
+        lv_pad, lv_rsub, lv_gnd (3)."""
         return self.soa_bytes() + bytes([self.status, self.fuel, self.fsub, self.settle, self.contact,
-                                         self.timer, self.pad] + self.gnd)
+                                         self.timer, self.pad, self.rsub] + self.gnd)
 
 
 # --- autopilot (tests, demo tuning) -------------------------------------------------
@@ -216,11 +268,12 @@ def autopilot(p, pad=0):
     alt = (row << 8) - max(p.y[0], p.y[1])
     # the engine pushes along the body: a tilt > 0 (right leg low) pushes
     # right; lean toward the pad, against the drift (only against it low)
+    # (speeds a tick: tuned at TUNED_HZ, scaled by per_s)
     err = (cx - xm) * 8 if alt > 0x2000 else 0
-    want = max(-0x100, min(0x100, err - vx * 6))
+    want = max(-0x100, min(0x100, err - vx * 6 * TICK_HZ // TUNED_HZ))
     rot = 1 if tilt < want - 0x20 else -1 if tilt > want + 0x20 else 0
-    target = 0x40 if alt < 0x1800 else min(0x100, 0x40 + alt // 128)
-    thr = 1 if vy > target or (abs(want) > 0x60 and vy > -0x40) else 0
+    target = per_s(0x40) if alt < 0x1800 else min(per_s(0x100), per_s(0x40 + alt // 128))
+    thr = 1 if vy > target or (abs(want) > 0x60 and vy > -per_s(0x40)) else 0
     return thr, rot
 
 
@@ -247,7 +300,11 @@ def write_inc(path):
     tab = tables(LINKS)
     nx, ny = HeightMap((), SLOPE_MAX, PROBE).nx, HeightMap((), SLOPE_MAX, PROBE).ny
     consts = [('GRAVITY', GRAVITY), ('VMAX', VMAX), ('THRUST_SHIFT', THRUST_SHIFT, 'dec'),
-              ('THRUST_K', THRUST_K & 0xFF), ('ROT_K', ROT_K, 'dec'), ('SPIN_DAMP', SPIN_DAMP, 'dec'),
+              ('THRUST_K', THRUST_K & 0xFF), ('ROT_K', ROT_K, 'dec'), ('ROT_FRAC', ROT_FRAC, 'dec'),
+              ('FUEL_ADD', FUEL_ADD, 'dec'), ('FUEL_DIV', FUEL_DIV, 'dec'),
+              ('THR_HOLD', THR_HOLD, 'dec'), ('ROT_HOLD', ROT_HOLD, 'dec'),
+              ('TICK_FRAMES', TICK_FRAMES, 'dec'),
+              ('SPIN_DAMP', SPIN_DAMP, 'dec'),
               ('FIXED_K', FIXED_K, 'dec'), ('RADIUS', RADIUS), ('PROBE', PROBE, 'dec'),
               ('SLOPE_MAX', SLOPE_MAX, 'dec'), ('FAR', FAR), ('BOUNCE', BOUNCE, 'dec'),
               ('FRICTION', FRICTION, 'dec'), ('GROUND_BASE', GROUND_BASE), ('WORLD_H', WORLD_H),

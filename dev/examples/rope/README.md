@@ -10,7 +10,7 @@ python3 dev/examples/rope/tools/rope.py   # the model, in a few lines of text
 ```
 
 A toy for the rope side of [`lib/physics`](../../lib/physics/README.md):
-an Apple II+ 48 KB HGR program in assembly (dev/lib only), 5.9 KB. A pin
+an Apple II+ 48 KB HGR program in assembly (dev/lib only), 6.5 KB. A pin
 runs along the top of the screen; from it hang seven rope points and a
 weight on eight links of 11 px. Move the pin and the rope swings; lower it
 (floor mode) and the rope lies down on a hilly floor and drags along it;
@@ -68,6 +68,17 @@ floor; put it back and it hangs again.
   column and a bit mask along each link (the same pixels as before) and
   records a byte at a time; the weight is a preshifted 5 × 5 sprite
   (`pl_sprite`), not five lines.
+* **20 ticks a second, flipped in the blank.** The page is shown in the
+  vertical blank, a tick every 3 video frames
+  ([`vapor.asm`](../../lib/apple2/vapor.asm): `vapor_mark_both` puts the
+  floating-bus marker on row 191 of both pages; nothing is drawn below
+  row 190 — the weight's square is held above it, the rope's points stay
+  over the floor, rows ≤ 186; `vapor_pace` waits for the tick's last
+  frame from an estimate of its cycles: 34,000 swinging, 41,000 on the
+  floor). 20 a second is the rate it was tuned at: no constant changes
+  (`TICK_HZ` in [`tools/rope.py`](tools/rope.py) only gives
+  `TICK_FRAMES`). Without a floating bus (`vapor_pace_init` fails: a real
+  //c, a IIgs) it runs a tick a frame, unpaced (~31 ticks a second).
 * **The stick.** `read_stick_x` (X alone, the Monitor's PREAD scale:
   0..255, ~128 centred, 3.2 times the former `read_stick_fast` counts):
   the pin goes toward 128 + (x − rest) (was 128 + 3 (x − rest)), dead zone
@@ -81,18 +92,22 @@ a2run, Apple II+ at 1.02 MHz:
 |---|---|
 | `phys_tick` swinging (8 integrations, 2 passes of 8 links with a pin and a heavy end, the weight's ground probe, walls, ceiling) | 12,300-16,500, median 15,760 (20,500-21,200 before the speed switches) |
 | … on the floor (8 ground probes, 3-4 in contact; the pin dragging the rope or not) | 20,000-29,700, median 23,600 (29,800-35,800) |
-| a whole frame swinging (tick, input, erase, ~100 pixels of lines, the weight) | 33,454 median, 34,592 worst (30.5 fps; 38,566 before the speed switches, 50,000 before the fast path) |
-| a whole frame on the floor | 39,864 median, 45,728 worst (25.6 fps; 47,750; 58,000) |
+| a tick's work swinging (tick, input, erase, ~100 pixels of lines, the weight; main to `pace`) | 33,612 median, 34,645 worst (33,454 / 34,592 unpaced; 38,566 before the speed switches, 50,000 before the fast path) |
+| … on the floor | 40,076 median, 46,450 worst (39,864 / 45,728; 47,750; 58,000) |
+| the flips (300 ticks swinging, 300 on the floor) | 600 of 600 51,090 cycles apart (± 13), all on line 194 (the vertical blank); none left out |
 
-The toy runs a tick a frame with no pacing (the constants were tuned at
-~20 fps: it now runs ~50 % faster). Where the time goes: ~12,500 cycles of
+Before the pacing the toy ran ~28 ticks a second (a flip every 2.15 video
+frames on average, torn). Where the time goes: ~12,500 cycles of
 links (18 constraint calls: ~690 cycles a plain link, ~740 the pinned one,
 ~1,050 the heavy one, ~280 a link at rest),
 ~2,700 of integration, ~1,450 for the stick (the RC time of a centred
 X: `read_stick_x` returns when it runs out), ~10,000 to draw: ~90 cycles
 a pixel of a steep link, ~50-70 of a flat one, ~180 to set a line up,
-~38 an erased history entry. `tests/test_rope_disk.py` asserts the median
-and worst (measured + 5 %).
+~38 an erased history entry; the rest of the 51,090 cycles is the wait.
+`tests/test_rope_disk.py` asserts the median and worst (measured + 5 %),
+the two 10 s windows (exactly 200 ticks each), the cadence (≥ 98 % of the
+flips 51,090 cycles apart, every flip on lines 192-261) and a run without
+the marker (unpaced, it still plays).
 
 ## Turning it into a game
 
@@ -110,7 +125,7 @@ Files: `src/rope.s` (the toy: input, drawing, text lines),
 `dev/lib/hgr/hgr_plot_hist.asm` (lines with an erase history), `src/phys.inc` / `src/physdefs.inc` (the
 physics), `src/ropeconst.inc` (generated), `tests/test_rope_disk.py` (the
 disk: boot, the pin moved, the floor, a cut, R; the text on screen read
-back from the glyph bytes; the cycles a frame costs swinging and on the
-floor).
+back from the glyph bytes; the cycles a tick's work costs swinging and on
+the floor, the cadence of the flips; a run unpaced).
 
 Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).

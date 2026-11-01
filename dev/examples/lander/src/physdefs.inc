@@ -43,14 +43,15 @@ VL_CEILING_CLAMP = CEIL
 .endmacro
 
 .segment "BSS"
-; the state (tests/test_lander.py snapshots lv_status..lv_pad in this order)
+; the state (tests/test_lander.py snapshots lv_status..lv_rsub in this order)
 lv_status:  .res 1              ; FLY, LANDED, CRASHED
 lv_fuel:    .res 1
-lv_fsub:    .res 1              ; a fuel unit every 2 thrust ticks
+lv_fsub:    .res 1              ; fuel: FUEL_ADD a thrust tick, a unit at FUEL_DIV
 lv_settle:  .res 1              ; ticks with a leg down
 lv_contact: .res 1              ; a leg was down last tick
 lv_timer:   .res 1              ; ticks since the crash (to 255)
 lv_pad:     .res 1              ; landed: the pad (1..NPADS)
+lv_rsub:    .res 1              ; the turn's fraction (ROT_FRAC a turning tick)
 lv_vy:      .res 2              ; speed of the top before the tick
 lv_tilt:    .res 2              ; y right leg - y left leg
 lv_steep:   .res 1

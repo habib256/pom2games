@@ -11,7 +11,7 @@ python3 dev/examples/lander/tools/lander.py   # the autopilot on the model
 
 The demo of [`lib/physics`](../../lib/physics/README.md) and the starting
 point for a new physics game: an Apple II+ 48 KB HGR program in assembly
-(dev/lib only), 8.0 KB. The lander is **three Verlet points** (two legs and
+(dev/lib only), 8.8 KB. The lander is **three Verlet points** (two legs and
 the top) held by three links; the engine pushes them along the body, the
 turn keys turn the legs' axis, and the ground is a height map with three
 flat pads. Land on a pad slowly, level, and both legs on it: `LANDED ON PAD
@@ -22,16 +22,16 @@ pads: the links break and the three points fly apart (`CRASHED!`).
 
 | Key | Effect |
 |---|---|
-| `J` / ← and `L` / → | turn left / right (a press turns for 8 ticks; the key repeat keeps turning) |
-| `K` / `I` / ↑ | engine (a press fires it for 20 ticks: the II+ keyboard has no key-up, its repeat keeps it on) |
+| `J` / ← and `L` / → | turn left / right (a press turns for 6 ticks, 0.2 s; the key repeat keeps turning) |
+| `K` / `I` / ↑ | engine (a press fires it for 15 ticks, 0.5 s: the II+ keyboard has no key-up, its repeat keeps it on) |
 | space | engine and turn off |
 | `R` | start again |
 | `ESC` | back to DOS |
 | joystick (found at boot) | X turns, button 0 fires the engine |
 
 HUD: `ALT` rows from the legs to the ground under the lander, `VS` vertical
-speed in 1/16 px a tick (a landing needs 6 or less), `FUEL` (a unit every
-two engine ticks).
+speed in 1/16 px a tick (a landing needs 8 or less), `FUEL` (two units
+every three engine ticks: 20 a second).
 
 ## What it shows
 
@@ -80,6 +80,26 @@ two engine ticks).
   1 KB but its two HUD rows) and its ground drawn again: two frames of
   65,000-128,000 cycles (the whole ground) instead of one of
   166,000-295,000; the HUD and the message stay.
+* **30 ticks a second, flipped in the blank.** The page is shown in the
+  vertical blank, a tick every 2 video frames
+  ([`vapor.asm`](../../lib/apple2/vapor.asm): `vapor_mark_both` puts the
+  floating-bus marker on row 191 of both pages, again after every clear;
+  nothing is drawn below row 190; `vapor_pace` waits for the tick's last
+  frame from an estimate of its cycles: 15,000 in flight, 9,000 landed or
+  crashed, + the growl, the landing tones, a view cleared). Without a
+  floating bus (`vapor_pace_init` fails: a real //c, a IIgs) it runs a
+  tick a frame, unpaced. The feel was tuned unpaced at ~40 ticks a second:
+  [`tools/lander.py`](tools/lander.py) derives every constant with a time
+  in it (`TUNED_HZ` 40 → `TICK_HZ` 30): accelerations × (40/30)²
+  (`GRAVITY` 4 → 7; `THRUST_K` −13 → −22, fitted on what `vl_thrust_perp`
+  gives level: 9 → 16/256 px a tick²), speeds × 40/30 (`VMAX` 3 → 4 px,
+  `V_SAFE` $60 → $80, the explosion's kicks, `START_VX` $40 → $55),
+  durations × 30/40 (`SETTLE` 16 → 12, `THR_HOLD` 20 → 15, `ROT_HOLD`
+  8 → 6); the turn, an impulse a tick that the pair damping fades, needs
+  `ROT_K` × 40/30 = 1 + 85/256 (`ROT_FRAC`, carried in `lv_rsub`) for the
+  same spin and the same angle a press; the fuel 2/3 of a unit a thrust
+  tick (`FUEL_ADD` / `FUEL_DIV`). A landing on pad A from rest above it
+  takes 15.7 s (15.9 at 40 Hz), a free fall 5.8 s (5.8).
 * **The stick.** `read_stick_x` (X alone, the Monitor's PREAD scale:
   0..255, ~128 centred, 3.2 times the former `read_stick_fast` counts):
   dead zone `JOY_DEAD` = 38 (was 12).
@@ -93,17 +113,22 @@ a2run, Apple II+ at 1.02 MHz:
 | `phys_tick` coasting (3 integrations, pair damping, 3 passes of 3 links, 3 ground probes, ceiling, rules) | 5,429 median (12,222 before the speed switches: 81 % of the links are at rest) |
 | … with the engine (`vl_thrust_perp` + `vl_push_all`) | 7,632 median (13,500) |
 | … with the engine and a turn (`vl_turn_pair`) | not re-measured (14,334 before the speed switches) |
-| a whole frame coasting (tick, input, erase, 3 lines, HUD characters that changed) | 13,297 median, 13,883 worst (~77 fps; 20,122 before the speed switches, 23,700 before the fast drawing) |
-| a whole frame with the engine (+ the flame) | 16,814 median, 20,155 worst (22,656; 25,800) |
-| a whole frame over the debris (three crosses) | 7,858 median, 17,682 worst (the message's first frames; 41,600 median, 52,000 worst before the fast drawing) |
-| each of the two frames of a zone change | 63,066 median, 121,986 worst (69,830 / 128,199; 166,000-295,000 in one frame before the fast drawing) |
+| a tick's work coasting (tick, input, erase, 3 lines, HUD characters that changed; main to `pace`) | 13,347 median, 14,052 worst (13,297 / 13,883 at 40 Hz unpaced; 20,122 before the speed switches, 23,700 before the fast drawing) |
+| … with the engine (+ the flame) | 17,208 median, 19,988 worst (16,814 / 20,155; 22,656; 25,800) |
+| … over the debris (three crosses) | 9,904 median, 16,169 worst (7,858 / 17,682: faster debris bounce more; 41,600 median, 52,000 worst before the fast drawing) |
+| each of the two ticks of a zone change | 63,914 median, 122,938 worst (4 to 8 video frames; 166,000-295,000 in one frame before the fast drawing) |
+| the flips (700 ticks: a free fall, then the engine) | 689 of 689 34,060 cycles apart (± 13), all on line 193 (the vertical blank); left out: the 6 ticks of zone changes (4 and 8 frames) and the crash's growl (10 frames) |
 
-The game runs a tick a frame with no pacing: the constants were tuned at
-~40 fps (it now runs ~1.9 times as fast). Left in a coasting frame: the
-physics (5,400), the stick (~1,450: the RC time of a centred X), ~3,000 for the
-lines, ~800 to erase, ~1,800 for the HUD (the numbers converted, compared,
-1-3 characters written). `tests/test_lander_disk.py` asserts the median
-and worst of each (measured + 5 %).
+Before the pacing the game ran ~70 ticks a second (a flip every 0.85
+video frame on average, torn). Left in a coasting tick: the physics
+(5,400), the stick (~1,450: the RC time of a centred X), ~3,000 for the
+lines, ~800 to erase, ~1,800 for the HUD (the numbers converted,
+compared, 1-3 characters written); the rest of the 34,060 cycles is the
+wait. `tests/test_lander_disk.py` asserts the median and worst of each
+(measured + 5 %), the cadence (≥ 98 % of the flips 34,060 cycles apart,
+every flip on lines 192-261: the cycle of the `flip` label modulo 17,030,
+a2run's frames starting at cycle 0), and a run without the marker (what
+a machine without a floating bus reads): unpaced, it still plays.
 
 ## Turning it into a game
 
@@ -123,7 +148,8 @@ Files: `src/lander.s` (the game: input, events, camera, drawing, HUD),
 `src/phys.inc` / `src/physdefs.inc` (the physics), `src/landconst.inc`
 (generated), `tests/test_lander_disk.py` (the disk: boot, HUD, engine, a
 landing on pad B, R, a free fall that crashes; the text on screen read back
-from the glyph bytes; the cycles a frame costs coasting, with the engine,
-over the debris and on a zone change).
+from the glyph bytes; the cycles a tick's work costs coasting, with the
+engine, over the debris and on a zone change; the cadence of the flips;
+a run unpaced).
 
 Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).

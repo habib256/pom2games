@@ -9,7 +9,12 @@
 ;
 ; Screen: rows 0-7 the counters, 8-15 the message, 16-191 the view (the
 ; world is the screen). The hill, the boxes and the catapult's post are
-; drawn once on both pages; each frame draws the hidden page and shows it.
+; drawn once on both pages; each tick draws the hidden page and shows it in
+; the vertical blank (vapor.asm: the beam found through the floating bus, a
+; marker on row 191 of both pages; nothing is drawn below row 190), a tick
+; every TICK_FRAMES video frames (30 a second: vapor_pace, given an
+; estimate of the tick's cycles: a base per phase, a term per ball awake
+; and per contact); without a floating bus (//c, IIgs) it runs unpaced.
 ; The arm, the seven balls (a preshifted ring sprite) and the aim mark are
 ; objects drawn with hgr_plot_hist.asm, which records the bits each one lit:
 ; a page keeps them in a stack (last moved on top) with what each shows,
@@ -46,6 +51,7 @@ OBJ_ARM   = VL_CIRC                     ; the aim mark
 OBJ_AIM   = VL_CIRC + 1
 RING_H    = 2 * RADPX + 1               ; the ring sprite: 3 bytes x RING_H
 RING_SZ   = 3 * RING_H                  ; rows a shift
+VIEW_LAST = 190                         ; the last row drawn (191: the vapor marker)
 
 .segment "ZEROPAGE"
 pidx:   .res 1                          ; page drawn this frame: 0 = 1, 1 = 2
@@ -68,6 +74,8 @@ msg:      .res 1
 joy_ok:   .res 1
 joy_cx:   .res 1
 btn_was:  .res 1
+pace_ok:  .res 1                        ; a floating bus: vapor_pace
+ndraw:    .res 1                        ; objects drawn again this tick (render)
 numbuf:   .res 4
 cur_sig:  .res 4 * NOBJ                 ; each object now (4 bytes)
 pg_sig:   .res 2 * 4 * NOBJ             ; per page: what each object shows
@@ -98,6 +106,8 @@ start:  APPLE2_PREAMBLE
         STA     pidx
         STA     joy_ok
         STA     btn_was
+        STA     pace_ok
+        STA     ndraw
         LDA     #$7F                    ; white text
         STA     ht_cm_ev
         STA     ht_cm_od
@@ -113,8 +123,11 @@ start:  APPLE2_PREAMBLE
         LDA     joy_x
         STA     joy_cx
         INC     joy_ok
-:       JSR     clear_pages
+:       JSR     clear_pages             ; (and the vapor marker)
         JSR     hgr_init
+        JSR     vapor_pace_init         ; a floating bus?
+        BCS     restart
+        INC     pace_ok
 
 restart:
         JSR     phys_reset
@@ -179,7 +192,8 @@ main:   JSR     input                   ; (R: back to restart, ESC: quit)
         EOR     #1
         STA     pidx
         JSR     render
-        LDA     pidx
+        JSR     pace                    ; the tick's last video frame
+flip:   LDA     pidx
         BNE     :+
         BIT     LOWSCR
         JMP     :++
@@ -190,6 +204,7 @@ main:   JSR     input                   ; (R: back to restart, ESC: quit)
 :       JMP     main
 
 quit:   JMP     apple2_exit
+
 
 ; ---------------------------------------------------------------------------
 ; input -- keys and joystick -> in_power, in_stop, in_fire (a new round
@@ -320,6 +335,64 @@ events: LDA     cp_phase
 :       STX     msg
         RTS
 
+
+; ---------------------------------------------------------------------------
+; pace -- wait for line 191 of the tick's last video frame: vapor_pace with
+; TICK_FRAMES and the tick's estimate: a base by cp_phase, + EST_DRAW an
+; object render drew again (ndraw), in flight + EST_BALL a ball awake
+; (vl_pin 0); unpaced without a floating bus
+; ---------------------------------------------------------------------------
+pace:   LDA     pace_ok
+        BEQ     @rts
+        LDX     cp_phase
+        LDA     est_lo,X
+        STA     t0
+        LDA     est_hi,X
+        STA     t1
+        CPX     #FLY
+        BNE     @go
+        LDX     #VL_CIRC - 1            ; the balls awake
+@b:     LDA     vl_pin,X
+        BNE     @nb
+        CLC
+        LDA     t0
+        ADC     #<(EST_BALL / 13)
+        STA     t0
+        LDA     t1
+        ADC     #>(EST_BALL / 13)
+        STA     t1
+@nb:    DEX
+        BPL     @b
+@go:    LDX     ndraw                   ; the objects drawn again
+        BEQ     @est
+@d:     CLC
+        LDA     t0
+        ADC     #<(EST_DRAW / 13)
+        STA     t0
+        BCC     :+
+        INC     t1
+:       DEX
+        BNE     @d
+@est:   LDX     t0
+        LDY     t1
+        LDA     #TICK_FRAMES
+        JMP     vapor_pace
+@rts:   RTS
+
+; a tick's cycles (main to pace): by phase, + per object drawn again, + in
+; flight per ball awake (a least-squares fit of 3,800 ticks in a2run: 99.6 %
+; within 8,000 cycles; a term per contact fitted to ~0, the objects drawn
+; again carry it)
+EST_AIM   = 3700
+EST_SWING = 5050
+EST_FLY   = 5350
+EST_OVER  = 3700
+EST_BALL  = 3600
+EST_DRAW  = 2650
+.assert EST_DRAW / 13 < 256, error, "pace: EST_DRAW < 3,328"
+est_lo:   .byte <(EST_AIM / 13), <(EST_SWING / 13), <(EST_FLY / 13), <(EST_OVER / 13)
+est_hi:   .byte >(EST_AIM / 13), >(EST_SWING / 13), >(EST_FLY / 13), >(EST_OVER / 13)
+.assert AIM = 0 .and SWING = 1 .and FLY = 2 .and OVER = 3, error, "pace: est_lo by cp_phase"
 
 ; A = 0 / 1: the page for hgr_line8 (sites), hgr_text8 (ht_page), pl_page
 set_page:
@@ -501,8 +574,14 @@ render: LDA     pidx
         INY
         CPY     #NOBJ
         BNE     @fk
-        JMP     @hud                    ; nothing moved
+        LDA     #0                      ; nothing moved
+        STA     ndraw
+        JMP     @hud
 @found: STY     kslot
+        SEC                             ; (pace: the objects drawn again)
+        LDA     #NOBJ
+        SBC     kslot
+        STA     ndraw
         LDA     (markp),Y               ; give back from there up
         JSR     pl_erase_to
         LDX     #0                      ; the slots from there: the still
@@ -592,7 +671,12 @@ draw_obj:
         LDA     vl_yh,X
         SEC
         SBC     #RADPX
-        STA     pl_y                    ; (above row 0: rows skipped)
+        CMP     #VIEW_LAST - RING_H + 2 ; (its rows above row 191; the hill
+        BCC     :+                      ; keeps it higher anyway)
+        CMP     #$100 - RADPX           ; (above row 0: rows skipped)
+        BCS     :+
+        LDA     #VIEW_LAST - RING_H + 1
+:       STA     pl_y
         LDA     #<ring_desc
         STA     pl_sp
         LDA     #>ring_desc
@@ -770,7 +854,8 @@ clear_pages:
         LDA     #0
         LDX     #>HGR1
         HGR_CLEAR_LOOP 8
-        RTS
+        JMP     vapor_mark_both         ; the marker on row 191 of both
+.include "vapor.asm"
 .include "exit.asm"
 .include "hgr_div7_ram.asm"
 .segment "RODATA"

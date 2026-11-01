@@ -8,10 +8,14 @@
 ;
 ; Screen: rows 0-7 the keys, 8-15 the mode, 16-191 the view (the world is
 ; the screen: y 8.8 rows). The floor is drawn once on both pages; each
-; frame draws the hidden page: what hgr_plot_hist.asm lit two frames ago
+; tick draws the hidden page: what hgr_plot_hist.asm lit two ticks ago
 ; there goes out (the floor under it comes back as it was), the rope and the
 ; pin (its fast lines) and the weight (a preshifted 5 x 5 sprite) go in, and
-; the page is shown.
+; the page is shown in the vertical blank (vapor.asm: the beam found
+; through the floating bus, a marker on row 191 of both pages; nothing is
+; drawn below row 190), a tick every TICK_FRAMES video frames (20 a
+; second: vapor_pace, given an estimate of the tick's cycles); without a
+; floating bus (//c, IIgs) it runs unpaced.
 ; Keys: J / <- and L / -> move the pin (a press moves it MV_HOLD ticks: the
 ; II+ keyboard has no key-up, its repeat keeps it going), M swing / floor,
 ; space cuts the weight off or puts it back, R resets, ESC quits. A
@@ -32,6 +36,8 @@ HGR_LINE_MOD7 = hgr_mod7
 HGR_TEXT8_HGR_ORDER = 1
 
 MV_HOLD   = 6                           ; ticks a key moves the pin
+VIEW_LAST = 190                         ; the last row drawn (191: the vapor marker;
+                                        ; the rope's points stay above the floor, <= 186)
 JOY_DEAD  = 13                          ; read_stick_x counts (PREAD: 0..255;
                                         ; 4 on the former read_stick_fast)
 
@@ -47,6 +53,7 @@ mv_hold:  .res 1
 joy_ok:   .res 1
 joy_cx:   .res 1                        ; the stick's rest position
 btn_was:  .res 1
+pace_ok:  .res 1                        ; a floating bus: vapor_pace
 
 .segment "CODE"
         JMP     start
@@ -67,6 +74,7 @@ start:  APPLE2_PREAMBLE
         STA     pidx
         STA     joy_ok
         STA     btn_was
+        STA     pace_ok
         LDA     #$7F                    ; white text
         STA     ht_cm_ev
         STA     ht_cm_od
@@ -82,8 +90,11 @@ start:  APPLE2_PREAMBLE
         LDA     joy_x
         STA     joy_cx
         INC     joy_ok
-:       JSR     clear_pages
+:       JSR     clear_pages             ; (and the vapor marker)
         JSR     hgr_init
+        JSR     vapor_pace_init         ; a floating bus?
+        BCS     restart
+        INC     pace_ok
 
 restart:
         JSR     phys_reset
@@ -120,7 +131,8 @@ main:   JSR     input                   ; (R: back to restart, ESC: quit)
         EOR     #1
         STA     pidx
         JSR     render
-        LDA     pidx
+        JSR     pace                    ; the tick's last video frame
+flip:   LDA     pidx
         BNE     :+
         BIT     LOWSCR
         JMP     :++
@@ -131,6 +143,26 @@ main:   JSR     input                   ; (R: back to restart, ESC: quit)
 :       JMP     main
 
 quit:   JMP     apple2_exit
+
+; ---------------------------------------------------------------------------
+; pace -- wait for line 191 of the tick's last video frame: vapor_pace with
+; TICK_FRAMES and the tick's estimate (by rp_mode); unpaced without a
+; floating bus
+; ---------------------------------------------------------------------------
+pace:   LDA     pace_ok
+        BEQ     @rts
+        LDX     rp_mode
+        LDY     est_hi,X
+        LDA     est_lo,X
+        TAX
+        LDA     #TICK_FRAMES
+        JMP     vapor_pace
+@rts:   RTS
+
+EST_SWING = 34000                       ; a tick's cycles (main to pace):
+EST_FLOOR = 41000                       ; swinging 33,500, floor 39,900-45,700
+est_lo:   .byte <(EST_SWING / 13), <(EST_FLOOR / 13)
+est_hi:   .byte >(EST_SWING / 13), >(EST_FLOOR / 13)
 
 ; ---------------------------------------------------------------------------
 ; input -- keys and joystick -> in_mv, in_mode, in_cut
@@ -311,7 +343,10 @@ render: LDA     pidx
         LDA     vl_yh+8
         SEC
         SBC     #2
-        STA     pl_y
+        CMP     #VIEW_LAST - 4 + 1      ; (its 5 rows above row 191; the
+        BCC     :+                      ; floor keeps it higher anyway)
+        LDA     #VIEW_LAST - 4
+:       STA     pl_y
         LDA     #<weight_desc
         STA     pl_sp
         LDA     #>weight_desc
@@ -371,7 +406,8 @@ clear_pages:
         LDA     #0
         LDX     #>HGR1
         HGR_CLEAR_LOOP 8
-        RTS
+        JMP     vapor_mark_both         ; the marker on row 191 of both
+.include "vapor.asm"
 .include "exit.asm"
 .include "hgr_div7_ram.asm"
 .segment "RODATA"

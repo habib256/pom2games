@@ -44,6 +44,7 @@ uses, without calling these primitives or changing their banks.
 | DHGR compositor (`dhgr_spr_*`, `dhgr_cursor`) | Opt-in `HGRC_DHGR_SPR_SRCS`; each changed byte of the area written once with its final value; IRQs masked only around each group's two aux stores (~30 cycles); borrowed canvas used only inside the update; invalidate background changes in the area; overlay hidden while the screen outside the area changes |
 | DHGR compositor, two pages (`DHGR_SPR_DOUBLE`) | Updates store only into the hidden (draw) page, each byte once; `dhgr_spr_present` flips at a VBL edge (bounded wait, IRQs enabled on the //c) and swaps the draw page; start with draw page ≠ shown page and invalidate the area |
 | Frame pacing | IIe VBL or delay added to drawing; bounded fallback if the signal is stuck; IRQ mask preserved |
+| Frame pacing, ASM (`vapor_pace`) | II / II+ / //e floating bus; the marker on row 191 of both pages (`vapor_mark_both` after each clear), nothing drawn below row 190; `vapor_pace_init` once, unpaced when it fails; the tick's estimate within half a frame; flip right after the return; the poll loop within a page (link-time assert) |
 | Optional PWM audio | Nominal 1 MHz CPU, encoded clip terminated by `$92`; blocking playback, IRQs masked then mask restored; borrows cc65 ptr1/ptr3/ptr4 low/tmp3; AUDIOCODE segment aligned to $100 in RAM (after STARTUP in the C cfgs) |
 | Perspective | X 0..279, depth in the borrowed tables; output outside HGR rejected; no video/bank state changed, outside IRQ |
 | Native corridor | World X/Y 0..127, unsigned 16-bit depth; two borrowed 256-byte tables, centres/steps fixed at compile time; shared state 5 BSS + 1 ZP or caller alias; no clipping, no I/bank changes |
@@ -51,7 +52,8 @@ uses, without calling these primitives or changing their banks.
 
 The displayed page and the drawing page are distinct. Waiting for a VBL edge
 before presenting synchronises the flip on IIe. On II/II+, the fallback
-delay does not provide that synchronisation.
+delay does not provide that synchronisation; `vapor_pace` (lib/apple2
+`vapor.asm`) does, through the floating bus, on a II, II+ and //e.
 
 ## Building
 

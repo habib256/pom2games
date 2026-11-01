@@ -20,6 +20,7 @@ SLOPE_MAX          = 15
 FAR                = $1000
 BOUNCE             = 24
 FRICTION           = 2
+TICK_FRAMES        = 3
 
 .segment "RODATA"
 ; links (verlet.tables, VL_CON_FIXED_K: no k8)

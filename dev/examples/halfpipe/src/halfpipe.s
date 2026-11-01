@@ -10,7 +10,12 @@
 ; Screen: rows 0-7 the HUD (score, the last landing's points, the air of
 ; the last scored jump in px above the lip), 8-15 the message line, 16-191 the
 ; pipe (one static screen: the world is the screen, x 0..255).
-; Two pages: each frame draws the hidden one and shows it. On that page
+; Two pages: each tick draws the hidden one and shows it, in the vertical
+; blank (vapor.asm: the beam found through the floating bus, a marker on
+; row 191 of both pages; nothing is drawn below row 190), a tick every
+; TICK_FRAMES video frames (30 a second: vapor_pace, given an estimate of
+; the tick's cycles); without a floating bus (//c, IIgs) it runs unpaced.
+; On that page
 ; the rider of two frames ago is given back (hgr_plot_hist.asm recorded the
 ; bits its lines and wheels lit: EOR, the pipe under it comes back as it
 ; was), the new one drawn (fast lines, each wheel a 3 x 3 sprite), and of
@@ -39,9 +44,9 @@ HGR_TEXT8_HGR_ORDER = 1
 BCD_PUT_OUT = now_put                   ; (bcd.asm: the score's digits)
 
 HUD_ROWS  = 16                          ; the pipe starts at row 16
-PUMP_HOLD = 16                          ; ticks a key pumps
-LEAN_HOLD = 6                           ; ticks a key leans
-AGAIN_T   = 110                         ; ticks after a crash: a new run
+VIEW_LAST = 190                         ; the last row drawn (191: the vapor marker)
+; PUMP_HOLD, LEAN_HOLD, AGAIN_T (pipeconst.inc): ticks a key pumps, a key
+; leans; ticks after a crash before a new run
 JOY_DEAD  = 38                          ; read_stick_x counts (12 on the
                                         ; former read_stick_fast: x 35/11)
 
@@ -90,6 +95,8 @@ last_st:   .res 1
 last_sc:   .res 2                       ; hp_score's low bytes last frame
 air_px:    .res 1                       ; px above the lip, the last scored jump
 jump_px:   .res 1                       ; px above the lip, the jump in progress
+pace_ok:   .res 1                       ; a floating bus: vapor_pace
+pace_add:  .res 2                       ; this tick's extra polls (sounds)
 
 .segment "CODE"
         JMP     start
@@ -110,6 +117,9 @@ start:  APPLE2_PREAMBLE
         STA     ht_left
         STA     pidx
         STA     joy_ok
+        STA     pace_ok
+        STA     pace_add
+        STA     pace_add+1
         LDA     #$7F                    ; white text
         STA     ht_cm_ev
         STA     ht_cm_od
@@ -125,9 +135,12 @@ start:  APPLE2_PREAMBLE
         LDA     joy_x
         STA     joy_cx
         INC     joy_ok
-:       JSR     clear_pages
+:       JSR     clear_pages             ; (and the vapor marker)
         JSR     hgr_init
-        JSR     new_screen
+        JSR     vapor_pace_init         ; a floating bus?
+        BCS     :+
+        INC     pace_ok
+:       JSR     new_screen
 
 restart:
         JSR     phys_reset
@@ -150,7 +163,8 @@ main:   JSR     input                   ; (R: back to restart, ESC: quit)
         EOR     #1
         STA     pidx
         JSR     render
-        LDA     pidx
+        JSR     pace                    ; the tick's last video frame
+flip:   LDA     pidx
         BNE     :+
         BIT     LOWSCR
         JMP     :++
@@ -166,6 +180,56 @@ main:   JSR     input                   ; (R: back to restart, ESC: quit)
         BCS     restart
 
 quit:   JMP     apple2_exit
+
+; ---------------------------------------------------------------------------
+; pace -- wait for line 191 of the tick's last video frame: vapor_pace with
+; TICK_FRAMES and the tick's estimate (EST_AIR or EST_GND + pace_add, the
+; sounds it played); unpaced without a floating bus
+; ---------------------------------------------------------------------------
+pace:   LDA     pace_ok
+        BEQ     @rts
+        LDX     #0                      ; a point on the pipe: EST_GND more
+        LDA     vl_gnd
+        ORA     vl_gnd+1
+        ORA     vl_gnd+2
+        BEQ     :+
+        INX
+:       CLC
+        LDA     est_lo,X
+        ADC     pace_add
+        PHA
+        LDA     est_hi,X
+        ADC     pace_add+1
+        TAY
+        PLA
+        TAX
+        LDA     #0
+        STA     pace_add
+        STA     pace_add+1
+        LDA     #TICK_FRAMES
+        JMP     vapor_pace
+@rts:   RTS
+
+EST_AIR  = 16500                        ; a tick's cycles (main to pace): in the
+EST_GND  = 21000                        ; air 13,500-19,500, on the pipe 15,900-28,300
+est_lo:  .byte <(EST_AIR / 13), <(EST_GND / 13)
+est_hi:  .byte >(EST_AIR / 13), >(EST_GND / 13)
+; PACE_ADD cycles: pace_add += cycles / 13 (a sound)
+.macro PACE_ADD cyc
+        CLC
+        LDA     pace_add
+        ADC     #<((cyc) / 13)
+        STA     pace_add
+        LDA     pace_add+1
+        ADC     #>((cyc) / 13)
+        STA     pace_add+1
+.endmacro
+TONE_C   = 12 + 30                      ; tone: its call, then A x (12 + 5 X)
+.define  TONE_CYC(n, d) (TONE_C + (n) * (12 + 5 * (d)))
+GROWL_N  = ($100 - $58 + 5) / 6         ; the growl: 6 flips from $58 by 6
+GROWL_C  = GROWL_N * (TONE_CYC(6, 0) + 20) + 6 * 5 * (GROWL_N * $58 + 6 * GROWL_N * (GROWL_N - 1) / 2)
+CHIME_C  = TONE_CYC($30, $40) + TONE_CYC($40, $30) + TONE_CYC($60, $24)
+AIR_C    = TONE_CYC($30, $50)
 
 ; ---------------------------------------------------------------------------
 ; input -- keys and joystick -> in_pump, in_lean for this tick
@@ -253,6 +317,7 @@ events: LDA     hp_status
         STA     last_st                 ; (only RIDE -> CRASHED in a run)
         LDA     #MSG_CRASH
         STA     msg
+        PACE_ADD GROWL_C
         LDA     #$58                    ; a falling growl
         STA     t0
 :       LDA     #6
@@ -300,6 +365,7 @@ events: LDA     hp_status
         CLC
         ADC     #MSG_360 - 1
         STA     msg
+        PACE_ADD CHIME_C
         LDA     #$30
         LDX     #$40
         JSR     tone
@@ -311,6 +377,7 @@ events: LDA     hp_status
         JMP     tone
 @air:   LDA     #MSG_AIR
         STA     msg
+        PACE_ADD AIR_C
         LDA     #$30
         LDX     #$50
         JMP     tone
@@ -505,8 +572,8 @@ scr_point:
         LDA     vl_yh,X
         CMP     #HUD_ROWS
         BCC     @off
-        CMP     #192
-        BCS     @off
+        CMP     #VIEW_LAST              ; (<= 189: a wheel's cross reaches
+        BCS     @off                    ; one row below)
         STA     sy,X
         RTS
 @off:   LDA     #$FF
@@ -704,9 +771,10 @@ clear_pages:
         LDA     #0
         LDX     #>HGR1
         HGR_CLEAR_LOOP 8
-        RTS
+        JMP     vapor_mark_both         ; the marker on row 191 of both
 .include "exit.asm"
 .include "hgr_div7_ram.asm"
+.include "vapor.asm"                    ; (here: its poll loop within a page)
 .segment "RODATA"
 .include "bbfont.inc"
 .include "hgr_scanline.inc"

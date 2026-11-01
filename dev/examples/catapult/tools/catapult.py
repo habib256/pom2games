@@ -31,6 +31,18 @@ Phases (cp_phase):
          sleep, or after SHOT_MAX ticks: a shot left -> AIM (the projectile
          back in the cup), else OVER; all 6 down -> OVER.
   OVER   nothing moves (in_fire: the game restarts the round).
+
+The rate: the game runs TICK_HZ ticks a second (vapor_pace: a tick every 2
+video frames); the feel was tuned at TUNED_HZ (the unpaced game before the
+speed lots ran ~25 ticks a second). Every constant with a time in it is
+derived from its tuned value here (per_s2: accelerations x (TUNED/TICK)^2,
+per_s: speeds x TUNED/TICK, ticks: durations x TICK/TUNED), so the shots
+fly on the screen as they did. The launch speed is a turn per power
+(POW0 + power * POW_K at 25 Hz): pow_turn is its table at 30 Hz, fitted
+(fit_pow) so that the projectile leaves the arm at the speed it did at 25
+Hz (TUNED_RELEASE, px a second, the mean over the five stops; per_s alone
+gives 2-5 % more: the swing round the pinned base loses less at a smaller
+step).
 """
 from pathlib import Path
 import math
@@ -41,16 +53,35 @@ sys.path.insert(0, str(HERE.parents[2] / 'tools'))
 from verlet import Points, Constraint, HeightMap, tables, emit, contact  # noqa: E402
 from verlet.fixed import s16  # noqa: E402
 
+TUNED_HZ, TICK_HZ = 25, 30              # tuned unpaced at ~25 ticks/s; paced at 30
+TICK_FRAMES = 60 // TICK_HZ             # video frames a tick (vapor_pace)
+
+
+def per_s2(v):
+    """An acceleration (a tick^2) tuned at TUNED_HZ, for TICK_HZ."""
+    return int(v * TUNED_HZ * TUNED_HZ / (TICK_HZ * TICK_HZ) + (0.5 if v >= 0 else -0.5))
+
+
+def per_s(v):
+    """A speed (a tick) tuned at TUNED_HZ, for TICK_HZ."""
+    return int(v * TUNED_HZ / TICK_HZ + (0.5 if v >= 0 else -0.5))
+
+
+def ticks(n):
+    """A duration in ticks tuned at TUNED_HZ, for TICK_HZ."""
+    return int(n * TICK_HZ / TUNED_HZ + 0.5)
+
+
 N, NC = 9, 7                            # points, circles
 PROJ, BASE, TIP = 0, 7, 8
 Q = 5
 RADPX = 5
 RAD = contact.rad_q(RADPX, Q)           # 40 units
-GRAVITY = 0x0010
-VMAX = 0x0600
-BOUNCE, VMIN, CFRICTION = 64, 0x0030, 3     # contacts: restitution 1/4 above VMIN
+GRAVITY = per_s2(0x0010)                # 16 at 25 Hz: 11
+VMAX = per_s(0x0600)                    # 6 px a tick at 25 Hz: 5
+BOUNCE, VMIN, CFRICTION = 64, per_s(0x0030), 3   # contacts: restitution 1/4 above VMIN
 HEAVY = 1                               # the projectile weighs 3 targets
-SLEEP, SLEEP_TICKS = 0x0028, 16       # > 2 g: a ball resting on an awake one (one pass)
+SLEEP, SLEEP_TICKS = per_s(0x0028), ticks(16)    # > 2 g: a ball resting on an awake one (one pass)
 GBOUNCE, GFRICTION = 32, 3              # the ground
 PROBE, SLOPE_MAX, FAR = 2, 15, 0x1000
 LEFT_WALL, RIGHT_WALL, CEIL = 4, 251, 18
@@ -60,11 +91,11 @@ FIXED_K = 4                             # a 24-px link, pinned end: 2^4 = 1 / (2
 LINKS = [Constraint(BASE, TIP, ARM, fixed_k=FIXED_K)]
 BASE_XY = (36, 140)
 PMAX = 15                               # power steps
-POW0, POW_K = 50, 4                     # turn = POW0 + power * POW_K: ARM * turn / 512 px a tick
+POW0, POW_K = 50, 4                     # turn = POW0 + power * POW_K at 25 Hz: ARM * turn / 512 px a tick
 PULL0, PULL_K = 180, 2                  # pull angle (degrees, y up) = PULL0 + power * PULL_K
 STOPS = [25, 35, 45, 55, 65]            # launch angles (degrees): the stop = launch + 90
-SWING_MAX = 40
-SHOT_MAX = 500
+SWING_MAX = ticks(40)
+SHOT_MAX = ticks(500)
 SHOTS = 3
 CAN_FALL = 8                            # px under the start: down
 AIM, SWING, FLY, OVER = 0, 1, 2, 3
@@ -134,6 +165,9 @@ def ring():
 
 RING = ring()
 ARMS = arm_table()
+POW_TURN = [per_s(POW0 + p * POW_K) for p in range(PMAX + 1)]   # the turn of each power: fit_pow()
+# px a second at the release, the mean of the five stops, each power, at 25 Hz (b22bb57)
+TUNED_RELEASE = [44.0, 48.6, 52.8, 56.7, 60.7, 64.6, 67.6, 71.5, 74.5, 77.6, 81.5, 83.8, 86.7, 89.0, 91.5, 93.3]
 STOP = stop_table()
 
 
@@ -185,7 +219,7 @@ class Catapult(Points):
                 self.phase = SWING
                 self.timer = 0
                 self.pin[TIP] = 0
-                t = self.thrust(BASE, TIP, POW0 + power * POW_K, THRUST, perp=True)
+                t = self.thrust(BASE, TIP, POW_TURN[power], THRUST, perp=True)
                 self.push(TIP, t)
             return
         if ph == SWING:
@@ -250,6 +284,38 @@ class Catapult(Points):
             + self.down + self.gnd)
 
 
+def release_speed(power):
+    """px a second of the projectile let go, the mean of the five stops."""
+    v = 0
+    for st in range(len(STOPS)):
+        c = Catapult()
+        c.tick(power, st, 0)
+        c.tick(power, st, 1)
+        while c.phase == SWING:
+            c.tick(power, st, 0)
+        v += math.hypot(c.x[PROJ] - c.ox[PROJ], c.y[PROJ] - c.oy[PROJ]) / 256 * TICK_HZ
+    return v / len(STOPS)
+
+
+def fit_pow():
+    """pow_turn: per power, the turn near per_s's whose release speed is
+    closest to TUNED_RELEASE."""
+    out = []
+    for p in range(PMAX + 1):
+        best = None
+        for t in range(POW_TURN[p] - 4, POW_TURN[p] + 3):
+            POW_TURN[p] = t
+            e = abs(release_speed(p) - TUNED_RELEASE[p])
+            if best is None or e < best[0]:
+                best = (e, t)
+        POW_TURN[p] = best[1]
+        out.append(best[1])
+    return out
+
+
+fit_pow()
+
+
 def play(shots, max_ticks=3000):
     """shots: [(power, stop)]: aim, fire, wait for the shot to end. -> the
     model and the inputs, one (power, stop, fire) a tick."""
@@ -283,8 +349,9 @@ def write_inc(path):
               ('SLOPE_MAX', SLOPE_MAX, 'dec'), ('FAR', FAR), ('LEFT_WALL', LEFT_WALL, 'dec'),
               ('RIGHT_WALL', RIGHT_WALL, 'dec'), ('CEIL', CEIL << 8), ('THRUST', THRUST, 'dec'),
               ('ARM', ARM, 'dec'), ('FIXED_K', FIXED_K, 'dec'), ('BASE_X', BASE_XY[0], 'dec'),
-              ('BASE_Y', BASE_XY[1], 'dec'), ('PMAX', PMAX, 'dec'), ('POW0', POW0, 'dec'),
-              ('POW_K', POW_K, 'dec'), ('NSTOP', len(STOPS), 'dec'), ('SWING_MAX', SWING_MAX, 'dec'),
+              ('BASE_Y', BASE_XY[1], 'dec'), ('PMAX', PMAX, 'dec'),
+              ('NSTOP', len(STOPS), 'dec'), ('SWING_MAX', SWING_MAX, 'dec'),
+              ('TICK_FRAMES', TICK_FRAMES, 'dec'),
               ('SHOT_MAX', SHOT_MAX), ('SHOTS', SHOTS, 'dec'), ('CAN_FALL', CAN_FALL, 'dec'),
               ('NBOX', len(BOXES), 'dec'), ('NRING', len(RING[0]), 'dec')]
     tabs = ['; the arm (verlet.tables, VL_CON_FIXED_K: no k8)',
@@ -299,6 +366,7 @@ def write_inc(path):
             ('tg_xf', emit.lo([t[0] for t in TARGETS])), ('tg_xl', emit.hi([t[0] for t in TARGETS])),
             ('tg_yf', emit.lo([t[1] for t in TARGETS])), ('tg_yh', emit.hi([t[1] for t in TARGETS])),
             ('tg_group', GROUP),
+            '; the launch: the turn of each power (vl_thrust_perp)', ('pow_turn', POW_TURN),
             '; the tip from the base for each power (8.8)',
             ('arm_dxl', emit.lo([a[0] for a in ARMS])), ('arm_dxh', emit.hi([a[0] for a in ARMS])),
             ('arm_dyl', emit.lo([a[1] for a in ARMS])), ('arm_dyh', emit.hi([a[1] for a in ARMS])),

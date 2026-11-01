@@ -13,7 +13,12 @@
 ; an edge selects the next one: each page then has its view (rows 16-191)
 ; cleared and its ground drawn again when it is next drawn (the HUD and
 ; the message stay), one page a frame.
-; Two pages: each frame draws the hidden one and shows it. On that page
+; Two pages: each tick draws the hidden one and shows it, in the vertical
+; blank (vapor.asm: the beam found through the floating bus, a marker on
+; row 191 of both pages; nothing is drawn below row 190), a tick every
+; TICK_FRAMES video frames (30 a second: vapor_pace, given an estimate of
+; the tick's cycles); without a floating bus (//c, IIgs) it runs unpaced.
+; On that page
 ; the lander of two frames ago is given back (hgr_plot_hist.asm recorded
 ; the bits its lines and debris lit: EOR, the ground under it comes back as
 ; it was), the new one drawn (fast lines, the debris a 3 x 3 sprite each),
@@ -44,8 +49,8 @@ VIEW_H    = 192 - HUD_ROWS
 ZSTEP     = 120                         ; zone tops 0, 120, 240, 360
 ZONES     = (WORLD_H - VIEW_H) / ZSTEP + 1
 ZMARGIN   = 16                          ; rows from an edge: next zone
-ROT_HOLD  = 8                           ; ticks a key turns
-THR_HOLD  = 20                          ; ticks a key fires the engine
+VIEW_LAST = 190                         ; the last row drawn (191: the vapor marker)
+; ROT_HOLD, THR_HOLD (landconst.inc): ticks a key turns, fires the engine
 JOY_DEAD  = 38                          ; read_stick_x counts (12 on the
                                         ; former read_stick_fast: x 35/11)
 .assert (ZONES - 1) * ZSTEP + VIEW_H = WORLD_H, error, "zones: cover the world exactly"
@@ -114,6 +119,8 @@ rot_hold: .res 1
 joy_ok:   .res 1
 joy_cx:   .res 1
 burn:     .res 1                        ; the engine fired this tick
+pace_ok:  .res 1                        ; a floating bus: vapor_pace
+pace_add: .res 2                        ; this tick's extra polls (sounds, clears)
 last_st:  .res 1
 numbuf:   .res 6
 
@@ -136,6 +143,9 @@ start:  APPLE2_PREAMBLE
         STA     ht_left
         STA     pidx
         STA     joy_ok
+        STA     pace_ok
+        STA     pace_add
+        STA     pace_add+1
         LDA     #$7F                    ; white text
         STA     ht_cm_ev
         STA     ht_cm_od
@@ -151,8 +161,11 @@ start:  APPLE2_PREAMBLE
         LDA     joy_x
         STA     joy_cx
         INC     joy_ok
-:       JSR     clear_pages
+:       JSR     clear_pages             ; (and the vapor marker)
         JSR     hgr_init
+        JSR     vapor_pace_init         ; a floating bus?
+        BCS     restart
+        INC     pace_ok
 
 restart:
         LDA     #START_X
@@ -198,7 +211,8 @@ main:   JSR     input                   ; (R: back to restart, ESC: quit)
         EOR     #1
         STA     pidx
         JSR     render
-        LDA     pidx
+        JSR     pace                    ; the tick's last video frame
+flip:   LDA     pidx
         BNE     :+
         BIT     LOWSCR
         JMP     :++
@@ -209,6 +223,52 @@ main:   JSR     input                   ; (R: back to restart, ESC: quit)
 :       JMP     main
 
 quit:   JMP     apple2_exit
+
+; ---------------------------------------------------------------------------
+; pace -- wait for line 191 of the tick's last video frame: vapor_pace with
+; TICK_FRAMES and the tick's estimate (a base per state + pace_add, the
+; sounds and the clears it did); unpaced without a floating bus
+; ---------------------------------------------------------------------------
+pace:   LDA     pace_ok
+        BEQ     @rts
+        LDX     lv_status
+        CLC
+        LDA     est_lo,X
+        ADC     pace_add
+        STA     pace_add
+        LDA     est_hi,X
+        ADC     pace_add+1
+        TAY
+        LDX     pace_add
+        LDA     #0
+        STA     pace_add
+        STA     pace_add+1
+        LDA     #TICK_FRAMES
+        JMP     vapor_pace
+@rts:   RTS
+
+; the cycles of a tick (main to pace) by lv_status, in polls (13 cycles)
+EST_FLY     = 15000                     ; coasting 13,300, engine 16,800
+EST_LANDED  = 9000
+EST_CRASHED = 9000                      ; debris 7,900 (17,700 with the message)
+est_lo:   .byte <(EST_FLY / 13), <(EST_LANDED / 13), <(EST_CRASHED / 13)
+est_hi:   .byte >(EST_FLY / 13), >(EST_LANDED / 13), >(EST_CRASHED / 13)
+
+; PACE_ADD cycles: pace_add += cycles / 13 (a sound, a clear)
+.macro PACE_ADD cyc
+        CLC
+        LDA     pace_add
+        ADC     #<((cyc) / 13)
+        STA     pace_add
+        LDA     pace_add+1
+        ADC     #>((cyc) / 13)
+        STA     pace_add+1
+.endmacro
+TONE_C   = 12 + 30                      ; tone: its call, then A x (12 + 5 X)
+.define  TONE_CYC(n, d) (TONE_C + (n) * (12 + 5 * (d)))
+GROWL_N  = ($100 - $58 + 5) / 6         ; the growl: 6 flips from $58 by 6
+GROWL_C  = GROWL_N * (TONE_CYC(6, 0) + 20) + 6 * 5 * (GROWL_N * $58 + 6 * GROWL_N * (GROWL_N - 1) / 2)
+LANDED_C = TONE_CYC($40, $50) + TONE_CYC($60, $38)
 
 ; ---------------------------------------------------------------------------
 ; input -- keys and joystick -> in_thr, in_rot for this tick
@@ -303,6 +363,7 @@ events: LDA     lv_status
         LDA     lv_pad
         ADC     #MSG_LANDED - 1
         STA     msg
+        PACE_ADD LANDED_C
         LDA     #$40
         LDX     #$50
         JSR     tone
@@ -311,6 +372,7 @@ events: LDA     lv_status
         JMP     tone
 @crash: LDA     #MSG_CRASH
         STA     msg
+        PACE_ADD GROWL_C
         LDA     #$58                    ; a falling growl
         STA     t0
 :       LDA     #6
@@ -508,6 +570,8 @@ render: LDA     pidx
         STA     pl_n,X                  ; (its history goes with the view)
         TXA
         JSR     clear_view
+        JSR     vapor_mark_both         ; (row 191 cleared with the view)
+        PACE_ADD CLEAR_C
         LDA     #0
         STA     xa
         LDA     #255
@@ -541,6 +605,8 @@ set_page:
 
 ; A = 0 / 1: the page's rows 16-191 black (rows 0-15, the HUD, kept):
 ; every byte but $x000-$x027 and $x080-$x0A7 of each 1 KB, ~39,000 cycles
+; (CLEAR_C: with the ground drawn again after it, for vapor_pace)
+CLEAR_C = 50000
 clear_view:
         TAX
         LDA     #0
@@ -611,7 +677,7 @@ draw_ground:
         BNE     @np
         CPX     #HUD_ROWS
         BCC     @np
-        CPX     #192
+        CPX     #VIEW_LAST + 1
         BCS     @np
         STX     hl_ln_y0
         STX     hl_ln_y1
@@ -644,7 +710,7 @@ gy_at:  CLC
         BNE     @off
         CPY     #HUD_ROWS
         BCC     @off
-        CPY     #192
+        CPY     #VIEW_LAST + 1
         BCS     @off
         TYA
         RTS
@@ -724,8 +790,8 @@ scr_point:
         LDA     t0
         CMP     #HUD_ROWS
         BCC     @off
-        CMP     #192
-        BCS     @off
+        CMP     #VIEW_LAST              ; (<= 189: a debris cross reaches
+        BCS     @off                    ; one row below)
         STA     sy,X
         RTS
 @off:   LDA     #$FF
@@ -774,7 +840,7 @@ flame:  LDA     #$FF
         ADC     sy+4
         CMP     #HUD_ROWS
         BCC     @rts
-        CMP     #192
+        CMP     #VIEW_LAST + 1
         BCS     @rts
         STA     sy+3
 @rts:   RTS
@@ -1057,7 +1123,8 @@ clear_pages:
         LDA     #0
         LDX     #>HGR1
         HGR_CLEAR_LOOP 8
-        RTS
+        JMP     vapor_mark_both         ; the marker on row 191 of both
+.include "vapor.asm"
 .include "exit.asm"
 .include "hgr_div7_ram.asm"
 .segment "RODATA"

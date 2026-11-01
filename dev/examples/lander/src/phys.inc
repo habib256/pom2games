@@ -71,6 +71,7 @@ phys_reset:
         STA     lv_contact
         STA     lv_timer
         STA     lv_pad
+        STA     lv_rsub
         LDA     #FUEL
         STA     lv_fuel
         RTS
@@ -109,10 +110,16 @@ fly:    SEC                             ; vy = speed of the top
         JSR     vl_pair_damp
         LDA     in_rot
         BEQ     @nrot
-        BMI     @left
+        CLC                             ; k = ROT_K + the carry of the
+        LDA     lv_rsub                 ; fraction (ROT_FRAC / 256 a tick)
+        ADC     #ROT_FRAC
+        STA     lv_rsub
         LDA     #ROT_K
-        BNE     @turn
-@left:  LDA     #<-ROT_K
+        ADC     #0
+        BIT     in_rot
+        BPL     @turn
+        EOR     #$FF                    ; left: -k
+        ADC     #1                      ; (C = 0)
 @turn:  STA     vl_turn
         JSR     vl_turn_pair
 @nrot:  LDA     in_thr
@@ -123,11 +130,14 @@ fly:    SEC                             ; vy = speed of the top
         STA     vl_turn
         JSR     vl_thrust_perp
         JSR     vl_push_all
-        LDA     lv_fsub
-        EOR     #1
-        STA     lv_fsub
-        BNE     @nthr
+        CLC                             ; 2/3 of a unit a tick: FUEL_ADD /
+        LDA     lv_fsub                 ; FUEL_DIV
+        ADC     #FUEL_ADD
+        CMP     #FUEL_DIV
+        BCC     :+
+        SBC     #FUEL_DIV               ; (C = 1)
         DEC     lv_fuel
+:       STA     lv_fsub
 @nthr:  JSR     vl_con_pass
         JSR     vl_con_pass
         JSR     grounds

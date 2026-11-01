@@ -161,12 +161,8 @@ ph_aim: LDA     in_power
         STA     cp_timer
         STA     cp_timer+1
         STA     vl_pin+TIP
-        LDA     cp_power                ; turn = POW0 + power * POW_K
-        ASL     A
-        ASL     A
-        .assert POW_K = 4, error, "phys.inc: POW_K is 4 (two shifts)"
-        CLC
-        ADC     #POW0
+        LDX     cp_power                ; the turn of the power (pow_turn)
+        LDA     pow_turn,X
         STA     vl_turn
         JSR     vl_thrust_perp
         LDX     #TIP
