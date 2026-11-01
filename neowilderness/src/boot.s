@@ -72,9 +72,6 @@ DEVCNT   = $BF31
 DEVLST   = $BF32
 BITMAP   = $BF58
 MACHID   = $BF98
-INIT     = $FB2F
-SETVID   = $FE93
-SETKBD   = $FE89
 STAGE    = $2000
 TEMP     = $7000
 TABLE    = $B500                ; record table of NEOWILD.DAT / NEOWILD.Rn
@@ -94,15 +91,7 @@ HI_LOAD  = $5E00                ; HICODE's record (tools/build_disk.py), moved t
                                 ; reads at start, tests/test_reference_state.py)
                                 ; ($A900 until the NEOWILD.BLK check, docs/MEMORY.md 14)
 ZP_AUX   = $BF00                ; auxiliary: ProDOS's zero page during the game
-ALTZPOFF = $C008
-ALTZPON  = $C009
-RAMWRTON = $C005
-LCROM    = $C082
-LCBANK2  = $C083                ; read and write RAM bank 2 (twice)
-LCRAM2R  = $C080                ; read RAM bank 2, write protected
 QUIT_CODE = $D100               ; ProDOS 8's QUIT code in bank 2 ($300 bytes)
-RAMRDON  = $C003
-LCBANK1  = $C08B
 
 .segment "ZEROPAGE"
 source: .res 2
@@ -501,7 +490,6 @@ SWAP_LOAD = $5800               ; tools/build_disk.py: the record's address
 .assert __LOADBSS_RUN__ + __LOADBSS_SIZE__ <= LD_IOBUF, lderror, "loader overlaps ProDOS buffer"
 .assert LD_IOBUF + $400 <= TABLE, error, "ProDOS buffer overlaps record table"
 SWAP_ROW  = $2350               ; menu.s SWAP_ROW
-RD80STORE = $C018
 ld_scatter:
         lda     RD80STORE
         pha
@@ -1355,7 +1343,7 @@ ldc_claim: lda     unit            ; (a unit 0 cannot name /RAM: none)
         lda     #<QUIT_CODE     ; $300 bytes, read from bank 2
         ldx     #>QUIT_CODE
         ldy     #0
-        bit     LCRAM2R
+        bit     LCRAM2
         jsr     ldc_put
         bit     LCROM
 loader_claimed:

@@ -509,36 +509,8 @@ def measure_spans():
 
 def palette_capture(path):
     """Measure the RGB of the 16 bars in an a2shot render (560 x 384 PNG)."""
-    import zlib, struct
-    raw = Path(path).read_bytes()
-    pos, idat, w, h = 8, b'', 0, 0
-    while pos < len(raw):
-        n, kind = struct.unpack('>I4s', raw[pos:pos + 8])
-        body = raw[pos + 8:pos + 8 + n]
-        if kind == b'IHDR':
-            w, h, depth, ctype = struct.unpack('>IIBB', body[:10])
-            bpp = {2: 3, 6: 4}[ctype]
-        elif kind == b'IDAT':
-            idat += body
-        pos += 12 + n
-    data = zlib.decompress(idat)
-    stride = w * bpp
-    prev = bytearray(stride)
-    rows = []
-    for y in range(h):
-        f, line = data[y * (stride + 1)], bytearray(data[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
-        for i in range(stride):
-            a = line[i - bpp] if i >= bpp else 0
-            b, c = prev[i], prev[i - bpp] if i >= bpp else 0
-            if f == 1: line[i] = (line[i] + a) & 255
-            elif f == 2: line[i] = (line[i] + b) & 255
-            elif f == 3: line[i] = (line[i] + (a + b) // 2) & 255
-            elif f == 4:
-                p = a + b - c
-                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
-                line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
-        rows.append(bytes(line))
-        prev = line
+    import apple2img
+    w, h, bpp, rows = apple2img.png_read(path, raw=True)
     y = h // 2
     out = []
     for c in range(16):

@@ -17,6 +17,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+from fonts import write_if_changed  # noqa: E402
 from model import MISSIONS
 
 AUX = 0x6000
@@ -584,12 +586,6 @@ def bank():
     data = b''.join(a.to_bytes(2, 'little') for a in addr) + body
     assert len(data) <= MAX_BANK, f'RSS.TEXT {len(data)} > {MAX_BANK}'
     return names, data
-
-
-def write_if_changed(path, data):
-    path = Path(path)
-    if not path.exists() or path.read_bytes() != data:
-        path.write_bytes(data)
 
 
 names, data = bank()

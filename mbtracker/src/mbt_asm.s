@@ -29,7 +29,7 @@ AYSONG_CPU65C02 = 1
 .export _snd_ticks := mb_irq_ticks
 .export _ays_order := ays_order, _ays_row := ays_row, _ays_play := ays_play
 .export _txt_x, _txt_y, _txt_mode, _txt_init, _txt_putc, _txt_puts, _txt_fill, _txt_scroll, _txt_sw
-.export _ptr_x, _ptr_y, _ptr_on, _ptr_show, _ptr_hide, _mouse_wide, _mouse_read
+.export _ptr_x, _ptr_y, _ptr_on, _ptr_show, _ptr_hide, _mouse_read
 .export _kbd_get, kbd_idle, mbt_tick      ; (mbt_tick: tests time it)
 .export mouse_read_done                 ; (tests: a mouse move starts there)
 .export _ax_main, _ax_aux, _ax_len, _aux_put, _aux_get, _lc_put, _lc_get
@@ -387,36 +387,6 @@ _mouse_read:
 mouse_read_done:
         sta $C001
         rts
-
-; CLAMPMOUSE X to 0-159 (dev/lib/mouse sets 0-139): two pixels a column.
-_mouse_wide:
-        lda _mouse_slot
-        beq @end
-        ora #$C0
-        sta @ent+2
-        sta @jmp+2
-        tax
-        asl a
-        asl a
-        asl a
-        asl a
-        tay                      ; Y = $n0
-        php
-        sei
-        sta $C000
-        lda #0
-        sta $0478
-        sta $0578
-        sta $05F8
-        lda #159
-        sta $04F8
-@ent:   lda $C417                ; (patched: $Cn17, CLAMPMOUSE)
-        sta @jmp+1
-        lda #0                   ; X axis
-@jmp:   jsr $C400
-        sta $C001
-        plp
-@end:   rts
 
 rowlo:
 .repeat 24, r

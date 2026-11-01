@@ -2,7 +2,7 @@
 """dsk2woz.py -- a 140K 5.25" image (.dsk / .do DOS order, .po ProDOS order)
 as a WOZ 2 file with real 10-bit sync bytes.
 
-    python3 dsk2woz.py IMAGE OUT.woz
+    python3 dsk2woz.py [--write-protected] IMAGE OUT.woz
     python3 dsk2woz.py --check DIST     (every 140K disk's twin, up to date)
 
 Why: the MiSTer Apple-II core (2026-10 releases) turns a .dsk / .po into WOZ
@@ -39,6 +39,8 @@ GCR = bytes.fromhex(
     "d6d7d9dadbdcdddedfe5e6e7e9eaebecedeeeff2f3f4f5f6f7f9fafbfcfdfeff")
 UNGCR = {b: i for i, b in enumerate(GCR)}
 GAP_START, GAP_ADDR_DATA, GAP_SECTOR = 64, 8, 16
+GAPS = (GAP_START, GAP_ADDR_DATA, GAP_SECTOR)
+CREATOR = b"pom2games dsk2woz"
 
 
 def odd_even(v):
@@ -76,7 +78,7 @@ def decode_data(nib):
                  for i in range(256))
 
 
-def track_bits(image, track, order, volume):
+def track_bits(image, track, order, volume, gaps=GAPS):
     bits = []
 
     def put(b, width=8):
@@ -87,17 +89,18 @@ def track_bits(image, track, order, volume):
         for _ in range(n):
             put(0xFF, 10)
 
-    sync(GAP_START)
+    gap_start, gap_addr_data, gap_sector = gaps
+    sync(gap_start)
     for phys in range(SECTORS):
         for b in ([0xD5, 0xAA, 0x96] + odd_even(volume) + odd_even(track)
                   + odd_even(phys) + odd_even(volume ^ track ^ phys)
                   + [0xDE, 0xAA, 0xEB]):
             put(b)
-        sync(GAP_ADDR_DATA)
+        sync(gap_addr_data)
         off = (track * SECTORS + order[phys]) * SECTOR
         for b in [0xD5, 0xAA, 0xAD] + encode_data(image[off:off + SECTOR]) + [0xDE, 0xAA, 0xEB]:
             put(b)
-        sync(GAP_SECTOR)
+        sync(gap_sector)
     return bits
 
 
@@ -134,11 +137,18 @@ def check_track(bits, image, track, order):
             sys.exit(f"dsk2woz: track {track} sector {phys} does not read back")
 
 
-def build(image, order, volume, verify=True):
+def build(image, order, volume, verify=True, write_protected=False, gaps=GAPS,
+          creator=CREATOR, synchronized=False):
+    """The WOZ bytes of a 140K image (bytes) in `order`. write_protected sets
+    the INFO flag (POM2 then refuses writes, as a covered notch: ProDOS $2B).
+    gaps: sync bytes (start, address-data, after a sector); creator and
+    synchronized: INFO fields."""
     info = bytearray(60)
     info[0] = 2                                 # INFO version
     info[1] = 1                                 # 5.25"
-    info[5:37] = b"pom2games dsk2woz".ljust(32)
+    info[2] = 1 if write_protected else 0
+    info[4] = 1 if synchronized else 0          # cross-track sync
+    info[5:37] = bytes(creator).ljust(32)
     info[37] = 1                                # sides
     info[38] = 1                                # 16-sector boot
     info[39] = 32                               # 4 us a bit
@@ -150,7 +160,7 @@ def build(image, order, volume, verify=True):
                 tmap[q] = t
     trk_dir, data = bytearray(1280), bytearray()
     for t in range(TRACKS):
-        bits = track_bits(image, t, order, volume)
+        bits = track_bits(image, t, order, volume, gaps)
         assert len(bits) <= BLOCKS_PER_TRACK * 4096
         if verify:
             check_track(bits, image, t, order)
@@ -167,9 +177,10 @@ def build(image, order, volume, verify=True):
     return b"WOZ2\xff\n\r\n" + struct.pack("<I", zlib.crc32(body)) + body
 
 
-def woz_of(src, verify=True):
+def woz_of(src, verify=True, write_protected=False):
     """The WOZ bytes of a 140K image file (order from its extension); verify
-    reads every track back first (slow: a bit-level framer in Python)."""
+    reads every track back first (slow: a bit-level framer in Python);
+    write_protected: the INFO flag (see build)."""
     image = src.read_bytes()
     if len(image) != IMAGE_SIZE:
         sys.exit(f"dsk2woz: {src}: not a 140K 5.25\" image")
@@ -178,7 +189,7 @@ def woz_of(src, verify=True):
     vtoc = 17 * SECTORS * SECTOR
     if order is DOS_ORDER and image[vtoc + 1] == 17 and image[vtoc + 3] == 3 and image[vtoc + 6]:
         volume = image[vtoc + 6]
-    return build(image, order, volume, verify)
+    return build(image, order, volume, verify, write_protected)
 
 
 def check_dist(dist):
@@ -204,9 +215,11 @@ def check_dist(dist):
 def main(argv):
     if len(argv) == 2 and argv[0] == "--check":
         return check_dist(Path(argv[1]))
+    protect = "--write-protected" in argv
+    argv = [a for a in argv if a != "--write-protected"]
     if len(argv) != 2:
-        sys.exit("usage: dsk2woz.py IMAGE.dsk|.do|.po OUT.woz | --check DIST")
-    Path(argv[1]).write_bytes(woz_of(Path(argv[0])))
+        sys.exit("usage: dsk2woz.py [--write-protected] IMAGE.dsk|.do|.po OUT.woz | --check DIST")
+    Path(argv[1]).write_bytes(woz_of(Path(argv[0]), write_protected=protect))
 
 
 if __name__ == "__main__":

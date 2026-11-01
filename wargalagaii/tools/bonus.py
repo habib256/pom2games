@@ -12,6 +12,8 @@ from pathlib import Path
 import sys
 
 import model
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+from fonts import write_if_changed  # noqa: E402
 
 OUT = Path(__file__).resolve().parents[1] / 'src/bonus.inc'
 ITEM_NAME = 12                  # shop names, padded
@@ -106,8 +108,7 @@ def main():
         if OUT.read_text() != text:
             sys.exit(f'{OUT} is stale: run tools/bonus.py')
         return
-    if not OUT.exists() or OUT.read_text() != text:
-        OUT.write_text(text)
+    write_if_changed(OUT, text)
 
 
 if __name__ == '__main__':

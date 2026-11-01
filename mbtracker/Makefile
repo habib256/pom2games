@@ -41,6 +41,10 @@ $(BUILD)/mbt_asm.o: src/mbt_asm.s $(APPLE2)/mockingboard.asm $(APPLE2)/mb_irq.as
 	@mkdir -p $(@D)
 	$(CA65) -t none -g -I $(APPLE2) -o $@ $<
 $(BUILD)/file.o: $(PRODOS_FILE_DEPS)
+# The pointer's X spans 0-159: two mouse steps an 80-column text column.
+$(BUILD)/mouse.o: $(MOUSE)/mouse.s
+	@mkdir -p $(@D)
+	$(CA65) -t none -g -D MOUSE_X_HIGH=159 -o $@ $<
 $(BUILD)/%.o: %.s
 	@mkdir -p $(@D)
 	$(CA65) -t none -g -I $(PRODOS) -o $@ $<

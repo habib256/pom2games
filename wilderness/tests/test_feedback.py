@@ -108,7 +108,7 @@ def main():
         usage=[int.from_bytes(usage[k:k+2],'little') for k in range(0,8,2)]
         limits=s.step(L.peek('load_limits',8)).data
         def restore_limits():
-            for k,b in enumerate(limits): s.step(L.poke('load_limits',b,k))
+            for step in L.poke('load_limits', limits): s.step(step)
         set16(s,'load_limits',usage[0]+47)
         refuse(s,'GET APPLES',('TRANSFER REFUSED: WEIGHT.','WEIGHT: +1 OZ; FREE 47 OZ'))
         set16(s,'load_limits',usage[2]+95,4)
@@ -157,7 +157,7 @@ def main():
         addr=L['idle']; load=L['overlay_load']; report=L['load_report']
         code=bytes((0xA9,14,0x20,load&255,load>>8,
                     0x20,report&255,report>>8,0x4C,addr&255,addr>>8))
-        for k,b in enumerate(code): s.step(f'poke:{addr+k:04X}:{b:02X}')
+        for step in a2test.pokes(addr, code): s.step(step)
         s.step(f'until:{L["idle"]+8:04X}:6000')
         actual=rows(s)
         assert above==actual[:20],'message scrolled the screen'
@@ -165,8 +165,8 @@ def main():
         assert 'PACK: +65535 IN3; FREE 65535 IN3' in actual[23]
         print('  Maximum 16-bit values fit all three rows without scrolling OK')
         # A future longer item label must remain on its row and never scroll.
-        for k,b in enumerate(b'A'*60+b'\0'):
-            s.step(f'poke:{0x300+k:04X}:{b:02X}')
+        for step in a2test.pokes(0x300, b'A'*60+b'\0'):
+            s.step(step)
         s.step(L.poke('noun',19))
         s.step(L.poke('it_name_lo',0,19));s.step(L.poke('it_name_hi',3,19))
         code=bytes((0xA9,L['m_taken']&255,0xA2,L['m_taken']>>8,
@@ -174,7 +174,7 @@ def main():
         code+=bytes((0x4C,(L['idle']+7)&255,(L['idle']+7)>>8))
         # The prior driver is stopped at idle+8, so complete its JMP first.
         s.step(IDLE)
-        for k,b in enumerate(code): s.step(L.poke('idle',b,k))
+        for step in L.poke('idle', code): s.step(step)
         s.step(f'until:{L["idle"]+7:04X}:6000')
         actual=rows(s)
         assert above==actual[:20]

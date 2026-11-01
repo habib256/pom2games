@@ -39,8 +39,8 @@ def main():
                 (18 + 59/60, '18:59', '6:59P'),
                 (23.99999999, '0:00', '12:00A'),
                 (0, '0:00', '12:00A')):
-            for offset, value in enumerate(encode(hour)):
-                s.step(L.poke('s_hour', value, offset))
+            for step in L.poke('s_hour', encode(hour)):
+                s.step(step)
             displays(s, header, status)
     print('Clock: real 18-minute walk (19 requested), minute/hour/noon/midnight boundaries; HUD and STATUS agree; time preserved')
 

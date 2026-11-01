@@ -40,9 +40,8 @@ int main(void) {
             if iie:
                 assert not any(v&128 for v in banks), 'RAMRD/RAMWRT must be main'
                 assert not any(flags[i]&128 for i in (0,2,3,4,5,7)), ('LORES video switches',scene,flags.hex())
-            for row in range(24):
-                offset = (row%8)*128+(row//8)*40
-                assert screen[offset:offset+40] == bytes([0x55])*40, ('LORES visible row',iie,scene,row)
+            for row, cells in enumerate(test_hgr.a2test.text_rows(screen)):
+                assert cells == bytes([0x55])*40, ('LORES visible row',iie,scene,row)
     print('LORES modes: native 40 columns after DHGR/80STORE, main RAM, full screen/page 1, II+ safe.')
 
 

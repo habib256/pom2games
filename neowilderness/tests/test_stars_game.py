@@ -80,7 +80,7 @@ def main():
             run(call(['env_hour', 'show_view', 'menu_gather']) + [f'until:{L["idle"] + 9:04X}:20000'])
             dump()
             done.append((label, day, hour, clouds))
-            run([L.until('idle', 20000)] + [L.poke('idle', b, i) for i, b in enumerate(original)])
+            run([L.until('idle', 20000)] + L.poke('idle', original))
             for key in turns.get(label, ()):
                 run([f'press:\\{key}', L.until('turn_view', 20000), L.until('idle', 20000)])
                 dump()
@@ -95,7 +95,7 @@ def main():
         hb = int.from_bytes(s.step(L.peek('sky_hb', 2)).data, 'little')
         hy = s.step(L.peek('sky_hy')).data[0]
         up_mli = s.step(L.peek('mli_calls', 2)).data
-        run([L.until('idle', 20000)] + [L.poke('idle', b, i) for i, b in enumerate(original)]
+        run([L.until('idle', 20000)] + L.poke('idle', original)
             + [L.poke('tilt', 0)])
 
     def check(label, day, hour, clouds, d):

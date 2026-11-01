@@ -167,8 +167,8 @@ class Port:
                                   'it_pack_lo', 'it_pack_hi', 'it_x', 'it_y')}
 
     def poke(self, name, value, k=0):
-        for i, v in enumerate(value if isinstance(value, (bytes, bytearray, list)) else [value]):
-            self.s.step(L.poke(name, v & 255, k + i))
+        for step in L.poke(name, value if isinstance(value, (bytes, bytearray, list)) else [value], k):
+            self.s.step(step)
 
     def byte(self, name, k=0):
         return self.s.step(L.peek(name, 1, k)).data[0]

@@ -25,11 +25,6 @@
 QUIT_MARK = $0FFE               ; = src/hello.bas PEEK (4094), (4095): "QU"
                                 ; (above HELLO and its variables; DOS's boot
                                 ; leaves it alone; the game: DGPAGE's spare)
-LC_ROM_WRAM = $C081             ; language card, read twice: ROM read, RAM write
-LC_RAM_RAM  = $C083             ;  RAM (bank 2) read and write
-LC_ROM      = $C082             ;  ROM read, RAM write-protected
-DOS_IOB_SLOT = $B7E9            ; DOS 3.3: slot * 16 of the last drive used
-DOSWARM_    = $03D0
 
 .import __LCCODE_LOAD__, __LCCODE_RUN__, __LCCODE_SIZE__
 .import __LCDATA_LOAD__, __LCDATA_SIZE__
@@ -45,25 +40,11 @@ entry:
         CMP     #$06
         BNE     @nodhgr
         SEI
-        LDA     DOS_IOB_SLOT    ; the boot drive's slot, for the way out
-        LSR
-        LSR
-        LSR
-        LSR
-        AND     #7
-        BNE     :+
-        LDA     #6
-:       ORA     #$C0
-        STA     rg_boot+2
-        LDA     #<rg_reset      ; Ctrl-RESET: the same way out
-        STA     SOFTEV
-        LDA     #>rg_reset
-        STA     SOFTEV+1
-        EOR     #$A5
-        STA     SOFTEV+2
+        APPLE2_REBOOT_INIT      ; the boot drive's slot, for the way out
+        APPLE2_SOFTEV apple2_reboot     ; Ctrl-RESET: the same way out
         ; the language card: the Monitor ROM into its RAM, then RAM
-        BIT     LC_ROM_WRAM
-        BIT     LC_ROM_WRAM
+        BIT     ROMIN
+        BIT     ROMIN
         LDA     #0
         STA     rg_ptr
         TAY
@@ -75,8 +56,8 @@ entry:
         BNE     :-
         INX
         BNE     @rom
-        BIT     LC_RAM_RAM
-        BIT     LC_RAM_RAM
+        BIT     LCBANK2
+        BIT     LCBANK2
         ; the back-end to its place in the language card
         LDA     #<__LCCODE_LOAD__
         STA     @src+1
@@ -115,7 +96,7 @@ entry:
 @key:   LDA     KBD
         BPL     @key
         BIT     KBDSTRB
-        JMP     DOSWARM_        ; nothing was touched: DOS is still there
+        JMP     DOSWARM        ; nothing was touched: DOS is still there
 
 msg_need:
         .byte   "ROGUE.DHGR NEEDS AN APPLE //E 128K OR //C", $0D
@@ -126,26 +107,16 @@ msg_need:
 .segment "CODE"
 
 ; plat_quit -- (core hook) ESC: leave (no DOS any more: reboot, see above).
+; apple2_reboot (dev/lib/apple2/exit.asm, also the Ctrl-RESET vector): the
+; Apple's own screen, the mark for HELLO, then the boot drive's ROM.
+; Included here, not at the end: plat_quit falls into it, and the core's
+; code after it keeps its addresses (sound.asm's tone loop: one page).
 plat_quit:
         JSR     vid_off
-        ; fall through
-; rg_reset -- also the Ctrl-RESET vector: the mark for HELLO, the Apple's
-; own screen, then the boot drive's ROM.
-rg_reset:
-        SEI
-        LDA     #'Q'
-        STA     QUIT_MARK
-        LDA     #'U'
-        STA     QUIT_MARK+1
-        BIT     LC_ROM
-        STA     RAMRDOFF
-        STA     RAMWRTOFF
-        STA     COL80OFF
-        BIT     DHIRES_OFF
-        BIT     LOWSCR
-        BIT     TXTSET
-rg_boot:
-        JMP     $C600           ; slot patched at start
+EXIT_REBOOT_ONLY = 1            ; exit.asm: apple2_reboot alone, in CODE here
+EXIT_REBOOT_IIE  = 1            ; //e/c only: LC ROM, main banks, 40 columns
+EXIT_REBOOT_MARK = QUIT_MARK
+.include "exit.asm"             ; apple2_reboot
 
 ; plat_sound_status -- (core hook) nothing to show outside the game screen.
 plat_sound_status:

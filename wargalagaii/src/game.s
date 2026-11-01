@@ -371,13 +371,7 @@ boot:   tsx                      ; (fail returns from _main: its stack)
 :       stz zp_hot,x
         dex
         bpl :-
-        lda $BF98                ; MACHID: bits 5-4 = 11 for 128 KB
-        and #$30
-        cmp #$30
-        beq big
-        ldx #msg_128k-messages
-        jmp fail
-big:    lda #1                   ; PD_VIDEO_DISCARD_RAM: aux memory is ours
+        lda #1                   ; PD_VIDEO_DISCARD_RAM: aux memory is ours
         jsr _prodos_video_claim
         cmp #0
         beq claimed
@@ -1033,7 +1027,6 @@ joy_hi: .byte 83+JOY_DEAD
 .pushseg
 .segment "BOOT"
 messages:
-msg_128k: .byte "WARGALAGA II NEEDS 128K.", $0D, 0
 msg_ram:  .byte "INVALID PRODOS STATE (/RAM).", $0D, 0
 msg_aux:  .byte "WG2.AUX: LOAD ERROR.", $0D, 0
 aux_name:  .byte 7, "WG2.AUX"

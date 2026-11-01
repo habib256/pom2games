@@ -13,7 +13,6 @@ routines); vid_put's call count (its PHP: 3 cycles a call). --bin an older
 build to compare (its labels file next to it).
 """
 import argparse
-import re
 import sys
 from pathlib import Path
 
@@ -68,9 +67,7 @@ def main():
     test_dhgr.SEED = args.seed
     test_dhgr.LBL = args.bin.with_suffix('.lbl')
     L = a2test.labels(test_dhgr.LBL)
-    labels = {n: int(a, 16) for a, n in
-              re.findall(r'^al ([0-9A-F]+) \.(\S+)$', test_dhgr.LBL.read_text(), re.M)
-              if 'MACRO' not in n}
+    labels = {n: a for n, a in a2test.labels(test_dhgr.LBL, any_name=True).items() if 'MACRO' not in n}
     wk = L['wait_key'] + 3
     turns = []                       # (cycles, {pc: cycles})
     orig = a2test.Session.step

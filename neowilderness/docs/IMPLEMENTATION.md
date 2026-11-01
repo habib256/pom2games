@@ -971,7 +971,7 @@ originale convertie lorsque `build/orig_map.bin` existe localement.
 | `tools/re_fauna_accept_probe.py`, `test_animal_reactions.py`, `tools/re_animal_reactions_probe.py` | Exécuter conservation/remplacement et vérifier les drapeaux d'interruption originaux |
 | `tools/profile.py` | Mesurer les cycles par routine via `pcprof` |
 | `dev/tools/re6502/flux2dsk.py`, `tools/smalldos.py` | Décoder les images disque et lire les blocs/catalogues SMALLDOS |
-| `tools/applesoft.py`, `dev/tools/re6502/peek2bin.py` | Lister le BASIC tokenisé et convertir les dumps de l'émulateur |
+| `dev/tools/applesoft.py`, `dev/tools/re6502/peek2bin.py` | Lister le BASIC tokenisé et convertir les dumps de l'émulateur |
 | `tools/topo.py`, `tools/topo2map.py`, `tools/view3d.py` | Décoder TOPO, convertir une carte pour les tests, prototype flottant de la vue |
 | `tools/re_*.py`, `tools/messages.py` | Sondes et extractions de l'original ; consulter l'en-tête du script pour ses données d'entrée |
 

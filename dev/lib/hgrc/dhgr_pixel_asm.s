@@ -2,7 +2,6 @@
 ; tables: no division. IRQs are masked only around the banked byte access;
 ; auxiliary reads use the zero-page trampoline, writes RAMWRT (dhgr_asm.s).
 .include "apple2.inc"
-RAMWRTON = $C005
 .export _dhgr_plot, dhgr_locate
 .import _dhgr_base, dhgr_rowlo, dhgr_rowhi, _dhgr_cellbyte, _dhgr_cellphase
 .import incsp3

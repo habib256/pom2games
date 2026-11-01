@@ -101,7 +101,7 @@ def moon_scene():
     steps+=poke('s_date',date)+poke('s_hour',0)+[L.poke('heading',bearing),L.poke('heading',bearing>>8,1)]
     steps+=call(['env_hour','show_view'])+[f'until:{L["idle"]+6:04X}:20000',
         L.peek('sky_bearing',3),'peek:2000:8192',f'shot:{HERE}/build/sky-moon.png',L.until('idle',20000)]
-    steps += [L.poke('idle',b,i) for i,b in enumerate(original)]+[L.poke('sim_loaded',0)]
+    steps += L.poke('idle', original)+[L.poke('sim_loaded',0)]
     for _ in range(16):
         steps+=['press:\\>',L.until('idle',20000),'peek:2000:8192',
                 'key:V\\r','wait:1',L.until('idle',20000),'peek:2000:8192']

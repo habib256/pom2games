@@ -65,7 +65,7 @@ def scan_probe(region, cases, stops):
     out = []
     with a2test.Session(DISK,timeout=1800,menu=not region) as s:
         steps = (menu_keys(str(region)) if region else []) + [idle] + call(['env_day']) + [done,idle]
-        steps += [f'poke:{I+i:04X}:{b:02X}' for i,b in enumerate(probe)]
+        steps += a2test.pokes(I, probe)
         for step in steps:
             s.step(step)
         for k,(species,env,level,minutes) in enumerate(cases):
@@ -73,14 +73,14 @@ def scan_probe(region, cases, stops):
                 s.step(f'until:{I:04X}:100')
             for step in ([f'poke:{I+6:04X}:{7+species:02X}',f'poke:7016:{level:02X}',
                           L.poke('scene_minutes',minutes)]
-                         + [L.poke('fauna_env',v,i) for i,v in enumerate(env)]):
+                         + L.poke('fauna_env', env)):
                 s.step(step)
             pc = int(re.search(r'PC=([0-9A-F]{4})',s.step(f'until:{targets}:6000').out).group(1),16)
             out.append((pc,fp(s.step(L.peek('resource_threshold',5)).data)))
             if k == 0:
                 for name in stops:
-                    for i,b in enumerate((0x4C,I&255,I>>8)):
-                        s.step(f'poke:{L[name]+i:04X}:{b:02X}')
+                    for step in a2test.pokes(L[name], (0x4C,I&255,I>>8)):
+                        s.step(step)
     return out
 
 

@@ -30,10 +30,10 @@ def clothing_transfers():
                 s.step(L.until('idle', 20000))
                 s.step('poke:7025:01')
                 header = struct.pack('<12H', 500,42,46,97,70,54,2000,74,76,148,104,77)
-                for k, byte in enumerate(header):
-                    s.step(f'poke:{0x7028+k:04X}:{byte:02X}')
-                for k, byte in enumerate((0x7E, 0x10, 0)):
-                    s.step(L.poke('clothing_cache', byte, k))
+                for step in a2test.pokes(0x7028, header):
+                    s.step(step)
+                for step in L.poke('clothing_cache', (0x7E, 0x10, 0)):
+                    s.step(step)
                 s.step(L.poke('clothing_cache_valid', 0))
                 clock = s.step(L.peek('s_hour', 10)).data
                 view = s.step('peek:2000:8192').data
@@ -54,8 +54,8 @@ def clothing_transfers():
                     assert 'TRANSFER REFUSED' in screen(s)
                     assert snapshot(s) == before
                     assert thermal(s) == worn
-                    for k, byte in enumerate(limit):
-                        s.step(L.poke('load_limits', byte, offset+k))
+                    for step in L.poke('load_limits', limit, offset):
+                        s.step(step)
                 command(s, verb + ' PARKA')
                 assert s.step(L.peek('it_place', 1, 2)).data == bytes((place,))
                 assert result in screen(s), (verb, screen(s))

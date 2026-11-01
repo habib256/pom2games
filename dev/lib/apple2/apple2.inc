@@ -18,7 +18,7 @@
 ;     separate memory, so flipping never destroys either.
 ;   - Soft switches toggle on ANY access (read or write) at $C050-$C057:
 ;     they are address decodes, the data is ignored. LDA/BIT is the idiom.
-;   - No V-blank signal on a II/II+ ($C019 is a //e addition).
+;   - No V-blank signal on a II/II+ ($C019 RDVBLBAR is a //e addition).
 ;   - RAM: $1000-$1FFF and $6000-$95FF are free under DOS 3.3. $0800-$0FFF
 ;     holds the BASIC greeting program DOS keeps (HELLO), $0300-$03FF the
 ;     DOS/monitor vectors (reset vector at $03F2) — keep out of both.
@@ -62,11 +62,36 @@ HIRES    = $C057        ; high-resolution graphics
 STORE80OFF = $C000      ; WRITE: normal page selection
 STORE80ON  = $C001      ; WRITE: PAGE2 selects main/aux video memory
 RAMRDOFF   = $C002      ; WRITE: main RAM reads outside video windows
+RAMRDON    = $C003      ; WRITE: aux RAM reads ($0200-$BFFF outside them)
 RAMWRTOFF  = $C004      ; WRITE: main RAM writes outside video windows
+RAMWRTON   = $C005      ; WRITE: aux RAM writes ($0200-$BFFF outside them)
+ALTZPOFF   = $C008      ; WRITE: main zero page, stack and language card
+ALTZPON    = $C009      ; WRITE: aux zero page, stack and language card
 COL80OFF   = $C00C      ; WRITE: 40-column display
 COL80ON    = $C00D      ; WRITE: 80-column display
+ALTCHAROFF = $C00E      ; WRITE: primary character set (flashing)
+ALTCHARON  = $C00F      ; WRITE: alternate set (lower-case inverse, MouseText)
+RD80STORE  = $C018      ; READ: bit 7 = 80STORE on
+RDVBLBAR   = $C019      ; READ: //e bit 7 = 0 during vertical blank (//c: the
+                        ;   VBL interrupt flag, another meaning)
 DHIRES_ON  = $C05E      ; any access: AN3 off, double resolution
 DHIRES_OFF = $C05F      ; any access: AN3 on, single resolution
+
+; --- Language card (16 KB RAM at $D000-$FFFF; //e/c built in) ----------------
+; READ the switch (BIT/LDA): a write-enable needs two reads in a row. Bank 1 or
+; 2 is the $D000-$DFFF page; $C084-$C087 / $C08C-$C08F mirror these.
+LCRAM2     = $C080      ; read RAM bank 2, write-protected
+ROMIN      = $C081      ; read ROM, write RAM bank 2 (twice)
+LCROM      = $C082      ; read ROM, write-protected (the power-up state)
+LCBANK2    = $C083      ; read and write RAM bank 2 (twice)
+LCRAM1     = $C088      ; read RAM bank 1, write-protected
+ROMIN1     = $C089      ; read ROM, write RAM bank 1 (twice)
+LCROM1     = $C08A      ; read ROM, write-protected (bank 1 selected)
+LCBANK1    = $C08B      ; read and write RAM bank 1 (twice)
+
+; --- Machine identification (ROM bytes, Apple II Misc. Tech Note 7) ---------
+ROMID1     = $FBB3      ; $06: //e, //c and later; $EA: II+; $38: II
+ROMID2     = $FBC0      ; when ROMID1 = $06: $EA //e, $E0 enhanced //e, $00 //c
 
 ; --- Game port --------------------------------------------------------------
 BUTN0    = $C061        ; button 0 / Open-Apple (bit 7)
@@ -94,6 +119,11 @@ RDKEY    = $FD0C        ; wait for a key via KSW (returns A = key | $80)
 BELL     = $FF3A        ; beep
 WAIT     = $FCA8        ; delay, ~ (26 + 27*A + 5*A*A)/2 cycles
 SETTXT   = $FB39        ; text mode, full window (TEXT)
+INIT     = $FB2F        ; text mode, full window, page 1 (Monitor reset)
+SETVID   = $FE93        ; output hook CSW -> the screen (PR#0)
+SETKBD   = $FE89        ; input hook KSW -> the keyboard (IN#0)
+AUXMOVE_ROM = $C311     ; //e/c firmware: main <-> aux copy (A1/A2 -> A4, C =
+                        ;   to aux); not "AUXMOVE": auxmem.asm's macro name
 
 CH       = $24          ; Monitor: cursor column (0..39)
 CV       = $25          ; Monitor: cursor row    (0..23)
@@ -101,6 +131,8 @@ CV       = $25          ; Monitor: cursor row    (0..23)
 ; --- DOS 3.3 ----------------------------------------------------------------
 DOSWARM  = $03D0        ; DOS warm start: back to the ']' prompt, program kept
 SOFTEV   = $03F2        ; RESET vector (low, high), $03F4 = power-up byte
+DOS_IOB_SLOT = $B7E9    ; 48 KB DOS 3.3's IOB: slot * 16 of the last drive
+                        ;   used (the boot drive until a disk command)
 
 ; --- Canonical entry preamble -----------------------------------------------
 ; Put APPLE2_PREAMBLE first in every program started with BRUN. DOS jumps to
@@ -121,6 +153,35 @@ SOFTEV   = $03F2        ; RESET vector (low, high), $03F4 = power-up byte
 ; holds BASIC's return path, so it must NOT be reset.
 .macro APPLE2_PREAMBLE_CALL
         cld
+.endmacro
+
+; APPLE2_SOFTEV target: Ctrl-RESET jumps to target (SOFTEV low/high, and the
+; power-up byte = high EOR $A5 so the Monitor warm-starts through it).
+; 11 bytes, clobbers A.
+.macro APPLE2_SOFTEV target
+        LDA     #<(target)
+        STA     SOFTEV
+        LDA     #>(target)
+        STA     SOFTEV+1
+        EOR     #$A5
+        STA     SOFTEV+2
+.endmacro
+
+; APPLE2_REBOOT_INIT: latch the boot drive's slot (DOS_IOB_SLOT, 0 -> 6) into
+; exit.asm's apple2_reboot, at start, for a program that later overwrites
+; DOS 3.3 ($B7E9 gone by the time it quits). Without it, apple2_reboot reads
+; the slot when it runs (DOS still in memory). 18 bytes, clobbers A.
+.macro APPLE2_REBOOT_INIT
+        LDA     DOS_IOB_SLOT
+        LSR
+        LSR
+        LSR
+        LSR
+        AND     #7
+        BNE     *+4             ; (no label: the caller's @ scope stays)
+        LDA     #6
+        ORA     #$C0
+        STA     apple2_reboot_jmp+2
 .endmacro
 
 .endif  ; _APPLE2_INC_LOADED_

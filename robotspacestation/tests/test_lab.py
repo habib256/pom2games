@@ -158,6 +158,18 @@ def check(name, got, want):
     return 0
 
 
+def small_machine(disk):
+    """A 64 KB machine (MACHID $BF98 poked to $A2 at RSS.SYSTEM's $2001, past
+    ProDOS's own $2000 entry): the refusal, a key, the ProDOS launcher, /RAM kept."""
+    r = a2test.run(disk, ['until:2001:600', 'poke:BF98:A2', 'wait:60', 'peek:400:1024',
+                          'key: ', 'wait:300', 'peek:400:1024', 'peek:BF31:4'], iie=True)
+    t0, t1 = (bytes(b & 0x7F for b in r.mem(0x400, 0x400, k)).decode('latin-1') for k in (0, 1))
+    ok = 'ROBOT SPACE STATION NEEDS A 65C02 CPU:' in t0 and '128K.' in t0 and 'BITSY' in t1 \
+        and 0xBF in r.mem(0xBF31, 4)[1:]
+    return check('64 KB machine: "ROBOT SPACE STATION NEEDS A 65C02 CPU: ... 128K.", a key -> ProDOS, /RAM kept',
+                 bytes([ok]), b'\x01')
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--disk', required=True)
@@ -171,7 +183,7 @@ def main():
     SHOTS.mkdir(parents=True, exist_ok=True)
     chips = [Chip() for _ in range(8)]
     board = half_adder()
-    fails = 0
+    fails = 0 if args.iic else small_machine(args.disk)
 
     # 1. Build it, set E1 = E2 = 1, one step: S1 = 0, S2 = 1.
     steps = [BOOT] + title(1) + half_adder_steps() + clicks(toggle(0), toggle(1)) + button('pas') \

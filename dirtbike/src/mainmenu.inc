@@ -8,8 +8,8 @@
 ;                TITLE PAGE / HELP / INPUT (joystick or paddles, if found, or
 ;                keyboard alone; the keys always drive; kept in DIRTHOF
 ;                when the menu ends) / HALL OF FAME / QUIT TO BASIC (the disk
-;                boots again, HELLO sees QUIT_MARK and ends: DOS 3.3 is
-;                back). Arrows (I / K) and RETURN or SPACE, or the digits
+;                boots again from the slot it came from, HELLO sees
+;                QUIT_MARK and ends: DOS 3.3 is back). Arrows (I / K) and RETURN or SPACE, or the digits
 ;                0-5; ESC: back to the race, else the title.
 ;                The stick moves the marker (one item per push), a button
 ;                chooses (and leaves the help / scores).
@@ -23,7 +23,6 @@
 QUIT_MARK = $8000               ; = src/hello.bas PEEK (32768), (32769): "QU"
                                 ; (the game's own code: DOS's boot leaves it,
                                 ; BRUN DIRTBIKE would write over it)
-BOOT_SLOT6 = $C600              ; the disk drive's boot ROM (slot 6, the //c's too)
 MENU_AT  = $9C00                ; = dirtbike.cfg MENUOVL, tools/titlefile.py
 MM_N     = 6                    ; items (0: back to the race)
 MM_ROW   = 5                    ; first item's text row (8 scanlines)
@@ -153,14 +152,10 @@ mm_go:  LDA     mm_sel
         CMP     #1
         BEQ     mm_title
         ; QUIT: the mark "QU" for HELLO (src/hello.bas: it ends instead of
-        ; BRUN), the disk booted again: BASIC with DOS 3.3 back
-        LDA     #'Q'
-        STA     QUIT_MARK
-        LDA     #'U'
-        STA     QUIT_MARK+1
-        LDA     TXTSET
-        LDA     LOWSCR
-        JMP     BOOT_SLOT6
+        ; BRUN), the disk booted again from its own drive (RWTS still holds
+        ; DOS_IOB_SLOT): BASIC with DOS 3.3 back (dev/lib/apple2/exit.asm,
+        ; included in this overlay at the end of dirtbike.s)
+        JMP     apple2_reboot
 
 mm_title:
         JMP     attract

@@ -429,8 +429,9 @@ Les deux pages DHGR (`$2000-$5FFF`, principale et auxiliaire) ne laissent
 pas la place au jeu sous le DOS. DOS 3.3 charge le fichier en `$3C00` (le
 `BRUN` du lanceur, ou celui de `HELLO`), puis `STARTUP` :
 
-1. lit l'emplacement du lecteur de démarrage (`$B7E9`, pour la sortie) et
-   pointe le vecteur RESET sur `rg_reset` ;
+1. lit l'emplacement du lecteur de démarrage (`$B7E9`, pour la sortie :
+   `APPLE2_REBOOT_INIT`) et pointe le vecteur RESET sur `apple2_reboot`
+   (`APPLE2_SOFTEV`) ;
 2. recopie la ROM du moniteur (`$F800-$FFFF`) dans la RAM de la carte
    langage (lecture ROM, écriture RAM), puis passe en lecture / écriture RAM
    banque 2 (`$C083` deux fois) : `tune.asm` appelle `WAIT` (`$FCA8`) ;
@@ -447,7 +448,7 @@ pas la place au jeu sous le DOS. DOS 3.3 charge le fichier en `$3C00` (le
 | `$1800-$1F0E` | `DHGRBSS` : l'écran TMS virtuel **à ses propres adresses** (`$1800` noms, `$1B00` sprites), le tampon de lignes du moteur texte (`$1C00-$1EFF`), drapeaux par page |
 | `$2000-$3FFF` | page DHGR 1 (principale ; et l'auxiliaire) |
 | `$4000-$5FFF` | page DHGR 2 (idem) ; au chargement : `STARTUP` (`$3C00-$3CDB`) puis `LCCODE` + `LCDATA` (8,3 Ko), complétés jusqu'à `$6000` |
-| `$6000-$9469` | le fichier : `CODE` (le cœur, `plat_quit`, `rg_reset`) 9 120 o, `RODATA` 4 264 o (le cœur, `video_dhgr_data.inc`), `DGFIX` 34 o ; `$946A-$95FF` libres (406 o) |
+| `$6000-$9469` | le fichier : `CODE` (le cœur, `plat_quit`, `apple2_reboot`) 9 120 o, `RODATA` 4 264 o (le cœur, `video_dhgr_data.inc`), `DGFIX` 34 o ; `$946A-$95FF` libres (406 o) |
 | `$9600-$99FF` | (le DOS) `X2IMG` : les 8 images de tuiles (1 Ko) |
 | `$9A00-$9E05` | `BSS` : clés des cases des deux pages, image voulue, groupes sales du moteur texte ; `$9E06-$BFFF` libres (8,7 Ko) |
 | `$D000-$F13D` | carte langage, RAM banque 2 et commune : le back-end (`LCCODE` 6,4 Ko, `LCDATA` 2,1 Ko) ; `$F13E-$F7FF` libres (1,7 Ko) |
@@ -457,14 +458,18 @@ Fichier : 22 634 octets (89 secteurs, 486 octets de remplissage avant
 `$6000`). Mémoire auxiliaire : seulement ses moitiés des deux pages DHGR.
 
 **Sortie** (ESC au titre, ESC puis Y, Ctrl-RESET : `plat_quit` /
-`rg_reset`) : « QU » en `$0FFE`, lecture ROM, écran texte 40 colonnes,
-`JMP $Cs00` (le lecteur de démarrage) : la disquette redémarre, `HELLO` voit
+`apple2_reboot`, de `dev/lib/apple2/exit.asm` avec `EXIT_REBOOT_ONLY`,
+`EXIT_REBOOT_IIE` et `EXIT_REBOOT_MARK`, inclus juste après `plat_quit`) :
+lecture ROM, banques principales, écran texte 40 colonnes, « QU » en
+`$0FFE`, `JMP $Cs00` (le lecteur de démarrage) : la disquette redémarre, `HELLO` voit
 la marque (`PEEK (4094)`, `(4095)`), l'efface, écrit « ROGUE: BYE! » et
 s'arrête : le prompt BASIC avec DOS 3.3 (la façon de DIRTBIKE, qui pose sa
 marque en `$8000` ; ici `$0FFE`, au-dessus de `HELLO` et de ses variables,
 loin de ce que le démarrage du DOS écrit). Sur un //e, RESET remet la carte
-langage en lecture ROM : le vecteur `$03F2` mène à `rg_reset` en RAM
+langage en lecture ROM : le vecteur `$03F2` mène à `apple2_reboot` en RAM
 principale.
+L'emplacement vient de `$B7E9` lu à l'entrée (`APPLE2_REBOOT_INIT`), pas d'un
+`$C600` fixe : `tests/test_dhgr.py` le pose à `$50` et attend `JMP $C500`.
 
 ### ROGUE (lanceur)
 

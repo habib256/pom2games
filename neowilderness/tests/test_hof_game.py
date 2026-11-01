@@ -31,7 +31,7 @@ MAP, STAGE = 0x7000, 0x2000
 
 
 def screen(mem):
-    return b''.join(mem[0x80 * (r & 7) + 40 * (r >> 3):][:40] for r in range(24))
+    return b''.join(a2test.text_rows(mem))
 
 
 def show(codes):

@@ -28,7 +28,6 @@ SCR_TEXT  = 0
 SCR_SPLIT = 1
 SCR_FULL  = 2
 
-MACHID    = $FBB3       ; $06 on a //e / //c, anything else on a ][ / ][+
 RD80COL   = $C01F       ; //e: bit 7 = 80-column display on
 SETAN3    = $C05F       ; annunciator 3 on: plain HGR even with 80COL (no DHGR)
 WNDTOP    = $22         ; Monitor text window: top row
@@ -53,7 +52,7 @@ scr_boot:
         STA scr_iie
         STA col80_ok
         STA scr_mode
-        LDA MACHID
+        LDA ROMID1              ; (apple2.inc) $06 on a //e / //c, anything else on a ][ / ][+
         CMP #$06
         BNE @done               ; ][ / ][+: 40 columns
         INC scr_iie

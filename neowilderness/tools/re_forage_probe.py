@@ -98,8 +98,7 @@ RUNTIME = {0x0321: 0x0AA0, 0x03DB: 0x0A58, 0xB000: 0x0A7C}   # poked once DOS is
 LOG, YES, NUM, MARK, HOURS, RNDP, TABLE = 0x0910, 0x0902, 0x0904, 0x0908, 0x0940, 0x09E0, 0x0C00
 
 
-def poke(addr, data):
-    return [f'poke:{addr + i:04X}:{v:02X}' for i, v in enumerate(data)]
+poke = a2test.pokes
 
 
 def build_disk():
@@ -119,17 +118,9 @@ def build_disk():
     m2 = journey.run(0x12, 0, 8) + journey.run(0x11, 7, 8)                    # $3000
     m3 = journey.run(0x0D, 0, 7).ljust(0x800, b'\0') + journey.run(0x06, 4, 6)  # $8000
     files.update(M1=(m1, 0x7000), M2=(m2, 0x3000), M3=(m3, 0x8000))
-    args = []
-    for name, (data, org) in files.items():
-        (OUT / f'{name.lower()}.bin').write_bytes(data)
-        args += ['--bin', f'{name}={OUT / (name.lower() + ".bin")}@{org:#x}']
-    hello = ''.join(f'{10 * (i + 1)} PRINT CHR$(4);"BLOAD {n}"\n'
-                    for i, n in enumerate(('STATE', 'PRISTINE', 'M1', 'M2', 'M3')))
-    hello += '90 PRINT CHR$(4);"BRUN DRIVER"\n'
-    (OUT / 'hello.bas').write_text(hello)
-    disk = OUT / 'forage.dsk'
-    subprocess.run([sys.executable, str(HERE.parent / 'dev/tools/dos33.py'), '--out', str(disk),
-                    '--bas', f'HELLO={OUT / "hello.bas"}'] + args, check=True, capture_output=True)
+    driver, _ = files.pop('DRIVER')
+    disk = a2test.build_disk(OUT, 'DRIVER', driver, 0x0800, disk=OUT / 'forage.dsk',
+                             bload=[(name, data, org) for name, (data, org) in files.items()])
     return disk, game
 
 

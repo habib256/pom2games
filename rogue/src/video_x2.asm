@@ -561,7 +561,7 @@ x2_cell:
         LDY     x2_off          ; k = 0, 2, 4, 6: aux bytes 0..3
         PHP
         SEI
-        STA     DG_RAMWRT_AUX
+        STA     RAMWRTON
         JSR     x2_w
         .repeat 3
         INX
@@ -571,7 +571,7 @@ x2_cell:
         TAY
         JSR     x2_w
         .endrepeat
-        STA     DG_RAMWRT_MAIN
+        STA     RAMWRTOFF
         PLP
         LDX     x2_x            ; k = 1, 3, 5, 7: main bytes 0..3
         LDA     x2_off
@@ -729,9 +729,9 @@ x2_margins:
         STA     x2_n
 @l:     PHP
         SEI
-        STA     DG_RAMWRT_AUX
+        STA     RAMWRTON
         JSR     @four
-        STA     DG_RAMWRT_MAIN
+        STA     RAMWRTOFF
         PLP
         JSR     @four
         LDA     dg_ptr+1
@@ -824,10 +824,10 @@ x2_banner:
         STA     dg_ptr+1
         PHP
         SEI
-        STA     DG_RAMWRT_AUX
+        STA     RAMWRTON
         LDX     #0
         JSR     @half
-        STA     DG_RAMWRT_MAIN
+        STA     RAMWRTOFF
         PLP
         LDX     #1
         JSR     @half

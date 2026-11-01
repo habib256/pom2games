@@ -19,21 +19,14 @@ def original(cases):
     module = (HERE / 'build/re_env/ch/t08s07.bin').read_bytes()
     (out / 'module.bin').write_bytes(module)
     (out / 'driver.bin').write_bytes(bytes.fromhex('A9 F6 A0 5C 20 3A 5D 4C 00 08'))
-    (out / 'hello.bas').write_text('10 PRINT CHR$(4);"BLOAD STATE"\n'
-                                  '20 PRINT CHR$(4);"BLOAD MODULE"\n'
-                                  '30 PRINT CHR$(4);"BRUN DRIVER"\n')
     disk = out / 'probe.dsk'
-    subprocess.run([sys.executable, str(HERE.parent / 'dev/tools/dos33.py'),
-                    '--out', str(disk), '--bas', f'HELLO={out / "hello.bas"}',
-                    '--bin', f'STATE={out / "state.bin"}@0x4000',
-                    '--bin', f'MODULE={out / "module.bin"}@0x5800',
-                    '--bin', f'DRIVER={out / "driver.bin"}@0x0800'],
-                   check=True, capture_output=True)
+    a2test.build_disk(out, 'DRIVER', out / "driver.bin", 0x0800, disk=disk,
+                      bload=[('STATE', out / "state.bin", 0x4000), ('MODULE', out / "module.bin", 0x5800)])
     steps = ['until:0800:20000']
     for body, ounces, *_ in cases:
         weight = body + ounces // 16  # original resident $50A1 shifts four times
         steps += [f'poke:4C02:{weight & 255:02X}', f'poke:4C03:{weight >> 8:02X}']
-        steps += [f'poke:{0x4C20 + i:04X}:{b:02X}' for i, b in enumerate(encode(1.65))]
+        steps += a2test.pokes(0x4C20, encode(1.65))
         steps += ['until:0807:1000', 'peek:4C20:5', 'until:0800:1000']
     r = a2test.run(disk, steps, emulator=a2test.A2SHOT, timeout=1800)
     values = [r.mem(0x4C20, 5, k) for k in range(len(cases))]
@@ -45,19 +38,15 @@ def original(cases):
     (out / 'energy.bin').write_bytes(energy)
     (out / 'energy-driver.bin').write_bytes(bytes.fromhex('20 22 58 4C 00 08'))
     energy_disk = out / 'energy.dsk'
-    subprocess.run([sys.executable, str(HERE.parent / 'dev/tools/dos33.py'),
-                    '--out', str(energy_disk), '--bas', f'HELLO={out / "hello.bas"}',
-                    '--bin', f'STATE={out / "state.bin"}@0x4000',
-                    '--bin', f'MODULE={out / "energy.bin"}@0x5800',
-                    '--bin', f'DRIVER={out / "energy-driver.bin"}@0x0800'],
-                   check=True, capture_output=True)
+    a2test.build_disk(out, 'DRIVER', out / "energy-driver.bin", 0x0800, disk=energy_disk,
+                      bload=[('STATE', out / "state.bin", 0x4000), ('MODULE', out / "energy.bin", 0x5800)])
     steps = ['until:0800:20000']
     for (body, _, minutes, shiver), rate in zip(cases, values):
         for addr, data in ((0x4BF6, body.to_bytes(2, 'little')), (0x4C20, rate),
                            (0x4BC6, minutes.to_bytes(2, 'little')),
                            (0x4B87, bytes([int(shiver == 2)])),
                            (0x4BDA, (600).to_bytes(2, 'little'))):
-            steps += [f'poke:{addr+i:04X}:{b:02X}' for i, b in enumerate(data)]
+            steps += a2test.pokes(addr, data)
         steps += ['until:0803:1000', 'peek:4BDA:2', 'until:0800:1000']
     r = a2test.run(energy_disk, steps, emulator=a2test.A2SHOT, timeout=1800)
     spent = [int.from_bytes(r.mem(0x4BDA, 2, k), 'little') for k in range(len(cases))]

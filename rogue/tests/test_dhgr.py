@@ -514,10 +514,9 @@ def test_disk():
     check(f'PC={L["wait_kb_choice"]:04X}' in r.out, 'dist disk: the launcher started ROGUE.DHGR')
     page = r.dumps[-1]
     rows = []
-    for row in range(24):
-        a = (row & 7) * 128 + (row >> 3) * 40
+    for cells in a2test.text_rows(page):
         rows.append(''.join(chr(b & 0x7F) if (b & 0x7F) >= 0x20 else chr((b & 0x7F) + 0x40)
-                            for b in page[a:a + 40]))
+                            for b in cells))
     check(any('ROGUE: BYE!' in t for t in rows) and any(t.startswith(']') for t in rows),
           f'dist disk: ESC at the title -> reboot -> "ROGUE: BYE!" + prompt ({rows[:3]})')
     # Ctrl-RESET in the game: the same way out
@@ -530,6 +529,15 @@ def test_disk():
     text = ''.join(chr(b & 0x7F) for b in page)
     check(f'PC={wk:04X}' in r.out and 'ROGUE: BYE!' in text,
           'dist disk: Ctrl-RESET in the game -> reboot -> "ROGUE: BYE!"')
+    # apple2_reboot jumps to the boot slot latched from $B7E9 at the entry (a2shot boots
+    # slot 6 only: poked to $50 there, both ways out must reach $C500 with the mark)
+    for how, steps in (('ESC at the title', ['press:\\e']),
+                       ('Ctrl-RESET', ['key: ', 'wait:200', 'press: ', f'until:{wk:04X}:900', 'reset'])):
+        r = a2test.run(DISK, ['wait:1', f'until:{L["entry"]:04X}:6000', 'poke:B7E9:50',
+                              f'until:{L["wait_kb_choice"]:04X}:6000', 'wait:30', *steps, 'until:C500:120',
+                              f'peek:{QUIT_MARK:04X}:2'], iie=True, timeout=300, check=False)
+        check('PC=C500' in r.out and r.mem(QUIT_MARK, 2) == b'QU',
+              f'dist disk: $B7E9 = $50 at the entry, {how} -> "QU" at $0FFE, JMP $C500 (slot 5)')
 
 
 def golden(write):

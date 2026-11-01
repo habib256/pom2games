@@ -23,7 +23,7 @@ def cmd(text):
 
 
 def poke(name, *values):
-    return [L.poke(name, v, i) for i, v in enumerate(values)]
+    return L.poke(name, values)
 
 
 SNAP = [L.peek('heading', 2), L.peek('orient_aid'), L.peek('s_elap', 5), L.peek('s_hour', 5),

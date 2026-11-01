@@ -14,6 +14,8 @@ up: PT3 note n (0 = C-1) sounds MIDI n + 12, ~40 cents sharp (A4 450 Hz).
 """
 from pathlib import Path
 import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+from fonts import write_if_changed  # noqa: E402
 
 import sound
 
@@ -92,8 +94,7 @@ def main():
         return
     out = Path(sys.argv[1])
     data = module()
-    if not out.exists() or out.read_bytes() != data:
-        out.write_bytes(data)
+    write_if_changed(out, data)
 
 
 if __name__ == '__main__':

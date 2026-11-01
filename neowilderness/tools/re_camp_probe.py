@@ -33,8 +33,7 @@ OUT = HERE / 'build/re_camp'
 LOG, RND, YES, NUM, MSG = 0x0910, 0x0920, 0x0902, 0x0904, 0x0900
 
 
-def poke(addr, data):
-    return [f'poke:{addr + i:04X}:{v:02X}' for i, v in enumerate(data)]
+poke = a2test.pokes
 
 
 def water_disk():
@@ -62,11 +61,9 @@ def water_disk():
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / 'state.bin').write_bytes(state)
     (OUT / 'driver.bin').write_bytes(driver)
-    (OUT / 'hello.bas').write_text('10 PRINT CHR$(4);"BLOAD STATE"\n20 PRINT CHR$(4);"BRUN DRIVER"\n')
     disk = OUT / 'water.dsk'
-    subprocess.run([sys.executable, str(HERE.parent / 'dev/tools/dos33.py'), '--out', str(disk),
-                    '--bas', f'HELLO={OUT / "hello.bas"}', '--bin', f'STATE={OUT / "state.bin"}@0x4000',
-                    '--bin', f'DRIVER={OUT / "driver.bin"}@0x0800'], check=True, capture_output=True)
+    a2test.build_disk(OUT, 'DRIVER', OUT / "driver.bin", 0x0800, disk=disk,
+                      bload=[('STATE', OUT / "state.bin", 0x4000)])
     return disk
 
 

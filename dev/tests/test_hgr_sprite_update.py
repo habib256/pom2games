@@ -85,8 +85,8 @@ def check(work,page):
     for n,(col,y,w,h) in enumerate(geometries):
         color=n%2; palette=128 if n%3 else 0
         mask=bytes(rng.randrange(128) if rng.randrange(3) else 0 for _ in range(192))
-        steps += [L.poke('params',v,i) for i,v in enumerate((col,y,w,h,color,palette))]
-        steps += [L.poke('mask',v,i) for i,v in enumerate(mask)]
+        steps += L.poke('params', (col,y,w,h,color,palette))
+        steps += L.poke('mask', mask)
         steps += ['press: ',L.until('done'),'peek:2000:16384',L.until('ready')]
         frame=bytearray([165])*16384
         for row in range(h):
@@ -105,10 +105,10 @@ def check(work,page):
     first=bytearray(192);first[0]=64
     last=bytearray(192);last[31*6+5]=64
     steps=[L.until('ready')]
-    steps += [L.poke('params',v,i) for i,v in enumerate((12,60,6,32,0,0))]
-    steps += [L.poke('mask',v,i) for i,v in enumerate(first)]
+    steps += L.poke('params', (12,60,6,32,0,0))
+    steps += L.poke('mask', first)
     steps += ['press: ',L.until('done'),L.until('ready')]
-    steps += [L.poke('mask',v,i) for i,v in enumerate(last)]
+    steps += L.poke('mask', last)
     steps += ['press: ',L.until('ds_seed_visible'),'peek:2000:16384',L.until('done'),'peek:2000:16384']
     transition=a2test.run(None, a2test.bin_steps(fixture) + steps).data
     both=bytearray([165])*16384

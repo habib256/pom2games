@@ -2,6 +2,9 @@
 """Keep the renderer, physics and hit tables on the same screen geometry."""
 from pathlib import Path
 import re
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+from fonts import write_if_changed  # noqa: E402
 root=Path(__file__).resolve().parents[1]/'src'
 values=dict((k,int(v)) for k,v in re.findall(r'^#define (CB_\w+) (\d+)$',(root/'layout.h').read_text(),re.M))
 assert values['CB_GRID_END']==values['CB_TILE_TOP']+7*12+8
@@ -10,8 +13,7 @@ assert abs(values['CB_PAD_MIN']*2-(values['CB_FIELD_TOP']+190))<=1 and values['C
 assert values['CB_PAD_BLOCK']==values['CB_GRID_END']+6
 assert values['CB_BG_END']==values['CB_PAD_MIN']
 def write(name,content):
-    p=root/name
-    if not p.exists() or p.read_text()!=content:p.write_text(content)
+    write_if_changed(root/name,content)
 write('layout.inc','; Generated from layout.h. GPL-3.0.\n'+''.join(f'{k} = {v}\n' for k,v in values.items()))
 cols=[(x-5)//11 if 5<=x<137 and (x-5)%11<9 else 255 for x in range(140)]
 top=values['CB_TILE_TOP']

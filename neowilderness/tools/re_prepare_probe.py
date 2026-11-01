@@ -36,10 +36,9 @@ RND_VALUE = 0x0328
 
 def text_page(mem):
     rows = []
-    for r in range(24):
-        o = (r % 8) * 0x80 + (r // 8) * 0x28
+    for row in a2test.text_rows(mem):
         rows.append(''.join(chr(b & 0x7F) if (b & 0x7F) >= 0x20 else chr((b & 0x7F) + 0x40)
-                            for b in mem[o:o + 40]).rstrip())
+                            for b in row).rstrip())
     return rows
 
 
@@ -47,7 +46,7 @@ def steps_for(case):
     """a2shot steps of one case (tools/prepare_ref.CASES entry)."""
     stub = bytes([0xA9, RND_VALUE & 255, 0xA0, RND_VALUE >> 8, 0x4C, 0xF9, 0xEA]) + R.encode(case['rnd'])
     steps = ['wait:5400', 'key:2\r', f'until:5800:3000', f'poke:603F:{case["level"]:02X}']
-    steps += [f'poke:{RND_STUB + i:04X}:{b:02X}' for i, b in enumerate(stub)]
+    steps += a2test.pokes(RND_STUB, stub)
     # GO1 $5E7F (JSR $3003) becomes JMP $5E7F: a trap the breakpoint cannot miss.
     steps += [f'poke:{GO1_DONE:04X}:4C', f'poke:{GO1_DONE + 1:04X}:{GO1_DONE & 255:02X}',
               f'poke:{GO1_DONE + 2:04X}:{GO1_DONE >> 8:02X}']

@@ -31,12 +31,12 @@ def main():
             target = L['summary_prepare']
             code = (0x20, target & 255, target >> 8,
                     0x4C, address & 255, address >> 8)
-            for index, octet in enumerate(code):
-                s.step(f'poke:{address + index:04X}:{octet:02X}')
+            for step in a2test.pokes(address, code):
+                s.step(step)
             s.step(L.until('summary_prepare', 60000))
             s.step(f'until:{address + 3:04X}:60000')
-            for index, octet in enumerate(original):
-                s.step(f'poke:{address + index:04X}:{octet:02X}')
+            for step in a2test.pokes(address, original):
+                s.step(step)
             after = state(s)
             # Rendering consumes its display-dirty flag, not simulation.
             assert not differing(before[0], after[0], DERIVED_BYTES | {L['ui_dirty']}), expected

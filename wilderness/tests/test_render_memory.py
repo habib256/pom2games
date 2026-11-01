@@ -10,7 +10,7 @@ def main():
     done=f'until:{L["idle"]+3:04X}:6000'
     original=bytes((i*37+19)&255 for i in range(8192))
     steps=[idle]+call(['clear_rows'])
-    steps += [f'poke:{0x2000+i:04X}:{v:02X}' for i,v in enumerate(original)]
+    steps += a2test.pokes(0x2000, original)
     ranges=[(0,10),(30,40),(10,30),(0,40)]
     for first,last in ranges:
         steps += [L.poke('tmp',first),L.poke('tmp2',last),

@@ -1,6 +1,5 @@
 ; VERHILLE Arnaud — GPL-3.0. Bank-safe optional DHGR primitive.
 .include "apple2.inc"
-RAMWRTON = $C005
 .code
 .export _dhgr_clear_asm
 .import _dhgr_base, _dhgr_pattern

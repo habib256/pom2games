@@ -87,12 +87,7 @@ start:
         STA     __TXTC4_RUN__-1,X
         DEX
         BNE     @cp4
-        LDA     #<reset                 ; Ctrl-RESET: back to the menu
-        STA     SOFTEV
-        LDA     #>reset
-        STA     SOFTEV+1
-        EOR     #$A5
-        STA     SOFTEV+2
+        APPLE2_SOFTEV reset             ; Ctrl-RESET: back to the menu
         JSR     hgr_init
         LDA     #$20                    ; both pages black
         STA     rptr+1
@@ -890,3 +885,10 @@ BBFONT_LAST  = $5F
 .segment "CODE"
 .include "rwts.asm"
 .include "menu_data.inc"
+
+.pushseg
+.segment "MENUOVL"                      ; QUIT TO BASIC (mainmenu.inc): no resident byte
+EXIT_REBOOT_ONLY = 1                    ; exit.asm: apple2_reboot alone, here
+EXIT_REBOOT_MARK = QUIT_MARK            ; "QU": hello.bas ends at the prompt
+.include "exit.asm"                     ; slot read at quit time (RWTS kept)
+.popseg

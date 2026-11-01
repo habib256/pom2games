@@ -9,14 +9,12 @@ HEADS = list(range(360))
 COUNT = 8
 
 
-def writes(addr,data):
-    return [f'poke:{addr+i:04X}:{b:02X}' for i,b in enumerate(data)]
+writes = a2test.pokes
 
 
 def native():
     out=HERE/'build/re_swim_raster';out.mkdir(exist_ok=True)
     (out/'state.bin').write_bytes((HERE/'build/game.bin').read_bytes()[0x4000:0x5000])
-    (out/'hello.bas').write_text('10 PRINT CHR$(4);"BLOAD STATE"\n20 PRINT CHR$(4);"BLOAD MODULE"\n30 PRINT CHR$(4);"BRUN DRIVER"\n')
     def disk(name,path,entry,stop=None,save=False):
         module=bytearray((HERE/path).read_bytes())
         if stop: module[stop-0x5800]=0x60
@@ -25,10 +23,8 @@ def native():
         end=0x800+len(driver);driver+=bytes.fromhex('4C 00 08')
         (out/f'{name}-driver.bin').write_bytes(driver)
         d=out/f'{name}.dsk'
-        subprocess.run([sys.executable,str(HERE.parent/'dev/tools/dos33.py'),'--out',str(d),
-            '--bas',f'HELLO={out/"hello.bas"}','--bin',f'STATE={out/"state.bin"}@0x4000',
-            '--bin',f'MODULE={out/(name+".bin")}@0x5800',
-            '--bin',f'DRIVER={out/(name+"-driver.bin")}@0x0800'],check=True,capture_output=True)
+        a2test.build_disk(out, 'DRIVER', out/(name+"-driver.bin"), 0x0800, disk=d,
+                          bload=[('STATE', out/"state.bin", 0x4000), ('MODULE', out/(name+".bin"), 0x5800)])
         return d,f'until:{end:04X}:1000'
     d,end=disk('prepare','build/re_env/ch/t08s07.bin',0x5BFB,0x5C97)
     steps=['until:0800:20000']

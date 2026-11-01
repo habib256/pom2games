@@ -24,6 +24,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import model
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+from fonts import write_if_changed  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'src/hud.inc'
@@ -180,8 +182,7 @@ def main():
         if not OUT.exists() or OUT.read_text() != text_:
             sys.exit(f'{OUT} is stale: run tools/hud.py')
         return
-    if not OUT.exists() or OUT.read_text() != text_:
-        OUT.write_text(text_)
+    write_if_changed(OUT, text_)
 
 
 if __name__ == '__main__':

@@ -19,21 +19,14 @@ def original(cases):
     module[0x1B1] = 0x60
     (out / 'module.bin').write_bytes(module)
     (out / 'driver.bin').write_bytes(bytes.fromhex('20 86 59 4C 00 08'))
-    (out / 'hello.bas').write_text('10 PRINT CHR$(4);"BLOAD STATE"\n'
-                                  '20 PRINT CHR$(4);"BLOAD MODULE"\n'
-                                  '30 PRINT CHR$(4);"BRUN DRIVER"\n')
     disk = out / 'probe.dsk'
-    subprocess.run([sys.executable, str(HERE.parent / 'dev/tools/dos33.py'),
-                    '--out', str(disk), '--bas', f'HELLO={out / "hello.bas"}',
-                    '--bin', f'STATE={out / "state.bin"}@0x4000',
-                    '--bin', f'MODULE={out / "module.bin"}@0x5800',
-                    '--bin', f'DRIVER={out / "driver.bin"}@0x0800'],
-                   check=True, capture_output=True)
+    a2test.build_disk(out, 'DRIVER', out / "driver.bin", 0x0800, disk=disk,
+                      bload=[('STATE', out / "state.bin", 0x4000), ('MODULE', out / "module.bin", 0x5800)])
     steps = ['until:0800:20000']
     for elapsed, phase, air in cases:
         for addr, data in ((0x4C61, encode(elapsed)), (0x4CCF, encode(phase)),
                            (0x4B9B, bytes([air & 255]))):
-            steps += [f'poke:{addr+i:04X}:{b:02X}' for i, b in enumerate(data)]
+            steps += a2test.pokes(addr, data)
         steps += ['until:0803:1000', 'peek:4B9B:1', 'until:0800:1000']
     r = a2test.run(disk, steps, emulator=a2test.A2SHOT, timeout=900)
     values = [r.mem(0x4B9B, 1, k)[0] for k in range(len(cases))]

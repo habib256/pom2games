@@ -20,6 +20,8 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT.parent / 'dev/tools'))
+from fonts import write_if_changed  # noqa: E402
 OUT = ROOT / 'src/paths.inc'
 END = 0x80
 
@@ -158,8 +160,7 @@ def main():
         if OUT.read_text() != text:
             sys.exit(f'{OUT} is stale: run tools/paths.py')
         return
-    if not OUT.exists() or OUT.read_text() != text:
-        OUT.write_text(text)
+    write_if_changed(OUT, text)
 
 
 if __name__ == '__main__':

@@ -36,14 +36,13 @@ Return and Esc. After each return:
 """
 import json
 import re
-import struct
 import sys
 import tempfile
 import time
-import zlib
 from pathlib import Path
 
 from common import result_rows, HERE, L, DISK, a2test, text_screen
+import apple2img  # noqa: E402 (dev/tools, on the path from common)
 
 LIMIT = 20000
 DISCOVER = '--discover' in sys.argv   # print the loads without checking them
@@ -102,18 +101,10 @@ SCREENS = (
 
 
 def frame(path):
-    """The 560 x 384 RGB frame of an a2shot PNG (filter 0 rows)."""
-    png = path.read_bytes()
-    pos, idat = 8, bytearray()
-    while pos < len(png):
-        size = struct.unpack_from('>I', png, pos)[0]
-        kind, data = png[pos + 4:pos + 8], png[pos + 8:pos + 8 + size]
-        if kind == b'IHDR':
-            assert struct.unpack_from('>II', data) == (560, 384)
-        elif kind == b'IDAT':
-            idat += data
-        pos += size + 12
-    return zlib.decompress(idat)
+    """The 560 x 384 RGB frame of an a2shot PNG, row after row."""
+    width, height, channels, rows = apple2img.png_read(path, raw=True)
+    assert (width, height, channels) == (560, 384, 3)
+    return b''.join(rows)
 
 
 def visible(page):
@@ -147,7 +138,7 @@ def main():
         s.step(IDLE)
         before = snapshot()
         assert before['switches'][7] and before['switches'][11], '80STORE/HIRES expected'
-        assert len(set(before['frame'][:320 * (560 * 3 + 1)])) > 4, 'the landscape must be on screen'
+        assert len(set(before['frame'][:320 * 560 * 3])) > 4, 'the landscape must be on screen'
         fetch = L['mem_fetch']
         s.step('watch:BF00')
         s.step(f'watch:{fetch:04X}')
@@ -208,7 +199,7 @@ def main():
                 assert old == new, (name, field, old.hex(), new.hex())
             assert after['switches'] == before['switches'], (name, before['switches'], after['switches'])
             assert after['page'] == before['page'], (name, 'DHGR page (both banks) changed')
-            rows = 320 * (560 * 3 + 1)      # graphics rows of the frame, above the text lines
+            rows = 320 * 560 * 3      # graphics rows of the frame, above the text lines
             assert after['frame'][:rows] == before['frame'][:rows], (name, 'displayed graphics changed')
             lines = after['text']
             if name.startswith('QUIT'):

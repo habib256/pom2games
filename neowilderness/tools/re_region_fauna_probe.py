@@ -37,10 +37,9 @@ STATE = (0x4000, 0x8000)
 
 def text_page(mem):
     rows = []
-    for r in range(24):
-        o = (r % 8) * 0x80 + (r // 8) * 0x28
+    for row in a2test.text_rows(mem):
         line = ''
-        for b in mem[o:o + 40]:
+        for b in row:
             c = b & 0x7F
             line += chr(c) if c >= 0x20 else chr(c + 0x40)
         rows.append(line.rstrip())
@@ -90,19 +89,9 @@ def probe_disk(out, state, module, driver, extra=()):
     (out / 'state.bin').write_bytes(state)
     (out / 'module.bin').write_bytes(module)
     (out / 'driver.bin').write_bytes(driver)
-    lines = ['10 PRINT CHR$(4);"BLOAD STATE"', '20 PRINT CHR$(4);"BLOAD MODULE"']
-    args = ['--bin', f'STATE={out / "state.bin"}@0x4000', '--bin', f'MODULE={out / "module.bin"}@0x5800',
-            '--bin', f'DRIVER={out / "driver.bin"}@0x0800']
-    for k, (name, data, addr) in enumerate(extra):
-        (out / f'{name.lower()}.bin').write_bytes(data)
-        lines.append(f'{30 + k} PRINT CHR$(4);"BLOAD {name}"')
-        args += ['--bin', f'{name}={out / (name.lower() + ".bin")}@0x{addr:04X}']
-    lines.append('90 PRINT CHR$(4);"BRUN DRIVER"')
-    (out / 'hello.bas').write_text('\n'.join(lines) + '\n')
-    disk = out / 'probe.dsk'
-    subprocess.run([sys.executable, str(HERE.parent / 'dev/tools/dos33.py'), '--out', str(disk),
-                    '--bas', f'HELLO={out / "hello.bas"}', *args], check=True, capture_output=True)
-    return disk
+    return a2test.build_disk(out, 'DRIVER', out / 'driver.bin', 0x0800, disk=out / 'probe.dsk',
+                             bload=[('STATE', out / 'state.bin', 0x4000), ('MODULE', out / 'module.bin', 0x5800)]
+                             + list(extra))
 
 
 def accepted(row, e):
@@ -165,7 +154,7 @@ def run_filters(out, state, module0, rows, climate, types):
     steps = ['until:0800:20000', 'poke:000A:00', 'poke:4B75:00']
     for t, env, _ in cases:
         steps += [f'poke:0801:{t:02X}', f'poke:0803:{t + 1:02X}', 'poke:0900:00']
-        steps += [f'poke:{0x4ADA + i:04X}:{v:02X}' for i, v in enumerate(env)]
+        steps += a2test.pokes(0x4ADA, env)
         steps += ['until:0807:1000', 'peek:0900:1', 'until:0800:1000']
     r = a2test.run(disk, steps, emulator=a2test.A2SHOT, timeout=1800)
     assert len(r.dumps) == len(cases)
@@ -189,7 +178,7 @@ def run_probability(out, state, module0, slots, rates):
         steps += [f'poke:00FD:{slot:02X}', f'poke:00FC:{slot + 1:02X}', f'poke:603F:{level:02X}',
                   f'poke:4BC6:{minutes:02X}', 'poke:4BC7:00', f'poke:4B56:{terrain:02X}',
                   f'poke:4B6B:{shore:02X}'] + [f'poke:{0x9A0 + i:04X}:00' for i in range(5)]
-        steps += [f'poke:{0x4C4D + i:04X}:{v:02X}' for i, v in enumerate(encode(freq))]
+        steps += a2test.pokes(0x4C4D, encode(freq))
         steps += ['until:0803:1000', 'peek:09A0:5', 'until:0800:1000']
     r = a2test.run(disk, steps, emulator=a2test.A2SHOT, timeout=1800)
     assert len(r.dumps) == len(cases)
@@ -291,7 +280,7 @@ def run_trinkets(out, state0, disk_j):
                   'poke:0004:12', 'poke:0019:02', 'poke:0003:11', 'poke:0D5D:00', 'poke:0D5E:00',
                   'poke:0018:00', 'poke:4B71:00', 'poke:4B59:00', 'poke:4B40:00', 'poke:4B46:00',
                   'poke:4B56:00', 'poke:4B7A:00']
-        steps += [f'poke:{0x840 + i:04X}:{b:02X}' for i, b in enumerate(packed)]
+        steps += a2test.pokes(0x840, packed)
         steps += ['until:0803:2000', 'peek:4B7A:1', 'until:0800:1000']
     r = a2test.run(disk, steps, emulator=a2test.A2SHOT, timeout=900)
     assert len(r.dumps) == len(cases)

@@ -22,14 +22,13 @@ SHOW = '-v' in sys.argv
 def inverse(mem, row):
     """The inverse columns of a row of the 80-column page (bytes below $80
     but MouseText, $40-$5F: ALTCHARSET is on, docs/MENUS.md 9)."""
-    o = (row % 8) * 128 + (row // 8) * 40
-    cells = [b for pair in zip(mem[1024 + o:1024 + o + 40], mem[o:o + 40]) for b in pair]
+    cells = a2test.text_rows(mem, cols=80)[row]
     return [c for c, b in enumerate(cells) if b < 0x80 and not 0x40 <= b < 0x60]
 
 
 def raw_cell(mem, row, col):
     """The screen code of a cell of the 80-column page."""
-    o = (row % 8) * 128 + (row // 8) * 40
+    o = a2test.text_offset(row)
     return (mem[1024 + o + col // 2] if col % 2 == 0 else mem[o + col // 2])
 
 

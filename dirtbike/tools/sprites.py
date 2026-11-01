@@ -80,8 +80,7 @@ def main():
     out.append('.segment "CODE"')
     text = '\n'.join(out) + '\n'
     path = Path(sys.argv[1])
-    if not path.exists() or path.read_text() != text:
-        path.write_text(text)
+    apple2img.write_if_changed(path, text)
 
 
 if __name__ == '__main__':

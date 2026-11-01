@@ -24,9 +24,9 @@ def durations():
     for first in range(0, len(cases), 64):
         batch = cases[first:first + 64]
         steps = [L.until('idle', 20000)]
-        steps += [f'poke:{entry+i:04X}:{b:02X}' for i, b in enumerate(code)]
+        steps += a2test.pokes(entry, code)
         for text, *_ in batch:
-            steps += [L.poke('inbuf', b, i) for i, b in enumerate(text.encode() + b'\0')]
+            steps += L.poke('inbuf', text.encode() + b'\0')
             steps += [L.poke('linelen', len(text)), L.poke('g2', 4),
                       L.poke('input_argument', 0), f'until:{entry+15:04X}:100',
                       'peek:9500:2', L.peek('msgnum', 2), L.peek('input_unit'),

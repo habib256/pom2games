@@ -2,7 +2,9 @@
 """Isolate original wind and energy branches on the ROM, using local assets."""
 import json, math, subprocess, sys
 from pathlib import Path
-HERE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+import a2test  # noqa: E402
+HERE = a2test.game_dir(Path(__file__).resolve().parents[1], __doc__)  # --game DIR
 sys.path.insert(0,str(HERE.parent/'dev/tools'))
 sys.path.insert(0,str(HERE/'tools'))
 import a2test
@@ -10,8 +12,7 @@ from gendata import fp as encode
 from re_surv_fp import fp
 
 
-def poke(addr,data):
-    return [f'poke:{addr+i:04X}:{b:02X}' for i,b in enumerate(data)]
+poke = a2test.pokes
 
 
 def main():
@@ -22,12 +23,9 @@ def main():
     module[0x27B]=0x60  # return after energy update; omit disk dispatch only
     (out/'module.bin').write_bytes(module)
     (out/'driver.bin').write_bytes(bytes.fromhex('20 E5 59 4C 00 08'))
-    (out/'hello.bas').write_text('10 PRINT CHR$(4);"BLOAD STATE"\n20 PRINT CHR$(4);"BLOAD MODULE"\n30 PRINT CHR$(4);"BRUN DRIVER"\n')
     disk=out/'probe.dsk'
-    subprocess.run([sys.executable,str(HERE.parent/'dev/tools/dos33.py'),'--out',str(disk),
-                    '--bas',f'HELLO={out/"hello.bas"}','--bin',f'STATE={out/"state.bin"}@0x4000',
-                    '--bin',f'MODULE={out/"module.bin"}@0x5800','--bin',f'DRIVER={out/"driver.bin"}@0x0800'],
-                   check=True,capture_output=True)
+    a2test.build_disk(out, 'DRIVER', out/"driver.bin", 0x0800, disk=disk,
+                      bload=[('STATE', out/"state.bin", 0x4000), ('MODULE', out/"module.bin", 0x5800)])
     steps=['until:0800:20000']
     cases=[]
     for air in (-50,-20,0,42,99,100,110):

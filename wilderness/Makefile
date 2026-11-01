@@ -232,7 +232,7 @@ extract: originals
 run-original: extract
 	$(A2SHOT) --disk build/SIERRA.woz wait:5400 shot:build/menu.png peek:0000:0xC000 2>/dev/null \
 	  | python3 -I $(DEV)/tools/re6502/peek2bin.py > build/menu.bin
-	python3 -I -c 'import sys; sys.path.insert(0, "tools"); import applesoft as A; \
+	python3 -I -c 'import sys; sys.path.insert(0, "$(DEV)/tools"); import applesoft as A; \
 	  m = open("build/menu.bin", "rb").read(); e = m[0x69] | m[0x6A] << 8; \
 	  print("\n".join(A.listing(m[0x800:e])))' > build/MENU.bas
 

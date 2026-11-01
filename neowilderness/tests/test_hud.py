@@ -29,8 +29,7 @@ def all_headings():
     # Redirect VIEW to the real HUD routine in this private emulator session.
     # This covers every azimuth without recomputing 560 terrain frames.
     code = bytes([0x4C, L['hud_draw'] & 255, L['hud_draw'] >> 8])
-    for i, b in enumerate(code):
-        steps += [L.poke('show_view_scene', b, i)]
+    steps += L.poke('show_view_scene', code)
     for heading in range(560):
         steps += [L.poke('heading', heading), L.poke('heading', heading>>8,1),
                   'key:V\\r', 'wait:1', L.until('idle',20000), *DHGR_BANKS]

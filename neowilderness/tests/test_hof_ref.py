@@ -15,10 +15,12 @@ import random, struct, subprocess, sys, tempfile, zlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(HERE.parent / 'dev/tools'))
 sys.path.insert(0, str(HERE / 'tools'))
 sys.path.insert(0, str(HERE / 'tests'))
 import score as R  # noqa: E402  (tools/score_ref.py)
-import po2woz  # noqa: E402
+import dsk2woz  # noqa: E402
+import po2woz  # noqa: E402  (dsk2woz with the layout the HOF tests boot)
 
 W, D, Q = R.ARRIVED, R.DIED, R.ABANDONED
 
@@ -185,7 +187,7 @@ def test_screens():
     assert R.hall_screen(None, 0x46).text()[22].startswith('HALL OF FAME UNREADABLE, ERROR $46.')
 
 
-READ_TABLE = {b: i for i, b in enumerate(po2woz.WRITE)}
+READ_TABLE = {b: i for i, b in enumerate(dsk2woz.GCR)}
 
 
 def decode62(nibbles):
@@ -221,6 +223,11 @@ def test_po2woz():
     rnd = random.Random(7)
     po = bytes(rnd.getrandbits(8) for _ in range(143360))
     woz = po2woz.po_to_woz(po, write_protected=True)
+    assert woz == dsk2woz.build(po, dsk2woz.PRODOS_ORDER, 254, verify=False, write_protected=True,
+                                **po2woz.LAYOUT), 'po2woz is dsk2woz'
+    assert woz[24] == 1 and woz[25:47] == b'neowilderness test_hof', 'INFO synchronized, creator'
+    plain = dsk2woz.build(po, dsk2woz.PRODOS_ORDER, 254, verify=False)
+    assert plain[22] == 0 and dsk2woz.build(po, dsk2woz.PRODOS_ORDER, 254, verify=False, write_protected=True)[22] == 1
     assert woz[:8] == b'WOZ2\xFF\x0A\x0D\x0A'
     assert struct.unpack('<I', woz[8:12])[0] == zlib.crc32(woz[12:])
     assert woz[12:16] == b'INFO' and woz[20] == 2 and woz[22] == 1, 'version 2, write-protected'
@@ -244,7 +251,7 @@ def test_po2woz():
                 found[sec] = decode62(nib[j:j + 343])
         assert len(found) == 16
         for ls in range(16):
-            assert found[po2woz.PO_TO_PHYS[ls]] == po[t * 4096 + ls * 256:t * 4096 + ls * 256 + 256]
+            assert found[dsk2woz.PRODOS_ORDER.index(ls)] == po[t * 4096 + ls * 256:t * 4096 + ls * 256 + 256]
 
 
 def main():

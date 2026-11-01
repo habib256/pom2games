@@ -262,17 +262,9 @@ def build_disk():
     m2 = journey.run(0x11, 0, 7)                                                  # $3000
     files = {'STATE': (state, 0x4000), 'PRISTINE': (pristine, 0x2000), 'DRIVER': (driver, 0x0800),
              'M1': (m1, 0x7000), 'M2': (m2, 0x3000)}
-    args = []
-    for name, (data, org) in files.items():
-        (OUT / f'{name.lower()}.bin').write_bytes(data)
-        args += ['--bin', f'{name}={OUT / (name.lower() + ".bin")}@{org:#x}']
-    hello = ''.join(f'{10 * (i + 1)} PRINT CHR$(4);"BLOAD {n}"\n'
-                    for i, n in enumerate(('STATE', 'PRISTINE', 'M1', 'M2')))
-    hello += '90 PRINT CHR$(4);"BRUN DRIVER"\n'
-    (OUT / 'hello.bas').write_text(hello)
-    disk = OUT / 'craft.dsk'
-    subprocess.run([sys.executable, str(HERE.parent / 'dev/tools/dos33.py'), '--out', str(disk),
-                    '--bas', f'HELLO={OUT / "hello.bas"}'] + args, check=True, capture_output=True)
+    driver, _ = files.pop('DRIVER')
+    disk = a2test.build_disk(OUT, 'DRIVER', driver, 0x0800, disk=OUT / 'craft.dsk',
+                             bload=[(name, data, org) for name, (data, org) in files.items()])
     return disk, game
 
 

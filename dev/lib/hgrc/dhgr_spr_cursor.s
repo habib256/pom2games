@@ -10,7 +10,6 @@
 ; ey0..ey1) are skipped. IRQs masked only around each banked access.
 ; A/X/Y, ptr1-ptr4, tmp1-tmp4 destroyed; non-reentrant, never from an IRQ.
 .include "apple2.inc"
-RAMWRTON = $C005
 .export _dhgr_cursor, dhgr_spr_pass
 .import cur_nbx, cur_ny, cur_nw, cur_nh, cur_bits, cur_under, cur_obx, cur_args, cur_take
 .import _dhgr_spr_ag0, _dhgr_spr_ag1, _dhgr_spr_ay0, _dhgr_spr_ay1

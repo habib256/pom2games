@@ -57,9 +57,9 @@ def selected(s):
     inverse lower case): the spaces after it are inverse, its label is read
     before them."""
     mem = s.step('peek:0400:1024').data
+    rows80 = a2test.text_rows(mem, cols=80)
     for row in range(20, 24):
-        o = (row % 8) * 128 + (row // 8) * 40
-        cells = bytes(b for pair in zip(mem[1024 + o:1024 + o + 40], mem[o:o + 40]) for b in pair)
+        cells = rows80[row]
         inverse = ''.join(chr(c + 0x40) if c < 0x20 else chr(c) if c < 0x40 else ' '
                           for c in cells[41:79])
         if inverse.strip():

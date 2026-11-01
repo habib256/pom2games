@@ -3,9 +3,8 @@
 import re
 import tempfile
 from pathlib import Path
-import struct
-import zlib
 from common import HERE, L, DISK, a2test, hgr_rows, text_screen
+import apple2img  # noqa: E402 (dev/tools, on the path from common)
 from test_thermal import call
 
 ACTUAL = a2test.labels(HERE / 'build/wild.lbl')
@@ -15,27 +14,10 @@ READY = L.until('keyboard_wait', 20000)
 
 def picture(session, path):
     session.step(f'shot:{path}')
-    # a2shot emits RGB PNGs with filter 0; inspect the visible HGR area
-    # without image-library dependencies or relying on RAM mode flags.
-    png = path.read_bytes()
-    pos = 8
-    compressed = bytearray()
-    width = height = 0
-    while pos < len(png):
-        size = struct.unpack_from('>I', png, pos)[0]
-        kind = png[pos + 4:pos + 8]
-        data = png[pos + 8:pos + 8 + size]
-        if kind == b'IHDR':
-            width, height = struct.unpack_from('>II', data)
-            assert data[8:] == bytes((8, 2, 0, 0, 0))
-        elif kind == b'IDAT':
-            compressed.extend(data)
-        pos += size + 12
-    assert (width, height) == (560, 384)
-    raw = zlib.decompress(compressed)
-    stride = width * 3 + 1
-    assert all(raw[y * stride] == 0 for y in range(height))
-    return b''.join(raw[y * stride + 1:(y + 1) * stride] for y in range(320))
+    # The visible HGR area of a2shot's RGB PNG, without relying on RAM mode flags.
+    width, height, channels, rows = apple2img.png_read(path, raw=True)
+    assert (width, height, channels) == (560, 384, 3)
+    return b''.join(rows[:320])
 
 
 def state(session):
@@ -105,7 +87,7 @@ def simulation_curtain():
         s.step(IDLE)
         # Plant an old full-screen menu above the live command/result rows.
         for row in range(20):
-            offset = (row % 8) * 128 + (row // 8) * 40
+            offset = a2test.text_offset(row)
             for col in range(40):
                 s.step(f'poke:{0x400+offset+col:04X}:D8')
         before = text_screen(s.step('peek:0400:1024').data)[20:]
@@ -140,7 +122,7 @@ def differential_pages():
                              for label in ('topo_store', 'topo_clear_store'))
                 changes = sum(before[offset + col] != after[offset + col]
                               for row in range(24)
-                              for offset in [(row % 8) * 128 + (row // 8) * 40]
+                              for offset in [a2test.text_offset(row)]
                               for col in range(40))
                 assert writes == changes, (command, key, writes, changes)
                 if before == after:

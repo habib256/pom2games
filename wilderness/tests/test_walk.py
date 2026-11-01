@@ -53,7 +53,7 @@ def main():
                 after_page = s.step('peek:0400:1024').data
                 changes = sum(before_page[o+c] != after_page[o+c]
                               for row in range(20)
-                              for o in [(row%8)*128+(row//8)*40]
+                              for o in [a2test.text_offset(row)]
                               for c in range(40))
                 assert writes == changes, (step, writes, changes, 'unchanged MAP characters were rewritten')
                 assert s.step('peek:0036:2').data == vector, 'MAP must restore the output vector'

@@ -99,7 +99,6 @@ DOS_ZP_LEN = 256
 .assert DOS_ZP_START + DOS_ZP_LEN <= 256, error, "DOS zero-page range exceeds $FF"
 
 DOS_HOOKS = $03EA               ; DOS: reconnect its I/O hooks to CSW / KSW
-DOS_IOB_SLOT = $B7E9            ; DOS's IOB (48 KB DOS 3.3): slot * 16
 
 .if .referenced(dos_cmd_new) .or .referenced(dos_cmd_add) .or .referenced(dos_cmd_hex) .or .referenced(dos_cmd_run) .or .referenced(dos_cmd_line)
 .if DOS_LOWBSS

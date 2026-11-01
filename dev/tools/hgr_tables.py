@@ -1,4 +1,4 @@
-"""Native Apple II HGR layout and lookup tables, independent of test tools."""
+"""Native Apple II HGR (and text page) layout and lookup tables, independent of test tools."""
 
 
 def hgr_offset(y):
@@ -6,6 +6,13 @@ def hgr_offset(y):
     if not 0 <= y < 192:
         raise ValueError('HGR scanline must be in 0..191')
     return (y % 8) * 1024 + (y // 8 % 8) * 128 + (y // 64) * 40
+
+
+def text_offset(row):
+    """Byte offset of text row (0..23) in a 1024-byte text/LORES page."""
+    if not 0 <= row < 24:
+        raise ValueError('text row must be in 0..23')
+    return (row % 8) * 128 + (row // 8) * 40
 
 
 def scanline_tables(page=0x2000):

@@ -991,8 +991,6 @@ CP_EXEMPT = 128                 ; no rope in Burma, New Guinea, Bolivia (3-5)
 CP_SEP   = 30                   ; the column of the separator
 CP_PANEL = 31                   ; the right half (a space, then the panel)
 CP_LAST  = 21                   ; last row of the halves
-ALTCHARON  = $C00F              ; MouseText ($40-$5F) on the page only
-ALTCHAROFF_ = $C00E
 G_OK   = 1                      ; glyphs in the strings (cp_gl): check mark,
 G_NO   = 2                      ; inverse X, diamond, up and down arrows
 G_DONE = 3
@@ -1318,7 +1316,7 @@ cp_key: jsr     wait_key
         lda     cp_go_lo,x
         pha
         XL_IMM  XI_CRAFT, <ALTCHARON, @x38    ; (XL: MouseText for the whole game)
-        sta     ALTCHAROFF_
+        sta     ALTCHAROFF
         rts
 @line:  jsr     cp_detail_key
         cmp     #KC_RET         ; a recipe: RETURN (or SPACE) makes it
@@ -1357,7 +1355,7 @@ cp_key: jsr     wait_key
         jmp     grid_fetch
 cp_view:
         XL_IMM  XI_CRAFT, <ALTCHARON, @x39
-        sta     ALTCHAROFF_
+        sta     ALTCHAROFF
         jmp     back_to_view_now
 
 ; cp_eval -- recipe cp_i: cp_need its checks (the rope dropped in regions

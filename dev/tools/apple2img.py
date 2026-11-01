@@ -11,8 +11,8 @@ PNG
       pixel repeat. level: zlib level (9 = smallest; -1 = zlib's default, what a
       bare zlib.compress() gives). Same bytes as the hand-written writers it
       replaced, given the same level.
-  png_read(path) -> (w, h, rows of RGBA tuples); load(path) -> (w, h, flat
-      RGBA list). PNG (non-interlaced, 8-bit gray/RGB/index/gray+alpha/RGBA,
+  png_read(path, raw=False) -> (w, h, rows of RGBA tuples); raw=True: (w, h,
+      channels, rows of sample bytes), fast; load(path) -> (w, h, flat RGBA list). PNG (non-interlaced, 8-bit gray/RGB/index/gray+alpha/RGBA,
       all five filters, tRNS) or PPM P3/P6 (max 255).
 HGR (8192-byte page, page-relative offsets from hgr_tables.hgr_offset)
   hgr_from_mono(px, hibits=None) -> bytearray(8192). px: rows (<= 192) of
@@ -99,27 +99,29 @@ def png_write(path, rows, scale=1, mode='rgb', palette=None, level=9):
                            + _chunk(b'IEND', b''))
 
 
-def load(path):
-    """PNG or PPM (P3/P6) -> (w, h, flat list of RGBA tuples)."""
-    data = Path(path).read_bytes()
-    if not data.startswith(b'\x89PNG\r\n\x1a\n'):
-        # P3/P6 with comments, maximum sample value 255.
-        tokens = list(re.finditer(rb'#[^\n]*|\S+', data))
-        tokens = [t for t in tokens if not t[0].startswith(b'#')]
-        if len(tokens) < 4 or tokens[0][0] not in (b'P3', b'P6'):
-            raise ValueError('expected PNG or PPM (P3/P6)')
-        w, h, maxval = (int(t[0]) for t in tokens[1:4])
-        if maxval != 255:
-            raise ValueError('PPM max value must be 255')
-        if tokens[0][0] == b'P3':
-            raw = bytes(int(t[0]) for t in tokens[4:])
-        else:
-            start = tokens[3].end()
-            start += 2 if data[start:start + 2] == b'\r\n' else 1
-            raw = data[start:]
-        if len(raw) != w * h * 3:
-            raise ValueError('invalid PPM sample count')
-        return w, h, [tuple(raw[i:i + 3]) + (255,) for i in range(0, len(raw), 3)]
+def _ppm(data):
+    """P3/P6 with comments, maximum sample value 255 -> (w, h, RGB bytes)."""
+    tokens = list(re.finditer(rb'#[^\n]*|\S+', data))
+    tokens = [t for t in tokens if not t[0].startswith(b'#')]
+    if len(tokens) < 4 or tokens[0][0] not in (b'P3', b'P6'):
+        raise ValueError('expected PNG or PPM (P3/P6)')
+    w, h, maxval = (int(t[0]) for t in tokens[1:4])
+    if maxval != 255:
+        raise ValueError('PPM max value must be 255')
+    if tokens[0][0] == b'P3':
+        raw = bytes(int(t[0]) for t in tokens[4:])
+    else:
+        start = tokens[3].end()
+        start += 2 if data[start:start + 2] == b'\r\n' else 1
+        raw = data[start:]
+    if len(raw) != w * h * 3:
+        raise ValueError('invalid PPM sample count')
+    return w, h, raw
+
+
+def _png(data):
+    """PNG bytes -> (w, h, colour type, bytes per pixel, unfiltered sample
+    rows, palette, tRNS body)."""
     pos = 8
     compressed = bytearray()
     palette = []
@@ -150,12 +152,16 @@ def load(path):
     if len(raw) != h * (stride + 1):
         raise ValueError('invalid PNG sample count')
     rows = []
-    previous = bytearray(stride)
+    previous = bytes(stride)
     for y in range(h):
         f = raw[y * (stride + 1)]
-        row = bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
         if f > 4:
             raise ValueError('invalid PNG filter')
+        if f == 0:                      # a2shot's and png_write's rows: no work
+            previous = raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)]
+            rows.append(previous)
+            continue
+        row = bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
         for i in range(stride):
             a = row[i - bpp] if i >= bpp else 0
             b = previous[i]
@@ -164,8 +170,19 @@ def load(path):
             pa, pb, pc = abs(estimate - a), abs(estimate - b), abs(estimate - c)
             predictor = (0, a, b, (a + b) // 2, a if pa <= pb and pa <= pc else b if pb <= pc else c)[f]
             row[i] = (row[i] + predictor) & 255
-        rows.extend(row)
-        previous = row
+        previous = bytes(row)
+        rows.append(previous)
+    return w, h, typ, bpp, rows, palette, alpha
+
+
+def load(path):
+    """PNG or PPM (P3/P6) -> (w, h, flat list of RGBA tuples)."""
+    data = Path(path).read_bytes()
+    if not data.startswith(b'\x89PNG\r\n\x1a\n'):
+        w, h, raw = _ppm(data)
+        return w, h, [tuple(raw[i:i + 3]) + (255,) for i in range(0, len(raw), 3)]
+    w, h, typ, bpp, rows, palette, alpha = _png(data)
+    rows = b''.join(rows)
     pixels = []
     for i in range(0, len(rows), bpp):
         px = rows[i:i + bpp]
@@ -183,8 +200,17 @@ def load(path):
     return w, h, pixels
 
 
-def png_read(path):
-    """PNG/PPM -> (w, h, rows of RGBA tuples)."""
+def png_read(path, raw=False):
+    """PNG/PPM -> (w, h, rows of RGBA tuples). raw=True: (w, h, channels,
+    rows of sample bytes as stored: 3 per pixel for RGB / PPM, 4 for RGBA, 1
+    gray or palette index, 2 gray + alpha), the fast way to compare frames."""
+    if raw:
+        data = Path(path).read_bytes()
+        if not data.startswith(b'\x89PNG\r\n\x1a\n'):
+            w, h, samples = _ppm(data)
+            return w, h, 3, [samples[y * w * 3:(y + 1) * w * 3] for y in range(h)]
+        w, h, _, bpp, rows, _, _ = _png(data)
+        return w, h, bpp, rows
     w, h, pixels = load(path)
     return w, h, [pixels[y * w:(y + 1) * w] for y in range(h)]
 

@@ -156,7 +156,7 @@ def tick_cycles():
         lab, binary = harness.build(tmp, text, [PIPE / 'src'])
         steps = a2test.bin_steps(binary, 0x6000, lab['init'])[:1] + [f'call:{lab["init"]:04X}:20']
         for name, (q, sgi, air, oc) in states.items():
-            steps += [lab.poke('vl_xf', v, k) for k, v in enumerate(q.soa_bytes())]
+            steps += lab.poke('vl_xf', q.soa_bytes())
             steps += [lab.poke('vl_sgi', sgi.get(i, 0xFF), i) for i in range(3)]
             steps += [lab.poke('hp_air', air), lab.poke('hp_oct', oc), lab.poke('in_pump', 1),
                       lab.poke('in_lean', 0), f'call:{lab["tick"]:04X}:5']

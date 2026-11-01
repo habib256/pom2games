@@ -59,7 +59,7 @@ def board_run(n, rng, L):
     disk = disk_with_save(save_bytes(chips, lab=b), f'fuzz{n}')
     steps = [BOOT] + title(1) + ['wait:60', idle(L)]
     for ins in inputs:
-        steps += [L.poke('_lab_inputs', v, k) for k, v in enumerate(ins)]
+        steps += L.poke('_lab_inputs', ins)
         steps += ['key:P', 'wait:20', idle(L), L.peek('_values', 72)]
     r = run(disk, steps)
     sim = Sim(compile_board(b, chips))

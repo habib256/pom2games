@@ -43,8 +43,8 @@ def fetch(s, index):
     entry = L['idle']
     code = (0xA9, index, 0x20, L['overlay_load'] & 255, L['overlay_load'] >> 8,
             0x4C, entry & 255, entry >> 8)
-    for i, b in enumerate(code):
-        s.step(f'poke:{entry + i:04X}:{b:02X}')
+    for step in a2test.pokes(entry, code):
+        s.step(step)
     s.step(L.poke('overlay_current', 0))
     s.step(f'until:{entry + 5:04X}:200')
     window = s.step('peek:5800:2048').data

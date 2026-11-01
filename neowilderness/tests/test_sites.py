@@ -375,14 +375,14 @@ def shelter_fixed(disk):
             s.step(f'poke:7025:{min(native, 1):02X}')
             s.step(L.poke('act', 1))
             s.step(L.poke('fauna_alert', 0))
-            for i, b in enumerate(probe):
-                s.step(f'poke:{I + i:04X}:{b:02X}')
+            for step in a2test.pokes(I, probe):
+                s.step(step)
             s.step(L.until('resource_next', 6000))
             got.append((s.step('peek:7010:5').data, s.step(L.peek('fauna_alert')).data[0],
                         s.step(L.peek('px', 4)).data, s.step(L.peek('heading', 2)).data))
             if native < 2:
-                for i, b in enumerate((0x4C, I & 255, I >> 8)):    # the next run stops at idle
-                    s.step(L.poke('resource_next', b, i))
+                for step in L.poke('resource_next', (0x4C, I & 255, I >> 8)):  # the next run stops at idle
+                    s.step(step)
     (cabin, alert, _, _), (moved, alert2, pos, head), (rock, _, pos2, head2) = got
     assert cabin == bytes((1, 7, 4, 140, 0)) and alert == 0, (cabin, alert)
     assert moved == bytes((1, pos[1], pos[3])) + head and alert2 == 1, (moved, pos, head, alert2)
@@ -432,8 +432,8 @@ def native_shelter():
             for (x, y, head), shelter in frames:
                 if shelter:
                     kind, cx, cy, bearing = shelter
-                    for i, b in enumerate((kind, cx, cy, bearing & 255, bearing >> 8)):
-                        s.step(f'poke:{0x7010+i:04X}:{b:02X}')
+                    for step in a2test.pokes(0x7010, (kind, cx, cy, bearing & 255, bearing >> 8)):
+                        s.step(step)
                     s.step('poke:7022:00')
                     s.step('poke:7023:00')
                 for name, value in (('px', x*256), ('py', y*256), ('heading', head)):

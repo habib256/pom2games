@@ -23,9 +23,9 @@ def main():
                           bytes.fromhex('20 E6 59 4C 00 08'))
         steps = ['until:0800:20000', 'poke:601F:1F']
         for addr, data in ((0x60B0, bytes.fromhex('02003C002F00')), (0x4C52, encode(1))):
-            steps += [f'poke:{addr+i:04X}:{b:02X}' for i, b in enumerate(data)]
+            steps += a2test.pokes(addr, data)
         for date in dates:
-            steps += [f'poke:{0x4C89+i:04X}:{b:02X}' for i, b in enumerate(encode(date))]
+            steps += a2test.pokes(0x4C89, encode(date))
             steps += ['until:0803:1000', 'peek:4C43:5', 'until:0800:1000']
         r = a2test.run(disk, steps, emulator=a2test.A2SHOT, timeout=900)
         native = [r.mem(0x4C43, 5, i) for i in range(len(dates))]

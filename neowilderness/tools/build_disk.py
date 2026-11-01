@@ -57,6 +57,8 @@ HERE = Path(__file__).resolve().parents[1]
 DEV = HERE.parent / 'dev'
 sys.path.insert(0, str(DEV / 'tools/prodos'))
 sys.path.insert(0, str(HERE / 'tools'))
+sys.path.append(str(DEV / 'tools'))
+import a2test                                   # noqa: E402
 from build_volume import Volume, prodos_date   # noqa: E402
 from pack_boot import compress, decompress     # noqa: E402
 from re_graphics import decode                  # noqa: E402
@@ -243,8 +245,7 @@ WINDOW_LIMIT = {0x0000: 0x2000, 0x5800: 0x0800, 0x9600: 0x2000, 0x2000: 0x2000, 
 
 
 def labels(build):
-    return {name: int(addr, 16) for addr, name in
-            re.findall(r'^al ([0-9A-Fa-f]+) \.(\w+)$', (build / 'wild.lbl').read_text(), re.M)}
+    return a2test.labels(build / 'wild.lbl')
 
 
 def place(images, free=None):

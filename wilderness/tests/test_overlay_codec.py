@@ -50,7 +50,7 @@ def main():
         entry=L['idle']
         address=L['overlay_load']
         code=bytes((0xA9,0,0x20,address&255,address>>8,0x4C,entry&255,entry>>8))
-        for i,b in enumerate(code):s.step(f'poke:{entry+i:04X}:{b:02X}')
+        for step in a2test.pokes(entry, code): s.step(step)
         for module,name in modules.items():
             base=0x2000 if module == 3 else 0x5800
             expected=(HERE/'build'/name).read_bytes()
@@ -65,7 +65,7 @@ def main():
             assert s.step('peek:0000:256').data==zp,(name,'ZP')
             actual=s.step('peek:0400:1024').data
             for row in range(24):
-                offset=(row%8)*128+(row//8)*40
+                offset=a2test.text_offset(row)
                 assert actual[offset:offset+40]==text[offset:offset+40],(name,'text')
             assert s.step(f'peek:{base+(8192 if base==0x2000 else 2048):04X}:16').data==guard,(name,'window overrun')
             s.step(L.until('idle',100))

@@ -17,7 +17,7 @@ def data(r,i):
 def main():
     steps=[]
     for h in ((0x82,0x20,0,0,0),(0x82,0x20,0,0,1)):
-        steps += [L.poke('s_health',b,j) for j,b in enumerate(h)]+cmd('CLIMB TREE')+snap()
+        steps += L.poke('s_health', h)+cmd('CLIMB TREE')+snap()
     for c in ('WALK','SWIM','LOOK N','CLIMB DOWN'): steps+=cmd(c)+snap()
     steps+=cmd('CLIMB TREE')+[L.poke('s_health',0)]+cmd('CLIMB TREE')+snap()
     r=run(steps);d=[data(r,i) for i in range(7)]

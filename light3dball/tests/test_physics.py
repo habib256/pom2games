@@ -14,8 +14,7 @@ def absolute(op, address):
     return [op, address & 255, address >> 8]
 
 
-def poke(address, values):
-    return [f'poke:{address+i:04X}:{value:02X}' for i, value in enumerate(values)]
+poke = a2test.pokes
 
 
 def word(value):

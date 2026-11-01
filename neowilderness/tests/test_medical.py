@@ -16,8 +16,7 @@ UNTREATED = [240,1008,1344,336,96,24,336,168,336,30000,120,336,1008,100,3]
 TREATED = [60,672,672,72,48,8,48,24,48,24,48,48,672,100,2]
 
 
-def byte_pokes(address, data):
-    return [f'poke:{address+i:04X}:{b:02X}' for i,b in enumerate(data)]
+byte_pokes = a2test.pokes
 
 
 def progression(original):

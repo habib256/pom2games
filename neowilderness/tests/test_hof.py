@@ -136,7 +136,7 @@ def build_po(out, cases, hof=b'', nonce=b'', volume='NEOHOF'):
 
 def screen(mem):
     """24 x 40 screen codes of text page 1 from a $0400 1 KB dump."""
-    return b''.join(mem[0x80 * (r & 7) + 40 * (r >> 3):][:40] for r in range(24))
+    return b''.join(a2test.text_rows(mem))
 
 
 def show(codes):

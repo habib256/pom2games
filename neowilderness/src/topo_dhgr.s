@@ -1259,7 +1259,6 @@ tp_marker_row:
 ; regions: 0.9 to 6 KB for 12,800 bytes). ALTZP selects the auxiliary card,
 ; and also the auxiliary zero page and stack (never used otherwise): hp is
 ; written after the switch, the copy loops address the page directly.
-TP_LC1      = $C08B             ; RAM bank 1, read and write (twice)
 TP_SNAP     = $D000
 TP_SNAP_END = $EC00
 TP_LINE_MAX = 60
@@ -1290,8 +1289,8 @@ tp_copy:
         php
         sei
         sta     ALTZPON
-        lda     TP_LC1
-        lda     TP_LC1
+        lda     LCBANK1
+        lda     LCBANK1
         lda     #<TP_SNAP
         sta     tp_sp
         lda     #>TP_SNAP

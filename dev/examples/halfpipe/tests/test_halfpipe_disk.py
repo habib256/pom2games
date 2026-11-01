@@ -68,7 +68,7 @@ def main():
     lab = a2test.labels(LBL)
     steps = [lab.until('main', 2000)] + [lab.until('render', 10), lab.until('main', 120)] * 3 + look(lab)  # 0
     steps += ['key:K', 'wait:20'] * 120 + [lab.until('render', 10), lab.until('main', 120)] + look(lab)  # 1
-    steps += [lab.poke('vl_xf', v, k) for k, v in enumerate(upside_down())]               # inverted
+    steps += lab.poke('vl_xf', upside_down())               # inverted
     steps += ['wait:120', lab.until('render', 10), lab.until('main', 120)] + look(lab)    # 2: crashed
     steps += ['key:R', 'wait:6', lab.until('render', 10), lab.until('main', 120)] + look(lab)  # 3: again
     r = a2test.run(str(DISK), steps)

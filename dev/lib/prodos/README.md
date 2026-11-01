@@ -51,6 +51,14 @@ a message, a key, QUIT. The game's `src/boot.s`:
 .include "sysboot.s"
 ```
 
+`SYSBOOT_NEED_128K = 1` before the include also refuses a 65C02 machine
+with less than 128 KB (ProDOS MACHID `$BF98 & $30` ≠ `$30`), with the same
+message, key and QUIT (+9 bytes; undefined: every `.SYSTEM` byte-identical).
+MB TRACKER, CHROMABREAK, ROBOT SPACE STATION and WARGALAGA II set it (WG2
+dropped its own check from its BOOT code: −40 bytes of WG2.SYS). The 64 KB
+path is tested by poking `$BF98` when the shim starts (`until:2001`: ProDOS's
+own loader runs at `$2000` first).
+
 ```make
 $(BUILD)/WG2.SYSTEM: src/boot.s $(PRODOS_SYSBOOT_DEPS)
 	$(CA65) -I $(PRODOS) -o $(BUILD)/boot.o src/boot.s

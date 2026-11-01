@@ -108,7 +108,7 @@ def check(work,page,colored):
     cases += [(255,0,96,0,1,color) for color in range(16)]
     steps=[L.until('ready')]
     for params in cases:
-        steps += [L.poke('params',v,i) for i,v in enumerate(params)]
+        steps += L.poke('params', params)
         steps += ['press: ',L.until('done'),'peek:2000:16384',L.until('ready')]
     result=a2test.run(None, a2test.bin_steps(fixture) + steps)
     assert len(result.dumps)==len(cases)

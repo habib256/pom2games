@@ -55,8 +55,6 @@
 DG_X0      = 6                  ; first colour pixel of the TMS picture
 DG_VRAM    = $1800              ; = the virtual addresses (DHGRBSS starts here)
 DG_SAT     = $1B00
-DG_RAMWRT_AUX  = $C005
-DG_RAMWRT_MAIN = $C004
 DG_LW      = 80                 ; stream bytes of a line
 DG_PD      = $400               ; page 1's state block = page 0's + DG_PD
 DG_UNKNOWN = $FE                ; dg_shown: never a dg_san value (redraw)
@@ -944,9 +942,9 @@ dg_write:
         LDY     dg_t
         PHP
         SEI
-        STA     DG_RAMWRT_AUX
+        STA     RAMWRTON
         JSR     dg_wc
-        STA     DG_RAMWRT_MAIN
+        STA     RAMWRTOFF
         PLP
         LDX     dg_bmin
         INX
@@ -1176,9 +1174,9 @@ skip:
 dg_black:
         PHP
         SEI
-        STA     DG_RAMWRT_AUX
+        STA     RAMWRTON
         JSR     dg_zero_pages
-        STA     DG_RAMWRT_MAIN
+        STA     RAMWRTOFF
         PLP
 dg_zero_pages:
         LDA     #0

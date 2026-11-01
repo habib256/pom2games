@@ -19,18 +19,9 @@ def probe_disk(out, module, driver, extras=()):
     (out / 'driver.bin').write_bytes(driver)
     for name, data, addr in extras:
         (out / f'{name}.bin').write_bytes(data)
-    lines = ['BLOAD STATE', 'BLOAD MODULE'] + [f'BLOAD {name}' for name, _, _ in extras] + ['BRUN DRIVER']
-    (out / 'hello.bas').write_text(''.join(f'{10*(i+1)} PRINT CHR$(4);"{line}"\n' for i, line in enumerate(lines)))
-    disk = out / 'probe.dsk'
-    subprocess.run([sys.executable, str(HERE.parent / 'dev/tools/dos33.py'),
-                    '--out', str(disk), '--bas', f'HELLO={out / "hello.bas"}',
-                    '--bin', f'STATE={out / "state.bin"}@0x4000',
-                    '--bin', f'MODULE={out / "module.bin"}@0x5800',
-                    '--bin', f'DRIVER={out / "driver.bin"}@0x0800',
-                    *[arg for name, _, addr in extras for arg in
-                      ('--bin', f'{name}={out / (name+".bin")}@{addr:#x}')]],
-                   check=True, capture_output=True)
-    return disk
+    return a2test.build_disk(out, 'DRIVER', out / 'driver.bin', 0x0800, disk=out / 'probe.dsk',
+                             bload=[('STATE', out / 'state.bin', 0x4000), ('MODULE', out / 'module.bin', 0x5800)]
+                             + [(name, out / f'{name}.bin', addr) for name, _, addr in extras])
 
 
 def native():
@@ -41,7 +32,7 @@ def native():
     for mean, span, rise, setting in CASES:
         for addr, data in ((0x1C, bytes([mean & 255, span])), (0x4C66, encode(rise)),
                            (0x4C6B, encode(setting))):
-            steps += [f'poke:{addr+i:04X}:{b:02X}' for i, b in enumerate(data)]
+            steps += a2test.pokes(addr, data)
         steps += ['until:0803:1000', 'peek:4CB1:30', 'peek:4BB6:8', 'until:0800:1000']
     r = a2test.run(disk, steps, emulator=a2test.A2SHOT, timeout=900)
     coefficients = [(r.mem(0x4CB1, 30, i), r.mem(0x4BB6, 8, i)) for i in range(len(CASES))]
@@ -51,9 +42,9 @@ def native():
     for mean_span, (slopes, offsets) in zip(CASES, coefficients):
         for addr, data in ((0x4CB1, slopes), (0x4BB6, offsets), (0x4C66, encode(mean_span[2])),
                            (0x4C61, encode(0)), (0x4CCF, encode(0))):
-            steps += [f'poke:{addr+i:04X}:{b:02X}' for i, b in enumerate(data)]
+            steps += a2test.pokes(addr, data)
         for hour in range(48):
-            steps += [f'poke:{0x4C57+i:04X}:{b:02X}' for i, b in enumerate(encode(hour/2))]
+            steps += a2test.pokes(0x4C57, encode(hour/2))
             steps += ['until:0803:1000', 'peek:4B9B:1', 'until:0800:1000']
     r = a2test.run(disk, steps, emulator=a2test.A2SHOT, timeout=900)
     temperatures = [r.mem(0x4B9B, 1, i)[0] for i in range(48*len(CASES))]
@@ -76,7 +67,7 @@ def main():
     for (mean, span, rise, _), values in zip(CASES, coefficients):
         steps += poke('s_rise', rise)
         steps += [L.poke('wc_min', mean-span//2), L.poke('wc_max', mean+span//2)]
-        steps += [L.poke('wc_dawn', b, i) for i, b in enumerate(values)]
+        steps += L.poke('wc_dawn', values)
         for hour in range(48):
             steps += poke('s_hour', hour/2) + [done, L.peek('airtemp'), idle]
     r = a2test.run(DISK, steps, emulator=a2test.A2SHOT, timeout=900)

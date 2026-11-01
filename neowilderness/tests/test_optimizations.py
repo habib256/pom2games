@@ -16,7 +16,7 @@ def division():
     for first in range(1, 129, 16):
         cases = [(n, r) for n in range(first, first + 16) for r in range(n)]
         steps = [L.until('idle', 20000)]
-        steps += [f'poke:{entry+i:04X}:{b:02X}' for i, b in enumerate(code)]
+        steps += a2test.pokes(entry, code)
         for n, r in cases:
             steps += [f'poke:{entry+1:04X}:{r:02X}', L.poke('divisor', n),
                       L.poke('qlo', 0xA7), f'until:{entry+18:04X}:100',
@@ -49,16 +49,16 @@ def loader_decode():
     cases = [rng.randbytes(300), bytes(600), bytes(range(256)) * 3 + b'xyz' * 40,
              seed + seed[:255], seed[:17] * 30]
     steps = [L.until('idle', 20000)]
-    steps += [f'poke:{0x9600+i:04X}:{b:02X}' for i, b in enumerate(loader)]
+    steps += a2test.pokes(0x9600, loader)
     expected = []
     for k, data in enumerate(cases):
         dest = (0x7100, 0x71FD)[k % 2]
         stream = compress(data)
-        steps += [f'poke:{0x2000+i:04X}:{b:02X}' for i, b in enumerate(stream)]
+        steps += a2test.pokes(0x2000, stream)
         steps += [L.poke('hdr', len(data), 3), L.poke('hdr', len(data) >> 8, 4)]
         code = bytes((0xA9, dest & 255, 0xA2, dest >> 8, 0x20, L['ld_decode'] & 255,
                       L['ld_decode'] >> 8, 0x4C, entry & 255, entry >> 8))
-        steps += [f'poke:{entry+i:04X}:{b:02X}' for i, b in enumerate(code)]
+        steps += a2test.pokes(entry, code)
         steps += [f'until:{entry+7:04X}:600', f'peek:{dest:04X}:{len(data)}',
                   L.until('idle', 100)]
         expected.append(data)

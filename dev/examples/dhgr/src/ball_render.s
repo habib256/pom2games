@@ -5,7 +5,12 @@
 .importzp ptr1, ptr2, ptr3, ptr4, tmp1, tmp2, tmp3, aux_read
 .import _dhgr_base, _ball_x, _ball_y, _old_x, _old_y, _frame_text
 .export _ball_restore, _ball_draw, _counter_digit
-RAMWRTON = $C005
+; Row offsets and the pixel -> byte column table: hgrc's own (dhgr_rows.s,
+; dhgr_cells.s), already linked for the library's primitives.
+.import dhgr_rowlo, dhgr_rowhi, _dhgr_cellbyte
+row_lo = dhgr_rowlo             ; scanline offset, low / high (OR the page)
+row_hi = dhgr_rowhi
+x_byte = _dhgr_cellbyte         ; color pixel 0..139 -> byte (4x)/7
 
 .segment "BSS"
 under: .res 180                 ; 2 pages * 3 balls * 30 bytes
@@ -16,18 +21,6 @@ rows: .res 1
 width: .res 1
 
 .segment "RODATA"
-row_lo:
-.repeat 192, I
-    .byte <((I & 7)*1024 + ((I >> 3) & 7)*128 + (I >> 6)*40)
-.endrepeat
-row_hi:
-.repeat 192, I
-    .byte >((I & 7)*1024 + ((I >> 3) & 7)*128 + (I >> 6)*40)
-.endrepeat
-x_byte:
-.repeat 140, I
-    .byte I*4/7
-.endrepeat
 x_bank:
 .repeat 140, I
     .byte ((I*4) .mod 7)*30

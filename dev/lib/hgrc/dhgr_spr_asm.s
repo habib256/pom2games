@@ -15,7 +15,6 @@
 ; byte is 0. A/X/Y, tmp1-tmp4, ptr1 destroyed; non-reentrant, never from an
 ; IRQ. DHGR_SPR_PACK_TABLES is accepted and has no effect (one table now).
 .include "apple2.inc"
-RAMWRTON = $C005
 .export _dhgr_spr_blit, _dhgr_spr_goff, _dhgr_spr_gend, dhgr_cv_patch
 .export spr_row, spr_ovhook
 .import _dhgr_cv_buf, _dhgr_cv_y0, _dhgr_cv_h, cv_seq

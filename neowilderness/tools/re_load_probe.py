@@ -35,8 +35,7 @@ OUT = HERE / 'build/re_load'
 LOADS = list(range(0, 1201, 16)) + [15, 772, 815, 816]
 
 
-def writes(addr, data):
-    return [f'poke:{addr + i:04X}:{v:02X}' for i, v in enumerate(data)]
+writes = a2test.pokes
 
 
 def word(m, a):
@@ -47,21 +46,13 @@ def isolated(body=165):
     """$4C84 for each load (ounces), the walk preparation of T08/S07."""
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / 'state.bin').write_bytes((HERE / 'build/game.bin').read_bytes()[0x4000:0x5000])
-    hello = OUT / 'hello.bas'
-    hello.write_text('10 PRINT CHR$(4);"BLOAD STATE"\n'
-                     '20 PRINT CHR$(4);"BLOAD MODULE"\n'
-                     '30 PRINT CHR$(4);"BRUN DRIVER"\n')
     data = bytearray((HERE / 'build/re_env/ch/t08s07.bin').read_bytes())
     data[0x5B96 - 0x5800] = 0x60            # $4C84 stored: back to the driver
     (OUT / 'module.bin').write_bytes(data)
     (OUT / 'driver.bin').write_bytes(bytes((0x20, 0x51, 0x5B, 0x4C, 0, 8)))
     disk = OUT / 'probe.dsk'
-    subprocess.run([sys.executable, str(HERE.parent / 'dev/tools/dos33.py'),
-                    '--out', str(disk), '--bas', f'HELLO={hello}',
-                    '--bin', f'STATE={OUT / "state.bin"}@0x4000',
-                    '--bin', f'MODULE={OUT / "module.bin"}@0x5800',
-                    '--bin', f'DRIVER={OUT / "driver.bin"}@0x0800'],
-                   check=True, capture_output=True)
+    a2test.build_disk(OUT, 'DRIVER', OUT / "driver.bin", 0x0800, disk=disk,
+                      bload=[('STATE', OUT / "state.bin", 0x4000), ('MODULE', OUT / "module.bin", 0x5800)])
     steps = ['until:0800:20000']
     for oz in LOADS:
         steps += writes(0x4BF6, body.to_bytes(2, 'little'))

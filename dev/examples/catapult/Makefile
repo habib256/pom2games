@@ -9,7 +9,7 @@ DEV ?= ../..
 include $(DEV)/cc65/apple2.mk
 
 DISK := $(BUILD)/CATAPULT.dsk
-SRCS := src/catapult.s src/phys.inc src/physdefs.inc src/plot.inc src/catconst.inc
+SRCS := src/catapult.s src/phys.inc src/physdefs.inc src/catconst.inc
 
 all: $(DISK)
 

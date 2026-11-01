@@ -10,8 +10,7 @@
 .export _pointer_draw, _pointer_restore
 .export _ptr_bx, _ptr_y, _ptr_h, _ptr_bits, _ptr_under
 
-RAMWRTOFF = $C004
-RAMWRTON  = $C005
+.include "apple2.inc"           ; RAMWRTOFF / RAMWRTON
 
 .segment "BSS"
 _ptr_bx:    .res 1

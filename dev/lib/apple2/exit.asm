@@ -44,11 +44,28 @@
 ; The snapshot goes to BSS unless the program defined apple2_zp_buf (256 bytes)
 ; before the include: $0200-$02FF is free while no DOS command is running.
 ; Caller responsibility: .include "apple2.inc" first.
+;
+; REBOOT (a DOS 3.3 program that cannot return to DOS: it took DOS's memory):
+;   apple2_reboot   (.ifref) SEI; with EXIT_REBOOT_IIE (a //e/c-only program)
+;                   LC ROM, RAMRD/RAMWRT main, 80COL and DHGR off; the quit
+;                   mark "QU" at EXIT_REBOOT_MARK (if defined: the disk's HELLO
+;                   checks it and ends at the prompt instead of BRUNning the
+;                   game again); LOWSCR, TXTSET; JMP $Cn00, the boot drive's
+;                   slot ROM. Slot n from DOS_IOB_SLOT ($B7E9, 0 -> 6), read
+;                   here unless APPLE2_REBOOT_INIT (apple2.inc, before the
+;                   include) latched it at start, while DOS was still there.
+;                   Never returns. Also fit for SOFTEV (APPLE2_SOFTEV
+;                   apple2_reboot): it needs no stack or zero page.
+;   EXIT_REBOOT_ONLY = 1: the file assembles only apple2_reboot (no ZP
+;                   snapshot, no BSS), in the segment current at the include
+;                   (an overlay, say). Otherwise it goes to CODE.
+;   Cost: 10 B + 10 B (mark) + 15 B (EXIT_REBOOT_IIE) + 18 B (slot read here).
 ; ============================================================================
 
 .ifndef _EXIT_ASM_LOADED_
 _EXIT_ASM_LOADED_ = 1
 
+.ifndef EXIT_REBOOT_ONLY
 .segment "BSS"
 .ifndef apple2_zp_buf           ; a program short of BSS may define these 256
 apple2_zp_buf:  .res 256        ; bytes itself, before the include (any RAM
@@ -118,7 +135,7 @@ exit_restore:
         ; opt-in: hgr.asm's copy (included before this file) instead of ours
         JSR     native_video
 .else
-        LDA     $FBB3
+        LDA     ROMID1
         CMP     #$06
         BNE     @native
         LDA     #0
@@ -152,5 +169,31 @@ exit_restore:
         BIT     LORES
         BIT     KBDSTRB
         RTS
+.endif  ; !EXIT_REBOOT_ONLY
+
+.ifref apple2_reboot
+apple2_reboot:
+        SEI
+.ifdef EXIT_REBOOT_IIE
+        BIT     LCROM           ; first: the mark must go to main RAM
+        STA     RAMRDOFF
+        STA     RAMWRTOFF
+        STA     COL80OFF
+        BIT     DHIRES_OFF
+.endif
+.ifdef EXIT_REBOOT_MARK
+        LDA     #'Q'
+        STA     EXIT_REBOOT_MARK
+        LDA     #'U'
+        STA     EXIT_REBOOT_MARK+1
+.endif
+        BIT     LOWSCR
+        BIT     TXTSET
+.ifnref apple2_reboot_jmp       ; not latched at start: DOS is still there
+        APPLE2_REBOOT_INIT
+.endif
+apple2_reboot_jmp:
+        JMP     $C600           ; slot patched (APPLE2_REBOOT_INIT)
+.endif
 
 .endif  ; _EXIT_ASM_LOADED_

@@ -48,16 +48,6 @@ RDLCRAM   = $C012
 RDRAMRD   = $C013
 RDRAMWRT  = $C014
 RDALTZP   = $C016
-RD80STORE = $C018
-RAMRDON   = $C003
-RAMWRTON  = $C005
-ALTZPOFF  = $C008
-ALTZPON   = $C009
-ALTCHAROFF = $C00E
-LCRAM2    = $C080               ; read language card RAM bank 2, write protect
-LCROM     = $C082               ; read ROM, write protect
-LCRAM1    = $C088
-LCBANK1   = $C08B               ; read and write RAM bank 1 (read twice)
 MLI       = $BF00
 PD_BITMAP = $BF58
 PD_DEVNUM = $BF30
@@ -366,7 +356,6 @@ LZ_ZP   = $50
 lz_in   = LZ_ZP                 ; input page pointer (Y: offset in it)
 lz_out  = LZ_ZP+2
 lz_from = LZ_ZP+4
-LCRAM2W = $C083                 ; read and write RAM bank 2 (read twice)
 .segment "TEXT"
 ; lz_guard / lz_unpack -- relays: C tells the decoder's entry which one (BIT
 ; leaves C alone); the ROM is back on return (mf_done then restores the
@@ -376,8 +365,8 @@ lz_guard:
         .byte   $24             ; BIT zp: skips the SEC
 lz_unpack:
         sec
-        bit     LCRAM2W
-        bit     LCRAM2W
+        bit     LCBANK2
+        bit     LCBANK2
         jsr     lzc_entry
         bit     LCROM
         rts
@@ -845,8 +834,8 @@ prodos_restore:
         sta     SOFTEV,x
         dex
         bpl     :-
-        bit     LCRAM2W         ; bank 2, read and write: the QUIT code back
-        bit     LCRAM2W
+        bit     LCBANK2         ; bank 2, read and write: the QUIT code back
+        bit     LCBANK2
         ldx     #0
 :       lda     EX_QUIT,x
         sta     $D100,x

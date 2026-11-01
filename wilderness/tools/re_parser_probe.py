@@ -7,6 +7,12 @@ to $4E78. Local analysis aid (needs build/SIERRA.woz and build/JOURNEY.dsk).
 Usage: re_parser_probe.py "CMD" ["CMD" ...]
 """
 import re, subprocess, sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+from hgr_tables import text_offset  # noqa: E402
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
+from hgr_tables import text_offset  # noqa: E402
 
 A2SHOT = '../dev/tools/a2shot/a2shot'
 BOOT = ['wait:5000', 'key:1\\r', 'wait:3000', 'insert:build/JOURNEY.dsk', 'key:\\r', 'wait:3000',
@@ -16,7 +22,7 @@ BOOT = ['wait:5000', 'key:1\\r', 'wait:3000', 'insert:build/JOURNEY.dsk', 'key:\
 def text_rows(blob):
     rows = []
     for r in (20, 21, 22, 23):
-        o = 0x400 + (r % 8) * 128 + (r // 8) * 40 - 0x650
+        o = 0x400 + text_offset(r) - 0x650
         rows.append(bytes(c & 0x7F for c in blob[o:o + 40]).decode('latin1').rstrip())
     return ' | '.join(x for x in rows if x)
 
