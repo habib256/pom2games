@@ -59,7 +59,7 @@ floor; put it back and it hangs again.
   (a point carried past 255 or below 0 included): the ground probe then
   never reads outside the 256-byte height map.
 * **Drawing only what changes.** The floor is drawn once on both pages.
-  [`src/plot.inc`](src/plot.inc) plots lines that remember the bits they
+  [`lib/hgr/hgr_plot_hist.asm`](../../lib/hgr/hgr_plot_hist.asm) plots lines that remember the bits they
   lit (only the dark ones, with their addresses) in a history per page;
   each frame erases the hidden page's history with EOR — the floor under
   the rope comes back as it was, nothing is redrawn — then draws the rope,
@@ -94,8 +94,8 @@ calls at ~1,130 cycles with a pinned or heavy end), ~2,700 of integration,
 * Faster: one link pass and a stiffer gain (`FIXED_K`), or fewer points;
   draw the rope as points rather than lines.
 
-Files: `src/rope.s` (the toy: input, drawing, text lines), `src/plot.inc`
-(lines with an erase history), `src/phys.inc` / `src/physdefs.inc` (the
+Files: `src/rope.s` (the toy: input, drawing, text lines),
+`dev/lib/hgr/hgr_plot_hist.asm` (lines with an erase history), `src/phys.inc` / `src/physdefs.inc` (the
 physics), `src/ropeconst.inc` (generated), `tests/test_rope_disk.py` (the
 disk: boot, the pin moved, the floor, a cut, R, frames per second; the
 text on screen read back from the glyph bytes).

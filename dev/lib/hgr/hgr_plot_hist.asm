@@ -1,21 +1,39 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; ============================================================================
-; plot.inc -- monochrome HGR lines that remember what they lit
+; hgr_plot_hist.asm -- monochrome HGR lines that remember what they lit
 ; ============================================================================
 ; Moving thin shapes over a fixed backdrop (the floor, a hill): each pixel
 ; plotted sets only bits that were dark and records (address, those bits)
 ; in the page's history; pl_erase gives them back (EOR), so the backdrop
 ; under a shape is left exactly as it was and nothing is redrawn. Up to 255
-; pixels a page.
+; pixels a page, two pages (double buffering: draw the hidden one).
 ;
 ;   pl_page      A = 0 / 1: the page drawn (history pointers, address offset)
 ;   pl_erase     clear what the page's history lit, empty it (~40 c a pixel)
 ;   pl_line      pl_x0, pl_y0 -> pl_x1, pl_y1 (x 0..255, y 0..191)
 ;   pl_plot      pl_x, pl_y (~75 c a pixel)
+;   pl_n         (BSS, 2 B) pixels recorded per page: zero both at start
 ;
 ; Needs hgr_lo / hgr_hi (page 1, hgr_scanline.inc) and hgr_div7 / hgr_mod7
-; (hgr_div7_ram.asm). PL_HIST = a page-aligned 1.5 KB (6 pages of 256 B).
+; (hgr_div7_ram.asm, or any 256 B tables of the same names).
+; PL_HIST = a page-aligned 1.5 KB (6 pages of 256 B), defined by the caller.
+; Zero page: 19 B (pl_x0 .. pl_cur), reserved at the first include; BSS 2 B
+; (pl_n); RODATA 7 B (pl_bits, with pl_plot). Code 278 B for all four
+; (pl_page 35, pl_erase 38, pl_plot 70, pl_line 135).
+; Clobbers A, X, Y; not reentrant (no IRQ use).
+;
+; Placement: the zero page is reserved where the file is first included, so
+; include it BEFORE the callers (zero-page addressing). The routines are
+; .ifref: assembled at the first include where they are referenced and not
+; yet defined (pl_plot also when pl_line is). Two ways:
+;   - HGR_PLOT_HIST_ALL = 1 before a single early include: all four routines
+;     there (dev/examples/catapult, dev/examples/rope);
+;   - include it early (zero page), then a second time after the last
+;     caller: only the referenced routines are assembled there.
 ; ============================================================================
+
+.ifndef _HGR_PLOT_HIST_LOADED_
+_HGR_PLOT_HIST_LOADED_ = 1
 
 .segment "ZEROPAGE"
 pl_x0:  .res 1
@@ -39,8 +57,11 @@ pl_cur: .res 1                          ; the page (0 / 1)
 .segment "BSS"
 pl_n:   .res 2                          ; pixels recorded, per page
 
+.endif  ; _HGR_PLOT_HIST_LOADED_
+
 .segment "CODE"
 
+.if (.referenced(pl_page) .or .defined(HGR_PLOT_HIST_ALL)) .and (.not .defined(pl_page))
 pl_page:
         STA     pl_cur
         TAX
@@ -62,7 +83,9 @@ pl_page:
         ADC     #1
         STA     pl_hb+1
         RTS
+.endif
 
+.if (.referenced(pl_erase) .or .defined(HGR_PLOT_HIST_ALL)) .and (.not .defined(pl_erase))
 pl_erase:
         LDX     pl_cur
         LDA     pl_n,X
@@ -83,7 +106,9 @@ pl_erase:
         CPY     pl_cnt
         BNE     @p
 @rts:   RTS
+.endif
 
+.if (.referenced(pl_plot) .or .referenced(pl_line) .or .defined(HGR_PLOT_HIST_ALL)) .and (.not .defined(pl_plot))
 ; one pixel at pl_x, pl_y: light the dark bits of its mask, record them
 pl_plot:
         LDX     pl_cur
@@ -119,7 +144,9 @@ pl_plot:
         STA     (pl_hb),Y
         INC     pl_n,X
 @rts:   RTS
+.endif
 
+.if (.referenced(pl_line) .or .defined(HGR_PLOT_HIST_ALL)) .and (.not .defined(pl_line))
 ; a line, Bresenham on the dominant axis (both ends drawn)
 pl_line:
         LDA     pl_x0
@@ -189,7 +216,10 @@ pl_line:
 @ys:    STA     pl_err
         JMP     @yl
 @rts:   RTS
+.endif
 
+.if .referenced(pl_bits) .and (.not .defined(pl_bits))   ; with pl_plot
 .segment "RODATA"
 pl_bits: .byte $01, $02, $04, $08, $10, $20, $40
 .segment "CODE"
+.endif

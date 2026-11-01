@@ -503,36 +503,6 @@ build_paddle_map:
         bne @value
         rts
 
-; Text is white x1. Keep full-screen HGR active during every transition.
-clear_pages:
-        lda #0
-        tax
-        sta ptr
-        lda #$20
-        sta ptr+1
-        ldy #0
-        lda #0
-@clear: sta (ptr),y
-        iny
-        bne @clear
-        inc ptr+1
-        ldx ptr+1
-        cpx #$60
-        bcc @clear
-        sta page
-        sta ht_page
-        sta page_index
-        sta old_valid
-        sta old_valid+1
-        sta hud_active
-        sta hud_static
-        sta hud_static+1
-        ldx #0
-@cache: sta hud_chars,x
-        inx
-        cpx #160
-        bcc @cache
-        rts
 show_graphics:
         jsr hgr_init
         rts
@@ -1961,6 +1931,28 @@ hud_end:
 .include "music.inc"
 .include "sound.asm"              ; here, not after joy.asm: tone loops must not cross a page (ld65 asserts)
 .include "hgr.asm"
+; Text is white x1. Keep full-screen HGR active during every transition.
+; Both pages black ($2000-$5FFF) with HGR_CLEAR_LOOP over 8 groups (~92,000
+; cycles against ~182,000 for the (ptr),Y byte loop): here, after the
+; include of hgr.asm that defines the macro. Leaves A = 0, Y = 0.
+clear_pages:
+        lda #0
+        ldx #>HGR1
+        HGR_CLEAR_LOOP 8
+        sta page
+        sta ht_page
+        sta page_index
+        sta old_valid
+        sta old_valid+1
+        sta hud_active
+        sta hud_static
+        sta hud_static+1
+        ldx #0
+@cache: sta hud_chars,x
+        inx
+        cpx #160
+        bcc @cache
+        rts
 .include "kbd.asm"
 .include "joy.asm"
 APPLE2_EXIT_HOOK = mouse_shutdown

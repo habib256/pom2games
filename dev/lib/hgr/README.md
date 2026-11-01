@@ -38,6 +38,7 @@ walls, crates and other graphic elements keep their colours.
 | `hgr_pages.inc` / `hgr_pages.asm` | drawing page chosen by patching operands: `HGR_HI_SITE` before each read of `hgr_hi`, `hgr_select_page` (A = 0 / ≠ 0) rewrites them to `hgr_hi` or `hgr_hi2` (~8 cycles per site, nothing per access); `hgr_pages_init` builds `hgr_hi2`. `HGR_PAGES_ORA` variant (no `hgr_hi2`): `HGR_LDA_HI_X` reads page-less offsets then a patched `ORA #page` (+2 cycles per read, ~4 per site). A site acts like a label (ends `@` scope); `hgr_wireframe.asm` and `hgr_span.asm` mark their reads too | dirtbike, light3dball |
 | `hgr_span.asm` | `hgr_hspan` / `hgr_vspan`: spans by columns and byte masks, full HGR width | maze3d, light3dball (via `hgr_wireframe.asm`) |
 | `hgr_wireframe.asm` | X-clipped outlines, per-page history and fast black erasure of old strokes | light3dball |
+| `hgr_plot_hist.asm` | `pl_page` / `pl_erase` / `pl_line` / `pl_plot`: monochrome lines and points over a fixed backdrop, each lit bit recorded in a per-page history (255 pixels a page) and given back by `pl_erase` (EOR: the backdrop comes back as it was); see below | dev/examples/catapult, dev/examples/rope |
 | `hgr_clear_rows.asm` | clearing of visible lines, screen, HUD and 160-line viewport | maze3d |
 | `rev7.inc` | `rev7_tab`: TMS → HGR bit order | hgr_text8, hgr_sprite16 |
 | `sprites/chess_cc65_pieces.asm` | chess pieces from cc65-Chess (F. Gebhart, O. Schmidt) | chess |
@@ -165,6 +166,39 @@ pages, with its default scratch, histories crossing a page
 boundary, edges, empty windows and degenerate rectangles. Every
 framebuffer byte is compared with a reference after drawing and erasing.
 This test is also part of `make test-hgr`.
+
+## Lines with an erase history
+
+`hgr_plot_hist.asm` draws thin moving shapes (a rope, a catapult arm,
+balls) over a backdrop drawn once (a floor, a hill) on two pages. Each
+plotted pixel sets only the bits of its mask that were dark and records
+(address low, address high, those bits) in the page's history;
+`pl_erase` EORs them back, so the backdrop under a shape is left exactly
+as it was and nothing is redrawn. Monochrome (bits 0-6, palette bit
+untouched), up to 255 pixels a page: past that, `pl_plot` draws nothing.
+
+- `pl_page` (A = 0 / 1): the page drawn from now on (history pointers,
+  `hgr_hi` EOR `$60` for page 2).
+- `pl_erase`: gives back what the current page's history lit, empties it
+  (~40 cycles a pixel).
+- `pl_line`: `pl_x0, pl_y0` → `pl_x1, pl_y1` (x 0..255, y 0..191, both
+  ends drawn, Bresenham on the dominant axis, self-modified steps).
+- `pl_plot`: `pl_x, pl_y` (~75 cycles a pixel).
+
+Needs: `hgr_lo` / `hgr_hi` (page 1, `hgr_scanline.inc`), `hgr_div7` /
+`hgr_mod7` (`hgr_div7_ram.asm`, or 256-byte tables of those names), and
+`PL_HIST`: a page-aligned 1.5 KB (6 pages) set by the program. Zero page:
+19 B (`pl_x0`..`pl_cur`), BSS 2 B (`pl_n`, pixels per page: zero both
+before the first draw), RODATA 7 B (`pl_bits`). Code 278 B for the four
+routines (35 + 38 + 70 + 135). Clobbers A/X/Y, not reentrant.
+
+Placement: the zero page is reserved at the first include, so include the
+file before its callers. The routines are `.ifref` (assembled at the first
+include where they are referenced and not yet defined; `pl_plot` also with
+`pl_line`): either `HGR_PLOT_HIST_ALL = 1` before one early include (all
+four routines there: catapult and rope, byte-identical to their former
+`src/plot.inc`), or include it early for the zero page and again after the
+last caller, which assembles only the routines referenced.
 
 ## Native kernels used by LOGO
 

@@ -9,7 +9,7 @@ DEV ?= ../..
 include $(DEV)/cc65/apple2.mk
 
 DISK := $(BUILD)/ROPE.dsk
-SRCS := src/rope.s src/phys.inc src/physdefs.inc src/plot.inc src/ropeconst.inc
+SRCS := src/rope.s src/phys.inc src/physdefs.inc src/ropeconst.inc
 
 all: $(DISK)
 

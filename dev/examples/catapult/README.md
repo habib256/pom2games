@@ -72,8 +72,9 @@ contact.
   speed of ~2g and would never sleep under it.
 * **Drawing only what changes.** The hill, the boxes and the post are
   drawn once on both pages; the arm, the balls (20-point rings) and the
-  aim mark are plotted with `src/plot.inc` (a copy of the rope's: lines
-  and points that remember the bits they lit) and erased by EOR two frames
+  aim mark are plotted with
+  [`lib/hgr/hgr_plot_hist.asm`](../../lib/hgr/hgr_plot_hist.asm) (shared
+  with the rope: lines and points that remember the bits they lit) and erased by EOR two frames
   later, the scenery under them intact. The counters and the message are
   rewritten only when they change, per page.
 
@@ -110,7 +111,8 @@ contacts in one tick. The drawing, not the physics, sets the frame rate.
   (a history per object, redrawn only when it moved or a neighbour did).
 
 Files: `src/catapult.s` (the game: input, events, drawing, counters),
-`src/plot.inc` (lines and points with an erase history), `src/phys.inc` /
+`dev/lib/hgr/hgr_plot_hist.asm` (lines and points with an erase history),
+`src/phys.inc` /
 `src/physdefs.inc` (the physics), `src/catconst.inc` (generated),
 `tests/test_catapult_disk.py` (the disk: boot, the counters, power and
 angle keys, a shot that knocks down what the model's does, a round to its

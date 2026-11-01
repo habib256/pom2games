@@ -8,9 +8,9 @@
 ;
 ; Screen: rows 0-7 the keys, 8-15 the mode, 16-191 the view (the world is
 ; the screen: y 8.8 rows). The floor is drawn once on both pages; each
-; frame draws the hidden page: what plot.inc lit two frames ago there goes
-; out (the floor under it comes back as it was), the rope, the pin and the
-; weight go in, and the page is shown.
+; frame draws the hidden page: what hgr_plot_hist.asm lit two frames ago
+; there goes out (the floor under it comes back as it was), the rope, the pin
+; and the weight go in, and the page is shown.
 ; Keys: J / <- and L / -> move the pin (a press moves it MV_HOLD ticks: the
 ; II+ keyboard has no key-up, its repeat keeps it going), M swing / floor,
 ; space cuts the weight off or puts it back, R resets, ESC quits. A
@@ -19,7 +19,7 @@
 
 .include "apple2.inc"
 MUL_TABLES = $1000                      ; LOWBSS: 2 KB, page aligned
-PL_HIST    = $1800                      ; plot.inc's histories: 1.5 KB
+PL_HIST    = $1800                      ; hgr_plot_hist.asm's histories: 1.5 KB
 MUL_ACC    = 1
 .include "math.inc"
 .include "ropeconst.inc"
@@ -49,7 +49,8 @@ btn_was:  .res 1
         JMP     start
 .include "hgr_text8.asm"                ; (its zero page before the callers)
 .include "hgr_line.asm"
-.include "plot.inc"
+HGR_PLOT_HIST_ALL = 1                   ; its four routines here, its ZP early
+.include "hgr_plot_hist.asm"            ; lib/hgr: lines with an erase history
 .include "phys.inc"
 
 start:  APPLE2_PREAMBLE
@@ -224,20 +225,8 @@ input:  JSR     poll_key
         STA     in_cut
 @rts:   RTS
 
-; both HGR pages black: 64 unrolled stores, ~84,000 cycles (5 a byte)
-clear_pages:
-        LDA     #0
-        TAY
-:
-.repeat 64, I
-        STA     $2000 + I * $100,Y
-.endrepeat
-        INY
-        BEQ     :+
-        JMP     :-
-:       RTS
 
-; A = 0 / 1: the page for hgr_line8 (sites), hgr_text8 (ht_page), plot.inc
+; A = 0 / 1: the page for hgr_line8 (sites), hgr_text8 (ht_page), pl_page
 set_page:
         PHA
         JSR     pl_page
@@ -372,6 +361,14 @@ msg_hi:     .byte >m_swing, >m_swcut, >m_floor, >m_flcut
 .include "kbd.asm"
 .include "joy.asm"
 .include "hgr.asm"
+
+; both HGR pages black ($2000-$5FFF): the HGR_CLEAR_LOOP macro over 8 groups,
+; ~92,000 cycles, 79 bytes (after the include that defines the macro)
+clear_pages:
+        LDA     #0
+        LDX     #>HGR1
+        HGR_CLEAR_LOOP 8
+        RTS
 .include "exit.asm"
 .include "hgr_div7_ram.asm"
 .segment "RODATA"

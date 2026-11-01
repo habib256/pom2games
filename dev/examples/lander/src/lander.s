@@ -434,18 +434,6 @@ new_screen:
         BPL     @page
         RTS
 
-; both HGR pages black: 64 unrolled stores, ~84,000 cycles (5 a byte)
-clear_pages:
-        LDA     #0
-        TAY
-:
-.repeat 64, I
-        STA     $2000 + I * $100,Y
-.endrepeat
-        INY
-        BEQ     :+
-        JMP     :-
-:       RTS
 
 ; ---------------------------------------------------------------------------
 ; render -- the hidden page: the old lander out, the new one in, the HUD
@@ -994,6 +982,14 @@ msg_hi:     .byte >m_help, >m_pad_a, >m_pad_b, >m_pad_c, >m_crash, >m_fuel
 .include "kbd.asm"
 .include "joy.asm"
 .include "hgr.asm"
+
+; both HGR pages black ($2000-$5FFF): the HGR_CLEAR_LOOP macro over 8 groups,
+; ~92,000 cycles, 79 bytes (after the include that defines the macro)
+clear_pages:
+        LDA     #0
+        LDX     #>HGR1
+        HGR_CLEAR_LOOP 8
+        RTS
 .include "exit.asm"
 .include "hgr_div7_ram.asm"
 .segment "RODATA"

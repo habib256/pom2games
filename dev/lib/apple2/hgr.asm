@@ -15,6 +15,8 @@
 ;   HGR_CLEAR_LOOP (macro): fill 8 KB from page X (high byte) with A, no
 ;   zero page -- the loop behind hgr_init_clear, lib/hgr clear_hgr and the
 ;   C hgr_clear. Eight absolute stores per turn, ~5.7 cycles per byte.
+;   HGR_CLEAR_LOOP 8: the same loop over 8 groups (16 KB, both HGR pages
+;   $2000-$5FFF when X = $20); no argument = 4 groups, byte-identical.
 ;   JSR hgr_page1        display page 1 ($2000)
 ;   JSR hgr_page2        display page 2 ($4000)
 ;   JSR text_restore     TEXT + full screen + PAGE1 (then e.g. JMP apple2_exit)
@@ -31,13 +33,20 @@
 .ifndef _HGR_ASM_LOADED_
 _HGR_ASM_LOADED_ = 1
 
-; HGR_CLEAR_LOOP: fill 32 pages from page X (high byte, e.g. $20) with the
-; byte in A. Self-modifying: the eight STA operands are patched per group of
-; eight pages, so no zero page is needed. Clobbers X, Y; A is kept.
-; 4 groups x 256 turns x (8 x 5 + 5) cycles = ~46 000 cycles per 8 KB.
-.macro HGR_CLEAR_LOOP
-        .local @grp, @lp, @s0, @s1, @s2, @s3, @s4, @s5, @s6, @s7, @cnt
-        LDY     #4
+; HGR_CLEAR_LOOP [groups]: fill groups x 8 pages (default 4 = 32 pages) from
+; page X (high byte, e.g. $20) with the byte in A. Self-modifying: the eight
+; STA operands are patched per group of eight pages, so no zero page is
+; needed. Clobbers X, Y; A is kept. groups = 1..255 (a constant).
+; 4 groups x 256 turns x (8 x 5 + 5) cycles = ~46 000 cycles per 8 KB;
+; HGR_CLEAR_LOOP 8 (both pages, $2000-$5FFF) ~92 000 cycles, 74 bytes.
+.macro HGR_CLEAR_LOOP groups
+        .local @grp, @lp, @s0, @s1, @s2, @s3, @s4, @s5, @s6, @s7, @cnt, @n
+.ifblank groups
+        @n = 4                  ; groups of 8 pages (4 = 8 KB, one HGR page)
+.else
+        @n = groups             ; e.g. 8: both HGR pages from X = $20
+.endif
+        LDY     #@n
         STY     @cnt+1
 @grp:   STX     @s0+2
         INX
@@ -67,7 +76,7 @@ _HGR_ASM_LOADED_ = 1
 @s7:    STA     $2700,Y
         INY
         BNE     @lp
-@cnt:   LDY     #4
+@cnt:   LDY     #@n
         DEY
         STY     @cnt+1
         BNE     @grp
