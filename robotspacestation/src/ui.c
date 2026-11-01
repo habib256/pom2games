@@ -6,6 +6,7 @@
 #include "ui.h"
 #include "zone.h"
 #include "apple2game.h"
+#include "apple2vblgate.h"
 
 unsigned char screen, running;
 unsigned char cur_drone;
@@ -21,7 +22,7 @@ static unsigned char shown, mouse_lx, mouse_ly, button_old, act_on, act_bx, act_
  * above or below the room (if any) are drawn by src/pointer.s. */
 static unsigned char ov_mode, ptr_h_shown;
 static unsigned char latched, latch_x, latch_y;
-static unsigned char vbl_gate, vbl_armed, vbl_seen;   /* //e: one mouse read a frame */
+static unsigned char vbl_gate;   /* //e: one mouse read a frame (apple2vblgate.s) */
 static unsigned char act_bg[4u * ACT_H];
 
 /* The pointer: a white arrow ORed into the 4 bytes x 6 rows under it,
@@ -122,14 +123,9 @@ void ui_latch(void)
 {
     static unsigned char b;
     if (!mouse_slot || latched) return;
-    if (vbl_gate) {
-        /* $C019 bit 7 is clear during the vertical blank: read again only
-         * after the beam left the blank, then entered the next one. */
-        if (*(volatile unsigned char *)0xC019 & 0x80u) vbl_armed = 1u;
-        else if (vbl_armed) vbl_seen = 1u;
-        if (!vbl_seen) return;
-        vbl_seen = vbl_armed = 0u;
-    }
+    /* Read again only after the beam left the blank, then entered the
+     * next one. */
+    if (vbl_gate && !a2_vbl_gate()) return;
     mouse_poll();
     b = mouse_buttons & 0x80u;
     if (b && !button_old) {
@@ -174,7 +170,7 @@ void ui_poll(void)
         ny = mouse_ly = latch_y;
     } else if (mouse_slot) {
         mouse_poll();
-        vbl_seen = vbl_armed = 0u;
+        a2_vbl_armed = 0u;
         if (mouse_x != mouse_lx || mouse_y != mouse_ly) {
             nx = mouse_lx = mouse_x;
             ny = mouse_ly = mouse_y;

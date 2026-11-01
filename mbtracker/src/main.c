@@ -14,6 +14,7 @@
 #include <string.h>
 #include "prodos.h"
 #include "mouse.h"
+#include "apple2vblgate.h"
 #include "mbt.h"
 #include "ui.h"
 
@@ -57,13 +58,13 @@ unsigned char u_kind, u_pat, u_v, u_r, u_cell[3];
 void puts_at(unsigned char x, unsigned char y, const char *s)
 {
     AT(x, y);
-    txt_puts(s);
+    t80_puts(s);
 }
 
 void __fastcall__ clear_line(unsigned char y)
 {
     AT(0, y);
-    txt_fill(' ', 80);
+    t80_fill(' ', 80);
 }
 
 void hex2(char *d, unsigned char b)
@@ -161,7 +162,7 @@ void layout(void)
         ins_x = 65;
         ins_w = 15;
         fx_x = fx_x6;
-        txt_sw = 25;
+        t80_sw = 25;
     } else {
         gx = 4;
         cw = 12;
@@ -171,7 +172,7 @@ void layout(void)
         ins_x = 55;
         ins_w = 24;
         fx_x = fx_x3;
-        txt_sw = 19;
+        t80_sw = 19;
     }
 }
 
@@ -241,11 +242,11 @@ static void draw_row(unsigned char r)
             line[x + cs] = '|';
         }
     }
-    txt_mode = 0;
+    t80_mode = 0;
     puts_at(0, y, line);
     if (r >= s_rows)
         return;
-    txt_mode = 1;
+    t80_mode = 1;
     sel_calc();
     if (sel_on && r >= sr0 && r <= sr1)
         for (v = sv0; v <= sv1; ++v)
@@ -253,11 +254,11 @@ static void draw_row(unsigned char r)
     if (r == cur_row) {
         seg(0, y, 2);
         if (focus == 0) {
-            txt_mode = !sel_on;
+            t80_mode = !sel_on;
             seg(gx + cw * cur_v + fx_x[cur_f], y, fx_w[cur_f]);
         }
     }
-    txt_mode = 0;
+    t80_mode = 0;
 }
 
 static void draw_grid(void)
@@ -281,7 +282,7 @@ static void view(void)
         return;
     if (vtop == t + 1 || vtop + 1 == t) {      /* one row: the screen scrolls */
         AT(GRID_H, GRID_Y);
-        txt_scroll(vtop < t);
+        t80_scroll(vtop < t);
         draw_row(vtop < t ? vtop : vtop + GRID_H - 1);
     } else
         rd |= RD_GRID;
@@ -322,9 +323,9 @@ static void draw_head(void)
         line[77] = '0' + slot;
     } else
         memcpy(line + 64, "NO MOCKINGBOARD", 15);
-    txt_mode = 1;
+    t80_mode = 1;
     puts_at(0, 0, line);
-    txt_mode = 0;
+    t80_mode = 0;
     blank(80);
     memcpy(line, "FILE", 4);
     memcpy(line + 5, cur_file[0] ? cur_file : "-", strlen(cur_file[0] ? cur_file : "-"));
@@ -387,10 +388,10 @@ static void draw_order(void)
                 line[9] = '*';
         } else if (i == s_nord)
             memcpy(line + 1, s_loop == 0xFF ? "END" : "LOOP", s_loop == 0xFF ? 3 : 4);
-        txt_mode = (focus == 1 && i == ord_cur) ? 1 : 0;
+        t80_mode = (focus == 1 && i == ord_cur) ? 1 : 0;
         puts_at(ord_x, GRID_Y + y, line);
     }
-    txt_mode = 0;
+    t80_mode = 0;
 }
 
 static void draw_ins(void)
@@ -413,10 +414,10 @@ static void draw_ins(void)
 
 static void draw_keys(void)
 {
-    txt_mode = 1;
+    t80_mode = 1;
     clear_line(KEYS_Y);
     puts_at(0, KEYS_Y, main_bar);
-    txt_mode = 0;
+    t80_mode = 0;
 }
 
 void redraw(void)
@@ -449,7 +450,7 @@ void redraw(void)
 void full(void)
 {
     screen = 0;
-    txt_init();
+    t80_init();
     rd = RD_ALL;
 }
 
@@ -593,21 +594,12 @@ static void poll_play(void)
  * also runs between the rows of a long redraw: no refresh goes unread
  * (a2shot's closed loop and a real hand alike) and a press made meanwhile
  * is latched where it happened. */
-static unsigned char m_old, m_latch, m_lx, m_ly, m_drag, m_dx, m_dy, vbl_gate, vbl_armed;
+static unsigned char m_old, m_latch, m_lx, m_ly, m_drag, m_dx, m_dy, vbl_gate;
 static void m_sample(void)
 {
     unsigned char b;
-    if (!mouse_slot)
+    if (!mouse_slot || (vbl_gate && !a2_vbl_gate()))   /* (apple2vblgate.s) */
         return;
-    if (vbl_gate) {
-        if (*(volatile unsigned char *)0xC019 & 0x80) {
-            vbl_armed = 1;              /* the picture: armed */
-            return;
-        }
-        if (!vbl_armed)                 /* the blank, already read */
-            return;
-        vbl_armed = 0;
-    }
     mouse_read();
     b = mouse_buttons & 0x80;
     if (b && !m_old && !m_latch) {
@@ -632,12 +624,12 @@ static unsigned char event(void)
     m_sample();
     x = mouse_x >> 1;
     y = mouse_y >> 3;
-    if (x != ptr_x || y != ptr_y) {
-        ptr_hide();
-        ptr_x = x;
-        ptr_y = y;
+    if (x != t80_ptr_x || y != t80_ptr_y) {
+        t80_ptr_hide();
+        t80_ptr_x = x;
+        t80_ptr_y = y;
     }
-    ptr_show();
+    t80_ptr_show();
     if (m_latch) {
         m_latch = 0;
         ev_x = m_dx = m_lx;
@@ -681,9 +673,9 @@ unsigned char input(const char *prompt, unsigned char max, unsigned char upper)
         clear_line(MSG_Y);
         puts_at(1, MSG_Y, prompt);
         puts_at(x, MSG_Y, input_buf);
-        txt_mode = 1;
-        txt_putc(' ');
-        txt_mode = 0;
+        t80_mode = 1;
+        t80_putc(' ');
+        t80_mode = 0;
         k = wait_key();
         if (k == K_RET)
             break;
@@ -1170,12 +1162,12 @@ static void help(void)
     unsigned char k;
     screen = 2;
     for (k = 0; k < 3; k += 2) {
-        txt_init();
-        txt_mode = 1;
+        t80_init();
+        t80_mode = 1;
         blank(80);
         memcpy(line, k ? " MB TRACKER  HELP 2/2   (ANY KEY: BACK)" : " MB TRACKER  HELP 1/2   (ANY KEY: MORE)", 39);
         puts_at(0, 0, line);
-        txt_mode = 0;
+        t80_mode = 0;
         help_page(k, 0, 2);
         wait_key();
     }
@@ -1495,7 +1487,7 @@ void game_shutdown(void)
 void main(void)
 {
     unsigned char k;
-    txt_init();
+    t80_init();
     claimed = prodos_video_claim(PD_VIDEO_DISCARD_RAM) == PD_VIDEO_OK;
     help_load();
     if (!ovl_load()) {

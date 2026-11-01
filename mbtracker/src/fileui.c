@@ -3,6 +3,7 @@
  * (arrows or a click; a click on the chosen one loads it), a typed name,
  * the save prompt. Overlay OVL2 (src/mbt.cfg), with files.c. */
 #include <string.h>
+#include "prodos.h"
 #include "mbt.h"
 #include "ui.h"
 
@@ -43,23 +44,23 @@ void load(void)
     stop();
     e = dir_list();
     screen = 3;
-    txt_init();
-    txt_mode = 1;
+    t80_init();
+    t80_mode = 1;
     blank(80);
     memcpy(line, " MB TRACKER  LOAD A SONG", 24);
     puts_at(0, 0, line);
-    txt_mode = 0;
-    txt_mode = 1;
+    t80_mode = 0;
+    t80_mode = 1;
     puts_at(0, KEYS_Y, l_bar);
-    txt_mode = 0;
+    t80_mode = 0;
     if (e || !file_count)
         puts_at(2, 2, e ? "CANNOT READ THE CATALOG" : "NO .AYS FILE ON THIS DISK");
     for (;;) {
         for (i = 0; i < file_count; ++i) {
-            txt_mode = i == sel;
+            t80_mode = i == sel;
             AT(2 + (i / 20) * 20, 2 + i % 20);
-            txt_puts(file_names[i]);
-            txt_mode = 0;
+            t80_puts(file_names[i]);
+            t80_mode = 0;
         }
         k = wait_key();
         if (k == K_CLICK) {
@@ -104,17 +105,12 @@ void load(void)
 
 static unsigned char valid_name(char *s)
 {
-    unsigned char i, n = strlen(s);
+    unsigned char n = strlen(s);
     if (!strchr(s, '.') && n <= 11) {
         strcat(s, ".AYS");
         n += 4;
     }
-    if (!n || n > 15 || s[0] < 'A' || s[0] > 'Z')
-        return 0;
-    for (i = 1; i < n; ++i)
-        if (!((s[i] >= 'A' && s[i] <= 'Z') || (s[i] >= '0' && s[i] <= '9') || s[i] == '.'))
-            return 0;
-    return 1;
+    return prodos_name_valid(s);
 }
 
 void save(void)

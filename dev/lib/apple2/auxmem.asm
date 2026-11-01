@@ -25,6 +25,11 @@
 ;                      music player waits at most one chunk, ~36 cycles a
 ;                      byte). auxmem_fdst/auxmem_flen are consumed; scratch
 ;                      auxmem_fsrc (2) and auxmem_fn (1).
+;   aux_store_chunked  the other way: main (A low, Y high) -> aux auxmem_fdst,
+;                      auxmem_flen bytes, same chunks and variables. Either
+;                      one referenced assembles the routine; aux_store_chunked
+;                      adds 8 bytes (the direction patched in at each call,
+;                      X clobbered); aux_fetch_chunked alone is unchanged.
 ;   AUXMOVE first, last, dest, dir [, jmp]
 ;                      macro: the ROM's AUXMOVE of first..last (inclusive) to
 ;                      dest, dir = AUX_TO_MAIN or MAIN_TO_AUX; constants or
@@ -49,6 +54,11 @@
 ;   AUXMEM_FETCH_SCAN = 1   jsr _a2_vbl_scan after each chunk (apple2vbl.s:
 ;                           the //e VBL edges keep being counted during a long
 ;                           fetch); +3 bytes, ~30 cycles a chunk. Default: none.
+;
+; aux_fetch_chunked / aux_store_chunked's variables: define auxmem_fsrc
+; before the include to give all four (auxmem_fsrc, auxmem_fdst, auxmem_flen,
+; auxmem_fn) the caller's own (zero page, C globals; none an interrupt
+; handler touches) instead of 7 bytes reserved in BSS.
 
 .ifndef _AUXMEM_DEFS_
 _AUXMEM_DEFS_ = 1
@@ -173,7 +183,7 @@ auxmem_zdst = * + 2
 .assert auxmem_zsrc - auxmem_ztemplate = 5 .and auxmem_zdst - auxmem_ztemplate = 8, error, "auxmem: the stub's operands"
 .endif
 
-.if .referenced(aux_fetch_chunked) .and (.not .defined(aux_fetch_chunked))
+.if (.referenced(aux_fetch_chunked) .or .referenced(aux_store_chunked)) .and (.not .defined(aux_fetch_chunked))
 .ifndef auxmem_fsrc
 .pushseg
 .bss
@@ -183,7 +193,16 @@ auxmem_flen: .res 2
 auxmem_fn:   .res 1
 .popseg
 .endif
+.if .referenced(aux_store_chunked)
+aux_store_chunked:
+        ldx #$38                 ; sec: main -> aux
+        .byte $2C                ; (bit abs: skips the ldx)
 aux_fetch_chunked:
+        ldx #$18                 ; clc: aux -> main
+        stx @dir
+.else
+aux_fetch_chunked:
+.endif
         sta auxmem_fsrc
         sty auxmem_fsrc+1
 @chunk: lda auxmem_flen+1
@@ -227,7 +246,11 @@ aux_fetch_chunked:
         dec auxmem_flen+1
 :       php
         sei
+.if .referenced(aux_store_chunked)
+@dir:   clc                      ; aux -> main (aux_store_chunked: sec)
+.else
         clc                      ; aux -> main
+.endif
         jsr $C311                ; AUXMOVE
         plp
 .if AUXMEM_FETCH_SCAN

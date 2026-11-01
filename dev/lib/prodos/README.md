@@ -216,4 +216,26 @@ Measured with the same injected MLI, successful load (256 B), load_free
 before these checks. These include the test stub, including the added
 SET_EOF call; they exclude disk latency and are not real I/O timings.
 
+## The directory, ProDOS names (`dir.c`)
+
+C, `$(PRODOS_DIR_SRCS)` (prodos.h). `prodos_dir_list(names, name_len, max,
+suffix)`: GET_PREFIX (into its 512-byte block, a trailing `/` dropped),
+OPEN with `prodos_file_iobuf` as the 1 KB buffer (set it first, as for
+`file.s`), READ 512-byte blocks, the entry length and entries per block
+from the key block's header; the active seedling / sapling / tree entries
+(not subdirectories) whose names are longer than `suffix` and end with it
+(`""`: all), in directory order, up to `max`, each NUL-terminated
+`name_len` (≥ 16) bytes apart; CLOSE. The count in `prodos_dir_count`; 0 or
+the MLI error (`$4C`, the end of the directory, is 0). `prodos_name_valid(s)`:
+1 for a ProDOS name (1-15 characters, an upper-case letter, then upper-case
+letters, digits, dots). It uses `prodos_mli` (`mli_cmd.s`), `strlen`,
+`memcmp`, `memcpy`. Compile it with the program's segment names to place it
+(an overlay: `--code-name`, `--rodata-name`, `--data-name`: its four
+parameter lists are initialised data that come back with it; `--bss-name`
+for the block, `prodos_dir_count` and the static locals). 610 B of code
+and data, 524 B of BSS (cc65 `-Ors --static-locals`).
+User: MB TRACKER (`.AYS` names, 16 bytes apart, 40 at most, in its OVL2
+overlay with the block in LOWBSS; its save prompt's name check, after its
+`.AYS` added to a name without a dot).
+
 Reference: [ProDOS technical reference, system programs](https://prodos8.com/docs/techref/writing-a-prodos-system-program/).

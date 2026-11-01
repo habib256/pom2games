@@ -60,10 +60,10 @@ static void e_cursor_head(void)
         return;
     t[0] = n->shape == 0xFF ? '-' : hexd[n->shape];
     hex2(t + 1, n->eper);
-    txt_mode = 1;
+    t80_mode = 1;
     AT(h_x[e_f], 3);
-    txt_putc(t[e_f]);
-    txt_mode = 0;
+    t80_putc(t[e_f]);
+    t80_mode = 0;
 }
 
 static void e_draw_tick(unsigned char k)
@@ -90,13 +90,13 @@ static void e_draw_tick(unsigned char k)
     }
     puts_at(0, y, line);
     if (k == e_row) {
-        txt_mode = 1;
+        t80_mode = 1;
         AT(1, y);
-        txt_putc(line[1]);
-        txt_putc(line[2]);
+        t80_putc(line[1]);
+        t80_putc(line[2]);
         AT(e_x[e_f], y);
-        txt_putc(line[e_x[e_f]]);
-        txt_mode = 0;
+        t80_putc(line[e_x[e_f]]);
+        t80_mode = 0;
     }
 }
 
@@ -110,21 +110,21 @@ static void e_draw_ticks(void)
 static void e_full(void)
 {
     screen = 1;
-    txt_init();
-    txt_mode = 1;
+    t80_init();
+    t80_mode = 1;
     blank(80);
     memcpy(line, " MB TRACKER  INSTRUMENT EDITOR", 30);
     puts_at(0, 0, line);
-    txt_mode = 0;
+    t80_mode = 0;
     puts_at(0, 5, "TICK  VOL  TONE  NOISE  ENV  NP");
     help_page(1, 42, 6);
     e_draw_head();
     e_cursor_head();
     e_draw_ticks();
-    txt_mode = 1;
+    t80_mode = 1;
     clear_line(KEYS_Y);
     puts_at(0, KEYS_Y, e_bar);
-    txt_mode = 0;
+    t80_mode = 0;
     rd = RD_MSG;
 }
 

@@ -15,26 +15,18 @@ extern unsigned char *snd_song;
 extern volatile unsigned char snd_ticks;
 extern volatile unsigned char ays_order, ays_row, ays_play;
 
-/* ---- mbt_asm.s: 80-column text ---- */
-extern unsigned char txt_x, txt_y, txt_mode;   /* mode 0 normal, 1 inverse, 2 raw */
-void txt_init(void);
-void __fastcall__ txt_putc(unsigned char c);
-void __fastcall__ txt_puts(const char *s);
-void __fastcall__ txt_fill(unsigned char c, unsigned char n);
-/* columns 0-39 of rows txt_y.. (txt_x rows) one row up (0) or down (1) */
-void __fastcall__ txt_scroll(unsigned char down);
-#define AT(x, y) (txt_x = (x), txt_y = (y))
+/* ---- dev/lib/apple2c apple2t80.s: 80-column text; apple2t80_ptr.s: the
+ * mouse pointer (a cell shown inverse / normal; the text routines draw
+ * under it: apple2t80.s assembled with T80_PTR=1) ---- */
+#include "apple2t80.h"
+#define AT(x, y) T80_AT(x, y)
+/* t80_scroll: the grid's columns (t80_sw: main.c layout()) */
 
-/* ---- mbt_asm.s: the mouse pointer (a cell shown inverse / normal; the
- * text routines draw under it), mouse helpers ---- */
-extern unsigned char ptr_x, ptr_y, ptr_on;
-void ptr_show(void);
-void ptr_hide(void);
+/* ---- mbt_asm.s: mouse helpers ---- */
 void mouse_read(void);                         /* mouse_poll with 80STORE off */
 
 /* ---- mbt_asm.s: keyboard, aux memory ---- */
 unsigned char kbd_get(void);                   /* 7-bit key, 0 = none */
-extern unsigned char txt_sw;                   /* txt_scroll: columns 0..2 txt_sw + 1 */
 extern unsigned char *ax_main;
 extern unsigned ax_aux, ax_len;
 void aux_put(void);                            /* main -> aux */
@@ -104,10 +96,12 @@ unsigned audition_encode(unsigned char *buf, unsigned char ins, unsigned char no
 #define MAXFILES 40
 /* the names of the load screen: the encoder's scratch pattern (free there) */
 #define file_names ((char (*)[16])scratch)
-extern unsigned char file_count;
 extern char cur_file[16];                      /* the song's file name */
 extern unsigned char file_iobuf[1024];         /* the OPEN buffer, $1000 */
-unsigned char dir_list(void);                  /* .AYS names of the prefix; MLI error */
+/* .AYS names of the prefix (dev/lib/prodos dir.c, in OVL2); MLI error */
+#define file_count prodos_dir_count
+#define dir_list() (prodos_file_iobuf = file_iobuf, \
+                    prodos_dir_list((char *)file_names, 16, MAXFILES, ".AYS"))
 unsigned char file_load(const char *name);     /* 0 ok, MLI error, $FE bad song, $FD too big */
 unsigned char file_save(const char *name);     /* 0 ok, MLI error, $FD too big */
 
