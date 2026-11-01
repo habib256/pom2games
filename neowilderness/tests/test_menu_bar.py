@@ -174,9 +174,8 @@ def choose(s, *labels, settle=True):
 
 
 def typed(s, text):
-    s.step(f'key:{text}')
-    s.step(f'press:{RET}')
-    s.step('wait:1')
+    for step in a2test.type_line(text):
+        s.step(step)
     s.step(IDLE)
 
 

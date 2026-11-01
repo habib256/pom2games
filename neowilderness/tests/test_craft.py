@@ -37,7 +37,8 @@ MAP = 0x7000
 b1, b2 = 0x45C0, 0x45DC
 B1, B2 = 0x404C, 0x4098
 HEALTH = 0x4C34
-fails = []
+C = a2test.Checker('CRAFT')
+check, fails = C.check, C.fails
 
 TEXTS = {1: 'SORRY, THAT ITEM IS NOT AVAILABLE.', 2: "YOU'RE NOT MAKING MUCH SENSE.", 4: 'YOU NEED STRONG ROPE.',
          9: "YOU'RE NOW SAFELY INSIDE SHELTER.", 10: 'OK, WHAT NEXT?', 11: 'YOU ALREADY HAVE.',
@@ -60,10 +61,6 @@ SKIP = {
 TREE = 'a tree out of the woods ($D7): the port grows trees in the woods only'
 
 
-def check(name, ok, detail=''):
-    print(f'  {name}: {"OK" if ok else "FAIL"}' + (f' {detail}' if not ok and detail else ''))
-    if not ok:
-        fails.append(name)
 
 
 def rows(s):
@@ -593,9 +590,7 @@ def main():
             raise SystemExit(f'{RESULTS} has no part 3: python3 tools/re_craft_probe.py')
     if not original:
         port_checks()
-    if fails:
-        raise SystemExit(f'CRAFT: {len(fails)} failures: {fails}')
-    print('CRAFT: OK')
+    C.done()
 
 
 if __name__ == '__main__':

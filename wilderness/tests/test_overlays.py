@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Real DOS overlay reads: state preservation, caching and module switching."""
-import sys
 from common import HERE, L, DISK, a2test, fp
 
 
@@ -21,12 +20,8 @@ def main():
     # Environment -> vocabulary -> text screens -> vocabulary again.
     steps += ['key:INVENTORY\r', 'wait:1', L.until('wait_key', 6000)] + snap
     r = a2test.run(DISK, steps, emulator=a2test.A2SHOT, timeout=1800)
-    failures = []
-
-    def check(name, ok):
-        print(f'  {name}: {"OK" if ok else "FAIL"}')
-        if not ok:
-            failures.append(name)
+    C = a2test.Checker('OVERLAYS')
+    check = C.check
 
     check('BLOAD preserves all 256 zero-page bytes', r.mem(0, 256) == r.mem(0, 256, 1))
     # DOS uses the eight screen-hole bytes in each 128-byte block as
@@ -52,8 +47,7 @@ def main():
           all(0 < (HERE / f'build/wild{name}.bin').stat().st_size <= 2048
               for name in ('voc', 'scr', 'sta', 'hud', 'sit', 'prj', 'inp', 'itm', 'trv', 'med', 'mvi', 'tre', 'adv', 'out')))
     check('simulation fits the 8 KB HGR window', 0 < (HERE/'build/wildsim.bin').stat().st_size <= 8192)
-    print(f'{len(failures)} failures')
-    sys.exit(bool(failures))
+    C.done()
 
 
 if __name__ == '__main__':

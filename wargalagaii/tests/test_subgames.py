@@ -184,11 +184,11 @@ def station_scene(disk, L, name, credits, plan, pokes=(), joystick=False, waits=
             x, y = (1, 0) if v == 'L' else (0, 1)
             steps += [f'joy:{x},{y}', 'wait:3', 'joy:0,0', 'wait:10']
         elif kind == 'key':
-            steps += [f'key:{v}', 'wait:4']
+            steps += a2test.keys([v], 4)
         elif joystick:
             steps += ['btn:0,1', 'wait:3', 'btn:0,0', 'wait:4']
         else:
-            steps += ['key:\\r', 'wait:4']
+            steps += a2test.keys(['\\r'], 4)
         if kind == 'turn' and v in ('miss', 'cleared', 'flag'):
             steps.append('wait:90')
     if steps[-1] == 'wait:90':

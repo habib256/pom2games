@@ -12,17 +12,14 @@ The floats are read from RAM and decoded (tests/common.fp).
 Synthetic maps also exercise climbing time overflow, travel at night and
 arrival at the ranger outpost.
 """
-import math, re, sys, tempfile
+import math, re, tempfile
 from common import HERE, L, DISK, a2test, disk_with, fp, state, text_screen, view_rows
 
 MAP = (HERE / 'build/map.bin').read_bytes()
-fails = 0
+C = a2test.Checker(style='column')
+check = C.check
 
 
-def check(name, ok, detail=''):
-    global fails
-    print(f'  {name:42} {"ok" if ok else "FAIL " + str(detail)}')
-    fails += not ok
 
 
 def floats(r, name, occurrence=0):
@@ -141,8 +138,7 @@ def main():
     lines = text_screen(r.mem(0x400, 1024))
     check('  the death message, not the rest one', any('YOUR JOURNEY ENDED' in l for l in lines), lines[21:23])
     travel_limits()
-    print('FAIL' if fails else 'OK')
-    sys.exit(1 if fails else 0)
+    C.done()
 
 
 if __name__ == '__main__':

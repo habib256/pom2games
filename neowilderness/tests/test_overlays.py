@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Module loads (RAM transfers): state preservation, caching and module switching."""
-import sys
 from common import HERE, L, DISK, a2test, fp
 
 
@@ -21,12 +20,8 @@ def main():
     # Environment -> vocabulary -> text screens -> vocabulary again.
     steps += ['key:INVENTORY\r', 'wait:1', L.until('wait_key', 6000)] + snap
     r = a2test.run(DISK, steps, emulator=a2test.A2SHOT, timeout=1800)
-    failures = []
-
-    def check(name, ok):
-        print(f'  {name}: {"OK" if ok else "FAIL"}')
-        if not ok:
-            failures.append(name)
+    C = a2test.Checker('OVERLAYS')
+    check = C.check
 
     check('module transfer preserves all 256 zero-page bytes', r.mem(0, 256) == r.mem(0, 256, 1))
     # Compare the 24 visible rows, including character attributes.
@@ -66,8 +61,7 @@ def main():
     check('STATUS, OBJECTS and HELP fit the SIM window below XL\'s tail ($9600-$B0FF)',
           0 < (HERE / 'build/wildsta.bin').stat().st_size <= L['stx_base'] - 0x9600)
     check('simulation fits the 8 KB SIM window', 0 < (HERE/'build/wildsim.bin').stat().st_size <= 8192)
-    print(f'{len(failures)} failures')
-    sys.exit(bool(failures))
+    C.done()
 
 
 if __name__ == '__main__':

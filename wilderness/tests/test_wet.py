@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Wet clothing, immersion, and real SWIM/shore commands on the Apple II ROM."""
-import math, sys, tempfile
+import math, tempfile
 from common import HERE, L, DISK, a2test, disk_with, fp, text_screen, state
 from gendata import fp as encode, ITEMS
 from test_thermal import poke, call, scalar
@@ -12,10 +12,8 @@ WET={2:60,3:80,4:160,5:150,6:160,7:80,8:80,12:600,13:500,14:2000,
 
 
 def main():
-    failures=[]
-    def check(name,ok):
-        print(f'  {name}: {"OK" if ok else "FAIL"}')
-        if not ok: failures.append(name)
+    C = a2test.Checker('WET')
+    check, failures = C.check, C.fails
     idle=L.until('idle',20000)
     done=f'until:{L["idle"]+3:04X}:6000'
     setup=[idle]+call(['thermal'])+poke('s_metabolic',1.65)+poke('s_step',0)+[done,idle]
@@ -135,8 +133,7 @@ def main():
         check('SWIM on land refuses with no time or equipment changes',
               state(r.mem(L['px'],6))==(10<<8,10<<8,140) and fp(r.mem(L['s_elap'],5))==0
               and r.mem(L['it_place'],76)==r.mem(L['it_place'],76,1))
-    print(f'{len(failures)} failures')
-    sys.exit(bool(failures))
+    C.done()
 
 
 if __name__=='__main__': main()

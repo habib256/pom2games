@@ -36,14 +36,11 @@ from common import (HERE, L, DISK, DISK140, a2test, text_screen, raw_cell, posti
 IDLE = L.until('idle', 20000)
 READY = L.until('inventory_key', 60000)
 LIMIT = 815                         # the original's $4BFA (re_load_probe: START)
-fails = []
+C = a2test.Checker('OBJECTS', limit=1500, flush=True)
+check, fails = C.check, C.fails
 ORIGINAL = '--original' in sys.argv
 
 
-def check(name, ok, detail=''):
-    print(f'  {name}: {"OK" if ok else "FAIL " + str(detail)[:1500]}', flush=True)
-    if not ok:
-        fails.append(name)
 
 
 def word(s, name, k=0):
@@ -466,8 +463,7 @@ def main():
     hung()
     gauge_against_rom()
     water_get()
-    print(f'OBJECTS: {"OK" if not fails else f"{len(fails)} FAIL: {fails}"}')
-    sys.exit(bool(fails))
+    C.done()
 
 
 if __name__ == '__main__':

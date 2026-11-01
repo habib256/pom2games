@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 """Wind chill, signed extremes and original per-step shivering calories."""
-import math, sys, tempfile
+import math, tempfile
 from common import HERE,L,DISK,a2test,disk_with,fp,text_screen
 from gendata import fp as encode
 from test_thermal import poke,call
 
 
 def main():
-    failures=[]
-    def check(name,ok):
-        print(f'  {name}: {"OK" if ok else "FAIL"}')
-        if not ok: failures.append(name)
+    C = a2test.Checker('WIND ENERGY')
+    check = C.check
     idle=L.until('idle',20000)
     done=f'until:{L["idle"]+3:04X}:6000'
     # Real module loader, then isolated calls on the same ROM as the original.
@@ -90,8 +88,7 @@ def main():
     check('extra calorie cost increases hunger without changing elapsed time',
           results[0][1]>results[1][1] and all(abs(row[2]-3)<1e-7 for row in results)
           and all(abs(row[3]-1.65)<1e-8 for row in results))
-    print(f'{len(failures)} failures')
-    sys.exit(bool(failures))
+    C.done()
 
 
 if __name__=='__main__': main()

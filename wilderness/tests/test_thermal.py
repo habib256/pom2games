@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Thermal ROM arithmetic, original branch fixtures and playable clothing effects."""
-import math, sys, tempfile
+import math, tempfile
 from common import HERE, L, DISK, a2test, disk_with, fp, text_screen
 from gendata import fp as encode, ITEMS
 
@@ -30,11 +30,8 @@ def scalar(air, index, metabolic):
 
 
 def main():
-    fails = []
-    def check(name, ok):
-        print(f'  {name}: {"OK" if ok else "FAIL"}')
-        if not ok:
-            fails.append(name)
+    C = a2test.Checker('THERMAL')
+    check = C.check
     idle = L.until('idle', 20000)
     done = f'until:{L["idle"]+3:04X}:6000'
     # Load the real thermal overlay once through its resident wrapper.
@@ -157,8 +154,7 @@ def main():
                       r.mem(L['dead'],1)==b'\x01' and fp(r.mem(L['s_health'],5))<.3
                       and fp(r.mem(L['s_elap'],5))<24)
 
-    print(f'{len(fails)} failures')
-    sys.exit(bool(fails))
+    C.done()
 
 
 if __name__=='__main__': main()

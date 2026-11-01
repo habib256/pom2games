@@ -15,13 +15,10 @@ from common import HERE, L, DISK, a2test, disk_with, fp, text_screen
 from gendata import fp as encode
 from test_input import IDLE, command, flat
 
-fails = []
+C = a2test.Checker('Lot 2, fire, light and water')
+check = C.check
 
 
-def check(name, ok, detail=''):
-    print(f'  {name}: {"OK" if ok else "FAIL"}' + (f' {detail}' if not ok and detail else ''))
-    if not ok:
-        fails.append(name)
 
 
 def rows(s):
@@ -412,8 +409,7 @@ def main():
     water()
     river_and_search()
     giardia()
-    print(f'Lot 2, fire, light and water: {"OK" if not fails else "FAILED: " + ", ".join(fails)}')
-    raise SystemExit(bool(fails))
+    C.done()
 
 
 if __name__ == '__main__':

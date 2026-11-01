@@ -37,16 +37,11 @@ from hgr_tables import hgr_offset   # noqa: E402
 
 IDLE = L.until('idle', 20000)
 AFTER_TICK = L['fire_idle'] + 3          # fire_idle's JMP idle: a whole turn done
-fails = []
-EDITION = ''
+C = a2test.Checker('Animated campfire', prefix=': ')
+check = C.check
 MHZ = 1.0205e6
 
 
-def check(name, ok, detail=''):
-    name = f'{EDITION}: {name}'
-    print(f'  {name}: {"OK" if ok else "FAIL"}' + (f' {detail}' if not ok and detail else ''))
-    if not ok:
-        fails.append(name)
 
 
 def say(s, text, answer=' '):
@@ -130,8 +125,7 @@ def cycles(r):
 
 
 def edition(disk, name):
-    global EDITION
-    EDITION = name
+    C.prefix = f'{name}: '
     with a2test.Session(disk) as s:
         s.step(IDLE)
         s.step(L.poke('nature_frequency', 0))
@@ -304,8 +298,7 @@ def original_long_fire():
 
 def burns(disk):
     """The fire burns until DOUSE, hours on, dry or in rain."""
-    global EDITION
-    EDITION = 'until DOUSE'
+    C.prefix = 'until DOUSE: '
     orig = original_long_fire()
     want = orig or [False, True, True, True, True, True, True, False]
     if orig is None:
@@ -354,8 +347,7 @@ def main():
     edition(DISK, 'NeoWildernessXL')
     edition(DISK140, 'Neowilderness 140 KB')
     burns(DISK)
-    print('Animated campfire: ' + ('OK' if not fails else 'FAILED: ' + ', '.join(fails)))
-    sys.exit(1 if fails else 0)
+    C.done()
 
 
 if __name__ == '__main__':

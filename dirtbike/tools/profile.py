@@ -40,7 +40,7 @@ def main():
     labels = a2test.labels(GAME / 'build/dirtbike.lbl')
     exit_addr = labels['reset']                     # never reached: profile the whole window
     fr = labels['frames']
-    steps = ['wait:1300', 'key: ', 'wait:60'] + [s for k in menu for s in (f'key:{k}', 'wait:3')] + ['key:\r', 'wait:150'] + [s for k in keys for s in (f'key:{k}', 'wait:4')] + ([f'wait:{skip}'] if skip else []) + [f'peek:{fr:04X}:2', f'pcprof:{exit_addr:04X}:{frames}', f'peek:{fr:04X}:2']
+    steps = ['wait:1300', 'key: ', 'wait:60'] + a2test.keys(menu) + ['key:\r', 'wait:150'] + a2test.keys(keys, 4) + ([f'wait:{skip}'] if skip else []) + [f'peek:{fr:04X}:2', f'pcprof:{exit_addr:04X}:{frames}', f'peek:{fr:04X}:2']
     out = subprocess.run([str(A2SHOT), '--disk', str(GAME.parent / 'dist/DIRTBIKE.dsk')] + steps,
                          capture_output=True, text=True, check=True).stdout
     total = a2profile.total(out)

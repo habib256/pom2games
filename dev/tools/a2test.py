@@ -83,6 +83,75 @@ def pokes(addr, data):
     return [f'poke:{addr + i:04X}:{b:02X}' for i, b in enumerate(data)]
 
 
+def keys(text, wait=3):
+    """key: steps typing `text` one key at a time, each followed by
+    `wait:N` (frames for the program to take it). text: a str, or a sequence
+    of keys (each item one key: step, e.g. a2shot escapes '\\r')."""
+    return [s for k in text for s in (f'key:{k}', f'wait:{wait}')]
+
+
+def type_line(text, ret=True, wait=1):
+    """Steps typing `text` in one key: step (a line for a prompt that reads
+    the whole buffer), then RETURN as a press: step when ret, then wait:N."""
+    return [f'key:{text}'] + (['press:\\r'] if ret else []) + ([f'wait:{wait}'] if wait else [])
+
+
+class Checker:
+    """The pass/fail tally of a test script.
+
+        c = a2test.Checker('OBJECTS')
+        c.check('drop keeps the item', got == want, got)   # prints a line
+        c.done()        # 'OBJECTS: OK', or 'OBJECTS: FAIL 2: a; b' + exit 1
+
+    check() prints '  name: OK' / '  name: FAIL detail' (style='colon'), or
+    '  name<width> ok' / '  name<width> FAIL detail' (style='column'); the
+    detail shows on a failure only, cut to `limit` characters. It returns ok
+    as a bool. prefix goes before every name (an edition, a pass). strict:
+    the first failure raises AssertionError (after its line). fails: the
+    failed names, in order (append to it for a failure found elsewhere)."""
+
+    def __init__(self, title='', style='colon', width=42, strict=False, limit=None,
+                 prefix='', flush=False):
+        if style not in ('colon', 'column'):
+            raise ValueError(f'Checker: unknown style {style!r}')
+        self.title, self.style, self.width, self.strict = title, style, width, strict
+        self.limit, self.prefix, self.flush = limit, prefix, flush
+        self.fails = []
+        self.count = 0
+
+    def check(self, name, ok, detail=''):
+        ok = bool(ok)
+        name = self.prefix + str(name)
+        self.count += 1
+        text = '' if ok or detail == '' else ' ' + str(detail)[:self.limit]
+        if self.style == 'colon':
+            print(f'  {name}: {"OK" if ok else "FAIL"}{text}', flush=self.flush)
+        else:
+            print(f'  {name:{self.width}} {"ok" if ok else "FAIL"}{text}', flush=self.flush)
+        if not ok:
+            self.fails.append(name)
+            if self.strict:
+                raise AssertionError(name + text)
+        return ok
+
+    def fail(self, name, detail=''):
+        """A failure found outside a comparison."""
+        return self.check(name, False, detail)
+
+    def summary(self, title=None):
+        title = self.title if title is None else title
+        head = f'{title}: ' if title else ''
+        if not self.fails:
+            return head + 'OK'
+        return head + f'FAIL {len(self.fails)}/{self.count}: ' + '; '.join(self.fails)
+
+    def done(self, title=None):
+        """Print the summary line; exit 1 if anything failed."""
+        print(self.summary(title), flush=True)
+        if self.fails:
+            sys.exit(1)
+
+
 def game_dir(default, doc=None):
     """The game folder a tool shared by several games works on (wilderness/
     and neowilderness/ run one copy of their analysis probes): `--game DIR`
