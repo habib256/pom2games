@@ -44,6 +44,7 @@ uses, without calling these primitives or changing their banks.
 | DHGR compositor (`dhgr_spr_*`, `dhgr_cursor`) | Opt-in `HGRC_DHGR_SPR_SRCS`; each changed byte of the area written once with its final value; IRQs masked only around each group's two aux stores (~30 cycles); borrowed canvas used only inside the update; invalidate background changes in the area; overlay hidden while the screen outside the area changes |
 | DHGR compositor, two pages (`DHGR_SPR_DOUBLE`) | Updates store only into the hidden (draw) page, each byte once; `dhgr_spr_present` flips at a VBL edge (bounded wait, IRQs enabled on the //c) and swaps the draw page; start with draw page ≠ shown page and invalidate the area |
 | Frame pacing | IIe VBL or delay added to drawing; bounded fallback if the signal is stuck; IRQ mask preserved |
+| Frame pacing, ASM (`vapor_pace`) | II / II+ / //e floating bus; the marker on row 191 of both pages (`vapor_mark_both` after each clear), nothing drawn below row 190; `vapor_pace_init` once, unpaced when it fails; the tick's estimate within half a frame; flip right after the return; the poll loop within a page (link-time assert) |
 | Optional PWM audio | Nominal 1 MHz CPU, encoded clip terminated by `$92`; blocking playback, IRQs masked then mask restored; borrows cc65 ptr1/ptr3/ptr4 low/tmp3; AUDIOCODE segment aligned to $100 in RAM (after STARTUP in the C cfgs) |
 | Perspective | X 0..279, depth in the borrowed tables; output outside HGR rejected; no video/bank state changed, outside IRQ |
 | Native corridor | World X/Y 0..127, unsigned 16-bit depth; two borrowed 256-byte tables, centres/steps fixed at compile time; shared state 5 BSS + 1 ZP or caller alias; no clipping, no I/bank changes |
@@ -51,7 +52,8 @@ uses, without calling these primitives or changing their banks.
 
 The displayed page and the drawing page are distinct. Waiting for a VBL edge
 before presenting synchronises the flip on IIe. On II/II+, the fallback
-delay does not provide that synchronisation.
+delay does not provide that synchronisation; `vapor_pace` (lib/apple2
+`vapor.asm`) does, through the floating bus, on a II, II+ and //e.
 
 ## Building
 
@@ -226,10 +228,13 @@ Options of this kind (measurements: hgrc bench, or the commit that introduced th
 | `VL_PIN` | lib/physics `verlet.inc`/`verlet.asm`/`verlet_con.asm` | `vl_pin` (N B BSS): pinned points skipped by `vl_integrate`/`vl_push_all`, a link moves only its free end (2c): +101 B, +7 cycles an integration, +27 a link | dev/examples/lander (rope test) |
 | `VL_CON_FIXED_K` = s | lib/physics `verlet_con.asm` | Every link's gain is 2ˢ, f = (q² − l2) / 2¹¹⁻ˢ toward zero by shifts: no product, no `vl_con_k8` table, −34 B, −169 cycles a link (1,155 → 986) | dev/examples/lander |
 | `VL_CON_MIN_ONLY` | lib/physics `verlet_con.asm` | Links flagged in bit 7 of `vl_con_b` only push (minimum distance): +12 B, +13 cycles a link | — (dev/tests/test_verlet.py) |
+| `VL_CON_SKIP_ZERO` | lib/physics `verlet_con.asm` | Speed, exact: `vl_constrain` returns once f = 0 (all corrections 0): +5 B, −480 to −520 cycles a link at rest (−400 to −436 with `VL_CON_FAST`), +2 otherwise | dev/examples/lander, rope, catapult, halfpipe |
+| `VL_CON_FAST` | lib/physics `verlet_con.asm` | Speed, exact: delta, \|d >> 6\| clamp, squares (`vl_sq_lo`/`_hi`, 362 B RODATA) and a plain link's add/sub inline; `vl_square` from the table: −290 cycles a plain fixed-gain link, ~−220 pinned or heavy; −70 to +57 B code | dev/examples/lander, rope, catapult, halfpipe |
 | `VL_THRUST` = n | lib/physics `verlet_rot.asm`/`verlet.asm` | Assembles `vl_thrust_axis`/`_perp` (push vector = axis · `vl_turn` >> (8+n)), `vl_push`, `vl_push_all`: +4 B ZP, 162 B (perp + push_all), 620 + 397 cycles for 3 points | dev/examples/lander |
 | `VL_Y_HIGH` / `VL_GROUND_BASE` | lib/physics (all files) | y in 16.8 (`vl_yu`, `vl_oyu`: +2N B BSS), the ground row = height + base: +80 B, +28 cycles an integration, +70 a ground contact | dev/examples/lander |
 | `VL_GROUND_SEGMENTS` = n / `VL_SEG_DEPTH` | lib/physics `verlet.inc`/`verlet_seg.asm` | `vl_seg_ground`: a ground of n line segments (walls, overhangs, loops), the `vl_sg_*` tables from `dev/tools/verlet/segments.py` (14 B a segment, 16 with `VL_Y_HIGH`), `vl_sgi` (VL_GROUND B BSS), no zero page of its own: 803 B (835 with `VL_Y_HIGH`); ~30 cycles a segment out of its box, 2,600-5,600 in contact | dev/examples/halfpipe |
 | `VL_SEG_CACHE` = margin | lib/physics `verlet_seg.asm` | A point still on its last segment, `margin` (8.8) or more from its ends, is taken without the scan: +270 B, −500 to −1,500 cycles a contact there, +~1,000 at a joint | dev/examples/halfpipe |
+| `VL_SEG_BUCKETS` | lib/physics `verlet_seg.asm` | Speed, exact: the scan tries only the segments of the point's pixel column (`VL_SEG_BUCKET_TABLES` from `segments.py` tables(): `vl_sg_bko`, `vl_sg_bkl`, order n−1..0): +41 B + tables (halfpipe 110 B), 22 segments 660 → 137 cycles far, −360 to −520 a contact; uses `vl_w0`/`vl_w1` | dev/examples/halfpipe |
 | `VL_GROUND_KIND` = table | lib/physics `verlet_seg.asm` | `vl_ground_any`: point X on the height map (table byte 0) or the segments: 9 B | — (dev/tests/test_verlet_seg.py) |
 | `VL_CIRC` = n / `VL_CIRC_Q` | lib/physics `verlet.inc`/`verlet_circ.asm` | Points 0..n−1 are circles (`vl_rad`, units of 2^Q/256 px, Q = 4..6, default 5): `vl_contact_pair`, `vl_contact_all`, `vl_contact_box` (needs `isqrt16`, `MUL_ACC`): +10 B ZP (+4 without a ground), n+1 B BSS; 941 B pairs, 1,039 B boxes, 1,762 B both, + 256 B reciprocals; ~52 cycles a pair rejected, 2,300-3,600 in contact | dev/examples/catapult |
 | `VL_CIRC_BOUNCE` / `VL_CIRC_VMIN` | lib/physics `verlet_circ.asm` | Restitution e/256 (0..255) of a closing speed above VMIN (8.8), else inelastic: `MUL_K16`, +~60 B, +~80 cycles an impulse | dev/examples/catapult |
@@ -238,6 +243,8 @@ Options of this kind (measurements: hgrc bench, or the commit that introduced th
 | `VL_CIRC_SLEEP` = v / `_TICKS` | lib/physics `verlet_circ.asm` (with `VL_PIN`) | `vl_circ_sleep`: a free point slow (\|vx\|, \|vy\| ≤ v) for 16 ticks gets `vl_pin` = $80 (asleep: skipped, pinned in a pair); a closing speed > v wakes it. `vl_still` (n B BSS), +~170 B | dev/examples/catapult |
 | `MUL_INIT_BOOT` / `MOUSE_INIT_BOOT` | `mul.asm` / `mouse.s` | Initialisation code in the `INIT` segment, reusable after startup | dirtbike / dirtbike |
 | `STICK_KEY_FAST` | `joy.asm` | `stick_key` samples with `read_stick_fast` (0.1-2.8 ms instead of 6 ms; its count scale: retune `JOY_LO`/`JOY_HI`) | none (dev/tests/test_stick_key.py) |
+| `HGR_PLOT_HIST_FAST` | `hgr_plot_hist.asm` | `pl_line` steps a byte column and a bit mask (x major: one history entry per byte), the same pixels (~50 cycles a pixel shallow, ~90 steep, ~115 near the diagonal, against ~170); `pl_erase` ~38 cycles an entry (~43); adds `pl_erase_to` (a stack of objects) and `pl_sprite` (preshifted, OR, history per byte). History: 255 entries (bytes, not pixels) a page. Code 919 B for the four routines (278 B plain), ZP +2 B (`pl_sp`) | dev/examples/catapult, rope, lander, halfpipe |
+| `PL_SPRITE_YMIN` = n | `hgr_plot_hist.asm` (FAST) | `pl_sprite` skips the rows above n (default 0: only rows ≥ 192 skipped), e.g. 16 under a two-line HUD; +4 B | dev/examples/catapult, lander, halfpipe |
 | `DOS_CMD_HEX_IFREF` | `dos.asm` | `dos_cmd_hex` assembled only if referenced: −48 B | arkabreakout, maze3d |
 | `EXIT_USE_NATIVE_VIDEO` | `exit.asm` | Reuses `native_video` from `hgr.asm`: −21 B | arkabreakout, maze3d, micro-sokoban |
 | `SOUND_GATE` | `sound.asm` | Sound muted by one byte: −7 B and −10 cycles per note against an envelope in the program | maze3d |

@@ -21,6 +21,9 @@ VL_GROUND       = 3             ; the body too: it touching is a crash
 VL_RADIUS       = RADIUS
 VL_BOUNCE       = BOUNCE
 VL_CON_FIXED_K  = FIXED_K
+VL_CON_SKIP_ZERO = 1            ; (speed, exact: f = 0 returns at once)
+VL_CON_FAST     = 1             ; (speed, exact: square table, inline links)
+VL_SEG_BUCKETS  = 1             ; (speed, exact: the segment scan by pixel column)
 VL_PAIR_DAMP    = SPIN_DAMP
 VL_CEILING_CLAMP = TOP_Y
 .include "verlet.inc"

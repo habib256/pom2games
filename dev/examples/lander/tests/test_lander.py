@@ -28,7 +28,7 @@ import lander as L  # noqa: E402
 from verlet import harness  # noqa: E402
 import a2test  # noqa: E402
 
-SNAPS = [('vl_xf', 36), ('lv_status', 7), ('vl_gnd', 3)]
+SNAPS = [('vl_xf', 36), ('lv_status', 8), ('vl_gnd', 3)]
 PRELUDE = '''MUL_TABLES = $0800
 MUL_ACC = 1
 .include "math.inc"

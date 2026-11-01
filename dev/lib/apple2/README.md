@@ -82,7 +82,10 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   `dev/tools/audio/aysong.py`; format in [AYSONG_FORMAT.md](AYSONG_FORMAT.md);
   see [AYS song player](#ays-song-player-aysongasm).
 - **`vapor.asm`** — `vapor_mark`, `vapor_sync`, `vapor_count`: the vapor
-  lock, a frame sync through the floating bus on a II, II+ or //e (SNAKE).
+  lock, a frame sync through the floating bus on a II, II+ or //e (SNAKE);
+  `vapor_mark_both`, `vapor_pace_init`, `vapor_pace` (`.ifref`): page
+  flips in the vertical blank at a constant tick rate (the dev/examples
+  lander, rope, catapult, halfpipe).
   See [Vapor lock](#vapor-lock-frame-sync-on-a-ii--ii).
 - **`joy.asm`** — `read_stick`, `stick_dir`: joystick (two paddles);
   `read_stick_fast` (DIRTBIKE) returns as soon as both timers have
@@ -91,6 +94,21 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   be zero-page aliases. `stick_key` turns the stick and its buttons into
   one-shot key events (CHESS); `joy_buttons` gives held and newly pressed
   buttons.
+  `read_stick_x` reads the X axis alone in the Monitor's PREAD loop (11
+  cycles a count): `joy_x` = 0..255, ~128 centred, the ROM's scale — 35/11
+  ≈ 3.2 times `read_stick_fast`'s counts, so a dead zone or a gain tuned
+  on `read_stick_fast` is multiplied by 3.2 (the dev/examples: `JOY_DEAD`
+  12 → 38 for lander and halfpipe, 4 → 13 for rope, whose pin now follows
+  128 + d instead of 128 + 3 d; catapult's power d / 2 + 8 → d / 8 + d / 32
+  + 8, its "moved" threshold 5 → 16). It costs what the X timer lasts
+  (~11 · count + 20 cycles, ~1,430 centred): it no longer waits for a Y
+  timer that runs longer than X's, and counts 3.2 times finer, but the RC
+  time itself stays — with a centred stick a frame costs what it did with
+  `read_stick_fast` (~1,450). C = 1 (255) when the timer still runs after
+  255 counts: no stick, or pushed past the full scale; detect the stick
+  with `read_stick_fast` (a 255 × 35-cycle window) at start, as the
+  examples do, then take the rest position with `read_stick_x`.
+  `python3 dev/tests/test_joy_x.py`.
 - **`rwts.asm`** — `rwts_read`, `rwts_write`, `rwts_cmd`, `rwts_read_tslist`,
   `rwts_find_file`: DOS 3.3 sectors directly through RWTS (without reading the
   catalog at run time: `dev/tools/dos33patch.py` writes the T/S lists
@@ -178,9 +196,13 @@ another module). A C object that aliases a routine to an import
 | `tone` | `sound.asm` | A = toggles (0 → 256), X = half-period (0 → 256); 12 + 5·X cycles per toggle, pitch 1.02 MHz / (2·(12 + 5·X)): ~2.4 kHz at `$28`, ~526 Hz at `$C0`, ~397 Hz at `$FF` | — | A, X, Y | — |
 | `read_stick` | `joy.asm` | — | `joy_x`, `joy_y` = 0 (left / up) … ~60 (centre) … ~120; ~6 ms; an open axis (timer never finishes) is centred at 60; C = 1 if both are (nothing plugged in) | A, X, Y | — |
 | `read_stick_fast` | `joy.asm` | — | `joy_x`, `joy_y` = counts of 35 cycles (33-34 once the other axis has finished), ~40 at centre; stops as soon as both timers have finished; C = 1 after 255 passes (nothing plugged in) | A, X, Y | — |
+| `read_stick_x` | `joy.asm` | — | `joy_x` alone = PREAD counts (11 cycles: 0..255, ~128 centred, ×35/11 ≈ 3.2 against `read_stick_fast`); returns when the X timer runs out (~11·count + 20 cycles); C = 1 and 255 after 255 counts (no stick, or past full scale); `joy_y` untouched; 19 B | A, X | — |
 | `vapor_mark` | `vapor.asm` | — | `VAPOR_BYTE` ($80) in the first 24 bytes of HGR line 191 (page `VAPOR_PAGE`, 1) | A, X | — |
 | `vapor_sync` | `vapor.asm` | marker on the shown page, HGR on | C = 0: the beam is on line 191 (VBL next); C = 1 after 65536 polls (~0.8 s): no floating bus or no marker | A, X, Y | — |
 | `vapor_count` | `vapor.asm` | same | A = low, X = high: one frame in 13-cycle polls (~1303 NTSC, ~1553 PAL at 1 MHz); C = 1, 0 on failure | A, X, Y | — |
+| `vapor_mark_both` | `vapor.asm` | — | `VAPOR_BYTE` in the first 24 bytes of HGR line 191 of both pages (`.ifref`, 14 B) | A, X | — |
+| `vapor_pace_init` | `vapor.asm` | marker on the shown page, HGR on | `vapor_count` kept for `vapor_pace` (`vp_frame`, `vp_half`); C = 1: no floating bus (do not call `vapor_pace`) | A, X, Y | — |
+| `vapor_pace` | `vapor.asm` | A = N frames a tick, X / Y = the work since the last return in polls (cycles / 13, ± half a frame); `vapor_pace_init` done | C = 0: the beam on line 191, N frames after the last return (k frames when the work took k > N): flip now, same phase to a poll; C = 1: no sync | A, X, Y | — |
 | `stick_dir` | `joy.asm` | `joy_x`, `joy_y` | A = `JOY_NONE` (0, Z = 1) / `JOY_UP` / `JOY_DOWN` / `JOY_LEFT` / `JOY_RIGHT`; dead zone `JOY_LO`–`JOY_HI` (30–90, define before the include to change it); vertical wins | A | — |
 | `stick_key` | `joy.asm` | `STICK_KEYS` (optional 6-byte table: UP, DOWN, LEFT, RIGHT, B0, B1) | one-shot events: X = 1..4 (`stick_dir`), 5 = button 0, 6 = button 1, each on its own edge (a press; a change to a non-centre direction, so releasing a button under a held direction fires nothing); button 0 > button 1 > direction, the loser fires on the next call; A = `STICK_KEYS[X-1]` (A = X without a table), or A = 0 / Z = 1 when nothing new; no stick (C = 1 from the reader): no button read. State `stick_key_last` (1 B, zero it at start) + `stick_key_btn` (2 B, no init needed), BSS or caller's ZP. 50 B with the table + `read_stick` + `stick_dir`; `STICK_KEY_FAST` (`read_stick_fast`), `STICK_KEY_REPEAT = n` (held direction every n calls, +20 B, +1 B BSS): chess | A, X, Y | — |
 | `joy_buttons` | `joy.asm` | — | A = buttons held (bit 0 = 0, bit 1 = 1, Z from A), X = newly pressed; state `joy_btn_last` (1 B); 25 B; reads the buttons even without a stick | A, X, Y | — |
@@ -340,6 +362,31 @@ poll (2026-10-24, from SNAKE; `dev/tests/test_vapor.py`).
 - **Checked on** a2run (which now emulates the floating bus, NTSC) and POM2
   (II+ NTSC and PAL, enhanced //e): a lock every 17030 / 20280 cycles, at the
   same point of the frame within 6 cycles.
+- **A tick every N frames: `vapor_pace`** (2026-11-01, the physics
+  examples). A program that draws the hidden page and flips calls
+  `vapor_mark_both` after each clear (the marker on row 191 of both
+  pages: the shown one always has it; draw nothing below row 190 and the
+  flip, which follows line 191, never tears), `vapor_pace_init` once
+  (`vapor_count`, the frame kept in polls; C = 1: no floating bus, run
+  unpaced), then each tick `vapor_pace` with A = N and X / Y = an
+  estimate of the tick's work in polls (cycles / 13), and flips when it
+  returns. It waits for line 191, adds the polls that took, k =
+  round((estimate + polls) / frame) frames have gone (at least 1), and
+  waits again while k < N. The estimate may be off by half a frame
+  (± 8,515 cycles): a base per state of the program and terms for what
+  varies (a sound, a clear, the balls awake, the objects redrawn); for
+  work longer than N frames, any estimate of N − ½ frames or more does.
+  The first wait enters the poll loop directly (`vapor_sync_in`: the beam
+  may be on the marker when the work ends; `vapor_sync` would let that
+  line go and lose a frame), and the path after the last wait is the same
+  whatever k was, so the flips keep their phase: in a2run 34,060 or 51,090
+  cycles apart within one poll, on line 193-194. The poll loop must stay
+  within a page (14-cycle polls would put the estimate, in 13s, off by
+  7 %): an `lderror` assert says so. 102 + 23 B, 8 B of BSS (+ 77 B of
+  `vapor_sync` / `vapor_count`, 14 B `vapor_mark_both`); the existing
+  routines are byte-identical. POM2's //c (`a2shot --iic`) has a floating
+  bus (a frame of 1305 polls) where a real //c has none; the examples'
+  tests simulate that by clearing the marker before `vapor_pace_init`.
 
 ## RGB Le Chat Mauve / Video-7
 

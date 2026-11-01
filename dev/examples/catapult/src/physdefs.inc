@@ -34,6 +34,8 @@ VL_FAR          = FAR
 VL_BOUNCE       = GBOUNCE
 VL_PIN          = 1
 VL_CON_FIXED_K  = FIXED_K
+VL_CON_SKIP_ZERO = 1            ; (speed, exact: f = 0 returns at once)
+VL_CON_FAST     = 1             ; (speed, exact: square table, inline links)
 VL_THRUST       = THRUST
 VL_AXIS_A       = BASE
 VL_AXIS_B       = TIP

@@ -19,6 +19,31 @@
 ;                  (20280-cycle frames) 1.19 times that, an accelerator card
 ;                  several times more.
 ;                  Clobbers A, X, Y.
+;   vapor_mark_both -- vapor_mark on both HGR pages ($3FD0-$3FE7 and
+;                  $5FD0-$5FE7), for a program that flips them: the page
+;                  shown always carries it. Clobbers A, X. (.ifref, 13 B)
+;   vapor_pace_init -- vapor_count, the frame kept in polls for vapor_pace;
+;                  C = 1 when there is no floating bus (then do not call
+;                  vapor_pace: run unpaced). Clobbers A, X, Y.
+;   vapor_pace  -- a constant tick rate: A = N video frames a tick (1..255),
+;                  X / Y = low / high of the work done since the last
+;                  return, estimated in polls (cycles / 13). It waits for
+;                  line 191, adds the polls that took to the estimate:
+;                  k = round((estimate + polls) / frame), the frames gone
+;                  since the last return (at least 1); while k < N, waits
+;                  for line 191 again and counts k anew with those polls
+;                  (the path after the last wait is the same whatever k
+;                  was: the return keeps its phase to a cycle). C = 0: the
+;                  beam is on line 191, N frames after the last return when
+;                  the work took less than N (k frames, the next line 191,
+;                  when it took more); flip the pages now. C = 1: no sync
+;                  (the first one failed). The estimate may be off by up
+;                  to half a frame (+-8,515 cycles at 1 MHz NTSC): a fixed
+;                  cost per state of the program does, plus terms for what
+;                  varies a lot (a sound, a screen cleared). The frame
+;                  being counted in polls by vapor_pace_init, PAL (20,280
+;                  cycles) and accelerated machines need no other estimate.
+;                  Clobbers A, X, Y. (.ifref; 8 B of BSS)
 ;
 ; The floating bus: a soft switch that drives no data ($C050-$C05F) reads back
 ; the byte the video scanner fetched on that cycle (Sather, Understanding the
@@ -69,20 +94,21 @@ vapor_mark:
         RTS
 .endif
 
-.if .referenced(vapor_sync) .or .referenced(vapor_count)
+.if .referenced(vapor_sync) .or .referenced(vapor_count) .or .referenced(vapor_pace) .or .referenced(vapor_pace_init)
 .segment "CODE"
 vapor_sync:
         LDX     #0              ; Y:X counts the polls down from 65536
         LDY     #0
 @out:   LDA     TXTCLR          ; first leave the marker (called right after
         CMP     #VAPOR_BYTE     ; a sync, the beam may still be on it)
-        BNE     @in
+        BNE     vapor_sync_in
         DEX
         BNE     @out
         DEY
         BNE     @out
         SEC
         RTS
+vapor_sync_in:                  ; (vapor_pace, X = Y = 0: the beam may be on it)
 @in:    LDA     TXTCLR          ; 13 cycles a poll
         CMP     #VAPOR_BYTE
         BEQ     @hit
@@ -97,9 +123,12 @@ vapor_sync:
         BNE     @next
         CLC
         RTS
+.if .referenced(vapor_pace)
+.assert >vapor_sync_in = >(@hit - 1), lderror, "vapor.asm: the poll loop crosses a page (14-cycle polls: vapor_pace's estimate is in 13)"
+.endif
 .endif
 
-.if .referenced(vapor_count)
+.if .referenced(vapor_count) .or .referenced(vapor_pace_init)
 .segment "CODE"
 vapor_count:
         JSR     vapor_sync
@@ -125,4 +154,87 @@ vapor_count:
         TAX
         SEC
         RTS
+.endif
+
+.if .referenced(vapor_mark_both)
+.segment "CODE"
+vapor_mark_both:
+        LDA     #VAPOR_BYTE
+        LDX     #VAPOR_LEN-1
+@lp:    STA     $3FD0,X         ; HGR line 191 of page 1
+        STA     $5FD0,X         ; and of page 2
+        DEX
+        BPL     @lp
+        RTS
+.endif
+
+.if .referenced(vapor_pace) .or .referenced(vapor_pace_init)
+.segment "BSS"
+vp_frame: .res 2                ; polls a frame (vapor_count)
+vp_half:  .res 2                ; half of it (the rounding)
+vp_sum:   .res 2                ; vapor_pace: the estimate + the polls
+vp_n:     .res 1                ; N
+vp_t:     .res 1
+.segment "CODE"
+vapor_pace_init:
+        JSR     vapor_count
+        BCS     @rts
+        STA     vp_frame
+        STX     vp_frame+1
+        STX     vp_half+1
+        LSR     vp_half+1
+        ROR     A
+        STA     vp_half
+        CLC
+@rts:   RTS
+
+vapor_pace:
+        STA     vp_n
+        STX     vp_sum
+        STY     vp_sum+1
+        LDX     #0              ; the first wait: the beam may be on line
+        LDY     #0              ; 191 now (vapor_sync would let it go)
+        JSR     vapor_sync_in
+        BCS     @rts
+        BCC     @add
+@sync:  JSR     vapor_sync      ; the next line 191
+        BCS     @rts
+        BCC     @add            ; (5 cycles on both paths: the same phase)
+@add:
+        TXA                     ; + its polls: -X, -Y, each byte negated
+        EOR     #$FF            ; on its own (vapor_count)
+        CLC
+        ADC     #1
+        CLC
+        ADC     vp_sum
+        STA     vp_sum
+        TYA
+        EOR     #$FF            ; ~Y + C, then + 1
+        ADC     vp_sum+1
+        STA     vp_sum+1
+        INC     vp_sum+1
+        SEC                     ; k = round(sum / frame), at least 1:
+        LDA     vp_sum          ; t = sum - frame / 2, then k = 1 + the
+        SBC     vp_half         ; frames t holds, counted up to N only
+        TAY                     ; (Y = t low, A = t high)
+        LDA     vp_sum+1
+        SBC     vp_half+1
+        LDX     #1
+        BCC     @test           ; (t < 0: k = 1)
+@more:  CPX     vp_n
+        BCS     @done           ; k >= N: the tick's last frame
+        STA     vp_t
+        TYA
+        SEC
+        SBC     vp_frame
+        TAY
+        LDA     vp_t
+        SBC     vp_frame+1
+        BCC     @test
+        INX
+        BCS     @more
+@test:  CPX     vp_n            ; k < N: wait for one more
+        BCC     @sync
+@done:  CLC                     ; (the same path after the last sync
+@rts:   RTS                     ; whichever it was: a constant phase)
 .endif

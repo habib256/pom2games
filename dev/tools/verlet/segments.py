@@ -30,6 +30,13 @@ from_polyline() walks a polyline with those normals and places each
 end on the exact tangent (8.8 corners), so the joints meet.
 
 y_high (VL_Y_HIGH): rows are 16 bits (the box compares two bytes).
+
+Buckets (VL_SEG_BUCKETS, emitter only: the scan's result is the same):
+column c = px >> shift lists the segments whose box meets the pixels
+c 2^shift .. (c + 1) 2^shift - 1, in the scan order n-1 .. 0; the 6502
+scans that list instead of every segment (a pixel beyond the last column
+meets no box: no contact). Any segment holding px in its box is in px's
+column, the order is the scan's: the same candidates, the same ties.
 """
 import math
 
@@ -102,9 +109,11 @@ class SegmentGround:
         self.sgi[i] = 0xFF if self.hit is None else self.hit
         return vt
 
-    def __init__(self, segs, radius=0x0600, bounce=64, depth=0x0400, y_high=False, margin=None, cache=None):
+    def __init__(self, segs, radius=0x0600, bounce=64, depth=0x0400, y_high=False, margin=None, cache=None,
+                 bucket_shift=None):
         self.radius, self.bounce, self.depth, self.y_high = radius, bounce, depth, y_high
         self.cache = cache              # VL_SEG_CACHE (8.8) or None
+        self.bucket_shift = bucket_shift    # VL_SEG_BUCKETS column width 2^shift px (None: buckets())
         self.sgi = {}                   # vl_sgi: point -> its contact segment (0xFF none)
         if margin is None:
             margin = (max(radius, depth) + 255 >> 8) + 1
@@ -223,7 +232,9 @@ class SegmentGround:
 
     def tables(self):
         """(label, values) rows for verlet.emit: the segment tables
-        verlet_seg.asm reads (signed bytes as '<v')."""
+        verlet_seg.asm reads (signed bytes as '<v'), then the bucket
+        rows and lines as the macro VL_SEG_BUCKET_TABLES (no bytes: with
+        VL_SEG_BUCKETS, verlet_seg.asm expands it in RODATA)."""
         S = self.segs
         out = [('vl_sg_x0f', [sg.x0 & 0xFF for sg in S]), ('vl_sg_x0l', [(sg.x0 >> 8) & 0xFF for sg in S]),
                ('vl_sg_y0f', [sg.y0 & 0xFF for sg in S]), ('vl_sg_y0h', [(sg.y0 >> 8) & 0xFF for sg in S]),
@@ -234,8 +245,41 @@ class SegmentGround:
                ('vl_sg_by0', [sg.by0 & 0xFF for sg in S]), ('vl_sg_by1', [sg.by1 & 0xFF for sg in S])]
         if self.y_high:
             out += [('vl_sg_by0h', [sg.by0 >> 8 for sg in S]), ('vl_sg_by1h', [sg.by1 >> 8 for sg in S])]
+        out += ['.macro VL_SEG_BUCKET_TABLES', *self.bucket_tables(), '.endmacro']
         return out
+
+    def buckets(self):
+        """VL_SEG_BUCKETS: (shift, [segment list of each column]). The
+        shift: bucket_shift, else the smallest from 3 up whose tables fit
+        (<= 255 columns, <= 255 list bytes)."""
+        top = max(sg.bx1 for sg in self.segs)
+        for shift in ([self.bucket_shift] if self.bucket_shift is not None else range(3, 16)):
+            nb = (top >> shift) + 1
+            cols = [[k for k in range(self.n - 1, -1, -1)
+                     if self.segs[k].bx0 <= ((c + 1) << shift) - 1 and self.segs[k].bx1 >= c << shift]
+                    for c in range(nb)]
+            if nb <= 255 and sum(map(len, cols)) <= 255:
+                return shift, cols
+        raise AssertionError(f'VL_SEG_BUCKETS: the columns do not fit (shift {self.bucket_shift})')
+
+    def candidates(self, px):
+        """The segments the bucket scan tries for pixel column px, in order."""
+        shift, cols = self.buckets()
+        c = px >> shift
+        return cols[c] if c < len(cols) else []
+
+    def bucket_tables(self):
+        """The VL_SEG_BUCKETS rows (the body of VL_SEG_BUCKET_TABLES): the
+        shift, the column count, vl_sg_bko (each column's first list
+        offset, then the end) and vl_sg_bkl (the lists)."""
+        shift, cols = self.buckets()
+        offs, flat = [0], []
+        for c in cols:
+            flat += c
+            offs.append(len(flat))
+        return [f'VL_SEG_BKT_SHIFT = {shift}', f'VL_SEG_BKT_N = {len(cols)}',
+                ('vl_sg_bko', offs), ('vl_sg_bkl', flat)]
 
     def table_lines(self):
         from .emit import table_line
-        return [table_line(*t) for t in self.tables()]
+        return [t if isinstance(t, str) else table_line(*t) for t in self.tables()]

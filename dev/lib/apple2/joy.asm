@@ -20,6 +20,19 @@
 ;                 case takes ~8.7 ms, longer than read_stick: test C once at
 ;                 start and skip the call when there is no stick.
 ;                 Clobbers A, X, Y. From DIRTBIKE.
+;   read_stick_x -- the X axis alone (paddle 0) in the Monitor's PREAD loop:
+;                 11 cycles a count, joy_x = 0 (left) .. 255, ~128 centred:
+;                 the ROM's PREAD scale, 35/11 = ~3.2 times read_stick_fast's
+;                 counts (~2.2 times read_stick's): multiply a dead zone or a
+;                 gain tuned on read_stick_fast by 3.2 (12 -> 38). Returns as
+;                 soon as the X timer runs out, so it costs what the timer
+;                 lasts (~11 x joy_x + 20 cycles, ~1,430 centred): it saves
+;                 the wait for a Y timer longer than X's and the 35-cycle
+;                 turns' coarse counts, not the RC time itself. C = 1 when
+;                 the timer still runs after 255 counts (~2.8 ms: no stick,
+;                 or one pushed past the full scale): joy_x = 255. joy_y
+;                 untouched (PTRIG starts both timers; Y's runs out on its
+;                 own, ~3 ms at most). Clobbers A, X. 19 B.
 ;   stick_dir  -- after read_stick: A = JOY_UP / JOY_DOWN / JOY_LEFT /
 ;                 JOY_RIGHT, or JOY_NONE (0, Z set) inside the dead zone.
 ;                 The vertical axis wins a diagonal. Clobbers A.
@@ -160,6 +173,23 @@ read_stick_fast:
         RTS
 @done:  STX     joy_x
         STY     joy_y
+        CLC
+        RTS
+.endif
+
+.ifref read_stick_x
+read_stick_x:
+        LDX     #0
+        LDA     PTRIG
+@lp:    LDA     PADDL0                  ; 11 cycles a count
+        BPL     @done
+        INX
+        BNE     @lp
+        DEX                             ; still running after 255: C = 1
+        STX     joy_x
+        SEC
+        RTS
+@done:  STX     joy_x
         CLC
         RTS
 .endif

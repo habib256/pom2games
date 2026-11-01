@@ -144,15 +144,16 @@ ride:   LDA     in_pump
         BCC     :+
         LDA     #9
 :       STA     hp_last+1
-        LDA     hp_air                  ;        10 min(air >> 4, 9) (BCD)
-        LSR     A
-        LSR     A
-        LSR     A
-        LSR     A
-        CMP     #10
-        BCC     :+
-        LDA     #9
-:       ASL     A
+        LDA     hp_air                  ;        10 min(air / AIR_UNIT, 9) (BCD)
+        LDX     #0
+@au:    CMP     #AIR_UNIT
+        BCC     @aud
+        SBC     #AIR_UNIT               ; (C = 1)
+        INX
+        CPX     #9
+        BCC     @au
+@aud:   TXA
+        ASL     A
         ASL     A
         ASL     A
         ASL     A

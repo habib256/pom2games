@@ -200,6 +200,53 @@ four routines there: catapult and rope, byte-identical to their former
 `src/plot.inc`), or include it early for the zero page and again after the
 last caller, which assembles only the routines referenced.
 
+### The fast path (`HGR_PLOT_HIST_FAST`)
+
+Defined before the first include (undefined: the code above,
+byte-identical), it lights exactly the same pixels, faster, and adds two
+routines. The four dev/examples (catapult, rope, lander, halfpipe) use it,
+included early for the zero page and again after their last caller.
+
+- `pl_line` steps a byte column and a bit mask instead of looking up the
+  row, `x / 7` and `x mod 7` for each pixel. An x-major line (dx > dy)
+  keeps the run of bits lit in the current byte and writes it once, as a
+  single history entry, when it leaves the byte; a y-major line writes each
+  pixel through patched absolute operands. Measured (a2run, 61-pixel
+  lines on a black page): 60 × 5 ~53 cycles a pixel, 60 × 15 ~71, 60 × 40
+  ~115, the diagonal ~108, steep ~92, against ~170 for the per-pixel
+  `pl_line`; the history holds 25 % fewer entries over the test's lines.
+- `pl_erase`: count down, X = 0 out of the loop, the history read
+  absolute,Y: ~38 cycles an entry (~43).
+- `pl_erase_to` (A = a mark: `pl_n,X` taken before drawing an object)
+  gives back only the entries above the mark, newest first: a page's
+  history becomes a stack of objects. CATAPULT keeps its arm, seven balls
+  and aim mark in such a stack, last moved on top, with what each page
+  shows of each: a frame gives back from the lowest object that changed
+  up, draws again the still ones above it, then the moved ones. Aiming
+  without input draws nothing (3,700 cycles a frame instead of 38,200).
+- `pl_sprite`: a preshifted sprite at `pl_x, pl_y` (its top left pixel),
+  OR'ed in, the bits it lit recorded a byte at a time. `pl_sp` (zero page)
+  points at `.byte W, H` then `.addr` of the 7 shifts, each H rows of W
+  bytes (bit 0 = the leftmost pixel). Rows above `PL_SPRITE_YMIN` (default
+  0) or below 191 are skipped; columns are not clipped (`x / 7 + W <= 40`).
+  ~63 cycles a non-empty byte, ~70 a row: CATAPULT's 11-row ring (3 bytes,
+  built at start from its 20 points) costs ~2,200 cycles and 18 history
+  entries against ~2,900 and 20 for 20 `pl_plot`; ROPE's 5 × 5 weight
+  (5 `pl_line` before), LANDER's and HALFPIPE's 3 × 3 crosses.
+
+The history counts bytes, not pixels: 255 entries a page. Past them the
+x-major loops and `pl_sprite` stop, a y-major line draws at most
+255 − `pl_n` pixels. The fast routines patch their history and page
+operands themselves when `pl_cur` changed since their last call (`pl_page`
+is unchanged). Zero page 21 B (+2: `pl_sp`); code `pl_page` 35,
+`pl_erase` + `pl_erase_to` 69, `pl_line` 644, `pl_sprite` 171 B (919 B,
+against 278 B for the plain four; `pl_plot` is no longer pulled in by
+`pl_line`). `python3 dev/tests/test_hgr_plot_hist.py`: both variants over
+2,400 lines (every octant, lengths 0..60, the screen's edges, full-width
+and full-height lines) on a random backdrop, both pages — bit-identical
+frame buffers, erase back to the backdrop; `pl_sprite` (7 shifts, clipped
+rows), `pl_erase_to` and a full history.
+
 ## Native kernels used by LOGO
 
 `hgr_plot16` accepts a 16-bit X (0..279 on screen) and an 8-bit Y.

@@ -31,11 +31,27 @@ fixed-gain links. A tick (Rider.tick(pump, lean)):
                landing; the body less than LAND_MIN along the normal
                of that wheel's segment (upside down)           -> crash
                else, if the body went above the lip row (peak < LIP_Y),
-               the trick: points = 10 * min(air / 16, 9) +
+               the trick: points = 10 * min(air / AIR_UNIT, 9) +
                100 * min(spins, 9), spins = (|rot| + 4) / 8, score += it
              then air = rot = 0
   crashed  the links break: each point flies on its own (no links, no
            pump), timer counts to 255
+
+The rate: the game runs TICK_HZ ticks a second (vapor_pace: a tick every 2
+video frames); the feel was tuned at TUNED_HZ (the unpaced game before the
+speed lots). Every constant with a time in it is derived from its tuned
+value here (per_s2: accelerations x (TUNED/TICK)^2, per_s: speeds x
+TUNED/TICK, ticks: durations x TICK/TUNED), so the rider moves on the
+screen as it did. The lean (an impulse a tick, faded in the air by the
+pair damping, 1/8 a tick) cannot keep both its start and its steady spin
+with a damping of a power of two: fit_turn() picks the ROT_K and the
+LEAN_HOLD whose spin angle over the first second (held, and one press)
+stays closest to the tuned one. The pump gives more than per_s2 says
+(the wheels touch more ticks of a swing at 30 Hz): fit_pump() picks the
+PUMP_K whose jumps, pumping for 40 s, reach on average the height they
+reached at 40 Hz (TUNED_PEAK: the b22bb57 model at 40 Hz). The speed
+clamp stays 6 px a tick (it is the tunnelling bound, never reached: the
+rider goes up to ~4 px a tick at 30 Hz).
 """
 from pathlib import Path
 import math
@@ -45,6 +61,53 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[2] / 'tools'))
 from verlet import Points, Constraint, SegmentGround, tables, emit  # noqa: E402
 from verlet.fixed import s16  # noqa: E402
+
+# --- the rate -----------------------------------------------------------------------
+TUNED_HZ, TICK_HZ = 40, 30              # tuned unpaced at ~40 ticks/s; paced at 30
+TICK_FRAMES = 60 // TICK_HZ             # video frames a tick (vapor_pace)
+
+
+def per_s2(v):
+    """An acceleration (a tick^2) tuned at TUNED_HZ, for TICK_HZ."""
+    return int(v * TUNED_HZ * TUNED_HZ / (TICK_HZ * TICK_HZ) + (0.5 if v >= 0 else -0.5))
+
+
+def per_s(v):
+    """A speed (a tick) tuned at TUNED_HZ, for TICK_HZ."""
+    return int(v * TUNED_HZ / TICK_HZ + (0.5 if v >= 0 else -0.5))
+
+
+def ticks(n):
+    """A duration in ticks tuned at TUNED_HZ, for TICK_HZ."""
+    return int(n * TICK_HZ / TUNED_HZ + 0.5)
+
+
+def spin(k, shift, hz, hold, secs=1.0):
+    """The angle (units of vl_turn_pair) at each 0.1 s of the first secs:
+    an impulse k a tick for `hold` ticks (None: held), the spin faded by
+    2^-shift a tick (the small-angle model of turn_pair + pair_damp)."""
+    w = a = 0.0
+    out = []
+    for i in range(int(secs * hz)):
+        w += (k if hold is None or i < hold else 0) - w / (1 << shift)
+        a += w
+        if (i + 1) % (hz // 10) == 0:
+            out.append(a)
+    return out
+
+
+def fit_turn(k_tuned, hold_tuned, shift):
+    """(ROT_K, LEAN_HOLD) at TICK_HZ: the K whose held spin, then the hold
+    whose one-press spin, stay closest (largest relative error over the
+    first second) to those tuned at TUNED_HZ."""
+    def err(a, b):
+        return max(abs(x / y - 1) for x, y in zip(a, b))
+    held = spin(k_tuned, shift, TUNED_HZ, None)
+    k = min(range(1, 64), key=lambda k: err(spin(k, shift, TICK_HZ, None), held))
+    one = spin(k_tuned, shift, TUNED_HZ, hold_tuned)
+    hold = min(range(1, 64), key=lambda h: err(spin(k, shift, TICK_HZ, h), one))
+    return k, hold
+
 
 # --- the pipe ---------------------------------------------------------------------
 LIP_Y = 80                              # deck row
@@ -107,14 +170,20 @@ FIXED_K = 6
 LINKS = [Constraint(0, 1, 2 * HALF, fixed_k=FIXED_K),
          Constraint(0, 2, 10, fixed_k=FIXED_K),
          Constraint(1, 2, 10, fixed_k=FIXED_K)]
-GRAVITY = 0x000C                        # 8.8 px / tick^2
-VMAX = 0x0600
-PUMP_K = 0x0014                         # tangential speed a pumping wheel gains a tick (going up)
-ROT_K = 5                               # vl_turn of a lean, a tick
+GRAVITY = per_s2(0x000C)                # 8.8 px / tick^2 (12 at 40 Hz: 21)
+VMAX = 0x0600                           # 6 px a tick (per_s: 8): <= RADIUS + DEPTH, or a
+                                        # point could pass a segment in a tick
+PUMP_TUNED = 0x0014                     # tangential speed a pumping wheel gains a tick at 40 Hz
+PUMP_K = PUMP_TUNED                     # (going up a curve): fit_pump() below
 SPIN_DAMP = 3                           # vl_pair_damp in the air
-AIR_MIN = 8                             # ticks in the air for a landing to count
+ROT_K, LEAN_HOLD = fit_turn(5, 6, SPIN_DAMP)    # vl_turn of a lean a tick (5 at 40 Hz),
+                                                # ticks a key leans (6 at 40 Hz; halfpipe.s)
+AIR_MIN = ticks(8)                      # ticks in the air for a landing to count (0.2 s)
+AIR_UNIT = ticks(16)                    # the trick: 10 points a AIR_UNIT ticks in the air (0.4 s)
+PUMP_HOLD = ticks(16)                   # (halfpipe.s) ticks a key pumps: 0.4 s
+AGAIN_T = ticks(110)                    # (halfpipe.s) ticks after a crash: a new run (2.75 s)
 LAND_MIN = 0x0300                       # the body this far along the normal at least (8.8)
-KICK = [(-0x0080, -0x0100), (0x0080, -0x00C0), (0x0010, -0x0140)]
+KICK = [(per_s(x), per_s(y)) for x, y in [(-0x0080, -0x0100), (0x0080, -0x00C0), (0x0010, -0x0140)]]
 # the start: on the left wall, facing down (rear wheel, front wheel, body: px)
 START = [(LEFT_X + 2, LIP_Y + 8), (LEFT_X + 2, LIP_Y + 20), (LEFT_X + 10, LIP_Y + 14)]
 START_OCT = 1                           # octant(0, 12): the axis points down
@@ -209,7 +278,7 @@ class Rider(Points):
             r = self.rot - 256 if self.rot & 0x80 else self.rot
             spins = (abs(r) + 4) >> 3
             self.spins = spins
-            self.last = 10 * min(self.air >> 4, 9) + 100 * min(spins, 9)
+            self.last = 10 * min(self.air // AIR_UNIT, 9) + 100 * min(spins, 9)
             self.score = min(self.score + self.last, 999999)
         self._reset()
 
@@ -240,6 +309,43 @@ def bcd(v, n):
     return bytes(int(s[2 * k:2 * k + 2], 16) for k in range(n - 1, -1, -1))
 
 
+# --- the pump's fit ----------------------------------------------------------------
+TUNED_PEAK = 71.29                      # mean body row at the top of the jumps, 40 s of
+                                        # pumper() at 40 Hz with PUMP_K 20 (b22bb57)
+
+
+def jump_peaks(secs=40):
+    """pumper() for secs: the body's highest row of each jump (the first
+    one, the drop in, left out)."""
+    p = Rider()
+    out, air, pk, t0 = [], False, 999, 0
+    for k in range(int(secs * TICK_HZ)):
+        p.tick(1 if (p.gnd[0] or p.gnd[1]) else 0, 0)
+        a = not (p.gnd[0] or p.gnd[1])
+        if a:
+            pk = min(pk, p.y[2] >> 8)
+        if air and not a and k - t0 > TICK_HZ // 5:
+            out.append(pk)
+        if a and not air:
+            t0, pk = k, 999
+        air = a
+    return out[1:]
+
+
+def fit_pump(lo=PUMP_TUNED, hi=per_s2(PUMP_TUNED) + 4):
+    """The PUMP_K of lo..hi whose mean jump peak is closest to TUNED_PEAK."""
+    global PUMP_K
+    best = None
+    for k in range(lo, hi + 1):
+        PUMP_K = k
+        pk = jump_peaks()
+        e = abs(sum(pk) / len(pk) - TUNED_PEAK)
+        if best is None or e < best[0]:
+            best = (e, k)
+    PUMP_K = best[1]
+    return PUMP_K
+
+
 # --- a scripted rider (tests, tuning) ---------------------------------------------
 def pumper(p, k):
     """Pump whenever a wheel is down: (pump, lean)."""
@@ -256,13 +362,18 @@ def ride(pilot=pumper, ticks=1500, start=START):
     return p, inputs
 
 
+PUMP_K = fit_pump()                     # 30 (20 at 40 Hz; per_s2 would give 36)
+
+
 # --- the 6502 constants -------------------------------------------------------------
 def write_inc(path):
     tab = tables(LINKS)
     g = PIPE
     consts = [('GRAVITY', GRAVITY), ('VMAX', VMAX), ('ROT_K', ROT_K, 'dec'), ('SPIN_DAMP', SPIN_DAMP, 'dec'),
               ('FIXED_K', FIXED_K, 'dec'), ('RADIUS', RADIUS), ('BOUNCE', BOUNCE, 'dec'),
-              ('PUMP_K', PUMP_K), ('AIR_MIN', AIR_MIN, 'dec'), ('LAND_MIN', LAND_MIN),
+              ('PUMP_K', PUMP_K), ('AIR_MIN', AIR_MIN, 'dec'), ('AIR_UNIT', AIR_UNIT, 'dec'),
+              ('PUMP_HOLD', PUMP_HOLD, 'dec'), ('LEAN_HOLD', LEAN_HOLD, 'dec'), ('AGAIN_T', AGAIN_T, 'dec'),
+              ('TICK_FRAMES', TICK_FRAMES, 'dec'), ('LAND_MIN', LAND_MIN),
               ('TOP_Y', TOP_Y << 8), ('LIP_Y', LIP_Y, 'dec'), ('START_OCT', START_OCT, 'dec'), ('HALF', HALF, 'dec'), ('BODY_UP', BODY_UP, 'dec'),
               *g.consts(),
               ('NDRAW', g.n, 'dec')]

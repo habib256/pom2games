@@ -12,7 +12,9 @@ for 600 ticks (integrate + the segment ground), one of them going round.
 Configuration B: the same shapes 200 rows lower with VL_Y_HIGH (y 16.8,
 16-bit row boxes), a wall across row 256, points above row 0. Configuration
 C: VL_GROUND_KIND (vl_ground_any: point 0 on a height map, 1 and 2 on the
-segments). Then the switch errors and the cycles of a call (a2run call:).
+segments). VL_SEG_BUCKETS: A, B and A + cache again (calls and rides) with
+the bucket scan, and 20,000 random probes of the bucket scan (Python) ==
+the full scan. Then the switch errors and the cycles of a call (a2run call:).
 
     python3 dev/tests/test_verlet_seg.py [--cycles]
 """
@@ -27,7 +29,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'dev/tools'))
 from verlet import Points, HeightMap, SegmentGround, harness, emit  # noqa: E402
-from verlet.fixed import le  # noqa: E402
+from verlet.fixed import le, s16  # noqa: E402
 import a2test  # noqa: E402
 
 N = 3
@@ -224,7 +226,7 @@ def ride_starts(g, dy=0):
     return [(x, y, 0x0700, 0), (x2, y2, 0, -0x0200), (at(g.segs[0], 10, 3)[0], at(g.segs[0], 10, 3)[1], 0x0300, 0)]
 
 
-def check_ride(g, ticks=600):
+def check_ride(g, ticks=600, extra=''):
     starts = ride_starts(g)
     p0 = Points(N, y_high=g.y_high)
     for i, (x, y, vx, vy) in enumerate(starts):
@@ -258,7 +260,7 @@ t_init: .byte {", ".join(map(str, init))}
 ''' + EPI_TAIL
     every = 20
     rows = [(every, [], 1) for _ in range(ticks // every)]
-    got = harness.run(prelude(g), epi, [], [('vl_xf', (12 if g.y_high else 10) * N)], rows, init='init',
+    got = harness.run(prelude(g, extra), epi, [], [('vl_xf', (12 if g.y_high else 10) * N)], rows, init='init',
                       snap_seg='LOWBSS')
     p, states = ride(g, starts, ticks)
     for k in range(len(rows)):
@@ -322,12 +324,55 @@ VL_FAR = $2000
     return n
 
 
+def bucket_probes(g, rng, n=20000):
+    """The bucket scan (segments.py candidates(): the column's list) gives
+    probe_at's full scan result on random probes (and every pixel column's
+    list holds exactly the segments whose box holds that pixel, in order)."""
+    shift, cols = g.buckets()
+    top = max(sg.bx1 for sg in g.segs)
+    for px in range(top + 2 + (1 << shift)):
+        want = [k for k in range(g.n - 1, -1, -1) if g.segs[k].bx0 <= px <= g.segs[k].bx1]
+        assert [k for k in g.candidates(px) if g.segs[k].bx0 <= px <= g.segs[k].bx1] == want, px
+    same = 0
+    for _ in range(n):
+        if rng.random() < 0.7:
+            sg = g.segs[rng.randrange(g.n)]
+            x, y = at(sg, rng.uniform(-3, sg.smax / 256 + 3), rng.uniform(-6, 6))
+        else:
+            x, y = rng.randrange(0, (top + 40) << 8), rng.randrange(0, 0x10000 if not g.y_high else 0x30000)
+        g.cache = None
+        full = (g.probe_at(x, y), g.hit)
+        px = (x >> 8) & 0xFFFF
+        py = (y >> 8) & (0xFFFF if g.y_high else 0xFF)
+        best, hit = g.radius, None
+        for k in g.candidates(px):              # the 6502 bucket scan, in Python
+            sgk = g.segs[k]
+            if px < sgk.bx0 or px > sgk.bx1 or py < sgk.by0 or py > sgk.by1:
+                continue
+            dx, dy = s16(x - sgk.x0), s16(y - sgk.y0)
+            d = s16((dx * sgk.nx + dy * sgk.ny) >> 6)
+            if d >= best or d < -g.depth:
+                continue
+            s = s16((dy * sgk.nx - dx * sgk.ny) >> 6)
+            if s < 0 or s > sgk.smax:
+                continue
+            best, hit = d, k
+        got = (None if hit is None else (g.segs[hit].nx, g.segs[hit].ny, g.radius - best), hit)
+        assert got == full, (x, y, got, full)
+        same += hit is not None
+    return shift, len(cols), sum(map(len, cols)), same
+
+
 def switch_errors():
     """VL_GROUND_SEGMENTS without VL_GROUND, vl_seg_ground without
-    VL_GROUND_SEGMENTS: the assembly stops."""
+    VL_GROUND_SEGMENTS, VL_SEG_BUCKETS without VL_SEG_BUCKET_TABLES: the
+    assembly stops."""
     base = 'MUL_TABLES = $0800\nMUL_ACC = 1\n.include "math.inc"\nVL_NPOINTS = 2\n'
     bad = {'segments without a ground': base + 'VL_GROUND_SEGMENTS = 4\n.include "verlet.inc"\n',
            'vl_seg_ground without segments': base + 'VL_GROUND = 2\nVL_RADIUS = $300\nVL_BOUNCE = 0\n'
+           '.include "verlet.inc"\n JSR vl_seg_ground\n.include "verlet_seg.asm"\n',
+           'buckets without their tables': base + 'VL_GROUND = 2\nVL_RADIUS = $300\nVL_BOUNCE = 0\n'
+           'VL_GROUND_SEGMENTS = 4\nVL_SEG_DEPTH = $400\nVL_SEG_BUCKETS = 1\n'
            '.include "verlet.inc"\n JSR vl_seg_ground\n.include "verlet_seg.asm"\n'}
     inc = [a for d in harness.INCLUDES for a in ('-I', str(d))]
     with tempfile.TemporaryDirectory(prefix='verlet-seg-sw-') as tmp:
@@ -335,7 +380,7 @@ def switch_errors():
             (Path(tmp) / 's.s').write_text(text)
             r = subprocess.run(['ca65', *inc, '-o', str(Path(tmp) / 's.o'), str(Path(tmp) / 's.s')],
                                capture_output=True, text=True)
-            assert r.returncode != 0 and 'VL_GROUND' in r.stderr, (name, r.stderr)
+            assert r.returncode != 0 and ('VL_GROUND' in r.stderr or 'VL_SEG_BUCKET' in r.stderr), (name, r.stderr)
     return len(bad)
 
 
@@ -345,7 +390,7 @@ CYCLE_CASES = [('no box (empty sky)', None, 0, 0), ('in a box, above the line', 
                ('loop joint, contact', LOOP0 + 2, 11, 2), ('concave corner floor / slope', 1, 0.5, 2)]
 
 
-def cycles(g):
+def cycles(g, extra=''):
     """a2run call: cycles of vl_seg_ground (X = the point; +7 for the LDX
     and the JMP) on chosen states; with g.cache, vl_sgi = the segment the
     point is on (the cached path when it is well inside it)."""
@@ -362,7 +407,7 @@ def cycles(g):
         p.ox[0] -= 0x100
         p.oy[0] -= 0x080
         rows.append((name, list(p.soa_bytes()), [0xFF if k is None or g.cache is None else k] + [0xFF] * (N - 1)))
-    text = harness.source(prelude(g), EPI_CALL, ['t_pt'], [('vl_xf', 1)], [(1, [0], 0)])
+    text = harness.source(prelude(g, extra), EPI_CALL, ['t_pt'], [('vl_xf', 1)], [(1, [0], 0)])
     with tempfile.TemporaryDirectory(prefix='verlet-seg-cyc-') as tmp:
         lab, binary = harness.build(tmp, text)
         steps = a2test.bin_steps(binary, 0x6000, lab['mul_init'])[:1] + [f'call:{lab["mul_init"]:04X}:20']
@@ -405,12 +450,25 @@ def main():
     run_calls(gc, rows)
     print(f'lib/physics segments, y 8.8 + VL_SEG_CACHE: {len(rows)} calls == segments.py')
     print(f'VL_GROUND_KIND (vl_ground_any): {kind_check(rng)} calls, height map and segments == models')
+    # VL_SEG_BUCKETS: the same calls and rides against the same model
+    bk = 'VL_SEG_BUCKETS = 1\n'
+    for name, gb in (('y 8.8', world()), ('VL_Y_HIGH + VL_SEG_CACHE', world(200, y_high=True, cache=CACHE)),
+                     ('y 8.8 + VL_SEG_CACHE', world(cache=CACHE))):
+        shift, nb, nl, hit = bucket_probes(gb, rng)
+        gb.cache = CACHE if 'CACHE' in name else None
+        rows = cases(gb, rng)
+        hits, contacts = run_calls(gb, rows, bk)
+        snaps_n, turns = check_ride(gb, extra=bk)
+        assert turns >= 1.0, turns
+        print(f'VL_SEG_BUCKETS, {name}: 20000 probes, bucket scan == full scan ({hit} contacts; '
+              f'{nb} columns of {1 << shift} px, {nl} list bytes); {len(rows)} calls ({contacts} contacts) '
+              f'and the loop ride ({snaps_n} snapshots) == segments.py')
     print(f'switch errors: {switch_errors()} cases stop the assembly')
     if '--cycles' in sys.argv:
-        a, b = cycles(g), cycles(gc)
+        a, b, c3 = cycles(g), cycles(gc), cycles(g, bk)
         for name, (c, hit) in a.items():
-            print(f'  vl_seg_ground {name}: {c:,} cycles, {b[name][0]:,} with the cache'
-                  f'{" (contact)" if hit else ""}')
+            print(f'  vl_seg_ground {name}: {c:,} cycles, {b[name][0]:,} with the cache, {c3[name][0]:,} with '
+                  f'the buckets{" (contact)" if hit else ""}')
 
 
 if __name__ == '__main__':

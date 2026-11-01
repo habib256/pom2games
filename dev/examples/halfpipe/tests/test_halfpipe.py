@@ -120,8 +120,11 @@ def scenarios():
         if rng.random() < 0.05:
             cur = (int(rng.random() < 0.6), rng.choice([-1, 0, 0, 1]))
         rnd.append(cur)
-    return [('pumping to the lips', pumper, 700), ('360s', trick(7, 10), 1300),
-            ('over-rotation, crash and debris', trick(3, 0), 450),
+    # (the times of the scripted rides at 40 Hz, 17.5 s, 32.5 s, 11.25 s, in
+    # ticks of H.TICK_HZ; the 360s pilot stops leaning at 6 octants, 7 at
+    # 40 Hz: at 7 its second 360 lands past upright at 30 Hz, whatever ROT_K)
+    return [('pumping to the lips', pumper, H.ticks(700)), ('360s', trick(6, 10), H.ticks(1300)),
+            ('over-rotation, crash and debris', trick(3, 0), H.ticks(450)),
             ('random inputs', lambda p, k: rnd[k], 1500)]
 
 

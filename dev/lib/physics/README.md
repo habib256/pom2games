@@ -71,8 +71,8 @@ included.
 | `verlet_con.asm` | `vl_con_pass` | the `VL_NCON` constraints once, in order | ~1,450 c/link |
 | | `vl_constrain` | constraint `vl_cur` (see below) | 1,000-1,500 c |
 | | `vl_heavy` | the heavy-point share (`VL_CON_HEAVY_*`) | ~90 c |
-| | `vl_quarter_abs` | A/X signed → `A = min(|d >> 6|, 180)` | ~60 c |
-| | `vl_square` | A = 0..180 → A/Y = A² from the quarter-square table | ~40 c |
+| | `vl_quarter_abs` | A/X signed → `A = min(|d >> 6|, 180)` (`VL_CON_FAST`: inline in `vl_constrain`) | ~60 c |
+| | `vl_square` | A = 0..180 → A/Y = A² from the quarter-square table (`VL_CON_FAST`: from `vl_sq_lo`/`vl_sq_hi`) | ~40 c (~20 c) |
 | | `vl_push` / `vl_push_all` | (`VL_THRUST`) point X / every point but the pinned ones += the push vector `vl_tx`/`vl_ty` (a speed change) | 125 c / 397 c (3 points) |
 | `verlet_rot.asm` | `vl_turn_pair` | turn the axis `VL_AXIS_A`→`VL_AXIS_B` (0→1): B += `vl_turn`·(−dy, dx) >> 8, A −= the same | ~650 c |
 | | `vl_thrust_axis` / `vl_thrust_perp` | (`VL_THRUST` = n) `vl_tx`/`vl_ty` = the axis (or its perpendicular (−dy, dx)) · `vl_turn` >> (8 + n): with a link of rest length L, L·`vl_turn`/2⁸⁺ⁿ px | 561 c / 620 c (n = 4) |
@@ -90,6 +90,24 @@ included.
 
 A whole DIRTBIKE tick (3 points, 2 constraint passes, 2 ground probes, the
 bike's own code) is ~14,400 cycles.
+
+The speed switches (exact: the same results, the tests run with and
+without them), `vl_constrain` on a 12-px fixed-gain link (a2run `call:`):
+
+| | plain link | `VL_Y_HIGH` | pinned end | heavy end | at rest (f = 0) |
+|---|---|---|---|---|---|
+| off | 974 c | 1,016 c | 950 c | 1,276 c | as moving |
+| `VL_CON_SKIP_ZERO` | +2 c | +2 c | +2 c | +2 c | 497 c |
+| `VL_CON_FAST` | 684 c | 719 c | 736 c | 1,051 c | as moving |
+| both | 688 c | 723 c | 740 c | 1,057 c | 283 c |
+
+The k8 product path: 1,144 → 854 c (`VL_CON_FAST`), 665 / 451 c at rest.
+Frames of the examples (median, a whole frame, every switch on, against
+lot 1): lander coasting 20,124 → 13,297, engine 22,658 → 16,814; rope
+swinging 38,566 → 33,454, floor 47,750 → 39,864; half-pipe 22,758 →
+16,297 (`VL_SEG_BUCKETS` −850 of it); catapult flying 11,356 → 11,410
+(its contacts gain ~290 a tick with contacts, `vl_square` only; the rest
+moves with the code layout).
 
 The switches below measured on a 3-point body (link 12 px, a little
 stretched), against the plain code: `vl_constrain` 1,155 c → 986 c with
@@ -277,10 +295,13 @@ is not "off"):
 | `VL_PIN` | `vl_pin` (N B): pinned points (above) | — (lander, rope) |
 | `VL_CON_FIXED_K` = s | every link's gain 2ˢ, shifts, no k8 table: −169 c a link | — (lander, rope) |
 | `VL_CON_MIN_ONLY` | links flagged in bit 7 of `vl_con_b` only push | — |
+| `VL_CON_SKIP_ZERO` | speed, exact: `vl_constrain` returns once f = 0 (every correction, plain, heavy or pinned, is then 0): +5 B, +2 c a link with f ≠ 0, −480 to −520 c a link at f = 0 (974 / 1,016 → 497 c; with `VL_CON_FAST` 684 / 719 → 283 c); f = 0 in 81 % of the lander's links, 68 % of the half-pipe's, 7 % / 31 % of the rope's (swinging / floor) | — (the four examples) |
+| `VL_CON_FAST` | speed, exact: in `vl_constrain` `vl_delta_ab`, `vl_quarter_abs` (4h + (lo >> 6) from the delta's bytes), the squares (`vl_sq_lo`/`vl_sq_hi`: x², x = 0..180, 362 B RODATA, `.repeat`-generated) and the add/sub helpers of a plain link inline; `vl_square` reads the same table (the circle contacts too): fixed gain 974 → 684 c a plain link (−290; 1,016 → 719 with `VL_Y_HIGH`), −214 c pinned, −225 c heavy; −70 B of code in a plain program (the helpers no longer assembled) to +57 B (pins, heavy point), + the 362 B table | — (the four examples) |
 | `VL_THRUST` = n | assembles `vl_thrust_axis`/`_perp`, `vl_push`, `vl_push_all` (+4 B zero page) | — (lander) |
 | `VL_Y_HIGH`, `VL_GROUND_BASE` = row | y 16.8 (`vl_yu`, `vl_oyu`), the ground base row: +80 B, +28 c an integration | — (lander) |
 | `VL_GROUND_SEGMENTS` = n, `VL_SEG_DEPTH` = 8.8 | the segment ground `vl_seg_ground` (`verlet_seg.asm`; needs `VL_GROUND`): the `vl_sg_*` tables (14 B a segment, 16 with `VL_Y_HIGH`), `vl_sgi` (`VL_GROUND` B BSS), no zero page of its own (the ground tier's height-map scratch): 803 B, 835 B with `VL_Y_HIGH` | — (halfpipe) |
 | `VL_SEG_CACHE` = m (8.8) | `vl_seg_ground` tries the point's last segment first: +270 B | — (halfpipe) |
+| `VL_SEG_BUCKETS` | speed, exact: the scan tries only the segments of the point's pixel column (2^shift px; `segments.py` emits the macro `VL_SEG_BUCKET_TABLES`, expanded by `verlet_seg.asm`: `vl_sg_bko`, `vl_sg_bkl`, in the same n−1..0 order); +41 B code + the tables (halfpipe: 33 columns of 8 px, 110 B); 22 segments: 660 → 137 c far, 920 → 528 c in a box, −360 to −520 c a contact; halfpipe `phys_tick` −740 c (in the air) | — (halfpipe) |
 | `VL_GROUND_KIND` = table | assembles `vl_ground_any`: per point, 0 = the height map, else the segments (both grounds in one program) | — |
 | `VL_CIRC` = n, `VL_CIRC_Q` = 4..6 (5) | circle contacts (`verlet_circ.asm`; needs `isqrt16` — `sqrt.asm`, `sqrt_init` — and `MUL_ACC`): 941 B pairs, 1,039 B boxes (`VL_NBOX`), 1,762 B both, + 256 B reciprocals | — (catapult) |
 | `VL_CIRC_BOUNCE` = e, `VL_CIRC_VMIN` = 8.8 | restitution e/256 of a closing speed above VMIN (pairs and boxes) | — (catapult) |
@@ -336,7 +357,10 @@ single calls the same way (y across the 256-row boundaries and above row
 configuration 4 is a pinned 8-point rope of fixed-gain links (its end
 pinned for a while) for 320 ticks; configuration 5 a 3-point lander in a
 16.8 world, its thrust and turns from an autopilot run on the model, 850
-ticks down to the ground; then each switch, left out and defined. `dev/tools/verlet/
+ticks down to the ground; the five configurations run four times: the speed
+switches off, `VL_CON_SKIP_ZERO`, `VL_CON_FAST`, both (the same snapshots
+against the same model); a model check that f = 0 moves nothing on the
+plain, heavy and pinned paths; then each switch, left out and defined. `dev/tools/verlet/
 harness.py` is the generic driver (input script, tick label, snapshot
 blocks) for a game's own model-vs-6502 test.
 
@@ -349,7 +373,10 @@ hooks) == `segments.py`; 3 points riding the loop for 600 ticks, one of
 them going round; the same with `VL_Y_HIGH` + `VL_SEG_CACHE` (rows
 270..430, a wall across row 256, points above row 0, `vl_sgi` inputs) and
 with the cache alone; `VL_GROUND_KIND` (60 calls, height map and segments);
-the switch errors; `--cycles` prints the costs above.
+`VL_SEG_BUCKETS`: the three worlds again (calls and rides) and 20,000
+random probes where the bucket scan (Python) == `probe_at`'s full scan,
+every pixel column's list checked against the boxes; the switch errors;
+`--cycles` prints the costs above (and with the buckets).
 
 `dev/tests/test_verlet_contact.py` (`make test-verlet-contact`):
 configuration A (4 circles, y 8.8, Q = 5, restitution, VMIN, heavy points,
@@ -362,7 +389,8 @@ and heavy case: 20 wakes), 150 `vl_contact_all` (clusters of 4, a radius
 beyond x 255) and 160 `vl_circ_sleep` — and compares points, pins, sleep
 counters, `vl_chits` and C with `contact.py`; configuration B (`VL_Y_HIGH`,
 Q = 6, no switch) 1,300 calls the same way; configuration C a stack of 3
-on a box and a ball rolling into it, 300 ticks; then the switches and the
+on a box and a ball rolling into it, 300 ticks (A, B and C again with
+`VL_CON_FAST`: `vl_square` from the square table); then the switches and the
 code sizes; `--cycles` prints the costs above.
 
 Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).

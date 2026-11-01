@@ -10,11 +10,17 @@
 ; Screen: rows 0-7 the HUD (score, the last landing's points, the air of
 ; the last scored jump in px above the lip), 8-15 the message line, 16-191 the
 ; pipe (one static screen: the world is the screen, x 0..255).
-; Two pages: each frame draws the hidden one and shows it. On that page
-; the rider of two frames ago is wiped (its box of bytes cleared, then the
-; pipe segments crossing the box drawn again), the new one drawn (lines,
-; hgr_line8), the HUD digits rewritten when they changed: only what
-; changes.
+; Two pages: each tick draws the hidden one and shows it, in the vertical
+; blank (vapor.asm: the beam found through the floating bus, a marker on
+; row 191 of both pages; nothing is drawn below row 190), a tick every
+; TICK_FRAMES video frames (30 a second: vapor_pace, given an estimate of
+; the tick's cycles); without a floating bus (//c, IIgs) it runs unpaced.
+; On that page
+; the rider of two frames ago is given back (hgr_plot_hist.asm recorded the
+; bits its lines and wheels lit: EOR, the pipe under it comes back as it
+; was), the new one drawn (fast lines, each wheel a 3 x 3 sprite), and of
+; the HUD and the message only the characters that differ from what the
+; page shows are written.
 ; Keys: K / I / up / space pump (a press pumps PUMP_HOLD ticks: the II+
 ; keyboard has no key-up, its repeat keeps it on), J / <- and L / -> lean
 ; (LEAN_HOLD ticks a press), R restarts, ESC quits. A joystick (found at
@@ -24,6 +30,9 @@
 
 .include "apple2.inc"
 MUL_TABLES = $1000                      ; LOWBSS: 2 KB, page aligned
+PL_HIST    = $1800                      ; hgr_plot_hist.asm's histories: 1.5 KB
+HGR_PLOT_HIST_FAST = 1                  ; lines stepped by byte, pl_sprite
+PL_SPRITE_YMIN = 16                     ; the pipe's first row
 MUL_ACC    = 1
 .include "math.inc"
 .include "pipeconst.inc"
@@ -32,13 +41,14 @@ MUL_ACC    = 1
 HGR_LINE_DIV7 = hgr_div7                ; (hgr_div7_ram.asm)
 HGR_LINE_MOD7 = hgr_mod7
 HGR_TEXT8_HGR_ORDER = 1
-BCD_PUT_OUT = hgr_putc8                 ; (bcd.asm: the score's digits)
+BCD_PUT_OUT = now_put                   ; (bcd.asm: the score's digits)
 
 HUD_ROWS  = 16                          ; the pipe starts at row 16
-PUMP_HOLD = 16                          ; ticks a key pumps
-LEAN_HOLD = 6                           ; ticks a key leans
-AGAIN_T   = 110                         ; ticks after a crash: a new run
-JOY_DEAD  = 12
+VIEW_LAST = 190                         ; the last row drawn (191: the vapor marker)
+; PUMP_HOLD, LEAN_HOLD, AGAIN_T (pipeconst.inc): ticks a key pumps, a key
+; leans; ticks after a crash before a new run
+JOY_DEAD  = 38                          ; read_stick_x counts (12 on the
+                                        ; former read_stick_fast: x 35/11)
 
 MSG_HELP   = 0
 MSG_AIR    = 1                          ; a landing without a full turn
@@ -56,24 +66,23 @@ t0:     .res 1
 t1:     .res 1
 t2:     .res 1
 t3:     .res 1
-gptr:   .res 2
 xa:     .res 1                          ; draw_pipe: the box xa..xb, ya..yb
 xb:     .res 1
 ya:     .res 1
 yb:     .res 1
 gk:     .res 1
 pg:     .res 1                          ; new_screen: the page
-bx0:    .res 1                          ; the box of what draw_rider drew
-bx1:    .res 1
-by0:    .res 1
-by1:    .res 1
+srcp:   .res 2                          ; diff_row: the text now,
+shp:    .res 2                          ; what the page shows,
+dend:   .res 1                          ; the column after the last
+gp:     .res 2                          ; fast_put: the glyph,
+fp_y:   .res 1                          ; Y kept
 
 .segment "BSS"
 frames:    .res 2                       ; frames drawn (tests)
-bb_r0:     .res 2                       ; per page: the rider's box, rows
-bb_r1:     .res 2                       ; ($FF: nothing drawn) and byte
-bb_c0:     .res 2                       ; columns
-bb_c1:     .res 2
+sh0:       .res 2 * 40                  ; per page: the HUD row shown
+sh8:       .res 2 * 40                  ; per page: the message row shown
+now:       .res 40                      ; the HUD row (draw_hud)
 msg_pg:    .res 2                       ; message shown on each page
 hud_pg:    .res 2                       ; HUD version shown on each page
 hud_ver:   .res 1                       ; + 1 when a HUD number changes
@@ -86,12 +95,15 @@ last_st:   .res 1
 last_sc:   .res 2                       ; hp_score's low bytes last frame
 air_px:    .res 1                       ; px above the lip, the last scored jump
 jump_px:   .res 1                       ; px above the lip, the jump in progress
+pace_ok:   .res 1                       ; a floating bus: vapor_pace
+pace_add:  .res 2                       ; this tick's extra polls (sounds)
 
 .segment "CODE"
         JMP     start
 .include "sound.asm"                    ; first: its loops never cross a page
 .include "hgr_text8.asm"                ; (its zero page before the callers)
 .include "hgr_line.asm"
+.include "hgr_plot_hist.asm"            ; lib/hgr: its zero page (routines at the end)
 .include "phys.inc"
 
 start:  APPLE2_PREAMBLE
@@ -105,6 +117,9 @@ start:  APPLE2_PREAMBLE
         STA     ht_left
         STA     pidx
         STA     joy_ok
+        STA     pace_ok
+        STA     pace_add
+        STA     pace_add+1
         LDA     #$7F                    ; white text
         STA     ht_cm_ev
         STA     ht_cm_od
@@ -116,12 +131,16 @@ start:  APPLE2_PREAMBLE
         STA     ht_wrap
         JSR     read_stick_fast         ; a joystick: both timers run out
         BCS     :+
+        JSR     read_stick_x            ; its X at rest (PREAD scale)
         LDA     joy_x
         STA     joy_cx
         INC     joy_ok
-:       JSR     clear_pages
+:       JSR     clear_pages             ; (and the vapor marker)
         JSR     hgr_init
-        JSR     new_screen
+        JSR     vapor_pace_init         ; a floating bus?
+        BCS     :+
+        INC     pace_ok
+:       JSR     new_screen
 
 restart:
         JSR     phys_reset
@@ -144,7 +163,8 @@ main:   JSR     input                   ; (R: back to restart, ESC: quit)
         EOR     #1
         STA     pidx
         JSR     render
-        LDA     pidx
+        JSR     pace                    ; the tick's last video frame
+flip:   LDA     pidx
         BNE     :+
         BIT     LOWSCR
         JMP     :++
@@ -160,6 +180,56 @@ main:   JSR     input                   ; (R: back to restart, ESC: quit)
         BCS     restart
 
 quit:   JMP     apple2_exit
+
+; ---------------------------------------------------------------------------
+; pace -- wait for line 191 of the tick's last video frame: vapor_pace with
+; TICK_FRAMES and the tick's estimate (EST_AIR or EST_GND + pace_add, the
+; sounds it played); unpaced without a floating bus
+; ---------------------------------------------------------------------------
+pace:   LDA     pace_ok
+        BEQ     @rts
+        LDX     #0                      ; a point on the pipe: EST_GND more
+        LDA     vl_gnd
+        ORA     vl_gnd+1
+        ORA     vl_gnd+2
+        BEQ     :+
+        INX
+:       CLC
+        LDA     est_lo,X
+        ADC     pace_add
+        PHA
+        LDA     est_hi,X
+        ADC     pace_add+1
+        TAY
+        PLA
+        TAX
+        LDA     #0
+        STA     pace_add
+        STA     pace_add+1
+        LDA     #TICK_FRAMES
+        JMP     vapor_pace
+@rts:   RTS
+
+EST_AIR  = 16500                        ; a tick's cycles (main to pace): in the
+EST_GND  = 21000                        ; air 13,500-19,500, on the pipe 15,900-28,300
+est_lo:  .byte <(EST_AIR / 13), <(EST_GND / 13)
+est_hi:  .byte >(EST_AIR / 13), >(EST_GND / 13)
+; PACE_ADD cycles: pace_add += cycles / 13 (a sound)
+.macro PACE_ADD cyc
+        CLC
+        LDA     pace_add
+        ADC     #<((cyc) / 13)
+        STA     pace_add
+        LDA     pace_add+1
+        ADC     #>((cyc) / 13)
+        STA     pace_add+1
+.endmacro
+TONE_C   = 12 + 30                      ; tone: its call, then A x (12 + 5 X)
+.define  TONE_CYC(n, d) (TONE_C + (n) * (12 + 5 * (d)))
+GROWL_N  = ($100 - $58 + 5) / 6         ; the growl: 6 flips from $58 by 6
+GROWL_C  = GROWL_N * (TONE_CYC(6, 0) + 20) + 6 * 5 * (GROWL_N * $58 + 6 * GROWL_N * (GROWL_N - 1) / 2)
+CHIME_C  = TONE_CYC($30, $40) + TONE_CYC($40, $30) + TONE_CYC($60, $24)
+AIR_C    = TONE_CYC($30, $50)
 
 ; ---------------------------------------------------------------------------
 ; input -- keys and joystick -> in_pump, in_lean for this tick
@@ -217,7 +287,7 @@ input:  JSR     poll_key
         STA     in_lean
 @joy:   LDA     joy_ok
         BEQ     @rts
-        JSR     read_stick_fast
+        JSR     read_stick_x            ; X alone (PREAD scale)
         SEC
         LDA     joy_x
         SBC     joy_cx
@@ -247,6 +317,7 @@ events: LDA     hp_status
         STA     last_st                 ; (only RIDE -> CRASHED in a run)
         LDA     #MSG_CRASH
         STA     msg
+        PACE_ADD GROWL_C
         LDA     #$58                    ; a falling growl
         STA     t0
 :       LDA     #6
@@ -294,6 +365,7 @@ events: LDA     hp_status
         CLC
         ADC     #MSG_360 - 1
         STA     msg
+        PACE_ADD CHIME_C
         LDA     #$30
         LDX     #$40
         JSR     tone
@@ -305,13 +377,14 @@ events: LDA     hp_status
         JMP     tone
 @air:   LDA     #MSG_AIR
         STA     msg
+        PACE_ADD AIR_C
         LDA     #$30
         LDX     #$50
         JMP     tone
 
 ; ---------------------------------------------------------------------------
-; new_screen -- both pages: cleared, the pipe, the HUD labels and the
-; message (the HUD digits come with the next frames); no rider drawn yet
+; new_screen -- both pages: cleared, the pipe, the HUD labels (the HUD
+; digits and the message come with the next frames); no rider drawn yet
 ; ---------------------------------------------------------------------------
 new_screen:
         JSR     clear_pages
@@ -338,23 +411,34 @@ new_screen:
         LDA     #$FF
         STA     msg_pg,X                ; (the message and the HUD numbers
         STA     hud_pg,X                ; come with a frame)
-        STA     bb_r0,X
+        LDA     #0
+        STA     pl_n,X
         DEC     pg
         BPL     @page
+        LDX     #2 * 40 - 1             ; what the pages show: the labels,
+:       LDA     #' '                    ; a blank message line
+        STA     sh8,X
+        STA     sh0,X
+        DEX
+        BPL     :-
+        LDX     #hud_label_end - hud_label - 1
+:       LDA     hud_label,X
+        STA     sh0,X
+        STA     sh0+40,X
+        STA     now,X
+        DEX
+        BPL     :-
         RTS
 
 
 ; ---------------------------------------------------------------------------
-; render -- the hidden page: the old rider out, the new one in, the HUD
+; render -- the hidden page: the old rider given back, the new one in, the
+; HUD and the message characters that changed
 ; ---------------------------------------------------------------------------
 render: LDA     pidx
         JSR     set_page
-        LDX     pidx
-        LDA     bb_r0,X
-        CMP     #$FF
-        BEQ     :+
-        JSR     erase_box
-:       JSR     draw_rider
+        JSR     pl_erase
+        JSR     draw_rider
         LDX     pidx                    ; the HUD numbers, if they changed
         LDA     hud_ver
         CMP     hud_pg,X
@@ -369,61 +453,18 @@ render: LDA     pidx
         JSR     draw_msg
 :       RTS
 
-; A = 0 / 1: select the page for hgr_line8 (sites) and hgr_text8 (ht_page)
+; A = 0 / 1: select the page for hgr_line8 (sites), hgr_text8 (ht_page),
+; hgr_plot_hist (pl_page)
 set_page:
+        PHA
+        JSR     pl_page
+        PLA
         PHA
         JSR     hgr_select_page
         PLA
         BEQ     :+
         LDA     #$60
 :       STA     ht_page
-        RTS
-
-; X = page: clear its rider box, then draw the pipe under it again
-erase_box:
-        LDA     bb_c0,X
-        STA     t0
-        LDA     bb_c1,X
-        STA     t1
-        LDA     bb_r1,X
-        STA     t2
-        STA     yb
-        LDA     bb_r0,X
-        STA     ya
-        TAX
-:       LDA     hgr_lo,X
-        STA     gptr
-        HGR_LDA_HI_X
-        STA     gptr+1
-        LDY     t0
-        LDA     #0
-:       STA     (gptr),Y
-        INY
-        CPY     t1
-        BCC     :-
-        BEQ     :-
-        INX
-        CPX     t2
-        BCC     :--
-        BEQ     :--
-        LDA     t0                      ; columns 7 c0 .. 7 c1 + 6
-        JSR     mul7
-        STA     xa
-        LDA     t1
-        JSR     mul7
-        CLC
-        ADC     #6
-        BCC     :+
-        LDA     #255
-:       STA     xb
-        JMP     draw_pipe
-
-mul7:   STA     t3
-        ASL     A
-        ASL     A
-        ASL     A
-        SEC
-        SBC     t3
         RTS
 
 ; ---------------------------------------------------------------------------
@@ -476,16 +517,10 @@ draw_pipe:
         RTS
 
 ; ---------------------------------------------------------------------------
-; draw_rider -- the rider (or its debris) on the selected page; its box for
-; erase_box two frames later
+; draw_rider -- the rider (or its debris) on the selected page, recorded in
+; its history for pl_erase two frames later
 ; ---------------------------------------------------------------------------
 draw_rider:
-        LDA     #255
-        STA     bx0
-        STA     by0
-        LDA     #0
-        STA     bx1
-        STA     by1
         LDX     #2
 :       JSR     scr_point
         DEX
@@ -508,55 +543,24 @@ draw_rider:
 @d:     LDA     sy,X
         CMP     #$FF
         BEQ     @dn
-        STX     gk
-        LDY     sx,X
-        BEQ     @v
-        CPY     #255
-        BEQ     @v
-        STA     hl_ln_y0
-        STA     hl_ln_y1
-        DEY
-        STY     hl_ln_x0
-        INY
-        INY
-        STY     hl_ln_x1
-        JSR     seg
-        LDX     gk
-@v:     LDA     sy,X
-        CMP     #HUD_ROWS + 1
-        BCC     @dn1
-        CMP     #191
-        BCS     @dn1
-        TAY
-        DEY
-        STY     hl_ln_y0
-        INY
-        INY
-        STY     hl_ln_y1
+        SEC
+        SBC     #1
+        STA     pl_y                    ; (row 16: its top row clipped)
         LDA     sx,X
-        STA     hl_ln_x0
-        STA     hl_ln_x1
-        JSR     seg
-@dn1:   LDX     gk
+        SEC
+        SBC     #1
+        BCS     :+
+        LDA     #0
+:       STA     pl_x
+        LDA     #<cross_desc
+        STA     pl_sp
+        LDA     #>cross_desc
+        STA     pl_sp+1
+        STX     gk
+        JSR     pl_sprite
+        LDX     gk
 @dn:    DEX
         BPL     @d
-        LDX     pidx                    ; the box, in byte columns
-        LDA     bx1
-        CMP     bx0
-        BCS     :+
-        LDA     #$FF                    ; nothing drawn
-        STA     bb_r0,X
-        RTS
-:       LDA     by0
-        STA     bb_r0,X
-        LDA     by1
-        STA     bb_r1,X
-        LDY     bx0
-        LDA     hgr_div7,Y
-        STA     bb_c0,X
-        LDY     bx1
-        LDA     hgr_div7,Y
-        STA     bb_c1,X
         RTS
 
 ; X = point -> sx,X = its column, sy,X = its row ($FF: out of view)
@@ -568,8 +572,8 @@ scr_point:
         LDA     vl_yh,X
         CMP     #HUD_ROWS
         BCC     @off
-        CMP     #192
-        BCS     @off
+        CMP     #VIEW_LAST              ; (<= 189: a wheel's cross reaches
+        BCS     @off                    ; one row below)
         STA     sy,X
         RTS
 @off:   LDA     #$FF
@@ -581,50 +585,24 @@ line_ij:
         LDA     sy,X
         CMP     #$FF
         BEQ     @rts
-        STA     hl_ln_y0
+        STA     pl_y0
         LDA     sy,Y
         CMP     #$FF
         BEQ     @rts
-        STA     hl_ln_y1
+        STA     pl_y1
         LDA     sx,X
-        STA     hl_ln_x0
+        STA     pl_x0
         LDA     sx,Y
-        STA     hl_ln_x1
-        JMP     seg
+        STA     pl_x1
+        JMP     pl_line
 @rts:   RTS
-
-; draw hl_ln_x0,y0 - x1,y1 and grow the box
-seg:    LDA     hl_ln_x0
-        JSR     ext_x
-        LDA     hl_ln_x1
-        JSR     ext_x
-        LDA     hl_ln_y0
-        JSR     ext_y
-        LDA     hl_ln_y1
-        JSR     ext_y
-        JMP     hgr_line8
-ext_x:  CMP     bx0
-        BCS     :+
-        STA     bx0
-:       CMP     bx1
-        BCC     :+
-        STA     bx1
-:       RTS
-ext_y:  CMP     by0
-        BCS     :+
-        STA     by0
-:       CMP     by1
-        BCC     :+
-        STA     by1
-:       RTS
 
 ; ---------------------------------------------------------------------------
 ; draw_hud -- the score (6 BCD digits), the last landing's points (4), the
-; air of the last jump (px above the lip)
+; air of the last jump (px above the lip): written in now, then the
+; characters the page does not show yet
 ; ---------------------------------------------------------------------------
 draw_hud:
-        LDA     #0
-        STA     ht_sl
         LDA     #6
         STA     ht_col
         LDA     #<hp_score
@@ -637,36 +615,132 @@ draw_hud:
         LDY     #>hp_last
         LDX     #2
         JSR     bcd_put
-        LDA     #29
-        STA     ht_col
         LDA     air_px
         JSR     byte_to_dec             ; X hundreds, Y tens, A units
-        PHA
-        TXA
         ORA     #'0'
-        JSR     hgr_putc8
+        STA     now+31
         TYA
         ORA     #'0'
-        JSR     hgr_putc8
-        PLA
+        STA     now+30
+        TXA
         ORA     #'0'
-        JMP     hgr_putc8
-
-; the message line (row 8) on the selected page
-draw_msg:
+        STA     now+29
+        LDA     #<now                   ; what changed on this page
+        STA     srcp
+        LDA     #>now
+        STA     srcp+1
+        LDX     pidx
+        LDA     sh_lo,X
+        STA     shp
+        LDA     sh_hi,X
+        STA     shp+1
         LDA     #0
-        STA     ht_col
-        LDA     #8
         STA     ht_sl
+        LDY     #6
+        LDA     #32
+
+; (srcp),Y vs (shp),Y for Y = Y .. A - 1: the characters that differ
+; written at row ht_sl and recorded in (shp). Clobbers A, Y.
+diff_row:
+        STA     dend
+@l:     LDA     (srcp),Y
+        CMP     (shp),Y
+        BEQ     @n
+        STA     (shp),Y
+        JSR     fast_put
+@n:     INY
+        CPY     dend
+        BNE     @l
+        RTS
+
+; A = char ($20-$5F), Y = column: its 8 glyph rows stored at text line
+; ht_sl / 8 (0 or 1) of the draw page (ht_page), white: what hgr_putc8
+; writes there, ~150 cycles instead of ~470 (a private 8-row STA loop,
+; dev/lib/font). Keeps Y.
+fast_put:
+        STY     fp_y
+        SEC
+        SBC     #$20                    ; the glyph: bbfont + 8 (char - $20)
+        LDX     #0
+        STX     gp+1
+        ASL     A
+        ROL     gp+1
+        ASL     A
+        ROL     gp+1
+        ASL     A
+        ROL     gp+1                    ; (C = 0)
+        ADC     #<bbfont
+        STA     gp
+        LDA     gp+1
+        ADC     #>bbfont
+        STA     gp+1
+        TYA                             ; X = the column, + $80 on line 1
+        LDX     ht_sl
+        BEQ     :+
+        ORA     #$80
+:       TAX
+        LDY     #0
+        LDA     ht_page
+        BNE     @p2
+        .repeat 8, R
+        LDA     (gp),Y
+        STA     $2000 + R * $400,X
+        .if R < 7
+        INY
+        .endif
+        .endrepeat
+        LDY     fp_y
+        RTS
+@p2:    .repeat 8, R
+        LDA     (gp),Y
+        STA     $4000 + R * $400,X
+        .if R < 7
+        INY
+        .endif
+        .endrepeat
+        LDY     fp_y
+        RTS
+
+; bcd_put's output: A into now at ht_col (keeps X)
+now_put:
+        LDY     ht_col
+        STA     now,Y
+        INC     ht_col
+        RTS
+
+; the message line (row 8) on the selected page: its changed characters
+draw_msg:
         LDX     msg
         LDA     msg_lo,X
-        STA     ht_src_lo
+        STA     srcp
         LDA     msg_hi,X
-        STA     ht_src_hi
-        JMP     hgr_puts8
+        STA     srcp+1
+        LDX     pidx
+        LDA     sh_lo+2,X
+        STA     shp
+        LDA     sh_hi+2,X
+        STA     shp+1
+        LDA     #8
+        STA     ht_sl
+        LDY     #0
+        LDA     #40
+        JMP     diff_row
 
 .segment "RODATA"
-hud_label:  .byte "SCORE 000000  LAST 0000  AIR 000", 0
+hud_label:  .byte "SCORE 000000  LAST 0000  AIR 000"
+hud_label_end:
+            .byte 0
+sh_lo:      .byte <sh0, <(sh0 + 40), <sh8, <(sh8 + 40)
+sh_hi:      .byte >sh0, >(sh0 + 40), >sh8, >(sh8 + 40)
+cross_desc: .byte 2, 3                  ; pl_sprite: a 3 x 3 cross
+            .repeat 7, I
+            .addr cross_spr + I * 6
+            .endrepeat
+cross_spr:  .repeat 7, I
+            .byte (2 << I) & $7F, (2 << I) >> 7
+            .byte (7 << I) & $7F, (7 << I) >> 7
+            .byte (2 << I) & $7F, (2 << I) >> 7
+            .endrepeat
 m_help:     .byte "K/SPACE:PUMP  J L:LEAN  R:RESTART       ", 0
 m_air:      .byte "AIR!                                    ", 0
 m_360:      .byte "360!                                    ", 0
@@ -675,8 +749,10 @@ m_1080:     .byte "1080!!!                                 ", 0
 m_crash:    .byte "CRASHED!                    R:RIDE AGAIN", 0
 msg_lo:     .byte <m_help, <m_air, <m_360, <m_720, <m_1080, <m_crash
 msg_hi:     .byte >m_help, >m_air, >m_360, >m_720, >m_1080, >m_crash
+.assert m_air - m_help = 41 .and m_360 - m_air = 41 .and m_720 - m_360 = 41 .and m_1080 - m_720 = 41 .and m_crash - m_1080 = 41 .and msg_lo - m_crash = 41, error, "messages: 40 characters"
 .segment "CODE"
 
+.include "hgr_plot_hist.asm"            ; the routines referenced above
 .include "hgr_pages.asm"                ; after the last HGR_HI_SITE
 .include "verlet_seg.asm"               ; lib/physics (physdefs.inc: verlet.inc)
 .include "verlet_con.asm"
@@ -695,9 +771,10 @@ clear_pages:
         LDA     #0
         LDX     #>HGR1
         HGR_CLEAR_LOOP 8
-        RTS
+        JMP     vapor_mark_both         ; the marker on row 191 of both
 .include "exit.asm"
 .include "hgr_div7_ram.asm"
+.include "vapor.asm"                    ; (here: its poll loop within a page)
 .segment "RODATA"
 .include "bbfont.inc"
 .include "hgr_scanline.inc"

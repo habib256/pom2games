@@ -33,6 +33,8 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[2] / 'tools'))
 from verlet import Points, Constraint, HeightMap, tables, emit  # noqa: E402
 
+TICK_HZ = 20                            # ticks a second (vapor_pace: one every 3 video
+TICK_FRAMES = 60 // TICK_HZ             # frames), the rate it was tuned at: no retune
 N = 9
 PIN, WEIGHT = 0, 8
 LINK = 11                               # px: 88 px of rope
@@ -130,7 +132,7 @@ def write_inc(path):
               ('PIN_STEP', PIN_STEP, 'dec'), ('START_X', START_X, 'dec'), ('RADIUS', RADIUS),
               ('LEFT_WALL', LEFT_WALL, 'dec'), ('RIGHT_WALL', RIGHT_WALL, 'dec'), ('CEIL', CEIL << 8),
               ('PROBE', PROBE, 'dec'), ('SLOPE_MAX', SLOPE_MAX, 'dec'), ('FAR', FAR),
-              ('BOUNCE', BOUNCE, 'dec'), ('FRICTION', FRICTION, 'dec')]
+              ('BOUNCE', BOUNCE, 'dec'), ('FRICTION', FRICTION, 'dec'), ('TICK_FRAMES', TICK_FRAMES, 'dec')]
     tabs = ['; links (verlet.tables, VL_CON_FIXED_K: no k8)',
             ('vl_con_a', tab['con_a']), ('vl_con_b', tab['con_b']),
             ('vl_con_l2l', emit.lo(tab['con_l2'])), ('vl_con_l2h', emit.hi(tab['con_l2'])),

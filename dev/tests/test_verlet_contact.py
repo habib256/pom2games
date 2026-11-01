@@ -12,7 +12,8 @@ within a unit, far, beyond x 255). Configuration B (VL_Y_HIGH, Q = 6, no
 restitution, no friction, no pins: the plain code) the same way.
 Configuration C: a stack of 3 balls on a box and a ball rolling into it,
 300 ticks of vl_integrate_all + 2 x (vl_contact_all + vl_contact_box).
-Then the cycles of each case (a2run call:), and the switches.
+A, B and C run twice: plain, then with VL_CON_FAST (vl_square from the
+square table of verlet_con.asm). Then the cycles of each case (a2run call:), and the switches.
 
     python3 dev/tests/test_verlet_contact.py [--cycles]
 """
@@ -28,6 +29,15 @@ from verlet import Points, contact, harness  # noqa: E402
 import a2test  # noqa: E402
 
 OPS = ['pair', 'all', 'box', 'sleep']
+EXTRA = ''                      # definitions before verlet.inc (main: VL_CON_FAST)
+
+
+def hrun(prelude, *args, **kw):
+    """harness.run with EXTRA defined before verlet.inc."""
+    if EXTRA:
+        assert prelude.count('.include "verlet.inc"') == 1
+        prelude = prelude.replace('.include "verlet.inc"', EXTRA + '\n.include "verlet.inc"')
+    return harness.run(prelude, *args, **kw)
 
 
 class Conf:
@@ -345,7 +355,7 @@ def check(conf, rng):
     for at in range(0, len(rows), chunk):
         part = rows[at:at + chunk]
         script = [(1, conf.row_bytes(r), 1) for r in part]
-        got = harness.run(conf.prelude(), Conf.EPILOGUE, inputs, snaps, script, init='init', snap_seg='LOWBSS')
+        got = hrun(conf.prelude(), Conf.EPILOGUE, inputs, snaps, script, init='init', snap_seg='LOWBSS')
         for k, (r, have) in enumerate(zip(part, got)):
             want = conf.model(r)
             name = OPS[r[4]]
@@ -430,7 +440,7 @@ pass:   JSR     vl_contact_all
 .include "mul.asm"
 '''
     rows = [(10, [0], 1)] * 30
-    got = harness.run(pre, epi, ['t_x'], [('vl_xf', 10 * NC), ('vl_chits', 1)], rows, init='init')
+    got = hrun(pre, epi, ['t_x'], [('vl_xf', 10 * NC), ('vl_chits', 1)], rows, init='init')
     p, hits = stack_c(), 0
     for k, (n, _, _) in enumerate(rows):
         for _ in range(n):
@@ -564,10 +574,15 @@ vl_box_y1: .byte 0
 
 
 def main():
-    hit = check(CONF_A, random.Random(3))
-    assert all(v > 30 for k, v in hit.items() if k != 'wake') and hit.get('wake', 0) > 5, hit
-    check(CONF_B, random.Random(4))
-    check_c()
+    global EXTRA
+    for EXTRA in ('', 'VL_CON_FAST = 1'):     # VL_CON_FAST: vl_square from its table
+        if EXTRA:
+            print('-- VL_CON_FAST (vl_square: the square table)')
+        hit = check(CONF_A, random.Random(3))
+        assert all(v > 30 for k, v in hit.items() if k != 'wake') and hit.get('wake', 0) > 5, hit
+        check(CONF_B, random.Random(4))
+        check_c()
+    EXTRA = ''
     check_switches()
     if '--cycles' in sys.argv:
         cycles()

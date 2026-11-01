@@ -11,7 +11,7 @@ python3 dev/examples/catapult/tools/catapult.py   # a sweep of shots on the mode
 
 The demo of the circle contacts of [`lib/physics`](../../lib/physics/README.md)
 (`verlet_circ.asm`), Angry Birds-like: an Apple II+ 48 KB HGR program in
-assembly (dev/lib only), 8.9 KB. A catapult on a hill: its arm is a 24-px
+assembly (dev/lib only), 10.5 KB. A catapult on a hill: its arm is a 24-px
 Verlet link pinned at its base; pull it back (the power), choose the
 launch angle, fire: the arm swings round its base and lets the ball go at
 the angle's stop with the tip's speed. Six balls wait on static boxes: one
@@ -27,7 +27,7 @@ A ball 8 px under its starting row is down. Three shots a round.
 | space | fire; when the round is over, a new round |
 | `R` | a new round |
 | `ESC` | back to DOS |
-| joystick (found at start) | X, once moved off its rest position, sets the power; button 0 fires |
+| joystick (found at start) | X, once moved off its rest position, sets the power (`read_stick_x`, PREAD scale: power = d / 8 + d / 32 + 8, moved = \|d\| ≥ 16; was d / 2 + 8 and 5 on `read_stick_fast`'s 3.2 times coarser counts); button 0 fires |
 
 Counters: `POWER`, `ANGLE`, `SHOTS` left, `DOWN` (of 6). A short line
 shows the launch direction while aiming; a click sounds each tick with a
@@ -51,32 +51,60 @@ contact.
   corrects it in one pass; 2⁶, right for 9-14 px links, overshoots 4
   times), `VL_THRUST` = 1 with `VL_AXIS_A`/`_B` = base/tip: at the
   release `vl_thrust_perp` + `vl_push` give the tip ARM·turn/512 px a tick
-  across the arm, turn = 50 + 4·power. While it swings, the ball is the
+  across the arm, turn = `pow_turn`[power] (50 + 4·power at 25 Hz, fitted
+  at 30: below). While it swings, the ball is the
   tip (same position and old position: the same speed); the arm crossing
-  the stop direction (a cross product's sign) lets it go.
+  the stop direction (a cross product's sign) lets it go. With
+  the speed switches `VL_CON_SKIP_ZERO` (a link at rest returns at once) and `VL_CON_FAST` (square table, the link inline): exact, the same physics bit for bit (`vl_square` of the contacts reads the same table).
 * **Circle contacts** (`VL_CIRC` = 7, Q = 5: radii in eighths of a pixel,
   5 px): `vl_contact_all` once a tick (21 pairs, ~52 cycles each apart),
   `vl_contact_box` (5 boxes) and `vl_ground` for each awake ball;
-  `VL_CIRC_BOUNCE` = 64 above `VL_CIRC_VMIN` = $30 (a quarter of the
+  `VL_CIRC_BOUNCE` = 64 above `VL_CIRC_VMIN` = $28 (a quarter of the
   closing speed back, slower contacts stop), `VL_CIRC_HEAVY` = 1 (the
   projectile weighs three targets), `VL_CIRC_FRICTION` = 3 on the boxes,
   ground friction in the tangent hook.
-* **Sleep** (`VL_CIRC_SLEEP` = $28): the targets start asleep (`vl_pin` =
+* **Sleep** (`VL_CIRC_SLEEP` = $21): the targets start asleep (`vl_pin` =
   $80): skipped by the integration and the boxes, pinned in a pair, so a
-  stack stays put at no cost until a ball hits it faster than $28 (0.16 px
+  stack stays put at no cost until a ball hits it faster than $21 (0.13 px
   a tick). One woken target wakes its group (pillar, column, pyramid): a
   sleeper is pinned, and one woken under another would leave it floating.
-  A ball slow for 16 ticks sleeps again; the shot ends when the projectile
-  and every target sleep (or after 500 ticks). The threshold is above 2g:
+  A ball slow for 19 ticks sleeps again; the shot ends when the projectile
+  and every target sleep (or after 600 ticks: 20 s). The threshold is above 2g:
   with one pass of equal masses a ball resting on an awake one keeps a
   speed of ~2g and would never sleep under it.
+* **30 ticks a second, flipped in the blank.** The page is shown in the
+  vertical blank, a tick every 2 video frames
+  ([`vapor.asm`](../../lib/apple2/vapor.asm): `vapor_mark_both` puts the
+  floating-bus marker on row 191 of both pages; nothing is drawn below
+  row 190; `vapor_pace` waits for the tick's last frame from an estimate
+  of its cycles: a base per phase, + 2,650 an object drawn again, + 3,600
+  a ball awake in flight — a least-squares fit on 3,800 ticks, 99.6 %
+  within 8,000 cycles; a term per contact fitted to ~0, the objects drawn
+  again carry it). Without a floating bus (`vapor_pace_init` fails: a
+  real //c, a IIgs) it runs a tick a frame, unpaced. The feel was tuned
+  unpaced at ~25 ticks a second: [`tools/catapult.py`](tools/catapult.py)
+  derives every constant with a time in it (`TUNED_HZ` 25 → `TICK_HZ`
+  30): `GRAVITY` × (25/30)² (16 → 11), speeds × 25/30 (`VMAX` 6 → 5 px,
+  `VL_CIRC_VMIN` $30 → $28, `VL_CIRC_SLEEP` $28 → $21, still above 2g),
+  durations × 30/25 (`CSLEEP_TICKS` 16 → 19, `SWING_MAX` 40 → 48,
+  `SHOT_MAX` 500 → 600). The launch turn × 25/30 is no longer a line of
+  integers: `pow_turn`, a table of 16 fitted by `fit_pow()` so that the
+  ball leaves the arm at the speed it did at 25 Hz (`TUNED_RELEASE`, px a
+  second, the mean of the five stops; × 25/30 alone gave 2-5 % more: the
+  swing round the pinned base loses less at a smaller step): 41..88.
 * **Drawing only what changes.** The hill, the boxes and the post are
-  drawn once on both pages; the arm, the balls (20-point rings) and the
-  aim mark are plotted with
-  [`lib/hgr/hgr_plot_hist.asm`](../../lib/hgr/hgr_plot_hist.asm) (shared
-  with the rope: lines and points that remember the bits they lit) and erased by EOR two frames
-  later, the scenery under them intact. The counters and the message are
-  rewritten only when they change, per page.
+  drawn once on both pages; the arm, the seven balls and the aim mark are
+  drawn with [`lib/hgr/hgr_plot_hist.asm`](../../lib/hgr/hgr_plot_hist.asm)
+  (`HGR_PLOT_HIST_FAST`: lines and sprites that remember the bits they
+  lit), each ball a preshifted ring sprite (7 shifts × 11 rows × 3 bytes,
+  built at start from the 20 points of `ring_dx` / `ring_dy`). Each page
+  keeps its objects in a stack, last moved on top, with what it shows of
+  each (a ball's x, y; the arm's ends; the mark's ball and angle): a frame
+  gives back (`pl_erase_to`, EOR) the stack from the lowest object that
+  changed up, draws again the still ones above it, then the moved ones.
+  Balls asleep on their boxes cost nothing; aiming without input draws
+  nothing. The counters and the message are rewritten only when they
+  change, per page.
 
 ## Measures
 
@@ -85,16 +113,24 @@ a2run, Apple II+ at 1.02 MHz, over the four test rounds:
 | | Cycles |
 |---|---|
 | `phys_tick` aiming | 480-1,190 |
-| … swinging (the arm, 2 link passes, the cross product) | 3,310-3,530 |
+| … swinging (the arm, 2 link passes, the cross product) | 1,830-3,050, mean 2,430 (3,310-3,530 before the speed switches) |
 | … flying, no contact (1,402 ticks) | 4,730-16,530, mean 5,900, 90 % under 8,200 |
-| … flying with contacts (433 ticks) | 7,500-37,500, mean 19,900, 90 % under 31,200 |
-| a whole frame aiming (input, erase and plot ~180 pixels, counters) | ~37,500 (27.2 fps) |
-| a whole frame over the first 5 s of a shot | ~40,500 (25.2 fps) |
+| … flying with contacts (433 ticks) | 7,400-36,700, mean 19,540, 90 % under 30,500 (7,500-37,500, mean 19,900) |
+| a tick's work aiming, nothing moving (input, the signatures compared; main to `pace`) | 3,670 median, 3,682 worst (3,646 / 3,653 at 25 Hz unpaced; 38,200 before the stack) |
+| … aiming, power or angle changed (the arm, the ball in its cup, the mark) | ~12,500 |
+| … while a shot flies (four shots) | 11,459 median, 45,020 worst (two shots at 25 Hz unpaced: 11,410 / 40,252; ~39,000-61,000 before the stack) |
+| the flips (2,600 ticks: 200 aiming, four shots of 600) | 2,584 of 2,590 34,060 cycles apart (± 13), all on line 193 (the vertical blank); left out: 8 pile-ups (0.3 %) whose work alone outlasts a tick (3 frames); 6 more (0.2 %) took 3 frames on an estimate more than half a frame short |
 
 One contact costs ~2,300-3,600 cycles (`lib/physics`), a ball on a box
 ~2,600-3,800; the peaks (~37,000) come from the pyramid tumbling in its
 cup: three balls touching each other, the cup's floor and its posts, 6-8
-contacts in one tick. The drawing, not the physics, sets the frame rate.
+contacts in one tick (the drawing: ~2,200 cycles a moving ball, ~1,000 the
+arm). Before the pacing the game ran ~175 ticks a second (a flip every
+0.34 video frame on average, torn), a shot ~7 times faster than at the
+former ~25. `tests/test_catapult_disk.py` asserts the median and worst
+(measured + 5 %), the 5 s of aiming (exactly 150 ticks), the cadence
+(≥ 98 % of the flips 34,060 cycles apart, every flip on lines 192-261)
+and a run without the marker (unpaced, it still plays).
 
 ## Turning it into a game
 
@@ -107,8 +143,6 @@ contacts in one tick. The drawing, not the physics, sets the frame rate.
 * Planks and towers of blocks: two circles and a link make a plank
   (`VL_CON_FIXED_K`), its ends contact like balls; box-to-box contacts are
   not in the library.
-* Faster frames: keep the sleeping balls out of the erase and redraw
-  (a history per object, redrawn only when it moved or a neighbour did).
 
 Files: `src/catapult.s` (the game: input, events, drawing, counters),
 `dev/lib/hgr/hgr_plot_hist.asm` (lines and points with an erase history),
@@ -116,6 +150,7 @@ Files: `src/catapult.s` (the game: input, events, drawing, counters),
 `src/physdefs.inc` (the physics), `src/catconst.inc` (generated),
 `tests/test_catapult_disk.py` (the disk: boot, the counters, power and
 angle keys, a shot that knocks down what the model's does, a round to its
-end, a new round, frames per second; the text read from the glyph bytes).
+end, a new round; the text read from the glyph bytes; the cycles a tick's
+work costs aiming and flying, the cadence of the flips; a run unpaced).
 
 Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).
