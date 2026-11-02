@@ -143,6 +143,8 @@ def check_archive(work):
           'hgr_masks.o', 'hgr_phases.o', 'hgr_tables.o')),
         ('decimal', 'char b[7]; gfx_utoa(b,65535u); gfx_itoa(b,-32767-1);', 'gfx_num_dec.o',
          ('hgr_text8_asm.o', 'hgr_text16_asm.o', 'hgr_sprite_params.o')),
+        ('unsigned_decimal', 'char b[6]; gfx_utoa(b,65535u);', 'gfx_num_dec.o',
+         ('gfx_num_signed.o', 'hgr_text8_asm.o', 'hgr_text16_asm.o')),
         ('celltext', 'gfx_gotoxy(0u,0u); gfx_text("A"); gfx_putu(42u);', 'gfx_text.o',
          ('hgr_text16_asm.o', 'hgr_sprite_params.o', 'hgr_pixrect_asm.o')),
         ('dhgr_mode', 'dhgr_init();', 'dhgr.o',

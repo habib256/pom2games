@@ -79,6 +79,15 @@ def cases(rng):
                    for n in edge16() + [9, 10, 99, 100, 999, 1000, 9999, 10000, 10001, 65530] +
                    [rng.randrange(65536) for _ in range(40)]]),
     }
+    # Exercise both sides of the 8/16-step dispatch for every divisor,
+    # including the ninth remainder bit in the short path.
+    for delta in (-1, 0, 1):
+        out[f'div_boundary_{delta + 1}'] = (
+            ['mul_x', 'mul_x+1', 'A'], ['mul_x', 'mul_x+1', 'A'],
+            'JSR div16by8',
+            [(le(256 * d + delta, 2) + [d],
+              le((256 * d + delta) // d, 2) + [(256 * d + delta) % d])
+             for d in range(1, 256)])
     w16 = w16[:25]
     for k in KS:
         out[f'k{k}'] = (['mul_x', 'mul_x+1'], p, f'MUL_K16 {k}', [(le(x, 2), le(x * k, 3)) for x in w16])
@@ -240,13 +249,18 @@ def check(defines, table, label):
 
 def main():
     table = cases(random.Random(1))
+    # Keep the extra output arrays in their own fixture: the full math
+    # workload already nearly fills LOWRAM on the target.
+    boundaries = {k: table.pop(k) for k in list(table) if k.startswith('div_boundary_')}
     n = check('MUL_TABLES = $0800', table, 'tables at $0800')
     check('MUL_TABLES = $4000\nSQRT_SEED = $4800', table, 'tables in HGR page 2')
     # Without mul_u16u8 referenced, mul_s16s8 inlines the product.
     alone = {k: v for k, v in table.items() if k not in ('u8u8', 'u16u8')}
     check('MUL_TABLES = $0800', alone, 'mul_s16s8 inline')
+    check('MUL_TABLES = $0800', boundaries, 'division dispatch boundaries')
     print(f'lib/math: {n} cases x 2 table placements == Python (products, mul_dir short cuts, '
-          f'MUL_K16/KS16, shr6, sums, isqrt16, div16by8, byte_to_dec, u16_to_dec, rand8); mul_s16s8 inline too.')
+          f'MUL_K16/KS16, shr6, sums, isqrt16, div16by8, byte_to_dec, u16_to_dec, rand8); '
+          f'mul_s16s8 inline and 765 division dispatch boundaries too.')
 
 
 if __name__ == '__main__':

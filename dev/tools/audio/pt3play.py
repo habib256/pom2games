@@ -33,20 +33,14 @@ bytes, step word), 3 sample position, 4 ornament position, 5 vibrato (on,
 off delays), 8 envelope slide (delay, step word), 9 speed.
 
 pt3_lib's behaviour (modelled, also where it differs from Vortex):
-  - no 1.77 MHz conversion of the tone and envelope periods (pt3.s
-    default; convert=True models PT3_FREQ_CONVERSION = 1: * 9/16), but
-    the noise period is always converted: R6 = (9 n) >> 4 (its .ifndef
-    tests PT3_DISABLE_ENABLE_FREQ_CONVERSION, which nothing defines);
+  - no 1.77 MHz conversion by default; convert=True models
+    PT3_FREQ_CONVERSION = 1 for tone, noise and envelope periods (* 9/16);
   - a pattern ends at line 64 or when the three channels have read $00;
   - the 3.3/3.4 vs 3.5+ volume tables and the version >= 6 portamento
     (keeps the previous slide) by the version digit; the four 3.4+ note
     tables only;
-  - envelope slide down from a sample adds one more (the asm's carry);
-  - amplitude slide up from -1 to 0 gives amplitude 0 that tick;
-  - the vibrato (effect 5) counter is never stored back in the
-    non-zero-page build pt3.s uses (zp=False): an on/off delay of 1
-    toggles the channel every tick, a longer one never does (zp=True:
-    the PT3_USE_ZERO_PAGE build, the real vibrato).
+  - amplitude slides stay in [-15,15], sample envelope offsets are signed,
+    and vibrato countdowns persist in both storage layouts.
 """
 from __future__ import annotations
 
@@ -142,14 +136,6 @@ def s16(v):
     return v - 65536 if v & 0x8000 else v
 
 
-def _sbc(a, b, c):
-    """6502 SBC: (result, carry, overflow)."""
-    r = a - b - (1 - c)
-    res = r & 0xFF
-    v = bool(((a ^ b) & (a ^ res)) & 0x80)
-    return res, int(r >= 0), v
-
-
 # ---------------------------------------------------------------- the module
 class Module:
     """The header of a .pt3 and its readers (bytes past the end read 0)."""
@@ -229,34 +215,10 @@ def sample_tick(m, ch, vt, out):
     toff = th << 8 | tl
     if b1 & 0x40:
         ch.acc = toff
-    # amplitude (the A register's path through amp_slide_up / _down)
     a = b1 & 15
     if b0 & 0x80:
-        y = a
-        sl = ch.amp_sliding & 0xFF
-        if b0 & 0x40:
-            r, cy, v = _sbc(sl, 15, 1)
-            if not ((r >> 7) ^ v):              # sliding >= 15: skip
-                a = r
-            else:
-                sl = (sl + 1) & 0xFF
-                ch.amp_sliding = sl
-                if sl:
-                    a = y
-                else:                            # (falls into the down code)
-                    r2, cy2, v2 = _sbc(r, 0xF1, cy)
-                    if (r2 >> 7) ^ v2:
-                        a = r2
-                    else:
-                        ch.amp_sliding = (ch.amp_sliding - 1) & 0xFF
-                        a = y
-        else:
-            r, cy, v = _sbc(sl, 0xF1, 1)
-            if (r >> 7) ^ v:                     # sliding < -15: skip
-                a = r
-            else:
-                ch.amp_sliding = (sl - 1) & 0xFF
-                a = y
+        delta = 1 if b0 & 0x40 else -1
+        ch.amp_sliding = max(-15, min(15, s8(ch.amp_sliding) + delta)) & 0xFF
     a = (a + ch.amp_sliding) & 0xFF
     if a & 0x80:
         a = 0
@@ -268,7 +230,7 @@ def sample_tick(m, ch, vt, out):
     y = b0 >> 1
     if b1 & 0x80:                               # envelope offset
         if b0 & 0x20:
-            j = ((y | 0xF0) + ch.env_sliding + 1) & 0xFF
+            j = ((y | 0xF0) + ch.env_sliding) & 0xFF
         else:
             j = ((y & 15) + ch.env_sliding) & 0xFF
         if b1 & 0x20:
@@ -594,8 +556,7 @@ class PT3Player:
             if not y:
                 c.enabled ^= 1
                 y = c.onoff_delay if c.enabled else c.offon_delay
-            if self.zp:
-                c.onoff = y
+            c.onoff = y
 
     def _conv(self, p):
         return ((p * 9) >> 4) & 0xFFF if self.convert else p
@@ -611,21 +572,13 @@ class PT3Player:
             t = self._conv(c.tone)
             r[2 * k], r[2 * k + 1] = t & 0xFF, t >> 8
         n = (self.noise_period + f['noise_add']) & 31
-        r[6] = ((9 * n) >> 4) & 31     # (always: pt3_lib's noise conversion
-        # is under PT3_DISABLE_ENABLE_FREQ_CONVERSION, a name nothing defines)
+        r[6] = (9 * n) >> 4 if self.convert else n
         r[7] = f['mixer']
         for k, c in enumerate(self.ch):
             r[8 + k] = c.amplitude
-        lo = (self.env_period & 0xFF) + f['env_add']
-        hi = (self.env_period >> 8) + (lo >> 8)
-        e = ((hi & 0xFF) << 8 | (lo & 0xFF)) + self.env_slide
-        e &= 0xFFFF
+        e = (self.env_period + s8(f['env_add']) + self.env_slide) & 0xFFFF
         if self.convert:
-            s8_ = (e * 8) & 0xFFFF
-            l2 = (s8_ & 0xFF) + (e & 0xFF)
-            h2 = (s8_ >> 8) + (e >> 8) + (l2 >> 8)
-            v = (h2 << 8 | (l2 & 0xFF)) >> 4
-            e = (v & 0x0FFF)
+            e = (e * 9) >> 4
         r[11], r[12] = e & 0xFF, e >> 8
         r[13] = 0xFF if self.env_type == self.env_type_old else self.env_type
         self.env_type_old = self.env_type

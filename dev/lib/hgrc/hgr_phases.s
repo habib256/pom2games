@@ -1,6 +1,10 @@
 ; VERHILLE Arnaud — GPL-3.0. Optional HGR table, main RAM/ZP.
 ; Empty with HGRC_X7_FOLDED: hgr_columns.s then builds this table too.
+; Boolean switches: zero and undefined select the default implementation.
 .ifndef HGRC_X7_FOLDED
+HGRC_X7_FOLDED = 0
+.endif
+.if !HGRC_X7_FOLDED
 ; No inputs. Clobbers A/X/Y, ptr1, tmp1/tmp2/tmp3; not reentrant.
 .export _hgr_build_phases, _hgr_phase7
 .importzp ptr1, tmp1, tmp2, tmp3

@@ -110,7 +110,8 @@ excluding routines that were previously linked for nothing.
 ## Limits and verification
 
 - `gfx_filled_rect` accepts two inclusive corners, puts them in order,
-  clips them to 280×192 and splits widths above 255 pixels.
+  clips them to 280×192 and sends the inclusive endpoints to the kernel in
+  one pass, including widths above 255 pixels.
 - `hgr_fill_pixrect` / `hgr_clear_pixrect` keep an 8-bit width;
   zero draws nothing. These functions reset the palette bit to zero
   in the bytes they touch, even at the edges of the rectangle.

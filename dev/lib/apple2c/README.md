@@ -185,6 +185,12 @@ machines, from C or assembly:
 | `a2_vbl_hook` | called by the //c handler after the count (the page flip): A/X/Y free, no zero page, no C stack; none while 0 (BSS, cleared by the crt0) |
 | `a2_vbl_measure()`, `a2_vbl_pal` | `apple2vbl_pal.s` (`APPLE2C_VBL_PAL_SRCS`): 1 on a 50 Hz machine (one or two frames, bounded; 0 without a clock) |
 
+Repeated `a2_vbl_irq_init()` calls reuse the installed handler. Switching
+back through `a2_vbl_init()` first removes that handler. If the mouse firmware
+refuses mode 9 after allocation, initialization releases the new handler and
+returns zero without changing the previous mode. `test_vbl_lifecycle.py`
+checks these paths with controlled MLI/firmware replies on the 65C02.
+
 Typical start: `a2_vbl_init() || (mouse_init(), a2_vbl_irq_init())`. The
 presentation stays in the game (when to flip, the stick read in the spare
 time, the speaker): see `chromabreak/src/timing.s` (DHGR, flip in the hook

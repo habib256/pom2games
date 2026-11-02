@@ -120,24 +120,25 @@ decrement:
 overdue:
         ; quotient high/Y = now-deadline (modulo 65536, <32768).
         ; Divide in exactly 16 steps, independent of the pause duration.
+        ; Keep the remainder in A until the loop ends: -8 code bytes and
+        ; at least 128 cycles saved versus the memory remainder loop,
+        ; excluding branch page-crossing differences. IRQs preserve A.
         sty quotient
         lda #0
         sta early
-        sta remainder
         ldx #16
 divide:
         asl quotient
         rol quotient+1
-        rol remainder
-        lda remainder
+        rol a                   ; remainder < period <= 8, so no ninth bit
         cmp period
         bcc next_bit
         sbc period
-        sta remainder
         inc quotient
 next_bit:
         dex
         bne divide
+        sta remainder
         ; Skip floor(delta/period)+1 boundaries, including an entry exactly
         ; on the deadline. Preserve the original grid without a catch-up burst.
         inc quotient

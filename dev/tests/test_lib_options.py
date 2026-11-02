@@ -16,6 +16,8 @@ sys.path.insert(0, str(ROOT / 'dev/tools'))
 import a2test  # noqa: E402
 
 INC = ['-I', str(ROOT / 'dev/lib/apple2'), '-I', str(ROOT / 'dev/lib/math'), '-I', str(ROOT / 'dev/lib/hgr')]
+INC += ['-I', str(ROOT / 'dev/lib/apple2/pt3'), '-I', str(ROOT / 'dev/lib/mouse')]
+INC += ['-I', str(ROOT / 'dev/lib/hgrc')]
 
 RWTS = '''.include "apple2.inc"
 DOS_ZP_START = $50
@@ -46,6 +48,13 @@ STICK = '''.include "apple2.inc"
 .include "joy.asm"
 '''
 MATH_NOACC = MATH.replace('        JSR     mul_acc_add\n        LDA     mul_acc0\n', '')
+PT3 = 'PT3_ZP = $60\nPT3_LOC = $4000\n.code\n.include "pt3.s"\n'
+MOUSE = '.include "mouse.s"\n'
+GLYPH = '.code\njsr hgr_glyph8_store\n.include "hgr_glyph8.asm"\n.include "hgr_scanline.inc"\n'
+TEXT = '.code\njsr hgr_putc8\n.include "hgr_text8.asm"\n.include "hgr_scanline.inc"\n'
+TABLES = '.code\n.include "hgr_plot_tables.inc"\n'
+PAGES = ('.include "hgr_pages.inc"\n.code\nHGR_LDA_HI_X\njsr hgr_select_page\n'
+         '.include "hgr_pages.asm"\n.include "hgr_scanline.inc"\n')
 
 
 def listing(work, source):
@@ -63,23 +72,40 @@ def listing(work, source):
 
 
 def options(work):
+    checked = set()
     for name, base, source in (('RWTS_SEI', RWTS, RWTS), ('RWTS_KEEP_ZP', RWTS, RWTS),
                                ('DOS_SEI', DOS, DOS), ('DOS_CMD_HEX_IFREF', DOS, DOS),
                                ('MUL_INIT_BOOT', MATH_NOACC, MATH_NOACC),
                                ('MUL_ACC', MATH_NOACC, MATH),
-                               ('STICK_KEY_FAST', STICK, STICK), ('STICK_KEY_REPEAT', STICK, STICK)):
+                               ('STICK_KEY_FAST', STICK, STICK), ('STICK_KEY_REPEAT', STICK, STICK),
+                               ('PT3_FREQ_CONVERSION', PT3, PT3),
+                               ('MOUSE_INIT_BOOT', MOUSE, MOUSE),
+                               ('HG_STORE_ONLY', GLYPH, GLYPH),
+                               ('HG_STORE_UNCLIPPED', GLYPH, GLYPH),
+                               ('HGR_TEXT8_HGR_ORDER', TEXT, TEXT),
+                               ('HGR_TEXT8_NO_PUTS', TEXT, TEXT),
+                               ('HGR_FULL_WIDTH_TABLES', TABLES, TABLES),
+                               ('HGR_PLOT_TABLES_RAM', TABLES, TABLES),
+                               ('HGR_PAGES_ORA', PAGES, PAGES),
+                               ('EXIT_USE_NATIVE_VIDEO',
+                                '.include "apple2.inc"\n.code\njsr native_video\n.include "hgr.asm"\n.include "exit.asm"\n',
+                                '.include "apple2.inc"\n.code\njsr native_video\n.include "hgr.asm"\n.include "exit.asm"\n'),
+                               ('DHGR_SMALL_USE_PROGRESS',
+                                '.include "dhgr_small_string.s"\n', '.include "dhgr_small_string.s"\n'),
+                               *[('HGRC_X7_FOLDED', f'.include "{file}"\n', f'.include "{file}"\n')
+                                 for file in ('hgr_columns.s', 'hgr_masks.s', 'hgr_phases.s')]):
         plain = listing(work, base)
         zero = listing(work, f'{name} = 0\n' + base)
         one = listing(work, f'{name} = 1\n' + source)
         assert not plain.startswith('error'), (name, plain)
         assert zero == plain, f'{name} = 0 is not the same as leaving it out'
         assert not one.startswith('error') and one != plain, f'{name} = 1 changes nothing'
+        checked.add(name)
         if name == 'MUL_ACC':
             assert listing(work, f'{name} = 0\n' + source).startswith('error'), \
                 'MUL_ACC = 0 still allocates mul_acc0..2'
-    print('Options RWTS_SEI, RWTS_KEEP_ZP, DOS_SEI, DOS_CMD_HEX_IFREF, MUL_INIT_BOOT, MUL_ACC, '
-          'STICK_KEY_FAST, STICK_KEY_REPEAT: '
-          '= 0 assembles as undefined, = 1 takes effect.')
+    print(f'{len(checked)} boolean options: 0 assembles as undefined, 1 takes effect '
+          '(including HGR/HGRC, mouse, PT3 and DHGR progress).')
 
 
 DOS_RUN = '''.include "apple2.inc"

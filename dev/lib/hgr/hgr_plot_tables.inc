@@ -5,7 +5,14 @@
 ; instead of stored in the file, and hgr_plot_tables_init (~40 bytes,
 ; assembled in the current segment) fills them; call it once before any
 ; drawing. Clobbers A, X, Y.
-.ifdef HGR_FULL_WIDTH_TABLES
+; Boolean switches: zero and undefined select the default implementation.
+.ifndef HGR_FULL_WIDTH_TABLES
+HGR_FULL_WIDTH_TABLES = 0
+.endif
+.ifndef HGR_PLOT_TABLES_RAM
+HGR_PLOT_TABLES_RAM = 0
+.endif
+.if HGR_FULL_WIDTH_TABLES
 HGR_PLOT_COLUMNS = 280
 .else
 HGR_PLOT_COLUMNS = 256
@@ -13,7 +20,7 @@ HGR_PLOT_COLUMNS = 256
 .ifdef _HGR_PLOT_LOADED_                ; hgr_plot16 reads columns 256..279
 .assert HGR_PLOT_COLUMNS = 280, error, "hgr_plot16 needs HGR_FULL_WIDTH_TABLES = 1 (columns 256..279)"
 .endif
-.ifdef HGR_PLOT_TABLES_RAM
+.if HGR_PLOT_TABLES_RAM
 .pushseg
 .segment "BSS"
 hgr_col:  .res HGR_PLOT_COLUMNS

@@ -628,30 +628,19 @@ sample_b1_smc:
 
 					;  if ((b0 & 0x40)!=0) {
 	lda	note_a+NOTE_AMPLITUDE_SLIDING,X
-	sec
 	bvc	amp_slide_down
 
 amp_slide_up:
-	; if (a->amplitude_sliding < 15) {
-	; a pain to do signed compares
-	sbc	#15
-	bvc	asu_signed
-	eor	#$80
-asu_signed:
-	bpl	done_amp_sliding	; skip if A>=15
-	inc	note_a+NOTE_AMPLITUDE_SLIDING,X	; a->amplitude_sliding++;
-	bne	done_amp_sliding_y
+	; The persistent slide starts at zero and stays in [-15,15].
+	cmp	#15
+	beq	done_amp_sliding_y
+	inc	note_a+NOTE_AMPLITUDE_SLIDING,X
+	jmp	done_amp_sliding_y	; also when -1 increments to zero
 
 amp_slide_down:
-	; if (a->amplitude_sliding > -15) {
-	; a pain to do signed compares
-	sbc	#$f1		; -15
-	bvc	asd_signed
-	eor	#$80
-asd_signed:
-	bmi	done_amp_sliding	; if A < -15, skip subtract
-
-	dec	note_a+NOTE_AMPLITUDE_SLIDING,X	; a->amplitude_sliding--;
+	cmp	#$f1		; -15: already at the lower limit
+	beq	done_amp_sliding_y
+	dec	note_a+NOTE_AMPLITUDE_SLIDING,X
 
 done_amp_sliding_y:
 	tya
@@ -743,9 +732,9 @@ envelope_slide:
 envelope_slide_up:
 	; j = ((b0>>1)&0xF) + a->envelope_sliding;
 	and	#$0f
-	clc
 
 envelope_slide_down:
+	clc			; the sign bit is not an extra unit
 
 	; j = ((b0>>1)|0xF0) + a->envelope_sliding
 	adc	note_a+NOTE_ENVELOPE_SLIDING,X
@@ -855,8 +844,8 @@ put_offon:
 .ifdef PT3_USE_ZERO_PAGE
 	sty	note_a+NOTE_ONOFF,X
 .else
-	lda	note_a+NOTE_ONOFF,X
-	tay
+	tya
+	sta	note_a+NOTE_ONOFF,X
 .endif
 
 done_onoff:
@@ -1747,14 +1736,15 @@ do_frame:
 
 	; Load up the Frequency Registers
 
+pt3_emit_registers:
 	lda	note_a+NOTE_TONE_L      ; Note A Period L               ; 4
 	sta	AY_REGISTERS+0          ; into R0                       ; 3
 
 	lda	note_a+NOTE_TONE_H	; Note A Period H		; 4
 	sta	AY_REGISTERS+1		; into R1			; 3
-	lda	note_a+NOTE_TONE_L	; Note A Period L		; 4
 
 .ifndef PT3_DISABLE_FREQ_CONVERSION
+	lda	note_a+NOTE_TONE_L	; conversion needs the low byte again
 
 .ifndef PT3_DISABLE_SWITCHABLE_FREQ_CONVERSION
 convert_177_smc1:
@@ -1802,9 +1792,9 @@ no_scale_a:
 
 	lda	note_b+NOTE_TONE_H	; Note B Period H		; 4
 	sta	AY_REGISTERS+3		; into R3			; 3
-	lda	note_b+NOTE_TONE_L	; Note B Period L		; 4
 
 .ifndef PT3_DISABLE_FREQ_CONVERSION
+	lda	note_b+NOTE_TONE_L	; conversion needs the low byte again
 
 .ifndef PT3_DISABLE_SWITCHABLE_FREQ_CONVERSION
 
@@ -1848,9 +1838,9 @@ no_scale_b:
 	sta	AY_REGISTERS+4		; into R4			; 3
 	lda	note_c+NOTE_TONE_H	; Note C Period H		; 4
 	sta	AY_REGISTERS+5		; into R5			; 3
-	lda	note_c+NOTE_TONE_L	; Note C Period L		; 4
 
 .ifndef PT3_DISABLE_FREQ_CONVERSION
+	lda	note_c+NOTE_TONE_L	; conversion needs the low byte again
 
 .ifndef PT3_DISABLE_SWITCHABLE_FREQ_CONVERSION
 convert_177_smc3:
@@ -1900,7 +1890,7 @@ pt3_noise_add_smc:
 	adc	#$d1							; 2
 	and	#$1f							; 2
 
-.ifndef PT3_DISABLE_ENABLE_FREQ_CONVERSION
+.ifndef PT3_DISABLE_FREQ_CONVERSION
 
 	sta	AY_REGISTERS+6						; 3
 
@@ -1960,6 +1950,11 @@ pt3_envelope_add_smc:
 pt3_envelope_period_h_smc:
 	lda	#$d1							; 2
 	adc	#0							; 2
+	ldx	pt3_envelope_add_smc+1
+	bpl	:+
+	sec
+	sbc	#1			; sign-extend the signed 8-bit sample sum
+:
 	tax								; 2
 
 	clc								; 2
@@ -1981,36 +1976,33 @@ convert_177_smc5:
 	sec
 	bcc	no_scale_e						; 2/3
 .endif
-	; Convert from 1.77MHz to 1MHz by multiplying by 9/16
-
-	tay								; 2
-	; first multiply by 8
-	lda	AY_REGISTERS+11						; 3
-	asl								; 2
-	rol	AY_REGISTERS+12						; 5
-	asl								; 2
-	rol	AY_REGISTERS+12						; 5
-	asl								; 2
-	rol	AY_REGISTERS+12						; 5
-
-	; add in original to get 9
-	clc								; 2
-	adc	AY_REGISTERS+11						; 3
-	sta	AY_REGISTERS+11						; 3
-	tya								; 2
-	adc	AY_REGISTERS+12						; 3
-
-	; divide by 16 to get proper value
-	ror								; 2
-	ror	AY_REGISTERS+11						; 5
-	ror								; 2
-	ror	AY_REGISTERS+11						; 5
-	ror								; 2
-	ror	AY_REGISTERS+11						; 5
-	ror								; 2
-	ror	AY_REGISTERS+11						; 5
-	and	#$0f							; 2
-	sta	AY_REGISTERS+12						; 3
+	; Envelope periods are 16-bit, unlike the 12-bit tone periods.
+	; Keep the full 20-bit product until division (65535*9 = $8FFF7).
+	tay                             ; original high byte
+	lda AY_REGISTERS+11
+	sta PT3_TEMP                    ; original low byte
+	ldx #0                          ; product bits 16..19
+	.repeat 3
+	asl AY_REGISTERS+11
+	rol AY_REGISTERS+12
+	txa
+	rol a
+	tax
+	.endrepeat
+	clc
+	lda AY_REGISTERS+11
+	adc PT3_TEMP
+	sta AY_REGISTERS+11
+	tya
+	adc AY_REGISTERS+12
+	sta AY_REGISTERS+12
+	txa
+	adc #0
+	.repeat 4
+	lsr a
+	ror AY_REGISTERS+12
+	ror AY_REGISTERS+11
+	.endrepeat
 .endif
 
 no_scale_e:

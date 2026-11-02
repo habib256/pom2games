@@ -32,6 +32,17 @@ page. Calls wrap at the right edge; the last line does not scroll.
 `gfx_cell_color` has no effect with this backend.
 There is no cell-based DHGR text backend; use `dhgr_puts`.
 
+The cc65 hexadecimal converter uses `gfx_num_hex.s`; `gfx_num_hex.c` is the
+host reference. Both produce uppercase text without leading zeroes and return
+the digit count. `test_gfx_hex.py` checks every 16-bit input, the terminating
+NUL, return length and buffer guards, including page-crossing buffers.
+With cc65 2.18 `-Oirs` on a2run NMOS 6502, the assembly member occupies
+71 bytes instead of 168 bytes of C code and constant data. The exhaustive
+fixture takes 138,079,027 cycles instead of 238,118,920 (42.0% less), including
+the unchanged C loop and buffer initialization. Its linked binary shrinks
+from 964 to 705 bytes as unused compiler helpers also disappear; application
+savings depend on which helpers other code still uses.
+
 `gfx_u16_digits` returns five ASCII digits, with leading zeros, for an
 unsigned value from 0 to 65535. Its static buffer is reused on the next
 call. The assembler kernel `gfx_u16_digits.s` is **65C02-only**; the
@@ -52,7 +63,7 @@ uses a single span. Each outline pixel is therefore written exactly once.
 Clipping keeps the original edges: a rectangle that overflows does not create
 a new edge at the screen border.
 `test_gfx_outlines.py` checks 1,792 circles and 625 rectangles with a backend
-that rejects repeated writes, then compares 54 cc65 scenes against the expected
+that rejects repeated writes, then compares 158 cc65 scenes against the expected
 pixels on both HGR pages, memory holes included. It is part
 of `make test-hgr`.
 
@@ -80,8 +91,25 @@ to the screen limits; this behaviour is not full geometric
 clipping. Each vertex is computed once and then shared
 between its two neighbouring segments.
 Low-level HGR primitives may have 8-bit widths;
-`gfx_filled_rect` handles the full width. The backend choice remains explicit
+`gfx_filled_rect` and the HGR spans send inclusive endpoints to the shared
+kernel, handling the full width in one pass. The backend choice remains explicit
 at link time.
+
+The shared span setup removes the former 255-pixel subdivision and its repeated
+clipping/table preparation. Measurements with cc65 2.18 `-Oirs`, a2run NMOS
+6502, warm tables, arguments and calls included, markers excluded:
+
+| Call | Before (cycles) | After (cycles) | Linked file reduction |
+|---|---:|---:|---:|
+| `hgr_hline(7,20,10)` | 1,458 | 568 | 451 B |
+| `hgr_hline(0,279,10)` | 3,101 | 1,096 | 451 B |
+| `hgr_vline(10,0,191)` | 12,333 | 11,343 | 451 B |
+| `gfx_filled_rect(7,10,20,13)` | 1,729 | 865 | 432 B |
+| `gfx_filled_rect(0,0,279,191)` | 133,192 | 118,252 | 432 B |
+
+These isolated-client file reductions include compiler helpers no longer
+linked; savings in a larger program depend on its other calls. The low-level
+`hgr_fill_pixrect(7,10,14,4)` remains at 1,092 cycles and 2,063 loaded bytes.
 
 
 The HGR archive selects `gfx_line_hgr.c`: diagonals use the 280-pixel
@@ -90,3 +118,11 @@ for the generic/DHGR backends. Both files define the same symbol:
 pick one implementation at link time. No function pointer is added.
 The two HGR APIs are compared on 464 lines; the fallback is tested in both
 DHGR modes, on both pages and banks, rejected inputs included.
+
+Decimal conversion shares the `hgr_utoa` kernel. The signed wrapper lives in
+`gfx_num_signed.s`, so unsigned-only clients omit it. With cc65 2.18 `-Oirs`,
+the isolated `gfx_utoa(65535)` fixture shrinks by 42 bytes with unchanged
+cycles; the signed fixture grows by 3 bytes for the cross-object jump.
+`hgr_putu_field(10,20,123,5)` reuses the returned digit count: 44 fewer linked
+bytes and 135 fewer cycles (14,835 to 14,700). `test_gfx_decimal.py` checks
+all 131,072 signed/unsigned inputs, lengths, NULs and buffer guards.

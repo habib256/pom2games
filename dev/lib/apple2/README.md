@@ -710,13 +710,25 @@ helper referenced: ~500 B. Tests: `dev/tests/test_ezcolor.py` (`make test-hgr`).
 
 [`pt3/pt3.s`](pt3/pt3.s) is Vince Weaver's pt3_lib 0.5 decoder, used under
 its 0BSD option ([`pt3/pt3_lib-NOTICE.txt`](pt3/pt3_lib-NOTICE.txt): upstream
-revision, what changed). `pt3_lib_core.s` and `pt3_lib_init.s` are unchanged;
+revision, what changed). Local corrections in `pt3_lib_core.s` make the
+conversion option apply to noise too, preserve full 16-bit envelopes and signed
+sample offsets, and fix amplitude slides and vibrato countdowns;
+`pt3_lib_init.s` remains unchanged.
 `pt3_zp.inc` puts its 32 zero-page bytes at `PT3_ZP` (outside ProDOS's
 `$FA-$FF`); `pt3.s` keeps decoding only: `pt3_init_song`, then `pt3_tick`
 fills `AY_REGISTERS..+13` for one AY (R13 `$FF` = unchanged) and loops.
 No IRQ installation, slot patching or AY writes: the program owns those
 (the policy below). The 1.77 MHz conversion is off unless
-`PT3_FREQ_CONVERSION = 1`. Include it from a module of its own (its labels
+`PT3_FREQ_CONVERSION = 1` (zero and undefined both disable it).
+`test_pt3_registers.py` executes all 32 noise periods, all 4,096 tone periods
+on each channel, and all 65,536 envelope periods with conversion enabled
+and disabled. `test_pt3_notes.py` covers amplitude bounds, vibrato, all note/ornament
+pairs, and signed sample envelope offsets. Its compatibility model follows
+[Vortex Tracker's engine](https://github.com/oisee/vti/blob/master/trfuncs.pas),
+including the historical byte wrap before ornament clipping. Removing the
+unintended noise conversion and three redundant tone loads saves 22 bytes
+and 34 cycles in the disabled conversion path, separately from the other
+correctness changes. Include it from a module of its own (its labels
 are many). Size: ~1.7 KB code, 448 bytes of tables, ~570 bytes of init.
 Measured in WARGALAGA II: 1 450-2 400 cycles a tick (mean 1 570) for a
 two-voice song. That game links it with its song for aux `$6000` and calls

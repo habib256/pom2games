@@ -2,7 +2,7 @@
 ; hgr_utoa_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
 ; hgr_utoa: _hgr_u_lo/_hi -> ASCII at (_hgr_u_ptr), no leading zeros, NUL;
 ; Y = digit count. The conversion is lib/math dec.asm (u16_to_dec), also
-; behind gfx_utoa/gfx_itoa (gfx_num_dec.s).
+; behind gfx_utoa/gfx_itoa (gfx_num_dec.s / gfx_num_signed.s).
 .export _hgr_utoa
 .exportzp _hgr_u_lo, _hgr_u_hi, _hgr_u_ptr
 .importzp tmp1, tmp2

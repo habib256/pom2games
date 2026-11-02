@@ -64,6 +64,9 @@
 
 .ifndef _EXIT_ASM_LOADED_
 _EXIT_ASM_LOADED_ = 1
+.ifndef EXIT_USE_NATIVE_VIDEO
+EXIT_USE_NATIVE_VIDEO = 0
+.endif
 
 .ifndef EXIT_REBOOT_ONLY
 .segment "BSS"
@@ -131,7 +134,7 @@ exit_restore:
         ; BEFORE writing the RESET vector or DOS's zero-page snapshot: with
         ; RAMWRT enabled those stores otherwise go into auxiliary RAM.
         ; Check the ROM model before touching IIe/c switches on a II/II+.
-.if .defined(EXIT_USE_NATIVE_VIDEO) .and .defined(native_video)
+.if EXIT_USE_NATIVE_VIDEO .and .defined(native_video)
         ; opt-in: hgr.asm's copy (included before this file) instead of ours
         JSR     native_video
 .else

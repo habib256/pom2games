@@ -46,15 +46,21 @@ def check(work):
                     str(DEV / 'lib/gfx/gfx_circle.c'), str(DEV / 'lib/gfx/gfx_rect.c'),
                     '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)
-    scenes = [('gfx_circle', case) for case in CIRCLES] + [('gfx_rect', case) for case in RECTS]
-    calls = '\n'.join('hgr_clear(42u);\n' + name + '(' + ','.join(f'{v}u' for v in case) +
+    # Filled spans go first so their first call builds the x/mask tables.
+    # Cross the former 255-pixel split at every pixel/byte phase.
+    fills = RECTS + [(x, 91, x + width - 1, 94)
+                     for x in range(7) for width in (254, 255, 256, 280)]
+    scenes = [('gfx_filled_rect', case) for case in fills] + [
+        ('gfx_circle', case) for case in CIRCLES] + [
+        (name, case) for name in ('gfx_rect', 'hgr_rect') for case in RECTS]
+    calls = '\n'.join('hgr_clear(170u);\n' + name + '(' + ','.join(f'{v}u' for v in case) +
                       f');\n*(volatile unsigned char *)0x1000={i}u; apple2_getkey();'
                       for i, (name, case) in enumerate(scenes))
     source = work / 'outlines.c'
     source.write_text('#include "hgr.h"\n#include "gfx.h"\nint main(void) {\n'
                       'unsigned char page; hgr_init();\n'
-                      'hgr_set_draw_page(1u); hgr_clear(42u);\n'
-                      'hgr_set_draw_page(2u); hgr_clear(42u);\n'
+                      'hgr_set_draw_page(1u); hgr_clear(170u);\n'
+                      'hgr_set_draw_page(2u); hgr_clear(170u);\n'
                       'for(page=1;page<=2;++page) {hgr_set_draw_page(page);\n' + calls +
                       '\n}\nfor (;;) {}\nreturn 0;\n}\n')
     disk = test_hgr.build(work, source)
@@ -62,7 +68,7 @@ def check(work):
     for _ in range(2 * len(scenes)):
         steps += ['peek:1000:1', 'peek:2000:16384', 'key: ', 'wait:60']
     data = test_hgr.a2test.run(disk, steps).data
-    previous = bytearray([42]) * 16384
+    previous = bytearray([170]) * 16384
     for index in range(2 * len(scenes)):
         scene = index % len(scenes)
         page = index // len(scenes)
@@ -76,17 +82,20 @@ def check(work):
             y0, y1 = sorted((case[1], case[3]))
             points = {(x, y) for y in range(192) for x in range(280)
                       if x0 <= x <= x1 and y0 <= y <= y1 and
-                      (x in (x0, x1) or y in (y0, y1))}
+                      (name == 'gfx_filled_rect' or x in (x0, x1) or y in (y0, y1))}
         expected = previous[:]
-        view = bytearray([42]) * 8192
+        view = bytearray([170]) * 8192
         for x, y in points:
             if 0 <= x < 280 and 0 <= y < 192:
-                test_hgr.pixel(view, x, y, 1, white=True)
+                # Pixel plots retain palette bit 7; white rectangle spans
+                # clear it. The old bit-7-clear background hid this distinction.
+                test_hgr.pixel(view, x, y, 1, white=name != 'gfx_circle')
         expected[page * 8192:(page + 1) * 8192] = view
         assert chunk[1:] == expected, ('outline pixels or inactive page', page + 1, name, case)
         previous = expected
     assert len(data) == 2 * len(scenes) * 16385
-    print('cc65 outlines: 54 scenes preserve pixels, clipping, both pages and screen holes.')
+    print(f'cc65 outlines: {2 * len(scenes)} scenes preserve pixels, clipping, '
+          'both pages and screen holes through gfx and HGR entries.')
 
 
 if __name__ == '__main__':

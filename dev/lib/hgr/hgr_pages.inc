@@ -35,6 +35,10 @@
 
 .ifndef _HGR_PAGES_INC_LOADED_
 _HGR_PAGES_INC_LOADED_ = 1
+; Boolean switches: zero and undefined select the default implementation.
+.ifndef HGR_PAGES_ORA
+HGR_PAGES_ORA = 0
+.endif
 
 HGR_HI_SITES .set 0
 
@@ -49,7 +53,7 @@ HGR_HI_SITES .set HGR_HI_SITES + 1
 .endmacro
 
 .macro HGR_LDA_HI_X
-.ifdef HGR_PAGES_ORA
+.if HGR_PAGES_ORA
         LDA     hgr_hi,X
         HGR_HI_SITE                     ; the ORA immediate is patched
         ORA     #$20

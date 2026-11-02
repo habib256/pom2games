@@ -18,4 +18,4 @@ void gfx_vline(unsigned x, unsigned char y0, unsigned char y1) { hgr_vline(x, y0
 
 /* gfx_filled_rect + gfx_clear forwarders live in gfx_backend_hgr_rect.c so
  * a HGR program that never
- * calls them won't drag hgr_fill_pixrect / hgr_clear in. */
+ * calls them won't drag gfx_filled_rect / hgr_clear in. */

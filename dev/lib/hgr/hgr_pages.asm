@@ -19,7 +19,7 @@ _HGR_PAGES_ASM_LOADED_ = 1
         .error "hgr_pages.asm: include hgr_pages.inc at the top first"
 .endif
 
-.ifndef HGR_PAGES_ORA
+.if !HGR_PAGES_ORA
 .ifndef hgr_hi2
 .segment "BSS"
 hgr_hi2: .res 192
@@ -42,7 +42,7 @@ hgr_pages_init:
 .endif
 
 .ifref hgr_select_page
-.ifdef HGR_PAGES_ORA
+.if HGR_PAGES_ORA
 hgr_select_page:                ; ORA variant: patch each site's immediate
         LDX     #$20
         CMP     #0

@@ -9,6 +9,9 @@
  */
 #include "gfx.h"
 
+#ifndef __CC65__
+/* Host reference. cc65 links gfx_num_hex.s to avoid variable shifts and
+ * software-stack temporaries for this bounded four-digit conversion. */
 unsigned char gfx_hexstr(char *buf, unsigned value)
 {
     static const char hexd[16] = {
@@ -23,3 +26,4 @@ unsigned char gfx_hexstr(char *buf, unsigned value)
     buf[i] = 0;
     return i;
 }
+#endif

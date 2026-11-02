@@ -10,7 +10,7 @@ HGRC_LIB ?= $(HGRC_BUILD)/hgrc.lib
 HGRC_ASM_SRCS := $(addprefix $(HGRC)/,hgr_mode_asm.s hgr_mode_clear_asm.s \
     hgr_lores_init_asm.s hgr_native_asm.s hgr_rows_asm.s hgr_clear_asm.s \
     hgr_text16_asm.s hgr_text8_asm.s hgr_text_params.s hgr_utoa_asm.s \
-    hgr_byte_rect_asm.s hgr_pixrect_asm.s hgr_pixrect_params.s hgr_cell_asm.s \
+    hgr_byte_rect_asm.s hgr_pixrect_asm.s hgr_pixrect_params.s hgr_fill_span.s hgr_cell_asm.s \
     hgr_pixel_asm.s hgr_colorize_asm.s hgr_carrier_params.s \
     hgr_bitmap_asm.s hgr_blit7_asm.s hgr_preshift_asm.s hgr_sprite_params.s \
     hgr_glyph_shift.s)
@@ -28,12 +28,12 @@ HGRC_PRESHIFT_SRCS := $(HGRC)/hgr_preshift.c
 HGRC_X2_SRCS := $(HGRC)/hgr_x2_target.c $(HGRC)/hgr_blit_x2.c
 HGRC_SPRMASK_SRCS := $(HGRC)/hgr_sprmask.s
 HGRC_SPRENGINE_SRCS := $(HGRC)/hgr_sprengine.c $(HGRC)/hgr_sprengine_asm.s $(HGRC)/hgr_sprdamage.s $(HGRC)/hgr_sprdefault.c
-HGRC_GEOM_SRCS := $(addprefix $(HGRC)/,hgr_geom.c hgr_line.c hgr_outline.c \
+HGRC_GEOM_SRCS := $(addprefix $(HGRC)/,hgr_geom.c hgr_line.c hgr_outline.s \
     hgr_circle.s hgr_ellipse.s hgr_line_asm.s)
 HGRC_LORES_SRCS := $(addprefix $(HGRC)/,hgr_lores.c hgr_lores_clear.c hgr_lores_setblock.c \
     hgr_lores_getblock.c hgr_lores_hlin.c hgr_lores_vlin.c hgr_lores_rect.c)
 HGRC_TILEMAP_SRCS := $(HGRC)/hgr_tilemap.c $(HGRC)/hgr_tile_restore.s
-HGRC_NUM_SRCS := $(GFX)/gfx_num_hex.c $(GFX)/gfx_num_dec.s
+HGRC_NUM_SRCS := $(GFX)/gfx_num_hex.s $(GFX)/gfx_num_dec.s $(GFX)/gfx_num_signed.s
 HGRC_GFX_TEXT_SRCS := $(GFX)/gfx_text.c $(GFX)/gfx_text_backend_hgr.c
 HGRC_GENERIC_VECTOR_SRCS := $(GFX)/gfx_line.c $(GFX)/gfx_rect.c
 HGRC_VECTOR_SRCS := $(GFX)/gfx_line_hgr.c $(GFX)/gfx_rect.c

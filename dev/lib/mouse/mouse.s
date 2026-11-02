@@ -33,7 +33,10 @@ _mouse_buttons: .res 1
 offsets: .byte $05,$07,$0B,$0C,$FB
 values:  .byte $38,$18,$01,$20,$D6
 .code
-.ifdef MOUSE_INIT_BOOT
+.ifndef MOUSE_INIT_BOOT
+MOUSE_INIT_BOOT = 0
+.endif
+.if MOUSE_INIT_BOOT
 .segment "INIT"         ; boot code (ca65 -D MOUSE_INIT_BOOT): may be overwritten later
 .endif
 _mouse_init:

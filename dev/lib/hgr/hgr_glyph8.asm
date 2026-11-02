@@ -16,6 +16,13 @@
 ; OR-only program drops CELL's loop and masks, a CELL-only one the OR loop.
 .ifndef _HGR_GLYPH8_LOADED_
 _HGR_GLYPH8_LOADED_ = 1
+; Boolean switches: zero and undefined select the default implementation.
+.ifndef HG_STORE_ONLY
+HG_STORE_ONLY = 0
+.endif
+.ifndef HG_STORE_UNCLIPPED
+HG_STORE_UNCLIPPED = 0
+.endif
 .zeropage
 .ifndef hg_src
 hg_src: .res 2
@@ -23,7 +30,7 @@ hg_src: .res 2
 .ifndef hg_ptr
 hg_ptr: .res 2
 .endif
-.ifndef HG_STORE_ONLY
+.if !HG_STORE_ONLY
 .ifndef hg_x
 hg_x: .res 2
 .endif
@@ -38,7 +45,7 @@ hg_y: .res 1
 .ifndef hg_row
 hg_row: .res 1
 .endif
-.ifndef HG_STORE_ONLY
+.if !HG_STORE_ONLY
 hg_shift: .res 1
 hg_keep_lo: .res 1
 hg_keep_hi: .res 1
@@ -60,7 +67,7 @@ hg_color: .res 1
 .code
 .ifref hgr_glyph8_store
 hgr_glyph8_store:
-.ifndef HG_STORE_UNCLIPPED
+.if !HG_STORE_UNCLIPPED
         lda hg_col
         cmp #40
         bcs @done
@@ -69,7 +76,7 @@ hgr_glyph8_store:
 @row:   txa
         clc
         adc hg_y
-.ifndef HG_STORE_UNCLIPPED
+.if !HG_STORE_UNCLIPPED
         bcs @done
         cmp #192
         bcs @done
@@ -89,7 +96,7 @@ hgr_glyph8_store:
         bcc @row
 @done:  rts
 .endif
-.ifndef HG_STORE_ONLY
+.if !HG_STORE_ONLY
 HG_OR   = .referenced(hgr_glyph8_or)
 HG_CELL = .referenced(hgr_glyph8_cell)
 .if HG_OR .or HG_CELL

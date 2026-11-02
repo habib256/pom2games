@@ -188,7 +188,7 @@ def unroll(m, vt, key, max_ticks):
         b0, b1, toff = pt3play.sample_tick(m, ch, vt, out)
         a = ch.amplitude
         noise = not b1 & 0x80
-        np_ = ((9 * ((noise_base + out['noise_add']) & 31)) >> 4) & 31 if noise else None
+        np_ = (noise_base + out['noise_add']) & 31 if noise else None
         ticks.append(Tick(a & 15, not b1 & 0x10, noise, bool(a & 0x10), np_))
         if toff:
             stats['tone_offset'] += 1

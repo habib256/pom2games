@@ -87,9 +87,15 @@ test-hgr:
 	$(PYTHON) dev/tests/test_asm_boundaries.py
 	$(PYTHON) dev/tests/test_dos_reuse.py
 	$(PYTHON) dev/tests/test_math.py
+	$(PYTHON) dev/tests/test_gfx_hex.py
+	$(PYTHON) dev/tests/test_gfx_decimal.py
 	$(PYTHON) dev/tests/test_verlet.py
 	$(PYTHON) dev/tests/test_rwts.py
 	$(PYTHON) dev/tests/test_lib_options.py
+	$(PYTHON) dev/tests/test_pt3_notes.py
+	$(PYTHON) dev/tests/test_pt3_registers.py
+	$(PYTHON) dev/tests/test_pt3_registers.py --conversion 0
+	$(PYTHON) dev/tests/test_pt3_registers.py --conversion 1
 	$(PYTHON) dev/tests/test_hgr_pages.py
 	$(PYTHON) dev/tests/test_joy_fast.py
 	$(PYTHON) dev/tests/test_joy_x.py
@@ -223,6 +229,7 @@ test-tools:
 	$(PYTHON) dev/tests/test_stack_profile.py
 	$(PYTHON) dev/tests/test_build_config.py
 	$(PYTHON) dev/tests/test_prodos_video.py
+	$(PYTHON) dev/tests/test_vbl_lifecycle.py
 	$(PYTHON) dev/tests/test_prodos_file.py
 	$(PYTHON) dev/tests/test_prodos_sysreloc.py
 	$(PYTHON) dev/tests/test_apple2game.py

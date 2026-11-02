@@ -38,6 +38,7 @@ release: .byte 1,0
 ; A = 1 (and mode 1) on a //e with a VBL signal, else 0 (mode 0). Calls
 ; a2_frame_init (its delay is reset). X = 0.
 _a2_vbl_init:
+        jsr _a2_vbl_close       ; release an existing IRQ before polling
         jsr _a2_frame_init
         ldx #0
         cmp #1
@@ -53,8 +54,12 @@ _a2_vbl_init:
         rts
 
 ; A = 2 (and mode 2) once the mouse firmware's VBL interrupt is installed,
-; else 0 (no mouse, or ALLOC_INTERRUPT refused). Enables interrupts (CLI).
+; else 0 (no mouse, or MLI/firmware refused), preserving the previous mode.
+; Repeated initialization reuses the handler. Success enables IRQs (CLI).
 _a2_vbl_irq_init:
+        lda _a2_vbl_mode
+        cmp #2
+        beq irq_ready           ; never allocate a second handler
         lda _mouse_slot
         beq none
         php
@@ -65,15 +70,21 @@ _a2_vbl_irq_init:
         bcs failed
         lda allocate+1
         sta release+1
-        lda #2
-        sta _a2_vbl_mode
         lda #9                   ; mouse firmware: VBL interrupts
         jsr _mouse_timing_mode
+        bcs mouse_failed
+        lda #2
+        sta _a2_vbl_mode
         plp
+irq_ready:
         cli
         lda #2
         ldx #0
         rts
+mouse_failed:
+        jsr $BF00               ; firmware refused: undo this allocation
+        .byte $41
+        .word release
 failed: plp
 none:   lda #0
         tax

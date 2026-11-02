@@ -29,6 +29,7 @@ extern void hgr_unplot_asm(void);
 extern unsigned hgr_r_x, hgr_r_xr;
 extern unsigned char hgr_r_y0, hgr_r_rows, hgr_r_mode;
 extern void hgr_pixrect_asm(void);
+extern void hgr_fill_span(void); /* clipped inclusive endpoints; builds tables */
 
 /* hgr_cell parameter block (8x8-grid cell blitter, see hgr_rect.c). */
 extern unsigned char hgr_c_cx, hgr_c_cy, hgr_c_set;

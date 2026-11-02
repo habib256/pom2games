@@ -4,7 +4,11 @@
 ; code instead of ~165 B for three, but always 841 B of BSS and ~16k cycles on
 ; first use). Default: one member per table (hgr_masks.s, hgr_phases.s), a
 ; program reserves only the tables it references.
-.ifdef HGRC_X7_FOLDED
+; Boolean switches: zero and undefined select the default implementation.
+.ifndef HGRC_X7_FOLDED
+HGRC_X7_FOLDED = 0
+.endif
+.if HGRC_X7_FOLDED
 ; x -> byte column (x / 7), bit mask (1 << x % 7) and phase (x % 7), x = 0..279,
 ; built together by one loop: every client of one table also used another
 ; (pixels, text, sprites), so one member and one pass cost less than three.

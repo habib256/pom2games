@@ -73,7 +73,7 @@ void gfx_circle(unsigned xc, unsigned char yc, unsigned char r);
 void gfx_ellipse(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1);
 
 /* ===========================================================================
- * Shared integer -> ASCII (gfx_num_dec.s, gfx_num_hex.c) — STRING BUILDERS only.
+ * Shared integer -> ASCII (gfx_num_dec.s, gfx_num_hex.s) — STRING BUILDERS only.
  * ===========================================================================
  * These produce NUL-terminated strings without drawing. Render them through
  * the chosen native text API. gfx_utoa/gfx_itoa wrap hgr_utoa, the lib/math

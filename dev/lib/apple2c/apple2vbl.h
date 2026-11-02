@@ -14,10 +14,13 @@ extern unsigned char a2_vbl_mode, a2_vbl_count, a2_vbl_beam;
 /* Called by the //c handler after each count (A/X/Y free, no ZP, no C
  * stack, C flag ignored); none while 0 (BSS). */
 extern void *a2_vbl_hook;
-/* //e with a VBL signal: A2_VBL_POLL, else A2_VBL_NONE (calls a2_frame_init). */
+/* //e with a VBL signal: A2_VBL_POLL, else A2_VBL_NONE (calls a2_frame_init).
+ * Releases any previously installed VBL interrupt before switching modes. */
 unsigned char a2_vbl_init(void);
 /* Install the //c VBL interrupt: A2_VBL_IRQ, or A2_VBL_NONE (no mouse,
- * ALLOC_INTERRUPT refused). Enables interrupts. */
+ * ALLOC_INTERRUPT or mouse firmware refused). Repeated successful calls
+ * reuse the installed handler. Failure preserves the previous mode.
+ * Enables interrupts on success. */
 unsigned char a2_vbl_irq_init(void);
 /* Back to A2_VBL_NONE, the interrupt (if any) removed. */
 void a2_vbl_close(void);

@@ -5,7 +5,10 @@
 .importzp ptr4
 .include "dhgr_small_layout.inc"
 .export _dhgr_small_string
-.ifdef DHGR_SMALL_USE_PROGRESS
+.ifndef DHGR_SMALL_USE_PROGRESS
+DHGR_SMALL_USE_PROGRESS = 0
+.endif
+.if DHGR_SMALL_USE_PROGRESS
 .import _dhgr_small_progress
 .endif
 .code
@@ -19,7 +22,7 @@ _dhgr_small_string:
         cmp #(193-DHGR_SMALL_HEIGHT)
         bcs @done
 @char:
-.ifdef DHGR_SMALL_USE_PROGRESS
+.if DHGR_SMALL_USE_PROGRESS
         jsr _dhgr_small_progress
 .endif
         ldy #0

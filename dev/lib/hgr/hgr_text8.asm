@@ -71,6 +71,13 @@
 
 .ifndef _HGR_TEXT8_LOADED_
 _HGR_TEXT8_LOADED_ = 1
+; Boolean switches: zero and undefined select the default implementation.
+.ifndef HGR_TEXT8_HGR_ORDER
+HGR_TEXT8_HGR_ORDER = 0
+.endif
+.ifndef HGR_TEXT8_NO_PUTS
+HGR_TEXT8_NO_PUTS = 0
+.endif
 
 .zeropage
 ht_col:     .res 1      ; cursor: dest byte column 0..39 (public)
@@ -79,7 +86,7 @@ ht_left:    .res 1      ; wrap: column the cursor snaps back to (public)
 ht_wrap:    .res 1      ; wrap: first column PAST the text window (public)
 ht_font_lo: .res 1      ; -> font, 8 B/glyph, first char $20 (public)
 ht_font_hi: .res 1
-.ifndef HGR_TEXT8_HGR_ORDER
+.if !HGR_TEXT8_HGR_ORDER
 ht_rev:     .res 1      ; 0 = HGR bit order, 1 = TMS order via rev7_tab
 .endif
 ht_src_lo:  .res 1      ; hgr_puts8 string pointer (public)
@@ -190,7 +197,7 @@ hgr_putc8:
         EOR ht_page
         STA ht_lin_hi
         LDA (ht_g_lo),Y         ; glyph row byte
-.ifndef HGR_TEXT8_HGR_ORDER
+.if !HGR_TEXT8_HGR_ORDER
         LDX ht_rev
         BEQ @put
         TAX
@@ -216,7 +223,7 @@ hgr_putc8:
 ; ----------------------------------------------------------------------------
 ; hgr_puts8: print the NUL-terminated string at ht_src_lo/hi. Clobbers A,Y.
 ; ----------------------------------------------------------------------------
-.ifndef HGR_TEXT8_NO_PUTS
+.if !HGR_TEXT8_NO_PUTS
 hgr_puts8:
         LDA ht_src_hi
         PHA                     ; retain the caller's source pointer
@@ -234,7 +241,7 @@ hgr_puts8:
         RTS
 .endif
 
-.ifndef HGR_TEXT8_HGR_ORDER
+.if !HGR_TEXT8_HGR_ORDER
 .include "rev7.inc"
 .endif
 
@@ -254,8 +261,8 @@ hgr_puts8:
 .ifndef _HGR_PUTS8_AT_LOADED_
 .ifref hgr_puts8_at
 _HGR_PUTS8_AT_LOADED_ = 1
-.ifdef HGR_TEXT8_NO_PUTS
-.error "hgr_puts8_at needs hgr_puts8 (HGR_TEXT8_NO_PUTS is defined)"
+.if HGR_TEXT8_NO_PUTS
+.error "hgr_puts8_at needs hgr_puts8 (HGR_TEXT8_NO_PUTS is enabled)"
 .endif
 .code
 hgr_puts8_at:

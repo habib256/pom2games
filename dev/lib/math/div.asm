@@ -24,8 +24,10 @@ div16by8:
         LDA     mul_x+1
         CMP     mul_y
         BCS     @q16
+        ; X counts the bits; zero the quotient high byte only on exit.
+        ; Compared with a ZP counter: -1 code byte, -24 cycles per short call
+        ; (excluding branch page-crossing differences).
         LDX     #8                      ; quotient < 256: start from the high byte
-        STX     mul_x+1
 @l8:    ASL     mul_x
         ROL     A
         BCS     @s8                     ; 9-bit remainder: always >= divisor
@@ -33,8 +35,9 @@ div16by8:
         BCC     @n8
 @s8:    SBC     mul_y
         INC     mul_x
-@n8:    DEC     mul_x+1
+@n8:    DEX
         BNE     @l8
+        STX     mul_x+1                 ; quotient high byte = 0
         RTS
 @q16:   LDA     #0
         LDX     #16
