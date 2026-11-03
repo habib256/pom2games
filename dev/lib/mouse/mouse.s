@@ -72,14 +72,30 @@ check:  ldy offsets,x
         lda #1
         ldx #$12
         jsr firmware
-        ldx #0                  ; X: 0..MOUSE_X_HIGH
-        ldy #0
+        lda #0
+        sta $0478
+        sta $0578
+        sta $05F8
         lda #MOUSE_X_HIGH
-        jsr clamp
-        ldx #1                  ; Y: MOUSE_Y_LOW..MOUSE_Y_HIGH
-        ldy #MOUSE_Y_LOW
+        sta $04F8
+        lda #0
+        ldx #$17
+        jsr firmware
+.if MOUSE_Y_LOW
+        lda #MOUSE_Y_LOW
+        sta $0478
+        lda #0
+.else
+        lda #0
+        sta $0478
+.endif
+        sta $0578
+        sta $05F8
         lda #MOUSE_Y_HIGH
-        jsr clamp
+        sta $04F8
+        lda #1
+        ldx #$17
+        jsr firmware
         ldx _mouse_slot
         lda #MOUSE_X_START
         sta $0478,x
@@ -108,15 +124,6 @@ again:  inc ptr1+1
 :        lda #0
         tax
         rts
-; SETCLAMP of axis X (0 X, 1 Y) to Y..A, both bounds under 256.
-clamp:  sta $04F8
-        sty $0478
-        lda #0
-        sta $0578
-        sta $05F8
-        txa
-        ldx #$17
-        jmp firmware
 .code
 _mouse_poll:
         lda _mouse_slot

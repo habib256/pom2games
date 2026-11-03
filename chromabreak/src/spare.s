@@ -39,11 +39,8 @@
 ; release on failure, then shorter paths) and dhgr_clear_asm.s -1 (five
 ; cycles a byte, IRQs masked one page at a time): library CODE unchanged,
 ; every asserted address holds, nothing to absorb.
-; 2026-11-03, later the same day: mouse.s -10 (one SETCLAMP routine for
-; both axes) and video.s -3 (one return tail): -13 library CODE bytes,
-; absorbed (RODATA +13); every asserted address holds.
 CODE_SPARE   = 38
-RODATA_SPARE = 13
+RODATA_SPARE = 0
 BSS_SPARE    = 0
 
 .code

@@ -320,11 +320,3 @@ colonne à chaque octet. `hgr_rect` (140×16) **6 117 → 5 213 cycles** (−15 
 × 16 lignes) **9 266 → 7 824** (−16 %), `hgr_span` (ligne de 280 pixels)
 1 096 → 993 (−9 %). `hgr_pixrect_asm.s` 225 → 253 octets, `hgr_byte_rect_asm.s`
 39 → 60 ; RAM et page zéro inchangées. Références recalées pour ces trois cas.
-
-Hors banc, taille : `mouse.s` 278 → 270 octets (280 → 270 avec les bornes
-de CHROMABREAK ; une seule routine SETCLAMP pour les deux axes) et
-`video.s` 115 → 112 (une seule sortie `ldx #0 ; rts`), contrats inchangés
-(`test_mouse_context.py`, `test_mouse_noslot.py`, `test_prodos_video.py`).
-CHROMABREAK : −13 octets de CODE de bibliothèque, mis en réserve RODATA dans
-`spare.s` pour que rien ne bouge.
-
