@@ -32,6 +32,14 @@ page. Calls wrap at the right edge; the last line does not scroll.
 `gfx_cell_color` has no effect with this backend.
 There is no cell-based DHGR text backend; use `dhgr_puts`.
 
+The three numeric text entries live in separate archive members (`gfx_putu.c`,
+`gfx_puti.c`, `gfx_putx.c`). Plain strings no longer pull in the numeric
+formatters; unsigned and hexadecimal text pull in only their own conversion.
+With cc65 2.18 `-Oirs`, the minimal archive fixtures in `test_hgr.py` shrink
+from 3,051 to 2,689 bytes for plain text, 3,040 to 2,801 for hexadecimal,
+and 3,058 to 2,841 for plain text plus an unsigned integer. The test also
+checks the excluded archive members and renders all three numeric formats.
+
 The cc65 hexadecimal converter uses `gfx_num_hex.s`; `gfx_num_hex.c` is the
 host reference. Both produce uppercase text without leading zeroes and return
 the digit count. `test_gfx_hex.py` checks every 16-bit input, the terminating

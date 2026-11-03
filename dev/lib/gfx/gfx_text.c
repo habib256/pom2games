@@ -2,7 +2,7 @@
 /*
  * gfx_text.c — card-NEUTRAL positioned-text façade (AXIS 3). See gfx.h.
  *
- * Owns the 8x8 cell cursor, the advance/wrap rules and the number formatting;
+ * Owns the 8x8 cell cursor, the advance/wrap rules;
  * draws nothing itself — every glyph goes through the per-card backend
  * gfx_cell_glyph (gfx_text_backend_<card>.c). Includes ONLY gfx.h, so the same
  * object delegates rendering to gfx_cell_glyph; the supplied backend is HGR.
@@ -51,25 +51,4 @@ void gfx_text(const char *s)
 {
     while (*s)
         gfx_putc(*s++);
-}
-
-void gfx_putu(unsigned value)
-{
-    char buf[6];                     /* 65535 = 5 digits + NUL */
-    gfx_utoa(buf, value);
-    gfx_text(buf);
-}
-
-void gfx_puti(int value)
-{
-    char buf[7];                     /* '-' + 5 digits + NUL */
-    gfx_itoa(buf, value);
-    gfx_text(buf);
-}
-
-void gfx_putx(unsigned value)
-{
-    char buf[5];                     /* 4 hex digits + NUL */
-    gfx_hexstr(buf, value);
-    gfx_text(buf);
 }
