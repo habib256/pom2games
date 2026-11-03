@@ -190,6 +190,10 @@ back through `a2_vbl_init()` first removes that handler. If the mouse firmware
 refuses mode 9 after allocation, initialization releases the new handler and
 returns zero without changing the previous mode. `test_vbl_lifecycle.py`
 checks these paths with controlled MLI/firmware replies on the 65C02.
+The module is 149 bytes of code and 6 of DATA: the mode tests use `lsr`
+(mode 2 alone has bit 1), `a2_vbl_init` relies on `a2_vbl_close` for mode 0
+and on `a2_frame_init` for X = 0, the handler keeps the carry of
+`mouse_serve_irq`, and the scan's blank test is an `asl`.
 
 Typical start: `a2_vbl_init() || (mouse_init(), a2_vbl_irq_init())`. The
 presentation stays in the game (when to flip, the stick read in the spare
@@ -206,7 +210,7 @@ changes. Default 0 (CHROMABREAK).
 on the first call in the vertical blank after a call in the picture, else
 0: the same picture → blank edge `a2_vbl_scan` counts, seen lazily (call it
 more often than the blank lasts, ~4,500 cycles, to miss none), without
-`apple2vbl.s`'s 172 bytes and `apple2frame.s`. `a2_vbl_armed = 0` makes the
+`apple2vbl.s`'s 155 bytes and `apple2frame.s`. `a2_vbl_armed = 0` makes the
 next go wait for a call in the picture (a read made without the gate).
 //e only (`$C019`; the caller checks the model). 18 B + 1 B of BSS, 35
 cycles with the JSR, no zero page. The AppleMouse read once a frame (two

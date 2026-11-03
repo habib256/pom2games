@@ -16,10 +16,14 @@ edge_col: .res 2
 edge_main: .res 2
 edge_keep: .res 2
 edge_bits: .res 2
-aux_c0: .res 1                  ; interior page columns, $FF when empty
-aux_c1: .res 1
-main_c0: .res 1
-main_c1: .res 1
+; Interior of each bank (index 0 aux, 1 main): first page column or $FF
+; when empty, byte pairs from there, the odd last column or $FF, and the
+; pattern bytes of the first column and of the next one.
+start: .res 2
+pairs: .res 2
+tail: .res 2
+pa: .res 2
+pb: .res 2
 .rodata
 ; Bit 0..9 (cell phase + x&3; 7..9 lie in the next byte) -> the bits from
 ; there to the end of its byte, and from its byte start up to there.
@@ -83,7 +87,7 @@ _dhgr_span_asm:
         cmp #$7F
         beq @interior
         jsr add_edge
-        jmp @empty
+        jmp @edges_only
 @two:   cmp #$7F
         beq @right_edge
         jsr add_edge
@@ -96,43 +100,40 @@ _dhgr_span_asm:
         jsr add_edge
         dec tmp2
 @interior:
+        stx edges
         lda tmp2
         cmp tmp1
         bcc @empty
         ; Aux bytes are even: columns (i0+1)/2..i1/2.
+        lda tmp2
+        lsr
+        tay
         lda tmp1
         clc
         adc #1
         lsr
-        sta aux_c0
-        lda tmp2
-        lsr
-        sta aux_c1
-        cmp aux_c0
-        bcs @main
-        lda #$FF
-        sta aux_c0
-@main:  ; Main bytes are odd: columns i0/2..(i1+1)/2-1.
+        ldx #0
+        jsr prepare
+        ; Main bytes are odd: columns i0/2..(i1+1)/2-1.
         lda tmp2
         clc
         adc #1
         lsr
-        sta main_c1
+        beq @main_empty         ; i1 = 0: no odd byte
+        tay
+        dey
         lda tmp1
         lsr
-        sta main_c0
-        cmp main_c1
-        bcc @main_used
-        lda #$FF
-        sta main_c0
-        bne @rows
-@main_used:
-        dec main_c1
-        jmp @rows
+        ldx #1
+        jsr prepare
+        jmp @row
+@edges_only:
+        stx edges
 @empty: lda #$FF
-        sta aux_c0
-        sta main_c0
-@rows:  stx edges
+        sta start
+@main_empty:
+        lda #$FF
+        sta start+1
 @row:   php
         sei
         ldy row
@@ -163,48 +164,46 @@ _dhgr_span_asm:
         sta (ptr1),y
         txa
         bne @edge
-@aux:   ; Aux column c holds byte 2c: pattern 0 (c even) or 2 (c odd).
-        ldy aux_c0
+@aux:   ldy start
         bmi @main_bank
         sta RAMWRTON
-        tya
-        lsr
-        bcs @aux_odd
-@aux_even:
-        lda _dhgr_pattern
+        ldx pairs
+        beq @aux_tail
+@aux_pair:
+        lda pa
         sta (ptr1),y
-        cpy aux_c1
-        beq @aux_done
         iny
-@aux_odd:
-        lda _dhgr_pattern+2
+        lda pb
         sta (ptr1),y
-        cpy aux_c1
-        beq @aux_done
         iny
-        bne @aux_even
+        dex
+        bne @aux_pair
+@aux_tail:
+        ldy tail
+        bmi @aux_done
+        lda pa
+        sta (ptr1),y
 @aux_done:
         sta RAMWRTOFF
 @main_bank:
-        ; Main column c holds byte 2c+1: pattern 1 (c even) or 3 (c odd).
-        ldy main_c0
+        ldy start+1
         bmi @row_done
-        tya
-        lsr
-        bcs @main_odd
-@main_even:
-        lda _dhgr_pattern+1
+        ldx pairs+1
+        beq @main_tail
+@main_pair:
+        lda pa+1
         sta (ptr1),y
-        cpy main_c1
-        beq @row_done
         iny
-@main_odd:
-        lda _dhgr_pattern+3
+        lda pb+1
         sta (ptr1),y
-        cpy main_c1
-        beq @row_done
         iny
-        bne @main_even
+        dex
+        bne @main_pair
+@main_tail:
+        ldy tail+1
+        bmi @row_done
+        lda pa+1
+        sta (ptr1),y
 @row_done:
         plp
         inc row
@@ -212,6 +211,42 @@ _dhgr_span_asm:
         beq @done
         jmp @row
 @done:  rts
+
+; Interior of bank X (0 aux, 1 main): columns A..Y of the page, in the
+; patterns of that bank (even column: bank, odd: bank+2); Y < A is empty.
+prepare:
+        sta start,x
+        sta tmp3
+        tya
+        sec
+        sbc tmp3                ; columns - 1
+        bcc @empty
+        lsr                     ; C = 1: an even count, no odd column
+        bcs @even
+        sta pairs,x
+        tya                     ; the last column is odd, past the pairs
+        bcc @tail
+@even:  adc #0                  ; one more pair (C = 1)
+        sta pairs,x
+        lda #$FF
+@tail:  sta tail,x
+        lda tmp3
+        and #1
+        asl
+        stx tmp4
+        ora tmp4                ; bank + 2 for an odd first column
+        tay
+        lda _dhgr_pattern,y
+        sta pa,x
+        tya
+        eor #2
+        tay
+        lda _dhgr_pattern,y
+        sta pb,x
+        rts
+@empty: lda #$FF
+        sta start,x
+        rts
 
 ; Byte Y with mask A: edge X, merged pattern bits; X advances.
 add_edge:

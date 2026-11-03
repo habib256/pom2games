@@ -4,10 +4,6 @@
 .import _hgr_col7, _hgr_mask7, _hgr_rowhi, _hgr_rowlo
 .importzp _hgr_r_mode, _hgr_r_rows, _hgr_r_x, _hgr_r_xr, _hgr_r_y0
 .importzp ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
-curcol = tmp1
-curmask = tmp2
-curbits = tmp3
-rowcnt = tmp4
 
 .segment "ZEROPAGE"
 gr_colL:  .res 1             ; left  byte column
@@ -113,6 +109,16 @@ _hgr_pixrect_asm:
         sta tmp1             ; current scanline
         lda _hgr_r_rows
         sta tmp2             ; rows remaining
+        lda gr_colR          ; full bytes between the edges: pairs in ptr2,
+        sec                  ; an odd one in ptr2+1 (meaningless, unused,
+        sbc gr_colL          ; when the rectangle is one byte wide)
+        beq @one
+        sbc #1               ; C = 1: colR - colL - 1
+@one:   lsr
+        sta ptr2
+        lda #0
+        rol
+        sta ptr2+1
 @prow:
         ldy tmp1
         lda _hgr_rowlo,y
@@ -128,16 +134,22 @@ _hgr_pixrect_asm:
         ; single-byte rectangle? then this row is done
         cpy gr_colR          ; Y is still the left byte column
         beq @prowend
-        ; full bytes colL+1 .. colR-1 (A holds setF across the run)
+        ; full bytes colL+1 .. colR-1: pairs, then the odd one (A holds setF)
         iny
-        cpy gr_colR
-        beq @pright          ; adjacent edges have no full byte between them
+        ldx ptr2
+        beq @podd            ; adjacent edges have no pair between them
         lda gr_setF
-@pfull:
+@pfull: sta (ptr1),y         ; 21 cycles for two bytes
+        iny
         sta (ptr1),y
         iny
-        cpy gr_colR
+        dex
         bne @pfull           ; clipped columns stay in 0..39
+@podd:  ldx ptr2+1
+        beq @pright
+        lda gr_setF
+        sta (ptr1),y
+        iny
 @pright:
         lda (ptr1),y
         and gr_keepR

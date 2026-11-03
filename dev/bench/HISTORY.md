@@ -259,3 +259,75 @@ compositeur restent dans ±2 % de leur référence (`dhgr_spr_move` 15 939,
 2 120 (palette et zone dans leurs propres membres, une boucle de découpe
 pour les deux axes, une boucle de rectangles pour les deux chemins, fusion
 des dégâts en O(n²)).
+
+## 2026-11-03 : effacement DHGR complet, horloge vidéo plus courte
+
+`dhgr_clear` : **187 309 → 114 377 cycles** (−39 %), 98 → 97 octets de code,
+même page zéro (`ptr1`, `tmp1`). Chaque page de 256 octets est écrite en deux
+passes (octets pairs, octets impairs) d'un seul octet de motif par huit
+`sta abs,Y` (5 cycles l'octet) dont l'opérande de page est patché pendant que
+RAMWRT est principal — sous RAMWRTON, l'écriture irait dans la copie
+auxiliaire du code. Les IRQ ne sont plus masquées pendant tout l'effacement
+(onze rafraîchissements) mais une page à la fois, environ 1 750 cycles.
+`test_dhgr.py` et `test_dhgr_clear_rows.py` vérifient les seize couleurs sur
+les deux pages et les deux banques, trous et commutateurs compris ; la
+référence `dhgr_clear` est recalée (`run.py --dhgr --update --only dhgr_clear`).
+
+`apple2vbl.s` (hors banc) : 166 → 149 octets de code à contrat constant,
+après les +18 de la réutilisation du gestionnaire et de la libération sur
+échec (`test_vbl_lifecycle.py`). CHROMABREAK relie les deux modules : +1 et −1,
+le CODE de bibliothèque est inchangé et toutes les adresses de `spare.s`
+tiennent sans retouche des réserves.
+
+`dhgr_rect` (70×16) : **15 034 → 12 267 cycles** (−18 %), `dhgr_span` (560
+points) : **3 279 → 2 796** (−15 %), +50 octets de code et 6 de BSS dans
+`dhgr_span_asm.s`. L'intérieur de chaque banque est préparé une fois par appel
+(première colonne, nombre de paires, colonne impaire finale, les deux octets
+de motif dans l'ordre des colonnes) ; chaque ligne déroule une boucle par
+paires sans comparaison de colonne, puis l'octet impair. Références recalées
+pour ces deux cas.
+
+`dhgr_clear_rows` : **1 177 → 712 cycles la ligne** (−40 %), cas de banc
+`dhgr_clear_row` 1 579 → 1 115, 92 → 129 octets de code. Une ligne ne
+traverse jamais de page et commence au plus à l'offset $D0 : quatre passes
+(une par octet de motif) écrivent par cinq opérandes alignés sur la page,
+Y parcourant la ligne deux octets par deux, cinq cycles l'octet ; seul l'octet
+de page des opérandes est patché, RAMWRT principal. Référence recalée.
+
+Nouveau cas `dhgr_small_text` : `dhgr_puts_small("APPLE II",0,0)`, le texte
+compact de ROBOT SPACE STATION, **14 483 cycles** (1 810 le caractère, cinq
+lignes lues-modifiées-écrites dans les deux banques), 2 994 octets de binaire.
+Mesuré sans modification : une référence pour les passes suivantes.
+
+Recalage des références HGR (`run.py --update`, a2run) : les commits de
+bibliothèque du 2026-11-03 (préparation commune des remplissages inclusifs,
+conversion hexadécimale native, décimal signé séparé, avance du crayon)
+avaient amélioré treize cas sans recaler `baseline.json`. Les écarts :
+`hgr_span` 3 101 → 1 096 cycles et 2 487 → 2 036 octets, `hgr_text`
+8 547 → 8 448, `hgr_sprite7` 1 668 → 1 657, `hgr_diagonal` 3 241 → 2 803
+octets (21 200 → 21 144 cycles), `gfx_diagonal` 3 655 → 3 217 octets
+(21 263 → 21 379 cycles), `hgr_diagonal_cold` 3 210 → 2 772 octets
+(82 175 → 82 801 cycles), `hgr_hud_cold` 104 439 → 103 829, `hgr_hud_warm`
+36 655 → 36 100, `hgr_scene_cold` 42 598 → 42 484, `hgr_scene_warm`
+15 097 → 14 956, et leurs variantes `_x7folded`. RAM et page zéro
+inchangées ; les budgets absolus et le tableau du README du banc restent
+valables.
+
+Rectangles HGR : les octets pleins sont comptés une fois par appel (paires,
+octet impair) et écrits deux par deux par ligne au lieu d'une comparaison de
+colonne à chaque octet. `hgr_rect` (140×16) **6 117 → 5 213 cycles** (−15 %),
+`hgr_byte_rect` (nouveau cas : `hgr_fill_rect(32,16,0,40,$7F)`, 40 colonnes
+× 16 lignes) **9 266 → 7 824** (−16 %), `hgr_span` (ligne de 280 pixels)
+1 096 → 993 (−9 %). `hgr_pixrect_asm.s` 225 → 253 octets, `hgr_byte_rect_asm.s`
+39 → 60 ; RAM et page zéro inchangées. Références recalées pour ces trois cas.
+
+Lot annulé le jour même : les −13 octets de `mouse.s`/`video.s` décalent
+les membres de bibliothèque qui suivent dans l'édition de liens de
+CHROMABREAK ; les franchissements de page changent le coût de quelques
+images, et sa campagne déterministe de 193 minutes (`tests/test_mouse.py`,
+tier long, en CI) diverge : combo x7 au lieu du x8 attendu, pour un gain
+nul en RAM (les octets étaient mis en réserve). Revenu aux modules et aux
+disques du commit précédent, que la CI avait validés de bout en bout. Toute
+réduction de la bibliothèque liée par CHROMABREAK demande donc ce tier long,
+pas seulement les asserts de `spare.s`.
+

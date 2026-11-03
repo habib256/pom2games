@@ -20,6 +20,7 @@ CASES={
  'hgr_clear': ('hgr_clear(0);',False),
  'hgr_span': ('hgr_hline(0,279,40);',False),
  'hgr_rect': ('hgr_fill_pixrect(7,32,140,16);',False),
+ 'hgr_byte_rect': ('hgr_fill_rect(32,16,0,40,0x7F);',False),
  'hgr_text': ('hgr_puts8(0,0,"APPLE II");',False),
  'hgr_sprite7': ('hgr_blit7(0,40,4,8,bits,HGR_SET);',False),
  'hgr_diagonal': ('hgr_line(0,0,279,191);',False),
@@ -31,6 +32,7 @@ CASES={
  'dhgr_sprite': ('dhgr_sprite(7,40,2,2,2,bits,bits);',True),
  'dhgr_text': ('dhgr_puts("APPLE II",0,0);',True),
  'dhgr_clear_row': ('dhgr_clear_rows(40,1,9);',True),
+ 'dhgr_small_text': ('dhgr_puts_small("APPLE II",0,0);',True),
 }
 # First call and steady-state frame workloads have their own budgets.
 HUD = 'hgr_puts8(0,0,"SCORE"); hgr_putu_field(48,0,12345u,5); hgr_putu_field(160,0,42u,3);'

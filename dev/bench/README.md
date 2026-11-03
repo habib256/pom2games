@@ -41,18 +41,18 @@ report gives limit, cost and margin.
 | Current workload | Cycles |
 |---|---:|
 | 16×16 HUD, value unchanged | 312 |
-| 16×16 HUD, one digit changed | 4,739 |
-| 16×16 HUD, five digits changed, maximum over seven phases | 22,235 |
+| 16×16 HUD, one digit changed | 4,704 |
+| 16×16 HUD, five digits changed, maximum over seven phases | 19,372 |
 | 8×8 HUD, value unchanged | 312 |
-| 8×8 HUD, five digits changed, maximum over seven phases | 7,850 |
-| Compact game: two moving 7×8 sprites, three digits all changed, keyboard, positions, presentation | 16,774..17,040 |
+| 8×8 HUD, five digits changed, maximum over seven phases | 7,683 |
+| Compact game: two moving 7×8 sprites, three digits all changed, keyboard, positions, presentation | 16,405..16,669 |
 | Four isolated 21×16 sprites, only the first one moving, default engine | 31,031 |
 | Same scene, option `HGR_SPR_DAMAGE=1` | 14,662 |
-| Stress: four 21×16 sprites all moving + counter + presentation | 39,217 |
+| Stress: four 21×16 sprites all moving + counter + presentation | 39,403 |
 
 The compact game is measured at all seven alignments, in NTSC and PAL. The
 limits after the reservation are **28,060/34,560 cycles**; its worst phase
-still leaves 11,020/17,520 cycles beyond the reservation. Positions and values
+still leaves 11,391/17,891 cycles beyond the reservation. Positions and values
 use a period of three so that each page finds a modified state again. The HUD
 value does not just alternate with the page: its three digits really change
 in the measured case. The modulo shared by the movements and the score is
@@ -61,18 +61,18 @@ computed once per frame.
 The isolated scene saves 52.8 % with the assembly computation of the
 intersections: 437 loaded bytes and 43 extra BSS bytes at eight slots. The
 option stays disabled by default. Four large sprites all moving still cost
-39,217 cycles: they exceed two NTSC periods and the PAL limit after the
+39,403 cycles: they exceed two NTSC periods and the PAL limit after the
 reservation. The overloaded stress cases remain diagnostics.
 
 The native counter uses the cached digits for +1/+2; the 9999 → 10000
-transition costs 7,109 cycles in the 8×8 HUD. Its pre-shifted digits take
+transition costs 7,119 cycles in the 8×8 HUD. Its pre-shifted digits take
 1,386 bytes of RODATA, shared between fields. A HUD-only client avoids the
 mutable row/column LUTs and the general font; a client that also displays
-text pays for both banks. The compact game thus goes from 6,895 to 7,231
+text pays for both banks. The compact game thus goes from 6,895 to 7,162
 loaded bytes and from 1,571 to 1,620 bytes of RAM, with no ZP increase.
 
 The optional tilemap backend restores eight 7×8 tiles then draws two masked
-sprites without save-under in 9,546 cycles. The map is 960 bytes, supplied by
+sprites without save-under in 6,782 cycles. The map is 960 bytes, supplied by
 the application; a full rebuild is not presented as a 30 FPS workload. The
 region profiles keep the 6,000-cycle reservation.
 

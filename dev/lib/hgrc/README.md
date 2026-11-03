@@ -367,8 +367,8 @@ Code (6502), the core every program links: calls 252 B (`dhgr_spr_set`,
 version; the 1.8 KB target is not reached). Members linked when called:
 `dhgr_spr_palette` 53 B, `dhgr_spr_area` 64 B, bitmap shapes 392 B
 (`dhgr_cv_bitmap.s`: its row loops no longer recompute the canvas row,
-`dhgr_spr_move_chunky` −6 %), cells/tiles + `dhgr_cv_rect` 395 B, overlay
-419 B (`dhgr_spr_overlay.s`: the overlay's damage and OR hooks, called
+`dhgr_spr_move_chunky` −6 %), cells/tiles + `dhgr_cv_rect` 406 B (see the
+cell background row setup below), overlay 420 B (`dhgr_spr_overlay.s`: the overlay's damage and OR hooks, called
 through `JMP`s that `dhgr_spr_overlay` installs), save-under cursor 750 B
 (`dhgr_spr_cursor.s`, also the overlay's part outside the area),
 `dhgr_spr_present` 111 B (`dhgr_spr_present.s`). The size pass: one
@@ -533,17 +533,57 @@ clipping is added. `gfx_line` selects this kernel on HGR and the C fallback
 on the generic/DHGR backends. `test_hgr_lines.py` compares 464 lines via `hgr_line` and `gfx_line` against the expected pixels on
 both pages, including reversed directions, ties and X >= 256.
 
+## HGR rectangles: full bytes in pairs
+
+`hgr_fill_rect` (byte columns, `hgr_byte_rect_asm.s`) and the pixel
+rectangles and spans (`hgr_fill_pixrect`, `hgr_clear_pixrect`, `hgr_hline`,
+`hgr_vline`, `hgr_fill_span`, through `hgr_pixrect_asm.s`) count their full
+bytes once per call, as pairs and an odd byte, and each scanline stores them
+two at a time (21 cycles a pair) instead of comparing the column after every
+byte: `hgr_rect` (140×16 pixels) 6,117 → 5,213 cycles, `hgr_byte_rect`
+(40 columns × 16 lines, a new bench case) 9,266 → 7,824, `hgr_span` (a
+280-pixel line) 1,096 → 993. +21 and +28 bytes of code; `ptr2`, already
+imported by the pixel kernel, holds its two counts, the byte kernel uses
+`tmp3`/`tmp4`. `test_hgr.py`, `test_gfx_outlines.py` and `test_hgr_lines.py`
+check the pixels, clipping, holes and both pages.
+
 ## DHGR clearing with IRQ servicing
 
 `dhgr_clear_rows(y, rows, color)` fills the visible lines of the drawing
 page, clips at 192 and preserves the memory holes. Each line restores
 main RAMWRT and the caller's IRQ mask; enabled IRQs can
-be serviced between lines. The measured kernel takes 1 177 cycles, under a
-tested bound of 1 300. A test with a Mockingboard VIA timer also checks that periodic IRQs
+be serviced between lines. The measured kernel takes 712 cycles a line
+(1,177 before), under a tested bound of 1,300: a line never crosses a page
+and starts at most at offset $D0, so four passes (one a pattern byte) store
+through five page-aligned operands, Y walking the line two bytes at a time,
+five cycles a byte; only the page byte of those operands is patched, while
+RAMWRT is main. 129 bytes of code (92 before).
+A test with a Mockingboard VIA timer also checks that periodic IRQs
 are actually serviced during both page clears, with checks on
 banks, memory guards and pixels. Servicing remains non-reentrant. Use small
-slices so that input is also handled between calls. The historical full
-clear keeps its behaviour and performance.
+slices so that input is also handled between calls.
+
+`dhgr_clear(color)` fills both banks of the drawing page, holes included,
+in 114,377 cycles instead of 187,309: each 256-byte page is two passes
+(even bytes, odd bytes) of one pattern byte through eight absolute stores,
+five cycles a byte, whose page operand is patched while RAMWRT is main (a
+write under RAMWRTON would land in the auxiliary copy of the code). IRQs
+are masked one page at a time, about 1,750 cycles, instead of the whole
+clear (eleven refreshes). 97 bytes of code, one less than before; same
+zero page (`ptr1`, `tmp1`). `test_dhgr.py` and `test_dhgr_clear_rows.py`
+check the sixteen colours on both pages and banks, holes and display
+switches included.
+
+The interior of a coloured span (`dhgr_fill_rect`, `dhgr_hline`,
+`dhgr_vline`, `dhgr_fill_bits` through `dhgr_span_asm.s`) is prepared once
+per call for each bank: first page column, number of byte pairs, odd last
+column, and the two pattern bytes in column order. Each scanline then runs
+one pair loop per bank (27 cycles for two bytes, no compare) and the odd
+byte, instead of a byte loop that reloaded the pattern and compared the
+column at every store: `dhgr_rect` (70×16 pixels) 15,034 → 12,267 cycles,
+`dhgr_span` (a 560-dot line) 3,279 → 2,796; +50 bytes of code and 6 of
+BSS. `test_dhgr_spans.py` covers single and adjacent edges, odd and even
+interiors in both banks, the full width and clipping.
 
 The host reference `hgr_inflate_x2` (`hgr_x2.c`) and the target version
 (`hgr_x2_target.c`) compute the enlarged strides without 8-bit truncation.
@@ -742,11 +782,14 @@ return overhead):
 
 | Call | Before | After | Linked fixture size reduction |
 | --- | ---: | ---: | ---: |
-| `dhgr_fill_bits(3,4,16,1,0)` | 1,680 cycles | 1,428 cycles | 29 B |
-| `dhgr_fill_bits(3,4,16,1,255)` | 1,684 cycles | 1,429 cycles | 29 B |
+| `dhgr_fill_bits(3,4,16,1,0)` | 1,680 cycles | 1,428 cycles (1,511 since the pair kernel) | 29 B |
+| `dhgr_fill_bits(3,4,16,1,255)` | 1,684 cycles | 1,429 cycles (1,512 since the pair kernel) | 29 B |
 | `hgr_blit7(14,10,2,3,bits,HGR_SET)` | 796 cycles | 787 cycles | 6 B |
 | `hgr_cell(34,23,1)` | 936 cycles | 903 cycles | 15 B |
 
+The span kernel of 2026-11-03 (pairs prepared once per call, above) costs
+these 16-dot spans 83 more cycles of setup; wide fills and long spans gain
+15–18 %, and a one-byte interior costs the same per line as before.
 Monochrome fill sets its four identical pattern bytes directly. The byte
 blit relies on the already-checked pixel coordinate to bound its column.
 The cell kernel shifts in the accumulator and shares the high byte of

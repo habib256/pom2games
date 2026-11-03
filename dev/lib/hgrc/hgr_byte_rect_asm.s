@@ -4,10 +4,6 @@
 .exportzp _hgr_f_y0, _hgr_f_rows, _hgr_f_col0, _hgr_f_cols, _hgr_f_val
 .import _hgr_rowhi, _hgr_rowlo
 .importzp ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
-curcol = tmp1
-curmask = tmp2
-curbits = tmp3
-rowcnt = tmp4
 
 .segment "ZEROPAGE"
 _hgr_f_y0:    .res 1        ; top scanline of the rectangle
@@ -22,21 +18,32 @@ _hgr_fill_rect_asm:
         sta tmp1             ; current scanline
         lda _hgr_f_rows
         sta tmp2             ; rows remaining
+        lda _hgr_f_cols
+        lsr                  ; byte pairs per row, C = an odd byte after them
+        sta tmp3
+        lda #0
+        rol
+        sta tmp4
 @frow:
         ldy tmp1
         lda _hgr_rowlo,y
         sta ptr1
         lda _hgr_rowhi,y
         sta ptr1+1
-        ldx _hgr_f_cols     ; column counter
         ldy _hgr_f_col0     ; current column
         lda _hgr_f_val      ; (preserved across STA/INY/DEX)
-@fcol:
+        ldx tmp3
+        beq @fodd
+@fpair: sta (ptr1),y        ; 21 cycles for two bytes
+        iny
         sta (ptr1),y
         iny
         dex
-        bne @fcol
-        inc tmp1             ; next scanline
+        bne @fpair
+@fodd:  ldx tmp4
+        beq @fnext
+        sta (ptr1),y
+@fnext: inc tmp1             ; next scanline
         dec tmp2
         bne @frow
         rts

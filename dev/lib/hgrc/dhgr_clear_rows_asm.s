@@ -2,11 +2,17 @@
 ; Inputs: dhgr_addr in main RAM, dhgr_pattern[aux even/main even/aux odd/main odd].
 ; Main code/ZP/stack, ROM visible, ALTZP/80STORE/RAMRD/RAMWRT off.
 ; Writes 40 bytes in each bank, preserves holes and display. IRQ I preserved.
-; A/X/Y, ptr1,tmp1,tmp2 destroyed; non-reentrant; <1300 masked cycles/row.
+; A/X/Y, ptr1,tmp1 destroyed; non-reentrant; about 700 masked cycles a row.
+; A row never crosses a page and its offset in the page is at most $D0, so
+; the kernel stores through five page-aligned operands (offsets 0, 8, 16, 24
+; and 32), Y walking the row's 40 bytes two by two: one pass per pattern byte,
+; five cycles a byte. Only the page byte of those operands is patched, while
+; RAMWRT is main (under RAMWRTON the write would reach the auxiliary copy
+; of this code).
 .include "apple2.inc"
 .export _dhgr_clear_row_asm, _dhgr_clear_rows_asm
 .import _dhgr_addr, _dhgr_pattern, _dhgr_base, dhgr_rowlo, dhgr_rowhi
-.importzp ptr1, tmp1, tmp2, tmp3, tmp4
+.importzp ptr1, tmp1, tmp3, tmp4
 .code
 ; void __fastcall__ dhgr_clear_rows_asm(unsigned rows_y): rows (>=1, clipped)
 ; in the high byte, first row in the low byte, on the draw page; the row
@@ -31,31 +37,45 @@ _dhgr_clear_row_asm:
         lda _dhgr_addr+1
         sta ptr1+1
 clear_row:
+        lda ptr1+1
+        sta store+2
+        sta store+5
+        sta store+8
+        sta store+11
+        sta store+14
+        lda ptr1
+        clc
+        adc #8
+        sta tmp1                ; first offset past the kernel's four turns
         php
         sei
-        lda _dhgr_pattern
-        sta tmp1
-        lda _dhgr_pattern+2
-        sta tmp2
         sta RAMWRTON
-        jsr fill_row
+        lda _dhgr_pattern
+        ldy ptr1
+        jsr fill_half
+        lda _dhgr_pattern+2
+        ldy ptr1
+        iny
+        jsr fill_half
         sta RAMWRTOFF
         lda _dhgr_pattern+1
-        sta tmp1
+        ldy ptr1
+        jsr fill_half
         lda _dhgr_pattern+3
-        sta tmp2
-        jsr fill_row
+        ldy ptr1
+        iny
+        jsr fill_half
         plp
         rts
-fill_row:
-        ldy #0
-@pair:
-        lda tmp1
-        sta (ptr1),y
+; Bytes Y, Y+2, ... Y+38 of the row take A (Y = row offset, or one more).
+fill_half:
+store:  sta $FF00,y
+        sta $FF08,y
+        sta $FF10,y
+        sta $FF18,y
+        sta $FF20,y
         iny
-        lda tmp2
-        sta (ptr1),y
         iny
-        cpy #40
-        bne @pair
+        cpy tmp1
+        bcc store
         rts
