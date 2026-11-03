@@ -38,7 +38,7 @@ uses, without calling these primitives or changing their banks.
 | HGR C ASM kernels | Prepare all tables with `hgr_build_tables` before direct access; Light3dball's native renderer follows this contract |
 | Included HGR ASM | `.ifref` requires the references before the include; scratch possibly aliased; kernel bounds must be respected |
 | DHGR | I state preserved; exit in main RAM; displayed page preserved unless explicitly presented |
-| `dhgr_clear` | Both banks, holes included; IRQs masked for the whole operation (~189,000 cycles) |
+| `dhgr_clear` | Both banks, holes included; IRQs masked one 256-byte page at a time (~1,750 cycles; ~114,000 in all) |
 | `dhgr_clear_rows` | Visible lines; main banks and IRQ mask restored between lines; kernel <1,300 cycles per line |
 | Saved sprites | Restore before changing the background or redefining a shape; keep one background per page |
 | DHGR compositor (`dhgr_spr_*`, `dhgr_cursor`) | Opt-in `HGRC_DHGR_SPR_SRCS`; each changed byte of the area written once with its final value; IRQs masked only around each group's two aux stores (~30 cycles); borrowed canvas used only inside the update; invalidate background changes in the area; overlay hidden while the screen outside the area changes |

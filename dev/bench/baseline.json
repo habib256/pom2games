@@ -87,27 +87,27 @@
       "hardware_stack_available_bytes": 255
     },
     "dhgr_span": {
-      "code_bytes": 1913,
+      "code_bytes": 1939,
       "init_code_bytes": 12,
       "rodata_bytes": 748,
-      "ram_bytes": 331,
+      "ram_bytes": 337,
       "zp_bytes": 35,
-      "binary_bytes": 2699,
-      "cycles": 3279,
+      "binary_bytes": 2725,
+      "cycles": 2796,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 25,
+      "c_stack_peak_bytes": 24,
       "c_stack_reserved_bytes": 2048,
       "hardware_stack_peak_bytes": 12,
       "hardware_stack_available_bytes": 255
     },
     "dhgr_rect": {
-      "code_bytes": 1693,
+      "code_bytes": 1743,
       "init_code_bytes": 12,
       "rodata_bytes": 812,
-      "ram_bytes": 331,
+      "ram_bytes": 337,
       "zp_bytes": 35,
-      "binary_bytes": 2543,
-      "cycles": 15034,
+      "binary_bytes": 2593,
+      "cycles": 12267,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 16,
       "c_stack_reserved_bytes": 2048,
@@ -171,13 +171,13 @@
       "hardware_stack_available_bytes": 255
     },
     "dhgr_clear_row": {
-      "code_bytes": 1085,
+      "code_bytes": 1122,
       "init_code_bytes": 12,
       "rodata_bytes": 512,
       "ram_bytes": 312,
       "zp_bytes": 35,
-      "binary_bytes": 1635,
-      "cycles": 1579,
+      "binary_bytes": 1672,
+      "cycles": 1115,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 5,
       "c_stack_reserved_bytes": 2048,
@@ -1345,6 +1345,20 @@
       "c_stack_reserved_bytes": 2048,
       "hardware_stack_peak_bytes": 12,
       "hardware_stack_available_bytes": 255
+    },
+    "dhgr_small_text": {
+      "code_bytes": 1230,
+      "init_code_bytes": 12,
+      "rodata_bytes": 1726,
+      "ram_bytes": 328,
+      "zp_bytes": 35,
+      "binary_bytes": 2994,
+      "cycles": 14483,
+      "row_kernel_bytes": 0,
+      "c_stack_peak_bytes": 4,
+      "c_stack_reserved_bytes": 2048,
+      "hardware_stack_peak_bytes": 11,
+      "hardware_stack_available_bytes": 255
     }
   },
   "legacy_references": {
@@ -1686,7 +1700,8 @@
     "dhgr_cursor_move": "iie",
     "dhgr_spr_overlay_move": "iie",
     "dhgr_spr_double_move": "iie",
-    "dhgr_spr_vbl_move": "iie"
+    "dhgr_spr_vbl_move": "iie",
+    "dhgr_small_text": "iie"
   },
   "pre_incremental_references": {
     "hgr_scene_cold": {

@@ -23,7 +23,7 @@ walls, crates and other graphic elements keep their colours.
 | `hgr_scanline.inc` | `hgr_lo` / `hgr_hi`: address of each line 0..191 | arkabreakout, chess, logo, maze3d, micro-sokoban, wilderness |
 | `hgr_scanline_ram.asm` | the same tables in RAM (segment `HGR_SCANLINE_SEGMENT`), built by `hgr_scanline_init` (~50 B, startup code): 384 B less in the file | dirtbike |
 | `hgr_plot_tables.inc` | `hgr_col` / `hgr_mask`: byte and bit of columns 0..255, or 0..279 with `HGR_FULL_WIDTH_TABLES=1`; `HGR_PLOT_TABLES_RAM=1` reserves them in BSS and assembles `hgr_plot_tables_init` (39 B) | logo (RAM) |
-| `hgr_div7_ram.asm` | `hgr_div7` / `hgr_mod7` (x/7, x mod 7, x = 0..255) in BSS, built by `hgr_div7_init` (28 B): 512 B less in the file | arkabreakout |
+| `hgr_div7_ram.asm` | `hgr_div7` / `hgr_mod7` (x/7, x mod 7, x = 0..255) in BSS, built by `hgr_div7_init` (27 B): 512 B less in the file | arkabreakout |
 | `hgr_clear.asm` | `clear_hgr`: clears `$2000-$3FFF` (`HGR_CLEAR_LOOP`, no ZP) | logo |
 | `hgr_flip.asm` | `hgr_draw_hidden` / `hgr_show_draw` / `hgr_set_draw_page`: double buffering by rewriting `hgr_hi` in place (`hgr_scanline.inc` in a writable segment) | maze3d, micro-sokoban |
 | `hgr_text8.asm` | `hgr_putc8` / `hgr_puts8`: byte-aligned 8x8 text, colours. `HGR_TEXT8_HGR_ORDER` (font in HGR order: no more `ht_rev` or `rev7_tab`, −256 B), `HGR_TEXT8_NO_PUTS`; `hgr_puts8_at` (inline col/scanline/string, `.ifref`, `HGR_TEXT8_AT_PAGE`) | arkabreakout, dirtbike, maze3d |

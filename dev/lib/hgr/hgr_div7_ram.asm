@@ -3,7 +3,7 @@
 ; hgr_div7_ram.asm - x / 7 and x mod 7 for x = 0..255, built at start
 ; =============================================
 ; hgr_div7[x] = x / 7 (byte column), hgr_mod7[x] = x mod 7 (bit phase): the
-; 512 bytes go in BSS instead of the file, and hgr_div7_init (28 bytes, in
+; 512 bytes go in BSS instead of the file, and hgr_div7_init (27 bytes, in
 ; the current segment) fills them once, ~6 000 cycles. Like
 ; hgr_scanline_ram.asm for the row tables. Clobbers A, X, Y.
 ; Usage: .include "hgr_div7_ram.asm" (any segment), JSR hgr_div7_init before

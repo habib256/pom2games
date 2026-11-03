@@ -278,3 +278,23 @@ après les +18 de la réutilisation du gestionnaire et de la libération sur
 échec (`test_vbl_lifecycle.py`). CHROMABREAK relie les deux modules : +1 et −1,
 le CODE de bibliothèque est inchangé et toutes les adresses de `spare.s`
 tiennent sans retouche des réserves.
+
+`dhgr_rect` (70×16) : **15 034 → 12 267 cycles** (−18 %), `dhgr_span` (560
+points) : **3 279 → 2 796** (−15 %), +50 octets de code et 6 de BSS dans
+`dhgr_span_asm.s`. L'intérieur de chaque banque est préparé une fois par appel
+(première colonne, nombre de paires, colonne impaire finale, les deux octets
+de motif dans l'ordre des colonnes) ; chaque ligne déroule une boucle par
+paires sans comparaison de colonne, puis l'octet impair. Références recalées
+pour ces deux cas.
+
+`dhgr_clear_rows` : **1 177 → 712 cycles la ligne** (−40 %), cas de banc
+`dhgr_clear_row` 1 579 → 1 115, 92 → 129 octets de code. Une ligne ne
+traverse jamais de page et commence au plus à l'offset $D0 : quatre passes
+(une par octet de motif) écrivent par cinq opérandes alignés sur la page,
+Y parcourant la ligne deux octets par deux, cinq cycles l'octet ; seul l'octet
+de page des opérandes est patché, RAMWRT principal. Référence recalée.
+
+Nouveau cas `dhgr_small_text` : `dhgr_puts_small("APPLE II",0,0)`, le texte
+compact de ROBOT SPACE STATION, **14 483 cycles** (1 810 le caractère, cinq
+lignes lues-modifiées-écrites dans les deux banques), 2 994 octets de binaire.
+Mesuré sans modification : une référence pour les passes suivantes.

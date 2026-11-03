@@ -31,6 +31,7 @@ CASES={
  'dhgr_sprite': ('dhgr_sprite(7,40,2,2,2,bits,bits);',True),
  'dhgr_text': ('dhgr_puts("APPLE II",0,0);',True),
  'dhgr_clear_row': ('dhgr_clear_rows(40,1,9);',True),
+ 'dhgr_small_text': ('dhgr_puts_small("APPLE II",0,0);',True),
 }
 # First call and steady-state frame workloads have their own budgets.
 HUD = 'hgr_puts8(0,0,"SCORE"); hgr_putu_field(48,0,12345u,5); hgr_putu_field(160,0,42u,3);'
