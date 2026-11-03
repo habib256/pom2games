@@ -158,6 +158,7 @@ test-dhgr:
 	$(MAKE) -C dev/examples/dhgr test
 	$(PYTHON) dev/tests/test_dhgr_extended.py
 	$(PYTHON) dev/tests/test_dhgr_spans.py
+	$(PYTHON) dev/tests/test_dhgr_text.py
 	$(PYTHON) dev/tests/test_dhgr_clear_rows.py
 	$(PYTHON) dev/tests/test_dhgr_spr.py
 	$(PYTHON) dev/tests/test_gfx_dhgr_lines.py
