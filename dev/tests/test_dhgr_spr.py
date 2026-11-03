@@ -559,6 +559,18 @@ def scenario(inside=False, double=False):
     return s
 
 
+def scenario_cell_heights():
+    s = Script()
+    for height in (5, 7, 13, 31, 191, 255):
+        s.cells(7, 1, height)
+        s.area(7, 2, 132, min(191, height * 20))
+        s.invalidate(0, 0, 140, 192)
+        s.update(f'cell height {height}, partial first and last rows')
+        s.invalidate(21, min(180, height * 18), 14, 11)
+        s.update(f'cell height {height}, late narrow invalidation')
+    return s
+
+
 def scenario_area_bounds():
     s = Script()
     s.solid(3)
@@ -908,6 +920,11 @@ def main():
                 for machine in machines:
                     check(work, 'area', boundaries, machine)
                 print('DHGR area: off-screen/reversed boxes are empty, valid boxes widen and clip correctly.')
+                cells = scenario_cell_heights()
+                write_inc(work, cells, canvas, groups)
+                for machine in machines:
+                    check(work, 'cells', cells, machine)
+                print('DHGR cells: heights 5, 7, 13, 31, 191, 255, partial rows and late invalidation OK.')
 
 if __name__ == '__main__':
     main()

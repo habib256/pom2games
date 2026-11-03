@@ -85,40 +85,44 @@ cells:  lda #0                  ; (tiles: unmirrored, slot 0's colours)
         lda _dhgr_spr_cell+1
         sta call_cell+2
         lda py
+        cmp _dhgr_spr_cell_y
+        bcs :+
+        lda _dhgr_spr_cell_y     ; clamp pieces above the first cell
+:       sta ctop
         sec
         sbc _dhgr_spr_cell_y
-        bcs :+
-        lda #0                  ; (above the cells)
-:       ldx #0                  ; row index: repeated subtraction
+        ldx #0                  ; row index: repeated subtraction
         stx crow
 @div:   cmp _dhgr_spr_cell_h
         bcc @top
         sbc _dhgr_spr_cell_h
         inc crow
         bne @div
-@top:   lda _dhgr_cv_y1
-        sbc #0                  ; last row = y1 - 1 (C = 0)
+@top:   eor #$FF                ; cell top = clamped piece top - remainder
+        sec
+        adc ctop
+        sta ctop
+        lda _dhgr_cv_y1
+        sbc #1                  ; last row = y1 - 1 (C = 1: no borrow above)
         sta clast
         lda pg
         cmp _dhgr_spr_cell_g
         bcs :+
         lda _dhgr_spr_cell_g
 :       sta cg0
-        ; first cell top = cell_y + crow * cell_h, map row = map + crow * map_w
+        ; Only tile backgrounds need map + crow * map_w.
+        ldx mode
+        dex
+        beq @row
         lda _dhgr_spr_map
         sta map_row+1
         lda _dhgr_spr_map+1
         sta map_row+2
-        lda _dhgr_spr_cell_y
         ldx crow
-        beq @rowtop
-@mul:   clc
-        adc _dhgr_spr_cell_h
-        jsr next_map
+        beq @row
+@mul:   jsr next_map
         dex
         bne @mul
-@rowtop:
-        sta ctop
 @row:   lda cg0
         sta cg
 @col:   lda cg
@@ -140,8 +144,11 @@ cells:  lda #0                  ; (tiles: unmirrored, slot 0's colours)
         beq :+
         bcs @col
 :       inc crow
+        ldx mode
+        dex
+        beq :+
         jsr next_map
-        lda ctop
+:       lda ctop
         clc
         adc _dhgr_spr_cell_h
         bcs @end
@@ -151,16 +158,16 @@ cells:  lda #0                  ; (tiles: unmirrored, slot 0's colours)
         beq @row
 @end:   rts
 
-; The map row pointer += map_w. A and X kept.
+; The map row pointer += map_w. A and X kept; Y is scratch.
 next_map:
-        pha
+        tay
         lda map_row+1
         clc
         adc _dhgr_spr_map_w
         sta map_row+1
         bcc :+
         inc map_row+2
-:       pla
+:       tya
         rts
 
 ; Tiles: cell column A of row crow: set[map[row][col]] at 7 * cg, ctop.

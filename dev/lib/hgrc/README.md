@@ -761,3 +761,28 @@ scratch and removes the per-piece patching of two pointer-table loads:
 `dhgr_spr_cells.s` CODE shrinks from 395 to 388 bytes, with unchanged BSS
 and no new zero-page allocation. `test_dhgr_spr.py` exercises a 256-entry
 set with deliberately different shapes across the two halves.
+
+### Cell background row setup
+
+The first cell top is recovered from the division remainder instead of
+repeatedly adding the cell height. Callback backgrounds skip tile-map
+pointer setup and advancement altogether; tile-map advancement uses Y
+rather than a stack save to preserve A. CODE is now 406 bytes (18 more
+than the 388-byte full-ID version above), with unchanged BSS and ZP.
+
+With `test_dhgr_spr.py --quick --cycles`, the base IIe/IIc fixture measured:
+
+| Update | Before | After |
+| --- | ---: | ---: |
+| Full callback background, rows 8..183 | 2,188,186 | 2,137,067 |
+| Drone over callback cells | 47,993 | 47,095 |
+| Eight sprites over callback cells | 535,812 | 522,546 |
+| Eight sprites moved | 491,543 | 479,605 |
+| Full tile background | 1,616,850 | 1,614,324 |
+| Drone over tiles | 31,345 | 31,386 |
+
+These are whole-update cycles, including code-placement effects: the full
+solid-background case changes from 975,240 to 976,825 despite not using
+this module's background path. This is a speed/size tradeoff for callback
+backgrounds, not a universal speedup. Tests also cover cell heights 5, 7,
+13, 31, 191 and 255 with partial rows and late invalidation.
