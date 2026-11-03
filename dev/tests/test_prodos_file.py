@@ -680,6 +680,70 @@ results: .res 20,0
           'aux_fetch_pages; aux_fetch_chunked and AUXMOVE OK.')
 
 
+def aux_include_order(work):
+    """Both include orders must retain the direction across repeated calls."""
+    disk = work / 'aux_order.dsk'
+    disk.write_bytes(bytes(143360))
+    for late in (0, 1, 2):
+        source = '''.setcpu "65C02"
+.code
+start:  cld
+        sei
+        sta $C000                ; 80STORE off
+        sta $C002
+        sta $C004
+        sta $C008
+        ldx #0
+:       txa
+        eor #$A5
+        sta $4000,x
+        inx
+        bne :-
+        jsr transfer
+        jsr transfer             ; direction must reset after each store
+done:   jmp done
+fetch:
+        lda #0
+        sta auxmem_fdst
+        lda #$42
+        sta auxmem_fdst+1
+        jsr length
+        lda #0
+        ldy #$50
+        jmp aux_fetch_chunked
+length: lda #0
+        sta auxmem_flen
+        lda #1
+        sta auxmem_flen+1
+        rts
+'''
+        if late:
+            source += '.include "auxmem.asm"\n'
+        if late == 2:
+            source += '.scope late_store\n'
+        source += '''transfer:
+        lda #0
+        sta auxmem_fdst
+        lda #$50
+        sta auxmem_fdst+1
+        jsr length
+        lda #0
+        ldy #$40
+        jsr aux_store_chunked
+        jmp fetch
+.include "auxmem.asm"
+'''
+        if late == 2:
+            source += '.endscope\ntransfer = late_store::transfer\n'
+        binary, labels = compile_asm(work, f'aux_order_{late}', source)
+        r = a2test.run(disk, a2test.bin_steps(binary) +
+                       [labels.until('done', 1000), 'peek:4000:256', 'peek:4200:256'], iie=True)
+        expected = bytes(i ^ 0xA5 for i in range(256))
+        assert r.mem(0x4000, 256) == expected, ('source', late)
+        assert r.mem(0x4200, 256) == expected, ('round trip', late)
+    print('AUXMOVE chunked: simultaneous, late and scoped store includes, repeated round trips OK.')
+
+
 if __name__ == '__main__':
     if a2test.have_a2shot('ProDOS files (65C02)'):
         with tempfile.TemporaryDirectory(prefix='prodos-file-') as tmp:
@@ -687,3 +751,4 @@ if __name__ == '__main__':
             injected(Path(tmp))
             native(Path(tmp))
             native_aux(Path(tmp))
+            aux_include_order(Path(tmp))

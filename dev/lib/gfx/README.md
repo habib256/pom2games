@@ -126,3 +126,10 @@ cycles; the signed fixture grows by 3 bytes for the cross-object jump.
 `hgr_putu_field(10,20,123,5)` reuses the returned digit count: 44 fewer linked
 bytes and 135 fewer cycles (14,835 to 14,700). `test_gfx_decimal.py` checks
 all 131,072 signed/unsigned inputs, lengths, NULs and buffer guards.
+
+The ellipse sine and cosine samples share an 80-byte table (one period plus
+one quarter), saving 48 bytes over two separate 64-byte tables. With cc65
+2.18 `-Oirs`, CODE stays at 911 bytes and the generated instructions are
+unchanged apart from table addresses. `test_gfx_boundaries.py` verifies all
+64 chord endpoints for ordinary, reversed, degenerate and large boxes at
+140-, 280- and 560-pixel screen widths.

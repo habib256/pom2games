@@ -130,7 +130,8 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   time (letters, ←/→ and DELETE, ↑/↓ cycle the letter, RETURN/ESC end:
   C = 1); `INI_LEN` (3), `INI_CHARS`/`INI_CHARS_N` (default A-Z without a
   table), `INI_DELETE`. The stick comes in through `stick_key` and a
-  `STICK_KEYS` table of KC_* codes. 117 B. DIRTBIKE (hof.inc: its
+  `STICK_KEYS` table of KC_* codes. 122 B; unchanged letters at the final cursor and
+  single-character sets return “no change”, avoiding redundant redraws. DIRTBIKE (hof.inc: its
   38-letter ring `hof_chars`, `ini_buf`/`ini_pos` = `last_ini`/`hpos`, its
   stick path through `stick_menu`; −15 B). Candidates: MICRO-SOKOBAN
   (score_hof.inc), ARKABREAKOUT (records.inc).
@@ -810,7 +811,7 @@ off; exit the same, the I flag restored. Not for an IRQ handler.
 | `aux_store` | A = pages (0 = 256), X = first aux page, Y = first main page | main → aux, RAMWRT aux, interrupts masked for the whole copy | 35 B; ~14 cycles a byte; ZP `auxmem_src`/`auxmem_dst` (2+2, define them first to alias) |
 | `aux_fetch_pages` | A = pages, X = first aux page, Y = first main page | aux → main; RAMRD aux hides the code in main RAM, so the page loop runs from a 16-byte stub copied to the zero page at each call (`auxmem_zcopy`); interrupts masked one page at a time (~3,600 cycles) | 36 B + 16 B template; 16 ZP bytes (`AUXMEM_ZP = addr` to place/alias them) |
 | `aux_fetch_chunked` | A/Y = aux source (low/high); `auxmem_fdst`, `auxmem_flen` | aux → main any length through the ROM's AUXMOVE (`$C311`), `AUXMEM_FETCH_CHUNK` bytes (64) at a time under SEI; `AUXMEM_FETCH_SCAN = 1`: `jsr _a2_vbl_scan` between chunks | 109 B (112 with the scan); ~36 cycles a byte; consumes `auxmem_fdst`/`auxmem_flen`, scratch `auxmem_fsrc` (2) and `auxmem_fn` (1), BSS unless defined first |
-| `aux_store_chunked` | A/Y = main source (low/high); `auxmem_fdst` (aux), `auxmem_flen` | main → aux, the same routine the other way (the direction patched in at each call; X clobbered); referencing it adds 8 B, `aux_fetch_chunked` alone stays byte-identical | 105 B for both in MB TRACKER (`auxmem_fsrc` = `ptr1`, `auxmem_fn` = `tmp1`: zero page; `AUXMEM_FETCH_CHUNK = 128`) |
+| `aux_store_chunked` | A/Y = main source (low/high); `auxmem_fdst` (aux), `auxmem_flen` | main → aux, the same routine the other way (the direction patched in at each call; X clobbered); referencing both before inclusion adds 8 B; a store first referenced by a later include adds a 14 B wrapper; `aux_fetch_chunked` alone stays byte-identical | 105 B for both in MB TRACKER (`auxmem_fsrc` = `ptr1`, `auxmem_fn` = `tmp1`: zero page; `AUXMEM_FETCH_CHUNK = 128`) |
 | `AUXMOVE first, last, dest, dir [, jmp]` | constants or labels; `dir` = `AUX_TO_MAIN` / `MAIN_TO_AUX` | macro: the ROM's AUXMOVE of first..last (inclusive) to dest; `jmp` = tail call | 28 B (`$3C-$3F`, `$42/$43`); the ROM leaves I alone |
 
 C: `apple2aux.h` (dev/lib/apple2c): `aux_store(pages, aux_page)` (a macro

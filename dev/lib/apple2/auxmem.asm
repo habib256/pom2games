@@ -30,6 +30,8 @@
 ;                      one referenced assembles the routine; aux_store_chunked
 ;                      adds 8 bytes (the direction patched in at each call,
 ;                      X clobbered); aux_fetch_chunked alone is unchanged.
+;                      If only a later include references the store, it adds
+;                      a 14-byte wrapper around the existing fetch routine.
 ;   AUXMOVE first, last, dest, dir [, jmp]
 ;                      macro: the ROM's AUXMOVE of first..last (inclusive) to
 ;                      dest, dir = AUX_TO_MAIN or MAIN_TO_AUX; constants or
@@ -246,11 +248,7 @@ aux_fetch_chunked:
         dec auxmem_flen+1
 :       php
         sei
-.if .referenced(aux_store_chunked)
 @dir:   clc                      ; aux -> main (aux_store_chunked: sec)
-.else
-        clc                      ; aux -> main
-.endif
         jsr $C311                ; AUXMOVE
         plp
 .if AUXMEM_FETCH_SCAN
@@ -258,4 +256,17 @@ aux_fetch_chunked:
 .endif
         bra @chunk
 @done:  rts
+auxmem_fdir = @dir
+.endif
+
+; A previous include may already have emitted the fetch-only routine. Keep
+; that routine byte-identical and add the missing store entry on demand.
+.if .referenced(aux_store_chunked) .and (.not .defined(aux_store_chunked))
+aux_store_chunked:
+        ldx #$38                 ; sec: main -> aux
+        stx auxmem_fdir
+        jsr aux_fetch_chunked
+        ldx #$18                 ; restore the fetch-only entry's direction
+        stx auxmem_fdir
+        rts
 .endif

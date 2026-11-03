@@ -2,7 +2,7 @@
 /*
  * gfx_ellipse.c — card-neutral 64-segment polyline ellipse. See gfx.h.
  *
- * The biggest gain of the former gfx_draw.c split: this TU carries 128 bytes of
+ * The biggest gain of the former gfx_draw.c split: this TU carries 80 bytes of
  * cos/sin LUT + drags the cc65 16-bit soft-multiply for scaled radii.
  * A line/rect/circle-only program now
  * skips both costs entirely.
@@ -14,18 +14,18 @@
 #include "gfx.h"
 
 /* cos/sin * 64 for parametric angle i/64 * 2π (upstream ellipse.s scale). */
-static const signed char kEllipseCos64[64] = {
+/* One sine period plus its first quarter: cosine is the same table +16.
+ * Constant pointer offsets fold into indexed addresses on cc65, saving
+ * 48 bytes without adding arithmetic to the sampling loop. */
+static const signed char kEllipseWave[80] = {
+    0, 6, 12, 19, 24, 30, 36, 41, 45, 49, 53, 56, 59, 61, 63, 64,
     64, 64, 63, 61, 59, 56, 53, 49, 45, 41, 36, 30, 24, 19, 12, 6,
     0, -6, -12, -19, -24, -30, -36, -41, -45, -49, -53, -56, -59, -61, -63, -64,
     -64, -64, -63, -61, -59, -56, -53, -49, -45, -41, -36, -30, -24, -19, -12, -6,
     0, 6, 12, 19, 24, 30, 36, 41, 45, 49, 53, 56, 59, 61, 63, 64
 };
-static const signed char kEllipseSin64[64] = {
-    0, 6, 12, 19, 24, 30, 36, 41, 45, 49, 53, 56, 59, 61, 63, 64,
-    64, 64, 63, 61, 59, 56, 53, 49, 45, 41, 36, 30, 24, 19, 12, 6,
-    0, -6, -12, -19, -24, -30, -36, -41, -45, -49, -53, -56, -59, -61, -63, -64,
-    -64, -64, -63, -61, -59, -56, -53, -49, -45, -41, -36, -30, -24, -19, -12, -6
-};
+#define kEllipseSin64 kEllipseWave
+#define kEllipseCos64 (kEllipseWave + 16)
 
 static unsigned gfx_clamp_x(unsigned v)
 {

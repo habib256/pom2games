@@ -33,7 +33,7 @@
 ; BSS: ini_buf (INI_LEN), ini_pos, each skipped if defined before the
 ; include (e.g. the program's record buffer). The caller fills ini_buf
 ; (e.g. "AAA" or the last initials) and zeroes ini_pos before the first key.
-; No zero page. 117 B (A-Z by arithmetic), 119 B with a table. .ifref: include after the
+; No zero page. 122 B (A-Z by arithmetic), 124 B with a table. .ifref: include after the
 ; callers. Factored from DIRTBIKE (hof.inc), MICRO-SOKOBAN (score_hof.inc)
 ; and ARKABREAKOUT (records.inc), whose entry loops it replaces.
 ; Caller responsibility: .include "apple2.inc" first (KC_*).
@@ -92,9 +92,9 @@ ini_key:
         CMP     #'Z'+1
         BCS     @none
 .endif
-        STA     ini_buf,X
         CPX     #INI_LEN-1
-        BCS     @changed        ; the last letter: the cursor stays
+        BEQ     @value          ; last letter: report only a real change
+        STA     ini_buf,X
         INX
         BCC     @pos            ; always
 @right: CPX     #INI_LEN-1
@@ -122,6 +122,8 @@ ini_key:
         BPL     @put
         LDY     #INI_CHARS_N-1
 @put:   LDA     INI_CHARS,Y
+@value: CMP     ini_buf,X
+        BEQ     @none
         STA     ini_buf,X
         JMP     @changed
 ; A = a char: Y = its place in INI_CHARS (N = 0), or Y = $FF (N = 1)
@@ -149,7 +151,10 @@ ini_key:
         SBC     #0              ; C = 0: - 1
         BNE     @put            ; always
 @last:  LDA     #'Z'
-@put:   STA     ini_buf,X
+@put:
+@value: CMP     ini_buf,X
+        BEQ     @none
+        STA     ini_buf,X
         BNE     @changed        ; always (a letter)
 .endif
 @none:  LDA     #0

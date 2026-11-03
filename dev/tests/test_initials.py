@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """lib/apple2/initials.asm ini_key in a2run against a Python model: every
 key of a script (letters, lowercase, arrows, DELETE, out-of-set keys,
-RETURN / ESC) gives the same A, C, Z, cursor and buffer. Built three ways:
+RETURN / ESC) gives the same A, C, Z, cursor and buffer. Builds cover:
 default (3 letters A-Z by arithmetic), INI_LEN = 4 with an INI_CHARS table
-(letters, digits, space, '-'), and INI_DELETE moved."""
+(letters, digits, space, '-'), a single-character set, and INI_DELETE moved."""
 import subprocess
 import sys
 import tempfile
@@ -70,28 +70,31 @@ out_buf: .res 256
 def model(keys, start, length, chars, delete):
     buf, pos, out = list(start), 0, []
     for k in keys:
+        before = (bytes(buf), pos)
         a, c = 0, 0
         if k in (KC_RET, KC_ESC):
             a, c = k, 1
         elif k in (KC_LEFT, delete):
             if pos > 0:
-                pos, a = pos - 1, 1
+                pos -= 1
         elif k == KC_RIGHT:
             if pos < length - 1:
-                pos, a = pos + 1, 1
+                pos += 1
         elif k in (KC_UP, KC_DOWN):
             cur = buf[pos]
             if cur in chars:
                 i = (chars.index(cur) + (1 if k == KC_UP else -1)) % len(chars)
             else:
                 i = 0 if k == KC_UP else len(chars) - 1
-            buf[pos], a = chars[i], 1
+            buf[pos] = chars[i]
         else:
             if ord('a') <= k <= ord('z'):
                 k &= 0xDF
             if k in chars:
-                buf[pos], a = k, 1
+                buf[pos] = k
                 pos = min(pos + 1, length - 1)
+        if not c:
+            a = int((bytes(buf), pos) != before)
         # Z: set with A = 0, and on RETURN / ESC (from their CMP; C = 1 decides)
         out.append((a, c | (2 if a == 0 or c else 0), pos, bytes(buf)))
     return out
@@ -119,22 +122,27 @@ def run(work, name, options, start, keys, length, chars, delete, table=None):
 
 def main():
     az = [ord(c) for c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
-    script = [KC_LEFT, ord('b'), ord('O'), ord('B'), ord('X'), ord('1'), KC_RIGHT, KC_UP, KC_UP,
+    script = [KC_LEFT, ord('b'), ord('O'), ord('B'), ord('X'), ord('X'), ord('x'), ord('1'), KC_RIGHT, KC_UP, KC_UP,
               KC_LEFT, KC_LEFT, KC_LEFT, 0x7F, KC_DOWN, KC_DOWN, KC_RIGHT, KC_DOWN, ord(' '),
               ord('z'), KC_UP, KC_RIGHT, KC_RIGHT, ord('-'), KC_ESC, KC_RET, 0x80 | ord('A')]
     with tempfile.TemporaryDirectory(prefix='initials-') as tmp:
         work = Path(tmp)
         run(work, 'az', '', b'AAZ', script, 3, az, 0x7F)
+        run(work, 'same', '', b'AAA', [ord('A'), ord('a'), ord('A'), ord('Z'), ord('z')],
+            3, az, 0x7F)
         run(work, 'odd', '', b'@[a', [KC_UP, KC_RIGHT, KC_DOWN, KC_RIGHT, KC_UP, KC_LEFT, KC_UP],
             3, az, 0x7F)
         table = az + [ord(c) for c in '0123456789 -']
         run(work, 'tab', 'INI_LEN = 4\nINI_CHARS = charset\nINI_CHARS_N = 38', b'A9-?',
             script + [KC_RIGHT, KC_RIGHT, KC_RIGHT, KC_DOWN, KC_UP, KC_UP, KC_UP, ord('9'), KC_UP],
             4, table, 0x7F, table)
+        run(work, 'single', 'INI_LEN = 1\nINI_CHARS = charset\nINI_CHARS_N = 1', b'A',
+            [ord('A'), ord('a'), KC_UP, KC_DOWN, KC_RIGHT, KC_LEFT],
+            1, [65], 0x7F, [65])
         run(work, 'del', 'INI_DELETE = $1F', b'ABC', [KC_RIGHT, KC_RIGHT, 0x7F, 0x1F, 0x1F, 0x1F],
             3, az, 0x1F)
     print('ini_key: letters, lowercase, arrows, wrap, DELETE, RETURN/ESC, out-of-set keys; '
-          'A-Z, INI_LEN/INI_CHARS table and INI_DELETE builds match the model.')
+          'A-Z, INI_LEN/INI_CHARS table, unchanged input and INI_DELETE builds match the model.')
 
 
 if __name__ == '__main__':
