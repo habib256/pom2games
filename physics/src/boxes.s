@@ -303,7 +303,7 @@ restore_box:
         sta  rmaskv
         ldx  ry0
 L95EE:
-        lda  RDVBLBAR
+        jsr  read_vbl
         and  #$80
         cmp  vblprev
         beq  L95FF
@@ -459,7 +459,7 @@ L96D3:
         sta  ry1
         ldy  dl_y0,x
 L96E7:
-        lda  RDVBLBAR
+        jsr  read_vbl
         and  #$80
         cmp  vblprev
         beq  L96F8
@@ -581,7 +581,7 @@ L9798:
         lda  #$00
         sta  pcnt
 L979E:
-        lda  RDVBLBAR
+        jsr  read_vbl
         and  #$80
         cmp  vblprev
         beq  L97AF
@@ -696,7 +696,7 @@ L9830:
         sbc  dlen2
         sta  dtmp
 L9860:
-        lda  RDVBLBAR
+        jsr  read_vbl
         and  #$80
         cmp  vblprev
         beq  L9871

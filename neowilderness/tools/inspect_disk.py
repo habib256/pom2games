@@ -16,7 +16,9 @@ def main():
           f'{layout["blocks_used"]}/{layout["blocks"]} blocks')
     for index, module in sorted(layout['modules'].items(), key=lambda kv: int(kv[0])):
         lz = f' LZ {module["stored"]:4} (copy ${module["lz"]["copy"]:04X})' if 'lz' in module else ''
-        print(f'  module {int(index):2} {module["bank"]:3} ${module["address"]:04X} '
+        location = (f'block {module["block"]} ({module["blocks"]} blocks)'
+                    if module['bank'] == 'disk' else f'${module["address"]:04X}')
+        print(f'  module {int(index):2} {module["bank"]:3} {location} '
               f'{module["length"]:5} -> ${module["window"]:04X}  {module["image"]}{lz}')
     for free in layout['aux_free']:
         print(f'  free {free["bank"]:3} ${free["start"]:04X}-${free["end"]-1:04X} {free["free"]:5} bytes'

@@ -173,7 +173,7 @@ test-xl: all $(A2SHOT)
 	$(PYTHON) tests/test_transfers.py
 	$(PYTHON) tests/test_pack_boot.py
 	$(PYTHON) tests/test_textbank.py
-	$(PYTHON) tests/test_reference_state.py
+	$(PYTHON) tests/test_reference_state.py --optional
 	$(PYTHON) tests/test_input.py
 	$(PYTHON) tests/test_navigation.py
 	$(PYTHON) tests/test_menu_bar.py

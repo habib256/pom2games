@@ -20,6 +20,8 @@ class Image:
         self.d = data
 
     def block(self, n):
+        if n < 0 or (n + 1) * BLOCK > len(self.d):
+            raise ValueError(f'ProDOS block outside image: {n}')
         return self.d[n * BLOCK:(n + 1) * BLOCK]
 
     def header(self):
@@ -32,7 +34,11 @@ class Image:
     def entries(self, key, skip_header=True):
         """Les entrees vivantes d'un repertoire, en suivant le chainage."""
         out, block, first = [], key, True
+        seen = set()
         while block:
+            if block in seen:
+                raise ValueError('cyclic ProDOS directory chain')
+            seen.add(block)
             b = self.block(block)
             for k in range(13):
                 if first and k == 0 and skip_header:
@@ -46,9 +52,14 @@ class Image:
         return out
 
     def read(self, entry):
+        if len(entry) != ENTRY_LEN:
+            raise ValueError('invalid ProDOS entry length')
         storage = entry[0] >> 4
         key = int.from_bytes(entry[0x11:0x13], 'little')
         eof = int.from_bytes(entry[0x15:0x18], 'little')
+        capacity = {1: BLOCK, 2: 256 * BLOCK, 3: 256 * 256 * BLOCK}
+        if storage in capacity and eof > capacity[storage]:
+            raise ValueError('ProDOS file size exceeds storage capacity')
         if storage == 1:
             return self.block(key)[:eof]
         if storage in (2, 3):
@@ -72,12 +83,16 @@ class Image:
         bits = self.d[h['bitmap'] * BLOCK:]
         return sum(1 for b in range(h['blocks']) if (bits[b >> 3] >> (7 - (b & 7))) & 1)
 
-    def walk(self, key=2, prefix=''):
+    def walk(self, key=2, prefix='', _ancestors=frozenset()):
+        if key in _ancestors:
+            raise ValueError('cyclic ProDOS directory hierarchy')
+        ancestors = _ancestors | {key}
         for e in self.entries(key):
             name = e[1:1 + (e[0] & 15)].decode('ascii')
             if e[0] >> 4 == 0xD:
                 yield prefix + '/' + name, 'DIR', 0
-                yield from self.walk(int.from_bytes(e[0x11:0x13], 'little'), prefix + '/' + name)
+                yield from self.walk(int.from_bytes(e[0x11:0x13], 'little'),
+                                     prefix + '/' + name, ancestors)
             else:
                 yield (prefix + '/' + name, TYPES.get(e[0x10], f'${e[0x10]:02X}'),
                        int.from_bytes(e[0x15:0x18], 'little'))

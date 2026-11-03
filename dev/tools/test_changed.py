@@ -59,8 +59,8 @@ def resolve_base(ref):
 
 
 def changed_files(sha):
-    files = set(git('diff', '--name-only', '--no-renames', sha).split('\n'))
-    files |= set(git('ls-files', '--others', '--exclude-standard').split('\n'))
+    files = set(git('diff', '--name-only', '-z', '--no-renames', sha).split('\0'))
+    files |= set(git('ls-files', '-z', '--others', '--exclude-standard').split('\0'))
     files.discard('')
     return sorted(files)
 
@@ -133,7 +133,7 @@ def base_hashes(ref, sha, programs, tmp):
         git('worktree', 'remove', '--force', str(tree))
     if rc:
         tail = (tmp / 'base-build.log').read_text()[-1500:]
-        print(f'{tail}\ntest-changed: {ref} does not build; comparing sources only')
+        print(f'{tail}\ntest-changed: {ref} does not build; testing all requested programs')
         return None, 'failed'
     CACHE.mkdir(parents=True, exist_ok=True)
     cache.write_text(json.dumps(data))
@@ -154,6 +154,19 @@ def work_hashes(programs, tmp):
 
 def under(path, prefix):
     return path == prefix or path.startswith(prefix.rstrip('/') + '/')
+
+
+def binary_changes(programs, base, work):
+    """Unknown images must not count as evidence that a program is unchanged."""
+    reasons = {}
+    for prog in programs:
+        if base is None:
+            reasons[prog] = 'reference build failed (binary comparison unavailable)'
+        elif not base.get(prog) or not work.get(prog):
+            reasons[prog] = 'disk image unavailable (binary comparison incomplete)'
+        elif work[prog] != base[prog]:
+            reasons[prog] = 'binary changed (disk image differs)'
+    return reasons
 
 
 def main():
@@ -205,10 +218,10 @@ def main():
             if base is not None:
                 print(f'test-changed: images compared ({ref} build {how},'
                       f' {time.time() - t0:.0f} s)')
-                for prog in rest:
-                    compared[prog] = work.get(prog) != base.get(prog)
-                    if compared[prog]:
-                        reasons[prog] = 'binary changed (disk image differs)'
+            changes = binary_changes(rest, base, work)
+            reasons.update(changes)
+            if base is not None:
+                compared.update({prog: prog in changes for prog in rest})
 
     print('\ntest-changed: decision')
     for prog in args.programs:

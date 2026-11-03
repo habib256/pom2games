@@ -23,6 +23,11 @@
 #   make -C <game> test-long  long campaigns; may be empty
 # test-<game> runs the first, test-<game>-long the second.
 
+# Root targets share game build directories and test artifacts. In particular,
+# test/test-long must not overlap each other or the global build under make -j.
+# Sub-makes retain the jobserver and may parallelize their own dependencies.
+.NOTPARALLEL:
+
 PYTHON ?= python3
 
 II_PLUS_GAMES := arkabreakout micro-sokoban chess maze3d snake pinball light3dball wilderness dirtbike rogue
@@ -42,7 +47,7 @@ DIRS += cutrope
 # Programs whose own `make test` / `make test-long` belong to the root tiers.
 TESTED := pinball chromabreak arkabreakout chess micro-sokoban light3dball wilderness logo mbtracker dirtbike \
           wargalagaii snake robotspacestation rogue
-TESTED += cutrope
+TESTED += cutrope maze3d
 
 all:
 	@for d in $(DIRS); do $(MAKE) -C $$d || exit 1; done
@@ -87,9 +92,9 @@ test-hgr:
 	$(PYTHON) dev/tests/test_asm_boundaries.py
 	$(PYTHON) dev/tests/test_dos_reuse.py
 	$(PYTHON) dev/tests/test_math.py
+	$(PYTHON) dev/tests/test_verlet.py
 	$(PYTHON) dev/tests/test_gfx_hex.py
 	$(PYTHON) dev/tests/test_gfx_decimal.py
-	$(PYTHON) dev/tests/test_verlet.py
 	$(PYTHON) dev/tests/test_rwts.py
 	$(PYTHON) dev/tests/test_lib_options.py
 	$(PYTHON) dev/tests/test_pt3_notes.py
@@ -178,10 +183,10 @@ check: distclean
 	    { echo "untracked disks in dist/:"; git ls-files --others --exclude-standard -- dist; exit 1; }
 
 clean:
-	@for d in $(DIRS); do $(MAKE) -C $$d clean; done
+	@for d in $(DIRS); do $(MAKE) -C $$d clean || exit 1; done
 
 distclean:
-	@for d in $(DIRS); do $(MAKE) -C $$d distclean; done
+	@for d in $(DIRS); do $(MAKE) -C $$d distclean || exit 1; done
 
 .PHONY: all test test-hgr test-frame test-hgr-example test-dhgr check clean distclean
 
@@ -222,6 +227,10 @@ test-techniques:
 
 # Native HGR lookup tables and checked fixed-sector DOS construction.
 test-tools:
+	$(PYTHON) dev/tests/test_root_make.py
+	$(PYTHON) dev/tests/test_prodos_writer.py
+	$(PYTHON) dev/tests/test_prodos_reader.py
+	$(PYTHON) dev/tests/test_test_changed.py
 	$(PYTHON) dev/tests/test_corridor.py
 	$(PYTHON) dev/tests/test_audio.py
 	$(PYTHON) dev/tests/test_perspective.py

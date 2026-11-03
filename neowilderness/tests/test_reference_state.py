@@ -143,6 +143,17 @@ def progressive_rest(step, previous, current):
 
 
 def main():
+    missing = [name for name in ('WILDERNESS.dsk', 'wild.lbl', 'wild.map')
+               if not (REFERENCE / name).is_file()]
+    if missing:
+        message = (f'frozen HGR reference unavailable in {REFERENCE}: '
+                   + ', '.join(missing)
+                   + '; restore the frozen reference (see README.md), '
+                   'do not substitute the current Wilderness build')
+        if '--optional' in sys.argv[1:]:
+            print('SKIP: ' + message)
+            return
+        raise SystemExit(message)
     names, new, old, sizes = common_fields()
     reference = snapshots(REFERENCE_DISK, reference_labels(),
                           {n: (old[n][0], sizes[n]) for n in names})

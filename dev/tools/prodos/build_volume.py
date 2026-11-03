@@ -90,6 +90,10 @@ class Volume:
     def __init__(self, name, blocks, boot, date, a2fc_layout=False):
         if not re.fullmatch(r'[A-Z][A-Z0-9.]{0,14}', name):
             raise SystemExit(f'/{name} : nom de volume ProDOS invalide')
+        if not 7 <= blocks <= 0xFFFF:
+            raise SystemExit('le volume doit contenir entre 7 et 65535 blocs')
+        if len(boot) > 2 * BLOCK:
+            raise SystemExit("l'amorce depasse les deux blocs reserves")
         self.name, self.blocks, self.date = name, blocks, date
         self.a2fc_layout = a2fc_layout
         self.image = bytearray(blocks * BLOCK)
@@ -100,15 +104,15 @@ class Volume:
         return (self.blocks + 4095) // 4096
 
     def block(self, n):
-        if n >= self.blocks:
+        if not 0 <= n < self.blocks:
             raise SystemExit(f'le contenu deborde le volume de {self.blocks} blocs')
         return memoryview(self.image)[n * BLOCK:(n + 1) * BLOCK]
 
     def alloc(self, n=1):
         first = self.next_free
+        if n < 1 or first + n > self.blocks:
+            raise SystemExit(f'allocation invalide dans le volume de {self.blocks} blocs')
         self.next_free += n
-        if self.next_free > self.blocks:
-            raise SystemExit(f'le contenu deborde le volume de {self.blocks} blocs')
         return first
 
     # ── les entrees ────────────────────────────────────────────────────────
@@ -131,6 +135,9 @@ class Volume:
 
     def write_file(self, data):
         """Rend (storage_type, bloc cle, blocs occupes)."""
+        # EOF is a 24-bit field, even though tree indices address 32 MiB.
+        if len(data) > 0xFFFFFF:
+            raise SystemExit('fichier de plus de 16777215 octets : EOF ProDOS depasse')
         if len(data) <= BLOCK:
             key = self.alloc()
             self.block(key)[:len(data)] = data
@@ -139,8 +146,6 @@ class Volume:
         if len(chunks) <= 256:
             return 2, self.write_index(chunks), 1 + len(chunks)
         # un arbre : l'index maitre pointe des index d'arbrisseaux de 256 blocs
-        if len(chunks) > 256 * 256:
-            raise SystemExit('fichier de plus de 16 Mo : ProDOS ne sait pas')
         master = self.alloc()
         for i in range(0, len(chunks), 256):
             index = self.write_index(chunks[i:i + 256])
@@ -246,6 +251,7 @@ class Volume:
         used = self.next_free
         for i in range(self.bitmap_blocks()):
             blk = self.block(BITMAP + i)
+            blk[:] = bytes(BLOCK)
             for b in range(4096):
                 n = (i << 12) + b
                 if used <= n < self.blocks:

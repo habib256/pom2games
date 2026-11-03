@@ -86,4 +86,8 @@ test: $(DISK)
 	$(PYTHON) tests/check_ergonomics.py
 	$(PYTHON) tests/check_playthrough.py
 
-.PHONY: test
+# Long tier (convention of ../dev/cc65/apple2.mk): nothing slow yet.
+test-long:
+	@echo "maze3d: no long tests"
+
+.PHONY: test test-long

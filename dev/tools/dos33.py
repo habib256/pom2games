@@ -321,14 +321,23 @@ class Dos33Image:
 # --- reading an existing image -----------------------------------------------
 
 def _sector(image, t, s):
-    return image[(t * SECTORS + s) * SEC_SIZE:(t * SECTORS + s + 1) * SEC_SIZE]
+    if not (0 <= t < TRACKS and 0 <= s < SECTORS):
+        raise ValueError(f'invalid DOS sector: {t}/{s}')
+    block = image[(t * SECTORS + s) * SEC_SIZE:(t * SECTORS + s + 1) * SEC_SIZE]
+    if len(block) != SEC_SIZE:
+        raise ValueError(f'truncated DOS sector: {t}/{s}')
+    return block
 
 
 def catalog(image):
     """The catalog of a DOS 3.3 image (bytes): one tuple per live file."""
     out = []
     t, s = _sector(image, VTOC_T, VTOC_S)[1:3]
+    seen = set()
     while t:
+        if (t, s) in seen:
+            raise ValueError('cyclic DOS catalog')
+        seen.add((t, s))
         cat = _sector(image, t, s)
         for off in range(11, 256, 35):
             entry = cat[off:off + 35]
@@ -347,10 +356,16 @@ def file_sectors(image, name):
         if fname != name:
             continue
         sectors = []
+        seen = set()
         while ts:
+            if (ts, ss) in seen:
+                raise ValueError('cyclic DOS track/sector list')
+            seen.add((ts, ss))
             listing = _sector(image, ts, ss)
-            sectors += [(listing[i] * SECTORS + listing[i + 1]) * SEC_SIZE
-                        for i in range(12, 256, 2) if listing[i]]
+            for i in range(12, 256, 2):
+                if listing[i]:
+                    _sector(image, listing[i], listing[i + 1])
+                    sectors.append((listing[i] * SECTORS + listing[i + 1]) * SEC_SIZE)
             ts, ss = listing[1:3]
         return sectors
     raise KeyError('file not found: ' + name)

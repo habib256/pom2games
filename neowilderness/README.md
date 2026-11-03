@@ -383,7 +383,12 @@ répondent au menu « 1, RETURN » (Sierra Nevada, première ligne, niveau 4 :
 RETURN seul choisit aussi la Sierra).
 
 La comparaison d'état utilise `build/reference-hgr/` (disque HGR/DOS 3.3 de
-`../wilderness` et son fichier de symboles), local et ignoré par Git. Les
+`../wilderness`, avec `wild.lbl` et `wild.map` de la même version figée),
+local et ignoré par Git. Sans ces trois fichiers, `make test` annonce
+explicitement `SKIP` pour cette comparaison et poursuit les tests XL.
+`python3 tests/test_reference_state.py` exige la référence et échoue si elle
+manque ; `make test-all-editions` l'exige également. Restaurer la référence
+historique, sans la remplacer par une compilation du Wilderness actuel. Les
 données originales requises suivent la procédure `make originals` /
 `make extract` héritée ; elles restent locales et ignorées par Git.
 

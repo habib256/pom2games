@@ -39,6 +39,9 @@ def patch(image, program, labels, tslists=(), sectors=()):
         size = labels[ls] - labels[lt]
         if len(entries) != size:
             raise SystemExit(f'{lt}/{ls}: {len(entries)} {what} for a table of {size}')
+        if not (0 <= labels[lt] - load <= labels[ls] - load
+                and labels[ls] - load + size <= len(game)):
+            raise SystemExit(f'{lt}/{ls}: tables outside program payload')
         for k, (t, s) in enumerate(entries):
             game[labels[lt] - load + k] = t
             game[labels[ls] - load + k] = s

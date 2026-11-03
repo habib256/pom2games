@@ -1,4 +1,4 @@
-; physics.s -- PHYSICS (Apple //e): the program loaded by the boot loader.
+; physics.s -- PHYSICS (Apple //e and //c): the program loaded by the boot loader.
 ; One assembly unit; each segment is one region the loader fills (see
 ; physics.cfg and README.md).  Assemble with ca65, link with ld65.
 

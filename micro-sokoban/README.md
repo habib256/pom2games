@@ -17,7 +17,8 @@ It is the Apple II port of the `sketchs/gen2/game_sokoban` sketch
 
     make            # -> ../dist/MICRO-SOKOBAN.dsk  (bootable DOS 3.3 image)
     make run        # boot it in POM2 (Apple ][+ profile)
-    make test       # play every solution and check the game in a2run
+    make test       # check the game and a sample of solutions in a2run
+    make test-long  # play all 454 checked solutions
 
 ## Screenshots
 
@@ -256,7 +257,8 @@ variables, library paths and the shared rules.
 
     make            # ../dist/MICRO-SOKOBAN.dsk, a bootable 5.25" DOS 3.3 image
     make run        # boot the image in POM2 (Apple ][+ profile)
-    make test       # the nine test scripts, then every solution (below)
+    make test       # the fast scripts and a sample of solutions (below)
+    make test-long  # every checked solution in all four collections
     make clean      # remove build/ (the disk stays)
     make distclean  # remove build/ and the disk
 
@@ -275,8 +277,10 @@ decoding it again independently before writing.
 
 ## Tests
 
-`make test` builds the disk, then runs nine scripts in `a2run` (the headless
-emulator in `../dev/tools`) and finally plays the solution of all 454 levels.
+`make test` builds the disk, then runs the gameplay and regression scripts in
+`a2run` (the headless emulator in `../dev/tools`) and plays a sample of checked
+solutions from all four collections. `make test-long` plays the checked
+solution of all 454 levels.
 Each script boots the real disk image, drives the game with keys and joystick
 events, and reads the game's memory through the ld65 labels
 (`build/micro_sokoban.lbl`) via the shared harness `../dev/tools/a2test.py`.

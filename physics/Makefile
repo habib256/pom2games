@@ -1,5 +1,5 @@
-# PHYSICS -- rebuild the disk from source and check it against the original.
-#   make            assemble, link, build build/physics.dsk, compare
+# PHYSICS -- rebuild the portable //e and //c disk from source.
+#   make            assemble, link, build build/physics.dsk
 #   make regen      regenerate src/*.s from the original disk (needs ORIG)
 #   make da65check  da65 + info-file disassembly of the code, reassembled, compared
 #   make ramcheck RAM=ram.bin   compare loaded pages with a RAM dump
@@ -14,7 +14,13 @@ B    := $(SRC)/build
 PHYS_SRCS := $(SRC)/physics.s $(SRC)/main.s $(SRC)/boxes.s $(SRC)/tables.s \
              $(SRC)/lcdata.s $(SRC)/hw.inc $(SRC)/zp_main.inc $(SRC)/data/background.hgr
 
-all: check
+all: build
+
+# Rebuild without claiming a comparison when the original is unavailable.
+build: build/physics.dsk
+
+require-original:
+	@test -f "$(ORIG)" || { echo "physics: original disk missing: $(ORIG). Supply ORIG=path/to/physics.dsk for verification; use make build to assemble only." >&2; exit 1; }
 
 $(B)/boot.o: $(SRC)/boot.s $(SRC)/hw.inc $(SRC)/zp_boot.inc
 	mkdir -p $(B)
@@ -34,23 +40,34 @@ build/physics.dsk: $(B)/boot.bin $(B)/seg_0800.bin tools/mkdisk.py
 	mkdir -p build
 	$(PY) tools/mkdisk.py $(B) $@
 
-check: build/physics.dsk
-	cmp build/physics.dsk $(ORIG) && echo "IDENTICAL: build/physics.dsk == $(ORIG)"
+check-original: build/physics.dsk require-original
+	cmp build/physics.dsk "$(ORIG)" && echo "IDENTICAL: build/physics.dsk == $(ORIG)"
 
-# independent cross-check with da65 (needs `make regen` first)
-da65check:
+# The shipping program contains the //c fix and intentionally differs from
+# the original. Its default check exercises the actual supported machines.
+check test: build/physics.dsk
+	$(PY) tests/test_smoke.py
+
+# Extract the original for analysis without rewriting the reconstructed sources.
+extract: require-original
+	mkdir -p work
+	$(PY) tools/extract.py tools "$(ORIG)" work
+
+# independent cross-check with da65 against the original disk
+da65check: extract
 	tools/da65check.sh work
 
 # prove the load map against a RAM dump of the running program
-ramcheck:
-	$(PY) tools/compare_ram.py work/image.bin $(RAM)
+ramcheck: require-ram extract
+	$(PY) tools/compare_ram.py work/image.bin "$(RAM)"
 
-regen:
-	mkdir -p work
-	$(PY) tools/extract.py tools $(ORIG) work
+require-ram:
+	@test -n "$(RAM)" && test -f "$(RAM)" || { echo "physics: supply RAM=path/to/ram.bin for a running-machine memory dump." >&2; exit 1; }
+
+regen: extract
 	$(PY) tools/gen.py tools work/image.bin work/boot0_9000.bin $(SRC)
 
 clean:
 	rm -rf $(B) build
 
-.PHONY: all check regen clean da65check ramcheck
+.PHONY: all build check test check-original extract require-original require-ram regen clean da65check ramcheck

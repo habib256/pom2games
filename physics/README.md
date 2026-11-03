@@ -1,16 +1,10 @@
 # PHYSICS — reconstructed source
 
-Commented ca65 source for the Apple //e program on `physics.dsk`
-(143 360-byte DOS-order image, custom boot loader, no DOS catalog).
-Every byte was regenerated from the disk. `make` reassembles it and rebuilds
-a disk that is **byte-identical** to the original:
-
-```
-$ make
-...
-build/physics.dsk: 107 sectors from the load table + 4 boot sectors
-IDENTICAL: build/physics.dsk == orig/physics.dsk
-```
+Commented ca65 source reconstructed from `physics.dsk` (143 360-byte
+DOS-order image, custom boot loader, no DOS catalog), with portable timing
+for **Apple //e and //c**. The reconstruction originally matched every disk
+byte. The shipping disk now intentionally includes a //c VBL correction.
+The loader, segment addresses, physics and artwork are preserved.
 
 The program: up to three spinning balls fall under gravity, roll and bounce
 off each other, off the screen walls and off seven boxes. The boxes dent where
@@ -43,15 +37,26 @@ top of the screen set how soft the boxes are and how long they wobble.
 Needs `ca65`/`ld65` (cc65 2.18 was used) and Python 3.
 
 ```
-make             # assemble, link, build build/physics.dsk, cmp against orig/physics.dsk
-make da65check   # da65 disassembly of both code segments, reassembled, compared
-make ramcheck RAM=path/to/ram.bin
-make regen       # regenerate src/*.s, src/*.inc and src/data from orig/physics.dsk
+make             # assemble and build build/physics.dsk (no original required)
+make test        # emulated //e, //c and early //c: NTSC and PAL smoke/cadence checks
+make check       # same runtime checks
+make extract     # extract the original into work/ without rewriting sources
+make da65check   # independent disassembly check of the supplied original
+make ramcheck RAM=path/to/ram.bin # compare original load image against a RAM dump
+make check-original # strict byte comparison; shipping //c patch differs intentionally
+make regen       # archival operation: regenerate ORIGINAL sources, removing the //c fix
 ```
 
-`make regen` rewrites the sources from `tools/annotations.py`. If you edit
-the `.s` files by hand, stop using `regen`. The `.s` files are the source.
-The generator is only how they were produced.
+Runtime tests need `../dev/tools/a2shot/a2shot` (`make -C ../dev/tools/a2shot`).
+Original analysis targets (`extract`, `da65check`, `ramcheck`, `check-original`,
+`regen`) require the local `orig/physics.dsk`, or `ORIG=/path/to/physics.dsk`.
+Missing originals fail explicitly. These original-image analysis tools do
+not validate the patched program; `make test` validates the shipping disk.
+
+The `.s` files are the maintained source. `tools/gen.py` and
+`tools/annotations.py` describe the original reconstruction only. **Do not
+run `make regen` during normal development:** it replaces the maintained
+sources with the original and removes the compatibility fix.
 
 ## Load map
 
@@ -192,26 +197,40 @@ run is the same).
 **Keys.** ↑/↓: softness slider −/+ (wakes all balls). ←/→: wobble slider −/+.
 SPACE: spawn. P: pause.
 
-## Why it freezes on a //c
+## Portable //e and //c timing
 
-`wait_vbl` (`$0E2C`) loops until `vblcount` reaches `vblwant`. `vblcount`
-only grows when bit 7 of `$C019` changes from 1 to 0. On the //e, `$C019`
-is RDVBLBAR, a live signal that toggles every frame. On the //c the same
-address is VBLINT: a flag that latches only when the VBL interrupt has been
-enabled through the IOU. This program never enables it, and it runs with
-interrupts masked (`SEI` in `init`). So the bit never changes, `vblcount`
-stays 0, and the first `wait_and_flip` never returns. The POM2 //c run shows
-exactly this: after loading, the PC stays in `$0E2C-$0E41` for the whole run.
-Nothing else in the program is //e-specific. It uses only NMOS 6502 opcodes,
-writes to language-card bank 1 and main RAM, and touches no auxiliary memory.
+The original froze on //c: `$C019` is its latched VBL interrupt flag,
+whereas the //e reads a live signal whose bit 7 goes low during blanking.
+The original waited for //e falling edges without enabling the //c latch.
+
+`init_vbl` identifies the ROM before mapping language-card RAM over it.
+On //c it writes `$C07F` to enable IOU switches, enables VBL with `$C05B`,
+and clears any old event through `$C070`. The CPU stays under `SEI`:
+no ROM interrupt handler or ProDOS service is required. Each `read_vbl`
+acknowledges a latched event and returns the //e blank polarity; between
+events it returns the active polarity. On //e it reads `$C019` directly.
+All polling points in physics, rendering and box drawing use this adapter.
+As with the original live-signal clock, polls must remain frequent; a latch
+cannot accumulate multiple fields while the CPU is busy elsewhere.
+
+The adapter fits the original 56-byte unused tail of MAIN. Every replaced
+`LDA $C019` becomes a same-size `JSR`, so existing program addresses and
+the load map remain fixed. The original two-to-four tick catch-up and
+minimum two-field page flips are retained. The runtime test checks movement,
+pause/restart, spawn and video cadence on //e, //c and early //c ROMs in both
+NTSC and PAL modes (296/300 rendered frames over 600 video fields in the
+three-ball stress interval).
+
+Hardware reference: Apple's [IIc Technical Note #9, Detecting VBL](https://mirrors.apple2.org.za/Apple%20II%20Documentation%20Project/Computers/Apple%20II/Apple%20IIc/Documentation/Apple%20IIc%20Technical%20Notes.pdf).
 
 ## Certainty
 
-* **Code and data split.** This is verified. A recursive trace from `$0800`
+* **Original code and data split.** A recursive trace from `$0800`
   reaches every byte of `$0800-$1CC7` and `$9400-$9A0C` as code, with no
   65C02 opcodes, no indirect jumps and no calls outside the loaded image. Two
   disassemblers agree (`gen.py` and da65 driven by an info file), and both
-  reassemble to identical bytes.
+  reassemble to identical bytes. The portable timing adapter is maintained
+  separately in the assembly sources and exercised by runtime tests.
 * **Unexplained bytes.** Three bytes at `$99AF` (`20 A0 99`, a JSR to
   `bg_row_ptr`) are never reached and are kept as data. The byte at `$928D`
   (a `$00` after the text-record terminator) and the zero tails of the last

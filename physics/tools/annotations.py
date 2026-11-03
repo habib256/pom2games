@@ -1,3 +1,4 @@
+# Original-image annotations only: regeneration removes the maintained //c adapter.
 # annotations.py -- names, comments and data layout for the PHYSICS disassembly.
 # Everything here was derived by reading the code; names marked "?" in the
 # comments are guesses about intent that the code does not prove.

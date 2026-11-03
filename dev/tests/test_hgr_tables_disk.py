@@ -9,6 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'dev/tools'))
 import hgr_tables as hgr
+import dos33
+import dos33patch
 from dos33 import Dos33Image, catalog, read_file, TYPE_B
 
 
@@ -85,6 +87,53 @@ class FixedDisk(unittest.TestCase):
         allocated=next(t*16+s for t,s,*_ in image.catalog)
         with self.assertRaises(ValueError):
             image.reserve_sectors(allocated,1)
+
+
+class DiskValidation(unittest.TestCase):
+    def setUp(self):
+        image = Dos33Image.blank()
+        image.add_file('GAME', TYPE_B, struct.pack('<HH', 0x6000, 16) + bytes(16))
+        image.write_vtoc()
+        self.disk = bytearray(image.data)
+
+    def test_catalog_cycle(self):
+        t, s = self.disk[17 * 4096 + 1:17 * 4096 + 3]
+        off = (t * 16 + s) * 256
+        self.disk[off + 1:off + 3] = bytes((t, s))
+        with self.assertRaisesRegex(ValueError, 'cyclic DOS catalog'):
+            catalog(self.disk)
+
+    def test_sector_list_cycle(self):
+        *_, t, s = catalog(self.disk)[0]
+        off = (t * 16 + s) * 256
+        self.disk[off + 1:off + 3] = bytes((t, s))
+        with self.assertRaisesRegex(ValueError, 'cyclic DOS track'):
+            read_file(self.disk, 'GAME')
+
+    def test_invalid_data_sector(self):
+        *_, t, s = catalog(self.disk)[0]
+        off = (t * 16 + s) * 256
+        self.disk[off + 12:off + 14] = bytes((35, 0))
+        with self.assertRaises(ValueError):
+            read_file(self.disk, 'GAME')
+
+    def test_truncated_sector(self):
+        with self.assertRaisesRegex(ValueError, 'truncated'):
+            catalog(self.disk[:100])
+
+    def test_patch_bounds_and_atomicity(self):
+        original = bytes(self.disk)
+        for start in (0x5ffe, 0x600f, 0x6010):
+            with self.subTest(start=start):
+                with self.assertRaises(SystemExit):
+                    dos33patch.patch(self.disk, 'GAME',
+                                     {'T': start, 'S': start + 1},
+                                     tslists=[('T', 'S', 'GAME')])
+                self.assertEqual(bytes(self.disk), original)
+        dos33patch.patch(self.disk, 'GAME', {'T': 0x600e, 'S': 0x600f},
+                         tslists=[('T', 'S', 'GAME')])
+        self.assertEqual(read_file(self.disk, 'GAME')[14:],
+                         bytes(catalog(self.disk)[0][-2:]))
 
 
 if __name__ == '__main__':
