@@ -733,3 +733,23 @@ The `HGRC_TILEMAP_SRCS` family is extracted only when it is called.
 The `HGRC_HEADERS` dependencies also include the `apple2c` headers,
 included transitively by `hgr.h`, so that C consumers are recompiled when
 the platform contract changes.
+
+### Small drawing setup costs
+
+Measured with cc65 2.18 `-Oirs` after table initialization, using emulator
+checkpoints around a single call (including argument setup and checkpoint
+return overhead):
+
+| Call | Before | After | Linked fixture size reduction |
+| --- | ---: | ---: | ---: |
+| `dhgr_fill_bits(3,4,16,1,0)` | 1,680 cycles | 1,428 cycles | 29 B |
+| `dhgr_fill_bits(3,4,16,1,255)` | 1,684 cycles | 1,429 cycles | 29 B |
+| `hgr_blit7(14,10,2,3,bits,HGR_SET)` | 796 cycles | 787 cycles | 6 B |
+| `hgr_cell(34,23,1)` | 936 cycles | 903 cycles | 15 B |
+
+Monochrome fill sets its four identical pattern bytes directly. The byte
+blit relies on the already-checked pixel coordinate to bound its column.
+The cell kernel shifts in the accumulator and shares the high byte of
+`x` and `x+5`, since `x` is a multiple of eight. `test_hgr.py` checks the
+full 35×24 cell grid on both pages, invalid byte coordinates and screen holes;
+`test_dhgr.py` and `test_dhgr_extended.py` cover the monochrome drawing paths.

@@ -3,7 +3,8 @@
 void dhgr_fill_bits(unsigned x, unsigned char y, unsigned width,
                     unsigned char height, unsigned char set)
 {
-    unsigned char i;
-    for (i = 0; i < 4; ++i) dhgr_pattern[i] = set ? 0x7F : 0;
+    /* All four byte phases are identical in monochrome: decide once. */
+    dhgr_pattern[0] = dhgr_pattern[1] = dhgr_pattern[2] = dhgr_pattern[3] =
+        set ? 0x7F : 0;
     dhgr_bit_rect(x, y, width, height);
 }

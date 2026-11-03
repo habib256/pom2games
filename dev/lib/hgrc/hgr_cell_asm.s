@@ -26,22 +26,19 @@ _hgr_cell_asm:
         lda     _hgr_c_cx
         cmp     #35
         bcs     cell_out
+        ; cx < 35: the first two shifts cannot carry; the third gives
+        ; the ninth bit. The low byte is a multiple of eight, so x+5
+        ; shares the high byte and can use ORA without disturbing carry.
+        asl     a
+        asl     a
+        asl     a
         sta     _hgr_r_x
-        lda     #0
-        sta     _hgr_r_x+1
-        asl     _hgr_r_x
-        rol     _hgr_r_x+1
-        asl     _hgr_r_x
-        rol     _hgr_r_x+1
-        asl     _hgr_r_x
-        rol     _hgr_r_x+1          ; hgr_r_x = cx*8
-        clc
-        lda     _hgr_r_x
-        adc     #5
+        ora     #5
         sta     _hgr_r_xr
-        lda     _hgr_r_x+1
-        adc     #0
-        sta     _hgr_r_xr+1         ; hgr_r_xr = hgr_r_x + 5
+        lda     #0
+        rol     a
+        sta     _hgr_r_x+1
+        sta     _hgr_r_xr+1
         txa                         ; cy
         asl     a
         asl     a

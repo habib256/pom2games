@@ -191,6 +191,40 @@ def check_archive(work):
     print(f'HGR/DHGR archive: {len(cases)} minimal programs exclude unused code and zero-page families.')
 
 
+def check_cell_grid(work):
+    source = work / 'cell_grid.c'
+    source.write_text('''#include "hgr.h"
+int main(void) {
+    unsigned x, y;
+    unsigned char page;
+    for (page=1; page<=2; ++page) {
+        hgr_set_draw_page(page); hgr_clear(170u);
+        for (y=0; y<24; ++y)
+            for (x=0; x<35; ++x) hgr_cell(x,y,(x+y+page)&1u);
+        /* Every invalid byte coordinate must leave the screen alone. */
+        for (x=35; x<256; ++x) hgr_cell(x,0u,1u);
+        for (y=24; y<256; ++y) hgr_cell(0u,y,1u);
+    }
+    apple2_getkey();
+    for (;;) {}
+    return 0;
+}
+''')
+    disk = build(work, source)
+    L = a2test.labels(work / 'test.lbl', strip=True)
+    result = a2test.run(None, a2test.bin_steps(work / 'test.bin') +
+                        [L.until('apple2_getkey', 10000), 'peek:2000:16384'])
+    expected = bytearray()
+    for page in (1, 2):
+        view = bytearray([170]) * 8192
+        for y in range(24):
+            for x in range(35):
+                rect(view, x*8, y*8, x*8+5, y*8+5, bool((x+y+page) & 1))
+        expected.extend(view)
+    assert result.mem(0x2000, 16384) == expected, 'cell grid, clipping or screen holes'
+    print('HGR cells: all 840 positions on both pages, invalid byte coordinates and holes OK.')
+
+
 def check_cell_text(work, font):
     disk = build(work, DEV / 'tests/gfx_text_fixture.c')
     steps = ['wait:1100']
@@ -295,6 +329,7 @@ def main():
         print('HGR: 21 checkpoints passed (rectangles 256/280, clipping, both pages,')
         print('pixels, sprites SET/CLEAR/XOR and 7 phases, text, numbers, cells, colorization).')
         check_cell_text(work, font)
+        check_cell_grid(work)
 
 
 if __name__ == '__main__':

@@ -12,7 +12,6 @@ void hgr_blit7(unsigned x, unsigned char y, unsigned char wbytes,
     hgr_build_columns();
     if (wbytes == 0u || h == 0u || y > 191u || x > 279u) return;
     col = hgr_col7[x];                                      /* no runtime divide */
-    if (col >= 40u) return;
     hgr_b_col    = col;
     hgr_b_stride = wbytes;                                  /* full source row     */
     if ((unsigned)col + wbytes > 40u) wbytes = (unsigned char)(40u - col);/* R clip */
