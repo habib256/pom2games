@@ -320,3 +320,14 @@ colonne à chaque octet. `hgr_rect` (140×16) **6 117 → 5 213 cycles** (−15 
 × 16 lignes) **9 266 → 7 824** (−16 %), `hgr_span` (ligne de 280 pixels)
 1 096 → 993 (−9 %). `hgr_pixrect_asm.s` 225 → 253 octets, `hgr_byte_rect_asm.s`
 39 → 60 ; RAM et page zéro inchangées. Références recalées pour ces trois cas.
+
+Lot annulé le jour même : les −13 octets de `mouse.s`/`video.s` décalent
+les membres de bibliothèque qui suivent dans l'édition de liens de
+CHROMABREAK ; les franchissements de page changent le coût de quelques
+images, et sa campagne déterministe de 193 minutes (`tests/test_mouse.py`,
+tier long, en CI) diverge : combo x7 au lieu du x8 attendu, pour un gain
+nul en RAM (les octets étaient mis en réserve). Revenu aux modules et aux
+disques du commit précédent, que la CI avait validés de bout en bout. Toute
+réduction de la bibliothèque liée par CHROMABREAK demande donc ce tier long,
+pas seulement les asserts de `spare.s`.
+
