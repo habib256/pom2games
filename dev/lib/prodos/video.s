@@ -20,15 +20,13 @@ _prodos_video_claim:
         lda tmp1
         beq busy
 ok:     lda #0
-        tax
+retx:   ldx #0
         rts
 bad_policy:
         lda #2
-        ldx #0
-        rts
+        bne retx
 busy:   lda #1
-        ldx #0
-        rts
+        bne retx
 discover:
         ldy $BF31              ; count minus one, $FF means empty
         cpy #$FF
@@ -36,8 +34,7 @@ discover:
         cpy #14
         bcc scan
         lda #3                 ; malformed list: leave claim untouched
-        ldx #0
-        rts
+        bne retx
 scan:   lda $BF32,y
         and #$F0
         sta tmp2
@@ -72,5 +69,4 @@ _prodos_video_release:
         jmp _prodos_format_ram
 released:
         lda #1
-        ldx #0
-        rts
+        bne retx
