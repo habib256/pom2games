@@ -298,3 +298,18 @@ Nouveau cas `dhgr_small_text` : `dhgr_puts_small("APPLE II",0,0)`, le texte
 compact de ROBOT SPACE STATION, **14 483 cycles** (1 810 le caractère, cinq
 lignes lues-modifiées-écrites dans les deux banques), 2 994 octets de binaire.
 Mesuré sans modification : une référence pour les passes suivantes.
+
+Recalage des références HGR (`run.py --update`, a2run) : les commits de
+bibliothèque du 2026-11-03 (préparation commune des remplissages inclusifs,
+conversion hexadécimale native, décimal signé séparé, avance du crayon)
+avaient amélioré treize cas sans recaler `baseline.json`. Les écarts :
+`hgr_span` 3 101 → 1 096 cycles et 2 487 → 2 036 octets, `hgr_text`
+8 547 → 8 448, `hgr_sprite7` 1 668 → 1 657, `hgr_diagonal` 3 241 → 2 803
+octets (21 200 → 21 144 cycles), `gfx_diagonal` 3 655 → 3 217 octets
+(21 263 → 21 379 cycles), `hgr_diagonal_cold` 3 210 → 2 772 octets
+(82 175 → 82 801 cycles), `hgr_hud_cold` 104 439 → 103 829, `hgr_hud_warm`
+36 655 → 36 100, `hgr_scene_cold` 42 598 → 42 484, `hgr_scene_warm`
+15 097 → 14 956, et leurs variantes `_x7folded`. RAM et page zéro
+inchangées ; les budgets absolus et le tableau du README du banc restent
+valables.
+
