@@ -259,3 +259,22 @@ compositeur restent dans ±2 % de leur référence (`dhgr_spr_move` 15 939,
 2 120 (palette et zone dans leurs propres membres, une boucle de découpe
 pour les deux axes, une boucle de rectangles pour les deux chemins, fusion
 des dégâts en O(n²)).
+
+## 2026-11-03 : effacement DHGR complet, horloge vidéo plus courte
+
+`dhgr_clear` : **187 309 → 114 377 cycles** (−39 %), 98 → 97 octets de code,
+même page zéro (`ptr1`, `tmp1`). Chaque page de 256 octets est écrite en deux
+passes (octets pairs, octets impairs) d'un seul octet de motif par huit
+`sta abs,Y` (5 cycles l'octet) dont l'opérande de page est patché pendant que
+RAMWRT est principal — sous RAMWRTON, l'écriture irait dans la copie
+auxiliaire du code. Les IRQ ne sont plus masquées pendant tout l'effacement
+(onze rafraîchissements) mais une page à la fois, environ 1 750 cycles.
+`test_dhgr.py` et `test_dhgr_clear_rows.py` vérifient les seize couleurs sur
+les deux pages et les deux banques, trous et commutateurs compris ; la
+référence `dhgr_clear` est recalée (`run.py --dhgr --update --only dhgr_clear`).
+
+`apple2vbl.s` (hors banc) : 166 → 149 octets de code à contrat constant,
+après les +18 de la réutilisation du gestionnaire et de la libération sur
+échec (`test_vbl_lifecycle.py`). CHROMABREAK relie les deux modules : +1 et −1,
+le CODE de bibliothèque est inchangé et toutes les adresses de `spare.s`
+tiennent sans retouche des réserves.

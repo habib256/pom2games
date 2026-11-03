@@ -39,18 +39,14 @@ release: .byte 1,0
 ; a2_frame_init (its delay is reset). X = 0.
 _a2_vbl_init:
         jsr _a2_vbl_close       ; release an existing IRQ before polling
-        jsr _a2_frame_init
-        ldx #0
+        jsr _a2_frame_init      ; A = 1 or 0, X = 0
         cmp #1
-        bne :+
+        bne none                ; mode 0 already (closed above)
         sta _a2_vbl_mode
         lda $C019
         and #$80
         sta _a2_vbl_beam
-        lda #1
-        rts
-:       stx _a2_vbl_mode
-        txa
+        lda #1                  ; (X = 0 since a2_frame_init)
         rts
 
 ; A = 2 (and mode 2) once the mouse firmware's VBL interrupt is installed,
@@ -58,8 +54,8 @@ _a2_vbl_init:
 ; Repeated initialization reuses the handler. Success enables IRQs (CLI).
 _a2_vbl_irq_init:
         lda _a2_vbl_mode
-        cmp #2
-        beq irq_ready           ; never allocate a second handler
+        lsr                     ; mode 2 alone has bit 1 set:
+        bne irq_ready           ; never allocate a second handler
         lda _mouse_slot
         beq none
         php
@@ -73,12 +69,11 @@ _a2_vbl_irq_init:
         lda #9                   ; mouse firmware: VBL interrupts
         jsr _mouse_timing_mode
         bcs mouse_failed
-        lda #2
-        sta _a2_vbl_mode
         plp
 irq_ready:
-        cli
         lda #2
+        sta _a2_vbl_mode
+        cli
         ldx #0
         rts
 mouse_failed:
@@ -93,12 +88,11 @@ none:   lda #0
 ; Back to mode 0; in mode 2, the mouse to mode 1 and the handler removed.
 _a2_vbl_close:
         lda _a2_vbl_mode
-        cmp #2
-        bne closed
+        lsr                     ; mode 2 alone has bit 1 set: A = 1,
+        beq closed              ; the firmware's passive mode below
         php
         sei
-        lda #1
-        jsr _mouse_timing_mode
+        jsr _mouse_timing_mode  ; A = 1
         jsr $BF00
         .byte $41                ; DEALLOC_INTERRUPT
         .word release
@@ -111,8 +105,8 @@ closed: stz _a2_vbl_mode
 ; with the JSR when nothing changed (21 outside mode 1); A clobbered.
 _a2_vbl_scan:
         lda _a2_vbl_mode
-        cmp #1
-        bne scanned
+        lsr                     ; C = 1 for mode 1 alone
+        bcc scanned
         lda $C019
         and #$80
         cmp _a2_vbl_beam
@@ -125,14 +119,14 @@ _a2_vbl_scan:
         cmp _a2_vbl_beam
         beq :+                   ; an interrupt took it
         sta _a2_vbl_beam
-        cmp #$80
-        beq :+                   ; blank -> picture: nothing
+        asl a                    ; C = bit 7: blank -> picture, nothing
+        bcs :+
         inc _a2_vbl_count
 :       plp
 .else
         sta _a2_vbl_beam
-        cmp #0
-        bne scanned              ; blank -> picture: nothing
+        asl a                    ; C = bit 7: blank -> picture, nothing
+        bcs scanned
         inc _a2_vbl_count
 .endif
 scanned:
@@ -142,14 +136,11 @@ scanned:
 vbl_irq:
         cld
         jsr _mouse_serve_irq
-        bcs not_ours
+        bcs served               ; not ours: C = 1 back to ProDOS
         inc _a2_vbl_count
         lda _a2_vbl_hook+1
-        beq :+
+        beq served               ; C = 0 since the bcs
         jsr hook
-:       clc
-        rts
-not_ours:
-        sec
-        rts
+        clc                      ; (the hook ignores C: clear it again)
+served: rts
 hook:   jmp (_a2_vbl_hook)

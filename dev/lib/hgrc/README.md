@@ -542,8 +542,18 @@ be serviced between lines. The measured kernel takes 1 177 cycles, under a
 tested bound of 1 300. A test with a Mockingboard VIA timer also checks that periodic IRQs
 are actually serviced during both page clears, with checks on
 banks, memory guards and pixels. Servicing remains non-reentrant. Use small
-slices so that input is also handled between calls. The historical full
-clear keeps its behaviour and performance.
+slices so that input is also handled between calls.
+
+`dhgr_clear(color)` fills both banks of the drawing page, holes included,
+in 114,377 cycles instead of 187,309: each 256-byte page is two passes
+(even bytes, odd bytes) of one pattern byte through eight absolute stores,
+five cycles a byte, whose page operand is patched while RAMWRT is main (a
+write under RAMWRTON would land in the auxiliary copy of the code). IRQs
+are masked one page at a time, about 1,750 cycles, instead of the whole
+clear (eleven refreshes). 97 bytes of code, one less than before; same
+zero page (`ptr1`, `tmp1`). `test_dhgr.py` and `test_dhgr_clear_rows.py`
+check the sixteen colours on both pages and banks, holes and display
+switches included.
 
 The host reference `hgr_inflate_x2` (`hgr_x2.c`) and the target version
 (`hgr_x2_target.c`) compute the enlarged strides without 8-bit truncation.

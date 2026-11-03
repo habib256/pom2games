@@ -73,17 +73,17 @@
       "hardware_stack_available_bytes": 255
     },
     "dhgr_clear": {
-      "code_bytes": 922,
+      "code_bytes": 921,
       "init_code_bytes": 12,
       "rodata_bytes": 128,
       "ram_bytes": 312,
       "zp_bytes": 35,
-      "binary_bytes": 1088,
-      "cycles": 187309,
+      "binary_bytes": 1087,
+      "cycles": 114377,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 1,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 9,
+      "hardware_stack_peak_bytes": 11,
       "hardware_stack_available_bytes": 255
     },
     "dhgr_span": {

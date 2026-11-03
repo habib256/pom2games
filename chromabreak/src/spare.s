@@ -35,6 +35,10 @@
 ; CODE bytes. RODATA/BSS spares consumed (-1/-12); assembly code stays at
 ; its addresses, tables move +52 and variables +40. Recheck every profile
 ; because indexed table reads may cross different pages (14 RAM bytes free).
+; 2026-11-03, shared libraries: apple2vbl.s +1 in all (handler reuse and
+; release on failure, then shorter paths) and dhgr_clear_asm.s -1 (five
+; cycles a byte, IRQs masked one page at a time): library CODE unchanged,
+; every asserted address holds, nothing to absorb.
 CODE_SPARE   = 38
 RODATA_SPARE = 0
 BSS_SPARE    = 0
