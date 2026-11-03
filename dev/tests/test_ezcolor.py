@@ -364,6 +364,39 @@ t_m2:
 :       RTS
 txt:    .byte   "MODE 2", 0
 
+; All byte codes in a 32x8 grid; deliberately unaligned input positions.
+t_glyph_codes:
+        JSR ez_detect
+        JSR init_vdp_g2
+        LDA #9
+        STA pen_color
+        LDA #0
+        STA r_buf
+@next:  LDA r_buf
+        AND #31
+        ASL
+        ASL
+        ASL
+        ORA #3
+        STA pix_x
+        LDA r_buf
+        LSR
+        LSR
+        LSR
+        LSR
+        LSR
+        ASL
+        ASL
+        ASL
+        ORA #5
+        STA pix_y
+        LDA r_buf
+        JSR text_blit_glyph
+        INC r_buf
+        BNE @next
+        RTS
+.export tms_bbfont
+
 .include "text_bitmap.asm"
 .include "tms9918m2.asm"
 .include "ezcolor.asm"
@@ -531,6 +564,17 @@ def main():
         lit = sum(px == tms9918.PALETTE[9] for row in rows[168:176] for px in row[88:136])
         ok(lit > 30, f'text_blit_glyph pixels {lit}')
         print(f'ok   Graphics II (init_vdp_g2 + line_xy + text_blit_glyph): {OUT / "ezcolor_mode2.png"}')
+
+        r = run(B, [call(LB, 't_glyph_codes', 1500),
+                    LB.peek('tms_bbfont', 768), 'vpeek:0000:2048',
+                    'vpeek:2000:2048'], 5)
+        font = r.mem(LB['tms_bbfont'], 768)
+        glyphs = [(c & 127) if (c & 127) < 32 else (c & 127)-32 for c in range(256)]
+        expected = b''.join(font[index*8:index*8+8] for index in glyphs)
+        ok(r.vmem(0, 2048) == expected, 'bitmap glyphs: all byte codes stay in the font')
+        ok(r.vmem(0x2000, 2048) == bytes([0x91])*2048, 'bitmap glyph colour cells')
+        ok(r.vdp_fast == 0, 'bitmap glyph codes: silicon access timing')
+        print('ok   bitmap text: all 256 byte codes, control mapping, bit 7, unaligned cells')
 
         # Text mode + console (scrolling)
         r = run(D, [call(LD, 't_text', 3000)] + a2test.VDP_SHOT_STEPS, 2)

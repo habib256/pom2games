@@ -12,7 +12,8 @@
 ; Port: POM1 read the Apple-1 charmap.rom (1 KB, bit-reversed on the fly,
 ; gated by CODETANK_BUILD); this port blits tms_bbfont from bbfont_tms.inc
 ; (768 bytes, already MSB-left), included here when the routine is used.
-; Codes below $20 draw as $20..$3F (A AND $7F, minus $20, AND $7F).
+; After ignoring bit 7, codes below $20 draw as $20..$3F. All other
+; codes use their ASCII glyph; every index stays within the 96-glyph font.
 ;
 ; ----------------------------------------------------------------------------
 ; API:
@@ -50,21 +51,21 @@ _TEXT_BITMAP_ASM_LOADED_ = 1
 ;   the full register / ZP contract.
 ; ----------------------------------------------------------------------------
 text_blit_glyph:
-        AND #$7F                  ; clamp to printable range
+        AND #$7F                  ; ignore the Apple-1 high-bit marker
         SEC
-        SBC #$20                  ; tms_bbfont starts at ' '
-        AND #$7F
-        STA tmp                   ; tmp:tmp2 = A * 8 (16-bit shift)
-        LDA #0
-        STA tmp2
-        ASL tmp
+        SBC #$20                  ; printable ASCII -> font index 0..95
+        BCS :+
+        ADC #$20                  ; control codes -> indices 0..31 (C = 0)
+:       LDX #0
+        STX tmp2
+        ; Shift the low byte in A; only the high byte needs memory.
+        ASL A
         ROL tmp2
-        ASL tmp
+        ASL A
         ROL tmp2
-        ASL tmp
+        ASL A
         ROL tmp2
         CLC
-        LDA tmp
         ADC #<tms_bbfont
         STA mptr_lo
         LDA tmp2

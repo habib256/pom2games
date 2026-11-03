@@ -112,7 +112,12 @@ inside each file the routines are ordered callers first. Include path:
   (bit-reversed on the fly, 1 KB): here `upload_charmap` uses
   `tms_c64font` (768 B, already in Text mode's 6 visible pixels, chars
   0-31 blank) and `text_blit_glyph` the bolder `tms_bbfont`; codes below
-  `$20` blit as `$20..$3F`.
+  `$20` blit as `$20..$3F` after bit 7 is ignored. These codes stay
+  inside the 96-glyph font (the old wrapping subtraction read past it).
+  `test_ezcolor.py` checks all 256 input bytes, including unaligned cell
+  coordinates, glyph bytes, colour cells and video-access timing.
+  Keeping the glyph-offset low byte in A saves five code bytes overall;
+  the test fixture's isolated `A` glyph measured 930 → 911 CPU cycles.
 - `init_vdp_g1` / `init_vdp_g2` wipe and fill through `ez_fill_blank`
   (same 9 cycles a byte as POM1's unpadded loops, display blanked).
 - `vdp_set_write` / `vdp_set_read` lost their trailing pad: `ez_ctrl_w`
