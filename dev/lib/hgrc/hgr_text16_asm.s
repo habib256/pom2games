@@ -229,16 +229,11 @@ _hgr_puts_run:
         cmp #7
         bcc @nowrap
         sbc #7                  ; carry set by cmp (>=7): A = bit+4-7
-        sta _hgr_t_bit
-        lda _hgr_t_col
-        clc
-        adc #3                  ; col += 2, +1 for the bit wrap
-        sta _hgr_t_col
-        jmp @adv2
 @nowrap:
         sta _hgr_t_bit
         lda _hgr_t_col
-        clc
+        ; CMP leaves C=0 without wrap; SBC leaves C=1 after wrap.
+        ; STA/LDA preserve it, so this adds either two or three columns.
         adc #2
         sta _hgr_t_col
 @adv2:

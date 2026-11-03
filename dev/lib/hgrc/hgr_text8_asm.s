@@ -90,25 +90,16 @@ _hgr_puts_run8:
         lda _hgr_t_bit
         sta _hgr_g_bit
         jsr _hgr_blit_glyph8
-        ; pen += 8px: bit += 1 (+ carry into col on the 7px wrap)
+        ; pen += 8px: one column and one bit, with a second column
+        ; when bit 6 wraps to 0. No duplicated column arithmetic.
+        inc _hgr_t_col
+        inc _hgr_t_bit
         lda _hgr_t_bit
-        clc
-        adc #1
         cmp #7
-        bcc @nowrap
-        sbc #7                  ; carry set by cmp (>=7): A = bit+1-7
+        bcc @adv2
+        lda #0
         sta _hgr_t_bit
-        lda _hgr_t_col
-        clc
-        adc #2                  ; col += 1, +1 for the bit wrap
-        sta _hgr_t_col
-        jmp @adv2
-@nowrap:
-        sta _hgr_t_bit
-        lda _hgr_t_col
-        clc
-        adc #1
-        sta _hgr_t_col
+        inc _hgr_t_col
 @adv2:
         inc _hgr_t_s           ; ++s
         bne @sok

@@ -786,3 +786,17 @@ solid-background case changes from 975,240 to 976,825 despite not using
 this module's background path. This is a speed/size tradeoff for callback
 backgrounds, not a universal speedup. Tests also cover cell heights 5, 7,
 13, 31, 191 and 255 with partial rows and late invalidation.
+
+### Text pen advancement
+
+Native text advances with increments; doubled text reuses the bit-wrap
+carry when adding its column offset. This removes duplicated column
+updates: `hgr_text8_asm.s` CODE is 141 B (was 157), and
+`hgr_text16_asm.s` CODE is 318 B (was 331). No RAM/ZP is added.
+
+A warmed cc65 `-Oirs` fixture rendering `"APPLE II"` at x=3 measured
+9,363 → 9,249 cycles for native text and 20,341 → 20,419 for doubled
+text. These whole-call results include linked-code placement effects;
+this is not a universal speedup. `test_hgr.py` checks multi-character
+advancement at all seven bit phases, both pages and the right edge;
+`test_hgr_glyphs.py` checks all 96 glyphs at all phases on both pages.

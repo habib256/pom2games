@@ -191,6 +191,38 @@ def check_archive(work):
     print(f'HGR/DHGR archive: {len(cases)} minimal programs exclude unused code and zero-page families.')
 
 
+def check_text_advances(work, font):
+    source = work / 'text_advances.c'
+    source.write_text('''#include "hgr.h"
+int main(void) {
+    unsigned char page, phase;
+    for (page=1; page<=2; ++page) {
+        hgr_set_draw_page(page); hgr_clear(170u);
+        for (phase=0; phase<7; ++phase) {
+            hgr_puts8(phase,phase*24u,"ABCD9?");
+            hgr_puts8(250u+phase,phase*24u,"ABCD9?");
+            hgr_puts(phase,phase*24u+8u,"ABCD9?");
+            hgr_puts(250u+phase,phase*24u+8u,"ABCD9?");
+        }
+    }
+    apple2_getkey();
+    for (;;) {}
+    return 0;
+}
+''')
+    build(work, source)
+    L = a2test.labels(work / 'test.lbl', strip=True)
+    result = a2test.run(None, a2test.bin_steps(work / 'test.bin') +
+                        [L.until('apple2_getkey', 10000), 'peek:2000:16384'])
+    expected = bytearray([170]) * 8192
+    for phase in range(7):
+        for x in (phase, 250 + phase):
+            text(expected, font, x, phase*24, 'ABCD9?', 1)
+            text(expected, font, x, phase*24+8, 'ABCD9?', 2)
+    assert result.mem(0x2000, 16384) == expected * 2, 'text pen advance or edge clipping'
+    print('HGR text advance: native/doubled strings, seven phases, right clipping and both pages OK.')
+
+
 def check_cell_grid(work):
     source = work / 'cell_grid.c'
     source.write_text('''#include "hgr.h"
@@ -330,6 +362,7 @@ def main():
         print('pixels, sprites SET/CLEAR/XOR and 7 phases, text, numbers, cells, colorization).')
         check_cell_text(work, font)
         check_cell_grid(work)
+        check_text_advances(work, font)
 
 
 if __name__ == '__main__':
