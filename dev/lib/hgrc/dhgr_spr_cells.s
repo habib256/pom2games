@@ -8,7 +8,7 @@
 .import _dhgr_cellbyte, pusha, popa, popax, incsp4
 .import cv_rx, cv_ry, cv_nib, cv_nibble, dhgr_cv_fill
 .importzp cv_rw, cv_rh
-.importzp sp
+.importzp sp, ptr1
 .import _dhgr_spr_bg, _dhgr_spr_bg_jmp, _dhgr_spr_pal, pg, pn, py
 .import _dhgr_cv_y1, _dhgr_cv_shape, _dhgr_cv_sx, _dhgr_cv_sy, _dhgr_cv_flags
 .import _dhgr_cv_pal, _dhgr_cv_paint
@@ -84,16 +84,7 @@ cells:  lda #0                  ; (tiles: unmirrored, slot 0's colours)
         sta call_cell+1
         lda _dhgr_spr_cell+1
         sta call_cell+2
-        lda _dhgr_spr_tset       ; (tiles: the shape pointer table)
-        sta set_lo+1
-        sta set_hi+1
-        lda _dhgr_spr_tset+1
-        sta set_lo+2
-        sta set_hi+2
-        inc set_hi+1
-        bne :+
-        inc set_hi+2
-:       lda py
+        lda py
         sec
         sbc _dhgr_spr_cell_y
         bcs :+
@@ -177,11 +168,24 @@ tile_cell:
         tay
 map_row:
         lda $FFFF,y
+        ; A byte tile ID indexes a table of 256 two-byte pointers.
+        ; Keep the ninth offset bit; ASL/TAY alone aliases IDs 128..255.
         asl a
         tay
-set_lo: lda $FFFF,y
+        lda _dhgr_spr_tset+1
+        adc #0
+        sta ptr1+1
+        tya
+        clc
+        adc _dhgr_spr_tset
+        sta ptr1
+        bcc :+
+        inc ptr1+1
+:       ldy #0
+        lda (ptr1),y
         sta _dhgr_cv_shape
-set_hi: lda $FFFF,y
+        iny
+        lda (ptr1),y
         sta _dhgr_cv_shape+1
         ora _dhgr_cv_shape
         beq @none

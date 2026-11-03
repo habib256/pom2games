@@ -63,12 +63,13 @@ SHAPES = [(0, 10, 12, DRONE), (0, 5, 9, TECH), (0, 40, 50, BIG), (0, 2, 2, DOT),
           (1, 6, 5, SHIP), (2, 7, 8, TILE_A), (0, 7, 8, WALL), (0, 7, 8, FLOOR),
           (1, 7, 8, [(x * 5 + y) % 16 for y in range(8) for x in range(7)]),
           (2, 7, 8, TILE_C), (2, 9, 6, [nib((x * y) % 16) for y in range(6) for x in range(9)])]
-TSET = (5, 6, 7, 8)                         # tile set: shape numbers
+TSET = tuple((5, 6, 7, 8)[(i + i // 128) % 4] for i in range(256))
+# High IDs deliberately differ from their low-seven-bit aliases.
 OVBITS = [0x01, 0x03, 0x07, 0x0F, 0x03, 0x01, 0x40, 0x60, 0x70, 0x78, 0x30, 0x10] * 2
 
 
 def initial_tmap():
-    return [(c * 7 + r * 3 + (c * r) % 5) % 4 for r in range(24) for c in range(20)]
+    return [(r * 20 + c) % 256 for r in range(24) for c in range(20)]
 
 
 def initial_tiles():
@@ -510,7 +511,7 @@ def scenario(inside=False, double=False):
     s.tiles(0, 16, 8)
     s.area(0, 16, 139, 175)
     s.invalidate(0, 0, 140, 192)
-    s.update('tiles background, rows 16..175')
+    s.update('tiles background, all 256 identifiers, rows 16..175')
     s.set(0, 0, 50, 60)
     s.update('drone over tiles')
     s.set(0, 0, 51, 60)
@@ -614,7 +615,7 @@ def write_inc(work, script, canvas, groups):
         'static const unsigned char ovbits[] = {' + ','.join(map(str, OVBITS)) + '};\n'
         'static unsigned char tiles[480] = {' + ','.join(map(str, initial_tiles())) + '};\n'
         'static unsigned char tmap[480] = {' + ','.join(map(str, initial_tmap())) + '};\n'
-        'static const dhgr_shape_t *tset[4] = {' + ','.join(f'shapes+{t}' for t in TSET) + '};\n'
+        'static const dhgr_shape_t *tset[256] = {' + ','.join(f'shapes+{t}' for t in TSET) + '};\n'
         'static const unsigned char ops[] = {' + ','.join(map(str, script.ops)) + '};\n')
 
 

@@ -753,3 +753,11 @@ The cell kernel shifts in the accumulator and shares the high byte of
 `x` and `x+5`, since `x` is a multiple of eight. `test_hgr.py` checks the
 full 35×24 cell grid on both pages, invalid byte coordinates and screen holes;
 `test_dhgr.py` and `test_dhgr_extended.py` cover the monochrome drawing paths.
+
+Tile backgrounds accept the full byte range of map IDs (0..255). Pointer
+lookup preserves the ninth bit of `2*id`, including pointers spanning a CPU
+page; high IDs no longer alias IDs 0..127. The lookup uses existing `ptr1`
+scratch and removes the per-piece patching of two pointer-table loads:
+`dhgr_spr_cells.s` CODE shrinks from 395 to 388 bytes, with unchanged BSS
+and no new zero-page allocation. `test_dhgr_spr.py` exercises a 256-entry
+set with deliberately different shapes across the two halves.

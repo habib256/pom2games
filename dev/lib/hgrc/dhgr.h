@@ -148,8 +148,9 @@ void dhgr_spr_cells(unsigned char ox, unsigned char oy, unsigned char cell_h,
                     void (*paint)(unsigned char col, unsigned char row));
 /* Background = a tile map: cell (col, row) at x = ox + 7 * col, y = oy +
  * cell_h * row shows *set[map[row * map_w + col]] (any shape kind; a NULL
- * entry draws nothing). The tiles must cover the area. Map and set are
- * borrowed; after changing them, invalidate the cells. */
+ * entry draws nothing). IDs span 0..255; set must contain every referenced
+ * entry. The tiles must cover the area. Map and set are borrowed; after
+ * changing them, invalidate the cells. */
 void dhgr_spr_tiles(unsigned char ox, unsigned char oy, unsigned char cell_h,
                     const unsigned char *map, unsigned char map_w,
                     const dhgr_shape_t *const *set);
