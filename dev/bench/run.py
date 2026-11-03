@@ -20,6 +20,7 @@ CASES={
  'hgr_clear': ('hgr_clear(0);',False),
  'hgr_span': ('hgr_hline(0,279,40);',False),
  'hgr_rect': ('hgr_fill_pixrect(7,32,140,16);',False),
+ 'hgr_byte_rect': ('hgr_fill_rect(32,16,0,40,0x7F);',False),
  'hgr_text': ('hgr_puts8(0,0,"APPLE II");',False),
  'hgr_sprite7': ('hgr_blit7(0,40,4,8,bits,HGR_SET);',False),
  'hgr_diagonal': ('hgr_line(0,0,279,191);',False),

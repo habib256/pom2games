@@ -119,6 +119,13 @@ These isolated-client file reductions include compiler helpers no longer
 linked; savings in a larger program depend on its other calls. The low-level
 `hgr_fill_pixrect(7,10,14,4)` remains at 1,092 cycles and 2,063 loaded bytes.
 
+Since the pair kernel of 2026-11-03 (`hgr_pixrect_asm.s` stores the full
+bytes of a line two at a time, counted once per call; see the HGR C
+runtime's README), the same calls measure 596, 992, 11,394, 913 and 93,920
+cycles, and `hgr_fill_pixrect(7,10,14,4)` 1,141 cycles for 2,091 loaded
+bytes: a call with at most one full byte a line pays 30 to 50 cycles of
+setup, a wide fill gains 10 to 21 %.
+
 
 The HGR archive selects `gfx_line_hgr.c`: diagonals use the 280-pixel
 assembler kernel of `hgr_line`. The C fallback `gfx_line.c` remains intended

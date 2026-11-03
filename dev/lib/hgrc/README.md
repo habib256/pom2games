@@ -533,6 +533,20 @@ clipping is added. `gfx_line` selects this kernel on HGR and the C fallback
 on the generic/DHGR backends. `test_hgr_lines.py` compares 464 lines via `hgr_line` and `gfx_line` against the expected pixels on
 both pages, including reversed directions, ties and X >= 256.
 
+## HGR rectangles: full bytes in pairs
+
+`hgr_fill_rect` (byte columns, `hgr_byte_rect_asm.s`) and the pixel
+rectangles and spans (`hgr_fill_pixrect`, `hgr_clear_pixrect`, `hgr_hline`,
+`hgr_vline`, `hgr_fill_span`, through `hgr_pixrect_asm.s`) count their full
+bytes once per call, as pairs and an odd byte, and each scanline stores them
+two at a time (21 cycles a pair) instead of comparing the column after every
+byte: `hgr_rect` (140×16 pixels) 6,117 → 5,213 cycles, `hgr_byte_rect`
+(40 columns × 16 lines, a new bench case) 9,266 → 7,824, `hgr_span` (a
+280-pixel line) 1,096 → 993. +21 and +28 bytes of code; `ptr2`, already
+imported by the pixel kernel, holds its two counts, the byte kernel uses
+`tmp3`/`tmp4`. `test_hgr.py`, `test_gfx_outlines.py` and `test_hgr_lines.py`
+check the pixels, clipping, holes and both pages.
+
 ## DHGR clearing with IRQ servicing
 
 `dhgr_clear_rows(y, rows, color)` fills the visible lines of the drawing

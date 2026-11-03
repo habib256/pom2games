@@ -313,3 +313,10 @@ octets (21 200 → 21 144 cycles), `gfx_diagonal` 3 655 → 3 217 octets
 inchangées ; les budgets absolus et le tableau du README du banc restent
 valables.
 
+Rectangles HGR : les octets pleins sont comptés une fois par appel (paires,
+octet impair) et écrits deux par deux par ligne au lieu d'une comparaison de
+colonne à chaque octet. `hgr_rect` (140×16) **6 117 → 5 213 cycles** (−15 %),
+`hgr_byte_rect` (nouveau cas : `hgr_fill_rect(32,16,0,40,$7F)`, 40 colonnes
+× 16 lignes) **9 266 → 7 824** (−16 %), `hgr_span` (ligne de 280 pixels)
+1 096 → 993 (−9 %). `hgr_pixrect_asm.s` 225 → 253 octets, `hgr_byte_rect_asm.s`
+39 → 60 ; RAM et page zéro inchangées. Références recalées pour ces trois cas.

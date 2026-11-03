@@ -17,13 +17,13 @@
       "hardware_stack_available_bytes": 255
     },
     "hgr_span": {
-      "code_bytes": 1935,
+      "code_bytes": 1963,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 1297,
       "zp_bytes": 40,
-      "binary_bytes": 2036,
-      "cycles": 1096,
+      "binary_bytes": 2064,
+      "cycles": 993,
       "row_kernel_bytes": 70,
       "c_stack_peak_bytes": 5,
       "c_stack_reserved_bytes": 2048,
@@ -31,13 +31,13 @@
       "hardware_stack_available_bytes": 255
     },
     "hgr_rect": {
-      "code_bytes": 1962,
+      "code_bytes": 1990,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 1297,
       "zp_bytes": 40,
-      "binary_bytes": 2063,
-      "cycles": 6117,
+      "binary_bytes": 2091,
+      "cycles": 5213,
       "row_kernel_bytes": 70,
       "c_stack_peak_bytes": 13,
       "c_stack_reserved_bytes": 2048,
@@ -1359,6 +1359,20 @@
       "c_stack_reserved_bytes": 2048,
       "hardware_stack_peak_bytes": 11,
       "hardware_stack_available_bytes": 255
+    },
+    "hgr_byte_rect": {
+      "code_bytes": 1466,
+      "init_code_bytes": 12,
+      "rodata_bytes": 64,
+      "ram_bytes": 735,
+      "zp_bytes": 31,
+      "binary_bytes": 1567,
+      "cycles": 7824,
+      "row_kernel_bytes": 70,
+      "c_stack_peak_bytes": 5,
+      "c_stack_reserved_bytes": 2048,
+      "hardware_stack_peak_bytes": 6,
+      "hardware_stack_available_bytes": 255
     }
   },
   "legacy_references": {
@@ -1701,7 +1715,8 @@
     "dhgr_spr_overlay_move": "iie",
     "dhgr_spr_double_move": "iie",
     "dhgr_spr_vbl_move": "iie",
-    "dhgr_small_text": "iie"
+    "dhgr_small_text": "iie",
+    "hgr_byte_rect": "nmos"
   },
   "pre_incremental_references": {
     "hgr_scene_cold": {
