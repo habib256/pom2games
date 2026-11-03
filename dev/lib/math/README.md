@@ -58,7 +58,7 @@ LOWBSS, or the unused HGR page.
 | `sqrt.asm` | `sqrt_init`, `isqrt16` | `A = ⌊√mul_x⌋`; start from `sqrt_seed[mul_x+1]`, then steps of 1 with n² = sqr1[2n] | ~40 c + ~25 c/step |
 | `div.asm` | `div16by8` | `mul_x = mul_x / A`, `A = remainder`; 8 steps if the quotient fits in one byte | ~190 c / ~400 c |
 | `dec.asm` | `byte_to_dec` | `A` (0..255) → `X` hundreds, `Y` tens, `A` units (0..9); no memory | 30-110 c |
-| | `byte_div10` | `Y = A / 10` (0..25), `A = A mod 10`, X kept | 15-110 c |
+| | `byte_div10` | `Y = A / 10` (0..25), `A = A mod 10`, X kept | 18-193 c (excluding JSR and branch page crossings) |
 | | `u16_to_dec` | `dec_lo/hi` → ASCII at `(dec_ptr)`, no leading zeros, NUL; `Y` = digit count. Zero page `dec_lo`, `dec_hi`, `dec_ptr`, `dec_t`, `dec_d` allocated unless defined beforehand (hgrc: `hgr_utoa`, `gfx_utoa`) | 250-900 c |
 | `bcd.asm` | `bcd_add_sat` | `(bcd_ptr) += A/Y`, X bytes of packed BCD (low byte first); overflow → 99..99 and C = 1; D set during the add (IRQ handlers: CLD). 32 B; `bcd_ptr` (2 B ZP) unless defined beforehand | ~15 c/byte |
 | | `bcd_put` | the X-byte BCD at A/Y as 2X ASCII digits, top first, each sent to the program's `BCD_PUT_OUT` (keeps X: `hgr_putc8`, `COUT`); `BCD_PUT_LEAD = c`: leading zeros → c, or left out with 0 (units always shown, +27 B). 33 B. From DIRTBIKE (tricks.inc, hof.inc), which is its natural user | |
@@ -95,3 +95,11 @@ random) and compares against the Python computation. It is built twice: tables a
 `$0800`, then tables and `sqrt_seed` in HGR page 2.
 
 Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).
+
+`dec.asm` emits only the requested byte conversion entry: `byte_div10`
+alone occupies 11 bytes instead of 21. When both entries are referenced
+before inclusion, they still share the same 21-byte implementation, with
+identical instructions. If `byte_to_dec` is first referenced after an
+earlier division-only include, its 10-byte prefix uses a 3-byte jump back
+to the existing division tail. `test_math.py` checks all 256 inputs in
+these configurations, X preservation and repeated includes.

@@ -5,6 +5,7 @@
 ;   byte_to_dec  A = 0..255 -> X = hundreds, Y = tens, A = units (0..9 each,
 ;                not ASCII). No memory used. ~30..110 cycles.
 ;   byte_div10   A = 0..255 -> Y = A / 10 (0..25), A = A mod 10. Keeps X.
+;                11 bytes alone; 18..193 cycles excluding JSR/page crossings.
 ;   u16_to_dec   dec_lo/dec_hi = 0..65535 -> ASCII digits at (dec_ptr), no
 ;                leading zeros ("0" for 0), then a NUL. Y = digit count
 ;                (1..5). Consumes dec_lo/dec_hi; clobbers A, X, dec_t, dec_d.
@@ -21,8 +22,7 @@
 ; maze3d (HUD digits), hgrc hgr_utoa_asm.s (hgr_utoa, gfx_utoa).
 ; ============================================================================
 
-.if .referenced(byte_to_dec) .or .referenced(byte_div10)
-.ifndef byte_div10
+.if .referenced(byte_to_dec) .and (.not .defined(byte_to_dec))
 .segment "CODE"
 byte_to_dec:
         LDX     #$FF
@@ -31,6 +31,14 @@ byte_to_dec:
         SBC     #100
         BCS     @h
         ADC     #100            ; C = 0: undo the last subtraction
+.ifdef byte_div10
+        JMP     byte_div10     ; shared tail emitted by an earlier include
+.endif
+.endif
+
+.if .referenced(byte_div10) .or .referenced(byte_to_dec)
+.ifndef byte_div10
+.segment "CODE"
 byte_div10:
         LDY     #$FF
         SEC

@@ -247,7 +247,91 @@ def check(defines, table, label):
         return sum(len(t[3]) for t in table.values()) + 256
 
 
+def check_decimal_includes():
+    """All byte inputs, including a decimal entry referenced after div10."""
+    with tempfile.TemporaryDirectory(prefix='math-decimal-') as tmp:
+        work = Path(tmp)
+        for mode in ('division', 'together', 'late'):
+            source = '''.code
+start:  cld
+        lda #0
+        sta input
+loop:   lda input
+        ldx #$A5
+        jsr byte_div10
+        ldy input
+        sta units,y
+        txa
+        sta saved_x,y
+        lda input
+        jsr byte_div10
+        tya
+        ldy input
+        sta tens,y
+'''
+            if mode != 'division':
+                source += '''        lda input
+        jsr decimal
+        ldy input
+        sta dec_units,y
+        txa
+        sta hundreds,y
+'''
+            source += '''        inc input
+        bne loop
+done:   jmp done
+'''
+            if mode == 'late':
+                source += '.include "dec.asm"\n'
+            if mode != 'division':
+                source += '''decimal:
+        jsr byte_to_dec
+        pha
+        tya
+        ldy input
+        sta dec_tens,y
+        pla
+        rts
+'''
+            source += '''.include "dec.asm"
+.include "dec.asm"              ; must not emit either entry twice
+.bss
+input: .res 1
+units: .res 256
+tens: .res 256
+saved_x: .res 256
+dec_units: .res 256
+dec_tens: .res 256
+hundreds: .res 256
+.export done, units, tens, saved_x, dec_units, dec_tens, hundreds
+'''
+            if mode == 'division':
+                source += '.assert .not .defined(byte_to_dec), error, "unused decimal entry"\n'
+            src = work / (mode + '.s')
+            src.write_text(source)
+            obj, binary, labels = (src.with_suffix(ext) for ext in ('.o', '.bin', '.lbl'))
+            subprocess.run(['ca65', '-I', str(ROOT / 'dev/lib/math'),
+                            '-o', str(obj), str(src)], check=True)
+            subprocess.run(['ld65', '-C', str(ROOT / 'dev/cc65/apple2_hgr.cfg'),
+                            '-Ln', str(labels), '-o', str(binary), str(obj)], check=True)
+            L = a2test.labels(labels)
+            expected = {'units': bytes(n % 10 for n in range(256)),
+                        'tens': bytes(n // 10 for n in range(256)),
+                        'saved_x': bytes([0xA5]) * 256}
+            if mode != 'division':
+                expected.update(dec_units=expected['units'],
+                                dec_tens=bytes(n // 10 % 10 for n in range(256)),
+                                hundreds=bytes(n // 100 for n in range(256)))
+            result = a2test.run(None, a2test.bin_steps(binary) + [L.until('done', 1000)] +
+                               [L.peek(name, 256) for name in expected])
+            for name, values in expected.items():
+                assert result.mem(L[name], 256) == values, (mode, name)
+    print('Decimal includes: all 256 byte inputs, preserved X, division-only, '
+          'shared and late entries, repeated includes OK.')
+
+
 def main():
+    check_decimal_includes()
     table = cases(random.Random(1))
     # Keep the extra output arrays in their own fixture: the full math
     # workload already nearly fills LOWRAM on the target.
