@@ -84,7 +84,9 @@ unsigned char prodos_load_at(void);
  * than suffix and end with it ("": all), in directory order: up to max
  * names, NUL-terminated, name_len (>= 16) bytes apart from names on.
  * prodos_file_iobuf: the 1 KB OPEN buffer (as for file.s). The count in
- * prodos_dir_count; 0 or the MLI error (the end of the directory is 0). */
+ * prodos_dir_count; 0 or the first MLI error, including CLOSE errors.
+ * Stops reading when max names are found. max=0 or a suffix of 15 or
+ * more bytes returns an empty list without I/O. EOF itself is success. */
 extern unsigned char prodos_dir_count;
 unsigned char __fastcall__ prodos_dir_list(char *names, unsigned char name_len,
                                            unsigned char max, const char *suffix);

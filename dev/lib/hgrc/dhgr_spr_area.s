@@ -27,7 +27,13 @@ _dhgr_spr_area:
         sta _dhgr_spr_ay0
         iny
         lda (sp),y
-        jsr dhgr_spr_group
+        cmp #140
+        bcs @empty              ; never index the 140-entry pixel table outside it
+        ldy #0
+        cmp (sp),y              ; test the pixel box before widening to groups
+        beq @valid
+        bcs @empty
+@valid: jsr dhgr_spr_group
         sta _dhgr_spr_ag0
         ldy #0
         lda (sp),y
@@ -36,4 +42,8 @@ _dhgr_spr_area:
         lda #139
 :       jsr dhgr_spr_group
         sta _dhgr_spr_ag1
+        jmp incsp3
+
+@empty: lda #20                 ; ag1 is always at most 19: no owned groups
+        sta _dhgr_spr_ag0
         jmp incsp3

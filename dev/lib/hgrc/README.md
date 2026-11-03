@@ -304,7 +304,7 @@ stores (about 30 cycles); RAMWRT is main again before each `plp`.
 | Call | Use |
 |---|---|
 | `dhgr_spr_init(canvas, bytes, groups)` | Borrow `bytes` of main RAM (outside $2000-$5FFF, at most 255 used) only inside `dhgr_spr_update`; pieces of at most `groups` (1..20) groups, a piece of n groups `min(bytes, 255) / (7*n)` rows. Forgets slots, damage, overlay; area = screen, background = black. 0 unless `min(bytes, 255) >= 7*groups` |
-| `dhgr_spr_area(x0, y0, x1, y1)` | Inclusive colour-pixel box owned by the compositor, widened to groups. Set it before invalidating |
+| `dhgr_spr_area(x0, y0, x1, y1)` | Inclusive colour-pixel box owned by the compositor, widened to groups. Off-screen/reversed boxes are empty. Set it before invalidating |
 | `dhgr_spr_solid(c)` | One-colour background |
 | `dhgr_spr_tiles(ox, oy, cell_h, map, map_w, set)` | Tile map: cell (col, row) at `ox+7*col`, `oy+cell_h*row` shows `*set[map[row*map_w+col]]` (any shape kind; NULL draws nothing). Swap a `set` entry (an open door) and invalidate its cells |
 | `dhgr_spr_cells(ox, oy, cell_h, paint)` | C callback `paint(col, row)` covering its whole 7×`cell_h` cell with `dhgr_cv_rect` (screen coordinates, clipped to the piece) |
@@ -365,7 +365,7 @@ Code (6502), the core every program links: calls 252 B (`dhgr_spr_set`,
 (with the 16-byte table and the 51-byte patch list), canvas painters 532 B:
 1,960 B (2,120 B before the 2026-10-31 size pass, 2,473 B in the first
 version; the 1.8 KB target is not reached). Members linked when called:
-`dhgr_spr_palette` 53 B, `dhgr_spr_area` 44 B, bitmap shapes 392 B
+`dhgr_spr_palette` 53 B, `dhgr_spr_area` 64 B, bitmap shapes 392 B
 (`dhgr_cv_bitmap.s`: its row loops no longer recompute the canvas row,
 `dhgr_spr_move_chunky` −6 %), cells/tiles + `dhgr_cv_rect` 395 B, overlay
 419 B (`dhgr_spr_overlay.s`: the overlay's damage and OR hooks, called

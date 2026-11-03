@@ -20,13 +20,15 @@ extern unsigned char t80_x, t80_y, t80_mode;
 /* The 80-column text mode on, both halves cleared (not the screen holes),
  * mode T80_NORMAL (and the pointer off). */
 void t80_init(void);
-/* At (t80_x, t80_y), t80_x advanced. */
+/* At (t80_x, t80_y), t80_x advanced up to 80. Strings and fills clip
+ * at the right edge; further calls at column 80 leave the row unchanged. */
 void __fastcall__ t80_putc(unsigned char c);
 void __fastcall__ t80_puts(const char *s);
 void __fastcall__ t80_fill(unsigned char c, unsigned char n);
 /* Columns 0 .. 2 t80_sw + 1 (t80_sw 39 at first: all 80) of the t80_x
  * rows from t80_y one row up (down = 0: the last row keeps its text) or
- * down (the first one keeps it); t80_y is left moved. */
+ * down (the first one keeps it); t80_y is left moved. Zero or one row
+ * is a no-op. The requested rows must fit within the 24-row text page. */
 extern unsigned char t80_sw;
 void __fastcall__ t80_scroll(unsigned char down);
 

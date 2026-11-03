@@ -226,14 +226,20 @@ from the key block's header; the active seedling / sapling / tree entries
 (not subdirectories) whose names are longer than `suffix` and end with it
 (`""`: all), in directory order, up to `max`, each NUL-terminated
 `name_len` (≥ 16) bytes apart; CLOSE. The count in `prodos_dir_count`; 0 or
-the MLI error (`$4C`, the end of the directory, is 0). `prodos_name_valid(s)`:
+the first MLI error, including CLOSE failures (READ EOF `$4C` itself is
+success). Reading stops as soon as `max` names are found. `max=0` and
+suffixes of 15 or more bytes return an empty list without disk access.
+`prodos_name_valid(s)`:
 1 for a ProDOS name (1-15 characters, an upper-case letter, then upper-case
-letters, digits, dots). It uses `prodos_mli` (`mli_cmd.s`), `strlen`,
+letters, digits, dots). It uses `prodos_mli` (`mli_cmd.s`),
 `memcmp`, `memcpy`. Compile it with the program's segment names to place it
 (an overlay: `--code-name`, `--rodata-name`, `--data-name`: its four
 parameter lists are initialised data that come back with it; `--bss-name`
-for the block, `prodos_dir_count` and the static locals). 610 B of code
-and data, 524 B of BSS (cc65 `-Ors --static-locals`).
+for the block, `prodos_dir_count` and the static locals). 664 B of code
+and data, 525 B of BSS (cc65 2.18 `-Ors --static-locals`).
+`test_prodos_dir.py` checks filtering, long suffixes, bounded reads and
+error priority on host C, cc65/6502 and a 65C02 overlay with code and
+initialised data in the same segment.
 User: MB TRACKER (`.AYS` names, 16 bytes apart, 40 at most, in its OVL2
 overlay with the block in LOWBSS; its save prompt's name check, after its
 `.AYS` added to a name without a dot).

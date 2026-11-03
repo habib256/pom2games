@@ -76,7 +76,7 @@ setrow:
         rts
 
 ; A = ASCII -> the screen code for t80_mode, written at (t80_x, t80_y) of
-; the row in ptr1 (nothing past column 79); t80_x + 1.
+; the row in ptr1 (nothing past column 79); t80_x saturates at 80.
 put:    ldx _t80_mode
         beq @norm
         dex
@@ -91,7 +91,7 @@ put:    ldx _t80_mode
 @raw:   tax
         lda _t80_x
         cmp #80
-        bcs @out
+        bcs @done
 .if T80_PTR
         ldy _t80_ptr_on          ; under the pointer: kept, shown flipped
         beq @wr
@@ -117,7 +117,7 @@ put:    ldx _t80_mode
         bra @out
 @main:  sta (ptr1),y
 @out:   inc _t80_x
-        rts
+@done:  rts
 
 _t80_putc:
         pha
@@ -131,7 +131,10 @@ _t80_puts:
         stx ptr2+1
         jsr setrow
         ldy #0
-@next:  lda (ptr2),y
+@next:  lda _t80_x
+        cmp #80
+        bcs @end
+        lda (ptr2),y
         beq @end
         phy
         jsr put
@@ -177,6 +180,7 @@ _t80_scroll = scroll
 
 scroll: sta tmp1
         lda _t80_x
+        beq @end
         dec a
         sta tmp2                 ; rows to copy
         beq @end

@@ -377,7 +377,8 @@ class Script:
 
     def area(self, x0, y0, x1, y1):
         self.ops += [6, x0, y0, x1, y1]
-        self.model.area = (x0 // 7, min(x1, 139) // 7, y0, min(y1, 191))
+        self.model.area = ((20, 19, y0, min(y1, 191)) if x0 > x1 or x0 >= 140 else
+                           (x0 // 7, min(x1, 139) // 7, y0, min(y1, 191)))
 
     def solid(self, c):
         self.ops += [7, c]
@@ -553,6 +554,19 @@ def scenario(inside=False, double=False):
     s.cursor(79, 186, 1, 6, 'cursor alone, bottom-right byte')
     s.cursor(78, 186, 2, 6, 'cursor alone, one byte left')
     s.cursor(0, 0, 0, 0, 'cursor alone hidden')
+    s.ops.append(0)
+    return s
+
+
+def scenario_area_bounds():
+    s = Script()
+    s.solid(3)
+    for box in ((0,0,139,191), (140,0,255,191), (255,0,255,191),
+                (6,0,3,191), (139,0,138,191), (0,192,139,255),
+                (139,191,255,255), (14,8,27,9)):
+        s.area(*box)
+        s.invalidate(0,0,140,192)
+        s.update(f'area {box}')
     s.ops.append(0)
     return s
 
@@ -887,6 +901,12 @@ def main():
                 print(f'DHGR compositor {name} iie + VIA IRQs every 2,046 cycles: '
                       f'{len(script.updates)} updates == model, no IRQ with RAMRD/RAMWRT on '
                       '(negative control detected).')
+            if name == 'base':
+                boundaries = scenario_area_bounds()
+                write_inc(work, boundaries, canvas, groups)
+                for machine in machines:
+                    check(work, 'area', boundaries, machine)
+                print('DHGR area: off-screen/reversed boxes are empty, valid boxes widen and clip correctly.')
 
 if __name__ == '__main__':
     main()

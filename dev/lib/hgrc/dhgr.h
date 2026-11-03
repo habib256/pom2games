@@ -137,7 +137,7 @@ typedef struct {
  * needs dev/lib/apple2c/apple2vbl) (README). */
 unsigned char dhgr_spr_init(unsigned char *canvas, unsigned bytes, unsigned char groups);
 /* Inclusive colour-pixel box the compositor owns, widened to whole groups;
- * nothing is drawn outside it. */
+ * nothing is drawn outside it. Off-screen or reversed boxes are empty. */
 void dhgr_spr_area(unsigned char x0, unsigned char y0, unsigned char x1, unsigned char y1);
 /* Background = one colour (default black). */
 void __fastcall__ dhgr_spr_solid(unsigned char colour);

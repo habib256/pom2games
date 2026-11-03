@@ -227,14 +227,19 @@ on (inverse lower case, MouseText), text page 1. cc65's `ptr1`/`ptr2`/
 | `t80_init()` | 80STORE, 80COL, ALTCHARSET, TEXT, full screen, page 1; both halves cleared to spaces, not the screen holes (the slots', the mouse firmware's); `t80_mode` 0 |
 | `t80_x`, `t80_y`, `T80_AT(x, y)` | the cursor; nothing is written past column 79 |
 | `t80_mode` | `T80_NORMAL` (0), `T80_INVERSE` (1: `@`-`_` and lower case inverse), `T80_RAW` (2: the bytes are screen codes) |
-| `t80_putc(c)`, `t80_puts(s)`, `t80_fill(c, n)` | at the cursor, `t80_x` advanced |
+| `t80_putc(c)`, `t80_puts(s)`, `t80_fill(c, n)` | at the cursor, `t80_x` advanced up to 80; strings and fills clip at the right edge |
 | `t80_scroll(down)`, `t80_sw` | columns 0 .. 2 `t80_sw` + 1 (39 at first: all 80) of the `t80_x` rows from `t80_y` one row up (0: the last row keeps its text, to be redrawn) or down (the first); `t80_y` left moved |
 | `t80_ptr_x`, `t80_ptr_y`, `t80_ptr_on`, `t80_ptr_show()`, `t80_ptr_hide()` | `apple2t80_ptr.s` (`APPLE2C_T80_PTR_SRCS`): the cell shown inverse (an inverse one normal, MouseText `+`); move it between hide and show |
 
-345 B code + 4 B (the row table in CODE: a program may reuse its RODATA at
+354 B code + 4 B (the row table in CODE: a program may reuse its RODATA at
 the exit); the pointer 115 B + 4 B, and `apple2t80.s` assembled with
 `$(APPLE2C_T80_PTR_AFLAGS)` (`-D T80_PTR=1`, +51 B) so that the text routines
 draw under it (what they write there is kept for `t80_ptr_hide`, shown
 flipped) and `t80_scroll` hides it meanwhile. MB TRACKER (its whole screen;
 the mouse read with 80STORE off stays in the program: the firmware's screen
 holes are in main).
+
+`test_t80_bounds.py` checks long strings/fills at the right edge, inverse
+text and zero/one-row scrolls, with and without the pointer. Zero rows
+are a no-op; scroll ranges must fit in the 24-row page. Both memory banks
+and the screen holes are checked.
