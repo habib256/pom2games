@@ -4,9 +4,12 @@ LORES clearing uses eight interleaved native stores and preserves the 64
 firmware bytes on each page. The two page cases take **5,561/5,444 cycles**
 instead of 50,307 (about −89 %), saving **212 loaded bytes** in each isolated
 client and all 14 measured C-stack bytes. Lazy LORES address construction
-and cell lookup also use compact native code: the cold/warm point cases
-take **1,159/531 cycles** instead of 11,796/806, with **220 fewer loaded
-bytes**. RAM and zero page are unchanged. `--only lores` measures these
+and point writes also use compact native code: the cold/warm point cases
+take **831/204 cycles** instead of the original 11,796/806, with **356 fewer
+loaded bytes**. Native point reads take **149 cycles**, compared with 318
+after the table optimization but before replacing the C reader; that pass
+saves another 59 loaded bytes in isolated reader clients. RAM and zero page
+are unchanged. `--only lores` measures these
 cases and the horizontal line; all are included in the regression gate.
 
 LORES horizontal/vertical runs and rectangles now share a clipped native

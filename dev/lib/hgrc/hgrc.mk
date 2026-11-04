@@ -30,8 +30,8 @@ HGRC_SPRMASK_SRCS := $(HGRC)/hgr_sprmask.s
 HGRC_SPRENGINE_SRCS := $(HGRC)/hgr_sprengine.c $(HGRC)/hgr_sprengine_asm.s $(HGRC)/hgr_sprdamage.s $(HGRC)/hgr_sprdefault.c
 HGRC_GEOM_SRCS := $(addprefix $(HGRC)/,hgr_geom.c hgr_line.c hgr_outline.s \
     hgr_circle.s hgr_ellipse.s hgr_line_asm.s)
-HGRC_LORES_SRCS := $(addprefix $(HGRC)/,hgr_lores.s hgr_lores_cell.s hgr_lores_clear.s hgr_lores_setblock.c \
-    hgr_lores_getblock.c hgr_lores_hlin.s hgr_lores_vlin.s hgr_lores_rect.s hgr_lores_draw.s)
+HGRC_LORES_SRCS := $(addprefix $(HGRC)/,hgr_lores.s hgr_lores_cell.s hgr_lores_clear.s hgr_lores_setblock.s \
+    hgr_lores_getblock.s hgr_lores_hlin.s hgr_lores_vlin.s hgr_lores_rect.s hgr_lores_draw.s)
 HGRC_TILEMAP_SRCS := $(HGRC)/hgr_tilemap.c $(HGRC)/hgr_tile_restore.s
 HGRC_NUM_SRCS := $(GFX)/gfx_num_hex.s $(GFX)/gfx_num_dec.s $(GFX)/gfx_num_signed.s
 HGRC_GFX_TEXT_SRCS := $(addprefix $(GFX)/,gfx_text.c gfx_text_backend_hgr.c \

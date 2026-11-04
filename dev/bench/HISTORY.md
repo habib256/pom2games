@@ -4,6 +4,46 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : points LORES natifs
+
+La lecture et l'écriture d'une cellule passent en assembleur, avec les
+mêmes signatures C et les mêmes refus hors écran. L'adresse de ligne et
+l'indice X servent directement à l'accès indirect, sans appeler la
+fonction d'adresse C. La retenue issue du numéro de ligne conserve la
+parité jusqu'à la sélection du nibble.
+
+Mesures `python3 dev/bench/run.py --only lores`, avec arguments et appels
+C sur NMOS 6502, par rapport à la série précédente :
+
+| Cas | Cycles avant | Cycles après | Binaire avant → après |
+|---|---:|---:|---:|
+| Écriture, tables froides | 1 159 | 831 | 1 653 → 1 517 octets |
+| Écriture, ligne impaire | 531 | 204 (−61,6 %) | 1 672 → 1 536 octets |
+| Écriture, ligne paire | 519 | 187 (−64,0 %) | 1 668 → 1 532 octets |
+| Écriture hors écran | 162 | 118 | 1 672 → 1 536 octets |
+| Lecture, tables froides | 945 | 776 | 1 541 → 1 482 octets |
+| Lecture, ligne impaire | 318 | 149 (−53,1 %) | 1 551 → 1 492 octets |
+| Lecture, ligne paire | 312 | 140 (−55,1 %) | 1 547 → 1 488 octets |
+| Lecture hors écran | 161 | 74 | 1 551 → 1 492 octets |
+
+RAM et page zéro inchangées ; les tailles concernent les clients isolés,
+runtime inclus. Les pics de pile C des appels valides passent de 7 à 2
+octets en écriture et de 4 à 1 en lecture. Le pic matériel de l'écriture
+passe de 7 à 6 octets ; celui de la lecture reste à 6. L'effacement, les
+lignes et les rectangles gardent leurs mesures de la série précédente.
+
+Le contrôle de tous les points vérifie maintenant les premières lectures
+et écritures sur les deux pages, y compris des coordonnées non nulles
+pendant l'initialisation, et les 256 valeurs de couleur dans chaque nibble.
+Les 1 920 cellules, les changements de page, les voisins, les trous
+firmware et les refus hors écran restent comparés au modèle sur II+ et
+IIe. Le contrôle de l'archive vérifie que lecture et écriture n'importent
+ni la fonction d'adresse C ni le noyau de rectangles ni l'autre primitive.
+
+Validation : `make all`, `make test-hgr bench-check`, tests des coordonnées
+à froid sur les deux processeurs et 28 programmes de contrôle de l'archive.
+Aucun disque livré ne change dans cette série.
+
 ## Série du 5 novembre 2026 : lignes et rectangles LORES
 
 Les trois entrées gardent leurs signatures C, leur clipping et leurs

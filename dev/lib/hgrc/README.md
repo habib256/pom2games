@@ -218,9 +218,11 @@ excluding routines that were previously linked for nothing.
   preserves the 64 bytes reserved for peripheral firmware. Its native
   kernel takes 5,444..5,561 cycles in the C benchmarks, about 89 % less
   than the former C loop, with 212 fewer loaded bytes in isolated clients.
-  Native lazy row-table construction and cell addressing save
-  220 loaded bytes in isolated point clients; the first/warm point takes
-  1,159/531 cycles. Tables, RAM and zero page are unchanged.
+  Native lazy row-table construction and point writes save
+  356 loaded bytes versus the original C implementation in isolated point
+  clients; the first/warm point takes 831/204 cycles. Native point reads
+  take 149 cycles versus 318 after the table-only pass and save 59 more
+  loaded bytes in reader clients. Tables, RAM and zero page are unchanged.
 - LORES horizontal/vertical spans and rectangles share a native kernel.
   Fully covered pairs of block rows are written as whole bytes; the
   unmatched edge nibbles are masked. A 40×48 rectangle takes 12,382 cycles
@@ -236,7 +238,7 @@ excluding routines that were previously linked for nothing.
 macOS. Its 21 steps compare both video pages with a Python model:
 256/280-pixel rectangles, limits, pixels, SET/CLEAR/XOR sprites and seven
 phases, white/coloured text, numbers, cells, colourising. Four additional scenes check `gfx` cell text on
-page 2, the cursor and the numeric conversions. Twenty-seven minimal
+page 2, the cursor and the numeric conversions. Twenty-eight minimal
 programs also check that the archive excludes unused kernels and zero-page
 blocks. This test is part of `make test` and of CI.
 
