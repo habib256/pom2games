@@ -32,6 +32,68 @@ def model(banks, x, y, text):
         x += 8
 
 
+def check_all_glyphs():
+    # All non-NUL input bytes, plus an empty string, at every color phase.
+    # Each snapshot checks both complete pages/banks, including screen holes.
+    strings = [b''] + [bytes(range(first, min(first+16, 256)))
+                       for first in range(1, 256, 16)]
+    with tempfile.TemporaryDirectory(prefix='dhgr-text-glyphs-') as directory:
+        work = Path(directory)
+        source = work / 'glyphs.c'
+        source.write_text('''#include "dhgr.h"
+void painted(void);
+unsigned char irq_after;
+static const unsigned char strings[][17]={'''
+                          + ','.join('{' + ','.join(map(str, s+b'\0')) + '}'
+                                     for s in strings) + '''};
+int main(void) {
+    unsigned char page,phase,i;
+    if (!dhgr_init()) return 1;
+    for (page=1; page<=2; ++page) {
+        for (phase=0; phase<7; ++phase) {
+            for (i=0; i<sizeof(strings)/sizeof(strings[0]); ++i) {
+                dhgr_draw_page(1); dhgr_clear(6);
+                dhgr_draw_page(2); dhgr_clear(9);
+                dhgr_draw_page(page);
+                if (page==1) { asm("sei"); } else { asm("cli"); }
+                dhgr_puts((const char *)strings[i],phase,i*11u);
+                asm("php"); asm("pla"); asm("sta _irq_after");
+                painted();
+                asm("cli");
+            }
+        }
+    }
+    for (;;) {}
+    return 0;
+}
+''')
+        marker = work / 'marker.s'
+        marker.write_text('.export _painted, resume\n.code\n_painted: nop\nresume: rts\n')
+        disk = build(work, source, extra_sources=(marker,))
+        labels = a2test.labels(work / 'test.lbl')
+        steps = []
+        for _ in range(14*len(strings)):
+            steps += [labels.until('_painted'), labels.peek('_irq_after', 1),
+                      'peek:C013:2', 'peek:2000:16384', 'poke:C003:0',
+                      'peek:2000:16384', 'poke:C002:0', labels.until('resume')]
+        result = a2test.run(disk, steps, iie=True)
+        frame = 0
+        for page in range(2):
+            for phase in range(7):
+                for index, string in enumerate(strings):
+                    banks = [[bytearray(PATTERNS[color][1-bank::2])*4096
+                              for bank in (0, 1)] for color in (6, 9)]
+                    model(banks[page], phase, index*11, string.decode('latin1'))
+                    irq, state, main, aux = result.dumps[frame*4:frame*4+4]
+                    assert irq[0] & 4 == (4 if page == 0 else 0), 'IRQ mask changed'
+                    assert not any(value & 128 for value in state), 'bank state leaked'
+                    assert main == banks[0][0]+banks[1][0], ('main', page, phase, index)
+                    assert aux == banks[0][1]+banks[1][1], ('aux', page, phase, index)
+                    frame += 1
+    print(f'DHGR text: {frame} snapshots, all 255 non-NUL bytes and empty strings,')
+    print('seven phases, both pages/banks, palette/holes and both IRQ masks OK.')
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix='dhgr-text-') as directory:
         work = Path(directory)
@@ -72,6 +134,7 @@ int main(void) {
                                      % (name, 0x2000 + index, actual[index], expected[index]))
     print('DHGR text: seven phases on both parities, both pages and banks, lower case,')
     print('unknown glyphs, the right-edge and bottom stops OK.')
+    check_all_glyphs()
 
 
 if __name__ == '__main__':

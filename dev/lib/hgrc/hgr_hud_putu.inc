@@ -186,14 +186,9 @@ convert:
         sta _hgr_u_ptr+1
         jsr _hgr_utoa
 converted:
-        ldx #0
-length:
-        lda number,x
-        beq counted
-        inx
-        bne length
-counted:
-        stx leading
+        ; Both utoa and the incremental compaction leave the digit count
+        ; in Y. Reuse it instead of scanning the just-written string.
+        sty leading
         lda width
         sec
         sbc leading
@@ -235,19 +230,17 @@ divide56:
         sta _hgr_g_col
         jmp divide56
 divide7:
+        ; divide56 stopped with remaining < 56: the high byte is zero.
+        ; Keep the final remainder in A and undo the first underflow.
+        lda remaining
         sec
-        lda remaining
+subtract7:
         sbc #7
-        tay
-        lda remaining+1
-        sbc #0
         bcc divided
-        sta remaining+1
-        sty remaining
         inc _hgr_g_col
-        jmp divide7
+        bcs subtract7           ; INC preserves the successful subtraction's C
 divided:
-        lda remaining
+        adc #7                  ; C=0 after the failed subtraction
         sta _hgr_g_bit
 cells:
         lda index

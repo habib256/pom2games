@@ -331,3 +331,840 @@ disques du commit précédent, que la CI avait validés de bout en bout. Toute
 réduction de la bibliothèque liée par CHROMABREAK demande donc ce tier long,
 pas seulement les asserts de `spare.s`.
 
+## 2026-11-04 : texte compact DHGR, vitesse et taille
+
+`dhgr_small_text` (`dhgr_puts_small("APPLE II",0,0)`, arguments C compris) :
+**14 483 → 13 253 cycles** (−8,5 %), **2 994 → 2 990 octets** de binaire,
+**328 → 326 octets** de RAM. Le moteur `dhgr_small_asm.s` passe de 323 à
+319 octets de code et de 14 à 12 octets de BSS ; tables (1 653 octets),
+page zéro et pics de piles inchangés.
+
+La colonne de banque et la base de la table d'encre sont préparées une fois
+par caractère. Chaque rangée indexe cette base avec le quartet du glyphe et
+le numéro d'octet, sans recalculer le pointeur. Les masques des deux bords
+sont posés directement ; seuls les deux emplacements intérieurs sont mis
+à zéro. Un octet auxiliaire entièrement couvert est écrit sans lecture via
+le trampoline. Les transactions restent protégées par rangée, RAMRD/RAMWRT
+principaux au retour, masque d'interruptions conservé.
+
+`test_dhgr_small_text.py` vérifie 256 entrées × 7 alignements × 2 pages ×
+2 masques IRQ, sur fond non uniforme dans les deux banques, avec police
+liée puis relocalisée à `$0800` et `$08D3`. Oracle par pixel, limites de
+cellule et de chaîne, voisins et trous mémoire compris. Le même test passe
+sur le moteur précédent. La référence de ce seul cas est recalée ; les
+98 cas du banc HGR/DHGR passent leurs budgets.
+
+ROBOT SPACE STATION lie ce moteur : ses disques ProDOS et WOZ sont reconstruits.
+Ses tiers rapide et long passent sur //e et //c (campagne et fuzz), ainsi
+que la suite complète `make test-dhgr`.
+CHROMABREAK garde des règles de compilation pour lui, mais ne le lie plus :
+son disque reste identique, sans ajustement de `spare.s`. Ses tiers rapide
+et long passent aussi : 60 secteurs terminés sur //e et //c, combo x8.
+`make all` réussit et les 18 images WOZ correspondent aux disques source.
+
+## 2026-11-04 : pixels et sprites HGR
+
+Mesures avant/après avec le même cc65 et a2run NMOS, arguments C compris,
+tables déjà construites :
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| `hgr_plot` (`139,40`) | 271 | 247 | 1 606 | 1 592 |
+| `hgr_unplot` (`279,191`) | 277 | 256 | 1 610 | 1 596 |
+| `hgr_sprite7` (4 octets × 8 lignes) | 1 657 | 1 649 | 1 834 | 1 828 |
+| `hgr_preshift_phase0` (7×16, XOR) | 2 424 | 2 078 | 2 404 | 2 398 |
+| `hgr_preshift_phase3` | 2 497 | 2 465 | 2 404 | 2 398 |
+| `hgr_preshift_phase6` | 2 572 | 2 540 | 2 404 | 2 398 |
+
+`hgr_pixel_asm.s` : adresse de ligne préparée avant colonne/masque, pour
+charger directement Y/A ; plus de sauvegarde dans `tmp1/tmp2`. L'entrée C
+termine par un saut vers cette préparation, qui conserve la retenue effacée
+annonçant une coordonnée valide. **−14 octets de code**, −24/−21 cycles
+sur les deux cas, aucune modification de la RAM ou de la page zéro allouées.
+
+`hgr_blit7_asm.s` : le départ de ligne a un octet bas au plus égal à `$D0`,
+la colonne est bornée à 39 ; leur somme ne produit jamais de retenue.
+Suppression du `ADC #0` sur l'octet haut dans les trois boucles SET/CLEAR/XOR :
+**−6 octets de code**, deux cycles de moins par ligne hors effets de
+placement des branches. L'ordre de lecture/écriture reste croissant.
+
+`hgr_preshift_asm.s` : X conserve la phase pendant que Y compte les lignes
+du produit hauteur × stride. Le test de phase zéro passe avant ce produit,
+sans instruction supplémentaire ni modification des autres phases : le
+cas 7×16 gagne **14,3 %**, allègement du blitter ci-dessus compris.
+RAM, tables et page zéro inchangées.
+
+Nouveaux cas de banc pour les points et les phases 0/3/6, référence du blit
+aligné recalée. `test_hgr_pixels.py` couvre les entrées C/ASM, la surface
+280×192 sur les deux pages, un effacement à motif, les appels hors écran,
+le bit de palette et les trous mémoire. `test_preshift_bounds.py` couvre
+désormais aussi les hauteurs jusqu'à 255, les sept phases, les sprites vides
+et le découpage, contre un oracle indépendant pour les deux API XOR.
+
+Les 103 cas HGR/DHGR passent les budgets. Les tests de la suite HGR,
+l'exemple HGR sur II+ et IIe, les projections et les exemples minimaux
+passent ; `make all` réussit. Seul `HGR.dsk` et son jumeau WOZ changent
+dans `dist/` pour cette passe (les changements de ROBOT SPACE STATION
+appartiennent au lot de texte compact ci-dessus).
+
+## 2026-11-04 : contrôleurs des compteurs HUD
+
+Le fichier partagé `hgr_hud_putu.inc` perd **24 octets de code par format**
+(8×8 ou 16×16), sans changement de RAM, page zéro, tables ou structure
+publique. La conversion décimale et la voie incrémentale donnent déjà le
+nombre de chiffres dans Y : plus de parcours de la chaîne. Après la
+réduction de l'origine modulo 56, la division finale par sept s'effectue
+dans A ; la première soustraction négative est annulée par `ADC #7`.
+
+Mesures avant/après, arguments C compris, même environnement :
+
+| Charge | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| HUD 16×16, valeur identique | 312 | 312 | 3 692 | 3 668 |
+| HUD 16×16, un chiffre modifié | 4 704 | 4 505 | 3 692 | 3 668 |
+| HUD 16×16, cinq chiffres modifiés, pire phase | 19 372 | 19 161 | 3 692 | 3 668 |
+| HUD 8×8, valeur identique | 312 | 312 | 3 488 | 3 464 |
+| HUD 8×8, cinq chiffres modifiés, pire phase | 7 683 | 7 482 | 3 488 | 3 464 |
+| HUD 8×8, 9999 → 10000 | 7 119 | 6 912 | 3 488 | 3 464 |
+| Jeu compact, pire phase | 16 669 | 16 450 | 7 162 | 7 138 |
+
+Le jeu compact prend désormais 16 182..16 450 cycles selon l'alignement.
+Les 54 références des HUD et de leurs consommateurs sont recalées, après
+validation des budgets sur les 103 cas. Les primitives indépendantes
+gardent leurs références. Le cas avec attente VBL reste à deux balayages
+(34 050 → 34 054 cycles, variation de la boucle d'attente).
+
+`test_hgr_hud.py`, sur NMOS et 65C02, ajoute toutes les origines valides
+d'un champ d'un chiffre (265/273), dont les frontières /56 et /7, et toutes
+les largeurs 1..14/1..5 avec +1/+2, retenue décimale et rejet de débordement.
+Les précédents cas de cache par page, invalidation, raccourcissement et
+palette restent vérifiés. Le jeu complet avec quatre sprites et musique
+IRQ passe 1 000 images NTSC et 1 000 PAL, sans échéance manquée ni problème
+de pile : 33 972..34 147 / 40 470..40 653 cycles entre présentations.
+
+La reconstruction complète et les exemples HGR sur II+/IIe passent.
+L'exemple minimal à double page conserve ses 1 000 images par standard,
+avec bouclage du compteur : 34 050..34 070 / 40 550..40 570 cycles.
+Le disque HGR est reconstruit ; les 18 jumeaux WOZ correspondent à leurs
+disques source.
+
+## 2026-11-04 : recoloration HGR et sélecteur partagé
+
+Mesures avant/après, arguments C compris, tables préparées, même cc65 et
+a2run NMOS :
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| `hgr_colorize`, 140×16, départ x=7 | 11 571 | 8 947 | 1 896 | 1 848 |
+| `hgr_colorize_even`, 140×16, départ x=0 | 11 572 | 8 896 | 1 892 | 1 844 |
+| `hgr_colorize_narrow`, 7×1, départ x=7 | 830 | 789 | 1 894 | 1 846 |
+| `hgr_text_color`, « APPLE II » orange ×2 | 19 961 | 19 987 | 3 333 | 3 279 |
+
+La boucle de recoloration choisit la parité une fois par ligne puis alterne
+deux corps pair/impair. Elle conserve l'ordre croissant des écritures et
+traite une largeur d'un octet depuis les deux parités. **−22,7 % de cycles**
+sur le rectangle principal, pour six octets de code supplémentaires.
+
+Le sélecteur de porteuses partagé passe du C à l'assembleur : 91 octets
+de code deviennent 33 octets de code et une table de quatre octets.
+Les couleurs invalides sont rejetées avant toute modification des
+paramètres. Le gain net est de **48 octets chargés** pour la recoloration,
+54 pour les clients de texte coloré. RAM et page zéro sont inchangées ;
+le pic de pile matérielle du rectangle baisse de huit à sept octets.
+Le texte coloré mesure 26 cycles de plus (+0,13 %) malgré son binaire réduit.
+
+Quatre cas sont ajoutés au banc ; les six scènes existantes qui lient le
+sélecteur sont recalées après comparaison. Leur binaire perd 54 octets et
+leurs variations de cycles vont de −75 à +268. Les budgets absolus restent
+inchangés.
+
+`test_hgr_color.py` vérifie les 256 entrées du sélecteur, dont la conservation
+des paramètres sur rejet, 294 rectangles et 98 glyphes teintés ou blancs.
+Il couvre les deux pages, les deux parités, les sept phases du texte, le
+découpage, les appels vides/hors écran et les trous mémoire, sur NMOS et
+65C02. Les tests HGR, glyphes et reconstruction d'archive passent aussi.
+La reconstruction complète et les tests de Snake passent ; son disque
+DOS et son jumeau WOZ sont reconstruits.
+Les 107 cas HGR/DHGR passent le contrôle des régressions et des budgets
+absolus ; les 18 images WOZ correspondent à leurs disques source.
+
+## 2026-11-04 : préparation des rectangles HGR
+
+`hgr_pixrect_asm.s` perd **42 octets de code**. Les rectangles d'un seul
+octet utilisent la même préparation des masques que les autres ; leurs
+compteurs d'octets intérieurs, inutilisés, ne sont plus calculés. Les
+masques sont déjà bornés à sept bits : leurs compléments utilisent
+`EOR #$7F`, sans `AND` supplémentaire. Le décalage du masque droit fournit
+la retenue nécessaire à `SBC #0`, et la comparaison des colonnes ordonnées
+fournit celle du calcul de largeur. RAM, page zéro et pics de pile mesurés
+restent identiques.
+
+Mesures avant/après, arguments C compris, tables préparées :
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| Ligne horizontale, 280 pixels | 993 | 983 | 2 064 | 2 022 |
+| Rectangle 140×16, remplissage | 5 213 | 5 213 | 2 091 | 2 049 |
+| Rectangle 140×16, effacement | 5 221 | 5 219 | 2 091 | 2 049 |
+| Rectangle 3×16 dans un octet, remplissage | 1 688 | 1 687 | 2 089 | 2 047 |
+| Rectangle 3×16 dans un octet, effacement | 1 691 | 1 693 | 2 089 | 2 047 |
+| Rectangle 2×16 à cheval sur deux octets | 2 172 | 2 172 | 2 091 | 2 049 |
+| Rectangle découpé à droite et en bas | 1 048 | 1 040 | 2 087 | 2 045 |
+| Cellule 6×6 à la colonne 1 | 761 | 754 | 1 841 | 1 799 |
+
+Les consommateurs perdent aussi 42 octets. Leurs temps ne baissent pas
+tous : la diagonale HGR passe de 21 171 à 21 319 cycles (+0,7 %), celle
+de GFX de 21 407 à 21 323. Le code de ligne est inchangé ; les variations
+sont compatibles avec les effets du placement sur les accès et branches
+6502. Les mesures de rectangles ci-dessus ne sont donc pas extrapolées
+à tous les clients.
+
+Six cas de banc sont ajoutés et les références des 18 charges affectées
+sont recalées ; les budgets absolus restent inchangés. Le nouveau test
+`test_hgr_rects.py`, intégré aux cibles HGR et IIe, vérifie 752 rectangles
+par modèle CPU : toutes les combinaisons de phases de bord, les largeurs
+de 1 à 40 octets, le remplissage et l'effacement, les modes natifs non nuls,
+les deux pages, le découpage, les appels vides/hors écran, la palette et
+les trous mémoire. L'oracle dessine pixel par pixel.
+
+Les tests de rectangles NMOS/65C02, l'intégration HGR (dont les 840 cellules),
+Snake, l'exemple HGR, les exemples minimaux et les projections passent.
+`make all` réussit ; HGR et Snake sont reconstruits, et les 18 jumeaux WOZ
+correspondent à leurs disques source.
+Le contrôle final passe les 113 cas et les 16 budgets absolus ; ses mesures
+reproduisent exactement le précédent passage complet.
+
+## 2026-11-04 : compteur du remplissage DHGR par lignes
+
+`dhgr_clear_rows_asm.s` passe de **129 à 117 octets de code**. Chaque
+demi-motif effectue toujours quatre tours de cinq écritures ; X compte ces
+tours, à la place de la comparaison de Y avec une limite calculée en page
+zéro. L'octet haut de l'adresse de ligne passe directement dans A aux
+opérandes automodifiées, sans stockage/relecture temporaire. Le noyau
+n'utilise plus `tmp1` ni l'octet haut de `ptr1` ; la mémoire allouée reste
+identique, comme les pics de pile.
+
+La sonde native mesure **712 → 688 cycles** par ligne (−3,4 %) avec le même
+test avant/après. Les changements ne modifient ni l'ordre des écritures,
+ni les commutations de banques, ni la restauration du masque d'IRQ.
+
+| Appel C | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| Une ligne à y=40 | 1 115 | 1 090 | 1 672 | 1 660 |
+| 16 lignes à y=40 | 12 110 | 11 725 | 1 673 | 1 661 |
+| 192 lignes visibles | 141 187 | 136 555 | 1 673 | 1 661 |
+| 255 lignes demandées à y=190, découpées à deux | 1 870 | 1 822 | 1 673 | 1 661 |
+
+Trois cas de banc sont ajoutés. Seules ces quatre mesures changent dans le
+passage complet de 116 cas ; leurs références sont recalées sans modifier
+les budgets absolus.
+
+La sonde d'IRQ de `test_dhgr_clear_rows.py` initialise désormais explicitement
+`dhgr_addr` vers une ligne vidéo valide déjà effacée, dont la ligne 191
+(octet bas `$D0`) sur chaque page. Elle ne dépend plus d'une adresse globale
+non préparée par l'API de remplissage multiple. Les seize couleurs, les
+deux pages et banques, les trous mémoire, le découpage et les deux masques
+d'IRQ passent avec l'ancien et le nouveau noyau. Les interruptions VIA
+périodiques passent aussi, avec contrôle des banques, des gardes et des pixels.
+
+Le contrôle final des 116 cas et 16 budgets absolus passe ; les mesures
+reproduisent exactement le premier passage complet. `make all` réussit,
+DHGR ACTION passe sur //e et //c, ainsi que les exemples minimaux ProDOS
+(refus de /RAM et démarrage sans /RAM). Les 18 images WOZ correspondent
+à leurs disques source.
+ROBOT SPACE STATION est reconstruit et passe ses tiers rapide et long sur
+//e et //c : les 20 missions de chaque campagne et les tests aléatoires
+restent conformes aux modèles de référence.
+
+## 2026-11-04 : bitmaps HGR MSB-first
+
+Le noyau `hgr_bitmap_asm.s` perd **8 octets de code**. Le compteur de pixels
+est décrémenté dès que le pixel est traité : une ligne terminée quitte la
+boucle avant le compteur de bits source ou une éventuelle recharge. La
+sélection SET/CLEAR/XOR passe par Y pour conserver l'accumulateur de pixels
+dans A ; les trois modes partagent l'écriture finale. Dans SET, le masque
+non nul garantit que le résultat de OR est non nul, ce qui permet un
+branchement court vers cette écriture.
+
+Mesures NMOS avec les arguments C, même bitmap mixte 16×8 et mêmes outils :
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| SET, phase 0 | 6 870 | 6 591 | 1 953 | 1 945 |
+| CLEAR, phase 0 | 6 975 | 6 696 | 1 951 | 1 943 |
+| XOR, phase 0 | 6 891 | 6 612 | 1 953 | 1 945 |
+| SET, phase 3 | 6 900 | 6 618 | 1 953 | 1 945 |
+| CLEAR, phase 3 | 7 010 | 6 728 | 1 951 | 1 943 |
+| XOR, phase 3 | 6 922 | 6 640 | 1 953 | 1 945 |
+| SET, phase 6 | 7 146 | 6 861 | 1 953 | 1 945 |
+| CLEAR, phase 6 | 7 261 | 6 976 | 1 951 | 1 943 |
+| XOR, phase 6 | 7 169 | 6 884 | 1 953 | 1 945 |
+| Bitmap vide, phase 3 | 5 792 | 5 576 | 1 953 | 1 945 |
+| XOR découpé à droite et en bas | 1 275 | 1 249 | 1 953 | 1 945 |
+
+Les neuf cas de bitmap mixte gagnent **3,9..4,1 %**. RAM, page zéro et pics
+de pile restent identiques. Ces onze mesures sont ajoutées au banc ; les
+116 cas précédents restent strictement identiques dans le passage complet.
+Les budgets absolus sont conservés.
+
+`test_hgr_bitmap.py`, intégré aux cibles HGR et IIe, compare 612 rendus par
+CPU à un oracle pixel par pixel : SET/CLEAR/XOR, les sept phases, les
+largeurs autour des limites de sept et huit pixels, les dimensions jusqu'à
+255, le stride source avant découpage, les bitmaps vides/pleins, les deux
+pages, la palette et les trous mémoire. Il passe sur NMOS et 65C02, ainsi
+que l'intégration HGR et la suite de comparaison des techniques de sprites.
+`make all` réussit ; les 37 fichiers de distribution gardent exactement
+leurs empreintes SHA-256 pour cette passe.
+Le contrôle final passe les 127 cas et les 16 budgets absolus ; toutes les
+mesures sont identiques au premier passage complet, y compris après le
+remplacement du cœur IIe signalé par le banc pendant cette validation.
+
+## 2026-11-04 : texte HGR agrandi
+
+`hgr_text16_asm.s` perd **30 octets de code et 5 octets de page zéro** :
+les quatre porteuses de colonnes se ramènent à deux valeurs alternées,
+et trois temporaires utilisent les scratch cc65 déjà disponibles. Le
+blitter ne fait aucun appel imbriqué. Les tables, l'autre RAM et les pics
+de pile mesurés restent identiques.
+
+Les lignes source vides sautent directement à la suivante. Y parcourt
+les colonnes une seule fois, y compris quand une cellule est transparente.
+Deux rotations assemblent les bits doublés 14..21 ; le bit de signe
+restant décide directement de la quatrième cellule. Les masques de couleur
+et le bit de palette sont appliqués comme auparavant, après le test du
+masque de pixels non teinté.
+
+Mesures avant/après avec le même cc65 et a2run NMOS, arguments C compris
+sauf le glyphe plein, mesuré à l'entrée native :
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| « APPLE II » orange, phase 0 | 19 987 | 16 662 | 3 279 | 3 249 |
+| Orange, phase 3 | 20 293 | 16 924 | 3 281 | 3 251 |
+| Orange, phase 6 | 20 179 | 16 829 | 3 283 | 3 253 |
+| « APPLE II » blanc, phase 0 | 19 887 | 16 737 | 3 246 | 3 216 |
+| Blanc, phase 3 | 20 195 | 16 978 | 3 250 | 3 220 |
+| Blanc, phase 6 | 20 072 | 16 880 | 3 250 | 3 220 |
+| Huit espaces | 16 159 | 5 476 | 3 246 | 3 216 |
+| Glyphe 16×16 entièrement plein, phase 6 | 2 873 | 2 641 | 2 142 | 2 112 |
+
+Les chaînes mixtes gagnent **15,8..16,6 %**, les espaces **66,1 %** et le
+glyphe plein **8,1 %**. La page zéro des huit cas passe de 50 à 45 octets.
+Sept cas sont ajoutés au banc ; les six scènes existantes qui utilisent
+aussi ce blitter gagnent toutes en cycles et perdent les mêmes 30 octets
+de code et 5 de page zéro. Les 14 références affectées sont recalées,
+avec les mêmes budgets absolus.
+
+`test_hgr_text16.py` vérifie 280 scènes par modèle CPU : les 256 motifs
+d'une ligne de glyphe (dont le huitième bit, qui peut atteindre une
+quatrième colonne HGR), les 96 caractères intégrés, cinq couleurs, les
+sept phases, les deux parités et les deux pages. Les tests couvrent les
+lignes vides, le bas et la droite de l'écran, les bits de palette et les
+trous mémoire. Ils passent sur NMOS et 65C02, ainsi que l'intégration HGR
+et les tests de recoloration.
+Le contrôle final passe les 134 cas et les 16 budgets absolus ; les mesures
+sont identiques au premier passage complet. `make all` réussit. Seuls
+`SNAKE.dsk` et son jumeau WOZ changent dans la distribution pour cette passe ;
+Snake passe ses tests de jeu, de cadence PAL/NTSC et de sauvegarde. Les
+18 images WOZ correspondent à leurs disques source.
+
+## 2026-11-04 : texte HGR 8×8 et adresse des glyphes
+
+`hgr_text8_asm.s` utilise X comme compteur de lignes et garde Y pour les
+décalages et les accès écran. Cela remplace les incréments et comparaisons
+du compteur en page zéro. Le masque du deuxième octet est inutile : un
+motif source de huit bits décalé de zéro à six tient sur quatorze bits.
+Le noyau perd **8 octets de code**, sans nouvelle allocation.
+
+Le helper partagé `glyph_addr` calcule séparément `index >> 5` et
+`index << 3`, puis ajoute la base de police avec sa retenue. Il perd
+**3 octets de code** et passe de **61 à 54 cycles**, JSR/RTS compris,
+en conservant X/Y. Le même test vérifie l'ancien et le nouveau helper.
+Les clients 8×8 gagnent donc **11 octets**, les autres clients qui lient
+le helper en gagnent trois. RAM, page zéro et pics de pile restent identiques.
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| « APPLE II » 8×8, phase 0 | 8 448 | 7 886 | 2 581 | 2 570 |
+| Phase 3 | 9 238 | 8 672 | 2 585 | 2 574 |
+| Phase 6 | 9 129 | 8 563 | 2 585 | 2 574 |
+| Huit espaces 8×8 | 4 746 | 4 282 | 2 581 | 2 570 |
+| Glyphe 8×8 plein, phase 6, entrée native | 1 432 | 1 358 | 1 731 | 1 720 |
+| « APPLE II » 16×16 blanc, phase 0 | 16 737 | 16 681 | 3 216 | 3 213 |
+| « APPLE II » 16×16 orange, phase 0 | 16 662 | 16 606 | 3 249 | 3 246 |
+
+Le texte 8×8 gagne **6,1..6,7 %**, les espaces **9,8 %** et le glyphe plein
+**5,2 %**. Quatre cas sont ajoutés au banc ; 73 charges changent de taille
+ou de temps. Les déplacements de code produisent aussi de petites hausses :
+le jeu compact gagne trois octets mais prend 15..19 cycles de plus, soit
+16 200..16 468 cycles selon la phase (+0,12 % au plus). Les budgets absolus
+restent inchangés, avec 11 592/18 092 cycles de marge NTSC/PAL après réserve.
+
+`test_hgr_glyph_addr.py` vérifie **147 456 appels** par CPU : les 96 indices,
+tous les octets bas de police, trois bases hautes (dont `$FFxx` pour le
+rebouclage sur 16 bits), les deux retenues entrantes et la conservation de
+X/Y et de la base. `test_hgr_glyphs.py` conserve ses 1 344 glyphes publics
+et ajoute tous les 256 motifs de ligne à l'entrée native, les sept phases,
+les glyphes vides et les bords droit/bas, sur les deux pages. Ces tests
+passent sur NMOS et 65C02, ainsi que le texte 16×16 et l'intégration HGR.
+
+`make all` réussit. Snake et LIGHT3DBALL passent leurs tests, dont les cinq
+niveaux de LIGHT3DBALL. Les exemples HGR, les exemples minimaux (1 000
+présentations NTSC/PAL) et les projections passent aussi. Les disques HGR,
+Snake et LIGHT3DBALL sont reconstruits ; les 18 jumeaux WOZ sont conformes.
+Le contrôle final passe les 138 cas et les 16 budgets absolus, avec des
+mesures identiques au premier passage complet.
+
+## 2026-11-04 : HUD compact et dépendances de l'archive
+
+Le noyau HUD 8×8 utilise X pour parcourir les 16 octets source du glyphe.
+La division par deux fournit la ligne et efface la retenue avant l'ajout
+de Y écran. Le scratch existant `tmp1` conserve l'offset pour les lectures.
+Cela retire **18 octets de code et deux compteurs BSS**, sans élargir la
+liste des registres et temporaires détruits.
+
+Les arguments de glyphe, l'état de parcours des chaînes et le helper
+`glyph_addr` occupent désormais trois membres indépendants de l'archive.
+Le HUD8 ne lie plus les **26 octets de code et sept octets de page zéro**
+inutilisés du texte général. Son gain total est donc **44 octets de code,
+sept de page zéro et deux de BSS**. Le HUD16 conserve le helper mais
+économise cinq octets de page zéro. Les clients mixtes partagent les mêmes
+symboles, sans changement d'API ni duplication.
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| HUD8, un chiffre changé | 2 442 | 2 283 | 3 461 | 3 417 |
+| HUD8, cinq chiffres changés, phase 0 | 7 460 | 6 641 | 3 461 | 3 417 |
+| HUD8, cinq chiffres changés, phase 6 (maximum) | 7 479 | 6 663 | 3 461 | 3 417 |
+| HUD8, valeur inchangée | 312 | 312 | 3 461 | 3 417 |
+| HUD8, premier affichage | 7 163 | 6 353 | 3 447 | 3 403 |
+| HUD8, retenue 9999 → 10000 | 6 912 | 6 113 | 3 461 | 3 417 |
+| Jeu compact, phase 1 (maximum) | 16 468 | 15 927 | 7 135 | 7 091 |
+
+Le changement de cinq chiffres gagne environ **11 %**, celui d'un chiffre
+**6,5 %**. Le jeu compact prend 15 672..15 927 cycles, avec 1 618 octets
+de RAM et 49 de page zéro. La marge après réserve reste de
+12 133/18 633 cycles NTSC/PAL, sans modifier les budgets absolus. Les
+autres charges ne changent pas de temps d'exécution. Le nouveau cas à un
+chiffre porte le banc à 139 cas ; 55 références sont ajoutées ou recalées.
+
+Les tests HUD passent sur NMOS et 65C02 : 168 mises à jour, 70 glyphes
+aux bords, 273 origines de cellule, largeurs 1..5, retenues et débordements,
+sur les deux pages. Le helper conserve ses 147 456 appels vérifiés par CPU.
+L'intégration HGR vérifie 22 clients d'archive, dont HUD8 seul, HUD16 seul
+et HUD8 avec texte. Les configurations de compilation et les dépendances
+transitives passent aussi. La cadence avec musique sous IRQ tient
+1 000 images par standard sans échéance manquée.
+
+`make all` réussit. Snake, les cinq niveaux de LIGHT3DBALL, les exemples
+HGR et minimaux, ainsi que les projections passent leurs tests. Les
+disques HGR, Snake et LIGHT3DBALL et leurs jumeaux WOZ sont reconstruits ;
+les 18 images WOZ correspondent aux disques source.
+Le contrôle final passe les 139 cas et les 16 budgets absolus ; les mesures
+sont identiques au premier passage complet.
+
+## 2026-11-04 : écritures opaques du HUD 16×16
+
+La deuxième colonne d'une cellule de 16/18 pixels est toujours entièrement
+recouverte, quel que soit l'alignement. Le noyau l'écrit directement dans
+les deux lignes écran, sans relire le fond ni appliquer un masque nul.
+Le masque correspondant et son initialisation disparaissent. Les colonnes
+de bord conservent leurs masques et la remise à zéro du bit de palette.
+
+Deux rotations assemblent les bits 14..21 du glyphe doublé ; le bit de
+signe fournit ensuite le seul pixel pouvant atteindre la quatrième colonne.
+Le décalage du numéro de ligne fournit déjà une retenue nulle. Enfin, les
+trois routines d'écriture restantes, chacune appelée à un seul endroit,
+sont développées dans la boucle : aucun code dupliqué, aucun JSR/RTS pour
+ces écritures. Le noyau perd **42 octets de code et un octet de BSS**.
+La page zéro, les tables et les pics de pile mesurés restent identiques.
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| HUD16, un chiffre changé | 4 495 | 3 926 | 3 665 | 3 623 |
+| Cinq chiffres, phase 0 | 18 545 | 15 393 | 3 665 | 3 623 |
+| Cinq chiffres, phase 5 (maximum) | 19 115 | 15 819 | 3 665 | 3 623 |
+| Valeur inchangée | 312 | 312 | 3 665 | 3 623 |
+| Premier affichage avec initialisation des tables | 63 830 | 60 710 | 3 651 | 3 609 |
+| Scène mobile, phase 0 | 24 988 | 24 393 | 6 927 | 6 885 |
+| Quatre grands sprites mobiles et compteur | 39 170 | 38 578 | 7 594 | 7 552 |
+
+Les cinq chiffres gagnent **16,8..17,2 %**, le chiffre isolé **12,7 %**.
+Les 30 charges affectées perdent toutes 42 octets chargés et un de RAM.
+Le client HUD isolé utilise 805 octets de RAM. La boucle synchronisée sur
+VBL, attente comprise, passe de 34 048 à 34 055 cycles (+0,02 %) ; les
+scènes mobiles mesurées sans attente gagnent toutes du temps. Le stress
+des quatre grands sprites reste au-delà du budget ; les limites absolues
+ne sont pas modifiées. Les autres charges gardent leurs mesures.
+
+Les tests HUD passent sur NMOS et 65C02 : 168 mises à jour sur deux pages,
+70 glyphes aux bords droit/bas, les 265 origines d'une cellule, les largeurs
+1..14, les retenues décimales, l'invalidation et les débordements. Les
+comparaisons de mémoire vérifient le fond coloré, la palette et les pixels
+voisins. L'intégration HGR passe ses 22 clients d'archive, 21 scènes,
+840 cellules, le texte GFX et les avances de chaînes.
+
+`make all` réussit. Seuls `HGR.dsk` et son jumeau WOZ changent pour cette
+passe. L'exemple HGR passe le démarrage, l'animation, la pause/reprise,
+les flèches et le retour DOS sur II+ et IIe. Les 18 images WOZ sont conformes.
+Les 139 mesures et les 16 budgets absolus passent le contrôle final ; les
+résultats sont identiques au premier passage de la version finale.
+
+## 2026-11-04 : rectangles HGR par octets
+
+Le noyau `hgr_fill_rect_asm` ajoute la colonne de départ à l'adresse de
+ligne, sans retenue possible pour une zone visible, puis parcourt les
+octets à rebours. Y sert d'offset et de compteur ; une largeur impaire
+entre directement sur la seconde écriture. La boucle passe de **21 à
+19 cycles par paire**, sans compteur X ni traitement de fin séparé.
+Le noyau perd **7 octets de code** ; RAM, page zéro et pics de pile restent
+identiques. Les paramètres d'entrée ne sont pas modifiés.
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| 40 colonnes × 16 lignes, `$7F` | 7 824 | 7 186 | 1 567 | 1 560 |
+| 39 colonnes × 16 lignes, `$D5` | 7 568 | 7 074 | 1 567 | 1 560 |
+| Un octet à droite/en bas, `$80` | 407 | 406 | 1 565 | 1 558 |
+| Rectangle découpé à droite/en bas, `$A5` | 523 | 514 | 1 567 | 1 560 |
+
+Les grandes zones paires/impaires gagnent **8,2 % / 6,5 %**. Trois cas
+s'ajoutent au banc, soit 142 mesures ; les autres charges restent
+identiques. Seules les quatre références de remplissage sont recalées.
+
+Le nouveau `test_hgr_byte_rects.py`, intégré aux cibles de test NMOS et
+65C02, vérifie **2 204 remplissages par CPU** : les 820 couples valides
+colonne/largeur, les 256 valeurs d'octet, les rectangles vides et invalides,
+les débordements découpés, les deux pages, les bits de palette et les trous
+mémoire. Le même oracle passe avec l'ancien et le nouveau noyau sur NMOS,
+puis avec le nouveau sur 65C02. L'intégration HGR et les exemples minimaux
+passent aussi.
+
+`make all` réussit. Snake passe les niveaux, la cadence PAL/NTSC et les
+sauvegardes ; LIGHT3DBALL termine ses cinq niveaux. Seuls leurs deux
+disques et jumeaux WOZ changent pour cette passe. Les 18 WOZ sont conformes.
+Le contrôle final passe les 142 cas et 16 budgets absolus, avec des mesures
+identiques au premier passage complet.
+
+## 2026-11-04 : alternance des banques du texte DHGR standard
+
+Le noyau de `dhgr_puts` traite explicitement les octets auxiliaires et
+principaux en alternance. Y garde la colonne écran, avancée après chaque
+octet principal : plus de division par deux ni de compteur d'octets en
+BSS à chaque écriture. La sortie d'une ligne fonctionne pour les cinq ou
+six octets d'un glyphe, quelle que soit sa banque de départ.
+
+Le compteur de lignes utilise `tmp2`, scratch cc65 conservé par la routine
+de lecture auxiliaire. Le tampon de ligne passe de sept à six octets :
+les quatre paires de pixels ne peuvent écrire au-delà de l'indice cinq.
+Le noyau perd **10 octets de code et trois octets de BSS**, sans changer
+la page zéro, les tables ou les pics de pile mesurés. Les interruptions
+restent masquées une ligne à la fois ; RAMRD/RAMWRT redeviennent principaux.
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| « APPLE II », x=0 | 44 259 | 37 376 | 2 871 | 2 861 |
+| x=3 | 44 524 | 37 721 | 2 873 | 2 863 |
+| x=6 | 43 856 | 37 196 | 2 873 | 2 863 |
+| Huit espaces, x=0 | 44 259 | 37 376 | 2 871 | 2 861 |
+
+Le gain est de **15,2..15,6 %**. Le client isolé utilise 336 octets de RAM.
+Les trois nouveaux cas portent le banc à 145 mesures ; seules ces quatre
+références changent, et les 16 budgets absolus sont conservés.
+
+Le test du texte ajoute 238 captures complètes des deux pages et banques :
+les 255 octets d'entrée non nuls, les chaînes vides, les sept phases et
+les deux états du masque IRQ. L'oracle par pixel vérifie aussi les bits
+de palette, les voisins et les trous mémoire. Il passe avec l'ancien et
+le nouveau noyau, en complément des caractères minuscules et inconnus et
+des arrêts aux bords droit/bas. Les 48 points de contrôle DHGR étendus
+passent également.
+
+`make all` réussit ; seuls `DHGR.dsk` et son jumeau WOZ changent. L'exemple
+DHGR passe l'animation, la pause/reprise, les flèches et le retour DOS.
+Le rendu rapide vérifie les sept décalages, les chevauchements, les retenues
+décimales et la restauration du fond. Les 18 WOZ sont conformes. Le contrôle
+final passe les 145 cas et 16 budgets, avec des mesures identiques au
+premier passage de la version finale.
+
+## 2026-11-04 : sentinelle de lecture des bitmaps HGR
+
+Chaque octet source entre dans le registre de décalage avec une sentinelle
+en bit zéro et le premier pixel dans la retenue. Les décalages suivants
+fournissent les sept pixels restants ; le registre devient nul seulement
+quand la sentinelle en sort. Cela supprime le compteur de huit bits et son
+décrément à chaque pixel. Le dernier pixel de la ligne reste traité avant
+toute recharge source.
+
+L'indice d'octet source utilise le haut de `ptr2`, dont seul le bas sert
+à accumuler les pixels à dessiner. Le noyau perd **6 octets de code et un
+octet de page zéro**, sans changer la RAM ordinaire ni les pics de pile.
+L'ordre de lecture des pixels et les opérations SET/CLEAR/XOR sont conservés.
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| Bitmap mixte 16×8 SET, phase 0 | 6 591 | 5 935 | 1 945 | 1 939 |
+| CLEAR, phase 3 | 6 728 | 6 072 | 1 943 | 1 937 |
+| XOR, phase 6 | 6 884 | 6 228 | 1 945 | 1 939 |
+| Bitmap vide | 5 576 | 4 920 | 1 945 | 1 939 |
+| Bitmap plein | 7 248 | 6 592 | 1 945 | 1 939 |
+| XOR découpé à droite/en bas | 1 249 | 1 207 | 1 945 | 1 939 |
+
+Les neuf cas mixtes gagnent **9,4..10,0 %**, le vide **11,8 %**, le plein
+**9,1 %**. La page zéro passe de 36 à 35 octets dans ces clients. Un cas
+plein s'ajoute au banc, soit 146 mesures ; seules les douze références
+bitmap changent, sans modification des budgets absolus.
+
+Le test bitmap ajoute les 256 valeurs source dans une image de 16×128
+pixels, répétée dans les sept phases, trois modes et deux pages. Les
+**654 cas** passent avec l'ancien noyau sur NMOS et avec le nouveau sur
+NMOS et 65C02. Ils couvrent aussi le découpage, le stride source complet,
+les débuts/fins d'octet, les images vides/pleines, la palette et les trous
+mémoire. L'intégration HGR et `make all` passent ; aucune image distribuée
+ne change pour cette passe.
+Le contrôle final passe les 146 cas et les 16 budgets absolus ; ses mesures
+sont identiques au premier passage complet.
+
+## 2026-11-04 : transferts de blocs DHGR et fusion des masques
+
+La préparation de l'adresse est intégrée dans `block_setup`, supprimant
+un appel imbriqué. L'avancement des pointeurs garde la banque dans A :
+les incréments ne la modifient pas, et le EOR final sélectionne directement
+l'autre banque. Les tests de banque qui n'ont pas de donnée dans A utilisent
+TXA. L'écriture de blocs conserve CPX pour préserver l'octet source.
+
+La fusion d'un masque partiel calcule `~(~screen | write_mask)` puis ajoute
+les bits source, au lieu de sauvegarder/recharger l'écran et d'inverser le
+masque. Les bits de palette sont conservés comme auparavant. Le noyau
+commun perd **15 octets de code et deux octets au pic de pile matérielle**.
+RAM, page zéro et pile C ne changent pas.
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| Écriture 8×8 octets, banque auxiliaire au départ | 6 839 | 6 615 | 2 054 | 2 039 |
+| Lecture 8×8 octets | 7 207 | 6 987 | 2 054 | 2 039 |
+| Écriture 7×8 octets, banque principale au départ | 6 427 | 6 219 | 2 056 | 2 041 |
+| Sprite 14×8 pixels couleur, masques partiels | 12 683 | 12 208 | 2 574 | 2 559 |
+| Même sprite, masques opaques | 10 315 | 10 095 | 2 566 | 2 551 |
+| Petit sprite existant | 2 314 | 2 271 | 2 494 | 2 479 |
+
+Les blocs gagnent **3,1..3,3 %**, les masques partiels **3,7 %**. Quatre
+cas portent le banc à 150 mesures ; seules les six références de cette
+famille changent, sans modification des budgets absolus.
+
+Le nouveau `test_dhgr_blocks.py` vérifie 640 transferts C et sprites natifs :
+largeurs 1..80, les 256 masques, départ dans chaque banque, deux pages,
+croisements de page des buffers, garde du tampon de lecture, bits de
+palette et les deux masques IRQ. L'oracle passe avec les deux versions.
+Les 48 points de contrôle DHGR étendus passent également.
+
+`make all` et les tests rapides Robot Space Station passent sur IIe et IIc,
+dont les mises à jour des salles et les écritures auxiliaires sous masque IRQ.
+Seuls `ROBOTSTATION.po` et son jumeau WOZ changent pour cette passe ; les
+18 images WOZ correspondent aux disques.
+Le contrôle final passe les 150 cas et les 16 budgets absolus, avec des
+mesures identiques au premier passage complet.
+
+## 2026-11-04 : calcul du nombre de cellules du texte HGR doublé
+
+Le wrapper C de `hgr_puts` calculait `(264-x)/18+1` par une boucle de
+soustractions sur des variables de pile. Le helper fastcall indépendant
+`hgr_text16_cells` utilise A/X, sans mémoire ni changement du masque IRQ.
+Les valeurs 256..264 donnent directement quinze cellules ; les autres
+utilisent une courte boucle native. Le wrapper conserve son contrôle de
+l'origine avant l'appel. Les clients natifs du blitter ne lient pas ce
+nouveau membre d'archive.
+
+Le C compilé passe de 330 à 277 octets et le helper en prend 19. La
+suppression des dépendances de pile et de soustraction du runtime porte
+le gain des clients isolés à **71 octets de code et trois octets au pic de
+pile C**. Les clients composites gagnent 55 octets chargés. RAM, page zéro
+et pics de pile matérielle restent identiques.
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| « APPLE II » blanc, phase 0 | 16 681 | 15 052 | 3 213 | 3 142 |
+| Phase 3 | 16 914 | 15 305 | 3 217 | 3 146 |
+| Orange, phase 0 | 16 606 | 15 125 | 3 246 | 3 175 |
+| Origine x=9, sous la frontière d'espace de 256 pixels | 16 823 | 15 316 | 3 217 | 3 146 |
+| Huit espaces | 5 420 | 3 894 | 3 213 | 3 142 |
+| Chaîne vide | 2 153 | 627 | 3 205 | 3 134 |
+| Ancien HUD sans cache, à chaud | 32 828 | 31 213 | 4 629 | 4 574 |
+
+Le texte blanc gagne **9,5..9,8 %**, le texte orange **8,5..8,9 %**, les
+espaces **28,2 %** et la chaîne vide **70,9 %**. Le blitter natif dense
+et les autres familles gardent leurs mesures. Deux cas portent le banc
+à 152 mesures ; 15 références sont recalées avec les mêmes budgets.
+
+`test_hgr_text_cells.py` vérifie les 265 valeurs d'espace par un appel C
+réel sur NMOS et 65C02, dont toutes les frontières de 18 et 256 pixels.
+Les 280 scènes du texte doublé passent sur les deux CPU, ainsi que
+l'intégration HGR, les configurations d'archive et les tests hôtes.
+La suite `make test-hgr` a également passé l'ensemble des tests de la série
+précédente avant cette dernière modification du wrapper.
+`make all`, Snake, les cinq niveaux de LIGHT3DBALL et l'exemple HGR sur
+II+/IIe passent. Seuls `SNAKE.dsk` et son jumeau WOZ changent pour cette
+passe ; les 18 WOZ sont conformes. Le contrôle final passe les 152 cas et
+16 budgets absolus, avec des mesures identiques au premier passage complet.
+
+## 2026-11-04 : temporaires de l'affichage HGR signé
+
+`hgr_puti` affecte directement le pointeur de conversion au tampon ou à
+son deuxième caractère après le signe. Le paramètre valeur porte ensuite
+les bits de la magnitude ; la négation reste non signée pour −32768.
+Les variables locales `dst` et `mag` disparaissent. Le C compilé perd
+27 octets ; les dépendances de runtime supprimées portent le gain des
+clients isolés à **40 octets chargés et quatre octets au pic de pile C**.
+RAM, page zéro et pile matérielle restent identiques.
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| −32768 | 12 943 | 12 810 | 3 388 | 3 348 |
+| −12345 | 12 456 | 12 318 | 3 392 | 3 352 |
+| 32767 | 11 921 | 11 800 | 3 392 | 3 352 |
+
+Le gain est de **1,0..1,1 %**. Les trois nouveaux cas portent le banc à
+155 mesures ; les autres références sont identiques. La pile C mesurée
+passe de 26 à 22 octets dans les trois cas.
+
+Le nouveau `test_hgr_signed.py` compare 272 scènes par CPU à des chaînes
+décimales et un oracle par pixel : zéro, signes, frontières décimales,
+−32768/32767, alignements, découpage droit/bas, origines invalides et deux
+pages. Il passe avec l'ancien C sur NMOS, puis avec le nouveau sur NMOS
+et 65C02. L'intégration HGR et `make all` passent. Aucune image distribuée
+ne change et les 18 WOZ sont conformes.
+Le contrôle final passe les 155 cas et les 16 budgets absolus, avec des
+mesures identiques au premier passage complet. Les suites complètes
+`make test-hgr` et `make test-dhgr` de cette série sont également passées.
+
+## 2026-11-04 : scratch et compteurs des sprites HGR masqués
+
+Le produit de dimensions utilisé par les banques de phase réutilise
+`tmp4` pour l'octet bas et `tmp3` pour le haut. La hauteur complète est
+chargée dans X avant de réutiliser son scratch. Deux branches remplacent
+des JMP dont la condition est connue ; le calcul de ligne omet l'ADC de
+retenue impossible pour une colonne découpée et un offset HGR visible.
+
+Les quatre boucles génériques parcourent les colonnes à rebours : Y est
+l'offset et le compteur. Les chemins spécialisés de largeur deux/quatre
+restent déroulés. Les coûts par octet deviennent 26 cycles pour dessiner,
+16 pour copier et 32 pour sauvegarder/dessiner, contre 29/19/35.
+Le noyau perd **8 octets de code et deux octets de page zéro**, sans
+changer la RAM ordinaire ni les pics de pile.
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| Dessin générique, 7 octets × 8 lignes | 3 051 | 2 885 | 1 690 | 1 682 |
+| Sauvegarde | 1 951 | 1 791 | 1 690 | 1 682 |
+| Restauration | 1 962 | 1 802 | 1 690 | 1 682 |
+| Sauvegarde et dessin | 3 398 | 3 232 | 1 690 | 1 682 |
+| Jeu compact, phase 1 (maximum) | 15 927 | 15 865 | 7 091 | 7 083 |
+| Fond de huit tuiles et deux dessins | 6 782 | 6 704 | 3 670 | 3 662 |
+
+Les cas génériques gagnent **4,9..8,2 %**. Leur comparaison remplace le
+même membre dans une archive temporaire, dans le même ordre ; les mesures
+finales sont identiques au banc complet. Le jeu compact prend désormais
+15 602..15 865 cycles avec 47 octets de page zéro, soit 12 195/18 695
+cycles de marge NTSC/PAL après réserve. La scène historique stationnaire
+avec champ numérique sans cache prend 14 cycles de plus (+0,11 %) ; les
+autres scènes affectées gagnent du temps ou gardent leur mesure.
+
+Le test des quatre noyaux passe de 88 à 200 scènes : grandes strides,
+hauteurs 128/255, produit traversant 255, toutes les phases, deux pages,
+découpage et gardes du tampon de sauvegarde. Il passe avec les deux versions
+sur NMOS et avec la nouvelle sur 65C02. Les couches sales, chaînes de
+chevauchement, tuiles, exemples HGR/minimaux et l'intégration HGR passent.
+Le jeu complet tient 1 000 images par standard et 2 000 IRQ musicales,
+sans échéance manquée. Snake et les cinq niveaux de LIGHT3DBALL passent.
+
+`make all` réussit ; seuls les disques HGR et LIGHT3DBALL et leurs jumeaux
+WOZ changent pour cette passe. Les 18 WOZ sont conformes. Quatre cas
+génériques portent le banc à 159 mesures ; 46 références sont recalées.
+Le contrôle final passe les 159 cas et les 16 budgets absolus, avec des
+mesures identiques au premier passage complet de la version finale.
+Les campagnes et le fuzz Robot Space Station passent aussi sur IIe et IIc.
+
+## 2026-11-04 : arithmétique des champs numériques HGR
+
+`hgr_putu_field` utilise directement `width*18-2` pour effacer le champ.
+La largeur est déjà bornée à quatorze cellules : ce résultat tient dans
+un octet. Après l'effacement, le paramètre largeur porte le nombre de
+cellules de padding pour l'alignement à droite. Le temporaire 16 bits
+disparaît, ainsi que le calcul inutilisé quand le nombre déborde le champ.
+
+Le C compilé passe de 296 à 246 octets. Selon les dépendances de runtime
+déjà liées, les clients gagnent **33..50 octets chargés et deux octets au
+pic de pile C**. RAM, page zéro et pile matérielle restent identiques.
+Les règles de largeur nulle, saturation à 14, débordement numérique et
+découpage sont conservées.
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| Champ de 14 cellules, valeur 42 | 14 078 | 13 763 | 4 174 | 4 141 |
+| Une cellule, valeur 65535 | 14 695 | 14 384 | 4 168 | 4 135 |
+| Champ découpé à droite | 4 544 | 4 239 | 4 182 | 4 149 |
+| Ancien HUD sans cache, à chaud | 31 213 | 30 539 | 4 574 | 4 541 |
+| Ancienne scène chaude avec champ numérique | 13 286 | 12 975 | 7 177 | 7 127 |
+
+Les champs ciblés gagnent **2,1..6,7 %**. Les trois nouveaux cas portent
+le banc à 162 mesures ; neuf références sont recalées et toutes les autres
+mesures restent identiques. Les limites des 16 budgets absolus ne changent pas.
+
+Le nouveau test compare **1 144 scènes par CPU** à des chaînes décimales
+et un oracle par pixel : toutes les largeurs 1..14, largeur nulle et
+saturation, frontières décimales, débordement, padding au-delà du bord
+droit, origines invalides, découpage, palette et trous mémoire sur les
+deux pages. Le même oracle passe avec l'ancien C sur NMOS, puis avec le
+nouveau sur NMOS et 65C02. L'intégration HGR et `make all` passent aussi.
+
+Snake passe les niveaux, la croissance, les cadences PAL/NTSC et les
+sauvegardes avec la version finale. Seuls `SNAKE.dsk` et son jumeau WOZ
+changent pour cette passe ; les 18 images WOZ sont conformes. Le contrôle
+final passe les 162 cas et les 16 budgets, avec des mesures identiques au
+premier passage de la version finale.
+
+## 2026-11-04 : construction du tampon du texte DHGR
+
+Les quatre groupes de deux pixels produisent chacun un octet bas et un
+octet haut. Chaque octet haut occupe une nouvelle case du tampon ; seul
+l'octet bas peut chevaucher le haut du groupe précédent. Le premier groupe
+écrit donc directement ses deux octets, puis les suivants fusionnent leur
+bas et écrivent directement leur haut.
+
+Aux phases 4..6, un groupe démarre deux octets après son prédécesseur.
+Une table de sept octets indique la seule case à remettre à zéro avant
+chaque ligne ; aux autres phases elle désigne une case non affichée.
+Le zéro complet du tampon et cinq lectures/OR inutiles disparaissent.
+L'indice de cette case utilise `tmp3`, scratch déjà disponible.
+
+Le noyau perd **16 octets de code**, ajoute **7 octets de table immuable**,
+soit **9 octets chargés en moins**. RAM, page zéro et pics de pile restent
+identiques. Le masque IRQ par ligne et les restaurations de banques sont
+conservés.
+
+| Cas | Cycles avant | Cycles après | Binaire avant | Binaire après |
+| --- | ---: | ---: | ---: | ---: |
+| « APPLE II », x=0 | 37 376 | 32 246 | 2 861 | 2 852 |
+| x=3 | 37 721 | 32 566 | 2 863 | 2 854 |
+| x=6 | 37 196 | 32 042 | 2 863 | 2 854 |
+| Huit espaces | 37 376 | 32 288 | 2 861 | 2 852 |
+
+Cette passe gagne **13,6..13,9 %**. Les deux passes du texte DHGR standard
+de la série donnent ensemble **27,1 %** sur le premier cas, avec 19 octets
+chargés et trois de BSS en moins. Seules les quatre références du texte
+standard changent ; les autres mesures sont identiques.
+
+Les 238 captures natives vérifient les 255 octets d'entrée non nuls, les
+chaînes vides, tous les glyphes intégrés, sept phases, les deux pages et
+banques et les deux masques IRQ. Les 48 points DHGR étendus passent aussi.
+La géométrie des groupes est vérifiée séparément sur les **1 792 couples
+phase/octet source**, en partant d'un tampon non nul et en comparant aux
+32 points attendus : aucune case affichée ne dépend d'un ancien contenu.
+
+`make all` réussit ; seuls `DHGR.dsk` et son jumeau WOZ changent pour cette
+passe. Les 18 WOZ sont conformes. Le contrôle final passe les **162 cas et
+16 budgets absolus**, avec des résultats identiques au premier passage.
+Les suites complètes `make test-hgr` puis `make test-dhgr` passent également
+en fin de série, ainsi que `git diff --check`.
+Avant publication, un checkout isolé avec le SDK versionné reproduit les
+162 mesures à l'identique et passe les 16 budgets ainsi que le test DHGR
+du texte. Les métadonnées d'environnement du banc utilisent ce SDK.

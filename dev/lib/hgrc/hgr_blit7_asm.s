@@ -18,7 +18,8 @@ row:    ldy     _hgr_b_y               ; ptr1 = rowbase(y) + col
         adc     _hgr_b_col
         sta     ptr1
         lda     _hgr_rowhi,y
-        adc     #0
+        ; A visible row starts at low offset <= $D0; col <= 39, so
+        ; adding the clipped column never carries into the high byte.
         sta     ptr1+1
         ldy     #0                      ; Y = byte index (src[j] AND dest[col+j])
 col:    lda     (_hgr_b_src),y

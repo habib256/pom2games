@@ -12,10 +12,11 @@ def main():
         work = Path(directory)
         fixture = work / 'rows.c'
         fixture.write_text('''#include "dhgr.h"
+#include "dhgr_internal.h"
 #include "apple2io.h"
 unsigned char check_irq(void);
 int main(void) {
-    unsigned char page, color;
+    unsigned char page, color, y;
     if (!dhgr_init()) return 1;
     for (page=1; page<=2; ++page) for (color=0; color<16; ++color) {
         dhgr_draw_page(1); dhgr_clear(6);
@@ -23,6 +24,12 @@ int main(void) {
         dhgr_draw_page(page); dhgr_show_page(3-page);
         dhgr_clear_rows(255,255,color); dhgr_clear_rows(0,0,color);
         dhgr_clear_rows(color*11,255,color);
+        /* The native single-row entry needs its own address. Repaint a
+         * line already cleared above, including offset $D0 on row 191. */
+        y = color & 1 ? 191 : color*11;
+        dhgr_addr = (unsigned char *)((page == 1 ? 0x2000u : 0x4000u)
+            + (((unsigned)y & 7u) << 10) + (((unsigned)y & 56u) << 4)
+            + ((unsigned)y >> 6)*40u);
         *(volatile unsigned char *)0x1000=page;
         *(volatile unsigned char *)0x1001=color;
         *(volatile unsigned char *)0x1002=check_irq();

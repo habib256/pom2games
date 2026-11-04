@@ -6,7 +6,7 @@
 .exportzp _hgr_p_x, _hgr_p_y
 .import _hgr_col7, _hgr_mask7, _hgr_rowhi, _hgr_rowlo
 .import _hgr_build_rows, _hgr_build_columns, _hgr_build_masks, incsp2
-.importzp sp, ptr1, tmp1, tmp2
+.importzp sp, ptr1
 
 .segment "ZEROPAGE"
 _hgr_p_x:     .res 2        ; pixel x (0..279)
@@ -51,32 +51,26 @@ hgr_pixarg:
 @in:    jsr _hgr_build_rows
         jsr _hgr_build_columns
         jsr _hgr_build_masks
-        jsr hgr_pixsetup
-        clc
+        clc                         ; setup only loads/stores: keeps C=0
+        jmp hgr_pixsetup
 @rts:   rts
 
 hgr_pixsetup:
-        lda _hgr_p_x+1      ; x high byte
-        bne @hi
-        ldx _hgr_p_x        ; x low (0..255)
-        lda _hgr_col7,x
-        sta tmp1
-        lda _hgr_mask7,x
-        jmp @row
-@hi:
-        ldx _hgr_p_x        ; x low (0..23 -> x 256..279)
-        lda _hgr_col7+256,x
-        sta tmp1
-        lda _hgr_mask7+256,x
-@row:
-        sta tmp2             ; mask
         ldy _hgr_p_y
         lda _hgr_rowlo,y
         sta ptr1
         lda _hgr_rowhi,y
         sta ptr1+1
-        ldy tmp1             ; Y = byte column
-        lda tmp2             ; A = mask
+        ; Resolve the row first so Y can hold the final column directly.
+        ldx _hgr_p_x        ; x low (0..255, or 0..23 when high is 1)
+        lda _hgr_p_x+1      ; x high byte
+        bne @hi
+        ldy _hgr_col7,x
+        lda _hgr_mask7,x
+        rts
+@hi:
+        ldy _hgr_col7+256,x
+        lda _hgr_mask7+256,x
         rts
 
 ; --- _hgr_plot_asm : set (OR in) one white pixel ----------------------------

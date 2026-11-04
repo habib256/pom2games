@@ -44,6 +44,7 @@ extern const unsigned char *hgr_t_s;
 extern const unsigned char *hgr_t_font;
 extern void hgr_puts_run(void);
 extern void hgr_puts_run8(void);
+unsigned char HGR_FASTCALL hgr_text16_cells(unsigned room); /* room 0..264 */
 
 extern unsigned char hgr_hud_cell_width;
 void HGR_FASTCALL hgr_hud_cell_run(char ch);

@@ -4,11 +4,9 @@
 .import _hgr_rowhi, _hgr_rowlo
 .import glyph_addr
 .importzp _hgr_g_col, _hgr_g_glyph, _hgr_g_bit, _hgr_g_y, _hgr_t_bit, _hgr_t_col, _hgr_t_font, _hgr_t_n, _hgr_t_s
-.importzp ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
-curcol = tmp1
+.importzp ptr1, tmp2, tmp3
 curmask = tmp2
 curbits = tmp3
-rowcnt = tmp4
 
 .segment "CODE"
 _hgr_blit_glyph8:
@@ -16,10 +14,9 @@ _hgr_blit_glyph8:
 ; at columns g_col / g_col+1 (left = row << bit, right = row >> (7-bit)), ORed
 ; in as two bytes. ~350 cycles per glyph against ~2 500 for the old
 ; pixel-by-pixel pen walk.
-        lda #0
-        sta rowcnt
+        ldx #0                ; source row, preserved through the blit
 @rowloop:
-        lda rowcnt
+        txa
         clc
         adc _hgr_g_y
         tay
@@ -27,13 +24,14 @@ _hgr_blit_glyph8:
         sta ptr1
         lda _hgr_rowhi,y
         sta ptr1+1
-        ldy rowcnt
+        txa
+        tay
         lda (_hgr_g_glyph),y
         beq @next             ; blank row: nothing to OR
         ; Shift the low byte in A (2 cycles), rather than ZP (5 cycles).
         ; curmask still receives carries for the high byte of the span.
-        ldx #0
-        stx curmask           ; high byte
+        ldy #0
+        sty curmask           ; high byte
         ldy _hgr_g_bit
         beq @shifted
 @shift: asl a
@@ -51,14 +49,14 @@ _hgr_blit_glyph8:
         asl a                 ; C = span bit 7
         lda curmask
         rol a                 ; span bits 7..13 -> next column
-        and #$7F
+        ; An 8-bit row shifted by at most six occupies at most 14 bits:
+        ; these upper seven bits cannot contain the palette bit.
         beq @next             ; also keeps column 40 untouched (bit = 0 there)
         iny
         ora (ptr1),y
         sta (ptr1),y
-@next:  inc rowcnt
-        lda rowcnt
-        cmp #8
+@next:  inx
+        cpx #8
         bne @rowloop
         rts
 

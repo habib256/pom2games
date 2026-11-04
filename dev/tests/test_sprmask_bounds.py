@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
 """Exercise clipping in all four ASM masked-sprite kernels directly."""
 from pathlib import Path
+import argparse
 import tempfile
 import test_hgr
 
-CASES = [(7, 255), (14, 254), (140, 240), (256, 220)] + [(x, 255) for x in range(273, 280)]
+CASES = [(7, 255, 1), (14, 254, 1), (140, 240, 1), (256, 220, 1)]
+CASES += [(x, 255, 1) for x in range(273, 280)]
+CASES += [(x, stride, height) for x in range(14, 21)
+          for stride, height in ((2, 128), (1, 255))]
 
 
-def check(work):
+def check(work, iie=False):
     source = work / 'sprmask_bounds.c'
-    entries = ','.join('{%du,%du}' % case for case in CASES)
+    entries = ','.join('{%du,%du,%du}' % case for case in CASES)
     source.write_text('''#include "hgr.h"
 #include "hgr_internal.h"
-static unsigned char data[7u*255u], mask[7u*255u], under[255u];
+static unsigned char data[7u*256u], mask[7u*256u], under[255u];
 static hgr_mspr_t sprite;
-static const struct {unsigned x; unsigned char stride;} cases[] = {''' + entries + '''};
+static const struct {unsigned x; unsigned char stride,height;} cases[] = {''' + entries + '''};
 int main(void) {
     unsigned i;
     unsigned char page, mode, c, scene=0;
@@ -32,6 +36,7 @@ int main(void) {
                 hgr_set_draw_page(page);
                 for (i=0; i<sizeof(under); ++i) under[i]=0xCCu;
                 sprite.stride=cases[c].stride;
+                sprite.h=cases[c].height;
                 hgr_ms_x=cases[c].x; hgr_ms_y=191u;
                 hgr_ms_spr=&sprite; hgr_ms_under=under;
                 switch (mode) {
@@ -52,19 +57,20 @@ int main(void) {
 }
 ''')
     disk = test_hgr.build(work, source)
-    scenes = [(page, mode, x, stride) for page in (1, 2) for mode in range(4) for x, stride in CASES]
+    scenes = [(page, mode, x, stride, height) for page in (1, 2) for mode in range(4)
+              for x, stride, height in CASES]
     steps = ['wait:1100']
     for _ in scenes:
         steps += ['peek:1000:256', 'peek:2000:16384', 'key: ', 'wait:60']
-    result = test_hgr.a2test.run(disk, steps)
-    for index, (page, mode, x, stride) in enumerate(scenes):
+    result = test_hgr.a2test.run(disk, steps, iie=iie)
+    for index, (page, mode, x, stride, height) in enumerate(scenes):
         state, actual = result.dumps[2*index:2*index+2]
         assert state[0] == index, 'fixture did not reach scene'
         expected = bytearray([42]*16384)
         saved = bytearray([0xCC]*255)
         col, phase = divmod(x, 7)
-        for j in range(40-col):
-            src = phase*stride+j
+        for j in range(min(stride, 40-col)):
+            src = phase*stride*height+j
             mask = 0x80 | ((src*7+3)&127)
             bits = ((src*13+1)&127) & (255^mask)
             addr = (page-1)*8192+test_hgr.offset(191)+col+j
@@ -80,5 +86,8 @@ int main(void) {
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--iie', action='store_true')
+    args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='sprmask-bounds-') as tmp:
-        check(Path(tmp))
+        check(Path(tmp), args.iie)

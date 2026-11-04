@@ -9,7 +9,7 @@ HGRC_LIB ?= $(HGRC_BUILD)/hgrc.lib
 
 HGRC_ASM_SRCS := $(addprefix $(HGRC)/,hgr_mode_asm.s hgr_mode_clear_asm.s \
     hgr_lores_init_asm.s hgr_native_asm.s hgr_rows_asm.s hgr_clear_asm.s \
-    hgr_text16_asm.s hgr_text8_asm.s hgr_text_params.s hgr_utoa_asm.s \
+    hgr_text16_asm.s hgr_text8_asm.s hgr_text_params.s hgr_text_addr.s hgr_glyph_params.s hgr_utoa_asm.s \
     hgr_byte_rect_asm.s hgr_pixrect_asm.s hgr_pixrect_params.s hgr_fill_span.s hgr_cell_asm.s \
     hgr_pixel_asm.s hgr_colorize_asm.s hgr_carrier_params.s \
     hgr_bitmap_asm.s hgr_blit7_asm.s hgr_preshift_asm.s hgr_sprite_params.s \
@@ -17,10 +17,10 @@ HGRC_ASM_SRCS := $(addprefix $(HGRC)/,hgr_mode_asm.s hgr_mode_clear_asm.s \
 HGRC_CORE_SRCS := $(addprefix $(HGRC)/,hgr_state.c hgr_init.c hgr_draw_page.s hgr_row_page.s hgr_fixed_rows.s hgr_tables.c hgr_columns.s hgr_masks.s hgr_phases.s) $(HGRC_ASM_SRCS)
 HGRC_PIXEL_SRCS := $(HGRC)/hgr_pixel_asm.s
 HGRC_RECT_SRCS := $(addprefix $(HGRC)/,hgr_rect.c hgr_pixrect.c hgr_cell.c \
-    hgr_colorize.c hgr_carrier.c)
-HGRC_TEXT_SRCS := $(addprefix $(HGRC)/,hgr_font.c hgr_text.c hgr_text8.c \
+    hgr_colorize.c hgr_carrier.s)
+HGRC_TEXT_SRCS := $(addprefix $(HGRC)/,hgr_font.c hgr_text.c hgr_text8.c hgr_text_cells.s \
     hgr_num_unsigned.c hgr_num_field.c hgr_num_signed.c hgr_num_hex.c \
-    hgr_num_small.c hgr_carrier.c hgr_hud.c hgr_hud_asm.s hgr_hud_putu.s \
+    hgr_num_small.c hgr_carrier.s hgr_hud.c hgr_hud_asm.s hgr_hud_putu.s \
     hgr_hud8.c hgr_hud8_asm.s hgr_hud8_putu.s hgr_hud8_digits.s \
     hgr_hud_invalidate.s)
 HGRC_SPRITES_SRCS := $(HGRC)/hgr_sprites.c $(HGRC)/hgr_blit7.c

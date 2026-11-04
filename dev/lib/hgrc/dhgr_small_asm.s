@@ -1,6 +1,8 @@
 ; VERHILLE Arnaud — GPL-3.0. Compact DHGR font, every color-pixel phase.
 ; RAMRD/WRT remain main between byte writes. Short per-row transactions use
 ; the zero-page auxiliary read trampoline and preserve IRQ state for the mouse.
+; Column, ink-table base and edge masks are prepared once per glyph. Fully
+; covered auxiliary bytes are stored without a read through the trampoline.
 .import _dhgr_small_x, _dhgr_small_y, _dhgr_base
 .importzp ptr1, ptr2, ptr3
 .importzp aux_read
@@ -8,10 +10,8 @@
 .bss
 small_first: .res 1
 small_count: .res 1
-small_phase: .res 1
+small_ink_index: .res 1
 small_row: .res 1
-small_left: .res 1
-small_right: .res 1
 small_remaining: .res 1
 small_inverse: .res 4
 small_main_start: .res 1
@@ -72,58 +72,48 @@ small_valid:
         sta ptr2+1
         ldx _dhgr_small_x
         lda small_xbyte,x
-        sta small_first
+        lsr
+        sta small_first         ; bank column, invariant over the five rows
+        lda #0
+        rol
+        sta small_aux_start
+        eor #1
+        sta small_main_start
         lda small_xphase,x
-        sta small_phase
         tax
-        lda small_left_masks,x
-        sta small_left
-        lda small_right_masks,x
-        sta small_right
+        lda small_ink_lo,x
+        sta ptr3
+        lda small_ink_hi,x
+        sta ptr3+1
         lda #3
         cpx #2
         bcc :+
         lda #4
 :       sta small_count
         sty small_row
-        lda small_first
-        and #1
-        sta small_aux_start
-        eor #1
-        sta small_main_start
-        ldx #3
+        ; Only the two ends preserve old pixels. Slot 3 is either the
+        ; right edge (four bytes) or unused (three bytes).
         lda #0
-@inverse: sta small_inverse,x
-        dex
-        bpl @inverse
-        lda small_left
+        sta small_inverse+1
+        sta small_inverse+2
+        lda small_left_masks,x
         eor #$7F
         sta small_inverse
-        ldx small_count
-        dex
-        lda small_right
+        ldy small_count
+        dey
+        lda small_right_masks,x
         eor #$7F
-        sta small_inverse,x
+        sta small_inverse,y
         lda #5
         sta small_remaining
-        jmp small_next_row
-small_done:
-        rts
 small_next_row:
         ldy #0
         lda (ptr2),y
         asl
         asl
-        ldx small_phase
-        clc
-        adc small_ink_lo,x
-        sta ptr3
-        lda small_ink_hi,x
-        adc #0
-        sta ptr3+1
+        sta small_ink_index     ; multiples of four: OR the byte index below
         ldx small_row
         lda small_first
-        lsr
         clc
         adc small_row_lo,x
         sta ptr1
@@ -134,6 +124,7 @@ small_next_row:
         sei
         ldx small_main_start
         txa
+        ora small_ink_index
         tay
         lda (ptr3),y
         sta small_bits
@@ -147,6 +138,7 @@ small_next_row:
         cpx small_count
         bcs small_aux_first
         txa
+        ora small_ink_index
         tay
         lda (ptr3),y
         sta small_bits
@@ -158,13 +150,16 @@ small_next_row:
 small_aux_first:
         ldx small_aux_start
         txa
+        ora small_ink_index
         tay
         lda (ptr3),y
         sta small_bits
         ldy small_aux_start
+        lda small_inverse,x
+        beq :+                  ; a fully covered byte needs no auxiliary read
         jsr aux_read
         and small_inverse,x
-        ora small_bits
+:       ora small_bits
         sta $C005
         sta (ptr1),y
         sta $C004
@@ -173,14 +168,17 @@ small_aux_first:
         cpx small_count
         bcs small_row_done
         txa
+        ora small_ink_index
         tay
         lda (ptr3),y
         sta small_bits
         ldy small_aux_start
         iny
+        lda small_inverse,x
+        beq :+
         jsr aux_read
         and small_inverse,x
-        ora small_bits
+:       ora small_bits
         sta $C005
         sta (ptr1),y
         sta $C004

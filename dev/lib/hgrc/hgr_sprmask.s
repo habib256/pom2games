@@ -64,7 +64,8 @@ ms_yy:     .res 1            ; current scanline (advanced per row)
 ms_w:      .res 1            ; bytes drawn per row (right-clipped)
 ms_h:      .res 1            ; rows remaining (bottom-clipped)
 ms_stride: .res 1            ; source bytes per row (uniform across phases)
-ms_blk:    .res 2            ; phase block size = h * stride (16-bit)
+ms_blk = tmp4               ; phase block size, low byte (setup only)
+ms_blk_hi = tmp3            ; high byte: full height moves to X before clearing
 
 ; zero-page pointer roles (cc65 leaves ptr1..ptr4/tmp1..tmp4 free for leaf asm):
 ;   ptr1 = framebuffer row base + col (rebuilt per row from the row tables)
@@ -81,7 +82,7 @@ ms_blk:    .res 2            ; phase block size = h * stride (16-bit)
 ms_setup:
         lda #0
         sta ms_under_only
-        jmp ms_setup_common
+        beq ms_setup_common
 ms_setup_under:
         lda #1
         sta ms_under_only
@@ -171,22 +172,22 @@ ms_setup_common:
         beq @calculate
         sta ms_blk
         lda #0
-        sta ms_blk+1
+        sta ms_blk_hi
         sta _hgr_ms_block
-        jmp @phases
+        beq @phases               ; A=0, stores preserve Z
 @calculate:
         ; phase block = h * stride via loop-add (h iterations, no multiply)
+        ldx tmp3                  ; capture full h before reusing its scratch
         lda #0
         sta ms_blk
-        sta ms_blk+1
-        ldx tmp3                  ; full h
+        sta ms_blk_hi
 @hloop:
         clc
         lda ms_blk
         adc tmp2                  ; + stride
         sta ms_blk
         bcc @h2
-        inc ms_blk+1
+        inc ms_blk_hi
 @h2:
         dex
         bne @hloop
@@ -200,14 +201,14 @@ ms_setup_common:
         adc ms_blk
         sta ptr2
         lda ptr2+1
-        adc ms_blk+1
+        adc ms_blk_hi
         sta ptr2+1
         clc
         lda ptr3
         adc ms_blk
         sta ptr3
         lda ptr3+1
-        adc ms_blk+1
+        adc ms_blk_hi
         sta ptr3+1
         dex
         bne @ploop
@@ -229,7 +230,7 @@ ms_rowbase:
         sta ptr1
         lda hgr_fixed_rowhi,y
         ora ms_page
-        adc #0
+        ; Clipped column <=39 and row low <=$D0: low addition cannot carry.
         sta ptr1+1
         rts
 
@@ -262,47 +263,47 @@ ms_next_row:
         rts
 
 ; --- _hgr_ms_run : masked pre-shifted blit (no save-under) -------------------
-; Per byte: dst = (dst & mask) | data. Inner loop 29 cycles/byte:
+; Per byte: dst = (dst & mask) | data. Generic loop 26 cycles/byte:
 ;     lda (ptr1),y 5 / and (ptr3),y 5 / ora (ptr2),y 5 / sta (ptr1),y 6
-;     iny 2 / cpy ms_w 3 / bne 3
+;     dey 2 / bpl 3
 ; mask bit 7 = 1 by ABI, so the background's palette-group bit is preserved.
 _hgr_ms_run:
         jsr ms_setup
 @row:
         jsr ms_rowbase
-        ldy #0
+        ldy ms_w
+        dey                     ; clipped width <=40: Y is offset and counter
 @col:
         lda (ptr1),y            ; background byte              5
         and (ptr3),y            ; & mask (1-bits KEEP)         5
         ora (ptr2),y            ; | pre-shifted sprite data    5
         sta (ptr1),y            ;                              6
-        iny                     ;                              2
-        cpy ms_w                ;                              3
-        bne @col                ;                              3  = 29 cyc/byte
+        dey                     ;                              2
+        bpl @col                ;                              3  = 26 cyc/byte
         jsr ms_next_row
         bne @row
         rts
 
 ; --- _hgr_ms_save_run : copy the covered rect framebuffer -> under buffer ----
-; Straight-line copy, 19 cycles/byte (lda (ptr1),y 5 / sta (ptr4),y 6 / iny 2 /
-; cpy 3 / bne 3). Row r lands at under[r*stride]; clipped tail bytes untouched.
+; Backward copy, 16 cycles/byte (lda (ptr1),y 5 / sta (ptr4),y 6 / dey 2 /
+; bpl 3). Row r lands at under[r*stride]; clipped tail bytes untouched.
 _hgr_ms_save_run:
         jsr ms_setup_under
 @row:
         jsr ms_rowbase
-        ldy #0
+        ldy ms_w
+        dey                     ; clipped width <=40: Y is offset and counter
 @col:
         lda (ptr1),y            ; framebuffer                  5
         sta (ptr4),y            ; -> under buffer              6
-        iny                     ;                              2
-        cpy ms_w                ;                              3
-        bne @col                ;                              3  = 19 cyc/byte
+        dey                     ;                              2
+        bpl @col                ;                              3  = 16 cyc/byte
         jsr ms_next_under
         bne @row
         rts
 
 ; --- _hgr_ms_restore_run : copy the under buffer -> framebuffer --------------
-; Exact inverse of _hgr_ms_save_run (19 cycles/byte). Call with the SAME
+; Exact inverse of _hgr_ms_save_run (16 cycles/byte). Call with the SAME
 ; (x, y, spr, under) the save/draw used and the background is byte-identical.
 _hgr_ms_restore_run:
         jsr ms_setup_under
@@ -314,13 +315,13 @@ _hgr_ms_restore_run:
 restore_generic:
 @row:
         jsr ms_rowbase
-        ldy #0
+        ldy ms_w
+        dey                     ; clipped width <=40: Y is offset and counter
 @col:
         lda (ptr4),y            ; under buffer                 5
         sta (ptr1),y            ; -> framebuffer               6
-        iny                     ;                              2
-        cpy ms_w                ;                              3
-        bne @col                ;                              3  = 19 cyc/byte
+        dey                     ;                              2
+        bpl @col                ;                              3  = 16 cyc/byte
         jsr ms_next_under
         bne @row
         rts
@@ -364,10 +365,10 @@ ms_next_under:
 ; The engine's hot path: per row the background byte is copied to the under
 ; buffer and immediately replaced by (dst & mask) | data -- one row-base
 ; computation, one Y walk, instead of a save pass followed by a draw pass.
-; Inner loop 35 cycles/byte:
+; Generic loop 32 cycles/byte:
 ;     lda (ptr1),y 5 / sta (ptr4),y 6 / and (ptr3),y 5 / ora (ptr2),y 5 /
-;     sta (ptr1),y 6 / iny 2 / cpy 3 / bne 3
-; (vs 19 + 29 = 48 for separate save + draw passes, plus a second setup).
+;     sta (ptr1),y 6 / dey 2 / bpl 3
+; (vs 16 + 26 = 42 for separate save + draw passes, plus a second setup).
 _hgr_msu_run:
         jsr ms_setup
         lda ms_w
@@ -378,16 +379,16 @@ _hgr_msu_run:
 draw_generic:
 @row:
         jsr ms_rowbase
-        ldy #0
+        ldy ms_w
+        dey                     ; clipped width <=40: Y is offset and counter
 @col:
         lda (ptr1),y            ; background byte              5
         sta (ptr4),y            ; save it under                6
         and (ptr3),y            ; & mask (1-bits KEEP)         5
         ora (ptr2),y            ; | pre-shifted sprite data    5
         sta (ptr1),y            ;                              6
-        iny                     ;                              2
-        cpy ms_w                ;                              3
-        bne @col                ;                              3  = 35 cyc/byte
+        dey                     ;                              2
+        bpl @col                ;                              3  = 32 cyc/byte
         jsr ms_next_row
         bne @row
         rts

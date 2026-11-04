@@ -27,6 +27,7 @@ static hgr_hud_field_t field, narrow;
 static const struct { unsigned char page; unsigned value; unsigned char invalidate, clear; } ops[]={'''+
             ','.join('{%d,%d,%d,%d}'%op for op in OPS)+'''};
 int main(void) {
+    unsigned x;
     unsigned char phase,i,n;
     hgr_init();
     for (phase=0;phase<7;++phase) {
@@ -68,19 +69,43 @@ int main(void) {
             apple2_getkey();
         }
     }
+    /* Sweep every valid one-cell origin, including /56 and /7 boundaries. */
+    for(x=0;x<=264;++x) {
+        hgr_set_draw_page(1);hgr_clear(0xaa);
+        hgr_set_draw_page(2);hgr_clear(0x55);
+        hgr_set_draw_page((x&1)?2:1);
+        if(!hgr_hud_init(&narrow,x,176,1) || hgr_hud_putu(&narrow,7)!=1) return 11;
+        apple2_getkey();
+    }
+    /* All widths: general conversion followed by cached +1 and +2, with
+     * a decimal carry and overflow that must preserve both pixels/cache. */
+    for(phase=1;phase<=14;++phase) {
+        hgr_set_draw_page(1);hgr_clear(0xaa);
+        hgr_set_draw_page(2);hgr_clear(0x55);
+        hgr_set_draw_page(1);
+        if(!hgr_hud_init(&field,7,144,phase) || hgr_hud_putu(&field,9)!=phase) return 12;
+        if(hgr_hud_putu(&field,10)!=(phase==1 ? HGR_HUD_INVALID : 2)) return 13;
+        if(hgr_hud_putu(&field,12)!=(phase==1 ? HGR_HUD_INVALID : 1)) return 14;
+        if(hgr_hud_putu(&field,phase==1 ? 9 : 12)!=0) return 15;
+        apple2_getkey();
+    }
     return 0;
 }''')
         if args.compact:
             source.write_text(source.read_text().replace('hgr_hud_', 'hgr_hud8_')
                               .replace('0,177,1','0,185,1').replace('0,0,15','0,0,6')
-                              .replace('258u+phase,176','266u+phase,184'))
+                              .replace('258u+phase,176','266u+phase,184')
+                              .replace('x<=264','x<=272').replace('x,176,1','x,184,1')
+                              .replace('phase<=14','phase<=5'))
         pitch, height = (8,8) if args.compact else (18,16)
+        origins = 281-height
+        widths = 5 if args.compact else 14
         disk=build(work,source)
         labels=a2test.labels(work/'test.lbl')
         steps=[]
         for _ in range(7*len(OPS)+1):
             steps += [labels.until('_apple2_getkey'),'peek:1000:1','peek:2000:16384','key: ']
-        for _ in range(70):
+        for _ in range(70+origins+widths):
             steps += [labels.until('_apple2_getkey'),'peek:2000:16384','key: ']
         result=a2test.run(disk,steps,iie=args.iie)
         for phase in range(7):
@@ -113,7 +138,19 @@ int main(void) {
                 draw_cell(pages[phase&1],(266 if args.compact else 258)+phase,
                           192-height,str(value),height,height)
                 assert result.dumps[end+2+phase*10+value]==pages[0]+pages[1],(phase,value,'HUD right/bottom edge')
+        end += 2+70
+        for x in range(origins):
+            pages=[bytearray([0xaa])*8192,bytearray([0x55])*8192]
+            draw_cell(pages[x&1],x,192-height,'7',height,height)
+            assert result.dumps[end+x]==pages[0]+pages[1],(x,'HUD origin division')
+        end += origins
+        for width in range(1,widths+1):
+            pages=[bytearray([0xaa])*8192,bytearray([0x55])*8192]
+            for cell,ch in enumerate(('9' if width==1 else '12'.rjust(width))):
+                draw_cell(pages[0],7+cell*pitch,144,ch,height if cell==width-1 else pitch,height)
+            assert result.dumps[end+width-1]==pages[0]+pages[1],(width,'HUD length/carry/overflow')
     print(f'HGR HUD {height}x{height}: {7*len(OPS)} page-aware updates, seven phases, decimal carry/wrap, invalidation, overflow and colored backgrounds and 70 right/bottom edge glyphs OK.')
+    print(f'All {origins} one-cell origins and widths 1..{widths}: division boundaries, digit counts, cached +1/+2 and overflow OK.')
 
 
 def draw_cell(page,x,y,ch,width,height=16):

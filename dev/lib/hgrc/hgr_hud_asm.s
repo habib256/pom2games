@@ -8,7 +8,8 @@
 .importzp ptr1, ptr2, tmp1
 .bss
 _hgr_hud_cell_width: .res 1
-keep: .res 4
+keep0: .res 1
+keep_tail: .res 2              ; columns 2/3; column 1 is always fully owned
 cells: .res 1
 row: .res 1
 m0: .res 1
@@ -16,6 +17,19 @@ m1: .res 1
 m2: .res 1
 shift: .res 1                   ; pen bit * 16
 .code
+; Each edge is written once per row: expand in place to avoid JSR/RTS
+; overhead and return addresses on the hardware stack.
+.macro STORE_EDGE mask
+        sta tmp1
+        lda (ptr1),y
+        and mask
+        ora tmp1
+        sta (ptr1),y
+        lda (ptr2),y
+        and mask
+        ora tmp1
+        sta (ptr2),y
+.endmacro
 _hgr_hud_cell_run:
         pha
         lda #<_hgr_font
@@ -27,13 +41,12 @@ _hgr_hud_cell_run:
         sbc #$20
         jsr glyph_addr
         lda #0
-        sta keep+1
-        sta keep+2
-        sta keep+3
+        sta keep_tail
+        sta keep_tail+1
         sta row
         ldx _hgr_g_bit
         lda lowbits,x
-        sta keep
+        sta keep0
         txa
         asl
         asl
@@ -59,11 +72,10 @@ _hgr_hud_cell_run:
         lda lowbits,y
         eor #$7f
         dex
-        sta keep,x
+        sta keep_tail-2,x       ; last column is 2 or 3 (width 16/18)
 @rows:
         lda row
-        asl
-        clc
+        asl                     ; row < 8, so C=0 for the addition
         adc _hgr_g_y
         tay
         lda _hgr_rowlo,y
@@ -101,40 +113,33 @@ _hgr_hud_cell_run:
         ldy _hgr_g_col
         lda m0
         and #$7f
-        jsr store0
+        STORE_EDGE keep0
         iny
         lda m0
         asl
         lda m1
         rol
         and #$7f
-        jsr store1
+        ; The second column lies wholly inside every 16/18-pixel cell.
+        sta (ptr1),y
+        sta (ptr2),y
         iny
         lda m1
-        lsr
-        lsr
-        lsr
-        lsr
-        lsr
-        lsr
-        sta tmp1
+        asl
+        rol m2
+        asl
+        rol m2                  ; m2 now contains doubled bits 14..21
         lda m2
-        asl
-        asl
-        and #$7c
-        ora tmp1
-        jsr store2
+        and #$7f
+        STORE_EDGE keep_tail
         lda cells
         cmp #4
         bne @next
         iny
-        lda m2
-        lsr
-        lsr
-        lsr
-        lsr
-        lsr
-        jsr store3
+        asl m2                  ; only doubled bit 21 reaches column 3
+        lda #0
+        rol
+        STORE_EDGE keep_tail+1
 @next:
         inc row
         lda row
@@ -142,48 +147,4 @@ _hgr_hud_cell_run:
         beq @done
         jmp @rows
 @done:  rts
-store0:
-        sta tmp1
-        lda (ptr1),y
-        and keep+0
-        ora tmp1
-        sta (ptr1),y
-        lda (ptr2),y
-        and keep+0
-        ora tmp1
-        sta (ptr2),y
-        rts
-store1:
-        sta tmp1
-        lda (ptr1),y
-        and keep+1
-        ora tmp1
-        sta (ptr1),y
-        lda (ptr2),y
-        and keep+1
-        ora tmp1
-        sta (ptr2),y
-        rts
-store2:
-        sta tmp1
-        lda (ptr1),y
-        and keep+2
-        ora tmp1
-        sta (ptr1),y
-        lda (ptr2),y
-        and keep+2
-        ora tmp1
-        sta (ptr2),y
-        rts
-store3:
-        sta tmp1
-        lda (ptr1),y
-        and keep+3
-        ora tmp1
-        sta (ptr1),y
-        lda (ptr2),y
-        and keep+3
-        ora tmp1
-        sta (ptr2),y
-        rts
 lowbits: .byte 0,1,3,7,15,31,63

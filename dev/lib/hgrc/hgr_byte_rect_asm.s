@@ -3,7 +3,7 @@
 .export _hgr_fill_rect_asm
 .exportzp _hgr_f_y0, _hgr_f_rows, _hgr_f_col0, _hgr_f_cols, _hgr_f_val
 .import _hgr_rowhi, _hgr_rowlo
-.importzp ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
+.importzp ptr1, tmp1, tmp2, tmp3
 
 .segment "ZEROPAGE"
 _hgr_f_y0:    .res 1        ; top scanline of the rectangle
@@ -19,31 +19,28 @@ _hgr_fill_rect_asm:
         lda _hgr_f_rows
         sta tmp2             ; rows remaining
         lda _hgr_f_cols
-        lsr                  ; byte pairs per row, C = an odd byte after them
+        and #1               ; an odd width starts with a single byte
         sta tmp3
-        lda #0
-        rol
-        sta tmp4
 @frow:
         ldy tmp1
         lda _hgr_rowlo,y
+        clc
+        adc _hgr_f_col0       ; clipped row offset + column <= $F7: no carry
         sta ptr1
         lda _hgr_rowhi,y
         sta ptr1+1
-        ldy _hgr_f_col0     ; current column
-        lda _hgr_f_val      ; (preserved across STA/INY/DEX)
+        ldy _hgr_f_cols
+        dey                  ; Y counts backwards from the last byte
+        lda _hgr_f_val
         ldx tmp3
-        beq @fodd
-@fpair: sta (ptr1),y        ; 21 cycles for two bytes
-        iny
+        bne @fsingle
+@fpair: sta (ptr1),y          ; 19 cycles per pair; Y is also the counter
+        dey
+@fsingle:
         sta (ptr1),y
-        iny
-        dex
-        bne @fpair
-@fodd:  ldx tmp4
-        beq @fnext
-        sta (ptr1),y
-@fnext: inc tmp1             ; next scanline
+        dey
+        bpl @fpair
+        inc tmp1             ; next scanline
         dec tmp2
         bne @frow
         rts

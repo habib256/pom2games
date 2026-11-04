@@ -9,18 +9,16 @@ void hgr_putu_field(unsigned x, unsigned char y, unsigned value,
 {
     char buf[6];
     unsigned char len;
-    unsigned dx;
     /* Reject off-screen origins before the right-alignment addition can
      * wrap a 16-bit coordinate back onto the screen. */
     if (width == 0u || x >= 280u || y >= 192u) return;
     if (width > 14u) width = 14u;
     len = gfx_utoa(buf, value);
-    /* Erase the field box: (width-1) full pitches + one 16px cell, 16px tall. */
-    /* n * 18 = (n << 4) + (n << 1): no multiply runtime. */
-    dx = (unsigned)(width - 1u);
-    hgr_clear_pixrect(x, y, (unsigned char)((dx << 4) + (dx << 1) + 16u), 16u);
-    /* Flush-right: blank the leading (width-len) cells; overflow if len>=width. */
-    dx = (unsigned)(width - len);
-    dx = (len < width) ? (x + (dx << 4) + (dx << 1)) : x;
-    hgr_puts(dx, y, buf);
+    /* width <=14: width*18-2 fits in one byte. */
+    hgr_clear_pixrect(x, y, (unsigned char)((width << 4) + (width << 1) - 2u), 16u);
+    if (len < width) {
+        width -= len;
+        x += ((unsigned)width << 4) + ((unsigned)width << 1);
+    }
+    hgr_puts(x, y, buf);
 }

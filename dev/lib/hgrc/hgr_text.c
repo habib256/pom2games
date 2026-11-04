@@ -8,8 +8,6 @@
 
 static void hgr_puts_common(unsigned x, unsigned char y, const char *s)
 {
-    unsigned char n;
-    unsigned room;
     hgr_build_rows();
     hgr_build_columns();
     hgr_build_phases();
@@ -17,9 +15,7 @@ static void hgr_puts_common(unsigned x, unsigned char y, const char *s)
     hgr_g_y     = y;
     hgr_t_col   = hgr_col7[x];
     hgr_t_bit   = hgr_phase7[x];
-    room = 264u - x;                         /* glyph cells that fit: (264-x)/18 + 1 */
-    for (n = 1u; room >= 18u; room -= 18u) ++n;
-    hgr_t_n     = n;
+    hgr_t_n     = hgr_text16_cells(264u - x);
     hgr_t_s     = (const unsigned char *)s;
     hgr_t_font  = hgr_font;
     hgr_puts_run();

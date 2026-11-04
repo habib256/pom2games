@@ -32,8 +32,7 @@ _hgr_pixrect_asm:
 @xmask:
         sec                  ; A = 1<<bitL ; leftMask = (~(A-1)) & $7F
         sbc #1
-        eor #$ff
-        and #$7f
+        eor #$7f             ; A-1 is already in 0..63
         sta tmp1             ; tmp1 = leftMask
         ; --- right edge: gr_colR = col7[xr], rightMask (bits 0..xr%7) -> tmp2 -
         lda _hgr_r_xr+1
@@ -50,44 +49,27 @@ _hgr_pixrect_asm:
         lda _hgr_mask7+256,x
 @rmask:
         asl a                ; A = 1<<bitR ; rightMask = ((A<<1)-1) & $7F
-        sec
-        sbc #1
-        and #$7f
+        sbc #0               ; ASL cleared C: subtract one, result in 1..127
         sta tmp2             ; tmp2 = rightMask
         ; --- build keep/set from leftMask/rightMask + mode ------------------
-        lda gr_colL
-        cmp gr_colR
+        lda gr_colR
+        cmp gr_colL          ; C=1 (ordered edges); mask setup preserves it
         bne @multi
         ; single byte: combined mask = leftMask & rightMask
         lda tmp1
         and tmp2
         sta tmp1             ; tmp1 = combined mask
-        lda _hgr_r_mode
-        bne @one_set
-        lda tmp1             ; clear: keepL = ~mask & $7F (also drops palette bit)
-        eor #$ff
-        and #$7f
-        sta gr_keepL
-        lda #0
-        sta gr_setL
-        jmp @fill
-@one_set:
-        lda #$7f             ; fill: keepL = $7F (clears palette), setL = mask
-        sta gr_keepL
-        lda tmp1
-        sta gr_setL
-        jmp @fill
 @multi:
+        ; Share mask preparation with single-byte rectangles. Their right
+        ; edge values are unused; no second rendering path is needed.
         lda _hgr_r_mode
         bne @multi_set
         ; clear: keep = ~mask & $7F (drop palette too), set/full = 0
         lda tmp1
-        eor #$ff
-        and #$7f
+        eor #$7f
         sta gr_keepL
         lda tmp2
-        eor #$ff
-        and #$7f
+        eor #$7f
         sta gr_keepR
         lda #0
         sta gr_setL
@@ -98,23 +80,23 @@ _hgr_pixrect_asm:
         lda #$7f             ; fill: clear palette + OR edge masks, full = $7F
         sta gr_keepL
         sta gr_keepR
+        sta gr_setF
         lda tmp1
         sta gr_setL
         lda tmp2
         sta gr_setR
-        lda #$7f
-        sta gr_setF
 @fill:
         lda _hgr_r_y0
         sta tmp1             ; current scanline
         lda _hgr_r_rows
         sta tmp2             ; rows remaining
-        lda gr_colR          ; full bytes between the edges: pairs in ptr2,
-        sec                  ; an odd one in ptr2+1 (meaningless, unused,
-        sbc gr_colL          ; when the rectangle is one byte wide)
-        beq @one
+        ; Full bytes between the edges: pairs in ptr2, odd one in ptr2+1.
+        ; A single-byte rectangle uses neither. C=1 from the edge comparison.
+        lda gr_colR
+        sbc gr_colL
+        beq @prow
         sbc #1               ; C = 1: colR - colL - 1
-@one:   lsr
+        lsr
         sta ptr2
         lda #0
         rol
