@@ -4,6 +4,43 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : effacement et adressage LORES
+
+Les boucles C d'effacement et de préparation des adresses sont remplacées
+par deux objets assembleur indépendants. L'effacement écrit huit régions
+entrelacées de 120 octets ; les 64 octets réservés au firmware restent
+intacts. La table des 24 lignes est construite par paires, puis l'adresse
+d'une cellule est retournée directement selon l'ABI cc65.
+
+Mesures avec arguments et appels C (`python3 dev/bench/run.py --only lores`),
+NMOS 6502, compilation `-Oirs` :
+
+| Cas | Cycles avant | Cycles après | Binaire avant → après |
+|---|---:|---:|---:|
+| Effacement page 1 | 50 307 | 5 561 (−88,9 %) | 1 653 → 1 441 octets |
+| Effacement page 2 | 50 307 | 5 444 (−89,2 %) | 1 658 → 1 446 octets |
+| Premier point, tables froides | 11 796 | 1 159 (−90,2 %) | 1 873 → 1 653 octets |
+| Point, tables prêtes | 806 | 531 (−34,1 %) | 1 892 → 1 672 octets |
+| Ligne horizontale de 40 cellules | 6 001 | 5 728 (−4,5 %) | 1 927 → 1 707 octets |
+
+RAM et page zéro inchangées. Les différences de taille concernent ces
+clients isolés, runtime inclus. L'effacement n'utilise plus la pile C
+(pic mesuré 14 → 0 octets) ; son pic matériel passe de 7 à 4 octets. Le
+point gagne trois octets de pile C et la ligne quatre ; leur pic matériel
+passe de 9 à 7. Le placement des branches explique la différence entre
+les deux pages d'effacement.
+
+`test_video_memory.py` vérifie les 256 valeurs de couleur sur chaque page,
+le défaut à froid, les trous firmware et l'autre page. Le nouveau
+`test_lores_pixels.py` compare chaque cellule écrite et relue au modèle,
+y compris les nibbles voisins, les tables froides sur les deux pages,
+trois changements de page et les coordonnées hors écran. Les deux tests
+tournent sur NMOS II+ et 65C02 IIe. Les cinq nouveaux cas entrent dans
+`baseline.json` sans réinitialiser les références HGR/DHGR existantes.
+
+Validation : `make all`, `make test-hgr bench-check` et les 24 programmes
+de contrôle de l'archive. La reconstruction ne change aucun disque livré.
+
 ## Série du 5 novembre 2026 : tables mathématiques et racine carrée
 
 Mesures NMOS 6502 par `python3 dev/tests/test_math.py`, avec tables à `$0800`

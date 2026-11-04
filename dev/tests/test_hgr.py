@@ -129,6 +129,10 @@ def check_archive(work):
     cases = [
         ('lores_mode', 'hgr_lores_init();', 'hgr_lores_init_asm.o',
          ('hgr_mode_asm.o', 'hgr_mode_clear_asm.o', 'hgr_clear_asm.o', 'hgr_pixrect_asm.o')),
+        ('lores_clear', 'hgr_lores_clear(5u);', 'hgr_lores_clear.o',
+         ('hgr_lores.o', 'hgr_lores_setblock.o', 'hgr_lores_hlin.o', 'hgr_text8_asm.o')),
+        ('lores_point', 'hgr_lores_setblock(39u,47u,5u);', 'hgr_lores.o',
+         ('hgr_lores_clear.o', 'hgr_lores_hlin.o', 'hgr_text8_asm.o', 'hgr_pixrect_asm.o')),
         ('clear', 'hgr_clear(0u);', 'hgr_clear_asm.o',
          ('hgr_text16_asm.o', 'hgr_text8_asm.o', 'hgr_sprite_params.o', 'hgr_pixrect_asm.o',
           'hgr_init.o', 'hgr_columns.o', 'hgr_masks.o', 'hgr_phases.o', 'hgr_tables.o')),

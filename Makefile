@@ -127,6 +127,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_hgr_sprite_update.py
 	$(PYTHON) dev/tests/test_video_memory.py
 	$(PYTHON) dev/tests/test_lores_modes.py
+	$(PYTHON) dev/tests/test_lores_pixels.py
 	$(PYTHON) dev/tests/test_a2test.py
 	$(PYTHON) dev/tests/test_preshift_bounds.py
 	$(PYTHON) dev/tests/test_sprmask_bounds.py

@@ -1,5 +1,14 @@
 # Current cc65 measurements
 
+LORES clearing uses eight interleaved native stores and preserves the 64
+firmware bytes on each page. The two page cases take **5,561/5,444 cycles**
+instead of 50,307 (about −89 %), saving **212 loaded bytes** in each isolated
+client and all 14 measured C-stack bytes. Lazy LORES address construction
+and cell lookup also use compact native code: the cold/warm point cases
+take **1,159/531 cycles** instead of 11,796/806, with **220 fewer loaded
+bytes**. RAM and zero page are unchanged. `--only lores` measures these
+cases and the horizontal line; all are included in the regression gate.
+
 The native math fixtures are measured by `python3 dev/tests/test_math.py`.
 Quarter-square table construction takes **37,691 cycles and 110 code bytes**
 (−22.6 % and −18 bytes); square-root seed construction takes 24,031 cycles.

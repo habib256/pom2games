@@ -43,13 +43,13 @@ unsigned char hgr_rowlo[192];
 unsigned char hgr_rowhi[192];
 
 /* LORES tables + state live here so hgr_set_draw_page can shift them in
- * place without forcing hgr_lores.c to link. A HIRES-only program pays the
+ * place without forcing hgr_lores.s to link. A HIRES-only program pays the
  * 50 bytes (hgr_lo_rowlo[24] + hgr_lo_rowhi[24] + 2 flags) but does NOT
- * pull in the 8 LORES drawing functions (~200 bytes). hgr_lo_ready stays 0
- * until hgr_lores.c's first build call, so the shift below is a harmless
+ * pull in the LORES drawing functions. hgr_lo_ready stays 0
+ * until hgr_lores.s's first build call, so the shift below is a harmless
  * no-op for HIRES-only programs (the zero array stays zero).
  * hgr_lo_base is BSS like hgr_base: 0 = unset, lazily defaulted to $04
- * (page 1) by its readers in hgr_lores.c (build + clear). */
+ * (page 1) by its readers in hgr_lores.s and hgr_lores_clear.s. */
 unsigned char hgr_lo_rowlo[24];
 unsigned char hgr_lo_rowhi[24];
 unsigned char hgr_lo_base;
@@ -95,7 +95,7 @@ void hgr_build_rows(void)
  * hidden page, then show it. Both pages share the same mode — pick it once
  * (hgr_init / hgr_lores_init, which also display PAGE1). The LORES branch
  * below is LAZY (guarded by hgr_lo_ready) so a HIRES-only program does not pull
- * hgr_lores.c into the link; hgr_lores_build() will pick up the right
+ * hgr_lores.s into the link; hgr_lores_build() will pick up the right
  * hgr_lo_base on first lores use anyway.
  *
  * INVERTED ENCODING (BSS-zero-default rule, see the header): the flag stores
@@ -112,7 +112,7 @@ void hgr_set_draw_page(unsigned char page)
     newl = (page == 2u) ? 0x08u : 0x04u;            /* LORES $0800 / $0400 */
     /* Ensure the HIRES row tables exist; column families are independent.
      * Later calls are guarded no-ops. LORES tables are built lazily
-     * by hgr_lores.c — see the conditional shift below. */
+     * by hgr_lores.s — see the conditional shift below. */
     hgr_build_rows();
     hgr_draw_page2 = (unsigned char)(page == 2u);
     /* Flip HIRES pages by moving the existing scanline-base HIGH bytes to the
@@ -124,7 +124,7 @@ void hgr_set_draw_page(unsigned char page)
     }
     /* LORES: only shift the existing tables if hgr_lores_build has run. A
      * HIRES-only program will leave hgr_lo_ready = 0 forever and never pull
-     * hgr_lores.c into the link. When LORES IS used later, hgr_lores_build
+     * hgr_lores.s into the link. When LORES IS used later, hgr_lores_build
      * sees hgr_lo_base = newl (set unconditionally below) and computes the
      * right values for the current page. */
     if (hgr_lo_ready && newl != hgr_lo_base) {

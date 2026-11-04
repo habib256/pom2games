@@ -86,6 +86,13 @@ for (i=0; i<4; ++i) hgr_spr_move(i,28u+i*3u+(frame&1u),60u+i*2u);
 hgr_spr_render(); hgr_putu_field(48,0,frame,5); hgr_spr_present(); ++frame;
 '''
 SCENES = {
+ 'lores_clear': dict(call='hgr_lores_clear(5);', setup='hgr_lores_init();'),
+ 'lores_clear_page2': dict(call='hgr_lores_clear(0xFA);',
+     setup='hgr_lores_init(); hgr_set_draw_page(2);'),
+ 'lores_point_cold': dict(call='hgr_lores_setblock(39,47,5);',
+     setup='hgr_lores_init();', warmup=False),
+ 'lores_point': dict(call='hgr_lores_setblock(39,47,5);', setup='hgr_lores_init();'),
+ 'lores_hline': dict(call='hgr_lores_hlin(0,39,20,9);', setup='hgr_lores_init();'),
  'dhgr_block_read': dict(call='dhgr_read_block(0,40,8,8,data,8);',
      iie=True, dhgr=True, declarations='static unsigned char data[64];'),
  'dhgr_block_odd': dict(call='dhgr_write_block(1,40,7,8,bits,8);',

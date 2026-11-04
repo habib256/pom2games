@@ -215,7 +215,12 @@ excluding routines that were previously linked for nothing.
   both pages, the seven phases and the limits of the save buffer;
   the C engine keeps its 40-byte stride limit.
 - `hgr_lores_clear` fills the 960 visible bytes of the drawing page and
-  preserves the 64 bytes reserved for peripheral firmware.
+  preserves the 64 bytes reserved for peripheral firmware. Its native
+  kernel takes 5,444..5,561 cycles in the C benchmarks, about 89 % less
+  than the former C loop, with 212 fewer loaded bytes in isolated clients.
+  Native lazy row-table construction and cell addressing save
+  220 loaded bytes in point/line clients; the first/warm point takes
+  1,159/531 cycles. Tables, RAM and zero page are unchanged.
 - `hgr_lores_init` returns to native 40-column mode after a DHGR or
   80-column display, with `80STORE` off and reads/writes in main
   RAM. Model detection avoids these soft switches on the Apple II+.
@@ -224,7 +229,7 @@ excluding routines that were previously linked for nothing.
 macOS. Its 21 steps compare both video pages with a Python model:
 256/280-pixel rectangles, limits, pixels, SET/CLEAR/XOR sprites and seven
 phases, white/coloured text, numbers, cells, colourising. Four additional scenes check `gfx` cell text on
-page 2, the cursor and the numeric conversions. Sixteen minimal
+page 2, the cursor and the numeric conversions. Twenty-four minimal
 programs also check that the archive excludes unused kernels and zero-page
 blocks. This test is part of `make test` and of CI.
 

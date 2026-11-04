@@ -1,5 +1,5 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
-/* hgr_lores_setblock.c — LORES hgr_lores_setblock (see hgr_lores.c). */
+/* hgr_lores_setblock.c — LORES hgr_lores_setblock (see hgr_lores.s). */
 #include "hgr.h"
 #include "hgr_internal.h"
 

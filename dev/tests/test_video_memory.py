@@ -35,26 +35,48 @@ SEGMENTS { ZEROPAGE: load=ZP,type=zp; CODE: load=RAM,type=ro; }
 def lores(work):
     source = work / 'lores.c'
     source.write_text('''#include "hgr.h"
+void checkpoint(void);
 int main(void) {
-    unsigned i;
-    for (i=0x0400u; i<0x0C00u; ++i) *(unsigned char *)i=0xA5u;
-    hgr_lores_clear(3u);
-    hgr_set_draw_page(2u); hgr_lores_clear(0x1Au);
-    *(volatile unsigned char *)0x1000=1u;
+    unsigned i, color;
+    unsigned char page;
+    for (i=0x0400u; i<0x0C00u; ++i)
+        *(unsigned char *)i=(unsigned char)(i*13u+(i>>8));
+    hgr_lores_clear(0x1Au); /* uninitialized BSS defaults to page 1 */
+    checkpoint();
+    for (page=1; page<=2; ++page) {
+        hgr_set_draw_page(page);
+        for (color=0; color<256; ++color) {
+            hgr_lores_clear((unsigned char)color);
+            checkpoint();
+        }
+    }
     for (;;) {}
     return 0;
 }
 ''')
-    disk = test_hgr.build(work, source)
-    result = test_hgr.a2test.run(disk, ['wait:1100', 'peek:1000:1', 'peek:0400:2048'])
-    assert result.dumps[0] == b'\x01', 'fixture did not finish'
-    expected = bytearray([0xA5]*2048)
-    for page, color in ((0,0x33),(1024,0xAA)):
-        for y in range(24):
-            offset = test_hgr.a2test.text_offset(y)
-            expected[page+offset:page+offset+40] = bytes([color])*40
-    assert result.dumps[1] == expected, 'LORES clear overwrote firmware screen holes or missed visible cells'
-    print('LORES clear: both pages filled, 64 firmware bytes per page preserved.')
+    marker = work / 'marker.s'
+    marker.write_text('.export _checkpoint, resume\n.code\n_checkpoint: nop\nresume: rts\n')
+    disk = test_hgr.build(work, source, extra_sources=(marker,))
+    labels = test_hgr.a2test.labels(work / 'test.lbl')
+    cases = [(0, 0x1A)] + [(page*1024, color) for page in range(2) for color in range(256)]
+    steps = []
+    for _ in cases:
+        steps += [labels.until('_checkpoint'), 'peek:0400:2048', labels.until('resume')]
+    tested = []
+    for iie in (False, True):
+        if iie and not test_hgr.a2test.have_a2shot('LORES clear on the IIe'):
+            continue
+        result = test_hgr.a2test.run(disk, steps, iie=iie)
+        expected = bytearray((i*13+(i>>8)) & 255 for i in range(0x400, 0xC00))
+        for (page, color), actual in zip(cases, result.dumps):
+            for y in range(24):
+                offset = page + test_hgr.a2test.text_offset(y)
+                expected[offset:offset+40] = bytes([(color & 15)*17])*40
+            assert actual == expected, ('LORES cells, firmware holes or other page', iie, page, color)
+        assert len(result.dumps) == len(cases)
+        tested.append('IIe' if iie else 'II+')
+    print('LORES clear: all 256 color bytes on both pages, cold default, '
+          f'64 firmware bytes per page and other page preserved ({"/".join(tested)}).')
 
 
 if __name__ == '__main__':
