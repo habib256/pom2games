@@ -46,8 +46,8 @@ LOWBSS, or the unused HGR page.
 | File | Routine | Effect | Cost |
 |---|---|---|---|
 | `math.inc` | zero page | `mul_x` (16), `mul_y` (8), `mul_p0..p2` (24), `mul_t`, 4 pointers; 13 B (+3 with `MUL_ACC`), each replaceable by an alias | — |
-| | `MUL_K16 k` | `mul_p = mul_x × k`, k a constant 0..255, inline | ~60–70 c; 44 B |
-| | `MUL_KS16 k` | same with signed `mul_x` | ~70–80 c; 55 B |
+| | `MUL_K16 k` | `mul_p = mul_x × k`, k a constant 0..255, inline | general ~60–70 c / 44 B; powers 11–59 c / 8–34 B |
+| | `MUL_KS16 k` | same with signed `mul_x` | general ~70–80 c / 55 B; powers 8–45 B |
 | `mul.asm` | `mul_init` | builds the square tables (nothing on disk) | ~38,000 c |
 | | `mul_u8u8` | `mul_p0..1 = mul_x(low) × mul_y` | ~45 c |
 | | `mul_u16u8` | `mul_p = mul_x × mul_y`, unsigned | ~85 c |
@@ -110,11 +110,36 @@ sweep, including the fixture's stores and loop, takes 5,529,438 instead of
 other candidate steps save two. Table storage and zero page are unchanged.
 
 `test_math_products.py` checks every 16-bit input, signed and unsigned, for
-constants 0, 1, 2, 64, 73, 128, 183 and 255: **1,048,576 products**, plus Y
-preservation. The macros occupy 44/55 bytes instead of 49/60. At input
-$FFFF, the unsigned call takes 76 or 80 cycles including JSR/RTS, instead
-of 84 or 88. Each exhaustive signed/unsigned sweep saves exactly 1,048,576
-cycles (eight per product), with code branches kept within a page.
+constants 0, 1, 2, 4, 8, 16, 32, 64, 73, 128, 183 and 255:
+**1,572,864 products**, plus Y preservation and the caller's cheap-label
+scope. The general macros occupy 44/55 bytes instead of the original
+49/60; they save eight cycles per expansion.
+
+Zero, one and powers of two use smaller table-free paths. Low factors
+shift left; ×16 joins nibbles; ×32/64/128 shift a value initially placed
+one byte higher. Signed large factors repeat the sign bit directly, so
+there is no later correction. These paths work before `mul_init`; the
+test deliberately poisons all square-table bytes for those constants.
+Allocated zero page stays unchanged, and `MUL_TABLES` must still be defined
+when including `math.inc`.
+
+| Factor | Unsigned / signed code bytes | Unsigned cycles, including JSR/RTS |
+|---|---:|---:|
+| 0 | 8 / 8 | 23 |
+| 1 | 12 / 23 | 29 |
+| 2 | 15 / 26 | 35 |
+| 4 | 21 / 32 | 50 |
+| 8 | 27 / 38 | 65 |
+| 16 | 34 / 45 | 71 |
+| 32 | 27 / 33 | 65 |
+| 64 | 22 / 26 | 53 |
+| 128 | 17 / 19 | 41 |
+
+The general path previously used 44/55 bytes for all these factors and,
+at input $FFFF, took 76 cycles for ×0 and 80 for the others. Branches in
+the measurement fixture remain within one page. Each specialized unsigned
+path is also faster than the general path's 72-cycle minimum including
+JSR/RTS. General factors (73, 183, 255 in the exhaustive test) are unchanged.
 
 `mul_acc_shr6` falls through to `mul_shr6`, saving 3 bytes and 3 cycles:
 60 cycles including JSR/RTS instead of 63. The accumulator remains intact.

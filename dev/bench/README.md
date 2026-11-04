@@ -40,9 +40,11 @@ with a two-cycle cost increase when returning 255. All 65,536 roots and
 every generated table byte are checked at two table placements; details are
 in [lib/math](../lib/math/README.md).
 
-Constant multiplication macros now save **5 bytes and 8 cycles** per
-expansion, signed or unsigned. `mul_acc_shr6` saves **3 bytes and 3 cycles**
-by falling through to the shift. `test_math_products.py` checks 1,048,576
+General constant multiplication macros save **5 bytes and 8 cycles** per
+expansion, signed or unsigned. Zero, one and powers of two now use smaller
+table-free paths: ×64 takes **53 cycles and 22 code bytes**, compared with
+80 cycles and 44 bytes in the general path (input $FFFF, JSR/RTS included). `mul_acc_shr6` saves **3 bytes and 3 cycles**
+by falling through to the shift. `test_math_products.py` checks 1,572,864
 products and the optional accumulator/shift inclusion combinations. These
 native math costs are separate from the C graphics benchmark gate.
 

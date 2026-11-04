@@ -112,9 +112,89 @@ mul_sqr2_hi = MUL_TABLES + $600
 ; ~60-70 cycles inline, clobbers A, X. The high byte's product comes first
 ; so the low byte's high half can be added directly, without mul_t.
 ; MUL_KS16 k -- the same with mul_x signed (-k << 16 corrects a negative x).
+; Zero, one and powers of two use smaller/faster table-free shifts.
 ; ----------------------------------------------------------------------------
+; Private shared body for x * 32/64/128 = (x << 8) >> 3/2/1.
+; Keep the high byte in A; signed variants repeat its sign bit into carry.
+.macro _MUL_K16_RIGHT k, signed
+        LDA     mul_x
+        STA     mul_p1
+        LDA     #0
+        STA     mul_p0
+        LDA     mul_x+1
+        ; k=32/64/128: three/two/one shifts. No local symbol definition:
+        ; even a macro-local constant would reset the caller's @label scope.
+        .repeat 3 - (k / 64)
+                .if signed
+                        CMP     #$80
+                        ROR     A
+                .else
+                        LSR     A
+                .endif
+                ROR     mul_p1
+                ROR     mul_p0
+        .endrepeat
+        STA     mul_p2
+.endmacro
+
 .macro MUL_K16 k
         .assert k >= 0 .and k <= 255, error, "MUL_K16: k is 0..255"
+        .if k = 0
+                LDA     #0
+                STA     mul_p0
+                STA     mul_p1
+                STA     mul_p2
+        .elseif k = 1
+                LDA     mul_x
+                STA     mul_p0
+                LDA     mul_x+1
+                STA     mul_p1
+                LDA     #0
+                STA     mul_p2
+        .elseif k = 2 .or k = 4 .or k = 8
+                ; First shift keeps both input bytes in A, then only
+                ; zero to two extra full-width shifts are needed.
+                LDA     mul_x
+                ASL     A
+                STA     mul_p0
+                LDA     mul_x+1
+                ROL     A
+                STA     mul_p1
+                LDA     #0
+                ROL     A
+                STA     mul_p2
+                .repeat k / 4           ; k=2/4/8: 0/1/2 further shifts
+                        ASL     mul_p0
+                        ROL     mul_p1
+                        ROL     mul_p2
+                .endrepeat
+        .elseif k = 16
+                ; Four full-width memory shifts would cost more than the
+                ; general product. Join the independently shifted nibbles.
+                LDA     mul_x
+                .repeat 4
+                        ASL A
+                .endrepeat
+                STA     mul_p0
+                LDA     mul_x+1
+                .repeat 4
+                        ASL A
+                .endrepeat
+                STA     mul_p1
+                LDA     mul_x
+                .repeat 4
+                        LSR A
+                .endrepeat
+                ORA     mul_p1
+                STA     mul_p1
+                LDA     mul_x+1
+                .repeat 4
+                        LSR A
+                .endrepeat
+                STA     mul_p2
+        .elseif k = 32 .or k = 64 .or k = 128
+                _MUL_K16_RIGHT k, 0
+        .else
         LDX     mul_x+1
         SEC
         LDA     mul_sqr1_lo + (k), X
@@ -135,10 +215,15 @@ mul_sqr2_hi = MUL_TABLES + $600
         BCC     :+
         INC     mul_p2
 :
+        .endif
 .endmacro
 
 .macro MUL_KS16 k
+        .if k = 32 .or k = 64 .or k = 128
+                _MUL_K16_RIGHT k, 1
+        .else
         MUL_K16 k
+        .if k <> 0
         BIT     mul_x+1
         BPL     :+
         SEC
@@ -146,6 +231,8 @@ mul_sqr2_hi = MUL_TABLES + $600
         SBC     #(k)
         STA     mul_p2
 :
+        .endif
+        .endif
 .endmacro
 
 .endif  ; _MATH_INC_LOADED_

@@ -4,6 +4,44 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : constantes par décalages
+
+Les constantes 0, 1 et les puissances de deux jusqu'à 128 utilisent des
+noyaux sans tables. Les petits facteurs décalent à gauche, ×16 assemble
+les nibbles, ×32/64/128 décalent à droite une valeur placée un octet plus
+haut. Pour ces trois grands facteurs signés, le signe est propagé pendant
+le décalage : la correction finale disparaît.
+
+| Facteur | Code non signé avant → après | Code signé avant → après | Cycles non signés avant → après |
+|---|---:|---:|---:|
+| 0 | 44 → 8 | 55 → 8 | 76 → 23 |
+| 1 | 44 → 12 | 55 → 23 | 80 → 29 |
+| 2 | 44 → 15 | 55 → 26 | 80 → 35 |
+| 4 | 44 → 21 | 55 → 32 | 80 → 50 |
+| 8 | 44 → 27 | 55 → 38 | 80 → 65 |
+| 16 | 44 → 34 | 55 → 45 | 80 → 71 |
+| 32 | 44 → 27 | 55 → 33 | 80 → 65 |
+| 64 | 44 → 22 | 55 → 26 | 80 → 53 |
+| 128 | 44 → 17 | 55 → 19 | 80 → 41 |
+
+Octets de macro ; cycles NMOS pour x=$FFFF, JSR/RTS compris. Le minimum
+théorique de l'ancien noyau non signé est 72 cycles avec l'appel : chaque
+spécialisation gagne donc aussi hors de cet exemple. Les constantes
+générales restent inchangées. Aucune allocation de RAM/page zéro ni pile
+supplémentaire. Le test exhaustif couvre maintenant 1 572 864 produits,
+dont tous les entiers 16 bits pour chaque chemin spécialisé en signé et
+non signé, avec tables volontairement remplies de $A5, conservation de Y
+et des portées d'étiquettes locales du code appelant.
+
+La catapulte conserve exactement les mêmes états sur les quatre scénarios.
+Sur les 404 ticks avec contacts, moyenne 20 925 → 20 889 cycles, maximum
+34 261 → 34 213 ; sur les 1 842 ticks de vol sans contacts, moyenne
+5 895 → 5 874. Ces petits gains incluent les effets du déplacement du code.
+
+Validation : les deux tests mathématiques, `make all`,
+`make test-verlet-contact test-catapult-example`, mesures complètes des
+scénarios de catapulte. Aucun disque livré ne change dans cette série.
+
 ## Série du 5 novembre 2026 : produits constants et accumulateur
 
 `MUL_K16` calcule la moitié haute du produit d'abord, comme le noyau

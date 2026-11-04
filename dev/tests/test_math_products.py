@@ -6,6 +6,7 @@ import tempfile
 from test_math import ROOT, KS, a2test
 
 MATH = ROOT / 'dev/lib/math'
+CONSTANTS = sorted(set(KS) | {4,8,16,32})
 
 
 def assemble(work, source):
@@ -19,12 +20,21 @@ def assemble(work, source):
 
 
 def check_constants(work):
-    for k in KS:
+    for k in CONSTANTS:
+        table_free = k == 0 or k & (k-1) == 0
+        initialize = '''lda #$A5
+        ldx #0
+poison_tables:
+        .repeat 8, page
+                sta MUL_TABLES+page*256,x
+        .endrepeat
+        inx
+        bne poison_tables''' if table_free else 'jsr mul_init'
         source = f'''MUL_TABLES = $0800
 .include "math.inc"
 .code
         cld
-        jsr mul_init
+        {initialize}
         lda #255
         sta mul_x
         sta mul_x+1
@@ -67,11 +77,15 @@ done:   jmp done
 ; Keep measured macro branches within a page in both implementations.
 .segment "AUDIOCODE"
 unsigned_product:
+@caller_scope:
         MUL_K16 {k}
+        .assert .defined(@caller_scope), error, "macro changed caller scope"
 unsigned_end:
         rts
 signed_product:
+@caller_scope:
         MUL_KS16 {k}
+        .assert .defined(@caller_scope), error, "macro changed caller scope"
 signed_end:
         rts
 .bss
@@ -93,7 +107,7 @@ results: .res 1792
             expected = bytes(v>>shift & 255 for array in (unsigned,signed)
                              for shift in (0,8,16) for v in array) + bytes([0xA5])*256
             assert result.mem(labels['results'],1792,high) == expected, (k,high)
-        print(f'Constant {k}: all 65,536 unsigned/signed inputs, preserved Y; '
+        print(f'Constant {k}: all 65,536 unsigned/signed inputs, preserved Y{" (poisoned tables)" if table_free else ""}; '
               f'{labels["unsigned_end"]-labels["unsigned_product"]}/'
               f'{labels["signed_end"]-labels["signed_product"]} B; '
               f'unsigned $FFFF {result.cycles[1]-result.cycles[0]} cycles including JSR/RTS; '
