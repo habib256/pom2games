@@ -85,10 +85,13 @@ _hgr_xs_setup:
         sta _hgr_b_h
 @hok:
         ; src += phase * (h * stride). phaseblock = h*stride via loop-add -> ptr1
+        ; Keep phase in X and count rows in Y: phase zero needs no product.
+        ldx tmp1
+        beq @offdone
         lda #0
         sta ptr1
         sta ptr1+1
-        ldx tmp3                  ; full h
+        ldy tmp3                  ; full h
 @hloop:
         clc
         lda ptr1
@@ -97,10 +100,8 @@ _hgr_xs_setup:
         bcc @h2
         inc ptr1+1
 @h2:
-        dex
+        dey
         bne @hloop
-        ldx tmp1                  ; phase
-        beq @offdone
 @ploop:
         clc
         lda _hgr_b_src

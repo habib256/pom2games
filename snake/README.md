@@ -151,8 +151,8 @@ references — `build/snake.map` lists them. 31 members come out of the archive:
 
 | Family | Members |
 |---|---|
-| Core asm kernels | `hgr_init`, `hgr_mode_asm`, `hgr_clear_asm`, `hgr_rows_asm`, `hgr_byte_rect_asm`, `hgr_pixrect_asm` + `hgr_pixrect_params`, `hgr_cell_asm`, `hgr_colorize_asm`, `hgr_carrier_params`, `hgr_text16_asm` + `hgr_text_params`, `hgr_utoa_asm` |
-| Rectangles / cells (C wrappers) | `hgr_rect`, `hgr_pixrect`, `hgr_cell`, `hgr_colorize`, `hgr_carrier` |
+| Core asm kernels | `hgr_init`, `hgr_mode_asm`, `hgr_clear_asm`, `hgr_rows_asm`, `hgr_byte_rect_asm`, `hgr_pixrect_asm` + `hgr_pixrect_params`, `hgr_cell_asm`, `hgr_colorize_asm`, `hgr_carrier` + `hgr_carrier_params`, `hgr_text16_asm` + `hgr_text_params` + `hgr_glyph_params` + `hgr_text_addr`, `hgr_utoa_asm` |
+| Rectangles / cells (C wrappers) | `hgr_rect`, `hgr_pixrect`, `hgr_cell`, `hgr_colorize` |
 | Text ×2 and numbers | `hgr_font`, `hgr_text`, `hgr_num_field` |
 | apple2c | `apple2io_asm` (keyboard, `a2_home`, `a2_dos`), `apple2game_asm` (speaker, joystick), `apple2dos_asm` (DOS commands), `apple2vapor_asm` (vapor lock) |
 

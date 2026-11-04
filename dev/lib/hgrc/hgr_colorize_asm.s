@@ -30,21 +30,26 @@ _hgr_colorize_asm:
         sta ptr1+1
         ldx _hgr_z_ncols    ; column counter
         ldy _hgr_z_col0     ; current (absolute) byte column
-@zcol:
-        tya                  ; carrier = (col & 1) ? co : ce
-        and #1
-        bne @zodd
+        tya                  ; choose the first half of the alternating loop
+        lsr
+        bcs @zodd
+@zeven:
         lda _hgr_z_ce
-        jmp @zhave
+        and (ptr1),y
+        ora _hgr_z_hi
+        sta (ptr1),y
+        iny
+        dex
+        beq @next_row        ; handles a final even column (including width 1)
 @zodd:
         lda _hgr_z_co
-@zhave:
         and (ptr1),y         ; keep only the carrier bits of the white glyph
         ora _hgr_z_hi       ; set the palette high bit (orange/blue) or nothing
         sta (ptr1),y
         iny
         dex
-        bne @zcol
+        bne @zeven
+@next_row:
         inc tmp1             ; next scanline
         dec tmp2
         bne @zrow

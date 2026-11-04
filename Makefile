@@ -139,7 +139,17 @@ test-hgr:
 	$(PYTHON) dev/tests/test_hgr_hud.py --compact
 	$(PYTHON) dev/tests/test_presentation_strategies.py
 	$(PYTHON) dev/tests/test_hgr.py
+	$(PYTHON) dev/tests/test_hgr_pixels.py
+	$(PYTHON) dev/tests/test_hgr_color.py
+	$(PYTHON) dev/tests/test_hgr_rects.py
+	$(PYTHON) dev/tests/test_hgr_byte_rects.py
+	$(PYTHON) dev/tests/test_hgr_bitmap.py
 	$(PYTHON) dev/tests/test_hgr_glyphs.py
+	$(PYTHON) dev/tests/test_hgr_glyph_addr.py
+	$(PYTHON) dev/tests/test_hgr_text16.py
+	$(PYTHON) dev/tests/test_hgr_text_cells.py
+	$(PYTHON) dev/tests/test_hgr_signed.py
+	$(PYTHON) dev/tests/test_hgr_number_fields.py
 	$(PYTHON) dev/tests/test_sprengine.py
 	$(PYTHON) dev/tests/test_sprengine_stress.py
 	$(PYTHON) dev/tests/test_sprengine_dirty.py
@@ -157,14 +167,27 @@ test-dhgr:
 	$(PYTHON) dev/tests/test_shufflepuck_example.py --iie
 	$(MAKE) -C dev/examples/dhgr test
 	$(PYTHON) dev/tests/test_dhgr_extended.py
+	$(PYTHON) dev/tests/test_dhgr_blocks.py
 	$(PYTHON) dev/tests/test_dhgr_spans.py
 	$(PYTHON) dev/tests/test_dhgr_text.py
+	$(PYTHON) dev/tests/test_dhgr_small_text.py
 	$(PYTHON) dev/tests/test_dhgr_clear_rows.py
 	$(PYTHON) dev/tests/test_dhgr_spr.py
 	$(PYTHON) dev/tests/test_gfx_dhgr_lines.py
 	$(PYTHON) dev/tests/test_minimal_examples.py --dhgr
 	$(PYTHON) dev/tests/test_stack_profile.py --iie
 	$(PYTHON) dev/tests/test_hgr_hud.py --iie
+	$(PYTHON) dev/tests/test_sprmask_bounds.py --iie
+	$(PYTHON) dev/tests/test_hgr_color.py --iie
+	$(PYTHON) dev/tests/test_hgr_text16.py --iie
+	$(PYTHON) dev/tests/test_hgr_text_cells.py --iie
+	$(PYTHON) dev/tests/test_hgr_signed.py --iie
+	$(PYTHON) dev/tests/test_hgr_number_fields.py --iie
+	$(PYTHON) dev/tests/test_hgr_glyphs.py --iie
+	$(PYTHON) dev/tests/test_hgr_glyph_addr.py --iie
+	$(PYTHON) dev/tests/test_hgr_rects.py --iie
+	$(PYTHON) dev/tests/test_hgr_byte_rects.py --iie
+	$(PYTHON) dev/tests/test_hgr_bitmap.py --iie
 	$(PYTHON) dev/tests/test_presentation_strategies.py --iie
 	$(PYTHON) dev/tests/test_sprengine_dirty.py --iie
 	$(PYTHON) dev/tests/test_frame.py --iie

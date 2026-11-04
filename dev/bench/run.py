@@ -20,8 +20,40 @@ CASES={
  'hgr_clear': ('hgr_clear(0);',False),
  'hgr_span': ('hgr_hline(0,279,40);',False),
  'hgr_rect': ('hgr_fill_pixrect(7,32,140,16);',False),
+ 'hgr_rect_clear': ('hgr_clear_pixrect(7,32,140,16);',False),
+ 'hgr_rect_single': ('hgr_fill_pixrect(2,32,3,16);',False),
+ 'hgr_rect_single_clear': ('hgr_clear_pixrect(2,32,3,16);',False),
+ 'hgr_rect_edges': ('hgr_fill_pixrect(6,32,2,16);',False),
+ 'hgr_rect_clip': ('hgr_fill_pixrect(255,190,255,255);',False),
+ 'hgr_cell': ('hgr_cell(1,4,1);',False),
  'hgr_byte_rect': ('hgr_fill_rect(32,16,0,40,0x7F);',False),
+ 'hgr_byte_rect_odd': ('hgr_fill_rect(32,16,1,39,0xD5);',False),
+ 'hgr_byte_rect_single': ('hgr_fill_rect(191,1,39,1,0x80);',False),
+ 'hgr_byte_rect_clip': ('hgr_fill_rect(190,255,38,255,0xA5);',False),
  'hgr_text': ('hgr_puts8(0,0,"APPLE II");',False),
+ 'hgr_text8_phase3': ('hgr_puts8(3,0,"APPLE II");',False),
+ 'hgr_text8_phase6': ('hgr_puts8(6,0,"APPLE II");',False),
+ 'hgr_text8_spaces': ('hgr_puts8(0,0,"        ");',False),
+ 'hgr_text_color': ('hgr_puts_color(0,0,"APPLE II",HGR_ORANGE);',False),
+ 'hgr_text_color_phase3': ('hgr_puts_color(3,0,"APPLE II",HGR_ORANGE);',False),
+ 'hgr_text_color_phase6': ('hgr_puts_color(6,0,"APPLE II",HGR_ORANGE);',False),
+ 'hgr_text16_phase0': ('hgr_puts(0,0,"APPLE II");',False),
+ 'hgr_text16_phase3': ('hgr_puts(3,0,"APPLE II");',False),
+ 'hgr_text16_phase6': ('hgr_puts(6,0,"APPLE II");',False),
+ 'hgr_text16_spaces': ('hgr_puts(0,0,"        ");',False),
+ 'hgr_text16_x9': ('hgr_puts(9,0,"APPLE II");',False),
+ 'hgr_text16_empty': ('hgr_puts(0,0,"");',False),
+ 'hgr_signed_min': ('hgr_puti(0,0,-32768);',False),
+ 'hgr_signed_negative': ('hgr_puti(0,0,-12345);',False),
+ 'hgr_signed_positive': ('hgr_puti(0,0,32767);',False),
+ 'hgr_field_pad': ('hgr_putu_field(0,0,42,14);',False),
+ 'hgr_field_overflow': ('hgr_putu_field(0,0,65535,1);',False),
+ 'hgr_field_clip': ('hgr_putu_field(250,176,42,5);',False),
+ 'hgr_colorize': ('hgr_colorize(7,32,140,16,HGR_ORANGE);',False),
+ 'hgr_colorize_even': ('hgr_colorize(0,32,140,16,HGR_BLUE);',False),
+ 'hgr_colorize_narrow': ('hgr_colorize(7,32,7,1,HGR_GREEN);',False),
+ 'hgr_plot': ('hgr_plot(139,40);',False),
+ 'hgr_unplot': ('hgr_unplot(279,191);',False),
  'hgr_sprite7': ('hgr_blit7(0,40,4,8,bits,HGR_SET);',False),
  'hgr_diagonal': ('hgr_line(0,0,279,191);',False),
  'gfx_diagonal': ('gfx_line(0,0,279,191);',False),
@@ -31,7 +63,13 @@ CASES={
  'dhgr_block': ('dhgr_write_block(0,40,8,8,bits,8);',True),
  'dhgr_sprite': ('dhgr_sprite(7,40,2,2,2,bits,bits);',True),
  'dhgr_text': ('dhgr_puts("APPLE II",0,0);',True),
+ 'dhgr_text_x3': ('dhgr_puts("APPLE II",3,0);',True),
+ 'dhgr_text_x6': ('dhgr_puts("APPLE II",6,0);',True),
+ 'dhgr_text_spaces': ('dhgr_puts("        ",0,0);',True),
  'dhgr_clear_row': ('dhgr_clear_rows(40,1,9);',True),
+ 'dhgr_clear_rows16': ('dhgr_clear_rows(40,16,9);',True),
+ 'dhgr_clear_rows192': ('dhgr_clear_rows(0,192,9);',True),
+ 'dhgr_clear_rows_clip': ('dhgr_clear_rows(190,255,9);',True),
  'dhgr_small_text': ('dhgr_puts_small("APPLE II",0,0);',True),
 }
 # First call and steady-state frame workloads have their own budgets.
@@ -48,6 +86,27 @@ for (i=0; i<4; ++i) hgr_spr_move(i,28u+i*3u+(frame&1u),60u+i*2u);
 hgr_spr_render(); hgr_putu_field(48,0,frame,5); hgr_spr_present(); ++frame;
 '''
 SCENES = {
+ 'dhgr_block_read': dict(call='dhgr_read_block(0,40,8,8,data,8);',
+     iie=True, dhgr=True, declarations='static unsigned char data[64];'),
+ 'dhgr_block_odd': dict(call='dhgr_write_block(1,40,7,8,bits,8);',
+     iie=True, dhgr=True),
+ 'dhgr_sprite_partial': dict(call='dhgr_sprite(0,40,14,8,8,data,mask);',
+     iie=True, dhgr=True,
+     declarations='static unsigned char data[64],mask[64],j;',
+     setup='for(j=0;j<64;++j){data[j]=j*13u;mask[j]=0x55;}'),
+ 'dhgr_sprite_opaque': dict(call='dhgr_sprite(0,40,14,8,8,data,mask);',
+     iie=True, dhgr=True,
+     declarations='static unsigned char data[64],mask[64],j;',
+     setup='for(j=0;j<64;++j)data[j]=j*13u;'),
+ 'hgr_hud8_digit': dict(call='hgr_hud8_putu(&hud,12346u);', warmup=False,
+     declarations='static hgr_hud8_field_t hud;',
+     setup='hgr_hud8_init(&hud,48,0,5); hgr_hud8_putu(&hud,12345u);'),
+ 'hgr_text8_dense': dict(call='hgr_blit_glyph8();',
+     declarations='#include "hgr_internal.h"\nvoid hgr_blit_glyph8(void);\nstatic const unsigned char dense[8]={255,255,255,255,255,255,255,255};',
+     setup='hgr_build_tables(); hgr_g_glyph=dense; hgr_g_col=4; hgr_g_bit=6; hgr_g_y=40;'),
+ 'hgr_text16_dense': dict(call='hgr_blit_glyph();',
+     declarations='#include "hgr_internal.h"\nstatic const unsigned char dense[8]={255,255,255,255,255,255,255,255};',
+     setup='hgr_build_tables(); hgr_g_glyph=dense; hgr_g_col=4; hgr_g_bit=6; hgr_g_y=40; hgr_z_ce=127; hgr_z_co=127; hgr_z_hi=0;'),
  'hgr_diagonal_cold': dict(call='hgr_line(0,0,279,191);', warmup=False),
  'hgr_hud_cold': dict(call=HUD, warmup=False),
  'hgr_hud_warm': dict(call=HUD),
@@ -55,6 +114,31 @@ SCENES = {
  # Two warm-up frames populate both pages' save-under history.
  'hgr_scene_warm': dict(call=FRAME, setup=SPRITE_SETUP, sprites=True, warmup=2),
 }
+BITMAP = 'static const unsigned char packed[]={240,15,165,90,255,129,66,36,24,60,126,195,153,102,128,1};'
+for phase in (0, 3, 6):
+    for mode in ('SET', 'CLEAR', 'XOR'):
+        SCENES['hgr_bitmap_'+mode.lower()+'_phase'+str(phase)] = dict(
+            call='hgr_blit(%du,40,16,8,packed,HGR_%s);' % (28+phase, mode),
+            declarations=BITMAP)
+SCENES['hgr_bitmap_empty'] = dict(call='hgr_blit(31,40,16,8,packed,HGR_SET);',
+    declarations='static const unsigned char packed[16]={0};')
+SCENES['hgr_bitmap_solid'] = dict(call='hgr_blit(31,40,16,8,packed,HGR_SET);',
+    declarations='static const unsigned char packed[16]={255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255};')
+SCENES['hgr_bitmap_clip'] = dict(call='hgr_blit(276,190,16,8,packed,HGR_XOR);',
+    declarations=BITMAP)
+for name, kernel in (('draw', 'hgr_ms_run'), ('save', 'hgr_ms_save_run'),
+                     ('restore', 'hgr_ms_restore_run'), ('save_draw', 'hgr_msu_run')):
+    SCENES['hgr_masked_generic_'+name] = dict(call=kernel+'();',
+        declarations='#include "hgr_internal.h"\n'
+            'static unsigned char pixels[392],keep[392],under[56];\n'
+            'static const hgr_mspr_t shape={pixels,keep,7,8};\nstatic unsigned j;',
+        setup='for(j=0;j<392;++j){pixels[j]=j&127u;keep[j]=128;}'
+            'hgr_ms_x=17;hgr_ms_y=40;hgr_ms_spr=&shape;hgr_ms_under=under;')
+for phase in (0, 3, 6):
+    SCENES['hgr_preshift_phase'+str(phase)] = dict(
+        call='hgr_sprite_xor(%du,40,&sprite);' % (28 + phase),
+        sprite_width=7, sprite_height=16, sprite_stride=2,
+        declarations='static const hgr_sprite_t sprite={bits,2,16};')
 SCENES.update({
  'hgr_hud_cached_same': dict(call='hgr_hud_putu(&hud,12345u);',
      setup='hgr_hud_init(&hud,48,0,5);', declarations='static hgr_hud_field_t hud;'),

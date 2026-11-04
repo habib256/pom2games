@@ -6,18 +6,18 @@
 .export _dhgr_puts
 .import _hgr_font, _dhgr_base, dhgr_rowlo, dhgr_rowhi, _dhgr_cellbyte, _dhgr_cellphase
 .import incsp3
-.importzp sp, ptr1, ptr2, ptr3, tmp1, aux_read
+.importzp sp, ptr1, ptr2, ptr3, tmp1, tmp2, tmp3, aux_read
+row = tmp2                     ; cc65 scratch; aux_read only clobbers A
+gap = tmp3                     ; the one low byte not overlapping a prior high byte
 .bss
 xpos: .res 1
 ypos: .res 1
 first: .res 1                   ; interleaved byte of the glyph's first dot
 count: .res 1                   ; bytes per glyph row, 5 or 6
-row: .res 1
-byte: .res 1
 pair_index: .res 4              ; dot phase*4 for glyph bit pairs 0..3
 pair_byte: .res 4               ; their first output byte
 keep: .res 6                    ; screen bits kept in each output byte
-buf: .res 7
+buf: .res 6                    ; pair_byte <= 4, so its high byte ends at 5
 .rodata
 ; Glyph bit pair v (two pixels, eight dots) shifted by dot phase P:
 ; pair_low[P*4+v] in the first byte, pair_high[P*4+v] in the next.
@@ -48,6 +48,9 @@ keep_last:
 .endif
 .endrepeat
 row_bytes: .byte 5,5,5,5,6,6,6
+; At phase 4..6 one pair starts two bytes after its predecessor. Other
+; phases overlap throughout; slot 5 is then outside the five visible bytes.
+gap_byte: .byte 5,5,5,5,4,3,2
 .code
 ; void dhgr_puts(const char *s, unsigned char x, unsigned char y)
 ; Glyphs 32..127, others print '?'. Stops at the first glyph that would cross
@@ -104,6 +107,8 @@ _dhgr_puts:
         ldy _dhgr_cellphase,x
         lda row_bytes,y
         sta count
+        lda gap_byte,y
+        sta gap
         lda #0
         ldx #5
 @clear_keep:
@@ -137,11 +142,9 @@ _dhgr_puts:
         bne @pair
         lda #0
         sta row
-@row:   ldx #6
-        lda #0
-@clear: sta buf,x
-        dex
-        bpl @clear
+@row:   lda #0
+        ldy gap
+        sta buf,y
         ldy row
         lda (ptr2),y
         sta tmp1
@@ -150,13 +153,21 @@ _dhgr_puts:
         and #3
         ora pair_index+I
         tax
+.if I=0
+        ; The first pair starts the buffer. Every subsequent high byte is
+        ; also a fresh slot; only its low byte can overlap its predecessor.
+        lda pair_low,x
+        sta buf
+        lda pair_high,x
+        sta buf+1
+.else
         ldy pair_byte+I
         lda pair_low,x
         ora buf,y
         sta buf,y
         lda pair_high,x
-        ora buf+1,y
         sta buf+1,y
+.endif
 .if I<3
         lsr tmp1
         lsr tmp1
@@ -171,16 +182,14 @@ _dhgr_puts:
         lda dhgr_rowhi,y
         ora _dhgr_base
         sta ptr1+1
-        lda first
-        sta byte
         ldx #0
         php
         sei
-@byte:  lda byte
+        lda first
         lsr                     ; C = main
-        tay
+        tay                     ; Y = page column, advanced after main writes
         bcs @main
-        lda keep,x
+@aux:   lda keep,x
         beq @aux_store
         jsr aux_read
         and keep,x
@@ -189,7 +198,9 @@ _dhgr_puts:
         sta RAMWRTON
         sta (ptr1),y
         sta RAMWRTOFF
-        jmp @next
+        inx
+        cpx count
+        beq @row_done
 @main:  lda keep,x
         beq @main_store
         lda (ptr1),y
@@ -197,10 +208,11 @@ _dhgr_puts:
 @main_store:
         ora buf,x
         sta (ptr1),y
-@next:  inc byte
         inx
+        iny                     ; next aux byte is in the next page column
         cpx count
-        bne @byte
+        bne @aux
+@row_done:
         plp
         inc row
         lda row

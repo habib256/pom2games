@@ -4,13 +4,11 @@
 .export _hgr_hud8_cell_run
 .import hgr_hud8_digitlo, hgr_hud8_digithi, hgr_fixed_rowlo, hgr_fixed_rowhi, _hgr_base
 .importzp _hgr_g_col, _hgr_g_bit, _hgr_g_y, _hgr_g_glyph
-.importzp ptr1
+.importzp ptr1, tmp1
 .bss
 keep0: .res 1
 keep1: .res 1
-row: .res 1
 base: .res 1
-glyph_row: .res 1
 .code
 _hgr_hud8_cell_run:
         cmp #$20
@@ -33,17 +31,16 @@ digit:
         lda lowbits+1,x
         eor #$7f
         sta keep1
-        lda #0
-        sta row
-        sta glyph_row
         lda _hgr_base
         bne selected_base
         lda #$20
 selected_base:
         sta base
+        ldx #0                  ; source byte offset = twice the scanline index
 @rows:
-        lda row
-        clc
+        stx tmp1
+        txa
+        lsr                     ; X is even: A=row, C=0 for the addition
         adc _hgr_g_y
         tay
         lda hgr_fixed_rowlo,y
@@ -54,24 +51,22 @@ selected_base:
         ldy _hgr_g_col
         lda (ptr1),y
         and keep0
-        ldy glyph_row
+        ldy tmp1
         ora (_hgr_g_glyph),y
         ldy _hgr_g_col
         sta (ptr1),y
         iny
         lda (ptr1),y
         and keep1
-        ldy glyph_row
+        ldy tmp1
         iny
         ora (_hgr_g_glyph),y
         ldy _hgr_g_col
         iny
         sta (ptr1),y
-        inc glyph_row
-        inc glyph_row
-        inc row
-        lda row
-        cmp #8
+        inx
+        inx
+        cpx #16
         bne @rows
         rts
 lowbits: .byte 0,1,3,7,15,31,63,127

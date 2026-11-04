@@ -4,21 +4,20 @@
 .import _hgr_rowhi, _hgr_rowlo, glyph_addr, hgr_dbl_lo, hgr_dbl_hi
 .importzp _hgr_g_col, _hgr_g_glyph, _hgr_g_bit, _hgr_g_y, _hgr_t_bit, _hgr_t_col, _hgr_t_font, _hgr_t_n, _hgr_t_s, _hgr_z_ce, _hgr_z_co, _hgr_z_hi
 .importzp ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
-curcol = tmp1
-curmask = tmp2
-curbits = tmp3
+; The blitter makes no nested calls: phase and temporary masks can use
+; cc65 scratch rather than additional private zero-page allocations.
+gr_or = tmp1                 ; byte to OR into the framebuffer (cell|hi)
+gbc_bit = tmp2               ; pen bit (shift count 0..6) * 16
+gbc_m0 = tmp3                ; shifted doubled mask, bits 0..7
 rowcnt = tmp4
 
 .segment "ZEROPAGE"
-gr_or:    .res 1             ; scratch: byte to OR into the framebuffer (cell|hi)
-gbc_bit:  .res 1             ; pen bit (shift count 0..6) * 16
 gbc_car0: .res 1             ; carrier byte for cell at g_col + 0
 gbc_car1: .res 1             ; carrier byte for cell at g_col + 1
-gbc_car2: .res 1             ; carrier byte for cell at g_col + 2
-gbc_car3: .res 1             ; carrier byte for cell at g_col + 3 (used only when bit = 6)
-gbc_m0:   .res 1             ; row's shifted doubled mask, byte 0 (bits 0..7)
+gbc_car2 = gbc_car0          ; the carriers repeat every two byte columns
+gbc_car3 = gbc_car1
 gbc_m1:   .res 1             ;   byte 1 (bits 8..15)
-gbc_m2:   .res 1             ;   byte 2 (bits 16..23 — only bits 0..5 ever set)
+gbc_m2:   .res 1             ; bits 16..21, shifted to bits 14..21 for cell 2
 
 .segment "CODE"
 ; --- _hgr_blit_glyph : row-at-a-time 16x16 glyph blitter, white or tinted --
@@ -29,7 +28,7 @@ gbc_m2:   .res 1             ;   byte 2 (bits 16..23 — only bits 0..5 ever set
 ; carrier pair $7F/$7F with hgr_z_hi = 0 (hgr_text.c sets it): the same OR of
 ; the same doubled bits the old pixel-by-pixel white blitter produced, about
 ; five times faster and one blitter instead of two. Cell carriers + the shift
-; count are precomputed once per glyph (they depend on g_col parity and g_mask,
+; count are precomputed once per glyph (they depend on g_col parity and g_bit,
 ; both fixed across the 8 source rows).
 _hgr_blit_glyph:
         lda _hgr_g_bit         ; pen bit 0..6 = shift count, times 16
@@ -41,24 +40,24 @@ _hgr_blit_glyph:
         ; Precompute carriers for cells 0..3. Carrier parity alternates from
         ; g_col: even col -> ce/co/ce/co ; odd col -> co/ce/co/ce.
         lda _hgr_g_col
-        and #1
-        bne @codd
+        lsr a
         lda _hgr_z_ce
-        sta gbc_car0
-        sta gbc_car2
+        ldx _hgr_z_co
+        bcc @carriers
         lda _hgr_z_co
-        sta gbc_car1
-        sta gbc_car3
-        jmp @cdn
-@codd:  lda _hgr_z_co
+        ldx _hgr_z_ce
+@carriers:
         sta gbc_car0
-        sta gbc_car2
-        lda _hgr_z_ce
-        sta gbc_car1
-        sta gbc_car3
-@cdn:   lda #0
+        stx gbc_car1
+        lda #0
         sta rowcnt
 @crow:
+        ldy rowcnt
+        lda (_hgr_g_glyph),y
+        bne @visible
+        jmp @c3sk              ; a blank source row touches neither scanline
+@visible:
+        tax
         ; ptr1 = scanline yy ; ptr2 = scanline yy+1 (paired pixel-doubling).
         lda rowcnt
         asl a                  ; row * 2
@@ -77,9 +76,7 @@ _hgr_blit_glyph:
         ; Expand 8 source bits to 16 doubled bits shifted left by `bit`, by
         ; two nibble lookups (hgr_glyph_shift.s). The bits occupy positions
         ; bit..bit+15 (<= 21), so m2 bits 6..7 stay zero.
-        ldy rowcnt
-        lda (_hgr_g_glyph),y
-        tax
+        txa
         and #$0F
         ora gbc_bit
         tay
@@ -99,6 +96,7 @@ _hgr_blit_glyph:
         sta gbc_m1             ; doubled bits 8..15
         lda hgr_dbl_hi,y
         sta gbc_m2             ; doubled bits 16..23
+        ldy _hgr_g_col          ; walk the four destination columns once
         ; --- Cell 0 (column g_col): doubled bits 0..6 = m0 & $7F ------------
         lda gbc_m0
         and #$7F
@@ -106,13 +104,13 @@ _hgr_blit_glyph:
         and gbc_car0
         ora _hgr_z_hi
         sta gr_or
-        ldy _hgr_g_col
         ora (ptr1),y
         sta (ptr1),y
         lda gr_or
         ora (ptr2),y
         sta (ptr2),y
 @c0sk:
+        iny
         ; --- Cell 1 (column g_col+1): doubled bits 7..13 -------------------
         ; bits 7..13 = ((m1 << 1) | (m0 >> 7)) & $7F
         lda gbc_m0
@@ -124,60 +122,42 @@ _hgr_blit_glyph:
         and gbc_car1
         ora _hgr_z_hi
         sta gr_or
-        ldy _hgr_g_col
-        iny
         ora (ptr1),y
         sta (ptr1),y
         lda gr_or
         ora (ptr2),y
         sta (ptr2),y
 @c1sk:
+        iny
         ; --- Cell 2 (column g_col+2): doubled bits 14..20 ------------------
-        ; bits 14..20 = ((m2 << 2) & $7C) | ((m1 >> 6) & $03)
-        ; m2 bit 5 (= doubled bit 21) belongs to cell 3, so $7C drops it.
+        ; Shift m1:m2 twice: m2 now holds doubled bits 14..21. Keep its
+        ; top bit for cell 3 while drawing the low seven bits in cell 2.
         lda gbc_m1
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        lsr a                  ; A = m1 >> 6 (low 2 bits = m1 bits 6..7)
-        sta gr_or              ; partial cell 2 in bits 0..1
-        lda gbc_m2
         asl a
-        asl a                  ; A = m2 << 2 (m2 bit 5 spilled to bit 7)
-        and #$7C               ; keep bits 2..6 only
-        ora gr_or
+        rol gbc_m2
+        asl a
+        rol gbc_m2
+        lda gbc_m2
+        and #$7F
         beq @c2sk
         and gbc_car2
         ora _hgr_z_hi
         sta gr_or
-        ldy _hgr_g_col
-        iny
-        iny
         ora (ptr1),y
         sta (ptr1),y
         lda gr_or
         ora (ptr2),y
         sta (ptr2),y
 @c2sk:
+        iny
         ; --- Cell 3 (column g_col+3): doubled bit 21 only, set iff bit = 6 -
-        ; (m2 << 0 ... actually m2 bits 5..7, but bits 6..7 stay 0 by design)
+        ; Cell 2's shifts put doubled bit 21 in m2's sign bit.
         lda gbc_m2
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        lsr a                  ; A = m2 >> 5 (low 3 bits, but bits 1..2 = 0)
-        and #$07
-        beq @c3sk
+        bpl @c3sk
+        lda #1
         and gbc_car3
         ora _hgr_z_hi
         sta gr_or
-        ldy _hgr_g_col
-        iny
-        iny
-        iny
         ora (ptr1),y
         sta (ptr1),y
         lda gr_or

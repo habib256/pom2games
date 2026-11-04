@@ -4,21 +4,20 @@
 .exportzp _hgr_b_mask
 .import _hgr_rowhi, _hgr_rowlo
 .importzp _hgr_b_col, _hgr_b_h, _hgr_b_mode, _hgr_b_src, _hgr_b_stride, _hgr_b_w, _hgr_b_y
-.importzp ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
+.importzp ptr1, ptr2, tmp1, tmp2, tmp3
 curcol = tmp1
 curmask = tmp2
 curbits = tmp3
-rowcnt = tmp4
 
 .segment "ZEROPAGE"
 _hgr_b_mask:  .res 1        ; start bit mask (1 << (x % 7))
-b_srcidx:      .res 1        ; source byte index within the current row
 
 .segment "CODE"
 ; Pixels of one destination byte are gathered in `acc` and the mode is applied
 ; once per byte: each pixel is set, cleared or toggled at most once, so the
 ; result is the per-pixel one with a fraction of the work.
 acc = ptr2
+b_srcidx = ptr2+1              ; acc needs only the low scratch byte
 _hgr_blit_run:
 @row:
         ldy _hgr_b_y           ; ptr1 = scanline base
@@ -32,14 +31,13 @@ _hgr_blit_run:
         sta curmask
         ldy #0                  ; load first source byte of this row
         sty acc
-        lda (_hgr_b_src),y
-        sta tmp3                ; srcbits (MSB-first shift register)
-        lda #8
-        sta tmp4                ; bits left in srcbits
         sty b_srcidx            ; srcidx = 0
+        lda (_hgr_b_src),y
+        sec
+        rol a                   ; C = first pixel, bit 0 = end sentinel
+        sta curbits             ; seven remaining source bits plus sentinel
         ldx _hgr_b_w           ; pixels this row
 @px:
-        asl tmp3                ; C = next pixel (bit 7 first)
         bcc @advance
         lda acc
         ora curmask
@@ -52,19 +50,18 @@ _hgr_blit_run:
         sta curmask
         inc curcol
 @consumed:
-        dec tmp4                ; consumed a source bit
-        bne @next
-        cpx #1                  ; final pixel: no next byte is needed
-        beq @next               ; keep reads within the source row
+        dex                     ; stop before any source refill on the last pixel
+        beq @rowdone
+        asl curbits             ; C = next pixel; zero only after the sentinel
+        bne @px
         inc b_srcidx            ; byte exhausted -> next source byte
         ldy b_srcidx
         lda (_hgr_b_src),y
-        sta tmp3
-        lda #8
-        sta tmp4
-@next:
-        dex
-        bne @px
+        sec
+        rol a
+        sta curbits
+        jmp @px
+@rowdone:
         jsr apply               ; partial last byte
         clc                     ; next source row + next scanline
         lda _hgr_b_src
@@ -82,25 +79,23 @@ _hgr_blit_run:
 apply:
         lda acc
         beq @done
-        ldy curcol
-        lda _hgr_b_mode
+        ldy _hgr_b_mode          ; keep acc in A through mode selection
         beq @bset
-        cmp #2
+        cpy #2
         beq @bxor
-        lda acc                 ; CLEAR: dest &= ~mask (keeps the palette bit)
-        eor #$FF
+        eor #$FF                ; CLEAR: dest &= ~mask (keeps the palette bit)
+        ldy curcol
         and (ptr1),y
-        sta (ptr1),y
-        jmp @clear
+        jmp @store
 @bset:
-        lda acc                 ; SET: dest |= mask
+        ldy curcol              ; SET: dest |= mask
         ora (ptr1),y
-        sta (ptr1),y
-        jmp @clear
+        bne @store              ; acc was nonzero, so OR cannot produce zero
 @bxor:
-        lda acc                 ; XOR: dest ^= mask
+        ldy curcol              ; XOR: dest ^= mask
         eor (ptr1),y
+@store:
         sta (ptr1),y
-@clear: lda #0
+        lda #0
         sta acc
 @done:  rts

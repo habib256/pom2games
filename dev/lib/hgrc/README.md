@@ -42,12 +42,101 @@ if the program calls one of its entry points.
 Costs measured by `make bench` (cycles at 1.02 MHz): clearing a page
 46 000 (self-modifying loop from `HGR_CLEAR_LOOP`, lib/apple2), page flip
 via `hgr_flip_rows` (unrolled loop, one EOR per line), 8x8 text
-`hgr_puts8` ~9 000 for "APPLE II" (glyph shifted across two bytes per
+`hgr_puts8` 7 886 for "APPLE II" (glyph shifted across two bytes per
 line), 16x16 text `hgr_puts` through the colour blitter with the white
 carriers `$7F/$7F` (a single blitter, ~5 times faster than the old
 pixel-by-pixel drawing). The C wrappers read `hgr_col7` / `hgr_phase7` /
 `hgr_mask7` instead of dividing by 7, and the line tables are computed
 without multiplication.
+
+Warm point calls, including C arguments, take 247 cycles for
+`hgr_plot(139,40)` and 256 for `hgr_unplot(279,191)` (previously 271/277).
+Resolving the row before the column avoids two temporary bytes and saves
+14 code bytes; the allocated zero page is unchanged. The aligned sprite
+loops also save 6 code bytes by omitting a carry that cannot occur within
+a visible scanline. Pre-shift selection skips the height × stride product
+for phase zero without growing the code: a 7×16 XOR sprite takes 2,078
+cycles there, versus 2,424 before; phases 3/6 take 2,465/2,540 cycles.
+
+Recolouring alternates even/odd column bodies, selecting parity once per
+row. `hgr_colorize(7,32,140,16,HGR_ORANGE)` takes 8,947 cycles instead of
+11,571 (−22.7 %). Its binary loses 48 bytes: the shared assembly carrier
+selector saves 54 loaded bytes and the rectangle loop grows by 6. RAM,
+zero page, clipping and byte-granular colouring are unchanged. The selector
+also saves 54 bytes in coloured-text clients. `test_hgr_color.py` checks
+all 256 selector inputs, rectangles and tinted text on both pages under
+NMOS 6502 and 65C02; invalid colours preserve the carrier parameters.
+
+The 16×16 text kernel skips blank source rows, stores only two alternating
+carriers and reuses three cc65 scratch bytes. It walks the destination
+columns once and assembles the final two cells with two rotations instead
+of repeated right shifts. This saves **30 code bytes and 5 zero-page bytes**.
+White/orange `"APPLE II"` takes 15,052/15,125 cycles at phase zero.
+A fully filled glyph at phase six also saves 8.1 %;
+tables, other RAM and stack peaks are unchanged. `test_hgr_text16.py`
+checks all 256 source row patterns and all 96 built-in glyphs under five
+carriers, seven phases, both column parities and both drawing pages.
+
+The doubled-text C wrapper uses `hgr_text16_cells` to calculate the fitting
+cell count without stack variables or a C subtraction loop. This independent
+archive member allocates no RAM or zero page. Isolated C text clients lose
+71 code bytes and three bytes at the measured C-stack peak. White text
+improves another 9.8 %, and eight spaces take 3,894 instead of 5,420 cycles.
+All 265 fitting-room values, including 18-pixel and 256-byte boundaries,
+are checked through the cc65 fastcall ABI on both CPU models.
+
+`hgr_puti` assigns the conversion buffer directly and reuses the value
+parameter for the magnitude, keeping unsigned negation for −32768. Its
+isolated client saves 40 loaded bytes and four bytes at the C-stack peak,
+with unchanged RAM and zero page. Printing −32768 takes 12,810 instead of
+12,943 cycles. The signed test checks 272 scenes per CPU, including signs,
+zero, decimal boundaries, −32768/32767, clipped strings and both pages.
+
+`hgr_putu_field` uses the clamped byte width directly for erasing
+`width*18-2` pixels and then reuses that parameter for alignment padding.
+Its measured clients save 33..50 loaded bytes and two bytes at the C-stack
+peak, with unchanged RAM and zero page. The padded/overflow/clipped cases
+improve by 2.1..6.7 %. The field test checks 1,144 scenes per CPU, covering
+every width 1..14, zero/clamped widths, decimal boundaries, overflow,
+alignment beyond the right edge, invalid origins, both pages and palette.
+
+The 8×8 kernel uses X for the glyph row and omits a redundant upper-byte
+mask: an eight-bit row shifted by at most six fits in fourteen bits.
+Together with the shared glyph-address helper, this saves 11 code bytes
+and 6.1..6.7 % of the cycles for `"APPLE II"` at phases 0/3/6. RAM, zero
+page and stack peaks are unchanged. `glyph_addr` itself saves 3 bytes and
+takes 54 instead of 61 cycles including JSR/RTS; it preserves X/Y and
+handles unaligned font bases. Its test checks 147,456 calls per CPU model,
+including incoming carries and 16-bit address wraparound. The 8×8 rendering
+test also covers all 256 source row patterns and the screen edges.
+
+The pixel-rectangle kernel shares edge-mask setup for single-byte and
+multi-byte rectangles, omits redundant seven-bit masks, and skips interior
+counter setup for a single byte. It saves 42 code bytes without changing
+RAM, zero page or stack peaks. The 140×16 fill remains at 5,213 cycles;
+`hgr_cell(1,4,1)` takes 754 instead of 761. `test_hgr_rects.py` checks 752
+C/native fills and clears per CPU model: every edge phase, widths of
+1..40 bytes, clipping, both pages, palette clearing and untouched holes.
+
+Byte rectangles (`hgr_fill_rect`) traverse rows backwards with Y as the
+offset and pair counter. An odd width enters at the second store; pairs
+take 19 instead of 21 cycles. The kernel saves seven code bytes without
+changing RAM, zero page or stack peaks. A 40×16-byte fill takes 7,186
+instead of 7,824 cycles, and 39×16 takes 7,074 instead of 7,568.
+`test_hgr_byte_rects.py` checks 2,204 fills per CPU model: all 820 valid
+column/width pairs, all 256 fill bytes, clipped/empty rectangles, both
+pages, palette bits and untouched screen holes.
+
+The packed MSB-first bitmap path (`hgr_blit`) ends each row before preparing
+another source bit and shares the SET/CLEAR/XOR destination store. A
+sentinel bit in the source shift register replaces the eight-bit countdown,
+and the source-byte index uses `ptr2`'s unused high byte. Together these
+changes save 14 code bytes and one zero-page byte, with unchanged RAM and
+stack peaks. The sentinel pass alone saves 9.4..10.0 % on mixed 16×8
+bitmaps, now 5,935..6,320 cycles across modes and phases 0/3/6.
+`test_hgr_bitmap.py` checks 654 cases per CPU model: all seven phases and
+256 source byte values, source boundaries, full stride under clipping,
+empty/solid patterns, both pages, palette and untouched screen holes.
 
 ## Integration
 
@@ -168,15 +257,35 @@ with HGR in `hgr_layout.h`.
 - `dhgr_read_block` / `dhgr_write_block`: coordinates in interleaved bytes
   0..79, auxiliary/main order; `stride >= width`. Off-screen parts
   are not transferred. The buffer belongs to the caller.
+  Reading/writing an 8×8-byte block takes 6,987/6,615 cycles including C
+  arguments. Keeping the bank in A during pointer advances and removing
+  a nested setup call saves 15 code bytes and two bytes at the measured
+  hardware-stack peak, shared with the masked-sprite kernel. RAM and zero
+  page are unchanged. Tests check widths 1..80, all 256 masks, both banks
+  and pages, pointer page crossings and both IRQ masks.
 - `dhgr_sprite`: x in **colour pixels**, banks precomputed for the seven
   bit shifts, mask 1 = keep the scenery. Each bank holds
   `stride * height` bytes. Saving then restoring a block gives save-under.
 - `dhgr_puts`: opaque white/black text, 8×8 glyphs in **colour pixels**,
   four DHGR bits per font dot, to avoid an artifact tint.
+  `"APPLE II"` takes 32,246 cycles at x=0, including C arguments, instead
+  of 44,259 (−27.1 %). Alternating auxiliary/main writes retains the page
+  column in Y; the row counter uses cc65 scratch and the temporary row
+  buffer is six bytes. Fresh pair bytes are stored directly; only one
+  possible gap needs zeroing. The kernel saves 19 loaded bytes and three BSS bytes,
+  without changing zero page or stack peaks. IRQ masking remains per row,
+  with main RAMRD/RAMWRT restored between rows. Tests cover all 255 non-NUL
+  input bytes, empty strings, seven phases, both pages/banks and IRQ masks,
+  plus right/bottom clipping and untouched pixels and screen holes.
 - `dhgr_puts_small` (optional family `HGRC_DHGR_SMALL_TEXT_SRCS`): small opaque white font, **4×5 colour
   pixel** glyphs, five-column advance. Accepts every DHGR alignment,
   converts lower case to upper case and keeps the neighbouring pixels.
   An incomplete cell at the right or bottom edge is not drawn.
+  The `dhgr_small_text` benchmark (`"APPLE II"`) takes **13,253 cycles**,
+  including the C arguments and calls (previously 14,483). The renderer
+  prepares the column, ink-table base and edge masks once per glyph, and
+  skips auxiliary reads for fully covered bytes: 4 fewer code bytes and
+  2 fewer BSS bytes, with unchanged tables and zero-page use.
 - `dhgr_small_char`: same font, one character per fast call; set
   `dhgr_small_x` and `dhgr_small_y` for a banner updated progressively.
   Auxiliary accesses are brief and preserve the interrupt state.
@@ -552,12 +661,16 @@ check the pixels, clipping, holes and both pages.
 `dhgr_clear_rows(y, rows, color)` fills the visible lines of the drawing
 page, clips at 192 and preserves the memory holes. Each line restores
 main RAMWRT and the caller's IRQ mask; enabled IRQs can
-be serviced between lines. The measured kernel takes 712 cycles a line
-(1,177 before), under a tested bound of 1,300: a line never crosses a page
+be serviced between lines. The measured kernel takes 688 cycles a line
+(712 before), under a tested bound of 1,300: a line never crosses a page
 and starts at most at offset $D0, so four passes (one a pattern byte) store
 through five page-aligned operands, Y walking the line two bytes at a time,
 five cycles a byte; only the page byte of those operands is patched, while
-RAMWRT is main. 129 bytes of code (92 before).
+RAMWRT is main. 117 bytes of code (129 before). X counts the four turns
+of each pattern pass; the row's high address byte is passed in A directly
+to the operand patches. This removes 12 code bytes without changing RAM,
+zero page or stack peaks. Including C arguments, one visible line takes
+1,090 cycles and all 192 lines take 136,555 (previously 1,115/141,187).
 A test with a Mockingboard VIA timer also checks that periodic IRQs
 are actually serviced during both page clears, with checks on
 banks, memory guards and pixels. Servicing remains non-reentrant. Use small
@@ -639,6 +752,8 @@ The animated example uses this format; the two minimal HGR examples use
 its compact 8×8 variant described below.
 `test_hgr_hud.py` compares 168 updates over the seven phases, coloured backgrounds,
 both pages, values that get shorter and geometry/overflow rejections.
+It also sweeps every valid one-cell horizontal origin (265/273 positions
+for 16×16/8×8) and all field widths, including cached +1/+2 and overflow.
 The old fields remain available for drawing without history.
 
 
@@ -689,8 +804,8 @@ The compact path `hgr_hud8_init/putu/invalidate` uses a 19-byte
 The whole box must fit on screen: y≤184, x+8×width≤280.
 The same cache, return-value, opaque background and overflow rules apply.
 Its separate object lets only the format in use be linked. Changing all
-five digits costs at most 7 850 cycles over the benchmark's seven phases,
-against 22 235 for the 16×16 format. Prepare both pages before animating.
+five digits costs at most 6,663 cycles over the benchmark's seven phases,
+against 15,819 for the 16×16 format. Prepare both pages before animating.
 
 The minimal example uses this format. With IIe double buffering, it spreads drawing
 and HUD over two VBL intervals; each step fits in one refresh.
@@ -720,11 +835,45 @@ font when only the HUD is linked. The digit controllers are in ASM;
 +1/+2 steps reuse the cached characters with carry propagation. The field's invalidation
 rules are unchanged. The kernel no longer imposes general enlarged text
 or the pixel-rectangle parameters on a HUD-only client.
+Both controllers reuse the digit count returned by conversion/compaction
+and finish the origin's division by seven in eight bits after reducing it
+below 56. This saves 24 code bytes per format without adding RAM or tables.
+The 16×16 single-digit update takes 3,926 cycles; an unchanged value still
+takes 312 cycles in either format.
+
+The 16×16 kernel writes its second byte column directly to both scanlines:
+that column always lies wholly inside the 16/18-pixel cell. Its other
+columns retain their edge masks. Two rotations assemble the upper glyph
+bits, and the three edge writers expand in place instead of calling
+single-use subroutines. This saves 42 code bytes and one BSS byte, with
+unchanged zero page and measured stack peaks. Five changed digits take
+14,974..15,819 cycles across the seven phases, about 17 % less than before.
+
+The compact kernel counts the source offset in X and uses the existing
+`tmp1` scratch byte, removing 18 code bytes and two BSS counters. A single
+digit update takes 2,283 cycles. Glyph arguments (`hgr_glyph_params`, five
+zero-page bytes), string traversal (`hgr_text_params`, five bytes), and
+font lookup (`hgr_text_addr`, two bytes plus 26 code bytes) are separate
+archive members. A HUD8-only client therefore saves 44 code bytes,
+seven zero-page bytes and two BSS bytes in total. A HUD16-only client
+saves five zero-page bytes. Clients combining HUD and text share these
+members without duplicating the parameter blocks.
 
 The tests check 168 updates with decimal carry and wrap and 70 digits placed
 against the right and bottom edges, in all seven phases. The same oracle
 runs on a2run and POM2 IIe. The examples prepare both HUD
 histories before their loop, to move this cost to load time.
+
+The masked sprite kernels keep their phase-block product in existing
+cc65 scratch, reusing the full-height byte after copying it into X. Their
+clipped row address cannot carry into its high byte. Generic column loops
+run backwards, with Y as offset and counter, while the narrow unrolled
+paths retain their specialisation. Together this saves eight code bytes
+and two zero-page bytes, with unchanged RAM and stack peaks. Generic
+7-byte × 8-row draw/save/restore/save-and-draw calls take
+2,885/1,791/1,802/3,232 cycles (4.9..8.2 % less). The native tests cover
+all four entries, large strides and heights, products crossing 255, every
+phase, both pages and save-under guards on NMOS and 65C02.
 
 ## Optional explicit addressing
 
@@ -766,7 +915,7 @@ drawing the affected layers, and keeps a separate history per page.
 This optional backend is used with the masked blitter `hgr_ms_run` (explicit
 internal contract in `hgr_internal.h`) to avoid the save-under pool.
 The historical engine keeps its saved-background restoration.
-An eight-tile region with two masked draws costs 9 546 cycles in
+An eight-tile region with two masked draws costs 6 704 cycles in
 the benchmark; the cost of a whole page remains to be budgeted for each game.
 The `HGRC_TILEMAP_SRCS` family is extracted only when it is called.
 

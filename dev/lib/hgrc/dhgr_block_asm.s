@@ -1,19 +1,15 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 .include "apple2.inc"
-.importzp ptr1, ptr2, ptr3, tmp1, tmp2, tmp3, tmp4, aux_read
+.importzp ptr1, ptr2, ptr3, tmp2, tmp3, tmp4, aux_read
 .import _dhgr_addr, _dhgr_aux, _dhgr_buffer, _dhgr_count, _dhgr_sprite_mask
 .export _dhgr_read_block_asm, _dhgr_write_block_asm, _dhgr_sprite_asm
 .segment "CODE"
-select:
+block_setup:
         lda _dhgr_addr
         sta ptr1
         lda _dhgr_addr+1
         sta ptr1+1
         ldy #0
-        rts
-
-block_setup:
-        jsr select
         lda _dhgr_buffer
         sta ptr2
         lda _dhgr_buffer+1
@@ -30,13 +26,12 @@ block_setup:
         bne @buffer_ok
         inc ptr2+1
 @buffer_ok:
-        cpx #0
+        txa                     ; keep the bank in A through pointer increments
         bne @same_address
         inc ptr1
         bne @same_address
         inc ptr1+1
 @same_address:
-        txa
         eor #1
         tax
         dec tmp2
@@ -61,7 +56,7 @@ _dhgr_read_block_asm:
         php
         sei
         jsr block_setup
-@byte:  cpx #0
+@byte:  txa
         beq @main
         jsr aux_read
         jmp @store
@@ -92,19 +87,18 @@ _dhgr_sprite_asm:
         lda tmp3
         cmp #$7F
         beq @write
-        cpx #0
+        txa
         beq @read_main
         jsr aux_read
         jmp @merge
 @read_main:
         lda (ptr1),y
-@merge: sta tmp1
-        lda tmp3
-        eor #$FF
-        and tmp1
+@merge: eor #$FF
+        ora tmp3
+        eor #$FF                ; ~(~screen | write_mask) = screen & ~write_mask
         ora tmp4
         sta tmp4
-@write: cpx #0
+@write: txa
         beq @write_main
         sta RAMWRTON
 @write_main:
