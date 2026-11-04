@@ -5,33 +5,19 @@
 #   POM2_CORE_LIB     the archive for this host
 #   POM2_CORE_CFLAGS  POM2_CORE_LIBS
 #
-# sdk/include/pom2/core.hpp and the darwin-arm64 archive are pom2_core at POM2
-# commit 0d1d388e (github.com/habib256/pom2 main, 2026-11-04, "The SDK mounts hard
-# disks and answers a test harness"), from tools/package_core_sdk.sh, debug symbols
-# stripped: it adds the hard disk (attachHardDisk,
-# insertHardDisk, flushHardDisk...) and the harness API (readRam, writeRam,
-# keyboardState, sdkInfo, sha256: pom2adventure's letter). The
-# linux-x86_64 archive is still ba7f04da, below, and has none of it: rebuild it
-# with the workflow from that commit, then drop the ifeq further down.
-#
-# ba7f04da is github.com/habib256/pom2 main, 2026-10-31 ("Disk II / Monitor /
-# Applecorn / CP/M-65 traces; FASTChip //e; E-Z Color in the SDK"), debug
-# symbols stripped
-# (strip -S); sdk/include/pom2/core.hpp is that commit's header (it now
-# includes <array>). New since 6f7f06a7: the E-Z Color card (TMS9918A) —
-# attachEzColor(slot, siliconStrict), ezColorAttached, ezColorState,
-# ezColorVram, resetEzColorDropCount, renderEzColorFrame (our letter
-# LETTRE_POM2_EZCOLOR.md) — and Machine::AppleIIcPlus; the Disk II boot PROM
-# became optional. POM2_SDK_HAS_EZCOLOR=1 (below) tells a2shot.cpp the header
-# has the card: drop it if a host's archive ever lags behind the header.
-#   darwin-arm64  built on the author's Mac (cmake --build build --target
-#                 pom2_core, cmake --install build --component pom2_core_sdk)
+# sdk/include/pom2/core.hpp and both archives are pom2_core at POM2 commit
+# 0d1d388e98b2268629cc65269c1aba161720585a (github.com/habib256/pom2 main,
+# 2026-11-04, "The SDK mounts hard disks and answers a test harness"). They
+# include E-Z Color (TMS9918A), hard disks and the harness API (physical RAM,
+# keyboard state and SDK provenance). POM2_SDK_HAS_EZCOLOR=1 and
+# POM2_SDK_HAS_HARNESS=1 enable these APIs on both supported hosts.
+#   darwin-arm64  packaged on the author's Mac with tools/package_core_sdk.sh
 #   linux-x86_64  built on ubuntu-24.04 (glibc 2.39) by
-#                 .github/workflows/pom2-core-linux.yml, run 41225532582
-#                 (github.com/habib256/pom2games/actions/runs/41225532582,
-#                 -f pom2_commit=ba7f04da19c3047a83eb33538254c885f3c8cb80;
-#                 its header is byte-identical to the vendored one)
-# The compiled core is GPL-3.0, like POM2.
+#                 .github/workflows/pom2-core-linux.yml, run 41894229835
+#                 (github.com/habib256/pom2games/actions/runs/41894229835),
+#                 with the same commit; its header is byte-identical.
+# Debug symbols stripped (strip -S) on both hosts. The compiled core is
+# GPL-3.0, like POM2.
 #
 # The core's own link needs, on macOS, the CoreAudio frameworks (miniaudio);
 # on Linux, libdl, pthread and libm (miniaudio loads ALSA/PulseAudio at run
@@ -42,12 +28,7 @@
 POM2_HOST := $(subst Darwin-arm64,darwin-arm64,$(subst Linux-x86_64,linux-x86_64,$(shell uname -sm | tr ' ' -)))
 POM2_HOST := $(filter darwin-arm64 linux-x86_64,$(POM2_HOST))
 POM2_CORE_LIB    := $(A2SHOT_DIR)/sdk/lib/$(POM2_HOST)/libpom2_core.a
-POM2_CORE_CFLAGS := -std=c++17 -I $(A2SHOT_DIR)/sdk/include -DPOM2_SDK_HAS_EZCOLOR=1
-# The hard disk and harness API is in the macOS archive only until the Linux one
-# is rebuilt from a POM2 commit (see above): the header declares it on both.
-ifeq ($(POM2_HOST),darwin-arm64)
-POM2_CORE_CFLAGS += -DPOM2_SDK_HAS_HARNESS=1
-endif
+POM2_CORE_CFLAGS := -std=c++17 -I $(A2SHOT_DIR)/sdk/include -DPOM2_SDK_HAS_EZCOLOR=1 -DPOM2_SDK_HAS_HARNESS=1
 
 ifeq ($(POM2_HOST),darwin-arm64)
 POM2_SYS_LIBS := -framework CoreAudio -framework AudioToolbox -framework AudioUnit

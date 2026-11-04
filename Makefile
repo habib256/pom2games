@@ -249,11 +249,12 @@ test-techniques:
 
 .PHONY: test-techniques
 
-# Native HGR lookup tables and checked fixed-sector DOS construction.
+# Shared tools, graphics tables, disk construction and the ProDOS harness.
 test-tools:
 	$(PYTHON) dev/tests/test_root_make.py
 	$(PYTHON) dev/tests/test_prodos_writer.py
 	$(PYTHON) dev/tests/test_prodos_reader.py
+	$(PYTHON) dev/tests/test_a2shot_hdd.py
 	$(PYTHON) dev/tests/test_test_changed.py
 	$(PYTHON) dev/tests/test_corridor.py
 	$(PYTHON) dev/tests/test_audio.py

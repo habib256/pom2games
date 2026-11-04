@@ -8,7 +8,7 @@
 # ROMs a run boots from, both copied from POM2. Only libslirp (brew install
 # libslirp / apt install libslirp-dev) and zlib come from the system.
 # The SDK has the E-Z Color card (a2shot --ezcolor[=N], vpeek / vregs / vdrop /
-# vshot) and, on macOS for now, the hard disk (--hdd[=N], hddinfo / hddflush /
+# vshot), the hard disk (--hdd[=N], hddinfo / hddflush /
 # hddsave / hddprotect) and the harness steps (ram / ramset / ramhash / keyinfo /
 # keywait / provenance); sdk.mk sets POM2_SDK_HAS_EZCOLOR=1 and
 # POM2_SDK_HAS_HARNESS=1, without which a2shot.cpp still compiles minus them.
@@ -20,7 +20,7 @@ ifeq ($(POM2_HOST),)
 $(error a2shot: no POM2 core archive for $(shell uname -sm); sdk/lib/ has darwin-arm64 and linux-x86_64)
 endif
 
-a2shot: a2shot.cpp
+a2shot: a2shot.cpp Makefile sdk.mk sdk/include/pom2/core.hpp $(POM2_CORE_LIB)
 	$(CXX) $(POM2_CORE_CFLAGS) -O2 $< $(POM2_CORE_LIBS) -o $@
 
 # A test probe on the same core: make probe SRC=x_probe.cpp OUT=build/x_probe

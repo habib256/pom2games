@@ -16,7 +16,7 @@ on:
     inputs:
       pom2_commit:
         description: POM2 commit (github.com/habib256/pom2) to build
-        default: 28700c39e0450b9f7b20262687a608f897da4b53
+        default: 0d1d388e98b2268629cc65269c1aba161720585a
   push:
     paths:
       - .github/workflows/pom2-core-linux.yml
@@ -25,14 +25,15 @@ jobs:
   core:
     runs-on: ubuntu-24.04
     steps:
+      - uses: actions/checkout@v5
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            cmake g++ pkg-config libglfw3-dev libgl1-mesa-dev libslirp-dev libglib2.0-dev zlib1g-dev
+            cmake g++ pkg-config cc65 libglfw3-dev libgl1-mesa-dev libslirp-dev libglib2.0-dev zlib1g-dev
       - name: Fetch POM2 at the commit, and its pinned Dear ImGui (miniaudio.h)
         env:
-          POM2_COMMIT: ${{ inputs.pom2_commit || '28700c39e0450b9f7b20262687a608f897da4b53' }}
+          POM2_COMMIT: ${{ inputs.pom2_commit || '0d1d388e98b2268629cc65269c1aba161720585a' }}
         run: |
           set -euo pipefail
           git init -q pom2
@@ -61,6 +62,13 @@ jobs:
           cp "$lib" out/lib/linux-x86_64/
           git -C pom2 rev-parse HEAD > out/POM2_COMMIT
           ls -lR out
+      - name: Compile a2shot and exercise hard disks and the harness on Linux
+        run: |
+          set -euo pipefail
+          cp out/include/pom2/core.hpp dev/tools/a2shot/sdk/include/pom2/core.hpp
+          cp out/lib/linux-x86_64/libpom2_core.a dev/tools/a2shot/sdk/lib/linux-x86_64/libpom2_core.a
+          make -C dev/tools/a2shot
+          python3 dev/tests/test_a2shot_hdd.py --expected-commit "$(cat out/POM2_COMMIT)"
       - uses: actions/upload-artifact@v7
         with:
           name: pom2-core-linux-x86_64
