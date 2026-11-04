@@ -47,6 +47,14 @@ now takes **4,845 cycles** and `hgr_cell(1,4,1)` takes **708**. The pixel
 wrapper reduces its C-stack peak from 13 to 4 bytes and hardware peak from
 9 to 6. Cold valid/empty/invalid cases preserve lazy table initialization.
 
+Independent HGR column/mask/phase builders fill groups of seven pixels,
+saving **54 code bytes** in total. Cold calls take **4,040 / 4,520 / 4,440
+cycles** instead of 7,029 / 8,434 / 6,749 (four extra cycles at some table
+alignments). The cold pixel rectangle falls from **23,104 to 16,199 cycles**.
+RAM, zero page, stack peaks and warm guards stay unchanged. The optional
+folded builder remains a code-size tradeoff; its cold paths are now slower
+than the default grouped builders. All 256 alignments are verified.
+
 The native math fixtures are measured by `python3 dev/tests/test_math.py`.
 Quarter-square table construction takes **37,691 cycles and 110 code bytes**
 (−22.6 % and −18 bytes); square-root seed construction takes 24,031 cycles.

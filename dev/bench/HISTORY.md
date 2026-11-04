@@ -4,6 +4,44 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : tables x/7 par groupes de sept
+
+Les générateurs indépendants de colonnes, masques et phases parcourent
+40 groupes de sept pixels. Le pointeur est avancé une fois par groupe,
+avec propagation de la retenue ; X garde la colonne ou le nombre de
+groupes, Y parcourt les sept positions. Aucun temporaire de plus n'est
+alloué ; ces entrées n'écrasent plus tmp1/tmp2/tmp3.
+
+| Table | Code avant → après | Cycles froids avant → après |
+|---|---:|---:|
+| Colonnes x/7 | 59 → 44 octets | 7 029 → 4 040..4 044 (−42,5 %) |
+| Masques 1<<(x%7) | 67 → 44 octets | 8 434 → 4 520..4 524 (−46,4 %) |
+| Phases x%7 | 58 → 42 octets | 6 749 → 4 440..4 444 (−34,2 %) |
+
+Mesure NMOS avec JSR/RTS. Les appels chauds gardent la même garde et le
+même coût (18 cycles). Les trois générateurs économisent 54 octets de
+code. RAM, tables, page zéro et pics de piles inchangés. En usage C à froid,
+le rectangle en pixels passe de 23 104 à 16 199 cycles, le HUD de 59 180
+à 49 924, la scène sprites de 39 907 à 30 375. Les petits écarts aux sommes
+des noyaux viennent du placement du code et des tables.
+
+Le nouveau test vérifie les 280 octets de chaque table à chacun des 256
+alignements, les gardes avant/après BSS et l'absence de reconstruction à
+chaud (un octet volontairement modifié reste intact). Sept alignements
+aux frontières sont aussi exécutés sur IIe. La variante regroupée reste
+strictement inchangée : 77 octets, 15 084 cycles. Elle économise encore du
+code, mais les générateurs indépendants sont désormais plus rapides même
+pour trois tables ; le tableau des options décrit ce nouveau compromis.
+
+La comparaison complète HGR/DHGR ne relève aucune hausse supérieure à 1 %
+ni augmentation de mémoire/pile. 112 cas nouveaux/modifiés actualisent la
+référence ; 92 cas non touchés conservent leurs valeurs.
+
+Validation : `make all`, `make test-hgr` (incluant les alignements et les
+options), gate complet `--dhgr --check`, `make test-hgr-example test-frame
+test-light3dball test-snake test-woz`. HGR.dsk, LIGHT3DBALL.dsk, SNAKE.dsk
+et leurs WOZ sont reconstruits.
+
 ## Série du 5 novembre 2026 : wrappers natifs de rectangles HGR
 
 Les entrées C des rectangles en octets, rectangles en pixels et cellules

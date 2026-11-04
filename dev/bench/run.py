@@ -86,6 +86,14 @@ for (i=0; i<4; ++i) hgr_spr_move(i,28u+i*3u+(frame&1u),60u+i*2u);
 hgr_spr_render(); hgr_putu_field(48,0,frame,5); hgr_spr_present(); ++frame;
 '''
 SCENES = {
+ 'hgr_columns_cold': dict(call='hgr_build_columns();', warmup=False,
+     declarations='void hgr_build_columns(void);'),
+ 'hgr_masks_cold': dict(call='hgr_build_masks();', warmup=False,
+     declarations='void hgr_build_masks(void);'),
+ 'hgr_phases_cold': dict(call='hgr_build_phases();', warmup=False,
+     declarations='void hgr_build_phases(void);'),
+ 'hgr_columns_warm': dict(call='hgr_build_columns();',
+     declarations='void hgr_build_columns(void);'),
  'hgr_byte_rect_cold': dict(call='hgr_fill_rect(189,255,38,255,0xDA);', warmup=False),
  'hgr_byte_rect_empty': dict(call='hgr_fill_rect(0,0,0,40,0xDA);'),
  'hgr_byte_rect_outside': dict(call='hgr_fill_rect(255,255,39,1,0xDA);'),

@@ -5,9 +5,9 @@
 HGRC_X7_FOLDED = 0
 .endif
 .if !HGRC_X7_FOLDED
-; No inputs. Clobbers A/X/Y, ptr1, tmp1/tmp2/tmp3; not reentrant.
+; No inputs. Clobbers A/X/Y and ptr1 only; not reentrant.
 .export _hgr_build_phases, _hgr_phase7
-.importzp ptr1, tmp1, tmp2, tmp3
+.importzp ptr1
 .bss
 _hgr_phase7: .res 280
 ready: .res 1
@@ -21,30 +21,25 @@ _hgr_build_phases:
         sta ptr1
         lda #>_hgr_phase7
         sta ptr1+1
-        lda #0
-        sta tmp1
-        sta tmp3
-        ldx #0
-        ldy #0
-@loop:
-        txa
+        ldx #40
+@group:
+        ldy #6
+@pixel:
+        tya                     ; phase equals the position within this group
         sta (ptr1),y
-        inx
-        cpx #7
-        bne @next
-        ldx #0
-        inc tmp1
-@next:
-        iny
-        cpy tmp3
-        bne @loop
-        lda tmp3
-        bne @done
+        dey
+        bpl @pixel
+        ; Advance by one seven-pixel column. Indirect indexing and the
+        ; carry below also work when the table starts inside a page.
+        clc
+        lda ptr1
+        adc #7
+        sta ptr1
+        bcc @next
         inc ptr1+1
-        lda #24
-        sta tmp3
-        jmp @loop
-@done:
+@next:
+        dex
+        bne @group
         inc ready
         rts
 .endif

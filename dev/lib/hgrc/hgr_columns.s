@@ -1,7 +1,7 @@
 ; VERHILLE Arnaud — GPL-3.0. Optional HGR table, main RAM/ZP.
 ; Option HGRC_X7_FOLDED (ca65 -D HGRC_X7_FOLDED=1, via HGRC_DEFINES): one
-; member builds hgr_col7, hgr_mask7 and hgr_phase7 in one loop (about 70 B of
-; code instead of ~165 B for three, but always 841 B of BSS and ~16k cycles on
+; member builds hgr_col7, hgr_mask7 and hgr_phase7 in one loop (77 B of
+; code instead of 130 B for three, but always 841 B of BSS and ~15k cycles on
 ; first use). Default: one member per table (hgr_masks.s, hgr_phases.s), a
 ; program reserves only the tables it references.
 ; Boolean switches: zero and undefined select the default implementation.
@@ -10,8 +10,8 @@ HGRC_X7_FOLDED = 0
 .endif
 .if HGRC_X7_FOLDED
 ; x -> byte column (x / 7), bit mask (1 << x % 7) and phase (x % 7), x = 0..279,
-; built together by one loop: every client of one table also used another
-; (pixels, text, sprites), so one member and one pass cost less than three.
+; built together by one loop. This option saves code when multiple tables
+; are needed, but the default grouped builders now initialize faster.
 ; hgr_build_masks / hgr_build_phases are the same entry.
 ; No inputs. Clobbers A/X/Y, tmp1/tmp2; not reentrant.
 .export _hgr_build_columns, _hgr_build_masks, _hgr_build_phases
@@ -66,9 +66,9 @@ step:   asl tmp2
         sta tmp2
 @same:  rts
 .else
-; No inputs. Clobbers A/X/Y, ptr1, tmp1/tmp2/tmp3; not reentrant.
+; No inputs. Clobbers A/X/Y and ptr1 only; not reentrant.
 .export _hgr_build_columns, _hgr_col7
-.importzp ptr1, tmp1, tmp2, tmp3
+.importzp ptr1
 .bss
 _hgr_col7: .res 280
 ready: .res 1
@@ -82,30 +82,26 @@ _hgr_build_columns:
         sta ptr1
         lda #>_hgr_col7
         sta ptr1+1
-        lda #0
-        sta tmp1
-        sta tmp3
         ldx #0
-        ldy #0
-@loop:
-        lda tmp1
+@group:
+        txa                     ; one column value for its seven pixels
+        ldy #6
+@pixel:
         sta (ptr1),y
-        inx
-        cpx #7
-        bne @next
-        ldx #0
-        inc tmp1
-@next:
-        iny
-        cpy tmp3
-        bne @loop
-        lda tmp3
-        bne @done
+        dey
+        bpl @pixel
+        ; Advance by one seven-pixel column. Indirect indexing and the
+        ; carry below also work when the table starts inside a page.
+        clc
+        lda ptr1
+        adc #7
+        sta ptr1
+        bcc @next
         inc ptr1+1
-        lda #24
-        sta tmp3
-        jmp @loop
-@done:
+@next:
+        inx
+        cpx #40
+        bne @group
         inc ready
         rts
 .endif

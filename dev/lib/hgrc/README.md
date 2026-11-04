@@ -62,6 +62,17 @@ page selection still imports both table families. The row test checks all
 256 page arguments before and after LORES initialization, including
 synchronous row updates and preservation of the displayed page.
 
+The independent column, mask and phase builders fill seven pixels at a
+time, with one pointer advance per byte column. Their code totals 130
+bytes instead of 184. Cold calls take 4,040–4,044 / 4,520–4,524 /
+4,440–4,444 cycles instead of 7,029 / 8,434 / 6,749 in the alignment fixture;
+warm calls retain their constant-time guard. They clobber A/X/Y and ptr1
+only. `test_hgr_x7_tables.py` checks every byte of all tables at all 256
+alignments, boundary guards, warm no-rebuild and IIe boundary alignments.
+The optional folded builder remains 77 bytes / 15,084 cycles: it still
+saves code, but the independent builders are now faster even when all
+three are needed. See the [option table](../ABI.md#speedram-options).
+
 Costs measured by `make bench` (cycles at 1.02 MHz): clearing a page
 46 000 (self-modifying loop from `HGR_CLEAR_LOOP`, lib/apple2), page flip
 via `hgr_flip_rows` (unrolled loop, one EOR per line), 8x8 text
