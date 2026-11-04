@@ -1,12 +1,21 @@
 # Current cc65 measurements
 
+Native HGR row construction takes **6,921 cycles** instead of 45,783,
+with no C-stack use. Independent row/query/display archive members save
+**687 code bytes and 50 RAM bytes** in a point-only client. A display-only
+client saves **800 code bytes and 435 RAM bytes**; `hgr_show_page()` takes
+29/30 cycles. `hgr_row(191)` takes **52 cycles** instead of 236. Page
+selection retains synchronous HGR/LORES table updates. The full HGR/DHGR
+comparison and small layout-dependent slowdowns are recorded in
+[HISTORY.md](HISTORY.md); `baseline.json` contains current per-case figures.
+
 LORES clearing uses eight interleaved native stores and preserves the 64
-firmware bytes on each page. The two page cases take **5,561/5,444 cycles**
-instead of 50,307 (about −89 %), saving **212 loaded bytes** in each isolated
-client and all 14 measured C-stack bytes. Lazy LORES address construction
+firmware bytes on each page. The two page cases take **5,442/5,443 cycles**
+instead of 50,307 (about −89 %). The clear pass saved **212 loaded bytes**
+in each isolated client and all 14 measured C-stack bytes. Lazy LORES address construction
 and point writes also use compact native code: the cold/warm point cases
-take **831/204 cycles** instead of the original 11,796/806, with **356 fewer
-loaded bytes**. Native point reads take **149 cycles**, compared with 318
+take **821/203 cycles** instead of the original 11,796/806. The LORES
+passes alone saved **356 loaded bytes**. Native point reads take **148 cycles**, compared with 318
 after the table optimization but before replacing the C reader; that pass
 saves another 59 loaded bytes in isolated reader clients. RAM and zero page
 are unchanged. `--only lores` measures these
@@ -14,11 +23,11 @@ cases and the horizontal line; all are included in the regression gate.
 
 LORES horizontal/vertical runs and rectangles now share a clipped native
 kernel. Fully covered vertical pairs use direct byte stores, with masks
-only for unmatched edge nibbles. A 40-cell horizontal line takes **1,175
-cycles** instead of 5,728; a 48-cell vertical line takes **2,036** instead
-of 19,000. A 20×16 rectangle takes **3,273** instead of 51,594, and the
-40×48 rectangle **12,382** instead of 280,648 (−95.6 %). Isolated clients
-save **92/120/308 loaded bytes** for horizontal/vertical/rectangle calls.
+only for unmatched edge nibbles. A 40-cell horizontal line takes **1,174
+cycles** instead of 5,728; a 48-cell vertical line takes **2,035** instead
+of 19,000. A 20×16 rectangle takes **3,265** instead of 51,594, and the
+40×48 rectangle **12,367** instead of 280,648 (−95.6 %). The span pass saved
+**92/120/308 loaded bytes** in isolated clients for horizontal/vertical/rectangle calls.
 Their C-stack peaks fall to 3/3/4 bytes, with unchanged RAM and zero page.
 The pixel-address helper is a separate archive member, omitted by these
 native clients. Empty/clipped spans and rectangles have their own cases.

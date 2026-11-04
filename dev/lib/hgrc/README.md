@@ -39,6 +39,18 @@ Three objects carry the mode switches: `hgr_mode_asm.s` (`hgr_init`,
 `hgr_rows_asm.s`. Like the other archive members, each one is linked only
 if the program calls one of its entry points.
 
+Mutable HGR rows and their native builder live in `hgr_build_rows.s`;
+`hgr_row.s` and `hgr_show_page.s` are separate members. Plain drawing
+clients omit the page manager and its 50-byte LORES state. Display-only
+clients omit all mutable tables. The builder takes 6,921 cycles cold,
+19 warm, with no C-stack use; `hgr_row(191)` takes 52 cycles and returns
+NULL for every input above 191 without initializing tables. Display takes
+29/30 cycles, treats every nonzero page flag as page 2 and retains the
+soft-switch sink write. `hgr_set_draw_page` still shifts initialized HGR
+and LORES tables synchronously. `test_hgr_rows.py` checks cold bases,
+all 256 row inputs, page normalization and display truth values
+on II+ and IIe.
+
 Costs measured by `make bench` (cycles at 1.02 MHz): clearing a page
 46 000 (self-modifying loop from `HGR_CLEAR_LOOP`, lib/apple2), page flip
 via `hgr_flip_rows` (unrolled loop, one EOR per line), 8x8 text
@@ -238,7 +250,7 @@ excluding routines that were previously linked for nothing.
 macOS. Its 21 steps compare both video pages with a Python model:
 256/280-pixel rectangles, limits, pixels, SET/CLEAR/XOR sprites and seven
 phases, white/coloured text, numbers, cells, colourising. Four additional scenes check `gfx` cell text on
-page 2, the cursor and the numeric conversions. Twenty-eight minimal
+page 2, the cursor and the numeric conversions. Thirty minimal
 programs also check that the archive excludes unused kernels and zero-page
 blocks. This test is part of `make test` and of CI.
 

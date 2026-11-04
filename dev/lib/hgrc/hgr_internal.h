@@ -3,7 +3,7 @@
  * The assembler kernels own their per-family zero-page parameter blocks;
  * shared text/sprite/carrier blocks live in *_params.s. Each C declaration
  * needs a matching zpsym so cc65 uses zero-page addressing.
- * Row tables live in hgr_init.c, the column / mask / phase tables in
+ * Row tables live in hgr_build_rows.s, the column / mask / phase tables in
  * hgr_columns.s / hgr_masks.s / hgr_phases.s, draw-page state in hgr_state.c.
  */
 #ifndef HGR_INTERNAL_H
@@ -132,7 +132,7 @@ extern unsigned char hgr_ms_block;
 #pragma zpsym("hgr_ms_spr")
 #pragma zpsym("hgr_ms_under")
 
-/* --- Cross-module globals (defined in hgr_init.c) -------------------------- */
+/* --- Cross-module globals (separate table/state members) -------------------------- */
 extern unsigned char hgr_rowlo[192];          /* HIRES scanline base low byte  */
 extern unsigned char hgr_rowhi[192];          /* HIRES scanline base high byte */
 extern unsigned char hgr_col7[280];           /* x / 7 (byte column)           */
@@ -147,7 +147,7 @@ void hgr_lores_build(void);                   /* hgr_lores.s: row table, once  *
 unsigned char *hgr_lores_cell(unsigned char x, unsigned char y); /* x<40, y<48 */
 
 /* --- Cross-module helpers: hgr_base / hgr_draw_page2 in hgr_state.c,
- * hgr_build_rows in hgr_init.c, columns / masks / phases in their .s,
+ * hgr_build_rows in hgr_build_rows.s, columns / masks / phases in their .s,
  * hgr_build_tables in hgr_tables.c --------------------------------------- */
 extern unsigned char hgr_base;
 extern unsigned char hgr_draw_page2;

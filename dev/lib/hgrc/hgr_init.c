@@ -1,5 +1,5 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
-/* HGR row tables and draw-page management. Globals use BSS defaults.
+/* Draw-page management and shared LORES state. Globals use BSS defaults.
  * crt0 calls copydata, but load==run does not restore mutated DATA on CALL
  * re-entry. BSS is cleared at each entry; table defaults are built lazily.
  * Main RAM/ZP, non-reentrant. Column/mask/phase tables are separate objects.
@@ -10,41 +10,13 @@
 
 extern void hgr_flip_rows(void);      /* hgr_rows_asm.s: rowhi ^= $60 */
 
-/* Sink for the individual soft-switch macros. A soft-switch READ is the toggle;
- * its value is meaningless. cc65 -Oirs drops a volatile read cast to void, so
- * the macros store the read into this sink — a store cc65 cannot prove dead, so
- * the (volatile) load that feeds it is always emitted. The whole-mode init
- * routines hgr_init / hgr_lores_init live in asm (hgr_mode_asm.s) for the
- * same reason; see the note there and hgr.h. */
-/* hgr_ss_sink lives in hgr_state.c. */
-
-/* HIRES draw-page high-byte base: $20 = page 1 ($2000), $40 = page 2 ($4000).
- * GLOBAL (not static) on purpose: the asm _hgr_clear imports _hgr_base
- * so it erases whichever page is currently being drawn. Set by
- * hgr_set_draw_page. BSS (no initializer — see the header): 0 means "unset",
- * lazily defaulted to $20 (page 1) at every read site that can run before
- * hgr_set_draw_page — here, hgr_build_rows, and _hgr_clear in
- * hgr_clear_asm.s. 0 is never a legal base, so the encoding is unambiguous. */
-/* hgr_base lives in hgr_state.c: clear-only clients need no tables. */
-
-/* Apple II interleaved HIRES scanline base, in the CURRENT draw page:
-   (hgr_base<<8) + (y&7)*$400 + ((y>>3)&7)*$80 + (y>>6)*40
-   hgr_base=$20 gives the classic $2000 page-1 layout; $40 is page 2.
-   Read from the tables (built on first use): no 16-bit multiply. */
-unsigned char *hgr_row(unsigned char y)
-{
-    if (y > 191u) return 0;
-    hgr_build_rows();
-    return (unsigned char *)(((unsigned)hgr_rowhi[y] << 8) | hgr_rowlo[y]);
-}
-
-/* --- Look-up tables (referenced by every drawing module via hgr_internal.h) */
-unsigned char hgr_rowlo[192];
-unsigned char hgr_rowhi[192];
+/* HGR state lives in hgr_state.c; mutable row tables and their lazy builder
+ * live in hgr_build_rows.s. Drawing and display-only clients can therefore
+ * omit this page manager and the LORES state below. */
 
 /* LORES tables + state live here so hgr_set_draw_page can shift them in
- * place without forcing hgr_lores.s to link. A HIRES-only program pays the
- * 50 bytes (hgr_lo_rowlo[24] + hgr_lo_rowhi[24] + 2 flags) but does NOT
+ * place without forcing hgr_lores.s to link. A HIRES-only client that
+ * changes draw pages pays the 50 bytes (hgr_lo_rowlo[24] + hgr_lo_rowhi[24] + 2 flags) but does NOT
  * pull in the LORES drawing functions. hgr_lo_ready stays 0
  * until hgr_lores.s's first build call, so the shift below is a harmless
  * no-op for HIRES-only programs (the zero array stays zero).
@@ -54,36 +26,6 @@ unsigned char hgr_lo_rowlo[24];
 unsigned char hgr_lo_rowhi[24];
 unsigned char hgr_lo_base;
 unsigned char hgr_lo_ready;
-
-/* Derive the HIRES scanline-base tables for the current hgr_base, with 8-bit
- * arithmetic only (no multiply runtime): for y = 64*third + 8*group + line,
- *   low  = (group & 1) * 128 + third * 40
- *   high = base + line * 4 + group / 2
- * The low bytes are page-independent; a page flip only EORs the high bytes
- * (hgr_flip_rows). */
-static void hgr_fill_rows(void)
-{
-    unsigned char y = 0u, third, group, line, lo;
-    for (third = 0u; third < 3u; ++third) {
-        for (group = 0u; group < 8u; ++group) {
-            lo = (unsigned char)(((group & 1u) ? 128u : 0u) + third * 40u);
-            for (line = 0u; line < 8u; ++line, ++y) {
-                hgr_rowlo[y] = lo;
-                hgr_rowhi[y] = (unsigned char)(hgr_base + (line << 2) + (group >> 1));
-            }
-        }
-    }
-}
-
-static unsigned char hgr_tables_ready;      /* BSS: 0 = not built yet */
-/* Build only page-dependent row tables; no column families are pulled in. */
-void hgr_build_rows(void)
-{
-    if (hgr_tables_ready) return;
-    if (!hgr_base) hgr_base = 0x20u;
-    hgr_fill_rows();
-    hgr_tables_ready = 1;
-}
 
 /* ===========================================================================
  * Double buffering — draw page vs display page (PAGE2)
@@ -133,10 +75,4 @@ void hgr_set_draw_page(unsigned char page)
             hgr_lo_rowhi[i] = (unsigned char)(hgr_lo_rowhi[i] + dl);
     }
     hgr_lo_base = newl;
-}
-
-void hgr_show_page(void)
-{
-    if (hgr_draw_page2) hgr_page2();
-    else                 hgr_page1();
 }

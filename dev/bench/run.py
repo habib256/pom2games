@@ -86,6 +86,15 @@ for (i=0; i<4; ++i) hgr_spr_move(i,28u+i*3u+(frame&1u),60u+i*2u);
 hgr_spr_render(); hgr_putu_field(48,0,frame,5); hgr_spr_present(); ++frame;
 '''
 SCENES = {
+ 'hgr_rows_cold': dict(call='hgr_build_rows();', warmup=False,
+     declarations='void hgr_build_rows(void);'),
+ 'hgr_rows_warm': dict(call='hgr_build_rows();', declarations='void hgr_build_rows(void);'),
+ 'hgr_row_query': dict(call='hgr_row(191);'),
+ 'hgr_row_outside': dict(call='hgr_row(255);'),
+ 'hgr_show_only': dict(call='hgr_show_page();'),
+ 'hgr_show_page2': dict(call='hgr_show_page();',
+     declarations='#include "hgr_internal.h"', setup='hgr_draw_page2=1;'),
+ 'hgr_page_select_cold': dict(call='hgr_set_draw_page(2);', warmup=False),
  'lores_clear': dict(call='hgr_lores_clear(5);', setup='hgr_lores_init();'),
  'lores_clear_page2': dict(call='hgr_lores_clear(0xFA);',
      setup='hgr_lores_init(); hgr_set_draw_page(2);'),

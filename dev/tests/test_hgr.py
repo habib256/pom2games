@@ -127,6 +127,10 @@ def build(work, fixture=None, extra_sources=(), gfx_backend=None, cflags=()):
 
 def check_archive(work):
     cases = [
+        ('row', 'return hgr_row(191) != 0;', 'hgr_build_rows.o',
+         ('hgr_init.o', 'hgr_show_page.o', 'hgr_rows_asm.o', 'hgr_lores.o', 'hgr_columns.o')),
+        ('show', 'hgr_show_page();', 'hgr_show_page.o',
+         ('hgr_init.o', 'hgr_build_rows.o', 'hgr_row.o', 'hgr_rows_asm.o', 'hgr_lores.o')),
         ('lores_mode', 'hgr_lores_init();', 'hgr_lores_init_asm.o',
          ('hgr_mode_asm.o', 'hgr_mode_clear_asm.o', 'hgr_clear_asm.o', 'hgr_pixrect_asm.o')),
         ('lores_clear', 'hgr_lores_clear(5u);', 'hgr_lores_clear.o',
@@ -146,7 +150,7 @@ def check_archive(work):
          ('hgr_text16_asm.o', 'hgr_text8_asm.o', 'hgr_sprite_params.o', 'hgr_pixrect_asm.o',
           'hgr_init.o', 'hgr_columns.o', 'hgr_masks.o', 'hgr_phases.o', 'hgr_tables.o')),
         ('text8', 'hgr_puts8(0u, 0u, "A");', 'hgr_text8_asm.o',
-         ('hgr_text16_asm.o', 'hgr_carrier_params.o', 'hgr_utoa_asm.o', 'hgr_pixrect_asm.o', 'hgr_sprite_params.o')),
+         ('hgr_init.o', 'hgr_row.o', 'hgr_show_page.o', 'hgr_text16_asm.o', 'hgr_carrier_params.o', 'hgr_utoa_asm.o', 'hgr_pixrect_asm.o', 'hgr_sprite_params.o')),
         ('text16', 'hgr_puts(0u, 0u, "A");', 'hgr_text16_asm.o',
          ('hgr_text8_asm.o', 'hgr_utoa_asm.o', 'hgr_pixrect_asm.o', 'hgr_sprite_params.o')),
         ('hud8', 'hgr_hud8_field_t f; hgr_hud8_init(&f,0,0,5); hgr_hud8_putu(&f,12345);',

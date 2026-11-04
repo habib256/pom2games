@@ -4,6 +4,47 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : tables HGR et séparation des pages
+
+La génération des 192 adresses devient une boucle native sans pile C.
+Les tables mutables, la requête `hgr_row` et l'affichage `hgr_show_page`
+occupent chacun un objet indépendant. Les clients de dessin seuls
+n'importent plus le gestionnaire de pages, sa boucle de bascule ni ses
+50 octets d'état LORES. Les clients qui choisissent une page conservent
+la mise à jour synchrone des tables HGR et LORES.
+
+Mesures NMOS 6502 avec arguments/appels C, avant/après cette série :
+
+| Cas | Cycles avant → après | Binaire avant → après | RAM avant → après |
+|---|---:|---:|---:|
+| Construction HGR à froid | 45 783 → 6 921 (−84,9 %) | 1 331 → 596 | 735 → 685 |
+| Construction déjà faite | 19 → 19 | 1 334 → 599 | 735 → 685 |
+| Adresse de la ligne 191 | 236 → 52 | 1 338 → 625 | 735 → 685 |
+| Adresse hors écran | 78 → 23 | 1 338 → 625 | 735 → 685 |
+| Affichage page 1 seul | 40 → 29 | 1 334 → 534 | 735 → 300 |
+| Affichage page 2 seul | 42 → 30 | 1 339 → 539 | 735 → 300 |
+| Sélection page 2 à froid | 48 271 → 9 420 | 1 333 → 938 | 735 → 735 |
+| Point HGR chaud | 247 → 247 | 1 592 → 905 | 1 297 → 1 247 |
+| Texte 8×8 « APPLE II » | 7 886 → 7 886 | 2 570 → 1 893 | 1 297 → 1 247 |
+
+Tailles en octets, runtime compris ; page zéro inchangée. Le générateur
+passe de 9 à 0 octet de pile C, de 10 à 4 octets de pile matérielle au pic.
+Le déplacement du code change quelques franchissements de pages : la
+ligne horizontale passe de 983 à 1 002 cycles (+1,9 %), la diagonale gfx
+de 21 323 à 21 542 (+1,0 %). Aucun budget de trame n'est dépassé. Les
+46 mesures non touchées gardent leur référence ; 142 cas nouveaux ou
+modifiés sont enregistrés après comparaison complète HGR/DHGR.
+
+Le nouveau test des lignes vérifie les 256 entrées (dont 64 invalides),
+les tables basse/haute, les bases froides 0/$20/$40, les pages 0/1/2/255,
+la garde d'initialisation et les drapeaux d'affichage 0/1/2/255 sur II+
+et IIe. Les 30 clients minimaux de l'archive contrôlent aussi l'absence
+du gestionnaire et des tables dans les clients qui n'en ont pas besoin.
+
+Validation : `make all`, `make test-hgr`, mesure/gate complet avec `--dhgr`,
+`make test-hgr-example test-frame test-snake test-light3dball test-woz`.
+Les disques HGR, SNAKE et LIGHT3DBALL et leurs WOZ sont reconstruits.
+
 ## Série du 5 novembre 2026 : points LORES natifs
 
 La lecture et l'écriture d'une cellule passent en assembleur, avec les

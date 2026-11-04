@@ -102,6 +102,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_pt3_registers.py --conversion 0
 	$(PYTHON) dev/tests/test_pt3_registers.py --conversion 1
 	$(PYTHON) dev/tests/test_hgr_pages.py
+	$(PYTHON) dev/tests/test_hgr_rows.py
 	$(PYTHON) dev/tests/test_joy_fast.py
 	$(PYTHON) dev/tests/test_joy_x.py
 	$(PYTHON) dev/tests/test_hgr_plot_hist.py
