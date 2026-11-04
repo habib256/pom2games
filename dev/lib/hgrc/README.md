@@ -219,8 +219,15 @@ excluding routines that were previously linked for nothing.
   kernel takes 5,444..5,561 cycles in the C benchmarks, about 89 % less
   than the former C loop, with 212 fewer loaded bytes in isolated clients.
   Native lazy row-table construction and cell addressing save
-  220 loaded bytes in point/line clients; the first/warm point takes
+  220 loaded bytes in isolated point clients; the first/warm point takes
   1,159/531 cycles. Tables, RAM and zero page are unchanged.
+- LORES horizontal/vertical spans and rectangles share a native kernel.
+  Fully covered pairs of block rows are written as whole bytes; the
+  unmatched edge nibbles are masked. A 40×48 rectangle takes 12,382 cycles
+  instead of 280,648 and its isolated client saves 308 loaded bytes.
+  Horizontal/vertical lines take 1,175/2,036 cycles and save 92/120 bytes.
+  Each wrapper remains an independent archive member; unused wrappers and
+  the C cell-address helper are not linked. RAM and zero page are unchanged.
 - `hgr_lores_init` returns to native 40-column mode after a DHGR or
   80-column display, with `80STORE` off and reads/writes in main
   RAM. Model detection avoids these soft switches on the Apple II+.
@@ -229,7 +236,7 @@ excluding routines that were previously linked for nothing.
 macOS. Its 21 steps compare both video pages with a Python model:
 256/280-pixel rectangles, limits, pixels, SET/CLEAR/XOR sprites and seven
 phases, white/coloured text, numbers, cells, colourising. Four additional scenes check `gfx` cell text on
-page 2, the cursor and the numeric conversions. Twenty-four minimal
+page 2, the cursor and the numeric conversions. Twenty-seven minimal
 programs also check that the archive excludes unused kernels and zero-page
 blocks. This test is part of `make test` and of CI.
 

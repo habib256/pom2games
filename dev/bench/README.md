@@ -9,6 +9,17 @@ take **1,159/531 cycles** instead of 11,796/806, with **220 fewer loaded
 bytes**. RAM and zero page are unchanged. `--only lores` measures these
 cases and the horizontal line; all are included in the regression gate.
 
+LORES horizontal/vertical runs and rectangles now share a clipped native
+kernel. Fully covered vertical pairs use direct byte stores, with masks
+only for unmatched edge nibbles. A 40-cell horizontal line takes **1,175
+cycles** instead of 5,728; a 48-cell vertical line takes **2,036** instead
+of 19,000. A 20×16 rectangle takes **3,273** instead of 51,594, and the
+40×48 rectangle **12,382** instead of 280,648 (−95.6 %). Isolated clients
+save **92/120/308 loaded bytes** for horizontal/vertical/rectangle calls.
+Their C-stack peaks fall to 3/3/4 bytes, with unchanged RAM and zero page.
+The pixel-address helper is a separate archive member, omitted by these
+native clients. Empty/clipped spans and rectangles have their own cases.
+
 The native math fixtures are measured by `python3 dev/tests/test_math.py`.
 Quarter-square table construction takes **37,691 cycles and 110 code bytes**
 (−22.6 % and −18 bytes); square-root seed construction takes 24,031 cycles.

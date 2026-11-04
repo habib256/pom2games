@@ -4,6 +4,49 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : lignes et rectangles LORES
+
+Les trois entrées gardent leurs signatures C, leur clipping et leurs
+objets indépendants, puis appellent un noyau assembleur commun. Deux
+cellules verticales entièrement couvertes deviennent une écriture directe
+d'octet. Seuls les nibbles du premier ou du dernier bord doivent être
+préservés. La fonction d'adresse d'une cellule est extraite dans son
+propre objet pour ne plus être liée par ces clients natifs.
+
+Mesures `python3 dev/bench/run.py --only lores`, NMOS 6502 avec arguments
+et appels C, avant/après cette série :
+
+| Cas | Cycles avant | Cycles après | Binaire avant → après |
+|---|---:|---:|---:|
+| Ligne horizontale, 40 cellules | 5 728 | 1 175 (−79,5 %) | 1 707 → 1 615 octets |
+| Ligne horizontale clippée | 729 | 335 | 1 707 → 1 615 octets |
+| Ligne verticale, 48 cellules | 19 000 | 2 036 (−89,3 %) | 1 729 → 1 609 octets |
+| Verticale, deux bords non appariés | 18 220 | 2 071 | 1 729 → 1 609 octets |
+| Verticale clippée à une cellule | 684 | 304 | 1 729 → 1 609 octets |
+| Rectangle 20×16, y impair | 51 594 | 3 273 (−93,7 %) | 1 943 → 1 635 octets |
+| Rectangle 40×48 | 280 648 | 12 382 (−95,6 %) | 1 939 → 1 631 octets |
+| Rectangle clippé en bas à droite | 2 108 | 329 | 1 939 → 1 631 octets |
+| Rectangle vide | 175 | 155 | 1 935 → 1 627 octets |
+
+Les tailles sont celles des programmes de mesure, runtime compris. RAM et
+page zéro restent identiques. Les pics de pile C passent de 10/9/21 à
+3/3/4 octets pour les lignes horizontale/verticale et le rectangle ; le
+pic matériel du rectangle passe de 9 à 7 octets. Les coûts des points et
+de l'effacement restent inchangés. Le découpage de l'adresse économise
+19 octets supplémentaires dans les clients natifs ; ses déplacements de
+branches font varier de quelques cycles les coûts du noyau.
+
+Le nouveau `test_lores_spans.py` compare 2 208 cas par cible (II+ NMOS et
+IIe 65C02) à un modèle par cellule : chaque ligne et colonne, bornes
+inclusives, régions vides/inversées, clipping, tailles de 255, parités des
+bords, conservation des autres nibbles, des trous firmware et de l'autre
+page. Les contrôles de l'archive vérifient aussi que chaque famille omet
+les autres wrappers et la fonction d'adresse inutilisée.
+
+Validation : `make all`, `make test-hgr bench-check`, tests pixels et
+spans sur les deux processeurs, 27 programmes de contrôle de l'archive.
+Aucun disque livré n'est modifié par cette série.
+
 ## Série du 5 novembre 2026 : effacement et adressage LORES
 
 Les boucles C d'effacement et de préparation des adresses sont remplacées
