@@ -98,14 +98,27 @@ for phase zero without growing the code.
 
 The preshifted-sprite C entries are now native, separate archive members.
 They share descriptor/coordinate validation; XOR-only clients omit the
-general entry. Loaded clients save 181 bytes for XOR alone, 158 for the
-general entry, or 126 when both are used. C-stack peaks fall from 5 to 3
+general entry. After the entry conversion and the faster phase product
+below, loaded clients save 142 bytes for XOR alone, 119 for the general
+entry, or 87 when both are used. C-stack peaks fall from 5 to 3
 bytes for XOR and 6 to 5 for the general entry. Calling setup and the XOR
 kernel directly reduces the XOR hardware-stack peak from 10 to 8 bytes.
-RAM and zero page are unchanged. A 7×16 XOR takes 1,986 / 2,373 / 2,448
-cycles at phases 0/3/6, previously 2,080 / 2,468 / 2,546; a clipped XOR
-falls from 1,070 to 962. An empty general-entry call takes 204 instead of
+RAM and zero page are unchanged. A 7×16 XOR now takes 1,986 / 2,107 / 2,187
+cycles at phases 0/3/6, compared with 2,080 / 2,468 / 2,546 before the entry
+and phase-product changes; a clipped XOR falls from 1,070 to 695. An empty general-entry call takes 204 instead of
 207 cycles; the dedicated XOR rejection falls from 208 to 169.
+
+Phase offsets use the smaller of stride/height as the multiplier. Below
+ten, repeated additions keep the low result in A and start with one copy;
+otherwise eight shift/add steps form the product. Both loops take at most
+eight iterations, and phase zero still skips the product. The setup code
+grows from 151 to 190 bytes (+39), with no extra RAM or stack. Representative
+setup calls fall from 563 to 297 cycles (stride 2, height 16, phase 3) and
+6,210 to 530 (255×255, phase 6). A one-row case costs four extra cycles
+(228 → 232). The arithmetic keeps the original dimensions before clipping.
+`test_preshift_setup.py` checks 64,260 combinations normally; `--full` or
+`make test-preshift-setup-full` checks all 910,350 nonzero dimension/phase/
+placement combinations, including 16-bit pointer wrap and preserved tmp4.
 
 Rows are built even for rejected calls; columns and phases are built only
 for a valid descriptor and coordinates. `test_preshift_bounds.py` compares

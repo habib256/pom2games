@@ -19,6 +19,7 @@ _hgr_xs_spr:  .res 2        ; pointer to the hgr_sprite_t {bits, stride, h}
 .segment "CODE"
 ; hgr_xs_x/y/spr -> the clipped hgr_b_* block of the selected phase, for the
 ; XOR loop below or hgr_blit7_run (SET/CLEAR). Rows built by the caller.
+; Requires x<280, y<192, nonzero stride/height (the public entries validate).
 ; Setup clobbers A/X/Y, ptr1/ptr2, tmp1/tmp2/tmp3 and hgr_b_* parameters.
 ; tmp4 is preserved, including through the normal/folded table builders.
 _hgr_xs_setup:
@@ -86,24 +87,55 @@ _hgr_xs_setup:
         sbc _hgr_xs_y
         sta _hgr_b_h
 @hok:
-        ; src += phase * (h * stride). phaseblock = h*stride via loop-add -> ptr1
-        ; Keep phase in X and count rows in Y: phase zero needs no product.
+        ; src += phase * (h * stride). Phase zero needs no product.
         ldx tmp1
         beq @offdone
+        ; Count the smaller factor for narrow/short sprites (below ten).
+        ; Otherwise use eight binary steps: no height-proportional loop.
+        lda tmp2
+        ldy tmp3
+        cmp tmp3
+        bcs @sorted
+        sty tmp2
+        tay
+@sorted:
+        cpy #10
+        bcc @small
+        ; Eight shift/add steps for larger factors. A:tmp3 is the
+        ; running 16-bit product; carry from ROR supplies the next bit.
+        sty tmp3
         lda #0
-        sta ptr1
+        ldy #8
+        lsr tmp3
+@multiply:
+        bcc @noadd
+        clc
+        adc tmp2
+@noadd:
+        ror a
+        ror tmp3
+        dey
+        bne @multiply
         sta ptr1+1
-        ldy tmp3                  ; full h
+        lda tmp3
+        bcc @product_ready       ; initial LSR cleared bit 7: eighth ROR leaves C=0
+@small:
+        ; Start with one copy, so a factor of one needs no loop at all.
+        lda #0
+        sta ptr1+1
+        lda tmp2
+        dey
+        beq @product_ready
 @hloop:
         clc
-        lda ptr1
-        adc tmp2                  ; + stride
-        sta ptr1
+        adc tmp2                  ; add the larger factor, keeping the low byte in A
         bcc @h2
         inc ptr1+1
 @h2:
         dey
         bne @hloop
+@product_ready:
+        sta ptr1
 @ploop:
         clc
         lda _hgr_b_src

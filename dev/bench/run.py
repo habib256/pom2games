@@ -228,6 +228,11 @@ for name,call,cold,stride in (
     SCENES['hgr_preshift_'+name]=dict(call=call,warmup=not cold,
         sprite_width=7,sprite_height=16,sprite_stride=2,
         declarations='static const hgr_sprite_t sprite={bits,%d,16};'%stride)
+for name,phase,stride,height in (('tall',6,3,255),('wide',3,255,1),
+                                ('large',6,255,255),('square',3,8,8)):
+    SCENES['hgr_preshift_setup_'+name]=dict(call='hgr_xs_setup();',
+        declarations='#include "hgr_internal.h"\nstatic const hgr_sprite_t sprite={bits,%d,%d};'%(stride,height),
+        setup='hgr_xs_x=%d; hgr_xs_y=0; hgr_xs_spr=&sprite;'%(28+phase))
 SCENES.update({
  'hgr_hud_cached_same': dict(call='hgr_hud_putu(&hud,12345u);',
      setup='hgr_hud_init(&hud,48,0,5);', declarations='static hgr_hud_field_t hud;'),

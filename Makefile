@@ -136,6 +136,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_a2test.py
 	$(PYTHON) dev/tests/test_preshift_bounds.py
 	$(PYTHON) dev/tests/test_preshift_bounds.py --folded
+	$(PYTHON) dev/tests/test_preshift_setup.py
 	$(PYTHON) dev/tests/test_sprmask_bounds.py
 	$(PYTHON) dev/tests/test_sprite16_bounds.py
 	$(PYTHON) dev/tests/test_text8_strings.py
@@ -250,6 +251,10 @@ test-woz:
 test-math-division-full: $(A2RUN)
 	$(PYTHON) dev/tests/test_math_division.py --full
 .PHONY: test-math-division-full
+
+test-preshift-setup-full: $(A2RUN)
+	$(PYTHON) dev/tests/test_preshift_setup.py --full
+.PHONY: test-preshift-setup-full
 
 
 profile-ii-plus:

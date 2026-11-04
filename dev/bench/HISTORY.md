@@ -4,6 +4,51 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : produit hauteur × pas source borné à huit étapes
+
+Le produit hauteur × pas source compte le plus petit facteur. Pour un
+facteur inférieur à dix, le résultat démarre avec une copie de l'autre
+facteur et le poids faible reste dans A pendant les additions. Sinon,
+huit rotations/additions produisent le résultat 16 bits. Chacune des deux
+boucles exécute au plus huit étapes. La phase zéro conserve son raccourci.
+Le calcul emploie les dimensions d'origine, avant clipping, puis applique
+la phase à l'adresse source sur 16 bits.
+
+**Compromis : 39 octets de code supplémentaires** (préparation 151 → 190),
+sans RAM, page zéro ou pile supplémentaires. Les petits produits à un
+facteur égal à un peuvent coûter quatre cycles de plus dans la fixture.
+
+| Préparation seule, JSR/RTS inclus | Cycles avant → après |
+|---|---:|
+| Phase 0, pas 2, hauteur 16 | 176 → 176 |
+| Phase 1, pas 2, hauteur 1 | 228 → 232 |
+| Phase 3, pas 2, hauteur 16 | 563 → 297 |
+| Phase 6, pas 3, hauteur 255 | 5 196 → 402 |
+| Phase 6, pas 255, hauteur 255 | 6 210 → 530 |
+| Phase 3, pas 255, hauteur 1 | 284 → 288 |
+| Phase 3, pas 8, hauteur 8 | 411 → 371 |
+
+Dans le banc C, le XOR 7×16 en phase 3 passe de 2 373 à 2 107 cycles ;
+le XOR clippé de 962 à 695. La phase zéro reste à 1 986 cycles. Le coût
+supplémentaire de 39 octets s'applique à tous les clients de cette famille,
+y compris ceux qui ne l'appellent qu'en phase zéro ou avec des rejets.
+
+Le nouveau test appelle le vrai `hgr_xs_setup` sans dessiner : il vérifie
+l'adresse calculée même après débordement 16 bits, le pas original et les
+dimensions clippées, ainsi que tmp4 et le mode préservés. Les 255 pas ×
+255 hauteurs × sept phases × deux placements font 910 350 combinaisons,
+passées sur II+ et IIe. La suite normale prend 18 hauteurs (64 260 cas) ;
+`make test-preshift-setup-full` exécute le balayage complet. Les points
+d'arrêt isolent les boucles et les appels mesurés du démarrage du simulateur.
+Le balayage complet, boucles de vérification incluses, passe de 2 425 809 996
+à 454 703 568 cycles (−81,3 %). Le relevé final est identique sur les deux CPU.
+
+Validation : balayage exhaustif avant/après et sur IIe, oracle de dessin
+avec tables normales/regroupées, variante regroupée IIe, intégration HGR
+et 38 clients minimaux d'archive, `make all`, relevé complet de 236 cas
+HGR/DHGR et gate. Dix-neuf références sont nouvelles/actualisées ; les
+217 autres cas sont identiques. Aucun disque livré ne change.
+
 ## Série du 5 novembre 2026 : entrées natives des sprites précalculés
 
 Les entrées `hgr_sprite` et `hgr_sprite_xor` deviennent deux membres

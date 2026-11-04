@@ -61,7 +61,8 @@ extern void hgr_blit_run(void);
 extern void hgr_blit7_run(void);
 extern void hgr_preshift_xor_run(void);   /* dedicated XOR fast path (no mode dispatch) */
 
-/* hgr_sprite_xor's all-asm worker: the C entry only stores these zp args. */
+/* Internal preshift workers: x<280, y<192, nonzero stride/height, rows built.
+ * The public entries validate these inputs before selecting a phase. */
 extern unsigned hgr_xs_x;
 extern unsigned char hgr_xs_y;
 extern const hgr_sprite_t *hgr_xs_spr;

@@ -47,13 +47,20 @@ now takes **4,845 cycles** and `hgr_cell(1,4,1)` takes **708**. The pixel
 wrapper reduces its C-stack peak from 13 to 4 bytes and hardware peak from
 9 to 6. Cold valid/empty/invalid cases preserve lazy table initialization.
 
-Native preshifted-sprite entries save **181/158 loaded bytes** for
-XOR-only/general-only clients, or 126 when both are used. XOR C-stack use
-falls **5 → 3 bytes**, its hardware-stack peak **10 → 8**; the general
-entry's C stack falls 6 → 5. RAM and zero page stay unchanged. A 7×16 XOR
-at phases 0/3/6 takes **1,986 / 2,373 / 2,448 cycles**, previously
-2,080 / 2,468 / 2,546. Empty calls improve from 207 to 204 cycles for the
-general entry and 208 to 169 for the XOR-only entry.
+Native preshifted-sprite entries plus the faster phase product save
+**142/119 loaded bytes** for XOR-only/general-only clients, or 87 when both
+are used, compared with the earlier C entries and linear product. XOR
+C-stack use falls **5 → 3 bytes**, its hardware-stack peak **10 → 8**;
+the general entry's C stack falls 6 → 5. A 7×16 XOR at phases 0/3/6 takes
+**1,986 / 2,107 / 2,187 cycles**, previously 2,080 / 2,468 / 2,546.
+
+The stride × height product uses at most eight additions or binary steps. This speed
+tradeoff adds **39 code bytes** compared with the native entries alone,
+without extra RAM, zero page or stack. Setup of stride 3 / height 255 /
+phase 6 falls from **5,196 to 402 cycles**; 255×255 falls from **6,210 to
+530**. A one-row setup takes four extra cycles (228 → 232). The exhaustive
+arithmetic fixture covers 910,350 combinations on II+ and IIe; the normal
+suite samples 18 heights and checks all strides, phases and two placements.
 
 The native `hgr_blit7` entry saves **92 loaded bytes** in isolated clients
 and reduces C-stack use from **9 to 7 bytes**. A 4-byte × 8-row SET sprite
