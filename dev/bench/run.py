@@ -212,6 +212,22 @@ for phase in (0, 3, 6):
         call='hgr_sprite_xor(%du,40,&sprite);' % (28 + phase),
         sprite_width=7, sprite_height=16, sprite_stride=2,
         declarations='static const hgr_sprite_t sprite={bits,2,16};')
+for name,call,cold,stride in (
+    ('set','hgr_sprite(31,40,&sprite,HGR_SET);',False,2),
+    ('clear','hgr_sprite(31,40,&sprite,HGR_CLEAR);',False,2),
+    ('xor_general','hgr_sprite(31,40,&sprite,HGR_XOR);',False,2),
+    ('other_mode','hgr_sprite(31,40,&sprite,255);',False,2),
+    ('general_cold','hgr_sprite(31,40,&sprite,HGR_SET);',True,2),
+    ('general_empty','hgr_sprite(31,40,&sprite,HGR_SET);',False,0),
+    ('general_outside','hgr_sprite(65535u,40,&sprite,HGR_SET);',False,2),
+    ('xor_cold','hgr_sprite_xor(31,40,&sprite);',True,2),
+    ('xor_empty','hgr_sprite_xor(31,40,&sprite);',False,0),
+    ('xor_clip','hgr_sprite_xor(279,191,&sprite);',False,2),
+    ('xor_outside','hgr_sprite_xor(65535u,40,&sprite);',False,2),
+    ('both','hgr_sprite(31,40,&sprite,HGR_SET); hgr_sprite_xor(38,40,&sprite);',False,2)):
+    SCENES['hgr_preshift_'+name]=dict(call=call,warmup=not cold,
+        sprite_width=7,sprite_height=16,sprite_stride=2,
+        declarations='static const hgr_sprite_t sprite={bits,%d,16};'%stride)
 SCENES.update({
  'hgr_hud_cached_same': dict(call='hgr_hud_putu(&hud,12345u);',
      setup='hgr_hud_init(&hud,48,0,5);', declarations='static hgr_hud_field_t hud;'),

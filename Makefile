@@ -135,6 +135,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_lores_spans.py
 	$(PYTHON) dev/tests/test_a2test.py
 	$(PYTHON) dev/tests/test_preshift_bounds.py
+	$(PYTHON) dev/tests/test_preshift_bounds.py --folded
 	$(PYTHON) dev/tests/test_sprmask_bounds.py
 	$(PYTHON) dev/tests/test_sprite16_bounds.py
 	$(PYTHON) dev/tests/test_text8_strings.py

@@ -94,8 +94,25 @@ Resolving the row before the column avoids two temporary bytes and saves
 14 code bytes; the allocated zero page is unchanged. The aligned sprite
 loops also save 6 code bytes by omitting a carry that cannot occur within
 a visible scanline. Pre-shift selection skips the height × stride product
-for phase zero without growing the code: a 7×16 XOR sprite takes 2,078
-cycles there, versus 2,424 before; phases 3/6 take 2,465/2,540 cycles.
+for phase zero without growing the code.
+
+The preshifted-sprite C entries are now native, separate archive members.
+They share descriptor/coordinate validation; XOR-only clients omit the
+general entry. Loaded clients save 181 bytes for XOR alone, 158 for the
+general entry, or 126 when both are used. C-stack peaks fall from 5 to 3
+bytes for XOR and 6 to 5 for the general entry. Calling setup and the XOR
+kernel directly reduces the XOR hardware-stack peak from 10 to 8 bytes.
+RAM and zero page are unchanged. A 7×16 XOR takes 1,986 / 2,373 / 2,448
+cycles at phases 0/3/6, previously 2,080 / 2,468 / 2,546; a clipped XOR
+falls from 1,070 to 962. An empty general-entry call takes 204 instead of
+207 cycles; the dedicated XOR rejection falls from 208 to 169.
+
+Rows are built even for rejected calls; columns and phases are built only
+for a valid descriptor and coordinates. `test_preshift_bounds.py` compares
+1,304 paired frames and 160 cold calls per configuration, including every
+byte stride/height, all seven phases and modes, both pages and screen
+holes. It supports II+ and IIe with normal/folded table builders. The
+internal `hgr_xs_run` entry remains available with its existing contract.
 
 `hgr_blit7.s` implements the C entry directly. It clips against the space
 remaining to the right/bottom, keeping the original source stride, and
@@ -322,7 +339,7 @@ excluding routines that were previously linked for nothing.
 macOS. Its 21 steps compare both video pages with a Python model:
 256/280-pixel rectangles, limits, pixels, SET/CLEAR/XOR sprites and seven
 phases, white/coloured text, numbers, cells, colourising. Four additional scenes check `gfx` cell text on
-page 2, the cursor and the numeric conversions. Thirty-five minimal
+page 2, the cursor and the numeric conversions. Thirty-eight minimal
 programs also check that the archive excludes unused kernels and zero-page
 blocks. This test is part of `make test` and of CI.
 

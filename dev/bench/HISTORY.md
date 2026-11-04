@@ -4,6 +4,55 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : entrées natives des sprites précalculés
+
+Les entrées `hgr_sprite` et `hgr_sprite_xor` deviennent deux membres
+assembleur indépendants. Un troisième membre partage la validation du
+descripteur et copie les coordonnées depuis leurs positions respectives
+sur la pile C. Les descripteurs vides sont rejetés avant cette copie.
+Chaque entrée construit d'abord les lignes ; un rejet ne construit
+ni colonnes ni phases, comme auparavant.
+
+La préparation des lignes reste hors du sous-programme partagé pour éviter
+un niveau de pile supplémentaire. Les entrées appellent directement la
+sélection de phase puis le noyau XOR, sans traverser le relais interne
+`hgr_xs_run`. Ce relais reste disponible et inchangé pour ses utilisateurs.
+Le mode général reste dans tmp4, désormais explicitement préservé par
+`hgr_xs_setup` et ses générateurs de tables.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| XOR dédié 7×16, phase 0 | 2 080 → 1 986 | 1 712 → 1 531 |
+| XOR dédié 7×16, phase 3 | 2 468 → 2 373 | 1 712 → 1 531 |
+| XOR dédié 7×16, phase 6 | 2 546 → 2 448 | 1 712 → 1 531 |
+| XOR dédié clippé | 1 070 → 962 | 1 712 → 1 531 |
+| SET général, phase 3 | 2 483 → 2 424 | 1 730 → 1 572 |
+| CLEAR général, phase 3 | 2 550 → 2 491 | 1 728 → 1 570 |
+| XOR général, phase 3 | 2 471 → 2 416 | 1 730 → 1 572 |
+| Les deux entrées | 4 978 → 4 802 | 1 797 → 1 671 |
+| XOR dédié vide | 208 → 169 | 1 712 → 1 531 |
+| Général vide | 207 → 204 | 1 730 → 1 572 |
+
+Le pointeur du descripteur est copié dans ptr2 en même temps que dans
+le bloc de paramètres, ce qui évite une copie ultérieure dans la validation.
+Les clients économisent 181/158 octets pour XOR/général seuls, 126 pour les
+deux ensemble. Pile C 5 → 3 / 6 → 5, pile matérielle
+XOR 10 → 8 ; RAM et page zéro inchangées.
+
+Le test utilise maintenant des points d'arrêt plutôt que des délais/clavier.
+Il compare 1 304 images jumelées (entrée générale et XOR dédié sur des pages
+opposées), tous les pas source et hauteurs sur un octet, phases, modes,
+clipping et mémoire vidéo complète. Les cas limites croisent tous les
+modes et les deux pages ; les balayages de dimensions alternent les modes.
+Les 160 appels froids vérifient aussi les tables attendues, présentes ou
+absentes selon la validité des arguments. Les 38 clients minimaux de
+l'archive vérifient notamment l'exclusion de l'autre entrée publique.
+
+Validation : oracle avant/après, II+/IIe avec tables normales/regroupées,
+intégration HGR, `make all`, relevé complet de 232 cas HGR/DHGR et gate.
+Quinze références sont nouvelles/actualisées ; les 217 autres mesures
+sont identiques au relevé avant modification. Aucun disque livré ne change.
+
 ## Série du 5 novembre 2026 : interface native des bitmaps HGR
 
 `hgr_sprites.s` remplace la préparation C de `hgr_blit`. La largeur source

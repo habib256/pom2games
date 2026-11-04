@@ -19,6 +19,8 @@ _hgr_xs_spr:  .res 2        ; pointer to the hgr_sprite_t {bits, stride, h}
 .segment "CODE"
 ; hgr_xs_x/y/spr -> the clipped hgr_b_* block of the selected phase, for the
 ; XOR loop below or hgr_blit7_run (SET/CLEAR). Rows built by the caller.
+; Setup clobbers A/X/Y, ptr1/ptr2, tmp1/tmp2/tmp3 and hgr_b_* parameters.
+; tmp4 is preserved, including through the normal/folded table builders.
 _hgr_xs_setup:
         jsr _hgr_build_columns
         jsr _hgr_build_phases
