@@ -187,12 +187,16 @@ is introduced. Isolated clients save **33 loaded bytes**, C-stack peak
 argument bit, caller guards, all 256 stack alignments per entry and real
 rendering at decimal boundaries, phases and edges on both CPU models.
 
-`hgr_puti` assigns the conversion buffer directly and reuses the value
-parameter for the magnitude, keeping unsigned negation for −32768. Its
-isolated client saves 40 loaded bytes and four bytes at the C-stack peak,
-with unchanged RAM and zero page. Printing −32768 takes 12,469 cycles
-with the native text entry. The signed test checks 272 scenes per CPU, including signs,
-zero, decimal boundaries, −32768/32767, clipped strings and both pages.
+`hgr_puti` uses a native seven-byte local buffer and relocates the coordinates
+once, like the unsigned entries. The existing text-source pointer retains
+the buffer start while the conversion pointer advances past a negative sign.
+Unsigned two's-complement negation handles −32768. Its isolated client saves
+**66 loaded bytes**, C-stack peak **15 → 10**, with unchanged RAM, zero page
+and hardware-stack peaks. Printing −32768 takes **12,348 cycles** (12,469
+before), zero **2,635** (2,728), and −1 **3,448** (3,583). The exhaustive entry
+test checks all 65,536 signed strings and 1,024 stack alignments, including
+both pointer page crossings, on II+/IIe. The pixel test checks 272 scenes
+per CPU: signs, zero, decimal boundaries, clipped strings and both pages.
 
 `hgr_putu_field` uses the clamped byte width directly for erasing
 `width*18-2` pixels and then reuses that parameter for alignment padding.

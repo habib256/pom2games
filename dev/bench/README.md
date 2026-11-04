@@ -220,12 +220,14 @@ with unchanged RAM, zero page and hardware-stack peaks. Doubled/native-size
 **2,635 / 1,437** (2,715 / 1,522), and rejected origins **1,262 / 1,249**
 (1,340 / 1,327). The conversion and rendering kernels are unchanged.
 
-Signed HGR numbers set the conversion destination directly and reuse the
-value parameter for its magnitude. Removing two temporary stack variables
-saves **40 loaded bytes and four C-stack bytes at peak** in isolated clients,
-with unchanged RAM and zero page. Printing −32768/−12345/32767 takes
-12,469/11,987/11,445 cycles with the native text entry. The magnitude is
-formed by unsigned negation, including −32768.
+Signed HGR numbers use a native seven-byte local buffer, relocating the
+coordinates to its front and preserving the buffer start in the existing
+text-source pointer. Only the conversion pointer advances past a minus sign;
+unsigned negation includes −32768. This saves **66 loaded bytes**, C-stack
+peak **15 → 10**, with unchanged RAM, zero page and hardware-stack peaks.
+Printing −32768/−12345/32767 takes **12,348 / 11,873 / 11,381 cycles**
+(12,469 / 11,987 / 11,445 before); zero falls **2,728 → 2,635**, −1
+**3,583 → 3,448**, and a rejected origin **1,408 → 1,264**.
 
 Unsigned number fields compute their erased width as `width*18-2`, which
 fits in one byte after the existing clamp to 14 cells. The width parameter

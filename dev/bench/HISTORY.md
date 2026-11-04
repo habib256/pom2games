@@ -4,6 +4,45 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : entrée native des nombres HGR signés
+
+`hgr_num_signed.s` remplace la préparation C de `hgr_puti`. Le tampon
+reste local, avec sept octets pour le signe éventuel, cinq chiffres et
+le NUL. Les trois octets de coordonnées sont déplacés au nouveau sommet
+de pile et seront consommés par l'afficheur. Le pointeur de texte existant
+conserve le début du tampon ; seul le pointeur du convertisseur avance
+après le signe moins. La négation non signée sur 16 bits traite −32 768.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| −32 768 | 12 469 → 12 348 | 2 487 → 2 421 |
+| −12 345 | 11 987 → 11 873 | 2 491 → 2 425 |
+| 32 767 | 11 445 → 11 381 | 2 491 → 2 425 |
+| Zéro | 2 728 → 2 635 | 2 485 → 2 419 |
+| −1 | 3 583 → 3 448 | 2 489 → 2 423 |
+| −10 | 5 619 → 5 488 | 2 491 → 2 425 |
+| Chaîne clippée | 2 367 → 2 218 | 2 499 → 2 433 |
+| Origine rejetée | 1 408 → 1 264 | 2 491 → 2 425 |
+| Premier appel | 27 793 → 27 687 | 2 467 → 2 401 |
+
+Économie de 66 octets dans les clients isolés ; pile C 15 → 10. RAM,
+page zéro et pics de pile matérielle restent identiques. Ni le noyau
+décimal ni le rendu ne changent.
+
+Le nouveau test passe avant/après et vérifie toutes les 65 536 chaînes
+signées, les NULs, les queues non écrites et les coordonnées transmises.
+Les valeurs 0/32 767/−32 768/−1 sont aussi appelées à chacune des 256
+positions de pile : 1 024 vérifications des passages de page, du nettoyage
+des arguments et des gardes appelants. L'ensemble passe sur II+ et IIe.
+Le rendu de 272 scènes par CPU conserve les signes, frontières décimales,
+clipping, pages, palettes et trous.
+
+Validation : tests d'entrée et de rendu II+/IIe, intégration HGR, 44 clients
+minimaux d'archive (le signé n'extrait ni préparation ni afficheurs non
+signés), `make all`, relevé complet de 302 cas et gate. Neuf cas changent,
+tous en amélioration ; les 293 autres sont identiques. Six cas sont nouveaux.
+Aucun disque livré ne change.
+
 ## Série du 5 novembre 2026 : entrées natives séparées des axes HGR
 
 `hgr_hline.s` et `hgr_vline.s` remplacent l'objet C commun `hgr_geom.c`.

@@ -86,6 +86,12 @@ for (i=0; i<4; ++i) hgr_spr_move(i,28u+i*3u+(frame&1u),60u+i*2u);
 hgr_spr_render(); hgr_putu_field(48,0,frame,5); hgr_spr_present(); ++frame;
 '''
 SCENES = {
+ 'hgr_signed_zero': dict(call='hgr_puti(0,0,0);'),
+ 'hgr_signed_minus_one': dict(call='hgr_puti(0,0,-1);'),
+ 'hgr_signed_negative_ten': dict(call='hgr_puti(0,0,-10);'),
+ 'hgr_signed_clip': dict(call='hgr_puti(264,176,-32768);'),
+ 'hgr_signed_outside': dict(call='hgr_puti(65535u,255,-32768);'),
+ 'hgr_signed_cold': dict(call='hgr_puti(0,0,-32768);',warmup=False),
  'hgr_hline_reverse': dict(call='hgr_hline(279,0,40);'),
  'hgr_hline_clip': dict(call='hgr_hline(65535u,7,191);'),
  'hgr_hline_point': dict(call='hgr_hline(279,279,191);'),
