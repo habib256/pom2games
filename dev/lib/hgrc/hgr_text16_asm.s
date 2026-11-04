@@ -25,7 +25,7 @@ gbc_m2:   .res 1             ; bits 16..21, shifted to bits 14..21 for cell 2
 ; by `bit` to align with the pen offset, in two nibble lookups, then OR
 ; each of the 3-4 spanning bytes (one per 7-bit cell) into both scanlines —
 ; carrier and palette bit applied per BYTE, not per pixel. White text is the
-; carrier pair $7F/$7F with hgr_z_hi = 0 (hgr_text.c sets it): the same OR of
+; carrier pair $7F/$7F with hgr_z_hi = 0 (hgr_text.s sets it): the same OR of
 ; the same doubled bits the old pixel-by-pixel white blitter produced, about
 ; five times faster and one blitter instead of two. Cell carriers + the shift
 ; count are precomputed once per glyph (they depend on g_col parity and g_bit,

@@ -78,7 +78,7 @@ folded builder now takes **74 bytes / 10,327–10,350 cycles**, down from
 77 / 15,084, by removing per-pixel calls and copying the 24-byte tail.
 It saves 56 code bytes and cold initialization time when all three tables
 are needed, while still reserving all 841 B of table state. The cold folded
-HUD/scene calls take **46,898 / 27,734 cycles** (previously 51,853 / 32,491).
+HUD/scene calls take **46,320 / 27,423 cycles** (previously 51,853 / 32,491).
 The two-table diagonal still uses less RAM and initializes faster with
 independent builders. All 256 alignments are verified.
 
@@ -183,36 +183,40 @@ clipping, rejected colors and carrier preservation.
 
 Doubled HGR text skips blank glyph rows, shares the alternating carriers
 and simplifies the destination-column shifts. At phase zero, white
-`"APPLE II"` takes 15,052 cycles and orange text 15,125. The doubled-kernel
-optimization saves **30 code bytes
+`"APPLE II"` takes 14,720 cycles and orange text 14,839 with the native
+entries. The earlier doubled-kernel optimization saved **30 code bytes
 and 5 zero-page bytes**, without changing other RAM, tables or stack peaks.
-Eight spaces take 3,894 cycles; a fully filled native
+Eight spaces take 3,545 cycles; a fully filled native
 16×16 glyph at phase six takes 2,641 instead of 2,873 (−8.1 %).
 
-The doubled-text wrapper computes the visible cell count with a bounded
-fastcall helper instead of a C subtraction loop on the software stack.
-The helper allocates no memory; its independent archive member is omitted
-by native-glyph and HUD clients. Isolated C text clients save **71 code
-bytes and three C-stack bytes at peak**. White `"APPLE II"` improves from
-16,681 to 15,052 cycles (−9.8 %), eight spaces from 5,420 to 3,894
-(−28.2 %), and an empty string from 2,153 to 627. RAM and zero page stay
-unchanged; the glyph kernel itself has the same cost.
+The doubled-text entries prepare the cc65 arguments directly and compute
+the cell count with bounded subtractions, specializing x=0..8 and x=256..264.
+They save **201 white / 214 color loaded bytes**, reduce C-stack peaks
+**10 → 3 / 11 → 5**, and reduce the rendered calls' hardware-stack peak
+**10 → 8**. The empty white call falls **627 → 278 cycles** (hardware stack
+9 → 6); an unknown-color fallback falls **15,530 → 15,084 cycles** and
+C stack 16 → 5. RAM and zero page are unchanged. The previous standalone
+count helper remains available but is no longer needed by these entries.
+Both wrappers retain table initialization on rejected coordinates and
+all color values outside 1..4 fall back to white. The entry test sweeps
+all x/y/color values with a kernel sink; separate pixel oracles cover
+rendering, carriers, clipping, pages and screen holes.
 
 Signed HGR numbers set the conversion destination directly and reuse the
 value parameter for its magnitude. Removing two temporary stack variables
 saves **40 loaded bytes and four C-stack bytes at peak** in isolated clients,
 with unchanged RAM and zero page. Printing −32768/−12345/32767 takes
-12,810/12,318/11,800 cycles, about 1 % less than before. The magnitude is
+12,469/11,987/11,445 cycles with the native text entry. The magnitude is
 formed by unsigned negation, including −32768.
 
 Unsigned number fields compute their erased width as `width*18-2`, which
 fits in one byte after the existing clamp to 14 cells. The width parameter
 is then reused for right-alignment padding. This saves **33..50 loaded
 bytes and two C-stack bytes at peak**, depending on runtime sharing, with
-unchanged RAM and zero page. A padded 14-cell field takes 13,763 instead
-of 14,078 cycles; an overflowing one-cell field takes 14,384 instead of
-14,695, and a right-clipped field takes 4,239 instead of 4,544. The legacy
-warm HUD takes 30,539 instead of 31,213 cycles.
+unchanged RAM and zero page. With the native text entry, a padded 14-cell
+field takes 13,022 cycles,
+an overflowing one-cell field 13,660, and a right-clipped field 3,639.
+The legacy warm HUD takes 29,029 cycles.
 
 Native-size 8×8 `"APPLE II"` now takes **7,751 / 8,498 / 8,389 cycles** at
 phases 0/3/6, previously 7,886 / 8,672 / 8,563. Its native argument entry

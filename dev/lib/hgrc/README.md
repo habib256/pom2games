@@ -153,25 +153,33 @@ The 16×16 text kernel skips blank source rows, stores only two alternating
 carriers and reuses three cc65 scratch bytes. It walks the destination
 columns once and assembles the final two cells with two rotations instead
 of repeated right shifts. This saves **30 code bytes and 5 zero-page bytes**.
-White/orange `"APPLE II"` takes 15,052/15,125 cycles at phase zero.
+With the native entries, white/orange `"APPLE II"` takes 14,720/14,839
+cycles at phase zero.
 A fully filled glyph at phase six also saves 8.1 %;
 tables, other RAM and stack peaks are unchanged. `test_hgr_text16.py`
 checks all 256 source row patterns and all 96 built-in glyphs under five
 carriers, seven phases, both column parities and both drawing pages.
 
-The doubled-text C wrapper uses `hgr_text16_cells` to calculate the fitting
-cell count without stack variables or a C subtraction loop. This independent
-archive member allocates no RAM or zero page. Isolated C text clients lose
-71 code bytes and three bytes at the measured C-stack peak. White text
-improves another 9.8 %, and eight spaces take 3,894 instead of 5,420 cycles.
-All 265 fitting-room values, including 18-pixel and 256-byte boundaries,
-are checked through the cc65 fastcall ABI on both CPU models.
+The doubled-text entries in `hgr_text.s` prepare arguments directly, share
+one rendering path and retain the white fallback for every color outside
+1..4. They save **201 loaded bytes for white / 214 for color** in isolated
+clients. C-stack peaks fall **10 → 3 / 11 → 5**, and an empty white string
+takes **278 instead of 627 cycles**. RAM and zero page remain unchanged.
+The fitting count uses fifteen cells for x=0..8, one for x=256..264, and
+bounded subtractions for the middle range, retaining the x index for
+column/phase lookup. Tables are still built before coordinate rejection.
+`test_hgr_text16_entry.py` checks both C entries over all 65,536 x values,
+256 y values, all 256 colors and 240 cold calls, on both CPUs and with
+normal/folded tables. Its assembly sink verifies the exact string/font,
+position/count and carriers; the rendering oracle checks actual pixels.
+The independent `hgr_text16_cells` helper remains available and tested
+for all 265 room values, but is no longer linked by these text entries.
 
 `hgr_puti` assigns the conversion buffer directly and reuses the value
 parameter for the magnitude, keeping unsigned negation for −32768. Its
 isolated client saves 40 loaded bytes and four bytes at the C-stack peak,
-with unchanged RAM and zero page. Printing −32768 takes 12,810 instead of
-12,943 cycles. The signed test checks 272 scenes per CPU, including signs,
+with unchanged RAM and zero page. Printing −32768 takes 12,469 cycles
+with the native text entry. The signed test checks 272 scenes per CPU, including signs,
 zero, decimal boundaries, −32768/32767, clipped strings and both pages.
 
 `hgr_putu_field` uses the clamped byte width directly for erasing

@@ -4,6 +4,55 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : entrées natives du texte HGR agrandi
+
+`hgr_text.s` remplace les entrées C blanche/couleur en conservant un chemin
+commun et le même noyau de rendu. L'entrée couleur récupère la chaîne sur
+la pile C, puis les deux variantes chargent directement les paramètres.
+Les couleurs hors 1..4 gardent le repli blanc. Le résultat du sélecteur est
+testé dans A : ses drapeaux au retour ne représentent pas ce booléen.
+
+Le calcul des cellules garde X pour l'accès colonne/phase. x=0..8 donne
+quinze cellules, x=256..264 une seule ; entre les deux, les soustractions
+bornées opèrent sur un octet. L'auxiliaire `hgr_text16_cells` reste disponible
+et testé séparément, mais ces clients ne l'extraient plus de l'archive.
+Les constructions paresseuses précèdent toujours le rejet des coordonnées.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| APPLE II blanc, phase 0 | 15 074 → 14 720 | 2 456 → 2 255 |
+| APPLE II blanc, phase 3 | 15 307 → 14 990 | 2 460 → 2 259 |
+| APPLE II orange, phase 0 | 15 104 → 14 839 | 2 489 → 2 275 |
+| Huit espaces | 3 894 → 3 545 | 2 456 → 2 255 |
+| Chaîne vide | 627 → 278 | 2 448 → 2 247 |
+| Caractère au bord | 2 850 → 2 506 | 2 459 → 2 258 |
+| Chaîne clippée | 2 846 → 2 501 | 2 464 → 2 263 |
+| Couleur à froid, clippée | 18 242 → 17 948 | 2 459 → 2 245 |
+| Abscisse 65 535 | 440 → 208 | 2 455 → 2 254 |
+| Ordonnée 177, couleur | 462 → 295 | 2 490 → 2 276 |
+| Couleur inconnue, repli blanc | 15 530 → 15 084 | 2 491 → 2 277 |
+| HUD chaud | 29 780 → 29 029 | 3 638 → 3 458 |
+
+Les clients isolés économisent 201 octets en blanc, 214 en couleur ;
+pile C 10 → 3 et 11 → 5, pile matérielle des rendus 10 → 8. Le repli
+blanc passe de 16 à 5 octets de pile C et de 12 à 8 sur la pile matérielle.
+La RAM et la page zéro ne changent pas. Les nombres gagnent 175 octets,
+les HUD/scènes 180, selon les auxiliaires C encore partagés.
+
+Le nouveau test vérifie chaque entrée sur les 65 536 abscisses et les
+256 ordonnées, les 256 valeurs de couleur et 240 appels à froid. Un
+récepteur assembleur contrôle chaîne, fonte, ordonnée, nombre de cellules,
+colonne/phase et porteurs. La fixture passe d'abord avec le C d'origine,
+puis avec l'assembleur sur II+/IIe et tables normales/regroupées.
+Le rendu réel couvre 280 scènes par CPU, tous les motifs de ligne/glyphes,
+porteurs, phases, parités et pages. Les tests couleurs, nombres signés,
+champs numériques et l'intégration avec 38 clients minimaux passent aussi.
+
+Validation : `make all`, SNAKE (y compris cadence II+/IIe/PAL et sauvegarde),
+HGR/LIGHT3DBALL, WOZ, relevé complet et gate. Parmi 248 cas HGR/DHGR,
+27 s'améliorent et 221 sont strictement identiques. Seules ces 27 références
+sont nouvelles/actualisées. SNAKE.dsk et son WOZ sont reconstruits.
+
 ## Série du 5 novembre 2026 : entrée native du texte HGR 8×8
 
 `hgr_text8.s` remplace la préparation C des chaînes. Le pointeur passé dans

@@ -86,6 +86,12 @@ for (i=0; i<4; ++i) hgr_spr_move(i,28u+i*3u+(frame&1u),60u+i*2u);
 hgr_spr_render(); hgr_putu_field(48,0,frame,5); hgr_spr_present(); ++frame;
 '''
 SCENES = {
+ 'hgr_text16_single': dict(call='hgr_puts(264,176,"A");'),
+ 'hgr_text16_clip': dict(call='hgr_puts(256,176,"ABCDEF");'),
+ 'hgr_text16_cold': dict(call='hgr_puts_color(256,176,"ABCDEF",HGR_ORANGE);',warmup=False),
+ 'hgr_text16_outside': dict(call='hgr_puts(65535u,40,"A");'),
+ 'hgr_text16_below': dict(call='hgr_puts_color(7,177,"A",HGR_GREEN);'),
+ 'hgr_text16_fallback': dict(call='hgr_puts_color(3,0,"APPLE II",255);'),
  'hgr_text8_single': dict(call='hgr_puts8(273,184,"A");'),
  'hgr_text8_clip': dict(call='hgr_puts8(256,184,"ABCDEF");'),
  'hgr_text8_cold': dict(call='hgr_puts8(256,184,"ABCDEF");',warmup=False),

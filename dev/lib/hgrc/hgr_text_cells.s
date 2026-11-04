@@ -1,6 +1,6 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; Internal fastcall: room in A/X, 0..264 -> floor(room/18)+1 in A, X=0.
-; The C wrapper has already validated the origin. D=0. No memory or IRQ changes.
+; Standalone helper; the native text entry inlines its bounded count. D=0. No memory or IRQ changes.
 .export _hgr_text16_cells
 .code
 _hgr_text16_cells:

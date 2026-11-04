@@ -213,59 +213,59 @@
       "hardware_stack_available_bytes": 255
     },
     "hgr_hud_cold": {
-      "code_bytes": 2445,
+      "code_bytes": 2265,
       "init_code_bytes": 12,
       "rodata_bytes": 1066,
       "ram_bytes": 1528,
       "zp_bytes": 63,
-      "binary_bytes": 3548,
-      "cycles": 49812,
+      "binary_bytes": 3368,
+      "cycles": 49102,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 23,
+      "c_stack_peak_bytes": 17,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 12,
+      "hardware_stack_peak_bytes": 10,
       "hardware_stack_available_bytes": 255
     },
     "hgr_hud_warm": {
-      "code_bytes": 2535,
+      "code_bytes": 2355,
       "init_code_bytes": 12,
       "rodata_bytes": 1066,
       "ram_bytes": 1528,
       "zp_bytes": 63,
-      "binary_bytes": 3638,
-      "cycles": 29780,
+      "binary_bytes": 3458,
+      "cycles": 29029,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 23,
+      "c_stack_peak_bytes": 17,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 12,
+      "hardware_stack_peak_bytes": 10,
       "hardware_stack_available_bytes": 255
     },
     "hgr_scene_cold": {
-      "code_bytes": 4694,
+      "code_bytes": 4514,
       "init_code_bytes": 12,
       "rodata_bytes": 1515,
       "ram_bytes": 1789,
       "zp_bytes": 75,
-      "binary_bytes": 6246,
-      "cycles": 30375,
+      "binary_bytes": 6066,
+      "cycles": 30048,
       "row_kernel_bytes": 70,
-      "c_stack_peak_bytes": 26,
+      "c_stack_peak_bytes": 20,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 12,
+      "hardware_stack_peak_bytes": 10,
       "hardware_stack_available_bytes": 255
     },
     "hgr_scene_warm": {
-      "code_bytes": 4962,
+      "code_bytes": 4782,
       "init_code_bytes": 12,
       "rodata_bytes": 1515,
       "ram_bytes": 1789,
       "zp_bytes": 75,
-      "binary_bytes": 6514,
-      "cycles": 12098,
+      "binary_bytes": 6334,
+      "cycles": 11783,
       "row_kernel_bytes": 70,
-      "c_stack_peak_bytes": 26,
+      "c_stack_peak_bytes": 20,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 12,
+      "hardware_stack_peak_bytes": 10,
       "hardware_stack_available_bytes": 255
     },
     "hgr_hud_cached_same": {
@@ -1179,31 +1179,31 @@
       "hardware_stack_available_bytes": 255
     },
     "hgr_hud_cold_x7folded": {
-      "code_bytes": 2389,
+      "code_bytes": 2209,
       "init_code_bytes": 12,
       "rodata_bytes": 1066,
       "ram_bytes": 1526,
       "zp_bytes": 63,
-      "binary_bytes": 3492,
-      "cycles": 46898,
+      "binary_bytes": 3312,
+      "cycles": 46320,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 23,
+      "c_stack_peak_bytes": 17,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 12,
+      "hardware_stack_peak_bytes": 10,
       "hardware_stack_available_bytes": 255
     },
     "hgr_scene_cold_x7folded": {
-      "code_bytes": 4638,
+      "code_bytes": 4458,
       "init_code_bytes": 12,
       "rodata_bytes": 1515,
       "ram_bytes": 1787,
       "zp_bytes": 75,
-      "binary_bytes": 6190,
-      "cycles": 27734,
+      "binary_bytes": 6010,
+      "cycles": 27423,
       "row_kernel_bytes": 70,
-      "c_stack_peak_bytes": 26,
+      "c_stack_peak_bytes": 20,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 12,
+      "hardware_stack_peak_bytes": 10,
       "hardware_stack_available_bytes": 255
     },
     "dhgr_spr_move": {
@@ -1445,17 +1445,17 @@
       "hardware_stack_available_bytes": 255
     },
     "hgr_text_color": {
-      "code_bytes": 1383,
+      "code_bytes": 1169,
       "init_code_bytes": 12,
       "rodata_bytes": 1069,
       "ram_bytes": 1247,
       "zp_bytes": 45,
-      "binary_bytes": 2489,
-      "cycles": 15104,
+      "binary_bytes": 2275,
+      "cycles": 14839,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 11,
+      "c_stack_peak_bytes": 5,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 10,
+      "hardware_stack_peak_bytes": 8,
       "hardware_stack_available_bytes": 255
     },
     "hgr_colorize": {
@@ -1781,87 +1781,87 @@
       "hardware_stack_available_bytes": 255
     },
     "hgr_text_color_phase3": {
-      "code_bytes": 1385,
+      "code_bytes": 1171,
       "init_code_bytes": 12,
       "rodata_bytes": 1069,
       "ram_bytes": 1247,
       "zp_bytes": 45,
-      "binary_bytes": 2491,
-      "cycles": 15361,
+      "binary_bytes": 2277,
+      "cycles": 15095,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 11,
+      "c_stack_peak_bytes": 5,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 10,
+      "hardware_stack_peak_bytes": 8,
       "hardware_stack_available_bytes": 255
     },
     "hgr_text_color_phase6": {
-      "code_bytes": 1387,
+      "code_bytes": 1173,
       "init_code_bytes": 12,
       "rodata_bytes": 1069,
       "ram_bytes": 1247,
       "zp_bytes": 45,
-      "binary_bytes": 2493,
-      "cycles": 15243,
+      "binary_bytes": 2279,
+      "cycles": 14996,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 11,
+      "c_stack_peak_bytes": 5,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 10,
+      "hardware_stack_peak_bytes": 8,
       "hardware_stack_available_bytes": 255
     },
     "hgr_text16_phase0": {
-      "code_bytes": 1350,
+      "code_bytes": 1149,
       "init_code_bytes": 12,
       "rodata_bytes": 1069,
       "ram_bytes": 1247,
       "zp_bytes": 45,
-      "binary_bytes": 2456,
-      "cycles": 15074,
+      "binary_bytes": 2255,
+      "cycles": 14720,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 10,
+      "c_stack_peak_bytes": 3,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 10,
+      "hardware_stack_peak_bytes": 8,
       "hardware_stack_available_bytes": 255
     },
     "hgr_text16_phase3": {
-      "code_bytes": 1354,
+      "code_bytes": 1153,
       "init_code_bytes": 12,
       "rodata_bytes": 1069,
       "ram_bytes": 1247,
       "zp_bytes": 45,
-      "binary_bytes": 2460,
-      "cycles": 15307,
+      "binary_bytes": 2259,
+      "cycles": 14990,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 10,
+      "c_stack_peak_bytes": 3,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 10,
+      "hardware_stack_peak_bytes": 8,
       "hardware_stack_available_bytes": 255
     },
     "hgr_text16_phase6": {
-      "code_bytes": 1354,
+      "code_bytes": 1153,
       "init_code_bytes": 12,
       "rodata_bytes": 1069,
       "ram_bytes": 1247,
       "zp_bytes": 45,
-      "binary_bytes": 2460,
-      "cycles": 15213,
+      "binary_bytes": 2259,
+      "cycles": 14872,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 10,
+      "c_stack_peak_bytes": 3,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 10,
+      "hardware_stack_peak_bytes": 8,
       "hardware_stack_available_bytes": 255
     },
     "hgr_text16_spaces": {
-      "code_bytes": 1350,
+      "code_bytes": 1149,
       "init_code_bytes": 12,
       "rodata_bytes": 1069,
       "ram_bytes": 1247,
       "zp_bytes": 45,
-      "binary_bytes": 2456,
-      "cycles": 3894,
+      "binary_bytes": 2255,
+      "cycles": 3545,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 10,
+      "c_stack_peak_bytes": 3,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 10,
+      "hardware_stack_peak_bytes": 8,
       "hardware_stack_available_bytes": 255
     },
     "hgr_text16_dense": {
@@ -2103,73 +2103,73 @@
       "hardware_stack_available_bytes": 255
     },
     "hgr_text16_x9": {
-      "code_bytes": 1354,
+      "code_bytes": 1153,
       "init_code_bytes": 12,
       "rodata_bytes": 1069,
       "ram_bytes": 1247,
       "zp_bytes": 45,
-      "binary_bytes": 2460,
-      "cycles": 15320,
+      "binary_bytes": 2259,
+      "cycles": 14988,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 10,
+      "c_stack_peak_bytes": 3,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 10,
+      "hardware_stack_peak_bytes": 8,
       "hardware_stack_available_bytes": 255
     },
     "hgr_text16_empty": {
-      "code_bytes": 1350,
+      "code_bytes": 1149,
       "init_code_bytes": 12,
       "rodata_bytes": 1061,
       "ram_bytes": 1247,
       "zp_bytes": 45,
-      "binary_bytes": 2448,
-      "cycles": 627,
+      "binary_bytes": 2247,
+      "cycles": 278,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 10,
+      "c_stack_peak_bytes": 3,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 9,
+      "hardware_stack_peak_bytes": 6,
       "hardware_stack_available_bytes": 255
     },
     "hgr_signed_min": {
-      "code_bytes": 1565,
+      "code_bytes": 1390,
       "init_code_bytes": 12,
       "rodata_bytes": 1060,
       "ram_bytes": 1247,
       "zp_bytes": 49,
-      "binary_bytes": 2662,
-      "cycles": 12832,
+      "binary_bytes": 2487,
+      "cycles": 12469,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 22,
+      "c_stack_peak_bytes": 15,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 12,
+      "hardware_stack_peak_bytes": 10,
       "hardware_stack_available_bytes": 255
     },
     "hgr_signed_negative": {
-      "code_bytes": 1569,
+      "code_bytes": 1394,
       "init_code_bytes": 12,
       "rodata_bytes": 1060,
       "ram_bytes": 1247,
       "zp_bytes": 49,
-      "binary_bytes": 2666,
-      "cycles": 12350,
+      "binary_bytes": 2491,
+      "cycles": 11987,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 22,
+      "c_stack_peak_bytes": 15,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 12,
+      "hardware_stack_peak_bytes": 10,
       "hardware_stack_available_bytes": 255
     },
     "hgr_signed_positive": {
-      "code_bytes": 1569,
+      "code_bytes": 1394,
       "init_code_bytes": 12,
       "rodata_bytes": 1060,
       "ram_bytes": 1247,
       "zp_bytes": 49,
-      "binary_bytes": 2666,
-      "cycles": 11813,
+      "binary_bytes": 2491,
+      "cycles": 11445,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 22,
+      "c_stack_peak_bytes": 15,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 12,
+      "hardware_stack_peak_bytes": 10,
       "hardware_stack_available_bytes": 255
     },
     "hgr_masked_generic_draw": {
@@ -2229,45 +2229,45 @@
       "hardware_stack_available_bytes": 255
     },
     "hgr_field_pad": {
-      "code_bytes": 2184,
+      "code_bytes": 2009,
       "init_code_bytes": 12,
       "rodata_bytes": 1060,
       "ram_bytes": 1528,
       "zp_bytes": 63,
-      "binary_bytes": 3281,
-      "cycles": 13386,
+      "binary_bytes": 3106,
+      "cycles": 13022,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 23,
+      "c_stack_peak_bytes": 17,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 12,
+      "hardware_stack_peak_bytes": 10,
       "hardware_stack_available_bytes": 255
     },
     "hgr_field_overflow": {
-      "code_bytes": 2178,
+      "code_bytes": 2003,
       "init_code_bytes": 12,
       "rodata_bytes": 1060,
       "ram_bytes": 1528,
       "zp_bytes": 63,
-      "binary_bytes": 3275,
-      "cycles": 14036,
+      "binary_bytes": 3100,
+      "cycles": 13660,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 23,
+      "c_stack_peak_bytes": 17,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 12,
+      "hardware_stack_peak_bytes": 10,
       "hardware_stack_available_bytes": 255
     },
     "hgr_field_clip": {
-      "code_bytes": 2192,
+      "code_bytes": 2017,
       "init_code_bytes": 12,
       "rodata_bytes": 1060,
       "ram_bytes": 1528,
       "zp_bytes": 63,
-      "binary_bytes": 3289,
-      "cycles": 3875,
+      "binary_bytes": 3114,
+      "cycles": 3639,
       "row_kernel_bytes": 0,
-      "c_stack_peak_bytes": 23,
+      "c_stack_peak_bytes": 17,
       "c_stack_reserved_bytes": 2048,
-      "hardware_stack_peak_bytes": 11,
+      "hardware_stack_peak_bytes": 10,
       "hardware_stack_available_bytes": 255
     },
     "lores_clear": {
@@ -3389,6 +3389,90 @@
       "c_stack_reserved_bytes": 2048,
       "hardware_stack_peak_bytes": 6,
       "hardware_stack_available_bytes": 255
+    },
+    "hgr_text16_single": {
+      "code_bytes": 1159,
+      "init_code_bytes": 12,
+      "rodata_bytes": 1062,
+      "ram_bytes": 1247,
+      "zp_bytes": 45,
+      "binary_bytes": 2258,
+      "cycles": 2506,
+      "row_kernel_bytes": 0,
+      "c_stack_peak_bytes": 3,
+      "c_stack_reserved_bytes": 2048,
+      "hardware_stack_peak_bytes": 8,
+      "hardware_stack_available_bytes": 255
+    },
+    "hgr_text16_clip": {
+      "code_bytes": 1159,
+      "init_code_bytes": 12,
+      "rodata_bytes": 1067,
+      "ram_bytes": 1247,
+      "zp_bytes": 45,
+      "binary_bytes": 2263,
+      "cycles": 2501,
+      "row_kernel_bytes": 0,
+      "c_stack_peak_bytes": 3,
+      "c_stack_reserved_bytes": 2048,
+      "hardware_stack_peak_bytes": 8,
+      "hardware_stack_available_bytes": 255
+    },
+    "hgr_text16_cold": {
+      "code_bytes": 1141,
+      "init_code_bytes": 12,
+      "rodata_bytes": 1067,
+      "ram_bytes": 1247,
+      "zp_bytes": 45,
+      "binary_bytes": 2245,
+      "cycles": 17948,
+      "row_kernel_bytes": 0,
+      "c_stack_peak_bytes": 5,
+      "c_stack_reserved_bytes": 2048,
+      "hardware_stack_peak_bytes": 8,
+      "hardware_stack_available_bytes": 255
+    },
+    "hgr_text16_outside": {
+      "code_bytes": 1155,
+      "init_code_bytes": 12,
+      "rodata_bytes": 1062,
+      "ram_bytes": 1247,
+      "zp_bytes": 45,
+      "binary_bytes": 2254,
+      "cycles": 208,
+      "row_kernel_bytes": 0,
+      "c_stack_peak_bytes": 3,
+      "c_stack_reserved_bytes": 2048,
+      "hardware_stack_peak_bytes": 6,
+      "hardware_stack_available_bytes": 255
+    },
+    "hgr_text16_below": {
+      "code_bytes": 1177,
+      "init_code_bytes": 12,
+      "rodata_bytes": 1062,
+      "ram_bytes": 1247,
+      "zp_bytes": 45,
+      "binary_bytes": 2276,
+      "cycles": 295,
+      "row_kernel_bytes": 0,
+      "c_stack_peak_bytes": 5,
+      "c_stack_reserved_bytes": 2048,
+      "hardware_stack_peak_bytes": 6,
+      "hardware_stack_available_bytes": 255
+    },
+    "hgr_text16_fallback": {
+      "code_bytes": 1171,
+      "init_code_bytes": 12,
+      "rodata_bytes": 1069,
+      "ram_bytes": 1247,
+      "zp_bytes": 45,
+      "binary_bytes": 2277,
+      "cycles": 15084,
+      "row_kernel_bytes": 0,
+      "c_stack_peak_bytes": 5,
+      "c_stack_reserved_bytes": 2048,
+      "hardware_stack_peak_bytes": 8,
+      "hardware_stack_available_bytes": 255
     }
   },
   "legacy_references": {
@@ -3547,37 +3631,6 @@
   },
   "schema": 2,
   "environments": {
-    "nmos": {
-      "cpu": "NMOS6502",
-      "model": "II+ 48K",
-      "frame_cycles": 17030,
-      "artifacts": [
-        {
-          "name": "a2run",
-          "sha256": "698672ee10c4f718dacea18513defdb68110bbd1fbf9487a79f162da814093f5"
-        },
-        {
-          "name": "apple2p.rom",
-          "sha256": "92c4bef609920842ea472d21b661a0d35dbda6cd90963b8b734a205e22d84108"
-        },
-        {
-          "name": "disk2.rom",
-          "sha256": "de1e3e035878bab43d0af8fe38f5839c527e9548647036598ee6fe7ec74d2a7d"
-        },
-        {
-          "name": "dos33_system.bin",
-          "sha256": "331f64cf5d1bd1bafd28aa527f753bd20bb42c0d7692c335ac5498c296aeb4c2"
-        },
-        {
-          "name": "cpu6502.c",
-          "sha256": "7e01ca5fe95c823365631479ac6d2da5e0bdfc530aca8ca245b12295c53ff29e"
-        },
-        {
-          "name": "a2run.c",
-          "sha256": "5e0375cbcd72898d206d631a0d3511936a547dd61e5b5061da5ae027c5c3f451"
-        }
-      ]
-    },
     "iie": {
       "cpu": "65C02",
       "model": "IIe enhanced 128K",
@@ -3629,6 +3682,37 @@
         {
           "name": "libpom2_core.a",
           "sha256": "4399cfe8534addb2a141f38d600aef89d5c2278ec1df4ac57be542eaf1c77a13"
+        }
+      ]
+    },
+    "nmos": {
+      "cpu": "NMOS6502",
+      "model": "II+ 48K",
+      "frame_cycles": 17030,
+      "artifacts": [
+        {
+          "name": "a2run",
+          "sha256": "698672ee10c4f718dacea18513defdb68110bbd1fbf9487a79f162da814093f5"
+        },
+        {
+          "name": "apple2p.rom",
+          "sha256": "92c4bef609920842ea472d21b661a0d35dbda6cd90963b8b734a205e22d84108"
+        },
+        {
+          "name": "disk2.rom",
+          "sha256": "de1e3e035878bab43d0af8fe38f5839c527e9548647036598ee6fe7ec74d2a7d"
+        },
+        {
+          "name": "dos33_system.bin",
+          "sha256": "331f64cf5d1bd1bafd28aa527f753bd20bb42c0d7692c335ac5498c296aeb4c2"
+        },
+        {
+          "name": "cpu6502.c",
+          "sha256": "7e01ca5fe95c823365631479ac6d2da5e0bdfc530aca8ca245b12295c53ff29e"
+        },
+        {
+          "name": "a2run.c",
+          "sha256": "5e0375cbcd72898d206d631a0d3511936a547dd61e5b5061da5ae027c5c3f451"
         }
       ]
     }
@@ -3876,7 +3960,13 @@
     "hgr_text8_cold": "nmos",
     "hgr_text8_empty": "nmos",
     "hgr_text8_outside": "nmos",
-    "hgr_text8_below": "nmos"
+    "hgr_text8_below": "nmos",
+    "hgr_text16_single": "nmos",
+    "hgr_text16_clip": "nmos",
+    "hgr_text16_cold": "nmos",
+    "hgr_text16_outside": "nmos",
+    "hgr_text16_below": "nmos",
+    "hgr_text16_fallback": "nmos"
   },
   "pre_incremental_references": {
     "hgr_scene_cold": {
