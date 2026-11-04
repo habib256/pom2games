@@ -69,9 +69,14 @@ bytes instead of 184. Cold calls take 4,040–4,044 / 4,520–4,524 /
 warm calls retain their constant-time guard. They clobber A/X/Y and ptr1
 only. `test_hgr_x7_tables.py` checks every byte of all tables at all 256
 alignments, boundary guards, warm no-rebuild and IIe boundary alignments.
-The optional folded builder remains 77 bytes / 15,084 cycles: it still
-saves code, but the independent builders are now faster even when all
-three are needed. See the [option table](../ABI.md#speedram-options).
+The optional folded builder uses a seven-byte mask lookup and fills the
+last 24 positions by copying positions 4..27, adding 36 to their columns
+(256 = 36×7+4). This removes per-pixel subroutine calls and takes 74 code
+bytes / 10,327–10,350 cycles instead of 77 / 15,084. It clobbers only
+A/X/Y and tmp1, with no extra RAM or zero page. When all three tables are
+used, it saves 56 code bytes, two BSS bytes and initialization time versus
+the independent builders. Programs needing fewer tables can still save
+RAM by leaving the option off. See the [option table](../ABI.md#speedram-options).
 
 Costs measured by `make bench` (cycles at 1.02 MHz): clearing a page
 46 000 (self-modifying loop from `HGR_CLEAR_LOOP`, lib/apple2), page flip

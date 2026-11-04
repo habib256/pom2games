@@ -52,8 +52,13 @@ saving **54 code bytes** in total. Cold calls take **4,040 / 4,520 / 4,440
 cycles** instead of 7,029 / 8,434 / 6,749 (four extra cycles at some table
 alignments). The cold pixel rectangle falls from **23,104 to 16,199 cycles**.
 RAM, zero page, stack peaks and warm guards stay unchanged. The optional
-folded builder remains a code-size tradeoff; its cold paths are now slower
-than the default grouped builders. All 256 alignments are verified.
+folded builder now takes **74 bytes / 10,327–10,350 cycles**, down from
+77 / 15,084, by removing per-pixel calls and copying the 24-byte tail.
+It saves 56 code bytes and cold initialization time when all three tables
+are needed, while still reserving all 841 B of table state. The cold folded
+HUD/scene calls take **47,085 / 27,734 cycles** (previously 51,853 / 32,491).
+The two-table diagonal still uses less RAM and initializes faster with
+independent builders. All 256 alignments are verified.
 
 The native math fixtures are measured by `python3 dev/tests/test_math.py`.
 Quarter-square table construction takes **37,691 cycles and 110 code bytes**

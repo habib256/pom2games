@@ -4,6 +4,38 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : tables x/7 regroupées sans appels par pixel
+
+La variante `HGRC_X7_FOLDED` produit les 256 premières positions dans une
+boucle sans appel interne. Un tableau constant de sept masques remplace
+le masque temporaire et son décalage. Les 24 dernières positions recopient
+les positions 4..27, en ajoutant 36 aux colonnes : 256 = 36×7+4. La retenue
+de l'addition reste nulle, garantie par les comparaisons de boucle.
+
+Le générateur passe de **77 à 74 octets**, constantes incluses, et de
+**15 084 à 10 327–10 350 cycles** selon l'alignement des tables (environ
+−31 %). Il ne touche plus tmp2 et n'ajoute ni RAM ni page zéro. Les alias
+colonnes/masques/phases, la garde chaude et les 841 octets de BSS restent
+identiques. Les générateurs indépendants sont inchangés.
+
+| Appel C à froid, variante regroupée | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Diagonale | 43 009 → 38 248 | 2 075 → 2 072 |
+| HUD | 51 853 → 47 085 | 3 538 → 3 535 |
+| Scène sprites | 32 491 → 27 734 | 6 193 → 6 190 |
+
+Le pic de pile matérielle de la diagonale baisse de 8 à 6 octets ; les
+autres pics restent inchangés. Pour trois tables, l'option économise
+maintenant 56 octets de code et du temps face aux générateurs indépendants.
+Pour deux tables, elle réserve encore une table inutile et la diagonale
+reste 1 653 cycles plus lente : l'option conserve son caractère explicite.
+
+Validation : les 280 valeurs de chaque table aux 256 alignements, gardes
+mémoire et absence de reconstruction chaude, alignements frontières IIe ;
+rectangles/cellules/recoloration à froid sur II+ et IIe avec l'option ;
+options booléennes ; `make all` et gate complet HGR/DHGR. Aucun disque
+ne change, les programmes livrés utilisent les générateurs indépendants.
+
 ## Série du 5 novembre 2026 : division 16/8 en deux étapes
 
 Pour les quotients longs, le diviseur traite d'abord l'octet haut, puis
