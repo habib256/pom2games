@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Full-width assembly lines must match the original Bresenham pixel choices."""
 from pathlib import Path
+import argparse
 import random
 import tempfile
-from test_hgr import DEV, build, offset
+from test_hgr import DEV, build, offset, run
 import a2test
 
 
@@ -23,6 +24,10 @@ def line(page, x0, y0, x1, y1):
 
 
 def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--iie',action='store_true')
+    parser.add_argument('--folded',action='store_true')
+    args=parser.parse_args()
     rng = random.Random(6502)
     cases = [(0,0,279,191), (279,191,0,0), (279,0,0,191), (0,191,279,0),
              (0,0,279,1), (279,191,0,190), (256,0,257,191), (257,191,256,0),
@@ -59,13 +64,20 @@ int main(void) {
 }
 ''')
         disk = build(work, fixture)
+        if args.folded:
+            obj=work/'folded.o'
+            run(['ca65','-D','HGRC_X7_FOLDED=1','-o',obj,DEV/'lib/hgrc/hgr_columns.s'])
+            run(['cl65','-t','none','-C',DEV/'cc65/apple2_hgr_c.cfg',
+                 '-m',work/'test.map','-Ln',work/'test.lbl','-o',work/'test.bin',
+                 work/'crt0_apple2.o',work/'lines.o',work/'apple2io_asm.o',obj,work/'hgrc.lib'])
+            disk=a2test.build_disk(work,'TEST',work/'test.bin')
         linked = (work / 'test.map').read_text().split('Segment list:')[0]
         assert 'gfx_line_hgr.o):' in linked and 'hgr_line_asm.o):' in linked
         assert 'gfx_line.o):' not in linked, 'generic C Bresenham linked in HGR'
         steps = ['wait:1100']
         for _ in range(4*len(cases)):
             steps += ['peek:1000:2','peek:2000:16384','key: ','wait:10']
-        result = a2test.run(disk, steps)
+        result = a2test.run(disk, steps, iie=args.iie)
         pages = [bytearray([128])*8192 for _ in range(2)]
         for stage in range(4*len(cases)):
             pg, index = divmod(stage % (2*len(cases)), len(cases))
@@ -84,7 +96,8 @@ int main(void) {
             elif x0<280 and x1<280 and y0<192 and y1<192:
                 line(pages[pg],x0,y0,x1,y1)
             assert result.dumps[2*stage+1] == pages[0]+pages[1], ('Bresenham',pg,cases[index])
-    print('HGR lines: 464 hgr/gfx lines, ASM selection, clipped/rejected axes, octants, ties and palette OK.')
+    print(f'HGR lines: 464 hgr/gfx lines, ASM selection, clipped/rejected axes, '
+          f'octants, ties and palette OK; folded={args.folded}, IIe={args.iie}.')
 
 
 if __name__ == '__main__':

@@ -7,7 +7,7 @@ client saves **800 code bytes and 435 RAM bytes**; `hgr_show_page()` takes
 29/30 cycles. `hgr_row(191)` takes **52 cycles** instead of 236. Page
 selection retains synchronous HGR/LORES table updates. The full HGR/DHGR
 comparison and small layout-dependent slowdowns are recorded in
-[HISTORY.md](HISTORY.md); `baseline.json` contains current per-case figures.
+[HISTORY.md](HISTORY.md); `baseline.json` contains the regression references.
 
 Native draw-page selection takes **79 cycles** for the already selected
 page instead of 246, with no C-stack use. A page-2/page-1 round trip with
@@ -261,6 +261,17 @@ clear changes from 1,691 to 1,693 cycles. The HGR diagonal client also loses
 42 bytes but measures 21,319 cycles instead of 21,171 (+0.7 %); the GFX
 diagonal takes 21,323 instead of 21,407. See the measured tradeoffs in
 [HISTORY.md](HISTORY.md).
+
+The native line entry saves **116 loaded bytes** in isolated HGR clients
+(**85** through the GFX wrapper), without new RAM or zero page. Diagonal
+C-stack peak falls **6 → 5**; reversed horizontal **13 → 7**, vertical
+**11 → 5**. Short lines take **708 instead of 811 cycles**, reversed
+horizontal **1,339 instead of 1,445**, and reverse diagonal **20,784 instead
+of 21,005**. The forward diagonal rises **21,009 → 21,128 (+0.57 %)**,
+long vertical **11,618 → 11,727 (+0.94 %)** and folded cold diagonal
+**38,248 → 38,396 (+0.39 %)**; these costs are the measured tradeoff for
+the smaller entry. Existing cycle references for the slower diagonal cases
+are retained, while the new cases establish their initial references.
 
 Packed MSB-first bitmap blits (`hgr_blit`, 16×8 pixels) now take
 **5,686–6,071 cycles** across SET/CLEAR/XOR and phases 0/3/6. The native

@@ -1,5 +1,5 @@
 ; VERHILLE Arnaud — GPL-3.0. Full-width HGR Bresenham, same ties as gfx_line.
-; Inputs hgr_l_x0/x1=0..279, hgr_l_y0/y1=0..191; tables built by C wrapper.
+; Inputs hgr_l_x0/x1=0..279, hgr_l_y0/y1=0..191; tables built by public entry.
 ; OR drawing, bit 7 and holes preserved. Current draw-page row tables.
 ; Main RAM/ZP, non-reentrant. A/X/Y, flags, ptr1-ptr4, tmp1-tmp3 destroyed.
 ; No self modification, no bank/IRQ changes. Endpoints/scratch overwritten.

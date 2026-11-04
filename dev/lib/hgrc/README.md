@@ -807,6 +807,20 @@ clipping is added. `gfx_line` selects this kernel on HGR and the C fallback
 on the generic/DHGR backends. `test_hgr_lines.py` compares 464 lines via `hgr_line` and `gfx_line` against the expected pixels on
 both pages, including reversed directions, ties and X >= 256.
 
+The public `hgr_line.s` entry validates both endpoints and prepares the
+existing kernel parameters directly. Axis calls reuse the caller's stack
+slots and tail-call the same horizontal/vertical routines. Isolated line
+clients save **116 loaded bytes**; diagonal C-stack peak falls **6 → 5**,
+reversed horizontal **13 → 7**, vertical **11 → 5**. RAM and zero page stay
+unchanged. Short lines improve **811 → 708 cycles**, reversed horizontal
+**1,445 → 1,339**, and the reverse diagonal **21,005 → 20,784**.
+This is a size/speed tradeoff: the measured forward diagonal takes
+**21,128 instead of 21,009 cycles (+0.57 %)**, and the long vertical
+**11,727 instead of 11,618 (+0.94 %)**. Existing cycle ceilings are retained.
+The entry test checks 131,584 coordinate cases, exact axis/core arguments,
+rejected-call table state and a caller stack guard. Both the entry test and
+464-line rendering oracle pass on II+/IIe with normal/folded tables.
+
 ## HGR rectangles: full bytes in pairs
 
 `hgr_fill_rect` (byte columns, `hgr_byte_rect_asm.s`) and the pixel

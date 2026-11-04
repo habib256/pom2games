@@ -86,6 +86,13 @@ for (i=0; i<4; ++i) hgr_spr_move(i,28u+i*3u+(frame&1u),60u+i*2u);
 hgr_spr_render(); hgr_putu_field(48,0,frame,5); hgr_spr_present(); ++frame;
 '''
 SCENES = {
+ 'hgr_line_short': dict(call='hgr_line(7,8,9,9);'),
+ 'hgr_line_reverse': dict(call='hgr_line(279,191,0,0);'),
+ 'hgr_line_horizontal': dict(call='hgr_line(279,80,0,80);'),
+ 'hgr_line_vertical': dict(call='hgr_line(279,191,279,0);'),
+ 'hgr_line_point': dict(call='hgr_line(279,191,279,191);'),
+ 'hgr_line_outside_x': dict(call='hgr_line(65535u,0,7,8);'),
+ 'hgr_line_outside_y': dict(call='hgr_line(7,0,8,255);'),
  'gfx_hex_0': dict(call='gfx_hexstr(hexbuf,0u);',declarations='static char hexbuf[5];'),
  'gfx_hex_9': dict(call='gfx_hexstr(hexbuf,9u);',declarations='static char hexbuf[5];'),
  'gfx_hex_15': dict(call='gfx_hexstr(hexbuf,15u);',declarations='static char hexbuf[5];'),

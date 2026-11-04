@@ -4,6 +4,50 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : entrée native des lignes HGR
+
+`hgr_line.s` valide les deux extrémités, charge les paramètres existants
+et appelle le même noyau Bresenham. Les axes réutilisent les arguments
+empilés : un déplacement de x1 supprime y0 dans le cas horizontal ; retirer
+x1 laisse directement les arguments verticaux. Les appels terminaux gardent
+les routines d'axes existantes, donc leurs règles de tri et de palette.
+Tout point hors écran est toujours rejeté avant construction des tables.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Petite diagonale | 811 → 708 | 2 127 → 2 011 |
+| Diagonale avant | 21 009 → 21 128 | 2 117 → 2 001 |
+| Diagonale inverse | 21 005 → 20 784 | 2 117 → 2 001 |
+| Diagonale via GFX | 21 465 → 21 194 | 2 517 → 2 432 |
+| Horizontale inversée | 1 445 → 1 339 | 2 121 → 2 005 |
+| Verticale inversée | 11 618 → 11 727 | 2 125 → 2 009 |
+| Point | 820 → 717 | 2 125 → 2 009 |
+| Abscisse rejetée | 178 → 159 | 2 123 → 2 007 |
+| Ordonnée rejetée | 227 → 129 | 2 123 → 2 007 |
+| Diagonale à froid | 36 595 → 36 492 | 2 086 → 1 970 |
+| Diagonale à froid, tables regroupées | 38 248 → 38 396 | 2 072 → 1 956 |
+
+**Compromis explicite :** 116 octets économisés dans les clients isolés,
+mais +119 cycles sur la diagonale avant (+0,57 %), +109 sur la verticale
+(+0,94 %) et +148 sur la diagonale à froid regroupée (+0,39 %). Les autres
+cas accélèrent. La pile C passe de 6 à 5 pour les diagonales, de 13 à 7
+pour l'horizontale inversée et de 11 à 5 pour la verticale. La pile matérielle
+des axes passe de 10 à 8. RAM et page zéro sont inchangées.
+
+Le nouveau test passe d'abord sur le C d'origine, puis sur l'assembleur.
+Il balaye séparément les deux domaines d'abscisse 16 bits et les deux
+domaines d'ordonnée : 131 584 appels. Des récepteurs vérifient exactement
+les arguments de chaque axe/noyau, les rejets, l'état paresseux des tables
+et un garde de pile de l'appelant. Il passe sur II+/IIe avec les tables
+normales/regroupées. Les quatre mêmes configurations passent l'oracle de
+464 lignes HGR/GFX : octants, égalités, sens, bords, palette et deux pages.
+
+Validation : tests d'entrée et de rendu, intégration HGR et 41 clients
+minimaux d'archive, `make all`, relevé complet de 283 cas et gate. Onze
+cas changent, 272 restent identiques. Les deux anciennes références de
+cycles qui seraient relâchées restent à leur valeur antérieure ; les sept
+nouveaux cas reçoivent leurs premières références. Aucun disque ne change.
+
 ## Série du 5 novembre 2026 : extraction directe des chiffres hexadécimaux
 
 `gfx_hexstr` conserve son compteur de quatre chiffres, mais utilise sa
