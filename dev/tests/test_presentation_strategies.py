@@ -54,7 +54,7 @@ for(page=1;page<=2;++page) {
             assert result.mem(labels['_lo'],192,page-1)==bytes(offset(y)&255 for y in range(192))
             assert result.mem(labels['_hi'],192,page-1)==bytes(page*0x20+(offset(y)>>8) for y in range(192))
         linked=(work/'test.map').read_text()
-        assert 'hgr_init.o' not in linked and 'hgr_rows_asm.o' not in linked, 'mutable row tables linked'
+        assert 'hgr_set_draw_page.o' not in linked and 'hgr_rows_asm.o' not in linked, 'mutable row tables linked'
     print('Presentation prototypes: all 192 row addresses on both pages, compact/unrolled/fixed-base and explicit immutable API OK.')
 
 

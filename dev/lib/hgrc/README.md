@@ -51,6 +51,17 @@ and LORES tables synchronously. `test_hgr_rows.py` checks cold bases,
 all 256 row inputs, page normalization and display truth values
 on II+ and IIe.
 
+`hgr_set_draw_page.s` normalizes the page argument and updates both table
+families without a C software stack. Selecting the same page takes 79
+cycles instead of 246. A page-2/page-1 round trip takes 4,666 cycles
+instead of 5,018, or 5,615 instead of 8,904 with LORES tables already built.
+`hgr_lores_state.s` owns the independent 50-byte LORES state: default-page
+LORES clients omit HGR rows and page management, saving 388 RAM bytes and
+391–420 loaded bytes in the point/read/clear benchmark clients. Explicit
+page selection still imports both table families. The row test checks all
+256 page arguments before and after LORES initialization, including
+synchronous row updates and preservation of the displayed page.
+
 Costs measured by `make bench` (cycles at 1.02 MHz): clearing a page
 46 000 (self-modifying loop from `HGR_CLEAR_LOOP`, lib/apple2), page flip
 via `hgr_flip_rows` (unrolled loop, one EOR per line), 8x8 text
@@ -250,7 +261,7 @@ excluding routines that were previously linked for nothing.
 macOS. Its 21 steps compare both video pages with a Python model:
 256/280-pixel rectangles, limits, pixels, SET/CLEAR/XOR sprites and seven
 phases, white/coloured text, numbers, cells, colourising. Four additional scenes check `gfx` cell text on
-page 2, the cursor and the numeric conversions. Thirty minimal
+page 2, the cursor and the numeric conversions. Thirty-one minimal
 programs also check that the archive excludes unused kernels and zero-page
 blocks. This test is part of `make test` and of CI.
 

@@ -4,6 +4,42 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : sélection de page et état LORES séparé
+
+Le gestionnaire C devient `hgr_set_draw_page.s` : normalisation de
+l'argument, construction HGR à la première utilisation et déplacement
+synchrone des tables gardent le même comportement. L'état LORES occupe
+un objet indépendant ; un client LORES sans sélection explicite de page
+n'importe plus les tables HGR ni le gestionnaire.
+
+| Cas | Cycles avant → après | Binaire avant → après | RAM avant → après |
+|---|---:|---:|---:|
+| Page 2 à froid | 9 420 → 9 245 | 938 → 747 | 735 → 735 |
+| Page 1 à froid | 7 145 → 6 978 | 938 → 747 | 735 → 735 |
+| Page 2 déjà sélectionnée | 246 → 79 | 948 → 757 | 735 → 735 |
+| Aller-retour page 2/page 1 | 5 018 → 4 666 | 953 → 762 | 735 → 735 |
+| Même aller-retour, LORES prêt | 8 904 → 5 615 | 1 086 → 924 | 735 → 735 |
+| Effacement LORES page par défaut | 5 442 → 5 442 | 1 046 → 626 | 735 → 347 |
+| Écriture LORES chaude | 203 → 204 | 1 163 → 743 | 735 → 347 |
+| Lecture LORES chaude | 148 → 148 | 1 097 → 706 | 735 → 347 |
+
+Tailles en octets des clients isolés, runtime compris ; cycles NMOS avec
+arguments et appels C. Le gestionnaire ne consomme plus de pile C
+(4/5 octets auparavant). Page zéro et pic de pile matérielle inchangés.
+Les déplacements de code expliquent le cycle ajouté au point LORES ;
+aucun cas de la comparaison complète HGR/DHGR ne régresse de plus de 1 %.
+66 cas nouveaux/modifiés remplacent leurs références, 126 restent intacts.
+
+Le contrôle des pages vérifie maintenant les 256 arguments avec LORES
+froid puis prêt sur II+ et IIe : tables basse/haute HGR et LORES,
+normalisation, appels sans changement de page et maintien de PAGE2 à
+l'affichage. Les 31 clients minimaux contrôlent notamment l'absence des
+tables HGR et du gestionnaire dans les clients LORES indépendants.
+
+Validation : `make all`, `make test-hgr`, gate complet `--dhgr --check`,
+`make test-hgr-example test-frame test-light3dball test-woz`. Les disques
+HGR et LIGHT3DBALL et leurs WOZ sont reconstruits.
+
 ## Série du 5 novembre 2026 : constantes par décalages
 
 Les constantes 0, 1 et les puissances de deux jusqu'à 128 utilisent des

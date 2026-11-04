@@ -1,7 +1,7 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; LORES shares the text-page layout: two vertical colour cells per byte.
 ; Build its 24 row addresses lazily; hgr_set_draw_page shifts their high
-; bytes when changing pages. State remains in hgr_init.c, shared with HIRES.
+; bytes when changing pages. Independent state lives in hgr_lores_state.s.
 ; Internal build ABI: clobbers A/X/Y/tmp1 only (used by hgr_lores_draw).
 .export _hgr_lores_build
 .import _hgr_lo_base, _hgr_lo_ready, _hgr_lo_rowlo, _hgr_lo_rowhi

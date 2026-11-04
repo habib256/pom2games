@@ -9,12 +9,19 @@ selection retains synchronous HGR/LORES table updates. The full HGR/DHGR
 comparison and small layout-dependent slowdowns are recorded in
 [HISTORY.md](HISTORY.md); `baseline.json` contains current per-case figures.
 
+Native draw-page selection takes **79 cycles** for the already selected
+page instead of 246, with no C-stack use. A page-2/page-1 round trip with
+LORES ready takes **5,615 cycles** instead of 8,904. Separating LORES state
+from the manager removes **388 RAM bytes** and **391–420 loaded bytes**
+from default-page read/write/clear clients. Explicit page-selection clients
+still import both table families; their isolated manager saves 191 code bytes.
+
 LORES clearing uses eight interleaved native stores and preserves the 64
 firmware bytes on each page. The two page cases take **5,442/5,443 cycles**
 instead of 50,307 (about −89 %). The clear pass saved **212 loaded bytes**
 in each isolated client and all 14 measured C-stack bytes. Lazy LORES address construction
 and point writes also use compact native code: the cold/warm point cases
-take **821/203 cycles** instead of the original 11,796/806. The LORES
+take **821/204 cycles** instead of the original 11,796/806. The LORES
 passes alone saved **356 loaded bytes**. Native point reads take **148 cycles**, compared with 318
 after the table optimization but before replacing the C reader; that pass
 saves another 59 loaded bytes in isolated reader clients. RAM and zero page

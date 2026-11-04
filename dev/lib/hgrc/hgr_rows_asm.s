@@ -1,6 +1,7 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
-; hgr_rows_asm.s — HGR scanline-table page flip for hgr_init.c (its own
+; hgr_rows_asm.s — HGR scanline-table page flip for hgr_set_draw_page.s (its own
 ; archive member: only HGR programs, which own hgr_rowhi, link it).
+; Clobbers A/X/flags; preserves Y and cc65 scratch (used by the page manager).
 .export _hgr_flip_rows
 .import _hgr_rowhi
 
