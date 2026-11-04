@@ -262,16 +262,23 @@ clear changes from 1,691 to 1,693 cycles. The HGR diagonal client also loses
 diagonal takes 21,323 instead of 21,407. See the measured tradeoffs in
 [HISTORY.md](HISTORY.md).
 
-The native line entry saves **116 loaded bytes** in isolated HGR clients
-(**85** through the GFX wrapper), without new RAM or zero page. Diagonal
-C-stack peak falls **6 → 5**; reversed horizontal **13 → 7**, vertical
-**11 → 5**. Short lines take **708 instead of 811 cycles**, reversed
-horizontal **1,339 instead of 1,445**, and reverse diagonal **20,784 instead
-of 21,005**. The forward diagonal rises **21,009 → 21,128 (+0.57 %)**,
-long vertical **11,618 → 11,727 (+0.94 %)** and folded cold diagonal
-**38,248 → 38,396 (+0.39 %)**; these costs are the measured tradeoff for
-the smaller entry. Existing cycle references for the slower diagonal cases
-are retained, while the new cases establish their initial references.
+The native line and separate axis entries together save **238 loaded bytes**
+in isolated HGR line clients (**162** through GFX), compared with the C
+entries before these two passes. Short lines take **709 instead of 811 cycles**,
+reversed horizontal **1,083 instead of 1,445**, and forward/reverse diagonals
+**20,927 / 20,835 instead of 21,009 / 21,005**. The long vertical through
+`hgr_line` takes **11,738 instead of 11,618 (+1.03 %)**. Individual passes
+also change layout-sensitive timings; the full before/after tables and
+retained cycle references are recorded in [HISTORY.md](HISTORY.md).
+
+Standalone horizontal/vertical clients save **235 / 269 loaded bytes** by
+using the separate native entries. Reversed spans use **4 / 3 C-stack bytes**
+instead of 7 / 5; RAM, zero page and rendering hardware-stack peaks stay
+unchanged. A full-width horizontal takes **893 instead of 984 cycles**,
+reversed **918 instead of 1,175**, clipped **912 instead of 1,181**.
+The full-height vertical takes **11,302 instead of 11,401**, reversed
+**11,311 instead of 11,485**, clipped **11,312 instead of 11,492**. Point
+spans take **479 / 441 cycles** (549 / 525). Every direct axis case improves.
 
 Packed MSB-first bitmap blits (`hgr_blit`, 16×8 pixels) now take
 **5,686–6,071 cycles** across SET/CLEAR/XOR and phases 0/3/6. The native

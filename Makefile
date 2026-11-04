@@ -165,6 +165,9 @@ test-hgr:
 	$(PYTHON) dev/tests/test_hgr_unsigned_entry.py
 	$(PYTHON) dev/tests/test_hgr_line_entry.py
 	$(PYTHON) dev/tests/test_hgr_line_entry.py --folded
+	$(PYTHON) dev/tests/test_hgr_axis_entry.py
+	$(PYTHON) dev/tests/test_hgr_axes.py
+	$(PYTHON) dev/tests/test_hgr_axes.py --folded
 	$(PYTHON) dev/tests/test_hgr_glyph_addr.py
 	$(PYTHON) dev/tests/test_hgr_text16.py
 	$(PYTHON) dev/tests/test_hgr_text_cells.py

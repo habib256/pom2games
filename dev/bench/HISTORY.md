@@ -4,6 +4,59 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : entrées natives séparées des axes HGR
+
+`hgr_hline.s` et `hgr_vline.s` remplacent l'objet C commun `hgr_geom.c`.
+Le tri et le clipping préparent directement les paramètres existants du
+noyau de remplissage. Un client n'utilisant qu'un axe n'extrait plus l'autre.
+L'horizontale compare les abscisses sur 16 bits avant de borner la droite
+à 279 ; la verticale trie les octets d'ordonnée puis borne le bas à 191.
+Le minimum validé garantit une retenue après la soustraction verticale,
+réutilisée pour ajouter la dernière ligne inclusive.
+
+| Appel C direct | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Horizontale complète | 984 → 893 | 1 337 → 1 102 |
+| Horizontale inversée | 1 175 → 918 | 1 337 → 1 102 |
+| Horizontale clippée | 1 181 → 912 | 1 339 → 1 104 |
+| Point horizontal | 549 → 479 | 1 341 → 1 106 |
+| Horizontale rejetée | 394 → 213 | 1 337 → 1 102 |
+| Horizontale à froid | 16 601 → 16 344 | 1 310 → 1 075 |
+| Verticale complète | 11 401 → 11 302 | 1 331 → 1 062 |
+| Verticale inversée | 11 485 → 11 311 | 1 331 → 1 062 |
+| Verticale clippée | 11 492 → 11 312 | 1 331 → 1 062 |
+| Point vertical | 525 → 441 | 1 329 → 1 060 |
+| Verticale rejetée | 176 → 120 | 1 327 → 1 058 |
+| Verticale à froid | 26 887 → 26 713 | 1 307 → 1 038 |
+
+Économies de 235/269 octets dans les clients horizontaux/verticaux isolés.
+Les piles C inversées passent de 7/5 à 4/3 ; RAM, page zéro et pics matériels
+des rendus ne changent pas. Les rejets descendent à cinq octets matériels.
+Tous les appels directs aux axes s'améliorent.
+
+Les clients `hgr_line` gagnent encore 122 octets (77 via GFX), mais le
+placement continue d'influencer les temps des noyaux inchangés. La diagonale
+avant passe de 21 128 à 20 927 cycles et l'horizontale de 1 339 à 1 083.
+**Variations défavorables conservées explicitement :** GFX diagonal
+21 194 → 21 316 (+0,58 %), petite diagonale 708 → 709, diagonale inverse
+20 784 → 20 835, verticale via `hgr_line` 11 727 → 11 738 et diagonale à
+froid 36 492 → 36 513. Les cinq références de cycles ne sont pas relâchées.
+
+Le test d'entrée compare 524 544 appels à un oracle de tri/clipping :
+les deux extrémités horizontales parcourent les 65 536 abscisses, avec
+ancres 0/279/65 535 dans les deux sens ; les abscisses verticales, toutes
+les paires d'ordonnées et toutes les ordonnées horizontales sont couvertes.
+Un garde vérifie la pile appelante. Il passe avant/après et sur IIe.
+Les 126 premiers appels réels par configuration vérifient pixels, palette,
+trous, deux pages, tables et absence d'initialisation sur rejet, avant/après
+puis sur II+/IIe avec tables normales/regroupées.
+
+Validation : tests d'entrée et à froid, 464 lignes HGR/GFX sur II+/IIe,
+contours, intégration HGR, 43 clients minimaux d'archive, `make all`,
+démonstration HGR et WOZ, relevé complet et gate. Parmi 296 cas, 25 changent
+et 271 sont identiques ; 13 cas d'axes sont nouveaux. HGR.dsk et son WOZ
+sont reconstruits.
+
 ## Série du 5 novembre 2026 : entrée native des lignes HGR
 
 `hgr_line.s` valide les deux extrémités, charge les paramètres existants

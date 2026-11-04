@@ -86,6 +86,19 @@ for (i=0; i<4; ++i) hgr_spr_move(i,28u+i*3u+(frame&1u),60u+i*2u);
 hgr_spr_render(); hgr_putu_field(48,0,frame,5); hgr_spr_present(); ++frame;
 '''
 SCENES = {
+ 'hgr_hline_reverse': dict(call='hgr_hline(279,0,40);'),
+ 'hgr_hline_clip': dict(call='hgr_hline(65535u,7,191);'),
+ 'hgr_hline_point': dict(call='hgr_hline(279,279,191);'),
+ 'hgr_hline_outside': dict(call='hgr_hline(65535u,280,40);'),
+ 'hgr_hline_below': dict(call='hgr_hline(0,279,255);'),
+ 'hgr_hline_cold': dict(call='hgr_hline(279,0,40);',warmup=False),
+ 'hgr_vline_full': dict(call='hgr_vline(279,0,191);'),
+ 'hgr_vline_reverse': dict(call='hgr_vline(279,191,0);'),
+ 'hgr_vline_clip': dict(call='hgr_vline(279,255,0);'),
+ 'hgr_vline_point': dict(call='hgr_vline(279,191,191);'),
+ 'hgr_vline_outside': dict(call='hgr_vline(65535u,0,191);'),
+ 'hgr_vline_below': dict(call='hgr_vline(7,255,192);'),
+ 'hgr_vline_cold': dict(call='hgr_vline(279,191,0);',warmup=False),
  'hgr_line_short': dict(call='hgr_line(7,8,9,9);'),
  'hgr_line_reverse': dict(call='hgr_line(279,191,0,0);'),
  'hgr_line_horizontal': dict(call='hgr_line(279,80,0,80);'),

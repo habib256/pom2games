@@ -809,17 +809,31 @@ both pages, including reversed directions, ties and X >= 256.
 
 The public `hgr_line.s` entry validates both endpoints and prepares the
 existing kernel parameters directly. Axis calls reuse the caller's stack
-slots and tail-call the same horizontal/vertical routines. Isolated line
-clients save **116 loaded bytes**; diagonal C-stack peak falls **6 → 5**,
-reversed horizontal **13 → 7**, vertical **11 → 5**. RAM and zero page stay
-unchanged. Short lines improve **811 → 708 cycles**, reversed horizontal
-**1,445 → 1,339**, and the reverse diagonal **21,005 → 20,784**.
-This is a size/speed tradeoff: the measured forward diagonal takes
-**21,128 instead of 21,009 cycles (+0.57 %)**, and the long vertical
-**11,727 instead of 11,618 (+0.94 %)**. Existing cycle ceilings are retained.
+slots and tail-call the horizontal/vertical routines. Together with the
+separate native axis entries, isolated line clients save **238 loaded bytes**
+compared with the former C line and axis entries. Diagonal C-stack peak falls
+**6 → 5**, reversed horizontal **13 → 5**, vertical **11 → 5**. RAM and zero
+page stay unchanged. Short lines take **709 cycles** (811 before both passes),
+reversed horizontal **1,083** (1,445), forward/reverse diagonal **20,927 /
+20,835** (21,009 / 21,005). The long vertical through `hgr_line` takes
+**11,738 instead of 11,618 (+1.03 %)**; this layout-sensitive cost remains
+an explicit tradeoff, and existing cycle references are not relaxed.
 The entry test checks 131,584 coordinate cases, exact axis/core arguments,
 rejected-call table state and a caller stack guard. Both the entry test and
-464-line rendering oracle pass on II+/IIe with normal/folded tables.
+464-line rendering oracle support II+/IIe with normal/folded tables.
+
+`hgr_hline.s` and `hgr_vline.s` are separate archive members. A client using
+only one axis no longer loads the other. Compared with `hgr_geom.c`, isolated
+horizontal/vertical clients save **235 / 269 loaded bytes**. Reversed spans
+use **4 / 3 C-stack bytes**, down from 7 / 5; RAM, zero page and rendered
+hardware-stack peaks are unchanged. The reversed full-width horizontal
+falls **1,175 → 918 cycles**, and a clipped one **1,181 → 912**. The full-height
+vertical falls **11,401 → 11,302**, reversed **11,485 → 11,311**. Sorting uses
+the complete coordinate widths before clipping, so a reversed endpoint at
+65535 still clips correctly. Rejected spans do not construct tables.
+The axis entry test checks 524,544 parameter cases on both CPUs; 126 cold
+rendering cases check both pages, palettes, screen holes and table contents
+with normal/folded builders on II+/IIe.
 
 ## HGR rectangles: full bytes in pairs
 
