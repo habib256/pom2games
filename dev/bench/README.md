@@ -218,15 +218,20 @@ clear changes from 1,691 to 1,693 cycles. The HGR diagonal client also loses
 diagonal takes 21,323 instead of 21,407. See the measured tradeoffs in
 [HISTORY.md](HISTORY.md).
 
-Packed MSB-first bitmap blits (`hgr_blit`, 16×8 pixels) take 5,935..6,320
-cycles across SET/CLEAR/XOR and phases 0/3/6. A sentinel bit in the source
-shift register replaces the eight-bit countdown; its byte index uses the
-unused high byte of `ptr2`. This saves **6 code bytes and one zero-page
-byte**, and 9.4..10.0 % of the mixed-bitmap time, beyond the preceding
-eight-byte reduction from sharing mode stores and stopping before a final
-refill. RAM and stack peaks are unchanged. Empty/solid bitmaps take
-4,920/6,592 cycles (previously 5,576/7,248); the bottom/right-clipped XOR
-case takes 1,207 instead of 1,249.
+Packed MSB-first bitmap blits (`hgr_blit`, 16×8 pixels) now take
+**5,686–6,071 cycles** across SET/CLEAR/XOR and phases 0/3/6. The native
+argument/clipping entry saves **193 loaded bytes** in isolated clients
+and reduces C-stack use from **10 to 7 bytes**, with unchanged RAM, zero
+page and hardware stack. It keeps the original source stride using
+`((width-1)>>3)+1` after rejecting zero width. The bottom/right-clipped
+XOR takes **930 instead of 1,206 cycles**; empty/solid bitmaps take
+**4,671/6,343**, previously 4,925/6,597.
+
+The earlier kernel changes used a sentinel bit in the source shift
+register and `ptr2`'s high byte as the source index, saving six code bytes
+and one zero-page byte. Sharing mode stores and stopping before a final
+refill had already saved eight code bytes. These kernels are unchanged
+by the native-entry conversion.
 
 Byte rectangles traverse each row backwards, using Y as both the offset
 and loop counter. Pairs take 19 instead of 21 cycles and an odd width

@@ -200,16 +200,27 @@ empty and invalid first calls on both pages and CPUs, including all lazy
 tables and screen holes. Empty/invalid calls still initialize the same
 table families as before.
 
-The packed MSB-first bitmap path (`hgr_blit`) ends each row before preparing
+The packed MSB-first bitmap kernel ends each row before preparing
 another source bit and shares the SET/CLEAR/XOR destination store. A
 sentinel bit in the source shift register replaces the eight-bit countdown,
-and the source-byte index uses `ptr2`'s unused high byte. Together these
-changes save 14 code bytes and one zero-page byte, with unchanged RAM and
-stack peaks. The sentinel pass alone saves 9.4..10.0 % on mixed 16×8
-bitmaps, now 5,935..6,320 cycles across modes and phases 0/3/6.
-`test_hgr_bitmap.py` checks 654 cases per CPU model: all seven phases and
-256 source byte values, source boundaries, full stride under clipping,
-empty/solid patterns, both pages, palette and untouched screen holes.
+and the source-byte index uses `ptr2`'s unused high byte. Those kernel
+changes saved 14 code bytes and one zero-page byte.
+
+The native C entry in `hgr_sprites.s` saves another 193 loaded bytes in
+isolated clients. It computes the full source stride as
+`((width-1)>>3)+1` after rejecting width zero, and clips against remaining
+screen space. Its C-stack peak falls from 10 to 7 bytes (8 to 7 on rejected
+calls), with unchanged RAM, zero page and hardware stack. Mixed 16×8
+bitmaps now take 5,686–6,071 cycles across modes and phases 0/3/6; the
+bottom/right-clipped XOR takes 930 instead of 1,206. Empty/invalid calls
+retain the same lazy row/column/mask initialization.
+
+`test_hgr_bitmap.py` checks 2,190 warm and 40 cold cases per configuration:
+all seven phases, every byte width and 256 source byte values, source
+boundaries, full stride under clipping, empty/solid patterns, both pages,
+palette and untouched screen holes. Cold calls additionally check the
+CLEAR fallback for other mode values and all initialized tables. The
+test supports II+ and IIe with normal or folded tables.
 
 ## Integration
 

@@ -189,6 +189,16 @@ SCENES['hgr_bitmap_solid'] = dict(call='hgr_blit(31,40,16,8,packed,HGR_SET);',
     declarations='static const unsigned char packed[16]={255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255};')
 SCENES['hgr_bitmap_clip'] = dict(call='hgr_blit(276,190,16,8,packed,HGR_XOR);',
     declarations=BITMAP)
+SCENES['hgr_bitmap_single'] = dict(call='hgr_blit(279,191,1,1,packed,HGR_SET);',
+    declarations=BITMAP)
+SCENES['hgr_bitmap_wide_clip'] = dict(call='hgr_blit(279,191,255,255,packed,HGR_XOR);',
+    declarations=BITMAP)
+SCENES['hgr_bitmap_cold'] = dict(call='hgr_blit(279,191,255,255,packed,HGR_XOR);',
+    declarations=BITMAP,warmup=False)
+SCENES['hgr_bitmap_zero_width'] = dict(call='hgr_blit(0,0,0,255,packed,HGR_SET);',
+    declarations=BITMAP)
+SCENES['hgr_bitmap_outside'] = dict(call='hgr_blit(65535u,0,255,255,packed,HGR_SET);',
+    declarations=BITMAP)
 for name, kernel in (('draw', 'hgr_ms_run'), ('save', 'hgr_ms_save_run'),
                      ('restore', 'hgr_ms_restore_run'), ('save_draw', 'hgr_msu_run')):
     SCENES['hgr_masked_generic_'+name] = dict(call=kernel+'();',

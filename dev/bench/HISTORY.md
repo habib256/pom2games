@@ -4,6 +4,45 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : interface native des bitmaps HGR
+
+`hgr_sprites.s` remplace la préparation C de `hgr_blit`. La largeur source
+non nulle donne directement son pas `((largeur-1)>>3)+1`. Le clipping
+horizontal soustrait x de 280 sur 16 bits, puis réduit la largeur seulement
+si l'espace restant tient dans un octet. Le clipping vertical compare la
+hauteur demandée à 192−y. Le mode reste dans tmp4 pendant la construction
+paresseuse des tables ; aucune donnée permanente n'est ajoutée.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| SET 16×8, phase 0 | 5 940 → 5 686 | 1 300 → 1 107 |
+| CLEAR 16×8, phase 6 | 6 324 → 6 071 | 1 298 → 1 105 |
+| XOR 16×8, phase 3 | 5 989 → 5 735 | 1 300 → 1 107 |
+| XOR clippé | 1 206 → 930 | 1 300 → 1 107 |
+| Un pixel SET | 824 → 583 | 1 296 → 1 103 |
+| XOR clippé, dimensions 255 | 859 → 582 | 1 296 → 1 103 |
+| Même appel à froid | 16 288 → 16 012 | 1 252 → 1 059 |
+| Largeur nulle | 247 → 220 | 1 288 → 1 095 |
+| Abscisse 65 535 | 284 → 244 | 1 292 → 1 099 |
+
+Économie de 193 octets chargés et pile C 10 → 7 (8 → 7 pour les rejets),
+sans changement de RAM, page zéro ni pile matérielle. Le noyau de dessin
+et ses accès à la source ne changent pas.
+
+Le test bitmap passe de 654 à 2 190 cas chauds, en ajoutant les 256 largeurs
+sur un octet avec les trois modes, les deux pages et un clipping vertical.
+Quarante cas froids vérifient les modes SET/CLEAR/XOR et le repli CLEAR,
+les arguments, les refus et les tables lignes/colonnes/masques. La fixture
+calcule le balayage de largeur à l'exécution pour tenir dans les 48 Ko.
+L'oracle passe avant/après, puis sur II+ et IIe avec tables normales et
+regroupées. La suite normale inclut désormais la variante regroupée.
+
+Validation : quatre configurations de bitmaps, intégration HGR et 36
+clients minimaux d'archive, `make all`, comparaison complète de 220 cas
+HGR/DHGR et gate. Dix-sept mesures de bitmaps sont nouvelles/actualisées ;
+les 203 autres restent identiques au relevé avant modification. Les disques
+livrés restent identiques : les jeux actuels n'appellent pas cette entrée.
+
 ## Série du 5 novembre 2026 : interface native des sprites alignés HGR
 
 `hgr_blit7.s` remplace le wrapper C. Les arguments sont lus directement
