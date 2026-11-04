@@ -5,9 +5,18 @@
 #   POM2_CORE_LIB     the archive for this host
 #   POM2_CORE_CFLAGS  POM2_CORE_LIBS
 #
-# Both archives are pom2_core built at POM2 commit ba7f04da (github.com/
-# habib256/pom2 main, 2026-10-31, "Disk II / Monitor / Applecorn / CP/M-65
-# traces; FASTChip //e; E-Z Color in the SDK"), debug symbols stripped
+# sdk/include/pom2/core.hpp and the darwin-arm64 archive are pom2_core at POM2
+# commit 0d1d388e (github.com/habib256/pom2 main, 2026-11-04, "The SDK mounts hard
+# disks and answers a test harness"), from tools/package_core_sdk.sh, debug symbols
+# stripped: it adds the hard disk (attachHardDisk,
+# insertHardDisk, flushHardDisk...) and the harness API (readRam, writeRam,
+# keyboardState, sdkInfo, sha256: pom2adventure's letter). The
+# linux-x86_64 archive is still ba7f04da, below, and has none of it: rebuild it
+# with the workflow from that commit, then drop the ifeq further down.
+#
+# ba7f04da is github.com/habib256/pom2 main, 2026-10-31 ("Disk II / Monitor /
+# Applecorn / CP/M-65 traces; FASTChip //e; E-Z Color in the SDK"), debug
+# symbols stripped
 # (strip -S); sdk/include/pom2/core.hpp is that commit's header (it now
 # includes <array>). New since 6f7f06a7: the E-Z Color card (TMS9918A) —
 # attachEzColor(slot, siliconStrict), ezColorAttached, ezColorState,
@@ -34,6 +43,11 @@ POM2_HOST := $(subst Darwin-arm64,darwin-arm64,$(subst Linux-x86_64,linux-x86_64
 POM2_HOST := $(filter darwin-arm64 linux-x86_64,$(POM2_HOST))
 POM2_CORE_LIB    := $(A2SHOT_DIR)/sdk/lib/$(POM2_HOST)/libpom2_core.a
 POM2_CORE_CFLAGS := -std=c++17 -I $(A2SHOT_DIR)/sdk/include -DPOM2_SDK_HAS_EZCOLOR=1
+# The hard disk and harness API is in the macOS archive only until the Linux one
+# is rebuilt from a POM2 commit (see above): the header declares it on both.
+ifeq ($(POM2_HOST),darwin-arm64)
+POM2_CORE_CFLAGS += -DPOM2_SDK_HAS_HARNESS=1
+endif
 
 ifeq ($(POM2_HOST),darwin-arm64)
 POM2_SYS_LIBS := -framework CoreAudio -framework AudioToolbox -framework AudioUnit

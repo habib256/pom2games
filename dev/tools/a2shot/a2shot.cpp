@@ -20,6 +20,29 @@
 //                   (limit N frames); prints the cycles spent and registers
 //   insert:FILE     swap the drive 1 disk (a private copy, like --disk)
 //   text            print the 40x24 text page as "|....|" rows (a2run's step)
+//   text80          the same for the 80-column page, main and aux interleaved
+//                   (//e; read by physical bank, so the machine does not move)
+//   ram:BANK:ADDR[:LEN]  hex-dump RAM by physical bank, whatever the switches:
+//                   main aux lc1 lc2 lc0 auxlc1 auxlc2 auxlc0 ($D000 banks 1 and 2,
+//                   lc0 the shared $E000-$FFFF). No side effect, no cycle spent.
+//   ramset:BANK:ADDR:HEX  write those bytes the same way (a debugger's write)
+//   ramhash:BANK:ADDR:LEN  "ramhash BANK ADDR LEN SHA256", the program in memory
+//   rawkey:HEX      queue these bytes as keys (1B = ESC, 0D = RETURN)
+//   keyinfo         "keyboard key=XX strobe=0|1 queued=N", acknowledging nothing
+//   keywait:N       run until the guest has taken the keys (strobe clear, nothing
+//                   queued), limit N frames: "keywait frames=K", or fail
+//   cpuset:PC[:P]   set the PC and optionally P (hex), cycle counter untouched
+//   provenance      what this run is: core version, commit and capabilities, then
+//                   the SHA-256 of each ROM loaded, of the disk given and of its
+//                   private copy now
+//
+// A volume over 800 KB is a ProDOS hard disk (raw .hdv/.po or a .2mg whose data
+// says so): POM2's block card in slot 7, or the //c's rear SmartPort port.
+// --hdd[=N] forces that device, for any size, in slot N. Its steps:
+//   hddinfo         "hdd slot=N blocks=N wp=0|1 unsaved=N"
+//   hddflush        write the guest's changes to the private copy; "hddflush ok"
+//   hddsave:FILE    the same, then copy the private image to FILE for a test
+//   hddprotect:0|1  the sticker over the volume's notch: writes fail with $2B
 //
 // --ezcolor[=N] installs the E-Z Color Graphics Interface (TMS9918A, 16 KB
 // VRAM, no ROM: $C0n0 data, $C0n1 registers / status) in slot N (default 4)
@@ -86,6 +109,13 @@
 //
 // The run is deterministic: no threads, no wall-clock pacing.
 #include <pom2/core.hpp>
+
+// The hard disk and harness API (attachHardDisk, readRam, keyboardState, sdkInfo).
+// sdk.mk sets POM2_SDK_HAS_HARNESS=1 on the hosts whose archive has it; without
+// it such a volume is refused by name and those steps do not exist.
+#ifndef POM2_SDK_HAS_HARNESS
+#define POM2_SDK_HAS_HARNESS 0
+#endif
 
 // The E-Z Color API (attachEzColor...) appeared in POM2 ba7f04da. sdk.mk sets
 // POM2_SDK_HAS_EZCOLOR=1 with the vendored header; a build against an older
@@ -188,6 +218,22 @@ std::string unescape(const std::string& s)
 
 } // namespace
 
+#if POM2_SDK_HAS_HARNESS
+bool ramBank(const std::string& name, pom2::RamBank& bank)
+{
+    if (name == "main") bank = pom2::RamBank::Main;
+    else if (name == "aux") bank = pom2::RamBank::Aux;
+    else if (name == "lc1") bank = pom2::RamBank::LanguageCard1;
+    else if (name == "lc2") bank = pom2::RamBank::LanguageCard2;
+    else if (name == "lc0") bank = pom2::RamBank::LanguageCardHigh;
+    else if (name == "auxlc1") bank = pom2::RamBank::AuxLanguageCard1;
+    else if (name == "auxlc2") bank = pom2::RamBank::AuxLanguageCard2;
+    else if (name == "auxlc0") bank = pom2::RamBank::AuxLanguageCardHigh;
+    else return false;
+    return true;
+}
+#endif
+
 int main(int argc, char** argv)
 {
     std::string exe = argv[0];
@@ -204,6 +250,7 @@ int main(int argc, char** argv)
     bool stdinScript = false;
     int ezSlot = 0;                             // --ezcolor[=N]
     bool ezStrict = true;                       // --ezcolor-lax: false
+    int hddSlot = 0;                            // --hdd[=N], else chosen by size
     std::vector<std::string> script;
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -224,11 +271,13 @@ int main(int argc, char** argv)
             if (ezSlot < 1 || ezSlot > 7) { std::fprintf(stderr, "a2shot: --ezcolor=1..7\n"); return 2; }
         }
         else if (a == "--ezcolor-lax") ezStrict = false;
+        else if (a == "--hdd") hddSlot = 7;
+        else if (a.rfind("--hdd=", 0) == 0) hddSlot = std::atoi(a.c_str() + 6);
         else script.push_back(a);
     }
     if (disk.empty()) {
         std::fprintf(stderr, "usage: a2shot [--iie|--iic|--iic16] [--pal] [--mockingboard] [--mouse[=applewin]] [--mouse-slot=N]\n"
-                             "              [--ezcolor[=N]] [--ezcolor-lax] [--roms DIR] --disk X.dsk step...\n");
+                             "              [--ezcolor[=N]] [--ezcolor-lax] [--hdd[=N]] [--roms DIR] --disk X.dsk step...\n");
         return 2;
     }
 
@@ -258,7 +307,7 @@ int main(int argc, char** argv)
         }
         return tmpl;
     };
-    const std::string copy = privateCopy(disk);
+    std::string copy = privateCopy(disk);
     if (copy.empty()) return 1;
 
     pom2::CoreConfig config;
@@ -293,18 +342,53 @@ int main(int argc, char** argv)
         std::fprintf(stderr, "char ROM: %s\n", core.lastError().c_str());
         return 1;
     }
-    // An 800 KB ProDOS image (819 200 bytes, or a .2mg) boots from POM2's
-    // 3.5" SmartPort controller in slot 5; anything else from the Disk II.
-    const bool threeAndHalf = [&] {
+    // Which device boots it, by what the file holds: a .2mg is a container and
+    // says nothing about geometry. An 800 KB ProDOS image (819 200 bytes, or a
+    // .2mg up to that) boots from POM2's 3.5" SmartPort controller in slot 5;
+    // more than that of ProDOS blocks is a hard disk; anything else, a Disk II.
+    enum class Device { DiskII, SmartPort35, HardDisk };
+    const Device device = [&] {
+        if (hddSlot) return Device::HardDisk;
         std::ifstream f(copy, std::ios::binary | std::ios::ate);
         const auto size = static_cast<long long>(f.tellg());
+        f.seekg(0);
+        unsigned char head[32] = {};
+        f.read(reinterpret_cast<char*>(head), sizeof(head));
+        const std::string magic(reinterpret_cast<const char*>(head), 4);
         const size_t dot = copy.find_last_of('.');
-        return size == 819200 || (dot != std::string::npos && copy.substr(dot) == ".2mg");
+        if (magic == "2IMG" || (dot != std::string::npos && copy.substr(dot) == ".2mg")) {
+            const unsigned long long length = head[28] | head[29] << 8 | head[30] << 16
+                                            | static_cast<unsigned long long>(head[31]) << 24;
+            return length > 819200 ? Device::HardDisk : Device::SmartPort35;
+        }
+        if (size == 819200) return Device::SmartPort35;
+        // A flux capture can run over 800 KB and is still a floppy.
+        if (size > 819200 && magic != "WOZ1" && magic != "WOZ2" && magic != "MOOF")
+            return Device::HardDisk;
+        return Device::DiskII;
     }();
+    if (device == Device::HardDisk && !hddSlot) hddSlot = 7;
+    if (hddSlot && !POM2_SDK_HAS_HARNESS) {
+        std::fprintf(stderr, "hard disk: this host's POM2 core archive predates it (see sdk.mk)\n");
+        return 1;
+    }
     const std::string rom = iic == 32 ? "/apple2c-32Kv0.rom" : iic ? "/apple2c-16K.rom"
                           : iie ? "/apple2e.rom" : "/apple2p.rom";
+    std::vector<std::string> romsUsed = { roms + rom };
+    if (iie || iic) romsUsed.push_back(roms + "/apple2e_char.rom");
+    if (device == Device::DiskII) {
+        romsUsed.push_back(roms + "/disk2.rom");
+        romsUsed.push_back(roms + "/diskii_p6.rom");
+    }
     if (!core.loadRom(roms + rom, iic == 32) ||
-        (threeAndHalf
+        (device == Device::HardDisk
+#if POM2_SDK_HAS_HARNESS
+             ? !core.attachHardDisk(hddSlot) || !core.insertHardDisk(0, copy)
+               || !core.bootSlot(core.hardDiskSlot())
+#else
+             ? true
+#endif
+             : device == Device::SmartPort35
              ? !core.attachSmartPort(5) || !core.insertSmartPortDisk(0, copy) || !core.bootSlot(5)
              : !core.attachDiskII(roms + "/disk2.rom", roms + "/diskii_p6.rom") ||
                !core.insertDisk(0, copy) || !core.bootDisk())) {
@@ -539,12 +623,43 @@ int main(int argc, char** argv)
         } else if (op == "insert") {
             const std::string swapped = privateCopy(arg);
             // Swapping writes the previous disk's changes back to its file
-            // (both controllers), where a test reads them.
-            if (swapped.empty() || !(threeAndHalf ? core.insertSmartPortDisk(0, swapped)
-                                                  : core.insertDisk(0, swapped))) {
+            // (every controller), where a test reads them.
+            if (swapped.empty()
+                || !(device == Device::SmartPort35 ? core.insertSmartPortDisk(0, swapped)
+#if POM2_SDK_HAS_HARNESS
+                     : device == Device::HardDisk ? core.insertHardDisk(0, swapped)
+#endif
+                     : core.insertDisk(0, swapped))) {
                 std::fprintf(stderr, "insert failed: %s\n", core.lastError().c_str());
                 return 1;
             }
+            copy = swapped;
+#if POM2_SDK_HAS_HARNESS
+        } else if (op == "hddinfo") {
+            std::printf("hdd slot=%d blocks=%u wp=%d unsaved=%u\n", core.hardDiskSlot(),
+                        core.hardDiskBlockCount(0), core.hardDiskWriteProtected(0) ? 1 : 0,
+                        core.hardDiskUnsavedBlocks(0));
+        } else if (op == "hddflush" || op == "hddsave") {
+            if (!core.flushHardDisk(0)) {
+                std::fprintf(stderr, "%s failed: %s\n", op.c_str(), core.lastError().c_str());
+                return 1;
+            }
+            if (op == "hddsave") {
+                std::ifstream in(copy, std::ios::binary);
+                std::ofstream out(arg, std::ios::binary);
+                out << in.rdbuf();
+                if (!in || !out) {
+                    std::fprintf(stderr, "cannot write %s\n", arg.c_str());
+                    return 1;
+                }
+            }
+            std::printf("%s ok\n", op.c_str());
+        } else if (op == "hddprotect") {
+            if (!core.setHardDiskWriteProtected(0, arg != "0")) {
+                std::fprintf(stderr, "hddprotect failed: %s\n", core.lastError().c_str());
+                return 1;
+            }
+#endif
         } else if (op == "peek") {
             const size_t c2 = arg.find(':');
             unsigned addr = std::strtoul(arg.substr(0, c2).c_str(), nullptr, 16);
@@ -662,6 +777,103 @@ int main(int argc, char** argv)
                 line[40] = 0;
                 std::printf("|%s|\n", line);
             }
+#if POM2_SDK_HAS_HARNESS
+        } else if (op == "text80") {
+            // Aux holds the even columns. By physical bank: 80STORE, PAGE2 and
+            // the strobe stay where the guest left them, and no cycle passes.
+            const unsigned base0 = core.displayState().page2 && !core.displayState().eightyStore
+                                 ? 0x800u : 0x400u;
+            for (int r = 0; r < 24; ++r) {
+                const unsigned base = base0 + (r & 7) * 0x80u + (r >> 3) * 40u;
+                std::uint8_t cells[2][40];
+                if (!core.readRam(pom2::RamBank::Aux, static_cast<std::uint16_t>(base), cells[0], 40)
+                    || !core.readRam(pom2::RamBank::Main, static_cast<std::uint16_t>(base), cells[1], 40)) {
+                    std::fprintf(stderr, "text80 failed: %s\n", core.lastError().c_str());
+                    return 1;
+                }
+                char line[81];
+                for (int c = 0; c < 80; ++c) {
+                    int ch = cells[c & 1][c / 2] & 0x7F;
+                    if (ch < 0x20) ch += 0x40;
+                    line[c] = static_cast<char>(ch);
+                }
+                line[80] = 0;
+                std::printf("|%s|\n", line);
+            }
+        } else if (op == "ram" || op == "ramset" || op == "ramhash") {
+            const size_t c1 = arg.find(':');
+            pom2::RamBank bank = pom2::RamBank::Main;
+            if (c1 == std::string::npos || !ramBank(arg.substr(0, c1), bank)) {
+                std::fprintf(stderr, "%s: bad bank in %s\n", op.c_str(), arg.c_str());
+                return 1;
+            }
+            const size_t c2 = arg.find(':', c1 + 1);
+            const auto addr = static_cast<std::uint16_t>(
+                std::strtoul(arg.substr(c1 + 1, c2 == std::string::npos ? c2 : c2 - c1 - 1).c_str(), nullptr, 16));
+            const std::string rest = c2 == std::string::npos ? "" : arg.substr(c2 + 1);
+            if (op == "ramset") {
+                std::vector<std::uint8_t> bytes(rest.size() / 2);
+                for (size_t k = 0; k < bytes.size(); ++k)
+                    bytes[k] = static_cast<std::uint8_t>(std::strtoul(rest.substr(k * 2, 2).c_str(), nullptr, 16));
+                if (!core.writeRam(bank, addr, bytes.data(), bytes.size())) {
+                    std::fprintf(stderr, "ramset failed: %s\n", core.lastError().c_str());
+                    return 1;
+                }
+            } else {
+                std::vector<std::uint8_t> bytes(rest.empty() ? 1 : std::strtoul(rest.c_str(), nullptr, 0));
+                if (!core.readRam(bank, addr, bytes.data(), bytes.size())) {
+                    std::fprintf(stderr, "%s failed: %s\n", op.c_str(), core.lastError().c_str());
+                    return 1;
+                }
+                if (op == "ramhash") {
+                    std::printf("ramhash %s %04X %zu %s\n", arg.substr(0, c1).c_str(), addr, bytes.size(),
+                                pom2::Core::sha256(bytes.data(), bytes.size()).c_str());
+                } else {
+                    for (size_t k = 0; k < bytes.size(); ++k) {
+                        if (k % 16 == 0) std::printf("%s%04X:", k ? "\n" : "", static_cast<unsigned>(addr + k));
+                        std::printf(" %02X", bytes[k]);
+                    }
+                    std::printf("\n");
+                }
+            }
+        } else if (op == "rawkey") {
+            for (size_t k = 0; k + 1 < arg.size(); k += 2)
+                core.queueKey(static_cast<std::uint8_t>(std::strtoul(arg.substr(k, 2).c_str(), nullptr, 16)));
+        } else if (op == "keyinfo") {
+            const pom2::KeyboardState state = core.keyboardState();
+            std::printf("keyboard key=%02X strobe=%d queued=%zu\n", state.key, state.strobe ? 1 : 0, state.queued);
+        } else if (op == "keywait") {
+            const auto limit = core.cpuState().cycles + std::strtoull(arg.c_str(), nullptr, 0) * kCyclesPerFrame;
+            const auto start = core.cpuState().cycles;
+            for (;;) {
+                const pom2::KeyboardState state = core.keyboardState();
+                if (!state.strobe && state.queued == 0) break;
+                if (core.cpuState().cycles >= limit) {
+                    std::fprintf(stderr, "keywait: the guest did not take the keys in %s frames\n", arg.c_str());
+                    return 1;
+                }
+                runCycles(64);
+            }
+            std::printf("keywait frames=%llu\n",
+                        static_cast<unsigned long long>((core.cpuState().cycles - start) / kCyclesPerFrame));
+        } else if (op == "cpuset") {
+            const size_t c1 = arg.find(':');
+            pom2::CpuState state = core.cpuState();
+            state.programCounter = static_cast<std::uint16_t>(std::strtoul(arg.c_str(), nullptr, 16));
+            if (c1 != std::string::npos)
+                state.status = static_cast<std::uint8_t>(std::strtoul(arg.c_str() + c1 + 1, nullptr, 16));
+            core.setCpuState(state);
+        } else if (op == "provenance") {
+            const pom2::SdkInfo info = pom2::Core::sdkInfo();
+            std::printf("provenance core=%s commit=%s\n", info.version.c_str(), info.commit.c_str());
+            std::string names;
+            for (const std::string& name : info.capabilities) names += (names.empty() ? "" : ",") + name;
+            std::printf("provenance capabilities=%s\n", names.c_str());
+            for (const std::string& file : romsUsed)
+                std::printf("provenance rom=%s sha256=%s\n", file.c_str(), pom2::Core::sha256File(file).c_str());
+            std::printf("provenance disk=%s sha256=%s\n", disk.c_str(), pom2::Core::sha256File(disk).c_str());
+            std::printf("provenance copy=%s sha256=%s\n", copy.c_str(), pom2::Core::sha256File(copy).c_str());
+#endif
 #if POM2_SDK_HAS_EZCOLOR
         } else if (op == "vpeek") {
             if (!ezSlot) return 2;
