@@ -92,6 +92,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_asm_boundaries.py
 	$(PYTHON) dev/tests/test_dos_reuse.py
 	$(PYTHON) dev/tests/test_math.py
+	$(PYTHON) dev/tests/test_math_products.py
 	$(PYTHON) dev/tests/test_verlet.py
 	$(PYTHON) dev/tests/test_gfx_hex.py
 	$(PYTHON) dev/tests/test_gfx_decimal.py

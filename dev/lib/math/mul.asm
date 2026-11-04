@@ -87,17 +87,6 @@ _MUL_ASM_LOADED_ = 1
 :
 .endmacro
 
-.ifref mul_acc_shr6
-mul_acc_shr6:
-        LDA     mul_acc0
-        STA     mul_p0
-        LDA     mul_acc1
-        STA     mul_p1
-        LDA     mul_acc2
-        STA     mul_p2
-        JMP     mul_shr6
-.endif
-
 .ifref mul_acc_set
 mul_acc_set:
         LDA     mul_p0
@@ -124,7 +113,18 @@ mul_acc_add:
         RTS
 .endif
 
-.ifref mul_shr6
+.ifref mul_acc_shr6
+mul_acc_shr6:
+        LDA     mul_acc0
+        STA     mul_p0
+        LDA     mul_acc1
+        STA     mul_p1
+        LDA     mul_acc2
+        STA     mul_p2
+        ; Fall through to the shared shift; no jump or extra return address.
+.endif
+
+.if .referenced(mul_shr6) .or .referenced(mul_acc_shr6)
 mul_shr6:
         ASL     mul_p0
         ROL     mul_p1

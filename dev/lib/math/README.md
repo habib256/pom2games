@@ -23,7 +23,7 @@ MUL_INIT_BOOT = 1            ; optional: mul_init in the "INIT" segment (startup
                              ; code that a buffer later overwrites)
 .include "math.inc"          ; AT THE TOP: zero page and macros
 
-        JSR mul_init          ; once at startup (~110,000 cycles)
+        JSR mul_init          ; once at startup (~38,000 cycles)
         JSR sqrt_init         ; if isqrt16 is used (after mul_init)
         ...
 ; at the end of the source, after the callers (.ifref):
@@ -46,8 +46,8 @@ LOWBSS, or the unused HGR page.
 | File | Routine | Effect | Cost |
 |---|---|---|---|
 | `math.inc` | zero page | `mul_x` (16), `mul_y` (8), `mul_p0..p2` (24), `mul_t`, 4 pointers; 13 B (+3 with `MUL_ACC`), each replaceable by an alias | — |
-| | `MUL_K16 k` | `mul_p = mul_x × k`, k a constant 0..255, inline | ~60 c |
-| | `MUL_KS16 k` | same with signed `mul_x` | ~70 c |
+| | `MUL_K16 k` | `mul_p = mul_x × k`, k a constant 0..255, inline | ~60–70 c; 44 B |
+| | `MUL_KS16 k` | same with signed `mul_x` | ~70–80 c; 55 B |
 | `mul.asm` | `mul_init` | builds the square tables (nothing on disk) | ~38,000 c |
 | | `mul_u8u8` | `mul_p0..1 = mul_x(low) × mul_y` | ~45 c |
 | | `mul_u16u8` | `mul_p = mul_x × mul_y`, unsigned | ~85 c |
@@ -76,7 +76,10 @@ LOWBSS, or the unused HGR page.
   corrections (y < 0: −x·256; x < 0: −y·65536).
 * **Constant** (`MUL_K16`): `sqr1+k,X` and `sqr2+255−k,X` (the second table
   is symmetric around 255), so nothing to prepare, two reads per
-  byte. Handy for fixed coefficients (bounce, friction, damping).
+  byte. Computing the high-byte product first lets the second high half
+  feed the final addition directly: no temporary store/reload and no
+  redundant carry setup. This saves 5 bytes and 8 cycles per expansion
+  (signed or unsigned). Handy for fixed coefficients (bounce, friction, damping).
 * **×64 directions** (`mul_dir`): a flat ground normal is (0, −64);
   ×0 and ×±64 become a clear or two shifts, with exactly the
   same result. In DIRTBIKE, about −16 % on the physics of
@@ -105,6 +108,19 @@ Seed construction takes 24,031 instead of 25,049 cycles; the complete root
 sweep, including the fixture's stores and loop, takes 5,529,438 instead of
 5,727,330 cycles. Returning the maximal root 255 costs two extra cycles;
 other candidate steps save two. Table storage and zero page are unchanged.
+
+`test_math_products.py` checks every 16-bit input, signed and unsigned, for
+constants 0, 1, 2, 64, 73, 128, 183 and 255: **1,048,576 products**, plus Y
+preservation. The macros occupy 44/55 bytes instead of 49/60. At input
+$FFFF, the unsigned call takes 76 or 80 cycles including JSR/RTS, instead
+of 84 or 88. Each exhaustive signed/unsigned sweep saves exactly 1,048,576
+cycles (eight per product), with code branches kept within a page.
+
+`mul_acc_shr6` falls through to `mul_shr6`, saving 3 bytes and 3 cycles:
+60 cycles including JSR/RTS instead of 63. The accumulator remains intact.
+The test exercises accumulator-only, shift-only, combined and unused
+includes; the shared tail is emitted when either entry is requested.
+No table, allocated zero page or stack requirements change.
 
 Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).
 

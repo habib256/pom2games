@@ -109,29 +109,27 @@ mul_sqr2_hi = MUL_TABLES + $600
 ; MUL_K16 k -- mul_p0..p2 = mul_x (unsigned) * k, k a constant 0..255.
 ; The tables are read at fixed offsets (sqr1 + k, sqr2 + 255 - k): no
 ; pointer to set up, two lookups per byte (PHYSICS's mul_k73...).
-; ~60 cycles inline, clobbers A, X.
+; ~60-70 cycles inline, clobbers A, X. The high byte's product comes first
+; so the low byte's high half can be added directly, without mul_t.
 ; MUL_KS16 k -- the same with mul_x signed (-k << 16 corrects a negative x).
 ; ----------------------------------------------------------------------------
 .macro MUL_K16 k
         .assert k >= 0 .and k <= 255, error, "MUL_K16: k is 0..255"
-        LDX     mul_x
+        LDX     mul_x+1
         SEC
+        LDA     mul_sqr1_lo + (k), X
+        SBC     mul_sqr2_lo + 255 - (k), X
+        STA     mul_p1
+        LDA     mul_sqr1_hi + (k), X
+        SBC     mul_sqr2_hi + 255 - (k), X
+        STA     mul_p2
+        LDX     mul_x                   ; C = 1: exact 16-bit product, no borrow
         LDA     mul_sqr1_lo + (k), X
         SBC     mul_sqr2_lo + 255 - (k), X
         STA     mul_p0
         LDA     mul_sqr1_hi + (k), X
         SBC     mul_sqr2_hi + 255 - (k), X
-        STA     mul_p1
-        LDX     mul_x+1
-        SEC
-        LDA     mul_sqr1_lo + (k), X
-        SBC     mul_sqr2_lo + 255 - (k), X
-        STA     mul_t
-        LDA     mul_sqr1_hi + (k), X
-        SBC     mul_sqr2_hi + 255 - (k), X
-        STA     mul_p2
         CLC
-        LDA     mul_t
         ADC     mul_p1
         STA     mul_p1
         BCC     :+

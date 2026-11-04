@@ -4,6 +4,38 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : produits constants et accumulateur
+
+`MUL_K16` calcule la moitié haute du produit d'abord, comme le noyau
+16×8 général. La moitié haute du second produit est alors directement
+ajoutée au résultat intermédiaire. Une sauvegarde/relecture temporaire
+et une remise à un redondante de la retenue disparaissent. `MUL_KS16`
+bénéficie du même changement ; sa correction signée reste identique.
+
+| Noyau | Octets avant → après | Cycles avant → après |
+|---|---:|---:|
+| Macro non signée | 49 → 44 | 84/88 → 76/80 pour x=$FFFF, appel compris |
+| Macro signée | 60 → 55 | −8 par produit |
+| Accumulateur puis /64 | 28 → 25 avec le décalage partagé | 63 → 60, appel compris |
+
+Le décalage de l'accumulateur enchaîne directement sur le décalage commun.
+Le test des références conditionnelles couvre les deux entrées seules,
+ensemble et inutilisées. Table, page zéro allouée et piles inchangées ;
+l'accumulateur est conservé.
+
+`test_math_products.py` vérifie les 65 536 entrées pour huit constantes
+(0, 1, 2, 64, 73, 128, 183, 255), en signé et non signé : 1 048 576
+produits comparés à Python, avec conservation de Y. Les branches des
+macros sont maintenues dans une page pour la mesure. Chaque balayage
+d'une constante gagne exactement 1 048 576 cycles, soit huit par produit.
+Les tests mathématiques existants vérifient aussi les deux placements
+des tables, les sommes et les produits généraux/signés.
+
+Validation : `make all`, les deux tests mathématiques, `test_verlet.py`,
+`make test-verlet-contact test-halfpipe-example test-catapult-example
+test-rope-example test-dirtbike test-woz`. Les modèles de physique et
+les cadences passent ; DIRTBIKE.dsk et son WOZ sont reconstruits.
+
 ## Série du 5 novembre 2026 : tables HGR et séparation des pages
 
 La génération des 192 adresses devient une boucle native sans pile C.

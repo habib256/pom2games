@@ -40,6 +40,12 @@ with a two-cycle cost increase when returning 255. All 65,536 roots and
 every generated table byte are checked at two table placements; details are
 in [lib/math](../lib/math/README.md).
 
+Constant multiplication macros now save **5 bytes and 8 cycles** per
+expansion, signed or unsigned. `mul_acc_shr6` saves **3 bytes and 3 cycles**
+by falling through to the shift. `test_math_products.py` checks 1,048,576
+products and the optional accumulator/shift inclusion combinations. These
+native math costs are separate from the C graphics benchmark gate.
+
 The corridor kernel extracted from Light3DBall is measured separately with
 `python3 dev/bench/corridor_projection.py` (`make bench-corridor`). All
 65,536 depth differences and coordinates 0..127 for every admissible factor
