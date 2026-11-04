@@ -97,6 +97,18 @@ a visible scanline. Pre-shift selection skips the height × stride product
 for phase zero without growing the code: a 7×16 XOR sprite takes 2,078
 cycles there, versus 2,424 before; phases 3/6 take 2,465/2,540 cycles.
 
+`hgr_blit7.s` implements the C entry directly. It clips against the space
+remaining to the right/bottom, keeping the original source stride, and
+loads the existing sprite parameter block without stack locals. Isolated
+clients save 92 loaded bytes; their C-stack peak falls from 9 to 7 bytes,
+with unchanged RAM, zero page and hardware stack. A 4-byte × 8-row SET
+sprite takes 1,525 cycles instead of 1,646; a one-byte clipped XOR takes
+434 instead of 578. Lazy row/column initialization still occurs for
+rejected calls. `test_hgr_blit7.py` covers 2,164 warm and 18 cold cases,
+all visible x coordinates and byte dimensions, all modes (including the
+existing CLEAR fallback), source row stride, both pages, palette bits
+and screen holes. It supports IIe and folded-table variants.
+
 Recolouring alternates even/odd column bodies, selecting parity once per
 row. With the native wrapper, `hgr_colorize(7,32,140,16,HGR_ORANGE)`
 takes 8,612 cycles. The earlier kernel/carrier pass reduced 11,571 to

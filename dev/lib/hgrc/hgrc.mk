@@ -23,7 +23,7 @@ HGRC_TEXT_SRCS := $(addprefix $(HGRC)/,hgr_font.c hgr_text.c hgr_text8.c hgr_tex
     hgr_num_small.c hgr_carrier.s hgr_hud.c hgr_hud_asm.s hgr_hud_putu.s \
     hgr_hud8.c hgr_hud8_asm.s hgr_hud8_putu.s hgr_hud8_digits.s \
     hgr_hud_invalidate.s)
-HGRC_SPRITES_SRCS := $(HGRC)/hgr_sprites.c $(HGRC)/hgr_blit7.c
+HGRC_SPRITES_SRCS := $(HGRC)/hgr_sprites.c $(HGRC)/hgr_blit7.s
 HGRC_PRESHIFT_SRCS := $(HGRC)/hgr_preshift.c
 HGRC_X2_SRCS := $(HGRC)/hgr_x2_target.c $(HGRC)/hgr_blit_x2.c
 HGRC_SPRMASK_SRCS := $(HGRC)/hgr_sprmask.s

@@ -86,6 +86,13 @@ for (i=0; i<4; ++i) hgr_spr_move(i,28u+i*3u+(frame&1u),60u+i*2u);
 hgr_spr_render(); hgr_putu_field(48,0,frame,5); hgr_spr_present(); ++frame;
 '''
 SCENES = {
+ 'hgr_sprite7_single': dict(call='hgr_blit7(279,191,1,1,bits,HGR_SET);'),
+ 'hgr_sprite7_clear': dict(call='hgr_blit7(7,40,4,8,bits,HGR_CLEAR);'),
+ 'hgr_sprite7_xor': dict(call='hgr_blit7(7,40,4,8,bits,HGR_XOR);'),
+ 'hgr_sprite7_clip': dict(call='hgr_blit7(279,191,255,255,bits,HGR_XOR);'),
+ 'hgr_sprite7_cold': dict(call='hgr_blit7(279,191,255,255,bits,HGR_XOR);',warmup=False),
+ 'hgr_sprite7_empty': dict(call='hgr_blit7(0,0,0,255,bits,HGR_XOR);'),
+ 'hgr_sprite7_outside': dict(call='hgr_blit7(65535u,0,255,255,bits,HGR_XOR);'),
  'hgr_colorize_cold': dict(call='hgr_colorize(255,189,255,255,HGR_ORANGE);', warmup=False),
  'hgr_colorize_clip': dict(call='hgr_colorize(255,189,255,255,HGR_ORANGE);'),
  'hgr_colorize_invalid': dict(call='hgr_colorize(7,32,140,16,255);'),

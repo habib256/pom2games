@@ -4,6 +4,44 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : interface native des sprites alignés HGR
+
+`hgr_blit7.s` remplace le wrapper C. Les arguments sont lus directement
+sur la pile C ; les dimensions sont bornées par l'espace restant, sans
+addition sur huit bits susceptible de déborder. Le pas source garde la
+largeur originale. Le mode survit aux générateurs de tables normaux et
+regroupés. Les appels vides/hors écran conservent l'initialisation des
+tables et l'absence de dessin, comme auparavant.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| SET, 4 octets × 8 lignes | 1 646 → 1 525 | 1 114 → 1 022 |
+| CLEAR, 4 octets × 8 lignes | 1 717 → 1 592 | 1 116 → 1 024 |
+| XOR, 4 octets × 8 lignes | 1 653 → 1 523 | 1 118 → 1 026 |
+| SET, un octet | 548 → 434 | 1 116 → 1 024 |
+| XOR clippé, largeur/hauteur 255 | 578 → 434 | 1 116 → 1 024 |
+| Même XOR à froid | 11 503 → 11 359 | 1 072 → 980 |
+| Largeur nulle | 239 → 190 | 1 108 → 1 016 |
+| Abscisse 65 535 | 288 → 225 | 1 112 → 1 020 |
+
+Le client isolé économise 92 octets chargés et deux octets de pile C
+(pic 9 → 7), sans changement de RAM, page zéro ou pile matérielle.
+Le noyau de copie des pixels reste inchangé.
+
+Le nouveau test compare 2 164 cas chauds et 18 cas froids à un oracle
+Python : toutes les abscisses visibles, toutes les valeurs des dimensions
+sur un octet, modes SET/CLEAR/XOR et repli CLEAR, pas source, deux pages,
+bits de palette et trous vidéo. Il passe avec l'ancien wrapper, puis avec
+le nouveau sur II+ et IIe, avec tables normales et regroupées. Les modes
+et les deux pages sont croisés avec les cas limites ; le balayage général
+alterne les modes. La suite normale ajoute les deux variantes de tables.
+
+Validation : tests dédiés sur les quatre configurations, intégration HGR
+et 35 clients minimaux d'archive, `make all`, relevé complet de 215 cas
+HGR/DHGR puis gate. Huit mesures de sprites sont nouvelles/actualisées ;
+les 207 autres cas sont identiques au relevé avant modification. Aucun
+disque livré ne change, cette entrée n'est pas appelée par les jeux actuels.
+
 ## Série du 5 novembre 2026 : tables x/7 regroupées sans appels par pixel
 
 La variante `HGRC_X7_FOLDED` produit les 256 premières positions dans une

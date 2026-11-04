@@ -47,6 +47,13 @@ now takes **4,845 cycles** and `hgr_cell(1,4,1)` takes **708**. The pixel
 wrapper reduces its C-stack peak from 13 to 4 bytes and hardware peak from
 9 to 6. Cold valid/empty/invalid cases preserve lazy table initialization.
 
+The native `hgr_blit7` entry saves **92 loaded bytes** in isolated clients
+and reduces C-stack use from **9 to 7 bytes**. A 4-byte × 8-row SET sprite
+takes **1,525 cycles** instead of 1,646; a clipped one-byte XOR takes
+**434 instead of 578**, including C argument setup. Rejected calls still
+initialize the row/column tables. Full source strides survive clipping,
+without additional RAM, zero page or hardware stack.
+
 Independent HGR column/mask/phase builders fill groups of seven pixels,
 saving **54 code bytes** in total. Cold calls take **4,040 / 4,520 / 4,440
 cycles** instead of 7,029 / 8,434 / 6,749 (four extra cycles at some table
