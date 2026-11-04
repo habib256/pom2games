@@ -162,6 +162,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_hgr_text8_entry.py --folded
 	$(PYTHON) dev/tests/test_hgr_text16_entry.py
 	$(PYTHON) dev/tests/test_hgr_text16_entry.py --folded
+	$(PYTHON) dev/tests/test_hgr_unsigned_entry.py
 	$(PYTHON) dev/tests/test_hgr_glyph_addr.py
 	$(PYTHON) dev/tests/test_hgr_text16.py
 	$(PYTHON) dev/tests/test_hgr_text_cells.py

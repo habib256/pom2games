@@ -4,6 +4,50 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : préparation commune des nombres HGR non signés
+
+`hgr_putu` et `hgr_putu8` ont désormais deux entrées assembleur indépendantes
+et une préparation décimale commune. La valeur A/X va directement aux
+paramètres du convertisseur. Après réservation de six octets sur la pile C,
+les trois octets y/x sont déplacés au nouveau sommet ; leurs anciennes
+cases appartiennent au tampon de six octets. L'afficheur consomme les trois
+arguments, puis l'entrée numérique libère le tampon. Aucun tampon statique,
+aucune nouvelle RAM ou page zéro. Les noyaux de conversion et de dessin
+restent identiques.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Agrandi, 0 | 2 715 → 2 635 | 2 423 → 2 390 |
+| Agrandi, 10 | 4 932 → 4 850 | 2 427 → 2 394 |
+| Agrandi, 65 535 | 11 429 → 11 350 | 2 427 → 2 394 |
+| Agrandi, clippé | 3 581 → 3 501 | 2 437 → 2 404 |
+| Agrandi, origine rejetée | 1 340 → 1 262 | 2 425 → 2 392 |
+| 8×8, 0 | 1 522 → 1 437 | 1 956 → 1 923 |
+| 8×8, 10 | 2 415 → 2 337 | 1 960 → 1 927 |
+| 8×8, 65 535 | 6 318 → 6 242 | 1 960 → 1 927 |
+| 8×8, clippé | 4 101 → 4 006 | 1 970 → 1 937 |
+| 8×8, origine rejetée | 1 327 → 1 249 | 1 958 → 1 925 |
+
+Les clients isolés économisent 33 octets et leur pile C passe de 14 à
+9 octets. Les pics de pile matérielle restent inchangés (10 en rendu,
+8 sur l'origine rejetée). Les premiers appels gagnent également du temps.
+
+Le nouveau test appelle les deux fonctions depuis C pour chacun des
+65 536 nombres ; un récepteur assembleur vérifie les coordonnées, la
+sélection de police et toutes les chaînes/NULs. Un garde local contrôle
+la pile de l'appelant. Une deuxième passe déplace la pile sur chacune des
+256 positions d'une page pour chaque fonction, vérifie les passages de
+page, les octets de garde et le résultat 65 535. Le test de rendu compare
+28 scènes : frontières décimales, deux polices/pages, sept phases,
+clipping, coordonnées rejetées, palette et trous d'écran. L'ensemble
+passe sur II+ et IIe ; le balayage C et le rendu passent aussi avant
+l'optimisation.
+
+Validation : intégration HGR, 41 clients minimaux d'archive (dont chaque
+police numérique seule et les deux ensemble), `make all`, relevé complet
+et gate. Les 16 nouveaux cas numériques s'améliorent ; les 248 autres
+mesures sont identiques. Aucun disque livré ne change.
+
 ## Série du 5 novembre 2026 : entrées natives du texte HGR agrandi
 
 `hgr_text.s` remplace les entrées C blanche/couleur en conservant un chemin

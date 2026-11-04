@@ -175,6 +175,18 @@ position/count and carriers; the rendering oracle checks actual pixels.
 The independent `hgr_text16_cells` helper remains available and tested
 for all 265 room values, but is no longer linked by these text entries.
 
+`hgr_putu` and `hgr_putu8` share native decimal preparation while retaining
+separate archive entries for the two fonts. Six bytes are reserved on the
+C stack; the three coordinate bytes move to its new top, freeing their old
+slots for the buffer. The text call consumes the coordinates, then the
+number entry releases the six-byte buffer. No static buffer or extra RAM
+is introduced. Isolated clients save **33 loaded bytes**, C-stack peak
+**14 → 9**, with unchanged hardware-stack peaks. Printing 65535 takes
+**11,350 / 6,242 cycles** in doubled/native-size text (11,429 / 6,318 before).
+`test_hgr_unsigned_entry.py` checks all 65,536 values per font, every x/y
+argument bit, caller guards, all 256 stack alignments per entry and real
+rendering at decimal boundaries, phases and edges on both CPU models.
+
 `hgr_puti` assigns the conversion buffer directly and reuses the value
 parameter for the magnitude, keeping unsigned negation for −32768. Its
 isolated client saves 40 loaded bytes and four bytes at the C-stack peak,

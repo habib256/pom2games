@@ -86,6 +86,22 @@ for (i=0; i<4; ++i) hgr_spr_move(i,28u+i*3u+(frame&1u),60u+i*2u);
 hgr_spr_render(); hgr_putu_field(48,0,frame,5); hgr_spr_present(); ++frame;
 '''
 SCENES = {
+ 'hgr_putu_zero': dict(call='hgr_putu(0,0,0);'),
+ 'hgr_putu_nine': dict(call='hgr_putu(0,0,9);'),
+ 'hgr_putu_ten': dict(call='hgr_putu(0,0,10);'),
+ 'hgr_putu_four_digits': dict(call='hgr_putu(0,0,9999);'),
+ 'hgr_putu_maximum': dict(call='hgr_putu(0,0,65535u);'),
+ 'hgr_putu_clip': dict(call='hgr_putu(264,176,65535u);'),
+ 'hgr_putu_outside': dict(call='hgr_putu(65535u,255,65535u);'),
+ 'hgr_putu_cold': dict(call='hgr_putu(0,0,65535u);',warmup=False),
+ 'hgr_putu8_zero': dict(call='hgr_putu8(0,0,0);'),
+ 'hgr_putu8_nine': dict(call='hgr_putu8(0,0,9);'),
+ 'hgr_putu8_ten': dict(call='hgr_putu8(0,0,10);'),
+ 'hgr_putu8_four_digits': dict(call='hgr_putu8(0,0,9999);'),
+ 'hgr_putu8_maximum': dict(call='hgr_putu8(0,0,65535u);'),
+ 'hgr_putu8_clip': dict(call='hgr_putu8(264,176,65535u);'),
+ 'hgr_putu8_outside': dict(call='hgr_putu8(65535u,255,65535u);'),
+ 'hgr_putu8_cold': dict(call='hgr_putu8(0,0,65535u);',warmup=False),
  'hgr_text16_single': dict(call='hgr_puts(264,176,"A");'),
  'hgr_text16_clip': dict(call='hgr_puts(256,176,"ABCDEF");'),
  'hgr_text16_cold': dict(call='hgr_puts_color(256,176,"ABCDEF",HGR_ORANGE);',warmup=False),

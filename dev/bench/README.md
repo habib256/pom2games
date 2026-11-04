@@ -202,6 +202,15 @@ all color values outside 1..4 fall back to white. The entry test sweeps
 all x/y/color values with a kernel sink; separate pixel oracles cover
 rendering, carriers, clipping, pages and screen holes.
 
+Unsigned HGR number entries share one preparation routine, with separate
+archive members for the two fonts. Their six-byte buffer stays on the
+software stack, reusing the old argument slots after moving x/y to the new
+top. Isolated clients save **33 loaded bytes**, C-stack peak **14 → 9**,
+with unchanged RAM, zero page and hardware-stack peaks. Doubled/native-size
+65535 calls take **11,350 / 6,242 cycles** (previously 11,429 / 6,318), zero
+**2,635 / 1,437** (2,715 / 1,522), and rejected origins **1,262 / 1,249**
+(1,340 / 1,327). The conversion and rendering kernels are unchanged.
+
 Signed HGR numbers set the conversion destination directly and reuse the
 value parameter for its magnitude. Removing two temporary stack variables
 saves **40 loaded bytes and four C-stack bytes at peak** in isolated clients,
