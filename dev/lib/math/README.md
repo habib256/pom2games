@@ -56,7 +56,7 @@ LOWBSS, or the unused HGR page.
 | | `mul_shr6` | `mul_p1..2 = ⌊mul_p / 64⌋` | 30 c |
 | | `mul_acc_set` / `_add` / `_shr6` | sum of products over 24 bits, then ⌊/64⌋ | |
 | `sqrt.asm` | `sqrt_init`, `isqrt16` | `A = ⌊√mul_x⌋`; start from `sqrt_seed[mul_x+1]`, then steps of 1 with n² = sqr1[2n] | ~40 c + ~25 c/step |
-| `div.asm` | `div16by8` | `mul_x = mul_x / A`, `A = remainder`; 8 steps if the quotient fits in one byte | ~190 c / ~400 c |
+| `div.asm` | `div16by8` | `mul_x = mul_x / A`, `A = remainder`; 8 steps if the quotient fits in one byte | 0/1: 189 c; 65535/255: 349 c, including JSR/RTS |
 | `dec.asm` | `byte_to_dec` | `A` (0..255) → `X` hundreds, `Y` tens, `A` units (0..9); no memory | 30-110 c |
 | | `byte_div10` | `Y = A / 10` (0..25), `A = A mod 10`, X kept | 18-193 c (excluding JSR and branch page crossings) |
 | | `u16_to_dec` | `dec_lo/hi` → ASCII at `(dec_ptr)`, no leading zeros, NUL; `Y` = digit count. Zero page `dec_lo`, `dec_hi`, `dec_ptr`, `dec_t`, `dec_d` allocated unless defined beforehand (hgrc: `hgr_utoa`, `gfx_utoa`) | 250-900 c |
@@ -89,6 +89,27 @@ LOWBSS, or the unused HGR page.
 * **Division**: the PHYSICS demo used a 512 B table of reciprocals
   plus a correction multiply. For a one-byte quotient, eight
   subtraction steps cost as much, with no table.
+
+### Division by bytes
+
+`div16by8` divides the high byte first when the quotient needs more than
+one byte, then reuses the low-byte loop. During the high-byte stage the
+processed prefix cannot exceed 255, so no ninth-bit remainder test is
+needed. The routine occupies **51 bytes instead of 52**, with unchanged
+RAM, zero page, stack and Y preservation.
+
+This is a measured tradeoff: **16-bit quotients save 92 cycles**, while
+**8-bit quotients cost two more cycles**, excluding branch page crossings.
+For example, 65535/255 takes 349 instead of 441 cycles, 256/1 takes 342
+instead of 434, and 255/1 takes 245 instead of 243 (JSR/RTS included).
+A zero divisor retains the existing sentinel quotient $FFFF and the
+original numerator's low byte as remainder.
+
+The normal suite checks all 65,536 numerators for 16 representative
+divisors; `make test-math-division-full` checks all **16,777,216 pairs**.
+Both paths use Python quotient/remainder as the oracle and check Y
+preservation. In the page-contained fixture, the full sweep (including
+loop/output overhead) takes 5,789,740,192 instead of 6,547,795,104 cycles.
 
 ## Tests
 

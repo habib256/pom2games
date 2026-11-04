@@ -4,6 +4,42 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : division 16/8 en deux étapes
+
+Pour les quotients longs, le diviseur traite d'abord l'octet haut, puis
+réutilise la boucle courte pour l'octet bas. La première étape ne peut
+produire de neuvième bit de reste : chaque préfixe du numérateur sur un
+octet est au plus 255. La branche de détection de débordement y disparaît.
+
+Le noyau passe de 52 à 51 octets. Dans la fixture dont les branches restent
+dans une page, **chaque quotient sur 16 bits gagne 92 cycles**, contre
+**deux cycles supplémentaires pour chaque quotient court**. Pas de mémoire,
+page zéro ni pile supplémentaires ; Y reste préservé.
+
+| Division | Cycles avant → après, JSR/RTS compris |
+|---|---:|
+| 0 / 1 | 187 → 189 |
+| 255 / 1 | 243 → 245 |
+| 255 / 2 | 236 → 238 |
+| 256 / 1 | 434 → 342 |
+| 65 535 / 1 | 539 → 447 |
+| 65 535 / 128 | 490 → 398 |
+| 65 535 / 255 | 441 → 349 |
+| 65 535 / 0 | 507 → 415 |
+
+Les 16 777 216 couples numérateur/diviseur sont vérifiés contre Python,
+avec conservation de Y. Le diviseur nul conserve le résultat existant :
+quotient $FFFF et octet bas du numérateur comme reste. Le balayage complet,
+boucles et sorties incluses, passe de 6 547 795 104 à 5 789 740 192 cycles
+(−11,6 %). La suite normale utilise 16 diviseurs représentatifs sur tous
+les numérateurs ; `make test-math-division-full` couvre les 256 diviseurs.
+Les 765 frontières de sélection du chemin restent vérifiées par le test
+mathématique existant.
+
+Validation : comparaison exhaustive avant/après, test mathématique général,
+suite de division normale et complète, `make all`. Aucun disque livré ne
+change : les jeux actuels n'appellent pas cette entrée de la bibliothèque.
+
 ## Série du 5 novembre 2026 : wrapper natif de recoloration HGR
 
 `hgr_colorize.s` charge les arguments C directement, garde la couleur

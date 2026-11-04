@@ -5,8 +5,12 @@
 ;   div16by8    mul_x = mul_x / A, A = remainder, mul_y = the divisor.
 ;               Clobbers X. A quotient below 256 (mul_x+1 < A, the usual
 ;               case for normalising a vector) takes 8 steps, ~190 cycles;
-;               otherwise 16 steps, ~400 cycles. A = 0: quotient $FFFF.
+;               otherwise two 8-step stages. A = 0: quotient $FFFF, remainder
+;               = original low byte. Y is preserved.
 ;
+; Compared with the former full-width 16-step path: one code byte less,
+; 92 cycles less for 16-bit quotients, two cycles more for 8-bit quotients
+; (excluding branch page crossings). No extra RAM or stack.
 ; Shift and subtract, no table. The PHYSICS demo used a 512-byte reciprocal
 ; table and a correction multiply; for an 8-bit quotient the eight steps
 ; here cost about the same, without the table.
@@ -24,10 +28,11 @@ div16by8:
         LDA     mul_x+1
         CMP     mul_y
         BCS     @q16
-        ; X counts the bits; zero the quotient high byte only on exit.
-        ; Compared with a ZP counter: -1 code byte, -24 cycles per short call
-        ; (excluding branch page-crossing differences).
-        LDX     #8                      ; quotient < 256: start from the high byte
+        ; Short path: A is already the remainder of the high byte.
+        LDX     #0
+        STX     mul_x+1
+@low:
+        LDX     #8                      ; A = high-byte remainder
 @l8:    ASL     mul_x
         ROL     A
         BCS     @s8                     ; 9-bit remainder: always >= divisor
@@ -37,21 +42,21 @@ div16by8:
         INC     mul_x
 @n8:    DEX
         BNE     @l8
-        STX     mul_x+1                 ; quotient high byte = 0
         RTS
 @q16:   LDA     #0
-        LDX     #16
-@l16:   ASL     mul_x
-        ROL     mul_x+1
+        LDX     #8
+        ; Divide the high byte alone, then reuse the low-byte loop.
+        ; Prefixes of an 8-bit input never exceed 255, so this first
+        ; stage cannot produce a ninth remainder bit, even for divisor 0.
+@high:   ASL     mul_x+1
         ROL     A
-        BCS     @s16
         CMP     mul_y
-        BCC     @n16
-@s16:   SBC     mul_y
-        INC     mul_x
-@n16:   DEX
-        BNE     @l16
-        RTS
+        BCC     @next_high
+        SBC     mul_y
+        INC     mul_x+1
+@next_high:   DEX
+        BNE     @high
+        BEQ     @low                    ; X=0: always, one byte less than JMP
 .endif
 
 .endif  ; _DIV_ASM_LOADED_

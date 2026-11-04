@@ -93,6 +93,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_dos_reuse.py
 	$(PYTHON) dev/tests/test_math.py
 	$(PYTHON) dev/tests/test_math_products.py
+	$(PYTHON) dev/tests/test_math_division.py
 	$(PYTHON) dev/tests/test_verlet.py
 	$(PYTHON) dev/tests/test_gfx_hex.py
 	$(PYTHON) dev/tests/test_gfx_decimal.py
@@ -240,6 +241,12 @@ test-woz:
 	$(PYTHON) dev/tools/dsk2woz.py --check dist
 
 .PHONY: test-assets bench bench-dhgr bench-check test-woz
+
+# All 16-bit numerators for every 8-bit divisor (normal suite samples 16 divisors).
+test-math-division-full: $(A2RUN)
+	$(PYTHON) dev/tests/test_math_division.py --full
+.PHONY: test-math-division-full
+
 
 profile-ii-plus:
 	@for d in $(II_PLUS_GAMES); do $(MAKE) -C $$d || exit 1; done

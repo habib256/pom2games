@@ -71,6 +71,13 @@ by falling through to the shift. `test_math_products.py` checks 1,572,864
 products and the optional accumulator/shift inclusion combinations. These
 native math costs are separate from the C graphics benchmark gate.
 
+The unsigned 16/8 divider uses two byte stages for long quotients: **51
+code bytes** instead of 52 and **92 fewer cycles** on that path, with a
+**two-cycle increase** for short quotients. `make test-math-division-full`
+checks all 16,777,216 input pairs, including zero divisors and preserved Y.
+For 65535/255 the cost is **349 instead of 441 cycles** including JSR/RTS;
+RAM, zero page and stack are unchanged.
+
 The corridor kernel extracted from Light3DBall is measured separately with
 `python3 dev/bench/corridor_projection.py` (`make bench-corridor`). All
 65,536 depth differences and coordinates 0..127 for every admissible factor
