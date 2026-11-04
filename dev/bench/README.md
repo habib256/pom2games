@@ -208,8 +208,15 @@ bytes once, reducing its code **71 → 68 bytes**. Direct C calls take
 previously 398 / 404 / 417 / 430 / 422 (about **22–23 % less**).
 RAM, zero page and both stack peaks stay unchanged. The exhaustive
 65,536-value fixture checks strings, lengths, NULs and guards on II+/IIe,
-including buffers that cross a page. HGR hexadecimal rendering also
-improves: 65535 falls **8,928 → 8,826 cycles**, with three fewer loaded bytes.
+including buffers that cross a page. With the native HGR entry, hexadecimal rendering of 65535 takes **8,682 cycles**.
+
+The native HGR hexadecimal entry reserves its conversion argument, x/y and
+five-byte buffer together, avoiding separate push/allocation helpers. It
+keeps the value in tmp3/X and reuses the converter's destination pointer.
+Clients save **38 loaded bytes**, C-stack peak **13 → 10**, with unchanged
+RAM, zero page and hardware-stack peaks. FFFF takes **8,682 instead of
+8,826 cycles**, zero **2,647 instead of 2,781**, and clipping **2,819 instead
+of 2,954**. Rejected calls fall **716 → 582**; cold calls **24,147 → 24,013**.
 
 Unsigned HGR number entries share one preparation routine, with separate
 archive members for the two fonts. Their six-byte buffer stays on the

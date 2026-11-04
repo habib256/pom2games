@@ -192,6 +192,8 @@ def check_archive(work):
          ('hgr_num_unsigned.o', 'hgr_text16_asm.o', 'gfx_num_dec.o')),
         ('number16', 'hgr_putu(0,0,65535u);', 'hgr_num_prepare.o',
          ('hgr_num_small.o', 'hgr_text8_asm.o', 'gfx_num_dec.o')),
+        ('number_hex', 'hgr_putx(0,0,65535u);', 'hgr_num_hex.o',
+         ('hgr_num_prepare.o', 'hgr_num_unsigned.o', 'hgr_num_small.o', 'hgr_num_signed.o', 'hgr_utoa_asm.o')),
         ('number_signed', 'hgr_puti(0,0,-32768);', 'hgr_num_signed.o',
          ('hgr_num_prepare.o', 'hgr_num_unsigned.o', 'hgr_num_small.o', 'hgr_num_hex.o')),
         ('numbers_both', 'hgr_putu(0,0,65535u); hgr_putu8(0,16,65535u);', 'hgr_num_prepare.o',

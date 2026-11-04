@@ -198,6 +198,17 @@ test checks all 65,536 signed strings and 1,024 stack alignments, including
 both pointer page crossings, on II+/IIe. The pixel test checks 272 scenes
 per CPU: signs, zero, decimal boundaries, clipped strings and both pages.
 
+`hgr_putx` also uses a native local frame. It reserves the converter's
+pointer argument, coordinates and five-byte buffer together; the converter
+consumes two bytes, text consumes three, then the entry releases five.
+The high value byte stays in X and the low byte in cc65 scratch. The shared
+hex converter leaves its destination in ptr1 for the text call. Isolated
+clients save **38 loaded bytes**, C-stack peak **13 → 10**, with unchanged
+RAM, zero page and hardware-stack peaks. FFFF takes **8,682 instead of
+8,826 cycles**, zero **2,647 instead of 2,781**, rejected origins **582
+instead of 716**. The entry test checks all 65,536 hexadecimal strings,
+1,024 stack alignments and 96 rendering scenes on II+/IIe.
+
 `hgr_putu_field` uses the clamped byte width directly for erasing
 `width*18-2` pixels and then reuses that parameter for alignment padding.
 Its measured clients save 33..50 loaded bytes and two bytes at the C-stack

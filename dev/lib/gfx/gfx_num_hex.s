@@ -2,6 +2,7 @@
 ; unsigned char gfx_hexstr(char *buf, unsigned value), cc65 fastcall.
 ; Uppercase, no leading zeroes, NUL terminated; zero emits "0".
 ; Returns length in A, X=0. D=0; standard cc65 scratch, no private ZP/BSS.
+; Leaves ptr1 at the buffer start, reused by the native hgr_putx entry.
 ; X=4,3 selects the high byte; X=2,1 the low byte. Even X extracts the
 ; upper nibble, odd X the lower. No 16-bit shifts or conversion lookup table.
 .export _gfx_hexstr

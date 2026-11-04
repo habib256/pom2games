@@ -4,6 +4,42 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : préparation native de l'affichage hexadécimal HGR
+
+`hgr_num_hex.s` remplace l'enveloppe C de `hgr_putx`. Une seule réservation
+forme la pile `[pointeur du tampon][y/x][tampon de cinq octets]`. Le
+convertisseur retire son pointeur de deux octets, le texte consomme les
+trois coordonnées, puis l'entrée libère le tampon. L'octet fort de la valeur
+reste dans X pendant toute la préparation ; l'octet faible utilise tmp3.
+Le convertisseur conserve ptr1 au début du tampon, réutilisé pour le texte.
+Le noyau de conversion est inchangé ; son commentaire précise ce contrat.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Zéro | 2 781 → 2 647 | 2 416 → 2 378 |
+| F | 2 678 → 2 544 | 2 420 → 2 382 |
+| FF | 4 762 → 4 618 | 2 420 → 2 382 |
+| FFF | 6 677 → 6 527 | 2 422 → 2 384 |
+| FFFF | 8 826 → 8 682 | 2 420 → 2 382 |
+| Chaîne clippée | 2 954 → 2 819 | 2 430 → 2 392 |
+| Origine rejetée | 716 → 582 | 2 418 → 2 380 |
+| Premier appel | 24 147 → 24 013 | 2 399 → 2 361 |
+
+Économie de 38 octets dans les clients isolés ; pile C 13 → 10. RAM,
+page zéro et pics de pile matérielle restent inchangés. Le rendu et la
+conversion hexadécimale sont identiques.
+
+Le nouveau test passe sur l'ancien C puis sur l'entrée finale II+/IIe :
+65 536 chaînes, NULs/queues et coordonnées ; 1 024 placements de pile pour
+0/F/1000/FFFF, avec gardes et nettoyage des arguments. L'oracle graphique
+compare 96 scènes par CPU aux frontières de longueur, avec clipping/rejet,
+deux pages, palette et trous.
+
+Validation : entrée et rendu II+/IIe, intégration HGR, 45 clients minimaux
+d'archive (le client hexadécimal exclut tous les afficheurs décimaux),
+`make all`, relevé complet de 307 cas et gate. Huit cas s'améliorent,
+299 sont identiques ; cinq cas sont nouveaux. Aucun disque livré ne change.
+
 ## Série du 5 novembre 2026 : entrée native des nombres HGR signés
 
 `hgr_num_signed.s` remplace la préparation C de `hgr_puti`. Le tampon
