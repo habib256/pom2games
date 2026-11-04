@@ -93,9 +93,10 @@ for phase zero without growing the code: a 7×16 XOR sprite takes 2,078
 cycles there, versus 2,424 before; phases 3/6 take 2,465/2,540 cycles.
 
 Recolouring alternates even/odd column bodies, selecting parity once per
-row. `hgr_colorize(7,32,140,16,HGR_ORANGE)` takes 8,947 cycles instead of
-11,571 (−22.7 %). Its binary loses 48 bytes: the shared assembly carrier
-selector saves 54 loaded bytes and the rectangle loop grows by 6. RAM,
+row. With the native wrapper, `hgr_colorize(7,32,140,16,HGR_ORANGE)`
+takes 8,612 cycles. The earlier kernel/carrier pass reduced 11,571 to
+8,947 cycles and saved 48 bytes: the shared assembly carrier selector
+saved 54 loaded bytes and the rectangle loop grew by 6. RAM,
 zero page, clipping and byte-granular colouring are unchanged. The selector
 also saves 54 bytes in coloured-text clients. `test_hgr_color.py` checks
 all 256 selector inputs, rectangles and tinted text on both pages under
@@ -160,6 +161,15 @@ and 39×16 takes 6,985.
 `test_hgr_byte_rects.py` checks 2,204 fills per CPU model: all 820 valid
 column/width pairs, all 256 fill bytes, clipped/empty rectangles, both
 pages, palette bits and untouched screen holes.
+
+The recoloring wrapper is native too (`hgr_colorize.s`), retaining the
+same byte-granular effect, clipping and rejected colors. It saves 180
+loaded bytes in isolated clients: a one-byte call takes 450 instead of
+788 cycles, a clipped call 797 instead of 1,167. The C-stack peak falls
+from 10 to 5 bytes and hardware peak from 7 to 6, with unchanged other RAM
+and zero page. Cold tests cover the normal and folded table builders;
+invalid geometry/colors preserve carrier parameters, and lazy table
+initialization still precedes rejection.
 
 The public rectangle/cell wrappers now use native argument loading and
 clipping in `hgr_rect.s`, `hgr_pixrect.s` and `hgr_cell.s`. Their isolated
@@ -284,7 +294,7 @@ excluding routines that were previously linked for nothing.
 macOS. Its 21 steps compare both video pages with a Python model:
 256/280-pixel rectangles, limits, pixels, SET/CLEAR/XOR sprites and seven
 phases, white/coloured text, numbers, cells, colourising. Four additional scenes check `gfx` cell text on
-page 2, the cursor and the numeric conversions. Thirty-four minimal
+page 2, the cursor and the numeric conversions. Thirty-five minimal
 programs also check that the archive excludes unused kernels and zero-page
 blocks. This test is part of `make test` and of CI.
 

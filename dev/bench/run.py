@@ -86,6 +86,10 @@ for (i=0; i<4; ++i) hgr_spr_move(i,28u+i*3u+(frame&1u),60u+i*2u);
 hgr_spr_render(); hgr_putu_field(48,0,frame,5); hgr_spr_present(); ++frame;
 '''
 SCENES = {
+ 'hgr_colorize_cold': dict(call='hgr_colorize(255,189,255,255,HGR_ORANGE);', warmup=False),
+ 'hgr_colorize_clip': dict(call='hgr_colorize(255,189,255,255,HGR_ORANGE);'),
+ 'hgr_colorize_invalid': dict(call='hgr_colorize(7,32,140,16,255);'),
+ 'hgr_colorize_empty': dict(call='hgr_colorize(7,32,0,16,HGR_ORANGE);'),
  'hgr_columns_cold': dict(call='hgr_build_columns();', warmup=False,
      declarations='void hgr_build_columns(void);'),
  'hgr_masks_cold': dict(call='hgr_build_masks();', warmup=False,

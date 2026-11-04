@@ -4,6 +4,43 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : wrapper natif de recoloration HGR
+
+`hgr_colorize.s` charge les arguments C directement, garde la couleur
+pendant les constructions paresseuses et calcule les colonnes gauche/droite
+sans division. Le bord droit reste sur 16 bits jusqu'au clipping à 279.
+Les dimensions et couleurs refusées gardent la même absence de dessin et
+préservent les paramètres de couleur ; les tables sont toujours construites
+avant le rejet. Le noyau de recoloration lui-même ne change pas.
+
+| Cas | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Rectangle 140×16, x=7 | 8 946 → 8 612 | 1 160 → 980 |
+| Rectangle 140×16, x=0 | 8 896 → 8 558 | 1 156 → 976 |
+| Un octet sur une ligne | 788 → 450 | 1 158 → 978 |
+| Rectangle clippé | 1 167 → 797 | 1 156 → 976 |
+| Même rectangle à froid | 12 088 → 11 721 | 1 123 → 943 |
+| Couleur refusée | 310 → 269 | 1 160 → 980 |
+| Rectangle vide | 226 → 188 | 1 160 → 980 |
+
+Cycles NMOS, arguments/appels C compris ; tailles des clients isolés en
+octets. Économie de 180 octets de code, pile C 10 → 5, pile matérielle
+7 → 6 ; autres RAM et page zéro inchangées. Le relevé complet HGR/DHGR
+ne montre aucune hausse supérieure à 1 % ni augmentation de mémoire/pile.
+Sept références nouvelles/modifiées sont enregistrées, 201 restent intactes.
+
+Les tests à froid couvrent maintenant la recoloration et les deux variantes
+de construction des tables, ainsi que les refus sans modification des
+couleurs. Ils ont détecté un mauvais test des flags après le retour C du
+sélecteur de couleur dans le premier essai ; la version finale teste sa
+valeur de retour. Les 294 rectangles et 98 textes teintés/blancs passent
+sur II+ et IIe, ainsi que les 35 clients minimaux de l'archive.
+
+Validation : `make all`, tests de couleur II+/IIe, tests à froid normaux
+et regroupés sur les deux cibles, contrôle d'archive, gate complet
+`--dhgr --check`, `make test-snake test-woz`. SNAKE.dsk et son WOZ sont
+reconstruits.
+
 ## Série du 5 novembre 2026 : tables x/7 par groupes de sept
 
 Les générateurs indépendants de colonnes, masques et phases parcourent

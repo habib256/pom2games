@@ -137,12 +137,15 @@ arguments. The 7×16 XOR sprite cases `hgr_preshift_phase0/3/6` measure
 This HGR pass removes 14 code bytes from the point kernel and 6 from the
 aligned sprite kernel, with no change to RAM or zero page.
 
-HGR recolouring (`hgr_colorize`, 140×16 pixels starting at x=7) takes
-**8,947 cycles** instead of 11,571 (−22.7 %), with a **1,848-byte binary**
-instead of 1,896. Starting at x=0 takes 8,896 cycles; a single byte on one
-row takes 789. Alternating even/odd column bodies avoids a parity test
-per byte. The shared assembly colour selector saves 54 loaded bytes;
-the rectangle loop spends 6 of those bytes. RAM and zero page are unchanged.
+HGR recolouring (`hgr_colorize`, 140×16 pixels starting at x=7) now takes
+**8,612 cycles**, with a **980-byte isolated binary**. The native wrapper
+alone saves **180 loaded bytes** and 334 cycles versus the preceding
+8,946-cycle version. Starting at x=0 takes 8,558 cycles; one byte on one
+row takes **450 instead of 788**. Its C-stack peak falls from 10 to 5 bytes,
+hardware peak from 7 to 6, with unchanged RAM and zero page. The kernel
+retains its alternating even/odd column bodies and shared carrier selector.
+Cold tests verify arguments across both normal and folded table builders,
+clipping, rejected colors and carrier preservation.
 
 Doubled HGR text skips blank glyph rows, shares the alternating carriers
 and simplifies the destination-column shifts. At phase zero, white

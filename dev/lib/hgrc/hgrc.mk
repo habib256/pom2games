@@ -17,7 +17,7 @@ HGRC_ASM_SRCS := $(addprefix $(HGRC)/,hgr_mode_asm.s hgr_mode_clear_asm.s \
 HGRC_CORE_SRCS := $(addprefix $(HGRC)/,hgr_state.c hgr_set_draw_page.s hgr_lores_state.s hgr_build_rows.s hgr_row.s hgr_show_page.s hgr_draw_page.s hgr_row_page.s hgr_fixed_rows.s hgr_tables.c hgr_columns.s hgr_masks.s hgr_phases.s) $(HGRC_ASM_SRCS)
 HGRC_PIXEL_SRCS := $(HGRC)/hgr_pixel_asm.s
 HGRC_RECT_SRCS := $(addprefix $(HGRC)/,hgr_rect.s hgr_pixrect.s hgr_cell.s \
-    hgr_colorize.c hgr_carrier.s)
+    hgr_colorize.s hgr_carrier.s)
 HGRC_TEXT_SRCS := $(addprefix $(HGRC)/,hgr_font.c hgr_text.c hgr_text8.c hgr_text_cells.s \
     hgr_num_unsigned.c hgr_num_field.c hgr_num_signed.c hgr_num_hex.c \
     hgr_num_small.c hgr_carrier.s hgr_hud.c hgr_hud_asm.s hgr_hud_putu.s \

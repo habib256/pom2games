@@ -148,6 +148,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_hgr_color.py
 	$(PYTHON) dev/tests/test_hgr_rects.py
 	$(PYTHON) dev/tests/test_hgr_rect_cold.py
+	$(PYTHON) dev/tests/test_hgr_rect_cold.py --folded
 	$(PYTHON) dev/tests/test_hgr_byte_rects.py
 	$(PYTHON) dev/tests/test_hgr_bitmap.py
 	$(PYTHON) dev/tests/test_hgr_glyphs.py
