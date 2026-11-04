@@ -199,7 +199,7 @@ another module). A C object that aliases a routine to an import
 | `read_stick_fast` | `joy.asm` | — | `joy_x`, `joy_y` = counts of 35 cycles (33-34 once the other axis has finished), ~40 at centre; stops as soon as both timers have finished; C = 1 after 255 passes (nothing plugged in) | A, X, Y | — |
 | `read_stick_x` | `joy.asm` | — | `joy_x` alone = PREAD counts (11 cycles: 0..255, ~128 centred, ×35/11 ≈ 3.2 against `read_stick_fast`); returns when the X timer runs out (~11·count + 20 cycles); C = 1 and 255 after 255 counts (no stick, or past full scale); `joy_y` untouched; 19 B | A, X | — |
 | `vapor_mark` | `vapor.asm` | — | `VAPOR_BYTE` ($80) in the first 24 bytes of HGR line 191 (page `VAPOR_PAGE`, 1) | A, X | — |
-| `vapor_sync` | `vapor.asm` | marker on the shown page, HGR on | C = 0: the beam is on line 191 (VBL next); C = 1 after 65536 polls (~0.8 s): no floating bus or no marker | A, X, Y | — |
+| `vapor_sync` | `vapor.asm` | marker on the shown page, HGR on | C = 0: the beam is on line 191 (VBL next); C = 1 within 65537 polls (~0.8 s): no floating bus or no marker | A, X, Y | — |
 | `vapor_count` | `vapor.asm` | same | A = low, X = high: one frame in 13-cycle polls (~1303 NTSC, ~1553 PAL at 1 MHz); C = 1, 0 on failure | A, X, Y | — |
 | `vapor_mark_both` | `vapor.asm` | — | `VAPOR_BYTE` in the first 24 bytes of HGR line 191 of both pages (`.ifref`, 14 B) | A, X | — |
 | `vapor_pace_init` | `vapor.asm` | marker on the shown page, HGR on | `vapor_count` kept for `vapor_pace` (`vp_frame`, `vp_half`); C = 1: no floating bus (do not call `vapor_pace`) | A, X, Y | — |
@@ -341,7 +341,7 @@ The II and II+ have no VBL flag, and the //e's `$C019` is not on a //c or a
 IIgs the same way. But a soft switch that drives no data (`$C050-$C05F`)
 reads back the **floating bus**: the byte the video scanner fetched on that
 cycle. `vapor.asm` puts a marker in HGR line 191 and polls `TXTCLR` until the
-beam reads it: one lock a frame, on the last line shown, within one 13-cycle
+beam reads it: one lock a frame, on the last line shown, within one poll
 poll (2026-10-24, from SNAKE; `dev/tests/test_vapor.py`).
 
 - **Where the marker goes.** The scanner also fetches memory in blanking
@@ -351,14 +351,17 @@ poll (2026-10-24, from SNAKE; `dev/tests/test_vapor.py`).
   apart must both see it: on line 191 they always do, in those blankings the
   second falls past it, and a lone `$80` elsewhere cannot fake a lock. Mark
   the shown page again after each clear; draw nothing in `$3FD0-$3FE7`.
-- **The poll is 13 cycles at most**: a 17-cycle one (a first counting loop)
-  missed one frame in eight, its first hit too late for the second read.
+- **Ordinary polls take 13 cycles**. At a low-counter rollover, an extra
+  sample splits the interval into 12 then 15 cycles. The former 17-cycle
+  rollover gap could see the marker too late for its second read. The
+  regression test varies entry timing over 4,096 waits and checks that none
+  loses a video frame.
 - **PAL and accelerators.** `vapor_count` measures a frame in polls: ~1303 on
   a 1 MHz NTSC machine, ~1553 on PAL (20280-cycle frames, ratio 1.19), several
   times more with an accelerator card. A program can tell 50 Hz from 60 (a
   ratio of 1.1-1.3) and keep the same pace in seconds.
-- **No floating bus** (//c, IIgs) or no marker: `vapor_sync` gives up after
-  65536 polls, long enough for an accelerated frame; test once at start and
+- **No floating bus** (//c, IIgs) or no marker: `vapor_sync` gives up within
+  65537 polls, long enough for an accelerated frame; test once at start and
   keep another pace (SNAKE falls back to its spin loop).
 - **Checked on** a2run (which now emulates the floating bus, NTSC) and POM2
   (II+ NTSC and PAL, enhanced //e): a lock every 17030 / 20280 cycles, at the
@@ -383,9 +386,8 @@ poll (2026-10-24, from SNAKE; `dev/tests/test_vapor.py`).
   whatever k was, so the flips keep their phase: in a2run 34,060 or 51,090
   cycles apart within one poll, on line 193-194. The poll loop must stay
   within a page (14-cycle polls would put the estimate, in 13s, off by
-  7 %): an `lderror` assert says so. 102 + 23 B, 8 B of BSS (+ 77 B of
-  `vapor_sync` / `vapor_count`, 14 B `vapor_mark_both`); the existing
-  routines are byte-identical. POM2's //c (`a2shot --iic`) has a floating
+  7 %): an `lderror` assert says so. 102 + 23 B, 8 B of BSS (+ 95 B of
+  `vapor_sync` / `vapor_count`, 14 B `vapor_mark_both`). POM2's //c (`a2shot --iic`) has a floating
   bus (a frame of 1305 polls) where a real //c has none; the examples'
   tests simulate that by clearing the marker before `vapor_pace_init`.
 

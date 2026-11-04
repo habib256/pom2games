@@ -2,7 +2,7 @@
 ; ============================================================================
 ; sqrt.asm -- integer square root from a seed table and the square tables
 ; ============================================================================
-;   sqrt_init   build sqrt_seed (after mul_init). ~60 000 cycles.
+;   sqrt_init   build sqrt_seed (after mul_init). ~24 000 cycles.
 ;   isqrt16     A = floor(sqrt(mul_x)), mul_x unsigned 16 bits. Keeps mul_x.
 ;               Clobbers X, Y. ~40 cycles + ~25 per step: one step for
 ;               most numbers, up to 15 below 256.
@@ -50,9 +50,8 @@ isqrt16:
 .endif
 .if .referenced(isqrt16) .or .referenced(isqrt_from_y)
 isqrt_from_y:                           ; Y = r <= floor(sqrt(mul_x))
-@step:  CPY     #255
-        BEQ     @done
-        INY                             ; c = r + 1: c^2 <= mul_x ?
+@step:  INY                             ; c = r + 1: c^2 <= mul_x ?
+        BEQ     @over                   ; r = 255: undo wrap, already maximal
         TYA
         ASL     A
         TAX

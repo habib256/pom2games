@@ -330,7 +330,78 @@ hundreds: .res 256
           'shared and late entries, repeated includes OK.')
 
 
+def check_square_tables():
+    """Check every generated table byte and all 65,536 square roots."""
+    with tempfile.TemporaryDirectory(prefix='math-squares-') as tmp:
+        work = Path(tmp)
+        for base in (0x0800, 0x4000):
+            source = f'''MUL_TABLES = ${base:04x}
+SQRT_SEED = $5000
+.include "math.inc"
+.code
+        cld
+init_start:
+        jsr mul_init
+init_done:
+        jsr sqrt_init
+seed_done:
+        lda #0
+        sta mul_x
+        sta mul_x+1
+page:
+        jsr isqrt16
+        ldx mul_x
+        sta results,x
+        inc mul_x
+        bne page
+page_done:
+        nop
+resume:
+        inc mul_x+1
+        bne page
+done:   jmp done
+.include "sqrt.asm"
+.include "mul.asm"
+code_end:
+.bss
+results: .res 256
+.export init_start, init_done, seed_done, page_done, resume, done, results
+.export mul_init, sqrt_init, isqrt16, isqrt_from_y, code_end
+'''
+            src = work / 'squares.s'
+            src.write_text(source)
+            obj, binary, labels = (src.with_suffix(ext) for ext in ('.o', '.bin', '.lbl'))
+            subprocess.run(['ca65', '-I', str(ROOT / 'dev/lib/math'),
+                            '-o', str(obj), str(src)], check=True)
+            subprocess.run(['ld65', '-C', str(ROOT / 'dev/cc65/apple2_hgr.cfg'),
+                            '-Ln', str(labels), '-o', str(binary), str(obj)], check=True)
+            L = a2test.labels(labels)
+            steps = a2test.bin_steps(binary) + [L.until('init_start'),
+                    L.until('init_done'), f'peek:{base:04x}:2048',
+                    L.until('seed_done'), 'peek:5000:256']
+            for _ in range(256):
+                steps += [L.until('page_done'), L.peek('results', 256), L.until('resume')]
+            steps += [L.until('done')]
+            result = a2test.run(None, steps)
+            squares = [n*n // 4 for n in range(512)]
+            mirrored = [squares[abs(n-255)] for n in range(512)]
+            expected = bytes(v >> shift & 255 for table in (squares, mirrored)
+                             for shift in (0, 8) for v in table)
+            assert result.dumps[0] == expected, ('quarter squares', base)
+            assert result.dumps[1] == bytes(math.isqrt(n*256) for n in range(256))
+            for high in range(256):
+                assert result.dumps[high+2] == bytes(math.isqrt(high*256+low)
+                                                     for low in range(256)), high
+            print(f'Squares ${base:04X}: all 2,048 table bytes and 65,536 roots OK; '
+                  f'mul_init {L["code_end"]-L["mul_init"]} B / '
+                  f'{result.cycles[1]-result.cycles[0]} cycles; '
+                  f'sqrt_init {result.cycles[2]-result.cycles[1]} cycles; '
+                  f'root kernel {L["mul_init"]-L["isqrt16"]} B; '
+                  f'root sweep {result.cycles[-1]-result.cycles[2]} cycles.')
+
+
 def main():
+    check_square_tables()
     check_decimal_includes()
     table = cases(random.Random(1))
     # Keep the extra output arrays in their own fixture: the full math

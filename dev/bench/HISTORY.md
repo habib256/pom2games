@@ -4,6 +4,45 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : tables mathématiques et racine carrée
+
+Mesures NMOS 6502 par `python3 dev/tests/test_math.py`, avec tables à `$0800`
+puis `$4000`. L'initialisation fait progresser la différence des quarts de
+carrés une entrée sur deux, compte en X/Y et copie les deux moitiés du
+miroir dans une seule boucle. La racine détecte 255 par débordement du
+candidat. Les 2 048 octets de tables, 256 graines et 65 536 racines sont
+comparés aux calculs Python pour chacun des deux placements.
+
+| Mesure | Avant | Après |
+|---|---:|---:|
+| `mul_init`, cycles avec JSR/RTS | 48 707 | 37 691 (−22,6 %) |
+| `mul_init`, code | 128 octets | 110 octets |
+| `sqrt_init`, cycles avec JSR/RTS | 25 049 | 24 031 (−4,1 %) |
+| Noyau `isqrt16`, code | 44 octets | 42 octets |
+| Parcours des 65 536 racines, boucle et stockage du test inclus | 5 727 330 cycles | 5 529 438 cycles (−3,5 %) |
+
+RAM et page zéro inchangées. Chaque étape ordinaire de racine gagne deux
+cycles ; le retour de la racine maximale 255 coûte deux cycles de plus.
+Ces mesures dédiées ne modifient pas les références HGR/DHGR.
+
+La réduction de taille a exposé un défaut préexistant de `vapor_sync_in` :
+la retenue du compteur laissait 17 cycles entre deux lectures, ce qui pouvait
+manquer un marqueur vidéo. Une lecture intermédiaire partage cet intervalle
+en 12 puis 15 cycles. Cette correction coûte 18 octets de code, sans RAM
+supplémentaire, et borne l'échec sans marqueur à 65 537 polls. Un nouveau
+test de 4 096 timings d'entrée échoue avec l'ancien code (20 378 cycles
+d'attente) et passe avec la correction (maximum 17 044 pour une période de
+17 030). La corde retrouve 600/600 flips à trois périodes, contre 596/600
+après la seule réduction mathématique. Les gains de taille mathématiques
+restent indépendants ; les clients qui lient aussi ce synchroniseur paient
+les 18 octets de la correction.
+
+Validation : reconstruction `make all`, suite `make test-dev test-snake`
+(budgets inclus), tests Dirtbike et Cutrope et exemples lander, halfpipe,
+rope et catapult. Les disques DSK/WOZ modifiés sont reconstruits.
+
+## Mesures initiales HGR/DHGR
+
 Après découpage des tables, les programmes du benchmark mesurent 299 octets
 de RAM pour un effacement HGR, 1 016 pour le blitter aligné et 1 297 pour le
 texte ou les rectangles, contre 1 575 auparavant. Ces chiffres comprennent

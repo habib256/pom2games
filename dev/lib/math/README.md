@@ -48,7 +48,7 @@ LOWBSS, or the unused HGR page.
 | `math.inc` | zero page | `mul_x` (16), `mul_y` (8), `mul_p0..p2` (24), `mul_t`, 4 pointers; 13 B (+3 with `MUL_ACC`), each replaceable by an alias | — |
 | | `MUL_K16 k` | `mul_p = mul_x × k`, k a constant 0..255, inline | ~60 c |
 | | `MUL_KS16 k` | same with signed `mul_x` | ~70 c |
-| `mul.asm` | `mul_init` | builds the square tables (nothing on disk) | ~110,000 c |
+| `mul.asm` | `mul_init` | builds the square tables (nothing on disk) | ~38,000 c |
 | | `mul_u8u8` | `mul_p0..1 = mul_x(low) × mul_y` | ~45 c |
 | | `mul_u16u8` | `mul_p = mul_x × mul_y`, unsigned | ~85 c |
 | | `mul_s16s8` | same, signed, exact 24 bits (product inline without `mul_u16u8`) | ~115 c |
@@ -90,9 +90,21 @@ LOWBSS, or the unused HGR page.
 ## Tests
 
 `dev/tests/test_math.py` (in `make test-hgr`) assembles each routine,
-runs it in a2run on about 1,900 cases (edges, sign patterns, fixed
+runs it in a2run on about 2,100 cases (edges, sign patterns, fixed
 random) and compares against the Python computation. It is built twice: tables at
 `$0800`, then tables and `sqrt_seed` in HGR page 2.
+It also checks all 2,048 generated quarter-square bytes, all 256 seed bytes,
+and all 65,536 square roots at both table placements in a separate fixture.
+
+`mul_init` advances the quarter-square difference every other entry and keeps
+the 9-bit index in X/Y. A single pass copies both halves of the mirrored
+table. In the exhaustive fixture this takes 37,691 cycles including JSR/RTS,
+down from 48,707, and 110 code bytes instead of 128. The square-root kernel
+uses the candidate's wrap to detect the maximum root: 42 bytes instead of 44.
+Seed construction takes 24,031 instead of 25,049 cycles; the complete root
+sweep, including the fixture's stores and loop, takes 5,529,438 instead of
+5,727,330 cycles. Returning the maximal root 255 costs two extra cycles;
+other candidate steps save two. Table storage and zero page are unchanged.
 
 Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).
 

@@ -7,7 +7,7 @@
 ;                  the rest of the line without it. Clobbers A, X.
 ;   vapor_sync  -- wait until the beam reads that line, the last one shown:
 ;                  C = 0 on return, the beam is on line 191 (VBL follows
-;                  ~60 cycles later). C = 1 after 65536 polls (~0.8 s at
+;                  ~60 cycles later). C = 1 within 65537 polls (~0.8 s at
 ;                  1 MHz) without it: no floating bus (//c, IIgs) or no
 ;                  marker on the screen. (Long enough for a frame of an
 ;                  accelerated machine: ~1310 polls at 1 MHz, ~10000 at 8.)
@@ -57,11 +57,12 @@
 ; horizontal blanking of lines 255 and 261 (in VBL) reads bytes 16-39 of line
 ; 191, that of line 63 its bytes 24-39. Bytes 0-15 are read only on line 191
 ; itself. With bytes 0-23 marked, the first read that sees the marker on line
-; 191 lands on byte 0-12 (a 13-cycle poll) and the second on 9-21, still in
+; 191 lands on byte 0-14 (at most 15 cycles) and the second on 9-23, still in
 ; it; on lines 255 and 261 only bytes 16-23 are marked, and the second read
-; falls past them. One lock a frame, on line 191, within one poll. (The poll
-; must stay at most 13 cycles for that: a 17-cycle one, tried for counting,
-; missed one frame in eight.)
+; falls past them. One lock a frame, on line 191, within one poll. (Ordinary
+; polls take 13 cycles. At a counter rollover a separate sample
+; splits the gap into 12 and 15 cycles, still within the 15 possible first
+; read positions. A 17-cycle gap can miss the marker.)
 ;
 ; The read is TXTCLR ($C050): the program shows HGR, so it is already set.
 ; The scanner shows the displayed page: mark the page on screen (and mark it
@@ -114,6 +115,14 @@ vapor_sync_in:                  ; (vapor_pace, X = Y = 0: the beam may be on it)
         BEQ     @hit
 @next:  DEX
         BNE     @in
+        ; Sample before rolling the high counter. The old DEY/BNE tail
+        ; left a 17-cycle gap once per 256 polls: arriving near the end
+        ; of the marker could then miss its second confirming read.
+        LDA     TXTCLR
+        CMP     #VAPOR_BYTE
+        BEQ     @hit_wrap
+@next_wrap:
+        DEX
         DEY
         BNE     @in
         SEC
@@ -123,8 +132,15 @@ vapor_sync_in:                  ; (vapor_pace, X = Y = 0: the beam may be on it)
         BNE     @next
         CLC
         RTS
+@hit_wrap:
+        LDA     TXTCLR          ; same 9-cycle confirmation as the normal path
+        CMP     #VAPOR_BYTE
+        BNE     @next_wrap
+        DEY                     ; account for the previous low-counter wrap
+        CLC
+        RTS
 .if .referenced(vapor_pace)
-.assert >vapor_sync_in = >(@hit - 1), lderror, "vapor.asm: the poll loop crosses a page (14-cycle polls: vapor_pace's estimate is in 13)"
+.assert >vapor_sync_in = >@hit, lderror, "vapor.asm: the poll loop crosses a page (14-cycle polls: vapor_pace's estimate is in 13)"
 .endif
 .endif
 

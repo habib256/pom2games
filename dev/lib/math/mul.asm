@@ -2,7 +2,7 @@
 ; ============================================================================
 ; mul.asm -- quarter-square products, exact, for fixed-point physics
 ; ============================================================================
-;   mul_init      build the 2 KB of tables (once, at start). ~110 000 cycles.
+;   mul_init      build the 2 KB of tables (once, at start). ~38 000 cycles.
 ;                 MUL_INIT_BOOT = 1 before the include puts it in segment
 ;                 "INIT" (boot code that a buffer overwrites afterwards).
 ;   mul_u8u8      mul_p0..p1 = mul_x (low byte) * mul_y, unsigned. ~45 cycles
@@ -231,10 +231,10 @@ mul_init:
         LDA     #0
         STA     mul_p0                  ; f = sqr1[x]
         STA     mul_p1
-        STA     mul_x                   ; x, 9 bits
-        STA     mul_x+1
-@s1:    LDY     mul_x
-        LDA     mul_x+1
+        STA     mul_t                   ; next difference, incremented on odd x
+        TAX                             ; high byte of x, 9 bits
+        TAY                             ; low byte
+@s1:    TXA
         BNE     @hi
         LDA     mul_p0
         STA     mul_sqr1_lo,Y
@@ -245,42 +245,34 @@ mul_init:
         STA     mul_sqr1_lo+256,Y
         LDA     mul_p1
         STA     mul_sqr1_hi+256,Y
-@step:  CLC                             ; f += (x + 1) >> 1
-        LDA     mul_x
-        ADC     #1
-        STA     mul_t
-        LDA     mul_x+1
-        ADC     #0
-        LSR     A
-        LDA     mul_t
-        ROR     A
-        CLC
-        ADC     mul_p0
+@step:  TYA                             ; f += floor((x + 1) / 2)
+        LSR     A                       ; difference changes only on odd x
+        BCC     @add
+        INC     mul_t                   ; wrap after x=511 is unused
+@add:   CLC
+        LDA     mul_p0
+        ADC     mul_t
         STA     mul_p0
         BCC     @nc
         INC     mul_p1
-@nc:    INC     mul_x
+@nc:    INY
         BNE     @s1
-        INC     mul_x+1
-        LDA     mul_x+1
-        CMP     #2
+        INX
+        CPX     #2
         BNE     @s1
         LDX     #0
-@s2a:   TXA
-        EOR     #$FF
-        TAY
-        LDA     mul_sqr1_lo,Y
+        LDY     #255                    ; mirror first half while copying second
+@s2:    LDA     mul_sqr1_lo,Y
         STA     mul_sqr2_lo,X
         LDA     mul_sqr1_hi,Y
         STA     mul_sqr2_hi,X
-        INX
-        BNE     @s2a
-@s2b:   LDA     mul_sqr1_lo+1,X
+        LDA     mul_sqr1_lo+1,X
         STA     mul_sqr2_lo+256,X
         LDA     mul_sqr1_hi+1,X
         STA     mul_sqr2_hi+256,X
+        DEY
         INX
-        BNE     @s2b
+        BNE     @s2
         LDA     #>mul_sqr1_lo
         STA     mul_s1l+1
         LDA     #>mul_sqr1_hi

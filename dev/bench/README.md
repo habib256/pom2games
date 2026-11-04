@@ -1,5 +1,13 @@
 # Current cc65 measurements
 
+The native math fixtures are measured by `python3 dev/tests/test_math.py`.
+Quarter-square table construction takes **37,691 cycles and 110 code bytes**
+(−22.6 % and −18 bytes); square-root seed construction takes 24,031 cycles.
+The root kernel saves two bytes and two cycles per ordinary candidate step,
+with a two-cycle cost increase when returning 255. All 65,536 roots and
+every generated table byte are checked at two table placements; details are
+in [lib/math](../lib/math/README.md).
+
 The corridor kernel extracted from Light3DBall is measured separately with
 `python3 dev/bench/corridor_projection.py` (`make bench-corridor`). All
 65,536 depth differences and coordinates 0..127 for every admissible factor

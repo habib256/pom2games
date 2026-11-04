@@ -6,7 +6,7 @@ The fixture shows HGR page 1, marks line 191, scatters lone $80 bytes over
 the screen (they must not fake a sync), measures a frame with vapor_count,
 then syncs forever on two alternating labels. Every sync must come exactly
 one frame after the previous one, at the same point of the frame; with the
-marker wiped, vapor_sync must give up (C = 1) after its 65536 polls."""
+marker wiped, vapor_sync must give up (C = 1) within 65537 polls."""
 from pathlib import Path
 import subprocess
 import sys
@@ -64,9 +64,10 @@ count_c: .res 1
 '''
 
 
-def build(work):
-    (work / 'v.s').write_text(SOURCE)
-    subprocess.run(['ca65', '-I', str(ROOT / 'dev/lib/apple2'), '-o', str(work / 'v.o'), str(work / 'v.s')],
+def build(work, source=SOURCE, includes=()):
+    (work / 'v.s').write_text(source)
+    subprocess.run(['ca65', *[v for p in includes for v in ('-I', str(p))],
+                    '-I', str(ROOT / 'dev/lib/apple2'), '-o', str(work / 'v.o'), str(work / 'v.s')],
                    check=True)
     subprocess.run(['ld65', '-C', str(ROOT / 'dev/cc65/apple2_hgr.cfg'), '-Ln', str(work / 'v.lbl'),
                     '-o', str(work / 'v.bin'), str(work / 'v.o')], check=True)
@@ -88,13 +89,57 @@ def check(name, L, run, frame, syncs=8):
     r = run(steps[:2] + wipe + [L.until('fail', 60)])
     print(f'PASS {name}: a sync every {frame} cycles (+-{max(abs(g - frame) for g in gaps)}), '
           f'same point of the frame (spread {max(phases) - min(phases)}), vapor_count {count}; '
-          'no marker: C = 1 within 60 frames (65536 polls)')
+          'no marker: C = 1 within 60 frames (at most 65537 polls)')
     return count
+
+
+def check_entry_phases(work, includes=()):
+    """Vary entry timing so the counter rollover can coincide with the marker."""
+    source = SOURCE.split('loop:')[0] + '''
+        lda #0
+        sta delay
+        sta delay+1
+loop:   jsr vapor_sync
+        ldx delay
+        ldy delay+1
+delay_loop:
+        dex
+        bne delay_loop
+        dey
+        bpl delay_loop
+        ldx #0
+        ldy #0
+s1:     jsr vapor_sync_in
+s2:     bcs fail
+        inc delay
+        bne loop
+        inc delay+1
+        jmp loop
+fail:   jmp fail
+.bss
+delay: .res 2
+count: .res 2
+count_c: .res 1
+.code
+.res $100 - (* - start), $EA    ; poll code at $6100, no branch-page penalties
+.include "vapor.asm"
+'''
+    L, binary = build(work, source, includes)
+    steps = a2test.bin_steps(binary)
+    for _ in range(4096):
+        steps += [L.until('s1', 20), L.until('s2', 3)]
+    result = a2test.run(None, steps)
+    waits = [end-start for start, end in zip(result.cycles[::2], result.cycles[1::2])]
+    missed = [(i, cost) for i, cost in enumerate(waits) if cost > 17030+26]
+    assert not missed, ('marker missed at counter rollover', missed[:12])
+    print(f'PASS a2run varied entry timing: 4,096 waits, maximum {max(waits)} cycles; '
+          'no extra video frame at counter rollover')
 
 
 def main():
     with tempfile.TemporaryDirectory(prefix='vapor-') as tmp:
         work = Path(tmp)
+        check_entry_phases(work)
         L, binary = build(work)
         ntsc = check('a2run II+', L, lambda s: a2test.run(None, a2test.bin_steps(binary) + s), 17030)
         if not a2test.have_a2shot('vapor lock on POM2'):
