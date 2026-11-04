@@ -44,12 +44,18 @@ The cc65 hexadecimal converter uses `gfx_num_hex.s`; `gfx_num_hex.c` is the
 host reference. Both produce uppercase text without leading zeroes and return
 the digit count. `test_gfx_hex.py` checks every 16-bit input, the terminating
 NUL, return length and buffer guards, including page-crossing buffers.
-With cc65 2.18 `-Oirs` on a2run NMOS 6502, the assembly member occupies
-71 bytes instead of 168 bytes of C code and constant data. The exhaustive
-fixture takes 138,079,027 cycles instead of 238,118,920 (42.0% less), including
-the unchanged C loop and buffer initialization. Its linked binary shrinks
-from 964 to 705 bytes as unused compiler helpers also disappear; application
-savings depend on which helpers other code still uses.
+The assembly member now occupies **68 bytes** (71 before this nibble pass,
+168 for the original C code and constant data). A four-digit counter selects
+the upper/lower nibble of each byte directly, switching bytes once instead
+of shifting the full 16-bit value between digits. The ASCII adjustment has
+C=0 on both paths, so no extra CLC is needed. No lookup table, extra scratch,
+RAM, zero page or stack is introduced.
+With cc65 2.18 `-Oirs`, the exhaustive fixture takes **131,796,307 cycles**
+instead of 138,079,027 before this pass (238,118,920 for the original C),
+including the unchanged C loop and buffer initialization. Its linked binary
+shrinks 705 → **702 bytes**. The full sweep has identical cycle counts on
+NMOS 6502 and 65C02 (`--iie`); every value, NUL, return length and buffer
+guard is checked on both.
 
 `gfx_u16_digits` returns five ASCII digits, with leading zeros, for an
 unsigned value from 0 to 65535. Its static buffer is reused on the next

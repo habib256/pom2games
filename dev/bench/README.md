@@ -202,6 +202,15 @@ all color values outside 1..4 fall back to white. The entry test sweeps
 all x/y/color values with a kernel sink; separate pixel oracles cover
 rendering, carriers, clipping, pages and screen holes.
 
+The hexadecimal converter extracts each nibble directly and switches source
+bytes once, reducing its code **71 → 68 bytes**. Direct C calls take
+**308 / 312 / 323 / 334 / 326 cycles** for 0 / 16 / 256 / 4096 / 65535,
+previously 398 / 404 / 417 / 430 / 422 (about **22–23 % less**).
+RAM, zero page and both stack peaks stay unchanged. The exhaustive
+65,536-value fixture checks strings, lengths, NULs and guards on II+/IIe,
+including buffers that cross a page. HGR hexadecimal rendering also
+improves: 65535 falls **8,928 → 8,826 cycles**, with three fewer loaded bytes.
+
 Unsigned HGR number entries share one preparation routine, with separate
 archive members for the two fonts. Their six-byte buffer stays on the
 software stack, reusing the old argument slots after moving x/y to the new

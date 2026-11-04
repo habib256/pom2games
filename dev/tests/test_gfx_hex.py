@@ -10,7 +10,7 @@ import tempfile
 from test_hgr import DEV, run, compile_source, a2test
 
 
-def check(work, implementation):
+def check(work, implementation, iie=False):
     source = work / 'hex.c'
     source.write_text('''#include "gfx.h"
 void begin(void); void end(void);
@@ -44,7 +44,8 @@ int main(void) {
     steps = a2test.bin_steps(binary)
     for _ in range(256):
         steps += [labels.until('_begin'), labels.until('_end'), labels.peek('_records', 256*9)]
-    result = a2test.run(None, steps)
+    disk = a2test.build_disk(work, 'TEST', binary) if iie else None
+    result = a2test.run(disk, steps, iie=iie)
     data = result.data
     assert len(data) == 65536*9
     for value in range(65536):
@@ -55,12 +56,13 @@ int main(void) {
     assert len(result.cycles) == 512
     cycles = sum(result.cycles[i+1]-result.cycles[i]-12 for i in range(0,512,2))
     print(f'Hex: all 65536 inputs, lengths, NULs and guards OK; '
-          f'{binary.stat().st_size} loaded bytes, {cycles} fixture cycles.')
+          f'{binary.stat().st_size} loaded bytes, {cycles} fixture cycles; IIe={iie}.')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--implementation', type=Path, default=DEV/'lib/gfx/gfx_num_hex.s')
+    parser.add_argument('--iie', action='store_true')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='gfx-hex-') as tmp:
-        check(Path(tmp), args.implementation)
+        check(Path(tmp), args.implementation, args.iie)

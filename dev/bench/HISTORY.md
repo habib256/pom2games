@@ -4,6 +4,42 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : extraction directe des chiffres hexadécimaux
+
+`gfx_hexstr` conserve son compteur de quatre chiffres, mais utilise sa
+parité pour extraire le demi-octet supérieur ou inférieur de l'octet courant.
+Après les deux premiers chiffres, un seul transfert sélectionne l'octet
+faible. Les décalages répétés du mot 16 bits disparaissent. L'ajustement
+ASCII laisse la retenue à zéro dans les deux branches, ce qui permet aussi
+de supprimer le CLC avant l'addition de `'0'`.
+
+La routine passe de 71 à **68 octets**, sans table, RAM, page zéro ni pile
+supplémentaire. Les conventions restent identiques : majuscules, aucun
+zéro initial sauf pour zéro lui-même, NUL, longueur dans A et X=0.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Conversion de 0 | 398 → 308 | 658 → 655 |
+| Conversion de 16 | 404 → 312 | 660 → 657 |
+| Conversion de 256 | 417 → 323 | 660 → 657 |
+| Conversion de 4 096 | 430 → 334 | 660 → 657 |
+| Conversion de 65 535 | 422 → 326 | 658 → 655 |
+| Affichage HGR de 0 | 2 871 → 2 781 | 2 419 → 2 416 |
+| Affichage HGR de 65 535 | 8 928 → 8 826 | 2 423 → 2 420 |
+| Affichage HGR clippé | 3 049 → 2 954 | 2 433 → 2 430 |
+
+Le test exhaustif existant reçoit une option IIe. Avant/après, les 65 536
+valeurs passent sur les deux CPU avec vérification de chaque chiffre,
+longueur, NUL et octet de garde, y compris les tampons traversant une page.
+La fixture complète, avec ses boucles C et initialisations inchangées,
+passe de 138 079 027 à **131 796 307 cycles**, identiques sur II+ et IIe.
+Son binaire passe de 705 à 702 octets. Les appels directs gagnent 22–23 %.
+
+Validation : balayages avant/après II+/IIe, intégration HGR et 41 clients
+minimaux d'archive, `make all`, relevé complet et gate. Les 12 nouveaux
+cas s'améliorent ; les 264 mesures précédentes sont identiques. Aucun
+disque livré ne change.
+
 ## Série du 5 novembre 2026 : préparation commune des nombres HGR non signés
 
 `hgr_putu` et `hgr_putu8` ont désormais deux entrées assembleur indépendantes

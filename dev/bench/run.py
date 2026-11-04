@@ -86,6 +86,18 @@ for (i=0; i<4; ++i) hgr_spr_move(i,28u+i*3u+(frame&1u),60u+i*2u);
 hgr_spr_render(); hgr_putu_field(48,0,frame,5); hgr_spr_present(); ++frame;
 '''
 SCENES = {
+ 'gfx_hex_0': dict(call='gfx_hexstr(hexbuf,0u);',declarations='static char hexbuf[5];'),
+ 'gfx_hex_9': dict(call='gfx_hexstr(hexbuf,9u);',declarations='static char hexbuf[5];'),
+ 'gfx_hex_15': dict(call='gfx_hexstr(hexbuf,15u);',declarations='static char hexbuf[5];'),
+ 'gfx_hex_16': dict(call='gfx_hexstr(hexbuf,16u);',declarations='static char hexbuf[5];'),
+ 'gfx_hex_255': dict(call='gfx_hexstr(hexbuf,255u);',declarations='static char hexbuf[5];'),
+ 'gfx_hex_256': dict(call='gfx_hexstr(hexbuf,256u);',declarations='static char hexbuf[5];'),
+ 'gfx_hex_4095': dict(call='gfx_hexstr(hexbuf,4095u);',declarations='static char hexbuf[5];'),
+ 'gfx_hex_4096': dict(call='gfx_hexstr(hexbuf,4096u);',declarations='static char hexbuf[5];'),
+ 'gfx_hex_65535': dict(call='gfx_hexstr(hexbuf,65535u);',declarations='static char hexbuf[5];'),
+ 'hgr_hex_zero': dict(call='hgr_putx(0,0,0);'),
+ 'hgr_hex_maximum': dict(call='hgr_putx(0,0,65535u);'),
+ 'hgr_hex_clip': dict(call='hgr_putx(264,176,65535u);'),
  'hgr_putu_zero': dict(call='hgr_putu(0,0,0);'),
  'hgr_putu_nine': dict(call='hgr_putu(0,0,9);'),
  'hgr_putu_ten': dict(call='hgr_putu(0,0,10);'),
