@@ -3,13 +3,20 @@
 ; Seven-byte local buffer, including sign and NUL. Relocate the coordinates
 ; to the new top so the text call consumes them without a second copy.
 .export _hgr_puti
-.import decsp7, incsp7, _hgr_utoa, _hgr_puts
+.import addysp, _hgr_utoa, _hgr_puts
 .importzp sp, _hgr_u_lo, _hgr_u_hi, _hgr_u_ptr, _hgr_t_s
 .code
 _hgr_puti:
         sta _hgr_u_lo
         stx _hgr_u_hi
-        jsr decsp7
+        ; Value bytes are saved; A need not survive the reservation.
+        lda sp
+        sec
+        sbc #7
+        sta sp
+        bcs allocated
+        dec sp+1
+allocated:
         .repeat 3, I
         ldy #7+I
         lda (sp),y
@@ -47,4 +54,5 @@ convert:
         lda _hgr_t_s
         ldx _hgr_t_s+1
         jsr _hgr_puts
-        jmp incsp7              ; text already consumed the three coordinates
+        ldy #7                  ; text already consumed the three coordinates
+        jmp addysp

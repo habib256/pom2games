@@ -5,13 +5,20 @@
 ; Output: A/X=buffer, C stack=y,xlo,xhi,buffer[6]. The text call consumes
 ; three bytes; the public number entry subsequently releases the buffer.
 .export hgr_num_prepare
-.import decsp6, _hgr_utoa
+.import _hgr_utoa
 .importzp sp, _hgr_u_lo, _hgr_u_hi, _hgr_u_ptr
 .code
 hgr_num_prepare:
         sta _hgr_u_lo
         stx _hgr_u_hi
-        jsr decsp6
+        ; Value bytes are saved; A need not survive the reservation.
+        lda sp
+        sec
+        sbc #6
+        sta sp
+        bcs allocated
+        dec sp+1
+allocated:
         .repeat 3, I
         ldy #6+I
         lda (sp),y

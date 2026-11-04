@@ -180,9 +180,9 @@ separate archive entries for the two fonts. Six bytes are reserved on the
 C stack; the three coordinate bytes move to its new top, freeing their old
 slots for the buffer. The text call consumes the coordinates, then the
 number entry releases the six-byte buffer. No static buffer or extra RAM
-is introduced. Isolated clients save **33 loaded bytes**, C-stack peak
+is introduced. Isolated clients save **41 loaded bytes**, C-stack peak
 **14 → 9**, with unchanged hardware-stack peaks. Printing 65535 takes
-**11,350 / 6,242 cycles** in doubled/native-size text (11,429 / 6,318 before).
+**11,319 / 6,226 cycles** in doubled/native-size text (11,429 / 6,318 before).
 `test_hgr_unsigned_entry.py` checks all 65,536 values per font, every x/y
 argument bit, caller guards, all 256 stack alignments per entry and real
 rendering at decimal boundaries, phases and edges on both CPU models.
@@ -191,12 +191,18 @@ rendering at decimal boundaries, phases and edges on both CPU models.
 once, like the unsigned entries. The existing text-source pointer retains
 the buffer start while the conversion pointer advances past a negative sign.
 Unsigned two's-complement negation handles −32768. Its isolated client saves
-**66 loaded bytes**, C-stack peak **15 → 10**, with unchanged RAM, zero page
-and hardware-stack peaks. Printing −32768 takes **12,348 cycles** (12,469
-before), zero **2,635** (2,728), and −1 **3,448** (3,583). The exhaustive entry
+**74 loaded bytes**, C-stack peak **15 → 10**, with unchanged RAM, zero page
+and hardware-stack peaks. Printing −32768 takes **12,325 cycles** (12,469
+before), zero **2,622** (2,728), and −1 **3,432** (3,583). The exhaustive entry
 test checks all 65,536 signed strings and 1,024 stack alignments, including
 both pointer page crossings, on II+/IIe. The pixel test checks 272 scenes
 per CPU: signs, zero, decimal boundaries, clipped strings and both pages.
+
+Decimal entries reserve their local frame directly after saving the value
+and release it through `addysp`. This follow-up saves another eight bytes
+per isolated client and 11–31 cycles on measured warm calls, without
+changing stack peaks. The doubled-font unsigned cold call rises from
+26,664 to 26,697 cycles (+0.12%); its existing cycle reference is retained.
 
 `hgr_putx` also uses a native local frame. It reserves the converter's
 pointer argument, coordinates and five-byte buffer together; the converter

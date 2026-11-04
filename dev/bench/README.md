@@ -221,20 +221,26 @@ of 2,954**. Rejected calls fall **716 → 582**; cold calls **24,147 → 24,013*
 Unsigned HGR number entries share one preparation routine, with separate
 archive members for the two fonts. Their six-byte buffer stays on the
 software stack, reusing the old argument slots after moving x/y to the new
-top. Isolated clients save **33 loaded bytes**, C-stack peak **14 → 9**,
+top. Isolated clients save **41 loaded bytes**, C-stack peak **14 → 9**,
 with unchanged RAM, zero page and hardware-stack peaks. Doubled/native-size
-65535 calls take **11,350 / 6,242 cycles** (previously 11,429 / 6,318), zero
-**2,635 / 1,437** (2,715 / 1,522), and rejected origins **1,262 / 1,249**
+65535 calls take **11,319 / 6,226 cycles** (previously 11,429 / 6,318), zero
+**2,621 / 1,423** (2,715 / 1,522), and rejected origins **1,248 / 1,235**
 (1,340 / 1,327). The conversion and rendering kernels are unchanged.
 
 Signed HGR numbers use a native seven-byte local buffer, relocating the
 coordinates to its front and preserving the buffer start in the existing
 text-source pointer. Only the conversion pointer advances past a minus sign;
-unsigned negation includes −32768. This saves **66 loaded bytes**, C-stack
+unsigned negation includes −32768. This saves **74 loaded bytes**, C-stack
 peak **15 → 10**, with unchanged RAM, zero page and hardware-stack peaks.
-Printing −32768/−12345/32767 takes **12,348 / 11,873 / 11,381 cycles**
-(12,469 / 11,987 / 11,445 before); zero falls **2,728 → 2,635**, −1
-**3,583 → 3,448**, and a rejected origin **1,408 → 1,264**.
+Printing −32768/−12345/32767 takes **12,325 / 11,844 / 11,358 cycles**
+(12,469 / 11,987 / 11,445 before); zero falls **2,728 → 2,622**, −1
+**3,583 → 3,432**, and a rejected origin **1,408 → 1,250**.
+
+Decimal entries reserve their local frame directly after saving the value
+and release it through `addysp`. This follow-up saves another eight bytes
+per isolated client and 11–31 cycles on measured warm calls, without
+changing stack peaks. The doubled-font unsigned cold call rises from
+26,664 to 26,697 cycles (+0.12%); its existing cycle reference is retained.
 
 The native unsigned-field entry reuses the consumed value slots for width
 and digit count, keeps a six-byte local buffer and prepares erase/text

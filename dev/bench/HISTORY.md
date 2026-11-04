@@ -4,6 +4,33 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : réservation directe des tampons décimaux
+
+Les entrées signées et non signées sauvegardent déjà la valeur avant de
+réserver leur tampon. La soustraction directe de six ou sept octets évite
+la sauvegarde inutile des registres par `decsp6/7`. Le retour passe par
+`addysp` avec la taille dans Y, sans tirer les enveloppes `incsp6/7`.
+
+Chaque client isolé perd huit octets supplémentaires ; les appels chauds
+mesurés gagnent 11 à 31 cycles, sans changement de RAM ni de pics de pile.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| 65535, grande police | 11 350 → 11 319 | 2 394 → 2 386 |
+| 65535, petite police | 6 242 → 6 226 | 1 927 → 1 919 |
+| −32768 | 12 348 → 12 325 | 2 421 → 2 413 |
+| −12345 | 11 873 → 11 844 | 2 425 → 2 417 |
+| Premier appel non signé, grande police | 26 664 → 26 697 | 2 373 → 2 365 |
+
+Le dernier cas coûte 33 cycles de plus (+0,12 %) dans ce placement ; sa
+référence de cycles reste inchangée. Les 24 autres cas concernés sont
+plus rapides, les 289 autres cas du banc restent identiques.
+
+Validation : toutes les valeurs signées/non signées, 512 positions de
+pile non signées et 1 024 signées, rendu réel sur II+/IIe, intégration HGR,
+46 clients minimaux, `make all`, relevé complet et gate. Les disques livrés
+restent identiques.
+
 ## Série du 5 novembre 2026 : entrée native des champs numériques HGR
 
 `hgr_num_field.s` remplace la préparation C du champ effacé puis aligné
