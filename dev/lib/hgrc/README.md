@@ -136,19 +136,31 @@ test also covers all 256 source row patterns and the screen edges.
 The pixel-rectangle kernel shares edge-mask setup for single-byte and
 multi-byte rectangles, omits redundant seven-bit masks, and skips interior
 counter setup for a single byte. It saves 42 code bytes without changing
-RAM, zero page or stack peaks. The 140×16 fill remains at 5,213 cycles;
-`hgr_cell(1,4,1)` takes 754 instead of 761. `test_hgr_rects.py` checks 752
+RAM, zero page or stack peaks. With the native C-ABI wrappers, the
+140×16 fill takes 4,845 cycles and `hgr_cell(1,4,1)` takes 708. `test_hgr_rects.py` checks 752
 C/native fills and clears per CPU model: every edge phase, widths of
 1..40 bytes, clipping, both pages, palette clearing and untouched holes.
 
 Byte rectangles (`hgr_fill_rect`) traverse rows backwards with Y as the
 offset and pair counter. An odd width enters at the second store; pairs
 take 19 instead of 21 cycles. The kernel saves seven code bytes without
-changing RAM, zero page or stack peaks. A 40×16-byte fill takes 7,186
-instead of 7,824 cycles, and 39×16 takes 7,074 instead of 7,568.
+changing RAM, zero page or stack peaks. With the native wrapper, a 40×16-byte fill takes 7,097 cycles,
+and 39×16 takes 6,985.
 `test_hgr_byte_rects.py` checks 2,204 fills per CPU model: all 820 valid
 column/width pairs, all 256 fill bytes, clipped/empty rectangles, both
 pages, palette bits and untouched screen holes.
+
+The public rectangle/cell wrappers now use native argument loading and
+clipping in `hgr_rect.s`, `hgr_pixrect.s` and `hgr_cell.s`. Their isolated
+clients save 78, 226 and 25 loaded bytes respectively. A one-byte fill
+improves from 406 to 309 cycles; a clipped pixel rectangle from 1,041 to
+665. C-stack peaks fall from 5/13/3 to 4/4/2 bytes, and the pixel wrapper's
+hardware peak from 9 to 6. Other RAM and zero page are unchanged. Arguments
+remain on the software stack through the kernel, then a tail cleanup
+avoids an extra hardware-stack byte. `test_hgr_rect_cold.py` verifies valid,
+empty and invalid first calls on both pages and CPUs, including all lazy
+tables and screen holes. Empty/invalid calls still initialize the same
+table families as before.
 
 The packed MSB-first bitmap path (`hgr_blit`) ends each row before preparing
 another source bit and shares the SET/CLEAR/XOR destination store. A
@@ -261,7 +273,7 @@ excluding routines that were previously linked for nothing.
 macOS. Its 21 steps compare both video pages with a Python model:
 256/280-pixel rectangles, limits, pixels, SET/CLEAR/XOR sprites and seven
 phases, white/coloured text, numbers, cells, colourising. Four additional scenes check `gfx` cell text on
-page 2, the cursor and the numeric conversions. Thirty-one minimal
+page 2, the cursor and the numeric conversions. Thirty-four minimal
 programs also check that the archive excludes unused kernels and zero-page
 blocks. This test is part of `make test` and of CI.
 

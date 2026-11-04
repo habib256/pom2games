@@ -4,6 +4,50 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : wrappers natifs de rectangles HGR
+
+Les entrées C des rectangles en octets, rectangles en pixels et cellules
+préparent maintenant directement les blocs de paramètres existants.
+Le clipping compare les dimensions à la place disponible, sans calcul
+16 bits pour les axes bornés sur un octet. Le rectangle en pixels conserve
+un bord droit sur 16 bits, borné à 279. Les tables sont toujours construites
+avant le rejet d'un appel vide/hors écran, comme auparavant.
+
+| Appel chaud | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Rectangle en octets 40×16 | 7 178 → 7 097 | 879 → 801 |
+| Un octet | 406 → 309 | 877 → 799 |
+| Rectangle en octets clippé | 514 → 375 | 879 → 801 |
+| Rectangle en octets vide | 171 → 172 | 871 → 793 |
+| Rectangle en pixels 140×16 | 5 219 → 4 845 | 1 368 → 1 142 |
+| Rectangle dans un seul octet | 1 692 → 1 319 | 1 366 → 1 140 |
+| Rectangle en pixels clippé | 1 041 → 665 | 1 364 → 1 138 |
+| Rectangle en pixels vide | 403 → 191 | 1 356 → 1 130 |
+| Cellule 6×6 | 748 → 708 | 1 100 → 1 075 |
+| Cellule hors écran | 238 → 192 | 1 102 → 1 077 |
+
+Cycles NMOS, arguments/appels C compris ; tailles des clients isolés en
+octets, runtime compris. RAM et page zéro allouées inchangées. Les pics
+de pile C passent de 5/13/3 à 4/4/2 octets (octets/pixels/cellules), et
+le pic matériel du rectangle en pixels de 9 à 6 ; les autres restent à 6.
+Le nettoyage des arguments après le noyau évite un octet de pile matérielle
+supplémentaire. L'appel vide en octets coûte un cycle de plus ; aucun
+cas du relevé complet ne régresse de plus de 1 %.
+
+Le nouveau test à froid vérifie les arguments après construction des tables,
+les coordonnées non nulles et à 9/16 bits, les appels valides/vides/refusés,
+les deux pages et leurs trous mémoire sur II+ et IIe. Les tests existants
+comparent 2 204 rectangles en octets, 752 rectangles en pixels et toutes
+les cellules à leurs modèles. Les 34 clients minimaux contrôlent aussi la
+séparation des trois wrappers et de leurs noyaux. 28 références de mesure
+nouvelles/modifiées sont enregistrées ; les 172 autres sont conservées.
+
+Validation : `make all`, `make test-hgr`, rectangles en octets/pixels
+également sur IIe, test à froid sur les deux cibles, 34 contrôles d'archive,
+gate complet `--dhgr --check`, `make test-hgr-example test-frame
+test-light3dball test-snake test-woz`. LIGHT3DBALL.dsk, SNAKE.dsk et leurs
+WOZ sont reconstruits.
+
 ## Série du 5 novembre 2026 : sélection de page et état LORES séparé
 
 Le gestionnaire C devient `hgr_set_draw_page.s` : normalisation de

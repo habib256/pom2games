@@ -39,6 +39,14 @@ Their C-stack peaks fall to 3/3/4 bytes, with unchanged RAM and zero page.
 The pixel-address helper is a separate archive member, omitted by these
 native clients. Empty/clipped spans and rectangles have their own cases.
 
+Native C-ABI wrappers for byte/pixel rectangles and cells save **78/226/25
+loaded bytes** in isolated clients, with no extra RAM or zero page. A
+one-byte fill takes **309 cycles** instead of 406; a pixel rectangle clipped
+at the lower right takes **665** instead of 1,041. The 140×16 pixel fill
+now takes **4,845 cycles** and `hgr_cell(1,4,1)` takes **708**. The pixel
+wrapper reduces its C-stack peak from 13 to 4 bytes and hardware peak from
+9 to 6. Cold valid/empty/invalid cases preserve lazy table initialization.
+
 The native math fixtures are measured by `python3 dev/tests/test_math.py`.
 Quarter-square table construction takes **37,691 cycles and 110 code bytes**
 (−22.6 % and −18 bytes); square-root seed construction takes 24,031 cycles.
@@ -173,8 +181,8 @@ The pixel-rectangle kernel shares its single-byte and multi-byte edge-mask
 setup, removes redundant mask operations and skips the interior counters
 for single-byte rectangles. This saves **42 code bytes** in every client
 that links it, with unchanged RAM, zero page and measured stack peaks.
-The 140×16 fill remains at 5,213 cycles; the horizontal line takes 983
-(previously 993), and a 6×6 cell takes 754 (previously 761). The single-byte
+With the native wrappers, the 140×16 fill takes 4,845 cycles, and a 6×6
+cell takes 708. The single-byte
 clear changes from 1,691 to 1,693 cycles. The HGR diagonal client also loses
 42 bytes but measures 21,319 cycles instead of 21,171 (+0.7 %); the GFX
 diagonal takes 21,323 instead of 21,407. See the measured tradeoffs in
@@ -194,7 +202,7 @@ Byte rectangles traverse each row backwards, using Y as both the offset
 and loop counter. Pairs take 19 instead of 21 cycles and an odd width
 enters at the second store. The kernel saves **7 code bytes**, with
 unchanged RAM, zero page and stack peaks. A 40×16-byte fill takes
-**7,186 cycles** instead of 7,824 (−8.2 %); a 39×16 fill takes 7,074
+**7,097 cycles** instead of 7,824; a 39×16 fill takes 6,985
 instead of 7,568 (−6.5 %). The single-byte and clipped cases take 406/514
 cycles. The new cases include fill values with the palette bit set.
 
