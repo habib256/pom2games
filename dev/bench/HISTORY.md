@@ -4,6 +4,48 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : entrée native du texte HGR 8×8
+
+`hgr_text8.s` remplace la préparation C des chaînes. Le pointeur passé dans
+A/X est conservé dans les paramètres de texte pendant les constructions
+paresseuses. Après validation de x≤273 et y≤184, le nombre de cellules
+se calcule par `(281−x)>>3`, égal à `((273−x)>>3)+1`. Le poids fort de la
+différence ne contient qu'un bit : une rotation et deux décalages du poids
+faible suffisent après transfert de ce bit dans la retenue.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| APPLE II, phase 0 | 7 886 → 7 751 | 1 862 → 1 788 |
+| APPLE II, phase 3 | 8 672 → 8 498 | 1 866 → 1 792 |
+| APPLE II, phase 6 | 8 563 → 8 389 | 1 866 → 1 792 |
+| Un caractère au bord | 1 246 → 1 090 | 1 865 → 1 791 |
+| Chaîne clippée | 4 291 → 4 127 | 1 870 → 1 796 |
+| Même chaîne à froid | 19 637 → 19 497 | 1 843 → 1 769 |
+| Chaîne vide | 461 → 287 | 1 864 → 1 790 |
+| Abscisse 65 535 | 247 → 195 | 1 861 → 1 787 |
+| Ordonnée 185 | 225 → 181 | 1 865 → 1 791 |
+
+Économie de 74 octets chargés dans les clients isolés, pile C 5 → 3,
+pile matérielle des appels vides/rejetés 7 → 6. RAM et page zéro inchangées.
+Le HUD combiné économise 43 octets, certains auxiliaires C restant partagés.
+Les noyaux de glyphes, le traitement des caractères et l'avance de chaîne
+restent inchangés. Les tables sont construites même en cas de rejet.
+
+Le nouveau test intercepte l'entrée du noyau avec un récepteur assembleur :
+les 65 536 abscisses, 256 ordonnées et 30 premiers appels vérifient le
+nombre de cellules, colonne/phase, ordonnée, chaîne, fonte et tables.
+Il passe avant/après, sur II+/IIe et avec les tables normales/regroupées.
+Les tests graphiques réels comparent 1 344 glyphes, les 256 motifs de ligne,
+les bords et les deux pages sur II+ et IIe. L'intégration couvre aussi les
+chaînes et nombres dont le tampon est sur la pile C.
+
+Validation : tests d'entrée sur quatre configurations, glyphes II+/IIe,
+intégration HGR et 38 clients minimaux, `make all`, tests HGR/LIGHT3DBALL,
+cohérence des WOZ, relevé complet de 242 cas HGR/DHGR et gate. Treize
+références sont nouvelles/actualisées, toutes en amélioration ; les 229
+autres cas sont identiques. HGR.dsk, LIGHT3DBALL.dsk et leurs WOZ sont
+reconstruits.
+
 ## Série du 5 novembre 2026 : produit hauteur × pas source borné à huit étapes
 
 Le produit hauteur × pas source compte le plus petit facteur. Pour un

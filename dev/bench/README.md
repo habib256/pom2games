@@ -78,7 +78,7 @@ folded builder now takes **74 bytes / 10,327–10,350 cycles**, down from
 77 / 15,084, by removing per-pixel calls and copying the 24-byte tail.
 It saves 56 code bytes and cold initialization time when all three tables
 are needed, while still reserving all 841 B of table state. The cold folded
-HUD/scene calls take **47,085 / 27,734 cycles** (previously 51,853 / 32,491).
+HUD/scene calls take **46,898 / 27,734 cycles** (previously 51,853 / 32,491).
 The two-table diagonal still uses less RAM and initializes faster with
 independent builders. All 256 alignments are verified.
 
@@ -214,13 +214,20 @@ of 14,078 cycles; an overflowing one-cell field takes 14,384 instead of
 14,695, and a right-clipped field takes 4,239 instead of 4,544. The legacy
 warm HUD takes 30,539 instead of 31,213 cycles.
 
-Native-size 8×8 `"APPLE II"` takes **7,886/8,672/8,563 cycles** at phases
-0/3/6 (−6.1..6.7 %), with **11 fewer code bytes** and unchanged RAM, zero
-page and stack peaks. X counts glyph rows and the upper shifted byte no
-longer needs a mask. The shared `glyph_addr` helper contributes 3 of the
-saved bytes: splitting the offset into high/low parts takes 54 cycles
-instead of 61, including JSR/RTS, while preserving X/Y. Doubled-text and
-HUD clients that link this helper also save those 3 bytes.
+Native-size 8×8 `"APPLE II"` now takes **7,751 / 8,498 / 8,389 cycles** at
+phases 0/3/6, previously 7,886 / 8,672 / 8,563. Its native argument entry
+saves **74 loaded bytes** in isolated clients and reduces the C-stack peak
+from **5 to 3 bytes**. The fitting count is `(281-x)>>3` after rejecting
+x>273 or y>184. Empty calls take **287 instead of 461 cycles**, and a final
+screen-edge glyph takes **1,090 instead of 1,246**. RAM and zero page stay
+unchanged; empty/rejected hardware-stack peaks fall 7 → 6.
+
+The earlier glyph-kernel pass saved 11 code bytes by counting rows in X
+and removing an unnecessary upper-byte mask. The shared `glyph_addr`
+helper contributes three of those bytes: splitting the offset into
+high/low parts takes 54 cycles instead of 61, including JSR/RTS, while
+preserving X/Y. The glyph kernel and this helper are unchanged by the
+native-entry conversion.
 
 The pixel-rectangle kernel shares its single-byte and multi-byte edge-mask
 setup, removes redundant mask operations and skips the interior counters

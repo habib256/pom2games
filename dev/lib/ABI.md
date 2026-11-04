@@ -199,7 +199,7 @@ Options of this kind (measurements: hgrc bench, or the commit that introduced th
 
 | Option | Module | Effect of the option (against the default) | Programs |
 |---|---|---|---|
-| `HGRC_X7_FOLDED` | hgrc `hgr_columns.s` | One 74 B builder instead of 130 B for three; always reserves all three tables (841 B BSS, −2 B if all are used). Compared with the default grouped builders, current cold HUD/scene calls save 56 code bytes and 2,839/2,641 cycles. A two-table diagonal saves 14 code bytes but costs +279 B BSS and +1,653 cold cycles. | none (bench `*_x7folded`) |
+| `HGRC_X7_FOLDED` | hgrc `hgr_columns.s` | One 74 B builder instead of 130 B for three; always reserves all three tables (841 B BSS, −2 B if all are used). Compared with the default grouped builders, current cold HUD/scene calls save 56 code bytes and 2,914/2,641 cycles. A two-table diagonal saves 14 code bytes but costs +279 B BSS and +1,653 cold cycles. | none (bench `*_x7folded`) |
 | `HGR_PAGES_ORA` | `hgr_pages.inc/.asm` | No `hgr_hi2` (−192 B BSS); +2 cycles per line read, ~4 per site on page selection | light3dball (dirtbike: default) |
 | `HGR_LINE_DIV7` / `HGR_LINE_MOD7` | `hgr_line.asm` | Two reads from the program's 256 B tables instead of two 32 B tables and a correction; use it when the program already has these tables | dirtbike |
 | `HGR_FULL_WIDTH_TABLES` | `hgr_plot_tables.inc` | Columns 0..279 instead of 0..255: +48 B of tables; required by `hgr_plot16`/`hgr_line16` | logo |

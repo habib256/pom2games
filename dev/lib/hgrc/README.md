@@ -81,7 +81,7 @@ RAM by leaving the option off. See the [option table](../ABI.md#speedram-options
 Costs measured by `make bench` (cycles at 1.02 MHz): clearing a page
 46 000 (self-modifying loop from `HGR_CLEAR_LOOP`, lib/apple2), page flip
 via `hgr_flip_rows` (unrolled loop, one EOR per line), 8x8 text
-`hgr_puts8` 7 886 for "APPLE II" (glyph shifted across two bytes per
+`hgr_puts8` 7 751 for "APPLE II" (glyph shifted across two bytes per
 line), 16x16 text `hgr_puts` through the colour blitter with the white
 carriers `$7F/$7F` (a single blitter, ~5 times faster than the old
 pixel-by-pixel drawing). The C wrappers read `hgr_col7` / `hgr_phase7` /
@@ -181,6 +181,23 @@ peak, with unchanged RAM and zero page. The padded/overflow/clipped cases
 improve by 2.1..6.7 %. The field test checks 1,144 scenes per CPU, covering
 every width 1..14, zero/clamped widths, decimal boundaries, overflow,
 alignment beyond the right edge, invalid origins, both pages and palette.
+
+`hgr_text8.s` prepares the 8×8 string entry directly from the cc65
+arguments. The exact fitting count is `(281-x)>>3` for validated x≤273;
+only one high difference bit needs to join the low-byte shifts. The string
+pointer survives all lazy builders in the existing text state. Isolated
+clients save 74 loaded bytes and their C-stack peak falls from 5 to 3.
+Empty/rejected calls also reduce the hardware peak from 7 to 6; RAM and
+zero page stay unchanged. `"APPLE II"` now takes 7,751 / 8,498 / 8,389 cycles
+at phases 0/3/6. An empty string takes 287 instead of 461, and a final
+screen-edge glyph takes 1,090 instead of 1,246. All row/column/phase tables
+are still initialized before coordinate rejection.
+
+`test_hgr_text8_entry.py` uses an assembly sink to inspect the actual
+kernel arguments for all 65,536 x values and 256 y values, plus 30 cold
+calls. It checks clipping, fitting counts, string/font pointers and lazy
+tables with normal/folded builders on II+ and IIe. The real glyph tests
+and integration tests separately verify the rendered pixels and palette.
 
 The 8×8 kernel uses X for the glyph row and omits a redundant upper-byte
 mask: an eight-bit row shifted by at most six fits in fourteen bits.

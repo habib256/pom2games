@@ -158,6 +158,8 @@ test-hgr:
 	$(PYTHON) dev/tests/test_hgr_blit7.py
 	$(PYTHON) dev/tests/test_hgr_blit7.py --folded
 	$(PYTHON) dev/tests/test_hgr_glyphs.py
+	$(PYTHON) dev/tests/test_hgr_text8_entry.py
+	$(PYTHON) dev/tests/test_hgr_text8_entry.py --folded
 	$(PYTHON) dev/tests/test_hgr_glyph_addr.py
 	$(PYTHON) dev/tests/test_hgr_text16.py
 	$(PYTHON) dev/tests/test_hgr_text_cells.py
