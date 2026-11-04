@@ -4,6 +4,54 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : entrée native des champs numériques HGR
+
+`hgr_num_field.s` remplace la préparation C du champ effacé puis aligné
+à droite. La largeur et la longueur remplacent les deux octets de valeur
+consommée, au-dessus du tampon local de six octets. Elles survivent ainsi
+aux registres de travail écrasés par l'effacement. La conversion appelle
+le noyau décimal directement ; le pointeur du tampon reste dans ses
+paramètres pendant l'effacement. Les arguments de chaque appel graphique
+sont préparés sur la pile C, puis les cinq arguments initiaux et le tampon
+sont libérés ensemble. Aucun tampon global ou octet de RAM supplémentaire.
+
+Les origines invalides et largeurs nulles sont rejetées avant allocation.
+Le bornage à 14 cellules, la largeur effacée `18*width-2`, l'alignement
+16 bits et le débordement historique d'un nombre trop long sont conservés.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Champ de 14 cellules, 42 | 13 022 → 12 654 | 3 106 → 2 949 |
+| Débordement d'une cellule | 13 660 → 13 439 | 3 100 → 2 943 |
+| Champ clippé | 3 639 → 3 276 | 3 114 → 2 957 |
+| Zéro | 4 998 → 4 721 | 3 094 → 2 937 |
+| Largeur 255, bornée à 14 | 19 574 → 19 201 | 3 098 → 2 941 |
+| Dernier pixel, dernière ligne | 2 307 → 1 920 | 3 110 → 2 953 |
+| Largeur nulle | 183 → 125 | 3 102 → 2 945 |
+| Abscisse rejetée | 210 → 146 | 3 106 → 2 949 |
+| Ordonnée rejetée | 220 → 169 | 3 102 → 2 945 |
+| Premier champ | 29 022 → 28 584 | 3 074 → 2 917 |
+| HUD chaud | 29 029 → 28 372 | 3 458 → 3 314 |
+
+Économie de 157 octets dans les clients isolés, 144 dans les HUD combinés,
+79 dans les scènes combinées. Pile C 17 → 15 (rejets 13 → 5), sans changement
+de RAM/page zéro. Les cas clippés mesurés passent de 10 à 8 octets matériels,
+les rejets de 6 à 5 ; les autres pics matériels restent identiques.
+
+Le nouveau test compare 131 584 appels : toutes les valeurs et abscisses,
+les 256 largeurs et ordonnées, chaîne/NUL, rectangle effacé puis texte et
+alignement sans retour sur l'écran après débordement. Le récepteur d'effacement
+écrase ptr1..ptr4 et tmp1..tmp4 pour vérifier la durée de vie des métadonnées.
+512 positions de pile contrôlent les réservations/retours et les gardes,
+pour un champ valide et un rejet. La fixture complète passe sur le C de
+référence puis sur l'assembleur II+/IIe. L'oracle de 1 144 scènes passe
+sur II+/IIe avec les tables normales/regroupées.
+
+Validation : tests d'entrée/rendu, intégration HGR, 46 clients minimaux
+d'archive, `make all`, SNAKE (cadence et sauvegarde incluses), WOZ, relevé
+complet et gate. Les 16 cas concernés s'améliorent, 298 restent identiques ;
+sept cas sont nouveaux. SNAKE.dsk et son WOZ sont reconstruits.
+
 ## Série du 5 novembre 2026 : préparation native de l'affichage hexadécimal HGR
 
 `hgr_num_hex.s` remplace l'enveloppe C de `hgr_putx`. Une seule réservation

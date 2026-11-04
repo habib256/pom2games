@@ -165,6 +165,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_hgr_unsigned_entry.py
 	$(PYTHON) dev/tests/test_hgr_signed_entry.py
 	$(PYTHON) dev/tests/test_hgr_hex_entry.py
+	$(PYTHON) dev/tests/test_hgr_field_entry.py
 	$(PYTHON) dev/tests/test_hgr_line_entry.py
 	$(PYTHON) dev/tests/test_hgr_line_entry.py --folded
 	$(PYTHON) dev/tests/test_hgr_axis_entry.py
@@ -175,6 +176,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_hgr_text_cells.py
 	$(PYTHON) dev/tests/test_hgr_signed.py
 	$(PYTHON) dev/tests/test_hgr_number_fields.py
+	$(PYTHON) dev/tests/test_hgr_number_fields.py --folded
 	$(PYTHON) dev/tests/test_sprengine.py
 	$(PYTHON) dev/tests/test_sprengine_stress.py
 	$(PYTHON) dev/tests/test_sprengine_dirty.py
@@ -208,6 +210,8 @@ test-dhgr:
 	$(PYTHON) dev/tests/test_hgr_text_cells.py --iie
 	$(PYTHON) dev/tests/test_hgr_signed.py --iie
 	$(PYTHON) dev/tests/test_hgr_number_fields.py --iie
+	$(PYTHON) dev/tests/test_hgr_number_fields.py --folded --iie
+	$(PYTHON) dev/tests/test_hgr_field_entry.py --iie
 	$(PYTHON) dev/tests/test_hgr_glyphs.py --iie
 	$(PYTHON) dev/tests/test_hgr_glyph_addr.py --iie
 	$(PYTHON) dev/tests/test_hgr_rects.py --iie

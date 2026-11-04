@@ -86,6 +86,13 @@ for (i=0; i<4; ++i) hgr_spr_move(i,28u+i*3u+(frame&1u),60u+i*2u);
 hgr_spr_render(); hgr_putu_field(48,0,frame,5); hgr_spr_present(); ++frame;
 '''
 SCENES = {
+ 'hgr_field_zero': dict(call='hgr_putu_field(0,0,0,1);'),
+ 'hgr_field_wide': dict(call='hgr_putu_field(0,0,65535u,255);'),
+ 'hgr_field_right': dict(call='hgr_putu_field(279,191,65535u,14);'),
+ 'hgr_field_empty': dict(call='hgr_putu_field(0,0,65535u,0);'),
+ 'hgr_field_outside': dict(call='hgr_putu_field(65535u,0,65535u,14);'),
+ 'hgr_field_below': dict(call='hgr_putu_field(0,255,65535u,14);'),
+ 'hgr_field_cold': dict(call='hgr_putu_field(0,0,42,5);',warmup=False),
  'hgr_hex_one_digit': dict(call='hgr_putx(0,0,15);'),
  'hgr_hex_two_digits': dict(call='hgr_putx(0,0,255);'),
  'hgr_hex_three_digits': dict(call='hgr_putx(0,0,4095);'),

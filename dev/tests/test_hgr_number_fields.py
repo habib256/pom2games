@@ -3,12 +3,13 @@
 import argparse
 from pathlib import Path
 import tempfile
-from test_hgr import build, a2test, fonts, rect, text
+from test_hgr import DEV, build, run, a2test, fonts, rect, text
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--iie', action='store_true')
+    parser.add_argument('--folded', action='store_true')
     args = parser.parse_args()
     cases = [(x, y, value, width) for width in (*range(16), 255)
              for value in (0, 9, 10, 99, 100, 999, 1000, 65535)
@@ -44,6 +45,12 @@ int main(void) {
         marker = work/'marker.s'
         marker.write_text('.export _painted, resume\n.code\n_painted: nop\nresume: rts\n')
         disk = build(work, source, extra_sources=(marker,))
+        if args.folded:
+            obj=work/'folded.o';run(['ca65','-D','HGRC_X7_FOLDED=1','-o',obj,DEV/'lib/hgrc/hgr_columns.s'])
+            run(['cl65','-t','none','-C',DEV/'cc65/apple2_hgr_c.cfg',
+                 '-Ln',work/'test.lbl','-o',work/'test.bin',work/'crt0_apple2.o',
+                 work/'fields.o',work/'apple2io_asm.o',work/'marker.o',obj,work/'hgrc.lib'])
+            disk=a2test.build_disk(work,'TEST',work/'test.bin')
         labels = a2test.labels(work/'test.lbl')
         steps = []
         for _ in range(2*len(cases)):
@@ -63,7 +70,8 @@ int main(void) {
                 assert result.dumps[frame] == pages[0]+pages[1], (page, x, y, value, width)
                 frame += 1
     print(f'HGR unsigned fields: {frame} scenes, all widths 1..14, zero/clamped widths,')
-    print('right alignment, overflow, invalid/clipped origins, both pages and palette/holes OK.')
+    print(f'right alignment, overflow, invalid/clipped origins, both pages and palette/holes OK; '
+          f'folded={args.folded}, IIe={args.iie}.')
 
 
 if __name__ == '__main__':

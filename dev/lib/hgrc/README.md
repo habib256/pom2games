@@ -209,13 +209,22 @@ RAM, zero page and hardware-stack peaks. FFFF takes **8,682 instead of
 instead of 716**. The entry test checks all 65,536 hexadecimal strings,
 1,024 stack alignments and 96 rendering scenes on II+/IIe.
 
-`hgr_putu_field` uses the clamped byte width directly for erasing
-`width*18-2` pixels and then reuses that parameter for alignment padding.
-Its measured clients save 33..50 loaded bytes and two bytes at the C-stack
-peak, with unchanged RAM and zero page. The padded/overflow/clipped cases
-improve by 2.1..6.7 %. The field test checks 1,144 scenes per CPU, covering
-every width 1..14, zero/clamped widths, decimal boundaries, overflow,
-alignment beyond the right edge, invalid origins, both pages and palette.
+`hgr_putu_field` prepares its decimal buffer and both rendering calls in
+assembly. The consumed value slots hold the clamped width and digit count,
+so these survive the erase call's scratch clobbers. It still erases
+`width*18-2` pixels before printing, aligns on the right when the value fits,
+and preserves the historical overflow behavior. Invalid origins and zero
+width are rejected before allocation. Isolated clients save **157 loaded
+bytes**, C-stack peak **17 → 15** (rejections **13 → 5**), with unchanged
+RAM and zero page. Padded/overflow/clipped fields take **12,654 / 13,439 /
+3,276 cycles**, previously 13,022 / 13,660 / 3,639. The combined warm HUD
+saves 144 bytes and falls **29,029 → 28,372 cycles**.
+The entry test checks 131,584 calls, all scalar domains, both rendering
+argument lists, scratch lifetime and 512 stack positions on II+/IIe.
+The 1,144-scene pixel oracle passes on both CPUs with normal/folded tables,
+covering all widths, decimal boundaries, overflow, invalid/clipped origins,
+pages and palette. The erase path preserves the conversion pointer used
+for the following text call; no global formatting buffer is introduced.
 
 `hgr_text8.s` prepares the 8×8 string entry directly from the cc65
 arguments. The exact fitting count is `(281-x)>>3` for validated x≤273;

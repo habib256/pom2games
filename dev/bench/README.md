@@ -78,7 +78,7 @@ folded builder now takes **74 bytes / 10,327–10,350 cycles**, down from
 77 / 15,084, by removing per-pixel calls and copying the 24-byte tail.
 It saves 56 code bytes and cold initialization time when all three tables
 are needed, while still reserving all 841 B of table state. The cold folded
-HUD/scene calls take **46,320 / 27,423 cycles** (previously 51,853 / 32,491).
+HUD/scene calls take **45,531 / 27,015 cycles** (previously 51,853 / 32,491).
 The two-table diagonal still uses less RAM and initializes faster with
 independent builders. All 256 alignments are verified.
 
@@ -236,14 +236,15 @@ Printing −32768/−12345/32767 takes **12,348 / 11,873 / 11,381 cycles**
 (12,469 / 11,987 / 11,445 before); zero falls **2,728 → 2,635**, −1
 **3,583 → 3,448**, and a rejected origin **1,408 → 1,264**.
 
-Unsigned number fields compute their erased width as `width*18-2`, which
-fits in one byte after the existing clamp to 14 cells. The width parameter
-is then reused for right-alignment padding. This saves **33..50 loaded
-bytes and two C-stack bytes at peak**, depending on runtime sharing, with
-unchanged RAM and zero page. With the native text entry, a padded 14-cell
-field takes 13,022 cycles,
-an overflowing one-cell field 13,660, and a right-clipped field 3,639.
-The legacy warm HUD takes 29,029 cycles.
+The native unsigned-field entry reuses the consumed value slots for width
+and digit count, keeps a six-byte local buffer and prepares erase/text
+arguments directly. It saves **157 loaded bytes** in isolated clients,
+C-stack peak **17 → 15**, with unchanged RAM and zero page. Rejections need
+only **5 C-stack bytes instead of 13**, and 5 hardware bytes instead of 6.
+The padded/overflow/clipped calls take **12,654 / 13,439 / 3,276 cycles**
+(13,022 / 13,660 / 3,639 before). The legacy HUD saves **144 loaded bytes**:
+cold **49,102 → 48,164**, warm **29,029 → 28,372 cycles**. The legacy scene
+saves 79 bytes, cold **30,048 → 29,633**, warm **11,783 → 11,380**.
 
 Native-size 8×8 `"APPLE II"` now takes **7,751 / 8,498 / 8,389 cycles** at
 phases 0/3/6, previously 7,886 / 8,672 / 8,563. Its native argument entry
@@ -392,8 +393,8 @@ with unchanged RAM and stack peaks. On a 7-byte × 8-row sprite, generic
 draw/save/restore/save-and-draw take 2,885/1,791/1,802/3,232 cycles, saving
 4.9..8.2 %. The compact game saves 62..70 cycles per frame. The historical
 stationary scene with legacy number fields gained 14 cycles (+0.11 %)
-during this kernel pass; the subsequent field-wrapper change brings it
-to 12,975 cycles. Other affected scenes improved or kept their timing.
+during this kernel pass; the subsequent entry/kernel passes now bring it
+to 11,380 cycles. Other affected scenes improved or kept their timing.
 
 `test_cadence.py` tests 1,000 presentations per standard with a VIA IRQ
 aligned to the VBL, a variable workload and two deliberate overruns: two
