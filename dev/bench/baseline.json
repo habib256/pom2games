@@ -2465,7 +2465,7 @@
       "artifacts": [
         {
           "name": "a2shot",
-          "sha256": "32c2fdd28916b0614ebbaa2760e0fdebcb03e415180ff869774e14162f97c5e3"
+          "sha256": "19c951a32d30df28f33ee2da4a7e0e9e76d82f14705713b54b754abe4d7ad8e3"
         },
         {
           "name": "apple2e.rom",
@@ -2481,7 +2481,7 @@
         },
         {
           "name": "libpom2_core.a",
-          "sha256": "d00fab190d4dce118b1675a7d7b906636199952e2f2776311bf9c64c92c8cb92"
+          "sha256": "4399cfe8534addb2a141f38d600aef89d5c2278ec1df4ac57be542eaf1c77a13"
         }
       ]
     },
@@ -2492,7 +2492,7 @@
       "artifacts": [
         {
           "name": "a2shot",
-          "sha256": "32c2fdd28916b0614ebbaa2760e0fdebcb03e415180ff869774e14162f97c5e3"
+          "sha256": "19c951a32d30df28f33ee2da4a7e0e9e76d82f14705713b54b754abe4d7ad8e3"
         },
         {
           "name": "apple2e.rom",
@@ -2508,7 +2508,7 @@
         },
         {
           "name": "libpom2_core.a",
-          "sha256": "d00fab190d4dce118b1675a7d7b906636199952e2f2776311bf9c64c92c8cb92"
+          "sha256": "4399cfe8534addb2a141f38d600aef89d5c2278ec1df4ac57be542eaf1c77a13"
         }
       ]
     }

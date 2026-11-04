@@ -95,3 +95,36 @@ the keyboard, § Rendering et § Delivery. À noter pour vos captures : `renderF
 reste la table composite de MAME, ni le composite OpenEmulator ni le passage CRT.
 
 Merci.
+
+## 5. Suivi côté pom2games — 4 novembre 2026
+
+Les quatre demandes ont été traitées dans l'ordre :
+
+1. `make test-long` complet, sans `LONG_SKIP` : **code 0**, aucun écart à
+   corriger. Cela inclut Wilderness, les campagnes ChromaBreak et
+   RobotSpaceStation sur IIe et IIc, ainsi que leurs tests aléatoires.
+2. Archive Linux reconstruite au commit
+   `0d1d388e98b2268629cc65269c1aba161720585a` par le
+   [workflow 41894229835](https://github.com/habib256/pom2games/actions/runs/41894229835).
+   Le commit par défaut du workflow est désormais celui-ci.
+3. Archive Linux installée après vérification du commit et de l'identité des
+   en-têtes. Les deux hôtes utilisent le même cœur et activent
+   `POM2_SDK_HAS_HARNESS=1` ; la provenance figure dans `sdk.mk`.
+   `a2shot` se reconstruit aussi lorsque son SDK ou ses options changent.
+4. `dev/tests/test_a2shot_hdd.py`, inscrit dans `make test-tools`, passe ses
+   quatre scénarios sur macOS : IIe et IIc, images brutes et `.2mg`. Il amorce
+   un volume ProDOS de 1 Mio, écrit réellement au-delà de 800 Kio avec les
+   routines de la bibliothèque, relit en RAM puis vérifie le fichier exporté
+   par `hddsave` avec le lecteur ProDOS hôte. L'image source reste identique ;
+   l'en-tête, le remplissage et le commentaire `.2mg` sont conservés.
+   Les accès physiques à la RAM auxiliaire préservent la RAM principale,
+   les cycles, le PC et la touche en attente, même quand RAMRD change.
+   Le workflow compile également `a2shot` et exécute ce test sous Linux
+   avant de publier l'artefact, avec vérification du commit annoncé.
+
+`make test-tools` : **code 0**, avec le nouveau test HDD.
+
+`python3 dev/bench/run.py --dhgr --check` : **162 mesures et 16 budgets
+absolus validés**, mesures identiques à la publication précédente. Seules
+les empreintes de l'environnement ont été actualisées dans la référence ;
+les mesures et les seuils sont conservés.
