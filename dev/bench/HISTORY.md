@@ -4,6 +4,31 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série complémentaire du 5 novembre 2026 : conversion hexadécimale par octets
+
+Le convertisseur saute l'octet haut nul et partage une routine de deux
+chiffres. Les zéros internes restent présents ; le pointeur de destination,
+la terminaison NUL et le nombre de chiffres gardent leur contrat.
+Le noyau passe de 68 à **64 octets**, sans changement de RAM, page zéro
+ou pile C. Le partage des sous-routines augmente de deux octets la pile
+matérielle de certains clients : 6 → 8 pour les conversions de 2–4 chiffres,
+et 8 → 10 pour le texte HGR rejeté hors écran. Les autres pics mesurés
+restent identiques.
+
+| Conversion | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| `gfx_hexstr(..., 0)` | 308 → 207 | 655 → 651 |
+| `gfx_hexstr(..., 16)` | 312 → 230 | 657 → 653 |
+| `gfx_hexstr(..., 256)` | 323 → 282 | 657 → 653 |
+| `gfx_hexstr(..., 65535)` | 326 → 306 | 655 → 651 |
+| Texte HGR d'un chiffre | 2 544 → 2 450 | 2 382 → 2 378 |
+
+Les 65 536 entrées passent sur 6502 et 65C02, avec les longueurs, NUL et
+gardes. Le parcours exhaustif prend 130 373 216 cycles, contre 131 796 307
+pour le noyau précédent, boucle C et initialisation des gardes comprises.
+Les 199 680 appels des entrées texte numériques passent aussi sur les deux
+processeurs, avec 3 072 placements de pile et temporaires hostiles.
+
 ## Audit de la session du 5 novembre 2026 — 13 séries
 
 Les 13 séries vont de `4cf79ff` à `207c806`, après la base `2813fa6`.

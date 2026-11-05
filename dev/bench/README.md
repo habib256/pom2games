@@ -1,5 +1,11 @@
 # Current cc65 measurements
 
+The follow-up hexadecimal pass reduces the converter from **68 to 64 bytes**.
+Zero takes **207 instead of 308 cycles**, and 65535 **306 instead of 326**.
+Two- to four-digit isolated conversions use **two more hardware-stack bytes**;
+RAM, zero page and C-stack use stay unchanged. All 65,536 values and the
+numeric-text wrappers pass on 6502 and 65C02; details are in [HISTORY.md](HISTORY.md).
+
 The 5 November morning session contains **13 optimization series and 642
 benchmark cases**, reproduced exactly from a clean checkout. Original
 reference limits and fixed frame budgets are retained. Full HGR/DHGR and
