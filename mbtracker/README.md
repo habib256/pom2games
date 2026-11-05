@@ -202,10 +202,10 @@ sa souris (un clic, une note, `HELP`, `ORD`). 18 contrôles, ~15 s.
 | Zone | Contenu |
 |---|---|
 | main `$0800-$0EE2` | sauvegarde de la page zéro (crt0), tables de l'encodeur, morceau d'écoute |
-| main `$1000-$1F4D` | tampon OPEN, bloc de catalogue (`dev/lib/prodos/dir.c`), préfixe, motif courant (`grid`) + motif de travail (aussi les noms de l'écran de chargement) (pages libres du bitmap ProDOS : les lectures MLI y sont permises) |
-| main `$2000-$7A51` | saut d'entrée, RODATA (≥ 512 o : le FORMAT de `/RAM` écrase `$2000-$21FF` à la sortie), crt0, code résident (18 Ko), données |
-| main `$7A52-$7CEF` | libre (670 o) |
-| main `$7CF0-$8DFF` | les recouvrements (4 368 o) : OVL1 l'éditeur d'instrument et `^W` (4 173 o), OVL2 les écrans de fichiers + `files.c` + le décodeur AYS (4 358 o) |
+| main `$1000-$1F47` | tampon OPEN, bloc de catalogue (`dev/lib/prodos/dir_list.s`), préfixe, motif courant (`grid`) + motif de travail (aussi les noms de l'écran de chargement) (pages libres du bitmap ProDOS : les lectures MLI y sont permises) |
+| main `$2000-$7A44` | saut d'entrée, RODATA (≥ 512 o : le FORMAT de `/RAM` écrase `$2000-$21FF` à la sortie), crt0, code résident (18 Ko), données |
+| main `$7A45-$7CEF` | libre (683 o) |
+| main `$7CF0-$8DFF` | les recouvrements (4 368 o) : OVL1 l'éditeur d'instrument et `^W` (4 173 o), OVL2 les écrans de fichiers + `files.c` + le décodeur AYS (4 287 o) |
 | main `$8E00-$BDFF` | le morceau AYS (12 Ko), lu par le lecteur ; au démarrage, le transit de `MBT.HELP` et de `MBT.OVL` |
 | main `$BE00-$BEFF` | pile C |
 | aux `$0400-$07FF` | colonnes paires du texte 80 colonnes |
@@ -217,7 +217,7 @@ sa souris (un clic, une note, `HELP`, `ORD`). 18 contrôles, ~15 s.
 | aux LC banque 1 `$D000-$F21F` | les images des deux recouvrements (`lc_put` / `lc_get` : ALTZP, par 128 octets sous SEI) |
 
 Code : `main.c` 10,5 Ko résident (grille, panneaux, souris, blocs, aide),
-`insed.c` 3,4 Ko et `voices.c` + la conversion de `song.c` 0,7 Ko (OVL1), `fileui.c` + `files.c` + `dev/lib/prodos/dir.c` (catalogue, noms ProDOS) 2,1 Ko et le décodeur de
+`insed.c` 3,4 Ko et `voices.c` + la conversion de `song.c` 0,7 Ko (OVL1), `fileui.c` + `files.c` + `dev/lib/prodos/dir_list.s` (catalogue, noms ProDOS) et le décodeur de
 `song.c` 2,1 Ko (OVL2), `song.c` 2,9 Ko résident (modèle, encodeur),
 `mbt_asm.s` 2,2 Ko (Mockingboard, `mb_irq`, `aysong` à 6 voix, copies aux
 par `auxmem.asm` et LC), `dev/lib/apple2c` 0,5 Ko (texte 80 colonnes

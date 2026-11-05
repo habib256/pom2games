@@ -38,11 +38,11 @@ all: $(DISK)
 $(BUILD)/%.o: %.c src/mbt.h src/ui.h $(APPLE2C)/apple2t80.h $(APPLE2C)/apple2vblgate.h $(PRODOS)/prodos.h $(MOUSE)/mouse.h
 	@mkdir -p $(@D)
 	$(CL65) $(CFLAGS) -c -o $@ $<
-# The catalog (dev/lib/prodos dir.c) in OVL2 with files.c, fileui.c; its
+# The catalog in OVL2 with files.c, fileui.c; its
 # directory block with files.c's buffers ($1000-$1FFF).
-$(BUILD)/dir.o: $(PRODOS_DIR_SRCS) $(PRODOS)/prodos.h
+$(BUILD)/dir.o: src/prodos_dir.s $(PRODOS)/dir_list.s $(PRODOS)/prodos.h
 	@mkdir -p $(@D)
-	$(CL65) $(CFLAGS) --code-name OVL2 --rodata-name OVL2 --data-name OVL2 --bss-name LOWBSS -c -o $@ $<
+	$(CA65) -t none -g -I $(PRODOS) -o $@ $<
 $(BUILD)/prodos_name.o: src/prodos_name.s $(PRODOS_NAME_SRCS)
 $(BUILD)/mbt_asm.o: src/mbt_asm.s $(APPLE2)/mockingboard.asm $(APPLE2)/mb_irq.asm $(APPLE2)/aysong.asm $(APPLE2)/auxmem.asm
 	@mkdir -p $(@D)

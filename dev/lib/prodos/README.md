@@ -227,7 +227,7 @@ SET_EOF call; they exclude disk latency and are not real I/O timings.
 
 ## The directory and ProDOS names
 
-`$(PRODOS_DIR_SRCS)` selects `dir.c` and the independent `name_valid.s`
+`$(PRODOS_DIR_SRCS)` selects native `dir_list.s` and independent `name_valid.s`
 member (prodos.h). `prodos_dir_list(names, name_len, max,
 suffix)`: GET_PREFIX (into its 512-byte block, a trailing `/` dropped),
 OPEN with `prodos_file_iobuf` as the 1 KB buffer (set it first, as for
@@ -247,17 +247,32 @@ state. All byte classes, lengths and page-crossing pointers are checked.
 The C reference in `dir.c` remains available on hosts, or with
 `PRODOS_C_NAME_VALID` for a cc65 reference build that omits `name_valid.s`.
 
-The directory uses `prodos_mli` (`mli_cmd.s`), `memcmp`, `memcpy`.
-Compile it with the program's segment names to place it
-(an overlay: `--code-name`, `--rodata-name`, `--data-name`: its four
-parameter lists are initialised data that come back with it; `--bss-name`
-for the block, `prodos_dir_count` and the static locals). The native directory
-uses 523 B of BSS; the validator adds none. An assembly wrapper can select
+The native directory calls the MLI wrapper directly and uses bounded inline
+suffix/copy loops. Its six-byte C argument frame survives MLI calls; parser
+scratch is reloaded afterwards. It uses **518 B of BSS**, five fewer than
+the C reference; the validator adds none. For custom placement, an assembly
+wrapper defines `PRODOS_DIR_CUSTOM_SEGMENTS` and the string macros
+`PRODOS_DIR_CODE_SEGMENT`, `PRODOS_DIR_DATA_SEGMENT` and
+`PRODOS_DIR_BSS_SEGMENT`, then includes `dir_list.s`. The four parameter
+lists remain initialised data and are restored with a reloaded overlay.
+MB Tracker's `src/prodos_dir.s` places code/data in OVL2 and buffers in LOWBSS.
+`PRODOS_DIR_C_SRCS` retains the C implementation, including its existing
+`--code-name`/`--rodata-name`/`--data-name`/`--bss-name` placement options.
+For the independent name validator, a wrapper can select
 an overlay segment, define `PRODOS_NAME_CUSTOM_SEGMENT`, then include
 `name_valid.s` (as in MB Tracker's `src/prodos_name.s`).
 `test_prodos_dir.py` checks filtering, long suffixes, bounded reads and
 error priority on host C, cc65/6502 and a 65C02 overlay with code and
 initialised data in the same segment.
+`test_prodos_dir_native.py` compares 2,351 cases per CPU with the C reference,
+including output guards, MLI request order, byte-valued geometry/error fields,
+and independent named expectations. Real volumes check resident and OVL2
+code/data with LOWBSS buffers. Its 56 focused profiles save **94 loaded
+bytes and five RAM bytes** each: 54 calls are faster, while two empty
+geometry cases rise by 25 cycles (0.121%). Filtering takes **22,508 instead
+of 24,976 cycles**; a rejected long suffix 1,062 instead of 1,539. These
+injected-MLI timings exclude device I/O. Use `--bench --out PATH` and
+`--reference PATH` for reproducible old/new measurements.
 User: MB TRACKER (`.AYS` names, 16 bytes apart, 40 at most, in its OVL2
 overlay with the block in LOWBSS; its save prompt's name check, after its
 `.AYS` added to a name without a dot).

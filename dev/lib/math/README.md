@@ -111,6 +111,18 @@ Both paths use Python quotient/remainder as the oracle and check Y
 preservation. In the page-contained fixture, the full sweep (including
 loop/output overhead) takes 5,789,740,192 instead of 6,547,795,104 cycles.
 
+The subsequent carry-fed high-byte loop keeps the **51-byte** footprint.
+Each comparison supplies the quotient bit for the next rotation; one final
+rotation appends the last bit. Short quotients stay unchanged, while
+65535/1 takes **412 instead of 447 cycles**, 65535/2 takes 410 instead of
+440, and 65535/0 takes 380 instead of 415. The full sweep drops another
+17,935,360 cycles to **5,771,804,832** on each CPU. All 16,777,216 pairs pass
+on NMOS/65C02, as do 16 representative calls at every one of 256 code
+alignments, with no measured slowdown. The full Make target includes both
+CPUs and alignments; `test_math_division.py --bench --out PATH` records
+timings and source/tool/emulator identities, and `--reference PATH` selects
+an old source. Y, I/D, RAM and stacks retain their previous contract.
+
 ## Tests
 
 `dev/tests/test_math.py` (in `make test-hgr`) assembles each routine,

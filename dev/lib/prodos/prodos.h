@@ -79,7 +79,7 @@ unsigned char __fastcall__ prodos_load_aux(void *aux_dst, unsigned max);
  * READ is no error (compare prodos_file_actual). */
 extern unsigned long prodos_file_mark;
 unsigned char prodos_load_at(void);
-/* dir.c (PRODOS_DIR_SRCS): the active entries (seedling, sapling, tree;
+/* dir_list.s (PRODOS_DIR_SRCS), or dir.c (PRODOS_DIR_C_SRCS): active entries (seedling, sapling, tree;
  * not subdirectories) of the prefix's directory whose names are longer
  * than suffix and end with it ("": all), in directory order: up to max
  * names, NUL-terminated, name_len (>= 16) bytes apart from names on.

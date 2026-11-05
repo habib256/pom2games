@@ -15,9 +15,10 @@ PRODOS_FILE_AUX_AT_SRCS := $(PRODOS)/file_aux_at.s
 PRODOS_FILE_AUX_AT_DEPS := $(PRODOS_FILE_AUX_DEPS) $(PRODOS)/file_aux.s
 # Independent name validation; no directory buffer or MLI dependencies.
 PRODOS_NAME_SRCS := $(PRODOS)/name_valid.s
-# The prefix's directory (C) and names (native), prodos.h. Directory data can
-# use overlay segments; an assembler wrapper can place name_valid.s there too.
-PRODOS_DIR_SRCS := $(PRODOS)/dir.c $(PRODOS_NAME_SRCS)
+# Native directory listing and names, prodos.h; C remains a portable fallback.
+# Assembly wrappers can place directory code/data/BSS and name_valid.s in overlays.
+PRODOS_DIR_SRCS := $(PRODOS)/dir_list.s $(PRODOS_NAME_SRCS)
+PRODOS_DIR_C_SRCS := $(PRODOS)/dir.c $(PRODOS_NAME_SRCS)
 
 # The .SYSTEM shim: src/boot.s defines SYSBOOT_FILE / SYSBOOT_TITLE and
 # includes sysboot.s (see its header). A SYS image in one piece at $2000

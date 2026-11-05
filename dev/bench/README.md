@@ -1,5 +1,14 @@
 # Current cc65 measurements
 
+The nineteenth-session gate reproduces **all 793 cases and 16 frame
+budgets unchanged**. Separate directory benchmarks save **94 loaded
+bytes and five RAM bytes** in all 56 profiles: 54 calls accelerate,
+two empty-geometry calls rise by 25 cycles (0.121%). The 51-byte divider
+saves up to 35 cycles on representative long divisions; both CPUs pass
+the full 16,777,216-pair domain and all 256 code alignments. MBTRACKER
+uses the native directory in its existing overlay placement and passes
+its full integration suite. See [the nineteenth-session audit](HISTORY.md#audit-de-la-dix-neuvième-session-du-6-novembre-2026--répertoire-natif-et-division).
+
 The eighteenth-session gate passes **793 cases and 16 frame budgets**.
 Overlay row reuse and unrolled byte operations make the tall overlay
 **33.7% faster**, adding 17 code bytes and freeing five BSS bytes in 35

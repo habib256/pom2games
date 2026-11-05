@@ -113,6 +113,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_rand16.py --iie
 	$(PYTHON) dev/tests/test_math_products.py
 	$(PYTHON) dev/tests/test_math_division.py
+	$(PYTHON) dev/tests/test_math_division.py --iie
 	$(PYTHON) dev/tests/test_verlet.py
 	$(PYTHON) dev/tests/test_verlet_quarter_abs.py
 	$(PYTHON) dev/tests/test_verlet_quarter_abs.py --iie
@@ -348,7 +349,8 @@ test-woz:
 
 # All 16-bit numerators for every 8-bit divisor (normal suite samples 16 divisors).
 test-math-division-full: $(A2RUN)
-	$(PYTHON) dev/tests/test_math_division.py --full
+	$(PYTHON) dev/tests/test_math_division.py --full --alignments
+	$(PYTHON) dev/tests/test_math_division.py --full --alignments --iie
 .PHONY: test-math-division-full
 
 test-preshift-setup-full: $(A2RUN)
@@ -389,6 +391,7 @@ test-tools:
 	$(PYTHON) dev/tests/test_vbl_lifecycle.py
 	$(PYTHON) dev/tests/test_prodos_file.py
 	$(PYTHON) dev/tests/test_prodos_dir.py
+	$(PYTHON) dev/tests/test_prodos_dir_native.py
 	$(PYTHON) dev/tests/test_prodos_name.py
 	$(PYTHON) dev/tests/test_prodos_name.py --iie
 	$(PYTHON) dev/tests/test_t80_bounds.py

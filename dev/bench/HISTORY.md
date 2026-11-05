@@ -4,6 +4,56 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la dix-neuvième session du 6 novembre 2026 — répertoire natif et division
+
+Après `6a8be8c`, la division 16/8 conserve chaque bit du quotient haut
+dans la retenue jusqu'à la rotation suivante ; une rotation finale ajoute
+le dernier bit. Le noyau reste à **51 octets**, sans RAM, page zéro ni
+pile ajoutées. Les quotients courts restent identiques ; **65 535 / 1
+passe de 447 à 412 cycles**, /2 de 440 à 410, /0 de 415 à 380. Le domaine
+complet économise **17 935 360 cycles** sur chacun des deux CPU : la
+boucle mesurée hors démarrage passe de 5 753 509 024 à 5 735 573 664.
+Les **16 777 216 couples** passent sur NMOS et 65C02, y compris le
+diviseur zéro et Y préservé. Les **4 096 appels à 256 alignements** donnent
+1 812 accélérations, 2 284 égalités et aucun ralentissement ; les gains
+atteignent 42 cycles avec les effets de page. I/D et les piles passent,
+ainsi que le modèle mathématique complet. Le test durable ajoute
+`--iie`, `--bench`, `--alignments`, `--reference` et les identités des
+outils/sources/émulateurs ; la cible exhaustive couvre les deux CPU.
+
+`PRODOS_DIR_SRCS` sélectionne maintenant `dir_list.s`, avec boucles
+bornées de comparaison/copie et appel direct au wrapper MLI. Son cadre C
+de six octets conserve les arguments entre les appels système ; le
+scratch du parseur est rechargé. `dir.c` reste inchangé et disponible par
+`PRODOS_DIR_C_SRCS`. Les **56 profils ciblés perdent 94 octets chargés
+et cinq octets RAM**, sans page zéro ni pile ajoutées ; deux retours
+vides économisent un octet au pic de pile matérielle. **54 durées baissent**,
+deux répertoires à géométrie vide prennent 25 cycles (0,121 %).
+Le filtrage passe de **24 976 à 22 508 cycles**, un suffixe trop long
+de **1 539 à 1 062**, la géométrie de longueur zéro et maximum 255
+de **233 976 à 69 194**. Les timings injectés excluent les entrées/sorties
+disque.
+
+L'oracle de répertoire compare **2 351 cas par CPU** au C et vérifie
+indépendamment les résultats nommés : état, noms, gardes et ordre des
+requêtes MLI. Les domaines couvrent les octets de géométrie, erreurs,
+maximum, suffixes, types et longueurs de noms. De vrais volumes vérifient
+code/données résidents ou dans OVL2, avec tampons LOWBSS. Les anciens
+tests C et les **71 680 cas** du validateur de noms passent. Le wrapper
+`mbtracker/src/prodos_dir.s` conserve ce placement sans segment spécifique
+au jeu dans la bibliothèque. `test_prodos_dir_native.py` expose
+`--bench --out` et `--reference` et rejoint la cible habituelle.
+
+Le banc global `--dhgr --check` reproduit **les 793 dictionnaires et les
+16 budgets de trame à l'identique** : ces gains sont mesurés par les
+bancs dédiés, sans changement de `baseline.json`. `make all` réussit ;
+seuls le disque **MBTRACKER** et son WOZ changent. La suite complète du
+jeu passe sur IIe/IIc, avec les catalogues, chargements, sauvegardes et
+changements d'overlay. Son OVL2 occupe désormais 4 287 octets, le tampon
+bas s'arrête à $1F47 et la zone libre résidente contient 683 octets.
+Les **18 paires disque/WOZ** correspondent ; la structure du Makefile et
+`git diff --check` passent.
+
 ## Audit de la dix-huitième session du 6 novembre 2026 — MLI, sondes du terrain et overlay
 
 Après `f4d3f89`, les champs publics `prodos_command` et `prodos_params`

@@ -8,9 +8,10 @@
 ;               otherwise two 8-step stages. A = 0: quotient $FFFF, remainder
 ;               = original low byte. Y is preserved.
 ;
-; Compared with the former full-width 16-step path: one code byte less,
-; 92 cycles less for 16-bit quotients, two cycles more for 8-bit quotients
-; (excluding branch page crossings). No extra RAM or stack.
+; The high-byte stage carries each quotient bit into the next shift,
+; replacing per-bit increments with one final rotation. The 51-byte kernel
+; saves 0..35 long-path cycles before branch page crossings, with unchanged
+; short paths, RAM, stack and Y preservation.
 ; Shift and subtract, no table. The PHYSICS demo used a 512-byte reciprocal
 ; table and a correction multiply; for an 8-bit quotient the eight steps
 ; here cost about the same, without the table.
@@ -48,15 +49,17 @@ div16by8:
         ; Divide the high byte alone, then reuse the low-byte loop.
         ; Prefixes of an 8-bit input never exceed 255, so this first
         ; stage cannot produce a ninth remainder bit, even for divisor 0.
-@high:   ASL     mul_x+1
+        ; The entry CMP left C=1: seed a discarded leading one. Each
+        ; CMP/SBC leaves the next quotient bit in carry for the next ROL.
+@high:   ROL     mul_x+1
         ROL     A
         CMP     mul_y
         BCC     @next_high
         SBC     mul_y
-        INC     mul_x+1
 @next_high:   DEX
         BNE     @high
-        BEQ     @low                    ; X=0: always, one byte less than JMP
+        ROL     mul_x+1                 ; append the last bit, discard the leading one
+        BCS     @low                    ; discarded leading one left C=1: always
 .endif
 
 .endif  ; _DIV_ASM_LOADED_
