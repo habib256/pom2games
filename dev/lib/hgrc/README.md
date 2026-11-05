@@ -686,7 +686,7 @@ referenced members and their dependencies. ChromaBreak follows this rule with
 `platform.lib`, including for the Apple II, ProDOS and mouse modules. Its test
 checks the link map to exclude generic pixels, rectangles and transfers,
 8×8 text and unused text wrappers. The library tests also check
-57 minimal consumers of the archive.
+59 minimal consumers of the archive.
 
 ### Memory contract and transitions
 

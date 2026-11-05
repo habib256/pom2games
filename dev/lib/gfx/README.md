@@ -54,6 +54,29 @@ value in all three formats, NUL termination, caller guards, arbitrary text
 scratch clobbers and 3,072 stack placements. The C entries pass the same
 fixture; the integration fixture renders all formats with the real backend.
 
+The HGR cell backend now has separate native members for dimensions,
+glyph forwarding and the color no-op; the single C backend remains a
+portable reference. Glyph forwarding reuses the two caller argument bytes
+for its character/NUL buffer, reserving only three extra bytes for pixel
+coordinates. Full 16-bit `column * 8` and wrapped byte `row * 8` preserve
+the C behavior even outside the normal grid. Isolated glyph clients save
+**43 loaded bytes**, numeric clients **25**, with **three fewer C-stack
+bytes** and unchanged RAM, zero page and hardware peaks. An origin glyph
+takes **1,195 instead of 1,301 cycles**; signed −32768 **10,880 instead of
+11,601**, hex FFFF **6,635 instead of 7,087**.
+The color-only benchmark no longer imports the renderer: **1,874 → 519
+loaded bytes**, **1,247 → 297 RAM bytes**, **38 → 26 zero-page bytes**,
+**63 → 14 cycles**, C-stack **1 → 0**, hardware peak **6 → 4**.
+`test_gfx_glyph_entry.py` checks **197,632 calls per CPU**, all col/row,
+char/col and char/row pairs, exact coordinates and two-byte strings,
+color no-ops, scratch clobbers, guards and 1,024 stack placements; the C
+reference passes too. Minimal clients independently exclude glyph code
+from dimensions-only and color-only links. Nine new cases bring the
+benchmark to **479**: 26 improve and 453 remain identical.
+
+Manual cc65 builds can use `gfx_text_backend_hgr.s`, `gfx_cell_glyph_hgr.s`
+and `gfx_cell_color_hgr.s`; `HGRC_GFX_TEXT_SRCS` selects all three.
+
 The cc65 hexadecimal converter uses `gfx_num_hex.s`; `gfx_num_hex.c` is the
 host reference. Both produce uppercase text without leading zeroes and return
 the digit count. `test_gfx_hex.py` checks every 16-bit input, the terminating

@@ -4,6 +4,41 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : backend de caractères GFX HGR natif et séparé
+
+Le backend distingue ses dimensions constantes, son rendu de caractère et
+sa couleur sans effet. La référence C complète reste disponible. Le rendu
+réutilise les deux arguments du client comme chaîne caractère/NUL, avec
+trois octets supplémentaires pour y/x. Les coordonnées gardent les règles
+exactes du C : colonne × 8 sur 16 bits, ligne × 8 tronquée à un octet.
+Le texte HGR consomme les trois coordonnées, puis l'entrée libère la chaîne.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Caractère à l'origine | 1 301 → 1 195 | 1 910 → 1 867 |
+| Dernière cellule | 1 868 → 1 767 | 1 912 → 1 869 |
+| Caractère NUL | 514 → 408 | 1 908 → 1 865 |
+| Colonne invalide | 428 → 322 | 1 911 → 1 868 |
+| Non signé 65535 | 9 777 → 9 247 | 2 319 → 2 294 |
+| Signé −32768 | 11 601 → 10 880 | 2 365 → 2 340 |
+| Hexadécimal FFFF | 7 087 → 6 635 | 2 294 → 2 269 |
+| Couleur sans effet | 63 → 14 | 1 874 → 519 |
+
+Les clients de glyphes économisent 43 octets, ceux de nombres 25.
+Pile C du glyphe 8 → 5 ; nombres non signé/signé/hex 17/18/16 → 14/15/13.
+RAM, page zéro et pics matériels identiques pour ces clients. Le client
+couleur seul n'importe plus le renderer : RAM 1 247 → 297, page zéro
+38 → 26, pile C 1 → 0 et matérielle 6 → 4. Les 26 cas concernés
+s'améliorent, 453 sont identiques ; neuf nouveaux cas portent le banc à 479.
+
+Le C puis les entrées NMOS/65C02 passent 197 632 appels : tous les couples
+colonne/ligne, caractère/colonne et caractère/ligne, coordonnées exactes
+et chaînes de deux octets, couleurs sans effet, scratch écrasé, gardes et
+1 024 positions de pile. Deux nouveaux clients minimaux excluent le rendu
+pour les dimensions seules et la couleur seule. Les 59 clients minimaux,
+l'intégration HGR, le starter II+/IIe, `make all` et le gate passent.
+Les disques livrés restent identiques.
+
 ## Série du 5 novembre 2026 : entrées natives des nombres GFX
 
 Les trois formats gardent leurs membres d'archive séparés. L'entrée conserve

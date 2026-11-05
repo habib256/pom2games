@@ -564,6 +564,13 @@ for kind,values in (('u',(0,9,10,99,100,65535)),
             call=f'gfx_put{kind}({value});',
             setup='gfx_gotoxy(0,0);gfx_text(" ");gfx_gotoxy(0,0);',warmup=False)
 
+for suffix,ch,col,row in (('origin',65,0,0),('last',90,34,23),('zero',0,0,0),
+                          ('invalid_col',65,255,0),('invalid_row',65,0,255),
+                          ('wrapped_row',65,0,32),('control',10,0,0),('high',255,0,0)):
+    SCENES['gfx_glyph_'+suffix]=dict(call=f'gfx_cell_glyph({ch},{col},{row});',
+        setup='hgr_puts8(0,0," ");',warmup=False)
+SCENES['gfx_color_noop']=dict(call='gfx_cell_color(255);',warmup=False)
+
 # Non-default compile-time variants (dev/lib/ABI.md, "Speed/RAM options"):
 # the listed members are reassembled with the define and linked before hgrc.lib.
 for name in ('hgr_diagonal_cold','hgr_hud_cold','hgr_scene_cold'):
