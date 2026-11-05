@@ -4,6 +4,41 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : inflation native des sprites doublés
+
+L'entrée calcule seulement l'octet haut du produit largeur × hauteur en
+huit étapes pour refuser toute sortie dépassant 65 535 octets. Le noyau
+convertit chaque octet avec la table de 16 valeurs existante, écrit les
+deux lignes et ajoute la palette uniquement aux octets non nuls. Le stride
+16 bits réutilise les deux anciens arguments du pointeur source ; aucune
+nouvelle RAM/page zéro n'est réservée. Les versions C restent disponibles.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Un octet blanc | 1 834 → 599 | 1 497 → 1 106 |
+| Sprite blanc 3×16 | 52 824 → 10 604 | 1 503 → 1 112 |
+| Sprite bleu 3×16 | 44 748 → 9 137 | 1 505 → 1 114 |
+| Source blanche 255×2 | 524 594 → 100 146 | 1 501 → 1 110 |
+| Source bleue 255×2 | 438 833 → 84 593 | 1 503 → 1 112 |
+| Source blanche 1×255 | 308 623 → 63 996 | 1 503 → 1 112 |
+| Taille trop grande | 534 → 314 | 1 499 → 1 108 |
+| Conversion + dessin blanc 3×16 | 56 150 → 13 926 | 2 163 → 1 786 |
+
+L'inflation seule économise 391 octets, piles C/matérielle 23/8 → 5/6.
+La conversion suivie du dessin gagne 377 octets, pile C 34 → 18.
+Les 16 nouveaux cas portent le banc à 524 ; ces 16 cas s'améliorent et les
+508 précédents restent identiques. Budgets absolus inchangés.
+
+Les 65 536 couples octet/couleur, 1 536 alignements source/sortie et toutes
+les dimensions nulles ou trop grandes sont contrôlés avec oracle pixel et
+gardes, sur C de référence et noyau natif. L'entrée native passe aussi
+198 144 appels sur II+ et IIe : tous les produits et mots pointeurs,
+limite exacte 16 383/16 384, paramètres internes, scratch hostile et
+1 536 positions de pile. Les anciens cas x2 (strides de 510, grands nombres
+de lignes, blits découpés), 69 clients minimaux, intégration HGR,
+ASan/UBSan hôte, gate et reconstruction passent. Les disques et 18 WOZ
+restent identiques.
+
 ## Série du 5 novembre 2026 : curseur et chaîne GFX natifs séparés
 
 Le curseur, le positionnement, le caractère et la chaîne deviennent quatre

@@ -207,6 +207,10 @@ def check_archive(work):
         ('sprite7', 'hgr_blit7(0u, 0u, 1u, 1u, bits, HGR_SET);', 'hgr_blit7_asm.o',
          ('hgr_bitmap_asm.o', 'hgr_preshift_asm.o', 'hgr_text_params.o', 'hgr_pixrect_asm.o',
           'hgr_masks.o', 'hgr_phases.o', 'hgr_tables.o')),
+        ('inflate_x2', 'unsigned char out[4]; hgr_inflate_x2(bits,1,1,1,out);', 'hgr_inflate_x2_asm.o',
+         ('hgr_blit_x2.o', 'hgr_blit7_asm.o', 'hgr_pixel_asm.o', 'hgr_font.o', 'hgr_build_rows.o')),
+        ('blit_x2', 'hgr_blit_x2(0,0,bits,1,1,1,HGR_SET);', 'hgr_blit_x2.o',
+         ('hgr_bitmap_asm.o', 'hgr_pixel_asm.o', 'hgr_font.o')),
         ('bitmap', 'hgr_blit(279u,191u,1u,1u,bits,HGR_SET);', 'hgr_bitmap_asm.o',
          ('hgr_blit7.o', 'hgr_blit7_asm.o', 'hgr_preshift_asm.o', 'hgr_pixrect_asm.o',
           'hgr_phases.o', 'hgr_tables.o')),
@@ -282,7 +286,7 @@ def check_archive(work):
     ]
     for name, call, required, excluded in cases:
         source = work / ('link_' + name + '.c')
-        source.write_text('#include "hgr.h"\n#include "gfx.h"\n#include "dhgr.h"\n'
+        source.write_text('#include "hgr.h"\n#include "hgr_x2.h"\n#include "gfx.h"\n#include "dhgr.h"\n'
                           'static const unsigned char bits[] = {127};\n'
                           'int main(void) {' + call + 'return 0;}\n')
         obj, binary, mapfile = source.with_suffix('.o'), source.with_suffix('.bin'), source.with_suffix('.map')

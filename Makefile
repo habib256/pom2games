@@ -133,6 +133,11 @@ test-hgr:
 	$(PYTHON) dev/tests/test_exit_modes.py
 	$(PYTHON) dev/tests/test_hgr_host.py
 	$(PYTHON) dev/tests/test_hgr_x2.py
+	$(PYTHON) dev/tests/test_hgr_x2_bytes.py
+	$(PYTHON) dev/tests/test_hgr_x2_bytes.py --iie
+	$(PYTHON) dev/tests/test_hgr_x2_bytes.py --reference
+	$(PYTHON) dev/tests/test_hgr_x2_entry.py
+	$(PYTHON) dev/tests/test_hgr_x2_entry.py --iie
 	$(PYTHON) dev/tests/test_gfx_boundaries.py
 	$(PYTHON) dev/tests/test_gfx_outlines.py
 	$(PYTHON) dev/tests/test_hgr_logo.py

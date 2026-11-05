@@ -1,5 +1,11 @@
 # Current cc65 measurements
 
+Native doubled-sprite conversion saves **391 loaded bytes** and reduces
+C/hardware-stack peaks from 23/8 to **5/6 bytes**, with unchanged RAM and
+zero page. Inflating a white 3×16 source takes **10,604 cycles instead of
+52,824**; a 255×2 source takes **100,146 instead of 524,594**. The same
+16-byte spreading table is retained, and all source/color byte pairs are checked.
+
 Independent native GFX cursor/text members save **1,548 loaded bytes**,
 **950 RAM bytes** and **12 zero-page bytes** for position-only clients.
 Positioning takes **91/103 cycles** for valid/clamped coordinates, formerly

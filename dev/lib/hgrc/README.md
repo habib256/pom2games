@@ -1082,7 +1082,8 @@ BSS. `test_dhgr_spans.py` covers single and adjacent edges, odd and even
 interiors in both banks, the full width and clipping.
 
 The host reference `hgr_inflate_x2` (`hgr_x2.c`) and the target version
-(`hgr_x2_target.c`) compute the enlarged strides without 8-bit truncation.
+(`hgr_x2_target.s` + `hgr_inflate_x2_asm.s`) compute the enlarged strides
+without 8-bit truncation; `hgr_x2_target.c` remains the cc65 C reference.
 The target transforms each byte with a 16-byte table, with no per-pixel
 loop and no division. Reserve `4*wbytes*h` bytes of output, not
 overlapping the source; the target rejects sizes above
@@ -1405,3 +1406,10 @@ text. These whole-call results include linked-code placement effects;
 this is not a universal speedup. `test_hgr.py` checks multi-character
 advancement at all seven bit phases, both pages and the right edge;
 `test_hgr_glyphs.py` checks all 96 glyphs at all phases on both pages.
+
+Native x2 inflation reuses its five-byte caller frame and existing cc65
+scratch. The 16-bit doubled stride replaces the consumed source-pointer
+arguments. `test_hgr_x2_bytes.py` compares every byte/color pair and all
+pointer alignments with a pixel oracle; `--reference` selects the C version.
+`test_hgr_x2_entry.py` verifies every dimension pair, both full pointer domains,
+the exact extent boundary, hostile scratch and 1,536 stack placements.

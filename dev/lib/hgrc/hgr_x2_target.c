@@ -1,5 +1,6 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
-/* Bytewise x2 inflation. Each source byte produces two 7-bit output bytes
+/* Portable bytewise reference; cc65 archives select the native .s entry/kernel.
+ * Bytewise x2 inflation. Each source byte produces two 7-bit output bytes
  * on each of two rows. Avoid the per-pixel loop miscompiled by cc65 -Oirs. */
 #include "hgr_x2.h"
 
