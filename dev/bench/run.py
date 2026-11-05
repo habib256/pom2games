@@ -474,6 +474,15 @@ for suffix,x,y,width,height in (
         call=f'dhgr_bit_rect({x}u,{y},{width}u,{height});',dhgr=True,iie=True,warmup=False,
         declarations='#include "dhgr_internal.h"',setup='dhgr_prepare_pattern(9);')
 
+for suffix,x,y,width,height,set_bit in (
+    ('clear',3,4,16,1,0),('set',3,4,16,1,1),('set_255',3,4,16,1,255),
+    ('wide',0,0,65535,1,1),('last',559,191,65535,255,1),
+    ('outside',65535,0,1,1,1),('empty_width',0,0,0,1,1),
+    ('empty_height',0,0,1,0,0)):
+    SCENES['dhgr_fill_bits_'+suffix]=dict(
+        call=f'dhgr_fill_bits({x}u,{y},{width}u,{height},{set_bit});',
+        dhgr=True,iie=True,warmup=False)
+
 # Non-default compile-time variants (dev/lib/ABI.md, "Speed/RAM options"):
 # the listed members are reassembled with the define and linked before hgrc.lib.
 for name in ('hgr_diagonal_cold','hgr_hud_cold','hgr_scene_cold'):

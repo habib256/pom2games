@@ -4,6 +4,38 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : transmission native du remplissage monochrome DHGR
+
+`dhgr_fill_bits.s` transforme zéro/non-zéro en quatre octets identiques
+0/127, consomme le seul octet de hauteur puis saute vers `dhgr_bit_rect`.
+Les cinq octets restants ont déjà l'ordre attendu ; aucun argument n'est
+recopié et aucun cadre local n'est créé. Le motif est toujours préparé,
+même si le helper rejette ensuite la géométrie, comme dans la version C.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Petit rectangle, effacer | 1 245 → 1 072 | 2 303 → 2 240 |
+| Petit rectangle, tracer | 1 244 → 1 071 | 2 302 → 2 239 |
+| Sélecteur 255 | 1 246 → 1 073 | 2 304 → 2 241 |
+| Dernier pixel, largeur/hauteur maximales | 890 → 721 | 2 300 → 2 237 |
+| Origine hors écran | 361 → 190 | 2 299 → 2 236 |
+| Hauteur nulle | 340 → 169 | 2 294 → 2 231 |
+| Ligne monochrome | 2 514 → 2 340 | 2 608 → 2 558 |
+
+Les clients isolés gagnent 63 octets, la ligne 50. Pile C 12 → 6 pour le
+remplissage, 20 → 14 pour la ligne ; pile matérielle 9 → 7 (rejets 7 → 5)
+et 11 → 9 respectivement. RAM/page zéro inchangées. Les neuf cas concernés
+s'améliorent, 355 restent identiques ; huit cas sont nouveaux.
+
+La fixture de 133 120 appels passe d'abord sur le C, puis l'assembleur
+II+/IIe : tous les bits x/largeur/y/hauteur, les 256 sélecteurs, paramètres
+bruts et quatre octets de motif même pour les cas invalides, registres de
+travail écrasés, gardes et 1 024 positions de pile. Les tests réels vérifient
+pixels, 48 étapes étendues, lignes des deux backends GFX, deux pages/banques
+et restauration DOS. Validation complémentaire : 50 clients minimaux,
+intégration HGR, `make all`, relevé complet de 364 cas et gate. Les disques
+livrés restent identiques.
+
 ## Série du 5 novembre 2026 : bornage natif des rectangles DHGR
 
 `dhgr_bit_rect.s` remplace le bornage C commun aux remplissages couleur

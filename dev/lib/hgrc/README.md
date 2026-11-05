@@ -450,13 +450,27 @@ bytes**, C-stack peak **9 → 5** (rejections **7 → 5**), with unchanged RAM
 and zero page. A small rectangle takes **1,023 instead of 1,291 cycles**;
 the last pixel with width 65535 takes **671 instead of 988**. The public
 colour rectangle saves 126 bytes and takes **12,016 instead of 12,267
-cycles**; a monochrome line saves 117 bytes and takes **2,514 instead of
-2,796**. Measured hardware-stack peaks also fall by one or two bytes.
+cycles**; with native monochrome forwarding, a line saves 167 bytes and takes **2,340 instead of
+2,796**. The helper’s hardware-stack peaks also fall by one or two bytes.
 `test_dhgr_bit_rect_entry.py` checks 328,704 calls on both CPU models:
 all x values with one-pixel/maximal widths, every width at both screen
 edges, all y/height pairs, rejected parameter state, scratch/caller guards
 and 1,024 stack placements. The fixture passes on the original C entry;
 real colour/mono tests cover both pages/banks, edges, holes and GFX callers.
+
+`dhgr_fill_bits` also uses a native entry. It turns zero/nonzero into
+four identical 0/127 pattern bytes, reads the height and advances the
+software stack by one byte. The remaining five argument bytes pass directly
+to `dhgr_bit_rect`, including for rejected geometry. Isolated clients save
+**63 loaded bytes**, C-stack peak **12 → 6**, hardware peaks **9 → 7**
+(rejections **7 → 5**), with unchanged RAM and zero page. A small set/clear
+takes **1,071 / 1,072 cycles** instead of 1,244 / 1,245; the last pixel
+**721 instead of 890**. The line client saves another 50 bytes and its
+C-stack peak falls **20 → 14**. `test_dhgr_fill_bits_entry.py` compares
+133,120 calls on both CPUs: every argument bit, all 256 truth values,
+raw forwarding, all four pattern bytes even on invalid geometry, scratch
+clobbers, caller guards and 1,024 stack placements. The C reference passes
+this same fixture.
 
 - `dhgr_capabilities()`: bits `DHGR_CAP_EXTENDED` and `DHGR_CAP_AUX_VIDEO`.
   The probe keeps the display and the bytes used in the video holes.

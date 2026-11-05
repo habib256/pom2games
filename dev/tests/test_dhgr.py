@@ -58,7 +58,7 @@ def main():
         work = Path(work)
         sources = [DEV / "cc65/crt0_apple2.s", DEV / "tests/dhgr_fixture.c",
                    DEV / "lib/hgrc/dhgr.c", *[DEV / "lib/hgrc" / name for name in ("dhgr_pixel_asm.s", "dhgr_getpixel_asm.s", "dhgr_rows.s", "dhgr_cells.s")],
-                   *[DEV / "lib/hgrc" / name for name in ("dhgr_fill.c", "dhgr_clear.c", "dhgr_pattern_asm.s", "dhgr_plot_color_asm.s", "dhgr_fill_bits.c", "dhgr_bit_rect.s", "dhgr_clear_asm.s", "dhgr_span_asm.s")], DEV / "lib/hgrc/dhgr_asm.s",
+                   *[DEV / "lib/hgrc" / name for name in ("dhgr_fill.c", "dhgr_clear.c", "dhgr_pattern_asm.s", "dhgr_plot_color_asm.s", "dhgr_fill_bits.s", "dhgr_bit_rect.s", "dhgr_clear_asm.s", "dhgr_span_asm.s")], DEV / "lib/hgrc/dhgr_asm.s",
                    DEV / "lib/apple2c/apple2io_asm.s"]
         objects = []
         for source in sources:
