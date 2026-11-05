@@ -131,7 +131,7 @@ a2run NMOS 6502; the IIe variants use the POM2 65C02 SDK. Older measurements
 are collected in [HISTORY.md](HISTORY.md).
 
 Compact DHGR text (`dhgr_small_text`, `dhgr_puts_small("APPLE II",0,0)`)
-takes **13,253 cycles**, with a 2,990-byte binary and 326 bytes of RAM.
+takes **13,186 cycles**, with a 2,864-byte binary and 326 bytes of RAM.
 Preparing the invariant addressing once per glyph and skipping auxiliary
 reads for fully covered bytes saves 8.5 % of the cycles, 4 loaded bytes and
 2 BSS bytes. The tables, zero page and measured stack peaks are unchanged.
@@ -215,6 +215,22 @@ on both CPU models, initial state, invalid selectors, flip ordering and the
 real show/query register contracts. Minimal clients exclude unused page
 functions. The full benchmark has **392 cases**, with 78 changed and 314
 identical in this pass.
+
+The full-clear and compact-text C entries are now native. `dhgr_clear`
+forwards color to pattern preparation and tail-calls clearing without a
+local slot: **39 loaded bytes saved**, **112,456 → 112,391 cycles**, C-stack
+peak **1 → 0**, hardware peak **11 → 9**. `dhgr_puts_small` stores the two
+coordinates, loads the pointer, releases its three argument bytes directly
+and tail-calls the string kernel. Its isolated client saves **37 loaded
+bytes**; "APPLE II" takes **13,186 instead of 13,220 cycles**, an empty
+string **159 instead of 216**, and the last cell **1,499 instead of 1,555**.
+C-stack peak falls **4 → 3**; hardware peaks fall by two bytes, including
+empty/rejected calls **6 → 4**. RAM and zero page are unchanged.
+`test_dhgr_thin_entries.py` checks **132,352 calls per CPU**: all pointers,
+x/y pairs and colors, call ordering, callee coordinate changes, scratch
+clobbers, guards and 1,024 stack placements. The original C passes the same
+fixture. Eight new cases bring the benchmark to **400 cases**; ten change
+and 390 remain identical.
 
 Bounded DHGR clearing (`dhgr_clear_rows`) uses a register counter for the
 four turns of each pattern pass and passes the row's high address byte in

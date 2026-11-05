@@ -516,6 +516,17 @@ for suffix,call,setup in (
     SCENES['dhgr_pages_'+suffix]=dict(call=call,setup=setup,dhgr=True,iie=True,
         warmup=False,declarations='#include "dhgr_internal.h"')
 
+for suffix,call in (
+    ('empty','dhgr_puts_small("",0,0);'),
+    ('last','dhgr_puts_small("A",135,187);'),
+    ('outside','dhgr_puts_small("A",255,0);'),
+    ('below','dhgr_puts_small("A",0,255);'),
+    ('clip','dhgr_puts_small("AB",135,187);')):
+    SCENES['dhgr_small_entry_'+suffix]=dict(call=call,dhgr=True,iie=True,warmup=False)
+for color in (0,15,255):
+    SCENES['dhgr_clear_color_'+str(color)]=dict(call=f'dhgr_clear({color});',
+        dhgr=True,iie=True,warmup=False)
+
 # Non-default compile-time variants (dev/lib/ABI.md, "Speed/RAM options"):
 # the listed members are reassembled with the define and linked before hgrc.lib.
 for name in ('hgr_diagonal_cold','hgr_hud_cold','hgr_scene_cold'):

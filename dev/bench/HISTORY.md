@@ -4,6 +4,39 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : entrées natives de l'effacement et du texte compact DHGR
+
+L'effacement complet transmet directement A à la préparation du motif,
+puis termine par un saut au noyau. Le texte compact écrit les coordonnées,
+charge le pointeur et libère les trois arguments directement : l'octet bas
+du pointeur reste dans Y pendant l'addition à la pile C. Les deux entrées
+suppriment leur temporaire local et gardent les modifications de coordonnées
+effectuées par le noyau de texte. Aucun ajout de RAM/page zéro.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Effacement, couleurs 0/9/15/255 | 112 456 → 112 391 | 1 005 → 966 |
+| Texte « APPLE II » | 13 220 → 13 186 | 2 901 → 2 864 |
+| Chaîne vide | 216 → 159 | 2 893 → 2 856 |
+| Dernière cellule | 1 555 → 1 499 | 2 897 → 2 860 |
+| Abscisse hors écran | 201 → 144 | 2 896 → 2 859 |
+| Ordonnée hors écran | 209 → 152 | 2 896 → 2 859 |
+| Chaîne tronquée à la dernière cellule | 1 555 → 1 498 | 2 898 → 2 861 |
+
+Économies de 39/37 octets chargés pour les clients isolés d'effacement/texte.
+Piles C 1/4 → 0/3 ; pics matériels réduits de deux octets, y compris les
+chaînes vides et rejetées (6 → 4). Les dix cas concernés s'améliorent ;
+390 restent identiques. Huit nouveaux cas portent le banc à 400.
+
+Le C de référence puis l'assembleur II+/IIe passent 132 352 appels : tous
+les pointeurs 16 bits, les 65 536 couples x/y, les 256 couleurs, ordre
+préparation/effacement, coordonnées modifiées par le noyau, scratch écrasé,
+gardes et 1 024 positions de pile. Validation réelle : DHGR, étendus,
+renderer, texte compact déplacé, effacements avec IRQ, intégration HGR,
+55 clients minimaux, `make all`, exemples et ROBOTSTATION IIe/IIc,
+1 000 images par cadence PAL/NTSC, 18 WOZ et gate complet.
+Seuls DHGR et ROBOTSTATION avec leurs WOZ changent.
+
 ## Série du 5 novembre 2026 : état et pages DHGR indépendants
 
 L'état DHGR devient un membre de données seul ; les quatre fonctions de

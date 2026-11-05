@@ -520,6 +520,22 @@ real show/query register contracts. Minimal clients exclude unused page
 functions. The full benchmark has **392 cases**, with 78 changed and 314
 identical in this pass.
 
+The full-clear and compact-text C entries are now native. `dhgr_clear`
+forwards color to pattern preparation and tail-calls clearing without a
+local slot: **39 loaded bytes saved**, **112,456 → 112,391 cycles**, C-stack
+peak **1 → 0**, hardware peak **11 → 9**. `dhgr_puts_small` stores the two
+coordinates, loads the pointer, releases its three argument bytes directly
+and tail-calls the string kernel. Its isolated client saves **37 loaded
+bytes**; "APPLE II" takes **13,186 instead of 13,220 cycles**, an empty
+string **159 instead of 216**, and the last cell **1,499 instead of 1,555**.
+C-stack peak falls **4 → 3**; hardware peaks fall by two bytes, including
+empty/rejected calls **6 → 4**. RAM and zero page are unchanged.
+`test_dhgr_thin_entries.py` checks **132,352 calls per CPU**: all pointers,
+x/y pairs and colors, call ordering, callee coordinate changes, scratch
+clobbers, guards and 1,024 stack placements. The original C passes the same
+fixture. Eight new cases bring the benchmark to **400 cases**; ten change
+and 390 remain identical.
+
 - `dhgr_capabilities()`: bits `DHGR_CAP_EXTENDED` and `DHGR_CAP_AUX_VIDEO`.
   The probe keeps the display and the bytes used in the video holes.
 - `dhgr_init()`: returns 1 if the ROM model and auxiliary RAM are suitable,
@@ -607,7 +623,7 @@ Use the family lists above to include their dependencies. The assembler kernels 
 clearing and scanlines are separate objects. The pixel address and the
 colour pattern are shared, while each read, point, rectangle
 and clear API keeps its own object. The small-font parameters are
-separate from the C wrapper: an assembler HUD does not pull in `dhgr_puts_small`.
+separate from the native wrapper: an assembler HUD does not pull in `dhgr_puts_small`.
 
 Selecting families is not enough to eliminate every unneeded function
 if their objects are passed directly to ld65. Building an ar65 archive and
@@ -990,7 +1006,7 @@ banks, memory guards and pixels. Servicing remains non-reentrant. Use small
 slices so that input is also handled between calls.
 
 `dhgr_clear(color)` fills both banks of the drawing page, holes included,
-in 114,377 cycles instead of 187,309: each 256-byte page is two passes
+in 112,391 cycles instead of 187,309: each 256-byte page is two passes
 (even bytes, odd bytes) of one pattern byte through eight absolute stores,
 five cycles a byte, whose page operand is patched while RAMWRT is main (a
 write under RAMWRTON would land in the auxiliary copy of the code). IRQs

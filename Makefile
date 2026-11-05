@@ -191,6 +191,8 @@ test-hgr-example:
 	$(PYTHON) dev/tests/test_hgr_example.py
 
 test-dhgr:
+	$(PYTHON) dev/tests/test_dhgr_thin_entries.py
+	$(PYTHON) dev/tests/test_dhgr_thin_entries.py --iie
 	$(PYTHON) dev/tests/test_audio.py --iie
 	$(PYTHON) dev/tests/test_perspective.py --iie
 	$(PYTHON) dev/tests/test_shufflepuck_example.py --iie
